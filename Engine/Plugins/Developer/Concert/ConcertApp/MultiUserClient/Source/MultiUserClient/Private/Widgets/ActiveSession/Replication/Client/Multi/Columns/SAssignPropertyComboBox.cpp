@@ -61,7 +61,7 @@ namespace UE::MultiUserClient
 	}
 
 	void SAssignPropertyComboBox::Construct(const FArguments& InArgs,
-	    TSharedRef<ConcertClientSharedSlate::IMultiReplicationStreamEditor> InEditor,
+	    TSharedRef<ConcertSharedSlate::IMultiReplicationStreamEditor> InEditor,
 	    TSharedRef<IConcertClient> InConcertClient,
 	    FReplicationClientManager& InClientManager
 	)
@@ -186,7 +186,7 @@ namespace UE::MultiUserClient
 
 		const ECheckBoxState CheckBoxState = GetOptionCheckState(EndpointId);
 		const bool bRemoveProperty = CheckBoxState == ECheckBoxState::Checked; 
-		const TSharedRef<ConcertClientSharedSlate::IEditableReplicationStreamModel> EditModel = Client->GetClientEditModel();
+		const TSharedRef<ConcertSharedSlate::IEditableReplicationStreamModel> EditModel = Client->GetClientEditModel();
 		for (const FSoftObjectPath& ObjectPath : EditedObjects)
 		{
 			if (bRemoveProperty)
@@ -272,7 +272,7 @@ namespace UE::MultiUserClient
 			return ECheckBoxState::Unchecked;
 		}
 
-		const TSharedRef<ConcertClientSharedSlate::IEditableReplicationStreamModel> Model = Client->GetClientEditModel();
+		const TSharedRef<ConcertSharedSlate::IEditableReplicationStreamModel> Model = Client->GetClientEditModel();
 		ECheckBoxState CheckBoxState = ECheckBoxState::Undetermined;
 		for (const FSoftObjectPath& ObjectPath : EditedObjects)
 		{

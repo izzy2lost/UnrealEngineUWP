@@ -9,7 +9,7 @@
 class IConcertClient;
 enum class ECheckBoxState : uint8;
 
-namespace UE::ConcertClientSharedSlate
+namespace UE::ConcertSharedSlate
 {
 	class IReplicationStreamModel;
 }
@@ -36,7 +36,7 @@ namespace UE::MultiUserClient
 		SLATE_BEGIN_ARGS(SReplicationMultiToggleCheckbox)
 		{}
 		    SLATE_ARGUMENT(FSoftObjectPath, Object)
-			SLATE_ATTRIBUTE(ConcertClientSharedSlate::IReplicationStreamModel*, ConsolidatedStreamModelAttribute)
+			SLATE_ATTRIBUTE(ConcertSharedSlate::IReplicationStreamModel*, ConsolidatedStreamModelAttribute)
 		SLATE_END_ARGS()
 
 		void Construct(
@@ -53,7 +53,7 @@ namespace UE::MultiUserClient
 		/** Used to access all clients for toggling authority. */
 		FReplicationClientManager* ClientManager = nullptr;
 		/** Used to get children of Object */
-		TAttribute<ConcertClientSharedSlate::IReplicationStreamModel*> ConsolidatedStreamModelAttribute;
+		TAttribute<ConcertSharedSlate::IReplicationStreamModel*> ConsolidatedStreamModelAttribute;
 		
 		/** Used to look up client display names in case of conflicts. */
 		TSharedPtr<IConcertClient> ConcertClient;

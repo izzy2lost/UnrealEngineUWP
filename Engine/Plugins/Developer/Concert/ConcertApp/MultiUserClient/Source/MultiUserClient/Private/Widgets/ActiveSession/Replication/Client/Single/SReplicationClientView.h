@@ -8,7 +8,7 @@
 class IConcertClient;
 class FMenuBuilder;
 
-namespace UE::ConcertClientSharedSlate
+namespace UE::ConcertSharedSlate
 {
 	class IReplicationStreamEditor;
 }
@@ -41,7 +41,7 @@ namespace UE::MultiUserClient
 		FReplicationClientManager* ClientManager;
 		
 		/** The editor view of the replication content. */
-		TSharedPtr<ConcertClientSharedSlate::IReplicationStreamEditor> EditorView;
+		TSharedPtr<ConcertSharedSlate::IReplicationStreamEditor> EditorView;
 		
 		/** The client to depict. Should always return true. If the client is destroyed, so should this widget be. */
 		TAttribute<FReplicationClient*> GetReplicationClientAttribute;

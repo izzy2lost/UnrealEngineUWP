@@ -20,12 +20,12 @@ namespace UE::MultiUserClient::SingleClientColumns
 {
 	const FName ToggleTopLevelAuthorityColumnId = TEXT("ToggleTopLevelAuthorityColumn");
 
-	ConcertClientSharedSlate::ReplicationColumns::FReplicationTopLevelObjectColumn ToggleObjectAuthority(
+	ConcertSharedSlate::ReplicationColumns::FReplicationTopLevelObjectColumn ToggleObjectAuthority(
 		FAuthorityChangeTracker& ChangeTracker,
 		ISubmissionWorkflow& SubmissionWorkflow
 		)
 	{
-		using namespace ConcertClientSharedSlate;
+		using namespace ConcertSharedSlate;
 		using FColumnDelegates = TReplicationColumnDelegates<FReplicatedObjectData>;
 		return MakeCheckboxColumn<FReplicatedObjectData>(
 			ToggleTopLevelAuthorityColumnId,

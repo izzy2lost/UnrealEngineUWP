@@ -14,14 +14,14 @@ namespace UE::MultiUserClient::MultiStreamColumns
 {
 	const FName ReplicationToggleColumnId(TEXT("ReplicationToggleColumn"));
 	
-	ConcertClientSharedSlate::ReplicationColumns::FReplicationTopLevelObjectColumn ReplicationToggle(
+	ConcertSharedSlate::ReplicationColumns::FReplicationTopLevelObjectColumn ReplicationToggle(
 		TSharedRef<IConcertClient> ConcertClient,
-		TAttribute<ConcertClientSharedSlate::IReplicationStreamModel*> ConsolidatedStreamModelAttribute,
+		TAttribute<ConcertSharedSlate::IReplicationStreamModel*> ConsolidatedStreamModelAttribute,
 		FReplicationClientManager& ClientManager,
 		const int32 ColumnsSortPriority
 		)
 	{
-		using namespace ConcertClientSharedSlate::ReplicationColumns;
+		using namespace ConcertSharedSlate::ReplicationColumns;
 		
 		return FReplicationTopLevelObjectColumn(
 			FReplicationTopLevelObjectColumn::FArguments()

@@ -2,64 +2,45 @@
 
 #include "SDefaultReplicationStreamEditor.h"
 
-#include "Replication/Editor/Model/IEditableReplicationStreamModel.h"
-#include "Replication/Editor/View/Tree/SelectionViewerColumns.h"
-
-#include "SBaseReplicationStreamEditor.h"
+#include "Replication/ReplicationWidgetFactories.h"
+#include "Replication/Editor/View/ClientEditorColumns.h"
+#include "Replication/Editor/View/SelectionViewerColumns.h"
 
 namespace UE::ConcertClientSharedSlate
 {
-	void SDefaultReplicationStreamEditor::Construct(
-		const FArguments& InArgs,
-		TSharedRef<IEditableReplicationStreamModel> InPropertiesModel,
-		TSharedRef<IObjectSelectionSourceModel> InObjectSelectionSource,
-		TSharedRef<IPropertySelectionSourceModel> InPropertySelectionSource)
+	void SDefaultReplicationStreamEditor::Construct(const FArguments& InArgs, ConcertSharedSlate::FCreateEditorParams EditorParams)
 	{
-		PropertiesModel = InPropertiesModel;
+		using namespace ConcertSharedSlate;
+		using namespace ConcertSharedSlate::ReplicationColumns;
+		using namespace ConcertSharedSlate::ReplicationColumns::Property;
+		using namespace ConcertClientSharedSlate::ReplicationColumns::Property;
 		
-		using namespace ReplicationColumns;
-		using namespace ReplicationColumns::Property;
+		PropertiesModel = EditorParams.DataModel;
+
 		const FReplicationPropertyColumn ReplicatesColumn = ReplicatesColumns(
 			SharedThis(this),
-			InPropertiesModel,
-			TReplicationColumnDelegates<FReplicatedPropertyData>::FIsEnabled::CreateLambda([IsEnabled = InArgs._IsEditingEnabled](const FReplicatedPropertyData&)
+			PropertiesModel,
+			TReplicationColumnDelegates<FReplicatedPropertyData>::FIsEnabled::CreateLambda([IsEnabled = EditorParams.IsEditingEnabled](const FReplicatedPropertyData&)
 			{
 				return !IsEnabled.IsBound() || IsEnabled.Get();
 			}),
-			InArgs._EditingDisabledToolTipText
+			EditorParams.EditingDisabledToolTipText
 			);
-		TArray<FReplicationPropertyColumn> PropertyColumns = InArgs._AdditionalPropertyColumns;
+		TArray<FReplicationPropertyColumn>& PropertyColumns = EditorParams.ViewerParams.AdditionalPropertyColumns;
 		PropertyColumns.Add(ReplicatesColumn);
 
 		// Set both primary and secondary in case one is overriden but always use the override.
-		const FColumnSortInfo PrimaryPropertySort = InArgs._PrimaryObjectSort.IsValid()
-			? InArgs._PrimaryObjectSort
+		EditorParams.ViewerParams.PrimaryPropertySort = EditorParams.ViewerParams.PrimaryPropertySort.IsValid()
+			? EditorParams.ViewerParams.PrimaryPropertySort
 			: FColumnSortInfo{ ReplicatesColumnId, EColumnSortMode::Ascending };
-		const FColumnSortInfo SecondaryPropertySort = InArgs._SecondaryObjectSort.IsValid()
-			? InArgs._SecondaryObjectSort
+		EditorParams.ViewerParams.SecondaryPropertySort = EditorParams.ViewerParams.SecondaryPropertySort.IsValid()
+			? EditorParams.ViewerParams.SecondaryPropertySort
 			: FColumnSortInfo{ LabelColumnId, EColumnSortMode::Ascending };
-		
+
+		WrappedEditor = CreateBaseStreamEditor(MoveTemp(EditorParams));
 		ChildSlot
 		[
-			SAssignNew(WrappedEditor, SBaseReplicationStreamEditor, InPropertiesModel, InObjectSelectionSource, InPropertySelectionSource)
-				.AdditionalObjectColumns(InArgs._AdditionalObjectColumns)
-				.PrimaryObjectSort(InArgs._PrimaryObjectSort)
-				.SecondaryObjectSort(InArgs._SecondaryObjectSort)
-				.AdditionalPropertyColumns(PropertyColumns)
-				.PrimaryPropertySort(PrimaryPropertySort)
-				.SecondaryPropertySort(SecondaryPropertySort)
-				.SubobjectModel(InArgs._SubobjectModel)
-				.OnExtendObjectsContextMenu(InArgs._OnExtendObjectsContextMenu)
-				.LeftOfObjectSearchBar()
-				[
-					InArgs._LeftOfObjectSearchBar.Widget
-				]
-				.LeftOfPropertySearchBar()
-				[
-					InArgs._LeftOfPropertySearchBar.Widget
-				]
-				.IsEditingEnabled(InArgs._IsEditingEnabled)
-				.EditingDisabledToolTipText(InArgs._EditingDisabledToolTipText)
+			WrappedEditor.ToSharedRef()
 		];
 	}
 

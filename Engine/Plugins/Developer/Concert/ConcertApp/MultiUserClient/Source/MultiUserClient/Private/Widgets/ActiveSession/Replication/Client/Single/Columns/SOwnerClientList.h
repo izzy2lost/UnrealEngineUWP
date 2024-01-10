@@ -5,12 +5,9 @@
 #include "Widgets/DeclarativeSyntaxSupport.h"
 #include "Widgets/SCompoundWidget.h"
 
-namespace UE::ConcertClientSharedSlate
-{
-	class SHorizontalClientList;
-}
-
 class IConcertClient;
+
+namespace UE::ConcertClientSharedSlate { class SHorizontalClientList; }
 
 namespace UE::MultiUserClient
 {

@@ -5,12 +5,13 @@
 #include "Assets/MultiUserReplicationClientPreset.h"
 #include "Assets/MultiUserReplicationSessionPreset.h"
 #include "Replication/Editor/Model/Property/SelectPropertyFromUClassModel.h"
-#include "Replication/Editor/Model/Object/ActorSelectionSourceModel.h"
 #include "Replication/Editor/View/IReplicationStreamEditor.h"
+#include "Replication/Editor/Model/ObjectSource/ActorSelectionSourceModel.h"
 #include "Replication/ReplicationWidgetFactories.h"
 
 #include "Framework/Docking/TabManager.h"
 #include "Framework/Docking/WorkspaceItem.h"
+#include "Replication/ClientReplicationWidgetFactories.h"
 #include "Widgets/Docking/SDockTab.h"
 
 #define LOCTEXT_NAMESPACE "FReplicationStreamEditorToolkit"
@@ -73,11 +74,13 @@ namespace UE::MultiUserReplicationEditor
 	TSharedRef<SDockTab> FReplicationSessionPresetEditorToolkit::SpawnTab_Content(const FSpawnTabArgs& SpawnTabArgs)
 	{
 		using namespace ConcertClientSharedSlate;
+		using namespace ConcertSharedSlate;
 		
-		const TSharedRef<IEditableReplicationStreamModel> AssetReadWriteModel = CreatePropertySelectionModel(
-			*GetEditedStreamAsset(),
-			GetEditedStreamAsset()->GetUnassignedClient()->Stream->MakeReplicationMapGetterAttribute()
+		const TSharedRef<IEditableReplicationStreamModel> AssetReadWriteModel = CreateTransactionalStreamModel(
+			CreateBaseStreamModel(GetEditedStreamAsset()->GetUnassignedClient()->Stream->MakeReplicationMapGetterAttribute()),
+			*GetEditedStreamAsset()
 			);
+		
 		const TSharedRef<FActorSelectionSourceModel> ObjectSourceModel = MakeShared<FActorSelectionSourceModel>();
 		const TSharedRef<FSelectPropertyFromUClassModel> PropertySourceModel = MakeShared<FSelectPropertyFromUClassModel>();
 		const TSharedRef<IReplicationStreamEditor> EditorView = CreateDefaultStreamEditor(FCreateEditorParams{ AssetReadWriteModel, ObjectSourceModel, PropertySourceModel });

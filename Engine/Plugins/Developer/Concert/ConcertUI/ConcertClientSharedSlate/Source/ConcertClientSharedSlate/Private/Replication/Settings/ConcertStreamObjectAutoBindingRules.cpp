@@ -8,7 +8,7 @@
 #include "Algo/IndexOf.h"
 #include "UObject/Class.h"
 
-namespace UE::ConcertClientSharedSlate::DefaultProperties
+namespace UE::ConcertSharedSlate::DefaultProperties
 {
 	static void ApplyDefaultPropertySelection(TFunctionRef<void(FConcertPropertyChain&& Chain)> Callback, const FConcertDefaultPropertySelection& Selection, UStruct& Class)
 	{
@@ -63,7 +63,7 @@ void FConcertStreamObjectAutoBindingRules::AddDefaultPropertiesFromSettings(UCla
 			continue;
 		}
 			
-		UE::ConcertClientSharedSlate::DefaultProperties::ApplyDefaultPropertySelection(Callback, *DefaultProperties, *Current);
+		UE::ConcertSharedSlate::DefaultProperties::ApplyDefaultPropertySelection(Callback, *DefaultProperties, *Current);
 		// Recurse super structs
 		if (UClass* Parent = Current->GetSuperClass()
 			; Parent && DefaultProperties->bInheritFromBase)

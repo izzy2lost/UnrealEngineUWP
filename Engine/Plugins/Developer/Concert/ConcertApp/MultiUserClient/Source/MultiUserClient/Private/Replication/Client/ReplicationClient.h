@@ -19,7 +19,7 @@
 class IConcertClient;
 class UMultiUserReplicationClientPreset;
 
-namespace UE::ConcertClientSharedSlate
+namespace UE::ConcertSharedSlate
 {
 	class IEditableReplicationStreamModel;
 	enum class EReplicatedObjectChangeReason : uint8;
@@ -67,7 +67,7 @@ namespace UE::MultiUserClient
 		 * Listen for events on the owning FReplicationClientManager::OnPreRemoteClientRemoved and FMultiUserReplicationManager::OnLeaveSession
 		 * @see FReplicationClientManager and FMultiUserReplicationManager
 		 */
-		TSharedRef<ConcertClientSharedSlate::IEditableReplicationStreamModel> GetClientEditModel() const { return LocalClientEditModel; }
+		TSharedRef<ConcertSharedSlate::IEditableReplicationStreamModel> GetClientEditModel() const { return LocalClientEditModel; }
 		IClientStreamSynchronizer& GetStreamSynchronizer() const { return *StreamSynchronizer.Get(); }
 		IClientAuthoritySynchronizer& GetAuthoritySynchronizer() const { return *AuthoritySynchronizer.Get(); }
 		
@@ -131,7 +131,7 @@ namespace UE::MultiUserClient
 		 * The UI is destroyed right before FReplicationClient, which is guaranteed by FMultiUserReplicationManager.
 		 * @see FMultiUserReplicationManager::OnLeaveSession
 		 */
-		TSharedRef<ConcertClientSharedSlate::IEditableReplicationStreamModel> LocalClientEditModel;
+		TSharedRef<ConcertSharedSlate::IEditableReplicationStreamModel> LocalClientEditModel;
 		
 		/** Tracks changes made to server's state of the client's streams and prepares to upload them using StreamSynchronizer. */
 		FStreamChangeTracker LocalClientStreamDiffer;
@@ -160,7 +160,7 @@ namespace UE::MultiUserClient
 		TOptional<FDeferredOnModelChangedData> DeferredOnModelChangedData;
 
 		// Respond to model changing
-		void OnObjectsChanged(TConstArrayView<UObject*> AddedObjects, TConstArrayView<FSoftObjectPath> RemovedObjects, ConcertClientSharedSlate::EReplicatedObjectChangeReason ReplicatedObjectChangeReason);
+		void OnObjectsChanged(TConstArrayView<UObject*> AddedObjects, TConstArrayView<FSoftObjectPath> RemovedObjects, ConcertSharedSlate::EReplicatedObjectChangeReason ReplicatedObjectChangeReason);
 		void OnPropertiesChanged();
 
 		void OnServerStateChanged();

@@ -7,7 +7,7 @@
 
 class STextBlock;
 
-namespace UE::ConcertClientSharedSlate
+namespace UE::ConcertSharedSlate
 {
 	class IReplicationStreamModel;
 }

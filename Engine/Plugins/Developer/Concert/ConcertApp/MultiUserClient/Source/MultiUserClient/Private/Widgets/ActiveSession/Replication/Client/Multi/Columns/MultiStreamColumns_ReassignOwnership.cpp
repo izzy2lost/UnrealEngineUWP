@@ -14,15 +14,15 @@ namespace UE::MultiUserClient::MultiStreamColumns
 {
 	const FName ReassignOwnershipColumnId(TEXT("ReassignOwnershipColumn"));
 	
-	ConcertClientSharedSlate::ReplicationColumns::FReplicationTopLevelObjectColumn ReassignOwnership(
+	ConcertSharedSlate::ReplicationColumns::FReplicationTopLevelObjectColumn ReassignOwnership(
 		TSharedRef<IConcertClient> ConcertClient,
-		TAttribute<TSharedPtr<ConcertClientSharedSlate::IMultiReplicationStreamEditor>> MultiStreamModelAttribute,
+		TAttribute<TSharedPtr<ConcertSharedSlate::IMultiReplicationStreamEditor>> MultiStreamModelAttribute,
 		FReassignObjectPropertiesLogic& ReassignmentLogic,
 		const FReplicationClientManager& ClientManager,
 		const int32 ColumnsSortPriority
 		)
 	{
-		using namespace ConcertClientSharedSlate::ReplicationColumns;
+		using namespace ConcertSharedSlate::ReplicationColumns;
 
 		auto MakeWidget =
 			[ConcertClient, MultiStreamModelAttribute = MoveTemp(MultiStreamModelAttribute), &ReassignmentLogic, &ClientManager]
@@ -32,7 +32,7 @@ namespace UE::MultiUserClient::MultiStreamColumns
 					.ManagedObject(InArgs.RowData.GetObjectPath())
 					.ConsolidatedModel_Lambda([MultiStreamModelAttribute]()
 					{
-						const TSharedPtr<ConcertClientSharedSlate::IMultiReplicationStreamEditor> Editor = MultiStreamModelAttribute.Get();
+						const TSharedPtr<ConcertSharedSlate::IMultiReplicationStreamEditor> Editor = MultiStreamModelAttribute.Get();
 						return Editor
 							? &MultiStreamModelAttribute.Get()->GetConsolidatedModel()
 							: nullptr;
@@ -40,13 +40,13 @@ namespace UE::MultiUserClient::MultiStreamColumns
 					.HighlightText(InArgs.HighlightText)
 					.OnReassignAllOptionClicked_Lambda([MultiStreamModelAttribute](auto)
 					{
-						if (const TSharedPtr<ConcertClientSharedSlate::IMultiReplicationStreamEditor> Model = MultiStreamModelAttribute.Get())
+						if (const TSharedPtr<ConcertSharedSlate::IMultiReplicationStreamEditor> Model = MultiStreamModelAttribute.Get())
 						{
 							Model->GetEditorBase().RequestObjectColumnResort(ReassignOwnershipColumnId);
 						}
 					});
 			};
-		auto IsLessThan = [ConcertClient, &ReassignmentLogic](const ConcertClientSharedSlate::FReplicatedObjectData& Left, const ConcertClientSharedSlate::FReplicatedObjectData& Right)
+		auto IsLessThan = [ConcertClient, &ReassignmentLogic](const ConcertSharedSlate::FReplicatedObjectData& Left, const ConcertSharedSlate::FReplicatedObjectData& Right)
 		{
 			const TOptional<FString> LeftClientDisplayString = SReassignObjectComboBox::GetDisplayString(ConcertClient, ReassignmentLogic, Left.GetObjectPath());
 			const TOptional<FString> RightClientDisplayString = SReassignObjectComboBox::GetDisplayString(ConcertClient, ReassignmentLogic, Right.GetObjectPath());
@@ -62,7 +62,7 @@ namespace UE::MultiUserClient::MultiStreamColumns
 		return FReplicationTopLevelObjectColumn(
 			FReplicationTopLevelObjectColumn::FArguments()
 				.GenerateWidgetColumn_Lambda(MoveTemp(MakeWidget))
-				.PopulateSearchItems_Lambda([ConcertClient, &ReassignmentLogic](const ConcertClientSharedSlate::FReplicatedObjectData& ObjectData, TArray<FString>& InOutSearchStrings)
+				.PopulateSearchItems_Lambda([ConcertClient, &ReassignmentLogic](const ConcertSharedSlate::FReplicatedObjectData& ObjectData, TArray<FString>& InOutSearchStrings)
 				{
 					SReassignObjectComboBox::PopulateSearchTerms(*ConcertClient->GetCurrentSession(), ReassignmentLogic, ObjectData.GetObjectPath(), InOutSearchStrings);
 				})

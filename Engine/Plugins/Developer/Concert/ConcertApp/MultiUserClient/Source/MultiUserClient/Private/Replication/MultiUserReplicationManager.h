@@ -20,7 +20,7 @@ namespace UE::ConcertSyncClient::Replication
 	struct FJoinReplicatedSessionResult;
 }
 
-namespace UE::ConcertClientSharedSlate
+namespace UE::ConcertSharedSlate
 {
 	class IEditableReplicationStreamModel;
 }

@@ -2,11 +2,11 @@
 
 #include "SReplicationClientView.h"
 
+#include "Replication/ClientReplicationWidgetFactories.h"
 #include "Replication/Client/ReplicationClient.h"
-#include "Replication/Editor/Model/IEditableReplicationStreamModel.h"
-#include "Replication/Editor/Model/Object/ActorSelectionSourceModel.h"
 #include "Replication/Editor/Model/Property/SelectPropertyFromUClassModel.h"
 #include "Replication/Editor/View/IReplicationStreamEditor.h"
+#include "Replication/Editor/Model/ObjectSource/ActorSelectionSourceModel.h"
 #include "Replication/ReplicationWidgetFactories.h"
 #include "Replication/Client/ReplicationClientManager.h"
 #include "Replication/Submission/ISubmissionWorkflow.h"
@@ -60,7 +60,7 @@ namespace UE::MultiUserClient
 
 	TSharedRef<SWidget> SReplicationClientView::CreateContent(FReplicationClient& InReplicationClient)
 	{
-		using namespace ConcertClientSharedSlate;
+		using namespace ConcertSharedSlate;
 		FAuthorityChangeTracker& AuthorityTracker = InReplicationClient.GetAuthorityDiffer();
 		ISubmissionWorkflow& SubmissionWorkflow = InReplicationClient.GetSubmissionWorkflow();
 		FGlobalAuthorityCache& AuthorityCache = ClientManager->GetAuthorityCache();
@@ -72,13 +72,13 @@ namespace UE::MultiUserClient
 		const FCreateEditorParams ReplicationEditorCreationParams
 		{
 			.DataModel = InReplicationClient.GetClientEditModel(),
-			.ObjectSource = MakeShared<FActorSelectionSourceModel>(),
+			.ObjectSource = MakeShared<ConcertClientSharedSlate::FActorSelectionSourceModel>(),
 			.PropertySource = MakeShared<FSelectPropertyFromUClassModel>(),
 			.IsEditingEnabled = TAttribute<bool>::CreateLambda([&SubmissionWorkflow](){ return CanEverSubmit(SubmissionWorkflow.GetUploadability()); }),
 			.EditingDisabledToolTipText = LOCTEXT("Editing.NotImplemented", "Editing remote clients is not implemented. You can only edit the local client."),
 			.ViewerParams =
 			{
-				.SubobjectModel = CreateDefaultComponentHierarchySubobjectModel(), // This makes actors have children in the top view
+				.SubobjectModel = ConcertClientSharedSlate::CreateSubobjectModelForComponentHierarchy(), // This makes actors have children in the top view
 				.OnExtendObjectsContextMenu = FExtendObjectMenu::CreateSP(this, &SReplicationClientView::ExtendObjectContextMenu),
 				.AdditionalObjectColumns =
 				{
@@ -94,7 +94,7 @@ namespace UE::MultiUserClient
 			}
 		};
 
-		EditorView = CreateDefaultStreamEditor(ReplicationEditorCreationParams);
+		EditorView = ConcertClientSharedSlate::CreateDefaultStreamEditor(ReplicationEditorCreationParams);
 		return EditorView.ToSharedRef();
 	}
 

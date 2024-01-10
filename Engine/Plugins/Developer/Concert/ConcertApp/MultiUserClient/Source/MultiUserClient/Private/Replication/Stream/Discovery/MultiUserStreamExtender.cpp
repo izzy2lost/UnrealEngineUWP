@@ -21,20 +21,20 @@ namespace UE::MultiUserClient
 		, RegisteredExtenders(InRegisteredExtenders)
 	{}
 
-	void FMultiUserStreamExtender::ExtendStream(UObject& ExtendedObject, ConcertClientSharedSlate::IStreamExtensionContext& Context)
+	void FMultiUserStreamExtender::ExtendStream(UObject& ExtendedObject, ConcertSharedSlate::IStreamExtensionContext& Context)
 	{
 		ExtendBySettings.ExtendStream(ExtendedObject, Context);
 		ExtendStreamWithRegisteredDiscoverers(ExtendedObject, Context);
 	}
 	
-	void FMultiUserStreamExtender::ExtendStreamWithRegisteredDiscoverers(UObject& ExtendedObject, ConcertClientSharedSlate::IStreamExtensionContext& Context) const
+	void FMultiUserStreamExtender::ExtendStreamWithRegisteredDiscoverers(UObject& ExtendedObject, ConcertSharedSlate::IStreamExtensionContext& Context) const
 	{
 		class FDiscoveryContext : public IReplicationDiscoveryContext
 		{
-			ConcertClientSharedSlate::IStreamExtensionContext& Context;
+			ConcertSharedSlate::IStreamExtensionContext& Context;
 		public:
 			
-			explicit FDiscoveryContext(ConcertClientSharedSlate::IStreamExtensionContext& InContext)
+			explicit FDiscoveryContext(ConcertSharedSlate::IStreamExtensionContext& InContext)
 				: Context(InContext)
 			{}
 

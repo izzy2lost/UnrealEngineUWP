@@ -13,7 +13,7 @@ namespace UE::ConcertClientSharedSlate
 	 * Builds a similar tree hierarchy as SSubobjectEditor.
 	 * This model only inspects UActorComponents on the root object, which must be an actor.
 	 */
-	class FComponentHierarchySubobjectModel : public ISubobjectModel
+	class FComponentHierarchySubobjectModel : public ConcertSharedSlate::ISubobjectModel
 	{
 	public:
 

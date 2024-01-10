@@ -22,13 +22,13 @@ namespace UE::MultiUserClient::SingleClientColumns
 	const FName ConflictWarningSubobjectColumnId = TEXT("ConflictWarningSubobjectColumn");
 	const FName ConflictWarningPropertyColumnId = TEXT("ConflictWarningPropertyColumn");
 	
-	ConcertClientSharedSlate::ReplicationColumns::FReplicationTopLevelObjectColumn ConflictWarningForObject(
+	ConcertSharedSlate::ReplicationColumns::FReplicationTopLevelObjectColumn ConflictWarningForObject(
 		TSharedRef<IConcertClient> InClient,
 		FGlobalAuthorityCache& InAuthorityCache,
 		const FGuid& ClientId
 		)
 	{
-		using FColumnType = ConcertClientSharedSlate::ReplicationColumns::FReplicationTopLevelObjectColumn;
+		using FColumnType = ConcertSharedSlate::ReplicationColumns::FReplicationTopLevelObjectColumn;
 		return FColumnType(
 			FColumnType::FArguments()
 				.GenerateWidgetColumn_Lambda([InClient = MoveTemp(InClient), &InAuthorityCache, ClientId](const FColumnType::FBuildArgs& InArgs) mutable
@@ -63,7 +63,7 @@ namespace UE::MultiUserClient::SingleClientColumns
 						.Visibility_Lambda(GetVisibility)
 						.ToolTipText_Lambda(GetToolTip);
 				})
-				.PopulateSearchItems_Lambda([](const ConcertClientSharedSlate::FReplicatedObjectData&, TArray<FString>&){})
+				.PopulateSearchItems_Lambda([](const ConcertSharedSlate::FReplicatedObjectData&, TArray<FString>&){})
 				.ColumnSortOrder(static_cast<int32>(ETopLevelObjectColumnOrder::ConflictWarning)),
 			SHeaderRow::Column(ConflictWarningSubobjectColumnId)
 				.DefaultLabel(FText::GetEmpty())
@@ -71,14 +71,14 @@ namespace UE::MultiUserClient::SingleClientColumns
 			);
 	}
 
-	ConcertClientSharedSlate::ReplicationColumns::FReplicationPropertyColumn ConflictWarningForProperty(
+	ConcertSharedSlate::ReplicationColumns::FReplicationPropertyColumn ConflictWarningForProperty(
 		TSharedRef<IConcertClient> InClient,
-		TAttribute<const ConcertClientSharedSlate::IReplicationStreamViewer*> Viewer,
+		TAttribute<const ConcertSharedSlate::IReplicationStreamViewer*> Viewer,
 		FGlobalAuthorityCache& InAuthorityCache,
 		const FGuid& ClientId
 		)
 	{
-		using FColumnType = ConcertClientSharedSlate::ReplicationColumns::FReplicationPropertyColumn;
+		using FColumnType = ConcertSharedSlate::ReplicationColumns::FReplicationPropertyColumn;
 		return FColumnType(
 			FColumnType::FArguments()
 				.GenerateWidgetColumn_Lambda([InClient = MoveTemp(InClient), Viewer, &InAuthorityCache, ClientId](const FColumnType::FBuildArgs& InArgs) mutable
@@ -118,7 +118,7 @@ namespace UE::MultiUserClient::SingleClientColumns
 						.Visibility_Lambda(GetVisibility)
 						.ToolTipText_Lambda(GetToolTip);
 				})
-				.PopulateSearchItems_Lambda([](const ConcertClientSharedSlate::FReplicatedPropertyData&, TArray<FString>&){})
+				.PopulateSearchItems_Lambda([](const ConcertSharedSlate::FReplicatedPropertyData&, TArray<FString>&){})
 				.ColumnSortOrder(static_cast<int32>(EPropertyColumnOrder::ConflictWarning)),
 			SHeaderRow::Column(ConflictWarningPropertyColumnId)
 				.DefaultLabel(FText::GetEmpty())

@@ -14,11 +14,8 @@ enum class ECheckBoxState : uint8;
 
 struct FGuid;
 
-namespace UE::ConcertClientSharedSlate
-{
-	class SHorizontalClientList;
-	class IMultiReplicationStreamEditor;
-}
+namespace UE::ConcertClientSharedSlate { class SHorizontalClientList; }
+namespace UE::ConcertSharedSlate { class IMultiReplicationStreamEditor; }
 
 namespace UE::MultiUserClient
 {
@@ -54,7 +51,7 @@ namespace UE::MultiUserClient
 		SLATE_END_ARGS()
 
 		void Construct(const FArguments& InArgs,
-           TSharedRef<ConcertClientSharedSlate::IMultiReplicationStreamEditor> InEditor,
+           TSharedRef<ConcertSharedSlate::IMultiReplicationStreamEditor> InEditor,
            TSharedRef<IConcertClient> InConcertClient,
            FReplicationClientManager& InClientManager
 		);
@@ -64,7 +61,7 @@ namespace UE::MultiUserClient
 		FReplicationClientManager* ClientManager = nullptr;
 		
 		/** Used to obtain info about the streams */
-		TSharedPtr<ConcertClientSharedSlate::IMultiReplicationStreamEditor> Editor;
+		TSharedPtr<ConcertSharedSlate::IMultiReplicationStreamEditor> Editor;
 		TSharedPtr<IConcertClient> ConcertClient;
 
 		/** The objects for which the property is being displayed. */

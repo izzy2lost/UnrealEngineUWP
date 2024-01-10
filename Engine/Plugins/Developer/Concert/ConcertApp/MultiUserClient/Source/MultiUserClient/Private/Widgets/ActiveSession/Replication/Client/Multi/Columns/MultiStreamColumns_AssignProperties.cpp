@@ -22,12 +22,12 @@ namespace UE::MultiUserClient::MultiStreamColumns
 	namespace AssignPropertyColumnUtils
 	{
 		static void ForEachStreamAssignedTo(
-			const ConcertClientSharedSlate::IMultiReplicationStreamEditor& MultiEditor,
+			const ConcertSharedSlate::IMultiReplicationStreamEditor& MultiEditor,
 			const FConcertPropertyChain& Property,
-			TFunctionRef<void(const TSharedRef<ConcertClientSharedSlate::IEditableReplicationStreamModel>& Stream)> Consume
+			TFunctionRef<void(const TSharedRef<ConcertSharedSlate::IEditableReplicationStreamModel>& Stream)> Consume
 		)
 		{
-			for (const TSharedRef<ConcertClientSharedSlate::IEditableReplicationStreamModel>& Stream : MultiEditor.GetMultiStreamModel().GetEditableStreams())
+			for (const TSharedRef<ConcertSharedSlate::IEditableReplicationStreamModel>& Stream : MultiEditor.GetMultiStreamModel().GetEditableStreams())
 			{
 				for (const FSoftObjectPath& SelectedObject : MultiEditor.GetEditorBase().GetObjectsBeingPropertyEdited())
 				{
@@ -42,7 +42,7 @@ namespace UE::MultiUserClient::MultiStreamColumns
 			}
 		}
 
-		const FReplicationClient* FindClientByStream(const FReplicationClientManager& ClientManager, const ConcertClientSharedSlate::IReplicationStreamModel& StreamModel)
+		const FReplicationClient* FindClientByStream(const FReplicationClientManager& ClientManager, const ConcertSharedSlate::IReplicationStreamModel& StreamModel)
 		{
 			if (&ClientManager.GetLocalClient().GetClientEditModel().Get() == &StreamModel)
 			{
@@ -60,7 +60,7 @@ namespace UE::MultiUserClient::MultiStreamColumns
 			return nullptr;
 		}
 		
-		static FString GetClientDisplayText(const IConcertClient& InConcertClient, const FReplicationClientManager& ClientManager, const ConcertClientSharedSlate::IReplicationStreamModel& StreamModel)
+		static FString GetClientDisplayText(const IConcertClient& InConcertClient, const FReplicationClientManager& ClientManager, const ConcertSharedSlate::IReplicationStreamModel& StreamModel)
 		{
 			if (const FReplicationClient* Client = FindClientByStream(ClientManager, StreamModel))
 			{
@@ -72,15 +72,15 @@ namespace UE::MultiUserClient::MultiStreamColumns
 		}
 	}
 	
-	ConcertClientSharedSlate::ReplicationColumns::FReplicationPropertyColumn AssignPropertyColumn(
-		TAttribute<TSharedPtr<ConcertClientSharedSlate::IMultiReplicationStreamEditor>> MultiStreamEditor,
+	ConcertSharedSlate::ReplicationColumns::FReplicationPropertyColumn AssignPropertyColumn(
+		TAttribute<TSharedPtr<ConcertSharedSlate::IMultiReplicationStreamEditor>> MultiStreamEditor,
 		TSharedRef<IConcertClient> ConcertClient,
 		FReplicationClientManager& ClientManager,
 		const int32 ColumnsSortPriority
 		)
 	{
-		using namespace ConcertClientSharedSlate;
-		using namespace ConcertClientSharedSlate::ReplicationColumns;
+		using namespace ConcertSharedSlate;
+		using namespace ConcertSharedSlate::ReplicationColumns;
 		check(MultiStreamEditor.IsBound() || MultiStreamEditor.IsSet());
 
 		const auto PopulateSearch = [MultiStreamEditor, &ClientManager, ConcertClient](const FReplicatedPropertyData& Data, TArray<FString>& InOutSearchStrings)

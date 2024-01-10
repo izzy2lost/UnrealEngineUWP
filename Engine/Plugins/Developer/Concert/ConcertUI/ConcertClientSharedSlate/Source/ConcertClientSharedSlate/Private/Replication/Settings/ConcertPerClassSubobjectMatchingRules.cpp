@@ -4,7 +4,7 @@
 
 #include "UObject/Class.h"
 
-namespace UE::ConcertClientSharedSlate::DefaultSubobjects
+namespace UE::ConcertSharedSlate::DefaultSubobjects
 {
 	static void InternalAddAdditionalObjectsFromSettings(UClass& StartClass, const FConcertPerClassSubobjectMatchingRules& Settings, const UObject& AddedObject, TFunctionRef<EBreakBehavior(UObject&)> OnSubobjectMatched)
 	{
@@ -43,5 +43,5 @@ namespace UE::ConcertClientSharedSlate::DefaultSubobjects
 void FConcertPerClassSubobjectMatchingRules::MatchSubobjectsRecursivelyBreakable(const UObject& Object, TFunctionRef<EBreakBehavior(UObject&)> OnSubobjectMatched) const
 {
 	checkf(!Object.IsA<UClass>(), TEXT("Pass in the UObject instanced directly, not its class!"));
-	UE::ConcertClientSharedSlate::DefaultSubobjects::InternalAddAdditionalObjectsFromSettings(*Object.GetClass(), *this, Object, OnSubobjectMatched);
+	UE::ConcertSharedSlate::DefaultSubobjects::InternalAddAdditionalObjectsFromSettings(*Object.GetClass(), *this, Object, OnSubobjectMatched);
 }

@@ -6,7 +6,7 @@
 #include "Internationalization/Regex.h"
 #include "Misc/EBreakBehavior.h"
 
-namespace UE::ConcertClientSharedSlate
+namespace UE::ConcertSharedSlate
 {
 	static bool MatchesAnyRegex(const FString& Input, const TSet<FString>& AllRegex)
 	{
@@ -31,7 +31,7 @@ void FConcertSubobjectMatchingRules::MatchToSubobjectsBreakable(const UObject& A
 	ForEachObjectWithOuterBreakable(&AddedObject, [this, &OnSubobjectMatched](UObject* Subobject)
 	{
 		// Has exclusion regex?
-		const bool bShouldExclude = UE::ConcertClientSharedSlate::MatchesAnyRegex(Subobject->GetName(), ExcludeSubobjectRegex);
+		const bool bShouldExclude = UE::ConcertSharedSlate::MatchesAnyRegex(Subobject->GetName(), ExcludeSubobjectRegex);
 		if (bShouldExclude)
 		{
 			return true;
@@ -57,7 +57,7 @@ void FConcertSubobjectMatchingRules::MatchToSubobjectsBreakable(const UObject& A
 		}
 
 		// Has inclusion regex?
-		const bool bShouldIncludeByRegex = UE::ConcertClientSharedSlate::MatchesAnyRegex(Subobject->GetName(), IncludeSubobjectRegex);
+		const bool bShouldIncludeByRegex = UE::ConcertSharedSlate::MatchesAnyRegex(Subobject->GetName(), IncludeSubobjectRegex);
 		if (bShouldIncludeByRegex)
 		{
 			return OnSubobjectMatched(*Subobject) == EBreakBehavior::Break;

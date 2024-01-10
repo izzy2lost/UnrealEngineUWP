@@ -28,12 +28,12 @@ namespace UE::MultiUserClient::SingleClientColumns
 		}
 	}
 	
-	ConcertClientSharedSlate::ReplicationColumns::FReplicationTopLevelObjectColumn OwnerOfObject(
+	ConcertSharedSlate::ReplicationColumns::FReplicationTopLevelObjectColumn OwnerOfObject(
 		const TSharedRef<IConcertClient>& InClient,
 		FGlobalAuthorityCache& InAuthorityCache
 		)
 	{
-		using FColumnType = ConcertClientSharedSlate::ReplicationColumns::FReplicationTopLevelObjectColumn;
+		using FColumnType = ConcertSharedSlate::ReplicationColumns::FReplicationTopLevelObjectColumn;
 		return FColumnType(
 			FColumnType::FArguments()
 				.GenerateWidgetColumn_Lambda([InClient, &InAuthorityCache](const FColumnType::FBuildArgs& InArgs)
@@ -45,7 +45,7 @@ namespace UE::MultiUserClient::SingleClientColumns
 						})
 						.HighlightText_Lambda([HighlightText = InArgs.HighlightText](){ return *HighlightText.Get(); });
 				})
-				.PopulateSearchItems_Lambda([InClient, &InAuthorityCache](const ConcertClientSharedSlate::FReplicatedObjectData& InArgs, TArray<FString>& InOutSearchStrings)
+				.PopulateSearchItems_Lambda([InClient, &InAuthorityCache](const ConcertSharedSlate::FReplicatedObjectData& InArgs, TArray<FString>& InOutSearchStrings)
 				{
 					Private::Shared::PopulateSearchTerms(
 						InClient,
@@ -65,7 +65,7 @@ namespace UE::MultiUserClient::SingleClientColumns
 	{
 		static TArray<FGuid> GetPropertyOwners(
 			const FGlobalAuthorityCache& InAuthorityCache,
-			const ConcertClientSharedSlate::IReplicationStreamViewer& InViewer,
+			const ConcertSharedSlate::IReplicationStreamViewer& InViewer,
 			const FConcertPropertyChain& Property
 			)
 		{
@@ -83,13 +83,13 @@ namespace UE::MultiUserClient::SingleClientColumns
 		}
 	}
 
-	ConcertClientSharedSlate::ReplicationColumns::FReplicationPropertyColumn OwnerOfProperty(
+	ConcertSharedSlate::ReplicationColumns::FReplicationPropertyColumn OwnerOfProperty(
 		const TSharedRef<IConcertClient>& InClient,
 		FGlobalAuthorityCache& InAuthorityCache,
-		const TAttribute<const ConcertClientSharedSlate::IReplicationStreamViewer*>& InViewer
+		const TAttribute<const ConcertSharedSlate::IReplicationStreamViewer*>& InViewer
 		)
 	{
-		using FColumnType = ConcertClientSharedSlate::ReplicationColumns::FReplicationPropertyColumn;
+		using FColumnType = ConcertSharedSlate::ReplicationColumns::FReplicationPropertyColumn;
 		return FColumnType(
 			FColumnType::FArguments()
 				.GenerateWidgetColumn_Lambda([InClient, &InAuthorityCache, InViewer](const FColumnType::FBuildArgs& InArgs)
@@ -101,7 +101,7 @@ namespace UE::MultiUserClient::SingleClientColumns
 						})
 						.HighlightText_Lambda([HighlightText = InArgs.HighlightText](){ return *HighlightText.Get(); });
 				})
-				.PopulateSearchItems_Lambda([InClient, &InAuthorityCache, InViewer](const ConcertClientSharedSlate::FReplicatedPropertyData& InArgs, TArray<FString>& InOutSearchStrings)
+				.PopulateSearchItems_Lambda([InClient, &InAuthorityCache, InViewer](const ConcertSharedSlate::FReplicatedPropertyData& InArgs, TArray<FString>& InOutSearchStrings)
 				{
 					Private::Shared::PopulateSearchTerms(
 						InClient,

@@ -4,18 +4,19 @@
 
 #include "IClientSelectionModel.h"
 #include "MultiStreamModel.h"
+#include "Replication/ClientReplicationWidgetFactories.h"
+#include "Replication/ReplicationWidgetFactories.h"
 #include "Replication/Client/ReplicationClient.h"
 #include "Replication/Client/ReplicationClientManager.h"
-#include "Replication/Editor/Model/Object/ActorSelectionSourceModel.h"
 #include "Replication/Editor/Model/Property/SelectPropertyFromUClassModel.h"
 #include "Replication/Editor/View/IMultiReplicationStreamEditor.h"
-#include "Replication/ReplicationWidgetFactories.h"
 #include "Replication/Editor/View/IReplicationStreamEditor.h"
+#include "Replication/Editor/Model/ObjectSource/ActorSelectionSourceModel.h"
+#include "Widgets/ActiveSession/Replication/Client/FrequencyContextMenuUtils.h"
 #include "Widgets/ActiveSession/Replication/Client/Multi/Columns/MultiStreamColumns.h"
 #include "Widgets/ActiveSession/Replication/Client/SClientToolbar.h"
 
 #include "Widgets/SBoxPanel.h"
-#include "Widgets/ActiveSession/Replication/Client/FrequencyContextMenuUtils.h"
 
 #define LOCTEXT_NAMESPACE "SMultiClientView"
 
@@ -64,7 +65,7 @@ namespace UE::MultiUserClient
 
 	TSharedRef<SWidget> SMultiClientView::CreateEditorContent(const TSharedRef<IConcertClient>& InConcertClient, FReplicationClientManager& InClientManager)
 	{
-		using namespace UE::ConcertClientSharedSlate;
+		using namespace UE::ConcertSharedSlate;
 
 		TAttribute<TSharedPtr<IMultiReplicationStreamEditor>> MultiStreamEditorAttribute =
 		   TAttribute<TSharedPtr<IMultiReplicationStreamEditor>>::CreateLambda([this]()
@@ -85,12 +86,13 @@ namespace UE::MultiUserClient
 		FCreateMultiStreamEditorParams Params
 		{
 			.MultiStreamModel = StreamModel.ToSharedRef(),
-			.ObjectSource = MakeShared<FActorSelectionSourceModel>(),
+			.ConsolidatedObjectModel = ConcertClientSharedSlate::CreateTransactionalStreamModel(),
+			.ObjectSource = MakeShared<ConcertClientSharedSlate::FActorSelectionSourceModel>(),
 			.PropertySource = MakeShared<FSelectPropertyFromUClassModel>(),
 			.GetAutoAssignToStreamDelegate = MoveTemp(GetAutoAssignTargetDelegate),
 			.ViewerParams 
 			{
-				.SubobjectModel = CreateDefaultComponentHierarchySubobjectModel(), // This makes actors have children in the top view
+				.SubobjectModel = ConcertClientSharedSlate::CreateSubobjectModelForComponentHierarchy(), // This makes actors have children in the top view
 				.OnExtendObjectsContextMenu = FExtendObjectMenu::CreateSP(this, &SMultiClientView::ExtendObjectContextMenu),
 				.AdditionalObjectColumns =
 				{

@@ -2,25 +2,38 @@
 
 #pragma once
 
-#include "GenericReplicationStreamModel.h"
 #include "EditorUndoClient.h"
+#include "Replication/Editor/Model/IEditableReplicationStreamModel.h"
+#include "UObject/GCObject.h"
 
-namespace UE::ConcertClientSharedSlate
+struct FObjectReplicationMap;
+
+namespace UE::ConcertSharedSlate
 {
 	class IStreamExtender;
 
 	/** Special case of FGenericPropertySelectionModel where the edited FObjectReplicationMap lives in an UObject that is RF_Transactional. */
 	class FTransactionalReplicationStreamModel
-		: public FGenericReplicationStreamModel
+		: public IEditableReplicationStreamModel
 		, public FSelfRegisteringEditorUndoClient
+		, public FGCObject
 	{
 	public:
 
 		FTransactionalReplicationStreamModel(
-			UObject& OwningObject,
-			TAttribute<FObjectReplicationMap*> ReplicationMapAttribute,
-			TSharedPtr<IStreamExtender> Extender = nullptr
+			TSharedRef<IEditableReplicationStreamModel> WrappedModel,
+			UObject& OwningObject
 			);
+
+		//~ Begin IReplicationStreamModel Interface
+		virtual FSoftClassPath GetObjectClass(const FSoftObjectPath& Object) const override { return WrappedModel->GetObjectClass(Object); }
+		virtual bool ContainsObjects(const TSet<FSoftObjectPath>& Objects) const override { return WrappedModel->ContainsObjects(Objects); }
+		virtual bool ContainsProperties(const FSoftObjectPath& Object, const TSet<FConcertPropertyChain>& Properties) const override { return WrappedModel->ContainsProperties(Object, Properties); }
+		virtual bool ForEachReplicatedObject(TFunctionRef<EBreakBehavior(const FSoftObjectPath& Object)> Delegate) const override { return WrappedModel->ForEachReplicatedObject(Delegate); }
+		virtual bool ForEachProperty(const FSoftObjectPath& Object, TFunctionRef<EBreakBehavior(const FConcertPropertyChain& Property)> Delegate) const override { return WrappedModel->ForEachProperty(Object, Delegate); }
+		virtual FOnObjectsChanged& OnObjectsChanged() override { return WrappedModel->OnObjectsChanged(); }
+		virtual FOnPropertiesChanged& OnPropertiesChanged() override { return WrappedModel->OnPropertiesChanged(); }
+		//~ End IReplicationStreamModel Interface
 		
 		//~ Begin IEditableReplicationStreamModel Interface
 		virtual void AddObjects(TConstArrayView<UObject*> Objects) override;
@@ -35,8 +48,16 @@ namespace UE::ConcertClientSharedSlate
 		virtual void PostRedo(bool bSuccess) override;
 		//~ End FEditorUndoClient Interface
 
+		//~ Begin FGCObject Interface
+		virtual void AddReferencedObjects(FReferenceCollector& Collector) override;
+		virtual FString GetReferencerName() const override { return TEXT("FTransactionalReplicationStreamModel"); }
+		//~ End FGCObject Interface
+
 	private:
 
+		/** The model to be transacted */
+		TSharedRef<IEditableReplicationStreamModel> WrappedModel;
+		
 		/** User of FTransactionalPropertySelectionModel is responsible for keeping OwningObject alive, e.g. via an asset editor. */
 		TWeakObjectPtr<UObject> OwningObject;
 	};

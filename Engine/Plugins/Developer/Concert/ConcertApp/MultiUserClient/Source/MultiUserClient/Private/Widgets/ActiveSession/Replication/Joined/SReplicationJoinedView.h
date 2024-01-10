@@ -10,7 +10,7 @@ class IConcertSyncClient;
 class SNotificationItem;
 class SWidgetSwitcher;
 
-namespace UE::ConcertClientSharedSlate
+namespace UE::ConcertSharedSlate
 {
 	class IReplicationStreamEditor;
 }

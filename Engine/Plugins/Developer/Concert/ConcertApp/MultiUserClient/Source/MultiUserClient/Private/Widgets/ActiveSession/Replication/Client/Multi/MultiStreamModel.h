@@ -17,7 +17,7 @@ namespace UE::MultiUserClient
 	class IClientSelectionModel;
 
 	/** Checks whether clients accept remote changes and categorizes them into read-only and writable. */
-	class FMultiStreamModel : public ConcertClientSharedSlate::IEditableMultiReplicationStreamModel
+	class FMultiStreamModel : public ConcertSharedSlate::IEditableMultiReplicationStreamModel
 	{
 	public:
 		
@@ -28,8 +28,8 @@ namespace UE::MultiUserClient
 		void ForEachClient(TFunctionRef<EBreakBehavior(const FReplicationClient*)> ProcessClient) const;
 
 		//~ Begin IEditableMultiReplicationStreamModel Interface
-		virtual TSet<TSharedRef<ConcertClientSharedSlate::IReplicationStreamModel>> GetReadOnlyStreams() const override;
-		virtual TSet<TSharedRef<ConcertClientSharedSlate::IEditableReplicationStreamModel>> GetEditableStreams() const override;
+		virtual TSet<TSharedRef<ConcertSharedSlate::IReplicationStreamModel>> GetReadOnlyStreams() const override;
+		virtual TSet<TSharedRef<ConcertSharedSlate::IEditableReplicationStreamModel>> GetEditableStreams() const override;
 		virtual FOnStreamExternallyChanged& OnStreamExternallyChanged() override { return OnReadOnlyStreamChangedDelegate; }
 		virtual FOnStreamSetChanged& OnStreamSetChanged() override { return OnStreamSetChangedDelegate; }
 		//~ End IEditableMultiReplicationStreamModel Interface
@@ -50,7 +50,7 @@ namespace UE::MultiUserClient
 		void RebuildStreamsSets();
 
 		/** Handle read-only streams changing */
-		void OnStreamExternallyChanged(TWeakPtr<ConcertClientSharedSlate::IEditableReplicationStreamModel> ChangedStream);
+		void OnStreamExternallyChanged(TWeakPtr<ConcertSharedSlate::IEditableReplicationStreamModel> ChangedStream);
 	};
 }
 

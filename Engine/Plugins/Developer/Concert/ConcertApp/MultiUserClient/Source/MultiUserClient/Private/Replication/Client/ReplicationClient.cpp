@@ -8,9 +8,10 @@
 #include "Replication/Stream/Discovery/MultiUserStreamExtender.h"
 #include "Replication/Stream/StreamChangeTracker.h"
 #include "Replication/Submission/Data/AuthoritySubmission.h"
+#include "Settings/MultiUserReplicationSettings.h"
 
 #include "Misc/CoreDelegates.h"
-#include "Settings/MultiUserReplicationSettings.h"
+#include "Replication/ClientReplicationWidgetFactories.h"
 
 namespace UE::MultiUserClient
 {
@@ -34,10 +35,14 @@ namespace UE::MultiUserClient
 			FGetStreamContent::CreateLambda([this](){ return &StreamSynchronizer->GetServerState(); }),
 			SubmissionQueue
 			)
-		, LocalClientEditModel(CreatePropertySelectionModel(
-			*ClientContentStorage->Stream,
-			ClientContentStorage->Stream->MakeReplicationMapGetterAttribute(),
-			MakeShared<FMultiUserStreamExtender>(EndpointId, InDiscoveryContainer))
+		, LocalClientEditModel(
+			ConcertClientSharedSlate::CreateTransactionalStreamModel(
+				CreateBaseStreamModel(
+					ClientContentStorage->Stream->MakeReplicationMapGetterAttribute(),
+					MakeShared<FMultiUserStreamExtender>(EndpointId, InDiscoveryContainer)
+					),
+				*ClientContentStorage->Stream
+				)
 			)
 		, LocalClientStreamDiffer(
 			GetStreamSynchronizer(),
@@ -70,7 +75,7 @@ namespace UE::MultiUserClient
 	void FReplicationClient::OnObjectsChanged(
 		TConstArrayView<UObject*> AddedObjects,
 		TConstArrayView<FSoftObjectPath> RemovedObjects,
-		ConcertClientSharedSlate::EReplicatedObjectChangeReason ReplicatedObjectChangeReason
+		ConcertSharedSlate::EReplicatedObjectChangeReason ReplicatedObjectChangeReason
 		)
 	{
 		DeferOnModelChanged(AddedObjects);

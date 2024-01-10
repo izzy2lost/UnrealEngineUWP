@@ -3,7 +3,7 @@
 #pragma once
 
 #include "Replication/Editor/Model/Extension/IStreamExtender.h"
-#include "Replication/Editor/Model/StreamExtenderBySettings.h"
+#include "Replication/Editor/Model/Extension/StreamExtenderBySettings.h"
 
 #include "Misc/Guid.h"
 
@@ -19,7 +19,7 @@ namespace UE::MultiUserClient
 	 *
 	 * Every FReplicationClient owns an instance of this and executes it when an object is added for the client by the local editor.
 	 */
-	class FMultiUserStreamExtender : public ConcertClientSharedSlate::IStreamExtender
+	class FMultiUserStreamExtender : public ConcertSharedSlate::IStreamExtender
 	{
 	public:
 		
@@ -30,7 +30,7 @@ namespace UE::MultiUserClient
 		FMultiUserStreamExtender(const FGuid& InClientId, FReplicationDiscoveryContainer& InRegisteredExtenders);
 
 		//~ Begin IStreamExtender Interface
-		virtual void ExtendStream(UObject& ExtendedObject, ConcertClientSharedSlate::IStreamExtensionContext& Context) override;
+		virtual void ExtendStream(UObject& ExtendedObject, ConcertSharedSlate::IStreamExtensionContext& Context) override;
 		//~ End IStreamExtender Interface
 
 	private:
@@ -44,7 +44,7 @@ namespace UE::MultiUserClient
 		/** Allows generic extenders to extend added objects. These can be added via the IMultiUserReplication interface. */
 		FReplicationDiscoveryContainer& RegisteredExtenders;
 		
-		void ExtendStreamWithRegisteredDiscoverers(UObject& ExtendedObject, ConcertClientSharedSlate::IStreamExtensionContext& Context) const;
+		void ExtendStreamWithRegisteredDiscoverers(UObject& ExtendedObject, ConcertSharedSlate::IStreamExtensionContext& Context) const;
 	};
 }
 

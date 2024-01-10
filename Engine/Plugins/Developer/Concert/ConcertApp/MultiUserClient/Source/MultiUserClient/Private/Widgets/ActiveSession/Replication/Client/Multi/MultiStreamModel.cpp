@@ -35,16 +35,16 @@ namespace UE::MultiUserClient
 		}
 	}
 
-	TSet<TSharedRef<ConcertClientSharedSlate::IReplicationStreamModel>> FMultiStreamModel::GetReadOnlyStreams() const
+	TSet<TSharedRef<ConcertSharedSlate::IReplicationStreamModel>> FMultiStreamModel::GetReadOnlyStreams() const
 	{
-		TSet<TSharedRef<ConcertClientSharedSlate::IReplicationStreamModel>> Result;
+		TSet<TSharedRef<ConcertSharedSlate::IReplicationStreamModel>> Result;
 		Algo::Transform(CachedReadOnlyClients, Result, [](const FReplicationClient* Client){ return Client->GetClientEditModel(); });
 		return Result;
 	}
 
-	TSet<TSharedRef<ConcertClientSharedSlate::IEditableReplicationStreamModel>> FMultiStreamModel::GetEditableStreams() const
+	TSet<TSharedRef<ConcertSharedSlate::IEditableReplicationStreamModel>> FMultiStreamModel::GetEditableStreams() const
 	{
-		TSet<TSharedRef<ConcertClientSharedSlate::IEditableReplicationStreamModel>> Result;
+		TSet<TSharedRef<ConcertSharedSlate::IEditableReplicationStreamModel>> Result;
 		Algo::Transform(CachedWritableClients, Result, [](const FReplicationClient* Client){ return Client->GetClientEditModel(); });
 		return Result;
 	}
@@ -63,7 +63,7 @@ namespace UE::MultiUserClient
 		ClientSelectionModel.ForEachSelectedClient([this, &ReadOnlyClients, &WritableClients](FReplicationClient& Client)
 		{
 			const bool bIsUploadable = CanEverSubmit(Client.GetSubmissionWorkflow().GetUploadability());
-			const TSharedRef<ConcertClientSharedSlate::IEditableReplicationStreamModel> Stream = Client.GetClientEditModel();
+			const TSharedRef<ConcertSharedSlate::IEditableReplicationStreamModel> Stream = Client.GetClientEditModel();
 			Client.OnModelChanged().AddRaw(this, &FMultiStreamModel::OnStreamExternallyChanged, Stream.ToWeakPtr());
 			
 			if (bIsUploadable)
@@ -95,9 +95,9 @@ namespace UE::MultiUserClient
 		}
 	}
 
-	void FMultiStreamModel::OnStreamExternallyChanged(TWeakPtr<ConcertClientSharedSlate::IEditableReplicationStreamModel> ChangedStream)
+	void FMultiStreamModel::OnStreamExternallyChanged(TWeakPtr<ConcertSharedSlate::IEditableReplicationStreamModel> ChangedStream)
 	{
-		if (const TSharedPtr<ConcertClientSharedSlate::IEditableReplicationStreamModel> ChangedStreamPin = ChangedStream.Pin())
+		if (const TSharedPtr<ConcertSharedSlate::IEditableReplicationStreamModel> ChangedStreamPin = ChangedStream.Pin())
 		{
 			OnReadOnlyStreamChangedDelegate.Broadcast(ChangedStreamPin.ToSharedRef());
 		}

@@ -7,14 +7,13 @@
 
 #define LOCTEXT_NAMESPACE "FTransactionalReplicationStreamModel"
 
-namespace UE::ConcertClientSharedSlate
+namespace UE::ConcertSharedSlate
 {
 	FTransactionalReplicationStreamModel::FTransactionalReplicationStreamModel(
-		UObject& OwningObject,
-		TAttribute<FObjectReplicationMap*> ReplicationMapAttribute,
-		TSharedPtr<IStreamExtender> Extender
+		TSharedRef<IEditableReplicationStreamModel> WrappedModel,
+		UObject& OwningObject
 		)
-		: FGenericReplicationStreamModel(MoveTemp(ReplicationMapAttribute), MoveTemp(Extender))
+		: WrappedModel(MoveTemp(WrappedModel))
 		, OwningObject(&OwningObject)
 	{}
 
@@ -22,28 +21,28 @@ namespace UE::ConcertClientSharedSlate
 	{
 		const FScopedTransaction Transaction(LOCTEXT("AddObjects", "Add replicated objects"));
 		OwningObject->Modify();
-		FGenericReplicationStreamModel::AddObjects(Objects);
+		WrappedModel->AddObjects(Objects);
 	}
 
 	void FTransactionalReplicationStreamModel::RemoveObjects(TConstArrayView<FSoftObjectPath> Objects)
 	{
 		const FScopedTransaction Transaction(LOCTEXT("RemoveObjects", "Remove replicated objects"));
 		OwningObject->Modify();
-		FGenericReplicationStreamModel::RemoveObjects(Objects);
+		WrappedModel->RemoveObjects(Objects);
 	}
 
 	void FTransactionalReplicationStreamModel::AddProperties(const FSoftObjectPath& SoftObjectPath, TConstArrayView<FConcertPropertyChain> Properties)
 	{
 		const FScopedTransaction Transaction(LOCTEXT("AddProperties", "Add replicated properties"));
 		OwningObject->Modify();
-		FGenericReplicationStreamModel::AddProperties(SoftObjectPath, Properties);
+		WrappedModel->AddProperties(SoftObjectPath, Properties);
 	}
 
 	void FTransactionalReplicationStreamModel::RemoveProperties(const FSoftObjectPath& SoftObjectPath, TConstArrayView<FConcertPropertyChain> Properties)
 	{
 		const FScopedTransaction Transaction(LOCTEXT("RemoveProperties", "Remove replicated properties"));
 		OwningObject->Modify();
-		FGenericReplicationStreamModel::RemoveProperties(SoftObjectPath, Properties);
+		WrappedModel->RemoveProperties(SoftObjectPath, Properties);
 	}
 
 	bool FTransactionalReplicationStreamModel::MatchesContext(const FTransactionContext& InContext, const TArray<TPair<UObject*, FTransactionObjectEvent>>& TransactionObjectContexts) const
@@ -79,6 +78,11 @@ namespace UE::ConcertClientSharedSlate
 	{
 		OnObjectsChanged().Broadcast({}, {}, EReplicatedObjectChangeReason::ExternalChange);
 		OnPropertiesChanged().Broadcast();
+	}
+
+	void FTransactionalReplicationStreamModel::AddReferencedObjects(FReferenceCollector& Collector)
+	{
+		Collector.AddReferencedObject(OwningObject);
 	}
 }
 

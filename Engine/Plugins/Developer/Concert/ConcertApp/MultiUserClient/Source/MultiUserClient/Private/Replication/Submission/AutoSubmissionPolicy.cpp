@@ -14,7 +14,7 @@ namespace UE::MultiUserClient
 	FAutoSubmissionPolicy::FAutoSubmissionPolicy(
 		FSubmissionQueue& InSubmissionQueue,
 		const FChangeRequestBuilder& InRequestBuilder,
-		ConcertClientSharedSlate::IEditableReplicationStreamModel& InStreamEditorModel,
+		ConcertSharedSlate::IEditableReplicationStreamModel& InStreamEditorModel,
 		FAuthorityChangeTracker& InAuthorityChangeTracker,
 		FFrequencyChangeTracker& InFrequencyChangeTracker
 		)

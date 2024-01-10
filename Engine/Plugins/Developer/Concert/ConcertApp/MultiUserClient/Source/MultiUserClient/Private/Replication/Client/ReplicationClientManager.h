@@ -22,7 +22,7 @@ enum class EConcertClientStatus : uint8;
 
 struct FConcertSessionClientInfo;
 
-namespace UE::ConcertClientSharedSlate
+namespace UE::ConcertSharedSlate
 {
 	class IEditableReplicationStreamModel;
 }

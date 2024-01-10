@@ -204,7 +204,7 @@ namespace UE::MultiUserClient
 
 	SReassignObjectComboBox::FInlineObjectPathArray SReassignObjectComboBox::GetChildrenOfManagedObject() const
 	{
-		const ConcertClientSharedSlate::IReplicationStreamModel* Model = ConsolidatedStreamModelAttribute.Get();
+		const ConcertSharedSlate::IReplicationStreamModel* Model = ConsolidatedStreamModelAttribute.Get();
 		return ensure(Model) ? Model->GetSubobjects<FInlineAllocator>(ManagedObject) : FInlineObjectPathArray{};
 	}
 }

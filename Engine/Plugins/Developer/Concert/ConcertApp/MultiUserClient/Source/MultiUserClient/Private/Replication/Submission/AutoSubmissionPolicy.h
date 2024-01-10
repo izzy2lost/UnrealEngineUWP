@@ -11,7 +11,7 @@ namespace UE::MultiUserClient
 	class FFrequencyChangeTracker;
 }
 
-namespace UE::ConcertClientSharedSlate
+namespace UE::ConcertSharedSlate
 {
 	class IEditableReplicationStreamModel;
 }
@@ -40,7 +40,7 @@ namespace UE::MultiUserClient
 		FAutoSubmissionPolicy(
 			FSubmissionQueue& InSubmissionQueue UE_LIFETIMEBOUND,
 			const FChangeRequestBuilder& InRequestBuilder UE_LIFETIMEBOUND,
-			ConcertClientSharedSlate::IEditableReplicationStreamModel& InStreamEditorModel UE_LIFETIMEBOUND,
+			ConcertSharedSlate::IEditableReplicationStreamModel& InStreamEditorModel UE_LIFETIMEBOUND,
 			FAuthorityChangeTracker& InAuthorityChangeTracker UE_LIFETIMEBOUND,
 			FFrequencyChangeTracker& InFrequencyChangeTracker UE_LIFETIMEBOUND
 			);
@@ -57,7 +57,7 @@ namespace UE::MultiUserClient
 		const FChangeRequestBuilder& RequestBuilder;
 
 		/** Informs us when the stream is structurally changed by the user. */
-		ConcertClientSharedSlate::IEditableReplicationStreamModel& StreamEditorModel;
+		ConcertSharedSlate::IEditableReplicationStreamModel& StreamEditorModel;
 		/** Informs us when authority is changed by the user. */
 		FAuthorityChangeTracker& AuthorityChangeTracker;
 		/** Informs us when frequency settings are changed by the user. */
@@ -70,7 +70,7 @@ namespace UE::MultiUserClient
 		virtual void PerformSubmission_GameThread(ISubmissionWorkflow& Workflow) override;
 		//~ End FSelfUnregisteringDeferredSubmitter Interface
 
-		void OnObjectsChanged(TArrayView<UObject* const>, TArrayView<const FSoftObjectPath>, ConcertClientSharedSlate::EReplicatedObjectChangeReason) { OnChangesDetected(); }
+		void OnObjectsChanged(TArrayView<UObject* const>, TArrayView<const FSoftObjectPath>, ConcertSharedSlate::EReplicatedObjectChangeReason) { OnChangesDetected(); }
 		void OnChangesDetected();
 	};
 }

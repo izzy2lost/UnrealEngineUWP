@@ -8,7 +8,7 @@
 class IConcertClient;
 class FMenuBuilder;
 
-namespace UE::ConcertClientSharedSlate
+namespace UE::ConcertSharedSlate
 {
 	class IMultiReplicationStreamEditor;
 	class IEditableReplicationStreamModel;
@@ -47,7 +47,7 @@ namespace UE::MultiUserClient
 		/** Combines the clients */
 		TSharedPtr<FMultiStreamModel> StreamModel;
 		/** Displayed in the UI. */
-		TSharedPtr<ConcertClientSharedSlate::IMultiReplicationStreamEditor> StreamEditor;
+		TSharedPtr<ConcertSharedSlate::IMultiReplicationStreamEditor> StreamEditor;
 
 		/** Creates this widget's editor content */
 		TSharedRef<SWidget> CreateEditorContent(const TSharedRef<IConcertClient>& InConcertClient, FReplicationClientManager& InClientManager);

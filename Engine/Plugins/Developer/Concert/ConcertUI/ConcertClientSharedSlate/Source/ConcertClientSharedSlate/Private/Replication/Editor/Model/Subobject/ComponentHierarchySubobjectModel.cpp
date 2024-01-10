@@ -2,12 +2,12 @@
 
 #include "ComponentHierarchySubobjectModel.h"
 
-#include "SubobjectDataSubsystem.h"
 #include "Components/SceneComponent.h"
 #include "Misc/EBreakBehavior.h"
+#include "Replication/ObjectUtils.h"
 
 #include "GameFramework/Actor.h"
-#include "Replication/Editor/View/ObjectUtils.h"
+#include "SubobjectDataSubsystem.h"
 
 namespace UE::ConcertClientSharedSlate
 {
@@ -51,7 +51,7 @@ namespace UE::ConcertClientSharedSlate
 
 	bool FComponentHierarchySubobjectModel::IsTopLevelObject(const FSoftObjectPath& Object) const
 	{
-		return ObjectUtils::IsActor(Object);
+		return ConcertSharedSlate::ObjectUtils::IsActor(Object);
 	}
 
 	FText FComponentHierarchySubobjectModel::GetSubobjectDisplayName(const FSoftObjectPath& ObjectPath) const
