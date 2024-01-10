@@ -938,7 +938,6 @@ struct FTSRHistory
 	TRefCountPtr<IPooledRenderTarget> MetadataArray;
 
 	// Input resolution representation of the output
-	TRefCountPtr<IPooledRenderTarget> SubpixelDepth;
 	TRefCountPtr<IPooledRenderTarget> GuideArray;
 	TRefCountPtr<IPooledRenderTarget> MoireArray;
 

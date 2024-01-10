@@ -14,7 +14,6 @@
 
 RWTexture2D<uint> PrevUseCountOutput;
 RWTexture2D<uint> PrevClosestDepthOutput;
-RWTexture2D<uint> SubpixelDepthOutput;
 
 
 //------------------------------------------------------- ENTRY POINT
@@ -48,7 +47,6 @@ void MainCS(
 
 			PrevUseCountOutput[PrevUseCountPixelPos] = 0;
 			PrevClosestDepthOutput[InputPixelPos] = 0;
-			SubpixelDepthOutput[InputPixelPos] = 0;
 		}
 	}
 }

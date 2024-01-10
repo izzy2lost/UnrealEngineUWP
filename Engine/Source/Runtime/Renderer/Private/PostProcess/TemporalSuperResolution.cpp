@@ -283,28 +283,6 @@ TAutoConsoleVariable<float> CVarTSRWeightClampingPixelSpeed(
 //	TEXT("Defines how much the velocity should be extrapolated on geometric discontinuities (Default = 1.0f)."),
 //	ECVF_Scalability | ECVF_RenderThreadSafe);
 
-TAutoConsoleVariable<int32> CVarTSRSubpixelMethod(
-	TEXT("r.TSR.Subpixel.Method"), 0,
-	TEXT("One particular challenge of Nanite amount of details is that sometimes these details can be thiner than a rendering pixel in which case ")
-	TEXT("they only render in some frames. When that happens, it means neither depth or velocity buffer to be able to reproject them. This is for instance ")
-	TEXT("visible with the `vis SceneDepthZ` command.")
-	TEXT("\n")
-	TEXT("This settings control the method to reproject and/or discard the subpixel details.\n")
-	TEXT(" 0: disable subpixel details accumulation in history which means all this these subpixel features may ghost; \n")
-	TEXT(" 2: accumulate subpixel details' closest depth to be able to reproject them even when not drawing in depth/velocity buffer which works great for static geometry but not so much for any moving geometry (default)\n"),
-	ECVF_RenderThreadSafe);
-
-TAutoConsoleVariable<int32> CVarTSRSubpixelDepthMaxAge(
-	TEXT("r.TSR.Subpixel.DepthMaxAge"), 3,
-	TEXT("Maximum age in frames of subpixel's depth kept in history for their self reprojection (default to 3 frames)."),
-	ECVF_RenderThreadSafe);
-
-TAutoConsoleVariable<int32> CVarTSRSubpixelIncludeMovingDepth(
-	TEXT("r.TSR.Subpixel.IncludeMovingDepth"), 0,
-	TEXT("Whether the depth of moving subpixel detail should also be included in the subpixel depth history for their reprojection. This is a really bad idea to turn this on ")
-	TEXT("because it is impossible how a moving object's velocity involves overtime when it's only occasionally drawing its velocity. (disabled by default)."),
-	ECVF_RenderThreadSafe);
-
 #if !UE_BUILD_OPTIMIZED_SHOWFLAGS
 
 TAutoConsoleVariable<int32> CVarTSRVisualize(
@@ -359,14 +337,11 @@ BEGIN_SHADER_PARAMETER_STRUCT(FTSRHistoryTextures, )
 	SHADER_PARAMETER_RDG_TEXTURE(Texture2DArray, MetadataArray)
 	SHADER_PARAMETER_RDG_TEXTURE(Texture2DArray, GuideArray)
 	SHADER_PARAMETER_RDG_TEXTURE(Texture2DArray, MoireArray)
-	SHADER_PARAMETER_RDG_TEXTURE(Texture2D, SubpixelDepth)
 END_SHADER_PARAMETER_STRUCT()
 
 BEGIN_SHADER_PARAMETER_STRUCT(FTSRPrevHistoryParameters, )
 	SHADER_PARAMETER_STRUCT(FScreenPassTextureViewportParameters, PrevHistoryInfo)
 	SHADER_PARAMETER(FScreenTransform, ScreenPosToPrevHistoryBufferUV)
-	SHADER_PARAMETER(FScreenTransform, ScreenPosToPrevSubpixelDetails)
-	SHADER_PARAMETER(FVector2f, PrevSubpixelDetailsExtent)
 	SHADER_PARAMETER(float, HistoryPreExposureCorrection)
 	SHADER_PARAMETER(float, ResurrectionPreExposureCorrection)
 END_SHADER_PARAMETER_STRUCT()
@@ -378,13 +353,6 @@ enum class ETSRHistoryFormatBits : uint32
 	AlphaChannel = 1 << 1,
 };
 ENUM_CLASS_FLAGS(ETSRHistoryFormatBits);
-
-enum class ETSRSubpixelMethod
-{
-	Disabled,
-	ParallaxFactor,
-	ClosestDepth,
-};
 
 bool IsOutputDifferentThanHighFrequency(ETSRHistoryFormatBits HistoryFormatBits)
 {
@@ -501,28 +469,8 @@ class FTSRClearPrevTexturesCS : public FTSRShader
 
 		SHADER_PARAMETER_RDG_TEXTURE_UAV(RWTexture2D, PrevUseCountOutput)
 		SHADER_PARAMETER_RDG_TEXTURE_UAV(RWTexture2D, PrevClosestDepthOutput)
-		SHADER_PARAMETER_RDG_TEXTURE_UAV(RWTexture2D, SubpixelDepthOutput)
 	END_SHADER_PARAMETER_STRUCT()
 }; // class FTSRClearPrevTexturesCS
-
-class FTSRForwardScatterDepthCS : public FTSRShader
-{
-	DECLARE_GLOBAL_SHADER(FTSRForwardScatterDepthCS);
-	SHADER_USE_PARAMETER_STRUCT(FTSRForwardScatterDepthCS, FTSRShader);
-
-	BEGIN_SHADER_PARAMETER_STRUCT(FParameters, )
-		SHADER_PARAMETER_STRUCT_INCLUDE(FTSRCommonParameters, CommonParameters)
-		SHADER_PARAMETER(FIntPoint, PrevSubpixelDepthViewportMin)
-		SHADER_PARAMETER(FIntPoint, PrevSubpixelDepthViewportMax)
-		SHADER_PARAMETER(FScreenTransform, InputPixelPosToPrevScreenPosition)
-		SHADER_PARAMETER(FScreenTransform, ScreenPosToOutputPixelPos)
-
-		SHADER_PARAMETER_RDG_TEXTURE(Texture2D, PrevSubpixelDepthTexture)
-
-		SHADER_PARAMETER_RDG_TEXTURE_UAV(RWTexture2D, SubpixelDepthOutput)
-		SHADER_PARAMETER_RDG_TEXTURE_UAV(RWTexture2DArray, DebugOutput)
-	END_SHADER_PARAMETER_STRUCT()
-}; // class FTSRForwardScatterDepthCS
 
 class FTSRDilateVelocityCS : public FTSRShader
 {
@@ -530,8 +478,7 @@ class FTSRDilateVelocityCS : public FTSRShader
 	SHADER_USE_PARAMETER_STRUCT(FTSRDilateVelocityCS, FTSRShader);
 
 	class FMotionBlurDirectionsDim : SHADER_PERMUTATION_INT("DIM_MOTION_BLUR_DIRECTIONS", 3);
-	class FSubpixelDepthDim : SHADER_PERMUTATION_BOOL("DIM_SUBPIXEL_DEPTH");
-	using FPermutationDomain = TShaderPermutationDomain<FMotionBlurDirectionsDim, FSubpixelDepthDim>;
+	using FPermutationDomain = TShaderPermutationDomain<FMotionBlurDirectionsDim>;
 
 	BEGIN_SHADER_PARAMETER_STRUCT(FParameters, )
 		SHADER_PARAMETER_STRUCT_INCLUDE(FTSRCommonParameters, CommonParameters)
@@ -543,19 +490,15 @@ class FTSRDilateVelocityCS : public FTSRShader
 		SHADER_PARAMETER(float, VelocityExtrapolationMultiplier)
 		SHADER_PARAMETER(float, InvFlickeringMaxParralaxVelocity)
 		SHADER_PARAMETER(int32, bOutputIsMovingTexture)
-		SHADER_PARAMETER(int32, bIncludeDynamicDepthInSubpixelDetails)
-		SHADER_PARAMETER(int32, SubpixelDepthLifetime)
 
 		SHADER_PARAMETER_RDG_TEXTURE(Texture2D, SceneDepthTexture)
 		SHADER_PARAMETER_RDG_TEXTURE(Texture2D, SceneVelocityTexture)
-		SHADER_PARAMETER_RDG_TEXTURE(Texture2D, PrevScatteredSubpixelDepthTexture)
 
 		SHADER_PARAMETER_RDG_TEXTURE_UAV(RWTexture2D, DilatedVelocityOutput)
 		SHADER_PARAMETER_RDG_TEXTURE_UAV(RWTexture2D, ClosestDepthOutput)
 		SHADER_PARAMETER_RDG_TEXTURE_UAV(RWTexture2D, PrevUseCountOutput)
 		SHADER_PARAMETER_RDG_TEXTURE_UAV(RWTexture2D, PrevClosestDepthOutput)
 		SHADER_PARAMETER_RDG_TEXTURE_UAV(RWTexture2DArray, R8Output)
-		SHADER_PARAMETER_RDG_TEXTURE_UAV(RWTexture2DArray, SubpixelDepthOutput)
 
 		SHADER_PARAMETER_RDG_TEXTURE_UAV(RWTexture2D, VelocityFlattenOutput)
 		SHADER_PARAMETER_RDG_TEXTURE_UAV(RWTexture2DArray, VelocityTileArrayOutput)
@@ -1059,7 +1002,6 @@ class FTSRVisualizeCS : public FTSRShader
 
 IMPLEMENT_GLOBAL_SHADER(FTSRMeasureFlickeringLumaCS, "/Engine/Private/TemporalSuperResolution/TSRMeasureFlickeringLuma.usf", "MainCS", SF_Compute);
 IMPLEMENT_GLOBAL_SHADER(FTSRClearPrevTexturesCS,     "/Engine/Private/TemporalSuperResolution/TSRClearPrevTextures.usf",     "MainCS", SF_Compute);
-IMPLEMENT_GLOBAL_SHADER(FTSRForwardScatterDepthCS,   "/Engine/Private/TemporalSuperResolution/TSRForwardScatterDepth.usf",   "MainCS", SF_Compute);
 IMPLEMENT_GLOBAL_SHADER(FTSRDilateVelocityCS,        "/Engine/Private/TemporalSuperResolution/TSRDilateVelocity.usf",        "MainCS", SF_Compute);
 IMPLEMENT_GLOBAL_SHADER(FTSRDecimateHistoryCS,       "/Engine/Private/TemporalSuperResolution/TSRDecimateHistory.usf",       "MainCS", SF_Compute);
 IMPLEMENT_GLOBAL_SHADER(FTSRRejectShadingCS,         "/Engine/Private/TemporalSuperResolution/TSRRejectShading.usf",         "MainCS", SF_Compute);
@@ -1277,9 +1219,6 @@ FDefaultTemporalUpscaler::FOutputs AddTemporalSuperResolutionPasses(
 {
 	const FTSRHistory& InputHistory = View.PrevViewInfo.TSRHistory;
 
-	// Maximum depth lifetime encodable in FTSRSubpixelDepth::RemainingLifetime
-	const int32 kMaxDepthLifetime = (1 << 7) - 1;
-
 	// Number of frames stored in the history.
 	FTSRHistorySliceSequence HistorySliceSequence;
 	if (CVarTSRResurrectionEnable.GetValueOnRenderThread())
@@ -1319,9 +1258,6 @@ FDefaultTemporalUpscaler::FOutputs AddTemporalSuperResolutionPasses(
 		}
 	}
 #endif // PLATFORM_DESKTOP
-
-	// Whether should accumulate sub pixel depth.
-	const ETSRSubpixelMethod SubpixelMethod = ETSRSubpixelMethod(FMath::Clamp(CVarTSRSubpixelMethod.GetValueOnRenderThread(), 0, 2));
 
 	// Whether alpha channel is supported.
 	const bool bSupportsAlpha = CVarTSRAlphaChannel.GetValueOnRenderThread() >= 0 ? (CVarTSRAlphaChannel.GetValueOnRenderThread() > 0) : IsPostProcessingWithAlphaChannelSupported();
@@ -1658,7 +1594,6 @@ FDefaultTemporalUpscaler::FOutputs AddTemporalSuperResolutionPasses(
 		PrevHistory.MetadataArray = BlackArrayDummy;
 		PrevHistory.GuideArray = BlackArrayDummy;
 		PrevHistory.MoireArray = BlackArrayDummy;
-		PrevHistory.SubpixelDepth = nullptr;
 
 		if (HistorySliceSequence.GetRollingIndexCount() > 1)
 		{
@@ -1684,11 +1619,6 @@ FDefaultTemporalUpscaler::FOutputs AddTemporalSuperResolutionPasses(
 		PrevHistory.MoireArray = InputHistory.MoireArray.IsValid()
 			? GraphBuilder.RegisterExternalTexture(InputHistory.MoireArray)
 			: BlackDummy;
-
-		// Register non-filterable history
-		PrevHistory.SubpixelDepth = InputHistory.SubpixelDepth.IsValid()
-			? GraphBuilder.RegisterExternalTexture(InputHistory.SubpixelDepth, TEXT("TSR.PrevHistory.SubpixelDepth"))
-			: nullptr;
 
 		int32 ResurrectionFrameRollingIndex = 0;
 		int32 PrevFrameRollingIndex = 0;
@@ -1743,17 +1673,6 @@ FDefaultTemporalUpscaler::FOutputs AddTemporalSuperResolutionPasses(
 		ResurrectionGuideViewport = FScreenPassTextureViewport(PrevHistory.GuideArray->Desc.Extent, InputHistory.InputViewportRects[ResurrectionFrameSliceIndex]);
 	}
 
-	// Allocate non-reusuable history resources
-	if (SubpixelMethod == ETSRSubpixelMethod::ClosestDepth)
-	{
-		FRDGTextureDesc SubpixelDepthDesc = FRDGTextureDesc::Create2D(
-			InputExtent,
-			PF_R32_UINT,
-			FClearValueBinding::None,
-			TexCreate_ShaderResource | TexCreate_UAV);
-		History.SubpixelDepth = GraphBuilder.CreateTexture(SubpixelDepthDesc, TEXT("TSR.History.SubpixelDepth"));
-	}
-
 	// Setup the shader parameters for previous frame history
 	FTSRPrevHistoryParameters PrevHistoryParameters;
 	{
@@ -1775,7 +1694,6 @@ FDefaultTemporalUpscaler::FOutputs AddTemporalSuperResolutionPasses(
 	// Clear atomic scattered texture.
 	FRDGTextureRef PrevUseCountTexture;
 	FRDGTextureRef PrevClosestDepthTexture;
-	FRDGTextureRef PrevScatteredSubpixelDepthTexture = nullptr;
 	{
 		{
 			FRDGTextureDesc Desc = FRDGTextureDesc::Create2D(
@@ -1792,18 +1710,6 @@ FDefaultTemporalUpscaler::FOutputs AddTemporalSuperResolutionPasses(
 		PassParameters->CommonParameters = CommonParameters;
 		PassParameters->PrevUseCountOutput = GraphBuilder.CreateUAV(PrevUseCountTexture);
 		PassParameters->PrevClosestDepthOutput = GraphBuilder.CreateUAV(PrevClosestDepthTexture);
-		if (History.SubpixelDepth && PrevHistory.SubpixelDepth)
-		{
-			FRDGTextureDesc Desc = History.SubpixelDepth->Desc;
-			Desc.Flags |= TexCreate_AtomicCompatible;
-
-			PrevScatteredSubpixelDepthTexture = GraphBuilder.CreateTexture(Desc, TEXT("TSR.PrevScatteredSubpixelDepth"));
-			PassParameters->SubpixelDepthOutput = GraphBuilder.CreateUAV(PrevScatteredSubpixelDepthTexture);
-		}
-		else
-		{
-			PassParameters->SubpixelDepthOutput = CreateDummyUAV(GraphBuilder, PF_R32_UINT);
-		}
 
 		TShaderMapRef<FTSRClearPrevTexturesCS> ComputeShader(View.ShaderMap);
 		FComputeShaderUtils::AddPass(
@@ -1813,36 +1719,6 @@ FDefaultTemporalUpscaler::FOutputs AddTemporalSuperResolutionPasses(
 			ComputeShader,
 			PassParameters,
 			FComputeShaderUtils::GetGroupCount(InputRect.Size(), 8 * 2));
-	}
-
-	// Forward scatter previous frame sub pixel depths.
-	if (PrevScatteredSubpixelDepthTexture)
-	{
-		FIntRect ScatterDepthViewport = InputHistory.InputViewportRect;
-
-		FTSRForwardScatterDepthCS::FParameters* PassParameters = GraphBuilder.AllocParameters<FTSRForwardScatterDepthCS::FParameters>();
-		PassParameters->CommonParameters = CommonParameters;
-		PassParameters->PrevSubpixelDepthViewportMin = ScatterDepthViewport.Min;
-		PassParameters->PrevSubpixelDepthViewportMax = ScatterDepthViewport.Max - 1;
-		PassParameters->InputPixelPosToPrevScreenPosition = (FScreenTransform::Identity + 0.5f) * FScreenTransform::ChangeTextureBasisFromTo(
-			PrevHistory.SubpixelDepth->Desc.Extent, ScatterDepthViewport,
-			FScreenTransform::ETextureBasis::TexelPosition, FScreenTransform::ETextureBasis::ScreenPosition);
-		PassParameters->ScreenPosToOutputPixelPos = FScreenTransform::ChangeTextureBasisFromTo(
-			InputExtent, InputRect,
-			FScreenTransform::ETextureBasis::ScreenPosition, FScreenTransform::ETextureBasis::TexelPosition);
-
-		PassParameters->PrevSubpixelDepthTexture = PrevHistory.SubpixelDepth;
-		PassParameters->SubpixelDepthOutput = GraphBuilder.CreateUAV(PrevScatteredSubpixelDepthTexture);
-		PassParameters->DebugOutput = CreateDebugUAV(InputExtent, TEXT("Debug.TSR.ForwardScatterDepth"));
-
-		TShaderMapRef<FTSRForwardScatterDepthCS> ComputeShader(View.ShaderMap);
-		FComputeShaderUtils::AddPass(
-			GraphBuilder,
-			RDG_EVENT_NAME("TSR ForwardScatterDepth %dx%d", ScatterDepthViewport.Width(), ScatterDepthViewport.Height()),
-			AsyncComputePasses >= 1 ? ERDGPassFlags::AsyncCompute : ERDGPassFlags::Compute,
-			ComputeShader,
-			PassParameters,
-			FComputeShaderUtils::GetGroupCount(ScatterDepthViewport.Size(), 8));
 	}
 
 	// Dilate the velocity texture & scatter reprojection into previous frame
@@ -1892,7 +1768,6 @@ FDefaultTemporalUpscaler::FOutputs AddTemporalSuperResolutionPasses(
 
 		int32 TileSize = 8;
 		FTSRDilateVelocityCS::FPermutationDomain PermutationVector;
-		PermutationVector.Set<FTSRDilateVelocityCS::FSubpixelDepthDim>(SubpixelMethod == ETSRSubpixelMethod::ClosestDepth);
 
 		FTSRDilateVelocityCS::FParameters* PassParameters = GraphBuilder.AllocParameters<FTSRDilateVelocityCS::FParameters>();
 		PassParameters->CommonParameters = CommonParameters;
@@ -1905,29 +1780,15 @@ FDefaultTemporalUpscaler::FOutputs AddTemporalSuperResolutionPasses(
 			PassParameters->InvFlickeringMaxParralaxVelocity = 1.0f / FlickeringMaxParralaxVelocity;
 		}
 		PassParameters->bOutputIsMovingTexture = bOutputIsMovingTexture;
-		PassParameters->bIncludeDynamicDepthInSubpixelDetails = SubpixelMethod == ETSRSubpixelMethod::ClosestDepth && CVarTSRSubpixelIncludeMovingDepth.GetValueOnRenderThread();
-		PassParameters->SubpixelDepthLifetime = FMath::Clamp(CVarTSRSubpixelDepthMaxAge.GetValueOnRenderThread(), 1, kMaxDepthLifetime);
-
+		
 		PassParameters->SceneDepthTexture = PassInputs.SceneDepth.Texture;
 		PassParameters->SceneVelocityTexture = PassInputs.SceneVelocity.Texture;
-		if (PrevScatteredSubpixelDepthTexture)
-		{
-			PassParameters->PrevScatteredSubpixelDepthTexture = PrevScatteredSubpixelDepthTexture;
-		}
-		else
-		{
-			PassParameters->PrevScatteredSubpixelDepthTexture = BlackUintDummy;
-		}
 
 		PassParameters->DilatedVelocityOutput = GraphBuilder.CreateUAV(DilatedVelocityTexture);
 		PassParameters->ClosestDepthOutput = GraphBuilder.CreateUAV(ClosestDepthTexture);
 		PassParameters->PrevUseCountOutput = GraphBuilder.CreateUAV(PrevUseCountTexture);
 		PassParameters->PrevClosestDepthOutput = GraphBuilder.CreateUAV(PrevClosestDepthTexture);
 		PassParameters->R8Output = GraphBuilder.CreateUAV(R8OutputTexture);
-		if (SubpixelMethod == ETSRSubpixelMethod::ClosestDepth)
-		{
-			PassParameters->SubpixelDepthOutput = GraphBuilder.CreateUAV(History.SubpixelDepth);
-		}
 
 		// Setup up the motion blur's velocity flatten pass.
 		if (PassInputs.bGenerateVelocityFlattenTextures)
@@ -1970,11 +1831,10 @@ FDefaultTemporalUpscaler::FOutputs AddTemporalSuperResolutionPasses(
 		TShaderMapRef<FTSRDilateVelocityCS> ComputeShader(View.ShaderMap, PermutationVector);
 		FComputeShaderUtils::AddPass(
 			GraphBuilder,
-			RDG_EVENT_NAME("TSR DilateVelocity(#%d MotionBlurDirections=%d%s%s) %dx%d",
+			RDG_EVENT_NAME("TSR DilateVelocity(#%d MotionBlurDirections=%d%s) %dx%d",
 				PermutationVector.ToDimensionValueId(),
 				int32(PermutationVector.Get<FTSRDilateVelocityCS::FMotionBlurDirectionsDim>()),
 				bOutputIsMovingTexture ? TEXT(" OutputIsMoving") : TEXT(""),
-				PermutationVector.Get<FTSRDilateVelocityCS::FSubpixelDepthDim>() ? TEXT(" SubpixelDepth") : TEXT(""),
 				InputRect.Width(), InputRect.Height()),
 			AsyncComputePasses >= 2 ? ERDGPassFlags::AsyncCompute : ERDGPassFlags::Compute,
 			ComputeShader,
@@ -2602,12 +2462,6 @@ FDefaultTemporalUpscaler::FOutputs AddTemporalSuperResolutionPasses(
 		// Extract filterable history
 		GraphBuilder.QueueTextureExtraction(History.ColorArray, &OutputHistory.ColorArray);
 		GraphBuilder.QueueTextureExtraction(History.MetadataArray, &OutputHistory.MetadataArray);
-
-		// Extract non-filterable history
-		if (History.SubpixelDepth)
-		{
-			GraphBuilder.QueueTextureExtraction(History.SubpixelDepth, &OutputHistory.SubpixelDepth);
-		}
 
 		// Extract history guide
 		GraphBuilder.QueueTextureExtraction(History.GuideArray, &OutputHistory.GuideArray);

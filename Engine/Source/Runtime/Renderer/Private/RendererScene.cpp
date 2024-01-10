@@ -822,7 +822,6 @@ uint64 FTSRHistory::GetGPUSizeBytes(bool bLogSizes) const
 	return
 		GetRenderTargetGPUSizeBytes(ColorArray, bLogSizes) +
 		GetRenderTargetGPUSizeBytes(MetadataArray, bLogSizes) +
-		GetRenderTargetGPUSizeBytes(SubpixelDepth, bLogSizes) +
 		GetRenderTargetGPUSizeBytes(GuideArray, bLogSizes) +
 		GetRenderTargetGPUSizeBytes(MoireArray, bLogSizes);
 }

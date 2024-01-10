@@ -79,17 +79,6 @@
 
 #define MAX_PARALLAX_FACTOR 8.0
 
-// Size and payload size of the subpixel grid in the history
-#define SUB_PIXEL_GRID_SIZE 2
-#define SUB_PIXEL_COUNT (SUB_PIXEL_GRID_SIZE * SUB_PIXEL_GRID_SIZE)
-
-#define SUB_PIXEL_BIT_COUNT 4
-#define SUB_PIXEL_BIT_MASK ((1 << SUB_PIXEL_BIT_COUNT) - 1)
-
-#define SUB_PIXEL_PARALLAX_FACTOR_BIT_COUNT 4
-#define SUB_PIXEL_PARALLAX_FACTOR_BIT_OFFSET 0
-#define SUB_PIXEL_PARALLAX_FACTOR_BIT_MASK ((1 << SUB_PIXEL_PARALLAX_FACTOR_BIT_COUNT) - 1)
-
 // Minimum number of sample of each texel when reprojecting the high frequency history.
 // Value too low causes area of low sample count to have pixel dominating too much in reprojection causing input res aliasing on texture details
 #define MIN_REPROJECTION_SAMPLE_COUNT 2.0
@@ -1116,54 +1105,6 @@ tsr_half2 ComputePrevWeightMultiplier(tsr_half2 BlendFactor)
 tsr_half2 RejectionFactorToBlendFactor(tsr_half2 RejectionFactor)
 {
 	return tsr_half(1.0) - RejectionFactor;
-}
-
-/** Payload of a subpixel depth information in the history */
-struct FTSRSubpixelDepth
-{
-	/** Depth of the pixel. */
-	float DeviceZ;
-	
-	/** Offset of the depth from the center of pixel. */
-	float2 Offset;
-	
-	/** Number of reprojected frame remaining before this depth is to be discarded. */
-	uint RemainingLifetime;
-};
-
-uint CompressSubpixelDepth(FTSRSubpixelDepth SubpixelDepth)
-{
-	uint CompressedSubpixelDepth = 0u;
-	CompressedSubpixelDepth |= f32tof16(SubpixelDepth.DeviceZ) << 17u;
-	CompressedSubpixelDepth |= uint(fastClamp(int(round(SubpixelDepth.Offset.x * 16.00 + 16.0)), 0, 31)) << 12u;
-	CompressedSubpixelDepth |= uint(fastClamp(int(round(SubpixelDepth.Offset.y * 16.00 + 16.0)), 0, 31)) <<  7u;
-	CompressedSubpixelDepth |= (SubpixelDepth.RemainingLifetime) << 0u;
-	return CompressedSubpixelDepth;
-}
-
-FTSRSubpixelDepth UncompressSubpixelDepth(uint CompressedSubpixelDepth)
-{
-	FTSRSubpixelDepth SubpixelDepth;
-	SubpixelDepth.DeviceZ  = f16tof32(CompressedSubpixelDepth >> 17u);
-	SubpixelDepth.Offset.x = float((CompressedSubpixelDepth >> 12u) & 0x1Fu) * rcp(16.0) - 1.0;
-	SubpixelDepth.Offset.y = float((CompressedSubpixelDepth >>  7u) & 0x1Fu) * rcp(16.0) - 1.0;
-	SubpixelDepth.RemainingLifetime = CompressedSubpixelDepth & 0x7Fu;
-	return SubpixelDepth;
-}
-
-void ForwardReprojectStaticDepth(float2 PrevScreenPosition, float PrevDeviceZ, out float2 ScreenPos, out float SceneDepth)
-{
-	float3 PreViewTranslationOffset = LWCToFloat(LWCSubtract(PrimaryView.PreViewTranslation, PrimaryView.PrevPreViewTranslation));
- 
-	// Compute position of the history in world space.
-	float PrevSceneDepth = ConvertFromDeviceZ(PrevDeviceZ);
-	float3 TranslatedWorldPosition = mul(float4(PrevScreenPosition * PrevSceneDepth, PrevSceneDepth, 1), View.PrevScreenToTranslatedWorld).xyz + PreViewTranslationOffset;
-	
-	// Reproject the world position into new viewport.
-	float4 ClipPos = mul(float4(TranslatedWorldPosition, 1.0), View.TranslatedWorldToClip);
-	
-	ScreenPos = ClipPos.xy / ClipPos.w;
-	SceneDepth = ClipPos.w;
 }
 
 FCatmullRomSamples GetBicubic2DCatmullRomSamples_Stubbe(float2 UV, float2 Size, in float2 InvSize)
