@@ -357,7 +357,7 @@ namespace EpicGames.Horde.Storage.Nodes
 	/// <summary>
 	/// An interior file node
 	/// </summary>
-	[BlobType("{F4DEDDBC-4C7A-70CB-11F0-4783B9CDCCAF}", 3)]
+	[BlobType("{F4DEDDBC-4C7A-70CB-11F0-4783B9CDCCAF}", 2)] // Pending V3
 	public class InteriorChunkedDataNode : ChunkedDataNode
 	{
 		/// <summary>
@@ -416,7 +416,7 @@ namespace EpicGames.Horde.Storage.Nodes
 			{
 				writer.WriteIoHash(child.Hash);
 				writer.WriteUnsignedVarInt((int)child.Type);
-				writer.WriteUnsignedVarInt((ulong)child.Length);
+				// Pending V3: writer.WriteUnsignedVarInt((ulong)child.Length);
 				writer.WriteBlobReference(child.Handle);
 			}
 		}
@@ -526,11 +526,7 @@ namespace EpicGames.Horde.Storage.Nodes
 				IBlobHandle handle = nodeReader.ReadBlobReference();
 				if (nodeReader.Version >= 2)
 				{
-					_ = nodeReader.ReadUnsignedVarInt(); // Type
-				}
-				if (nodeReader.Version >= 3)
-				{
-					_ = nodeReader.ReadUnsignedVarInt(); // Length
+					_ = nodeReader.ReadUnsignedVarInt();
 				}
 				await ChunkedDataNode.CopyToStreamAsync(handle, outputStream, cancellationToken);
 			}
