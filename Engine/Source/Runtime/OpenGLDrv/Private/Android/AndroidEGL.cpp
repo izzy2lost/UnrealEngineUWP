@@ -824,7 +824,18 @@ void AndroidEGL::Init(APIVariant API, uint32 MajorVersion, uint32 MinorVersion)
 	{
 		ContextAttributes[3] -= 1;
 
-		InitContexts();
+		bSuccess = InitContexts();
+
+		if (!bSuccess)
+		{
+			// Try to create an ES2 context if ES3.1 also failed, which can happen in the Android emulator.
+			// This is enough for FAndroidGPUInfo detection to enable Vulkan.
+			ContextAttributes[0] = EGL_CONTEXT_CLIENT_VERSION;
+			ContextAttributes[1] = 2;
+			ContextAttributes[2] = EGL_NONE;
+
+			bSuccess = InitContexts();
+		}
 	}
 
 	// Getting the hardware window is valid during preinit as we have GAndroidWindowLock held.
