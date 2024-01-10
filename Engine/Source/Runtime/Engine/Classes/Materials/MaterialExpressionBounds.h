@@ -20,10 +20,18 @@ enum EMaterialExpressionBoundsType : uint8
 	MEILB_PreSkinnedLocal UMETA(DisplayName = "Pre-Skinned Local"),
 };
 
-UCLASS(collapsecategories, hidecategories = Object)
+UCLASS(collapsecategories, hidecategories = Object, MinimalAPI)
 class UMaterialExpressionBounds : public UMaterialExpression
 {
 	GENERATED_UCLASS_BODY()
+
+	enum OutputIndex
+	{
+		BoundsHalfExtentOutputIndex,
+		BoundsExtentOutputIndex,
+		BoundsMinOutputIndex,
+		BoundsMaxOutputIndex,
+	};
 
 	/** The type of bounds to output */
 	UPROPERTY(EditAnywhere, Category = MaterialExpressionBounds, meta = (DisplayName = "Type", ShowAsInputPin = "Advanced"))

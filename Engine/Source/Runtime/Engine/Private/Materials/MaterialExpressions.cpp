@@ -13441,12 +13441,19 @@ UMaterialExpressionBounds::UMaterialExpressionBounds(const FObjectInitializer& O
 	bShowOutputNameOnPin = true;
 
 	Outputs.Reset();
+	check(BoundsHalfExtentOutputIndex == Outputs.Num());
 	Outputs.Add(FExpressionOutput(TEXT("Half Extents"), 1, 1, 1, 1, 0));
 	OutputToolTips.Add("Half the extent (width, depth and height) of the bounding box. In local space.");
+
+	check(BoundsExtentOutputIndex == Outputs.Num());
 	Outputs.Add(FExpressionOutput(TEXT("Extents"), 1, 1, 1, 1, 0));
 	OutputToolTips.Add("Full extent (width, depth and height) of the bounding box. Same as 2x Half Extents. In local space.");
+	
+	check(BoundsMinOutputIndex == Outputs.Num());
 	Outputs.Add(FExpressionOutput(TEXT("Min"), 1, 1, 1, 1, 0));
 	OutputToolTips.Add("Minimum 3D point of the bounding box. In local space.");
+	
+	check(BoundsMaxOutputIndex == Outputs.Num());
 	Outputs.Add(FExpressionOutput(TEXT("Max"), 1, 1, 1, 1, 0));
 	OutputToolTips.Add("Maximum 3D point of the bounding box. In local space.");
 #endif

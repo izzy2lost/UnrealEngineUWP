@@ -103,6 +103,7 @@
 #include "Materials/MaterialExpressionCustom.h"
 #include "Materials/MaterialExpressionWorldPosition.h"
 #include "Materials/MaterialExpressionReflectionVectorWS.h"
+#include "Materials/MaterialExpressionBounds.h"
 #include "LevelEditorDragDropHandler.h"
 #include "UnrealWidget.h"
 #include "EdModeInteractiveToolsContext.h"
@@ -526,16 +527,14 @@ static bool TryAndCreateMaterialInput( UMaterial* UnrealMaterial, EMaterialKind 
 		UMaterialExpressionDivide* DivideExpression = NewObject<UMaterialExpressionDivide>(UnrealMaterial);
 		UMaterialExpressionSubtract* BoundsRelativePosExpression = NewObject<UMaterialExpressionSubtract>(UnrealMaterial);
 		UMaterialExpressionSubtract* BoundsSizeExpression = NewObject<UMaterialExpressionSubtract>(UnrealMaterial);
-		UMaterialExpressionCustom* LocalBoundsMinExpression = NewObject<UMaterialExpressionCustom>(UnrealMaterial);
-		UMaterialExpressionCustom* LocalBoundsMaxExpression = NewObject<UMaterialExpressionCustom>(UnrealMaterial);
+		UMaterialExpressionBounds* LocalBoundsExpression = NewObject<UMaterialExpressionBounds>(UnrealMaterial);
 		UMaterialExpressionTransformPosition* TransformPositionExpression = NewObject<UMaterialExpressionTransformPosition>(UnrealMaterial);
 		UMaterialExpressionWorldPosition* WorldPosExpression = NewObject<UMaterialExpressionWorldPosition>(UnrealMaterial);
 
 		UnrealMaterial->GetExpressionCollection().AddExpression( DivideExpression );
 		UnrealMaterial->GetExpressionCollection().AddExpression( BoundsRelativePosExpression );
 		UnrealMaterial->GetExpressionCollection().AddExpression( BoundsSizeExpression );
-		UnrealMaterial->GetExpressionCollection().AddExpression( LocalBoundsMinExpression );
-		UnrealMaterial->GetExpressionCollection().AddExpression( LocalBoundsMaxExpression );
+		UnrealMaterial->GetExpressionCollection().AddExpression( LocalBoundsExpression );
 		UnrealMaterial->GetExpressionCollection().AddExpression( TransformPositionExpression );
 		UnrealMaterial->GetExpressionCollection().AddExpression( WorldPosExpression );
 
@@ -554,12 +553,16 @@ static bool TryAndCreateMaterialInput( UMaterial* UnrealMaterial, EMaterialKind 
 		EditorPosX -= 150;
 
 		BoundsRelativePosExpression->A.Expression = TransformPositionExpression;
-		BoundsRelativePosExpression->B.Expression = LocalBoundsMinExpression;
+		BoundsRelativePosExpression->B.Expression = LocalBoundsExpression;
+		BoundsRelativePosExpression->B.OutputIndex = 2;
+
 		BoundsRelativePosExpression->MaterialExpressionEditorX = EditorPosX;
 		BoundsRelativePosExpression->MaterialExpressionEditorY = EditorPosY;
 
-		BoundsSizeExpression->A.Expression = LocalBoundsMaxExpression;
-		BoundsSizeExpression->B.Expression = LocalBoundsMinExpression;
+		BoundsSizeExpression->A.Expression = LocalBoundsExpression;
+		BoundsSizeExpression->A.OutputIndex = UMaterialExpressionBounds::BoundsMaxOutputIndex;
+		BoundsSizeExpression->B.Expression = LocalBoundsExpression;
+		BoundsSizeExpression->B.OutputIndex = UMaterialExpressionBounds::BoundsMinOutputIndex;
 		BoundsSizeExpression->MaterialExpressionEditorX = EditorPosX;
 		BoundsSizeExpression->MaterialExpressionEditorY = EditorPosY + 100;
 
@@ -571,20 +574,9 @@ static bool TryAndCreateMaterialInput( UMaterial* UnrealMaterial, EMaterialKind 
 		TransformPositionExpression->MaterialExpressionEditorX = EditorPosX;
 		TransformPositionExpression->MaterialExpressionEditorY = EditorPosY;
 
-		// There's an ObjectLocalBounds node, but it's a compound node which uses two custom expressions inside to get the
-		// min and max, and it's too much of a hassle to create that from a uasset and then query its outputs by name. Instead,
-		// we'll just use the same custom expressions directly.
-		LocalBoundsMinExpression->Code = TEXT("GetPrimitiveData(Parameters).LocalObjectBoundsMin.xyz");
-		LocalBoundsMinExpression->OutputType = CMOT_Float3;
-		LocalBoundsMinExpression->Description = TEXT("Local Bounds Min");
-		LocalBoundsMinExpression->MaterialExpressionEditorX = EditorPosX;
-		LocalBoundsMinExpression->MaterialExpressionEditorY = EditorPosY + 100;
-
-		LocalBoundsMaxExpression->Code = TEXT("GetPrimitiveData(Parameters).LocalObjectBoundsMax.xyz");
-		LocalBoundsMaxExpression->OutputType = CMOT_Float3;
-		LocalBoundsMaxExpression->Description = TEXT("Local Bounds Max");
-		LocalBoundsMaxExpression->MaterialExpressionEditorX = EditorPosX;
-		LocalBoundsMaxExpression->MaterialExpressionEditorY = EditorPosY + 300;
+		LocalBoundsExpression->Type = MEILB_ObjectLocal;
+		LocalBoundsExpression->MaterialExpressionEditorX = EditorPosX;
+		LocalBoundsExpression->MaterialExpressionEditorY = EditorPosY + 100;
 
 		EditorPosX -= 250;
 
