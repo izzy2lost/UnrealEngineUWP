@@ -3069,7 +3069,9 @@ bool UNiagaraEmitter::SetUniqueEmitterName(const FString& InName)
 		FString OldName = UniqueEmitterName;
 		UniqueEmitterName = InName;
 
-		if (GetName() != InName)
+		// Note: Assets don't care about the number portion so we need to compare without the number otherwise renaming can collide
+		const FString ExistingName = IsAsset() ? GetFName().GetPlainNameString() : GetName();
+		if (ExistingName != InName)
 		{
 			// Also rename the underlying uobject to keep things consistent.
 			FName UniqueObjectName = MakeUniqueObjectName(GetOuter(), StaticClass(), *InName);
