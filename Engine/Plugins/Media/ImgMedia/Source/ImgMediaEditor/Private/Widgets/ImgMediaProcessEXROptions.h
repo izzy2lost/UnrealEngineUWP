@@ -47,6 +47,12 @@ public:
 	UPROPERTY(EditAnywhere, Transient, Category = Processing)
 	bool bUsePlayer = false;
 
+	/** 
+	* This option removes alpha channel. Since alpha channel adds 25% reading cost, it is suggested to have alpha channel removed if it is not used. 
+	*/
+	UPROPERTY(EditAnywhere, Category = Channels)
+	bool bRemoveAlphaChannel = false;
+
 	/** Tint each mip level a different colour to help with debugging. */
 	UPROPERTY(EditAnywhere, Transient, Category = Debug)
 	bool bEnableMipLevelTint = false;

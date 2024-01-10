@@ -317,7 +317,7 @@ void SImgMediaProcessEXR::ProcessAllImages()
 					}
 
 					ProcessImageCustom(Image, InTileWidth, InTileHeight, TileBorder,
-						bEnableMips, ImageParameters, Name, false /*bUseCustomFormat*/);
+						bEnableMips, ImageParameters, Name);
 
 					NumActive--;
 				});
@@ -393,8 +393,7 @@ void SImgMediaProcessEXR::GetGlobalImageParameters()
 
 void SImgMediaProcessEXR::ProcessImageCustom(const FImage& InImage,
 	int32 InTileWidth, int32 InTileHeight, int32 InTileBorder, bool bInEnableMips,
-	const FImageParameters& ImageParameters, const FString& InName,
-	bool bIsCustomFormat)
+	const FImageParameters& ImageParameters, const FString& InName)
 {
 #if IMGMEDIAEDITOR_EXR_SUPPORTED_PLATFORM
 	TRACE_CPUPROFILER_EVENT_SCOPE(SImgMediaProcessEXR::ProcessImageCustom);
@@ -405,7 +404,7 @@ void SImgMediaProcessEXR::ProcessImageCustom(const FImage& InImage,
 
 	ProcessImageCustomRawData(RawData, Width, Height,
 		InTileWidth, InTileHeight, InTileBorder, bInEnableMips,
-		ImageParameters, InName, bIsCustomFormat);
+		ImageParameters, InName);
 #else // IMGMEDIAEDITOR_EXR_SUPPORTED_PLATFORM
 	UE_LOG(LogImgMediaEditor, Error, TEXT("EXR not supported on this platform."));
 #endif // IMGMEDIAEDITOR_EXR_SUPPORTED_PLATFORM
@@ -414,8 +413,7 @@ void SImgMediaProcessEXR::ProcessImageCustom(const FImage& InImage,
 void SImgMediaProcessEXR::ProcessImageCustomRawData(TArray64<uint8>& RawData,
 	int32 Width, int32 Height,
 	int32 InTileWidth, int32 InTileHeight, int32 InTileBorder, bool bInEnableMips,
-	const FImageParameters& ImageParameters, const FString& InName,
-	bool bIsCustomFormat)
+	const FImageParameters& ImageParameters, const FString& InName)
 {
 #if IMGMEDIAEDITOR_EXR_SUPPORTED_PLATFORM
 	TRACE_CPUPROFILER_EVENT_SCOPE(SImgMediaProcessEXR::ProcessImageCustomRawData);
@@ -431,7 +429,7 @@ void SImgMediaProcessEXR::ProcessImageCustomRawData(TArray64<uint8>& RawData,
 	int32 DestNumChannels = NumChannels;
 
 	// ImageWrapper always returns an alpha channel, so make sure we really have one.
-	if ((DestNumChannels == 4) && (ImageParameters.bHasAlphaChannel == false))
+	if ((DestNumChannels == 4) && ((ImageParameters.bHasAlphaChannel == false) || Options->bRemoveAlphaChannel))
 	{
 		// Remove the alpha channel as its not needed.
 		RemoveAlphaChannel(RawData);
@@ -466,21 +464,7 @@ void SImgMediaProcessEXR::ProcessImageCustomRawData(TArray64<uint8>& RawData,
 
 	// Create tiled exr file.
 	FTiledOutputFile OutFile(DisplayWindow.Min, DisplayWindow.Max,
-		DataWindow.Min, DataWindow.Max, bIsTiled || bIsCustomFormat);
-
-	// Add attributes.
-	if (bIsCustomFormat)
-	{
-		OutFile.AddIntAttribute(IImgMediaModule::CustomFormatAttributeName.Resolve().ToString(), 1);
-
-		// These attributes will not be added and therefore not found by EXR reader if it is not tiled.
-		if (bIsTiled)
-		{
-			OutFile.AddIntAttribute(IImgMediaModule::CustomFormatTileWidthAttributeName.Resolve().ToString(), TileWidth);
-			OutFile.AddIntAttribute(IImgMediaModule::CustomFormatTileHeightAttributeName.Resolve().ToString(), TileHeight);
-			OutFile.AddIntAttribute(IImgMediaModule::CustomFormatTileBorderAttributeName.Resolve().ToString(), InTileBorder);
-		}
-	}
+		DataWindow.Min, DataWindow.Max, bIsTiled);
 
 	// Add channels.
 	if (DestNumChannels == 4)
@@ -494,15 +478,7 @@ void SImgMediaProcessEXR::ProcessImageCustomRawData(TArray64<uint8>& RawData,
 		OutFile.AddChannel(RChannelName);
 	}
 
-	// Create output.
-	if (bIsCustomFormat)
-	{
-		OutFile.CreateOutputFile(InName, DestWidth, DestHeight, bInEnableMips, 1);
-	}
-	else
-	{
-		OutFile.CreateOutputFile(InName, TileWidth, TileHeight, bInEnableMips, 1);
-	}
+	OutFile.CreateOutputFile(InName, TileWidth, TileHeight, bInEnableMips, 1);
 
 	if (DestNumChannels == 4)
 	{
@@ -587,76 +563,9 @@ void SImgMediaProcessEXR::ProcessImageCustomRawData(TArray64<uint8>& RawData,
 			CurrentBuffer = TintBuffer.GetData();
 		}
 
-		// Do we need to tile this mip?
-		// Need to also check that this is actually a valid mip level.
-		if ((bIsCustomFormat) && (bIsTiled) && (MipSourceWidth > 0) && (MipSourceHeight > 0))
-		{
-			int32 MipTileWidth = TileWidth;
-			int32 MipTileHeight = TileHeight;
-
-			// A tile could be larger than the mip level when dealing with mips.
-			if (MipTileWidth > MipSourceWidth)
-			{
-				MipTileWidth = MipSourceWidth;
-			}
-			if (MipTileHeight > MipSourceHeight)
-			{
-				MipTileHeight = MipSourceHeight;
-			}
-
-			int32 OutputWidth = 0;
-			int32 OutputHeight = 0;
-			int32 MipNumTilesX = (MipSourceWidth + MipTileWidth - 1) / MipTileWidth;
-			int32 MipNumTilesY = (MipSourceHeight + MipTileHeight - 1) / MipTileHeight;
-
-			// Make sure our sizes match the mip size we get from EXR.
-			int32 ExpectedMipWidth = MipSourceWidth + MipNumTilesX * InTileBorder * 2;
-			if (ExpectedMipWidth != MipWidth)
-			{
-				UE_LOG(LogImgMediaEditor, Error,
-					TEXT("Expected mip level width of %d, but got %d (SourceWidth:%d NumTiles:%d TileBorder:%d"),
-					ExpectedMipWidth, MipHeight,
-					MipSourceWidth, MipNumTilesX, InTileBorder);
-			}
-			int32 ExpectedMipHeight = MipSourceHeight + MipNumTilesY * InTileBorder * 2;
-			if (ExpectedMipHeight != MipHeight)
-			{
-				UE_LOG(LogImgMediaEditor, Error,
-					TEXT("Expected mip level height of %d, but got %d (SourceHeight:%d NumTiles:%d TileBorder:%d"),
-					ExpectedMipHeight, MipHeight,
-					MipSourceHeight, MipNumTilesY, InTileBorder);
-			}
-
-			// Tile the buffer.
-			TileData(CurrentBuffer, TileBuffer,
-				MipSourceWidth, MipSourceHeight, MipWidth, MipHeight,
-				MipNumTilesX, MipNumTilesY,
-				MipTileWidth, MipTileHeight, InTileBorder,
-				BytesPerPixel);
-			CurrentBuffer = TileBuffer.GetData();
-		}
-
 		// Write to EXR.
 		TRACE_CPUPROFILER_EVENT_SCOPE(SImgMediaProcessEXR::ProcessImageCustom:WriteEXR);
-		if (bIsCustomFormat)
-		{
-			Stride.Y = MipWidth * BytesPerPixel;
-			int64 BufferOffset = 0;
-			int64 SingleBufferOffset = MipWidth * BytesPerPixelPerChannel;
-			if (DestNumChannels == 4)
-			{
-				OutFile.UpdateFrameBufferChannel(AChannelName, CurrentBuffer, Stride);
-				BufferOffset += SingleBufferOffset;
-			}
-
-			OutFile.UpdateFrameBufferChannel(BChannelName, CurrentBuffer + BufferOffset, Stride);
-			BufferOffset += SingleBufferOffset;
-			OutFile.UpdateFrameBufferChannel(GChannelName, CurrentBuffer + BufferOffset, Stride);
-			BufferOffset += SingleBufferOffset;
-			OutFile.UpdateFrameBufferChannel(RChannelName, CurrentBuffer + BufferOffset, Stride);
-			BufferOffset += SingleBufferOffset;
-		}
-		else
+		
 		{
 			Stride.X = BytesPerPixel;
 			Stride.Y = MipWidth * BytesPerPixel;
@@ -680,11 +589,6 @@ void SImgMediaProcessEXR::ProcessImageCustomRawData(TArray64<uint8>& RawData,
 
 		OutFile.SetFrameBuffer();
 
-		if (bIsCustomFormat)
-		{
-			OutFile.WriteTile(0, 0, MipLevel);
-		}
-		else
 		{
 			int32 X2 = OutFile.GetNumXTiles(MipLevel) - 1;
 			X2 = FMath::Max(0, X2);
@@ -956,7 +860,7 @@ void SImgMediaProcessEXR::HandleProcessing()
 						{
 							ProcessImageCustomRawData(RawData, Width, Height,
 								InTileWidth, InTileHeight, TileBorder, bEnableMips,
-								GlobalImageParameters, Name, false /*bUseCustomFormat*/);
+								GlobalImageParameters, Name);
 						});
 					}
 					else
