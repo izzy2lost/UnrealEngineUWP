@@ -193,6 +193,6 @@ namespace EpicGames.Horde.Storage
 		public override void Write(CbWriter writer, RefName value) => writer.WriteUtf8StringValue(value.Text);
 
 		/// <inheritdoc/>
-		public override void WriteNamed(CbWriter writer, Utf8String name, RefName value) => writer.WriteUtf8String(name, value.Text);
+		public override void WriteNamed(CbWriter writer, CbFieldName name, RefName value) => writer.WriteUtf8String(name, value.Text);
 	}
 }

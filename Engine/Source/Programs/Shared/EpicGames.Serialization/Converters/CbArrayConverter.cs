@@ -47,7 +47,7 @@ namespace EpicGames.Serialization.Converters
 		}
 
 		/// <inheritdoc/>
-		public override void WriteNamed(CbWriter writer, Utf8String name, T[] array)
+		public override void WriteNamed(CbWriter writer, CbFieldName name, T[] array)
 		{
 			if (array == null)
 			{

@@ -22,7 +22,7 @@ namespace EpicGames.Serialization.Converters
 		}
 
 		/// <inheritdoc/>
-		public override void WriteNamed(CbWriter writer, Utf8String name, CbField value)
+		public override void WriteNamed(CbWriter writer, CbFieldName name, CbField value)
 		{
 			writer.WriteField(name, value);
 		}
@@ -46,7 +46,7 @@ namespace EpicGames.Serialization.Converters
 		}
 
 		/// <inheritdoc/>
-		public override void WriteNamed(CbWriter writer, Utf8String name, CbObject obj)
+		public override void WriteNamed(CbWriter writer, CbFieldName name, CbObject obj)
 		{
 			writer.WriteField(name, obj.AsField());
 		}

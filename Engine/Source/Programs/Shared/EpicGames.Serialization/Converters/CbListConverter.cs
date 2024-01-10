@@ -49,7 +49,7 @@ namespace EpicGames.Serialization.Converters
 		}
 
 		/// <inheritdoc/>
-		public override void WriteNamed(CbWriter writer, Utf8String name, List<T> list)
+		public override void WriteNamed(CbWriter writer, CbFieldName name, List<T> list)
 		{
 			if (list == null)
 			{
@@ -95,7 +95,7 @@ namespace EpicGames.Serialization.Converters
 		}
 
 		/// <inheritdoc/>
-		public override void WriteNamed(CbWriter writer, Utf8String name, List<Utf8String> list)
+		public override void WriteNamed(CbWriter writer, CbFieldName name, List<Utf8String> list)
 		{
 			if (list.Count > 0)
 			{

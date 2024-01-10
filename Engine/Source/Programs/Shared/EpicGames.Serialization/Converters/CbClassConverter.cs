@@ -61,7 +61,7 @@ namespace EpicGames.Serialization.Converters
 			WriteConcreteContentsMethod = new DynamicMethod($"WriteConcreteContents_{classType.Name}", null, new Type[] { typeof(CbWriter), classType });
 
 			WriteMethod = new DynamicMethod($"Write_{classType.Name}", null, new Type[] { typeof(CbWriter), classType });
-			WriteNamedMethod = new DynamicMethod($"WriteNamed_{classType.Name}", null, new Type[] { typeof(CbWriter), typeof(Utf8String), classType });
+			WriteNamedMethod = new DynamicMethod($"WriteNamed_{classType.Name}", null, new Type[] { typeof(CbWriter), typeof(CbFieldName), classType });
 
 			if (IsPolymorphic)
 			{
@@ -262,7 +262,7 @@ namespace EpicGames.Serialization.Converters
 
 				generator.Emit(OpCodes.Ldsfld, namesField);
 				generator.Emit(OpCodes.Ldc_I4, idx);
-				generator.Emit(OpCodes.Ldelem, typeof(Utf8String));
+				generator.Emit(OpCodes.Ldelem, typeof(CbFieldName));
 
 				generator.Emit(OpCodes.Ldloc, local);
 				generator.EmitCall(OpCodes.Call, writeMethod, null);
@@ -499,7 +499,7 @@ namespace EpicGames.Serialization.Converters
 
 		readonly Func<CbField, T> _readFunc;
 		readonly Action<CbWriter, T> _writeFunc;
-		readonly Action<CbWriter, Utf8String, T> _writeNamedFunc;
+		readonly Action<CbWriter, CbFieldName, T> _writeNamedFunc;
 
 		public CbClassConverter()
 		{
@@ -507,7 +507,7 @@ namespace EpicGames.Serialization.Converters
 
 			_readFunc = CreateDelegate<Func<CbField, T>>(_methods.ReadMethod);
 			_writeFunc = CreateDelegate<Action<CbWriter, T>>(_methods.WriteMethod);
-			_writeNamedFunc = CreateDelegate<Action<CbWriter, Utf8String, T>>(_methods.WriteNamedMethod);
+			_writeNamedFunc = CreateDelegate<Action<CbWriter, CbFieldName, T>>(_methods.WriteNamedMethod);
 		}
 
 		public MethodInfo ReadMethod => _methods.ReadMethod;
@@ -522,7 +522,7 @@ namespace EpicGames.Serialization.Converters
 
 		public override void Write(CbWriter writer, T value) => _writeFunc(writer, value);
 
-		public override void WriteNamed(CbWriter writer, Utf8String name, T value) => _writeNamedFunc(writer, name, value);
+		public override void WriteNamed(CbWriter writer, CbFieldName name, T value) => _writeNamedFunc(writer, name, value);
 	}
 
 	class CbClassConverterFactory : CbConverterFactory

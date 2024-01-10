@@ -159,6 +159,6 @@ namespace Horde.Server.Ddc
 		public override void Write(CbWriter writer, ContentId value) => writer.WriteBinaryAttachmentValue(value.Hash);
 
 		/// <inheritdoc/>
-		public override void WriteNamed(CbWriter writer, Utf8String name, ContentId value) => writer.WriteBinaryAttachment(name, value.Hash);
+		public override void WriteNamed(CbWriter writer, CbFieldName name, ContentId value) => writer.WriteBinaryAttachment(name, value.Hash);
 	}
 }

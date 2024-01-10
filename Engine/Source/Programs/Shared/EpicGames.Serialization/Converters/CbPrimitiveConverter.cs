@@ -16,9 +16,9 @@ namespace EpicGames.Serialization.Converters
 		public Action<CbWriter, T> WriteFunc { get; }
 
 		public MethodInfo WriteNamedMethod { get; }
-		public Action<CbWriter, Utf8String, T> WriteNamedFunc { get; }
+		public Action<CbWriter, CbFieldName, T> WriteNamedFunc { get; }
 
-		public CbPrimitiveConverter(Expression<Func<CbField, T>> read, Expression<Action<CbWriter, T>> write, Expression<Action<CbWriter, Utf8String, T>> writeNamed)
+		public CbPrimitiveConverter(Expression<Func<CbField, T>> read, Expression<Action<CbWriter, T>> write, Expression<Action<CbWriter, CbFieldName, T>> writeNamed)
 		{
 			ReadMethod = ((MethodCallExpression)read.Body).Method;
 			ReadFunc = read.Compile();
@@ -34,6 +34,6 @@ namespace EpicGames.Serialization.Converters
 
 		public override void Write(CbWriter writer, T value) => WriteFunc(writer, value);
 
-		public override void WriteNamed(CbWriter writer, Utf8String name, T value) => WriteNamedFunc(writer, name, value);
+		public override void WriteNamed(CbWriter writer, CbFieldName name, T value) => WriteNamedFunc(writer, name, value);
 	}
 }

@@ -55,7 +55,7 @@ namespace EpicGames.Serialization
 		/// <param name="writer"></param>
 		/// <param name="name"></param>
 		/// <param name="value"></param>
-		void WriteNamedObject(CbWriter writer, Utf8String name, object? value);
+		void WriteNamedObject(CbWriter writer, CbFieldName name, object? value);
 	}
 
 	/// <summary>
@@ -83,7 +83,7 @@ namespace EpicGames.Serialization
 		/// <param name="writer"></param>
 		/// <param name="name"></param>
 		/// <param name="value"></param>
-		void WriteNamed(CbWriter writer, Utf8String name, T value);
+		void WriteNamed(CbWriter writer, CbFieldName name, T value);
 	}
 
 	/// <summary>
@@ -102,7 +102,7 @@ namespace EpicGames.Serialization
 		public MethodInfo WriteMethod { get; }
 
 		/// <summary>
-		/// Method with the signature CbWriter, Utf8String, T -> void
+		/// Method with the signature CbWriter, CbFieldName, T -> void
 		/// </summary>
 		public MethodInfo WriteNamedMethod { get; }
 	}
@@ -118,7 +118,7 @@ namespace EpicGames.Serialization
 
 			static T Read(CbField field) => s_staticConverter.Read(field);
 			static void Write(CbWriter writer, T value) => s_staticConverter.Write(writer, value);
-			static void WriteNamed(CbWriter writer, Utf8String name, T value) => s_staticConverter.WriteNamed(writer, name, value);
+			static void WriteNamed(CbWriter writer, CbFieldName name, T value) => s_staticConverter.WriteNamed(writer, name, value);
 
 			public MethodInfo ReadMethod { get; } = GetMethodInfo(() => Read(null!));
 			public MethodInfo WriteMethod { get; } = GetMethodInfo(() => Write(null!, default!));
@@ -192,7 +192,7 @@ namespace EpicGames.Serialization
 		public void WriteObject(CbWriter writer, object? value) => Write(writer, (T)value!);
 
 		/// <inheritdoc/>
-		public void WriteNamedObject(CbWriter writer, Utf8String name, object? value) => WriteNamed(writer, name, (T)value!);
+		public void WriteNamedObject(CbWriter writer, CbFieldName name, object? value) => WriteNamed(writer, name, (T)value!);
 
 		/// <inheritdoc/>
 		public abstract T Read(CbField field);
@@ -201,7 +201,7 @@ namespace EpicGames.Serialization
 		public abstract void Write(CbWriter writer, T value);
 
 		/// <inheritdoc/>
-		public abstract void WriteNamed(CbWriter writer, Utf8String name, T value);
+		public abstract void WriteNamed(CbWriter writer, CbFieldName name, T value);
 	}
 
 	/// <summary>
@@ -306,7 +306,7 @@ namespace EpicGames.Serialization
 				public override void Write(CbWriter writer, T value) => _inner.WriteObject(writer, value);
 
 				/// <inheritdoc/>
-				public override void WriteNamed(CbWriter writer, Utf8String name, T value) => _inner.WriteNamedObject(writer, name, value);
+				public override void WriteNamed(CbWriter writer, CbFieldName name, T value) => _inner.WriteNamedObject(writer, name, value);
 			}
 		}
 

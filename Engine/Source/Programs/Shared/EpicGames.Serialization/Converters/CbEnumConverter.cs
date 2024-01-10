@@ -12,7 +12,7 @@ namespace EpicGames.Serialization.Converters
 	{
 		readonly Func<CbField, T> _readFunc;
 		readonly Action<CbWriter, T> _writeFunc;
-		readonly Action<CbWriter, Utf8String, T> _writeNamedFunc;
+		readonly Action<CbWriter, CbFieldName, T> _writeNamedFunc;
 
 		public CbEnumConverter()
 		{
@@ -26,9 +26,9 @@ namespace EpicGames.Serialization.Converters
 			CreateEnumWriter(WriteMethod.GetILGenerator());
 			_writeFunc = (Action<CbWriter, T>)WriteMethod.CreateDelegate(typeof(Action<CbWriter, T>));
 
-			WriteNamedMethod = new DynamicMethod($"WriteNamed_{type.Name}", null, new Type[] { typeof(CbWriter), typeof(Utf8String), type });
+			WriteNamedMethod = new DynamicMethod($"WriteNamed_{type.Name}", null, new Type[] { typeof(CbWriter), typeof(CbFieldName), type });
 			CreateNamedEnumWriter(WriteNamedMethod.GetILGenerator());
-			_writeNamedFunc = (Action<CbWriter, Utf8String, T>)WriteNamedMethod.CreateDelegate(typeof(Action<CbWriter, Utf8String, T>));
+			_writeNamedFunc = (Action<CbWriter, CbFieldName, T>)WriteNamedMethod.CreateDelegate(typeof(Action<CbWriter, CbFieldName, T>));
 		}
 
 		public DynamicMethod ReadMethod { get; }
@@ -44,7 +44,7 @@ namespace EpicGames.Serialization.Converters
 
 		public override void Write(CbWriter writer, T value) => _writeFunc(writer, value);
 
-		public override void WriteNamed(CbWriter writer, Utf8String name, T value) => _writeNamedFunc(writer, name, value);
+		public override void WriteNamed(CbWriter writer, CbFieldName name, T value) => _writeNamedFunc(writer, name, value);
 
 		static void CreateEnumReader(ILGenerator generator)
 		{

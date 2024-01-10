@@ -52,7 +52,7 @@ namespace EpicGames.AspNet
 		}
 
 		/// <inheritdoc/>
-		public override void WriteNamed(CbWriter writer, Utf8String name, ProblemDetails problemDetails)
+		public override void WriteNamed(CbWriter writer, CbFieldName name, ProblemDetails problemDetails)
 		{
 			writer.WriteField(name, ToCbObject(problemDetails).AsField());
 		}

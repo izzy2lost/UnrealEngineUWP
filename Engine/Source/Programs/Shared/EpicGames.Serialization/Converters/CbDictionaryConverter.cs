@@ -63,7 +63,7 @@ namespace EpicGames.Serialization.Converters
 		}
 
 		/// <inheritdoc/>
-		public override void WriteNamed(CbWriter writer, Utf8String name, Dictionary<TKey, TValue> value)
+		public override void WriteNamed(CbWriter writer, CbFieldName name, Dictionary<TKey, TValue> value)
 		{
 			if (value == null)
 			{

@@ -65,7 +65,7 @@ namespace EpicGames.Horde
 		}
 
 		/// <inheritdoc/>
-		public override void WriteNamed(CbWriter writer, Utf8String name, TValue value)
+		public override void WriteNamed(CbWriter writer, CbFieldName name, TValue value)
 		{
 			writer.WriteString(name, _converter.ToBinaryId(value).ToString());
 		}

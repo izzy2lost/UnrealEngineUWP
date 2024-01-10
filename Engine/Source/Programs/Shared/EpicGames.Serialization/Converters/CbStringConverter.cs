@@ -20,7 +20,7 @@ namespace EpicGames.Serialization.Converters
 			return (T)_typeConverter.ConvertFromInvariantString(field.AsString())!;
 		}
 
-		public override void WriteNamed(CbWriter writer, Utf8String name, T value)
+		public override void WriteNamed(CbWriter writer, CbFieldName name, T value)
 		{
 			writer.WriteString(name, _typeConverter.ConvertToInvariantString(value));
 		}

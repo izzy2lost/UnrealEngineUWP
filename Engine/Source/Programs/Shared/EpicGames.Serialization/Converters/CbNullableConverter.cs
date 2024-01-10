@@ -27,7 +27,7 @@ namespace EpicGames.Serialization.Converters
 		}
 
 		/// <inheritdoc/>
-		public override void WriteNamed(CbWriter writer, Utf8String name, T? nullable)
+		public override void WriteNamed(CbWriter writer, CbFieldName name, T? nullable)
 		{
 			if (nullable.HasValue)
 			{

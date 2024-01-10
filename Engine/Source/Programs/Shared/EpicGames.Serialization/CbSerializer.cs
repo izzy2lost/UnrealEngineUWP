@@ -166,7 +166,7 @@ namespace EpicGames.Serialization
 		/// <param name="writer"></param>
 		/// <param name="name"></param>
 		/// <param name="value"></param>
-		public static void Serialize<T>(CbWriter writer, Utf8String name, T value)
+		public static void Serialize<T>(CbWriter writer, CbFieldName name, T value)
 		{
 			CbConverter.GetConverter<T>().WriteNamed(writer, name, value);
 		}

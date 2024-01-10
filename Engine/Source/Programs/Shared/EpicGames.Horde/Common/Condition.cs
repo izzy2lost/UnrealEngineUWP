@@ -658,7 +658,7 @@ namespace EpicGames.Horde.Common
 		}
 
 		/// <inheritdoc/>
-		public override void WriteNamed(CbWriter writer, Utf8String name, Condition value)
+		public override void WriteNamed(CbWriter writer, CbFieldName name, Condition value)
 		{
 			if (value != null)
 			{
