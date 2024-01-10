@@ -301,6 +301,29 @@ FString FOpenColorIOWrapperConfig::GetDisplayViewTransformName(const TCHAR* InDi
 	return {};
 }
 
+TMap<FString, FString> FOpenColorIOWrapperConfig::GetCurrentContextStringVars() const
+{
+	OCIO_EXCEPTION_HANDLING_TRY();
+		if (IsValid())
+		{
+			TMap<FString, FString> ContextStringVars;
+			OCIO_NAMESPACE::ConstContextRcPtr CurrentContext = Pimpl->Config->getCurrentContext();
+
+			for (int32 Index = 0; Index < CurrentContext->getNumStringVars(); ++Index)
+			{
+				const ANSICHAR* Key = CurrentContext->getStringVarNameByIndex(Index);
+				const ANSICHAR* Value = CurrentContext->getStringVarByIndex(Index);
+
+				ContextStringVars.Emplace(FString(Key), FString(Value));
+			}
+			
+			return ContextStringVars;
+		}
+	OCIO_EXCEPTION_HANDLING_CATCH_ERROR();
+
+	return {};
+}
+
 FString FOpenColorIOWrapperConfig::GetCacheID() const
 {
 	OCIO_EXCEPTION_HANDLING_TRY();

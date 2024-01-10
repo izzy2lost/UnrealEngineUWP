@@ -102,6 +102,9 @@ public:
 	/** Get a display-view trnasform name. */
 	OPENCOLORIOWRAPPER_API FString GetDisplayViewTransformName(const TCHAR* InDisplayName, const TCHAR* InViewName) const;
 
+	/** Returns the current context key-value strings. */
+	OPENCOLORIOWRAPPER_API TMap<FString, FString> GetCurrentContextStringVars() const;
+
 	/** Get the string hash of the config. */
 	OPENCOLORIOWRAPPER_API FString GetCacheID() const;
 
