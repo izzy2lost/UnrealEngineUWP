@@ -611,7 +611,11 @@ void MergeLocalLights(const FCulledLightsGridData InLightGridData
 	, inout float3 MergedLightColor
 	, inout float3 MergedLightL
 	, inout float MergedSpecularScale
-	, inout float MergedTotalWeight)
+	, inout float MergedTotalWeight
+#if ENABLE_NDOTL_INTEGRATION
+	, inout float3 N
+#endif
+)
 {
 	MergedLightColor = uint3(0.f, 0.f , 0.f);
 	MergedLightL = float3(0,0,0);
@@ -653,7 +657,13 @@ void MergeLocalLights(const FCulledLightsGridData InLightGridData
 		{
 			WeightLight *= SpotAttenuation(L, -LightData.Direction, LightData.SpotAngles);
 		}
-		
+
+		#if ENABLE_NDOTL_INTEGRATION
+			half NoL = max(0, dot(N, L));
+			WeightLight = WeightLight * NoL;
+			MaskedLightColor = MaskedLightColor * NoL;
+		#endif
+
 		if( LightMask > 0)
 		{
 			MergedSpecularScale += LightData.SpecularScale * WeightLight;

@@ -106,6 +106,7 @@
 #include "MobileBasePassCommon.ush"
 #include "/Engine/Generated/VertexFactory.ush"
 #include "LightmapCommon.ush"  
+#define ENABLE_NDOTL_INTEGRATION 1
 #include "MobileLightingCommon.ush"
 #include "ShadingModelsMaterial.ush"
 #include "ThinTranslucentCommon.ush"
@@ -902,7 +903,7 @@ void Main(
 		float3 MergedLightL = float3(0,0,0);
 		float MergedSpecularScale = 0.f;
 		float MergedTotalWeight = 0;
-		MergeLocalLights(CulledLightGridData, MaterialParameters.WorldPosition_CamRelative, EyeIndex, false, MergedLightColor, MergedLightL, MergedSpecularScale, MergedTotalWeight);
+		MergeLocalLights(CulledLightGridData, MaterialParameters.WorldPosition_CamRelative, EyeIndex, false, MergedLightColor, MergedLightL, MergedSpecularScale, MergedTotalWeight, GBuffer.WorldNormal);
 
 		if(MergedTotalWeight > 0.f)
 		{
