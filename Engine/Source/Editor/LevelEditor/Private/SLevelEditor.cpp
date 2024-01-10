@@ -178,6 +178,11 @@ void SLevelEditor::BindCommands()
 		FExecuteAction::CreateStatic( &FLevelEditorActionCallbacks::ExecuteExecCommand, FString( TEXT("CAMERA ALIGN ACTIVEVIEWPORTONLY") ) )
 		);
 
+	LevelEditorCommands->MapAction(
+		FEditorViewportCommands::Get().FocusOutlinerToSelection,
+		FExecuteAction::CreateStatic( &FLevelEditorActionCallbacks::OnFocusOutlinerToSelection, TWeakPtr< SLevelEditor >( SharedThis( this ) ) )
+		);
+
 	if (FPlayWorldCommands::GlobalPlayWorldActions.IsValid())
 	{
 		FUICommandList& PlayWorldActionList = *FPlayWorldCommands::GlobalPlayWorldActions;

@@ -1176,6 +1176,9 @@ public:
 	/** Select the world info actor and show the properties */
 	static void OnShowWorldProperties( TWeakPtr< SLevelEditor > LevelEditor );
 
+	/** Focuses the outliner on the selected actors */
+	static void OnFocusOutlinerToSelection(TWeakPtr<SLevelEditor> LevelEditor);
+
 	/** Open the Place Actors Panel */
 	static void OpenPlaceActors();
 

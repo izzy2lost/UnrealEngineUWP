@@ -157,6 +157,9 @@ public:
 	/** Returns true if any of the selected items can be unpinned */
 	virtual bool CanUnpinSelectedItems() const = 0;
 
+	/** Scrolls the outliner to the selected item(s). If more are selected, the chosen item is undeterministic. */
+	virtual void FrameSelectedItems() = 0;
+
 	/** Get the active SceneOutlinerMode */
 	const ISceneOutlinerMode* GetMode() const { return Mode; }
 

@@ -2471,6 +2471,15 @@ bool SSceneOutliner::CanUnpinSelectedItems() const
 	return CanUnpinItems(SelectedItems);
 }
 
+void SSceneOutliner::FrameSelectedItems()
+{
+	TArray<TSharedPtr<ISceneOutlinerTreeItem>> SelectedItems = GetSelectedItems();
+	if (!SelectedItems.IsEmpty())
+	{
+		ScrollItemIntoView(SelectedItems.Last());
+	}
+}
+
 FSceneOutlinerTreeItemPtr SSceneOutliner::FindParent(const ISceneOutlinerTreeItem& InItem) const
 {
 	FSceneOutlinerTreeItemPtr Parent = Mode->GetHierarchy()->FindOrCreateParentItem(InItem, TreeItemMap, /*bCreate=*/false);

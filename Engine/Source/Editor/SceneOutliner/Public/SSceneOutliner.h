@@ -467,6 +467,12 @@ public:
 	virtual bool CanUnpinSelectedItems() const override;
 	
 	/**
+	 * Scrolls the outliner to the selected item(s).
+	 * If more are selected, the chosen item is undeterministic.
+	 */
+	virtual void FrameSelectedItems() override;
+
+	/**
 	 * Returns the parent tree item for a given item if it exists, nullptr otherwise.
 	 */
 	FSceneOutlinerTreeItemPtr FindParent(const ISceneOutlinerTreeItem& InItem) const;
