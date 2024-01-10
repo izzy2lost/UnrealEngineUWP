@@ -845,7 +845,7 @@ void FStateTreeBindingExtension::ExtendWidgetRow(FDetailWidgetRow& InWidgetRow, 
 			return CachedBindingData->CanBindToContextStruct(InStruct);
 		});
 
-	Args.OnCanAcceptPropertyOrChildren = FOnCanBindProperty::CreateLambda([](FProperty* InProperty)
+	Args.OnCanAcceptPropertyOrChildrenWithBindingChain = FOnCanAcceptPropertyOrChildrenWithBindingChain::CreateLambda([](FProperty* InProperty, TConstArrayView<TSharedPtr<FBindingChainElement>> InBindingChain)
 		{
 			// Make only editor visible properties visible for binding.
 			return InProperty->HasAnyPropertyFlags(CPF_Edit);

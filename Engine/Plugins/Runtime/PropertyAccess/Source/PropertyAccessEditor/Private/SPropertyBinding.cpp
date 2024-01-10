@@ -199,7 +199,7 @@ void SPropertyBinding::ForEachBindableFunction(UClass* FromClass, Predicate Pred
 }
 
 template <typename Predicate>
-void SPropertyBinding::ForEachBindableProperty(UStruct* InStruct, Predicate Pred) const
+void SPropertyBinding::ForEachBindableProperty(UStruct* InStruct, TConstArrayView<TSharedPtr<FBindingChainElement>> BindingChain, Predicate Pred) const
 {
 	if(InStruct && Args.OnCanBindProperty.IsBound())
 	{
@@ -215,7 +215,15 @@ void SPropertyBinding::ForEachBindableProperty(UStruct* InStruct, Predicate Pred
 				break;
 			}
 
+			PRAGMA_DISABLE_DEPRECATION_WARNINGS
 			if (Args.OnCanAcceptPropertyOrChildren.IsBound() && Args.OnCanAcceptPropertyOrChildren.Execute(Property) == false)
+			{
+				continue;
+			}
+			PRAGMA_ENABLE_DEPRECATION_WARNINGS
+			
+			if (Args.OnCanAcceptPropertyOrChildrenWithBindingChain.IsBound()
+				&& Args.OnCanAcceptPropertyOrChildrenWithBindingChain.Execute(Property, BindingChain) == false)
 			{
 				continue;
 			}
@@ -268,7 +276,7 @@ bool SPropertyBinding::HasBindablePropertiesRecursive(UStruct* InStruct, TSet<US
 	}
 	
 	int32 BindableCount = 0;
-	ForEachBindableProperty(InStruct, [this, &BindableCount, &VisitedStructs, &BindingChain] (FProperty* Property)
+	ForEachBindableProperty(InStruct, BindingChain, [this, &BindableCount, &VisitedStructs, &BindingChain] (FProperty* Property)
 	{
 		BindingChain.Emplace(MakeShared<FBindingChainElement>(Property));
 		ON_SCOPE_EXIT{ BindingChain.Pop(); };
@@ -799,7 +807,7 @@ void SPropertyBinding::FillPropertyMenu(FMenuBuilder& MenuBuilder, UStruct* InOw
 
 			MenuBuilder.BeginSection("Properties", LOCTEXT("Properties", "Properties"));
 			{
-				ForEachBindableProperty(InOwnerStruct, [this, &InBindingChain, BindingStruct, &MenuBuilder, &MakeArrayElementPropertyWidget, &MakePropertyWidget, &MakePropertyEntry, &MakeArrayElementEntry] (FProperty* Property)
+				ForEachBindableProperty(InOwnerStruct, InBindingChain, [this, &InBindingChain, BindingStruct, &MenuBuilder, &MakeArrayElementPropertyWidget, &MakePropertyWidget, &MakePropertyEntry, &MakeArrayElementEntry] (FProperty* Property)
 				{
 					TArray<TSharedPtr<FBindingChainElement>> NewBindingChain(InBindingChain);
 					NewBindingChain.Emplace(MakeShared<FBindingChainElement>(Property));

@@ -106,6 +106,9 @@ DECLARE_DELEGATE_RetVal_OneParam(bool, FOnGotoBinding, FName /*InPropertyName*/)
 DECLARE_DELEGATE_RetVal_OneParam(bool, FOnCanGotoBinding, FName /*InPropertyName*/);
 
 /** Delegate used to check whether a property is considered for binding. Returning false will discard the property and all child properties. */
+DECLARE_DELEGATE_RetVal_TwoParams(bool, FOnCanAcceptPropertyOrChildrenWithBindingChain, FProperty* /*InProperty*/, TConstArrayView<TSharedPtr<FBindingChainElement>> /*InBindingChain*/);
+
+// UE_DEPRECATED(5.4, "Please use OnCanAcceptPropertyOrChildrenWithBindingChain instead.")
 DECLARE_DELEGATE_RetVal_OneParam(bool, FOnCanAcceptPropertyOrChildren, FProperty* /*InProperty*/);
 
 /** Delegate used to check whether a property can be bound to the property in question */
@@ -144,6 +147,15 @@ DECLARE_DELEGATE_RetVal_TwoParams(FReply, FOnDrop, const FGeometry&, const FDrag
 /** Setup arguments structure for a property binding widget */
 struct FPropertyBindingWidgetArgs
 {
+	// Macro needed to avoid deprecation errors when the struct is copied or created in the default methods.
+	PRAGMA_DISABLE_DEPRECATION_WARNINGS
+	FPropertyBindingWidgetArgs() = default;
+	FPropertyBindingWidgetArgs(const FPropertyBindingWidgetArgs&) = default;
+	FPropertyBindingWidgetArgs(FPropertyBindingWidgetArgs&&) = default;
+	FPropertyBindingWidgetArgs& operator=(const FPropertyBindingWidgetArgs&) = default;
+	FPropertyBindingWidgetArgs& operator=(FPropertyBindingWidgetArgs&&) = default;
+	PRAGMA_ENABLE_DEPRECATION_WARNINGS
+	
 	/** An optional bindable property */
 	FProperty* Property = nullptr;
 
@@ -160,6 +172,9 @@ struct FPropertyBindingWidgetArgs
 	FOnCanGotoBinding OnCanGotoBinding;
 
 	/** Delegate used to check whether a property is considered for binding. Returning false will discard the property and all child properties. */
+	FOnCanAcceptPropertyOrChildrenWithBindingChain OnCanAcceptPropertyOrChildrenWithBindingChain;
+
+	UE_DEPRECATED(5.4, "Please use OnCanAcceptPropertyOrChildrenWithBindingChain instead.")
 	FOnCanAcceptPropertyOrChildren OnCanAcceptPropertyOrChildren;
 	
 	/** Delegate used to check whether a property can be bound to the property in question */
