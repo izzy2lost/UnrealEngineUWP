@@ -112,9 +112,6 @@ public:
 	/** Create a platform handle using EOSSDK options directly. */
 	virtual IEOSPlatformHandlePtr CreatePlatform(EOS_Platform_Options& PlatformOptions) = 0;
 
-	/** Retrieves the array of platform handles for all active platforms */
-	virtual TArray<IEOSPlatformHandlePtr> GetActivePlatforms() = 0;
-
 	virtual FString GetProductName() const = 0;
 	virtual FString GetProductVersion() const = 0;
 	virtual FString GetCacheDirBase() const = 0;

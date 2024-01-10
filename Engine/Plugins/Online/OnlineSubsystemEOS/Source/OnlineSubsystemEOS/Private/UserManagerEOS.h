@@ -379,9 +379,7 @@ public:
 	FUserManagerEOS() = delete;
 
 	bool ConnectLoginEAS(int32 LocalUserNum, EOS_EpicAccountId AccountId, const FOnlineAccountCredentials& AccountCredentials);
-	void LoginViaPersistentAuth(int32 LocalUserNum, const FOnlineAccountCredentials& CurrentLoginCredentials);
 	void LoginViaExternalAuth(int32 LocalUserNum, const FOnlineAccountCredentials& AccountCredentials);
-	void LoginViaAccountPortal(int32 LocalUserNum, const FOnlineAccountCredentials& AccountCredentials);
 	void CreateConnectedLogin(int32 LocalUserNum, EOS_EpicAccountId AccountId, EOS_ContinuanceToken Token, const FOnlineAccountCredentials& AccountCredentials);
 	void LinkEAS(int32 LocalUserNum, EOS_ContinuanceToken Token, const FOnlineAccountCredentials& AccountCredentials);
 	void RefreshConnectLogin(int32 LocalUserNum);
@@ -398,8 +396,6 @@ private:
 	FLocalUserEOS& GetLocalUserChecked(int32 LocalUserNum);
 
 	void CallEOSAuthLogin(int32 LocalUserNum, const FOnlineAccountCredentials& Credentials);
-	void CopyAndSaveEpicAuthToken(int32 LocalUserNum, const EOS_EpicAccountId& EpicAccountId);
-	void OnEOSAuthLoginComplete(int32 LocalUserNum, const FOnlineAccountCredentials& Credentials, bool bIsPersistentLogin, const EOS_Auth_LoginCallbackInfo* Data);
 
 	void RemoveLocalUser(int32 LocalUserNum);
 	FLocalUserEOS& AddLocalUser(int32 LocalUserNum, EOS_EpicAccountId EpicAccountId, EOS_ProductUserId UserId, const FOnlineAccountCredentials& AccountCredentials);
@@ -422,9 +418,6 @@ private:
 
 	void GetPlatformAuthToken(int32 LocalUserNum, const FOnGetLinkedAccountAuthTokenCompleteDelegate& Delegate) const;
 	FString GetPlatformDisplayName(int32 LocalUserNum) const;
-
-	/** Get the file name for the Epic Auth Token file used in Persistent Auth */
-	FString GetEOSAuthTokenFilename();
 
 	/** Cached pointer to owning subsystem */
 	FOnlineSubsystemEOS* EOSSubsystem;

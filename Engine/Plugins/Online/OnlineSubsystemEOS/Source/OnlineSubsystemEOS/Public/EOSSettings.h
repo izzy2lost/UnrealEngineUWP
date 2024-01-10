@@ -77,7 +77,6 @@ struct FEOSSettings
 	bool bEnableOverlay;
 	bool bEnableSocialOverlay;
 	bool bEnableEditorOverlay;
-	bool bPreferPersistentAuth;
 	bool bUseEAS;
 	bool bUseEOSConnect;
 	bool bUseEOSSessions;
@@ -127,10 +126,6 @@ public:
 	/** Set to true to enable the overlay when running in the editor */
 	UPROPERTY(Config, EditAnywhere, BlueprintReadOnly, Category = "EOS Settings")
 	bool bEnableEditorOverlay = false;
-
-	/** Set to true to prefer persistent auth over external authentication during Login */
-	UPROPERTY(Config, EditAnywhere, BlueprintReadOnly, Category="EOS Settings")
-	bool bPreferPersistentAuth = false;
 
 	/** Tag combinations for paged queries in title file enumerations, separate tags within groups using `+` */
 	UPROPERTY(Config, EditAnywhere, BlueprintReadOnly, Category="EOS Settings")

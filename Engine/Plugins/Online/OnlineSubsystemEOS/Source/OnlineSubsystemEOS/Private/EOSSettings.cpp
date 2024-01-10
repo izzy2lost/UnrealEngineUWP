@@ -136,7 +136,6 @@ FEOSSettings::FEOSSettings()
 	, bEnableOverlay(false)
 	, bEnableSocialOverlay(false)
 	, bEnableEditorOverlay(false)
-	, bPreferPersistentAuth(false)
 	, bUseEAS(false)
 	, bUseEOSConnect(false)
 	, bUseEOSSessions(false)
@@ -184,7 +183,6 @@ const FEOSSettings& UEOSSettings::ManualGetSettings()
 		GConfig->GetBool(INI_SECTION, TEXT("bEnableOverlay"), CachedSettings->bEnableOverlay, GEngineIni);
 		GConfig->GetBool(INI_SECTION, TEXT("bEnableSocialOverlay"), CachedSettings->bEnableSocialOverlay, GEngineIni);
 		GConfig->GetBool(INI_SECTION, TEXT("bEnableEditorOverlay"), CachedSettings->bEnableEditorOverlay, GEngineIni);
-		GConfig->GetBool(INI_SECTION, TEXT("bPreferPersistentAuth"), CachedSettings->bPreferPersistentAuth, GEngineIni);
 		GConfig->GetBool(INI_SECTION, TEXT("bUseEAS"), CachedSettings->bUseEAS, GEngineIni);
 		GConfig->GetBool(INI_SECTION, TEXT("bUseEOSConnect"), CachedSettings->bUseEOSConnect, GEngineIni);
 		GConfig->GetBool(INI_SECTION, TEXT("bUseEOSSessions"), CachedSettings->bUseEOSSessions, GEngineIni);
@@ -215,7 +213,6 @@ FEOSSettings UEOSSettings::ToNative() const
 	Native.bEnableOverlay = bEnableOverlay;
 	Native.bEnableSocialOverlay = bEnableSocialOverlay;
 	Native.bEnableEditorOverlay = bEnableEditorOverlay;
-	Native.bPreferPersistentAuth = bPreferPersistentAuth;
 	Native.bUseEAS = bUseEAS;
 	Native.bUseEOSConnect = bUseEOSConnect;
 	Native.bUseEOSSessions = bUseEOSSessions;

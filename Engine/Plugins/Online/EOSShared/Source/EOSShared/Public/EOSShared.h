@@ -54,7 +54,6 @@ EOS_ENUM_FORWARD_DECL(EOS_EFriendsStatus);
 EOS_ENUM_FORWARD_DECL(EOS_ELoginCredentialType);
 EOS_ENUM_FORWARD_DECL(EOS_ENetworkStatus);
 EOS_ENUM_FORWARD_DECL(EOS_Presence_EStatus);
-EOS_ENUM_FORWARD_DECL(EOS_UI_EInputStateButtonFlags);
 #undef EOS_ENUM_FORWARD_DECL
 
 DECLARE_LOG_CATEGORY_EXTERN(LogEOSSDK, Log, All);
@@ -85,7 +84,6 @@ EOSSHARED_API bool LexFromString(EOS_EAuthScopeFlags& OutEnum, const FStringView
 EOSSHARED_API bool LexFromString(EOS_EExternalCredentialType& OutEnum, const TCHAR* InString);
 EOSSHARED_API bool LexFromString(EOS_ELoginCredentialType& OutEnum, const TCHAR* InString);
 EOSSHARED_API bool LexFromString(EOS_ERTCBackgroundMode& OutEnum, const TCHAR* InString);
-EOSSHARED_API bool LexFromString(EOS_UI_EInputStateButtonFlags& OutEnum, const TCHAR* InString);
 
 /** Extracts the display name FString from a EOS_UserInfo_BestDisplayName using the following logic: Nickname > DisplayNameSanitized > DisplayName */
 EOSSHARED_API FString GetBestDisplayNameStr(const EOS_UserInfo_BestDisplayName& BestDisplayName);

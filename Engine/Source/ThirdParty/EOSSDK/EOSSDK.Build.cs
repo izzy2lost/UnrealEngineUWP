@@ -12,7 +12,6 @@ public class EOSSDK : ModuleRules
 {
 	public virtual bool bHasPlatformBaseFile { get { return false; } }
 	public virtual bool bHasMultiplePlatformSDKBuilds { get { return false; } }
-	public string KittTargetConfiguration { get { return "shipping"; } }
 
 	public virtual string EOSSDKPlatformName
 	{
@@ -233,32 +232,6 @@ public class EOSSDK : ModuleRules
 			return bHasProjectBinary;
 		}
 	}
-	
-	public virtual bool bIncludeKITT { get { return false; } }
-	public virtual string KittModuleName(string BaseName, string ConfigName)
-	{
-		throw new Exception("KITT is not supported on this platform: " + Target.Platform.ToString());
-	}
-
-	public virtual string KittModuleExtension()
-	{
-		throw new Exception("KITT is not supported on this platform: " + Target.Platform.ToString());
-	}
-
-	public virtual void AddKITTRuntimeDependency(string BaseName, string ConfigName, string SubDir = null)
-	{
-		// TODO: Pending further testing in other platforms. Not used by Switch
-		
-		string CurrentKittModuleName = KittModuleName(BaseName, ConfigName);
-
-		string KittModuleSource = (SubDir != null && SubDir.Length > 0)
-			? Path.Combine(SDKBinariesDir, SubDir, CurrentKittModuleName + KittModuleExtension())
-			: Path.Combine(SDKBinariesDir, CurrentKittModuleName + KittModuleExtension());
-
-		string KittModuleTarget = Path.Combine(EngineBinariesDir, CurrentKittModuleName + KittModuleExtension());
-
-		RuntimeDependencies.Add(KittModuleTarget, KittModuleSource, StagedFileType.NonUFS);
-	}
 
 	public EOSSDK(ReadOnlyTargetRules Target) : base(Target)
 	{
@@ -338,14 +311,6 @@ public class EOSSDK : ModuleRules
 					PublicDelayLoadDLLs.Add(RuntimeLibraryFileName);
 				}
 			}
-		}
-
-		if (bIncludeKITT)
-		{
-			AddKITTRuntimeDependency("kitt", KittTargetConfiguration);
-			AddKITTRuntimeDependency("kitt_support", KittTargetConfiguration);
-			AddKITTRuntimeDependency("kitt_webkit", KittTargetConfiguration);
-			AddKITTRuntimeDependency("kitt_data_eos", KittTargetConfiguration);
 		}
 	}
 }

@@ -8,20 +8,15 @@
 #include "Containers/UnrealString.h"
 #include "IEOSSDKManager.h"
 #include "Misc/CoreMisc.h"
-#include "Widgets/SWindow.h"
-#include "Rendering/SlateRenderer.h"
 
 #if defined(EOS_PLATFORM_BASE_FILE_NAME)
 #include EOS_PLATFORM_BASE_FILE_NAME
 #endif
 
-#include "eos_sdk.h"
 #include "eos_auth_types.h"
 #include "eos_common.h"
 #include "eos_connect_types.h"
 #include "eos_init.h"
-#include "eos_integratedplatform.h"
-#include "eos_ui.h"
 
 struct FEOSPlatformHandle;
 
@@ -46,7 +41,6 @@ public:
 
 	virtual IEOSPlatformHandlePtr CreatePlatform(const FString& PlatformConfigName, FName InstanceName = NAME_None) override;
 	virtual IEOSPlatformHandlePtr CreatePlatform(EOS_Platform_Options& PlatformOptions) override;
-	virtual TArray<IEOSPlatformHandlePtr> GetActivePlatforms() override;
 
 	virtual FString GetProductName() const override;
 	virtual FString GetProductVersion() const override;
@@ -75,20 +69,7 @@ protected:
 	virtual EOS_EResult EOSInitialize(EOS_InitializeOptions& Options);
 	virtual IEOSPlatformHandlePtr CreatePlatform(const FEOSSDKPlatformConfig& PlatformConfig, EOS_Platform_Options& PlatformOptions);
 	virtual bool Tick(float);
-	virtual const void* GetIntegratedPlatformOptions();
-	virtual EOS_IntegratedPlatformType GetIntegratedPlatformType();
-	/** Provided to `OnBackBufferReadyToPresent` to get access to the render thread. */
-	virtual void OnBackBufferReady_RenderThread(SWindow& SlateWindow, const FTexture2DRHIRef& BackBuffer);
-	/**
-	 * Check that the overlay is ready to be rendered.
-	 * This will also add the Back Buffer Ready To Present handler.
-	 */
-	virtual bool IsRenderReady();
-	void SetInvokeOverlayButton(const EOS_HPlatform PlatformHandle);
-	EOS_HIntegratedPlatformOptionsContainer CreateIntegratedPlatformOptionsContainer();
-	void ApplyIntegratedPlatformOptions(EOS_HIntegratedPlatformOptionsContainer& Container);
-	void ApplySystemSpecificOptions(const void*& SystemSpecificOptions);
-	
+
 	static EOS_ENetworkStatus ConvertNetworkStatus(ENetworkConnectionStatus Status);
 	void OnNetworkConnectionStatusChanged(ENetworkConnectionStatus LastConnectionState, ENetworkConnectionStatus ConnectionState);
 	void OnApplicationStatusChanged(EOS_EApplicationStatus ApplicationStatus);
@@ -112,10 +93,9 @@ protected:
 	/** Index of the last ticked platform, used for round-robin ticking when ConfigTickIntervalSeconds > 0 */
 	uint8 PlatformTickIdx = 0;
 	/** Created platforms actively ticking */
-	TMap<EOS_HPlatform, IEOSPlatformHandleWeakPtr> ActivePlatforms;
+	TArray<EOS_HPlatform> ActivePlatforms;
 	/** Contains platforms released with ReleasePlatform, which we will release on the next Tick. */
 	TArray<EOS_HPlatform> ReleasedPlatforms;
-
 	/** Handle to ticker delegate for Tick(), valid whenever there are ActivePlatforms to tick, or ReleasedPlatforms to release. */
 	FTSTicker::FDelegateHandle TickerHandle;
 	/** Callback objects, to be released after EOS_Shutdown */
@@ -130,15 +110,6 @@ protected:
 	// Config
 	/** Interval between platform ticks. 0 means we tick every frame. */
 	double ConfigTickIntervalSeconds = 0.f;
-
-	/** Tracks if the render init has completed. */
-	bool bRenderReady = false;
-
-	/** Whether or not the integrated platform options container will be set at platform creation time */
-	bool bEnablePlatformIntegration = false;
-
-	/** Button combination to bring up the overlay (only used in certain platforms) */
-	EOS_UI_EInputStateButtonFlags InvokeOverlayButtonCombination;
 };
 
 struct FEOSPlatformHandle : public IEOSPlatformHandle

@@ -6,10 +6,7 @@
 
 #include "Algo/AnyOf.h"
 #include "Containers/Ticker.h"
-#include "Framework/Application/SlateApplication.h"
 #include "HAL/LowLevelMemTracker.h"
-#include "HAL/PlatformInput.h"
-#include "InputCoreTypes.h"
 #include "Misc/App.h"
 #include "Misc/CoreMisc.h"
 #include "Misc/CoreDelegates.h"
@@ -31,9 +28,9 @@
 #include "eos_connect.h"
 #include "eos_friends.h"
 #include "eos_init.h"
-#include "eos_integratedplatform_types.h"
 #include "eos_logging.h"
 #include "eos_presence.h"
+#include "eos_sdk.h"
 #include "eos_userinfo.h"
 #include "eos_version.h"
 
@@ -117,9 +114,9 @@ namespace
 #undef EOSLOG_SUPPRESS
 	}
 
-	EOS_ELogLevel ConvertLogLevel(ELogVerbosity::Type UELogLevel)
+	EOS_ELogLevel ConvertLogLevel(ELogVerbosity::Type LogLevel)
 	{
-		switch (UELogLevel)
+		switch (LogLevel)
 		{
 		case ELogVerbosity::NoLogging:		return EOS_ELogLevel::EOS_LOG_Off;
 		case ELogVerbosity::Fatal:			return EOS_ELogLevel::EOS_LOG_Fatal;
@@ -406,79 +403,6 @@ void FEOSSDKManager::SetDefaultPlatformConfigName(const FString& PlatformConfigN
 	}
 }
 
-EOS_HIntegratedPlatformOptionsContainer FEOSSDKManager::CreateIntegratedPlatformOptionsContainer()
-{
-	EOS_HIntegratedPlatformOptionsContainer Result;
-
-	EOS_IntegratedPlatform_CreateIntegratedPlatformOptionsContainerOptions Options = { };
-	Options.ApiVersion = 1;
-	UE_EOS_CHECK_API_MISMATCH(EOS_INTEGRATEDPLATFORM_CREATEINTEGRATEDPLATFORMOPTIONSCONTAINER_API_LATEST, 1);
-
-	EOS_EResult CreationResult = EOS_IntegratedPlatform_CreateIntegratedPlatformOptionsContainer(&Options, &Result);
-	if (CreationResult != EOS_EResult::EOS_Success)
-	{
-		UE_LOG(LogEOSSDK, Warning, TEXT("EOS_IntegratedPlatform_CreateIntegratedPlatformOptionsContainer failed with result [%s]"), *LexToString(CreationResult));
-	}
-
-	return Result;
-}
-
-const void* FEOSSDKManager::GetIntegratedPlatformOptions()
-{
-	return nullptr;
-}
-
-EOS_IntegratedPlatformType FEOSSDKManager::GetIntegratedPlatformType()
-{
-	return EOS_IPT_Unknown;
-}
-
-void FEOSSDKManager::ApplyIntegratedPlatformOptions(EOS_HIntegratedPlatformOptionsContainer& Container)
-{
-	if (IsRunningCommandlet())
-	{
-		UE_LOG(LogEOSSDK, Verbose, TEXT("[%hs] Method not supported when running Commandlet"), __FUNCTION__);
-		Container = nullptr;
-		return;
-	}
-
-	if (bEnablePlatformIntegration)
-	{
-		Container = CreateIntegratedPlatformOptionsContainer();
-
-		if (Container != nullptr)
-		{
-			//UE does not support EOS_IPMF_LibraryManagedBySDK due to functionality overlap
-			EOS_IntegratedPlatform_Options PlatformOptions = {};
-			PlatformOptions.ApiVersion = 1;
-			UE_EOS_CHECK_API_MISMATCH(EOS_INTEGRATEDPLATFORM_OPTIONS_API_LATEST, 1);
-			PlatformOptions.Type = GetIntegratedPlatformType();
-			PlatformOptions.Flags = EOS_EIntegratedPlatformManagementFlags::EOS_IPMF_LibraryManagedByApplication | EOS_EIntegratedPlatformManagementFlags::EOS_IPMF_DisableSDKManagedSessions;
-			PlatformOptions.InitOptions = GetIntegratedPlatformOptions();
-
-			EOS_IntegratedPlatformOptionsContainer_AddOptions AddOptions = {};
-			AddOptions.ApiVersion = 1;
-			UE_EOS_CHECK_API_MISMATCH(EOS_INTEGRATEDPLATFORMOPTIONSCONTAINER_ADD_API_LATEST, 1);
-			AddOptions.Options = &PlatformOptions;
-
-			EOS_EResult Result = EOS_IntegratedPlatformOptionsContainer_Add(Container, &AddOptions);
-			if (Result != EOS_EResult::EOS_Success)
-			{
-				UE_LOG(LogEOSSDK, Warning, TEXT("[%hs] Call to EOS_IntegratedPlatformOptionsContainer_Add returned with error: %s"), __FUNCTION__, *LexToString(Result));
-			}
-		}
-	}
-	else
-	{
-		Container = nullptr;
-	}
-}
-
-void FEOSSDKManager::ApplySystemSpecificOptions(const void*& SystemSpecificOptions)
-{
-	SystemSpecificOptions = nullptr;
-}
-
 IEOSPlatformHandlePtr FEOSSDKManager::CreatePlatform(const FString& PlatformConfigName, FName InstanceName)
 {
 	if (PlatformConfigName.IsEmpty())
@@ -538,8 +462,7 @@ IEOSPlatformHandlePtr FEOSSDKManager::CreatePlatform(const FString& PlatformConf
 	PlatformOptions.ApiVersion = 13;
 	UE_EOS_CHECK_API_MISMATCH(EOS_PLATFORM_OPTIONS_API_LATEST, 13);
 	PlatformOptions.Reserved = nullptr;
-	ApplySystemSpecificOptions(PlatformOptions.SystemSpecificOptions);
-	ApplyIntegratedPlatformOptions(PlatformOptions.IntegratedPlatformOptionsContainerHandle);
+	PlatformOptions.SystemSpecificOptions = nullptr;
 	PlatformOptions.ProductId = Utf8ProductId.Length() ? Utf8ProductId.Get() : nullptr;
 	PlatformOptions.SandboxId = Utf8SandboxId.Length() ? Utf8SandboxId.Get() : nullptr;
 	PlatformOptions.ClientCredentials.ClientId = Utf8ClientId.Length() ? Utf8ClientId.Get() : nullptr;
@@ -574,6 +497,8 @@ IEOSPlatformHandlePtr FEOSSDKManager::CreatePlatform(const FString& PlatformConf
 
 	PlatformOptions.RTCOptions = PlatformConfig->bEnableRTC ? &PlatformRTCOptions : nullptr;
 
+	PlatformOptions.IntegratedPlatformOptionsContainerHandle = nullptr;
+
 	IEOSPlatformHandlePtr PlatformHandle = CreatePlatform(*PlatformConfig, PlatformOptions);
 	if (PlatformHandle.IsValid())
 	{
@@ -601,26 +526,17 @@ IEOSPlatformHandlePtr FEOSSDKManager::CreatePlatform(EOS_Platform_Options& Platf
 
 	if (IsInitialized())
 	{
-		ApplySystemSpecificOptions(PlatformOptions.SystemSpecificOptions);
-		ApplyIntegratedPlatformOptions(PlatformOptions.IntegratedPlatformOptionsContainerHandle);
-
 		OnPreCreatePlatform.Broadcast(PlatformOptions);
 
 		const EOS_HPlatform PlatformHandle = EOS_Platform_Create(&PlatformOptions);
 		if (PlatformHandle)
 		{
-			EOS_IntegratedPlatformOptionsContainer_Release(PlatformOptions.IntegratedPlatformOptionsContainerHandle);
-
+			ActivePlatforms.Emplace(PlatformHandle);
 			SharedPlatform = MakeShared<FEOSPlatformHandle, ESPMode::ThreadSafe>(*this, PlatformHandle);
-			ActivePlatforms.Emplace(PlatformHandle, SharedPlatform);
 			SetupTicker();
 
 			EOS_Platform_SetApplicationStatus(PlatformHandle, CachedApplicationStatus);
 			EOS_Platform_SetNetworkStatus(PlatformHandle, ConvertNetworkStatus(FPlatformMisc::GetNetworkConnectionStatus()));
-			if (bEnablePlatformIntegration)
-			{
-				SetInvokeOverlayButton(PlatformHandle);
-			}
 
 			// Tick the platform once to work around EOSSDK error logging that occurs if you create then immediately destroy a platform.
 			SharedPlatform->Tick();
@@ -638,24 +554,6 @@ IEOSPlatformHandlePtr FEOSSDKManager::CreatePlatform(EOS_Platform_Options& Platf
 	return SharedPlatform;
 }
 
-TArray<IEOSPlatformHandlePtr> FEOSSDKManager::GetActivePlatforms()
-{
-	TArray<IEOSPlatformHandlePtr> Result;
-
-	for (const TPair<EOS_HPlatform, IEOSPlatformHandleWeakPtr>& Entry : ActivePlatforms)
-	{
-		if (!ReleasedPlatforms.Contains(Entry.Key))
-		{
-			if (IEOSPlatformHandlePtr SharedPtr = Entry.Value.Pin())
-			{
-				Result.Add(SharedPtr);
-			}
-		}
-	}
-
-	return Result;
-}
-
 void FEOSSDKManager::OnConfigSectionsChanged(const FString& IniFilename, const TSet<FString>& SectionNames)
 {
 	if (IniFilename == GEngineIni && SectionNames.Contains(TEXT("EOSSDK")))
@@ -667,24 +565,8 @@ void FEOSSDKManager::OnConfigSectionsChanged(const FString& IniFilename, const T
 void FEOSSDKManager::LoadConfig()
 {
 	const TCHAR* SectionName = TEXT("EOSSDK");
-
 	ConfigTickIntervalSeconds = 0.f;
 	GConfig->GetDouble(SectionName, TEXT("TickIntervalSeconds"), ConfigTickIntervalSeconds, GEngineIni);
-
-	bEnablePlatformIntegration = false;
-	GConfig->GetBool(SectionName, TEXT("bEnablePlatformIntegration"), bEnablePlatformIntegration, GEngineIni);
-
-	InvokeOverlayButtonCombination = EOS_UI_EInputStateButtonFlags::EOS_UISBF_Special_Left;
-	FString ButtonCombinationStr;
-	GConfig->GetString(SectionName, TEXT("InvokeOverlayButtonCombination"), ButtonCombinationStr, GEngineIni);
-	if (!ButtonCombinationStr.IsEmpty())
-	{
-		EOS_UI_EInputStateButtonFlags ButtonCombination;
-		if (LexFromString(ButtonCombination, *ButtonCombinationStr))
-		{
-			InvokeOverlayButtonCombination = ButtonCombination;
-		}
-	}
 
 	SetupTicker();
 }
@@ -704,72 +586,21 @@ void FEOSSDKManager::SetupTicker()
 	}
 }
 
-void FEOSSDKManager::OnBackBufferReady_RenderThread(SWindow& SlateWindow, const FTexture2DRHIRef& InBackBuffer)
-{
-	UE_LOG(LogEOSSDK, VeryVerbose, TEXT("[%hs] The method is not implemented for this platform."), __FUNCTION__);
-}
-
-bool FEOSSDKManager::IsRenderReady()
-{
-	if (bRenderReady)
-	{
-		return true;
-	}
-
-	if (!FSlateApplication::IsInitialized())
-	{
-		return false;
-	}
-
-	FSlateRenderer* Renderer = FSlateApplication::Get().GetRenderer();
-	if (!Renderer)
-	{
-		return false;
-	}
-
-	Renderer->OnBackBufferReadyToPresent().AddRaw(this, &FEOSSDKManager::OnBackBufferReady_RenderThread);
-	bRenderReady = true;
-	return true;
-}
-
-void FEOSSDKManager::SetInvokeOverlayButton(const EOS_HPlatform PlatformHandle)
-{
-	if (EOS_HUI UIHandle = EOS_Platform_GetUIInterface(PlatformHandle))
-	{
-		EOS_UI_SetToggleFriendsButtonOptions Options = { };
-		Options.ApiVersion = 1;
-		UE_EOS_CHECK_API_MISMATCH(EOS_UI_SETTOGGLEFRIENDSBUTTON_API_LATEST, 1);
-		Options.ButtonCombination = InvokeOverlayButtonCombination;
-
-		const EOS_EResult Result = EOS_UI_SetToggleFriendsButton(UIHandle, &Options);
-		if (Result != EOS_EResult::EOS_Success)
-		{
-			UE_LOG(LogEOSSDK, Verbose, TEXT("[%hs] EOS_UI_SetToggleFriendsButton failed with error: %s"), __FUNCTION__, *LexToString(Result));
-		}
-	}
-}
-
 bool FEOSSDKManager::Tick(float)
 {
-	IsRenderReady();
-
 	ReleaseReleasedPlatforms();
 
 	if (ActivePlatforms.Num())
 	{
 		TArray<EOS_HPlatform> PlatformsToTick;
-
-		TArray<EOS_HPlatform> ActivePlatformHandles;
-		ActivePlatforms.GenerateKeyArray(ActivePlatformHandles);
-
 		if (ConfigTickIntervalSeconds > SMALL_NUMBER)
 		{
-			PlatformTickIdx = (PlatformTickIdx + 1) % ActivePlatformHandles.Num();
-			PlatformsToTick.Emplace(ActivePlatformHandles[PlatformTickIdx]);	
+			PlatformTickIdx = (PlatformTickIdx + 1) % ActivePlatforms.Num();
+			PlatformsToTick.Emplace(ActivePlatforms[PlatformTickIdx]);
 		}
 		else
 		{
-			PlatformsToTick = ActivePlatformHandles;
+			PlatformsToTick = ActivePlatforms;
 		}
 
 		for (EOS_HPlatform PlatformHandle : PlatformsToTick)
@@ -777,7 +608,6 @@ bool FEOSSDKManager::Tick(float)
 			LLM_SCOPE(ELLMTag::RealTimeCommunications); // TODO should really be ELLMTag::EOSSDK
 			QUICK_SCOPE_CYCLE_COUNTER(FEOSSDKManager_Tick);
 			CSV_SCOPED_TIMING_STAT_EXCLUSIVE(EOSSDK);
-
 			EOS_Platform_Tick(PlatformHandle);
 		}
 	}
@@ -806,9 +636,9 @@ void FEOSSDKManager::OnNetworkConnectionStatusChanged(ENetworkConnectionStatus L
 
 	UE_LOG(LogEOSSDK, Log, TEXT("OnNetworkConnectionStatusChanged [%s] -> [%s]"), LexToString(OldNetworkStatus), LexToString(NewNetworkStatus));
 
-	for (const TPair<EOS_HPlatform, IEOSPlatformHandleWeakPtr>& Entry : ActivePlatforms)
+	for (EOS_HPlatform PlatformHandle : ActivePlatforms)
 	{
-		EOS_Platform_SetNetworkStatus(Entry.Key, NewNetworkStatus);
+		EOS_Platform_SetNetworkStatus(PlatformHandle, NewNetworkStatus);
 	}
 }
 
@@ -816,9 +646,9 @@ void FEOSSDKManager::OnApplicationStatusChanged(EOS_EApplicationStatus Applicati
 {
 	UE_LOG(LogEOSSDK, Log, TEXT("OnApplicationStatusChanged [%s] -> [%s]"), LexToString(CachedApplicationStatus), LexToString(ApplicationStatus));
 	CachedApplicationStatus = ApplicationStatus;
-	for (const TPair<EOS_HPlatform, IEOSPlatformHandleWeakPtr>& Entry : ActivePlatforms)
+	for (EOS_HPlatform PlatformHandle : ActivePlatforms)
 	{
-		EOS_Platform_SetApplicationStatus(Entry.Key, ApplicationStatus);
+		EOS_Platform_SetApplicationStatus(PlatformHandle, ApplicationStatus);
 	}
 }
 
@@ -887,7 +717,8 @@ FString FEOSSDKManager::GetOverrideLocaleCode(const EOS_HPlatform Platform) cons
 
 void FEOSSDKManager::ReleasePlatform(EOS_HPlatform PlatformHandle)
 {
-	if(ActivePlatforms.Contains(PlatformHandle) && !ReleasedPlatforms.Contains(PlatformHandle))
+	if (ensure(ActivePlatforms.Contains(PlatformHandle)
+		&& !ReleasedPlatforms.Contains(PlatformHandle)))
 	{
 		ReleasedPlatforms.Emplace(PlatformHandle);
 	}
@@ -902,13 +733,10 @@ void FEOSSDKManager::ReleaseReleasedPlatforms()
 			if (ensure(ActivePlatforms.Contains(PlatformHandle)))
 			{
 				EOS_Platform_Release(PlatformHandle);
-
 				ActivePlatforms.Remove(PlatformHandle);
 			}
 		}
-
 		ReleasedPlatforms.Empty();
-
 		SetupTicker();
 	}
 }
@@ -923,10 +751,7 @@ void FEOSSDKManager::Shutdown()
 		if (ActivePlatforms.Num() > 0)
 		{
 			UE_LOG(LogEOSSDK, Warning, TEXT("FEOSSDKManager::Shutdown Releasing %d remaining platforms"), ActivePlatforms.Num());
-
-			TArray<EOS_HPlatform> ActivePlatformHandles;
-			ActivePlatforms.GenerateKeyArray(ActivePlatformHandles);
-			ReleasedPlatforms.Append(ActivePlatformHandles);
+			ReleasedPlatforms.Append(ActivePlatforms);
 			ReleaseReleasedPlatforms();
 		}
 
@@ -944,11 +769,6 @@ void FEOSSDKManager::Shutdown()
 		bInitialized = false;
 
 		FCoreDelegates::OnNetworkConnectionStatusChanged.RemoveAll(this);
-
-		if (bRenderReady)
-		{
-			FSlateApplication::Get().GetRenderer()->OnBackBufferReadyToPresent().RemoveAll(this);
-		}
 	}
 }
 
@@ -987,11 +807,9 @@ void FEOSSDKManager::LogInfo(int32 Indent) const
 	UE_LOG_EOSSDK_INFO("CacheDirBase=%s", *GetCacheDirBase());
 	UE_LOG_EOSSDK_INFO("Platforms=%d", ActivePlatforms.Num());
 
-	TArray<EOS_HPlatform> ActivePlatformHandles;
-	ActivePlatforms.GenerateKeyArray(ActivePlatformHandles);
-	for (int32 PlatformIndex = 0; PlatformIndex < ActivePlatformHandles.Num(); PlatformIndex++)
+	for (int32 PlatformIndex = 0; PlatformIndex < ActivePlatforms.Num(); PlatformIndex++)
 	{
-		const EOS_HPlatform Platform = ActivePlatformHandles[PlatformIndex];
+		const EOS_HPlatform Platform = ActivePlatforms[PlatformIndex];
 		UE_LOG_EOSSDK_INFO("Platform=%d", PlatformIndex);
 		Indent++;
 		LogPlatformInfo(Platform, Indent);

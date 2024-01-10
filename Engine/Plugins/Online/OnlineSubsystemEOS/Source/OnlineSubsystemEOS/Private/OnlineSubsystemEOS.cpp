@@ -199,6 +199,7 @@ bool FOnlineSubsystemEOS::PlatformCreate()
 	PlatformOptions.EncryptionKey = ArtifactSettings.EncryptionKey.IsEmpty() ? nullptr : (const char*)EncryptionKeyUtf8.Get();
 	PlatformOptions.bIsServer = IsRunningDedicatedServer() ? EOS_TRUE : EOS_FALSE;
 	PlatformOptions.Reserved = nullptr;
+	PlatformOptions.SystemSpecificOptions = nullptr;
 
 	FEOSSettings EOSSettings = UEOSSettings::GetSettings();
 	uint64 OverlayFlags = 0;
