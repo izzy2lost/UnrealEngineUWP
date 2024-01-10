@@ -980,6 +980,7 @@ public:
 
 		FRDGTextureRef WaterInfoTexture = RegisterExternalTexture(GraphBuilder, WaterInfoRenderTarget->GetRenderTargetTexture(), TEXT("WaterInfoTexture"));
 		AddCopyTexturePass(GraphBuilder, FinalizedTexture, WaterInfoTexture);
+		GraphBuilder.UseExternalAccessMode(WaterInfoTexture, ERHIAccess::SRVMask);
 	}
 
 	FRenderTarget* WaterInfoRenderTarget = nullptr;

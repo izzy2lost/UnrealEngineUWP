@@ -1049,4 +1049,13 @@ void FWaterQuadTreeGPU::Traverse(FRDGBuilder& GraphBuilder, const FTraverseParam
 			}
 		}
 	}
+
+	GraphBuilder.UseExternalAccessMode(IndirectArgsBuffer, ERHIAccess::IndirectArgs);
+	GraphBuilder.UseExternalAccessMode(InstanceData0Buffer, ERHIAccess::VertexOrIndexBuffer);
+	GraphBuilder.UseExternalAccessMode(InstanceData1Buffer, ERHIAccess::VertexOrIndexBuffer);
+	GraphBuilder.UseExternalAccessMode(InstanceData2Buffer, ERHIAccess::VertexOrIndexBuffer);
+	if (Params.bWithWaterSelectionSupport)
+	{
+		GraphBuilder.UseExternalAccessMode(InstanceData3Buffer, ERHIAccess::VertexOrIndexBuffer);
+	}
 }
