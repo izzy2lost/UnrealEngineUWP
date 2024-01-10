@@ -733,7 +733,8 @@ void UProjectileMovementComponent::SetInterpolatedComponent(USceneComponent* Com
 		InterpolatedComponentPtr = Component;
 		InterpInitialLocationOffset = Component->GetRelativeLocation();
 		InterpInitialRotationOffset = Component->GetRelativeRotation().Quaternion();
-		bInterpolationComplete = false;
+		// We start at the "completed" location, wait for MoveInterpolationTarget() to actually mark it dirty.
+		bInterpolationComplete = true;
 
 		// Space out interpolation skipping to avoid objects spawned on single frame from always updating in sync
 		ThrottleInterpolationFramesSinceInterp = ThrottleInterpolationSkipFramesRecent > 0 ? FMath::RandRange(0, ThrottleInterpolationSkipFramesRecent) : 0;
