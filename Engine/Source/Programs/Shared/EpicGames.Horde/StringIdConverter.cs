@@ -48,7 +48,7 @@ namespace EpicGames.Horde
 	/// <summary>
 	/// Converter to compact binary objects
 	/// </summary>
-	public sealed class StringIdCbConverter<TValue, TConverter> : CbConverterBase<TValue> where TValue : struct where TConverter : StringIdConverter<TValue>, new()
+	public sealed class StringIdCbConverter<TValue, TConverter> : CbConverter<TValue> where TValue : struct where TConverter : StringIdConverter<TValue>, new()
 	{
 		readonly TConverter _converter = new TConverter();
 

@@ -184,7 +184,7 @@ namespace EpicGames.Horde.Storage
 	/// <summary>
 	/// Type converter to compact binary
 	/// </summary>
-	sealed class RefNameCbConverter : CbConverterBase<RefName>
+	sealed class RefNameCbConverter : CbConverter<RefName>
 	{
 		/// <inheritdoc/>
 		public override RefName Read(CbField field) => new RefName(field.AsUtf8String());

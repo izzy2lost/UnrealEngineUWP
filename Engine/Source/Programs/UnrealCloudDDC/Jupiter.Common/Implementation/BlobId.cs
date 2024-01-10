@@ -213,7 +213,7 @@ namespace Jupiter.Implementation
 		}
 	}
 
-	public class BlobIdentifierCbConverter : CbConverterBase<BlobId>
+	public class BlobIdentifierCbConverter : CbConverter<BlobId>
 	{
 		public override BlobId Read(CbField field) => new BlobId(field.AsHash().ToByteArray());
 

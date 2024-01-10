@@ -150,7 +150,7 @@ namespace Horde.Server.Ddc
 	/// <summary>
 	/// Serializes <see cref="BlobId"/> instances to compact binary
 	/// </summary>
-	public class BlobIdCbConverter : CbConverterBase<BlobId>
+	public class BlobIdCbConverter : CbConverter<BlobId>
 	{
 		/// <inheritdoc/>
 		public override BlobId Read(CbField field) => new BlobId(field.AsHash());

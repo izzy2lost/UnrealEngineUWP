@@ -9,7 +9,7 @@ namespace EpicGames.Serialization.Converters
 	/// <summary>
 	/// Converter for dictionary types
 	/// </summary>
-	class CbDictionaryConverter<TKey, TValue> : CbConverterBase<Dictionary<TKey, TValue>> where TKey : notnull
+	class CbDictionaryConverter<TKey, TValue> : CbConverter<Dictionary<TKey, TValue>> where TKey : notnull
 	{
 		/// <inheritdoc/>
 		public override Dictionary<TKey, TValue> Read(CbField field)
@@ -90,12 +90,12 @@ namespace EpicGames.Serialization.Converters
 	class CbDictionaryConverterFactory : CbConverterFactory
 	{
 		/// <inheritdoc/>
-		public override ICbConverter? CreateConverter(Type type)
+		public override CbConverter? CreateConverter(Type type)
 		{
 			if (type.IsGenericType && type.GetGenericTypeDefinition() == typeof(Dictionary<,>))
 			{
 				Type converterType = typeof(CbDictionaryConverter<,>).MakeGenericType(type.GenericTypeArguments);
-				return (ICbConverter)Activator.CreateInstance(converterType)!;
+				return (CbConverter)Activator.CreateInstance(converterType)!;
 			}
 			return null;
 		}

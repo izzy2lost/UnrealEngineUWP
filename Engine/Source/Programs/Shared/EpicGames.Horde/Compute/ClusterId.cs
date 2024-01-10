@@ -56,7 +56,7 @@ namespace EpicGames.Horde.Compute
 	/// <summary>
 	/// Compact binary converter for ClusterId
 	/// </summary>
-	sealed class ClusterIdCbConverter : CbConverterBase<ClusterId>
+	sealed class ClusterIdCbConverter : CbConverter<ClusterId>
 	{
 		/// <inheritdoc/>
 		public override ClusterId Read(CbField field) => new ClusterId(field.AsString());

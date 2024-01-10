@@ -85,7 +85,7 @@ namespace Horde.Server.Ddc
 	/// <summary>
 	/// Type converter to compact binary objects
 	/// </summary>
-	sealed class RefIdCbConverter : CbConverterBase<RefId>
+	sealed class RefIdCbConverter : CbConverter<RefId>
 	{
 		public override RefId Read(CbField field) => RefId.Parse(field.AsString());
 

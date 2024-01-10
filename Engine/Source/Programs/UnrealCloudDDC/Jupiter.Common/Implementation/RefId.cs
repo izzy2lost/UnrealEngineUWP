@@ -129,7 +129,7 @@ namespace Jupiter.Implementation
 		}
 	}
 
-	sealed class IoHashKeyCbConverter : CbConverterBase<RefId>
+	sealed class IoHashKeyCbConverter : CbConverter<RefId>
 	{
 		public override RefId Read(CbField field) => new RefId(field.AsString());
 

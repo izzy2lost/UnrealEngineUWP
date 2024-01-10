@@ -10,7 +10,7 @@ namespace EpicGames.Serialization.Converters
 	/// Converter for list types
 	/// </summary>
 	/// <typeparam name="T"></typeparam>
-	class CbListConverter<T> : CbConverterBase<List<T>>
+	class CbListConverter<T> : CbConverter<List<T>>
 	{
 		/// <inheritdoc/>
 		public override List<T> Read(CbField field)
@@ -70,7 +70,7 @@ namespace EpicGames.Serialization.Converters
 	/// <summary>
 	/// Specialization for serializing string lists
 	/// </summary>
-	sealed class CbStringListConverter : CbConverterBase<List<Utf8String>>
+	sealed class CbStringListConverter : CbConverter<List<Utf8String>>
 	{
 		/// <inheritdoc/>
 		public override List<Utf8String> Read(CbField field)
@@ -115,7 +115,7 @@ namespace EpicGames.Serialization.Converters
 	class CbListConverterFactory : CbConverterFactory
 	{
 		/// <inheritdoc/>
-		public override ICbConverter? CreateConverter(Type type)
+		public override CbConverter? CreateConverter(Type type)
 		{
 			if (type.IsGenericType && type.GetGenericTypeDefinition() == typeof(List<>))
 			{
@@ -126,7 +126,7 @@ namespace EpicGames.Serialization.Converters
 				else
 				{
 					Type converterType = typeof(CbListConverter<>).MakeGenericType(type.GenericTypeArguments);
-					return (ICbConverter)Activator.CreateInstance(converterType)!;
+					return (CbConverter)Activator.CreateInstance(converterType)!;
 				}
 			}
 			return null;

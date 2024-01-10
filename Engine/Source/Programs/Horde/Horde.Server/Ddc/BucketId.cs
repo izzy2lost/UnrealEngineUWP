@@ -76,7 +76,7 @@ namespace Horde.Server.Ddc
 		public override object ConvertFrom(ITypeDescriptorContext? context, CultureInfo? culture, object? value) => new BucketId((string)value!);
 	}
 
-	sealed class BucketIdCbConverter : CbConverterBase<BucketId>
+	sealed class BucketIdCbConverter : CbConverter<BucketId>
 	{
 		public override BucketId Read(CbField field) => new BucketId(field.AsString());
 

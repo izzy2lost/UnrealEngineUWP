@@ -7,7 +7,7 @@ using System.Reflection;
 
 namespace EpicGames.Serialization.Converters
 {
-	class CbPrimitiveConverter<T> : CbConverterBase<T>, ICbConverterMethods
+	class CbPrimitiveConverter<T> : CbConverter<T>, ICbConverterMethods
 	{
 		public MethodInfo ReadMethod { get; }
 		public Func<CbField, T> ReadFunc { get; }

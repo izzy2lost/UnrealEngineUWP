@@ -8,7 +8,7 @@ using System.Reflection.Emit;
 
 namespace EpicGames.Serialization.Converters
 {
-	class CbEnumConverter<T> : CbConverterBase<T>, ICbConverterMethods where T : Enum
+	class CbEnumConverter<T> : CbConverter<T>, ICbConverterMethods where T : Enum
 	{
 		readonly Func<CbField, T> _readFunc;
 		readonly Action<CbWriter, T> _writeFunc;
@@ -94,13 +94,13 @@ namespace EpicGames.Serialization.Converters
 
 	class CbEnumConverterFactory : CbConverterFactory
 	{
-		public override ICbConverter? CreateConverter(Type type)
+		public override CbConverter? CreateConverter(Type type)
 		{
-			ICbConverter? converter = null;
+			CbConverter? converter = null;
 			if (type.IsEnum)
 			{
 				Type converterType = typeof(CbEnumConverter<>).MakeGenericType(type);
-				converter = (ICbConverter?)Activator.CreateInstance(converterType);
+				converter = (CbConverter?)Activator.CreateInstance(converterType);
 			}
 			return converter;
 		}

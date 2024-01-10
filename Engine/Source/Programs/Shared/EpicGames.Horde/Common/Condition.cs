@@ -629,7 +629,7 @@ namespace EpicGames.Horde.Common
 	/// <summary>
 	/// Converter from conditions to compact binary objects
 	/// </summary>
-	public class ConditionCbConverter : CbConverterBase<Condition>
+	public class ConditionCbConverter : CbConverter<Condition>
 	{
 		/// <inheritdoc/>
 		public override Condition Read(CbField field)

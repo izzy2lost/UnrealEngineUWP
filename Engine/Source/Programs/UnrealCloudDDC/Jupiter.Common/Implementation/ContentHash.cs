@@ -110,7 +110,7 @@ namespace Jupiter.Implementation
 		}
 	}
 	
-	public class ContentHashCbConverter : CbConverterBase<ContentHash>
+	public class ContentHashCbConverter : CbConverter<ContentHash>
 	{
 		public override ContentHash Read(CbField field) => new ContentHash(field.AsHash().ToByteArray());
 

@@ -24,7 +24,7 @@ namespace EpicGames.AspNet
 	/// <summary>
 	/// Converter for asp.net problem details type
 	/// </summary>
-	class CbProblemDetailsConverter : CbConverterBase<ProblemDetails>
+	class CbProblemDetailsConverter : CbConverter<ProblemDetails>
 	{
 		/// <inheritdoc/>
 		public override ProblemDetails Read(CbField field)

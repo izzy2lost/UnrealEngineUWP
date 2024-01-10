@@ -10,7 +10,7 @@ namespace EpicGames.Serialization.Converters
 	/// Converter for array types
 	/// </summary>
 	/// <typeparam name="T"></typeparam>
-	class CbArrayConverter<T> : CbConverterBase<T[]>
+	class CbArrayConverter<T> : CbConverter<T[]>
 	{
 		/// <inheritdoc/>
 		public override T[] Read(CbField field)
@@ -71,13 +71,13 @@ namespace EpicGames.Serialization.Converters
 	class CbArrayConverterFactory : CbConverterFactory
 	{
 		/// <inheritdoc/>
-		public override ICbConverter? CreateConverter(Type type)
+		public override CbConverter? CreateConverter(Type type)
 		{
 			if (type.IsArray)
 			{
 				Type elementType = type.GetElementType()!;
 				Type converterType = typeof(CbArrayConverter<>).MakeGenericType(elementType);
-				return (ICbConverter)Activator.CreateInstance(converterType)!;
+				return (CbConverter)Activator.CreateInstance(converterType)!;
 			}
 			return null;
 		}

@@ -493,7 +493,7 @@ namespace EpicGames.Serialization.Converters
 		}
 	}
 
-	class CbClassConverter<T> : CbConverterBase<T>, ICbConverterMethods where T : class
+	class CbClassConverter<T> : CbConverter<T>, ICbConverterMethods where T : class
 	{
 		readonly CbClassConverterMethods _methods;
 
@@ -527,15 +527,15 @@ namespace EpicGames.Serialization.Converters
 
 	class CbClassConverterFactory : CbConverterFactory
 	{
-		public override ICbConverter? CreateConverter(Type type)
+		public override CbConverter? CreateConverter(Type type)
 		{
-			ICbConverter? converter = null;
+			CbConverter? converter = null;
 			if (type.IsClass)
 			{
 				Type converterType = typeof(CbClassConverter<>).MakeGenericType(type);
 				try
 				{
-					converter = (ICbConverter?)Activator.CreateInstance(converterType);
+					converter = (CbConverter?)Activator.CreateInstance(converterType);
 				}
 				catch (TargetInvocationException ex) when (ex.InnerException is not null)
 				{
