@@ -376,10 +376,9 @@ namespace uba
 				session.prevUpdateTime = 0;
 				session.prevSend = 0;
 				session.prevRecv = 0;
-				//session.lastPing = 0;
-				//session.memAvail = 0;
 				session.memTotal = 0;
-				//session.cpuLoad = 0;
+				if (!session.updates.empty())
+					session.updates.push_back({ time, 0, 0, lastPing, memAvail, cpuLoad, connectionCount });
 			}
 			else
 			{
