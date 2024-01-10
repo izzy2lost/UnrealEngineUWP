@@ -72,6 +72,13 @@ namespace RuntimeVirtualTexture
 			}
 		}
 
+		// Expand bounds.
+		const float ExpandBounds = InComponent->GetExpandBounds();
+		if (Bounds.IsValid && ExpandBounds > 0)
+		{
+			Bounds = Bounds.ExpandBy(ExpandBounds);
+		}
+
 		// Calculate the transform to fit the bounds.
 		FTransform Transform;
 		const FVector LocalPosition = Bounds.Min;

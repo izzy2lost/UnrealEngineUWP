@@ -820,6 +820,20 @@ void FDetailCustomizationsModule::RegisterSectionMappings()
 			Section->RemoveCategory("Brush Settings");
 		}
 	}
+
+	// RuntimeVirtualTextureComponent
+	{
+		{
+			TSharedRef<FPropertySection> Section = PropertyModule.FindOrCreateSection("RuntimeVirtualTextureComponent", "Rendering", LOCTEXT("Rendering", "Rendering"));
+			Section->AddCategory("Rendering");
+			Section->AddCategory("Runtime Virtual Texture");
+			Section->AddCategory("Streaming Virtual Texture");
+		}
+		{
+			TSharedRef<FPropertySection> Section = PropertyModule.FindOrCreateSection("RuntimeVirtualTextureComponent", "General", LOCTEXT("General", "General"));
+			Section->AddCategory("Volume Bounds");
+		}
+	}
 }
 
 #undef LOCTEXT_NAMESPACE

@@ -110,8 +110,9 @@ void FPixelShaderInOut_MainPS(
 	float Displacement = 0.f;
 #endif
 
-	// Apply debug shading
-	BaseColor = lerp(BaseColor, half3(In.SvPosition.xy * ResolvedView.ViewSizeAndInvSize.zw, 0), ResolvedView.RuntimeVirtualTextureDebugParams.x * 0.25);
+	// Apply any fixed color.
+	BaseColor = lerp(BaseColor, ResolvedView.RuntimeVirtualTextureDebugParams.xyz, ResolvedView.RuntimeVirtualTextureDebugParams.w);
+	Displacement = lerp(Displacement, ResolvedView.RuntimeVirtualTextureDebugParams.x, ResolvedView.RuntimeVirtualTextureDebugParams.w);
 
 #if defined(OUT_BASECOLOR)
 	Out.MRT[0] = float4(BaseColor, 1.f) * Opacity;

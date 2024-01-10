@@ -23,12 +23,6 @@
 
 #define LOCTEXT_NAMESPACE "URuntimeVirtualTextureComponent"
 
-static TAutoConsoleVariable<int32> CVarRVTEnableVolumes(
-	TEXT("r.VT.RVT.EnableVolumes"),
-	1,
-	TEXT("Enable RVT volumes."),
-	ECVF_Default);
-
 URuntimeVirtualTextureComponent::URuntimeVirtualTextureComponent(const FObjectInitializer& ObjectInitializer)
 	: Super(ObjectInitializer)
 	, EnableInGamePerPlatform(true)
@@ -143,11 +137,6 @@ void URuntimeVirtualTextureComponent::DestroyRenderState_Concurrent()
 
 bool URuntimeVirtualTextureComponent::IsEnabledInScene() const
 {
-	if (CVarRVTEnableVolumes.GetValueOnGameThread() == 0)
-	{
-		return false;
-	}
-
 	const bool bUseNanite = UseNanite(GetScene()->GetShaderPlatform());
 	if (bEnableForNaniteOnly && !bUseNanite)
 	{
@@ -275,6 +264,18 @@ bool URuntimeVirtualTextureComponent::IsStreamingTextureInvalid() const
 		StreamingTexture->BuildHash != CalculateStreamingTextureSettingsHash();
 }
 
+FLinearColor URuntimeVirtualTextureComponent::GetStreamingMipsFixedColor() const 
+{
+	if (!bUseStreamingMipsFixedColor)
+	{
+		return FLinearColor::Transparent;
+	} 
+	
+	FLinearColor Color(StreamingMipsFixedColor);
+	Color.A = 1.f;
+	return Color;
+}
+
 // RAII class to release and recreate runtime virtual texture producers associated with a UVirtualTextureBuilder.
 // Required around modifications of a UVirtualTextureBuilder because virtual producers hold pointers to the internal data.
 class FScopedRuntimeVirtualTextureRecreate
@@ -311,7 +312,7 @@ private:
 
 static void GetLayerFormatSettings(FTextureFormatSettings& OutFormatSettings, EPixelFormat LayerFormat, bool IsLayerYCoCg, bool IsLayerSRGB, bool IsLayerLQCompression)
 {
-	OutFormatSettings.CompressionSettings = IsLayerLQCompression? TC_LQ : (LayerFormat == PF_BC5 ? TC_Normalmap : TC_Default);
+	OutFormatSettings.CompressionSettings = IsLayerLQCompression ? TC_LQ : (LayerFormat == PF_BC5 ? TC_Normalmap : (LayerFormat == PF_BC4 ? TC_Alpha : TC_Default));
 	OutFormatSettings.CompressionNone = LayerFormat == PF_B8G8R8A8 || LayerFormat == PF_G16;
 	OutFormatSettings.CompressionNoAlpha = LayerFormat == PF_DXT1 || LayerFormat == PF_BC5 || LayerFormat == PF_R5G6B5_UNORM;
 	OutFormatSettings.CompressionForceAlpha = LayerFormat == PF_DXT5;
@@ -343,7 +344,7 @@ void URuntimeVirtualTextureComponent::InitializeStreamingTexture(EShadingPath Sh
 		for (int32 Layer = 0; Layer < BuildDesc.LayerCount; Layer++) 
 		{
 			const EPixelFormat LayerFormat = VirtualTexture->GetLayerFormat(Layer);
-			BuildDesc.LayerFormats[Layer] = LayerFormat == PF_G16 ? TSF_G16 : TSF_BGRA8;
+			BuildDesc.LayerFormats[Layer] = LayerFormat == PF_G16 || LayerFormat == PF_BC4 ? TSF_G16 : TSF_BGRA8;
 			bool IsLayerLQCompression = (VirtualTexture->GetMaterialType() == ERuntimeVirtualTextureMaterialType::BaseColor_Normal_Roughness && VirtualTexture->GetLQCompression() && LayerFormat != PF_B8G8R8A8);
 			GetLayerFormatSettings(BuildDesc.LayerFormatSettings[Layer], LayerFormat, VirtualTexture->IsLayerYCoCg(Layer), VirtualTexture->IsLayerSRGB(Layer), IsLayerLQCompression);
 		}
@@ -355,7 +356,6 @@ void URuntimeVirtualTextureComponent::InitializeStreamingTexture(EShadingPath Sh
 		BuildDesc.InData = InData;
 
 		StreamingTexture->BuildTexture(ShadingPath, BuildDesc);
-		StreamingTexture->EnableCookPerPlatform = EnableInGamePerPlatform;
 		StreamingTexture->Modify();
 	}
 }
@@ -366,12 +366,6 @@ bool URuntimeVirtualTextureComponent::CanEditChange(const FProperty* InProperty)
 	if (InProperty->GetFName() == TEXT("bUseStreamingLowMipsInEditor"))
 	{
 		bCanEdit &= GetVirtualTexture() != nullptr && GetStreamingTexture() != nullptr;
-	}
-	else if (InProperty->GetFName() == TEXT("bBuildDebugStreamingMips"))
-	{
-		bCanEdit = GetVirtualTexture() != nullptr && 
-			GetVirtualTexture()->GetMaterialType() != ERuntimeVirtualTextureMaterialType::WorldHeight && 
-			GetVirtualTexture()->GetMaterialType() != ERuntimeVirtualTextureMaterialType::Displacement;
 	}
 	return bCanEdit;
 }

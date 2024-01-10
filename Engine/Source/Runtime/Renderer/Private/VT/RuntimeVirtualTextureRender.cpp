@@ -26,6 +26,12 @@
 
 namespace RuntimeVirtualTexture
 {
+	static TAutoConsoleVariable<bool> CVarVTMipColors(
+		TEXT("r.VT.RVT.MipColors"),
+		false,
+		TEXT("Render mip colors to RVT BaseColor."),
+		ECVF_RenderThreadSafe);
+
 	static TAutoConsoleVariable<int32> CVarVTHighQualityPerPixelHeight(
 		TEXT("r.VT.RVT.HighQualityPerPixelHeight"),
 		1,
@@ -1351,6 +1357,16 @@ namespace RuntimeVirtualTexture
 		return Scene != nullptr && Scene->GetRenderScene() != nullptr && Scene->GetRenderScene()->GPUScene.IsRendering();
 	}
 
+	FLinearColor GetMipLevelColor(uint32 InLevel)
+	{
+		static const uint32 MipColors[] = {
+			0xC0FFFFFF, 0xC0FFFF00, 0xC000FFFF, 0xC000FF00, 0xC0FF00FF, 0xC0FF0000, 0xC00000FF,
+			0xC0808080, 0xC0808000, 0xC0008080, 0xC0008000, 0xC0800080, 0xC0800000, 0xC0000080 };
+
+		InLevel = FMath::Min<uint32>(InLevel, sizeof(MipColors) / sizeof(MipColors[0]) - 1);
+		return FLinearColor(FColor(MipColors[InLevel]));
+	}
+
 	void RenderPage(
 		FRDGBuilder& GraphBuilder,
 		FScene* Scene,
@@ -1373,7 +1389,7 @@ namespace RuntimeVirtualTexture
 		FBox2D const& UVRange,
 		uint8 vLevel,
 		uint8 MaxLevel,
-		ERuntimeVirtualTextureDebugType DebugType)
+		FLinearColor const& FixedColor)
 	{
 		RDG_EVENT_SCOPE(GraphBuilder, "VirtualTextureDynamicCache");
 
@@ -1430,7 +1446,7 @@ namespace RuntimeVirtualTexture
 		View->SetupUniformBufferParameters(nullptr, 0, *View->CachedViewUniformShaderParameters);
 		View->CachedViewUniformShaderParameters->RuntimeVirtualTextureMipLevel = MipLevelParameter;
 		View->CachedViewUniformShaderParameters->RuntimeVirtualTexturePackHeight = FVector2f(WorldHeightPackParameter);	// LWC_TODO: Precision loss
-		View->CachedViewUniformShaderParameters->RuntimeVirtualTextureDebugParams = FVector4f(DebugType == ERuntimeVirtualTextureDebugType::Debug ? 1.f : 0.f, 0.f, 0.f, 0.f);
+		View->CachedViewUniformShaderParameters->RuntimeVirtualTextureDebugParams = CVarVTMipColors.GetValueOnRenderThread() ? GetMipLevelColor(vLevel) : FixedColor;
 		View->ViewUniformBuffer = TUniformBufferRef<FViewUniformShaderParameters>::CreateUniformBufferImmediate(*View->CachedViewUniformShaderParameters, UniformBuffer_SingleFrame);
 
 		// Build graph
@@ -1555,7 +1571,7 @@ namespace RuntimeVirtualTexture
 					PageDesc.UVRange,
 					PageDesc.vLevel,
 					InDesc.MaxLevel,
-					InDesc.DebugType);
+					InDesc.FixedColor);
 			}
 		}
 	}

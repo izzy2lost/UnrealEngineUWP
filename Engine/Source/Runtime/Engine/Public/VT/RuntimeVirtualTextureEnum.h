@@ -79,10 +79,3 @@ enum ERuntimeVirtualTextureShaderUniform
 	ERuntimeVirtualTextureShaderUniform_WorldHeightUnpack,
 	ERuntimeVirtualTextureShaderUniform_Count,
 };
-
-/** Enumeration of runtime virtual texture debug modes. */
-enum class ERuntimeVirtualTextureDebugType
-{
-	None,
-	Debug
-};
