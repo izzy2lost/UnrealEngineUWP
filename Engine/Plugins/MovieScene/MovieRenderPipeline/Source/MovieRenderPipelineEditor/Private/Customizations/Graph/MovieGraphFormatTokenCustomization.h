@@ -1,0 +1,33 @@
+﻿#pragma once
+
+#include "MoviePipelineQueue.h"
+#include "IDetailCustomization.h"
+#include "PropertyHandle.h"
+
+class FMovieGraphFormatTokenCustomization : public IDetailCustomization
+{
+public:
+	/** Creates a detail customization instance */
+	static TSharedRef<IDetailCustomization> MakeInstance()
+	{
+		return MakeShared<FMovieGraphFormatTokenCustomization>();
+	}
+
+	FMovieGraphFormatTokenCustomization(){}
+
+protected:
+	//~ Begin IDetailCustomization interface
+	virtual void CustomizeDetails(IDetailLayoutBuilder& DetailBuilder) override;
+	//~ End IDetailCustomization interface
+
+	TArray<FString> GetSuggestions() const;
+
+	void OnTextChanged(const FText& InValue) const;
+
+	FText GetText() const;
+
+	static void GetFormatArguments(FMoviePipelineFormatArgs& InOutFormatArgs);
+	
+	TWeakObjectPtr<UObject> CustomizedObject;
+	TSharedPtr<IPropertyHandle> OutputFormatPropertyHandle;
+};
