@@ -478,7 +478,7 @@ void FStudioTelemetryEditor::Initialize()
 						if (Asset != nullptr)
 						{
 							Attributes.Emplace(TEXT("AssetPath"), Asset->GetFullName());
-							Attributes.Emplace(TEXT("AssetType"), Asset->GetClass()->GetName());
+							Attributes.Emplace(TEXT("AssetClass"), Asset->GetClass()->GetName());
 
 							FStudioTelemetryEditor::RecordEvent_Loading(TEXT("OpenAssetEditor"), FPlatformTime::Seconds() - AssetOpenStartTime, Attributes);
 						}
