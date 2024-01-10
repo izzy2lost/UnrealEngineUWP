@@ -50,7 +50,10 @@ protected:
 
 private:
 	UFUNCTION(BlueprintPure, Category = "Python")
-	int32 GetNumFrames(const UAnimSequence* Anim) const;
+	int32 GetNumFramesAnimSequence(const UAnimSequence* Anim) const;
+
+	UFUNCTION(BlueprintPure, Category = "Python")
+	int32 GetNumFramesGeometryCache(const UGeometryCache* GeometryCache) const;
 	
 	UFUNCTION(BlueprintPure, Category = "Python")
 	const USkeleton* GetModelSkeleton(const UMLDeformerModel* Model) const;

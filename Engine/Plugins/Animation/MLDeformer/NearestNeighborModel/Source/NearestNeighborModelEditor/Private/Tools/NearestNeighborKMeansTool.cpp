@@ -130,6 +130,28 @@ namespace UE::NearestNeighborModel
 					return FReply::Handled();
 				})
 			]
+			+ SHorizontalBox::Slot()
+			.AutoWidth()
+			[
+				SNew(SButton)
+				.Text(FText::FromString("New Geometry Cache"))
+				.HAlign(HAlign_Center)
+				.VAlign(VAlign_Center)
+				.OnClicked_Lambda([&Data]() -> FReply
+				{
+					if (UNearestNeighborKMeansData* KMeansData = Cast<UNearestNeighborKMeansData>(&Data))
+					{
+						if (KMeansData->NearestNeighborModelAsset)
+						{
+							const FString DefaultPath = FPackageName::GetLongPackagePath(KMeansData->NearestNeighborModelAsset->GetOutermost()->GetName());
+							const FString DefaultName = FString::Printf(TEXT("AS_Clusters_%s"), *KMeansData->NearestNeighborModelAsset->GetName());
+							UGeometryCache* Asset = Private::NewAssetDialog<UGeometryCache>(DefaultPath, DefaultName);
+							KMeansData->ExtractedCache = Asset;
+						}
+					}
+					return FReply::Handled();
+				})
+			]
 		]
 		+SVerticalBox::Slot()
 		.AutoHeight()

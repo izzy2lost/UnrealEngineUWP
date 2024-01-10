@@ -5,6 +5,10 @@
 #include "Animation/AnimSequence.h"
 #include "Animation/AttributesRuntime.h"
 #include "BonePose.h"
+#include "GeometryCache.h"
+#include "GeometryCacheConstantTopologyWriter.h"
+#include "GeometryCacheMeshData.h"
+#include "GeometryCacheTrack.h"
 #include "NearestNeighborModelHelpers.h"
 
 #define LOCTEXT_NAMESPACE "NearestNeighborEditorHelpers"
@@ -64,6 +68,16 @@ namespace UE::NearestNeighborModel::Private
 		FBlendedCurve OutCurve;
 		UE::Anim::FStackAttributeContainer TempAttributes;
 	};
+
+	int32 GetNumVertices(UGeometryCacheTrack& Track)
+	{
+		FGeometryCacheMeshData MeshData;
+		if (!Track.GetMeshDataAtSampleIndex(0, MeshData))
+		{
+			return 0;
+		}
+		return MeshData.Positions.Num(); 
+	}
 };
 
 void UNearestNeighborAnimStream::Init(USkeleton* InSkeleton)
@@ -124,6 +138,11 @@ bool UNearestNeighborAnimStream::AppendFrames(const UAnimSequence* Anim, TArray<
 	{
 		const int32 Frame = Frames[Index];
 		TArray<FTransform> BoneTransforms = AnimEval.GetBoneTransforms(Anim, Frame);
+		if (BoneTransforms.IsEmpty()) // Frame not found
+		{
+			UE_LOG(LogNearestNeighborModel, Error, TEXT("Frame %d not found in AnimSequence"), Frame);
+			return false;
+		}
 		check (BoneTransforms.Num() == NumBones);
 		for (int32 BoneIndex = 0; BoneIndex < NumBones; ++BoneIndex)
 		{
@@ -177,6 +196,104 @@ bool UNearestNeighborAnimStream::ToAnim(UAnimSequence* OutAnim) const
 	Controller.NotifyPopulated();
 	Controller.CloseBracket();
 
+	return true;
+}
+
+void UNearestNeighborGeometryCacheStream::Init(const UGeometryCache* InTemplateCache)
+{
+	if (!InTemplateCache)
+	{
+		UE_LOG(LogNearestNeighborModel, Error, TEXT("TemplateCache is None when initializing NearestNeighborGeometryCacheStream"));
+		return;
+	}
+	TemplateCache = InTemplateCache;
+	TemplateNumTracks = TemplateCache->Tracks.Num();
+	TemplateTrackNumVertices.SetNum(TemplateNumTracks);
+	for (int32 TrackIndex = 0; TrackIndex < TemplateNumTracks; ++TrackIndex)
+	{
+		const TObjectPtr<UGeometryCacheTrack> Track = TemplateCache->Tracks[TrackIndex];
+		const int32 NumVertices = UE::NearestNeighborModel::Private::GetNumVertices(*Track);
+		if (NumVertices == 0)
+		{
+			UE_LOG(LogNearestNeighborModel, Warning, TEXT("Track %d has no vertices"), TrackIndex);
+		}
+		TemplateTrackNumVertices[TrackIndex] = NumVertices;
+	}
+	TrackToFrameToPositions.Empty();
+	TrackToFrameToPositions.SetNum(TemplateNumTracks);
+}
+
+bool UNearestNeighborGeometryCacheStream::IsValid() const
+{
+	return TemplateCache != nullptr;
+}
+
+bool UNearestNeighborGeometryCacheStream::AppendFrames(const UGeometryCache* Cache, TArray<int32> Frames)
+{
+	if (!Cache || !IsValid())
+	{
+		return false;
+	}
+	const int32 NumCacheFrames = UE::NearestNeighborModel::FHelpers::GetNumFrames(Cache);
+	const int32 NumTracks = Cache->Tracks.Num();
+	if (NumTracks != TemplateNumTracks)
+	{
+		UE_LOG(LogNearestNeighborModel, Error, TEXT("Number of tracks in Cache (%d) is different from TemplateCache (%d)"), NumTracks, TemplateNumTracks);
+		return false;
+	}
+	for (int32 Frame : Frames)
+	{
+		if (Frame < 0 || Frame >= NumCacheFrames) // Frame not found
+		{
+			UE_LOG(LogNearestNeighborModel, Error, TEXT("Frame %d not found in GeometryCache"), Frame);
+			return false;
+		}
+		for (int32 TrackIndex = 0; TrackIndex < NumTracks; ++TrackIndex)
+		{
+			const TObjectPtr<UGeometryCacheTrack> Track = Cache->Tracks[TrackIndex];
+			FGeometryCacheMeshData MeshData;
+			if (!Track->GetMeshDataAtSampleIndex(Frame, MeshData))
+			{
+				UE_LOG(LogNearestNeighborModel, Error, TEXT("Frame %d cannot be retrieved in GeometryCache"), Frame);
+				return false;
+			}
+			TArray<FVector3f>& Positions = MeshData.Positions;
+			if (Positions.Num() != TemplateTrackNumVertices[TrackIndex])
+			{
+				UE_LOG(LogNearestNeighborModel, Error, TEXT("Number of vertices in Frame %d of Track %d (%d) is different from TemplateCache (%d)"), Frame, TrackIndex, Positions.Num(), TemplateTrackNumVertices[TrackIndex]);
+				return false;
+			}
+			TArray<TArray<FVector3f>>& FrameToPositions = TrackToFrameToPositions[TrackIndex];
+			FrameToPositions.Add(MoveTemp(Positions));
+		}
+	}
+	return true;
+}
+
+bool UNearestNeighborGeometryCacheStream::ToGeometryCache(UGeometryCache* OutCache)
+{
+	if (!OutCache)
+	{
+		UE_LOG(LogNearestNeighborModel, Error, TEXT("OutCache is None when converting NearestNeighborGeometryCacheStream to GeometryCache"));
+		return false;
+	}
+	if (!IsValid())
+	{
+		UE_LOG(LogNearestNeighborModel, Error, TEXT("TemplateCache is None when converting NearestNeighborGeometryCacheStream to GeometryCache"));
+		return false;
+	}
+	using UE::GeometryCacheHelpers::FGeometryCacheConstantTopologyWriter;
+	using UE::GeometryCacheHelpers::AddTrackWritersFromTemplateCache;
+	using FTrackWriter = FGeometryCacheConstantTopologyWriter::FTrackWriter;
+
+	FGeometryCacheConstantTopologyWriter Writer(*OutCache);
+	const int32 NumAdded = AddTrackWritersFromTemplateCache(Writer, *TemplateCache);
+	check(NumAdded == TemplateNumTracks);
+	for (int32 TrackIndex = 0; TrackIndex < TemplateNumTracks; ++TrackIndex)
+	{
+		FTrackWriter& TrackWriter = Writer.GetTrackWriter(TrackIndex);
+		TrackWriter.WriteAndClose(TrackToFrameToPositions[TrackIndex]);
+	}
 	return true;
 }
 

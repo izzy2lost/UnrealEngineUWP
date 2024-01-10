@@ -29,9 +29,14 @@ UNearestNeighborModel* UNearestNeighborTrainingModel::GetNearestNeighborModel() 
 	return GetCastModel();
 }
 
-int32 UNearestNeighborTrainingModel::GetNumFrames(const UAnimSequence* Anim) const
+int32 UNearestNeighborTrainingModel::GetNumFramesAnimSequence(const UAnimSequence* Anim) const
 {
 	return UE::NearestNeighborModel::FHelpers::GetNumFrames(Anim);
+}
+
+int32 UNearestNeighborTrainingModel::GetNumFramesGeometryCache(const UGeometryCache* GeometryCache) const
+{
+	return UE::NearestNeighborModel::FHelpers::GetNumFrames(GeometryCache);
 }
 
 const USkeleton* UNearestNeighborTrainingModel::GetModelSkeleton(const UMLDeformerModel* Model) const

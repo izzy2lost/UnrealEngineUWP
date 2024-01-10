@@ -26,17 +26,33 @@ public:
 	UPROPERTY(VisibleAnywhere, Category = "Input")
 	TObjectPtr<const UMLDeformerAsset> NearestNeighborModelAsset;
 
+	/** Section used to generate clustered poses. */
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Input")
 	int32 SectionIndex = 0;
 	
-	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Input")
+	/** Number of clusters to be generated. */
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Input", meta = (ClampMin = 1))
 	int32 NumClusters = 10;
 
+	/** List of input poses (cannot be empty). */
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Input")
 	TArray<TObjectPtr<UAnimSequence>> InputPoses;
 
+	/** Whether to extract geometry cache at the same time. */
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Input")
+	bool bExtractGeometryCache = false;
+
+	/** List of input geometry caches (need to be the same size as InputPoses). */
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Input", meta = (EditCondition = "bExtractGeometryCache"))
+	TArray<TObjectPtr<UGeometryCache>> InputCaches;
+
+	/** Extracted poses. */
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Output")
 	TObjectPtr<UAnimSequence> ExtractedPoses;
+
+	/** Extracted geometry cache. */
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Output", meta = (EditCondition = "bExtractGeometryCache"))
+	TObjectPtr<UGeometryCache> ExtractedCache;
 };
 
 namespace UE::NearestNeighborModel
