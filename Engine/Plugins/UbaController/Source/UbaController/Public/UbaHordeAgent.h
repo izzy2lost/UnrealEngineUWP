@@ -31,7 +31,7 @@ public:
 	bool IsValid();
 
 	// Reads output from the child channel and reports them to the log of the calling process.
-	void PollReports();
+	void Poll(bool LogReports);
 
 	inline const FHordeRemoteMachineInfo& GetMachineInfo() const
 	{

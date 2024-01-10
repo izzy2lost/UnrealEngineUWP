@@ -181,7 +181,7 @@ bool FUbaHordeAgent::IsValid()
 	return bIsValid && !bHasErrors;
 }
 
-void FUbaHordeAgent::PollReports()
+void FUbaHordeAgent::Poll(bool LogReports)
 {
 	EAgentMessageType Type = EAgentMessageType::None;
 	constexpr int32 ReadresponseTimeoutMS = 100;
@@ -191,7 +191,7 @@ void FUbaHordeAgent::PollReports()
 		{
 		case EAgentMessageType::ExecuteOutput:
 		{
-			if (ChildChannel->GetResponseSize() > 0)
+			if (LogReports && ChildChannel->GetResponseSize() > 0)
 			{
 				// Convert raw buffer to dynamic array for modification
 				const ANSICHAR* ResponseDataRaw = reinterpret_cast<const ANSICHAR*>(ChildChannel->GetResponseData());
@@ -219,9 +219,12 @@ void FUbaHordeAgent::PollReports()
 		{
 			if (ChildChannel->GetResponseSize() == sizeof(int32))
 			{
-				const int32* ResponseData = reinterpret_cast<const int32*>(ChildChannel->GetResponseData());
-				const int32 ExecuteExitCode = ResponseData[0];
-				UE_LOG(LogUbaHorde, Log, TEXT("Response [ExecuteResult]: ExitCode=%d"), ExecuteExitCode);
+				if (LogReports)
+				{
+					const int32* ResponseData = reinterpret_cast<const int32*>(ChildChannel->GetResponseData());
+					const int32 ExecuteExitCode = ResponseData[0];
+					UE_LOG(LogUbaHorde, Log, TEXT("Response [ExecuteResult]: ExitCode=%d"), ExecuteExitCode);
+				}
 				bIsValid = false;
 			}
 		}

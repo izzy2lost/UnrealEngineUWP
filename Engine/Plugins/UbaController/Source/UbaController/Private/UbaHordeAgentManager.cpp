@@ -338,12 +338,9 @@ void FUbaHordeAgentManager::ThreadAgent(FHordeAgentWrapper& Wrapper)
 		EstimatedCoreCount += MachineCoreCount;
 	}
 
-	while (!ShouldExit.Wait(100))
+	while (Agent->IsValid() && !ShouldExit.Wait(100))
 	{
-		if (!Agent->IsValid())
-			break;
-		if (UbaControllerModule::bHordeForwardAgentLogs)
-			Agent->PollReports();
+		Agent->Poll(UbaControllerModule::bHordeForwardAgentLogs);
 	}
 
 	EstimatedCoreCount -= MachineCoreCount;

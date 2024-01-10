@@ -343,10 +343,12 @@ uint32 FUbaJobProcessor::Run()
 
 		if (bShouldProcessJobs)
 		{
-			HordeAgentManager->SetTargetCoreCount(queued);
+			int32 TargetCoreCount = FMath::Max(0, int32(queued + active) - MaxLocalParallelJobs);
+
+			HordeAgentManager->SetTargetCoreCount(TargetCoreCount);
 			
 			// TODO: Not sure this is a good idea in a cooking scenario where number of queued processes are going up and down
-			SessionServer_SetMaxRemoteProcessCount(UbaSessionServer, queued);
+			SessionServer_SetMaxRemoteProcessCount(UbaSessionServer, TargetCoreCount);
 		}
 
 		FPlatformProcess::Sleep(UbaJobProcessorOptions::SleepTimeBetweenActions);
