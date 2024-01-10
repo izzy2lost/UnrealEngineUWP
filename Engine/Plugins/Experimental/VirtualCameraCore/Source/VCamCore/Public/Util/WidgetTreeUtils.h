@@ -2,8 +2,6 @@
 
 #pragma once
 
-#include "CoreMinimal.h"
-
 class UWidgetTree;
 class UUserWidget;
 class UWidget;

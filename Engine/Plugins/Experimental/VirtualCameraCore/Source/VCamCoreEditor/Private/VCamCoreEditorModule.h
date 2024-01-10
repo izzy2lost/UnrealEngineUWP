@@ -2,10 +2,7 @@
 
 #pragma once
 
-#include "CoreMinimal.h"
-
 #include "IVCamCoreEditorModule.h"
-
 #include "UObject/WeakObjectPtr.h"
 #include "UObject/WeakObjectPtrTemplates.h"
 

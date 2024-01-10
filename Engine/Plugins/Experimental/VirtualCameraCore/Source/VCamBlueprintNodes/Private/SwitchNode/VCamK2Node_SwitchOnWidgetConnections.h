@@ -2,7 +2,6 @@
 
 #pragma once
 
-#include "CoreMinimal.h"
 #include "VCamK2Node_SwitchConnectionSystemBase.h"
 #include "Util/WidgetReference.h"
 #include "VCamK2Node_SwitchOnWidgetConnections.generated.h"

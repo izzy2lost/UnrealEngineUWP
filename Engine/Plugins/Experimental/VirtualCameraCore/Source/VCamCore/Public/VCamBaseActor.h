@@ -2,7 +2,6 @@
 
 #pragma once
 
-#include "CoreMinimal.h"
 #include "CineCameraActor.h"
 #include "VCamBaseActor.generated.h"
 

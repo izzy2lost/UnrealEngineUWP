@@ -2,7 +2,6 @@
 
 #pragma once
 
-#include "CoreMinimal.h"
 #include "UI/VCamWidget.h"
 #include "VCamWidgetConnectionState.h"
 #include "VCamStateSwitcherWidget.generated.h"

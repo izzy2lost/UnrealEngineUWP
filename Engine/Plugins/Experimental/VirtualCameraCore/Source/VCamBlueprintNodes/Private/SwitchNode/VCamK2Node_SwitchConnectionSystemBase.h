@@ -2,7 +2,6 @@
 
 #pragma once
 
-#include "CoreMinimal.h"
 #include "K2Node_SwitchName.h"
 #include "VCamK2Node_SwitchConnectionSystemBase.generated.h"
 

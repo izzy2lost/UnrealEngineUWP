@@ -2,7 +2,6 @@
 
 #pragma once
 
-#include "CoreMinimal.h"
 #include "ConnectionRemapUtilsImpl.h"
 #include "IDetailCustomization.h"
 #include "Customization/IConnectionRemapCustomization.h"

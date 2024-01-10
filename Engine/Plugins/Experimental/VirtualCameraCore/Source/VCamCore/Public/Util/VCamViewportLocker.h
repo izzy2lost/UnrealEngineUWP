@@ -2,7 +2,6 @@
 
 #pragma once
 
-#include "CoreMinimal.h"
 #include "EVCamTargetViewportID.h"
 #include "VCamViewportLocker.generated.h"
 

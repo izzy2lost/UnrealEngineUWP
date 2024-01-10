@@ -2,7 +2,6 @@
 
 #pragma once
 
-#include "CoreMinimal.h"
 #include "VCamComponent.h"
 
 class UVCamModifier;

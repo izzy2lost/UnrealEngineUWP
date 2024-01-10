@@ -2,7 +2,6 @@
 
 #pragma once
 
-#include "CoreMinimal.h"
 #include "Customizations/OutputProvider/ConnectionRemapCustomization_VCamWidget.h"
 
 namespace UE::VCamCoreEditor::Private

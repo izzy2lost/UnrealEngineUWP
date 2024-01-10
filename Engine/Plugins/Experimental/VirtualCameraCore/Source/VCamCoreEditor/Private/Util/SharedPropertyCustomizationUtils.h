@@ -2,8 +2,6 @@
 
 #pragma once
 
-#include "CoreMinimal.h"
-
 class IPropertyHandle;
 class IDetailPropertyRow;
 class UVCamStateSwitcherWidget;

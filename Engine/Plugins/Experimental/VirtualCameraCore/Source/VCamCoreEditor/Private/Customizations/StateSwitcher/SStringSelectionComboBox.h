@@ -2,9 +2,7 @@
 
 #pragma once
 
-#include "CoreMinimal.h"
 #include "SSearchableComboBox.h"
-#include "SSimpleComboButton.h"
 
 namespace UE::VCamCoreEditor::Private
 {

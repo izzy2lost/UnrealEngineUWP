@@ -1,6 +1,6 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
-#include "ViewTargetPolicy/FocusFirstPlayerViewTargetPolicy.h"
+#include "Output/ViewTargetPolicy/FocusFirstPlayerViewTargetPolicy.h"
 
 #include "CineCameraComponent.h"
 #include "Engine/World.h"

@@ -2,9 +2,7 @@
 
 #pragma once
 
-#include "CoreMinimal.h"
 #include "VCamObjectWithInputFactory.h"
-
 #include "VCamWidgetFactory.generated.h"
 
 UCLASS()
@@ -12,6 +10,7 @@ class UVCamWidgetFactory : public UVCamObjectWithInputFactory
 {
 	GENERATED_BODY()
 public:
+	
 	UVCamWidgetFactory();
 	
 	//~ Begin UFactory Interface
@@ -20,5 +19,4 @@ public:
 	virtual UObject* FactoryCreateNew(UClass* Class, UObject* InParent, FName Name, EObjectFlags Flags, UObject* Context, FFeedbackContext* Warn) override;
 	virtual uint32 GetMenuCategories() const override;
 	//~ Begin UFactory Interface
-	
 };

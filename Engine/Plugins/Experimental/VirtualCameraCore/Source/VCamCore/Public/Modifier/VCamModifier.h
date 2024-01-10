@@ -2,7 +2,6 @@
 
 #pragma once
 
-#include "CoreMinimal.h"
 #include "CineCameraComponent.h"
 #include "Roles/LiveLinkCameraTypes.h"
 #include "VCamModifier.generated.h"

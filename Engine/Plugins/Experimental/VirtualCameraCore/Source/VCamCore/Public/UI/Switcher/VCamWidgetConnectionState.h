@@ -2,7 +2,6 @@
 
 #pragma once
 
-#include "CoreMinimal.h"
 #include "WidgetConnectionConfig.h"
 #include "VCamWidgetConnectionState.generated.h"
 

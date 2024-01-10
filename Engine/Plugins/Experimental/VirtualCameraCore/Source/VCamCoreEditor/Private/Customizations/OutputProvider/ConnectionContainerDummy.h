@@ -2,7 +2,6 @@
 
 #pragma once
 
-#include "CoreMinimal.h"
 #include "UI/VCamConnectionStructs.h"
 #include "ConnectionContainerDummy.generated.h"
 

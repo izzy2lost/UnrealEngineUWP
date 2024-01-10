@@ -2,8 +2,6 @@
 
 #pragma once
 
-#include "CoreMinimal.h"
-
 class AActor;
 class SLevelViewport;
 class UVCamOutputProviderBase;

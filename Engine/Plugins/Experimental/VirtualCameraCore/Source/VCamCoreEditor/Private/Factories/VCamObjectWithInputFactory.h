@@ -2,10 +2,8 @@
 
 #pragma once
 
-#include "CoreMinimal.h"
 #include "Factories/Factory.h"
 #include "InputMappingContext.h"
-
 #include "VCamObjectWithInputFactory.generated.h"
 
 UCLASS(hidecategories = Object)

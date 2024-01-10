@@ -2,7 +2,6 @@
 
 #pragma once
 
-#include "CoreMinimal.h"
 #include "IVCamCoreModule.h"
 #include "Modules/ModuleManager.h"
 

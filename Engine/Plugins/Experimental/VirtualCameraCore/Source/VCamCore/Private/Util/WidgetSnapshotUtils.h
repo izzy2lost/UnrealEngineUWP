@@ -2,7 +2,6 @@
 
 #pragma once
 
-#include "CoreMinimal.h"
 #include "VCamCore.h"
 #include "UI/WidgetSnapshots.h"
 

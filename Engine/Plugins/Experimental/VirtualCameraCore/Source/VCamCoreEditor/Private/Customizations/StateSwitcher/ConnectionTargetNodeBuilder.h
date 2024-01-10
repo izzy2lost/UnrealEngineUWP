@@ -2,7 +2,6 @@
 
 #pragma once
 
-#include "CoreMinimal.h"
 #include "IDetailCustomNodeBuilder.h"
 #include "Fonts/SlateFontInfo.h"
 #include "Misc/Attribute.h"

@@ -2,10 +2,8 @@
 
 #pragma once
 
-#include "CoreMinimal.h"
 #include "Kismet/BlueprintFunctionLibrary.h"
 #include "UI/VCamConnectionStructs.h"
-
 #include "VCamUIFunctionLibrary.generated.h"
 
 class UInputAction;

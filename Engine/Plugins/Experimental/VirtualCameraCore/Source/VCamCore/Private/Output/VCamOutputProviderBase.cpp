@@ -11,8 +11,8 @@
 #include "Util/WidgetTreeUtils.h"
 #include "VCamComponent.h"
 #include "VCamCoreCustomVersion.h"
-#include "ViewTargetPolicy/FocusFirstPlayerViewTargetPolicy.h"
-#include "ViewTargetPolicy/GameplayViewTargetPolicy.h"
+#include "Output/ViewTargetPolicy/FocusFirstPlayerViewTargetPolicy.h"
+#include "Output/ViewTargetPolicy/GameplayViewTargetPolicy.h"
 
 #include "Algo/RemoveIf.h"
 #include "Blueprint/UserWidget.h"
@@ -35,7 +35,6 @@
 #include "SLevelViewport.h"
 #include "SEditorViewport.h"
 #include "UnrealClient.h"
-#else
 #endif
 
 DEFINE_LOG_CATEGORY(LogVCamOutputProvider);

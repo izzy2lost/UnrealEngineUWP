@@ -2,9 +2,7 @@
 
 #pragma once
 
-#include "CoreMinimal.h"
 #include "ILiveLinkSource.h"
-
 #include "VCamPixelStreamingLiveLink.generated.h"
 
 UCLASS()

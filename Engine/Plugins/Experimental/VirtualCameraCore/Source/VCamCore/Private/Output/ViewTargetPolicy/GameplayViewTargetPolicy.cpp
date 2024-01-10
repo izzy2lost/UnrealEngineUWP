@@ -1,6 +1,6 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
-#include "ViewTargetPolicy/GameplayViewTargetPolicy.h"
+#include "Output/ViewTargetPolicy/GameplayViewTargetPolicy.h"
 
 #include "Camera/PlayerCameraManager.h"
 #include "CineCameraComponent.h"

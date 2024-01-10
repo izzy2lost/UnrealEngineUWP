@@ -2,7 +2,6 @@
 
 #pragma once
 
-#include "CoreMinimal.h"
 #include "Misc/Guid.h"
 
 namespace UE::VCamCore

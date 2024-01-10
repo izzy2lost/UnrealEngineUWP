@@ -2,7 +2,6 @@
 
 #pragma once
 
-#include "CoreMinimal.h"
 #include "ConnectionContainerDummy.h"
 #include "DetailLayoutBuilder.h"
 #include "Customization/IConnectionRemapUtils.h"
