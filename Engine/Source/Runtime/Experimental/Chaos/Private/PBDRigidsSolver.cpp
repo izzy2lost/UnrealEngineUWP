@@ -611,10 +611,58 @@ namespace Chaos
 				NewParticle->SetPhysicsProxy(Proxy);
 			});
 
-		MEvolution->SetPreApplyCallback(
+		MEvolution->SetPreIntegrateCallback(
 			[this]()
 			{
+				for (ISimCallbackObject* Callback : SimCallbackObjects)
+				{
+					if (Callback->HasOption(ESimCallbackOptions::PreIntegrate))
+					{
+						FScopedTraceSolverCallback TraceCallback(Callback);
+						Callback->PreIntegrate_Internal();
+					}
+				}
+			});
+
+		MEvolution->SetPostIntegrateCallback(
+			[this]()
+			{
+				for (ISimCallbackObject* Callback : SimCallbackObjects)
+				{
+					if (Callback->HasOption(ESimCallbackOptions::PostIntegrate))
+					{
+						FScopedTraceSolverCallback TraceCallback(Callback);
+						Callback->PostIntegrate_Internal();
+					}
+				}
+			});
+
+		MEvolution->SetPreSolveCallback(
+			[this]()
+			{
+				for (ISimCallbackObject* Callback : SimCallbackObjects)
+				{
+					if (Callback->HasOption(ESimCallbackOptions::PreSolve))
+					{
+						FScopedTraceSolverCallback TraceCallback(Callback);
+						Callback->PreSolve_Internal();
+					}
+				}
+
 				PreSolveDebugDraw();
+			});
+
+		MEvolution->SetPostSolveCallback(
+			[this]()
+			{
+				for (ISimCallbackObject* Callback : SimCallbackObjects)
+				{
+					if (Callback->HasOption(ESimCallbackOptions::PostSolve))
+					{
+						FScopedTraceSolverCallback TraceCallback(Callback);
+						Callback->PostSolve_Internal();
+					}
+				}
 			});
 	}
 

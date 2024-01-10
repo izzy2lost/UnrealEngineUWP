@@ -77,20 +77,33 @@ namespace Chaos
 			bool InIsSingleThreaded = false);
 		CHAOS_API ~FPBDRigidsEvolutionGBF();
 
-		FORCEINLINE void SetPostIntegrateCallback(const FPBDRigidsEvolutionCallback& Cb)
+		void SetPreIntegrateCallback(const FPBDRigidsEvolutionCallback& Cb)
+		{
+			PreIntegrateCallback = Cb;
+		}
+
+		void SetPostIntegrateCallback(const FPBDRigidsEvolutionCallback& Cb)
 		{
 			PostIntegrateCallback = Cb;
 		}
 
-		FORCEINLINE void SetPostDetectCollisionsCallback(const FPBDRigidsEvolutionCallback& Cb)
+		void SetPreSolveCallback(const FPBDRigidsEvolutionCallback& Cb)
+		{
+			PreSolveCallback = Cb;
+		}
+
+		void SetPostSolveCallback(const FPBDRigidsEvolutionCallback& Cb)
+		{
+			PostSolveCallback = Cb;
+		}
+
+		void SetPostDetectCollisionsCallback(const FPBDRigidsEvolutionCallback& Cb)
 		{
 			PostDetectCollisionsCallback = Cb;
 		}
 
-		FORCEINLINE void SetPreApplyCallback(const FPBDRigidsEvolutionCallback& Cb)
-		{
-			PreApplyCallback = Cb;
-		}
+		UE_DEPRECATED(5.4, "Use SetPreSolveCallback")
+		void SetPreApplyCallback(const FPBDRigidsEvolutionCallback& Cb) { SetPreSolveCallback(Cb); }
 
 		FORCEINLINE void SetInternalParticleInitilizationFunction(const FPBDRigidsEvolutionInternalHandleCallback& Cb)
 		{ 
@@ -398,9 +411,11 @@ namespace Chaos
 		FSpatialAccelerationBroadPhase BroadPhase;
 		FSpatialAccelerationCollisionDetector CollisionDetector;
 
+		FPBDRigidsEvolutionCallback PreIntegrateCallback;
 		FPBDRigidsEvolutionCallback PostIntegrateCallback;
 		FPBDRigidsEvolutionCallback PostDetectCollisionsCallback;
-		FPBDRigidsEvolutionCallback PreApplyCallback;
+		FPBDRigidsEvolutionCallback PreSolveCallback;
+		FPBDRigidsEvolutionCallback PostSolveCallback;
 		FPBDRigidsEvolutionInternalHandleCallback InternalParticleInitilization;
 		FEvolutionResimCache* CurrentStepResimCacheImp;
 
