@@ -3,6 +3,7 @@
 #pragma once
 
 #include "UObject/Interface.h"
+#include "Output/VCamOutputProviderBase.h"
 #include "IVCamOutputProviderCreatedWidget.generated.h"
 
 class UVCamComponent;
