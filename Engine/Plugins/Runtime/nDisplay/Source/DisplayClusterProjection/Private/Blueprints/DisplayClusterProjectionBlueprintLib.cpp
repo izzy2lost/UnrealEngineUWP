@@ -11,11 +11,8 @@
 #include "Render/Viewport/IDisplayClusterViewportManager.h"
 #include "Render/Viewport/IDisplayClusterViewport.h"
 
+#include "UObject/Package.h"
 
-UDisplayClusterProjectionBlueprintLib::UDisplayClusterProjectionBlueprintLib(class FObjectInitializer const & ObjectInitializer)
-	: Super(ObjectInitializer)
-{
-}
 
 // [DEPRECATED]
 void UDisplayClusterProjectionBlueprintLib::GetAPI(TScriptInterface<IDisplayClusterProjectionBlueprintAPI>& OutAPI)

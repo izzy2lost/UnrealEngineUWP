@@ -15,17 +15,14 @@
 #include "DisplayClusterRootActor.h"
 #include "DisplayClusterConfigurationTypes.h"
 
+#include "UObject/Package.h"
+
 #if WITH_EDITOR
 #include "ScopedTransaction.h"
 #endif
 
 #define LOCTEXT_NAMESPACE "UDisplayClusterBlueprintLib"
 
-
-UDisplayClusterBlueprintLib::UDisplayClusterBlueprintLib(class FObjectInitializer const & ObjectInitializer)
-	: Super(ObjectInitializer)
-{
-}
 
 // [DEPRECATED]
 void UDisplayClusterBlueprintLib::GetAPI(TScriptInterface<IDisplayClusterBlueprintAPI>& OutAPI)

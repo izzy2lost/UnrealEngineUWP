@@ -15,7 +15,7 @@ UCLASS()
 class UDisplayClusterProjectionBlueprintLib
 	: public UBlueprintFunctionLibrary
 {
-	GENERATED_UCLASS_BODY()
+	GENERATED_BODY()
 
 public:
 

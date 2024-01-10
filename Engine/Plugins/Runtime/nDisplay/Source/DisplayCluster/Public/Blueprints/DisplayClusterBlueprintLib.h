@@ -23,7 +23,7 @@ UCLASS()
 class UDisplayClusterBlueprintLib
 	: public UBlueprintFunctionLibrary
 {
-	GENERATED_UCLASS_BODY()
+	GENERATED_BODY()
 
 public:
 
