@@ -108,11 +108,11 @@ namespace UE
 			}
 
 			/**
-			 * Convert ANSI char to a FString using ANSI_TO_TCHAR macro
+			 * Convert UTF8 char to a FString using ANSI_TO_TCHAR macro
 			 */
 			FString FFbxConvert::MakeString(const ANSICHAR* Name)
 			{
-				return FString(ANSI_TO_TCHAR(Name));
+				return FString(UTF8_TO_TCHAR(Name));
 			}
 
 			void FFbxConvert::ApplyUnroll(FbxNode* Node, FbxAnimLayer* Layer, FbxAnimCurveFilterUnroll* UnrollFilter)

@@ -166,7 +166,7 @@ namespace UE
 				/** String Conversion API Begin */
 
 				/**
-				 * Convert ANSI char to a FString using ANSI_TO_TCHAR macro
+				 * Convert UTF8 char to a FString using ANSI_TO_TCHAR macro
 				 */
 				static FString MakeString(const ANSICHAR* Name);
 
