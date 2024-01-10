@@ -1221,7 +1221,7 @@ void FCurlHttpRequest::FinishRequest()
 	if (Response.IsValid() &&
 		Response->bSucceeded)
 	{
-		const bool bDebugServerResponse = Response->GetResponseCode() >= 500 && Response->GetResponseCode() <= 503;
+		const bool bDebugServerResponse = false;// Response->GetResponseCode() >= 500 && Response->GetResponseCode() <= 503;
 
 		// log info about error responses to identify failed downloads
 		if (UE_LOG_ACTIVE(LogHttp, Verbose) ||
