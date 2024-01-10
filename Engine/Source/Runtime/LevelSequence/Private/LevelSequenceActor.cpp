@@ -572,10 +572,7 @@ void ALevelSequenceActor::PostNetReceive()
 {
 	Super::PostNetReceive();
 
-	if (LevelSequenceAsset && GetSequencePlayer() && GetSequencePlayer()->GetSequence() != LevelSequenceAsset)
-	{
-		InitializePlayer();
-	}
+	InitializePlayer();
 }
 
 #if WITH_EDITOR
