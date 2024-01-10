@@ -1802,7 +1802,7 @@ void FStreamingManager::IssueRequests(int32 MaxSelectedRequests)
 #if DO_CHECK
 		for (auto& Pending : PendingMipLevels)
 		{
-			check(Pending.SparseVolumeTexture != SelectedKey.SVT || Pending.FrameIndex != SelectedKey.FrameIndex || Pending.MipLevelIndex != SelectedKey.MipLevelIndex);
+			check(Pending.SparseVolumeTexture != SelectedKey.SVT || Pending.FrameIndex != SelectedKey.FrameIndex || Pending.MipLevelIndex != SelectedKey.MipLevelIndex); //-V1013
 		}
 #endif
 

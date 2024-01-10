@@ -259,7 +259,7 @@ FVTTranscodeKey FVirtualTextureTranscodeCache::GetKey(const FVirtualTextureProdu
 	Result.vAddress = vAddress;
 	Result.vLevel = vLevel;
 	Result.LayerMask = LayerMask;
-	Result.Hash = (uint16)MurmurFinalize64(Result.Key);
+	Result.Hash = (uint16)MurmurFinalize64(Result.Key); //-V614
 	return Result;
 }
 

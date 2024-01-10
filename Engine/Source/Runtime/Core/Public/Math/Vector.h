@@ -2332,7 +2332,7 @@ FORCEINLINE bool TVector<T>::InitFromCompactString(const FString& InSourceString
 		return true;
 	}
 
-	const bool bSuccessful = FParse::Value(*InSourceString, TEXT("X="), X) | FParse::Value(*InSourceString, TEXT("Y="), Y) | FParse::Value(*InSourceString, TEXT("Z="), Z);
+	const bool bSuccessful = FParse::Value(*InSourceString, TEXT("X="), X) | FParse::Value(*InSourceString, TEXT("Y="), Y) | FParse::Value(*InSourceString, TEXT("Z="), Z); //-V792
 
 	return bSuccessful;
 }

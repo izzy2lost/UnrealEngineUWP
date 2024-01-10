@@ -4934,7 +4934,7 @@ struct FNameBatchAsyncLoader : FNameBatchLoader
 
 	bool ShouldLoadAsync(uint32 MaxWorkers) const
 	{
-		return MaxWorkers && Hashes.Num() >= FNamePoolShards && Hashes.Num() > 30000;
+		return MaxWorkers && Hashes.Num() >= FNamePoolShards && Hashes.Num() > 30000; //-V590
 	}
 
 	void PrepareWork()
