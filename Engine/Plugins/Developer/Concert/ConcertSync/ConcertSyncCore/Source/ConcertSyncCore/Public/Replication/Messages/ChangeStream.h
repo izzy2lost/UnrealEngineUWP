@@ -172,7 +172,7 @@ struct FConcertReplication_ChangeStream_Request
 	 * in the stream's content being replaced.
 	 */
 	UPROPERTY()
-	TArray<FReplicationStreamDescription_NetPacked> StreamsToAdd;
+	TArray<FReplicationStreamDescription> StreamsToAdd;
 
 	/**
 	 * Streams to remove from the server.

@@ -36,7 +36,7 @@ namespace UE::ConcertSyncTests::Replication::Stream
 		// 2.2 Add new stream
 		auto[DynamicStreamId, DynamicStream] = CreateFloatPropertyStream(*TestObject);
 		FConcertReplication_ChangeStream_Request DynamicCreationRequest;
-		DynamicCreationRequest.StreamsToAdd.Add(DynamicStream.Pack());
+		DynamicCreationRequest.StreamsToAdd.Add(DynamicStream);
 		ChangeStreamForSenderClientAndValidate(TEXT("DynamicCreationRequest"), DynamicCreationRequest, { InitialStream.BaseDescription, DynamicStream.BaseDescription });
 
 		// 2.3 Remove stream
@@ -65,12 +65,12 @@ namespace UE::ConcertSyncTests::Replication::Stream
 		// 2.1 Add stream with float property
 		auto[FloatStreamID, FloatStream] = CreateFloatPropertyStream(*TestObject);
 		FConcertReplication_ChangeStream_Request CreateFloatStreamRequest;
-		CreateFloatStreamRequest.StreamsToAdd.Add(FloatStream.Pack());
+		CreateFloatStreamRequest.StreamsToAdd.Add(FloatStream);
 		ChangeStreamForSenderClientAndValidate(TEXT("CreateFloatStreamRequest"), CreateFloatStreamRequest, { FloatStream.BaseDescription });
 		// 2.2 Add a stream with vector property
 		auto[VectorFloatStreamID, VectorFloatStream] = CreateVectorPropertyStream(*TestObject);
 		FConcertReplication_ChangeStream_Request CreateVectorFloatStreamRequest; 
-		CreateVectorFloatStreamRequest.StreamsToAdd.Add(VectorFloatStream.Pack());
+		CreateVectorFloatStreamRequest.StreamsToAdd.Add(VectorFloatStream);
 		ChangeStreamForSenderClientAndValidate(TEXT("CreateVectorFloatStreamRequest"), CreateVectorFloatStreamRequest, { FloatStream.BaseDescription, VectorFloatStream.BaseDescription });
 
 		// 2.3 Take authority over both streams
@@ -112,7 +112,7 @@ namespace UE::ConcertSyncTests::Replication::Stream
 		// 2.1 Add stream with float property
 		auto[SenderStreamID, SenderStream] = CreateFloatPropertyStream(*TestObject);
 		FConcertReplication_ChangeStream_Request CreateFloatStreamRequest;
-		CreateFloatStreamRequest.StreamsToAdd.Add(SenderStream.Pack());
+		CreateFloatStreamRequest.StreamsToAdd.Add(SenderStream);
 		ChangeStreamForSenderClientAndValidate(TEXT("CreateFloatStreamRequest"), CreateFloatStreamRequest, { SenderStream.BaseDescription });
 
 		// 2.2 Have Sender take authority over the float property
@@ -129,7 +129,7 @@ namespace UE::ConcertSyncTests::Replication::Stream
 		// 2.3 Have Receiver create vector stream
 		auto[ReceiverStreamID, ReceiverStream] = CreateVectorPropertyStream(*TestObject);
 		FConcertReplication_ChangeStream_Request CreateVectorStreamRequest; 
-		CreateVectorStreamRequest.StreamsToAdd.Add(ReceiverStream.Pack());
+		CreateVectorStreamRequest.StreamsToAdd.Add(ReceiverStream);
 		bool bAddedVectorStream = false;
 		ClientReplicationManager_Receiver->ChangeStream(CreateVectorStreamRequest)
 			.Next([this, &bAddedVectorStream](FConcertReplication_ChangeStream_Response&& Response)
@@ -198,7 +198,7 @@ namespace UE::ConcertSyncTests::Replication::Stream
 		// 2.1 Add stream with float property
 		auto[StreamId, Stream] = CreateFloatPropertyStream(*TestObject);
 		FConcertReplication_ChangeStream_Request CreateStreamRequest;
-		CreateStreamRequest.StreamsToAdd.Add(Stream.Pack());
+		CreateStreamRequest.StreamsToAdd.Add(Stream);
 		ChangeStreamForSenderClientAndValidate(TEXT("CreateStreamRequest"), CreateStreamRequest, { Stream.BaseDescription });
 
 		// 2.2 Make a request that will fail and check that no changes were made to the original stream
@@ -206,7 +206,7 @@ namespace UE::ConcertSyncTests::Replication::Stream
 		FConcertPropertySelection NewSelection = GetPropertySelection(Stream, *TestObject);
 		AddFloatProperty(NewSelection);
 		InvalidRequest.ObjectsToPut.Add(FObjectInStreamID{ StreamId, TestObject}, FConcertReplication_ChangeStream_PutObject{ NewSelection });
-		InvalidRequest.StreamsToAdd.Add(Stream.Pack()); // This will make it fail due to pre-existing stream ID
+		InvalidRequest.StreamsToAdd.Add(Stream); // This will make it fail due to pre-existing stream ID
 
 		// Server logs a warning when rejecting - avoid the test being marked with a warning.
 		AddExpectedError(TEXT("Rejecting ChangeStream"));

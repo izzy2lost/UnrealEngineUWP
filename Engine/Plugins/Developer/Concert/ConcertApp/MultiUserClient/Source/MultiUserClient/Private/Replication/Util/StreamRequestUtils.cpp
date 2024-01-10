@@ -17,7 +17,7 @@ namespace UE::MultiUserClient::StreamRequestUtils
 		
 		FConcertReplication_ChangeStream_Request Request;
 		Request.StreamsToAdd.Emplace();
-		FReplicationStreamDescription_NetPacked& NewStream = Request.StreamsToAdd[0];
+		FReplicationStreamDescription& NewStream = Request.StreamsToAdd[0];
 		NewStream.BaseDescription.Identifier = StreamId;
 			
 		// If creating a new stream, the objects must be supplied in the description instead of in PutObjects!

@@ -67,7 +67,7 @@ namespace UE::ConcertSyncServer::Replication
 		static void ValidateAddedStreamsAreUnique(const FConcertReplication_ChangeStream_Request& Request, const FConcertReplicationClient& Client, FConcertReplication_ChangeStream_Response& OutResponse)
 		{
 			TSet<FGuid> DuplicateEntryDetection;
-			for (const FReplicationStreamDescription_NetPacked& NewStream : Request.StreamsToAdd)
+			for (const FReplicationStreamDescription& NewStream : Request.StreamsToAdd)
 			{
 				// StreamsToAdd is invalid if there is already a stream with the same ID registered ...
 				const FGuid& NewStreamId = NewStream.BaseDescription.Identifier;
@@ -119,19 +119,6 @@ namespace UE::ConcertSyncServer::Replication
 			}
 		}
 
-		/** Stream description can have UObjects attached which fail to serialize on the receiving end. If so, reject. */
-		static void ValidateUnpacking(const FConcertReplication_ChangeStream_Request& Request, FConcertReplication_ChangeStream_Response& OutResponse)
-		{
-			for (const FReplicationStreamDescription_NetPacked& ToUnpack : Request.StreamsToAdd)
-			{
-				if (!ToUnpack.Unpack())
-				{
-					UE_LOG(LogConcert, Log, TEXT("Failed to unpack stream %s"), *ToUnpack.BaseDescription.Identifier.ToString(EGuidFormats::Short));
-					OutResponse.FailedStreamCreation.Add(ToUnpack.BaseDescription.Identifier);
-				}
-			}
-		}
-
 		/** Checks whether this request is valid to apply. */
 		static bool ShouldAcceptRequest(
 			const FConcertReplication_ChangeStream_Request& Request,
@@ -145,7 +132,6 @@ namespace UE::ConcertSyncServer::Replication
 			ValidatePutObjectsRequestSemantics(Request, Client, OutResponse);
 			ValidateAddedStreamsAreUnique(Request, Client, OutResponse);
 			LookForAuthorityConflicts(Request, Client, AuthorityManager, OutResponse);
-			ValidateUnpacking(Request, OutResponse);
 			ConcertSyncCore::Replication::ChangeStreamUtils::ValidateFrequencyChanges(Request, Client.GetStreamDescriptions(), &OutResponse.FrequencyErrors);
 			
 			return OutResponse.IsSuccess();

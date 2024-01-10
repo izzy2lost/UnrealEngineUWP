@@ -19,7 +19,7 @@ namespace UE::ConcertSyncServer::Replication
 		 */
 		
 		TSet<FGuid> UniqueStreamsFromRequestor;
-		for (const FReplicationStreamDescription_NetPacked& Stream : Request.Streams)
+		for (const FReplicationStreamDescription& Stream : Request.Streams)
 		{
 			const FGuid& StreamId = Stream.BaseDescription.Identifier;
 
@@ -77,26 +77,7 @@ namespace UE::ConcertSyncServer::Replication
 		{
 			return { ErrorCode, ErrorMessage, TArray<FReplicationStreamDescription>{} };
 		}
-		
-		TArray<FReplicationStreamDescription> ParsedStreamDescriptions;
-		ParsedStreamDescriptions.Reserve(Request.Streams.Num());
-		for (const FReplicationStreamDescription_NetPacked& StreamDescription_NetPacked : Request.Streams)
-		{
-			// The net packed version contains UObject attributes, for which we may not be able to look up the UClass for
-			if (TOptional<FReplicationStreamDescription> Description = StreamDescription_NetPacked.Unpack())
-			{
-				ParsedStreamDescriptions.Emplace(MoveTemp(*Description));
-			}
-			else
-			{
-				return {
-					EJoinReplicationErrorCode::FailedToUnpackStream,
-					FString::Printf(TEXT("Failed to unpack stream %s"), *StreamDescription_NetPacked.BaseDescription.Identifier.ToString()),
-					TArray<FReplicationStreamDescription>{}
-				};
-			}
-		}
 
-		return { EJoinReplicationErrorCode::Success, TEXT(""), ParsedStreamDescriptions };
+		return { EJoinReplicationErrorCode::Success, TEXT(""), Request.Streams };
 	}
 }

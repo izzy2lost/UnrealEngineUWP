@@ -100,14 +100,10 @@ namespace UE::ConcertSyncCore::Replication::ChangeStreamUtils
 				checkf(ObjectInfo.ClassPath.IsValid(), TEXT("Request did not validate Properties!"));
 			}
 		}
-		
-		for (const FReplicationStreamDescription_NetPacked& StreamDescription : Request.StreamsToAdd)
+
+		for (const FReplicationStreamDescription& StreamDescription : Request.StreamsToAdd)
 		{
-			if (const TOptional<FReplicationStreamDescription> Unpacked = StreamDescription.Unpack()
-				; ensureMsgf(Unpacked, TEXT("Request did not validate unpacking!")))
-			{
-				StreamsToModify.Add(*Unpacked);
-			}
+			StreamsToModify.Add(StreamDescription);
 		}
 	}
 	

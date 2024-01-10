@@ -94,31 +94,6 @@ struct FReplicationStreamDescription
 	CONCERTSYNCCORE_API struct FReplicationStreamDescription_NetPacked Pack() const;
 };
 
-/**
- * This data is packed such that it can be sent via concert messages; packed here means that instanced UObjects are wrapped
- * with sufficient data to reconstruct them.
- */
-USTRUCT()
-struct FReplicationStreamDescription_NetPacked
-{
-	GENERATED_BODY()
-	
-	UPROPERTY()
-	FSharedReplicationStreamDescription BaseDescription;
-
-	friend bool operator==(const FReplicationStreamDescription_NetPacked& Left, const FReplicationStreamDescription_NetPacked& Right)
-	{
-		return Left.BaseDescription == Right.BaseDescription;
-	}
-	friend bool operator!=(const FReplicationStreamDescription_NetPacked& Left, const FReplicationStreamDescription_NetPacked& Right)
-	{
-		return !(Left == Right);
-	}
-
-	/** Unpacks this data. This function can fail, e.g if the UObject class does not exist locally. */
-	CONCERTSYNCCORE_API TOptional<FReplicationStreamDescription> Unpack(FString* OutErrorMessage = nullptr) const;
-};
-
 inline FSharedReplicationStreamDescription FSharedReplicationStreamDescription::Clone(UE::ConcertSyncCore::EReplicationStreamCloneFlags Flags) const
 {
 	using namespace UE::ConcertSyncCore;

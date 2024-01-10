@@ -63,7 +63,7 @@ struct FConcertReplication_Join_Request
 
 	/** The data the client offers to send. */
 	UPROPERTY()
-	TArray<FReplicationStreamDescription_NetPacked> Streams;
+	TArray<FReplicationStreamDescription> Streams;
 };
 
 /**

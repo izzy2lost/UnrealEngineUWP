@@ -47,9 +47,7 @@ namespace UE::ConcertSyncClient::Replication
 
 	void FReplicationManagerState_Handshaking::OnEnterState()
 	{
-		TArray<FReplicationStreamDescription_NetPacked> Streams_NetPacked;
-		Algo::Transform(RequestArgs.Streams, Streams_NetPacked, [](const FReplicationStreamDescription& Description){ return Description.Pack(); });
-		const FConcertReplication_Join_Request Request{ Streams_NetPacked };
+		const FConcertReplication_Join_Request Request{ RequestArgs.Streams };
 		LiveSession->SendCustomRequest<FConcertReplication_Join_Request, FConcertReplication_Join_Response>(Request, LiveSession->GetSessionServerEndpointId())
 			.Next([WeakThis = TWeakPtr<FReplicationManagerState_Handshaking>(SharedThis(this))](const FConcertReplication_Join_Response& Response)
 			{
