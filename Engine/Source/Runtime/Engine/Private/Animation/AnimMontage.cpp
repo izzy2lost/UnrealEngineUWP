@@ -400,6 +400,29 @@ FFrameRate UAnimMontage::GetSamplingFrameRate() const
 
 void UAnimMontage::PostLoad()
 {
+	// Link notifies before we call the Super::PostLoad (and eventually RefreshCacheData). This is to ensure that branching points get correctly
+	// picked up as FAnimNotifyEvent::IsBranchingPoint() relies on the LinkedMontage being valid, and due to an issue where (since deprecated)
+	// LinkSequence() was called instead of LinkMontage() there exists content for which LinkedMontage is saved as a null reference.
+	for(FAnimNotifyEvent& Notify : Notifies)
+	{
+#if WITH_EDITORONLY_DATA
+		if(Notify.DisplayTime_DEPRECATED != 0.0f)
+		{
+			Notify.Clear();
+			Notify.Link(this, Notify.DisplayTime_DEPRECATED);
+		}
+		else
+#endif
+		{
+			Notify.Link(this, Notify.GetTime());
+		}
+
+		if(Notify.Duration != 0.0f)
+		{
+			Notify.EndLink.Link(this, Notify.GetTime() + Notify.Duration);
+		}
+	}
+	
 	Super::PostLoad();
 
 	// copy deprecated variable to new one, temporary code to keep data copied. Am deleting it right after this
@@ -505,26 +528,6 @@ void UAnimMontage::PostLoad()
 				FName SlotName = SlotAnimTracks[SlotIndex].SlotName;
 				MySkeleton->RegisterSlotNode(SlotName);
 			}
-		}
-	}
-
-	for(FAnimNotifyEvent& Notify : Notifies)
-	{
-#if WITH_EDITORONLY_DATA
-		if(Notify.DisplayTime_DEPRECATED != 0.0f)
-		{
-			Notify.Clear();
-			Notify.Link(this, Notify.DisplayTime_DEPRECATED);
-		}
-		else
-#endif
-		{
-			Notify.Link(this, Notify.GetTime());
-		}
-
-		if(Notify.Duration != 0.0f)
-		{
-			Notify.EndLink.Link(this, Notify.GetTime() + Notify.Duration);
 		}
 	}
 
