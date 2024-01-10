@@ -51,8 +51,8 @@ half SplineMeshCalcSplineDistance(FSplineMeshShaderParams Params, float3 LocalPo
 float3 SplineMeshEvalSplinePos(FSplineMeshShaderParams Params, half SplineDist)
 {
 	float A = SplineDist;
-	float A2 = A  * A;
-	float A3 = A2 * A;
+	float A2 = A * A;
+	float A3 = A * A2;
 
 	return (((2*A3)-(3*A2)+1) * Params.StartPos) +
 		   ((A3-(2*A2)+A) * Params.StartTangent) +

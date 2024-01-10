@@ -1636,9 +1636,8 @@ bool UseSplineMeshSceneResources(const FStaticShaderPlatform Platform)
 	// NOTE: Mobile GPU can't currently support this feature because it doesn't include the payload extension in its instance data
 	if (UseGPUScene(Platform) && !IsMobilePlatform(Platform))
 	{
-		static const auto AllowSceneTexture = IConsoleManager::Get().FindTConsoleVariableDataInt(TEXT("r.SplineMesh.SceneTextures"));
-		static const bool bAllowSceneTexture = (AllowSceneTexture && AllowSceneTexture->GetValueOnAnyThread() != 0);
-		return bAllowSceneTexture;
+		static FShaderPlatformCachedIniValue<int32> CVar(TEXT("r.SplineMesh.SceneTextures"));
+		return CVar.Get(Platform) > 0;
 	}
 
 	return false;
