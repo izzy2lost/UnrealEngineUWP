@@ -109,7 +109,7 @@ public:
 	 */
 	const UClass* GetPossessedObjectClass() const
 	{
-		return (const UClass*)(PossessedObjectClass.Get());
+		return (const UClass*)(PossessedObjectClass.LoadSynchronous());
 	}
 
 	/**
