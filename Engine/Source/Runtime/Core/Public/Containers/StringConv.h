@@ -331,6 +331,13 @@ namespace UE::Core::Private
 		No  = 0,
 		Yes = 1
 	};
+
+	// This tag type is only intended to be used by StrCast to construct existing classes in direct ways.
+	// It is defined is in this Private namespace to indicate that the constructors that use it are not to be used by end-users.
+	struct FFromStrCast
+	{
+		explicit FFromStrCast() = default;
+	};
 }
 
 using FTCHARToUTF8_Convert /*UE_DEPRECATED(5.1, "FTCHARToUTF8_Convert has been deprecated in favor of FPlatformString::Convert and StringCast")*/ = UE::Core::Private::FTCHARToUTF8_Convert;
@@ -724,6 +731,11 @@ public:
 	{
 	}
 
+	explicit TStringConversion(UE::Core::Private::FFromStrCast, const FromType* Source, int32 SourceLen)
+	{
+		Init(Source, SourceLen, UE::Core::Private::ENullTerminatedString::No);
+	}
+
 	/**
 	 * Construct from a compatible character range such as TStringView or TStringBuilder.
 	 */
@@ -828,7 +840,7 @@ public:
 		typename SrcBufferType
 		UE_REQUIRES(TIsCharEncodingCompatibleWith_V<SrcBufferType, FromType>)
 	>
-	TStringPointer(const SrcBufferType* Source, int32 SourceLen)
+	explicit TStringPointer(const SrcBufferType* Source, int32 SourceLen)
 	{
 		if (Source)
 		{
@@ -846,6 +858,13 @@ public:
 			Ptr = nullptr;
 			StringLength = 0;
 		}
+	}
+
+	// This constructor is only intended to be used by StrCast, not end users
+	explicit TStringPointer(UE::Core::Private::FFromStrCast, const FromType* Source, int32 SourceLen)
+		: Ptr((const ToType*)Source)
+		, StringLength(SourceLen)
+	{
 	}
 
 	/**
@@ -1138,6 +1157,43 @@ FORCEINLINE auto StringCast(const From* Str, int32 Len)
 	else
 	{
 		return TStringConversion<TStringConvert<From, To>, DefaultConversionSize>(Str, Len);
+	}
+}
+
+/**
+ * Creates an object which acts as a source of a given string type.  See example above.
+ *
+ * This is intended as the long-term replacement for StringCast, which doesn't cope well
+ * with zeros mid-string, which it can interpret as a null-terminators and give surprising behavior.
+ *
+ * StrCast expects correctly-typed strings.  If a cast is attempted with a char* or ANSICHAR*,
+ * and the string contains characters that are non-ASCII, including UTF-8 code units outside of
+ * the 7-bit ASCII range, then those values will fail to convert and a bogus char will be written
+ * in their place.
+ *
+ * If a conversion from UTF-8 is desired, the pointer should be cast to UTF8CHAR* before being
+ * passed to StrCast.
+ *
+ * Similarly, doing a StrCast<char> or StrCast<ANSICHAR> on a Unicode string will only
+ * successfully convert Unicode characters which already lie in the ASCII range.  For converting
+ * to UTF-8, StrCast<UTF8CHAR> should be used.
+ *
+ * The source string must not be modified or destroyed until after the result of this function
+ * has been destroyed.
+ *
+ * @param Str A pointer to the start of the string to convert.  Must be non-null if Len is non-zero.
+ * @param Len The number of From elements in Str.  Must be non-negative.
+ */
+template <typename To, int32 DefaultConversionSize = DEFAULT_STRING_CONVERSION_SIZE, typename From>
+FORCEINLINE auto StrCast(const From* Str, int32 Len)
+{
+	if constexpr (TIsCharEncodingCompatibleWith_V<From, To>)
+	{
+		return TStringPointer<To>(UE::Core::Private::FFromStrCast{}, (const To*)Str, Len);
+	}
+	else
+	{
+		return TStringConversion<TStringConvert<From, To>, DefaultConversionSize>(UE::Core::Private::FFromStrCast{}, Str, Len);
 	}
 }
 

@@ -1877,7 +1877,7 @@ FArchive& operator<<( FArchive& Ar, UE_STRING_CLASS& A )
 			const bool bSaveUnicodeChar = Ar.IsForcingUnicode() || !TCString<ElementType>::IsPureAnsi(*A);
 			if (bSaveUnicodeChar)
 			{
-				// This preprocessor block should not be necessary when the StringCast above understands UTF16CHAR.
+				// This preprocessor block should not be necessary when the StrCast below understands UTF16CHAR.
 				FTCHARToUTF16 UTF16String(*A, A.Len() + 1); // include the null terminator
 				int32 Num = UTF16String.Length() + 1; // include the null terminator
 
@@ -1908,7 +1908,7 @@ FArchive& operator<<( FArchive& Ar, UE_STRING_CLASS& A )
 
 				if (Num)
 				{
-					Ar.Serialize((void*)StringCast<ANSICHAR>(A.Data.GetData(), Num).Get(), sizeof(ANSICHAR) * Num);
+					Ar.Serialize((void*)StrCast<ANSICHAR>(A.Data.GetData(), Num).Get(), sizeof(ANSICHAR) * Num);
 				}
 			}
 		#else
@@ -1918,7 +1918,7 @@ FArchive& operator<<( FArchive& Ar, UE_STRING_CLASS& A )
 
 			if (SaveNum)
 			{
-				auto CompactString = StringCast<UTF8CHAR>(A.Data.GetData(), SaveNum);
+				auto CompactString = StrCast<UTF8CHAR>(A.Data.GetData(), SaveNum);
 				Ar.Serialize((void*)CompactString.Get(), sizeof(UTF8CHAR) * CompactString.Length());
 			}
 		#endif
