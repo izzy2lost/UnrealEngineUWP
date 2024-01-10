@@ -501,8 +501,6 @@ ComponentType* FChaosVDGeometryBuilder::GetAvailableInstancedStaticMeshComponent
 
 		return Component;
 	}
-
-	return nullptr;
 }
 
 template <typename ComponentType>

@@ -54,8 +54,10 @@ TMeshComponent* FChaosVDMeshComponentPool::AcquireMeshComponent(UObject* Outer, 
 	{
 		return GetMeshComponentFromPool_Internal<TMeshComponent>(PooledDynamicMeshComponent, Outer, Name);
 	}
-
-	return nullptr;
+	else
+	{
+		return nullptr;
+	}
 }
 
 template <typename TDesiredMeshComponent, typename TPooledComponent>
