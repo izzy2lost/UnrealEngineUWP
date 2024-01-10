@@ -2,6 +2,7 @@
 
 #include "NNERuntimeIREEMetaData.h"
 
+#include "Containers/Array.h"
 #include "Serialization/CustomVersion.h"
 
 namespace UE::NNERuntimeIREE::ModuleMetaData::Private
@@ -237,7 +238,7 @@ namespace UE::NNERuntimeIREE::ModuleMetaData::Private
 
 		return true;
 	}
-}
+} // UE::NNERuntimeIREE::ModuleMetaData::Private
 
 void UNNERuntimeIREEModuleMetaData::Serialize(FArchive& Ar)
 {

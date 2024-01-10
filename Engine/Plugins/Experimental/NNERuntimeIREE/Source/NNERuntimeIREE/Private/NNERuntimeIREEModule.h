@@ -5,9 +5,7 @@
 #include "Modules/ModuleInterface.h"
 
 #ifdef WITH_NNE_RUNTIME_IREE
-#include "NNERuntimeIREECpu.h"
-#include "NNERuntimeIREEGpu.h"
-#include "NNERuntimeIREERdg.h"
+#include "NNERuntimeIREE.h"
 #include "UObject/WeakObjectPtrTemplates.h"
 #endif // WITH_NNE_RUNTIME_IREE
 

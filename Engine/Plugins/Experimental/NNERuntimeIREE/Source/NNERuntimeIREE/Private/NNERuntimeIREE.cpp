@@ -1,6 +1,6 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
-#include "NNERuntimeIREECpu.h"
+#include "NNERuntimeIREE.h"
 
 #ifdef WITH_NNE_RUNTIME_IREE
 
@@ -21,12 +21,14 @@
 #include "Misc/App.h"
 #include "Misc/Paths.h"
 #include "Misc/SecureHash.h"
-#include "NNERuntimeIREECpuModel.h"
+#include "NNERuntimeIREECompiler.h"
+#include "NNERuntimeIREEModel.h"
 #include "NNERuntimeIREEMetaData.h"
+#include "NNEModelData.h"
 #include "Serialization/MemoryReader.h"
 #include "Serialization/MemoryWriter.h"
 
-namespace UE::NNERuntimeIREECpu::Private
+namespace UE::NNERuntimeIREE::CPU::Private
 {
 #if WITH_EDITOR
 	inline UE::DerivedData::FCacheKey CreateCacheKey(const FString& RequestId)
@@ -73,9 +75,9 @@ namespace UE::NNERuntimeIREECpu::Private
 	}
 #endif // WITH_EDITOR
 
-	FString GetModelCpuDataIdentifier(const FString& RuntimeName, const FString& FileIdString, const FString& PlatformName, const FString& Architecture)
+	FString GetModelDataIdentifier(const FString& RuntimeName, const FGuid& Guid, const FString& FileIdString, const FString& PlatformName, const FString& Architecture)
 	{
-		return RuntimeName + "-" + UNNERuntimeIREECpu::GUID.ToString(EGuidFormats::Digits) + "-" + FString::FromInt(UNNERuntimeIREECpu::Version) + "-" + FileIdString + "-" + PlatformName + (!Architecture.IsEmpty() ? ("-" + Architecture) : "");
+		return RuntimeName + "-" + Guid.ToString(EGuidFormats::Digits) + "-" + FString::FromInt(UNNERuntimeIREECpu::Version) + "-" + FileIdString + "-" + PlatformName + (!Architecture.IsEmpty() ? ("-" + Architecture) : "");
 	}
 
 	FString GetIntermediateModelDirPath(const FString& PlatformName, const FString& ModelName)
@@ -93,7 +95,7 @@ namespace UE::NNERuntimeIREECpu::Private
 		FString PlatformNameShort = PlatformName.Equals("Windows") ? "Win64" : PlatformName;
 		return FPaths::Combine("Binaries", PlatformNameShort, UE_PLUGIN_NAME);
 	}
-} // UE::NNERuntimeIREECpu::Private
+} // UE::NNERuntimeIREE::CPU::Private
 
 FGuid UNNERuntimeIREECpu::GUID = FGuid((int32)'I', (int32)'C', (int32)'P', (int32)'U');
 int32 UNNERuntimeIREECpu::Version = 0x00000003;
@@ -115,7 +117,7 @@ bool UNNERuntimeIREECpu::CanCreateModelData(const FString& FileType, TConstArray
 TSharedPtr<UE::NNE::FSharedModelData> UNNERuntimeIREECpu::CreateModelData(const FString& FileType, TConstArrayView<uint8> FileData, const TMap<FString, TConstArrayView<uint8>>& AdditionalFileData, const FGuid& FileId, const ITargetPlatform* TargetPlatform)
 {
 #if WITH_EDITOR
-	using namespace UE::NNERuntimeIREECpu::Private;
+	using namespace UE::NNERuntimeIREE::CPU::Private;
 
 	FString TargetPlatformName = TargetPlatform ? TargetPlatform->IniPlatformName() : UGameplayStatics::GetPlatformName();
 	if (!CanCreateModelData(FileType, FileData, AdditionalFileData, FileId, TargetPlatform))
@@ -132,7 +134,7 @@ TSharedPtr<UE::NNE::FSharedModelData> UNNERuntimeIREECpu::CreateModelData(const 
 		UE_LOG(LogTemp, Warning, TEXT("UNNERuntimeIREECpu could not find the required settings in config file %s. Please make the file writeable and re-start the editor or manually add the required staging settings or models will not work in packaged builds for platform %s!"), *ConfigFilePath, *TargetPlatformName);
 	}
 
-	TUniquePtr<FNNERuntimeIREECpuCompiler> Compiler = FNNERuntimeIREECpuCompiler::Make(TargetPlatformName);
+	TUniquePtr<UE::NNERuntimeIREE::CPU::FCompiler> Compiler = UE::NNERuntimeIREE::CPU::FCompiler::Make(TargetPlatformName);
 	if (!Compiler.IsValid())
 	{
 		UE_LOG(LogTemp, Warning, TEXT("UNNERuntimeIREECpu failed to create a compiler to compile for platform %s"), *TargetPlatformName);
@@ -145,7 +147,7 @@ TSharedPtr<UE::NNE::FSharedModelData> UNNERuntimeIREECpu::CreateModelData(const 
 	PlatformFile.DeleteDirectoryRecursively(*IntermediateDir);
 	PlatformFile.CreateDirectoryTree(*IntermediateDir);
 
-	TArray<FIREECompilerResult> CompilerResults;
+	TArray<UE::NNERuntimeIREE::CPU::FCompilerResult> CompilerResults;
 	UNNERuntimeIREEModuleMetaData* CompilerModuleMetaData = NewObject<UNNERuntimeIREEModuleMetaData>();
 	FString StagingDir = FPaths::ConvertRelativePathToFull(FPaths::Combine(FPaths::ProjectDir(), GetStagedModelDirPath(TargetPlatformName)));
 	if (!Compiler->CompileMlir(FileData, FileIdString, IntermediateDir, StagingDir, CompilerResults, CompilerModuleMetaData))
@@ -164,7 +166,7 @@ TSharedPtr<UE::NNE::FSharedModelData> UNNERuntimeIREECpu::CreateModelData(const 
 			return TSharedPtr<UE::NNE::FSharedModelData>();
 		}
 		FSharedBuffer SharedLibBuffer = MakeSharedBufferFromArray(MoveTemp(SharedLibData));
-		PutIntoDDC(GetModelCpuDataIdentifier(GetRuntimeName(), FileIdString, TargetPlatformName, CompilerResults[i].Architecture) + "-lib", SharedLibBuffer);
+		PutIntoDDC(UE::NNERuntimeIREE::CPU::Private::GetModelDataIdentifier(GetRuntimeName(), UNNERuntimeIREECpu::GUID, FileIdString, TargetPlatformName, CompilerResults[i].Architecture) + "-lib", SharedLibBuffer);
 
 		TArray<uint8> VmfbData;
 		FString StagedVmfbPath = FPaths::Combine(StagingDir, CompilerResults[i].RelativeDirPath, CompilerResults[i].VmfbFileName);
@@ -174,7 +176,7 @@ TSharedPtr<UE::NNE::FSharedModelData> UNNERuntimeIREECpu::CreateModelData(const 
 			return TSharedPtr<UE::NNE::FSharedModelData>();
 		}
 		FSharedBuffer VmfbBuffer = MakeSharedBufferFromArray(MoveTemp(VmfbData));
-		PutIntoDDC(GetModelCpuDataIdentifier(GetRuntimeName(), FileIdString, TargetPlatformName, CompilerResults[i].Architecture) + "-vmfb", VmfbBuffer);
+		PutIntoDDC(UE::NNERuntimeIREE::CPU::Private::GetModelDataIdentifier(GetRuntimeName(), UNNERuntimeIREECpu::GUID, FileIdString, TargetPlatformName, CompilerResults[i].Architecture) + "-vmfb", VmfbBuffer);
 	}
 
 	TArray<uint8> ResultData;
@@ -215,9 +217,9 @@ TSharedPtr<UE::NNE::FSharedModelData> UNNERuntimeIREECpu::CreateModelData(const 
 
 FString UNNERuntimeIREECpu::GetModelDataIdentifier(const FString& FileType, TConstArrayView<uint8> FileData, const TMap<FString, TConstArrayView<uint8>>& AdditionalFileData, const FGuid& FileId, const ITargetPlatform* TargetPlatform) const
 {
-	// Leave architecture blank as there is only one model data for all architectures of a given platform
+	// Leave architecture blank as there is only one model data for all architectures of a given platform, only the vmfb and shared lib are different
 	FString PlatformName = TargetPlatform ? TargetPlatform->IniPlatformName() : UGameplayStatics::GetPlatformName();
-	return UE::NNERuntimeIREECpu::Private::GetModelCpuDataIdentifier(GetRuntimeName(), FileId.ToString(EGuidFormats::Digits), PlatformName, "");
+	return UE::NNERuntimeIREE::CPU::Private::GetModelDataIdentifier(GetRuntimeName(), UNNERuntimeIREECpu::GUID, FileId.ToString(EGuidFormats::Digits), PlatformName, "");
 }
 
 bool UNNERuntimeIREECpu::CanCreateModelCPU(TObjectPtr<UNNEModelData> ModelData) const
@@ -247,7 +249,7 @@ TSharedPtr<UE::NNE::IModelCPU> UNNERuntimeIREECpu::CreateModelCPU(TObjectPtr<UNN
 {
 	check(ModelData != nullptr);
 
-	using namespace UE::NNERuntimeIREECpu::Private;
+	using namespace UE::NNERuntimeIREE::CPU::Private;
 
 	if (!CanCreateModelCPU(ModelData))
 	{
@@ -348,7 +350,7 @@ TSharedPtr<UE::NNE::IModelCPU> UNNERuntimeIREECpu::CreateModelCPU(TObjectPtr<UNN
 	FString SharedLibraryFilePath = FPaths::Combine(SharedLibraryDirPath, SharedLibraryFileName);
 	if (!PlatformFile.FileExists(*SharedLibraryFilePath))
 	{
-		FSharedBuffer SharedBuffer = GetFromDDC(GetModelCpuDataIdentifier(GetRuntimeName(), FileIdString, UGameplayStatics::GetPlatformName(), Architecture) + "-lib");
+		FSharedBuffer SharedBuffer = GetFromDDC(UE::NNERuntimeIREE::CPU::Private::GetModelDataIdentifier(GetRuntimeName(), UNNERuntimeIREECpu::GUID, FileIdString, UGameplayStatics::GetPlatformName(), Architecture) + "-lib");
 		if (SharedBuffer.GetSize() <= 0)
 		{
 			UE_LOG(LogTemp, Warning, TEXT("UNNERuntimeIREECpu could not fetch the shared library %s from DDC"), *SharedLibraryFileName);
@@ -361,7 +363,7 @@ TSharedPtr<UE::NNE::IModelCPU> UNNERuntimeIREECpu::CreateModelCPU(TObjectPtr<UNN
 	FString VmfbFilePath = FPaths::Combine(SharedLibraryDirPath, VmfbFileName);
 	if (!PlatformFile.FileExists(*VmfbFilePath))
 	{
-		FSharedBuffer SharedBuffer = GetFromDDC(GetModelCpuDataIdentifier(GetRuntimeName(), FileIdString, UGameplayStatics::GetPlatformName(), Architecture) + "-vmfb");
+		FSharedBuffer SharedBuffer = GetFromDDC(UE::NNERuntimeIREE::CPU::Private::GetModelDataIdentifier(GetRuntimeName(), UNNERuntimeIREECpu::GUID, FileIdString, UGameplayStatics::GetPlatformName(), Architecture) + "-vmfb");
 		if (SharedBuffer.GetSize() <= 0)
 		{
 			UE_LOG(LogTemp, Warning, TEXT("UNNERuntimeIREECpu could not fetch the vmfb %s from DDC"), *VmfbFileName);
@@ -372,8 +374,8 @@ TSharedPtr<UE::NNE::IModelCPU> UNNERuntimeIREECpu::CreateModelCPU(TObjectPtr<UNN
 	}
 #endif // WITH_EDITOR
 
-	TUniquePtr<UE::NNERuntimeIREECpu::FModel> Model = MakeUnique<UE::NNERuntimeIREECpu::FModel>();
-	if (!Model->Init(SharedLibraryDirPath, SharedLibraryFileName, VmfbFileName, SharedLibraryEntryPointName, *ModuleMetaData))
+	TSharedPtr<UE::NNE::IModelCPU> Model = UE::NNERuntimeIREE::CPU::FModel::Make(SharedLibraryDirPath, SharedLibraryFileName, VmfbFileName, SharedLibraryEntryPointName, *ModuleMetaData);
+	if (!Model.IsValid())
 	{
 		UE_LOG(LogTemp, Warning, TEXT("UNNERuntimeIREECpu could not initialize the model created from model data with id %s"), *FileIdString);
 		return TSharedPtr<UE::NNE::IModelCPU>();
@@ -389,7 +391,7 @@ TSharedPtr<UE::NNE::IModelCPU> UNNERuntimeIREECpu::CreateModelCPU(TObjectPtr<UNN
 		FEngineAnalytics::GetProvider().RecordEvent(TEXT("NeuralNetworkEngine.CreateModel"), Attributes);
 	}
 
-	return TSharedPtr<UE::NNE::IModelCPU>(static_cast<UE::NNE::IModelCPU*>(Model.Release()));
+	return Model;
 }
 
 void UNNERuntimeIREECpu::GetUpdatedPlatformConfig(const FString& PlatformName, FConfigFile& ConfigFile, FString& ConfigFilePath)
@@ -399,25 +401,233 @@ void UNNERuntimeIREECpu::GetUpdatedPlatformConfig(const FString& PlatformName, F
 
 	ConfigFile.Read(ConfigFilePath);
 
-	FString StagingPath = FString("/") + UE::NNERuntimeIREECpu::Private::GetStagedModelDirPath(PlatformName);
-	FString PackagingPath = FString("/") + UE::NNERuntimeIREECpu::Private::GetPackagedModelDirPath(PlatformName);
+	FString StagingPath = FString("/") + UE::NNERuntimeIREE::CPU::Private::GetStagedModelDirPath(PlatformName);
+	FString PackagingPath = FString("/") + UE::NNERuntimeIREE::CPU::Private::GetPackagedModelDirPath(PlatformName);
 
 	ConfigFile.AddUniqueToSection(TEXT("/Script/UnrealEd.ProjectPackagingSettings"), TEXT("+DirectoriesToAlwaysStageAsNonUFS"), FString("(Path=\"..") + StagingPath + FString("\")"));
 	ConfigFile.AddUniqueToSection(TEXT("Staging"), TEXT("+RemapDirectories"), FString("(From=\"") + FApp::GetProjectName() + StagingPath + FString("\", To=\"") + FApp::GetProjectName() + PackagingPath + FString("\")"));
 	ConfigFile.AddUniqueToSection(TEXT("Staging"), TEXT("+AllowedDirectories"), FApp::GetProjectName() + PackagingPath);
 }
 
-#else // WITH_NNE_RUNTIME_IREE
+FString UNNERuntimeIREEGpu::GetRuntimeName() const
+{
+	return TEXT("");
+}
 
-FString UNNERuntimeIREECpu::GetRuntimeName() const { return ""; };
+bool UNNERuntimeIREEGpu::CanCreateModelData(const FString& FileType, TConstArrayView<uint8> FileData, const TMap<FString, TConstArrayView<uint8>>& AdditionalFileData, const FGuid& FileId, const ITargetPlatform* TargetPlatform) const
+{
+#if WITH_EDITOR
+	return	FileType.Compare(TEXT("mlir"), ESearchCase::IgnoreCase) == 0;
+#else
+	return false;
+#endif // WITH_EDITOR
+}
 
-bool UNNERuntimeIREECpu::CanCreateModelData(const FString& FileType, TConstArrayView<uint8> FileData, const TMap<FString, TConstArrayView<uint8>>& AdditionalFileData, const FGuid& FileId, const ITargetPlatform* TargetPlatform) const { return false; };
-TSharedPtr<UE::NNE::FSharedModelData> UNNERuntimeIREECpu::CreateModelData(const FString& FileType, TConstArrayView<uint8> FileData, const TMap<FString, TConstArrayView<uint8>>& AdditionalFileData, const FGuid& FileId, const ITargetPlatform* TargetPlatform) { return TSharedPtr<UE::NNE::FSharedModelData>(); };
-FString UNNERuntimeIREECpu::GetModelDataIdentifier(const FString& FileType, TConstArrayView<uint8> FileData, const TMap<FString, TConstArrayView<uint8>>& AdditionalFileData, const FGuid& FileId, const ITargetPlatform* TargetPlatform) const { return ""; };
+TSharedPtr<UE::NNE::FSharedModelData> UNNERuntimeIREEGpu::CreateModelData(const FString& FileType, TConstArrayView<uint8> FileData, const TMap<FString, TConstArrayView<uint8>>& AdditionalFileData, const FGuid& FileId, const ITargetPlatform* TargetPlatform)
+{
+	return TSharedPtr<UE::NNE::FSharedModelData>();
+}
 
-bool UNNERuntimeIREECpu::CanCreateModelCPU(TObjectPtr<UNNEModelData> ModelData) const { return false; };
-TSharedPtr<UE::NNE::IModelCPU> UNNERuntimeIREECpu::CreateModelCPU(TObjectPtr<UNNEModelData> ModelData) { return TSharedPtr<UE::NNE::IModelCPU>(); };
+FString UNNERuntimeIREEGpu::GetModelDataIdentifier(const FString& FileType, TConstArrayView<uint8> FileData, const TMap<FString, TConstArrayView<uint8>>& AdditionalFileData, const FGuid& FileId, const ITargetPlatform* TargetPlatform) const
+{
+	FString PlatformName = TargetPlatform ? TargetPlatform->IniPlatformName() : UGameplayStatics::GetPlatformName();
+	return UE::NNERuntimeIREE::CPU::Private::GetModelDataIdentifier(GetRuntimeName(), GetGUID(), FileId.ToString(EGuidFormats::Digits), PlatformName, "");
+}
 
-void UNNERuntimeIREECpu::GetUpdatedPlatformConfig(const FString& PlatformName, FConfigFile& ConfigFile, FString& ConfigFilePath) { }
+bool UNNERuntimeIREEGpu::CanCreateModelGPU(TObjectPtr<UNNEModelData> ModelData) const
+{
+	check(ModelData != nullptr);
+
+	TSharedPtr<UE::NNE::FSharedModelData> SharedData = ModelData->GetModelData(GetRuntimeName());
+	if (!SharedData.IsValid())
+	{
+		return false;
+	}
+
+	TConstArrayView<uint8> SharedDataView = SharedData->GetView();
+	FGuid Guid = GetGUID();
+	int32 Version = GetVersion();
+	int32 GuidSize = sizeof(Guid);
+	int32 VersionSize = sizeof(Version);
+	if (SharedDataView.Num() <= GuidSize + VersionSize)
+	{
+		return false;
+	}
+
+	bool bResult = FGenericPlatformMemory::Memcmp(&(SharedDataView[0]), &(Guid), GuidSize) == 0;
+	bResult &= FGenericPlatformMemory::Memcmp(&(SharedDataView[GuidSize]), &(Version), VersionSize) == 0;
+	return bResult;
+}
+
+TSharedPtr<UE::NNE::IModelGPU> UNNERuntimeIREEGpu::CreateModelGPU(TObjectPtr<UNNEModelData> ModelData)
+{
+	check(ModelData != nullptr);
+
+	if (!CanCreateModelGPU(ModelData))
+	{
+		return TSharedPtr<UE::NNE::IModelGPU>();
+	}
+
+	check(ModelData->GetModelData(GetRuntimeName()).IsValid());
+
+	UE::NNE::IModelGPU* IModel = nullptr;
+	TConstArrayView<uint8> SharedDataView = ModelData->GetModelData(GetRuntimeName())->GetView();
+
+	if (FEngineAnalytics::IsAvailable())
+	{
+		TArray<FAnalyticsEventAttribute> Attributes = MakeAnalyticsEventAttributeArray(
+			TEXT("PlatformName"), UGameplayStatics::GetPlatformName(),
+			TEXT("HashedRuntimeName"), FMD5::HashAnsiString(*GetRuntimeName()),
+			TEXT("ModelDataSize"), SharedDataView.Num()
+		);
+		FEngineAnalytics::GetProvider().RecordEvent(TEXT("NeuralNetworkEngine.CreateModel"), Attributes);
+	}
+
+	return TSharedPtr<UE::NNE::IModelGPU>(IModel);
+}
+
+bool UNNERuntimeIREEGpu::IsAvailable() const
+{
+	return false;
+}
+
+FGuid UNNERuntimeIREEGpu::GetGUID() const
+{
+	return FGuid();
+}
+
+int32 UNNERuntimeIREEGpu::GetVersion() const
+{
+	return 0;
+}
+
+FGuid UNNERuntimeIREECuda::GUID = FGuid((int32)'I', (int32)'G', (int32)'C', (int32)'U');
+int32 UNNERuntimeIREECuda::Version = 0x00000001;
+
+FString UNNERuntimeIREECuda::GetRuntimeName() const
+{
+	return TEXT("NNERuntimeIREECuda");
+}
+
+bool UNNERuntimeIREECuda::IsAvailable() const
+{
+	return false;
+}
+
+FGuid UNNERuntimeIREECuda::GetGUID() const
+{
+	return GUID;
+}
+
+int32 UNNERuntimeIREECuda::GetVersion() const
+{
+	return Version;
+}
+
+FGuid UNNERuntimeIREEVulkan::GUID = FGuid((int32)'I', (int32)'G', (int32)'V', (int32)'U');
+int32 UNNERuntimeIREEVulkan::Version = 0x00000001;
+
+FString UNNERuntimeIREEVulkan::GetRuntimeName() const
+{
+	return TEXT("NNERuntimeIREEVulkan");
+}
+
+bool UNNERuntimeIREEVulkan::IsAvailable() const
+{
+	return false;
+}
+
+FGuid UNNERuntimeIREEVulkan::GetGUID() const
+{
+	return GUID;
+}
+
+int32 UNNERuntimeIREEVulkan::GetVersion() const
+{
+	return Version;
+}
+
+FGuid UNNERuntimeIREERdg::GUID = FGuid((int32)'I', (int32)'R', (int32)'D', (int32)'G');
+int32 UNNERuntimeIREERdg::Version = 0x00000001;
+
+FString UNNERuntimeIREERdg::GetRuntimeName() const
+{
+	return TEXT("NNERuntimeIREERdg");
+}
+
+bool UNNERuntimeIREERdg::CanCreateModelData(const FString& FileType, TConstArrayView<uint8> FileData, const TMap<FString, TConstArrayView<uint8>>& AdditionalFileData, const FGuid& FileId, const ITargetPlatform* TargetPlatform) const
+{
+#if WITH_EDITOR
+	return	FileType.Compare(TEXT("mlir"), ESearchCase::IgnoreCase) == 0;
+#else
+	return false;
+#endif // WITH_EDITOR
+}
+
+TSharedPtr<UE::NNE::FSharedModelData> UNNERuntimeIREERdg::CreateModelData(const FString& FileType, TConstArrayView<uint8> FileData, const TMap<FString, TConstArrayView<uint8>>& AdditionalFileData, const FGuid& FileId, const ITargetPlatform* TargetPlatform)
+{
+	return TSharedPtr<UE::NNE::FSharedModelData>();
+}
+
+FString UNNERuntimeIREERdg::GetModelDataIdentifier(const FString& FileType, TConstArrayView<uint8> FileData, const TMap<FString, TConstArrayView<uint8>>& AdditionalFileData, const FGuid& FileId, const ITargetPlatform* TargetPlatform) const
+{
+	FString PlatformName = TargetPlatform ? TargetPlatform->IniPlatformName() : UGameplayStatics::GetPlatformName();
+	return UE::NNERuntimeIREE::CPU::Private::GetModelDataIdentifier(GetRuntimeName(), UNNERuntimeIREERdg::GUID, FileId.ToString(EGuidFormats::Digits), PlatformName, "");
+}
+
+bool UNNERuntimeIREERdg::CanCreateModelRDG(TObjectPtr<UNNEModelData> ModelData) const
+{
+	check(ModelData != nullptr);
+
+	TSharedPtr<UE::NNE::FSharedModelData> SharedData = ModelData->GetModelData(GetRuntimeName());
+	if (!SharedData.IsValid())
+	{
+		return false;
+	}
+
+	TConstArrayView<uint8> SharedDataView = SharedData->GetView();
+	int32 GuidSize = sizeof(UNNERuntimeIREERdg::GUID);
+	int32 VersionSize = sizeof(UNNERuntimeIREERdg::Version);
+	if (SharedDataView.Num() <= GuidSize + VersionSize)
+	{
+		return false;
+	}
+
+	bool bResult = FGenericPlatformMemory::Memcmp(&(SharedDataView[0]), &(UNNERuntimeIREERdg::GUID), GuidSize) == 0;
+	bResult &= FGenericPlatformMemory::Memcmp(&(SharedDataView[GuidSize]), &(UNNERuntimeIREERdg::Version), VersionSize) == 0;
+	return bResult;
+}
+
+TSharedPtr<UE::NNE::IModelRDG> UNNERuntimeIREERdg::CreateModelRDG(TObjectPtr<UNNEModelData> ModelData)
+{
+	check(ModelData != nullptr);
+
+	if (!CanCreateModelRDG(ModelData))
+	{
+		return TSharedPtr<UE::NNE::IModelRDG>();
+	}
+
+	check(ModelData->GetModelData(GetRuntimeName()).IsValid());
+
+	UE::NNE::IModelRDG* IModel = nullptr;
+	TConstArrayView<uint8> SharedDataView = ModelData->GetModelData(GetRuntimeName())->GetView();
+
+	if (FEngineAnalytics::IsAvailable())
+	{
+		TArray<FAnalyticsEventAttribute> Attributes = MakeAnalyticsEventAttributeArray(
+			TEXT("PlatformName"), UGameplayStatics::GetPlatformName(),
+			TEXT("HashedRuntimeName"), FMD5::HashAnsiString(*GetRuntimeName()),
+			TEXT("ModelDataSize"), SharedDataView.Num()
+		);
+		FEngineAnalytics::GetProvider().RecordEvent(TEXT("NeuralNetworkEngine.CreateModel"), Attributes);
+	}
+
+	return TSharedPtr<UE::NNE::IModelRDG>(IModel);
+}
+
+bool UNNERuntimeIREERdg::IsAvailable() const
+{
+	return false;
+}
 
 #endif // WITH_NNE_RUNTIME_IREE

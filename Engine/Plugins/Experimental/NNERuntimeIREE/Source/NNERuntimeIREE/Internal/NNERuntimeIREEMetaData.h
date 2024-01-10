@@ -2,14 +2,15 @@
 
 #pragma once
 
-#include "CoreMinimal.h"
+#include "Containers/ContainersFwd.h"
 #include "NNETypes.h"
+#include "UObject/Class.h"
 
 #include "NNERuntimeIREEMetaData.generated.h"
 
 namespace UE::NNERuntimeIREE
 {
-	struct FFunctionMetaData
+	struct NNERUNTIMEIREE_API FFunctionMetaData
 	{
 		FString Name;
 		TArray<UE::NNE::FTensorDesc> InputDescs;
