@@ -451,26 +451,22 @@ FDisplayClusterShaderParameters_ICVFX::FCameraSettings FDisplayClusterViewportCo
 
 	if (SceneRootActor && ConfigurationRootActor && StageSettings)
 	{
-		if (const USceneComponent* OriginComp = SceneRootActor->GetRootComponent())
-		{
-			Result.Resource.ViewportId = InCameraViewport.GetId();
-			Result.Local2WorldTransform = OriginComp->GetComponentTransform();
+		Result.Resource.ViewportId = InCameraViewport.GetId();
 
-			UCineCameraComponent* ActualCineCameraComponent = InCameraComponent.GetActualCineCameraComponent();
-			check(ActualCineCameraComponent);
+		UCineCameraComponent* ActualCineCameraComponent = InCameraComponent.GetActualCineCameraComponent();
+		check(ActualCineCameraComponent);
 
-			// Get camera border settings
-			InCameraSettings.GetCameraBorder(*StageSettings, Result.InnerCameraBorderColor, Result.InnerCameraBorderThickness);
-			Result.InnerCameraFrameAspectRatio = InCameraSettings.GetCameraFrameAspectRatio(*StageSettings, *ActualCineCameraComponent);
+		// Get camera border settings
+		InCameraSettings.GetCameraBorder(*StageSettings, Result.InnerCameraBorderColor, Result.InnerCameraBorderThickness);
+		Result.InnerCameraFrameAspectRatio = InCameraSettings.GetCameraFrameAspectRatio(*StageSettings, *ActualCineCameraComponent);
 
-			// Soft edges
-			Result.SoftEdge = InCameraSettings.GetCameraSoftEdge(*StageSettings, *ActualCineCameraComponent);
+		// Soft edges
+		Result.SoftEdge = InCameraSettings.GetCameraSoftEdge(*StageSettings, *ActualCineCameraComponent);
 
-			// Rendering order for camera overlap
-			const FString InnerFrustumID = InCameraComponent.GetCameraUniqueId();
-			const int32 CameraRenderOrder = ConfigurationRootActor->GetInnerFrustumPriority(InnerFrustumID);
-			Result.RenderOrder = (CameraRenderOrder < 0) ? InCameraSettings.RenderSettings.RenderOrder : CameraRenderOrder;
-		}
+		// Rendering order for camera overlap
+		const FString InnerFrustumID = InCameraComponent.GetCameraUniqueId();
+		const int32 CameraRenderOrder = ConfigurationRootActor->GetInnerFrustumPriority(InnerFrustumID);
+		Result.RenderOrder = (CameraRenderOrder < 0) ? InCameraSettings.RenderSettings.RenderOrder : CameraRenderOrder;
 	}
 
 	return Result;

@@ -282,6 +282,9 @@ bool FDisplayClusterProjectionMPCDIPolicy::CalculateView(IDisplayClusterViewport
 	// Readback warp context
 	WarpBlendContexts[InContextNum] = WarpBlendInterface->GetWarpData(InContextNum).WarpContext;
 
+	// Save Origin viewpoint transform to world space.
+	WarpBlendContexts[InContextNum].Origin2WorldTransform = WarpEye->World2LocalTransform;
+
 	// Transform viewpoint back to world space
 	InOutViewRotation = WarpEye->World2LocalTransform.TransformRotation(WarpBlendContexts[InContextNum].Rotation.Quaternion()).Rotator();
 	InOutViewLocation = WarpEye->World2LocalTransform.TransformPosition(WarpBlendContexts[InContextNum].Location);
@@ -356,7 +359,7 @@ void FDisplayClusterProjectionMPCDIPolicy::ApplyWarpBlend_RenderThread(FRHIComma
 		for (int32 ContextNum = 0; ContextNum < InputTextures.Num(); ContextNum++)
 		{
 			// Update referenced resources and math in the ShaderICVFX.
-			ShaderICVFX.IterateViewportResourcesByPredicate([ContextNum, ViewportManagerProxyPtr, &ShaderICVFX](FDisplayClusterShaderParametersICVFX_ViewportResource& ViewportResourceIt)
+			ShaderICVFX.IterateViewportResourcesByPredicate([ContextNum, ViewportManagerProxyPtr, &ShaderICVFX, WarpContext = WarpBlendContexts_Proxy[ContextNum]](FDisplayClusterShaderParametersICVFX_ViewportResource& ViewportResourceIt)
 			{
 				// reset prev resource reference
 				ViewportResourceIt.Texture = nullptr;
@@ -392,7 +395,7 @@ void FDisplayClusterProjectionMPCDIPolicy::ApplyWarpBlend_RenderThread(FRHIComma
 							LocalSpaceViewProjection.ViewRotation = InContext.ViewRotation;
 							LocalSpaceViewProjection.PrjMatrix    = InContext.ProjectionMatrix;
 
-							CameraSettings->SetViewProjection(LocalSpaceViewProjection);
+							CameraSettings->SetViewProjection(LocalSpaceViewProjection, WarpContext.Origin2WorldTransform);
 						}
 					}
 				}

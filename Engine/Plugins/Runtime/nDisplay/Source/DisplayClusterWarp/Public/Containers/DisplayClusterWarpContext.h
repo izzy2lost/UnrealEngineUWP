@@ -31,6 +31,9 @@ struct FDisplayClusterWarpContext
 
 	// From the mesh local space to cave
 	FMatrix  MeshToStageMatrix = FMatrix::Identity;
+
+	// Origin viewpoint transform to world space.
+	FTransform Origin2WorldTransform = FTransform::Identity;
 };
 
 /** Internal warp data for the one context of the viewport. */
