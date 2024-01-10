@@ -833,18 +833,21 @@ static FSceneRenderer* CreateSceneRendererForSceneCapture(
 	return FSceneRenderer::CreateSceneRenderer(&ViewFamily, nullptr);
 }
 
-class FSceneCapturePass : public FCustomRenderPass
+class FSceneCapturePass final : public FCustomRenderPassBase
 {
 public:
-	FSceneCapturePass()
-		: FCustomRenderPass()
+	IMPLEMENT_CUSTOM_RENDER_PASS(FSceneCapturePass);
+
+	FSceneCapturePass(const FString& InDebugName, ERenderMode InRenderMode, ERenderOutput InRenderOutput, UTextureRenderTarget2D* InRenderTarget)
+		: FCustomRenderPassBase(InDebugName, InRenderMode, InRenderOutput, FIntPoint(InRenderTarget->GetSurfaceWidth(), InRenderTarget->GetSurfaceHeight()))
+		, SceneCaptureRenderTarget(InRenderTarget->GameThread_GetRenderTargetResource())
 	{}
 
-	virtual void PreRender(FRDGBuilder& GraphBuilder) override
+	virtual void OnPreRender(FRDGBuilder& GraphBuilder) override
 	{
 		RenderTargetTexture = SceneCaptureRenderTarget->GetRenderTargetTexture(GraphBuilder);
 	}
-
+	
 	FRenderTarget* SceneCaptureRenderTarget = nullptr;
 };
 
@@ -920,12 +923,9 @@ void FScene::UpdateSceneCaptureContents(USceneCaptureComponent2D* CaptureCompone
 			PassInput.ProjectionMatrix = ProjectionMatrix;
 			PassInput.ViewActor = CaptureComponent->GetViewOwner();
 
-			FSceneCapturePass* CustomPass = new FSceneCapturePass();
-			CustomPass->RenderMode = FCustomRenderPass::ERenderMode_DepthPass;
-			CustomPass->RenderOutput = CaptureComponent->CaptureSource == ESceneCaptureSource::SCS_SceneDepth ? FCustomRenderPass::ERenderOutput_SceneDepth : FCustomRenderPass::ERenderOutput_DeviceDepth;
-			CustomPass->Name = CaptureComponent->CaptureSource == ESceneCaptureSource::SCS_SceneDepth ? TEXT("SceneCapturePass_SceneDepth") : TEXT("SceneCapturePass_DeviceDepth");
-			CustomPass->SceneCaptureRenderTarget = TextureRenderTarget->GameThread_GetRenderTargetResource();
-			CustomPass->RenderTargetSize = FIntPoint(TextureRenderTarget->GetSurfaceWidth(), TextureRenderTarget->GetSurfaceHeight());
+			FString DebugName = CaptureComponent->CaptureSource == ESceneCaptureSource::SCS_SceneDepth ? TEXT("SceneCapturePass_SceneDepth") : TEXT("SceneCapturePass_DeviceDepth");
+			FCustomRenderPassBase::ERenderOutput RenderOutput = CaptureComponent->CaptureSource == ESceneCaptureSource::SCS_SceneDepth ? FCustomRenderPassBase::ERenderOutput::SceneDepth : FCustomRenderPassBase::ERenderOutput::DeviceDepth;
+			FSceneCapturePass* CustomPass = new FSceneCapturePass(DebugName, FCustomRenderPassBase::ERenderMode::DepthPass, RenderOutput, TextureRenderTarget);
 			PassInput.CustomRenderPass = CustomPass;
 
 			GetShowOnlyAndHiddenComponents(CaptureComponent, PassInput.HiddenPrimitives, PassInput.ShowOnlyPrimitives);

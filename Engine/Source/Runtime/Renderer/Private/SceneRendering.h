@@ -2031,7 +2031,7 @@ public:
 	struct FCustomRenderPassInfo
 	{
 		/** Custom render pass that render as part of the main renderer. */
-		FCustomRenderPass* CustomRenderPass;
+		FCustomRenderPassBase* CustomRenderPass;
 		/** Views used to render the custom render pass. */
 		TArray<FViewInfo> Views;
 		FNaniteShadingCommands NaniteBasePassShadingCommands;

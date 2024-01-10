@@ -702,7 +702,7 @@ public:
 		TOptional<TSet<FPrimitiveComponentId>> ShowOnlyPrimitives;
 		const AActor* ViewActor = nullptr;
 
-		class FCustomRenderPass* CustomRenderPass = nullptr;
+		class FCustomRenderPassBase* CustomRenderPass = nullptr;
 	};
 	TArray<FCustomRenderPassRendererInput> CustomRenderPassRendererInputs;
 

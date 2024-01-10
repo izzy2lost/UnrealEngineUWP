@@ -13,14 +13,15 @@ class FSceneView;
 
 namespace UE::WaterInfo
 {
-	struct FRenderingContext
-	{
-		AWaterZone* ZoneToRender = nullptr;
-		UTextureRenderTarget2D* TextureRenderTarget;
-		TArray<UWaterBodyComponent*> WaterBodies;
-		TArray<TWeakObjectPtr<UPrimitiveComponent>> GroundPrimitiveComponents;
-		float CaptureZ;
-	};
+
+struct FRenderingContext
+{
+	AWaterZone* ZoneToRender = nullptr;
+	UTextureRenderTarget2D* TextureRenderTarget;
+	TArray<UWaterBodyComponent*> WaterBodies;
+	TArray<TWeakObjectPtr<UPrimitiveComponent>> GroundPrimitiveComponents;
+	float CaptureZ;
+};
 	
 void UpdateWaterInfoRendering(
 	FSceneInterface* Scene,
@@ -33,4 +34,9 @@ void UpdateWaterInfoRendering2(
 void UpdateWaterInfoRendering_CustomRenderPass(
 	FSceneInterface* Scene,
 	const FRenderingContext& Context);
-}
+
+const FName& GetWaterInfoDepthPassName();
+const FName& GetWaterInfoColorPassName();
+const FName& GetWaterInfoDilationPassName();
+
+} // namespace UE::WaterInfo

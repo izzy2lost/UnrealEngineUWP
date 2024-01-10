@@ -1,8 +1,9 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 #include "WaterBodyInfoMeshComponent.h"
+#include "WaterInfoRendering.h"
 #include "StaticMeshSceneProxy.h"
-#include  "UObject/UObjectIterator.h"
+#include "UObject/UObjectIterator.h"
 #include "Rendering/CustomRenderPass.h"
 
 #include UE_INLINE_GENERATED_CPP_BY_NAME(WaterBodyInfoMeshComponent)
@@ -94,13 +95,22 @@ void FWaterBodyInfoMeshSceneProxy::SetEnabled(bool bInEnabled)
 
 FPrimitiveViewRelevance FWaterBodyInfoMeshSceneProxy::GetViewRelevance(const FSceneView* View) const
 {
+	using namespace UE::WaterInfo;
+
 	FPrimitiveViewRelevance Result = FStaticMeshSceneProxy::GetViewRelevance(View);
 
 	// When water info mesh is rendered with custom render passes, enable the mesh for drawing
 	if (GetWaterInfoRenderingMethod() == 2)
 	{
-		const FString PassName = View->CustomRenderPass ? const_cast<FSceneView*>(View)->CustomRenderPass->Name : TEXT("");
-		Result.bDrawRelevance = (PassName == TEXT("WaterInfoDepthPass") || PassName == TEXT("WaterInfoColorPass") || PassName == TEXT("WaterInfoDilationPass"));
+		Result.bDrawRelevance = false;
+		if (View->CustomRenderPass != nullptr)
+		{
+			const FName& PassName = const_cast<FSceneView*>(View)->CustomRenderPass->GetTypeName();
+			Result.bDrawRelevance = (PassName == GetWaterInfoDepthPassName())
+				|| (PassName == GetWaterInfoColorPassName())
+				|| (PassName == GetWaterInfoDilationPassName());
+
+		}
 		Result.bShadowRelevance = false;
 	}
 

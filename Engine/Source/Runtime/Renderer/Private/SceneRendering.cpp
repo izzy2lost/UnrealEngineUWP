@@ -2765,12 +2765,12 @@ FSceneRenderer::FSceneRenderer(const FSceneViewFamily* InViewFamily, FHitProxyCo
 	for (int32 i = 0; i < Scene->CustomRenderPassRendererInputs.Num(); i++)
 	{
 		const FScene::FCustomRenderPassRendererInput& PassInput = Scene->CustomRenderPassRendererInputs[i];
-		FCustomRenderPass* CustomRenderPass = PassInput.CustomRenderPass;
+		FCustomRenderPassBase* CustomRenderPass = PassInput.CustomRenderPass;
 		check(CustomRenderPass);
 		CustomRenderPassInfos[i].CustomRenderPass = CustomRenderPass;
 
 		FSceneViewInitOptions ViewInitOptions;
-		ViewInitOptions.SetViewRectangle(FIntRect(0, 0, CustomRenderPass->RenderTargetSize.X, CustomRenderPass->RenderTargetSize.Y));
+		ViewInitOptions.SetViewRectangle(FIntRect(0, 0, CustomRenderPass->GetRenderTargetSize().X, CustomRenderPass->GetRenderTargetSize().Y));
 		ViewInitOptions.ViewOrigin = PassInput.ViewLocation;
 		ViewInitOptions.ViewRotationMatrix = PassInput.ViewRotationMatrix;
 		ViewInitOptions.ProjectionMatrix = PassInput.ProjectionMatrix;

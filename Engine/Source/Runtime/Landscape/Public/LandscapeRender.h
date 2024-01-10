@@ -29,6 +29,7 @@ LandscapeRender.h: New terrain rendering
 #include "StaticMeshResources.h"
 #include "StaticMeshSceneProxy.h"
 #include "SceneViewExtension.h"
+#include "Rendering/CustomRenderPass.h"
 #include "Tasks/Task.h"
 
 // This defines the number of border blocks to surround terrain by when generating lightmaps
@@ -431,6 +432,9 @@ public:
 	bool bRegistered;
 };
 
+//
+// FLandscapeRenderSystem
+//
 struct FLandscapeRenderSystem
 {
 	typedef uint32 FViewKey;
@@ -579,6 +583,24 @@ private:
 	void DestroyResources_Internal(FLandscapeSectionInfo* InSectionInfo);
 };
 
+//
+// FLandscapeLODOverridesCustomRenderPassUserData
+//
+class FLandscapeLODOverridesCustomRenderPassUserData : public ICustomRenderPassUserData
+{
+public:
+	IMPLEMENT_CUSTOM_RENDER_PASS_USER_DATA(FLandscapeLODOverridesCustomRenderPassUserData);
+
+	FLandscapeLODOverridesCustomRenderPassUserData(const TMap<uint32, int32>& InLandscapeLODOverrides)
+		: LandscapeLODOverrides(InLandscapeLODOverrides)
+	{}
+
+
+	const TMap<uint32, int32>& GetLandscapeLODOverrides() const { return LandscapeLODOverrides; }
+
+private:
+	TMap<uint32, int32> LandscapeLODOverrides;
+};
 
 //
 // FLandscapeSceneViewExtension

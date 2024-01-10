@@ -2166,43 +2166,49 @@ void FDeferredShadingSceneRenderer::Render(FRDGBuilder& GraphBuilder)
 
 		for (int32 i = 0; i < CustomRenderPassInfos.Num(); ++i)
 		{
-			FCustomRenderPass* CustomRenderPass = CustomRenderPassInfos[i].CustomRenderPass;
+			FCustomRenderPassBase* CustomRenderPass = CustomRenderPassInfos[i].CustomRenderPass;
 			TArray<FViewInfo>& CustomRenderPassViews = CustomRenderPassInfos[i].Views;
 			FNaniteShadingCommands& NaniteBasePassShadingCommands = CustomRenderPassInfos[i].NaniteBasePassShadingCommands;
 			check(CustomRenderPass);
 
-			QUICK_SCOPE_CYCLE_COUNTER(STAT_CustomRenderPass);
-			RDG_EVENT_SCOPE(GraphBuilder, "CustomRenderPass[%d] %s", i, *CustomRenderPass->Name);
+			CustomRenderPass->BeginPass(GraphBuilder);
 
-			CustomRenderPass->PreRender(GraphBuilder);
-
-			TArray<Nanite::FRasterResults, TInlineAllocator<2>> NaniteRasterResults;
-			TArray<Nanite::FPackedView, SceneRenderingAllocator> PrimaryNaniteViews;
-			FNaniteBasePassVisibility DummyNaniteBasePassVisibility;
-			RenderPrepassAndVelocity(CustomRenderPassViews, DummyNaniteBasePassVisibility, NaniteRasterResults, PrimaryNaniteViews);
-
-			if (CustomRenderPass->RenderMode == FCustomRenderPass::ERenderMode_DepthAndBasePass)
 			{
-				SceneTextures.SetupMode |= ESceneTextureSetupMode::SceneColor;
-				SceneTextures.UniformBuffer = CreateSceneTextureUniformBuffer(GraphBuilder, &SceneTextures, FeatureLevel, SceneTextures.SetupMode);
+				QUICK_SCOPE_CYCLE_COUNTER(STAT_CustomRenderPass);
+				RDG_EVENT_SCOPE(GraphBuilder, "CustomRenderPass[%d] %s", i, *CustomRenderPass->GetDebugName());
 
-				// Setup dummy uniform buffer parameters for fog volume.
-				SetDummyLocalFogVolumeForViews(GraphBuilder, CustomRenderPassViews);
+				CustomRenderPass->PreRender(GraphBuilder);
 
-				if (bNaniteEnabled && UseNaniteComputeMaterials())
+				TArray<Nanite::FRasterResults, TInlineAllocator<2>> NaniteRasterResults;
+				TArray<Nanite::FPackedView, SceneRenderingAllocator> PrimaryNaniteViews;
+				FNaniteBasePassVisibility DummyNaniteBasePassVisibility;
+				RenderPrepassAndVelocity(CustomRenderPassViews, DummyNaniteBasePassVisibility, NaniteRasterResults, PrimaryNaniteViews);
+
+				if (CustomRenderPass->GetRenderMode() == FCustomRenderPassBase::ERenderMode::DepthAndBasePass)
 				{
-					Nanite::BuildShadingCommands(GraphBuilder, *Scene, ENaniteMeshPass::BasePass, NaniteBasePassShadingCommands, true);
+					SceneTextures.SetupMode |= ESceneTextureSetupMode::SceneColor;
+					SceneTextures.UniformBuffer = CreateSceneTextureUniformBuffer(GraphBuilder, &SceneTextures, FeatureLevel, SceneTextures.SetupMode);
+
+					// Setup dummy uniform buffer parameters for fog volume.
+					SetDummyLocalFogVolumeForViews(GraphBuilder, CustomRenderPassViews);
+
+					if (bNaniteEnabled && UseNaniteComputeMaterials())
+					{
+						Nanite::BuildShadingCommands(GraphBuilder, *Scene, ENaniteMeshPass::BasePass, NaniteBasePassShadingCommands, true);
+					}
+
+					RenderBasePass(GraphBuilder, CustomRenderPassViews, SceneTextures, DBufferTextures, BasePassDepthStencilAccess, /*ForwardScreenSpaceShadowMaskTexture=*/nullptr, InstanceCullingManager, bNaniteEnabled, NaniteBasePassShadingCommands, NaniteRasterResults);
 				}
 
-				RenderBasePass(GraphBuilder, CustomRenderPassViews, SceneTextures, DBufferTextures, BasePassDepthStencilAccess, /*ForwardScreenSpaceShadowMaskTexture=*/nullptr, InstanceCullingManager, bNaniteEnabled, NaniteBasePassShadingCommands, NaniteRasterResults);
-			}
-
-			CopySceneCaptureComponentToTarget(GraphBuilder, SceneTextures, CustomRenderPass->RenderTargetTexture, ViewFamily, CustomRenderPassViews);
-			CustomRenderPass->PostRender(GraphBuilder);
+				CopySceneCaptureComponentToTarget(GraphBuilder, SceneTextures, CustomRenderPass->GetRenderTargetTexture(), ViewFamily, CustomRenderPassViews);
+				CustomRenderPass->PostRender(GraphBuilder);
 
 #if WITH_MGPU
-			DoCrossGPUTransfers(GraphBuilder, CustomRenderPass->RenderTargetTexture, CustomRenderPassViews, false, FRHIGPUMask::All());
+				DoCrossGPUTransfers(GraphBuilder, CustomRenderPass->GetRenderTargetTexture(), CustomRenderPassViews, false, FRHIGPUMask::All());
 #endif
+			}
+
+			CustomRenderPass->EndPass(GraphBuilder);
 		}
 	}
 

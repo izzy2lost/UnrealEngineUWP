@@ -1139,39 +1139,45 @@ void FMobileSceneRenderer::Render(FRDGBuilder& GraphBuilder)
 
 		for (int32 i = 0; i < CustomRenderPassInfos.Num(); ++i)
 		{
-			FCustomRenderPass* CustomRenderPass = CustomRenderPassInfos[i].CustomRenderPass;
+			FCustomRenderPassBase* CustomRenderPass = CustomRenderPassInfos[i].CustomRenderPass;
 			TArray<FViewInfo>& CustomRenderPassViews = CustomRenderPassInfos[i].Views;
 			check(CustomRenderPass);
 
-			QUICK_SCOPE_CYCLE_COUNTER(STAT_CustomRenderPass);
-			RDG_EVENT_SCOPE(GraphBuilder, "CustomRenderPass[%d] %s", i, *CustomRenderPass->Name);
+			CustomRenderPass->BeginPass(GraphBuilder);
 
-			CustomRenderPass->PreRender(GraphBuilder);
-
-			// Setup dummy uniform buffer parameters for fog volume.
-			SetDummyLocalFogVolumeForViews(GraphBuilder, CustomRenderPassViews);
-
-			if (bIsFullDepthPrepassEnabled)
 			{
-				RenderFullDepthPrepass(GraphBuilder, CustomRenderPassViews, SceneTextures, true);
-				if (!bRequiresSceneDepthAux)
+				QUICK_SCOPE_CYCLE_COUNTER(STAT_CustomRenderPass);
+				RDG_EVENT_SCOPE(GraphBuilder, "CustomRenderPass[%d] %s", i, *CustomRenderPass->GetDebugName());
+
+				CustomRenderPass->PreRender(GraphBuilder);
+
+				// Setup dummy uniform buffer parameters for fog volume.
+				SetDummyLocalFogVolumeForViews(GraphBuilder, CustomRenderPassViews);
+
+				if (bIsFullDepthPrepassEnabled)
 				{
-					AddResolveSceneDepthPass(GraphBuilder, CustomRenderPassViews, SceneTextures.Depth);
+					RenderFullDepthPrepass(GraphBuilder, CustomRenderPassViews, SceneTextures, true);
+					if (!bRequiresSceneDepthAux)
+					{
+						AddResolveSceneDepthPass(GraphBuilder, CustomRenderPassViews, SceneTextures.Depth);
+					}
 				}
+
+				// Render base pass if the custom pass requires it. Otherwise if full depth prepass is not enabled, then depth is generated in the base pass.
+				if (CustomRenderPass->GetRenderMode() == FCustomRenderPassBase::ERenderMode::DepthAndBasePass || (CustomRenderPass->GetRenderMode() == FCustomRenderPassBase::ERenderMode::DepthPass && !bIsFullDepthPrepassEnabled))
+				{
+					RenderCustomRenderPassBasePass(GraphBuilder, CustomRenderPassViews, ViewFamilyTexture, SceneTextures);
+				}
+
+				SceneTextures.MobileSetupMode = EMobileSceneTextureSetupMode::SceneColor | EMobileSceneTextureSetupMode::SceneDepth | EMobileSceneTextureSetupMode::SceneDepthAux;
+				SceneTextures.MobileUniformBuffer = CreateMobileSceneTextureUniformBuffer(GraphBuilder, &SceneTextures, SceneTextures.MobileSetupMode);
+
+				CopySceneCaptureComponentToTarget(GraphBuilder, SceneTextures, CustomRenderPass->GetRenderTargetTexture(), ViewFamily, CustomRenderPassViews);
+
+				CustomRenderPass->PostRender(GraphBuilder);
 			}
 
-			// Render base pass if the custom pass requires it. Otherwise if full depth prepass is not enabled, then depth is generated in the base pass.
-			if (CustomRenderPass->RenderMode == FCustomRenderPass::ERenderMode_DepthAndBasePass || (CustomRenderPass->RenderMode == FCustomRenderPass::ERenderMode_DepthPass && !bIsFullDepthPrepassEnabled))
-			{
-				RenderCustomRenderPassBasePass(GraphBuilder, CustomRenderPassViews, ViewFamilyTexture, SceneTextures);
-			}
-
-			SceneTextures.MobileSetupMode = EMobileSceneTextureSetupMode::SceneColor | EMobileSceneTextureSetupMode::SceneDepth | EMobileSceneTextureSetupMode::SceneDepthAux;
-			SceneTextures.MobileUniformBuffer = CreateMobileSceneTextureUniformBuffer(GraphBuilder, &SceneTextures, SceneTextures.MobileSetupMode);
-
-			CopySceneCaptureComponentToTarget(GraphBuilder, SceneTextures, CustomRenderPass->RenderTargetTexture, ViewFamily, CustomRenderPassViews);
-
-			CustomRenderPass->PostRender(GraphBuilder);
+			CustomRenderPass->EndPass(GraphBuilder);
 		}
 	}
 

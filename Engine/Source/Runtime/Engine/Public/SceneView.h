@@ -1414,7 +1414,7 @@ public:
 	/** For sanity checking casts that are assumed to be safe. */
 	bool bIsViewInfo;
 
-	class FCustomRenderPass* CustomRenderPass = nullptr;
+	class FCustomRenderPassBase* CustomRenderPass = nullptr;
 
 	/** Whether this view is being used to render a scene capture. */
 	bool bIsSceneCapture;

@@ -394,12 +394,11 @@ static int32 GetViewLodOverride(FSceneView const& View, uint32 LandscapeKey)
 	// Use lod 0 if lodding is disabled
 	LodOverride = View.Family->EngineShowFlags.LOD == 0 ? 0 : LodOverride;
 	
-	if (View.CustomRenderPass && View.CustomRenderPass->UserData)
+	if (View.CustomRenderPass)
 	{
-		TOptional<TMap<uint32, int32>>& LandscapeLODOverrides = *(TOptional<TMap<uint32, int32>>*)(View.CustomRenderPass->UserData);
-		if (LandscapeLODOverrides)
+		if (FLandscapeLODOverridesCustomRenderPassUserData* LandscapeLODOverridesUserData = View.CustomRenderPass->GetUserDataTyped<FLandscapeLODOverridesCustomRenderPassUserData>())
 		{
-			int32* LandscapeLODOverride = LandscapeLODOverrides->Find(LandscapeKey);
+			const int32* LandscapeLODOverride = LandscapeLODOverridesUserData->GetLandscapeLODOverrides().Find(LandscapeKey);
 			LodOverride = LandscapeLODOverride ? *LandscapeLODOverride : LodOverride;
 		}
 	}
