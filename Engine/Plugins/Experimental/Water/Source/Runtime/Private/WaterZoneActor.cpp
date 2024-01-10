@@ -61,6 +61,10 @@ AWaterZone::AWaterZone(const FObjectInitializer& Initializer)
 		// Bounds component extent is half-extent, ZoneExtent is full extent.
 		BoundsComponent->SetBoxExtent(FVector(ZoneExtent / 2., 8192.));
 		BoundsComponent->bIsEditorOnly = true;
+
+		FEngineShowFlags BoundsComponentShowFlags = BoundsComponent->GetShowFlags();
+		BoundsComponentShowFlags.SetVolumes(true);
+		BoundsComponent->SetShowFlags(BoundsComponentShowFlags);
 	}
 
 	if (GIsEditor && !IsTemplate())
