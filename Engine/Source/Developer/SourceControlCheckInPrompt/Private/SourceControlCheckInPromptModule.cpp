@@ -59,7 +59,7 @@ void FSourceControlCheckInPromptModule::ShowModal(const FText& InMessage)
 	Info.Image = const_cast<FSlateBrush*>(FRevisionControlStyleManager::Get().GetBrush("RevisionControl.StatusBar.HasLocalChanges"));
 
 	FSuppressableWarningDialog CheckInWarning(Info);
-	if (CheckInWarning.ShowModal() == FSuppressableWarningDialog::Confirm)
+	if (CheckInWarning.ShowModal() != FSuppressableWarningDialog::Cancel)
 	{
 		FSourceControlWindows::ChoosePackagesToCheckIn();
 	}
