@@ -24,6 +24,7 @@ extern "C"
 
 	// Using custom message inside UbaScheduler so can't be combined with RegisterCustomService.
 	// This function will automatically flush written files before requesting next process and will also update environment if new process is retrieved
+	// Will write arguments into outArguments. outArgumentsCapacity should be in characters (not bytes)
 	UBA_DETOURED_API bool UbaRequestNextProcess(wchar_t* outArguments, unsigned int outArgumentsCapacity);
 }
 
@@ -36,12 +37,12 @@ static HMODULE UbaDetoursModule = GetModuleHandleW(L"UbaDetours.dll");
 if (UbaDetoursModule)
 {
 	using UbaFlushWrittenFilesFunc = bool();
-	using UbaRequestNextProcessFunc = bool(TCHAR* outArguments, uint32 outArgumentsCapacity);
+	using UbaRequestNextProcessFunc = bool(const wchar_t* outArguments, unsigned int outArgumentsCapacity);
 	using UbaUpdateEnvironmentFunc = bool(const wchar_t* reason, bool resetStats);
 
-	static UbaFlushWrittenFilesFunc* FlushWrittenFiles = (UbaFlushWrittenFilesFunc*)(void*)GetProcAddress(UbaDetoursModule, "UbaFlushWrittenFiles");
-	static UbaRequestNextProcessFunc* RequestNextProcess = (UbaRequestNextProcessFunc*)(void*)GetProcAddress(UbaDetoursModule, "UbaRequestNextProcess");
-	static UbaUpdateEnvironmentFunc* UpdateEnvironment = (UbaUpdateEnvironmentFunc*)(void*)GetProcAddress(UbaDetoursModule, "UbaUpdateEnvironment");
+	static UbaFlushWrittenFilesFunc* flushWrittenFiles = (UbaFlushWrittenFilesFunc*)(void*)GetProcAddress(UbaDetoursModule, "UbaFlushWrittenFiles");
+	static UbaRequestNextProcessFunc* requestNextProcess = (UbaRequestNextProcessFunc*)(void*)GetProcAddress(UbaDetoursModule, "UbaRequestNextProcess");
+	static UbaUpdateEnvironmentFunc* updateEnvironment = (UbaUpdateEnvironmentFunc*)(void*)GetProcAddress(UbaDetoursModule, "UbaUpdateEnvironment");
 
 	// ...
 }

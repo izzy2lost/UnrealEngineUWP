@@ -2004,6 +2004,8 @@ namespace uba
 
 	bool Session::UpdateEnvironment(ProcessImpl& process, const tchar* reason, bool resetStats)
 	{
+		if (!resetStats)
+			return true;
 		StackBinaryWriter<16 * 1024> writer;
 		process.m_processStats.Write(writer);
 		process.m_sessionStats.Write(writer);

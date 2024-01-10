@@ -1033,10 +1033,11 @@ extern "C"
 
 	UBA_DETOURED_API bool UbaRequestNextProcess(wchar_t* outArguments, u32 outArgumentsCapacity)
 	{
+		*outArguments = 0;
+
 		if (!UbaFlushWrittenFiles())
 			return false;
 
-		*outArguments = 0;
 		StackBinaryReader<2048> reader;
 		reader.SetSize(UbaSendCustomMessage(nullptr, 0, reader.buffer, 2048));
 		bool hasProcess = reader.GetLeft();

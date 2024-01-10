@@ -131,6 +131,15 @@ int wmain(int argc, wchar_t* argv[])
 			CopyFile(L"FileW2", L"FileWF", false);
 		}
 	}
+	else if (wcscmp(argv[1], L"-reuse") == 0)
+	{
+		using UbaRequestNextProcessFunc = bool(wchar_t* outArguments, unsigned int outArgumentsCapacity);
+		static UbaRequestNextProcessFunc* requestNextProcess = (UbaRequestNextProcessFunc*)(void*)GetProcAddress(detoursHandle, "UbaRequestNextProcess");
+
+		wchar_t arguments[1024];
+		if (requestNextProcess(arguments, sizeof(arguments)))
+			return LogError(L"Didn't expect another process");
+	}
 	else
 	{
 		using u32 = unsigned int;

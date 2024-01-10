@@ -92,9 +92,9 @@ namespace uba
 
 	void Scheduler::GetStats(u32& outQueued, u32& outActive, u32& outFinished)
 	{
+		ScopedReadLock lock(m_queuedProcessesLock);
 		outActive = m_activeLocalProcesses + m_activeRemoteProcesses;
 		outFinished = m_finishedProcesses;
-		ScopedReadLock lock(m_queuedProcessesLock);
 		outQueued = u32(m_queuedProcesses.size());
 	}
 

@@ -4,6 +4,7 @@
 
 #include "UbaTestBasics.h"
 #include "UbaTestNetwork.h"
+#include "UbaTestScheduler.h"
 #include "UbaTestStorage.h"
 #include "UbaTestSession.h"
 
@@ -27,6 +28,8 @@ namespace uba
 		UBA_TEST(TestCustomService) \
 		UBA_TEST(TestMultipleDetouredProcesses) \
 		UBA_TEST(TestLogLines) \
+		UBA_TEST(TestLocalSchedule) \
+		UBA_TEST(TestLocalScheduleReuse) \
 
 	#define UBA_TEST(x) \
 		logger.Info(TC("Running %hs..."), #x); \
@@ -57,7 +60,7 @@ namespace uba
 
 		logger.Info(TC("Running tests (Test rootdir: %s)"), testRootDir.data);
 
-		//UBA_TEST(TestDetouredTestApp)
+		//UBA_TEST(TestLocalScheduleReuse)
 		UBA_TESTS
 
 		logger.Info(TC("Tests finished successfully!"));
