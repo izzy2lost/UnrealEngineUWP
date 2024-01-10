@@ -1,4 +1,5 @@
-﻿#pragma once
+﻿// Copyright Epic Games, Inc. All Rights Reserved.
+#pragma once
 
 #include "PropertyHandle.h"
 #include "Widgets/Input/SMenuAnchor.h"
