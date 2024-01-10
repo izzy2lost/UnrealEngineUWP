@@ -587,7 +587,7 @@ FText SNewPluginWizard::GetPluginDestinationPath() const
 FText SNewPluginWizard::GetCurrentPluginName() const
 {
 	TSharedPtr<FPluginTemplateDescription> Template = PluginWizardDefinition->GetSelectedTemplate();
-	if (Template.IsValid())
+	if (Template.IsValid() && !PluginNameText.IsEmpty())
 	{
 		TArray<FString> UPluginFiles;
 		IFileManager::Get().FindFiles(UPluginFiles, *Template->OnDiskPath, TEXT("*.uplugin"));
@@ -684,8 +684,9 @@ FReply SNewPluginWizard::OnCreatePluginClicked()
 	LoadParams.OutFailReason = &FailReason;
 
 	Template->CustomizeDescriptorBeforeCreation(CreationParams.Descriptor);
-	
-	TSharedPtr<IPlugin> NewPlugin = FPluginUtils::CreateAndLoadNewPlugin(PluginName, PluginFolderPath, CreationParams, LoadParams);
+
+
+	TSharedPtr<IPlugin> NewPlugin = FPluginUtils::CreateAndLoadNewPlugin(PluginName, PluginNameText.ToString(), PluginFolderPath, CreationParams, LoadParams);
 	const bool bSucceeded = NewPlugin.IsValid();
 
 
