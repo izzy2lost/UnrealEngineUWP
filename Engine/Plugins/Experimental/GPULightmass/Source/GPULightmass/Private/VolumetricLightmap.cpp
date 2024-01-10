@@ -750,7 +750,7 @@ void FVolumetricLightmapRenderer::BackgroundTick()
 	OutputBrickDataRDG.DebugSetupInvariants();
 	
 	RectLightAtlas::UpdateAtlasTexture(GraphBuilder, Scene->FeatureLevel);
-	IESAtlas::UpdateAtlasTexture(GraphBuilder, Scene->FeatureLevel);
+	IESAtlas::UpdateAtlasTexture(GraphBuilder, GetFeatureLevelShaderPlatform(Scene->FeatureLevel));
 
 	FGlobalShaderMap* GlobalShaderMap = GetGlobalShaderMap(Scene->FeatureLevel);
 

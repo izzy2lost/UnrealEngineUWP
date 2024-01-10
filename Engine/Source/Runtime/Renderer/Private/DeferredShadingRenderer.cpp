@@ -1739,7 +1739,7 @@ void FDeferredShadingSceneRenderer::Render(FRDGBuilder& GraphBuilder)
 
 		// Force the rect light texture & IES texture to be updated.
 		RectLightAtlas::UpdateAtlasTexture(GraphBuilder, FeatureLevel);
-		IESAtlas::UpdateAtlasTexture(GraphBuilder, FeatureLevel);
+		IESAtlas::UpdateAtlasTexture(GraphBuilder, ShaderPlatform);
 	}
 
 	FSceneTexturesConfig& SceneTexturesConfig = GetActiveSceneTexturesConfig();

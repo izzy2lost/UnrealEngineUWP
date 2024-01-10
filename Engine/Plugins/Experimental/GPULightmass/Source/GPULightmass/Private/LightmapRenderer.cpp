@@ -2051,7 +2051,7 @@ void FLightmapRenderer::Finalize(FRDGBuilder& GraphBuilder)
 	}
 
 	RectLightAtlas::UpdateAtlasTexture(GraphBuilder, Scene->FeatureLevel);
-	IESAtlas::UpdateAtlasTexture(GraphBuilder, Scene->FeatureLevel);
+	IESAtlas::UpdateAtlasTexture(GraphBuilder, GetFeatureLevelShaderPlatform(Scene->FeatureLevel));
 
 	FSceneUniformBuffer SceneUniforms;
 
