@@ -107,7 +107,7 @@ public:
 	bool FlushChanges(FInstanceUpdateComponentDesc &&ComponentData, bool bNewPrimitiveProxy);
 
 	// 
-	void PostLoad(int32 InNumInstances, FInstanceUpdateComponentDesc &&ComponentData);
+	void PostLoad(int32 InNumInstances);
 
 	/**
 	 * Clear the ID/Index association and reset the mapping to identity & number of instances to the given number.

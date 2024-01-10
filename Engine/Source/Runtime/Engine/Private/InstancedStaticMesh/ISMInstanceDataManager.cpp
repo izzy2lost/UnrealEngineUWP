@@ -788,7 +788,7 @@ bool FPrimitiveInstanceDataManager::FlushChanges(FInstanceUpdateComponentDesc &&
 	return true;
 }
 
-void FPrimitiveInstanceDataManager::PostLoad(int32 InNumInstances, FInstanceUpdateComponentDesc &&ComponentData)
+void FPrimitiveInstanceDataManager::PostLoad(int32 InNumInstances)
 {
 	if (GetState() == ETrackingState::Disabled)
 	{

@@ -4838,13 +4838,7 @@ void UInstancedStaticMeshComponent::PostLoad()
 
 	if (!HasAnyFlags(RF_ClassDefaultObject|RF_ArchetypeObject))
 	{
-		FInstanceUpdateComponentDesc ComponentData;
-		if (GetStaticMesh() != nullptr)
-		{
-			UpdateComponentToWorld();
-			BuildComponentInstanceData(GMaxRHIFeatureLevel, ComponentData);
-		}
-		PrimitiveInstanceDataManager.PostLoad(PerInstanceSMData.Num(), MoveTemp(ComponentData));
+		PrimitiveInstanceDataManager.PostLoad(PerInstanceSMData.Num());
 	}
 
 	// Has different implementation in HISMC
