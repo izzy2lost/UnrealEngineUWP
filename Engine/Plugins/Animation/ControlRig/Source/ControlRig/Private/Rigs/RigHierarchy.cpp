@@ -5405,6 +5405,54 @@ void URigHierarchy::FMetadataStorage::Serialize(FArchive& Ar)
 	}
 }
 
+void URigHierarchy::PropagateMetadata(const FRigElementKey& InKey, const FName& InName, bool bNotify)
+{
+	if(const FRigBaseElement* Element = Find(InKey))
+	{
+		PropagateMetadata(Element, InName, bNotify);
+	}
+}
+
+void URigHierarchy::PropagateMetadata(const FRigBaseElement* InElement, const FName& InName, bool bNotify)
+{
+#if WITH_EDITOR
+	check(InElement);
+
+	if (!ElementMetadata.IsValidIndex(InElement->MetadataStorageIndex))
+	{
+		return;
+	}
+
+	FMetadataStorage& Storage = ElementMetadata[InElement->MetadataStorageIndex];
+	FRigBaseMetadata** MetadataPtrPtr = Storage.MetadataMap.Find(InName);
+	if (!MetadataPtrPtr)
+	{
+		return;
+	}
+
+	FRigBaseMetadata* MetadataPtr = *MetadataPtrPtr;
+	if(MetadataPtr == nullptr)
+	{
+		return;
+	}
+
+	ForEachListeningHierarchy([InElement, MetadataPtr, bNotify](const FRigHierarchyListener& Listener)
+	{
+		if(URigHierarchy* ListeningHierarchy = Listener.Hierarchy.Get())
+		{
+			if(FRigBaseElement* Element = ListeningHierarchy->Find(InElement->GetKey()))
+			{
+				if (FRigBaseMetadata* Metadata = ListeningHierarchy->GetMetadataForElement(Element, MetadataPtr->GetName(), MetadataPtr->GetType(), bNotify))
+				{
+					Metadata->SetValueData(MetadataPtr->GetValueData(), MetadataPtr->GetValueSize());
+					ListeningHierarchy->PropagateMetadata(Element, Metadata->GetName(), bNotify);
+				}
+			}
+		}
+	});
+#endif
+}
+
 void URigHierarchy::OnMetadataChanged(const FRigElementKey& InKey, const FName& InName)
 {
 	MetadataVersion++;

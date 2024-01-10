@@ -2577,7 +2577,7 @@ void FControlRigEditor::HandleSchematicViewportCreated(const TSharedRef<SSchemat
 	InViewport->OnDropDelegate.BindRaw(&SchematicModel, &FControlRigSchematicModel::HandleSchematicDrop);
 }
 
-FVector2D FControlRigEditor::ComputePersonaProjectedScreenPos(const FVector& InWorldPos)
+FVector2D FControlRigEditor::ComputePersonaProjectedScreenPos(const FVector& InWorldPos, bool bClampToScreenRectangle)
 {
 	if (PreviewViewport.IsValid())
 	{
@@ -2612,8 +2612,11 @@ FVector2D FControlRigEditor::ComputePersonaProjectedScreenPos(const FVector& InW
 		ScreenPos = FIntPoint(FMath::FloorToInt(ScreenPos.X), FMath::FloorToInt(ScreenPos.Y));
 
 		// Clamp to screen rect
-		ScreenPos.X = FMath::Clamp(ScreenPos.X, ViewRect.Min.X, ViewRect.Max.X);
-		ScreenPos.Y = FMath::Clamp(ScreenPos.Y, ViewRect.Min.Y, ViewRect.Max.Y);
+		if(bClampToScreenRectangle)
+		{
+			ScreenPos.X = FMath::Clamp(ScreenPos.X, ViewRect.Min.X, ViewRect.Max.X);
+			ScreenPos.Y = FMath::Clamp(ScreenPos.Y, ViewRect.Min.Y, ViewRect.Max.Y);
+		}
 
 		return FVector2D(ScreenPos.X, ScreenPos.Y);
 	}

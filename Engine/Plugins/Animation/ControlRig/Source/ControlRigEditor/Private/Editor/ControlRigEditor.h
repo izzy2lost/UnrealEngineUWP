@@ -193,7 +193,7 @@ public:
 	FReply OnNavigateToConnectorWarning() const;
 	FSimpleMulticastDelegate& OnRequestNavigateToConnectorWarning() { return RequestNavigateToConnectorWarningDelegate; }
 
-	FVector2D ComputePersonaProjectedScreenPos(const FVector& InWorldPos);
+	FVector2D ComputePersonaProjectedScreenPos(const FVector& InWorldPos, bool bClampToScreenRectangle = false);
 	
 protected:
 

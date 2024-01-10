@@ -5307,7 +5307,6 @@ void FRigSocketElementDetails::CustomizeSettings(IDetailLayoutBuilder& DetailBui
 
 	IDetailCategoryBuilder& SettingsCategory = DetailBuilder.EditCategory(TEXT("Settings"), LOCTEXT("Settings", "Settings"));
 
-	/*
 	SettingsCategory.AddCustomRow(FText::FromString(TEXT("Color")))
 	.NameContent()
 	[
@@ -5322,7 +5321,6 @@ void FRigSocketElementDetails::CustomizeSettings(IDetailLayoutBuilder& DetailBui
 		.Color(this, &FRigSocketElementDetails::GetSocketColor) 
 		.OnMouseButtonDown(this, &FRigSocketElementDetails::SetSocketColor)
 	];
-	*/
 
 	SettingsCategory.AddCustomRow(FText::FromString(TEXT("Description")))
 	.NameContent()

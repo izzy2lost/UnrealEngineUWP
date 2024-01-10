@@ -1607,6 +1607,7 @@ void FRigSocketElement::SetColor(const FLinearColor& InColor, URigHierarchy* InH
 		return;
 	}
 	InHierarchy->SetLinearColorMetadata(GetKey(), ColorMetaName, InColor);
+	InHierarchy->PropagateMetadata(GetKey(), ColorMetaName, bNotify);
 	if(bNotify)
 	{
 		InHierarchy->Notify(ERigHierarchyNotification::SocketColorChanged, this);
@@ -1631,6 +1632,7 @@ void FRigSocketElement::SetDescription(const FString& InDescription, URigHierarc
 		return;
 	}
 	InHierarchy->SetNameMetadata(GetKey(), DescriptionMetaName, *InDescription);
+	InHierarchy->PropagateMetadata(this, DescriptionMetaName, bNotify);
 	if(bNotify)
 	{
 		InHierarchy->Notify(ERigHierarchyNotification::SocketDescriptionChanged, this);

@@ -4625,6 +4625,13 @@ private:
 		return SetMetadata<TArray<T>>(InElement, InType, InMetadataName, InValue);
 	}
 
+public:
+	
+	void PropagateMetadata(const FRigElementKey& InKey, const FName& InName, bool bNotify = true);
+	void PropagateMetadata(const FRigBaseElement* InElement, const FName& InName, bool bNotify = true);
+	
+private:
+	
 	void OnMetadataChanged(const FRigElementKey& InKey, const FName& InName);
 	void OnMetadataTagChanged(const FRigElementKey& InKey, const FName& InTag, bool bAdded);
 

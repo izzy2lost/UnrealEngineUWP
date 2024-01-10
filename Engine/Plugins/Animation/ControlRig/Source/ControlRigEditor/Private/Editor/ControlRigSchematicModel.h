@@ -77,11 +77,14 @@ public:
 
 	virtual FVector2d GetPositionForNode(const FSchematicGraphNode* InNode) const override;
 	virtual bool GetPositionAnimationEnabledForNode(const FSchematicGraphNode* InNode) const override;
-	virtual const FSlateBrush* GetBrushForNode(const FSchematicGraphNode* InNode) const override;
-	virtual FLinearColor GetColorForNode(const FSchematicGraphNode* InNode) const override;
-	virtual const FText GetToolTipForNode(const FSchematicGraphNode* InNode) const override;
-	virtual ESchematicGraphVisibility GetVisibilityForNode(const FSchematicGraphNode* InNode) const override;
-	virtual ESchematicGraphNodePlacementConstraint GetPlacementForNode(const FSchematicGraphNode* InNode) const override;
+	virtual int32 GetNumLayersForNode(const FSchematicGraphNode* InNode) const override;
+	virtual const FSlateBrush* GetBrushForNode(const FSchematicGraphNode* InNode, int32 InLayerIndex) const override;
+	virtual FLinearColor GetColorForNode(const FSchematicGraphNode* InNode, int32 InLayerIndex) const override;
+	virtual FText GetToolTipForNode(const FSchematicGraphNode* InNode) const override;
+	virtual ESchematicGraphVisibility::Type GetVisibilityForNode(const FSchematicGraphNode* InNode) const override;
+	virtual ESchematicGraphPlacementConstraint::Type GetPlacementForNode(const FSchematicGraphNode* InNode) const override;
+	virtual const FSlateBrush* GetBrushForLink(const FSchematicGraphLink* InLink) const override;
+	virtual FLinearColor GetColorForLink(const FSchematicGraphLink* InLink) const override;
 
 	virtual bool GetForwardedNodeForDrag(FGuid& InOutGuid) const override;
 
