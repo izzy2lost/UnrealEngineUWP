@@ -1,7 +1,6 @@
 //// Copyright Epic Games, Inc. All Rights Reserved.
 //
 #include "ChaosModularVehicle/ChaosSimModuleManager.h"
-#include "ChaosModularVehicle/ModularVehicleComponent.h"
 #include "ChaosModularVehicle/ModularVehicleBaseComponent.h"
 #include "PBDRigidsSolver.h"
 #include "GameFramework/HUD.h" // for ShowDebugInfo
@@ -49,11 +48,6 @@ FChaosSimModuleManager::FChaosSimModuleManager(FPhysScene* PhysScene)
 
 FChaosSimModuleManager::~FChaosSimModuleManager()
 {
-	while (GCVehicles.Num() > 0)
-	{
-		RemoveVehicle(GCVehicles.Last());
-	}
-
 	while (CUVehicles.Num() > 0)
 	{
 		RemoveVehicle(CUVehicles.Last());
@@ -93,16 +87,6 @@ void FChaosSimModuleManager::OnShowDebugInfo(AHUD* HUD, UCanvas* Canvas, const F
 				Manager->CUVehicles[ShowVehicleIndex]->ShowDebugInfo(HUD, Canvas, DisplayInfo, YL, YPos);
 			}
 		}
-
-		if (!Manager->GCVehicles.IsEmpty())
-		{
-			if (Manager->GCVehicles[ShowVehicleIndex].IsValid())
-			{
-				Manager->GCVehicles[ShowVehicleIndex]->ShowDebugInfo(HUD, Canvas, DisplayInfo, YL, YPos);
-			}
-		}
-
-
 	}
 }
 
@@ -156,23 +140,7 @@ FChaosSimModuleManager* FChaosSimModuleManager::GetManagerFromScene(FPhysScene* 
 	return Manager;
 }
 
-void FChaosSimModuleManager::AddVehicle(TWeakObjectPtr<UModularVehicleComponent> Vehicle)
-{
-	check(Vehicle != NULL);
-	check(Vehicle->PhysicsVehicleOutput());
-	check(AsyncCallback);
-
-	GCVehicles.Add(Vehicle);
-}
-
-void FChaosSimModuleManager::RemoveVehicle(TWeakObjectPtr<UModularVehicleComponent> Vehicle)
-{
-	check(Vehicle != NULL);
-
-	GCVehicles.Remove(Vehicle);
-}
-
-void FChaosSimModuleManager::AddVehicle(TWeakObjectPtr < UModularVehicleBaseComponent> Vehicle)
+void FChaosSimModuleManager::AddVehicle(TWeakObjectPtr<UModularVehicleBaseComponent> Vehicle)
 {
 	check(Vehicle != NULL);
 	check(Vehicle->PhysicsVehicleOutput());
@@ -189,11 +157,6 @@ void FChaosSimModuleManager::RemoveVehicle(TWeakObjectPtr<UModularVehicleBaseCom
 
 void FChaosSimModuleManager::ScenePreTick(FPhysScene* PhysScene, float DeltaTime)
 {
-	for (int32 i = 0; i < GCVehicles.Num(); ++i)
-	{
-		GCVehicles[i]->PreTickGT(DeltaTime);
-	}
-
 	for (int32 i = 0; i < CUVehicles.Num(); ++i)
 	{
 		CUVehicles[i]->PreTickGT(DeltaTime);
@@ -213,13 +176,6 @@ void FChaosSimModuleManager::Update(FPhysScene* PhysScene, float DeltaTime)
 	if (World)
 	{
 		FChaosSimModuleManagerAsyncInput* AsyncInput = AsyncCallback->GetProducerInputData_External();
-
-		for (TWeakObjectPtr<UModularVehicleComponent> Vehicle : GCVehicles)
-		{
-			Vehicle->Update(DeltaTime);
-			Vehicle->FinalizeSimCallbackData(*AsyncInput);
-		}
-
 
 		for (TWeakObjectPtr<UModularVehicleBaseComponent> Vehicle : CUVehicles)
 		{
@@ -297,25 +253,6 @@ void FChaosSimModuleManager::ParallelUpdateVehicles(float DeltaSeconds)
 
 	if (UWorld* World = Scene.GetOwningWorld())
 	{
-		{
-		int32 NumVehiclesInActiveBatch = 0;
-		for (TWeakObjectPtr<UModularVehicleComponent> Vehicle : GCVehicles)
-		{
-			auto NextOutput = PendingOutputs.Num() > 0 ? PendingOutputs[0].Get() : nullptr;
-			float Alpha = 0.f;
-			if (NextOutput && LatestOutput)
-			{
-				const float Denom = NextOutput->InternalTime - LatestOutput->InternalTime;
-				if (Denom > SMALL_NUMBER)
-				{
-					Alpha = (ResultsTime - LatestOutput->InternalTime) / Denom;
-				}
-			}
-
-			AsyncInput->VehicleInputs.Add(Vehicle->SetCurrentAsyncData(AsyncInput->VehicleInputs.Num(), LatestOutput.Get(), NextOutput, Alpha, Timestamp));
-		}
-
-		}
 		int32 NumVehiclesInActiveBatch = 0;
 
 		for (TWeakObjectPtr<UModularVehicleBaseComponent> Vehicle : CUVehicles)
@@ -339,19 +276,6 @@ void FChaosSimModuleManager::ParallelUpdateVehicles(float DeltaSeconds)
 	++Timestamp;
 
 	bool ForceSingleThread = !GSimModuleDebugParams.EnableMultithreading;
-
-
-	{
-		const auto& AwakeVehiclesBatch = GCVehicles;
-		auto LambdaParallelUpdate = [DeltaSeconds, &AwakeVehiclesBatch](int32 Idx)
-		{
-			TWeakObjectPtr<UModularVehicleComponent> Vehicle = AwakeVehiclesBatch[Idx];
-			Vehicle->ParallelUpdate(DeltaSeconds); // gets output state from PT
-		};
-
-		ParallelFor(AwakeVehiclesBatch.Num(), LambdaParallelUpdate, ForceSingleThread);
-	}
-
 
 	{
 		const auto& AwakeVehiclesBatch = CUVehicles;

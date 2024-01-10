@@ -35,13 +35,11 @@ public:
 	/**
 	 * Register a Physics vehicle for processing
 	 */
-	void AddVehicle(TWeakObjectPtr<UModularVehicleComponent> Vehicle);
 	void AddVehicle(TWeakObjectPtr<UModularVehicleBaseComponent> Vehicle);
 
 	/**
 	 * Unregister a Physics vehicle from processing
 	 */
-	void RemoveVehicle(TWeakObjectPtr<UModularVehicleComponent> Vehicle);
 	void RemoveVehicle(TWeakObjectPtr<UModularVehicleBaseComponent> Vehicle);
 
 	/**

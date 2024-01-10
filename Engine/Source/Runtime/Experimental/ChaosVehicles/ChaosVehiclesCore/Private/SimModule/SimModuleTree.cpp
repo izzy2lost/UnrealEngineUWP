@@ -235,26 +235,6 @@ void FSimModuleTree::Simulate(float DeltaTime, FAllInputs& Inputs, FClusterUnion
 
 }
 
-
-void FSimModuleTree::Simulate(float DeltaTime, FAllInputs& Inputs, FGeometryCollectionPhysicsProxy* PhysicsProxy)
-{
-	SCOPE_CYCLE_COUNTER(STAT_ModularVehicle_SimulateTree);
-
-	if (PhysicsProxy)
-	{
-		UpdateModuleVelocites(PhysicsProxy);
-	}
-
-	TArray<int> RootNodes;
-	GetRootNodes(RootNodes);
-
-	for (int RootIndex : RootNodes)
-	{
-		SimulateNode(DeltaTime, Inputs, RootIndex, nullptr);
-	}
-
-}
-
 void FSimModuleTree::SimulateNode(float DeltaTime, FAllInputs& Inputs, int NodeIndex, FClusterUnionPhysicsProxy* PhysicsProxy)
 {
 	if (ISimulationModuleBase* Module = AccessSimModule(NodeIndex))
@@ -275,7 +255,6 @@ void FSimModuleTree::SimulateNode(float DeltaTime, FAllInputs& Inputs, int NodeI
 		}
 	}
 }
-
 
 void FSimModuleTree::DeleteNodesBelow(int AtIndex)
 {

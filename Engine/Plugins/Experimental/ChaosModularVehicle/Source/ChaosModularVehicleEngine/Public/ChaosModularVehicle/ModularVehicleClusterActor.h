@@ -9,7 +9,7 @@
 
 #include "ModularVehicleClusterActor.generated.h"
 
-class UClusterUnionComponent;
+class UClusterUnionVehicleComponent;
 class UModularVehicleBaseComponent;
 
 UCLASS()
@@ -18,10 +18,15 @@ class CHAOSMODULARVEHICLEENGINE_API AModularVehicleClusterActor: public AActor
 	GENERATED_UCLASS_BODY()
 
 public:
+	UFUNCTION()
+	UClusterUnionVehicleComponent* GetClusterUnionComponent() const { return ClusterUnionVehicleComponent; }
+
+	UFUNCTION()
+	UModularVehicleBaseComponent* GetVehicleSimulationComponent() const { return VehicleSimComponent; }
 
 	/* VehicleSpecificClusterComponent */
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = Vehicle, meta = (ExposeFunctionCategories = "Components|ModularVehicle", AllowPrivateAccess = "true"))
-	TObjectPtr<UClusterUnionComponent> ClusterUnionComponent;
+	TObjectPtr<UClusterUnionVehicleComponent> ClusterUnionVehicleComponent;
 
 	/* ModularVehicleComponent */
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = Vehicle, meta = (ExposeFunctionCategories = "Components|ModularVehicle", AllowPrivateAccess = "true"))

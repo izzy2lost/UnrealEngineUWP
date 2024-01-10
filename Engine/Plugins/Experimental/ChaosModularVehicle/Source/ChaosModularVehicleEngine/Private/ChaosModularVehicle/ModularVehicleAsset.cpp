@@ -5,7 +5,6 @@
 =============================================================================*/
 #include "ChaosModularVehicle/ModularVehicleAsset.h"
 #include "ChaosModularVehicle/ModularSimCollection.h"
-#include "ChaosModularVehicle/ModularVehicleComponent.h"
 #include "UObject/Package.h"
 
 DEFINE_LOG_CATEGORY_STATIC(LogModularVehicleAssetInternal, Log, All);

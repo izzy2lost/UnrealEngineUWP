@@ -2,7 +2,6 @@
 
 #include "ChaosModularVehicle/ChaosSimModuleManagerAsyncCallback.h"
 
-#include "ChaosModularVehicle/ModularVehicleComponent.h"
 #include "ChaosModularVehicle/ModularVehicleBaseComponent.h"
 #include "ChaosModularVehicle/ModularVehicleSimulationCU.h"
 #include "PBDRigidsSolver.h"

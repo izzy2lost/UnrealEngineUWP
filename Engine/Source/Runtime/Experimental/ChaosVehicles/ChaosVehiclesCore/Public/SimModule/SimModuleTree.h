@@ -138,7 +138,6 @@ namespace Chaos
 
 		void AppendTreeUpdates(const FSimTreeUpdates& TreeUpdates);
 
-		void Simulate(float DeltaTime, FAllInputs& Inputs, FGeometryCollectionPhysicsProxy* PhysicsProxy);
 		void Simulate(float DeltaTime, FAllInputs& Inputs, FClusterUnionPhysicsProxy* PhysicsProxy);
 
 		FDeferredForcesModular& AccessDeferredForces() { return DeferredForces; }
