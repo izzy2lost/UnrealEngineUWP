@@ -98,6 +98,15 @@ static TAutoConsoleVariable<int32> CVarEditorViewportTest(
 	TEXT("1..7: Various Configuations"),
 	ECVF_RenderThreadSafe);
 
+static TAutoConsoleVariable<float> CVarOrthoEditorDebugClipPlaneScale(
+	TEXT("r.Ortho.EditorDebugClipPlaneScale"),
+	1.0f,
+	TEXT("Only affects the editor ortho viewports in Lit modes.\n")
+	TEXT("Set the scale to proportionally alter the near plane based on current Ortho width that is set.\n")
+	TEXT("This changes when geometry clips in the scene as the Orthozoom is changed. Helpful for varying mesh sizes.\n")
+	TEXT("Other light artefacts may appear when this value changes, this is unavoidable for now.\n"),
+	ECVF_RenderThreadSafe);
+
 static bool GetDefaultLowDPIPreviewValue()
 {
 	static auto CVarEditorViewportHighDPIPtr = IConsoleManager::Get().FindConsoleVariable(TEXT("r.Editor.Viewport.HighDPI"));
@@ -1121,8 +1130,8 @@ FSceneView* FEditorViewportClient::CalcSceneView(FSceneViewFamily* ViewFamily, c
 		else
 		{
 			static_assert((bool)ERHIZBuffer::IsInverted, "Check all the Rotation Matrix transformations!");
-			FMatrix::FReal ZScale = 0.5f / UE_OLD_HALF_WORLD_MAX;	// LWC_TODO: WORLD_MAX misuse?
-			FMatrix::FReal ZOffset = UE_OLD_HALF_WORLD_MAX;
+			FMatrix::FReal ZScale = 0.5f / UE_OLD_WORLD_MAX;
+			FMatrix::FReal ZOffset = UE_OLD_WORLD_MAX;
 
 			//The divisor for the matrix needs to match the translation code.
 			const float Zoom = GetOrthoUnitsPerPixel(Viewport);
@@ -1198,6 +1207,19 @@ FSceneView* FEditorViewportClient::CalcSceneView(FSceneViewFamily* ViewFamily, c
 				ZScale,
 				ZOffset
 				);
+
+			if(!ViewFamily->EngineShowFlags.Wireframe)
+			{
+				/**
+				* Update the ortho near plane and view origin to a position that is proportional to the OrthoWidth
+				* and a User specified multiplier which allows adjusting of the NearPlane location. 
+				* This ensures lighting works more appropriately on meshes in Lit mode, but introduces more abrupt NearPlane clipping.
+				*
+				* Not needed for Wireframe view; NearPlane clipping is unnecessary outside of Lit modes.
+				*/
+				float OrthoNearPlane = OrthoWidth * -CVarOrthoEditorDebugClipPlaneScale.GetValueOnAnyThread();
+				ViewInitOptions.UpdateOrthoNearPlane(OrthoNearPlane, true);
+			}
 		}
 
 		if (bConstrainAspectRatio)

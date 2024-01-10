@@ -262,7 +262,7 @@ void FGridWidget::DrawNewGrid(const FSceneView* View, FPrimitiveDrawInterface* P
 
 	FMatrix ObjectToWorld = FMatrix::Identity;
 
-	FVector CameraPos = View->ViewMatrices.GetViewOrigin();
+	FVector CameraPos = View->ViewMatrices.GetLODViewOrigin();
 
 	FVector UVCameraPos = FVector(CameraPos.X, CameraPos.Y, 0);
 

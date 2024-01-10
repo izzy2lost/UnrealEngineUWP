@@ -605,7 +605,6 @@ bool FSceneViewProjectionData::UpdateOrthoNearPlane(FSceneViewProjectionData* In
 
 	//OrthoNearClipPlane is negative at this point + we are moving the theoretical camera position backwards.
 	InOutProjectionData->ViewOrigin += ViewForward * NearPlane;
-	NearPlane = GDefaultUpdateOrthoNearPlane;
 
 	//If required, recalculate the new projection matrix from the old one using the new NearClip value
 	if (bUpdateOrthoProjectionMatrix)
@@ -615,6 +614,7 @@ bool FSceneViewProjectionData::UpdateOrthoNearPlane(FSceneViewProjectionData* In
 		const float OrthoHeight = InvProjectionMatrix.M[1][1];
 
 		const float FarPlane = NearPlane - (InvProjectionMatrix.M[2][2]);
+		NearPlane = GDefaultUpdateOrthoNearPlane;
 		const float ZScale = 1.0f / (FarPlane - NearPlane);
 
 		InOutProjectionData->ProjectionMatrix = FReversedZOrthoMatrix(
@@ -623,6 +623,10 @@ bool FSceneViewProjectionData::UpdateOrthoNearPlane(FSceneViewProjectionData* In
 			ZScale,
 			-NearPlane
 		);
+	}
+	else
+	{
+		NearPlane = GDefaultUpdateOrthoNearPlane;
 	}
 
 	return true;

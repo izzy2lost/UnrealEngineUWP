@@ -1935,7 +1935,7 @@ bool FProjectedShadowInfo::AddSubjectPrimitive(FDynamicShadowsTaskData& TaskData
 				if( CurrentView.IsPerspectiveProjection() )
 				{
 					// Compute the distance between the view and the primitive.
-					float DistanceSquared = (Proxy->GetBounds().Origin - CurrentView.ShadowViewMatrices.GetViewOrigin()).SizeSquared();
+					float DistanceSquared = (Proxy->GetBounds().Origin - CurrentView.ShadowViewMatrices.GetLODViewOrigin()).SizeSquared();
 
 					bool bIsDistanceCulled = CurrentView.IsDistanceCulled(
 						DistanceSquared,
@@ -1994,7 +1994,7 @@ bool FProjectedShadowInfo::AddSubjectPrimitive(FDynamicShadowsTaskData& TaskData
 					// Note: skip small-mesh culling for VSM since it needs it drawn for GPU-side caching.
 					if (bWholeSceneShadow && CacheMode != SDCM_StaticPrimitivesOnly && MeshPassTargetType != EMeshPass::VSMShadowDepth)
 					{
-						const float DistanceSquared = ( Bounds.Origin - CurrentView.ShadowViewMatrices.GetViewOrigin() ).SizeSquared();
+						const float DistanceSquared = ( Bounds.Origin - CurrentView.ShadowViewMatrices.GetLODViewOrigin() ).SizeSquared();
 						const float LODScaleSquared = FMath::Square(CurrentView.LODDistanceFactor);
 						const bool bDrawShadowDepth = FMath::Square(Bounds.SphereRadius) > FMath::Square(GMinScreenRadiusForShadowCaster) * DistanceSquared * LODScaleSquared;
 						if( !bDrawShadowDepth )
@@ -2144,7 +2144,7 @@ uint64 FProjectedShadowInfo::AddSubjectPrimitive_AnyThread(
 			{
 				bool bFadingIn;
 				// Compute the distance between the view and the primitive.
-				const float DistanceSquared = (PrimitiveSceneInfoCompact.Bounds.Origin - CurrentView->ShadowViewMatrices.GetViewOrigin()).SizeSquared();
+				const float DistanceSquared = (PrimitiveSceneInfoCompact.Bounds.Origin - CurrentView->ShadowViewMatrices.GetLODViewOrigin()).SizeSquared();
 
 				if (CurrentView->IsDistanceCulled_AnyThread(
 					DistanceSquared,
@@ -2208,7 +2208,7 @@ uint64 FProjectedShadowInfo::AddSubjectPrimitive_AnyThread(
 				if (bWholeSceneShadow)
 				{
 					const FCompactBoxSphereBounds& Bounds = PrimitiveSceneInfoCompact.Bounds;
-					const float DistanceSquared = (Bounds.Origin - CurrentView->ShadowViewMatrices.GetViewOrigin()).SizeSquared();
+					const float DistanceSquared = (Bounds.Origin - CurrentView->ShadowViewMatrices.GetLODViewOrigin()).SizeSquared();
 					const float LODScaleSquared = FMath::Square(CurrentView->LODDistanceFactor);
 					const bool bDrawShadowDepth = FMath::Square(Bounds.SphereRadius) > FMath::Square(GMinScreenRadiusForShadowCaster) * DistanceSquared * LODScaleSquared;
 					if (!bDrawShadowDepth)
@@ -3461,7 +3461,7 @@ void FSceneRenderer::CreatePerObjectProjectedShadow(
 				const float DistanceFromShadowCenterSquared = (WholeSceneShadow->ShadowBounds.Center - Bounds.Origin).SizeSquared();
 				//@todo - if view dependent whole scene shadows are ever supported in splitscreen, 
 				// We can only disable the preshadow at this point if it is inside a whole scene shadow for all views
-				const float DistanceFromViewSquared = ((FVector)WholeSceneShadow->DependentView->ShadowViewMatrices.GetViewOrigin() - Bounds.Origin).SizeSquared();
+				const float DistanceFromViewSquared = ((FVector)WholeSceneShadow->DependentView->ShadowViewMatrices.GetLODViewOrigin() - Bounds.Origin).SizeSquared();
 				// Mark the preshadow as inside the whole scene shadow if its bounding sphere is inside the near fade distance
 				if (DistanceFromShadowCenterSquared < FMath::Square(FMath::Max(WholeSceneShadow->ShadowBounds.W - Bounds.SphereRadius, 0.0f))
 					//@todo - why is this extra threshold required?
@@ -4834,7 +4834,7 @@ struct FGatherShadowPrimitivesPacket
 				check(ProjectedShadowInfo->DependentView);
 
 				{
-					const float DistanceSquared = (PrimitiveBounds.Origin - ProjectedShadowInfo->DependentView->ShadowViewMatrices.GetViewOrigin()).SizeSquared();
+					const float DistanceSquared = (PrimitiveBounds.Origin - ProjectedShadowInfo->DependentView->ShadowViewMatrices.GetLODViewOrigin()).SizeSquared();
 					const float LODScaleSquared = FMath::Square(ProjectedShadowInfo->DependentView->LODDistanceFactor);
 					bScreenSpaceSizeCulled = FMath::Square(PrimitiveBounds.SphereRadius) < FMath::Square(MinScreenRadiusForShadowCaster) * DistanceSquared * LODScaleSquared;
 				}
