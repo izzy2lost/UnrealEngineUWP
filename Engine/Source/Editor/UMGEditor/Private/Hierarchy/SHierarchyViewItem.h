@@ -13,8 +13,6 @@
 #include "WidgetReference.h"
 #include "WidgetBlueprintEditor.h"
 
-class FWidgetBlueprintEditor;
-
 class FHierarchyModel : public TSharedFromThis < FHierarchyModel >
 {
 public:

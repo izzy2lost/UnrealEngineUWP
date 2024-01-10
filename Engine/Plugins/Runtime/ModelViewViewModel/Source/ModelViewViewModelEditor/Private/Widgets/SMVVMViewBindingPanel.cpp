@@ -11,8 +11,8 @@
 #include "MVVMWidgetBlueprintExtension_View.h"
 #include "WidgetBlueprintEditor.h"
 #include "WidgetBlueprintToolMenuContext.h"
-#include "WidgetReference.h"
 
+#include "Hierarchy/HierarchyWidgetDragDropOp.h"
 #include "IStructureDetailsView.h"
 #include "PropertyEditorModule.h"
 #include "StatusBarSubsystem.h"
@@ -225,7 +225,7 @@ void SBindingsPanel::Tick(const FGeometry& AllottedGeometry, const double InCurr
 	Super::Tick(AllottedGeometry, InCurrentTime, InDeltaTime);
 }
 
-void SBindingsPanel::AddDefaultBinding()
+void SBindingsPanel::AddBindingToWidgetList(const TSet<FWidgetReference>& WidgetsToAddBinding)
 {
 	if (!CanAddBinding())
 	{
@@ -241,7 +241,7 @@ void SBindingsPanel::AddDefaultBinding()
 
 			if (AddBindingMode == EAddBindingMode::Selected)
 			{
-				for (const FWidgetReference& WidgetReference : BlueprintEditor->GetSelectedWidgets())
+				for (const FWidgetReference& WidgetReference : WidgetsToAddBinding)
 				{
 					if (WidgetReference.IsValid() && WidgetReference.GetTemplate())
 					{
@@ -274,6 +274,14 @@ void SBindingsPanel::AddDefaultBinding()
 				BindingsList->RequestNavigateToBinding(AddedBindingId);
 			}
 		}
+	}
+}
+
+void SBindingsPanel::AddDefaultBinding()
+{
+	if (TSharedPtr<FWidgetBlueprintEditor> BlueprintEditor = WeakBlueprintEditor.Pin())
+	{
+		AddBindingToWidgetList(BlueprintEditor->GetSelectedWidgets());
 	}
 }
 
@@ -480,6 +488,65 @@ void SBindingsPanel::RegisterSettingsMenu()
 		}));
 }
 
+FReply SBindingsPanel::OnDragOver(const FGeometry& MyGeometry, const FDragDropEvent& DragDropEvent)
+{
+	if (TSharedPtr<FDragDropOperation> DragDropOp = DragDropEvent.GetOperation())
+	{
+		if (TSharedPtr<FHierarchyWidgetDragDropOp> HierarchyDragDropOp = DragDropEvent.GetOperationAs<FHierarchyWidgetDragDropOp>())
+		{
+			if (HierarchyDragDropOp->HasOriginatedFrom(WeakBlueprintEditor.Pin()))
+			{
+				if (CanAddBinding())
+				{
+					HierarchyDragDropOp->CurrentIconBrush = FAppStyle::GetBrush(TEXT("Graph.ConnectorFeedback.OK"));
+					return FReply::Handled();
+				}
+			}
+			HierarchyDragDropOp->CurrentIconBrush = FAppStyle::GetBrush(TEXT("Graph.ConnectorFeedback.Error"));
+		}
+		else
+		{
+			TSharedPtr<FDecoratedDragDropOp> DecoratedDragDropOp = nullptr;
+			if (DragDropOp->IsOfType<FDecoratedDragDropOp>())
+			{
+				DecoratedDragDropOp = StaticCastSharedPtr<FDecoratedDragDropOp>(DragDropOp);
+				DecoratedDragDropOp->ResetToDefaultToolTip();
+				DecoratedDragDropOp->CurrentIconBrush = FAppStyle::GetBrush(TEXT("Graph.ConnectorFeedback.Error"));
+			}
+		}
+	}
+	return FReply::Unhandled();
+}
+
+void SBindingsPanel::OnDragLeave(const FDragDropEvent& DragDropEvent)
+{
+	if (TSharedPtr<FDecoratedDragDropOp> DecoratedDragDropOp = DragDropEvent.GetOperationAs<FDecoratedDragDropOp>())
+	{
+		DecoratedDragDropOp->ResetToDefaultToolTip();
+	}
+}
+
+FReply SBindingsPanel::OnDrop(const FGeometry& MyGeometry, const FDragDropEvent& DragDropEvent)
+{
+	if (TSharedPtr<FHierarchyWidgetDragDropOp> HierarchyDragDropOp = DragDropEvent.GetOperationAs<FHierarchyWidgetDragDropOp>())
+	{
+		if (HierarchyDragDropOp->HasOriginatedFrom(WeakBlueprintEditor.Pin()))
+		{
+			if (CanAddBinding())
+			{
+				TSet<FWidgetReference> DraggedWidgetSet;
+				for (const FWidgetReference& WidgetRef : HierarchyDragDropOp->GetWidgetReferences())
+				{
+					DraggedWidgetSet.Add(WidgetRef);
+				}
+
+				AddBindingToWidgetList(DraggedWidgetSet);
+				return FReply::Handled();
+			}
+		}
+	}
+	return FReply::Unhandled();
+}
 
 TSharedRef<SWidget> SBindingsPanel::GenerateEditViewWidget()
 {
