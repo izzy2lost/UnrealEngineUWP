@@ -30,40 +30,39 @@ void UDataflowEditor::Initialize(const TArray<TObjectPtr<UObject>>& InObjects)
 	check(Content);
 
 	TArray<TObjectPtr<UObject>> ObjectsToEdit;
-	Content->bHasValidSkeletalMesh = false;
 	if (ensure(InObjects.Num() == 1))
 	{
 		TObjectPtr<UObject> RootObject = InObjects[0];
-		Content->DataflowAsset = Cast<UDataflow>(RootObject);
-		if(!Content->DataflowAsset)
+		Content->SetDataflowAsset(Cast<UDataflow>(RootObject));
+		if(!Content->GetDataflowAsset())
 		{
-			Content->DataflowAsset = Private::GetDataflowAssetFrom(RootObject);
-			Content->DataflowTerminal = Private::GetDataflowTerminalFrom(RootObject);
-			Content->SkeletalMesh = Private::GetSkeletalMeshFrom(RootObject);
-			Content->AnimationAsset = Private::GetAnimationAssetFrom(RootObject);
+			Content->SetDataflowAsset(Private::GetDataflowAssetFrom(RootObject));
+			Content->SetDataflowTerminal(Private::GetDataflowTerminalFrom(RootObject));
+			Content->SetSkeletalMesh(Private::GetSkeletalMeshFrom(RootObject));
+			Content->SetSkeleton(Private::GetSkeletonFrom(RootObject));
+			Content->SetAnimationAsset(Private::GetAnimationAssetFrom(RootObject));
 		}
-		if(Content->DataflowAsset)
+		if(Content->GetDataflowAsset())
 		{
-			Content->DataflowOwner = RootObject;
-			Content->DataflowAsset->Schema = UDataflowSchema::StaticClass();
-			Content->DataflowContext = MakeShared<Dataflow::FEngineContext>(RootObject, Content->DataflowAsset, FPlatformTime::Cycles64());
-			Content->LastModifiedTimestamp = Content->DataflowContext->GetTimestamp();
+			Content->SetDataflowOwner(RootObject);
+			Content->GetDataflowAsset()->Schema = UDataflowSchema::StaticClass();
+			Content->SetDataflowContext(MakeShared<Dataflow::FEngineContext>(RootObject, Content->GetDataflowAsset(), FPlatformTime::Cycles64()));
+			Content->SetLastModifiedTimestamp(Content->GetDataflowContext()->GetTimestamp());
 
-			ObjectsToEdit.Add(Content->DataflowOwner);
+			ObjectsToEdit.Add(Content->GetDataflowOwner());
 
-			if(!Content->SkeletalMesh)
+			if(!Content->GetSkeletalMesh())
 			{
-				const FName SkeletonName = MakeUniqueObjectName(Content->DataflowAsset, UDataflow::StaticClass(), FName("USkeleton"));
-				const FName SkeletalMeshName = MakeUniqueObjectName(Content->DataflowAsset, UDataflow::StaticClass(), FName("USkeletalMesh"));
+				const FName SkeletonName = MakeUniqueObjectName(Content->GetDataflowAsset(), UDataflow::StaticClass(), FName("USkeleton"));
+				const FName SkeletalMeshName = MakeUniqueObjectName(Content->GetDataflowAsset(), UDataflow::StaticClass(), FName("USkeletalMesh"));
 
-				Content->Skeleton = NewObject<USkeleton>(Content->DataflowAsset, SkeletonName);
-				Content->SkeletalMesh = NewObject<USkeletalMesh>(Content->DataflowAsset, SkeletalMeshName);
-				Content->SkeletalMesh->SetSkeleton(Content->Skeleton);
+				Content->SetSkeleton(NewObject<USkeleton>(Content->GetDataflowAsset(), SkeletonName));
+				Content->SetSkeletalMesh(NewObject<USkeletalMesh>(Content->GetDataflowAsset(), SkeletalMeshName));
+				Content->GetSkeletalMesh()->SetSkeleton(Content->GetSkeleton());
 			}
-			else
+			else if(!Content->GetSkeleton())
 			{
-				Content->Skeleton = Content->SkeletalMesh->GetSkeleton();
-				Content->bHasValidSkeletalMesh = true;
+				Content->SetSkeleton(Content->GetSkeletalMesh()->GetSkeleton());
 			}
 		}
 	}

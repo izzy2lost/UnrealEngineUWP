@@ -3,17 +3,19 @@
 #include "Dataflow/DataflowEditorCommands.h"
 
 #include "Dataflow/DataflowEdNode.h"
+#include "Dataflow/DataflowEditorContent.h"
+#include "Dataflow/DataflowEditorStyle.h"
+#include "Dataflow/DataflowEditorUtil.h"
+#include "Dataflow/DataflowGraphEditor.h"
 #include "Dataflow/DataflowNodeFactory.h"
 #include "Dataflow/DataflowObject.h"
 #include "Dataflow/DataflowOverrideNode.h"
-#include "Dataflow/DataflowEditorStyle.h"
-#include "EdGraph/EdGraphNode.h"
-#include "IStructureDetailsView.h"
-#include "EdGraphNode_Comment.h"
-#include "Editor.h"
-#include "Dataflow/DataflowGraphEditor.h"
 #include "Dataflow/DataflowSCommentNode.h"
 #include "Dataflow/DataflowSNode.h"
+#include "EdGraphNode_Comment.h"
+#include "EdGraph/EdGraphNode.h"
+#include "Editor.h"
+#include "IStructureDetailsView.h"
 
 #define LOCTEXT_NAMESPACE "DataflowEditorCommands"
 
@@ -270,26 +272,41 @@ void FDataflowEditorCommands::OnNodeTitleCommitted(const FText& InNewText, EText
 	}
 }
 
-void FDataflowEditorCommands::OnAssetPropertyValueChanged(UDataflow* Graph, TSharedPtr<Dataflow::FEngineContext>& Context, Dataflow::FTimestamp& OutLastNodeTimestamp, const FPropertyChangedEvent& InPropertyChangedEvent)
+void FDataflowEditorCommands::OnAssetPropertyValueChanged(TObjectPtr<UDataflowEditorContent> Content, const FPropertyChangedEvent& InPropertyChangedEvent)
 {
-	if (ensureMsgf(Graph != nullptr, TEXT("Warning : Failed to find valid graph.")))
+	if (Content)
 	{
-		if (InPropertyChangedEvent.ChangeType == EPropertyChangeType::ValueSet ||
-			InPropertyChangedEvent.ChangeType == EPropertyChangeType::ArrayRemove ||
-			InPropertyChangedEvent.ChangeType == EPropertyChangeType::ArrayClear)
+		TObjectPtr<UDataflow>& DataflowAsset = Content->GetDataflowAsset();
+		if (DataflowAsset)
 		{
-			if (InPropertyChangedEvent.GetPropertyName() == FName("Overrides_Key") ||
-				InPropertyChangedEvent.GetPropertyName() == FName("Overrides"))
+			if (InPropertyChangedEvent.ChangeType == EPropertyChangeType::ValueSet ||
+				InPropertyChangedEvent.ChangeType == EPropertyChangeType::ArrayRemove ||
+				InPropertyChangedEvent.ChangeType == EPropertyChangeType::ArrayClear)
 			{
-				for (const TSharedPtr<FDataflowNode>& DataflowNode : Graph->Dataflow->GetNodes())
+				if (InPropertyChangedEvent.GetPropertyName() == FName("Overrides_Key") ||
+					InPropertyChangedEvent.GetPropertyName() == FName("Overrides"))
 				{
-					if (DataflowNode->IsA(FDataflowOverrideNode::StaticType()))
+					if (ensureMsgf(DataflowAsset != nullptr, TEXT("Warning : Failed to find valid graph.")))
 					{
-						// TODO: For now we invalidate all the FDataflowOverrideNode nodes
-						// Once the Variable system will be in place only the neccessary nodes
-						// will be invalidated
-						DataflowNode->Invalidate();
+						for (const TSharedPtr<FDataflowNode>& DataflowNode : DataflowAsset->Dataflow->GetNodes())
+						{
+							if (DataflowNode->IsA(FDataflowOverrideNode::StaticType()))
+							{
+								// TODO: For now we invalidate all the FDataflowOverrideNode nodes
+								// Once the Variable system will be in place only the neccessary nodes
+								// will be invalidated
+								DataflowNode->Invalidate();
+							}
+						}
 					}
+				}
+				else if (InPropertyChangedEvent.GetPropertyName() == FName("SkeletalMesh"))
+				{
+					Content->SetSkeletalMesh(Private::GetSkeletalMeshFrom(Content->GetDataflowOwner()));
+				}
+				else if (InPropertyChangedEvent.GetPropertyName() == FName("Skeleton"))
+				{
+					Content->SetSkeleton(Private::GetSkeletonFrom(Content->GetDataflowOwner()));
 				}
 			}
 		}
@@ -303,7 +320,7 @@ void FDataflowEditorCommands::OnPropertyValueChanged(UDataflow* OutDataflow, TSh
 		TSharedPtr<const FDataflowNode> UpdatedNode = nullptr;
 		if (OutDataflow && InPropertyChangedEvent.Property && InPropertyChangedEvent.Property->GetOwnerUObject())
 		{
-//			OutDataflow->MarkPackageDirty();
+			//			OutDataflow->MarkPackageDirty();
 			OutDataflow->Modify();
 
 			for (UObject* SelectedNode : SelectedNodes)

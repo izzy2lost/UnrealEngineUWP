@@ -22,19 +22,40 @@ FDataflowPreviewScene::FDataflowPreviewScene(FPreviewScene::ConstructionValues C
 	: FAdvancedPreviewScene(ConstructionValues), EditorContent(InEditorContent)
 {
 	check(EditorContent);
+	SkeletalMeshActor = GetWorld()->SpawnActor<AActor>(AActor::StaticClass());
+	if (EditorContent->GetSkeletalMesh())
+	{
+		SkeletalMeshComponent = NewObject<USkeletalMeshComponent>(SkeletalMeshActor);
+		SkeletalMeshComponent->SelectionOverrideDelegate = UPrimitiveComponent::FSelectionOverride::CreateRaw(this, &FDataflowPreviewScene::IsComponentSelected);
+		SkeletalMeshComponent->SetDisablePostProcessBlueprint(true);
+		UpdateSkeletalMeshComponent();
+	}
+	SkeletalMeshActor->RegisterAllComponents();
+
 	DynamicMeshActor = GetWorld()->SpawnActor<AActor>(AActor::StaticClass());	
 	DynamicMeshActor->RegisterAllComponents();
+
 	SetFloorVisibility(false, true);
 }
 
 FDataflowPreviewScene::~FDataflowPreviewScene()
 {
+	if (SkeletalMeshComponent)
+	{
+		SkeletalMeshComponent->TransformUpdated.RemoveAll(this);
+		SkeletalMeshComponent->SelectionOverrideDelegate.Unbind();
+		SkeletalMeshComponent->UnregisterComponent();
+		SkeletalMeshComponent->DestroyComponent();
+	}
+
 	ResetDynamicMeshComponents();
 }
 
 void FDataflowPreviewScene::AddReferencedObjects(FReferenceCollector& Collector)
 {
 	FAdvancedPreviewScene::AddReferencedObjects(Collector);
+	Collector.AddReferencedObject(SkeletalMeshComponent);
+	Collector.AddReferencedObject(SkeletalMeshActor);
 	Collector.AddReferencedObject(EditorContent);
 	Collector.AddReferencedObject(DynamicMeshActor);
 	Collector.AddReferencedObjects(DynamicMeshComponents);
@@ -44,6 +65,11 @@ void FDataflowPreviewScene::Update()
 {
 	using namespace UE::Geometry;//FDynamicMesh3
 
+	// Update the SkeletalMeshComponent for animation 
+	// changes.
+	UpdateSkeletalMeshComponent();
+
+
 	// The preview scene for the construction view will be
 	// cleared and rebuilt from scratch. This will genrate a 
 	// list of UPrimitiveComponents for rendering.
@@ -51,8 +77,8 @@ void FDataflowPreviewScene::Update()
 
 	if (EditorContent)
 	{
-		TObjectPtr<UDataflow> DataflowAsset = EditorContent->DataflowAsset;
-		TSharedPtr<Dataflow::FEngineContext> DataflowContext = EditorContent->DataflowContext;
+		TObjectPtr<UDataflow> DataflowAsset = EditorContent->GetDataflowAsset();
+		TSharedPtr<Dataflow::FEngineContext> DataflowContext = EditorContent->GetDataflowContext();
 		if(DataflowAsset && DataflowContext)
 		{
 			for (const UDataflowEdNode* Target : DataflowAsset->GetRenderTargets())
@@ -70,6 +96,8 @@ void FDataflowPreviewScene::Update()
 				}
 			}
 		}
+
+		EditorContent->SetIsDirty(false);
 	}
 }
 
@@ -108,9 +136,58 @@ TObjectPtr<UDynamicMeshComponent>& FDataflowPreviewScene::AddDynamicMeshComponen
 	return DynamicMeshComponents[ElementIndex];
 }
 
+void FDataflowPreviewScene::UpdateSkeletalMeshComponent()
+{
+	if (SkeletalMeshComponent)
+	{
+		if (EditorContent->GetSkeletalMesh())
+		{
+			if (EditorContent->GetSkeletalMesh() != SkeletalMeshComponent->GetSkeletalMeshAsset())
+			{
+				SkeletalMeshComponent->SetSkeletalMeshAsset(EditorContent->GetSkeletalMesh());
+			}
+
+			if (EditorContent->GetAnimationAsset())
+			{
+				PreviewAnimInstance = NewObject<UAnimSingleNodeInstance>(SkeletalMeshComponent);
+				PreviewAnimInstance->SetAnimationAsset(EditorContent->GetAnimationAsset());
+				SkeletalMeshComponent->SetAnimationMode(EAnimationMode::AnimationSingleNode);
+				SkeletalMeshComponent->InitAnim(true);
+				SkeletalMeshComponent->AnimationData.PopulateFrom(PreviewAnimInstance);
+				SkeletalMeshComponent->AnimScriptInstance = PreviewAnimInstance;
+				SkeletalMeshComponent->AnimScriptInstance->InitializeAnimation();
+				SkeletalMeshComponent->ValidateAnimation();
+			}
+			else
+			{
+				SkeletalMeshComponent->Stop();
+				SkeletalMeshComponent->AnimationData = FSingleAnimationPlayData();
+				SkeletalMeshComponent->AnimScriptInstance = nullptr;
+			}
+		}
+		else
+		{
+			SkeletalMeshComponent->SetSkeletalMeshAsset(nullptr);
+			SkeletalMeshComponent->Stop();
+			SkeletalMeshComponent->AnimationData = FSingleAnimationPlayData();
+			SkeletalMeshComponent->AnimScriptInstance = nullptr;
+		}
+
+		SkeletalMeshComponent->UpdateBounds();
+	}
+}
+
 FBox FDataflowPreviewScene::GetBoundingBox() const
 {
-	FBox SceneBounds(ForceInitToZero);
+	FBox SceneBounds(EForceInit::ForceInit);
+
+	if (SkeletalMeshComponent)
+	{
+		FTransform ComponentTransform = SkeletalMeshComponent->GetComponentTransform();
+		FBox LocalBox = SkeletalMeshComponent->GetLocalBounds().GetBox();
+		SceneBounds += LocalBox.TransformBy(ComponentTransform);
+	}
+
 	for (const TObjectPtr<UDynamicMeshComponent>& MeshComponent : DynamicMeshComponents)
 	{
 		if (MeshComponent)
@@ -118,6 +195,7 @@ FBox FDataflowPreviewScene::GetBoundingBox() const
 			SceneBounds += MeshComponent->Bounds.GetBox();
 		}
 	}
+
 	return SceneBounds;
 }
 

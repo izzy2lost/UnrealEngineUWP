@@ -161,7 +161,7 @@ bool UDataflowReadOnlyToolTargetFactory::CanBuildTarget(UObject* SourceObject, c
 	// just add another factory that allows that class specifically(but make sure that
 	// GetMeshDescription and such work properly)
 	UDataflowEditorContent* Content = CastChecked<UDataflowEditorContent>(SourceObject);
-	const UDataflow* Dataflow = Content->DataflowAsset;
+	const UDataflow* Dataflow = Content->GetDataflowAsset();
 
 
 
@@ -176,8 +176,8 @@ UToolTarget* UDataflowReadOnlyToolTargetFactory::BuildTarget(UObject* SourceObje
 	UDataflowEditorContent* Content = CastChecked<UDataflowEditorContent>(SourceObject);
 
 	UDataflowReadOnlyToolTarget* Target = NewObject<UDataflowReadOnlyToolTarget>();
-	Target->Asset = Content->DataflowOwner;
-	Target->Dataflow = Content->DataflowAsset;
+	Target->Asset = Content->GetDataflowOwner();
+	Target->Dataflow = Content->GetDataflowAsset();
 	Target->Context = Dataflow::GetContext(Content);
 
 	// @todo(brice) : I needed to comment this out?
@@ -195,7 +195,7 @@ bool UDataflowToolTargetFactory::CanBuildTarget(UObject* SourceObject, const FTo
 	// just add another factory that allows that class specifically(but make sure that
 	// GetMeshDescription and such work properly)
 	UDataflowEditorContent* Content = CastChecked<UDataflowEditorContent>(SourceObject);
-	const UDataflow* Dataflow = Content->DataflowAsset;
+	const UDataflow* Dataflow = Content->GetDataflowAsset();
 
 	return Dataflow &&
 		ExactCast<UDataflow>(Cast<UDataflow>(Dataflow)) &&
@@ -207,8 +207,8 @@ UToolTarget* UDataflowToolTargetFactory::BuildTarget(UObject* SourceObject, cons
 {
 	UDataflowEditorContent* Content = CastChecked<UDataflowEditorContent>(SourceObject);
 	UDataflowToolTarget* Target = NewObject<UDataflowToolTarget>();
-	Target->Asset = Content->DataflowOwner;
-	Target->Dataflow = Content->DataflowAsset;
+	Target->Asset = Content->GetDataflowOwner();
+	Target->Dataflow = Content->GetDataflowAsset();
 	Target->Context = Dataflow::GetContext(Content);
 	//checkSlow(Target->Component.IsValid() && Requirements.AreSatisfiedBy(Target));
 

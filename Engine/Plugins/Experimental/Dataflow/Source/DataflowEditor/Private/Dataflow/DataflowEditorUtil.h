@@ -13,6 +13,7 @@ class UDataflow;
 class UObject;
 class UDataflowEditorContent;
 class USkeletalMesh;
+class USkeleton;
 class UAnimationAsset;
 class UMaterial;
 
@@ -21,6 +22,8 @@ namespace Private
 	UDataflow* GetDataflowAssetFrom(UObject* InObject);
 
 	USkeletalMesh* GetSkeletalMeshFrom(UObject* InObject);
+
+	USkeleton* GetSkeletonFrom(UObject* InObject);
 
 	UAnimationAsset* GetAnimationAssetFrom(UObject* InObject);
 

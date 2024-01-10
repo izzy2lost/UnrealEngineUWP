@@ -53,16 +53,20 @@ void FDataflowEditorViewportClient::Tick(float DeltaSeconds)
 	{
 		if (TObjectPtr<UDataflowEditorContent> EditorContent = PreviewScene->GetDataflowEditorContent())
 		{
-			if (TSharedPtr<Dataflow::FContext> Context = EditorContent->DataflowContext)
+			if (TSharedPtr<Dataflow::FContext> Context = EditorContent->GetDataflowContext())
 			{
-				if (const UDataflow* Dataflow = EditorContent->DataflowAsset)
+				if (const UDataflow* Dataflow = EditorContent->GetDataflowAsset())
 				{
 					const Dataflow::FTimestamp SystemTimestamp = LatestTimestamp(Dataflow, Context.Get());
-					if (SystemTimestamp >= EditorContent->LastModifiedTimestamp)
+					if (SystemTimestamp >= EditorContent->GetLastModifiedTimestamp())
 					{
-						PreviewScene->Update();
-						EditorContent->LastModifiedTimestamp = LatestTimestamp(EditorContent->DataflowAsset, EditorContent->DataflowContext.Get()).Value + 1;
+						EditorContent->SetLastModifiedTimestamp(LatestTimestamp(EditorContent->GetDataflowAsset(), EditorContent->GetDataflowContext().Get()).Value + 1);
 					}
+				}
+
+				if (EditorContent->IsDirty())
+				{
+					PreviewScene->Update();
 				}
 			}
 		}

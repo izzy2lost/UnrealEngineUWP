@@ -10,6 +10,7 @@
 #include "Dataflow/DataflowObject.h"
 #include "DynamicMesh/MeshNormals.h"
 #include "Engine/SkeletalMesh.h"
+#include "Animation/Skeleton.h"
 #include "Materials/Material.h"
 
 
@@ -36,6 +37,18 @@ namespace Private
 			if (FProperty* Property = Class->FindPropertyByName(FName("SkeletalMesh")))
 			{
 				return *Property->ContainerPtrToValuePtr<USkeletalMesh*>(InObject);
+			}
+		}
+		return nullptr;
+	}
+
+	USkeleton* GetSkeletonFrom(UObject* InObject)
+	{
+		if (UClass* Class = InObject->GetClass())
+		{
+			if (FProperty* Property = Class->FindPropertyByName(FName("Skeleton")))
+			{
+				return *Property->ContainerPtrToValuePtr<USkeleton*>(InObject);
 			}
 		}
 		return nullptr;
@@ -169,11 +182,11 @@ namespace Dataflow
 	{
 		if (Content)
 		{
-			if (!Content->DataflowContext)
+			if (!Content->GetDataflowContext())
 			{
-				Content->DataflowContext = MakeShared<FEngineContext>(Content->DataflowOwner, Content->DataflowAsset, FTimestamp::Invalid);
+				Content->SetDataflowContext(MakeShared<FEngineContext>(Content->GetDataflowOwner(), Content->GetDataflowAsset(), FTimestamp::Invalid));
 			}
-			return Content->DataflowContext;
+			return Content->GetDataflowContext();
 		}
 
 		ensure(false);
