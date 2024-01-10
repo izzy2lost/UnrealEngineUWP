@@ -41,6 +41,8 @@ public:
 	float GetBrushSizeUIMax() const { return BrushSizeUIMax; }
 	float GetBrushSizeClampMax() const { return BrushSizeClampMax; }
 
+	int32 GetHLODMaxTextureSize() const { return HLODMaxTextureSize; }
+
 	/** Returns the default landscape material that should be used when creating a new landscape. */
 	TSoftObjectPtr<UMaterialInterface> GetDefaultLandscapeMaterial() const { return DefaultLandscapeMaterial; }
 
@@ -86,6 +88,9 @@ protected:
 
 	UPROPERTY(EditAnywhere, config, Category = "Configuration", meta = (ToolTip = "Maximum size that can be set manually for the landscape sculpt/paint brushes"))
 	float BrushSizeClampMax = 65536;
+
+	UPROPERTY(EditAnywhere, config, Category = "HLOD", meta = (DisplayName = "HLOD Max Texture Size", ClampMin = "64", ClampMax = "8192", ToolTip = "Maximum size of the textures generated for landscape HLODs"))
+	int32 HLODMaxTextureSize = 1024;
 
 	UPROPERTY(transient)
 	bool bRestrictiveMode = false;

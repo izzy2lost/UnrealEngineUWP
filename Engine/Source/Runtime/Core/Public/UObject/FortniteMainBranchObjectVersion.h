@@ -408,6 +408,9 @@ struct FFortniteMainBranchObjectVersion
 		// Changes to Orthographic Camera default settings
 		OrthographicCameraDefaultSettings,
 
+		// Added settings to Landscape HLODs
+		LandscapeAddedHLODSettings,
+
 		// -----<new versions can be added above this line>-------------------------------------------------
 		VersionPlusOne,
 		LatestVersion = VersionPlusOne - 1

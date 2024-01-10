@@ -1552,6 +1552,10 @@ ALandscapeProxy::ALandscapeProxy(const FObjectInitializer& ObjectInitializer)
 #if WITH_EDITORONLY_DATA
 	MaxPaintedLayersPerComponent = 0;
 	bHasLayersContent = false;
+	HLODTextureSizePolicy = ELandscapeHLODTextureSizePolicy::SpecificSize;
+	HLODTextureSize = 256;
+	HLODMeshSourceLODPolicy = ELandscapeHLODMeshSourceLODPolicy::LowestDetailLOD;
+	HLODMeshSourceLOD = 0;
 #endif
 
 #if WITH_EDITOR
@@ -4399,6 +4403,13 @@ void ALandscapeProxy::PostLoad()
 
 		// Remove RF_Transactional from Nanite components : they're re-created upon transacting now : 
 		ClearNaniteTransactional();
+	}
+
+	// Keep previous behavior of landscape HLODs if created before the settings were added
+	if (GetLinkerCustomVersion(FFortniteMainBranchObjectVersion::GUID) < FFortniteMainBranchObjectVersion::LandscapeAddedHLODSettings)
+	{
+		HLODTextureSizePolicy = ELandscapeHLODTextureSizePolicy::AutomaticSize;
+		HLODMeshSourceLODPolicy = ELandscapeHLODMeshSourceLODPolicy::AutomaticLOD;
 	}
 #endif // WITH_EDITOR
 }

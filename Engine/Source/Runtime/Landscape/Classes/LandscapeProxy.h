@@ -184,6 +184,29 @@ enum class ELandscapeLayerDisplayMode : uint8
 };
 
 UENUM()
+enum class ELandscapeHLODTextureSizePolicy : uint8
+{
+	/** Automatic texture size, based on the expected HLOD draw distance and the landscape size. */
+	AutomaticSize,
+
+	/** User specified texture size. */
+	SpecificSize
+};
+
+UENUM()
+enum class ELandscapeHLODMeshSourceLODPolicy : uint8
+{
+	/** Automatic LOD selection, based on the expected HLOD draw distance and the landscape LOD Distribution settings. */
+	AutomaticLOD,
+
+	/** User specified landscape LOD. */
+	SpecificLOD,
+
+	/** Use the lowest detailed LOD of this landscape. */
+	LowestDetailLOD
+};
+
+UENUM()
 namespace ELandscapeLODFalloff
 {
 	enum Type : int
@@ -810,6 +833,24 @@ public:
 	/** Flag whether or not this Landscape's surface can be used for culling hidden triangles **/
 	UPROPERTY(EditAnywhere, Category = HLOD, meta = (LandscapeOverridable))
 	bool bUseLandscapeForCullingInvisibleHLODVertices;
+
+#if WITH_EDITORONLY_DATA
+	/** Specify how to choose the texture size of the resulting HLOD mesh */
+	UPROPERTY(EditAnywhere, Category = HLOD, meta = (DisplayName = "HLOD Texture Size Policy", LandscapeOverridable))
+	ELandscapeHLODTextureSizePolicy HLODTextureSizePolicy;
+
+	/** Specify the texture size to use for the HLOD mesh if HLODTextureSizePolicy is set to SpecificSize */
+	UPROPERTY(EditAnywhere, Category = HLOD, meta = (DisplayName = "HLOD Texture Size", LandscapeOverridable, EditCondition = "HLODTextureSizePolicy == ELandscapeHLODTextureSizePolicy::SpecificSize", EditConditionHides, ClampMin = "16", ClampMax = "8192"))
+	int32 HLODTextureSize;
+
+	/** Specify how to choose the LOD used as input for the HLOD mesh */
+	UPROPERTY(EditAnywhere, Category = HLOD, meta = (DisplayName = "HLOD Mesh Source LOD Policy", LandscapeOverridable))
+	ELandscapeHLODMeshSourceLODPolicy HLODMeshSourceLODPolicy;
+
+	/** Specify which LOD to use for the HLOD mesh if HLODMeshSourceLODPolicy is set to SpecificLOD */
+	UPROPERTY(EditAnywhere, Category = HLOD, meta = (DisplayName = "HLOD Mesh Source LOD", LandscapeOverridable, EditCondition = "HLODMeshSourceLODPolicy == ELandscapeHLODMeshSourceLODPolicy::SpecificLOD", EditConditionHides, ClampMin = "0"))
+	int32 HLODMeshSourceLOD;
+#endif
 
 	/** Flag that tell if we have some layers content **/
 	UPROPERTY()
