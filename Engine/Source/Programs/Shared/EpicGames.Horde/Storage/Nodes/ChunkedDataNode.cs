@@ -526,7 +526,11 @@ namespace EpicGames.Horde.Storage.Nodes
 				IBlobHandle handle = nodeReader.ReadBlobReference();
 				if (nodeReader.Version >= 2)
 				{
-					_ = nodeReader.ReadUnsignedVarInt();
+					_ = nodeReader.ReadUnsignedVarInt(); // Type
+				}
+				if (nodeReader.Version >= 3)
+				{
+					_ = nodeReader.ReadUnsignedVarInt(); // Length
 				}
 				await ChunkedDataNode.CopyToStreamAsync(handle, outputStream, cancellationToken);
 			}
