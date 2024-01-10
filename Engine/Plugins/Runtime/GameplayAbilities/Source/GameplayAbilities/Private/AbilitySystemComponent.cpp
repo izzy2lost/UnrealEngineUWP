@@ -469,10 +469,13 @@ FGameplayEffectSpecHandle UAbilitySystemComponent::MakeOutgoingSpec(TSubclassOf<
 FGameplayEffectContextHandle UAbilitySystemComponent::MakeEffectContext() const
 {
 	FGameplayEffectContextHandle Context = FGameplayEffectContextHandle(UAbilitySystemGlobals::Get().AllocGameplayEffectContext());
-	// By default use the owner and avatar as the instigator and causer
-	check(AbilityActorInfo.IsValid());
 	
-	Context.AddInstigator(AbilityActorInfo->OwnerActor.Get(), AbilityActorInfo->AvatarActor.Get());
+	// By default use the owner and avatar as the instigator and causer
+	if (ensureMsgf(AbilityActorInfo.IsValid(), TEXT("Unable to make effect context because AbilityActorInfo is not valid.")))
+	{
+		Context.AddInstigator(AbilityActorInfo->OwnerActor.Get(), AbilityActorInfo->AvatarActor.Get());
+	}
+	
 	return Context;
 }
 
