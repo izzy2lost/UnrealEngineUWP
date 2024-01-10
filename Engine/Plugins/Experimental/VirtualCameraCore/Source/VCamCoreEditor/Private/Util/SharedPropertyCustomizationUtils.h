@@ -2,8 +2,10 @@
 
 #pragma once
 
-class IPropertyHandle;
+#include "Templates/SharedPointer.h"
+
 class IDetailPropertyRow;
+class IPropertyHandle;
 class UVCamStateSwitcherWidget;
 struct FSlateFontInfo;
 

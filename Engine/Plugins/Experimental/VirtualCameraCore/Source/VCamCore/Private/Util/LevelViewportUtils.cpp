@@ -4,13 +4,14 @@
 
 #include "EVCamTargetViewportID.h"
 #include "VCamComponent.h"
-#include "GameFramework/PlayerController.h"
 #include "Misc/ScopeExit.h"
 #include "Output/VCamOutputProviderBase.h"
 #include "Util/VCamViewportLocker.h"
 
+#include "Containers/UnrealString.h"
 #include "Engine/Engine.h"
 #include "Engine/GameInstance.h"
+#include "GameFramework/PlayerController.h"
 #if WITH_EDITOR
 #include "LevelEditorViewport.h"
 #include "SLevelViewport.h"

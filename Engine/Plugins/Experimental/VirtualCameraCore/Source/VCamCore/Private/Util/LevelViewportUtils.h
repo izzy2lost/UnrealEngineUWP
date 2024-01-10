@@ -2,9 +2,15 @@
 
 #pragma once
 
+#include "Containers/Array.h"
+#include "HAL/Platform.h"
+#include "Templates/SharedPointer.h"
+
 class AActor;
+class FString;
 class SLevelViewport;
 class UVCamOutputProviderBase;
+
 enum class EVCamTargetViewportID : uint8;
 struct FVCamViewportLocker;
 

@@ -2,6 +2,8 @@
 
 #pragma once
 
+#include "Templates/Function.h"
+
 class UWidgetTree;
 class UUserWidget;
 class UWidget;
