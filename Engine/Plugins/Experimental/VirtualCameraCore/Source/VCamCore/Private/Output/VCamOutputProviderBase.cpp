@@ -2,15 +2,16 @@
 
 #include "Output/VCamOutputProviderBase.h"
 
-#include "Modifier/VCamModifierInterface.h"
-#include "VCamComponent.h"
+#include "Interface/IVCamModifierInterface.h"
+#include "Interface/IVCamOutputProviderCreatedWidget.h"
 #include "UI/VCamWidget.h"
 #include "Util/LevelViewportUtils.h"
 #include "Util/ObjectMessageAggregation.h"
 #include "Util/WidgetSnapshotUtils.h"
 #include "Util/WidgetTreeUtils.h"
-#include "ViewTargetPolicy/FocusFirstPlayerViewTargetPolicy.h"
+#include "VCamComponent.h"
 #include "VCamCoreCustomVersion.h"
+#include "ViewTargetPolicy/FocusFirstPlayerViewTargetPolicy.h"
 #include "ViewTargetPolicy/GameplayViewTargetPolicy.h"
 
 #include "Algo/RemoveIf.h"
@@ -167,15 +168,6 @@ bool UVCamOutputProviderBase::IsOuterComponentEnabled() const
 	return false;
 }
 
-void UVCamOutputProviderBase::SetTargetCamera(const UCineCameraComponent* InTargetCamera)
-{
-	if (InTargetCamera != TargetCamera)
-	{
-		TargetCamera = InTargetCamera;
-		NotifyAboutComponentChange();
-	}
-}
-
 void UVCamOutputProviderBase::SetTargetViewport(EVCamTargetViewportID Value)
 {
 	TargetViewport = Value;
@@ -187,6 +179,11 @@ void UVCamOutputProviderBase::SetUMGClass(const TSubclassOf<UUserWidget> InUMGCl
 	{
 		UMGClass = InUMGClass;
 	}
+}
+
+UVCamComponent* UVCamOutputProviderBase::GetVCamComponent() const
+{
+	return GetTypedOuter<UVCamComponent>();
 }
 
 void UVCamOutputProviderBase::CreateUMG()
@@ -269,6 +266,15 @@ void UVCamOutputProviderBase::ReapplyOverrideResolution()
 	else
 	{
 		RestoreOverrideResolutionForViewport(TargetViewport);
+	}
+}
+
+void UVCamOutputProviderBase::OnSetTargetCamera(const UCineCameraComponent* InTargetCamera)
+{
+	if (InTargetCamera != TargetCamera)
+	{
+		TargetCamera = InTargetCamera;
+		NotifyAboutComponentChange();
 	}
 }
 
@@ -413,7 +419,7 @@ void UVCamOutputProviderBase::NotifyAboutComponentChange()
 				UVCamComponent* VCamComponent = bIsActive ? OwningComponent : nullptr;
 				
 				// Find all VCam Widgets inside the displayed widget and Initialize them with the owning VCam Component
-				UE::VCamCore::ForEachWidgetToConsiderForVCam(*DisplayedWidget, [VCamComponent](UWidget* Widget)
+				UE::VCamCore::ForEachWidgetToConsiderForVCam(*DisplayedWidget, [this, VCamComponent](UWidget* Widget)
 				{
 					if (UVCamWidget* VCamWidget = Cast<UVCamWidget>(Widget))
 					{
@@ -423,6 +429,11 @@ void UVCamOutputProviderBase::NotifyAboutComponentChange()
 					if (Widget->Implements<UVCamModifierInterface>())
 					{
 						IVCamModifierInterface::Execute_OnVCamComponentChanged(Widget, VCamComponent);
+					}
+					
+					if (Widget->Implements<UVCamOutputProviderCreatedWidget>())
+					{
+						IVCamOutputProviderCreatedWidget::Execute_ReceiveOutputProvider(Widget, FVCamReceiveOutputProviderData{ this });
 					}
 				});
 			}

@@ -254,7 +254,7 @@ void UVCamComponent::OnAttachmentChanged()
 	{
 		if (Provider)
 		{
-			Provider->SetTargetCamera(TargetCamera);
+			Provider->OnSetTargetCamera(TargetCamera);
 		}
 	}
 
@@ -438,7 +438,7 @@ void UVCamComponent::OnOutputProvidersEdited(FPropertyChangedChainEvent& Propert
 			// Initialized inside the Update() loop
 			if (ChangedProvider && ShouldUpdateOutputProviders())
 			{
-				ChangedProvider->SetTargetCamera(GetTargetCamera());
+				ChangedProvider->OnSetTargetCamera(GetTargetCamera());
 				ChangedProvider->Initialize();
 			}
 		}

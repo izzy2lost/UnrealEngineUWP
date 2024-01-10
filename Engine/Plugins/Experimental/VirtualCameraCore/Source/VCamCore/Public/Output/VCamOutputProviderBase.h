@@ -15,6 +15,7 @@ class FSceneViewport;
 class SWindow;
 class UGameplayViewTargetPolicy;
 class UUserWidget;
+class UVCamComponent;
 class UVCamWidget;
 class UVPFullScreenUserWidget;
 
@@ -29,6 +30,7 @@ UCLASS(Abstract, BlueprintType, EditInlineNew)
 class VCAMCORE_API UVCamOutputProviderBase : public UObject
 {
 	GENERATED_BODY()
+	friend UVCamComponent;
 public:
 
 	DECLARE_MULTICAST_DELEGATE_OneParam(FActivationDelegate, bool /*bNewIsActive*/);
@@ -91,10 +93,7 @@ public:
 	/** Returns if this output provider has been initialized or not */
 	UFUNCTION(BlueprintPure, Category = "Output")
 	bool IsInitialized() const { return bInitialized; };
-
-	UFUNCTION(BlueprintCallable, Category = "Output")
-	void SetTargetCamera(const UCineCameraComponent* InTargetCamera);
-
+	
 	UFUNCTION(BlueprintPure, Category = "Output")
 	EVCamTargetViewportID GetTargetViewport() const { return TargetViewport; }
 	UFUNCTION(BlueprintCallable, Category = "Output")
@@ -105,6 +104,8 @@ public:
 	UFUNCTION(BlueprintCallable, Category = "Output")
 	void SetUMGClass(const TSubclassOf<UUserWidget> InUMGClass);
 
+	UFUNCTION(BlueprintPure, Category = "Output")
+	UVCamComponent* GetVCamComponent() const;
 	UVPFullScreenUserWidget* GetUMGWidget() { return UMGWidget; };
 
 	/** Utility that gets the owning VCam component and gets another output provider by its index. */
@@ -154,6 +155,9 @@ protected:
 	 */
 	UPROPERTY(EditAnywhere, Instanced, Category = "Output", meta = (DisplayPriority = "99"))
 	TObjectPtr<UGameplayViewTargetPolicy> GameplayViewTargetPolicy;
+
+	/** Called by owning UVCamComponent when the target camera changes. */
+	void OnSetTargetCamera(const UCineCameraComponent* InTargetCamera);
 	
 	/** Removes the override resolution from the given viewport. */
 	void RestoreOverrideResolutionForViewport(EVCamTargetViewportID ViewportToRestore);
