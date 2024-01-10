@@ -96,7 +96,7 @@ EDataValidationResult UEditorValidatorBase::K2_ValidateLoadedAsset_Implementatio
 	return EDataValidationResult::NotValidated;
 }
 
-void UEditorValidatorBase::AssetFails(UObject* InAsset, const FText& InMessage, TArray<FText>& InOutErrors)
+void UEditorValidatorBase::AssetFails(const UObject* InAsset, const FText& InMessage, TArray<FText>& InOutErrors)
 {
 	AssetFails(InAsset, InMessage);
 	if (&InOutErrors != &AllErrors)
@@ -105,7 +105,7 @@ void UEditorValidatorBase::AssetFails(UObject* InAsset, const FText& InMessage, 
 	}
 }
 
-void UEditorValidatorBase::AssetFails(UObject* InAsset, const FText& InMessage)
+void UEditorValidatorBase::AssetFails(const UObject* InAsset, const FText& InMessage)
 {
 	FFormatNamedArguments Arguments;
 	Arguments.Add(TEXT("CustomMessage"), InMessage);
@@ -118,7 +118,7 @@ void UEditorValidatorBase::AssetFails(UObject* InAsset, const FText& InMessage)
 	ValidationResult = EDataValidationResult::Invalid;
 }
 
-void UEditorValidatorBase::AssetWarning(UObject* InAsset, const FText& InMessage)
+void UEditorValidatorBase::AssetWarning(const UObject* InAsset, const FText& InMessage)
 {
 	FFormatNamedArguments Arguments;
 	Arguments.Add(TEXT("CustomMessage"), InMessage);
@@ -128,7 +128,7 @@ void UEditorValidatorBase::AssetWarning(UObject* InAsset, const FText& InMessage
 	AllWarnings.Add(WarningMessage);
 }
 
-void UEditorValidatorBase::AssetPasses(UObject* InAsset)
+void UEditorValidatorBase::AssetPasses(const UObject* InAsset)
 {
 	if (LogContentValidation.GetVerbosity() >= ELogVerbosity::Verbose)
 	{

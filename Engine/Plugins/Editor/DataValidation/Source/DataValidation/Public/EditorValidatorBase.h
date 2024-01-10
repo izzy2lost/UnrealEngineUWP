@@ -73,18 +73,18 @@ public:
 	
 	/** Marks the validation as failed and adds an error message. */
 	UFUNCTION(BlueprintCallable, Category = "Asset Validation")
-	void AssetFails(UObject* InAsset, const FText& InMessage);
+	void AssetFails(const UObject* InAsset, const FText& InMessage);
 
 	UE_DEPRECATED("5.4", "This function has been replaced by the version AssetFails(UObject*, const FText&)")
-	void AssetFails(UObject* InAsset, const FText& InMessage, TArray<FText>& InOutErrors);
+	void AssetFails(const UObject* InAsset, const FText& InMessage, TArray<FText>& InOutErrors);
 
 	/** Marks the validation as successful. Failure to call this will report the validator as not having checked the asset. */
 	UFUNCTION(BlueprintCallable, Category = "Asset Validation")
-	void AssetPasses(UObject* InAsset);
+	void AssetPasses(const UObject* InAsset);
 
 	/** Adds a message to this validation but doesn't mark it as failed. */
 	UFUNCTION(BlueprintCallable, Category = "Asset Validation")
-	void AssetWarning(UObject* InAsset, const FText& InMessage);
+	void AssetWarning(const UObject* InAsset, const FText& InMessage);
 	
 	/** 
 	 * Add a tokenized message to the validation results. If the severity is error, marks the validation as failed.
