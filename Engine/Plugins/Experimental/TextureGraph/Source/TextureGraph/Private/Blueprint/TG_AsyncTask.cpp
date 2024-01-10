@@ -1,6 +1,5 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
-#pragma once
 #include "Blueprint/TG_AsyncTask.h"
 
 #include "MixerEngine.h"

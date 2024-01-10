@@ -1,6 +1,5 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
-#pragma once
 #include "Blueprint/TG_AsyncRenderTask.h"
 #include "Engine/Engine.h"
 #include "Engine/World.h"

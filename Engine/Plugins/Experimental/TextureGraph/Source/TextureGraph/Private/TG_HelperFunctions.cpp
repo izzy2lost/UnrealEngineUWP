@@ -1,6 +1,5 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
-#pragma once
 #include "TG_HelperFunctions.h"
 #include "Job/Scheduler.h"
 #include "TG_Texture.h"

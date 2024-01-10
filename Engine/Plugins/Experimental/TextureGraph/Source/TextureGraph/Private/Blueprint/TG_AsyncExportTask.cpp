@@ -1,6 +1,5 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
-#pragma once
 #include "Blueprint/TG_AsyncExportTask.h"
 #include "Misc/Paths.h"
 #include "Engine/Engine.h"
