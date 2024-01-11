@@ -497,19 +497,23 @@ bool FOnlineSubsystemEOS::Exec(UWorld* InWorld, const TCHAR* Cmd, FOutputDevice&
 	}
 
 	bool bWasHandled = false;
-	if (UserManager != nullptr && FParse::Command(&Cmd, TEXT("FRIENDS")))
+	if (UserManager != nullptr && FParse::Command(&Cmd, TEXT("FRIENDS"))) /* ONLINE (EOS if using EOSPlus) FRIENDS ... */
 	{
 		bWasHandled = UserManager->HandleFriendsExec(InWorld, Cmd, Ar);
 	}
-	else if (StoreInterfacePtr != nullptr && FParse::Command(&Cmd, TEXT("ECOM")))
+	else if (StoreInterfacePtr != nullptr && FParse::Command(&Cmd, TEXT("ECOM"))) /* ONLINE (EOS if using EOSPlus) ECOM ... */
 	{
 		bWasHandled = StoreInterfacePtr->HandleEcomExec(InWorld, Cmd, Ar);
 	}
-	else if (TitleFileInterfacePtr != nullptr && FParse::Command(&Cmd, TEXT("TITLEFILE")))
+	else if (LeaderboardsInterfacePtr != nullptr && FParse::Command(&Cmd, TEXT("LEADERBOARDS"))) /* ONLINE (EOS if using EOSPlus) LEADERBOARDS ... */
+	{
+		bWasHandled = LeaderboardsInterfacePtr->HandleLeaderboardsExec(InWorld, Cmd, Ar);
+	}
+	else if (TitleFileInterfacePtr != nullptr && FParse::Command(&Cmd, TEXT("TITLEFILE"))) /* ONLINE (EOS if using EOSPlus) TITLEFILE ... */
 	{
 		bWasHandled = TitleFileInterfacePtr->HandleTitleFileExec(InWorld, Cmd, Ar);
 	}
-	else if (UserCloudInterfacePtr != nullptr && FParse::Command(&Cmd, TEXT("USERCLOUD")))
+	else if (UserCloudInterfacePtr != nullptr && FParse::Command(&Cmd, TEXT("USERCLOUD"))) /* ONLINE (EOS if using EOSPlus) USERCLOUD ... */
 	{
 		bWasHandled = UserCloudInterfacePtr->HandleUserCloudExec(InWorld, Cmd, Ar);
 	}
