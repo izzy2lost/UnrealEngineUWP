@@ -264,15 +264,9 @@ public:
 
 	void PurgePendingReleaseSkeletalMesh();
 
-	void AddPendingReleaseMaterials(TArray<TObjectPtr<UMaterialInterface>>& InMaterials);
-	void TickPendingReleaseMaterials();
-
 private:
 	UPROPERTY()
 	TArray<FPendingReleaseSkeletalMeshInfo> PendingReleaseSkeletalMesh;
-
-	UPROPERTY(Transient)
-	TArray<FPendingReleaseMaterialsInfo> PendingReleaseMaterials;
 
 public:
 	/** [Texture Parameters] Get a list of all the possible values for external texture parameters according to the various providers registered with RegisterImageProvider. */

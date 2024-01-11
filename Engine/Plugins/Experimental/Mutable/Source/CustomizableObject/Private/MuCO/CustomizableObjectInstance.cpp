@@ -48,6 +48,8 @@
 #if WITH_EDITOR
 #include "Logging/MessageLog.h"
 #include "MessageLogModule.h"
+#include "UnrealEdMisc.h"
+#include "Subsystems/AssetEditorSubsystem.h"
 #endif
 
 
@@ -5406,10 +5408,10 @@ void UCustomizableInstancePrivate::BuildMaterials(const TSharedRef<FUpdateContex
 	
 	const bool bReuseTextures = OperationData->bReuseInstanceTextures;
 
-	const FInstanceUpdateData::FLOD& FirstLOD = OperationData->InstanceUpdateData.LODs[OperationData->CurrentMinLOD];
-	const int32 NumComponents = FirstLOD.ComponentCount;
+	TArray<bool> RecreateRenderStateOnComponent;
+	RecreateRenderStateOnComponent.Init(false, OperationData->NumComponents);
 
-	for (int32 ComponentIndex = 0; ComponentIndex < NumComponents; ++ComponentIndex)
+	for (int32 ComponentIndex = 0; ComponentIndex < OperationData->NumComponents; ++ComponentIndex)
 	{
 		if (!Public->SkeletalMeshes.IsValidIndex(ComponentIndex))
 		{
@@ -5428,28 +5430,6 @@ void UCustomizableInstancePrivate::BuildMaterials(const TSharedRef<FUpdateContex
 		const bool bUseOverrideMaterialsOnly = OperationData->bUseMeshCache && SkeletalMesh->GetResourceForRendering()->IsInitialized();
 
 		ComponentsData[ComponentIndex].OverrideMaterials.Reset();
-
-		if (!bUseOverrideMaterialsOnly)
-		{
-			{
-				// TEMP: Keep a reference to the previous materials for n frames to avoid GC of materials in use in the render thread.
-				// TODO: MTBL-1632 - Implement a proper fix to replace this hotfix
-				const TArray<FSkeletalMaterial>& Materials = SkeletalMesh->GetMaterials();
-				const int32 NumMaterials = Materials.Num();
-
-				TArray<TObjectPtr<UMaterialInterface>> MaterialsToRelease;
-				MaterialsToRelease.Reserve(NumMaterials);
-
-				for (const FSkeletalMaterial& Material : Materials)
-				{
-					MaterialsToRelease.Add(Material.MaterialInterface);
-				}
-
-				UCustomizableObjectSystem::GetInstance()->AddPendingReleaseMaterials(MaterialsToRelease);
-			}
-
-			SkeletalMesh->GetMaterials().Reset();
-		}
 
 		TArray<FSkeletalMaterial> Materials;
 
@@ -5968,14 +5948,6 @@ void UCustomizableInstancePrivate::BuildMaterials(const TSharedRef<FUpdateContex
 			}
 		}
 
-		if (!bUseOverrideMaterialsOnly)
-		{
-			SkeletalMesh->SetMaterials(Materials);
-		}
-
-		// Ensure the number of materials is the same on both sides when using overrides. 
-		check(SkeletalMesh->GetMaterials().Num() == Materials.Num());
-
 		{
 			// Copy data from valid LODs into the skipped ones.
 			int32 LastValidLODIndex = OperationData->CurrentMaxLOD;
@@ -6006,9 +5978,65 @@ void UCustomizableInstancePrivate::BuildMaterials(const TSharedRef<FUpdateContex
 				}
 			}
 		}
+
+		if (!bUseOverrideMaterialsOnly)
+		{
+			// Force recreate render state after replacing the materials to avoid a crash in the render pipeline if the old materials are GCed while in use.
+			RecreateRenderStateOnComponent[ComponentIndex] = SkeletalMesh->GetResourceForRendering()->IsInitialized() && SkeletalMesh->GetMaterials() != Materials;
+
+			SkeletalMesh->SetMaterials(Materials);
+
+#if WITH_EDITOR
+			if (RecreateRenderStateOnComponent[ComponentIndex])
+			{
+				// Close all open editors for this mesh to invalidate viewports.
+				GEditor->GetEditorSubsystem<UAssetEditorSubsystem>()->CloseAllEditorsForAsset(SkeletalMesh);
+			}
+#endif
+		}
+
+		// Ensure the number of materials is the same on both sides when using overrides. 
+		check(SkeletalMesh->GetMaterials().Num() == Materials.Num());
 	}
 
-	
+	// Force recreate render state if the mesh is reused and the materials have changed.
+	// TODO: MTBL-1697 Remove after merging ConvertResources and Callbacks.
+	if (RecreateRenderStateOnComponent.Find(true) != INDEX_NONE)
+	{
+		MUTABLE_CPUPROFILER_SCOPE(BuildMaterials_RecreateRenderState);
+
+		for (TObjectIterator<UCustomizableObjectInstanceUsage> It; It; ++It)
+		{
+			UCustomizableObjectInstanceUsage* CustomizableObjectInstanceUsage = *It;
+
+			if (!IsValid(CustomizableObjectInstanceUsage) || CustomizableObjectInstanceUsage->GetCustomizableObjectInstance() != Public)
+			{
+				continue;
+			}
+
+#if WITH_EDITOR
+			if (CustomizableObjectInstanceUsage->IsNetMode(NM_DedicatedServer))
+			{
+				continue;
+			}
+#endif
+
+			const int32 ComponentIndex = CustomizableObjectInstanceUsage->GetComponentIndex();
+			if (!RecreateRenderStateOnComponent.IsValidIndex(ComponentIndex) || !RecreateRenderStateOnComponent[ComponentIndex])
+			{
+				continue;
+			}
+
+			USkeletalMeshComponent* AttachedParent = CustomizableObjectInstanceUsage->GetAttachParent();
+			if (!AttachedParent || AttachedParent->GetSkeletalMeshAsset() != Public->SkeletalMeshes[ComponentIndex])
+			{
+				continue;
+			}
+
+			AttachedParent->RecreateRenderState_Concurrent();
+		}
+	}
+
 	{
 		MUTABLE_CPUPROFILER_SCOPE(BuildMaterials_Exchange);
 
