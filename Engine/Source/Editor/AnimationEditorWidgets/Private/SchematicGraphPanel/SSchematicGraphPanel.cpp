@@ -482,7 +482,7 @@ void SSchematicGraphPanel::AddNode(const FSchematicGraphNode* InNodeToAdd)
 	TArray<TSharedPtr<FLinearColorAttribute>> Colors;
 	for(int32 LayerIndex = 0; LayerIndex < NumLayers; LayerIndex++)
 	{
-		Colors.Add(FLinearColorAttribute::CreateWithGetter(ColorInterpolationSettings, FLinearColorAttribute::FGetter::CreateRaw(GraphData, &FSchematicGraphModel::GetColorForNode, InNodeToAdd, LayerIndex)));
+		Colors.Add(FLinearColorAttribute::CreateWithGetter(ColorInterpolationSettings, FLinearColorAttribute::FGetter::CreateSP(this, &SSchematicGraphPanel::GetColorForNode, Guid, LayerIndex)));
 	}
 
 	const TFunction<const FSlateBrush*(const FGuid&, int32)> BrushGetter = [this](const FGuid& InGuid, int32 InLayerIndex) -> const FSlateBrush*
@@ -991,6 +991,15 @@ FVector2d SSchematicGraphPanel::GetPositionForNode(FGuid InNodeGuid) const
 		}
 	}
 	return FVector2d::ZeroVector;
+}
+
+FLinearColor SSchematicGraphPanel::GetColorForNode(FGuid InNodeGuid, int32 InLayerIndex) const
+{
+	if(GraphData)
+	{
+		return GraphData->GetColorForNode(InNodeGuid, InLayerIndex);
+	}
+	return FLinearColor::White;
 }
 
 float SSchematicGraphPanel::GetScaleForNode(FGuid InNodeGuid, bool bIncludeScaleOffset) const

@@ -208,6 +208,7 @@ public:
 	FReply HandleNodeDragDetected(FGuid Guid, const FGeometry& MyGeometry, const FPointerEvent& MouseEvent);
 
 	virtual FVector2d GetPositionForNode(FGuid InNodeGuid) const;
+	virtual FLinearColor GetColorForNode(FGuid InNodeGuid, int32 InLayerIndex) const;
 	virtual float GetScaleForNode(FGuid InNodeGuid, bool bIncludeScaleOffset) const;
 	virtual bool IsAutoScaleEnabledForNode(FGuid InNodeGuid) const;
 	virtual float GetMinimumLinkDistanceForNode(FGuid InLinkGuid, bool bIncludeScale = true) const;

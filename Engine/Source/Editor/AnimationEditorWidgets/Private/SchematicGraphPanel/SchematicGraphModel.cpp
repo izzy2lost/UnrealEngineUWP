@@ -227,22 +227,22 @@ bool FSchematicGraphModel::IsAutoScaleEnabledForNode(const FSchematicGraphNode* 
 	return InNode->IsAutoScaleEnabled();
 }
 
- int32 FSchematicGraphModel::GetNumLayersForNode(const FGuid& InNodeGuid) const
+int32 FSchematicGraphModel::GetNumLayersForNode(const FGuid& InNodeGuid) const
  {
 	if(const FSchematicGraphNode* Node = FindNode(InNodeGuid))
 	{
 		return GetNumLayersForNode(Node);
 	}
 	return 0;
- }
+}
 
-  int32 FSchematicGraphModel::GetNumLayersForNode(const FSchematicGraphNode* InNode) const
-  {
+int32 FSchematicGraphModel::GetNumLayersForNode(const FSchematicGraphNode* InNode) const
+{
 	check(InNode);
 	return InNode->GetNumLayers();
-  }
+}
 
-  FLinearColor FSchematicGraphModel::GetColorForNode(const FGuid& InNodeGuid, int32 InLayerIndex) const
+FLinearColor FSchematicGraphModel::GetColorForNode(const FGuid& InNodeGuid, int32 InLayerIndex) const
 {
 	if(const FSchematicGraphNode* Node = FindNode(InNodeGuid))
 	{

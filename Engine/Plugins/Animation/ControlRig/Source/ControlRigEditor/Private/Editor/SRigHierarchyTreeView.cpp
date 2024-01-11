@@ -20,6 +20,7 @@
 #include "Rigs/AdditiveControlRig.h"
 #include "Rigs/RigHierarchyController.h"
 #include "Styling/AppStyle.h"
+#include "Algo/Sort.h"
 
 #define LOCTEXT_NAMESPACE "SRigHierarchyTreeView"
 
@@ -778,22 +779,55 @@ void SRigHierarchyTreeView::RefreshTreeView(bool bRebuildContent)
 		const URigHierarchy* Hierarchy = Delegates.GetHierarchy();
 		if(Hierarchy)
 		{
-			TArray<FRigConnectorElement*> Connectors;
+			TArray<const FRigSocketElement*> Sockets;
+			TArray<const FRigConnectorElement*> Connectors;
+			TArray<const FRigBaseElement*> EverythingElse;
+			TMap<const FRigBaseElement*, int32> ElementDepth;
+			Sockets.Reserve(Hierarchy->Num(ERigElementType::Socket));
+			Connectors.Reserve(Hierarchy->Num(ERigElementType::Connector));
+			EverythingElse.Reserve(Hierarchy->Num() - Hierarchy->Num(ERigElementType::Socket) - Hierarchy->Num(ERigElementType::Connector));
+			
 			Hierarchy->Traverse([&](FRigBaseElement* Element, bool& bContinue)
 			{
-				if(FRigConnectorElement* Connector = Cast<FRigConnectorElement>(Element))
+				int32& Depth = ElementDepth.Add(Element, 0);
+				if(const FRigBaseElement* ParentElement = Hierarchy->GetFirstParent(Element))
+				{
+					Depth = ElementDepth.FindChecked(ParentElement) + 1;
+				}
+				
+				if(const FRigSocketElement* Socket = Cast<FRigSocketElement>(Element))
+				{
+					Sockets.Add(Socket);
+				}
+				else if(const FRigConnectorElement* Connector = Cast<FRigConnectorElement>(Element))
 				{
 					Connectors.Add(Connector);
 				}
 				else
 				{
-					AddElement(Element);
+					EverythingElse.Add(Element);
 				}
 				bContinue = true;
 			});
 
+			// sort the sockets by depth
+			Algo::SortBy(Sockets, [ElementDepth](const FRigSocketElement* Socket) -> int32
+			{
+				return ElementDepth.FindChecked(Socket);
+			});
+			for(const FRigSocketElement* Socket : Sockets)
+			{
+				AddElement(Socket);
+			}
+
+			// add everything but connectors and sockets
+			for(const FRigBaseElement* Element : EverythingElse)
+			{
+				AddElement(Element);
+			}
+
 			// add all of the connectors. their parent relationship in the tree represents resolve
-			for(FRigConnectorElement* Connector : Connectors)
+			for(const FRigConnectorElement* Connector : Connectors)
 			{
 				AddElement(Connector);
 			}
