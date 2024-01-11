@@ -4824,11 +4824,18 @@ void USkeletalMesh::RemoveUserDataOfClass(TSubclassOf<UAssetUserData> InUserData
 const TArray<UAssetUserData*>* USkeletalMesh::GetAssetUserDataArray() const
 {
 #if WITH_EDITOR
-	static thread_local TArray<TObjectPtr<UAssetUserData>> CachedAssetUserData;
-	CachedAssetUserData.Reset();
-	CachedAssetUserData.Append(AssetUserData);
-	CachedAssetUserData.Append(AssetUserDataEditorOnly);
-	return &ToRawPtrTArrayUnsafe(CachedAssetUserData);
+	if (GIsCookerLoadingPackage)
+	{
+		return &ToRawPtrTArrayUnsafe(AssetUserData);
+	}
+	else
+	{
+		static thread_local TArray<TObjectPtr<UAssetUserData>> CachedAssetUserData;
+		CachedAssetUserData.Reset();
+		CachedAssetUserData.Append(AssetUserData);
+		CachedAssetUserData.Append(AssetUserDataEditorOnly);
+		return &ToRawPtrTArrayUnsafe(CachedAssetUserData);
+	}
 #else
 	return &ToRawPtrTArrayUnsafe(AssetUserData);
 #endif
