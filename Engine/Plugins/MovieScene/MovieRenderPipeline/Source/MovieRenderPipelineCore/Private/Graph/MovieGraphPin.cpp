@@ -10,6 +10,14 @@
 #include "MovieRenderPipelineCoreModule.h"
 #include "Graph/MovieGraphConfig.h"
 
+#if WITH_EDITOR
+bool UMovieGraphPin::Modify(bool bAlwaysMarkDirty)
+{
+	SetFlags(RF_Transactional);
+	return Super::Modify(bAlwaysMarkDirty);
+}
+#endif
+
 bool UMovieGraphPin::AddEdgeTo(UMovieGraphPin* InOtherPin)
 {
 	if (!InOtherPin)

@@ -287,19 +287,30 @@ void SMoviePipelineGraphPanel::DeleteSelectedNodes()
 		}
 	}
 
-	// Remove all runtime graph nodes
-	const UMoviePipelineEdGraph* Graph = Cast<UMoviePipelineEdGraph>(GraphEditorWidget->GetCurrentGraph());
-	if (Graph && !NodesToDelete.IsEmpty())
+	UMoviePipelineEdGraph* Graph = Cast<UMoviePipelineEdGraph>(GraphEditorWidget->GetCurrentGraph());
+	
+	const bool bShouldActuallyTransact = Graph && (NodesToDelete.Num() > 0 || EdNodesToDelete.Num() > 0);
+	const FScopedTransaction Transaction(
+		FGenericCommands::Get().Delete->GetDescription(), bShouldActuallyTransact);
+	
+	if (bShouldActuallyTransact)
 	{
-		Graph->GetPipelineGraph()->RemoveNodes(NodesToDelete);
-	}
-
-	// Remove all editor nodes (nodes not backed by a runtime node, like comments)
-	if (Graph && !EdNodesToDelete.IsEmpty())
-	{
-		for (UEdGraphNode* EdGraphNode : EdNodesToDelete)
+		// Remove all runtime graph nodes
+		if (!NodesToDelete.IsEmpty())
 		{
-			GraphEditorWidget->GetCurrentGraph()->RemoveNode(EdGraphNode);
+			for (UMovieGraphNode* Node : NodesToDelete)
+			{
+				Graph->GetPipelineGraph()->RemoveNode(Node);
+			}
+		}
+		
+		// Remove all editor nodes (nodes not backed by a runtime node, like comments)
+		if (!EdNodesToDelete.IsEmpty())
+		{
+			for (UEdGraphNode* EdGraphNode : EdNodesToDelete)
+			{
+				Graph->RemoveNode(EdGraphNode);
+			}
 		}
 	}
 

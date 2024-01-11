@@ -95,6 +95,12 @@ class MOVIERENDERPIPELINECORE_API UMovieGraphPin : public UObject
 	GENERATED_BODY()
 
 public:
+	// UObject Interface
+#if WITH_EDITOR
+	virtual bool Modify(bool bAlwaysMarkDirty = true) override;
+#endif
+	// End UObject Interface
+	
 	bool AddEdgeTo(UMovieGraphPin* InOtherPin);
 	bool BreakEdgeTo(UMovieGraphPin* InOtherPin);
 	bool BreakAllEdges();

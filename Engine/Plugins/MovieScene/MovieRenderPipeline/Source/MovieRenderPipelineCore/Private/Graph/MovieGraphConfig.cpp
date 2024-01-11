@@ -629,6 +629,8 @@ bool UMovieGraphConfig::RemoveNode(UMovieGraphNode* InNode)
 		return false;
 	}
 
+	Modify();
+
 	RemoveAllInboundEdges(InNode);
 	RemoveAllOutboundEdges(InNode);
 

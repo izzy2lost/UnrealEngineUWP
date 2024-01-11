@@ -246,7 +246,7 @@ void UMovieGraphNode::UpdatePins()
 		for (const FMovieGraphPinProperties& UnmatchedProperty : UnmatchedProperties)
 		{
 			const int32 InsertIndex = PinProperties.IndexOfByKey(UnmatchedProperty);
-			UMovieGraphPin* NewPin = NewObject<UMovieGraphPin>(this);
+			UMovieGraphPin* NewPin = NewObject<UMovieGraphPin>(this, NAME_None, RF_Transactional);
 			NewPin->Node = this;
 			NewPin->Properties = UnmatchedProperty;
 			Pins.Insert(NewPin, InsertIndex);
