@@ -438,7 +438,7 @@ void TraceBufferedEvents(const FStateTreeInstanceDebugId InstanceId)
 	GBufferedEvents.Flush(InstanceId);
 }
 
-void SerializeDataViewToArchive(FBufferArchive Ar, const FStateTreeDataView DataView)
+void SerializeDataViewToArchive(FBufferArchive& Ar, const FStateTreeDataView DataView)
 {
 	constexpr uint32 PortFlags = 
 		PPF_PropertyWindow // limit to properties visible in Editor 
