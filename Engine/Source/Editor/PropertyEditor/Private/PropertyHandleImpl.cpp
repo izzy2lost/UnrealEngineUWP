@@ -2313,6 +2313,11 @@ bool FPropertyHandleBase::IsFavorite() const
 	return false;
 }
 
+bool FPropertyHandleBase::IsCategoryHandle() const
+{
+	return Implementation->GetPropertyNode().IsValid() && Implementation->GetPropertyNode()->AsCategoryNode();
+}
+
 bool FPropertyHandleBase::IsCustomized() const
 {
 	return Implementation->GetPropertyNode()->HasNodeFlags( EPropertyNodeFlags::IsCustomized ) != 0;

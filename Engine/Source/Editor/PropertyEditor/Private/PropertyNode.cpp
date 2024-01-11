@@ -22,6 +22,7 @@
 #include "UObject/MetaData.h"
 #include "UObject/TextProperty.h"
 #include "UObject/EnumProperty.h"
+#include "UObject/PropertyBagRepository.h"
 #include "UObject/UnrealType.h"
 
 #include "UObject/PropertyOptional.h"
@@ -692,6 +693,11 @@ EPropertyDataValidationResult FPropertyNode::EnsureDataIsValid()
 				if (ObjectProperty && !bIgnoreAllMismatch)
 				{
 					UObject* Obj = ObjectProperty->GetObjectPropertyValue(Addr);
+					UE::FPropertyBagRepository& Repository = UE::FPropertyBagRepository::Get();
+					if (UObject* Found = Repository.FindArchetype(Obj))
+					{
+						Obj = Found;
+					}
 					if (IsValid(Obj))
 					{
 						if (!bShowInnerObjectPropertiesObjectChanged && 

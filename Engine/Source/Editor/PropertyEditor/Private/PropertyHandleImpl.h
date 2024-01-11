@@ -517,6 +517,7 @@ public:
 	virtual int32 GetArrayIndex() const override;
 	virtual void RequestRebuildChildren() override;
 	virtual bool IsFavorite() const override;
+	virtual bool IsCategoryHandle() const override;
 
 	PROPERTYEDITOR_API TSharedPtr<FPropertyNode> GetPropertyNode() const;
 	void OnCustomResetToDefault(const FResetToDefaultOverride& OnCustomResetToDefault);

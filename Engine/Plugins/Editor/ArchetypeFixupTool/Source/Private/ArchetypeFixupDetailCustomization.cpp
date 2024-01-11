@@ -10,6 +10,7 @@
 #include "Widgets/Layout/SWidgetSwitcher.h"
 #include "Widgets/Input/SComboButton.h"
 #include "Framework/MultiBox/MultiBoxBuilder.h"
+#include "UObject/PropertyBagRepository.h"
 
 #define LOCTEXT_NAMESPACE "ArchetypeFixupDetails"
 
@@ -57,6 +58,19 @@ void FArchetypeFixupDetailNodeBuilder::GetRedirectOptions(const FProperty* Prope
 	if (const FStructProperty* AsStructProperty = CastField<FStructProperty>(Property))
 	{
 		GetRedirectOptions(AsStructProperty->Struct, Value, Path, OutPaths);
+	}
+	if (const FObjectProperty* AsObjectProperty = CastField<FObjectProperty>(Property))
+	{
+		if (AsObjectProperty->HasAnyPropertyFlags(CPF_InstancedReference))
+		{
+			TObjectPtr<UObject> Object = AsObjectProperty->GetObjectPropertyValue(Value);
+			UE::FPropertyBagRepository& PropertyBagRepository = UE::FPropertyBagRepository::Get();
+			if (UObject* Found = PropertyBagRepository.FindArchetype(Object))
+			{
+				Object = Found;
+			}
+			GetRedirectOptions(Object->GetClass(), Object, Path, OutPaths);
+		}
 	}
 	else if (const FArrayProperty* AsArrayProperty = CastField<FArrayProperty>(Property))
 	{
@@ -208,6 +222,21 @@ void FArchetypeFixupDetailNodeBuilder::GenerateHeaderRowContent(FDetailWidgetRow
 	{
 		return;
 	}
+
+	// handle categories of sub-objects
+	if (PropertyHandle->IsCategoryHandle())
+	{
+		NodeRow
+		[
+			SNew(SBox)
+			.VAlign(VAlign_Center)
+			[
+				SNew(STextBlock)
+				.Text(PropertyHandle->GetPropertyDisplayName())
+			]
+		];
+		return;
+	}
 	
 	TSharedPtr<SWidget> InnerNameContent = PropertyHandle->CreatePropertyNameWidget();
 	if (PropertyHandle->GetKeyHandle())
@@ -280,6 +309,22 @@ void FArchetypeFixupDetailNodeBuilder::GenerateChildContent(IDetailChildrenBuild
 	
 	uint32 ChildCount;
 	PropertyHandle->GetNumChildren(ChildCount);
+	if (ChildCount == 1 && PropertyHandle->GetProperty() && PropertyHandle->GetProperty()->IsA<FObjectProperty>())
+	{
+		const TSharedRef<IPropertyHandle> ChildHandle = PropertyHandle->GetChildHandle(0).ToSharedRef();
+		if (!ChildHandle->GetProperty())
+		{
+			uint32 GrandChildCount;
+			ChildHandle->GetNumChildren(GrandChildCount);
+			for (uint32 I = 0; I < GrandChildCount; ++I)
+			{
+				const TSharedRef<IPropertyHandle> GrandChildHandle = ChildHandle->GetChildHandle(I).ToSharedRef();
+				ChildrenBuilder.AddCustomBuilder(MakeShared<FArchetypeFixupDetailNodeBuilder>(Panel.ToSharedRef(), GrandChildHandle));
+			}
+			return;
+		}
+	}
+	
 	for (uint32 I = 0; I < ChildCount; ++I)
 	{
 		const TSharedRef<IPropertyHandle> ChildHandle = PropertyHandle->GetChildHandle(I).ToSharedRef();

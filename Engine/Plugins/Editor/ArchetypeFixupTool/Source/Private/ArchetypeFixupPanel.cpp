@@ -7,9 +7,9 @@
 #include "DetailTreeNode.h"
 #include "Widgets/Layout/LinkableScrollBar.h"
 #include "ArchetypeFixupDetailCustomization.h"
-#include "UObject/ArchetypeUtils.h"
 #include "Modules/ModuleManager.h"
 #include "Editor.h"
+#include "UObject/PropertyBagRepository.h"
 
 #define LOCTEXT_NAMESPACE "ArchetypeFixupPanel"
 
@@ -291,7 +291,7 @@ bool FArchetypeFixupPanel::AreAllConflictsRedirected() const
 			{
 				if (const TSharedPtr<IPropertyHandle> Handle = TreeNode->CreatePropertyHandle())
 				{
-					if (!MarkedForDelete.Contains(*Handle->CreateFPropertyPath()))
+					if (!Handle->IsCategoryHandle() && !MarkedForDelete.Contains(*Handle->CreateFPropertyPath()))
 					{
 						bFoundConflict = true;
 						return ETreeTraverseControl::Break;
@@ -351,7 +351,13 @@ static void* ResolvePath(const FPropertyPath& Path, void* Value)
 
 		if (const FObjectProperty* AsObjectProperty = CastField<FObjectProperty>(Property))
 		{
-			Value = AsObjectProperty->GetObjectPropertyValue(Value);
+			UObject* Object = AsObjectProperty->GetObjectPropertyValue(Value);
+			UE::FPropertyBagRepository& PropertyBagRepository = UE::FPropertyBagRepository::Get();
+			if (UObject* Found = PropertyBagRepository.FindArchetype(Object))
+			{
+				Object = Found;
+			}
+			Value = Object;
 		}
 		else if (PathIndex + 1 < Path.GetNumProperties())
 		{
@@ -516,7 +522,7 @@ static void InitRedirectedPropertyTreeRec(const TSharedPtr<FRedirectedPropertyNo
 	{
 		if (Property->ArrayDim == 1)
 		{
-			if (UE::WasPropertySetBySerialization(Struct, StructValue, Property))
+			if (UE::FPropertyBagRepository::WasPropertySetBySerialization(Struct, StructValue, Property))
 			{
 				const TSharedPtr<FRedirectedPropertyNode>& ChildNode = Node->FindOrAdd(FPropertyInfo(Property));
 				void* Value = Property->ContainerPtrToValuePtr<void>(StructValue);
@@ -527,7 +533,7 @@ static void InitRedirectedPropertyTreeRec(const TSharedPtr<FRedirectedPropertyNo
 		{
 			for (int32 StaticArrayIndex = 0; StaticArrayIndex < Property->ArrayDim; ++StaticArrayIndex)
             {
-            	if (UE::WasPropertySetBySerialization(Struct, StructValue, Property, StaticArrayIndex))
+            	if (UE::FPropertyBagRepository::WasPropertySetBySerialization(Struct, StructValue, Property, StaticArrayIndex))
             	{
             		const TSharedPtr<FRedirectedPropertyNode>& ChildNode = Node->FindOrAdd(FPropertyInfo(Property, StaticArrayIndex));
             		void* Value = Property->ContainerPtrToValuePtr<void>(StructValue, StaticArrayIndex);
@@ -543,6 +549,22 @@ static void InitRedirectedPropertyTreeRec(const TSharedPtr<FRedirectedPropertyNo
 	if (const FStructProperty* AsStructProperty = CastField<FStructProperty>(Property))
 	{
 		InitRedirectedPropertyTreeRec(Node, AsStructProperty->Struct, Value);
+	}
+	else if (const FObjectProperty* AsObjectProperty = CastField<FObjectProperty>(Property))
+	{
+		if (AsObjectProperty->HasAnyPropertyFlags(CPF_InstancedReference))
+		{
+			if (UObject* Object = AsObjectProperty->GetObjectPropertyValue(Value))
+            {
+				UE::FPropertyBagRepository& PropertyBagRepository = UE::FPropertyBagRepository::Get();
+				if (UObject* Found = PropertyBagRepository.FindArchetype(Object))
+				{
+					Object = Found;
+				}
+            	InitRedirectedPropertyTreeRec(Node, Object->GetClass(), Object);
+            }
+		}
+		
 	}
 	else if (const FArrayProperty* AsArrayProperty = CastField<FArrayProperty>(Property))
 	{

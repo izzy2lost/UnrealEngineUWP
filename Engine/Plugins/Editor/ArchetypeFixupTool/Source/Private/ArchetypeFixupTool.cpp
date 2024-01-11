@@ -37,10 +37,16 @@ public:
 		const TSharedPtr<IPropertyHandle> PropertyHandleB = PinnedTreeNodeB->CreatePropertyHandle();
 		if (!PropertyHandleA || !PropertyHandleB)
 		{
-			// category nodes
+			// top level category nodes
 			return PinnedTreeNodeA->GetNodeName() == PinnedTreeNodeB->GetNodeName();
 		}
-
+		
+		if (PropertyHandleA->IsCategoryHandle() || PropertyHandleB->IsCategoryHandle())
+		{
+			// category nodes
+			return PropertyHandleA->GetPropertyDisplayName().ToString() == PropertyHandleB->GetPropertyDisplayName().ToString();
+		}
+		
 		return PropertyHandleA->GetProperty() == PropertyHandleB->GetProperty();
 	}
 

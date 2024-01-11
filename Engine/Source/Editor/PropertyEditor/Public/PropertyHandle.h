@@ -746,6 +746,8 @@ public:
 	* It does not handle the property being moved to another category during customization
 	*/
 	virtual FText GetDefaultCategoryText() const = 0;
+
+	virtual bool IsCategoryHandle() const = 0;
 };
 
 /**
