@@ -1310,6 +1310,9 @@ protected:
 	/** Set to true to inform scene update that the MDCs produced may use the (GPU)Scene instance count, and thus don't require recaching if the instance count changed. */
 	uint8 bDoesMeshBatchesUseSceneInstanceCount : 1;
 
+	/** Whether this proxy is a static mesh. */
+	uint8 bIsStaticMesh : 1;
+
 	/** Whether this proxy is a Nanite mesh. */
 	uint8 bIsNaniteMesh : 1;
 

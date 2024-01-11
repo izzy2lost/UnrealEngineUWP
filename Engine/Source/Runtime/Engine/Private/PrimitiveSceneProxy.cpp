@@ -461,6 +461,7 @@ FPrimitiveSceneProxy::FPrimitiveSceneProxy(const FPrimitiveSceneProxyDesc& InPro
 ,	bStaticElementsAlwaysUseProxyPrimitiveUniformBuffer(false)
 ,	bVFRequiresPrimitiveUniformBuffer(true)
 ,	bDoesMeshBatchesUseSceneInstanceCount(false)
+,	bIsStaticMesh(false)
 ,	bIsNaniteMesh(false)
 ,	bIsHeterogeneousVolume(false)
 ,	bIsHierarchicalInstancedStaticMesh(false)
@@ -1773,7 +1774,7 @@ ERayTracingPrimitiveFlags FPrimitiveSceneProxy::GetCachedRayTracingInstance(FRay
 
 	static const auto RayTracingStaticMeshesCVar = IConsoleManager::Get().FindTConsoleVariableDataInt(TEXT("r.RayTracing.Geometry.StaticMeshes"));
 
-	if (IsRayTracingStaticRelevant() && RayTracingStaticMeshesCVar && RayTracingStaticMeshesCVar->GetValueOnRenderThread() <= 0)
+	if ((bIsStaticMesh || bIsNaniteMesh) && RayTracingStaticMeshesCVar && RayTracingStaticMeshesCVar->GetValueOnRenderThread() <= 0)
 	{
 		return ERayTracingPrimitiveFlags::Exclude;
 	}
