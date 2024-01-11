@@ -202,7 +202,10 @@ public:
 		}
 	}
 
-
+	SIZE_T GetAllocatedSize() const
+	{
+		return Elements.GetAllocatedSize() + GetCount() * sizeof(ElemType);
+	}
 
 protected:
 
