@@ -253,11 +253,11 @@ class FAssetHeaderPatcherInner
 public:
 	using EResult = FAssetHeaderPatcher::EResult;
 
-	FAssetHeaderPatcherInner(FString InSrcAsset, FString InDstAsset, TMap<FString, FString> InSearchAndReplace, FArchive* InDstArchive = nullptr)
-		: SrcAsset(MoveTemp(InSrcAsset))
-		, DstAsset(MoveTemp(InDstAsset))
+	FAssetHeaderPatcherInner(const FString& InSrcAsset, const FString& InDstAsset, const TMap<FString, FString>& InSearchAndReplace, FArchive* InDstArchive = nullptr)
+		: SrcAsset(InSrcAsset)
+		, DstAsset(InDstAsset)
+		, SearchAndReplace(InSearchAndReplace)
 		, DstArchive(InDstArchive)
-		, SearchAndReplace(MoveTemp(InSearchAndReplace))
 	{
 	}
 
@@ -271,11 +271,12 @@ public:
 	void PatchHeader_PatchSections();
 	FAssetHeaderPatcher::EResult PatchHeader_WriteDestinationFile();
 
-	FString SrcAsset;
-	FString DstAsset;
+	const FString& SrcAsset;
+	const FString& DstAsset;
+	const TMap<FString, FString>& SearchAndReplace;
 	FArchive* DstArchive = nullptr;
 	TUniquePtr<FArchive> DstArchiveOwner;
-	TMap<FString, FString> SearchAndReplace;
+
 	TArray64<uint8> SrcBuffer;
 
 	struct FHeaderInformation
@@ -324,60 +325,26 @@ public:
 	FAssetRegistryData AssetRegistryData;
 };
 
-
-UE::Tasks::TTask<FAssetHeaderPatcher::EResult> FAssetHeaderPatcher::Start(FString InSrcAsset, FString InDstAsset,
-	TMap<FString, FString> InSearchAndReplace)
+FAssetHeaderPatcher::EResult FAssetHeaderPatcher::DoPatch(const FString& InSrcAsset, const FString& InDstAsset, const TMap<FString, FString>& InSearchAndReplace)
 {
-	TUniquePtr<FAssetHeaderPatcherInner> Self = MakeUnique<FAssetHeaderPatcherInner>(MoveTemp(InSrcAsset), MoveTemp(InDstAsset), MoveTemp(InSearchAndReplace));
+	FAssetHeaderPatcherInner Inner(InSrcAsset, InDstAsset, InSearchAndReplace);
 
-	return UE::Tasks::Launch(UE_SOURCE_LOCATION, [Self = MoveTemp(Self)]() -> FAssetHeaderPatcher::EResult
-		{
-			if (!FFileHelper::LoadFileToArray(Self->SrcBuffer, *Self->SrcAsset))
-			{
-				UE_LOG(LogAssetHeaderPatcher, Error, TEXT("Failed to load %s"), *Self->SrcAsset);
-				return FAssetHeaderPatcherInner::EResult::ErrorFailedToLoadSourceAsset;
-			}
-			else
-			{
-				return Self->PatchHeader();
-			}
-		});
-}
-
-UE::Tasks::TTask<FAssetHeaderPatcher::EResult> FAssetHeaderPatcher::Start(TUniquePtr<FArchive> InReader, FString InDstAsset,
-	TMap<FString, FString> InSearchAndReplace)
-{
-	if (!InReader || InReader->IsError())
+	if (!FFileHelper::LoadFileToArray(Inner.SrcBuffer, *Inner.SrcAsset))
 	{
-		UE_LOG(LogAssetHeaderPatcher, Error, TEXT("Failed to load %s (archive is invalid)"), InReader ? *InReader->GetArchiveName() : TEXT("Unknown"));
-
-		return UE::Tasks::Launch(UE_SOURCE_LOCATION, []() -> EResult { return EResult::ErrorFailedToLoadSourceAsset; });
+		UE_LOG(LogAssetHeaderPatcher, Error, TEXT("Failed to load %s"), *Inner.SrcAsset);
+		return FAssetHeaderPatcherInner::EResult::ErrorFailedToLoadSourceAsset;
 	}
-
-	TUniquePtr<FAssetHeaderPatcherInner> Self = MakeUnique<FAssetHeaderPatcherInner>(InReader->GetArchiveName(), MoveTemp(InDstAsset), MoveTemp(InSearchAndReplace));
-
-	return UE::Tasks::Launch(UE_SOURCE_LOCATION, [Self = MoveTemp(Self), Reader = MoveTemp(InReader)]() -> EResult
-		{
-			Reader->Seek(0);
-			Self->SrcBuffer.SetNumUninitialized(Reader->TotalSize());
-			Reader->Serialize(Self->SrcBuffer.GetData(), Self->SrcBuffer.Num());
-
-			if (Reader->IsError())
-			{
-				UE_LOG(LogAssetHeaderPatcher, Error, TEXT("Failed to load %s"), *Self->SrcAsset);
-				return FAssetHeaderPatcherInner::EResult::ErrorFailedToLoadSourceAsset;
-			}
-			else
-			{
-				return Self->PatchHeader();
-			}
-		});
+	else
+	{
+		return Inner.PatchHeader();
+	}
 }
+
 
 FAssetHeaderPatcher::EResult FAssetHeaderPatcher::Test_DoPatch(FArchive& InReader, FArchive& InWriter,
-	TMap<FString, FString> InSearchAndReplace)
+	const TMap<FString, FString>& InSearchAndReplace)
 {
-	FAssetHeaderPatcherInner Inner(InReader.GetArchiveName(), InWriter.GetArchiveName(), MoveTemp(InSearchAndReplace), &InWriter);
+	FAssetHeaderPatcherInner Inner(InReader.GetArchiveName(), InWriter.GetArchiveName(), InSearchAndReplace, &InWriter);
 
 	InReader.Seek(0);
 	Inner.SrcBuffer.SetNumUninitialized(InReader.TotalSize());
