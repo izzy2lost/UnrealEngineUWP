@@ -585,7 +585,7 @@ bool FD3D12ContextCommon::TransitionResource(FD3D12Resource* Resource, D3D12_RES
 	{
 		// Slow path. Want to transition the entire resource (with multiple subresources). But they aren't in the same state.
 
-		const uint8 SubresourceCount = Resource->GetSubresourceCount();
+		const uint32 SubresourceCount = Resource->GetSubresourceCount();
 		for (uint32 SubresourceIndex = 0; SubresourceIndex < SubresourceCount; SubresourceIndex++)
 		{
 			bool bForceInAfterState = true;
