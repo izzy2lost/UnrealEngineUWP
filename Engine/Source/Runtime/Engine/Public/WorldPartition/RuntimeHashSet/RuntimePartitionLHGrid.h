@@ -26,6 +26,7 @@ public:
 	virtual void SetDefaultValues() override;
 	virtual bool IsValidPartitionTokens(const TArray<FName>& InPartitionTokens) const override;
 	virtual bool GenerateStreaming(const FGenerateStreamingParams& InParams, FGenerateStreamingResult& OutResult) override;
+	virtual FArchive& AppendCellGuid(FArchive& InAr) override;
 	//~ End URuntimePartition interface
 #endif
 

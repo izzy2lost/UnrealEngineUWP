@@ -610,55 +610,65 @@ void UWorldPartitionRuntimeHashSet::PostEditChangeChainProperty(FPropertyChanged
 
 UWorldPartitionRuntimeHashSet::FCellUniqueId UWorldPartitionRuntimeHashSet::GetCellUniqueId(const URuntimePartition::FCellDescInstance& InCellDescInstance) const
 {
-	TStringBuilder<128> CellNameBuilder;
+	FCellUniqueId CellUniqueId;
+	FName CellNameID = InCellDescInstance.Name;
+	FDataLayersID DataLayersID(InCellDescInstance.DataLayerInstances);
+	FGuid ContentBundleID(InCellDescInstance.ContentBundleID);
 
-	UWorld* OuterWorld = GetTypedOuter<UWorld>();
-	check(OuterWorld);
-
-	FString WorldName = FPackageName::GetShortName(OuterWorld->GetPackage());
-
-	CellNameBuilder.Appendf(TEXT("%s_%s"), *WorldName, *InCellDescInstance.Name.ToString());
-
-	const FDataLayersID DataLayersID(InCellDescInstance.DataLayerInstances);
-	if (DataLayersID.GetHash())
+	// Build cell unique name
 	{
-		CellNameBuilder.Appendf(TEXT("_d%X"), DataLayersID.GetHash());
-	}
+		TStringBuilder<128> CellNameBuilder;
 
-	if (InCellDescInstance.ContentBundleID.IsValid())
-	{
-		CellNameBuilder.Appendf(TEXT("_c%s"), *UContentBundleDescriptor::GetContentBundleCompactString(InCellDescInstance.ContentBundleID));
-	}
+		UWorld* OuterWorld = GetTypedOuter<UWorld>();
+		check(OuterWorld);
 
-	if (!IsRunningCookCommandlet() && OuterWorld->IsGameWorld())
-	{
-		FString SourceWorldPath;
-		FString InstancedWorldPath;
-		if (OuterWorld->GetSoftObjectPathMapping(SourceWorldPath, InstancedWorldPath))
+		FString WorldName = FPackageName::GetShortName(OuterWorld->GetPackage());
+
+		CellNameBuilder.Appendf(TEXT("%s_%s"), *WorldName, *CellNameID.ToString());
+
+		if (DataLayersID.GetHash())
 		{
-			const FTopLevelAssetPath SourceAssetPath(SourceWorldPath);
-			WorldName = FPackageName::GetShortName(SourceAssetPath.GetPackageName());
-						
-			InstancedWorldPath = UWorld::RemovePIEPrefix(InstancedWorldPath);
+			CellNameBuilder.Appendf(TEXT("_d%X"), DataLayersID.GetHash());
+		}
 
-			const FString SourcePackageName = SourceAssetPath.GetPackageName().ToString();
-			const FTopLevelAssetPath InstanceAssetPath(InstancedWorldPath);
-			const FString InstancePackageName = InstanceAssetPath.GetPackageName().ToString();
+		if (ContentBundleID.IsValid())
+		{
+			CellNameBuilder.Appendf(TEXT("_c%s"), *UContentBundleDescriptor::GetContentBundleCompactString(ContentBundleID));
+		}
 
-			if (int32 Index = InstancePackageName.Find(SourcePackageName); Index != INDEX_NONE)
+		if (!IsRunningCookCommandlet() && OuterWorld->IsGameWorld())
+		{
+			FString SourceWorldPath;
+			FString InstancedWorldPath;
+			if (OuterWorld->GetSoftObjectPathMapping(SourceWorldPath, InstancedWorldPath))
 			{
-				CellNameBuilder.Appendf(TEXT("_i%s"), *InstancePackageName.Mid(Index + SourcePackageName.Len()));
+				const FTopLevelAssetPath SourceAssetPath(SourceWorldPath);
+				WorldName = FPackageName::GetShortName(SourceAssetPath.GetPackageName());
+						
+				InstancedWorldPath = UWorld::RemovePIEPrefix(InstancedWorldPath);
+
+				const FString SourcePackageName = SourceAssetPath.GetPackageName().ToString();
+				const FTopLevelAssetPath InstanceAssetPath(InstancedWorldPath);
+				const FString InstancePackageName = InstanceAssetPath.GetPackageName().ToString();
+
+				if (int32 Index = InstancePackageName.Find(SourcePackageName); Index != INDEX_NONE)
+				{
+					CellNameBuilder.Appendf(TEXT("_i%s"), *InstancePackageName.Mid(Index + SourcePackageName.Len()));
+				}
 			}
 		}
+	
+		CellUniqueId.Name = CellNameBuilder.ToString();
 	}
 
-	FCellUniqueId CellUniqueId;
-	CellUniqueId.Name = CellNameBuilder.ToString();
-
-	FArchiveMD5 ArMD5;
-	ArMD5 << CellUniqueId.Name;
-	CellUniqueId.Guid = ArMD5.GetGuidFromHash();
-	check(CellUniqueId.Guid.IsValid());
+	// Build cell guid
+	{
+		FArchiveMD5 ArMD5;
+		ArMD5 << CellNameID << DataLayersID << ContentBundleID;
+		InCellDescInstance.SourcePartition->AppendCellGuid(ArMD5);
+		CellUniqueId.Guid = ArMD5.GetGuidFromHash();
+		check(CellUniqueId.Guid.IsValid());
+	}
 
 	return CellUniqueId;
 }

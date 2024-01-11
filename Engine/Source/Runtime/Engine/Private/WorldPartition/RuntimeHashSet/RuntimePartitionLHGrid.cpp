@@ -142,4 +142,9 @@ bool URuntimePartitionLHGrid::GenerateStreaming(const FGenerateStreamingParams& 
 
 	return true;
 }
+
+FArchive& URuntimePartitionLHGrid::AppendCellGuid(FArchive& InAr)
+{
+	return Super::AppendCellGuid(InAr) << CellSize;
+}
 #endif
