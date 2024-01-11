@@ -1120,7 +1120,7 @@ namespace mu
 		Ptr<ASTOp> Op = GenerateTableSwitch<NodeMeshTable::Private, ETableColumnType::Mesh, OP_TYPE::ME_SWITCH>(*TableNode->GetPrivate(),
 			[this, &NewResult, &bFirstRowGenerated, &InOptions] (const NodeMeshTable::Private& node, int colIndex, int row, ErrorLog* pErrorLog)
 			{
-				mu::Ptr<mu::Mesh> pMesh = node.m_pTable->GetPrivate()->Rows[row].Values[colIndex].Mesh;
+				mu::Ptr<mu::Mesh> pMesh = node.Table->GetPrivate()->Rows[row].Values[colIndex].Mesh;
 				FMeshGenerationResult BranchResults;
 
 				if (pMesh)
@@ -1129,11 +1129,11 @@ namespace mu
 					pCell->SetValue(pMesh);
 
 					// TODO Take into account layout strategy
-					int numLayouts = node.m_layouts.Num();
+					int numLayouts = node.Layouts.Num();
 					pCell->SetLayoutCount(numLayouts);
 					for (int i = 0; i < numLayouts; ++i)
 					{
-						pCell->SetLayout(i, node.m_layouts[i]);
+						pCell->SetLayout(i, node.Layouts[i]);
 					}
 
 					FMeshGenerationOptions TargetOptions = InOptions;
@@ -1143,7 +1143,7 @@ namespace mu
 						TargetOptions.OverrideLayouts = NewResult.GeneratedLayouts;
 					}
 
-					TargetOptions.OverrideContext = node.m_pTable->GetPrivate()->Rows[row].Values[colIndex].ErrorContext;
+					TargetOptions.OverrideContext = node.Table->GetPrivate()->Rows[row].Values[colIndex].ErrorContext;
 
 					GenerateMesh(TargetOptions, BranchResults, pCell);
 

@@ -724,9 +724,6 @@ mu::TablePtr GenerateMutableSourceTable(const FString& TableName, const UEdGraph
 			
 			ParameterUIData.IntegerParameterGroupType = TypedTable->bAddNoneOption ? ECustomizableObjectGroupType::COGT_ONE_OR_NONE : ECustomizableObjectGroupType::COGT_ONE;
 
-			// Adding a None Option
-			MutableTable->SetNoneOption(TypedTable->bAddNoneOption);
-
 			for (int32 i = 0; i < RowNames.Num(); ++i)
 			{
 				MutableTable->AddRow(i);

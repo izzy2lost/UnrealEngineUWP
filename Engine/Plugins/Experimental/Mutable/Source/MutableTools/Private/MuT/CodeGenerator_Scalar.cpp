@@ -408,7 +408,7 @@ namespace mu
 			[this,&Options](const NodeScalarTable::Private& node, int colIndex, int row, ErrorLog* pErrorLog)
 			{
 				NodeScalarConstantPtr pCell = new NodeScalarConstant();
-				float scalar = node.m_pTable->GetPrivate()->Rows[row].Values[colIndex].Scalar;
+				float scalar = node.Table->GetPrivate()->Rows[row].Values[colIndex].Scalar;
 				pCell->SetValue(scalar);
 				return Generate(pCell, Options);
 			});

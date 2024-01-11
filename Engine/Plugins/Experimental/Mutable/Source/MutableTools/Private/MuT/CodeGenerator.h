@@ -298,7 +298,7 @@ namespace mu
 
         //-----------------------------------------------------------------------------------------
         //!
-        Ptr<ASTOp> GenerateTableVariable( TablePtr pTable, const FString& strName );
+        Ptr<ASTOp> GenerateTableVariable( TablePtr pTable, const FString& strName, bool bAddNoneOption );
 
         //!
         Ptr<ASTOp> GenerateMissingBoolCode(const TCHAR* strWhere, bool value, const void* errorContext );
@@ -713,34 +713,34 @@ namespace mu
     template<class NODE_TABLE_PRIVATE, ETableColumnType TYPE, OP_TYPE OPTYPE, typename F>
     Ptr<ASTOp> CodeGenerator::GenerateTableSwitch( const NODE_TABLE_PRIVATE& node, F&& GenerateOption )
     {
-        Ptr<Table> pTable;
-        Ptr<ASTOp> variable;
+        Ptr<Table> Table;
+        Ptr<ASTOp> Variable;
 
-        TPair<TablePtr,Ptr<ASTOp>>* it = GeneratedTables.Find( TPair<TablePtr,FString>(node.m_pTable,node.m_parameterName) );
+        TPair<TablePtr,Ptr<ASTOp>>* it = GeneratedTables.Find( TPair<TablePtr,FString>(node.Table,node.ParameterName) );
         if ( it )
         {
-            pTable = it->Key;
-            variable = it->Value;
+            Table = it->Key;
+            Variable = it->Value;
         }
 
-        if ( !pTable )
+        if ( !Table )
         {
             // Create the table variable expression
-            pTable = node.m_pTable;
-            variable = GenerateTableVariable( pTable, node.m_parameterName );
+            Table = node.Table;
+            Variable = GenerateTableVariable( Table, node.ParameterName, node.bNoneOption);
 
-            GeneratedTables.Add( TPair<TablePtr, FString>(node.m_pTable,node.m_parameterName), TPair<TablePtr,Ptr<ASTOp>>( pTable, variable ) );
+            GeneratedTables.Add( TPair<TablePtr, FString>(node.Table,node.ParameterName), TPair<TablePtr,Ptr<ASTOp>>( Table, Variable ) );
         }
 
         // Verify that the table column is the right type
-        int32 colIndex = pTable->FindColumn( node.m_columnName );
-        if ( colIndex<0 )
+        int32 ColIndex = Table->FindColumn( node.ColumnName );
+        if ( ColIndex<0 )
         {
             m_pErrorLog->GetPrivate()->Add("Table column not found.", ELMT_ERROR, node.m_errorContext);
             return nullptr;
         }
 
-        if ( pTable->GetPrivate()->Columns[ colIndex ].Type != TYPE )
+        if ( Table->GetPrivate()->Columns[ ColIndex ].Type != TYPE )
         {
             m_pErrorLog->GetPrivate()->Add("Table column type is not the right type.",
                                            ELMT_ERROR, node.m_errorContext);
@@ -749,22 +749,22 @@ namespace mu
 
         // Create the switch to cover all the options
         Ptr<ASTOp> lastSwitch;
-        int32 rows = pTable->GetPrivate()->Rows.Num();
+        int32 Rows = Table->GetPrivate()->Rows.Num();
 
         Ptr<ASTOpSwitch> SwitchOp = new ASTOpSwitch();
 		SwitchOp->type = OPTYPE;
-		SwitchOp->variable = variable;
+		SwitchOp->variable = Variable;
 		SwitchOp->def = GenerateDefaultTableValue(TYPE);
 
-		for (int32 i = 0; i < rows; ++i)
+		for (int32 i = 0; i < Rows; ++i)
         {
-            check( pTable->GetPrivate()->Rows[i].Id <= 0xFFFF);
-            auto condition = (uint16)pTable->GetPrivate()->Rows[i].Id;
-            Ptr<ASTOp> Branch = GenerateOption( node, colIndex, (int)i, m_pErrorLog.get() );
+            check( Table->GetPrivate()->Rows[i].Id <= 0xFFFF);
+            auto Condition = (uint16)Table->GetPrivate()->Rows[i].Id;
+            Ptr<ASTOp> Branch = GenerateOption( node, ColIndex, (int)i, m_pErrorLog.get() );
 
 			if (Branch || TYPE != ETableColumnType::Mesh)
 			{
-				SwitchOp->cases.Add(ASTOpSwitch::FCase(condition, SwitchOp, Branch));
+				SwitchOp->cases.Add(ASTOpSwitch::FCase(Condition, SwitchOp, Branch));
 			}
         }
 

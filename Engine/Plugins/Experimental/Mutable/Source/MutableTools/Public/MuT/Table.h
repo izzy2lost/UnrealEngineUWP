@@ -64,9 +64,6 @@ namespace mu
 		//!
         void AddRow( uint32 id );
 
-		//! Adds a "NONE" option
-		void SetNoneOption(bool bAddOption);
-
 		//!
         void SetCell( int32 Column, uint32 RowId, float Value, const void* ErrorContext = nullptr);
         void SetCell( int32 Column, uint32 RowId, const FVector4f& Value, const void* ErrorContext = nullptr);

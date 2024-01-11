@@ -120,12 +120,6 @@ namespace mu
 	}
 
 
-	void Table::SetNoneOption(bool bAddOption)
-	{
-		m_pD->bNoneOption = bAddOption;
-	}
-
-
     void Table::SetCell( int32 Column, uint32 RowId, float Value, const void* ErrorContext)
 	{
 		int32 Row = m_pD->FindRow(RowId);

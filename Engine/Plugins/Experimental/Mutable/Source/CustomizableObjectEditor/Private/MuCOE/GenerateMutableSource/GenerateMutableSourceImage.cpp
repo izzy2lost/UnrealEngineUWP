@@ -1071,6 +1071,7 @@ mu::NodeImagePtr GenerateMutableSourceImage(const UEdGraphPin* Pin, FMutableGrap
 							ImageTableNode->SetTable(Table);
 							ImageTableNode->SetColumn(ColumnName);
 							ImageTableNode->SetParameterName(TypedNodeTable->ParameterName);
+							ImageTableNode->SetNoneOption(TypedNodeTable->bAddNoneOption);
 
 							// TextureArrays are passthrough textures and do not need this step
 							if (DefaultTexture2D)

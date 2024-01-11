@@ -1867,7 +1867,7 @@ namespace mu
 		Result.op = GenerateTableSwitch<NodeImageTable::Private, ETableColumnType::Image, OP_TYPE::IM_SWITCH>(node,
 			[this,Options](const NodeImageTable::Private& node, int colIndex, int row, ErrorLog* pErrorLog)
 			{
-				const FTableValue& CellData = node.m_pTable->GetPrivate()->Rows[row].Values[colIndex];
+				const FTableValue& CellData = node.Table->GetPrivate()->Rows[row].Values[colIndex];
 				ImagePtrConst pImage = nullptr;
 
 				if (Ptr<ResourceProxy<Image>> pProxyImage = CellData.ProxyImage)

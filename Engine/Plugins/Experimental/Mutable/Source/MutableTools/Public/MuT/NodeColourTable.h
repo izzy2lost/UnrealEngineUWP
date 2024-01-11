@@ -58,6 +58,9 @@ namespace mu
 		//!
 		void SetColumn( const FString& strName );
 
+		//!
+		void SetNoneOption(bool bAddNoneOption);
+
 		//-----------------------------------------------------------------------------------------
 		// Interface pattern
 		//-----------------------------------------------------------------------------------------

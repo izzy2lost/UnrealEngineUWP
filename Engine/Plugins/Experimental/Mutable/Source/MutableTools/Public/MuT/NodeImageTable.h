@@ -67,6 +67,9 @@ namespace mu
 		void SetMaxTextureSize(uint16 Size);
 		uint16 GetMaxTextureSize();
 
+		//! Adds the "None" option to the parameter that represents this table column
+		void SetNoneOption(bool bAddOption);
+		
 		//!
 		void SetReferenceImageDescriptor(const FImageDesc& Descriptor);
 

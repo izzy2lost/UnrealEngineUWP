@@ -491,7 +491,7 @@ namespace mu
 			[this, &Options](const NodeColourTable::Private& node, int colIndex, int row, ErrorLog* pErrorLog)
 			{
 				NodeColourConstantPtr CellData = new NodeColourConstant();
-				FVector4f Colour = node.m_pTable->GetPrivate()->Rows[row].Values[colIndex].Color;
+				FVector4f Colour = node.Table->GetPrivate()->Rows[row].Values[colIndex].Color;
 				CellData->SetValue(Colour);
 				return Generate(CellData, Options);
 			});

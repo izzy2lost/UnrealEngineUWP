@@ -33,42 +33,42 @@ namespace mu
 	//---------------------------------------------------------------------------------------------
 	void NodeMeshTable::SetColumn( const FString& strName )
 	{
-		m_pD->m_columnName = strName;
+		m_pD->ColumnName = strName;
 	}
 
 
 	//---------------------------------------------------------------------------------------------
 	void NodeMeshTable::SetParameterName( const FString& strName )
 	{
-		m_pD->m_parameterName = strName;
+		m_pD->ParameterName = strName;
 	}
 
 
 	//---------------------------------------------------------------------------------------------
 	void NodeMeshTable::SetTable( TablePtr pTable )
 	{
-		m_pD->m_pTable = pTable;
+		m_pD->Table = pTable;
 	}
 
 
 	//---------------------------------------------------------------------------------------------
 	TablePtr NodeMeshTable::GetTable() const
 	{
-		return m_pD->m_pTable;
+		return m_pD->Table;
 	}
 
 
 	//---------------------------------------------------------------------------------------------
 	int NodeMeshTable::GetLayoutCount() const
 	{
-		return m_pD->m_layouts.Num();
+		return m_pD->Layouts.Num();
 	}
 
 
 	//---------------------------------------------------------------------------------------------
 	void NodeMeshTable::SetLayoutCount( int i )
 	{
-		m_pD->m_layouts.SetNum( i );
+		m_pD->Layouts.SetNum( i );
 	}
 
 
@@ -84,7 +84,7 @@ namespace mu
 	void NodeMeshTable::SetLayout( int i, NodeLayoutPtr pLayout )
 	{
 		check( i>=0 && i<GetLayoutCount() );
-		m_pD->m_layouts[i] = pLayout;
+		m_pD->Layouts[i] = pLayout;
 	}
 
 
@@ -93,12 +93,19 @@ namespace mu
 	{
 		NodeLayoutPtr pResult;
 
-		if ( i>=0 && i<m_layouts.Num() )
+		if ( i>=0 && i< Layouts.Num() )
 		{
-			pResult = m_layouts[i];
+			pResult = Layouts[i];
 		}
 
 		return pResult;
+	}
+
+
+	//---------------------------------------------------------------------------------------------
+	void NodeMeshTable::SetNoneOption(bool bAddNoneOption)
+	{
+		m_pD->bNoneOption = bAddNoneOption;
 	}
 
 }

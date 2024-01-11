@@ -33,28 +33,35 @@ namespace mu
 	//---------------------------------------------------------------------------------------------
 	void NodeColourTable::SetColumn( const FString& strName )
 	{
-		m_pD->m_columnName = strName;
+		m_pD->ColumnName = strName;
 	}
 
 
 	//---------------------------------------------------------------------------------------------
 	void NodeColourTable::SetParameterName( const FString& strName )
 	{
-		m_pD->m_parameterName = strName;
+		m_pD->ParameterName = strName;
 	}
 
 
 	//---------------------------------------------------------------------------------------------
 	void NodeColourTable::SetTable( TablePtr pTable )
 	{
-		m_pD->m_pTable = pTable;
+		m_pD->Table = pTable;
 	}
 
 
 	//---------------------------------------------------------------------------------------------
 	TablePtr NodeColourTable::GetTable() const
 	{
-		return m_pD->m_pTable;
+		return m_pD->Table;
+	}
+
+
+	//---------------------------------------------------------------------------------------------
+	void NodeColourTable::SetNoneOption(bool bAddNoneOption)
+	{
+		m_pD->bNoneOption = bAddNoneOption;
 	}
 
 

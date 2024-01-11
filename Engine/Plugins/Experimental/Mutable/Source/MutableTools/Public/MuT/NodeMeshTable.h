@@ -71,6 +71,9 @@ namespace mu
 		NodeLayoutPtr GetLayout( int index ) const;
 		void SetLayout( int index, NodeLayoutPtr );
 
+		//! Adds the "None" option to the parameter that represents this table column
+		void SetNoneOption(bool bAddOption);
+
 		//-----------------------------------------------------------------------------------------
 		// Interface pattern
 		//-----------------------------------------------------------------------------------------
