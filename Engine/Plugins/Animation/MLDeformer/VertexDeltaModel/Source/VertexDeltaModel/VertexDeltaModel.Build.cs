@@ -40,6 +40,7 @@ public class VertexDeltaModel : ModuleRules
 				"GeometryCache",
 				"NNE",
 				"NNERuntimeRDG",
+				"NNEUtils",
 				"OptimusCore",
 				"Projects",
 				"RenderCore",

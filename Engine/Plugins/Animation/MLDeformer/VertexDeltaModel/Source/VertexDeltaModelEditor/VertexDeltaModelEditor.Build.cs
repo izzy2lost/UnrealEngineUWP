@@ -33,6 +33,7 @@ namespace UnrealBuildTool.Rules
 					"PropertyEditor",
 					"NNE",
 					"NNERuntimeRDG",
+					"NNEUtils",
 					"ToolWidgets",
 					"ComputeFramework"
 				}
