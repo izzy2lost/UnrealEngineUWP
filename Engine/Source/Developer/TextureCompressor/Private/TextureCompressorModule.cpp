@@ -2179,7 +2179,23 @@ static inline FVector ComputeWSCubeDirectionAtTexelCenter(uint32 CubemapFace, ui
 
 static uint32 ComputeLongLatCubemapExtents(int32 SrcImageSizeX, const uint32 MaxCubemapTextureResolution)
 {
-	return FMath::Clamp(1U << FMath::FloorLog2(SrcImageSizeX / 2), 32U, MaxCubemapTextureResolution);
+	// MaxCubemapTextureResolution when not set is 0xFFFFFFFF
+
+	uint32 Out = 1U << FMath::FloorLog2(SrcImageSizeX / 2);
+
+	if ( Out <= 32 || MaxCubemapTextureResolution <= 32 )
+	{
+		return 32;
+	}
+	else if ( Out > MaxCubemapTextureResolution )
+	{
+		// RoundDownToPowerOfTwo
+		return 1U << FMath::FloorLog2(MaxCubemapTextureResolution);
+	}
+	else
+	{
+		return Out;
+	}
 }
 
 void ITextureCompressorModule::GenerateBaseCubeMipFromLongitudeLatitude2D(FImage* OutMip, const FImage& SrcImage, const uint32 MaxCubemapTextureResolution, uint8 SourceEncodingOverride)
@@ -4144,6 +4160,7 @@ private:
 
 				// Max Texture Size resizing happens here :
 				// note we do not check for TMGS_Angular here
+				// note that TMGS_NoMipMaps *can* use this path; in that case it generates mips using 2x2 simple average
 				const FImage& BaseMip = bSuitableFormat ? BaseImage : Temp;
 				GenerateMipChain(BuildSettings, BaseMip, BuildSourceImageMips, 1);
 

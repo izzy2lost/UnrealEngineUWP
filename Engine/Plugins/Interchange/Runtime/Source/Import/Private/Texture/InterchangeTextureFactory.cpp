@@ -1514,21 +1514,24 @@ namespace UE::Interchange::Private::InterchangeTextureFactory
 			// if Texture is not pow2 , change to TMGS_NoMipMaps (if it was default)
 			//   this used to be done by Texture2d.cpp ; it is now optional
 			//	 you can set it back to having mips if you want
-			if (Texture->MipGenSettings == TMGS_FromTextureGroup)
+			if (Texture->MipGenSettings == TMGS_FromTextureGroup && Texture->GetTextureClass() == ETextureClass::TwoD )
 			{
 				Texture->MipGenSettings = TMGS_NoMipmaps;
 			}
 
-			// if Texture is not multiple of 4, change TC to EditorIcon ("UserInterface2D")
-			//	if you do not do this, you might see "Texture forced to uncompressed because size is not a multiple of 4"
-			//  this needs to match the logic in Texture.cpp : GetDefaultTextureFormatName
-			const int32 SizeX = Texture->Source.GetSizeX();
-			const int32 SizeY = Texture->Source.GetSizeY();
-			if ((SizeX & 3) != 0 || (SizeY & 3) != 0)
+			if ( ! Texture->Source.IsLongLatCubemap() )
 			{
-				if (Texture->CompressionSettings == TC_Default) // AutoDXT/BC1
+				// if Texture is not multiple of 4, change TC to EditorIcon ("UserInterface2D")
+				//	if you do not do this, you might see "Texture forced to uncompressed because size is not a multiple of 4"
+				//  this needs to match the logic in Texture.cpp : GetDefaultTextureFormatName
+				const int32 SizeX = Texture->Source.GetSizeX();
+				const int32 SizeY = Texture->Source.GetSizeY();
+				if ((SizeX & 3) != 0 || (SizeY & 3) != 0)
 				{
-					Texture->CompressionSettings = TC_EditorIcon; // "UserInterface2D"
+					if (Texture->CompressionSettings == TC_Default) // AutoDXT/BC1
+					{
+						Texture->CompressionSettings = TC_EditorIcon; // "UserInterface2D"
+					}
 				}
 			}
 		}

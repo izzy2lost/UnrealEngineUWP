@@ -593,6 +593,11 @@ void UTexture::ValidateSettingsAfterImportOrEdit(bool * pRequiresNotifyMaterials
 		{
 			bIsPowerOfTwo = true;
 		}
+		if ( Source.IsLongLatCubemap() )
+		{
+			// longlat cube always generates pow2 output
+			bIsPowerOfTwo = true;
+		}
 
 		// Downscale can violate IsPow2, but it only acts when NoMipMaps, so it's moot
 
@@ -1659,6 +1664,11 @@ bool UTexture::IsPossibleToStream() const
 		}
 		if ( PowerOfTwoMode != ETexturePowerOfTwoSetting::None )
 		{
+			bIsPowerOfTwo = true;
+		}
+		if ( Source.IsLongLatCubemap() )
+		{
+			// longlat cube always generates pow2 output
 			bIsPowerOfTwo = true;
 		}
 		if ( ! bIsPowerOfTwo )
