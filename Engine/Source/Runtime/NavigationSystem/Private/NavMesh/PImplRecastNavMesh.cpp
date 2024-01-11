@@ -2725,7 +2725,7 @@ bool FPImplRecastNavMesh::GetDebugGeometryForTile(FRecastDebugGeometry& OutGeome
 		: 0;
 
 	const FRecastNavMeshGenerator* Generator = static_cast<const FRecastNavMeshGenerator*>(NavMeshOwner->GetGenerator());
-	const bool bIsGenerationRestrictedToActiveTiles = Generator && Generator->IsBuildingRestrictedToActiveTiles() && NavMeshOwner->GetActiveTiles().Num() > 0;
+	const bool bIsGenerationRestrictedToActiveTiles = Generator && Generator->IsBuildingRestrictedToActiveTiles() && !NavMeshOwner->GetActiveTileSet().IsEmpty();
 
 	auto ComputeSizeToReserve = [](dtMeshTile const* const Tile, int32& OutNumVertsToReserve, int32& OutNumIndicesToReserve)
 	{
@@ -2772,7 +2772,7 @@ bool FPImplRecastNavMesh::GetDebugGeometryForTile(FRecastDebugGeometry& OutGeome
 	else if (bIsGenerationRestrictedToActiveTiles)
 	{
 		TArray<const dtMeshTile*> Tiles;
-		const TArray<FIntPoint>& ActiveTiles = NavMeshOwner->GetActiveTiles();
+		const TSet<FIntPoint>& ActiveTiles = NavMeshOwner->GetActiveTileSet();
 		for (const FIntPoint& TileLocation : ActiveTiles)
 		{
 			Tiles.Reset();

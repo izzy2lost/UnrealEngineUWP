@@ -4628,12 +4628,14 @@ PRAGMA_ENABLE_DEPRECATION_WARNINGS
 	INC_DWORD_STAT_BY(STAT_NavigationMemory, sizeof(*this));
 }
 
+PRAGMA_DISABLE_DEPRECATION_WARNINGS	// Needed for ActiveTiles
 FRecastNavMeshGenerator::~FRecastNavMeshGenerator()
 {
 	UE_CLOG(RunningDirtyTiles.Num() > 0, LogNavigation, Log, TEXT("Discarding %d build tasks"), RunningDirtyTiles.Num());
 	CancelBuild();
 	DEC_DWORD_STAT_BY( STAT_NavigationMemory, sizeof(*this) );
 }
+PRAGMA_ENABLE_DEPRECATION_WARNINGS
 
 void FRecastNavMeshGenerator::SetupTileConfig(const ENavigationDataResolution TileResolution, FRecastBuildConfig& OutConfig) const
 {
@@ -5268,20 +5270,20 @@ void FRecastNavMeshGenerator::RestrictBuildingToActiveTiles(bool InRestrictBuild
 		bRestrictBuildingToActiveTiles = InRestrictBuildingToActiveTiles;
 		if (InRestrictBuildingToActiveTiles)
 		{
-			// gather non-empty tiles and add them to ActiveTiles
+			// gather non-empty tiles and add them to ActiveTileSet
 
 			const dtNavMesh* DetourMesh = DestNavMesh->GetRecastNavMeshImpl()->GetRecastMesh();
 
 			if (DetourMesh != nullptr && DetourMesh->isEmpty() == false)
 			{
-				ActiveTiles.Reset();
+				ActiveTileSet.Reset();
 				int32 TileCount = DetourMesh->getMaxTiles();
 				for (int32 TileIndex = 0; TileIndex < TileCount; ++TileIndex)
 				{
 					const dtMeshTile* Tile = DetourMesh->getTile(TileIndex);
 					if (Tile != nullptr && Tile->header != nullptr && Tile->header->polyCount > 0)
 					{
-						ActiveTiles.AddUnique(FIntPoint(Tile->header->x, Tile->header->y));
+						ActiveTileSet.FindOrAdd(FIntPoint(Tile->header->x, Tile->header->y));
 					}
 				}
 			}
@@ -5291,8 +5293,7 @@ void FRecastNavMeshGenerator::RestrictBuildingToActiveTiles(bool InRestrictBuild
 
 bool FRecastNavMeshGenerator::IsInActiveSet(const FIntPoint& Tile) const
 {
-	// @TODO checking if given tile is in active tiles needs to be faster
-	return bRestrictBuildingToActiveTiles == false || ActiveTiles.Find(Tile) != INDEX_NONE;
+	return bRestrictBuildingToActiveTiles == false || ActiveTileSet.Contains(Tile);
 }
 
 void FRecastNavMeshGenerator::ResetTimeSlicedTileGeneratorSync()
@@ -6014,12 +6015,6 @@ void FRecastNavMeshGenerator::MarkDirtyTiles(const TArray<FNavigationDirtyArea>&
 	const bool bGameStaticNavMesh = IsGameStaticNavMesh(DestNavMesh);
 
 	const UNavigationSystemV1* NavSys = FNavigationSystem::GetCurrent<UNavigationSystemV1>(GetWorld());
-	const TArray<FBox>* SeedsBoundsArrayPtr = nullptr;
-	if (NavSys && NavSys->IsActiveTilesGenerationEnabled())
-	{
-		SeedsBoundsArrayPtr = &NavSys->GetInvokersSeedBounds();
-	}
-
 	const ARecastNavMesh* const OwnerNav = GetOwner();
 	const bool bUseVirtualGeometryFilteringAndDirtying = OwnerNav != nullptr && OwnerNav->bUseVirtualGeometryFilteringAndDirtying;
 	// Those are set only if bUseVirtualGeometryFilteringAndDirtying is enabled since we do not use them for anything else
@@ -6035,188 +6030,172 @@ void FRecastNavMeshGenerator::MarkDirtyTiles(const TArray<FNavigationDirtyArea>&
 	// Used for debug purposes to track the number of new dirty tiles per area; Updated only if LogNavigationDirtyArea is VeryVerbose
 	TMap<FPendingTileElement, TArray<FNavigationDirtyAreaPerTileDebugInformation>> DirtyAreasDebugging;
 #endif
-	for (const FNavigationDirtyArea& DirtyArea : DirtyAreas)
+
+	if (!bRestrictBuildingToActiveTiles || !ActiveTileSet.IsEmpty())
 	{
-		if (!ensureMsgf(DirtyArea.Bounds.IsValid, TEXT("%hs Attempting to use DirtyArea.Bounds which are not valid. SourceObject: %s"), __FUNCTION__, *GetFullNameSafe(DirtyArea.OptionalSourceObject.Get())))
+		for (const FNavigationDirtyArea& DirtyArea : DirtyAreas)
 		{
-			continue;
-		}
-
-		// Game world static navmeshes accept only area modifiers updates
-		if (bGameStaticNavMesh && (!DirtyArea.HasFlag(ENavigationDirtyFlag::DynamicModifier) || DirtyArea.HasFlag(ENavigationDirtyFlag::NavigationBounds)))
-		{
-			continue;
-		}
-
-		UE_VLOG_BOX(OwnerNav, LogNavigation, VeryVerbose, DirtyArea.Bounds, FColor::Blue, TEXT("DirtyArea %s"), *GetNameSafe(DirtyArea.OptionalSourceObject.Get()));
+			QUICK_SCOPE_CYCLE_COUNTER(STAT_RecastNavMeshGenerator_DirtyArea);
 		
-		// (if bUseVirtualGeometryFilteringAndDirtying is true) Ignore dirty areas flagged by a source object that is not supposed to apply to this navmesh
-		if (bUseVirtualGeometryFilteringAndDirtying && NavSys && NavOctreeInstance && NavDataConfig)
-		{
-			if (const UObject* const SourceObject = DirtyArea.OptionalSourceObject.Get())
+			if (!ensureMsgf(DirtyArea.Bounds.IsValid, TEXT("%hs Attempting to use DirtyArea.Bounds which are not valid. SourceObject: %s"), __FUNCTION__, *GetFullNameSafe(DirtyArea.OptionalSourceObject.Get())))
 			{
-				if (!ShouldDirtyTilesRequestedByObject(*NavSys, *NavOctreeInstance, *SourceObject, *NavDataConfig))
+				continue;
+			}
+
+			// Game world static navmeshes accept only area modifiers updates
+			if (bGameStaticNavMesh && (!DirtyArea.HasFlag(ENavigationDirtyFlag::DynamicModifier) || DirtyArea.HasFlag(ENavigationDirtyFlag::NavigationBounds)))
+			{
+				continue;
+			}
+
+			UE_VLOG_BOX(OwnerNav, LogNavigation, VeryVerbose, DirtyArea.Bounds, FColor::Blue, TEXT("DirtyArea %s"), *GetNameSafe(DirtyArea.OptionalSourceObject.Get()));
+		
+			// (if bUseVirtualGeometryFilteringAndDirtying is true) Ignore dirty areas flagged by a source object that is not supposed to apply to this navmesh
+			if (bUseVirtualGeometryFilteringAndDirtying && NavSys && NavOctreeInstance && NavDataConfig)
+			{
+				if (const UObject* const SourceObject = DirtyArea.OptionalSourceObject.Get())
+				{
+					if (!ShouldDirtyTilesRequestedByObject(*NavSys, *NavOctreeInstance, *SourceObject, *NavDataConfig))
+					{
+						continue;
+					}
+				}
+			}
+		
+			bool bDoTileInclusionTest = false;
+			FBox AdjustedAreaBounds = DirtyArea.Bounds;
+		
+			// if it's not expanding the navigable area
+			if (DirtyArea.HasFlag(ENavigationDirtyFlag::NavigationBounds) == false)
+			{
+				// and is outside of current bounds
+				if (GetTotalBounds().Intersect(DirtyArea.Bounds) == false)
+				{
+					// skip it
+					continue;
+				}
+
+				const FBox CutDownArea = CalculateBoxIntersection(GetTotalBounds(), DirtyArea.Bounds);
+				AdjustedAreaBounds = GrowBoundingBox(CutDownArea, DirtyArea.HasFlag(ENavigationDirtyFlag::UseAgentHeight));
+
+				// @TODO this and the following test share some work in common
+				if (IntersectBounds(AdjustedAreaBounds, InclusionBounds) == false)
 				{
 					continue;
 				}
-			}
-		}
-		
-		bool bDoTileInclusionTest = false;
-		FBox AdjustedAreaBounds = DirtyArea.Bounds;
-		
-		// if it's not expanding the navigable area
-		if (DirtyArea.HasFlag(ENavigationDirtyFlag::NavigationBounds) == false)
-		{
-			// and is outside of current bounds
-			if (GetTotalBounds().Intersect(DirtyArea.Bounds) == false)
-			{
-				// skip it
-				continue;
+
+				// check if any of inclusion volumes encapsulates this box
+				// using CutDownArea not AdjustedAreaBounds since if the area is on the border of navigable space
+				// then FindInclusionBoundEncapsulatingBox can produce false negative
+				bDoTileInclusionTest = (FindInclusionBoundEncapsulatingBox(CutDownArea) == INDEX_NONE);
 			}
 
-			const FBox CutDownArea = CalculateBoxIntersection(GetTotalBounds(), DirtyArea.Bounds);
-			AdjustedAreaBounds = GrowBoundingBox(CutDownArea, DirtyArea.HasFlag(ENavigationDirtyFlag::UseAgentHeight));
-
-			// @TODO this and the following test share some work in common
-			if (IntersectBounds(AdjustedAreaBounds, InclusionBounds) == false)
 			{
-				continue;
-			}
+				QUICK_SCOPE_CYCLE_COUNTER(STAT_RecastNavMeshGenerator_CheckTilesInBounds);
 
-			// check if any of inclusion volumes encapsulates this box
-			// using CutDownArea not AdjustedAreaBounds since if the area is on the border of navigable space
-			// then FindInclusionBoundEncapsulatingBox can produce false negative
-			bDoTileInclusionTest = (FindInclusionBoundEncapsulatingBox(CutDownArea) == INDEX_NONE);
-		}
+				uint32 PendingTilesMarked = 0;
+			
+				const FRcTileBox TileBox(AdjustedAreaBounds, RcNavMeshOrigin, TileSizeInWorldUnits);
 
-		QUICK_SCOPE_CYCLE_COUNTER(STAT_RecastNavMeshGenerator_DirtyArea);
-
-		TArray<FBox, TInlineAllocator<32>> SubAreaBoundsArray;
-		if (SeedsBoundsArrayPtr != nullptr && SeedsBoundsArrayPtr->Num() > 0)
-		{
-			for (const FBox& SeedBounds : *SeedsBoundsArrayPtr)
-			{
-				// Compute sub area bound
-				const FBox OverlapBox = AdjustedAreaBounds.Overlap(SeedBounds);
-				if (OverlapBox.IsValid)
+				for (int32 TileY = TileBox.YMin; TileY <= TileBox.YMax; ++TileY)
 				{
-					SubAreaBoundsArray.Add(OverlapBox);
-				}
-			}
-		}
-		else
-		{
-			if (ensureMsgf(AdjustedAreaBounds.IsValid, TEXT("%hs Attempting to use AdjustedAreaBounds which are not valid"), __FUNCTION__))
-			{
-				SubAreaBoundsArray.Add(AdjustedAreaBounds);
-			}
-		}
-
-		uint32 PendingTilesMarked = 0;
-		
-		for (const FBox& SubArea : SubAreaBoundsArray)
-		{
-			const FRcTileBox TileBox(SubArea, RcNavMeshOrigin, TileSizeInWorldUnits);
-
-			for (int32 TileY = TileBox.YMin; TileY <= TileBox.YMax; ++TileY)
-			{
-				for (int32 TileX = TileBox.XMin; TileX <= TileBox.XMax; ++TileX)
-				{
-					if (IsInActiveSet(FIntPoint(TileX, TileY)) == false)
+					for (int32 TileX = TileBox.XMin; TileX <= TileBox.XMax; ++TileX)
 					{
-						UE_SUPPRESS(LogNavigation, VeryVerbose,
+						if (IsInActiveSet(FIntPoint(TileX, TileY)) == false)
 						{
-							const FBox TileBounds = FRecastTileGenerator::CalculateTileBounds(TileX, TileY, RcNavMeshOrigin, TotalNavBounds, TileSizeInWorldUnits);
-							UE_VLOG_BOX(OwnerNav, LogNavigation, VeryVerbose, TileBounds, FColor::Red, TEXT("Not in active set"));
-						});
-						continue;
-					}
-
-					if (bDoTileInclusionTest == true && DirtyArea.HasFlag(ENavigationDirtyFlag::NavigationBounds) == false)
-					{
-						const FBox TileBounds = FRecastTileGenerator::CalculateTileBounds(TileX, TileY, RcNavMeshOrigin, TotalNavBounds, TileSizeInWorldUnits);
-
-						// do per tile check since we can have lots of tiles in between navigable bounds volumes
-						if (IntersectBounds(TileBounds, InclusionBounds) == false)
-						{
-							// Skip this tile
+							UE_SUPPRESS(LogNavigation, VeryVerbose,
+							{
+								const FBox TileBounds = FRecastTileGenerator::CalculateTileBounds(TileX, TileY, RcNavMeshOrigin, TotalNavBounds, TileSizeInWorldUnits);
+								UE_VLOG_BOX(OwnerNav, LogNavigation, VeryVerbose, TileBounds, FColor::Red, TEXT("Not in active set"));
+							});
 							continue;
 						}
-					}
-											
-					FPendingTileElement Element;
-					Element.Coord = FIntPoint(TileX, TileY);
-					// Make sure to prevent bRebuildGeometry for game world static navmeshes.
-					// Game world static navmeshes accept only area modifiers updates. Rebuilding geometry would bRegenerateCompressedLayers without having the geometry for them.
-					Element.bRebuildGeometry = !bGameStaticNavMesh && (DirtyArea.HasFlag(ENavigationDirtyFlag::Geometry) || DirtyArea.HasFlag(ENavigationDirtyFlag::NavigationBounds));
-					Element.CreationTime = CurrentTimeSeconds;
-					if (Element.bRebuildGeometry == false)
-					{
-						Element.DirtyAreas.Add(SubArea);
-					}
-					PendingTilesMarked++;
-			
-					FPendingTileElement* ExistingElement = DirtyTiles.Find(Element);
-					if (ExistingElement)
-					{
-						ExistingElement->bRebuildGeometry |= Element.bRebuildGeometry;
-						// Append area bounds to existing list 
-						if (ExistingElement->bRebuildGeometry == false)
+
+						if (bDoTileInclusionTest == true && DirtyArea.HasFlag(ENavigationDirtyFlag::NavigationBounds) == false)
 						{
-							ExistingElement->DirtyAreas.Append(Element.DirtyAreas);
+							const FBox TileBounds = FRecastTileGenerator::CalculateTileBounds(TileX, TileY, RcNavMeshOrigin, TotalNavBounds, TileSizeInWorldUnits);
+
+							// do per tile check since we can have lots of tiles in between navigable bounds volumes
+							if (IntersectBounds(TileBounds, InclusionBounds) == false)
+							{
+								// Skip this tile
+								continue;
+							}
+						}
+											
+						FPendingTileElement Element;
+						Element.Coord = FIntPoint(TileX, TileY);
+						// Make sure to prevent bRebuildGeometry for game world static navmeshes.
+						// Game world static navmeshes accept only area modifiers updates. Rebuilding geometry would bRegenerateCompressedLayers without having the geometry for them.
+						Element.bRebuildGeometry = !bGameStaticNavMesh && (DirtyArea.HasFlag(ENavigationDirtyFlag::Geometry) || DirtyArea.HasFlag(ENavigationDirtyFlag::NavigationBounds));
+						Element.CreationTime = CurrentTimeSeconds;
+						if (Element.bRebuildGeometry == false)
+						{
+							Element.DirtyAreas.Add(AdjustedAreaBounds);
+						}
+						PendingTilesMarked++;
+			
+						FPendingTileElement* ExistingElement = DirtyTiles.Find(Element);
+						if (ExistingElement)
+						{
+							ExistingElement->bRebuildGeometry |= Element.bRebuildGeometry;
+							// Append area bounds to existing list 
+							if (ExistingElement->bRebuildGeometry == false)
+							{
+								ExistingElement->DirtyAreas.Append(Element.DirtyAreas);
+							}
+							else
+							{
+								ExistingElement->DirtyAreas.Empty();
+							}
 						}
 						else
 						{
-							ExistingElement->DirtyAreas.Empty();
+							DirtyTiles.Add(Element);
 						}
-					}
-					else
-					{
-						DirtyTiles.Add(Element);
-					}
 			
 #if !UE_BUILD_SHIPPING
-					UE_SUPPRESS(LogNavigationDirtyArea, VeryVerbose, 
-					{
-						const bool bAlreadyAdded = ExistingElement != nullptr;
-						DirtyAreasDebugging.FindOrAdd(Element).Add({DirtyArea, bAlreadyAdded});
-					});
+						UE_SUPPRESS(LogNavigationDirtyArea, VeryVerbose, 
+						{
+							const bool bAlreadyAdded = ExistingElement != nullptr;
+							DirtyAreasDebugging.FindOrAdd(Element).Add({DirtyArea, bAlreadyAdded});
+						});
 #endif
+					}
 				}
-			}
 
 #if !UE_BUILD_SHIPPING
-			// Warn if this is from a big dirty area
-			UE_SUPPRESS(LogNavigationDirtyArea, Warning, 
-			{
-				if (PendingTilesMarked > 0)
+				// Warn if this is from a big dirty area
+				UE_SUPPRESS(LogNavigationDirtyArea, Warning, 
 				{
-					if (NavSys == nullptr)
+					if (PendingTilesMarked > 0)
 					{
-						// NavSys might not have been initialized yet if not using bUseVirtualGeometryFilteringAndDirtying
-						NavSys = FNavigationSystem::GetCurrent<UNavigationSystemV1>(GetWorld());
-					}
+						if (NavSys == nullptr)
+						{
+							// NavSys might not have been initialized yet if not using bUseVirtualGeometryFilteringAndDirtying
+							NavSys = FNavigationSystem::GetCurrent<UNavigationSystemV1>(GetWorld());
+						}
 			
-					// If not using active tile generation, those are reported earlier in FNavigationDirtyAreasController::AddArea
-					if (NavSys && NavSys->GetOperationMode() == FNavigationSystemRunMode::GameMode && NavSys->IsActiveTilesGenerationEnabled() &&
-						AdjustedAreaBounds.GetSize().GetMax() > NavSys->GetDirtyAreaWarningSizeThreshold())
-					{
-						const UObject* const SourceObject = DirtyArea.OptionalSourceObject.Get();
-						const UActorComponent* const ObjectAsComponent = Cast<UActorComponent>(SourceObject);
-						const AActor* const ComponentOwner = ObjectAsComponent ? ObjectAsComponent->GetOwner() : nullptr;
-						const FVector2D BoundsSize(DirtyArea.Bounds.GetSize());
+						// If not using active tile generation, those are reported earlier in FNavigationDirtyAreasController::AddArea
+						if (NavSys && NavSys->GetOperationMode() == FNavigationSystemRunMode::GameMode && NavSys->IsActiveTilesGenerationEnabled() &&
+							AdjustedAreaBounds.GetSize().GetMax() > NavSys->GetDirtyAreaWarningSizeThreshold())
+						{
+							const UObject* const SourceObject = DirtyArea.OptionalSourceObject.Get();
+							const UActorComponent* const ObjectAsComponent = Cast<UActorComponent>(SourceObject);
+							const AActor* const ComponentOwner = ObjectAsComponent ? ObjectAsComponent->GetOwner() : nullptr;
+							const FVector2D AdjustedAreaBoundsSize(AdjustedAreaBounds.GetSize());
 		
-						UE_LOG(LogNavigationDirtyArea, Warning,
-							TEXT("(navmesh: %-30s) Added an oversized dirty area | Tiles marked: %2u | Source object = %s | Potential comp owner = %s | Bounds size = %s | Threshold: %.0f"),
-							*GetNameSafe(GetOwner()), PendingTilesMarked, *GetFullNameSafe(SourceObject), *GetFullNameSafe(ComponentOwner),
-							*BoundsSize.ToString(), NavSys->GetDirtyAreaWarningSizeThreshold());
+							UE_LOG(LogNavigationDirtyArea, Warning,
+								TEXT("(navmesh: %-30s) Added an oversized dirty area | Tiles marked: %2u | Source object = %s | Potential comp owner = %s | Bounds size = %s | Threshold: %.0f"),
+								*GetNameSafe(GetOwner()), PendingTilesMarked, *GetFullNameSafe(SourceObject), *GetFullNameSafe(ComponentOwner),
+								*AdjustedAreaBoundsSize.ToString(), NavSys->GetDirtyAreaWarningSizeThreshold());
+						}
 					}
-				}
-			});
+				});
 #endif // !UE_BUILD_SHIPPING
-			
-		} // SubAreaBoundsArray loop	
+
+			} // QUICK_SCOPE_CYCLE_COUNTER(STAT_RecastNavMeshGenerator_DirtyArea);
+		}
 	}
 	
 	int32 NumTilesMarked = DirtyTiles.Num();

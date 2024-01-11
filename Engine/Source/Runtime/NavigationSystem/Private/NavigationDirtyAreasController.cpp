@@ -2,6 +2,7 @@
 
 #include "NavigationDirtyAreasController.h"
 #include "NavigationData.h"
+#include "NavigationSystem.h"
 #include "VisualLogger/VisualLogger.h"
 #include "AI/Navigation/NavigationDirtyElement.h"
 
@@ -28,18 +29,79 @@ void FNavigationDirtyAreasController::ForceRebuildOnNextTick()
 	DirtyAreasUpdateTime = FMath::Max(DirtyAreasUpdateTime, MinTimeForUpdate);
 }
 
-void FNavigationDirtyAreasController::Tick(const float DeltaSeconds, const TArray<ANavigationData*>& NavDataSet, bool bForceRebuilding)
+namespace UE::Navigation::Private
+{
+	const UNavigationSystemV1* FindNavigationSystem(const TArray<ANavigationData*>& NavDataSet)
+	{
+		const UNavigationSystemV1* NavSys = nullptr;
+		for (const ANavigationData* NavData : NavDataSet)
+		{
+			if (NavData)
+			{
+				NavSys = FNavigationSystem::GetCurrent<UNavigationSystemV1>(NavData->GetWorld());
+				if (NavSys)
+				{
+					return NavSys;
+				}
+			}
+		}
+
+		return NavSys;
+	}
+}
+
+void FNavigationDirtyAreasController::Tick(const float DeltaSeconds, const TArray<ANavigationData*>& NavDataSet, bool bForceRebuilding /*= false*/)
 {
 	DirtyAreasUpdateTime += DeltaSeconds;
 	const bool bCanRebuildNow = bForceRebuilding || (DirtyAreasUpdateFreq != 0.f && DirtyAreasUpdateTime >= (1.0f / DirtyAreasUpdateFreq));
 
 	if (DirtyAreas.Num() > 0 && bCanRebuildNow)
 	{
+		bool bIsUsingActiveTileGeneration = false;
+		TArray<FNavigationDirtyArea> SubAreaArray;
+		SubAreaArray.Reserve(DirtyAreas.Num());
+		
+		{
+			QUICK_SCOPE_CYCLE_COUNTER(STAT_RecastNavMeshGenerator_MakingSubAreas);
+
+			// Find the relevant navigation system
+			const UNavigationSystemV1* NavSys = UE::Navigation::Private::FindNavigationSystem(NavDataSet);
+			
+			const TArray<FBox>* SeedsBoundsArrayPtr = nullptr;
+			bIsUsingActiveTileGeneration = NavSys && NavSys->IsActiveTilesGenerationEnabled(); 
+			if (bIsUsingActiveTileGeneration)
+			{
+				SeedsBoundsArrayPtr = &NavSys->GetInvokersSeedBounds();
+			}
+
+			if (SeedsBoundsArrayPtr != nullptr && SeedsBoundsArrayPtr->Num() > 0)
+			{
+				for (const FNavigationDirtyArea& DirtyArea : DirtyAreas)
+				{
+					const FBox& AreaBound = DirtyArea.Bounds;
+					if (!ensureMsgf(AreaBound.IsValid, TEXT("%hs Attempting to use DirtyArea.Bounds which are not valid. SourceObject: %s"), __FUNCTION__, *GetFullNameSafe(DirtyArea.OptionalSourceObject.Get())))
+					{
+						continue;
+					}
+					
+					for (const FBox& SeedBounds : *SeedsBoundsArrayPtr)
+					{
+						// Compute sub area bound
+						const FBox OverlapBox = AreaBound.Overlap(SeedBounds);
+						if (OverlapBox.IsValid)
+						{
+							SubAreaArray.Emplace(OverlapBox, DirtyArea.Flags, DirtyArea.OptionalSourceObject.Get());
+						}
+					}
+				}
+			}
+		}
+		
 		for (ANavigationData* NavData : NavDataSet)
 		{
 			if (NavData)
 			{
-				NavData->RebuildDirtyAreas(DirtyAreas);
+				NavData->RebuildDirtyAreas(bIsUsingActiveTileGeneration ? SubAreaArray : DirtyAreas);
 			}
 		}
 

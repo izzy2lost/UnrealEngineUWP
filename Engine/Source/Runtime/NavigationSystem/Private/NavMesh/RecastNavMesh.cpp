@@ -1015,18 +1015,40 @@ void ARecastNavMesh::SortAreasForGenerator(TArray<FRecastAreaNavModifierElement>
 	Modifiers.Sort(FNavAreaSortPredicate());
 }
 
+#if WITH_EDITORONLY_DATA
+// Deprecated
 const TArray<FIntPoint>& ARecastNavMesh::GetActiveTiles() const
 {
 	const FRecastNavMeshGenerator* MyGenerator = static_cast<const FRecastNavMeshGenerator*>(GetGenerator());
 	check(MyGenerator);
+PRAGMA_DISABLE_DEPRECATION_WARNINGS
 	return MyGenerator->ActiveTiles;
+PRAGMA_ENABLE_DEPRECATION_WARNINGS
 }
 
+// Deprecated
 TArray<FIntPoint>& ARecastNavMesh::GetActiveTiles()
 {
 	FRecastNavMeshGenerator* MyGenerator = static_cast<FRecastNavMeshGenerator*>(GetGenerator());
 	check(MyGenerator);
+PRAGMA_DISABLE_DEPRECATION_WARNINGS	
 	return MyGenerator->ActiveTiles;
+PRAGMA_ENABLE_DEPRECATION_WARNINGS
+}
+#endif // WITH_EDITORONLY_DATA
+
+const TSet<FIntPoint>& ARecastNavMesh::GetActiveTileSet() const
+{
+	const FRecastNavMeshGenerator* MyGenerator = static_cast<const FRecastNavMeshGenerator*>(GetGenerator());
+	check(MyGenerator);
+	return MyGenerator->ActiveTileSet;
+}
+
+TSet<FIntPoint>& ARecastNavMesh::GetActiveTileSet()
+{
+	FRecastNavMeshGenerator* MyGenerator = static_cast<FRecastNavMeshGenerator*>(GetGenerator());
+	check(MyGenerator);
+	return MyGenerator->ActiveTileSet;
 }
 
 void ARecastNavMesh::LogRecastTile(const TCHAR* Caller, const FName& Prefix, const FName& OperationName, const dtNavMesh& DetourMesh, const int32 TileX, const int32 TileY, const int32 LayerIndex, const dtTileRef TileRef) const
@@ -3550,10 +3572,10 @@ void ARecastNavMesh::UpdateActiveTiles(const TArray<FNavigationInvokerRaw>& Invo
 	const FVector NavmeshOrigin = Recast2UnrealPoint(NavParams->orig);
 	const FVector::FReal TileDim = Config.GetTileSizeUU();
 
-	TArray<FIntPoint>& ActiveTiles = GetActiveTiles();
-	TArray<FIntPoint> OldActiveSet = ActiveTiles;
+	TSet<FIntPoint>& ActiveTiles = GetActiveTileSet();
+	TSet<FIntPoint> OldActiveSet = ActiveTiles;
 	TArray<FNavMeshDirtyTileElement> TilesInMinDistance;
-	TArray<FIntPoint> TilesInMaxDistance;
+	TSet<FIntPoint> TilesInMaxDistance;
 	TArray<FIntPoint> TileToAppend;
 	TilesInMinDistance.Reserve(ActiveTiles.Num());
 	TilesInMaxDistance.Reserve(ActiveTiles.Num());
@@ -3585,7 +3607,7 @@ void ARecastNavMesh::UpdateActiveTiles(const TArray<FNavigationInvokerRaw>& Invo
 					const FVector::FReal DistanceSq = (InvokerRelativeLocation - FVector(X * TileDim + TileDim / 2, Y * TileDim + TileDim / 2, 0.f)).SizeSquared2D();
 					if (DistanceSq < TileCenterDistanceToRemoveSq)
 					{
-						TilesInMaxDistance.AddUnique(FIntPoint(X, Y));
+						TilesInMaxDistance.FindOrAdd(FIntPoint(X, Y));
 
 						if (DistanceSq < TileCenterDistanceToAddSq)
 						{
@@ -3614,18 +3636,18 @@ void ARecastNavMesh::UpdateActiveTiles(const TArray<FNavigationInvokerRaw>& Invo
 
 	{
 		TRACE_CPUPROFILER_EVENT_SCOPE(ARecastNavMesh::CategorizeTiles);
+
 		TilesToRemove.Reserve(OldActiveSet.Num());
-		for (int32 Index = OldActiveSet.Num() - 1; Index >= 0; --Index)
+		for(TSet<FIntPoint>::TIterator TileIt = OldActiveSet.CreateIterator(); TileIt; ++TileIt)
 		{
-			const FIntPoint& Tile = OldActiveSet[Index];
-			if (TilesInMaxDistance.Find(Tile) == INDEX_NONE)
+			if(!TilesInMaxDistance.Contains(*TileIt))
 			{
-				TilesToRemove.Add(Tile);
-				OldActiveSet.RemoveAtSwap(Index, 1, /*bAllowShrinking=*/false);
+				TilesToRemove.Add(*TileIt);
+				TileIt.RemoveCurrent();
 			}
 			else
 			{
-				ActiveTiles.AddUnique(Tile);
+				ActiveTiles.FindOrAdd(*TileIt);
 			}
 		}
 	}
@@ -3633,11 +3655,10 @@ void ARecastNavMesh::UpdateActiveTiles(const TArray<FNavigationInvokerRaw>& Invo
 	// Find tiles to update
 	TArray<FNavMeshDirtyTileElement> TilesToUpdate;
 	TilesToUpdate.Reserve(ActiveTiles.Num());
-	for (int32 Index = TilesInMinDistance.Num() - 1; Index >= 0; --Index)
+	for (const FNavMeshDirtyTileElement& Tile : TilesInMinDistance)
 	{
 		// Check if it's a new tile (not in the active set)
-		const FNavMeshDirtyTileElement& Tile = TilesInMinDistance[Index];
-		if (OldActiveSet.Find(Tile.Coordinates) == INDEX_NONE)
+		if (!OldActiveSet.Contains(Tile.Coordinates))
 		{
 			TilesToUpdate.Add(Tile);
 		}

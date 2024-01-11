@@ -1063,8 +1063,13 @@ protected:
 	/** List of tiles that were recently regenerated */
 	TNavStatArray<FTileTimestamp> RecentlyBuiltTiles;
 #endif// WITH_EDITOR
-	
+
+#if WITH_EDITORONLY_DATA	
+	UE_DEPRECATED(5.4, "Use ActiveTileSet instead.")
 	TArray<FIntPoint> ActiveTiles;
+#endif // WITH_EDITORONLY_DATA
+	
+	TSet<FIntPoint> ActiveTileSet;
 
 	/** */
 	FRecastNavMeshCachedData AdditionalCachedData;

@@ -271,10 +271,11 @@ TArray<FNavTileRef> URecastNavMeshDataChunk::AttachTiles(ARecastNavMesh& NavMesh
 
 	if (DetourNavMesh != nullptr)
 	{
-		TArray<FIntPoint>* ActiveTiles = nullptr;
+		TSet<FIntPoint>* ActiveTiles = nullptr;
 		if (UE::NavMesh::Private::IsUsingActiveTileGeneration(NavMesh))
 		{
-			ActiveTiles = &NavMesh.GetActiveTiles();
+			ActiveTiles = &NavMesh.GetActiveTileSet();
+			ActiveTiles->Reserve(ActiveTiles->Num() + Tiles.Num());
 		}
 		
 		for (FRecastTileData& TileData : Tiles)
@@ -335,7 +336,7 @@ TArray<FNavTileRef> URecastNavMeshDataChunk::AttachTiles(ARecastNavMesh& NavMesh
 				
 				if (ActiveTiles)
 				{
-					ActiveTiles->AddUnique(FIntPoint(TileData.X, TileData.Y));					
+					ActiveTiles->FindOrAdd(FIntPoint(TileData.X, TileData.Y));
 				}
 				
 				if (bKeepCopyOfData == false)
@@ -403,10 +404,10 @@ TArray<FNavTileRef> URecastNavMeshDataChunk::DetachTiles(ARecastNavMesh& NavMesh
 
 	if (DetourNavMesh != nullptr)
 	{
-		TArray<FIntPoint>* ActiveTiles = nullptr;
+		TSet<FIntPoint>* ActiveTiles = nullptr;
 		if (UE::NavMesh::Private::IsUsingActiveTileGeneration(NavMesh))
 		{
-			ActiveTiles = &NavMesh.GetActiveTiles();
+			ActiveTiles = &NavMesh.GetActiveTileSet();
 		}
 
 		TArray<const dtMeshTile*> ExtraMeshTiles;
@@ -450,7 +451,7 @@ TArray<FNavTileRef> URecastNavMeshDataChunk::DetachTiles(ARecastNavMesh& NavMesh
 
 					if (ActiveTiles)
 					{
-						ActiveTiles->RemoveSwap(FIntPoint(TileData.X, TileData.Y));	
+						ActiveTiles->Remove(FIntPoint(TileData.X, TileData.Y));
 					}
 						
 					Result.Add(FNavTileRef(TileRef));

@@ -1105,9 +1105,14 @@ public:
 	NAVIGATIONSYSTEM_API virtual void AttachNavMeshDataChunk(URecastNavMeshDataChunk& NavDataChunk);
 	NAVIGATIONSYSTEM_API virtual void DetachNavMeshDataChunk(URecastNavMeshDataChunk& NavDataChunk);
 
+	UE_DEPRECATED(5.4, "Use GetActiveTileSet instead.")
 	NAVIGATIONSYSTEM_API const TArray<FIntPoint>& GetActiveTiles() const;
+	UE_DEPRECATED(5.4, "Use GetActiveTileSet instead.")
 	NAVIGATIONSYSTEM_API TArray<FIntPoint>& GetActiveTiles(); 
 
+	NAVIGATIONSYSTEM_API const TSet<FIntPoint>& GetActiveTileSet() const;
+	NAVIGATIONSYSTEM_API TSet<FIntPoint>& GetActiveTileSet(); 
+	
 	NAVIGATIONSYSTEM_API void LogRecastTile(const TCHAR* Caller, const FName& Prefix, const FName& OperationName, const dtNavMesh& DetourMesh, const int32 TileX, const int32 TileY, const int32 LayerIndex, const uint64 TileRef) const;
 	
 protected:
