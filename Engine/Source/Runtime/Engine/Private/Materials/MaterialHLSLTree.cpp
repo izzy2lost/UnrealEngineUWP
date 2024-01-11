@@ -1668,53 +1668,41 @@ void FExpressionTextureSample::EmitValueShader(FEmitContext& Context, FEmitScope
 		bAutomaticViewMipBias);
 }
 
+FName FExpressionStaticTerrainLayerWeight::BuildWeightmapName(const TCHAR* Weightmap, int32 Index, bool bUseIndex) const
+{
+	FName Name;
+	if (bUseIndex)
+	{
+		Name = *FString::Printf(TEXT("%s%d"), Weightmap, Index);
+	}
+	else
+	{
+		Name = *FString::Printf(TEXT("%sArray"), Weightmap);
+	}
+	return Name;
+}
+
 bool FExpressionStaticTerrainLayerWeight::PrepareValue(FEmitContext& Context, FEmitScope& Scope, const FRequestedType& RequestedType, FPrepareValueResult& OutResult) const
 {
-	bool bFoundMatchingParameter = false;
 	FEmitData& EmitData = Context.FindData<FEmitData>();
 	// TODO: revist whether we need to add the parameters to CachedExpressionData
 	const bool bTextureArrayEnabled = UseTextureArraySample(Context);
-	if (EmitData.StaticParameters)
+
+	TArray<int32> Indices;
+	EmitData.GatherStaticTerrainLayerParamIndices(BaseParameterInfo.Name, Indices);
+	bool bFoundMatchingParameter = !Indices.IsEmpty();
+
+	if (Context.bMarkLiveValues && EmitData.CachedExpressionData)
 	{
-		for (int32 ParameterIndex = 0; ParameterIndex < EmitData.StaticParameters->EditorOnly.TerrainLayerWeightParameters.Num(); ++ParameterIndex)
+		for (int32 Index : Indices)
 		{
-			const FStaticTerrainLayerWeightParameter& Parameter = EmitData.StaticParameters->EditorOnly.TerrainLayerWeightParameters[ParameterIndex];
-
-			// If there are multiple weight maps with the same name, they should be numbered to allow for unique masks
-			FName LayerNameTest = Parameter.LayerName;
-			LayerNameTest.SetNumber(0);
-
-			if (LayerNameTest != BaseParameterInfo.Name)
-			{
-				continue;
-			}
-
-			const int32 WeightmapIndex = Parameter.WeightmapIndex;
-
-			if (WeightmapIndex == INDEX_NONE)
-			{
-				continue;
-			}
-
-			bFoundMatchingParameter = true;
-
-			if (!Context.bMarkLiveValues || !EmitData.CachedExpressionData)
-			{
-				break;
-			}
+			const FStaticTerrainLayerWeightParameter& Parameter = EmitData.StaticParameters->EditorOnly.TerrainLayerWeightParameters[Index];
 
 			FMaterialParameterInfo WeightmapParameterInfo = BaseParameterInfo;
+			WeightmapParameterInfo.Name = BuildWeightmapName(TEXT("Weightmap"), Parameter.WeightmapIndex, !bTextureArrayEnabled);
+
 			FMaterialParameterMetadata WeightmapParameterMeta;
-			if (bTextureArrayEnabled)
-			{
-				WeightmapParameterInfo.Name = FName(TEXT("WeightmapArray"));
-				WeightmapParameterMeta.Value = GEngine->WeightMapPlaceholderTexture;
-			}
-			else
-			{
-				WeightmapParameterInfo.Name = *FString::Printf(TEXT("Weightmap%d"), WeightmapIndex);
-				WeightmapParameterMeta.Value = GEngine->WeightMapArrayPlaceholderTexture;
-			}
+			WeightmapParameterMeta.Value = bTextureArrayEnabled ? GEngine->WeightMapArrayPlaceholderTexture : GEngine->WeightMapPlaceholderTexture;
 
 			UObject* UnusedReferencedTexture;
 			EmitData.CachedExpressionData->AddParameter(WeightmapParameterInfo, WeightmapParameterMeta, UnusedReferencedTexture);
@@ -1727,12 +1715,12 @@ bool FExpressionStaticTerrainLayerWeight::PrepareValue(FEmitContext& Context, FE
 
 			EmitData.CachedExpressionData->AddParameter(LayerMaskParameterInfo, LayerMaskParameterMeta, UnusedReferencedTexture);
 		}
+	}
 
-		if (bFoundMatchingParameter && EmitData.CachedExpressionData)
-		{
-			EmitData.CachedExpressionData->ReferencedTextures.AddUnique(GEngine->WeightMapArrayPlaceholderTexture);
-			EmitData.CachedExpressionData->ReferencedTextures.AddUnique(GEngine->WeightMapPlaceholderTexture);
-		}
+	if (bFoundMatchingParameter && EmitData.CachedExpressionData)
+	{
+		EmitData.CachedExpressionData->ReferencedTextures.AddUnique(GEngine->WeightMapArrayPlaceholderTexture);
+		EmitData.CachedExpressionData->ReferencedTextures.AddUnique(GEngine->WeightMapPlaceholderTexture);
 	}
 
 	if (!bFoundMatchingParameter)
@@ -1786,46 +1774,19 @@ void FExpressionStaticTerrainLayerWeight::EmitValueShader(FEmitContext& Context,
 	FEmitShaderExpression* EmitResult = nullptr;
 	int32 NumWeightmapParameters = 0;
 
-	for (int32 ParameterIndex = 0; ParameterIndex < EmitData.StaticParameters->EditorOnly.TerrainLayerWeightParameters.Num(); ++ParameterIndex)
+	TArray<int32> Indices;
+	EmitData.GatherStaticTerrainLayerParamIndices(BaseParameterInfo.Name, Indices);
+
+	for (int32 Index : Indices)
 	{
-		const FStaticTerrainLayerWeightParameter& Parameter = EmitData.StaticParameters->EditorOnly.TerrainLayerWeightParameters[ParameterIndex];
-
-		// If there are multiple weight maps with the same name, they should be numbered to allow for unique masks
-		FName LayerNameTest = Parameter.LayerName;
-		LayerNameTest.SetNumber(0);
-
-		if (LayerNameTest != BaseParameterInfo.Name)
-		{
-			continue;
-		}
-
+		const FStaticTerrainLayerWeightParameter& Parameter = EmitData.StaticParameters->EditorOnly.TerrainLayerWeightParameters[Index];
 		const int32 WeightmapIndex = Parameter.WeightmapIndex;
 
-		if (WeightmapIndex == INDEX_NONE)
-		{
-			continue;
-		}
-
 		FMaterialTextureValue TextureValue;
-		if (bTextureArrayEnabled)
-		{
-			TextureValue.Texture = GEngine->WeightMapArrayPlaceholderTexture;
-			TextureValue.SamplerType = SAMPLERTYPE_Masks;
-			TextureValue.ParameterInfo = BaseParameterInfo;
-			TextureValue.ParameterInfo.Name = FName(TEXT("WeightmapArray"));
-		}
-		else
-		{
-			TextureValue.Texture = GEngine->WeightMapPlaceholderTexture;
-			TextureValue.SamplerType = SAMPLERTYPE_Masks;
-			TextureValue.ParameterInfo = BaseParameterInfo;
-			TextureValue.ParameterInfo.Name = *FString::Printf(TEXT("Weightmap%d"), WeightmapIndex);	
-		}
-		
-		if (!EmitTexCoordValue)
-		{
-			EmitTexCoordValue = TexCoordExpression->GetValueShader(Context, Scope, TexCoordType);
-		}
+		TextureValue.SamplerType = SAMPLERTYPE_Masks;
+		TextureValue.ParameterInfo = BaseParameterInfo;
+		TextureValue.Texture = bTextureArrayEnabled ? GEngine->WeightMapArrayPlaceholderTexture : GEngine->WeightMapPlaceholderTexture;
+		TextureValue.ParameterInfo.Name = BuildWeightmapName(TEXT("Weightmap"), WeightmapIndex, !bTextureArrayEnabled);
 
 		if (bTextureArrayEnabled)
 		{
@@ -3265,6 +3226,22 @@ bool FExpressionFinalShadingModelSwitch::IsInputActive(const FEmitContext& Conte
 	}
 }
 
+bool FExpressionLandscapeLayerSwitch::IsInputActive(const FEmitContext& Context, int32 Index) const
+{
+	bool bFoundMatchingParameter = false;
+	const FEmitData& EmitData = Context.FindData<FEmitData>();
+	if (!bPreviewUsed)
+	{
+		TArray<int32> Indices;
+		EmitData.GatherStaticTerrainLayerParamIndices(ParameterName, Indices);
+		bFoundMatchingParameter = !Indices.IsEmpty();
+	}
+
+	// 0 is LayerNotUsed, 1 is LayerUsed
+	int32 DesiredIndex = bFoundMatchingParameter || bPreviewUsed ? 1 : 0;
+	return Index == DesiredIndex;
+}
+
 bool FExpressionAtmosphericFogColorFunction::PrepareValue(FEmitContext& Context, FEmitScope& Scope, const FRequestedType& RequestedType, FPrepareValueResult& OutResult) const
 {
 	const FPreparedType& PositionType = Context.PrepareExpression(PositionExpression, Scope, Shader::EValueType::Double3);
@@ -3566,6 +3543,36 @@ int32 FEmitData::FindOrAddParameterCollection(const class UMaterialParameterColl
 	}
 
 	return CollectionIndex;
+}
+
+void FEmitData::GatherStaticTerrainLayerParamIndices(FName LayerName, TArray<int32>& ParamIndices) const
+{
+	if (StaticParameters)
+	{
+		for (int32 ParameterIndex = 0; ParameterIndex < StaticParameters->EditorOnly.TerrainLayerWeightParameters.Num(); ++ParameterIndex)
+		{
+			const FStaticTerrainLayerWeightParameter& Parameter = StaticParameters->EditorOnly.TerrainLayerWeightParameters[ParameterIndex];
+
+			// If there are multiple weight maps with the same name, they should be numbered to allow for unique masks
+			FName LayerNameTest = Parameter.LayerName;
+			if (Parameter.bIsRepeatedLayer)
+			{
+				LayerNameTest.SetNumber(0);
+			}
+
+			if (LayerNameTest != LayerName)
+			{
+				continue;
+			}
+
+			if (Parameter.WeightmapIndex == INDEX_NONE)
+			{
+				continue;
+			}
+
+			ParamIndices.Add(ParameterIndex);
+		}
+	}
 }
 
 } // namespace UE::HLSLTree::Material

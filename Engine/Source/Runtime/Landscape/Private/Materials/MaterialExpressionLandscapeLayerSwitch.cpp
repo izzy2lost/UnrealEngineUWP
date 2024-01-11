@@ -5,6 +5,8 @@
 #include "Engine/Texture.h"
 #include "EngineGlobals.h"
 #include "MaterialCompiler.h"
+#include "MaterialHLSLGenerator.h"
+#include "MaterialHLSLTree.h"
 #include "Materials/Material.h"
 #include "LandscapeUtils.h"
 
@@ -76,6 +78,20 @@ int32 UMaterialExpressionLandscapeLayerSwitch::Compile(class FMaterialCompiler* 
 
 	return ReturnCode;
 }
+
+bool UMaterialExpressionLandscapeLayerSwitch::GenerateHLSLExpression(FMaterialHLSLGenerator& Generator, UE::HLSLTree::FScope& Scope, int32 OutputIndex, UE::HLSLTree::FExpression const*& OutExpression) const
+{
+	using namespace UE::HLSLTree;
+
+	const FExpression* Inputs[] = {
+		LayerNotUsed.TryAcquireHLSLExpression(Generator, Scope),
+		LayerUsed.TryAcquireHLSLExpression(Generator, Scope)
+	};
+
+	OutExpression = Generator.GetTree().NewExpression<Material::FExpressionLandscapeLayerSwitch>(Inputs, ParameterName, PreviewUsed!=0);
+	return OutExpression != nullptr;
+}
+
 #endif // WITH_EDITOR
 
 UObject* UMaterialExpressionLandscapeLayerSwitch::GetReferencedTexture() const

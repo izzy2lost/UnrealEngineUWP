@@ -526,6 +526,28 @@ public:
 	virtual bool IsInputActive(const FEmitContext& Context, int32 Index) const override;
 };
 
+class ENGINE_API FExpressionLandscapeLayerSwitch : public FExpressionSwitchBase
+{
+public:
+	FName ParameterName;
+	bool bPreviewUsed;
+
+	FExpressionLandscapeLayerSwitch(TConstArrayView<const FExpression*> InInputs, FName InParameterName, bool bInPreviewUsed)
+		: FExpressionSwitchBase(InInputs)
+		, ParameterName(InParameterName)
+		, bPreviewUsed(bInPreviewUsed)
+	{
+		check(InInputs.Num() == 2);
+	}
+
+	virtual const FExpression* NewSwitch(UE::HLSLTree::FTree& Tree, TConstArrayView<const FExpression*> InInputs) const override
+	{
+		return Tree.NewExpression<FExpressionLandscapeLayerSwitch>(InInputs, ParameterName, bPreviewUsed);
+	}
+
+	virtual bool IsInputActive(const FEmitContext& Context, int32 Index) const override;
+};
+
 class FExpressionNaniteReplaceFunction : public FExpression
 {
 public:
@@ -655,6 +677,7 @@ public:
 	virtual void EmitValueShader(FEmitContext& Context, FEmitScope& Scope, const FRequestedType& RequestedType, FEmitValueShaderResult& OutResult) const override;
 private:
 	bool UseTextureArraySample(const FEmitContext& Context) const;
+	FName BuildWeightmapName(const TCHAR* Weightmap, int32 Index, bool bUseIndex) const;
 };
 
 class FExpressionTextureProperty : public FExpression
@@ -1216,6 +1239,7 @@ public:
 	void EmitInterpolatorShader(FEmitContext& Context, FStringBuilderBase& OutCode);
 
 	int32 FindOrAddParameterCollection(const class UMaterialParameterCollection* ParameterCollection);
+	void GatherStaticTerrainLayerParamIndices(FName LayerName, TArray<int32>& WeightIndices) const;
 };
 
 } // namespace UE::HLSLTree::Material

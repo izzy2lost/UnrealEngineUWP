@@ -243,7 +243,7 @@ public:
 	ENGINE_API virtual void EmitValuePreshader(FEmitContext& Context, FEmitScope& Scope, const FRequestedType& RequestedType, FEmitValuePreshaderResult& OutResult) const override;
 };
 
-class FExpressionSwitchBase : public FExpression
+class ENGINE_API FExpressionSwitchBase : public FExpression
 {
 public:
 	static constexpr int8 MaxInputs = 8;

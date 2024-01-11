@@ -46,6 +46,7 @@ public:
 	LANDSCAPE_API virtual void SetEditableName(const FString& NewName) override;
 	LANDSCAPE_API virtual void GetCaption(TArray<FString>& OutCaptions) const override;
 	LANDSCAPE_API virtual bool MatchesSearchQuery(const TCHAR* SearchQuery) override;
+	virtual bool GenerateHLSLExpression(FMaterialHLSLGenerator& Generator, UE::HLSLTree::FScope& Scope, int32 OutputIndex, UE::HLSLTree::FExpression const*& OutExpression) const override;
 #endif
 	LANDSCAPE_API virtual UObject* GetReferencedTexture() const override;
 	LANDSCAPE_API virtual ReferencedTextureArray GetReferencedTextures() const override;
