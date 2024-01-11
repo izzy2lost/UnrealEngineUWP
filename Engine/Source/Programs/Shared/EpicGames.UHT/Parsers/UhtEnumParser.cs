@@ -78,7 +78,7 @@ namespace EpicGames.UHT.Parsers
 					{
 						ParseUnderlyingType(topScope, enumObject);
 
-						if (enumObject.UnderlyingType != UhtEnumUnderlyingType.Unspecified && enumObject.UnderlyingType != UhtEnumUnderlyingType.Uint8 && enumObject.MetaData.ContainsKey("BlueprintType"))
+						if (enumObject.UnderlyingType != UhtEnumUnderlyingType.Uint8 && enumObject.MetaData.ContainsKey("BlueprintType"))
 						{
 							topScope.TokenReader.LogError("Invalid BlueprintType enum base - currently only uint8 supported");
 						}
