@@ -4,6 +4,7 @@
 #include "NiagaraClearCounts.h"
 #include "NiagaraCompileHashVisitor.h"
 #include "NiagaraGpuComputeDispatchInterface.h"
+#include "NiagaraGpuComputeDispatch.h"
 #include "NiagaraGpuReadbackManager.h"
 #include "NiagaraShaderParametersBuilder.h"
 #include "NiagaraSystemInstance.h"
@@ -73,16 +74,20 @@ struct FNDISimpleCounterProxy : public FNiagaraDataInterfaceProxyRW
 				const FNiagaraGPUInstanceCountManager& CounterManager = Context.GetComputeDispatchInterface().GetGPUInstanceCounterManager();
 				const FRWBuffer& CountBuffer = CounterManager.GetInstanceCountBuffer();
 
+				//-TODO: Once the count manager is ported to RDG we won't need to track this
+				const FNiagaraGpuComputeDispatch& ComputeDispatch = static_cast<const FNiagaraGpuComputeDispatch&>(Context.GetComputeDispatchInterface());
+				const ERHIAccess CountRHIAccess = ComputeDispatch.IsExecutingFirstDispatchGroup() ? FNiagaraGPUInstanceCountManager::kCountBufferDefaultState : ERHIAccess::UAVCompute;
+
 				//-TODO:RDG: Once the count buffer is a graph resource this can be changed
 				AddPass(
 					Context.GetGraphBuilder(),
 					RDG_EVENT_NAME("NiagaraSimpleCounter::PreStage"),
-					[CountBufferUAV=CountBuffer.UAV, CountOffset=InstanceData->CountOffset, CountValue=InstanceData->CountValue.GetValue()](FRHICommandListImmediate& RHICmdList)
+					[CountBufferUAV=CountBuffer.UAV, CountOffset=InstanceData->CountOffset, CountValue=InstanceData->CountValue.GetValue(), CountRHIAccess](FRHICommandListImmediate& RHICmdList)
 					{
 						const TPair<uint32, uint32> DataToClear(CountOffset, reinterpret_cast<const uint32&>(CountValue));
-						RHICmdList.Transition(FRHITransitionInfo(CountBufferUAV, ERHIAccess::UAVCompute, ERHIAccess::UAVCompute));
+						RHICmdList.Transition(FRHITransitionInfo(CountBufferUAV, CountRHIAccess, ERHIAccess::UAVCompute));
 						NiagaraClearCounts::ClearCountsUInt(RHICmdList, CountBufferUAV, MakeArrayView(&DataToClear, 1) );
-						RHICmdList.Transition(FRHITransitionInfo(CountBufferUAV, ERHIAccess::UAVCompute, ERHIAccess::UAVCompute));
+						RHICmdList.Transition(FRHITransitionInfo(CountBufferUAV, ERHIAccess::UAVCompute, CountRHIAccess));
 					}
 				);
 

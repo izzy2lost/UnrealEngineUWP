@@ -176,6 +176,10 @@ public:
 
 	virtual FNiagaraAsyncGpuTraceHelper& GetAsyncGpuTraceHelper() const override;
 
+	//-TODO: Temporary while the count buffer is not an RDG resource
+	bool IsExecutingFirstDispatchGroup() const { return bIsExecutingFirstDispatchGroup; }
+	bool bIsExecutingFirstDispatchGroup = false;
+
 private:
 	void DumpDebugFrame();
 	void UpdateInstanceCountManager(FRHICommandListImmediate& RHICmdList);

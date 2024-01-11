@@ -7,7 +7,6 @@
 #include "NiagaraRenderer.h"
 #include "NiagaraGPUInstanceCountManager.h"
 #include "NiagaraGpuComputeDispatchInterface.h"
-#include "NiagaraGpuComputeDispatch.h"
 #include "NiagaraShaderParticleID.h"
 #include "NiagaraShared.h"
 
@@ -1473,7 +1472,7 @@ void FScopedNiagaraDataSetGPUReadback::ReadbackData(FNiagaraGpuComputeDispatchIn
 			const uint32 BufferOffset = DataBuffer->GetGPUInstanceCountBufferOffset();
 			if (ComputeDispatchInterface && BufferOffset != INDEX_NONE)
 			{
-				FRHIBuffer* InstanceCountBuffer = static_cast<FNiagaraGpuComputeDispatch*>(ComputeDispatchInterface)->GetGPUInstanceCounterManager().GetInstanceCountBuffer().Buffer;
+				FRHIBuffer* InstanceCountBuffer = ComputeDispatchInterface->GetGPUInstanceCounterManager().GetInstanceCountBuffer().Buffer;
 
 				void* Data = RHICmdList.LockBuffer(InstanceCountBuffer, 0, (BufferOffset + 1) * sizeof(int32), RLM_ReadOnly);
 				NumInstances = reinterpret_cast<int32*>(Data)[BufferOffset];

@@ -1099,6 +1099,8 @@ void FNiagaraGpuComputeDispatch::ExecuteTicks(FRDGBuilder& GraphBuilder, TConstS
 		const bool bIsFirstGroup = &DispatchGroup == &DispatchList.DispatchGroups[0];
 		const bool bIsLastGroup = &DispatchGroup == &DispatchList.DispatchGroups.Last();
 
+		bIsExecutingFirstDispatchGroup = bIsFirstGroup;
+
 		// Consume per tick data from the game thread
 		//-TODO: This does not work currently as some senders assume the data will not be deferred processed
 		//for (FNiagaraGPUSystemTick* Tick : DispatchGroup.TicksWithPerInstanceData)
@@ -1386,6 +1388,7 @@ void FNiagaraGpuComputeDispatch::ExecuteTicks(FRDGBuilder& GraphBuilder, TConstS
 	SceneTexturesUniformParams = nullptr;
 	MobileSceneTexturesUniformParams = nullptr;
 	SubstratePublicGlobalUniformParams = nullptr;
+	bIsExecutingFirstDispatchGroup = false;
 
 	CurrentPassExternalAccessQueue.Submit(GraphBuilder);
 }
