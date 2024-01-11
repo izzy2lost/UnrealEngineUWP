@@ -871,8 +871,8 @@ bool UCustomizableObject::ConditionalAutoCompile()
 		return false;
 	}
 
-	// Don't compile if we're running game, Compile and/or if AutoCompile is disabled
-	if (IsRunningGame() || System->IsCompilationDisabled() || !System->IsAutoCompileEnabled())
+	// Don't compile if we're running game or if Mutable or AutoCompile is disabled.
+	if (IsRunningGame() || !System->IsActive() || !System->IsAutoCompileEnabled())
 	{
 		System->AddUncompiledCOWarning(*this);
 		return false;
@@ -1080,7 +1080,7 @@ void UCustomizableObject::AddUncompiledCOWarning(const FString& AdditionalLoggin
 }
 
 
-USkeletalMesh* UCustomizableObject::GetRefSkeletalMesh(int32 ComponentIndex)
+USkeletalMesh* UCustomizableObject::GetRefSkeletalMesh(int32 ComponentIndex) const
 {
 #if WITH_EDITORONLY_DATA
 	if (ReferenceSkeletalMeshes.IsValidIndex(ComponentIndex))

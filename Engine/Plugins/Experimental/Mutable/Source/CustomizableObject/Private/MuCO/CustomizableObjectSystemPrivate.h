@@ -628,6 +628,10 @@ public:
 	FTSTicker::FDelegateHandle TickDelegateHandle;
 	FTickerDelegate TickDelegate;
 
+	/** Change the current status of Mutable. Enabling/Disabling core features.	
+	 * Disabling Mutable will turn off compilation, generation, and streaming and will remove the system ticker. */
+	static void OnMutableEnabledChanged(IConsoleVariable* CVar = nullptr);
+
 	/** Update the last set amount of internal memory Mutable can use to build objects. */
 	void UpdateMemoryLimit();
 

@@ -2754,8 +2754,14 @@ bool UCustomizableObjectInstance::IsSelectedParameterProfileDirty() const
 //}
 
 
-void UCustomizableInstancePrivate::DiscardResourcesAndSetReferenceSkeletalMesh(UCustomizableObjectInstance* Instance)
+void UCustomizableInstancePrivate::DiscardResources()
 {
+	UCustomizableObjectInstance* Instance = Cast<UCustomizableObjectInstance>(GetOuter());
+	if (!Instance)
+	{
+		return;
+	}
+
 	if (SkeletalMeshStatus == ESkeletalMeshStatus::Success)
 	{
 		for (int32 Component = 0; Component < Instance->SkeletalMeshes.Num(); ++Component)
@@ -2774,27 +2780,47 @@ void UCustomizableInstancePrivate::DiscardResourcesAndSetReferenceSkeletalMesh(U
 	
 	Instance->SkeletalMeshes.Reset();
 	DescriptorRuntimeHash = FDescriptorRuntimeHash();
+}
+
+
+void UCustomizableInstancePrivate::SetDefaultSkeletalMesh(bool bSetEmptyMesh) const
+{
+	UCustomizableObjectInstance* Instance = Cast<UCustomizableObjectInstance>(GetOuter());
+	if (!Instance || !Instance->GetCustomizableObject())
+	{
+		return;
+	}
+
+	UCustomizableObject* CustomizableObject = Instance->GetCustomizableObject();
+	const int32 NumComponents = CustomizableObject->GetComponentCount();
 
 	for (TObjectIterator<UCustomizableObjectInstanceUsage> It; It; ++It)
 	{
 		UCustomizableObjectInstanceUsage* CustomizableObjectInstanceUsage = *It;
+		if (!IsValid(CustomizableObjectInstanceUsage) || CustomizableObjectInstanceUsage->GetCustomizableObjectInstance() != Instance)
+		{
+			continue;
+		}
 
 #if WITH_EDITOR
-		if (IsValid(CustomizableObjectInstanceUsage) && CustomizableObjectInstanceUsage->IsNetMode(NM_DedicatedServer))
+		if (CustomizableObjectInstanceUsage->IsNetMode(NM_DedicatedServer))
 		{
 			continue;
 		}
 #endif
 
-		if (IsValid(CustomizableObjectInstanceUsage) && CustomizableObjectInstanceUsage->GetCustomizableObjectInstance() == Instance)
+		USkeletalMesh* SkeletalMesh = nullptr;
+		
+		FMutableRefSkeletalMeshData* RefSkeletalMeshData = CustomizableObject->GetRefSkeletalMeshData(CustomizableObjectInstanceUsage->GetComponentIndex());
+		if (!bSetEmptyMesh && RefSkeletalMeshData)
 		{
-			UCustomizableObject* CustomizableObject = Instance->GetCustomizableObject();
-			bool bReplaceDiscardedWithReferenceMesh = UCustomizableObjectSystem::GetInstance()->GetPrivate()->IsReplaceDiscardedWithReferenceMeshEnabled();
-			CustomizableObjectInstanceUsage->SetSkeletalMesh(CustomizableObject && bReplaceDiscardedWithReferenceMesh ? CustomizableObject->GetRefSkeletalMesh(CustomizableObjectInstanceUsage->GetComponentIndex()) : nullptr);
+			// Force load the reference mesh if necessary. 
+			SkeletalMesh = TSoftObjectPtr<USkeletalMesh>(RefSkeletalMeshData->SkeletalMeshAssetPath).LoadSynchronous();
 		}
+		
+		CustomizableObjectInstanceUsage->SetSkeletalMesh(SkeletalMesh);
 	}
 }
-
 
 
 namespace
@@ -6350,7 +6376,7 @@ TSubclassOf<UAnimInstance> UCustomizableObjectInstance::GetAnimBP(int32 Componen
 	
 	if (!ComponentData)
 	{
-		FString ErrorMsg = FString::Printf(TEXT("Tried to access and invalid component index [%d] in a Mutable Instance."), ComponentIndex);
+		FString ErrorMsg = FString::Printf(TEXT("Tried to access an invalid component index [%d] in a Mutable Instance."), ComponentIndex);
 		UE_LOG(LogMutable, Error, TEXT("%s"), *ErrorMsg);
 #if WITH_EDITOR
 		FMessageLogModule& MessageLogModule = FModuleManager::LoadModuleChecked<FMessageLogModule>("MessageLog");
@@ -6396,7 +6422,7 @@ void UCustomizableObjectInstance::ForEachAnimInstance(int32 ComponentIndex, FEac
 	
 	if (!ComponentData)
 	{
-		FString ErrorMsg = FString::Printf(TEXT("Tried to access and invalid component index [%d] in a Mutable Instance."), ComponentIndex);
+		FString ErrorMsg = FString::Printf(TEXT("Tried to access an invalid component index [%d] in a Mutable Instance."), ComponentIndex);
 		UE_LOG(LogMutable, Error, TEXT("%s"), *ErrorMsg);
 #if WITH_EDITOR
 		FMessageLogModule& MessageLogModule = FModuleManager::LoadModuleChecked<FMessageLogModule>("MessageLog");
@@ -6543,7 +6569,7 @@ void UCustomizableObjectInstance::ForEachAnimInstance(int32 ComponentIndex, FEac
 	
 	if (!ComponentData)
 	{
-		FString ErrorMsg = FString::Printf(TEXT("Tried to access and invalid component index [%d] in a Mutable Instance."), ComponentIndex);
+		FString ErrorMsg = FString::Printf(TEXT("Tried to access an invalid component index [%d] in a Mutable Instance."), ComponentIndex);
 		UE_LOG(LogMutable, Error, TEXT("%s"), *ErrorMsg);
 #if WITH_EDITOR
 		FMessageLogModule& MessageLogModule = FModuleManager::LoadModuleChecked<FMessageLogModule>("MessageLog");

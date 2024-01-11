@@ -741,12 +741,6 @@ UCustomizableObjectInstance* FCustomizableObjectEditor::GetPreviewInstance()
 
 void FCustomizableObjectEditor::CompileObjectUserPressedButton()
 {
-	if (UCustomizableObjectSystem::GetInstance()->IsCompilationDisabled())
-	{
-		UE_LOG(LogMutable, Warning, TEXT("Mutable compile is disabled in Editor. To enable it, go to Project Settings -> Plugins -> Mutable and unmark the option Disable Mutable Compile In Editor"));
-		return;
-	}
-
 	Compiler.ClearAllCompileOnlySelectedOption();
 	CompileObject();
 }
@@ -754,12 +748,6 @@ void FCustomizableObjectEditor::CompileObjectUserPressedButton()
 
 void FCustomizableObjectEditor::CompileOnlySelectedObjectUserPressedButton()
 {
-	if (UCustomizableObjectSystem::GetInstance()->IsCompilationDisabled())
-	{
-		UE_LOG(LogMutable, Warning, TEXT("Mutable compile is disabled in Editor. To enable it, go to Project Settings -> Plugins -> Mutable and unmark the option Disable Mutable Compile In Editor"));
-		return;
-	}
-
 	if (PreviewInstance)
 	{
 		Compiler.ClearAllCompileOnlySelectedOption();
@@ -783,13 +771,13 @@ void FCustomizableObjectEditor::BindCommands()
 	ToolkitCommands->MapAction(
 		Commands.Compile,
 		FExecuteAction::CreateSP(this, &FCustomizableObjectEditor::CompileObjectUserPressedButton),
-		FCanExecuteAction(),
+		FCanExecuteAction::CreateStatic(&UCustomizableObjectSystem::IsActive),
 		FIsActionChecked());
 
 	ToolkitCommands->MapAction(
 		Commands.CompileOnlySelected,
 		FExecuteAction::CreateSP(this, &FCustomizableObjectEditor::CompileOnlySelectedObjectUserPressedButton),
-		FCanExecuteAction(),
+		FCanExecuteAction::CreateStatic(&UCustomizableObjectSystem::IsActive),
 		FIsActionChecked());
 
 	// Compile and options

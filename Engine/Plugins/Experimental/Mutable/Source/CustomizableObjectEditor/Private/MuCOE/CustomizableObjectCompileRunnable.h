@@ -65,9 +65,6 @@ public:
 
 	// Whether the thread has finished running
 	bool bThreadCompleted;
-
-	// If Mutable compile is disabled, to immediately finish the Run() method
-	bool MutableIsDisabled;
 };
 
 

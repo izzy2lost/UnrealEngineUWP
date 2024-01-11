@@ -60,6 +60,14 @@ DECLARE_CYCLE_STAT(TEXT("MutableTask"), STAT_MutableTask, STATGROUP_Game);
 
 UCustomizableObjectSystem* UCustomizableObjectSystemPrivate::SSystem = nullptr;
 
+bool bIsMutableEnabled = true;
+
+static FAutoConsoleVariableRef CVarMutableEnabled(
+	TEXT("Mutable.Enabled"),
+	bIsMutableEnabled,
+	TEXT("true/false - Disabling Mutable will turn off CO compilation, mesh generation, and texture streaming and will remove the system ticker. "),
+	FConsoleVariableDelegate::CreateStatic(&UCustomizableObjectSystemPrivate::OnMutableEnabledChanged));
+
 static TAutoConsoleVariable<int32> CVarWorkingMemory(
 	TEXT("mutable.WorkingMemory"),
 #if !PLATFORM_DESKTOP
@@ -450,6 +458,11 @@ bool UCustomizableObjectSystem::IsCreated()
 	return UCustomizableObjectSystemPrivate::SSystem != 0;
 }
 
+bool UCustomizableObjectSystem::IsActive()
+{
+	return IsCreated() && bIsMutableEnabled;
+}
+
 
 void UCustomizableObjectSystem::InitSystem()
 {
@@ -460,18 +473,8 @@ void UCustomizableObjectSystem::InitSystem()
 
 	Private->bReplaceDiscardedWithReferenceMesh = false;
 
-	const IConsoleVariable* CVarSupport16BitBoneIndex = IConsoleManager::Get().FindConsoleVariable(TEXT("r.GPUSkin.Support16BitBoneIndex"));
-	Private->bSupport16BitBoneIndex = CVarSupport16BitBoneIndex ? CVarSupport16BitBoneIndex->GetBool() : false;
-
-	CVarMutableSinkFunction();
-
 	Private->CurrentMutableOperation = nullptr;
 	Private->CurrentInstanceBeingUpdated = nullptr;
-
-#if !UE_SERVER
-	Private->TickDelegate = FTickerDelegate::CreateUObject(this, &UCustomizableObjectSystem::Tick);
-	Private->TickDelegateHandle = FTSTicker::GetCoreTicker().AddTicker(Private->TickDelegate, 0.f);
-#endif // !UE_SERVER
 
 	Private->LastWorkingMemoryBytes = CVarWorkingMemory.GetValueOnGameThread() * 1024;
 	Private->LastGeneratedResourceCacheSize = CVarGeneratedResourcesCacheSize.GetValueOnGameThread();
@@ -500,16 +503,18 @@ void UCustomizableObjectSystem::InitSystem()
 	RegisterImageProvider(Private->EditorImageProvider);
 #endif
 	
-#if WITH_EDITOR
-	if (!IsRunningGame())
-	{
-		FEditorDelegates::PreBeginPIE.AddUObject(this, &UCustomizableObjectSystem::OnPreBeginPIE);
-	}
-#endif
-
 	DefaultInstanceLODManagement = NewObject<UCustomizableInstanceLODManagement>();
 	check(DefaultInstanceLODManagement != nullptr);
 	CurrentInstanceLODManagement = DefaultInstanceLODManagement;
+
+	// This CVar is constant for the lifespan of the program. Read its value once. 
+	const IConsoleVariable* CVarSupport16BitBoneIndex = IConsoleManager::Get().FindConsoleVariable(TEXT("r.GPUSkin.Support16BitBoneIndex"));
+	Private->bSupport16BitBoneIndex = CVarSupport16BitBoneIndex ? CVarSupport16BitBoneIndex->GetBool() : false;
+
+	// Read non-constant CVars and do work if required.
+	CVarMutableSinkFunction();
+
+	Private->OnMutableEnabledChanged();
 }
 
 
@@ -1117,14 +1122,21 @@ void UCustomizableObjectSystemPrivate::EnqueueUpdateSkeletalMesh(const TSharedRe
 	const bool bIsPlayerOrNearIt = InstancePrivate->HasCOInstanceFlags(UsedByPlayerOrNearIt);
 	UE_LOG(LogMutable, Log, TEXT("Enqueue UpdateSkeletalMesh Async. Instance=%d, Frame=%d, Priority=%d, dist=%f, bIsPlayerOrNearIt=%d"), InstanceId, GFrameNumber, static_cast<int32>(Priority), Distance, bIsPlayerOrNearIt);				
 	
+	if (!bIsMutableEnabled)
+	{
+		// Mutable is disabled. Set the reference SkeletalMesh and finish the update with success to avoid breaking too many things.
+		Context->UpdateResult = EUpdateResult::Success;
+		InstancePrivate->SetDefaultSkeletalMesh();
+		FinishUpdateGlobal(Context);
+		return;
+	}
+
 	if (!Instance->CanUpdateInstance())
 	{
 		Context->UpdateResult = EUpdateResult::Error;
 		FinishUpdateGlobal(Context);
 		return;
 	}
-
-	UCustomizableObjectSystem* System = UCustomizableObjectSystem::GetInstance();
 
 	const EUpdateRequired UpdateRequired = IsUpdateRequired(*Instance, Context->bOnlyUpdateIfNotGenerated, false, Context->bIgnoreCloseDist);
 	switch (UpdateRequired)
@@ -1223,7 +1235,7 @@ void UCustomizableObjectSystemPrivate::EnqueueUpdateSkeletalMesh(const TSharedRe
 
 	case EUpdateRequired::Discard:
 	{
-		System->GetPrivate()->InitDiscardResourcesSkeletalMesh(Instance);
+		InitDiscardResourcesSkeletalMesh(Instance);
 
 		Context->UpdateResult = EUpdateResult::ErrorDiscarded;
 		FinishUpdateGlobal(Context);
@@ -1403,14 +1415,9 @@ bool UCustomizableObjectSystem::CheckIfDiskOrMipUpdateOperationsPending(const UC
 void UCustomizableObjectSystem::EditorSettingsChanged(const FEditorCompileSettings& InEditorSettings)
 {
 	EditorSettings = InEditorSettings;
+
+	CVarMutableEnabled->Set(InEditorSettings.bIsMutableEnabled);
 }
-
-
-bool UCustomizableObjectSystem::IsCompilationDisabled() const
-{
-	return EditorSettings.bDisableCompilation;
-}
-
 
 bool UCustomizableObjectSystem::IsAutoCompileEnabled() const
 {
@@ -2979,7 +2986,7 @@ bool UCustomizableObjectSystem::Tick(float DeltaTime)
 	Private->UpdateStats();
 	
 	// Get a new operation if we aren't working on one
-	if (!Private->CurrentMutableOperation)
+	if (!Private->CurrentMutableOperation && bIsMutableEnabled)
 	{
 		// Reset the instance relevancy
 		// The RequestedUpdates only refer to LOD changes. User Customization and discards are handled separately
@@ -3151,7 +3158,14 @@ bool UCustomizableObjectSystem::Tick(float DeltaTime)
 	Private->MutableTaskGraph.Tick();
 
 	Private->LogBenchmarkUtil.UpdateStats(); // Must to be the last thing to perform
-	
+
+	if (!bIsMutableEnabled && !Private->CurrentMutableOperation)
+	{
+		// Mutable has been disabled. Unregister the ticker if there is no CurrentMutableOperation.
+		FTSTicker::GetCoreTicker().RemoveTicker(Private->TickDelegateHandle);
+		Private->TickDelegateHandle.Reset();
+	}
+
 	return true;
 }
 
@@ -3165,6 +3179,10 @@ TAutoConsoleVariable<int32> CVarMaxNumInstancesToDiscardPerTick(
 
 void UCustomizableObjectSystem::DiscardInstances()
 {
+	MUTABLE_CPUPROFILER_SCOPE(DiscardInstances);
+
+	check(IsInGameThread());
+
 	// Handle instance discards
 	int32 NumInstancesDiscarded = 0;
 	const int32 DiscardLimitPerTick = CVarMaxNumInstancesToDiscardPerTick.GetValueOnGameThread();
@@ -3173,28 +3191,20 @@ void UCustomizableObjectSystem::DiscardInstances()
 		Iterator && NumInstancesDiscarded < DiscardLimitPerTick;
 		++Iterator)
 	{
-		MUTABLE_CPUPROFILER_SCOPE(OperationDiscard);
 
 		UCustomizableObjectInstance* COI = Iterator->CustomizableObjectInstance.Get();
-
-		const bool bUpdating = Private->CurrentMutableOperation && Private->CurrentMutableOperation->Instance != Iterator->CustomizableObjectInstance;
-		if (COI && !bUpdating)
+		
+		const bool bUpdating = Private->CurrentMutableOperation && Private->CurrentMutableOperation->Instance == Iterator->CustomizableObjectInstance;
+		if (COI && COI->GetPrivate() && !bUpdating)
 		{
 			UCustomizableInstancePrivate* COIPrivateData = COI ? COI->GetPrivate() : nullptr;
 
 			// Only discard resources if the instance is still out range (it could have got closer to the player since the task was queued)
 			if (!CurrentInstanceLODManagement->IsOnlyUpdateCloseCustomizableObjectsEnabled() ||
-				!COI ||
-				((COIPrivateData != nullptr) &&
-					(COIPrivateData->LastMinSquareDistFromComponentToPlayer > FMath::Square(CurrentInstanceLODManagement->GetOnlyUpdateCloseCustomizableObjectsDist()))
-					)
-				)
+				COIPrivateData->LastMinSquareDistFromComponentToPlayer > FMath::Square(CurrentInstanceLODManagement->GetOnlyUpdateCloseCustomizableObjectsDist()))
 			{
-				if (COI && COI->IsValidLowLevel())
-				{
-					check(COIPrivateData != nullptr);
-					COIPrivateData->DiscardResourcesAndSetReferenceSkeletalMesh(COI);
-				}
+				COIPrivateData->DiscardResources();
+				COIPrivateData->SetDefaultSkeletalMesh(!IsReplaceDiscardedWithReferenceMeshEnabled());
 			}
 		}
 
@@ -3457,7 +3467,7 @@ void UCustomizableObjectSystem::SetReleaseMutableTexturesImmediately(bool bRelea
 
 void UCustomizableObjectSystem::OnPreBeginPIE(const bool bIsSimulatingInEditor)
 {
-	if (!EditorSettings.bCompileRootObjectsOnStartPIE || IsRunningGame() || IsCompilationDisabled())
+	if (!EditorSettings.bCompileRootObjectsOnStartPIE || IsRunningGame())
 	{
 		return;
 	}
@@ -3526,7 +3536,7 @@ void UCustomizableObjectSystem::StartNextRecompile()
 void UCustomizableObjectSystem::RecompileCustomizableObjectAsync(const FAssetData& InAssetData,
 	const UCustomizableObject* InObject)
 {
-	if (IsRunningGame() || IsCompilationDisabled())
+	if (!IsActive() || IsRunningGame())
 	{
 		return;
 	}
@@ -3548,7 +3558,7 @@ void UCustomizableObjectSystem::RecompileCustomizableObjectAsync(const FAssetDat
 
 void UCustomizableObjectSystem::RecompileCustomizableObjects(const TArray<FAssetData>& InObjects)
 {
-	if (IsRunningGame() || IsCompilationDisabled())
+	if (!IsActive() || IsRunningGame())
 	{
 		return;
 	}
@@ -3689,6 +3699,42 @@ FUnrealMutableImageProvider* UCustomizableObjectSystemPrivate::GetImageProviderC
 {
 	check(ImageProvider)
 	return ImageProvider.Get();
+}
+
+
+void UCustomizableObjectSystemPrivate::OnMutableEnabledChanged(IConsoleVariable* MutableEnabled)
+{
+	if (!UCustomizableObjectSystem::IsCreated())
+	{
+		return;
+	}
+
+	UCustomizableObjectSystem* System = UCustomizableObjectSystem::GetInstance();
+	UCustomizableObjectSystemPrivate* SystemPrivate = System->GetPrivateChecked();
+
+	if (bIsMutableEnabled)
+	{
+#if !UE_SERVER
+		if (!SystemPrivate->TickDelegateHandle.IsValid())
+		{
+			SystemPrivate->TickDelegate = FTickerDelegate::CreateUObject(System, &UCustomizableObjectSystem::Tick);
+			SystemPrivate->TickDelegateHandle = FTSTicker::GetCoreTicker().AddTicker(SystemPrivate->TickDelegate, 0.f);
+		}
+#endif // !UE_SERVER
+
+#if WITH_EDITOR
+		if (!IsRunningGame() && !FEditorDelegates::PreBeginPIE.IsBoundToObject(System))
+		{
+			FEditorDelegates::PreBeginPIE.AddUObject(System, &UCustomizableObjectSystem::OnPreBeginPIE);
+		}
+#endif
+	}
+	else
+	{
+#if WITH_EDITOR
+		FEditorDelegates::PreBeginPIE.RemoveAll(System);
+#endif
+	}
 }
 
 

@@ -288,7 +288,14 @@ namespace impl
 
 int32 FMutableTextureMipDataProvider::GetMips(const FTextureUpdateContext& Context, int32 StartingMipIndex, const FTextureMipInfoArray& MipInfos, const FTextureUpdateSyncOptions& SyncOptions)
 {
-	MUTABLE_CPUPROFILER_SCOPE(FMutableTextureMipDataProvider::GetMips)
+	MUTABLE_CPUPROFILER_SCOPE(FMutableTextureMipDataProvider::GetMips);
+
+	if (!UCustomizableObjectSystem::IsActive())
+	{
+		// Mutable is disabled. Skip all mip operations and mark the update task as completed.
+		AdvanceTo(ETickState::Done, ETickThread::None);
+		return CurrentFirstLODIdx;
+	}
 
 #if WITH_EDITOR
 	check(Context.Texture->HasPendingInitOrStreaming());

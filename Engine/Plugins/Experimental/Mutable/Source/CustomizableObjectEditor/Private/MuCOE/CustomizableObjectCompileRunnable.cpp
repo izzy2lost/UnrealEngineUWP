@@ -23,7 +23,6 @@ class ITargetPlatform;
 FCustomizableObjectCompileRunnable::FCustomizableObjectCompileRunnable(mu::Ptr<mu::Node> Root)
 	: MutableRoot(Root)
 	, bThreadCompleted(false)
-	, MutableIsDisabled(false)
 {
 	PrepareUnrealCompression();
 }
@@ -37,13 +36,6 @@ uint32 FCustomizableObjectCompileRunnable::Run()
 
 	uint32 Result = 1;
 	ErrorMsg = FString();
-
-	if (MutableIsDisabled)
-	{
-		bThreadCompleted = true;
-		UE_LOG(LogMutable, Verbose, TEXT("PROFILE: [ %16.8f ] FCustomizableObjectCompileRunnable::Run end. NOTE: Mutable compile is deactivated in Editor. To reactivate it, go to Project Settings -> Plugins -> Mutable and unmark the option Disable Mutable Compile In Editor"), FPlatformTime::Seconds());
-		return true;
-	}
 
 	// Translate CO compile options into mu::CompilerOptions
 	mu::Ptr<mu::CompilerOptions> CompilerOptions = new mu::CompilerOptions();

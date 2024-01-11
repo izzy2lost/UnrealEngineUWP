@@ -358,56 +358,39 @@ FText FCustomizableObjectInstanceEditor::GetBaseToolkitName() const
 void FCustomizableObjectInstanceEditor::CreatePreviewInstance()
 {
 	check(CustomizableObjectInstance);
-	UCustomizableObject* CustomizableObject = CustomizableObjectInstance->GetCustomizableObject();
-	
-	if (!CustomizableObject || (!CustomizableObject->IsCompiled() && !UCustomizableObjectSystem::GetInstance()->IsCompilationDisabled()))
+	if (!CustomizableObjectInstance->CanUpdateInstance())
 	{
 		return;
 	}
 
 	// Bind update delegate
-	HelperCallback = NewObject<UUpdateClassWrapperClass>(GetTransientPackage());
+	HelperCallback = NewObject<UUpdateClassWrapperClass>();
 	HelperCallback->Delegate.BindSP(this, &FCustomizableObjectInstanceEditor::OnUpdatePreviewInstance);
 	CustomizableObjectInstance->UpdatedDelegate.AddDynamic(HelperCallback, &UUpdateClassWrapperClass::DelegatedCallback);
 
 	PreviewStaticMeshComponent = nullptr;
 
 	// Create a SkeletalMeshComponent for each component in the CO
-	int32 NumMeshComponents = CustomizableObject->GetComponentCount();
+	const int32 NumMeshComponents = CustomizableObjectInstance->GetNumComponents();
 	PreviewSkeletalMeshComponents.AddZeroed(NumMeshComponents);
 	PreviewCustomizableSkeletalComponents.AddZeroed(NumMeshComponents);
 
-	if (CustomizableObject->ReferenceSkeletalMeshes.Num())
+	for (int32 ComponentIndex = 0; ComponentIndex < NumMeshComponents; ++ComponentIndex)
 	{
-		for (int32 ComponentIndex = 0; ComponentIndex < NumMeshComponents; ++ComponentIndex)
-		{
-			PreviewCustomizableSkeletalComponents[ComponentIndex] = NewObject<UCustomizableSkeletalComponent>(UCustomizableSkeletalComponent::StaticClass());
+		PreviewCustomizableSkeletalComponents[ComponentIndex] = NewObject<UCustomizableSkeletalComponent>();
+		check(PreviewCustomizableSkeletalComponents[ComponentIndex]);
 
-			if (PreviewCustomizableSkeletalComponents[ComponentIndex])
-			{
-				PreviewCustomizableSkeletalComponents[ComponentIndex]->CustomizableObjectInstance = CustomizableObjectInstance;
-				PreviewCustomizableSkeletalComponents[ComponentIndex]->ComponentIndex = ComponentIndex;
+		PreviewCustomizableSkeletalComponents[ComponentIndex]->CustomizableObjectInstance = CustomizableObjectInstance;
+		PreviewCustomizableSkeletalComponents[ComponentIndex]->ComponentIndex = ComponentIndex;
 
-				PreviewSkeletalMeshComponents[ComponentIndex] = NewObject<UDebugSkelMeshComponent>(GetTransientPackage(), NAME_None, RF_Transient);
+		PreviewSkeletalMeshComponents[ComponentIndex] = NewObject<UDebugSkelMeshComponent>();
+		check(PreviewSkeletalMeshComponents[ComponentIndex]);
 
-				if (PreviewSkeletalMeshComponents[ComponentIndex])
-				{
-					PreviewCustomizableSkeletalComponents[ComponentIndex]->AttachToComponent(PreviewSkeletalMeshComponents[ComponentIndex], FAttachmentTransformRules::KeepRelativeTransform);
-				}
-				else
-				{
-					return;
-				}
-			}
-			else
-			{
-				return;
-			}
-		}
-
-		CustomizableObjectInstance->UpdateSkeletalMeshAsync(true, true);
-		Viewport->SetPreviewComponents(PreviewSkeletalMeshComponents);
+		PreviewCustomizableSkeletalComponents[ComponentIndex]->AttachToComponent(PreviewSkeletalMeshComponents[ComponentIndex], FAttachmentTransformRules::KeepRelativeTransform);
 	}
+
+	CustomizableObjectInstance->UpdateSkeletalMeshAsync(true, true);
+	Viewport->SetPreviewComponents(PreviewSkeletalMeshComponents);
 }
 
 

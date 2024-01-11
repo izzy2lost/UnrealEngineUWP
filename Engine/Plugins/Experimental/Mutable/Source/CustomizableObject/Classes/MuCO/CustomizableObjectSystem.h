@@ -56,7 +56,7 @@ extern TAutoConsoleVariable<bool> CVarRollbackFixModelDiskStreamerDataRace;
 struct FEditorCompileSettings 
 {
 	// General case
-	bool bDisableCompilation;
+	bool bIsMutableEnabled = true;
 
 	// Auto Compile 
 	bool bEnableAutomaticCompilation = true;
@@ -200,6 +200,10 @@ public:
 	// Return true if the singleton has been created. It is different than GetInstance in that GetInstance will create it if it doesn't exist.
 	static bool IsCreated();
 
+	/** Returns the current status of Mutable. Only when active is it possible to compile COs, generate instances, and stream textures.
+	  * @return True if Mutable is enabled. */
+	static bool IsActive();
+
 	// Begin UObject interface.
 	virtual void BeginDestroy() override;
 	virtual FString GetDesc() override;
@@ -230,9 +234,6 @@ public:
 	
 	// Called whenever the Mutable Editor Settings change, copying the new value of the current needed settings to the Customizable Object System
 	void EditorSettingsChanged(const FEditorCompileSettings& InEditorSettings);
-
-	// If compilation is disabled, Customizable Objects won't be compiled in the editor
-	bool IsCompilationDisabled() const;
 
 	// If true, uncompiled Customizable Objects will be compiled whenever an instance update is required
 	bool IsAutoCompileEnabled() const;

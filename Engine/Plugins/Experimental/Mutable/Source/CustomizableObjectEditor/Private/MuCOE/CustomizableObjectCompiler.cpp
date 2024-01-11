@@ -112,31 +112,6 @@ bool FCustomizableObjectCompiler::Tick()
 	return bUpdated;
 }
 
-void FCustomizableObjectCompiler::MutableIsDisabledCase(UCustomizableObject* Object)
-{
-	if (Object->IsLocked())
-	{
-		return;
-	}
-
-	if (!Object->IsLocked())
-	{
-		UCustomizableObjectSystem::GetInstance()->LockObject(Object);
-	}
-
-	CurrentObject = Object;
-
-	if (CompileTask.IsValid()) // Don't start compilation if there's a compilation running
-	{
-		return;
-	}
-
-	UE_LOG(LogMutable, Log, TEXT("Mutable has been disabled. To reenable it, please deactivate the Disable Mutale Option in the Plugins -> Mutable option"), FPlatformTime::Seconds());
-	CompileTask = MakeShareable(new FCustomizableObjectCompileRunnable(nullptr));
-	CompileTask->MutableIsDisabled = true;
-	LaunchMutableCompile(false);
-}
-
 
 bool FCustomizableObjectCompiler::IsRootObject(const UCustomizableObject* Object) const
 {
@@ -191,14 +166,14 @@ void FCustomizableObjectCompiler::Compile(UCustomizableObject& Object, const FCo
 {
 	TRACE_BEGIN_REGION(UE_MUTABLE_COMPILE_REGION);
 
-	UCustomizableObjectSystem* System = UCustomizableObjectSystem::GetInstance();
-	check(System);
-
-	if (System->IsCompilationDisabled())
+	if (!UCustomizableObjectSystem::IsActive())
 	{
-		CompileInternal(&Object, InOptions, bAsync);
+		UE_LOG(LogMutable, Warning, TEXT("Failed to compile Customizable Object [%s]. Mutable is disabled. To enable it set the CVar Mutable.Enabled to true."), *Object.GetName());
+		SetCompilationState(ECustomizableObjectCompilationState::Failed);
 		return;
 	}
+
+	UCustomizableObjectSystem* System = UCustomizableObjectSystem::GetInstanceChecked();
 
 	UE_LOG(LogMutable, Verbose, TEXT("PROFILE: [ %16.8f ] Preload asynchronously assets start."), FPlatformTime::Seconds());
 
@@ -852,12 +827,6 @@ void FCustomizableObjectCompiler::CompileInternal(UCustomizableObject* Object, c
 	SetCompilationState(ECustomizableObjectCompilationState::Failed);
 
 	if (!Object) return;
-
-	if(UCustomizableObjectSystem::GetInstance()->IsCompilationDisabled())
-	{
-		MutableIsDisabledCase(Object);
-		return;
-	}
 
 	if (bAsync && CompileTask.IsValid()) // Don't start compilation if there's a compilation running
 	{

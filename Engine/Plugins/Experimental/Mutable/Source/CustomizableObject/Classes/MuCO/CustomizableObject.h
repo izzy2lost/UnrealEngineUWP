@@ -1280,7 +1280,7 @@ public:
 	FString FindIntParameterValueName(int32 ParamIndex, int32 ParamValue) const;
 
 	//
-	USkeletalMesh* GetRefSkeletalMesh(int32 ComponentIndex = 0);
+	USkeletalMesh* GetRefSkeletalMesh(int32 ComponentIndex = 0) const;
 	
 	//
 	FMutableRefSkeletalMeshData* GetRefSkeletalMeshData(int32 ComponentIndex = 0);

@@ -31,9 +31,6 @@ public:
 	/** Check for pending compilation process. Returns true if an object has been updated. */
 	CUSTOMIZABLEOBJECTEDITOR_API virtual bool Tick() override;
 
-	/** In case Mutable Compile is disabled, fake the compilation process */
-	CUSTOMIZABLEOBJECTEDITOR_API void MutableIsDisabledCase(UCustomizableObject* Object);
-
 	/** Provided a CO object it provides the root CO it is connected. In other words : it returns the root of the entire
 	 * mutable graph.
 	 * @param InObject Customizable object whose root CO we are asking for.
