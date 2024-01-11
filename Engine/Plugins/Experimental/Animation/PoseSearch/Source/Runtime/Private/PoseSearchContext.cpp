@@ -117,7 +117,7 @@ FVector FDebugDrawParams::ExtractPosition(TConstArrayView<float> PoseVector, flo
 			}
 		}
 	}
-	return GetRootTransform(Role).GetTranslation();
+	return GetRootTransform(Role, SampleTimeOffset).GetTranslation();
 }
 
 FQuat FDebugDrawParams::ExtractRotation(TConstArrayView<float> PoseVector, float SampleTimeOffset, int8 SchemaBoneIdx, const FRole& Role, EPermutationTimeType PermutationTimeType, int32 SamplingAttributeId) const
@@ -243,15 +243,14 @@ FQuat FDebugDrawParams::ExtractRotation(TConstArrayView<float> PoseVector, float
 		}
 	}
 
-	return GetRootTransform(Role).GetRotation();
+	return GetRootTransform(Role, SampleTimeOffset).GetRotation();
 }
 
-FTransform FDebugDrawParams::GetRootTransform(const FRole& Role) const
+FTransform FDebugDrawParams::GetRootTransform(const FRole& Role, float SampleTimeOffset) const
 {
 	if (const int32* RoleIndex = RoleToIndex.Find(Role))
 	{
-		// @todo: add and use SampleTimeOffset to get the root transform at a specific time now using the trajectory
-		return PoseHistories[*RoleIndex]->GetTrajectory().GetSampleAtTime(0.f).GetTransform();
+		return PoseHistories[*RoleIndex]->GetTrajectory().GetSampleAtTime(SampleTimeOffset).GetTransform();
 	}
 	return FTransform::Identity;
 }
@@ -302,7 +301,6 @@ void FDebugDrawParams::DrawCircle(const FMatrix& TransformMatrix, float Radius, 
 		else if (!Meshes.IsEmpty())
 		{
 			// any Mesh is fine to draw
-			// @todo: use the DrawDebugCircle API with the up vector to communize with the AnimInstanceProxy call
 			DrawDebugCircle(Meshes[0]->GetWorld(), TransformMatrix, Radius, Segments, Color, false, 0.f, SDPG_Foreground, Thickness);
 		}
 	}

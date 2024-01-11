@@ -27,11 +27,10 @@ public:
 	// Used for view callbacks
     const FTraceMotionMatchingStateMessage* GetMotionMatchingState() const;
 	const TMap<uint64, TWeakObjectPtr<AActor>>& GetDebugDrawActors() const { return DebugDrawActors; }
+	const TArray<FTraceMotionMatchingStateMessage>& GetMotionMatchingStates() const { return MotionMatchingStates; }
 
 	const UPoseSearchDatabase* GetCurrentDatabase() const;
-	const TArray<int32>* GetNodeIds() const;
 	int32 GetNodesNum() const;
-	const FTransform& GetRootBoneTransform() const;
 
 	/** Update motion matching states for frame */
 	void OnUpdate();
@@ -53,19 +52,11 @@ public:
 
 private:
 
-	// @todo: duplicate member, already contained in MotionMatchingStates(FTraceMessage)::NodeId
-	/** List of all Node IDs associated with motion matching states */
-	TArray<int32> NodeIds;
-	
 	/** List of all updated motion matching states per node */
 	TArray<FTraceMotionMatchingStateMessage> MotionMatchingStates;
 	
 	/** Currently active motion matching state index based on node selection in the view */
 	int32 ActiveMotionMatchingStateIdx = INDEX_NONE;
-
-	// @todo: duplicate information already present in MotionMatchingStates::Trajectories
-	/** Currently active root bone transform */
-	FTransform RootBoneWorldTransform = FTransform::Identity;
 
 	/** Pointer to the active rewind debugger in the scene */
 	TAttribute<const IRewindDebugger*> RewindDebugger;

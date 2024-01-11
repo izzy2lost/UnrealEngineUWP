@@ -5,7 +5,7 @@
 #include "PoseSearch/PoseSearchFeatureChannel.h"
 #include "PoseSearchFeatureChannel_PermutationTime.generated.h"
 
-UCLASS(EditInlineNew, meta = (DisplayName = "Permutation Time Channel"), CollapseCategories)
+UCLASS(Experimental, EditInlineNew, meta = (DisplayName = "Permutation Time Channel"), CollapseCategories)
 class POSESEARCH_API UPoseSearchFeatureChannel_PermutationTime : public UPoseSearchFeatureChannel
 {
 	GENERATED_BODY()

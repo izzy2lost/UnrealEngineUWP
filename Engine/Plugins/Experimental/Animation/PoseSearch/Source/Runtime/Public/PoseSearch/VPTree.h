@@ -201,7 +201,6 @@ struct FVPTree
     void FindNeighbors(const T& Query, TVPTreeResultSet& ResultSet, const TDataSource& DataSource) const
     {
 #if VALIDATE_FINDNEIGHBORS
-		// @todo: WIP validation code
 		int32 NumEvaluatedQueryDistances = 0;
 
 		// brute forcing to find the best Node

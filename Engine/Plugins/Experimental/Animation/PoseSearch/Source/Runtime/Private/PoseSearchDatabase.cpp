@@ -404,8 +404,8 @@ UObject* FPoseSearchDatabaseBlendSpace::GetAnimationAsset() const
 #if WITH_EDITOR
 int32 FPoseSearchDatabaseBlendSpace::GetFrameAtTime(float Time) const
 {
-	// @todo: implement GetFrameAtTime logic for BlendSpace
-	return 0;
+	// returning the percentage of time as value to diplay in the pose search debugger (NoTe: BlendSpace->GetPlayLength() is one)
+	return FMath::RoundToInt(Time * 100.f);
 }
 #endif // WITH_EDITOR
 

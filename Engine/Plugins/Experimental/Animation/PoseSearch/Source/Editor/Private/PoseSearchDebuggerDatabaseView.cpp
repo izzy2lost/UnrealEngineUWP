@@ -631,8 +631,6 @@ void SDebuggerDatabaseView::PopulateViewRows()
 		TSet<int32> BestAssetPoseIndex;
 		if (bShowOnlyBestAssetPose)
 		{
-			// @todo: perhaps optimize via:
-			//TArrayView<int32> SortIndex((int32*)FMemory_Alloca(UnfilteredDatabaseRowsNum * sizeof(int32)), UnfilteredDatabaseRowsNum);
 			TArray<int32> SortIndex;
 			SortIndex.SetNumUninitialized(UnfilteredDatabaseRowsNum);
 			for (int32 i = 0; i < UnfilteredDatabaseRowsNum; ++i)

@@ -181,7 +181,7 @@ void SDebuggerView::Tick(const FGeometry& AllottedGeometry, const double InCurre
 	const UWorld* DebuggerWorld = FDebugger::GetWorld();
 	check(DebuggerWorld);
 
-	// @TODO: Handle editor world when those features are enabled for the Rewind Debugger
+	// @todo: Handle editor world when those features are enabled for the Rewind Debugger
 	// Currently prevents debug draw remnants from stopped world
 	if (DebuggerWorld->WorldType != EWorldType::PIE)
 	{
@@ -396,20 +396,20 @@ bool SDebuggerView::UpdateNodeSelection()
 	bool bNodeSelected = SelectedNodeId != INDEX_NONE;
 	if (!bNodeSelected)
 	{
-		const TArray<int32>& NodeIds = *Model->GetNodeIds();
-		// Only one node active, bypass selection view
-		if (NodeIds.Num() == 1)
+		const TArray<FTraceMotionMatchingStateMessage>& MotionMatchingStates = Model->GetMotionMatchingStates();
+		// Only one active state, bypass selection view
+		if (MotionMatchingStates.Num() == 1)
 		{
-			SelectedNodeId = *NodeIds.begin();
+			SelectedNodeId = MotionMatchingStates[0].NodeId;
 			bNodeSelected = true;
 		}
 		// Create selection view with buttons for each node, displaying the database name
 		else
 		{
 			SelectionView->ClearChildren();
-			for (int32 NodeId : NodeIds)
+			for (const FTraceMotionMatchingStateMessage& MotionMatchingState : MotionMatchingStates)
 			{
-				Model->OnUpdateNodeSelection(NodeId);
+				Model->OnUpdateNodeSelection(MotionMatchingState.NodeId);
 				SelectionView->AddSlot()
 				.HAlign(HAlign_Fill)
 				.VAlign(VAlign_Center)
@@ -420,7 +420,7 @@ bool SDebuggerView::UpdateNodeSelection()
 					.HAlign(HAlign_Center)
 					.VAlign(VAlign_Center)
 					.ContentPadding(10.0f)
-					.OnClicked(this, &SDebuggerView::OnUpdateNodeSelection, NodeId)
+					.OnClicked(this, &SDebuggerView::OnUpdateNodeSelection, MotionMatchingState.NodeId)
 				];
 			}
 		}

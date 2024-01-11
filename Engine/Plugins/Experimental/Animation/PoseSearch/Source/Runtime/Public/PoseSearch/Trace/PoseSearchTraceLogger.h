@@ -27,15 +27,8 @@ struct POSESEARCH_API FTraceMessage
 
 	uint64 AnimInstanceId = 0;
 
-	/** Skeletal Mesh Component Id, outer class of the AnimInstance.
-	 *  Used for retrieval of traced root transforms from the animation provider.
-	 */
-	uint64 SkeletalMeshComponentId = 0;
-
 	/** Node Id of the motion matching node associated with this message */
 	int32 NodeId = 0;
-
-	uint16 FrameCounter = 0;
 };
 POSESEARCH_API FArchive& operator<<(FArchive& Ar, FTraceMessage& State);
 
@@ -51,8 +44,6 @@ POSESEARCH_API FArchive& operator<<(FArchive& Ar, FTraceMotionMatchingStatePoseE
 
 struct POSESEARCH_API FTraceMotionMatchingStateDatabaseEntry
 {
-	// @todo: can we use UPoseSearchDatabase* instead of DatabaseId?
-	//UPoseSearchDatabase const* Database = nullptr;
 	uint64 DatabaseId = 0;
 	TArray<float> QueryVector;
 	TArray<FTraceMotionMatchingStatePoseEntry> PoseEntries;

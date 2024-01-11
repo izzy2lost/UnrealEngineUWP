@@ -144,7 +144,6 @@ static bool LerpEntries(float Time, bool bExtrapolate, const FPoseHistoryEntry& 
 	}
 	else
 	{
-		// @todo: implement if required
 		OutBoneTransform = FTransform::Identity;
 		bSuccess = false;
 		unimplemented();

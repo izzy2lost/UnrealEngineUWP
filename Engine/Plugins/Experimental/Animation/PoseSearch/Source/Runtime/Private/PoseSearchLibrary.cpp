@@ -339,15 +339,9 @@ void UPoseSearchLibrary::TraceMotionMatchingState(
 	TraceState.SearchBruteForceCost = CurrentResult.BruteForcePoseCost.GetTotalCost();
 	TraceState.SearchBestPosePos = CurrentResult.BestPosePos;
 
-	// @todo: clean up this code
-	const UAnimInstance* AnimInstance = SearchContext.GetAnimInstances()[0];
-	UObject* SkeletalMeshComponent = AnimInstance->GetOuter();
-
 	TraceState.Cycle = FPlatformTime::Cycles64();
-	TraceState.AnimInstanceId = FObjectTrace::GetObjectId(AnimInstance);
-	TraceState.SkeletalMeshComponentId = FObjectTrace::GetObjectId(SkeletalMeshComponent);
+	TraceState.AnimInstanceId = FObjectTrace::GetObjectId(SearchContext.GetAnimInstances()[0]);
 	TraceState.NodeId = NodeId;
-	TraceState.FrameCounter = FObjectTrace::GetObjectWorldTickCounter(AnimInstance);
 
 	TraceState.Output();
 }
@@ -749,7 +743,7 @@ void UPoseSearchLibrary::MotionMatch(
 		FCompactPose Pose;
 		Pose.SetBoneContainer(&AnimInstances[0]->GetRequiredBonesOnAnyThread());
 		
-		// @todo... add input BlendParameters to support sampling FutureAnimation blendspaces and support for multi character
+		// @todo: add input BlendParameters to support sampling FutureAnimation blendspaces and support for multi character
 		const FAnimationAssetSampler Sampler(FutureAnimation);
 		for (int32 i = 0; i < 2; ++i)
 		{
@@ -982,7 +976,6 @@ UE::PoseSearch::FSearchResult UPoseSearchLibrary::MotionMatch(const FAnimationBa
 
 		if (bDrawMatch || bDrawquery)
 		{
-			// @todo: populate the FDebugDrawParams properly
 			FAnimInstanceProxy* AnimInstanceProxy = Context.AnimInstanceProxy;
 			const TArrayView<FAnimInstanceProxy*> AnimInstanceProxies = MakeArrayView(&AnimInstanceProxy, 1);
 

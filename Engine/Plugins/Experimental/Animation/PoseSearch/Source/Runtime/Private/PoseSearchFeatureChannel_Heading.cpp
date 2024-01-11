@@ -45,7 +45,6 @@ void UPoseSearchFeatureChannel_Heading::FindOrAddToSchema(UPoseSearchSchema* Sch
 		Heading->OriginRole = Role;
 #if WITH_EDITORONLY_DATA
 		Heading->Weight = 0.f;
-		// @todo: perhaps add a tunable color for injected channels
 		Heading->DebugColor = FLinearColor::Gray;
 #endif // WITH_EDITORONLY_DATA
 		Heading->SampleTimeOffset = SampleTimeOffset;

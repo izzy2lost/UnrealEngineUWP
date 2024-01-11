@@ -51,24 +51,13 @@ const UPoseSearchDatabase* FDebuggerViewModel::GetCurrentDatabase() const
 	return nullptr;
 }
 
-const TArray<int32>* FDebuggerViewModel::GetNodeIds() const
-{
-	return &NodeIds;
-}
-
 int32 FDebuggerViewModel::GetNodesNum() const
 {
 	return MotionMatchingStates.Num();
 }
 
-const FTransform& FDebuggerViewModel::GetRootBoneTransform() const
-{
-	return RootBoneWorldTransform;
-}
-
 void FDebuggerViewModel::OnUpdate()
 {
-	NodeIds.Empty();
 	MotionMatchingStates.Empty();
 
 	// Get provider and validate
@@ -97,8 +86,6 @@ void FDebuggerViewModel::OnUpdate()
 		if (Message)
 		{
 			check(Message->Roles.Num() == Message->SkeletalMeshComponentIds.Num());
-
-			NodeIds.Add(Message->NodeId);
 			MotionMatchingStates.Add(*Message);
 		}
 	});
@@ -188,16 +175,6 @@ void FDebuggerViewModel::OnUpdate()
 
 									check(ComponentWorldTransform.Equals(PoseMessage.ComponentToWorld));
 
-									// @todo: remove RootBoneWorldTransform and use Trajectoris instead
-									//if (!ComponentSpaceTransforms.IsEmpty())
-									//{
-									//	RootBoneWorldTransform = ComponentSpaceTransforms[RootBoneIndexType] * ComponentWorldTransform;
-									//}
-									//else
-									//{
-									//	RootBoneWorldTransform = ComponentWorldTransform;
-									//}
-
 									PoseSearchMeshComponent->Initialize(ComponentWorldTransform);
 
 									return TraceServices::EEventEnumerate::Stop;
@@ -212,20 +189,18 @@ void FDebuggerViewModel::OnUpdate()
 
 void FDebuggerViewModel::OnUpdateNodeSelection(int32 InNodeId)
 {
-	if (InNodeId == INDEX_NONE)
+	if (InNodeId != INDEX_NONE)
 	{
-		return;
-	}
-
-	// Find node in all motion matching states this frame
-	ActiveMotionMatchingStateIdx = INDEX_NONE;
-	const int32 NodesNum = NodeIds.Num();
-	for (int32 i = 0; i < NodesNum; ++i)
-	{
-		if (NodeIds[i] == InNodeId)
+		// Find node in all motion matching states this frame
+		ActiveMotionMatchingStateIdx = INDEX_NONE;
+		const int32 NodesNum = MotionMatchingStates.Num();
+		for (int32 i = 0; i < NodesNum; ++i)
 		{
-			ActiveMotionMatchingStateIdx = i;
-			break;
+			if (MotionMatchingStates[i].NodeId == InNodeId)
+			{
+				ActiveMotionMatchingStateIdx = i;
+				break;
+			}
 		}
 	}
 }

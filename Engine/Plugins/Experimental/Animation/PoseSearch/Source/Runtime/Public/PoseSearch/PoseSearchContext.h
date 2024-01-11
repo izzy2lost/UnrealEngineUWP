@@ -63,7 +63,7 @@ struct POSESEARCH_API FDebugDrawParams
 
 	FQuat ExtractRotation(TConstArrayView<float> PoseVector, float SampleTimeOffset, int8 SchemaBoneIdx, const FRole& Role, EPermutationTimeType PermutationTimeType = EPermutationTimeType::UseSampleTime, int32 SamplingAttributeId = INDEX_NONE) const;
 
-	FTransform GetRootTransform(const FRole& Role) const;
+	FTransform GetRootTransform(const FRole& Role, float SampleTimeOffset = 0.f) const;
 
 	void DrawLine(const FVector& LineStart, const FVector& LineEnd, const FColor& Color, float Thickness = 0.f) const;
 	void DrawPoint(const FVector& Position, const FColor& Color, float Thickness = 6.f) const;
@@ -212,7 +212,6 @@ private:
 
 	TConstArrayView<float> CurrentResultPoseVector;
 
-	// @todo: use a 16 bytes aligned TInlineAllocator with overflow TMemStackAllocator
 	TStackAlignedArray<float> CurrentResultPoseVectorData;
 
 	// transforms cached in world space

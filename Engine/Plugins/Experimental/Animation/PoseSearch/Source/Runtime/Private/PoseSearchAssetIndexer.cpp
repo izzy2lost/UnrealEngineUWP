@@ -571,7 +571,6 @@ bool FAssetIndexer::GetSampleRotation(FQuat& OutSampleRotation, float SampleTime
 							bool bUnused;
 							if (SamplingAttribute->Bone.BoneName != NAME_None)
 							{
-								// @todo perhaps cache the initialized bone to speed up this method
 								FBoneReference TempBoneReference = SamplingAttribute->Bone;
 								const int32 SampleRoleIndex = RoleToIndex[SampleRole];
 								TempBoneReference.Initialize(BoneContainers[SampleRoleIndex].GetSkeletonAsset());
@@ -643,7 +642,6 @@ bool FAssetIndexer::GetSamplePositionInternal(FVector& OutSamplePosition, float 
 							bool bUnused;
 							if (SamplingAttribute->Bone.BoneName != NAME_None)
 							{
-								// @todo perhaps cache the initialized bone to speed up this method
 								FBoneReference TempBoneReference = SamplingAttribute->Bone;
 								const int32 SampleRoleIndex = RoleToIndex[SampleRole];
 								TempBoneReference.Initialize(BoneContainers[SampleRoleIndex].GetSkeletonAsset());
@@ -729,8 +727,6 @@ bool FAssetIndexer::GetSampleVelocity(FVector& OutSampleVelocity, float SampleTi
 							FVector BonePositionPast, BonePositionPresent;
 							if (SamplingAttribute->Bone.BoneName != NAME_None)
 							{
-								// @todo: FIX ME TempBoneReference is not used!
-								// @todo perhaps cache the initialized bone to speed up this method
 								FBoneReference TempBoneReference = SamplingAttribute->Bone;
 								const int32 SampleRoleIndex = RoleToIndex[SampleRole];
 								TempBoneReference.Initialize(BoneContainers[SampleRoleIndex].GetSkeletonAsset());
@@ -798,7 +794,6 @@ bool FAssetIndexer::GetSampleVelocity(FVector& OutSampleVelocity, float SampleTi
 		}
 	}
 
-	// @todo: should we log some error message?
 	OutSampleVelocity = FVector::ZeroVector;
 	return false;
 }

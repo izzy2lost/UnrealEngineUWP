@@ -6,7 +6,7 @@
 #include "BoneContainer.h"
 #include "PoseSearchFeatureChannel_Phase.generated.h"
 
-UCLASS(BlueprintType, EditInlineNew, meta = (DisplayName = "Phase Channel"), CollapseCategories)
+UCLASS(Experimental, BlueprintType, EditInlineNew, meta = (DisplayName = "Phase Channel"), CollapseCategories)
 class POSESEARCH_API UPoseSearchFeatureChannel_Phase : public UPoseSearchFeatureChannel
 {
 	GENERATED_BODY()

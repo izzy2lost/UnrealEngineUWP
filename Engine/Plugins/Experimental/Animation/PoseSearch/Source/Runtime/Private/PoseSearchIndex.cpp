@@ -100,119 +100,36 @@ static bool CalculateSimilarities(TArray<FPosePairSimilarity>& PosePairSimilarit
 	int32 DataCardinality, int32 NumPoses, const TAlignedArray<float>& Values,
 	TFunctionRef<TConstArrayView<float>(int32, int32)> GetValuesVector)
 {
-	enum EEvalMode
-	{
-		EUseKDTreeEvaluation,
-		EParalleEvaluation,
-		ESerialEvaluation,
-	};
-
-	static EEvalMode EvalMode = EEvalMode::EUseKDTreeEvaluation;
-
 	PosePairSimilarities.Reserve(1024 * 64);
 
-	if (EvalMode == EEvalMode::EUseKDTreeEvaluation)
+	check(Values.Num() == NumPoses * DataCardinality);
+	FKDTree KDTree(NumPoses, DataCardinality, Values.GetData());
+
+	TArray<int32> ResultIndexes;
+	TArray<float> ResultDistanceSqr;
+	ResultIndexes.SetNum(NumPoses + 1);
+	ResultDistanceSqr.SetNum(NumPoses + 1);
+
+	for (int32 PoseIdx = 0; PoseIdx < NumPoses; ++PoseIdx)
 	{
-		check(Values.Num() == NumPoses * DataCardinality);
-		FKDTree KDTree(NumPoses, DataCardinality, Values.GetData());
+		TConstArrayView<float> ValuesA = GetValuesVector(PoseIdx, DataCardinality);
 
-		TArray<int32> ResultIndexes;
-		TArray<float> ResultDistanceSqr;
-		ResultIndexes.SetNum(NumPoses + 1);
-		ResultDistanceSqr.SetNum(NumPoses + 1);
+		// searching for duplicates within a radius of SimilarityThreshold
+		FKDTree::FRadiusResultSet ResultSet(SimilarityThreshold, NumPoses, ResultIndexes, ResultDistanceSqr);
+		KDTree.FindNeighbors(ResultSet, ValuesA);
 
-		for (int32 PoseIdx = 0; PoseIdx < NumPoses; ++PoseIdx)
+		for (int32 ResultIndex = 0; ResultIndex < ResultSet.Num(); ++ResultIndex)
 		{
-			TConstArrayView<float> ValuesA = GetValuesVector(PoseIdx, DataCardinality);
-
-			// searching for duplicates within a radius of SimilarityThreshold
-			FKDTree::FRadiusResultSet ResultSet(SimilarityThreshold, NumPoses, ResultIndexes, ResultDistanceSqr);
-			KDTree.FindNeighbors(ResultSet, ValuesA);
-
-			for (int32 ResultIndex = 0; ResultIndex < ResultSet.Num(); ++ResultIndex)
+			const int32 ResultPoseIdx = ResultIndexes[ResultIndex];
+			if (PoseIdx != ResultPoseIdx)
 			{
-				const int32 ResultPoseIdx = ResultIndexes[ResultIndex];
-				if (PoseIdx != ResultPoseIdx)
-				{
-					FPosePairSimilarity PosePair;
-					PosePair.PoseIdxA = PoseIdx;
-					PosePair.PoseIdxB = ResultPoseIdx;
-					PosePair.Similarity = ResultDistanceSqr[ResultIndex];
-					PosePairSimilarities.Emplace(PosePair);
-				}
+				FPosePairSimilarity PosePair;
+				PosePair.PoseIdxA = PoseIdx;
+				PosePair.PoseIdxB = ResultPoseIdx;
+				PosePair.Similarity = ResultDistanceSqr[ResultIndex];
+				PosePairSimilarities.Emplace(PosePair);
 			}
 		}
-	}
-	// calculating a sparse proximity matrix with Similarity up to SimilarityThreshold (to perform something similar to hierarchical clustering)
-	else if (EvalMode == EEvalMode::EParalleEvaluation)
-	{
-		// @todo: we should use a smarter approach, knowing we need NumPoses * (NumPoses - 1) / 2 comparisons, and reconstruct the pose indexes from the comparison index...
-
-		// doing it in batches of items to avoid using too much memory
-		constexpr int32 BatchSize = 1024 * 1024;
-
-		TArray<FPosePair> PosePairs;
-		PosePairs.Reserve(BatchSize);
-		FCriticalSection Mutex;
-
-		auto EvaluatePosePairs = [GetValuesVector, DataCardinality, SimilarityThreshold, &PosePairs, &PosePairSimilarities, &Mutex]()
-		{
-			ParallelFor(PosePairs.Num(), [GetValuesVector, DataCardinality, SimilarityThreshold, &PosePairs, &PosePairSimilarities, &Mutex](int32 ComparisonIndex)
-			{
-				const int32 PoseIdxA = PosePairs[ComparisonIndex].PoseIdxA;
-				const int32 PoseIdxB = PosePairs[ComparisonIndex].PoseIdxB;
-				TConstArrayView<float> ValuesA = GetValuesVector(PoseIdxA, DataCardinality);
-				TConstArrayView<float> ValuesB = GetValuesVector(PoseIdxB, DataCardinality);
-				const float Similarity = CompareFeatureVectors(ValuesA, ValuesB);
-				if (Similarity < SimilarityThreshold)
-				{
-					// since this condition doesn't happen often, we're not gonna spend too much time in mutex contention
-					FScopeLock Lock(&Mutex);
-					FPosePairSimilarity PosePairSimilarity;
-					PosePairSimilarity.PoseIdxA = PoseIdxA;
-					PosePairSimilarity.PoseIdxB = PoseIdxB;
-					PosePairSimilarity.Similarity = Similarity;
-					PosePairSimilarities.Emplace(PosePairSimilarity);
-				}
-			});
-		};
-
-		FPosePair PosePair;
-		for (PosePair.PoseIdxA = 0; PosePair.PoseIdxA < NumPoses; ++PosePair.PoseIdxA)
-		{
-			for (PosePair.PoseIdxB = PosePair.PoseIdxA + 1; PosePair.PoseIdxB < NumPoses; ++PosePair.PoseIdxB)
-			{
-				PosePairs.Add(PosePair);
-				if (PosePairs.Num() == BatchSize)
-				{
-					EvaluatePosePairs();
-					PosePairs.Reset();
-				}
-			}
-		}
-
-		EvaluatePosePairs();
-	}
-	else if (EvalMode == EEvalMode::ESerialEvaluation)
-	{
-		FPosePairSimilarity PosePair;
-		for (PosePair.PoseIdxA = 0; PosePair.PoseIdxA < NumPoses; ++PosePair.PoseIdxA)
-		{
-			TConstArrayView<float> ValuesA = GetValuesVector(PosePair.PoseIdxA, DataCardinality);
-			for (PosePair.PoseIdxB = PosePair.PoseIdxA + 1; PosePair.PoseIdxB < NumPoses; ++PosePair.PoseIdxB)
-			{
-				TConstArrayView<float> ValuesB = GetValuesVector(PosePair.PoseIdxB, DataCardinality);
-				PosePair.Similarity = CompareFeatureVectors(ValuesA, ValuesB);
-				if (PosePair.Similarity < SimilarityThreshold)
-				{
-					PosePairSimilarities.Emplace(PosePair);
-				}
-			}
-		}
-	}
-	else
-	{
-		checkNoEntry();
 	}
 
 	if (!PosePairSimilarities.IsEmpty())
@@ -563,7 +480,7 @@ TConstArrayView<float> FSearchIndex::GetReconstructedPoseValues(int32 PoseIdx, T
 
 	const int32 NumberOfPrincipalComponents = PCAValues.Num() / NumPoses;
 	
-	// @todo: if one of these checks trigger, most likely PCAValuesPruningSimilarityThreshold > 0.f and we pruned some PCAValues.
+	// NoTe: if one of these checks trigger, most likely PCAValuesPruningSimilarityThreshold > 0.f and we pruned some PCAValues.
 	// currently GetReconstructedPoseValues is not supported with PCAValues pruning
 	check(NumPoses * NumberOfPrincipalComponents == PCAValues.Num());
 	check(PCAProjectionMatrix.Num() == NumDimensions * NumberOfPrincipalComponents);

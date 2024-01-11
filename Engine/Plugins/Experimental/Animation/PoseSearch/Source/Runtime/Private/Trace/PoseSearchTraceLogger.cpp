@@ -46,9 +46,7 @@ FArchive& operator<<(FArchive& Ar, FTraceMessage& State)
 {
 	Ar << State.Cycle;
 	Ar << State.AnimInstanceId;
-	Ar << State.SkeletalMeshComponentId;
 	Ar << State.NodeId;
-	Ar << State.FrameCounter;
 	return Ar;
 }
 

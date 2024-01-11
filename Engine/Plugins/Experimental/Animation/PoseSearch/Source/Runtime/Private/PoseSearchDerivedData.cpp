@@ -811,7 +811,7 @@ static void PreprocessSearchIndexVPTree(FSearchIndex& SearchIndex, const UPoseSe
 	}
 }
 
-// @todo: this struct could be replaced by TTuple<const UAnimationAsset*, FTransform, FVector> if FTransform implements operator==
+// this struct exists because FTransform doesn't implement operator== (or it'd be TTuple<const UAnimationAsset*, FTransform, FVector>)
 struct FSamplerMapKey
 {
 	FSamplerMapKey(const UAnimationAsset* InAnimationAsset, const FTransform& InRootTransformOrigin, const FVector& InBlendParameters = FVector::ZeroVector)
@@ -960,7 +960,6 @@ static bool IndexDatabase(FSearchIndexBase& SearchIndexBase, const UPoseSearchDa
 			}
 			else
 			{
-				// @todo: HANDLE ERRORS / WARNINGS....
 				UE_LOG(LogPoseSearch, Warning, TEXT("Role '%s' from asset '%s' contained in database '%s' cannot be found in Schema::Skeletons '%s'"), *Role.ToString(), *DatabaseAnimationAssetBase->GetName(), *Database.GetName(), *Database.Schema->GetName());
 				return false;
 			}
@@ -1427,7 +1426,7 @@ void FPoseSearchDatabaseAsyncCacheTask::Wait(FCriticalSection& OuterMutex)
 	const bool bFailedIndexing = SearchIndex.IsEmpty();
 	if (!bFailedIndexing)
 	{
-		Database->SetSearchIndex(SearchIndex); // @todo: implement FSearchIndex move ctor and assignment operator and use a MoveTemp(SearchIndex) here
+		Database->SetSearchIndex(SearchIndex);
 
 		check(Database->Schema && !SearchIndex.IsEmpty() && SearchIndex.GetNumDimensions() == Database->Schema->SchemaCardinality);
 

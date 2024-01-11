@@ -238,7 +238,6 @@ struct FSparsePoseMultiMap
 	, MaxValue(InMaxValue)
 	, DeltaKeyValue(InMaxValue >= InMaxKey ? InMaxValue - InMaxKey + 1 : 0)
 	{
-		// @todo: maybe expose this initial allocation budget
 		DataValues.Reserve(InMaxKey * 2);
 		for (Type Index = 0; Index < InMaxKey; ++Index)
 		{
