@@ -304,7 +304,7 @@ public:
 			const TSharedPtr<IPropertyHandle> ChildPropertyHandle = ChildNode->CreatePropertyHandle();
 				
 			// Try to match node
-			if (ChildPropertyHandle.IsValid() && ChildPropertyHandle->GetProperty()->GetFName() == InMemberName && ChildPropertyHandle->GetMetaData(TEXT("Category")) == InCategory)
+			if (ChildPropertyHandle.IsValid() && ChildPropertyHandle->GetProperty() && ChildPropertyHandle->GetProperty()->GetFName() == InMemberName && ChildPropertyHandle->GetMetaData(TEXT("Category")) == InCategory)
 			{
 				OutDetailTreeNode = ChildNode;
 				OutPropertyHandle = ChildPropertyHandle;

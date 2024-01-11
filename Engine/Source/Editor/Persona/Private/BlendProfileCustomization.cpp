@@ -40,7 +40,7 @@ void FBlendProfileCustomization::CustomizeHeader(TSharedRef<class IPropertyHandl
 		// try to get skeleton from first outer
 		if (USkeleton* TargetSkeleton = GetSkeletonFromOuter(OuterObjects[0]))
 		{
-			TSharedPtr<IPropertyHandle> PropertyPtr(InStructPropertyHandle);
+			TWeakPtr<IPropertyHandle> PropertyPtr(InStructPropertyHandle);
 
 			UObject* PropertyValue = nullptr;
 			InStructPropertyHandle->GetValue(PropertyValue);
@@ -69,7 +69,7 @@ void FBlendProfileCustomization::CustomizeHeader(TSharedRef<class IPropertyHandl
 			Args.OnBlendProfileSelected = FOnBlendProfileSelected::CreateSP(this, &FBlendProfileCustomization::OnBlendProfileChanged, PropertyPtr);
 			Args.InitialProfile = CurrentProfile;
 			Args.SupportedBlendProfileModes = SupportedBlendProfileModes;
-			Args.PropertyHandle = PropertyPtr;
+			Args.PropertyHandle = InStructPropertyHandle;
 
 			ISkeletonEditorModule& SkeletonEditorModule = FModuleManager::Get().LoadModuleChecked<ISkeletonEditorModule>("SkeletonEditor");
 			ValueCustomWidget = SkeletonEditorModule.CreateBlendProfilePicker(TargetSkeleton, Args);
@@ -89,11 +89,14 @@ void FBlendProfileCustomization::CustomizeHeader(TSharedRef<class IPropertyHandl
 		];
 }
 
-void FBlendProfileCustomization::OnBlendProfileChanged(UBlendProfile* NewProfile, TSharedPtr<IPropertyHandle> PropertyHandle)
+void FBlendProfileCustomization::OnBlendProfileChanged(UBlendProfile* NewProfile, TWeakPtr<IPropertyHandle> WeakPropertyHandle)
 {
-	if (PropertyHandle.IsValid())
+	if(!GIsTransacting)
 	{
-		PropertyHandle->SetValue(NewProfile);
+		if (TSharedPtr<IPropertyHandle> PropertyHandle = WeakPropertyHandle.Pin())
+		{
+			PropertyHandle->SetValue(NewProfile);
+		}
 	}
 }
 
