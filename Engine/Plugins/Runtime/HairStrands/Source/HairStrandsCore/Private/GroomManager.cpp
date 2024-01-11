@@ -656,7 +656,7 @@ static void RunHairBindingSurfaceUpdate(
 		// 1. Guides
 		{
 			FHairStrandsRootBulkData* RootBulkData = nullptr;
-			if (bStrandSupported && Instance->Guides.IsValid())
+			if (Instance->Guides.IsValid())
 			{	
 				const bool bNeedSurfaceUpdate = 
 					Instance->BindingType == EHairBindingType::Skinning &&
