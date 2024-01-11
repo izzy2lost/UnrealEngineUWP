@@ -176,8 +176,7 @@ public class Engine : ModuleRules
 			"UEOgg",
 			"Vorbis",
 			"VorbisFile",
-			"libOpus",
-			"BinkAudioDecoder"
+			"libOpus"
 			);
 
 		DynamicallyLoadedModuleNames.Add("EyeTracker");

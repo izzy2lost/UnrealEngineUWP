@@ -10,10 +10,12 @@ public class AudioMixerXAudio2 : ModuleRules
 
 		if (Target.bCompileAgainstEngine)
         {
+			// Engine module is required for CompressedAudioInfo implementations.
             PrivateDependencyModuleNames.AddRange(
 				new string[]
 				{
 					"Engine",
+					"BinkAudioDecoder"
 				}
 			);
 

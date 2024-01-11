@@ -27,6 +27,7 @@ public class AudioMixerAudioUnit : ModuleRules
 				new string[]
 				{
 					"Engine",
+					"BinkAudioDecoder"
 				}
 			);
 

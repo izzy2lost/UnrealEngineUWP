@@ -19,5 +19,15 @@ public class AudioMixerPlatformAudioLink: ModuleRules
 				"Engine",
 		});
 					
+		if (Target.bCompileAgainstEngine) 
+		{
+			PrivateDependencyModuleNames.Add("BinkAudioDecoder");
+
+			AddEngineThirdPartyPrivateStaticDependencies(Target,
+				"UEOgg",
+				"Vorbis",
+				"VorbisFile"
+				);
+		}
 	}
 }

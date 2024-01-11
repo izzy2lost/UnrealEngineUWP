@@ -193,7 +193,13 @@ class FIOSAudioDevice : public FAudioDevice
 {
 public:
 	FIOSAudioDevice();
-	virtual ~FIOSAudioDevice() { }		
+	virtual ~FIOSAudioDevice() { }
+	
+	virtual FName GetRuntimeFormat(const USoundWave* SoundWave) const override
+	{
+		static FName NAME_ADPCM(TEXT("ADPCM"));
+		return NAME_ADPCM;
+	}
 
 	AUGraph GetAudioUnitGraph() const { return AudioUnitGraph; }
 	AUNode GetMixerNode() const { return MixerNode; }

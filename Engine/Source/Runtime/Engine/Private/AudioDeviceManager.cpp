@@ -356,9 +356,6 @@ void FAudioDeviceManager::RegisterAudioInfoFactories()
 			FModuleManager::Get().LoadModuleChecked(*i);
 		}
 	}
-	
-	// Vorbis needs a load call.
-	LoadVorbisLibraries();
 
 	// Register the engine formats.
 	EngineFormats.Add(MakePimpl<FSimpleAudioInfoFactory>([] { return new FADPCMAudioInfo(); }, Audio::NAME_PCM));
