@@ -804,8 +804,9 @@ namespace uba
 
 					m_processStats.Add(stats);
 
-					if (GetApplicationRules()[m_rulesIndex].rules->IsExitCodeSuccess(m_nativeProcessExitCode) && !IsCancelled())
-						WriteFilesToDisk();
+					if (!IsCancelled())
+						if (m_startInfo.writeOutputFilesOnFail || GetApplicationRules()[m_rulesIndex].rules->IsExitCodeSuccess(m_nativeProcessExitCode))
+							WriteFilesToDisk();
 
 					if (m_parentProcess)
 					{

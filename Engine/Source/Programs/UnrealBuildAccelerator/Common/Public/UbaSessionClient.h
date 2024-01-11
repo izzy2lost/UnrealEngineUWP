@@ -78,7 +78,6 @@ namespace uba
 		void SendSummary();
 		u32 CountLogLines(ProcessImpl& process);
 		void WriteLogLines(BinaryWriter& writer, ProcessImpl& process);
-		static bool IsAWSTermination(ProcessImpl& process);
 
 		void ThreadCreateProcessLoop();
 

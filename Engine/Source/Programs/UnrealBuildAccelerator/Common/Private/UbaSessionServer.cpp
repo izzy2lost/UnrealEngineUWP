@@ -11,13 +11,13 @@ namespace uba
 	class SessionServer::RemoteProcess : public Process, public ProcessStartInfoHolder
 	{
 	public:
-		RemoteProcess(SessionServer* server, const ProcessStartInfo& si, u32 processId, float weight)
+		RemoteProcess(SessionServer* server, const ProcessStartInfo& si, u32 processId, float weight_)
 		:	ProcessStartInfoHolder(si)
 		,	m_server(server)
 		,	m_processId(processId)
 		,	m_done(true)
-		,	m_weight(weight)
 		{
+			weight = weight_;
 		}
 
 		~RemoteProcess()
@@ -79,7 +79,6 @@ namespace uba
 		bool m_cancelled = false;
 		u32 m_clientId = ~0u;
 		u32 m_sessionId = 0;
-		float m_weight;
 		TString m_executingHost;
 
 		struct KnownInput { CasKey key; u32 mappingAlignment = 0; };
@@ -909,12 +908,7 @@ namespace uba
 
 					ProcessAdded(*process, sessionId);
 					writer.WriteU32(process->m_processId);
-					writer.WriteString(process->startInfo.description);
-					writer.WriteString(process->startInfo.application);
-					writer.WriteString(process->startInfo.arguments);
-					writer.WriteString(process->startInfo.workingDir);
-					writer.WriteU32(*(u32*)&process->m_weight);
-					writer.WriteU64(process->startInfo.outputStatsThresholdMs);
+					process->Write(writer);
 
 					for (auto kiIt = process->m_knownInputs, kiEnd = kiIt + process->m_knownInputsCount; kiIt!=kiEnd; ++kiIt)
 						if (session.sentKeys.insert(kiIt->key).second)
@@ -925,7 +919,7 @@ namespace uba
 					if (writer.GetCapacityLeft() < 5000) // Arbitrary number to cover all parameters above
 						break;
 
-					weightLeft -= process->m_weight;
+					weightLeft -= process->weight;
 				}
 				fillLock.Leave();
 

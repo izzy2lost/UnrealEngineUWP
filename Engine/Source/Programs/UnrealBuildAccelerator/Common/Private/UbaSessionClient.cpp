@@ -4,6 +4,7 @@
 #include "UbaNetworkClient.h"
 #include "UbaNetworkMessage.h"
 #include "UbaProcess.h"
+#include "UbaProcessStartInfoHolder.h"
 #include "UbaProtocol.h"
 #include "UbaStorage.h"
 
@@ -1071,14 +1072,9 @@ namespace uba
 		m_environmentVariables.push_back(0);
 	}
 
-	struct SessionClient::InternalProcessStartInfo : ProcessStartInfo
+	struct SessionClient::InternalProcessStartInfo : ProcessStartInfoHolder
 	{
 		u32 processId = 0;
-		float weight = 1.0f;
-		TString descriptionBuf;
-		TString applicationBuf;
-		TString argumentsBuf;
-		TString workingDirBuf;
 	};
 
 
@@ -1114,16 +1110,7 @@ namespace uba
 			out.push_back({});
 			InternalProcessStartInfo& info = out.back();
 			info.processId = processId;
-			info.descriptionBuf = reader.ReadString();
-			info.applicationBuf = reader.ReadString();
-			info.argumentsBuf = reader.ReadString();
-			info.workingDirBuf = reader.ReadString();
-			u32 weight32 = reader.ReadU32();
-			info.outputStatsThresholdMs = reader.ReadU64();
-			info.weight = *(float*)&weight32;
-
-			Replace(info.applicationBuf.data(), '/', PathSeparator);
-
+			info.Read(reader);
 		}
 
 		u32 neededDirectoryTableSize = reader.ReadU32();
@@ -1412,13 +1399,9 @@ namespace uba
 					waitTimeoutMs = 200;
 				}
 
-				for (InternalProcessStartInfo& startInfo : startInfos)
+				for (InternalProcessStartInfo& info : startInfos)
 				{
-					startInfo.description = startInfo.descriptionBuf.c_str();
-					startInfo.application = startInfo.applicationBuf.c_str();
-					startInfo.arguments = startInfo.argumentsBuf.c_str();
-					startInfo.workingDir = startInfo.workingDirBuf.c_str();
-
+					auto& startInfo = info.startInfo;
 					startInfo.uiLanguage = int(m_uiLanguage);
 					startInfo.priorityClass = m_defaultPriorityClass;
 					startInfo.useCustomAllocator = !m_disableCustomAllocator;
@@ -1434,22 +1417,22 @@ namespace uba
 					}
 
 					StringBuffer<> realApplication;
-					if (!EnsureApplicationEnvironment(realApplication, startInfo.processId, startInfo.application))
+					if (!EnsureApplicationEnvironment(realApplication, info.processId, startInfo.application))
 					{
 						m_logger.Error(TC("Failed to ensure application environment for %s"), startInfo.application);
-						SendReturnProcess(startInfo.processId, TC("Failed to ensure application environment"));
+						SendReturnProcess(info.processId, TC("Failed to ensure application environment"));
 						m_loop = false;
 						break;
 					}
 
 					void* env = GetProcessEnvironmentVariables();
 
-					auto process = new ProcessImpl(*this, startInfo.processId, nullptr);
+					auto process = new ProcessImpl(*this, info.processId, nullptr);
 
 					activeProcesses.emplace_back(process);
 					ProcessRec* rec = &activeProcesses.back();
 
-					rec->weight = startInfo.weight;
+					rec->weight = info.weight;
 
 					{
 						ScopedWriteLock lock(activeWeightLock);
@@ -1476,9 +1459,10 @@ namespace uba
 						ProcessRec* rec = er->rec;
 						delete er;
 
+						auto& startInfo = h.GetStartInfo();
 						if (session.m_shouldSendLogToServer)
 						{
-							if (const tchar* logFile = h.GetStartInfo().logFile)
+							if (const tchar* logFile = startInfo.logFile)
 							{
 								WrittenFile f;
 								f.name = logFile;
@@ -1526,17 +1510,9 @@ namespace uba
 								rec->isDone = true;
 								return;
 							}
-
-							// TODO: Remove this once m_isTerminating is working properly
-							if (IsAWSTermination(process))
-							{
-								session.m_loop = false;
-								session.m_logger.Info(TC("Got error that is most likely because AWS termination. If not, this should be checked (%s)"), process.m_description.c_str());
-								rec->isDone = true;
-								return;
-							}
 						}
-						else
+
+						if (exitCode == 0 || startInfo.writeOutputFilesOnFail)
 						{
 							// Should we decrease weight before or after sending files?
 							//decreaseWeight.Execute();
@@ -1648,17 +1624,6 @@ namespace uba
 			writer.WriteString(line.text);
 			writer.WriteByte(line.type);
 		}
-	}
-
-	bool SessionClient::IsAWSTermination(ProcessImpl& process)
-	{
-		// This seems to be AWS termination error code... let's just shutdown the entire agent
-		if (process.m_exitCode == 4 || (process.m_exitCode == 1 && Contains(process.m_realApplication.c_str(), TC("link.exe"))))
-			return true;
-		//for (auto c : process.m_childProcesses)
-		//	if (IsAWSTermination(*(ProcessImpl*)c.m_process))
-		//		return true;
-		return false;
 	}
 
 	bool SessionClient::AllocFailed(Process& process, const tchar* allocType, u32 error)

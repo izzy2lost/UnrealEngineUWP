@@ -22,6 +22,8 @@ namespace uba
 
 	struct ProcessStartInfoHolder
 	{
+		ProcessStartInfoHolder() {}
+
 		ProcessStartInfoHolder(const ProcessStartInfo& si)
 		{
 			startInfo = si;
@@ -49,6 +51,38 @@ namespace uba
 				logFile = si.logFile;
 				startInfo.logFile = logFile.c_str();
 			}
+		}
+
+		void Write(BinaryWriter& writer)
+		{
+			writer.WriteString(description);
+			writer.WriteString(application);
+			writer.WriteString(arguments);
+			writer.WriteString(workingDir);
+			writer.WriteU32(*(u32*)&weight);
+			writer.WriteBool(startInfo.writeOutputFilesOnFail);
+			writer.WriteU64(startInfo.outputStatsThresholdMs);
+		}
+
+		void Read(BinaryReader& reader)
+		{
+			description = reader.ReadString();
+			application = reader.ReadString();
+			arguments = reader.ReadString();
+			workingDir = reader.ReadString();
+
+			Replace(application.data(), '/', PathSeparator); // TODO: Is this needed?
+
+			u32 weight32 = reader.ReadU32();
+			weight = *(float*)&weight32;
+			
+			startInfo.outputStatsThresholdMs = reader.ReadU64();
+			startInfo.writeOutputFilesOnFail = reader.ReadBool();
+
+			startInfo.description = description.c_str();
+			startInfo.application = application.c_str();
+			startInfo.arguments = arguments.c_str();
+			startInfo.workingDir = workingDir.c_str();
 		}
 
 		ProcessStartInfoHolder(const ProcessStartInfoHolder& o)
@@ -83,6 +117,7 @@ namespace uba
 		TString arguments;
 		TString workingDir;
 		TString logFile;
+		float weight = 1.0f;
 	};
 
 }
