@@ -254,10 +254,7 @@ private:
 	// Returns the current command list (or creates a new one if the command list was not open).
 	FD3D12CommandList& GetCommandList()
 	{
-		if (!CommandList)
-		{
-			OpenCommandList();
-		}
+		OpenIfNotAlready();
 
 		return *CommandList;
 	}
@@ -292,6 +289,15 @@ protected:
 	}
 
 	uint32 ActiveQueries = 0;
+
+	// Open the command list if it's not already open.
+	void OpenIfNotAlready()
+	{
+		if (!CommandList)
+		{
+			OpenCommandList();
+		}
+	}
 
 public:
 	// Flushes any pending commands in this context to the GPU.
@@ -749,6 +755,7 @@ public:
 	virtual void Finalize(TArray<FD3D12Payload*>& OutPayloads) override;
 
 #if PLATFORM_SUPPORTS_BINDLESS_RENDERING
+	FD3D12DescriptorHeap* GetBindlessResourcesHeap();
 	FD3D12ContextBindlessState& GetBindlessState() { return BindlessState; }
 #endif
 

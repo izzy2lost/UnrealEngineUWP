@@ -405,6 +405,16 @@ void FD3D12CommandContext::Finalize(TArray<FD3D12Payload*>& OutPayloads)
 	FD3D12ContextCommon::Finalize(OutPayloads);
 }
 
+#if PLATFORM_SUPPORTS_BINDLESS_RENDERING
+FD3D12DescriptorHeap* FD3D12CommandContext::GetBindlessResourcesHeap()
+{
+	// We require the descriptor cache to be setup correctly before it can have a valid bindless heap.
+	OpenIfNotAlready();
+
+	return StateCache.GetDescriptorCache()->GetBindlessResourcesHeap();
+}
+#endif
+
 FD3D12QueryLocation FD3D12QueryAllocator::Allocate(ED3D12QueryType Type, void* Target)
 {
 	check(Type != ED3D12QueryType::None);

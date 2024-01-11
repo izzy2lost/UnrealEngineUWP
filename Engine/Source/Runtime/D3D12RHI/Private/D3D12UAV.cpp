@@ -370,7 +370,7 @@ void FD3D12CommandContext::ClearUAV(TRHICommandList_RecursiveHazardous<FD3D12Com
 				{
 					Context.FlushPendingDescriptorUpdates();
 
-					FD3D12DescriptorHeap* BindlessHeap = Context.StateCache.GetDescriptorCache()->GetBindlessResourcesHeap();
+					FD3D12DescriptorHeap* BindlessHeap = Context.GetBindlessResourcesHeap();
 					UE::D3D12Descriptors::CopyDescriptor(ParentDevice, BindlessHeap, UAV.GetBindlessHandle(), OfflineHandle);
 					GPUHandle = BindlessHeap->GetGPUSlotHandle(UAV.GetBindlessHandle().GetIndex());
 				}
