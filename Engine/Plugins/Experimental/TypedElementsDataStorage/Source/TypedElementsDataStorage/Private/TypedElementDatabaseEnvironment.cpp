@@ -4,10 +4,10 @@
 
 FTypedElementDatabaseEnvironment::FTypedElementDatabaseEnvironment(
 	FMassEntityManager& InMassEntityManager, FMassProcessingPhaseManager& InMassPhaseManager)
-	: MassEntityManager(InMassEntityManager)
+	: ScratchBuffer(MakeShared<FTypedElementDatabaseScratchBuffer>())
+	, MassEntityManager(InMassEntityManager)
 	, MassPhaseManager(InMassPhaseManager)
 {
-
 }
 
 FTypedElementDatabaseIndexTable& FTypedElementDatabaseEnvironment::GetIndexTable()
@@ -22,12 +22,12 @@ const FTypedElementDatabaseIndexTable& FTypedElementDatabaseEnvironment::GetInde
 
 FTypedElementDatabaseScratchBuffer& FTypedElementDatabaseEnvironment::GetScratchBuffer()
 {
-	return ScratchBuffer;
+	return *ScratchBuffer;
 }
 
 const FTypedElementDatabaseScratchBuffer& FTypedElementDatabaseEnvironment::GetScratchBuffer() const
 {
-	return ScratchBuffer;
+	return *ScratchBuffer;
 }
 
 FMassEntityManager& FTypedElementDatabaseEnvironment::GetMassEntityManager()

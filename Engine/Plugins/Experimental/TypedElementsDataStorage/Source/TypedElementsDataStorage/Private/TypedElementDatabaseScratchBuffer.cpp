@@ -2,21 +2,19 @@
 
 #include "TypedElementDatabaseScratchBuffer.h"
 
+// Set to 1 to run additional tests on the scratch buffer. These are normally to expensive to run, but can help find deeper issues with the
+// scratch buffer.
+#define TEDS_SCRATCHBUFFER_ENABLE_ADDITIONAL_TESTS 0
+
 FTypedElementDatabaseScratchBuffer::~FTypedElementDatabaseScratchBuffer()
 {
 	// This assumes it's being called after all threads using the scratch buffer have been shutdown already so the
 	// scratch buffers they hold have been released back into the pool.
 
+	NextFrame(); // Force to next frame so any lingering blocks are freed correctly.
 	RecycleBlocks();
-	FBlock* FrontFull = FullBlocks;
-	while (FrontFull)
-	{
-		FBlock* Next = FrontFull->NextBlock;
-		delete FrontFull;
-		FrontFull = Next;
-	}
-	FullBlocks = nullptr;
-
+	checkf(FullBlocks == nullptr, TEXT("Not all full blocks were recycled. This can lead to memory leaks."));
+	
 	FBlock* FrontAvailable = AvailableBlocks;
 	while (FrontAvailable)
 	{
@@ -52,11 +50,35 @@ void FTypedElementDatabaseScratchBuffer::RecycleBlocks()
 		// relatively simple to destroy. The dirty blocks are added in front of the available blocks instead of the end to avoid having
 		// to iterate over the entire list of available blocks.
 
+#if TEDS_SCRATCHBUFFER_ENABLE_ADDITIONAL_TESTS
+		// Check to see if there are any cycles.
+		{
+			TSet<FBlock*> CycleDetector;
+			FBlock* TestBlock = FullBlocks;
+			while (TestBlock)
+			{
+				checkf(CycleDetector.Find(TestBlock) == nullptr, TEXT("A circular dependency was found in scratch buffer."));
+				CycleDetector.Add(TestBlock);
+				TestBlock = TestBlock->NextBlock;
+			}
+		}
+		{
+			TSet<FBlock*> CycleDetector;
+			FBlock* TestBlock = AvailableBlocks;
+			while (TestBlock)
+			{
+				checkf(CycleDetector.Find(TestBlock) == nullptr, TEXT("A circular dependency was found in scratch buffer."));
+				CycleDetector.Add(TestBlock);
+				TestBlock = TestBlock->NextBlock;
+			}
+		}
+#endif // TEDS_SCRATCHBUFFER_ENABLE_ADDITIONAL_TESTS
+
 		FBlock* RemainingBlocks = nullptr;
 		FBlock* DirtyBlock = FullBlocks;
 		do
 		{
-			// If the block hasn't been touched for at least one frame it can be deleted.
+			// If the block hasn't been touched for at least one frame it can be recycled.
 			if (DirtyBlock->LastTouchedByFrame < FrameId)
 			{
 				// Call destructors on any memory that needs it.
@@ -71,8 +93,9 @@ void FTypedElementDatabaseScratchBuffer::RecycleBlocks()
 				// The block is now clean so set the next block to process.
 				FBlock* CleanBlock = DirtyBlock;
 				DirtyBlock = DirtyBlock->NextBlock;
-
+				
 				// Reinsert the clean block into the chain of available blocks.
+				checkf(AvailableBlocks != CleanBlock, TEXT("Recycled block has already been added to the available blocks."));
 				CleanBlock->NextBlock.store(AvailableBlocks);
 				AvailableBlocks = CleanBlock;
 			}
@@ -90,13 +113,43 @@ void FTypedElementDatabaseScratchBuffer::RecycleBlocks()
 		
 		// Set the full blocks to the first block that couldn't be removed or null if all filled up blocks have been recycled.
 		FullBlocks = RemainingBlocks;
+
+#if TEDS_SCRATCHBUFFER_ENABLE_ADDITIONAL_TESTS
+		// Check if no new cycles have been introduced after updating.
+		{
+			TSet<FBlock*> CycleDetector;
+			FBlock* TestBlock = FullBlocks;
+			while (TestBlock)
+			{
+				checkf(CycleDetector.Find(TestBlock) == nullptr, TEXT("A circular dependency was found in scratch buffer."));
+				checkf(TestBlock->LastTouchedByFrame >= FrameId, TEXT("Deleted block still referenced."));
+				CycleDetector.Add(TestBlock);
+				TestBlock = TestBlock->NextBlock;
+			}
+		}
+		{
+			TSet<FBlock*> CycleDetector;
+			FBlock* TestBlock = AvailableBlocks;
+			while (TestBlock)
+			{
+				checkf(CycleDetector.Find(TestBlock) == nullptr, TEXT("A circular dependency was found in scratch buffer."));
+				CycleDetector.Add(TestBlock);
+				TestBlock = TestBlock->NextBlock;
+			}
+		}
+#endif // TEDS_SCRATCHBUFFER_ENABLE_ADDITIONAL_TESTS
 	}
+}
+
+FTypedElementDatabaseScratchBuffer::FBlockControllerMap& FTypedElementDatabaseScratchBuffer::GetThreadLocalBlockControllerMap()
+{
+	thread_local static FBlockControllerMap LocalBlockMap;
+	return LocalBlockMap;
 }
 
 FTypedElementDatabaseScratchBuffer::FBlockController& FTypedElementDatabaseScratchBuffer::GetThreadLocalBlockController()
 {
-	thread_local static FBlockController LocalBlock = FBlockController(*this);
-	return LocalBlock;
+	return GetThreadLocalBlockControllerMap().FindOrAddControllerFor(*this);
 }
 
 void FTypedElementDatabaseScratchBuffer::ConfigureDestructorTail(
@@ -110,15 +163,15 @@ void FTypedElementDatabaseScratchBuffer::ConfigureDestructorTail(
 // FBlockController
 //
 
-FTypedElementDatabaseScratchBuffer::FBlockController::FBlockController(FTypedElementDatabaseScratchBuffer& InOwner)
-	: Owner(InOwner)
-	, Id(InOwner.BlockControllerId++)
+FTypedElementDatabaseScratchBuffer::FBlockController::FBlockController(const TWeakPtr<FTypedElementDatabaseScratchBuffer>& InParent)
+	: Parent(InParent)
 {
 	Block = GetEmptyBlock();
 }
 
 FTypedElementDatabaseScratchBuffer::FBlockController::~FBlockController()
 {
+	checkf(Block != nullptr, TEXT("FBlockController is expected to always have a valid block to work with."));
 	RecycleBlock();
 }
 
@@ -173,43 +226,45 @@ void* FTypedElementDatabaseScratchBuffer::FBlockController::Allocate(size_t Size
 
 FTypedElementDatabaseScratchBuffer::FBlock* FTypedElementDatabaseScratchBuffer::FBlockController::GetEmptyBlock()
 {
-	FBlock* FrontBlock = Owner.AvailableBlocks;
-	while (FrontBlock != nullptr)
+	if (TSharedPtr<FTypedElementDatabaseScratchBuffer> ParentInstance = Parent.Pin())
 	{
-		// If this is not zero it means another thread has already claimed this block so try again with the next block.
-		uint32 CurrentOwner = 0;
-		if (FrontBlock->Owner.compare_exchange_strong(CurrentOwner, Id))
+		FBlock* FrontBlock = ParentInstance->AvailableBlocks.load();
+		// Because the full and available queues are separate, this does not suffer from the ABA problem.
+		while (FrontBlock != nullptr && !ParentInstance->AvailableBlocks.compare_exchange_weak(FrontBlock, FrontBlock->NextBlock)){};
+		if (FrontBlock)
 		{
-			Owner.AvailableBlocks.store(FrontBlock->NextBlock.load());
 			FrontBlock->NextBlock = nullptr;
 			return FrontBlock;
 		}
-		else
-		{
-			// Get the new front block. It can happen due to the thread timing that the same block is retrieved, but 
-			// avoiding this adds a lot more complexity and contention on the front block is low.
-			FrontBlock = Owner.AvailableBlocks;
-		}
+	}
 
-	};
-	
 	// If null then there are no more buffers left so create a new one.
-	FBlock* NewBlock = new FBlock();
-	NewBlock->Owner = Id;
-	return NewBlock;
+	return new FBlock();
 }
 
 void FTypedElementDatabaseScratchBuffer::FBlockController::RecycleBlock()
 {
-	Block->Front = 0;
-	Block->Owner = 0;
-
-	// Replace the front of the linked list with full blocks with the latest full block.
-	FBlock* FrontBlock = Owner.FullBlocks;
-	do
+	if (TSharedPtr<FTypedElementDatabaseScratchBuffer> ParentInstance = Parent.Pin())
 	{
-		Block->NextBlock = FrontBlock;
-	} while (!Owner.FullBlocks.compare_exchange_strong(FrontBlock, Block));
+		Block->Front = 0;
+		
+		// Replace the front of the linked list with full blocks with the latest full block.
+		// Because the full and available queues are separate, this does not suffer from the ABA problem.
+		FBlock* FrontBlock = ParentInstance->FullBlocks;
+		do
+		{
+			Block->NextBlock = FrontBlock;
+		} while (!ParentInstance->FullBlocks.compare_exchange_strong(FrontBlock, Block));
+	}
+	else
+	{
+		// The assumption is that if the scratch buffer has been deleted none of the data in the
+		// current buffer will be used so it can be deleted. It also means that the scratch buffer
+		// is not going to recycle this block for this thread so needs to be deleted here to avoid
+		// a memory leak.
+		delete Block;
+	}
+	Block = nullptr;
 }
 
 void FTypedElementDatabaseScratchBuffer::FBlockController::ConfigureDestructorTail(
@@ -220,4 +275,28 @@ void FTypedElementDatabaseScratchBuffer::FBlockController::ConfigureDestructorTa
 	Destructor.StructOffset = static_cast<int32>(reinterpret_cast<char*>(&Destructor) - reinterpret_cast<char*>(Object));
 	Destructor.InstanceCount = Count;
 	Block->DestructionTail = &Destructor;
+}
+
+
+
+//
+// FBlockControllerMap
+//
+
+FTypedElementDatabaseScratchBuffer::FBlockController& 
+	FTypedElementDatabaseScratchBuffer::FBlockControllerMap::FindOrAddControllerFor(FTypedElementDatabaseScratchBuffer& ScratchBuffer)
+{
+	TWeakPtr<FTypedElementDatabaseScratchBuffer>* ParentsIt = Parents.GetData();
+	const uint32 Count = Parents.Num();
+	for (uint32 Index = 0; Index < Count; ++Index, ++ParentsIt)
+	{
+		if (ParentsIt->HasSameObject(&ScratchBuffer))
+		{
+			return Controllers[Index];
+		}
+	}
+
+	Parents.Add(ScratchBuffer.AsWeak());
+	uint32 NewIndex = Controllers.Emplace(ScratchBuffer.AsWeak());
+	return Controllers[NewIndex];
 }

@@ -8,6 +8,7 @@
 #include "Math/UnrealMath.h"
 #include "Misc/MTAccessDetector.h"
 #include "Templates/AlignmentTemplates.h"
+#include "Templates/SharedPointer.h"
 #include "Templates/UnrealTemplate.h"
 
 // A thread-safe memory allocator that uses linear allocation using a chain of recycled memory blocks.
@@ -15,9 +16,10 @@
 // live at best until the end of the frame. Objects that require destruction will be deleted once a block is
 // recycled. A block is only recycled when it's full, so during low activity on a particular thread it can
 // take significantly longer than a single frame before an object is destroyed.
-class FTypedElementDatabaseScratchBuffer
+class FTypedElementDatabaseScratchBuffer : public TSharedFromThis<FTypedElementDatabaseScratchBuffer>
 {
 	friend class FBlockController;
+	friend class FBlockControllerMap;
 public:
 	~FTypedElementDatabaseScratchBuffer();
 
@@ -61,7 +63,6 @@ private:
 		uint64 LastTouchedByFrame = 0;
 		FDestructorTail* DestructionTail = nullptr;
 		std::atomic<FBlock*> NextBlock = nullptr;
-		std::atomic<uint32> Owner = 0;
 		// Offset into the buffer where the next allocation starts.
 		uint32 Front = 0;
 	};
@@ -69,7 +70,7 @@ private:
 	// Simple wrapper around the buffer. This is to guarantee that when the thread gets destroyed the buffer is cleaned up.
 	struct FBlockController
 	{
-		explicit FBlockController(FTypedElementDatabaseScratchBuffer& InOwner);
+		explicit FBlockController(const TWeakPtr<FTypedElementDatabaseScratchBuffer>& InParent);
 		~FBlockController();
 
 		void* Allocate(size_t Size, size_t Alignment, uint64 LocalFrameId);
@@ -77,11 +78,21 @@ private:
 		void RecycleBlock();
 		void ConfigureDestructorTail(FDestructorTail& Destructor, DestructorFunction Callback, void* Object, int32 Count = 1);
 
-		FTypedElementDatabaseScratchBuffer& Owner;
+		TWeakPtr<FTypedElementDatabaseScratchBuffer> Parent;
 		FBlock* Block;
-		uint32 Id;
 	};
 
+	// Simple container to hold multiple block controllers and return the one appropriate for the thread and scratch buffer.
+	struct FBlockControllerMap
+	{
+		TArray<TWeakPtr<FTypedElementDatabaseScratchBuffer>> Parents;
+		TArray<FBlockController> Controllers;
+
+		FBlockController& FindOrAddControllerFor(FTypedElementDatabaseScratchBuffer& ScratchBuffer);
+	};
+
+	// Returns the block controller map unique to the thread that calls this function.
+	FBlockControllerMap& GetThreadLocalBlockControllerMap();
 	// Returns the block controller that's unique to the thread that calls this function.
 	FBlockController& GetThreadLocalBlockController();
 	void ConfigureDestructorTail(FDestructorTail& Destructor, DestructorFunction Callback, void* Object, int32 Count = 1);
@@ -91,10 +102,7 @@ private:
 
 	std::atomic<FBlock*> AvailableBlocks = nullptr;
 	std::atomic<FBlock*> FullBlocks = nullptr;
-	// Running counter so each FBlockController gets a unique id to identify the blocks assigned to them. Zero is reserved 
-	// to indicate it's not in use by a block controller.
-	std::atomic<uint32> BlockControllerId = 1;
-
+	
 	// The number that identifies the current frame. Used to keep track of the blocks that were used in this frame or earlier.
 	uint64 FrameId = 0;
 };

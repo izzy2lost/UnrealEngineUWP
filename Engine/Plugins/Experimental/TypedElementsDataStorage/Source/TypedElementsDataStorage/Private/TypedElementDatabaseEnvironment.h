@@ -26,8 +26,8 @@ public:
 
 private:
 	FTypedElementDatabaseIndexTable IndexTable;
-	FTypedElementDatabaseScratchBuffer ScratchBuffer;
-
+	TSharedPtr<FTypedElementDatabaseScratchBuffer> ScratchBuffer;
+	
 	FMassEntityManager& MassEntityManager;
 	FMassProcessingPhaseManager& MassPhaseManager;
 };
