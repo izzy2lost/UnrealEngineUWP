@@ -63,12 +63,6 @@
 	#define CONFIG_INTERPOLATE_VELOCITY 0
 #endif
 
-#if 0
-	#define CONFIG_OUTPUT_MERGED_SCENE_COLOR 1
-#else
-	#define CONFIG_OUTPUT_MERGED_SCENE_COLOR 0
-#endif
-
 
 //------------------------------------------------------- CONSTANTS
 
@@ -1017,32 +1011,6 @@ void MainCS(
 		FinalHistoryValidity = ceil(tsr_half(255.0) * OutputValidity) * rcp(tsr_half(255.0));
 	}
 
-	// Compute final output
-	tsr_halfCx2 FinalOutputColor;
-	{
-		FinalOutputColor = FinalHighFrequencyColor;
-		
-		// Ensure that alpha values that are expected to be opaque (but are only close to opaque) are forced to be opaque.
-		// (0.995 chosen to accommodate handling of 254/255)
-		#if CONFIG_SCENE_COLOR_ALPHA
-		{
-			FinalOutputColor[3] = select(FinalOutputColor[3] > 0.995, tsr_half(1.0), FinalOutputColor[3]);
-			FinalOutputColor[3] = select(FinalOutputColor[3] < 0.005, tsr_half(0.0), FinalOutputColor[3]);
-		}
-		#endif
-		
-		#if 0
-		{
-			//tsr_half2 DebugValue = tsr_half(1.0) - tsr_half2(bIsDisoccluded);
-			tsr_half2 DebugValue = LowFrequencyRejection;
-			FinalOutputColor *= 
-				dpv_scale(dpv_interleave_mono_registers(tsr_half3(1, 0.5, 0.5)), tsr_half(1.0) - DebugValue) +
-				dpv_scale(dpv_interleave_mono_registers(tsr_half3(0.5, 1, 0.5)), DebugValue);
-		}
-		#endif
-	}
-
-
 	PLATFORM_SPECIFIC_ISOLATE
 	{
 		#if CONFIG_SCENE_COLOR_ALPHA
@@ -1079,7 +1047,6 @@ void MainCS(
 			uint2 Random = Rand3DPCG16(int3(dpv_lo(LocalHistoryPixelPos), View.StateFrameIndexMod8)).xy;
 			tsr_half E = tsr_half(Hammersley16(0, 1, Random).x);
 			
-			FinalOutputColor = QuantizeForFloatRenderTarget(FinalOutputColor, E, HistoryQuantizationError);
 			FinalHighFrequencyColor = QuantizeForFloatRenderTarget(FinalHighFrequencyColor, E, HistoryQuantizationError);
 		}
 		#endif
@@ -1089,6 +1056,15 @@ void MainCS(
 			FinalHighFrequencyColor = -dpv_min(-FinalHighFrequencyColor, ColorNull);
 			FinalHighFrequencyColor = dpv_min(FinalHighFrequencyColor, ColorMax10BitsFloat);
 		}
+
+		// Ensure that alpha values that are expected to be opaque (but are only close to opaque) are forced to be opaque.
+		// (0.995 chosen to accommodate handling of 254/255)
+		#if CONFIG_SCENE_COLOR_ALPHA
+		{
+			FinalHighFrequencyColor[3] = select(FinalHighFrequencyColor[3] > tsr_half(0.995), tsr_half(1.0), FinalHighFrequencyColor[3]);
+			FinalHighFrequencyColor[3] = select(FinalHighFrequencyColor[3] < tsr_half(0.005), tsr_half(0.0), FinalHighFrequencyColor[3]);
+		}
+		#endif
 
 		// Output full res history
 		{
@@ -1107,26 +1083,9 @@ void MainCS(
 			#endif // !CONFIG_ENABLE_DUAL_PIXEL_VECTORIZATION
 		}
 
-		// Output final scene color Mip0
-		tsr_halfCx2 OutputColor;
-		{
-			OutputColor = FinalOutputColor;
-
-			OutputColor = -dpv_min(-OutputColor, ColorNull);
-			OutputColor = dpv_min(OutputColor, ColorMax10BitsFloat);
-
-			#if CONFIG_OUTPUT_MERGED_SCENE_COLOR
-				SceneColorOutputMip0[dpv_lo(LocalHistoryPixelPos)] = dpv_lo(OutputColor);
-			
-				#if CONFIG_ENABLE_DUAL_PIXEL_VECTORIZATION
-					SceneColorOutputMip0[dpv_hi(LocalHistoryPixelPos)] = dpv_hi(OutputColor);
-				#endif
-			#endif
-		}
-		
 		// Output final scene color Mip1
 		{
-			tsr_halfCx2 HalfResOutput = OutputColor;
+			tsr_halfCx2 HalfResOutput = FinalHighFrequencyColor;
 			tsr_short2x2 HalfResOutputPixelPos = dpv_interleave_mono_registers(tsr_short(-1).xx);
 
 			BRANCH
