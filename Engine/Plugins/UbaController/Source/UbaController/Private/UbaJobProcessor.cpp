@@ -60,6 +60,12 @@ namespace UbaJobProcessorOptions
 		bShowUbaLog,
 		TEXT("If true, UBA log entries will be visible in the log\n"));
 
+	static bool bProcessLogEnabled = false;
+	static FAutoConsoleVariableRef CVarProcessLogEnabled(
+		TEXT("r.UbaController.ProcessLogEnabled"),
+		bProcessLogEnabled,
+		TEXT("If true, each detoured process will write a log file. Note this is only useful if UBA is compiled in debug\n"));
+
 	FString ReplaceEnvironmentVariablesInPath(const FString& ExtraFilePartialPath) // Duplicated code with FAST build.. put it somewhere else?
 	{
 		FString ParsedPath;
@@ -109,8 +115,21 @@ FUbaJobProcessor::FUbaJobProcessor(
 	bIsWorkDone(false),
 	LogWriter([]() {}, []() {}, [](uba::LogEntryType type, const wchar_t* str, uba::u32 strlen)
 	{
-			if (UbaJobProcessorOptions::bShowUbaLog)
-				UE_LOG(LogUbaController, Log, TEXT("%s"), str);
+			switch (type)
+			{
+			case uba::LogEntryType_Error:
+				UE_LOG(LogUbaController, Error, TEXT("%s"), str);
+				break;
+			case uba::LogEntryType_Warning:
+				UE_LOG(LogUbaController, Warning, TEXT("%s"), str);
+				break;
+			default:
+				if (UbaJobProcessorOptions::bShowUbaLog)
+				{
+					UE_LOG(LogUbaController, Display, TEXT("%s"), str);
+				}
+				break;
+			}
 	})
 {
 	Uba_SetCustomAssertHandler([](const uba::tchar* text)
@@ -175,7 +194,10 @@ void FUbaJobProcessor::CalculateKnownInputs()
 
 		for (const FString& ExtraFilePartialPath : KnownFileNames)
 		{
-			AddKnownInput(UbaJobProcessorOptions::ReplaceEnvironmentVariablesInPath(ExtraFilePartialPath));
+			if (!ExtraFilePartialPath.Contains(TEXT("*"))) // Seems like there are some *.x paths in there.. TODO: Do a find files
+			{
+				AddKnownInput(UbaJobProcessorOptions::ReplaceEnvironmentVariablesInPath(ExtraFilePartialPath));
+			}
 		}
 	}
 
@@ -210,8 +232,8 @@ void FUbaJobProcessor::RunTaskWithUba(FTask* Task)
 	ProcessInfo.description = *InputFileName;
 	ProcessInfo.workingDir = *AppDir;
 
-	ProcessInfo.logFile = *LogPath;
-	ProcessInfo.trackInputs = false;
+	if (UbaJobProcessorOptions::bProcessLogEnabled)
+		ProcessInfo.logFile = *LogPath;
 	
 	struct ExitedInfo
 	{
@@ -247,17 +269,26 @@ void FUbaJobProcessor::StartUba()
 
 	UbaServer = CreateServer(LogWriter);
 
-	FString RootDir = FPaths::Combine(FPlatformProcess::UserTempDir(), TEXT("UnrealUbaTemp"));
+	FString RootDir = FString::Printf(TEXT("%s/%s%u"), FPlatformProcess::UserTempDir(), TEXT("UnrealUbaTemp"), UE::GetMultiprocessId());
 
-	UbaStorageServer = CreateStorageServer(*UbaServer, *RootDir, 0, true, LogWriter);
+	uba::u64 casCapacityBytes = 32llu * 1024 * 1024 * 1024;
+	UbaStorageServer = CreateStorageServer(*UbaServer, *RootDir, casCapacityBytes, true, LogWriter);
 
 	uba::SessionServerCreateInfo info(*UbaStorageServer, *UbaServer, LogWriter);
 	info.launchVisualizer = UbaJobProcessorOptions::bAutoLaunchVisualizer;
 	info.rootDir = *RootDir;
-	info.traceEnabled = true;
-	info.traceOutputFile = *UbaJobProcessorOptions::TraceFilename;
-	info.detailedTrace = UbaJobProcessorOptions::bDetailedTrace;
 	info.allowMemoryMaps = false; // Skip using memory maps
+
+	info.traceEnabled = true;
+	FString TraceOutputFile = UbaJobProcessorOptions::TraceFilename;
+	if (!TraceOutputFile.IsEmpty() && UE::GetMultiprocessId())
+		TraceOutputFile = FString::Printf(TEXT("%s_%u"), *TraceOutputFile, UE::GetMultiprocessId());
+	info.traceOutputFile = *TraceOutputFile;
+	info.detailedTrace = UbaJobProcessorOptions::bDetailedTrace;
+	FString TraceName = FString::Printf(TEXT("UbaController_%s"), *FGuid::NewGuid().ToString(EGuidFormats::Digits));
+	info.traceName = *TraceName;
+
+
 	//info.remoteLogEnabled = true;
 	UbaSessionServer = CreateSessionServer(info);
 
@@ -268,9 +299,12 @@ void FUbaJobProcessor::StartUba()
 
 	HandleTaskQueueUpdated(TEXT("")); // Flush tasks into uba scheduler
 
-	Server_StartListen(UbaServer, uba::DefaultPort, nullptr); // Start listen so any helper on the LAN can join in
+	if (UE::GetMultiprocessId() == 0)
+	{
+		Server_StartListen(UbaServer, uba::DefaultPort, nullptr); // Start listen so any helper on the LAN can join in
+	}
 
-	HordeAgentManager = MakeUnique<FUbaHordeAgentManager>(UbaServer);
+	HordeAgentManager = MakeUnique<FUbaHordeAgentManager>(ControllerModule.GetWorkingDirectory(), UbaServer);
 
 	UE_LOG(LogUbaController, Display, TEXT("Created UBA storage server: RootDir=%s"), *RootDir);
 }

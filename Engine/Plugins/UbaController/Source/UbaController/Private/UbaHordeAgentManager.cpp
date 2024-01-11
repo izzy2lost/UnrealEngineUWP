@@ -31,8 +31,9 @@ namespace UbaControllerModule
 		ECVF_ReadOnly); // Must be set on start-up, e.g. via config ini
 }
 
-FUbaHordeAgentManager::FUbaHordeAgentManager(uba::NetworkServer* InServer)
-	:	UbaServer(InServer)
+FUbaHordeAgentManager::FUbaHordeAgentManager(const FString& InWorkingDir, uba::NetworkServer* InServer)
+	:	WorkingDir(InWorkingDir)
+	,	UbaServer(InServer)
 	,	LastRequestFailTime(1)
 	,	TargetCoreCount(0)
 	,	EstimatedCoreCount(0)
@@ -188,10 +189,8 @@ void FUbaHordeAgentManager::ThreadAgent(FHordeAgentWrapper& Wrapper)
 		FScopeLock ScopeLock(&UbaAgentBundleFilePathLock);
 		if (UbaAgentBundleFilePath.IsEmpty())
 		{
-			FString RootWorkingDirectory = FPaths::Combine(FPlatformProcess::UserTempDir(), TEXT("UbaWorkingDir"));
-
 			const FString UbaAgentFilePath = FPaths::Combine(GetUbaBinariesPath(), TEXT("UbaAgent.exe"));
-			UbaAgentBundleFilePath = FPaths::Combine(RootWorkingDirectory, TEXT("UbaAgent.Bundle.ref"));
+			UbaAgentBundleFilePath = FPaths::Combine(WorkingDir, TEXT("UbaAgent.Bundle.ref"));
 
 			if (!CreateHordeBundleFromFile(*UbaAgentFilePath, *UbaAgentBundleFilePath))
 			{
@@ -250,6 +249,10 @@ void FUbaHordeAgentManager::ThreadAgent(FHordeAgentWrapper& Wrapper)
 		// If the machine couldn't be assigned, just ignore this agent slot
 		if (MachineInfo.Ip == TEXT(""))
 		{
+			if (!LastRequestFailTime)
+			{
+				UE_LOG(LogUbaHorde, Verbose, TEXT("No resources available in Horde. Will keep retrying until %u cores are used (Currently have %u)"), TargetCoreCount.Load(), ActiveCoreCount.Load());
+			}
 			LastRequestFailTime = FPlatformTime::Cycles64();
 			return;
 		}
@@ -336,6 +339,7 @@ void FUbaHordeAgentManager::ThreadAgent(FHordeAgentWrapper& Wrapper)
 
 		MachineCoreCount = MachineInfo.LogicalCores;
 		EstimatedCoreCount += MachineCoreCount;
+		ActiveCoreCount += MachineCoreCount;
 	}
 
 	while (Agent->IsValid() && !ShouldExit.Wait(100))
@@ -343,6 +347,7 @@ void FUbaHordeAgentManager::ThreadAgent(FHordeAgentWrapper& Wrapper)
 		Agent->Poll(UbaControllerModule::bHordeForwardAgentLogs);
 	}
 
+	ActiveCoreCount -= MachineCoreCount;
 	EstimatedCoreCount -= MachineCoreCount;
 }
 

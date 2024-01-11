@@ -11,7 +11,7 @@ namespace uba { class NetworkServer; }
 class FUbaHordeAgentManager
 {
 public:
-	FUbaHordeAgentManager(uba::NetworkServer* InServer);
+	FUbaHordeAgentManager(const FString& InWorkingDir, uba::NetworkServer* InServer);
 	~FUbaHordeAgentManager();
 
 	void SetTargetCoreCount(uint32 Count);
@@ -27,6 +27,7 @@ private:
 	void ThreadAgent(FHordeAgentWrapper& Wrapper);
 	void ParseConfig();
 
+	FString WorkingDir;
 	uba::NetworkServer* UbaServer;
 
 	FString Url;
@@ -45,5 +46,6 @@ private:
 	TAtomic<uint64> LastRequestFailTime;
 	TAtomic<uint32> TargetCoreCount;
 	TAtomic<uint32> EstimatedCoreCount;
+	TAtomic<uint32> ActiveCoreCount;
 	TAtomic<bool> AskForAgents;
 };

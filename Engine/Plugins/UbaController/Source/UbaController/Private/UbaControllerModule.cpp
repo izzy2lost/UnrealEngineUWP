@@ -67,6 +67,11 @@ bool FUbaControllerModule::IsSupported()
 
 void FUbaControllerModule::CleanWorkingDirectory() const
 {
+	if (UE::GetMultiprocessId() != 0) // Only director is allowed to clean
+	{
+		return;
+	}
+
 	IFileManager& FileManager = IFileManager::Get();
 	
 	if (!RootWorkingDirectory.IsEmpty())

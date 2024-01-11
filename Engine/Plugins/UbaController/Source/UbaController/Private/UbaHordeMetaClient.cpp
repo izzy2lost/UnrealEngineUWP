@@ -78,7 +78,7 @@ TSharedPtr<FUbaHordeMetaClient::HordeMachinePromise, ESPMode::ThreadSafe> FUbaHo
 
 			if (HttpResponse->GetResponseCode() == 503)
 			{
-				UE_LOG(LogUbaHorde, Display, TEXT("No resources available in Horde (%s)"), *ResponseStr);
+				UE_LOG(LogUbaHorde, Verbose, TEXT("No resources available in Horde (%s)"), *ResponseStr);
 				Promise->SetValue(MakeTuple(HttpResponse, Info));
 				return;
 			}
