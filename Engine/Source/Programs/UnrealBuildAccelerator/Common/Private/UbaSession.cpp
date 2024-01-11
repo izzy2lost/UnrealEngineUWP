@@ -1,6 +1,7 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 #include "UbaSession.h"
+#include "UbaBottleneck.h"
 #include "UbaFileAccessor.h"
 #include "UbaProcess.h"
 #include "UbaStorage.h"
@@ -1908,9 +1909,7 @@ namespace uba
 			auto memClose = MakeGuard([&](){ UnmapViewOfFile(mem, fileSize); });
 
 			constexpr bool useFileMapForWrite = false;
-			//bool useOverlap = false;// fileSize > 8 * 1024 * 1024;
-
-			static bool useOverlap = false;
+			bool useOverlap = false;// fileSize > 8 * 1024 * 1024;
 
 
 			u32 attributes = DefaultAttributes();
@@ -1930,16 +1929,14 @@ namespace uba
 				if (!destinationFile.CreateWrite(false, attributes, fileSize, m_tempPath.data))
 					return false;
 
-				u64 start = GetTime();
+				// This is to kill I/O when writing lots of pdb/dlls in parallel
+				#if PLATFORM_WINDOWS
+				static Bottleneck bottleneck(16);
+				BottleneckScope scope(bottleneck);
+				#endif
+
 				if (!destinationFile.Write(mem, fileSize))
 					return false;
-
-				if (!useOverlap && TimeToMs(GetTime() - start) > 4 * 1000)
-				{
-					useOverlap = true;
-					m_logger.Info(TC("Switching to overlapped I/O due to slow writes"));
-				}
-
 			}
 			if (u64 time = file.lastWriteTime)
 				if (!SetFileLastWriteTime(destinationFile.GetHandle(), time))
