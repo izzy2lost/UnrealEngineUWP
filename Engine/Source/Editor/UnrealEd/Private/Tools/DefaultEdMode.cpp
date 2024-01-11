@@ -65,7 +65,7 @@ UAssetEdModeDefault::UAssetEdModeDefault()
 		FAssetEdModes::EM_AssetDefault,
 		NSLOCTEXT("AssetDefaultMode", "DisplayName", "AssetSelection"),
 		FSlateIcon("EditorStyle", "LevelEditor.SelectMode", "LevelEditor.SelectMode.Small"),
-		true, 0);
+		false, 0);
 }
 
 TSharedRef<FLegacyEdModeWidgetHelper> UAssetEdModeDefault::CreateWidgetHelper()
