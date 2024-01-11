@@ -11,6 +11,8 @@
 #include "Styling/AppStyle.h"
 #include "UObject/EnumProperty.h"
 #include "Widgets/Layout/SBox.h"
+#include "StateTreePropertyRef.h"
+#include "StateTreePropertyRefHelpers.h"
 
 #define LOCTEXT_NAMESPACE "StateTreeEditor"
 
@@ -186,7 +188,7 @@ EStateTreePropertyUsage MakeStructPropertyPathFromPropertyHandle(TSharedPtr<cons
 			if (const FString* IDString = CurrentPropertyHandle->GetInstanceMetaData(UE::StateTree::PropertyBinding::StateTreeNodeIDName))
 			{
 				LexFromString(StructID, **IDString);
-				ResultUsage = UE::StateTree::Compiler::GetUsageFromMetaData(Property);
+				ResultUsage = UE::StateTree::GetUsageFromMetaData(Property);
 				break;
 			}
 		}
@@ -390,7 +392,16 @@ struct FCachedBindingData : public TSharedFromThis<FCachedBindingData>
 		check(Schema);
 
 		FEdGraphPinType PinType;
-		Schema->ConvertPropertyToPinType(Property, PinType);
+
+		if (UE::StateTree::PropertyRefHelpers::IsPropertyRef(*Property))
+		{
+			// Use internal type to construct PinType if it's property of PropertyRef type.
+			PinType = UE::StateTree::PropertyRefHelpers::GetPropertyRefInternalTypeAsPin(*Property);
+		}
+		else
+		{
+			Schema->ConvertPropertyToPinType(Property, PinType);
+		}
 
 		if (const FStateTreePropertyPath* SourcePath = EditorBindings->GetPropertyBindingSource(TargetPath))
 		{
@@ -553,6 +564,24 @@ struct FCachedBindingData : public TSharedFromThis<FCachedBindingData>
 		return false;
 	}
 
+	bool CanAcceptPropertyOrChildren(const FProperty* SourceProperty, TConstArrayView<TSharedPtr<FBindingChainElement>> InBindingChain)
+	{
+		ConditionallyUpdateData();
+
+		if (UE::StateTree::PropertyRefHelpers::IsPropertyRef(*PropertyHandle->GetProperty()))
+		{
+			const int32 SourceStructIndex = InBindingChain[0]->ArrayIndex;
+			check(AccessibleStructs.IsValidIndex(SourceStructIndex));
+
+			if (!UE::StateTree::PropertyRefHelpers::IsPropertyAccessibleForPropertyRef(*SourceProperty, InBindingChain, AccessibleStructs[SourceStructIndex]))
+			{
+				return false;
+			}
+		}
+
+		return SourceProperty->HasAnyPropertyFlags(CPF_Edit);
+	}
+
 	static bool ArePropertyAndContextStructCompatible(const UStruct* SourceStruct, const FProperty* TargetProperty)
 	{
 		if (const FStructProperty* TargetStructProperty = CastField<FStructProperty>(TargetProperty))
@@ -618,6 +647,11 @@ struct FCachedBindingData : public TSharedFromThis<FCachedBindingData>
 					bCanBind = SourceStructProperty->Struct && SourceStructProperty->Struct->IsChildOf(TargetStructRefBaseStruct);
 				}
 			}
+		}
+		else if (TargetStructProperty && TargetStructProperty->Struct == FStateTreePropertyRef::StaticStruct())
+		{
+			check(TargetPropertyValue);
+			bCanBind = UE::StateTree::PropertyRefHelpers::IsPropertyRefCompatibleWithProperty(*TargetStructProperty, *SourceProperty);
 		}
 		else
 		{
@@ -798,6 +832,7 @@ void FStateTreeBindingExtension::ExtendWidgetRow(FDetailWidgetRow& InWidgetRow, 
 		{
 			EditorBindings = BindingOwner->GetPropertyEditorBindings();
 			BindingOwner->GetAccessibleStructs(TargetPath.GetStructID(), AccessibleStructs);
+
 			for (FStateTreeBindableStructDesc& StructDesc : AccessibleStructs)
 			{
 				const UStruct* Struct = StructDesc.Struct;
@@ -845,10 +880,9 @@ void FStateTreeBindingExtension::ExtendWidgetRow(FDetailWidgetRow& InWidgetRow, 
 			return CachedBindingData->CanBindToContextStruct(InStruct);
 		});
 
-	Args.OnCanAcceptPropertyOrChildrenWithBindingChain = FOnCanAcceptPropertyOrChildrenWithBindingChain::CreateLambda([](FProperty* InProperty, TConstArrayView<TSharedPtr<FBindingChainElement>> InBindingChain)
+	Args.OnCanAcceptPropertyOrChildrenWithBindingChain = FOnCanAcceptPropertyOrChildrenWithBindingChain::CreateLambda([CachedBindingData](FProperty* InProperty, TConstArrayView<TSharedPtr<FBindingChainElement>> InBindingChain)
 		{
-			// Make only editor visible properties visible for binding.
-			return InProperty->HasAnyPropertyFlags(CPF_Edit);
+			return CachedBindingData->CanAcceptPropertyOrChildren(InProperty, InBindingChain);
 		});
 
 	Args.OnCanBindToClass = FOnCanBindToClass::CreateLambda([](UClass* InClass)

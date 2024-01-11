@@ -34,6 +34,10 @@ bool IsScriptStruct(const TSharedPtr<IPropertyHandle>& PropertyHandle)
 	FStructProperty* StructProperty = CastField<FStructProperty>(PropertyHandle->GetProperty());
 	return StructProperty && StructProperty->Struct->IsA(TBaseStructure<T>::Get()->GetClass());
 }
+/**
+ * @return true if provided Property contains "Optional" metadata
+ */
+bool HasOptionalMetadata(const FProperty& Property);
 
 /**
  * Gets a struct value from property handle, checks type before access. Expects T is struct.

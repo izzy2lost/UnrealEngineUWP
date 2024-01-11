@@ -126,6 +126,23 @@ public:
 
 	/** @return True of the the execution context is valid and initialized. */ 
 	bool IsValid() const { return RootStateTree.IsReadyToRun(); }
+
+	/**
+	 * @param PropertyRef Property's reference to get pointer to.
+	 * @return Pointer to referenced property if succeeded.
+	 */
+	template<class T>
+	T* GetMutablePropertyPtr(const FStateTreePropertyRef& PropertyRef)
+	{
+		const FStateTreePropertyBindings& PropertyBindings = CurrentlyProcessedFrame->StateTree->PropertyBindings;
+		if(const FStateTreePropertyAccess* PropertyAccess = PropertyBindings.GetPropertyAccess(PropertyRef))
+		{
+			FStateTreeDataView SourceView = GetDataView(CurrentlyProcessedParentFrame, *CurrentlyProcessedFrame, PropertyAccess->SourceDataHandle);
+			return PropertyBindings.GetMutablePropertyPtr<T>(SourceView, *PropertyAccess);
+		}
+
+		return nullptr;
+	}
 	
 	/** Start executing. */
 	EStateTreeRunStatus Start();

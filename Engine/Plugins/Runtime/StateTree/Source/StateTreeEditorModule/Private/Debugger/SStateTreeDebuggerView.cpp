@@ -162,7 +162,7 @@ void GenerateElementForProperties(const TCHAR* TypeAsText, const TCHAR* ValueAsT
 		{
 			const FProperty* const Property = PropertyIt.Key();
 			check(Property);
-			const EStateTreePropertyUsage Usage = UE::StateTree::Compiler::GetUsageFromMetaData(Property);
+			const EStateTreePropertyUsage Usage = UE::StateTree::GetUsageFromMetaData(Property);
 
 			// If the property is set to one of these usages, display it even if it is not edit on instance.
 			// It is a common mistake to forget to set the "eye" on these properties it and wonder why it does not show up.

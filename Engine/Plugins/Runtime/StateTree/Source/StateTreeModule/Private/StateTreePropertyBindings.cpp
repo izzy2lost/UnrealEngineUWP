@@ -4,6 +4,7 @@
 #include "Misc/EnumerateRange.h"
 #include "PropertyPathHelpers.h"
 #include "PropertyBag.h"
+#include "StateTreePropertyRef.h"
 
 #if WITH_EDITOR
 #include "UObject/CoreRedirects.h"
@@ -11,6 +12,7 @@
 #include "Engine/BlueprintGeneratedClass.h"
 #include "Engine/UserDefinedStruct.h"
 #include "Kismet2/StructureEditorUtils.h"
+#include "UObject/Field.h"
 #endif
 
 #include UE_INLINE_GENERATED_CPP_BY_NAME(StateTreePropertyBindings)
@@ -31,6 +33,43 @@ namespace UE::StateTree
 
 		return Result.ToString();
 	}
+
+#if WITH_EDITOR
+	EStateTreePropertyUsage GetUsageFromMetaData(const FProperty* Property)
+	{
+		static const FName CategoryName(TEXT("Category"));
+
+		if (Property == nullptr)
+		{
+			return EStateTreePropertyUsage::Invalid;
+		}
+		
+		const FString Category = Property->GetMetaData(CategoryName);
+
+		if (Category == TEXT("Input"))
+		{
+			return EStateTreePropertyUsage::Input;
+		}
+		if (Category == TEXT("Inputs"))
+		{
+			return EStateTreePropertyUsage::Input;
+		}
+		if (Category == TEXT("Output"))
+		{
+			return EStateTreePropertyUsage::Output;
+		}
+		if (Category == TEXT("Outputs"))
+		{
+			return EStateTreePropertyUsage::Output;
+		}
+		if (Category == TEXT("Context"))
+		{
+			return EStateTreePropertyUsage::Context;
+		}
+
+		return EStateTreePropertyUsage::Parameter;
+	}
+#endif
 
 } // UE::StateTree
 
@@ -131,6 +170,8 @@ void FStateTreePropertyBindings::Reset()
 	CopyBatches.Reset();
 	PropertyPathBindings.Reset();
 	PropertyCopies.Reset();
+	PropertyAccesses.Reset();
+	PropertyReferencePaths.Reset();
 	PropertyIndirections.Reset();
 	
 	bBindingsResolved = false;
@@ -223,10 +264,30 @@ bool FStateTreePropertyBindings::ResolvePaths()
 		}
 	}
 
+	PropertyAccesses.Reset();
+	PropertyAccesses.Reserve(PropertyReferencePaths.Num());
+
+	for (const FStateTreePropertyRefPath& ReferencePath : PropertyReferencePaths)
+	{
+		FStateTreePropertyAccess& PropertyAccess = PropertyAccesses.AddDefaulted_GetRef();
+		
+		PropertyAccess.SourceDataHandle = ReferencePath.GetSourceDataHandle();
+		const FStateTreeBindableStructDesc* SourceDesc = GetSourceDescByHandle(PropertyAccess.SourceDataHandle);
+		PropertyAccess.SourceStructType = SourceDesc->Struct;
+
+		FStateTreePropertyPathIndirection SourceLeafIndirection;
+		if (!ResolvePath(SourceDesc->Struct, ReferencePath.GetSourcePath(), PropertyAccess.SourceIndirection, SourceLeafIndirection))
+		{
+			bResult = false;
+		}
+
+		PropertyAccess.SourceLeafProperty = SourceLeafIndirection.GetProperty();
+	}
+
 	return bResult;
 }
 
-bool FStateTreePropertyBindings::ResolvePath(const UStruct* Struct, const FStateTreePropertyPath& Path, FStateTreePropertyIndirection& OutFirstIndirection, FStateTreePropertyPathIndirection& OutLeafIndirection)
+bool FStateTreePropertyBindings::ResolvePath(const UStruct* Struct, const FStateTreePropertyPath& Path, TArray<FStateTreePropertyIndirection>& OutIndirections, FStateTreePropertyIndirection& OutFirstIndirection, FStateTreePropertyPathIndirection& OutLeafIndirection)
 {
 	if (!Struct)
  	{
@@ -350,9 +411,9 @@ bool FStateTreePropertyBindings::ResolvePath(const UStruct* Struct, const FState
 		FStateTreePropertyIndirection* PrevIndirection = &OutFirstIndirection;
 		for (int32 Index = 1; Index < TempIndirections.Num(); Index++)
 		{
-			const int32 IndirectionIndex = PropertyIndirections.Num();
+			const int32 IndirectionIndex = OutIndirections.Num();
 			PrevIndirection->NextIndex = FStateTreeIndex16(IndirectionIndex); // Set PrevIndirection before array add, as it can invalidate the pointer.
-			FStateTreePropertyIndirection& NewIndirection = PropertyIndirections.Add_GetRef(TempIndirections[Index]);
+			FStateTreePropertyIndirection& NewIndirection = OutIndirections.Add_GetRef(TempIndirections[Index]);
 			PrevIndirection = &NewIndirection;
 		}
 	}
@@ -628,8 +689,6 @@ bool FStateTreePropertyBindings::ResolveCopyType(const FStateTreePropertyPathInd
 			}
 		}
 	}
-	
-	ensureMsgf(false, TEXT("Couldnt determine property copy type (%s -> %s)"), *SourceProperty->GetNameCPP(), *TargetProperty->GetNameCPP());
 
 	return false;
 }
@@ -752,7 +811,7 @@ EStateTreePropertyAccessCompatibility FStateTreePropertyBindings::GetPropertyCom
 	return EStateTreePropertyAccessCompatibility::Incompatible;
 }
 
-uint8* FStateTreePropertyBindings::GetAddress(FStateTreeDataView InStructView, const FStateTreePropertyIndirection& FirstIndirection, const FProperty* LeafProperty) const
+uint8* FStateTreePropertyBindings::GetAddress(FStateTreeDataView InStructView, TConstArrayView<FStateTreePropertyIndirection> Indirections, const FStateTreePropertyIndirection& FirstIndirection, const FProperty* LeafProperty)
 {
 	uint8* Address = InStructView.GetMutableMemory();
 	if (Address == nullptr)
@@ -845,7 +904,7 @@ uint8* FStateTreePropertyBindings::GetAddress(FStateTreeDataView InStructView, c
 				*StaticEnum<EStateTreePropertyAccessType>()->GetValueAsString(Indirection->Type), *LeafProperty->GetNameCPP());
 		}
 
-		Indirection = Indirection->NextIndex.IsValid() ? &PropertyIndirections[Indirection->NextIndex.Get()] : nullptr;
+		Indirection = Indirection->NextIndex.IsValid() ? &Indirections[Indirection->NextIndex.Get()] : nullptr;
 	}
 
 	return Address;
@@ -1074,6 +1133,21 @@ void FStateTreePropertyBindings::PerformResetObjects(const FStateTreePropertyCop
 	default:
 		break;
 	}
+}
+
+const FStateTreePropertyAccess* FStateTreePropertyBindings::GetPropertyAccess(const FStateTreePropertyRef& PropertyRef) const
+{
+	if (!PropertyRef.GetRefAccessIndex().IsValid())
+	{
+		return nullptr;
+	}
+
+	if (!ensure(PropertyAccesses.IsValidIndex(PropertyRef.GetRefAccessIndex().Get())))
+	{
+		return nullptr;
+	}
+
+	return &PropertyAccesses[PropertyRef.GetRefAccessIndex().Get()];
 }
 
 bool FStateTreePropertyBindings::ResetObjects(const FStateTreeIndex16 TargetBatchIndex, FStateTreeDataView TargetStructView) const

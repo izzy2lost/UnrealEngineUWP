@@ -32,6 +32,19 @@ namespace UE::StateTree::Tests
 		return *StateTree;
 	}
 
+	FStateTreePropertyPathBinding MakeBinding(const FGuid& SourceID, const FString& Source, const FGuid& TargetID, const FString& Target)
+	{
+		FStateTreePropertyPath SourcePath;
+		SourcePath.FromString(Source);
+		SourcePath.SetStructID(SourceID);
+
+		FStateTreePropertyPath TargetPath;
+		TargetPath.FromString(Target);
+		TargetPath.SetStructID(TargetID);
+
+		return FStateTreePropertyPathBinding(SourcePath, TargetPath);
+	}
+
 	// Helper struct to define some test tags
 	struct FNativeGameplayTags : public FGameplayTagNativeAdder
 	{
@@ -1530,23 +1543,10 @@ struct FStateTreeTest_BindingsCompiler : FAITestBase
 		const int32 SourceAIndex = BindingCompiler.AddSourceStruct(SourceADesc);
 		const int32 SourceBIndex = BindingCompiler.AddSourceStruct(SourceBDesc);
 
-		auto MakeBinding = [](const FGuid& SourceID, const FString& Source, const FGuid& TargetID, const FString& Target)
-		{
-			FStateTreePropertyPath SourcePath;
-			SourcePath.FromString(Source);
-			SourcePath.SetStructID(SourceID);
-
-			FStateTreePropertyPath TargetPath;
-			TargetPath.FromString(Target);
-			TargetPath.SetStructID(TargetID);
-
-			return FStateTreePropertyPathBinding(SourcePath, TargetPath);
-		};
-
 		TArray<FStateTreePropertyPathBinding> PropertyBindings;
-		PropertyBindings.Add(MakeBinding(SourceBDesc.ID, TEXT("Item"), TargetDesc.ID, TEXT("Array[1]")));
-		PropertyBindings.Add(MakeBinding(SourceADesc.ID, TEXT("Item.B"), TargetDesc.ID, TEXT("Array[1].B")));
-		PropertyBindings.Add(MakeBinding(SourceADesc.ID, TEXT("Array"), TargetDesc.ID, TEXT("Array")));
+		PropertyBindings.Add(UE::StateTree::Tests::MakeBinding(SourceBDesc.ID, TEXT("Item"), TargetDesc.ID, TEXT("Array[1]")));
+		PropertyBindings.Add(UE::StateTree::Tests::MakeBinding(SourceADesc.ID, TEXT("Item.B"), TargetDesc.ID, TEXT("Array[1].B")));
+		PropertyBindings.Add(UE::StateTree::Tests::MakeBinding(SourceADesc.ID, TEXT("Array"), TargetDesc.ID, TEXT("Array")));
 
 		int32 CopyBatchIndex = INDEX_NONE;
 		const bool bCompileBatchResult = BindingCompiler.CompileBatch(TargetDesc, PropertyBindings, CopyBatchIndex);
@@ -1633,31 +1633,18 @@ struct FStateTreeTest_CopyObjects : FAITestBase
 
 		const int32 SourceIndex = BindingCompiler.AddSourceStruct(SourceDesc);
 
-		auto MakeBinding = [](const FGuid& SourceID, const FString& Source, const FGuid& TargetID, const FString& Target)
-		{
-			FStateTreePropertyPath SourcePath;
-			SourcePath.FromString(Source);
-			SourcePath.SetStructID(SourceID);
-
-			FStateTreePropertyPath TargetPath;
-			TargetPath.FromString(Target);
-			TargetPath.SetStructID(TargetID);
-
-			return FStateTreePropertyPathBinding(SourcePath, TargetPath);
-		};
-
 		TArray<FStateTreePropertyPathBinding> PropertyBindings;
 		// One-to-one copy from source to target A
-		PropertyBindings.Add(MakeBinding(SourceDesc.ID, TEXT("Object"), TargetADesc.ID, TEXT("Object")));
-		PropertyBindings.Add(MakeBinding(SourceDesc.ID, TEXT("SoftObject"), TargetADesc.ID, TEXT("SoftObject")));
-		PropertyBindings.Add(MakeBinding(SourceDesc.ID, TEXT("Class"), TargetADesc.ID, TEXT("Class")));
-		PropertyBindings.Add(MakeBinding(SourceDesc.ID, TEXT("SoftClass"), TargetADesc.ID, TEXT("SoftClass")));
+		PropertyBindings.Add(UE::StateTree::Tests::MakeBinding(SourceDesc.ID, TEXT("Object"), TargetADesc.ID, TEXT("Object")));
+		PropertyBindings.Add(UE::StateTree::Tests::MakeBinding(SourceDesc.ID, TEXT("SoftObject"), TargetADesc.ID, TEXT("SoftObject")));
+		PropertyBindings.Add(UE::StateTree::Tests::MakeBinding(SourceDesc.ID, TEXT("Class"), TargetADesc.ID, TEXT("Class")));
+		PropertyBindings.Add(UE::StateTree::Tests::MakeBinding(SourceDesc.ID, TEXT("SoftClass"), TargetADesc.ID, TEXT("SoftClass")));
 
 		// Cross copy from source to target B
-		PropertyBindings.Add(MakeBinding(SourceDesc.ID, TEXT("SoftObject"), TargetBDesc.ID, TEXT("Object")));
-		PropertyBindings.Add(MakeBinding(SourceDesc.ID, TEXT("Object"), TargetBDesc.ID, TEXT("SoftObject")));
-		PropertyBindings.Add(MakeBinding(SourceDesc.ID, TEXT("SoftClass"), TargetBDesc.ID, TEXT("Class")));
-		PropertyBindings.Add(MakeBinding(SourceDesc.ID, TEXT("Class"), TargetBDesc.ID, TEXT("SoftClass")));
+		PropertyBindings.Add(UE::StateTree::Tests::MakeBinding(SourceDesc.ID, TEXT("SoftObject"), TargetBDesc.ID, TEXT("Object")));
+		PropertyBindings.Add(UE::StateTree::Tests::MakeBinding(SourceDesc.ID, TEXT("Object"), TargetBDesc.ID, TEXT("SoftObject")));
+		PropertyBindings.Add(UE::StateTree::Tests::MakeBinding(SourceDesc.ID, TEXT("SoftClass"), TargetBDesc.ID, TEXT("Class")));
+		PropertyBindings.Add(UE::StateTree::Tests::MakeBinding(SourceDesc.ID, TEXT("Class"), TargetBDesc.ID, TEXT("SoftClass")));
 		
 		int32 TargetACopyBatchIndex = INDEX_NONE;
 		const bool bCompileBatchResultA = BindingCompiler.CompileBatch(TargetADesc, PropertyBindings, TargetACopyBatchIndex);
@@ -1741,6 +1728,146 @@ struct FStateTreeTest_CopyObjects : FAITestBase
 	}
 };
 IMPLEMENT_AI_INSTANT_TEST(FStateTreeTest_CopyObjects, "System.StateTree.CopyObjects");
+
+struct FStateTreeTest_References : FAITestBase
+{
+	virtual bool InstantTest() override
+	{
+		FStateTreeCompilerLog Log;
+		FStateTreePropertyBindings Bindings;
+		FStateTreePropertyBindingCompiler BindingCompiler;
+
+		const bool bInitResult = BindingCompiler.Init(Bindings, Log);
+		AITEST_TRUE("Expect init to succeed", bInitResult);
+
+		FStateTreeBindableStructDesc SourceDesc;
+		SourceDesc.Name = FName(TEXT("Source"));
+		SourceDesc.Struct = TBaseStructure<FStateTreeTest_PropertyRefSourceStruct>::Get();
+		SourceDesc.DataSource = EStateTreeBindableStructSource::Parameter;
+		SourceDesc.DataHandle = FStateTreeDataHandle(EStateTreeDataSourceType::ContextData, 0);
+		SourceDesc.ID = FGuid::NewGuid();
+		BindingCompiler.AddSourceStruct(SourceDesc);
+
+		FStateTreeBindableStructDesc TargetDesc;
+		TargetDesc.Name = FName(TEXT("Target"));
+		TargetDesc.Struct = TBaseStructure<FStateTreeTest_PropertyRefTargetStruct>::Get();
+		TargetDesc.DataSource = EStateTreeBindableStructSource::Parameter;
+		TargetDesc.ID = FGuid::NewGuid();
+		
+		TArray<FStateTreePropertyPathBinding> PropertyBindings;
+		PropertyBindings.Add(UE::StateTree::Tests::MakeBinding(SourceDesc.ID, TEXT("Item"), TargetDesc.ID, TEXT("RefToStruct")));
+		PropertyBindings.Add(UE::StateTree::Tests::MakeBinding(SourceDesc.ID, TEXT("Item.A"), TargetDesc.ID, TEXT("RefToInt")));
+		PropertyBindings.Add(UE::StateTree::Tests::MakeBinding(SourceDesc.ID, TEXT("Array"), TargetDesc.ID, TEXT("RefToStructArray")));
+
+		FStateTreeTest_PropertyRefTargetStruct Target;
+		FStateTreeDataView TargetView(FStructView::Make(Target));
+		const bool bCompileReferencesResult = BindingCompiler.CompileReferences(TargetDesc, PropertyBindings, TargetView);
+		AITEST_TRUE("CompileReferences should succeed", bCompileReferencesResult);	
+
+		BindingCompiler.Finalize();
+
+		const bool bResolveResult = Bindings.ResolvePaths();
+		AITEST_TRUE("ResolvePaths should succeed", bResolveResult);
+
+		FStateTreeTest_PropertyRefSourceStruct Source;
+
+		FStateTreeDataView SourceView = FStateTreeDataView(FStructView::Make(Source));
+
+		{
+			const FStateTreePropertyAccess* PropertyAccess = Bindings.GetPropertyAccess(Target.RefToStruct);
+			AITEST_NOT_NULL("GetPropertyAccess should succeed", PropertyAccess);
+			
+			FStateTreeTest_PropertyStruct* Reference = Bindings.GetMutablePropertyPtr<FStateTreeTest_PropertyStruct>(SourceView, *PropertyAccess);
+			AITEST_EQUAL("Expect RefToStruct to point to SourceA.Item", Reference, &Source.Item);
+		}
+
+		{
+			const FStateTreePropertyAccess* PropertyAccess = Bindings.GetPropertyAccess(Target.RefToInt);
+			AITEST_NOT_NULL("GetPropertyAccess should succeed", PropertyAccess);
+
+			int32* Reference = Bindings.GetMutablePropertyPtr<int32>(SourceView, *PropertyAccess);
+			AITEST_EQUAL("Expect RefToInt to point to SourceA.Item.A", Reference, &Source.Item);
+		}
+
+		{
+			const FStateTreePropertyAccess* PropertyAccess = Bindings.GetPropertyAccess(Target.RefToStructArray);
+			AITEST_NOT_NULL("GetPropertyAccess should succeed", PropertyAccess);
+
+			TArray<FStateTreeTest_PropertyStruct>* Reference = Bindings.GetMutablePropertyPtr<TArray<FStateTreeTest_PropertyStruct>>(SourceView, *PropertyAccess);
+			AITEST_EQUAL("Expect RefToStructArray to point to SourceA.Array", Reference, &Source.Array);
+		}
+		
+		return true;
+	}
+};
+IMPLEMENT_AI_INSTANT_TEST(FStateTreeTest_References, "System.StateTree.References");
+
+struct FStateTreeTest_ReferencesConstness : FAITestBase
+{
+	virtual bool InstantTest() override
+	{
+		FStateTreeCompilerLog Log;
+		FStateTreePropertyBindings Bindings;
+		FStateTreePropertyBindingCompiler BindingCompiler;
+
+		const bool bInitResult = BindingCompiler.Init(Bindings, Log);
+		AITEST_TRUE("Expect init to succeed", bInitResult);
+
+		FStateTreeBindableStructDesc SourceAsTaskDesc;
+		SourceAsTaskDesc.Name = FName(TEXT("SourceTask"));
+		SourceAsTaskDesc.Struct = TBaseStructure<FStateTreeTest_PropertyRefSourceStruct>::Get();
+		SourceAsTaskDesc.DataSource = EStateTreeBindableStructSource::Task;
+		SourceAsTaskDesc.DataHandle = FStateTreeDataHandle(EStateTreeDataSourceType::ContextData, 0);
+		SourceAsTaskDesc.ID = FGuid::NewGuid();
+		BindingCompiler.AddSourceStruct(SourceAsTaskDesc);
+
+		FStateTreeBindableStructDesc SourceAsContextDesc;
+		SourceAsContextDesc.Name = FName(TEXT("SourceContext"));
+		SourceAsContextDesc.Struct = TBaseStructure<FStateTreeTest_PropertyRefSourceStruct>::Get();
+		SourceAsContextDesc.DataSource = EStateTreeBindableStructSource::Context;
+		SourceAsContextDesc.DataHandle = FStateTreeDataHandle(EStateTreeDataSourceType::ContextData, 0);
+		SourceAsContextDesc.ID = FGuid::NewGuid();
+		BindingCompiler.AddSourceStruct(SourceAsContextDesc);
+
+		FStateTreeBindableStructDesc TargetDesc;
+		TargetDesc.Name = FName(TEXT("Target"));
+		TargetDesc.Struct = TBaseStructure<FStateTreeTest_PropertyRefTargetStruct>::Get();
+		TargetDesc.DataSource = EStateTreeBindableStructSource::Parameter;
+		TargetDesc.ID = FGuid::NewGuid();
+		
+		FStateTreePropertyPathBinding TaskPropertyBinding = UE::StateTree::Tests::MakeBinding(SourceAsTaskDesc.ID, TEXT("Item"), TargetDesc.ID, TEXT("RefToStruct"));
+		FStateTreePropertyPathBinding TaskOutputPropertyBinding = UE::StateTree::Tests::MakeBinding(SourceAsTaskDesc.ID, TEXT("OutputItem"), TargetDesc.ID, TEXT("RefToStruct"));
+
+		FStateTreePropertyPathBinding ContextPropertyBinding = UE::StateTree::Tests::MakeBinding(SourceAsTaskDesc.ID, TEXT("Item"), TargetDesc.ID, TEXT("RefToStruct"));
+		FStateTreePropertyPathBinding ContextOutputPropertyBinding = UE::StateTree::Tests::MakeBinding(SourceAsTaskDesc.ID, TEXT("Item"), TargetDesc.ID, TEXT("RefToStruct"));
+
+		FStateTreeTest_PropertyRefTargetStruct Target;
+		FStateTreeDataView TargetView(FStructView::Make(Target));
+
+		{
+			const bool bCompileReferenceResult = BindingCompiler.CompileReferences(TargetDesc, {TaskPropertyBinding}, TargetView);
+			AITEST_FALSE("CompileReferences should fail", bCompileReferenceResult);
+		}
+
+		{
+			const bool bCompileReferenceResult = BindingCompiler.CompileReferences(TargetDesc, {TaskOutputPropertyBinding}, TargetView);
+			AITEST_TRUE("CompileReferences should succeed", bCompileReferenceResult);
+		}
+
+		{
+			const bool bCompileReferenceResult = BindingCompiler.CompileReferences(TargetDesc, {ContextPropertyBinding}, TargetView);
+			AITEST_FALSE("CompileReferences should fail", bCompileReferenceResult);
+		}
+
+		{	
+			const bool bCompileReferenceResult = BindingCompiler.CompileReferences(TargetDesc, {ContextOutputPropertyBinding}, TargetView);
+			AITEST_FALSE("CompileReferences should fail", bCompileReferenceResult);
+		}
+
+		return true;
+	}
+};
+IMPLEMENT_AI_INSTANT_TEST(FStateTreeTest_ReferencesConstness, "System.StateTree.ReferencesConstness");
 
 struct FStateTreeTest_FollowTransitions : FAITestBase
 {

@@ -3,11 +3,13 @@
 #pragma once
 
 #include "StateTreeTypes.h"
+#include "StateTreePropertyRefHelpers.h"
 #include "StateTreePropertyBindings.generated.h"
 
 class FProperty;
 struct FStateTreePropertyPath;
 struct FStateTreePropertyBindingCompiler;
+struct FStateTreePropertyRef;
 class UStateTree;
 
 UENUM()
@@ -594,6 +596,38 @@ struct TStructOpsTypeTraits<FStateTreePropertyPathBinding> : public TStructOpsTy
 
 using FStateTreeEditorPropertyBinding UE_DEPRECATED(5.3, "Deprecated struct. Please use FStateTreePropertyPathBinding instead.") = FStateTreePropertyPathBinding;
 
+/**
+ * Representation of a property reference binding in StateTree.
+ */
+USTRUCT()
+struct STATETREEMODULE_API FStateTreePropertyRefPath
+{
+	GENERATED_BODY()
+
+	FStateTreePropertyRefPath() = default;
+
+	FStateTreePropertyRefPath(FStateTreeDataHandle InSourceDataHandle, const FStateTreePropertyPath& InSourcePath)
+		: SourcePropertyPath(InSourcePath)
+		, SourceDataHandle(InSourceDataHandle)
+	{
+	}
+
+	const FStateTreePropertyPath& GetSourcePath() const { return SourcePropertyPath; }
+
+	FStateTreePropertyPath& GetMutableSourcePath() { return SourcePropertyPath; }
+
+	void SetSourceDataHandle(const FStateTreeDataHandle NewSourceDataHandle) { SourceDataHandle = NewSourceDataHandle; }
+	FStateTreeDataHandle GetSourceDataHandle() const { return SourceDataHandle; }
+
+private:
+	/** Source property path of the reference */
+	UPROPERTY()
+	FStateTreePropertyPath SourcePropertyPath;
+
+	/** Describes how to get the source data pointer */
+	UPROPERTY()
+	FStateTreeDataHandle SourceDataHandle = FStateTreeDataHandle::Invalid;
+};
 
 /**
  * Deprecated. Describes a segment of a property path. Used for storage only.
@@ -768,6 +802,29 @@ struct STATETREEMODULE_API FStateTreePropertyCopyBatch
 
 using FStateTreePropCopyBatch UE_DEPRECATED(5.3, "Deprecated struct. Please use FStateTreePropertyCopy instead.") = FStateTreePropertyCopyBatch;
 
+/**
+ * Describes access to referenced property.
+ */
+USTRUCT()
+struct STATETREEMODULE_API FStateTreePropertyAccess
+{
+	GENERATED_BODY()
+
+	/** Source property access. */
+	UPROPERTY()
+	FStateTreePropertyIndirection SourceIndirection;
+
+	/** Cached pointer to the leaf property of the access. */
+	const FProperty* SourceLeafProperty = nullptr;
+
+	/** Type of the source data, used for validation. */
+	UPROPERTY(Transient)
+	TObjectPtr<const UStruct> SourceStructType = nullptr;
+
+	/** Describes how to get the source data pointer. */
+	UPROPERTY()
+	FStateTreeDataHandle SourceDataHandle = FStateTreeDataHandle::Invalid;
+};
 
 /**
  * Runtime storage and execution of property bindings.
@@ -830,7 +887,31 @@ struct STATETREEMODULE_API FStateTreePropertyBindings
 		}
 		return MakeArrayView(&PropertyCopies[Batch.BindingsBegin], Count);
 	}
-	
+
+	/**
+	 * @return Referenced property access for provided PropertyRef.
+	 */
+	const FStateTreePropertyAccess* GetPropertyAccess(const FStateTreePropertyRef& Reference) const;
+
+	/**
+	 * Pointer to referenced property 
+	 * @param SourceView Data view to referenced property's owner.
+	 * @param PropertyAccess Access to the property for which we want to obtain a pointer.
+	 * @return Pointer to referenced property if it's type match, nullptr otherwise.
+	 */
+	template< class T >
+	T* GetMutablePropertyPtr(FStateTreeDataView SourceView, const FStateTreePropertyAccess& PropertyAccess) const
+	{
+		check(SourceView.GetStruct() == PropertyAccess.SourceStructType);
+
+		if (!UE::StateTree::PropertyRefHelpers::Validator<T>::IsValid(*PropertyAccess.SourceLeafProperty))
+		{
+			return nullptr;
+		}
+
+		return reinterpret_cast<T*>(GetAddress(SourceView, PropertyAccess.SourceIndirection, PropertyAccess.SourceLeafProperty));
+	}
+
 	/**
 	 * Resets copied properties in TargetStructView. Can be used e.g. to erase UObject references.
 	 * @param TargetBatchIndex Batch index to copy (see FStateTreePropertyBindingCompiler).
@@ -872,12 +953,23 @@ struct STATETREEMODULE_API FStateTreePropertyBindings
 	}
 
 private:
-	[[nodiscard]] bool ResolvePath(const UStruct* Struct, const FStateTreePropertyPath& Path, FStateTreePropertyIndirection& OutFirstIndirection, FStateTreePropertyPathIndirection& OutLeafIndirection);
+	[[nodiscard]] static bool ResolvePath(const UStruct* Struct, const FStateTreePropertyPath& Path, TArray<FStateTreePropertyIndirection>& OutIndirections, FStateTreePropertyIndirection& OutFirstIndirection, FStateTreePropertyPathIndirection& OutLeafIndirection);
+	static uint8* GetAddress(FStateTreeDataView InStructView, TConstArrayView<FStateTreePropertyIndirection> Indirections, const FStateTreePropertyIndirection& FirstIndirection, const FProperty* LeafProperty);
+	
+	uint8* GetAddress(FStateTreeDataView InStructView, const FStateTreePropertyIndirection& FirstIndirection, const FProperty* LeafProperty) const
+	{
+		return GetAddress(InStructView, PropertyIndirections, FirstIndirection, LeafProperty);
+	}
+
+	[[nodiscard]] bool ResolvePath(const UStruct* Struct, const FStateTreePropertyPath& Path, FStateTreePropertyIndirection& OutFirstIndirection, FStateTreePropertyPathIndirection& OutLeafIndirection)
+	{
+		return ResolvePath(Struct, Path, PropertyIndirections, OutFirstIndirection, OutLeafIndirection);
+	}
+
 	const FStateTreeBindableStructDesc* GetSourceDescByHandle(const FStateTreeDataHandle SourceDataHandle);
 
 	void PerformCopy(const FStateTreePropertyCopy& Copy, uint8* SourceAddress, uint8* TargetAddress) const;
 	void PerformResetObjects(const FStateTreePropertyCopy& Copy, uint8* TargetAddress) const;
-	uint8* GetAddress(FStateTreeDataView InStructView, const FStateTreePropertyIndirection& FirstIndirection, const FProperty* LeafProperty) const;
 
 	/** Array of expected source structs. */
 	UPROPERTY()
@@ -894,6 +986,14 @@ private:
 	/** Array of property copies */
 	UPROPERTY(Transient)
 	TArray<FStateTreePropertyCopy> PropertyCopies;
+
+	/** Array of referenced property paths */
+	UPROPERTY()
+	TArray<FStateTreePropertyRefPath> PropertyReferencePaths;
+
+	/** Array of individually accessed properties */
+	UPROPERTY()
+	TArray<FStateTreePropertyAccess> PropertyAccesses;
 
 	/** Array of property indirections, indexed by accesses*/
 	UPROPERTY(Transient)
@@ -919,7 +1019,6 @@ PRAGMA_ENABLE_DEPRECATION_WARNINGS
 	friend FStateTreePropertyBindingCompiler;
 	friend UStateTree;
 };
-
 
 /**
  * Helper interface to reason about bound properties. The implementation is in the editor plugin.
@@ -952,6 +1051,15 @@ namespace UE::StateTree
 {
 	/** @return desc and path as a display string. */
 	extern STATETREEMODULE_API FString GetDescAndPathAsString(const FStateTreeBindableStructDesc& Desc, const FStateTreePropertyPath& Path);
+
+#if WITH_EDITOR
+	/**
+	 * Returns property usage based on the Category metadata of given property.
+	 * @param Property Handle to property where value is got from.
+	 * @return found usage type, or EStateTreePropertyUsage::Invalid if not found.
+	 */
+	STATETREEMODULE_API EStateTreePropertyUsage GetUsageFromMetaData(const FProperty* Property);
+#endif
 } // UE::StateTree
 
 namespace UE::StateTree::Private

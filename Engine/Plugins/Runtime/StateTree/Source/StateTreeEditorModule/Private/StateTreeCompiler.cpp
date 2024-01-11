@@ -10,6 +10,9 @@
 #include "StateTreeConditionBase.h"
 #include "Serialization/ArchiveUObject.h"
 #include "GameFramework/Actor.h"
+#include "StateTreePropertyRef.h"
+#include "StateTreePropertyRefHelpers.h"
+#include "StateTreePropertyHelpers.h"
 
 
 namespace UE::StateTree::Compiler
@@ -175,41 +178,6 @@ namespace UE::StateTree::Compiler
 		}
 
 		return Result;
-	}
-
-	EStateTreePropertyUsage GetUsageFromMetaData(const FProperty* Property)
-	{
-		static const FName CategoryName(TEXT("Category"));
-
-		if (Property == nullptr)
-		{
-			return EStateTreePropertyUsage::Invalid;
-		}
-		
-		const FString Category = Property->GetMetaData(CategoryName);
-
-		if (Category == TEXT("Input"))
-		{
-			return EStateTreePropertyUsage::Input;
-		}
-		if (Category == TEXT("Inputs"))
-		{
-			return EStateTreePropertyUsage::Input;
-		}
-		if (Category == TEXT("Output"))
-		{
-			return EStateTreePropertyUsage::Output;
-		}
-		if (Category == TEXT("Outputs"))
-		{
-			return EStateTreePropertyUsage::Output;
-		}
-		if (Category == TEXT("Context"))
-		{
-			return EStateTreePropertyUsage::Context;
-		}
-
-		return EStateTreePropertyUsage::Parameter;
 	}
 
 }; // UE::StateTree::Compiler
@@ -649,14 +617,20 @@ bool FStateTreeCompiler::CreateStateTasksAndParameters()
 		BindingsCompiler.AddSourceStruct(LinkedParamsDesc);
 
 		// Check that the bindings for this struct are still all valid.
-		TArray<FStateTreePropertyPathBinding> Bindings;
-		if (!GetAndValidateBindings(LinkedParamsDesc, FStateTreeDataView(CompactStateTreeParameters.Parameters.GetMutableValue()), Bindings))
+		TArray<FStateTreePropertyPathBinding> CopyBindings;
+		TArray<FStateTreePropertyPathBinding> ReferenceBindings;
+		if (!GetAndValidateBindings(LinkedParamsDesc, FStateTreeDataView(CompactStateTreeParameters.Parameters.GetMutableValue()), CopyBindings, ReferenceBindings))
 		{
 			return false;
 		}
 
 		int32 BatchIndex = INDEX_NONE;
-		if (!BindingsCompiler.CompileBatch(LinkedParamsDesc, Bindings, BatchIndex))
+		if (!BindingsCompiler.CompileBatch(LinkedParamsDesc, CopyBindings, BatchIndex))
+		{
+			return false;
+		}
+
+		if (!BindingsCompiler.CompileReferences(LinkedParamsDesc, ReferenceBindings, FStateTreeDataView(CompactStateTreeParameters.Parameters.GetMutableValue())))
 		{
 			return false;
 		}
@@ -1085,15 +1059,21 @@ bool FStateTreeCompiler::CreateCondition(UStateTreeState& State, const FStateTre
 	BindingsCompiler.AddSourceStruct(StructDesc);
 
 	// Check that the bindings for this struct are still all valid.
-	TArray<FStateTreePropertyPathBinding> Bindings;
-	if (!GetAndValidateBindings(StructDesc, InstanceDataView, Bindings))
+	TArray<FStateTreePropertyPathBinding> CopyBindings;
+	TArray<FStateTreePropertyPathBinding> ReferenceBindings;
+	if (!GetAndValidateBindings(StructDesc, InstanceDataView, CopyBindings, ReferenceBindings))
 	{
 		return false;
 	}
 
 	// Compile batch copy for this struct, we pass in all the bindings, the compiler will pick up the ones for the target structs.
 	int32 BatchIndex = INDEX_NONE;
-	if (!BindingsCompiler.CompileBatch(StructDesc, Bindings, BatchIndex))
+	if (!BindingsCompiler.CompileBatch(StructDesc, CopyBindings, BatchIndex))
+	{
+		return false;
+	}
+
+	if (!BindingsCompiler.CompileReferences(StructDesc, ReferenceBindings, InstanceDataView))
 	{
 		return false;
 	}
@@ -1254,15 +1234,21 @@ bool FStateTreeCompiler::CreateTask(UStateTreeState* State, const FStateTreeEdit
 	BindingsCompiler.AddSourceStruct(StructDesc);
 	
 	// Check that the bindings for this struct are still all valid.
-	TArray<FStateTreePropertyPathBinding> Bindings;
-	if (!GetAndValidateBindings(StructDesc, InstanceDataView, Bindings))
+	TArray<FStateTreePropertyPathBinding> CopyBindings;
+	TArray<FStateTreePropertyPathBinding> ReferenceBindings;
+	if (!GetAndValidateBindings(StructDesc, InstanceDataView, CopyBindings, ReferenceBindings))
 	{
 		return false;
 	}
 
 	// Compile batch copy for this struct, we pass in all the bindings, the compiler will pick up the ones for the target structs.
 	int32 BatchIndex = INDEX_NONE;
-	if (!BindingsCompiler.CompileBatch(StructDesc, Bindings, BatchIndex))
+	if (!BindingsCompiler.CompileBatch(StructDesc, CopyBindings, BatchIndex))
+	{
+		return false;
+	}
+
+	if (!BindingsCompiler.CompileReferences(StructDesc, ReferenceBindings, InstanceDataView))
 	{
 		return false;
 	}
@@ -1361,15 +1347,21 @@ bool FStateTreeCompiler::CreateEvaluator(const FStateTreeEditorNode& EvalNode, c
 	BindingsCompiler.AddSourceStruct(StructDesc);
 
 	// Check that the bindings for this struct are still all valid.
-	TArray<FStateTreePropertyPathBinding> Bindings;
-	if (!GetAndValidateBindings(StructDesc, InstanceDataView, Bindings))
+	TArray<FStateTreePropertyPathBinding> CopyBindings;
+	TArray<FStateTreePropertyPathBinding> ReferenceBindings;
+	if (!GetAndValidateBindings(StructDesc, InstanceDataView, CopyBindings, ReferenceBindings))
 	{
 		return false;
 	}
 
 	// Compile batch copy for this struct, we pass in all the bindings, the compiler will pick up the ones for the target structs.
 	int32 BatchIndex = INDEX_NONE;
-	if (!BindingsCompiler.CompileBatch(StructDesc, Bindings, BatchIndex))
+	if (!BindingsCompiler.CompileBatch(StructDesc, CopyBindings, BatchIndex))
+	{
+		return false;
+	}
+
+	if (!BindingsCompiler.CompileReferences(StructDesc, ReferenceBindings, InstanceDataView))
 	{
 		return false;
 	}
@@ -1384,10 +1376,8 @@ bool FStateTreeCompiler::CreateEvaluator(const FStateTreeEditorNode& EvalNode, c
 	return true;
 }
 
-bool FStateTreeCompiler::IsPropertyAnyEnum(const FStateTreeBindableStructDesc& Struct, FStateTreePropertyPath Path) const
+bool FStateTreeCompiler::IsPropertyOfType(UScriptStruct& Type, const FStateTreeBindableStructDesc& Struct, FStateTreePropertyPath Path) const
 {
-	bool bIsAnyEnum = false;
-
 	TArray<FStateTreePropertyPathIndirection> Indirection;
 	const bool bResolved = Path.ResolveIndirections(Struct.Struct, Indirection);
 	
@@ -1398,11 +1388,11 @@ bool FStateTreeCompiler::IsPropertyAnyEnum(const FStateTreeBindableStructDesc& S
 		{
 			if (const FStructProperty* OwnerStructProperty = CastField<FStructProperty>(OwnerProperty))
 			{
-				bIsAnyEnum = OwnerStructProperty->Struct == TBaseStructure<FStateTreeAnyEnum>::Get();
+				return OwnerStructProperty->Struct == &Type;
 			}
 		}
 	}
-	return bIsAnyEnum;
+	return false;
 }
 
 bool FStateTreeCompiler::ValidateStructRef(const FStateTreeBindableStructDesc& SourceStruct, FStateTreePropertyPath SourcePath,
@@ -1491,11 +1481,12 @@ bool FStateTreeCompiler::ValidateStructRef(const FStateTreeBindableStructDesc& S
 }
 
 
-bool FStateTreeCompiler::GetAndValidateBindings(const FStateTreeBindableStructDesc& TargetStruct, FStateTreeDataView TargetValue, TArray<FStateTreePropertyPathBinding>& OutBindings) const
+bool FStateTreeCompiler::GetAndValidateBindings(const FStateTreeBindableStructDesc& TargetStruct, FStateTreeDataView TargetValue, TArray<FStateTreePropertyPathBinding>& OutCopyBindings, TArray<FStateTreePropertyPathBinding>& OutReferenceBindings) const
 {
 	check(EditorData);
 	
-	OutBindings.Reset();
+	OutCopyBindings.Reset();
+	OutReferenceBindings.Reset();
 
 	// If target struct is not set, nothing to do.
 	if (TargetStruct.Struct == nullptr)
@@ -1586,8 +1577,8 @@ bool FStateTreeCompiler::GetAndValidateBindings(const FStateTreeBindableStructDe
 		// Special case fo AnyEnum. StateTreeBindingExtension allows AnyEnums to bind to other enum types.
 		// The actual copy will be done via potential type promotion copy, into the value property inside the AnyEnum.
 		// We amend the paths here to point to the 'Value' property.
-		const bool bSourceIsAnyEnum = IsPropertyAnyEnum(*SourceStruct, Binding.GetSourcePath());
-		const bool bTargetIsAnyEnum = IsPropertyAnyEnum(TargetStruct, Binding.GetTargetPath());
+		const bool bSourceIsAnyEnum = IsPropertyOfType(*TBaseStructure<FStateTreeAnyEnum>::Get(), *SourceStruct, Binding.GetSourcePath());
+		const bool bTargetIsAnyEnum = IsPropertyOfType(*TBaseStructure<FStateTreeAnyEnum>::Get(), TargetStruct, Binding.GetTargetPath());
 		if (bSourceIsAnyEnum || bTargetIsAnyEnum)
 		{
 			if (bSourceIsAnyEnum)
@@ -1599,9 +1590,16 @@ bool FStateTreeCompiler::GetAndValidateBindings(const FStateTreeBindableStructDe
 				BindingCopy.GetMutableTargetPath().AddPathSegment(GET_MEMBER_NAME_STRING_CHECKED(FStateTreeAnyEnum, Value));
 			}
 		}
-		
-		OutBindings.Add(BindingCopy);
 
+		if (IsPropertyOfType(*FStateTreePropertyRef::StaticStruct(), TargetStruct, Binding.GetTargetPath()))
+		{
+			OutReferenceBindings.Add(BindingCopy);
+		}
+		else
+		{
+			OutCopyBindings.Add(BindingCopy);
+		}
+		
 		// Check if the bindings is for struct ref and validate the types.
 		if (!ValidateStructRef(*SourceStruct, Binding.GetSourcePath(), TargetStruct, Binding.GetTargetPath()))
 		{
@@ -1610,9 +1608,9 @@ bool FStateTreeCompiler::GetAndValidateBindings(const FStateTreeBindableStructDe
 	}
 
 
-	auto IsPropertyBound = [&OutBindings](const FName& PropertyName)
+	auto IsPropertyBound = [](const FName& PropertyName, TConstArrayView<FStateTreePropertyPathBinding> Bindings)
 	{
-		return OutBindings.ContainsByPredicate([&PropertyName](const FStateTreePropertyPathBinding& Binding)
+		return Bindings.ContainsByPredicate([&PropertyName](const FStateTreePropertyPathBinding& Binding)
 			{
 				// We're looping over just the first level of properties on the struct, so we assume that the path is just one item
 				// (or two in case of AnyEnum, because we expand the path to Property.Value, see code above).
@@ -1628,59 +1626,72 @@ bool FStateTreeCompiler::GetAndValidateBindings(const FStateTreeBindableStructDe
 		const FProperty* Property = *It;
 		check(Property);
 		const FName PropertyName = Property->GetFName();
-		const EStateTreePropertyUsage Usage = UE::StateTree::Compiler::GetUsageFromMetaData(Property);
-		if (Usage == EStateTreePropertyUsage::Input)
+		const bool bIsOptional = UE::StateTree::PropertyHelpers::HasOptionalMetadata(*Property);
+
+		if (UE::StateTree::PropertyRefHelpers::IsPropertyRef(*Property))
 		{
-			const bool bIsOptional = Property->HasMetaData(TEXT("Optional"));
-			
-			// Make sure that an Input property is bound unless marked optional.
-			if (bIsOptional == false && !IsPropertyBound(PropertyName))
+			if (bIsOptional == false && !IsPropertyBound(PropertyName, OutReferenceBindings))
 			{
 				Log.Reportf(EMessageSeverity::Error, TargetStruct,
-					TEXT("Input property '%s' on %s is expected to have a binding."),
-					*PropertyName.ToString(), *TargetStruct.ToString());
-				bResult = false;
-			}
-		}
-		else if (Usage == EStateTreePropertyUsage::Context)
-		{
-			// Make sure that an Context property is manually or automatically bound. 
-			const UStruct* ContextObjectType = nullptr; 
-			if (const FStructProperty* StructProperty = CastField<FStructProperty>(Property))
-			{
-				ContextObjectType = StructProperty->Struct;
-			}		
-			else if (const FObjectPropertyBase* ObjectProperty = CastField<FObjectPropertyBase>(Property))
-			{
-				ContextObjectType = ObjectProperty->PropertyClass;
-			}
-
-			if (ContextObjectType == nullptr)
-			{
-				Log.Reportf(EMessageSeverity::Error, TargetStruct,
-					TEXT("The type of Context property '%s' on %s is expected to be Object Reference or Struct."),
-					*PropertyName.ToString(), *TargetStruct.ToString());
-				bResult = false;
-				continue;
-			}
-
-			const bool bIsBound = IsPropertyBound(PropertyName);
-
-			if (!bIsBound)
-			{
-				const FStateTreeBindableStructDesc Desc = EditorData->FindContextData(ContextObjectType, PropertyName.ToString());
-
-				if (Desc.IsValid())
-				{
-					// Add automatic binding to Context data.
-					OutBindings.Emplace(FStateTreePropertyPath(Desc.ID), FStateTreePropertyPath(TargetStruct.ID, PropertyName));
-				}
-				else
-				{
-					Log.Reportf(EMessageSeverity::Error, TargetStruct,
-						TEXT("Could not find matching Context object for Context property '%s' on '%s'. Property must have manual binding."),
+						TEXT("Property reference '%s' on % s is expected to have a binding."),
 						*PropertyName.ToString(), *TargetStruct.ToString());
 					bResult = false;
+			}
+		}
+		else
+		{
+			const EStateTreePropertyUsage Usage = UE::StateTree::GetUsageFromMetaData(Property);
+			if (Usage == EStateTreePropertyUsage::Input)
+			{
+				// Make sure that an Input property is bound unless marked optional.
+				if (bIsOptional == false && !IsPropertyBound(PropertyName, OutCopyBindings))
+				{
+					Log.Reportf(EMessageSeverity::Error, TargetStruct,
+						TEXT("Input property '%s' on %s is expected to have a binding."),
+						*PropertyName.ToString(), *TargetStruct.ToString());
+					bResult = false;
+				}
+			}
+			else if (Usage == EStateTreePropertyUsage::Context)
+			{
+				// Make sure that an Context property is manually or automatically bound. 
+				const UStruct* ContextObjectType = nullptr; 
+				if (const FStructProperty* StructProperty = CastField<FStructProperty>(Property))
+				{
+					ContextObjectType = StructProperty->Struct;
+				}		
+				else if (const FObjectPropertyBase* ObjectProperty = CastField<FObjectPropertyBase>(Property))
+				{
+					ContextObjectType = ObjectProperty->PropertyClass;
+				}
+
+				if (ContextObjectType == nullptr)
+				{
+					Log.Reportf(EMessageSeverity::Error, TargetStruct,
+						TEXT("The type of Context property '%s' on %s is expected to be Object Reference or Struct."),
+						*PropertyName.ToString(), *TargetStruct.ToString());
+					bResult = false;
+					continue;
+				}
+
+				const bool bIsBound = IsPropertyBound(PropertyName, OutCopyBindings);
+
+				if (!bIsBound)
+				{
+					const FStateTreeBindableStructDesc Desc = EditorData->FindContextData(ContextObjectType, PropertyName.ToString());
+
+					if (Desc.IsValid())
+					{
+						// Add automatic binding to Context data.
+						OutCopyBindings.Emplace(FStateTreePropertyPath(Desc.ID), FStateTreePropertyPath(TargetStruct.ID, PropertyName));
+					}
+					else
+					{
+						Log.Reportf(EMessageSeverity::Error, TargetStruct,
+							TEXT("Could not find matching Context object for Context property '%s' on '%s'. Property must have manual binding."),
+							*PropertyName.ToString(), *TargetStruct.ToString());
+						bResult = false;
+					}
 				}
 			}
 		}

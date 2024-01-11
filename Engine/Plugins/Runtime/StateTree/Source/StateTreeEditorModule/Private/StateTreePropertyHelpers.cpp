@@ -4,6 +4,7 @@
 #include "StateTreeEditorNode.h"
 #include "Hash/Blake3.h"
 #include "Misc/StringBuilder.h"
+#include "UObject/Field.h"
 
 namespace UE::StateTree::PropertyHelpers
 {
@@ -42,7 +43,12 @@ void DispatchPostEditToNodes(UObject& Owner, FPropertyChangedChainEvent& InPrope
 
 		if (const FStructProperty* StructProperty = CastField<FStructProperty>(CurrentProperty))
 		{
-			if (StructProperty->Struct == FStateTreeEditorNode::StaticStruct())
+			if (StructProperty->Struct == FInstancedStruct::StaticStruct())
+			{
+				FInstancedStruct& InstancedStruct = *reinterpret_cast<FInstancedStruct*>(CurrentAddress);
+				CurrentAddress = InstancedStruct.GetMutableMemory();
+			}
+			else if (StructProperty->Struct == FStateTreeEditorNode::StaticStruct())
 			{
 				FStateTreeEditorNode& EditorNode = *reinterpret_cast<FStateTreeEditorNode*>(CurrentAddress);
 				if (FStateTreeNodeBase* StateTreeNode = EditorNode.Node.GetMutablePtr<FStateTreeNodeBase>())
@@ -137,6 +143,11 @@ FGuid MakeDeterministicID(const UObject& Owner, const FString& PropertyPath, con
 	const FBlake3Hash Hash = Builder.Finalize();
 
 	return FGuid::NewGuidFromHash(Hash);
+}
+
+bool HasOptionalMetadata(const FProperty& Property)
+{
+	return Property.HasMetaData(TEXT("Optional"));
 }
 
 }; // UE::StateTree::PropertyHelpers

@@ -8,6 +8,7 @@
 #include "StateTree.h"
 #include "StateTreeEditor.h"
 #include "StateTreeEditorData.h"
+#include "StateTreePropertyRef.h"
 #include "Widgets/Input/SComboButton.h"
 #include "Framework/MultiBox/MultiBoxBuilder.h"
 #include "Styling/SlateIconFinder.h"
@@ -145,7 +146,7 @@ namespace UE::StateTreeEditor::Internal
 		TSharedPtr<IPropertyHandle> ChildPropHandle = ChildRow.GetPropertyHandle();
 		check(ChildPropHandle.IsValid());
 		
-		const EStateTreePropertyUsage Usage = UE::StateTree::Compiler::GetUsageFromMetaData(ChildPropHandle->GetProperty());
+		const EStateTreePropertyUsage Usage = UE::StateTree::GetUsageFromMetaData(ChildPropHandle->GetProperty());
 		const FProperty* Property = ChildPropHandle->GetProperty();
 		
 		// Conditionally control visibility of the value field of bound properties.
@@ -174,7 +175,17 @@ namespace UE::StateTreeEditor::Internal
 				
 				FEdGraphPinType PinType;
 				const UEdGraphSchema_K2* Schema = GetDefault<UEdGraphSchema_K2>();
-				Schema->ConvertPropertyToPinType(Property, PinType);
+
+				// Show referenced type for property refs.
+				if (UE::StateTree::PropertyRefHelpers::IsPropertyRef(*Property))
+				{
+					// Use internal type to construct PinType if it's property of PropertyRef type.
+					PinType = UE::StateTree::PropertyRefHelpers::GetPropertyRefInternalTypeAsPin(*Property);
+				}
+				else
+				{
+					Schema->ConvertPropertyToPinType(Property, PinType);
+				}
 				
 				const FSlateBrush* Icon = FBlueprintEditorUtils::GetIconFromPin(PinType, true);
 				FText Text = GetPinTypeText(PinType);
@@ -853,7 +864,7 @@ void FStateTreeEditorNodeDetails::CustomizeChildren(TSharedRef<class IPropertyHa
 			{
 				FSortedChild Child;
 				Child.PropertyHandle = ChildHandle;
-				Child.Usage = UE::StateTree::Compiler::GetUsageFromMetaData(Child.PropertyHandle->GetProperty());
+				Child.Usage = UE::StateTree::GetUsageFromMetaData(Child.PropertyHandle->GetProperty());
 
 				// If the property is set to one of these usages, display it even if it is not edit on instance.
 				// It is a common mistake to forget to set the "eye" on these properties it and wonder why it does not show up.

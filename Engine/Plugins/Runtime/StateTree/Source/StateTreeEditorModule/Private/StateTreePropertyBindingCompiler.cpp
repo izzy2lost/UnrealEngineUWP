@@ -6,6 +6,10 @@
 #include "StateTreeCompilerLog.h"
 #include "StateTreeEditorPropertyBindings.h"
 #include "Misc/EnumerateRange.h"
+#include "StateTreePropertyBindings.h"
+#include "StateTreePropertyRef.h"
+#include "StateTreePropertyRefHelpers.h"
+#include "StateTreePropertyHelpers.h"
 
 #include UE_INLINE_GENERATED_CPP_BY_NAME(StateTreePropertyBindingCompiler)
 
@@ -122,6 +126,121 @@ bool FStateTreePropertyBindingCompiler::CompileBatch(const FStateTreeBindableStr
 		Batch.BindingsBegin = IntCastChecked<uint16>(BindingsBegin);
 		Batch.BindingsEnd = IntCastChecked<uint16>(BindingsEnd);
 		OutBatchIndex = PropertyBindings->CopyBatches.Num() - 1;
+	}
+
+	return true;
+}
+
+bool FStateTreePropertyBindingCompiler::CompileReferences(const FStateTreeBindableStructDesc& TargetStruct, TConstArrayView<FStateTreePropertyPathBinding> PropertyReferenceBindings, FStateTreeDataView InstanceDataView)
+{
+	for (const FStateTreePropertyPathBinding& Binding : PropertyReferenceBindings)
+	{
+		if (Binding.GetTargetPath().GetStructID() != TargetStruct.ID)
+		{
+			continue;
+		}
+
+		// Source must be in the source array/
+		const FStateTreeBindableStructDesc* SourceStruct = GetSourceStructDescByID(Binding.GetSourcePath().GetStructID());
+		if (!SourceStruct)
+		{
+			Log->Reportf(EMessageSeverity::Error, TargetStruct,
+				TEXT("Could not find a binding source."));
+			return false;
+		}
+
+		FString Error;
+		TArray<FStateTreePropertyPathIndirection> SourceIndirections;
+		
+		if (!Binding.GetSourcePath().ResolveIndirections(SourceStruct->Struct, SourceIndirections, &Error))
+		{
+			Log->Reportf(EMessageSeverity::Error, TargetStruct, TEXT("Resolving path in %s: %s"), *SourceStruct->ToString(), *Error);
+			return false;
+		}
+
+		if (!UE::StateTree::PropertyRefHelpers::IsPropertyAccessibleForPropertyRef(SourceIndirections, *SourceStruct))
+		{
+			Log->Reportf(EMessageSeverity::Error, TargetStruct,
+					TEXT("%s cannot reference non-output %s "),
+					*UE::StateTree::GetDescAndPathAsString(TargetStruct, Binding.GetTargetPath()),
+					*UE::StateTree::GetDescAndPathAsString(*SourceStruct, Binding.GetSourcePath()));
+			return false;
+		}
+
+		TArray<FStateTreePropertyIndirection> TargetIndirections;
+		FStateTreePropertyIndirection TargetFirstIndirection;
+		FStateTreePropertyPathIndirection TargetLeafIndirection;
+		if (!FStateTreePropertyBindings::ResolvePath(InstanceDataView.GetStruct(), Binding.GetTargetPath(), TargetIndirections, TargetFirstIndirection, TargetLeafIndirection))
+		{
+			Log->Reportf(EMessageSeverity::Error, TargetStruct, TEXT("Resolving path in %s: %s"), *TargetStruct.ToString(), *Error);
+			return false;
+		}
+
+		if (!UE::StateTree::PropertyRefHelpers::IsPropertyRefCompatibleWithProperty(*TargetLeafIndirection.GetProperty(), *SourceIndirections.Last().GetProperty()))
+		{
+			Log->Reportf(EMessageSeverity::Error, TargetStruct,
+				TEXT("%s cannot reference %s, types are incompatible."),		
+				*UE::StateTree::GetDescAndPathAsString(TargetStruct, Binding.GetTargetPath()),
+				*UE::StateTree::GetDescAndPathAsString(*SourceStruct, Binding.GetSourcePath()));
+			return false;
+		}
+
+		FStateTreeIndex16 ReferenceIndex;
+
+		// Reuse the index if another PropertyRef already references the same property.
+		{
+			int32 IndexOfAlreadyExisting = PropertyBindings->PropertyReferencePaths.IndexOfByPredicate([&Binding](const FStateTreePropertyRefPath& RefPath)
+			{
+				return RefPath.GetSourcePath() == Binding.GetSourcePath();
+			});
+
+			if (IndexOfAlreadyExisting != INDEX_NONE)
+			{
+				ReferenceIndex = FStateTreeIndex16(IndexOfAlreadyExisting);
+			}
+		}
+
+		if (!ReferenceIndex.IsValid())
+		{
+			// If referencing another PropertyRef, reuse it's index.
+			if (UE::StateTree::PropertyRefHelpers::IsPropertyRef(*SourceIndirections.Last().GetProperty()))
+			{
+				const FCompiledReference* ReferencedReference = CompiledReferences.FindByPredicate([&Binding](const FCompiledReference& CompiledReference)
+				{
+					return CompiledReference.Path == Binding.GetSourcePath();
+				});
+
+				if (ReferencedReference)
+				{
+					ReferenceIndex = ReferencedReference->Index;
+				}
+				else
+				{
+					if(!UE::StateTree::PropertyHelpers::HasOptionalMetadata(*TargetLeafIndirection.GetProperty()))
+					{
+						Log->Reportf(EMessageSeverity::Error, TargetStruct, TEXT("Referenced %s is not bound"), *UE::StateTree::GetDescAndPathAsString(*SourceStruct, Binding.GetSourcePath()));
+						return false;
+					}
+							
+					return true;
+				}
+			}
+		}
+
+		if (!ReferenceIndex.IsValid())
+		{
+			ReferenceIndex = FStateTreeIndex16(PropertyBindings->PropertyReferencePaths.Num());
+			PropertyBindings->PropertyReferencePaths.Emplace(SourceStruct->DataHandle, Binding.GetSourcePath());
+		}
+
+		// Store index in instance data.
+		uint8* RawData = FStateTreePropertyBindings::GetAddress(InstanceDataView, TargetIndirections, TargetFirstIndirection, TargetLeafIndirection.GetProperty());
+		check(RawData);
+		reinterpret_cast<FStateTreePropertyRef*>(RawData)->RefAccessIndex = ReferenceIndex;
+
+		FCompiledReference& CompiledReference = CompiledReferences.AddDefaulted_GetRef();
+		CompiledReference.Path = Binding.GetTargetPath();
+		CompiledReference.Index = ReferenceIndex;
 	}
 
 	return true;

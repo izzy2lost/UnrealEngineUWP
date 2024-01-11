@@ -6,6 +6,7 @@
 #include "StateTreeEvaluatorBase.h"
 #include "StateTreeConditionBase.h"
 #include "StateTreeExecutionContext.h"
+#include "StateTreePropertyRef.h"
 #include "StateTreeTestTypes.generated.h"
 
 class UStateTree;
@@ -463,6 +464,36 @@ struct FStateTreeTest_PropertyCopy
 
 	UPROPERTY(EditAnywhere, Category = "")
 	TArray<FStateTreeTest_PropertyStruct> Array;
+};
+
+USTRUCT()
+struct FStateTreeTest_PropertyRefSourceStruct
+{
+	GENERATED_BODY()
+
+	UPROPERTY(EditAnywhere, Category = "")
+	FStateTreeTest_PropertyStruct Item;
+
+	UPROPERTY(EditAnywhere, Category = "Output")
+	FStateTreeTest_PropertyStruct OutputItem;
+
+	UPROPERTY(EditAnywhere, Category = "")
+	TArray<FStateTreeTest_PropertyStruct> Array;
+};
+
+USTRUCT()
+struct FStateTreeTest_PropertyRefTargetStruct
+{
+	GENERATED_BODY()
+
+	UPROPERTY(EditAnywhere, Category = "", meta = (RefType = "/Script/StateTreeTestSuite.StateTreeTest_PropertyStruct"))
+	FStateTreePropertyRef RefToStruct;
+
+	UPROPERTY(EditAnywhere, Category = "", meta = (RefType = "Int32"))
+	FStateTreePropertyRef RefToInt;
+
+	UPROPERTY(EditAnywhere, Category = "", meta = (RefType = "/Script/StateTreeTestSuite.StateTreeTest_PropertyStruct", IsRefToArray))
+	FStateTreePropertyRef RefToStructArray;
 };
 
 USTRUCT()

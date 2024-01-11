@@ -34,6 +34,15 @@ struct STATETREEEDITORMODULE_API FStateTreePropertyBindingCompiler
 	 */
 	[[nodiscard]] bool CompileBatch(const FStateTreeBindableStructDesc& TargetStruct, TConstArrayView<FStateTreePropertyPathBinding> PropertyBindings, int32& OutBatchIndex);
 
+	/**
+	  * Compiles references for selected struct
+	  * @param TargetStruct - Description of the structs which contains the target properties.
+	  * @param PropertyReferenceBindings - Array of bindings to compile, all bindings that point to TargetStructs will be added.
+	  * @param InstanceDataView - view to the instance data
+	  * @return True on success, false on failure.
+	 */
+	[[nodiscard]] bool CompileReferences(const FStateTreeBindableStructDesc& TargetStruct, TConstArrayView<FStateTreePropertyPathBinding> PropertyReferenceBindings, FStateTreeDataView InstanceDataView);
+
 	/** Finalizes compilation, should be called once all batches are compiled. */
 	void Finalize();
 
@@ -95,6 +104,17 @@ protected:
 
 	UPROPERTY()
 	TArray<FStateTreeBindableStructDesc> SourceStructs;
+
+	/**
+	 * Representation of compiled reference.
+	 */
+	struct FCompiledReference
+	{
+		FStateTreePropertyPath Path;
+		FStateTreeIndex16 Index;
+	};
+
+	TArray<FCompiledReference> CompiledReferences;
 
 	FStateTreePropertyBindings* PropertyBindings = nullptr;
 
