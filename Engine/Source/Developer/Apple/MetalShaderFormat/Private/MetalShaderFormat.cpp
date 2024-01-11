@@ -37,7 +37,7 @@ extern uint64 AppendShader_Metal(class FString const& ArchivePath, const FSHAHas
 extern bool FinalizeLibrary_Metal(class FName const& Format, class FString const& ArchivePath, class FString const& LibraryPath, TSet<uint64> const& Shaders, class FString const& DebugOutputDir);
 
 /** Version for shader format, this becomes part of the DDC key. */
-static const FGuid UE_SHADER_METAL_VER = FGuid("222AACA0-E61A-490A-A5A3-0F3957CC248F");
+static const FGuid UE_SHADER_METAL_VER = FGuid("282D7BF5-C5F8-47B7-B065-E165D60FC17B");
 
 class FMetalShaderFormat : public IShaderFormat
 {

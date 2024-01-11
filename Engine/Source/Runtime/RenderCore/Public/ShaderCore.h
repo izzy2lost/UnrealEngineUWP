@@ -704,6 +704,26 @@ struct FSharedShaderCompilerEnvironment final : public FShaderCompilerEnvironmen
 	virtual ~FSharedShaderCompilerEnvironment() = default;
 };
 
+enum class EShaderOptionalDataKey : uint8
+{
+	AttributeInputs      = uint8('i'),
+	AttributeOutputs     = uint8('o'),
+	CompressedDebugCode  = uint8('z'),
+	Diagnostic           = uint8('D'),
+	Features             = uint8('x'),
+	Name                 = uint8('n'),
+	NativePath           = uint8('P'),
+	ObjectFile           = uint8('O'),
+	PackedResourceCounts = uint8('p'),
+	ResourceMasks        = uint8('m'),
+	ShaderModel6         = uint8('6'),
+	SourceCode           = uint8('c'),
+	UncompressedSize     = uint8('U'),
+	UniformBuffers       = uint8('u'),
+	Validation           = uint8('V'),
+	VendorExtension      = uint8('v'),
+};
+
 enum class EShaderResourceUsageFlags : uint8
 {
 	GlobalUniformBuffer   = 1 << 0,
@@ -718,7 +738,7 @@ ENUM_CLASS_FLAGS(EShaderResourceUsageFlags)
 struct FShaderCodePackedResourceCounts
 {
 	// for FindOptionalData() and AddOptionalData()
-	static const uint8 Key = 'p';
+	static const EShaderOptionalDataKey Key = EShaderOptionalDataKey::PackedResourceCounts;
 
 	EShaderResourceUsageFlags UsageFlags;
 	uint8 NumSamplers;
@@ -730,7 +750,7 @@ struct FShaderCodePackedResourceCounts
 struct FShaderCodeResourceMasks
 {
 	// for FindOptionalData() and AddOptionalData()
-	static const uint8 Key = 'm';
+	static const EShaderOptionalDataKey Key = EShaderOptionalDataKey::ResourceMasks;
 
 	uint32 UAVMask; // Mask of UAVs bound
 };
@@ -754,7 +774,7 @@ ENUM_CLASS_FLAGS(EShaderCodeFeatures);
 struct FShaderCodeFeatures
 {
 	// for FindOptionalData() and AddOptionalData()
-	static const uint8 Key = 'x';
+	static const EShaderOptionalDataKey Key = EShaderOptionalDataKey::Features;
 
 	EShaderCodeFeatures CodeFeatures = EShaderCodeFeatures::None;
 };
@@ -762,14 +782,14 @@ struct FShaderCodeFeatures
 // if this changes you need to make sure all shaders get invalidated
 struct FShaderCodeName
 {
-	static const uint8 Key = 'n';
+	static const EShaderOptionalDataKey Key = EShaderOptionalDataKey::Name;
 
 	// We store the straight ANSICHAR zero-terminated string
 };
 
 struct FShaderCodeUniformBuffers
 {
-	static const uint8 Key = 'u';
+	static const EShaderOptionalDataKey Key = EShaderOptionalDataKey::UniformBuffers;
 	// We store an array of FString objects
 };
 
@@ -777,7 +797,7 @@ struct FShaderCodeUniformBuffers
 struct FShaderCodeVendorExtension
 {
 	// for FindOptionalData() and AddOptionalData()
-	static const uint8 Key = 'v';
+	static const EShaderOptionalDataKey Key = EShaderOptionalDataKey::VendorExtension;
 
 	EGpuVendorId VendorId = EGpuVendorId::NotQueried;
 	FParameterAllocation Parameter;
@@ -825,7 +845,7 @@ inline FArchive& operator<<(FArchive& Ar, FShaderCodeValidationUBSize& ShaderCod
 struct FShaderCodeValidationExtension
 {
 	// for FindOptionalData() and AddOptionalData()
-	static constexpr uint8 Key = 'V';
+	static constexpr EShaderOptionalDataKey Key = EShaderOptionalDataKey::Validation;
 	static constexpr uint16 StaticVersion = 0;
 
 	TArray<FShaderCodeValidationStride> ShaderCodeValidationStride;
@@ -859,7 +879,7 @@ inline FArchive& operator<<(FArchive& Ar, FShaderDiagnosticData& ShaderCodeDiagn
 struct FShaderDiagnosticExtension
 {
 	// for FindOptionalData() and AddOptionalData()
-	static constexpr uint8 Key = 'D';
+	static constexpr EShaderOptionalDataKey Key = EShaderOptionalDataKey::Diagnostic;
 	static constexpr uint16 StaticVersion = 0;
 
 	TArray<FShaderDiagnosticData> ShaderDiagnosticDatas;
@@ -912,7 +932,7 @@ public:
 
 	// @param InKey e.g. FShaderCodePackedResourceCounts::Key
 	// @return 0 if not found
-	const uint8* FindOptionalData(uint8 InKey, uint8 ValueSize) const
+	const uint8* FindOptionalData(EShaderOptionalDataKey InKey, uint8 ValueSize) const
 	{
 		check(ValueSize);
 
@@ -927,7 +947,7 @@ public:
 
 		while(Current < End)
 		{
-			uint8 Key = *Current++;
+			EShaderOptionalDataKey Key = EShaderOptionalDataKey(*Current++);
 			uint32 Size = *((const unaligned_uint32*)Current);
 			Current += sizeof(Size);
 
@@ -942,7 +962,7 @@ public:
 		return 0;
 	}
 
-	const ANSICHAR* FindOptionalData(uint8 InKey) const
+	const ANSICHAR* FindOptionalData(EShaderOptionalDataKey InKey) const
 	{
 		check(ShaderCode.Num() >= 4);
 
@@ -957,7 +977,7 @@ public:
 
 		while(Current < End)
 		{
-			uint8 Key = *Current++;
+			EShaderOptionalDataKey Key = EShaderOptionalDataKey(*Current++);
 			uint32 Size = *((const unaligned_uint32*)Current);
 			Current += sizeof(Size);
 
@@ -973,7 +993,7 @@ public:
 	}
 
 	// Returns nullptr and Size -1 if key was not found
-	const uint8* FindOptionalDataAndSize(uint8 InKey, int32& OutSize) const
+	const uint8* FindOptionalDataAndSize(EShaderOptionalDataKey InKey, int32& OutSize) const
 	{
 		check(ShaderCode.Num() >= 4);
 
@@ -988,7 +1008,7 @@ public:
 
 		while (Current < End)
 		{
-			uint8 Key = *Current++;
+			EShaderOptionalDataKey Key = EShaderOptionalDataKey(*Current++);
 			uint32 Size = *((const unaligned_uint32*)Current);
 			Current += sizeof(Size);
 
@@ -1144,14 +1164,14 @@ public:
 	// can be called after the non optional data was stored in ShaderData
 	// @param Key uint8 to save memory so max 255, e.g. FShaderCodePackedResourceCounts::Key
 	// @param Size >0, only restriction is that sum of all optional data values must be < 4GB
-	void AddOptionalData(uint8 Key, const uint8* ValuePtr, uint32 ValueSize)
+	void AddOptionalData(EShaderOptionalDataKey Key, const uint8* ValuePtr, uint32 ValueSize)
 	{
 		check(ValuePtr);
 
 		// don't add after Finalize happened
 		check(OptionalDataSize >= 0);
 
-		ShaderCodeWithOptionalData.Add(Key);
+		ShaderCodeWithOptionalData.Add(uint8(Key));
 		ShaderCodeWithOptionalData.Append((const uint8*)&ValueSize, sizeof(ValueSize));
 		ShaderCodeWithOptionalData.Append(ValuePtr, ValueSize);
 		OptionalDataSize += sizeof(uint8) + sizeof(ValueSize) + (uint32)ValueSize;
@@ -1160,7 +1180,7 @@ public:
 	// Note: we don't hash the optional attachments in GenerateOutputHash() as they would prevent sharing (e.g. many material share the save VS)
 	// convenience, silently drops the data if string is too long
 	// @param e.g. 'n' for the ShaderSourceFileName
-	void AddOptionalData(uint8 Key, const ANSICHAR* InString)
+	void AddOptionalData(EShaderOptionalDataKey Key, const ANSICHAR* InString)
 	{
 		uint32 Size = FCStringAnsi::Strlen(InString) + 1;
 		AddOptionalData(Key, (uint8*)InString, Size);

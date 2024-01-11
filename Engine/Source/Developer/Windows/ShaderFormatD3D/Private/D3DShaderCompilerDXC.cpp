@@ -1250,7 +1250,7 @@ bool CompileAndProcessD3DShaderDXC(
 				if (ShaderModel >= ED3DShaderModel::SM6_0)
 				{
 					uint8 IsSM6 = 1;
-					ShaderCode.AddOptionalData('6', &IsSM6, 1);
+					ShaderCode.AddOptionalData(EShaderOptionalDataKey::ShaderModel6, &IsSM6, 1);
 				}
 			};
 

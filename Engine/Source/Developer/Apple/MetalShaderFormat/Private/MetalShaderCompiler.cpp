@@ -712,14 +712,14 @@ void BuildMetalShaderOutput(
 
 			if (ShaderInput.Environment.CompilerFlags.Contains(CFLAG_Archive))
 			{
-				ShaderOutput.ShaderCode.AddOptionalData('o', Bytecode.ObjectFile.GetData(), Bytecode.ObjectFile.Num());
+				ShaderOutput.ShaderCode.AddOptionalData(EShaderOptionalDataKey::ObjectFile, Bytecode.ObjectFile.GetData(), Bytecode.ObjectFile.Num());
 			}
 			
 			if (bDebugInfoSucceded && !ShaderInput.Environment.CompilerFlags.Contains(CFLAG_Archive) && DebugCode.CompressedData.Num())
 			{
-				ShaderOutput.ShaderCode.AddOptionalData('z', DebugCode.CompressedData.GetData(), DebugCode.CompressedData.Num());
-				ShaderOutput.ShaderCode.AddOptionalData('p', TCHAR_TO_UTF8(*Bytecode.NativePath));
-				ShaderOutput.ShaderCode.AddOptionalData('u', (const uint8*)&DebugCode.UncompressedSize, sizeof(DebugCode.UncompressedSize));
+				ShaderOutput.ShaderCode.AddOptionalData(EShaderOptionalDataKey::CompressedDebugCode, DebugCode.CompressedData.GetData(), DebugCode.CompressedData.Num());
+				ShaderOutput.ShaderCode.AddOptionalData(EShaderOptionalDataKey::NativePath, TCHAR_TO_UTF8(*Bytecode.NativePath));
+				ShaderOutput.ShaderCode.AddOptionalData(EShaderOptionalDataKey::UncompressedSize, (const uint8*)&DebugCode.UncompressedSize, sizeof(DebugCode.UncompressedSize));
 			}
 			
 			if (ShaderInput.Environment.CompilerFlags.Contains(CFLAG_ExtraShaderData))
@@ -728,14 +728,14 @@ void BuildMetalShaderOutput(
 				ShaderOutput.ShaderCode.AddOptionalData(FShaderCodeName::Key, TCHAR_TO_UTF8(*ShaderInput.GenerateShaderName()));
 				if (DebugCode.CompressedData.Num() == 0)
 				{
-					ShaderOutput.ShaderCode.AddOptionalData('c', TCHAR_TO_UTF8(*MetalCode));
-					ShaderOutput.ShaderCode.AddOptionalData('p', TCHAR_TO_UTF8(*Bytecode.NativePath));
+					ShaderOutput.ShaderCode.AddOptionalData(EShaderOptionalDataKey::SourceCode, TCHAR_TO_UTF8(*MetalCode));
+					ShaderOutput.ShaderCode.AddOptionalData(EShaderOptionalDataKey::NativePath, TCHAR_TO_UTF8(*Bytecode.NativePath));
 				}
 			}
 			else if (ShaderInput.Environment.CompilerFlags.Contains(CFLAG_Archive))
 			{
-				ShaderOutput.ShaderCode.AddOptionalData('c', TCHAR_TO_UTF8(*MetalCode));
-				ShaderOutput.ShaderCode.AddOptionalData('p', TCHAR_TO_UTF8(*Bytecode.NativePath));
+				ShaderOutput.ShaderCode.AddOptionalData(EShaderOptionalDataKey::SourceCode, TCHAR_TO_UTF8(*MetalCode));
+				ShaderOutput.ShaderCode.AddOptionalData(EShaderOptionalDataKey::NativePath, TCHAR_TO_UTF8(*Bytecode.NativePath));
 			}
 			
 			ShaderOutput.NumTextureSamplers = Header.Bindings.NumSamplers;
@@ -1034,11 +1034,11 @@ bool StripShader_Metal(TArray<uint8>& Code, class FString const& DebugPath, bool
 			TArray<uint8> SourceCode;
 			SourceCode.Append(SourceCodePtr, ShaderCode.GetActualShaderCodeSize() - CodeOffset);
 			
-			const ANSICHAR* ShaderSource = ShaderCode.FindOptionalData('c');
+			const ANSICHAR* ShaderSource = ShaderCode.FindOptionalData(EShaderOptionalDataKey::SourceCode);
 			const size_t ShaderSourceLength = ShaderSource ? FCStringAnsi::Strlen(ShaderSource) : 0;
 			bool const bHasShaderSource = ShaderSourceLength > 0;
 			
-			const ANSICHAR* ShaderPath = ShaderCode.FindOptionalData('p');
+			const ANSICHAR* ShaderPath = ShaderCode.FindOptionalData(EShaderOptionalDataKey::NativePath);
 			bool const bHasShaderPath = (ShaderPath && FCStringAnsi::Strlen(ShaderPath) > 0);
 			
 			if (bHasShaderSource && bHasShaderPath)
@@ -1068,7 +1068,7 @@ bool StripShader_Metal(TArray<uint8>& Code, class FString const& DebugPath, bool
 			if (bNative)
 			{
 				int32 ObjectSize = 0;
-				const uint8* ShaderObject = ShaderCode.FindOptionalDataAndSize('o', ObjectSize);
+				const uint8* ShaderObject = ShaderCode.FindOptionalDataAndSize(EShaderOptionalDataKey::ObjectFile, ObjectSize);
 				
 				// If ShaderObject and ObjectSize is zero then the code has already been stripped - source code should be the byte code
 				if(ShaderObject && ObjectSize)
@@ -1140,7 +1140,7 @@ uint64 AppendShader_Metal(FString const& WorkingDir, const FSHAHash& Hash, TArra
 				
 				// Copy the non-optional shader bytecode
 				int32 ObjectCodeDataSize = 0;
-				uint8 const* Object = ShaderCode.FindOptionalDataAndSize('o', ObjectCodeDataSize);
+				uint8 const* Object = ShaderCode.FindOptionalDataAndSize(EShaderOptionalDataKey::ObjectFile, ObjectCodeDataSize);
 
 				// 'o' segment missing this is a pre stripped shader
 				if(!Object)

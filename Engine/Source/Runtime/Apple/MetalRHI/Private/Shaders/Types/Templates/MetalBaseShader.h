@@ -167,7 +167,7 @@ void TMetalBaseShader<BaseResourceType, ShaderType>::Init(TArrayView<const uint8
 
 	bool bOfflineCompile = (OfflineCompiledFlag > 0);
 
-	const ANSICHAR* ShaderSource = ShaderCode.FindOptionalData('c');
+	const ANSICHAR* ShaderSource = ShaderCode.FindOptionalData(EShaderOptionalDataKey::SourceCode);
 	bool bHasShaderSource = (ShaderSource && FCStringAnsi::Strlen(ShaderSource) > 0);
 
 	static bool bForceTextShaders = FMetalCommandQueue::SupportsFeature(EMetalFeaturesGPUTrace);
@@ -175,8 +175,8 @@ void TMetalBaseShader<BaseResourceType, ShaderType>::Init(TArrayView<const uint8
 	{
 		int32 LZMASourceSize = 0;
 		int32 SourceSize = 0;
-		const uint8* LZMASource = ShaderCode.FindOptionalDataAndSize('z', LZMASourceSize);
-		const uint8* UnSourceLen = ShaderCode.FindOptionalDataAndSize('u', SourceSize);
+		const uint8* LZMASource = ShaderCode.FindOptionalDataAndSize(EShaderOptionalDataKey::CompressedDebugCode, LZMASourceSize);
+		const uint8* UnSourceLen = ShaderCode.FindOptionalDataAndSize(EShaderOptionalDataKey::UncompressedSize, SourceSize);
 		if (LZMASource && LZMASourceSize > 0 && UnSourceLen && SourceSize == sizeof(uint32))
 		{
 			CompressedSource.Append(LZMASource, LZMASourceSize);
