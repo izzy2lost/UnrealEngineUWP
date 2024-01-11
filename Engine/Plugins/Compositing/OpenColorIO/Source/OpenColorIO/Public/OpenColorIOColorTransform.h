@@ -62,7 +62,10 @@ public:
 	 * Cache resource shaders for rendering.
 	 * If a matching shader map is not found in memory or the DDC, a new one will be compiled.
 	 */
-	void CacheResourceShadersForRendering(bool bRegenerateId);
+	UE_DEPRECATED_FORGAME(5.4, "Do not use. Will be made private in 5.5")
+	void CacheResourceShadersForRendering(bool bRegenerateId = false);
+	
+	UE_DEPRECATED_FORGAME(5.4, "Do not use. Will be made private in 5.5")
 	void CacheShadersForResources(EShaderPlatform InShaderPlatform, FOpenColorIOTransformResource* InResourcesToCache, bool bApplyCompletedShaderMapForRendering, bool bIsCooking, const ITargetPlatform* TargetPlatform = nullptr);
 
 	UE_DEPRECATED(5.3, "This method is deprecated.")
