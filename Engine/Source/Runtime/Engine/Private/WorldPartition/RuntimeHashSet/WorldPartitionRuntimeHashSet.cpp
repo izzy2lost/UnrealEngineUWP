@@ -2,6 +2,7 @@
 
 #include "WorldPartition/RuntimeHashSet/WorldPartitionRuntimeHashSet.h"
 #include "WorldPartition/RuntimeHashSet/RuntimePartition.h"
+#include "WorldPartition/RuntimeHashSet/RuntimePartitionLHGrid.h"
 #include "WorldPartition/RuntimeHashSet/RuntimePartitionPersistent.h"
 #include "WorldPartition/HLOD/HLODLayer.h"
 #include "WorldPartition/ContentBundle/ContentBundleDescriptor.h"
@@ -92,7 +93,17 @@ void UWorldPartitionRuntimeHashSet::PostLoad()
 
 #if WITH_EDITOR
 void UWorldPartitionRuntimeHashSet::SetDefaultValues()
-{}
+{
+	check(RuntimePartitions.IsEmpty());
+
+	FRuntimePartitionDesc& RuntimePartitionDesc = RuntimePartitions.AddDefaulted_GetRef();
+	RuntimePartitionDesc.Class = URuntimePartitionLHGrid::StaticClass();
+	RuntimePartitionDesc.Name = TEXT("MainPartition");
+
+	RuntimePartitionDesc.MainLayer = NewObject<URuntimePartitionLHGrid>(this, NAME_None);
+	RuntimePartitionDesc.MainLayer->Name = RuntimePartitionDesc.Name;
+	RuntimePartitionDesc.MainLayer->SetDefaultValues();
+}
 
 void UWorldPartitionRuntimeHashSet::FlushStreaming()
 {

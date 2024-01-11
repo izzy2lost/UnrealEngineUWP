@@ -19,6 +19,7 @@
 #include "Engine/MapBuildDataRegistry.h"
 #include "ActorReferencesUtils.h"
 #include "WorldPartition/WorldPartition.h"
+#include "WorldPartition/WorldPartitionSettings.h"
 #include "WorldPartition/WorldPartitionSubsystem.h"
 #include "WorldPartition/HLOD/HLODActor.h"
 #include "WorldPartition/WorldPartitionMiniMap.h"
@@ -715,8 +716,8 @@ int32 UWorldPartitionConvertCommandlet::Main(const FString& Params)
 		}
 		else
 		{
-			EditorHashClass = FindObject<UClass>(nullptr, TEXT("/Script/Engine.WorldPartitionEditorSpatialHash"));
-			RuntimeHashClass = FindObject<UClass>(nullptr, TEXT("/Script/Engine.WorldPartitionRuntimeSpatialHash"));
+			EditorHashClass = UWorldPartitionSettings::Get()->GetEditorHashDefaultClass();
+			RuntimeHashClass = UWorldPartitionSettings::Get()->GetRuntimeHashDefaultClass();
 		}
 	}
 

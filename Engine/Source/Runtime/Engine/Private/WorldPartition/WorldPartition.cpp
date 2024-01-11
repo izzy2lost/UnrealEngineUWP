@@ -991,9 +991,10 @@ UWorldPartition* UWorldPartition::CreateOrRepairWorldPartition(AWorldSettings* W
 	{
 		if (!EditorHashClass)
 		{
-			EditorHashClass = FindObject<UClass>(nullptr, TEXT("/Script/Engine.WorldPartitionEditorSpatialHash"));
+			EditorHashClass = UWorldPartitionSettings::Get()->GetEditorHashDefaultClass();
 		}
 
+		check(EditorHashClass);
 		WorldPartition->EditorHash = NewObject<UWorldPartitionEditorHash>(WorldPartition, EditorHashClass);
 		WorldPartition->EditorHash->SetDefaultValues();
 	}
@@ -1002,9 +1003,10 @@ UWorldPartition* UWorldPartition::CreateOrRepairWorldPartition(AWorldSettings* W
 	{
 		if (!RuntimeHashClass)
 		{
-			RuntimeHashClass = FindObject<UClass>(nullptr, TEXT("/Script/Engine.WorldPartitionRuntimeSpatialHash"));
+			RuntimeHashClass = UWorldPartitionSettings::Get()->GetRuntimeHashDefaultClass();
 		}
 
+		check(RuntimeHashClass);
 		WorldPartition->RuntimeHash = NewObject<UWorldPartitionRuntimeHash>(WorldPartition, RuntimeHashClass, NAME_None, RF_Transactional);
 		WorldPartition->RuntimeHash->SetDefaultValues();
 	}
