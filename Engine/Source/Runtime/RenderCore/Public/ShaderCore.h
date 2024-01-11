@@ -226,6 +226,19 @@ enum class EShaderParameterType : uint8
 	Num
 };
 
+enum class EShaderParameterTypeMask : uint16
+{
+	LooseDataMask = 1 << uint16(EShaderParameterType::LooseData),
+	UniformBufferMask = 1 << uint16(EShaderParameterType::UniformBuffer),
+	SamplerMask = 1 << uint16(EShaderParameterType::Sampler),
+	SRVMask = 1 << uint16(EShaderParameterType::SRV),
+	UAVMask = 1 << uint16(EShaderParameterType::UAV),
+	BindlessSamplerMask = 1 << uint16(EShaderParameterType::BindlessSampler),
+	BindlessSRVMask = 1 << uint16(EShaderParameterType::BindlessSRV),
+	BindlessUAVMask = 1 << uint16(EShaderParameterType::BindlessUAV),
+};
+ENUM_CLASS_FLAGS(EShaderParameterTypeMask);
+
 inline bool IsParameterBindless(EShaderParameterType ParameterType)
 {
 	return ParameterType == EShaderParameterType::BindlessSampler

@@ -150,23 +150,37 @@ void FD3D12StateCache::ClearSRVs()
 	bSRVSCleared = true;
 }
 
-void FD3D12StateCache::ClearShaderResourceViews(EShaderFrequency ShaderFrequency, FD3D12ResourceLocation*& ResourceLocation)
+void FD3D12StateCache::ClearResourceViewCaches(EShaderFrequency ShaderFrequency, FD3D12ResourceLocation*& ResourceLocation, EShaderParameterTypeMask ShaderParameterTypeMask)
 {
 	//SCOPE_CYCLE_COUNTER(STAT_D3D12ClearShaderResourceViewsTime);
 
-	if (PipelineState.Common.SRVCache.MaxBoundIndex[ShaderFrequency] < 0)
+	if (EnumHasAnyFlags(ShaderParameterTypeMask, EShaderParameterTypeMask::SRVMask))
 	{
-		return;
-	}
-
-	auto& CurrentShaderResourceViews = PipelineState.Common.SRVCache.Views[ShaderFrequency];
-	for (int32 i = 0; i <= PipelineState.Common.SRVCache.MaxBoundIndex[ShaderFrequency]; ++i)
-	{
-		if (CurrentShaderResourceViews[i] && CurrentShaderResourceViews[i]->GetResourceLocation() == ResourceLocation)
+		if (PipelineState.Common.SRVCache.MaxBoundIndex[ShaderFrequency] >= 0)
 		{
-			SetShaderResourceView(ShaderFrequency, nullptr, i);
+			auto& CurrentShaderResourceViews = PipelineState.Common.SRVCache.Views[ShaderFrequency];
+			for (int32 i = 0; i <= PipelineState.Common.SRVCache.MaxBoundIndex[ShaderFrequency]; ++i)
+			{
+				if (CurrentShaderResourceViews[i] && CurrentShaderResourceViews[i]->GetResourceLocation() == ResourceLocation)
+				{
+					SetShaderResourceView(ShaderFrequency, nullptr, i);
+				}
+			}
 		}
 	}
+
+	if (EnumHasAnyFlags(ShaderParameterTypeMask, EShaderParameterTypeMask::UAVMask))
+	{
+		auto& CurrentShaderResourceViews = PipelineState.Common.UAVCache.Views[ShaderFrequency];
+		for (int32 i = 0; i <= MAX_UAVS; ++i)
+		{
+			if (CurrentShaderResourceViews[i] && CurrentShaderResourceViews[i]->GetResourceLocation() == ResourceLocation)
+			{
+				SetUAV(ShaderFrequency, i, nullptr);
+			}
+		}
+	}
+
 }
 
 void FD3D12StateCache::FlushComputeShaderCache(bool bForce)

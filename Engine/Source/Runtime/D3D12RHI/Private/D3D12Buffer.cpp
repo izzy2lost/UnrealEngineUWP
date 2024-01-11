@@ -94,7 +94,7 @@ struct FRHICommandRenameUploadBuffer final : public FRHICommand<FRHICommandRenam
 			const uint32 GPUIndex = 0; // @todo mgpu - seems wrong we're only doing this for the 0th GPU
 
 			FD3D12CommandContext& Context = FD3D12CommandContext::Get(RHICmdList, GPUIndex);
-			Context.ConditionalClearShaderResource(ResourceLocation);
+			Context.ConditionalClearShaderResource(ResourceLocation, EShaderParameterTypeMask::SRVMask);
 		});
 
 #if UE_MEMORY_TRACE_ENABLED
@@ -667,7 +667,7 @@ void* FD3D12DynamicRHI::LockBuffer(FRHICommandListBase& RHICmdList, FD3D12Buffer
 				{
 					FD3D12CommandContext& DefaultContext = Device->GetDefaultCommandContext();
 
-					FScopedResourceBarrier ScopeResourceBarrierSource(DefaultContext, pResource, D3D12_RESOURCE_STATE_COPY_SOURCE, 0);
+					FScopedResourceBarrier ScopeResourceBarrierSource(DefaultContext, pResource, &Buffer->ResourceLocation, D3D12_RESOURCE_STATE_COPY_SOURCE, 0);
 					// Don't need to transition upload heaps
 
 					uint64 SubAllocOffset = Buffer->ResourceLocation.GetOffsetFromBaseOfResource();
@@ -955,8 +955,8 @@ void FD3D12CommandContext::RHICopyBufferRegion(FRHIBuffer* DestBufferRHI, uint64
 	check(DstOffset + NumBytes <= DestBufferDesc.Width);
 	check(SrcOffset + NumBytes <= SourceBufferDesc.Width);
 
-	FScopedResourceBarrier ScopeResourceBarrierSrc(*this, pSourceResource, D3D12_RESOURCE_STATE_COPY_SOURCE, 0);
-	FScopedResourceBarrier ScopeResourceBarrierDst(*this, pDestResource  , D3D12_RESOURCE_STATE_COPY_DEST  , 0);
+	FScopedResourceBarrier ScopeResourceBarrierSrc(*this, pSourceResource, &SourceBuffer->ResourceLocation, D3D12_RESOURCE_STATE_COPY_SOURCE, 0);
+	FScopedResourceBarrier ScopeResourceBarrierDst(*this, pDestResource  , &DestBuffer->ResourceLocation, D3D12_RESOURCE_STATE_COPY_DEST  , 0);
 	FlushResourceBarriers();
 
 	GraphicsCommandList()->CopyBufferRegion(pDestResource->GetResource(), DestBuffer->ResourceLocation.GetOffsetFromBaseOfResource() + DstOffset, pSourceResource->GetResource(), SourceBuffer->ResourceLocation.GetOffsetFromBaseOfResource() + SrcOffset, NumBytes);

@@ -639,16 +639,18 @@ class FScopedResourceBarrier
 {
 private:
 	FD3D12ContextCommon&        Context;
-	FD3D12Resource*       const Resource;
+	FD3D12Resource* const Resource;
+	FD3D12ResourceLocation* const ResourceLocation;
 	D3D12_RESOURCE_STATES const DesiredState;
 	uint32                const Subresource;
 
 	bool bRestoreState = false;
 
 public:
-	FScopedResourceBarrier(FD3D12ContextCommon& Context, FD3D12Resource* Resource, D3D12_RESOURCE_STATES DesiredState, uint32 Subresource)
+	FScopedResourceBarrier(FD3D12ContextCommon& Context, FD3D12Resource* Resource, FD3D12ResourceLocation* InResourceLocation, D3D12_RESOURCE_STATES DesiredState, uint32 Subresource)
 		: Context     (Context)
-		, Resource    (Resource)
+		, Resource(Resource)
+		, ResourceLocation(InResourceLocation)
 		, DesiredState(DesiredState)
 		, Subresource (Subresource)
 	{
@@ -680,6 +682,10 @@ public:
 			check(!Resource->RequiresResourceStateTracking());
 
 			Context.AddTransitionBarrier(Resource, DesiredState, Resource->GetDefaultResourceState(), Subresource);
+		}
+		else if (Resource->RequiresResourceStateTracking() && ResourceLocation)
+		{
+			Context.ConditionalClearShaderResource(ResourceLocation, EShaderParameterTypeMask::SRVMask | EShaderParameterTypeMask::UAVMask);
 		}
 	}
 };

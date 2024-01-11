@@ -509,7 +509,7 @@ void FD3D12CommandContext::HandleTransientAliasing(const FD3D12TransitionData* T
 			TransitionResource(Resource, D3D12_RESOURCE_STATE_TBD, FinalState, D3D12_RESOURCE_BARRIER_ALL_SUBRESOURCES);
 			
 			// Remove from caches
-			ClearShaderResources(BaseShaderResource);
+			ClearShaderResources(BaseShaderResource, EShaderParameterTypeMask::SRVMask | EShaderParameterTypeMask::UAVMask);
 		}
 	}
 }
@@ -900,13 +900,13 @@ void FD3D12CommandContext::RHISetComputePipelineState(FRHIComputePipelineState* 
 
 void FD3D12CommandContext::SetUAVParameter(EShaderFrequency Frequency, uint32 UAVIndex, FD3D12UnorderedAccessView* UAV)
 {
-	ClearShaderResources(UAV);
+	ClearShaderResources(UAV, EShaderParameterTypeMask::SRVMask);
 	StateCache.SetUAV(SF_Pixel, UAVIndex, UAV);
 }
 
 void FD3D12CommandContext::SetUAVParameter(EShaderFrequency Frequency, uint32 UAVIndex, FD3D12UnorderedAccessView* UAV, uint32 InitialCount)
 {
-	ClearShaderResources(UAV);
+	ClearShaderResources(UAV, EShaderParameterTypeMask::SRVMask);
 	StateCache.SetUAV(SF_Pixel, UAVIndex, UAV, InitialCount);
 }
 
@@ -954,7 +954,7 @@ struct FD3D12ResourceBinder
 		FD3D12UnorderedAccessView_RHI* D3D12UnorderedAccessView = FD3D12CommandContext::RetrieveObject<FD3D12UnorderedAccessView_RHI>(InUnorderedAccessView, GpuIndex);
 		if (bClearResources)
 		{
-			Context.ClearShaderResources(D3D12UnorderedAccessView);
+			Context.ClearShaderResources(D3D12UnorderedAccessView, EShaderParameterTypeMask::SRVMask);
 		}
 
 #if PLATFORM_SUPPORTS_BINDLESS_RENDERING
@@ -1288,7 +1288,7 @@ void FD3D12CommandContext::SetRenderTargets(
 		DepthStencilView = NewDepthStencilTarget->GetDepthStencilView(NewDepthStencilTargetRHI->GetDepthStencilAccess());
 
 		// Unbind any shader views of the depth stencil target that are bound.
-		ClearShaderResources(NewDepthStencilTarget);
+		ClearShaderResources(NewDepthStencilTarget, EShaderParameterTypeMask::SRVMask | EShaderParameterTypeMask::UAVMask);
 	}
 
 	// Gather the render target views for the new render targets.
@@ -1306,7 +1306,7 @@ void FD3D12CommandContext::SetRenderTargets(
 			ensureMsgf(RenderTargetView, TEXT("Texture being set as render target has no RTV"));
 
 			// Unbind any shader views of the render target that are bound.
-			ClearShaderResources(NewRenderTarget);
+			ClearShaderResources(NewRenderTarget, EShaderParameterTypeMask::SRVMask | EShaderParameterTypeMask::UAVMask);
 		}
 
 		NewRenderTargetViews[RenderTargetIndex] = RenderTargetView;
@@ -1994,9 +1994,9 @@ void FD3D12CommandContext::UpdateBuffer(FD3D12ResourceLocation* Dest, uint32 Des
 	uint32 DestFullOffset = Dest->GetOffsetFromBaseOfResource() + DestOffset;
 
 	// Clear the resource if still bound to make sure the SRVs are rebound again on next operation (and get correct resource transitions enqueued)
-	ConditionalClearShaderResource(Dest);
+	ConditionalClearShaderResource(Dest, EShaderParameterTypeMask::SRVMask);
 
-	FScopedResourceBarrier ScopeResourceBarrierDest(*this, DestResource, D3D12_RESOURCE_STATE_COPY_DEST, 0);
+	FScopedResourceBarrier ScopeResourceBarrierDest(*this, DestResource, Dest, D3D12_RESOURCE_STATE_COPY_DEST, 0);
 	// Don't need to transition upload heaps
 
 	FlushResourceBarriers();

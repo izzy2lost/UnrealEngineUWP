@@ -713,29 +713,29 @@ void FD3D12CommandContext::ClearState(EClearStateMode Mode)
 	}
 }
 
-void FD3D12CommandContext::ConditionalClearShaderResource(FD3D12ResourceLocation* Resource)
+void FD3D12CommandContext::ConditionalClearShaderResource(FD3D12ResourceLocation* Resource, EShaderParameterTypeMask ShaderParameterTypeMask)
 {
 	check(Resource);
 
 	for (int32 Index = 0; Index < SF_NumStandardFrequencies; Index++)
 	{
-		StateCache.ClearShaderResourceViews(static_cast<EShaderFrequency>(Index), Resource);
+		StateCache.ClearResourceViewCaches(static_cast<EShaderFrequency>(Index), Resource, ShaderParameterTypeMask);
 	}
 }
 
-void FD3D12CommandContext::ClearShaderResources(FD3D12UnorderedAccessView* UAV)
+void FD3D12CommandContext::ClearShaderResources(FD3D12UnorderedAccessView* UAV, EShaderParameterTypeMask ShaderParameterTypeMask)
 {
 	if (UAV)
 	{
-		ConditionalClearShaderResource(UAV->GetResourceLocation());
+		ConditionalClearShaderResource(UAV->GetResourceLocation(), ShaderParameterTypeMask);
 	}
 }
 
-void FD3D12CommandContext::ClearShaderResources(FD3D12BaseShaderResource* Resource)
+void FD3D12CommandContext::ClearShaderResources(FD3D12BaseShaderResource* Resource, EShaderParameterTypeMask ShaderParameterTypeMask)
 {
 	if (Resource)
 	{
-		ConditionalClearShaderResource(&Resource->ResourceLocation);
+		ConditionalClearShaderResource(&Resource->ResourceLocation, ShaderParameterTypeMask);
 	}
 }
 

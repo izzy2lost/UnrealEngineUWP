@@ -160,6 +160,8 @@ public:
 	};
 
 	virtual void ClearState(EClearStateMode ClearStateMode = EClearStateMode::All) {}
+	virtual void ConditionalClearShaderResource(FD3D12ResourceLocation* Resource, EShaderParameterTypeMask ShaderParameterTypeMask) {}
+
 
 	// Inserts a command to signal the specified sync point
 	void SignalSyncPoint(FD3D12SyncPoint* SyncPoint);
@@ -487,9 +489,9 @@ public:
 	}
 
 	virtual void ClearState(EClearStateMode ClearStateMode = EClearStateMode::All) override final;
-	void ConditionalClearShaderResource(FD3D12ResourceLocation* Resource);
-	void ClearShaderResources(FD3D12UnorderedAccessView* UAV);
-	void ClearShaderResources(FD3D12BaseShaderResource* Resource);
+	virtual void ConditionalClearShaderResource(FD3D12ResourceLocation* Resource, EShaderParameterTypeMask ShaderParameterTypeMask) override final;
+	void ClearShaderResources(FD3D12UnorderedAccessView* UAV, EShaderParameterTypeMask ShaderParameterTypeMask);
+	void ClearShaderResources(FD3D12BaseShaderResource* Resource, EShaderParameterTypeMask ShaderParameterTypeMask);
 	void ClearAllShaderResources();
 
 	FD3D12FastConstantAllocator ConstantsAllocator;
