@@ -776,13 +776,27 @@ void UPCGSettings::InitializeCachedOverridableParams(bool bReset)
 
 		for (int32 j = 1; j < Param.PropertiesNames.Num(); ++j)
 		{
-			// If we have multiple depth properties, it should be Struct properties by construction
-			const FStructProperty* StructProperty = CastField<FStructProperty>(CurrentProperty);
-			if (ensure(StructProperty))
+			// If we have multiple depth properties, it should be Struct/Object properties by construction
+			const UStruct* UnderlyingStruct = nullptr;
+			if (const FStructProperty* StructProperty = CastField<FStructProperty>(CurrentProperty))
 			{
-				CurrentProperty = StructProperty->Struct->FindPropertyByName(Param.PropertiesNames[j]);
+				UnderlyingStruct = StructProperty->Struct;
+			}
+			else if (const FObjectProperty* ObjectProperty = CastField<FObjectProperty>(CurrentProperty))
+			{
+				UnderlyingStruct = ObjectProperty->PropertyClass;
+			}
+
+			if (ensure(UnderlyingStruct))
+			{
+				CurrentProperty = UnderlyingStruct->FindPropertyByName(Param.PropertiesNames[j]);
 				check(CurrentProperty);
 				Param.Properties.Add(CurrentProperty);
+			}
+			else
+			{
+				Param.Properties.Empty();
+				break;
 			}
 		}
 	}

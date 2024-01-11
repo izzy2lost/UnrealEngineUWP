@@ -210,7 +210,7 @@ void FPCGContext::OverrideSettings()
 			PCGE_LOG_C(Warning, GraphAndLog, this, FText::Format(LOCTEXT("OverrideWithAlias", "Attribute '{0}' was not found, but one of its deprecated aliases ('{1}') was. Please update the name to the new value."), FText::FromName(AttributeName), FText::FromName(AccessorResult.AliasUsed)));
 		}
 
-		TUniquePtr<IPCGAttributeAccessor> PropertyAccessor = PCGAttributeAccessorHelpers::CreatePropertyAccessor(Param.Properties.Last());
+		TUniquePtr<IPCGAttributeAccessor> PropertyAccessor = PCGAttributeAccessorHelpers::CreatePropertyChainAccessor(TArray<const FProperty*>(Param.Properties));
 		check(PropertyAccessor.IsValid());
 
 		const bool bParamOverridden = PCGMetadataAttribute::CallbackWithRightType(PropertyAccessor->GetUnderlyingType(), [this, &AttributeAccessor, &PropertyAccessor, &Param, &AttributeName, Container](auto Dummy) -> bool
@@ -226,15 +226,8 @@ void FPCGContext::OverrideSettings()
 				PCGE_LOG_C(Warning, GraphAndLog, this, FText::Format(LOCTEXT("ConversionFailed", "Parameter '{0}' cannot be converted from attribute '{1}'"), FText::FromName(Param.Label), FText::FromName(AttributeName)));
 				return false;
 			}
-			// TODO: Perhaps factorise this code in another property accessor.
-			void* PropertyObjectPtr = Container;
-			for (int32 i = 0; i < Param.Properties.Num() - 1; ++i)
-			{
-				PropertyObjectPtr = Param.Properties[i]->ContainerPtrToValuePtr<void>(PropertyObjectPtr);
-			}
 
-			FPCGAttributeAccessorKeysSingleObjectPtr PropertyObjectKey(PropertyObjectPtr);
-
+			FPCGAttributeAccessorKeysSingleObjectPtr PropertyObjectKey(Container);
 			PropertyAccessor->Set<PropertyType>(Value, PropertyObjectKey);
 
 			return true;

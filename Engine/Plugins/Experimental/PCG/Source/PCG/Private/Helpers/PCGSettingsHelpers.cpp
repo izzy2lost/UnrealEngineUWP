@@ -273,7 +273,8 @@ namespace PCGSettingsHelpers
 		}
 	}
 
-	TArray<FPCGSettingsOverridableParam> GetAllOverridableParams(const UStruct* InClass, const FPCGGetAllOverridableParamsConfig& InConfig)
+	template <uint32 N>
+	TArray<FPCGSettingsOverridableParam> GetAllOverridableParams_Internal(const UStruct* InClass, const FPCGGetAllOverridableParamsConfig& InConfig, TArray<const FProperty*, TInlineAllocator<N>>& InAlreadySeenProperties)
 	{
 		TArray<FName> LabelCache;
 
@@ -374,7 +375,7 @@ namespace PCGSettingsHelpers
 				continue;
 			}
 
-			auto RecursiveExtraction = [&InConfig, &Res, &LabelCache, Property, InClass, &GatherAliases](const UStruct* NextClass)
+			auto RecursiveExtraction = [&InConfig, &Res, &LabelCache, Property, InClass, &GatherAliases, &InAlreadySeenProperties](const UStruct* NextClass)
 			{
 				// Reached max depth
 				if (InConfig.MaxStructDepth == 0)
@@ -384,6 +385,7 @@ namespace PCGSettingsHelpers
 
 				// Use the seed, and don't check metadata for PCG overridable.
 				FPCGGetAllOverridableParamsConfig RecurseConfig = InConfig;
+				InAlreadySeenProperties.Add(Property);
 				RecurseConfig.bUseSeed = true;
 #if WITH_EDITOR
 				RecurseConfig.IncludeMetadataValues.Remove(PCGObjectMetadata::Overridable);
@@ -394,7 +396,7 @@ namespace PCGSettingsHelpers
 					RecurseConfig.MaxStructDepth--;
 				}
 
-				for (FPCGSettingsOverridableParam& ChildParam : GetAllOverridableParams(NextClass, RecurseConfig))
+				for (FPCGSettingsOverridableParam& ChildParam : GetAllOverridableParams_Internal(NextClass, RecurseConfig, InAlreadySeenProperties))
 				{
 					FName Label = ChildParam.Label;
 					bool bHasNameClash = false;
@@ -439,6 +441,8 @@ namespace PCGSettingsHelpers
 					}
 #endif // WITH_EDITOR
 				}
+
+				InAlreadySeenProperties.Pop(/*bAllowShrinking=*/false);
 			};
 
 			const FProperty* PropertyToCheck = Property;
@@ -447,7 +451,8 @@ namespace PCGSettingsHelpers
 				PropertyToCheck = CastFieldChecked<FArrayProperty>(Property)->Inner;
 			}
 
-			if (PropertyToCheck->IsA<FObjectProperty>() && InConfig.bExtractObjects)
+			// Always extract instanced objects, but be careful with infinite recursion (class having an instanced property on itself)
+			if (PropertyToCheck->IsA<FObjectProperty>() && !InAlreadySeenProperties.Contains(PropertyToCheck) && (InConfig.bExtractObjects || PropertyToCheck->HasAllPropertyFlags(CPF_InstancedReference)))
 			{
 				RecursiveExtraction(CastFieldChecked<FObjectProperty>(PropertyToCheck)->PropertyClass);
 			}
@@ -488,5 +493,14 @@ namespace PCGSettingsHelpers
 		}
 
 		return Res;
+	}
+
+	TArray<FPCGSettingsOverridableParam> GetAllOverridableParams(const UStruct* InClass, const FPCGGetAllOverridableParamsConfig& InConfig)
+	{
+		constexpr uint32 InlineAllocator = 16;
+		// Array of already seen properties to catch infinite recursion
+		TArray<const FProperty*, TInlineAllocator<InlineAllocator>> AlreadySeenProperties;
+
+		return GetAllOverridableParams_Internal(InClass, InConfig, AlreadySeenProperties);
 	}
 }
