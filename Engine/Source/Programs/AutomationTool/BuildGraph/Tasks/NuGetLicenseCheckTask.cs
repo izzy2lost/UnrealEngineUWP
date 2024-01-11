@@ -43,6 +43,12 @@ namespace AutomationTool.Tasks
 		/// </summary>
 		[TaskParameter(Optional = true)]
 		public DirectoryReference LicenseDir;
+
+		/// <summary>
+		/// Override path to dotnet executable
+		/// </summary>
+		[TaskParameter(Optional = true)]
+		public FileReference DotNetPath;
 	}
 
 	/// <summary>
@@ -132,7 +138,9 @@ namespace AutomationTool.Tasks
 		/// <param name="TagNameToFileSet">Mapping from tag names to the set of files they include</param>
 		public override async Task ExecuteAsync(JobContext Job, HashSet<FileReference> BuildProducts, Dictionary<string, HashSet<FileReference>> TagNameToFileSet)
 		{
-			IProcessResult NuGetOutput = await ExecuteAsync(Unreal.DotnetPath.FullName, $"nuget locals global-packages --list", LogOutput: false);
+			FileReference DotNetPath = Parameters.DotNetPath ?? Unreal.DotnetPath;
+
+			IProcessResult NuGetOutput = await ExecuteAsync(DotNetPath.FullName, $"nuget locals global-packages --list", LogOutput: false);
 			if (NuGetOutput.ExitCode != 0)
 			{
 				throw new AutomationException("DotNet terminated with an exit code indicating an error ({0})", NuGetOutput.ExitCode);
@@ -152,7 +160,7 @@ namespace AutomationTool.Tasks
 
 			const string UnknownPrefix = "Unknown-";
 
-			IProcessResult PackageListOutput = await ExecuteAsync(Unreal.DotnetPath.FullName, "list package --include-transitive", WorkingDir: Parameters.BaseDir, LogOutput: false);
+			IProcessResult PackageListOutput = await ExecuteAsync(DotNetPath.FullName, "list package --include-transitive", WorkingDir: Parameters.BaseDir, LogOutput: false);
 			if (PackageListOutput.ExitCode != 0)
 			{
 				throw new AutomationException("DotNet terminated with an exit code indicating an error ({0})", PackageListOutput.ExitCode);
