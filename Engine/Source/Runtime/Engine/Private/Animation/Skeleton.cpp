@@ -2053,6 +2053,24 @@ UBlendProfile* USkeleton::CreateNewBlendProfile(const FName& InProfileName)
 	return NewProfile;
 }
 
+UBlendProfile* USkeleton::RenameBlendProfile(const FName& InProfileName, const FName& InNewProfileName)
+{
+	if (!GetBlendProfile(InNewProfileName)) // we can not rename if the new name already exists
+	{
+		UBlendProfile* BlendProfile = GetBlendProfile(InProfileName);
+		if (BlendProfile)
+		{
+			Modify();
+			if (BlendProfile->Rename(*InNewProfileName.ToString(), this, REN_DontCreateRedirectors))
+			{
+				return BlendProfile;
+			}
+		}
+	}
+
+	return nullptr;
+}
+
 USkeletalMeshSocket* USkeleton::FindSocket(FName InSocketName) const
 {
 	int32 DummyIndex;

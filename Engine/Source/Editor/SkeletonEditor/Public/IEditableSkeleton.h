@@ -42,6 +42,9 @@ public:
 	/** Remove the specifed blend profile */
 	virtual void RemoveBlendProfile(UBlendProfile* InBlendProfile) = 0;
 
+	/** Rename an existing blend profile */
+	virtual class UBlendProfile* RenameBlendProfile(const FName& InBlendProfileName, const FName& InNewBlendProfileName) = 0;
+
 	/** Set the blend profile scale for the specified bone */
 	virtual void SetBlendProfileScale(const FName& InBlendProfileName, const FName& InBoneName, float InNewScale, bool bInRecurse) = 0;
 

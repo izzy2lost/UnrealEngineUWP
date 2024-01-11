@@ -509,6 +509,9 @@ void SSkeletonTree::BindCommands()
 		MenuActions.DeleteCurrentBlendProfile,
 		FExecuteAction::CreateSP( this, &SSkeletonTree::OnDeleteCurrentBlendProfile));
 
+	CommandList.MapAction(
+		MenuActions.RenameBlendProfile,
+		FExecuteAction::CreateSP(this, &SSkeletonTree::OnRenameBlendProfile));
 
 	PinnedCommands->BindCommandList(UICommandList.ToSharedRef());
 }
@@ -625,7 +628,18 @@ void SSkeletonTree::CreateTreeColumns()
 			})
 			.OnTextCommitted_Lambda([this](const FText& InText, ETextCommit::Type InCommitType)
 			{
-				BlendProfilePicker->OnCreateNewProfileComitted(InText, InCommitType, NewBlendProfileMode);
+				if (bIsCreateNewBlendProfile)
+				{
+					BlendProfilePicker->OnCreateNewProfileComitted(InText, InCommitType, NewBlendProfileMode);
+					bIsCreateNewBlendProfile = false;
+				}
+				else if(BlendProfilePicker->GetSelectedBlendProfileName() != NAME_None)
+				{
+					if (UBlendProfile* Profile = EditableSkeleton.Pin()->RenameBlendProfile(BlendProfilePicker->GetSelectedBlendProfileName(), FName(InText.ToString())))
+					{
+						BlendProfilePicker->SetSelectedProfile(Profile);
+					}
+				}
 			})
 			.OnVerifyTextChanged_Lambda([](const FText& InNewText, FText& OutErrorMessage) -> bool
 			{
@@ -1727,6 +1741,11 @@ void SSkeletonTree::CreateBlendProfileMenu(UToolMenu* InMenu)
 			FToolUIActionChoice(FUIAction(FExecuteAction::CreateSP(SkeletonTree->BlendProfilePicker.ToSharedRef(), &SBlendProfilePicker::OnClearSelection))));
 
 		EditSection.AddMenuEntry(
+			Actions.RenameBlendProfile,
+			FText::Format(LOCTEXT("RenameBlendProfileLabel", "Rename {0}"),
+				FText::FromName(SkeletonTree->BlendProfilePicker->GetSelectedBlendProfileName())));
+
+		EditSection.AddMenuEntry(
 			Actions.DeleteCurrentBlendProfile,
 			FText::Format(LOCTEXT("DeleteBlendProfileLabel", "Delete {0}"),
 				FText::FromName(SkeletonTree->BlendProfilePicker->GetSelectedBlendProfileName())));
@@ -1752,12 +1771,20 @@ void SSkeletonTree::OnCreateBlendProfile(const EBlendProfileMode InMode)
 	// Activate the Header Entry Box
 	BlendProfileHeader->SetReadOnly(false);
 	BlendProfileHeader->EnterEditingMode();
+	bIsCreateNewBlendProfile = true;
 }
 
 void SSkeletonTree::OnDeleteCurrentBlendProfile()
 {
 	GetEditableSkeletonInternal()->RemoveBlendProfile(BlendProfilePicker->GetSelectedBlendProfile());
 	BlendProfilePicker->OnClearSelection();
+}
+
+void SSkeletonTree::OnRenameBlendProfile()
+{
+	// Activate the Header Entry Box
+	BlendProfileHeader->SetReadOnly(false);
+	BlendProfileHeader->EnterEditingMode();
 }
 
 bool SSkeletonTree::IsBlendProfileSelected(FName ProfileName) const
@@ -2224,9 +2251,8 @@ void SSkeletonTree::OnBlendProfileSelected(UBlendProfile* NewProfile)
 		SkeletonTreeView->GetHeaderRow()->SetShowGeneratedColumn(ISkeletonTree::Columns::BlendProfile);
 	HandleTreeRefresh();
 
-	// When a new blend profile is created/selected - reaffirm that the header can't be edited.
-	// At this time, there is no re-naming of Blend Profiles
-	BlendProfileHeader->SetReadOnly(true);
+	// When a new blend profile is created/selected - enable edition if name != None.
+	BlendProfileHeader->SetReadOnly(BlendProfilePicker->GetSelectedBlendProfileName() == NAME_None);
 }
 
 void SSkeletonTree::RecursiveSetBlendProfileScales(float InScaleToSet)

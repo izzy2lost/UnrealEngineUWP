@@ -503,6 +503,9 @@ public:
 	/** Create a new blend profile with the specified name */
 	ENGINE_API UBlendProfile* CreateNewBlendProfile(const FName& InProfileName);
 
+	/** Rename an existing blend profile with the specified name. Returns the pointer if success, nullptr on failure */
+	ENGINE_API UBlendProfile* RenameBlendProfile(const FName& InProfileName, const FName& InNewProfileName);
+
 	//////////////////////////////////////////////////////////////////////////
 
 	/************************************************************************/

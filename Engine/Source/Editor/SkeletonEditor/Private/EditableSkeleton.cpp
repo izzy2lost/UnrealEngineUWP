@@ -178,6 +178,20 @@ void FEditableSkeleton::RemoveBlendProfile(UBlendProfile* InBlendProfile)
 	}
 }
 
+UBlendProfile* FEditableSkeleton::RenameBlendProfile(const FName& InBlendProfileName, const FName& InNewBlendProfileName)
+{
+	FScopedTransaction Transaction(LOCTEXT("RenameBlendProfile", "Rename Blend Profile"));
+
+	UBlendProfile* Profile = Skeleton->RenameBlendProfile(InBlendProfileName, InNewBlendProfileName);
+	
+	if (Profile == nullptr)
+	{
+		Transaction.Cancel();
+	}
+
+	return Profile;
+}
+
 void FEditableSkeleton::SetBlendProfileScale(const FName& InBlendProfileName, const FName& InBoneName, float InNewScale, bool bInRecurse)
 {
 	UBlendProfile* BlendProfile = GetBlendProfile(InBlendProfileName);
