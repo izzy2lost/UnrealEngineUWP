@@ -2779,7 +2779,7 @@ void UCustomizableInstancePrivate::DiscardResources()
 	InvalidateGeneratedData();
 	
 	Instance->SkeletalMeshes.Reset();
-	DescriptorRuntimeHash = FDescriptorRuntimeHash();
+	DescriptorHash = FDescriptorHash();
 }
 
 
@@ -2869,17 +2869,6 @@ void SetTexturePropertiesFromMutableImageProps(UTexture2D* Texture, const FMutab
 }
 
 
-FDescriptorRuntimeHash UCustomizableObjectInstance::GetDescriptorRuntimeHash() const
-{
-	return GetPrivate()->DescriptorRuntimeHash;
-}
-
-
-FDescriptorRuntimeHash UCustomizableObjectInstance::GetUpdateDescriptorRuntimeHash() const
-{
-	return GetPrivate()->UpdateDescriptorRuntimeHash;
-}
-
 #if WITH_EDITOR
 const TArray<TObjectPtr<UTexture2D>>& UCustomizableObjectInstance::GetTextureParameterDeclarations() const
 {
@@ -2914,12 +2903,12 @@ void FMutableUpdateCandidate::ApplyLODUpdateParamsToInstance(FUpdateContextPriva
 
 	CustomizableObjectInstance->Descriptor.RequestedLODLevels = RequestedLODLevels;
 
-	CustomizableObjectInstance->GetPrivate()->UpdateDescriptorRuntimeHash.UpdateMinMaxLOD(MinLOD, MaxLOD);
-	CustomizableObjectInstance->GetPrivate()->UpdateDescriptorRuntimeHash.UpdateRequestedLODs(CustomizableObjectInstance->Descriptor.RequestedLODLevels);
+	CustomizableObjectInstance->GetPrivate()->UpdateDescriptorHash.UpdateMinMaxLOD(MinLOD, MaxLOD);
+	CustomizableObjectInstance->GetPrivate()->UpdateDescriptorHash.UpdateRequestedLODs(CustomizableObjectInstance->Descriptor.RequestedLODLevels);
 
 	if (Context)
 	{
-		Context->InstanceDescriptorRuntimeHash = CustomizableObjectInstance->GetPrivate()->UpdateDescriptorRuntimeHash;
+		Context->InstanceDescriptorHash = CustomizableObjectInstance->GetPrivate()->UpdateDescriptorHash;
 		Context->CurrentMinLOD = MinLOD;
 		Context->CurrentMaxLOD = MaxLOD;
 		Context->RequestedLODs = RequestedLODLevels;
@@ -6215,9 +6204,9 @@ void UCustomizableObjectInstance::SetRequestedLODs(int32 InMinLOD, int32 InMaxLO
 		const int32 ComponentCount = GetNumComponents();
 		MutableUpdateCandidate.RequestedLODLevels.SetNumZeroed(ComponentCount);
 
-		const TArray<uint16>& GeneratedLODsPerComponent = GetPrivate()->DescriptorRuntimeHash.GetRequestedLODs();
+		const TArray<uint16>& GeneratedLODsPerComponent = GetPrivate()->DescriptorHash.GetRequestedLODs();
 
-		const bool bIgnoreGeneratedLODs = GetPrivate()->DescriptorRuntimeHash != GetPrivate()->UpdateDescriptorRuntimeHash || GeneratedLODsPerComponent.Num() != ComponentCount;
+		const bool bIgnoreGeneratedLODs = GetPrivate()->DescriptorHash != GetPrivate()->UpdateDescriptorHash || GeneratedLODsPerComponent.Num() != ComponentCount;
 
 		if (bMinMaxLODChanged || bIgnoreGeneratedLODs || Descriptor.GetRequestedLODLevels() != InRequestedLODsPerComponent)
 		{

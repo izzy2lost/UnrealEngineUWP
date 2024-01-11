@@ -136,8 +136,8 @@ FUpdateContextPrivate::FUpdateContextPrivate(UCustomizableObjectInstance& InInst
 	check(InInstance.GetCustomizableObject());
 
 	Instance = &InInstance;
-	InstanceDescriptorRuntimeHash = FDescriptorRuntimeHash(Instance->GetDescriptor());
-	InInstance.GetPrivate()->UpdateDescriptorRuntimeHash = InstanceDescriptorRuntimeHash; // TODO GMTFuture Remove on MTBL-1409
+	InstanceDescriptorHash = FDescriptorHash(Instance->GetDescriptor());
+	InInstance.GetPrivate()->UpdateDescriptorHash = InstanceDescriptorHash; // TODO GMTFuture Remove on MTBL-1409
 	State = InInstance.GetState();
 	bBuildParameterRelevancy = InInstance.GetBuildParameterRelevancy();
 	Parameters = InInstance.GetDescriptor().GetParameters();
@@ -765,7 +765,7 @@ void FinishUpdateGlobal(const TSharedRef<FUpdateContextPrivate>& Context)
 		case EUpdateResult::Success:
 			PrivateInstance->SkeletalMeshStatus = ESkeletalMeshStatus::Success;
 
-			PrivateInstance->DescriptorRuntimeHash = Context->InstanceDescriptorRuntimeHash;
+			PrivateInstance->DescriptorHash = Context->InstanceDescriptorHash;
 
 			// Delegates must be called only after updating the Instance flags.
 			Instance->UpdatedDelegate.Broadcast(Instance);
@@ -1156,7 +1156,7 @@ void UCustomizableObjectSystemPrivate::EnqueueUpdateSkeletalMesh(const TSharedRe
 
 		if (const FMutablePendingInstanceUpdate* QueueElem = MutablePendingInstanceWork.GetUpdate(Instance))
 		{
-			if (InstancePrivate->UpdateDescriptorRuntimeHash.IsSubset(FDescriptorRuntimeHash(QueueElem->Context->InstanceDescriptorRuntimeHash)))
+			if (InstancePrivate->UpdateDescriptorHash.IsSubset(FDescriptorHash(QueueElem->Context->InstanceDescriptorHash)))
 			{
 				Context->UpdateResult = EUpdateResult::ErrorOptimized;
 				FinishUpdateGlobal(Context);			
@@ -1166,14 +1166,14 @@ void UCustomizableObjectSystemPrivate::EnqueueUpdateSkeletalMesh(const TSharedRe
 
 		if (CurrentMutableOperation &&
 			Instance == CurrentMutableOperation->Instance &&
-			InstancePrivate->UpdateDescriptorRuntimeHash.IsSubset(CurrentMutableOperation->InstanceDescriptorRuntimeHash))
+			InstancePrivate->UpdateDescriptorHash.IsSubset(CurrentMutableOperation->InstanceDescriptorHash))
 		{
 			Context->UpdateResult = EUpdateResult::ErrorOptimized;
 			FinishUpdateGlobal(Context);
 			return; // The requested update is equal to the running update.
 		}
 	
-		if (InstancePrivate->UpdateDescriptorRuntimeHash.IsSubset(InstancePrivate->DescriptorRuntimeHash) &&
+		if (InstancePrivate->UpdateDescriptorHash.IsSubset(InstancePrivate->DescriptorHash) &&
 			!(CurrentMutableOperation &&
 			Instance == CurrentMutableOperation->Instance)) // This condition is necessary because even if the descriptor is a subset, it will be replaced by the CurrentMutableOperation
 		{
@@ -1219,7 +1219,7 @@ void UCustomizableObjectSystemPrivate::EnqueueUpdateSkeletalMesh(const TSharedRe
 			{
 				FString String = TEXT("DESCRIPTOR DEBUG PRINT\n");
 				String += "================================\n";				
-				String += FString::Printf(TEXT("=== DESCRIPTOR HASH ===\n%s\n"), *InstancePrivate->UpdateDescriptorRuntimeHash.ToString());
+				String += FString::Printf(TEXT("=== DESCRIPTOR HASH ===\n%s\n"), *InstancePrivate->UpdateDescriptorHash.ToString());
 				String += FString::Printf(TEXT("=== DESCRIPTOR ===\n%s"), *Instance->GetDescriptor().ToString());
 				String += "================================";
 				
@@ -1653,7 +1653,7 @@ namespace impl
 			}
 		}
 
-		Operation->InstanceDescriptorRuntimeHash.UpdateRequestedLODs(Operation->RequestedLODs);
+		Operation->InstanceDescriptorHash.UpdateRequestedLODs(Operation->RequestedLODs);
 	}
 	
 	
@@ -2673,7 +2673,7 @@ namespace impl
 		}
 
 		// Skip update, the requested update is equal to the running update.
-		if (Operation->InstanceDescriptorRuntimeHash.IsSubset(CandidateInstance->GetDescriptorRuntimeHash()))
+		if (Operation->InstanceDescriptorHash.IsSubset(CandidateInstance->GetPrivate()->DescriptorHash))
 		{
 			System->ClearCurrentMutableOperation();
 
@@ -2787,8 +2787,8 @@ namespace impl
 		
 		// Task: Mutable Update and GetMesh
 		//-------------------------------------------------------------
-		Operation->CurrentMinLOD = Operation->InstanceDescriptorRuntimeHash.GetMinLOD();
-		Operation->CurrentMaxLOD = Operation->InstanceDescriptorRuntimeHash.GetMaxLOD();
+		Operation->CurrentMinLOD = Operation->InstanceDescriptorHash.GetMinLOD();
+		Operation->CurrentMaxLOD = Operation->InstanceDescriptorHash.GetMaxLOD();
 		Operation->InstanceID = Operation->bLiveUpdateMode ? CandidateInstancePrivateData->LiveUpdateModeInstanceID : 0;
 		Operation->bUseMeshCache = CustomizableObject->IsMeshCacheEnabled() && !Operation->bLiveUpdateMode && CVarEnableMeshCache.GetValueOnGameThread();
 #if WITH_EDITOR
@@ -2839,7 +2839,7 @@ namespace impl
 			bIsInEditorViewport)
 		{
 			Operation->RequestedLODs.Init(MAX_uint8, Operation->NumComponents);
-			Operation->InstanceDescriptorRuntimeHash.UpdateRequestedLODs(Operation->RequestedLODs);
+			Operation->InstanceDescriptorHash.UpdateRequestedLODs(Operation->RequestedLODs);
 		}
 
 #ifdef MUTABLE_USE_NEW_TASKGRAPH

@@ -662,12 +662,6 @@ public:
 
 	const TArray<uint16>& GetRequestedLODsPerComponent() const;
 
-	/** Return the UCustomizableObjectInstance::Descriptor hash on the last update request. */
-	FDescriptorRuntimeHash GetDescriptorRuntimeHash() const;
-
-	/** Return the UCustomizableObjectInstance::Descriptor hash on the last successful update. */
-	FDescriptorRuntimeHash GetUpdateDescriptorRuntimeHash() const;
-
 #if WITH_EDITOR
 	const TArray<TObjectPtr<UTexture2D>>& GetTextureParameterDeclarations() const;
 #endif

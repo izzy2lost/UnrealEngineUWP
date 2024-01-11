@@ -9,6 +9,7 @@
 #include "MuCO/CustomizableObjectInstance.h"
 #include "MuR/Instance.h"
 #include "GameplayTagContainer.h"
+#include "MuCO/DescriptorHash.h"
 #include "UObject/Package.h"
 
 #include "CustomizableInstancePrivateData.generated.h"
@@ -152,6 +153,7 @@ struct FAnimBpGeneratedPhysicsAssets
 	UPROPERTY(Transient)
 	TArray<FAnimInstanceOverridePhysicsAsset> AnimInstancePropertyIndexAndPhysicsAssets;
 };
+
 
 UCLASS()
 class UCustomizableInstancePrivate : public UObject
@@ -327,10 +329,10 @@ private:
 
 public:
 	/** Hash of the UCustomizableObjectInstance::Descriptor on the last update request. */
-	FDescriptorRuntimeHash UpdateDescriptorRuntimeHash;
+	FDescriptorHash UpdateDescriptorHash;
 	
 	/** Hash of the UCustomizableObjectInstance::Descriptor on the last successful update. */
-	FDescriptorRuntimeHash DescriptorRuntimeHash;
+	FDescriptorHash DescriptorHash;
 
 	/** Status of the generated Skeletal Mesh. Not to be confused with the Update Result. */
 	ESkeletalMeshStatus SkeletalMeshStatus = ESkeletalMeshStatus::NotGenerated;

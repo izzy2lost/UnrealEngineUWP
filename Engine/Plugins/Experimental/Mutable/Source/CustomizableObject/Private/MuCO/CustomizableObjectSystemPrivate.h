@@ -4,6 +4,7 @@
 
 #include "LogBenchmarkUtil.h"
 #include "Containers/Queue.h"
+#include "MuCO/DescriptorHash.h"
 #include "MuCO/CustomizableObject.h"
 #include "MuCO/CustomizableObjectInstance.h"
 #include "MuCO/CustomizableObjectExtension.h"
@@ -431,7 +432,7 @@ public:
 	TWeakObjectPtr<UCustomizableObjectInstance> Instance;
 
 	/** Hash of the UCustomizableObjectInstance::Descriptor at the time of the update request. */
-	FDescriptorRuntimeHash InstanceDescriptorRuntimeHash;
+	FDescriptorHash InstanceDescriptorHash;
 			
 	/** Instance parameters at the time of the operation request. */
 	mu::ParametersPtr Parameters; 
