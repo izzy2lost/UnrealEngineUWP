@@ -60,8 +60,7 @@ namespace PCGHiGenGrid
 
 	uint32 UnboundedGridSize()
 	{
-		// TODO: support other units
-		return 100 * static_cast<uint32>(EPCGHiGenGrid::Unbounded);
+		return static_cast<uint32>(EPCGHiGenGrid::Unbounded);
 	}
 }
 

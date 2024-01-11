@@ -184,7 +184,7 @@ enum class EPCGHiGenGrid : uint32
 	GridMax = Grid2048 UMETA(Hidden),
 
 	// Should execute once rather than executing on any grid
-	Unbounded = 2 * GridMax,
+	Unbounded = 1u << 31,
 };
 ENUM_CLASS_FLAGS(EPCGHiGenGrid);
 
