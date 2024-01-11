@@ -21,6 +21,7 @@ class AActor;
 class ALandscapeProxy;
 class APCGPartitionActor;
 class FLandscapeProxyComponentDataChangedParams;
+class ILevelInstanceInterface;
 class UObject;
 class UPCGComponent;
 class UPCGGraph;
@@ -128,6 +129,9 @@ private:
 	/** Return true if there are any Original or Non-Partitioned components set to GenerateAtRuntime. */
 	bool AnyRuntimeGenComponentsExist() const;
 
+	// Typedef to store the previous position and previous tags of changed actors.
+	using FActorPreviousData = TTuple<FBox, TSet<FName>>;
+
 #if WITH_EDITOR
 	/** Return true if the key is tracked.*/
 	bool IsKeyTracked(const FPCGSelectionKey& InKey) const;
@@ -155,11 +159,11 @@ private:
 	void UnregisterTracking(UPCGComponent* InComponent, const TSet<FPCGSelectionKey>* OptionalKeysToUntrack);
 
 	/** Trigger an update when an object/actor changed.
-	* Can specify previous actor bounds if it has moved to also update components that were at its previous position.
+	* Can specify previous actor data if it has moved or tags changed to also update components that were at its previous position or tracked previous tags.
 	* Can also specify an optional object, originating the change, to avoid re-dirtying a component if it was the origin.
 	* Another option when an actor is deleted/unload, don't refresh their components.
 	*/
-	void OnObjectChanged(UObject* InObject, const FBox& InPreviousBounds = FBox(EForceInit::ForceInit), const UObject* InOriginatingChangeObject = nullptr, int32 LevelInstanceDepth = 0, bool bNoRefreshOnOwner = false);
+	void OnObjectChanged(UObject* InObject, const FActorPreviousData* InPreviousData = nullptr, const UObject* InOriginatingChangeObject = nullptr, int32 LevelInstanceDepth = 0, bool bNoRefreshOnOwner = false);
 
 	/** Gather all settings from a given component that track the key, and clear the cache for them. Returns true if we should dirty afterwards (aka at least one settings was cleared and/or landscape changed). */
 	bool ClearCacheForKeys(const TArray<FPCGSelectionKey>& InKeys, const UPCGComponent* InComponent, const bool bIntersect, const UObject* InOriginatingChange) const;
@@ -208,11 +212,11 @@ private:
 	// Keep track of actors that aren't yet ready (or if the subsystem is not yet ready), whether we should dirty them and their instance level depth so we can add them in next tick.
 	TMap<TObjectKey<AActor>, TTuple<bool, int>> DelayedAddedActors;
 
-	/** Transient list of tags, kept when there is a tag change on a tracked Actor. */
-	TSet<FName> TempTrackedActorTags;
+	// Keep track of all Level Instance actors added, so we can detect when a level instance is added vs loaded
+	TSet<ILevelInstanceInterface*> TempAddedLevelInstances;
 
-	/** Transient map of actors and their previous bounds, to know when they move and update the components that were touching the actor before, but not anymore. */
-	TMap<TObjectKey<AActor>, FBox> ActorToPreviousBoundsMap;
+	/** Transient map of actors and their previous data, it's set in the pre object change to be able to track changes (such as tags or positions) */
+	TMap<TObjectKey<AActor>, FActorPreviousData> ActorToPreviousDataMap;
 
 #if WITH_EDITOR
 	// Part for the delayed landscape change update
