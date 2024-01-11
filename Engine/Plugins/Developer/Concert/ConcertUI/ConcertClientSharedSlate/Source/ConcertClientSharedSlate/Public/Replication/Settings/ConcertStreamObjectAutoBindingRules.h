@@ -9,7 +9,7 @@
 
 class UObject;
 struct FConcertPropertyChain;
-struct FReplicatedObjectInfo;
+struct FConcertReplicatedObjectInfo;
 
 USTRUCT()
 struct CONCERTCLIENTSHAREDSLATE_API FConcertDefaultPropertySelection : public FConcertInheritableClassOption

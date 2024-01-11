@@ -30,11 +30,11 @@ namespace UE::MultiUserClient
 		return UMultiUserReplicationClientPreset::MultiUserStreamID;
 	}
 
-	void FStreamSynchronizer_RemoteClient::HandleStreamQuery(const TArray<FSharedReplicationStreamDescription>& Streams)
+	void FStreamSynchronizer_RemoteClient::HandleStreamQuery(const TArray<FConcertBaseStreamInfo>& Streams)
 	{
 		// MU clients use UMultiUserReplicationClientPreset::MultiUserStreamID for streams.
 		// That handles the (unlikely) case in which some external logic had added streams to the same client which we must differentiate
-		const FSharedReplicationStreamDescription* MultiUserDescription = Streams.FindByPredicate([](const FSharedReplicationStreamDescription& Description)
+		const FConcertBaseStreamInfo* MultiUserDescription = Streams.FindByPredicate([](const FConcertBaseStreamInfo& Description)
 		{
 			return Description.Identifier == UMultiUserReplicationClientPreset::MultiUserStreamID;
 		});

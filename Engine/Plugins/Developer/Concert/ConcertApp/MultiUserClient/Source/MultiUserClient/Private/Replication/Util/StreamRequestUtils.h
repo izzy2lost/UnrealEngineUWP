@@ -11,8 +11,8 @@ namespace UE::MultiUserClient
 	/** Describes changes that MU clients make to the objects in a stream. */
 	struct FStreamChangelist
 	{
-		TSet<FObjectInStreamID> ObjectsToRemove;
-		TMap<FObjectInStreamID, FConcertReplication_ChangeStream_PutObject> ObjectsToPut;
+		TSet<FConcertObjectInStreamID> ObjectsToRemove;
+		TMap<FConcertObjectInStreamID, FConcertReplication_ChangeStream_PutObject> ObjectsToPut;
 	};
 	
 	/** Describes changes that MU clients make to the frequency settings in a stream. */

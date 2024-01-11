@@ -8,7 +8,7 @@
 UENUM()
 enum class EConcertObjectReplicationMode : uint8
 {
-	/** Replicate at the rate specified at FReplicatedObjectInfo::ReplicationRate */
+	/** Replicate at the rate specified at FConcertReplicatedObjectInfo::ReplicationRate */
 	SpecifiedRate,
 	/** Replicate the object as often as possible: every tick. */
 	Realtime

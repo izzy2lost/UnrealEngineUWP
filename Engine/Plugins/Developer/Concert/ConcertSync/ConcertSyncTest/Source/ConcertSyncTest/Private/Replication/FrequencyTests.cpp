@@ -1,6 +1,6 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
-#include "Replication/Data/ReplicationStreamDescription.h"
+#include "Replication/Data/ReplicationStream.h"
 #include "Replication/IConcertClientReplicationManager.h"
 #include "Replication/Util/SendReceiveObjectTestBase.h"
 #include "TestReflectionObject.h"

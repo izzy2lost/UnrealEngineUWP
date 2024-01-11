@@ -2,12 +2,12 @@
 
 #pragma once
 
-#include "Replication/Data/ReplicationStreamDescription.h"
+#include "ReplicationStream.h"
 #include "ClientQueriedInfo.generated.h"
 
 /** Describes objects a client has authority over */
 USTRUCT()
-struct FReplicationAuthorityInfo
+struct FConcertAuthorityClientInfo
 {
 	GENERATED_BODY()
 
@@ -25,7 +25,7 @@ struct FReplicationAuthorityInfo
 
 /** This is info a client receives about another client via FConcertQueryClientStreams_Request. */
 USTRUCT()
-struct FReplicationClientQueriedInfo
+struct FConcertQueriedClientInfo
 {
 	GENERATED_BODY()
 
@@ -33,11 +33,11 @@ struct FReplicationClientQueriedInfo
 	 * The streams the client has registered.
 	 * 
 	 * If EConcertQueryClientStreamFlags::SkipStreamInfo was set, this is empty.
-	 * If EConcertQueryClientStreamFlags::SkipProperties was set, streams' FReplicatedObjectInfo::PropertySelection are empty.
+	 * If EConcertQueryClientStreamFlags::SkipProperties was set, streams' FConcertReplicatedObjectInfo::PropertySelection are empty.
 	 * If EConcertQueryClientStreamFlags::SkipFrequency was set, the FrequencySettings are empty.
 	 */
 	UPROPERTY()
-	TArray<FSharedReplicationStreamDescription> Streams;
+	TArray<FConcertBaseStreamInfo> Streams;
 
 	/**
 	 * Indirectly describes which object properties the client has authority over.
@@ -45,5 +45,5 @@ struct FReplicationClientQueriedInfo
 	 * If EConcertQueryClientStreamFlags::SkipAuthority was set, this is empty.
 	 */
 	UPROPERTY()
-	TArray<FReplicationAuthorityInfo> Authority;
+	TArray<FConcertAuthorityClientInfo> Authority;
 };

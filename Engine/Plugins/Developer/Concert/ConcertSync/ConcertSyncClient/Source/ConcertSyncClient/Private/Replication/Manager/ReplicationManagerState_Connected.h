@@ -34,7 +34,7 @@ namespace UE::ConcertSyncClient::Replication
 		FReplicationManagerState_Connected(
 			TSharedRef<IConcertClientSession> LiveSession,
 			IConcertClientReplicationBridge* ReplicationBridge,
-			TArray<FReplicationStreamDescription> StreamDescriptions,
+			TArray<FConcertReplicationStream> StreamDescriptions,
 			FReplicationManager& Owner
 			);
 		virtual ~FReplicationManagerState_Connected() override;
@@ -44,7 +44,7 @@ namespace UE::ConcertSyncClient::Replication
 		virtual void LeaveReplicationSession() override;
 		virtual bool CanJoin() override { return false; }
 		virtual bool IsConnectedToReplicationSession() override { return true; }
-		virtual EStreamEnumerationResult ForEachRegisteredStream(TFunctionRef<EBreakBehavior(const FReplicationStreamDescription& Stream)> Callback) const override;
+		virtual EStreamEnumerationResult ForEachRegisteredStream(TFunctionRef<EBreakBehavior(const FConcertReplicationStream& Stream)> Callback) const override;
 		virtual TFuture<FConcertReplication_ChangeAuthority_Response> RequestAuthorityChange(FConcertReplication_ChangeAuthority_Request Args) override;
 		virtual TFuture<FConcertReplication_QueryReplicationInfo_Response> QueryClientInfo(FConcertReplication_QueryReplicationInfo_Request Args) override;
 		virtual TFuture<FConcertReplication_ChangeStream_Response> ChangeStream(FConcertReplication_ChangeStream_Request Args) override;
@@ -59,7 +59,7 @@ namespace UE::ConcertSyncClient::Replication
 		/** Passed to FReplicationManagerState_Disconnected */
 		IConcertClientReplicationBridge* const ReplicationBridge;
 		/** The streams this client has registered with the server. */
-		TArray<FReplicationStreamDescription> RegisteredStreams;
+		TArray<FConcertReplicationStream> RegisteredStreams;
 		
 		/** The format this client will use for sending & receiving data. */
 		const TSharedRef<ConcertSyncCore::IObjectReplicationFormat> ReplicationFormat;
@@ -115,6 +115,6 @@ namespace UE::ConcertSyncClient::Replication
 		void RevertReleasingReplicatedObjects(const FConcertReplication_ChangeAuthority_Request& Request) const;
 		
 		/** Callback to Sender for obtaining an object's frequency settings. */
-		FConcertObjectReplicationSettings GetObjectFrequencySettings(const FReplicatedObjectId& Object) const;
+		FConcertObjectReplicationSettings GetObjectFrequencySettings(const FConcertReplicatedObjectId& Object) const;
 	};
 }

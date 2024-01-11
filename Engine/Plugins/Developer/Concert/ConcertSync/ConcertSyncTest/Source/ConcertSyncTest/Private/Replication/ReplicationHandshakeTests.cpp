@@ -2,8 +2,7 @@
 
 #include "Util/ClientServerCommunicationTest.h"
 
-#include "Replication/Data/ReplicationClientDescription.h"
-#include "Replication/Data/ReplicationStreamDescription.h"
+#include "Replication/Data/ReplicationStream.h"
 #include "Replication/IConcertClientReplicationBridge.h"
 #include "Replication/IConcertClientReplicationManager.h"
 #include "Replication/IConcertServerReplicationManager.h"
@@ -49,19 +48,18 @@ namespace UE::ConcertSyncTests::Replication::Handshake
 		const TSharedPtr<IConcertClientSession>& ClientSession_Secondary = Client_Secondary.ClientSessionMock;
 		const TSharedRef<IConcertClientReplicationManager> ClientReplicationManager_Secondary = CreateClientReplicationManager(ClientSession_Secondary.ToSharedRef(), &BridgeMock_Secondary.Get());
 
-		// Stream info
-		FReplicationClientDescription ClientDescription;
-		FReplicationStreamDescription StreamDescription;
-		FReplicatedObjectInfo StaticMeshComponentInfo;
+		// Stream 
+		FConcertReplicationStream StreamDescription;
+		FConcertReplicatedObjectInfo StaticMeshComponentInfo;
 		StaticMeshComponentInfo.ClassPath = UStaticMeshComponent::StaticClass();
 		StaticMeshComponentInfo.PropertySelection.ReplicatedProperties.Add(ForcedLodModelProperty);
 		StreamDescription.BaseDescription.ReplicationMap.ReplicatedObjects.Add(PathToSomeActorComponent, StaticMeshComponentInfo);
 
-		FReplicationStreamDescription DuplicateStreamDescription = StreamDescription;
+		FConcertReplicationStream DuplicateStreamDescription = StreamDescription;
 		DuplicateStreamDescription.BaseDescription.Identifier = FGuid::NewGuid();
 		
-		FReplicationStreamDescription InvalidClassStreamDescription = StreamDescription;
-		FReplicatedObjectInfo MissingClassInfo = StaticMeshComponentInfo;
+		FConcertReplicationStream InvalidClassStreamDescription = StreamDescription;
+		FConcertReplicatedObjectInfo MissingClassInfo = StaticMeshComponentInfo;
 		MissingClassInfo.ClassPath.Reset();
 		InvalidClassStreamDescription.BaseDescription.ReplicationMap.ReplicatedObjects.Add(PathToSomeActorComponent, MissingClassInfo);
 
@@ -73,21 +71,21 @@ namespace UE::ConcertSyncTests::Replication::Handshake
 		// However malicious users or those with custom C++ logic can send whatever they want.
 		
 		// 2.1.1 Duplicate properties
-		FReplicationStreamDescription Invalid_DoublePropertyDescription = StreamDescription;
+		FConcertReplicationStream Invalid_DoublePropertyDescription = StreamDescription;
 		Invalid_DoublePropertyDescription.BaseDescription.ReplicationMap.ReplicatedObjects[PathToSomeActorComponent].PropertySelection.ReplicatedProperties.Add(ForcedLodModelProperty);
-		ClientReplicationManager_Primary->JoinReplicationSession({ ClientDescription, { Invalid_DoublePropertyDescription } })
+		ClientReplicationManager_Primary->JoinReplicationSession({ { Invalid_DoublePropertyDescription } })
 			.Next([&](const FJoinReplicatedSessionResult& Result)
 			{
 				TestTrue(TEXT("Cannot contain same properties twice"), Result.ErrorCode == EJoinReplicationErrorCode::DuplicateProperty);
 			});
 		// 2.1.2 Duplicate stream identifier
-		ClientReplicationManager_Primary->JoinReplicationSession({ ClientDescription, { StreamDescription, StreamDescription } })
+		ClientReplicationManager_Primary->JoinReplicationSession({ { StreamDescription, StreamDescription } })
 			.Next([&](const FJoinReplicatedSessionResult& Result)
 			{
 				TestTrue(TEXT("Cannot contain stream ID twice"), Result.ErrorCode == EJoinReplicationErrorCode::DuplicateStreamId);
 			});
 		// 2.1.3 Missing class path
-		ClientReplicationManager_Primary->JoinReplicationSession({ ClientDescription, { InvalidClassStreamDescription } })
+		ClientReplicationManager_Primary->JoinReplicationSession({ { InvalidClassStreamDescription } })
 			.Next([&](const FJoinReplicatedSessionResult& Result)
 			{
 				TestTrue(TEXT("Cannot contain null classes"), Result.ErrorCode == EJoinReplicationErrorCode::InvalidClass);
@@ -96,21 +94,21 @@ namespace UE::ConcertSyncTests::Replication::Handshake
 
 		// 2.2 Real workflow cases
 		// 2.2.1 Valid join
-		ClientReplicationManager_Primary->JoinReplicationSession({ ClientDescription, { StreamDescription } })
+		ClientReplicationManager_Primary->JoinReplicationSession({ { StreamDescription } })
 			.Next([&](const FJoinReplicatedSessionResult& Result)
 			{
 				TestTrue(TEXT("Join with valid args"), Result.ErrorCode == EJoinReplicationErrorCode::Success);
 			});
 		// 2.2.2 No joining twice
 		AddExpectedError(TEXT("JoinReplicationSession requested while already in a session"), EAutomationExpectedErrorFlags::Contains); // Not pretty, but otherwise this test fails due to logged warning
-		ClientReplicationManager_Primary->JoinReplicationSession({ ClientDescription, { StreamDescription } })
+		ClientReplicationManager_Primary->JoinReplicationSession({ { StreamDescription } })
 			.Next([&](const FJoinReplicatedSessionResult& Result)
 			{
 				TestTrue(TEXT("Cannot join twice"), Result.ErrorCode == EJoinReplicationErrorCode::AlreadyInSession);
 			});
 		// 2.2.3 Rejoining
 		ClientReplicationManager_Primary->LeaveReplicationSession();
-		ClientReplicationManager_Primary->JoinReplicationSession({ ClientDescription, { StreamDescription } })
+		ClientReplicationManager_Primary->JoinReplicationSession({ { StreamDescription } })
 			.Next([&](const FJoinReplicatedSessionResult& Result)
 			{
 				TestTrue(TEXT("Re-join session"), Result.ErrorCode == EJoinReplicationErrorCode::Success);
@@ -120,8 +118,8 @@ namespace UE::ConcertSyncTests::Replication::Handshake
 		// For context: UX-wise it should be as easy as possible for clients to join.
 		// This is why we allow clients to join with overlapping properties and stream IDs, which used to be rejected by the handshake.
 		// Now, they must take authority over objects before sending. See authority tests.
-		FReplicationStreamDescription DuplicateProperties = StreamDescription;
-		ClientReplicationManager_Secondary->JoinReplicationSession({ ClientDescription, { StreamDescription } })
+		FConcertReplicationStream DuplicateProperties = StreamDescription;
+		ClientReplicationManager_Secondary->JoinReplicationSession({ { StreamDescription } })
 			.Next([&](const FJoinReplicatedSessionResult& Result)
 			{
 				TestTrue(TEXT("2nd client can overlap stream identifier and properties of 1st client"), Result.ErrorCode == EJoinReplicationErrorCode::Success);

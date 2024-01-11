@@ -34,7 +34,7 @@ namespace UE::ConcertClientSharedSlate
 		const EObjectFlags Flags = RF_Transient | RF_Transactional;
 		UReplicationStreamObject* Object = NewObject<UReplicationStreamObject>(GetTransientPackage(), NAME_None, Flags);
 
-		TAttribute<FObjectReplicationMap*> Attribute = TAttribute<FObjectReplicationMap*>::CreateLambda([WeakPtr = TWeakObjectPtr<UReplicationStreamObject>(Object)]() -> FObjectReplicationMap* 
+		TAttribute<FConcertObjectReplicationMap*> Attribute = TAttribute<FConcertObjectReplicationMap*>::CreateLambda([WeakPtr = TWeakObjectPtr<UReplicationStreamObject>(Object)]() -> FConcertObjectReplicationMap* 
 		{
 			if (WeakPtr.IsValid())
 			{

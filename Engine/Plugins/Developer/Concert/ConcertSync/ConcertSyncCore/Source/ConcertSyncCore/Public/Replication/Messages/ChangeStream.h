@@ -5,14 +5,14 @@
 #include "EReplicationResponseErrorCode.h"
 #include "Replication/Data/ObjectIds.h"
 #include "Replication/Data/ConcertPropertySelection.h"
-#include "Replication/Data/ReplicationStreamDescription.h"
+#include "Replication/Data/ReplicationStream.h"
 
 #include "Misc/Optional.h"
 #include "ChangeStream.generated.h"
 
 class FOutputDevice;
 
-struct FReplicatedObjectInfo;
+struct FConcertReplicatedObjectInfo;
 
 /** A request to add a new object to a stream or overwrite a pre-existing object's properties / class. */
 USTRUCT()
@@ -51,15 +51,15 @@ struct FConcertReplication_ChangeStream_PutObject
 	}
 
 	// Intention: Ideally code dealing with PutObject requests uses these constructors / factory functions.
-	// If a property is added to FReplicatedObjectInfo, only the below code needs to be updated.
+	// If a property is added to FConcertReplicatedObjectInfo, only the below code needs to be updated.
 
 	/** @return The PutObject request if New contained sufficient info - empty otherwise */
-	CONCERTSYNCCORE_API static TOptional<FConcertReplication_ChangeStream_PutObject> MakeFromInfo(const FReplicatedObjectInfo& New);
+	CONCERTSYNCCORE_API static TOptional<FConcertReplication_ChangeStream_PutObject> MakeFromInfo(const FConcertReplicatedObjectInfo& New);
 	/** @return The PutObject request if changing Base to Desired contained sufficient info - empty otherwise */
-	CONCERTSYNCCORE_API static TOptional<FConcertReplication_ChangeStream_PutObject> MakeFromChange(const FReplicatedObjectInfo& Base, const FReplicatedObjectInfo& Desired);
+	CONCERTSYNCCORE_API static TOptional<FConcertReplication_ChangeStream_PutObject> MakeFromChange(const FConcertReplicatedObjectInfo& Base, const FConcertReplicatedObjectInfo& Desired);
 
 	/** Creates a new object info if there is sufficient data (all fields must be set for this). */
-	CONCERTSYNCCORE_API TOptional<FReplicatedObjectInfo> MakeObjectInfoIfValid() const;
+	CONCERTSYNCCORE_API TOptional<FConcertReplicatedObjectInfo> MakeObjectInfoIfValid() const;
 };
 
 UENUM()
@@ -132,7 +132,7 @@ struct FConcertReplication_ChangeStream_Request
 	 * If the requesting client has authority over these objects, authority is removed.
 	 */
 	UPROPERTY()
-	TSet<FObjectInStreamID> ObjectsToRemove;
+	TSet<FConcertObjectInStreamID> ObjectsToRemove;
 
 	/**
 	 * Adds new or modifies preexisting object definitions in pre-existing streams.
@@ -148,7 +148,7 @@ struct FConcertReplication_ChangeStream_Request
 	 * ambiguous requests, e.g. both StreamsToAdd and ObjectsToPut containing object Foo but with different property selections.
 	 */
 	UPROPERTY()
-	TMap<FObjectInStreamID, FConcertReplication_ChangeStream_PutObject> ObjectsToPut;
+	TMap<FConcertObjectInStreamID, FConcertReplication_ChangeStream_PutObject> ObjectsToPut;
 
 	/**
 	 * Changes the replication frequency settings for a stream.
@@ -172,7 +172,7 @@ struct FConcertReplication_ChangeStream_Request
 	 * in the stream's content being replaced.
 	 */
 	UPROPERTY()
-	TArray<FReplicationStreamDescription> StreamsToAdd;
+	TArray<FConcertReplicationStream> StreamsToAdd;
 
 	/**
 	 * Streams to remove from the server.
@@ -239,7 +239,7 @@ struct FConcertReplication_ChangeStream_FrequencyResponse
 
 	/** Streams that could not have their frequencies overriden. */
 	UPROPERTY()
-	TMap<FObjectInStreamID, EConcertChangeObjectFrequencyErrorCode> OverrideFailures;
+	TMap<FConcertObjectInStreamID, EConcertChangeObjectFrequencyErrorCode> OverrideFailures;
 
 	/** Streams that could not have their frequency defaults overriden. */
 	UPROPERTY()
@@ -278,11 +278,11 @@ struct FConcertReplication_ChangeStream_Response
 	 * Example: R has two streams S1 and S2. S1 contains the transform properties and S2 does not. Both S1 and S2 have authority over object Foo. It is legal to request S2 to contain the transform properties.
 	 */
 	UPROPERTY()
-	TMap<FObjectInStreamID, FReplicatedObjectId> AuthorityConflicts;
+	TMap<FConcertObjectInStreamID, FConcertReplicatedObjectId> AuthorityConflicts;
 
 	/** Reports semantic errors with ObjectsToPut. */
 	UPROPERTY()
-	TMap<FObjectInStreamID, EConcertPutObjectErrorCode> ObjectsToPutSemanticErrors;
+	TMap<FConcertObjectInStreamID, EConcertPutObjectErrorCode> ObjectsToPutSemanticErrors;
 	
 	/** Streams that were in StreamsToAdd but that were not created. */
 	UPROPERTY()
@@ -302,7 +302,7 @@ struct FConcertReplication_ChangeStream_Response
 	}
 	bool IsFailure() const { return !IsSuccess(); }
 
-	bool WasObjectPutSuccessful(const FObjectInStreamID& Object) const { return !AuthorityConflicts.Contains(Object) && !ObjectsToPutSemanticErrors.Contains(Object); }
+	bool WasObjectPutSuccessful(const FConcertObjectInStreamID& Object) const { return !AuthorityConflicts.Contains(Object) && !ObjectsToPutSemanticErrors.Contains(Object); }
 
 	/** If IsFailure(), logs the errors. */
 	CONCERTSYNCCORE_API void LogErrors(FOutputDevice& OutputDevice) const;

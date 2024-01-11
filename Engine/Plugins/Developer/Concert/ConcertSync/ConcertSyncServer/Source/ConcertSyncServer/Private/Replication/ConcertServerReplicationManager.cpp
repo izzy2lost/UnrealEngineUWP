@@ -41,7 +41,7 @@ namespace UE::ConcertSyncServer::Replication
 		Session->OnTick().RemoveAll(this);
 	}
 
-	void FConcertServerReplicationManager::ForEachStream(const FGuid& ClientEndpointId, TFunctionRef<EBreakBehavior(const FReplicationStreamDescription& Stream)> Callback) const
+	void FConcertServerReplicationManager::ForEachStream(const FGuid& ClientEndpointId, TFunctionRef<EBreakBehavior(const FConcertReplicationStream& Stream)> Callback) const
 	{
 		const TUniquePtr<FConcertReplicationClient>* Client = Clients.Find(ClientEndpointId);
 		if (!ensure(Client))
@@ -49,7 +49,7 @@ namespace UE::ConcertSyncServer::Replication
 			return;
 		}
 
-		for (const FReplicationStreamDescription& Stream : (*Client)->GetStreamDescriptions())
+		for (const FConcertReplicationStream& Stream : (*Client)->GetStreamDescriptions())
 		{
 			if (Callback(Stream) == EBreakBehavior::Break)
 			{
@@ -142,7 +142,7 @@ namespace UE::ConcertSyncServer::Replication
 				continue;
 			}
 			
-			FReplicationClientQueriedInfo& EndpointInfo = Response.ClientInfo.Add(EndpointId);
+			FConcertQueriedClientInfo& EndpointInfo = Response.ClientInfo.Add(EndpointId);
 			if (!EnumHasAnyFlags(Request.QueryFlags, EConcertQueryClientStreamFlags::SkipStreamInfo))
 			{
 				EndpointInfo.Streams = BuildClientStreamInfo(*Client->Get(), Request.QueryFlags);
@@ -158,10 +158,10 @@ namespace UE::ConcertSyncServer::Replication
 		return EConcertSessionResponseCode::Success;
 	}
 
-	TArray<FSharedReplicationStreamDescription> FConcertServerReplicationManager::BuildClientStreamInfo(const FConcertReplicationClient& Client, EConcertQueryClientStreamFlags QueryFlags)
+	TArray<FConcertBaseStreamInfo> FConcertServerReplicationManager::BuildClientStreamInfo(const FConcertReplicationClient& Client, EConcertQueryClientStreamFlags QueryFlags)
 	{
-		TArray<FSharedReplicationStreamDescription> Result;
-		Algo::Transform(Client.GetStreamDescriptions(), Result, [QueryFlags](const FReplicationStreamDescription& Description)
+		TArray<FConcertBaseStreamInfo> Result;
+		Algo::Transform(Client.GetStreamDescriptions(), Result, [QueryFlags](const FConcertReplicationStream& Description)
 		{
 			using namespace ConcertSyncCore;
 			
@@ -180,18 +180,18 @@ namespace UE::ConcertSyncServer::Replication
 		return Result;
 	}
 
-	TArray<FReplicationAuthorityInfo> FConcertServerReplicationManager::BuildClientAuthorityInfo(const FConcertReplicationClient& Client) const
+	TArray<FConcertAuthorityClientInfo> FConcertServerReplicationManager::BuildClientAuthorityInfo(const FConcertReplicationClient& Client) const
 	{
-		TArray<FReplicationAuthorityInfo> Result;
-		for (const FReplicationStreamDescription& Description : Client.GetStreamDescriptions())
+		TArray<FConcertAuthorityClientInfo> Result;
+		for (const FConcertReplicationStream& Description : Client.GetStreamDescriptions())
 		{
 			const FGuid StreamId = Description.BaseDescription.Identifier;
-			FReplicationAuthorityInfo Info;
+			FConcertAuthorityClientInfo Info;
 			Info.StreamId = StreamId;
 			
-			for (const TPair<FSoftObjectPath, FReplicatedObjectInfo>& Pair : Description.BaseDescription.ReplicationMap.ReplicatedObjects)
+			for (const TPair<FSoftObjectPath, FConcertReplicatedObjectInfo>& Pair : Description.BaseDescription.ReplicationMap.ReplicatedObjects)
 			{
-				FReplicatedObjectId ObjectInfo;
+				FConcertReplicatedObjectId ObjectInfo;
 				ObjectInfo.SenderEndpointId = Client.GetClientEndpointId();
 				ObjectInfo.Object = Pair.Key;
 				ObjectInfo.StreamId = StreamId;
@@ -242,7 +242,7 @@ namespace UE::ConcertSyncServer::Replication
 		}
 	}
 
-	FConcertObjectReplicationSettings FConcertServerReplicationManager::GetObjectFrequencySettings(const FReplicatedObjectId& Object) const
+	FConcertObjectReplicationSettings FConcertServerReplicationManager::GetObjectFrequencySettings(const FConcertReplicatedObjectId& Object) const
 	{
 		const TUniquePtr<FConcertReplicationClient>* Client = Clients.Find(Object.SenderEndpointId);
 		if (!ensureMsgf(Client, TEXT("Caller is trying to retrieve non-existing client")))
@@ -251,7 +251,7 @@ namespace UE::ConcertSyncServer::Replication
 			return {};
 		}
 		
-		const FReplicationStreamDescription* Stream = Client->Get()->GetStreamDescriptions().FindByPredicate([&Object](const FReplicationStreamDescription& Description)
+		const FConcertReplicationStream* Stream = Client->Get()->GetStreamDescriptions().FindByPredicate([&Object](const FConcertReplicationStream& Description)
 			{
 				return Description.BaseDescription.Identifier == Object.StreamId;
 			});

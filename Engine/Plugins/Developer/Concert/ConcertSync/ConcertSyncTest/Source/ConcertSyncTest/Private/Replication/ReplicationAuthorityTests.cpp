@@ -376,19 +376,19 @@ namespace UE::ConcertSyncTests::Replication::Authority
 		{
 		public:
 			
-			FSharedReplicationStreamDescription RequestingClientStream;
-			FSharedReplicationStreamDescription ExistingClientStream;
+			FConcertBaseStreamInfo RequestingClientStream;
+			FConcertBaseStreamInfo ExistingClientStream;
 			bool bRequestingClientHasAuthority;
 			bool bExistingClientHasAuthority;
 
-			FTestGroundTruth(const FSharedReplicationStreamDescription& RequestingClientStream, const FSharedReplicationStreamDescription& ExistingClientStream, bool bRequestingClientHasAuthority, bool bExistingClientHasAuthority)
+			FTestGroundTruth(const FConcertBaseStreamInfo& RequestingClientStream, const FConcertBaseStreamInfo& ExistingClientStream, bool bRequestingClientHasAuthority, bool bExistingClientHasAuthority)
 				: RequestingClientStream(RequestingClientStream)
 				, ExistingClientStream(ExistingClientStream)
 				, bRequestingClientHasAuthority(bRequestingClientHasAuthority)
 				, bExistingClientHasAuthority(bExistingClientHasAuthority)
 			{}
 
-			virtual void ForEachStream(const FGuid& ClientEndpointId, TFunctionRef<EBreakBehavior(const FGuid& StreamId, const FObjectReplicationMap& ReplicationMap)> Callback) const override
+			virtual void ForEachStream(const FGuid& ClientEndpointId, TFunctionRef<EBreakBehavior(const FGuid& StreamId, const FConcertObjectReplicationMap& ReplicationMap)> Callback) const override
 			{
 				if (ClientEndpointId == RequestingClientId)
 				{
@@ -420,12 +420,12 @@ namespace UE::ConcertSyncTests::Replication::Authority
 			}
 		};
 		
-		FSharedReplicationStreamDescription MakeStream(const FGuid& StreamId, const FSoftObjectPath ObjectPath, TArray<FConcertPropertyChain> Properties)
+		FConcertBaseStreamInfo MakeStream(const FGuid& StreamId, const FSoftObjectPath ObjectPath, TArray<FConcertPropertyChain> Properties)
 		{
-			FObjectReplicationMap ExistingReplicationMap;
+			FConcertObjectReplicationMap ExistingReplicationMap;
 			const FConcertPropertySelection Selection{ Properties};
 			ExistingReplicationMap.ReplicatedObjects.Add(ObjectPath, { {}, Selection });
-			const FSharedReplicationStreamDescription ExistingClientStream { StreamId, ExistingReplicationMap };
+			const FConcertBaseStreamInfo ExistingClientStream { StreamId, ExistingReplicationMap };
 			return ExistingClientStream;
 		};
 	}
@@ -442,9 +442,9 @@ namespace UE::ConcertSyncTests::Replication::Authority
 		FConcertPropertyChain Float = *FConcertPropertyChain::CreateFromPath(*UTestReflectionObject::StaticClass(), { TEXT("Float") });
 		FConcertPropertyChain Vector = *FConcertPropertyChain::CreateFromPath(*UTestReflectionObject::StaticClass(), { TEXT("Vector") });
 		FConcertPropertyChain VectorX = *FConcertPropertyChain::CreateFromPath(*UTestReflectionObject::StaticClass(), { TEXT("Vector"), TEXT("X") });
-		const FSharedReplicationStreamDescription ClientStream_Empty = MakeStream(TestStreamId, ObjectPath, {});
-		const FSharedReplicationStreamDescription ClientStream_FloatOnly = MakeStream(TestStreamId, ObjectPath, { Float });
-		const FSharedReplicationStreamDescription ClientStream_VectorOnly = MakeStream(TestStreamId, ObjectPath, { Vector, VectorX });
+		const FConcertBaseStreamInfo ClientStream_Empty = MakeStream(TestStreamId, ObjectPath, {});
+		const FConcertBaseStreamInfo ClientStream_FloatOnly = MakeStream(TestStreamId, ObjectPath, { Float });
+		const FConcertBaseStreamInfo ClientStream_VectorOnly = MakeStream(TestStreamId, ObjectPath, { Vector, VectorX });
 
 		// Requestor tries to stream Float, then Vector
 		// Existing is replicating Float

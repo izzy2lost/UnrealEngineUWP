@@ -5,7 +5,7 @@
 #include "Templates/SharedPointer.h"
 
 struct FConcertStreamObjectAutoBindingRules;
-struct FObjectReplicationMap;
+struct FConcertObjectReplicationMap;
 
 namespace UE::ConcertSharedSlate
 {
@@ -25,7 +25,7 @@ namespace UE::ConcertClientSharedSlate
 	 * Wraps the passed in BaseModel and makes it transactional.
 	 * All calls that modify the underlying model was wrapped with scoped transactions.
 	 * 
-	 * @param OwnerObject The object containing the FObjectReplicationMap - used for transactions.
+	 * @param OwnerObject The object containing the FConcertObjectReplicationMap - used for transactions.
 	 */
 	CONCERTCLIENTSHAREDSLATE_API TSharedRef<ConcertSharedSlate::IEditableReplicationStreamModel> CreateTransactionalStreamModel(
 		TSharedRef<ConcertSharedSlate::IEditableReplicationStreamModel> BaseModel,

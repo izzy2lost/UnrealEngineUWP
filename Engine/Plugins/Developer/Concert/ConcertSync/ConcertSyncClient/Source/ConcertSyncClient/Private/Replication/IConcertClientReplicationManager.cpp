@@ -13,7 +13,7 @@ namespace UE::ConcertSyncClient::Replication::Private
 	{
 		for (const FSoftObjectPath& ObjectPath : Objects)
 		{
-			Manager.ForEachRegisteredStream([&InCallback, &ObjectPath](const FReplicationStreamDescription& StreamDescription)
+			Manager.ForEachRegisteredStream([&InCallback, &ObjectPath](const FConcertReplicationStream& StreamDescription)
 			{
 				const bool bStreamContainsObject = StreamDescription.BaseDescription.ReplicationMap.ReplicatedObjects.Contains(ObjectPath);
 				if (bStreamContainsObject)
@@ -35,10 +35,10 @@ bool IConcertClientReplicationManager::HasRegisteredStreams() const
 	return ForEachRegisteredStream([](const auto&){ return EBreakBehavior::Break; }) == EStreamEnumerationResult::Iterated;
 }
 
-TArray<FReplicationStreamDescription> IConcertClientReplicationManager::GetRegisteredStreams() const
+TArray<FConcertReplicationStream> IConcertClientReplicationManager::GetRegisteredStreams() const
 {
-	TArray<FReplicationStreamDescription> Result;
-	ForEachRegisteredStream([&Result](const FReplicationStreamDescription& Description){ Result.Add(Description); return EBreakBehavior::Continue; });
+	TArray<FConcertReplicationStream> Result;
+	ForEachRegisteredStream([&Result](const FConcertReplicationStream& Description){ Result.Add(Description); return EBreakBehavior::Continue; });
 	return Result;
 }
 

@@ -26,10 +26,10 @@ namespace UE::MultiUserClient
 		return !LastServerState.IsEmpty();
 	}
 
-	void FAuthoritySynchronizer_RemoteClient::HandleAuthorityQuery(const TArray<FReplicationAuthorityInfo>& PerStreamAuthority)
+	void FAuthoritySynchronizer_RemoteClient::HandleAuthorityQuery(const TArray<FConcertAuthorityClientInfo>& PerStreamAuthority)
 	{
 		TSet<FSoftObjectPath> OldServerState = MoveTemp(LastServerState);
-		for (const FReplicationAuthorityInfo& Info : PerStreamAuthority)
+		for (const FConcertAuthorityClientInfo& Info : PerStreamAuthority)
 		{
 			LastServerState.Append(Info.AuthoredObjects);
 		}

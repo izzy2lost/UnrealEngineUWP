@@ -32,8 +32,8 @@ namespace UE::ConcertSyncTests
 
 		// 1. Init test data
 		const FSoftObjectPath ReplicatedObject = GetMutableDefault<UObject>();
-		const FObjectInStreamID SpecifiedRateObject { FGuid{ 1, 0, 0, 0 }, ReplicatedObject };
-		const FObjectInStreamID RealtimeObject { FGuid{ 2, 0, 0, 0 }, ReplicatedObject };
+		const FConcertObjectInStreamID SpecifiedRateObject { FGuid{ 1, 0, 0, 0 }, ReplicatedObject };
+		const FConcertObjectInStreamID RealtimeObject { FGuid{ 2, 0, 0, 0 }, ReplicatedObject };
 
 		constexpr FConcertObjectReplicationSettings SpecifiedRateSettings { EConcertObjectReplicationMode::SpecifiedRate, 30 };
 		constexpr FConcertObjectReplicationSettings RealtimeSettings { EConcertObjectReplicationMode::Realtime };

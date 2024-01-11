@@ -11,7 +11,7 @@
 
 namespace UE::ConcertSyncCore
 {
-	DECLARE_DELEGATE_RetVal_OneParam(FConcertObjectReplicationSettings, FGetObjectFrequencySettings, const FReplicatedObjectId& Object);
+	DECLARE_DELEGATE_RetVal_OneParam(FConcertObjectReplicationSettings, FGetObjectFrequencySettings, const FConcertReplicatedObjectId& Object);
 	
 	/**
 	 * Maps every FSoftObjectPath to FConcertObjectReplicationSettings.
@@ -83,7 +83,7 @@ namespace UE::ConcertSyncCore
 	template <TIsObjectProcessorConcept TRealProcessorImpl>
 	void TObjectProcessorProxy_Frequency<TRealProcessorImpl>::ProcessObject(const FObjectReplicationProcessor::FObjectProcessArgs& Args)
 	{
-		const FReplicatedObjectId& Object = Args.ObjectInfo;
+		const FConcertReplicatedObjectId& Object = Args.ObjectInfo;
 		const FConcertObjectReplicationSettings FrequencySettings = GetObjectFrequencySettingsDelegate.Execute(Object);
 
 		// Throttle calls to the real ProcessObject implementation based on the object's frequency settings

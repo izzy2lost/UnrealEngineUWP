@@ -73,5 +73,5 @@ struct FConcertReplication_QueryReplicationInfo_Response
 	 * Value: Info about the client.
 	 */
 	UPROPERTY()
-	TMap<FGuid, FReplicationClientQueriedInfo> ClientInfo;
+	TMap<FGuid, FConcertQueriedClientInfo> ClientInfo;
 };

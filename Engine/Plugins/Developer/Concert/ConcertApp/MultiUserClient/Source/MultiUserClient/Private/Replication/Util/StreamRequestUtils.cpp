@@ -13,19 +13,19 @@ namespace UE::MultiUserClient::StreamRequestUtils
 		FFrequencyChangelist FrequencyChanges
 		)
 	{
-		const TMap<FObjectInStreamID, FConcertReplication_ChangeStream_PutObject>& ObjectsToPut = ObjectChanges.ObjectsToPut;
+		const TMap<FConcertObjectInStreamID, FConcertReplication_ChangeStream_PutObject>& ObjectsToPut = ObjectChanges.ObjectsToPut;
 		
 		FConcertReplication_ChangeStream_Request Request;
 		Request.StreamsToAdd.Emplace();
-		FReplicationStreamDescription& NewStream = Request.StreamsToAdd[0];
+		FConcertReplicationStream& NewStream = Request.StreamsToAdd[0];
 		NewStream.BaseDescription.Identifier = StreamId;
 			
 		// If creating a new stream, the objects must be supplied in the description instead of in PutObjects!
-		FObjectReplicationMap& ReplicationMap = NewStream.BaseDescription.ReplicationMap;
+		FConcertObjectReplicationMap& ReplicationMap = NewStream.BaseDescription.ReplicationMap;
 		ReplicationMap.ReplicatedObjects.Reserve(ObjectsToPut.Num());
-		for (const TPair<FObjectInStreamID, FConcertReplication_ChangeStream_PutObject>& PutObjectPair : ObjectsToPut)
+		for (const TPair<FConcertObjectInStreamID, FConcertReplication_ChangeStream_PutObject>& PutObjectPair : ObjectsToPut)
 		{
-			const TOptional<FReplicatedObjectInfo> NewObjectInfo = PutObjectPair.Value.MakeObjectInfoIfValid();
+			const TOptional<FConcertReplicatedObjectInfo> NewObjectInfo = PutObjectPair.Value.MakeObjectInfoIfValid();
 			// The editing UI allows adding objects without properties (to make UX easier) - do not submit those to the server.
 			if (!NewObjectInfo)
 			{

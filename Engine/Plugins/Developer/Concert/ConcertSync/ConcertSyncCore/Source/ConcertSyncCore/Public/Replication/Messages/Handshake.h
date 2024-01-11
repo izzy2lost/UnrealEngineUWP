@@ -2,7 +2,7 @@
 
 #pragma once
 
-#include "Replication/Data/ReplicationStreamDescription.h"
+#include "Replication/Data/ReplicationStream.h"
 #include "Handshake.generated.h"
 
 class FText;
@@ -63,7 +63,7 @@ struct FConcertReplication_Join_Request
 
 	/** The data the client offers to send. */
 	UPROPERTY()
-	TArray<FReplicationStreamDescription> Streams;
+	TArray<FConcertReplicationStream> Streams;
 };
 
 /**

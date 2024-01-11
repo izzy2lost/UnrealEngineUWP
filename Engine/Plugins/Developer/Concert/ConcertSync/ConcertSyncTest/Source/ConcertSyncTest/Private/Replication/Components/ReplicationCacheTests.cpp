@@ -60,22 +60,22 @@ namespace UE::ConcertSyncTests
 		public:
 
 			FAutomationTestBase& Test;
-			FObjectInStreamID AllowedObject;
+			FConcertObjectInStreamID AllowedObject;
 			EReplicationCacheTestFlags Flags;
 			TSharedPtr<const FConcertReplication_ObjectReplicationEvent> CachedData;
 
-			FTestReplicationCacheUser(FAutomationTestBase& Test, FObjectInStreamID AllowedObject, EReplicationCacheTestFlags Flags = EReplicationCacheTestFlags::None)
+			FTestReplicationCacheUser(FAutomationTestBase& Test, FConcertObjectInStreamID AllowedObject, EReplicationCacheTestFlags Flags = EReplicationCacheTestFlags::None)
 				: Test(Test)
 				, AllowedObject(MoveTemp(AllowedObject))
 				, Flags(Flags)
 			{}
 			
-			virtual bool WantsToAcceptObject(const FReplicatedObjectId& Object) const override
+			virtual bool WantsToAcceptObject(const FConcertReplicatedObjectId& Object) const override
 			{
 				return !EnumHasAnyFlags(Flags, EReplicationCacheTestFlags::NeverReceive) && AllowedObject == Object;
 			}
 			
-			virtual void OnDataCached(const FReplicatedObjectId& Object, TSharedRef<const FConcertReplication_ObjectReplicationEvent> Data) override
+			virtual void OnDataCached(const FConcertReplicatedObjectId& Object, TSharedRef<const FConcertReplication_ObjectReplicationEvent> Data) override
 			{
 				if (EnumHasAnyFlags(Flags, EReplicationCacheTestFlags::NeverReceive))
 				{
@@ -124,7 +124,7 @@ namespace UE::ConcertSyncTests
 		const FGuid StreamId = FGuid::NewGuid();
 		const FSoftObjectPath ObjectPath(TEXT("/Game/World.World:PersistentLevel.StaticMeshActor0"));
 		const FGuid DummySendingClientId = FGuid::NewGuid();
-		const FReplicatedObjectId ObjectID{ { StreamId, ObjectPath }, DummySendingClientId};
+		const FConcertReplicatedObjectId ObjectID{ { StreamId, ObjectPath }, DummySendingClientId};
 		
 		TSharedRef<ConcertSyncCore::FObjectReplicationCache> Cache = MakeShared<ConcertSyncCore::FObjectReplicationCache>(MakeShared<FTestReplicationFormat>());
 		TSharedRef<FTestReplicationCacheUser> User_NeverConsume = MakeShared<FTestReplicationCacheUser>(*this, ObjectID, EReplicationCacheTestFlags::NeverConsume);

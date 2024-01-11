@@ -8,7 +8,7 @@
 
 /** Utility for identifying an object part of a replication stream definition.*/
 USTRUCT()
-struct FObjectInStreamID
+struct FConcertObjectInStreamID
 {
 	GENERATED_BODY()
 	
@@ -21,12 +21,12 @@ struct FObjectInStreamID
 
 	FString ToString() const { return FString::Printf(TEXT("StreamId: %s, Object: %s"), *StreamId.ToString(), *Object.ToString()); }
 		
-	friend bool operator==(const FObjectInStreamID& Left, const FObjectInStreamID& Right)
+	friend bool operator==(const FConcertObjectInStreamID& Left, const FConcertObjectInStreamID& Right)
 	{
 		return Left.StreamId == Right.StreamId && Left.Object == Right.Object;
 	}
 
-	friend bool operator!=(const FObjectInStreamID& Left, const FObjectInStreamID& Right)
+	friend bool operator!=(const FConcertObjectInStreamID& Left, const FConcertObjectInStreamID& Right)
 	{
 		return !(Left == Right);
 	}
@@ -34,7 +34,7 @@ struct FObjectInStreamID
 
 /** Identifies an object that was replicated by a client based on an underlying stream. */
 USTRUCT()
-struct FReplicatedObjectId : public FObjectInStreamID
+struct FConcertReplicatedObjectId : public FConcertObjectInStreamID
 {
 	GENERATED_BODY()
 	
@@ -43,17 +43,17 @@ struct FReplicatedObjectId : public FObjectInStreamID
 	
 	FString ToString() const { return FString::Printf(TEXT("StreamId: %s, Object: %s, Sender: %s"), *StreamId.ToString(), *Object.ToString(), *SenderEndpointId.ToString()); }
 		
-	friend bool operator==(const FReplicatedObjectId& Left, const FReplicatedObjectId& Right)
+	friend bool operator==(const FConcertReplicatedObjectId& Left, const FConcertReplicatedObjectId& Right)
 	{
 		return Left.SenderEndpointId == Right.SenderEndpointId
-			&& static_cast<const FObjectInStreamID&>(Left) == static_cast<const FObjectInStreamID&>(Right);
+			&& static_cast<const FConcertObjectInStreamID&>(Left) == static_cast<const FConcertObjectInStreamID&>(Right);
 	}
 
-	friend bool operator!=(const FReplicatedObjectId& Left, const FReplicatedObjectId& Right)
+	friend bool operator!=(const FConcertReplicatedObjectId& Left, const FConcertReplicatedObjectId& Right)
 	{
 		return !(Left == Right);
 	}
 };
 
-CONCERTSYNCCORE_API uint32 GetTypeHash(const FObjectInStreamID& StreamObject);
-CONCERTSYNCCORE_API uint32 GetTypeHash(const FReplicatedObjectId& StreamObject);
+CONCERTSYNCCORE_API uint32 GetTypeHash(const FConcertObjectInStreamID& StreamObject);
+CONCERTSYNCCORE_API uint32 GetTypeHash(const FConcertReplicatedObjectId& StreamObject);

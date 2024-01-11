@@ -19,5 +19,5 @@ class MULTIUSERREPLICATION_API UMultiUserPropertyReplicationSelection : public U
 public:
 
 	UPROPERTY()
-	FObjectReplicationMap ReplicationMap;
+	FConcertObjectReplicationMap ReplicationMap;
 };

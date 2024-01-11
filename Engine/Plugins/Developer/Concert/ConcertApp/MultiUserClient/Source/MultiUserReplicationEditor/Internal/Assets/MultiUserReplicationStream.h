@@ -3,11 +3,11 @@
 #pragma once
 
 #include "UObject/Object.h"
-#include "Replication/Data/ReplicationStreamDescription.h"
+#include "Replication/Data/ReplicationStream.h"
 #include "Misc/Attribute.h"
 #include "MultiUserReplicationStream.generated.h"
 
-/** Wraps FObjectReplicationMap so its edition can be transacted in the editor. */
+/** Wraps FConcertObjectReplicationMap so its edition can be transacted in the editor. */
 UCLASS()
 class MULTIUSERREPLICATIONEDITOR_API UMultiUserReplicationStream : public UObject
 {
@@ -20,15 +20,15 @@ public:
 
 	/** The objects this stream will modify. */
 	UPROPERTY()
-	FObjectReplicationMap ReplicationMap;
+	FConcertObjectReplicationMap ReplicationMap;
 
 	UMultiUserReplicationStream();
 	
-	FReplicationStreamDescription GenerateDescription() const;
+	FConcertReplicationStream GenerateDescription() const;
 	
-	TAttribute<FObjectReplicationMap*> MakeReplicationMapGetterAttribute()
+	TAttribute<FConcertObjectReplicationMap*> MakeReplicationMapGetterAttribute()
 	{
-		return TAttribute<FObjectReplicationMap*>::CreateLambda([WeakThis = TWeakObjectPtr<UMultiUserReplicationStream>(this)]()
+		return TAttribute<FConcertObjectReplicationMap*>::CreateLambda([WeakThis = TWeakObjectPtr<UMultiUserReplicationStream>(this)]()
 		{
 			return WeakThis.IsValid() ? &WeakThis->ReplicationMap : nullptr;
 		});

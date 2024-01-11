@@ -7,7 +7,7 @@
 
 enum class EJoinReplicationErrorCode : uint8;
 struct FConcertReplication_Join_Request;
-struct FReplicationStreamDescription;
+struct FConcertReplicationStream;
 
 namespace UE::ConcertSyncServer::Replication
 {
@@ -24,5 +24,5 @@ namespace UE::ConcertSyncServer::Replication
 	 * 
 	 * @return The error code for the request and the unpacked stream descriptions
 	 */
-	TTuple<EJoinReplicationErrorCode, FString, TArray<FReplicationStreamDescription>> ValidateRequest(const FConcertReplication_Join_Request& Request);
+	TTuple<EJoinReplicationErrorCode, FString, TArray<FConcertReplicationStream>> ValidateRequest(const FConcertReplication_Join_Request& Request);
 }

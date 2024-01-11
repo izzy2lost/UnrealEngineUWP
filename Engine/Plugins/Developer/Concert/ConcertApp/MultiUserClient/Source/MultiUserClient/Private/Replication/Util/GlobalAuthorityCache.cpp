@@ -135,7 +135,7 @@ namespace UE::MultiUserClient
 				return EBreakBehavior::Continue;
 			}
 			
-			const FReplicatedObjectInfo* ObjectInfo = Client->GetStreamSynchronizer().GetServerState().ReplicatedObjects.Find(Object);
+			const FConcertReplicatedObjectInfo* ObjectInfo = Client->GetStreamSynchronizer().GetServerState().ReplicatedObjects.Find(Object);
 			const bool bHasObjectRegistered = ensureMsgf(ObjectInfo, TEXT("OnStreamChanged should have updated OwnedObjectsToClients"))
 				&& ObjectInfo->PropertySelection.ReplicatedProperties.Contains(Property);
 			const bool bHasAuthority = Client->GetAuthoritySynchronizer().HasAuthorityOver(Object);
@@ -180,9 +180,9 @@ namespace UE::MultiUserClient
 			return;
 		}
 		
-		const FObjectReplicationMap& ClientObjectMap = Client->GetStreamSynchronizer().GetServerState();
+		const FConcertObjectReplicationMap& ClientObjectMap = Client->GetStreamSynchronizer().GetServerState();
 		const IClientAuthoritySynchronizer& ClientAuthority = Client->GetAuthoritySynchronizer();
-		for (const TPair<FSoftObjectPath, FReplicatedObjectInfo>& StreamContents : ClientObjectMap.ReplicatedObjects)
+		for (const TPair<FSoftObjectPath, FConcertReplicatedObjectInfo>& StreamContents : ClientObjectMap.ReplicatedObjects)
 		{
 			const FSoftObjectPath& Object = StreamContents.Key;
 			RegisteredObjectsToClients.FindOrAdd(Object).Add(ClientId);
@@ -214,7 +214,7 @@ namespace UE::MultiUserClient
 		}
 	}
 	
-	void FGlobalAuthorityCache::ForEachStream(const FGuid& ClientEndpointId, TFunctionRef<EBreakBehavior(const FGuid& StreamId, const FObjectReplicationMap& ReplicationMap)> Callback) const
+	void FGlobalAuthorityCache::ForEachStream(const FGuid& ClientEndpointId, TFunctionRef<EBreakBehavior(const FGuid& StreamId, const FConcertObjectReplicationMap& ReplicationMap)> Callback) const
 	{
 		const FReplicationClient* Client = ClientManager.FindClient(ClientEndpointId);
 		if (!ensure(Client))

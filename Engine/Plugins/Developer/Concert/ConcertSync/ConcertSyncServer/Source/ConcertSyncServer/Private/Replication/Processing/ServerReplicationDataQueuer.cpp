@@ -3,7 +3,6 @@
 #include "ServerReplicationDataQueuer.h"
 
 #include "Replication/ConcertReplicationClient.h"
-#include "Replication/Data/ReplicationStreamDescription.h"
 
 namespace UE::ConcertSyncServer::Replication
 {
@@ -17,7 +16,7 @@ namespace UE::ConcertSyncServer::Replication
 		return Result;
 	}
 
-	bool FServerReplicationDataQueuer::WantsToAcceptObject(const FReplicatedObjectId& Object) const
+	bool FServerReplicationDataQueuer::WantsToAcceptObject(const FConcertReplicatedObjectId& Object) const
 	{
 		// Do not send back the data to the client that generated it
 		const bool bWasSentByThisClient = OwningClientEndpointId == Object.SenderEndpointId;

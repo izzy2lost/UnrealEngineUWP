@@ -17,14 +17,14 @@ namespace UE::MultiUserClient::ClientChangeConversionUtils
 		static TOptional<FConcertReplication_ChangeStream_PutObject> GeneratePutRequest(
 			const UObject& Object,
 			FPropertyChange&& PropertyChange,
-			const FObjectReplicationMap& ClientStreamContent
+			const FConcertObjectReplicationMap& ClientStreamContent
 			)
 		{
 			// TODO UE-201166: This step could be simplified if we had an append operation in FConcertReplication_ChangeStream_PutObject
-			const FReplicatedObjectInfo* ExistingObjectInfo = ClientStreamContent.ReplicatedObjects.Find(&Object);
+			const FConcertReplicatedObjectInfo* ExistingObjectInfo = ClientStreamContent.ReplicatedObjects.Find(&Object);
 			if (ExistingObjectInfo)
 			{
-				FReplicatedObjectInfo NewObjectInfo = FReplicatedObjectInfo::Make(Object);
+				FConcertReplicatedObjectInfo NewObjectInfo = FConcertReplicatedObjectInfo::Make(Object);
 				TArray<FConcertPropertyChain>& ReplicatedProperties = NewObjectInfo.PropertySelection.ReplicatedProperties;
 				switch (PropertyChange.ChangeType)
 				{
@@ -46,7 +46,7 @@ namespace UE::MultiUserClient::ClientChangeConversionUtils
 			}
 			else
 			{
-				FReplicatedObjectInfo NewObjectInfo = FReplicatedObjectInfo::Make(Object);
+				FConcertReplicatedObjectInfo NewObjectInfo = FConcertReplicatedObjectInfo::Make(Object);
 				TArray<FConcertPropertyChain>& ReplicatedProperties = NewObjectInfo.PropertySelection.ReplicatedProperties;
 				switch (PropertyChange.ChangeType)
 				{
@@ -66,7 +66,7 @@ namespace UE::MultiUserClient::ClientChangeConversionUtils
 		static void BuildStreamChanges(
 			TMap<UObject*, FPropertyChange>&& PropertyChanges,
 			const FGuid& ClientStreamId,
-			const FObjectReplicationMap& ClientStreamContent,
+			const FConcertObjectReplicationMap& ClientStreamContent,
 			FStreamChangelist& StreamChangelist
 			)
 		{
@@ -86,7 +86,7 @@ namespace UE::MultiUserClient::ClientChangeConversionUtils
 					PutRequest->Properties.DiscoverAndAddImplicitParentProperties();
 					
 					StreamChangelist.ObjectsToPut.Add(
-						FObjectInStreamID { ClientStreamId, Object },
+						FConcertObjectInStreamID { ClientStreamId, Object },
 						MoveTemp(*PutRequest)
 					);
 				}
@@ -98,7 +98,7 @@ namespace UE::MultiUserClient::ClientChangeConversionUtils
 			for (FSoftObjectPath& RemovedObject : ObjectsToRemove)
 			{
 				StreamChangelist.ObjectsToRemove.Emplace(
-					FObjectInStreamID{ ClientStreamId, MoveTemp(RemovedObject) }
+					FConcertObjectInStreamID{ ClientStreamId, MoveTemp(RemovedObject) }
 				);
 			}
 		}
@@ -107,7 +107,7 @@ namespace UE::MultiUserClient::ClientChangeConversionUtils
 	TOptional<FConcertReplication_ChangeStream_Request> Transform(
 		FChangeStreamRequest Request,
 		const FGuid& ClientStreamId,
-		const FObjectReplicationMap& ClientStreamContent
+		const FConcertObjectReplicationMap& ClientStreamContent
 		)
 	{
 		FStreamChangelist StreamChangelist;

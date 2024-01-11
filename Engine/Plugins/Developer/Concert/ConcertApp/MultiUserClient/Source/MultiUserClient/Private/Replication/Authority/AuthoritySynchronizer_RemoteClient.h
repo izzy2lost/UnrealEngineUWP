@@ -8,7 +8,7 @@
 #include "UObject/SoftObjectPath.h"
 
 struct FGuid;
-struct FReplicationAuthorityInfo;
+struct FConcertAuthorityClientInfo;
 
 namespace UE::MultiUserClient
 {
@@ -37,7 +37,7 @@ namespace UE::MultiUserClient
 		/** The most up to date server state of the remote client's authority. */
 		TSet<FSoftObjectPath> LastServerState; 
 
-		void HandleAuthorityQuery(const TArray<FReplicationAuthorityInfo>& PerStreamAuthority);
+		void HandleAuthorityQuery(const TArray<FConcertAuthorityClientInfo>& PerStreamAuthority);
 	};
 }
 

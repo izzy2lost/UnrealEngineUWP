@@ -619,10 +619,10 @@ void FConcertSyncServer::LogReplicationStreams() const
 		{
 			const FGuid ClientId = ClientInfo.ClientEndpointId;
 			StringBuilder << ClientIndent << TEXT("Client: ") << *ClientInfo.ClientInfo.DisplayName << TEXT(" (") << ClientId.ToString() << TEXT(")");
-			ReplicationManagerPair.Value->ForEachStream(ClientId, [&StringBuilder, StreamIndent, ObjectIndent, PropertyIndent](const FReplicationStreamDescription& Stream)
+			ReplicationManagerPair.Value->ForEachStream(ClientId, [&StringBuilder, StreamIndent, ObjectIndent, PropertyIndent](const FConcertReplicationStream& Stream)
 			{
 				StringBuilder << StreamIndent << TEXT("Stream: ") << *Stream.BaseDescription.Identifier.ToString();
-				for (const TPair<FSoftObjectPath, FReplicatedObjectInfo>& ReplicatedObject : Stream.BaseDescription.ReplicationMap.ReplicatedObjects)
+				for (const TPair<FSoftObjectPath, FConcertReplicatedObjectInfo>& ReplicatedObject : Stream.BaseDescription.ReplicationMap.ReplicatedObjects)
 				{
 					StringBuilder << ObjectIndent << *ReplicatedObject.Key.ToString();
 					for (const FConcertPropertyChain& Property : ReplicatedObject.Value.PropertySelection.ReplicatedProperties)
@@ -663,7 +663,7 @@ void FConcertSyncServer::LogReplicationAuthority() const
 			StringBuilder << ClientIndent << TEXT("Client: ") << *ClientInfo.ClientInfo.DisplayName << TEXT(" (") << ClientId.ToString() << TEXT(")");
 			
 			const TSharedRef<FConcertServerReplicationManager>& ReplicationManager = ReplicationManagerPair.Value;
-			ReplicationManager->ForEachStream(ClientId, [&StringBuilder, StreamIndent, ObjectIndent, ClientId, &ReplicationManager](const FReplicationStreamDescription& Stream)
+			ReplicationManager->ForEachStream(ClientId, [&StringBuilder, StreamIndent, ObjectIndent, ClientId, &ReplicationManager](const FConcertReplicationStream& Stream)
 			{
 				const FGuid StreamId = Stream.BaseDescription.Identifier;
 				StringBuilder << StreamIndent << TEXT("Stream: ") << *StreamId.ToString();

@@ -7,7 +7,7 @@
 namespace UE::ConcertSyncCore
 {
 	ECanProcessObject FFrequencyTracker::TrackAndCheckObject(
-		const FObjectInStreamID& ObjectPath,
+		const FConcertObjectInStreamID& ObjectPath,
 		const FConcertObjectReplicationSettings& ReplicationSettings,
 		const FPlatformSecondsTimestamp NowAsPlatformSeconds
 		)
@@ -17,7 +17,7 @@ namespace UE::ConcertSyncCore
 		return ReplicationSettings.CanProcessObject(LastTimeProcessed, NowAsPlatformSeconds);
 	}
 
-	void FFrequencyTracker::OnProcessObject(const FObjectInStreamID& Object, const FPlatformSecondsTimestamp NowAsPlatformSeconds)
+	void FFrequencyTracker::OnProcessObject(const FConcertObjectInStreamID& Object, const FPlatformSecondsTimestamp NowAsPlatformSeconds)
 	{
 		ObjectsToLastProcessed.FindOrAdd(Object) = NowAsPlatformSeconds;
 	}

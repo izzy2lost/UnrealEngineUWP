@@ -33,7 +33,7 @@ namespace UE::ConcertSyncTests::Replication
 		 * Creates joining arguments containing a stream that will replicate a single object.
 		 * @param Object The object to replicate
 		 * @param SenderStreamId The ID of the new stream
-		 * @param ReplicationMode The replication mode for the object. Set to Realtime by default so tests need not handle latency (due to FReplicatedObjectInfo::ReplicationRate).
+		 * @param ReplicationMode The replication mode for the object. Set to Realtime by default so tests need not handle latency (due to FConcertReplicatedObjectInfo::ReplicationRate).
 		 * @param ReplicationRate The replication rate for the object. Only used if ReplicationMode == EConcertObjectReplicationMode::SpecifiedRate
 		 */
 		static ConcertSyncClient::Replication::FJoinReplicatedSessionArgs CreateHandshakeArgsFrom(

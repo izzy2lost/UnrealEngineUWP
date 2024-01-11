@@ -29,13 +29,13 @@ TArray<FConcertPropertyChainWrapper> UMultiUserReplicationSubsystem::GetProperti
 	const UE::MultiUserClient::IMultiUserReplication* ReplicationInterface = IMultiUserClientModule::Get().GetReplication();
 	if (ensureMsgf(ReplicationInterface, TEXT("We expected it to always be valid.")))
 	{
-		const FObjectReplicationMap* ObjectMap = ReplicationInterface->FindReplicationMapForClient(ClientId);
+		const FConcertObjectReplicationMap* ObjectMap = ReplicationInterface->FindReplicationMapForClient(ClientId);
 		if (!ObjectMap)
 		{
 			return {};
 		}
 
-		const FReplicatedObjectInfo* ObjectInfo = ObjectMap->ReplicatedObjects.Find(ObjectPath);
+		const FConcertReplicatedObjectInfo* ObjectInfo = ObjectMap->ReplicatedObjects.Find(ObjectPath);
 		if (!ObjectInfo)
 		{
 			return {};
@@ -58,7 +58,7 @@ TArray<FSoftObjectPath> UMultiUserReplicationSubsystem::GetRegisteredObjects(con
 	const UE::MultiUserClient::IMultiUserReplication* ReplicationInterface = IMultiUserClientModule::Get().GetReplication();
 	if (ensureMsgf(ReplicationInterface, TEXT("We expected it to always be valid.")))
 	{
-		const FObjectReplicationMap* ObjectMap = ReplicationInterface->FindReplicationMapForClient(ClientId);
+		const FConcertObjectReplicationMap* ObjectMap = ReplicationInterface->FindReplicationMapForClient(ClientId);
 		if (!ObjectMap)
 		{
 			return {};
@@ -78,14 +78,14 @@ TArray<FSoftObjectPath> UMultiUserReplicationSubsystem::GetReplicatedObjects(con
 	const UE::MultiUserClient::IMultiUserReplication* ReplicationInterface = IMultiUserClientModule::Get().GetReplication();
 	if (ensureMsgf(ReplicationInterface, TEXT("We expected it to always be valid.")))
 	{
-		const FObjectReplicationMap* ObjectMap = ReplicationInterface->FindReplicationMapForClient(ClientId);
+		const FConcertObjectReplicationMap* ObjectMap = ReplicationInterface->FindReplicationMapForClient(ClientId);
 		if (!ObjectMap)
 		{
 			return {};
 		}
 
 		TArray<FSoftObjectPath> Result;
-		for (const TPair<FSoftObjectPath, FReplicatedObjectInfo>& Pair : ObjectMap->ReplicatedObjects)
+		for (const TPair<FSoftObjectPath, FConcertReplicatedObjectInfo>& Pair : ObjectMap->ReplicatedObjects)
 		{
 			if (ReplicationInterface->IsReplicatingObject(ClientId, Pair.Key))
 			{

@@ -46,7 +46,7 @@ namespace UE::ConcertSyncClient::Replication
 	FReplicationManagerState_Connected::FReplicationManagerState_Connected(
 		TSharedRef<IConcertClientSession> LiveSession,
 		IConcertClientReplicationBridge* ReplicationBridge,
-		TArray<FReplicationStreamDescription> StreamDescriptions,
+		TArray<FConcertReplicationStream> StreamDescriptions,
 		FReplicationManager& Owner
 		)
 		: FReplicationManagerState(Owner)
@@ -93,10 +93,10 @@ namespace UE::ConcertSyncClient::Replication
 	}
 
 	IConcertClientReplicationManager::EStreamEnumerationResult FReplicationManagerState_Connected::ForEachRegisteredStream(
-		TFunctionRef<EBreakBehavior(const FReplicationStreamDescription& Stream)> Callback
+		TFunctionRef<EBreakBehavior(const FConcertReplicationStream& Stream)> Callback
 		) const
 	{
-		for (const FReplicationStreamDescription& Stream : RegisteredStreams)
+		for (const FConcertReplicationStream& Stream : RegisteredStreams)
 		{
 			if (Callback(Stream) == EBreakBehavior::Break)
 			{
@@ -235,13 +235,13 @@ namespace UE::ConcertSyncClient::Replication
 		
 		// Build RegisteredStreams while RegisteredStreams has the old, unupdated state
 		TMap<FSoftObjectPath, TArray<FGuid>> BundledModifiedObjects;
-		for (const TPair<FObjectInStreamID, FConcertReplication_ChangeStream_PutObject>& PutObject : Request.ObjectsToPut)
+		for (const TPair<FConcertObjectInStreamID, FConcertReplication_ChangeStream_PutObject>& PutObject : Request.ObjectsToPut)
 		{
-			const FObjectInStreamID ObjectInfo = PutObject.Key;
+			const FConcertObjectInStreamID ObjectInfo = PutObject.Key;
 			const FSoftObjectPath Object = ObjectInfo.Object;
 			const FGuid StreamId = ObjectInfo.StreamId;
 			
-			const FReplicationStreamDescription* StreamDescription = RegisteredStreams.FindByPredicate([&StreamId](const FReplicationStreamDescription& Stream)
+			const FConcertReplicationStream* StreamDescription = RegisteredStreams.FindByPredicate([&StreamId](const FConcertReplicationStream& Stream)
 			{
 				return Stream.BaseDescription.Identifier == StreamId;
 			});
@@ -268,7 +268,7 @@ namespace UE::ConcertSyncClient::Replication
 		static void ForEachObjectRemovedFromStreams(const FConcertReplication_ChangeStream_Request& Request, TFunctionRef<void(const FSoftObjectPath& ObjectPath, const TArray<FGuid>& Streams)> Callback)
 		{
 			TMap<FSoftObjectPath, TArray<FGuid>> BundledRemovedObjects;
-			for (const FObjectInStreamID& RemovedObject : Request.ObjectsToRemove)
+			for (const FConcertObjectInStreamID& RemovedObject : Request.ObjectsToRemove)
 			{
 				BundledRemovedObjects.FindOrAdd(RemovedObject.Object).Add(RemovedObject.StreamId);
 			}
@@ -341,9 +341,9 @@ namespace UE::ConcertSyncClient::Replication
 		}
 	}
 
-	FConcertObjectReplicationSettings FReplicationManagerState_Connected::GetObjectFrequencySettings(const FReplicatedObjectId& Object) const
+	FConcertObjectReplicationSettings FReplicationManagerState_Connected::GetObjectFrequencySettings(const FConcertReplicatedObjectId& Object) const
 	{
-		const FReplicationStreamDescription* Stream = RegisteredStreams.FindByPredicate([&Object](const FReplicationStreamDescription& Description)
+		const FConcertReplicationStream* Stream = RegisteredStreams.FindByPredicate([&Object](const FConcertReplicationStream& Description)
 		{
 			return Description.BaseDescription.Identifier == Object.StreamId;
 		});

@@ -32,7 +32,7 @@ namespace UE::MultiUserClient
 	FDelegateHandle FRegularQueryService::RegisterStreamQuery(const FGuid& EndpointId, FStreamQueryDelegate Delegate)
 	{
 		FStreamQueryInfo& Info = StreamQueryInfos.FindOrAdd(EndpointId);
-		const FDelegateHandle DelegateHandle = Info.Delegate.AddLambda([Delegate = MoveTemp(Delegate)](const TArray<FSharedReplicationStreamDescription>& Descriptions)
+		const FDelegateHandle DelegateHandle = Info.Delegate.AddLambda([Delegate = MoveTemp(Delegate)](const TArray<FConcertBaseStreamInfo>& Descriptions)
 		{
 			Delegate.Execute(Descriptions);
 		});
@@ -43,7 +43,7 @@ namespace UE::MultiUserClient
 	FDelegateHandle FRegularQueryService::RegisterAuthorityQuery(const FGuid& EndpointId, FAuthorityQueryDelegate Delegate)
 	{
 		FAuthorityQueryInfo& Info = AuthorityQueryInfos.FindOrAdd(EndpointId);
-		const FDelegateHandle DelegateHandle = Info.Delegate.AddLambda([Delegate = MoveTemp(Delegate)](const TArray<FReplicationAuthorityInfo>& Infos)
+		const FDelegateHandle DelegateHandle = Info.Delegate.AddLambda([Delegate = MoveTemp(Delegate)](const TArray<FConcertAuthorityClientInfo>& Infos)
 		{
 			Delegate.Execute(Infos);
 		});
@@ -160,7 +160,7 @@ namespace UE::MultiUserClient
 	{
 		TGuardValue<bool> Guard(bIsHandlingQueryResponse, true);
 		
-		for (const TPair<FGuid, FReplicationClientQueriedInfo>& StreamQueryPair : Response.ClientInfo)
+		for (const TPair<FGuid, FConcertQueriedClientInfo>& StreamQueryPair : Response.ClientInfo)
 		{
 			const FGuid StreamId = StreamQueryPair.Key;
 			

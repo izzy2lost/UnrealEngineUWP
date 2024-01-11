@@ -2,7 +2,7 @@
 
 #include "Util/ClientServerCommunicationTest.h"
 
-#include "Replication/Data/ReplicationStreamDescription.h"
+#include "Replication/Data/ReplicationStream.h"
 #include "Replication/IConcertClientReplicationManager.h"
 #include "TestReflectionObject.h"
 #include "Util/ChangeStreamsTestBase.h"
@@ -36,7 +36,7 @@ namespace UE::ConcertSyncTests::Replication::Stream
 		{
 			TestTrue(TEXT("ErrorCode == Handled"), Response.ErrorCode == EReplicationResponseErrorCode::Handled);
 			
-			const FReplicationClientQueriedInfo* Info = Response.ClientInfo.Find(SenderEndpointId);
+			const FConcertQueriedClientInfo* Info = Response.ClientInfo.Find(SenderEndpointId);
 			if (!Info)
 			{
 				AddError(TEXT("No info about sending client!"));
@@ -50,11 +50,11 @@ namespace UE::ConcertSyncTests::Replication::Stream
 				return;
 			}
 				
-			const FSharedReplicationStreamDescription& StreamDescription = Info->Streams[0];
+			const FConcertBaseStreamInfo& StreamDescription = Info->Streams[0];
 			TestEqual(TEXT("StreamDescription->Identifier correct"), StreamDescription.Identifier, SenderStreamId);
 			TestEqual(TEXT("StreamDescription->ReplicationMap has exactly 1 object"), StreamDescription.ReplicationMap.ReplicatedObjects.Num(), 1);
 
-			const FObjectReplicationMap ExpectedReplicationMap = CreateSenderArgs().Streams[0].BaseDescription.ReplicationMap;
+			const FConcertObjectReplicationMap ExpectedReplicationMap = CreateSenderArgs().Streams[0].BaseDescription.ReplicationMap;
 			TestEqual(TEXT("Registered and reported replication maps match"), StreamDescription.ReplicationMap, ExpectedReplicationMap);
 		};
 		
@@ -67,7 +67,7 @@ namespace UE::ConcertSyncTests::Replication::Stream
 				TestTrue(TEXT("ErrorCode == Handled"), Response.ErrorCode == EReplicationResponseErrorCode::Handled);
 				
 				TestReplicationMapContent(Response);
-				if (const FReplicationClientQueriedInfo* Info = Response.ClientInfo.Find(SenderEndpointId))
+				if (const FConcertQueriedClientInfo* Info = Response.ClientInfo.Find(SenderEndpointId))
 				{
 					TestEqual(TEXT("Contains no authority data"), Info->Authority.Num(), 0);
 				}
@@ -93,7 +93,7 @@ namespace UE::ConcertSyncTests::Replication::Stream
 				TestTrue(TEXT("ErrorCode == Handled"), Response.ErrorCode == EReplicationResponseErrorCode::Handled);
 				TestReplicationMapContent(Response);
 				
-				const FReplicationClientQueriedInfo* Info = Response.ClientInfo.Find(SenderEndpointId);
+				const FConcertQueriedClientInfo* Info = Response.ClientInfo.Find(SenderEndpointId);
 				if (!Info || Info->Authority.IsEmpty())
 				{
 					AddError(TEXT("Missing authority data"));
@@ -101,7 +101,7 @@ namespace UE::ConcertSyncTests::Replication::Stream
 				}
 
 				TestEqual(TEXT("Exactly 1 authority stream"), Info->Authority.Num(), 1);
-				const FReplicationAuthorityInfo& AuthorityInfo = Info->Authority[0];
+				const FConcertAuthorityClientInfo& AuthorityInfo = Info->Authority[0];
 				TestEqual(TEXT("Authority stream ID matches registered stream ID"), AuthorityInfo.StreamId, SenderStreamId);
 				TestEqual(TEXT("Has authority over exactly 1 object"), AuthorityInfo.AuthoredObjects.Num(), 1);
 				TestTrue(TEXT("Has authority over registered object"), AuthorityInfo.AuthoredObjects.Contains(TestObjectPath));
@@ -117,7 +117,7 @@ namespace UE::ConcertSyncTests::Replication::Stream
 			{
 				bReceivedResponse_SkipStreamInfo = true;
 				TestTrue(TEXT("ErrorCode == Handled"), Response.ErrorCode == EReplicationResponseErrorCode::Handled);
-				if (const FReplicationClientQueriedInfo* Info = Response.ClientInfo.Find(SenderEndpointId))
+				if (const FConcertQueriedClientInfo* Info = Response.ClientInfo.Find(SenderEndpointId))
 				{
 					TestEqual(TEXT("SkipStreamInfo > No stream data"), Info->Streams.Num(), 0);
 				}
@@ -131,7 +131,7 @@ namespace UE::ConcertSyncTests::Replication::Stream
 			.Next([this, &SenderEndpointId, &TestObjectPath, &bReceivedResponse_SkipProperties](FConcertReplication_QueryReplicationInfo_Response&& Response) mutable
 			{
 				bReceivedResponse_SkipProperties = true;
-				const FReplicationClientQueriedInfo* Info = Response.ClientInfo.Find(SenderEndpointId);
+				const FConcertQueriedClientInfo* Info = Response.ClientInfo.Find(SenderEndpointId);
 				TestTrue(TEXT("ErrorCode == Handled"), Response.ErrorCode == EReplicationResponseErrorCode::Handled);
 				if (!Info || Info->Streams.IsEmpty())
 				{
@@ -139,7 +139,7 @@ namespace UE::ConcertSyncTests::Replication::Stream
 					return;
 				}
 
-				const FReplicatedObjectInfo* ObjectInfo = Info->Streams[0].ReplicationMap.ReplicatedObjects.Find(TestObjectPath);
+				const FConcertReplicatedObjectInfo* ObjectInfo = Info->Streams[0].ReplicationMap.ReplicatedObjects.Find(TestObjectPath);
 				if (!ObjectInfo)
 				{
 					AddError(TEXT("SkipProperties > No object info"));
@@ -157,7 +157,7 @@ namespace UE::ConcertSyncTests::Replication::Stream
 			{
 				bReceivedResponse_SkipAuthority = true;
 				TestTrue(TEXT("ErrorCode == Handled"), Response.ErrorCode == EReplicationResponseErrorCode::Handled);
-				if (const FReplicationClientQueriedInfo* Info = Response.ClientInfo.Find(SenderEndpointId))
+				if (const FConcertQueriedClientInfo* Info = Response.ClientInfo.Find(SenderEndpointId))
 				{
 					TestEqual(TEXT("SkipAuthority > No authority data"), Info->Authority.Num(), 0);
 				}
@@ -184,7 +184,7 @@ namespace UE::ConcertSyncTests::Replication::Stream
 			{
 				bReceivedResponse_SkipFrequency = true;
 				TestTrue(TEXT("ErrorCode == Handled"), Response.ErrorCode == EReplicationResponseErrorCode::Handled);
-				if (const FReplicationClientQueriedInfo* Info = Response.ClientInfo.Find(SenderEndpointId)
+				if (const FConcertQueriedClientInfo* Info = Response.ClientInfo.Find(SenderEndpointId)
 					; Info && ensureAlways(Info->Streams.Num() == 1))
 				{
 					const FConcertStreamFrequencySettings& FrequencySettings = Info->Streams[0].FrequencySettings;

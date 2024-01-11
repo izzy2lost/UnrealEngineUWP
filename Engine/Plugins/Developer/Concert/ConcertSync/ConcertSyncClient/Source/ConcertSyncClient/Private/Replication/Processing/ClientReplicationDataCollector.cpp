@@ -2,7 +2,7 @@
 
 #include "ClientReplicationDataCollector.h"
 
-#include "Replication/Data/ReplicationStreamDescription.h"
+#include "Replication/Data/ReplicationStream.h"
 #include "Replication/Formats/IObjectReplicationFormat.h"
 #include "Replication/IConcertClientReplicationBridge.h"
 #include "Replication/ReplicationPropertyFilter.h"
@@ -45,15 +45,15 @@ namespace UE::ConcertSyncClient::Replication
 		TArray<FObjectInfo>& ReplicatedObjectInfo = ObjectsToReplicate.FindOrAdd(Object);
 		const bool bIsNewReplicatedObject = ReplicatedObjectInfo.IsEmpty();
 		
-		const TArray<FReplicationStreamDescription>& RegisteredStreams = *GetStreamsDelegate.Execute();
+		const TArray<FConcertReplicationStream>& RegisteredStreams = *GetStreamsDelegate.Execute();
 		ReplicatedObjectInfo.Reserve(ReplicatedObjectInfo.Num() + AddedStreams.Num());
 		for (const FGuid& StreamId : AddedStreams)
 		{
-			const FReplicationStreamDescription* Stream = RegisteredStreams.FindByPredicate([&StreamId](const FReplicationStreamDescription& Stream)
+			const FConcertReplicationStream* Stream = RegisteredStreams.FindByPredicate([&StreamId](const FConcertReplicationStream& Stream)
 			{
 				return Stream.BaseDescription.Identifier == StreamId;
 			});
-			const FReplicatedObjectInfo* ObjectInfo = Stream ? Stream->BaseDescription.ReplicationMap.ReplicatedObjects.Find(Object) : nullptr;
+			const FConcertReplicatedObjectInfo* ObjectInfo = Stream ? Stream->BaseDescription.ReplicationMap.ReplicatedObjects.Find(Object) : nullptr;
 			if (ensureAlwaysMsgf(ObjectInfo, TEXT("Client's registered streams cache is out of sync")))
 			{
 				ReplicatedObjectInfo.Add({ StreamId, ObjectInfo->PropertySelection });
@@ -97,14 +97,14 @@ namespace UE::ConcertSyncClient::Replication
 			return;
 		}
 
-		const TArray<FReplicationStreamDescription>& RegisteredStreams = *GetStreamsDelegate.Execute();
+		const TArray<FConcertReplicationStream>& RegisteredStreams = *GetStreamsDelegate.Execute();
 		for (const FGuid& StreamId : PutStreams)
 		{
-			const FReplicationStreamDescription* Stream = RegisteredStreams.FindByPredicate([&StreamId](const FReplicationStreamDescription& Stream)
+			const FConcertReplicationStream* Stream = RegisteredStreams.FindByPredicate([&StreamId](const FConcertReplicationStream& Stream)
 			{
 				return Stream.BaseDescription.Identifier == StreamId;
 			});
-			const FReplicatedObjectInfo* ObjectInfo = Stream ? Stream->BaseDescription.ReplicationMap.ReplicatedObjects.Find(Object) : nullptr;
+			const FConcertReplicatedObjectInfo* ObjectInfo = Stream ? Stream->BaseDescription.ReplicationMap.ReplicatedObjects.Find(Object) : nullptr;
 			if (!ensureAlwaysMsgf(ObjectInfo, TEXT("Client's registered streams cache is out of sync")))
 			{
 				continue;
@@ -155,7 +155,7 @@ namespace UE::ConcertSyncClient::Replication
 		}
 	}
 
-	void FClientReplicationDataCollector::ForEachPendingObject(TFunctionRef<void(const FReplicatedObjectId&)> ProcessItemFunc) const
+	void FClientReplicationDataCollector::ForEachPendingObject(TFunctionRef<void(const FConcertReplicatedObjectId&)> ProcessItemFunc) const
 	{
 		for (const TPair<FSoftObjectPath, TArray<FObjectInfo>>& Pair : ObjectsToReplicate)
 		{
@@ -163,8 +163,8 @@ namespace UE::ConcertSyncClient::Replication
 			{
 				if (ObjectInfo.ObjectCache.IsValid())
 				{
-					ProcessItemFunc(FReplicatedObjectId {
-						FObjectInStreamID{ ObjectInfo.StreamId, ObjectInfo.ObjectCache.Get() },
+					ProcessItemFunc(FConcertReplicatedObjectId {
+						FConcertObjectInStreamID{ ObjectInfo.StreamId, ObjectInfo.ObjectCache.Get() },
 						ClientId
 					});
 				}
@@ -173,7 +173,7 @@ namespace UE::ConcertSyncClient::Replication
 	}
 
 	bool FClientReplicationDataCollector::ExtractReplicationDataForObject(
-		const FReplicatedObjectId& ObjectToProcess,
+		const FConcertReplicatedObjectId& ObjectToProcess,
 		TFunctionRef<void(const FConcertSessionSerializedPayload& Payload)> ProcessCopyable,
 		TFunctionRef<void(FConcertSessionSerializedPayload&& Payload)> ProcessMoveable
 		)

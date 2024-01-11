@@ -7,7 +7,7 @@
 #include "ObjectReplicationMap.generated.h"
 
 USTRUCT()
-struct FReplicatedObjectInfo
+struct FConcertReplicatedObjectInfo
 {
 	GENERATED_BODY()
 
@@ -20,7 +20,7 @@ struct FReplicatedObjectInfo
 	FConcertPropertySelection PropertySelection;
 
 	// Use static factories instead of user-provided constructors to continue allowing brace-initialization
-	static FReplicatedObjectInfo Make(const UObject& Object)
+	static FConcertReplicatedObjectInfo Make(const UObject& Object)
 	{
 		return { Object.GetClass() };
 	}
@@ -32,12 +32,12 @@ struct FReplicatedObjectInfo
 			&& !PropertySelection.ReplicatedProperties.IsEmpty();
 	}
 	
-	friend bool operator==(const FReplicatedObjectInfo& Left, const FReplicatedObjectInfo& Right)
+	friend bool operator==(const FConcertReplicatedObjectInfo& Left, const FConcertReplicatedObjectInfo& Right)
 	{
 		return Left.ClassPath == Right.ClassPath
 			&& Left.PropertySelection == Right.PropertySelection;
 	}
-	friend bool operator!=(const FReplicatedObjectInfo& Left, const FReplicatedObjectInfo& Right)
+	friend bool operator!=(const FConcertReplicatedObjectInfo& Left, const FConcertReplicatedObjectInfo& Right)
 	{
 		return !(Left == Right);
 	}
@@ -45,7 +45,7 @@ struct FReplicatedObjectInfo
 
 /** Maps objects to their replicated properties. */
 USTRUCT()
-struct FObjectReplicationMap
+struct FConcertObjectReplicationMap
 {
 	GENERATED_BODY()
 
@@ -56,12 +56,12 @@ struct FObjectReplicationMap
 	 * Technically, this can also be non-UWorld objects.
 	 */
 	UPROPERTY()
-	TMap<FSoftObjectPath, FReplicatedObjectInfo> ReplicatedObjects;
+	TMap<FSoftObjectPath, FConcertReplicatedObjectInfo> ReplicatedObjects;
 
 	/** @return Whether ObjectPath has any properties assigned to it. */
 	bool HasProperties(const FSoftObjectPath& ObjectPath) const
 	{
-		const FReplicatedObjectInfo* ObjectInfo = ReplicatedObjects.Find(ObjectPath);
+		const FConcertReplicatedObjectInfo* ObjectInfo = ReplicatedObjects.Find(ObjectPath);
 		return ObjectInfo && !ObjectInfo->PropertySelection.ReplicatedProperties.IsEmpty();
 	}
 
@@ -71,11 +71,11 @@ struct FObjectReplicationMap
 		return ReplicatedObjects.IsEmpty();
 	}
 
-	friend bool operator==(const FObjectReplicationMap& Left, const FObjectReplicationMap& Right)
+	friend bool operator==(const FConcertObjectReplicationMap& Left, const FConcertObjectReplicationMap& Right)
 	{
 		return Left.ReplicatedObjects.OrderIndependentCompareEqual(Right.ReplicatedObjects);
 	}
-	friend bool operator!=(const FObjectReplicationMap& Left, const FObjectReplicationMap& Right)
+	friend bool operator!=(const FConcertObjectReplicationMap& Left, const FConcertObjectReplicationMap& Right)
 	{
 		return !(Left == Right);
 	}

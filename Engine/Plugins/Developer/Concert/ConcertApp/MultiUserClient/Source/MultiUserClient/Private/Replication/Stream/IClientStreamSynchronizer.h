@@ -6,7 +6,7 @@
 #include "Delegates/Delegate.h"
 
 struct FConcertStreamFrequencySettings;
-struct FObjectReplicationMap;
+struct FConcertObjectReplicationMap;
 
 namespace UE::MultiUserClient
 {
@@ -24,7 +24,7 @@ namespace UE::MultiUserClient
 		virtual FGuid GetStreamId() const = 0;
 		
 		/** @return What local instance thinks the client's server state is. */
-		virtual const FObjectReplicationMap& GetServerState() const = 0;
+		virtual const FConcertObjectReplicationMap& GetServerState() const = 0;
 
 		/** @return What the local instance thinks the client's replication frequencies are. */
 		virtual const FConcertStreamFrequencySettings& GetFrequencySettings() const = 0;

@@ -52,7 +52,7 @@ namespace UE::ConcertSyncClient::Replication
 	}
 
 	IConcertClientReplicationManager::EStreamEnumerationResult FReplicationManager::ForEachRegisteredStream(
-		TFunctionRef<EBreakBehavior(const FReplicationStreamDescription& Stream)> Callback
+		TFunctionRef<EBreakBehavior(const FConcertReplicationStream& Stream)> Callback
 		) const
 	{
 		return ensureMsgf(CurrentState, TEXT("StartAcceptingJoinRequests should have been called at this point."))

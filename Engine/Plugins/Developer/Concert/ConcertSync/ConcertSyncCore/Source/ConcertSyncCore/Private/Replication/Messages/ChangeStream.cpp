@@ -4,7 +4,7 @@
 
 #include "Misc/OutputDevice.h"
 
-TOptional<FConcertReplication_ChangeStream_PutObject> FConcertReplication_ChangeStream_PutObject::MakeFromInfo(const FReplicatedObjectInfo& New)
+TOptional<FConcertReplication_ChangeStream_PutObject> FConcertReplication_ChangeStream_PutObject::MakeFromInfo(const FConcertReplicatedObjectInfo& New)
 {
 	if (!New.IsValidForSendingToServer())
 	{
@@ -13,7 +13,7 @@ TOptional<FConcertReplication_ChangeStream_PutObject> FConcertReplication_Change
 	return FConcertReplication_ChangeStream_PutObject{ New.PropertySelection, New.ClassPath };
 }
 
-TOptional<FConcertReplication_ChangeStream_PutObject> FConcertReplication_ChangeStream_PutObject::MakeFromChange(const FReplicatedObjectInfo& Base, const FReplicatedObjectInfo& Desired)
+TOptional<FConcertReplication_ChangeStream_PutObject> FConcertReplication_ChangeStream_PutObject::MakeFromChange(const FConcertReplicatedObjectInfo& Base, const FConcertReplicatedObjectInfo& Desired)
 {
 	if (Base.IsValidForSendingToServer() && Desired.IsValidForSendingToServer())
 	{
@@ -24,23 +24,23 @@ TOptional<FConcertReplication_ChangeStream_PutObject> FConcertReplication_Change
 	return {};
 }
 
-TOptional<FReplicatedObjectInfo> FConcertReplication_ChangeStream_PutObject::MakeObjectInfoIfValid() const
+TOptional<FConcertReplicatedObjectInfo> FConcertReplication_ChangeStream_PutObject::MakeObjectInfoIfValid() const
 {
 	if (Properties.ReplicatedProperties.IsEmpty() || ClassPath.IsNull())
 	{
 		return {};
 	}
-	return FReplicatedObjectInfo{ ClassPath, Properties };
+	return FConcertReplicatedObjectInfo{ ClassPath, Properties };
 }
 
 void FConcertReplication_ChangeStream_Response::LogErrors(FOutputDevice& OutputDevice) const
 {
-	for (const TPair<FObjectInStreamID, FReplicatedObjectId>& Conflict : AuthorityConflicts)
+	for (const TPair<FConcertObjectInStreamID, FConcertReplicatedObjectId>& Conflict : AuthorityConflicts)
 	{
 		OutputDevice.Logf(TEXT("Authority: { %s } conflicts with { %s }"), *Conflict.Key.ToString(), *Conflict.Value.ToString());
 	}
 
-	for (const TPair<FObjectInStreamID, EConcertPutObjectErrorCode>& Error : ObjectsToPutSemanticErrors)
+	for (const TPair<FConcertObjectInStreamID, EConcertPutObjectErrorCode>& Error : ObjectsToPutSemanticErrors)
 	{
 		const FString ErrorCodeAsString = [&Error]()
 		{

@@ -69,7 +69,7 @@ namespace UE::MultiUserClient
 		EMultiUserReplicationConnectionState GetConnectionState() const { return ConnectionState; }
 
 		//~ Begin IMultiUserReplication Interface
-		virtual const FObjectReplicationMap* FindReplicationMapForClient(const FGuid& ClientId) const override;
+		virtual const FConcertObjectReplicationMap* FindReplicationMapForClient(const FGuid& ClientId) const override;
 		virtual bool IsReplicatingObject(const FGuid& ClientId, const FSoftObjectPath& ObjectPath) const override;
 		virtual void RegisterReplicationDiscoverer(TSharedRef<IReplicationDiscoverer> Discoverer) override;
 		virtual void RemoveReplicationDiscoverer(const TSharedRef<IReplicationDiscoverer>& Discoverer) override;

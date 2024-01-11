@@ -6,13 +6,13 @@
 #include "Replication/Editor/Model/IEditableReplicationStreamModel.h"
 #include "UObject/GCObject.h"
 
-struct FObjectReplicationMap;
+struct FConcertObjectReplicationMap;
 
 namespace UE::ConcertSharedSlate
 {
 	class IStreamExtender;
 
-	/** Special case of FGenericPropertySelectionModel where the edited FObjectReplicationMap lives in an UObject that is RF_Transactional. */
+	/** Special case of FGenericPropertySelectionModel where the edited FConcertObjectReplicationMap lives in an UObject that is RF_Transactional. */
 	class FTransactionalReplicationStreamModel
 		: public IEditableReplicationStreamModel
 		, public FSelfRegisteringEditorUndoClient

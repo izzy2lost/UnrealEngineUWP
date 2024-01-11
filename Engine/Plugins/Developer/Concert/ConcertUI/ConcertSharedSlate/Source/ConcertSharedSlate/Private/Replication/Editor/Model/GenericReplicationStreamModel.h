@@ -7,20 +7,20 @@
 #include "UObject/WeakObjectPtrTemplates.h"
 
 struct FConcertStreamObjectAutoBindingRules;
-struct FObjectReplicationMap;
+struct FConcertObjectReplicationMap;
 
 namespace UE::ConcertSharedSlate
 {
 	class IStreamExtender;
 
-	/** Implements logic for editing a FObjectReplicationMap contained in an UObject. */
+	/** Implements logic for editing a FConcertObjectReplicationMap contained in an UObject. */
 	class FGenericReplicationStreamModel
 		: public IEditableReplicationStreamModel
 	{
 	public:
 		
 		FGenericReplicationStreamModel(
-			TAttribute<FObjectReplicationMap*> InReplicationMapAttribute,
+			TAttribute<FConcertObjectReplicationMap*> InReplicationMapAttribute,
 			TSharedPtr<IStreamExtender> InExtender = nullptr
 			);
 		
@@ -44,7 +44,7 @@ namespace UE::ConcertSharedSlate
 	private:
 
 		/** Returns the replication map that is supposed to be edited. */
-		TAttribute<FObjectReplicationMap*> ReplicationMapAttribute;
+		TAttribute<FConcertObjectReplicationMap*> ReplicationMapAttribute;
 
 		/** Adds properties and objects when an object is added. Can be null. */
 		TSharedPtr<IStreamExtender> Extender;
@@ -53,7 +53,7 @@ namespace UE::ConcertSharedSlate
 		FOnPropertiesChanged OnPropertiesChangedDelegate;
 
 		/** Applies Extender to AddedObject whilst adding any additionally added UObjects to ObjectsAddedSoFar and avoiding adding objects already added to ObjectsAddedSoFar. */
-		void ExtendObjects(FObjectReplicationMap& ReplicationMap, UObject& AddedObject, TArray<UObject*>& ObjectsAddedSoFar);
+		void ExtendObjects(FConcertObjectReplicationMap& ReplicationMap, UObject& AddedObject, TArray<UObject*>& ObjectsAddedSoFar);
 	};
 }
 

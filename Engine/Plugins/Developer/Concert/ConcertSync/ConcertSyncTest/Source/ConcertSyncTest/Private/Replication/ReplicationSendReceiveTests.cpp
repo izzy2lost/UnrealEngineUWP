@@ -2,7 +2,7 @@
 
 #include "Util/SendReceiveObjectTestBase.h"
 
-#include "Replication/Data/ReplicationStreamDescription.h"
+#include "Replication/Data/ReplicationStream.h"
 #include "Replication/IConcertClientReplicationManager.h"
 #include "Replication/IConcertServerReplicationManager.h"
 #include "Replication/Messages/ObjectReplication.h"
@@ -76,7 +76,7 @@ namespace UE::ConcertSyncTests::Replication::SendReceiveFlow
 		VectorOnlySelection.ReplicatedProperties.Add(*VectorPropertyChain);
 		
 		FConcertReplication_ChangeStream_Request Request;
-		Request.ObjectsToPut.Add(FObjectInStreamID{ Test.SenderStreamId, Test.TestObject }, FConcertReplication_ChangeStream_PutObject{ VectorOnlySelection });
+		Request.ObjectsToPut.Add(FConcertObjectInStreamID{ Test.SenderStreamId, Test.TestObject }, FConcertReplication_ChangeStream_PutObject{ VectorOnlySelection });
 		bool bReceivedChangeStreamResponse = false;
 		Test.ClientReplicationManager_Sender->ChangeStream(Request)
 			.Next([&Test, &bReceivedChangeStreamResponse](FConcertReplication_ChangeStream_Response&& Response)
@@ -118,18 +118,18 @@ namespace UE::ConcertSyncTests::Replication::SendReceiveFlow
 			ConcertSyncClient::Replication::FJoinReplicatedSessionArgs SenderJoinArgs;
 			const UClass& TestClass = *TestObject->GetClass();
 
-			FReplicatedObjectInfo FloatProperties {&TestClass};
+			FConcertReplicatedObjectInfo FloatProperties {&TestClass};
 			FloatProperties.PropertySelection.ReplicatedProperties.Add(*FConcertPropertyChain::CreateFromPath(TestClass, { GET_MEMBER_NAME_CHECKED(UTestReflectionObject, Float) }));
-			FReplicatedObjectInfo VectorProperties { &TestClass };
+			FConcertReplicatedObjectInfo VectorProperties { &TestClass };
 			VectorProperties.PropertySelection.ReplicatedProperties.Add(*FConcertPropertyChain::CreateFromPath(TestClass, { GET_MEMBER_NAME_CHECKED(UTestReflectionObject, Vector) }));
 
-			FReplicationStreamDescription FloatStream;
+			FConcertReplicationStream FloatStream;
 			FloatStream.BaseDescription.Identifier = FloatStreamId;
 			FloatStream.BaseDescription.ReplicationMap.ReplicatedObjects.Add(TestObject, FloatProperties);
 			// Use realtime replication, otherwise we'll have to pass time for the frequency system
 			FloatStream.BaseDescription.FrequencySettings.Defaults.ReplicationMode = EConcertObjectReplicationMode::Realtime;
 			
-			FReplicationStreamDescription VectorStream;
+			FConcertReplicationStream VectorStream;
 			VectorStream.BaseDescription.Identifier = VectorStreamId;
 			VectorStream.BaseDescription.ReplicationMap.ReplicatedObjects.Add(TestObject, VectorProperties);
 			// Use realtime replication, otherwise we'll have to pass time for the frequency system

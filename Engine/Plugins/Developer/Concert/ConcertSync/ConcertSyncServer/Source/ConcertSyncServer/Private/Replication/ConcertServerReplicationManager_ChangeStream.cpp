@@ -14,9 +14,9 @@ namespace UE::ConcertSyncServer::Replication
 {
 	namespace Private
 	{
-		static const FReplicationStreamDescription* FindExistingStream(const FConcertReplicationClient& Client, const FGuid& StreamId)
+		static const FConcertReplicationStream* FindExistingStream(const FConcertReplicationClient& Client, const FGuid& StreamId)
 		{
-			return Client.GetStreamDescriptions().FindByPredicate([&StreamId](const FReplicationStreamDescription& Description)
+			return Client.GetStreamDescriptions().FindByPredicate([&StreamId](const FConcertReplicationStream& Description)
 			{
 				return Description.BaseDescription.Identifier == StreamId;
 			});
@@ -25,7 +25,7 @@ namespace UE::ConcertSyncServer::Replication
 		/** Validates that ObjectsToPut writes only to pre-existing streams. */
 		static void ValidatePutObjectsRequestSemantics(const FConcertReplication_ChangeStream_Request& Request, const FConcertReplicationClient& Client, FConcertReplication_ChangeStream_Response& OutResponse)
 		{
-			const auto PutObjectHasEnoughData = [](const FReplicationStreamDescription* ExistingStream, const FSoftObjectPath& ChangedObjectPath, const FConcertReplication_ChangeStream_PutObject& PutObject)
+			const auto PutObjectHasEnoughData = [](const FConcertReplicationStream* ExistingStream, const FSoftObjectPath& ChangedObjectPath, const FConcertReplication_ChangeStream_PutObject& PutObject)
 			{
 				const bool bHasProperties = !PutObject.Properties.ReplicatedProperties.IsEmpty();
 				const bool bHasClassPath = !PutObject.ClassPath.IsNull();
@@ -36,16 +36,16 @@ namespace UE::ConcertSyncServer::Replication
 				return bHasEnoughData;
 			};
 			
-			for (const TPair<FObjectInStreamID, FConcertReplication_ChangeStream_PutObject>& Change : Request.ObjectsToPut)
+			for (const TPair<FConcertObjectInStreamID, FConcertReplication_ChangeStream_PutObject>& Change : Request.ObjectsToPut)
 			{
-				const FObjectInStreamID ChangedObject = Change.Key;
+				const FConcertObjectInStreamID ChangedObject = Change.Key;
 				
 				const FGuid& StreamToModify = ChangedObject.StreamId;
-				const FReplicationStreamDescription* ExistingStream = FindExistingStream(Client, StreamToModify);
+				const FConcertReplicationStream* ExistingStream = FindExistingStream(Client, StreamToModify);
 				const bool bStreamExists = ExistingStream != nullptr;
 				if (bStreamExists)
 				{
-					// FReplicatedObjectInfo must have non-empty values for its members. Hence we must check that
+					// FConcertReplicatedObjectInfo must have non-empty values for its members. Hence we must check that
 					// 1. if creating a new entry, both fields are given
 					// 2. if writing to pre-existing entry, at least one field is given
 					const FConcertReplication_ChangeStream_PutObject& PutObject = Change.Value; 
@@ -67,7 +67,7 @@ namespace UE::ConcertSyncServer::Replication
 		static void ValidateAddedStreamsAreUnique(const FConcertReplication_ChangeStream_Request& Request, const FConcertReplicationClient& Client, FConcertReplication_ChangeStream_Response& OutResponse)
 		{
 			TSet<FGuid> DuplicateEntryDetection;
-			for (const FReplicationStreamDescription& NewStream : Request.StreamsToAdd)
+			for (const FConcertReplicationStream& NewStream : Request.StreamsToAdd)
 			{
 				// StreamsToAdd is invalid if there is already a stream with the same ID registered ...
 				const FGuid& NewStreamId = NewStream.BaseDescription.Identifier;
@@ -89,10 +89,10 @@ namespace UE::ConcertSyncServer::Replication
 		static void LookForAuthorityConflicts(const FConcertReplication_ChangeStream_Request& Request, const FConcertReplicationClient& Client, const FAuthorityManager& AuthorityManager, FConcertReplication_ChangeStream_Response& OutResponse)
 		{
 			const FGuid ClientEndpointId = Client.GetClientEndpointId();
-			for (const TPair<FObjectInStreamID, FConcertReplication_ChangeStream_PutObject>& PutObjectPair : Request.ObjectsToPut)
+			for (const TPair<FConcertObjectInStreamID, FConcertReplication_ChangeStream_PutObject>& PutObjectPair : Request.ObjectsToPut)
 			{
 				// No conflict possible if requesting client does not have authority over the changed object
-				const FReplicatedObjectId ReplicatedObjectInfo { { PutObjectPair.Key }, ClientEndpointId };
+				const FConcertReplicatedObjectId ReplicatedObjectInfo { { PutObjectPair.Key }, ClientEndpointId };
 				if (!AuthorityManager.HasAuthorityToChange(ReplicatedObjectInfo))
 				{
 					continue;
@@ -110,7 +110,7 @@ namespace UE::ConcertSyncServer::Replication
 				AuthorityManager.EnumerateAuthorityConflicts(ReplicatedObjectInfo, &PropertySelection,
 					[&OutResponse, &ReplicatedObjectInfo](const FGuid& ClientId, const FGuid& StreamId, const FConcertPropertyChain& Property)
 					{
-						const FReplicatedObjectId ConflictingObject = { { StreamId, ReplicatedObjectInfo.Object }, ClientId };
+						const FConcertReplicatedObjectId ConflictingObject = { { StreamId, ReplicatedObjectInfo.Object }, ClientId };
 						OutResponse.AuthorityConflicts.Add(ReplicatedObjectInfo, ConflictingObject);
 						
 						UE_LOG(LogConcert, Log, TEXT("Authority conflict with client %s for stream %s for property %s"), *ClientId.ToString(EGuidFormats::Short), *StreamId.ToString(EGuidFormats::Short), *Property.ToString());
@@ -151,7 +151,7 @@ namespace UE::ConcertSyncServer::Replication
 		{
 			// If the client had authority over any objects that were removed by this request, authority must be cleaned up
 			ConcertSyncCore::Replication::ChangeStreamUtils::ForEachObjectLosingAuthority(Request, SendingClient->Get()->GetStreamDescriptions(),
-				[this, &SendingClientId](const FObjectInStreamID& RemovedObject)
+				[this, &SendingClientId](const FConcertObjectInStreamID& RemovedObject)
 				{
 					AuthorityManager->RemoveAuthority({ RemovedObject, SendingClientId});
 					return EBreakBehavior::Continue;

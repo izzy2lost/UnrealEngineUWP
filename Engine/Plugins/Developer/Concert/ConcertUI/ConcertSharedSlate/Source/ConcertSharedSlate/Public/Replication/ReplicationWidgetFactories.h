@@ -14,7 +14,7 @@ class UObject;
 class SWidget;
 
 struct FConcertStreamObjectAutoBindingRules;
-struct FObjectReplicationMap;
+struct FConcertObjectReplicationMap;
 
 namespace UE::ConcertSharedSlate
 {
@@ -34,13 +34,13 @@ namespace UE::ConcertSharedSlate
 	/**
 	 * Creates a model that can be passed to CreateEditor.
 	 * 
-	 * @param ReplicationMapAttribute Getter for extracting the FObjectReplicationMap to edit
+	 * @param ReplicationMapAttribute Getter for extracting the FConcertObjectReplicationMap to edit
 	 * @param Extender Optional callbacks for adding additional properties and objects when an object is added to the model
 	 * 
-	 * @return A model that will edit the FObjectReplicationMap.
+	 * @return A model that will edit the FConcertObjectReplicationMap.
 	 */
 	CONCERTSHAREDSLATE_API TSharedRef<IEditableReplicationStreamModel> CreateBaseStreamModel(
-		TAttribute<FObjectReplicationMap*> ReplicationMapAttribute,
+		TAttribute<FConcertObjectReplicationMap*> ReplicationMapAttribute,
 		TSharedPtr<IStreamExtender> Extender = nullptr
 		);
 	

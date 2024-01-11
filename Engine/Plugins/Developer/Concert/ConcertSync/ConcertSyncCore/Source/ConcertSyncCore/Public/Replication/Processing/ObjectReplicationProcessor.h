@@ -9,7 +9,7 @@
 #include "UObject/SoftObjectPath.h"
 
 struct FConcertObjectReplicationSettings;
-struct FObjectInStreamID;
+struct FConcertObjectInStreamID;
 
 namespace UE::ConcertSyncCore
 {
@@ -68,7 +68,7 @@ namespace UE::ConcertSyncCore
 		struct FObjectProcessArgs
 		{
 			/** Info about the object to process */
-			FReplicatedObjectId ObjectInfo;
+			FConcertReplicatedObjectId ObjectInfo;
 		};
 
 		FORCEINLINE IReplicationDataSource& GetDataSource() const { return DataSource.Get(); }

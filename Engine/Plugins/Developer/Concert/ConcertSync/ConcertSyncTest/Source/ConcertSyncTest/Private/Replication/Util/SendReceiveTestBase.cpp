@@ -31,14 +31,14 @@ namespace UE::ConcertSyncTests::Replication
 	{
 		ConcertSyncClient::Replication::FJoinReplicatedSessionArgs SenderJoinArgs;
 		
-		FReplicatedObjectInfo ReplicatedObjectInfo { Object.GetClass() };
+		FConcertReplicatedObjectInfo ReplicatedObjectInfo { Object.GetClass() };
 		ConcertSyncCore::PropertyChain::ForEachReplicatableConcertProperty(*Object.GetClass(), [&ReplicatedObjectInfo](FConcertPropertyChain&& Chain)
 		{
 			ReplicatedObjectInfo.PropertySelection.ReplicatedProperties.Emplace(MoveTemp(Chain));
 			return EBreakBehavior::Continue;
 		});
 
-		FReplicationStreamDescription SendingStream;
+		FConcertReplicationStream SendingStream;
 		SendingStream.BaseDescription.Identifier = SenderStreamId;
 		SendingStream.BaseDescription.ReplicationMap.ReplicatedObjects.Add(&Object, ReplicatedObjectInfo);
 		SendingStream.BaseDescription.FrequencySettings.Defaults = { ReplicationMode, ReplicationRate };

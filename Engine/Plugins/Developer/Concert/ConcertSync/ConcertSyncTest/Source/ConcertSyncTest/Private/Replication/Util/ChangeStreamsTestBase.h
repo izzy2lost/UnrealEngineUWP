@@ -2,7 +2,7 @@
 
 #pragma once
 
-#include "Replication/Data/ReplicationStreamDescription.h"
+#include "Replication/Data/ReplicationStream.h"
 #include "Replication/IConcertClientReplicationManager.h"
 #include "Replication/Messages/ChangeStream.h"
 #include "SendReceiveGenericStreamTestBase.h"
@@ -52,18 +52,18 @@ namespace UE::ConcertSyncTests::Replication
 		virtual ConcertSyncClient::Replication::FJoinReplicatedSessionArgs CreateReceiverArgs() override { return ReceiverArgs; }
 		//~ End FSendReceiveTestBase Interface
 
-		static void AddFloatProperties(const UTestReflectionObject& TestObject, FReplicationStreamDescription& Stream);
+		static void AddFloatProperties(const UTestReflectionObject& TestObject, FConcertReplicationStream& Stream);
 		
-		static TTuple<FGuid, FReplicationStreamDescription> CreateFloatPropertyStream(
+		static TTuple<FGuid, FConcertReplicationStream> CreateFloatPropertyStream(
 			const UTestReflectionObject& TestObject,
 			FConcertObjectReplicationSettings DefaultFrequencySettings = { EConcertObjectReplicationMode::Realtime }
 			);
-		static TTuple<FGuid, FReplicationStreamDescription> CreateVectorPropertyStream(
+		static TTuple<FGuid, FConcertReplicationStream> CreateVectorPropertyStream(
 			const UTestReflectionObject& TestObject,
 			FConcertObjectReplicationSettings DefaultFrequencySettings = { EConcertObjectReplicationMode::Realtime }
 			);
 		
-		static FConcertPropertySelection& GetPropertySelection(FReplicationStreamDescription& Stream, const UTestReflectionObject& TestObject);
+		static FConcertPropertySelection& GetPropertySelection(FConcertReplicationStream& Stream, const UTestReflectionObject& TestObject);
 
 		static void AddFloatProperty(FConcertPropertySelection& PropertySelection);
 		static void AddVectorProperty(FConcertPropertySelection& PropertySelection);
@@ -72,9 +72,9 @@ namespace UE::ConcertSyncTests::Replication
 		TFuture<FConcertReplication_ChangeStream_Response> ChangeStreamForSenderClientAndValidate(
 			const FString& InTestName,
 			const FConcertReplication_ChangeStream_Request& Request,
-			const TArray<FSharedReplicationStreamDescription>& ExpectedStreams,
+			const TArray<FConcertBaseStreamInfo>& ExpectedStreams,
 			EChangeStreamValidation ValidationFlags = EChangeStreamValidation::TestWasHandled | EChangeStreamValidation::TestResponseSuccess
 			);
-		void ValidateSenderClientStreams(const FString& InTestName, const TArray<FSharedReplicationStreamDescription>& ExpectedStreams);
+		void ValidateSenderClientStreams(const FString& InTestName, const TArray<FConcertBaseStreamInfo>& ExpectedStreams);
 	};
 }

@@ -11,18 +11,18 @@ namespace UE::ConcertSyncCore::Replication::ChangeStreamUtils
 {
 	void ForEachObjectLosingAuthority(
 		const FConcertReplication_ChangeStream_Request& Request,
-		const TArray<FReplicationStreamDescription>& ExistingStreams,
-		TFunctionRef<EBreakBehavior(const FObjectInStreamID&)> Callback
+		const TArray<FConcertReplicationStream>& ExistingStreams,
+		TFunctionRef<EBreakBehavior(const FConcertObjectInStreamID&)> Callback
 		)
 	{
-		for (const FReplicationStreamDescription& ExistingStream : ExistingStreams)
+		for (const FConcertReplicationStream& ExistingStream : ExistingStreams)
 		{
 			const FGuid& StreamId = ExistingStream.BaseDescription.Identifier;
 			if (Request.StreamsToRemove.Contains(StreamId))
 			{
-				for (const TPair<FSoftObjectPath, FReplicatedObjectInfo>& RemovePair : ExistingStream.BaseDescription.ReplicationMap.ReplicatedObjects)
+				for (const TPair<FSoftObjectPath, FConcertReplicatedObjectInfo>& RemovePair : ExistingStream.BaseDescription.ReplicationMap.ReplicatedObjects)
 				{
-					const FObjectInStreamID RemovedObjectId {  StreamId, RemovePair.Key };
+					const FConcertObjectInStreamID RemovedObjectId {  StreamId, RemovePair.Key };
 					if (Callback(RemovedObjectId) == EBreakBehavior::Break)
 					{
 						return;
@@ -33,7 +33,7 @@ namespace UE::ConcertSyncCore::Replication::ChangeStreamUtils
 
 		// This will call Callback multiple times if the same object is in ObjectsToRemove and StreamsToRemove
 		// but that does not really matter (it is a weird case anyhow - why would anyone construct such a request?)
-		for (const FObjectInStreamID& ObjectToRemove : Request.ObjectsToRemove)
+		for (const FConcertObjectInStreamID& ObjectToRemove : Request.ObjectsToRemove)
 		{
 			if (Callback(ObjectToRemove) == EBreakBehavior::Break)
 			{
@@ -42,16 +42,16 @@ namespace UE::ConcertSyncCore::Replication::ChangeStreamUtils
 		}
 	}
 	
-	void ApplyValidatedRequest(const FConcertReplication_ChangeStream_Request& Request, TArray<FReplicationStreamDescription>& StreamsToModify)
+	void ApplyValidatedRequest(const FConcertReplication_ChangeStream_Request& Request, TArray<FConcertReplicationStream>& StreamsToModify)
 	{
 		for (auto StreamIt = StreamsToModify.CreateIterator(); StreamIt; ++StreamIt)
 		{
-			FSharedReplicationStreamDescription& BaseDescription = StreamIt->BaseDescription;
-			TMap<FSoftObjectPath, FReplicatedObjectInfo>& ReplicationMap = BaseDescription.ReplicationMap.ReplicatedObjects;
+			FConcertBaseStreamInfo& BaseDescription = StreamIt->BaseDescription;
+			TMap<FSoftObjectPath, FConcertReplicatedObjectInfo>& ReplicationMap = BaseDescription.ReplicationMap.ReplicatedObjects;
 			FConcertStreamFrequencySettings& FrequencySettings = BaseDescription.FrequencySettings;
 			const FGuid& StreamId = BaseDescription.Identifier;
 			
-			for (const FObjectInStreamID& ObjectToRemove : Request.ObjectsToRemove)
+			for (const FConcertObjectInStreamID& ObjectToRemove : Request.ObjectsToRemove)
 			{
 				if (ObjectToRemove.StreamId == StreamId)
 				{
@@ -72,7 +72,7 @@ namespace UE::ConcertSyncCore::Replication::ChangeStreamUtils
 				StreamIt.RemoveCurrent();
 			}
 			
-			for (const TPair<FObjectInStreamID, FConcertReplication_ChangeStream_PutObject>& PutObjectPair : Request.ObjectsToPut)
+			for (const TPair<FConcertObjectInStreamID, FConcertReplication_ChangeStream_PutObject>& PutObjectPair : Request.ObjectsToPut)
 			{
 				if (PutObjectPair.Key.StreamId != StreamId)
 				{
@@ -81,7 +81,7 @@ namespace UE::ConcertSyncCore::Replication::ChangeStreamUtils
 
 				const FSoftClassPath& PathToSet = PutObjectPair.Value.ClassPath;
 				const FConcertPropertySelection& SelectionToSet = PutObjectPair.Value.Properties;
-				FReplicatedObjectInfo& ObjectInfo = ReplicationMap.FindOrAdd(PutObjectPair.Key.Object);
+				FConcertReplicatedObjectInfo& ObjectInfo = ReplicationMap.FindOrAdd(PutObjectPair.Key.Object);
 
 				// Write ClassPath if FindOrAdd just added it or if request specified a value to overwrite with ...
 				if (!ObjectInfo.ClassPath.IsValid() || PathToSet.IsValid())
@@ -101,7 +101,7 @@ namespace UE::ConcertSyncCore::Replication::ChangeStreamUtils
 			}
 		}
 
-		for (const FReplicationStreamDescription& StreamDescription : Request.StreamsToAdd)
+		for (const FConcertReplicationStream& StreamDescription : Request.StreamsToAdd)
 		{
 			StreamsToModify.Add(StreamDescription);
 		}
@@ -148,9 +148,9 @@ namespace UE::ConcertSyncCore::Replication::ChangeStreamUtils
 			}
 		}
 
-		static bool HasOrIsAddingProperties(const FConcertReplication_ChangeStream_Request& Request, const FSharedReplicationStreamDescription& Stream, const FSoftObjectPath& ObjectPath)
+		static bool HasOrIsAddingProperties(const FConcertReplication_ChangeStream_Request& Request, const FConcertBaseStreamInfo& Stream, const FSoftObjectPath& ObjectPath)
 		{
-			const FObjectReplicationMap& ReplicationMap = Stream.ReplicationMap;
+			const FConcertObjectReplicationMap& ReplicationMap = Stream.ReplicationMap;
 			return ReplicationMap.HasProperties(ObjectPath)
 				// It might be that ObjectsToPut is invalid.
 				// We do not need to check that here because the underlying FConcertReplication_ChangeStream_Request will be checked separately and would fail then anyways.
@@ -160,7 +160,7 @@ namespace UE::ConcertSyncCore::Replication::ChangeStreamUtils
 		static bool ValidateAddedFrequencies(
 			const FConcertReplication_ChangeStream_Request& FullRequest,
 			const TMap<FSoftObjectPath, FConcertObjectReplicationSettings>& Added,
-			const FSharedReplicationStreamDescription& Stream,
+			const FConcertBaseStreamInfo& Stream,
 			FConcertReplication_ChangeStream_FrequencyResponse* OptionalErrors = nullptr)
 		{
 			bool bAnyError = false;
@@ -183,7 +183,7 @@ namespace UE::ConcertSyncCore::Replication::ChangeStreamUtils
 
 	bool ValidateFrequencyChanges(
 		const FConcertReplication_ChangeStream_Request& Request,
-		const TArray<FReplicationStreamDescription>& Streams,
+		const TArray<FConcertReplicationStream>& Streams,
 		FConcertReplication_ChangeStream_FrequencyResponse* OptionalErrors
 		)
 	{
@@ -196,7 +196,7 @@ namespace UE::ConcertSyncCore::Replication::ChangeStreamUtils
 			const FConcertReplication_ChangeStream_Frequency& SubRequest = SubRequestPair.Value;
 			
 			const bool bIsModifyingDefaults = EnumHasAnyFlags(SubRequest.Flags, EConcertReplicationChangeFrequencyFlags::SetDefaults);
-			const FReplicationStreamDescription* StreamDescription = Streams.FindByPredicate([&TargetStreamId](const FReplicationStreamDescription& Description)
+			const FConcertReplicationStream* StreamDescription = Streams.FindByPredicate([&TargetStreamId](const FConcertReplicationStream& Description)
 			{
 				return Description.BaseDescription.Identifier == TargetStreamId;
 			});
@@ -230,11 +230,11 @@ namespace UE::ConcertSyncCore::Replication::ChangeStreamUtils
 #undef ADD_ERROR
 	
 	void IterateInvalidEntries(
-		const FObjectReplicationMap& ReplicationMap,
-		TFunctionRef<EBreakBehavior(const FSoftObjectPath&, const FReplicatedObjectInfo&)> Callback
+		const FConcertObjectReplicationMap& ReplicationMap,
+		TFunctionRef<EBreakBehavior(const FSoftObjectPath&, const FConcertReplicatedObjectInfo&)> Callback
 		)
 	{
-		for (const TPair<const FSoftObjectPath&, const FReplicatedObjectInfo&> Pair : ReplicationMap.ReplicatedObjects)
+		for (const TPair<const FSoftObjectPath&, const FConcertReplicatedObjectInfo&> Pair : ReplicationMap.ReplicatedObjects)
 		{
 			if (!Pair.Value.IsValidForSendingToServer() && Callback(Pair.Key, Pair.Value) == EBreakBehavior::Break)
 			{
@@ -245,16 +245,16 @@ namespace UE::ConcertSyncCore::Replication::ChangeStreamUtils
 
 	namespace Private
 	{
-		static void BuildPutObjectList(const FGuid& StreamId, const FObjectReplicationMap& Base, const FObjectReplicationMap& Desired, FConcertReplication_ChangeStream_Request& Request)
+		static void BuildPutObjectList(const FGuid& StreamId, const FConcertObjectReplicationMap& Base, const FConcertObjectReplicationMap& Desired, FConcertReplication_ChangeStream_Request& Request)
 		{
-			for (const TPair<FSoftObjectPath, FReplicatedObjectInfo>& BasePair : Base.ReplicatedObjects)
+			for (const TPair<FSoftObjectPath, FConcertReplicatedObjectInfo>& BasePair : Base.ReplicatedObjects)
 			{
 				const FSoftObjectPath& ObjectPath = BasePair.Key;
-				const FObjectInStreamID ObjectId { StreamId, ObjectPath };
-				const FReplicatedObjectInfo* DesiredObjectInfo = Desired.ReplicatedObjects.Find(ObjectPath);
+				const FConcertObjectInStreamID ObjectId { StreamId, ObjectPath };
+				const FConcertReplicatedObjectInfo* DesiredObjectInfo = Desired.ReplicatedObjects.Find(ObjectPath);
 				if (DesiredObjectInfo)
 				{
-					const FReplicatedObjectInfo& BaseObjectInfo = BasePair.Value;
+					const FConcertReplicatedObjectInfo& BaseObjectInfo = BasePair.Value;
 					const TOptional<FConcertReplication_ChangeStream_PutObject> PutObject = FConcertReplication_ChangeStream_PutObject::MakeFromChange(BaseObjectInfo, *DesiredObjectInfo);
 				
 					const bool bDesiredHasChangedFromBase = BaseObjectInfo != *DesiredObjectInfo;
@@ -272,9 +272,9 @@ namespace UE::ConcertSyncCore::Replication::ChangeStreamUtils
 			}
 		}
 
-		static void BuildRemoveObjectList(const FGuid& StreamId, const FObjectReplicationMap& Base, const FObjectReplicationMap& Desired, FConcertReplication_ChangeStream_Request& Request)
+		static void BuildRemoveObjectList(const FGuid& StreamId, const FConcertObjectReplicationMap& Base, const FConcertObjectReplicationMap& Desired, FConcertReplication_ChangeStream_Request& Request)
 		{
-			for (const TPair<FSoftObjectPath, FReplicatedObjectInfo>& DesiredPair : Desired.ReplicatedObjects)
+			for (const TPair<FSoftObjectPath, FConcertReplicatedObjectInfo>& DesiredPair : Desired.ReplicatedObjects)
 			{
 				const FSoftObjectPath& ObjectPath = DesiredPair.Key;
 				if (Base.ReplicatedObjects.Contains(ObjectPath))
@@ -284,7 +284,7 @@ namespace UE::ConcertSyncCore::Replication::ChangeStreamUtils
 				}
 
 				// Desired wants to add an object
-				const FReplicatedObjectInfo& ObjectInfo = DesiredPair.Value;
+				const FConcertReplicatedObjectInfo& ObjectInfo = DesiredPair.Value;
 				const TOptional<FConcertReplication_ChangeStream_PutObject> PutObject = FConcertReplication_ChangeStream_PutObject::MakeFromInfo(ObjectInfo);
 				const bool bDesiredStateHasEnoughDataToForPut = ensureMsgf(PutObject, TEXT("Function assumption violated; you did not pass in valid base or desired state."));
 				if (bDesiredStateHasEnoughDataToForPut)
@@ -297,8 +297,8 @@ namespace UE::ConcertSyncCore::Replication::ChangeStreamUtils
 
 	FConcertReplication_ChangeStream_Request BuildRequestFromDiff(
 		const FGuid& StreamId,
-		const FObjectReplicationMap& Base,
-		const FObjectReplicationMap& Desired
+		const FConcertObjectReplicationMap& Base,
+		const FConcertObjectReplicationMap& Desired
 		)
 	{
 		FConcertReplication_ChangeStream_Request Request;

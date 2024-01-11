@@ -6,7 +6,7 @@
 #include "UObject/Object.h"
 #include "ReplicationStreamObject.generated.h"
 
-/** UObject wrapper to allow transactions on FObjectReplicationMap. */
+/** UObject wrapper to allow transactions on FConcertObjectReplicationMap. */
 UCLASS()
 class UReplicationStreamObject : public UObject
 {
@@ -14,5 +14,5 @@ class UReplicationStreamObject : public UObject
 public:
 	
 	UPROPERTY()
-	FObjectReplicationMap ReplicationMap;
+	FConcertObjectReplicationMap ReplicationMap;
 };

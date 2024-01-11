@@ -10,10 +10,10 @@
 enum class EBreakBehavior : uint8;
 
 struct FConcertReplication_ChangeStream_Request;
-struct FObjectInStreamID;
-struct FObjectReplicationMap;
-struct FReplicationStreamDescription;
-struct FReplicatedObjectInfo;
+struct FConcertObjectInStreamID;
+struct FConcertObjectReplicationMap;
+struct FConcertReplicationStream;
+struct FConcertReplicatedObjectInfo;
 
 /** This namespace contains the shared logic for applying FConcertChangeStream_Requests. */
 namespace UE::ConcertSyncCore::Replication::ChangeStreamUtils
@@ -27,8 +27,8 @@ namespace UE::ConcertSyncCore::Replication::ChangeStreamUtils
 	 */
 	CONCERTSYNCCORE_API void ForEachObjectLosingAuthority(
 		const FConcertReplication_ChangeStream_Request& Request,
-		const TArray<FReplicationStreamDescription>& ExistingStreams,
-		TFunctionRef<EBreakBehavior(const FObjectInStreamID&)> Callback
+		const TArray<FConcertReplicationStream>& ExistingStreams,
+		TFunctionRef<EBreakBehavior(const FConcertObjectInStreamID&)> Callback
 		);
 	
 	/**
@@ -38,7 +38,7 @@ namespace UE::ConcertSyncCore::Replication::ChangeStreamUtils
 	 */
 	CONCERTSYNCCORE_API void ApplyValidatedRequest(
 		const FConcertReplication_ChangeStream_Request& Request,
-		IN OUT TArray<FReplicationStreamDescription>& StreamsToModify
+		IN OUT TArray<FConcertReplicationStream>& StreamsToModify
 		);
 	
 	/**
@@ -65,12 +65,12 @@ namespace UE::ConcertSyncCore::Replication::ChangeStreamUtils
 	 */
 	CONCERTSYNCCORE_API bool ValidateFrequencyChanges(
 		const FConcertReplication_ChangeStream_Request& Request,
-		const TArray<FReplicationStreamDescription>& Streams,
+		const TArray<FConcertReplicationStream>& Streams,
 		OUT FConcertReplication_ChangeStream_FrequencyResponse* OptionalErrors = nullptr
 		);
 
 	/** Iterates entries with incomplete data, which are entries for which IsValidForSendingToServer returns false. */
-	CONCERTSYNCCORE_API void IterateInvalidEntries(const FObjectReplicationMap& ReplicationMap, TFunctionRef<EBreakBehavior(const FSoftObjectPath&, const FReplicatedObjectInfo&)> Callback);
+	CONCERTSYNCCORE_API void IterateInvalidEntries(const FConcertObjectReplicationMap& ReplicationMap, TFunctionRef<EBreakBehavior(const FSoftObjectPath&, const FConcertReplicatedObjectInfo&)> Callback);
 
 	/**
 	 * Builds PutObject and RemoveObject requests that would transform Base to Desired.
@@ -87,7 +87,7 @@ namespace UE::ConcertSyncCore::Replication::ChangeStreamUtils
 	 */
 	CONCERTSYNCCORE_API FConcertReplication_ChangeStream_Request BuildRequestFromDiff(
 		const FGuid& StreamId,
-		const FObjectReplicationMap& Base,
-		const FObjectReplicationMap& Desired
+		const FConcertObjectReplicationMap& Base,
+		const FConcertObjectReplicationMap& Desired
 		);
 }

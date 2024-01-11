@@ -7,7 +7,7 @@
 #include "Replication/Processing/Proxy/ObjectProcessorProxy_Frequency.h"
 #include "Templates/SharedPointer.h"
 
-struct FReplicationStreamDescription;
+struct FConcertReplicationStream;
 struct FConcertReplication_Join_Request;
 struct FConcertReplication_ChangeStream_Request;
 
@@ -27,7 +27,7 @@ namespace UE::ConcertSyncServer::Replication
 	public:
 
 		FConcertReplicationClient(
-			TArray<FReplicationStreamDescription> StreamDescriptions,
+			TArray<FConcertReplicationStream> StreamDescriptions,
 			const FGuid& ClientEndpointId,
 			TSharedRef<IConcertSession> Session,
 			TSharedRef<ConcertSyncCore::FObjectReplicationCache> ReplicationCache,
@@ -44,12 +44,12 @@ namespace UE::ConcertSyncServer::Replication
 		void ApplyValidatedRequest(const FConcertReplication_ChangeStream_Request& Request);
 
 		const FGuid& GetClientEndpointId() const { return ClientEndpointId; }
-		const TArray<FReplicationStreamDescription>& GetStreamDescriptions() const { return StreamDescriptions; }
+		const TArray<FConcertReplicationStream>& GetStreamDescriptions() const { return StreamDescriptions; }
 
 	private:
 
 		/** The streams this client offered to send. */
-		TArray<FReplicationStreamDescription> StreamDescriptions;
+		TArray<FConcertReplicationStream> StreamDescriptions;
 		
 		/** This client's endpoint ID. */
 		const FGuid ClientEndpointId;

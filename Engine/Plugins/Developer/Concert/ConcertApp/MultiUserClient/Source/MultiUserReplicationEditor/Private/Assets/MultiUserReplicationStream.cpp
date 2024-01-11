@@ -2,7 +2,7 @@
 
 #include "Assets/MultiUserReplicationStream.h"
 
-#include "Replication/Data/ReplicationStreamDescription.h"
+#include "Replication/Data/ReplicationStream.h"
 
 UMultiUserReplicationStream::UMultiUserReplicationStream()
 {
@@ -12,7 +12,7 @@ UMultiUserReplicationStream::UMultiUserReplicationStream()
 		: FGuid::NewGuid();
 }
 
-FReplicationStreamDescription UMultiUserReplicationStream::GenerateDescription() const
+FConcertReplicationStream UMultiUserReplicationStream::GenerateDescription() const
 {
 	return { StreamId, ReplicationMap };
 }

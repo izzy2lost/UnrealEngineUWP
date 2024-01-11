@@ -30,7 +30,7 @@ namespace UE::MultiUserClient
 		DECLARE_DELEGATE(FOnModifyReplicationMap);
 		FStreamChangeTracker(
 			IClientStreamSynchronizer& InStreamSynchronizer,
-			TAttribute<FObjectReplicationMap*> InStreamWithInProgressChangesAttribute,
+			TAttribute<FConcertObjectReplicationMap*> InStreamWithInProgressChangesAttribute,
 			FOnModifyReplicationMap InOnModifyReplicationMapDelegate
 			);
 		~FStreamChangeTracker();
@@ -73,7 +73,7 @@ namespace UE::MultiUserClient
 		 * Represents ConfirmedServerState with changes made to it. These changes have not been sent to the server, yet.
 		 * This is cleared when a change is sent to the server. 
 		 */
-		const TAttribute<FObjectReplicationMap*> StreamWithInProgressChangesAttribute;
+		const TAttribute<FConcertObjectReplicationMap*> StreamWithInProgressChangesAttribute;
 		
 		/**
 		 * The changes that if applied to ConfirmedServerState would result in StreamWithInProgressChangesAttribute.
@@ -86,11 +86,11 @@ namespace UE::MultiUserClient
 
 		FStreamChangelist DiffChanges() const
 		{
-			const FObjectReplicationMap* Map = StreamWithInProgressChangesAttribute.Get();
+			const FConcertObjectReplicationMap* Map = StreamWithInProgressChangesAttribute.Get();
 			return Map ? DiffChanges(StreamSynchronizer.GetStreamId(), StreamSynchronizer.GetServerState(), *Map) : FStreamChangelist{};
 		}
 		/** Builds the changelist to get from Base to Changed. */
-		static FStreamChangelist DiffChanges(const FGuid& StreamId, const FObjectReplicationMap& Base, const FObjectReplicationMap& Changed);
+		static FStreamChangelist DiffChanges(const FGuid& StreamId, const FConcertObjectReplicationMap& Base, const FConcertObjectReplicationMap& Changed);
 	};
 }
 

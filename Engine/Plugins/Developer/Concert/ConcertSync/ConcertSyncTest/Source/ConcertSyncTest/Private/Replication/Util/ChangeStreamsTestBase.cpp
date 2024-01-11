@@ -2,7 +2,7 @@
 
 #include "ChangeStreamsTestBase.h"
 
-#include "Replication/Data/ReplicationStreamDescription.h"
+#include "Replication/Data/ReplicationStream.h"
 #include "Replication/IConcertClientReplicationManager.h"
 #include "Replication/TestReflectionObject.h"
 #include "Replication/Util/SendReceiveGenericStreamTestBase.h"
@@ -17,15 +17,15 @@ namespace UE::ConcertSyncTests::Replication
 			: FSendReceiveGenericTestBase(InName, bInComplexTask)
 	{}
 	
-	void FChangeStreamsTestBase::AddFloatProperties(const UTestReflectionObject& TestObject, FReplicationStreamDescription& Stream)
+	void FChangeStreamsTestBase::AddFloatProperties(const UTestReflectionObject& TestObject, FConcertReplicationStream& Stream)
 	{
 		FConcertPropertySelection Properties;
 		AddFloatProperty(Properties);
-		const FReplicatedObjectInfo AllProperties { TestObject.GetClass(), MoveTemp(Properties) };
+		const FConcertReplicatedObjectInfo AllProperties { TestObject.GetClass(), MoveTemp(Properties) };
 		Stream.BaseDescription.ReplicationMap.ReplicatedObjects.Add(&TestObject, AllProperties);
 	}
 	
-	TTuple<FGuid, FReplicationStreamDescription> FChangeStreamsTestBase::CreateFloatPropertyStream(
+	TTuple<FGuid, FConcertReplicationStream> FChangeStreamsTestBase::CreateFloatPropertyStream(
 		const UTestReflectionObject& TestObject,
 		FConcertObjectReplicationSettings DefaultFrequencySettings
 		)
@@ -33,14 +33,14 @@ namespace UE::ConcertSyncTests::Replication
 		const FGuid NewStreamId = FGuid::NewGuid();
 
 		// Use Realtime replication because otherwise our test will need to pass latent time due to the frequency system
-		FReplicationStreamDescription SendingStream;
+		FConcertReplicationStream SendingStream;
 		SendingStream.BaseDescription.Identifier = NewStreamId;
 		SendingStream.BaseDescription.FrequencySettings.Defaults = DefaultFrequencySettings;
 		AddFloatProperties(TestObject, SendingStream);
 		return { NewStreamId, SendingStream };
 	}
 
-	TTuple<FGuid, FReplicationStreamDescription> FChangeStreamsTestBase::CreateVectorPropertyStream(
+	TTuple<FGuid, FConcertReplicationStream> FChangeStreamsTestBase::CreateVectorPropertyStream(
 		const UTestReflectionObject& TestObject,
 		FConcertObjectReplicationSettings DefaultFrequencySettings
 		)
@@ -50,15 +50,15 @@ namespace UE::ConcertSyncTests::Replication
 		AddVectorProperty(Properties);
 		
 		// Use Realtime replication because otherwise our test will need to pass latent time due to the frequency system
-		const FReplicatedObjectInfo AllProperties { TestObject.GetClass(), MoveTemp(Properties) };
-		FReplicationStreamDescription SendingStream;
+		const FConcertReplicatedObjectInfo AllProperties { TestObject.GetClass(), MoveTemp(Properties) };
+		FConcertReplicationStream SendingStream;
 		SendingStream.BaseDescription.Identifier = NewStreamId;
 		SendingStream.BaseDescription.ReplicationMap.ReplicatedObjects.Add(&TestObject, AllProperties);
 		SendingStream.BaseDescription.FrequencySettings.Defaults = DefaultFrequencySettings;
 		return { NewStreamId, SendingStream };
 	}
 
-	FConcertPropertySelection& FChangeStreamsTestBase::GetPropertySelection(FReplicationStreamDescription& Stream, const UTestReflectionObject& TestObject)
+	FConcertPropertySelection& FChangeStreamsTestBase::GetPropertySelection(FConcertReplicationStream& Stream, const UTestReflectionObject& TestObject)
 	{
 		return Stream.BaseDescription.ReplicationMap.ReplicatedObjects.FindOrAdd(&TestObject).PropertySelection;
 	}
@@ -80,7 +80,7 @@ namespace UE::ConcertSyncTests::Replication
 	TFuture<FConcertReplication_ChangeStream_Response> FChangeStreamsTestBase::ChangeStreamForSenderClientAndValidate(
 		const FString& InTestName,
 		const FConcertReplication_ChangeStream_Request& Request,
-		const TArray<FSharedReplicationStreamDescription>& ExpectedStreams,
+		const TArray<FConcertBaseStreamInfo>& ExpectedStreams,
 		EChangeStreamValidation ValidationFlags
 		)
 	{
@@ -112,7 +112,7 @@ namespace UE::ConcertSyncTests::Replication
 		return MoveTemp(Future);
 	}
 	
-	void FChangeStreamsTestBase::ValidateSenderClientStreams(const FString& InTestName, const TArray<FSharedReplicationStreamDescription>& ExpectedStreams)
+	void FChangeStreamsTestBase::ValidateSenderClientStreams(const FString& InTestName, const TArray<FConcertBaseStreamInfo>& ExpectedStreams)
 	{
 		using namespace ConcertSyncClient::Replication;
 
@@ -124,15 +124,15 @@ namespace UE::ConcertSyncTests::Replication
 			{
 				bQueriedClientInfo = true;
 				TestTrue(TEXT("ErrorCode == Handled"), Response.ErrorCode == EReplicationResponseErrorCode::Handled);
-				const FReplicationClientQueriedInfo* Info = Response.ClientInfo.Find(SenderId);
+				const FConcertQueriedClientInfo* Info = Response.ClientInfo.Find(SenderId);
 				const bool bRegisteredAndQueriedStreamsAreEqual = Info->Streams == ExpectedStreams;
 				TestTrue(FString::Printf(TEXT("%s > Registered and queried streams are equal"), *InTestName), bRegisteredAndQueriedStreamsAreEqual);
 			});
 
 		// Validate the local client's cache equals  Streams
-		const TArray<FReplicationStreamDescription> LocalStreams = ClientReplicationManager_Sender->GetRegisteredStreams();
-		TArray<FSharedReplicationStreamDescription> TransformedLocalStreams;
-		Algo::Transform(LocalStreams, TransformedLocalStreams, [](const FReplicationStreamDescription& Stream){ return Stream.BaseDescription; });
+		const TArray<FConcertReplicationStream> LocalStreams = ClientReplicationManager_Sender->GetRegisteredStreams();
+		TArray<FConcertBaseStreamInfo> TransformedLocalStreams;
+		Algo::Transform(LocalStreams, TransformedLocalStreams, [](const FConcertReplicationStream& Stream){ return Stream.BaseDescription; });
 		TestEqual(FString::Printf(TEXT("%s > Local streams match registered streams"), *InTestName), TransformedLocalStreams, ExpectedStreams);
 	};
 }

@@ -42,7 +42,7 @@ namespace UE::ConcertSyncCore
 		 * @return Whether the object can be processed now
 		 */
 		ECanProcessObject TrackAndCheckObject(
-			const FObjectInStreamID& ObjectPath,
+			const FConcertObjectInStreamID& ObjectPath,
 			const FConcertObjectReplicationSettings& ReplicationSettings,
 			const FPlatformSecondsTimestamp NowAsPlatformSeconds = FPlatformTime::Seconds()
 			);
@@ -54,7 +54,7 @@ namespace UE::ConcertSyncCore
 		 * @param Object The object that was processed
 		 * @param NowAsPlatformSeconds The current time - result of FPlatformTime::Seconds(). Pass this in to avoid excessive time spent on timing.
 		 */
-		void OnProcessObject(const FObjectInStreamID& Object, const FPlatformSecondsTimestamp NowAsPlatformSeconds = FPlatformTime::Seconds());
+		void OnProcessObject(const FConcertObjectInStreamID& Object, const FPlatformSecondsTimestamp NowAsPlatformSeconds = FPlatformTime::Seconds());
 		
 		/**
 		 * Removes all tracked objects were last processed before CutoffTime.
@@ -65,12 +65,12 @@ namespace UE::ConcertSyncCore
 	protected:
 
 		// For unit tests
-		const TMap<FObjectInStreamID, FPlatformSecondsTimestamp>& GetObjectsToLastProcessed() const { return ObjectsToLastProcessed; }
+		const TMap<FConcertObjectInStreamID, FPlatformSecondsTimestamp>& GetObjectsToLastProcessed() const { return ObjectsToLastProcessed; }
 		
 	private:
 
 		/** It is important to call CleanseOutdatedObjects to avoid this mapping leaking objects that used to be replicated. */
-		TMap<FObjectInStreamID, FPlatformSecondsTimestamp> ObjectsToLastProcessed;
+		TMap<FConcertObjectInStreamID, FPlatformSecondsTimestamp> ObjectsToLastProcessed;
 	};
 
 	/** Subclass of FFrequencyTracker that you call Tick on. Every x seconds, this will call CleanseOutdatedObjects itself. */

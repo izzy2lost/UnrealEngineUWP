@@ -9,7 +9,7 @@
 namespace UE::ConcertSyncServer::Replication
 {
 	FConcertReplicationClient::FConcertReplicationClient(
-		TArray<FReplicationStreamDescription> StreamDescriptions,
+		TArray<FConcertReplicationStream> StreamDescriptions,
 		const FGuid& ClientEndpointId,
 		TSharedRef<IConcertSession> Session,
 		TSharedRef<ConcertSyncCore::FObjectReplicationCache> ReplicationCache,

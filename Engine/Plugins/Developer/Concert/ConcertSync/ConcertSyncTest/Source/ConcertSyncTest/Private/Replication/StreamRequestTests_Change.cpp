@@ -2,7 +2,7 @@
 
 #include "Util/ClientServerCommunicationTest.h"
 
-#include "Replication/Data/ReplicationStreamDescription.h"
+#include "Replication/Data/ReplicationStream.h"
 #include "Replication/IConcertClientReplicationManager.h"
 #include "TestReflectionObject.h"
 #include "Util/ChangeStreamsTestBase.h"
@@ -90,7 +90,7 @@ namespace UE::ConcertSyncTests::Replication::Stream
 		FConcertReplication_ChangeStream_Request AppendFloatRequest;
 		FConcertPropertySelection& NewSelection = GetPropertySelection(VectorFloatStream, *TestObject);
 		AddFloatProperty(NewSelection);
-		AppendFloatRequest.ObjectsToPut.Add(FObjectInStreamID{ VectorFloatStreamID, TestObject }, FConcertReplication_ChangeStream_PutObject{ NewSelection });
+		AppendFloatRequest.ObjectsToPut.Add(FConcertObjectInStreamID{ VectorFloatStreamID, TestObject }, FConcertReplication_ChangeStream_PutObject{ NewSelection });
 		ChangeStreamForSenderClientAndValidate(TEXT("AppendFloatRequest"), AppendFloatRequest, { FloatStream.BaseDescription, VectorFloatStream.BaseDescription });
 		
 		return true;
@@ -153,7 +153,7 @@ namespace UE::ConcertSyncTests::Replication::Stream
 		TestTrue(TEXT("Receiver > Received response taking authority"), bReceiverTookAuthority);
 
 		// 2.5 Receiver is rejected from modifying the stream to include the Float property because the Sender has authority over it
-		const FObjectInStreamID TestObjectInReceiverStreamId { ReceiverStreamID, TestObject };
+		const FConcertObjectInStreamID TestObjectInReceiverStreamId { ReceiverStreamID, TestObject };
 		FConcertReplication_ChangeStream_Request AddFloatToStreamRequest;
 		FConcertPropertySelection NewSelection = GetPropertySelection(ReceiverStream, *TestObject);
 		AddFloatProperty(NewSelection);
@@ -168,7 +168,7 @@ namespace UE::ConcertSyncTests::Replication::Stream
 				bReceivedResponseAddingFloat = true;
 				TestTrue(TEXT("ErrorCode == Handled"), Response.ErrorCode == EReplicationResponseErrorCode::Handled);
 				TestEqual(TEXT("Append Float > 1 conflict"), Response.AuthorityConflicts.Num(), 1);
-				if (const FReplicatedObjectId* ConflictingObject = Response.AuthorityConflicts.Find(TestObjectInReceiverStreamId))
+				if (const FConcertReplicatedObjectId* ConflictingObject = Response.AuthorityConflicts.Find(TestObjectInReceiverStreamId))
 				{
 					TestEqual(TEXT("Append float > Conflict > Sender Stream correct"), ConflictingObject->StreamId, SenderStreamID);
 					TestEqual(TEXT("Append float > Conflict > Object correct"), ConflictingObject->Object, FSoftObjectPath(TestObject));
@@ -205,7 +205,7 @@ namespace UE::ConcertSyncTests::Replication::Stream
 		FConcertReplication_ChangeStream_Request InvalidRequest;
 		FConcertPropertySelection NewSelection = GetPropertySelection(Stream, *TestObject);
 		AddFloatProperty(NewSelection);
-		InvalidRequest.ObjectsToPut.Add(FObjectInStreamID{ StreamId, TestObject}, FConcertReplication_ChangeStream_PutObject{ NewSelection });
+		InvalidRequest.ObjectsToPut.Add(FConcertObjectInStreamID{ StreamId, TestObject}, FConcertReplication_ChangeStream_PutObject{ NewSelection });
 		InvalidRequest.StreamsToAdd.Add(Stream); // This will make it fail due to pre-existing stream ID
 
 		// Server logs a warning when rejecting - avoid the test being marked with a warning.
@@ -284,7 +284,7 @@ namespace UE::ConcertSyncTests::Replication::Stream
     	ClientReplicationManager_Sender->ChangeStream(Request);
 
     	// 3. Check that the local client's server prediction was reverted
-    	TArray<FReplicationStreamDescription> Streams = ClientReplicationManager_Sender->GetRegisteredStreams();
+    	TArray<FConcertReplicationStream> Streams = ClientReplicationManager_Sender->GetRegisteredStreams();
     	if (Streams.IsEmpty())
     	{
     		AddError(TEXT("Stream change was not reverted"));

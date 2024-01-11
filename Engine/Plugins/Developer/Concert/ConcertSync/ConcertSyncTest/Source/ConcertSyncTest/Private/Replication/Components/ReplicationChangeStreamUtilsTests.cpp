@@ -44,11 +44,11 @@ namespace UE::ConcertSyncTests::ChangeStreamUtils
 		
 
 		// 2. Run
-		FObjectReplicationMap Base;
+		FConcertObjectReplicationMap Base;
 		Base.ReplicatedObjects.Add(ChangeProperties, { SceneComponentClass, Selection_RelativeLocation });
 		Base.ReplicatedObjects.Add(ChangeClass, { SceneComponentClass, Selection_RelativeLocation });
 		Base.ReplicatedObjects.Add(RemoveMe, { SceneComponentClass, Selection_RelativeLocation });
-		FObjectReplicationMap Desired;
+		FConcertObjectReplicationMap Desired;
 		Desired.ReplicatedObjects.Add(ChangeProperties, { SceneComponentClass, Selection_RelativeLocationOnlyX });
 		Desired.ReplicatedObjects.Add(ChangeClass, { StaticMeshComponentClass, Selection_RelativeLocation });
 		Desired.ReplicatedObjects.Add(AddMe, { SceneComponentClass, Selection_RelativeLocation });

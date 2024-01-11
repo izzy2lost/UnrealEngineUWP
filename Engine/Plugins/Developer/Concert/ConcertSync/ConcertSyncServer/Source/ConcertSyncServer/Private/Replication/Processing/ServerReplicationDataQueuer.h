@@ -24,7 +24,7 @@ namespace UE::ConcertSyncServer::Replication
 		static TSharedRef<FServerReplicationDataQueuer> Make(const FGuid& OwningClientEndpointId, TSharedRef<ConcertSyncCore::FObjectReplicationCache> InReplicationCache);
 		
 		//~ Begin IReplicationCacheUser Interface
-		virtual bool WantsToAcceptObject(const FReplicatedObjectId& Object) const override;
+		virtual bool WantsToAcceptObject(const FConcertReplicatedObjectId& Object) const override;
 		//~ End IReplicationCacheUser Interface
 
 	private:

@@ -4,7 +4,6 @@
 
 #include "Misc/EBreakBehavior.h"
 #include "Replication/Messages/Handshake.h"
-#include "Replication/Data/ReplicationClientDescription.h"
 #include "Replication/Messages/ChangeAuthority.h"
 #include "Replication/Messages/ChangeStream.h"
 #include "Replication/Messages/ClientQuery.h"
@@ -12,17 +11,14 @@
 template<typename ResultType>
 class TFuture;
 
-struct FReplicationClientDescription;
-struct FReplicationStreamDescription;
+struct FConcertReplicationStream;
 
 namespace UE::ConcertSyncClient::Replication
 {
 	struct FJoinReplicatedSessionArgs
 	{
-		/** General info about this client, such as the type of data it wishes to receive. */
-		FReplicationClientDescription ClientInfo;
 		/** The streams this client offers. */
-		TArray<FReplicationStreamDescription> Streams;
+		TArray<FConcertReplicationStream> Streams;
 	};
 
 	struct FJoinReplicatedSessionResult
@@ -73,11 +69,11 @@ public:
 	 * @return Whether this manager is connected to a session (Iterated) or not (NoRegisteredStreams).
 	 * @note This future can finish on any thread (e.g. when message endpoint times out); usually it finishes on the game thread.  
 	 */
-	virtual EStreamEnumerationResult ForEachRegisteredStream(TFunctionRef<EBreakBehavior(const FReplicationStreamDescription& Stream)> Callback) const = 0;
+	virtual EStreamEnumerationResult ForEachRegisteredStream(TFunctionRef<EBreakBehavior(const FConcertReplicationStream& Stream)> Callback) const = 0;
 	/** @return Whether this manager is has any registered streams (basically whether ForEachRegisteredStream returns EStreamEnumerationResult::Iterated). */
 	bool HasRegisteredStreams() const;
 	/** @return The streams registered with the server. */
-	TArray<FReplicationStreamDescription> GetRegisteredStreams() const;
+	TArray<FConcertReplicationStream> GetRegisteredStreams() const;
 	
 	/**
 	 * Requests from the server to change the authority over some objects.

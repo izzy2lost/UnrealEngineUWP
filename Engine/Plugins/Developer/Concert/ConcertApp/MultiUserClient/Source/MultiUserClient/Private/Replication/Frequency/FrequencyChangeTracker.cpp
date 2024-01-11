@@ -32,7 +32,7 @@ namespace UE::MultiUserClient
 
 		// For now we only support adding overrides.
 		const FGuid StreamId = StreamSynchronizer.GetStreamId();
-		const FObjectReplicationMap& ReplicationMap = StreamSynchronizer.GetServerState();
+		const FConcertObjectReplicationMap& ReplicationMap = StreamSynchronizer.GetServerState();
 		for (auto IteratorForAdds = Result.OverridesToAdd.CreateIterator(); IteratorForAdds; ++IteratorForAdds)
 		{
 			const TPair<FSoftObjectPath, FConcertObjectReplicationSettings>& Pair = *IteratorForAdds;
@@ -54,7 +54,7 @@ namespace UE::MultiUserClient
 
 	void FFrequencyChangeTracker::RefreshChanges()
 	{
-		const FObjectReplicationMap& ReplicationMap = StreamSynchronizer.GetServerState();
+		const FConcertObjectReplicationMap& ReplicationMap = StreamSynchronizer.GetServerState();
 		for (auto IteratorForAdds = RecordedChanges.OverridesToAdd.CreateIterator(); IteratorForAdds; ++IteratorForAdds)
 		{
 			const TPair<FSoftObjectPath, FConcertObjectReplicationSettings>& Pair = *IteratorForAdds;

@@ -8,7 +8,7 @@
 
 #include "Misc/Optional.h"
 
-struct FObjectReplicationMap;
+struct FConcertObjectReplicationMap;
 struct FGuid;
 
 namespace UE::MultiUserClient
@@ -29,7 +29,7 @@ namespace UE::MultiUserClient::ClientChangeConversionUtils
 	TOptional<FConcertReplication_ChangeStream_Request> Transform(
 		FChangeStreamRequest Request,
 		const FGuid& ClientStreamId,
-		const FObjectReplicationMap& ClientStreamContent
+		const FConcertObjectReplicationMap& ClientStreamContent
 		);
 	
 	/** Transforms FChangeAuthorityRequest to FConcertReplication_ChangeStream_Request, if the request is correctly formatted. */
@@ -48,7 +48,7 @@ namespace UE::MultiUserClient::ClientChangeConversionUtils
 	inline TOptional<FConcertReplication_ChangeStream_Request> Transform(
 		TOptional<FChangeStreamRequest> Request,
 		const FGuid& ClientStreamId,
-		const FObjectReplicationMap& ClientStreamContent
+		const FConcertObjectReplicationMap& ClientStreamContent
 		)
 	{
 		return Request

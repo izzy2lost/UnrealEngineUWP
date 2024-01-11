@@ -2,7 +2,7 @@
 
 #include "Replication/AuthorityConflictSharedUtils.h"
 
-#include "Replication/Data/ReplicationStreamDescription.h"
+#include "Replication/Data/ReplicationStream.h"
 #include "Replication/Messages/ChangeAuthority.h"
 #include "Replication/Messages/ChangeStream.h"
 
@@ -25,7 +25,7 @@ namespace UE::ConcertSyncCore::Replication::AuthorityConflictUtils
 				}
 				
 				EBreakBehavior Result = EBreakBehavior::Continue;
-				GroundTruth.ForEachStream(ClientEndpointId, [&Object, &Callback, &ClientEndpointId, &GroundTruth, &Result](const FGuid& StreamId, const FObjectReplicationMap& ReplicationMap) mutable
+				GroundTruth.ForEachStream(ClientEndpointId, [&Object, &Callback, &ClientEndpointId, &GroundTruth, &Result](const FGuid& StreamId, const FConcertObjectReplicationMap& ReplicationMap) mutable
 				{
 					// If client has not claimed authority over this object in this stream, skip
 					if (!GroundTruth.HasAuthority(ClientEndpointId, StreamId, Object))
@@ -34,8 +34,8 @@ namespace UE::ConcertSyncCore::Replication::AuthorityConflictUtils
 					}
 
 					// This client is using the request object: report the potential conflict ...
-					const FObjectReplicationMap& ObjectReplicationMap = ReplicationMap;
-					const FReplicatedObjectInfo* ReplicationObjectInfo = ObjectReplicationMap.ReplicatedObjects.Find(Object);
+					const FConcertObjectReplicationMap& ObjectReplicationMap = ReplicationMap;
+					const FConcertReplicatedObjectInfo* ReplicationObjectInfo = ObjectReplicationMap.ReplicatedObjects.Find(Object);
 					if (ReplicationObjectInfo && Callback(ClientEndpointId, StreamId, ReplicationObjectInfo->PropertySelection) == EBreakBehavior::Break)
 					{
 						// ... conflict ends iteration
@@ -87,13 +87,13 @@ namespace UE::ConcertSyncCore::Replication::AuthorityConflictUtils
 	void CleanseConflictsFromAuthorityRequest(FConcertReplication_ChangeAuthority_Request& Request, const FGuid& SendingClient, const IReplicationGroundTruth& GroundTruth)
 	{
 		// Need to check whether TakeAuthority is taking authority over properties other clients are already replicating
-		GroundTruth.ForEachStream(SendingClient, [&SendingClient, &Request, &GroundTruth](const FGuid& StreamId, const FObjectReplicationMap& ReplicationMap)
+		GroundTruth.ForEachStream(SendingClient, [&SendingClient, &Request, &GroundTruth](const FGuid& StreamId, const FConcertObjectReplicationMap& ReplicationMap)
 		{
 			for (auto ChangeIt = Request.TakeAuthority.CreateIterator(); ChangeIt; ++ChangeIt)
 			{
 				TPair<FSoftObjectPath, FConcertStreamArray>& Change = *ChangeIt;
 				
-				const FReplicatedObjectInfo* ObjectInfo = ReplicationMap.ReplicatedObjects.Find(Change.Key);
+				const FConcertReplicatedObjectInfo* ObjectInfo = ReplicationMap.ReplicatedObjects.Find(Change.Key);
 				if (!ObjectInfo)
 				{
 					ChangeIt.RemoveCurrent();
@@ -123,11 +123,11 @@ namespace UE::ConcertSyncCore::Replication::AuthorityConflictUtils
 	void CleanseConflictsFromStreamRequest(FConcertReplication_ChangeStream_Request& Request, const FGuid& SendingClient, const IReplicationGroundTruth& GroundTruth)
 	{
 		// Need to check whether ObjectsToPut adds any properties that an existing client has authority over.
-		GroundTruth.ForEachStream(SendingClient, [&SendingClient, &Request, &GroundTruth](const FGuid& StreamId, const FObjectReplicationMap& ReplicationMap)
+		GroundTruth.ForEachStream(SendingClient, [&SendingClient, &Request, &GroundTruth](const FGuid& StreamId, const FConcertObjectReplicationMap& ReplicationMap)
 		{
 			for (auto ChangeIt = Request.ObjectsToPut.CreateIterator(); ChangeIt; ++ChangeIt)
 			{
-				const TPair<FObjectInStreamID, FConcertReplication_ChangeStream_PutObject>& Change = *ChangeIt;
+				const TPair<FConcertObjectInStreamID, FConcertReplication_ChangeStream_PutObject>& Change = *ChangeIt;
 				const FConcertReplication_ChangeStream_PutObject& PutObject = Change.Value;
 
 				// Just changing the class?

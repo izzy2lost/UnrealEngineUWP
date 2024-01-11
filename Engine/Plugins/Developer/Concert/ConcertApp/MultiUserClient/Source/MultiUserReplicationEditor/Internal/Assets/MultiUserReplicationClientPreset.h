@@ -4,7 +4,7 @@
 
 #include "UObject/Object.h"
 #include "MultiUserReplicationStream.h"
-#include "Replication/Data/ReplicationStreamDescription.h"
+#include "Replication/Data/ReplicationStream.h"
 #include "MultiUserReplicationClientPreset.generated.h"
 
 /**
@@ -29,5 +29,5 @@ public:
 	void ClearClient();
 
 	/** Generates a description that can be sent to the MU server. */
-	FReplicationStreamDescription GenerateDescription() const;
+	FConcertReplicationStream GenerateDescription() const;
 };

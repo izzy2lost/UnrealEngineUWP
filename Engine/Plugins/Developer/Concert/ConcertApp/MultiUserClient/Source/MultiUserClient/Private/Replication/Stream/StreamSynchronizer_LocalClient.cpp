@@ -31,15 +31,15 @@ namespace UE::MultiUserClient
 		}
 	}
 
-	const FObjectReplicationMap& FStreamSynchronizer_LocalClient::GetServerState() const
+	const FConcertObjectReplicationMap& FStreamSynchronizer_LocalClient::GetServerState() const
 	{
-		const FSharedReplicationStreamDescription* Description = GetLocalMultiUserStream();
+		const FConcertBaseStreamInfo* Description = GetLocalMultiUserStream();
 		return Description ? Description->ReplicationMap : EmptyState.ReplicationMap;
 	}
 
 	const FConcertStreamFrequencySettings& FStreamSynchronizer_LocalClient::GetFrequencySettings() const
 	{
-		const FSharedReplicationStreamDescription* Description = GetLocalMultiUserStream();
+		const FConcertBaseStreamInfo* Description = GetLocalMultiUserStream();
 		return Description ? Description->FrequencySettings : EmptyState.FrequencySettings;
 	}
 
@@ -49,7 +49,7 @@ namespace UE::MultiUserClient
 		OnServerStateChangedDelegate.Broadcast();
 	}
 
-	const FSharedReplicationStreamDescription* FStreamSynchronizer_LocalClient::GetLocalMultiUserStream() const
+	const FConcertBaseStreamInfo* FStreamSynchronizer_LocalClient::GetLocalMultiUserStream() const
 	{
 		IConcertClientReplicationManager* ReplicationManager = LocalClient->GetReplicationManager();
 		if (!ensure(ReplicationManager))
@@ -57,8 +57,8 @@ namespace UE::MultiUserClient
 			return nullptr;
 		}
 		
-		const FSharedReplicationStreamDescription* Result = nullptr;
-		ReplicationManager->ForEachRegisteredStream([this, &Result](const FReplicationStreamDescription& Stream)
+		const FConcertBaseStreamInfo* Result = nullptr;
+		ReplicationManager->ForEachRegisteredStream([this, &Result](const FConcertReplicationStream& Stream)
 		{
 			if (Stream.BaseDescription.Identifier == LocalClientStreamId)
 			{

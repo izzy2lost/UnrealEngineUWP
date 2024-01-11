@@ -1,6 +1,6 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
-#include "Replication/Data/ReplicationStreamDescription.h"
+#include "Replication/Data/ReplicationStream.h"
 #include "Replication/IConcertClientReplicationManager.h"
 #include "TestReflectionObject.h"
 #include "Util/ChangeStreamsTestBase.h"
@@ -29,7 +29,7 @@ namespace UE::ConcertSyncTests::Replication::Stream
 		UTestReflectionObject* MainTestObject = NewObject<UTestReflectionObject>(GetTransientPackage());
 		UTestReflectionObject* SecondaryTestObject = NewObject<UTestReflectionObject>(GetTransientPackage());
 		FGuid FloatStreamId;
-		FReplicationStreamDescription FloatStream;
+		FConcertReplicationStream FloatStream;
 		Tie(FloatStreamId, FloatStream) = CreateFloatPropertyStream(*MainTestObject);
 		SenderArgs.Streams = { FloatStream };
 		
@@ -37,7 +37,7 @@ namespace UE::ConcertSyncTests::Replication::Stream
 		// We'll intentionally be causing errors below that cause a warning to be logged.
 		AddExpectedError(TEXT("Rejecting ChangeStream"), EAutomationExpectedErrorFlags::Contains, 2);
 
-		FSharedReplicationStreamDescription ExpectedStream = FloatStream.BaseDescription;
+		FConcertBaseStreamInfo ExpectedStream = FloatStream.BaseDescription;
 		
 		// Change defaults to be SpecifiedRate at 42 update rate.
 		{
@@ -108,7 +108,7 @@ namespace UE::ConcertSyncTests::Replication::Stream
 			FrequencyChange.OverridesToAdd.Add(SecondaryTestObject, { EConcertObjectReplicationMode::SpecifiedRate, 101 });
 			ChangeRequest.FrequencyChanges.Add(FloatStreamId, FrequencyChange);
 
-			FReplicatedObjectInfo& ExpectedSecondary = ExpectedStream.ReplicationMap.ReplicatedObjects.Add(SecondaryTestObject);
+			FConcertReplicatedObjectInfo& ExpectedSecondary = ExpectedStream.ReplicationMap.ReplicatedObjects.Add(SecondaryTestObject);
 			AddFloatProperty(ExpectedSecondary.PropertySelection);
 			ExpectedSecondary.ClassPath = SecondaryTestObject->GetClass();
 			ExpectedStream.FrequencySettings.ObjectOverrides.Add(SecondaryTestObject, { EConcertObjectReplicationMode::SpecifiedRate, 101 });
@@ -132,7 +132,7 @@ namespace UE::ConcertSyncTests::Replication::Stream
 		SenderArgs.Streams = { FloatStream };
 		SetUpClientAndServer();
 
-		FSharedReplicationStreamDescription ExpectedStream = FloatStream.BaseDescription;
+		FConcertBaseStreamInfo ExpectedStream = FloatStream.BaseDescription;
 		// Put SpecifiedRate 21
 		{
 			FConcertReplication_ChangeStream_Request ChangeRequest;
@@ -182,7 +182,7 @@ namespace UE::ConcertSyncTests::Replication::Stream
 		SenderArgs.Streams = { FloatStream };
 		
 		SetUpClientAndServer();
-		FSharedReplicationStreamDescription ExpectedStream = FloatStream.BaseDescription;
+		FConcertBaseStreamInfo ExpectedStream = FloatStream.BaseDescription;
 		
 		// Register SecondaryObject with stream
 		{
@@ -193,7 +193,7 @@ namespace UE::ConcertSyncTests::Replication::Stream
 			PutObject.ClassPath = SecondaryTestObject->GetClass();
 			ChangeRequest.ObjectsToPut.Add({ FloatStreamId, SecondaryTestObject }, PutObject);
 
-			ExpectedStream.ReplicationMap.ReplicatedObjects.Add(SecondaryTestObject, FReplicatedObjectInfo{ PutObject.ClassPath, PutObject.Properties });
+			ExpectedStream.ReplicationMap.ReplicatedObjects.Add(SecondaryTestObject, FConcertReplicatedObjectInfo{ PutObject.ClassPath, PutObject.Properties });
 			ChangeStreamForSenderClientAndValidate(TEXT("Add MainTestObject & SecondaryObject"), ChangeRequest, { ExpectedStream });
 		}
 		// Put frequency for MainTestObject & SecondaryObject
@@ -236,7 +236,7 @@ namespace UE::ConcertSyncTests::Replication::Stream
 		SenderArgs.Streams = { FloatStream };
 		SetUpClientAndServer();
 		
-		FSharedReplicationStreamDescription ExpectedStream = FloatStream.BaseDescription;
+		FConcertBaseStreamInfo ExpectedStream = FloatStream.BaseDescription;
 		// Register SecondaryObject with stream
 		{
 			FConcertReplication_ChangeStream_Request ChangeRequest;
@@ -246,7 +246,7 @@ namespace UE::ConcertSyncTests::Replication::Stream
 			PutObject.ClassPath = SecondaryTestObject->GetClass();
 			ChangeRequest.ObjectsToPut.Add({ FloatStreamId, SecondaryTestObject }, PutObject);
 
-			ExpectedStream.ReplicationMap.ReplicatedObjects.Add(SecondaryTestObject, FReplicatedObjectInfo{ PutObject.ClassPath, PutObject.Properties });
+			ExpectedStream.ReplicationMap.ReplicatedObjects.Add(SecondaryTestObject, FConcertReplicatedObjectInfo{ PutObject.ClassPath, PutObject.Properties });
 			ChangeStreamForSenderClientAndValidate(TEXT("Add MainTestObject & SecondaryObject"), ChangeRequest, { ExpectedStream });
 		}
 		
@@ -293,7 +293,7 @@ namespace UE::ConcertSyncTests::Replication::Stream
 		SenderArgs.Streams = { FloatStream };
 		SetUpClientAndServer();
 
-		FSharedReplicationStreamDescription ExpectedStream = FloatStream.BaseDescription;
+		FConcertBaseStreamInfo ExpectedStream = FloatStream.BaseDescription;
 		// Put SpecifiedRate 25, then add 50
 		{
 			FConcertReplication_ChangeStream_Request ChangeRequest;
@@ -321,7 +321,7 @@ namespace UE::ConcertSyncTests::Replication::Stream
 		UTestReflectionObject* MainTestObject = NewObject<UTestReflectionObject>(GetTransientPackage());
 		UTestReflectionObject* SecondaryTestObject = NewObject<UTestReflectionObject>(GetTransientPackage());
 		FGuid FloatStreamId;
-		FReplicationStreamDescription FloatStream;
+		FConcertReplicationStream FloatStream;
 		Tie(FloatStreamId, FloatStream) = CreateFloatPropertyStream(*MainTestObject);
 		SenderArgs.Streams = { FloatStream };
 		
@@ -330,7 +330,7 @@ namespace UE::ConcertSyncTests::Replication::Stream
 		AddExpectedError(TEXT("Rejecting ChangeStream"),EAutomationExpectedErrorFlags::Contains, 2);
 
 		// Change defaults to be SpecifiedRate at 42 update rate.
-		FSharedReplicationStreamDescription ExpectedStream = FloatStream.BaseDescription;
+		FConcertBaseStreamInfo ExpectedStream = FloatStream.BaseDescription;
 		
 		// Cannot change frequency of unregistered stream
 		{

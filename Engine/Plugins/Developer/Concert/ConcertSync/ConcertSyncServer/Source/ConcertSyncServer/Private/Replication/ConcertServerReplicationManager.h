@@ -21,7 +21,7 @@ enum class EConcertQueryClientStreamFlags : uint8;
 struct FConcertReplication_ChangeStream_Response;
 struct FConcertReplication_QueryReplicationInfo_Response;
 struct FConcertReplication_QueryReplicationInfo_Request;
-struct FReplicationAuthorityInfo;
+struct FConcertAuthorityClientInfo;
 
 namespace UE::ConcertSyncCore
 {
@@ -52,7 +52,7 @@ namespace UE::ConcertSyncServer::Replication
 		const FAuthorityManager& GetAuthorityManager() const { return AuthorityManager.Get(); }
 
 		//~ Begin IAuthorityManagerGetters Interface
-		virtual void ForEachStream(const FGuid& ClientEndpointId, TFunctionRef<EBreakBehavior(const FReplicationStreamDescription& Stream)> Callback) const override;
+		virtual void ForEachStream(const FGuid& ClientEndpointId, TFunctionRef<EBreakBehavior(const FConcertReplicationStream& Stream)> Callback) const override;
 		virtual void ForEachSendingClient(TFunctionRef<EBreakBehavior(const FGuid& ClientEndpointId)> Callback) const override;
 		//~ End IAuthorityManagerGetters Interface
 
@@ -85,9 +85,9 @@ namespace UE::ConcertSyncServer::Replication
 		// Querying
 		EConcertSessionResponseCode HandleQueryReplicationInfoRequest(const FConcertSessionContext& ConcertSessionContext, const FConcertReplication_QueryReplicationInfo_Request& Request, FConcertReplication_QueryReplicationInfo_Response& Response);
 		/** Gets all registered streams and optionally removes the properties. */
-		static TArray<FSharedReplicationStreamDescription> BuildClientStreamInfo(const FConcertReplicationClient& Client, EConcertQueryClientStreamFlags QueryFlags);
+		static TArray<FConcertBaseStreamInfo> BuildClientStreamInfo(const FConcertReplicationClient& Client, EConcertQueryClientStreamFlags QueryFlags);
 		/** Maps the client's streams to the objects in that stream the client has taken authority over. */
-		TArray<FReplicationAuthorityInfo> BuildClientAuthorityInfo(const FConcertReplicationClient& Client) const;
+		TArray<FConcertAuthorityClientInfo> BuildClientAuthorityInfo(const FConcertReplicationClient& Client) const;
 
 		// Changing streams
 		EConcertSessionResponseCode HandleChangeStreamRequest(const FConcertSessionContext& ConcertSessionContext, const FConcertReplication_ChangeStream_Request& Request, FConcertReplication_ChangeStream_Response& Response);
@@ -105,6 +105,6 @@ namespace UE::ConcertSyncServer::Replication
 		void Tick(IConcertServerSession& InSession, float InDeltaTime);
 		
 		/** Callback to clients for obtaining an object's frequency settings. */
-		FConcertObjectReplicationSettings GetObjectFrequencySettings(const FReplicatedObjectId& Object) const;
+		FConcertObjectReplicationSettings GetObjectFrequencySettings(const FConcertReplicatedObjectId& Object) const;
 	};
 }

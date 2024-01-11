@@ -13,7 +13,7 @@ namespace UE::MultiUserClient
 {
 	FStreamChangeTracker::FStreamChangeTracker(
 		IClientStreamSynchronizer& InStreamSynchronizer,
-		TAttribute<FObjectReplicationMap*> InStreamWithInProgressChangesAttribute,
+		TAttribute<FConcertObjectReplicationMap*> InStreamWithInProgressChangesAttribute,
 		FOnModifyReplicationMap InOnModifyReplicationMapDelegate
 		)
 		: StreamSynchronizer(InStreamSynchronizer)
@@ -59,21 +59,21 @@ namespace UE::MultiUserClient
 	const FConcertPropertySelection* FStreamChangeTracker::GetPropertiesAfterSubmit(const FSoftObjectPath& ObjectPath) const
 	{
 		const FGuid StreamId = StreamSynchronizer.GetStreamId();
-		const FObjectInStreamID ObjectId { StreamId, ObjectPath };
+		const FConcertObjectInStreamID ObjectId { StreamId, ObjectPath };
 		const FConcertReplication_ChangeStream_PutObject* PutObject = CachedDeltaChange.ObjectsToPut.Find(ObjectId);
 		if (PutObject && !PutObject->Properties.ReplicatedProperties.IsEmpty())
 		{
 			return &PutObject->Properties;
 		}
 
-		const FReplicatedObjectInfo* ObjectInfo = StreamSynchronizer.GetServerState().ReplicatedObjects.Find(ObjectPath);
+		const FConcertReplicatedObjectInfo* ObjectInfo = StreamSynchronizer.GetServerState().ReplicatedObjects.Find(ObjectPath);
 		return ObjectInfo ? &ObjectInfo->PropertySelection : nullptr;
 	}
 
 	FStreamChangeTracker::EObjectChangeType FStreamChangeTracker::GetObjectChanges(const FSoftObjectPath& Object) const
 	{
 		const FGuid StreamId = StreamSynchronizer.GetStreamId();
-		const FObjectInStreamID ObjectId { StreamId, Object };
+		const FConcertObjectInStreamID ObjectId { StreamId, Object };
 		if (CachedDeltaChange.ObjectsToRemove.Contains(ObjectId))
 		{
 			return EObjectChangeType::Removed;
@@ -91,13 +91,13 @@ namespace UE::MultiUserClient
 	
 	FStreamChangelist FStreamChangeTracker::DiffChanges(
 		const FGuid& StreamId,
-		const FObjectReplicationMap& Base,
-		const FObjectReplicationMap& Changed
+		const FConcertObjectReplicationMap& Base,
+		const FConcertObjectReplicationMap& Changed
 		)
 	{
 		// BuildRequestFromDiff does not tolerate any invalid entries (like empty properties, which the UI generates right after you add an object to the list)
-		FObjectReplicationMap Cleansed = Changed;
-		ConcertSyncCore::Replication::ChangeStreamUtils::IterateInvalidEntries(Changed, [&Cleansed](const FSoftObjectPath& InvalidObject, const FReplicatedObjectInfo&)
+		FConcertObjectReplicationMap Cleansed = Changed;
+		ConcertSyncCore::Replication::ChangeStreamUtils::IterateInvalidEntries(Changed, [&Cleansed](const FSoftObjectPath& InvalidObject, const FConcertReplicatedObjectInfo&)
 		{
 			Cleansed.ReplicatedObjects.Remove(InvalidObject);
 			return EBreakBehavior::Continue;

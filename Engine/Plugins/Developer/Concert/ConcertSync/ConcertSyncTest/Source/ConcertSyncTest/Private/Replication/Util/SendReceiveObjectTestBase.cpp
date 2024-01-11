@@ -3,13 +3,8 @@
 #include "SendReceiveObjectTestBase.h"
 
 #include "ConcertClientReplicationBridgeMock.h"
-#include "Replication/Data/ReplicationStreamDescription.h"
 #include "Replication/IConcertClientReplicationManager.h"
-#include "Replication/IConcertServerReplicationManager.h"
 #include "Replication/Messages/ObjectReplication.h"
-#include "Replication/Messages/Handshake.h"
-#include "Replication/PropertyChainUtils.h"
-#include "Replication/ReplicationTestInterface.h"
 #include "Replication/TestReflectionObject.h"
 #include "Util/ClientServerCommunicationTest.h"
 

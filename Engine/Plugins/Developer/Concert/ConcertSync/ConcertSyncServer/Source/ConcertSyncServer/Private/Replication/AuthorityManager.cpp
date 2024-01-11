@@ -6,7 +6,7 @@
 #include "IConcertSession.h"
 #include "Replication/AuthorityConflictSharedUtils.h"
 #include "Replication/Data/ObjectIds.h"
-#include "Replication/Data/ReplicationStreamDescription.h"
+#include "Replication/Data/ReplicationStream.h"
 #include "Replication/Messages/ChangeAuthority.h"
 
 namespace UE::ConcertSyncServer::Replication
@@ -24,9 +24,9 @@ namespace UE::ConcertSyncServer::Replication
 				, Getters(Getters)
 			{}
 
-			virtual void ForEachStream(const FGuid& ClientEndpointId, TFunctionRef<EBreakBehavior(const FGuid& StreamId, const FObjectReplicationMap& ReplicationMap)> Callback) const override
+			virtual void ForEachStream(const FGuid& ClientEndpointId, TFunctionRef<EBreakBehavior(const FGuid& StreamId, const FConcertObjectReplicationMap& ReplicationMap)> Callback) const override
 			{
-				Getters.ForEachStream(ClientEndpointId, [&Callback](const FReplicationStreamDescription& Stream)
+				Getters.ForEachStream(ClientEndpointId, [&Callback](const FConcertReplicationStream& Stream)
 				{
 					return Callback(Stream.BaseDescription.Identifier, Stream.BaseDescription.ReplicationMap);
 				});
@@ -70,7 +70,7 @@ namespace UE::ConcertSyncServer::Replication
 		Session->UnregisterCustomRequestHandler<FConcertReplication_ChangeAuthority_Request>();
 	}
 
-	bool FAuthorityManager::HasAuthorityToChange(const FReplicatedObjectId& ObjectChange) const
+	bool FAuthorityManager::HasAuthorityToChange(const FConcertReplicatedObjectId& ObjectChange) const
 	{
 		const FClientAuthorityData* AuthorityData = ClientAuthorityData.Find(ObjectChange.SenderEndpointId);
 		const TSet<FSoftObjectPath>* OwnedObjects = AuthorityData ? AuthorityData->OwnedObjects.Find(ObjectChange.StreamId) : nullptr;
@@ -96,7 +96,7 @@ namespace UE::ConcertSyncServer::Replication
 	}
 
 	FAuthorityManager::EAuthorityResult FAuthorityManager::EnumerateAuthorityConflicts(
-		const FReplicatedObjectId& Object, 
+		const FConcertReplicatedObjectId& Object, 
 		const FConcertPropertySelection* OverwriteProperties,
 		FProcessAuthorityConflict ProcessConflict
 		) const
@@ -105,8 +105,8 @@ namespace UE::ConcertSyncServer::Replication
 		const FConcertPropertySelection* PropertiesToCheck = OverwriteProperties;
 		if (!PropertiesToCheck)
 		{
-			const FReplicationStreamDescription* Description = FindClientStreamById(ClientId, Object.StreamId);
-			const FReplicatedObjectInfo* PropertyInfo = Description ? Description->BaseDescription.ReplicationMap.ReplicatedObjects.Find(Object.Object) : nullptr;
+			const FConcertReplicationStream* Description = FindClientStreamById(ClientId, Object.StreamId);
+			const FConcertReplicatedObjectInfo* PropertyInfo = Description ? Description->BaseDescription.ReplicationMap.ReplicatedObjects.Find(Object.Object) : nullptr;
 			PropertiesToCheck = PropertyInfo ? &PropertyInfo->PropertySelection : nullptr;
 		}
 
@@ -130,7 +130,7 @@ namespace UE::ConcertSyncServer::Replication
 		return Conflict == EAuthorityConflict::Allowed ? EAuthorityResult::Allowed : EAuthorityResult::Conflict;
 	}
 
-	bool FAuthorityManager::CanTakeAuthority(const FReplicatedObjectId& Object) const
+	bool FAuthorityManager::CanTakeAuthority(const FConcertReplicatedObjectId& Object) const
 	{
 		return EnumerateAuthorityConflicts(Object) == EAuthorityResult::Allowed;
 	}
@@ -140,7 +140,7 @@ namespace UE::ConcertSyncServer::Replication
 		ClientAuthorityData.Remove(ClientEndpointId);
 	}
 
-	void FAuthorityManager::RemoveAuthority(const FReplicatedObjectId& Object)
+	void FAuthorityManager::RemoveAuthority(const FConcertReplicatedObjectId& Object)
 	{
 		const FClientId& ClientId = Object.SenderEndpointId;
 		FClientAuthorityData* ClientData = ClientAuthorityData.Find(ClientId);
@@ -183,7 +183,7 @@ namespace UE::ConcertSyncServer::Replication
 		const FClientId& ClientId = ConcertSessionContext.SourceEndpointId;
 		Private::ForEachReplicatedObject(Request.TakeAuthority, [this, &Response, &AuthorityData, &ClientId](const FStreamId& StreamId, const FSoftObjectPath& ObjectPath)
 		{
-			const FReplicatedObjectId ObjectToAuthor{ { StreamId, ObjectPath }, ClientId };
+			const FConcertReplicatedObjectId ObjectToAuthor{ { StreamId, ObjectPath }, ClientId };
 			if (CanTakeAuthority(ObjectToAuthor))
 			{
 				UE_LOG(LogConcert, Log, TEXT("Transferred authority of %s to client %s for their stream %s"), *ObjectPath.ToString(), *ClientId.ToString(EGuidFormats::Short), *StreamId.ToString(EGuidFormats::Short));
@@ -217,10 +217,10 @@ namespace UE::ConcertSyncServer::Replication
 		return EConcertSessionResponseCode::Success;
 	}
 	
-	const FReplicationStreamDescription* FAuthorityManager::FindClientStreamById(const FClientId& ClientId, const FStreamId& StreamId) const
+	const FConcertReplicationStream* FAuthorityManager::FindClientStreamById(const FClientId& ClientId, const FStreamId& StreamId) const
 	{
-		const FReplicationStreamDescription* StreamDescription = nullptr;
-		Getters.ForEachStream(ClientId, [&StreamId, &StreamDescription](const FReplicationStreamDescription& Stream) mutable
+		const FConcertReplicationStream* StreamDescription = nullptr;
+		Getters.ForEachStream(ClientId, [&StreamId, &StreamDescription](const FConcertReplicationStream& Stream) mutable
 		{
 			if (Stream.BaseDescription.Identifier == StreamId)
 			{

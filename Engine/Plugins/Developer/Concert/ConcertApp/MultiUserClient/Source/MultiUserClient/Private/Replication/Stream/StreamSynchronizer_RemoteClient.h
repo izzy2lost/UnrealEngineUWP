@@ -3,8 +3,7 @@
 #pragma once
 
 #include "IClientStreamSynchronizer.h"
-#include "Replication/Data/ObjectReplicationMap.h"
-#include "Replication/Data/ReplicationStreamDescription.h"
+#include "Replication/Data/ReplicationStream.h"
 
 #include "Containers/Array.h"
 #include "Templates/UnrealTemplate.h"
@@ -23,7 +22,7 @@ namespace UE::MultiUserClient
 
 		//~ Begin IClientStreamSynchronizer Interface
 		virtual FGuid GetStreamId() const override;
-		virtual const FObjectReplicationMap& GetServerState() const override { return LastKnownServerState.ReplicationMap; }
+		virtual const FConcertObjectReplicationMap& GetServerState() const override { return LastKnownServerState.ReplicationMap; }
 		virtual const FConcertStreamFrequencySettings& GetFrequencySettings() const override { return LastKnownServerState.FrequencySettings; }
 		virtual FOnServerStateChanged& OnServerStateChanged() override { return OnServerStateChangedDelegate; }
 		//~ End IClientStreamSynchronizer Interface
@@ -36,13 +35,13 @@ namespace UE::MultiUserClient
 		const FDelegateHandle QueryStreamHandle; 
 
 		/** Represents what the local client thinks the replication map on the server currently looks like. */
-		FSharedReplicationStreamDescription LastKnownServerState;
+		FConcertBaseStreamInfo LastKnownServerState;
 		
 		/** Event executed when the result of GetServerState has been synched. */
 		FOnServerStateChanged OnServerStateChangedDelegate;
 
 		/** Called in regular intervals with the contents of the remote client. */
-		void HandleStreamQuery(const TArray<FSharedReplicationStreamDescription>& Streams);
+		void HandleStreamQuery(const TArray<FConcertBaseStreamInfo>& Streams);
 	};
 }
 

@@ -12,8 +12,8 @@ class IConcertSyncClient;
 
 namespace UE::MultiUserClient
 {
-	DECLARE_DELEGATE_OneParam(FStreamQueryDelegate, const TArray<FSharedReplicationStreamDescription>&);
-	DECLARE_DELEGATE_OneParam(FAuthorityQueryDelegate, const TArray<FReplicationAuthorityInfo>&);
+	DECLARE_DELEGATE_OneParam(FStreamQueryDelegate, const TArray<FConcertBaseStreamInfo>&);
+	DECLARE_DELEGATE_OneParam(FAuthorityQueryDelegate, const TArray<FConcertAuthorityClientInfo>&);
 	
 	/** Sends regular FConcertReplication_QueryReplicationInfo_Request to endpoints and publishes the results. */
 	class FRegularQueryService : public FNoncopyable
@@ -51,8 +51,8 @@ namespace UE::MultiUserClient
 		const FTSTicker::FDelegateHandle TickerDelegateHandle;
 
 		// We use a multicast delegate here because it handles unsubscribing while being Broadcast
-		DECLARE_MULTICAST_DELEGATE_OneParam(FMulticastStreamQueryDelegate, const TArray<FSharedReplicationStreamDescription>&);
-		DECLARE_MULTICAST_DELEGATE_OneParam(FMulticastAuthorityQueryDelegate, const TArray<FReplicationAuthorityInfo>&);
+		DECLARE_MULTICAST_DELEGATE_OneParam(FMulticastStreamQueryDelegate, const TArray<FConcertBaseStreamInfo>&);
+		DECLARE_MULTICAST_DELEGATE_OneParam(FMulticastAuthorityQueryDelegate, const TArray<FConcertAuthorityClientInfo>&);
 		struct FStreamQueryInfo
 		{
 			TSet<FDelegateHandle> Handles;

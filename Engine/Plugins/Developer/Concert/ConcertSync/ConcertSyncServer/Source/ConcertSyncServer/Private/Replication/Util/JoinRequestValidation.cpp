@@ -2,9 +2,8 @@
 
 #include "JoinRequestValidation.h"
 
-#include "Replication/ConcertReplicationClient.h"
 #include "Replication/Data/ObjectReplicationMap.h"
-#include "Replication/Data/ReplicationStreamDescription.h"
+#include "Replication/Data/ReplicationStream.h"
 #include "Replication/Messages/Handshake.h"
 
 namespace UE::ConcertSyncServer::Replication
@@ -19,7 +18,7 @@ namespace UE::ConcertSyncServer::Replication
 		 */
 		
 		TSet<FGuid> UniqueStreamsFromRequestor;
-		for (const FReplicationStreamDescription& Stream : Request.Streams)
+		for (const FConcertReplicationStream& Stream : Request.Streams)
 		{
 			const FGuid& StreamId = Stream.BaseDescription.Identifier;
 
@@ -31,10 +30,10 @@ namespace UE::ConcertSyncServer::Replication
 			UniqueStreamsFromRequestor.Add(Stream.BaseDescription.Identifier);
 
 			// Make sure the properties are valid
-			for (const TPair<FSoftObjectPath, FReplicatedObjectInfo>& ReplicatedObjectInfo : Stream.BaseDescription.ReplicationMap.ReplicatedObjects)
+			for (const TPair<FSoftObjectPath, FConcertReplicatedObjectInfo>& ReplicatedObjectInfo : Stream.BaseDescription.ReplicationMap.ReplicatedObjects)
 			{
 				const FSoftObjectPath& ObjectPath = ReplicatedObjectInfo.Key;
-				const FReplicatedObjectInfo& ObjectInfo = ReplicatedObjectInfo.Value;
+				const FConcertReplicatedObjectInfo& ObjectInfo = ReplicatedObjectInfo.Value;
 				
 				// Validate class - we cannot validate at this point whether the class really exists.
 				if (!ObjectInfo.ClassPath.IsValid())
@@ -70,12 +69,12 @@ namespace UE::ConcertSyncServer::Replication
 		return { EJoinReplicationErrorCode::Success, TEXT("") };
 	}
 	
-	TTuple<EJoinReplicationErrorCode, FString, TArray<FReplicationStreamDescription>> ValidateRequest(const FConcertReplication_Join_Request& Request)
+	TTuple<EJoinReplicationErrorCode, FString, TArray<FConcertReplicationStream>> ValidateRequest(const FConcertReplication_Join_Request& Request)
 	{
 		if (auto[ErrorCode, ErrorMessage] = CheckInputConstraints(Request)
 			; ErrorCode != EJoinReplicationErrorCode::Success)
 		{
-			return { ErrorCode, ErrorMessage, TArray<FReplicationStreamDescription>{} };
+			return { ErrorCode, ErrorMessage, TArray<FConcertReplicationStream>{} };
 		}
 
 		return { EJoinReplicationErrorCode::Success, TEXT(""), Request.Streams };

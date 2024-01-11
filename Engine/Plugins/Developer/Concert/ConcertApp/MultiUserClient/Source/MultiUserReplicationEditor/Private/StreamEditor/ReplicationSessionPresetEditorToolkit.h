@@ -5,7 +5,7 @@
 #include "Tools/BaseAssetToolkit.h"
 
 class UMultiUserReplicationSessionPreset;
-struct FObjectReplicationMap;
+struct FConcertObjectReplicationMap;
 
 namespace UE::MultiUserReplicationEditor
 {

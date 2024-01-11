@@ -20,7 +20,7 @@ namespace UE::ConcertSyncClient::Replication
 		: ReplicationBridge(ReplicationBridge)
 	{}
 
-	bool FClientReplicationDataQueuer::WantsToAcceptObject(const FReplicatedObjectId& Object) const
+	bool FClientReplicationDataQueuer::WantsToAcceptObject(const FConcertReplicatedObjectId& Object) const
 	{
 		// The server tries not to send objects to are unavailable but it could happen the object becomes unavailable while data is underway
 		const bool bIsAvailable = ReplicationBridge->IsObjectAvailable(Object.Object);

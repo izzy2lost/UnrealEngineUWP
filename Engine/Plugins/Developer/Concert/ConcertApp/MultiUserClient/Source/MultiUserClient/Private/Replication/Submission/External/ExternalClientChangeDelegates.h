@@ -4,9 +4,9 @@
 
 #include "Delegates/Delegate.h"
 
-struct FObjectReplicationMap;
+struct FConcertObjectReplicationMap;
 
 namespace UE::MultiUserClient
 {
-	DECLARE_DELEGATE_RetVal(const FObjectReplicationMap*, FGetStreamContent);
+	DECLARE_DELEGATE_RetVal(const FConcertObjectReplicationMap*, FGetStreamContent);
 }

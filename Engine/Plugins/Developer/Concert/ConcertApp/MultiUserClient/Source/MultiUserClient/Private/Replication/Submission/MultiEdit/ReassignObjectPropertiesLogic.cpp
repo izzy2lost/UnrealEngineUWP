@@ -22,7 +22,7 @@ namespace UE::MultiUserClient
 		struct FObjectReassignment
 		{
 			/** Used to build the final changelist to apply to the target client. Maps ClientIds to the object data they had registered. */
-			TMap<FClientId, FObjectReplicationMap> OldRegisteredObjects;
+			TMap<FClientId, FConcertObjectReplicationMap> OldRegisteredObjects;
 			/** The frequency settings clients when reassignment operation was started. */
 			TMap<FClientId, FConcertStreamFrequencySettings> OldFrequencies;
 			/** Changes to make to all the other clients */
@@ -35,14 +35,14 @@ namespace UE::MultiUserClient
 		static FObjectReassignment BuildChangesForTransferal(const FReplicationClientManager& ClientManager, TConstArrayView<FSoftObjectPath> ObjectsToReassign, const FGuid& StreamId)
 		{
 			FObjectReassignment Result;
-			TMap<FGuid, FObjectReplicationMap>& OldRegisteredObjects = Result.OldRegisteredObjects;
+			TMap<FGuid, FConcertObjectReplicationMap>& OldRegisteredObjects = Result.OldRegisteredObjects;
 			TMap<FGuid, FConcertStreamFrequencySettings>& OldFrequencies = Result.OldFrequencies;
 			TMap<FGuid, FConcertReplication_ChangeStream_Request>& ReassignedClientRequests = Result.ReassignedClientRequests;
 			TMap<FGuid, TArray<FSoftObjectPath>>& ReassignedAuthority = Result.ReassignedAuthority;
 		
 			for (const FSoftObjectPath& ObjectPath : ObjectsToReassign)
 			{
-				const FObjectInStreamID ObjectId{ StreamId, ObjectPath };
+				const FConcertObjectInStreamID ObjectId{ StreamId, ObjectPath };
 
 				const FGlobalAuthorityCache& AuthorityCache = ClientManager.GetAuthorityCache();
 				AuthorityCache.ForEachClientWithObjectInStream(ObjectPath,
@@ -57,7 +57,7 @@ namespace UE::MultiUserClient
 						}
 						
 						const IClientStreamSynchronizer& ReassignedStreamSynchronizer = ClientToReassignFrom->GetStreamSynchronizer();
-						const FReplicatedObjectInfo* ObjectInfo = ReassignedStreamSynchronizer.GetServerState().ReplicatedObjects.Find(ObjectId.Object);
+						const FConcertReplicatedObjectInfo* ObjectInfo = ReassignedStreamSynchronizer.GetServerState().ReplicatedObjects.Find(ObjectId.Object);
 						if (!ensureMsgf(ObjectInfo, TEXT("ForEachClientWithObjectInStream lied")))
 						{
 							return EBreakBehavior::Continue;
@@ -115,7 +115,7 @@ namespace UE::MultiUserClient
 
 		/** Builds a changelist based on which remote clients we managed to change successfully. */
 		static TPair<FStreamChangelist, FFrequencyChangelist> MakeChangelistFromAppliedChanges(
-			const TMap<FGuid, FObjectReplicationMap>& OldRegisteredObjects,
+			const TMap<FGuid, FConcertObjectReplicationMap>& OldRegisteredObjects,
 			const TMap<FClientId, FConcertStreamFrequencySettings>& OldFrequencies,
 			const FParallelExecutionResult& ParallelExecutionResult,
 			const IClientStreamSynchronizer& AssignedToStreamSynchronizer
@@ -124,7 +124,7 @@ namespace UE::MultiUserClient
 			FStreamChangelist ObjectChanges;
 			FFrequencyChangelist FrequencyChanges;
 			
-			const FObjectReplicationMap& CurrentTargetClientState = AssignedToStreamSynchronizer.GetServerState();
+			const FConcertObjectReplicationMap& CurrentTargetClientState = AssignedToStreamSynchronizer.GetServerState();
 			const FConcertStreamFrequencySettings& CurrentFrequencySettings = AssignedToStreamSynchronizer.GetFrequencySettings();
 			const FGuid TargetStreamId = AssignedToStreamSynchronizer.GetStreamId();
 			for (const TPair<FGuid, FSubmitStreamChangesResponse>& ChangesRequestedOnRemote : ParallelExecutionResult.StreamResponses)
@@ -135,11 +135,11 @@ namespace UE::MultiUserClient
 					continue;
 				}
 				
-				const FObjectReplicationMap& ObjectReplicationMap = OldRegisteredObjects[ChangesRequestedOnRemote.Key];
-				for (const TPair<FSoftObjectPath, FReplicatedObjectInfo>& ChangesToApply : ObjectReplicationMap.ReplicatedObjects)
+				const FConcertObjectReplicationMap& ObjectReplicationMap = OldRegisteredObjects[ChangesRequestedOnRemote.Key];
+				for (const TPair<FSoftObjectPath, FConcertReplicatedObjectInfo>& ChangesToApply : ObjectReplicationMap.ReplicatedObjects)
 				{
 					const FSoftObjectPath& ObjectPath = ChangesToApply.Key;
-					const FObjectInStreamID ObjectId { TargetStreamId, ObjectPath };
+					const FConcertObjectInStreamID ObjectId { TargetStreamId, ObjectPath };
 					TOptional<FConcertReplication_ChangeStream_PutObject> PutRequest = FConcertReplication_ChangeStream_PutObject::MakeFromInfo(ChangesToApply.Value);
 					if (!ensure(PutRequest))
 					{
@@ -148,7 +148,7 @@ namespace UE::MultiUserClient
 
 					// We want to append the other client's properties to the ones the target client already has.
 					// TODO UE-201166: This step would not be necessary if we had an append operation in FConcertReplication_ChangeStream_PutObject
-					const FReplicatedObjectInfo* CurrentInfo = CurrentTargetClientState.ReplicatedObjects.Find(ObjectId.Object);
+					const FConcertReplicatedObjectInfo* CurrentInfo = CurrentTargetClientState.ReplicatedObjects.Find(ObjectId.Object);
 					if (CurrentInfo)
 					{
 						for (const FConcertPropertyChain& PropertyChain : CurrentInfo->PropertySelection.ReplicatedProperties)
@@ -203,16 +203,16 @@ namespace UE::MultiUserClient
 
 		/** @return Whether TargetClientObjects includes all properties ClientsToConsider have registered for ObjectToCheck. */
 		static bool DoesTargetIncludeOthers_SingleObject(
-			const FObjectReplicationMap& TargetClientObjects,
+			const FConcertObjectReplicationMap& TargetClientObjects,
 			const TArray<TNonNullPtr<const FReplicationClient>> ClientsToConsider,
 			const FSoftObjectPath& ObjectToCheck)
 		{
-			const FReplicatedObjectInfo* ObjectInfo = TargetClientObjects.ReplicatedObjects.Find(ObjectToCheck);
+			const FConcertReplicatedObjectInfo* ObjectInfo = TargetClientObjects.ReplicatedObjects.Find(ObjectToCheck);
 				
 			for (const FReplicationClient* OtherClient : ClientsToConsider)
 			{
-				const FObjectReplicationMap& OtherClientObjects = OtherClient->GetStreamSynchronizer().GetServerState();
-				const FReplicatedObjectInfo* OtherObjectInfo = OtherClientObjects.ReplicatedObjects.Find(ObjectToCheck);
+				const FConcertObjectReplicationMap& OtherClientObjects = OtherClient->GetStreamSynchronizer().GetServerState();
+				const FConcertReplicatedObjectInfo* OtherObjectInfo = OtherClientObjects.ReplicatedObjects.Find(ObjectToCheck);
 					
 				// TargetClient has at least as much if OtherClient has nothing
 				if (!OtherObjectInfo || OtherObjectInfo->PropertySelection.ReplicatedProperties.IsEmpty())
@@ -243,7 +243,7 @@ namespace UE::MultiUserClient
 				return false;
 			}
 
-			const FObjectReplicationMap& TargetClientObjects = TargetClient->GetStreamSynchronizer().GetServerState();
+			const FConcertObjectReplicationMap& TargetClientObjects = TargetClient->GetStreamSynchronizer().GetServerState();
 			const TArray<TNonNullPtr<const FReplicationClient>> ClientsToConsider = ClientManager.GetClients(ShouldConsiderClientPredicate);
 			return Algo::AllOf(ObjectsToCheck, [&TargetClientObjects, &ClientsToConsider](const FSoftObjectPath& ObjectToCheck)
 			{
@@ -260,10 +260,10 @@ namespace UE::MultiUserClient
 				return false;
 			}
 
-			const FObjectReplicationMap& TargetClientObjects = TargetClient->GetStreamSynchronizer().GetServerState();
+			const FConcertObjectReplicationMap& TargetClientObjects = TargetClient->GetStreamSynchronizer().GetServerState();
 			return Algo::AnyOf(ObjectsToCheck, [&TargetClientObjects](const FSoftObjectPath& ObjectPath)
 			{
-				const FReplicatedObjectInfo* ObjectInfo = TargetClientObjects.ReplicatedObjects.Find(ObjectPath);
+				const FConcertReplicatedObjectInfo* ObjectInfo = TargetClientObjects.ReplicatedObjects.Find(ObjectPath);
 				return ObjectInfo && !ObjectInfo->PropertySelection.ReplicatedProperties.IsEmpty();
 			});
 		}
@@ -419,9 +419,9 @@ namespace UE::MultiUserClient
 			return false;
 		}
 
-		return Algo::AnyOf(InProgressOperation->OldRegisteredObjects, [&ObjectPath](const TPair<FGuid, FObjectReplicationMap>& Change)
+		return Algo::AnyOf(InProgressOperation->OldRegisteredObjects, [&ObjectPath](const TPair<FGuid, FConcertObjectReplicationMap>& Change)
 		{
-			const FReplicatedObjectInfo* ObjectInfo = Change.Value.ReplicatedObjects.Find(ObjectPath);
+			const FConcertReplicatedObjectInfo* ObjectInfo = Change.Value.ReplicatedObjects.Find(ObjectPath);
 			return ObjectInfo && !ObjectInfo->PropertySelection.ReplicatedProperties.IsEmpty();
 		});
 	}

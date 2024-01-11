@@ -107,11 +107,11 @@ namespace UE::MultiUserClient
 		switch(CompletedOp.ErrorCode)
 		{
 		case EStreamSubmissionErrorCode::Success:
-			for (const TPair<FObjectInStreamID, FReplicatedObjectId>& Pair : CompletedOp.SubmissionInfo->Response.AuthorityConflicts)
+			for (const TPair<FConcertObjectInStreamID, FConcertReplicatedObjectId>& Pair : CompletedOp.SubmissionInfo->Response.AuthorityConflicts)
 			{
 				StreamErrors.AuthorityConflicts.FindOrAdd(Pair.Key.Object, 0) += 1;
 			}
-			for (const TPair<FObjectInStreamID, EConcertPutObjectErrorCode>& Pair : CompletedOp.SubmissionInfo->Response.ObjectsToPutSemanticErrors)
+			for (const TPair<FConcertObjectInStreamID, EConcertPutObjectErrorCode>& Pair : CompletedOp.SubmissionInfo->Response.ObjectsToPutSemanticErrors)
 			{
 				StreamErrors.SemanticErrors.FindOrAdd(Pair.Key.Object, 0) += 1;
 			}

@@ -9,7 +9,7 @@
 namespace UE::ConcertSharedSlate
 {
 	TSharedRef<IEditableReplicationStreamModel> CreateBaseStreamModel(
-		TAttribute<FObjectReplicationMap*> ReplicationMapAttribute,
+		TAttribute<FConcertObjectReplicationMap*> ReplicationMapAttribute,
 		TSharedPtr<IStreamExtender> Extender
 		)
 	{

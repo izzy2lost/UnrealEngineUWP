@@ -14,9 +14,9 @@ struct FConcertReplication_ChangeAuthority_Request;
 struct FConcertPropertyChain;
 struct FConcertPropertySelection;
 struct FConcertSessionContext;
-struct FObjectInStreamID;
-struct FReplicatedObjectId;
-struct FReplicationStreamDescription;
+struct FConcertObjectInStreamID;
+struct FConcertReplicatedObjectId;
+struct FConcertReplicationStream;
 
 namespace UE::ConcertSyncServer::Replication
 {
@@ -29,7 +29,7 @@ namespace UE::ConcertSyncServer::Replication
 	public:
 
 		/** Provides a way to extract all streams registered to a given client. */
-		virtual void ForEachStream(const FGuid& ClientEndpointId, TFunctionRef<EBreakBehavior(const FReplicationStreamDescription& Stream)> Callback) const = 0;
+		virtual void ForEachStream(const FGuid& ClientEndpointId, TFunctionRef<EBreakBehavior(const FConcertReplicationStream& Stream)> Callback) const = 0;
 
 		/** Iterates through all clients have registered to send any data. */
 		virtual void ForEachSendingClient(TFunctionRef<EBreakBehavior(const FGuid& ClientEndpointId)> Callback) const = 0;
@@ -53,7 +53,7 @@ namespace UE::ConcertSyncServer::Replication
 		 * Checks whether the client that sent the identified object had authority to send it.
 		 * @return Whether the server should process the object change.
 		 */
-		bool HasAuthorityToChange(const FReplicatedObjectId& ObjectChange) const;
+		bool HasAuthorityToChange(const FConcertReplicatedObjectId& ObjectChange) const;
 
 		/** Utility for iterating authority a client has for a given stream. */
 		void EnumerateAuthority(const FClientId& ClientId, const FStreamId& StreamId, TFunctionRef<EBreakBehavior(const FSoftObjectPath& Object)> Callback) const;
@@ -73,17 +73,17 @@ namespace UE::ConcertSyncServer::Replication
 		 * @return Whether there were any conflicts
 		 */
 		EAuthorityResult EnumerateAuthorityConflicts(
-			const FReplicatedObjectId& Object,
+			const FConcertReplicatedObjectId& Object,
 			const FConcertPropertySelection* OverwriteProperties = nullptr,
 			FProcessAuthorityConflict ProcessConflict = [](auto&, auto&, auto&){ return EBreakBehavior::Break; }
 			) const;
 		/** Whether it is legal for this the client identified by ClientId to take control over the object given the stream the client has registered. */
-		bool CanTakeAuthority(const FReplicatedObjectId& Object) const;
+		bool CanTakeAuthority(const FConcertReplicatedObjectId& Object) const;
 
 		/** Notifies this manager that the client has left, which means all their authority is now gone. */
 		void OnClientLeft(const FClientId& ClientEndpointId);
 		/** Takes away authority from the given client from the given object. */
-		void RemoveAuthority(const FReplicatedObjectId& Object);
+		void RemoveAuthority(const FConcertReplicatedObjectId& Object);
 
 	private:
 
@@ -106,7 +106,7 @@ namespace UE::ConcertSyncServer::Replication
 			);
 
 		/** Finds a stream registered with the client by its ID. */
-		const FReplicationStreamDescription* FindClientStreamById(const FClientId& ClientId, const FStreamId& StreamId) const;
+		const FConcertReplicationStream* FindClientStreamById(const FClientId& ClientId, const FStreamId& StreamId) const;
 	};
 }
 
