@@ -12,6 +12,7 @@ namespace UE
 	using FWildcardPropertyPathName = FPropertyPathName;
 	
 	static FName Name_ValuesSetBySerialization(TEXT("_ValuesSetBySerialization"));
+	static const FName NAME_StructOrignalTypeMetadata(TEXT("OriginalType"));
 	
 	struct ResolvePropertyPathNameHelperParams
 	{
@@ -23,30 +24,26 @@ namespace UE
 		bool bAddIfNeeded = false;
 	};
 
-	static void BuildSegmentTypeFromProperty(const FProperty* Property, TArray<FName>& OutType)
+	static void BuildSegmentTypeFromProperty(const FProperty* Property, TStringBuilder<256>& OutType)
 	{
+		auto Push = [&OutType](FName TypeName)
+		{
+			if (OutType.Len() > 0)
+			{
+				OutType.AppendChar(' ');
+			}
+			FName::GetEntry(TypeName.GetDisplayIndex())->AppendNameToString(OutType);
+		};
+		
 #if false // TODO: @jordan.hoffmann when complete type info is finished use this branch instead
 		OutType.Add(Property->GetID());
-		if (const FStructProperty* AsStructProperty = CastField<FStructProperty>(Property))
+		if (const FObjectProperty* AsObjectProperty = CastField<FObjectProperty>(Property))
 		{
-#if WITH_EDITORONLY_DATA
-			if (const FString* TPSOverrideStructName = AsStructProperty->FindMetaData("TPSOverrideStructName"))
-			{
-				OutType.Add(FName(*TPSOverrideStructName));
-			}
-			else
-#endif
-			{
-				OutType.Add(AsStructProperty->Struct->GetFName());
-			}
-		}
-		else if (const FObjectProperty* AsObjectProperty = CastField<FObjectProperty>(Property))
-		{
-			OutType.Add(AsObjectProperty->GetID());
+			Push(AsObjectProperty->GetID());
 		}
 		else if (const FEnumProperty* AsEnumProperty = CastField<FEnumProperty>(Property))
 		{
-			OutType.Add(AsEnumProperty->GetEnum()->GetFName());
+			Push(AsEnumProperty->GetEnum()->GetFName());
 		}
 		else if (const FArrayProperty* AsArrayProperty = CastField<FArrayProperty>(Property))
 		{
@@ -62,30 +59,21 @@ namespace UE
 			BuildSegmentTypeFromProperty(AsMapProperty->ValueProp, OutType);
 		}
 #else
-		OutType.Add(Property->GetID());
+		Push(Property->GetID());
 		if (const FStructProperty* AsStructProperty = CastField<FStructProperty>(Property))
 		{
-#if WITH_EDITORONLY_DATA
-			if (const FString* TPSOverrideStructName = AsStructProperty->FindMetaData("TPSOverrideStructName"))
-			{
-				OutType.Add(FName(*TPSOverrideStructName));
-			}
-			else
-#endif
-			{
-				OutType.Add(AsStructProperty->Struct->GetFName());
-			}
+			Push(AsStructProperty->Struct->GetFName());
 		}
 		else if (const FEnumProperty* AsEnumProperty = CastField<FEnumProperty>(Property))
 		{
-			OutType.Add(AsEnumProperty->GetEnum()->GetFName());
+			Push(AsEnumProperty->GetEnum()->GetFName());
 		}
 		else if (const FArrayProperty* AsArrayProperty = CastField<FArrayProperty>(Property))
 		{
 			if (AsArrayProperty->Inner->IsA<FEnumProperty>())
 			{
 				// enum paths currently don't recurse when they're in containers
-				OutType.Add(AsArrayProperty->Inner->GetClass()->GetFName());
+				Push(AsArrayProperty->Inner->GetClass()->GetFName());
 			}
 			else
 			{
@@ -95,24 +83,21 @@ namespace UE
 		else if (const FSetProperty* AsSetProperty = CastField<FSetProperty>(Property))
 		{
 			// sets currently don't recurse their element property types
-			OutType.Add(AsSetProperty->ElementProp->GetClass()->GetFName());
+			Push(AsSetProperty->ElementProp->GetClass()->GetFName());
 		}
 		else if (const FMapProperty* AsMapProperty = CastField<FMapProperty>(Property))
 		{
 			// maps currently don't recurse their key/value property types
-			OutType.Add(AsMapProperty->KeyProp->GetClass()->GetFName());
-			OutType.Add(AsMapProperty->ValueProp->GetClass()->GetFName());
+			Push(AsMapProperty->KeyProp->GetClass()->GetFName());
+			Push(AsMapProperty->ValueProp->GetClass()->GetFName());
 		}
 #endif
 	}
 	
 	static FName GetSegmentTypeFromProperty(const FProperty* Property)
 	{
-		TArray<FName> TypeList;
-		BuildSegmentTypeFromProperty(Property, TypeList);
-		TStringBuilder<512> Type;
-		Type.Join(TypeList, TEXT(' '));
-		
+		TStringBuilder<256> Type;
+		BuildSegmentTypeFromProperty(Property, Type);
 		return FName(Type);
 	}
 	
@@ -201,7 +186,8 @@ namespace UE
 		for (FProperty* Property : TFieldRange<FProperty>(Struct))
 		{
 			// find a property that matches the segment
-			if (Segment.Name != Property->GetFName() || Segment.Type != GetSegmentTypeFromProperty(Property))
+			const FName PropertySegmentType = GetSegmentTypeFromProperty(Property);
+			if (Segment.Name != Property->GetFName() || Segment.Type != PropertySegmentType)
 			{
 				continue;
 			}
@@ -224,7 +210,10 @@ namespace UE
 			}
 			else
 			{
-				++Params.CurPathIndex;
+				if (Segment.Index == INDEX_NONE)
+				{
+					++Params.CurPathIndex;
+				}
 				Params.ResultProperty = Property;
 				Params.Data = Property->ContainerPtrToValuePtr<void>(Params.Data);
 				return ResolvePropertyPathNameHelper(Params);
@@ -258,11 +247,17 @@ namespace UE
 	{
 		if (FStructProperty* AsStructProperty = CastField<FStructProperty>(Property))
 		{
-			const FName TPSOverrideStructName = AsStructProperty->Struct->GetFName();
+			const FString* OriginalType = nullptr;
+#if WITH_EDITORONLY_DATA
+			//@note: Transfer existing metadata over as we build the archetype from the struct or it owner, if any, this is useful for testing purposes
+			OriginalType = AsStructProperty->FindMetaData(NAME_StructOrignalTypeMetadata);
+			FField* OwnerField = OriginalType == nullptr ? AsStructProperty->Owner.ToField() : nullptr;
+			OriginalType = OwnerField ? OwnerField->FindMetaData(NAME_StructOrignalTypeMetadata) : OriginalType;
+#endif
+			const FName StructOriginalName = OriginalType ? FName(**OriginalType) : AsStructProperty->Struct->GetFName();
 			AsStructProperty->Struct = CreatePropertyBagArchetypeStructRec<UScriptStruct>(AsStructProperty->Struct, Outer, LooseProperties, Path);
 #if WITH_EDITORONLY_DATA
-			AsStructProperty->SetMetaData("TPSOverrideStructName", TPSOverrideStructName.ToString());
-			AsStructProperty->SetMetaData("OriginalType", TPSOverrideStructName.ToString());
+			AsStructProperty->SetMetaData("OriginalType", StructOriginalName.ToString());
 #endif
 		}
 		else if (const FArrayProperty* AsArrayProperty = CastField<FArrayProperty>(Property))
@@ -488,6 +483,20 @@ namespace UE
 		FWildcardPropertyPathName ParentPath;
 		return CreatePropertyBagArchetypeStructRec<UClass>(TemplateStruct, Outer, LooseProperties, ParentPath);
 	}
+
+	static void MarkPropertySetBySerialization(const UStruct* Struct, const void* StructData, const void* PropertyDataPtr)
+	{
+		if (const FSetProperty* ValuesSetByPropertyBagProperty = CastField<FSetProperty>(Struct->FindPropertyByName(Name_ValuesSetBySerialization)))
+		{
+			FScriptSetHelper ValuesSetByPropertyBag(ValuesSetByPropertyBagProperty, ValuesSetByPropertyBagProperty->ContainerPtrToValuePtr<void>(StructData));
+			const int64 ValueOffset = static_cast<const uint8*>(PropertyDataPtr) - static_cast<const uint8*>(StructData);
+			const int32 FoundIndex = ValuesSetByPropertyBag.FindElementIndex(&ValueOffset);
+			if (FoundIndex == INDEX_NONE)
+			{
+				ValuesSetByPropertyBag.AddElement(&ValueOffset);
+			}
+		}
+	}
 	
 	void MarkPropertySetBySerialization(UObject* Object, const FPropertyPathName& Path)
 	{
@@ -515,38 +524,18 @@ namespace UE
                 ParentData = Params.Data;
                 ParentStruct = ParentAsStructProperty->Struct;
             }
+            else
+            {
+            	// only mark properties set if they're in structs/classes
+	            return;
+            }
 		}
-
 		// resolve the last segment of the path
 		Params.EndPathIndex += 1;
-        if (ensure(ResolvePropertyPathNameHelper(ParentStruct, Params)))
+		if (ensure(ResolvePropertyPathNameHelper(ParentStruct, Params)))
         {
-            MarkPropertySetBySerialization(ParentStruct, ParentData, Params.ResultProperty, Segment.Index);
+			MarkPropertySetBySerialization(ParentStruct, ParentData, Params.Data);
         }
-	}
-
-	void MarkPropertySetBySerialization(const UStruct* Struct, const void* StructData, const FProperty* Property, int32 ArrayIndex)
-	{
-		if (const FSetProperty* ValuesSetByPropertyBagProperty = CastField<FSetProperty>(Struct->FindPropertyByName(Name_ValuesSetBySerialization)))
-		{
-			const uint8* PropertyDataPtr;
-			if (ArrayIndex == INDEX_NONE || Property->IsA<FArrayProperty>() || Property->IsA<FMapProperty>() || Property->IsA<FSetProperty>())
-			{
-				PropertyDataPtr = Property->ContainerPtrToValuePtr<uint8>(StructData);
-			}
-			else
-			{
-				PropertyDataPtr = Property->ContainerPtrToValuePtr<uint8>(StructData, ArrayIndex);
-			}
-			
-			FScriptSetHelper ValuesSetByPropertyBag(ValuesSetByPropertyBagProperty, ValuesSetByPropertyBagProperty->ContainerPtrToValuePtr<void>(StructData));
-			const int64 ValueOffset = PropertyDataPtr - static_cast<const uint8*>(StructData);
-			const int32 FoundIndex = ValuesSetByPropertyBag.FindElementIndex(&ValueOffset);
-			if (FoundIndex == INDEX_NONE)
-			{
-				ValuesSetByPropertyBag.AddElement(&ValueOffset);
-			}
-		}
 	}
 
 	bool WasPropertySetBySerialization(UObject* Object, const FPropertyPathName& Path)

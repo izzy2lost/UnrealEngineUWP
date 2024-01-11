@@ -13,6 +13,7 @@ namespace UE
 {
 
 class FPropertyBag;
+class FPropertyPathName;
 
 // Singleton class tracking property bag association with objects
 class FPropertyBagRepository
@@ -27,6 +28,7 @@ class FPropertyBagRepository
 	// TODO: Make private throughout and extend access permissions here or in wrapper classes? Don't want engine code modifying bags outside of serializers and details panels.
 	//friend UObjectBase;
 	//friend UStruct;
+	friend struct FScopedArchetypeLoad;
 
 private:
 	friend class FPropertyBagRepositoryLock;
@@ -66,7 +68,7 @@ public:
 	 * @param Owner			- Associated in world object.
 	 * @return				- Custom archetype object, UClass derived from associated bag.
 	 */
-	//UObject* CreateArchetype(UObjectBase* Owner);
+	COREUOBJECT_API UObject* CreateArchetype(const UObjectBase* Owner);
 
 	// TODO: Restrict property bag  destruction to within UObject::BeginDestroy() & FPropertyBagProperty destructor.
 	// Removes bag, archetype, and all associated data for this object.
@@ -90,9 +92,14 @@ public:
 	COREUOBJECT_API FPropertyBag* FindBag(const UObjectBase* Owner);
 	COREUOBJECT_API const FPropertyBag* FindBag(const UObjectBase* Owner) const;
 
-	bool HasArchetype(const UObjectBase* Owner) const;
-	UObject* FindArchetype(const UObjectBase* Owner);
-	const UObject* FindArchetype(const UObjectBase* Owner) const;
+	COREUOBJECT_API bool HasArchetype(const UObjectBase* Owner) const;
+	COREUOBJECT_API UObject* FindArchetype(const UObjectBase* Owner);
+	COREUOBJECT_API const UObject* FindArchetype(const UObjectBase* Owner) const;
+	
+	// query whether a property in an object was set when the object was deserialized
+	COREUOBJECT_API static bool WasPropertySetBySerialization(UObject* Object, const FPropertyPathName& Path);
+	// query whether a property in Struct was set when the struct was deserialized
+	COREUOBJECT_API static bool WasPropertySetBySerialization(const UStruct* Struct, const void* StructData, const FProperty* Property, int32 ArrayIndex = 0);
 
 private:
 	void Lock() const { CriticalSection.Lock(); }

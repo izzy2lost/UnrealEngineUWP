@@ -1569,6 +1569,11 @@ void UStruct::SerializeVersionedTaggedProperties(FStructuredArchive::FSlot Slot,
 					Property = CustomFindProperty(Tag.Name);
 				}
 
+				if (Property)
+				{
+					Property->AssignToTag(Tag);
+				}
+
 				if (SerializeContext && SerializeContext->bTrackSerializedPropertyPath)
 				{
 					const FName Name = Property ? Property->GetFName() : Tag.Name;
@@ -1595,8 +1600,6 @@ void UStruct::SerializeVersionedTaggedProperties(FStructuredArchive::FSlot Slot,
 
 				if (Property)
 				{
-					Property->AssignToTag(Tag);
-
 					FName PropID = Property->GetID();
 
 					// Check if this is a struct property and we have a redirector
@@ -1715,6 +1718,8 @@ void UStruct::SerializeVersionedTaggedProperties(FStructuredArchive::FSlot Slot,
 
 				if (SerializeContext && SerializeContext->bTrackSerializedPropertyPath)
 				{
+					// broadcast that a property was serialized
+					SerializeContext->OnTaggedPropertySerialize.Broadcast(*SerializeContext);
 					SerializeContext->SerializedPropertyPath.Pop();
 				}
 

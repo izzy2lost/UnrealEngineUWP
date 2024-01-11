@@ -307,6 +307,9 @@ void FSetProperty::SerializeItem(FStructuredArchive::FSlot Slot, void* Value, co
 				if (Context && Context->bTrackSerializedPropertyPath)
 				{
 					Context->SerializedPropertyPath.SetIndex(Index);
+					
+					// broadcast that a property will be serialized
+					Context->OnTaggedPropertySerialize.Broadcast(*Context);
 				}
 				ElementProp->SerializeItem(ElementsArray.EnterElement(), SetHelper.GetElementPtrWithoutCheck(Index));
 			}

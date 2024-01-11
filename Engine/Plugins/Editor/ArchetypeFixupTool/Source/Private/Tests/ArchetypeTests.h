@@ -90,6 +90,8 @@ public:
 	float Grade = 100.f;
 	UPROPERTY(EditAnywhere, Category = "Grade")
 	TArray<FString> TeacherNotes;
+	UPROPERTY(EditAnywhere, Category = "Grade")
+	FString MainTeacherName = FString(TEXT("Luther"));
 };
 
 // renaming Name to StudentName
@@ -145,6 +147,9 @@ public:
 	float GPA = 100.f;
 	
 	UPROPERTY(EditAnywhere, Category = "Report Card")
+	TArray<FClassGrade> ClassGradesArray;
+
+	UPROPERTY(EditAnywhere, Category = "Report Card")
 	TMap<FString, FClassGrade> ClassGrades;
 };
 
@@ -180,8 +185,74 @@ public:
 	UPROPERTY(EditAnywhere, Category = "Report Card")
 	float GPA = 100.f;
 	
+	UPROPERTY(EditAnywhere, Category = "Report Card", meta=(OriginalType="ClassGrade"))
+	TArray<FClassGradeV2> ClassGradesArray;
+
 	UPROPERTY(EditAnywhere, Category = "Report Card")
 	TMap<FString, FClassGradeV2> ClassGrades;
+};
+
+
+UCLASS()
+class UStudentInfoV1 : public UObject
+{
+	GENERATED_BODY()
+public:
+	UPROPERTY(EditAnywhere, Category = "Student Info")
+	FString StudentName;
+	
+	UPROPERTY(EditAnywhere, Category = "Student Info")
+	FString Gender;
+	
+	UPROPERTY(EditAnywhere, Category = "Student Info")
+	int32 Age = -1;
+
+	UPROPERTY(EditAnywhere, Category = "Student Info")
+	FString GradeYear;
+};
+
+UCLASS()
+class UTestReportCardV6 : public UObject
+{
+	GENERATED_BODY()
+    	
+public:
+	UPROPERTY(EditAnywhere, Instanced, Category = "Student Info")
+	UStudentInfoV1* StudentInfo;
+	
+	UPROPERTY(EditAnywhere, Category = "Report Card")
+	float Grade = 100.f;
+};
+
+UCLASS()
+class UStudentInfoV2 : public UObject
+{
+	GENERATED_BODY()
+public:
+	UPROPERTY(EditAnywhere, Category = "Student Info")
+	FString StudentName;
+	
+	UPROPERTY(EditAnywhere, Category = "Student Info")
+	FString Gender;
+	
+	UPROPERTY(EditAnywhere, Category = "Student Info")
+	int32 Age = -1;
+
+	UPROPERTY(EditAnywhere, Category = "Student Info")
+	FString GradeName;
+};
+
+UCLASS()
+class UTestReportCardV7 : public UObject
+{
+	GENERATED_BODY()
+    	
+public:
+	UPROPERTY(EditAnywhere, Instanced, Category = "Student Info")
+	UStudentInfoV2* StudentInfo;
+	
+	UPROPERTY(EditAnywhere, Category = "Report Card")
+	float GPA = 100.f;
 };
 
 TArray<UObject*> CreateClassGradeTestObjects();

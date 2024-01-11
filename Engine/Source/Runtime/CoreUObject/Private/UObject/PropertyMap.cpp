@@ -731,6 +731,9 @@ void FMapProperty::SerializeItem(FStructuredArchive::FSlot Slot, void* Value, co
 				if (Context && Context->bTrackSerializedPropertyPath)
 				{
 					Context->SerializedPropertyPath.SetIndex(Index);
+					
+					// broadcast that a property will be serialized
+					Context->OnTaggedPropertySerialize.Broadcast(*Context);
 				}
 
 				// TODO: Need a way to indicate that we are serializing a key and value into the property bag. Push Key/Value names?
