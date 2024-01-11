@@ -64,7 +64,7 @@ private:
 	FString PIEMapName;
 	double SessionStartTime;
 	double AssetOpenStartTime;
-	double TimeToStartEditor;
+	double TimeToBootEditor;
 };
 
 #endif // WITH_EDITOR

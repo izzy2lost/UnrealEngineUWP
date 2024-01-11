@@ -13,6 +13,7 @@
 #include "Experimental/ZenServerInterface.h"
 #endif
 
+PRAGMA_DISABLE_DEPRECATION_WARNINGS
 bool FStudioAnalytics::bInitialized = false;
 std::atomic<double> FStudioAnalytics::TimeEstimation { 0 };
 FThread FStudioAnalytics::TimerThread;
@@ -132,3 +133,5 @@ void FStudioAnalytics::RecordEvent(const FString& EventName, const TArray<FAnaly
 		FStudioAnalytics::GetProvider().RecordEvent(EventName, Attributes);
 	}
 }
+
+PRAGMA_ENABLE_DEPRECATION_WARNINGS

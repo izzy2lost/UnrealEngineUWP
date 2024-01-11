@@ -433,7 +433,7 @@ void FStudioTelemetryEditor::Initialize()
 			FStudioTelemetryEditor::RecordEvent_CoreSystems(TEXT("LoadMap"), EditorLoadMapSpan->GetAttributes());
 		});
 
-	FEditorDelegates::OnEditorBoot.AddLambda([this](double TimeToBootEditor)
+	FEditorDelegates::OnEditorBoot.AddLambda([this](double)
 		{	
 			FStudioTelemetry::Get().EndSpan(EditorBootSpan);
 
@@ -446,7 +446,7 @@ void FStudioTelemetryEditor::Initialize()
 
 	FEditorDelegates::OnEditorInitialized.AddLambda([this](double TimeToInitializeEditor)
 		{
-			TimeToStartEditor = TimeToInitializeEditor;
+			TimeToBootEditor = TimeToInitializeEditor;
 
 			// Editor has initialized
 			TArray<FAnalyticsEventAttribute> Attributes;
@@ -545,8 +545,7 @@ void FStudioTelemetryEditor::Initialize()
 							TSharedPtr<IAnalyticsSpan> SlowTaskSpan = *SpanPtr;
 
 							FStudioTelemetry::Get().EndSpan(SlowTaskSpan);
-							FStudioTelemetryEditor::RecordEvent_Loading(TEXT("SlowTask"), SlowTaskSpan->GetDuration(), SlowTaskSpan->GetAttributes());	
-
+					
 							// Remove the SlowTask span from the registry
 							TaskSpans.Remove(Name);
 						}
@@ -607,8 +606,12 @@ void FStudioTelemetryEditor::Initialize()
 
 			if (IsFirstTimeToPIE == true)
 			{
+				const double TimeInEditor = EditorLoadMapSpan->GetDuration();
+				const double TimeToStartPIE = PIEStartupSpan->GetDuration();
+				const double TimeToBootToPIE = TimeToBootEditor + TimeInEditor + TimeToStartPIE;
+
 				// Record the absolute time from editor boot to PIE
-				FStudioTelemetryEditor::RecordEvent_Loading(TEXT("TimeToPIE"), TimeToStartEditor + EditorLoadMapSpan->GetDuration() + PIEStartupSpan->GetDuration(), PIEStartupSpan->GetAttributes());
+				FStudioTelemetryEditor::RecordEvent_Loading(TEXT("TimeToPIE"), TimeToBootToPIE, PIEStartupSpan->GetAttributes());
 				FStudioTelemetryEditor::RecordEvent_CoreSystems(TEXT("TimeToPIE"), PIEStartupSpan->GetAttributes());
 
 				IsFirstTimeToPIE = false;

@@ -14,7 +14,7 @@ struct FAnalyticsEventAttribute;
 /**
  * The public interface for the game studio to gather information about internal development metrics.
  */
-class FStudioAnalytics : FNoncopyable
+class UE_DEPRECATED(5.4, "FStudioAnalytics is deprecated, please use FStudioTelemetry instead.") FStudioAnalytics : FNoncopyable
 {
 public:
 	static ENGINE_API void SetProvider(TSharedRef<IAnalyticsProviderET> InAnalytics);

@@ -113,8 +113,8 @@ void FStudioTelemetry::StartSession()
 			ProjectID = FGuid(FCString::Atoi(*(Elements[1])), FCString::Atoi(*(Elements[2])), FCString::Atoi(*(Elements[3])), FCString::Atoi(*(Elements[4])));
 		}
 
-		FGuid SessionGUID;
-		FPlatformMisc::CreateGuid(SessionGUID);
+		FGuid SessionID;
+		FPlatformMisc::CreateGuid(SessionID);
 		
 		FString SessionLabel;
 		FParse::Value(FCommandLine::Get(), TEXT("SessionLabel="), SessionLabel);
@@ -126,7 +126,7 @@ void FStudioTelemetry::StartSession()
 		DefaultEventAttributes.Emplace(TEXT("ProjectName"), ProjectName);
 		DefaultEventAttributes.Emplace(TEXT("ProjectID"), ProjectID);
 
-		DefaultEventAttributes.Emplace(TEXT("Session_ID"), SessionGUID.ToString(EGuidFormats::DigitsWithHyphensInBraces));
+		DefaultEventAttributes.Emplace(TEXT("Session_ID"), SessionID.ToString(EGuidFormats::DigitsWithHyphensInBraces));
 		DefaultEventAttributes.Emplace(TEXT("Session_Label"), SessionLabel);
 		DefaultEventAttributes.Emplace(TEXT("Session_StartUTC"), FDateTime::UtcNow().ToUnixTimestampDecimal());
 
@@ -167,7 +167,7 @@ void FStudioTelemetry::StartSession()
 		
 		// Set up the analytics provider
 		AnalyticsProvider->SetUserID(UserID);
-		AnalyticsProvider->SetSessionID(SessionGUID.ToString(EGuidFormats::DigitsWithHyphensInBraces));
+		AnalyticsProvider->SetSessionID(SessionID.ToString(EGuidFormats::DigitsWithHyphensInBraces));
 		AnalyticsProvider->SetDefaultEventAttributes(MoveTemp(DefaultEventAttributes));
 		AnalyticsProvider->SetRecordEventCallback(RecordEventCallback);
 		

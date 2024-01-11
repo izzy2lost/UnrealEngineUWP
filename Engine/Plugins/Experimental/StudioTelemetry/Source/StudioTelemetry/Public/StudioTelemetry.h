@@ -83,4 +83,5 @@ private:
 	TSharedPtr<FAnalyticsProviderMulticast>	AnalyticsProvider;
 	TSharedPtr<IAnalyticsTracer>			AnalyticsTracer;
 	OnRecordEvent							RecordEventCallback;
+	FGuid									SessionGUID;
 };

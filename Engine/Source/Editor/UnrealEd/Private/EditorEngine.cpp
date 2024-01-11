@@ -244,7 +244,6 @@
 #include "IToolMenusEditorModule.h"
 #include "Subsystems/AssetEditorSubsystem.h"
 #include "LevelEditorSubsystem.h"
-#include "StudioAnalytics.h"
 #include "Engine/LevelScriptActor.h"
 #include "UObject/UnrealType.h"
 #include "Factories/TextureFactory.h"
@@ -1545,8 +1544,7 @@ void UEditorEngine::Tick( float DeltaSeconds, bool bIdleMode )
 	}
 
 	FEngineAnalytics::Tick(DeltaSeconds);
-	FStudioAnalytics::Tick(DeltaSeconds);
-
+	
 	// Look for realtime flags.
 	bool IsRealtime = false;
 

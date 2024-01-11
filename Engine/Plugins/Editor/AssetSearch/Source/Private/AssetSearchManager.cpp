@@ -9,7 +9,7 @@
 #include "Misc/Paths.h"
 #include "HAL/RunnableThread.h"
 #include "Misc/App.h"
-#include "StudioAnalytics.h"
+#include "StudioTelemetry.h"
 #include "AnalyticsEventAttribute.h"
 #include "Misc/PackageName.h"
 #include "WidgetBlueprint.h"
@@ -1167,10 +1167,11 @@ void FAssetSearchManager::Search(FSearchQueryPtr SearchQuery)
 {
 	check(IsInGameThread());
 
-	FStudioAnalytics::RecordEvent(TEXT("AssetSearch"), {
-		FAnalyticsEventAttribute(TEXT("QueryString"), SearchQuery->QueryText)
-	});
-
+	if (FStudioTelemetry::IsAvailable())
+	{
+		FStudioTelemetry::Get().RecordEvent(TEXT("AssetSearch"), { FAnalyticsEventAttribute(TEXT("QueryString"), SearchQuery->QueryText)} );
+	}
+	
 	ImmediateOperations.Enqueue([this, SearchQuery]() {
 
 		TArray<FSearchRecord> Results;
