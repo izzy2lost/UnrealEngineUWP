@@ -16,10 +16,14 @@ namespace uba
 #if PLATFORM_WINDOWS
 	ReaderWriterLock g_createFileHandleLock;
 
+	//Atomic<u64> g_fileMappingCount;
+
 	HANDLE asHANDLE(FileHandle fh);
 
 	HANDLE InternalCreateFileMappingW(HANDLE hFile, DWORD flProtect, DWORD dwMaximumSizeHigh, DWORD dwMaximumSizeLow, LPCWSTR lpName)
 	{
+		//++g_fileMappingCount;
+
 		if (flProtect != PAGE_READWRITE)
 			return ::CreateFileMappingW(hFile, NULL, flProtect, dwMaximumSizeHigh, dwMaximumSizeLow, lpName);
 
@@ -222,6 +226,14 @@ namespace uba
 	bool CloseFileMapping(FileMappingHandle h)
 	{
 #if PLATFORM_WINDOWS
+		//if (h.handle)
+		//{
+		//	--g_fileMappingCount;
+		//	StringBuffer<256> sb;
+		//	sb.Appendf(TC("FILEMAPPING COUNT: %llu\r\n"), g_fileMappingCount.load());
+		//	OutputDebugStringW(sb.data);
+		//}
+
 		return CloseHandle(h.handle);
 #else
 		if (h.shmFd == -1)

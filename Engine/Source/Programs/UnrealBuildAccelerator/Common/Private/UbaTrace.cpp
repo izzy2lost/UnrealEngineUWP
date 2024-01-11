@@ -50,8 +50,9 @@ namespace uba
 		m_memoryHandle = uba::CreateMemoryMappingW(m_logger, PAGE_READWRITE|SEC_RESERVE, m_memoryCapacity, namedTrace);
 		if (!m_memoryHandle.IsValid())
 			return false;
+		if (GetLastError() != ERROR_ALREADY_EXISTS)
+			m_memoryBegin = MapViewOfFile(m_memoryHandle, FILE_MAP_WRITE, 0, m_memoryCapacity);
 
-		m_memoryBegin = MapViewOfFile(m_memoryHandle, FILE_MAP_WRITE, 0, m_memoryCapacity);
 		if (!m_memoryBegin)
 		{
 			CloseFileMapping(m_memoryHandle);
