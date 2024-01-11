@@ -2778,7 +2778,10 @@ static void AddHairAuxilaryPass(
 		Parameters->RenderTargets[0] = FRenderTargetBinding(Output0, ERenderTargetLoadAction::ELoad, 0 /*Mip-0*/, 0/*First slice, which contains state/counter*/);
 		Parameters->RenderTargets[1] = FRenderTargetBinding(Output1, ERenderTargetLoadAction::ELoad);
 		Parameters->RenderTargets[2] = FRenderTargetBinding(OutColorTexture, ERenderTargetLoadAction::ELoad);
-		Parameters->RenderTargets[3] = FRenderTargetBinding(Output2, ERenderTargetLoadAction::ELoad);
+		if (!bSubstrateEnabled)
+		{
+			Parameters->RenderTargets[3] = FRenderTargetBinding(Output2, ERenderTargetLoadAction::ELoad);
+		}
 	}
 
 	if (PassType == EHairAuxilaryPassType::MaterialData_LightChannelMask || PassType == EHairAuxilaryPassType::LightChannelMask)

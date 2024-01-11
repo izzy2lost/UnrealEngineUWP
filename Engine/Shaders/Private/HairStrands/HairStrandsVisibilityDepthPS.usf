@@ -3,6 +3,7 @@
 #include "../Common.ush"
 #include "../SceneTexturesCommon.ush"
 #include "../DeferredShadingCommon.ush"
+#include "../Substrate/Substrate.ush"
 #include "HairStrandsVisibilityCommon.ush"
 
 #define OUTPUT_DEPTH 0
@@ -80,8 +81,14 @@ void MainPS(
 	const FHairSampleData SampleData = ExtractSampleData(PixelCoord);
 	SvDepth = SampleData.DeviceZ - DepthBias;
 #if SUBSTRATE_ENABLED
-	Output0 = 0; // MaterialData SUBSTRATE_TODO Force PerObjectData contact shadow to respect hair settings, in order to have correct screen cast later
+	Output0 = 0; // MaterialData
 	Output1 = 0; // TopLayerData
+
+	// Force PerObjectData contact shadow to respect hair settings, in order to have correct screen cast later
+	FSubstratePixelHeader DummyHeader = InitialiseSubstratePixelHeader();
+	DummyHeader.SetCastContactShadow(SampleData.CastContactShadow ? 1 : 0);
+	Output0 = DummyHeader.State;
+
 #else
 	Output0 = float4(0, 0, 0, 0);
 	Output1 = 0;
