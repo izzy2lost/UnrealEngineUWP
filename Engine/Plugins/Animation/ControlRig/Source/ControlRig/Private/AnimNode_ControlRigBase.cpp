@@ -453,14 +453,14 @@ void FAnimNode_ControlRigBase::ExecuteControlRig(FPoseContext& InOutput)
 		
 		if (bExecute)
 		{
+			TGuardValue<bool> ResetCurrentTransfromsAfterConstructionGuard(ControlRig->bResetCurrentTransformsAfterConstruction, true);
+			
 #if WITH_EDITOR
 			URigHierarchy* Hierarchy = ControlRig->GetHierarchy();
 			if(Hierarchy == nullptr)
 			{
 				return;
 			}
-
-			TGuardValue<bool> ResetCurrentTransfromsAfterConstructionGuard(ControlRig->bResetCurrentTransformsAfterConstruction, true);
 
 			if(Hierarchy->IsTracingChanges())
 			{
