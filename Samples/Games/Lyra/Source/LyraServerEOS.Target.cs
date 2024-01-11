@@ -3,9 +3,9 @@
 using UnrealBuildTool;
 using System.Collections.Generic;
 
-public class LyraGameEOSTarget : LyraGameTarget
+public class LyraServerEOSTarget : LyraServerTarget
 {
-	public LyraGameEOSTarget(TargetInfo Target) : base(Target)
+	public LyraServerEOSTarget(TargetInfo Target) : base(Target)
 	{
 		CustomConfig = "EOS";
 	}
