@@ -43,6 +43,14 @@ namespace EpicGames.Serialization
 	}
 
 	/// <summary>
+	/// Attribute used to mark that a property should not be serialized to compact binary
+	/// </summary>
+	[AttributeUsage(AttributeTargets.Property)]
+	public sealed class CbIgnoreAttribute : Attribute
+	{
+	}
+
+	/// <summary>
 	/// Attribute used to indicate that this object is the base for a class hierarchy. Each derived class must have a [CbDiscriminator] attribute.
 	/// </summary>
 	[AttributeUsage(AttributeTargets.Class)]

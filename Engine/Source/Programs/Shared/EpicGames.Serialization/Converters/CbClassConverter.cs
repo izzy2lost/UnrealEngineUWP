@@ -463,11 +463,15 @@ namespace EpicGames.Serialization.Converters
 			List<(Utf8String, PropertyInfo)> propertyList = new List<(Utf8String, PropertyInfo)>();
 			foreach (PropertyInfo property in type.GetProperties(BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance))
 			{
-				CbFieldAttribute? attribute = property.GetCustomAttribute<CbFieldAttribute>();
-				if (attribute != null)
+				CbIgnoreAttribute? ignoreAttribute = property.GetCustomAttribute<CbIgnoreAttribute>();
+				if (ignoreAttribute == null)
 				{
-					Utf8String name = new Utf8String(attribute.Name ?? property.Name);
-					propertyList.Add((name, property));
+					CbFieldAttribute? attribute = property.GetCustomAttribute<CbFieldAttribute>();
+					if (attribute != null || (property.GetGetMethod()?.IsPublic ?? false))
+					{
+						Utf8String name = new Utf8String(attribute?.Name ?? property.Name);
+						propertyList.Add((name, property));
+					}
 				}
 			}
 			if (propertyList.Count == 0 && type.GetCustomAttribute<CbObjectAttribute>() == null)
