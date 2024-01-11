@@ -135,6 +135,15 @@ void ClearCounters(RWStructuredBuffer<uint> InRWBuffer)
 	InRWBuffer[SHADER_PRINT_COUNTER_OFFSET_FREE] = 0;
 }
 
+void ClearCounters(RWBuffer<uint> InRWBuffer)
+{
+	// Symbol/print Counter
+	InRWBuffer[SHADER_PRINT_COUNTER_OFFSET_LINE] = 0;
+	InRWBuffer[SHADER_PRINT_COUNTER_OFFSET_TRIANGLE] = 0;
+	InRWBuffer[SHADER_PRINT_COUNTER_OFFSET_SYMBOL] = 0;
+	InRWBuffer[SHADER_PRINT_COUNTER_OFFSET_FREE] = 0;
+}
+
 ///////////////////////////////////////////////////////////////////////////////////////////////////
 // State 
 #define SHADER_PRINT_STATE_COUNT_OFFSET 0
@@ -265,7 +274,7 @@ FShaderPrintItem UnpackShaderPrintItem(FPackedShaderPrintItem In)
 }
 
 // /!\ If you update this function, update the WriteSymbol() version without explicit buffer, below in this file
-void WriteSymbol(uint Offset, FShaderPrintItem In, RWStructuredBuffer<uint> InRWBuffer)
+void WriteSymbol(uint Offset, FShaderPrintItem In, RWBuffer<uint> InRWBuffer)
 {
 	const uint Offset4 = GetSymbolOffset(Offset);
 
@@ -277,6 +286,19 @@ void WriteSymbol(uint Offset, FShaderPrintItem In, RWStructuredBuffer<uint> InRW
 }
 
 FShaderPrintItem ReadSymbol(uint Offset, StructuredBuffer<uint> InBuffer)
+{
+	const uint Offset4 = GetSymbolOffset(Offset);
+
+	FPackedShaderPrintItem Packed = (FPackedShaderPrintItem)0;
+	Packed.ScreenPos16bits	= InBuffer[Offset4 + 0];
+	Packed.Value			= InBuffer[Offset4 + 1];
+	Packed.TypeAndColor		= InBuffer[Offset4 + 2];
+	Packed.Metadata			= InBuffer[Offset4 + 3];
+
+	return UnpackShaderPrintItem(Packed);
+}
+
+FShaderPrintItem ReadSymbol(uint Offset, Buffer<uint> InBuffer)
 {
 	const uint Offset4 = GetSymbolOffset(Offset);
 
@@ -745,7 +767,7 @@ FPackedTriangleElement PackTriangleElement(FTriangleElement In)
 	return Out;
 }
 
-FTriangleElement UnpackTriangleElement(StructuredBuffer<uint> InPrimitiveBuffer, uint InIndex, uint MaxCharacterCount, uint MaxLineCount)
+FTriangleElement UnpackTriangleElement(Buffer<uint> InPrimitiveBuffer, uint InIndex, uint MaxCharacterCount, uint MaxLineCount)
 {
 	const uint Index12 = GetPrimitiveTriangleOffset(InIndex, MaxCharacterCount, MaxLineCount);
 
@@ -949,7 +971,7 @@ FPackedLineElement PackLineElement(FLineElement In)
 	return Out;
 }
 
-FLineElement UnpackLineElement(StructuredBuffer<uint> InPrimitiveBuffer, uint InIndex, uint MaxCharacterCount)
+FLineElement UnpackLineElement(Buffer<uint> InPrimitiveBuffer, uint InIndex, uint MaxCharacterCount)
 {
 	const uint Index8 = GetPrimitiveLineOffset(InIndex, MaxCharacterCount);
 

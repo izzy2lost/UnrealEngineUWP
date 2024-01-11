@@ -15,10 +15,10 @@ uint FrameIndex;
 uint FrameThreshold;
 
 StructuredBuffer<uint> ValuesBuffer;
-StructuredBuffer<uint> SymbolsBuffer;
+Buffer<uint> SymbolsBuffer;
 
 RWStructuredBuffer<uint> RWValuesBuffer;
-RWStructuredBuffer<uint> RWSymbolsBuffer;
+RWBuffer<uint> RWSymbolsBuffer;
 RWStructuredBuffer<uint> RWStateBuffer;
 
 RWBuffer<uint> RWIndirectDispatchArgsBuffer;

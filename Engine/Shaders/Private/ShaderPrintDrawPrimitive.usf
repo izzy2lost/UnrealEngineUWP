@@ -9,7 +9,7 @@ uint bCheckerboardEnabled;
 uint bDrawOccludedLines;
 
 // The shader used to render the debug element on view
-StructuredBuffer<uint> ShaderDrawDebugPrimitive;
+Buffer<uint> ShaderDrawDebugPrimitive;
 
 Texture2D<float> DepthTexture;
 float2 OutputInvResolution; 
@@ -110,7 +110,7 @@ void ShaderDrawDebugPS(
 
 #if GPU_DEBUG_RENDERING_COPY_CS
 
-StructuredBuffer<uint> ElementBuffer;
+Buffer<uint> ElementBuffer;
 RWBuffer<uint> RWIndirectArgs;
 uint PrimitiveType;
 
