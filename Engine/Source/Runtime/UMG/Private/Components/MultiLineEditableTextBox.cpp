@@ -174,9 +174,13 @@ FText UMultiLineEditableTextBox::GetText() const
 
 void UMultiLineEditableTextBox::SetText(FText InText)
 {
-	if (SetTextInternal(InText) && MyEditableTextBlock.IsValid() )
+	if (SetTextInternal(InText))
 	{
-		MyEditableTextBlock->SetText(Text);
+		if (MyEditableTextBlock.IsValid())
+		{
+			MyEditableTextBlock->SetText(Text);
+		}
+		BroadcastFieldValueChanged(FFieldNotificationClassDescriptor::Text);
 	}
 }
 
@@ -185,7 +189,6 @@ bool UMultiLineEditableTextBox::SetTextInternal(const FText& InText)
 	if (!Text.IdenticalTo(InText, ETextIdenticalModeFlags::DeepCompare | ETextIdenticalModeFlags::LexicalCompareInvariants))
 	{
 		Text = InText;
-		BroadcastFieldValueChanged(FFieldNotificationClassDescriptor::Text);
 		return true;
 	}
 
@@ -260,13 +263,17 @@ void UMultiLineEditableTextBox::HandleOnTextChanged(const FText& InText)
 {
 	if (SetTextInternal(InText))
 	{
+		BroadcastFieldValueChanged(FFieldNotificationClassDescriptor::Text);
 		OnTextChanged.Broadcast(InText);
 	}
 }
 
 void UMultiLineEditableTextBox::HandleOnTextCommitted(const FText& InText, ETextCommit::Type CommitMethod)
 {
-	SetTextInternal(InText);
+	if (SetTextInternal(InText))
+	{
+		BroadcastFieldValueChanged(FFieldNotificationClassDescriptor::Text);
+	}
 	OnTextCommitted.Broadcast(InText, CommitMethod);
 }
 
