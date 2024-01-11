@@ -365,10 +365,10 @@ void FContentBundleEditor::GenerateStreaming(TArray<FString>* OutPackageToGenera
 		{
 			UE_LOG(LogContentBundle, Error, TEXT("%s Failed to store streaming object. PIE duplication will not work."), *ContentBundle::Log::MakeDebugInfoString(*this));
 		}
-
-		// Clear streaming object. It will be kept alive & duplicated by UContentBundleDuplicateForPIEHelper.
-		ExternalStreamingObject = nullptr;
 	}
+
+	// Clear streaming object, as it will be kept alive and duplicated by UContentBundleDuplicateForPIEHelper (or simply GC'd for manual streaming generation).
+	ExternalStreamingObject = nullptr;
 }
 
 void FContentBundleEditor::OnBeginCook(IWorldPartitionCookPackageContext& CookContext)

@@ -48,6 +48,7 @@ static FAutoConsoleCommand DumpStreamingGenerationLog(
 				UWorldPartition::FGenerateStreamingContext Context;
 				WorldPartition->GenerateStreaming(Params, Context);
 				WorldPartition->FlushStreaming();
+				CollectGarbage(GARBAGE_COLLECTION_KEEPFLAGS);
 			}
 		}
 	})
