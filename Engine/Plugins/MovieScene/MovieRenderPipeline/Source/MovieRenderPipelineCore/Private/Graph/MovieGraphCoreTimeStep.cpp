@@ -441,6 +441,7 @@ void UMovieGraphCoreTimeStep::TickProducingFrames()
 			// If we've rendered the last temporal sub-sample, we've started a new output frame
 			// and we need to reset our temporal sample index.
 			CurrentFrameData.TemporalSampleIndex = 0;
+			CurrentCameraCut->ShotInfo.WorkMetrics.OutputSubSampleIndex = 0;
 		}
 		else
 		{
@@ -452,6 +453,7 @@ void UMovieGraphCoreTimeStep::TickProducingFrames()
 			{
 				// Each tick we increment the temporal sample we're on.
 				CurrentFrameData.TemporalSampleIndex++;
+				CurrentCameraCut->ShotInfo.WorkMetrics.OutputSubSampleIndex++;
 			}
 		}
 	}

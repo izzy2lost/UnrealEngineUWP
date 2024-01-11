@@ -351,6 +351,16 @@ void UMovieGraphPipeline::BuildShotListFromDataSource()
 		const FFrameRate TickResolution = GetDataSourceInstance()->GetTickResolution();
 
 		UMovieGraphWarmUpSettingNode* WarmUpNode = EvaluatedConfig->GetSettingForBranch<UMovieGraphWarmUpSettingNode>(UMovieGraphSettingNode::GlobalsPinName);
+
+		Shot->ShotInfo.NumTemporalSamples = SamplingMethodNode->TemporalSampleCount;
+		Shot->ShotInfo.NumSpatialSamples = 1;
+		Shot->ShotInfo.NumTiles = FIntPoint(1,1);
+		Shot->ShotInfo.CachedFrameRate = FinalFrameRate;
+		Shot->ShotInfo.CachedTickResolution = Shot->ShotInfo.CachedShotTickResolution = TickResolution;
+		if (Shot->ShotInfo.SubSectionHierarchy.IsValid() && Shot->ShotInfo.SubSectionHierarchy->MovieScene.IsValid())
+		{
+			Shot->ShotInfo.CachedShotTickResolution = Shot->ShotInfo.SubSectionHierarchy->MovieScene->GetTickResolution();
+		}
 		
 		const bool bPrePass = true;
 		const bool bExpandForTemporalSubSample = GraphTimeStepInstances.Last()->IsExpansionForTSRequired(EvaluatedConfig);
