@@ -63,7 +63,7 @@ namespace Dataflow
 			return Instance;
 		}
 
-		void RegisterNode(const FFactoryParameters& Parameters, FNewNodeFunction NewFunction)
+		DATAFLOWCORE_API void RegisterNode(const FFactoryParameters& Parameters, FNewNodeFunction NewFunction)
 		{
 			bool bRegisterNode = true;
 			if (ClassMap.Contains(Parameters.TypeName) || DisplayMap.Contains(Parameters.DisplayName))
