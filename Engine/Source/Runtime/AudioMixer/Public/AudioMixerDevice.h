@@ -132,12 +132,9 @@ namespace Audio
 		AUDIOMIXER_API virtual double GetInterpolatedAudioClock() const override;
 		AUDIOMIXER_API virtual FAudioEffectsManager* CreateEffectsManager() override;
 		AUDIOMIXER_API virtual FSoundSource* CreateSoundSource() override;
-		AUDIOMIXER_API virtual FName GetRuntimeFormat(const USoundWave* SoundWave) const override;
 		AUDIOMIXER_API virtual bool HasCompressedAudioInfoClass(USoundWave* SoundWave) override;
 		AUDIOMIXER_API virtual bool SupportsRealtimeDecompression() const override;
 		AUDIOMIXER_API virtual bool DisablePCMAudioCaching() const override;
-		AUDIOMIXER_API virtual class ICompressedAudioInfo* CreateCompressedAudioInfo(const USoundWave* SoundWave) const override;
-		AUDIOMIXER_API virtual class ICompressedAudioInfo* CreateCompressedAudioInfo(const FSoundWaveProxyPtr& SoundWave) const override;
 		AUDIOMIXER_API virtual bool ValidateAPICall(const TCHAR* Function, uint32 ErrorCode) override;
 #if UE_ALLOW_EXEC_COMMANDS
 		AUDIOMIXER_API virtual bool Exec(UWorld* InWorld, const TCHAR* Cmd, FOutputDevice& Ar) override;
@@ -412,8 +409,6 @@ namespace Audio
 		void InitSoundfieldAndEndpointDataForSubmix(const USoundSubmixBase& InSoundSubmix, FMixerSubmixPtr MixerSubmix, bool bAllowReInit);
 
 		void UnloadSoundSubmix(const USoundSubmixBase& SoundSubmix, const bool bReparentChildren);
-
-		ICompressedAudioInfo* CreateAudioInfo(FName InFormat) const;
 
 		bool IsRequiredSubmixType(const USoundSubmixBase* InSubmix) const;
 		FMixerSubmixPtr GetRequiredSubmixInstance(uint32 InSubmixId) const;
