@@ -3,7 +3,7 @@
 
 #if WITH_EDITOR
 
-#include "SchematicGraphDefines.h"
+#include "SchematicGraphTag.h"
 
 #define SCHEMATICGRAPHNODE_BODY(ClassName, SuperClass) \
 SCHEMATICGRAPHELEMENT_BODY(ClassName, SuperClass, FSchematicGraphNode)
