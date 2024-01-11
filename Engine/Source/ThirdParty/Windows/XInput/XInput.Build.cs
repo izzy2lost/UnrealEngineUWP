@@ -15,24 +15,7 @@ public class XInput : ModuleRules
 		// Ensure correct include and link paths for xinput so the correct dll is loaded (xinput1_3.dll)
 		if (Target.IsInPlatformGroup(UnrealPlatformGroup.Windows))
 		{
-			if (Target.Architecture.bIsX64)
-			{
-				PublicAdditionalLibraries.Add(Path.Combine(Target.WindowsPlatform.DirectXLibDir, "XInput.lib"));
-				PublicDependencyModuleNames.Add("DirectX");
-			}
-			else
-			{
-				Version WindowsSdkVersion;
-				DirectoryReference WindowsSdkDir;
-				if (!OperatingSystem.IsWindows() || !WindowsExports.TryGetWindowsSdkDir(null, out WindowsSdkVersion, out WindowsSdkDir))
-				{
-					throw new BuildException("Windows SDK must be installed in order to build this target.");
-				}
-
-				// add basic XInput library
-				string WindowsSdkLibDir = Path.Combine(WindowsSdkDir.ToString(), "lib", WindowsSdkVersion.ToString(), "um", Target.Architecture.WindowsSystemLibDir);
-				PublicAdditionalLibraries.Add(Path.Combine(WindowsSdkLibDir, "xinput.lib"));
-			}
+			PublicSystemLibraries.Add("xinput.lib");
 		}
 	}
 }
