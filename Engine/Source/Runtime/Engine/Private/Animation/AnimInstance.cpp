@@ -3252,6 +3252,12 @@ void UAnimInstance::PerformLinkedLayerOverlayOperation(TSubclassOf<UAnimInstance
 								NewLinkedInstance->bReceiveNotifiesFromLinkedInstances = LayerNode->bReceiveNotifiesFromLinkedInstances;
 								NewLinkedInstance->InitializeAnimation();
 
+								if(MeshComp->HasBegunPlay())
+								{
+									NewLinkedInstance->NativeBeginPlay();
+									NewLinkedInstance->BlueprintBeginPlay();
+								}
+
 								// Unlink any layer nodes in the new linked instance, as they may have been hooked up to self in InitializeAnimation above.
 								UnlinkLayerNodesInInstance(NewLinkedInstance, LayerPair.Value);
 
@@ -3307,6 +3313,12 @@ void UAnimInstance::PerformLinkedLayerOverlayOperation(TSubclassOf<UAnimInstance
 							UAnimInstance* NewLinkedInstance = NewObject<UAnimInstance>(MeshComp, ClassToSet);
 							NewLinkedInstance->bCreatedByLinkedAnimGraph = true;
 							NewLinkedInstance->InitializeAnimation();
+
+							if(MeshComp->HasBegunPlay())
+							{
+								NewLinkedInstance->NativeBeginPlay();
+								NewLinkedInstance->BlueprintBeginPlay();
+							}
 
 							// Unlink any layer nodes in the new linked instance, as they may have been hooked up to self in InitializeAnimation above.
 							UnlinkLayerNodesInInstance(NewLinkedInstance, LayerPair.Value);

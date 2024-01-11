@@ -312,6 +312,12 @@ void FAnimNode_LinkedAnimGraph::ReinitializeLinkedAnimInstance(const UAnimInstan
 			// Initialize the new instance
 			InstanceToRun->InitializeAnimation();
 
+			if(MeshComp->HasBegunPlay())
+			{
+				InstanceToRun->NativeBeginPlay();
+				InstanceToRun->BlueprintBeginPlay();
+			}
+
 			MeshComp->GetLinkedAnimInstances().Add(InstanceToRun);
 		}
 

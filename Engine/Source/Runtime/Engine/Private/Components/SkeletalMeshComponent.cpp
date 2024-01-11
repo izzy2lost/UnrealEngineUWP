@@ -1011,6 +1011,14 @@ bool USkeletalMeshComponent::InitializeAnimScriptInstance(bool bForceReinit, boo
 				ResetLinkedAnimInstances();
 
 				AnimScriptInstance->InitializeAnimation(bInDeferRootNodeInitialization);
+
+				// Call BeginPlay on anim instances created at runtime.
+				if (HasBegunPlay())
+				{
+					AnimScriptInstance->NativeBeginPlay();
+					AnimScriptInstance->BlueprintBeginPlay();
+				}
+
 				bInitializedMainInstance = true;
 			}
 		}
@@ -1032,8 +1040,15 @@ bool USkeletalMeshComponent::InitializeAnimScriptInstance(bool bForceReinit, boo
 				if (AnimScriptInstance)
 				{
 					ResetLinkedAnimInstances();
-				
+
 					AnimScriptInstance->InitializeAnimation(bInDeferRootNodeInitialization);
+
+					if(HasBegunPlay())
+					{
+						AnimScriptInstance->NativeBeginPlay();
+						AnimScriptInstance->BlueprintBeginPlay();
+					}
+
 					bInitializedMainInstance = true;
 				}
 
@@ -1072,6 +1087,13 @@ bool USkeletalMeshComponent::InitializeAnimScriptInstance(bool bForceReinit, boo
 			{
 				PostProcessAnimInstance->InitializeAnimation();
 
+				// Call BeginPlay on anim instances created at runtime.
+				if (HasBegunPlay())
+				{
+					PostProcessAnimInstance->NativeBeginPlay();
+					PostProcessAnimInstance->BlueprintBeginPlay();
+				}
+				
 				if(FAnimNode_LinkedInputPose* InputNode = PostProcessAnimInstance->GetLinkedInputPoseNode())
 				{
 					InputNode->CachedInputPose.SetBoneContainer(&PostProcessAnimInstance->GetRequiredBones());
@@ -1195,6 +1217,12 @@ void USkeletalMeshComponent::PostEditChangeProperty(FPropertyChangedEvent& Prope
 						SCOPE_CYCLE_COUNTER(STAT_AnimSpawnTime);
 						AnimScriptInstance = NewObject<UAnimInstance>(this, AnimClass);
 						AnimScriptInstance->InitializeAnimation();
+
+						if(HasBegunPlay())
+						{
+							AnimScriptInstance->NativeBeginPlay();
+							AnimScriptInstance->BlueprintBeginPlay();
+						}
 					}
 				}
 			}
@@ -1223,6 +1251,12 @@ void USkeletalMeshComponent::PostEditChangeProperty(FPropertyChangedEvent& Prope
 					{
 						PostProcessAnimInstance = NewObject<UAnimInstance>(this, *SkelMesh->GetPostProcessAnimBlueprint());
 						PostProcessAnimInstance->InitializeAnimation();
+
+						if(HasBegunPlay())
+						{
+							PostProcessAnimInstance->NativeBeginPlay();
+							PostProcessAnimInstance->BlueprintBeginPlay();
+						}
 					}
 					else
 					{
