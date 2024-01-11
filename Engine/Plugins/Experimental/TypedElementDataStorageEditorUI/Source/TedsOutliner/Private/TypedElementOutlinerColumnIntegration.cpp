@@ -23,6 +23,7 @@
 #include "SceneOutlinerPublicTypes.h"
 #include "Elements/Interfaces/Capabilities/TypedElementUiTextCapability.h"
 #include "TypedElementOutlinerItem.h"
+#include "Columns/UIPropertiesColumns.h"
 
 #define LOCTEXT_NAMESPACE "TypedElementsUI_SceneOutliner"
 
@@ -162,9 +163,10 @@ public:
 		}
 
 		TSharedPtr<SWidget> Widget;
+		RowHandle UiRowHandle = InvalidRowHandle;
 		if (HeaderWidgetConstructor)
 		{
-			TypedElementRowHandle UiRowHandle = Storage.AddRow(Storage.FindTable(FName(TEXT("Editor_WidgetTable"))));
+			UiRowHandle = Storage.AddRow(Storage.FindTable(FName(TEXT("Editor_WidgetTable"))));
 			Widget = StorageUi.ConstructWidget(UiRowHandle, *HeaderWidgetConstructor, 
 				FComboMetaDataView(FGenericMetaDataView(MetaData)).Next(FQueryMetaDataView(Storage.GetQueryDescription(QueryHandle))));
 		}
@@ -174,8 +176,8 @@ public:
 				.Text(FText::FromString(NameId.ToString()));
 		}
 		
-		return SHeaderRow::Column(NameId)
-			.FillWidth(2)
+		SHeaderRow::FColumn::FArguments Column = SHeaderRow::Column(NameId)
+			.FillWidth(1)
 			.HeaderComboVisibility(EHeaderComboVisibility::OnHover)
 			.DefaultTooltip(FText::FromString(MoveTemp(TooltipText)))
 			.HeaderContent()
@@ -187,6 +189,18 @@ public:
 					Widget.ToSharedRef()
 				]
 			];
+		if (const FUIHeaderPropertiesColumn* HeaderProperties = Storage.GetColumn<FUIHeaderPropertiesColumn>(UiRowHandle))
+		{
+			float Width = HeaderProperties->Width;
+			switch (HeaderProperties->ColumnSizeMode)
+			{
+				break; case EColumnSizeMode::Fill: Column.FillWidth(Width);
+				break; case EColumnSizeMode::Fixed: Column.FixedWidth(Width);
+				break; case EColumnSizeMode::Manual: Column.ManualWidth(Width);
+				break; case EColumnSizeMode::FillSized: Column.FillSized(Width);
+			}
+		}
+		return Column;
 	}
 
 	// TODO: Sorting is currently handled through the fallback column if it exists because we have no way to sort columns through TEDS
