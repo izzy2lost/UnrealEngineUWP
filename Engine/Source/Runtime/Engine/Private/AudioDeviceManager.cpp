@@ -356,6 +356,10 @@ void FAudioDeviceManager::RegisterAudioInfoFactories()
 			FModuleManager::Get().LoadModuleChecked(*i);
 		}
 	}
+	
+	// Hardcode the loading of the built in codecs.
+	LoadVorbisLibraries();
+	FModuleManager::Get().LoadModuleChecked(TEXT("BinkAudioDecoder"));
 
 	// Register the engine formats.
 	EngineFormats.Add(MakePimpl<FSimpleAudioInfoFactory>([] { return new FADPCMAudioInfo(); }, Audio::NAME_PCM));

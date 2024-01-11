@@ -178,7 +178,8 @@ public class Engine : ModuleRules
 			"VorbisFile",
 			"libOpus"
 			);
-
+		DynamicallyLoadedModuleNames.Add("BinkAudioDecoder");
+		
 		DynamicallyLoadedModuleNames.Add("EyeTracker");
 
 		if (Target.Configuration != UnrealTargetConfiguration.Shipping)
@@ -233,6 +234,7 @@ public class Engine : ModuleRules
 		CircularlyReferencedDependentModules.Add("MaterialShaderQualitySettings");
 		CircularlyReferencedDependentModules.Add("CinematicCamera");
 		CircularlyReferencedDependentModules.Add("AudioMixer");
+		
 
 		if (Target.bCompileAgainstEditor)
 		{

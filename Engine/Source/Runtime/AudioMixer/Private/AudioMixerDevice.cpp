@@ -825,11 +825,6 @@ namespace Audio
 		return new FMixerSource(this);
 	}
 
-	FName FMixerDevice::GetRuntimeFormat(const USoundWave* InSoundWave) const
-	{
-		return InSoundWave->GetRuntimeFormat();
-    }
-
 	bool FMixerDevice::HasCompressedAudioInfoClass(USoundWave* InSoundWave)
 	{
 		check(InSoundWave);
@@ -849,25 +844,6 @@ namespace Audio
 		return AudioMixerPlatform->DisablePCMAudioCaching();
 	}
 	
-	ICompressedAudioInfo* FMixerDevice::CreateAudioInfo(FName InFormat) const
-	{
-		if (IAudioInfoFactory* Factory = IAudioInfoFactoryRegistry::Get().Find(InFormat))
-		{
-			return Factory->Create();
-		}
-		return nullptr;
-	}
-
-	ICompressedAudioInfo* FMixerDevice::CreateCompressedAudioInfo(const USoundWave* InSoundWave) const
-	{
-		return CreateAudioInfo(GetRuntimeFormat(InSoundWave));
-	}
-
-	class ICompressedAudioInfo* FMixerDevice::CreateCompressedAudioInfo(const FSoundWaveProxyPtr& InSoundWaveProxy) const
-	{
-		return CreateAudioInfo(InSoundWaveProxy->GetRuntimeFormat());
-	}
-
 	bool FMixerDevice::ValidateAPICall(const TCHAR* Function, uint32 ErrorCode)
 	{
 		return false;

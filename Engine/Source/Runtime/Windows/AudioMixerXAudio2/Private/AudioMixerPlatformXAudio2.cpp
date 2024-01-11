@@ -17,19 +17,11 @@
 #ifndef WITH_XMA2
 #define WITH_XMA2 0
 #endif
-
 #if WITH_ENGINE
 #if WITH_XMA2
 #include "XMAAudioInfo.h"
 #endif  //#if WITH_XMA2
-#include "OpusAudioInfo.h"
-#include "VorbisAudioInfo.h"
-#include "AudioPluginUtilities.h"
-#if WITH_BINK_AUDIO
-#include "BinkAudioInfo.h"
-#endif // WITH_BINK_AUDIO
 #endif //WITH_ENGINE
-
 #include "CoreGlobals.h"
 #include "Misc/ConfigCacheIni.h"
 #include "Misc/MessageDialog.h"
@@ -674,10 +666,6 @@ namespace Audio
 		//Initialize our XMA2 decoder context
 		XMA2_INFO_CALL(FXMAAudioInfo::Initialize());
 #endif //#if WITH_XMA2
-#if WITH_ENGINE
-		// Load ogg and vorbis dlls if they haven't been loaded yet
-		LoadVorbisLibraries();
-#endif // WITH_ENGINE
 
 		if(IAudioMixer::ShouldRecycleThreads())
 		{
@@ -1845,72 +1833,6 @@ namespace Audio
 				FirstBufferSubmitted = true;
 			}
 		}
-	}
-
-#if WITH_XMA2
-	static FName NAME_XMA(TEXT("XMA"));
-#endif
-
-	FName FMixerPlatformXAudio2::GetRuntimeFormat(const USoundWave* InSoundWave) const
-	{
-		FName RuntimeFormat = Audio::ToName(InSoundWave->GetSoundAssetCompressionType());
-
-		if (RuntimeFormat == Audio::NAME_PLATFORM_SPECIFIC)
-		{
-#if WITH_XMA2 && USE_XMA2_FOR_STREAMING
-			if (InSoundWave->NumChannels <= 2)
-			{
-				return Audio::NAME_XMA;
-			}
-#endif // WITH_XMA2 && USE_XMA2_FOR_STREAMING
-
-#if USE_VORBIS_FOR_STREAMING
-			return Audio::NAME_OGG;
-#else
-			return Audio::NAME_OPUS;
-#endif // USE_VORBIS_FOR_STREAMING
-		}
-
-		return RuntimeFormat;
-	}
-
-	ICompressedAudioInfo* FMixerPlatformXAudio2::CreateCompressedAudioInfo(const FName& InRuntimeFormat) const
-	{
-		ICompressedAudioInfo* Decoder = nullptr;
-
-		// Need to create a platform-specific codec
-#if WITH_XMA2 && USE_XMA2_FOR_STREAMING
-		if (InRuntimeFormat == Audio::NAME_XMA)
-		{
-			Decoder = XMA2_INFO_NEW();
-		}
-		else
-#endif // WITH_XMA2 && USE_XMA2_FOR_STREAMING			
-		if (InRuntimeFormat == Audio::NAME_OGG)
-		{
-#if USE_VORBIS_FOR_STREAMING
-			Decoder = new FVorbisAudioInfo();
-#endif // #if USE_VORBIS_FOR_STREAMING
-		}
-		else if (InRuntimeFormat == Audio::NAME_OPUS)
-		{
-#if !USE_VORBIS_FOR_STREAMING
-			Decoder = new FOpusAudioInfo();
-#endif // #if !USE_VORBIS_FOR_STREAMING
-		}
-#if WITH_BINK_AUDIO
-		else if (InRuntimeFormat == Audio::NAME_BINKA)
-		{
-			Decoder = new FBinkAudioInfo();
-		}
-#endif // #if WITH_BINK_AUDIO
-		else
-		{
-			// Fallback to the multiplatform decoder
-			Decoder = Audio::CreateSoundAssetDecoder(InRuntimeFormat);
-		}
-		ensureMsgf(Decoder != nullptr, TEXT("Failed to create a sound asset decoder for compression type: %s"), *InRuntimeFormat.ToString());
-		return Decoder;
 	}
 
 	FString FMixerPlatformXAudio2::GetDefaultDeviceName()
