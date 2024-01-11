@@ -5,7 +5,7 @@ publish_to: 'none'
 version: 1.0.0+1
 
 environment:
-  sdk: '>=3.0.6 <4.0.0'
+  sdk: '>=3.1.0 <4.0.0'
   flutter: "^3.16.3"
 
 dependencies:
@@ -15,16 +15,21 @@ dependencies:
   epic_common:
     path: ../../FlutterCommon
 
+  device_info_plus: ^9.1.1
+  ffi: ^2.1.0
   logging: ^1.2.0
   ntp: ^2.0.0
   package_info_plus: ^5.0.1
+  permission_handler: ^11.1.0
   provider: ^6.1.1
+  system_clock: ^2.0.0
   web_socket_channel: ^2.1.0
 
 dev_dependencies:
   flutter_test:
     sdk: flutter
 
+  ffigen: ^10.0.0
   pigeon: ^14.0.1
   share_plus: ^7.2.1
 

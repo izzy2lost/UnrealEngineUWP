@@ -3,7 +3,7 @@
 import Foundation
 
 /// Base class for all APIs that communicate to and from a Flutter plugin.
-class FlutterPluginApi<T> {
+class FlutterPluginApi<T>: NSObject {
   /// The API used to send messages to Flutter.
   private let flutter: T
   

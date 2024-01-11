@@ -10,6 +10,7 @@ import WebRTC
   var dataChannelApi: FlutterRtcDataChannelApi?
   var videoViewControllerApi: FlutterRtcVideoViewControllerApi?
   var arSessionApi: FlutterArSessionApi?
+  var tentacleApi: FlutterTentacleApi?
   
   override func application(
     _ application: UIApplication,
@@ -20,7 +21,7 @@ import WebRTC
     GeneratedPluginRegistrant.register(with: self)
     
     // Register RtcVideoView platform view
-    var videoViewRegistrar: FlutterPluginRegistrar? = self.registrar(forPlugin: "RtcVideoView")
+    let videoViewRegistrar: FlutterPluginRegistrar? = self.registrar(forPlugin: "RtcVideoView")
     if (videoViewRegistrar == nil) {
       fatalError("Failed to register RtcVideoView plugin")
     }
@@ -39,6 +40,7 @@ import WebRTC
     dataChannelApi = FlutterRtcDataChannelApi(binaryMessenger: binaryMessenger)
     videoViewControllerApi = FlutterRtcVideoViewControllerApi(binaryMessenger: binaryMessenger)
     arSessionApi = FlutterArSessionApi(binaryMessenger: binaryMessenger)
+    tentacleApi = FlutterTentacleApi(binaryMessenger: binaryMessenger)
   
     return super.application(application, didFinishLaunchingWithOptions: launchOptions)
   }

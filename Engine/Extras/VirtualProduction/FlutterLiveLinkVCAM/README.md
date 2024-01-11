@@ -2,18 +2,22 @@
 
 A rebuild of the Live Link VCAM app for Flutter, enabling cross-platform deployment.
 
-## Getting Started
+## Tentacle Integration
 
-This project is a starting point for a Flutter application.
+This project depends on the Tentacle SDK located in Engine/Restricted/NotForLicensees/Source/ThirdParty/TentacleSDK.
 
-A few resources to get you started if this is your first Flutter project:
+We use some Tentacle SDK functions through Dart's Foreign Function Interface (FFI). Dart bindings for these functions are
+automatically generated using ffigen and checked into source control.
 
-- [Lab: Write your first Flutter app](https://docs.flutter.dev/get-started/codelab)
-- [Cookbook: Useful Flutter samples](https://docs.flutter.dev/cookbook)
+If you need to regenerate them, first set up ffigen (see https://pub.dev/packages/ffigen), then run the following command
+in the root VCAM project directory:
 
-For help getting started with Flutter development, view the
-[online documentation](https://docs.flutter.dev/), which offers tutorials,
-samples, guidance on mobile development, and a full API reference.
+    `dart run ffigen --config ffigen_tentacle.yaml`
+
+## Pigeon
+
+This project uses Pigeon to automatically generate platform channel bindings for native APIs.
+See `pigeons/README` for more information.
 
 ## Signing Certificates 
 
@@ -23,4 +27,3 @@ To setup signing certificates, follow the instructions outlined in this article
 
 Add your `android-key.tks` to `android\app` folder and `key.properities` to `android\`.  The gradle files are already setup
 to read these files when app bundling
-
