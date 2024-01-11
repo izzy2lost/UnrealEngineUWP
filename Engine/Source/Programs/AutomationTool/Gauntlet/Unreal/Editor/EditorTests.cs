@@ -91,7 +91,7 @@ namespace UnrealEditor
 			{
 				AppConfig.CommandLineParams.Add(string.Format("tracefile={0}", TraceFile));
 				AppConfig.CommandLineParams.Add("tracefiletrunc"); // replace existing
-				AppConfig.CommandLineParams.Add("trace=cpu,counters,stats,gpu,frame,bookmark,log,loadtime,savetime,assetloadtime");
+				AppConfig.CommandLineParams.Add("trace=default,counters,stats,loadtime,savetime,assetloadtime");
 				AppConfig.CommandLineParams.Add("statnamedevents");
 			}
 
