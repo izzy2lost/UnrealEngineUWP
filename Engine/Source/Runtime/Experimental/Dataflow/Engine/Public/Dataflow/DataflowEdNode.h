@@ -79,7 +79,7 @@ public:
 	DATAFLOWENGINE_API void SetAssetRender(bool bInRender);
 	bool DoAssetRender() { return bRenderInAssetEditor; }
 	DATAFLOWENGINE_API TArray<Dataflow::FRenderingParameter> GetRenderParameters() const;
-	DATAFLOWENGINE_API virtual bool Render(GeometryCollection::Facades::FRenderingFacade& RenderData, TSharedPtr<Dataflow::FContext> Context) const;
+	DATAFLOWENGINE_API virtual bool Render(GeometryCollection::Facades::FRenderingFacade& RenderData, const TSharedPtr<Dataflow::FContext> Context) const;
 
 	UPROPERTY()
 	bool bRenderInAssetEditor = false;
