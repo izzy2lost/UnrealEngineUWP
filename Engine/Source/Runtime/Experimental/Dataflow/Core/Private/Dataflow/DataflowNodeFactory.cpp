@@ -5,6 +5,8 @@
 #include "Dataflow/DataflowNode.h"
 #include "Misc/MessageDialog.h"
 
+DEFINE_LOG_CATEGORY(LogDataflowFactory);
+
 namespace Dataflow
 {
 	FNodeFactory* FNodeFactory::Instance = nullptr;
