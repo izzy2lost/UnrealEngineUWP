@@ -2369,7 +2369,7 @@ void FCustomizableObjectInstanceDescriptor::SetRandomValues(const int32 InRandom
 		VectorParameter.ParameterValue.A = Random.GetFraction();
 	}
 
-	const FCustomizableObjectSystemPrivate* SystemPrivate = UCustomizableObjectSystem::GetInstance()->GetPrivate();
+	const UCustomizableObjectSystemPrivate* SystemPrivate = UCustomizableObjectSystem::GetInstance()->GetPrivate();
 
 	TArray<FName> PossibleValues;
 

@@ -520,8 +520,11 @@ struct FMutableReleasePlatformOperationData
 };
 
 
-class FCustomizableObjectSystemPrivate : public FGCObject
+UCLASS()
+class UCustomizableObjectSystemPrivate : public UObject
 {
+	GENERATED_BODY()
+	
 public:
 	// Singleton for the unreal mutable system.
 	static UCustomizableObjectSystem* SSystem;
@@ -572,10 +575,6 @@ public:
 
 	void AddGameThreadTask(const FMutableTask& Task);
 
-	/** FSerializableObject interface */
-	virtual void AddReferencedObjects(FReferenceCollector& Collector) override;
-	virtual FString GetReferencerName() const override;
-
 	// Remove references to cached objects that have been deleted in the unreal
 	// side, and cannot be cached anyway.
 	// This should only happen in the game thread
@@ -620,7 +619,7 @@ public:
 
 	TMap<FMutableImageCacheKey, uint32> TextureReferenceCount; // Keeps a count of texture usage to decide if they have to be blocked from GC during an update
 
-	// This is protected from GC by AddReferencedObjects
+	UPROPERTY(Transient)
 	TObjectPtr<UCustomizableObjectInstance> CurrentInstanceBeingUpdated = nullptr;
 
 	TSharedPtr<FUpdateContextPrivate> CurrentMutableOperation = nullptr;
@@ -651,6 +650,7 @@ public:
 	
 #if WITH_EDITORONLY_DATA
 	/** Mutable default image provider. Used by the COIEditor and Instance/Descriptor APIs. */
+	UPROPERTY(Transient)
 	TObjectPtr<UEditorImageProvider> EditorImageProvider = nullptr;
 #endif
 

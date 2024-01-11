@@ -33,7 +33,7 @@ FMutableUpdateContext::FMutableUpdateContext(
 {
 	if (Parameters)
 	{
-		const FCustomizableObjectSystemPrivate* Private = UCustomizableObjectSystem::GetInstance()->GetPrivate();
+		const UCustomizableObjectSystemPrivate* Private = UCustomizableObjectSystem::GetInstance()->GetPrivate();
 		Private->GetImageProviderChecked()->CacheImages(*Parameters);
 	}
 }
@@ -44,7 +44,7 @@ FMutableUpdateContext::~FMutableUpdateContext()
 	if (Parameters &&
 		UCustomizableObjectSystem::IsCreated())
 	{
-		const FCustomizableObjectSystemPrivate* Private = UCustomizableObjectSystem::GetInstance()->GetPrivate();
+		const UCustomizableObjectSystemPrivate* Private = UCustomizableObjectSystem::GetInstance()->GetPrivate();
 		Private->GetImageProviderChecked()->UnCacheImages(*Parameters);
 	}
 }
@@ -345,7 +345,7 @@ int32 FMutableTextureMipDataProvider::GetMips(const FTextureUpdateContext& Conte
 		}
 	}
 
-	FCustomizableObjectSystemPrivate* CustomizableObjectSystem = UCustomizableObjectSystem::GetInstance()->GetPrivate();
+	UCustomizableObjectSystemPrivate* CustomizableObjectSystem = UCustomizableObjectSystem::GetInstance()->GetPrivate();
 	if (CustomizableObjectSystem)
 	{
 		if (OperationData.IsValid())

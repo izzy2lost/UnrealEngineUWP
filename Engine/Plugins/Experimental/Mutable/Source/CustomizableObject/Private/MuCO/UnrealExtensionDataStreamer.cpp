@@ -10,11 +10,11 @@
 #include "MuCO/CustomizableObjectSystemPrivate.h"
 #include "Templates/SharedPointer.h"
 
-FUnrealExtensionDataStreamer::FUnrealExtensionDataStreamer(const TSharedRef<FCustomizableObjectSystemPrivate>& InSystemPrivate)
-	: SystemPrivate(InSystemPrivate)
+FUnrealExtensionDataStreamer::FUnrealExtensionDataStreamer(const TWeakObjectPtr<UCustomizableObjectSystemPrivate>& InSystemPrivateWeak)
 {
 	check(IsInGameThread());
 
+	SystemPrivate = InSystemPrivateWeak;
 	Mutex = new FCriticalSection();
 }
 
@@ -152,13 +152,20 @@ TSharedRef<const mu::FExtensionDataLoadHandle> FUnrealExtensionDataStreamer::Sta
 // If the requested object is already loaded, this function can return nullptr and still be
 // considered successful.
 TSharedPtr<FStreamableHandle> FUnrealExtensionDataStreamer::StartLoadOnGameThread(
-	const TSharedRef<FCustomizableObjectSystemPrivate>& SystemPrivate,
+	const TWeakObjectPtr<UCustomizableObjectSystemPrivate>& SystemPrivateWeak,
 	const TWeakObjectPtr<UCustomizableObject>& ObjectToLoadFor,
 	const TSharedRef<mu::FExtensionDataLoadHandle>& LoadHandle)
 {
 	check(IsInGameThread());
 	check(LoadHandle->Data->Origin == mu::ExtensionData::EOrigin::ConstantStreamed);
 
+	UCustomizableObjectSystemPrivate* SystemPrivate = SystemPrivateWeak.Get();
+	if (!SystemPrivate)
+	{
+		LoadHandle->LoadState = mu::FExtensionDataLoadHandle::ELoadState::FailedToLoad;
+		return nullptr;
+	}
+	
 	UCustomizableObject* Object = ObjectToLoadFor.Get();
 	if (!Object)
 	{
@@ -196,7 +203,8 @@ TSharedPtr<FStreamableHandle> FUnrealExtensionDataStreamer::StartLoadOnGameThrea
 	TArray<FSoftObjectPath> TargetsToStream;
 	TargetsToStream.Add(StreamedData.GetPath().ToSoftObjectPath());
 
-	TFunction<void()> OnLoadComplete = [SystemPrivate, ObjectToLoadFor, LoadHandle]()
+	check(SystemPrivate->ExtensionDataStreamer);
+	TFunction<void()> OnLoadComplete = [ExtensionDataStreamer = SystemPrivate->ExtensionDataStreamer, ObjectToLoadFor, LoadHandle]()
 	{
 		UCustomizableObject* Object = ObjectToLoadFor.Get();
 		if (!Object)
@@ -205,8 +213,7 @@ TSharedPtr<FStreamableHandle> FUnrealExtensionDataStreamer::StartLoadOnGameThrea
 			return;
 		}
 
-		check(SystemPrivate->ExtensionDataStreamer);
-		SystemPrivate->ExtensionDataStreamer->NotifyLoadCompleted(Object, LoadHandle);
+		ExtensionDataStreamer->NotifyLoadCompleted(Object, LoadHandle);
 	};
 
 	const bool bManageActiveHandle = false;

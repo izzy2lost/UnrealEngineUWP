@@ -17,7 +17,7 @@ namespace mu
 	class Image;
 }
 
-class FCustomizableObjectSystemPrivate;
+class UCustomizableObjectSystemPrivate;
 class USkeletalMesh;
 class AActor;
 class FProperty;

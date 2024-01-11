@@ -27,7 +27,7 @@ class UDefaultImageProvider;
 class USkeletalMesh;
 class UMaterialInterface;
 class UTexture2D;
-class FCustomizableObjectSystemPrivate; // This is used to hide Mutable SDK members in the public headers.
+class UCustomizableObjectSystemPrivate; // This is used to hide Mutable SDK members in the public headers.
 class FUpdateContextPrivate;
 struct FFrame;
 struct FGuid;
@@ -309,11 +309,11 @@ public:
 	void LogShowData(bool bFullInfo, bool ShowMaterialInfo) const;
 
 	// Give access to the internal object data.
-	FCustomizableObjectSystemPrivate* GetPrivate();
-	const FCustomizableObjectSystemPrivate* GetPrivate() const;
+	UCustomizableObjectSystemPrivate* GetPrivate();
+	const UCustomizableObjectSystemPrivate* GetPrivate() const;
 
-	FCustomizableObjectSystemPrivate* GetPrivateChecked();
-	const FCustomizableObjectSystemPrivate* GetPrivateChecked() const;
+	UCustomizableObjectSystemPrivate* GetPrivateChecked();
+	const UCustomizableObjectSystemPrivate* GetPrivateChecked() const;
 	
 	FStreamableManager& GetStreamableManager();
 
@@ -377,7 +377,8 @@ public:
 	TArray<TObjectPtr<UTexture2D>> ProtectedCachedTextures;
 
 private:
-	TSharedPtr<FCustomizableObjectSystemPrivate> Private = nullptr;
+	UPROPERTY(Transient)
+	TObjectPtr<UCustomizableObjectSystemPrivate> Private = nullptr;
 
 	// For async material loading
 	FStreamableManager StreamableManager;
@@ -425,7 +426,7 @@ private:
 #endif
 	
 	// Friends
-	friend class FCustomizableObjectSystemPrivate;
+	friend class UCustomizableObjectSystemPrivate;
 };
 
 

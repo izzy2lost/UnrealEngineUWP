@@ -58,7 +58,7 @@ DECLARE_CYCLE_STAT(TEXT("MutableTask"), STAT_MutableTask, STATGROUP_Game);
 #define UE_MUTABLE_UPDATE_REGION		TEXT("Mutable Update")
 
 
-UCustomizableObjectSystem* FCustomizableObjectSystemPrivate::SSystem = nullptr;
+UCustomizableObjectSystem* UCustomizableObjectSystemPrivate::SSystem = nullptr;
 
 static TAutoConsoleVariable<int32> CVarWorkingMemory(
 	TEXT("mutable.WorkingMemory"),
@@ -106,13 +106,13 @@ TAutoConsoleVariable<bool> CVarRollbackFixModelDiskStreamerDataRace(
 	TEXT("When true, use the new code path that fixes a data race in UnrealMutableModelDiskStreamer."));
 
 
-int32 FCustomizableObjectSystemPrivate::SkeletalMeshMinLodQualityLevel = -1;
+int32 UCustomizableObjectSystemPrivate::SkeletalMeshMinLodQualityLevel = -1;
 
 static void CVarMutableSinkFunction()
 {
 	if (UCustomizableObjectSystem::IsCreated())
 	{
-		FCustomizableObjectSystemPrivate* PrivateSystem = UCustomizableObjectSystem::GetInstance()->GetPrivate();
+		UCustomizableObjectSystemPrivate* PrivateSystem = UCustomizableObjectSystem::GetInstance()->GetPrivate();
 
 		static const IConsoleVariable* CVarSkeletalMeshMinLodQualityLevelCVarName = IConsoleManager::Get().FindConsoleVariable(TEXT("r.SkeletalMesh.MinLodQualityLevel"));
 		PrivateSystem->SkeletalMeshMinLodQualityLevel = CVarSkeletalMeshMinLodQualityLevelCVarName ? CVarSkeletalMeshMinLodQualityLevelCVarName->GetInt() : INDEX_NONE;
@@ -296,23 +296,23 @@ void FMutablePendingInstanceWork::AddIDRelease(mu::Instance::ID IDToRelease)
 
 UCustomizableObjectSystem* UCustomizableObjectSystem::GetInstance()
 {
-	if (!FCustomizableObjectSystemPrivate::SSystem)
+	if (!UCustomizableObjectSystemPrivate::SSystem)
 	{
 		UE_LOG(LogMutable, Log, TEXT("Creating Mutable Customizable Object System."));
 
 		check(IsInGameThread());
 
-		FCustomizableObjectSystemPrivate::SSystem = NewObject<UCustomizableObjectSystem>(UCustomizableObjectSystem::StaticClass());
-		check(FCustomizableObjectSystemPrivate::SSystem != nullptr);
-		checkf(!GUObjectArray.IsDisregardForGC(FCustomizableObjectSystemPrivate::SSystem), TEXT("Mutable was initialized too early in the UE4 init process, for instance, in the constructor of a default UObject."));
-		FCustomizableObjectSystemPrivate::SSystem->AddToRoot();
-		checkf(!GUObjectArray.IsDisregardForGC(FCustomizableObjectSystemPrivate::SSystem), TEXT("Mutable was initialized too early in the UE4 init process, for instance, in the constructor of a default UObject."));
-		FCustomizableObjectSystemPrivate::SSystem->InitSystem();
+		UCustomizableObjectSystemPrivate::SSystem = NewObject<UCustomizableObjectSystem>(UCustomizableObjectSystem::StaticClass());
+		check(UCustomizableObjectSystemPrivate::SSystem != nullptr);
+		checkf(!GUObjectArray.IsDisregardForGC(UCustomizableObjectSystemPrivate::SSystem), TEXT("Mutable was initialized too early in the UE4 init process, for instance, in the constructor of a default UObject."));
+		UCustomizableObjectSystemPrivate::SSystem->AddToRoot();
+		checkf(!GUObjectArray.IsDisregardForGC(UCustomizableObjectSystemPrivate::SSystem), TEXT("Mutable was initialized too early in the UE4 init process, for instance, in the constructor of a default UObject."));
+		UCustomizableObjectSystemPrivate::SSystem->InitSystem();
 
-		//FCoreUObjectDelegates::PurgePendingReleaseSkeletalMesh.AddUObject(FCustomizableObjectSystemPrivate::SSystem, &UCustomizableObjectSystem::PurgePendingReleaseSkeletalMesh);
+		//FCoreUObjectDelegates::PurgePendingReleaseSkeletalMesh.AddUObject(UCustomizableObjectSystemPrivate::SSystem, &UCustomizableObjectSystem::PurgePendingReleaseSkeletalMesh);
 	}
 
-	return FCustomizableObjectSystemPrivate::SSystem;
+	return UCustomizableObjectSystemPrivate::SSystem;
 }
 
 
@@ -413,26 +413,26 @@ void UCustomizableObjectSystem::LogShowData(bool bFullInfo, bool ShowMaterialInf
 }
 
 
-FCustomizableObjectSystemPrivate* UCustomizableObjectSystem::GetPrivate()
+UCustomizableObjectSystemPrivate* UCustomizableObjectSystem::GetPrivate()
 {
 	return Private.Get();
 }
 
 
-const FCustomizableObjectSystemPrivate* UCustomizableObjectSystem::GetPrivate() const
+const UCustomizableObjectSystemPrivate* UCustomizableObjectSystem::GetPrivate() const
 {
 	return Private.Get();
 }
 
 
-FCustomizableObjectSystemPrivate* UCustomizableObjectSystem::GetPrivateChecked()
+UCustomizableObjectSystemPrivate* UCustomizableObjectSystem::GetPrivateChecked()
 {
 	check(Private)
 	return Private.Get();
 }
 
 
-const FCustomizableObjectSystemPrivate* UCustomizableObjectSystem::GetPrivateChecked() const
+const UCustomizableObjectSystemPrivate* UCustomizableObjectSystem::GetPrivateChecked() const
 {
 	check(Private)
 	return Private.Get();
@@ -447,14 +447,14 @@ FStreamableManager& UCustomizableObjectSystem::GetStreamableManager()
 
 bool UCustomizableObjectSystem::IsCreated()
 {
-	return FCustomizableObjectSystemPrivate::SSystem != 0;
+	return UCustomizableObjectSystemPrivate::SSystem != 0;
 }
 
 
 void UCustomizableObjectSystem::InitSystem()
 {
 	// Everything initialized in Init() instead of constructor to prevent the default UCustomizableObjectSystem from registering a tick function
-	Private = MakeShareable(new FCustomizableObjectSystemPrivate());
+	Private = NewObject<UCustomizableObjectSystemPrivate>(this, FName("Private"));
 	check(Private != nullptr);
 	Private->NewCompilerFunc = nullptr;
 
@@ -480,7 +480,7 @@ void UCustomizableObjectSystem::InitSystem()
 	check(pSettings);
 	pSettings->SetProfile(false);
 	pSettings->SetWorkingMemoryBytes(Private->LastWorkingMemoryBytes);
-	Private->ExtensionDataStreamer = MakeShared<FUnrealExtensionDataStreamer>(Private.ToSharedRef());
+	Private->ExtensionDataStreamer = MakeShared<FUnrealExtensionDataStreamer>(Private);
 	Private->MutableSystem = new mu::System(pSettings, Private->ExtensionDataStreamer);
 	check(Private->MutableSystem);
 
@@ -530,7 +530,7 @@ void UCustomizableObjectSystem::BeginDestroy()
 #endif
 
 	// It could be null, for the default object.
-	if (Private.IsValid())
+	if (Private)
 	{
 
 #if !UE_SERVER
@@ -564,7 +564,7 @@ void UCustomizableObjectSystem::BeginDestroy()
 
 		Private->CurrentInstanceBeingUpdated = nullptr;
 
-		FCustomizableObjectSystemPrivate::SSystem = nullptr;
+		UCustomizableObjectSystemPrivate::SSystem = nullptr;
 
 		Private = nullptr;
 	}
@@ -579,7 +579,7 @@ FString UCustomizableObjectSystem::GetDesc()
 }
 
 
-FCustomizableObjectCompilerBase* (*FCustomizableObjectSystemPrivate::NewCompilerFunc)() = nullptr;
+FCustomizableObjectCompilerBase* (*UCustomizableObjectSystemPrivate::NewCompilerFunc)() = nullptr;
 
 
 FCustomizableObjectCompilerBase* UCustomizableObjectSystem::GetNewCompiler()
@@ -602,37 +602,18 @@ void UCustomizableObjectSystem::SetNewCompilerFunc(FCustomizableObjectCompilerBa
 }
 
 
-int32 FCustomizableObjectSystemPrivate::EnableMutableAnimInfoDebugging = 0;
+int32 UCustomizableObjectSystemPrivate::EnableMutableAnimInfoDebugging = 0;
 
 static FAutoConsoleVariableRef CVarEnableMutableAnimInfoDebugging(
-	TEXT("mutable.EnableMutableAnimInfoDebugging"), FCustomizableObjectSystemPrivate::EnableMutableAnimInfoDebugging,
+	TEXT("mutable.EnableMutableAnimInfoDebugging"), UCustomizableObjectSystemPrivate::EnableMutableAnimInfoDebugging,
 	TEXT("If set to 1 or greater print on screen the animation info of the pawn's Customizable Object Instance. Anim BPs, slots and tags will be displayed."
 	"If the root Customizable Object is recompiled after this command is run, the used skeletal meshes will also be displayed."),
 	ECVF_Default);
 
 
-void FCustomizableObjectSystemPrivate::AddGameThreadTask(const FMutableTask& Task)
+void UCustomizableObjectSystemPrivate::AddGameThreadTask(const FMutableTask& Task)
 {
 	PendingTasks.Enqueue(Task);
-}
-
-
-void FCustomizableObjectSystemPrivate::AddReferencedObjects(FReferenceCollector& Collector)
-{
-	if (CurrentInstanceBeingUpdated)
-	{
-		Collector.AddReferencedObject(CurrentInstanceBeingUpdated);
-	}
-
-#if WITH_EDITORONLY_DATA
-	Collector.AddReferencedObject(EditorImageProvider);
-#endif
-}
-
-
-FString FCustomizableObjectSystemPrivate::GetReferencerName() const
-{
-	return TEXT("FCustomizableObjectSystemPrivate");
 }
 
 
@@ -643,7 +624,7 @@ TAutoConsoleVariable<bool> CVarCleanupTextureCache(
 	ECVF_Scalability);
 
 
-void FCustomizableObjectSystemPrivate::CleanupCache()
+void UCustomizableObjectSystemPrivate::CleanupCache()
 {
 	check(IsInGameThread());
 
@@ -685,7 +666,7 @@ void FCustomizableObjectSystemPrivate::CleanupCache()
 }
 
 
-FMutableResourceCache& FCustomizableObjectSystemPrivate::GetObjectCache(const UCustomizableObject* Object)
+FMutableResourceCache& UCustomizableObjectSystemPrivate::GetObjectCache(const UCustomizableObject* Object)
 {
 	check(IsInGameThread());
 
@@ -707,50 +688,50 @@ FMutableResourceCache& FCustomizableObjectSystemPrivate::GetObjectCache(const UC
 }
 
 
-int32 FCustomizableObjectSystemPrivate::EnableMutableProgressiveMipStreaming = 1;
+int32 UCustomizableObjectSystemPrivate::EnableMutableProgressiveMipStreaming = 1;
 
 // Warning! If this is enabled, do not get references to the textures generated by Mutable! They are owned by Mutable and could become invalid at any moment
 static FAutoConsoleVariableRef CVarEnableMutableProgressiveMipStreaming(
-	TEXT("mutable.EnableMutableProgressiveMipStreaming"), FCustomizableObjectSystemPrivate::EnableMutableProgressiveMipStreaming,
+	TEXT("mutable.EnableMutableProgressiveMipStreaming"), UCustomizableObjectSystemPrivate::EnableMutableProgressiveMipStreaming,
 	TEXT("If set to 1 or greater use progressive Mutable Mip streaming for Mutable textures. If disabled, all mips will always be generated and spending memory. In that case, on Desktop platforms they will be stored in CPU memory, on other platforms textures will be non-streaming."),
 	ECVF_Default);
 
 
-int32 FCustomizableObjectSystemPrivate::EnableMutableLiveUpdate = 1;
+int32 UCustomizableObjectSystemPrivate::EnableMutableLiveUpdate = 1;
 
 static FAutoConsoleVariableRef CVarEnableMutableLiveUpdate(
-	TEXT("mutable.EnableMutableLiveUpdate"), FCustomizableObjectSystemPrivate::EnableMutableLiveUpdate,
+	TEXT("mutable.EnableMutableLiveUpdate"), UCustomizableObjectSystemPrivate::EnableMutableLiveUpdate,
 	TEXT("If set to 1 or greater Mutable can use the live update mode if set in the current Mutable state. If disabled, it will never use live update mode even if set in the current Mutable state."),
 	ECVF_Default);
 
 
-int32 FCustomizableObjectSystemPrivate::EnableReuseInstanceTextures = 1;
+int32 UCustomizableObjectSystemPrivate::EnableReuseInstanceTextures = 1;
 
 static FAutoConsoleVariableRef CVarEnableMutableReuseInstanceTextures(
-	TEXT("mutable.EnableReuseInstanceTextures"), FCustomizableObjectSystemPrivate::EnableReuseInstanceTextures,
+	TEXT("mutable.EnableReuseInstanceTextures"), UCustomizableObjectSystemPrivate::EnableReuseInstanceTextures,
 	TEXT("If set to 1 or greater and set in the corresponding setting in the current Mutable state, Mutable can reuse instance UTextures (only uncompressed and not streaming, so set the options in the state) and their resources between updates when they are modified. If geometry or state is changed they cannot be reused."),
 	ECVF_Default);
 
 
-int32 FCustomizableObjectSystemPrivate::EnableOnlyGenerateRequestedLODs = 1;
+int32 UCustomizableObjectSystemPrivate::EnableOnlyGenerateRequestedLODs = 1;
 
 static FAutoConsoleVariableRef CVarEnableOnlyGenerateRequestedLODs(
-	TEXT("mutable.EnableOnlyGenerateRequestedLODs"), FCustomizableObjectSystemPrivate::EnableOnlyGenerateRequestedLODs,
+	TEXT("mutable.EnableOnlyGenerateRequestedLODs"), UCustomizableObjectSystemPrivate::EnableOnlyGenerateRequestedLODs,
 	TEXT("If 1 or greater, Only the RequestedLODLevels will be generated. If 0, all LODs will be build."),
 	ECVF_Default);
 
-int32 FCustomizableObjectSystemPrivate::EnableSkipGenerateResidentMips = 1;
+int32 UCustomizableObjectSystemPrivate::EnableSkipGenerateResidentMips = 1;
 
 static FAutoConsoleVariableRef CVarSkipGenerateResidentMips(
-	TEXT("mutable.EnableSkipGenerateResidentMips"), FCustomizableObjectSystemPrivate::EnableSkipGenerateResidentMips,
+	TEXT("mutable.EnableSkipGenerateResidentMips"), UCustomizableObjectSystemPrivate::EnableSkipGenerateResidentMips,
 	TEXT("If 1 or greater, resident mip generation will be optional. If 0, resident mips will be always generated"),
 	ECVF_Default);
 
-int32 FCustomizableObjectSystemPrivate::MaxTextureSizeToGenerate = 0;
+int32 UCustomizableObjectSystemPrivate::MaxTextureSizeToGenerate = 0;
 
 FAutoConsoleVariableRef CVarMaxTextureSizeToGenerate(
 	TEXT("Mutable.MaxTextureSizeToGenerate"),
-	FCustomizableObjectSystemPrivate::MaxTextureSizeToGenerate,
+	UCustomizableObjectSystemPrivate::MaxTextureSizeToGenerate,
 	TEXT("Max texture size on Mutable textures. Mip 0 will be the first mip with max size equal or less than MaxTextureSizeToGenerate."
 		"If a texture doesn't have small enough mips, mip 0 will be the last mip available."));
 
@@ -768,7 +749,7 @@ void FinishUpdateGlobal(const TSharedRef<FUpdateContextPrivate>& Context)
 	UCustomizableObjectInstance* Instance = Context->Instance.Get();
 
 	UCustomizableObjectSystem* System = UCustomizableObjectSystem::GetInstance();
-	FCustomizableObjectSystemPrivate* SystemPrivate = System ? System->GetPrivate() : nullptr;
+	UCustomizableObjectSystemPrivate* SystemPrivate = System ? System->GetPrivate() : nullptr;
 
 	if (Instance)
 	{
@@ -923,7 +904,7 @@ void UpdateSkeletalMesh(const TSharedRef<FUpdateContextPrivate>& Context)
 }
 
 
-void FCustomizableObjectSystemPrivate::GetMipStreamingConfig(const UCustomizableObjectInstance& Instance, bool& bOutNeverStream, int32& OutMipsToSkip) const
+void UCustomizableObjectSystemPrivate::GetMipStreamingConfig(const UCustomizableObjectInstance& Instance, bool& bOutNeverStream, int32& OutMipsToSkip) const
 {
 	bOutNeverStream = false;
 
@@ -962,25 +943,25 @@ void FCustomizableObjectSystemPrivate::GetMipStreamingConfig(const UCustomizable
 }
 
 
-bool FCustomizableObjectSystemPrivate::IsReplaceDiscardedWithReferenceMeshEnabled() const
+bool UCustomizableObjectSystemPrivate::IsReplaceDiscardedWithReferenceMeshEnabled() const
 {
 	return bReplaceDiscardedWithReferenceMesh;
 }
 
 
-void FCustomizableObjectSystemPrivate::SetReplaceDiscardedWithReferenceMeshEnabled(bool bIsEnabled)
+void UCustomizableObjectSystemPrivate::SetReplaceDiscardedWithReferenceMeshEnabled(bool bIsEnabled)
 {
 	bReplaceDiscardedWithReferenceMesh = bIsEnabled;
 }
 
 
-int32 FCustomizableObjectSystemPrivate::GetNumSkeletalMeshes() const
+int32 UCustomizableObjectSystemPrivate::GetNumSkeletalMeshes() const
 {
 	return NumSkeletalMeshes;
 }
 
 
-void FCustomizableObjectSystemPrivate::AddTextureReference(const FMutableImageCacheKey& TextureId)
+void UCustomizableObjectSystemPrivate::AddTextureReference(const FMutableImageCacheKey& TextureId)
 {
 	uint32& CountRef = TextureReferenceCount.FindOrAdd(TextureId);
 
@@ -988,7 +969,7 @@ void FCustomizableObjectSystemPrivate::AddTextureReference(const FMutableImageCa
 }
 
 
-bool FCustomizableObjectSystemPrivate::RemoveTextureReference(const FMutableImageCacheKey& TextureId)
+bool UCustomizableObjectSystemPrivate::RemoveTextureReference(const FMutableImageCacheKey& TextureId)
 {
 	uint32* CountPtr = TextureReferenceCount.Find(TextureId);
 
@@ -1013,7 +994,7 @@ bool FCustomizableObjectSystemPrivate::RemoveTextureReference(const FMutableImag
 }
 
 
-bool FCustomizableObjectSystemPrivate::TextureHasReferences(const FMutableImageCacheKey& TextureId) const
+bool UCustomizableObjectSystemPrivate::TextureHasReferences(const FMutableImageCacheKey& TextureId) const
 {
 	const uint32* CountPtr = TextureReferenceCount.Find(TextureId);
 
@@ -1026,7 +1007,7 @@ bool FCustomizableObjectSystemPrivate::TextureHasReferences(const FMutableImageC
 }
 
 
-EUpdateRequired FCustomizableObjectSystemPrivate::IsUpdateRequired(const UCustomizableObjectInstance& Instance, bool bOnlyUpdateIfNotGenerated, bool bOnlyUpdateIfLODs, bool bIgnoreCloseDist) const
+EUpdateRequired UCustomizableObjectSystemPrivate::IsUpdateRequired(const UCustomizableObjectInstance& Instance, bool bOnlyUpdateIfNotGenerated, bool bOnlyUpdateIfLODs, bool bIgnoreCloseDist) const
 {
 	UCustomizableObjectSystem* System = UCustomizableObjectSystem::GetInstance();
 	const UCustomizableInstancePrivate* const Private = Instance.GetPrivate();
@@ -1081,7 +1062,7 @@ EUpdateRequired FCustomizableObjectSystemPrivate::IsUpdateRequired(const UCustom
 }
 
 
-EQueuePriorityType FCustomizableObjectSystemPrivate::GetUpdatePriority(const UCustomizableObjectInstance& Instance,	bool bForceHighPriority) const
+EQueuePriorityType UCustomizableObjectSystemPrivate::GetUpdatePriority(const UCustomizableObjectInstance& Instance,	bool bForceHighPriority) const
 {
 	const UCustomizableInstancePrivate* InstancePrivate = Instance.GetPrivate();
 		
@@ -1120,7 +1101,7 @@ EQueuePriorityType FCustomizableObjectSystemPrivate::GetUpdatePriority(const UCu
 }
 
 
-void FCustomizableObjectSystemPrivate::EnqueueUpdateSkeletalMesh(const TSharedRef<FUpdateContextPrivate>& Context)
+void UCustomizableObjectSystemPrivate::EnqueueUpdateSkeletalMesh(const TSharedRef<FUpdateContextPrivate>& Context)
 {
 	MUTABLE_CPUPROFILER_SCOPE(FCustomizableObjectSystemPrivate::EnqueueUpdateSkeletalMesh);
 	check(IsInGameThread());
@@ -1255,7 +1236,7 @@ void FCustomizableObjectSystemPrivate::EnqueueUpdateSkeletalMesh(const TSharedRe
 }
 
 
-void FCustomizableObjectSystemPrivate::InitDiscardResourcesSkeletalMesh(UCustomizableObjectInstance* InCustomizableObjectInstance)
+void UCustomizableObjectSystemPrivate::InitDiscardResourcesSkeletalMesh(UCustomizableObjectInstance* InCustomizableObjectInstance)
 {
 	check(IsInGameThread());
 
@@ -1267,7 +1248,7 @@ void FCustomizableObjectSystemPrivate::InitDiscardResourcesSkeletalMesh(UCustomi
 }
 
 
-void FCustomizableObjectSystemPrivate::InitInstanceIDRelease(mu::Instance::ID IDToRelease)
+void UCustomizableObjectSystemPrivate::InitInstanceIDRelease(mu::Instance::ID IDToRelease)
 {
 	check(IsInGameThread());
 
@@ -1277,7 +1258,7 @@ void FCustomizableObjectSystemPrivate::InitInstanceIDRelease(mu::Instance::ID ID
 
 bool UCustomizableObjectSystem::IsReplaceDiscardedWithReferenceMeshEnabled() const
 {
-	if (Private.IsValid())
+	if (Private)
 	{
 		return Private->IsReplaceDiscardedWithReferenceMeshEnabled();
 	}
@@ -1288,7 +1269,7 @@ bool UCustomizableObjectSystem::IsReplaceDiscardedWithReferenceMeshEnabled() con
 
 void UCustomizableObjectSystem::SetReplaceDiscardedWithReferenceMeshEnabled(bool bIsEnabled)
 {
-	if (Private.IsValid())
+	if (Private)
 	{
 		Private->SetReplaceDiscardedWithReferenceMeshEnabled(bIsEnabled);
 	}
@@ -1527,7 +1508,7 @@ void UCustomizableObjectSystem::ClearCurrentMutableOperation()
 }
 
 
-void FCustomizableObjectSystemPrivate::UpdateMemoryLimit()
+void UCustomizableObjectSystemPrivate::UpdateMemoryLimit()
 {
 	// This must run on game thread, and when the mutable thread is not running
 	check(IsInGameThread());
@@ -1596,7 +1577,7 @@ namespace impl
 	void CreateMutableInstance(const TSharedRef<FUpdateContextPrivate>& Operation)
 	{
 		UCustomizableObjectSystem* System = UCustomizableObjectSystem::GetInstanceChecked(); // Save since UCustomizableObjectSystem::BeginDestroy always waits for all tasks to finish
-		const FCustomizableObjectSystemPrivate* SystemPrivate = System->GetPrivateChecked();
+		const UCustomizableObjectSystemPrivate* SystemPrivate = System->GetPrivateChecked();
 		
 		Operation->UpdateStartBytes = mu::FGlobalMemoryCounter::GetCounter();
 		mu::FGlobalMemoryCounter::Zero();
@@ -1910,7 +1891,7 @@ namespace impl
 	{
 		MUTABLE_CPUPROFILER_SCOPE(Subtask_Mutable_GetImages)
 
-		const FCustomizableObjectSystemPrivate* CustomizableObjectSystemPrivateData = UCustomizableObjectSystem::GetInstanceChecked()->GetPrivateChecked();
+		const UCustomizableObjectSystemPrivate* CustomizableObjectSystemPrivateData = UCustomizableObjectSystem::GetInstanceChecked()->GetPrivateChecked();
 		mu::System* System = CustomizableObjectSystemPrivateData->MutableSystem.get();
 		check(System != nullptr);
 
@@ -2262,7 +2243,7 @@ namespace impl
 			return;
 		}
 
-		FCustomizableObjectSystemPrivate * CustomizableObjectSystemPrivateData = System->GetPrivateChecked();
+		UCustomizableObjectSystemPrivate * CustomizableObjectSystemPrivateData = System->GetPrivateChecked();
 
 		// Actual work
 		// TODO MTBL-391: Review This hotfix
@@ -2349,7 +2330,7 @@ namespace impl
 			}
 		} // if (!bInstanceValid)
 
-		FCustomizableObjectSystemPrivate* CustomizableObjectSystemPrivateData = System->GetPrivateChecked();
+		UCustomizableObjectSystemPrivate* CustomizableObjectSystemPrivateData = System->GetPrivateChecked();
 
 		// Next Task: Release Mutable. We need this regardless if we cancel or not
 		//-------------------------------------------------------------		
@@ -2465,7 +2446,7 @@ namespace impl
 		// When protecting textures there mustn't be any left from a previous update
 		check(System->ProtectedCachedTextures.Num() == 0);
 
-		FCustomizableObjectSystemPrivate* SystemPrivateData = System->GetPrivateChecked();
+		UCustomizableObjectSystemPrivate* SystemPrivateData = System->GetPrivateChecked();
 
 		// TODO: If this is the first code that runs after the CO program has finished AND if it's
 		// guaranteed that the next CO program hasn't started yet, we need to call ClearActiveObject
@@ -2549,7 +2530,7 @@ namespace impl
 		MUTABLE_CPUPROFILER_SCOPE(Task_Game_ReleaseInstanceID)
 
 		UCustomizableObjectSystem* System = UCustomizableObjectSystem::GetInstanceChecked();
-		FCustomizableObjectSystemPrivate* SystemPrivateData = System->GetPrivateChecked();
+		UCustomizableObjectSystemPrivate* SystemPrivateData = System->GetPrivateChecked();
 
 		const mu::Ptr<mu::System> MutableSystem = SystemPrivateData->MutableSystem;
 
@@ -2572,7 +2553,7 @@ namespace impl
 		MUTABLE_CPUPROFILER_SCOPE(Task_Game_LockMeshCache);
 
 		UCustomizableObjectSystem* System = UCustomizableObjectSystem::GetInstanceChecked();
-		FCustomizableObjectSystemPrivate* SystemPrivate = System->GetPrivateChecked();
+		UCustomizableObjectSystemPrivate* SystemPrivate = System->GetPrivateChecked();
 
 		const UCustomizableObject* CustomizableObject = Operation->Instance->GetCustomizableObject();
 		UCustomizableObjectPrivate* CustomizableObjectPrivate = CustomizableObject->GetPrivate();
@@ -2619,7 +2600,7 @@ namespace impl
 
 
 		UCustomizableObjectSystem* System = UCustomizableObjectSystem::GetInstanceChecked(); // Save since UCustomizableObjectSystem::BeginDestroy always waits for all tasks to finish
-		FCustomizableObjectSystemPrivate* SystemPrivate = System->GetPrivateChecked();
+		UCustomizableObjectSystemPrivate* SystemPrivate = System->GetPrivateChecked();
 		
 		CreateMutableInstance(Operation);
 		FixLODs(Operation);
@@ -2737,7 +2718,7 @@ namespace impl
 			return;
 		}
 
-		FCustomizableObjectSystemPrivate* SystemPrivateData = System->GetPrivateChecked();
+		UCustomizableObjectSystemPrivate* SystemPrivateData = System->GetPrivateChecked();
 
 		SystemPrivateData->CurrentInstanceBeingUpdated = CandidateInstance;
 
@@ -2962,7 +2943,7 @@ bool UCustomizableObjectSystem::Tick(float DeltaTime)
 	return true;
 #endif
 
-	if (!Private.IsValid())
+	if (!Private)
 	{
 		return true;
 	}
@@ -3694,7 +3675,7 @@ void UCustomizableObjectSystem::ClearImageCache()
 }
 
 
-bool FCustomizableObjectSystemPrivate::IsMutableAnimInfoDebuggingEnabled() const
+bool UCustomizableObjectSystemPrivate::IsMutableAnimInfoDebuggingEnabled() const
 { 
 #if WITH_EDITORONLY_DATA
 	return EnableMutableAnimInfoDebugging > 0;
@@ -3704,14 +3685,14 @@ bool FCustomizableObjectSystemPrivate::IsMutableAnimInfoDebuggingEnabled() const
 }
 
 
-FUnrealMutableImageProvider* FCustomizableObjectSystemPrivate::GetImageProviderChecked() const
+FUnrealMutableImageProvider* UCustomizableObjectSystemPrivate::GetImageProviderChecked() const
 {
 	check(ImageProvider)
 	return ImageProvider.Get();
 }
 
 
-void FCustomizableObjectSystemPrivate::StartUpdateSkeletalMesh(const TSharedRef<FUpdateContextPrivate>& Context)
+void UCustomizableObjectSystemPrivate::StartUpdateSkeletalMesh(const TSharedRef<FUpdateContextPrivate>& Context)
 {
 	Context->UpdateStarted = true;
 	TRACE_BEGIN_REGION(UE_MUTABLE_UPDATE_REGION);
@@ -3726,7 +3707,7 @@ void FCustomizableObjectSystemPrivate::StartUpdateSkeletalMesh(const TSharedRef<
 }
 
 
-bool FCustomizableObjectSystemPrivate::IsUpdating(const UCustomizableObjectInstance& Instance) const
+bool UCustomizableObjectSystemPrivate::IsUpdating(const UCustomizableObjectInstance& Instance) const
 {
 	if (CurrentMutableOperation && CurrentMutableOperation->Instance.Get() == &Instance)
 	{
@@ -3742,7 +3723,7 @@ bool FCustomizableObjectSystemPrivate::IsUpdating(const UCustomizableObjectInsta
 }
 
 
-void FCustomizableObjectSystemPrivate::UpdateStats()
+void UCustomizableObjectSystemPrivate::UpdateStats()
 {
 	NumSkeletalMeshes = 0;
 	
