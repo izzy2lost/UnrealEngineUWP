@@ -87,7 +87,7 @@ const RotatorType FTestRotatorNetSerializerBase<RotatorType>::Values[] =
 	RotatorType(0.0f, 0.0f, 1.0f),
 	RotatorType(-0.0f), // 0.0f == -0.0f so we expect this to be handled gracefully
 	RotatorType(359.999f, 129.130f, 45.0f),
-	RotatorType(1.26698556E-23),
+	RotatorType(1.26698556E-23f),
 	RotatorType(47.11f),
 };
 template<typename RotatorType>

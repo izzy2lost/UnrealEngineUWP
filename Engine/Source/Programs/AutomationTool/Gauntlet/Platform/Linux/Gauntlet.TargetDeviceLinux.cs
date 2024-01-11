@@ -27,6 +27,14 @@ namespace Gauntlet
 			RunOptions = CommandUtils.ERunOptions.NoWaitForExit | CommandUtils.ERunOptions.NoLoggingOfRunCommand;
 		}
 
+		public TargetDeviceLinux(string InName, string InCacheDir, bool InIsArm64)
+			: base(InName, InCacheDir)
+		{
+			IsArm64 = InIsArm64;
+			Platform = InIsArm64 ? UnrealTargetPlatform.LinuxArm64 : UnrealTargetPlatform.Linux;
+			RunOptions = CommandUtils.ERunOptions.NoWaitForExit | CommandUtils.ERunOptions.NoLoggingOfRunCommand;
+		}
+
 		public override IAppInstance Run(IAppInstall App)
 		{
 			LinuxAppInstall LinuxApp = App as LinuxAppInstall;
@@ -276,7 +284,7 @@ namespace Gauntlet
 
 		public ITargetDevice CreateDevice(string InRef, string InCachePath, string InParam = null)
 		{
-			return new TargetDeviceLinux(InRef, InCachePath) { IsArm64 = true };
+			return new TargetDeviceLinux(InRef, InCachePath, true);
 		}
 	}
 }
