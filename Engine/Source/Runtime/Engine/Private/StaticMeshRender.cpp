@@ -1906,8 +1906,8 @@ void FStaticMeshSceneProxy::GetDynamicRayTracingInstances(FRayTracingMaterialGat
 
 	if (bEvaluateWPO && CVarRayTracingStaticMeshesWPOCulling.GetValueOnRenderThread() > 0)
 	{
-		FVector ViewCenter = Context.ReferenceView->ViewMatrices.GetViewOrigin();
-		FVector MeshCenter = GetLocalToWorld().GetOrigin();
+		const FVector ViewCenter = Context.ReferenceView->ViewMatrices.GetViewOrigin();
+		const FVector MeshCenter = GetBounds().Origin;
 		const float CullingRadius = CVarRayTracingStaticMeshesWPOCullingRadius.GetValueOnRenderThread();
 		const float BoundingRadius = GetBounds().SphereRadius;
 
