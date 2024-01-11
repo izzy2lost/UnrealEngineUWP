@@ -10,6 +10,7 @@
 #include "EdGraphSchema_K2.h"
 #include "EdGraphUtilities.h"
 #include "Kismet2/BlueprintEditorUtils.h"
+#include "Kismet2/KismetEditorUtilities.h"
 #include "Misc/Guid.h"
 #include "ScopedTransaction.h"
 #include "Widgets/ViewModelFieldDragDropOp.h"
@@ -108,15 +109,18 @@ void FRowHelper::DeleteEntries(const UWidgetBlueprint* WidgetBlueprint, UMVVMBlu
 
 void FRowHelper::ShowBlueprintGraph(FBlueprintEditor* BlueprintEditor, UWidgetBlueprint* WidgetBlueprint, UMVVMBlueprintView* BlueprintView, TArrayView<const TSharedPtr<FBindingEntry>> Entries)
 {
-	auto DuplicateGraph = [WidgetBlueprint, BlueprintEditor](UEdGraph* Graph)
+	auto ShowGraph = [WidgetBlueprint, BlueprintEditor](UEdGraph* Graph)
 		{
 			if (Graph && BlueprintEditor)
 			{
-				UEdGraph* DuplicatedGraph = GetDefault<UEdGraphSchema_K2>()->DuplicateGraph(Graph);
-				check(DuplicatedGraph);
-				DuplicatedGraph->SetFlags(RF_Transient);
-
-				BlueprintEditor->OpenDocument(DuplicatedGraph, FDocumentTracker::OpenNewDocument);
+				if (Graph->HasAnyFlags(RF_Transient))
+				{
+					BlueprintEditor->OpenDocument(Graph, FDocumentTracker::OpenNewDocument);
+				}
+				else
+				{
+					FKismetEditorUtilities::BringKismetToFocusAttentionOnObject(Graph);
+				}
 			}
 		};
 
@@ -131,11 +135,11 @@ void FRowHelper::ShowBlueprintGraph(FBlueprintEditor* BlueprintEditor, UWidgetBl
 				UMVVMBlueprintViewConversionFunction* ConversionFunctionB = ViewBinding->Conversion.GetConversionFunction(false);
 				if (ConversionFunctionA)
 				{
-					DuplicateGraph(ConversionFunctionA->GetWrapperGraph());
+					ShowGraph(ConversionFunctionA->GetWrapperGraph());
 				}
 				if (ConversionFunctionB)
 				{
-					DuplicateGraph(ConversionFunctionB->GetWrapperGraph());
+					ShowGraph(ConversionFunctionB->GetWrapperGraph());
 				}
 			}
 		}
@@ -143,7 +147,7 @@ void FRowHelper::ShowBlueprintGraph(FBlueprintEditor* BlueprintEditor, UWidgetBl
 		{
 			if (UMVVMBlueprintViewEvent* Event = Entry->GetEvent())
 			{
-				DuplicateGraph(Event->GetWrapperGraph());
+				ShowGraph(Event->GetWrapperGraph());
 			}
 		}
 	}

@@ -778,7 +778,7 @@ TSharedRef<SWidget> SBindingRow::HandleContextMenu() const
 			MenuBuilder.AddMenuEntry(LOCTEXT("ShowGraph", "Show binding graph")
 				, LOCTEXT("ShowGraphTooltip", "Show the Blueprint graph that represent the binding."
 					" The graph is always generated but may not be visible to the user.")
-				, FSlateIcon(FAppStyle::GetAppStyleSetName(), "Icons.Duplicate")
+				, FSlateIcon(FAppStyle::GetAppStyleSetName(), "BlueprintEditor.FindInBlueprints.MenuIcon")
 				, ShowGraphAction);
 		}
 

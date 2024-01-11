@@ -409,7 +409,7 @@ TSharedRef<SWidget> SEventRow::HandleContextMenu() const
 			MenuBuilder.AddMenuEntry(LOCTEXT("ShowGraph", "Show event graph")
 				, LOCTEXT("ShowGraphTooltip", "Show the Blueprint graph that represent the event."
 					" The graph is always generated but may not be visible to the user.")
-				, FSlateIcon(FAppStyle::GetAppStyleSetName(), "Icons.Duplicate")
+				, FSlateIcon(FAppStyle::GetAppStyleSetName(), "BlueprintEditor.FindInBlueprints.MenuIcon")
 				, ShowGraphAction);
 		}
 
