@@ -144,6 +144,7 @@ UPathFollowingComponent::UPathFollowingComponent(const FObjectInitializer& Objec
 	MoveSegmentEndIndex = 1;
 	MoveSegmentStartRef = INVALID_NAVNODEREF;
 	MoveSegmentEndRef = INVALID_NAVNODEREF;
+	bMoveSegmentIsUsingCustomLinkReachCondition = false;
 
 	CachedBrakingDistance = 100.0f;
 	CachedBrakingMaxSpeed = 0.0f;
@@ -737,6 +738,7 @@ void UPathFollowingComponent::Reset()
 	MoveSegmentStartRef = INVALID_NAVNODEREF;
 	MoveSegmentEndRef = INVALID_NAVNODEREF;
 	DecelerationSegmentIndex = INDEX_NONE;
+	ResetMoveSegmentCustomLinkCache();
 
 	LocationSamples.Reset();
 	LastSampleTime = 0.0f;
@@ -856,6 +858,26 @@ void UPathFollowingComponent::SetMoveSegment(int32 SegmentStartIndex)
 
 			CurrentDestination = PathInstance->GetPathPointLocation(MoveSegmentEndIndex);
 			SegmentEnd = *CurrentDestination;
+		}
+
+		// Check if the next segment is a custom link and has the need to use its own custom reach conditions
+		if (PathPt1.CustomNavLinkId != FNavLinkId::Invalid)
+		{
+			const UNavigationSystemV1* NavSys = FNavigationSystem::GetCurrent<UNavigationSystemV1>(GetWorld());
+			if (const INavLinkCustomInterface* MoveSegmentCustomLink = NavSys->GetCustomLink(PathPt1.CustomNavLinkId))
+			{
+				// Cache the CustomLinkOb for faster access during the update
+				MoveSegmentCustomLinkOb = Cast<const UObject>(MoveSegmentCustomLink);
+				bMoveSegmentIsUsingCustomLinkReachCondition = MoveSegmentCustomLink->IsLinkUsingCustomReachCondition(this);
+			}
+			else
+			{
+				ResetMoveSegmentCustomLinkCache();
+			}
+		}
+		else
+		{
+			ResetMoveSegmentCustomLinkCache();
 		}
 
 		CurrentAcceptanceRadius = (PathInstance->GetPathPoints().Num() == (MoveSegmentEndIndex + 1))
@@ -1165,6 +1187,27 @@ bool UPathFollowingComponent::HasReachedCurrentTarget(const FVector& CurrentLoca
 		return false;
 	}
 
+	// If the next segment is a link with a custom reach condition, we need to call the HasReachedLinkStart on the link interface.
+	if (bMoveSegmentIsUsingCustomLinkReachCondition)
+	{
+		if (const INavLinkCustomInterface* MoveSegmentCustomLink = Cast<const INavLinkCustomInterface>(MoveSegmentCustomLinkOb.Get()))
+		{
+			if (ensureMsgf(Path.IsValid(), TEXT("%hs: Path should be valid when we get here. Owner [%s]."), __FUNCTION__, *GetNameSafe(GetOwner())))
+			{
+				const FNavPathPoint& LinkStart = Path->GetPathPoints()[MoveSegmentEndIndex];
+				if (Path->GetPathPoints().IsValidIndex(MoveSegmentEndIndex + 1))
+				{
+					const FNavPathPoint& LinkEnd = Path->GetPathPoints()[MoveSegmentEndIndex + 1];
+					return MoveSegmentCustomLink->HasReachedLinkStart(this, CurrentLocation, LinkStart, LinkEnd);
+				}
+				else
+				{
+					UE_LOG(LogPathFollowing, Error, TEXT("%hs: NavLink has a start, but no end. Custom reach condition won't be called. NavLinkID [%llu] - LinkStartPos [%s] - Owner [%s]"), __FUNCTION__, LinkStart.CustomNavLinkId.GetId(), *LinkStart.Location.ToString(), *GetNameSafe(GetOwner()));
+				}
+			}
+		}
+	}
+
 	const FVector CurrentTarget = GetCurrentTargetLocation();
 	const FVector CurrentDirection = GetCurrentDirection();
 
@@ -1402,6 +1445,12 @@ void UPathFollowingComponent::OnActorBump(AActor* SelfActor, AActor* OtherActor,
 		UE_VLOG(GetOwner(), LogPathFollowing, Verbose, TEXT("Collided with goal actor"));
 		bCollidedWithGoal = true;
 	}
+}
+
+void UPathFollowingComponent::ResetMoveSegmentCustomLinkCache()
+{
+	MoveSegmentCustomLinkOb.Reset();
+	bMoveSegmentIsUsingCustomLinkReachCondition = false;
 }
 
 bool UPathFollowingComponent::IsOnPath() const
