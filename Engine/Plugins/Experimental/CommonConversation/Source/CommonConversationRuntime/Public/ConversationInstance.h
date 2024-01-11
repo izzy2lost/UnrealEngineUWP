@@ -87,6 +87,11 @@ public:
 		return Participants.GetParticipantComponent(ParticipantID);
 	}
 
+	const UConversationDatabase* GetActiveConversationGraph() const
+	{
+		return ActiveConversationGraph.Get();
+	}
+
 	const FConversationNodeHandle& GetCurrentNodeHandle() const { return CurrentBranchPoint.GetNodeHandle(); }
 	const FConversationChoiceReference& GetCurrentChoiceReference() const { return CurrentBranchPoint.ClientChoice.ChoiceReference; }
 	const TArray<FClientConversationOptionEntry>& GetCurrentUserConversationChoices() const { return CurrentUserChoices; }
@@ -127,6 +132,9 @@ protected:
 private:
 	UPROPERTY()
 	FConversationParticipants Participants;
+
+	UPROPERTY()
+	TObjectPtr<const UConversationDatabase> ActiveConversationGraph = nullptr;
 
 	FGameplayTag StartingEntryGameplayTag;
 	FConversationBranchPoint StartingBranchPoint;

@@ -98,11 +98,11 @@ void UConversationParticipantComponent::ServerNotifyConversationEnded(UConversat
 	}
 }
 
-void UConversationParticipantComponent::ServerNotifyExecuteTaskAndSideEffects(const FConversationNodeHandle& Handle)
+void UConversationParticipantComponent::ServerNotifyExecuteTaskAndSideEffects(const FConversationNodeHandle& Handle, const UConversationDatabase* Graph)
 {
 	if (GetOwner()->GetLocalRole() == ROLE_Authority)
 	{
-		ClientExecuteTaskAndSideEffects(Handle);
+		ClientExecuteTaskAndSideEffects(Handle, Graph);
 	}
 }
 
@@ -321,9 +321,9 @@ void UConversationParticipantComponent::ClientUpdateParticipants_Implementation(
 	LastMessage.Participants = InParticipants;
 }
 
-void UConversationParticipantComponent::ClientExecuteTaskAndSideEffects_Implementation(FConversationNodeHandle Handle)
+void UConversationParticipantComponent::ClientExecuteTaskAndSideEffects_Implementation(FConversationNodeHandle Handle, const UConversationDatabase* Graph)
 {
-	if (const UConversationTaskNode* TaskNode = Cast<UConversationTaskNode>(Handle.TryToResolve_Slow(GetWorld())))
+	if (const UConversationTaskNode* TaskNode = Cast<UConversationTaskNode>(Handle.TryToResolve_Slow(GetWorld(), Graph)))
 	{
 		FConversationContext ClientContext = FConversationContext::CreateClientContext(this, TaskNode);
 		TaskNode->ExecuteTaskNodeWithSideEffects(ClientContext);

@@ -88,23 +88,44 @@ void UConversationGraphSchema::GetGraphNodeContextActions(FGraphContextMenuBuild
 void UConversationGraphSchema::GetSubNodeClasses(int32 SubNodeFlags, TArray<FGraphNodeClassData>& ClassData, UClass*& GraphNodeClass) const
 {
 	FGraphNodeClassHelper& ClassCache = GetConversationClassCache();
+	TArray<FGraphNodeClassData> TempClassData;
 
 	switch ((EConversationGraphSubNodeType)SubNodeFlags)
 	{
 	case EConversationGraphSubNodeType::Requirement:
-		ClassCache.GatherClasses(UConversationRequirementNode::StaticClass(), /*out*/ ClassData);
+		ClassCache.GatherClasses(UConversationRequirementNode::StaticClass(), /*out*/ TempClassData);
 		GraphNodeClass = UConversationGraphNode_Requirement::StaticClass();
 		break;
 	case EConversationGraphSubNodeType::SideEffect:
-		ClassCache.GatherClasses(UConversationSideEffectNode::StaticClass(), /*out*/ ClassData);
+		ClassCache.GatherClasses(UConversationSideEffectNode::StaticClass(), /*out*/ TempClassData);
 		GraphNodeClass = UConversationGraphNode_SideEffect::StaticClass();
 		break;
 	case EConversationGraphSubNodeType::Choice:
-		ClassCache.GatherClasses(UConversationChoiceNode::StaticClass(), /*out*/ ClassData);
+		ClassCache.GatherClasses(UConversationChoiceNode::StaticClass(), /*out*/ TempClassData);
 		GraphNodeClass = UConversationGraphNode_Choice::StaticClass();
 		break;
 	default:
 		unimplemented();
+	}
+
+	for (FGraphNodeClassData& Class : TempClassData)
+	{
+		bool bIsAllowed = false;
+		// We check the name only first to test the allowed status without possibly loading a full uasset class from disk
+		// If there is no package name, fallback to testing with a fully loaded class
+		if (!Class.GetPackageName().IsEmpty())
+		{
+			bIsAllowed = FBlueprintActionDatabase::IsClassAllowed(FTopLevelAssetPath(FName(Class.GetPackageName()), FName(Class.GetClassName())), FBlueprintActionDatabase::EPermissionsContext::Node);
+		}
+		else
+		{
+			bIsAllowed = FBlueprintActionDatabase::IsClassAllowed(Class.GetClass(), FBlueprintActionDatabase::EPermissionsContext::Node);
+		}
+
+		if (bIsAllowed)
+		{
+			ClassData.Add(std::move(Class));
+		}
 	}
 }
 
@@ -118,11 +139,11 @@ void UConversationGraphSchema::AddConversationNodeOptions(const FString& Categor
 	for (FGraphNodeClassData& NodeClass : NodeClasses)
 	{
 		bool bIsAllowed = false;
-		// We check the package name only first to test the allowed status without possibly loading a full uasset class from disk
+		// We check the name only first to test the allowed status without possibly loading a full uasset class from disk
 		// If there is no package name, fallback to testing with a fully loaded class
 		if (!NodeClass.GetPackageName().IsEmpty())
 		{
-			bIsAllowed = FBlueprintActionDatabase::IsClassAllowed(FTopLevelAssetPath(NodeClass.GetPackageName()), FBlueprintActionDatabase::EPermissionsContext::Node);
+			bIsAllowed = FBlueprintActionDatabase::IsClassAllowed(FTopLevelAssetPath(FName(NodeClass.GetPackageName()), FName(NodeClass.GetClassName())), FBlueprintActionDatabase::EPermissionsContext::Node);
 		}
 		else
 		{

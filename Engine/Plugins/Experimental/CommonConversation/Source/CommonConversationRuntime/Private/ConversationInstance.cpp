@@ -80,6 +80,7 @@ void UConversationInstance::ServerStartConversation(const FGameplayTag& EntryPoi
 
 	ResetConversationProgress();
 	StartingEntryGameplayTag = EntryPoint;
+	ActiveConversationGraph = Graph;
 
 	UConversationRegistry* ConversationRegistry = UConversationRegistry::GetFromWorld(GetWorld());
 	
@@ -502,7 +503,7 @@ TArray<FGuid> UConversationInstance::DetermineBranches(const TArray<FGuid>& Sour
 	TArray<FGuid> EnabledPaths;
 	for (const FGuid& TestGUID : SourceList)
 	{
-		UConversationNode* TestNode = Context.GetConversationRegistry().GetRuntimeNodeFromGUID(TestGUID);
+		UConversationNode* TestNode = Context.GetConversationRegistry().GetRuntimeNodeFromGUID(TestGUID, ActiveConversationGraph.Get());
 		if (UConversationTaskNode* TaskNode = Cast<UConversationTaskNode>(TestNode))
 		{
 			const EConversationRequirementResult RequirementResult = TaskNode->CheckRequirements(Context);
