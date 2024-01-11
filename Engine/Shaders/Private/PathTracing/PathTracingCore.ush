@@ -81,7 +81,7 @@ struct FPathState
 {                                   // packed size
 	RandomSequence RandSequence;    //  8 bytes
 	float3 Radiance;                // 12 bytes
-	float  BackgroundVisibility;    //  4 bytes
+	float  Alpha;                   //  4 bytes
 	float3 Albedo;                  //  6 bytes // half precision
 	float3 Normal;                  //  6 bytes // half precision
 	FRayDesc Ray;                   // 12+12 = 24 bytes (TMin/TMax do not need to be stored)
@@ -188,7 +188,7 @@ struct FPathState
 		float4 OldAlbedo = Iteration > 0 ? AlbedoTexture[TextureIndex]   : 0;
 		float4 OldNormal = Iteration > 0 ? NormalTexture[TextureIndex]   : 0;
 
-		const float4 PixelValue = float4(Radiance, saturate(BackgroundVisibility));
+		const float4 PixelValue = float4(Radiance, saturate(Alpha));
 
 		RadianceTexture[TextureIndex] = lerp(OldPixel, PixelValue, Blend);
 		AlbedoTexture[TextureIndex]   = lerp(OldAlbedo, float4(Albedo, 0), Blend);
@@ -452,16 +452,14 @@ FPathTracingPayload TraceTransparentRay(inout FPathState PathState, int Bounce, 
 			}
 
 			// NOTE: when using analytic raymarching, we can skip all raymarching on the last bounce because we know we don't need a scattering point
-			const bool bUseAnalyticTransmittance = (VolumeFlags & PATH_TRACER_VOLUME_USE_ANALYTIC_TRANSMITTANCE) != 0;
-			const bool bUseNullTrackingTransmittance = !bUseAnalyticTransmittance;
-			if (bUseNullTrackingTransmittance || (bUseAnalyticTransmittance && !bLastBounce))
 			{
 				// remember the start of our interval before ray marching messes with it
 				float StartVolumeTMin = Interval.VolumeTMin;
 				// Ray marching loop
 				float3 PathThroughput = PathState.PathThroughput;
 				float3 VolumeRadiance = 0;
-				// Limit number of steps to prevent timeouts // FIXME: This biases the result!
+				// Limit number of steps to prevent timeouts
+				// TODO: This biases the result! Is there a better way to limit the number of steps?
 				for (int Step = 0; Step < MaxRaymarchSteps; Step++)
 				{
 					FVolumeTrackingResult TrackingResult = VolumeSampleDistance(PathThroughput, PathState.Ray.Origin, PathState.Ray.Direction, Interval, bIsCameraRay, PathState.RandSequence);
@@ -487,10 +485,11 @@ FPathTracingPayload TraceTransparentRay(inout FPathState PathState, int Bounce, 
 
 						if (bIsCameraRay)
 						{
-							PathState.BackgroundVisibility += Luminance(PathThroughput * Result.SigmaH);
+							PathState.Alpha += Luminance(PathThroughput * (Result.SigmaT - Result.SigmaH));
 						}
 
-						if (bUseAnalyticTransmittance || (bUseNullTrackingTransmittance && !bLastBounce)) // check now if this loop is also computing transmittance
+						// if this is not the last bounce, consider the possibility of scattering as giving up medium hits
+						if (!bLastBounce)
 						{
 							float3 SigmaS = min(Result.SigmaSRayleigh + Result.SigmaSHG, SigmaT);
 							// accumulate a signal for the denoiser
@@ -522,17 +521,18 @@ FPathTracingPayload TraceTransparentRay(inout FPathState PathState, int Bounce, 
 
 				// restore interval start now that we are finished with ray marching
 				Interval.VolumeTMin = StartVolumeTMin;
-				if (bUseNullTrackingTransmittance)
+
+				const bool bUseAnalyticTransmittance = (VolumeFlags & PATH_TRACER_VOLUME_USE_ANALYTIC_TRANSMITTANCE) != 0;
+				if (bUseAnalyticTransmittance)
+				{
+					// analytically handle the transmittance to the next surface (which will be higher quality than the transmittance implicitly computed above and prevent noise with emissive surfaces in volumes)
+					PathState.PathThroughput = VolumeGetTransmittance(PathState.PathThroughput, PathState.Ray.Origin, PathState.Ray.Direction, Interval, PathState.RandSequence);
+				}
+				else
 				{
 					// record the change in transmittance since we already computed it
 					PathState.PathThroughput = PathThroughput;
 				}
-			}
-			
-			if (bUseAnalyticTransmittance)
-			{
-				// analytically handle the transmittance to the next surface (which will be higher quality than the transmittance implicitly computed above and prevent noise with emissive surfaces in volumes)
-				PathState.PathThroughput = VolumeGetTransmittance(PathState.PathThroughput, PathState.Ray.Origin, PathState.Ray.Direction, Interval, PathState.RandSequence);
 			}
 
 			// Update our current volume intersection list to reflect the fact that we have made it to the end of this interval
@@ -544,11 +544,6 @@ FPathTracingPayload TraceTransparentRay(inout FPathState PathState, int Bounce, 
 		if (PackedPayload.IsMiss())
 		{
 			// Ray didn't hit any real geometry
-			// Accumulate a hit against the sky (for camera rays) and exit
-			if (bIsCameraRay)
-			{
-				PathState.BackgroundVisibility += Luminance(PathState.PathThroughput);
-			}
 			break;
 		}
 
@@ -612,11 +607,12 @@ FPathTracingPayload TraceTransparentRay(inout FPathState PathState, int Bounce, 
 
 		// account for Beer's law through the currently active medium
 		// TODO: merge this with the volume raymarching?
+		// NOTE: select statement is to avoid corner case of 0.0*inf that can occur with directly visible skydomes
 		PathState.PathThroughput *= select(PathState.SigmaT > 0.0, exp(-PathState.SigmaT * (HitPayload.HitT - PathState.Ray.TMin)), 1.0);
 
-		if (HitPayload.IsHoldout() && bIsCameraRay)
+		if (!HitPayload.IsHoldout() && bIsCameraRay)
 		{
-			PathState.BackgroundVisibility += Luminance(PathState.PathThroughput * HitPayload.BSDFOpacity);
+			PathState.Alpha += Luminance(PathState.PathThroughput * (1.0 - HitPayload.TransparencyColor));
 		}
 
 		// add in surface emission
@@ -627,8 +623,7 @@ FPathTracingPayload TraceTransparentRay(inout FPathState PathState, int Bounce, 
 
 		if (HitPayload.HitT == POSITIVE_INFINITY)
 		{
-			// if our hit was against an infinite light, treat it as having background alpha, and exit
-			PathState.BackgroundVisibility += Luminance(PathState.PathThroughput);
+			// if our hit was against an infinite light, exit now
 			break;
 		}
 

@@ -52,7 +52,7 @@ FPathState LoadPathStateData(uint Index)
 	Output.RandSequence.SampleIndex = Data.RandSeqSampleIndex;
 	Output.RandSequence.SampleSeed  = Data.RandSeqSampleSeed;
 	Output.Radiance = Data.Radiance;
-	Output.BackgroundVisibility = Data.BackgroundVisibility;
+	Output.Alpha = Data.Alpha;
 	Output.Albedo.x = f16tof32(Data.PackedAlbedoNormal.x);
 	Output.Albedo.y = f16tof32(Data.PackedAlbedoNormal.x >> 16);
 	Output.Albedo.z = f16tof32(Data.PackedAlbedoNormal.y);
@@ -84,7 +84,7 @@ void StorePathStateData(FPathState PathState, uint Index)
 	Data.RandSeqSampleIndex = PathState.RandSequence.SampleIndex;
 	Data.RandSeqSampleSeed  = PathState.RandSequence.SampleSeed;
 	Data.Radiance = PathState.Radiance;
-	Data.BackgroundVisibility = PathState.BackgroundVisibility;
+	Data.Alpha = PathState.Alpha;
 	Data.PackedAlbedoNormal.x = f32tof16(PathState.Albedo.x) | (f32tof16(PathState.Albedo.y) << 16);
 	Data.PackedAlbedoNormal.y = f32tof16(PathState.Albedo.z) | (f32tof16(PathState.Normal.x) << 16);
 	Data.PackedAlbedoNormal.z = f32tof16(PathState.Normal.y) | (f32tof16(PathState.Normal.z) << 16);

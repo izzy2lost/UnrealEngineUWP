@@ -27,7 +27,8 @@ void CompositeMain(
 
 	float4 Radiance = RadianceTexture.Load(TexCoord);
 
-	OutColor = float4(Radiance.rgb * View.PreExposure, Radiance.a);
+	// NOTE: UE has the convention of using 1.0 - Alpha
+	OutColor = float4(Radiance.rgb * View.PreExposure, 1.0 - Radiance.a);
 
 	if (AdaptiveSamplingVisualize == 1)
 	{

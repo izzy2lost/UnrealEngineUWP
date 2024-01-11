@@ -66,7 +66,7 @@ struct FPathTracingPackedPathState {
 	uint      RandSeqSampleIndex;
 	uint      RandSeqSampleSeed;
 	float3    Radiance;
-	float     BackgroundVisibility;
+	float     Alpha;
 	uint3     PackedAlbedoNormal;
 	float3    RayOrigin;
 	float3    RayDirection;
