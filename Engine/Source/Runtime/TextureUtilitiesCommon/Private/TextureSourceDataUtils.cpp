@@ -529,7 +529,7 @@ TEXTUREUTILITIESCOMMON_API bool DownsizeTextureSourceData(UTexture* Texture, int
 	}
 }
 
-TEXTUREUTILITIESCOMMON_API bool DownsizeTextureSourceDataNearRenderingSize(UTexture* Texture, const ITargetPlatform* TargetPlatform)
+TEXTUREUTILITIESCOMMON_API bool DownsizeTextureSourceDataNearRenderingSize(UTexture* Texture, const ITargetPlatform* TargetPlatform, int32 AdditionalSourceSizeLimit)
 {
 	if ( ! Texture->Source.IsValid() )
 	{
@@ -549,6 +549,8 @@ TEXTUREUTILITIESCOMMON_API bool DownsizeTextureSourceDataNearRenderingSize(UText
 		// this should be kept in sync with the implementation details of ComputeLongLatCubemapExtents() or refactored
 		TargetSourceSize = (1U << FMath::FloorLog2(TargetSizeInGame)) * 2;
 	}
+
+	TargetSourceSize = FMath::Min(TargetSourceSize,AdditionalSourceSizeLimit);
 
 	if (DownsizeTextureSourceData(Texture, TargetSourceSize, TargetPlatform))
 	{
