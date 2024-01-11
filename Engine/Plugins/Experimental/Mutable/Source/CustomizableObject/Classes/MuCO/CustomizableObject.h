@@ -1590,17 +1590,11 @@ public:
 	UPROPERTY(Transient)
 	FGuid Identifier;
 
-	/** Unique Identifier - Regenerated each time the object is compiled. */
-	UPROPERTY(Transient)
-	FGuid CompilationGuid;
-
 	ECustomizableObjectCompilationState CompilationState = ECustomizableObjectCompilationState::None;
 
 	FPostCompileDelegate PostCompileDelegate;
 
 	void PostCompile();
-
-	FGuid GetCompilationGuid() const;
 
 #endif
 

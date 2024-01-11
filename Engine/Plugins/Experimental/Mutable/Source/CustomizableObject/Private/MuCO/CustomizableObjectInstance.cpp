@@ -192,6 +192,9 @@ void UCustomizableInstancePrivate::InvalidateGeneratedData()
 {
 	SkeletalMeshStatus = ESkeletalMeshStatus::NotGenerated;
 
+	DescriptorHash = FDescriptorHash();
+	UpdateDescriptorHash = FDescriptorHash();
+
 	// Init Component Data
 	FCustomizableInstanceComponentData TemplateComponentData;
 	TemplateComponentData.LastMeshIdPerLOD.Init(MAX_uint64, MAX_MESH_LOD_COUNT);
@@ -2781,7 +2784,6 @@ void UCustomizableInstancePrivate::DiscardResources()
 	InvalidateGeneratedData();
 	
 	Instance->SkeletalMeshes.Reset();
-	DescriptorHash = FDescriptorHash();
 }
 
 
@@ -6187,6 +6189,11 @@ void UCustomizableObjectInstance::SetRequestedLODs(int32 InMinLOD, int32 InMaxLO
 	}
 
 	if (!GetCustomizableObject()->LODSettings.bLODStreamingEnabled)
+	{
+		return;
+	}
+
+	if (GetPrivate()->SkeletalMeshStatus == ESkeletalMeshStatus::Error)
 	{
 		return;
 	}

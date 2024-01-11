@@ -1265,15 +1265,7 @@ FString UCustomizableObject::GetStateParameterName(int32 StateIndex, int32 Param
 #if WITH_EDITORONLY_DATA
 void UCustomizableObject::PostCompile()
 {
-	CompilationGuid = FGuid::NewGuid();
-
 	PostCompileDelegate.Broadcast();
-}
-
-
-FGuid UCustomizableObject::GetCompilationGuid() const
-{
-	return CompilationGuid;
 }
 #endif
 
