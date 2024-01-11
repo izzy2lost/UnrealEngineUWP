@@ -1,5 +1,6 @@
 ﻿// Copyright Epic Games, Inc. All Rights Reserved.
 
+using System.Collections.Generic;
 using System.Linq;
 using System.Xml;
 using System.Xml.Linq;
@@ -88,6 +89,7 @@ namespace UnrealBuildTool
 				XNamespace NS = XNamespace.Get("http://schemas.microsoft.com/developer/msbuild/2003");
 
 				DirectoryReference AutomationToolDir = DirectoryReference.Combine(Unreal.EngineSourceDirectory, "Programs", "AutomationTool");
+				DirectoryReference AutomationToolBinariesDir = DirectoryReference.Combine(Unreal.EngineDirectory, "Binaries", "DotNET", "AutomationTool");
 				new XDocument(
 					new XElement(NS + "Project",
 						new XAttribute("ToolsVersion", VCProjectFileGenerator.GetProjectFileToolVersionString(Settings.ProjectFileFormat)),
@@ -99,6 +101,20 @@ namespace UnrealBuildTool
 								new XElement(NS + "Project", (AutomationProject as VCSharpProjectFile)!.ProjectGUID.ToString("B")),
 								new XElement(NS + "Name", AutomationProject.ProjectFilePath.GetFileNameWithoutExtension()),
 								new XElement(NS + "Private", "false")
+							)
+						),
+						// Delete the private copied dlls in case they were ever next to the .exe - that is a bad place for them
+						new XElement(NS + "Target",
+							new XAttribute("Name", "CleanUpStaleDlls"),
+							new XAttribute("AfterTargets", "Build"),
+							AutomationProjectFiles.SelectMany(AutomationProject => {
+									string BaseFilename = FileReference.Combine(AutomationToolBinariesDir, AutomationProject.ProjectFilePath.GetFileNameWithoutExtension()).FullName;
+									return new List<XElement>() {
+										new XElement(NS + "Delete",	new XAttribute("Files", BaseFilename + ".dll")),
+										new XElement(NS + "Delete",	new XAttribute("Files", BaseFilename + ".dll.config")),
+										new XElement(NS + "Delete",	new XAttribute("Files", BaseFilename + ".pdb"))
+									};
+								}
 							)
 						)
 					)
