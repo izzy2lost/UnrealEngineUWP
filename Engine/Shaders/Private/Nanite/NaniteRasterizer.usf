@@ -1411,6 +1411,25 @@ VSOut HWRasterizeVS(
 
 #endif // NANITE_PRIM_SHADER
 
+bool QuadActiveAnyTrue(bool Expr)
+{
+	// https://microsoft.github.io/DirectX-Specs/d3d/HLSL_SM_6_7_QuadAny_QuadAll.html
+	// NOTE: From that blog post, it seems like this approach is somewhat blessed, but the docs for
+	// QuadReadAcrossX state that the result is undefined when reading an inactive lane.
+	// So it seems, according to the docs, this could potentially give false positives, but never false negatives.
+	
+	// Helper lanes are defined to be active, so this should only ever be an issue if the lanes of
+	// a quad are made partially inactive by an earler branch. For platforms where the undefined value
+	// isn't just zero, this could result in false positives, which should still be safe
+	// in the context of how this is currently used.
+
+	const uint UIntExpr = (uint)Expr;
+	uint Result = UIntExpr;
+	Result |= QuadReadAcrossX(UIntExpr);
+	Result |= QuadReadAcrossY(UIntExpr);
+	Result |= QuadReadAcrossDiagonal(UIntExpr);
+	return Result != 0u;
+}
 
 void HWRasterizePS(VSOut In
 #if NANITE_MESH_SHADER	
@@ -1493,7 +1512,7 @@ void HWRasterizePS(VSOut In
 
 	#if ENABLE_EARLY_Z_TEST
 		BRANCH
-		if( !Pixel.EarlyDepthTest() )
+		if( !QuadActiveAnyTrue( Pixel.EarlyDepthTest() ) )
 		{
 			return;
 		}
