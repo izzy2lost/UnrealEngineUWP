@@ -52,11 +52,7 @@ void FSymbolicTensorShape::operator=(const FSymbolicTensorShape& OtherShape)
 
 FSymbolicTensorShape FSymbolicTensorShape::Make(TConstArrayView<int32> Data)
 {
-	if (Data.Num() > MaxRank)
-	{
-		UE_LOG(LogNNE, Warning, TEXT("Cannot create symbolic tensor shape, input is rank %d while max rank is %d"), Data.Num(), MaxRank);
-		return {};
-	}
+	checkf(Data.Num() <= MaxRank, TEXT("Cannot create symbolic tensor shape, input is rank %d while max rank is %d"), Data.Num(), MaxRank);
 
 	FSymbolicTensorShape Shape;
 	Shape.Data.Append(Data);
@@ -106,11 +102,7 @@ void FTensorShape::operator=(const FTensorShape& OtherShape)
 
 FTensorShape FTensorShape::Make(TConstArrayView<uint32> Data)
 {
-	if (Data.Num() > MaxRank)
-	{
-		UE_LOG(LogNNE, Warning, TEXT("Cannot create tensor shape, input is rank %d while max rank is %d"), Data.Num(), MaxRank);
-		return {};
-	}
+	checkf(Data.Num() <= MaxRank, TEXT("Cannot create tensor shape, input is rank %d while max rank is %d"), Data.Num(), MaxRank);
 
 	FTensorShape Shape;
 	Shape.Data.Append(Data);
@@ -128,7 +120,7 @@ FTensorShape FTensorShape::MakeFromSymbolic(const FSymbolicTensorShape& Symbolic
 	return ConcreteShape;
 }
 
-size_t GetTensorDataTypeSizeInBytes(ENNETensorDataType InType)
+int32 GetTensorDataTypeSizeInBytes(ENNETensorDataType InType)
 {
 	switch (InType)
 	{

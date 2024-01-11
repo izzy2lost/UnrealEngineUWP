@@ -56,7 +56,7 @@ namespace UE::NNE::Internal
 
 		if (InInputShapes.Num() != InputSymbolicTensors.Num())
 		{
-			UE_LOG(LogNNE, Warning, TEXT("Number of input shapes does not match number of input tensors"));
+			UE_LOG(LogNNE, Error, TEXT("Number of input shapes does not match number of input tensors"));
 			return -1;
 		}
 
@@ -65,7 +65,7 @@ namespace UE::NNE::Internal
 			const FTensorDesc SymbolicDesc = InputSymbolicTensors[i];
 			if (!InInputShapes[i].IsCompatibleWith(SymbolicDesc.GetShape()))
 			{
-				UE_LOG(LogNNE, Warning, TEXT("Input shape does not match input tensor %s of index %d"), *SymbolicDesc.GetName(), i);
+				UE_LOG(LogNNE, Error, TEXT("Input shape does not match input tensor %s of index %d"), *SymbolicDesc.GetName(), i);
 				return -1;
 			}
 		}

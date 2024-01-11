@@ -41,7 +41,7 @@ namespace UE::NNE
 	 * @param InType the type of the element to consider.
 	 * @return the data size in bytes of an element.
 	 */
-	size_t NNE_API GetTensorDataTypeSizeInBytes(ENNETensorDataType InType);
+	int32 NNE_API GetTensorDataTypeSizeInBytes(ENNETensorDataType InType);
 
 	/**
 	 * A symbolic tensor shape represents the shape of a tensor with potentially variable dimension.
