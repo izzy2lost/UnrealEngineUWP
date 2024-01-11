@@ -22,6 +22,7 @@
 #include "PoseSearch/PoseSearchSchema.h"
 #include "PoseSearchFeatureChannel_Trajectory.h"
 #include "PoseSearch/Trace/PoseSearchTraceLogger.h"
+#include "PoseSearchFeatureChannel_PermutationTime.h"
 
 #include UE_INLINE_GENERATED_CPP_BY_NAME(PoseSearchLibrary)
 
@@ -148,8 +149,12 @@ FVector FMotionMatchingState::GetEstimatedFutureRootMotionVelocity() const
 	{
 		if (const UPoseSearchFeatureChannel_Trajectory* TrajectoryChannel = CurrentSearchResult.Database->Schema->FindFirstChannelOfType<UPoseSearchFeatureChannel_Trajectory>())
 		{
-			TConstArrayView<float> ResultData = CurrentSearchResult.Database->GetSearchIndex().GetPoseValues(CurrentSearchResult.PoseIdx);
-			return TrajectoryChannel->GetEstimatedFutureRootMotionVelocity(ResultData);
+			const FSearchIndex& SearchIndex = CurrentSearchResult.Database->GetSearchIndex();
+			if (!SearchIndex.IsValuesEmpty())
+			{
+				TConstArrayView<float> ResultData = SearchIndex.GetPoseValues(CurrentSearchResult.PoseIdx);
+				return TrajectoryChannel->GetEstimatedFutureRootMotionVelocity(ResultData);
+			}
 		}
 	}
 
@@ -572,10 +577,8 @@ void UPoseSearchLibrary::MotionMatch(
 	UAnimInstance* AnimInstance,
 	const UPoseSearchDatabase* Database,
 	const FName PoseHistoryName,
+	FPoseSearchFutureProperties Future,
 	FPoseSearchBlueprintResult& Result,
-	const UAnimationAsset* FutureAnimation,
-	float FutureAnimationStartTime,
-	float TimeToFutureAnimationStart,
 	const int32 DebugSessionUniqueIdentifier)
 {
 	using namespace UE::PoseSearch;
@@ -588,7 +591,7 @@ void UPoseSearchLibrary::MotionMatch(
 	TArray<FName, TInlineAllocator<PreallocatedRolesNum, TMemStackAllocator<>>> Roles;
 	Roles.Add(UE::PoseSearch::DefaultRole);
 
-	MotionMatch(AnimInstances, Roles, Database, PoseHistoryName, Result, FutureAnimation, FutureAnimationStartTime, TimeToFutureAnimationStart, DebugSessionUniqueIdentifier);
+	MotionMatch(AnimInstances, Roles, Database, PoseHistoryName, Result, Future.FutureAnimation, Future.FutureAnimationStartTime, Future.TimeToFutureAnimationStart, DebugSessionUniqueIdentifier);
 }
 
 void UPoseSearchLibrary::MotionMatchMulti(
@@ -772,8 +775,10 @@ void UPoseSearchLibrary::MotionMatch(
 	FSearchResult SearchResult = Database->Search(SearchContext);
 	if (SearchResult.IsValid())
 	{
+		check(SearchResult.Database == Database);
+
 		const FSearchIndexAsset* SearchIndexAsset = SearchResult.GetSearchIndexAsset();
-		if (const FPoseSearchDatabaseAnimationAssetBase* DatabaseAsset = SearchResult.Database->GetAnimationAssetBase(*SearchIndexAsset))
+		if (const FPoseSearchDatabaseAnimationAssetBase* DatabaseAsset = Database->GetAnimationAssetBase(*SearchIndexAsset))
 		{
 			Result.SelectedAnimation = DatabaseAsset->GetAnimationAsset();
 			Result.SelectedTime = SearchResult.AssetTime;
@@ -782,6 +787,22 @@ void UPoseSearchLibrary::MotionMatch(
 			Result.BlendParameters = SearchIndexAsset->GetBlendParameters();
 			Result.SelectedDatabase = Database;
 			Result.SearchCost = SearchResult.PoseCost.GetTotalCost();
+			
+			// figuring out the WantedPlayRate
+			Result.WantedPlayRate = 1.f;
+			if (FutureAnimation)
+			{
+				if (const UPoseSearchFeatureChannel_PermutationTime* PermutationTimeChannel = Database->Schema->FindFirstChannelOfType<UPoseSearchFeatureChannel_PermutationTime>())
+				{
+					const FSearchIndex& SearchIndex = Database->GetSearchIndex();
+					if (!SearchIndex.IsValuesEmpty())
+					{
+						TConstArrayView<float> ResultData = Database->GetSearchIndex().GetPoseValues(SearchResult.PoseIdx);
+						const float ActualTimeToFutureAnimationStart = PermutationTimeChannel->GetPermutationTime(ResultData);
+						Result.WantedPlayRate = ActualTimeToFutureAnimationStart / TimeToFutureAnimationStart;
+					}
+				}
+			}
 		}
 	}
 

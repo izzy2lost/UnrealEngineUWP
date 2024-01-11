@@ -33,6 +33,12 @@ void UPoseSearchFeatureChannel_PermutationTime::BuildQuery(UE::PoseSearch::FSear
 	FFeatureVectorHelper::EncodeFloat(SearchContext.EditFeatureVector(), ChannelDataOffset, SearchContext.GetDesiredPermutationTimeOffset());
 }
 
+float UPoseSearchFeatureChannel_PermutationTime::GetPermutationTime(TConstArrayView<float> PoseVector) const
+{
+	using namespace UE::PoseSearch;
+	return FFeatureVectorHelper::DecodeFloat(PoseVector, ChannelDataOffset);
+}
+
 #if WITH_EDITOR
 void UPoseSearchFeatureChannel_PermutationTime::FillWeights(TArrayView<float> Weights) const
 {

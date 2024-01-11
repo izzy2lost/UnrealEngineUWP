@@ -88,6 +88,25 @@ struct FMotionMatchingState
 #endif //UE_POSE_SEARCH_TRACE_ENABLED
 };
 
+USTRUCT(Experimental, BlueprintType, Category="Animation|Pose Search")
+struct POSESEARCH_API FPoseSearchFutureProperties
+{
+	GENERATED_BODY()
+
+public:
+	// Input animation we want to match after TimeToFutureAnimationStart seconds
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category=State)
+	TObjectPtr<UAnimationAsset> FutureAnimation;
+
+	// Input start time for the first pose of FutureAnimation
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category=State)
+	float FutureAnimationStartTime;
+
+	// Input time in seconds before start playing FutureAnimation (from FutureAnimationStartTime seconds)
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category=State)
+	float TimeToFutureAnimationStart;
+};
+
 UCLASS()
 class POSESEARCH_API UPoseSearchLibrary : public UBlueprintFunctionLibrary
 {
@@ -153,23 +172,19 @@ public:
 	* @param bIsMirrored					Output selected animation mirror state
 	* @param BlendParameters				Output selected animation blend space parameters (if SelectedAnimation is a blend space)
 	* @param SearchCost						Output search associated cost
-	* @param FutureAnimation				Input animation we want to match after TimeToFutureAnimationStart seconds
-	* @param FutureAnimationStartTime		Input start time for the first pose of FutureAnimation
-	* @param TimeToFutureAnimationStart		Input time in seconds before start playing FutureAnimation (from FutureAnimationStartTime seconds)
+	* @param Future							Input future properties to match (animation / start time / time offset)
 	* @param DebugSessionUniqueIdentifier	Input unique identifier used to identify TraceMotionMatchingState (rewind debugger / pose search debugger) session. Similarly the MM node uses Context.GetCurrentNodeId()
 	*/
-	UFUNCTION(BlueprintPure, Category = "Animation|Pose Search", meta = (BlueprintThreadSafe, Keywords = "PoseMatch"))
+	UFUNCTION(BlueprintPure, Category = "Animation|Pose Search|Experimental", meta = (BlueprintThreadSafe, Keywords = "PoseMatch"))
 	static void MotionMatch(
 		UAnimInstance* AnimInstance,
 		const UPoseSearchDatabase* Database,
 		const FName PoseHistoryName,
+		FPoseSearchFutureProperties Future,
 		FPoseSearchBlueprintResult& Result,
-		const UAnimationAsset* FutureAnimation = nullptr,
-		float FutureAnimationStartTime = 0.f,
-		float TimeToFutureAnimationStart = 0.f,
 		const int32 DebugSessionUniqueIdentifier = 6174);
 
-	UFUNCTION(BlueprintPure, Category = "Animation|Pose Search", meta = (BlueprintThreadSafe, Keywords = "PoseMatch"))
+	UFUNCTION(BlueprintPure, Category = "Animation|Pose Search|Experimental", meta = (BlueprintThreadSafe, Keywords = "PoseMatch"))
 	static void MotionMatchMulti(
 		TArray<ACharacter*> AnimInstances,
 		TArray<FName> Roles,

@@ -26,5 +26,7 @@ public:
 	virtual UE::PoseSearch::TLabelBuilder& GetLabel(UE::PoseSearch::TLabelBuilder& LabelBuilder, UE::PoseSearch::ELabelFormat LabelFormat = UE::PoseSearch::ELabelFormat::Full_Horizontal) const override;
 #endif
 
+	float GetPermutationTime(TConstArrayView<float> PoseVector) const;
+
 	static void FindOrAddToSchema(UPoseSearchSchema* Schema);
 };
