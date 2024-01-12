@@ -13,6 +13,10 @@
 #define HZB_TRACE_INCLUDE_FULL_RES_DEPTH 0
 #endif
 
+#ifndef HZB_TRACE_USE_BILINEAR_SAMPLED_DEPTH
+#define HZB_TRACE_USE_BILINEAR_SAMPLED_DEPTH 0
+#endif
+
 #ifndef TERMINATE_ON_LOW_OCCUPANCY
 #define TERMINATE_ON_LOW_OCCUPANCY 0
 #endif
@@ -132,6 +136,13 @@ void InternalTraceScreen(
 		if (MipLevel < 0)
 		{
 			TileZ = InSceneDepthTexture.SampleLevel(GlobalPointClampedSampler, RayScreenUV.xy * InHZBUVToScreenUVScaleBias.xy + InHZBUVToScreenUVScaleBias.zw, 0).r;
+
+#	if HZB_TRACE_USE_BILINEAR_SAMPLED_DEPTH
+			float TileZFiltered = InSceneDepthTexture.SampleLevel(GlobalBilinearClampedSampler, RayScreenUV.xy * InHZBUVToScreenUVScaleBias.xy + InHZBUVToScreenUVScaleBias.zw, 0).r;
+
+			// Using both point and bilinear filtered depth helps avoid incorrect self shadowing by approximating the underlying surface
+			TileZ = min(TileZ, TileZFiltered);
+#	endif
 		}
 		else
 #endif
@@ -149,7 +160,12 @@ void InternalTraceScreen(
 		float IntersectionTime = min3(PlaneIntersectionTimes.x, PlaneIntersectionTimes.y, PlaneIntersectionTimes.z);
 
 		bool bAboveSurface = RayScreenUV.z > TileZ;
-		bool bSkippedTile = IntersectionTime != PlaneIntersectionTimes.z && bAboveSurface;
+		bool bSkippedTile = bAboveSurface;
+
+		if (MipLevel > BaseMipLevel) // don't intersect with Z-plane when using BaseMipLevel since it causes incorrect self shadowing
+		{
+			bSkippedTile &= IntersectionTime != PlaneIntersectionTimes.z;
+		}
 
 		if (bSkippedTile)
 		{

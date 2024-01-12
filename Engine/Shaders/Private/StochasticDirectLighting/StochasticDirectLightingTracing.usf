@@ -6,6 +6,7 @@
 #include "../DistanceField/GlobalDistanceFieldShared.ush"
 #include "../DistanceField/GlobalDistanceFieldUtils.ush"
  #define HZB_TRACE_INCLUDE_FULL_RES_DEPTH 1
+ #define HZB_TRACE_USE_BILINEAR_SAMPLED_DEPTH 1
 #include "../Lumen/LumenScreenTracing.ush"
 #include "../SceneTexturesCommon.ush"
 #include "StochasticDirectLighting.ush"
