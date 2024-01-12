@@ -1698,19 +1698,26 @@ UInterchangeFactoryBase::FImportAssetResult UInterchangeSkeletalMeshFactory::End
 					Parameters.ImportedMaterials = &ImportAssetObjectLODData.ImportedMaterials;
 					Parameters.ExistingOriginalPerSectionMaterialImportName = &ImportAssetObjectLODData.ExistingOriginalPerSectionMaterialImportName;
 					FLODUtilities::MatchImportedMaterials(Parameters);
-					//Flush the old LOD 0 sections after we rematch the materials
-					if (Parameters.LodIndex == 0 && Parameters.bIsReImport)
+					//Flush the old LOD sections after we rematch the materials
+					if (Parameters.bIsReImport)
 					{
 						if (FSkeletalMeshModel* ImportedModel = SkeletalMesh->GetImportedModel())
 						{
-							if (ImportedModel->LODModels.IsValidIndex(0))
+							if (ImportedModel->LODModels.IsValidIndex(ImportAssetObjectLODData.LodIndex))
 							{
-								SkeletalMesh->GetImportedModel()->LODModels[0].Sections.Empty();
+								SkeletalMesh->GetImportedModel()->LODModels[ImportAssetObjectLODData.LodIndex].Sections.Empty();
 							}
 						}
 					}
 				}
 			}
+		}
+
+		//Now that materials are matched we can re-order them and remove the unused.
+		if (ImportAssetObjectData.bIsReImport)
+		{
+			FLODUtilities::ReorderMaterialSlotToBaseLod(SkeletalMesh);
+			FLODUtilities::RemoveUnusedMaterialSlot(SkeletalMesh);
 		}
 	}
 

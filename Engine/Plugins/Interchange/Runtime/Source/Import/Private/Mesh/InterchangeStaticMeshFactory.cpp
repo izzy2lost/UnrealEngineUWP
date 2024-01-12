@@ -67,15 +67,6 @@ namespace UE::Interchange::Private::StaticMesh
 			return;
 		}
 
-		const FMeshDescription& BaseMeshDescription = *StaticMesh->GetMeshDescription(0);
-		if (!ensure(!BaseMeshDescription.NeedsCompact()))
-		{
-			return;
-		}
-		
-		FStaticMeshConstAttributes StaticMeshAttributes(BaseMeshDescription);
-		TPolygonGroupAttributesConstRef<FName> SlotNames = StaticMeshAttributes.GetPolygonGroupMaterialSlotNames();
-
 		TArray<int32> RemapMaterialIndexes;
 		RemapMaterialIndexes.Reserve(Materials.Num());
 		for (int32 MaterialIndex = 0; MaterialIndex < Materials.Num(); ++MaterialIndex)
@@ -84,30 +75,45 @@ namespace UE::Interchange::Private::StaticMesh
 		}
 		TArray<FStaticMaterial> ReorderMaterialArray;
 		ReorderMaterialArray.Reserve(Materials.Num());
-		for (FPolygonGroupID PolygonGroupID : BaseMeshDescription.PolygonGroups().GetElementIDs())
-		{
-			FName ImportMaterialName = SlotNames[PolygonGroupID];
-			bool bFoundMatch = false;
-			for (int32 MaterialIndex = 0; MaterialIndex < Materials.Num(); ++MaterialIndex)
-			{
-				if (RemapMaterialIndexes[MaterialIndex] != INDEX_NONE)
-				{
-					//This material was already matched
-					continue;
-				}
-				int32& RemapIndex = RemapMaterialIndexes[MaterialIndex];
-				FName MaterialName = Materials[MaterialIndex].ImportedMaterialSlotName;
-				if (MaterialName == ImportMaterialName)
-				{
-					RemapIndex = ReorderMaterialArray.Add(Materials[MaterialIndex]);
-					bFoundMatch = true;
-					break;
-				}
-			}
-			//All mesh description polygon group should have a match
-			ensure(bFoundMatch);
-		}
 
+		for (int32 LodIndex = 0; LodIndex < StaticMesh->GetNumSourceModels(); ++LodIndex)
+		{
+			const FMeshDescription* LodMeshDescription = StaticMesh->GetMeshDescription(LodIndex);
+			if (!LodMeshDescription || !ensure(!LodMeshDescription->NeedsCompact()))
+			{
+				if (LodIndex == 0)
+				{
+					return; //Lod 0 must always participate in the re-order, return if we can't use it
+				}
+				continue;
+			}
+
+			FStaticMeshConstAttributes StaticMeshAttributes(*LodMeshDescription);
+			TPolygonGroupAttributesConstRef<FName> SlotNames = StaticMeshAttributes.GetPolygonGroupMaterialSlotNames();
+			for (FPolygonGroupID PolygonGroupID : LodMeshDescription->PolygonGroups().GetElementIDs())
+			{
+				FName ImportMaterialName = SlotNames[PolygonGroupID];
+				bool bFoundMatch = false;
+				for (int32 MaterialIndex = 0; MaterialIndex < Materials.Num(); ++MaterialIndex)
+				{
+					if (RemapMaterialIndexes[MaterialIndex] != INDEX_NONE)
+					{
+						//This material was already matched
+						continue;
+					}
+					int32& RemapIndex = RemapMaterialIndexes[MaterialIndex];
+					FName MaterialName = Materials[MaterialIndex].ImportedMaterialSlotName;
+					if (MaterialName == ImportMaterialName)
+					{
+						RemapIndex = ReorderMaterialArray.Add(Materials[MaterialIndex]);
+						bFoundMatch = true;
+						break;
+					}
+				}
+				//All mesh description polygon group should have a match
+				ensure(bFoundMatch);
+			}
+		}
 		//Custom LOD can add materials, so we add them at the end of the material slots
 		for (int32 MaterialIndex = 0; MaterialIndex < Materials.Num(); ++MaterialIndex)
 		{

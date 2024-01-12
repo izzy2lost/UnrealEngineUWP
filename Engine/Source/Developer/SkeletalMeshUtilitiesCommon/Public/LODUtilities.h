@@ -271,7 +271,7 @@ public:
 	/**
 	 * Remove any material slot that is not used by any LODs
 	 */
-	static void RemoveUnusedMaterialSlot(FSkeletalMeshMatchImportedMaterialsParameters& Parameters);
+	static void RemoveUnusedMaterialSlot(USkeletalMesh* SkeletalMesh);
 
 	/**
 	 * This function will strip all triangle in the specified LOD that don't have any UV area pointing on a black pixel in the TextureMask.

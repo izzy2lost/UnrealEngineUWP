@@ -4082,16 +4082,6 @@ void FLODUtilities::MatchImportedMaterials(FLODUtilities::FSkeletalMeshMatchImpo
 					return A < B;
 				});
 		}
-		
-	}
-
-	if (Parameters.bIsReImport)
-	{
-		if(Parameters.LodIndex == 0)
-		{
-			ReorderMaterialSlotToBaseLod(Parameters.SkeletalMesh);
-		}
-		RemoveUnusedMaterialSlot(Parameters);
 	}
 }
 
@@ -4103,79 +4093,74 @@ void FLODUtilities::ReorderMaterialSlotToBaseLod(USkeletalMesh* SkeletalMesh)
 		UE_ASSET_LOG(LogLODUtilities, Warning, SkeletalMesh, TEXT("FLODUtilities::ReorderMaterialSlotToBaseLod: Bad parameters, SkeletalMesh is null"));
 		return;
 	}
-	if (SkeletalMesh->IsLODImportedDataEmpty(0))
-	{
-		UE_ASSET_LOG(LogLODUtilities, Warning, SkeletalMesh, TEXT("FLODUtilities::ReorderMaterialSlotToBaseLod: Skeletal mesh invalid import data for LOD 0"));
-		return;
-	}
-	FSkeletalMeshImportData BaseLodImportData;
-	SkeletalMesh->LoadLODImportedData(0, BaseLodImportData);
-	const TArray<SkeletalMeshImportData::FMaterial>& ImportedMaterials = BaseLodImportData.Materials;
 	TArray<FSkeletalMaterial>& Materials = SkeletalMesh->GetMaterials();
-	if (Materials.Num() == 0)
+	if (Materials.Num() < 2)
 	{
 		return;
 	}
 
 	TArray<int32> MaterialSlotRemap;
 	MaterialSlotRemap.AddUninitialized(Materials.Num());
-	TBitArray<> AvailableIndexes;
-	AvailableIndexes.Init(true, Materials.Num());
-	//Find remap index for LOD 0 matching materials
 	for (int32 MaterialIndex = 0; MaterialIndex < Materials.Num(); ++MaterialIndex)
 	{
-		FName MaterialSlotName = Materials[MaterialIndex].ImportedMaterialSlotName;
 		MaterialSlotRemap[MaterialIndex] = INDEX_NONE;
+	}
+	TArray<FSkeletalMaterial> ReorderMaterialArray;
+	ReorderMaterialArray.Reserve(Materials.Num());
+
+	for (int32 LodIndex = 0; LodIndex < SkeletalMesh->GetLODNum(); ++LodIndex)
+	{
+		if (SkeletalMesh->IsLODImportedDataEmpty(LodIndex))
+		{
+			if (LodIndex == 0)
+			{
+				UE_ASSET_LOG(LogLODUtilities, Warning, SkeletalMesh, TEXT("FLODUtilities::ReorderMaterialSlotToBaseLod: Skeletal mesh invalid import data for LOD 0"));
+				return;
+			}
+			continue;
+		}
+
+		FSkeletalMeshImportData LodImportData;
+		SkeletalMesh->LoadLODImportedData(LodIndex, LodImportData);
+		const TArray<SkeletalMeshImportData::FMaterial>& ImportedMaterials = LodImportData.Materials;
+
+		//Find remap index for this LOD matching materials
 		for (int32 ImportedMaterialIndex = 0; ImportedMaterialIndex < ImportedMaterials.Num(); ++ImportedMaterialIndex)
 		{
 			FName ImportedMaterialSlotName = FName(*ImportedMaterials[ImportedMaterialIndex].MaterialImportName);
-			if (MaterialSlotName == ImportedMaterialSlotName)
+			bool bFoundMatch = false;
+			for (int32 MaterialIndex = 0; MaterialIndex < Materials.Num(); ++MaterialIndex)
 			{
-				MaterialSlotRemap[MaterialIndex] = ImportedMaterialIndex;
-				if(ensure(AvailableIndexes.IsValidIndex(ImportedMaterialIndex) && AvailableIndexes[ImportedMaterialIndex]))
+				if (MaterialSlotRemap[MaterialIndex] != INDEX_NONE)
 				{
-					AvailableIndexes[ImportedMaterialIndex] = false;
+					continue;
 				}
-				break;
+				int32& RemapIndex = MaterialSlotRemap[MaterialIndex];
+				FName MaterialSlotName = Materials[MaterialIndex].ImportedMaterialSlotName;
+				if (MaterialSlotName == ImportedMaterialSlotName)
+				{
+					RemapIndex = ReorderMaterialArray.Add(Materials[MaterialIndex]);
+					bFoundMatch = true;
+					break;
+				}
 			}
+			//All mesh description polygon group should have a match
+			ensure(bFoundMatch);
 		}
 	}
-	//Find remap index for any extra custom LOD materials
+	//Custom LOD can add materials, so we add them at the end of the material slots
 	for (int32 MaterialIndex = 0; MaterialIndex < Materials.Num(); ++MaterialIndex)
 	{
 		if (MaterialSlotRemap[MaterialIndex] == INDEX_NONE)
 		{
-			//Give the first available material index
-			for (int32 AvailableIndex = 0; AvailableIndex < AvailableIndexes.Num(); ++AvailableIndex)
-			{
-				if (AvailableIndexes[AvailableIndex])
-				{
-					MaterialSlotRemap[MaterialIndex] = AvailableIndex;
-					AvailableIndexes[AvailableIndex] = false;
-					break;
-				}
-			}
-			//We should always be able to rematch a material
-			ensure(MaterialSlotRemap[MaterialIndex] != INDEX_NONE);
+			MaterialSlotRemap[MaterialIndex] = ReorderMaterialArray.Add(Materials[MaterialIndex]);
 		}
 	}
 
-	//Build the re-ordered maps
-	TArray<FSkeletalMaterial> ReorderMaterials;
-	ReorderMaterials.Reserve(Materials.Num());
-	for (int32 MaterialIndex = 0; MaterialIndex < Materials.Num(); ++MaterialIndex)
-	{
-		for (int32 RemapIndex = 0; RemapIndex < MaterialSlotRemap.Num(); ++RemapIndex)
-		{
-			if (MaterialSlotRemap[RemapIndex] == MaterialIndex)
-			{
-				ReorderMaterials.Add(Materials[RemapIndex]);
-			}
-		}
-	}
+	check(ReorderMaterialArray.Num() == Materials.Num());
 
-	//Change the material slot array
-	SkeletalMesh->SetMaterials(ReorderMaterials);
+	//Reorder the skeletal mesh material slot array
+	SkeletalMesh->SetMaterials(ReorderMaterialArray);
 	
 	//We now need to adjust all LODs data to fit the re-order
 	for (int32 LodIndex = 0; LodIndex < SkeletalMesh->GetLODNum(); ++LodIndex)
@@ -4183,38 +4168,23 @@ void FLODUtilities::ReorderMaterialSlotToBaseLod(USkeletalMesh* SkeletalMesh)
 		if (ensure(SkeletalMesh->GetImportedModel()->LODModels.IsValidIndex(LodIndex)))
 		{
 			FSkeletalMeshLODModel& LODModel = SkeletalMesh->GetImportedModel()->LODModels[LodIndex];
-			//The skeletal mesh build process have a different behavior for LOD 0. The build reorder the import data sections in the material slot order.
-			//Because of this we need to remap the UserSectionData key
-			if (LodIndex == 0)
+			TMap<int32, FSkelMeshSourceSectionUserData> RemapSectionsDataMap;
+			for (TPair<int32, FSkelMeshSourceSectionUserData>& UserSectionDataPair : LODModel.UserSectionsData)
 			{
-				TMap<int32, FSkelMeshSourceSectionUserData> RemapSectionsDataMap;
-				for (TPair<int32, FSkelMeshSourceSectionUserData>& UserSectionDataPair : LODModel.UserSectionsData)
-				{
-					RemapSectionsDataMap.Add(MaterialSlotRemap[UserSectionDataPair.Key], UserSectionDataPair.Value);
-				}
-				//Sort the remap section so its in the proper order. Optional but easier to debug ordered data
-				RemapSectionsDataMap.KeySort([](const int32& A, const int32& B)
-					{
-						return A < B;
-					});
-
-				//Rebuild a remap with the new order starting from 0
-				LODModel.UserSectionsData.Empty(RemapSectionsDataMap.Num());
-				int32 KeyIndex = 0;
-				for (TPair<int32, FSkelMeshSourceSectionUserData>& UserSectionDataPair : RemapSectionsDataMap)
-				{
-					LODModel.UserSectionsData.Add(KeyIndex++, UserSectionDataPair.Value);
-				}
+				RemapSectionsDataMap.Add(MaterialSlotRemap[UserSectionDataPair.Key], UserSectionDataPair.Value);
 			}
-
-			//Remap the built sections material index, note that the sections should be rebuild after changing the material slot order. so not a critical step.
-			for (int32 SectionIndex = 0; SectionIndex < LODModel.Sections.Num(); ++SectionIndex)
-			{
-				FSkelMeshSection& Section = LODModel.Sections[SectionIndex];
-				if(MaterialSlotRemap.IsValidIndex(Section.MaterialIndex))
+			//Sort the remap section so its in the proper order. Optional but easier to debug ordered data
+			RemapSectionsDataMap.KeySort([](const int32& A, const int32& B)
 				{
-					Section.MaterialIndex = MaterialSlotRemap[Section.MaterialIndex];
-				}
+					return A < B;
+				});
+
+			//Rebuild a remap with the new order starting from 0 to follow the section order
+			LODModel.UserSectionsData.Empty(RemapSectionsDataMap.Num());
+			int32 KeyIndex = 0;
+			for (TPair<int32, FSkelMeshSourceSectionUserData>& UserSectionDataPair : RemapSectionsDataMap)
+			{
+				LODModel.UserSectionsData.Add(KeyIndex++, UserSectionDataPair.Value);
 			}
 		}
 		else
@@ -4240,9 +4210,8 @@ void FLODUtilities::ReorderMaterialSlotToBaseLod(USkeletalMesh* SkeletalMesh)
 	}
 }
 
-void FLODUtilities::RemoveUnusedMaterialSlot(FSkeletalMeshMatchImportedMaterialsParameters& Parameters)
+void FLODUtilities::RemoveUnusedMaterialSlot(USkeletalMesh* SkeletalMesh)
 {
-	USkeletalMesh* SkeletalMesh = Parameters.SkeletalMesh;
 	if (!SkeletalMesh || !SkeletalMesh->IsLODImportedDataBuildAvailable(0))
 	{
 		return;

@@ -344,20 +344,23 @@ namespace UE::Interchange::MeshesUtilities
 		, TMap<FString, FString> *ExistingSlotMaterialDependenciesPtr)
 	{
 		bool bKeepSectionsSeparate = false;
+		int32 IndexCounter = 0; //Only use when bKeepSectionsSeparate is true
 		if (ExistingSlotMaterialDependenciesPtr)
 		{
 			FactoryNode.GetCustomKeepSectionsSeparate(bKeepSectionsSeparate);
+			IndexCounter = ExistingSlotMaterialDependenciesPtr->Num();
 		}
-
 		for (const TPair<FString, FString>& SlotMaterialDependency : SlotMaterialDependencies)
 		{
 			FString NewSlotName = SlotMaterialDependency.Key;
-			if (bKeepSectionsSeparate && ExistingSlotMaterialDependenciesPtr && ExistingSlotMaterialDependenciesPtr->Contains(NewSlotName))
+			if (bKeepSectionsSeparate && ExistingSlotMaterialDependenciesPtr)
 			{
-				TMap<FString, FString> NodeMaterialDependencies;
-				FactoryNode.GetSlotMaterialDependencies(NodeMaterialDependencies);
-				NewSlotName += TEXT("_Section") + FString::FromInt(NodeMaterialDependencies.Num());
+				if (ExistingSlotMaterialDependenciesPtr->Contains(NewSlotName))
+				{
+					NewSlotName += TEXT("_Section") + FString::FromInt(IndexCounter);
+				}
 				ExistingSlotMaterialDependenciesPtr->Add(NewSlotName, SlotMaterialDependency.Value);
+				IndexCounter++;
 			}
 			const FString MaterialFactoryNodeUid = UInterchangeBaseMaterialFactoryNode::GetMaterialFactoryNodeUidFromMaterialNodeUid(SlotMaterialDependency.Value);
 			FactoryNode.SetSlotMaterialDependencyUid(NewSlotName, MaterialFactoryNodeUid);
