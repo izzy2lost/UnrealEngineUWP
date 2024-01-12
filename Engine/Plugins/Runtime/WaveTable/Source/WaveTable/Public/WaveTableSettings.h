@@ -14,7 +14,7 @@ struct FWaveTableBankEntry;
 namespace WaveTable
 {
 	// Converts a ratio [0.0, 1.0] to an index within the given number of array elements.
-	UE_NODISCARD static FORCEINLINE int32 RatioToIndex(float InRatio, int32 InArrayNum)
+	[[nodiscard]] static FORCEINLINE int32 RatioToIndex(float InRatio, int32 InArrayNum)
 	{
 		check(InArrayNum > 0);
 		check(InRatio >= 0.0f);

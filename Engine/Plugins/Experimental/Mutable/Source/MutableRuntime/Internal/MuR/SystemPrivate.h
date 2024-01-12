@@ -1215,7 +1215,7 @@ namespace mu
         void MarkRomUsed( int32 RomIndex, const TSharedPtr<const Model>& );
 
 		/** */
-		UE_NODISCARD Ptr<Image> CreateImage(uint32 SizeX, uint32 SizeY, uint32 Lods, EImageFormat Format, EInitializationType Init)
+		[[nodiscard]] Ptr<Image> CreateImage(uint32 SizeX, uint32 SizeY, uint32 Lods, EImageFormat Format, EInitializationType Init)
 		{
 			CheckRunnerThread();
 
@@ -1260,7 +1260,7 @@ namespace mu
 		}
 
 		/** Ref will be nulled and relesed in any case. */
-		UE_NODISCARD Ptr<Image> CloneOrTakeOver(Ptr<const Image>& Resource)
+		[[nodiscard]] Ptr<Image> CloneOrTakeOver(Ptr<const Image>& Resource)
 		{
 			CheckRunnerThread();
 
@@ -1357,7 +1357,7 @@ namespace mu
 			Resource = nullptr;
 		}
 
-		UE_NODISCARD Ptr<Mesh> CreateMesh(int32 BudgetReserveSize)
+		[[nodiscard]] Ptr<Mesh> CreateMesh(int32 BudgetReserveSize)
 		{
 			CheckRunnerThread();
 
@@ -1370,7 +1370,7 @@ namespace mu
 			return Result;
 		}
 
-		UE_NODISCARD Ptr<Mesh> CloneOrTakeOver(Ptr<const Mesh>& Resource)
+		[[nodiscard]] Ptr<Mesh> CloneOrTakeOver(Ptr<const Mesh>& Resource)
 		{
 			CheckRunnerThread();
 
@@ -1420,7 +1420,7 @@ namespace mu
 		}
 
 		/** */
-		UE_NODISCARD Ptr<const Mesh> LoadMesh(const FCacheAddress& From, bool bTakeOwnership = false)
+		[[nodiscard]] Ptr<const Mesh> LoadMesh(const FCacheAddress& From, bool bTakeOwnership = false)
 		{
 			bool bIsLastReference = false;
 			Ptr<const Mesh> Result = CurrentInstanceCache->GetMesh(From, bIsLastReference);
@@ -1450,7 +1450,7 @@ namespace mu
 		}
 
 		/** */
-		UE_NODISCARD Ptr<const Image> LoadImage(const FCacheAddress& From, bool bTakeOwnership = false)
+		[[nodiscard]] Ptr<const Image> LoadImage(const FCacheAddress& From, bool bTakeOwnership = false)
 		{
 			bool bIsLastReference = false;
 			Ptr<const Image> Result = CurrentInstanceCache->GetImage(From, bIsLastReference);

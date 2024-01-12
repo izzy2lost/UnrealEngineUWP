@@ -577,7 +577,7 @@ class GAMEPLAYABILITIES_API UAbilitySystemComponent : public UGameplayTasksCompo
 		TagContainer.AppendTags(GetOwnedGameplayTags());
 	}
 
-	UE_NODISCARD FORCEINLINE const FGameplayTagContainer& GetOwnedGameplayTags() const
+	[[nodiscard]] FORCEINLINE const FGameplayTagContainer& GetOwnedGameplayTags() const
 	{
 		return GameplayTagCountContainer.GetExplicitGameplayTags();
 	}
@@ -624,7 +624,7 @@ class GAMEPLAYABILITIES_API UAbilitySystemComponent : public UGameplayTasksCompo
 		TagContainer.AppendTags(GetBlockedAbilityTags());
 	}
 
-	UE_NODISCARD FORCEINLINE const FGameplayTagContainer& GetBlockedAbilityTags() const
+	[[nodiscard]] FORCEINLINE const FGameplayTagContainer& GetBlockedAbilityTags() const
 	{
 		return BlockedAbilityTags.GetExplicitGameplayTags();
 	}

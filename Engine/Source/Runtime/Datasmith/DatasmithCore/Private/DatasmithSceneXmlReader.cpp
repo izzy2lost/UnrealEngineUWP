@@ -117,7 +117,7 @@ void FDatasmithSceneXmlReader::PatchUpVersion(TSharedRef< IDatasmithScene >& Out
 	}
 }
 
-UE_NODISCARD FString FDatasmithSceneXmlReader::UnsanitizeXMLText(const FString& InString) const
+[[nodiscard]] FString FDatasmithSceneXmlReader::UnsanitizeXMLText(const FString& InString) const
 {
 	FString OutString = InString;
 	OutString.ReplaceInline( TEXT("&apos;"), TEXT("'")  );

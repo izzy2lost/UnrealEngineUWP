@@ -120,7 +120,7 @@ public: \
 	} \
 	/** receives a message of this type from the passed in bunch */ \
 	template<typename... ParamTypes> \
-	UE_NODISCARD static bool Receive(FInBunch& Bunch, ParamTypes&... Params) \
+	[[nodiscard]] static bool Receive(FInBunch& Bunch, ParamTypes&... Params) \
 	{ \
 		FNetControlMessageInfo::ReceiveParams(Bunch, Params...); \
 		return !Bunch.IsError(); \

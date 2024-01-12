@@ -60,7 +60,7 @@ private:
 			, NodeGroup{ std::forward<CategoryString>(NodeGroup) }
 		{}
 
-		UE_NODISCARD FORCEINLINE bool operator==(const FKeyCategoryNodegroup& Rhs) const
+		[[nodiscard]] FORCEINLINE bool operator==(const FKeyCategoryNodegroup& Rhs) const
 		{
 			return Category == Rhs.Category && NodeGroup == Rhs.NodeGroup;
 		}

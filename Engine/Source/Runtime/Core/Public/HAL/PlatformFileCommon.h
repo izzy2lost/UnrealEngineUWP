@@ -34,7 +34,7 @@ public:
 
 	virtual ~FFileHandleRegistry() = default;
 
-	UE_NODISCARD FRegisteredFileHandle* InitialOpenFile(const TCHAR* Filename)
+	[[nodiscard]] FRegisteredFileHandle* InitialOpenFile(const TCHAR* Filename)
 	{
 		if (HandlesCurrentlyInUse.Increment() > MaxOpenHandles)
 		{
@@ -76,7 +76,7 @@ public:
 
 	// Only returns false if the platform handle cannot be reopened.
 	// TrackEndRead should only be called if TrackStartRead succeeded
-	UE_NODISCARD bool TrackStartRead(FRegisteredFileHandle* Handle)
+	[[nodiscard]] bool TrackStartRead(FRegisteredFileHandle* Handle)
 	{
 		{
 			FScopeLock Lock(&LockSection);

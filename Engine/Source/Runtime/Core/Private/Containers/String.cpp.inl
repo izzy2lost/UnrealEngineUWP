@@ -686,7 +686,7 @@ namespace UE::String::Private
 {
 
 template <typename LhsType, typename RhsType>
-UE_NODISCARD FORCEINLINE UE_STRING_CLASS PREPROCESSOR_JOIN(ConcatStrings_, UE_STRING_CLASS)(LhsType&& Lhs, RhsType&& Rhs)
+[[nodiscard]] FORCEINLINE UE_STRING_CLASS PREPROCESSOR_JOIN(ConcatStrings_, UE_STRING_CLASS)(LhsType&& Lhs, RhsType&& Rhs)
 {
 	Lhs.CheckInvariants();
 	Rhs.CheckInvariants();
@@ -705,7 +705,7 @@ UE_NODISCARD FORCEINLINE UE_STRING_CLASS PREPROCESSOR_JOIN(ConcatStrings_, UE_ST
 }
 
 template <typename LhsCharType, typename RhsType>
-UE_NODISCARD FORCEINLINE UE_STRING_CLASS PREPROCESSOR_JOIN(ConcatRangeString_, UE_STRING_CLASS)(const LhsCharType* Lhs, int32 LhsLen, RhsType&& Rhs)
+[[nodiscard]] FORCEINLINE UE_STRING_CLASS PREPROCESSOR_JOIN(ConcatRangeString_, UE_STRING_CLASS)(const LhsCharType* Lhs, int32 LhsLen, RhsType&& Rhs)
 {
 	using ElementType = UE_STRING_CLASS::ElementType;
 
@@ -734,7 +734,7 @@ UE_NODISCARD FORCEINLINE UE_STRING_CLASS PREPROCESSOR_JOIN(ConcatRangeString_, U
 }
 
 template <typename LhsType, typename RhsCharType>
-UE_NODISCARD FORCEINLINE UE_STRING_CLASS PREPROCESSOR_JOIN(ConcatStringRange_, UE_STRING_CLASS)(LhsType&& Lhs, const RhsCharType* Rhs, int32 RhsLen)
+[[nodiscard]] FORCEINLINE UE_STRING_CLASS PREPROCESSOR_JOIN(ConcatStringRange_, UE_STRING_CLASS)(LhsType&& Lhs, const RhsCharType* Rhs, int32 RhsLen)
 {
 	Lhs.CheckInvariants();
 	checkSlow(RhsLen >= 0);
@@ -750,7 +750,7 @@ UE_NODISCARD FORCEINLINE UE_STRING_CLASS PREPROCESSOR_JOIN(ConcatStringRange_, U
 }
 
 template <typename LhsCharType, typename RhsType>
-UE_NODISCARD FORCEINLINE UE_STRING_CLASS PREPROCESSOR_JOIN(ConcatPtrString_, UE_STRING_CLASS)(const LhsCharType* Lhs, RhsType&& Rhs)
+[[nodiscard]] FORCEINLINE UE_STRING_CLASS PREPROCESSOR_JOIN(ConcatPtrString_, UE_STRING_CLASS)(const LhsCharType* Lhs, RhsType&& Rhs)
 {
 	checkSlow(Lhs);
 	if (!Lhs)
@@ -762,7 +762,7 @@ UE_NODISCARD FORCEINLINE UE_STRING_CLASS PREPROCESSOR_JOIN(ConcatPtrString_, UE_
 }
 
 template <typename LhsType, typename RhsCharType>
-UE_NODISCARD FORCEINLINE UE_STRING_CLASS PREPROCESSOR_JOIN(ConcatStringPtr_, UE_STRING_CLASS)(LhsType&& Lhs, const RhsCharType* Rhs)
+[[nodiscard]] FORCEINLINE UE_STRING_CLASS PREPROCESSOR_JOIN(ConcatStringPtr_, UE_STRING_CLASS)(LhsType&& Lhs, const RhsCharType* Rhs)
 {
 	checkSlow(Rhs);
 	if (!Rhs)

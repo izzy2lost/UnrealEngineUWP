@@ -24,7 +24,7 @@
  * @param Count number of bytes to convert
  * @return Valid string representing bytes.
  */
-UE_NODISCARD inline FString BytesToString(const uint8* In, int32 Count)
+[[nodiscard]] inline FString BytesToString(const uint8* In, int32 Count)
 {
 	FString Result;
 	Result.Empty(Count);
@@ -65,7 +65,7 @@ inline int32 StringToBytes( const FString& String, uint8* OutBytes, int32 MaxBuf
 }
 
 /** Returns Char value of Nibble */
-UE_NODISCARD inline TCHAR NibbleToTChar(uint8 Num)
+[[nodiscard]] inline TCHAR NibbleToTChar(uint8 Num)
 {
 	if (Num > 9)
 	{
@@ -86,7 +86,7 @@ inline void ByteToHex(uint8 In, FString& Result)
 }
 
 /** Convert bytes to uppercase hex string */
-UE_NODISCARD inline FString BytesToHex(const uint8* Bytes, int32 NumBytes)
+[[nodiscard]] inline FString BytesToHex(const uint8* Bytes, int32 NumBytes)
 {
 	FString Out;
 	BytesToHex(Bytes, NumBytes, Out);
@@ -94,7 +94,7 @@ UE_NODISCARD inline FString BytesToHex(const uint8* Bytes, int32 NumBytes)
 }
 
 /** Convert bytes to lowercase hex string */
-UE_NODISCARD inline FString BytesToHexLower(const uint8* Bytes, int32 NumBytes)
+[[nodiscard]] inline FString BytesToHexLower(const uint8* Bytes, int32 NumBytes)
 {
 	FString Out;
 	BytesToHexLower(Bytes, NumBytes, Out);
@@ -106,7 +106,7 @@ UE_NODISCARD inline FString BytesToHexLower(const uint8* Bytes, int32 NumBytes)
  * @param Char		The character
  * @return	True if in 0-9 and A-F ranges
  */
-UE_NODISCARD inline const bool CheckTCharIsHex(const TCHAR Char)
+[[nodiscard]] inline const bool CheckTCharIsHex(const TCHAR Char)
 {
 	return (Char >= TEXT('0') && Char <= TEXT('9')) || (Char >= TEXT('A') && Char <= TEXT('F')) || (Char >= TEXT('a') && Char <= TEXT('f'));
 }
@@ -116,7 +116,7 @@ UE_NODISCARD inline const bool CheckTCharIsHex(const TCHAR Char)
  * @param Hex		The character
  * @return	The uint8 value of a hex character
  */
-UE_NODISCARD inline const uint8 TCharToNibble(const TCHAR Hex)
+[[nodiscard]] inline const uint8 TCharToNibble(const TCHAR Hex)
 {
 	if (Hex >= '0' && Hex <= '9')
 	{
@@ -140,7 +140,7 @@ template <
 	typename T
 	UE_REQUIRES(std::is_arithmetic_v<T>)
 >
-UE_NODISCARD StringType LexToString(const T& Value)
+[[nodiscard]] StringType LexToString(const T& Value)
 {
 	// std::remove_cv_t to remove potential volatile decorations. Removing const is pointless, but harmless because it's specified in the param declaration.
 	return StringType::Printf(TFormatSpecifier<std::remove_cv_t<T>>::GetFormatSpecifier(), Value);
@@ -151,13 +151,13 @@ template <
 	typename CharType
 	UE_REQUIRES(TIsCharType_V<CharType>)
 >
-UE_NODISCARD StringType LexToString(const CharType* Ptr)
+[[nodiscard]] StringType LexToString(const CharType* Ptr)
 {
 	return StringType(Ptr);
 }
 
 template <typename StringType = FString>
-UE_NODISCARD inline StringType LexToString(bool Value)
+[[nodiscard]] inline StringType LexToString(bool Value)
 {
 	using ElementType = typename StringType::ElementType;
 	return Value ? CHARTEXT(ElementType, "true") : CHARTEXT(ElementType, "false");
@@ -165,21 +165,21 @@ UE_NODISCARD inline StringType LexToString(bool Value)
 
 /** Helper template to convert to sanitized strings */
 template <typename StringType = FString, typename T>
-UE_NODISCARD StringType LexToSanitizedString(const T& Value)
+[[nodiscard]] StringType LexToSanitizedString(const T& Value)
 {
 	return LexToString<StringType>(Value);
 }
 
 /** Overloaded for floats */
 template <typename StringType = FString>
-UE_NODISCARD inline StringType LexToSanitizedString(float Value)
+[[nodiscard]] inline StringType LexToSanitizedString(float Value)
 {
 	return StringType::SanitizeFloat(Value);
 }
 
 /** Overloaded for doubles */
 template <typename StringType = FString>
-UE_NODISCARD inline StringType LexToSanitizedString(double Value)
+[[nodiscard]] inline StringType LexToSanitizedString(double Value)
 {
 	return StringType::SanitizeFloat(Value);
 }
@@ -189,13 +189,13 @@ template<typename T>
 struct TTypeToString
 {
 	template <typename StringType = FString>
-	UE_NODISCARD static StringType ToString(const T& Value)
+	[[nodiscard]] static StringType ToString(const T& Value)
 	{
 		return LexToString<StringType>(Value);
 	}
 
 	template <typename StringType = FString>
-	UE_NODISCARD static StringType ToSanitizedString(const T& Value)
+	[[nodiscard]] static StringType ToSanitizedString(const T& Value)
 	{
 		return LexToSanitizedString<StringType>(Value);
 	}

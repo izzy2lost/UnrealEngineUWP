@@ -132,7 +132,7 @@ namespace UE
 		}
 
 		// must be called where the inherited context should be restored, e.g. at the start of an async task execution
-		UE_NODISCARD CORE_API FInheritedContextScope RestoreInheritedContext();
+		[[nodiscard]] CORE_API FInheritedContextScope RestoreInheritedContext();
 
 	private:
 #if ENABLE_LOW_LEVEL_MEM_TRACKER

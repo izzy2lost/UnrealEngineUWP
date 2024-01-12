@@ -91,7 +91,7 @@ class FHazardPointerCollection
 		}
 
 		//assign hazard pointer once acquired
-		UE_NODISCARD inline void* SetHazard(void* InHazard)
+		[[nodiscard]] inline void* SetHazard(void* InHazard)
 		{
 			Hazard.store(reinterpret_cast<uintptr_t>(InHazard), std::memory_order_release);
 			std::atomic_thread_fence(std::memory_order_seq_cst);

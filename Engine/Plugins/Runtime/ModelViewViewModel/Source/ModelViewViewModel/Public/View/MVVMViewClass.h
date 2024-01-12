@@ -485,25 +485,25 @@ public:
 
 public:
 	/** Should it automatically create the binding sources when the view is constructed. */
-	UE_NODISCARD bool DoesInitializeSourcesOnConstruct() const
+	[[nodiscard]] bool DoesInitializeSourcesOnConstruct() const
 	{
 		return bInitializeSourcesOnConstruct;
 	}
 
 	/** Should it automatically register and execute the bindings when the view is constructed. */
-	UE_NODISCARD bool DoesInitializeBindingsOnConstruct() const
+	[[nodiscard]] bool DoesInitializeBindingsOnConstruct() const
 	{
 		return bInitializeBindingsOnConstruct;
 	}
 	
 	/** Should it automatically register the events when the view is constructed. */
-	UE_NODISCARD bool DoesInitializeEventsOnConstruct() const
+	[[nodiscard]] bool DoesInitializeEventsOnConstruct() const
 	{
 		return bInitializeEventsOnConstruct;
 	}
 
 	/** Get the container of all the bindings. */
-	UE_NODISCARD const FMVVMCompiledBindingLibrary& GetBindingLibrary() const
+	[[nodiscard]] const FMVVMCompiledBindingLibrary& GetBindingLibrary() const
 	{
 		return BindingLibrary;
 	}
@@ -515,52 +515,52 @@ public:
 	}
 	
 	/** Get the list of all the needed viewmodel or widgets. */
-	UE_NODISCARD const TArrayView<const FMVVMViewClass_Source> GetSources() const
+	[[nodiscard]] const TArrayView<const FMVVMViewClass_Source> GetSources() const
 	{
 		return MakeArrayView(Sources);
 	}
 	
 	/** The shared source used by the view. */
-	UE_NODISCARD const FMVVMViewClass_Source& GetSource(FMVVMViewClass_SourceKey Key) const
+	[[nodiscard]] const FMVVMViewClass_Source& GetSource(FMVVMViewClass_SourceKey Key) const
 	{
 		check(Sources.IsValidIndex(Key.GetIndex()));
 		return Sources[Key.GetIndex()];
 	}
 
 	/** The list of bindings. A binding can be used by more than one source. */
-	UE_NODISCARD const TArrayView<const FMVVMViewClass_Binding> GetBindings() const
+	[[nodiscard]] const TArrayView<const FMVVMViewClass_Binding> GetBindings() const
 	{
 		return Bindings;
 	}
 
 	/** The binding (can be shared by more than one source). */
-	UE_NODISCARD const FMVVMViewClass_Binding& GetBinding(FMVVMViewClass_BindingKey Key) const
+	[[nodiscard]] const FMVVMViewClass_Binding& GetBinding(FMVVMViewClass_BindingKey Key) const
 	{
 		check(Bindings.IsValidIndex(Key.GetIndex()));
 		return Bindings[Key.GetIndex()];
 	}
 
 	/** The list of evaluate bindings. */
-	UE_NODISCARD const TArrayView<const FMVVMViewClass_EvaluateSource> GetEvaluateSources() const
+	[[nodiscard]] const TArrayView<const FMVVMViewClass_EvaluateSource> GetEvaluateSources() const
 	{
 		return EvaluateSources;
 	}
 
 	/** The evaluate binding. */
-	UE_NODISCARD const FMVVMViewClass_EvaluateSource& GetEvaluateSource(FMVVMViewClass_EvaluateBindingKey Key) const
+	[[nodiscard]] const FMVVMViewClass_EvaluateSource& GetEvaluateSource(FMVVMViewClass_EvaluateBindingKey Key) const
 	{
 		check(EvaluateSources.IsValidIndex(Key.GetIndex()));
 		return EvaluateSources[Key.GetIndex()];
 	}
 	
 	/** The list of events. */
-	UE_NODISCARD const TArrayView<const FMVVMViewClass_Event> GetEvents() const
+	[[nodiscard]] const TArrayView<const FMVVMViewClass_Event> GetEvents() const
 	{
 		return Events;
 	}
 
 	/** The event. */
-	UE_NODISCARD const FMVVMViewClass_Event& GetEvent(FMVVMViewClass_EventKey Key) const
+	[[nodiscard]] const FMVVMViewClass_Event& GetEvent(FMVVMViewClass_EventKey Key) const
 	{
 		check(Events.IsValidIndex(Key.GetIndex()));
 		return Events[Key.GetIndex()];
@@ -577,7 +577,7 @@ public:
 		MODELVIEWVIEWMODEL_API static FToStringArgs Short();
 		MODELVIEWVIEWMODEL_API static FToStringArgs All();
 	};
-	UE_NODISCARD FString ToString(FToStringArgs SourceArgs) const;
+	[[nodiscard]] FString ToString(FToStringArgs SourceArgs) const;
 #endif
 
 private:

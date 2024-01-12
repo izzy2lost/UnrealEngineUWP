@@ -590,12 +590,12 @@ namespace  mu
 			return m_pSystem->WorkingMemoryManager.Release(Resource);
 		}
 
-		UE_NODISCARD inline Ptr<Mesh> CreateMesh(int32 BudgetReserveSize = 0)
+		[[nodiscard]] inline Ptr<Mesh> CreateMesh(int32 BudgetReserveSize = 0)
 		{
 			return m_pSystem->WorkingMemoryManager.CreateMesh(BudgetReserveSize);
 		}
 
-		UE_NODISCARD inline Ptr<Mesh> CloneOrTakeOver(Ptr<const Mesh>& Ref)
+		[[nodiscard]] inline Ptr<Mesh> CloneOrTakeOver(Ptr<const Mesh>& Ref)
 		{
 			return m_pSystem->WorkingMemoryManager.CloneOrTakeOver(Ref);
 		}

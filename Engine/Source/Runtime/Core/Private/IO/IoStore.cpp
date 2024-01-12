@@ -328,7 +328,7 @@ public:
 		}
 	}
 
-	UE_NODISCARD FIoStatus Initialize(const FIoStoreWriterSettings& InWriterSettings)
+	[[nodiscard]] FIoStatus Initialize(const FIoStoreWriterSettings& InWriterSettings)
 	{
 		TRACE_CPUPROFILER_EVENT_SCOPE(FIoStoreWriterContext::Initialize);
 		WriterSettings = InWriterSettings;
@@ -524,7 +524,7 @@ FIoStoreWriterContext::~FIoStoreWriterContext()
 	delete Impl;
 }
 
-UE_NODISCARD FIoStatus FIoStoreWriterContext::Initialize(const FIoStoreWriterSettings& InWriterSettings)
+[[nodiscard]] FIoStatus FIoStoreWriterContext::Initialize(const FIoStoreWriterSettings& InWriterSettings)
 {
 	return Impl->Initialize(InWriterSettings);
 }
@@ -754,7 +754,7 @@ public:
 		}
 	}
 
-	UE_NODISCARD FIoStatus Initialize(FIoStoreWriterContextImpl& InContext, const FIoContainerSettings& InContainerSettings)
+	[[nodiscard]] FIoStatus Initialize(FIoStoreWriterContextImpl& InContext, const FIoContainerSettings& InContainerSettings)
 	{
 		WriterContext = &InContext;
 		ContainerSettings = InContainerSettings;
@@ -2302,7 +2302,7 @@ public:
 		});
 	}
 
-	UE_NODISCARD FIoStatus Initialize(FStringView InContainerPath, const TMap<FGuid, FAES::FAESKey>& InDecryptionKeys)
+	[[nodiscard]] FIoStatus Initialize(FStringView InContainerPath, const TMap<FGuid, FAES::FAESKey>& InDecryptionKeys)
 	{
 		TRACE_CPUPROFILER_EVENT_SCOPE(FIoStoreReader::Initialize);
 		ContainerPath = InContainerPath;

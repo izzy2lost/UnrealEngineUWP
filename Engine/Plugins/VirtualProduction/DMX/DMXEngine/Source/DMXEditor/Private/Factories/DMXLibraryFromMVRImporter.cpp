@@ -33,7 +33,7 @@
 namespace UE::DMX::DMXLibraryFromMVRImporter::Private
 {
 	/** Finds the file corresponding to the GDTF Spec in an MVR Zip file. Returns true if the file was found.  */
-	UE_NODISCARD bool FindGDTFFilenameInMVRZip(const TSharedRef<FDMXZipper>& MVRZip, const FString& GDTFSpec, FString& OutGDTFFilename)
+	[[nodiscard]] bool FindGDTFFilenameInMVRZip(const TSharedRef<FDMXZipper>& MVRZip, const FString& GDTFSpec, FString& OutGDTFFilename)
 	{
 		OutGDTFFilename.Reset();
 

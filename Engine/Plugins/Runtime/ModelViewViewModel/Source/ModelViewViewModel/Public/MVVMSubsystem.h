@@ -95,9 +95,9 @@ public:
 		FDirectionalBindingArgs BackwardArgs;
 	};
 
-	UE_NODISCARD TValueOrError<bool, FText> IsBindingValid(FConstDirectionalBindingArgs Args) const;
-	UE_NODISCARD TValueOrError<bool, FText> IsBindingValid(FDirectionalBindingArgs Args) const;
-	UE_NODISCARD TValueOrError<bool, FText> IsBindingValid(FBindingArgs Args) const;
+	[[nodiscard]] TValueOrError<bool, FText> IsBindingValid(FConstDirectionalBindingArgs Args) const;
+	[[nodiscard]] TValueOrError<bool, FText> IsBindingValid(FDirectionalBindingArgs Args) const;
+	[[nodiscard]] TValueOrError<bool, FText> IsBindingValid(FBindingArgs Args) const;
 };
 
 #if UE_ENABLE_INCLUDE_ORDER_DEPRECATED_IN_5_2

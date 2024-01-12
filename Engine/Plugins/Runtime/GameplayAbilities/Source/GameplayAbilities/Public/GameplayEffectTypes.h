@@ -1394,7 +1394,7 @@ struct GAMEPLAYABILITIES_API FGameplayTagRequirements
 	bool operator!=(const FGameplayTagRequirements& Other) const;
 
 	/** Converts the RequireTags and IgnoreTags fields into an equivalent FGameplayTagQuery */
-	UE_NODISCARD FGameplayTagQuery ConvertTagFieldsToTagQuery() const;
+	[[nodiscard]] FGameplayTagQuery ConvertTagFieldsToTagQuery() const;
 };
 
 

@@ -493,7 +493,7 @@ namespace UE::Slate::Private
 			Heap.HeapPush(Element, FWidgetOrderGreater());
 		}
 
-		UE_NODISCARD FSlateInvalidationWidgetHeapElement HeapPeek()
+		[[nodiscard]] FSlateInvalidationWidgetHeapElement HeapPeek()
 		{
 			return Heap.HeapTop();
 		}
@@ -503,7 +503,7 @@ namespace UE::Slate::Private
 			Heap.HeapPopDiscard(FWidgetOrderGreater(), false);
 		}
 
-		UE_NODISCARD bool IsEmpty() const
+		[[nodiscard]] bool IsEmpty() const
 		{
 			return Heap.Num() == 0;
 		}
