@@ -2334,7 +2334,7 @@ bool UAssetToolsImpl::AdvancedCopyPackages(
 				UE::Tasks::FTask PatcherTask = UE::Tasks::Launch(UE_SOURCE_LOCATION,
 					[&PatchAssetsCompletedCount, &PatchingPatterns, InSrcFilename = SrcFilename, InDestFilename = DestFilename, &ErroredFilesLock, &ErroredFiles] () 
 					{
-						FAssetHeaderPatcher::EResult Result = FAssetHeaderPatcher::DoPatch(InSrcFilename, InDestFilename, PatchingPatterns);
+						FAssetHeaderPatcher::EResult Result = FAssetHeaderPatcher::DoPatch(InSrcFilename, InDestFilename, PatchingPatterns, /* bBespokeSearchInUse */false);
 						if (Result != FAssetHeaderPatcher::EResult::Success) 
 						{
 							FScopeLock Lock(&ErroredFilesLock);
@@ -2690,6 +2690,54 @@ bool UAssetToolsImpl::AdvancedCopyPackages(const FAdvancedCopyParams& CopyParams
 	}
 	
 	return bResult;
+}
+
+/** Copies a file, patching internal references without performing a de-serialization. This is a blocking operation. returns true on successful copy */
+bool UAssetToolsImpl::PatchCopyPackageFile(const FString& SrcFile, const FString& DstFile, const TMap<FString, FString>& SearchForAndReplace) const
+{
+	FAssetHeaderPatcher::EResult Result = FAssetHeaderPatcher::DoPatch(SrcFile, DstFile, SearchForAndReplace, /* bBespokeSearchInUse */ true);
+	return (Result == FAssetHeaderPatcher::EResult::Success);
+}
+
+TMap<FString, FString> UAssetToolsImpl::GetMappingsForRootPackageRename(
+	const FString& SrcRoot,
+	const FString& DstRoot,
+	const FString& SrcBaseDir,
+	const TArray<TPair<FString, FString>>& SourceAndDestFiles) const
+{
+	TMap<FString, FString> Result;
+	Result.Reserve(3 + SourceAndDestFiles.Num());
+
+	{	// Plugin name patterns
+		FString SrcPath = FPaths::Combine(TEXT("/"), SrcRoot, SrcRoot);
+		FString DstPath = FPaths::Combine(TEXT("/"), DstRoot, SrcRoot);
+
+		Result.Add(SrcPath + TEXT(".") + SrcRoot, DstPath + TEXT(".") + SrcRoot);	// /Src/Src.Src -> /Dst/Src.Src
+		Result.Add(MoveTemp(SrcPath), MoveTemp(DstPath));					// /Src/Src     -> /Dst/Src
+		Result.Add(TEXT("<GameFeatureData.PrimaryAssetName>") + SrcRoot, DstRoot);	// <GameFeatureData.PrimaryAssetName>Src -> Dst (for matching in specific modes)
+	}
+
+	const FString SourceContentPath = FPaths::Combine(SrcBaseDir, TEXT("Content"));
+
+	for (const TTuple<FString, FString>& SourceAndDest : SourceAndDestFiles)
+	{
+		const FString& SrcFileName = SourceAndDest.Key;
+
+		if (FPaths::IsUnderDirectory(SrcFileName, SourceContentPath))
+		{
+			if (FStringView RelativePkgPath; FPathViews::TryMakeChildPathRelativeTo(SrcFileName, SourceContentPath, RelativePkgPath))
+			{
+				RelativePkgPath = FPathViews::GetBaseFilenameWithPath(RelativePkgPath); // chop the extension
+				if (RelativePkgPath.Len() > 0 && !RelativePkgPath.EndsWith(TEXT("/")))
+				{
+					Result.Add(FPaths::Combine(TEXT("/"), SrcRoot, RelativePkgPath),
+						       FPaths::Combine(TEXT("/"), DstRoot, RelativePkgPath));
+				}
+			}
+		}
+	}
+
+	return Result;
 }
 
 bool UAssetToolsImpl::IsDiscoveringAssetsInProgress() const

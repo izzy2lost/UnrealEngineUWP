@@ -20,7 +20,7 @@ struct FAssetHeaderPatcher
 		ErrorEmptyRequireSection,
 	};
 
-	static EResult DoPatch(const FString& InSrcAsset, const FString& InDstAsset, const TMap<FString, FString>& InSearchAndReplace);
+	static EResult DoPatch(const FString& InSrcAsset, const FString& InDstAsse, const TMap<FString, FString>& InSearchAndReplace, bool bInStarRestrictionInUse = false);
 
 	static EResult Test_DoPatch(FArchive& InSrcReader, FArchive& InDstWriter, const TMap<FString, FString>& InSearchAndReplace);
 };

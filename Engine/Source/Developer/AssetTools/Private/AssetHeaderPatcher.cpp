@@ -253,10 +253,11 @@ class FAssetHeaderPatcherInner
 public:
 	using EResult = FAssetHeaderPatcher::EResult;
 
-	FAssetHeaderPatcherInner(const FString& InSrcAsset, const FString& InDstAsset, const TMap<FString, FString>& InSearchAndReplace, FArchive* InDstArchive = nullptr)
+	FAssetHeaderPatcherInner(const FString& InSrcAsset, const FString& InDstAsset, const TMap<FString, FString>& InSearchAndReplace, FArchive* InDstArchive = nullptr, bool bInBespokeSearchInUse = false)
 		: SrcAsset(InSrcAsset)
 		, DstAsset(InDstAsset)
 		, SearchAndReplace(InSearchAndReplace)
+		, bBespokeSearchInUse(bInBespokeSearchInUse)
 		, DstArchive(InDstArchive)
 	{
 	}
@@ -274,6 +275,7 @@ public:
 	const FString& SrcAsset;
 	const FString& DstAsset;
 	const TMap<FString, FString>& SearchAndReplace;
+	bool  bBespokeSearchInUse;
 	FArchive* DstArchive = nullptr;
 	TUniquePtr<FArchive> DstArchiveOwner;
 
@@ -325,9 +327,9 @@ public:
 	FAssetRegistryData AssetRegistryData;
 };
 
-FAssetHeaderPatcher::EResult FAssetHeaderPatcher::DoPatch(const FString& InSrcAsset, const FString& InDstAsset, const TMap<FString, FString>& InSearchAndReplace)
+FAssetHeaderPatcher::EResult FAssetHeaderPatcher::DoPatch(const FString& InSrcAsset, const FString& InDstAsset, const TMap<FString, FString>& InSearchAndReplace, bool bInStarRestrictionInUse)
 {
-	FAssetHeaderPatcherInner Inner(InSrcAsset, InDstAsset, InSearchAndReplace);
+	FAssetHeaderPatcherInner Inner(InSrcAsset, InDstAsset, InSearchAndReplace, nullptr, bInStarRestrictionInUse);
 
 	if (!FFileHelper::LoadFileToArray(Inner.SrcBuffer, *Inner.SrcAsset))
 	{
@@ -759,6 +761,16 @@ void FAssetHeaderPatcherInner::PatchHeader_PatchSections()
 				if (FWorldPartitionActorDescUtils::GetPatchedAssetDataFromAssetData(AssetData, PatchedAssetData, &Patcher))
 				{
 					TagData.Value = PatchedAssetData;
+				}
+			}
+			else if (bBespokeSearchInUse &&
+					 FPathViews::GetBaseFilename(ObjData.ObjectData.ObjectPath) == TEXT("GameFeatureData") &&
+				     TagData.Key == TEXT("PrimaryAssetName"))
+			{
+				FString BespokeSearchValue = TEXT("<GameFeatureData.PrimaryAssetName>") + TagData.Value;
+				if (DoPatch(BespokeSearchValue)) 
+				{
+					TagData.Value = BespokeSearchValue;
 				}
 			}
 			else 
