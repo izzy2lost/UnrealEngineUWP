@@ -1584,7 +1584,20 @@ FString UGameplayTagsManager::StaticGetCategoriesMetaFromPropertyHandle(TSharedP
 				}
 			}
 		}
-		PropertyHandle = PropertyHandle->GetParentHandle();
+
+		TSharedPtr<IPropertyHandle> ParentHandle = PropertyHandle->GetParentHandle();
+		
+		if (ParentHandle.IsValid())
+		{
+			/** Check if the parent handle's base class is of the same class. It's possible the current child property is from a subobject which in that case we probably want to ignore
+			  * any meta category restrictions coming from any parent properties. A subobject's gameplay tag property without any declared meta categories should stay that way. */
+			if (PropertyHandle->GetOuterBaseClass() != ParentHandle->GetOuterBaseClass())
+			{
+				break;
+			}
+		}
+
+		PropertyHandle = ParentHandle;
 	}
 	
 	return Categories;
