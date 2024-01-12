@@ -215,7 +215,7 @@ export const StepHistoryPanel: React.FC<{ jobDetails: JobDetailsV2; stepId: stri
          const commonSelectors = { ".ms-DetailsRow-cell": { "overflow": "visible" } };
 
          if (ref.stepId === stepId && ref.jobId === jobDetails.jobId) {
-            props.styles = { ...props.styles, root: { background: theme.palette.neutralLight, selectors: { ...commonSelectors as any } } };
+            props.styles = { ...props.styles, root: { background: `${theme.palette.neutralLight} !important`, selectors: { ...commonSelectors as any } } };
          } else {
             props.styles = { ...props.styles, root: { selectors: { ...commonSelectors as any } } };
          }

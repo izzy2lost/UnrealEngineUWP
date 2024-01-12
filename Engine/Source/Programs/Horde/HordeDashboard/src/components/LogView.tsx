@@ -359,7 +359,7 @@ const StepHistoryModal: React.FC<{ jobDetails: JobDetails, stepId: string | unde
          const commonSelectors = { ".ms-DetailsRow-cell": { "overflow": "visible", padding: 0 } };
 
          if (ref.stepId === stepId && ref.jobId === jobDetails.id) {
-            props.styles = { ...props.styles, root: { background: hordeTheme.horde.neutralBackground, selectors: { ...commonSelectors as any } } };
+            props.styles = { ...props.styles, root: { background: `${hordeTheme.palette.neutralLight} !important`, selectors: { ...commonSelectors as any } } };
          } else {
             props.styles = { ...props.styles, root: { selectors: { ...commonSelectors as any } } };
          }
