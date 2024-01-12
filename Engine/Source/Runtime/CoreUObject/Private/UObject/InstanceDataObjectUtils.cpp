@@ -1,6 +1,6 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
-#include "UObject/ArchetypeUtils.h"
+#include "UObject/InstanceDataObjectUtils.h"
 #include "UObject/PropertyBag.h"
 #include "UObject/UnrealType.h"
 #include "UObject/EnumProperty.h"
@@ -223,74 +223,74 @@ namespace UE
 		return false; // segment not found in struct
     }
 
-	static UStruct* CreatePropertyBagArchetypeStructRec(const UClass* StructClass, UStruct* TemplateStruct,
+	static UStruct* CreateInstanceDataObjectStructRec(const UClass* StructClass, UStruct* TemplateStruct,
 		UObject* Outer, const TMap<FWildcardPropertyPathName, TMap<FName, const FProperty*>>& LooseProperties, FWildcardPropertyPathName& Path);
 	template <typename TStructType>
-	TStructType* CreatePropertyBagArchetypeStructRec(UStruct* TemplateStruct, UObject* Outer,
+	TStructType* CreateInstanceDataObjectStructRec(UStruct* TemplateStruct, UObject* Outer,
 		const TMap<FWildcardPropertyPathName, TMap<FName, const FProperty*>>& LooseProperties, FWildcardPropertyPathName& Path)
 	{
-		return CastChecked<TStructType>(CreatePropertyBagArchetypeStructRec(TStructType::StaticClass(), TemplateStruct, Outer, LooseProperties, Path));
+		return CastChecked<TStructType>(CreateInstanceDataObjectStructRec(TStructType::StaticClass(), TemplateStruct, Outer, LooseProperties, Path));
 	}
 
 	static FPropertyPathNameSegment CreateSegmentFromProperty(const FProperty* Inner, int32 Index = INDEX_NONE)
 	{
 		FPropertyPathNameSegment Result;
-		Result.Index = INDEX_NONE;
+		Result.Index = INDEX_NONE; 
 		Result.Name = Inner->GetFName();
 		Result.Type = GetSegmentTypeFromProperty(Inner);
 		return Result;
 	}
 
 	// recursively re-instances all structs contained by this property to include loose properties
-	static void ConvertToArchetypeProperty(FProperty* Property, UObject* Outer,
+	static void ConvertToInstanceDataObjectProperty(FProperty* Property, UObject* Outer,
 		const TMap<FWildcardPropertyPathName, TMap<FName, const FProperty*>>& LooseProperties, FWildcardPropertyPathName& Path)
 	{
 		if (FStructProperty* AsStructProperty = CastField<FStructProperty>(Property))
 		{
 			const FString* OriginalType = nullptr;
 #if WITH_EDITORONLY_DATA
-			//@note: Transfer existing metadata over as we build the archetype from the struct or it owner, if any, this is useful for testing purposes
+			//@note: Transfer existing metadata over as we build the InstanceDataObject from the struct or it owner, if any, this is useful for testing purposes
 			OriginalType = AsStructProperty->FindMetaData(NAME_StructOrignalTypeMetadata);
 			FField* OwnerField = OriginalType == nullptr ? AsStructProperty->Owner.ToField() : nullptr;
 			OriginalType = OwnerField ? OwnerField->FindMetaData(NAME_StructOrignalTypeMetadata) : OriginalType;
 #endif
 			const FName StructOriginalName = OriginalType ? FName(**OriginalType) : AsStructProperty->Struct->GetFName();
-			AsStructProperty->Struct = CreatePropertyBagArchetypeStructRec<UScriptStruct>(AsStructProperty->Struct, Outer, LooseProperties, Path);
+			AsStructProperty->Struct = CreateInstanceDataObjectStructRec<UScriptStruct>(AsStructProperty->Struct, Outer, LooseProperties, Path);
 #if WITH_EDITORONLY_DATA
 			AsStructProperty->SetMetaData("OriginalType", StructOriginalName.ToString());
 #endif
 		}
 		else if (const FArrayProperty* AsArrayProperty = CastField<FArrayProperty>(Property))
 		{
-			ConvertToArchetypeProperty(AsArrayProperty->Inner, Outer, LooseProperties, Path);
+			ConvertToInstanceDataObjectProperty(AsArrayProperty->Inner, Outer, LooseProperties, Path);
 		}
 		else if (const FSetProperty* AsSetProperty = CastField<FSetProperty>(Property))
 		{
-			ConvertToArchetypeProperty(AsSetProperty->ElementProp, Outer, LooseProperties, Path);
+			ConvertToInstanceDataObjectProperty(AsSetProperty->ElementProp, Outer, LooseProperties, Path);
 		}
 		else if (const FMapProperty* AsMapProperty = CastField<FMapProperty>(Property))
 		{
 			// todo: This will likely need revisiting once devin has maps working
 			Path.Push(CreateSegmentFromProperty(AsMapProperty->KeyProp));
-			ConvertToArchetypeProperty(AsMapProperty->KeyProp, Outer, LooseProperties, Path);
+			ConvertToInstanceDataObjectProperty(AsMapProperty->KeyProp, Outer, LooseProperties, Path);
 			Path.Pop();
 			
 			Path.Push(CreateSegmentFromProperty(AsMapProperty->ValueProp));
-			ConvertToArchetypeProperty(AsMapProperty->ValueProp, Outer, LooseProperties, Path);
+			ConvertToInstanceDataObjectProperty(AsMapProperty->ValueProp, Outer, LooseProperties, Path);
 			Path.Pop();
 		}
 	}
 	
-	// copy template property then convert it into an archetype property by adding loose properties
-	static FProperty* CreateArchetypeProperty(const FProperty* TemplateProperty, UObject* Outer,
+	// copy template property then convert it into an InstanceDataObject property by adding loose properties
+	static FProperty* CreateInstanceDataObjectProperty(const FProperty* TemplateProperty, UObject* Outer,
 		const TMap<FWildcardPropertyPathName, TMap<FName, const FProperty*>>& LooseProperties, FWildcardPropertyPathName& Path)
 	{
-		FProperty* ArchetypeProperty = CastFieldChecked<FProperty>(FField::Duplicate(TemplateProperty, Outer));
+		FProperty* InstanceDataObjectProperty = CastFieldChecked<FProperty>(FField::Duplicate(TemplateProperty, Outer));
 #if WITH_EDITORONLY_DATA
-		FField::CopyMetaData(TemplateProperty, ArchetypeProperty);
+		FField::CopyMetaData(TemplateProperty, InstanceDataObjectProperty);
 #endif
-		ConvertToArchetypeProperty(ArchetypeProperty, Outer, LooseProperties, Path);
-		return ArchetypeProperty;
+		ConvertToInstanceDataObjectProperty(InstanceDataObjectProperty, Outer, LooseProperties, Path);
+		return InstanceDataObjectProperty;
 	}
 
 	// return a copy of Path with all the indices set to -1. This way all container elements will have the same wildcard path
@@ -377,8 +377,8 @@ namespace UE
         }
 	}
 
-	// constructs an archetype struct by merging the properties in 
-	static UStruct* CreatePropertyBagArchetypeStructRec(const UClass* StructClass, UStruct* TemplateStruct,
+	// constructs an InstanceDataObject struct by merging the properties in 
+	static UStruct* CreateInstanceDataObjectStructRec(const UClass* StructClass, UStruct* TemplateStruct,
 		UObject* Outer, const TMap<FWildcardPropertyPathName, TMap<FName, const FProperty*>>& LooseProperties, FWildcardPropertyPathName& Path)
 	{
 		UStruct* Super = nullptr;
@@ -413,7 +413,7 @@ namespace UE
 					continue;
 				}
 				Path.Push(CreateSegmentFromProperty(TemplateProperty));
-				FProperty* SuperProperty = CreateArchetypeProperty(TemplateProperty, Super, LooseProperties, Path);
+				FProperty* SuperProperty = CreateInstanceDataObjectProperty(TemplateProperty, Super, LooseProperties, Path);
 				Path.Pop();
 				SuperProperties.Add(SuperProperty);
 			}
@@ -438,21 +438,21 @@ namespace UE
 			Super = UObject::StaticClass();
 		}
 
-		const FName ArchetypeName = (TemplateStruct) ? FName(TemplateStruct->GetName() + TEXT("_Archetype")) : FName(TEXT("Archetype"));
-		UStruct* Result = NewObject<UStruct>(Outer, StructClass, MakeUniqueObjectName(Outer, StructClass, ArchetypeName));
+		const FName InstanceDataObjectName = (TemplateStruct) ? FName(TemplateStruct->GetName() + TEXT("_InstanceDataObject")) : FName(TEXT("InstanceDataObject"));
+		UStruct* Result = NewObject<UStruct>(Outer, StructClass, MakeUniqueObjectName(Outer, StructClass, InstanceDataObjectName));
 
 		// Gather "loose" properties for child Struct
-		TArray<FProperty*> LooseArchetypeProperties;
+		TArray<FProperty*> LooseInstanceDataObjectProperties;
 		if (BagProperties)
 		{
 			for (const TPair<FName, const FProperty*>& BagProperty : *BagProperties)
 			{
 				Path.Push(CreateSegmentFromProperty(BagProperty.Value));
-				FProperty* LooseProperty = CreateArchetypeProperty(BagProperty.Value, Result, LooseProperties, Path);
+				FProperty* LooseProperty = CreateInstanceDataObjectProperty(BagProperty.Value, Result, LooseProperties, Path);
 				Path.Pop();
 				
 				MarkPropertyAsLoose(LooseProperty);
-				LooseArchetypeProperties.Add(LooseProperty);
+				LooseInstanceDataObjectProperties.Add(LooseProperty);
 			}
 		}
 
@@ -468,20 +468,20 @@ namespace UE
 		Result->SetSuperStruct(Super);
 		
 		// AddCppProperty expects reverse property order for StaticLink to work correctly
-		for (int32 I = LooseArchetypeProperties.Num() - 1; I >= 0; --I)
+		for (int32 I = LooseInstanceDataObjectProperties.Num() - 1; I >= 0; --I)
 		{
-			Result->AddCppProperty(LooseArchetypeProperties[I]);
+			Result->AddCppProperty(LooseInstanceDataObjectProperties[I]);
 		}
 		Result->Bind();
 		Result->StaticLink(/*RelinkExistingProperties*/true);
 		return Result;
 	}
 	
-	UClass* CreatePropertyBagArchetypeClass(const FPropertyBag* PropertyBag, UStruct* TemplateStruct, UObject* Outer)
+	UClass* CreateInstanceDataObjectClass(const FPropertyBag* PropertyBag, UStruct* TemplateStruct, UObject* Outer)
 	{
 		const TMap<FWildcardPropertyPathName, TMap<FName, const FProperty*>> LooseProperties = GetWildcardedLooseProperties(PropertyBag);
 		FWildcardPropertyPathName ParentPath;
-		return CreatePropertyBagArchetypeStructRec<UClass>(TemplateStruct, Outer, LooseProperties, ParentPath);
+		return CreateInstanceDataObjectStructRec<UClass>(TemplateStruct, Outer, LooseProperties, ParentPath);
 	}
 
 	static void MarkPropertySetBySerialization(const UStruct* Struct, const void* StructData, const void* PropertyDataPtr)

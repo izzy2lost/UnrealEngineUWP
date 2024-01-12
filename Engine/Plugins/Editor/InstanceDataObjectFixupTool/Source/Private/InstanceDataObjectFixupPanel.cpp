@@ -1,17 +1,17 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 
-#include "ArchetypeFixupPanel.h"
+#include "InstanceDataObjectFixupPanel.h"
 
 #include "AsyncDetailViewDiff.h"
 #include "DetailTreeNode.h"
 #include "Widgets/Layout/LinkableScrollBar.h"
-#include "ArchetypeFixupDetailCustomization.h"
+#include "InstanceDataObjectFixupDetailCustomization.h"
 #include "Modules/ModuleManager.h"
 #include "Editor.h"
 #include "UObject/PropertyBagRepository.h"
 
-#define LOCTEXT_NAMESPACE "ArchetypeFixupPanel"
+#define LOCTEXT_NAMESPACE "InstanceDataObjectFixupPanel"
 
 FRedirectedPropertyNode::FRedirectedPropertyNode(const FRedirectedPropertyNode& Other)
 	: PropertyName(Other.PropertyName)
@@ -197,20 +197,20 @@ int32 FRedirectedPropertyNode::FindIndex(FName ChildPropertyName, FName ChildTyp
 	});
 }
 
-FArchetypeFixupPanel::FArchetypeFixupPanel(TConstArrayView<TObjectPtr<UObject>> Archetypes, EViewFlags InViewFlags)
-	: Instances(Archetypes)
+FInstanceDataObjectFixupPanel::FInstanceDataObjectFixupPanel(TConstArrayView<TObjectPtr<UObject>> InstanceDataObjects, EViewFlags InViewFlags)
+	: Instances(InstanceDataObjects)
 	, RedirectedPropertyTree(MakeShared<FRedirectedPropertyNode>())
 	, ViewFlags(InViewFlags)
 {
 	InitRedirectedPropertyTree();
 }
 
-int32 FArchetypeFixupPanel::Find(UObject* Value) const
+int32 FInstanceDataObjectFixupPanel::Find(UObject* Value) const
 {
 	return Instances.Find(Value);
 }
 
-TSharedPtr<IDetailsView>& FArchetypeFixupPanel::GenerateDetailsView(bool bScrollbarOnLeft)
+TSharedPtr<IDetailsView>& FInstanceDataObjectFixupPanel::GenerateDetailsView(bool bScrollbarOnLeft)
 {
 	FDetailsViewArgs DetailsViewArgs;
 	DetailsViewArgs.bUpdatesFromSelection = false;
@@ -234,7 +234,7 @@ TSharedPtr<IDetailsView>& FArchetypeFixupPanel::GenerateDetailsView(bool bScroll
 		{
 			DetailsView->RegisterInstancedCustomPropertyLayout(Object->GetClass(), FOnGetDetailCustomizationInstance::CreateLambda([DiffPanel = SharedThis(this)]()
 			{
-				return MakeShared<FArchetypeFixupDetailCustomization>(DiffPanel);
+				return MakeShared<FInstanceDataObjectFixupDetailCustomization>(DiffPanel);
 			}));
 		}
 	}
@@ -243,27 +243,27 @@ TSharedPtr<IDetailsView>& FArchetypeFixupPanel::GenerateDetailsView(bool bScroll
 	return DetailsView;
 }
 
-void FArchetypeFixupPanel::SetDiffAgainstLeft(const TSharedPtr<FAsyncDetailViewDiff>& InDiffAgainstLeft)
+void FInstanceDataObjectFixupPanel::SetDiffAgainstLeft(const TSharedPtr<FAsyncDetailViewDiff>& InDiffAgainstLeft)
 {
 	DiffAgainstLeft = InDiffAgainstLeft;
 }
 
-void FArchetypeFixupPanel::SetDiffAgainstRight(const TSharedPtr<FAsyncDetailViewDiff>& InDiffAgainstRight)
+void FInstanceDataObjectFixupPanel::SetDiffAgainstRight(const TSharedPtr<FAsyncDetailViewDiff>& InDiffAgainstRight)
 {
 	DiffAgainstRight = InDiffAgainstRight;
 }
 
-TSharedPtr<FAsyncDetailViewDiff> FArchetypeFixupPanel::GetDiffAgainstLeft() const
+TSharedPtr<FAsyncDetailViewDiff> FInstanceDataObjectFixupPanel::GetDiffAgainstLeft() const
 {
 	return DiffAgainstLeft.Pin();
 }
 
-TSharedPtr<FAsyncDetailViewDiff> FArchetypeFixupPanel::GetDiffAgainstRight() const
+TSharedPtr<FAsyncDetailViewDiff> FInstanceDataObjectFixupPanel::GetDiffAgainstRight() const
 {
 	return DiffAgainstRight.Pin();
 }
 
-bool FArchetypeFixupPanel::ShouldSplitterIgnoreRow(const TWeakPtr<FDetailTreeNode>& WeakDetailTreeNode) const
+bool FInstanceDataObjectFixupPanel::ShouldSplitterIgnoreRow(const TWeakPtr<FDetailTreeNode>& WeakDetailTreeNode) const
 {
 	if (const TSharedPtr<FDetailTreeNode> DetailTreeNode = WeakDetailTreeNode.Pin())
 	{
@@ -278,7 +278,7 @@ bool FArchetypeFixupPanel::ShouldSplitterIgnoreRow(const TWeakPtr<FDetailTreeNod
 	return false;
 }
 
-bool FArchetypeFixupPanel::AreAllConflictsRedirected() const
+bool FInstanceDataObjectFixupPanel::AreAllConflictsRedirected() const
 {
 	bool bFoundConflict = false;
 	if (const TSharedPtr<FAsyncDetailViewDiff> Diff = DiffAgainstRight.Pin())
@@ -304,7 +304,7 @@ bool FArchetypeFixupPanel::AreAllConflictsRedirected() const
 	return !bFoundConflict;
 }
 
-void FArchetypeFixupPanel::AutoApplyMarkDeletedActions()
+void FInstanceDataObjectFixupPanel::AutoApplyMarkDeletedActions()
 {
 	const TSharedPtr<FAsyncDetailViewDiff> Diff = DiffAgainstRight.Pin();
 	if (!Diff)
@@ -331,7 +331,7 @@ void FArchetypeFixupPanel::AutoApplyMarkDeletedActions()
 		});
 }
 
-bool FArchetypeFixupPanel::HasViewFlag(EViewFlags Flag)
+bool FInstanceDataObjectFixupPanel::HasViewFlag(EViewFlags Flag)
 {
 	return static_cast<uint8>(Flag) & static_cast<uint8>(ViewFlags);
 }
@@ -353,7 +353,7 @@ static void* ResolvePath(const FPropertyPath& Path, void* Value)
 		{
 			UObject* Object = AsObjectProperty->GetObjectPropertyValue(Value);
 			UE::FPropertyBagRepository& PropertyBagRepository = UE::FPropertyBagRepository::Get();
-			if (UObject* Found = PropertyBagRepository.FindArchetype(Object))
+			if (UObject* Found = PropertyBagRepository.FindInstanceDataObject(Object))
 			{
 				Object = Found;
 			}
@@ -382,11 +382,11 @@ static void* ResolvePath(const FPropertyPath& Path, void* Value)
 	return Value;
 }
 
-void FArchetypeFixupPanel::RedirectProperty(const FPropertyPath& From, const FPropertyPath& To)
+void FInstanceDataObjectFixupPanel::RedirectProperty(const FPropertyPath& From, const FPropertyPath& To)
 {
-	UArchetypeFixupUndoHandler* Snapshot = NewObject<UArchetypeFixupUndoHandler>();
+	UInstanceDataObjectFixupUndoHandler* Snapshot = NewObject<UInstanceDataObjectFixupUndoHandler>();
 	Snapshot->Init(SharedThis(this));
-	GEditor->BeginTransaction(TEXT("ArchetypeFixupTool"), FText::Format(LOCTEXT("RedirectPropertyTransaction","Redirect {0} to {1}"), FText::FromString(From.ToString()), FText::FromString(To.ToString())), nullptr);
+	GEditor->BeginTransaction(TEXT("InstanceDataObjectFixupTool"), FText::Format(LOCTEXT("RedirectPropertyTransaction","Redirect {0} to {1}"), FText::FromString(From.ToString()), FText::FromString(To.ToString())), nullptr);
 
 	FProperty* SourceProperty = From.GetLeafMostProperty().Property.Get();
 	check(SourceProperty);
@@ -510,7 +510,7 @@ void FArchetypeFixupPanel::RedirectProperty(const FPropertyPath& From, const FPr
 	DetailsView->ForceRefresh();
 }
 
-void FArchetypeFixupPanel::OnRedirectProperty(FPropertyPath From, FPropertyPath To)
+void FInstanceDataObjectFixupPanel::OnRedirectProperty(FPropertyPath From, FPropertyPath To)
 {
 	RedirectProperty(From, To);
 }
@@ -557,7 +557,7 @@ static void InitRedirectedPropertyTreeRec(const TSharedPtr<FRedirectedPropertyNo
 			if (UObject* Object = AsObjectProperty->GetObjectPropertyValue(Value))
             {
 				UE::FPropertyBagRepository& PropertyBagRepository = UE::FPropertyBagRepository::Get();
-				if (UObject* Found = PropertyBagRepository.FindArchetype(Object))
+				if (UObject* Found = PropertyBagRepository.FindInstanceDataObject(Object))
 				{
 					Object = Found;
 				}
@@ -597,22 +597,22 @@ static void InitRedirectedPropertyTreeRec(const TSharedPtr<FRedirectedPropertyNo
 	}
 }
 
-void FArchetypeFixupPanel::InitRedirectedPropertyTree()
+void FInstanceDataObjectFixupPanel::InitRedirectedPropertyTree()
 {
 	InitRedirectedPropertyTreeRec(RedirectedPropertyTree, Instances[0]->GetClass(), Instances[0]);
 }
 
-void UArchetypeFixupUndoHandler::Init(const TSharedRef<FArchetypeFixupPanel>& Panel)
+void UInstanceDataObjectFixupUndoHandler::Init(const TSharedRef<FInstanceDataObjectFixupPanel>& Panel)
 {
-	ArchetypePanel = Panel;
+	InstanceDataObjectPanel = Panel;
 	RevertInfo = Panel->RevertInfo;
 	MarkedForDelete = Panel->MarkedForDelete;
 	SetFlags(RF_Transactional);
 }
 
-void UArchetypeFixupUndoHandler::OnRedirect(const FPropertyPath& From, const FPropertyPath& To)
+void UInstanceDataObjectFixupUndoHandler::OnRedirect(const FPropertyPath& From, const FPropertyPath& To)
 {
-	if (const TSharedPtr<FArchetypeFixupPanel> Panel = ArchetypePanel.Pin())
+	if (const TSharedPtr<FInstanceDataObjectFixupPanel> Panel = InstanceDataObjectPanel.Pin())
 	{
 		RedirectFrom = From;
 		RedirectTo = To;
@@ -621,9 +621,9 @@ void UArchetypeFixupUndoHandler::OnRedirect(const FPropertyPath& From, const FPr
 	Modify();
 }
 
-void UArchetypeFixupUndoHandler::PostEditUndo()
+void UInstanceDataObjectFixupUndoHandler::PostEditUndo()
 {
-	if (const TSharedPtr<FArchetypeFixupPanel> Panel = ArchetypePanel.Pin())
+	if (const TSharedPtr<FInstanceDataObjectFixupPanel> Panel = InstanceDataObjectPanel.Pin())
 	{
 		if (RedirectTo != RedirectFrom)
 		{
@@ -640,12 +640,12 @@ void UArchetypeFixupUndoHandler::PostEditUndo()
 	}
 }
 
-bool FArchetypeFixupPanel::IsInRedirectedPropertyTree(const FPropertyPath& Path) const
+bool FInstanceDataObjectFixupPanel::IsInRedirectedPropertyTree(const FPropertyPath& Path) const
 {
 	return RedirectedPropertyTree->Find(Path).IsValid();
 }
 
-const FPropertyPath& FArchetypeFixupPanel::GetOriginalPath(const FPropertyPath& Path) const
+const FPropertyPath& FInstanceDataObjectFixupPanel::GetOriginalPath(const FPropertyPath& Path) const
 {
 	if (const FRevertInfo* Found = RevertInfo.Find(Path))
 	{
@@ -654,7 +654,7 @@ const FPropertyPath& FArchetypeFixupPanel::GetOriginalPath(const FPropertyPath& 
 	return Path;
 }
 
-void FArchetypeFixupPanel::MarkForDelete(const FPropertyPath& CurrentPath)
+void FInstanceDataObjectFixupPanel::MarkForDelete(const FPropertyPath& CurrentPath)
 {
 	// undo any existing redirection on this node
 	if (const FRevertInfo* Found = RevertInfo.Find(CurrentPath))
@@ -670,7 +670,7 @@ void FArchetypeFixupPanel::MarkForDelete(const FPropertyPath& CurrentPath)
 	}
 }
 
-void FArchetypeFixupPanel::OnMarkForDelete(FPropertyPath Path)
+void FInstanceDataObjectFixupPanel::OnMarkForDelete(FPropertyPath Path)
 {
 	MarkForDelete(Path);
 }

@@ -694,7 +694,7 @@ EPropertyDataValidationResult FPropertyNode::EnsureDataIsValid()
 				{
 					UObject* Obj = ObjectProperty->GetObjectPropertyValue(Addr);
 					UE::FPropertyBagRepository& Repository = UE::FPropertyBagRepository::Get();
-					if (UObject* Found = Repository.FindArchetype(Obj))
+					if (UObject* Found = Repository.FindInstanceDataObject(Obj))
 					{
 						Obj = Found;
 					}

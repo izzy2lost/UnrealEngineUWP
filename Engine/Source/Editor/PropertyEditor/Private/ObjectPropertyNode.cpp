@@ -56,7 +56,7 @@ const UPackage* FObjectPropertyNode::GetUPackage(int32 InIndex) const
 void FObjectPropertyNode::AddObject( UObject* InObject )
 {
 	UE::FPropertyBagRepository& Repository = UE::FPropertyBagRepository::Get();
-	if (UObject* Found = Repository.FindArchetype(InObject))
+	if (UObject* Found = Repository.FindInstanceDataObject(InObject))
 	{
 		InObject = Found;
 	}
@@ -84,7 +84,7 @@ void FObjectPropertyNode::RemoveObject( UObject* InObject )
 	else
 	{
 		UE::FPropertyBagRepository& Repository = UE::FPropertyBagRepository::Get();
-		if (UObject* Found = Repository.FindArchetype(InObject))
+		if (UObject* Found = Repository.FindInstanceDataObject(InObject))
 		{
 			RemoveObject(Found);
 		}

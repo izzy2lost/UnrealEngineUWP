@@ -6,7 +6,7 @@
 #include "AsyncDetailViewDiff.h"
 #include "UObject/Object.h"
 #include "Templates/SharedPointer.h"
-#include "ArchetypeFixupPanel.generated.h"
+#include "InstanceDataObjectFixupPanel.generated.h"
 
 class SLinkableScrollBar;
 
@@ -36,7 +36,7 @@ struct FRedirectedPropertyNode : public TSharedFromThis<FRedirectedPropertyNode>
 	TArray<TSharedPtr<FRedirectedPropertyNode>> Children;
 };
 
-class FArchetypeFixupPanel : public TSharedFromThis<FArchetypeFixupPanel>
+class FInstanceDataObjectFixupPanel : public TSharedFromThis<FInstanceDataObjectFixupPanel>
 {
 public:
 	enum class EViewFlags : uint8
@@ -53,7 +53,7 @@ public:
 		DefaultRightPanel = HideLooseProperties,
 	};
 	
-	FArchetypeFixupPanel(TConstArrayView<TObjectPtr<UObject>> Archetypes, EViewFlags ViewFlags);
+	FInstanceDataObjectFixupPanel(TConstArrayView<TObjectPtr<UObject>> InstanceDataObjects, EViewFlags ViewFlags);
 	
 	int32 Find(UObject* Value) const;
 	TSharedPtr<IDetailsView>& GenerateDetailsView(bool bScrollbarOnLeft = false);
@@ -73,20 +73,20 @@ public:
 	// mark all conflicted properties for delete (FixupMode only)
 	void AutoApplyMarkDeletedActions();
 
-	// the redirected property tree keeps track of which properties in the archetype were either set by a property bag during serialization or
+	// the redirected property tree keeps track of which properties in the InstanceDataObject were either set by a property bag during serialization or
 	// redirected to from a floating property. The members of the tree are visible in the left panel.
 	bool IsInRedirectedPropertyTree(const FPropertyPath& Path) const;
 
 	bool HasViewFlag(EViewFlags Flag);
 
-	// Initialized by SArchetypeFixupTool
+	// Initialized by SInstanceDataObjectFixupTool
 	TSharedPtr<IDetailsView> DetailsView;
 	TSharedPtr<SLinkableScrollBar> LinkableScrollBar;
 
 private:
-	friend class FArchetypeFixupSpecification; // for access to Redirects
-	friend class FArchetypeFixupDetailNodeBuilder;
-	friend class UArchetypeFixupUndoHandler;
+	friend class FInstanceDataObjectFixupSpecification; // for access to Redirects
+	friend class FInstanceDataObjectFixupDetailNodeBuilder;
+	friend class UInstanceDataObjectFixupUndoHandler;
 	
 	void RedirectProperty(const FPropertyPath& From, const FPropertyPath& To);
 	// pass-by-copy version for delegates. Use RedirectProperty when possible
@@ -94,9 +94,9 @@ private:
 	
 	void InitRedirectedPropertyTree();
 	
-	TArray<TObjectPtr<UObject>> Instances; // stores either Archetype property bag or just regular objects
+	TArray<TObjectPtr<UObject>> Instances; // stores either InstanceDataObject property bag or just regular objects
 
-	// the redirected property tree keeps track of which properties in the archetype were either set by a property bag during serialization or
+	// the redirected property tree keeps track of which properties in the InstanceDataObject were either set by a property bag during serialization or
 	// redirected to from a floating property. The members of the tree are visible in the left panel.
 	TSharedPtr<FRedirectedPropertyNode> RedirectedPropertyTree;
 
@@ -117,17 +117,17 @@ private:
 };
 
 UCLASS()
-class UArchetypeFixupUndoHandler : public UObject
+class UInstanceDataObjectFixupUndoHandler : public UObject
 {
 public:
 	GENERATED_BODY()
-	void Init(const TSharedRef<FArchetypeFixupPanel>& Panel);
+	void Init(const TSharedRef<FInstanceDataObjectFixupPanel>& Panel);
 	void OnRedirect(const FPropertyPath& From, const FPropertyPath& To);
 	virtual void PostEditUndo() override;
 	
-	TWeakPtr<FArchetypeFixupPanel> ArchetypePanel;
+	TWeakPtr<FInstanceDataObjectFixupPanel> InstanceDataObjectPanel;
 	
-	TMap<FPropertyPath, FArchetypeFixupPanel::FRevertInfo> RevertInfo;
+	TMap<FPropertyPath, FInstanceDataObjectFixupPanel::FRevertInfo> RevertInfo;
 	TSet<FPropertyPath> MarkedForDelete;
 	FPropertyPath RedirectFrom;
 	FPropertyPath RedirectTo;

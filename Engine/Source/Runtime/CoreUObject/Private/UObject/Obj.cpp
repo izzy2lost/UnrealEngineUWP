@@ -1822,7 +1822,7 @@ namespace UE::Private
 		{
 			return nullptr;
 		}
-		return FPropertyBagRepository::Get().FindArchetype(ThisObject);
+		return FPropertyBagRepository::Get().FindInstanceDataObject(ThisObject);
 	}
 }
 

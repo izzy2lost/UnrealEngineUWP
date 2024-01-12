@@ -10,23 +10,23 @@
 #include "Widgets/SWidget.h"
 
 class IDetailCategoryBuilder;
-class FArchetypeFixupPanel;
+class FInstanceDataObjectFixupPanel;
 
 /**
  * 
  */
-class ARCHETYPEFIXUPTOOL_API FArchetypeFixupDetailCustomization : public IDetailCustomization, public TSharedFromThis<FArchetypeFixupDetailCustomization>
+class INSTANCEDATAOBJECTFIXUPTOOL_API FInstanceDataObjectFixupDetailCustomization : public IDetailCustomization, public TSharedFromThis<FInstanceDataObjectFixupDetailCustomization>
 {
 public:
-	FArchetypeFixupDetailCustomization(const TSharedRef<FArchetypeFixupPanel>& DiffPanel);
-	virtual ~FArchetypeFixupDetailCustomization() override;
+	FInstanceDataObjectFixupDetailCustomization(const TSharedRef<FInstanceDataObjectFixupPanel>& DiffPanel);
+	virtual ~FInstanceDataObjectFixupDetailCustomization() override;
 	virtual void CustomizeDetails(IDetailLayoutBuilder& DetailBuilder) override;
 
 private:
-	TWeakPtr<FArchetypeFixupPanel> DiffPanel;
+	TWeakPtr<FInstanceDataObjectFixupPanel> DiffPanel;
 };
 
-class ARCHETYPEFIXUPTOOL_API FHideLoosePropertiesCustomization : public IDetailCustomization, public TSharedFromThis<FArchetypeFixupDetailCustomization>
+class INSTANCEDATAOBJECTFIXUPTOOL_API FHideLoosePropertiesCustomization : public IDetailCustomization, public TSharedFromThis<FInstanceDataObjectFixupDetailCustomization>
 {
 public:
 	FHideLoosePropertiesCustomization() = default;
@@ -36,13 +36,13 @@ public:
 	static void CustomizeHandle(const TSharedRef<IPropertyHandle>& Handle, IDetailLayoutBuilder& DetailBuilder);
 
 private:
-	TWeakPtr<FArchetypeFixupPanel> DiffPanel;
+	TWeakPtr<FInstanceDataObjectFixupPanel> DiffPanel;
 };
 
-class ARCHETYPEFIXUPTOOL_API FArchetypeFixupDetailNodeBuilder : public IDetailCustomNodeBuilder, public TSharedFromThis<FArchetypeFixupDetailNodeBuilder>
+class INSTANCEDATAOBJECTFIXUPTOOL_API FInstanceDataObjectFixupDetailNodeBuilder : public IDetailCustomNodeBuilder, public TSharedFromThis<FInstanceDataObjectFixupDetailNodeBuilder>
 {
 public:
-	FArchetypeFixupDetailNodeBuilder(const TSharedRef<FArchetypeFixupPanel>& DiffPanel, const TSharedRef<IPropertyHandle>& PropertyHandle);
+	FInstanceDataObjectFixupDetailNodeBuilder(const TSharedRef<FInstanceDataObjectFixupPanel>& DiffPanel, const TSharedRef<IPropertyHandle>& PropertyHandle);
 	virtual void GenerateHeaderRowContent(FDetailWidgetRow& NodeRow) override;
 	virtual void GenerateChildContent(IDetailChildrenBuilder& ChildrenBuilder) override;
 	virtual FName GetName() const override;
@@ -59,7 +59,7 @@ private:
 	void GetRedirectOptions(const UStruct* Struct, void* Value, const FPropertyPath& Path, TSet<FPropertyPath>& OutPaths) const;
 	void GetRedirectOptions(const FProperty* Property, void* Value, const FPropertyPath& Path, TSet<FPropertyPath>& OutPaths) const;
 	
-	TWeakPtr<FArchetypeFixupPanel> DiffPanel;
+	TWeakPtr<FInstanceDataObjectFixupPanel> DiffPanel;
 	TSharedRef<IPropertyHandle> PropertyHandle;
 
 	enum ENameWidgetIndex : uint8

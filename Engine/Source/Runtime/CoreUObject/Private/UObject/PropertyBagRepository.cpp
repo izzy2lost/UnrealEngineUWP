@@ -8,7 +8,7 @@
 #include "UObject/UObjectHash.h"
 #include "UObject/UObjectThreadContext.h"
 #include "UObject/LinkerLoad.h"
-#include "UObject/ArchetypeUtils.h"
+#include "UObject/InstanceDataObjectUtils.h"
 #include "UObject/Package.h"
 
 
@@ -55,10 +55,10 @@ void FPropertyBagRepository::FPropertyBagAssociationData::Destroy()
 	delete Bag;
 	Bag = nullptr;
 	
-	if(Archetype && Archetype->IsValidLowLevel())
+	if(InstanceDataObject && InstanceDataObject->IsValidLowLevel())
 	{
-		Archetype->RemoveFromRoot();
-		Archetype = nullptr;
+		InstanceDataObject->RemoveFromRoot();
+		InstanceDataObject = nullptr;
 	}
 }
 
@@ -101,15 +101,15 @@ FPropertyBag* FPropertyBagRepository::CreateOuterBag(const UObjectBase* Owner)
 	return BagData->Bag;
 }
 
-UObject* FPropertyBagRepository::CreateArchetype(const UObjectBase* Owner)
+UObject* FPropertyBagRepository::CreateInstanceDataObject(const UObjectBase* Owner)
 {
 	FPropertyBagRepositoryLock LockRepo(this);
 	FPropertyBagAssociationData& BagData = AssociatedData.FindOrAdd(Owner);
-	if(!BagData.Archetype)
+	if(!BagData.InstanceDataObject)
 	{
-		CreateArchetypeUnsafe(Owner, BagData);
+		CreateInstanceDataObjectUnsafe(Owner, BagData);
 	}
-	return BagData.Archetype;
+	return BagData.InstanceDataObject;
 }
 
 // TODO: Remove this? Bag destruction to be handled entirely via UObject::BeginDestroy() (+ FPropertyBagProperty destructor)?
@@ -156,23 +156,23 @@ const FPropertyBag* FPropertyBagRepository::FindBag(const UObjectBase* Object) c
 	return const_cast<FPropertyBagRepository*>(this)->FindBag(Object);
 }
 
-bool FPropertyBagRepository::HasArchetype(const UObjectBase* Object) const
+bool FPropertyBagRepository::HasInstanceDataObject(const UObjectBase* Object) const
 {
 	FPropertyBagRepositoryLock LockRepo(this);
 	// May be lazily instantiated, but implied from existence of object data.
 	return AssociatedData.Contains(Object);
 }
 
-UObject* FPropertyBagRepository::FindArchetype(const UObjectBase* Object)
+UObject* FPropertyBagRepository::FindInstanceDataObject(const UObjectBase* Object)
 {
 	FPropertyBagRepositoryLock LockRepo(this);
 	const FPropertyBagAssociationData* BagData = AssociatedData.Find(Object);
-	return BagData ? BagData->Archetype : nullptr;
+	return BagData ? BagData->InstanceDataObject : nullptr;
 }
 
-const UObject* FPropertyBagRepository::FindArchetype(const UObjectBase* Object) const
+const UObject* FPropertyBagRepository::FindInstanceDataObject(const UObjectBase* Object) const
 {
-	return const_cast<FPropertyBagRepository*>(this)->FindArchetype(Object);
+	return const_cast<FPropertyBagRepository*>(this)->FindInstanceDataObject(Object);
 }
 
 bool FPropertyBagRepository::WasPropertySetBySerialization(UObject* Object, const FPropertyPathName& Path)
@@ -185,19 +185,19 @@ bool FPropertyBagRepository::WasPropertySetBySerialization(const UStruct* Struct
 	return UE::WasPropertySetBySerialization(Struct, StructData, Property, ArrayIndex);
 }
 
-void FPropertyBagRepository::CreateArchetypeUnsafe(const UObjectBase* Owner, FPropertyBagAssociationData& BagData)
+void FPropertyBagRepository::CreateInstanceDataObjectUnsafe(const UObjectBase* Owner, FPropertyBagAssociationData& BagData)
 {
-	check(!BagData.Archetype);	// No repeated calls
+	check(!BagData.InstanceDataObject);	// No repeated calls
 	const FPropertyBag* PropertyBag = BagData.Bag;
-	// construct archetype class
-	// TODO: should we put the archetype or it's class in a package?
-	const UClass* ArchetypeClass = CreatePropertyBagArchetypeClass(PropertyBag, Owner->GetClass(), GetTransientPackage());
+	// construct InstanceDataObject class
+	// TODO: should we put the InstanceDataObject or it's class in a package?
+	const UClass* InstanceDataObjectClass = CreateInstanceDataObjectClass(PropertyBag, Owner->GetClass(), GetTransientPackage());
 
-	// construct archetype object
-	FStaticConstructObjectParameters Params(ArchetypeClass);
+	// construct InstanceDataObject object
+	FStaticConstructObjectParameters Params(InstanceDataObjectClass);
 	Params.SetFlags |= EObjectFlags::RF_Transactional;
-	UObject* ArchetypeObject = StaticConstructObject_Internal(Params);
-	BagData.Archetype = ArchetypeObject;
+	UObject* InstanceDataObjectObject = StaticConstructObject_Internal(Params);
+	BagData.InstanceDataObject = InstanceDataObjectObject;
 	
 	// setup load context to mark properties the that were set by serialization
 	FUObjectSerializeContext* LoadContext = FUObjectThreadContext::Get().GetSerializeContext();
@@ -209,7 +209,7 @@ void FPropertyBagRepository::CreateArchetypeUnsafe(const UObjectBase* Owner, FPr
 		{
 			if (!Context.SerializedPropertyPath.IsEmpty())
 			{
-				MarkPropertySetBySerialization(BagData.Archetype, Context.SerializedPropertyPath);
+				MarkPropertySetBySerialization(BagData.InstanceDataObject, Context.SerializedPropertyPath);
 			}
 		}
 	);

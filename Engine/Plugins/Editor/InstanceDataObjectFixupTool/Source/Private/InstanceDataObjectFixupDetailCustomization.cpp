@@ -1,28 +1,28 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 
-#include "ArchetypeFixupDetailCustomization.h"
+#include "InstanceDataObjectFixupDetailCustomization.h"
 
 #include "DetailLayoutBuilder.h"
 #include "DetailWidgetRow.h"
 #include "IDetailChildrenBuilder.h"
-#include "ArchetypeFixupPanel.h"
+#include "InstanceDataObjectFixupPanel.h"
 #include "Widgets/Layout/SWidgetSwitcher.h"
 #include "Widgets/Input/SComboButton.h"
 #include "Framework/MultiBox/MultiBoxBuilder.h"
 #include "UObject/PropertyBagRepository.h"
 
-#define LOCTEXT_NAMESPACE "ArchetypeFixupDetails"
+#define LOCTEXT_NAMESPACE "InstanceDataObjectFixupDetails"
 
 
-TSet<FPropertyPath> FArchetypeFixupDetailNodeBuilder::GetRedirectOptions(const UStruct* Struct, void* Value) const
+TSet<FPropertyPath> FInstanceDataObjectFixupDetailNodeBuilder::GetRedirectOptions(const UStruct* Struct, void* Value) const
 {
 	TSet<FPropertyPath> Result;
 	GetRedirectOptions(Struct, Value, {}, Result);
 	return Result;
 }
 
-void FArchetypeFixupDetailNodeBuilder::GetRedirectOptions(const UStruct* Struct, void* Value, const FPropertyPath& Path, TSet<FPropertyPath>& OutPaths) const
+void FInstanceDataObjectFixupDetailNodeBuilder::GetRedirectOptions(const UStruct* Struct, void* Value, const FPropertyPath& Path, TSet<FPropertyPath>& OutPaths) const
 {
 	for (FProperty* SubProperty : TFieldRange<FProperty>(Struct))
     {
@@ -42,7 +42,7 @@ void FArchetypeFixupDetailNodeBuilder::GetRedirectOptions(const UStruct* Struct,
     }
 }
 
-void FArchetypeFixupDetailNodeBuilder::GetRedirectOptions(const FProperty* Property, void* Value, const FPropertyPath& Path, TSet<FPropertyPath>& OutPaths) const
+void FInstanceDataObjectFixupDetailNodeBuilder::GetRedirectOptions(const FProperty* Property, void* Value, const FPropertyPath& Path, TSet<FPropertyPath>& OutPaths) const
 {
 	if (Property->GetBoolMetaData(TEXT("isLoose")))
 	{
@@ -65,7 +65,7 @@ void FArchetypeFixupDetailNodeBuilder::GetRedirectOptions(const FProperty* Prope
 		{
 			TObjectPtr<UObject> Object = AsObjectProperty->GetObjectPropertyValue(Value);
 			UE::FPropertyBagRepository& PropertyBagRepository = UE::FPropertyBagRepository::Get();
-			if (UObject* Found = PropertyBagRepository.FindArchetype(Object))
+			if (UObject* Found = PropertyBagRepository.FindInstanceDataObject(Object))
 			{
 				Object = Found;
 			}
@@ -102,22 +102,22 @@ void FArchetypeFixupDetailNodeBuilder::GetRedirectOptions(const FProperty* Prope
 }
 
 /////////////////////////////////////////////////////////////////
-// FArchetypeFixupDetailCustomization
+// FInstanceDataObjectFixupDetailCustomization
 /////////////////////////////////////////////////////////////////
 
-FArchetypeFixupDetailCustomization::FArchetypeFixupDetailCustomization(const TSharedRef<FArchetypeFixupPanel>& InDiffPanel)
+FInstanceDataObjectFixupDetailCustomization::FInstanceDataObjectFixupDetailCustomization(const TSharedRef<FInstanceDataObjectFixupPanel>& InDiffPanel)
 	: DiffPanel(InDiffPanel)
 {
 	
 }
 
-FArchetypeFixupDetailCustomization::~FArchetypeFixupDetailCustomization()
+FInstanceDataObjectFixupDetailCustomization::~FInstanceDataObjectFixupDetailCustomization()
 {
 }
 
-void FArchetypeFixupDetailCustomization::CustomizeDetails(IDetailLayoutBuilder& DetailBuilder)
+void FInstanceDataObjectFixupDetailCustomization::CustomizeDetails(IDetailLayoutBuilder& DetailBuilder)
 {
-	const TSharedPtr<FArchetypeFixupPanel> Panel = DiffPanel.Pin();
+	const TSharedPtr<FInstanceDataObjectFixupPanel> Panel = DiffPanel.Pin();
 	if (!Panel)
 	{
 		return;
@@ -139,14 +139,14 @@ void FArchetypeFixupDetailCustomization::CustomizeDetails(IDetailLayoutBuilder& 
 		for (const TSharedRef<IPropertyHandle>& Handle : NonAdvancedProperties)
 		{
 			DetailBuilder.HideProperty(Handle);
-			Category.AddCustomBuilder(MakeShared<FArchetypeFixupDetailNodeBuilder>(Panel.ToSharedRef(), Handle), false);
+			Category.AddCustomBuilder(MakeShared<FInstanceDataObjectFixupDetailNodeBuilder>(Panel.ToSharedRef(), Handle), false);
 		}
 		TArray<TSharedRef<IPropertyHandle>> AdvancedProperties;
 		Category.GetDefaultProperties(AdvancedProperties, false, true);
 		for (const TSharedRef<IPropertyHandle>& Handle : AdvancedProperties)
 		{
 			DetailBuilder.HideProperty(Handle);
-			Category.AddCustomBuilder(MakeShared<FArchetypeFixupDetailNodeBuilder>(Panel.ToSharedRef(), Handle), true);
+			Category.AddCustomBuilder(MakeShared<FInstanceDataObjectFixupDetailNodeBuilder>(Panel.ToSharedRef(), Handle), true);
 		}
 	}
 }
@@ -201,17 +201,17 @@ void FHideLoosePropertiesCustomization::CustomizeHandle(const TSharedRef<IProper
 
 
 /////////////////////////////////////////////////////////////////
-// FArchetypeFixupDetailNodeBuilder
+// FInstanceDataObjectFixupDetailNodeBuilder
 /////////////////////////////////////////////////////////////////
 
-FArchetypeFixupDetailNodeBuilder::FArchetypeFixupDetailNodeBuilder(const TSharedRef<FArchetypeFixupPanel>& InDiffPanel, const TSharedRef<IPropertyHandle>& InPropertyHandle)
+FInstanceDataObjectFixupDetailNodeBuilder::FInstanceDataObjectFixupDetailNodeBuilder(const TSharedRef<FInstanceDataObjectFixupPanel>& InDiffPanel, const TSharedRef<IPropertyHandle>& InPropertyHandle)
 	: DiffPanel(InDiffPanel)
 	, PropertyHandle(InPropertyHandle)
 {}
 
-void FArchetypeFixupDetailNodeBuilder::GenerateHeaderRowContent(FDetailWidgetRow& NodeRow)
+void FInstanceDataObjectFixupDetailNodeBuilder::GenerateHeaderRowContent(FDetailWidgetRow& NodeRow)
 {	
-	const TSharedPtr<FArchetypeFixupPanel> Panel = DiffPanel.Pin();
+	const TSharedPtr<FInstanceDataObjectFixupPanel> Panel = DiffPanel.Pin();
 	if (!Panel)
 	{
 		return;
@@ -247,7 +247,7 @@ void FArchetypeFixupDetailNodeBuilder::GenerateHeaderRowContent(FDetailWidgetRow
 	}
 
 	const TSharedRef<SWidget> NameContent = SNew(SWidgetSwitcher)
-		.WidgetIndex(this, &FArchetypeFixupDetailNodeBuilder::GetNameWidgetIndex)
+		.WidgetIndex(this, &FInstanceDataObjectFixupDetailNodeBuilder::GetNameWidgetIndex)
 		+SWidgetSwitcher::Slot()
 		[
 			InnerNameContent.ToSharedRef()
@@ -260,7 +260,7 @@ void FArchetypeFixupDetailNodeBuilder::GenerateHeaderRowContent(FDetailWidgetRow
 			.AutoWidth()
 			[
 				SNew(STextBlock)
-				.Visibility(this, &FArchetypeFixupDetailNodeBuilder::DeletionSymbolVisibility)
+				.Visibility(this, &FInstanceDataObjectFixupDetailNodeBuilder::DeletionSymbolVisibility)
 				.Text(LOCTEXT("MarkedForDeletion", "❌"))
 			]
 			+SHorizontalBox::Slot()
@@ -269,7 +269,7 @@ void FArchetypeFixupDetailNodeBuilder::GenerateHeaderRowContent(FDetailWidgetRow
 			[
 				SNew(SComboButton)
 				.Visibility(EVisibility::Visible)
-				.OnGetMenuContent_Raw(this, &FArchetypeFixupDetailNodeBuilder::GeneratePropertyRedirectMenu)
+				.OnGetMenuContent_Raw(this, &FInstanceDataObjectFixupDetailNodeBuilder::GeneratePropertyRedirectMenu)
 				.ButtonContent()
 				[
 					InnerNameContent.ToSharedRef()
@@ -278,8 +278,8 @@ void FArchetypeFixupDetailNodeBuilder::GenerateHeaderRowContent(FDetailWidgetRow
 		];
 	
 	const TSharedRef<SWidget> ValueContent = PropertyHandle->CreatePropertyValueWidget();
-	ValueContent->SetEnabled(!Panel->HasViewFlag(FArchetypeFixupPanel::EViewFlags::ReadonlyValues));
-	ValueContent->SetVisibility(TAttribute<EVisibility>(this, &FArchetypeFixupDetailNodeBuilder::ValueContentVisibility));
+	ValueContent->SetEnabled(!Panel->HasViewFlag(FInstanceDataObjectFixupPanel::EViewFlags::ReadonlyValues));
+	ValueContent->SetVisibility(TAttribute<EVisibility>(this, &FInstanceDataObjectFixupDetailNodeBuilder::ValueContentVisibility));
 	
 	NodeRow
 	.NameContent()
@@ -293,9 +293,9 @@ void FArchetypeFixupDetailNodeBuilder::GenerateHeaderRowContent(FDetailWidgetRow
 	.PropertyHandleList({PropertyHandle});
 }
 
-void FArchetypeFixupDetailNodeBuilder::GenerateChildContent(IDetailChildrenBuilder& ChildrenBuilder)
+void FInstanceDataObjectFixupDetailNodeBuilder::GenerateChildContent(IDetailChildrenBuilder& ChildrenBuilder)
 {
-	const TSharedPtr<FArchetypeFixupPanel> Panel = DiffPanel.Pin();
+	const TSharedPtr<FInstanceDataObjectFixupPanel> Panel = DiffPanel.Pin();
 	if (!Panel)
 	{
 		return;
@@ -319,7 +319,7 @@ void FArchetypeFixupDetailNodeBuilder::GenerateChildContent(IDetailChildrenBuild
 			for (uint32 I = 0; I < GrandChildCount; ++I)
 			{
 				const TSharedRef<IPropertyHandle> GrandChildHandle = ChildHandle->GetChildHandle(I).ToSharedRef();
-				ChildrenBuilder.AddCustomBuilder(MakeShared<FArchetypeFixupDetailNodeBuilder>(Panel.ToSharedRef(), GrandChildHandle));
+				ChildrenBuilder.AddCustomBuilder(MakeShared<FInstanceDataObjectFixupDetailNodeBuilder>(Panel.ToSharedRef(), GrandChildHandle));
 			}
 			return;
 		}
@@ -328,25 +328,25 @@ void FArchetypeFixupDetailNodeBuilder::GenerateChildContent(IDetailChildrenBuild
 	for (uint32 I = 0; I < ChildCount; ++I)
 	{
 		const TSharedRef<IPropertyHandle> ChildHandle = PropertyHandle->GetChildHandle(I).ToSharedRef();
-		ChildrenBuilder.AddCustomBuilder(MakeShared<FArchetypeFixupDetailNodeBuilder>(Panel.ToSharedRef(), ChildHandle));
+		ChildrenBuilder.AddCustomBuilder(MakeShared<FInstanceDataObjectFixupDetailNodeBuilder>(Panel.ToSharedRef(), ChildHandle));
 	}
 }
 
-FName FArchetypeFixupDetailNodeBuilder::GetName() const
+FName FInstanceDataObjectFixupDetailNodeBuilder::GetName() const
 {
 	return PropertyHandle->GetProperty()->GetFName();
 }
 
-TSharedPtr<IPropertyHandle> FArchetypeFixupDetailNodeBuilder::GetPropertyHandle() const
+TSharedPtr<IPropertyHandle> FInstanceDataObjectFixupDetailNodeBuilder::GetPropertyHandle() const
 {
 	return PropertyHandle;
 }
 
-int32 FArchetypeFixupDetailNodeBuilder::GetNameWidgetIndex() const
+int32 FInstanceDataObjectFixupDetailNodeBuilder::GetNameWidgetIndex() const
 {
-	if (const TSharedPtr<FArchetypeFixupPanel> Panel = DiffPanel.Pin())
+	if (const TSharedPtr<FInstanceDataObjectFixupPanel> Panel = DiffPanel.Pin())
 	{
-		if (Panel->HasViewFlag(FArchetypeFixupPanel::EViewFlags::AllowRemapLooseProperties))
+		if (Panel->HasViewFlag(FInstanceDataObjectFixupPanel::EViewFlags::AllowRemapLooseProperties))
 		{
 			if (Panel->RevertInfo.Contains(*PropertyHandle->CreateFPropertyPath()))
 			{
@@ -364,11 +364,11 @@ int32 FArchetypeFixupDetailNodeBuilder::GetNameWidgetIndex() const
 	return DisplayRegularName;
 }
 
-TSharedRef<SWidget> FArchetypeFixupDetailNodeBuilder::GeneratePropertyRedirectMenu() const
+TSharedRef<SWidget> FInstanceDataObjectFixupDetailNodeBuilder::GeneratePropertyRedirectMenu() const
 {
 	FMenuBuilder MenuBuilder(true, nullptr);
 	
-	const TSharedPtr<FArchetypeFixupPanel> Panel = DiffPanel.Pin();
+	const TSharedPtr<FInstanceDataObjectFixupPanel> Panel = DiffPanel.Pin();
 	if (!Panel)
 	{
 		return MenuBuilder.MakeWidget();
@@ -382,14 +382,14 @@ TSharedRef<SWidget> FArchetypeFixupDetailNodeBuilder::GeneratePropertyRedirectMe
 		FText OriginalPathText = FText::FromString(OriginalPath.ToString());
 		FText Tooltip = FText::Format(LOCTEXT("ResetTooltip", "Reset back to {0}"), OriginalPathText);
 		MenuBuilder.AddMenuEntry(OriginalPathText, Tooltip, FSlateIcon()
-						, FUIAction(FExecuteAction::CreateSP(Panel.Get(), &FArchetypeFixupPanel::OnRedirectProperty, Path, OriginalPath))
+						, FUIAction(FExecuteAction::CreateSP(Panel.Get(), &FInstanceDataObjectFixupPanel::OnRedirectProperty, Path, OriginalPath))
 						, NAME_None
 						, EUserInterfaceActionType::RadioButton);
 	}
 	MenuBuilder.EndSection();
 
-	UObject* FirstArchetype = Panel->Instances[0];
-	TSet<FPropertyPath> RedirectOptions = GetRedirectOptions(FirstArchetype->GetClass(), FirstArchetype);
+	UObject* FirstInstanceDataObject = Panel->Instances[0];
+	TSet<FPropertyPath> RedirectOptions = GetRedirectOptions(FirstInstanceDataObject->GetClass(), FirstInstanceDataObject);
 
 	MenuBuilder.BeginSection(NAME_None, LOCTEXT("MoveProperty", "Move"));
 	{
@@ -404,7 +404,7 @@ TSharedRef<SWidget> FArchetypeFixupDetailNodeBuilder::GeneratePropertyRedirectMe
 					FText DisplayName = FText::FromString(Option.ToString());
 					FText Tooltip = FText::Format(LOCTEXT("MovePropertyTooltip", "Move property to '{0}'"), DisplayName);
 					MenuBuilder.AddMenuEntry(DisplayName, Tooltip, FSlateIcon()
-					, FUIAction(FExecuteAction::CreateSP(Panel.Get(), &FArchetypeFixupPanel::OnRedirectProperty, Path, Option))
+					, FUIAction(FExecuteAction::CreateSP(Panel.Get(), &FInstanceDataObjectFixupPanel::OnRedirectProperty, Path, Option))
 					, NAME_None
 					, EUserInterfaceActionType::RadioButton);
 				}
@@ -428,7 +428,7 @@ TSharedRef<SWidget> FArchetypeFixupDetailNodeBuilder::GeneratePropertyRedirectMe
 				FText DisplayName = FText::FromString(Option.ToString());
 				FText Tooltip = FText::Format(LOCTEXT("RenamePropertyTooltip", "Rename property to '{0}'"), DisplayName);
 				MenuBuilder.AddMenuEntry(DisplayName, Tooltip, FSlateIcon()
-				, FUIAction(FExecuteAction::CreateSP(Panel.Get(), &FArchetypeFixupPanel::OnRedirectProperty, Path, Option))
+				, FUIAction(FExecuteAction::CreateSP(Panel.Get(), &FInstanceDataObjectFixupPanel::OnRedirectProperty, Path, Option))
 				, NAME_None
 				, EUserInterfaceActionType::RadioButton);
 			}
@@ -449,7 +449,7 @@ TSharedRef<SWidget> FArchetypeFixupDetailNodeBuilder::GeneratePropertyRedirectMe
 			FText DisplayName = LOCTEXT("MarkForDeletion", "Mark For Deletion");
 			FText Tooltip = LOCTEXT("MarkForDeletionTooltip", "Mark this property for deletion");
 			MenuBuilder.AddMenuEntry(DisplayName, Tooltip, FSlateIcon()
-						, FUIAction(FExecuteAction::CreateSP(Panel.Get(), &FArchetypeFixupPanel::OnMarkForDelete, Path))
+						, FUIAction(FExecuteAction::CreateSP(Panel.Get(), &FInstanceDataObjectFixupPanel::OnMarkForDelete, Path))
 						, NAME_None
 						, EUserInterfaceActionType::RadioButton);
 		}
@@ -459,9 +459,9 @@ TSharedRef<SWidget> FArchetypeFixupDetailNodeBuilder::GeneratePropertyRedirectMe
 	return MenuBuilder.MakeWidget();
 }
 
-EVisibility FArchetypeFixupDetailNodeBuilder::DeletionSymbolVisibility() const
+EVisibility FInstanceDataObjectFixupDetailNodeBuilder::DeletionSymbolVisibility() const
 {
-	if (const TSharedPtr<FArchetypeFixupPanel> Panel = DiffPanel.Pin())
+	if (const TSharedPtr<FInstanceDataObjectFixupPanel> Panel = DiffPanel.Pin())
 	{
 		const FPropertyPath Path = *PropertyHandle->CreateFPropertyPath();
 		return Panel->MarkedForDelete.Contains(Path) ? EVisibility::Visible :  EVisibility::Collapsed;
@@ -469,9 +469,9 @@ EVisibility FArchetypeFixupDetailNodeBuilder::DeletionSymbolVisibility() const
 	return EVisibility::Collapsed;
 }
 
-EVisibility FArchetypeFixupDetailNodeBuilder::ValueContentVisibility() const
+EVisibility FInstanceDataObjectFixupDetailNodeBuilder::ValueContentVisibility() const
 {
-	if (const TSharedPtr<FArchetypeFixupPanel> Panel = DiffPanel.Pin())
+	if (const TSharedPtr<FInstanceDataObjectFixupPanel> Panel = DiffPanel.Pin())
 	{
 		const FPropertyPath Path = *PropertyHandle->CreateFPropertyPath();
 		return Panel->MarkedForDelete.Contains(Path) ? EVisibility::Collapsed :  EVisibility::Visible;
@@ -479,9 +479,9 @@ EVisibility FArchetypeFixupDetailNodeBuilder::ValueContentVisibility() const
 	return EVisibility::Visible;
 }
 
-bool FArchetypeFixupDetailNodeBuilder::IsHidden() const
+bool FInstanceDataObjectFixupDetailNodeBuilder::IsHidden() const
 {
-	const TSharedPtr<FArchetypeFixupPanel> Panel = DiffPanel.Pin();
+	const TSharedPtr<FInstanceDataObjectFixupPanel> Panel = DiffPanel.Pin();
 	if (!Panel)
 	{
 		return true;
@@ -489,13 +489,13 @@ bool FArchetypeFixupDetailNodeBuilder::IsHidden() const
 
 	if (const FProperty* Property = PropertyHandle->GetProperty())
 	{
-		if (Panel->HasViewFlag(FArchetypeFixupPanel::EViewFlags::HideLooseProperties) &&
+		if (Panel->HasViewFlag(FInstanceDataObjectFixupPanel::EViewFlags::HideLooseProperties) &&
 			Property->GetBoolMetaData(TEXT("isLoose")))
 		{
 			return true;
 		}
 
-		if (Panel->HasViewFlag(FArchetypeFixupPanel::EViewFlags::IncludeOnlySetBySerialization))
+		if (Panel->HasViewFlag(FInstanceDataObjectFixupPanel::EViewFlags::IncludeOnlySetBySerialization))
 		{
 			if (!Panel->IsInRedirectedPropertyTree(*PropertyHandle->CreateFPropertyPath()))
 			{

@@ -2,8 +2,8 @@
 	"FileVersion" : 3,
 	"Version" : 1,
 	"VersionName" : "1.0",
-	"FriendlyName" : "Archetype Fixup Tool",
-	"Description" : "Editor tool for redirecting loose archetype properties",
+	"FriendlyName" : "InstanceDataObject Fixup Tool",
+	"Description" : "Editor tool for redirecting loose InstanceDataObject properties",
 	"Category" : "Editor",
 	"CreatedBy" : "Epic Games, Inc.",
 	"CreatedByURL" : "https://epicgames.com",
@@ -24,7 +24,7 @@
 	"Modules" :
 	[
 		{
-			"Name" : "ArchetypeFixupTool",
+			"Name" : "InstanceDataObjectFixupTool",
 			"Type" : "Editor",
 			"LoadingPhase" : "Default"
 		}

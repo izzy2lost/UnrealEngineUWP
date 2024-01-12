@@ -4,7 +4,7 @@
 
 #include "CoreMinimal.h"
 #include "UObject/Object.h"
-#include "ArchetypeTests.generated.h"
+#include "InstanceDataObjectTests.generated.h"
 
 UENUM(BlueprintType)
 enum class StudentGender : uint8

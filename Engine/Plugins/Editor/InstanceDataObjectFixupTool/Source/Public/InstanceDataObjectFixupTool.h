@@ -8,7 +8,7 @@
 #include "Widgets/Docking/SDockTab.h"
 
 class SDetailsSplitter;
-class FArchetypeFixupPanel;
+class FInstanceDataObjectFixupPanel;
 struct FPropertySoftPath;
 class IStructureDetailsView;
 
@@ -16,12 +16,12 @@ class IStructureDetailsView;
  * This tool diffs multiple property bags of one format against the same number of property bags of another format.
  * 
  */
-class ARCHETYPEFIXUPTOOL_API SArchetypeFixupTool : public SCompoundWidget
+class INSTANCEDATAOBJECTFIXUPTOOL_API SInstanceDataObjectFixupTool : public SCompoundWidget
 {
 public:
-	SLATE_BEGIN_ARGS(SArchetypeFixupTool)
+	SLATE_BEGIN_ARGS(SInstanceDataObjectFixupTool)
 	{}
-		SLATE_ARGUMENT(TConstArrayView<TObjectPtr<UObject>>, Archetypes)
+		SLATE_ARGUMENT(TConstArrayView<TObjectPtr<UObject>>, InstanceDataObjects)
 	SLATE_END_ARGS()
 
 	/** Constructs this widget with InArgs */
@@ -38,7 +38,7 @@ private:
 	FReply OnConfirmClicked() const;
 	
 	TWeakPtr<SDockTab> OwningDockTab;
-	TStaticArray<TSharedPtr<FArchetypeFixupPanel>, 2> Panels;
+	TStaticArray<TSharedPtr<FInstanceDataObjectFixupPanel>, 2> Panels;
 	TSharedPtr<FAsyncDetailViewDiff> PanelDiff;
 
 	TSharedPtr<SDetailsSplitter> Splitter;

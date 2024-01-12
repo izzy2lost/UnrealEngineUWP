@@ -14,7 +14,7 @@ namespace UE
 	class FPropertyPathName;
 
 	// generate a UClass that unions the properties of PropertyBag and TemplateStruct
-	UClass* CreatePropertyBagArchetypeClass(const FPropertyBag* PropertyBag, UStruct* TemplateStruct, UObject* Outer);
+	UClass* CreateInstanceDataObjectClass(const FPropertyBag* PropertyBag, UStruct* TemplateStruct, UObject* Outer);
 
 	// notify that a property in an object was set when the object was deserialized
 	void MarkPropertySetBySerialization(UObject* Object, const FPropertyPathName& Path);

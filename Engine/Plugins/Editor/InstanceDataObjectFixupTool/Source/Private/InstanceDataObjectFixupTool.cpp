@@ -1,8 +1,8 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
-#include "ArchetypeFixupTool.h"
+#include "InstanceDataObjectFixupTool.h"
 
-#include "ArchetypeFixupPanel.h"
+#include "InstanceDataObjectFixupPanel.h"
 #include "DetailTreeNode.h"
 #include "SlateOptMacros.h"
 #include "PropertyEditorModule.h"
@@ -11,14 +11,14 @@
 #include "Widgets/Input/SButton.h"
 
 
-#define LOCTEXT_NAMESPACE "ArchetypeFixupTool"
+#define LOCTEXT_NAMESPACE "InstanceDataObjectFixupTool"
 
-class FArchetypeFixupSpecification : public TTreeDiffSpecification<TWeakPtr<FDetailTreeNode>>
+class FInstanceDataObjectFixupSpecification : public TTreeDiffSpecification<TWeakPtr<FDetailTreeNode>>
 {
 public:
 	using Super = TTreeDiffSpecification<TWeakPtr<FDetailTreeNode>>;
 	
-	FArchetypeFixupSpecification(const TSharedPtr<FArchetypeFixupPanel>& InLeftPanel, const TSharedPtr<FArchetypeFixupPanel>& InRightPanel)
+	FInstanceDataObjectFixupSpecification(const TSharedPtr<FInstanceDataObjectFixupPanel>& InLeftPanel, const TSharedPtr<FInstanceDataObjectFixupPanel>& InRightPanel)
 		: LeftPanel(InLeftPanel)
 		, RightPanel(InRightPanel)
 	{}
@@ -60,15 +60,15 @@ public:
 		return true;
 	}
 	
-	const TWeakPtr<FArchetypeFixupPanel> LeftPanel;
-	const TWeakPtr<FArchetypeFixupPanel> RightPanel;
+	const TWeakPtr<FInstanceDataObjectFixupPanel> LeftPanel;
+	const TWeakPtr<FInstanceDataObjectFixupPanel> RightPanel;
 };
 
 BEGIN_SLATE_FUNCTION_BUILD_OPTIMIZATION
-void SArchetypeFixupTool::Construct(const FArguments& InArgs)
+void SInstanceDataObjectFixupTool::Construct(const FArguments& InArgs)
 {
-	Panels[0] = MakeShared<FArchetypeFixupPanel>(InArgs._Archetypes, FArchetypeFixupPanel::EViewFlags::DefaultLeftPanel);
-	Panels[1] = MakeShared<FArchetypeFixupPanel>(InArgs._Archetypes, FArchetypeFixupPanel::EViewFlags::DefaultRightPanel);
+	Panels[0] = MakeShared<FInstanceDataObjectFixupPanel>(InArgs._InstanceDataObjects, FInstanceDataObjectFixupPanel::EViewFlags::DefaultLeftPanel);
+	Panels[1] = MakeShared<FInstanceDataObjectFixupPanel>(InArgs._InstanceDataObjects, FInstanceDataObjectFixupPanel::EViewFlags::DefaultRightPanel);
 	
 	ChildSlot
 	[
@@ -84,13 +84,13 @@ void SArchetypeFixupTool::Construct(const FArguments& InArgs)
 			[
 				SNew(SButton)
 				.Text(LOCTEXT("AutoMarkForDeletion", "Mark remaining conflicts for deletion"))
-				.OnClicked(this, &SArchetypeFixupTool::OnAutoMarkForDeletion)
+				.OnClicked(this, &SInstanceDataObjectFixupTool::OnAutoMarkForDeletion)
 			]
 		]
 		+SVerticalBox::Slot()
 		[
 			SAssignNew(Splitter, SDetailsSplitter)
-			.RowHighlightColor_Static(&SArchetypeFixupTool::GetRowHighlightColor)
+			.RowHighlightColor_Static(&SInstanceDataObjectFixupTool::GetRowHighlightColor)
 		]
 		+SVerticalBox::Slot()
 		.HAlign(HAlign_Right)
@@ -99,25 +99,25 @@ void SArchetypeFixupTool::Construct(const FArguments& InArgs)
 		[
 			SNew(SButton)
 			.Text(LOCTEXT("ConfirmButton","Confirm"))
-			.OnClicked(this, &SArchetypeFixupTool::OnConfirmClicked)
-			.IsEnabled(this, &SArchetypeFixupTool::IsResolved)
+			.OnClicked(this, &SInstanceDataObjectFixupTool::OnConfirmClicked)
+			.IsEnabled(this, &SInstanceDataObjectFixupTool::IsResolved)
 		]
 	];
 }
 
-void SArchetypeFixupTool::Tick(const FGeometry& AllottedGeometry, const double InCurrentTime, const float InDeltaTime)
+void SInstanceDataObjectFixupTool::Tick(const FGeometry& AllottedGeometry, const double InCurrentTime, const float InDeltaTime)
 {
 	PanelDiff->Tick();
 }
 
 END_SLATE_FUNCTION_BUILD_OPTIMIZATION
 
-void SArchetypeFixupTool::SetDockTab(const TSharedRef<SDockTab>& DockTab)
+void SInstanceDataObjectFixupTool::SetDockTab(const TSharedRef<SDockTab>& DockTab)
 {
 	OwningDockTab = DockTab;
 }
 
-FReply SArchetypeFixupTool::OnConfirmClicked() const
+FReply SInstanceDataObjectFixupTool::OnConfirmClicked() const
 {
 	if (const TSharedPtr<SDockTab> DockTab = OwningDockTab.Pin())
 	{
@@ -126,7 +126,7 @@ FReply SArchetypeFixupTool::OnConfirmClicked() const
 	return FReply::Handled();
 }
 
-void SArchetypeFixupTool::GenerateDetailsViews()
+void SInstanceDataObjectFixupTool::GenerateDetailsViews()
 {
 	constexpr int32 LeftIndex = 0;
 	constexpr int32 RightIndex = 1;
@@ -138,7 +138,7 @@ void SArchetypeFixupTool::GenerateDetailsViews()
 	// diff the panels
 	PanelDiff = MakeShared<FAsyncDetailViewDiff>(
 		Panels[LeftIndex]->DetailsView.ToSharedRef(), Panels[RightIndex]->DetailsView.ToSharedRef());
-	PanelDiff->SetDiffSpecification<FArchetypeFixupSpecification>(Panels[LeftIndex], Panels[RightIndex]);
+	PanelDiff->SetDiffSpecification<FInstanceDataObjectFixupSpecification>(Panels[LeftIndex], Panels[RightIndex]);
     
 	SLinkableScrollBar::LinkScrollBars(Panels[LeftIndex]->LinkableScrollBar.ToSharedRef(), Panels[RightIndex]->LinkableScrollBar.ToSharedRef(),
 		TAttribute<TArray<FVector2f>>::CreateRaw(PanelDiff.Get(), &FAsyncDetailViewDiff::GenerateScrollSyncRate)); // TODO: Make work w/ CreateShared
@@ -146,19 +146,19 @@ void SArchetypeFixupTool::GenerateDetailsViews()
 	Panels[RightIndex]->SetDiffAgainstLeft(PanelDiff);
 
 	// add the panels to the splitter
-	for (TSharedPtr<FArchetypeFixupPanel> Panel : Panels)
+	for (TSharedPtr<FInstanceDataObjectFixupPanel> Panel : Panels)
 	{
 		Splitter->AddSlot(
 			SDetailsSplitter::Slot()
 			.DetailsView(Panel->DetailsView.ToSharedRef())
-			.DifferencesWithRightPanel(Panel.Get(), &FArchetypeFixupPanel::GetDiffAgainstRight)
-			.IsReadonly_Lambda([Panel = Panel.ToWeakPtr()](){return Panel.IsValid() ? Panel.Pin()->HasViewFlag(FArchetypeFixupPanel::EViewFlags::ReadonlyValues) : true;})
-			.ShouldIgnoreRow(Panel.Get(), &FArchetypeFixupPanel::ShouldSplitterIgnoreRow)
+			.DifferencesWithRightPanel(Panel.Get(), &FInstanceDataObjectFixupPanel::GetDiffAgainstRight)
+			.IsReadonly_Lambda([Panel = Panel.ToWeakPtr()](){return Panel.IsValid() ? Panel.Pin()->HasViewFlag(FInstanceDataObjectFixupPanel::EViewFlags::ReadonlyValues) : true;})
+			.ShouldIgnoreRow(Panel.Get(), &FInstanceDataObjectFixupPanel::ShouldSplitterIgnoreRow)
 		);
 	}
 }
 
-FLinearColor SArchetypeFixupTool::GetRowHighlightColor(const TUniquePtr<FAsyncDetailViewDiff::DiffNodeType>& DiffNode)
+FLinearColor SInstanceDataObjectFixupTool::GetRowHighlightColor(const TUniquePtr<FAsyncDetailViewDiff::DiffNodeType>& DiffNode)
 {
 	switch (DiffNode->DiffResult)
 	{
@@ -178,9 +178,9 @@ FLinearColor SArchetypeFixupTool::GetRowHighlightColor(const TUniquePtr<FAsyncDe
 	}
 }
 
-bool SArchetypeFixupTool::IsResolved() const
+bool SInstanceDataObjectFixupTool::IsResolved() const
 {
-	for (const TSharedPtr<FArchetypeFixupPanel>& Panel : Panels)
+	for (const TSharedPtr<FInstanceDataObjectFixupPanel>& Panel : Panels)
 	{
 		if (!Panel->AreAllConflictsRedirected())
 		{
@@ -190,9 +190,9 @@ bool SArchetypeFixupTool::IsResolved() const
 	return true;
 }
 
-FReply SArchetypeFixupTool::OnAutoMarkForDeletion() const
+FReply SInstanceDataObjectFixupTool::OnAutoMarkForDeletion() const
 {
-	for (const TSharedPtr<FArchetypeFixupPanel>& Panel : Panels)
+	for (const TSharedPtr<FInstanceDataObjectFixupPanel>& Panel : Panels)
 	{
 		Panel->AutoApplyMarkDeletedActions();
 	}

@@ -23,12 +23,12 @@ class FPropertyBagRepository
 		void Destroy();
 		
 		FPropertyBag* Bag = nullptr;		// The existence of an association implies the existence of the bag. TODO: Ref bags via handle? Store as value?
-		UObject* Archetype = nullptr;
+		UObject* InstanceDataObject = nullptr;
 	};
 	// TODO: Make private throughout and extend access permissions here or in wrapper classes? Don't want engine code modifying bags outside of serializers and details panels.
 	//friend UObjectBase;
 	//friend UStruct;
-	friend struct FScopedArchetypeLoad;
+	friend struct FScopedInstanceDataObjectLoad;
 
 private:
 	friend class FPropertyBagRepositoryLock;
@@ -44,7 +44,7 @@ private:
 	// /** Map of subobject/container/struct/etc. paths (needs FPropertyBagPath) to their property bag. Might not want to track subobjects here (they'll be in ObjectToPropertyBagMap already). */
 	// TMap<FSoftObjectPath, FPropertyBag*> ObjectPathToPropertySubBagMap;
 	
-	//TMap<const UObjectBase*, UObject*> ObjectToArchetypeMap;
+	//TMap<const UObjectBase*, UObject*> ObjectToInstanceDataObjectMap;
 
 	FPropertyBagRepository() = default;
 
@@ -62,28 +62,28 @@ public:
 	// Object owner is tracked internally
 	FPropertyBag* CreateOuterBag(const UObjectBase* Owner);
 
-	// Future version for reworked archetypes - track archetype rather than bag (directly):
+	// Future version for reworked InstanceDataObjects - track InstanceDataObject rather than bag (directly):
 	/**
-	 * Instantiate an archetype object representing all fields within the bag, tracked against the owner object.
+	 * Instantiate an InstanceDataObject object representing all fields within the bag, tracked against the owner object.
 	 * @param Owner			- Associated in world object.
-	 * @return				- Custom archetype object, UClass derived from associated bag.
+	 * @return				- Custom InstanceDataObject object, UClass derived from associated bag.
 	 */
-	COREUOBJECT_API UObject* CreateArchetype(const UObjectBase* Owner);
+	COREUOBJECT_API UObject* CreateInstanceDataObject(const UObjectBase* Owner);
 
 	// TODO: Restrict property bag  destruction to within UObject::BeginDestroy() & FPropertyBagProperty destructor.
-	// Removes bag, archetype, and all associated data for this object.
+	// Removes bag, InstanceDataObject, and all associated data for this object.
 	void DestroyOuterBag(const UObjectBase* Owner);
 
 	/**
 	 * ReassociateObjects
-	 * @param ReplacedObjects - old/new owner object pairs. Reassigns archetypes/bags to the new owner.
+	 * @param ReplacedObjects - old/new owner object pairs. Reassigns InstanceDataObjects/bags to the new owner.
 	 */
 	COREUOBJECT_API void ReassociateObjects(const TMap<UObject*, UObject*>& ReplacedObjects);
 
 	/**
-	 * RequiresFixup - test if archetype properties perfectly match object instance properties. This is necessary for the object to be published in UEFN.    
+	 * RequiresFixup - test if InstanceDataObject properties perfectly match object instance properties. This is necessary for the object to be published in UEFN.    
 	 * @param Object	- Object to test.
-	 * @return			- Does the object's archetype contain any loose properties requiring user fixup before the object may be published?
+	 * @return			- Does the object's InstanceDataObject contain any loose properties requiring user fixup before the object may be published?
 	 */
 	COREUOBJECT_API bool RequiresFixup(const UObjectBase* Object) const;
 	
@@ -92,9 +92,9 @@ public:
 	COREUOBJECT_API FPropertyBag* FindBag(const UObjectBase* Owner);
 	COREUOBJECT_API const FPropertyBag* FindBag(const UObjectBase* Owner) const;
 
-	COREUOBJECT_API bool HasArchetype(const UObjectBase* Owner) const;
-	COREUOBJECT_API UObject* FindArchetype(const UObjectBase* Owner);
-	COREUOBJECT_API const UObject* FindArchetype(const UObjectBase* Owner) const;
+	COREUOBJECT_API bool HasInstanceDataObject(const UObjectBase* Owner) const;
+	COREUOBJECT_API UObject* FindInstanceDataObject(const UObjectBase* Owner);
+	COREUOBJECT_API const UObject* FindInstanceDataObject(const UObjectBase* Owner) const;
 	
 	// query whether a property in an object was set when the object was deserialized
 	COREUOBJECT_API static bool WasPropertySetBySerialization(UObject* Object, const FPropertyPathName& Path);
@@ -110,8 +110,8 @@ private:
 	// Delete owner reference and disassociate all data. Returns success.
 	bool RemoveAssociationUnsafe(const UObjectBase* Owner);
 	
-	// Instantiate archetype within BagData. Returns archetype object. 
-	void CreateArchetypeUnsafe(const UObjectBase* Owner, FPropertyBagAssociationData& BagData);
+	// Instantiate InstanceDataObject within BagData. Returns InstanceDataObject object. 
+	void CreateInstanceDataObjectUnsafe(const UObjectBase* Owner, FPropertyBagAssociationData& BagData);
 };
 
 } // UE

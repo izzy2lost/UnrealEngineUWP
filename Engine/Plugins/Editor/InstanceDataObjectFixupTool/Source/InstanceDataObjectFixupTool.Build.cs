@@ -2,9 +2,9 @@
 
 namespace UnrealBuildTool.Rules
 {
-	public class ArchetypeFixupTool : ModuleRules
+	public class InstanceDataObjectFixupTool : ModuleRules
 	{
-		public ArchetypeFixupTool(ReadOnlyTargetRules Target) : base(Target)
+		public InstanceDataObjectFixupTool(ReadOnlyTargetRules Target) : base(Target)
 		{
 			PublicDependencyModuleNames.AddRange(
 				new string[] {

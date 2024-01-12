@@ -1,9 +1,9 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
-#include "ArchetypeTests.h"
+#include "InstanceDataObjectTests.h"
 
 #include "CoreTypes.h"
-#include "ArchetypeFixupToolModule.h"
+#include "InstanceDataObjectFixupToolModule.h"
 #include "WorkspaceMenuStructure.h"
 #include "WorkspaceMenuStructureModule.h"
 #include "Templates/Function.h"
@@ -287,7 +287,7 @@ TArray<UObject*> CreateClassGradeTestObjects()
 	};
 }
 
-FString SaveArchetypeObject(UObject* ObjectToSave)
+FString SaveInstanceDataObjectObject(UObject* ObjectToSave)
 {
 	UPackage* TempPackage = CreateTestPackage(ObjectToSave->GetClass());
 
@@ -306,26 +306,26 @@ FString SaveArchetypeObject(UObject* ObjectToSave)
 	return SavePackageResult.IsSuccessful() && IFileManager::Get().FileExists(*Filename) ? Filename : FString();
 }
 
-static UObject* CreateArchetypeWithSubObjects(UObject* Owner)
+static UObject* CreateInstanceDataObjectWithSubObjects(UObject* Owner)
 {
 	TArray<UObject*> SubObjects = {Owner};
 	GetObjectsWithOuter(Owner, SubObjects);
 	for (const UObject* SubObject : SubObjects)
 	{
-		UE::FPropertyBagRepository::Get().CreateArchetype(SubObject);
+		UE::FPropertyBagRepository::Get().CreateInstanceDataObject(SubObject);
 	}
-	return UE::FPropertyBagRepository::Get().FindArchetype(Owner);
+	return UE::FPropertyBagRepository::Get().FindInstanceDataObject(Owner);
 }
 
 
-static UObject* GenerateTestArchetype(UObject* ObjectOld, UClass* NewClass)
+static UObject* GenerateTestInstanceDataObject(UObject* ObjectOld, UClass* NewClass)
 {
 	// 1) simulate OldObject being serialized
-	FString Filename = SaveArchetypeObject(ObjectOld);
+	FString Filename = SaveInstanceDataObjectObject(ObjectOld);
 	
 	// 2) simulate class changing
 	TArray<FCoreRedirect> Redirects = BuildTestRedirects(ObjectOld->GetClass(), NewClass);
-	FCoreRedirects::AddRedirectList(Redirects, TEXT("ArchetypeTests"));
+	FCoreRedirects::AddRedirectList(Redirects, TEXT("InstanceDataObjectTests"));
 	
 	// 3) simulate OldObject being deserialized into ObjectNew. This will create a property bag.
 	UObject* ObjectNew = nullptr;
@@ -342,16 +342,16 @@ static UObject* GenerateTestArchetype(UObject* ObjectOld, UClass* NewClass)
 		ObjectNew = FindObject<UObject>(TempPackage, *ObjectOld->GetName());
 	}
 
-	// 4) Construct an archetype from the NewObject
-	UObject* ArchetypeObject = CreateArchetypeWithSubObjects(ObjectNew);
+	// 4) Construct an InstanceDataObject from the NewObject
+	UObject* InstanceDataObjectObject = CreateInstanceDataObjectWithSubObjects(ObjectNew);
 
 	// revert step 2 so we don't break other tests
-	FCoreRedirects::RemoveRedirectList(Redirects, TEXT("ArchetypeTests"));
+	FCoreRedirects::RemoveRedirectList(Redirects, TEXT("InstanceDataObjectTests"));
 	
-	return ArchetypeObject;
+	return InstanceDataObjectObject;
 }
 
-static void RunVerseArchetypeTestCommand(const TArray<FString>& Parameters)
+static void RunInstanceDataObjectTestCommand(const TArray<FString>& Parameters)
 {
 	TArray<UObject*> ObjectUpgrades = CreateClassGradeTestObjects();
 
@@ -371,9 +371,9 @@ static void RunVerseArchetypeTestCommand(const TArray<FString>& Parameters)
 	
 	UObject* ObjectOld = ObjectUpgrades[OldClassVersion];
 
-	// simulate class changing and an archetype being generated
+	// simulate class changing and an InstanceDataObject being generated
 	UClass* NewClass = ObjectUpgrades[NewClassVersion]->GetClass();
-	UObject* ArchetypeObject = GenerateTestArchetype(ObjectOld, NewClass);
+	UObject* InstanceDataObjectObject = GenerateTestInstanceDataObject(ObjectOld, NewClass);
 
 	FDetailsViewArgs DetailsViewArgs;
 	DetailsViewArgs.bUpdatesFromSelection = false;
@@ -382,9 +382,9 @@ static void RunVerseArchetypeTestCommand(const TArray<FString>& Parameters)
 	FPropertyEditorModule& PropertyEditorModule = FModuleManager::GetModuleChecked<FPropertyEditorModule>("PropertyEditor");
 	TSharedRef<IDetailsView> DetailsView = PropertyEditorModule.CreateDetailView(DetailsViewArgs);
 	
-	DetailsView->SetObject(ArchetypeObject);
+	DetailsView->SetObject(InstanceDataObjectObject);
 	
-	const FName TabName = FName(TEXT("VerseArchetypesTest"));
+	const FName TabName = FName(TEXT("InstanceDataObjectsTest"));
 	FGlobalTabmanager::Get()->RegisterNomadTabSpawner(TabName, FOnSpawnTab::CreateLambda([DetailsView](const FSpawnTabArgs& TabArgs)
 	{
 		return SNew(SDockTab)
@@ -393,7 +393,7 @@ static void RunVerseArchetypeTestCommand(const TArray<FString>& Parameters)
 			DetailsView
 		];
 	}))
-		.SetDisplayName(LOCTEXT("VerseArchetypesTestTitle", "Verse Archetype Test"))
+		.SetDisplayName(LOCTEXT("InstanceDataObjectsTestTitle", "Verse InstanceDataObject Test"))
 		.SetGroup(WorkspaceMenu::GetMenuStructure().GetToolsCategory())
 		.SetMenuType(ETabSpawnerMenuType::Hidden);
 
@@ -401,7 +401,7 @@ static void RunVerseArchetypeTestCommand(const TArray<FString>& Parameters)
 	DockTab->DrawAttention();
 }
 
-static void RunVerseArchetypeFixupCommand(const TArray<FString>& Parameters)
+static void RunInstanceDataObjectFixupCommand(const TArray<FString>& Parameters)
 {
 	TArray<UObject*> ObjectUpgrades = CreateClassGradeTestObjects();
 
@@ -421,16 +421,16 @@ static void RunVerseArchetypeFixupCommand(const TArray<FString>& Parameters)
 	
 	UObject* ObjectOld = ObjectUpgrades[OldClassVersion];
 	
-	// simulate class changing and an archetype being generated
+	// simulate class changing and an InstanceDataObject being generated
 	UClass* NewClass = ObjectUpgrades[NewClassVersion]->GetClass();
-	UObject* ArchetypeObject = GenerateTestArchetype(ObjectOld, NewClass);
+	UObject* InstanceDataObjectObject = GenerateTestInstanceDataObject(ObjectOld, NewClass);
 
-	const FName TabName = FName(TEXT("VerseArchetypesTestFixup"));
-	FGlobalTabmanager::Get()->RegisterNomadTabSpawner(TabName, FOnSpawnTab::CreateLambda([ArchetypeObject](const FSpawnTabArgs& TabArgs)
+	const FName TabName = FName(TEXT("InstanceDataObjectsTestFixup"));
+	FGlobalTabmanager::Get()->RegisterNomadTabSpawner(TabName, FOnSpawnTab::CreateLambda([InstanceDataObjectObject](const FSpawnTabArgs& TabArgs)
 	{
-		return FArchetypeFixupToolModule::Get().CreateArchetypeFixupTab(TabArgs, {ArchetypeObject});
+		return FInstanceDataObjectFixupToolModule::Get().CreateInstanceDataObjectFixupTab(TabArgs, {InstanceDataObjectObject});
 	}))
-		.SetDisplayName(LOCTEXT("VerseArchetypesFixupTestTitle", "Verse Archetype Fixup"))
+		.SetDisplayName(LOCTEXT("InstanceDataObjectsFixupTestTitle", "Verse InstanceDataObject Fixup"))
 		.SetGroup(WorkspaceMenu::GetMenuStructure().GetToolsCategory())
 		.SetMenuType(ETabSpawnerMenuType::Hidden);
 
@@ -438,17 +438,17 @@ static void RunVerseArchetypeFixupCommand(const TArray<FString>& Parameters)
 	DockTab->DrawAttention();
 }
 
-FAutoConsoleCommand TestArchetypesCommand(
-	TEXT("TestVerseArchetype"),
-	TEXT("syntax: TestVerseArchetype <OldClassVersion> <NewClassVersion>"),
-	FConsoleCommandWithArgsDelegate::CreateStatic(&RunVerseArchetypeTestCommand),
+FAutoConsoleCommand TestInstanceDataObjectsCommand(
+	TEXT("TestInstanceDataObject"),
+	TEXT("syntax: TestInstanceDataObject <OldClassVersion> <NewClassVersion>"),
+	FConsoleCommandWithArgsDelegate::CreateStatic(&RunInstanceDataObjectTestCommand),
 	ECVF_Default
 );
 
-FAutoConsoleCommand TestArchetypeFixupCommand(
-	TEXT("TestVerseArchetypeFixup"),
-	TEXT("syntax: TestVerseArchetypeFixup <OldClassVersion> <NewClassVersion>"),
-	FConsoleCommandWithArgsDelegate::CreateStatic(&RunVerseArchetypeFixupCommand),
+FAutoConsoleCommand TestInstanceDataObjectFixupCommand(
+	TEXT("TestInstanceDataObjectFixup"),
+	TEXT("syntax: TestInstanceDataObjectFixup <OldClassVersion> <NewClassVersion>"),
+	FConsoleCommandWithArgsDelegate::CreateStatic(&RunInstanceDataObjectFixupCommand),
 	ECVF_Default
 );
 
