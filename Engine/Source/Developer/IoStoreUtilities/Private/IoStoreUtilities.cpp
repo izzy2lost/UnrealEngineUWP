@@ -9315,6 +9315,7 @@ int32 CreateIoStoreContainerFiles(const TCHAR* CmdLine)
 		{
 			UE_LOG(LogIoStore, Error, TEXT("Asset registry writeback requires -ContainerDirectory=Path/To/Containers"));
 		}
+		UE_LOG(LogIoStore, Warning, TEXT("AssetRegistryWriteback after stage is deprecated and will be removed in 5.5. Use writeback during stage via project packaging settings."));
 		return DoAssetRegistryWritebackAfterStage(AssetRegistryFileName, MoveTemp(PathToContainers), Arguments.KeyChain);
 	}
 	else if (FParse::Value(FCommandLine::Get(), TEXT("Describe="), ArgumentValue))
