@@ -146,6 +146,8 @@ namespace Chaos
 		CHAOS_API virtual void PrepareTick() override final;
 		CHAOS_API virtual void UnprepareTick() override final;
 		CHAOS_API virtual void DisconnectConstraints(const TSet<TGeometryParticleHandle<FReal, 3>*>& RemovedParticles) override final;
+		CHAOS_API virtual void OnDisableParticle(FGeometryParticleHandle* DisabledParticle) override final;
+		CHAOS_API virtual void OnEnableParticle(FGeometryParticleHandle* EnabledParticle) override final;
 
 		//////////////////////////////////////////////////////////////////////////
 		// Required API from FConstraintContainer

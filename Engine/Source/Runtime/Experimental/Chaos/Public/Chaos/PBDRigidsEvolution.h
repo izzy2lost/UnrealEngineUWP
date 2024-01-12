@@ -645,29 +645,23 @@ public:
 	*/
 	void DisableConstraints(FGeometryParticleHandle* ParticleHandle)
 	{
-		RemoveConstraintsFromConstraintGraph(ParticleHandle->ParticleConstraints());
-
-		for (FConstraintHandle* Constraint : ParticleHandle->ParticleConstraints())
+		for (FPBDConstraintContainer* Container : ConstraintContainers)
 		{
-			if (Constraint->IsEnabled())
-			{
-				Constraint->SetEnabled(false);
-			}
+			Container->OnDisableParticle(ParticleHandle);
 		}
+
+		RemoveConstraintsFromConstraintGraph(ParticleHandle->ParticleConstraints());
 	}
 
 	/** 
 	* Enable constraints (all types except collisions) from the enabled particles; constraints will only become enabled if their particle end points are valid.
-	* @note This only applies to persistent constraints (joints etc), not transient constraints (collisons)
+	* @note This only applies to persistent constraints (joints etc), not transient constraints (collisions)
 	*/
 	void EnableConstraints(FGeometryParticleHandle* ParticleHandle)
 	{
-		for (FConstraintHandle* Constraint : ParticleHandle->ParticleConstraints())
+		for (FPBDConstraintContainer* Container : ConstraintContainers)
 		{
-			if (!Constraint->IsEnabled())
-			{
-				Constraint->SetEnabled(true);
-			}
+			Container->OnEnableParticle(ParticleHandle);
 		}
 	}
 
