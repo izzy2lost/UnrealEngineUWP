@@ -514,31 +514,6 @@ struct FReinstancingJob
 
 	// always set:
 	TPair<UClass*, UClass*> OldToNew;
-
-	struct FArchetypeInfo
-	{
-		FArchetypeInfo(UObject* Archetype)
-			: Archetype(Archetype)
-			, ArchetypeTemplate(Archetype ? Archetype->GetArchetype() : nullptr)
-		{}
-
-		bool operator==(const FArchetypeInfo& Other) const
-		{
-			return Archetype == Other.Archetype;
-		}
-
-		friend int32 GetTypeHash(const FArchetypeInfo& Info)
-		{
-			return GetTypeHash(Info.Archetype);
-		}
-
-		UObject* Archetype = nullptr;
-		UObject* ArchetypeTemplate;
-	};
-
-
-	// Old archetype to re-instantiate and its old associated template
-	TArray<FArchetypeInfo> OldArchetypeObjects;
 };
 
 FReinstancingJob::FReinstancingJob(TSharedPtr<FBlueprintCompileReinstancer> InReinstancer)
@@ -2545,11 +2520,11 @@ void FBlueprintCompilationManagerImpl::ReinstanceBatch(TArray<FReinstancingJob>&
 		ArchetypeReferencers.Add(GUnrealEd->Trans);
 	}
 
-	for (FReinstancingJob* ReinstancingJobPtr : ReinstancersPtr)
+	for (const FReinstancingJob* ReinstancingJobPtr : ReinstancersPtr)
 	{
-		FReinstancingJob& ReinstancingJob = *ReinstancingJobPtr;
+		const FReinstancingJob& ReinstancingJob = *ReinstancingJobPtr;
 		UClass* OldClass = ReinstancingJob.OldToNew.Key;
-		if (OldClass)
+		if(OldClass)
 		{
 			SCOPED_LOADTIMER_ASSET_TEXT(*WriteToString<256>(TEXT("Reinstancing "), *GetPathNameSafe(ReinstancingJob.OldToNew.Value)));
 
@@ -2585,10 +2560,8 @@ void FBlueprintCompilationManagerImpl::ReinstanceBatch(TArray<FReinstancingJob>&
 			);
 
 			// for each archetype:
-			for (UObject* Archetype : ArchetypeObjects)
+			for(UObject* Archetype : ArchetypeObjects )
 			{
-				ReinstancingJob.OldArchetypeObjects.Add(Archetype);
-
 				// make sure we fix up references in the owner:
 				{
 					UObject* Iter = Archetype->GetOuter();
@@ -2626,23 +2599,35 @@ void FBlueprintCompilationManagerImpl::ReinstanceBatch(TArray<FReinstancingJob>&
 						Iter = Iter->GetOuter();
 					}
 				}
+				
+				// move aside:
+				FName OriginalName = Archetype->GetFName();
+				UObject* OriginalOuter = Archetype->GetOuter();
+				EObjectFlags OriginalFlags = Archetype->GetFlags();
+
+				UObject* Destination = GetTransientOuterForRename(Archetype->GetClass());
+				Archetype->Rename(
+					nullptr,
+					// destination - this is the important part of this call. Moving the object 
+					// out of the way so we can reuse its name:
+					Destination, 
+					// Rename options:
+					REN_DoNotDirty | REN_DontCreateRedirectors | REN_ForceNoResetLoaders );
+
+				// reconstruct
+				FMakeClassSpawnableOnScope TemporarilySpawnable(NewClass);
+				const EObjectFlags FlagMask = RF_Public | RF_ArchetypeObject | RF_Transactional | RF_Transient | RF_TextExportTransient | RF_InheritableComponentTemplate | RF_Standalone; //TODO: what about RF_RootSet?
+				UObject* NewArchetype = NewObject<UObject>(OriginalOuter, NewClass, OriginalName, OriginalFlags & FlagMask);
+
+				OldArchetypeToNewArchetype.Add(Archetype, NewArchetype);
+
+				// also map old *default* subobjects to new default subobjects:
+				BuildDSOMap(Archetype, NewArchetype, OldArchetypeToNewArchetype);
+
+				ArchetypeReferencers.Add(NewArchetype);
+
+				FLinkerLoad::PRIVATE_PatchNewObjectIntoExport(Archetype, NewArchetype);
 			}
-
-			// Sort all archetype between themselves, as one might depends on an other
-			// This happens when the class containing the archetype has derived classes.
-			Algo::TopologicalSort(ReinstancingJob.OldArchetypeObjects, [&ArchetypeObjects](const FReinstancingJob::FArchetypeInfo& OldArchetypeInfo)
-			{
-				TArray<UObject*> Dependencies;
-				if (OldArchetypeInfo.ArchetypeTemplate && !OldArchetypeInfo.ArchetypeTemplate->HasAnyFlags(RF_ClassDefaultObject))
-				{
-					if(ensureMsgf(ArchetypeObjects.Contains(OldArchetypeInfo.ArchetypeTemplate), TEXT("Expecting the template object to already be in the list of archetypes")))
-					{
-						Dependencies.Add(OldArchetypeInfo.ArchetypeTemplate);
-					}
-				}
-
-				return Dependencies;
-			});
 		}
 	}
 
@@ -2655,48 +2640,14 @@ void FBlueprintCompilationManagerImpl::ReinstanceBatch(TArray<FReinstancingJob>&
 		{
 			SCOPED_LOADTIMER_ASSET_TEXT(*WriteToString<256>(TEXT("FinishReinstancing "), *GetPathNameSafe(ReinstancingJob.OldToNew.Value)));
 
-			UClass* NewClass = ReinstancingJob.OldToNew.Value;
+			TArray<UObject*> OldInstances;
+			GetObjectsOfClass( OldClass, OldInstances, false );
 
-			for(const FReinstancingJob::FArchetypeInfo& OldArchetypeInfo : ReinstancingJob.OldArchetypeObjects)
+			for(UObject* OldInstance : OldInstances)
 			{
-				UObject* OldInstance = OldArchetypeInfo.Archetype;
-
-				// move aside:
-				FName OriginalName = OldInstance->GetFName();
-				UObject* OriginalOuter = OldInstance->GetOuter();
-				EObjectFlags OriginalFlags = OldInstance->GetFlags();
-
-				UObject* Destination = GetTransientOuterForRename(OldInstance->GetClass());
-				OldInstance->Rename(
-					nullptr,
-					// destination - this is the important part of this call. Moving the object 
-					// out of the way so we can reuse its name:
-					Destination, 
-					// Rename options:
-					REN_DoNotDirty | REN_DontCreateRedirectors | REN_ForceNoResetLoaders );
-
-				// reconstruct
-				FMakeClassSpawnableOnScope TemporarilySpawnable(NewClass);
-				const EObjectFlags FlagMask = RF_Public | RF_ArchetypeObject | RF_Transactional | RF_Transient | RF_TextExportTransient | RF_InheritableComponentTemplate | RF_Standalone; //TODO: what about RF_RootSet?
-
-				UObject* Template = nullptr;
-				if (UObject** NewArchetypeTemplate = OldArchetypeInfo.ArchetypeTemplate ? OldArchetypeToNewArchetype.Find(OldArchetypeInfo.ArchetypeTemplate) : nullptr)
-				{
-					Template = *NewArchetypeTemplate;
-				}
-				UObject* NewArchetype = NewObject<UObject>(OriginalOuter, NewClass, OriginalName, OriginalFlags & FlagMask, Template);
-
-				OldArchetypeToNewArchetype.Add(OldInstance, NewArchetype);
-
-				// also map old *default* subobjects to new default subobjects:
-				BuildDSOMap(OldInstance, NewArchetype, OldArchetypeToNewArchetype);
-
-				ArchetypeReferencers.Add(NewArchetype);
-
-				FLinkerLoad::PRIVATE_PatchNewObjectIntoExport(OldInstance, NewArchetype);
-
-				// NewArchetype may be null in the case of deleted or EditorOnly (in -game) DSOs:
-				if(NewArchetype)
+				UObject** NewInstance = OldArchetypeToNewArchetype.Find(OldInstance);
+				// NewInstance may be null in the case of deleted or EditorOnly (in -game) DSOs:
+				if(NewInstance && *NewInstance)
 				{
 					// The new object hierarchy has been created, all of the old instances are in the transient package and new
 					// ones have taken their place. Reference members will mostly be pointing at *old* instances, and will get fixed
@@ -2704,7 +2655,7 @@ void FBlueprintCompilationManagerImpl::ReinstanceBatch(TArray<FReinstancingJob>&
 					const bool bUseDeltaSerialization = ReinstancingJob.Reinstancer.IsValid() ? ReinstancingJob.Reinstancer->bUseDeltaSerializationToCopyProperties : false;
 
 					TMap<UObject*, UObject*> CreatedInstanceMap;
-					FBlueprintCompileReinstancer::PreCreateSubObjectsForReinstantiation(InOutOldToNewClassMap, OldInstance, NewArchetype, CreatedInstanceMap);
+					FBlueprintCompileReinstancer::PreCreateSubObjectsForReinstantiation(InOutOldToNewClassMap, OldInstance, *NewInstance, CreatedInstanceMap);
 
 					// We only need to copy properties of the pre-created instances, the rest of the default sub object is done inside the UEditorEngine::CopyPropertiesForUnrelatedObjects
 					TMap<UObject*, UObject*> OldToNewInstanceMap(CreatedInstanceMap);
