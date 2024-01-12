@@ -18,6 +18,7 @@
 #include "DynamicMeshEditor.h"
 #include "FaceGroupUtil.h"
 #include "GroupTopology.h"
+#include "Input/Reply.h"
 #include "InteractiveGizmoManager.h"
 #include "InteractiveToolManager.h"
 #include "Mechanics/DragAlignmentMechanic.h"
@@ -33,6 +34,7 @@
 #include "Selection/StoredMeshSelectionUtil.h"
 #include "Selection/PolygonSelectionMechanic.h"
 #include "Selections/MeshConnectedComponents.h"
+#include "Styling/AppStyle.h"
 #include "TargetInterfaces/MaterialProvider.h"
 #include "TargetInterfaces/MeshDescriptionCommitter.h"
 #include "TargetInterfaces/MeshDescriptionProvider.h"
@@ -46,6 +48,7 @@
 #include "ToolActivities/PolyEditPlanarProjectionUVActivity.h"
 #include "ToolActivities/PolyEditBevelEdgeActivity.h"
 #include "ToolContextInterfaces.h" // FToolBuilderState
+#include "ToolHostCustomizationAPI.h"
 #include "ToolSetupUtil.h"
 #include "ToolTargetManager.h"
 #include "TransformTypes.h"
@@ -441,17 +444,6 @@ void UEditMeshPolygonsTool::Setup()
 	// We add an empty line for the error message so that things don't jump when we use it.
 	GetToolManager()->DisplayMessage(FText(), EToolMessageLevel::UserWarning);
 
-	CancelAction = NewObject<UEditMeshPolygonsToolCancelAction>();
-	CancelAction->Initialize(this);
-	AddToolPropertySource(CancelAction);
-	SetToolPropertySourceEnabled(CancelAction, false);
-
-	AcceptCancelAction = NewObject<UEditMeshPolygonsToolAcceptCancelAction>();
-	AcceptCancelAction->Initialize(this);
-	AddToolPropertySource(AcceptCancelAction);
-	SetToolPropertySourceEnabled(AcceptCancelAction, false);
-
-
 	// Initialize the common properties but don't add them yet, because we want them to be under the activity-specific ones.
 	CommonProps = NewObject<UPolyEditCommonProperties>(this);
 	CommonProps->RestoreProperties(this, GetPropertyCacheIdentifier(bTriangleMode));
@@ -585,24 +577,38 @@ void UEditMeshPolygonsTool::Setup()
 
 	ExtrudeActivity = NewObject<UPolyEditExtrudeActivity>();
 	ExtrudeActivity->Setup(this);
+	ActivityLabels.Add(ExtrudeActivity, LOCTEXT("ExtrudeActivityLabel", "Extrude"));
+	ActivityIconNames.Add(ExtrudeActivity, "PolyEd.Extrude");
 	
 	InsetOutsetActivity = NewObject<UPolyEditInsetOutsetActivity>();
 	InsetOutsetActivity->Setup(this);
+	// The icons/labels differ depending on whether we are doing an inset or outset, so we set those 
+	// when we launch the activity.
 
 	CutFacesActivity = NewObject<UPolyEditCutFacesActivity>();
 	CutFacesActivity->Setup(this);
+	ActivityLabels.Add(CutFacesActivity, LOCTEXT("CutFacesActivityLabel", "Cut Faces"));
+	ActivityIconNames.Add(CutFacesActivity, "PolyEd.CutFaces");
 
 	PlanarProjectionUVActivity = NewObject<UPolyEditPlanarProjectionUVActivity>();
 	PlanarProjectionUVActivity->Setup(this);
+	ActivityLabels.Add(PlanarProjectionUVActivity, LOCTEXT("UVProjectActivityLabel", "UV Project"));
+	ActivityIconNames.Add(PlanarProjectionUVActivity, "PolyEd.ProjectUVs");
 
 	InsertEdgeLoopActivity = NewObject<UPolyEditInsertEdgeLoopActivity>();
 	InsertEdgeLoopActivity->Setup(this);
+	ActivityLabels.Add(InsertEdgeLoopActivity, LOCTEXT("InsertEdgeLoopsActivityLabel", "Insert Edge Loops"));
+	ActivityIconNames.Add(InsertEdgeLoopActivity, "PolyEd.InsertEdgeLoop");
 
 	InsertEdgeActivity = NewObject<UPolyEditInsertEdgeActivity>();
 	InsertEdgeActivity->Setup(this);
+	ActivityLabels.Add(InsertEdgeActivity, LOCTEXT("InsertEdgesActivityLabel", "Insert Edges"));
+	ActivityIconNames.Add(InsertEdgeActivity, "PolyEd.InsertGroupEdge");
 
 	BevelEdgeActivity = NewObject<UPolyEditBevelEdgeActivity>();
 	BevelEdgeActivity->Setup(this);
+	ActivityLabels.Add(BevelEdgeActivity, LOCTEXT("BevelActivityLabel", "Bevel"));
+	ActivityIconNames.Add(BevelEdgeActivity, "PolyEd.Bevel");
 
 	// Now that we've initialized the activities, add in the selection settings and 
 	// CommonProps so that they are at the bottom.
@@ -707,6 +713,10 @@ void UEditMeshPolygonsTool::OnShutdown(EToolShutdownType ShutdownType)
 
 	if (CurrentActivity)
 	{
+		if (IToolHostCustomizationAPI* ButtonCustomizer = IToolHostCustomizationAPI::Find(GetToolManager()).GetInterface())
+		{
+			ButtonCustomizer->ClearButtonOverrides();
+		}
 		CurrentActivity->End(ShutdownType);
 		CurrentActivity = nullptr;
 	}
@@ -805,8 +815,6 @@ void UEditMeshPolygonsTool::OnShutdown(EToolShutdownType ShutdownType)
 	EditEdgeActions = nullptr;
 	EditEdgeActions_Triangles = nullptr;
 	EditUVActions = nullptr;
-	CancelAction = nullptr;
-	AcceptCancelAction = nullptr;
 
 	ExtrudeActivity = nullptr;
 	InsetOutsetActivity = nullptr;
@@ -1218,12 +1226,20 @@ void UEditMeshPolygonsTool::OnTick(float DeltaTime)
 		case EEditMeshPolygonsToolActions::Inset:
 		{
 			InsetOutsetActivity->Settings->bOutset = false;
+			
+			ActivityLabels.Add(InsetOutsetActivity, LOCTEXT("InsetActivityLabel", "Inset"));
+			ActivityIconNames.Add(InsetOutsetActivity, "PolyEd.Inset");
+			
 			StartActivity(InsetOutsetActivity);
 			break;
 		}
 		case EEditMeshPolygonsToolActions::Outset:
 		{
 			InsetOutsetActivity->Settings->bOutset = true;
+			
+			ActivityLabels.Add(InsetOutsetActivity, LOCTEXT("OutsetActivityLabel", "Outset"));
+			ActivityIconNames.Add(InsetOutsetActivity, "PolyEd.Outset");
+
 			StartActivity(InsetOutsetActivity);
 			break;
 		}
@@ -1252,17 +1268,6 @@ void UEditMeshPolygonsTool::OnTick(float DeltaTime)
 		case EEditMeshPolygonsToolActions::BevelEdges:
 		{
 			StartActivity(BevelEdgeActivity);
-			break;
-		}
-
-		case EEditMeshPolygonsToolActions::CancelCurrent:
-		{
-			EndCurrentActivity(EToolShutdownType::Cancel);
-			break;
-		}
-		case EEditMeshPolygonsToolActions::AcceptCurrent:
-		{
-			EndCurrentActivity(EToolShutdownType::Accept);
 			break;
 		}
 
@@ -1353,13 +1358,49 @@ void UEditMeshPolygonsTool::StartActivity(TObjectPtr<UInteractiveToolActivity> A
 
 		if ( bTerminateOnPendingActionComplete == false )
 		{
-			if (CurrentActivity->HasAccept())
+			// Customize the tool accept/cancel buttons to the current activity.
+			if (IToolHostCustomizationAPI* ButtonCustomizer = IToolHostCustomizationAPI::Find(GetToolManager()).GetInterface())
 			{
-				SetToolPropertySourceEnabled(AcceptCancelAction, true);
-			}
-			else
-			{
-				SetToolPropertySourceEnabled(CancelAction, true);
+				const FText SubActionFallbackLabel = LOCTEXT("SubActionFallbackLabel", "Current Action");
+				if (CurrentActivity->HasAccept())
+				{
+					IToolHostCustomizationAPI::FAcceptCancelButtonOverrideParams Params;
+					Params.Label = ActivityLabels.Contains(CurrentActivity) ? ActivityLabels[CurrentActivity] : SubActionFallbackLabel;
+					if (ActivityIconNames.Contains(CurrentActivity))
+					{
+						Params.IconName = ActivityIconNames[CurrentActivity];
+					}
+					Params.OverrideAcceptButtonText = LOCTEXT("AcceptSubActionButton", "Accept Action");
+					Params.OverrideAcceptButtonTooltip = LOCTEXT("AcceptSubActionTooltip", "Accept the action currently being performed.");
+					Params.OverrideCancelButtonText = LOCTEXT("CancelSubActionButton", "Cancel Action");
+					Params.OverrideCancelButtonTooltip = LOCTEXT("AcceptSubActionTooltip", "Cancel the action currently being performed.");
+					Params.CanAccept = [this]() { return CurrentActivity->CanAccept(); };
+					Params.OnAcceptCancelTriggered = [this](bool bAccept) 
+					{ 
+						EndCurrentActivity(bAccept ? EToolShutdownType::Accept : EToolShutdownType::Cancel);
+						return FReply::Handled();
+					};
+
+					ButtonCustomizer->RequestAcceptCancelButtonOverride(Params);
+				}
+				else
+				{
+					IToolHostCustomizationAPI::FCompleteButtonOverrideParams Params;
+					Params.Label = ActivityLabels.Contains(CurrentActivity) ? ActivityLabels[CurrentActivity] : SubActionFallbackLabel;
+					if (ActivityIconNames.Contains(CurrentActivity))
+					{
+						Params.IconName = ActivityIconNames[CurrentActivity];
+					}
+					Params.OverrideCompleteButtonText = LOCTEXT("CompleteSubActionButton", "Done");
+					Params.OverrideCompleteButtonTooltip = LOCTEXT("CompleteSubActionTooltip", "Exit the current activity.");
+					Params.OnCompleteTriggered = [this]() 
+					{
+						EndCurrentActivity(EToolShutdownType::Completed);
+						return FReply::Handled();
+					};
+
+					ButtonCustomizer->RequestCompleteButtonOverride(Params);
+				}
 			}
 		}
 		else
@@ -1397,8 +1438,10 @@ void UEditMeshPolygonsTool::EndCurrentActivity(EToolShutdownType ShutdownType)
 			return;
 		}
 
-		SetToolPropertySourceEnabled(CancelAction, false);
-		SetToolPropertySourceEnabled(AcceptCancelAction, false);
+		if (IToolHostCustomizationAPI* ButtonCustomizer = IToolHostCustomizationAPI::Find(GetToolManager()).GetInterface())
+		{
+			ButtonCustomizer->ClearButtonOverrides();
+		}
 		SetActionButtonPanelsVisible(true);
 		SelectionMechanic->SetIsEnabled(true);
 		SetToolPropertySourceEnabled(TopologyProperties, true);

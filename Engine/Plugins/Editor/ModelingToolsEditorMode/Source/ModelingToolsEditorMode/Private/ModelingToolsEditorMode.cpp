@@ -10,6 +10,7 @@
 #include "ModelingToolsEditorModeToolkit.h"
 #include "ILevelEditor.h"
 #include "ModelingToolsEditorModeSettings.h"
+#include "ModelingToolsHostCustomizationAPI.h"
 #include "ToolTargetManager.h"
 #include "ContextObjectStore.h"
 #include "InputRouter.h"
@@ -428,6 +429,12 @@ void UModelingToolsEditorMode::Enter()
 	UE::Geometry::RegisterSceneSnappingManager(GetInteractiveToolsContext());
 	SceneSnappingManager = UE::Geometry::FindModelingSceneSnappingManager(GetToolManager());
 
+	// register tool shutdown button customizer
+	if (ensure(Toolkit.IsValid()))
+	{
+		UModelingToolsHostCustomizationAPI::Register(GetInteractiveToolsContext(), 
+			StaticCastSharedRef<FModelingToolsEditorModeToolkit>(Toolkit.ToSharedRef()));
+	}
 
 	// set up SelectionManager and register known factory types
 	SelectionManager = NewObject<UGeometrySelectionManager>(GetToolManager());
@@ -1240,6 +1247,8 @@ void UModelingToolsEditorMode::Exit()
 #if ENABLE_STYLUS_SUPPORT 
 	StylusStateTracker = nullptr;
 #endif
+
+	UModelingToolsHostCustomizationAPI::Deregister(GetInteractiveToolsContext());
 
 	// TODO: cannot deregister currently because if another mode is also registering, its Enter()
 	// will be called before our Exit()

@@ -10,6 +10,7 @@
 #include "InteractiveToolActivity.h" // IToolActivityHost
 #include "InteractiveToolBuilder.h"
 #include "InteractiveToolQueryInterfaces.h" // IInteractiveToolNestedAcceptCancelAPI
+#include "Internationalization/Text.h"
 #include "Operations/GroupTopologyDeformer.h"
 #include "BaseTools/SingleTargetWithSelectionTool.h"
 
@@ -20,6 +21,7 @@
 PREDECLARE_GEOMETRY(class FGroupTopology);
 PREDECLARE_GEOMETRY(struct FGroupTopologySelection);
 
+struct FSlateBrush;
 class UCombinedTransformGizmo;
 class UDragAlignmentMechanic;
 class UMeshOpPreviewWithBackgroundCompute; 
@@ -452,40 +454,6 @@ public:
 };
 
 
-/**
- * TODO: This is currently a separate action set so that we can show/hide it depending on whether
- * we have an activity running. We should have a cleaner alternative.
- */
-UCLASS()
-class MESHMODELINGTOOLS_API UEditMeshPolygonsToolCancelAction : public UEditMeshPolygonsToolActionPropertySet
-{
-	GENERATED_BODY()
-public:
-	// Complete the current action
-	//~ Note this function may accept or cancel depending on the tool, despite the class name and the PostAction argument
-	UFUNCTION(CallInEditor, Category = CurrentOperation, meta = (DisplayName = "Complete", DisplayPriority = 1))
-	void Done() { PostAction(EEditMeshPolygonsToolActions::CancelCurrent); }
-};
-
-
-/**
- * TODO: This is currently a separate action set so that we can show/hide it depending on whether
- * we have an activity running. We should have a cleaner alternative.
- */
-UCLASS()
-class MESHMODELINGTOOLS_API UEditMeshPolygonsToolAcceptCancelAction : public UEditMeshPolygonsToolActionPropertySet
-{
-	GENERATED_BODY()
-public:
-	UFUNCTION(CallInEditor, Category = CurrentOperation, meta = (DisplayName = "Apply", DisplayPriority = 1))
-	void Apply() { PostAction(EEditMeshPolygonsToolActions::AcceptCurrent); }
-
-	UFUNCTION(CallInEditor, Category = CurrentOperation, meta = (DisplayName = "Cancel", DisplayPriority = 2))
-	void Cancel() { PostAction(EEditMeshPolygonsToolActions::CancelCurrent); }
-};
-
-
-
 
 /**
  *
@@ -577,12 +545,6 @@ protected:
 	TObjectPtr<UEditMeshPolygonsToolUVActions> EditUVActions = nullptr;
 
 	UPROPERTY()
-	TObjectPtr<UEditMeshPolygonsToolCancelAction> CancelAction = nullptr;
-
-	UPROPERTY()
-	TObjectPtr<UEditMeshPolygonsToolAcceptCancelAction> AcceptCancelAction = nullptr;
-
-	UPROPERTY()
 	TObjectPtr<UPolyEditTopologyProperties> TopologyProperties = nullptr;
 
 	/**
@@ -602,6 +564,9 @@ protected:
 	TObjectPtr<UPolyEditInsertEdgeLoopActivity> InsertEdgeLoopActivity = nullptr;
 	UPROPERTY()
 	TObjectPtr<UPolyEditBevelEdgeActivity> BevelEdgeActivity = nullptr;
+
+	TMap<UInteractiveToolActivity*, FText> ActivityLabels;
+	TMap<UInteractiveToolActivity*, FName> ActivityIconNames;
 
 	/**
 	 * Points to one of the activities when it is active
