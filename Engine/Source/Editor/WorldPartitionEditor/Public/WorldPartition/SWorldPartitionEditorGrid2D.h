@@ -211,6 +211,12 @@ protected:
 	FLoaderInterfaceStack HoveredLoaderInterfacesStack;
 	FLoaderInterface HoveredLoaderInterface;
 
+	// Shown actors cache
+	FBox ViewRectWorldCache;
+	TSet<FGuid> ShownActorGuidsCache;
+	FLoaderInterfaceSet ShownLoaderInterfacesCache;
+	void InvalidateShownActorsCache() { ViewRectWorldCache.Init(); }
+
 	// Minimap
 	void UpdateWorldMiniMapDetails();
 	void SaveMiniMapUnloadedOpacityUserSetting();
