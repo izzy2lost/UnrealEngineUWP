@@ -25,6 +25,7 @@ using System.Diagnostics;
 using EpicGames.Horde.Streams;
 using EpicGames.Horde.Agents.Pools;
 using Horde.Server.Replicators;
+using EpicGames.Horde.Replicators;
 
 namespace Horde.Server.Streams
 {
@@ -371,6 +372,18 @@ namespace Horde.Server.Streams
 			// Add rules from this tag
 			filter.AddRules(config.Filter);
 			return true;
+		}
+
+		/// <summary>
+		/// Tries to find a replicator with the given id
+		/// </summary>
+		/// <param name="replicatorId"></param>
+		/// <param name="replicatorConfig"></param>
+		/// <returns></returns>
+		public bool TryGetReplicator(StreamReplicatorId replicatorId, [NotNullWhen(true)] out ReplicatorConfig? replicatorConfig)
+		{
+			replicatorConfig = Replicators.FirstOrDefault(x => x.Id == replicatorId);
+			return replicatorConfig != null;
 		}
 
 		/// <summary>

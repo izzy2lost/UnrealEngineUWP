@@ -12,6 +12,7 @@ using Horde.Server.Streams;
 using EpicGames.Horde.Streams;
 using Horde.Server.Configuration;
 using EpicGames.Horde.Replicators;
+using Horde.Server.Replicators;
 
 namespace Horde.Server.Commands.Test
 {

@@ -18,6 +18,11 @@ namespace Horde.Server.Replicators
 		ReplicatorId Id { get; }
 
 		/// <summary>
+		/// Whether replication is paused
+		/// </summary>
+		bool Paused { get; }
+
+		/// <summary>
 		/// The last change that was replicated
 		/// </summary>
 		int? LastChange { get; }
@@ -68,5 +73,5 @@ namespace Horde.Server.Replicators
 	/// <summary>
 	/// Parameters for updating <see cref="IReplicator"/>
 	/// </summary>
-	public record class UpdateReplicatorOptions(int? NewLastChange = null, int? NewCurrentChange = null, string? NewError = null);
+	public record class UpdateReplicatorOptions(bool? NewPaused = null, int? NewLastChange = null, int? NewCurrentChange = null, string? NewError = null);
 }

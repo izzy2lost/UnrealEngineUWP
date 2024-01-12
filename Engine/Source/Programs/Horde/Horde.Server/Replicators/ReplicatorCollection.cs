@@ -25,6 +25,9 @@ namespace Horde.Server.Replicators
 		{
 			public ReplicatorId Id { get; set; }
 
+			[BsonElement("pause")]
+			public bool Paused { get; set; }
+
 			[BsonElement("lc")]
 			public int? LastChange { get; set; }
 
@@ -56,6 +59,7 @@ namespace Horde.Server.Replicators
 			}
 
 			public ReplicatorId Id => _document.Id;
+			public bool Paused => _document.Paused;
 			public int? LastChange => _document.LastChange;
 			public DateTime? LastChangeFinishTime => _document.LastChangeFinishTime;
 			public int? CurrentChange => _document.CurrentChange;
@@ -157,6 +161,11 @@ namespace Horde.Server.Replicators
 		async Task<ReplicatorDoc?> TryUpdateAsync(ReplicatorDoc current, UpdateReplicatorOptions options, CancellationToken cancellationToken = default)
 		{
 			List<UpdateDefinition<ReplicatorDoc>> updates = new List<UpdateDefinition<ReplicatorDoc>>();
+
+			if (options.NewPaused != null)
+			{
+				updates.Add(Builders<ReplicatorDoc>.Update.Set(x => x.Paused, options.NewPaused.Value));
+			}
 
 			if (options.NewLastChange != null)
 			{

@@ -17,7 +17,7 @@ using EpicGames.Horde.Replicators;
 using Polly;
 using Polly.Retry;
 
-namespace Horde.Server.Perforce
+namespace Horde.Server.Replicators
 {
 	/// <summary>
 	/// Exception triggered during content replication

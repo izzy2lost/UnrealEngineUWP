@@ -1,6 +1,8 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
+using System;
 using System.ComponentModel;
+using System.Globalization;
 using EpicGames.Core;
 using EpicGames.Horde.Streams;
 using EpicGames.Serialization;
@@ -10,10 +12,63 @@ namespace EpicGames.Horde.Replicators
 	/// <summary>
 	/// Unique identifier for a replicator across all streams
 	/// </summary>
+	[LogValueType]
+	[JsonSchemaString]
+	[TypeConverter(typeof(ReplicatorIdTypeConverter))]
 	public record struct ReplicatorId(StreamId StreamId, StreamReplicatorId StreamReplicatorId)
 	{
+		/// <summary>
+		/// Parse a replicator id
+		/// </summary>
+		public static bool TryParse(string text, out ReplicatorId replicatorId)
+		{
+			int colonIdx = text.IndexOf(':');
+			if (colonIdx != -1)
+			{
+				replicatorId = new ReplicatorId(new StreamId(new StringId(text.Substring(0, colonIdx))), new StreamReplicatorId(new StringId(text.Substring(colonIdx + 1))));
+				return true;
+			}
+			else
+			{
+				replicatorId = default;
+				return false;
+			}
+		}
+
 		/// <inheritdoc/>
 		public override string ToString() => $"{StreamId}:{StreamReplicatorId}";
+	}
+
+	/// <summary>
+	/// Class which serializes types with a <see cref="StringIdConverter{T}"/> to Json
+	/// </summary>
+	public sealed class ReplicatorIdTypeConverter : TypeConverter
+	{
+		/// <inheritdoc/>
+		public override bool CanConvertFrom(ITypeDescriptorContext? context, Type sourceType) => sourceType == typeof(string);
+
+		/// <inheritdoc/>
+		public override object? ConvertFrom(ITypeDescriptorContext? context, CultureInfo? culture, object value)
+		{
+			if (value is string str && ReplicatorId.TryParse(str, out ReplicatorId replicatorId))
+			{
+				return replicatorId;
+			}
+			return null;
+		}
+
+		/// <inheritdoc/>
+		public override bool CanConvertTo(ITypeDescriptorContext? context, Type? destinationType) => destinationType == typeof(string);
+
+		/// <inheritdoc/>
+		public override object? ConvertTo(ITypeDescriptorContext? context, CultureInfo? culture, object? value, Type destinationType)
+		{
+			if (destinationType == typeof(string))
+			{
+				return value?.ToString();
+			}
+			return null;
+		}
 	}
 
 	/// <summary>
