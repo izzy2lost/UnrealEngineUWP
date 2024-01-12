@@ -206,8 +206,8 @@ struct FDefaultTemporalUpscaler
 	struct FOutputs
 	{
 		FScreenPassTextureSlice FullRes;
-		FScreenPassTexture HalfRes;
-		FScreenPassTexture QuarterRes;
+		FScreenPassTextureSlice HalfRes;
+		FScreenPassTextureSlice QuarterRes;
 		FVelocityFlattenTextures VelocityFlattenTextures;
 	};
 };

@@ -28,7 +28,7 @@ TAutoConsoleVariable<float> CVarBloomCross(
 BEGIN_SHADER_PARAMETER_STRUCT(FBloomSetupParameters, )
 	SHADER_PARAMETER_STRUCT_REF(FViewUniformShaderParameters, View)
 	SHADER_PARAMETER_STRUCT(FScreenPassTextureViewportParameters, Input)
-	SHADER_PARAMETER_RDG_TEXTURE(Texture2D, InputTexture)
+	SHADER_PARAMETER_RDG_TEXTURE_SRV(Texture2D, InputTexture)
 	SHADER_PARAMETER_SAMPLER(SamplerState, InputSampler)
 	SHADER_PARAMETER_RDG_TEXTURE(Texture2D, LumBilateralGrid)
 	SHADER_PARAMETER_SAMPLER(SamplerState, LumBilateralGridSampler)
@@ -49,7 +49,7 @@ FBloomSetupParameters GetBloomSetupParameters(
 	FBloomSetupParameters Parameters;
 	Parameters.View = View.ViewUniformBuffer;
 	Parameters.Input = GetScreenPassTextureViewportParameters(InputViewport);
-	Parameters.InputTexture = Inputs.SceneColor.Texture;
+	Parameters.InputTexture = Inputs.SceneColor.TextureSRV;
 	Parameters.InputSampler = TStaticSamplerState<SF_Bilinear, AM_Clamp, AM_Clamp, AM_Clamp>::GetRHI();
 	Parameters.LumBilateralGrid = Inputs.LocalExposureTexture;
 	Parameters.LumBilateralGridSampler = TStaticSamplerState<SF_Bilinear, AM_Clamp, AM_Clamp, AM_Clamp>::GetRHI();
@@ -128,9 +128,12 @@ FScreenPassTexture AddBloomSetupPass(FRDGBuilder& GraphBuilder, const FViewInfo&
 
 	check(bLocalExposureEnabled || bThresholdEnabled);
 
-	FRDGTextureDesc OutputDesc = Inputs.SceneColor.Texture->Desc;
-	OutputDesc.Reset();
-	OutputDesc.Flags |= bIsComputePass ? TexCreate_UAV : TexCreate_RenderTargetable;
+	const FRDGTextureDesc& InputDesc = Inputs.SceneColor.TextureSRV->Desc.Texture->Desc;
+	FRDGTextureDesc OutputDesc = FRDGTextureDesc::Create2D(
+		InputDesc.Extent,
+		InputDesc.Format,
+		FClearValueBinding::None,
+		/* InFlags = */ TexCreate_ShaderResource | (bIsComputePass ? TexCreate_UAV : TexCreate_RenderTargetable));
 
 	const FScreenPassTextureViewport Viewport(Inputs.SceneColor);
 	const FScreenPassRenderTarget Output(GraphBuilder.CreateTexture(OutputDesc, TEXT("BloomSetup")), Viewport.Rect, ERenderTargetLoadAction::ENoAction);

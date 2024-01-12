@@ -391,3 +391,12 @@ inline FScreenPassTextureInput GetScreenPassTextureInput(FScreenPassTexture Text
 	Input.Sampler = Sampler;
 	return Input;
 }
+
+inline FScreenPassTextureSliceInput GetScreenPassTextureInput(FScreenPassTextureSlice TexturePair, FRHISamplerState* Sampler)
+{
+	FScreenPassTextureSliceInput Input;
+	Input.Viewport = GetScreenPassTextureViewportParameters(FScreenPassTextureViewport(TexturePair));
+	Input.Texture = TexturePair.TextureSRV;
+	Input.Sampler = Sampler;
+	return Input;
+}

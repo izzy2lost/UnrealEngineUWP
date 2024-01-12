@@ -117,7 +117,7 @@ FRDGBufferRef AddBasicEyeAdaptationPass(
 	const FViewInfo& View,
 	const FEyeAdaptationParameters& EyeAdaptationParameters,
 	const FLocalExposureParameters& LocalExposureParameters,
-	FScreenPassTexture SceneColor,
+	FScreenPassTextureSlice SceneColor,
 	FRDGBufferRef EyeAdaptationBuffer,
 	bool bComputeAverageLocalExposure);
 

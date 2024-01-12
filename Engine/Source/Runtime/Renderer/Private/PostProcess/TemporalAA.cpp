@@ -654,16 +654,8 @@ FTAAOutputs AddTemporalAAPass(
 				Inputs.DownsampleOverrideFormat != PF_Unknown ? Inputs.DownsampleOverrideFormat : Inputs.SceneColorInput->Desc.Format,
 				FClearValueBinding::Black,
 				TexCreate_ShaderResource | TexCreate_UAV | GFastVRamConfig.Downsample);
-			const TRefCountPtr<IPooledRenderTarget>& PrevFrameHalfResTAAHistory = View.PrevViewInfo.HalfResTemporalAAHistory;
 
-			if (PrevFrameHalfResTAAHistory && Translate(PrevFrameHalfResTAAHistory->GetDesc()) == HalfResSceneColorDesc)
-			{
-				Outputs.DownsampledSceneColor = GraphBuilder.RegisterExternalTexture(PrevFrameHalfResTAAHistory);
-			}
-			else
-			{
-				Outputs.DownsampledSceneColor = GraphBuilder.CreateTexture(HalfResSceneColorDesc, TEXT("SceneColorHalfRes"));
-			}
+			Outputs.DownsampledSceneColor = GraphBuilder.CreateTexture(HalfResSceneColorDesc, TEXT("SceneColorHalfRes"));
 		}
 	}
 
@@ -1068,8 +1060,11 @@ FDefaultTemporalUpscaler::FOutputs AddGen4MainTemporalAAPasses(
 
 	FDefaultTemporalUpscaler::FOutputs Outputs;
 	Outputs.FullRes = FScreenPassTextureSlice::CreateFromScreenPassTexture(GraphBuilder, FScreenPassTexture(SceneColorTexture, SecondaryViewRect));
-	Outputs.HalfRes.Texture = TAAOutputs.DownsampledSceneColor;
-	Outputs.HalfRes.ViewRect = FIntRect::DivideAndRoundUp(SecondaryViewRect, 2);
+	if (TAAOutputs.DownsampledSceneColor)
+	{
+		Outputs.HalfRes.TextureSRV = GraphBuilder.CreateSRV(FRDGTextureSRVDesc(TAAOutputs.DownsampledSceneColor));
+		Outputs.HalfRes.ViewRect = FIntRect::DivideAndRoundUp(SecondaryViewRect, 2);
+	}
 	return Outputs;
 } // AddGen4MainTemporalAAPasses()
 

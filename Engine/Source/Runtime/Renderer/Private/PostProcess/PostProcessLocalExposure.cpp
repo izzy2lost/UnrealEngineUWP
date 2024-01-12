@@ -29,7 +29,7 @@ public:
 		SHADER_PARAMETER_STRUCT_REF(FViewUniformShaderParameters, View)
 		SHADER_PARAMETER_STRUCT(FEyeAdaptationParameters, EyeAdaptation)
 		SHADER_PARAMETER_STRUCT(FScreenPassTextureViewportParameters, Input)
-		SHADER_PARAMETER_RDG_TEXTURE(Texture2D, InputTexture)
+		SHADER_PARAMETER_RDG_TEXTURE_SRV(Texture2D, InputTexture)
 		SHADER_PARAMETER_RDG_TEXTURE_UAV(RWTexture2D<float>, OutputFloat)
 	END_SHADER_PARAMETER_STRUCT()
 
@@ -148,7 +148,7 @@ FRDGTextureRef AddLocalExposureBlurredLogLuminancePass(
 	FRDGBuilder& GraphBuilder,
 	const FViewInfo& View,
 	const FEyeAdaptationParameters& EyeAdaptationParameters,
-	FScreenPassTexture InputTexture)
+	FScreenPassTextureSlice InputTexture)
 {
 	check(InputTexture.IsValid());
 
@@ -170,7 +170,7 @@ FRDGTextureRef AddLocalExposureBlurredLogLuminancePass(
 		PassParameters->View = View.ViewUniformBuffer;
 		PassParameters->EyeAdaptation = EyeAdaptationParameters;
 		PassParameters->Input = GetScreenPassTextureViewportParameters(FScreenPassTextureViewport(InputTexture));
-		PassParameters->InputTexture = InputTexture.Texture;
+		PassParameters->InputTexture = InputTexture.TextureSRV;
 		PassParameters->OutputFloat = GraphBuilder.CreateUAV(GaussianLumSetupTexture);
 
 		FComputeShaderUtils::AddPass(
@@ -188,7 +188,7 @@ FRDGTextureRef AddLocalExposureBlurredLogLuminancePass(
 		FGaussianBlurInputs GaussianBlurInputs;
 		GaussianBlurInputs.NameX = TEXT("LocalExposureGaussianX");
 		GaussianBlurInputs.NameY = TEXT("LocalExposureGaussianY");
-		GaussianBlurInputs.Filter = FScreenPassTexture(GaussianLumSetupTexture);
+		GaussianBlurInputs.Filter = FScreenPassTextureSlice::CreateFromScreenPassTexture(GraphBuilder, FScreenPassTexture(GaussianLumSetupTexture));
 		GaussianBlurInputs.TintColor = FLinearColor::White;
 		GaussianBlurInputs.CrossCenterWeight = FVector2f::ZeroVector;
 		GaussianBlurInputs.KernelSizePercent = View.FinalPostProcessSettings.LocalExposureBlurredLuminanceKernelSizePercent;

@@ -114,11 +114,10 @@ uint HistoryArrayIndices_HighFrequency;
 Texture2DArray<tsr_halfC> PrevHistoryColorTexture;
 Texture2DArray<tsr_halfM> PrevHistoryMetadataTexture;
 
-RWTexture2D<tsr_halfC> SceneColorOutputMip0;
-RWTexture2D<tsr_halfC> SceneColorOutputMip1;
-
 RWTexture2DArray<tsr_halfC> HistoryColorOutput;
 RWTexture2DArray<tsr_halfM> HistoryMetadataOutput;
+
+RWTexture2DArray<tsr_halfC> SceneColorOutputMip1;
 
 
 //------------------------------------------------------- LDS
@@ -1108,10 +1107,10 @@ void MainCS(
 				}
 			}
 
-			SceneColorOutputMip1[dpv_lo(HalfResOutputPixelPos)] = dpv_lo(HalfResOutput);
+			SceneColorOutputMip1[tsr_short3(dpv_lo(HalfResOutputPixelPos), 0)] = dpv_lo(HalfResOutput);
 			
 			#if CONFIG_ENABLE_DUAL_PIXEL_VECTORIZATION
-				SceneColorOutputMip1[dpv_hi(HalfResOutputPixelPos)] = dpv_hi(HalfResOutput);
+				SceneColorOutputMip1[tsr_short3(dpv_hi(HalfResOutputPixelPos), 0)] = dpv_hi(HalfResOutput);
 			#endif
 		}
 		

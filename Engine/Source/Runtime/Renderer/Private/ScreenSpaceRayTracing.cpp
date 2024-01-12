@@ -1007,8 +1007,16 @@ void RenderScreenSpaceReflections(
 		}
 		else if (GSSRHalfResSceneColor && View.PrevViewInfo.HalfResTemporalAAHistory.IsValid())
 		{
-			InputColor = GraphBuilder.CreateSRV(FRDGTextureSRVDesc(
-				GraphBuilder.RegisterExternalTexture(View.PrevViewInfo.HalfResTemporalAAHistory)));
+			FRDGTextureRef HalfResTemporalAAHistory = GraphBuilder.RegisterExternalTexture(View.PrevViewInfo.HalfResTemporalAAHistory);
+
+			if (HalfResTemporalAAHistory->Desc.Dimension == ETextureDimension::Texture2DArray)
+			{
+				InputColor = GraphBuilder.CreateSRV(FRDGTextureSRVDesc::CreateForSlice(HalfResTemporalAAHistory, /* SliceIndex = */ 0));
+			}
+			else
+			{
+				InputColor = GraphBuilder.CreateSRV(FRDGTextureSRVDesc(HalfResTemporalAAHistory));
+			}
 		}
 		else if (View.PrevViewInfo.TemporalAAHistory.IsValid())
 		{

@@ -346,7 +346,14 @@ BEGIN_SHADER_PARAMETER_STRUCT(FScreenPassTextureInput, )
 	SHADER_PARAMETER_SAMPLER(SamplerState, Sampler)
 END_SHADER_PARAMETER_STRUCT()
 
+BEGIN_SHADER_PARAMETER_STRUCT(FScreenPassTextureSliceInput, )
+	SHADER_PARAMETER_STRUCT_INCLUDE(FScreenPassTextureViewportParameters, Viewport)
+	SHADER_PARAMETER_RDG_TEXTURE_SRV(Texture2D, Texture)
+	SHADER_PARAMETER_SAMPLER(SamplerState, Sampler)
+END_SHADER_PARAMETER_STRUCT()
+
 FScreenPassTextureInput GetScreenPassTextureInput(FScreenPassTexture Input, FRHISamplerState* Sampler);
+FScreenPassTextureSliceInput GetScreenPassTextureInput(FScreenPassTextureSlice Input, FRHISamplerState* Sampler);
 
 /** Draw information for the more advanced DrawScreenPass variant. Allows customizing the blend / depth stencil state,
  *  providing a custom vertex shader, and more fine-grained control of the underlying draw call.

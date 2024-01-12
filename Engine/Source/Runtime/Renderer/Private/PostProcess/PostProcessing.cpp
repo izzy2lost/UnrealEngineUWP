@@ -775,8 +775,8 @@ void AddPostProcessingPasses(
 		FScreenPassTextureSlice SceneColorSlice = FScreenPassTextureSlice::CreateFromScreenPassTexture(GraphBuilder, SceneColor);
 		SceneColor = FScreenPassTexture();
 
-		FScreenPassTexture HalfResSceneColor;
-		FScreenPassTexture QuarterResSceneColor;
+		FScreenPassTextureSlice HalfResSceneColor;
+		FScreenPassTextureSlice QuarterResSceneColor;
 		FVelocityFlattenTextures VelocityFlattenTextures;
 		if (TAAConfig != EMainTAAPassConfig::Disabled)
 		{
@@ -932,8 +932,8 @@ void AddPostProcessingPasses(
 			{
 				FMotionBlurOutputs PassOutputs = AddMotionBlurPass(GraphBuilder, View, PassInputs);
 				SceneColorSlice = PassOutputs.FullRes;
-				HalfResSceneColor = PassOutputs.HalfRes;
-				QuarterResSceneColor = PassOutputs.QuarterRes;
+				HalfResSceneColor = FScreenPassTextureSlice::CreateFromScreenPassTexture(GraphBuilder, PassOutputs.HalfRes);
+				QuarterResSceneColor = FScreenPassTextureSlice::CreateFromScreenPassTexture(GraphBuilder, PassOutputs.QuarterRes);
 			}
 		}
 		else if (PostMotionBlurTranslucencyResources.IsValid())
@@ -955,8 +955,8 @@ void AddPostProcessingPasses(
 			// Invalidate half and quarter res.
 			if (NewSceneColorSlice != SceneColorSlice)
 			{
-				HalfResSceneColor = FScreenPassTexture();
-				QuarterResSceneColor = FScreenPassTexture();
+				HalfResSceneColor = FScreenPassTextureSlice();
+				QuarterResSceneColor = FScreenPassTextureSlice();
 			}
 
 			SceneColorSlice = NewSceneColorSlice;
@@ -969,12 +969,11 @@ void AddPostProcessingPasses(
 			{
 				FDownsamplePassInputs PassInputs;
 				PassInputs.Name = TEXT("PostProcessing.SceneColor.HalfRes");
-				PassInputs.SceneColor = FScreenPassTexture(SceneColorSlice);
+				PassInputs.SceneColor = SceneColorSlice;
 				PassInputs.Quality = DownsampleQuality;
 				PassInputs.FormatOverride = DownsampleOverrideFormat;
-				PassInputs.UserSuppliedOutput = View.PrevViewInfo.HalfResTemporalAAHistory;
 
-				HalfResSceneColor = AddDownsamplePass(GraphBuilder, View, PassInputs);
+				HalfResSceneColor = FScreenPassTextureSlice::CreateFromScreenPassTexture(GraphBuilder, AddDownsamplePass(GraphBuilder, View, PassInputs));
 			}
 
 			if (bNeedPostMotionBlurQuarterRes && !QuarterResSceneColor.IsValid())
@@ -984,21 +983,21 @@ void AddPostProcessingPasses(
 				PassInputs.SceneColor = HalfResSceneColor;
 				PassInputs.Quality = DownsampleQuality;
 
-				QuarterResSceneColor = AddDownsamplePass(GraphBuilder, View, PassInputs);
+				QuarterResSceneColor = FScreenPassTextureSlice::CreateFromScreenPassTexture(GraphBuilder, AddDownsamplePass(GraphBuilder, View, PassInputs));
 			}
 		}
 
 
 
 		// Store half res scene color in the history
-		if (ReflectionsMethod == EReflectionsMethod::SSR && !View.bStatePrevViewInfoIsReadOnly && GSSRHalfResSceneColor)
+		if (ReflectionsMethod == EReflectionsMethod::SSR && !View.bStatePrevViewInfoIsReadOnly && GSSRHalfResSceneColor && HalfResSceneColor.IsValid())
 		{
 			check(View.ViewState);
-			GraphBuilder.QueueTextureExtraction(HalfResSceneColor.Texture, &View.ViewState->PrevFrameViewInfo.HalfResTemporalAAHistory);
+			GraphBuilder.QueueTextureExtraction(HalfResSceneColor.TextureSRV->Desc.Texture, &View.ViewState->PrevFrameViewInfo.HalfResTemporalAAHistory);
 		}
 
 		{
-			FScreenPassTexture LocalExposureSceneColor = bProcessQuarterResolution ? QuarterResSceneColor : HalfResSceneColor;
+			FScreenPassTextureSlice LocalExposureSceneColor = bProcessQuarterResolution ? QuarterResSceneColor : HalfResSceneColor;
 
 			if (bLocalExposureEnabled)
 			{
@@ -1013,7 +1012,7 @@ void AddPostProcessingPasses(
 
 		if (bHistogramEnabled)
 		{
-			FScreenPassTexture HistogramSceneColor = bProcessQuarterResolution ? QuarterResSceneColor : HalfResSceneColor;
+			FScreenPassTextureSlice HistogramSceneColor = bProcessQuarterResolution ? QuarterResSceneColor : HalfResSceneColor;
 
 			if (IsAutoExposureUsingIlluminanceEnabled(View))
 			{
@@ -1021,11 +1020,11 @@ void AddPostProcessingPasses(
 				{
 					const FIntRect IlluminanceRect = GetDownscaledRect(PrimaryViewRect, GetAutoExposureIlluminanceDownscaleFactor());
 
-					HistogramSceneColor = FScreenPassTexture(Inputs.ExposureIlluminance, IlluminanceRect);
+					HistogramSceneColor = FScreenPassTextureSlice::CreateFromScreenPassTexture(GraphBuilder, FScreenPassTexture(Inputs.ExposureIlluminance, IlluminanceRect));
 				}
 				else
 				{
-					HistogramSceneColor = OriginalSceneColor;
+					HistogramSceneColor = FScreenPassTextureSlice::CreateFromScreenPassTexture(GraphBuilder, OriginalSceneColor);
 				}
 			}
 
@@ -1096,12 +1095,12 @@ void AddPostProcessingPasses(
 
 				if (FFTBloomResolutionFraction <= 0.25f)
 				{
-					InputSceneColor = FScreenPassTextureSlice::CreateFromScreenPassTexture(GraphBuilder, QuarterResSceneColor);
+					InputSceneColor = QuarterResSceneColor;
 					InputResolutionFraction = 0.25f;
 				}
 				else if (FFTBloomResolutionFraction <= 0.5f)
 				{
-					InputSceneColor = FScreenPassTextureSlice::CreateFromScreenPassTexture(GraphBuilder, HalfResSceneColor);
+					InputSceneColor = HalfResSceneColor;
 					InputResolutionFraction = 0.5f;
 				}
 				else
@@ -1135,7 +1134,7 @@ void AddPostProcessingPasses(
 				}
 				else
 				{
-					FScreenPassTexture DownsampleInput = bProcessQuarterResolution ? QuarterResSceneColor : HalfResSceneColor;
+					FScreenPassTextureSlice DownsampleInput = bProcessQuarterResolution ? QuarterResSceneColor : HalfResSceneColor;
 
 					if (bBloomSetupRequiredEnabled)
 					{
@@ -1150,7 +1149,7 @@ void AddPostProcessingPasses(
 						SetupPassInputs.BlurredLogLuminanceTexture = LocalExposureBlurredLogLumTexture;
 						SetupPassInputs.Threshold = BloomThreshold;
 
-						DownsampleInput = AddBloomSetupPass(GraphBuilder, View, SetupPassInputs);
+						DownsampleInput = FScreenPassTextureSlice::CreateFromScreenPassTexture(GraphBuilder, AddBloomSetupPass(GraphBuilder, View, SetupPassInputs));
 					}
 
 					const bool bLogLumaInAlpha = false;
@@ -1166,7 +1165,9 @@ void AddPostProcessingPasses(
 			{
 				const ELensFlareQuality LensFlareQuality = GetLensFlareQuality();
 				const uint32 LensFlareDownsampleStageIndex = static_cast<uint32>(ELensFlareQuality::MAX) - static_cast<uint32>(LensFlareQuality) - 1;
-				Bloom = AddLensFlaresPass(GraphBuilder, View, Bloom, LensFlareSceneDownsampleChain->GetTexture(LensFlareDownsampleStageIndex), LensFlareSceneDownsampleChain->GetFirstTexture());
+				Bloom = AddLensFlaresPass(GraphBuilder, View, Bloom,
+					LensFlareSceneDownsampleChain->GetTexture(LensFlareDownsampleStageIndex),
+					LensFlareSceneDownsampleChain->GetFirstTexture());
 			}
 		}
 
@@ -2376,7 +2377,7 @@ void AddMobilePostProcessingPasses(FRDGBuilder& GraphBuilder, FScene* Scene, con
 							FGaussianBlurInputs GaussianBlurInputs;
 							GaussianBlurInputs.NameX = BlurDebugX;
 							GaussianBlurInputs.NameY = BlurDebugY;
-							GaussianBlurInputs.Filter = DOFSetup;
+							GaussianBlurInputs.Filter = FScreenPassTextureSlice::CreateFromScreenPassTexture(GraphBuilder, DOFSetup);
 							GaussianBlurInputs.TintColor = FLinearColor::White;
 							GaussianBlurInputs.CrossCenterWeight = FVector2f::ZeroVector;
 							GaussianBlurInputs.KernelSizePercent = KernelSizePercent;
@@ -2489,7 +2490,9 @@ void AddMobilePostProcessingPasses(FRDGBuilder& GraphBuilder, FScene* Scene, con
 			{
 				const ELensFlareQuality LensFlareQuality = GetLensFlareQuality();
 				const uint32 LensFlareDownsampleStageIndex = static_cast<uint32>(ELensFlareQuality::MAX) - static_cast<uint32>(LensFlareQuality) - 1;
-				BloomUpOutputs = AddLensFlaresPass(GraphBuilder, View, BloomUpOutputs, PostProcessDownsample_Bloom[LensFlareDownsampleStageIndex], PostProcessDownsample_Bloom[0]);
+				BloomUpOutputs = AddLensFlaresPass(GraphBuilder, View, BloomUpOutputs,
+					FScreenPassTextureSlice::CreateFromScreenPassTexture(GraphBuilder, PostProcessDownsample_Bloom[LensFlareDownsampleStageIndex]),
+					FScreenPassTextureSlice::CreateFromScreenPassTexture(GraphBuilder, PostProcessDownsample_Bloom[0]));
 			}
 		}
 

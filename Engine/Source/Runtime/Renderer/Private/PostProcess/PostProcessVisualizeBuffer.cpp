@@ -406,14 +406,14 @@ FScreenPassTexture AddVisualizeGBufferOverviewPass(
 		{
 			FDownsamplePassInputs DownsampleInputs;
 			DownsampleInputs.Name = TEXT("MaterialHalfSize");
-			DownsampleInputs.SceneColor = Output;
+			DownsampleInputs.SceneColor = FScreenPassTextureSlice::CreateFromScreenPassTexture(GraphBuilder, Output);
 			DownsampleInputs.Flags = EDownsampleFlags::ForceRaster;
 			DownsampleInputs.Quality = EDownsampleQuality::Low;
 
 			FScreenPassTexture HalfSize = AddDownsamplePass(GraphBuilder, View, DownsampleInputs);
 
 			DownsampleInputs.Name = TEXT("MaterialQuarterSize");
-			DownsampleInputs.SceneColor = HalfSize;
+			DownsampleInputs.SceneColor = FScreenPassTextureSlice::CreateFromScreenPassTexture(GraphBuilder, HalfSize);
 
 			FVisualizeBufferTile Tile;
 			Tile.Input = AddDownsamplePass(GraphBuilder, View, DownsampleInputs);

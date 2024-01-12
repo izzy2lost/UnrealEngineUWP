@@ -108,20 +108,15 @@ FScreenPassTexture AddDownsamplePass(
 
 	// Construct the output texture to be half resolution (rounded up to even) with an optional format override.
 	{
-		FRDGTextureDesc Desc = Inputs.SceneColor.Texture->Desc;
-		Desc.Reset();
-		Desc.Extent = FIntPoint::DivideAndRoundUp(Desc.Extent, 2);
+		const FRDGTextureDesc& InputDesc = Inputs.SceneColor.TextureSRV->Desc.Texture->Desc;
+		FRDGTextureDesc Desc = FRDGTextureDesc::Create2D(
+			FIntPoint::DivideAndRoundUp(InputDesc.Extent, 2),
+			Inputs.FormatOverride != PF_Unknown ? Inputs.FormatOverride  : InputDesc.Format,
+			FClearValueBinding(FLinearColor(0, 0, 0, 0)),
+			/* InFlags = */ TexCreate_ShaderResource | GFastVRamConfig.Downsample | (bIsComputePass ? TexCreate_UAV : (TexCreate_RenderTargetable | TexCreate_NoFastClear)));
+
 		Desc.Extent.X = FMath::Max(1, Desc.Extent.X);
 		Desc.Extent.Y = FMath::Max(1, Desc.Extent.Y);
-		Desc.Flags &= ~(TexCreate_RenderTargetable | TexCreate_UAV | TexCreate_Presentable);
-		Desc.Flags |= bIsComputePass ? TexCreate_UAV : (TexCreate_RenderTargetable | TexCreate_NoFastClear);
-		Desc.Flags |= GFastVRamConfig.Downsample;
-		Desc.ClearValue = FClearValueBinding(FLinearColor(0, 0, 0, 0));
-
-		if (Inputs.FormatOverride != PF_Unknown)
-		{
-			Desc.Format = Inputs.FormatOverride;
-		}
 
 		if (Inputs.UserSuppliedOutput && Translate(Inputs.UserSuppliedOutput->GetDesc()) == Desc)
 		{
@@ -145,7 +140,7 @@ FScreenPassTexture AddDownsamplePass(
 		PermutationVector.Set<FDownsampleQualityDimension>(Inputs.Quality);
 
 		FDownsamplePS::FParameters* PassParameters = GraphBuilder.AllocParameters<FDownsamplePS::FParameters>();
-		PassParameters->Common = GetDownsampleParameters(View, Output, FScreenPassTextureSlice::CreateFromScreenPassTexture(GraphBuilder, Inputs.SceneColor), Inputs.Quality);
+		PassParameters->Common = GetDownsampleParameters(View, Output, Inputs.SceneColor, Inputs.Quality);
 		PassParameters->RenderTargets[0] = Output.GetRenderTargetBinding();
 
 		TShaderMapRef<FDownsamplePS> PixelShader(View.ShaderMap, PermutationVector);
@@ -200,7 +195,7 @@ void FSceneDownsampleChain::Init(
 	FRDGBuilder& GraphBuilder,
 	const FViewInfo& View,
 	const FEyeAdaptationParameters& EyeAdaptationParameters,
-	FScreenPassTexture HalfResolutionSceneColor,
+	FScreenPassTextureSlice HalfResolutionSceneColor,
 	EDownsampleQuality DownsampleQuality,
 	bool bLogLumaInAlpha)
 {
@@ -231,13 +226,13 @@ void FSceneDownsampleChain::Init(
 		PassInputs.SceneColor = Textures[PreviousStageIndex];
 		PassInputs.Quality = DownsampleQuality;
 
-		Textures[StageIndex] = AddDownsamplePass(GraphBuilder, View, PassInputs);
+		Textures[StageIndex] = FScreenPassTextureSlice::CreateFromScreenPassTexture(GraphBuilder, AddDownsamplePass(GraphBuilder, View, PassInputs));
 
 		if (bLogLumaInAlpha)
 		{
 			bLogLumaInAlpha = false;
 
-			Textures[StageIndex] = AddBasicEyeAdaptationSetupPass(GraphBuilder, View, EyeAdaptationParameters, Textures[StageIndex]);
+			Textures[StageIndex] = FScreenPassTextureSlice::CreateFromScreenPassTexture(GraphBuilder, AddBasicEyeAdaptationSetupPass(GraphBuilder, View, EyeAdaptationParameters, FScreenPassTexture(Textures[StageIndex])));
 		}
 	}
 
