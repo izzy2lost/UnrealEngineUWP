@@ -827,13 +827,36 @@ namespace uba
 
 			case MessageType_GetNextProcess:
 				{
-					bool prevExitCode = reader.ReadBool();
-					bool newProcess = false;
+					u32 prevExitCode = reader.ReadU32();
 					NextProcessInfo nextProcess;
-					m_messageSuccess = m_session.GetNextProcess(*this, newProcess, nextProcess, prevExitCode) && m_messageSuccess;
+
+					StackBinaryWriter<16 * 1024> statsWriter;
+					
+					ProcessStats processStats;
+					processStats.Read(reader, TraceVersion);
+					processStats.startupTime = m_processStats.startupTime;
+					processStats.wallTime = GetTime() - m_startTime;
+					processStats.cpuTime = 0;
+					processStats.hostTotalTime = m_processStats.hostTotalTime;
+					
+					processStats.Write(statsWriter);
+					m_sessionStats.Write(statsWriter);
+					m_storageStats.Write(statsWriter);
+					m_systemStats.Write(statsWriter);
+					BinaryReader statsReader(statsWriter.GetData(), 0, statsWriter.GetPosition());
+
+					bool newProcess = false;
+					m_messageSuccess = m_session.GetNextProcess(*this, newProcess, nextProcess, prevExitCode, statsReader) && m_messageSuccess;
 					writer.WriteBool(newProcess);
 					if (!newProcess)
 						return true;
+
+					m_startTime = GetTime();
+					m_processStats = {};
+					m_sessionStats = {};
+					m_storageStats = {};
+					m_systemStats = {};
+
 					writer.WriteString(nextProcess.arguments);
 					writer.WriteString(nextProcess.workingDir);
 					writer.WriteString(nextProcess.description);

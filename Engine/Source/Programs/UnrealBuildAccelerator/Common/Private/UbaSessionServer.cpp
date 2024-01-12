@@ -1131,7 +1131,7 @@ namespace uba
 				ScopedWriteLock exitedLock(remoteProcess.m_exitedLock);
 				NextProcessInfo nextProcess;
 				bool newProcess;
-				if (!GetNextProcess(remoteProcess, newProcess, nextProcess, prevExitCode))
+				if (!GetNextProcess(remoteProcess, newProcess, nextProcess, prevExitCode, reader))
 					return false;
 
 				writer.WriteBool(newProcess);
@@ -1140,7 +1140,6 @@ namespace uba
 					writer.WriteString(nextProcess.arguments);
 					writer.WriteString(nextProcess.workingDir);
 					writer.WriteString(nextProcess.description);
-					m_trace.ProcessEnvironmentUpdated(processId, nextProcess.description.c_str(), reader.GetPositionData(), reader.GetLeft());
 				}
 				return true;
 			}

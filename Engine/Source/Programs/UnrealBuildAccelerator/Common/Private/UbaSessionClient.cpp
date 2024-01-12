@@ -1639,7 +1639,7 @@ namespace uba
 		m_stats.Print(logger);
 	}
 
-	bool SessionClient::GetNextProcess(Process& process, bool& outNewProcess, NextProcessInfo& outNextProcess, u32 prevExitCode)
+	bool SessionClient::GetNextProcess(Process& process, bool& outNewProcess, NextProcessInfo& outNextProcess, u32 prevExitCode, BinaryReader& statsReader)
 	{
 		outNewProcess = false;
 
@@ -1656,10 +1656,7 @@ namespace uba
 		NetworkMessage msg(m_client, ServiceId, SessionMessageType_GetNextProcess, writer);
 		writer.WriteU32(pi.m_id);
 		writer.WriteU32(prevExitCode);
-		pi.m_processStats.Write(writer);
-		pi.m_sessionStats.Write(writer);
-		pi.m_storageStats.Write(writer);
-		pi.m_systemStats.Write(writer);
+		writer.WriteBytes(statsReader.GetPositionData(), statsReader.GetLeft());
 
 		if (!msg.Send(reader, m_stats.customMsg))
 			return false;

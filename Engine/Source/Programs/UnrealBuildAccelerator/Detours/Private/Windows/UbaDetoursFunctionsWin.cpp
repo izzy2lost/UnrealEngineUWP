@@ -1040,11 +1040,15 @@ extern "C"
 			BinaryWriter writer;
 			writer.WriteByte(MessageType_GetNextProcess);
 			writer.WriteU32(prevExitCode);
+			g_stats.Write(writer);
+
+
 			writer.Flush();
 			BinaryReader reader;
 			newProcess = reader.ReadBool();
 			if (newProcess)
 			{
+				g_stats = {};
 				reader.ReadString(outArguments, outArgumentsCapacity);
 				//writer.SkipString(workingDir);
 				//writer.SkipString(description);

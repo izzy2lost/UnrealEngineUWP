@@ -1998,7 +1998,7 @@ namespace uba
 		return true;
 	}
 
-	bool Session::GetNextProcess(Process& process, bool& outNewProcess, NextProcessInfo& outNextProcess, u32 prevExitCode)
+	bool Session::GetNextProcess(Process& process, bool& outNewProcess, NextProcessInfo& outNextProcess, u32 prevExitCode, BinaryReader& statsReader)
 	{
 		if (!m_getNextProcessFunction)
 		{
@@ -2007,6 +2007,11 @@ namespace uba
 		}
 
 		outNewProcess = m_getNextProcessFunction(process, outNextProcess, prevExitCode);
+		if (!outNewProcess)
+			return true;
+
+		m_trace.ProcessEnvironmentUpdated(process.GetId(), outNextProcess.description.c_str(), statsReader.GetPositionData(), statsReader.GetLeft());
+
 		return true;
 	}
 
