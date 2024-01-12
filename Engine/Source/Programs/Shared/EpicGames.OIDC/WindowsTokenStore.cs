@@ -170,6 +170,7 @@ namespace EpicGames.OIDC
 			if (disposing)
 			{
 				SaveStoreToDisk();
+				_mutex.Dispose();
 			}
 		}
 
