@@ -4950,6 +4950,9 @@ EAsyncPackageState::Type FAsyncLoadingThread::ProcessLoadedPackages(bool bUseTim
 			// It may have been unloaded/marked pending kill since being added, ignore those cases
 			if (UObject* LoadedAsset = WeakAsset.Get())
 			{
+				// Current contract for UE_TRACK_REFERENCING_PACKAGE_SCOPED and AssetLoaded is that the caller of
+				// OnAssetLoaded sets the scope to the LoadedAsset's package.
+				UE_TRACK_REFERENCING_PACKAGE_SCOPED(LoadedAsset->GetPackage(), PackageAccessTrackingOps::NAME_Load);
 				FCoreUObjectDelegates::OnAssetLoaded.Broadcast(LoadedAsset);
 			}
 		}

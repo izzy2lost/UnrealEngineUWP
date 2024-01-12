@@ -17,6 +17,7 @@
 #include "PaperFlipbook.h"
 #include "Paper2DModule.h"
 #include "Paper2DPrivate.h"
+#include "UObject/ICookInfo.h"
 #include "UObject/LinkerLoad.h"
 
 #include UE_INLINE_GENERATED_CPP_BY_NAME(PaperSprite)
@@ -1449,6 +1450,9 @@ UTexture2D* UPaperSprite::GetSourceTexture() const
 
 	if (SourceTexturePtr == nullptr)
 	{
+		// The SourceTexture is editoronly and does not need to be cooked, but we sometimes load it during PostLoad due
+		// to testing NeedRescaleSpriteData
+		FCookLoadScope CookLoadScope(ECookLoadType::EditorOnly);
 		SourceTexturePtr = SourceTexture.LoadSynchronous();
 	}
 
