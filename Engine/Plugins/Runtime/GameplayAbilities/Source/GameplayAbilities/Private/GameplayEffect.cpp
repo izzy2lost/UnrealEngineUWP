@@ -3460,6 +3460,11 @@ void FActiveGameplayEffectsContainer::InternalUpdateNumericalAttribute(FGameplay
 
 void FActiveGameplayEffectsContainer::SetAttributeBaseValue(FGameplayAttribute Attribute, float NewBaseValue)
 {
+	if (!ensureMsgf(Owner, TEXT("%hs: This ActiveGameplayEffectsContainer has an invalid owner. Unable to set attribute %s"), __FUNCTION__, *Attribute.AttributeName))
+	{
+		return;
+	}
+
 	const UAttributeSet* Set = Owner->GetAttributeSubobject(Attribute.GetAttributeSetClass());
 	if (!ensureMsgf(Set, TEXT("FActiveGameplayEffectsContainer::SetAttributeBaseValue: Unable to get attribute set for attribute %s"), *Attribute.AttributeName))
 	{
