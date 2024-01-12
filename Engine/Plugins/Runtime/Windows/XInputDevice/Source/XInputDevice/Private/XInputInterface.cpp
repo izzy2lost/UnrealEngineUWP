@@ -3,6 +3,7 @@
 #include "XInputInterface.h"
 #include "HAL/PlatformTime.h"
 #include "Misc/CoreDelegates.h"
+#include "Misc/CoreMiscDefines.h"
 #include "Windows/WindowsApplication.h"
 #include "GenericPlatform/GenericApplication.h"
 #include "GenericPlatform/GenericPlatformInputDeviceMapper.h"
@@ -22,14 +23,14 @@ FAutoConsoleVariableRef CVarForceControllerStateUpdate(
 	TEXT("0: Not Enabled, 1: Enabled"),
 	ECVF_Default);
 
-TSharedRef< XInputInterface > XInputInterface::Create(  const TSharedRef< FGenericApplicationMessageHandler >& InMessageHandler )
+TSharedRef< XInputInterface > XInputInterface::Create(  const TSharedRef< FGenericApplicationMessageHandler >& InMessageHandler, bool bShouldBePrimaryDevice )
 {
-	return MakeShareable( new XInputInterface( InMessageHandler ) );
+	return MakeShareable( new XInputInterface( InMessageHandler, bShouldBePrimaryDevice ) );
 }
 
 
-XInputInterface::XInputInterface( const TSharedRef< FGenericApplicationMessageHandler >& InMessageHandler )
-	: MessageHandler( InMessageHandler )
+XInputInterface::XInputInterface(const TSharedRef<FGenericApplicationMessageHandler>& InMessageHandler, bool bShouldBePrimaryDevice)
+	: bIsPrimaryDevice(bShouldBePrimaryDevice), MessageHandler(InMessageHandler)
 {
 	for ( int32 ControllerIndex=0; ControllerIndex < MAX_NUM_XINPUT_CONTROLLERS; ++ControllerIndex )
 	{
@@ -109,6 +110,42 @@ float ShortToNormalizedFloat(int16 AxisVal)
 static FName XInputInterfaceName = FName("XInputInterface");
 static FString XInputControllerIdentifier = TEXT("XInputController");
 
+void XInputInterface::GetPlatformUserAndDevice(int32 InControllerId, EInputDeviceConnectionState InDeviceState, FPlatformUserId& OutPlatformUserId, FInputDeviceId& OutDeviceId)
+{
+	if (bIsPrimaryDevice)
+	{
+		IPlatformInputDeviceMapper& DeviceMapper = IPlatformInputDeviceMapper::Get();
+		DeviceMapper.RemapControllerIdToPlatformUserAndDevice(InControllerId, OUT OutPlatformUserId, OUT OutDeviceId);
+
+		// If the controller is connected now but was not before, refresh the information
+		if (InDeviceState == EInputDeviceConnectionState::Connected || InDeviceState == EInputDeviceConnectionState::Disconnected)
+		{
+			DeviceMapper.Internal_MapInputDeviceToUser(OutDeviceId, OutPlatformUserId, InDeviceState);
+		}
+	}
+	else
+	{
+		// Use the controller id as the device id for secondary input devices not connected to the input system.
+		OutDeviceId = FInputDeviceId::CreateFromInternalId(InControllerId);
+	}
+}
+
+namespace UE::XInputInterface::Private
+{
+EInputDeviceConnectionState GetInputDeviceConnectionState(bool bWasConnected, bool bControllerStateIsConnected)
+{
+	if (!bWasConnected && bControllerStateIsConnected)
+	{
+		return EInputDeviceConnectionState::Connected;
+	}
+	else if (bWasConnected && !bControllerStateIsConnected)
+	{
+		return EInputDeviceConnectionState::Disconnected;
+	}
+	return EInputDeviceConnectionState::Unknown;
+}
+
+}
 void XInputInterface::SendControllerEvents()
 {
 	bool bWereConnected[MAX_NUM_XINPUT_CONTROLLERS];
@@ -150,21 +187,11 @@ void XInputInterface::SendControllerEvents()
 		{
 			const XINPUT_STATE& XInputState = XInputStates[ControllerIndex];
 
-			IPlatformInputDeviceMapper& DeviceMapper = IPlatformInputDeviceMapper::Get();
 			FPlatformUserId PlatformUser = PLATFORMUSERID_NONE;
 			FInputDeviceId InputDevice = INPUTDEVICEID_NONE;
-			DeviceMapper.RemapControllerIdToPlatformUserAndDevice(ControllerState.ControllerId, OUT PlatformUser, OUT InputDevice);
+			EInputDeviceConnectionState State = UE::XInputInterface::Private::GetInputDeviceConnectionState(bWasConnected, ControllerState.bIsConnected);
+			GetPlatformUserAndDevice(ControllerState.ControllerId, State, OUT PlatformUser, OUT InputDevice);
 
-			// If the controller is connected now but was not before, refresh the information
-			if (!bWasConnected && ControllerState.bIsConnected)
-			{
-				DeviceMapper.Internal_MapInputDeviceToUser(InputDevice, PlatformUser, EInputDeviceConnectionState::Connected);
-			}
-			else if (bWasConnected && !ControllerState.bIsConnected)
-			{
-				DeviceMapper.Internal_MapInputDeviceToUser(InputDevice, PlatformUser, EInputDeviceConnectionState::Disconnected);
-			}
-			
 			bool CurrentStates[MAX_NUM_CONTROLLER_BUTTONS] = {0};
 		
 			// Get the current state of all buttons

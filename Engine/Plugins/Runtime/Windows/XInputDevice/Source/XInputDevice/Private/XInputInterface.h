@@ -6,6 +6,7 @@
 #include "GenericPlatform/IInputInterface.h"
 #include "IInputDevice.h"
 #include "GenericPlatform/GenericApplicationMessageHandler.h"
+#include "Misc/CoreMiscDefines.h"
 
 /** Max number of controllers. */
 #define MAX_NUM_XINPUT_CONTROLLERS 4
@@ -22,7 +23,7 @@ class XInputInterface : public IInputDevice
 {
 public:
 
-	static TSharedRef< XInputInterface > Create( const TSharedRef< FGenericApplicationMessageHandler >& InMessageHandler );
+	static TSharedRef< XInputInterface > Create( const TSharedRef< FGenericApplicationMessageHandler >& InMessageHandler, bool bShouldBePrimaryDevice );
 
 	/**
 	 * Poll for controller state and send events if needed
@@ -69,8 +70,12 @@ public:
 
 private:
 
-	XInputInterface( const TSharedRef< FGenericApplicationMessageHandler >& MessageHandler );
+	XInputInterface( const TSharedRef< FGenericApplicationMessageHandler >& MessageHandler, bool bShouldBePrimaryDevice );
 
+	/**
+	 * Maps the given controller id to the platform user and device id. It will use the device mapper when used with the input system.
+	 */
+	void GetPlatformUserAndDevice( int32 InControllerId, EInputDeviceConnectionState InDeviceState, FPlatformUserId& OutPlatformUserId, FInputDeviceId& OutDeviceId );
 
 	struct FControllerState
 	{
@@ -115,6 +120,9 @@ private:
 	bool bNeedsControllerStateUpdate;
 
 	bool bIsGamepadAttached;
+
+	/** Indicates if this device is operating as a primary device and thus part of game input system. */
+	bool bIsPrimaryDevice;
 
 	/** In the engine, all controllers map to xbox controllers for consistency */
 	uint8	X360ToXboxControllerMapping[MAX_NUM_CONTROLLER_BUTTONS];

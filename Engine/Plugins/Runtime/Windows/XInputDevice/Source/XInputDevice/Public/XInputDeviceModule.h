@@ -11,6 +11,7 @@ class FXInputDeviceModule final : public IInputDeviceModule
 {
 public:
 	//~ Begin IInputDeviceModule interface
-	virtual TSharedPtr<IInputDevice> CreateInputDevice(const TSharedRef<FGenericApplicationMessageHandler>& InMessageHandler) override;		
+	virtual TSharedPtr<IInputDevice> CreateInputDevice(const TSharedRef<FGenericApplicationMessageHandler>& InMessageHandler) override;
+	virtual TSharedPtr<IInputDevice> CreateInputDevice(const TSharedRef<FGenericApplicationMessageHandler>& InMessageHandler, FInputDeviceCreationParameters InParameters) override;
 	//~ End IInputDeviceModule interface
 };
