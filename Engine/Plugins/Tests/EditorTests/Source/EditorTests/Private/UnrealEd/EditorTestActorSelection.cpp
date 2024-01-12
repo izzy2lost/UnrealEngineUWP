@@ -50,8 +50,8 @@ bool FBVerifyActorSelection::Update()
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FAssetActorTest, "Editor.Workflows.Selection.Actor", EAutomationTestFlags::EditorContext | EAutomationTestFlags::ProductFilter)
 bool FAssetActorTest::RunTest(const FString& Parameters)
 {
-	UWorld** TestWorld = (UWorld**)FMemory::Malloc(sizeof(UWorld**));
-	AActor** TestAsset = (AActor**)FMemory::Malloc(sizeof(AActor**));
+	UWorld** TestWorld = (UWorld**)FMemory::Malloc(sizeof(UWorld*)); 
+	AActor** TestAsset = (AActor**)FMemory::Malloc(sizeof(AActor*));
 
 	const FString EditorTestName = TEXT("Editor.Workflows.Selection.Actor");
 	const TCHAR* TestMapPath = TEXT("/Game/Tests/Selection/HierarchicalISMSelectionTestMap");

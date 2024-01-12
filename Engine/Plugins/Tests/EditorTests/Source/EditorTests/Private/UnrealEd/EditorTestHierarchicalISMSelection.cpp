@@ -53,8 +53,8 @@ bool FBVerifyISMComponentSelection::Update()
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(FAssetHierarchicalISMSelectionTest, "Editor.Workflows.Selection.HierarchicalISM", EAutomationTestFlags::EditorContext | EAutomationTestFlags::ProductFilter)
 bool FAssetHierarchicalISMSelectionTest::RunTest(const FString& Parameters)
 {
-	UWorld** TestWorld = (UWorld**)FMemory::Malloc(sizeof(UWorld**));
-	UInstancedStaticMeshComponent** ISMComponent = (UInstancedStaticMeshComponent**)FMemory::Malloc(sizeof(UInstancedStaticMeshComponent**));
+	UWorld** TestWorld = (UWorld**)FMemory::Malloc(sizeof(UWorld*));
+	UInstancedStaticMeshComponent** ISMComponent = (UInstancedStaticMeshComponent**)FMemory::Malloc(sizeof(UInstancedStaticMeshComponent*));
 
 	const FString EditorTestName = TEXT("Editor.Workflows.Selection.HierarchicalISM");
 	const TCHAR* TestMapPath = TEXT("/Game/Tests/Selection/HierarchicalISMSelectionTestMap");
