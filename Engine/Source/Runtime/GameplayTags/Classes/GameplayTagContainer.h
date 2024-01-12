@@ -186,6 +186,11 @@ struct FGameplayTag
 		return TagName;
 	}
 
+	friend FArchive& operator<<(FArchive& Ar, FGameplayTag& GameplayTag)
+	{
+		return Ar << GameplayTag.TagName;
+	}
+
 	friend void operator<<(FStructuredArchive::FSlot Slot, FGameplayTag& GameplayTag)
 	{
 		Slot << GameplayTag.TagName;
