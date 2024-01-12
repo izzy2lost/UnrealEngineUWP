@@ -98,6 +98,9 @@ public:
 	/** Sets the the absolute position with rotation. */
 	virtual void SetPositionRotated(FVector2D NewRotatedPosition);
 
+	/** Returns the edges of the component, absolute, rotated, clockwise order */
+	void GetEdges(FVector2D& A, FVector2D& B, FVector2D& C, FVector2D& D) const;
+
 	/** Get the absolute size */
 	FVector2D GetSize() const;
 

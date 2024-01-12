@@ -8,7 +8,6 @@
 class FDMXPixelMappingComponentReference;
 class FDMXPixelMappingDragDropOp;
 class FDMXPixelMappingToolkit;
-class IDMXPixelMappingOutputComponentWidgetInterface;
 class SBorder;
 class SBox;
 class SCanvas;
@@ -22,6 +21,10 @@ class UDMXPixelMapping;
 class UDMXPixelMappingBaseComponent;
 class UDMXPixelMappingOutputComponent;
 class UDMXPixelMappingRendererComponent;
+namespace UE::DMX
+{
+	class IDMXPixelMappingOutputComponentWidgetInterface;
+}
 
 
 class SDMXPixelMappingDesignerView
@@ -205,7 +208,7 @@ private:
 	FVector2D DragAnchor;
 
 	/** Output component views currently displayed */
-	TArray<TSharedRef<IDMXPixelMappingOutputComponentWidgetInterface>> OutputComponentWidgets;
+	TArray<TSharedRef<UE::DMX::IDMXPixelMappingOutputComponentWidgetInterface>> OutputComponentWidgets;
 
 	TArray<TSharedPtr<SDMXPixelMappingTransformHandle>> TransformHandles;
 };

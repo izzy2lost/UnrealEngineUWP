@@ -111,7 +111,7 @@ bool UDMXPixelMappingOutputComponent::IsOverPosition(const FVector2D& OtherPosit
 	FVector2D B;
 	FVector2D C;
 	FVector2D D;
-	CachedGeometry.GetEdges(A, B, C, D);
+	CachedGeometry.GetEdgesAbsolute(A, B, C, D);
 
 	const FVector2D AM = OtherPosition - A;
 	const FVector2D AB = B - A;
@@ -138,7 +138,7 @@ bool UDMXPixelMappingOutputComponent::OverlapsComponent(UDMXPixelMappingOutputCo
 		FVector2D B;
 		FVector2D C;
 		FVector2D D;
-		CachedGeometry.GetEdges(A, B, C, D);
+		CachedGeometry.GetEdgesAbsolute(A, B, C, D);
 
 		return
 			Other->IsOverPosition(A) ||
@@ -182,6 +182,11 @@ void UDMXPixelMappingOutputComponent::SetPositionRotated(FVector2D NewRotatedPos
 #if WITH_EDITOR
 	EditorPositionWithRotation = CachedGeometry.GetPositionRotatedAbsolute();
 #endif
+}
+
+void UDMXPixelMappingOutputComponent::GetEdges(FVector2D& A, FVector2D& B, FVector2D& C, FVector2D& D) const
+{
+	return CachedGeometry.GetEdgesAbsolute(A, B, C, D);
 }
 
 void UDMXPixelMappingOutputComponent::SetSize(const FVector2D& NewSize)

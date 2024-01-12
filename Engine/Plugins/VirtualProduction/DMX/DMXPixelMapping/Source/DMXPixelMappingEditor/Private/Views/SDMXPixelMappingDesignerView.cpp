@@ -371,9 +371,8 @@ FReply SDMXPixelMappingDesignerView::OnMouseButtonDown(const FGeometry& MyGeomet
 {
 	SDMXPixelMappingSurface::OnMouseButtonDown(MyGeometry, MouseEvent);
 
-	const bool bLeftMouseButton = MouseEvent.GetEffectingButton() == EKeys::LeftMouseButton;
 	UDMXPixelMappingOutputComponent* ClickedComponent = GetComponentUnderCursor();
-	if (bLeftMouseButton && ClickedComponent)
+	if (MouseEvent.GetEffectingButton() == EKeys::LeftMouseButton && ClickedComponent)
 	{
 		PendingSelectedComponent = ClickedComponent;
 
@@ -681,6 +680,7 @@ void SDMXPixelMappingDesignerView::RebuildDesigner()
 
 		CachedRendererComponent->ForEachChild([this, &Toolkit, &ComponentCanvas](UDMXPixelMappingBaseComponent* Component)
 			{
+				using namespace UE::DMX;
 				if (UDMXPixelMappingScreenComponent* ScreenComponent = Cast<UDMXPixelMappingScreenComponent>(Component))
 				{
 					const TSharedRef<SDMXPixelMappingScreenComponent> ScreenComponentWidget = SNew(SDMXPixelMappingScreenComponent, Toolkit.ToSharedRef(), ScreenComponent);
@@ -768,51 +768,36 @@ FVector2D SDMXPixelMappingDesignerView::GetExtensionPosition(TSharedPtr<SDMXPixe
 
 		if (GetComponentGeometry(OutputComponent, SelectedComponentGeometry))
 		{
-			const FVector2f LocalPosition = [Handle, &SelectedComponentGeometry]()
+			const FVector2D LocalPosition = [Handle, &SelectedComponentGeometry]() -> FVector2D
 			{
 				// Get the initial offset based on the location around the selected object.
 				switch (Handle->GetTransformDirection())
 				{
 				case EDMXPixelMappingTransformDirection::CenterRight:
-					return FVector2f(SelectedComponentGeometry.GetLocalSize().X, SelectedComponentGeometry.GetLocalSize().Y * 0.5f);
+					return FVector2D(SelectedComponentGeometry.GetLocalSize().X, SelectedComponentGeometry.GetLocalSize().Y * 0.5f);
 				case EDMXPixelMappingTransformDirection::BottomCenter:
-					return FVector2f(SelectedComponentGeometry.GetLocalSize().X * 0.5f, SelectedComponentGeometry.GetLocalSize().Y);
+					return FVector2D(SelectedComponentGeometry.GetLocalSize().X * 0.5f, SelectedComponentGeometry.GetLocalSize().Y);
 				case EDMXPixelMappingTransformDirection::BottomRight:
-					return UE::Slate::CastToVector2f(SelectedComponentGeometry.GetLocalSize());
+					return SelectedComponentGeometry.GetLocalSize();
 				default:
 					checkNoEntry(); // Unhandled enum value
 				}
-				return FVector2f::ZeroVector;
+				return FVector2D::ZeroVector;
 			}();
 
-			const auto RotateVectorAroundPivot =
-				[](FVector2f Point, FVector2f Pivot, double AngleDegrees)
-				{
-					double Sin;
-					double Cos;
-					FMath::SinCos(&Sin, &Cos, FMath::DegreesToRadians(AngleDegrees));
 
-					const FVector2f RelativePositionOld = Point - Pivot;
-					const FVector2f RelativePositionNew = FVector2f(
-						Cos * RelativePositionOld.X - Sin * RelativePositionOld.Y,
-						Sin * RelativePositionOld.X + Cos * RelativePositionOld.Y);
+			FVector2D SelectedWidgetScale = FVector2D(SelectedComponentGeometry.GetAccumulatedRenderTransform().GetMatrix().GetScale().GetVector());
 
-					return RelativePositionNew + Pivot;
-				};
-			const FVector2f LocalPositionRotated = RotateVectorAroundPivot(LocalPosition, SelectedComponentGeometry.GetLocalSize() / 2.f, OutputComponent->GetRotation());
+			FVector2D ApplicationScaledOffset = Handle->GetOffset() * GetDesignerGeometry().Scale;
 
-			const FVector2f SelectedWidgetScale = SelectedComponentGeometry.GetAccumulatedRenderTransform().GetMatrix().GetScale().GetVector();
+			FVector2D LocalOffsetFull = ApplicationScaledOffset / SelectedWidgetScale;
+			FVector2D PositionFullOffset = GetDesignerGeometry().AbsoluteToLocal(SelectedComponentGeometry.LocalToAbsolute(LocalPosition + LocalOffsetFull));
+			FVector2D LocalOffsetHalf = (ApplicationScaledOffset / 2.0f) / SelectedWidgetScale;
+			FVector2D PositionHalfOffset = GetDesignerGeometry().AbsoluteToLocal(SelectedComponentGeometry.LocalToAbsolute(LocalPosition + LocalOffsetHalf));
 
-			const FVector2f ApplicationScaledOffset = UE::Slate::CastToVector2f(Handle->GetOffset() * GetDesignerGeometry().Scale);
+			FVector2D PivotCorrection = PositionHalfOffset - (PositionFullOffset + FVector2D(5.0f, 5.0f));
 
-			const FVector2f LocalOffsetFull = ApplicationScaledOffset / SelectedWidgetScale;
-			const FVector2f PositionFullOffset = GetDesignerGeometry().AbsoluteToLocal(SelectedComponentGeometry.LocalToAbsolute(LocalPositionRotated + LocalOffsetFull));
-			const FVector2f LocalOffsetHalf = (ApplicationScaledOffset / 2.0f) / SelectedWidgetScale;
-			const FVector2f PositionHalfOffset = GetDesignerGeometry().AbsoluteToLocal(SelectedComponentGeometry.LocalToAbsolute(LocalPositionRotated + LocalOffsetHalf));
-
-			FVector2f PivotCorrection = PositionHalfOffset - (PositionFullOffset + FVector2f(5.0f, 5.0f));
-
-			const FVector2f FinalPosition = PositionFullOffset + PivotCorrection;
+			FVector2D FinalPosition = PositionFullOffset + PivotCorrection;
 
 			return FVector2D(FinalPosition);
 		}
@@ -1030,6 +1015,7 @@ bool SDMXPixelMappingDesignerView::GetComponentGeometry(UDMXPixelMappingBaseComp
 {
 	if (UDMXPixelMappingOutputComponent* OutputComponent = Cast<UDMXPixelMappingOutputComponent>(InBaseComponent))
 	{
+		using namespace UE::DMX;
 		const TSharedRef<IDMXPixelMappingOutputComponentWidgetInterface>* ComponentViewPtr = Algo::FindByPredicate(OutputComponentWidgets, [InBaseComponent](const TSharedRef<IDMXPixelMappingOutputComponentWidgetInterface>& ComponentWidget)
 			{
 				return ComponentWidget->Equals(InBaseComponent);

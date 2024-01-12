@@ -93,7 +93,7 @@ void FDMXPixelMappingComponentGeometryCache::GetSinCos(double& OutSin, double& O
 	OutCos = Cos;
 }
 
-void FDMXPixelMappingComponentGeometryCache::GetEdges(FVector2D& A, FVector2D& B, FVector2D& C, FVector2D& D) const
+void FDMXPixelMappingComponentGeometryCache::GetEdgesAbsolute(FVector2D& A, FVector2D& B, FVector2D& C, FVector2D& D) const
 {
 	const FVector2D Pivot = Position + Size / 2.0;
 

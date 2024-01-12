@@ -49,8 +49,8 @@ public:
 	/** Returns rotation as sin cos */
 	void GetSinCos(double& OutSin, double& OutCos) const;
 
-	/** Returns the edges of the rectangle, considering rotation. */
-	void GetEdges(FVector2D& A, FVector2D& B, FVector2D& C, FVector2D& D) const;
+	/** Returns the edges of the rectangle, absolute, rotated, clockwise order */
+	void GetEdgesAbsolute(FVector2D& A, FVector2D& B, FVector2D& C, FVector2D& D) const;
 
 	/** Propagonates position changes to children. */
 	void PropagonatePositionChangesToChildren(const FVector2D& Translation);

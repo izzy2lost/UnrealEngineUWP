@@ -294,7 +294,7 @@ TSharedRef<SWidget> SDMXPixelMappingPreviewView::CreateOverlayUI()
 				.ContentPadding(FAppStyle::Get().GetMargin("ViewportMenu.SToolBarButtonBlock.Button.Padding"))
 				[
 					SNew(SImage)
-					.Image(FDMXPixelMappingEditorStyle::Get().GetBrush("Icons.ZoomToFit"))
+					.Image(FAppStyle::GetBrush("UMGEditor.ZoomToFit"))
 				]
 			]
 		];

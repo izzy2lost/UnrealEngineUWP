@@ -217,7 +217,7 @@ bool UDMXPixelMappingMatrixComponent::IsOverParent() const
 		FVector2D B;
 		FVector2D C;
 		FVector2D D;
-		CachedGeometry.GetEdges(A, B, C, D);
+		CachedGeometry.GetEdgesAbsolute(A, B, C, D);
 
 		return
 			Parent->IsOverPosition(A) &&
