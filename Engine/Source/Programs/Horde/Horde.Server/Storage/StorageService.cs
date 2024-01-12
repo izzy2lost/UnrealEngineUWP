@@ -69,9 +69,6 @@ namespace Horde.Server.Storage
 			public ValueTask FlushAsync(CancellationToken cancellationToken = default) => default;
 
 			/// <inheritdoc/>
-			public ValueTask<BlobType> ReadTypeAsync(CancellationToken cancellationToken = default) => new ValueTask<BlobType>(BlobType.Leaf);
-
-			/// <inheritdoc/>
 			public async Task<Stream> OpenBodyAsync(int offset = 0, int? length = null, CancellationToken cancellationToken = default)
 			{
 				using TelemetrySpan span = _tracer.StartActiveSpan($"{nameof(StorageService)}.{nameof(LeafBlobHandle)}.{nameof(OpenBodyAsync)}");
@@ -86,9 +83,6 @@ namespace Horde.Server.Storage
 
 				return await _backend.OpenAsync(_path, offset, length, cancellationToken);
 			}
-
-			/// <inheritdoc/>
-			public ValueTask<IReadOnlyList<IBlobHandle>> ReadImportsAsync(CancellationToken cancellationToken = default) => new ValueTask<IReadOnlyList<IBlobHandle>>(Array.Empty<IBlobHandle>());
 
 			/// <inheritdoc/>
 			public async ValueTask<BlobData> ReadBlobDataAsync(CancellationToken cancellationToken = default)

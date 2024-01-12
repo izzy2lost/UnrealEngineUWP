@@ -22,7 +22,7 @@ namespace EpicGames.Horde.Storage.Nodes
 
 	class RedirectNodeConverter<T> : BlobConverter<RedirectNode<T>>
 	{
-		BlobType s_blobType = new BlobType("{BE09E54F-47CA-7A6B-2A97-AFBC183B1538}", 1);
+		static readonly BlobType s_blobType = new BlobType("{BE09E54F-47CA-7A6B-2A97-AFBC183B1538}", 1);
 
 		/// <inheritdoc/>
 		public override RedirectNode<T> Read(IBlobReader reader, BlobSerializerOptions options)

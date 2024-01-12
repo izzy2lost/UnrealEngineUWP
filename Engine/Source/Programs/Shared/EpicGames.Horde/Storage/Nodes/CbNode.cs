@@ -73,12 +73,12 @@ namespace EpicGames.Horde.Storage.Nodes
 		/// <inheritdoc/>
 		public override CbNode Read(IBlobReader reader, BlobSerializerOptions options)
 		{
-			CbObject Object = new CbObject(reader.GetMemory().ToArray());
+			CbObject obj = new CbObject(reader.GetMemory().ToArray());
 
 			List<IBlobHandle<object>> references = new List<IBlobHandle<object>>();
-			Object.IterateAttachments(new HandleMapper(reader, references).IterateField);
+			obj.IterateAttachments(new HandleMapper(reader, references).IterateField);
 
-			return new CbNode(Object, references);
+			return new CbNode(obj, references);
 		}
 
 		/// <inheritdoc/>

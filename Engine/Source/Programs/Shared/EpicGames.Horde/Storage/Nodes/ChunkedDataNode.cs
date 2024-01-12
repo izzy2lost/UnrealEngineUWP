@@ -391,8 +391,8 @@ namespace EpicGames.Horde.Storage.Nodes
 
 		public override LeafChunkedDataNode Read(IBlobReader reader, BlobSerializerOptions options)
 		{
-			byte[] Data = reader.GetMemory().ToArray();
-			return new LeafChunkedDataNode(Data);
+			byte[] data = reader.GetMemory().ToArray();
+			return new LeafChunkedDataNode(data);
 		}
 
 		public override BlobType Write(IBlobWriter writer, LeafChunkedDataNode value, BlobSerializerOptions options)

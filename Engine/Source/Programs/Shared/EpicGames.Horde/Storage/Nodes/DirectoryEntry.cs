@@ -1,7 +1,6 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 using System.Diagnostics;
-using EpicGames.Core;
 
 namespace EpicGames.Horde.Storage.Nodes
 {

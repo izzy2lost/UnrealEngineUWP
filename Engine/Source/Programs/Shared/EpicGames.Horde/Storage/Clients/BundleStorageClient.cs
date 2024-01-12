@@ -27,7 +27,6 @@ namespace EpicGames.Horde.Storage.Clients
 		{
 			readonly BundleStorageClient _storageClient;
 			readonly IBlobHandle _inner;
-			List<IBlobHandle>? _refs;
 
 			/// <inheritdoc/>
 			public IBlobHandle? Outer => _inner.Outer;
@@ -43,35 +42,6 @@ namespace EpicGames.Horde.Storage.Clients
 
 			/// <inheritdoc/>
 			public ValueTask FlushAsync(CancellationToken cancellationToken = default) => _inner.FlushAsync(cancellationToken);
-
-			/// <inheritdoc/>
-			public ValueTask<BlobType> ReadTypeAsync(CancellationToken cancellationToken = default) => new ValueTask<BlobType>(Bundle.BlobType);
-
-			/// <inheritdoc/>
-			public async ValueTask<IReadOnlyList<IBlobHandle>> ReadImportsAsync(CancellationToken cancellationToken = default)
-			{
-				if (_refs == null)
-				{
-					List<IBlobHandle> refs = new List<IBlobHandle>();
-
-					Bundles.V1.BundleHeader header = await _storageClient.ReadHeaderAsync(_inner.GetLocator(), cancellationToken);
-					if (header.Exports.Count > 0)
-					{
-						foreach (BlobLocator import in header.Imports)
-						{
-							refs.Add(_storageClient.CreateBlobHandle(new BlobLocator(import.Path)));
-						}
-					}
-					else
-					{
-						using BlobData blobData = await ReadBlobDataAsync(cancellationToken);
-						refs.AddRange(blobData.Refs);
-					}
-
-					_refs = refs;
-				}
-				return _refs;
-			}
 
 			/// <inheritdoc/>
 			public Task<Stream> OpenBodyAsync(int offset = 0, int? length = null, CancellationToken cancellationToken = default)

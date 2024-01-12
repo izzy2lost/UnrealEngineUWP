@@ -3,13 +3,9 @@
 using System;
 using System.Collections.Concurrent;
 using System.Collections.Generic;
-using System.Linq;
 using System.Reflection;
-using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
-using EpicGames.Core;
-using EpicGames.Serialization;
 
 namespace EpicGames.Horde.Storage
 {
@@ -102,8 +98,8 @@ namespace EpicGames.Horde.Storage
 		public IList<BlobConverter> Converters { get; } = new List<BlobConverter>();
 
 		readonly ConcurrentDictionary<Type, BlobConverter> _cachedConverters = new ConcurrentDictionary<Type, BlobConverter>();
-		readonly static ConcurrentDictionary<Type, BlobConverter> s_cachedDefaultConverters = new ConcurrentDictionary<Type, BlobConverter>();
-		readonly static Func<Type, BlobConverter> s_createDefaultConverter = CreateDefaultConverter;
+		static readonly ConcurrentDictionary<Type, BlobConverter> s_cachedDefaultConverters = new ConcurrentDictionary<Type, BlobConverter>();
+		static readonly Func<Type, BlobConverter> s_createDefaultConverter = CreateDefaultConverter;
 
 		/// <summary>
 		/// Gets a converter for the given type
