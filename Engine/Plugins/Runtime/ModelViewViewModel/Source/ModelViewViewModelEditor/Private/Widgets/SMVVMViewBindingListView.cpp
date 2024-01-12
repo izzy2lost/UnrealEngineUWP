@@ -206,6 +206,30 @@ void SBindingsList::GetChildrenOfEntry(TSharedPtr<FBindingEntry> Entry, TArray<T
 	OutChildren.Append(Entry->GetFilteredChildren());
 }
 
+template<typename TEntryValueType>
+void SBindingsList::RegisterWrapperGraphModified(TEntryValueType* EntryValue, TSharedPtr<FBindingEntry> BindingEntry)
+{
+	{
+		const FObjectKey ObjectKey = FObjectKey(EntryValue);
+		TPair<TWeakPtr<FBindingEntry>, FDelegateHandle>* FoundWrapperGraphModifiedPtr = WrapperGraphModifiedDelegates.Find(ObjectKey);
+		if (FoundWrapperGraphModifiedPtr)
+		{
+			TSharedPtr<FBindingEntry> FoundWrapperGraphModified = FoundWrapperGraphModifiedPtr->Get<0>().Pin();
+			if (FoundWrapperGraphModified != BindingEntry)
+			{
+				EntryValue->OnWrapperGraphModified.Remove(FoundWrapperGraphModifiedPtr->Get<1>());
+				WrapperGraphModifiedDelegates.Remove(ObjectKey);
+				FoundWrapperGraphModifiedPtr = nullptr;
+			}
+		}
+		if (FoundWrapperGraphModifiedPtr == nullptr)
+		{
+			FDelegateHandle DelegateHandle = EntryValue->OnWrapperGraphModified.AddSP(this, &SBindingsList::HandleRefreshChildren, ObjectKey);
+			WrapperGraphModifiedDelegates.Add(ObjectKey, { TWeakPtr<FBindingEntry>(BindingEntry), DelegateHandle });
+		}
+	}
+}
+
 void SBindingsList::Refresh()
 {
 	struct FPreviousGroup
@@ -339,7 +363,12 @@ void SBindingsList::Refresh()
 			// Create/Find entries for conversion function parameters
 			if (UMVVMBlueprintViewConversionFunction* ConversionFunction = Binding.Conversion.GetConversionFunction(UE::MVVM::IsForwardBinding(Binding.BindingType)))
 			{
+				// Register to any modifications made in the graph
+				RegisterWrapperGraphModified(ConversionFunction, BindingEntry);
+
+				// Make sure the graph is up to date
 				ConversionFunction->GetOrCreateWrapperGraph(MVVMExtensionPtr->GetWidgetBlueprint());
+
 				for (const FMVVMBlueprintPin& Pin : ConversionFunction->GetPins())
 				{
 					UEdGraphPin* GraphPin = ConversionFunction->GetOrCreateGraphPin(MVVMExtensionPtr->GetWidgetBlueprint(), Pin.GetId());
@@ -366,7 +395,6 @@ void SBindingsList::Refresh()
 					{
 						ArgumentEntry = MakeShared<FBindingEntry>();
 						ArgumentEntry->SetBindingParameter(Binding.BindingId, Pin.GetId());
-						ConversionFunction->OnWrapperGraphModified.AddSP(this, &SBindingsList::ForceRefresh);
 
 						NewEntries.Add(ArgumentEntry);
 					}
@@ -377,6 +405,7 @@ void SBindingsList::Refresh()
 
 		for (UMVVMBlueprintViewEvent* Event : BlueprintView->GetEvents())
 		{
+			// Make sure the graph is up to date
 			Event->GetOrCreateWrapperGraph();
 
 			FName GroupName;
@@ -426,6 +455,9 @@ void SBindingsList::Refresh()
 				GroupEntry->AddChild(EventEntry);
 			}
 
+			// Register to any modifications made by the graph
+			RegisterWrapperGraphModified(Event, EventEntry);
+
 			// Create/Find entries for function parameters
 			for (const FMVVMBlueprintPin& Pin : Event->GetPins())
 			{
@@ -453,7 +485,6 @@ void SBindingsList::Refresh()
 				{
 					ArgumentEntry = MakeShared<FBindingEntry>();
 					ArgumentEntry->SetEventParameter(Event, Pin.GetId());
-					Event->OnWrapperGraphModified.AddSP(this, &SBindingsList::ForceRefresh);
 
 					NewEntries.Add(ArgumentEntry);
 				}
@@ -479,6 +510,20 @@ void SBindingsList::ForceRefresh()
 	AllRootGroups.Reset();
 	FilteredRootGroups.Reset();
 	Refresh();
+}
+
+void SBindingsList::HandleRefreshChildren(FObjectKey ObjectHolder)
+{
+	TPair<TWeakPtr<FBindingEntry>, FDelegateHandle>* Found = WrapperGraphModifiedDelegates.Find(ObjectHolder);
+	if (Found)
+	{
+		TSharedPtr<FBindingEntry> FoundWrapperGraphModified = Found->Get<0>().Pin();
+		if (FoundWrapperGraphModified)
+		{
+			FoundWrapperGraphModified->ResetChildren();
+			Refresh();
+		}
+	}
 }
 
 TSharedRef<ITableRow> SBindingsList::GenerateEntryRow(TSharedPtr<FBindingEntry> Entry, const TSharedRef<STableViewBase>& OwnerTable) const

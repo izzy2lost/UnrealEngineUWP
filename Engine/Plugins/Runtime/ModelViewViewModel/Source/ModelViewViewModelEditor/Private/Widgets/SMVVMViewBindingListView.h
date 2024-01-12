@@ -2,7 +2,7 @@
 
 #pragma once
 
-
+#include "UObject/ObjectKey.h"
 #include "Widgets/SCompoundWidget.h"
 
 namespace ESelectInfo { enum Type : int; }
@@ -48,10 +48,14 @@ private:
 	virtual FReply OnKeyDown(const FGeometry& MyGeometry, const FKeyEvent& InKeyEvent) override;
 
 	void ForceRefresh();
+	template<typename TEntryValueType>
+	void RegisterWrapperGraphModified(TEntryValueType* EntryValue, TSharedPtr<FBindingEntry> GroupEntry);
+	void HandleRefreshChildren(FObjectKey EntryKey);
 
 private:
 	TWeakPtr<SBindingsPanel> BindingPanel;
 	TSharedPtr<STreeView<TSharedPtr<FBindingEntry>>> TreeView;
+	TMap<FObjectKey, TPair<TWeakPtr<FBindingEntry>, FDelegateHandle>> WrapperGraphModifiedDelegates;
 	TArray<TSharedPtr<FBindingEntry>> AllRootGroups;
 	TArray<TSharedPtr<FBindingEntry>> FilteredRootGroups;
 	TWeakObjectPtr<UMVVMWidgetBlueprintExtension_View> MVVMExtension;
