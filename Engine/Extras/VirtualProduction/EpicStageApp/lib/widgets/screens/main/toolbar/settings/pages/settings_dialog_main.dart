@@ -1,6 +1,7 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 import 'package:epic_common/theme.dart';
+import 'package:epic_common/utilities/version.dart';
 import 'package:epic_common/widgets.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_gen/gen_l10n/app_localizations.dart';
@@ -71,14 +72,24 @@ class SettingsDialogMain extends StatelessWidget {
             iconPath: 'packages/epic_common/assets/icons/info.svg',
             onTap: () => rootNavigatorKey.currentState?.pushNamed(EulaScreen.route, arguments: {'onPressed': () {}}),
           ),
-          if (bIsConnected) const SettingsMenuDivider(),
-          if (bIsConnected)
-            Container(
-              padding: EdgeInsets.all(8),
-              child: Row(
-                children: const [_DisconnectButton()],
-              ),
+          const SettingsMenuDivider(),
+          Container(
+            padding: EdgeInsets.symmetric(horizontal: 8),
+            height: 54,
+            child: Row(
+              children: [
+                if (bIsConnected) const _DisconnectButton(),
+                const Spacer(),
+                FutureBuilder<String>(
+                  future: getFriendlyPackageVersion(),
+                  builder: (context, snapshot) => Text(
+                    snapshot.data ?? '',
+                    style: Theme.of(context).textTheme.labelMedium,
+                  ),
+                ),
+              ],
             ),
+          ),
         ],
       ),
     );

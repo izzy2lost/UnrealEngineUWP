@@ -7,6 +7,7 @@ import 'package:epic_common/localizations.dart';
 import 'package:epic_common/logging.dart';
 import 'package:epic_common/preferences.dart';
 import 'package:epic_common/theme.dart';
+import 'package:epic_common/utilities/version.dart';
 import 'package:epic_common/widgets.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -53,6 +54,8 @@ void main() async {
 /// Set up the app and run it. Encapsulated so we can wrap it in [runZonedGuarded] in [main] for better error handling.
 void initAndRunApp() async {
   WidgetsFlutterBinding.ensureInitialized();
+
+  _log.info(await getVerbosePackageVersion());
 
   final flutterLog = Logger('Flutter');
   final isolateLog = Logger('Isolate');
