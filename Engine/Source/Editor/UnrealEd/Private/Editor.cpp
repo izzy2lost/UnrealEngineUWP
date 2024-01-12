@@ -730,19 +730,23 @@ void FReimportManager::SortHandlersIfNeeded()
 
 void FReimportManager::OnInterchangePostReimported(UObject* ReimportAsset) const
 {
-	if (ReimportAsset)
+	if (!ReimportAsset)
 	{
-		TArray<UObject*> ObjectArray;
-		ObjectArray.Add(ReimportAsset);
-		//UAssetToolsImpl::Get().SyncBrowserToAssets(ObjectArray);
+		return;
+	}
+
+	if (FEngineAnalytics::IsAvailable())
+	{
+		TArray<FAnalyticsEventAttribute> Attributes;
+		Attributes.Add(FAnalyticsEventAttribute(TEXT("ObjectType"), ReimportAsset->GetClass()->GetName()));
+		FEngineAnalytics::GetProvider().RecordEvent(TEXT("Editor.Usage.AssetReimported"), Attributes);
+	}
+
+	PostReimport.Broadcast(ReimportAsset, true);
+
+	if (GEditor)
+	{
 		GEditor->BroadcastObjectReimported(ReimportAsset);
-		if (FEngineAnalytics::IsAvailable())
-		{
-			TArray<FAnalyticsEventAttribute> Attributes;
-			Attributes.Add(FAnalyticsEventAttribute(TEXT("ObjectType"), ReimportAsset->GetClass()->GetName()));
-			FEngineAnalytics::GetProvider().RecordEvent(TEXT("Editor.Usage.AssetReimported"), Attributes);
-		}
-		PostReimport.Broadcast(ReimportAsset, true);
 		GEditor->RedrawAllViewports();
 	}
 }
