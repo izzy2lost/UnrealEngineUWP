@@ -147,6 +147,7 @@ class FLightFunctionAtlasSlotPS : public FMaterialShader
 	BEGIN_SHADER_PARAMETER_STRUCT(FParameters, )
 		SHADER_PARAMETER(FVector4f, SvPositionToUVScaleBias)
 		SHADER_PARAMETER(FVector2f, LightFunctionTexelSize)
+		SHADER_PARAMETER_STRUCT_REF(FPrimitiveUniformShaderParameters, PrimitiveUniformBuffer)
 	END_SHADER_PARAMETER_STRUCT()
 
 	FLightFunctionAtlasSlotPS() {}
@@ -180,6 +181,7 @@ class FLightFunctionAtlasSlotPS : public FMaterialShader
 		FParameters PS;
 		PS.SvPositionToUVScaleBias = SvPositionToUVScaleBias;
 		PS.LightFunctionTexelSize  = LightFunctionTexelSize;
+		PS.PrimitiveUniformBuffer = GIdentityPrimitiveUniformBuffer.GetUniformBufferRef();
 		return PS;
 	}
 };

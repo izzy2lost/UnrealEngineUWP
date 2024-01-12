@@ -650,6 +650,7 @@ class FLumenDirectLightingShadowMaskFromLightAttenuationCS : public FGlobalShade
 IMPLEMENT_GLOBAL_SHADER(FLumenDirectLightingShadowMaskFromLightAttenuationCS, "/Engine/Private/Lumen/LumenSceneDirectLightingShadowMask.usf", "LumenSceneDirectLightingShadowMaskFromLightAttenuationCS", SF_Compute);
 
 BEGIN_SHADER_PARAMETER_STRUCT(FLightFunctionParameters, )
+	SHADER_PARAMETER_STRUCT_REF(FPrimitiveUniformShaderParameters, PrimitiveUniformBuffer)
 	SHADER_PARAMETER(FVector4f, LightFunctionParameters)
 	SHADER_PARAMETER(FMatrix44f, LightFunctionTranslatedWorldToLight)
 	SHADER_PARAMETER(FVector3f, LightFunctionParameters2)
@@ -844,6 +845,8 @@ void SetupLightFunctionParameters(const FViewInfo& View, const FLightSceneInfo* 
 		LightSceneInfo->Proxy->GetLightFunctionFadeDistance(),
 		LightSceneInfo->Proxy->GetLightFunctionDisabledBrightness(),
 		PreviewShadowsMask);
+
+	OutParameters.PrimitiveUniformBuffer = GIdentityPrimitiveUniformBuffer.GetUniformBufferRef();
 }
 
 void SetupMeshSDFShadowInitializer(

@@ -1,7 +1,7 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 /*=============================================================================
-	RenderLightFunctionAtlas.usf.usf
+	RenderLightFunctionAtlas.usf
 =============================================================================*/
 
 // This define is for the light function common evaluation to only be based on UV stored in the light vector only.
