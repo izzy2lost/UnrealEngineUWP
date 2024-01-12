@@ -5,44 +5,10 @@
 #include "ImageCore.h"
 #include "Async/ParallelFor.h"
 
-#if WITH_EDITOR
-#include "Engine/Texture2D.h"
-#include "Framework/Notifications/NotificationManager.h"
-#include "TextureCompiler.h"
-#include "Widgets/Notifications/SNotificationList.h"
-
-#define LOCTEXT_NAMESPACE "GrayScaleIdentification"
-#endif // WITH_EDITOR
-
 namespace UE
 {
 	namespace TextureUtilitiesCommon
 	{
-		template<typename ImageInfo, typename = TEnableIf<std::is_convertible_v<ImageInfo, FImageInfo>>>
-		bool DetectGrayScale(ImageInfo& Image)
-		{
-			if(Image.Format != ERawImageFormat::BGRA8)
-			{
-				return false;
-			}
-
-			// auto-detect gray BGRA8 and change to G8			
-			const TArrayView64<FColor> Colors = Image.AsBGRA8();
-			int64 NumPixels = Image.GetNumPixels();
-
-			for(int64 i = 0; i < NumPixels; i++)
-			{
-				if(Colors[i].A != 255 ||
-				   Colors[i].R != Colors[i].B ||
-				   Colors[i].G != Colors[i].B)
-				{
-					return false;
-				}
-			}
-
-			return true;
-		}
-
 		/**
 		 * Detect the existence of gray scale image in some formats and convert those to a gray scale equivalent image
 		 * 
@@ -50,124 +16,31 @@ namespace UE
 		 */
 		bool AutoDetectAndChangeGrayScale(FImage& Image)
 		{
-			const bool bDetectAndChangeGrayScale = DetectGrayScale(Image);
-			if(bDetectAndChangeGrayScale)
+			if (Image.Format != ERawImageFormat::BGRA8)
 			{
-				Image.ChangeFormat(ERawImageFormat::G8, Image.GammaSpace);
+				return false;
 			}
 
-			return bDetectAndChangeGrayScale;
+			// auto-detect gray BGRA8 and change to G8
+
+			const FColor* Colors = (const FColor*)Image.RawData.GetData();
+			int64 NumPixels = Image.GetNumPixels();
+
+			for (int64 i = 0; i < NumPixels; i++)
+			{
+				if (Colors[i].A != 255 ||
+					Colors[i].R != Colors[i].B ||
+					Colors[i].G != Colors[i].B)
+				{
+					return false ;
+				}
+			}
+
+			// yes, it's gray, do it :
+			Image.ChangeFormat(ERawImageFormat::G8, Image.GammaSpace);
+
+			return true;
 		}
-
-#if WITH_EDITOR
-		/** Class to handle callbacks from notifications informing the user a texture was imported as grayscale */
-		class FGrayScaleImportNotificationHandler : public TSharedFromThis<FGrayScaleImportNotificationHandler>
-		{
-		public:
-			FGrayScaleImportNotificationHandler() :
-				Texture(nullptr)
-			{}
-
-			~FGrayScaleImportNotificationHandler() = default;
-
-			/** This method is invoked when the user clicks the "OK" button on the notification */
-			void OKSetting(TSharedPtr<FGrayScaleImportNotificationHandler>)
-			{
-				if(Notification.IsValid())
-				{
-					Notification.Pin()->SetCompletionState(SNotificationItem::ECompletionState::CS_Success);
-					Notification.Pin()->Fadeout();
-				}
-			}
-
-			/* This method is invoked when the user clicked the "Revert" button on the notification */
-			void RevertSetting(TSharedPtr<FGrayScaleImportNotificationHandler>)
-			{
-				UTexture2D* Texture2D = Texture.IsValid() ? Cast<UTexture2D>(Texture.Get()) : NULL;
-				if(Texture2D)
-				{
-					if(FTextureCompilingManager::Get().IsCompilingTexture(Texture2D))
-					{
-						// Block until compile is done
-						TArray<UTexture*> TextureArray;
-						TextureArray.Add(Texture2D);
-						FTextureCompilingManager::Get().FinishCompilation(TextureArray);
-					}
-
-					if(Texture2D->CompressionSettings == TextureCompressionSettings::TC_Grayscale)
-					{
-						// Must wait until the texture is done with previous operations before changing settings and getting it to rebuild.
-						Texture2D->WaitForPendingInitOrStreaming();
-
-						Texture2D->SetFlags(RF_Transactional);
-						// Modify calls FinishCachePlatformData to wait on any async build of this texture
-						Texture2D->Modify();
-						Texture2D->PreEditChange(NULL);
-						{
-							Texture2D->CompressionSettings = TC_Default;
-							Texture2D->SRGB = true;
-							Texture2D->LODGroup = TEXTUREGROUP_World;
-						}
-						Texture2D->PostEditChange();
-					}
-				}
-
-				if(Notification.IsValid())
-				{
-					Notification.Pin()->SetCompletionState(SNotificationItem::ECompletionState::CS_Success);
-					Notification.Pin()->Fadeout();
-				}
-			}
-
-			TWeakObjectPtr<UTexture> Texture;
-			TWeakPtr<SNotificationItem> Notification;
-		};
-
-		bool AutoDetectAndChangeGrayScale(UTexture* InTexture, FImageView& InMipToAnalyze)
-		{
-			if(DetectGrayScale(InMipToAnalyze))
-			{
-				// Set the compression settings
-				{
-					InTexture->SetFlags(RF_Transactional);
-					InTexture->CompressionSettings = TextureCompressionSettings::TC_Grayscale;
-				}
-
-				// Show the user a notification indicating that this texture will be imported as gray scale.
-				// Offer two options to the user, "OK" dismisses the notification early, "Revert" reverts the settings to that of a diffuse map.
-				// ?? Guess?? this has to be done from main thread only??
-				TSharedPtr<FGrayScaleImportNotificationHandler> GrayScaleNotificationDelegate{ new FGrayScaleImportNotificationHandler };
-				GrayScaleNotificationDelegate->Texture = InTexture;
-
-				// this is a cheat to make sure the notification keeps the callback thing alive while it's active...
-				FText OKText = LOCTEXT("ImportTexture_OKGrayScaleSettings", "OK");
-				FText OKTooltipText = LOCTEXT("ImportTexture_OKTooltip", "Accept gray scale settings");
-				FText RevertText = LOCTEXT("ImportTexture_RevertGrayScaleSettings", "Revert");
-				FText RevertTooltipText = LOCTEXT("ImportTexture_RevertTooltip", "Revert to diffuse map settings");
-
-				FFormatNamedArguments Args;
-				Args.Add(TEXT("TextureName"), FText::FromName(InTexture->GetFName()));
-				FNotificationInfo GrayScaleNotification(FText::Format(LOCTEXT("ImportTexture_IsGrayScale", "Texture {TextureName} was imported as gray scale"), Args));
-				GrayScaleNotification.ButtonDetails.Add(FNotificationButtonInfo(OKText, OKTooltipText, FSimpleDelegate::CreateSP(GrayScaleNotificationDelegate.Get(), &FGrayScaleImportNotificationHandler::OKSetting, GrayScaleNotificationDelegate)));
-				GrayScaleNotification.ButtonDetails.Add(FNotificationButtonInfo(RevertText, RevertTooltipText, FSimpleDelegate::CreateSP(GrayScaleNotificationDelegate.Get(), &FGrayScaleImportNotificationHandler::RevertSetting, GrayScaleNotificationDelegate)));
-				GrayScaleNotification.bFireAndForget = true;
-				GrayScaleNotification.bUseLargeFont = false;
-				GrayScaleNotification.bUseSuccessFailIcons = false;
-				GrayScaleNotification.bUseThrobber = false;
-				GrayScaleNotification.ExpireDuration = 10.0f;
-
-				GrayScaleNotificationDelegate->Notification = FSlateNotificationManager::Get().AddNotification(GrayScaleNotification);
-				if(GrayScaleNotificationDelegate->Notification.IsValid())
-				{
-					GrayScaleNotificationDelegate->Notification.Pin()->SetCompletionState(SNotificationItem::CS_Pending);
-				}
-
-				return true;
-			}
-
-			return false;
-		}
-#endif // WITH_EDITOR
 
 		/**
 		 * This fills any pixels of a texture with have an alpha value of zero and RGB=white,
@@ -699,5 +572,3 @@ namespace UE
 		}
 	}
 }
-
-#undef LOCTEXT_NAMESPACE

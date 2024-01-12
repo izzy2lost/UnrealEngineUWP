@@ -28,7 +28,6 @@
 #if WITH_EDITOR
 #include "NormalMapIdentification.h"
 #include "TextureCompiler.h"
-#include "TextureImportUtils.h"
 #include "UDIMUtilities.h"
 #endif //WITH_EDITOR
 
@@ -380,41 +379,29 @@ void UInterchangeGenericTexturePipeline::PostImportTextureAssetImport(UObject* C
 	// (Note - as part of the standard interchange import this is called during the object
 	// import iteration, _before_ the iteration to call to PostEditChange which is what starts the texture build via UpdateResource,
 	// so altering properties here should be safe!)
-	if (!bIsAReimport)
+	if (!bIsAReimport && bDetectNormalMapTexture)
 	{
 		if (UTexture* Texture = Cast<UTexture>(CreatedAsset))
 		{
 			// if it's already a normal map, no need to run NormalMapIdentification
-			const bool bChangeToNormalMap = bDetectNormalMapTexture && !Texture->IsNormalMap();
-
-			// if it's already a grayscale texture no need to detect it
-			const bool bChangeToGrayScale = bDetectGrayScaleTexture && (Texture->CompressionSettings != TextureCompressionSettings::TC_Grayscale);
-
-			if(bChangeToNormalMap || bChangeToGrayScale)
+			if (!Texture->IsNormalMap())
 			{
-					check(!FTextureCompilingManager::Get().IsCompilingTexture(Texture)); // see comment above.
+ 				check(!FTextureCompilingManager::Get().IsCompilingTexture(Texture)); // see comment above.
 
-					FTextureSource::FMipLock LockedMip(FTextureSource::ELockState::ReadOnly, &Texture->Source, 0);
+				FTextureSource::FMipLock LockedMip(FTextureSource::ELockState::ReadOnly, &Texture->Source, 0);
 
-					if(LockedMip.IsValid())
-					{
-						// AdjustTextureForNormalMap technically only adjusts properties and doesn't kick a texture build, however
-						// if it guesses it's a normal map it pops a toast notification that can Revert the change, which does a whole
-						// Modify / PostEditChange which theoretically can kick a build before the PostEditChange in the outer interchange
-						// import chain if somehow the UI click chain routes before the outer loop calls PostEditChange.
-						if(bChangeToNormalMap)
-						{
-							UE::Interchange::Private::AdjustTextureForNormalMap(Texture, LockedMip.Image, bFlipNormalMapGreenChannel);
-						}
-						else if(bChangeToGrayScale)
-						{
-							UE::TextureUtilitiesCommon::AutoDetectAndChangeGrayScale(Texture, LockedMip.Image);
-						}
-					}
-					else
-					{
-						UE_LOG(LogInterchangePipeline, Display, TEXT("PostImport Texture failed to lock mip data, actions (like normal map detection) not performed!"));
-					}
+				if (LockedMip.IsValid())
+				{
+					// AdjustTextureForNormalMap technically only adjusts properties and doesn't kick a texture build, however
+					// if it guesses it's a normal map it pops a toast notification that can Revert the change, which does a whole
+					// Modify / PostEditChange which theoretically can kick a build before the PostEditChange in the outer interchange
+					// import chain if somehow the UI click chain routes before the outer loop calls PostEditChange.
+					UE::Interchange::Private::AdjustTextureForNormalMap(Texture, LockedMip.Image, bFlipNormalMapGreenChannel);
+				}
+				else
+				{
+					UE_LOG(LogInterchangePipeline, Display, TEXT("PostImport Texture failed to lock mip data, actions (like normal map detection) not performed!"));
+				}
 			}
 		}
 	}
