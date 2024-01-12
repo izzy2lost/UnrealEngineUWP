@@ -466,6 +466,12 @@ void UK2Node_CreateDelegate::AddSearchMetaDataInfo(TArray<struct FSearchTagDataP
 	if (!FunctionName.IsNone())
 	{
 		OutTaggedMetaData.Add(FSearchTagDataPair(FFindInBlueprintSearchTags::FiB_NativeName, FText::FromName(FunctionName)));
+
+		if (const UClass* ScopeClass = GetScopeClass(/*bDontUseSkeletalClassForSelf=*/true))
+		{
+			const FString FuncOriginClassName = ScopeClass->GetPathName();
+			OutTaggedMetaData.Add(FSearchTagDataPair(FFindInBlueprintSearchTags::FiB_FuncOriginClass, FText::FromString(FuncOriginClassName)));
+		}
 	}
 }
 

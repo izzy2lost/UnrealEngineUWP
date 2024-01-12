@@ -901,25 +901,43 @@ FSlateIcon UK2Node_Event::GetIconAndTint(FLinearColor& OutColor) const
 
 FString UK2Node_Event::GetFindReferenceSearchString_Impl(EGetFindReferenceSearchStringFlags InFlags) const
 {
-	// Resolve the function
-	if (const UFunction* Function = FFunctionFromNodeHelper::FunctionFromNode(this))
+	// If searching by class member, try to construct search term from the UFunction.
+	// This may fail if the function was not found or for whatever reason, its owning 
+	// class is invalid. If it fails, proceed to search by name as fallback behavior.
+	if (EnumHasAnyFlags(InFlags, EGetFindReferenceSearchStringFlags::UseSearchSyntax))
 	{
-		// Attempt to construct an advanced search syntax query from the function
-		FString SearchTerm;
-		if (EnumHasAnyFlags(InFlags, EGetFindReferenceSearchStringFlags::UseSearchSyntax) && FindInBlueprintsHelpers::ConstructSearchTermFromFunction(Function, SearchTerm))
+		// Resolve the function
+		if (const UFunction* Function = FFunctionFromNodeHelper::FunctionFromNode(this))
 		{
-			return SearchTerm;
+			FString SearchTerm;
+			if (FindInBlueprintsHelpers::ConstructSearchTermFromFunction(Function, SearchTerm))
+			{
+				return SearchTerm;
+			}
+		}
+	}
+
+	// Searching by just name. When overriding a function, try to find the function that it overrides to return its name.
+	if (bOverrideFunction || (CustomFunctionName == NAME_None))
+	{
+		// Attempt to find the function
+		if (const UFunction* Function = FFunctionFromNodeHelper::FunctionFromNode(this))
+		{
+			// Search by native name
+			const FString FunctionNativeName = Function->GetName();
+			return FunctionNativeName;
 		}
 		else
 		{
-			// Fallback behavior: function was found but failed to construct a search term from it
-			// Just search for the function's friendly name
-			return UEdGraphSchema_K2::GetFriendlySignatureName(Function).ToString();
+			// If we fail to find the function, still want to search for its expected name
+			return EventReference.GetMemberName().ToString();
 		}
 	}
-	
-	// If we fail to find the function, still want to search for its expected name.
-	return EventReference.GetMemberName().ToString();
+	else
+	{
+		// The function was not an override; its name is defined by this node
+		return CustomFunctionName.ToString();
+	}
 }
 
 void UK2Node_Event::FindDiffs(UEdGraphNode* OtherNode, struct FDiffResults& Results)

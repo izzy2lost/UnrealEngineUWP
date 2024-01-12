@@ -1594,6 +1594,7 @@ FString UK2Node_CallFunction::GetFindReferenceSearchString_Impl(EGetFindReferenc
 {
 	if (EnumHasAnyFlags(InFlags, EGetFindReferenceSearchStringFlags::UseSearchSyntax))
 	{
+		// Searching by class member: try to resolve function and construct precise query
 		if (const UFunction* Function = GetTargetFunction())
 		{
 			FString SearchTerm;
@@ -1603,8 +1604,17 @@ FString UK2Node_CallFunction::GetFindReferenceSearchString_Impl(EGetFindReferenc
 			}
 		}
 	}
+	else
+	{
+		// Searching by function name: try to resolve function to return native name
+		if (const UFunction* Function = GetTargetFunction())
+		{
+			const FString NativeName = Function->GetName();
+			return NativeName;
+		}
+	}
 
-	// Fallback behavior
+	// Fallback behavior: search by node title
 	return Super::GetFindReferenceSearchString_Impl(InFlags);
 }
 
