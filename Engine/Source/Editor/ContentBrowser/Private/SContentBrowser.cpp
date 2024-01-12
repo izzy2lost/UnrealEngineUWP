@@ -3936,15 +3936,8 @@ void SContentBrowser::HandleItemDataUpdated(TArrayView<const FContentBrowserItem
 
 bool SContentBrowser::HandlePrivateContentFilter(const FContentBrowserItem& AssetItem)
 {
-	static const auto PublicAssetUIEnabledCVar = IConsoleManager::Get().FindConsoleVariable(TEXT("ContentBrowser.PublicAsset.EnablePublicAssetFeature"));
-	bool bIsPublicAssetUIEnabled = false;
-
-	if (PublicAssetUIEnabledCVar)
-	{
-		bIsPublicAssetUIEnabled = PublicAssetUIEnabledCVar->GetBool();
-	}
-
-	if (!bIsPublicAssetUIEnabled)
+	static const IConsoleVariable* EnablePublicAssetFeatureCVar = IConsoleManager::Get().FindConsoleVariable(TEXT("AssetTools.EnablePublicAssetFeature"));
+	if (!EnablePublicAssetFeatureCVar || !EnablePublicAssetFeatureCVar->GetBool())
 	{
 		return false;
 	}

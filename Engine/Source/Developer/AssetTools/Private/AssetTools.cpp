@@ -448,6 +448,13 @@ namespace UE::AssetTools::Private
 				UE_LOG(LogAssetTools, Log, TEXT("Folder Write Permissions:\n%s"), *IAssetTools::Get().GetWritableFolderPermissionList()->ToString());
 			}));
 
+	static bool bEnablePublicAssetFeature = false;
+	static FAutoConsoleVariableRef CVarEnablePublicAssetFeature(
+		TEXT("AssetTools.EnablePublicAssetFeature"),
+		bEnablePublicAssetFeature,
+		TEXT("Enables the Experimental Public Asset Feature (False: disabled, True:enabled")
+	);
+
 	/** 
 	 * CVar to specify if we should use Header patching in advanced copy.
 	 * Default is false.

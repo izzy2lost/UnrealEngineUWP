@@ -71,13 +71,6 @@
 class FMenuBuilder;
 class SWidget;
 
-
-namespace ContentBrowserConsoleVariables
-{
-	static bool ContentBrowser_EnablePublicAssetFeature = false;
-	static FAutoConsoleVariableRef ContentBrowser_EnablePublicAssetFeatureCVar(TEXT("ContentBrowser.PublicAsset.EnablePublicAssetFeature"),
-		ContentBrowser_EnablePublicAssetFeature, TEXT("Enables the Experimental Public Asset Feature (False: disabled, True:enabled"));
-}
 #define LOCTEXT_NAMESPACE "ContentBrowser"
 
 FAssetContextMenu::FAssetContextMenu(const TWeakPtr<SAssetView>& InAssetView)
@@ -434,7 +427,8 @@ void FAssetContextMenu::AddMenuOptions(UToolMenu* InMenu)
 	// Add quick access to view commands
 	AddExploreMenuOptions(InMenu);
 
-	if (ContentBrowserConsoleVariables::ContentBrowser_EnablePublicAssetFeature)
+	static const IConsoleVariable* EnablePublicAssetFeatureCVar = IConsoleManager::Get().FindConsoleVariable(TEXT("AssetTools.EnablePublicAssetFeature"));
+	if (EnablePublicAssetFeatureCVar && EnablePublicAssetFeatureCVar->GetBool())
 	{
 		AddPublicStateMenuOptions(InMenu);
 	}

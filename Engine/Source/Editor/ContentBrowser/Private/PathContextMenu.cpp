@@ -220,13 +220,8 @@ void FPathContextMenu::MakePathViewContextMenu(UToolMenu* Menu)
 				);
 			}
 
-			static const auto PublicAssetUIEnabledCVar = IConsoleManager::Get().FindConsoleVariable(TEXT("ContentBrowser.PublicAsset.EnablePublicAssetFeature"));
-			bool bIsPublicAssetUIEnabled = false;
-
-			if (PublicAssetUIEnabledCVar)
-			{
-				bIsPublicAssetUIEnabled = PublicAssetUIEnabledCVar->GetBool();
-			}
+			static const IConsoleVariable* EnablePublicAssetFeatureCVar = IConsoleManager::Get().FindConsoleVariable(TEXT("AssetTools.EnablePublicAssetFeature"));
+			const bool bIsPublicAssetUIEnabled = EnablePublicAssetFeatureCVar && EnablePublicAssetFeatureCVar->GetBool();
 
 			FStringView SelectedFolderPathView(SelectedFolderPath);
 			if (bIsPublicAssetUIEnabled && FContentBrowserSingleton::Get().IsFolderShowPrivateContentToggleable(SelectedFolderPathView))
