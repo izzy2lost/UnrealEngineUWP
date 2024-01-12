@@ -72,6 +72,7 @@ bool UWorldPartitionRuntimeHashSet::Draw2D(FWorldPartitionDraw2DContext& DrawCon
 				FilteredStreamingObjects.FindOrAdd(StreamingData.Name).Add(&StreamingData);
 			}
 		}
+		return true;
 	});
 
 	if (!FilteredStreamingObjects.Num())
@@ -387,5 +388,6 @@ void UWorldPartitionRuntimeHashSet::Draw3D(const TArray<FWorldPartitionStreaming
 				});
 			});
 		}
+		return true;
 	});
 }

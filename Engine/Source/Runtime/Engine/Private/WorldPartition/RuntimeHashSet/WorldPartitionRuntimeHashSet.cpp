@@ -87,6 +87,7 @@ void UWorldPartitionRuntimeHashSet::PostLoad()
 		ForEachStreamingData([](const FRuntimePartitionStreamingData& StreamingData)
 		{
 			StreamingData.CreatePartitionsSpatialIndex();
+			return true;
 		});
 	}
 }
@@ -292,14 +293,17 @@ void UWorldPartitionRuntimeHashSet::ForEachStreamingCells(TFunctionRef<bool(cons
 	{
 		for (UWorldPartitionRuntimeCell* Cell : InCells)
 		{
-			Func(Cell);
+			if (!Func(Cell))
+			{
+				return false;
+			}
 		}
+		return true;
 	};
 
 	ForEachStreamingData([&ForEachCells](const FRuntimePartitionStreamingData& StreamingData)
 	{
-		ForEachCells(StreamingData.StreamingCells);
-		ForEachCells(StreamingData.NonStreamingCells);
+		return ForEachCells(StreamingData.StreamingCells) && ForEachCells(StreamingData.NonStreamingCells);
 	});
 }
 
@@ -335,13 +339,12 @@ void UWorldPartitionRuntimeHashSet::ForEachStreamingCellsQuery(const FWorldParti
 
 				InSpatialIndex->ForEachIntersectingElement(ShapeSphere, [&ShouldAddCell, &QuerySource, &Func](UWorldPartitionRuntimeCell* RuntimeCell)
 				{
-					if (ShouldAddCell(RuntimeCell, QuerySource))
-					{
-						Func(RuntimeCell);
-					}
+					return !ShouldAddCell(RuntimeCell, QuerySource) || Func(RuntimeCell);
 				});
 			});
 		}
+
+		return true;
 	};
 
 	auto ForEachNonStreamingCells = [&ShouldAddCell, &QuerySource, &Func](TArray<TObjectPtr<UWorldPartitionRuntimeCell>> InNonStreamingCells)
@@ -350,15 +353,18 @@ void UWorldPartitionRuntimeHashSet::ForEachStreamingCellsQuery(const FWorldParti
 		{
 			if (ShouldAddCell(Cell, QuerySource))
 			{
-				Func(Cell);
+				if (!Func(Cell))
+				{
+					return false;
+				}
 			}
 		}
+		return true;
 	};
 
 	ForEachStreamingData([&QuerySource, &ForEachStreamingCells, &ForEachNonStreamingCells](const FRuntimePartitionStreamingData& StreamingData)
 	{
-		ForEachStreamingCells(StreamingData.SpatialIndex.Get(), StreamingData.LoadingRange, StreamingData.Name);
-		ForEachNonStreamingCells(StreamingData.NonStreamingCells);
+		return ForEachStreamingCells(StreamingData.SpatialIndex.Get(), StreamingData.LoadingRange, StreamingData.Name) && ForEachNonStreamingCells(StreamingData.NonStreamingCells);
 	});
 }
 
@@ -367,13 +373,13 @@ void UWorldPartitionRuntimeHashSet::ForEachStreamingCellsSources(const TArray<FW
 	UWorldPartitionRuntimeHash::FStreamingSourceCells ActivateStreamingSourceCells;
 	UWorldPartitionRuntimeHash::FStreamingSourceCells LoadStreamingSourceCells;
 
-	auto ForEachStreamingCells = [this, &Sources, &Func, &ActivateStreamingSourceCells, &LoadStreamingSourceCells](FStaticSpatialIndexType* InSpatialIndex, int32 InLoadingRange, FName InGridName)
+	auto ForEachStreamingCells = [this, &Sources, &ActivateStreamingSourceCells, &LoadStreamingSourceCells](FStaticSpatialIndexType* InSpatialIndex, int32 InLoadingRange, FName InGridName)
 	{
 		if (InSpatialIndex)
 		{
 			for (const FWorldPartitionStreamingSource& Source : Sources)
 			{
-				Source.ForEachShape(InLoadingRange, InGridName, false, [this, &Source, InSpatialIndex, &Func, &ActivateStreamingSourceCells, &LoadStreamingSourceCells](const FSphericalSector& Shape)
+				Source.ForEachShape(InLoadingRange, InGridName, false, [this, &Source, InSpatialIndex, &ActivateStreamingSourceCells, &LoadStreamingSourceCells](const FSphericalSector& Shape)
 				{
 					const FSphere ShapeSphere(Shape.GetCenter(), Shape.GetRadius());
 
@@ -409,6 +415,7 @@ void UWorldPartitionRuntimeHashSet::ForEachStreamingCellsSources(const TArray<FW
 				});
 			}
 		}
+		return true;
 	};
 
 	auto ForEachNonStreamingCells = [this, &ActivateStreamingSourceCells, &LoadStreamingSourceCells](TArray<TObjectPtr<UWorldPartitionRuntimeCell>> InNonStreamingCells)
@@ -432,12 +439,12 @@ void UWorldPartitionRuntimeHashSet::ForEachStreamingCellsSources(const TArray<FW
 				}
 			}
 		}
+		return true;
 	};
 
 	ForEachStreamingData([&ForEachStreamingCells, &ForEachNonStreamingCells](const FRuntimePartitionStreamingData& StreamingData)
 	{
-		ForEachStreamingCells(StreamingData.SpatialIndex.Get(), StreamingData.LoadingRange, StreamingData.Name);
-		ForEachNonStreamingCells(StreamingData.NonStreamingCells);
+		return ForEachStreamingCells(StreamingData.SpatialIndex.Get(), StreamingData.LoadingRange, StreamingData.Name) && ForEachNonStreamingCells(StreamingData.NonStreamingCells);
 	});
 
 	auto ExecuteFuncOnCells = [Func](const TSet<const UWorldPartitionRuntimeCell*>& Cells, EStreamingSourceTargetState TargetState)
@@ -685,11 +692,14 @@ UWorldPartitionRuntimeHashSet::FCellUniqueId UWorldPartitionRuntimeHashSet::GetC
 }
 #endif
 
-void UWorldPartitionRuntimeHashSet::ForEachStreamingData(TFunctionRef<void(const FRuntimePartitionStreamingData&)> Func) const
+void UWorldPartitionRuntimeHashSet::ForEachStreamingData(TFunctionRef<bool(const FRuntimePartitionStreamingData&)> Func) const
 {
 	for (const FRuntimePartitionStreamingData& StreamingData : RuntimeStreamingData)
 	{
-		Func(StreamingData);
+		if (!Func(StreamingData))
+		{
+			return;
+		}
 	}
 
 	for (const TWeakObjectPtr<URuntimeHashExternalStreamingObjectBase>& InjectedExternalStreamingObject : InjectedExternalStreamingObjects)
@@ -700,7 +710,10 @@ void UWorldPartitionRuntimeHashSet::ForEachStreamingData(TFunctionRef<void(const
 			
 			for (const FRuntimePartitionStreamingData& StreamingData : ExternalStreamingObject->RuntimeStreamingData)
 			{
-				Func(StreamingData);
+				if (!Func(StreamingData))
+				{
+					return;
+				}
 			}
 		}
 	}
