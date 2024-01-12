@@ -2,177 +2,637 @@
 
 #include "RetargetEditor/SRetargetAnimAssetsWindow.h"
 
-#include "AnimPose.h"
+#include "Animation/AnimSequence.h"
+#include "Animation/AnimMontage.h"
 #include "AnimPreviewInstance.h"
+#include "AssetToolsModule.h"
+#include "AssetViewerSettings.h"
+#include "ContentBrowserDataSource.h"
 #include "ContentBrowserModule.h"
 #include "IContentBrowserSingleton.h"
-#include "ObjectEditorUtils.h"
 #include "SSkeletonWidget.h"
+#include "SWarningOrErrorBox.h"
 #include "Widgets/SWindow.h"
 #include "Widgets/Layout/SSeparator.h"
-#include "PropertyCustomizationHelpers.h"
 #include "Animation/DebugSkelMeshComponent.h"
 #include "Misc/ScopedSlowTask.h"
 #include "RetargetEditor/IKRetargeterController.h"
 #include "Retargeter/IKRetargeter.h"
 #include "Viewports.h"
+#include "AssetRegistry/AssetRegistryModule.h"
+#include "Components/SkyLightComponent.h"
+#include "Editor/EditorPerProjectUserSettings.h"
+#include "RetargetEditor/IKRetargetAnimInstance.h"
+#include "RetargetEditor/IKRetargetEditorController.h"
+#include "RigEditor/IKRigAutoCharacterizer.h"
+#include "RigEditor/IKRigController.h"
+#include "Settings/SkeletalMeshEditorSettings.h"
+#include "UObject/AssetRegistryTagsContext.h"
+#include "UObject/SavePackage.h"
 #include "Widgets/Input/SEditableTextBox.h"
-#include "Widgets/Notifications/SNotificationList.h"
 
 #define LOCTEXT_NAMESPACE "RetargetAnimAssetWindow"
 
-void SSelectExportPathDialog::Construct(const FArguments& InArgs)
-{
-	AssetPath = FText::FromString(FPackageName::GetLongPackagePath(InArgs._DefaultAssetPath.ToString()));
+const FName SRetargetAnimAssetsWindow::LogName = FName("BatchRetargetWindowLog");
+const FText SRetargetAnimAssetsWindow::LogLabel = LOCTEXT("BatchRetargetLogLabel", "Batch Retarget Animations Log");
 
-	if(AssetPath.IsEmpty())
+void SBatchExportPathDialog::Construct(const FArguments& InArgs)
+{
+	BatchContext = InArgs._BatchContext;
+	check(BatchContext);
+	if(BatchContext->NameRule.FolderPath.IsEmpty())
 	{
-		AssetPath = FText::FromString(TEXT("/Game"));
+		BatchContext->NameRule.FolderPath = FString("/Game");
 	}
 
+	// path picker
+	const FContentBrowserModule& ContentBrowserModule = FModuleManager::LoadModuleChecked<FContentBrowserModule>("ContentBrowser");
 	FPathPickerConfig PathPickerConfig;
-	PathPickerConfig.DefaultPath = AssetPath.ToString();
-	PathPickerConfig.OnPathSelected = FOnPathSelected::CreateSP(this, &SSelectExportPathDialog::OnPathChange);
+	PathPickerConfig.DefaultPath = BatchContext->NameRule.FolderPath;
+	PathPickerConfig.OnPathSelected = FOnPathSelected::CreateSP(this, &SBatchExportPathDialog::OnPathChange);
 	PathPickerConfig.bAddDefaultPath = true;
 
-	FContentBrowserModule& ContentBrowserModule = FModuleManager::LoadModuleChecked<FContentBrowserModule>("ContentBrowser");
+	// adjust UI based on if we're exporting retarget assets or animation assets
+	bExportingRetargetAssets = InArgs._ExportRetargetAssets;
+	const FText TitleText = bExportingRetargetAssets ? LOCTEXT("TitleA", "Export Retarget Assets") : LOCTEXT("TitleB", "Export Animations");
+	const int32 WindowHeight = bExportingRetargetAssets ? 300 : 650;
 
 	SWindow::Construct(SWindow::FArguments()
-		.Title(LOCTEXT("SSelectExportPathDialog_Title", "Select Export Path"))
-		.SupportsMinimize(false)
-		.SupportsMaximize(false)
-		.IsTopmostWindow(true)
-		.ClientSize(FVector2D(450, 450))
+	.Title(TitleText)
+	.SupportsMinimize(false)
+	.SupportsMaximize(false)
+	.IsTopmostWindow(true)
+	.ClientSize(FVector2D(300, WindowHeight))
+	[
+		SNew(SVerticalBox)
+
+		+ SVerticalBox::Slot()
+		.Padding(2)
 		[
 			SNew(SVerticalBox)
-
-			+ SVerticalBox::Slot() // Add user input block
-			.Padding(2)
+			
+			+SVerticalBox::Slot()
+			.FillHeight(1)
+			.Padding(3)
 			[
-				SNew(SBorder)
-				.BorderImage(FAppStyle::GetBrush("ToolPanel.GroupBorder"))
-				[
-					SNew(SVerticalBox)
-
-					+SVerticalBox::Slot()
-					.AutoHeight()
-					[
-						SNew(STextBlock)
-						.Text(LOCTEXT("SelectPath", "Select Path"))
-						.Font(FCoreStyle::GetDefaultFontStyle("Regular", 14))
-					]
-
-					+SVerticalBox::Slot()
-					.FillHeight(1)
-					.Padding(3)
-					[
-						ContentBrowserModule.Get().CreatePathPicker(PathPickerConfig)
-					]
-				]
+				ContentBrowserModule.Get().CreatePathPicker(PathPickerConfig)
 			]
 
 			+SVerticalBox::Slot()
 			.AutoHeight()
-			.HAlign(HAlign_Right)
-			.Padding(5)
+			.Padding(2, 3)
 			[
-				SNew(SUniformGridPanel)
-				.SlotPadding(FAppStyle::GetMargin("StandardDialog.SlotPadding"))
-				.MinDesiredSlotWidth(FAppStyle::GetFloat("StandardDialog.MinDesiredSlotWidth"))
-				.MinDesiredSlotHeight(FAppStyle::GetFloat("StandardDialog.MinDesiredSlotHeight"))
-				+SUniformGridPanel::Slot(0, 0)
+				SNew(SHorizontalBox)
+
+				+SHorizontalBox::Slot()
+				.AutoWidth()
 				[
-					SNew(SButton)
-					.HAlign(HAlign_Center)
-					.ContentPadding(FAppStyle::GetMargin("StandardDialog.ContentPadding"))
-					.Text(LOCTEXT("OK", "OK"))
-					.OnClicked(this, &SSelectExportPathDialog::OnButtonClick, EAppReturnType::Ok)
+					SNew(STextBlock)
+					.Text(LOCTEXT("DuplicateAndRetarget_Folder", "Export Path: "))
+					.Font(FAppStyle::Get().GetFontStyle("NormalFontBold"))
 				]
-				+SUniformGridPanel::Slot(1, 0)
+
+				+SHorizontalBox::Slot()
+				.FillWidth(1)
+				.HAlign(HAlign_Right)
 				[
-					SNew(SButton)
-					.HAlign(HAlign_Center)
-					.ContentPadding(FAppStyle::GetMargin("StandardDialog.ContentPadding"))
-					.Text(LOCTEXT("Cancel", "Cancel"))
-					.OnClicked(this, &SSelectExportPathDialog::OnButtonClick, EAppReturnType::Cancel)
+					SNew(STextBlock).Text(this, &SBatchExportPathDialog::GetFolderPath)
 				]
 			]
-		]);
+		]
+		
+		+SVerticalBox::Slot()
+		.AutoHeight()
+		[
+			SNew(SBorder)
+			.BorderImage(FAppStyle::GetBrush("ToolPanel.GroupBorder"))
+			.Visibility_Lambda([this]{ return bExportingRetargetAssets ? EVisibility::Collapsed : EVisibility::Visible;})
+			[
+				SNew(SVerticalBox)
+				+SVerticalBox::Slot()
+				.AutoHeight()
+				.HAlign(HAlign_Center)
+				.VAlign(VAlign_Center)
+				[
+					SNew(STextBlock)
+					.Text(LOCTEXT("DuplicateAndRetarget_RenameLabel", "Rename New Assets"))
+					.Font(FCoreStyle::GetDefaultFontStyle("Regular", 14))
+				]
+
+				+SVerticalBox::Slot()
+				.AutoHeight()
+				.Padding(2, 1)
+				[
+					SNew(SHorizontalBox)
+					+SHorizontalBox::Slot()
+					.HAlign(HAlign_Right)
+					.VAlign(VAlign_Center)
+					.Padding(2, 1)
+					[
+						SNew(STextBlock).Text(LOCTEXT("DuplicateAndRetarget_Prefix", "Prefix"))
+					]
+
+					+SHorizontalBox::Slot()
+					[
+						SNew(SEditableTextBox)
+							.Text(this, &SBatchExportPathDialog::GetPrefixName)
+							.MinDesiredWidth(100)
+							.OnTextChanged(this, &SBatchExportPathDialog::SetPrefixName)
+							.IsReadOnly(false)
+							.RevertTextOnEscape(true)
+					]
+				]
+
+				+SVerticalBox::Slot()
+				.AutoHeight()
+				.Padding(2, 1)
+				[
+					SNew(SHorizontalBox)
+					+SHorizontalBox::Slot()
+					.HAlign(HAlign_Right)
+					.VAlign(VAlign_Center)
+					.Padding(2, 1)
+					[
+						SNew(STextBlock).Text(LOCTEXT("DuplicateAndRetarget_Suffix", "Suffix"))
+					]
+
+					+SHorizontalBox::Slot()
+					[
+						SNew(SEditableTextBox)
+							.Text(this, &SBatchExportPathDialog::GetSuffixName)
+							.MinDesiredWidth(100)
+							.OnTextChanged(this, &SBatchExportPathDialog::SetSuffixName)
+							.IsReadOnly(false)
+							.RevertTextOnEscape(true)
+					]
+				]
+
+				+SVerticalBox::Slot()
+				.AutoHeight()
+				.Padding(2, 1)
+				[
+					SNew(SHorizontalBox)
+					+SHorizontalBox::Slot()
+					.HAlign(HAlign_Right)
+					.VAlign(VAlign_Center)
+					.Padding(2, 1)
+					[
+						SNew(STextBlock).Text(LOCTEXT("DuplicateAndRetarget_Search", "Search "))
+					]
+
+					+SHorizontalBox::Slot()
+					[
+						SNew(SEditableTextBox)
+							.Text(this, &SBatchExportPathDialog::GetReplaceFrom)
+							.MinDesiredWidth(100)
+							.OnTextChanged(this, &SBatchExportPathDialog::SetReplaceFrom)
+							.IsReadOnly(false)
+							.RevertTextOnEscape(true)
+					]
+				]
+
+				+SVerticalBox::Slot()
+				.AutoHeight()
+				.Padding(2, 1)
+				[
+					SNew(SHorizontalBox)
+					+SHorizontalBox::Slot()
+					.HAlign(HAlign_Right)
+					.VAlign(VAlign_Center)
+					.Padding(2, 1)
+					[
+						SNew(STextBlock).Text(LOCTEXT("DuplicateAndRetarget_Replace", "Replace "))
+					]
+
+					+SHorizontalBox::Slot()
+					[
+						SNew(SEditableTextBox)
+							.Text(this, &SBatchExportPathDialog::GetReplaceTo)
+							.MinDesiredWidth(100)
+							.OnTextChanged(this, &SBatchExportPathDialog::SetReplaceTo)
+							.IsReadOnly(false)
+							.RevertTextOnEscape(true)
+					]
+				]
+
+				+SVerticalBox::Slot()
+				.AutoHeight()
+				.Padding(2, 3)
+				[
+					SNew(SHorizontalBox)
+					+SHorizontalBox::Slot()
+					.Padding(5, 5)
+					[
+						SNew(STextBlock)
+						.Text(this,  &SBatchExportPathDialog::GetExampleText)
+						.Font(FAppStyle::GetFontStyle("Persona.RetargetManager.ItalicFont"))
+					]
+				]
+			]
+		]
+		
+		+SVerticalBox::Slot()
+		.AutoHeight()
+		.HAlign(HAlign_Right)
+		.VAlign(VAlign_Bottom)
+		.Padding(5)
+		[
+			SNew(SUniformGridPanel)
+			.SlotPadding(FAppStyle::GetMargin("StandardDialog.SlotPadding"))
+			.MinDesiredSlotWidth(FAppStyle::GetFloat("StandardDialog.MinDesiredSlotWidth"))
+			.MinDesiredSlotHeight(FAppStyle::GetFloat("StandardDialog.MinDesiredSlotHeight"))
+
+			+SUniformGridPanel::Slot(0, 0)
+			[
+				SNew(SButton)
+				.HAlign(HAlign_Center)
+				.ContentPadding(FAppStyle::GetMargin("StandardDialog.ContentPadding"))
+				.Text(LOCTEXT("Cancel", "Cancel"))
+				.OnClicked(this, &SBatchExportPathDialog::OnButtonClick, EAppReturnType::Cancel)
+			]
+			
+			+SUniformGridPanel::Slot(1, 0)
+			[
+				SNew(SButton)
+				.HAlign(HAlign_Center)
+				.ContentPadding(FAppStyle::GetMargin("StandardDialog.ContentPadding"))
+				.Text(LOCTEXT("Export", "Export"))
+				.OnClicked(this, &SBatchExportPathDialog::OnButtonClick, EAppReturnType::Ok)
+			]
+		]
+	]);
+
+	UpdateExampleText();
 }
 
-void SSelectExportPathDialog::OnPathChange(const FString& NewPath)
+void SBatchExportPathDialog::OnPathChange(const FString& NewPath)
 {
-	AssetPath = FText::FromString(NewPath);
+	BatchContext->NameRule.FolderPath = NewPath;
 }
 
-FReply SSelectExportPathDialog::OnButtonClick(EAppReturnType::Type ButtonID)
+FReply SBatchExportPathDialog::OnButtonClick(EAppReturnType::Type ButtonID)
 {
 	UserResponse = ButtonID;
-
 	RequestDestroyWindow();
-
 	return FReply::Handled();
 }
 
-EAppReturnType::Type SSelectExportPathDialog::ShowModal()
+EAppReturnType::Type SBatchExportPathDialog::ShowModal()
 {
 	GEditor->EditorAddModalWindow(SharedThis(this));
 	return UserResponse;
 }
 
-FString SSelectExportPathDialog::GetAssetPath()
+FText SBatchExportPathDialog::GetPrefixName() const
 {
-	return AssetPath.ToString();
+	return FText::FromString(BatchContext->NameRule.Prefix);
+}
+
+void SBatchExportPathDialog::SetPrefixName(const FText &InText)
+{
+	BatchContext->NameRule.Prefix = InText.ToString();
+	UpdateExampleText();
+}
+
+FText SBatchExportPathDialog::GetSuffixName() const
+{
+	return FText::FromString(BatchContext->NameRule.Suffix);
+}
+
+void SBatchExportPathDialog::SetSuffixName(const FText &InText)
+{
+	BatchContext->NameRule.Suffix = InText.ToString();
+	UpdateExampleText();
+}
+
+FText SBatchExportPathDialog::GetReplaceFrom() const
+{
+	return FText::FromString(BatchContext->NameRule.ReplaceFrom);
+}
+
+void SBatchExportPathDialog::SetReplaceFrom(const FText &InText)
+{
+	BatchContext->NameRule.ReplaceFrom = InText.ToString();
+	UpdateExampleText();
+}
+
+FText SBatchExportPathDialog::GetReplaceTo() const
+{
+	return FText::FromString(BatchContext->NameRule.ReplaceTo);
+}
+
+void SBatchExportPathDialog::SetReplaceTo(const FText &InText)
+{
+	BatchContext->NameRule.ReplaceTo = InText.ToString();
+	UpdateExampleText();
+}
+
+FText SBatchExportPathDialog::GetExampleText() const
+{
+	return ExampleText;
+}
+
+void SBatchExportPathDialog::UpdateExampleText()
+{
+	const FString ReplaceFrom = FString::Printf(TEXT("Old Name : ***%s***"), *BatchContext->NameRule.ReplaceFrom);
+	const FString ReplaceTo = FString::Printf(TEXT("New Name : %s***%s***%s"), *BatchContext->NameRule.Prefix, *BatchContext->NameRule.ReplaceTo, *BatchContext->NameRule.Suffix);
+	ExampleText = FText::FromString(FString::Printf(TEXT("%s\n%s"), *ReplaceFrom, *ReplaceTo));
+}
+
+FText SBatchExportPathDialog::GetFolderPath() const
+{
+	return FText::FromString(BatchContext->NameRule.FolderPath);
+}
+
+UBatchExportOptions* UBatchExportOptions::GetInstance()
+{
+	if (!SingletonInstance)
+	{
+		SingletonInstance = NewObject<UBatchExportOptions>(GetTransientPackage(), UBatchExportOptions::StaticClass());
+		SingletonInstance->AddToRoot();
+	}
+	return SingletonInstance;
+}
+
+UBatchExportOptions* UBatchExportOptions::SingletonInstance = nullptr;
+
+SBatchExportOptionsDialog::SBatchExportOptionsDialog()
+{
+	UserResponse = EAppReturnType::Cancel;
+}
+
+void SBatchExportOptionsDialog::Construct(const FArguments& InArgs)
+{
+	BatchContext = InArgs._BatchContext;
+	check(BatchContext);
+
+	FDetailsViewArgs GridDetailsViewArgs;
+	GridDetailsViewArgs.bAllowSearch = false;
+	GridDetailsViewArgs.NameAreaSettings = FDetailsViewArgs::HideNameArea;
+	GridDetailsViewArgs.bHideSelectionTip = true;
+	GridDetailsViewArgs.DefaultsOnlyVisibility = EEditDefaultsOnlyNodeVisibility::Automatic;
+	GridDetailsViewArgs.bShowOptions = false;
+	GridDetailsViewArgs.bAllowMultipleTopLevelObjects = false;
+
+	FPropertyEditorModule& PropertyEditorModule = FModuleManager::GetModuleChecked<FPropertyEditorModule>("PropertyEditor");
+	const TSharedRef<IDetailsView> DetailsView = PropertyEditorModule.CreateDetailView(GridDetailsViewArgs);
+	DetailsView->SetObject(UBatchExportOptions::GetInstance());
+
+	SWindow::Construct(SWindow::FArguments()
+	.Title(LOCTEXT("ExportOptionsWindowTitle", "Batch Export Options"))
+	.SupportsMinimize(false)
+	.SupportsMaximize(false)
+	.IsTopmostWindow(true)
+	.ClientSize(FVector2D(450, 200))
+	[
+		SNew(SVerticalBox)
+
+		+ SVerticalBox::Slot()
+		.Padding(2)
+		[
+			DetailsView
+		]
+		
+		+SVerticalBox::Slot()
+		.AutoHeight()
+		.HAlign(HAlign_Right)
+		.VAlign(VAlign_Bottom)
+		.Padding(5)
+		[
+			SNew(SUniformGridPanel)
+			.SlotPadding(FAppStyle::GetMargin("StandardDialog.SlotPadding"))
+			.MinDesiredSlotWidth(FAppStyle::GetFloat("StandardDialog.MinDesiredSlotWidth"))
+			.MinDesiredSlotHeight(FAppStyle::GetFloat("StandardDialog.MinDesiredSlotHeight"))
+
+			+SUniformGridPanel::Slot(0, 0)
+			[
+				SNew(SButton)
+				.HAlign(HAlign_Center)
+				.ContentPadding(FAppStyle::GetMargin("StandardDialog.ContentPadding"))
+				.Text(LOCTEXT("Cancel", "Cancel"))
+				.OnClicked(this, &SBatchExportOptionsDialog::OnButtonClick, EAppReturnType::Cancel)
+			]
+			
+			+SUniformGridPanel::Slot(1, 0)
+			[
+				SNew(SButton)
+				.HAlign(HAlign_Center)
+				.ContentPadding(FAppStyle::GetMargin("StandardDialog.ContentPadding"))
+				.Text(LOCTEXT("Export", "Export"))
+				.OnClicked(this, &SBatchExportOptionsDialog::OnButtonClick, EAppReturnType::Ok)
+			]
+		]
+	]);
+}
+
+EAppReturnType::Type SBatchExportOptionsDialog::ShowModal()
+{
+	GEditor->EditorAddModalWindow(SharedThis(this));
+	return UserResponse;
+}
+
+FReply SBatchExportOptionsDialog::OnButtonClick(EAppReturnType::Type ButtonID)
+{
+	// update batch context with the user specified options
+	const UBatchExportOptions* ExportOptions = UBatchExportOptions::GetInstance();
+	BatchContext->bRetargetAndConnectReferencedAssets = ExportOptions->bRetargetAndConnectReferencedAssets;
+	BatchContext->bOverwriteExistingFiles = ExportOptions->bOverwriteExistingFiles;
+	BatchContext->bExportOnlyAnimatedBones = ExportOptions->bExportOnlyAnimatedBones;
+	BatchContext->RootLockMode = ExportOptions->RootLockMode;
+	
+	UserResponse = ButtonID;
+	RequestDestroyWindow();
+	return FReply::Handled();
 }
 
 void SRetargetPoseViewport::Construct(const FArguments& InArgs)
 {
+	BatchContext = InArgs._BatchContext;
+	check(BatchContext);
+	
 	SEditorViewport::Construct(SEditorViewport::FArguments());
 
-	PreviewComponent = NewObject<UDebugSkelMeshComponent>();
-	PreviewComponent->VisibilityBasedAnimTickOption = EVisibilityBasedAnimTickOption::AlwaysTickPoseAndRefreshBones;
-	PreviewScene.AddComponent(PreviewComponent, FTransform::Identity);
+	SourceComponent = NewObject<UDebugSkelMeshComponent>();
+	TargetComponent = NewObject<UDebugSkelMeshComponent>();
+	
+	SourceComponent->VisibilityBasedAnimTickOption = EVisibilityBasedAnimTickOption::AlwaysTickPoseAndRefreshBones;
+	TargetComponent->VisibilityBasedAnimTickOption = EVisibilityBasedAnimTickOption::AlwaysTickPoseAndRefreshBones;
 
-	SetSkeletalMesh(InArgs._SkeletalMesh);
+	// setup TARGET anim instance running a retargeter that copies input pose from the source component
+	TargetAnimInstance = NewObject<UIKRetargetAnimInstance>(TargetComponent, TEXT("IKRetargetTargetAnimScriptInstance"));
+	TargetAnimInstance->SetRetargetMode(ERetargeterOutputMode::RunRetarget);
+	TargetComponent->PreviewInstance = TargetAnimInstance.Get();
+	
+	PreviewScene.AddComponent(SourceComponent, FTransform::Identity);
+	PreviewScene.AddComponent(TargetComponent, FTransform::Identity);
+
+	UIKRetargetProcessor* Processor = TargetAnimInstance->GetRetargetProcessor();
+	if (ensure(Processor))
+	{
+		Processor->Log.SetLogTarget(SRetargetAnimAssetsWindow::LogName, SRetargetAnimAssetsWindow::LogLabel);
+	}
+
+	SetSkeletalMesh(BatchContext->SourceMesh, ERetargetSourceOrTarget::Source);
+	SetRetargetAsset(BatchContext->IKRetargetAsset);
 }
 
-void SRetargetPoseViewport::SetSkeletalMesh(USkeletalMesh* InSkeltalMesh)
+void SRetargetPoseViewport::SetSkeletalMesh(USkeletalMesh* InSkeletalMesh, ERetargetSourceOrTarget SourceOrTarget) const
 {
-	if(InSkeltalMesh == Mesh)
-	{
-		return;
-	}
+	const TObjectPtr<UDebugSkelMeshComponent> Component = SourceOrTarget == ERetargetSourceOrTarget::Source ? SourceComponent : TargetComponent;
+	Component->SetSkeletalMesh(InSkeletalMesh);
+	Component->EnablePreview(true, nullptr);
+
+	// translate target sufficiently far from source to avoid them touching on X axis (sideways)
+	const float Offset = SourceComponent->Bounds.GetBox().Max.X + FMath::Abs(TargetComponent->Bounds.GetBox().Min.X);
+	TargetComponent->SetWorldLocation(FVector(Offset, 0.f, 0.f));
 	
-	Mesh = InSkeltalMesh;
-
-	if(Mesh)
-	{
-		PreviewComponent->SetSkeletalMesh(Mesh);
-		PreviewComponent->EnablePreview(true, nullptr);
-		// todo add IK retargeter and set it to output the retarget pose
-		PreviewComponent->PreviewInstance->SetForceRetargetBasePose(true);
-		PreviewComponent->RefreshBoneTransforms(nullptr);
-
-		//Place the camera at a good viewer position
-		FBoxSphereBounds Bounds = Mesh->GetBounds();
-		Client->FocusViewportOnBox(Bounds.GetBox(), true);
-	}
-	else
-	{
-		PreviewComponent->SetSkeletalMesh(nullptr);
-	}
-
+	// update camera to show both meshes
+	const FBoxSphereBounds Bounds = SourceComponent->Bounds + TargetComponent->Bounds;
+	Client->FocusViewportOnBox(Bounds.GetBox(), true);
 	Client->Invalidate();
 }
 
-SRetargetPoseViewport::SRetargetPoseViewport()
-: PreviewScene(FPreviewScene::ConstructionValues())
+void SRetargetPoseViewport::SetRetargetAsset(UIKRetargeter* RetargetAsset)
 {
+	// apply the IK retargeter and give a reference to the source component
+	TargetAnimInstance->ConfigureAnimInstance(ERetargetSourceOrTarget::Target, RetargetAsset, SourceComponent);
 }
 
-bool SRetargetPoseViewport::IsVisible() const
+void SRetargetPoseViewport::PlayAnimation(UAnimationAsset* AnimationAsset)
 {
-	return true;
+	SourceComponent->EnablePreview(true, AnimationAsset);
+}
+
+bool SRetargetPoseViewport::IsRetargeterValid()
+{
+	if (!TargetAnimInstance)
+	{
+		return false;
+	}
+
+	UIKRetargetProcessor* Processor = TargetAnimInstance->GetRetargetProcessor();
+	if (!Processor)
+	{
+		return false;
+	}
+
+	return Processor->IsInitialized();
+}
+
+FRetargetPoseViewportClient::FRetargetPoseViewportClient(FPreviewScene& InPreviewScene, const TSharedRef<SRetargetPoseViewport>& InRetargetPoseViewport)
+	: FEditorViewportClient(nullptr, &InPreviewScene, StaticCastSharedRef<SEditorViewport>(InRetargetPoseViewport))
+{
+	SetViewMode(VMI_Lit);
+
+	// always composite editor objects after post processing in the editor
+	EngineShowFlags.SetCompositeEditorPrimitives(true);
+	EngineShowFlags.DisableAdvancedFeatures();
+
+	// update lighting
+	const USkeletalMeshEditorSettings* Options = GetDefault<USkeletalMeshEditorSettings>();
+	PreviewScene->SetLightDirection(Options->AnimPreviewLightingDirection);
+	PreviewScene->SetLightColor(Options->AnimPreviewDirectionalColor);
+	PreviewScene->SetLightBrightness(Options->AnimPreviewLightBrightness);
+
+	// add a skylight so that models are visible from all angles
+	// TODO, why isn't this working?
+	FPreviewSceneProfile& DefaultProfile = UAssetViewerSettings::Get()->Profiles[GetMutableDefault<UEditorPerProjectUserSettings>()->AssetViewerProfileIndex];
+	DefaultProfile.LoadEnvironmentMap();
+	UTextureCube* CubeMap = DefaultProfile.EnvironmentCubeMap.Get();
+	PreviewScene->SkyLight->SetVisibility(true, false);
+	PreviewScene->SetSkyCubemap(CubeMap);
+	PreviewScene->SetSkyBrightness(1.f); // tried up to 250... nothing
+
+	// setup defaults for the common draw helper.
+	DrawHelper.bDrawPivot = false;
+	DrawHelper.bDrawWorldBox = false;
+	DrawHelper.bDrawKillZ = false;
+	DrawHelper.bDrawGrid = true;
+	DrawHelper.GridColorAxis = FColor(40, 40, 40);
+	DrawHelper.GridColorMajor = FColor(20, 20, 20);
+	DrawHelper.GridColorMinor =  FColor(10, 10, 10);
+	DrawHelper.PerspectiveGridSize = UE_OLD_HALF_WORLD_MAX1;
+}
+
+void FRetargetPoseViewportClient::Tick(float DeltaTime)
+{
+	if (PreviewScene)
+	{
+		PreviewScene->GetWorld()->Tick(LEVELTICK_All, DeltaTime);
+	}
+
+	FEditorViewportClient::Tick(DeltaTime);
+}
+
+FProceduralRetargetAssets::FProceduralRetargetAssets()
+{
+	FName Name = FName("BatchRetargeter");
+	Name = MakeUniqueObjectName(GetTransientPackage(), UIKRetargeter::StaticClass(), Name, EUniqueObjectNameOptions::GloballyUnique);
+	Retargeter = NewObject<UIKRetargeter>( GetTransientPackage(), Name, RF_Public | RF_Standalone);
+}
+
+void FProceduralRetargetAssets::AddReferencedObjects(FReferenceCollector& Collector)
+{
+	Collector.AddReferencedObject(SourceIKRig);
+	Collector.AddReferencedObject(TargetIKRig);
+	Collector.AddReferencedObject(Retargeter);
+}
+
+void FProceduralRetargetAssets::AutoGenerateIKRigAsset(USkeletalMesh* Mesh, ERetargetSourceOrTarget SourceOrTarget)
+{
+	TObjectPtr<UIKRigDefinition>* IKRig = SourceOrTarget == ERetargetSourceOrTarget::Source ? &SourceIKRig : &TargetIKRig;
+	FName AssetName = SourceOrTarget == ERetargetSourceOrTarget::Source ? FName("BatchRetargetSourceIKRig") : FName("BatchRetargetTargetIKRig");
+	AssetName = MakeUniqueObjectName(GetTransientPackage(), UIKRigDefinition::StaticClass(), AssetName, EUniqueObjectNameOptions::GloballyUnique);
+	*IKRig = NewObject<UIKRigDefinition>( GetTransientPackage(), AssetName, RF_Public | RF_Standalone);
+
+	if (!Mesh)
+	{
+		return;
+	}
+
+	// auto-setup retarget chains and IK for the given mesh
+	const UIKRigController* Controller = UIKRigController::GetController(*IKRig);
+	
+	Controller->SetSkeletalMesh(Mesh);
+	FAutoCharacterizeResults& CharacterizationResults = SourceOrTarget == ERetargetSourceOrTarget::Source ? SourceCharacterizationResults : TargetCharacterizationResults;
+	Controller->AutoGenerateRetargetDefinition(CharacterizationResults);
+	Controller->SetRetargetDefinition(CharacterizationResults.RetargetDefinition);
+	FAutoFBIKResults IKResults = SourceOrTarget == ERetargetSourceOrTarget::Source ? SourceIKResults : TargetIKResults;
+	Controller->AutoGenerateFBIK(IKResults);
+
+	// assign to the retargeter
+	const UIKRetargeterController* RetargetController = UIKRetargeterController::GetController(Retargeter);
+	FScopedReinitializeIKRetargeter ReinitializeRetargeter(RetargetController);
+	RetargetController->SetIKRig(SourceOrTarget, *IKRig);
+}
+
+void FProceduralRetargetAssets::AutoGenerateIKRetargetAsset()
+{
+	if (!(SourceIKRig && SourceIKRig->GetPreviewMesh() && TargetIKRig && TargetIKRig->GetPreviewMesh()))
+	{
+		return;
+	}
+
+	const UIKRetargeterController* RetargetController = UIKRetargeterController::GetController(Retargeter);
+	
+	FScopedReinitializeIKRetargeter Reinitialize(RetargetController);
+
+	// re-assign both IK Rigs
+	RetargetController->SetIKRig(ERetargetSourceOrTarget::Source, SourceIKRig);
+	RetargetController->SetIKRig(ERetargetSourceOrTarget::Target, TargetIKRig);
+
+	// reset and regenerate the target retarget pose
+	const FName TargetRetargetPoseName = RetargetController->GetCurrentRetargetPoseName(ERetargetSourceOrTarget::Target);
+	RetargetController->ResetRetargetPose(TargetRetargetPoseName, TArray<FName>() /* all bones if empty */, ERetargetSourceOrTarget::Target);
+	RetargetController->AutoAlignAllBones(ERetargetSourceOrTarget::Target);
+	
+	// disable IK pass because auto-IK is not yet robust enough, still useful for manual editing though
+	FRetargetGlobalSettings GlobalSettings = RetargetController->GetGlobalSettings();
+	GlobalSettings.bEnableIK = false;
+	RetargetController->SetGlobalSettings(GlobalSettings);
+
+	// set up pin ops for IK bones
+	//RetargetController->
 }
 
 TSharedRef<FEditorViewportClient> SRetargetPoseViewport::MakeEditorViewportClient()
@@ -184,8 +644,7 @@ TSharedRef<FEditorViewportClient> SRetargetPoseViewport::MakeEditorViewportClien
 	EditorViewportClient->SetViewLocation(EditorViewportDefs::DefaultPerspectiveViewLocation);
 	EditorViewportClient->SetViewRotation(EditorViewportDefs::DefaultPerspectiveViewRotation);
 
-	EditorViewportClient->SetRealtime(false);
-	EditorViewportClient->VisibilityDelegate.BindSP(this, &SRetargetPoseViewport::IsVisible);
+	EditorViewportClient->SetRealtime(true);
 	EditorViewportClient->SetViewMode(VMI_Lit);
 
 	return EditorViewportClient.ToSharedRef();
@@ -196,419 +655,459 @@ TSharedPtr<SWidget> SRetargetPoseViewport::MakeViewportToolbar()
 	return nullptr;
 }
 
+void SRetargetExporterAssetBrowser::Construct(const FArguments& InArgs, const TSharedRef<SRetargetAnimAssetsWindow> InRetargetWindow)
+{
+	RetargetWindow = InRetargetWindow;
+	
+	ChildSlot
+	[
+		SAssignNew(AssetBrowserBox, SBox)
+	];
 
-TSharedPtr<SWindow> SRetargetAnimAssetsWindow::DialogWindow;
+	RefreshView();
+}
+
+void SRetargetExporterAssetBrowser::RefreshView()
+{
+	FAssetPickerConfig AssetPickerConfig;
+	
+	// assign "referencer" asset for project filtering
+	// TODO validate this works in UEFN
+	AssetPickerConfig.AdditionalReferencingAssets.Add(FAssetData(RetargetWindow->GetSettings()));
+	
+	// setup filtering
+	AssetPickerConfig.Filter.ClassPaths.Add(UAnimBlueprint::StaticClass()->GetClassPathName());
+	AssetPickerConfig.Filter.ClassPaths.Add(UAnimSequence::StaticClass()->GetClassPathName());
+	AssetPickerConfig.Filter.ClassPaths.Add(UAnimMontage::StaticClass()->GetClassPathName());
+	AssetPickerConfig.Filter.ClassPaths.Add(UPoseAsset::StaticClass()->GetClassPathName());
+	AssetPickerConfig.InitialAssetViewType = EAssetViewType::Column;
+	AssetPickerConfig.bAddFilterUI = true;
+	AssetPickerConfig.DefaultFilterMenuExpansion = EAssetTypeCategories::Animation;
+	AssetPickerConfig.OnShouldFilterAsset = FOnShouldFilterAsset::CreateSP(this, &SRetargetExporterAssetBrowser::OnShouldFilterAsset);
+	AssetPickerConfig.OnAssetDoubleClicked = FOnAssetSelected::CreateSP(this, &SRetargetExporterAssetBrowser::OnAssetDoubleClicked);
+	AssetPickerConfig.GetCurrentSelectionDelegates.Add(&GetCurrentSelectionDelegate);
+	AssetPickerConfig.bAllowNullSelection = false;
+	AssetPickerConfig.bFocusSearchBoxWhenOpened = false;
+	AssetPickerConfig.bShowPathInColumnView = false;
+	AssetPickerConfig.bShowTypeInColumnView = false;
+	AssetPickerConfig.HiddenColumnNames.Add(ContentBrowserItemAttributes::ItemDiskSize.ToString());
+	AssetPickerConfig.HiddenColumnNames.Add(ContentBrowserItemAttributes::VirtualizedData.ToString());
+	AssetPickerConfig.HiddenColumnNames.Add(TEXT("Path"));
+	AssetPickerConfig.HiddenColumnNames.Add(TEXT("Class"));
+	AssetPickerConfig.HiddenColumnNames.Add(TEXT("RevisionControl"));
+
+	// hide all asset registry columns by default (we only really want the name and path)
+	UObject* AnimSequenceDefaultObject = UAnimSequence::StaticClass()->GetDefaultObject();
+	FAssetRegistryTagsContextData TagsContext(AnimSequenceDefaultObject, EAssetRegistryTagsCaller::Uncategorized);
+	AnimSequenceDefaultObject->GetAssetRegistryTags(TagsContext);
+	for (const TPair<FName, UObject::FAssetRegistryTag>& TagPair : TagsContext.Tags)
+	{
+		AssetPickerConfig.HiddenColumnNames.Add(TagPair.Key.ToString());
+	}
+
+	// Also hide the type column by default (but allow users to enable it, so don't use bShowTypeInColumnView)
+	AssetPickerConfig.HiddenColumnNames.Add(TEXT("Class"));
+
+	const FContentBrowserModule& ContentBrowserModule = FModuleManager::Get().LoadModuleChecked<FContentBrowserModule>(TEXT("ContentBrowser"));
+	AssetBrowserBox->SetContent(ContentBrowserModule.Get().CreateAssetPicker(AssetPickerConfig));
+}
+
+void SRetargetExporterAssetBrowser::GetSelectedAssets(TArray<FAssetData>& OutSelectedAssets) const
+{
+	OutSelectedAssets = GetCurrentSelectionDelegate.Execute();
+}
+
+bool SRetargetExporterAssetBrowser::AreAnyAssetsSelected() const
+{
+	return !GetCurrentSelectionDelegate.Execute().IsEmpty();
+}
+
+void SRetargetExporterAssetBrowser::OnAssetDoubleClicked(const FAssetData& AssetData)
+{
+	if (!AssetData.GetAsset())
+	{
+		return;
+	}
+
+	UAnimationAsset* NewAnimationAsset = Cast<UAnimationAsset>(AssetData.GetAsset());
+	if (!NewAnimationAsset)
+	{
+		return;
+	}
+
+	const TSharedPtr<SRetargetPoseViewport> Viewport = RetargetWindow.Get()->GetViewport();
+	if (!ensure(Viewport))
+	{
+		return;
+	}
+
+	Viewport->PlayAnimation(NewAnimationAsset);
+}
+
+bool SRetargetExporterAssetBrowser::OnShouldFilterAsset(const FAssetData& AssetData)
+{
+	// is this an animation asset?
+	const bool bIsAnimAsset = AssetData.IsInstanceOf(UAnimationAsset::StaticClass());
+	const bool bIsAnimBlueprint = AssetData.IsInstanceOf(UAnimBlueprint::StaticClass());
+	if (!(bIsAnimAsset || bIsAnimBlueprint))
+	{
+		return true;
+	}
+	
+	const TObjectPtr<UBatchRetargetSettings> BatchRetargetSettings = RetargetWindow.Get()->GetSettings();
+	if (!ensure(BatchRetargetSettings))
+	{
+		return false;
+	}
+	
+	if (!BatchRetargetSettings->SourceSkeletalMesh)
+	{
+		return true;
+	}
+	
+	const USkeleton* DesiredSkeleton = BatchRetargetSettings->SourceSkeletalMesh->GetSkeleton();
+	if (!DesiredSkeleton)
+	{
+		return true;
+	}
+
+	if (bIsAnimBlueprint)
+	{
+		TObjectPtr<USkeleton> ABPSkeleton = Cast<UAnimBlueprint>(AssetData.GetAsset())->TargetSkeleton;
+		return !DesiredSkeleton->IsCompatibleForEditor(ABPSkeleton);
+	}
+	
+	return !DesiredSkeleton->IsCompatibleForEditor(AssetData);
+}
+
+SRetargetAnimAssetsWindow::SRetargetAnimAssetsWindow()
+{
+	// create the settings uobject
+	Settings = NewObject<UBatchRetargetSettings>(GetTransientPackage(), UBatchRetargetSettings::StaticClass());
+
+	// assign default retargeter
+	BatchContext.IKRetargetAsset = ProceduralAssets.Retargeter;
+
+	// register log name
+	Log.SetLogTarget(LogName, LogLabel);
+}
+
+TSharedPtr<SWindow> SRetargetAnimAssetsWindow::Window;
 
 void SRetargetAnimAssetsWindow::Construct(const FArguments& InArgs)
 {
-	AssetThumbnailPool = MakeShareable( new FAssetThumbnailPool(1024) );
+	FDetailsViewArgs GridDetailsViewArgs;
+	GridDetailsViewArgs.bAllowSearch = false;
+	GridDetailsViewArgs.NameAreaSettings = FDetailsViewArgs::HideNameArea;
+	GridDetailsViewArgs.bHideSelectionTip = true;
+	GridDetailsViewArgs.DefaultsOnlyVisibility = EEditDefaultsOnlyNodeVisibility::Automatic;
+	GridDetailsViewArgs.bShowOptions = false;
+	GridDetailsViewArgs.bAllowMultipleTopLevelObjects = false;
+
+	FPropertyEditorModule& PropertyEditorModule = FModuleManager::GetModuleChecked<FPropertyEditorModule>("PropertyEditor");
+	TSharedRef<IDetailsView> DetailsView = PropertyEditorModule.CreateDetailView(GridDetailsViewArgs);
+	DetailsView->SetObject(Settings);
+	DetailsView->OnFinishedChangingProperties().AddSP(this, &SRetargetAnimAssetsWindow::OnFinishedChangingSelectionProperties);
 	
 	this->ChildSlot
 	[
 		SNew (SHorizontalBox)
 		
 		+SHorizontalBox::Slot()
-		.HAlign(HAlign_Center)
-		.VAlign(VAlign_Top)
-		.AutoWidth()
+		.HAlign(HAlign_Fill)
+		.VAlign(VAlign_Fill)
+		.FillWidth(1.f)
 		[
-			SNew(SVerticalBox)
-			+SVerticalBox::Slot()
-			.AutoHeight()
-			.VAlign(VAlign_Top)
-			.Padding(0, 5)
+
+			SNew(SSplitter)
+			.Orientation(Orient_Horizontal)
+			+ SSplitter::Slot()
+			.Value(0.6f)
 			[
-				SNew(SHorizontalBox)
-				+SHorizontalBox::Slot()
+				SNew(SSplitter)
+				.Orientation(Orient_Vertical)
+				+ SSplitter::Slot()
+				.Value(0.8f)
+				[
+					SAssignNew(Viewport, SRetargetPoseViewport).BatchContext(&BatchContext)
+				]
+				+ SSplitter::Slot()
+				.Value(0.2f)
+				[
+					SAssignNew(LogView, SIKRigOutputLog, Log.GetLogTarget())
+				]
+			]
+			+ SSplitter::Slot()
+			.Value(0.4f)
+			[
+
+				SNew(SSplitter)
+				.Orientation(Orient_Vertical)
+				+ SSplitter::Slot()
+				.Value(0.4f)
+				[
+					DetailsView
+				]
+				+ SSplitter::Slot()
+				.Value(0.6f)
 				[
 					SNew(SVerticalBox)
-					+ SVerticalBox::Slot()
-					.AutoHeight()
-					.HAlign(HAlign_Center)
+					
+					+SVerticalBox::Slot()
 					[
-						SNew(STextBlock)
-						.Text(LOCTEXT("DuplicateAndRetarget_SourceTitle", "Source Skeletal Mesh"))
-						.Font(FAppStyle::GetFontStyle("Persona.RetargetManager.BoldFont"))
-						.AutoWrapText(true)
+						SAssignNew(AssetBrowser, SRetargetExporterAssetBrowser, SharedThis(this))
 					]
 
-					+ SVerticalBox::Slot()
+					+SVerticalBox::Slot()
+					.Padding(2)
 					.AutoHeight()
-					.Padding(5, 5)
 					[
-						SAssignNew(SourceViewport, SRetargetPoseViewport)
-						.SkeletalMesh(BatchContext.SourceMesh)
+						SNew(SWarningOrErrorBox)
+						.Visibility_Lambda([this]{return GetWarningVisibility(); })
+						.MessageStyle(EMessageStyle::Warning)
+						.Message_Lambda([this] { return GetWarningText(); })
 					]
-
-					+ SVerticalBox::Slot()
-					.AutoHeight()
-					.Padding(5, 5)
-					[
-						SNew(SObjectPropertyEntryBox)
-						.AllowedClass(USkeletalMesh::StaticClass())
-						.AllowClear(true)
-						.DisplayUseSelected(true)
-						.DisplayBrowse(true)
-						.DisplayThumbnail(true)
-						.ThumbnailPool(AssetThumbnailPool)
-						.IsEnabled_Lambda([this]()
-						{
-							if (!BatchContext.IKRetargetAsset)
-							{
-								return false;
-							}
-							
-							return BatchContext.IKRetargetAsset->GetIKRig(ERetargetSourceOrTarget::Source) != nullptr;
-						})
-						.ObjectPath(this, &SRetargetAnimAssetsWindow::GetCurrentSourceMeshPath)
-						.OnObjectChanged(this, &SRetargetAnimAssetsWindow::SourceMeshAssigned)
-					]
-				]
-
-				+SHorizontalBox::Slot()
-				.Padding(5)
-				.AutoWidth()
-				[
-					SNew(SSeparator)
-					.Orientation(Orient_Vertical)
-				]
-
-				+SHorizontalBox::Slot()
-				[
-					SNew(SVerticalBox)
-					+ SVerticalBox::Slot()
-					.AutoHeight()
-					.HAlign(HAlign_Center)
-					[
-						SNew(STextBlock)
-						.Text(LOCTEXT("DuplicateAndRetarget_TargetTitle", "Target Skeletal Mesh"))
-						.Font(FAppStyle::GetFontStyle("Persona.RetargetManager.BoldFont"))
-						.AutoWrapText(true)
-					]
-				
+					
 					+SVerticalBox::Slot()
 					.AutoHeight()
-					.Padding(5, 5)
+					.Padding(2)
 					[
-						SAssignNew(TargetViewport, SRetargetPoseViewport)
-						.SkeletalMesh(nullptr)
-					]
-
-					+ SVerticalBox::Slot()
-					.AutoHeight()
-					.Padding(5, 5)
-					[
-						SNew(SObjectPropertyEntryBox)
-						.AllowedClass(USkeletalMesh::StaticClass())
-						.AllowClear(true)
-						.DisplayUseSelected(true)
-						.DisplayBrowse(true)
-						.DisplayThumbnail(true)
-						.ThumbnailPool(AssetThumbnailPool)
-						.IsEnabled_Lambda([this]()
-						{
-							if (!BatchContext.IKRetargetAsset)
-							{
-								return false;
-							}
-							
-							return BatchContext.IKRetargetAsset->GetIKRig(ERetargetSourceOrTarget::Target) != nullptr;
-						})
-						.ObjectPath(this, &SRetargetAnimAssetsWindow::GetCurrentTargetMeshPath)
-						.OnObjectChanged(this, &SRetargetAnimAssetsWindow::TargetMeshAssigned)
+						SNew(SUniformGridPanel)
+						.SlotPadding(FAppStyle::GetMargin("StandardDialog.SlotPadding"))
+						.MinDesiredSlotWidth(FAppStyle::GetFloat("StandardDialog.MinDesiredSlotWidth"))
+						.MinDesiredSlotHeight(FAppStyle::GetFloat("StandardDialog.MinDesiredSlotHeight"))
+						+SUniformGridPanel::Slot(0, 0)
+						[
+							SNew(SButton).HAlign(HAlign_Center)
+							.Text(LOCTEXT("ExportAssets", "Export Retarget Assets"))
+							.IsEnabled(this, &SRetargetAnimAssetsWindow::CanExportRetargetAssets)
+							.OnClicked(this, &SRetargetAnimAssetsWindow::OnExportRetargetAssets)
+							.HAlign(HAlign_Center)
+							.ContentPadding(FAppStyle::GetMargin("StandardDialog.ContentPadding"))
+						]
+						+SUniformGridPanel::Slot(1, 0)
+						[
+							SNew(SButton).HAlign(HAlign_Center)
+							.Text(LOCTEXT("ExportAnims", "Export Animations"))
+							.IsEnabled(this, &SRetargetAnimAssetsWindow::CanExportAnimations)
+							.OnClicked(this, &SRetargetAnimAssetsWindow::OnExportAnimations)
+							.HAlign(HAlign_Center)
+							.ContentPadding(FAppStyle::GetMargin("StandardDialog.ContentPadding"))
+						]	
 					]
 				]
-			]
-		]
-
-		+SHorizontalBox::Slot()
-		.Padding(5)
-		.AutoWidth()
-		[
-			SNew(SSeparator)
-			.Orientation(Orient_Vertical)
-		]
-			
-		+SHorizontalBox::Slot()
-		.AutoWidth()
-		[
-			SNew(SVerticalBox)
-
-			+ SVerticalBox::Slot()
-			.AutoHeight()
-			.HAlign(HAlign_Center)
-			.Padding(0, 5)
-			[
-				SNew(STextBlock)
-				.Text(LOCTEXT("DuplicateAndRetarget_RetargetAsset", "IK Retargeter"))
-				.Font(FAppStyle::GetFontStyle("Persona.RetargetManager.BoldFont"))
-				.AutoWrapText(true)
-			]
-
-			+SVerticalBox::Slot()
-			.AutoHeight()
-			.HAlign(HAlign_Fill)
-			.Padding(2)
-			[
-				SNew(SObjectPropertyEntryBox)
-				.AllowedClass(UIKRetargeter::StaticClass())
-				.AllowClear(true)
-				.DisplayUseSelected(true)
-				.DisplayBrowse(true)
-				.DisplayThumbnail(true)
-				.ThumbnailPool(AssetThumbnailPool)
-				.ObjectPath(this, &SRetargetAnimAssetsWindow::GetCurrentRetargeterPath)
-				.OnObjectChanged(this, &SRetargetAnimAssetsWindow::RetargeterAssigned)
-			]
-
-			+SVerticalBox::Slot()
-			.Padding(5)
-			.AutoHeight()
-			[
-				SNew(SSeparator)
-				.Orientation(Orient_Horizontal)
-			]
-			
-			+SVerticalBox::Slot()
-			[	
-				SNew(SVerticalBox)
-				+SVerticalBox::Slot()
-				.AutoHeight()
-				.HAlign(HAlign_Center)
-				.Padding(2, 3)
-				[
-					SNew(STextBlock)
-					.AutoWrapText(true)
-					.Font(FAppStyle::GetFontStyle("Persona.RetargetManager.SmallBoldFont"))
-					.Text(LOCTEXT("DuplicateAndRetarget_RenameLabel", "Rename New Assets"))
-				]
-
-				+SVerticalBox::Slot()
-				.AutoHeight()
-				.Padding(2, 1)
-				[
-					SNew(SHorizontalBox)
-					+SHorizontalBox::Slot()
-					[
-						SNew(STextBlock).Text(LOCTEXT("DuplicateAndRetarget_Prefix", "Prefix"))
-					]
-
-					+SHorizontalBox::Slot()
-					[
-						SNew(SEditableTextBox)
-							.Text(this, &SRetargetAnimAssetsWindow::GetPrefixName)
-							.MinDesiredWidth(100)
-							.OnTextChanged(this, &SRetargetAnimAssetsWindow::SetPrefixName)
-							.IsReadOnly(false)
-							.RevertTextOnEscape(true)
-					]
-				]
-
-				+SVerticalBox::Slot()
-				.AutoHeight()
-				.Padding(2, 1)
-				[
-					SNew(SHorizontalBox)
-					+SHorizontalBox::Slot()
-					[
-						SNew(STextBlock).Text(LOCTEXT("DuplicateAndRetarget_Suffix", "Suffix"))
-					]
-
-					+SHorizontalBox::Slot()
-					[
-						SNew(SEditableTextBox)
-							.Text(this, &SRetargetAnimAssetsWindow::GetSuffixName)
-							.MinDesiredWidth(100)
-							.OnTextChanged(this, &SRetargetAnimAssetsWindow::SetSuffixName)
-							.IsReadOnly(false)
-							.RevertTextOnEscape(true)
-					]
-				]
-
-				+SVerticalBox::Slot()
-				.AutoHeight()
-				.Padding(2, 1)
-				[
-					SNew(SHorizontalBox)
-					+SHorizontalBox::Slot()
-					[
-						SNew(STextBlock).Text(LOCTEXT("DuplicateAndRetarget_Search", "Search "))
-					]
-
-					+SHorizontalBox::Slot()
-					[
-						SNew(SEditableTextBox)
-							.Text(this, &SRetargetAnimAssetsWindow::GetReplaceFrom)
-							.MinDesiredWidth(100)
-							.OnTextChanged(this, &SRetargetAnimAssetsWindow::SetReplaceFrom)
-							.IsReadOnly(false)
-							.RevertTextOnEscape(true)
-					]
-				]
-
-				+SVerticalBox::Slot()
-				.AutoHeight()
-				.Padding(2, 1)
-				[
-					SNew(SHorizontalBox)
-					+SHorizontalBox::Slot()
-					[
-						SNew(STextBlock).Text(LOCTEXT("DuplicateAndRetarget_Replace", "Replace "))
-					]
-
-					+SHorizontalBox::Slot()
-					[
-						SNew(SEditableTextBox)
-							.Text(this, &SRetargetAnimAssetsWindow::GetReplaceTo)
-							.MinDesiredWidth(100)
-							.OnTextChanged(this, &SRetargetAnimAssetsWindow::SetReplaceTo)
-							.IsReadOnly(false)
-							.RevertTextOnEscape(true)
-					]
-				]
-
-				+SVerticalBox::Slot()
-				.AutoHeight()
-				.Padding(2, 3)
-				[
-					SNew(SHorizontalBox)
-					+SHorizontalBox::Slot()
-					.Padding(5, 5)
-					[
-						SNew(STextBlock)
-						.Text(this,  &SRetargetAnimAssetsWindow::GetExampleText)
-						.Font(FAppStyle::GetFontStyle("Persona.RetargetManager.ItalicFont"))
-					]
-				]
-
-				+SVerticalBox::Slot()
-				.AutoHeight()
-				.Padding(2, 3)
-				[
-					SNew(SHorizontalBox)
-
-					+SHorizontalBox::Slot()
-					.AutoWidth()
-					[
-						SNew(STextBlock)
-						.Text(LOCTEXT("DuplicateAndRetarget_Folder", "Folder "))
-						.Font(FAppStyle::GetFontStyle("Persona.RetargetManager.SmallBoldFont"))
-					]
-
-					+SHorizontalBox::Slot()
-					.FillWidth(1)
-					.HAlign(HAlign_Center)
-					[
-						SNew(STextBlock)
-						.Text(this, &SRetargetAnimAssetsWindow::GetFolderPath)
-					]
-
-					+SHorizontalBox::Slot()
-					.AutoWidth()
-					[
-						SNew(SButton)
-						.HAlign(HAlign_Center)
-						.Text(LOCTEXT("DuplicateAndRetarget_ChangeFolder", "Change..."))
-						.OnClicked(this, &SRetargetAnimAssetsWindow::GetExportFolder)
-					]
-				]
-
-				+SVerticalBox::Slot()
-				.Padding(5)
-				.AutoHeight()
-				[
-					SNew(SSeparator)
-					.Orientation(Orient_Horizontal)
-				]
-
-				+SVerticalBox::Slot()
-				.AutoHeight()
-				.HAlign(HAlign_Fill)
-				.Padding(2)
-				[
-					SNew(SCheckBox)
-					.IsChecked(this, &SRetargetAnimAssetsWindow::IsRemappingReferencedAssets)
-					.OnCheckStateChanged(this, &SRetargetAnimAssetsWindow::OnRemappingReferencedAssetsChanged)
-					[
-						SNew(STextBlock).Text(LOCTEXT("DuplicateAndRetarget_AllowRemap", "Remap Referenced Assets"))
-					]
-				]
-			]
-
-			+SVerticalBox::Slot()
-			.HAlign(HAlign_Right)
-			.VAlign(VAlign_Bottom)
-			.Padding(2)
-			[
-				SNew(SUniformGridPanel)
-				.SlotPadding(FAppStyle::GetMargin("StandardDialog.SlotPadding"))
-				.MinDesiredSlotWidth(FAppStyle::GetFloat("StandardDialog.MinDesiredSlotWidth"))
-				.MinDesiredSlotHeight(FAppStyle::GetFloat("StandardDialog.MinDesiredSlotHeight"))
-				+SUniformGridPanel::Slot(0, 0)
-				[
-					SNew(SButton).HAlign(HAlign_Center)
-					.Text(LOCTEXT("RetargetOptions_Cancel", "Cancel"))
-					.ContentPadding(FAppStyle::GetMargin("StandardDialog.ContentPadding"))
-					.OnClicked(this, &SRetargetAnimAssetsWindow::OnCancel)
-				]
-				+SUniformGridPanel::Slot(1, 0)
-				[
-					SNew(SButton).HAlign(HAlign_Center)
-					.Text(LOCTEXT("RetargetOptions_Apply", "Retarget"))
-					.IsEnabled(this, &SRetargetAnimAssetsWindow::CanApply)
-					.OnClicked(this, &SRetargetAnimAssetsWindow::OnApply)
-					.HAlign(HAlign_Center)
-					.ContentPadding(FAppStyle::GetMargin("StandardDialog.ContentPadding"))
-				]
-				
 			]
 		]
 	];
 
-	UpdateExampleText();
+	LogView.Get()->ClearLog();
 }
 
-bool SRetargetAnimAssetsWindow::CanApply() const
+void SRetargetAnimAssetsWindow::AddReferencedObjects(FReferenceCollector& Collector)
 {
-	return BatchContext.IsValid();
+	Collector.AddReferencedObject(Settings);
 }
 
-FReply SRetargetAnimAssetsWindow::OnApply()
+void SRetargetAnimAssetsWindow::OnFinishedChangingSelectionProperties(const FPropertyChangedEvent& PropertyChangedEvent)
 {
-	CloseWindow();
+	if (!PropertyChangedEvent.Property)
+	{
+		return;
+	}
+
+	LogView->ClearLog();
+	
+	if (PropertyChangedEvent.Property->GetName() == "SourceSkeletalMesh")
+	{
+		SetSkeletalMesh(Settings->TargetSkeletalMesh, ERetargetSourceOrTarget::Target);
+		SetSkeletalMesh(Settings->SourceSkeletalMesh, ERetargetSourceOrTarget::Source);
+	}
+
+	if (PropertyChangedEvent.Property->GetName() == "TargetSkeletalMesh")
+	{
+		SetSkeletalMesh(Settings->SourceSkeletalMesh, ERetargetSourceOrTarget::Source);
+		SetSkeletalMesh(Settings->TargetSkeletalMesh, ERetargetSourceOrTarget::Target);
+	}
+
+	const bool bEditedAutoGenCheckbox = PropertyChangedEvent.Property->GetName() == "bAutoGenerateRetargeter";
+	const bool bEditedRetargeter = PropertyChangedEvent.Property->GetName() == "bAutoGenerateRetargeter";
+	if (bEditedAutoGenCheckbox || bEditedRetargeter)
+	{
+		SetRetargetAsset(Settings->RetargetAsset);
+	}
+}
+
+bool SRetargetAnimAssetsWindow::CanExportAnimations() const
+{
+	return GetCurrentState() == EBatchRetargetUIState::READY_TO_EXPORT;
+}
+
+FReply SRetargetAnimAssetsWindow::OnExportAnimations()
+{
+	// get the export path from user
+	const TSharedRef<SBatchExportPathDialog> PathDialog = SNew(SBatchExportPathDialog).BatchContext(&BatchContext).ExportRetargetAssets(false);
+	if(PathDialog->ShowModal() == EAppReturnType::Cancel)
+	{
+		return FReply::Handled();
+	}
+
+	// get the export options from user
+	const TSharedRef<SBatchExportOptionsDialog> OptionsDialog = SNew(SBatchExportOptionsDialog).BatchContext(&BatchContext);
+	if(OptionsDialog->ShowModal() == EAppReturnType::Cancel)
+	{
+		return FReply::Handled();
+	}
+
+	// get the assets to export
+	TArray<FAssetData> SelectedAssets;
+	AssetBrowser->GetSelectedAssets(SelectedAssets);
+	BatchContext.AssetsToRetarget.Reset();
+	for (const FAssetData& Asset : SelectedAssets)
+	{
+		if (UObject* AssetObject = Cast<UObject>(Asset.GetAsset()))
+		{
+			BatchContext.AssetsToRetarget.Add(AssetObject);	
+		}
+	}
+
+	// run the batch retarget
 	const TStrongObjectPtr<UIKRetargetBatchOperation> BatchOperation(NewObject<UIKRetargetBatchOperation>());
 	BatchOperation->RunRetarget(BatchContext);
 	return FReply::Handled();
 }
 
-FReply SRetargetAnimAssetsWindow::OnCancel()
+bool SRetargetAnimAssetsWindow::CanExportRetargetAssets() const
 {
-	CloseWindow();
+	const EBatchRetargetUIState CurrentState = GetCurrentState();
+	return Settings->bAutoGenerateRetargeter &&
+		(CurrentState == EBatchRetargetUIState::READY_TO_EXPORT || CurrentState == EBatchRetargetUIState::NO_ANIMATIONS_SELECTED);
+}
+
+FReply SRetargetAnimAssetsWindow::OnExportRetargetAssets()
+{
+	TSharedRef<SBatchExportPathDialog> PathDialog = SNew(SBatchExportPathDialog).BatchContext(&BatchContext).ExportRetargetAssets(true);
+	if(PathDialog->ShowModal() == EAppReturnType::Cancel)
+	{
+		return FReply::Handled();
+	}
+
+	auto SaveAssetToDisk = [](UObject* Asset, FString& AssetName, const FString& FolderPath)
+	{
+		// create a unique package name and path
+		const FString BasePackageName = FolderPath + "/";
+		FString UniquePackageName;
+		IAssetTools& AssetTools = FModuleManager::LoadModuleChecked<FAssetToolsModule>("AssetTools").Get();
+		AssetTools.CreateUniqueAssetName(BasePackageName, AssetName, UniquePackageName, AssetName);
+		
+		// duplicate the asset
+		FObjectDuplicationParameters ObjParameters(Asset, GetTransientPackage());
+		ObjParameters.DestName = FName(AssetName);
+		ObjParameters.ApplyFlags = RF_Transactional;
+		UObject* AssetToSave = StaticDuplicateObjectEx(ObjParameters);
+			
+		// create a new asset package
+		UPackage* Package = CreatePackage(*UniquePackageName);
+		AssetToSave->Rename(*AssetName, Package);
+		FAssetRegistryModule::AssetCreated(AssetToSave);
+		Package->MarkPackageDirty();
+	
+		// save the asset
+		FSavePackageArgs SaveArgs;
+		SaveArgs.TopLevelFlags = RF_Standalone;
+		const FString FullPackagePath = FPackageName::LongPackageNameToFilename(UniquePackageName, FPackageName::GetAssetPackageExtension());
+		UPackage::Save(Package, AssetToSave, *FullPackagePath, SaveArgs);
+
+		return AssetToSave;
+	};
+
+	// export procedural assets to disk
+	UIKRetargeterController* RetargetController = UIKRetargeterController::GetController(BatchContext.IKRetargetAsset);
+	UIKRigDefinition* SourceIKRig = RetargetController->GetIKRigWriteable(ERetargetSourceOrTarget::Source);
+	UIKRigDefinition* TargetIKRig = RetargetController->GetIKRigWriteable(ERetargetSourceOrTarget::Target);
+
+	// save the retargeter
+	FString RetargetAssetName = TEXT("RTG_AutoGenerated");
+	UObject* ExportedRetargeter = SaveAssetToDisk(BatchContext.IKRetargetAsset, RetargetAssetName, BatchContext.NameRule.FolderPath);
+	// save the SOURCE IK Rig
+	FString SourceIKRigAssetName = TEXT("IK_AutoGeneratedSource");
+	UObject* ExportedSourceIKRig = SaveAssetToDisk(SourceIKRig, SourceIKRigAssetName, BatchContext.NameRule.FolderPath);
+	// save the TARGET IK Rig
+	FString TargetIKRigAssetName = TEXT("IK_AutoGeneratedTarget");
+	UObject* ExportedTargetIKRig = SaveAssetToDisk(TargetIKRig, TargetIKRigAssetName, BatchContext.NameRule.FolderPath);
+
+	// select all new assets and show in the content browser
+	TArray<FAssetData> NewAssets;
+	NewAssets.Add(FAssetData(ExportedRetargeter));
+	NewAssets.Add(FAssetData(ExportedSourceIKRig));
+	NewAssets.Add(FAssetData(ExportedTargetIKRig));
+	const FContentBrowserModule& ContentBrowserModule = FModuleManager::Get().LoadModuleChecked<FContentBrowserModule>("ContentBrowser");
+	ContentBrowserModule.Get().SyncBrowserToAssets(NewAssets);
+	
 	return FReply::Handled();
 }
 
-void SRetargetAnimAssetsWindow::CloseWindow()
+EBatchRetargetUIState SRetargetAnimAssetsWindow::GetCurrentState() const
 {
-	if ( DialogWindow.IsValid() )
+	if (!(BatchContext.SourceMesh && BatchContext.TargetMesh))
 	{
-		DialogWindow->RequestDestroyWindow();
+		return EBatchRetargetUIState::MISSING_MESH;
 	}
+
+	if (!Viewport->IsRetargeterValid())
+	{
+		return Settings->bAutoGenerateRetargeter ? EBatchRetargetUIState::AUTO_RETARGET_INVALID : EBatchRetargetUIState::MANUAL_RETARGET_INVALID;
+	}
+
+	if (!AssetBrowser->AreAnyAssetsSelected())
+	{
+		return EBatchRetargetUIState::NO_ANIMATIONS_SELECTED;
+	}
+	
+	return EBatchRetargetUIState::READY_TO_EXPORT;
+}
+
+EVisibility SRetargetAnimAssetsWindow::GetWarningVisibility() const
+{
+	return GetCurrentState() == EBatchRetargetUIState::READY_TO_EXPORT ? EVisibility::Collapsed : EVisibility::Visible;
+}
+
+FText SRetargetAnimAssetsWindow::GetWarningText() const
+{
+	EBatchRetargetUIState CurrentState = GetCurrentState();
+	switch (CurrentState)
+	{
+	case EBatchRetargetUIState::MISSING_MESH:
+		return LOCTEXT("MissingMesh", "Assign a source and target mesh to transfer animation between.");
+	case EBatchRetargetUIState::AUTO_RETARGET_INVALID:
+		return LOCTEXT("AutoInvalid", "Auto-generated retargeter was invalid. See output for details.");
+	case EBatchRetargetUIState::MANUAL_RETARGET_INVALID:
+		return LOCTEXT("UserInvalid", "User supplied retargeter was invalid. See output for details.");
+	case EBatchRetargetUIState::NO_ANIMATIONS_SELECTED:
+		return LOCTEXT("NoAnimsSelcted", "Ready to export! Select animations to export.");
+	case EBatchRetargetUIState::READY_TO_EXPORT:
+		return FText::GetEmpty(); // message hidden when warnings are all dealt with
+	default:
+		checkNoEntry();
+	};
+
+	return FText::GetEmpty();
 }
 
 void SRetargetAnimAssetsWindow::ShowWindow(TArray<UObject*> InSelectedAssets)
 {	
-	if(DialogWindow.IsValid())
+	if(Window.IsValid())
 	{
-		FSlateApplication::Get().DestroyWindowImmediately(DialogWindow.ToSharedRef());
+		FSlateApplication::Get().DestroyWindowImmediately(Window.ToSharedRef());
 	}
 	
-	DialogWindow = SNew(SWindow)
-		.Title(LOCTEXT("RetargetAssets", "Duplicate and Retarget Animation Assets"))
-		.SupportsMinimize(false)
-		.SupportsMaximize(false)
+	Window = SNew(SWindow)
+		.Title(LOCTEXT("RetargetAnimWindowTitle", "Retarget Animations"))
+		.SupportsMinimize(true)
+		.SupportsMaximize(true)
 		.HasCloseButton(true)
-		.IsTopmostWindow(true)
-		.SizingRule(ESizingRule::Autosized);
+		.IsTopmostWindow(false)
+		.ClientSize(FVector2D(1280, 720))
+		.SizingRule(ESizingRule::UserSized);
 	
 	TSharedPtr<class SRetargetAnimAssetsWindow> DialogWidget;
 	TSharedPtr<SBorder> DialogWrapper =
@@ -618,140 +1117,118 @@ void SRetargetAnimAssetsWindow::ShowWindow(TArray<UObject*> InSelectedAssets)
 		[
 			SAssignNew(DialogWidget, SRetargetAnimAssetsWindow)
 		];
+	Window->SetOnWindowClosed(FOnWindowClosed::CreateLambda([](const TSharedRef<SWindow>&){Window = nullptr;}));
+	Window->SetContent(DialogWrapper.ToSharedRef());
 
-	DialogWidget->BatchContext.AssetsToRetarget = FObjectEditorUtils::GetTypedWeakObjectPtrs<UObject>(InSelectedAssets);
-	DialogWindow->SetOnWindowClosed(FRequestDestroyWindowOverride::CreateSP(DialogWidget.Get(), &SRetargetAnimAssetsWindow::OnDialogClosed));
-	DialogWindow->SetContent(DialogWrapper.ToSharedRef());
-	
-	FSlateApplication::Get().AddWindow(DialogWindow.ToSharedRef());
-}
-
-void SRetargetAnimAssetsWindow::OnDialogClosed(const TSharedRef<SWindow>& Window)
-{
-	DialogWindow = nullptr;
-}
-
-void SRetargetAnimAssetsWindow::SourceMeshAssigned(const FAssetData& InAssetData)
-{
-	USkeletalMesh* Mesh = Cast<USkeletalMesh>(InAssetData.GetAsset());
-	BatchContext.SourceMesh = Mesh;
-	SourceViewport->SetSkeletalMesh(BatchContext.SourceMesh);
-}
-
-void SRetargetAnimAssetsWindow::TargetMeshAssigned(const FAssetData& InAssetData)
-{
-	USkeletalMesh* Mesh = Cast<USkeletalMesh>(InAssetData.GetAsset());
-	BatchContext.TargetMesh = Mesh;
-	TargetViewport->SetSkeletalMesh(BatchContext.TargetMesh);
-}
-
-FString SRetargetAnimAssetsWindow::GetCurrentSourceMeshPath() const
-{
-	return BatchContext.SourceMesh ? BatchContext.SourceMesh->GetPathName() : FString("");
-}
-
-FString SRetargetAnimAssetsWindow::GetCurrentTargetMeshPath() const
-{
-	return BatchContext.TargetMesh ? BatchContext.TargetMesh->GetPathName() : FString("");
-}
-
-FString SRetargetAnimAssetsWindow::GetCurrentRetargeterPath() const
-{
-	return BatchContext.IKRetargetAsset ? BatchContext.IKRetargetAsset->GetPathName() : FString("");
-}
-
-void SRetargetAnimAssetsWindow::RetargeterAssigned(const FAssetData& InAssetData)
-{
-	UIKRetargeter* InRetargeter = Cast<UIKRetargeter>(InAssetData.GetAsset());
-	BatchContext.IKRetargetAsset = InRetargeter;
-	const UIKRetargeterController* Controller = UIKRetargeterController::GetController(InRetargeter);
-	SourceMeshAssigned(FAssetData(Controller->GetPreviewMesh(ERetargetSourceOrTarget::Source)));
-	TargetMeshAssigned(FAssetData(Controller->GetPreviewMesh(ERetargetSourceOrTarget::Target)));
-}
-
-ECheckBoxState SRetargetAnimAssetsWindow::IsRemappingReferencedAssets() const
-{
-	return BatchContext.bRemapReferencedAssets ? ECheckBoxState::Checked : ECheckBoxState::Unchecked;
-}
-
-void SRetargetAnimAssetsWindow::OnRemappingReferencedAssetsChanged(ECheckBoxState InNewRadioState)
-{
-	BatchContext.bRemapReferencedAssets = (InNewRadioState == ECheckBoxState::Checked);
-}
-
-FText SRetargetAnimAssetsWindow::GetPrefixName() const
-{
-	return FText::FromString(BatchContext.NameRule.Prefix);
-}
-
-void SRetargetAnimAssetsWindow::SetPrefixName(const FText &InText)
-{
-	BatchContext.NameRule.Prefix = InText.ToString();
-	UpdateExampleText();
-}
-
-FText SRetargetAnimAssetsWindow::GetSuffixName() const
-{
-	return FText::FromString(BatchContext.NameRule.Suffix);
-}
-
-void SRetargetAnimAssetsWindow::SetSuffixName(const FText &InText)
-{
-	BatchContext.NameRule.Suffix = InText.ToString();
-	UpdateExampleText();
-}
-
-FText SRetargetAnimAssetsWindow::GetReplaceFrom() const
-{
-	return FText::FromString(BatchContext.NameRule.ReplaceFrom);
-}
-
-void SRetargetAnimAssetsWindow::SetReplaceFrom(const FText &InText)
-{
-	BatchContext.NameRule.ReplaceFrom = InText.ToString();
-	UpdateExampleText();
-}
-
-FText SRetargetAnimAssetsWindow::GetReplaceTo() const
-{
-	return FText::FromString(BatchContext.NameRule.ReplaceTo);
-}
-
-void SRetargetAnimAssetsWindow::SetReplaceTo(const FText &InText)
-{
-	BatchContext.NameRule.ReplaceTo = InText.ToString();
-	UpdateExampleText();
-}
-
-FText SRetargetAnimAssetsWindow::GetExampleText() const
-{
-	return ExampleText;
-}
-
-void SRetargetAnimAssetsWindow::UpdateExampleText()
-{
-	const FString ReplaceFrom = FString::Printf(TEXT("Old Name : ###%s###"), *BatchContext.NameRule.ReplaceFrom);
-	const FString ReplaceTo = FString::Printf(TEXT("New Name : %s###%s###%s"), *BatchContext.NameRule.Prefix, *BatchContext.NameRule.ReplaceTo, *BatchContext.NameRule.Suffix);
-
-	ExampleText = FText::FromString(FString::Printf(TEXT("%s\n%s"), *ReplaceFrom, *ReplaceTo));
-}
-
-FText SRetargetAnimAssetsWindow::GetFolderPath() const
-{
-	return FText::FromString(BatchContext.NameRule.FolderPath);
-}
-
-FReply SRetargetAnimAssetsWindow::GetExportFolder()
-{
-	TSharedRef<SSelectExportPathDialog> Dialog = SNew(SSelectExportPathDialog)
-	.DefaultAssetPath(FText::FromString(BatchContext.NameRule.FolderPath));
-	
-	if(Dialog->ShowModal() != EAppReturnType::Cancel)
+	// load selected assets and source mesh into the UI
 	{
-		BatchContext.NameRule.FolderPath = Dialog->GetAssetPath();
+		// filter out any selected asset that is not an animation asset
+		TArray<TWeakObjectPtr<UObject>> AssetsToRetarget;
+		for (UObject* SelectedAsset : InSelectedAssets)
+		{
+			AssetsToRetarget.Add(SelectedAsset);
+		}
+		// set default assets to retarget
+		DialogWidget->BatchContext.AssetsToRetarget = AssetsToRetarget;
+
+		// set default skeletal mesh
+		if (!AssetsToRetarget.IsEmpty())
+		{
+			USkeletalMesh* Mesh = nullptr;
+			USkeleton* Skeleton = nullptr;
+			if (UAnimationAsset* AnimationAsset = Cast<UAnimationAsset>(AssetsToRetarget[0].Get()))
+			{
+				Mesh = AnimationAsset->GetPreviewMesh();
+				Skeleton = AnimationAsset->GetSkeleton();
+				
+			}
+			else if (UAnimBlueprint* ABP = Cast<UAnimBlueprint>(AssetsToRetarget[0].Get()))
+			{
+				Skeleton = ABP->TargetSkeleton;
+			}
+
+			if (!Mesh && Skeleton)
+            {
+            	Mesh = Skeleton->GetPreviewMesh();
+            	if (!Mesh)
+            	{
+            		Mesh = Skeleton->FindCompatibleMesh();
+            	}
+            }
+			
+			DialogWidget->Settings->SourceSkeletalMesh = Mesh;
+			DialogWidget->SetSkeletalMesh(Mesh, ERetargetSourceOrTarget::Source);
+			DialogWidget->SetSkeletalMesh(nullptr, ERetargetSourceOrTarget::Target);
+		}
+	}
+	
+	FSlateApplication::Get().AddWindow(Window.ToSharedRef());
+}
+
+void SRetargetAnimAssetsWindow::SetSkeletalMesh(USkeletalMesh* Mesh, ERetargetSourceOrTarget SourceOrTarget)
+{
+	if (SourceOrTarget == ERetargetSourceOrTarget::Source)
+	{
+		BatchContext.SourceMesh = Mesh;
+		Settings->SourceSkeletalMesh = Mesh;
+		AssetBrowser.Get()->RefreshView();
+	}
+	else
+	{
+		BatchContext.TargetMesh = Mesh;
+		Settings->TargetSkeletalMesh = Mesh;
 	}
 
-	return FReply::Handled();
+	// update procedurally generated IK Rig and retargeter (regenerates retarget pose with new mesh)
+	ProceduralAssets.AutoGenerateIKRigAsset(Mesh, SourceOrTarget);
+	ProceduralAssets.AutoGenerateIKRetargetAsset();
+	// update viewport world to show new mesh
+	Viewport->SetSkeletalMesh(Mesh, SourceOrTarget);
+
+	// report relevant results
+	const FText SourceOrTargetLabel = SourceOrTarget == ERetargetSourceOrTarget::Source ? FText::FromString("source") : FText::FromString("target");
+	if (Mesh)
+	{
+		const FAutoCharacterizeResults& Results = SourceOrTarget == ERetargetSourceOrTarget::Source ? ProceduralAssets.SourceCharacterizationResults : ProceduralAssets.TargetCharacterizationResults;
+		if (Results.bUsedTemplate)
+		{
+			const FText TemplateName = FText::FromString(Results.BestTemplateName.ToString());
+			Log.LogInfo(FText::Format(LOCTEXT( "FoundTemplateInfo", "Using '{0}' template for {1} mesh."), TemplateName, SourceOrTargetLabel));
+		}
+		else
+		{
+			Log.LogError(FText::Format(LOCTEXT( "MissingTemplateError", "No template found for {0} mesh."), SourceOrTargetLabel));
+		}
+	}
+	else
+	{
+		Log.LogError(FText::Format(LOCTEXT( "MissingMeshError", "No {0} mesh assigned."), SourceOrTargetLabel));
+	}
+}
+
+void SRetargetAnimAssetsWindow::SetRetargetAsset(UIKRetargeter* RetargeterToUse)
+{
+	if (Settings->bAutoGenerateRetargeter)
+	{
+		// if user did NOT supply a custom retarget asset, procedurally generate one
+		ProceduralAssets.AutoGenerateIKRetargetAsset();
+		RetargeterToUse = ProceduralAssets.Retargeter;
+	}
+	else if (Settings->RetargetAsset)
+	{
+		// if user assigned a custom retarget asset, set the skeletal meshes based on that asset
+		const UIKRetargeterController* Controller = UIKRetargeterController::GetController(Settings->RetargetAsset);
+		USkeletalMesh* SourceMesh = Controller->GetPreviewMesh(ERetargetSourceOrTarget::Source);
+		USkeletalMesh* TargetMesh = Controller->GetPreviewMesh(ERetargetSourceOrTarget::Target);
+		SetSkeletalMesh(SourceMesh, ERetargetSourceOrTarget::Source);
+		SetSkeletalMesh(TargetMesh, ERetargetSourceOrTarget::Target);
+	}
+	
+	// store the asset to use in the context
+	BatchContext.IKRetargetAsset = RetargeterToUse;
+	
+	// update retargeter in viewport
+	Viewport->SetRetargetAsset(RetargeterToUse);
 }
 
 #undef LOCTEXT_NAMESPACE

@@ -84,7 +84,7 @@ void UIKRetargeterController::SetIKRig(const ERetargetSourceOrTarget SourceOrTar
 	CleanChainMapping();
 	
 	constexpr bool bForceRemap = false;
-	AutoMapChains(EAutoMapChainType::Fuzzy, bForceRemap);
+	AutoMapChains(EAutoMapChainType::Exact, bForceRemap);
 
 	// update any editors attached to this asset
 	BroadcastIKRigReplaced(SourceOrTarget);

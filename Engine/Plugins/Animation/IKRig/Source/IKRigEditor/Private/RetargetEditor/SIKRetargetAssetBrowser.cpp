@@ -4,6 +4,7 @@
 
 #include "SPositiveActionButton.h"
 #include "AnimPreviewInstance.h"
+#include "ContentBrowserDataSource.h"
 #include "ContentBrowserModule.h"
 #include "IContentBrowserSingleton.h"
 #include "Animation/AnimMontage.h"
@@ -81,6 +82,10 @@ void SIKRetargetAssetBrowser::RefreshView()
 	AssetPickerConfig.bAddFilterUI = true;
 	AssetPickerConfig.bShowPathInColumnView = true;
 	AssetPickerConfig.bShowTypeInColumnView = true;
+	AssetPickerConfig.HiddenColumnNames.Add(ContentBrowserItemAttributes::ItemDiskSize.ToString());
+	AssetPickerConfig.HiddenColumnNames.Add(ContentBrowserItemAttributes::VirtualizedData.ToString());
+	AssetPickerConfig.HiddenColumnNames.Add(TEXT("Class"));
+	AssetPickerConfig.HiddenColumnNames.Add(TEXT("RevisionControl"));
 	AssetPickerConfig.OnShouldFilterAsset = FOnShouldFilterAsset::CreateSP(this, &SIKRetargetAssetBrowser::OnShouldFilterAsset);
 	AssetPickerConfig.DefaultFilterMenuExpansion = EAssetTypeCategories::Animation;
 	AssetPickerConfig.OnAssetDoubleClicked = FOnAssetSelected::CreateSP(this, &SIKRetargetAssetBrowser::OnAssetDoubleClicked);
@@ -171,14 +176,16 @@ FReply SIKRetargetAssetBrowser::OnExportButtonClicked()
 	BatchContext.SourceMesh = Controller->GetSkeletalMesh(ERetargetSourceOrTarget::Source);
 	BatchContext.TargetMesh = Controller->GetSkeletalMesh(ERetargetSourceOrTarget::Target);
 	BatchContext.IKRetargetAsset = Controller->AssetController->GetAsset();
-	BatchContext.bRemapReferencedAssets = false;
+	BatchContext.bRetargetAndConnectReferencedAssets = false;
 
 	// add selected assets to dup/retarget
 	TArray<FAssetData> SelectedAssets = GetCurrentSelectionDelegate.Execute();
 	for (const FAssetData& Asset : SelectedAssets)
 	{
-		UE_LOG(LogIKRigEditor, Display, TEXT("Duplicating and Retargeting: %s"), *Asset.GetFullName());
-		BatchContext.AssetsToRetarget.Add(Asset.GetAsset());
+		if (UObject* Object = Asset.GetAsset())
+		{
+			BatchContext.AssetsToRetarget.Add(Object);
+		}
 	}
 
 	// actually run the retarget

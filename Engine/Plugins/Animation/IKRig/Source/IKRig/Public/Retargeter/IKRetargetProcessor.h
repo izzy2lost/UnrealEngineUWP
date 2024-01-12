@@ -504,7 +504,7 @@ public:
 	FName GetRetargetRoot(ERetargetSourceOrTarget SourceOrTarget) const;
 	
 	/** Get whether this processor is ready to call RunRetargeter() and generate new poses. */
-	bool IsInitialized() const { return bIsInitialized; };
+	bool IsInitialized() const { return bIsInitialized && (bRootsInitialized || bAtLeastOneValidBoneChainPair); };
 
 	/** Get whether this processor was initialized with these skeletal meshes and retarget asset*/
 	bool WasInitializedWithTheseAssets(

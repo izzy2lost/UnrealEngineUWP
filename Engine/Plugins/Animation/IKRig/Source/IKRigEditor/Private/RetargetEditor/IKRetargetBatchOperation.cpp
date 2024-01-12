@@ -2,16 +2,16 @@
 
 #include "RetargetEditor/IKRetargetBatchOperation.h"
 
+#include "Engine/SkeletalMesh.h"
 #include "Animation/AnimSequence.h"
 #include "AnimationBlueprintLibrary.h"
 #include "AnimPose.h"
+#include "AssetToolsModule.h"
 #include "Animation/AnimSequence.h"
 #include "ContentBrowserModule.h"
 #include "EditorReimportHandler.h"
 #include "IContentBrowserSingleton.h"
-#include "RigEditor/IKRigController.h"
 #include "SSkeletonWidget.h"
-#include "Animation/DebugSkelMeshComponent.h"
 #include "EditorFramework/AssetImportData.h"
 #include "Framework/Notifications/NotificationManager.h"
 #include "Kismet2/BlueprintEditorUtils.h"
@@ -24,6 +24,7 @@
 #include "Retargeter/IKRetargetOps.h"
 #include "Retargeter/RetargetOps/CurveRemapOp.h"
 #include "ObjectTools.h"
+#include "AssetRegistry/AssetRegistryModule.h"
 
 #define LOCTEXT_NAMESPACE "RetargetBatchOperation"
 
@@ -77,7 +78,7 @@ int32 UIKRetargetBatchOperation::GenerateAssetLists(const FIKRetargetBatchOperat
 		}
 	}
 
-	if (Context.bRemapReferencedAssets)
+	if (Context.bRetargetAndConnectReferencedAssets)
 	{
 		// Grab assets from the blueprint.
 		// Do this first as it can add complex assets to the retarget array which will need to be processed next.
@@ -130,11 +131,10 @@ void UIKRetargetBatchOperation::DuplicateRetargetAssets(
 
 		// optionally let user override root lock on exported animation sequences,
 		// (by default it will inherit the bForceRootLock state from the duplicated source animation)
-		const ERetargetRootLockMode RootLockMode = Context.IKRetargetAsset->ExportRootLockMode;
 		UAnimSequence* TargetSequence = Cast<UAnimSequence>(DuplicateMap[Asset]);
-		if (RootLockMode != ERetargetRootLockMode::FromSourceAnimation && TargetSequence)
+		if (Context.RootLockMode != ERetargetRootLockMode::FromSourceAnimation && TargetSequence)
 		{
-			TargetSequence->bForceRootLock = RootLockMode == ERetargetRootLockMode::ForceRootLocked ? true : false;
+			TargetSequence->bForceRootLock = Context.RootLockMode == ERetargetRootLockMode::ForceRootLocked ? true : false;
 		}
 	}
 	for (UAnimBlueprint* Asset : AnimBlueprintsToDuplicate)
@@ -580,6 +580,54 @@ void UIKRetargetBatchOperation::RemapCurves(const FIKRetargetBatchOperationConte
 	}
 }
 
+void UIKRetargetBatchOperation::OverwriteExistingAssets(const FIKRetargetBatchOperationContext& Context, FScopedSlowTask& Progress)
+{
+	if (!Context.bOverwriteExistingFiles)
+	{
+		return;
+	}
+
+	FAssetRegistryModule& AssetRegistryModule = FModuleManager::Get().LoadModuleChecked<FAssetRegistryModule>(TEXT("AssetRegistry"));
+	FAssetToolsModule& AssetToolsModule = FModuleManager::LoadModuleChecked<FAssetToolsModule>("AssetTools");
+
+	// for each retargeted asset, check if we need to replace an existing asset (one with the desired name, same location, same type)
+	for (TPair<UAnimationAsset*, UAnimationAsset*>& Pair : DuplicatedAnimAssets)
+	{
+		UAnimationAsset* OldAsset = Pair.Key;
+		UAnimationAsset* NewAsset = Pair.Value;
+		
+		// get desired name
+		FString PathName = Context.NameRule.FolderPath;
+		FString DesiredObjectName = Context.NameRule.Rename(OldAsset);
+		if (NewAsset->GetName() == DesiredObjectName)
+		{
+			// asset was not renamed due to collision with existing asset, so there's nothing to replace
+			continue;
+		}
+		FString DesiredPackageName = PathName + "/" + DesiredObjectName;
+		FString DesiredObjectPath = DesiredPackageName + "." + DesiredObjectName;
+		FAssetData AssetDataToReplace = AssetRegistryModule.Get().GetAssetByObjectPath(FSoftObjectPath(DesiredObjectPath));
+		const bool bHasDuplicateToReplace = AssetDataToReplace.IsValid() && AssetDataToReplace.GetAsset() == OldAsset;
+		if (!bHasDuplicateToReplace)
+		{
+			// this could happen if the desired name was already in use by a different asset type
+			continue;
+		}
+
+		// reroute all references from old asset to new asset
+		TArray<UObject*> AssetsToReplace = {OldAsset};
+		ObjectTools::ForceReplaceReferences(NewAsset, AssetsToReplace);
+
+		// delete the old asset
+		ObjectTools::ForceDeleteObjects({OldAsset}, false /*bShowConfirmation*/);
+		
+		// rename the new asset with the desired name
+		FString CurrentAssetPath = NewAsset->GetPathName();
+		TArray<FAssetRenameData> AssetsToRename = { FAssetRenameData(CurrentAssetPath, DesiredObjectPath) };
+		AssetToolsModule.Get().RenameAssets(AssetsToRename);
+	}
+}
+
 void UIKRetargetBatchOperation::NotifyUserOfResults(
 	const FIKRetargetBatchOperationContext& Context,
 	FScopedSlowTask& Progress) const
@@ -679,7 +727,10 @@ TArray<FAssetData> UIKRetargetBatchOperation::DuplicateAndRetarget(
 	FIKRetargetBatchOperationContext Context;
 	for (const FAssetData& Asset : AssetsToRetarget)
 	{
-		Context.AssetsToRetarget.Add(Asset.GetAsset()); // convert asset data to soft refs
+		if (UObject* Object = Cast<UObject>(Asset.GetAsset()))
+		{
+			Context.AssetsToRetarget.Add(Object); // convert asset data to soft refs
+		}
 	}
 	Context.SourceMesh = SourceMesh;
 	Context.TargetMesh = TargetMesh;
@@ -688,7 +739,7 @@ TArray<FAssetData> UIKRetargetBatchOperation::DuplicateAndRetarget(
 	Context.NameRule.Suffix = Suffix;
 	Context.NameRule.ReplaceFrom = Search;
 	Context.NameRule.ReplaceTo = Replace;
-	Context.bRemapReferencedAssets = bRemapReferencedAssets;
+	Context.bRetargetAndConnectReferencedAssets = bRemapReferencedAssets;
 
 	// actually run the batch operation
 	UIKRetargetBatchOperation* BatchOperation = NewObject<UIKRetargetBatchOperation>();
@@ -775,6 +826,7 @@ void UIKRetargetBatchOperation::RunRetarget(FIKRetargetBatchOperationContext& Co
 	
 	DuplicateRetargetAssets(Context, Progress);
 	RetargetAssets(Context, Progress);
+	OverwriteExistingAssets(Context, Progress);
 	NotifyUserOfResults(Context, Progress);
 	CleanupIfCancelled(Progress);
 }

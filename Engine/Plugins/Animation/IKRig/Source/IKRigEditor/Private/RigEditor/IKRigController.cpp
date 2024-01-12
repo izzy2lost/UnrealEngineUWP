@@ -447,7 +447,7 @@ void UIKRigController::AutoGenerateRetargetDefinition(FAutoCharacterizeResults& 
 	AutoCharacterizer.Get()->GenerateRetargetDefinitionFromMesh(Mesh, Results);
 }
 
-void UIKRigController::AutoGenerateFBIK(FAutoFBIKResults& Results)
+void UIKRigController::AutoGenerateFBIK(FAutoFBIKResults& Results) const
 {
 	FScopedTransaction Transaction(LOCTEXT("AutoFBIK_Label", "Auto Setup FBIK"));
 	FScopedReinitializeIKRig Reinitialize(this);

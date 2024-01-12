@@ -208,18 +208,6 @@ enum class ERetargetSourceOrTarget : uint8
 	Target,
 };
 
-// which skeleton are we referring to?
-UENUM()
-enum class ERetargetRootLockMode : uint8
-{
-	// Uses the "ForceRootLock" setting in the source animation
-	FromSourceAnimation,
-	// Force the root to be locked, regardless of whether the source animation has the root locked or not.
-	ForceRootLocked,
-	// Force the root to be unlocked, regardless of whether the source animation has the root locked or not.
-	ForceRootUnlocked,
-};
-
 UCLASS(BlueprintType)
 class IKRIG_API UIKRetargeter : public UObject
 {
@@ -438,13 +426,6 @@ public:
 	// This setting has no effect on runtime retargeting where root motion is copied from the source component.
 	UPROPERTY(EditAnywhere, Category = RootLockSettings)
 	bool bIgnoreRootLockInPreview = true;
-	
-	// Either uses the "ForceRootLock" setting from the source animation or optionally forces the root to be locked or unlocked,
-	// regardless of whether the source animation has the root locked or not.
-	// This affects only the exported animation sequences, not the editor preview.
-	// This setting has no effect on runtime retargeting where root motion is copied from the source component.
-	UPROPERTY(EditAnywhere, Category = RootLockSettings)
-	ERetargetRootLockMode ExportRootLockMode;
 
 	// Toggle debug drawing for retargeting in the viewport. 
 	UPROPERTY(EditAnywhere, Category = DebugSettings)

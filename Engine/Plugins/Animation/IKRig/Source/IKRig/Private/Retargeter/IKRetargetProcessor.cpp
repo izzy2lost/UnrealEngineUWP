@@ -2172,6 +2172,10 @@ bool UIKRetargetProcessor::WasInitializedWithTheseAssets(
 	const FRetargetSkeleton& TargetRetargetSkeleton = GetSkeleton(ERetargetSourceOrTarget::Target);
 	const bool bSourceMatches = InSourceMesh == SourceRetargetSkeleton.SkeletalMesh;
 	const bool bTargetMatches = InTargetMesh == TargetRetargetSkeleton.SkeletalMesh;
+	if (!(bSourceMatches && bTargetMatches))
+	{
+		return false;
+	}
 
 	// check that the retarget asset is the same as what we initialized with
 	const bool bAssetMatches = InRetargetAsset == RetargeterAsset;

@@ -337,7 +337,7 @@ public:
 	void AutoGenerateRetargetDefinition(FAutoCharacterizeResults& Results) const;
 
 	// Auto generates an FBIK setup for the current skeletal mesh
-	void AutoGenerateFBIK(FAutoFBIKResults& Results);
+	void AutoGenerateFBIK(FAutoFBIKResults& Results) const;
 
 	// Get read-only access to characterizer
 	const FAutoCharacterizer& GetAutoCharacterizer() const;
