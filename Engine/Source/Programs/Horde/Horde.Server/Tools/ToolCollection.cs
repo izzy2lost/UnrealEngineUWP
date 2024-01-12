@@ -252,15 +252,15 @@ namespace Horde.Server.Tools
 
 			using IStorageClient client = _storageService.CreateClient(tool.Config.NamespaceId);
 
-			HashedNodeRef<DirectoryNode> nodeRef;
+			IBlobHandle<DirectoryNode> nodeRef;
 			await using (IStorageWriter writer = client.CreateWriter(refName))
 			{
 				DirectoryNode directoryNode = new DirectoryNode();
-				await directoryNode.CopyFromZipStreamAsync(stream, writer, new ChunkingOptions(), cancellationToken);
-				nodeRef = await writer.WriteHashedNodeAsync(directoryNode, cancellationToken);
+				await directoryNode.CopyFromZipStreamAsync(stream, writer, new ChunkingOptions(), cancellationToken: cancellationToken);
+				nodeRef = await writer.WriteBlobAsync(directoryNode, cancellationToken: cancellationToken);
 			}
 
-			IBlobHandle target = nodeRef.Handle;
+			IBlobHandle target = nodeRef;
 			await client.WriteRefTargetAsync(refName, target, cancellationToken: cancellationToken);
 
 			return await CreateDeploymentAsync(tool, options, target.GetLocator(), globalConfig, cancellationToken);
@@ -441,7 +441,7 @@ namespace Horde.Server.Tools
 			IStorageClient client = CreateStorageClient(tool);
 			try
 			{
-				DirectoryNode node = await client.ReadRefAsync<DirectoryNode>(deployment.RefName, DateTime.UtcNow - TimeSpan.FromDays(2.0), cancellationToken);
+				DirectoryNode node = await client.ReadRefAsync<DirectoryNode>(deployment.RefName, DateTime.UtcNow - TimeSpan.FromDays(2.0), cancellationToken: cancellationToken);
 				return node.AsZipStream().WrapOwnership(client);
 			}
 			catch
