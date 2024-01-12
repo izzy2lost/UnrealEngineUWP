@@ -28,7 +28,7 @@ public class EOSSDK : ModuleRules
 		}
 	}
 
-	public virtual string EOSSDKIdealPlatformSDKBuildName
+	public virtual string EOSSDKIdealPlatformSDKVersion
 	{
 		get
 		{
@@ -71,61 +71,38 @@ public class EOSSDK : ModuleRules
 		}
 	}
 
-	public string SDKLibsDir
+	private string FindPlatformSubDir(string ParentDir)
 	{
-		get
+		string PlatformDir = Path.Combine(ParentDir, EOSSDKPlatformName);
+		if (bHasMultiplePlatformSDKBuilds)
 		{
-			string LibDir = Path.Combine(SDKBaseDir, "Lib");
-			string PlatformLibDir = Path.Combine(LibDir, EOSSDKPlatformName);
-			if(bHasMultiplePlatformSDKBuilds)
+			string[] AvailableBuilds = Directory.GetDirectories(PlatformDir);
+			string IdealBuildDir = AvailableBuilds.FirstOrDefault(Elem => Elem.Split("\\").Last().StartsWith(EOSSDKIdealPlatformSDKVersion));
+			if (Directory.Exists(IdealBuildDir))
 			{
-				string PlatformSDKBuildDir = Path.Combine(PlatformLibDir, EOSSDKIdealPlatformSDKBuildName);
-				if (!Directory.Exists(PlatformSDKBuildDir))
-				{
-					// Fall back to latest one available.
-					string FoundSDKBuildDir = Directory.GetDirectories(PlatformLibDir, "*").Last();
-					string FoundPlatformSDKBuildName = FoundSDKBuildDir.Split("\\").Last();
-					Log.TraceWarningOnce("Unable to find EOSSDK for platform SDK \"{0}\", falling back on EOSSDK for platform SDK \"{1}\".", EOSSDKIdealPlatformSDKBuildName, FoundPlatformSDKBuildName);
+				Log.TraceVerboseOnce("Found EOSSDK for platform SDK \"{0}\" at \"{1}\".", EOSSDKIdealPlatformSDKVersion, IdealBuildDir);
+				return IdealBuildDir;
+			}
+			else
+			{
+				// Fall back to latest one available.
+				string LatestBuildDir = AvailableBuilds.Last(); // TODO UE-203806 this doesn't reliably get the latest on all platforms.
+				string LatestBuildSDKVersion = LatestBuildDir.Split("\\").Last();
+				Log.TraceWarningOnce("Unable to find EOSSDK for platform SDK \"{0}\", falling back on EOSSDK for platform SDK \"{1}\".", EOSSDKIdealPlatformSDKVersion, LatestBuildSDKVersion);
 
-					PlatformSDKBuildDir = FoundSDKBuildDir;
-				}
-				LibDir = PlatformSDKBuildDir;
+				return LatestBuildDir;
 			}
-			else if (Directory.Exists(PlatformLibDir))
-			{
-				return PlatformLibDir;
-			}
-			return LibDir;
 		}
+		else if (Directory.Exists(PlatformDir))
+		{
+			return PlatformDir;
+		}
+		return ParentDir;
 	}
 
-	public string SDKBinariesDir
-	{
-		get
-		{
-			string BinDir = Path.Combine(SDKBaseDir, "Bin");
-			string PlatformBinDir = Path.Combine(BinDir, EOSSDKPlatformName);
-			if (bHasMultiplePlatformSDKBuilds)
-			{
-				string PlatformSDKBuildDir = Path.Combine(PlatformBinDir, EOSSDKIdealPlatformSDKBuildName);
-				if(!Directory.Exists(PlatformSDKBuildDir))
-				{
-					// Fall back to latest one available.
-					string FoundSDKBuildDir = Directory.GetDirectories(PlatformBinDir, "*").Last();
-					string FoundPlatformSDKBuildName = FoundSDKBuildDir.Split("\\").Last();
-					Log.TraceWarningOnce("Unable to find EOSSDK for platform SDK \"{0}\", falling back on EOSSDK for platform SDK \"{1}\".", EOSSDKIdealPlatformSDKBuildName, FoundPlatformSDKBuildName);
+	public string SDKLibsDir => FindPlatformSubDir(Path.Combine(SDKBaseDir, "Lib"));
 
-					PlatformSDKBuildDir = FoundSDKBuildDir;
-				}
-				BinDir = PlatformSDKBuildDir;
-			}
-			else if (Directory.Exists(PlatformBinDir))
-			{
-				BinDir = PlatformBinDir;
-			}
-			return BinDir;
-		}
-	}
+	public string SDKBinariesDir => FindPlatformSubDir(Path.Combine(SDKBaseDir, "Bin"));
 
 	public virtual string EngineBinariesDir
 	{
