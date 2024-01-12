@@ -1984,6 +1984,7 @@ void UNiagaraComponent::PostApplyToComponent()
 	// Without this calls to set override data interface values can fail as the DI may not be present in the override parameter store
 	if (Asset != nullptr)
 	{
+		OverrideParameters.UnbindAll();
 		CopyParametersFromAsset(false);
 	}
 	ApplyOverridesToParameterStore();
