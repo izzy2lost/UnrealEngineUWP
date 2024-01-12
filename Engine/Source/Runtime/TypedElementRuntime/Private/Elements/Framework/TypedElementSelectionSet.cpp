@@ -112,7 +112,8 @@ void UTypedElementSelectionSet::BeginDestroy()
 
 void UTypedElementSelectionSet::Serialize(FArchive& Ar)
 {
-	checkf(!Ar.IsPersistent(), TEXT("UTypedElementSelectionSet can only be serialized by transient archives!"));
+	checkf(!Ar.IsPersistent() || this->HasAnyFlags(RF_ClassDefaultObject),
+		TEXT("UTypedElementSelectionSet can only be serialized by transient archives!"));
 
 	const bool bIsUndoRedo = PendingUndoRedoState && Ar.IsTransacting();
 

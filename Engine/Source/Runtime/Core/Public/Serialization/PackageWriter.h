@@ -234,6 +234,9 @@ public:
 		/** Whether this writer implements -diffonly and -linkerdiff. */
 		bool bDiffModeSupported = false;
 
+		/** If true, the cooker will assume no packages are written and will skip writing non-package data. */
+		bool bReadOnly = false;
+
 		/** What header format is produced as output by this writer. */
 		EPackageHeaderFormat HeaderFormat = EPackageHeaderFormat::PackageFileSummary;
 	};

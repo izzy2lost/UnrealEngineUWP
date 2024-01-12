@@ -1717,7 +1717,13 @@ void UObject::DeclareCustomVersions(FArchive& Ar, const UClass* SpecificSubclass
 	// DeclareCustomVersions is called on the default object for each class
 	// We first Serialize the object, which catches all the UsingCustomVersion statements
 	// class authors have added unconditionally in their Serialize function
-	SpecificSubclass->GetDefaultObject()->Serialize(Ar);
+	UObject* CDO = SpecificSubclass->GetDefaultObject();
+	// Some classes such as Default__BlueprintGeneratedClass do not have a CDO
+	if (!CDO)
+	{
+		return;
+	}
+	CDO->Serialize(Ar);
 
 	// To further catch CustomVersions used by non-native structs that are in an array or don't
 	// otherwise exist on the default object, Construct an instance of the struct and serialize

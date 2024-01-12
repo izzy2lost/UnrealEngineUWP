@@ -139,6 +139,18 @@ struct FModuleStatus
 	bool bIsGameModule;
 };
 
+/**
+ * Structure for reporting module disk presence info.
+ */
+struct FModuleDiskInfo
+{
+	/** Short name for this module. */
+	FName Name;
+
+	/** Full path to this module file on disk. */
+	FString FilePath;
+};
+
 namespace UE::Core::Private
 {
 	TOptional<FModuleManager>& GetModuleManagerSingleton();
@@ -375,15 +387,19 @@ public:
 	 * @param WildcardWithoutExtension Filename part (no path, no extension, no build config info) to search for.
 	 * @param OutModules List of modules found.
 	 */
-	CORE_API void FindModules( const TCHAR* WildcardWithoutExtension, TArray<FName>& OutModules ) const;
+	CORE_API void FindModules(const TCHAR* WildcardWithoutExtension, TArray<FName>& OutModules) const;
+	CORE_API void FindModules(const TCHAR* WildcardWithoutExtension, TArray<FModuleDiskInfo>& OutModules) const;
 
 	/**
 	 * Determines if a module with the given name exists, regardless of whether it is currently loaded.
 	 *
 	 * @param ModuleName Name of the module to look for.
+	 * @param OutModuleFilePath If non-null, the assembly filename of the module will be written. 
+	 *        Empty string will be written if ModuleExists returns false or assembly is unknown due to e.g.
+	 *        Monolithic executable.
 	 * @return Whether the module exists.
 	 */
-	CORE_API bool ModuleExists(const TCHAR* ModuleName) const;
+	CORE_API bool ModuleExists(const TCHAR* ModuleName, FString* OutModuleFilePath = nullptr) const;
 
 	/**
 	 * Gets the number of loaded modules.

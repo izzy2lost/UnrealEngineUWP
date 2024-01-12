@@ -138,6 +138,17 @@ IModuleInterface* FModuleManager::GetModulePtr_Internal(FName ModuleName)
 
 void FModuleManager::FindModules(const TCHAR* WildcardWithoutExtension, TArray<FName>& OutModules) const
 {
+	TArray<FModuleDiskInfo> FoundModules;
+	FindModules(WildcardWithoutExtension, FoundModules);
+	OutModules.Reserve(OutModules.Num() + FoundModules.Num());
+	for (FModuleDiskInfo& Module : FoundModules)
+	{
+		OutModules.Add(Module.Name);
+	}
+}
+
+void FModuleManager::FindModules(const TCHAR* WildcardWithoutExtension, TArray<FModuleDiskInfo>& OutModules) const
+{
 	// @todo plugins: Try to convert existing use cases to use plugins, and get rid of this function
 #if !IS_MONOLITHIC
 
@@ -146,7 +157,7 @@ void FModuleManager::FindModules(const TCHAR* WildcardWithoutExtension, TArray<F
 
 	for(TMap<FName, FString>::TConstIterator Iter(ModulePaths); Iter; ++Iter)
 	{
-		OutModules.Add(Iter.Key());
+		OutModules.Add(FModuleDiskInfo{ Iter.Key(), Iter.Value() });
 	}
 
 #else
@@ -175,7 +186,7 @@ void FModuleManager::FindModules(const TCHAR* WildcardWithoutExtension, TArray<F
 		{
 			if (It.Key.ToString().MatchesWildcard(Wildcard))
 			{
-				OutModules.Add(It.Key);
+				OutModules.Add(FModuleDiskInfo{ It.Key, FString() });
 			}
 		}
 	}
@@ -185,17 +196,32 @@ void FModuleManager::FindModules(const TCHAR* WildcardWithoutExtension, TArray<F
 		FName WildcardName(WildcardWithoutExtension);
 		if (StaticallyLinkedModuleInitializers.Contains(WildcardName))
 		{
-			OutModules.Add(WildcardName);
+			OutModules.Add(FModuleDiskInfo{ WildcardName, FString() });
 		}
 	}
 #endif
 }
 
-bool FModuleManager::ModuleExists(const TCHAR* ModuleName) const
+bool FModuleManager::ModuleExists(const TCHAR* ModuleName, FString* OutModuleFilePath) const
 {
-	TArray<FName> Names;
-	FindModules(ModuleName, Names);
-	return Names.Num() > 0;
+	TArray<FModuleDiskInfo> FoundModules;
+	FindModules(ModuleName, FoundModules);
+	if (FoundModules.IsEmpty())
+	{
+		if (OutModuleFilePath)
+		{
+			OutModuleFilePath->Reset();
+		}
+		return false;
+	}
+	else
+	{
+		if (OutModuleFilePath)
+		{
+			*OutModuleFilePath = FoundModules[0].FilePath;
+		}
+		return true;
+	}
 }
 
 bool FModuleManager::IsModuleLoaded( const FName InModuleName ) const

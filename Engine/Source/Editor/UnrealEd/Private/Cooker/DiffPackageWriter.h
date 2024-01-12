@@ -59,6 +59,7 @@ public:
 	{
 		FCookCapabilities Result = Inner->GetCookCapabilities();
 		Result.bDiffModeSupported = false; // DiffPackageWriter can not be an inner of another DiffPackageWriter
+		Result.bReadOnly = true;
 		return Result;
 	}
 	virtual FDateTime GetPreviousCookTime() const

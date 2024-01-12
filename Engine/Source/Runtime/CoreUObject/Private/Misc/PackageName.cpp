@@ -1701,6 +1701,19 @@ FName FPackageName::GetModuleScriptPackageName(FName InModuleName)
 	return FName(WriteToString<128>(TEXT("/Script/"), InModuleName));
 }
 
+bool FPackageName::TryConvertScriptPackageNameToModuleName(FStringView PackageName, FStringView& OutModuleName)
+{
+	constexpr FStringView ScriptPrefix(TEXTVIEW("/Script/"));
+	if (!PackageName.StartsWith(ScriptPrefix))
+	{
+		OutModuleName.Reset();
+		return false;
+	}
+	OutModuleName = PackageName.RightChop(ScriptPrefix.Len());
+	return true;
+};
+
+
 FString FPackageName::ConvertToLongScriptPackageName(const TCHAR* InShortName)
 {
 	if (IsShortPackageName(FString(InShortName)))

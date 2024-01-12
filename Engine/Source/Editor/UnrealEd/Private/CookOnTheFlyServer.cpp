@@ -5819,8 +5819,9 @@ public:
 		None,
 		DiffOnly,
 		LinkerDiff,
-		IterativeValidateFirstCook,
-		IterativeValidateFinalCook,
+		IterativeValidate,
+		IterativeValidatePhase1,
+		IterativeValidatePhase2,
 	};
 
 	void InitializePackageWriter(ICookedPackageWriter*& CookedPackageWriter, const FString& ResolvedMetadataPath)
@@ -5848,14 +5849,19 @@ public:
 		case EDiffMode::LinkerDiff:
 			CookedPackageWriter = new FLinkerDiffPackageWriter(TUniquePtr<ICookedPackageWriter>(CookedPackageWriter));
 			break;
-		case EDiffMode::IterativeValidateFirstCook:
+		case EDiffMode::IterativeValidate:
 			CookedPackageWriter = new FIterativeValidatePackageWriter(
-				TUniquePtr<ICookedPackageWriter>(CookedPackageWriter), FIterativeValidatePackageWriter::EPhase::FirstCook,
+				TUniquePtr<ICookedPackageWriter>(CookedPackageWriter), FIterativeValidatePackageWriter::EPhase::AllInOnePhase,
 				ResolvedMetadataPath);
 			break;
-		case EDiffMode::IterativeValidateFinalCook:
+		case EDiffMode::IterativeValidatePhase1:
 			CookedPackageWriter = new FIterativeValidatePackageWriter(
-				TUniquePtr<ICookedPackageWriter>(CookedPackageWriter), FIterativeValidatePackageWriter::EPhase::FinalCook,
+				TUniquePtr<ICookedPackageWriter>(CookedPackageWriter), FIterativeValidatePackageWriter::EPhase::Phase1,
+				ResolvedMetadataPath);
+			break;
+		case EDiffMode::IterativeValidatePhase2:
+			CookedPackageWriter = new FIterativeValidatePackageWriter(
+				TUniquePtr<ICookedPackageWriter>(CookedPackageWriter), FIterativeValidatePackageWriter::EPhase::Phase2,
 				ResolvedMetadataPath);
 			break;
 		default:
@@ -5893,15 +5899,20 @@ private:
 			EnsureMutualExclusion();
 			DiffMode = EDiffMode::LinkerDiff;
 		}
-		if (FParse::Param(CommandLine, TEXT("IterativeValidatePrePass")))
-		{
-			EnsureMutualExclusion();
-			DiffMode = EDiffMode::IterativeValidateFirstCook;
-		}
 		if (FParse::Param(CommandLine, TEXT("IterativeValidate")))
 		{
 			EnsureMutualExclusion();
-			DiffMode = EDiffMode::IterativeValidateFinalCook;
+			DiffMode = EDiffMode::IterativeValidate;
+		}
+		if (FParse::Param(CommandLine, TEXT("IterativeValidatePhase1")))
+		{
+			EnsureMutualExclusion();
+			DiffMode = EDiffMode::IterativeValidatePhase1;
+		}
+		if (FParse::Param(CommandLine, TEXT("IterativeValidatePhase2")))
+		{
+			EnsureMutualExclusion();
+			DiffMode = EDiffMode::IterativeValidatePhase2;
 		}
 		bInitialized = true;
 	}
@@ -6861,14 +6872,15 @@ void UCookOnTheFlyServer::SetInitializeConfigSettings(UE::Cook::FInitializeConfi
 		if (!bHiddenDependenciesClassPathFilterListIsAllowList)
 		{
 			TArray<FString> ClassPaths;
-			GConfig->GetArray(TEXT("TargetDomain"), TEXT("IterativeClassBlockList"), ClassPaths, GEditorIni);
-			for (const FString& ClassPath : ClassPaths)
+			GConfig->GetArray(TEXT("TargetDomain"), TEXT("IterativeClassDenyList"), ClassPaths, GEditorIni);
+			for (const FString& ClassPathLine : ClassPaths)
 			{
+				FStringView ClassPath(UE::EditorDomain::RemoveConfigComment(ClassPathLine));
 				FTopLevelAssetPath Path(ClassPath);
 				if (!Path.IsValid())
 				{
-					UE_LOG(LogCook, Error, TEXT("Invalid Editor:[TargetDomain]:IterativeClassBlockList entry %s. Expected an array of fullpaths such as /Script/Engine.Material"),
-						*ClassPath);
+					UE_LOG(LogCook, Error, TEXT("Invalid Editor:[TargetDomain]:IterativeClassDenyList entry %.*s. Expected an array of fullpaths such as /Script/Engine.Material"),
+						ClassPath.Len(), ClassPath.GetData());
 					continue;
 				}
 				HiddenDependenciesClassPathFilterList.Add(FName(Path.ToString()));
@@ -10020,6 +10032,10 @@ void UCookOnTheFlyServer::CookByTheBookFinishedInternal()
 			UE_SCOPED_HIERARCHICAL_COOKTIMER(SavingCurrentIniSettings)
 			for (const ITargetPlatform* TargetPlatform : PlatformManager->GetSessionPlatforms() )
 			{
+				if (FindOrCreateSaveContext(TargetPlatform).PackageWriterCapabilities.bReadOnly)
+				{
+					continue;
+				}
 				SaveCurrentIniSettings(TargetPlatform);
 			}
 		}
@@ -10041,6 +10057,11 @@ void UCookOnTheFlyServer::CookByTheBookFinishedInternal()
 
 			for (const ITargetPlatform* TargetPlatform : PlatformManager->GetSessionPlatforms())
 			{
+				if (FindOrCreateSaveContext(TargetPlatform).PackageWriterCapabilities.bReadOnly)
+				{
+					continue;
+				}
+
 				FPlatformData* PlatformData = PlatformManager->GetPlatformData(TargetPlatform);
 				FAssetRegistryGenerator& Generator = *PlatformData->RegistryGenerator;
 				TArray<FPackageData*> CookedPackageDatas;
@@ -10202,11 +10223,14 @@ void UCookOnTheFlyServer::CookByTheBookFinishedInternal()
 		}
 	}
 
-	// Write cook metadata file.for each platform
+	// Write cook metadata file for each platform
 	int32 PlatformIndex = 0;
 	for (const ITargetPlatform* TargetPlatform : PlatformManager->GetSessionPlatforms())
 	{
-		WriteCookMetadata(TargetPlatform, DevelopmentAssetRegistryHashes[PlatformIndex]);
+		if (!FindOrCreateSaveContext(TargetPlatform).PackageWriterCapabilities.bReadOnly)
+		{
+			WriteCookMetadata(TargetPlatform, DevelopmentAssetRegistryHashes[PlatformIndex]);
+		}
 		PlatformIndex++;
 	}
 
@@ -10220,6 +10244,11 @@ void UCookOnTheFlyServer::CookByTheBookFinishedInternal()
 		UE_SCOPED_HIERARCHICAL_COOKTIMER(GenerateMapDependencies);
 		for (const ITargetPlatform* Platform : PlatformManager->GetSessionPlatforms())
 		{
+			if (FindOrCreateSaveContext(Platform).PackageWriterCapabilities.bReadOnly)
+			{
+				continue;
+			}
+
 			TMap<FName, TSet<FName>> MapDependencyGraph = BuildMapDependencyGraph(Platform);
 			WriteMapDependencyGraph(Platform, MapDependencyGraph);
 		}
@@ -10848,13 +10877,17 @@ void UCookOnTheFlyServer::BeginCookSandbox(FBeginCookContext& BeginContext)
 		{
 			const ITargetPlatform* TargetPlatform = PlatformContext.TargetPlatform;
 			UE::Cook::FPlatformData* PlatformData = PlatformContext.PlatformData;
-			ICookedPackageWriter& PackageWriter = FindOrCreatePackageWriter(TargetPlatform);
+			UE::Cook::FCookSavePackageContext& SavePackageContext = FindOrCreateSaveContext(TargetPlatform);
+			ICookedPackageWriter& PackageWriter = *SavePackageContext.PackageWriter;
 			ICookedPackageWriter::FCookInfo CookInfo;
 			CookInfo.CookMode = IsDirectorCookOnTheFly() ? ICookedPackageWriter::FCookInfo::CookOnTheFlyMode : ICookedPackageWriter::FCookInfo::CookByTheBookMode;
 			CookInfo.bFullBuild = PlatformContext.bFullBuild;
 			CookInfo.bIterateSharedBuild = PlatformContext.bIterateSharedBuild;
 			CookInfo.bWorkerOnSharedSandbox = PlatformContext.bWorkerOnSharedSandbox;
 			PackageWriter.Initialize(CookInfo);
+			// Refresh PackageWriterCapabilities because they can change during Initialize
+			SavePackageContext.PackageWriterCapabilities = PackageWriter.GetCookCapabilities();
+
 			if (!PlatformContext.bWorkerOnSharedSandbox)
 			{
 				check(!IsCookWorkerMode());

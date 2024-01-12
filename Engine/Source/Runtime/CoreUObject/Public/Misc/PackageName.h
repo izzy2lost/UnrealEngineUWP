@@ -79,6 +79,8 @@ public:
 	/** Return the LongPackageName of module's native script package. Does not check whether module is native. */
 	static COREUOBJECT_API FName GetModuleScriptPackageName(FName ModuleName);
 	static COREUOBJECT_API FString GetModuleScriptPackageName(FStringView ModuleName);
+	/** If PackageName is a script package (/Script/<ModuleName>), return true and set OutModuleName=<ModuleName> */
+	static COREUOBJECT_API bool TryConvertScriptPackageNameToModuleName(FStringView PackageName, FStringView& OutModuleName);
 
 	/**
 	 * Registers all short package names found in ini files.

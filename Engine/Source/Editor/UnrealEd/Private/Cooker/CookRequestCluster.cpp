@@ -1100,7 +1100,7 @@ void FRequestCluster::FGraphSearch::ExploreVertexEdges(FVertexData& Vertex)
 		bool bFoundBuildDefinitions = false;
 		ICookedPackageWriter* PackageWriter = FetchPlatformData.Writer;
 
-		if (Cluster.IsIncrementalCook())
+		if (Cluster.IsIncrementalCook() && PackagePlatformData.IsCookable())
 		{
 			bool bIterativelyUnmodified = false;
 			if (IsCookAttachmentsValid(PackageName, PlatformAttachments))

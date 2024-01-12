@@ -398,6 +398,11 @@ bool IsIterativeEnabled(FName PackageName, bool bAllowAllClasses)
 
 	if (!bAllowAllClasses)
 	{
+		auto LogInvalidDueTo = [](FName PackageName, FName ClassPath)
+			{
+				UE_LOG(LogEditorDomain, Verbose, TEXT("NonIterative Package %s due to %s"), *PackageName.ToString(), *ClassPath.ToString());
+			};
+
 		UE::EditorDomain::FClassDigestMap& ClassDigests = UE::EditorDomain::GetClassDigests();
 		FReadScopeLock ClassDigestsScopeLock(ClassDigests.Lock);
 		for (FName ClassName : PackageData.ImportedClasses)
@@ -410,12 +415,26 @@ bool IsIterativeEnabled(FName PackageName, bool bAllowAllClasses)
 			}
 			if (!ExistingData)
 			{
-				// All allowlisted classes are added to ClassDigests at startup, so if the class is not in ClassDigests,
-				// it is not allowlisted
+				// !ExistingData -> !allowed, because caller has already called CalculatePackageDigest, so all
+				// existing classes in the package have been added to ClassDigests.
+				LogInvalidDueTo(PackageName, ClassName);
 				return false;
+			}
+			if (!ExistingData->bNative)
+			{
+				// TODO: We need to add a way to mark non-native classes (there can be many of them) as allowed or denied.
+				// Currently we are allowing them all, so long as their closest native is allowed. But this is not completely
+				// safe to do, because non-native classes can add constructionevents that e.g. use the Random function.
+				ExistingData = ClassDigests.Map.Find(ExistingData->ClosestNative);
+				if (!ExistingData)
+				{
+					LogInvalidDueTo(PackageName, ClassName);
+					return false;
+				}
 			}
 			if (!ExistingData->bTargetIterativeEnabled)
 			{
+				LogInvalidDueTo(PackageName, ClassName);
 				return false;
 			}
 		}
