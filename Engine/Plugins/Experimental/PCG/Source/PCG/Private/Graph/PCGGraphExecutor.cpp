@@ -121,10 +121,12 @@ FPCGTaskId FPCGGraphExecutor::Schedule(
 	FPCGTaskId ScheduledId = InvalidPCGTaskId;
 
 	uint32 GenerationGridSize = PCGHiGenGrid::UninitializedGridSize();
-	const bool bComponentIsPartOfHierarchy = SourceComponent->IsLocalComponent() || SourceComponent->IsPartitioned();
-	if (bAllowHierarchicalGeneration && bComponentIsPartOfHierarchy)
+	if (bAllowHierarchicalGeneration && Graph->IsHierarchicalGenerationEnabled())
 	{
-		GenerationGridSize = SourceComponent->GetGenerationGridSize();
+		if (SourceComponent->IsLocalComponent() || SourceComponent->IsPartitioned())
+		{
+			GenerationGridSize = SourceComponent->GetGenerationGridSize();
+		}
 	}
 
 	// Get compiled tasks from compiler
