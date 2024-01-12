@@ -359,6 +359,7 @@ bool IStreamedCompressedInfo::StreamCompressedData(uint8* Destination, bool bLoo
 							CurrentSampleCount = StreamSeekToAudioFrames * NumChannels;
 							LastPCMByteSize = 0;
 							LastPCMOffset = 0;
+							bStoringEndOfFile = false;
 						}
 						else // Seek failed (off the end of the chunk).
 						{
