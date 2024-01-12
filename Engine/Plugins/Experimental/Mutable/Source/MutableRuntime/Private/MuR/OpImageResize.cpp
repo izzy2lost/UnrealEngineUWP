@@ -7,7 +7,7 @@
 namespace
 {
 
-bool bEnableImageResizeMemoryOptimizations = false;
+bool bEnableImageResizeMemoryOptimizations = true;
 static FAutoConsoleVariableRef CVarEnableImageResizeMemoryOptimizations (
 	TEXT("mutable.EnableImageResizeMemoryOptimizations"),
 	bEnableImageResizeMemoryOptimizations,
@@ -15,7 +15,7 @@ static FAutoConsoleVariableRef CVarEnableImageResizeMemoryOptimizations (
 	ECVF_Default);
 
 
-bool bEnableVectorImplementationForSmallResizes = false;
+bool bEnableVectorImplementationForSmallResizes = true;
 static FAutoConsoleVariableRef CVarEnableVectorImplementationForSmallResizes (
 	TEXT("mutable.EnableVectorImplementationForSmallResizes"),
 	bEnableVectorImplementationForSmallResizes,
