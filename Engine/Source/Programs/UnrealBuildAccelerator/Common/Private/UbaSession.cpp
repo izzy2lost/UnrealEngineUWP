@@ -1287,6 +1287,11 @@ namespace uba
 		m_customServiceFunction = function;
 	}
 
+	void Session::RegisterGetNextProcess(GetNextProcessFunction&& function)
+	{
+		m_getNextProcessFunction = function;
+	}
+
 	const tchar* Session::GetId() { return m_id.data; }
 	Storage& Session::GetStorage() { return m_storage; }
 	Logger& Session::GetLogger() { return m_logger; }
@@ -1990,6 +1995,18 @@ namespace uba
 	bool Session::AllocFailed(Process& process, const tchar* allocType, u32 error)
 	{
 		m_logger.Warning(TC("Allocation failed in %s (%s).. process will sleep and try again"), allocType, LastErrorToText(error).data);
+		return true;
+	}
+
+	bool Session::GetNextProcess(Process& process, bool& outNewProcess, NextProcessInfo& outNextProcess, u32 prevExitCode)
+	{
+		if (!m_getNextProcessFunction)
+		{
+			outNewProcess = false;
+			return true;
+		}
+
+		outNewProcess = m_getNextProcessFunction(process, outNextProcess, prevExitCode);
 		return true;
 	}
 

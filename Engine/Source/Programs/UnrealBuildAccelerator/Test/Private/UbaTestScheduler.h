@@ -38,7 +38,36 @@ namespace uba
 		return RunLocal(logger, testRootDir, [](LoggerWithWriter& logger, SessionServer& session, const tchar* workingDir, const RunProcessFunction& runProcess)
 			{
 
-				Scheduler scheduler(session, true);
+				Scheduler scheduler(session, ~0u, true);
+
+				StringBuffer<> testApp;
+				GetTestAppPath(logger, testApp);
+
+				ProcessStartInfo processInfo;
+				processInfo.application = testApp.data;
+				processInfo.workingDir = workingDir;
+				processInfo.arguments = TC("-reuse");
+
+				scheduler.EnqueueProcess(processInfo);
+				scheduler.Start();
+
+				u32 queued, active, finished;
+				do { scheduler.GetStats(queued, active, finished); } while (queued != 0 || active != 0);
+
+				scheduler.Stop();
+				return true;
+			});
+	}
+
+	bool TestRemoteScheduleReuse(LoggerWithWriter& logger, const StringBufferBase& testRootDir)
+	{
+		if (!IsWindows)
+			return true;
+
+		return RunRemote(logger, testRootDir, [](LoggerWithWriter& logger, SessionServer& session, const tchar* workingDir, const RunProcessFunction& runProcess)
+			{
+
+				Scheduler scheduler(session, 0u, true);
 
 				StringBuffer<> testApp;
 				GetTestAppPath(logger, testApp);

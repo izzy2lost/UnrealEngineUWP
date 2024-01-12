@@ -22,10 +22,10 @@ extern "C"
 	// Returns true if process is running on a remote machine
 	UBA_DETOURED_API bool UbaRunningRemote();
 
-	// Using custom message inside UbaScheduler so can't be combined with RegisterCustomService.
 	// This function will automatically flush written files before requesting next process and will also update environment if new process is retrieved
+	// prevExitCode should contain exit code of "finished" process.
 	// Will write arguments into outArguments. outArgumentsCapacity should be in characters (not bytes)
-	UBA_DETOURED_API bool UbaRequestNextProcess(wchar_t* outArguments, unsigned int outArgumentsCapacity);
+	UBA_DETOURED_API bool UbaRequestNextProcess(unsigned int prevExitCode, wchar_t* outArguments, unsigned int outArgumentsCapacity);
 }
 
 
@@ -37,7 +37,7 @@ static HMODULE UbaDetoursModule = GetModuleHandleW(L"UbaDetours.dll");
 if (UbaDetoursModule)
 {
 	using UbaFlushWrittenFilesFunc = bool();
-	using UbaRequestNextProcessFunc = bool(const wchar_t* outArguments, unsigned int outArgumentsCapacity);
+	using UbaRequestNextProcessFunc = bool(unsigned int prevExitCode, const wchar_t* outArguments, unsigned int outArgumentsCapacity);
 	using UbaUpdateEnvironmentFunc = bool(const wchar_t* reason, bool resetStats);
 
 	static UbaFlushWrittenFilesFunc* flushWrittenFiles = (UbaFlushWrittenFilesFunc*)(void*)GetProcAddress(UbaDetoursModule, "UbaFlushWrittenFiles");

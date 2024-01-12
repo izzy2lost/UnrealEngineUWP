@@ -43,6 +43,7 @@ namespace uba
 	struct ListDirectoryMessage;
 	struct ListDirectoryResponse;
 	struct WrittenFile;
+	struct NextProcessInfo;
 
 	class Session
 	{
@@ -57,6 +58,9 @@ namespace uba
 
 		using CustomServiceFunction = Function<u32(Process& handle, const void* recv, u32 recvSize, void* send, u32 sendCapacity)>;
 		void RegisterCustomService(CustomServiceFunction&& function); // Register a custom service (that can be communicated with from the remote agents)
+
+		using GetNextProcessFunction = Function<bool(Process& handle, NextProcessInfo& outNextProcess, u32 prevExitCode)>;
+		void RegisterGetNextProcess(GetNextProcessFunction&& function); // Register a custom service (that can be communicated with from the remote agents)
 
 		const tchar* GetId();			// Id for session. Will be "yymmdd_hhmmss" unless SessionCreateInfo.useUniqueId is set to false
 		u32 GetActiveProcessCount();	// Current active processes running inside session
@@ -114,6 +118,7 @@ namespace uba
 		virtual bool GetListDirectoryInfo(ListDirectoryResponse& out, tchar* dirName, const StringKey& dirKey);
 		virtual bool WriteFileToDisk(ProcessImpl& process, WrittenFile& file);
 		virtual bool AllocFailed(Process& process, const tchar* allocType, u32 error);
+		virtual bool GetNextProcess(Process& process, bool& outNewProcess, NextProcessInfo& outNextProcess, u32 prevExitCode);
 		virtual bool CustomMessage(Process& process, BinaryReader& reader, BinaryWriter& writer);
 		virtual void FileEntryAdded(StringKey fileNameKey, u64 lastWritten, u64 size);
 		virtual bool FlushWrittenFiles(ProcessImpl& process);
@@ -221,6 +226,7 @@ namespace uba
 		Vector<tchar> m_environmentVariables;
 		UnorderedSet<const tchar*, HashStringNoCase, EqualStringNoCase> m_localEnvironmentVariables;
 
+		GetNextProcessFunction m_getNextProcessFunction;
 		CustomServiceFunction m_customServiceFunction;
 
 		// This is a horrible hack to try to prevent ETXTBUSY. Our theory is that if posix_spawn happens with the exact same timing as symlink has an open handle we end up with the child process cloning that handle
@@ -408,6 +414,14 @@ namespace uba
 		u64 lastWriteTime = 0;
 		u32 attributes = 0;
 	};
+
+	struct NextProcessInfo
+	{
+		TString arguments;
+		TString workingDir;
+		TString description;
+	};
+
 }
 
 template<> struct std::hash<uba::ProcessHandle> { size_t operator()(const uba::ProcessHandle& g) const { return g.GetHash(); } };

@@ -1078,7 +1078,7 @@ namespace uba
 	};
 
 
-	bool SessionClient::SendProcessAvailable(Vector<InternalProcessStartInfo>& out, float availableWeight, bool& outRemoteExecutionEnabled)
+	bool SessionClient::SendProcessAvailable(Vector<InternalProcessStartInfo>& out, float availableWeight)
 	{
 		StackBinaryWriter<32> writer;
 		NetworkMessage msg(m_client, ServiceId, SessionMessageType_ProcessAvailable, writer);
@@ -1104,7 +1104,7 @@ namespace uba
 			}
 			if (processId == SessionProcessAvailableResponse_RemoteExecutionDisabled)
 			{
-				outRemoteExecutionEnabled = false;
+				m_remoteExecutionEnabled = false;
 				break;
 			}
 			out.push_back({});
@@ -1269,8 +1269,6 @@ namespace uba
 		u64 memRequiredToSpawn = u64(double(memTotal) * double(100 - m_memWaitLoadPercent) / 100.0);
 		u64 memRequiredFree = u64(double(memTotal) * double(100 - m_memKillLoadPercent) / 100.0);
 
-		bool remoteExecutionEnabled = true;
-
 		float maxWeight = float(m_maxProcessCount);
 		float activeWeight = 0;
 		ReaderWriterLock activeWeightLock;
@@ -1291,9 +1289,9 @@ namespace uba
 				it = activeProcesses.erase(it);
 			}
 
-			if (remoteExecutionEnabled && m_terminationReason)
+			if (m_remoteExecutionEnabled && m_terminationReason)
 			{
-				remoteExecutionEnabled = false;
+				m_remoteExecutionEnabled = false;
 				m_logger.Info(TC("%s. Will stop scheduling processes and send failing processes back for retry"), m_terminationReason);
 			}
 
@@ -1302,14 +1300,14 @@ namespace uba
 				idleStartTime = GetTime();
 				processRequestCount = 0;
 			}
-			else if (remoteExecutionEnabled)
+			else if (m_remoteExecutionEnabled)
 			{
 				u32 idleTime = u32(TimeToS(GetTime() - idleStartTime));
 				if (idleTime > m_maxIdleSeconds)
 				{
 					m_logger.Info(TC("Session has been idle longer than max idle time (%u seconds). Disconnecting (Did %u process requests during idle)"), m_maxIdleSeconds, processRequestCount);
 					m_waitToSendEvent.Set();
-					remoteExecutionEnabled = false;
+					m_remoteExecutionEnabled = false;
 				}
 			}
 		};
@@ -1346,7 +1344,7 @@ namespace uba
 
 			bool firstCall = true;
 
-			while (remoteExecutionEnabled && canSpawn && m_loop)
+			while (m_remoteExecutionEnabled && canSpawn && m_loop)
 			{
 				float availableWeight;
 				{
@@ -1381,14 +1379,14 @@ namespace uba
 				}
 
 				Vector<InternalProcessStartInfo> startInfos;
-				if (!SendProcessAvailable(startInfos, availableWeight, remoteExecutionEnabled))
+				if (!SendProcessAvailable(startInfos, availableWeight))
 				{
 					m_loop = false;
 					break;
 				}
 				++processRequestCount;
 
-				if (!remoteExecutionEnabled)
+				if (!m_remoteExecutionEnabled)
 				{
 					m_logger.Info(TC("Got remote execution disabled response from host (will finish %llu active processes)"), startInfos.size() + activeProcesses.size());
 				}
@@ -1582,7 +1580,7 @@ namespace uba
 
 			RemoveInactiveProcesses();
 
-			if (activeProcesses.empty() && !remoteExecutionEnabled)
+			if (activeProcesses.empty() && !m_remoteExecutionEnabled)
 				break;
 		}
 
@@ -1639,6 +1637,57 @@ namespace uba
 	{
 		Session::PrintSessionStats(logger);
 		m_stats.Print(logger);
+	}
+
+	bool SessionClient::GetNextProcess(Process& process, bool& outNewProcess, NextProcessInfo& outNextProcess, u32 prevExitCode)
+	{
+		outNewProcess = false;
+
+		if (!m_remoteExecutionEnabled)
+			return true;
+
+		auto& pi = (ProcessImpl&)process;
+
+		if (!FlushWrittenFiles(pi))
+			return false;
+
+		StackBinaryReader<SendMaxSize> reader;
+		StackBinaryWriter<16 * 1024> writer;
+		NetworkMessage msg(m_client, ServiceId, SessionMessageType_GetNextProcess, writer);
+		writer.WriteU32(pi.m_id);
+		writer.WriteU32(prevExitCode);
+		pi.m_processStats.Write(writer);
+		pi.m_sessionStats.Write(writer);
+		pi.m_storageStats.Write(writer);
+		pi.m_systemStats.Write(writer);
+
+		if (!msg.Send(reader, m_stats.customMsg))
+			return false;
+
+		outNewProcess = reader.ReadBool();
+		if (outNewProcess)
+		{
+			pi.m_exitCode = prevExitCode;
+			if (m_processFinished)
+				m_processFinished(&process);
+
+			pi.m_exitCode = ~0u;
+			pi.m_processStats = {};
+			pi.m_sessionStats = {};
+			pi.m_storageStats = {};
+			pi.m_systemStats = {};
+
+			outNextProcess.arguments = reader.ReadString();
+			outNextProcess.workingDir = reader.ReadString();
+			outNextProcess.description = reader.ReadString();
+
+			// TODO: Probably need to fill up with more stuff.. this is fine for current usecase
+			pi.m_arguments = outNextProcess.arguments;
+			pi.m_description = outNextProcess.description;
+		}
+
+		reader.Reset();
+		return SendUpdateDirectoryTable(reader);
 	}
 
 	bool SessionClient::CustomMessage(Process& process, BinaryReader& reader, BinaryWriter& writer)

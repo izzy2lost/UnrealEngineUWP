@@ -47,7 +47,6 @@ namespace uba
 		Thread thread;
 		Event listening;
 		SOCKET socket = INVALID_SOCKET;
-		SOCKET socketToClose = INVALID_SOCKET;
 	};
 
 	struct NetworkBackendTcp::Connection
@@ -100,6 +99,13 @@ namespace uba
 		return true;
 	}
 
+	bool CloseSocket(Logger& logger, SOCKET s)
+	{
+		if (closesocket(s) == SOCKET_ERROR)
+			return logger.Error(TC("failed to close socket (%s)"), LastErrorToText(WSAGetLastError()).data);
+		return true;
+	}
+
 
 
 	NetworkBackendTcp::NetworkBackendTcp(LogWriter& writer, const tchar* prefix)
@@ -122,7 +128,7 @@ namespace uba
 			shutdown(s, SD_BOTH);
 			lock2.Leave();
 			conn.recvThread.Wait();
-			closesocket(s);
+			CloseSocket(m_logger, s);
 		}
 		m_connections.clear();
 
@@ -151,7 +157,7 @@ namespace uba
 		conn.socket = INVALID_SOCKET;
 		lock.Leave();
 		conn.recvThread.Wait();
-		closesocket(s);
+		CloseSocket(m_logger, s);
 	}
 
 	bool NetworkBackendTcp::Send(Logger& logger, void* connection, const void* data, u32 dataSize, SendContext& sendContext)
@@ -203,6 +209,11 @@ namespace uba
 
 	void NetworkBackendTcp::SetDisconnectCallback(void* connection, void* context, DisconnectCallback* callback)
 	{
+		{
+			ScopedReadLock lock(m_connectionsLock);
+			if (m_connections.empty())
+				return;
+		}
 		auto& conn = *(Connection*)connection;
 		ScopedCriticalSection lock(conn.shutdownLock);
 		conn.disconnectCallback = callback;
@@ -269,20 +280,13 @@ namespace uba
 	void NetworkBackendTcp::StopListen()
 	{
 		for (auto& e : m_listenEntries)
-		{
-			e.socketToClose = e.socket;
 			e.socket = INVALID_SOCKET;
-			shutdown(e.socketToClose, SD_BOTH);
-		}
 		for (auto& e : m_listenEntries)
-		{
 			e.thread.Wait();
-			closesocket(e.socketToClose);
-		}
 		m_listenEntries.clear();
 	}
 
-	void NetworkBackendTcp::ThreadListen(Logger& logger, ListenEntry& entry)
+	bool NetworkBackendTcp::ThreadListen(Logger& logger, ListenEntry& entry)
 	{
 		addrinfoW hints;
 		memset(&hints, 0, sizeof(hints));
@@ -300,27 +304,21 @@ namespace uba
 		auto listenEv = MakeGuard([&]() { entry.listening.Set(); });
 
 		if (res != 0)
-		{
-			logger.Error(TC("getaddrinfo failed (%d)"), res);
-			return;
-		}
+			return logger.Error(TC("getaddrinfo failed (%d)"), res);
+
 		UBA_ASSERT(result);
 		auto addrGuard = MakeGuard([result]() { FreeAddrInfoW(result); });
 
 		// Create a socket for listening to connections
 		SOCKET listenSocket = socket(result->ai_family, result->ai_socktype, result->ai_protocol);
 		if (listenSocket == INVALID_SOCKET)
-		{
-			logger.Error(TC("socket failed (%s)"), LastErrorToText(WSAGetLastError()).data);
-			return;
-		}
-		auto listenSocketCleanup = MakeGuard([&]() { closesocket(listenSocket); listenSocket = INVALID_SOCKET; });
+			return logger.Error(TC("socket failed (%s)"), LastErrorToText(WSAGetLastError()).data);
 
-		// This is here to be able to iterate fast when doing development.. seems like socket ends up in TIME_WAIT state after close and it takes some time to be able to use socket again
-		#if !PLATFORM_WINDOWS// && UBA_DEBUG
-		int optval = 1;
-		::setsockopt(listenSocket, SOL_SOCKET, SO_REUSEADDR, (const char*)&optval, sizeof optval);
-		#endif
+		auto listenSocketCleanup = MakeGuard([&]() { CloseSocket(m_logger, listenSocket); });
+
+		u32 reuseAddr = 1;
+		if (::setsockopt(listenSocket, SOL_SOCKET, SO_REUSEADDR, (const char*)&reuseAddr, sizeof reuseAddr) == SOCKET_ERROR)
+			return logger.Error(TC("setsockopt SO_REUSEADDR failed (error: %s)"), LastErrorToText(WSAGetLastError()).data);
 
 		// Setup the TCP listening socket
 		res = bind(listenSocket, result->ai_addr, (socklen_t)result->ai_addrlen);
@@ -328,76 +326,54 @@ namespace uba
 		if (res == SOCKET_ERROR)
 		{
 			int lastError = WSAGetLastError();
-			if (lastError == WSAEADDRINUSE)
-				logger.Info(TC("bind %s:%hu failed because address/port is in use. Some other process is already using this address/port"), entry.ip.data, entry.port);
-			else
-				logger.Error(TC("bind %s:%hu failed (%s)"), entry.ip.data, entry.port, LastErrorToText(lastError).data);
-			return;
+			if (lastError != WSAEADDRINUSE)
+				return logger.Error(TC("bind %s:%hu failed (%s)"), entry.ip.data, entry.port, LastErrorToText(lastError).data);
+			logger.Info(TC("bind %s:%hu failed because address/port is in use. Some other process is already using this address/port"), entry.ip.data, entry.port);
+			return false;
 		}
 
 		addrGuard.Execute();
 
 		res = listen(listenSocket, SOMAXCONN);
 		if (res == SOCKET_ERROR)
-		{
-			logger.Error(TC("Listen failed (%s)"), LastErrorToText(WSAGetLastError()).data);
-			return;
-		}
+			return logger.Error(TC("Listen failed (%s)"), LastErrorToText(WSAGetLastError()).data);
 
 		if (!SetKeepAlive(logger, listenSocket))
-			return;
-
-
-		listenSocketCleanup.Cancel();
+			return false;
 
 		logger.Info(TC("Listening on %s:%hu"), entry.ip.data, entry.port);
 		entry.socket = listenSocket;
 
 		listenEv.Execute();
 
-		fd_set set;
-		fd_set read_fds; // temp file descriptor list for select()
-		int fdmax = 1; // maximum file descriptor number
-
-		struct timeval timeout;
-		timeout.tv_sec = 1;
-		timeout.tv_usec = 0;
-
-		FD_ZERO(&set);
-		FD_ZERO(&read_fds);
-
-		FD_SET(listenSocket, &set);
-
-		#if !PLATFORM_WINDOWS
-		fdmax = listenSocket + 1;
-		#endif
-
 		while (entry.socket != INVALID_SOCKET)
 		{
-			read_fds = set;
+			WSAPOLLFD p;
+			p.fd = listenSocket;
+			p.revents = 0;
+			p.events = POLLIN;
+			int timeoutMs = 2000;
+			int pollRes = WSAPoll(&p, 1, timeoutMs);
 
-			// [honk] TODO: There was a new hang here that has never happened before so brought back this code
-			#if PLATFORM_WINDOWS
-			FD_ZERO(&read_fds);
-			FD_SET(listenSocket, &read_fds);
-			#endif
+			if (pollRes == SOCKET_ERROR)
+			{
+				int lastError = WSAGetLastError();
+				logger.Warning(TC("WSAPoll returned error %s"), LastErrorToText(lastError).data);
+				break;
+			}
 
-			int ret = select(fdmax, &read_fds, NULL, NULL, &timeout);
-
-			if (ret == 0)
+			if (!pollRes)
 				continue;
 
-			if (ret == -1)
+			if (p.revents & POLLNVAL)
 			{
-				if (entry.socket != INVALID_SOCKET)
-					logger.Info(TC("Select (for accept) failed with WSA error: %s"), LastErrorToText(WSAGetLastError()).data);
-				break;
+				logger.Warning(TC("WSAPoll returned successful but with unexpected flags: %u"), p.revents);
+				continue;
 			}
 
 			sockaddr remoteSockAddr = { 0 }; // for TCP/IP
 			socklen_t remoteSockAddrLen = sizeof(remoteSockAddr);
 			SOCKET clientSocket = accept(listenSocket, (sockaddr*)&remoteSockAddr, &remoteSockAddrLen);
-			FD_SET(clientSocket, &set);
 
 			if (clientSocket == INVALID_SOCKET)
 			{
@@ -406,7 +382,7 @@ namespace uba
 				break;
 			}
 
-			auto socketClose = MakeGuard([&]() { closesocket(clientSocket); });
+			auto socketClose = MakeGuard([&]() { CloseSocket(logger, clientSocket); });
 
 			if (!DisableNagle(logger, clientSocket))
 				continue;
@@ -431,6 +407,8 @@ namespace uba
 
 			socketClose.Cancel();
 		}
+
+		return true;
 	}
 
 	void NetworkBackendTcp::ThreadRecv(Connection& connection)
@@ -498,7 +476,7 @@ namespace uba
 		if (s == INVALID_SOCKET)
 			return;
 		shutdown(s, SD_BOTH);
-		closesocket(s);
+		CloseSocket(m_logger, s);
 	}
 
 	bool NetworkBackendTcp::Connect(Logger& logger, const tchar* ip, const ConnectedFunc& connectedFunc, u16 port, bool* timedOut)
@@ -556,7 +534,7 @@ namespace uba
 			return logger.Error(TC("socket failed (%s)"), LastErrorToText(WSAGetLastError()).data);
 
 		// Create guard in case we fail to connect (will be cancelled further down if we succeed)
-		auto socketClose = MakeGuard([&]() { closesocket(socketFd); });
+		auto socketClose = MakeGuard([&]() { CloseSocket(logger, socketFd); });
 
 		// Set to non-blocking just for the connect call (we want to control the connect timeout after connect using select instead)
 		if (!SetBlocking(logger, socketFd, false))
@@ -595,7 +573,7 @@ namespace uba
 		if (pollRes == SOCKET_ERROR)
 		{
 			int lastError = WSAGetLastError();
-			logger.Warning(TC("WSAPoll returned error %s (%s%s)"), LastErrorToText(lastError).data, nameHint);
+			logger.Warning(TC("WSAPoll returned error %s (%s)"), LastErrorToText(lastError).data, nameHint);
 			return false;
 		}
 
@@ -657,6 +635,7 @@ namespace uba
 
 		if (!connectedFunc(&conn, remoteSocketAddr, timedOut))
 		{
+			socketFd = conn.socket;
 			conn.socket = INVALID_SOCKET;
 			socketClose.Execute();
 			conn.ready.Set();
@@ -888,12 +867,16 @@ namespace uba
 
 	HttpConnection::~HttpConnection()
 	{
+		if (m_socket != INVALID_SOCKET)
+		{
+			LoggerWithWriter logger(g_nullLogWriter);
+			CloseSocket(logger, m_socket);
+		}
+
 		#if PLATFORM_WINDOWS
 		if (m_wsaInitDone)
 			WSACleanup();
 		#endif
-		if (m_socket != INVALID_SOCKET)
-			closesocket(m_socket);
 	}
 
 	bool HttpConnection::Connect(Logger& logger, const char* host)
@@ -943,7 +926,7 @@ namespace uba
 		// TODO: Fix so we reuse socket connection for multiple queries
 		if (*m_host)// && _stricmp(m_host, host) != 0)
 		{
-			closesocket(m_socket);
+			CloseSocket(logger, m_socket);
 			m_socket = INVALID_SOCKET;
 			*m_host = 0;
 		}

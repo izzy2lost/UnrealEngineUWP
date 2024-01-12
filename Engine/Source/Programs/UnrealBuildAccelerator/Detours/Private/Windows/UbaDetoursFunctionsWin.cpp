@@ -1031,26 +1031,26 @@ extern "C"
 		return g_runningRemote;
 	}
 
-	UBA_DETOURED_API bool UbaRequestNextProcess(wchar_t* outArguments, u32 outArgumentsCapacity)
+	UBA_DETOURED_API bool UbaRequestNextProcess(u32 prevExitCode, wchar_t* outArguments, u32 outArgumentsCapacity)
 	{
 		*outArguments = 0;
-
-		if (!UbaFlushWrittenFiles())
-			return false;
-
-		StackBinaryReader<2048> reader;
-		reader.SetSize(UbaSendCustomMessage(nullptr, 0, reader.buffer, 2048));
-		bool hasProcess = reader.GetLeft();
-
-		StringBuffer<256> description;
-		if (hasProcess)
+		bool newProcess;
 		{
-			reader.ReadString(outArguments, outArgumentsCapacity);
-			reader.SkipString(); // Working dir
-			reader.ReadString(description);
+			ScopedWriteLock pcs(g_communicationLock);
+			BinaryWriter writer;
+			writer.WriteByte(MessageType_GetNextProcess);
+			writer.WriteU32(prevExitCode);
+			writer.Flush();
+			BinaryReader reader;
+			newProcess = reader.ReadBool();
+			if (newProcess)
+			{
+				reader.ReadString(outArguments, outArgumentsCapacity);
+				//writer.SkipString(workingDir);
+				//writer.SkipString(description);
+			}
 		}
-		if (!UbaUpdateEnvironment(description.data, hasProcess))
-			return false;
-		return hasProcess;
+		Rpc_UpdateTables();
+		return newProcess;
 	}
 }

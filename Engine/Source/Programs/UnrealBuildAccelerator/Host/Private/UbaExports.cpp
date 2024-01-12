@@ -456,6 +456,11 @@ uba::StorageClient* CreateStorageClient(uba::NetworkClient& client, const uba::t
 		scheduler->EnqueueProcess(info, weight, knownInputs, knownInputsBytes, knownInputsCount);
 	}
 
+	void Scheduler_SetMaxLocalProcessors(uba::Scheduler* scheduler, uba::u32 maxLocalProcessors)
+	{
+		scheduler->SetMaxLocalProcessors(maxLocalProcessors);
+	}
+
 	void Scheduler_Stop(uba::Scheduler* scheduler)
 	{
 		scheduler->Stop();

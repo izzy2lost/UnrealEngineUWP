@@ -43,9 +43,9 @@ namespace uba
 	,	m_updateThreadLoop(false)
 	,	m_enableProcessReuse(enableProcessReuse)
 	{
-		session.RegisterCustomService([this](Process& process, const void* recv, u32 recvSize, void* send, u32 sendCapacity)
+		session.RegisterGetNextProcess([this](Process& process, NextProcessInfo& outNextProcess, u32 prevExitCode)
 			{
-				return HandleReuseMessage(process, recv, recvSize, send, sendCapacity);
+				return HandleReuseMessage(process, outNextProcess, prevExitCode);
 			});
 	}
 
@@ -69,6 +69,11 @@ namespace uba
 		m_updateThreadLoop.Set();
 		m_thread.Wait();
 		m_session.WaitOnAllTasks();
+	}
+
+	void Scheduler::SetMaxLocalProcessors(u32 maxLocalProcessors)
+	{
+		m_maxLocalProcessors = maxLocalProcessors;
 	}
 
 	u32 Scheduler::EnqueueProcess(const ProcessStartInfo& info, float weight, const void* knownInputs, u32 knownInputsBytes, u32 knownInputsCount)
@@ -201,20 +206,21 @@ namespace uba
 		return true;
 	}
 
-	u32 Scheduler::HandleReuseMessage(Process& process, const void* recv, u32 recvSize, void* send, u32 sendCapacity)
+	bool Scheduler::HandleReuseMessage(Process& process, NextProcessInfo& outNextProcess, u32 prevExitCode)
 	{
 		if (!m_enableProcessReuse)
-			return 0;
+			return false;
 
 		auto& currentStartInfo = process.GetStartInfo();
 		auto info = (ExitProcessInfo*)currentStartInfo.userData;
 		if (!info) // If null, process has already exited from some other thread
-			return 0;
+			return false;
 
 		// Call ExitedFunc and cleanup
 		if (auto func = info->originalExitedFunc)
 		{
 			UBA_ASSERT(!info->wasReturned);
+			UBA_ASSERT(prevExitCode == 0); // This is not handled for anything else
 			ProcessHandle h;
 			h.m_process = &process;
 			func(info->originalUserData, h);
@@ -230,12 +236,15 @@ namespace uba
 		info->lastWorkingDir.clear();
 		info->lastDescription.clear();
 
+		if (m_activeLocalProcesses > m_maxLocalProcessors)
+			return false;
+
 		// Try to get queued process to send back
 		ScopedWriteLock lock(m_queuedProcessesLock);
 		if (info->wasReturned)
-			return 0;
+			return false;
 		if (m_queuedProcesses.empty())
-			return 0;
+			return false;
 		auto qp = m_queuedProcesses.front();
 		m_queuedProcesses.pop_front();
 		lock.Leave();
@@ -252,12 +261,9 @@ namespace uba
 		info->lastWorkingDir = si.workingDir;
 		info->lastDescription = si.description;
 
-		// TODO: Don't think we need to udpate the other parts of StartInfo
-
-		BinaryWriter writer((u8*)send, 0, sendCapacity);
-		writer.WriteString(si.arguments);
-		writer.WriteString(si.workingDir);
-		writer.WriteString(si.description);
-		return u32(writer.GetPosition());
+		outNextProcess.arguments = si.arguments;
+		outNextProcess.workingDir = si.workingDir;
+		outNextProcess.description = si.description;
+		return true;
 	}
 }

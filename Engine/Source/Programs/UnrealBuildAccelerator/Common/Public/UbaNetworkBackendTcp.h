@@ -33,7 +33,7 @@ namespace uba
 
 		struct Connection;
 		struct ListenEntry;
-		void ThreadListen(Logger& logger, ListenEntry& entry);
+		bool ThreadListen(Logger& logger, ListenEntry& entry);
 		void ThreadRecv(Connection& connection);
 
 		LoggerWithWriter m_logger;

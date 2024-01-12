@@ -10,6 +10,7 @@ namespace uba
 {
 	class Process;
 	class SessionServer;
+	struct NextProcessInfo;
 	struct ProcessStartInfoHolder;
 
 	// This is a simple scheduler that does not handle any dependencies. Can be added based on need
@@ -22,6 +23,7 @@ namespace uba
 
 		void Start();
 		void Stop();
+		void SetMaxLocalProcessors(u32 maxLocalProcessors);
 
 		u32 EnqueueProcess(const ProcessStartInfo& info, float weight = 1.0f, const void* knownInputs = nullptr, u32 knownInputsBytes = 0, u32 knownInputsCount = 0);
 
@@ -34,7 +36,7 @@ namespace uba
 		void RemoteSlotAvailable();
 		void ProcessExited(ExitProcessInfo* info, const ProcessHandle& handle);
 		bool RunQueuedProcess(bool runLocal);
-		u32 HandleReuseMessage(Process& process, const void* recv, u32 recvSize, void* send, u32 sendCapacity);
+		bool HandleReuseMessage(Process& process, NextProcessInfo& outNextProcess, u32 prevExitCode);
 
 		SessionServer& m_session;
 		u32 m_maxLocalProcessors;

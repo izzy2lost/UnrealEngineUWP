@@ -1116,6 +1116,34 @@ namespace uba
 
 				return true;
 			}
+			case SessionMessageType_GetNextProcess:
+			{
+				u32 processId = reader.ReadU32();
+				u32 prevExitCode = reader.ReadU32();
+				ScopedWriteLock lock(m_processesLock);
+				auto findIt = m_processes.find(processId);
+				if (findIt == m_processes.end())
+					return m_logger.Error(TC("Failed to find process for id %u when receiving custom message"), processId);
+				ProcessHandle h(findIt->second);
+				lock.Leave();
+
+				auto& remoteProcess = *(RemoteProcess*)h.m_process;
+				ScopedWriteLock exitedLock(remoteProcess.m_exitedLock);
+				NextProcessInfo nextProcess;
+				bool newProcess;
+				if (!GetNextProcess(remoteProcess, newProcess, nextProcess, prevExitCode))
+					return false;
+
+				writer.WriteBool(newProcess);
+				if (newProcess)
+				{
+					writer.WriteString(nextProcess.arguments);
+					writer.WriteString(nextProcess.workingDir);
+					writer.WriteString(nextProcess.description);
+					m_trace.ProcessEnvironmentUpdated(processId, nextProcess.description.c_str(), reader.GetPositionData(), reader.GetLeft());
+				}
+				return true;
+			}
 			case SessionMessageType_Custom:
 			{
 				u32 processId = reader.ReadU32();

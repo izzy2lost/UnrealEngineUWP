@@ -31,6 +31,7 @@ namespace uba
 		MessageType_Exit,
 		MessageType_FlushWrittenFiles,
 		MessageType_UpdateEnvironment,
+		MessageType_GetNextProcess,
 		MessageType_Custom,
 	};
 

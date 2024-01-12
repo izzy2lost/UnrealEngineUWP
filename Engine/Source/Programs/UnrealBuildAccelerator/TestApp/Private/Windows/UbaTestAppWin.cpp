@@ -133,11 +133,11 @@ int wmain(int argc, wchar_t* argv[])
 	}
 	else if (wcscmp(argv[1], L"-reuse") == 0)
 	{
-		using UbaRequestNextProcessFunc = bool(wchar_t* outArguments, unsigned int outArgumentsCapacity);
+		using UbaRequestNextProcessFunc = bool(unsigned int prevExitCode, wchar_t* outArguments, unsigned int outArgumentsCapacity);
 		static UbaRequestNextProcessFunc* requestNextProcess = (UbaRequestNextProcessFunc*)(void*)GetProcAddress(detoursHandle, "UbaRequestNextProcess");
 
 		wchar_t arguments[1024];
-		if (requestNextProcess(arguments, sizeof(arguments)))
+		if (requestNextProcess(0, arguments, sizeof(arguments)))
 			return LogError(L"Didn't expect another process");
 	}
 	else

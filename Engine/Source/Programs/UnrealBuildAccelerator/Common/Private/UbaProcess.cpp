@@ -824,6 +824,22 @@ namespace uba
 
 					return false;
 				}
+
+			case MessageType_GetNextProcess:
+				{
+					bool prevExitCode = reader.ReadBool();
+					bool newProcess = false;
+					NextProcessInfo nextProcess;
+					m_messageSuccess = m_session.GetNextProcess(*this, newProcess, nextProcess, prevExitCode) && m_messageSuccess;
+					writer.WriteBool(newProcess);
+					if (!newProcess)
+						return true;
+					writer.WriteString(nextProcess.arguments);
+					writer.WriteString(nextProcess.workingDir);
+					writer.WriteString(nextProcess.description);
+					return true;
+				}
+
 			case MessageType_Custom:
 				{
 					m_session.CustomMessage(*this, reader, writer);
