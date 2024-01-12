@@ -379,7 +379,7 @@ namespace Chaos
 		 * @return true if CCD is enabled this tick, false otherwise
 		 * This may return false, even for collisions on CCD-enabled bodies when the bodies are moving slowly
 		 */
-		CHAOS_API bool ShouldEnableCCD(const FReal Dt);
+		CHAOS_API bool ShouldEnableCCDSweep(const FReal Dt);
 
 		CHAOS_API void InitThresholds();
 
