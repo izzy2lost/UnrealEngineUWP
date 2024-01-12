@@ -151,6 +151,7 @@ private:
 	FName GraphName;
 
 	mutable TArray<FMessage> Messages;
+	bool bLoadingPins = false;
 
 	UPROPERTY(Transient, DuplicateTransient)
 	mutable TObjectPtr<UEdGraph> CachedWrapperGraph;

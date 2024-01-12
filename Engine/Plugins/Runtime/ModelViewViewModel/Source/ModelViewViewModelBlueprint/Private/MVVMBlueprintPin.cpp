@@ -6,6 +6,7 @@
 #include "Bindings/MVVMConversionFunctionHelper.h"
 #include "EdGraph/EdGraphPin.h"
 #include "EdGraphSchema_K2.h"
+#include "MVVMConversionFunctionGraphSchema.h"
 
 #include UE_INLINE_GENERATED_CPP_BY_NAME(MVVMBlueprintPin)
 
@@ -208,9 +209,9 @@ void FMVVMBlueprintPin::CopyTo(const UBlueprint* Blueprint, UEdGraphNode* Node) 
 				GetDefault<UEdGraphSchema_K2>()->SplitPin(GraphPin, false);
 			}
 
-			GraphPin->DefaultObject = DefaultObject;
-			GraphPin->DefaultValue = DefaultString;
-			GraphPin->DefaultTextValue = DefaultText;
+			GetDefault<UMVVMConversionFunctionGraphSchema>()->TrySetDefaultObject(*GraphPin, DefaultObject, false);
+			GetDefault<UMVVMConversionFunctionGraphSchema>()->TrySetDefaultValue(*GraphPin, DefaultString, false);
+			GetDefault<UMVVMConversionFunctionGraphSchema>()->TrySetDefaultText(*GraphPin, DefaultText, false);
 			UE::MVVM::ConversionFunctionHelper::SetPropertyPathForPin(Blueprint, Path, GraphPin);
 		}
 	}

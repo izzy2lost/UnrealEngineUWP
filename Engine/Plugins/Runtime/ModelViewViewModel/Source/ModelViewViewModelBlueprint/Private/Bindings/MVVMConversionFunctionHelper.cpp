@@ -11,7 +11,6 @@
 #include "MVVMWidgetBlueprintExtension_View.h"
 #include "UObject/MetaData.h"
 
-#include "EdGraphSchema_K2.h"
 #include "K2Node_BreakStruct.h"
 #include "K2Node_CallFunction.h"
 #include "K2Node_FunctionEntry.h"
@@ -20,6 +19,7 @@
 #include "K2Node_VariableGet.h"
 #include "K2Node_VariableSet.h"
 #include "Kismet2/BlueprintEditorUtils.h"
+#include "MVVMConversionFunctionGraphSchema.h"
 
 #define LOCTEXT_NAMESPACE "MVVMConversionFunctionHelper"
 
@@ -85,7 +85,7 @@ namespace Private
 	FCreateGraphResult CreateGraph(UBlueprint* Blueprint, FName GraphName, const UFunction* FunctionEntryDefinition, bool bIsConst, bool bIsEditable, bool bAddToBlueprint)
 	{
 		FName UniqueFunctionName = FBlueprintEditorUtils::FindUniqueKismetName(Blueprint, GraphName.ToString());
-		UEdGraph* FunctionGraph = FBlueprintEditorUtils::CreateNewGraph(Blueprint, UniqueFunctionName, UEdGraph::StaticClass(), UEdGraphSchema_K2::StaticClass());
+		UEdGraph* FunctionGraph = FBlueprintEditorUtils::CreateNewGraph(Blueprint, UniqueFunctionName, UEdGraph::StaticClass(), UMVVMConversionFunctionGraphSchema::StaticClass());
 		FunctionGraph->bEditable = bIsEditable;
 		if (bAddToBlueprint)
 		{
@@ -96,7 +96,7 @@ namespace Private
 			FunctionGraph->SetFlags(RF_Transient);
 		}
 
-		const UEdGraphSchema_K2* Schema = CastChecked<UEdGraphSchema_K2>(FunctionGraph->GetSchema());
+		const UEdGraphSchema_K2* Schema = GetDefault<UMVVMConversionFunctionGraphSchema>();
 		Schema->MarkFunctionEntryAsEditable(FunctionGraph, bIsEditable);
 		Schema->CreateDefaultNodesForGraph(*FunctionGraph);
 
@@ -342,7 +342,7 @@ namespace Private
 			{
 				return Pin->Direction == EGPD_Input
 					&& Pin->PinName != UEdGraphSchema_K2::PN_Execute
-					&& GetDefault<UEdGraphSchema_K2>()->ArePinsCompatible(PreviousDataPin, Pin, Context);
+					&& GetDefault<UMVVMConversionFunctionGraphSchema>()->ArePinsCompatible(PreviousDataPin, Pin, Context);
 			};
 
 		NumberOfFieldExcludingThePropertyPathSource = FMath::Clamp(NumberOfFieldExcludingThePropertyPathSource, 0, PropertyPath.GetFieldPaths().Num());
@@ -534,7 +534,7 @@ namespace Private
 			{
 				if (CanNewConnections(Pin, PreviousDataPin, PreviousClass))
 				{
-					Pin->MakeLinkTo(PreviousDataPin);
+					GetDefault<UMVVMConversionFunctionGraphSchema>()->TryCreateConnection(Pin, PreviousDataPin);
 				}
 			}
 
@@ -660,6 +660,7 @@ namespace Private
 	void LinkAllNodes(UEdGraph* FunctionGraph, UK2Node_FunctionEntry* FunctionEntry, UEdGraphNode* Wrapper, UK2Node_FunctionResult* FunctionResult)
 	{
 		check(FunctionGraph && FunctionEntry && Wrapper && FunctionResult);
+		const UEdGraphSchema* GraphSchema = GetDefault<UMVVMConversionFunctionGraphSchema>();
 
 		UEdGraphPin* ThenPin = FunctionEntry->FindPinChecked(UEdGraphSchema_K2::PN_Then);
 		check(ThenPin);
@@ -678,7 +679,7 @@ namespace Private
 					if (UEdGraphPin* ExecPin = CallFunction->FindPin(UEdGraphSchema_K2::PN_Execute))
 					{
 						ThenPin->BreakAllPinLinks();
-						ThenPin->MakeLinkTo(ExecPin);
+						GraphSchema->TryCreateConnection(ThenPin, ExecPin);
 						ThenPin = CallFunction->FindPinChecked(UEdGraphSchema_K2::PN_Then);
 					}
 				}
@@ -688,12 +689,12 @@ namespace Private
 		// Make pin to the conversion node or to the return node
 		if (UEdGraphPin* CallFunctionExecPin = Wrapper->FindPin(UEdGraphSchema_K2::PN_Execute))
 		{
-			ThenPin->MakeLinkTo(CallFunctionExecPin);
+			GraphSchema->TryCreateConnection(ThenPin, CallFunctionExecPin);
 		}
 		else
 		{
 			UEdGraphPin* FunctionResultExecPin = FunctionResult->GetExecPin();
-			ThenPin->MakeLinkTo(FunctionResultExecPin);
+			GraphSchema->TryCreateConnection(ThenPin, FunctionResultExecPin);
 		}
 	}
 } //namespace
@@ -739,7 +740,7 @@ TValueOrError<void, FText> CanCreateSetterGraph(UBlueprint* Blueprint, const FMV
 	return MakeValue();
 }
 
-TValueOrError<FCreateSetterGraphResult, FText> CreateSetterGraph(UBlueprint* Blueprint, FName GraphName, const UFunction* Signature, const FMVVMBlueprintPropertyPath& PropertyPath, bool bIsConst, bool bTransient)
+TValueOrError<FCreateGraphResult, FText> CreateSetterGraph(UBlueprint* Blueprint, FName GraphName, const UFunction* Signature, const FMVVMBlueprintPropertyPath& PropertyPath, bool bIsConst, bool bTransient)
 {
 	TArray<UE::MVVM::FMVVMConstFieldVariant> Fields = PropertyPath.GetCompleteFields(Blueprint);
 	TValueOrError<Private::FCanSetterGraphResult, FText> CanCreateSetterGraphResult = Private::CanCreateSetterGraph(Blueprint, Fields);
@@ -766,9 +767,11 @@ TValueOrError<FCreateSetterGraphResult, FText> CreateSetterGraph(UBlueprint* Blu
 		return MakeError(LOCTEXT("SetterGraph_CreateGraphFail", "Can create the graph object."));
 	}
 
-	FCreateSetterGraphResult Result;
+	FCreateGraphResult Result;
 	Result.NewGraph = CreateGraphInternalResult.FunctionGraph;
 	Result.WrappedNode = nullptr;
+
+	const UMVVMConversionFunctionGraphSchema* GraphSchema = GetDefault<UMVVMConversionFunctionGraphSchema>();
 
 	// Create the wrapper setter node
 	{
@@ -810,12 +813,12 @@ TValueOrError<FCreateSetterGraphResult, FText> CreateSetterGraph(UBlueprint* Blu
 
 		if (Result.WrappedNode->IsNodePure())
 		{
-			FunctionEntryThenPin->MakeLinkTo(FunctionResultExecPin);
+			GraphSchema->TryCreateConnection(FunctionEntryThenPin, FunctionResultExecPin);
 		}
 		else
 		{
-			FunctionEntryThenPin->MakeLinkTo(Result.WrappedNode->GetExecPin());
-			Result.WrappedNode->GetThenPin()->MakeLinkTo(FunctionResultExecPin);
+			GraphSchema->TryCreateConnection(FunctionEntryThenPin, Result.WrappedNode->GetExecPin());
+			GraphSchema->TryCreateConnection(Result.WrappedNode->GetThenPin(), FunctionResultExecPin);
 
 			Result.WrappedNode->NodePosY = 0;
 		}
@@ -841,7 +844,7 @@ TValueOrError<FCreateSetterGraphResult, FText> CreateSetterGraph(UBlueprint* Blu
 		int32 WrapperPinIndex = PropertyPathPinsResult.GetValue().Num() - 1 + DeltaIndex;
 		UEdGraphPin* ToLinkPin = PropertyPathPinsResult.GetValue()[WrapperPinIndex];
 
-		ToLinkPin->MakeLinkTo(WrapperSelfPin);
+		GraphSchema->TryCreateConnection(ToLinkPin, WrapperSelfPin);
 
 		SplitPin = CanCreateSetterGraphResult.GetValue().bSplitPin ? PropertyPathPinsResult.GetValue().Last() : nullptr;
 	}
@@ -881,7 +884,7 @@ TValueOrError<FCreateSetterGraphResult, FText> CreateSetterGraph(UBlueprint* Blu
 				{
 					if (OutPins[SubPinIndex]->GetFName() != PinName)
 					{
-						OutPins[SubPinIndex]->MakeLinkTo(InPins[SubPinIndex]);
+						GraphSchema->TryCreateConnection(OutPins[SubPinIndex], InPins[SubPinIndex]);
 						InPins[SubPinIndex]->bHidden = true;
 					}
 				}
@@ -894,15 +897,15 @@ TValueOrError<FCreateSetterGraphResult, FText> CreateSetterGraph(UBlueprint* Blu
 				UEdGraphPin** FoundOutPinPtr = OutPins.FindByPredicate([PinName](const UEdGraphPin* Other) { return Other->GetFName() == PinName && Other->Direction == EGPD_Output && !Other->bHidden; });
 				if (FoundInPinPtr == nullptr
 					|| FoundOutPinPtr == nullptr
-					|| !GetDefault<UEdGraphSchema_K2>()->CanSplitStructPin(**FoundInPinPtr)
-					|| !GetDefault<UEdGraphSchema_K2>()->CanSplitStructPin(**FoundOutPinPtr))
+					|| !GraphSchema->CanSplitStructPin(**FoundInPinPtr)
+					|| !GraphSchema->CanSplitStructPin(**FoundOutPinPtr))
 				{
 					RemoveGraph();
 					return MakeError(FText::Format(LOCTEXT("SetterGraph_CantSplitPin", "The pin {0} can't be split."), FText::FromName(NewWrapperField.GetName())));
 				}
 
-				GetDefault<UEdGraphSchema_K2>()->SplitPin(*FoundInPinPtr, false);
-				GetDefault<UEdGraphSchema_K2>()->SplitPin(*FoundOutPinPtr, false);
+				GraphSchema->SplitPin(*FoundInPinPtr, false);
+				GraphSchema->SplitPin(*FoundOutPinPtr, false);
 
 				InPins = (*FoundInPinPtr)->SubPins;
 				OutPins = (*FoundOutPinPtr)->SubPins;
@@ -913,20 +916,20 @@ TValueOrError<FCreateSetterGraphResult, FText> CreateSetterGraph(UBlueprint* Blu
 	return MakeValue(MoveTemp(Result));
 }
 
-TPair<UEdGraph*, UK2Node*> CreateGraph(UBlueprint* Blueprint, FName GraphName, const UFunction* Signature, const UFunction* FunctionToWrap, bool bIsConst, bool bTransient)
+FCreateGraphResult CreateGraph(UBlueprint* Blueprint, FName GraphName, const UFunction* Signature, const UFunction* FunctionToWrap, bool bIsConst, bool bTransient)
 {
 	bool bIsEditable = false;
 	bool bAddToBlueprint = !bTransient;
 
 	Private::FCreateGraphResult NewGraph = Private::CreateGraph(Blueprint, GraphName, Signature, bIsConst, bIsEditable, bAddToBlueprint);
-
-	const FProperty* ReturnProperty = UE::MVVM::BindingHelper::GetReturnProperty(FunctionToWrap);
+	const UMVVMConversionFunctionGraphSchema* GraphSchema = GetDefault<UMVVMConversionFunctionGraphSchema>();
 
 	// create return value pin
+	const FProperty* ReturnProperty = UE::MVVM::BindingHelper::GetReturnProperty(FunctionToWrap);
 	if (ReturnProperty)
 	{
 		TSharedPtr<FUserPinInfo> PinInfo = MakeShared<FUserPinInfo>();
-		GetDefault<UEdGraphSchema_K2>()->ConvertPropertyToPinType(ReturnProperty, PinInfo->PinType);
+		GraphSchema->ConvertPropertyToPinType(ReturnProperty, PinInfo->PinType);
 		PinInfo->PinName = ReturnProperty->GetFName();
 		PinInfo->DesiredPinDirection = EGPD_Input;
 		NewGraph.FunctionResult->UserDefinedPins.Add(PinInfo);
@@ -953,14 +956,14 @@ TPair<UEdGraph*, UK2Node*> CreateGraph(UBlueprint* Blueprint, FName GraphName, c
 			UEdGraphPin* CallFunctionExecPin = CallFunctionNode->GetExecPin();
 			UEdGraphPin* CallFunctionThenPin = CallFunctionNode->GetThenPin();
 
-			FunctionEntryThenPin->MakeLinkTo(CallFunctionExecPin);
-			CallFunctionThenPin->MakeLinkTo(FunctionResultExecPin);
+			GraphSchema->TryCreateConnection(FunctionEntryThenPin, CallFunctionExecPin);
+			GraphSchema->TryCreateConnection(CallFunctionThenPin, FunctionResultExecPin);
 
 			CallFunctionNode->NodePosY = 0;
 		}
 		else
 		{
-			FunctionEntryThenPin->MakeLinkTo(FunctionResultExecPin);
+			GraphSchema->TryCreateConnection(FunctionEntryThenPin, FunctionResultExecPin);
 			CallFunctionNode->NodePosY = 100;
 		}
 	}
@@ -970,19 +973,20 @@ TPair<UEdGraph*, UK2Node*> CreateGraph(UBlueprint* Blueprint, FName GraphName, c
 		UEdGraphPin* FunctionReturnPin = CallFunctionNode->FindPin(ReturnProperty->GetName(), EGPD_Output);
 		UEdGraphPin* FunctionResultPin = NewGraph.FunctionResult->FindPin(ReturnProperty->GetFName(), EGPD_Input);
 		check(FunctionResultPin && FunctionReturnPin);
-		FunctionReturnPin->MakeLinkTo(FunctionResultPin);
+		GraphSchema->TryCreateConnection(FunctionReturnPin, FunctionResultPin);
 	}
 
 	return { NewGraph.FunctionGraph , CallFunctionNode };
 }
 
 
-TPair<UEdGraph*, UK2Node*> CreateGraph(UBlueprint* Blueprint, FName GraphName, const UFunction* Signature, TSubclassOf<UK2Node> NodeType, bool bIsConst, bool bTransient, TFunctionRef<void(UK2Node*)> InitNodeCallback)
+FCreateGraphResult CreateGraph(UBlueprint* Blueprint, FName GraphName, const UFunction* Signature, TSubclassOf<UK2Node> NodeType, bool bIsConst, bool bTransient, TFunctionRef<void(UK2Node*)> InitNodeCallback)
 {
 	bool bIsEditable = false;
 	bool bAddToBlueprint = !bTransient;
 
 	Private::FCreateGraphResult NewGraph = Private::CreateGraph(Blueprint, GraphName, Signature, bIsConst, bIsEditable, bAddToBlueprint);
+	const UEdGraphSchema* GraphSchema = GetDefault<UMVVMConversionFunctionGraphSchema>();
 
 	UK2Node* CallFunctionNode = nullptr;
 	{
@@ -992,6 +996,18 @@ TPair<UEdGraph*, UK2Node*> CreateGraph(UBlueprint* Blueprint, FName GraphName, c
 		CallFunctionNode->NodePosX = 0;
 		CallFunctionCreator.Finalize();
 		Private::MarkAsConversionFunction(CallFunctionNode, NewGraph.FunctionGraph);
+	}
+
+	// Create return value pin
+	UEdGraphPin* CallFunctionOutputPin = Private::FindNewOutputPin(CallFunctionNode);
+	if (CallFunctionOutputPin)
+	{
+		TSharedPtr<FUserPinInfo> PinInfo = MakeShared<FUserPinInfo>();
+		PinInfo->PinType = CallFunctionOutputPin->PinType;
+		PinInfo->PinName = CallFunctionOutputPin->GetFName();
+		PinInfo->DesiredPinDirection = EGPD_Input;
+		NewGraph.FunctionResult->UserDefinedPins.Add(PinInfo);
+		NewGraph.FunctionResult->ReconstructNode();
 	}
 
 	// Make link Entry -> CallFunction || Entry -> Return
@@ -1004,16 +1020,24 @@ TPair<UEdGraph*, UK2Node*> CreateGraph(UBlueprint* Blueprint, FName GraphName, c
 			UEdGraphPin* CallFunctionExecPin = CallFunctionNode->GetExecPin();
 			UEdGraphPin* CallFunctionThenPin = CallFunctionNode->GetThenPin();
 
-			FunctionEntryThenPin->MakeLinkTo(CallFunctionExecPin);
-			CallFunctionThenPin->MakeLinkTo(FunctionResultExecPin);
+			GraphSchema->TryCreateConnection(FunctionEntryThenPin, CallFunctionExecPin);
+			GraphSchema->TryCreateConnection(CallFunctionThenPin, FunctionResultExecPin);
 
 			CallFunctionNode->NodePosY = 0;
 		}
 		else
 		{
-			FunctionEntryThenPin->MakeLinkTo(FunctionResultExecPin);
+			GraphSchema->TryCreateConnection(FunctionEntryThenPin, FunctionResultExecPin);
 			CallFunctionNode->NodePosY = 100;
 		}
+	}
+
+	if (CallFunctionOutputPin)
+	{
+		UEdGraphPin* FunctionResultPin = NewGraph.FunctionResult->FindPin(CallFunctionOutputPin->GetFName(), EGPD_Input);
+		check(FunctionResultPin);
+
+		GraphSchema->TryCreateConnection(CallFunctionOutputPin, FunctionResultPin);
 	}
 
 	return { NewGraph.FunctionGraph , CallFunctionNode };
@@ -1073,7 +1097,7 @@ void SetPropertyPathForPin(const UBlueprint* Blueprint, const FMVVMBlueprintProp
 
 	UEdGraphNode* ConversionNode = PathPin->GetOwningNode();
 	UEdGraph* FunctionGraph = ConversionNode ? ConversionNode->GetGraph() : nullptr;
-	const UEdGraphSchema* Schema = FunctionGraph ? FunctionGraph->GetSchema() : nullptr;
+	const UEdGraphSchema* Schema = GetDefault<UMVVMConversionFunctionGraphSchema>();
 
 	UK2Node_FunctionEntry* ConverionFunctionEntry = ConversionNode ? Private::FindFunctionEntry(FunctionGraph) : nullptr;
 	UK2Node_FunctionResult* ConverionFunctionResult = ConversionNode ? Private::FindFunctionResult(FunctionGraph) : nullptr;
@@ -1105,7 +1129,7 @@ void SetPropertyPathForPin(const UBlueprint* Blueprint, const FMVVMBlueprintProp
 		}
 
 		// Link the last data pin to the Conversation Function Pin
-		BuildPropertyPathResult.GetValue().Last()->MakeLinkTo(PathPin);
+		Schema->TryCreateConnection(BuildPropertyPathResult.GetValue().Last(), PathPin);
 	}
 
 	// Link Then / Exec pin
@@ -1179,6 +1203,30 @@ TArray<FName> FindPinId(const UEdGraphPin* GraphPin)
 		GraphPin = OutputPin->LinkedTo[0];
 	}
 	return Result;
+}
+
+TArray<UEdGraphPin*> FindInputPins(const UK2Node* Node)
+{
+	TArray<UEdGraphPin*> Result;
+	if (Node == nullptr)
+	{
+		return Result;
+	}
+
+	Result.Reserve(Node->Pins.Num());
+	for (UEdGraphPin* GraphPin : Node->Pins)
+	{
+		if (IsInputPin(GraphPin))
+		{
+			Result.Add(GraphPin);
+		}
+	}
+	return Result;
+}
+
+UEdGraphPin* FindOutputPin(const UK2Node* Node)
+{
+	return Node? Private::FindNewOutputPin(Node) : nullptr;
 }
 
 } // UE::MVVM::ConversionFunctionHelper

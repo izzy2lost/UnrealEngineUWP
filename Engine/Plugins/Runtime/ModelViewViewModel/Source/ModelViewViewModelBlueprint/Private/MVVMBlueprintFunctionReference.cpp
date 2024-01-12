@@ -84,6 +84,16 @@ TSubclassOf<UK2Node> FMVVMBlueprintFunctionReference::GetNode() const
 	return Type == EMVVMBlueprintFunctionReferenceType::Node ? Node : TSubclassOf<UK2Node>();
 }
 
+bool FMVVMBlueprintFunctionReference::IsValid(const UBlueprint* SelfContext) const
+{
+	return GetFunction(SelfContext) != nullptr || GetNode().Get() != nullptr;
+}
+
+bool FMVVMBlueprintFunctionReference::IsValid(const UClass* SelfContext) const
+{
+	return GetFunction(SelfContext) != nullptr || GetNode().Get() != nullptr;
+}
+
 bool FMVVMBlueprintFunctionReference::operator==(const FMVVMBlueprintFunctionReference& Other) const
 {
 	if (Type != Other.Type)

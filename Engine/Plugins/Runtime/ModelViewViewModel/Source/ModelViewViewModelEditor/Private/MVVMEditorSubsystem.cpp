@@ -361,29 +361,28 @@ void UMVVMEditorSubsystem::SetSourceToDestinationConversionFunction(UWidgetBluep
 	SetSourceToDestinationConversionFunction(WidgetBlueprint, Binding, FMVVMBlueprintFunctionReference(WidgetBlueprint, NewConversionFunction));
 }
 
-void UMVVMEditorSubsystem::SetSourceToDestinationConversionFunction(UWidgetBlueprint* WidgetBlueprint, FMVVMBlueprintViewBinding& Binding, const FMVVMBlueprintFunctionReference& NewConversionFunction)
+void UMVVMEditorSubsystem::SetSourceToDestinationConversionFunction(UWidgetBlueprint* WidgetBlueprint, FMVVMBlueprintViewBinding& Binding, FMVVMBlueprintFunctionReference NewConversionFunction)
 {
 	if (UMVVMBlueprintView* View = GetView(WidgetBlueprint))
 	{
-		const UFunction* NewFunction = nullptr;
 		if (NewConversionFunction.GetType() == EMVVMBlueprintFunctionReferenceType::Function)
 		{
-			NewFunction = NewConversionFunction.GetFunction(WidgetBlueprint);
+			const UFunction* NewFunction = NewConversionFunction.GetFunction(WidgetBlueprint);
 			if (!IsValidConversionFunction(WidgetBlueprint, NewFunction, Binding.SourcePath, Binding.DestinationPath))
 			{
-				NewFunction = nullptr;
+				NewConversionFunction = FMVVMBlueprintFunctionReference();
 			}
 		}
-		const UFunction* CurrentFunction = nullptr;
-		if (Binding.Conversion.SourceToDestinationConversion != nullptr && Binding.Conversion.SourceToDestinationConversion->GetConversionFunction().GetType() == EMVVMBlueprintFunctionReferenceType::Function)
+		else if (NewConversionFunction.GetType() == EMVVMBlueprintFunctionReferenceType::Node)
 		{
-			CurrentFunction = Binding.Conversion.SourceToDestinationConversion->GetConversionFunction().GetFunction(WidgetBlueprint);
+			if (NewConversionFunction.GetNode().Get() == nullptr)
+			{
+				NewConversionFunction = FMVVMBlueprintFunctionReference();
+			}
 		}
 
-		bool bBothNull = Binding.Conversion.SourceToDestinationConversion == nullptr && NewConversionFunction.GetType() == EMVVMBlueprintFunctionReferenceType::None;
-		bool bBothSameValue = Binding.Conversion.SourceToDestinationConversion != nullptr && Binding.Conversion.SourceToDestinationConversion->GetConversionFunction() == NewConversionFunction;
-		bool bBothSameFunctionValue = CurrentFunction == NewFunction;
-		if (!bBothSameValue || !bBothNull || !NewFunction)
+		const FMVVMBlueprintFunctionReference PreviousConversionFunction = Binding.Conversion.SourceToDestinationConversion != nullptr ? Binding.Conversion.SourceToDestinationConversion->GetConversionFunction() : FMVVMBlueprintFunctionReference();
+		if (PreviousConversionFunction != NewConversionFunction)
 		{
 			FScopedTransaction Transaction(LOCTEXT("SetConversionFunction", "Set Conversion Function"));
 
@@ -398,18 +397,11 @@ void UMVVMEditorSubsystem::SetSourceToDestinationConversionFunction(UWidgetBluep
 			}
 			Binding.SourcePath = FMVVMBlueprintPropertyPath();
 
-			if (NewConversionFunction.GetType() == EMVVMBlueprintFunctionReferenceType::Function)
+			if (NewConversionFunction.GetType() != EMVVMBlueprintFunctionReferenceType::None)
 			{
-				if (NewFunction != nullptr)
-				{
-					Binding.Conversion.SourceToDestinationConversion = NewObject<UMVVMBlueprintViewConversionFunction>(WidgetBlueprint);
-					FName GraphName = UE::MVVM::ConversionFunctionHelper::CreateWrapperName(Binding, true);
-					Binding.Conversion.SourceToDestinationConversion->InitializeFromFunction(WidgetBlueprint, GraphName, NewFunction);
-				}
-			}
-			else
-			{
-				check(false); // not supported yet
+				Binding.Conversion.SourceToDestinationConversion = NewObject<UMVVMBlueprintViewConversionFunction>(WidgetBlueprint);
+				FName GraphName = UE::MVVM::ConversionFunctionHelper::CreateWrapperName(Binding, true);
+				Binding.Conversion.SourceToDestinationConversion->Initialize(WidgetBlueprint, GraphName, NewConversionFunction);
 			}
 
 			UE::MVVM::Private::OnBindingPostEditChange(View, GET_MEMBER_NAME_CHECKED(FMVVMBlueprintViewBinding, Conversion));
@@ -423,29 +415,28 @@ void UMVVMEditorSubsystem::SetDestinationToSourceConversionFunction(UWidgetBluep
 	SetDestinationToSourceConversionFunction(WidgetBlueprint, Binding, FMVVMBlueprintFunctionReference(WidgetBlueprint, NewConversionFunction));
 }
 
-void UMVVMEditorSubsystem::SetDestinationToSourceConversionFunction(UWidgetBlueprint* WidgetBlueprint, FMVVMBlueprintViewBinding& Binding, const FMVVMBlueprintFunctionReference& NewConversionFunction)
+void UMVVMEditorSubsystem::SetDestinationToSourceConversionFunction(UWidgetBlueprint* WidgetBlueprint, FMVVMBlueprintViewBinding& Binding, FMVVMBlueprintFunctionReference NewConversionFunction)
 {
 	if (UMVVMBlueprintView* View = GetView(WidgetBlueprint))
 	{
-		const UFunction* NewFunction = nullptr;
 		if (NewConversionFunction.GetType() == EMVVMBlueprintFunctionReferenceType::Function)
 		{
-			NewFunction = NewConversionFunction.GetFunction(WidgetBlueprint);
-			if (!IsValidConversionFunction(WidgetBlueprint, NewFunction, Binding.SourcePath, Binding.DestinationPath))
+			const UFunction* NewFunction = NewConversionFunction.GetFunction(WidgetBlueprint);
+			if (!IsValidConversionFunction(WidgetBlueprint, NewFunction, Binding.DestinationPath, Binding.SourcePath))
 			{
-				NewFunction = nullptr;
+				NewConversionFunction = FMVVMBlueprintFunctionReference();
 			}
 		}
-		const UFunction* CurrentFunction = nullptr;
-		if (Binding.Conversion.DestinationToSourceConversion != nullptr && Binding.Conversion.DestinationToSourceConversion->GetConversionFunction().GetType() == EMVVMBlueprintFunctionReferenceType::Function)
+		else if (NewConversionFunction.GetType() == EMVVMBlueprintFunctionReferenceType::Node)
 		{
-			CurrentFunction = Binding.Conversion.DestinationToSourceConversion->GetConversionFunction().GetFunction(WidgetBlueprint);
+			if (NewConversionFunction.GetNode().Get() == nullptr)
+			{
+				NewConversionFunction = FMVVMBlueprintFunctionReference();
+			}
 		}
 
-		bool bBothNull = Binding.Conversion.DestinationToSourceConversion == nullptr && NewConversionFunction.GetType() == EMVVMBlueprintFunctionReferenceType::None;
-		bool bBothSameValue = Binding.Conversion.DestinationToSourceConversion != nullptr && Binding.Conversion.DestinationToSourceConversion->GetConversionFunction() == NewConversionFunction;
-		bool bBothSameFunctionValue = CurrentFunction == NewFunction;
-		if (!bBothSameValue || !bBothNull || !NewFunction)
+		const FMVVMBlueprintFunctionReference PreviousConversionFunction = Binding.Conversion.DestinationToSourceConversion != nullptr ? Binding.Conversion.DestinationToSourceConversion->GetConversionFunction() : FMVVMBlueprintFunctionReference();
+		if (PreviousConversionFunction != NewConversionFunction)
 		{
 			FScopedTransaction Transaction(LOCTEXT("SetConversionFunction", "Set Conversion Function"));
 
@@ -460,18 +451,11 @@ void UMVVMEditorSubsystem::SetDestinationToSourceConversionFunction(UWidgetBluep
 			}
 			Binding.DestinationPath = FMVVMBlueprintPropertyPath();
 
-			if (NewConversionFunction.GetType() == EMVVMBlueprintFunctionReferenceType::Function)
+			if (NewConversionFunction.GetType() != EMVVMBlueprintFunctionReferenceType::None)
 			{
-				if (NewFunction != nullptr)
-				{
-					Binding.Conversion.DestinationToSourceConversion = NewObject<UMVVMBlueprintViewConversionFunction>(WidgetBlueprint);
-					FName GraphName = UE::MVVM::ConversionFunctionHelper::CreateWrapperName(Binding, true);
-					Binding.Conversion.DestinationToSourceConversion->InitializeFromFunction(WidgetBlueprint, GraphName, NewFunction);
-				}
-			}
-			else
-			{
-				check(false); // not supported yet
+				Binding.Conversion.DestinationToSourceConversion = NewObject<UMVVMBlueprintViewConversionFunction>(WidgetBlueprint);
+				FName GraphName = UE::MVVM::ConversionFunctionHelper::CreateWrapperName(Binding, true);
+				Binding.Conversion.DestinationToSourceConversion->Initialize(WidgetBlueprint, GraphName, NewConversionFunction);
 			}
 
 			UE::MVVM::Private::OnBindingPostEditChange(View, GET_MEMBER_NAME_CHECKED(FMVVMBlueprintViewBinding, Conversion));
@@ -802,6 +786,98 @@ bool UMVVMEditorSubsystem::IsValidConversionFunction(const UWidgetBlueprint* Wid
 	return true;
 }
 
+bool UMVVMEditorSubsystem::IsValidConversionNode(const UWidgetBlueprint* WidgetBlueprint, const TSubclassOf<UK2Node> Function, const FMVVMBlueprintPropertyPath& Source, const FMVVMBlueprintPropertyPath& Destination) const
+{
+	if (WidgetBlueprint == nullptr || Function.Get() == nullptr)
+	{
+		return false;
+	}
+
+	if (!UMVVMBlueprintViewConversionFunction::IsValidConversionNode(WidgetBlueprint, Function))
+	{
+		return false;
+	}
+
+	UClass* CallingContext = WidgetBlueprint->GeneratedClass ? WidgetBlueprint->GeneratedClass : WidgetBlueprint->ParentClass;
+	{
+		const FProperty* SourceProperty = nullptr;
+		TArray<UE::MVVM::FMVVMConstFieldVariant> SourceFields = Source.GetFields(CallingContext);
+		if (SourceFields.Num() > 0)
+		{
+			SourceProperty = SourceFields.Last().IsProperty() ? SourceFields.Last().GetProperty() : UE::MVVM::BindingHelper::GetReturnProperty(SourceFields.Last().GetFunction());
+		}
+
+		// check that at least one source -> argument binding is compatible
+		if (SourceProperty)
+		{
+			FEdGraphPinType SourcePinType;
+			if (!GetDefault<UEdGraphSchema_K2>()->ConvertPropertyToPinType(SourceProperty, SourcePinType))
+			{
+				return false;
+			}
+
+			TArray<UEdGraphPin*> InputPins = UE::MVVM::ConversionFunctionHelper::FindInputPins(Function.GetDefaultObject());
+			if (InputPins.Num() == 0)
+			{
+				return false;
+			}
+
+			bool bAnyCompatible = false;
+			for (const UEdGraphPin* ArgumentPin : InputPins)
+			{
+				bool bIgnoreArray = true;
+				const bool bTypesMatch = GetDefault<UEdGraphSchema_K2>()->ArePinTypesCompatible(SourcePinType, ArgumentPin->PinType, CallingContext, bIgnoreArray);
+				if (bTypesMatch)
+				{
+					bAnyCompatible = true;
+					break;
+				}
+			}
+			if (!bAnyCompatible)
+			{
+				return false;
+			}
+		}
+	}
+
+	{
+		const FProperty* DestinationProperty = nullptr;
+		TArray<UE::MVVM::FMVVMConstFieldVariant> DestFields = Destination.GetFields(CallingContext);
+		if (DestFields.Num() > 0)
+		{
+			if (!DestFields.Last().IsEmpty())
+			{
+				DestinationProperty = DestFields.Last().IsProperty() ? DestFields.Last().GetProperty() : UE::MVVM::BindingHelper::GetFirstArgumentProperty(DestFields.Last().GetFunction());
+			}
+		}
+
+		if (DestinationProperty)
+		{
+			FEdGraphPinType DestinationPinType;
+			if (!GetDefault<UEdGraphSchema_K2>()->ConvertPropertyToPinType(DestinationProperty, DestinationPinType))
+			{
+				return false;
+			}
+
+			UEdGraphPin* ReturnPin = UE::MVVM::ConversionFunctionHelper::FindOutputPin(Function.GetDefaultObject());
+			if (ReturnPin == nullptr)
+			{
+				return false;
+			}
+
+			// check that the return -> dest is valid
+			bool bIgnoreArray = true;
+			const bool bTypesMatch = GetDefault<UEdGraphSchema_K2>()->ArePinTypesCompatible(ReturnPin->PinType, DestinationPinType, CallingContext, bIgnoreArray);
+			if (!bTypesMatch)
+			{
+				return false;
+			}
+		}
+	}
+
+	return true;
+}
+
 bool UMVVMEditorSubsystem::IsSimpleConversionFunctionA(const UFunction* Function) const
 {
 	TValueOrError<const FProperty*, FText> ReturnResult = UE::MVVM::BindingHelper::TryGetReturnTypeForConversionFunction(Function);
@@ -894,19 +970,26 @@ TArray<UFunction*> UMVVMEditorSubsystem::GetAvailableConversionFunctions(const U
 		Classes.Add(WidgetBlueprint->GeneratedClass);
 		for (const UClass* Class : Classes)
 		{
-			for (TFieldIterator<UFunction> FunctionIt(Class, EFieldIteratorFlags::ExcludeSuper); FunctionIt; ++FunctionIt)
+			if (Class->IsChildOf(UK2Node::StaticClass()))
 			{
-				UFunction* Function = *FunctionIt;
-				if (IsInheritedBlueprintFunction(Function))
-				{
-					continue;
-				}
-				if (!Function->HasAllFunctionFlags(FUNC_BlueprintCallable))
-				{
-					continue;
-				}
 
-				AddFunction(Function);
+			}
+			else
+			{
+				for (TFieldIterator<UFunction> FunctionIt(Class, EFieldIteratorFlags::ExcludeSuper); FunctionIt; ++FunctionIt)
+				{
+					UFunction* Function = *FunctionIt;
+					if (IsInheritedBlueprintFunction(Function)) // remove override virtual function
+					{
+						continue;
+					}
+					if (!Function->HasAllFunctionFlags(FUNC_BlueprintCallable))
+					{
+						continue;
+					}
+
+					AddFunction(Function);
+				}
 			}
 		}
 	}

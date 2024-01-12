@@ -6,6 +6,7 @@
 
 #include "MVVMDeveloperProjectSettings.generated.h"
 
+class UK2Node;
 enum class EMVVMBlueprintViewModelContextCreationType : uint8;
 enum class EMVVMExecutionMode : uint8;
 
@@ -74,6 +75,7 @@ public:
 	bool IsPropertyAllowed(const UBlueprint* Context, const UStruct* ObjectStruct, const FProperty* Property) const;
 	bool IsFunctionAllowed(const UBlueprint* Context, const UClass* ObjectClass, const UFunction* Function) const;
 	bool IsConversionFunctionAllowed(const UBlueprint* Context, const UFunction* Function) const;
+	bool IsConversionFunctionAllowed(const UBlueprint* Context, const TSubclassOf<UK2Node> Function) const;
 
 	bool IsExecutionModeAllowed(EMVVMExecutionMode ExecutionMode) const
 	{

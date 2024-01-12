@@ -121,11 +121,14 @@ UEdGraphPin* UMVVMBlueprintViewEvent::GetOrCreateGraphPin(const FMVVMBlueprintPi
 
 void UMVVMBlueprintViewEvent::SavePinValues()
 {
-	SavedPins.Empty();
-	if (CachedWrapperNode)
+	if (!bLoadingPins) // While loading pins value, the node can trigger a notify that would then trigger a save.
 	{
-		UWidgetBlueprint* Blueprint = GetWidgetBlueprintInternal();
-		SavedPins = FMVVMBlueprintPin::CreateFromNode(Blueprint, CachedWrapperNode);
+		SavedPins.Empty();
+		if (CachedWrapperNode)
+		{
+			UWidgetBlueprint* Blueprint = GetWidgetBlueprintInternal();
+			SavedPins = FMVVMBlueprintPin::CreateFromNode(Blueprint, CachedWrapperNode);
+		}
 	}
 }
 
@@ -243,7 +246,7 @@ UEdGraph* UMVVMBlueprintViewEvent::CreateWrapperGraphInternal()
 	UWidgetBlueprint* WidgetBlueprint = GetWidgetBlueprintInternal();
 	bool bIsConst = false;
 	bool bTransient = true;
-	TValueOrError<UE::MVVM::ConversionFunctionHelper::FCreateSetterGraphResult, FText> CreateSetterGraphResult = UE::MVVM::ConversionFunctionHelper::CreateSetterGraph(WidgetBlueprint, GraphName, DelegateSignature, DestinationPath, bIsConst, bTransient);
+	TValueOrError<UE::MVVM::ConversionFunctionHelper::FCreateGraphResult, FText> CreateSetterGraphResult = UE::MVVM::ConversionFunctionHelper::CreateSetterGraph(WidgetBlueprint, GraphName, DelegateSignature, DestinationPath, bIsConst, bTransient);
 	if (CreateSetterGraphResult.HasError())
 	{
 		SetCachedWrapperGraphInternal(nullptr, nullptr);
@@ -260,6 +263,7 @@ UEdGraph* UMVVMBlueprintViewEvent::CreateWrapperGraphInternal()
 
 void UMVVMBlueprintViewEvent::LoadPinValuesInternal()
 {
+	TGuardValue<bool> Tmp(bLoadingPins, true);
 	if (CachedWrapperNode)
 	{
 		TArray<FMVVMBlueprintPin> MissingPins = FMVVMBlueprintPin::CopyAndReturnMissingPins(GetWidgetBlueprintInternal(), CachedWrapperNode, SavedPins);

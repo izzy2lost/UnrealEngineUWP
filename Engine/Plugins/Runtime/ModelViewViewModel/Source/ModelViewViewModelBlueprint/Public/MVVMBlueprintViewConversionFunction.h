@@ -26,6 +26,7 @@ class MODELVIEWVIEWMODELBLUEPRINT_API UMVVMBlueprintViewConversionFunction : pub
 
 public:
 	static bool IsValidConversionFunction(const UBlueprint* WidgetBlueprint, const UFunction* Function);
+	static bool IsValidConversionNode(const UBlueprint* WidgetBlueprint, const TSubclassOf<UK2Node> Function);
 
 public:
 	/** @return the conversion function uses at runtime. The wrapper function if complex or GetFunction is simple. */
@@ -41,6 +42,9 @@ public:
 	/** @return the conversion function. */
 	FMVVMBlueprintFunctionReference GetConversionFunction() const;
 
+	/** Set the function. Generate a Graph. */
+	void Initialize(UBlueprint* SelfContext, FName GraphName, FMVVMBlueprintFunctionReference Function);
+	
 	/** Set the function. Generate a Graph. */
 	void InitializeFromFunction(UBlueprint* SelfContext, FName GraphName, const UFunction* Function);
 
@@ -121,8 +125,8 @@ private:
 	void HandleGraphChanged(const FEdGraphEditAction& Action, TWeakObjectPtr<UBlueprint> Context);
 	void HandleUserDefinedPinRenamed(UK2Node* InNode, FName OldPinName, FName NewPinName, TWeakObjectPtr<UBlueprint> WeakBlueprint);
 	void SetCachedWrapperGraph(UBlueprint* Blueprint, UEdGraph* CachedGraph, UK2Node* CachedNode);
-	UEdGraph* GetOrCreateWrapperGraphInternal(FKismetCompilerContext& Context, const UFunction* Function);
-	UEdGraph* GetOrCreateWrapperGraphInternal(UBlueprint* Blueprint, const UFunction* Function);
+	UEdGraph* GetOrCreateWrapperGraphInternal(FKismetCompilerContext& Context);
+	UEdGraph* GetOrCreateWrapperGraphInternal(UBlueprint* Blueprint);
 	bool NeedsWrapperGraphInternal(const UClass* SkeletalSelfContext) const;
 	void LoadPinValuesInternal(UBlueprint* Blueprint);
 	void CreateWrapperGraphName();
@@ -158,7 +162,7 @@ private:
 
 	FDelegateHandle OnGraphChangedHandle;
 	FDelegateHandle OnUserDefinedPinRenamedHandle;
-
+	bool bLoadingPins = false;
 
 	UPROPERTY()
 	FMemberReference FunctionReference_DEPRECATED;

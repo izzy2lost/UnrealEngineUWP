@@ -2228,7 +2228,19 @@ void FMVVMViewBlueprintCompiler::PreCompileBindings(UWidgetBlueprintGeneratedCla
 					if (!GetDefault<UMVVMDeveloperProjectSettings>()->IsConversionFunctionAllowed(Self->WidgetBlueprintCompilerContext.WidgetBlueprint(), WrapperFunction))
 					{
 						Self->AddMessageForBinding(Binding
-							, FText::Format(LOCTEXT("ConversionFunctionNotAllow", "The conversion function {0} is not allowed."), FText::FromName(WrapperFunction->GetFName()))
+							, FText::Format(LOCTEXT("ConversionFunctionNotAllow", "The conversion function {0} is not allowed."), FText::FromName(WrapperFunction ? WrapperFunction->GetFName() : FName()))
+							, EMessageType::Error
+							, FMVVMBlueprintPinId()
+						);
+						return false;
+					}
+				}
+				else if (FunctionOrWrapperFunction.GetType() == EMVVMBlueprintFunctionReferenceType::Node)
+				{
+					if (!GetDefault<UMVVMDeveloperProjectSettings>()->IsConversionFunctionAllowed(Self->WidgetBlueprintCompilerContext.WidgetBlueprint(), FunctionOrWrapperFunction.GetNode()))
+					{
+						Self->AddMessageForBinding(Binding
+							, FText::Format(LOCTEXT("ConversionFunctionNotAllow", "The conversion function {0} is not allowed."), FText::FromName(FunctionOrWrapperFunction.GetNode().Get() ? FunctionOrWrapperFunction.GetNode()->GetFName() : FName()))
 							, EMessageType::Error
 							, FMVVMBlueprintPinId()
 						);

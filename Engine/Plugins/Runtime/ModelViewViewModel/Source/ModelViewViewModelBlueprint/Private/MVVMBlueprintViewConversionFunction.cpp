@@ -63,23 +63,41 @@ bool UMVVMBlueprintViewConversionFunction::IsValidConversionFunction(const UBlue
 	return GetDefault<UMVVMDeveloperProjectSettings>()->IsConversionFunctionAllowed(WidgetBlueprint, Function);
 }
 
+bool UMVVMBlueprintViewConversionFunction::IsValidConversionNode(const UBlueprint* WidgetBlueprint, const TSubclassOf<UK2Node> Function)
+{
+	check(WidgetBlueprint);
+	check(Function.Get());
+
+	UEdGraphPin* ReturnPin = UE::MVVM::ConversionFunctionHelper::FindOutputPin(Function.GetDefaultObject());
+	if (ReturnPin == nullptr)
+	{
+		return false;
+	}
+
+	TArray<UEdGraphPin*> ArgumentsResult = UE::MVVM::ConversionFunctionHelper::FindInputPins(Function.GetDefaultObject());
+	if (ArgumentsResult.Num() == 0)
+	{
+		return false;
+	}
+
+	return GetDefault<UMVVMDeveloperProjectSettings>()->IsConversionFunctionAllowed(WidgetBlueprint, Function);
+}
+
 bool UMVVMBlueprintViewConversionFunction::IsValid(const UBlueprint* SelfContext) const
 {
-	if (ConversionFunction.GetType() != EMVVMBlueprintFunctionReferenceType::Function)
+	if (ConversionFunction.GetType() == EMVVMBlueprintFunctionReferenceType::Function)
 	{
-		return false; // not valid for now
-	}
-	
-	UClass* SelfClass = SelfContext->SkeletonGeneratedClass ? SelfContext->SkeletonGeneratedClass : SelfContext->GeneratedClass;
-	const UFunction* Function = ConversionFunction.GetFunction(SelfContext);
-	if (Function)
-	{
-		if (!GetDefault<UMVVMDeveloperProjectSettings>()->IsConversionFunctionAllowed(SelfContext, Function))
+		UClass* SelfClass = SelfContext->SkeletonGeneratedClass ? SelfContext->SkeletonGeneratedClass : SelfContext->GeneratedClass;
+		const UFunction* Function = ConversionFunction.GetFunction(SelfContext);
+		if (Function)
 		{
-			return false;
+			return IsValidConversionFunction(SelfContext, Function);
 		}
-
-		return IsValidConversionFunction(SelfContext, Function);
+	}
+	else if (ConversionFunction.GetType() == EMVVMBlueprintFunctionReferenceType::Node)
+	{
+		TSubclassOf<UK2Node> Node = ConversionFunction.GetNode();
+		return Node.Get() && GetDefault<UMVVMDeveloperProjectSettings>()->IsConversionFunctionAllowed(SelfContext, Node);
 	}
 	return false;
 }
@@ -92,21 +110,21 @@ bool UMVVMBlueprintViewConversionFunction::NeedsWrapperGraph(const UBlueprint* S
 
 bool UMVVMBlueprintViewConversionFunction::NeedsWrapperGraphInternal(const UClass* SkeletalSelfContext) const
 {
-	if (ConversionFunction.GetType() != EMVVMBlueprintFunctionReferenceType::Function)
+	if (ConversionFunction.GetType() == EMVVMBlueprintFunctionReferenceType::Function)
 	{
-		return true; // not valid for now
+		const UFunction* Function = ConversionFunction.GetFunction(SkeletalSelfContext);
+		if (ensure(Function))
+		{
+			return SavedPins.Num() > 1 || !UE::MVVM::BindingHelper::IsValidForSimpleRuntimeConversion(Function);
+		}
 	}
-
-
-	const UFunction* Function = ConversionFunction.GetFunction(SkeletalSelfContext);
-	if (ensure(Function))
+	else if (ConversionFunction.GetType() == EMVVMBlueprintFunctionReferenceType::Node)
 	{
-		return SavedPins.Num() > 1 || !UE::MVVM::BindingHelper::IsValidForSimpleRuntimeConversion(Function);
+		return true;
 	}
 	return false;
 }
 
-/** The wrapper Graph is generated on domains and is not saved. */
 bool UMVVMBlueprintViewConversionFunction::IsWrapperGraphTransient() const
 {
 	return bWrapperGraphTransient;
@@ -121,6 +139,10 @@ const UFunction* UMVVMBlueprintViewConversionFunction::GetCompiledFunction(const
 		return CompiledFunction.ResolveMember<UFunction>(const_cast<UClass*>(SelfContext));
 	}
 
+	//NeedsWrapperGraphInternal should return true.
+	check(ConversionFunction.GetType() != EMVVMBlueprintFunctionReferenceType::Node);
+
+	// If simple conversion function.
 	if (ConversionFunction.GetType() == EMVVMBlueprintFunctionReferenceType::Function)
 	{
 		return ConversionFunction.GetFunction(SelfContext);
@@ -152,6 +174,21 @@ void UMVVMBlueprintViewConversionFunction::Reset()
 	SetCachedWrapperGraph(nullptr, nullptr, nullptr);
 }
 
+void UMVVMBlueprintViewConversionFunction::Initialize(UBlueprint* InContext, FName InGraphName, FMVVMBlueprintFunctionReference InFunction)
+{
+	Reset();
+
+	if (ensure(InFunction.IsValid(InContext) && !InGraphName.IsNone()))
+	{
+		ConversionFunction = InFunction;
+		check(GraphName.IsNone()); // the name needs to be set before a GetOrCreateWrapperGraph
+		GraphName = InGraphName;
+		bWrapperGraphTransient = !GetDefault<UMVVMDeveloperProjectSettings>()->bAllowConversionFunctionGeneratedGraphInEditor;
+		GetOrCreateWrapperGraphInternal(InContext);
+		SavePinValues(InContext);
+	}
+}
+
 void UMVVMBlueprintViewConversionFunction::InitializeFromFunction(UBlueprint* InContext, FName InGraphName, const UFunction* InFunction)
 {
 	Reset();
@@ -162,7 +199,7 @@ void UMVVMBlueprintViewConversionFunction::InitializeFromFunction(UBlueprint* In
 		check(GraphName.IsNone()); // the name needs to be set before a GetOrCreateWrapperGraph
 		GraphName = InGraphName;
 		bWrapperGraphTransient = !GetDefault<UMVVMDeveloperProjectSettings>()->bAllowConversionFunctionGeneratedGraphInEditor;
-		GetOrCreateWrapperGraphInternal(InContext, InFunction);
+		GetOrCreateWrapperGraphInternal(InContext);
 		SavePinValues(InContext);
 	}
 }
@@ -298,6 +335,11 @@ UEdGraph* UMVVMBlueprintViewConversionFunction::GetOrCreateIntermediateWrapperGr
 		return CachedWrapperGraph;
 	}
 
+	if (ConversionFunction.GetType() == EMVVMBlueprintFunctionReferenceType::None)
+	{
+		return nullptr;
+	}
+
 	TObjectPtr<UEdGraph>* FoundGraph = !GraphName.IsNone() ? Context.Blueprint->FunctionGraphs.FindByPredicate([GraphName = GetWrapperGraphName()](const UEdGraph* Other) { return Other->GetFName() == GraphName; }) : nullptr;
 	if (FoundGraph)
 	{
@@ -309,14 +351,8 @@ UEdGraph* UMVVMBlueprintViewConversionFunction::GetOrCreateIntermediateWrapperGr
 	}
 	else if (IsValid(Context.Blueprint))
 	{
-		if (ConversionFunction.GetType() != EMVVMBlueprintFunctionReferenceType::Function)
-		{
-			ensure(false); // not supported for now
-			return nullptr;
-		}
-
 		CreateWrapperGraphName();
-		return GetOrCreateWrapperGraphInternal(Context, ConversionFunction.GetFunction(Context.Blueprint));
+		return GetOrCreateWrapperGraphInternal(Context);
 	}
 	return nullptr;
 }
@@ -329,6 +365,11 @@ UEdGraph* UMVVMBlueprintViewConversionFunction::GetOrCreateWrapperGraph(UBluepri
 	{
 		return CachedWrapperGraph;
 	}
+	
+	if (ConversionFunction.GetType() == EMVVMBlueprintFunctionReferenceType::None)
+	{
+		return nullptr;
+	}
 
 	TObjectPtr<UEdGraph>* FoundGraph = Blueprint->FunctionGraphs.FindByPredicate([GraphName = GetWrapperGraphName()](const UEdGraph* Other) { return Other->GetFName() == GraphName; });
 	if (FoundGraph)
@@ -339,14 +380,8 @@ UEdGraph* UMVVMBlueprintViewConversionFunction::GetOrCreateWrapperGraph(UBluepri
 	}
 	else if (IsValid(Blueprint))
 	{
-		if (ConversionFunction.GetType() != EMVVMBlueprintFunctionReferenceType::Function)
-		{
-			ensure(false); // not supported for now
-			return nullptr;
-		}
-
 		CreateWrapperGraphName();
-		return GetOrCreateWrapperGraphInternal(Blueprint, ConversionFunction.GetFunction(Blueprint));
+		return GetOrCreateWrapperGraphInternal(Blueprint);
 	}
 	return nullptr;
 }
@@ -357,18 +392,29 @@ UEdGraphPin* UMVVMBlueprintViewConversionFunction::GetOrCreateGraphPin(UBlueprin
 	return CachedWrapperGraph ? UE::MVVM::ConversionFunctionHelper::FindPin(CachedWrapperGraph, PinId.GetNames()) : nullptr;
 }
 
-UEdGraph* UMVVMBlueprintViewConversionFunction::GetOrCreateWrapperGraphInternal(FKismetCompilerContext& Context, const UFunction* InFunction)
+UEdGraph* UMVVMBlueprintViewConversionFunction::GetOrCreateWrapperGraphInternal(FKismetCompilerContext& Context)
 {
-	return GetOrCreateWrapperGraphInternal(Context.Blueprint, InFunction);
+	return GetOrCreateWrapperGraphInternal(Context.Blueprint);
 }
 
-UEdGraph* UMVVMBlueprintViewConversionFunction::GetOrCreateWrapperGraphInternal(UBlueprint* Blueprint, const UFunction* InFunction)
+UEdGraph* UMVVMBlueprintViewConversionFunction::GetOrCreateWrapperGraphInternal(UBlueprint* Blueprint)
 {
 	check(Blueprint);
-	check(InFunction);
 	bool bConst = true;
-	TPair<UEdGraph*, UK2Node*> Result = UE::MVVM::ConversionFunctionHelper::CreateGraph(Blueprint, GraphName, nullptr, InFunction, bConst, bWrapperGraphTransient);
-	const_cast<UMVVMBlueprintViewConversionFunction*>(this)->SetCachedWrapperGraph(Blueprint, Result.Get<0>(), Result.Get<1>());
+	UE::MVVM::ConversionFunctionHelper::FCreateGraphResult Result;
+	if (ConversionFunction.GetType() == EMVVMBlueprintFunctionReferenceType::Function)
+	{
+		const UFunction* Function = ConversionFunction.GetFunction(Blueprint);
+		check(Function);
+		Result = UE::MVVM::ConversionFunctionHelper::CreateGraph(Blueprint, GraphName, nullptr, Function, bConst, bWrapperGraphTransient);
+	}
+	else if (ConversionFunction.GetType() == EMVVMBlueprintFunctionReferenceType::Node)
+	{
+		TSubclassOf<UK2Node> Node = ConversionFunction.GetNode();
+		check(Node.Get());
+		Result = UE::MVVM::ConversionFunctionHelper::CreateGraph(Blueprint, GraphName, nullptr, Node, bConst, bWrapperGraphTransient, [](UK2Node*){});
+	}
+	const_cast<UMVVMBlueprintViewConversionFunction*>(this)->SetCachedWrapperGraph(Blueprint, Result.NewGraph, Result.WrappedNode);
 	LoadPinValuesInternal(Blueprint);
 	return CachedWrapperGraph;
 }
@@ -386,6 +432,7 @@ void UMVVMBlueprintViewConversionFunction::RemoveWrapperGraph(UBlueprint* Bluepr
 void UMVVMBlueprintViewConversionFunction::SetGraphPin(UBlueprint* Blueprint, const FMVVMBlueprintPinId& PinId, const FMVVMBlueprintPropertyPath& Path)
 {
 	UEdGraphPin* GraphPin = GetOrCreateGraphPin(Blueprint, PinId);
+	check(GraphPin);
 
 	// Set the value and make the blueprint as dirty before creating the pin.
 	//A property may not be created yet and the skeletal needs to be recreated.
@@ -403,10 +450,13 @@ void UMVVMBlueprintViewConversionFunction::SetGraphPin(UBlueprint* Blueprint, co
 
 void UMVVMBlueprintViewConversionFunction::SavePinValues(UBlueprint* Blueprint)
 {
-	SavedPins.Empty();
-	if (CachedWrapperNode)
+	if (!bLoadingPins) // While loading pins value, the node can trigger a notify that would then trigger a save.
 	{
-		SavedPins = FMVVMBlueprintPin::CreateFromNode(Blueprint, CachedWrapperNode);
+		SavedPins.Empty();
+		if (CachedWrapperNode)
+		{
+			SavedPins = FMVVMBlueprintPin::CreateFromNode(Blueprint, CachedWrapperNode);
+		}
 	}
 }
 
@@ -434,6 +484,7 @@ bool UMVVMBlueprintViewConversionFunction::HasOrphanedPin() const
 
 void UMVVMBlueprintViewConversionFunction::LoadPinValuesInternal(UBlueprint* Blueprint)
 {
+	TGuardValue<bool> Tmp (bLoadingPins, true);
 	if (CachedWrapperNode)
 	{
 		TArray<FMVVMBlueprintPin> MissingPins = FMVVMBlueprintPin::CopyAndReturnMissingPins(Blueprint, CachedWrapperNode, SavedPins);

@@ -53,6 +53,11 @@ public:
 	/** return a name of the reference. */
 	MODELVIEWVIEWMODELBLUEPRINT_API FName GetName() const;
 
+	/** The reference is a valid UFunction or a valid Node. */
+	MODELVIEWVIEWMODELBLUEPRINT_API bool IsValid(const UBlueprint* SelfContext) const;
+	/** The reference is a valid UFunction or a valid Node. */
+	MODELVIEWVIEWMODELBLUEPRINT_API bool IsValid(const UClass* SelfContext) const;
+
 	MODELVIEWVIEWMODELBLUEPRINT_API bool operator==(const FMVVMBlueprintFunctionReference& Other) const;
 
 	friend uint32 GetTypeHash(const FMVVMBlueprintFunctionReference& Value)

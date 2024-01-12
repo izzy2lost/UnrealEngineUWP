@@ -157,12 +157,6 @@ bool UMVVMDeveloperProjectSettings::IsFunctionAllowed(const UBlueprint* Generati
 
 bool UMVVMDeveloperProjectSettings::IsConversionFunctionAllowed(const UBlueprint* GeneratingFor, const UFunction* Function) const
 {
-	static FName NAME_ComplexConversionFunction = TEXT("MVVMComplexConversionFunction");
-	if (Function->HasMetaData(NAME_ComplexConversionFunction))
-	{
-		return true;
-	}
-
 	if (ConversionFunctionFilter == EMVVMDeveloperConversionFunctionFilterType::BlueprintActionRegistry)
 	{
 		return IsFunctionAllowed(GeneratingFor, Function->GetOwnerClass(), Function);
@@ -193,6 +187,32 @@ bool UMVVMDeveloperProjectSettings::IsConversionFunctionAllowed(const UBlueprint
 			// The function is on self and may have been filtered.
 			return IsFunctionAllowed(GeneratingFor, Function->GetOwnerClass(), Function);
 		}
+	}
+}
+
+bool UMVVMDeveloperProjectSettings::IsConversionFunctionAllowed(const UBlueprint* Context, const TSubclassOf<UK2Node> Function) const
+{
+	if (ConversionFunctionFilter == EMVVMDeveloperConversionFunctionFilterType::BlueprintActionRegistry)
+	{
+		return !Function.Get()->HasAnyClassFlags(CLASS_Abstract | CLASS_Deprecated | CLASS_NewerVersionExists);
+	}
+	else
+	{
+		check(ConversionFunctionFilter == EMVVMDeveloperConversionFunctionFilterType::AllowedList);
+
+		TStringBuilder<512> FunctionClassPath;
+		Function.Get()->GetPathName(nullptr, FunctionClassPath);
+		TStringBuilder<512> AllowedClassPath;
+		for (const FSoftClassPath& SoftClass : AllowedClassForConversionFunctions)
+		{
+			SoftClass.ToString(AllowedClassPath);
+			if (AllowedClassPath.ToView() == FunctionClassPath.ToView())
+			{
+				return true;
+			}
+			AllowedClassPath.Reset();
+		}
+		return false;
 	}
 }
 
