@@ -2368,7 +2368,7 @@ void SRemoteControlPanel::ToggleLogicEditor_Execute()
 	Settings->PostEditChange();
 	Settings->SaveConfig();	
 
-	if (PanelDrawer.IsValid() && (ActivePanel != ERCPanels::RCP_Properties || ActivePanel == ERCPanels::RCP_None))
+	if (PanelDrawer.IsValid() && (ActivePanel != ERCPanels::RCP_Properties))
 	{
 		TSharedRef<FRCPanelDrawerArgs> PropertiesPanel = RegisteredDrawers.FindChecked(ERCPanels::RCP_Properties);
 
