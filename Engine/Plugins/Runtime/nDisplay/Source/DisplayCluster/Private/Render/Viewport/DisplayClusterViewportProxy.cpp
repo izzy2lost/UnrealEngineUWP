@@ -212,8 +212,8 @@ namespace UE::DisplayCluster::ViewportProxy
 
 		if (bOutputIsPreviewResource)
 		{
-			// Preview require a normal alpha (re-invert)
-			ResampleCopyTextureImpl_RenderThread<FScreenPSInvertAlpha>(RHICmdList, InputResource, OutputResource, InputRect, OutputRect);
+			// The preview texture should use only RGB colors and ignore the alpha channel. The alpha channel may or may not be inverted in third-party libraries.
+			ResampleCopyTextureImpl_RenderThread<FScreenPS>(RHICmdList, InputResource, OutputResource, InputRect, OutputRect, EDisplayClusterTextureCopyMode::RGB);
 		}
 		else if (InputRect.Size() == OutputRect.Size() && InputResource->GetFormat() == OutputResource->GetFormat())
 		{
@@ -900,10 +900,8 @@ bool FDisplayClusterViewportProxy::ImplResolveResources_RenderThread(FRHICommand
 		return false;
 	}
 
-	bool bOutputIsMipsResource = OutResourceType == EDisplayClusterViewportResourceType::MipsShaderResource;
-
-	// This resolve pattern always called once for preview. This flag force to invert alpha (at this point alpha from engine is inverted)
-	const bool bOutputIsPreviewResource = InResourceType == EDisplayClusterViewportResourceType::InputShaderResource && OutResourceType == EDisplayClusterViewportResourceType::OutputPreviewTargetableResource;
+	const bool bOutputIsMipsResource    = OutResourceType == EDisplayClusterViewportResourceType::MipsShaderResource;
+	const bool bOutputIsPreviewResource = OutResourceType == EDisplayClusterViewportResourceType::OutputPreviewTargetableResource;
 
 	TArray<FViewportResourceResolverData> ResourceResolverData;
 

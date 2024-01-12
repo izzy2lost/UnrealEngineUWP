@@ -608,6 +608,14 @@ void FDisplayClusterConfiguratorProjectionCustomization::CreateEasyBlendPolicy(U
 		"Scale",
 		DisplayClusterProjectionStrings::cfg::easyblend::Scale,
 		Blueprint,
+		ConfigurationViewports,
+		1.f, 0.0001f));
+
+	// EasyBlend D3D12 supports export of geometry
+	CustomPolicyParameters.Add(MakeShared<FPolicyParameterInfoBool>(
+		"Enable Preview",
+		DisplayClusterProjectionStrings::cfg::mpcdi::EnablePreview,
+		Blueprint,
 		ConfigurationViewports));
 }
 

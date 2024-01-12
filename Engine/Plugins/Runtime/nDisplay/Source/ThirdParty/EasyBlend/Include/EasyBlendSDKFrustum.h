@@ -18,17 +18,17 @@
 // This structure is exported from the EasyBlendSDK.dll
 
 // Description:
-// A frustum defines a particualr viewing pyramid required
+// A frustum defines a particular viewing pyramid required
 // to render the needed input for an EasyBlend SDK mesh.
 typedef struct  {
 
   // Description:
-  // The origin of the viewping pyramid in 3-Space
+  // The origin of the viewing pyramid in 3-Space
   // the units and coordinate system for the point is
   // defined by the configuration of the EasyBlend
   // calibration system.
   // Note: this origin is generally the same for all meshes
-  //       generated for a particualr calibration
+  //       generated for a particular calibration
   double  XOffset;
   double  YOffset;
   double  ZOffset;
@@ -40,7 +40,7 @@ typedef struct  {
   double  ViewAngleC;  // Rotation about x-axis (third rotation)
 
   // Description:
-  // The angles definiing the extend of the viewing pyramid,
+  // The angles defining the extent of the viewing pyramid,
   // extending from the ViewAngle direction represented by 
   // the three view angles above.
   double  LeftAngle;    // Range: from -90 to Right
