@@ -607,7 +607,13 @@ void UGameplayDebuggerLocalController::ToggleActivation()
 				bPrevScreenMessagesEnabled = GAreScreenMessagesEnabled;
 				GAreScreenMessagesEnabled = false;
 				DebugActorCandidate = nullptr;
-				OnSelectLocalPlayer();
+				OnSelectActorTick();
+
+				// If no actor got selected use local player
+				if (DebugActorCandidate == nullptr)
+				{
+					OnSelectLocalPlayer();
+				}
 			}
 			else
 			{
