@@ -484,8 +484,6 @@ public:
 		CacheClipmapInfluenceRadius = 0.0f;
 		CacheMostlyStaticSeparately = 1;
 		LastUsedSceneDataForFullUpdate = nullptr;
-
-		HasPendingStreamingReadbackBuffers.SetNum(MaxPendingStreamingReadbackBuffers);
 	}
 
 	FInt64Vector FullUpdateOriginInPages;
@@ -495,11 +493,6 @@ public:
 	FVector3f CachedClipmapCenter;
 	float CachedClipmapExtent;
 	float CacheClipmapInfluenceRadius;
-
-	TArray<TUniquePtr<FRHIGPUBufferReadback>> HasPendingStreamingReadbackBuffers;
-	uint32 MaxPendingStreamingReadbackBuffers = 4;
-	uint32 ReadbackBuffersWriteIndex = 0;
-	uint32 ReadbackBuffersNumPending = 0;
 
 	FGlobalDistanceFieldCacheTypeState Cache[GDF_Num];
 
@@ -670,6 +663,19 @@ private:
 	bool bSeparatedAtmosphereMieRayLeigh;
 };
 
+struct FGlobalDistanceFieldStreamingReadback
+{
+	FGlobalDistanceFieldStreamingReadback()
+	{
+		PendingStreamingReadbackBuffers.SetNum(MaxPendingStreamingReadbackBuffers);
+	}
+
+	TArray<TUniquePtr<FRHIGPUBufferReadback>> PendingStreamingReadbackBuffers;
+	uint32 MaxPendingStreamingReadbackBuffers = 4;
+	uint32 ReadbackBuffersWriteIndex = 0;
+	uint32 ReadbackBuffersNumPending = 0;
+};
+
 struct FPersistentGlobalDistanceFieldData : public FThreadSafeRefCountedObject
 {
 	// Array of ClipmapIndex
@@ -689,6 +695,8 @@ struct FPersistentGlobalDistanceFieldData : public FThreadSafeRefCountedObject
 #if WITH_MGPU
 	FRHIGPUMask LastGPUMask;
 #endif
+
+	FGlobalDistanceFieldStreamingReadback StreamingReadback[GDF_Num];
 
 	TRefCountPtr<FRDGPooledBuffer> PageFreeListAllocatorBuffer;
 	TRefCountPtr<FRDGPooledBuffer> PageFreeListBuffer;
