@@ -411,7 +411,7 @@ void RHIInit(bool bHasEditorToken)
 
 	// add an ability to override the shader platform, intended for preview platforms only
 	FString ShaderPlatformName;
-	if (FParse::Value(FCommandLine::Get(), TEXT("OverrideSP"), ShaderPlatformName) && !ShaderPlatformName.IsEmpty())
+	if (FParse::Value(FCommandLine::Get(), TEXT("OverrideSP="), ShaderPlatformName) && !ShaderPlatformName.IsEmpty())
 	{
 		EShaderPlatform OverrideShaderPlatform = FDataDrivenShaderPlatformInfo::GetShaderPlatformFromName(*ShaderPlatformName);
 		if (OverrideShaderPlatform != SP_NumPlatforms)
