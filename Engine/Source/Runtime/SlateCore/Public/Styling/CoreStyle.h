@@ -83,6 +83,7 @@ namespace CoreStyleConstants
 	// Note, these sizes are in Slate Units.
 	// Slate Units do NOT have to map to pixels.
 	inline const UE::Slate::FDeprecateVector2DResult Icon5x16(5.0f, 16.0f);
+	inline const UE::Slate::FDeprecateVector2DResult Icon6x8(6.0f, 8.0f);
 	inline const UE::Slate::FDeprecateVector2DResult Icon8x4(8.0f, 4.0f);
 	inline const UE::Slate::FDeprecateVector2DResult Icon16x4(16.0f, 4.0f);
 	inline const UE::Slate::FDeprecateVector2DResult Icon8x8(8.0f, 8.0f);
