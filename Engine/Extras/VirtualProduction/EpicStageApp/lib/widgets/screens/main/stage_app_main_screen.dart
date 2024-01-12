@@ -13,6 +13,7 @@ import '../../../models/unreal_types.dart';
 import '../../../utilities/constants.dart';
 import '../../../utilities/debug_utilities.dart';
 import '../../elements/floating_map_preview.dart';
+import '../../elements/floating_trackpad.dart';
 import '../connect/views/n_display_selector_dialog.dart';
 import 'tabs/main_screen_tabs.dart';
 import 'toolbar/main_screen_toolbar.dart';
@@ -123,6 +124,7 @@ class _StageAppMainScreenState extends State<StageAppMainScreen>
               ),
             ),
             if (_bShowMapPreview) const FloatingMapPreview(key: Key('Map Preview')),
+            FloatingTrackpad()
           ],
         ),
       ),
