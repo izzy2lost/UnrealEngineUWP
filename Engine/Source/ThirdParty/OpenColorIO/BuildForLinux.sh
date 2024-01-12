@@ -1,4 +1,4 @@
-#!/bin/sh
+#!/bin/bash
 
 OCIO_VERSION="2.3.1"
 OCIO_LIB_NAME="OpenColorIO-$OCIO_VERSION"
@@ -26,8 +26,8 @@ then
     exit 1
 fi
 
-TOOLCHAIN_NAME=v21_clang-15.0.1-centos7
-UE_TOOLCHAIN_LOCATION="$UE_SDKS_ROOT/HostLinux/Linux_x64/$TOOLCHAIN_NAME"
+TOOLCHAIN_NAME=v22_clang-16.0.6-centos7
+UE_TOOLCHAIN_LOCATION="$UE_ENGINE_DIR/Extras/ThirdPartyNotUE/SDKs/HostLinux/Linux_x64/$TOOLCHAIN_NAME"
 CXX_FLAGS="-fvisibility=hidden -nostdinc++ -I$UE_THIRD_PARTY_DIR/Unix/LibCxx/include  -I$UE_THIRD_PARTY_DIR/Unix/LibCxx/include/c++/v1"
 LINKER_FLAGS="-nodefaultlibs -L$UE_THIRD_PARTY_DIR/Unix/LibCxx/lib/Unix/$ARCH_NAME/ -lc++ -lc++abi -lm -lc -lgcc_s -lgcc"
 
