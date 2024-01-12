@@ -310,21 +310,22 @@ public:
 
 				// Request new process
 				TCHAR Arguments[1024];
-				if (RequestNextProcess(0, Arguments, 1024))
+				if (!RequestNextProcess(0, Arguments, 1024))
 				{
-					TArray<FString> Tokens;
-					TArray<FString> Switches;
-					FCommandLine::Parse(Arguments, Tokens, Switches);
-
-					WorkingDirectory = Tokens[0];
-					InputFilename = Tokens[3];
-					OutputFilename = Tokens[4];
-
-					InputFilePath = WorkingDirectory / InputFilename;
-					OutputFilePath = WorkingDirectory / OutputFilename;
-
-					continue;
+					break; // No process available, exit loop
 				}
+
+				TArray<FString> Tokens;
+				TArray<FString> Switches;
+				FCommandLine::Parse(Arguments, Tokens, Switches);
+
+				WorkingDirectory = Tokens[0];
+				InputFilename = Tokens[3];
+				OutputFilename = Tokens[4];
+
+				InputFilePath = WorkingDirectory / InputFilename;
+				OutputFilePath = WorkingDirectory / OutputFilename;
+				continue;
 			}
 #endif
 
