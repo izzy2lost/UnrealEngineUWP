@@ -245,6 +245,7 @@ public:
 	SIZE_T GetChunkAllocSize() const { return ChunkMemorySize; }
 
 	int32 GetChunkCount() const { return Chunks.Num(); }
+	int32 GetNonEmptyChunkCount() const;
 
 	uint32 GetCreatedArchetypeDataVersion() const { return CreatedArchetypeDataVersion; }
 

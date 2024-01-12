@@ -811,16 +811,22 @@ void FMassArchetypeData::BindSharedFragmentRequirements(FMassExecutionContext& R
 	}
 }
 
-SIZE_T FMassArchetypeData::GetAllocatedSize() const
+int32 FMassArchetypeData::GetNonEmptyChunkCount() const
 {
-	int32 NumAllocatedChunkBuffers = 0;
+	int32 NumAllocatedChunks = 0;
 	for (const FMassArchetypeChunk& Chunk : Chunks)
 	{
 		if (Chunk.GetRawMemory() != nullptr)
 		{
-			++NumAllocatedChunkBuffers;
+			++NumAllocatedChunks;
 		}
 	}
+	return NumAllocatedChunks;
+}
+
+SIZE_T FMassArchetypeData::GetAllocatedSize() const
+{
+	const int32 NumAllocatedChunkBuffers = GetNonEmptyChunkCount();
 
 	return sizeof(FMassArchetypeData) +
 		ChunkFragmentsTemplate.GetAllocatedSize() +
@@ -858,7 +864,7 @@ FString FMassArchetypeData::DebugGetDescription() const
 #if WITH_MASSENTITY_DEBUG
 void FMassArchetypeData::DebugGetEntityMemoryNumbers(SIZE_T& OutActiveChunksMemorySize, SIZE_T& OutActiveEntitiesMemorySize) const
 {
-	OutActiveChunksMemorySize = GetChunkAllocSize() *  Chunks.Num();
+	OutActiveChunksMemorySize = GetChunkAllocSize() * GetNonEmptyChunkCount();
 	OutActiveEntitiesMemorySize = TotalBytesPerEntity * EntityMap.Num();
 }
 
