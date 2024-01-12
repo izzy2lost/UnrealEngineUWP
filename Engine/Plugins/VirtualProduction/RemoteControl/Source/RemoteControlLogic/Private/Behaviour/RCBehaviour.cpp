@@ -18,15 +18,14 @@ URCBehaviour::URCBehaviour()
 
 void URCBehaviour::Execute()
 {
-	const URCBehaviourNode* BehaviourNode = GetBehaviourNode();
+	ExecuteInternal(ActionContainer->GetActions());
+}
 
-	// Execute before the logic
-	BehaviourNode->PreExecute(this);
-
-	if (BehaviourNode->Execute(this))
+void URCBehaviour::ExecuteSingleAction(URCAction* InAction)
+{
+	if (InAction)
 	{
-		ActionContainer->ExecuteActions();
-		BehaviourNode->OnPassed(this);
+		ExecuteInternal({ InAction });
 	}
 }
 
@@ -140,6 +139,24 @@ URCBehaviourNode* URCBehaviour::GetBehaviourNode()
 	CachedBehaviourNodeClass = FinalBehaviourNodeClass;
 
 	return CachedBehaviourNode;
+}
+
+void URCBehaviour::ExecuteInternal(const TSet<TObjectPtr<URCAction>>& InActionsToExecute)
+{
+	const URCBehaviourNode* BehaviourNode = GetBehaviourNode();
+
+	// Execute before the logic
+	BehaviourNode->PreExecute(this);
+
+	if (BehaviourNode->Execute(this))
+	{
+		for (const TObjectPtr<URCAction>& Action : InActionsToExecute)
+		{
+			Action->Execute();
+		}
+		BehaviourNode->OnPassed(this);
+	}
+	
 }
 
 #if WITH_EDITOR

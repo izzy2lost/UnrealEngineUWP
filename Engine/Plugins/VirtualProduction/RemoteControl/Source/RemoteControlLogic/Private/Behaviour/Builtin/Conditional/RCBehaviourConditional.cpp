@@ -19,113 +19,6 @@ void URCBehaviourConditional::Initialize()
 	Super::Initialize();
 }
 
-void URCBehaviourConditional::Execute()
-{
-	const URCBehaviourNode* BehaviourNode = GetBehaviourNode();
-	check(BehaviourNode);
-
-	if (BehaviourNode->GetClass() != URCBehaviourConditionalNode::StaticClass())
-	{
-		return; // Allow custom Blueprints to drive their own behaviour entirely
-	}
-
-	// Execute before the logic
-	BehaviourNode->PreExecute(this);
-
-	bool bConditionPass = false;
-
-	/* Consider the following sequence of conditions for a hypothetical Controller "Tricode"
-	*  For Tricode with current value "Tri2"
-	* 
-	*   =Tri1    <FALSE>  (Action 1)           ...skip...
-	* 
-	*   =Tri2   <TRUE>    (Action 2a)      ...execute...
-	*   =Tri2   <TRUE>    (Action 2b)      ...execute...
-	* 
-	*   =Tri3   <FALSE>  (Action 3)          ...skip...
-	* 
-	*    Else                    (Action 4a)        ...skip...
-	*    Else                    (Action 4b)        ...skip...
-	*    Else                    (Action 4c)        ...skip...
-	* 
-	* For such multiple equality rows we want to know if at least one of them succeeded. 
-	* The flag bHasEqualitySuccess is used for determining whether Else should be executed 
-	*/
-	bool bHasEqualitySuccess = false;
-	bool bPreviousConditionPass = false;
-
-	ERCBehaviourConditionType PreviousConditionType = ERCBehaviourConditionType::None;
-
-	for (const TObjectPtr<URCAction>& Action : ActionContainer->GetActions())
-	{
-		FRCBehaviourCondition* Condition = Conditions.Find(Action);
-		if (!Condition)
-		{
-			ensureMsgf(false, TEXT("Unable to find condition for Action"));
-			continue;
-		}
-
-		const ERCBehaviourConditionType ConditionType = Condition->ConditionType;
-
-		if (ConditionType != PreviousConditionType) // New block
-		{
-			if (ConditionType != ERCBehaviourConditionType::Else)
-			{
-				bHasEqualitySuccess = false; // Reset flag for starting a new block of equality checks
-			}
-		}
-
-		URCController* RCController = ControllerWeakPtr.Get();
-		if (RCController)
-		{
-			switch (ConditionType)
-			{
-			case ERCBehaviourConditionType::IsEqual:
-				bConditionPass = RCController->IsValueEqual(Condition->Comparand);
-				bHasEqualitySuccess |= bConditionPass;
-				break;			
-
-			case ERCBehaviourConditionType::IsGreaterThan:
-				bConditionPass = RCController->IsValueGreaterThan(Condition->Comparand);
-				break;
-
-			case ERCBehaviourConditionType::IsGreaterThanOrEqualTo:
-				bConditionPass = RCController->IsValueGreaterThanOrEqualTo(Condition->Comparand);
-				break;
-
-			case ERCBehaviourConditionType::IsLesserThan:
-				bConditionPass = RCController->IsValueLesserThan(Condition->Comparand);
-				break;
-
-			case ERCBehaviourConditionType::IsLesserThanOrEqualTo:
-				bConditionPass = RCController->IsValueLesserThanOrEqualTo(Condition->Comparand);
-				break;
-
-			case ERCBehaviourConditionType::Else:
-				// If the previous condition failed and no prior equality condition succeeded (among multiple =rows above) then execute Else!
-				bConditionPass = !bPreviousConditionPass && !bHasEqualitySuccess;
-				break;
-
-			default:				
-				ensureAlwaysMsgf(false, TEXT("Unimplemented comparator!"));
-			}
-
-			PreviousConditionType = ConditionType;
-
-			if (ConditionType != ERCBehaviourConditionType::Else)
-			{
-				bPreviousConditionPass = bConditionPass; // Else should not contribute to the previous state flag to support multiple Else Actions (created via Add All Action, etc)
-			}
-		}
-
-		if (bConditionPass)
-		{
-			Action->Execute();
-			BehaviourNode->OnPassed(this);
-		}
-	}
-}
-
 URCAction* URCBehaviourConditional::DuplicateAction(URCAction* InAction, URCBehaviour* InBehaviour)
 {
 	URCBehaviourConditional* InBehaviourConditional = Cast<URCBehaviourConditional>(InBehaviour);
@@ -241,4 +134,120 @@ FText URCBehaviourConditional::GetConditionTypeAsText(ERCBehaviourConditionType 
 	}
 
 	return ConditionDisplayText;
+}
+
+void URCBehaviourConditional::NotifyActionValueChanged(URCAction* InChangedAction)
+{
+	if (InChangedAction)
+	{
+		ExecuteSingleAction(InChangedAction);
+	}
+}
+
+void URCBehaviourConditional::ExecuteInternal(const TSet<TObjectPtr<URCAction>>& InActionsToExecute)
+{
+	const URCBehaviourNode* BehaviourNode = GetBehaviourNode();
+	check(BehaviourNode);
+
+	if (BehaviourNode->GetClass() != URCBehaviourConditionalNode::StaticClass())
+	{
+		return; // Allow custom Blueprints to drive their own behaviour entirely
+	}
+
+	// Execute before the logic
+	BehaviourNode->PreExecute(this);
+
+	bool bConditionPass = false;
+
+	/* Consider the following sequence of conditions for a hypothetical Controller "Tricode"
+	*  For Tricode with current value "Tri2"
+	* 
+	*   =Tri1    <FALSE>  (Action 1)           ...skip...
+	* 
+	*   =Tri2   <TRUE>    (Action 2a)      ...execute...
+	*   =Tri2   <TRUE>    (Action 2b)      ...execute...
+	* 
+	*   =Tri3   <FALSE>  (Action 3)          ...skip...
+	* 
+	*    Else                    (Action 4a)        ...skip...
+	*    Else                    (Action 4b)        ...skip...
+	*    Else                    (Action 4c)        ...skip...
+	* 
+	* For such multiple equality rows we want to know if at least one of them succeeded. 
+	* The flag bHasEqualitySuccess is used for determining whether Else should be executed 
+	*/
+	bool bHasEqualitySuccess = false;
+	bool bPreviousConditionPass = false;
+
+	ERCBehaviourConditionType PreviousConditionType = ERCBehaviourConditionType::None;
+
+	// execute all the action if the given action is null otherwise only execute the given action
+	for (const TObjectPtr<URCAction>& Action : InActionsToExecute)
+	{
+		FRCBehaviourCondition* Condition = Conditions.Find(Action);
+		if (!Condition)
+		{
+			ensureMsgf(false, TEXT("Unable to find condition for Action"));
+			continue;
+		}
+
+		const ERCBehaviourConditionType ConditionType = Condition->ConditionType;
+
+		if (ConditionType != PreviousConditionType) // New block
+		{
+			if (ConditionType != ERCBehaviourConditionType::Else)
+			{
+				bHasEqualitySuccess = false; // Reset flag for starting a new block of equality checks
+			}
+		}
+
+		URCController* RCController = ControllerWeakPtr.Get();
+		if (RCController)
+		{
+			switch (ConditionType)
+			{
+			case ERCBehaviourConditionType::IsEqual:
+				bConditionPass = RCController->IsValueEqual(Condition->Comparand);
+				bHasEqualitySuccess |= bConditionPass;
+				break;			
+
+			case ERCBehaviourConditionType::IsGreaterThan:
+				bConditionPass = RCController->IsValueGreaterThan(Condition->Comparand);
+				break;
+
+			case ERCBehaviourConditionType::IsGreaterThanOrEqualTo:
+				bConditionPass = RCController->IsValueGreaterThanOrEqualTo(Condition->Comparand);
+				break;
+
+			case ERCBehaviourConditionType::IsLesserThan:
+				bConditionPass = RCController->IsValueLesserThan(Condition->Comparand);
+				break;
+
+			case ERCBehaviourConditionType::IsLesserThanOrEqualTo:
+				bConditionPass = RCController->IsValueLesserThanOrEqualTo(Condition->Comparand);
+				break;
+
+			case ERCBehaviourConditionType::Else:
+				// If the previous condition failed and no prior equality condition succeeded (among multiple =rows above) then execute Else!
+				bConditionPass = !bPreviousConditionPass && !bHasEqualitySuccess;
+				break;
+
+			default:				
+				ensureAlwaysMsgf(false, TEXT("Unimplemented comparator!"));
+			}
+
+			PreviousConditionType = ConditionType;
+
+			if (ConditionType != ERCBehaviourConditionType::Else)
+			{
+				bPreviousConditionPass = bConditionPass; // Else should not contribute to the previous state flag to support multiple Else Actions (created via Add All Action, etc)
+			}
+		}
+
+		if (bConditionPass)
+		{
+			Action->Execute();
+			BehaviourNode->OnPassed(this);
+		}
+	}
 }

@@ -40,7 +40,7 @@ public:
 	virtual void Initialize() {}
 
 	/** Execute the behaviour */
-	virtual void Execute();
+	void Execute();
 
 	/** Add a Logic action as an identity action. */
 	virtual URCAction* AddAction();
@@ -91,6 +91,9 @@ public:
 	 */
 	virtual void UpdateEntityIds(const TMap<FGuid, FGuid>& InEntityIdMap);
 
+	/** Called when an action value changed */
+	virtual void NotifyActionValueChanged(URCAction* InChangedAction) {}
+
 protected:
 	/**
 	 * It created the node if it called first time
@@ -98,6 +101,12 @@ protected:
 	 * Or just return cached one
 	 */
 	URCBehaviourNode* GetBehaviourNode();
+
+	/** Execute all the action if not provided a valid Action otherwise will only execute the given action */
+	virtual void ExecuteInternal(const TSet<TObjectPtr<URCAction>>& InActionsToExecute);
+
+	/** Execute the given Action */
+    void ExecuteSingleAction(URCAction* InAction);
 
 public:
 	/** Associated cpp behaviour */

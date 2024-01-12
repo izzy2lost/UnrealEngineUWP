@@ -27,6 +27,9 @@ public:
 	/** Returns the parent Behaviour associated with this Action */
 	URCBehaviour* GetParentBehaviour() const;
 
+	/** Invoked when this Action item value change */
+	void NotifyActionValueChanged();
+
 	/**
 	 * @brief Called internally when entity Ids are renewed.
 	 * @param InEntityIdMap Map of old Id to new Id.

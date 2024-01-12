@@ -199,7 +199,8 @@ FRCPropertyActionType::FRCPropertyActionType(URCPropertyAction* InPropertyAction
 		if (const TSharedPtr<FStructOnScope> StructOnScope = InPropertyAction->PropertySelfContainer->CreateStructOnScope())
 		{
 			PropertyRowGenerator->SetStructure(StructOnScope);
-			
+			PropertyRowGenerator->OnFinishedChangingProperties().AddRaw(this, &FRCPropertyActionType::OnFinishedChangingProperties);
+
 			for (const TSharedRef<IDetailTreeNode>& CategoryNode : PropertyRowGenerator->GetRootTreeNodes())
 			{
 				TArray<TSharedRef<IDetailTreeNode>> Children;
@@ -244,6 +245,14 @@ FRCPropertyActionType::FRCPropertyActionType(URCPropertyAction* InPropertyAction
 	}
 }
 
+FRCPropertyActionType::~FRCPropertyActionType()
+{
+	if (PropertyRowGenerator.IsValid())
+	{
+		PropertyRowGenerator->OnFinishedChangingProperties().RemoveAll(this);
+	}
+}
+
 const FName& FRCPropertyActionType::GetPropertyName() const
 {
 	return PropertyActionWeakPtr.Get()->PropertySelfContainer->PropertyName;
@@ -272,6 +281,22 @@ FLinearColor FRCPropertyActionType::GetPropertyTypeColor() const
 	}
 
 	return TypeColor;
+}
+
+void FRCPropertyActionType::OnActionValueChange() const
+{
+	if (PropertyActionWeakPtr.IsValid())
+	{
+		PropertyActionWeakPtr->NotifyActionValueChanged();
+	}
+}
+
+void FRCPropertyActionType::OnFinishedChangingProperties(const FPropertyChangedEvent& InPropertyChangeEvent) const
+{
+	if (InPropertyChangeEvent.ChangeType == EPropertyChangeType::ValueSet)
+	{
+		OnActionValueChange();
+	}
 }
 
 void FRCActionModel::AddSpecialContextMenuOptions(FMenuBuilder& MenuBuilder)
@@ -319,12 +344,22 @@ FRCPropertyIdActionType::~FRCPropertyIdActionType()
 #if WITH_EDITOR
 	if (const URCPropertyIdAction* PropertyIdAction = PropertyIdActionWeakPtr.Get())
 	{
-		if (URemoteControlPreset* Preset = PropertyIdAction->PresetWeakPtr.Get())
+		if (const URemoteControlPreset* Preset = PropertyIdAction->PresetWeakPtr.Get())
 		{
 			Preset->GetPropertyIdRegistry()->OnPropertyIdActionNeedsRefresh().RemoveAll(this);
 		}
 	}
 #endif
+
+	for (const TPair<FName, TSharedPtr<IPropertyRowGenerator>>& CachedGenerator : CachedPropertyIdValueRowGenerator)
+	{
+		if (CachedGenerator.Value.IsValid())
+		{
+			CachedGenerator.Value->OnFinishedChangingProperties().RemoveAll(this);
+		}
+	}
+	PropertyIdValueRowGenerator.Reset();
+	CachedPropertyIdValueRowGenerator.Reset();
 }
 
 FLinearColor FRCPropertyIdActionType::GetPropertyIdTypeColor() const
@@ -369,6 +404,22 @@ TSharedRef<SWidget> FRCPropertyIdActionType::GetPropertyIdValueWidget() const
 	return VerticalBox;
 }
 
+void FRCPropertyIdActionType::OnActionValueChange() const
+{
+	if (PropertyIdActionWeakPtr.IsValid())
+	{
+		PropertyIdActionWeakPtr->NotifyActionValueChanged();
+	}
+}
+
+void FRCPropertyIdActionType::OnFinishedChangingProperties(const FPropertyChangedEvent& InPropertyChangeEvent) const
+{
+	if (InPropertyChangeEvent.ChangeType == EPropertyChangeType::ValueSet)
+	{
+		OnActionValueChange();
+	}
+}
+
 void FRCPropertyIdActionType::RefreshNameWidget()
 {
 	if (URCPropertyIdAction* PropertyIdAction = PropertyIdActionWeakPtr.Get())
@@ -411,8 +462,8 @@ void FRCPropertyIdActionType::RefreshValueWidget()
 	if (URCPropertyIdAction* PropertyIdAction = PropertyIdActionWeakPtr.Get())
 	{
 		// Generate UI widget for Action input
-		PropertyIdValueRowGenerator.Empty();
-		ValueTreeNodeWeakPtr.Empty();
+		PropertyIdValueRowGenerator.Reset();
+		ValueTreeNodeWeakPtr.Reset();
 		for (const TPair<FName, TObjectPtr<URCVirtualPropertySelfContainer>>& PropertyContainer : PropertyIdAction->PropertySelfContainer)
 		{
 			if (IsValid(PropertyContainer.Value))
@@ -430,6 +481,7 @@ void FRCPropertyIdActionType::RefreshValueWidget()
 
 						CachedPropertyIdValueRowGenerator.Add(PropertyContainer.Key, FModuleManager::GetModuleChecked<FPropertyEditorModule>("PropertyEditor").CreatePropertyRowGenerator(Args));
 						CachedPropertyIdValueRowGenerator[PropertyContainer.Key]->SetStructure(StructOnScope);
+						CachedPropertyIdValueRowGenerator[PropertyContainer.Key]->OnFinishedChangingProperties().AddRaw(this, &FRCPropertyIdActionType::OnFinishedChangingProperties);
 
 						PropertyIdValueRowGenerator.Add(PropertyContainer.Key, CachedPropertyIdValueRowGenerator[PropertyContainer.Key]);
 					}

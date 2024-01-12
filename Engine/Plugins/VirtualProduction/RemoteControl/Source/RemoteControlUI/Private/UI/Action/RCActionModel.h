@@ -97,6 +97,8 @@ class FRCPropertyActionType
 public:
 	FRCPropertyActionType(URCPropertyAction* InPropertyAction);
 
+	~FRCPropertyActionType();
+
 	/** Property Name associated with this Action */
 	const FName& GetPropertyName() const;
 
@@ -108,6 +110,12 @@ public:
 	FLinearColor GetPropertyTypeColor() const;
 
 protected:
+	/** Callback for when the ChangeProperty type is ValueSet */
+	void OnActionValueChange() const;
+
+	/** Callback when the action value change */
+	void OnFinishedChangingProperties(const FPropertyChangedEvent& InPropertyChangeEvent) const;
+
 	/** The Property Action (data model) associated with us*/
 	TWeakObjectPtr<URCPropertyAction> PropertyActionWeakPtr;
 
@@ -164,6 +172,12 @@ public:
 	TSharedRef<SWidget> GetPropertyIdValueWidget() const;
 
 private:
+	/** Callback for when the ChangeProperty type is ValueSet */
+	void OnActionValueChange() const;
+
+	/** Callback when the action value change */
+	void OnFinishedChangingProperties(const FPropertyChangedEvent& InPropertyChangeEvent) const;
+
 	/** Recreates the name section of this row widget. */
 	void RefreshNameWidget();
 

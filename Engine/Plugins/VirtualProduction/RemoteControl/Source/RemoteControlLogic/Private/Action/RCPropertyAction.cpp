@@ -3,6 +3,7 @@
 #include "Action/RCPropertyAction.h"
 
 #include "Action/RCActionContainer.h"
+#include "Behaviour/RCBehaviour.h"
 #include "Controller/RCController.h"
 #include "IRemoteControlModule.h"
 #include "IRemoteControlPropertyHandle.h"
@@ -36,6 +37,14 @@ void URCAction::UpdateEntityIds(const TMap<FGuid, FGuid>& InEntityIdMap)
 	if (const FGuid* FoundId = InEntityIdMap.Find(ExposedFieldId))
 	{
 		ExposedFieldId = *FoundId;
+	}
+}
+
+void URCAction::NotifyActionValueChanged()
+{
+	if (URCBehaviour* Behaviour = GetParentBehaviour())
+	{
+		Behaviour->NotifyActionValueChanged(this);
 	}
 }
 
