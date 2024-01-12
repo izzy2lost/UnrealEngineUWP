@@ -272,7 +272,7 @@ void UWorldPartition::FWorldPartitionExternalDirtyActorsTracker::Tick(float InDe
 	for (auto& [Actor, Reference] : NonDirtyActors)
 	{
 		// Resolve reference for newly added actors
-		if (!Reference.IsValid())
+		if (!Reference.IsValid() && Actor.IsValid())
 		{
 			Reference = FWorldPartitionReference(Owner, Actor->GetActorGuid());
 		}
