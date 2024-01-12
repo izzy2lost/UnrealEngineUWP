@@ -59,16 +59,6 @@ ULensDistortionModelHandlerBase* UCameraCalibrationSubsystem::FindDistortionMode
 ULensDistortionModelHandlerBase* UCameraCalibrationSubsystem::FindOrCreateDistortionModelHandler(FDistortionHandlerPicker& DistortionHandlerPicker, const TSubclassOf<ULensModel> LensModelClass)
 {
 	// This function has been deprecated. The implementation has been changed to provide some backwards compatibility, but code should be updated to not call this function.
-	TArray<ULensDistortionModelHandlerBase*> Handlers = GetDistortionModelHandlers(DistortionHandlerPicker.TargetCameraComponent);
-
-	for (ULensDistortionModelHandlerBase* Handler : Handlers)
-	{
-		if (Handler->GetLensModelClass() == LensModelClass)
-		{
-			return Handler;
-		}
-	}
-
 	return nullptr;
 }
 PRAGMA_ENABLE_DEPRECATION_WARNINGS

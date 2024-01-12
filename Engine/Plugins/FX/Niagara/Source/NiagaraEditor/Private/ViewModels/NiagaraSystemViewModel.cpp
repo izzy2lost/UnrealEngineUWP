@@ -663,7 +663,6 @@ void FNiagaraSystemViewModel::DuplicateEmitters(TArray<FEmitterHandleToDuplicate
 	bForceAutoCompileOnce = true;
 
 	// We copy over referenced User Parameters now
-	TArray<TSharedPtr<FNiagaraEmitterHandleViewModel>> NewEmitterHandleViewModels;
 	FNiagaraUserRedirectionParameterStore& TargetParameterStore = GetSystem().GetExposedParameters();
 
 	// we have to keep track of parameters we have already added but renamed.
@@ -776,11 +775,6 @@ void FNiagaraSystemViewModel::DuplicateEmitters(TArray<FEmitterHandleToDuplicate
 		Info.WidthOverride = FOptionalSize();
 		Info.ExpireDuration = 5.f;
 		FSlateNotificationManager::Get().AddNotification(Info);
-	}
-
-	for(TSharedPtr<FNiagaraEmitterHandleViewModel> EmitterHandleViewModel : NewEmitterHandleViewModels)
-	{
-		EmitterHandleViewModel->GetEmitterStackViewModel()->GetRootEntry()->RefreshChildren();
 	}
 }
 

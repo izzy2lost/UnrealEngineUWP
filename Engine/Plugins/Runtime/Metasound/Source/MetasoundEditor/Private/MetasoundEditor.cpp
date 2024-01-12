@@ -1444,16 +1444,17 @@ namespace Metasound
 
 			if (Frontend::ImportJSONAssetToMetasound(InputPath, MetasoundDoc))
 			{
-				TSet<UClass*> ImportClasses;
+				//TSet<UClass*> ImportClasses;
 
 				// TODO: Update importing to support interfaces
 
-				if (ImportClasses.Num() < 1)
+				//if (ImportClasses.Num() < 1)
 				{
 					TArray<FString> InterfaceNames;
 					Algo::Transform(MetasoundDoc.Interfaces, InterfaceNames, [] (const FMetasoundFrontendVersion& InterfaceVersion) { return InterfaceVersion.ToString(); });
 					UE_LOG(LogMetaSound, Warning, TEXT("Cannot create UObject from MetaSound document. No UClass supports interface(s) \"%s\""), *FString::Join(InterfaceNames, TEXT(",")));
 				}
+#if 0
 				else
 				{
 					UClass* AnyClass = nullptr;
@@ -1471,6 +1472,7 @@ namespace Metasound
 
 					// TODO: Update to just use simple UObject NewObject
 				}
+#endif
 			}
 			else
 			{
