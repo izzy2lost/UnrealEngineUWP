@@ -22,14 +22,15 @@ public:
 	virtual bool CreateDecoder() override;
 	virtual void SeekToTime(const float SeekToTimeSeconds) override;
 	virtual void SeekToFrame(const uint32 SeekTimeFrames) override;
-	virtual void PrepareToLoop() override;
 	virtual FDecodeResult Decode(const uint8* CompressedData, const int32 CompressedDataSize, uint8* OutPCMData, const int32 OutputPCMDataSize) override;
 	virtual bool HasError() const override;
 	//~ End IStreamedCompressedInfo Interface
 
 protected:
 	using Super = IStreamedCompressedInfo;
-
+	
+	void NotifySeek();
+	
 	// copied from header during ParseHeader
 	uint32 MaxCompSpaceNeeded;
 	uint32 SampleRate;

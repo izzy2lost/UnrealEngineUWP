@@ -98,7 +98,7 @@ FBinkAudioInfo::~FBinkAudioInfo()
 
 //-----------------------------------------------------------------------------
 //-----------------------------------------------------------------------------
-void FBinkAudioInfo::PrepareToLoop()
+void FBinkAudioInfo::NotifySeek()
 {
 #if WITH_BINK_AUDIO
 	UEBinkAudioDecodeInterface* BinkInterface = UnrealBinkAudioDecodeInterface();
@@ -113,13 +113,16 @@ void FBinkAudioInfo::PrepareToLoop()
 //-----------------------------------------------------------------------------
 //-----------------------------------------------------------------------------
 void FBinkAudioInfo::SeekToTime(const float SeekTimeSeconds)
-{	
+{
+	NotifySeek();
 	// If there's no seek table on the header, fall-back to Super implementation.
 	if (Decoder->SeekTableCount == 0)
 	{
 		Super::SeekToTime(SeekTimeSeconds);
 		return;
 	}
+
+	// no need to reset decoder here. Called in "SeekToFrame"
 
 	// convert seconds to frames and call SeekToFrame
 	uint32 SeekTimeFrames = 0;
@@ -133,13 +136,14 @@ void FBinkAudioInfo::SeekToTime(const float SeekTimeSeconds)
 
 void FBinkAudioInfo::SeekToFrame(const uint32 InFrameNum)
 {
+	NotifySeek();
 	// If there's no seek table on the header, fall-back to Super implementation.
 	if (Decoder->SeekTableCount == 0)
 	{
 		Super::SeekToFrame(InFrameNum);
 		return;
 	}
-
+	
 	uint32 SeekTimeFrames = InFrameNum;
 	uint32 SeekTimeSamples = SeekTimeFrames * NumChannels;
 
