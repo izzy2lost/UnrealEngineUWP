@@ -47,6 +47,8 @@ private:
 	bool ParseResolution(const TCHAR* InResolution, uint32& OutX, uint32& OutY);
 	void MaybeResizeEditor(TSharedPtr<SWindow> RootWindow);
 	void OnFrameSizeChanged(TWeakPtr<FIntRect> NewTargetRect);
+	void DisableCPUThrottlingSetting();
+	void RestoreCPUThrottlingSetting();
 
 	TSharedPtr<UE::EditorPixelStreaming::FPixelStreamingToolbar> Toolbar;
 	// Signalling/webserver
@@ -67,6 +69,7 @@ private:
 	TSharedPtr<IPixelStreamingStreamer> EditorStreamer;
 
 	bool bUseExternalSignallingServer = false;
+	bool bOldCPUThrottlingSetting = false;
 
 	TMap<Audio::FDeviceId, TSharedPtr<UE::EditorPixelStreaming::FEditorSubmixListener, ESPMode::ThreadSafe>> AudioInputs;
 };

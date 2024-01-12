@@ -43,11 +43,6 @@ void FPixelStreamingEditorModule::StartupModule()
 	FPixelStreamingStyle::ReloadTextures();
 	Toolbar = MakeShared<FPixelStreamingToolbar>();
 
-	// Update editor settings so that editor won't slow down if not in focus
-	UEditorPerformanceSettings* Settings = GetMutableDefault<UEditorPerformanceSettings>();
-	Settings->bThrottleCPUWhenNotForeground = false;
-	Settings->PostEditChange();
-
 	Settings::InitialiseSettings();
 	bUseExternalSignallingServer = Settings::CVarEditorPixelStreamingUseRemoteSignallingServer.GetValueOnAnyThread();
 
@@ -89,6 +84,10 @@ void FPixelStreamingEditorModule::InitEditorStreaming(IPixelStreamingModule& Mod
 	}
 
 	EditorStreamer = Module.CreateStreamer(EditorStreamerID);
+
+	// Bind to start/stop streaming so we disable/restore relevant editor settings
+	EditorStreamer->OnStreamingStarted().AddLambda([this](IPixelStreamingStreamer* Streamer){ DisableCPUThrottlingSetting(); });
+	EditorStreamer->OnStreamingStopped().AddLambda([this](IPixelStreamingStreamer* Streamer){ RestoreCPUThrottlingSetting(); });
 
 	// Give the editor streamer the default url if the user hasn't specified one when launching the editor
 	if (EditorStreamer->GetSignallingServerURL().IsEmpty())
@@ -405,6 +404,33 @@ void FPixelStreamingEditorModule::MaybeResizeEditor(TSharedPtr<SWindow> RootWind
         // about the updated virtual desktop size
         FSystemResolution::RequestResolutionChange(ResolutionX, ResolutionY, GSystemResolution.WindowMode);
 	    IConsoleManager::Get().CallAllConsoleVariableSinks();
+	}
+}
+
+void FPixelStreamingEditorModule::RestoreCPUThrottlingSetting()
+{
+	UEditorPerformanceSettings* Settings = GetMutableDefault<UEditorPerformanceSettings>();
+	Settings->bThrottleCPUWhenNotForeground = bOldCPUThrottlingSetting;
+	Settings->PostEditChange();
+}
+
+void FPixelStreamingEditorModule::DisableCPUThrottlingSetting()
+{
+	// Update editor settings so that editor won't slow down if not in focus
+	UEditorPerformanceSettings* Settings = GetMutableDefault<UEditorPerformanceSettings>();
+
+	// Store whatever value the user had in here so we can restore it when we are done streaming.
+	bOldCPUThrottlingSetting = Settings->bThrottleCPUWhenNotForeground;
+
+	if(Settings->bThrottleCPUWhenNotForeground)
+	{
+		Settings->bThrottleCPUWhenNotForeground = false;
+		Settings->PostEditChange();
+
+		// Let the user know we are forcing this editor setting (so they know why their setting is not working potentially)
+		FNotificationInfo Info(LOCTEXT("PixelStreamingEditorModule_Notification", "Pixel Streaming: Disabling setting \"Use less CPU in background\" for streaming performance."));
+		Info.ExpireDuration = 5.0f;
+		FSlateNotificationManager::Get().AddNotification(Info);
 	}
 }
 
