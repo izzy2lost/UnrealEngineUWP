@@ -3,6 +3,7 @@
 #pragma once
 
 #include "Replication/Data/ConcertPropertySelection.h"
+#include "Replication/Messages/ChangeStream.h"
 
 /**
  * This public, high-level Multi-User API for replication  effectively encapsulates the lower-level ConcertSyncCore replication API,
@@ -101,18 +102,23 @@ namespace UE::MultiUserClient
 	
 	struct FPropertyChange
 	{
+		/** The properties of the operation */
 		TArray<FConcertPropertyChain> Properties;
+		/** How to interpret Properties. */
 		EPropertyChangeType ChangeType;
 	};
 
 	/** Params for changing a client's stream. */
 	struct FChangeStreamRequest
 	{
-		/** Property changes to make to objects. */
+		/** Property changes to make to objects. This can be used to add new objects. */
 		TMap<UObject*, FPropertyChange> PropertyChanges;
 
 		/** Objects that should be unregistered (they will also stop replicating if added here) */
 		TSet<FSoftObjectPath> ObjectsToRemove;
+
+		/** Changes how often objects are supposed to be replicated. */
+		FConcertReplication_ChangeStream_Frequency FrequencyChanges;
 	};
 
 	/** Params for changing a client's authority (what they're replicating). */

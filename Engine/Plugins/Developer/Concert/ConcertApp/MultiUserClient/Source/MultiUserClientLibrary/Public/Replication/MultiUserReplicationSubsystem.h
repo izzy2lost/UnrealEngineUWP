@@ -6,10 +6,9 @@
 #include "ConcertPropertyChainWrapper.h"
 #include "MultiUserReplicationSubsystem.generated.h"
 
-namespace UE::MultiUserClientLibrary
-{
-	class FUObjectAdapterReplicationDiscoverer;
-}
+struct FMultiUserObjectReplicationSettings;
+
+namespace UE::MultiUserClientLibrary { class FUObjectAdapterReplicationDiscoverer; }
 
 /** Exposes ways to interact with the Multi-user replication system via Blueprints. */
 UCLASS()
@@ -27,6 +26,14 @@ public:
 	 */
 	UFUNCTION(BlueprintPure, Category = "Multi-user")
 	bool IsReplicatingObject(const FGuid& ClientId, const FSoftObjectPath& ObjectPath) const;
+
+	/**
+	 * @return Whether OutFrequency was modified.
+	 * @note An object can be registered but not replicated.
+	 * @see UMultiUserSubsystem::GetLocalClientId and UMultiUserSubsystem::GetRemoteClientIds
+	 */
+	UFUNCTION(BlueprintPure, Category = "Multi-user")
+	bool GetObjectReplicationFrequency(const FGuid& ClientId, const FSoftObjectPath& ObjectPath, FMultiUserObjectReplicationSettings& OutFrequency);
 
 	/**
 	 * @return The properties the client has registered for replication for the object.
@@ -73,10 +80,12 @@ public:
 private:
 
 	/**
-	 * Registered when initialized.
+	 * This is used only for when the adds an object through the Add button in the UI.
 	 * 
 	 * This allows UObjects, the target being Blueprints, to implement the IConcertReplicationRegistration interface through which MU will use to
 	 * auto-add properties when registering an object to a client's replication stream.
+	 *
+	 * Registered when this subsystem is initialized.
 	 */
 	TSharedPtr<UE::MultiUserClientLibrary::FUObjectAdapterReplicationDiscoverer> UObjectAdapter;
 };

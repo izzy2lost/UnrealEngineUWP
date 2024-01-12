@@ -96,12 +96,66 @@ struct FMultiUserPropertyChange
 	GENERATED_BODY()
 
 	/** The properties for the object. See ChangeType for how they are used */
-	UPROPERTY(BlueprintReadWrite, Category = "Multi-user")
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Multi-user")
 	TArray<FConcertPropertyChainWrapper> Properties;
 
 	/** How you want Properties to be applied to the object. */
-	UPROPERTY(BlueprintReadWrite, Category = "Multi-user")
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Multi-user")
 	EMultiUserPropertyChangeType ChangeType = EMultiUserPropertyChangeType::Add;
+};
+
+UENUM(BlueprintType)
+enum class EMultiUserObjectReplicationMode : uint8
+{
+	/** Replicate at the rate specified at FMultiUserObjectReplicationSettings::ReplicationRate */
+	SpecifiedRate,
+	/** Replicate the object as often as possible: every tick. */
+	Realtime
+};
+
+/** Frequency settings for a particular object */
+USTRUCT(BlueprintType)
+struct FMultiUserObjectReplicationSettings
+{
+	GENERATED_BODY()
+
+	/** Determines whether to send a replication event every tick (Realtime) or at the specified rate (SpecifiedRate). */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Multi-user")
+	EMultiUserObjectReplicationMode Mode = EMultiUserObjectReplicationMode::SpecifiedRate;
+
+	/** If Mode == SpecifiedRate, then replicate this many times per second. */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Multi-user")
+	uint8 ReplicationRate = 30;
+};
+
+/**
+ * Params for changing how often objects replicate.
+ * 
+ * All objects default to a global setting that can be changed by setting bChangeDefaults = true and changing NewDefaults to contain the new defaults.
+ * Objects can have overrides mutated via OverridesToAdd and OverridesToRemove. Overrides override the default behavior.
+ */
+USTRUCT(BlueprintType)
+struct FMultiUserFrequencyChangeRequest
+{
+	GENERATED_BODY()
+
+	/** Objects for which to remove overrides. */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Multi-user")
+	TSet<FSoftObjectPath> OverridesToRemove;
+
+	/** Objects for which to add overrides */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Multi-user")
+	TMap<FSoftObjectPath, FMultiUserObjectReplicationSettings> OverridesToAdd;
+
+	/** Set new frequency defaults for all objects that do not have any overrides. */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Multi-user")
+	FMultiUserObjectReplicationSettings NewDefaults;
+
+	/** Whether to replace the defaults currently registered on the server with the ones specified in NewDefaults. */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Multi-user")
+	bool bChangeDefaults = false;
+
+	bool IsEmpty() const { return OverridesToRemove.IsEmpty() && OverridesToAdd.IsEmpty() && !bChangeDefaults; }
 };
 
 /** Params for changing a client's stream. */
@@ -111,14 +165,18 @@ struct FMultiUserChangeStreamRequest
 	GENERATED_BODY()
 	
 	/** Property changes to make to objects. */
-	UPROPERTY(BlueprintReadWrite, Category = "Multi-user")
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Multi-user")
 	TMap<UObject*, FMultiUserPropertyChange> PropertyChanges;
 
 	/** Objects that should be unregistered (they will also stop replicating if added here) */
-	UPROPERTY(BlueprintReadWrite, Category = "Multi-user")
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Multi-user")
 	TSet<FSoftObjectPath> ObjectsToRemove;
+
+	/** Change how often objects are supposed to be replicated. */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Multi-user")
+	FMultiUserFrequencyChangeRequest FrequencyChanges;
 	
-	bool IsEmpty() const { return PropertyChanges.IsEmpty() && ObjectsToRemove.IsEmpty(); }
+	bool IsEmpty() const { return PropertyChanges.IsEmpty() && ObjectsToRemove.IsEmpty() && FrequencyChanges.IsEmpty(); }
 };
 
 /** Params for changing a client's authority (what they're replicating). */
@@ -128,11 +186,11 @@ struct FMultiUserChangeAuthorityRequest
 	GENERATED_BODY()
 	
 	/** Objects that should start replicating. The objects must previously have been registered. */
-	UPROPERTY(BlueprintReadWrite, Category = "Multi-user")
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Multi-user")
 	TSet<FSoftObjectPath> ObjectsToStartReplicating;
 
 	/** Objects that should stop replicating. */
-	UPROPERTY(BlueprintReadWrite, Category = "Multi-user")
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Multi-user")
 	TSet<FSoftObjectPath> ObjectToStopReplicating;
 
 	bool IsEmpty() const { return ObjectsToStartReplicating.IsEmpty() && ObjectToStopReplicating.IsEmpty(); }
@@ -183,7 +241,12 @@ namespace UE::MultiUserClientLibrary
 	
 	MULTIUSERCLIENTLIBRARY_API MultiUserClient::EPropertyChangeType Transform(EMultiUserPropertyChangeType Data);
 	MULTIUSERCLIENTLIBRARY_API MultiUserClient::FPropertyChange Transform(FMultiUserPropertyChange Data);
-	
+
+	MULTIUSERCLIENTLIBRARY_API EConcertObjectReplicationMode Transform(EMultiUserObjectReplicationMode Data);
+	MULTIUSERCLIENTLIBRARY_API EMultiUserObjectReplicationMode Transform(EConcertObjectReplicationMode Data);
+	MULTIUSERCLIENTLIBRARY_API FConcertObjectReplicationSettings Transform(const FMultiUserObjectReplicationSettings& Data);
+	MULTIUSERCLIENTLIBRARY_API FMultiUserObjectReplicationSettings Transform(const FConcertObjectReplicationSettings& Data);
+
 	MULTIUSERCLIENTLIBRARY_API MultiUserClient::FChangeStreamRequest Transform(FMultiUserChangeStreamRequest Data);
 	MULTIUSERCLIENTLIBRARY_API MultiUserClient::FChangeAuthorityRequest Transform(FMultiUserChangeAuthorityRequest Data);
 	MULTIUSERCLIENTLIBRARY_API MultiUserClient::FChangeClientReplicationRequest Transform(FMultiUserChangeClientReplicationRequest Data);

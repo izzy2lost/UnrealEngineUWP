@@ -102,6 +102,16 @@ namespace UE::MultiUserClient::ClientChangeConversionUtils
 				);
 			}
 		}
+
+		static FFrequencyChangelist BuildFrequencyChanges(FConcertReplication_ChangeStream_Frequency FrequencyChanges)
+		{
+			FFrequencyChangelist Changelist;
+			Changelist.OverridesToAdd = MoveTemp(FrequencyChanges.OverridesToAdd);
+			Changelist.OverridesToRemove = MoveTemp(FrequencyChanges.OverridesToRemove);
+			Changelist.NewDefaults = EnumHasAnyFlags(FrequencyChanges.Flags, EConcertReplicationChangeFrequencyFlags::SetDefaults)
+				? MoveTemp(FrequencyChanges.NewDefaults) : TOptional<FConcertObjectReplicationSettings>{};
+			return Changelist;
+		}
 	}
 
 	TOptional<FConcertReplication_ChangeStream_Request> Transform(
@@ -113,15 +123,16 @@ namespace UE::MultiUserClient::ClientChangeConversionUtils
 		FStreamChangelist StreamChangelist;
 		Private::BuildStreamChanges(MoveTemp(Request.PropertyChanges), ClientStreamId, ClientStreamContent, StreamChangelist);
 		Private::BuildAuthorityChanges(MoveTemp(Request.ObjectsToRemove), ClientStreamId, StreamChangelist);
-		if (StreamChangelist.ObjectsToPut.IsEmpty() && StreamChangelist.ObjectsToRemove.IsEmpty())
+		FFrequencyChangelist FrequencyChangelist = Private::BuildFrequencyChanges(MoveTemp(Request.FrequencyChanges));
+		if (StreamChangelist.ObjectsToPut.IsEmpty() && StreamChangelist.ObjectsToRemove.IsEmpty() && FrequencyChangelist.IsEmpty())
 		{
 			return {};
 		}
 		
 		const bool bNeedsToRegisterStream = ClientStreamContent.IsEmpty();
 		return bNeedsToRegisterStream
-			? StreamRequestUtils::BuildChangeRequest_CreateNewStream(ClientStreamId, StreamChangelist)
-			: StreamRequestUtils::BuildChangeRequest_UpdateExistingStream(ClientStreamId, MoveTemp(StreamChangelist));
+			? StreamRequestUtils::BuildChangeRequest_CreateNewStream(ClientStreamId, StreamChangelist, MoveTemp(FrequencyChangelist))
+			: StreamRequestUtils::BuildChangeRequest_UpdateExistingStream(ClientStreamId, MoveTemp(StreamChangelist), MoveTemp(FrequencyChangelist));
 	}
 
 	TOptional<FConcertReplication_ChangeAuthority_Request> Transform(

@@ -2,10 +2,13 @@
 
 #include "Replication/MultiUserReplicationSubsystem.h"
 
+#include "Replication/Async/ChangeClientBlueprintParams.h"
+
 #if WITH_CONCERT
 #include "UObjectAdapterReplicationDiscoverer.h"
 #include "IMultiUserClientModule.h"
 #include "Replication/Data/ObjectReplicationMap.h"
+#include "Replication/Data/ReplicationFrequencySettings.h"
 #include "Replication/IMultiUserReplication.h"
 
 #include "Algo/Transform.h"
@@ -18,6 +21,29 @@ bool UMultiUserReplicationSubsystem::IsReplicatingObject(const FGuid& ClientId, 
 	if (ensureMsgf(ReplicationInterface, TEXT("We expected it to always be valid.")))
 	{
 		return ReplicationInterface->IsReplicatingObject(ClientId, ObjectPath);
+	}
+#endif
+	return false;
+}
+
+bool UMultiUserReplicationSubsystem::GetObjectReplicationFrequency(const FGuid& ClientId, const FSoftObjectPath& ObjectPath, FMultiUserObjectReplicationSettings& OutFrequency)
+{
+#if WITH_CONCERT
+	const UE::MultiUserClient::IMultiUserReplication* ReplicationInterface = IMultiUserClientModule::Get().GetReplication();
+	if (ensureMsgf(ReplicationInterface, TEXT("We expected it to always be valid.")))
+	{
+		const FConcertObjectReplicationMap* ObjectMap = ReplicationInterface->FindReplicationMapForClient(ClientId);
+		if (!ObjectMap || !ObjectMap->HasProperties(ObjectPath))
+		{
+			return false;
+		}
+		
+		const FConcertStreamFrequencySettings* FrequencySettings = ReplicationInterface->FindReplicationFrequenciesForClient(ClientId);
+		if (FrequencySettings)
+		{
+			OutFrequency = UE::MultiUserClientLibrary::Transform(FrequencySettings->GetSettingsFor(ObjectPath));
+			return true;
+		}
 	}
 #endif
 	return false;

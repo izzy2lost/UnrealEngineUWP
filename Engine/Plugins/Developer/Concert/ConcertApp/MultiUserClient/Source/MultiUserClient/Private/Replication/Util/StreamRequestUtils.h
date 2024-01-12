@@ -21,6 +21,8 @@ namespace UE::MultiUserClient
 		TSet<FSoftObjectPath> OverridesToRemove;
 		TMap<FSoftObjectPath, FConcertObjectReplicationSettings> OverridesToAdd;
 		TOptional<FConcertObjectReplicationSettings> NewDefaults;
+
+		bool IsEmpty() const { return OverridesToRemove.IsEmpty() && OverridesToAdd.IsEmpty() && !NewDefaults.IsSet(); }
 	};
 }
 

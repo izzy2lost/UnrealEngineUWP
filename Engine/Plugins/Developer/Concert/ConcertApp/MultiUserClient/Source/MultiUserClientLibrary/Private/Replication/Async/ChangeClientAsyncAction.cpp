@@ -34,7 +34,7 @@ void UChangeClientAsyncAction::Activate()
 			{
 				if (IsInGameThread())
 				{
-					// Do not call IsValid it outside the game thread!
+					// As per documentation, IsValid is unsafe to call outside of the game thread
 					if (WeakThis.IsValid())
 					{
 						WeakThis->OnCompleted.Broadcast(UE::MultiUserClientLibrary::Transform(MoveTemp(Result)));

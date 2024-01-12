@@ -112,6 +112,18 @@ namespace UE::MultiUserClient
 		return nullptr;
 	}
 
+	const FConcertStreamFrequencySettings* FMultiUserReplicationManager::FindReplicationFrequenciesForClient(const FGuid& ClientId) const
+	{
+		if (ConnectedState && ensureMsgf(IsInGameThread(), TEXT("To simplify implementation, only calls from game thread are allowed.")))
+		{
+			const FReplicationClient* ReplicationClient = ConnectedState->ClientManager.FindClient(ClientId);
+			return ReplicationClient
+				? &ReplicationClient->GetStreamSynchronizer().GetFrequencySettings()
+				: nullptr;
+		}
+		return nullptr;
+	}
+
 	bool FMultiUserReplicationManager::IsReplicatingObject(const FGuid& ClientId, const FSoftObjectPath& ObjectPath) const 
 	{
 		if (ConnectedState && ensureMsgf(IsInGameThread(), TEXT("To simplify implementation, only calls from game thread are allowed.")))

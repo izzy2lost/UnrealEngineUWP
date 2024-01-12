@@ -41,6 +41,32 @@ namespace UE::MultiUserClientLibrary
 		return Result;
 	}
 	
+	EConcertObjectReplicationMode Transform(EMultiUserObjectReplicationMode Data)
+	{
+		static_assert(static_cast<int32>(EConcertObjectReplicationMode::Count) == 2, "Update this transform operation and its asserts.");
+		static_assert(static_cast<int32>(EConcertObjectReplicationMode::Realtime) == static_cast<int32>(EMultiUserObjectReplicationMode::Realtime));
+		static_assert(static_cast<int32>(EConcertObjectReplicationMode::SpecifiedRate) == static_cast<int32>(EMultiUserObjectReplicationMode::SpecifiedRate));
+		return static_cast<EConcertObjectReplicationMode>(Data);
+	}
+
+	EMultiUserObjectReplicationMode Transform(EConcertObjectReplicationMode Data)
+	{
+		static_assert(static_cast<int32>(EConcertObjectReplicationMode::Count) == 2, "Update this transform operation and its asserts.");
+		static_assert(static_cast<int32>(EConcertObjectReplicationMode::Realtime) == static_cast<int32>(EMultiUserObjectReplicationMode::Realtime));
+		static_assert(static_cast<int32>(EConcertObjectReplicationMode::SpecifiedRate) == static_cast<int32>(EMultiUserObjectReplicationMode::SpecifiedRate));
+		return static_cast<EMultiUserObjectReplicationMode>(Data);
+	}
+
+	FConcertObjectReplicationSettings Transform(const FMultiUserObjectReplicationSettings& Data)
+	{
+		return { Transform(Data.Mode), Data.ReplicationRate };
+	}
+	
+	FMultiUserObjectReplicationSettings Transform(const FConcertObjectReplicationSettings& Data)
+	{
+		return { Transform(Data.ReplicationMode), Data.ReplicationRate };
+	}
+	
 	MultiUserClient::FChangeStreamRequest Transform(FMultiUserChangeStreamRequest Data)
 	{
 		MultiUserClient::FChangeStreamRequest Result { .ObjectsToRemove = MoveTemp(Data.ObjectsToRemove) };
@@ -52,6 +78,19 @@ namespace UE::MultiUserClientLibrary
 			{
 				Result.PropertyChanges.Emplace(Change.Key, Transform(MoveTemp(Change.Value)));
 			}
+		}
+
+		FMultiUserFrequencyChangeRequest& InFrequencyChanges = Data.FrequencyChanges;
+		FConcertReplication_ChangeStream_Frequency& OutFrequencyChanges = Result.FrequencyChanges;
+		if (!InFrequencyChanges.IsEmpty())
+		{
+			OutFrequencyChanges.Flags = InFrequencyChanges.bChangeDefaults ? EConcertReplicationChangeFrequencyFlags::SetDefaults : EConcertReplicationChangeFrequencyFlags::None;
+			OutFrequencyChanges.NewDefaults = Transform(InFrequencyChanges.NewDefaults);
+			OutFrequencyChanges.OverridesToRemove = MoveTemp(InFrequencyChanges.OverridesToRemove);
+			Algo::Transform(InFrequencyChanges.OverridesToAdd, OutFrequencyChanges.OverridesToAdd, [](const TPair<FSoftObjectPath, FMultiUserObjectReplicationSettings>& Pair)
+			{
+				return TPair<FSoftObjectPath, FConcertObjectReplicationSettings>{ Pair.Key, Transform(Pair.Value) };
+			});
 		}
 		
 		return Result;

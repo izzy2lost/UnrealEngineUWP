@@ -11,7 +11,12 @@ enum class EConcertObjectReplicationMode : uint8
 	/** Replicate at the rate specified at FConcertReplicatedObjectInfo::ReplicationRate */
 	SpecifiedRate,
 	/** Replicate the object as often as possible: every tick. */
-	Realtime
+	Realtime,
+
+	/***** ADD NEW ENTRIES ABOVE THIS LINE *****/
+	
+	/** Not a real mode. */
+	Count
 };
 
 namespace UE::ConcertSyncCore

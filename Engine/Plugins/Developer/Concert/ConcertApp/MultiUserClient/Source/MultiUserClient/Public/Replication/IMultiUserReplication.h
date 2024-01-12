@@ -27,6 +27,15 @@ namespace UE::MultiUserClient
 		 * This function must be called from the game thread.
 		 */
 		virtual const FConcertObjectReplicationMap* FindReplicationMapForClient(const FGuid& ClientId) const = 0;
+
+		/**
+		 * @return Gets the last known server object replication frequencies.
+		 * 
+		 * This server state is regularly polled whilst the local client state should always be in synch.
+		 * This function must be called from the game thread.
+		 */
+		virtual const FConcertStreamFrequencySettings* FindReplicationFrequenciesForClient(const FGuid& ClientId) const = 0;
+		
 		/**
 		 * @return Whether the local editor instance thinks the client has authority over the properties it has registered to ObjectPath.
 		 * This function must be called from the game thread.
