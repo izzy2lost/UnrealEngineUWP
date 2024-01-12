@@ -467,6 +467,8 @@ void FStaticMeshSceneProxy::SetEvaluateWorldPositionOffsetInRayTracing(FRHIComma
 
 		ReleaseDynamicRayTracingGeometries();
 	}
+
+	GetScene().UpdateCachedRayTracingState(this);
 #endif
 }
 
