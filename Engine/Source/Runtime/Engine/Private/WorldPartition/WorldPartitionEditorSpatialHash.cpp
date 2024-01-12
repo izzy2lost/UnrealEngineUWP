@@ -301,7 +301,7 @@ void UWorldPartitionEditorSpatialHash::UnhashActor(FWorldPartitionHandle& InActo
 
 int32 UWorldPartitionEditorSpatialHash::ForEachIntersectingActor(const FBox& Box, TFunctionRef<void(FWorldPartitionActorDescInstance*)> InOperation, const FForEachIntersectingActorParams& Params)
 {
-	TSet<FWorldPartitionHandle> IntersectedActors;
+	TSet<FGuid> IntersectedActors;
 
 	const int MininumumLevel = Params.MinimumBox.IsSet() ? GetLevelForBox(*Params.MinimumBox) : 0;
 
@@ -314,7 +314,7 @@ int32 UWorldPartitionEditorSpatialHash::ForEachIntersectingActor(const FBox& Box
 				if (ActorHandle.IsValid())
 				{
 					bool bWasAlreadyInSet;
-					IntersectedActors.Add(ActorHandle, &bWasAlreadyInSet);
+					IntersectedActors.Add(ActorHandle.GetInstance()->GetGuid(), &bWasAlreadyInSet);
 
 					if (!bWasAlreadyInSet)
 					{
@@ -337,7 +337,7 @@ int32 UWorldPartitionEditorSpatialHash::ForEachIntersectingActor(const FBox& Box
 				if (Box.Intersect(ActorHandle.GetInstance()->GetEditorBounds()))
 				{
 					bool bWasAlreadyInSet;
-					IntersectedActors.Add(ActorHandle, &bWasAlreadyInSet);
+					IntersectedActors.Add(ActorHandle.GetInstance()->GetGuid(), &bWasAlreadyInSet);
 				
 					if (!bWasAlreadyInSet)
 					{
