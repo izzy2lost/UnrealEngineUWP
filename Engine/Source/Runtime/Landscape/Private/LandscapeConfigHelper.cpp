@@ -11,6 +11,8 @@
 #include "Landscape.h"
 #include "LandscapeProxy.h"
 #include "LandscapeStreamingProxy.h"
+#include "LandscapeSplineActor.h"
+#include "LandscapeSplineControlPoint.h"
 #include "LandscapeSplinesComponent.h"
 #include "LandscapeEdit.h"
 #include "LandscapeDataAccess.h"
@@ -237,6 +239,66 @@ bool FLandscapeConfigHelper::ChangeGridSize(ULandscapeInfo* InLandscapeInfo, uin
 	}
 
 	return true;
+}
+
+bool FLandscapeConfigHelper::PartitionLandscape(UWorld* InWorld, ULandscapeInfo* InLandscapeInfo, uint32 InGridSizeInComponents)
+{
+	TRACE_CPUPROFILER_EVENT_SCOPE(FLandscapeConfigHelper::PartitionLandscape);
+
+	TSet<AActor*> NewSplineActors;
+
+	// Handle Landscapes with missing LandscapeActor(s)
+	if (!InLandscapeInfo->LandscapeActor.Get())
+	{
+		// Use the first proxy as the landscape template
+		if (ALandscapeProxy* FirstProxy = InLandscapeInfo->StreamingProxies[0].Get())
+		{
+			FActorSpawnParameters SpawnParams;
+			FTransform LandscapeTransform = FirstProxy->LandscapeActorToWorld();
+			ALandscape* NewLandscape = InWorld->SpawnActor<ALandscape>(ALandscape::StaticClass(), LandscapeTransform, SpawnParams);
+
+			NewLandscape->CopySharedProperties(FirstProxy);
+
+			InLandscapeInfo->RegisterActor(NewLandscape);
+		}
+	}
+
+	auto MoveControlPointToNewSplineActor = [&NewSplineActors, InLandscapeInfo](ULandscapeSplineControlPoint* ControlPoint)
+	{
+		AActor* CurrentOwner = ControlPoint->GetTypedOuter<AActor>();
+		// Control point as already been moved through its connected segments
+		if (NewSplineActors.Contains(CurrentOwner))
+		{
+			return;
+		}
+
+		const FTransform LocalToWorld = ControlPoint->GetOuterULandscapeSplinesComponent()->GetComponentTransform();
+		const FVector NewActorLocation = LocalToWorld.TransformPosition(ControlPoint->Location);
+
+		ALandscapeSplineActor* NewSplineActor = InLandscapeInfo->CreateSplineActor(NewActorLocation);
+
+		NewSplineActors.Add(NewSplineActor);
+		InLandscapeInfo->MoveSpline(ControlPoint, NewSplineActor);
+	};
+
+	// Iterate on copy since we are creating new spline actors
+	TArray<TScriptInterface<ILandscapeSplineInterface>> OldSplineActors(InLandscapeInfo->GetSplineActors());
+	for (TScriptInterface<ILandscapeSplineInterface> PreviousSplineActor : OldSplineActors)
+	{
+		if (ULandscapeSplinesComponent* SplineComponent = PreviousSplineActor->GetSplinesComponent())
+		{
+			SplineComponent->ForEachControlPoint(MoveControlPointToNewSplineActor);
+		}
+	}
+
+	TSet<AActor*> ActorsToDelete;
+	bool bChangedGridSize = FLandscapeConfigHelper::ChangeGridSize(InLandscapeInfo, InGridSizeInComponents, ActorsToDelete);
+	for (AActor* ActorToDelete : ActorsToDelete)
+	{
+		InWorld->DestroyActor(ActorToDelete);
+	}
+
+	return bChangedGridSize;
 }
 
 void FLandscapeConfigHelper::ExtractLandscapeData(ULandscapeInfo* InLandscapeInfo, const FIntRect& InRegion, const FGuid& InLayerGuid, TArray<uint16>& OutHeightData, TArray<FLandscapeImportLayerInfo>& OutImportMaterialLayerInfos)

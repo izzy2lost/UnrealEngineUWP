@@ -47,14 +47,9 @@
 #include "Engine/WorldComposition.h"
 #include "ActorPartition/ActorPartitionSubsystem.h"
 #include "InstancedFoliage.h"
-#include "Landscape.h"
 #include "LandscapeStreamingProxy.h"
 #include "LandscapeInfo.h"
 #include "LandscapeConfigHelper.h"
-#include "ILandscapeSplineInterface.h"
-#include "LandscapeSplineActor.h"
-#include "LandscapeSplinesComponent.h"
-#include "LandscapeSplineControlPoint.h"
 #include "LandscapeGizmoActor.h"
 #include "WorldPartition/DataLayer/DataLayerInstanceWithAsset.h"
 #include "WorldPartition/DataLayer/WorldDataLayers.h"
@@ -927,64 +922,6 @@ int32 UWorldPartitionConvertCommandlet::Main(const FString& Params)
 		return true;
 	};
 
-	TSet<AActor*> NewSplineActors;
-
-	auto PartitionLandscape = [this, MainWorld, &NewSplineActors](ULandscapeInfo* LandscapeInfo)
-	{
-		TRACE_CPUPROFILER_EVENT_SCOPE(PartitionLandscape);
-
-		// Handle Landscapes with missing LandscapeActor(s)
-		if (!LandscapeInfo->LandscapeActor.Get())
-		{
-			// Use the first proxy as the landscape template
-			if (ALandscapeProxy* FirstProxy = LandscapeInfo->StreamingProxies[0].Get())
-			{
-				FActorSpawnParameters SpawnParams;
-				FTransform LandscapeTransform = FirstProxy->LandscapeActorToWorld();
-				ALandscape* NewLandscape = MainWorld->SpawnActor<ALandscape>(ALandscape::StaticClass(), LandscapeTransform, SpawnParams);
-
-				NewLandscape->CopySharedProperties(FirstProxy);
-
-				LandscapeInfo->RegisterActor(NewLandscape);
-			}
-		}
-
-		auto MoveControlPointToNewSplineActor = [&NewSplineActors, LandscapeInfo](ULandscapeSplineControlPoint* ControlPoint)
-		{
-			AActor* CurrentOwner = ControlPoint->GetTypedOuter<AActor>();
-			// Control point as already been moved through its connected segments
-			if (NewSplineActors.Contains(CurrentOwner))
-			{
-				return;
-			}
-			
-			const FTransform LocalToWorld = ControlPoint->GetOuterULandscapeSplinesComponent()->GetComponentTransform();
-			const FVector NewActorLocation = LocalToWorld.TransformPosition(ControlPoint->Location);
-						
-			ALandscapeSplineActor* NewSplineActor = LandscapeInfo->CreateSplineActor(NewActorLocation);
-
-			NewSplineActors.Add(NewSplineActor);
-			LandscapeInfo->MoveSpline(ControlPoint, NewSplineActor);
-		};
-				
-		// Iterate on copy since we are creating new spline actors
-		TArray<TScriptInterface<ILandscapeSplineInterface>> OldSplineActors(LandscapeInfo->GetSplineActors());
-		for (TScriptInterface<ILandscapeSplineInterface> PreviousSplineActor : OldSplineActors)
-		{
-			if (ULandscapeSplinesComponent* SplineComponent = PreviousSplineActor->GetSplinesComponent())
-			{
-				SplineComponent->ForEachControlPoint(MoveControlPointToNewSplineActor);
-			}
-		}
-
-		TSet<AActor*> ActorsToDelete;
-		FLandscapeConfigHelper::ChangeGridSize(LandscapeInfo, LandscapeGridSize, ActorsToDelete);
-		for (AActor* ActorToDelete : ActorsToDelete)
-		{
-			MainWorld->DestroyActor(ActorToDelete);
-		}
-	};
-
 	IAssetTools& AssetTools = FModuleManager::GetModuleChecked<FAssetToolsModule>("AssetTools").Get();
 
 	auto ConvertActorLayersToDataLayers = [this, MainWorldDataLayers, &AssetTools](AActor* Actor)
@@ -1020,7 +957,7 @@ int32 UWorldPartitionConvertCommandlet::Main(const FString& Params)
 		}
 	};
 
-	auto PrepareLevelActors = [this, PartitionFoliage, PartitionLandscape, MainWorld, ConvertActorLayersToDataLayers](ULevel* Level, TArray<AActor*>& Actors, bool bMainLevel) -> bool
+	auto PrepareLevelActors = [this, PartitionFoliage, MainWorld, ConvertActorLayersToDataLayers](ULevel* Level, TArray<AActor*>& Actors, bool bMainLevel) -> bool
 	{
 		TRACE_CPUPROFILER_EVENT_SCOPE(PrepareLevelActors);
 
@@ -1121,7 +1058,7 @@ int32 UWorldPartitionConvertCommandlet::Main(const FString& Params)
 
 				for (ULandscapeInfo* LandscapeInfo : LandscapeInfos)
 				{
-					PartitionLandscape(LandscapeInfo);
+					FLandscapeConfigHelper::PartitionLandscape(MainWorld, LandscapeInfo, LandscapeGridSize);
 				}
 			}
 		}
