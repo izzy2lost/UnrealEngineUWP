@@ -130,7 +130,7 @@ namespace Horde.Server.Perforce
 				public Handle(IStorageWriter writer, ChunkingOptions options)
 				{
 					Hash = IncrementalHash.CreateHash(HashAlgorithmName.MD5);
-					FileWriter = new ChunkedDataWriter(writer, options);
+					FileWriter = new ChunkedDataWriter(writer, options, BlobSerializerOptions.Default);
 				}
 
 				public void Dispose()

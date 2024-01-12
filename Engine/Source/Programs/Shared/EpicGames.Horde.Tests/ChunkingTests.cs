@@ -60,7 +60,7 @@ namespace EpicGames.Horde.Tests
 
 				using MemoryStream emptyStream = new MemoryStream();
 				LeafChunkedData leafChunkedData = await LeafChunkedDataNode.CreateFromStreamAsync(writer, emptyStream, new LeafChunkedDataNodeOptions(64, 64, 64), CancellationToken.None);
-				ChunkedData chunkedData = await InteriorChunkedDataNode.CreateTreeAsync(leafChunkedData, new InteriorChunkedDataNodeOptions(4, 4, 4), writer, CancellationToken.None); 
+				ChunkedData chunkedData = await InteriorChunkedDataNode.CreateTreeAsync(leafChunkedData, new InteriorChunkedDataNodeOptions(4, 4, 4), writer, BlobSerializerOptions.Default, CancellationToken.None); 
 
 				DirectoryNode directory = new DirectoryNode();
 				directory.AddFile("test.foo", FileEntryFlags.None, 0, chunkedData);
@@ -110,7 +110,7 @@ namespace EpicGames.Horde.Tests
 
 			const int NumIterations = 100;
 			{
-				using ChunkedDataWriter fileWriter = new ChunkedDataWriter(writer, options);
+				using ChunkedDataWriter fileWriter = new ChunkedDataWriter(writer, options, BlobSerializerOptions.Default);
 
 				for (int idx = 0; idx < NumIterations; idx++)
 				{

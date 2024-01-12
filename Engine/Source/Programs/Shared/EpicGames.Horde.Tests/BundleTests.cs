@@ -77,7 +77,7 @@ namespace EpicGames.Horde.Tests
 			ChunkingOptions options = new ChunkingOptions();
 			options.LeafOptions = new LeafChunkedDataNodeOptions(8, 8, 8);
 
-			using ChunkedDataWriter fileNodeWriter = new ChunkedDataWriter(writer, options);
+			using ChunkedDataWriter fileNodeWriter = new ChunkedDataWriter(writer, options, BlobSerializerOptions.Default);
 
 			ChunkedDataNode node;
 			ChunkedDataNodeRef nodeRef;

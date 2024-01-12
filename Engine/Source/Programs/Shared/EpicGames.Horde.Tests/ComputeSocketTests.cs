@@ -186,7 +186,7 @@ namespace EpicGames.Horde.Tests
 
 						byte[] data = Encoding.UTF8.GetBytes("Hello world");
 
-						using ChunkedDataWriter writer = new ChunkedDataWriter(treeWriter, new ChunkingOptions());
+						using ChunkedDataWriter writer = new ChunkedDataWriter(treeWriter, new ChunkingOptions(), BlobSerializerOptions.Default);
 						ChunkedData chunkedData = await writer.CreateAsync(data, cancellationToken);
 
 						DirectoryNode directory = new DirectoryNode();
