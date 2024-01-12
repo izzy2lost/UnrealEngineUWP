@@ -151,7 +151,7 @@ public:
 	CHAOS_API void FlipBuffer();
 	CHAOS_API bool PullFromPhysicsState(const int32 SolverSyncTimestamp);
 	bool IsDirty() { return false; }
-	EPhysicsProxyType ConcreteType() { return EPhysicsProxyType::SkeletalMeshType; }
+	static constexpr EPhysicsProxyType ConcreteType() { return EPhysicsProxyType::SkeletalMeshType; }
 	/** ----------------------- */
 
 	/**

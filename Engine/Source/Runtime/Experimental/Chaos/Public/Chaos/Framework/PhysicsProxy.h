@@ -81,7 +81,7 @@ public:
 	void BindParticleCallbackMapping(Chaos::TArrayCollectionArray<PhysicsProxyWrapper> & PhysicsProxyReverseMap, Chaos::TArrayCollectionArray<int32> & ParticleIDReverseMap) {static_cast<Concrete*>(this)->BindParticleCallbackMapping(PhysicsProxyReverseMap, ParticleIDReverseMap);}
 
 	/** Returns the concrete type of the derived class*/
-	EPhysicsProxyType ConcreteType() { return static_cast<Concrete*>(this)->ConcreteType(); }
+	static constexpr EPhysicsProxyType ConcreteType() { return Concrete::ConcreteType(); }
 	
 	/**
 	 * CONTEXT: GAMETHREAD

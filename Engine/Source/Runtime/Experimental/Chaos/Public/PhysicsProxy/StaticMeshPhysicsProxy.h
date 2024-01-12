@@ -108,7 +108,7 @@ public:
 	CHAOS_API bool PullFromPhysicsState(const int32 SolverSyncTimestamp);
 	bool IsDirty() { return false; }
 	FStubSkeletalMeshData* NewData() { return nullptr; }
-	EPhysicsProxyType ConcreteType() { return EPhysicsProxyType::StaticMeshType; }
+	static constexpr EPhysicsProxyType ConcreteType() { return EPhysicsProxyType::StaticMeshType; }
 	/** ----------------------- */
 
 private:

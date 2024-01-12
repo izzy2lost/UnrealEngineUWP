@@ -228,7 +228,7 @@ public:
 
 	bool IsDirty() { return false; }
 
-	static EPhysicsProxyType ConcreteType() { return EPhysicsProxyType::GeometryCollectionType; }
+	static constexpr EPhysicsProxyType ConcreteType() { return EPhysicsProxyType::GeometryCollectionType; }
 
 	CHAOS_API void SyncBeforeDestroy();
 	CHAOS_API void OnRemoveFromSolver(Chaos::FPBDRigidsSolver *RBDSolver);
