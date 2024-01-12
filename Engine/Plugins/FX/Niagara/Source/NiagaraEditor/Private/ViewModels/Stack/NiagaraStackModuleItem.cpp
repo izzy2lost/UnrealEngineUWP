@@ -3,6 +3,7 @@
 #include "ViewModels/Stack/NiagaraStackModuleItem.h"
 
 #include "NiagaraActions.h"
+#include "NiagaraAnalytics.h"
 #include "NiagaraClipboard.h"
 #include "NiagaraCommon.h"
 #include "NiagaraConstants.h"
@@ -875,7 +876,21 @@ UNiagaraStackEntry::FStackIssueFixDelegate UNiagaraStackModuleItem::GetUpgradeVe
             FunctionCallNode->GetNiagaraGraph()->NotifyGraphNeedsRecompile();
             GetSystemViewModel()->ResetSystem();
         }
+
+		ReportScriptVersionChange();
     });
+}
+
+void UNiagaraStackModuleItem::ReportScriptVersionChange() const
+{
+	// analytics
+	TArray<FAnalyticsEventAttribute> Attributes;
+	Attributes.Add(FAnalyticsEventAttribute(TEXT("Type"), TEXT("Module")));
+	if (NiagaraAnalytics::IsPluginAsset(GetModuleNode().FunctionScript))
+	{
+		Attributes.Add(FAnalyticsEventAttribute(TEXT("AssetName"), GetModuleNode().FunctionScript->GetPackage()->GetName()));
+	}
+	NiagaraAnalytics::RecordEvent(TEXT("Versioning.ScriptVersionChanged"), Attributes);
 }
 
 void UNiagaraStackModuleItem::RefreshIssues(TArray<FStackIssue>& NewIssues)
@@ -1507,6 +1522,8 @@ void UNiagaraStackModuleItem::ChangeScriptVersion(FGuid NewScriptVersion)
 	    FCompileConstantResolver(&GetSystemViewModel()->GetSystem(), FNiagaraStackGraphUtilities::GetOutputNodeUsage(*FunctionCallNode));
 	GetModuleNode().ChangeScriptVersion(NewScriptVersion, UpgradeContext, true);
 	Refresh();
+
+	ReportScriptVersionChange();
 }
 
 void UNiagaraStackModuleItem::SetInputValuesFromClipboardFunctionInputs(const TArray<const UNiagaraClipboardFunctionInput*>& ClipboardFunctionInputs)

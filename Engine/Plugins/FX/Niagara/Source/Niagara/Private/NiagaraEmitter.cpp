@@ -4,6 +4,7 @@
 #include "NiagaraEmitter.h"
 
 #include "INiagaraEditorOnlyDataUtlities.h"
+#include "NiagaraAnalytics.h"
 #include "NiagaraBoundsCalculator.h"
 #include "NiagaraCustomVersion.h"
 #include "NiagaraComponentSettings.h"
@@ -2763,6 +2764,8 @@ void UNiagaraEmitter::EnableVersioning()
 	ensure(VersionData.Num() == 1);
 	bVersioningEnabled = true;	
 	ExposedVersion = VersionData[0].Version.VersionGuid;
+
+	NiagaraAnalytics::RecordEvent("Versioning.EmitterEnabled");
 }
 
 void UNiagaraEmitter::DisableVersioning(const FGuid& VersionGuidToUse)

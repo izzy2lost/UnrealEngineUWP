@@ -14,6 +14,7 @@
 #include "Misc/FileHelper.h"
 #include "Misc/SecureHash.h"
 #include "Modules/ModuleManager.h"
+#include "NiagaraAnalytics.h"
 #include "NiagaraCompileHashVisitor.h"
 #include "NiagaraCustomVersion.h"
 #include "NiagaraDataInterfaceSkeletalMesh.h"
@@ -623,6 +624,21 @@ void UNiagaraScript::ExposeVersion(const FGuid& VersionGuid)
 	}
 }
 
+FString NiagaraScriptUsageToString(const ENiagaraScriptUsage& Usage)
+{
+	switch (Usage)
+	{
+	case ENiagaraScriptUsage::Module:
+		return TEXT("Module");
+	case ENiagaraScriptUsage::Function:
+		return TEXT("Function");
+	case ENiagaraScriptUsage::DynamicInput:
+		return TEXT("DynamicInput");
+	default:
+		return TEXT("Other");
+	}
+}
+
 void UNiagaraScript::EnableVersioning()
 {
 	if (bVersioningEnabled)
@@ -633,6 +649,8 @@ void UNiagaraScript::EnableVersioning()
 	ensure(VersionData.Num() == 1);
 	bVersioningEnabled = true;	
 	ExposedVersion = VersionData[0].Version.VersionGuid;
+
+	NiagaraAnalytics::RecordEvent(TEXT("Versioning.ScriptEnabled"), TEXT("Usage"), NiagaraScriptUsageToString(Usage));
 }
 
 void UNiagaraScript::DisableVersioning(const FGuid& VersionGuidToUse)

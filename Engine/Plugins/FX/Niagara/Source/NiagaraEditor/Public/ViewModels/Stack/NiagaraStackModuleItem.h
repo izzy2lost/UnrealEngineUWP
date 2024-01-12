@@ -140,6 +140,7 @@ private:
 	NIAGARAEDITOR_API void RefreshIsEnabled();
 	NIAGARAEDITOR_API void OnMessageManagerRefresh(const TArray<TSharedRef<const INiagaraMessage>>& NewMessages);
 	NIAGARAEDITOR_API FStackIssueFixDelegate GetUpgradeVersionFix();
+	void ReportScriptVersionChange() const;
 
 private:
 	UNiagaraNodeOutput* OutputNode;

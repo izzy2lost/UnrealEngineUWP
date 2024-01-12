@@ -14,6 +14,7 @@
 #include "NiagaraCustomVersion.h"
 #include "NiagaraDataInterface.h"
 #include "IPythonScriptPlugin.h"
+#include "NiagaraAnalytics.h"
 #include "NiagaraClipboard.h"
 #include "NiagaraEditorSettings.h"
 #include "NiagaraEditorStyle.h"
@@ -3610,6 +3611,14 @@ void FNiagaraEditorUtilities::SwitchParentEmitterVersion(TSharedRef<FNiagaraEmit
 		OldSystemViewModel.Reset();
 		CollectGarbage(GARBAGE_COLLECTION_KEEPFLAGS);
 	}
+
+	// analytics
+	TArray<FAnalyticsEventAttribute> Attributes;
+	if (NiagaraAnalytics::IsPluginAsset(Parent.Emitter))
+	{
+		Attributes.Add(FAnalyticsEventAttribute(TEXT("AssetName"), Parent.Emitter->GetPackage()->GetName()));
+	}
+	NiagaraAnalytics::RecordEvent(TEXT("Versioning.EmitterVersionChanged"), Attributes);
 }
 
 bool FNiagaraParameterUtilities::DoesParameterNameMatchSearchText(FName ParameterName, const FString& SearchTextString)

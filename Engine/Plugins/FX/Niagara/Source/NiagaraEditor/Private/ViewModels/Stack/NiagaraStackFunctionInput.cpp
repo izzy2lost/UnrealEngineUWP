@@ -7,6 +7,7 @@
 #include "EdGraphSchema_Niagara.h"
 #include "Editor.h"
 #include "INiagaraEditorTypeUtilities.h"
+#include "NiagaraAnalytics.h"
 #include "NiagaraClipboard.h"
 #include "NiagaraConstants.h"
 #include "NiagaraConvertInPlaceUtilityBase.h"
@@ -469,6 +470,18 @@ bool UNiagaraStackFunctionInput::FilterInlineChildren(const UNiagaraStackEntry& 
 	return GbEnableExperimentalInlineDynamicInputs == 0 || GetInlineDisplayMode() == ENiagaraStackEntryInlineDisplayMode::None;
 }
 
+void UNiagaraStackFunctionInput::ReportScriptVersionChange() const
+{
+	// analytics
+	TArray<FAnalyticsEventAttribute> Attributes;
+	Attributes.Add(FAnalyticsEventAttribute(TEXT("Type"), TEXT("DynamicInput")));
+	if (NiagaraAnalytics::IsPluginAsset(GetDynamicInputNode()->FunctionScript))
+	{
+		Attributes.Add(FAnalyticsEventAttribute(TEXT("AssetName"), GetDynamicInputNode()->FunctionScript->GetPackage()->GetName()));
+	}
+	NiagaraAnalytics::RecordEvent(TEXT("Versioning.ScriptVersionChanged"), Attributes);
+}
+
 FText UNiagaraStackFunctionInput::GetCollapsedStateText() const
 {
 	if (IsFinalized())
@@ -657,6 +670,8 @@ UNiagaraStackEntry::FStackIssueFixDelegate UNiagaraStackFunctionInput::GetUpgrad
 			FunctionCallNode->GetNiagaraGraph()->NotifyGraphNeedsRecompile();
 			GetSystemViewModel()->ResetSystem();
 		}
+
+		ReportScriptVersionChange();
 	});
 }
 
@@ -2794,6 +2809,8 @@ void UNiagaraStackFunctionInput::ChangeScriptVersion(FGuid NewScriptVersion)
 	if (CachedSysViewModel->GetSystemStackViewModel())
 		CachedSysViewModel->GetSystemStackViewModel()->InvalidateCachedParameterUsage();
 	RefreshChildren();
+
+	ReportScriptVersionChange();
 }
 
 const UNiagaraClipboardFunctionInput* UNiagaraStackFunctionInput::ToClipboardFunctionInput(UObject* InOuter) const
