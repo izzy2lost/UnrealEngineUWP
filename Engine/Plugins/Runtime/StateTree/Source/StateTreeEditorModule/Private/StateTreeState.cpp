@@ -10,6 +10,28 @@
 
 #include UE_INLINE_GENERATED_CPP_BY_NAME(StateTreeState)
 
+
+//////////////////////////////////////////////////////////////////////////
+// FStateTreeStateParameters
+
+void FStateTreeStateParameters::RemoveUnusedOverrides()
+{
+	// Remove overrides that do not exists anymore
+	if (!PropertyOverrides.IsEmpty())
+	{
+		if (const UPropertyBag* Bag = Parameters.GetPropertyBagStruct())
+		{
+			for (TArray<FGuid>::TIterator It = PropertyOverrides.CreateIterator(); It; ++It)
+			{
+				if (!Bag->FindPropertyDescByID(*It))
+				{
+					It.RemoveCurrentSwap();
+				}
+			}
+		}
+	}
+}
+
 //////////////////////////////////////////////////////////////////////////
 // FStateTreeTransition
 
@@ -346,11 +368,70 @@ void UStateTreeState::PostLoad()
 			Transition.ID = FGuid::NewDeterministicGuid(GetPathName(), Index);
 		}
 	}
+
+	if (CurrentVersion < FStateTreeCustomVersion::OverridableStateParameters)
+	{
+		// In earlier versions, all parameters were overwritten.
+		if (const UPropertyBag* Bag = Parameters.Parameters.GetPropertyBagStruct())
+		{
+			for (const FPropertyBagPropertyDesc& Desc : Bag->GetPropertyDescs())
+			{
+				Parameters.PropertyOverrides.Add(Desc.ID);
+			}
+		}
+	}
+	
 #endif // WITH_EDITORONLY_DATA
 
 }
 
 void UStateTreeState::UpdateParametersFromLinkedSubtree()
+{
+	if (const FInstancedPropertyBag* DefaultParameters = GetDefaultParameters())
+	{
+		Parameters.Parameters.MigrateToNewBagInstanceWithOverrides(*DefaultParameters, Parameters.PropertyOverrides);
+		Parameters.RemoveUnusedOverrides();
+	}
+	else
+	{
+		Parameters.Reset();
+	}
+}
+
+void UStateTreeState::SetParametersPropertyOverridden(const FGuid PropertyID, const bool bIsOverridden)
+{
+	if (bIsOverridden)
+	{
+		Parameters.PropertyOverrides.AddUnique(PropertyID);
+	}
+	else
+	{
+		Parameters.PropertyOverrides.Remove(PropertyID);
+		UpdateParametersFromLinkedSubtree();
+
+		// Remove binding when override is removed.
+		if (UStateTreeEditorData* EditorData = GetTypedOuter<UStateTreeEditorData>())
+		{
+			if (FStateTreeEditorPropertyBindings* Bindings = EditorData->GetPropertyEditorBindings())
+			{
+				if (const UPropertyBag* ParametersBag = Parameters.Parameters.GetPropertyBagStruct())
+				{
+					if (const FPropertyBagPropertyDesc* Desc = ParametersBag->FindPropertyDescByID(PropertyID))
+					{
+						check(Desc->CachedProperty);
+
+						EditorData->Modify();
+
+						FStateTreePropertyPath Path(Parameters.ID, Desc->CachedProperty->GetFName());
+						Bindings->RemovePropertyBindings(Path);
+					}
+				}
+			}
+		}
+	}
+}
+
+const FInstancedPropertyBag* UStateTreeState::GetDefaultParameters() const
 {
 	if (Type == EStateTreeStateType::Linked)
 	{
@@ -358,12 +439,7 @@ void UStateTreeState::UpdateParametersFromLinkedSubtree()
 		{
 			if (const UStateTreeState* LinkTargetState = TreeData->GetStateByID(LinkedSubtree.ID))
 			{
-				Parameters.Parameters.MigrateToNewBagInstance(LinkTargetState->Parameters.Parameters);
-			}
-			else
-			{
-				// No state selected, reset. 
-				Parameters.Parameters.Reset();
+				return &LinkTargetState->Parameters.Parameters;
 			}
 		}
 	}
@@ -371,10 +447,11 @@ void UStateTreeState::UpdateParametersFromLinkedSubtree()
 	{
 		if (LinkedAsset)
 		{
-			Parameters.Parameters.MigrateToNewBagInstance(LinkedAsset->GetDefaultParameters());
+			return &LinkedAsset->GetDefaultParameters();
 		}
-		
 	}
+
+	return nullptr;
 }
 
 const UStateTreeState* UStateTreeState::GetRootState() const

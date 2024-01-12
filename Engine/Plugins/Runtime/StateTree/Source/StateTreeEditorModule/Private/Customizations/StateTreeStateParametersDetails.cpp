@@ -21,12 +21,14 @@ class FStateTreeStateParametersInstanceDataDetails : public FPropertyBagInstance
 public:
 	FStateTreeStateParametersInstanceDataDetails(
 		const TSharedPtr<IPropertyHandle>& InStructProperty,
+		const TSharedPtr<IPropertyHandle>& InParametersStructProperty,
 		const TSharedPtr<IPropertyUtilities>& InPropUtils,
 		const bool bInFixedLayout,
 		FGuid InID,
 		TWeakObjectPtr<UStateTreeEditorData> InEditorData,
 		TWeakObjectPtr<UStateTreeState> InState)
-		: FPropertyBagInstanceDataDetails(InStructProperty, InPropUtils, bInFixedLayout)
+		: FPropertyBagInstanceDataDetails(InParametersStructProperty, InPropUtils, bInFixedLayout)
+		, StructProperty(InStructProperty)
 		, WeakEditorData(InEditorData)
 		, WeakState(InState)
 		, ID(InID)
@@ -86,6 +88,63 @@ public:
 		}
 	}
 
+	struct FStateTreeStateOverrideProvider : public IPropertyBagOverrideProvider
+	{
+		FStateTreeStateOverrideProvider(UStateTreeState& InState)
+			: State(InState)
+		{
+		}
+		
+		virtual bool IsPropertyOverridden(const FGuid PropertyID) const override
+		{
+			return State.IsParametersPropertyOverridden(PropertyID);
+		}
+		
+		virtual void SetPropertyOverride(const FGuid PropertyID, const bool bIsOverridden) const override
+		{
+			State.SetParametersPropertyOverridden(PropertyID, bIsOverridden);
+		}
+
+	private:
+		UStateTreeState& State;
+	};
+
+	virtual bool HasPropertyOverrides() const override
+	{
+		if (const UStateTreeState* State = WeakState.Get())
+		{
+			return State->Type == EStateTreeStateType::Linked || State->Type == EStateTreeStateType::LinkedAsset;
+		}
+		return false;
+	}
+
+	virtual void PreChangeOverrides() override
+	{
+		check(StructProperty);
+		StructProperty->NotifyPreChange();
+	}
+
+	virtual void PostChangeOverrides() override
+	{
+		check(StructProperty);
+		StructProperty->NotifyPostChange(EPropertyChangeType::ValueSet);
+		StructProperty->NotifyFinishedChangingProperties();
+	}
+
+	virtual void EnumeratePropertyBags(TSharedPtr<IPropertyHandle> PropertyBagHandle, const EnumeratePropertyBagFuncRef& Func) const override
+	{
+		if (UStateTreeState* State = WeakState.Get())
+		{
+			if (const FInstancedPropertyBag* DefaultParameters = State->GetDefaultParameters())
+			{
+				FInstancedPropertyBag& Parameters = State->Parameters.Parameters;
+				FStateTreeStateOverrideProvider OverrideProvider(*State);
+				Func(*DefaultParameters, Parameters, OverrideProvider);
+			}
+		}
+	}
+
+	TSharedPtr<IPropertyHandle> StructProperty;
 	TWeakObjectPtr<UStateTreeEditorData> WeakEditorData;
 	TWeakObjectPtr<UStateTreeState> WeakState;
 	FGuid ID;
@@ -142,7 +201,7 @@ void FStateTreeStateParametersDetails::CustomizeChildren(TSharedRef<class IPrope
 	UE::StateTree::PropertyHelpers::GetStructValue<FGuid>(IDProperty, ID);
 
 	// Show the Value (FInstancedStruct) as child rows.
-	TSharedRef<FStateTreeStateParametersInstanceDataDetails> InstanceDetails = MakeShareable(new FStateTreeStateParametersInstanceDataDetails(ParametersProperty, PropUtils, bFixedLayout, ID, WeakEditorData, WeakState));
+	TSharedRef<FStateTreeStateParametersInstanceDataDetails> InstanceDetails = MakeShareable(new FStateTreeStateParametersInstanceDataDetails(StructProperty, ParametersProperty, PropUtils, bFixedLayout, ID, WeakEditorData, WeakState));
 	StructBuilder.AddCustomBuilder(InstanceDetails);
 }
 
@@ -158,8 +217,8 @@ void FStateTreeStateParametersDetails::FindOuterObjects()
 	StructProperty->GetOuterObjects(OuterObjects);
 	for (UObject* Outer : OuterObjects)
 	{
+		UStateTreeState* OuterState = Cast<UStateTreeState>(Outer);
 		UStateTreeEditorData* OuterEditorData = Outer->GetTypedOuter<UStateTreeEditorData>();
-		UStateTreeState* OuterState = Outer->GetTypedOuter<UStateTreeState>();
 		UStateTree* OuterStateTree = OuterEditorData ? OuterEditorData->GetTypedOuter<UStateTree>() : nullptr;
 		if (OuterEditorData && OuterStateTree && OuterState)
 		{

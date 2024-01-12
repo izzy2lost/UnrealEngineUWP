@@ -87,11 +87,19 @@ struct STATETREEEDITORMODULE_API FStateTreeStateParameters
 	void Reset()
 	{
 		Parameters.Reset();
+		PropertyOverrides.Reset();
 		bFixedLayout = false;
 	}
 
+	/** Removes overrides that do appear in Parameters. */
+	void RemoveUnusedOverrides();
+	
 	UPROPERTY(EditDefaultsOnly, Category = Parameters)
 	FInstancedPropertyBag Parameters;
+
+	/** Overrides for parameters. */
+	UPROPERTY()
+	TArray<FGuid> PropertyOverrides;
 
 	UPROPERTY(EditDefaultsOnly, Category = Parameters)
 	bool bFixedLayout = false;
@@ -122,6 +130,18 @@ public:
 	const UStateTreeState* GetRootState() const;
 	const UStateTreeState* GetNextSiblingState() const;
 	const UStateTreeState* GetNextSelectableSiblingState() const;
+
+	/** @return true if the property of specified ID is overridden. */
+	bool IsParametersPropertyOverridden(const FGuid PropertyID) const
+	{
+		return Parameters.PropertyOverrides.Contains(PropertyID);
+	}
+
+	/** Sets the override status of specified property by ID. */
+	void SetParametersPropertyOverridden(const FGuid PropertyID, const bool bIsOverridden);
+
+	/** @returns Default parameters from linked state or asset). */
+	const FInstancedPropertyBag* GetDefaultParameters() const;
 	
 	// StateTree Builder API
 	/** @return state link to this state. */

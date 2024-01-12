@@ -45,6 +45,8 @@ struct STATETREEMODULE_API FStateTreeCustomVersion
 		ChangedExternalDataAccess,
 		// Added override option for parameters
 		OverridableParameters,
+		// Added override option for state parameters
+		OverridableStateParameters,
 
 		// -----<new versions can be added above this line>-------------------------------------------------
 		VersionPlusOne,
