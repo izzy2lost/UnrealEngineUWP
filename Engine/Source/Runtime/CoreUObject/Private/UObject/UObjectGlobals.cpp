@@ -1639,8 +1639,6 @@ UPackage* LoadPackageInternal(UPackage* InOuter, const FPackagePath& PackagePath
 			return nullptr;
 		}
 
-		UE_TRACK_REFERENCING_PACKAGE_SCOPED(PackageName, PackageAccessTrackingOps::NAME_Load);
-
 		// This delegate is not thread-safe and the subscribers are mostly interested by sync loads
 		// that might stall the game thread anyway. So for now, do not broadcast when sync loading
 		// from the loading thread.
