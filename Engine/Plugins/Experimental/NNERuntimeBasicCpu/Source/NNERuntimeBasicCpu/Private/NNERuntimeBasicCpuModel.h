@@ -28,6 +28,8 @@ namespace UE::NNE::RuntimeBasic
 	class FModelInstanceCPU : public IModelInstanceCPU
 	{
 	public:
+		using ESetInputTensorShapeStatus = IModelInstanceCPU::ESetInputTensorShapeStatus;
+		using ERunSyncStatus = IModelInstanceCPU::ERunSyncStatus;
 
 		FModelInstanceCPU(const TSharedPtr<FModelCPU>& InModel);
 
@@ -36,8 +38,8 @@ namespace UE::NNE::RuntimeBasic
 		virtual TConstArrayView<FTensorDesc> GetOutputTensorDescs() const override final { return TConstArrayView<FTensorDesc>(&OutputTensorDesc, 1); }
 		virtual TConstArrayView<FTensorShape> GetInputTensorShapes() const override final { return TConstArrayView<FTensorShape>(&InputTensorShape, 1); }
 		virtual TConstArrayView<FTensorShape> GetOutputTensorShapes() const override final { return TConstArrayView<FTensorShape>(&OutputTensorShape, 1); }
-		virtual int SetInputTensorShapes(TConstArrayView<FTensorShape> InInputShapes) override final;
-		virtual int RunSync(TConstArrayView<FTensorBindingCPU> InInputBindings, TConstArrayView<FTensorBindingCPU> InOutputBindings) override final;
+		virtual ESetInputTensorShapeStatus SetInputTensorShapes(TConstArrayView<FTensorShape> InInputShapes) override final;
+		virtual ERunSyncStatus RunSync(TConstArrayView<FTensorBindingCPU> InInputBindings, TConstArrayView<FTensorBindingCPU> InOutputBindings) override final;
 		//~ End UE::NNE::IModelInstanceCPU Interface
 
 		TSharedPtr<FModelCPU> Model;

@@ -161,46 +161,48 @@ namespace UE::NNERuntimeORT::Private
 	}
 
 	template <class ModelInterface, class TensorBinding> 
-	int32 FModelInstanceORTBase<ModelInterface, TensorBinding>::SetInputTensorShapes(TConstArrayView<NNE::FTensorShape> InInputShapes)
+	typename ModelInterface::ESetInputTensorShapeStatus FModelInstanceORTBase<ModelInterface, TensorBinding>::SetInputTensorShapes(TConstArrayView<NNE::FTensorShape> InInputShapes)
 	{
+		using ModelInstanceBase = NNE::Internal::FModelInstanceBase<ModelInterface>;
+
 		InputTensors.Reset();
 		OutputTensors.Reset();
-		NNE::Internal::FModelInstanceBase<ModelInterface>::OutputTensorShapes.Reset();
+		ModelInstanceBase::OutputTensorShapes.Reset();
 
 		// Verify input shape are valid for the model and set InputTensorShapes
-		if (NNE::Internal::FModelInstanceBase<ModelInterface>::SetInputTensorShapes(InInputShapes) != 0)
+		if (typename ModelInterface::ESetInputTensorShapeStatus Status = ModelInstanceBase::SetInputTensorShapes(InInputShapes); Status != ModelInterface::ESetInputTensorShapeStatus::Ok)
 		{
-			return -1;
+			return Status;
 		}
 
 		// Setup concrete input tensor
-		for (int32 i = 0; i < NNE::Internal::FModelInstanceBase<ModelInterface>::InputSymbolicTensors.Num(); ++i)
+		for (int32 i = 0; i < ModelInstanceBase::InputSymbolicTensors.Num(); ++i)
 		{
-			NNE::Internal::FTensor Tensor = NNE::Internal::FTensor::Make(NNE::Internal::FModelInstanceBase<ModelInterface>::InputSymbolicTensors[i].GetName(), InInputShapes[i], NNE::Internal::FModelInstanceBase<ModelInterface>::InputSymbolicTensors[i].GetDataType());
+			NNE::Internal::FTensor Tensor = NNE::Internal::FTensor::Make(ModelInstanceBase::InputSymbolicTensors[i].GetName(), InInputShapes[i], ModelInstanceBase::InputSymbolicTensors[i].GetDataType());
 			InputTensors.Emplace(Tensor);
 		}
 
 		// Setup concrete output shapes only if all model output shapes are concretes, otherwise it will be set during Run()
-		for (NNE::FTensorDesc SymbolicTensorDesc : NNE::Internal::FModelInstanceBase<ModelInterface>::OutputSymbolicTensors)
+		for (NNE::FTensorDesc SymbolicTensorDesc : ModelInstanceBase::OutputSymbolicTensors)
 		{
 			if (SymbolicTensorDesc.GetShape().IsConcrete())
 			{
 				NNE::Internal::FTensor Tensor = NNE::Internal::FTensor::MakeFromSymbolicDesc(SymbolicTensorDesc);
 				OutputTensors.Emplace(Tensor);
-				NNE::Internal::FModelInstanceBase<ModelInterface>::OutputTensorShapes.Emplace(Tensor.GetShape());
+				ModelInstanceBase::OutputTensorShapes.Emplace(Tensor.GetShape());
 			}
 		}
-		if (OutputTensors.Num() != NNE::Internal::FModelInstanceBase<ModelInterface>::OutputSymbolicTensors.Num())
+		if (OutputTensors.Num() != ModelInstanceBase::OutputSymbolicTensors.Num())
 		{
 			OutputTensors.Reset();
-			NNE::Internal::FModelInstanceBase<ModelInterface>::OutputTensorShapes.Reset();
+			ModelInstanceBase::OutputTensorShapes.Reset();
 		}
 
-		return 0;
+		return ModelInterface::ESetInputTensorShapeStatus::Ok;
 	}
 
 	template <class ModelInterface, class TensorBinding>
-	int32 FModelInstanceORTBase<ModelInterface, TensorBinding>::RunSync(TConstArrayView<TensorBinding> InInputBindings, TConstArrayView<TensorBinding> InOutputBindings)
+	typename ModelInterface::ERunSyncStatus FModelInstanceORTBase<ModelInterface, TensorBinding>::RunSync(TConstArrayView<TensorBinding> InInputBindings, TConstArrayView<TensorBinding> InOutputBindings)
 	{
 		checkf(Session.IsValid(), TEXT("FModelInstanceORT::RunSync(): Called without a Session, FModelInstanceORT::Init() should have been called."));
 
@@ -210,7 +212,7 @@ namespace UE::NNERuntimeORT::Private
 		if (NNE::Internal::FModelInstanceBase<ModelInterface>::InputTensorShapes.Num() == 0)
 		{
 			UE_LOG(LogNNE, Error, TEXT("RunSync(): Input shapes are not set, please call SetInputTensorShapes."));
-			return -1;
+			return ModelInterface::ERunSyncStatus::Fail;
 		}
 
 		try
@@ -252,15 +254,15 @@ namespace UE::NNERuntimeORT::Private
 		catch (const Ort::Exception& Exception)
 		{
 			UE_LOG(LogNNE, Error, TEXT("%s"), UTF8_TO_TCHAR(Exception.what()));
-			return false;
+			return ModelInterface::ERunSyncStatus::Fail;
 		}
 		catch (...)
 		{
 			UE_LOG(LogNNE, Error, TEXT("Unknown exception!"));
-			return false;
+			return ModelInterface::ERunSyncStatus::Fail;
 		}
 
-		return 0;
+		return ModelInterface::ERunSyncStatus::Ok;
 	}
 
 	TSharedPtr<NNE::IModelInstanceCPU> FModelORTCpu::CreateModelInstanceCPU()

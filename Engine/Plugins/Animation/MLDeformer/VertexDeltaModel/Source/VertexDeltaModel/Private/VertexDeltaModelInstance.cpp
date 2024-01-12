@@ -85,7 +85,7 @@ void UVertexDeltaModelInstance::Execute(float ModelWeight)
 					{
 						return;
 					}
-					int32 Res = ModelInstanceRDG->EnqueueRDG(GraphBuilder, InputBindingsRDG, OutputBindingsRDG);
+					ModelInstanceRDG->EnqueueRDG(GraphBuilder, InputBindingsRDG, OutputBindingsRDG);
 	
 					GraphBuilder.Execute();
 				}

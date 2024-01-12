@@ -3,6 +3,7 @@
 #pragma once
 
 #include "Containers/ContainersFwd.h"
+#include "NNEStatus.h"
 #include "NNETypes.h"
 #include "RenderGraphFwd.h"
 #include "UObject/Interface.h"
@@ -33,6 +34,9 @@ struct NNE_API FTensorBindingRDG
 class NNE_API IModelInstanceRDG
 {
 public:
+
+	using ESetInputTensorShapeStatus = EResultStatus;
+	using EEnqueueRDGStatus = EResultStatus;
 
 	virtual ~IModelInstanceRDG() = default;
 
@@ -78,9 +82,9 @@ public:
 	 * This is a potentially expensive call and should be called lazily if possible.
 	 *
 	 * @param InInputShapes The input shapes to prepare the model with.
-	 * @return 0 on success or a non-zero number otherwise.
+	 * @return Status indicating success or failure.
 	 */
-	virtual int32 SetInputTensorShapes(TConstArrayView<FTensorShape> InInputShapes) = 0;
+	virtual ESetInputTensorShapeStatus SetInputTensorShapes(TConstArrayView<FTensorShape> InInputShapes) = 0;
 
 	/**
 	 * Enqueue the model graph to a FRDGBuilder.
@@ -92,9 +96,9 @@ public:
 	 * @param RDGBuilder The RDG builder to which the neural network operations are enqueued.
 	 * @param InInputTensors An array containing tensor bindings for each input tensor with caller owned memory containing the input data.
 	 * @param InOutputTensors An array containing tensor bindings for each output tensor with caller owned memory big enough to contain the results on success.
-	 * @return 0 on success or a non-zero number otherwise.
+	 * @return Status indicating success or failure.
 	 */
-	virtual int32 EnqueueRDG(FRDGBuilder& RDGBuilder, TConstArrayView<FTensorBindingRDG> Inputs, TConstArrayView<FTensorBindingRDG> Outputs) = 0;
+	virtual EEnqueueRDGStatus EnqueueRDG(FRDGBuilder& RDGBuilder, TConstArrayView<FTensorBindingRDG> Inputs, TConstArrayView<FTensorBindingRDG> Outputs) = 0;
 };
 
 /**

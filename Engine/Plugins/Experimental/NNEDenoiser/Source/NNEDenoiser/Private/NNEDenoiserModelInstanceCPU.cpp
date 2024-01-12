@@ -91,12 +91,14 @@ namespace UE::NNEDenoiser::Private
 		return ModelInstance->GetOutputTensorShapes();
 	}
 
-	int32 FModelInstanceCPU::SetInputTensorShapes(TConstArrayView<NNE::FTensorShape> InInputShapes)
+	FModelInstanceCPU::ESetInputTensorShapeStatus FModelInstanceCPU::SetInputTensorShapes(TConstArrayView<NNE::FTensorShape> InInputShapes)
 	{
-		return ModelInstance->SetInputTensorShapes(InInputShapes);
+		NNE::IModelInstanceCPU::ESetInputTensorShapeStatus Status = ModelInstance->SetInputTensorShapes(InInputShapes);
+
+		return Status == NNE::IModelInstanceCPU::ESetInputTensorShapeStatus::Ok ? ESetInputTensorShapeStatus::Ok : ESetInputTensorShapeStatus::Fail;
 	}
 
-	int32 FModelInstanceCPU::EnqueueRDG(FRDGBuilder &GraphBuilder, TConstArrayView<NNE::FTensorBindingRDG> Inputs, TConstArrayView<NNE::FTensorBindingRDG> Outputs)
+	FModelInstanceCPU::EEnqueueRDGStatus FModelInstanceCPU::EnqueueRDG(FRDGBuilder &GraphBuilder, TConstArrayView<NNE::FTensorBindingRDG> Inputs, TConstArrayView<NNE::FTensorBindingRDG> Outputs)
 	{
 		FNNEDenoiserModelInstanceCPUTextureParameters* DenoiserParameters = GraphBuilder.AllocParameters<FNNEDenoiserModelInstanceCPUTextureParameters>();
 		for (const NNE::FTensorBindingRDG& Binding : Inputs)
@@ -143,7 +145,8 @@ namespace UE::NNEDenoiser::Private
 				CopyBufferFromGPUToCPU(RHICmdList, Buffer, Buffer->GetSize(), ScratchInputBuffers[Idx]);
 			}
 
-			ModelInstance->RunSync(InputBindings, OutputBindings);
+			NNE::IModelInstanceCPU::ERunSyncStatus Status = ModelInstance->RunSync(InputBindings, OutputBindings);
+			checkf(Status == NNE::IModelInstanceCPU::ERunSyncStatus::Ok, TEXT("RunSync failed with status %d"), static_cast<int>(Status))
 
 			for (int32 Idx = 0; Idx < DenoiserParameters->OutputBuffers.Num(); Idx++)
 			{
@@ -158,7 +161,7 @@ namespace UE::NNEDenoiser::Private
 #endif
 		});
 
-		return 0;
+		return EEnqueueRDGStatus::Ok;
 	}
 
 }

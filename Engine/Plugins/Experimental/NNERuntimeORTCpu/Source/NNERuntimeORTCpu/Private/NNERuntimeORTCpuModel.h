@@ -30,12 +30,15 @@ namespace UE::NNERuntimeORTCpu::Private
 	{
 
 	public:
+		using ESetInputTensorShapeStatus = UE::NNE::IModelInstanceCPU::ESetInputTensorShapeStatus;
+		using ERunSyncStatus = UE::NNE::IModelInstanceCPU::ERunSyncStatus;
+
 		FModelInstanceCPU();
 		FModelInstanceCPU(Ort::Env* InORTEnvironment, const FRuntimeConf& InRuntimeConf);
 		virtual ~FModelInstanceCPU() {};
 
-		virtual int32 SetInputTensorShapes(TConstArrayView<NNE::FTensorShape> InInputShapes) override;
-		virtual int32 RunSync(TConstArrayView<NNE::FTensorBindingCPU> InInputBindings, TConstArrayView<NNE::FTensorBindingCPU> InOutputBindings) override;
+		virtual ESetInputTensorShapeStatus SetInputTensorShapes(TConstArrayView<NNE::FTensorShape> InInputShapes) override;
+		virtual ERunSyncStatus RunSync(TConstArrayView<NNE::FTensorBindingCPU> InInputBindings, TConstArrayView<NNE::FTensorBindingCPU> InOutputBindings) override;
 
 		bool Init(TConstArrayView<uint8> ModelData);
 		bool IsLoaded() const;

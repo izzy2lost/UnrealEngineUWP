@@ -167,16 +167,16 @@ namespace UE::NNERuntimeORTCpu::Private
 		return true;
 	}
 	
-	int32 FModelInstanceCPU::SetInputTensorShapes(TConstArrayView<NNE::FTensorShape> InInputShapes)
+	FModelInstanceCPU::ESetInputTensorShapeStatus FModelInstanceCPU::SetInputTensorShapes(TConstArrayView<NNE::FTensorShape> InInputShapes)
 	{
 		InputTensors.Reset();
 		OutputTensors.Reset();
 		OutputTensorShapes.Reset();
 
 		// Verify input shape are valid for the model and set InputTensorShapes
-		if (FModelInstanceBase<IModelInstanceCPU>::SetInputTensorShapes(InInputShapes) != 0)
+		if (ESetInputTensorShapeStatus Status = FModelInstanceBase<IModelInstanceCPU>::SetInputTensorShapes(InInputShapes); Status != ESetInputTensorShapeStatus::Ok)
 		{
-			return -1;
+			return Status;
 		}
 
 		// Setup concrete input tensor
@@ -205,10 +205,10 @@ namespace UE::NNERuntimeORTCpu::Private
 			OutputTensorShapes.Reset();
 		}
 
-		return 0;
+		return ESetInputTensorShapeStatus::Ok;
 	}
 
-	int32 FModelInstanceCPU::RunSync(TConstArrayView<NNE::FTensorBindingCPU> InInputBindings, TConstArrayView<NNE::FTensorBindingCPU> InOutputBindings)
+	FModelInstanceCPU::ERunSyncStatus FModelInstanceCPU::RunSync(TConstArrayView<NNE::FTensorBindingCPU> InInputBindings, TConstArrayView<NNE::FTensorBindingCPU> InOutputBindings)
 	{
 		DECLARE_SCOPE_CYCLE_COUNTER(TEXT("FModelInstanceCPU_Run"), STAT_FModelInstanceCPU_Run, STATGROUP_NNE);
 
@@ -216,14 +216,14 @@ namespace UE::NNERuntimeORTCpu::Private
 		if (!bIsLoaded)
 		{
 			UE_LOG(LogNNE, Warning, TEXT("FModelInstanceCPU::Run(): Call FModelInstanceCPU::Load() to load a model first."));
-			return -1;
+			return ERunSyncStatus::Fail;
 		}
 
 		// Verify the model inputs were prepared
 		if (InputTensorShapes.Num() == 0)
 		{
 			UE_LOG(LogNNE, Error, TEXT("Run(): Input shapes are not set, please call SetInputTensorShapes."));
-			return -1;
+			return ERunSyncStatus::Fail;
 		}
 
 		NNEProfiling::Internal::FTimer RunTimer;
@@ -276,18 +276,18 @@ namespace UE::NNERuntimeORTCpu::Private
 		catch (const Ort::Exception& Exception)
 		{
 			UE_LOG(LogNNE, Error, TEXT("%s"), UTF8_TO_TCHAR(Exception.what()));
-			return false;
+			return ERunSyncStatus::Fail;
 		}
 		catch (...)
 		{
 			UE_LOG(LogNNE, Error, TEXT("Unknown exception!"));
-			return false;
+			return ERunSyncStatus::Fail;
 		}
 #endif //WITH_EDITOR
 
 		RunStatisticsEstimator.StoreSample(RunTimer.Toc());
 
-		return 0;
+		return ERunSyncStatus::Ok;
 	}
 
 	float FModelInstanceCPU::GetLastRunTimeMSec() const

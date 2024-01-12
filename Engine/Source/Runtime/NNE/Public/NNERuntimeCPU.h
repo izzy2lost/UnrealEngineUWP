@@ -4,6 +4,7 @@
 
 #include "Containers/ContainersFwd.h"
 #include "NNETypes.h"
+#include "NNEStatus.h"
 #include "UObject/Interface.h"
 
 #include "NNERuntimeCPU.generated.h"
@@ -33,6 +34,9 @@ struct NNE_API FTensorBindingCPU
 class NNE_API IModelInstanceCPU
 {
 public:
+
+	using ESetInputTensorShapeStatus = EResultStatus;
+	using ERunSyncStatus = EResultStatus;
 
 	virtual ~IModelInstanceCPU() = default;
 
@@ -77,9 +81,9 @@ public:
 	 * This is a potentially expensive call and should be called lazily if possible.
 	 *
 	 * @param InInputShapes The input shapes to prepare the model with.
-	 * @return 0 on success or a non-zero number otherwise.
+	 * @return Status indicating success or failure.
 	 */
-	virtual int32 SetInputTensorShapes(TConstArrayView<FTensorShape> InInputShapes) = 0;
+	virtual ESetInputTensorShapeStatus SetInputTensorShapes(TConstArrayView<FTensorShape> InInputShapes) = 0;
 
 	/**
 	 * Evaluate the model synchronously.
@@ -91,9 +95,9 @@ public:
 	 *
 	 * @param InInputTensors An array containing tensor bindings for each input tensor with caller owned memory containing the input data.
 	 * @param InOutputTensors An array containing tensor bindings for each output tensor with caller owned memory big enough to contain the results on success.
-	 * @return 0 on success or a non-zero number otherwise.
+	 * @return Status indicating success or failure.
 	 */
-	virtual int32 RunSync(TConstArrayView<FTensorBindingCPU> InInputTensors, TConstArrayView<FTensorBindingCPU> InOutputTensors) = 0;
+	virtual ERunSyncStatus RunSync(TConstArrayView<FTensorBindingCPU> InInputTensors, TConstArrayView<FTensorBindingCPU> InOutputTensors) = 0;
 };
 
 /**

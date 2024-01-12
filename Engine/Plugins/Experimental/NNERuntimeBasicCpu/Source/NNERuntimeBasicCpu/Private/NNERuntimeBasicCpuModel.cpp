@@ -3383,20 +3383,20 @@ namespace UE::NNE::RuntimeBasic
 		, Instance(Model->Layer->MakeInstance())
 	{}
 
-	int FModelInstanceCPU::SetInputTensorShapes(TConstArrayView<FTensorShape> InInputShapes)
+	FModelInstanceCPU::ESetInputTensorShapeStatus FModelInstanceCPU::SetInputTensorShapes(TConstArrayView<FTensorShape> InInputShapes)
 	{
 		NNE_RUNTIME_BASIC_TRACE_SCOPE(NNE::RuntimeBasic::FModelInstanceCPU::SetInputTensorShapes);
 
 		if (!ensureMsgf(InInputShapes.Num() == 1, TEXT("Basic CPU Inference only supports single input tensor.")))
 		{
-			return -1;
+			return ESetInputTensorShapeStatus::Fail;
 		}
 
 		const FTensorShape& InputShape = InInputShapes[0];
 
 		if (!ensureMsgf(InputShape.Rank() == 2, TEXT("Basic CPU Inference only supports rank 2 input tensors.")))
 		{
-			return -1;
+			return ESetInputTensorShapeStatus::Fail;
 		}
 
 		const uint32 InputBatchSize = InputShape.GetData()[0];
@@ -3406,7 +3406,7 @@ namespace UE::NNE::RuntimeBasic
 
 		if (!ensureMsgf(InputInputSize == ModelInputSize, TEXT("Input tensor shape does not match model input size. Got %i, expected %i."), InputInputSize, ModelInputSize))
 		{
-			return -1;
+			return ESetInputTensorShapeStatus::Fail;
 		}
 
 		BatchSize = InputBatchSize;
@@ -3421,36 +3421,36 @@ namespace UE::NNE::RuntimeBasic
 			Instance->SetMaxBatchSize(BatchSize);
 		}
 
-		return 0;
+		return ESetInputTensorShapeStatus::Ok;
 	}
 
-	int FModelInstanceCPU::RunSync(TConstArrayView<FTensorBindingCPU> InInputBindings, TConstArrayView<FTensorBindingCPU> InOutputBindings)
+	FModelInstanceCPU::ERunSyncStatus FModelInstanceCPU::RunSync(TConstArrayView<FTensorBindingCPU> InInputBindings, TConstArrayView<FTensorBindingCPU> InOutputBindings)
 	{
 		NNE_RUNTIME_BASIC_TRACE_SCOPE(NNE::RuntimeBasic::FModelInstanceCPU::RunSync);
 
 		if (!ensureMsgf(BatchSize > 0, TEXT("SetInputTensorShapes must be run before RunSync")))
 		{
-			return -1;
+			return ERunSyncStatus::Fail;
 		}
 
 		if (!ensureMsgf(InInputBindings.Num() == 1, TEXT("Basic CPU Inference only supports single input tensor.")))
 		{
-			return -1;
+			return ERunSyncStatus::Fail;
 		}
 
 		if (!ensureMsgf(InOutputBindings.Num() == 1, TEXT("Basic CPU Inference only supports single output tensor.")))
 		{
-			return -1;
+			return ERunSyncStatus::Fail;
 		}
 
 		if (!ensureMsgf(InInputBindings[0].SizeInBytes == BatchSize * InputSize * sizeof(float), TEXT("Incorrect Input Tensor Size")))
 		{
-			return -1;
+			return ERunSyncStatus::Fail;
 		}
 
 		if (!ensureMsgf(InOutputBindings[0].SizeInBytes == BatchSize * OutputSize * sizeof(float), TEXT("Incorrect Output Tensor Size")))
 		{
-			return -1;
+			return ERunSyncStatus::Fail;
 		}
 
 		Model->Layer->Evaluate(
@@ -3463,7 +3463,7 @@ namespace UE::NNE::RuntimeBasic
 			OutputSize,
 			InputSize);
 
-		return 0;
+		return ERunSyncStatus::Ok;
 	}
 
 	uint32 FModelCPU::ModelMagicNumber = 0x0BA51C01;

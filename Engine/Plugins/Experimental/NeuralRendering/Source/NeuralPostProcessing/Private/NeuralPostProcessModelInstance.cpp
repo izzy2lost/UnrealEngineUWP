@@ -104,9 +104,9 @@ void UNeuralPostProcessModelInstance::Execute(FRDGBuilder& GraphBuilder)
 	auto RunSingleDispatch = [&](bool bAddFence = true) {
 		Input.Buffer = RDGInputBuffer;
 		Output.Buffer = RDGOutputBuffer;
-		int Status = ModelInstanceRDG->EnqueueRDG(GraphBuilder, InputBindings, OutputBindings);
+		UE::NNE::IModelInstanceRDG::EEnqueueRDGStatus Status = ModelInstanceRDG->EnqueueRDG(GraphBuilder, InputBindings, OutputBindings);
 
-		checkf(!Status, TEXT("EnqueueRDG failed: %d"), Status);
+		checkf(Status == UE::NNE::IModelInstanceRDG::EEnqueueRDGStatus::Ok, TEXT("EnqueueRDG failed: %d"), static_cast<int>(Status));
 
 		if (bAddFence)
 		{
@@ -295,7 +295,7 @@ void UNeuralPostProcessModelInstance::CreateDefaultNNEModel(UNNEModelData* NNEMo
 		// All dynamic dimensions are set to 1 by default.
 		ResolvedInputTensorShape = UE::NNE::FTensorShape::MakeFromSymbolic(InputShape);
 
-		if (ModelInstanceRDG->SetInputTensorShapes({ ResolvedInputTensorShape }) != 0)
+		if (ModelInstanceRDG->SetInputTensorShapes({ ResolvedInputTensorShape }) != UE::NNE::IModelInstanceRDG::ESetInputTensorShapeStatus::Ok)
 		{
 			ModelInstanceRDG.Reset();
 #if WITH_EDITOR

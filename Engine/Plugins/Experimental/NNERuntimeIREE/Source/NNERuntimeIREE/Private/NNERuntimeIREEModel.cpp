@@ -7,9 +7,10 @@
 #include "GenericPlatform/GenericPlatformProcess.h"
 #include "HAL/FileManager.h"
 #include "Memory/SharedBuffer.h"
-#include "NNEModelData.h"
 #include "Misc/Paths.h"
 #include "Misc/ScopeLock.h"
+#include "NNEModelData.h"
+#include "NNEStatus.h"
 #include "Serialization/Archive.h"
 
 #if PLATFORM_MICROSOFT
@@ -636,6 +637,9 @@ namespace UE::NNERuntimeIREE
 				}
 
 			public:
+				using ESetInputTensorShapeStatus = UE::NNE::IModelInstanceCPU::ESetInputTensorShapeStatus;
+				using ERunSyncStatus = UE::NNE::IModelInstanceCPU::ERunSyncStatus;
+
 				~FSession()
 				{
 					iree_runtime_call_deinitialize(&Call);
@@ -719,15 +723,15 @@ namespace UE::NNERuntimeIREE
 					return OutputTensorShapes;
 				}
 
-				int32 SetInputTensorShapes(TConstArrayView<UE::NNE::FTensorShape> InInputShapes)
+				ESetInputTensorShapeStatus SetInputTensorShapes(TConstArrayView<UE::NNE::FTensorShape> InInputShapes)
 				{
 					check(InputTensorDescs.Num() == InInputShapes.Num());
 					checkCode(for (int32 i = 0; i < InputTensorDescs.Num(); i++) { check(InInputShapes[i].IsCompatibleWith(InputTensorDescs[i].GetShape())); });
 					InputTensorShapes = InInputShapes;
-					return 0;
+					return ESetInputTensorShapeStatus::Ok;
 				}
 
-				int32 RunSyncCPU(TConstArrayView<UE::NNE::FTensorBindingCPU> InInputBindings, TConstArrayView<UE::NNE::FTensorBindingCPU> InOutputBindings)
+				ERunSyncStatus RunSyncCPU(TConstArrayView<UE::NNE::FTensorBindingCPU> InInputBindings, TConstArrayView<UE::NNE::FTensorBindingCPU> InOutputBindings)
 				{
 					check(InInputBindings.Num() == InputTensorShapes.Num());
 
@@ -767,7 +771,7 @@ namespace UE::NNERuntimeIREE
 								iree_hal_buffer_view_release(TempBufferView);
 							}
 							iree_status_free(Status);
-							return -1;
+							return ERunSyncStatus::Fail;
 						}
 
 						Status = iree_runtime_call_inputs_push_back_buffer_view(&Call, TempBufferView);
@@ -776,7 +780,7 @@ namespace UE::NNERuntimeIREE
 						{
 							UE::NNERuntimeIREE::Private::PrintIREEError("UE::NNERuntimeIREE::CPU::Private::FSession failed to push the buffer view to the input list", Status);
 							iree_status_free(Status);
-							return -1;
+							return ERunSyncStatus::Fail;
 						}
 					}
 
@@ -785,7 +789,7 @@ namespace UE::NNERuntimeIREE
 					{
 						UE::NNERuntimeIREE::Private::PrintIREEError("UE::NNERuntimeIREE::CPU::Private::FSession failed to call the model function", Status);
 						iree_status_free(Status);
-						return -1;
+						return ERunSyncStatus::Fail;
 					}
 
 					OutputTensorShapes.Reset();
@@ -819,7 +823,7 @@ namespace UE::NNERuntimeIREE
 							bCopyResults = false;
 						}
 					}
-					int32 Result = 0;
+					ERunSyncStatus Result = ERunSyncStatus::Ok;
 					if (bCopyResults)
 					{
 						for (int32 i = 0; i < InOutputBindings.Num(); i++)
@@ -828,7 +832,7 @@ namespace UE::NNERuntimeIREE
 							if (!Buffer)
 							{
 								UE_LOG(LogTemp, Error, TEXT("UE::NNERuntimeIREE::CPU::Private::FSession failed to get the result buffer"));
-								Result = -1;
+								Result = ERunSyncStatus::Fail;
 								break;
 							}
 
@@ -839,7 +843,7 @@ namespace UE::NNERuntimeIREE
 							if (!iree_status_is_ok(Status))
 							{
 								UE::NNERuntimeIREE::Private::PrintIREEError("UE::NNERuntimeIREE::CPU::Private::FSession failed to map the result buffer", Status);
-								Result = -1;
+								Result = ERunSyncStatus::Fail;
 								break;
 							}
 							FMemory::Memcpy(InOutputBindings[i].Data, BufferMapping.contents.data, DataSizeInBytes);
@@ -893,12 +897,12 @@ namespace UE::NNERuntimeIREE
 			return Session->GetOutputTensorShapes();
 		}
 
-		int32 FModelInstance::SetInputTensorShapes(TConstArrayView<UE::NNE::FTensorShape> InInputShapes)
+		FModelInstance::ESetInputTensorShapeStatus FModelInstance::SetInputTensorShapes(TConstArrayView<UE::NNE::FTensorShape> InInputShapes)
 		{
 			return Session->SetInputTensorShapes(InInputShapes);
 		}
 
-		int32 FModelInstance::RunSync(TConstArrayView<UE::NNE::FTensorBindingCPU> InInputBindings, TConstArrayView<UE::NNE::FTensorBindingCPU> InOutputBindings)
+		FModelInstance::ERunSyncStatus FModelInstance::RunSync(TConstArrayView<UE::NNE::FTensorBindingCPU> InInputBindings, TConstArrayView<UE::NNE::FTensorBindingCPU> InOutputBindings)
 		{
 			return Session->RunSyncCPU(InInputBindings, InOutputBindings);
 		}

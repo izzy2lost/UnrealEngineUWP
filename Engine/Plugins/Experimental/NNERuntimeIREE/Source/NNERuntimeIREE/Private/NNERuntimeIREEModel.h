@@ -31,13 +31,16 @@ namespace UE::NNERuntimeIREE
 			static TSharedPtr<FModelInstance> Make(TSharedRef<UE::NNERuntimeIREE::CPU::Private::FDevice> InDevice, TSharedRef<UE::NNERuntimeIREE::Private::FModule> InModule);
 
 		public:
+			using ESetInputTensorShapeStatus = UE::NNE::IModelInstanceCPU::ESetInputTensorShapeStatus;
+			using ERunSyncStatus = UE::NNE::IModelInstanceCPU::ERunSyncStatus;
+
 			//~ Begin IModelInstanceCPU Interface
 			virtual TConstArrayView<UE::NNE::FTensorDesc> GetInputTensorDescs() const override;
 			virtual TConstArrayView<UE::NNE::FTensorDesc> GetOutputTensorDescs() const override;
 			virtual TConstArrayView<UE::NNE::FTensorShape> GetInputTensorShapes() const override;
 			virtual TConstArrayView<UE::NNE::FTensorShape> GetOutputTensorShapes() const override;
-			virtual int32 SetInputTensorShapes(TConstArrayView<UE::NNE::FTensorShape> InInputShapes) override;
-			virtual int32 RunSync(TConstArrayView<UE::NNE::FTensorBindingCPU> InInputBindings, TConstArrayView<UE::NNE::FTensorBindingCPU> InOutputBindings) override;
+			virtual ESetInputTensorShapeStatus SetInputTensorShapes(TConstArrayView<UE::NNE::FTensorShape> InInputShapes) override;
+			virtual ERunSyncStatus RunSync(TConstArrayView<UE::NNE::FTensorBindingCPU> InInputBindings, TConstArrayView<UE::NNE::FTensorBindingCPU> InOutputBindings) override;
 			//~ End IModelInstanceCPU Interface
 
 		private:

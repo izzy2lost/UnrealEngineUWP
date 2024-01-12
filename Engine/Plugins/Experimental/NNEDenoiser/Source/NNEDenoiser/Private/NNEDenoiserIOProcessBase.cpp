@@ -189,8 +189,8 @@ bool FInputProcessBase::PrepareAndValidate(IModelInstance& ModelInstance, FIntPo
 		UE_LOG(LogNNEDenoiser, Log, TEXT("%d: (%d, %d, %d, %d)"), Idx, ModelInputShape.X, ModelInputShape.Y, ModelInputShape.Z, ModelInputShape.W)
 	}
 
-	const int32 Success = ModelInstance.SetInputTensorShapes(InputShapes);
-	if (Success != 0)
+	const IModelInstance::ESetInputTensorShapeStatus Status = ModelInstance.SetInputTensorShapes(InputShapes);
+	if (Status != IModelInstance::ESetInputTensorShapeStatus::Ok)
 	{
 		UE_LOG(LogNNEDenoiser, Error, TEXT("Could not configure model instance (ModelInstance.SetInputTensorShapes() failed)!"))
 		return false;

@@ -18,18 +18,19 @@ namespace UE::NNERuntimeORT::Private
 		GraphOptimizationLevel OptimizationLevel = GraphOptimizationLevel::ORT_ENABLE_ALL;
 	};
 
-	template <class ModelInterface, class TensorBinding> class FModelInstanceORTBase : public NNE::Internal::FModelInstanceBase<ModelInterface>
+	template <class ModelInterface, class TensorBinding>
+	class FModelInstanceORTBase : public NNE::Internal::FModelInstanceBase<ModelInterface>
 	{
 
 	public:
 		FModelInstanceORTBase(const FRuntimeConf& InRuntimeConf, TSharedPtr<Ort::Env> InEnvironment);
 		virtual ~FModelInstanceORTBase() = default;
 
-		virtual int32 SetInputTensorShapes(TConstArrayView<NNE::FTensorShape> InInputShapes) override;
+		virtual typename ModelInterface::ESetInputTensorShapeStatus SetInputTensorShapes(TConstArrayView<NNE::FTensorShape> InInputShapes) override;
 
 		bool Init(TConstArrayView<uint8> ModelData);
 
-		int32 RunSync(TConstArrayView<TensorBinding> InInputBindings, TConstArrayView<TensorBinding> InOutputBindings) override;
+		typename ModelInterface::ERunSyncStatus RunSync(TConstArrayView<TensorBinding> InInputBindings, TConstArrayView<TensorBinding> InOutputBindings) override;
 
 	protected:
 
