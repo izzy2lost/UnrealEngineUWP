@@ -7,6 +7,7 @@
 #include "RigVMModel/Nodes/RigVMCollapseNode.h"
 #include "RigVMModel/Nodes/RigVMFunctionReferenceNode.h"
 #include "RigVMModel/Nodes/RigVMLibraryNode.h"
+#include "RigVMModel/RigVMFunctionLibrary.h"
 
 FString FRigVMCallstack::GetCallPath(bool bIncludeLast) const
 {
@@ -33,7 +34,7 @@ FString FRigVMCallstack::GetCallPath(bool bIncludeLast) const
 			{
 				if (URigVMGraph* Graph = Pin->GetGraph())
 				{
-					const bool bUseNodePath = Graph->IsRootGraph();
+					const bool bUseNodePath = Stack.Num() == 1 && !Graph->IsA<URigVMFunctionLibrary>();
 					Segments.Add(Pin->GetPinPath(bUseNodePath));
 				}
 			}

@@ -184,7 +184,7 @@ FString URigVMPin::GetPinPath(bool bUseNodePath) const
 	URigVMPin* ParentPin = GetParentPin();
 	if (ParentPin)
 	{
-		PinPath = JoinPinPath(ParentPin->GetPinPath(), GetName());
+		PinPath = JoinPinPath(ParentPin->GetPinPath(bUseNodePath), GetName());
 	}
 	else
 	{
