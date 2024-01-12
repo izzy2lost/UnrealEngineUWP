@@ -146,10 +146,11 @@ namespace Horde.Server.Agents.Leases
 		/// Get lease log, redirecting from lease id to log id
 		/// </summary>
 		/// <param name="leaseId">Unique id of the particular lease</param>
+		/// <param name="path">Subresource for the lease's log</param>
 		/// <returns>Redirect to log endpoint</returns>
 		[HttpGet]
-		[Route("/api/v1/leases/{leaseId}/log")]
-		public async Task<ActionResult> GetLeaseLogAsync(LeaseId leaseId)
+		[Route("/api/v1/leases/{leaseId}/log/{*path}")]
+		public async Task<ActionResult> GetLeaseLogAsync(LeaseId leaseId, string? path = null)
 		{
 			if (!_globalConfig.Value.Authorize(LeaseAclAction.ViewLeases, User))
 			{
@@ -167,7 +168,7 @@ namespace Horde.Server.Agents.Leases
 				return NotFound("null lease.LogId");
 			}
 
-			return new RedirectResult($"/api/v1/logs/{lease.LogId}");
+			return new RedirectResult($"/api/v1/logs/{lease.LogId}/{path}");
 		}
 
 		/// <summary>
