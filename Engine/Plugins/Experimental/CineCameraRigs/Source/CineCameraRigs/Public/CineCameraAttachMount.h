@@ -103,7 +103,7 @@ public:
 #endif
 
 	/** Get ParentConstraint object. Returns nullptr if there is no constraint*/
-	UFUNCTION(BlueprintCallable, Category = "Constraint")
+	UFUNCTION(BlueprintPure, Category = "Constraint")
 	UTickableParentConstraint* GetConstraint();
 
 	/** Reset constraint offset for location */
