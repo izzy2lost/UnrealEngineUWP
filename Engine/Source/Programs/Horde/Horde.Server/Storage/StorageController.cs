@@ -1,6 +1,7 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 using System;
+using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using System.Net.Http.Headers;
@@ -12,6 +13,7 @@ using Amazon.EC2.Model;
 using EpicGames.Core;
 using EpicGames.Horde.Storage;
 using EpicGames.Horde.Storage.Bundles;
+using EpicGames.Horde.Storage.Nodes;
 using Horde.Server.Acls;
 using Horde.Server.Server;
 using Horde.Server.Utilities;
@@ -365,17 +367,19 @@ namespace Horde.Server.Storage
 				return false;
 			}
 		}
-		/*
+
 		/// <summary>
 		/// Gets information about a particular bundle in storage
 		/// </summary>
 		/// <param name="namespaceId">Namespace containing the blob</param>
 		/// <param name="locator">Blob identifier</param>
+		/// <param name="pkt">Packet string</param>
+		/// <param name="exp">Export index</param>
 		/// <param name="cancellationToken">Cancellation token for the operation</param>
 		/// <returns></returns>
 		[HttpGet]
 		[Route("/api/v1/storage/{namespaceId}/nodes/{*locator}")]
-		public Task<ActionResult<object>> GetNodeAsync(NamespaceId namespaceId, BlobLocator locator, CancellationToken cancellationToken = default)
+		public async Task<ActionResult<object>> GetNodeAsync(NamespaceId namespaceId, BlobLocator locator, [FromQuery] string? pkt = null, [FromQuery] string? exp = null, CancellationToken cancellationToken = default)
 		{
 			NamespaceConfig? namespaceConfig;
 			if (!_globalConfig.Value.Storage.TryGetNamespace(namespaceId, out namespaceConfig))
@@ -387,45 +391,55 @@ namespace Horde.Server.Storage
 				return Forbid(StorageAclAction.ReadBlobs, namespaceId);
 			}
 
+			List<string> fragments = new List<string>();
+			if (pkt != null)
+			{
+				fragments.Add($"pkt={pkt}");
+			}
+			if (exp != null)
+			{
+				fragments.Add($"exp={exp}");
+			}
+			if (fragments.Count > 0)
+			{
+				locator = new BlobLocator(locator, String.Join("&", fragments));
+			}
+
 			using IStorageClient storageClient = _storageClientFactory.CreateClient(namespaceId);
 
 			string linkBase = $"/api/v1/storage/{namespaceId}";
 
 			object content;
 
-			using BlobData blobData = await storageClient.CreateBlobHandle(locator).ReadDataAsync(cancellationToken);
-
-			Node node = Node.Deserialize(blobData);
-			switch (node)
+			using BlobData blobData = await storageClient.CreateBlobHandle(locator).ReadBlobDataAsync(cancellationToken);
+			if (blobData.Type.Guid == DirectoryNode.BlobType.Guid)
 			{
-				case DirectoryNode directoryNode:
-					{
-						List<object> directories = new List<object>();
-						foreach ((string name, DirectoryEntry entry) in directoryNode.NameToDirectory)
-						{
-							directories.Add(new { name = name.ToString(), length = entry.Length, hash = entry.Hash, link = GetNodeLink(linkBase, entry.Handle) });
-						}
+				DirectoryNode directoryNode = BlobSerializer.Deserialize<DirectoryNode>(blobData);
 
-						List<object> files = new List<object>();
-						foreach ((string name, FileEntry entry) in directoryNode.NameToFile)
-						{
-							files.Add(new { name = name.ToString(), length = entry.Length, flags = entry.Flags, hash = entry.StreamHash, link = GetNodeLink(linkBase, entry.Target.Handle) });
-						}
+				List<object> directories = new List<object>();
+				foreach ((string name, DirectoryEntry entry) in directoryNode.NameToDirectory)
+				{
+					directories.Add(new { name = name.ToString(), length = entry.Length, hash = entry.Handle.Hash, link = GetNodeLink(linkBase, entry.Handle) });
+				}
 
-						content = new { directoryNode.Length, directories, files };
-					}
-					break;
-				default:
-					content = new { references = blobData.Refs.Select(x => GetNodeLink(linkBase, x)) };
-					break;
+				List<object> files = new List<object>();
+				foreach ((string name, FileEntry entry) in directoryNode.NameToFile)
+				{
+					files.Add(new { name = name.ToString(), length = entry.Length, flags = entry.Flags, hash = entry.StreamHash, link = GetNodeLink(linkBase, entry.Target.Handle) });
+				}
+
+				content = new { directoryNode.Length, directories, files };
+			}
+			else
+			{
+				content = new { references = blobData.Refs.Select(x => GetNodeLink(linkBase, x)) };
 			}
 
-			return new { type = blobData.Type.Guid, @class = node.GetType().Name, content = content };
+			return new { type = blobData.Type.Guid, content = content };
 		}
 
 		static string GetNodeLink(string linkBase, IBlobHandle handle) => GetNodeLink(linkBase, handle.GetLocator());
 		
-		static string GetNodeLink(string linkBase, BlobLocator locator) => $"{linkBase}/nodes/{locator}";
-		*/
+		static string GetNodeLink(string linkBase, BlobLocator locator) => $"{linkBase}/nodes/{locator.BaseLocator}?{locator.Fragment}";
 	}
 }

@@ -93,8 +93,7 @@ namespace Horde.Server.Replicators
 				return Forbid(ReplicatorAclAction.ViewReplicator);
 			}
 
-			ReplicatorConfig? replicatorConfig;
-			if (!streamConfig.TryGetReplicator(replicatorId.StreamReplicatorId, out replicatorConfig))
+			if (!streamConfig.TryGetReplicator(replicatorId.StreamReplicatorId, out _))
 			{
 				return NotFound();
 			}
@@ -124,8 +123,7 @@ namespace Horde.Server.Replicators
 				return Forbid(ReplicatorAclAction.UpdateReplicator);
 			}
 
-			ReplicatorConfig? replicatorConfig;
-			if (!streamConfig.TryGetReplicator(replicatorId.StreamReplicatorId, out replicatorConfig))
+			if (!streamConfig.TryGetReplicator(replicatorId.StreamReplicatorId, out _))
 			{
 				return NotFound();
 			}
@@ -135,7 +133,7 @@ namespace Horde.Server.Replicators
 				IReplicator? replicator = await _replicatorCollection.GetOrAddAsync(replicatorId, cancellationToken: cancellationToken);
 
 				UpdateReplicatorOptions updateOptions = new UpdateReplicatorOptions(NewPaused: request.Paused, NewLastChange: (request.Reset ?? false) ? 0 : null, request.Change);
-				if (await replicator.TryUpdateAsync(updateOptions) != null)
+				if (await replicator.TryUpdateAsync(updateOptions, cancellationToken) != null)
 				{
 					break;
 				}

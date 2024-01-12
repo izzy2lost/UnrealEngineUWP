@@ -22,7 +22,7 @@ namespace EpicGames.Horde.Replicators
 		/// </summary>
 		public static bool TryParse(string text, out ReplicatorId replicatorId)
 		{
-			int colonIdx = text.IndexOf(':');
+			int colonIdx = text.IndexOf(':', StringComparison.Ordinal);
 			if (colonIdx != -1)
 			{
 				replicatorId = new ReplicatorId(new StreamId(new StringId(text.Substring(0, colonIdx))), new StreamReplicatorId(new StringId(text.Substring(colonIdx + 1))));
