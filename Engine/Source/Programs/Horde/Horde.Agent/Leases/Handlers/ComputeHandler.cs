@@ -93,7 +93,10 @@ namespace Horde.Agent.Leases.Handlers
 					await using BackgroundTask timeoutTask = BackgroundTask.StartNew(ctx => idleTimeoutTransport.StartWatchdogTimerAsync(cts, logger, ctx));
 					try
 					{
-						await using (RemoteComputeSocket socket = new RemoteComputeSocket(idleTimeoutTransport, logger))
+						ComputeProtocol protocol = (ComputeProtocol)computeTask.Protocol;
+						logger.LogInformation("Using compute protocol version {Version}", (int)protocol);
+
+						await using (RemoteComputeSocket socket = new RemoteComputeSocket(idleTimeoutTransport, protocol, logger))
 						{
 							DirectoryReference sandboxDir = DirectoryReference.Combine(session.WorkingDir, "Sandbox", leaseId);
 							try

@@ -233,6 +233,7 @@ namespace EpicGames.Horde.Compute.Clients
 			request.Requirements = requirements;
 			request.RequestId = requestId;
 			request.Connection = connection;
+			request.Protocol = (int)ComputeProtocol.Latest;
 
 			if (connection is { ModePreference: ConnectionMode.Relay })
 			{
@@ -309,7 +310,7 @@ namespace EpicGames.Horde.Compute.Clients
 			workerLogger.LogInformation("Connected to {AgentId} ({Ip}) under lease {LeaseId}", response.AgentId, response.Ip, response.LeaseId);
 
 			await using ComputeTransport transport = await CreateTransportAsync(socket, response, cancellationToken);
-			await using RemoteComputeSocket computeSocket = new (transport, workerLogger);
+			await using RemoteComputeSocket computeSocket = new (transport, (ComputeProtocol)response.Protocol, workerLogger);
 			yield return new LeaseInfo(response.Properties, response.AssignedResources, computeSocket, response.Ip, response.ConnectionMode, response.Ports);
 		}
 

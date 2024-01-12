@@ -29,6 +29,7 @@ namespace EpicGames.Horde.Tests
 			public Dictionary<int, ComputeBufferWriter> RecvBufferWriters { get; } = new Dictionary<int, ComputeBufferWriter>();
 			public Dictionary<int, ComputeBufferReader> SendBufferReaders { get; } = new Dictionary<int, ComputeBufferReader>();
 
+			public override ComputeProtocol Protocol => ComputeProtocol.Latest;
 			public override ILogger Logger => NullLogger.Instance;
 
 			public void Dispose()
@@ -75,8 +76,8 @@ namespace EpicGames.Horde.Tests
 			Pipe sendPipe = new Pipe();
 			await using PipeTransport localTransport = new (sendPipe.Reader, recvPipe.Writer);
 			await using PipeTransport agentTransport = new (recvPipe.Reader, sendPipe.Writer);
-			await using RemoteComputeSocket localSocket = new (localTransport, new TestLogger());
-			await using RemoteComputeSocket agentSocket = new (agentTransport, new TestLogger());
+			await using RemoteComputeSocket localSocket = new (localTransport, ComputeProtocol.Latest, new TestLogger());
+			await using RemoteComputeSocket agentSocket = new (agentTransport, ComputeProtocol.Latest, new TestLogger());
 
 			await RunAgentTestsAsync(localSocket, agentSocket);
 		}
@@ -89,8 +90,8 @@ namespace EpicGames.Horde.Tests
 
 			await using TcpTransport clientTransport = new (clientSocket);
 			await using TcpTransport serverTransport = new (serverSocket);
-			await using RemoteComputeSocket localSocket = new (clientTransport, new TestLogger());
-			await using RemoteComputeSocket agentSocket = new (serverTransport, new TestLogger());
+			await using RemoteComputeSocket localSocket = new (clientTransport, ComputeProtocol.Latest, new TestLogger());
+			await using RemoteComputeSocket agentSocket = new (serverTransport, ComputeProtocol.Latest, new TestLogger());
 
 			await RunAgentTestsAsync(localSocket, agentSocket, cts.Token);
 		}
@@ -110,8 +111,8 @@ namespace EpicGames.Horde.Tests
 			await t2;
 			await t1;
 			
-			await using RemoteComputeSocket localSocket = new (clientTransport, new TestLogger());
-			await using RemoteComputeSocket agentSocket = new (serverTransport, new TestLogger());
+			await using RemoteComputeSocket localSocket = new (clientTransport, ComputeProtocol.Latest, new TestLogger());
+			await using RemoteComputeSocket agentSocket = new (serverTransport, ComputeProtocol.Latest, new TestLogger());
 			await RunAgentTestsAsync(localSocket, agentSocket, cts.Token);
 		}
 

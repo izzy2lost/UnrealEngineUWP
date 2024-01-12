@@ -61,7 +61,7 @@ namespace Horde.Server.Compute
 				return Forbid(ComputeAclAction.AddComputeTasks, clusterId);
 			}
 
-			AllocateResourceParams arp = new(clusterId, request.Requirements)
+			AllocateResourceParams arp = new(clusterId, (ComputeProtocol)request.Protocol, request.Requirements)
 			{
 				RequestId = request.RequestId,
 				RequesterIp = HttpContext.Connection.RemoteIpAddress,
@@ -106,6 +106,7 @@ namespace Horde.Server.Compute
 			response.AgentId = computeResource.AgentId;
 			response.LeaseId = computeResource.LeaseId;
 			response.Properties = computeResource.Properties;
+			response.Protocol = computeResource.Task.Protocol;
 
 			foreach (KeyValuePair<string, int> pair in computeResource.Task.Resources)
 			{

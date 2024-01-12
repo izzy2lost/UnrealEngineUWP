@@ -10,6 +10,7 @@ using Amazon.EC2;
 using Amazon.EC2.Model;
 using Amazon.Util;
 using EpicGames.Core;
+using EpicGames.Horde.Compute;
 using Horde.Agent.Execution;
 using HordeCommon.Rpc.Messages;
 using Microsoft.Extensions.Logging;
@@ -431,6 +432,9 @@ namespace Horde.Agent.Services
 			AgentCapabilities agent = new();
 			agent.Devices.Add(primaryDevice);
 			agent.Devices.AddRange(otherDevices);
+
+			// Add the max supported compute protocol version
+			agent.Properties.Add($"ComputeProtocol={(int)ComputeProtocol.Latest}");
 
 			// Add any additional properties from the config file
 			agent.Properties.AddRange(_settings.Properties.Select(kvp => $"{kvp.Key}={kvp.Value}"));

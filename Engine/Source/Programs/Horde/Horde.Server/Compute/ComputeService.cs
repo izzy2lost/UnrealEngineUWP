@@ -75,7 +75,12 @@ namespace Horde.Server.Compute
 		/// Cluster ID
 		/// </summary>
 		public ClusterId ClusterId { get; }
-		
+
+		/// <summary>
+		/// Desired protocol version
+		/// </summary>
+		public ComputeProtocol Protocol { get; }
+
 		/// <summary>
 		/// Criteria for selecting an agent
 		/// </summary>
@@ -114,11 +119,10 @@ namespace Horde.Server.Compute
 		/// <summary>
 		/// Constructor
 		/// </summary>
-		/// <param name="clusterId"></param>
-		/// <param name="requirements"></param>
-		public AllocateResourceParams(ClusterId clusterId, Requirements? requirements = null)
+		public AllocateResourceParams(ClusterId clusterId, ComputeProtocol protocol, Requirements? requirements = null)
 		{
 			ClusterId = clusterId;
+			Protocol = protocol;
 			Requirements = requirements ?? new Requirements();
 		}
 	}
@@ -323,10 +327,20 @@ namespace Horde.Server.Compute
 					Dictionary<string, int> assignedResources = new Dictionary<string, int>();
 					if (agent.MeetsRequirements(arp.Requirements, assignedResources))
 					{
+						ComputeProtocol protocol = ComputeProtocol.Initial;
+						foreach (string value in agent.GetPropertyValues("ComputeProtocol"))
+						{
+							if (int.TryParse(value, out int versionInt))
+							{
+								protocol = (ComputeProtocol)Math.Min((int)arp.Protocol, versionInt);
+								break;
+							}
+						}
+
 						LeaseId leaseId = new LeaseId(BinaryIdUtils.CreateNew());
 						ILogFile? log = await _logService.CreateLogFileAsync(JobId.Empty, leaseId, agent.SessionId, LogType.Json, useNewStorageBackend: true, cancellationToken: cancellationToken);
 
-						ComputeTask computeTask = CreateComputeTask(assignedResources, log?.Id, arp.Encryption, arp.ParentLeaseId);
+						ComputeTask computeTask = CreateComputeTask(assignedResources, log?.Id, arp.Encryption, arp.ParentLeaseId, protocol);
 
 						byte[] payload = Any.Pack(computeTask).ToByteArray();
 						AgentLease lease = new AgentLease(leaseId, arp.ParentLeaseId, "Compute task", null, null, log?.Id, LeaseState.Pending, assignedResources, arp.Requirements.Exclusive, payload);
@@ -673,7 +687,7 @@ namespace Horde.Server.Compute
 			return relayIps[0];
 		}
 
-		static ComputeTask CreateComputeTask(Dictionary<string, int> assignedResources, LogId? logId, ComputeEncryption encryption, LeaseId? parentLeaseId)
+		static ComputeTask CreateComputeTask(Dictionary<string, int> assignedResources, LogId? logId, ComputeEncryption encryption, LeaseId? parentLeaseId, ComputeProtocol protocol)
 		{
 			ComputeTask computeTask = new ComputeTask();
 			computeTask.Encryption = encryption;
@@ -683,6 +697,7 @@ namespace Horde.Server.Compute
 			computeTask.Resources.Add(assignedResources);
 			computeTask.LogId = logId?.ToString();
 			computeTask.ParentLeaseId = parentLeaseId?.ToString() ?? String.Empty;
+			computeTask.Protocol = (int)protocol;
 			return computeTask;
 		}
 	}

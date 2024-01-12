@@ -49,6 +49,11 @@ namespace EpicGames.Horde.Compute
 	public class AssignComputeRequest
 	{
 		/// <summary>
+		/// Desired protocol version for the client
+		/// </summary>
+		public int Protocol { get; set; }
+
+		/// <summary>
 		/// Condition to identify machines that can execute the request
 		/// </summary>
 		public Requirements? Requirements { get; set; }
@@ -172,6 +177,11 @@ namespace EpicGames.Horde.Compute
 		/// Resources assigned to this machine
 		/// </summary>
 		public Dictionary<string, int> AssignedResources { get; set; } = new Dictionary<string, int>();
+
+		/// <summary>
+		/// Version number for the compute protocol
+		/// </summary>
+		public int Protocol { get; set; }
 
 		/// <summary>
 		/// Properties of the agent assigned to do the work

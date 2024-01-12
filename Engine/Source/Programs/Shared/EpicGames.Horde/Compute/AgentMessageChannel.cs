@@ -74,6 +74,7 @@ namespace EpicGames.Horde.Compute
 		}
 
 		readonly int _channelId;
+		readonly ComputeProtocol _protocol;
 		readonly ComputeBufferReader _recvBufferReader;
 		readonly ComputeBufferWriter _sendBufferWriter;
 
@@ -83,15 +84,22 @@ namespace EpicGames.Horde.Compute
 		MessageBuilder? _currentBuilder;
 
 		/// <summary>
+		/// The negotiated compute protocol version number
+		/// </summary>
+		public ComputeProtocol Protocol => _protocol;
+
+		/// <summary>
 		/// Constructor
 		/// </summary>
 		/// <param name="channelId"></param>
+		/// <param name="protocol">Protocol version number</param>
 		/// <param name="recvBufferReader"></param>
 		/// <param name="sendBufferWriter"></param>
 		/// <param name="logger">Logger for diagnostic output</param>
-		public AgentMessageChannel(int channelId, ComputeBufferReader recvBufferReader, ComputeBufferWriter sendBufferWriter, ILogger logger)
+		public AgentMessageChannel(int channelId, ComputeProtocol protocol, ComputeBufferReader recvBufferReader, ComputeBufferWriter sendBufferWriter, ILogger logger)
 		{
 			_channelId = channelId;
+			_protocol = protocol;
 			_recvBufferReader = recvBufferReader.AddRef();
 			_sendBufferWriter = sendBufferWriter.AddRef();
 			_logger = logger;
@@ -110,6 +118,7 @@ namespace EpicGames.Horde.Compute
 			socket.AttachRecvBuffer(channelId, recvBuffer);
 			socket.AttachSendBuffer(channelId, sendBuffer);
 			_channelId = channelId;
+			_protocol = socket.Protocol;
 			_recvBufferReader = recvBuffer.CreateReader();
 			_sendBufferWriter = sendBuffer.CreateWriter();
 			_logger = logger;

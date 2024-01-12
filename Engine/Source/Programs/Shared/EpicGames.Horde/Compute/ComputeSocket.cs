@@ -21,6 +21,11 @@ namespace EpicGames.Horde.Compute
 	public abstract class ComputeSocket
 	{
 		/// <summary>
+		/// The current protocol number
+		/// </summary>
+		public abstract ComputeProtocol Protocol { get; }
+
+		/// <summary>
 		/// Logger for diagnostic messages
 		/// </summary>
 		public abstract ILogger Logger { get; }
@@ -87,6 +92,9 @@ namespace EpicGames.Horde.Compute
 		readonly ComputeBufferWriter _commandBufferWriter;
 		readonly List<ComputeBuffer> _buffers = new List<ComputeBuffer>();
 		readonly ILogger _logger;
+
+		/// <inheritdoc/>
+		public override ComputeProtocol Protocol => ComputeProtocol.Unknown;
 
 		/// <inheritdoc/>
 		public override ILogger Logger => _logger;
@@ -371,6 +379,7 @@ namespace EpicGames.Horde.Compute
 		bool _complete;
 
 		readonly ComputeTransport _transport;
+		readonly ComputeProtocol _protocol;
 		readonly ILogger _logger;
 
 		readonly BackgroundTask _recvTask;
@@ -380,16 +389,21 @@ namespace EpicGames.Horde.Compute
 		readonly Dictionary<int, SendBuffer> _sendBuffers = new Dictionary<int, SendBuffer>();
 
 		/// <inheritdoc/>
+		public override ComputeProtocol Protocol => _protocol;
+
+		/// <inheritdoc/>
 		public override ILogger Logger => _logger;
 
 		/// <summary>
 		/// Constructor
 		/// </summary>
 		/// <param name="transport">Transport to communicate with the remote</param>
+		/// <param name="protocol">The protocol version number</param>
 		/// <param name="logger">Logger for trace output</param>
-		public RemoteComputeSocket(ComputeTransport transport, ILogger logger)
+		public RemoteComputeSocket(ComputeTransport transport, ComputeProtocol protocol, ILogger logger)
 		{
 			_transport = transport;
+			_protocol = protocol;
 			_logger = logger;
 
 			_recvTask = new BackgroundTask(ctx => RunRecvTaskAsync(_transport, ctx));
