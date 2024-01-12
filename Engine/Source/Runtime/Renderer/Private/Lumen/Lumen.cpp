@@ -65,7 +65,10 @@ namespace Lumen
 		const bool bLumenReflections = ShouldRenderLumenReflections(View);
 
 		if (bLumenGI
-			&& (UseHardwareRayTracedScreenProbeGather(*View.Family) || UseHardwareRayTracedRadianceCache(*View.Family) || UseHardwareRayTracedDirectLighting(*View.Family)))
+			&& (UseHardwareRayTracedScreenProbeGather(*View.Family) 
+				|| UseHardwareRayTracedRadianceCache(*View.Family) 
+				|| UseHardwareRayTracedDirectLighting(*View.Family)
+				|| UseHardwareRayTracedTranslucencyVolume(*View.Family)))
 		{
 			return true;
 		}
