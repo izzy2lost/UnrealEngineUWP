@@ -10,6 +10,13 @@
 #include "Misc/Paths.h"
 #include "UObject/Package.h"
 
+static bool bAutoPopulateRevisionControlState = false;
+TYPEDELEMENTSDATASTORAGE_API FAutoConsoleVariableRef CVarAutoPopulateState(
+	TEXT("TEDS.RevisionControl.AutoPopulateState"),
+	bAutoPopulateRevisionControlState,
+	TEXT("Automatically query revision control provider and fill information into TEDS")
+);
+
 static void ResolvePackageReference(ITypedElementDataStorageInterface::IQueryContext& Context, const UPackage* Package, TypedElementRowHandle Row, TypedElementRowHandle PackageRow)
 {
 	FTypedElementPackageReference PackageReference;
@@ -30,8 +37,58 @@ void UTypedElementUObjectPackagePathFactory::RegisterQueries(ITypedElementDataSt
 {
 	using namespace TypedElementQueryBuilder;
 	using DSI = ITypedElementDataStorageInterface;
-	
+
+	CVarAutoPopulateState->AsVariable()->OnChangedDelegate().AddLambda(
+		[this, &DataStorage](IConsoleVariable* AutoPopulate)
+		{
+			if (AutoPopulate->GetBool())
+			{
+				RegisterTryAddPackageRef(DataStorage);
+			}
+			else
+			{
+				DataStorage.UnregisterQuery(TryAddPackageRef);
+			}
+		}
+	);
+
 	DataStorage.RegisterQuery(
+		Select(
+			TEXT("Resolve package references"),
+			FProcessor(DSI::EQueryTickPhase::FrameEnd, DataStorage.GetQueryTickGroupName(DSI::EQueryTickGroups::SyncExternalToDataStorage)),
+			[](DSI::IQueryContext& Context, TypedElementRowHandle Row, const FTypedElementUObjectColumn& Object, const FTypedElementPackageUnresolvedReference& UnresolvedPackageReference)
+			{
+				TypedElementRowHandle PackageRow = Context.FindIndexedRow(UnresolvedPackageReference.Index);
+				if (!Context.IsRowAvailable(PackageRow))
+				{
+					return;
+				}
+				const UObject* ObjectInstance = Object.Object.Get();
+				if (!ObjectInstance)
+				{
+					return;
+				}
+				const UPackage* Package = ObjectInstance->GetPackage();
+				Context.RemoveColumns(Row, { FTypedElementPackageUnresolvedReference::StaticStruct() });
+
+				ResolvePackageReference(Context, Package, Row, PackageRow);
+			}
+		)
+		.Compile()
+	);
+
+	if (CVarAutoPopulateState->GetBool())
+	{
+		RegisterTryAddPackageRef(DataStorage);
+	}
+}
+
+void UTypedElementUObjectPackagePathFactory::RegisterTryAddPackageRef(ITypedElementDataStorageInterface& DataStorage) const
+{
+	using namespace TypedElementQueryBuilder;
+	using DSI = ITypedElementDataStorageInterface;
+	
+	TryAddPackageRef = DataStorage.RegisterQuery(
 		Select(
 			TEXT("Sync UObject package info to columns"),
 			FObserver::OnAdd<FTypedElementUObjectColumn>()
@@ -57,37 +114,12 @@ void UTypedElementUObjectPackagePathFactory::RegisterQueries(ITypedElementDataSt
 						else
 						{
 							FTypedElementPackageUnresolvedReference UnresolvedPackageReference;
-                            UnresolvedPackageReference.Index = Index;
+							UnresolvedPackageReference.Index = Index;
 							UnresolvedPackageReference.PathOnDisk = MoveTemp(FullPackageFilename);
-                            Context.AddColumn(Row, MoveTemp(UnresolvedPackageReference));
+							Context.AddColumn(Row, MoveTemp(UnresolvedPackageReference));
 						}
 					}
 				}
-			}
-		)
-		.Compile()
-	);
-
-	DataStorage.RegisterQuery(
-		Select(
-			TEXT("Resolve package references"),
-			FProcessor(DSI::EQueryTickPhase::FrameEnd, DataStorage.GetQueryTickGroupName(DSI::EQueryTickGroups::SyncExternalToDataStorage)),
-			[](DSI::IQueryContext& Context, TypedElementRowHandle Row, const FTypedElementUObjectColumn& Object, const FTypedElementPackageUnresolvedReference& UnresolvedPackageReference)
-			{
-				TypedElementRowHandle PackageRow = Context.FindIndexedRow(UnresolvedPackageReference.Index);
-				if (!Context.IsRowAvailable(PackageRow))
-				{
-					return;
-				}
-				const UObject* ObjectInstance = Object.Object.Get();
-				if (!ObjectInstance)
-				{
-					return;
-				}
-				const UPackage* Package = ObjectInstance->GetPackage();
-				Context.RemoveColumns(Row, { FTypedElementPackageUnresolvedReference::StaticStruct() });
-
-				ResolvePackageReference(Context, Package, Row, PackageRow);
 			}
 		)
 		.Compile()

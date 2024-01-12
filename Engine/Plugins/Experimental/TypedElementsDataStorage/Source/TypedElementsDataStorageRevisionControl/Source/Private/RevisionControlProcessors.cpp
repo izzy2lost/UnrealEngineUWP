@@ -14,12 +14,7 @@
 #include "Elements/Framework/TypedElementQueryBuilder.h"
 #include "Elements/Framework/TypedElementRegistry.h"
 
-static bool bAutoPopulateRevisionControlState = false;
-static FAutoConsoleVariableRef CVarAutoPopulateState(
-	TEXT("TEDS.RevisionControl.AutoPopulateState"),
-	bAutoPopulateRevisionControlState,
-	TEXT("Automatically query revision control provider and fill information into TEDS")
-);
+extern TYPEDELEMENTSDATASTORAGE_API FAutoConsoleVariableRef CVarAutoPopulateState;
 
 FAutoConsoleCommandWithArgsAndOutputDevice SetSelectionSCCStateConsoleCommand(
 	TEXT("TEDS.Debug.SetSCCState"),
@@ -111,9 +106,9 @@ void UTypedElementRevisionControlFactory::RegisterQueries(ITypedElementDataStora
 			.All<FTypedElementSyncFromWorldTag>()
 		.Compile()
 	);
-
-	CVarAutoPopulateState->AsVariable()->SetOnChangedCallback(
-		FConsoleVariableDelegate::CreateLambda([this, &DataStorage](IConsoleVariable* AutoPopulate)
+	
+	CVarAutoPopulateState->AsVariable()->OnChangedDelegate().AddLambda(
+		[this, &DataStorage](IConsoleVariable* AutoPopulate)
 		{
 			if (AutoPopulate->GetBool())
 			{
@@ -123,10 +118,10 @@ void UTypedElementRevisionControlFactory::RegisterQueries(ITypedElementDataStora
 			{
 				DataStorage.UnregisterQuery(FetchUpdates);
 			}
-		})
+		}
 	); 
 	
-	if (bAutoPopulateRevisionControlState)
+	if (CVarAutoPopulateState->GetBool())
 	{
 		RegisterFetchUpdates(DataStorage);
 	}
