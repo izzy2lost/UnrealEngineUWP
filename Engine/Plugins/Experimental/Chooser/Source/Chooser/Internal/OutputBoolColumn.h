@@ -23,6 +23,9 @@ struct CHOOSER_API FOutputBoolColumn : public FChooserColumnBase
 
 #if WITH_EDITOR
 	mutable bool TestValue=false;
+
+	virtual void AddToDetails(FInstancedPropertyBag& PropertyBag, int32 ColumnIndex, int32 RowIndex) override;
+	virtual void SetFromDetails(FInstancedPropertyBag& PropertyBag, int32 ColumnIndex, int32 RowIndex) override;
 #endif
 	
 	// FallbackValue will be used as the output value if the all rows in the chooser fail, and the FallbackResult from the chooser is used.

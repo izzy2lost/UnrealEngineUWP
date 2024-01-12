@@ -55,6 +55,9 @@ struct CHOOSER_API FRandomizeColumn : public FChooserColumnBase
     	{
     		return true;
     	}
+
+		virtual void AddToDetails(FInstancedPropertyBag& PropertyBag, int32 ColumnIndex, int32 RowIndex) override;
+		virtual void SetFromDetails(FInstancedPropertyBag& PropertyBag, int32 ColumnIndex, int32 RowIndex) override;
     #endif
 
 	virtual void PostLoad() override

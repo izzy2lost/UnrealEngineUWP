@@ -5,6 +5,10 @@
 #include "Chooser.h"
 #include "ChooserTrace.h"
 
+#if WITH_EDITOR
+#include "PropertyBag.h"
+#endif
+
 bool FBoolContextProperty::GetValue(FChooserEvaluationContext& Context, bool& OutResult) const
 {
 	return Binding.GetValue(Context, OutResult);
@@ -54,3 +58,27 @@ void FBoolColumn::Filter(FChooserEvaluationContext& Context, const FChooserIndex
 		IndexListOut = IndexListIn;
 	}
 }
+
+#if WITH_EDITOR
+	void FBoolColumn::AddToDetails(FInstancedPropertyBag& PropertyBag, int32 ColumnIndex, int32 RowIndex)
+	{
+		FText DisplayName;
+		InputValue.Get<FChooserParameterBoolBase>().GetDisplayName(DisplayName);
+		FName PropertyName("RowData",ColumnIndex);
+		FPropertyBagPropertyDesc PropertyDesc(PropertyName, EPropertyBagPropertyType::Enum, StaticEnum<EBoolColumnCellValue>());
+		PropertyDesc.MetaData.Add(FPropertyBagPropertyDescMetaData("DisplayName", DisplayName.ToString()));
+		PropertyBag.AddProperties({PropertyDesc});
+		PropertyBag.SetValueEnum(PropertyName, RowValuesWithAny[RowIndex]);
+	}
+
+	void FBoolColumn::SetFromDetails(FInstancedPropertyBag& PropertyBag, int32 ColumnIndex, int32 RowIndex)
+	{
+		FName PropertyName("RowData", ColumnIndex);
+		
+		TValueOrError<uint8, EPropertyBagResult> Result = PropertyBag.GetValueEnum(PropertyName, StaticEnum<EBoolColumnCellValue>());
+		if (uint8* Value = Result.TryGetValue())
+		{
+			RowValuesWithAny[RowIndex] = static_cast<EBoolColumnCellValue>(*Value);
+		}
+	}
+#endif

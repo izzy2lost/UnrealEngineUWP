@@ -97,14 +97,24 @@ namespace UE::ChooserEditor
 		void ClearSelectedColumn();
 		void DeleteColumn(int Index);
 		void AddColumn(const UScriptStruct* ColumnType);
+		void RefreshRowSelectionDetails();
 		int MoveRow(int SourceRowIndex, int TargetIndex);
 		void SelectRow(int32 RowIndex, bool bClear = true);
 		void ClearSelectedRows(); 
+		bool IsRowSelected(int32 RowIndex);
+
+		enum class ESelectionType
+		{
+			Root, Rows, Column
+		};
+		
+		ESelectionType GetCurrentSelectionType() const { return CurrentSelectionType; }
 	private:
 
 		void SelectRootProperties();
 		void RegisterToolbar();
 		void BindCommands();
+		void OnObjectsTransacted(UObject* Object, const FTransactionObjectEvent& Event);
 		void MakeDebugTargetMenu(UToolMenu* InToolMenu);
 	
 		/** Create the properties tab and its content */
@@ -146,6 +156,8 @@ namespace UE::ChooserEditor
 
 		TSharedPtr<SHeaderRow> HeaderRow;
 		TSharedPtr<SListView<TSharedPtr<FChooserTableRow>>> TableView;
+
+		ESelectionType CurrentSelectionType = ESelectionType::Root;
 
 	public:
 

@@ -18,6 +18,7 @@
 #include "ObjectChooser_Asset.h"
 #include "ObjectChooser_Class.h"
 #include "PersonaModule.h"
+#include "PropertyBag.h"
 #include "PropertyCustomizationHelpers.h"
 #include "PropertyEditorModule.h"
 #include "SAssetDropTarget.h"
@@ -31,6 +32,7 @@
 #include "Modules/ModuleManager.h"
 #include "Styling/AppStyle.h"
 #include "SChooserTableRow.h"
+#include "Elements/Framework/TypedElementQueryBuilder.h"
 #include "Widgets/Docking/SDockTab.h"
 #include "Widgets/Input/SComboButton.h"
 #include "Widgets/Input/SHyperlink.h"
@@ -109,8 +111,10 @@ FChooserTableEditor::~FChooserTableEditor()
 	}
 	
 	FCoreUObjectDelegates::OnObjectsReplaced.RemoveAll(this);
+	FCoreUObjectDelegates::OnObjectTransacted.RemoveAll(this);
 
 	DetailsView.Reset();
+	
 }
 
 
@@ -277,6 +281,44 @@ void FChooserTableEditor::BindCommands()
 		FExecuteAction::CreateSP(this, &FChooserTableEditor::SelectRootProperties));
 }
 
+void FChooserTableEditor::OnObjectsTransacted(UObject* Object, const FTransactionObjectEvent& Event)
+{
+	if (UChooserTable* ChooserTable = Cast<UChooserTable>(Object))
+	{
+		// if this is the chooser we're editing
+		if (GetChooser() == ChooserTable)
+		{
+			if (CurrentSelectionType == ESelectionType::Rows)
+			{
+				// refresh details if we have rows selected
+				RefreshRowSelectionDetails();
+			}
+		}
+	}
+	
+	if (UChooserRowDetails* RowDetails = Cast<UChooserRowDetails>(Object))
+	{
+		// if this is for the chooser we're editing
+		if (GetChooser() == RowDetails->Chooser)
+		{
+			// copy all the values over
+			TValueOrError<FStructView, EPropertyBagResult> Result = RowDetails->Properties.GetValueStruct("Result", FInstancedStruct::StaticStruct());
+			if (Result.IsValid())
+			{
+				RowDetails->Chooser->ResultsStructs[RowDetails->Row] = Result.GetValue().Get<FInstancedStruct>();
+			}
+
+			int ColumnIndex = 0;
+			for (FInstancedStruct& ColumnData : RowDetails->Chooser->ColumnsStructs)
+			{
+				FChooserColumnBase& Column = ColumnData.GetMutable<FChooserColumnBase>();
+				Column.SetFromDetails(RowDetails->Properties, ColumnIndex, RowDetails->Row);
+				ColumnIndex++;
+			}
+		}
+	}
+}
+
 void FChooserTableEditor::InitEditor( const EToolkitMode::Type Mode, const TSharedPtr< class IToolkitHost >& InitToolkitHost, const TArray<UObject*>& ObjectsToEdit, FGetDetailsViewObjects GetDetailsViewObjects )
 {
 	EditingObjects = ObjectsToEdit;
@@ -341,6 +383,8 @@ void FChooserTableEditor::InitEditor( const EToolkitMode::Type Mode, const TShar
 		
 	FAnimAssetFindReplaceConfig FindReplaceConfig;
 	FindReplaceConfig.InitialProcessorClass = UChooserFindProperties::StaticClass();
+	
+	FCoreUObjectDelegates::OnObjectTransacted.AddSP(this, &FChooserTableEditor::OnObjectsTransacted);
 }
 
 FName FChooserTableEditor::GetToolkitFName() const
@@ -357,10 +401,50 @@ void FChooserTableEditor::RefreshAll()
 {
 	if (HeaderRow)
 	{
+		// Cache Selection state
+		ESelectionType CachedSelectionType = CurrentSelectionType;
+		int SelectedColumnIndex = -1;
+		UChooserTable* SelectedChooser = nullptr;
+		TArray<int> CachedSelectedRows;
+
+		if (CachedSelectionType == ESelectionType::Column)
+		{
+			SelectedColumnIndex = SelectedColumn->Column;
+			SelectedChooser = SelectedColumn->Chooser;
+		}
+		else if (CachedSelectionType == ESelectionType::Rows)
+		{
+			if (!SelectedRows.IsEmpty())
+			{
+				SelectedChooser = SelectedRows[0]->Chooser;
+			}
+			for(const TObjectPtr<UChooserRowDetails>& SelectedRow : SelectedRows)
+			{
+				CachedSelectedRows.Add(SelectedRow->Row);
+			}
+		}
+		
 		UpdateTableColumns();
 		UpdateTableRows();
-		ClearSelectedColumn();
-		SelectRootProperties();
+
+		// reapply cached selection state
+		if (CachedSelectionType == ESelectionType::Root)
+		{
+			SelectRootProperties();
+		}
+		else if (CachedSelectionType == ESelectionType::Column)
+		{
+			SelectColumn(SelectedChooser, SelectedColumnIndex);
+		}
+		else if (CachedSelectionType == ESelectionType::Rows)
+		{
+			ClearSelectedRows();
+			for(int Row : CachedSelectedRows)
+			{
+				SelectRow(Row, false);
+			}
+		}
+		
 	}
 }
 
@@ -381,10 +465,26 @@ void FChooserTableEditor::NotifyPreChange(FProperty* PropertyAboutToChange)
 
 void FChooserTableEditor::NotifyPostChange(const FPropertyChangedEvent& PropertyChangedEvent, FProperty* PropertyThatChanged)
 {
-	// was previously only refreshing when known properties changed, however, changing the contents of an FInstancedStruct in the Details Panel (for example DefaultRowValue on a Column)
-	// will invalidate previously cached pointers to that FInstancedStruct, and so we need to refresh the columns every time anything is edited in the Details Panel
-	UpdateTableColumns();
-	UpdateTableRows();
+	// Called on details panel edits
+	
+	if (CurrentSelectionType==ESelectionType::Root)
+	{
+		// Editing the root in the details panel can change ContextData that means all wigets need to be refreshed
+		UpdateTableColumns();
+		UpdateTableRows();
+		SelectRootProperties();
+	}
+	if (CurrentSelectionType==ESelectionType::Column)
+	{
+		check(SelectedColumn);
+		int SelectedColumnIndex = SelectedColumn->Column;
+		UChooserTable* SelectedColumnChooser = SelectedColumn->Chooser;
+		// Editing column properties can change the column type, which requires refreshing everything
+		UpdateTableColumns();
+		UpdateTableRows();
+		SelectColumn(SelectedColumnChooser, SelectedColumnIndex);
+	}
+	// editing row data should not require any refreshing
 }
 
 
@@ -535,8 +635,6 @@ TSharedRef<SDockTab> FChooserTableEditor::SpawnFindReplaceTab( const FSpawnTabAr
 	];
 }
 
-
-
 TSharedRef<ITableRow> FChooserTableEditor::GenerateTableRow(TSharedPtr<FChooserTableRow> InItem, const TSharedRef<STableViewBase>& OwnerTable)
 {
 	UChooserTable* Chooser = GetChooser();
@@ -551,6 +649,7 @@ void FChooserTableEditor::SelectRootProperties()
 	{
 		// point the details view to the main table
 		DetailsView->SetObject( GetRootChooser() );
+		CurrentSelectionType = ESelectionType::Root;
 	}
 }
 
@@ -602,6 +701,18 @@ void FChooserTableEditor::ClearSelectedRows()
 	SelectedRows.SetNum(0);
 	TableView->ClearSelection();
 	SelectRootProperties();
+}
+
+bool FChooserTableEditor::IsRowSelected(int32 RowIndex)
+{
+	for(auto& SelectedRow:SelectedRows)
+ 	{
+ 		if (SelectedRow->Row == RowIndex)
+ 		{
+ 			return true;
+ 		}
+ 	}
+	return false;
 }
 
 void FChooserTableEditor::UpdateTableColumns()
@@ -806,6 +917,57 @@ void FChooserTableEditor::AddColumn(const UScriptStruct* ColumnType)
 	SelectColumn(Chooser, InsertIndex);
 }
 
+void FChooserTableEditor::RefreshRowSelectionDetails()
+{
+	for (UObject* SelectedRow : SelectedRows)
+	{
+		SelectedRow->ClearFlags(RF_Standalone);
+	}
+	SelectedRows.SetNum(0);
+	UChooserTable* Chooser = GetChooser();
+	
+	// Get the list of objects to edit the details of
+	TArray<TSharedPtr<FChooserTableRow>> SelectedItems = TableView->GetSelectedItems();
+	for(TSharedPtr<FChooserTableRow>& SelectedItem : SelectedItems)
+	{
+		if (Chooser->ResultsStructs.IsValidIndex(SelectedItem->RowIndex))
+		{
+			TObjectPtr<UChooserRowDetails> Selection = NewObject<UChooserRowDetails>();
+			Selection->Chooser = Chooser;
+			Selection->Row = SelectedItem->RowIndex;
+			Selection->SetFlags(RF_Standalone | RF_Transactional);
+
+			FInstancedStruct& Result = Chooser->ResultsStructs[SelectedItem->RowIndex];
+			Selection->Properties.AddProperty("Result", EPropertyBagPropertyType::Struct, FInstancedStruct::StaticStruct());
+			Selection->Properties.SetValueStruct("Result", FConstStructView(FInstancedStruct::StaticStruct(), reinterpret_cast<uint8*>(&Result)));
+
+			int ColumnIndex = 0;
+			for (FInstancedStruct& ColumnData : Chooser->ColumnsStructs)
+			{
+				FChooserColumnBase& Column = ColumnData.GetMutable<FChooserColumnBase>();
+				Column.AddToDetails(Selection->Properties, ColumnIndex, SelectedItem->RowIndex);
+				ColumnIndex++;
+			}
+		
+			SelectedRows.Add(Selection);
+			
+		}
+	}
+	
+	TArray<UObject*> DetailsObjects;
+	for(auto& Item : SelectedRows)
+	{
+		DetailsObjects.Add(Item.Get());
+	}
+
+	if( DetailsView.IsValid() )
+	{
+		// Make sure details window is pointing to our object
+		DetailsView->SetObjects( DetailsObjects );
+	}
+}
+    										
+
 TSharedRef<SDockTab> FChooserTableEditor::SpawnTableTab( const FSpawnTabArgs& Args )
 {
 	check( Args.GetTabId() == TableTabId );
@@ -908,45 +1070,14 @@ TSharedRef<SDockTab> FChooserTableEditor::SpawnTableTab( const FSpawnTabArgs& Ar
 					return FReply::Unhandled();
 				}
 				)
-				.OnSelectionChanged_Lambda([this](TSharedPtr<FChooserTableRow> SelectedItem,  ESelectInfo::Type SelectInfo)
+				.OnSelectionChanged_Lambda([this](TSharedPtr<FChooserTableRow>,  ESelectInfo::Type SelectInfo)
 				{
 					// deselect any selected column
 					ClearSelectedColumn();
-					
-					if (SelectedItem)
-					{
-						for (UObject* SelectedRow : SelectedRows)
-						{
-							SelectedRow->ClearFlags(RF_Standalone);
-						}
-						SelectedRows.SetNum(0);
-						UChooserTable* Chooser = GetChooser();
-						
-						if (!Chooser->ResultsStructs.IsValidIndex(SelectedItem->RowIndex))
-						{
-							SelectRootProperties();
-							return;
-						}
-						
-						// Get the list of objects to edit the details of
-						TObjectPtr<UChooserRowDetails> Selection = NewObject<UChooserRowDetails>();
-						Selection->Chooser = Chooser;
-						Selection->Row = SelectedItem->RowIndex;
-						Selection->SetFlags(RF_Standalone);
-						SelectedRows.Add(Selection);
-											
-						TArray<UObject*> DetailsObjects;
-						for(auto& Item : SelectedRows)
-						{
-							DetailsObjects.Add(Item.Get());
-						}
 
-						if( DetailsView.IsValid() )
-						{
-							// Make sure details window is pointing to our object
-							DetailsView->SetObjects( DetailsObjects );
-						}
-					}
+					CurrentSelectionType = ESelectionType::Rows;
+
+					RefreshRowSelectionDetails();
 				})
     			.OnGenerateRow_Raw(this, &FChooserTableEditor::GenerateTableRow)
 				.HeaderRow(HeaderRow);
@@ -1109,6 +1240,7 @@ void FChooserTableEditor::SelectColumn(UChooserTable* ChooserEditor, int Index)
    		SelectedColumn->Chooser = Chooser;
    		SelectedColumn->Column = Index;
    		DetailsView->SetObject(SelectedColumn, true);
+   		CurrentSelectionType = ESelectionType::Column;
    	}
    	else
    	{

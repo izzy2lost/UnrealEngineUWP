@@ -2,6 +2,9 @@
 #include "RandomizeColumn.h"
 #include "ChooserIndexArray.h"
 #include "ChooserPropertyAccess.h"
+#if WITH_EDITOR
+#include "PropertyBag.h"
+#endif
 
 bool FRandomizeContextProperty::GetValue(FChooserEvaluationContext& Context, const FChooserRandomizationContext*& OutResult) const
 {
@@ -101,3 +104,26 @@ void FRandomizeColumn::SetOutputs(FChooserEvaluationContext& Context, int RowInd
 		}
 	}
 }
+	#if WITH_EDITOR
+
+	void FRandomizeColumn::AddToDetails(FInstancedPropertyBag& PropertyBag, int32 ColumnIndex, int32 RowIndex)
+	{
+		FName PropertyName("RowData",ColumnIndex);
+		FPropertyBagPropertyDesc PropertyDesc(PropertyName, EPropertyBagPropertyType::Float);
+		PropertyDesc.MetaData.Add(FPropertyBagPropertyDescMetaData("DisplayName", "Randomize"));
+		PropertyBag.AddProperties({PropertyDesc});
+		PropertyBag.SetValueFloat(PropertyName, RowValues[RowIndex]);
+	}
+
+	void FRandomizeColumn::SetFromDetails(FInstancedPropertyBag& PropertyBag, int32 ColumnIndex, int32 RowIndex)
+	{
+		FName PropertyName("RowData", ColumnIndex);
+		
+		TValueOrError<float, EPropertyBagResult> Result = PropertyBag.GetValueFloat(PropertyName);
+		if (float* Value = Result.TryGetValue())
+		{
+			RowValues[RowIndex] = *Value;
+		}
+	}
+
+    #endif

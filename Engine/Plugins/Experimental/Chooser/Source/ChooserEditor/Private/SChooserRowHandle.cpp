@@ -68,8 +68,16 @@ namespace UE::ChooserEditor
 
 	FReply SChooserRowHandle::OnMouseButtonDown(const FGeometry& MyGeometry, const FPointerEvent& MouseEvent)
 	{
-		ChooserEditor->SelectRow(RowIndex);
-		return FReply::Handled().DetectDrag(SharedThis(this), EKeys::LeftMouseButton);
+		// act as a move handle if the row is already selected, and if there are multiselect modifiers pressed
+		if (!MouseEvent.IsControlDown() && !MouseEvent.IsShiftDown()
+			&& ChooserEditor->IsRowSelected(RowIndex))
+		{
+			return FReply::Handled().DetectDrag(SharedThis(this), EKeys::LeftMouseButton);
+		}
+		else
+		{
+			return SCompoundWidget::OnMouseButtonDown(MyGeometry, MouseEvent);
+		}
 	};
 
 	FReply SChooserRowHandle::OnDragDetected(const FGeometry& MyGeometry, const FPointerEvent& MouseEvent)

@@ -84,6 +84,9 @@ struct CHOOSER_API FFloatRangeColumn : public FChooserColumnBase
 		FMemoryReaderView Reader(Value);
 		Reader << TestValue;
 	}
+
+	virtual void AddToDetails(FInstancedPropertyBag& PropertyBag, int32 ColumnIndex, int32 RowIndex) override;
+	virtual void SetFromDetails(FInstancedPropertyBag& PropertyBag, int32 ColumnIndex, int32 RowIndex) override;
 #endif
 	
 	virtual void PostLoad() override

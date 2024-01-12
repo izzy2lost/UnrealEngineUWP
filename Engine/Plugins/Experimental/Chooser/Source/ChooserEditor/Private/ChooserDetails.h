@@ -4,6 +4,7 @@
 
 #include "CoreMinimal.h"
 #include "IDetailCustomization.h"
+#include "PropertyBag.h"
 #include "ChooserDetails.generated.h"
 
 class UChooserTable;
@@ -14,6 +15,10 @@ class UChooserRowDetails : public UObject
 {
 	GENERATED_BODY()
 public:
+
+	UPROPERTY(EditAnywhere, Category="Properties", meta=(FixedLayout, ShowOnlyInnerProperties))
+    FInstancedPropertyBag Properties;
+	
 	UPROPERTY(EditAnywhere, Instanced, Category="Hidden")
 	TObjectPtr<UChooserTable> Chooser;
 	int Row;

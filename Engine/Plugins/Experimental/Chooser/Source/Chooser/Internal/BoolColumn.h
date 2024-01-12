@@ -10,7 +10,7 @@
 #include "BoolColumn.generated.h"
 
 UENUM()
-enum class EBoolColumnCellValue
+enum class EBoolColumnCellValue : uint8
 {
 	MatchFalse = 0,
 	MatchTrue = 1,
@@ -81,6 +81,9 @@ struct CHOOSER_API FBoolColumn : public FChooserColumnBase
 		FMemoryReaderView Reader(Value);
 		Reader << TestValue;
 	}
+	
+	virtual void AddToDetails(FInstancedPropertyBag& PropertyBag, int32 ColumnIndex, int32 RowIndex) override;
+	virtual void SetFromDetails(FInstancedPropertyBag& PropertyBag, int32 ColumnIndex, int32 RowIndex) override;
 #endif
 
 	virtual void PostLoad() override

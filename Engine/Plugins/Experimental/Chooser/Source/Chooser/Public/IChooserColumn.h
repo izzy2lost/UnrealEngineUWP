@@ -28,6 +28,8 @@ class FVariant;
 
 class FChooserIndexArray;
 
+struct FInstancedPropertyBag;
+
 USTRUCT()
 struct CHOOSER_API FChooserColumnBase
 {
@@ -69,6 +71,9 @@ public:
 	virtual bool IsRandomizeColumn() const { return false; }
 
 	virtual bool EditorTestFilter(int32 RowIndex) const { return false; }
+
+	virtual void AddToDetails(FInstancedPropertyBag& PropertyBag, int32 ColumnIndex, int32 RowIndex) {}
+	virtual void SetFromDetails(FInstancedPropertyBag& PropertyBag, int32 ColumnIndex, int32 RowIndex) {}
 #endif
 };
 

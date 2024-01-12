@@ -48,43 +48,8 @@ void FChooserRowDetails::CustomizeDetails(IDetailLayoutBuilder& DetailBuilder)
 	UChooserRowDetails* Row = Cast<UChooserRowDetails>(Objects[0]);
 	UChooserTable* Chooser = Row->Chooser;
 	
-	if (Chooser->ResultsStructs.IsValidIndex(Row->Row))
-	{
-		IDetailCategoryBuilder& PropertiesCategory = DetailBuilder.EditCategory("Row Properties");
-
-		TSharedPtr<IPropertyHandle> ChooserProperty = DetailBuilder.GetProperty("Chooser", Row->StaticClass());
-		DetailBuilder.HideProperty(ChooserProperty);
-	
-		TSharedPtr<IPropertyHandle> ResultsArrayProperty = ChooserProperty->GetChildHandle("ResultsStructs");
-		TSharedPtr<IPropertyHandle> CurrentResultProperty = ResultsArrayProperty->AsArray()->GetElement(Row->Row);
-		IDetailPropertyRow& NewResultProperty = PropertiesCategory.AddProperty(CurrentResultProperty);
-		NewResultProperty.DisplayName(LOCTEXT("ResultColumnName","Result"));
-		NewResultProperty.ShowPropertyButtons(false); // hide array add button
-		NewResultProperty.ShouldAutoExpand(true);
-	
-		for(int ColumnIndex=0; ColumnIndex<Chooser->ColumnsStructs.Num(); ColumnIndex++)
-		{
-			FChooserColumnBase& Column = Chooser->ColumnsStructs[ColumnIndex].GetMutable<FChooserColumnBase>();
-			TSharedRef<FStructOnScope> StructOnScope = MakeShared<FStructOnScope>(Chooser->ColumnsStructs[ColumnIndex].GetScriptStruct(), reinterpret_cast<uint8*>(&Column));
-			TSharedPtr<IPropertyHandle> ColumnDataProperty = DetailBuilder.AddStructurePropertyData({StructOnScope}, Column.RowValuesPropertyName());
-			uint32 NumElements = 0;
-			ColumnDataProperty->AsArray()->GetNumElements(NumElements);
-			if (Row->Row < (int)NumElements)
-			{
-				TSharedRef<IPropertyHandle> CellData = ColumnDataProperty->AsArray()->GetElement(Row->Row);
-	
-				IDetailPropertyRow& NewColumnProperty = PropertiesCategory.AddProperty(CellData);
-				FText DisplayName = LOCTEXT("No Input Value", "No Input Value");
-				if (FChooserParameterBase* InputValue = Column.GetInputValue())
-				{
-					InputValue->GetDisplayName(DisplayName); 
-				}
-				NewColumnProperty.DisplayName(DisplayName);
-				NewColumnProperty.ShowPropertyButtons(false); // hide array add button
-				NewColumnProperty.ShouldAutoExpand(true);
-			}
-		}
-	}
+	TSharedPtr<IPropertyHandle> ChooserProperty = DetailBuilder.GetProperty("Chooser", Row->StaticClass());
+	DetailBuilder.HideProperty(ChooserProperty);
 }
 
 // Make the details panel show the values for the selected row, showing each column value
