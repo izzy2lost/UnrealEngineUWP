@@ -33,6 +33,7 @@ public:
 				ProviderResult.SelectedAsset = DatabaseAnimationAssetBase->GetAnimationAsset();
 				ProviderResult.Dissimilarity = SearchResult.PoseCost.GetTotalCost();
 				ProviderResult.TimeOffsetSeconds = SearchResult.AssetTime;
+				ProviderResult.bIsFromContinuingPlaying = SearchResult.bIsContinuingPoseSearch;
 			}
 		}
 

@@ -18,10 +18,9 @@ struct FSearchResult
 	// best cost of the currently selected PoseIdx (it could be equal to ContinuingPoseCost)
 	FPoseSearchCost PoseCost;
 	int32 PoseIdx = INDEX_NONE;
-
 	TWeakObjectPtr<const UPoseSearchDatabase> Database;
-
-	float AssetTime = 0.0f;
+	float AssetTime = 0.f;
+	bool bIsContinuingPoseSearch = false;
 
 #if UE_POSE_SEARCH_TRACE_ENABLED
 	FPoseSearchCost BruteForcePoseCost;

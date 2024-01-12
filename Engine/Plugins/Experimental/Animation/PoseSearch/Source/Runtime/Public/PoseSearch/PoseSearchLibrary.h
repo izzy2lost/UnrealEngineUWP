@@ -100,11 +100,11 @@ public:
 
 	// Input start time for the first pose of FutureAnimation
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category=State)
-	float FutureAnimationStartTime;
+	float FutureAnimationStartTime = 0.f;
 
 	// Input time in seconds before start playing FutureAnimation (from FutureAnimationStartTime seconds)
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category=State)
-	float TimeToFutureAnimationStart;
+	float TimeToFutureAnimationStart = 0.f;
 };
 
 UCLASS()

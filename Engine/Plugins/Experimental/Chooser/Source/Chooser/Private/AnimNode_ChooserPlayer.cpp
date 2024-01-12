@@ -45,7 +45,11 @@ UAnimationAsset* FAnimNode_ChooserPlayer::ChooseAsset(const FAnimationUpdateCont
 				const UE::Anim::IPoseSearchProvider::FSearchResult SearchResult = PoseSearchProvider->Search(Context, ChosenAssets, GetAnimAsset(), GetAccumulatedTime());
 				if (UAnimationAsset* SelectedAnimationAsset = Cast<UAnimationAsset>(SearchResult.SelectedAsset))
 				{
-					Settings.StartTime = SearchResult.TimeOffsetSeconds;
+					if (!SearchResult.bIsFromContinuingPlaying)
+					{
+						bForceBlendTo = true;
+						Settings.StartTime = SearchResult.TimeOffsetSeconds;
+					}
 					return SelectedAnimationAsset;
 				}
 			}
@@ -124,16 +128,18 @@ void FAnimNode_ChooserPlayer::UpdateAssetPlayer(const FAnimationUpdateContext& C
 	}
 
 	// Restart the animation:
+	// - if we've been told to do so via bForceBlendTo
 	// - if this node just became relevant
 	// - if we chose a new animation
 	// - if the mirror setting has changed
 	// - for playback rate of 0, when the start time changes - for choosing poses as frames of an animation sequence
 	// - if the curve values are different
-	if (bJustBecameRelevant || NewAsset != CurrentAsset || AnimPlayers.IsEmpty() ||
+	if (bForceBlendTo || bJustBecameRelevant || NewAsset != CurrentAsset || AnimPlayers.IsEmpty() ||
 		CurrentMirror != Settings.bMirror ||
 		(CurrentStartTime != Settings.StartTime && Settings.PlaybackRate == 0.0f) ||
 		CurrentCurveOverridesHash != Settings.CurveOverrides.Hash)
 	{
+		bForceBlendTo = false;
 		CurrentCurveOverridesHash = Settings.CurveOverrides.Hash;
 		CurrentMirror = Settings.bMirror;
 		

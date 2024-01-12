@@ -164,6 +164,7 @@ private:
 	float CurrentStartTime = 0;
 	bool CurrentMirror = false;
 	bool bInitialized = false;
+	bool bForceBlendTo = false;
 	uint32 CurrentCurveOverridesHash = 0;
 	
 

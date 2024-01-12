@@ -1120,6 +1120,7 @@ UE::PoseSearch::FSearchResult UPoseSearchDatabase::SearchContinuingPose(UE::Pose
 	check(SearchContext.GetCurrentResult().Database.Get() == this);
 
 	FSearchResult Result;
+	Result.bIsContinuingPoseSearch = true;
 
 #if WITH_EDITOR
 	if (EAsyncBuildIndexResult::Success != FAsyncPoseSearchDatabasesManagement::RequestAsyncBuildIndex(this, ERequestAsyncBuildFlag::ContinueRequest))
@@ -1484,34 +1485,89 @@ UE::PoseSearch::FSearchResult UPoseSearchDatabase::SearchBruteForce(UE::PoseSear
 		);
 
 		const int32 NumDimensions = Schema->SchemaCardinality;
-		const FSearchFilters SearchFilters(Schema, NonSelectableIdx, SelectableAssetIdx, SearchIndex.bAnyBlockTransition);
 		const bool bUpdateBestCandidates = PoseSearchMode == EPoseSearchMode::BruteForce;
 
-		// do we need to reconstruct pose values?
-		if (SearchIndex.IsValuesEmpty())
+		const FSearchFilters SearchFilters(Schema, NonSelectableIdx, FSelectableAssetIdx(), SearchIndex.bAnyBlockTransition);
+
+		if (SelectableAssetIdx.IsEmpty())
 		{
-			// FMemory_Alloca is forced 16 bytes aligned
-			TArrayView<float> ReconstructedPoseValuesBuffer((float*)FMemory_Alloca(NumDimensions * sizeof(float)), NumDimensions);
-			check(IsAligned(ReconstructedPoseValuesBuffer.GetData(), alignof(VectorRegister4Float)));
-			for (int32 PoseIdx = 0; PoseIdx < SearchIndex.GetNumPoses(); ++PoseIdx)
+			// do we need to reconstruct pose values?
+			if (SearchIndex.IsValuesEmpty())
 			{
-				EvaluatePoseKernel<true, false>(Result, SearchIndex, QueryValues, ReconstructedPoseValuesBuffer, PoseIdx, SearchFilters, SearchContext, this, bUpdateBestCandidates, PoseIdx);
+				// FMemory_Alloca is forced 16 bytes aligned
+				TArrayView<float> ReconstructedPoseValuesBuffer((float*)FMemory_Alloca(NumDimensions * sizeof(float)), NumDimensions);
+				check(IsAligned(ReconstructedPoseValuesBuffer.GetData(), alignof(VectorRegister4Float)));
+				for (int32 PoseIdx = 0; PoseIdx < SearchIndex.GetNumPoses(); ++PoseIdx)
+				{
+					EvaluatePoseKernel<true, false>(Result, SearchIndex, QueryValues, ReconstructedPoseValuesBuffer, PoseIdx, SearchFilters, SearchContext, this, bUpdateBestCandidates, PoseIdx);
+				}
+			}
+			// is the data padded at 16 bytes (and 16 bytes aligned by construction)?
+			else if (NumDimensions % 4 == 0)
+			{
+				for (int32 PoseIdx = 0; PoseIdx < SearchIndex.GetNumPoses(); ++PoseIdx)
+				{
+					EvaluatePoseKernel<false, true>(Result, SearchIndex, QueryValues, TArrayView<float>(), PoseIdx, SearchFilters, SearchContext, this, bUpdateBestCandidates, PoseIdx);
+				}
+			}
+			// no reconstruction, but data is not 16 bytes padded
+			else
+			{
+				for (int32 PoseIdx = 0; PoseIdx < SearchIndex.GetNumPoses(); ++PoseIdx)
+				{
+					EvaluatePoseKernel<false, false>(Result, SearchIndex, QueryValues, TArrayView<float>(), PoseIdx, SearchFilters, SearchContext, this, bUpdateBestCandidates, PoseIdx);
+				}
 			}
 		}
-		// is the data padded at 16 bytes (and 16 bytes aligned by construction)?
-		else if (NumDimensions % 4 == 0)
-		{
-			for (int32 PoseIdx = 0; PoseIdx < SearchIndex.GetNumPoses(); ++PoseIdx)
-			{
-				EvaluatePoseKernel<false, true>(Result, SearchIndex, QueryValues, TArrayView<float>(), PoseIdx, SearchFilters, SearchContext, this, bUpdateBestCandidates, PoseIdx);
-			}
-		}
-		// no reconstruction, but data is not 16 bytes padded
 		else
 		{
-			for (int32 PoseIdx = 0; PoseIdx < SearchIndex.GetNumPoses(); ++PoseIdx)
+			int32 ResultIndex = -1;
+
+			// do we need to reconstruct pose values?
+			if (SearchIndex.IsValuesEmpty())
 			{
-				EvaluatePoseKernel<false, false>(Result, SearchIndex, QueryValues, TArrayView<float>(), PoseIdx, SearchFilters, SearchContext, this, bUpdateBestCandidates, PoseIdx);
+				// FMemory_Alloca is forced 16 bytes aligned
+				TArrayView<float> ReconstructedPoseValuesBuffer((float*)FMemory_Alloca(NumDimensions * sizeof(float)), NumDimensions);
+				check(IsAligned(ReconstructedPoseValuesBuffer.GetData(), alignof(VectorRegister4Float)));
+
+				for (int32 AssetIdx : SelectableAssetIdx)
+				{
+					const FSearchIndexAsset& SearchIndexAsset = SearchIndex.Assets[AssetIdx];
+					const int32 FirstPoseIdx = SearchIndexAsset.GetFirstPoseIdx();
+					const int32 LastPoseIdx = FirstPoseIdx + SearchIndexAsset.GetNumPoses();
+					for (int32 PoseIdx = FirstPoseIdx; PoseIdx < LastPoseIdx; ++PoseIdx)
+					{
+						EvaluatePoseKernel<true, false>(Result, SearchIndex, QueryValues, ReconstructedPoseValuesBuffer, PoseIdx, SearchFilters, SearchContext, this, bUpdateBestCandidates, ++ResultIndex);
+					}
+				}
+			}
+			// is the data padded at 16 bytes (and 16 bytes aligned by construction)?
+			else if (NumDimensions % 4 == 0)
+			{
+				for (int32 AssetIdx : SelectableAssetIdx)
+				{
+					const FSearchIndexAsset& SearchIndexAsset = SearchIndex.Assets[AssetIdx];
+					const int32 FirstPoseIdx = SearchIndexAsset.GetFirstPoseIdx();
+					const int32 LastPoseIdx = FirstPoseIdx + SearchIndexAsset.GetNumPoses();
+					for (int32 PoseIdx = FirstPoseIdx; PoseIdx < LastPoseIdx; ++PoseIdx)
+					{
+						EvaluatePoseKernel<false, true>(Result, SearchIndex, QueryValues, TArrayView<float>(), PoseIdx, SearchFilters, SearchContext, this, bUpdateBestCandidates, ++ResultIndex);
+					}
+				}
+			}
+			// no reconstruction, but data is not 16 bytes padded
+			else
+			{
+				for (int32 AssetIdx : SelectableAssetIdx)
+				{
+					const FSearchIndexAsset& SearchIndexAsset = SearchIndex.Assets[AssetIdx];
+					const int32 FirstPoseIdx = SearchIndexAsset.GetFirstPoseIdx();
+					const int32 LastPoseIdx = FirstPoseIdx + SearchIndexAsset.GetNumPoses();
+					for (int32 PoseIdx = FirstPoseIdx; PoseIdx < LastPoseIdx; ++PoseIdx)
+					{
+						EvaluatePoseKernel<false, false>(Result, SearchIndex, QueryValues, TArrayView<float>(), PoseIdx, SearchFilters, SearchContext, this, bUpdateBestCandidates, ++ResultIndex);
+					}
+				}
 			}
 		}
 	}

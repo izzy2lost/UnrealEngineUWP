@@ -919,6 +919,7 @@ UE::PoseSearch::FSearchResult UPoseSearchLibrary::MotionMatch(const FAnimationBa
 	};
 
 	// collecting all the possible continuing pose search (it could be multiple searches, but most likely only one)
+	const float DeltaSeconds = AnimInstance->GetDeltaSeconds();
 	if (const UAnimationAsset* PlayingAnimationAsset = Cast<UAnimationAsset>(PlayingAsset))
 	{
 		AddToSearch(AssetsToSearchPerDatabaseMap, PlayingAnimationAsset);
@@ -945,16 +946,21 @@ UE::PoseSearch::FSearchResult UPoseSearchLibrary::MotionMatch(const FAnimationBa
 						if (PlayingAnimationAsset == DatabaseAnimationAssetBase->GetAnimationAsset())
 						{
 							const float FirstSampleTime = SearchIndexAsset.GetFirstSampleTime(Database->Schema->SampleRate);
-							const float LastSampleTime = SearchIndexAsset.GetLastSampleTime(Database->Schema->SampleRate);
-							if (PlayingAssetAccumulatedTime >= FirstSampleTime && PlayingAssetAccumulatedTime <= LastSampleTime)
+							const float LastSampleTime = SearchIndexAsset.GetLastSampleTime(Database->Schema->SampleRate) - DeltaSeconds;
+							const float MaxTimeToBeAbleToContinuingPlayingAnimation = LastSampleTime - DeltaSeconds;
+							if (PlayingAssetAccumulatedTime >= FirstSampleTime && PlayingAssetAccumulatedTime < MaxTimeToBeAbleToContinuingPlayingAnimation)
 							{
 								ReconstructedPreviousSearchResult.Database = Database;
 								ReconstructedPreviousSearchResult.AssetTime = PlayingAssetAccumulatedTime;
 								ReconstructedPreviousSearchResult.PoseIdx = Database->GetPoseIndexFromTime(PlayingAssetAccumulatedTime, SearchIndexAsset);
 								SearchContext.UpdateCurrentResultPoseVector();
 
-								SearchResult = Database->SearchContinuingPose(SearchContext);
-								SearchContext.UpdateCurrentBestCost(SearchResult.PoseCost);
+								const FSearchResult NewSearchResult = Database->SearchContinuingPose(SearchContext);
+								if (NewSearchResult.PoseCost.GetTotalCost() < SearchResult.PoseCost.GetTotalCost())
+								{
+									SearchResult = NewSearchResult;
+									SearchContext.UpdateCurrentBestCost(SearchResult.PoseCost);
+								}
 							}
 						}
 					}
@@ -1019,7 +1025,7 @@ UE::PoseSearch::FSearchResult UPoseSearchLibrary::MotionMatch(const FAnimationBa
 	const float SearchBestCost = SearchResult.PoseCost.GetTotalCost();
 	const float SearchBruteForceCost = SearchResult.BruteForcePoseCost.GetTotalCost();
 	TraceMotionMatchingState(SearchContext, SearchResult, 0.f, FTransform::Identity, Context.GetCurrentNodeId(),
-		AnimInstance->GetDeltaSeconds(), true, FObjectTrace::GetWorldElapsedTime(AnimInstance->GetWorld()));
+		DeltaSeconds, true, FObjectTrace::GetWorldElapsedTime(AnimInstance->GetWorld()));
 #endif // UE_POSE_SEARCH_TRACE_ENABLED
 
 	return SearchResult;

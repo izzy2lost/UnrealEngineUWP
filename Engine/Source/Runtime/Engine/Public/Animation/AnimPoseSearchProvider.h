@@ -27,6 +27,7 @@ public:
 		UObject* SelectedAsset = nullptr;
 		float TimeOffsetSeconds = 0.f;
 		float Dissimilarity = MAX_flt;
+		bool bIsFromContinuingPlaying = false;
 	};
 
 	/**

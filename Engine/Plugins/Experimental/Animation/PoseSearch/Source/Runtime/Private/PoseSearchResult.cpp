@@ -76,22 +76,24 @@ const FSearchIndexAsset* FSearchResult::GetSearchIndexAsset(bool bMandatory) con
 bool FSearchResult::CanAdvance(float DeltaTime) const
 {
 	bool bCanAdvance = false;
-	if (IsValid())
+	if (const FSearchIndexAsset* SearchIndexAsset = GetSearchIndexAsset())
 	{
 		float SteppedTime = AssetTime;
-		const FSearchIndexAsset* SearchIndexAsset = GetSearchIndexAsset(true);
 		const FInstancedStruct& DatabaseAsset = Database->GetAnimationAssetStruct(*SearchIndexAsset);
 		if (const FPoseSearchDatabaseBlendSpace* DatabaseBlendSpace = DatabaseAsset.GetPtr<FPoseSearchDatabaseBlendSpace>())
 		{
-			TArray<FBlendSampleData> BlendSamples;
-			int32 TriangulationIndex = 0;
-			DatabaseBlendSpace->BlendSpace->GetSamplesFromBlendInput(SearchIndexAsset->GetBlendParameters(), BlendSamples, TriangulationIndex, true);
+			if (const UBlendSpace* BlendSpace = DatabaseBlendSpace->BlendSpace.Get())
+			{
+				TArray<FBlendSampleData> BlendSamples;
+				int32 TriangulationIndex = 0;
+				BlendSpace->GetSamplesFromBlendInput(SearchIndexAsset->GetBlendParameters(), BlendSamples, TriangulationIndex, true);
 
-			const float PlayLength = DatabaseBlendSpace->BlendSpace->GetAnimationLengthFromSampleData(BlendSamples);
+				const float PlayLength = BlendSpace->GetAnimationLengthFromSampleData(BlendSamples);
 
-			// Asset player time for blend spaces is normalized [0, 1] so we need to convert it back to real time before we advance it
-			SteppedTime = AssetTime * PlayLength;
-			bCanAdvance = ETAA_Finished != FAnimationRuntime::AdvanceTime(SearchIndexAsset->IsLooping(), DeltaTime, SteppedTime, PlayLength);
+				// Asset player time for blend spaces is normalized [0, 1] so we need to convert it back to real time before we advance it
+				SteppedTime = AssetTime * PlayLength;
+				bCanAdvance = ETAA_Finished != FAnimationRuntime::AdvanceTime(SearchIndexAsset->IsLooping(), DeltaTime, SteppedTime, PlayLength);
+			}
 		}
 		else if (const FPoseSearchDatabaseAnimationAssetBase* DatabaseAnimationAssetBase = DatabaseAsset.GetPtr<FPoseSearchDatabaseAnimationAssetBase>())
 		{
