@@ -1420,7 +1420,7 @@ void URigVMHost::RemoveUserDataOfClass(TSubclassOf<UAssetUserData> InUserDataCla
 const TArray<UAssetUserData*>* URigVMHost::GetAssetUserDataArray() const
 {
 #if WITH_EDITOR
-	if (GIsCookerLoadingPackage)
+	if (IsRunningCookCommandlet())
 	{
 		return &ToRawPtrTArrayUnsafe(AssetUserData);
 	}

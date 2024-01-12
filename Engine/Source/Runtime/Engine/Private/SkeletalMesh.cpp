@@ -4824,7 +4824,7 @@ void USkeletalMesh::RemoveUserDataOfClass(TSubclassOf<UAssetUserData> InUserData
 const TArray<UAssetUserData*>* USkeletalMesh::GetAssetUserDataArray() const
 {
 #if WITH_EDITOR
-	if (GIsCookerLoadingPackage)
+	if (IsRunningCookCommandlet())
 	{
 		return &ToRawPtrTArrayUnsafe(AssetUserData);
 	}

@@ -2975,7 +2975,7 @@ const TArray<UAssetUserData*>* UControlRig::GetAssetUserDataArray() const
 	if(HasAnyFlags(RF_ClassDefaultObject))
 	{
 #if WITH_EDITOR
-		if (GIsCookerLoadingPackage)
+		if (IsRunningCookCommandlet())
 		{
 			return &ToRawPtrTArrayUnsafe(AssetUserData);
 		}
@@ -3002,7 +3002,10 @@ const TArray<UAssetUserData*>* UControlRig::GetAssetUserDataArray() const
 	{
 		CombinedAssetUserData.Append(AssetUserData);
 #if WITH_EDITOR
-		CombinedAssetUserData.Append(AssetUserDataEditorOnly);
+		if (!IsRunningCookCommandlet())
+		{
+			CombinedAssetUserData.Append(AssetUserDataEditorOnly);
+		}
 #endif
 	}
 	

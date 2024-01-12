@@ -2123,7 +2123,7 @@ UAssetUserData* UActorComponent::GetAssetUserDataOfClass(TSubclassOf<UAssetUserD
 const TArray<UAssetUserData*>* UActorComponent::GetAssetUserDataArray() const
 {
 #if WITH_EDITOR
-	if (GIsCookerLoadingPackage)
+	if (IsRunningCookCommandlet())
 	{
 		return &ToRawPtrTArrayUnsafe(AssetUserData);
 	}

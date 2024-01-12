@@ -2150,7 +2150,7 @@ void USkeleton::RemoveUserDataOfClass(TSubclassOf<UAssetUserData> InUserDataClas
 const TArray<UAssetUserData*>* USkeleton::GetAssetUserDataArray() const
 {
 #if WITH_EDITOR
-	if (GIsCookerLoadingPackage)
+	if (IsRunningCookCommandlet())
 	{
 		return &ToRawPtrTArrayUnsafe(AssetUserData);
 	}
