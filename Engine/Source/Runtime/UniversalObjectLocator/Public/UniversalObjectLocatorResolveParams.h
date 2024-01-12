@@ -7,14 +7,12 @@
 #include "Misc/TVariant.h"
 #include "UniversalObjectLocatorFwd.h"
 #include "UniversalObjectLocatorResolveParameterBuffer.h"
+#include "UniversalObjectLocatorResolveParams.generated.h"
 
 class UObject;
 
-namespace UE::UniversalObjectLocator
-{
-
-
-enum class EResolveFlags : uint8
+UENUM(BlueprintType, meta = (Bitflags, UseEnumValuesAsMaskValuesInEditor = "true"))
+enum class ELocatorResolveFlags : uint8
 {
 	None,
 
@@ -37,7 +35,10 @@ enum class EResolveFlags : uint8
 	/** Combination of Async and WillWait. */
 	AsyncWait = Async | WillWait,
 };
-ENUM_CLASS_FLAGS(EResolveFlags)
+ENUM_CLASS_FLAGS(ELocatorResolveFlags)
+
+namespace UE::UniversalObjectLocator
+{
 
 /**
  * Parameters required to resolve a universal object locator
@@ -47,18 +48,18 @@ struct FResolveParams
 	FResolveParams()
 		: Context(nullptr)
 		, ParameterBuffer(nullptr)
-		, Flags(EResolveFlags::None)
+		, Flags(ELocatorResolveFlags::None)
 	{
 	}
 
-	FResolveParams(const UObject* InContext)
+	FResolveParams(UObject* InContext)
 		: Context(InContext)
 		, ParameterBuffer(nullptr)
-		, Flags(EResolveFlags::None)
+		, Flags(ELocatorResolveFlags::None)
 	{
 	}
 
-	FResolveParams(const UObject* InContext, EResolveFlags InFlags)
+	FResolveParams(UObject* InContext, ELocatorResolveFlags InFlags)
 		: Context(InContext)
 		, ParameterBuffer(nullptr)
 		, Flags(InFlags)
@@ -80,31 +81,31 @@ struct FResolveParams
 	/** 
 	 * Utility function to indicate that the object should be found, but not loaded or created if it is not currently
 	 */
-	static FResolveParams AsyncFind(const UObject* InContext = nullptr)
+	static FResolveParams AsyncFind(UObject* InContext = nullptr)
 	{
-		return FResolveParams(InContext, EResolveFlags::Async);
+		return FResolveParams(InContext, ELocatorResolveFlags::Async);
 	}
 
 	/** 
 	 * Utility function to indicate that the object should be loaded (or dynamically created) if it is not currently
 	 */
-	static FResolveParams AsyncLoad(const UObject* InContext = nullptr)
+	static FResolveParams AsyncLoad(UObject* InContext = nullptr)
 	{
-		return FResolveParams(InContext, EResolveFlags::Async | EResolveFlags::Load);
+		return FResolveParams(InContext, ELocatorResolveFlags::Async | ELocatorResolveFlags::Load);
 	}
 
 	/** 
 	 * Utility function to indicate that the object should be unloaded (or dynamically destroyed) if it is not currently
 	 */
-	static FResolveParams AsyncUnload(const UObject* InContext)
+	static FResolveParams AsyncUnload(UObject* InContext)
 	{
-		return FResolveParams(InContext, EResolveFlags::Async | EResolveFlags::Unload);
+		return FResolveParams(InContext, ELocatorResolveFlags::Async | ELocatorResolveFlags::Unload);
 	}
 
 	/** 
 	 * Utility function to indicate that the object should be found, but not loaded or created if it is not currently
 	 */
-	static FResolveParams SyncFind(const UObject* InContext = nullptr)
+	static FResolveParams SyncFind(UObject* InContext = nullptr)
 	{
 		return FResolveParams(InContext);
 	}
@@ -112,27 +113,27 @@ struct FResolveParams
 	/** 
 	 * Utility function to indicate that the object should be loaded (or dynamically created) if it is not currently
 	 */
-	static FResolveParams SyncLoad(const UObject* InContext = nullptr)
+	static FResolveParams SyncLoad(UObject* InContext = nullptr)
 	{
-		return FResolveParams(InContext, EResolveFlags::Load);
+		return FResolveParams(InContext, ELocatorResolveFlags::Load);
 	}
 
 	/** 
 	 * Utility function to indicate that the object should be unloaded (or dynamically destroyed) if it is not currently
 	 */
-	static FResolveParams SyncUnload(const UObject* InContext)
+	static FResolveParams SyncUnload(UObject* InContext)
 	{
-		return FResolveParams(InContext, EResolveFlags::Unload);
+		return FResolveParams(InContext, ELocatorResolveFlags::Unload);
 	}
 
 	/** (Optional) Object to use as a context for resolution. Normally this is the object that owns the reference being resolved */
-	const UObject* Context;
+	UObject* Context;
 
 	/** (Optional) Resolve buffer */
-	const FResolveParameterBuffer* ParameterBuffer;
+	FResolveParameterBuffer* ParameterBuffer;
 
 	/** Flag structure */
-	EResolveFlags Flags;
+	ELocatorResolveFlags Flags;
 };
 
 template<int InlineSize>
@@ -143,13 +144,13 @@ struct TResolveParamsWithBuffer : TInlineResolveParameterBuffer<InlineSize>, FRe
 		ParameterBuffer = this;
 	}
 
-	TResolveParamsWithBuffer(const UObject* InContext)
+	TResolveParamsWithBuffer(UObject* InContext)
 		: FResolveParams(InContext)
 	{
 		ParameterBuffer = this;
 	}
 
-	TResolveParamsWithBuffer(const UObject* InContext, EResolveFlags InFlags)
+	TResolveParamsWithBuffer(UObject* InContext, ELocatorResolveFlags InFlags)
 		: FResolveParams(InContext, InFlags)
 	{
 		ParameterBuffer = this;

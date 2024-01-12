@@ -37,7 +37,7 @@ struct FUniversalObjectLocatorCustomization final : public IPropertyTypeCustomiz
 	static TSharedRef<IPropertyTypeCustomization> MakeInstance();
 
 	void CustomizeHeader(TSharedRef<IPropertyHandle> StructPropertyHandle, FDetailWidgetRow& HeaderRow, IPropertyTypeCustomizationUtils& StructCustomizationUtils) override;
-	void CustomizeChildren(TSharedRef<IPropertyHandle> StructPropertyHandle, IDetailChildrenBuilder& StructBuilder, IPropertyTypeCustomizationUtils& StructCustomizationUtils) override {}
+	void CustomizeChildren(TSharedRef<IPropertyHandle> StructPropertyHandle, IDetailChildrenBuilder& StructBuilder, IPropertyTypeCustomizationUtils& StructCustomizationUtils) override;
 
 	UObject* GetContext() const override { return nullptr; }
 	UObject* GetSingleObject() const override;

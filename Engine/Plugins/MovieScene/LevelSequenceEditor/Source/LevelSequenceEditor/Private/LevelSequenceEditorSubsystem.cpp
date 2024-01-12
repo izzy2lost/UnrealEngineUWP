@@ -53,6 +53,8 @@
 #include "MovieSceneToolHelpers.h"
 #include "ActorForWorldTransforms.h"
 #include "KeyParams.h"
+#include "Sections/MovieSceneBindingLifetimeSection.h"
+#include "Tracks/MovieSceneBindingLifetimeTrack.h"
 
 #include UE_INLINE_GENERATED_CPP_BY_NAME(LevelSequenceEditorSubsystem)
 
@@ -169,6 +171,24 @@ void ULevelSequenceEditorSubsystem::Initialize(FSubsystemCollectionBase& Collect
 		}));
 
 	SequencerModule.GetObjectBindingContextMenuExtensibilityManager()->AddExtender(AssignActorMenuExtender);
+
+	// For now we have the binding properties being a separate menu. When the UX is worked out we will likely merge the AssignActor menu away.
+	BindingPropertiesMenuExtender = MakeShareable(new FExtender);
+	BindingPropertiesMenuExtender->AddMenuExtension("Possessable", EExtensionHook::First, CommandList, FMenuExtensionDelegate::CreateLambda([this](FMenuBuilder& MenuBuilder) {
+		// Only add menu entries where the focused sequence is a ULevelSequence
+		if (!GetActiveSequencer())
+		{
+			return;
+		}
+		
+		FFormatNamedArguments Args;
+		MenuBuilder.AddSubMenu(
+			FText::Format(LOCTEXT("BindingProperties", "Binding Properties"), Args),
+			FText::Format(LOCTEXT("BindingPropertiesTooltip", "Modify the actor and object bindings for this track"), Args),
+			FNewMenuDelegate::CreateLambda([this](FMenuBuilder& SubMenuBuilder) { AddBindingPropertiesMenu(SubMenuBuilder); } ));
+		}));
+
+	SequencerModule.GetObjectBindingContextMenuExtensibilityManager()->AddExtender(BindingPropertiesMenuExtender);
 
 	RebindComponentMenuExtender = MakeShareable(new FExtender);
 	RebindComponentMenuExtender->AddMenuExtension("Possessable", EExtensionHook::First, CommandList, FMenuExtensionDelegate::CreateLambda([this](FMenuBuilder& MenuBuilder) {
@@ -1796,6 +1816,210 @@ void ULevelSequenceEditorSubsystem::AddAssignActorMenu(FMenuBuilder& MenuBuilder
 	MenuBuilder.AddWidget(MiniSceneOutliner, FText::GetEmpty(), true);
 }
 
+void ULevelSequenceEditorSubsystem::AddBindingPropertiesMenu(FMenuBuilder& MenuBuilder)
+{
+	TSharedPtr<ISequencer> Sequencer = GetActiveSequencer();
+	if (Sequencer == nullptr)
+	{
+		return;
+	}
+
+	TArray<FGuid> ObjectBindings;
+	Sequencer->GetSelectedObjects(ObjectBindings);
+	if (ObjectBindings.Num() == 0)
+	{
+		return;
+	}
+
+	UMovieSceneSequence* Sequence = Sequencer->GetFocusedMovieSceneSequence();
+	if (!Sequence)
+	{
+		return;
+	}
+	if (FMovieSceneBindingReferences* BindingReferences = Sequence->GetBindingReferences())
+	{
+		TSharedRef<FStructOnScope> LocatorsStruct = MakeShareable(new FStructOnScope(FMovieSceneUniversalLocatorList::StaticStruct()));
+		FMovieSceneUniversalLocatorList* Locators = (FMovieSceneUniversalLocatorList*)LocatorsStruct->GetStructMemory();
+		Algo::Transform(BindingReferences->GetReferences(ObjectBindings[0]), Locators->Bindings, [](const FMovieSceneBindingReference& Reference) 
+			{ 
+				return FMovieSceneUniversalLocatorInfo{ Reference.Locator, Reference.EditorResolveFlags, Reference.RuntimeResolveFlags };
+			});
+
+		MenuBuilder.AddMenuSeparator();
+
+		NotifyHook = FBindingPropertiesNotifyHook(Sequence);
+		// Set up a details panel for the list of locators
+		FDetailsViewArgs DetailsViewArgs;
+		{
+			DetailsViewArgs.bAllowSearch = false;
+			DetailsViewArgs.bCustomFilterAreaLocation = true;
+			DetailsViewArgs.bCustomNameAreaLocation = true;
+			DetailsViewArgs.bHideSelectionTip = true;
+			DetailsViewArgs.bLockable = false;
+			DetailsViewArgs.bSearchInitialKeyFocus = true;
+			DetailsViewArgs.bUpdatesFromSelection = false;
+			DetailsViewArgs.bShowOptions = false;
+			DetailsViewArgs.bShowModifiedPropertiesOption = false;
+			DetailsViewArgs.bShowScrollBar = false;
+			DetailsViewArgs.bAllowMultipleTopLevelObjects = false;
+			DetailsViewArgs.NotifyHook = &NotifyHook;
+		}
+
+		FStructureDetailsViewArgs StructureViewArgs;
+		{
+			StructureViewArgs.bShowObjects = true;
+			StructureViewArgs.bShowAssets = true;
+			StructureViewArgs.bShowClasses = true;
+			StructureViewArgs.bShowInterfaces = true;
+		}
+
+		TSharedRef<IStructureDetailsView> StructureDetailsView = FModuleManager::GetModuleChecked<FPropertyEditorModule>("PropertyEditor")
+			.CreateStructureDetailView(DetailsViewArgs, StructureViewArgs, nullptr);
+
+		StructureDetailsView->SetStructureData(LocatorsStruct);
+		StructureDetailsView->GetOnFinishedChangingPropertiesDelegate().AddUObject(this, &ULevelSequenceEditorSubsystem::OnFinishedChangingLocators, StructureDetailsView,  LocatorsStruct, ObjectBindings[0]);
+
+		MenuBuilder.AddWidget(StructureDetailsView->GetWidget().ToSharedRef(), FText::GetEmpty(), true);
+	}
+}
+
+
+
+void ULevelSequenceEditorSubsystem::FBindingPropertiesNotifyHook::NotifyPreChange(FProperty* PropertyAboutToChange)
+{
+	if (PropertyAboutToChange != nullptr)
+	{
+		GEditor->BeginTransaction(FText::Format(LOCTEXT("EditProperty", "Edit {0}"), PropertyAboutToChange->GetDisplayNameText()));
+
+		ObjectToModify->Modify();
+	}
+}
+
+void ULevelSequenceEditorSubsystem::FBindingPropertiesNotifyHook::NotifyPostChange(const FPropertyChangedEvent& PropertyChangedEvent, FProperty* PropertyThatChanged)
+{
+	GEditor->EndTransaction();
+}
+
+
+void ULevelSequenceEditorSubsystem::OnFinishedChangingLocators(const FPropertyChangedEvent& PropertyChangedEvent, TSharedRef<IStructureDetailsView> StructDetailsView, TSharedRef<FStructOnScope> LocatorsStruct, FGuid ObjectBindingID)
+{
+	const FScopedTransaction Transaction(LOCTEXT("ChangeBindingProperties", "Change Binding Properties"));
+
+	auto Locators = (FMovieSceneUniversalLocatorList*)LocatorsStruct->GetStructMemory();
+	TSharedPtr<ISequencer> Sequencer = GetActiveSequencer();
+	if (Sequencer == nullptr)
+	{
+		return;
+	}
+	UMovieSceneSequence* Sequence = Sequencer->GetFocusedMovieSceneSequence();
+	if (!Sequence)
+	{
+		return;
+	}
+
+	UMovieScene* MovieScene = Sequence->GetMovieScene();
+	if (!MovieScene)
+	{
+		return;
+	}
+	if (FMovieSceneBindingReferences* BindingReferences = Sequence->GetBindingReferences())
+	{
+		MovieScene->Modify();
+		Sequence->Modify();
+		// Clear the previous binding
+		if (FMovieSceneObjectCache* Cache = Sequencer->State.FindObjectCache(Sequencer->GetFocusedTemplateID()))
+		{
+			Cache->UnloadBinding(ObjectBindingID, Sequencer->GetSharedPlaybackState());
+		}
+		BindingReferences->RemoveBinding(ObjectBindingID);
+
+		// Add the new updated bindings
+		for (FMovieSceneUniversalLocatorInfo& LocatorInfo : Locators->Bindings)
+		{
+			if (PropertyChangedEvent.Property != nullptr && PropertyChangedEvent.Property->GetFName() == TEXT("Locator"))
+			{
+				// Ensure flags are initialized from scratch
+				const FMovieSceneBindingReference* NewRef = BindingReferences->AddBinding(ObjectBindingID, MoveTemp(LocatorInfo.Locator));
+				if (NewRef)
+				{
+#if WITH_EDITOR
+					LocatorInfo.EditorResolveFlags = NewRef->EditorResolveFlags;
+#endif
+					LocatorInfo.RuntimeResolveFlags = NewRef->RuntimeResolveFlags;
+				}
+			}
+			else
+			{
+				BindingReferences->AddBinding(ObjectBindingID, MoveTemp(LocatorInfo.Locator), LocatorInfo.EditorResolveFlags, LocatorInfo.RuntimeResolveFlags);
+			}
+		}
+
+		Sequencer->State.Invalidate(ObjectBindingID, Sequencer->GetFocusedTemplateID());
+
+		// Update the object class and DisplayName
+		TArrayView<TWeakObjectPtr<>> ObjectsInCurrentSequence = Sequencer->FindObjectsInCurrentSequence(ObjectBindingID);
+		UClass* ObjectClass = nullptr;
+
+		for (TWeakObjectPtr<> Ptr : ObjectsInCurrentSequence)
+		{
+			if (UObject* BoundObject = Ptr.Get())
+			{
+				if (ObjectClass == nullptr)
+				{
+					ObjectClass = BoundObject->GetClass();
+				}
+				else
+				{
+					ObjectClass = UClass::FindCommonBase(BoundObject->GetClass(), ObjectClass);
+				}
+			}
+		}
+
+		// Update label
+		if (ObjectsInCurrentSequence.Num() > 0)
+		{
+			FMovieScenePossessable* Possessable = MovieScene->FindPossessable(ObjectBindingID);
+			if (Possessable && ObjectClass != nullptr)
+			{
+				if (ObjectsInCurrentSequence.Num() > 1)
+				{
+					FString NewLabel = ObjectClass->GetName() + FString::Printf(TEXT(" (%d)"), ObjectsInCurrentSequence.Num());
+					Possessable->SetName(NewLabel);
+				}
+				else if (AActor* Actor = Cast<AActor>(ObjectsInCurrentSequence[0].Get()))
+				{
+					Possessable->SetName(Actor->GetActorLabel());
+				}
+				else
+				{
+					Possessable->SetName(ObjectClass->GetName());
+				}
+
+				Possessable->SetPossessedObjectClass(ObjectClass);
+			}
+		}
+
+		Sequencer->NotifyMovieSceneDataChanged(EMovieSceneDataChangeType::MovieSceneStructureItemsChanged);
+
+		// Force evaluate the Sequencer after clearing the cache (which the above will do) so that any newly loaded actors will be loaded as part of the transaction
+		Sequencer->ForceEvaluate();
+
+		// Send the OnAddBinding message, which will add a Binding Lifetime Track if necessary
+		Sequencer->OnAddBinding(ObjectBindingID, MovieScene);
+
+		// Re-copy the locator info back into the struct details
+		Locators->Bindings.Empty();
+		Algo::Transform(BindingReferences->GetReferences(ObjectBindingID), Locators->Bindings, [](const FMovieSceneBindingReference& Reference)
+			{
+				return FMovieSceneUniversalLocatorInfo{ Reference.Locator, Reference.EditorResolveFlags, Reference.RuntimeResolveFlags };
+			});
+
+
+		// Force the struct details view to refresh
+		StructDetailsView->GetDetailsView()->InvalidateCachedState();
+	}
+}
+
 void ULevelSequenceEditorSubsystem::GetRebindComponentNames(TArray<FName>& OutComponentNames)
 {
 	OutComponentNames.Empty();
@@ -1986,4 +2210,3 @@ void ULevelSequenceEditorSubsystem::RebindComponent(const TArray<FMovieSceneBind
 }
 
 #undef LOCTEXT_NAMESPACE
-

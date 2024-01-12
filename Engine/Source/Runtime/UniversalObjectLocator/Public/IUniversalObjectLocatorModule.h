@@ -9,6 +9,7 @@
 #include "UniversalObjectLocatorStringParams.h"
 #include "UniversalObjectLocatorInitializeResult.h"
 #include "UniversalObjectLocatorFragment.h"
+#include "UniversalObjectLocatorFragmentType.h"
 #include "Concepts/GetTypeHashable.h"
 #include "Templates/UnrealTypeTraits.h"
 #include "Misc/GeneratedTypeName.h"
@@ -29,6 +30,8 @@ struct FFragmentTypeParameters
 	FText DisplayText;
 	FName FragmentTypeID;
 	FName PrimaryEditorType;
+	EFragmentTypeFlags EditorFlags;
+	EFragmentTypeFlags RuntimeFlags;
 };
 
 class IUniversalObjectLocatorModule
@@ -64,7 +67,7 @@ public:
 			TModels_V<CGetTypeHashable, PayloadStructType>
 		)
 	>
-	TFragmentTypeHandle<PayloadStructType> RegisterFragmentType(const FFragmentTypeParameters& FragmentTypeParameters)
+	TFragmentTypeHandle<PayloadStructType> RegisterFragmentType(FFragmentTypeParameters& FragmentTypeParameters)
 	{
 		checkf(FragmentTypeParameters.FragmentTypeID != NAME_None, TEXT("'None' is not a valid Fragment Type ID for type %s"), GetGeneratedTypeName<PayloadStructType>());
 		checkf(!FAsciiSet::HasAny(*FragmentTypeParameters.FragmentTypeID.ToString(), ~FUniversalObjectLocatorFragment::ValidFragmentTypeCharacters), TEXT("Fragment Type ID '%s' contains invalid characters"), *FragmentTypeParameters.FragmentTypeID.ToString());
@@ -72,6 +75,8 @@ public:
 		FFragmentType NewFragmentType;
 		NewFragmentType.FragmentTypeID     = FragmentTypeParameters.FragmentTypeID;
 		NewFragmentType.PrimaryEditorType  = FragmentTypeParameters.PrimaryEditorType;
+		NewFragmentType.EditorFlags		   = FragmentTypeParameters.EditorFlags;
+		NewFragmentType.RuntimeFlags	   = FragmentTypeParameters.RuntimeFlags;
 		NewFragmentType.DebuggingAssistant = MakeShared<TFragmentTypeDebuggingAssistant<PayloadStructType>>();
 		NewFragmentType.PayloadType        = PayloadStructType::StaticStruct();
 

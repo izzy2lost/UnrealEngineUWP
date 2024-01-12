@@ -160,6 +160,7 @@ public:
 	 * @param InBindingId	The ID relating to the object(s) to resolve
 	 * @param OutObjects	Container to populate with the bound objects
 	 */
+	UE_DEPRECATED(5.4, "Please either call IMovieScenePlayer::FindBoundObjects, FMovieSceneObjectBindingID::ResolveBoundObjects, or FMovieSceneEvaluationState::FindBoundObjects")
 	MOVIESCENE_API virtual void ResolveBoundObjects(const FGuid& InBindingId, FMovieSceneSequenceID SequenceID, UMovieSceneSequence& Sequence, UObject* ResolutionContext, TArray<UObject*, TInlineAllocator<1>>& OutObjects) const;
 
 	/**
@@ -388,7 +389,6 @@ public:
 	 * Returns the evaluated sequence instance's shared playback state, if any.
 	 */
 	MOVIESCENE_API TSharedPtr<UE::MovieScene::FSharedPlaybackState> FindSharedPlaybackState();
-
 	/**
 	 * Returns the evaluated sequence instance's shared playback state, asserts if there is none.
 	 */
@@ -425,6 +425,18 @@ public:
 
 	UE_DEPRECATED(5.4, "Camera cut management has moved to UMovieSceneCameraCutTrackInstance")
 	virtual void UpdateCameraCut(UObject* CameraObject, const EMovieSceneCameraCutParams& CameraCutParams) {}
+
+protected:
+
+	friend struct FMovieSceneObjectCache;
+	/**
+	 * Resolve objects bound to the specified binding ID
+	 *
+	 * @param InBindingId	The ID relating to the object(s) to resolve
+	 * @param OutObjects	Container to populate with the bound objects
+	 */
+	MOVIESCENE_API virtual void ResolveBoundObjects(UE::UniversalObjectLocator::FResolveParams& ResolveParams, const FGuid& InBindingId, FMovieSceneSequenceID SequenceID, UMovieSceneSequence& Sequence, TArray<UObject*, TInlineAllocator<1>>& OutObjects) const;
+
 
 public:
 

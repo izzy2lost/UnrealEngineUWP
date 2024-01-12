@@ -4,6 +4,7 @@
 
 #include "CoreTypes.h"
 #include "UniversalObjectLocator.h"
+#include "UniversalObjectLocatorResolveParams.h"
 #include "MovieSceneBindingReferences.generated.h"
 
 class UWorld;
@@ -23,6 +24,16 @@ struct FMovieSceneBindingReference
 
 	UPROPERTY()
 	FUniversalObjectLocator Locator;
+
+#if WITH_EDITORONLY_DATA
+	UPROPERTY()
+	ELocatorResolveFlags EditorResolveFlags;
+#endif
+
+	UPROPERTY()
+	ELocatorResolveFlags RuntimeResolveFlags;
+
+	void InitializeLocatorResolveFlags();
 };
 
 
@@ -74,7 +85,15 @@ struct FMovieSceneBindingReferences
 	 * @param ObjectId	The ID to associate the object with
 	 * @param InContext	A context in which InObject resides (either a UWorld, or an AActor)
 	 */
-	MOVIESCENE_API void AddBinding(const FGuid& ObjectId, FUniversalObjectLocator&& NewLocator);
+	MOVIESCENE_API const FMovieSceneBindingReference* AddBinding(const FGuid& ObjectId, FUniversalObjectLocator&& NewLocator);
+
+	/**
+	 * Add a binding for the specified ID
+	 *
+	 * @param ObjectId	The ID to associate the object with
+	 * @param InContext	A context in which InObject resides (either a UWorld, or an AActor)
+	 */
+	MOVIESCENE_API const FMovieSceneBindingReference* AddBinding(const FGuid& ObjectId, FUniversalObjectLocator&& NewLocator, ELocatorResolveFlags InEditorResolveFlags, ELocatorResolveFlags InRuntimeResolveFlags);
 
 	/**
 	 * Resolve a binding for the specified ID using a given context
@@ -101,6 +120,13 @@ struct FMovieSceneBindingReferences
 	 * @param ValidBindingIDs A set of GUIDs that are considered valid. Anything references not matching these will be removed.
 	 */
 	MOVIESCENE_API void RemoveInvalidBindings(const TSet<FGuid>& ValidBindingIDs);
+	
+	/**
+	 * Unloads an object that has been loaded via a locator.
+	 *  @param ObjectId	The ID of the binding to unload
+	 *  @param BindingIndex	The index of the binding to unload
+	 */
+	MOVIESCENE_API void UnloadBoundObject(const UE::UniversalObjectLocator::FResolveParams& ResolveParams, const FGuid& ObjectId, int32 BindingIndex);
 
 private:
 

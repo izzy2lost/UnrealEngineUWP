@@ -18,7 +18,7 @@ DEFINE_LOG_CATEGORY(LogUniversalObjectLocator);
 
 namespace UE::UniversalObjectLocator
 {
-	const FFragmentType* FindBestFragmentType(const UObject* Object, const UObject* Context)
+	const FFragmentType* FindBestFragmentType(const UObject* Object, UObject* Context)
 	{
 		// Loop through all our FragmentTypes to find the most supported one
 		uint32 BestFragmentTypePriority = 0;
@@ -60,7 +60,7 @@ namespace UE::UniversalObjectLocator
 } // UE::UniversalObjectLocator
 
 
-FUniversalObjectLocatorFragment::FUniversalObjectLocatorFragment(const UObject* InObject, const UObject* Context)
+FUniversalObjectLocatorFragment::FUniversalObjectLocatorFragment(const UObject* InObject, UObject* Context)
 	: bIsInitialized(0)
 	, bIsInline(0)
 {
@@ -472,7 +472,7 @@ void FUniversalObjectLocatorFragment::Reset()
 	FragmentType = FFragmentTypeHandle();
 }
 
-void FUniversalObjectLocatorFragment::Reset(const UObject* InObject, const UObject* Context)
+void FUniversalObjectLocatorFragment::Reset(const UObject* InObject, UObject* Context)
 {
 	using namespace UE::UniversalObjectLocator;
 
@@ -487,7 +487,7 @@ void FUniversalObjectLocatorFragment::Reset(const UObject* InObject, const UObje
 	}
 }
 
-void FUniversalObjectLocatorFragment::Reset(const UObject* InObject, const UObject* Context, TFunctionRef<bool(UE::UniversalObjectLocator::FFragmentTypeHandle)> CanUseFragmentType)
+void FUniversalObjectLocatorFragment::Reset(const UObject* InObject, UObject* Context, TFunctionRef<bool(UE::UniversalObjectLocator::FFragmentTypeHandle)> CanUseFragmentType)
 {
 	using namespace UE::UniversalObjectLocator;
 

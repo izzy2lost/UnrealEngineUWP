@@ -5,7 +5,7 @@
 #include "UniversalObjectLocatorStringParams.h"
 #include "UObject/Stack.h"
 
-FUniversalObjectLocator UUniversalObjectLocatorScriptingExtensions::MakeUniversalObjectLocator(UObject* Object, const UObject* Context)
+FUniversalObjectLocator UUniversalObjectLocatorScriptingExtensions::MakeUniversalObjectLocator(UObject* Object, UObject* Context)
 {
 	return FUniversalObjectLocator(Object, Context);
 }

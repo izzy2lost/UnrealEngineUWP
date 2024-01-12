@@ -10,13 +10,17 @@ class FText;
 class UObject;
 class SWidget;
 class FDragDropOperation;
+class IPropertyHandle;
+class IDetailChildrenBuilder;
+class IPropertyTypeCustomizationUtils;
+struct FUniversalObjectLocator;
 
 namespace UE::UniversalObjectLocator
 {
 
 class IUniversalObjectLocatorCustomization;
 
-class ILocatorEditor : public TSharedFromThis<ILocatorEditor>
+class UNIVERSALOBJECTLOCATOREDITOR_API ILocatorEditor : public TSharedFromThis<ILocatorEditor>
 {
 public:
 	virtual ~ILocatorEditor() = default;
@@ -27,9 +31,16 @@ public:
 
 	virtual TSharedPtr<SWidget> MakeEditUI(TSharedPtr<IUniversalObjectLocatorCustomization> Customization) = 0;
 
+	virtual	void CustomizeChildren(TSharedRef<IPropertyHandle> StructPropertyHandle, IDetailChildrenBuilder& StructBuilder, IPropertyTypeCustomizationUtils& StructCustomizationUtils) {}
+
 	virtual FText GetDisplayText() const = 0;
+	
 	virtual FText GetDisplayTooltip() const = 0;
+	
 	virtual FSlateIcon GetDisplayIcon() const = 0;
+
+	// Make a default UOL for the given fragment type if applicable
+	virtual FUniversalObjectLocator MakeDefaultLocator() const;
 };
 
 

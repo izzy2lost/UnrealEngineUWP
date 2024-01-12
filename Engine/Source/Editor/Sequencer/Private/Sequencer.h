@@ -762,6 +762,7 @@ public:
 	virtual void SetPlaybackSpeed(float InPlaybackSpeed) override;
 	virtual float GetPlaybackSpeed() const override { return PlaybackSpeed; }
 	virtual TArray<FGuid> AddActors(const TArray<TWeakObjectPtr<AActor> >& InActors, bool bSelectActors = true) override;
+	virtual FGuid AddEmptyBinding() override;
 	virtual TArray<FGuid> ConvertToSpawnable(FGuid Guid) override;
 	virtual void AddSubSequence(UMovieSceneSequence* Sequence) override;
 	virtual bool CanKeyProperty(FCanKeyPropertyParams CanKeyPropertyParams) const override;
@@ -1148,6 +1149,7 @@ private:
 	int32 FindClosestPlaybackSpeed(float InPlaybackSpeed, bool bExactOnly = false) const;
 	void RestorePlaybackSpeedAfterPlay();
 
+	FGuid FindUnspawnedObjectGuid(UObject& InObject);
 	// Given the root sequence time, returns the local time and loop counter clamped to the maximum number of loops
 	void CalculateLocalTimeClamped(FFrameTime RootTime, const FMovieSceneSequenceTransform& RootToParentChainTransform, FFrameTime& OutTime, FMovieSceneWarpCounter& OutLoopCounter) const;
 

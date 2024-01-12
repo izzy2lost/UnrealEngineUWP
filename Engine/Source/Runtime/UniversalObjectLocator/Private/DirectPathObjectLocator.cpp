@@ -18,7 +18,7 @@ UE::UniversalObjectLocator::FResolveResult FDirectPathObjectLocator::Resolve(con
 		return FResolveResultData(Object);
 	}
 
-	if (EnumHasAnyFlags(Params.Flags, EResolveFlags::Load))
+	if (EnumHasAnyFlags(Params.Flags, ELocatorResolveFlags::Load))
 	{
 		UObject* Object = Path.TryLoad();
 

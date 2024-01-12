@@ -6,6 +6,7 @@
 #include "UniversalObjectLocatorFwd.h"
 #include "UniversalObjectLocatorFragment.h"
 #include "UniversalObjectLocatorResolveParams.h"
+#include "UniversalObjectLocatorFragmentType.h"
 #include "UniversalObjectLocator.generated.h"
 
 /**
@@ -44,7 +45,7 @@ struct FUniversalObjectLocator
 	 * @param Context          (Optional) Constrain this universal reference based on the specified context. This context should be passed to Resolve otherwise the resolution may fail.
 	 * @param StopAtContext    (Optional) Stop constructing this universal reference when we reach the following context (can be used if that context is always passed to Resolve to keep this type smaller)
 	 */
-	UNIVERSALOBJECTLOCATOR_API FUniversalObjectLocator(UObject* Object, const UObject* Context = nullptr, const UObject* StopAtContext = nullptr);
+	UNIVERSALOBJECTLOCATOR_API FUniversalObjectLocator(UObject* Object, UObject* Context = nullptr, UObject* StopAtContext = nullptr);
 
 	/**
 	 * Check if this locator is 'empty'. An empty locator contains no fragments and will never resolve.
@@ -69,7 +70,7 @@ struct FUniversalObjectLocator
 	 * @param Context          (Optional) An optional context to use for finding the object - should match what was specified in Reset() or in construction
 	 * @return A result structure that may or may not already have a result populated
 	 */
-	UNIVERSALOBJECTLOCATOR_API FResolveResult AsyncFind(const UObject* Context = nullptr) const;
+	UNIVERSALOBJECTLOCATOR_API FResolveResult AsyncFind(UObject* Context = nullptr) const;
 
 	/**
 	 * Attempt to find the object this locator points to, loading it if necessary (and possible).
@@ -78,7 +79,7 @@ struct FUniversalObjectLocator
 	 * @param Context          (Optional) An optional context to use for finding/loading the object - should match what was specified in Reset()
 	 * @return A result structure that may or may not already have a result populated
 	 */
-	UNIVERSALOBJECTLOCATOR_API FResolveResult AsyncLoad(const UObject* Context = nullptr) const;
+	UNIVERSALOBJECTLOCATOR_API FResolveResult AsyncLoad(UObject* Context = nullptr) const;
 
 	/**
 	 * Attempt to unload the object this locator points to if possible.
@@ -87,7 +88,7 @@ struct FUniversalObjectLocator
 	 * @param Context          (Optional) An optional context to use for finding/loading the object - should match what was specified in Reset()
 	 * @return A result structure that may or may not already have a result populated
 	 */
-	UNIVERSALOBJECTLOCATOR_API FResolveResult AsyncUnload(const UObject* Context = nullptr) const;
+	UNIVERSALOBJECTLOCATOR_API FResolveResult AsyncUnload(UObject* Context = nullptr) const;
 
 	/**
 	 * Attempt to find the object this locator points to.
@@ -96,7 +97,7 @@ struct FUniversalObjectLocator
 	 * @param Context          (Optional) An optional context to use for finding the object - should match what was specified in Reset() or in construction
 	 * @return The located object, or nullptr on failure
 	 */
-	UNIVERSALOBJECTLOCATOR_API UObject* SyncFind(const UObject* Context = nullptr) const;
+	UNIVERSALOBJECTLOCATOR_API UObject* SyncFind(UObject* Context = nullptr) const;
 
 	/**
 	 * Attempt to find the object this locator points to, loading it if necessary (and possible), and blocking until it is loaded.
@@ -105,7 +106,7 @@ struct FUniversalObjectLocator
 	 * @param Context          (Optional) An optional context to use for finding/loading the object - should match what was specified in Reset()
 	 * @return The located object, or nullptr on failure
 	 */
-	UNIVERSALOBJECTLOCATOR_API UObject* SyncLoad(const UObject* Context = nullptr) const;
+	UNIVERSALOBJECTLOCATOR_API UObject* SyncLoad(UObject* Context = nullptr) const;
 
 	/**
 	 * Attempt to unload the object this locator points to if possible.
@@ -114,7 +115,7 @@ struct FUniversalObjectLocator
 	 * @param Context          (Optional) An optional context to use for finding/loading the object - should match what was specified in Reset()
 	 * @return The located object, or nullptr on failure
 	 */
-	UNIVERSALOBJECTLOCATOR_API void SyncUnload(const UObject* Context = nullptr) const;
+	UNIVERSALOBJECTLOCATOR_API void SyncUnload(UObject* Context = nullptr) const;
 
 	/**
 	 * Retrieve the fragment type relating to the last locator in this address
@@ -167,7 +168,7 @@ public:
 	 * @param Context          (Optional) Constrain this universal reference based on the specified context. This context should be passed to Resolve otherwise the resolution may fail.
 	 * @param StopAtContext    (Optional) Stop constructing this universal reference when we reach the following context (can be used if that context is always passed to Resolve to keep this type smaller)
 	 */
-	UNIVERSALOBJECTLOCATOR_API void Reset(UObject* Object, const UObject* Context = nullptr, const UObject* StopAtContext = nullptr);
+	UNIVERSALOBJECTLOCATOR_API void Reset(UObject* Object, UObject* Context = nullptr, UObject* StopAtContext = nullptr);
 
 	/**
 	 * Add a fragment to the end of this locator
@@ -193,6 +194,17 @@ public:
 	 * Retrieve the last fragment in this address
 	 */
 	UNIVERSALOBJECTLOCATOR_API const FUniversalObjectLocatorFragment* GetLastFragment() const;
+
+
+	/*
+	* Iterates over all fragments and combines their types' default editor flags.
+	*/
+	UNIVERSALOBJECTLOCATOR_API UE::UniversalObjectLocator::EFragmentTypeFlags GetDefaultEditorFlags() const;
+
+	/*
+	* Iterates over all fragments and combines their types' default runtime flags.
+	*/
+	UNIVERSALOBJECTLOCATOR_API UE::UniversalObjectLocator::EFragmentTypeFlags GetDefaultRuntimeFlags() const;
 
 	/**
 	 * Equality comparison.
@@ -220,7 +232,7 @@ public:
 private:
 
 	/**  */
-	bool AddFragment(const UObject* Object, const UObject* Context, const UObject* StopAtContext);
+	bool AddFragment(const UObject* Object, UObject* Context, UObject* StopAtContext);
 
 	FResolveResult ResolveSyncImpl(const FResolveParams& Params) const;
 	FResolveResult ResolveAsyncImpl(const FResolveParams& Params) const;

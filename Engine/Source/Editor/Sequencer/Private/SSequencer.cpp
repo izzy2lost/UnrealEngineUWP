@@ -122,6 +122,7 @@
 #include "MovieSceneToolHelpers.h"
 #include "Editor/UnrealEdEngine.h"
 #include "UnrealEdGlobals.h"
+#include "UniversalObjectLocators/ActorLocatorFragment.h"
 
 #define LOCTEXT_NAMESPACE "Sequencer"
 
@@ -3301,7 +3302,17 @@ void SSequencer::OnAssetsDropped( const FAssetDragDropOp& DragDropOp )
 					continue;
 				}
 
-				SequencerRef.MakeNewSpawnable(*CurObject, DragDropOp.GetActorFactory());
+				// Make a test locator from the object, and if it's not an actor type, make a possessable, otherwise make a spawnable by default.
+				// TODO: We might want to generalize this somehow from the locator types.
+				FUniversalObjectLocator TestLocator(CurObject, SequencerRef.GetPlaybackContext());
+				if (TestLocator.GetLastFragmentTypeHandle() == FActorLocatorFragment::FragmentType)
+				{
+					SequencerRef.MakeNewSpawnable(*CurObject, DragDropOp.GetActorFactory());
+				}
+				else
+				{
+					SequencerRef.CreateBinding(*CurObject, CurObject->GetName());
+				}
 			}
 
 			DropResult = ESequencerDropResult::DropHandled;

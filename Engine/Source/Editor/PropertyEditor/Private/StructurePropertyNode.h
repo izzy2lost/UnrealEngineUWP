@@ -230,6 +230,7 @@ protected:
 	/** FPropertyNode interface */
 	virtual void InitChildNodes() override;
 
+    virtual void InitBeforeNodeFlags() override;
 	void InternalInitChildNodes(FName SinglePropertyName);
 
 	virtual uint8* GetValueBaseAddress(uint8* Base, bool bIsSparseData, bool bIsStruct) const override;

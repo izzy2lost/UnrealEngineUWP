@@ -117,18 +117,29 @@ void ULevelSequencePlayer::SetSourceActorContext(UWorld* InStreamingWorld, FActo
 	SourceAssetPath = InSourceAssetPath;
 }
 
-void ULevelSequencePlayer::ResolveBoundObjects(const FGuid& InBindingId, FMovieSceneSequenceID SequenceID, UMovieSceneSequence& InSequence, UObject* ResolutionContext, TArray<UObject*, TInlineAllocator<1>>& OutObjects) const
+void ULevelSequencePlayer::ResolveBoundObjects(UE::UniversalObjectLocator::FResolveParams& ResolveParams, const FGuid& InBindingId, FMovieSceneSequenceID SequenceID, UMovieSceneSequence& InSequence, TArray<UObject*, TInlineAllocator<1>>& OutObjects) const
 {
 	using namespace UE::UniversalObjectLocator;
+	using namespace UE::MovieScene;
 
 	bool bAllowDefault = PlaybackClient ? PlaybackClient->RetrieveBindingOverrides(InBindingId, SequenceID, OutObjects) : true;
 
 	if (bAllowDefault)
 	{
-		TResolveParamsWithBuffer<128> ResolveParams(ResolutionContext);
-		ResolveParams.AddParameter(FActorLocatorFragmentResolveParameter::ParameterType, WeakStreamingWorld.Get(), ContainerID, SourceAssetPath);
-
-		InSequence.LocateBoundObjects(InBindingId, ResolveParams, OutObjects);
+		if (ResolveParams.ParameterBuffer == nullptr)
+		{
+			// Allocate temporary local buffer for this
+			TInlineResolveParameterBuffer<128> Buffer;
+			ResolveParams.ParameterBuffer = &Buffer;
+			ResolveParams.ParameterBuffer->AddParameter(FActorLocatorFragmentResolveParameter::ParameterType, WeakStreamingWorld.Get(), ContainerID, SourceAssetPath);
+			InSequence.LocateBoundObjects(InBindingId, ResolveParams, OutObjects);
+			ResolveParams.ParameterBuffer = nullptr;
+		}
+		else
+		{
+			ResolveParams.ParameterBuffer->AddParameter(FActorLocatorFragmentResolveParameter::ParameterType, WeakStreamingWorld.Get(), ContainerID, SourceAssetPath);
+			InSequence.LocateBoundObjects(InBindingId, ResolveParams, OutObjects);
+		}
 	}
 }
 

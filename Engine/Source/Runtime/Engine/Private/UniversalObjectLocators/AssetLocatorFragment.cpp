@@ -8,6 +8,7 @@
 #include "UniversalObjectLocatorStringParams.h"
 #include "UObject/ObjectRedirector.h"
 #include "UObject/Package.h"
+#include "IUniversalObjectLocatorModule.h"
 
 UE::UniversalObjectLocator::TFragmentTypeHandle<FAssetLocatorFragment> FAssetLocatorFragment::FragmentType;
 
@@ -17,7 +18,7 @@ UE::UniversalObjectLocator::FResolveResult FAssetLocatorFragment::Resolve(const 
 
 	FString PathString = Path.ToString();
 
-	if (EnumHasAnyFlags(Params.Flags, EResolveFlags::Unload))
+	if (EnumHasAnyFlags(Params.Flags, ELocatorResolveFlags::Unload))
 	{
 		// Assets cannot be explicitly unloaded
 		return FResolveResult();
@@ -26,7 +27,7 @@ UE::UniversalObjectLocator::FResolveResult FAssetLocatorFragment::Resolve(const 
 	FResolveResultData Result;
 
 	Result.Object = FindObject<UObject>(nullptr, *PathString);
-	if (Result.Object == nullptr && EnumHasAnyFlags(Params.Flags, EResolveFlags::Load))
+	if (Result.Object == nullptr && EnumHasAnyFlags(Params.Flags, ELocatorResolveFlags::Load))
 	{
 		Result.Object = StaticLoadObject(UObject::StaticClass(), nullptr, *PathString, nullptr, LOAD_None, nullptr, true);
 		Result.Flags.bWasLoaded = (Result.Object != nullptr);
@@ -42,7 +43,7 @@ UE::UniversalObjectLocator::FResolveResult FAssetLocatorFragment::Resolve(const 
 			FString FixedUpPathString = FixupObjectPath.ToString();
 
 			Result.Object = FindObject<UObject>(nullptr, *FixedUpPathString);
-			if (Result.Object == nullptr && EnumHasAnyFlags(Params.Flags, EResolveFlags::Load))
+			if (Result.Object == nullptr && EnumHasAnyFlags(Params.Flags, ELocatorResolveFlags::Load))
 			{
 				Result.Object = LoadObject<UObject>(nullptr, *FixedUpPathString);
 				Result.Flags.bWasLoaded = (Result.Object != nullptr);

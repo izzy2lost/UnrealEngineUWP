@@ -14,7 +14,7 @@ namespace UE::UniversalObjectLocator
 {
 	static constexpr FStringView MagicLeadingString = TEXTVIEW("uobj://");
 
-	const FFragmentType* FindBestFragmentType(const UObject* Object, const UObject* Context);
+	const FFragmentType* FindBestFragmentType(const UObject* Object, UObject* Context);
 
 } // namespace UE::UniversalObjectLocator
 
@@ -38,7 +38,7 @@ FUniversalObjectLocator::FUniversalObjectLocator()
 
 }
 
-FUniversalObjectLocator::FUniversalObjectLocator(UObject* Object, const UObject* Context, const UObject* StopAtContext)
+FUniversalObjectLocator::FUniversalObjectLocator(UObject* Object, UObject* Context, UObject* StopAtContext)
 {
 	Reset(Object, Context, StopAtContext);
 }
@@ -53,11 +53,11 @@ UE::UniversalObjectLocator::FResolveResult FUniversalObjectLocator::Resolve(cons
 	}
 
 	// Check for invalid combinations of flags
-	check(!EnumHasAllFlags(Params.Flags, EResolveFlags::Load | EResolveFlags::Unload));
+	check(!EnumHasAllFlags(Params.Flags, ELocatorResolveFlags::Load | ELocatorResolveFlags::Unload));
 	// Cannot have WillWait without Async
-	check(!EnumHasAllFlags(Params.Flags, EResolveFlags::WillWait) || EnumHasAllFlags(Params.Flags, EResolveFlags::Async));
+	check(!EnumHasAllFlags(Params.Flags, ELocatorResolveFlags::WillWait) || EnumHasAllFlags(Params.Flags, ELocatorResolveFlags::Async));
 
-	if (EnumHasAnyFlags(Params.Flags, EResolveFlags::Async))
+	if (EnumHasAnyFlags(Params.Flags, ELocatorResolveFlags::Async))
 	{
 		return ResolveAsyncImpl(Params);
 	}
@@ -71,7 +71,7 @@ UE::UniversalObjectLocator::FResolveResult FUniversalObjectLocator::ResolveSyncI
 {
 	using namespace UE::UniversalObjectLocator;
 
-	check(!EnumHasAnyFlags(Params.Flags, EResolveFlags::Async));
+	check(!EnumHasAnyFlags(Params.Flags, ELocatorResolveFlags::Async));
 
 	FResolveResult EmptyResult;
 
@@ -89,7 +89,7 @@ UE::UniversalObjectLocator::FResolveResult FUniversalObjectLocator::ResolveSyncI
 	
 	FResolveResult LastResult;
 
-	const UObject* CurrentContext = Params.Context;
+	UObject* CurrentContext = Params.Context;
 	const int32 Num = Fragments.Num();
 	for (int32 Index = 0; Index < Num; ++Index)
 	{
@@ -101,12 +101,12 @@ UE::UniversalObjectLocator::FResolveResult FUniversalObjectLocator::ResolveSyncI
 		FResolveParams RelativeParams(CurrentContext, Params.Flags);
 		if (!bLastFragment)
 		{
-			RelativeParams.Flags &= ~EResolveFlags::Unload;
+			RelativeParams.Flags &= ~ELocatorResolveFlags::Unload;
 		}
 
 		LastResult = Fragment.Resolve(RelativeParams);
 
-		if (EnumHasAnyFlags(RelativeParams.Flags, EResolveFlags::Unload))
+		if (EnumHasAnyFlags(RelativeParams.Flags, ELocatorResolveFlags::Unload))
 		{
 			return LastResult;
 		}
@@ -139,7 +139,7 @@ UE::UniversalObjectLocator::FResolveResult FUniversalObjectLocator::ResolveAsync
 {
 	using namespace UE::UniversalObjectLocator;
 
-	check(EnumHasAnyFlags(Params.Flags, EResolveFlags::Async));
+	check(EnumHasAnyFlags(Params.Flags, ELocatorResolveFlags::Async));
 
 	if (Fragments.Num() == 0)
 	{
@@ -148,7 +148,7 @@ UE::UniversalObjectLocator::FResolveResult FUniversalObjectLocator::ResolveAsync
 
 	struct FState : TSharedFromThis<FState>
 	{
-		FState(const TArray<FUniversalObjectLocatorFragment>& InFragments, EResolveFlags InInputResolveFlags)
+		FState(const TArray<FUniversalObjectLocatorFragment>& InFragments, ELocatorResolveFlags InInputResolveFlags)
 			: FragmentsCopy(InFragments)
 			, CurrentIndex(-1)
 			, InputResolveFlags(InInputResolveFlags)
@@ -190,7 +190,7 @@ UE::UniversalObjectLocator::FResolveResult FUniversalObjectLocator::ResolveAsync
 			// Only unload the last one
 			if (!bLastFragment)
 			{
-				RelativeParams.Flags &= ~EResolveFlags::Unload;
+				RelativeParams.Flags &= ~ELocatorResolveFlags::Unload;
 			}
 
 			FResolveResult Result = FragmentsCopy[Index].Resolve(RelativeParams);
@@ -229,7 +229,7 @@ UE::UniversalObjectLocator::FResolveResult FUniversalObjectLocator::ResolveAsync
 		FResolveResult FinalResult;
 
 		int32 CurrentIndex;
-		EResolveFlags InputResolveFlags;
+		ELocatorResolveFlags InputResolveFlags;
 		bool bLoadedIndirectly = false;
 	};
 
@@ -238,32 +238,32 @@ UE::UniversalObjectLocator::FResolveResult FUniversalObjectLocator::ResolveAsync
 	return MoveTemp(SharedState->FinalResult);
 }
 
-UObject* FUniversalObjectLocator::SyncFind(const UObject* Context) const
+UObject* FUniversalObjectLocator::SyncFind(UObject* Context) const
 {
 	return Resolve(FResolveParams::SyncFind(Context)).SyncGet().Object;
 }
 
-UObject* FUniversalObjectLocator::SyncLoad(const UObject* Context) const
+UObject* FUniversalObjectLocator::SyncLoad(UObject* Context) const
 {
 	return Resolve(FResolveParams::SyncLoad(Context)).SyncGet().Object;
 }
 
-void FUniversalObjectLocator::SyncUnload(const UObject* Context) const
+void FUniversalObjectLocator::SyncUnload(UObject* Context) const
 {
 	Resolve(FResolveParams::SyncUnload(Context)).SyncGet();
 }
 
-UE::UniversalObjectLocator::FResolveResult FUniversalObjectLocator::AsyncFind(const UObject* Context) const
+UE::UniversalObjectLocator::FResolveResult FUniversalObjectLocator::AsyncFind(UObject* Context) const
 {
 	return Resolve(FResolveParams::AsyncFind(Context));
 }
 
-UE::UniversalObjectLocator::FResolveResult FUniversalObjectLocator::AsyncLoad(const UObject* Context) const
+UE::UniversalObjectLocator::FResolveResult FUniversalObjectLocator::AsyncLoad(UObject* Context) const
 {
 	return Resolve(FResolveParams::AsyncLoad(Context));
 }
 
-UE::UniversalObjectLocator::FResolveResult FUniversalObjectLocator::AsyncUnload(const UObject* Context) const
+UE::UniversalObjectLocator::FResolveResult FUniversalObjectLocator::AsyncUnload(UObject* Context) const
 {
 	return Resolve(FResolveParams::AsyncUnload(Context));
 }
@@ -273,7 +273,7 @@ void FUniversalObjectLocator::Reset()
 	Fragments.Empty();
 }
 
-void FUniversalObjectLocator::Reset(UObject* InObject, const UObject* Context, const UObject* StopAtContext)
+void FUniversalObjectLocator::Reset(UObject* InObject, UObject* Context, UObject* StopAtContext)
 {
 	Fragments.Reset();
 	if (!InObject || !AddFragment(InObject, Context, StopAtContext))
@@ -306,6 +306,37 @@ FUniversalObjectLocatorFragment* FUniversalObjectLocator::GetLastFragment()
 const FUniversalObjectLocatorFragment* FUniversalObjectLocator::GetLastFragment() const
 {
 	return Fragments.Num() != 0 ? &Fragments.Last() : nullptr;
+}
+
+
+UE::UniversalObjectLocator::EFragmentTypeFlags FUniversalObjectLocator::GetDefaultEditorFlags() const
+{
+	using namespace UE::UniversalObjectLocator;
+	EFragmentTypeFlags Flags = EFragmentTypeFlags::None;
+
+	for (const FUniversalObjectLocatorFragment& Fragment : Fragments)
+	{
+		if (const FFragmentType* FragmentTypePtr = Fragment.GetFragmentType())
+		{
+			EnumAddFlags(Flags, FragmentTypePtr->EditorFlags);
+		}
+	}
+	return Flags;
+}
+
+
+UE::UniversalObjectLocator::EFragmentTypeFlags FUniversalObjectLocator::GetDefaultRuntimeFlags() const
+{
+	using namespace UE::UniversalObjectLocator;
+	EFragmentTypeFlags Flags = EFragmentTypeFlags::None;
+	for (const FUniversalObjectLocatorFragment& Fragment : Fragments)
+	{
+		if (const FFragmentType* FragmentTypePtr = Fragment.GetFragmentType())
+		{
+			EnumAddFlags(Flags, FragmentTypePtr->RuntimeFlags);
+		}
+	}
+	return Flags;
 }
 
 void FUniversalObjectLocator::ToString(FStringBuilderBase& OutString) const
@@ -574,7 +605,7 @@ FUniversalObjectLocator FUniversalObjectLocator::FromString(FStringView InString
 	return Locator;
 }
 
-bool FUniversalObjectLocator::AddFragment(const UObject* Object, const UObject* Context, const UObject* StopAtContext)
+bool FUniversalObjectLocator::AddFragment(const UObject* Object, UObject* Context, UObject* StopAtContext)
 {
 	using namespace UE::UniversalObjectLocator;
 

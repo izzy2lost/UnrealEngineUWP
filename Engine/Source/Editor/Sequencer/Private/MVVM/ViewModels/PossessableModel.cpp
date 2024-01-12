@@ -18,6 +18,7 @@
 #include "Styling/AppStyle.h"
 #include "Templates/SharedPointer.h"
 #include "UObject/Object.h"
+#include "MovieSceneBindingReferences.h"
 
 class UClass;
 struct FSlateBrush;
@@ -142,11 +143,27 @@ void FPossessableModel::Delete()
 
 FSlateColor FPossessableModel::GetInvalidBindingLabelColor() const
 {
-	UMovieScene* MovieScene = OwnerModel ? OwnerModel->GetMovieScene() : nullptr;
+	UMovieSceneSequence* Sequence = OwnerModel ? OwnerModel->GetSequence() : nullptr;
+	UMovieScene* MovieScene = (OwnerModel && Sequence) ? OwnerModel->GetMovieScene() : nullptr;
 	FMovieScenePossessable* Possessable = MovieScene ? MovieScene->FindPossessable(ObjectBindingID) : nullptr;
-	if (Possessable && Possessable->GetSpawnableObjectBindingID().IsValid())
+	if (Possessable)
 	{
-		return FSlateColor::UseSubduedForeground();
+		if (Possessable->GetSpawnableObjectBindingID().IsValid())
+		{
+			return FSlateColor::UseSubduedForeground();
+		}
+		if (const FMovieSceneBindingReferences* BindingReferences = Sequence->GetBindingReferences())
+		{
+			for (const FMovieSceneBindingReference& BindingReference : BindingReferences->GetReferences(ObjectBindingID))
+			{
+				if (BindingReference.Locator.IsEmpty())
+				{
+					// Show empty bindings as yellow rather than red
+					return FLinearColor::Yellow;
+				}
+			}
+
+		}
 	}
 	return FLinearColor::Red;
 }

@@ -106,6 +106,17 @@ void FUniversalObjectLocatorCustomization::CustomizeHeader(TSharedRef<IPropertyH
 	Rebuild();
 }
 
+void FUniversalObjectLocatorCustomization::CustomizeChildren(TSharedRef<IPropertyHandle> StructPropertyHandle, IDetailChildrenBuilder& StructBuilder, IPropertyTypeCustomizationUtils& StructCustomizationUtils)
+{
+	// Allow the custom locator editor to customize children if desired
+	FUniversalObjectLocatorEditorModule& Module = FModuleManager::Get().LoadModuleChecked<FUniversalObjectLocatorEditorModule>("UniversalObjectLocatorEditor");
+	TSharedPtr<ILocatorEditor> LocatorEditor = ApplicableLocators.FindRef(GetCachedData().LocatorEditorType);
+	if (LocatorEditor)
+	{
+		LocatorEditor->CustomizeChildren(StructPropertyHandle, StructBuilder, StructCustomizationUtils);
+	}
+}
+
 void FUniversalObjectLocatorCustomization::Rebuild() const
 {
 	FUniversalObjectLocatorEditorModule& Module = FModuleManager::Get().LoadModuleChecked<FUniversalObjectLocatorEditorModule>("UniversalObjectLocatorEditor");
@@ -119,7 +130,7 @@ void FUniversalObjectLocatorCustomization::Rebuild() const
 			
 			// Delay reconstruction until next frame since this can be called from inside the previous EditUI,
 			// leading to destruction of the UI while it is still running
-			AsyncTask(ENamedThreads::GameThread, [BoxWidget, EditUI] {
+			AsyncTask(ENamedThreads::GameThread, [BoxWidget, EditUI, this] {
 				BoxWidget->SetContent(EditUI.ToSharedRef());
 			});
 			return;
@@ -153,6 +164,11 @@ void FUniversalObjectLocatorCustomization::SetValue(FUniversalObjectLocator&& In
 
 	PropertyHandle->NotifyPostChange(EPropertyChangeType::ValueSet);
 	PropertyHandle->NotifyFinishedChangingProperties();
+
+	// Clear the cache to force cache to rebuild
+	CachedData.PropertyValue.Reset();
+
+	Rebuild();
 }
 
 FString FUniversalObjectLocatorCustomization::GetPathToObject() const
@@ -229,10 +245,16 @@ void FUniversalObjectLocatorCustomization::ChangeEditorType(FName InNewLocatorEd
 	PropertyHandle->NotifyPreChange();
 
 	PropertyHandle->EnumerateRawData(
-		[InNewLocatorEditorType](void* Data, int32 DataIndex, int32 Num)
+		[InNewLocatorEditorType, this](void* Data, int32 DataIndex, int32 Num)
 		{
 			FUniversalObjectLocator* Ref = static_cast<FUniversalObjectLocator*>(Data);
 			Ref->Reset();
+
+			TSharedPtr<ILocatorEditor> LocatorEditor = ApplicableLocators.FindRef(InNewLocatorEditorType);
+			if (LocatorEditor)
+			{
+				*Ref = LocatorEditor->MakeDefaultLocator();
+			}
 			return true;
 		}
 	);
@@ -242,7 +264,10 @@ void FUniversalObjectLocatorCustomization::ChangeEditorType(FName InNewLocatorEd
 	PropertyHandle->NotifyPostChange(EPropertyChangeType::ValueSet);
 	PropertyHandle->NotifyFinishedChangingProperties();
 
+	PropertyUtilities->ForceRefresh();
+
 	Rebuild();
+
 }
 
 bool FUniversalObjectLocatorCustomization::CompareCurrentEditorType(FName InLocatorEditorType) const
@@ -367,72 +392,76 @@ const FUniversalObjectLocatorCustomization::FCachedData& FUniversalObjectLocator
 
 	const FUniversalObjectLocator* SingleValue = nullptr;
 
-	// Set the LocatorEditorType type based on the current values
-	TOptional<FName> CommonLocatorEditorType;
+	bool bNeedsUpdate = false;
+	if (CachedData.LocatorEditorType == NAME_None || !CachedData.PropertyValue.IsSet())
+	{
+		// Set the LocatorEditorType type based on the current values
+		TOptional<FName> CommonLocatorEditorType;
 
-	PropertyHandle->EnumerateConstRawData(
-		[this, &SingleValue, &CommonLocatorEditorType](const void* Data, int32 DataIndex, int32 Num)
-		{
-			const FUniversalObjectLocator* Value = static_cast<const FUniversalObjectLocator*>(Data);
-			if (Num == 1)
+		PropertyHandle->EnumerateConstRawData(
+			[this, &SingleValue, &CommonLocatorEditorType](const void* Data, int32 DataIndex, int32 Num)
 			{
-				SingleValue = Value;
-			}
-			
-			const FFragmentType* FragmentTypePtr = Value->GetLastFragmentType();
-			if (!CommonLocatorEditorType)
-			{
-				if (FragmentTypePtr)
+				const FUniversalObjectLocator* Value = static_cast<const FUniversalObjectLocator*>(Data);
+				if (Num == 1)
 				{
-					CommonLocatorEditorType = FragmentTypePtr->PrimaryEditorType;
+					SingleValue = Value;
+				}
+
+				const FFragmentType* FragmentTypePtr = Value->GetLastFragmentType();
+				if (!CommonLocatorEditorType)
+				{
+					if (FragmentTypePtr)
+					{
+						CommonLocatorEditorType = FragmentTypePtr->PrimaryEditorType;
+					}
+					else
+					{
+						// If we find any value that is effectively null, we choose the most applicable locator
+						return false;
+					}
+				}
+				else if (!FragmentTypePtr || FragmentTypePtr->PrimaryEditorType != CommonLocatorEditorType.GetValue())
+				{
+					CommonLocatorEditorType = NAME_None;
 				}
 				else
 				{
-					// If we find any value that is effectively null, we choose the most applicable locator
-					return false;
+					CommonLocatorEditorType = FragmentTypePtr->PrimaryEditorType;
 				}
+				return true;
 			}
-			else if (!FragmentTypePtr || FragmentTypePtr->PrimaryEditorType != CommonLocatorEditorType.GetValue())
-			{
-				CommonLocatorEditorType = NAME_None;
-			}
-			else
-			{
-				CommonLocatorEditorType = FragmentTypePtr->PrimaryEditorType;
-			}
-			return true;
-		}
-	);
+		);
 
-	if (CommonLocatorEditorType)
-	{
-		if (CommonLocatorEditorType.GetValue() != NAME_None)
+		if (CommonLocatorEditorType)
 		{
-			CachedData.LocatorEditorType = CommonLocatorEditorType.GetValue();
+			if (CommonLocatorEditorType.GetValue() != NAME_None)
+			{
+				CachedData.LocatorEditorType = CommonLocatorEditorType.GetValue();
+			}
 		}
-	}
-	else if (CachedData.LocatorEditorType == NAME_None)
-	{
-		for (const TPair<FName, TSharedPtr<ILocatorEditor>>& Pair : ApplicableLocators)
+		else if (CachedData.LocatorEditorType == NAME_None)
 		{
-			CachedData.LocatorEditorType = Pair.Key;
-			break;
+			for (const TPair<FName, TSharedPtr<ILocatorEditor>>& Pair : ApplicableLocators)
+			{
+				CachedData.LocatorEditorType = Pair.Key;
+				break;
+			}
 		}
-	}
 
-	bool bNeedsUpdate = false;
-	if (SingleValue)
-	{
-		if (!CachedData.PropertyValue.IsSet() || *SingleValue != CachedData.PropertyValue.GetValue())
+		if (SingleValue)
 		{
-			CachedData.PropertyValue = *SingleValue;
+			if (!CachedData.PropertyValue.IsSet() || *SingleValue != CachedData.PropertyValue.GetValue())
+			{
+				CachedData.PropertyValue = *SingleValue;
+				bNeedsUpdate = true;
+			}
+		}
+		else if (CachedData.PropertyValue.IsSet())
+		{
+			CachedData.PropertyValue.Reset();
 			bNeedsUpdate = true;
 		}
-	}
-	else if (CachedData.PropertyValue.IsSet())
-	{
-		CachedData.PropertyValue.Reset();
-		bNeedsUpdate = true;
+
 	}
 
 	if (bNeedsUpdate)

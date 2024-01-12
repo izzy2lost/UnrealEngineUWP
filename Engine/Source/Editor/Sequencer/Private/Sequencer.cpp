@@ -162,6 +162,8 @@
 #include "Editor/TransBuffer.h"
 
 #include "EngineModule.h"
+#include "Tracks/MovieSceneBindingLifetimeTrack.h"
+#include "Sections/MovieSceneBindingLifetimeSection.h"
 
 #define LOCTEXT_NAMESPACE "Sequencer"
 
@@ -428,6 +430,13 @@ void FSequencer::InitSequencer(const FSequencerInitParams& InitParams, const TSh
 					GEditor->GetEditorSubsystem<UAssetEditorSubsystem>()->CloseAllEditorsForAsset(GetRootMovieSceneSequence());
 					return;
 				}
+			}
+
+			 /*If we are mid-resolve, we may be loading objects and trying to get a handle here may go into infinite recursion trying 
+			 to resolve the same binding.*/
+			if (State.IsResolvingObject())
+			{
+				return;
 			}
 
 			// Reset Bindings for replaced objects.
@@ -3711,12 +3720,14 @@ TSharedRef<SWidget> FSequencer::MakeTimeRange(const TSharedRef<SWidget>& InnerCo
 }
 
 /** Attempt to find an object binding ID that relates to an unspawned spawnable object */
-FGuid FindUnspawnedObjectGuid(UObject& InObject, UMovieSceneSequence& Sequence)
+FGuid FSequencer::FindUnspawnedObjectGuid(UObject& InObject)
 {
-	UMovieScene* MovieScene = Sequence.GetMovieScene();
+	if (UMovieSceneSequence* FocusedMovieSceneSequence = GetFocusedMovieSceneSequence())
+{
+		UMovieScene* MovieScene = FocusedMovieSceneSequence->GetMovieScene();
 
 	// If the object is an archetype, the it relates to an unspawned spawnable.
-	UObject* ParentObject = Sequence.GetParentObject(&InObject);
+		UObject* ParentObject = FocusedMovieSceneSequence->GetParentObject(&InObject);
 	if (ParentObject && FMovieSceneSpawnable::IsSpawnableTemplate(*ParentObject))
 	{
 		FMovieSceneSpawnable* ParentSpawnable = MovieScene->FindSpawnable([&](FMovieSceneSpawnable& InSpawnable){
@@ -3725,12 +3736,11 @@ FGuid FindUnspawnedObjectGuid(UObject& InObject, UMovieSceneSequence& Sequence)
 
 		if (ParentSpawnable)
 		{
-			UE::UniversalObjectLocator::FResolveParams ResolveParams(ParentSpawnable->GetObjectTemplate());
-
 			// The only way to find the object now is to resolve all the child bindings, and see if they are the same
 			for (const FGuid& ChildGuid : ParentSpawnable->GetChildPossessables())
 			{
-				const bool bHasObject = Sequence.LocateBoundObjects(ChildGuid, ResolveParams).Contains(&InObject);
+					TArrayView<TWeakObjectPtr<>> BoundObjects = State.FindBoundObjects(ChildGuid, GetFocusedTemplateID(), GetSharedPlaybackState());
+					const bool bHasObject = BoundObjects.Contains(&InObject);
 				if (bHasObject)
 				{
 					return ChildGuid;
@@ -3748,6 +3758,7 @@ FGuid FindUnspawnedObjectGuid(UObject& InObject, UMovieSceneSequence& Sequence)
 		{
 			return SpawnableByArchetype->GetGuid();
 		}
+	}
 	}
 
 	return FGuid();
@@ -3850,7 +3861,7 @@ FGuid FSequencer::GetHandleToObject( UObject* Object, bool bCreateHandleIfMissin
 	}
 	else
 	{
-		ObjectGuid = FindUnspawnedObjectGuid(*Object, *FocusedMovieSceneSequence);
+		ObjectGuid = FindUnspawnedObjectGuid(*Object);
 	}
 
 	if (ObjectGuid.IsValid() || IsReadOnly())
@@ -4482,13 +4493,16 @@ UObject* FSequencer::FindSpawnedObjectOrTemplate(const FGuid& BindingId)
 			UObject* ParentObject = ParentSpawnable->GetObjectTemplate();
 			if (ParentObject)
 			{
-				UE::UniversalObjectLocator::FResolveParams ResolveParams(ParentObject);
-				for (UObject* Obj : Sequence->LocateBoundObjects(BindingId, ResolveParams))
+				TArrayView<TWeakObjectPtr<>> BoundObjects = State.FindBoundObjects(BindingId, GetFocusedTemplateID(), GetSharedPlaybackState());
+				for (TWeakObjectPtr<> WeakObj : BoundObjects)
+				{
+					if (UObject* Obj = WeakObj.Get())
 				{
 					return Obj;
 				}
 			}
 		}
+	}
 	}
 	// If we're a spawnable and we don't have the object, use the default object to build up the track menu
 	else if (FMovieSceneSpawnable* Spawnable = FocusedMovieScene->FindSpawnable(BindingId))
@@ -5898,6 +5912,88 @@ TArray<FGuid> FSequencer::AddActors(const TArray<TWeakObjectPtr<AActor> >& InAct
 	SynchronizeSequencerSelectionWithExternalSelection();
 
 	return PossessableGuids;
+}
+
+FGuid FSequencer::AddEmptyBinding()
+{
+	using namespace UE::Sequencer;
+
+	const FScopedTransaction Transaction(LOCTEXT("UndoAddEmptyBinding", "Add Empty Binding to Sequencer"));
+
+	FGuid PossessableGuid;
+
+	UMovieSceneSequence* Sequence = GetFocusedMovieSceneSequence();
+	if (!Sequence)
+	{
+		return PossessableGuid;
+	}
+
+	UMovieScene* MovieScene = Sequence->GetMovieScene();
+	if (!MovieScene)
+	{
+		return PossessableGuid;
+	}
+
+	if (MovieScene->IsReadOnly())
+	{
+		FSequencerUtilities::ShowReadOnlyError();
+		return PossessableGuid;
+	}
+
+	Sequence->Modify();
+
+	UObject* Context = GetPlaybackContext();
+
+	// Create a new binding for this object
+	TArray<FName> PossessableNames;
+	for (int32 i = 0; i < MovieScene->GetPossessableCount(); ++i)
+	{
+		PossessableNames.Add(*MovieScene->GetPossessable(i).GetName());
+	}
+	FName PossessableName = FSequencerUtilities::GetUniqueName(TEXT("Empty Binding"), PossessableNames);
+	PossessableGuid = MovieScene->AddPossessable(PossessableName.ToString(), UObject::StaticClass());
+
+	if (PossessableGuid.IsValid())
+	{
+		Sequence->GetBindingReferences()->AddBinding(PossessableGuid, FUniversalObjectLocator());
+		OnAddBinding(PossessableGuid, MovieScene);
+
+		// Check if a folder is selected so we can add the actors to the selected folder.
+		TArray<UMovieSceneFolder*> SelectedParentFolders;
+		FString NewNodePath;
+		if (ViewModel->GetSelection()->Outliner.Num() > 0)
+		{
+			for (FViewModelPtr CurrentItem : ViewModel->GetSelection()->Outliner)
+			{
+				if (TSharedPtr<FFolderModel> Folder = CurrentItem->FindAncestorOfType<FFolderModel>(true))
+				{
+					SelectedParentFolders.Add(Folder->GetFolder());
+
+					// The first valid folder we find will be used to put the new binding into, so it's the node that we
+					// want to know the path from.
+					if (NewNodePath.Len() == 0)
+					{
+						// Add an extra delimiter (".") as we know that the new objects will be appended onto the end of this.
+						NewNodePath = FString::Printf(TEXT("%s."), *IOutlinerExtension::GetPathName(*Folder));
+
+						// Make sure the folder is expanded too so that adding objects to hidden folders become visible.
+						Folder->SetExpansion(true);
+					}
+				}
+			}
+		}
+
+		// Add the possessable as child of the first selected folder
+		if (SelectedParentFolders.Num() > 0)
+		{
+			SelectedParentFolders[0]->Modify();
+			SelectedParentFolders[0]->AddChildObjectBinding(PossessableGuid);
+		}
+	}
+	
+	RefreshTree();
+
+	return PossessableGuid;
 }
 
 void FSequencer::OnSelectionChanged()
@@ -8783,6 +8879,41 @@ void FixSortingOrders(FMovieSceneBinding* InBinding, UMovieScene* MovieScene)
 
 void FSequencer::OnAddBinding(const FGuid& ObjectBinding, UMovieScene* MovieScene)
 {
+	// If a new binding requires a binding lifetime track and doesn't have one, add one.
+	if (UMovieSceneSequence* OuterSequence = MovieScene->GetTypedOuter<UMovieSceneSequence>())
+	{
+		if (FMovieSceneBindingReferences* BindingReferences = OuterSequence->GetBindingReferences())
+		{
+			TArrayView<const FMovieSceneBindingReference> References = BindingReferences->GetReferences(ObjectBinding);
+			bool bRequiresBindingLifetimeTrack = false;
+			for (const FMovieSceneBindingReference& Reference : References)
+			{
+				if (EnumHasAllFlags(Reference.EditorResolveFlags, ELocatorResolveFlags::Load) || EnumHasAllFlags(Reference.RuntimeResolveFlags, ELocatorResolveFlags::Load))
+				{
+					bRequiresBindingLifetimeTrack = true;
+					break;
+				}
+			}
+
+			// We may need to force-create a Binding Lifetime Track here if the locator has been set to load. This allows the sequence to manage load/unload of the locator.
+			if (bRequiresBindingLifetimeTrack)
+			{
+				UMovieSceneBindingLifetimeTrack* BindingLifetimeTrack = Cast<UMovieSceneBindingLifetimeTrack>(MovieScene->FindTrack(UMovieSceneBindingLifetimeTrack::StaticClass(), ObjectBinding, NAME_None));
+				if (!BindingLifetimeTrack)
+				{
+					BindingLifetimeTrack = Cast<UMovieSceneBindingLifetimeTrack>(MovieScene->AddTrack(UMovieSceneBindingLifetimeTrack::StaticClass(), ObjectBinding));
+				}
+
+				if (BindingLifetimeTrack && BindingLifetimeTrack->GetAllSections().IsEmpty())
+				{
+					UMovieSceneBindingLifetimeSection* BindingLifetimeSection = Cast<UMovieSceneBindingLifetimeSection>(BindingLifetimeTrack->CreateNewSection());
+					BindingLifetimeSection->SetRange(TRange<FFrameNumber>::All());
+					BindingLifetimeTrack->AddSection(*BindingLifetimeSection);
+				}
+			}
+		}
+	}
+
 	FMovieSceneBinding* Binding = MovieScene->FindBinding(ObjectBinding);
 	if (Binding)
 	{
@@ -10197,7 +10328,14 @@ void FSequencer::RebindPossessableReferences()
 		const FMovieScenePossessable& Possessable = FocusedMovieScene->GetPossessable(Index);
 
 		TArray<UObject*, TInlineAllocator<1>>& References = AllObjects.FindOrAdd(Possessable.GetGuid());
-		FocusedSequence->LocateBoundObjects(Possessable.GetGuid(), UE::UniversalObjectLocator::FResolveParams(PlaybackContext), References);
+		TArrayView<TWeakObjectPtr<>> BoundObjects = State.FindBoundObjects(Possessable.GetGuid(), GetFocusedTemplateID(), GetSharedPlaybackState());
+		for (TWeakObjectPtr<> WeakObj : BoundObjects)
+		{
+			if (UObject* Obj = WeakObj.Get())
+			{
+				References.Add(Obj);
+			}
+		}
 	}
 
 	for (auto& Pair : AllObjects)

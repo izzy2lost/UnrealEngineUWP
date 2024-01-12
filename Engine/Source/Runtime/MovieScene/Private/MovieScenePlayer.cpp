@@ -13,6 +13,7 @@
 #include "MovieSceneFwd.h"
 #include "MovieSceneSequence.h"
 #include "MovieSceneSequenceID.h"
+#include "UniversalObjectLocatorResolveParameterBuffer.inl"
 
 namespace UE
 {
@@ -109,7 +110,22 @@ void IMovieScenePlayer::PopulateUpdateFlags(UE::MovieScene::ESequenceInstanceUpd
 
 void IMovieScenePlayer::ResolveBoundObjects(const FGuid& InBindingId, FMovieSceneSequenceID SequenceID, UMovieSceneSequence& Sequence, UObject* ResolutionContext, TArray<UObject*, TInlineAllocator<1>>& OutObjects) const
 {
-	UE::UniversalObjectLocator::FResolveParams ResolveParams(ResolutionContext);
+	// This deprecated version of ResolveBoundObjects no longer gets called directly by the FMovieSceneObjectCache- that uses the ResolveParams overload below.
+	// In order to ensure things continue to work properly for anyone that may have been calling this directly rather than FindBoundObjects, we direct
+	// this towards FindBoundObjects below.
+
+	TArrayView<TWeakObjectPtr<>> BoundObjects = const_cast<IMovieScenePlayer*>(this)->FindBoundObjects(InBindingId, SequenceID);
+	for (TWeakObjectPtr<> BoundObject : BoundObjects)
+	{
+		if (UObject* Obj = BoundObject.Get())
+		{
+			OutObjects.Add(Obj);
+		}
+	}
+}
+
+void IMovieScenePlayer::ResolveBoundObjects(UE::UniversalObjectLocator::FResolveParams& ResolveParams, const FGuid& InBindingId, FMovieSceneSequenceID SequenceID, UMovieSceneSequence& Sequence, TArray<UObject*, TInlineAllocator<1>>& OutObjects) const
+{
 	Sequence.LocateBoundObjects(InBindingId, ResolveParams, OutObjects);
 }
 

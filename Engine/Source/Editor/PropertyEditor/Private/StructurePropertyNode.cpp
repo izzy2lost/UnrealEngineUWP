@@ -60,6 +60,15 @@ void FStructurePropertyNode::InternalInitChildNodes(FName SinglePropertyName)
 	}
 }
 
+void FStructurePropertyNode::InitBeforeNodeFlags()
+{
+	// Cache the base struct. It is used to check if the struct changes later.
+	// The struct will be cached on each call to InternalInitChildNodes() as well.
+	// We'll cache it here too, so that a FStructurePropertyNode which is initialized
+	// with "InitParams.bAllowChildren = false" has it properly set up.
+	WeakCachedBaseStruct = GetBaseStructure();
+}
+
 bool FStructurePropertyNode::GetReadAddressUncached(const FPropertyNode& InPropertyNode, FReadAddressListData& OutAddresses) const
 {
 	if (!HasValidStructData())

@@ -9,14 +9,17 @@ struct FUniversalObjectLocatorFragment;
 
 template<typename> struct TUniversalObjectLocatorFragment;
 
+enum class ELocatorResolveFlags : uint8;
+
 namespace UE::UniversalObjectLocator
 {
 
-enum class EResolveFlags : uint8;
 enum class ELocatorType : uint8;
 
 struct FFragmentType;
 template<typename> struct TFragmentType;
+
+struct FFragmentTypeParameters;
 
 struct FFragmentTypeHandle;
 template<typename> struct TFragmentTypeHandle;

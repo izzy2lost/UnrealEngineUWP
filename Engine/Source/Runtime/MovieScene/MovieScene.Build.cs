@@ -8,8 +8,9 @@ public class MovieScene : ModuleRules
 	{
         PrivateIncludePathModuleNames.AddRange(
             new string[] {
-                "TargetPlatform"
-            }
+                "TargetPlatform",
+				"UniversalObjectLocator"
+			}
         );
 
         PublicDependencyModuleNames.AddRange(

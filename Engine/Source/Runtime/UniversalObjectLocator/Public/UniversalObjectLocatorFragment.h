@@ -10,6 +10,7 @@
 #include "Templates/Function.h"
 #include "UniversalObjectLocatorFragment.generated.h"
 
+
 /**
  * Universal Object Locator (UOL) Fragments provide an extensible mechanism for referencing permanent, transient
  *   or dynamically created objects relative to an external context. UOLs comprise zero or more nested fragments.
@@ -73,7 +74,7 @@ struct alignas(8) FUniversalObjectLocatorFragment
 	 * Construct this fragment by binding it to an object within a given context.
 	 * @note: This constructor can 'fail' and result in an Empty fragment if no suitable fragment type could be found for the object
 	 */
-	UNIVERSALOBJECTLOCATOR_API FUniversalObjectLocatorFragment(const UObject* InObject, const UObject* Context);
+	UNIVERSALOBJECTLOCATOR_API FUniversalObjectLocatorFragment(const UObject* InObject, UObject* Context);
 
 	/** Default constructor: initializes to an empty fragment with no fragment type */
 	UNIVERSALOBJECTLOCATOR_API FUniversalObjectLocatorFragment();
@@ -125,13 +126,13 @@ public:
 	 * Reset this fragment to point to a new object from the specified context
 	 * @note: If no suitable fragment type could be found for the object and context, results in an Empty fragment
 	 */
-	UNIVERSALOBJECTLOCATOR_API void Reset(const UObject* InObject, const UObject* Context);
+	UNIVERSALOBJECTLOCATOR_API void Reset(const UObject* InObject, UObject* Context);
 
 	/**
 	 * Reset this fragment to point to a new object from the specified context using a filtered set of fragment types
 	 * @note: If no suitable fragment type could be found for the object and context, results in an Empty fragment
 	 */
-	UNIVERSALOBJECTLOCATOR_API void Reset(const UObject* InObject, const UObject* Context, TFunctionRef<bool(UE::UniversalObjectLocator::FFragmentTypeHandle)> CanUseFragmentType);
+	UNIVERSALOBJECTLOCATOR_API void Reset(const UObject* InObject, UObject* Context, TFunctionRef<bool(UE::UniversalObjectLocator::FFragmentTypeHandle)> CanUseFragmentType);
 
 public:
 

@@ -7,6 +7,10 @@
 
 #include "SequenceTimeUnit.h"
 #include "Containers/SortedMap.h"
+#include "UObject/StructOnScope.h"
+#include "UniversalObjectLocator.h"
+#include "UniversalObjectLocatorResolveParams.h"
+#include "Misc/NotifyHook.h"
 #include "LevelSequenceEditorSubsystem.generated.h"
 
 class FUICommandList;
@@ -27,7 +31,9 @@ class FMenuBuilder;
 class UMovieSceneCompiledDataManager;
 class UMovieSceneFolder;
 class UMovieSceneSection;
+class UMovieSceneSequence;
 class USequencerScriptingLayer;
+class IStructureDetailsView;
 class USequencerCurveEditorObject;
 
 USTRUCT(BlueprintType)
@@ -39,6 +45,36 @@ struct FMovieSceneScriptingParams
 
 	UPROPERTY(BlueprintReadWrite, Category = "Movie Scene")
 	ESequenceTimeUnit TimeUnit = ESequenceTimeUnit::DisplayRate;
+};
+
+// Helper struct for Binding Properties UI for locators.
+USTRUCT()
+struct FMovieSceneUniversalLocatorInfo
+{
+	GENERATED_BODY()
+
+	// Locator for the entry
+	UPROPERTY(EditAnywhere, Category = "Default")
+	FUniversalObjectLocator Locator;
+
+	// Flags for how to resolve the locator when in editor
+	UPROPERTY(EditAnywhere, Category = "Default")
+	ELocatorResolveFlags EditorResolveFlags;
+
+	// Flags for how to resolve the locator when in runtime
+	UPROPERTY(EditAnywhere, Category = "Default")
+	ELocatorResolveFlags RuntimeResolveFlags;
+};
+
+// Helper struct for editing arrays of locators for object bindings
+USTRUCT()
+struct FMovieSceneUniversalLocatorList
+{
+	GENERATED_BODY()
+
+	// List of locator info for a particular binding
+	UPROPERTY(EditAnywhere, Category = "Default")
+	TArray<FMovieSceneUniversalLocatorInfo> Bindings;
 };
 
 /**
@@ -205,6 +241,20 @@ private:
 	void CalculateFramesPerGuid(TSharedPtr<ISequencer>& Sequencer, const FBakingAnimationKeySettings& InSettings, TMap<FGuid, FBakeData>& OutBakeDataMa,
 		TSortedMap<FFrameNumber, FFrameNumber>&  OutFrameMap);
 
+	// Used by binding properties menu
+	struct FBindingPropertiesNotifyHook : FNotifyHook
+	{
+		UMovieSceneSequence* ObjectToModify = nullptr;
+		FBindingPropertiesNotifyHook() {}
+
+		FBindingPropertiesNotifyHook(UMovieSceneSequence* InObjectToModify) : ObjectToModify(InObjectToModify) {}
+
+		virtual void NotifyPreChange(FProperty* PropertyAboutToChange) override;
+		virtual void NotifyPostChange(const FPropertyChangedEvent& PropertyChangedEvent, FProperty* PropertyThatChanged) override;
+	};
+
+	FBindingPropertiesNotifyHook NotifyHook;
+
 private:
 
 	TSharedPtr<ISequencer> GetActiveSequencer();
@@ -220,6 +270,8 @@ private:
 	void RebindComponentInternal(const FName& ComponentName);
 
 	void AddAssignActorMenu(FMenuBuilder& MenuBuilder);
+	void AddBindingPropertiesMenu(FMenuBuilder& MenuBuilder);
+	void OnFinishedChangingLocators(const FPropertyChangedEvent& PropertyChangedEvent, TSharedRef<IStructureDetailsView> StructDetailsView, TSharedRef<FStructOnScope> LocatorsStruct, FGuid ObjectBindingID);
 
 	void GetRebindComponentNames(TArray<FName>& OutComponentNames);
 	void RebindComponentMenu(FMenuBuilder& MenuBuilder);
@@ -241,6 +293,7 @@ private:
 	TSharedPtr<FExtender> FixActorReferencesMenuExtender;
 
 	TSharedPtr<FExtender> AssignActorMenuExtender;
+	TSharedPtr<FExtender> BindingPropertiesMenuExtender;
 	TSharedPtr<FExtender> RebindComponentMenuExtender;
 };
 

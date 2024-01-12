@@ -21,6 +21,25 @@ namespace UE::UniversalObjectLocator
 struct IPayloadDebugging;
 struct IFragmentTypeDebuggingAssistant;
 
+enum class EFragmentTypeFlags : uint8
+{
+	None,
+
+	/** Flag to indicate that this fragment type can be loaded, indicating that asset loading or actor spawning will occur if the 'Load' flag
+	*   is passed in the FResolveParams. If a fragment type can be loaded, then it will also react to resolve with the 'Unload' flag by unloading
+	*   which may mean destructing an asset or destroying a spawned actor.
+	*   Specific to Editor, some fragment types may spawn a 'preview' object/actor and have different behavior in runtime.
+	*/
+	CanBeLoaded = 1 << 0,
+
+	/** Flag to indicate that this fragment type should be loaded by default. This flag is used to signal to the resolver of what this fragment type
+	*   expects when being resolved.
+	*/
+	LoadedByDefault = 1 << 1,
+};
+
+ENUM_CLASS_FLAGS(EFragmentTypeFlags)
+
 /**
  * A Universal Object Locator fragment type defines a specific mechanism for resolving an object that is referenced
  *   inside a Universal Object Locator (which can be considered a chain of fragments). Each fragment
@@ -95,6 +114,12 @@ struct FFragmentType
 
 	/** Name of the primary editor type for this fragment type, defining how it appears on UI */
 	FName PrimaryEditorType;
+
+	/** Flags defining behavior of this fragment type in editor */
+	EFragmentTypeFlags EditorFlags;
+
+	/** Flags defining behavior of this fragment type at runtime */
+	EFragmentTypeFlags RuntimeFlags;
 
 	UScriptStruct* GetStruct() const
 	{

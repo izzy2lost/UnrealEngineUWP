@@ -320,6 +320,11 @@ public:
 	virtual TArray<FGuid> AddActors(const TArray<TWeakObjectPtr<AActor> >& InActors, bool bSelectActors = true) = 0;
 
 	/**
+	* Add a new empty binding to Sequencer which can be then connected to an object or actor afterwards in the binding properties menu.
+	*/
+	virtual FGuid AddEmptyBinding() = 0;
+
+	/**
 	 * Should be called after adding a binding to the MovieScene.
 	 */
 	virtual void OnAddBinding(const FGuid& ObjectBinding, UMovieScene* MovieScene) = 0;

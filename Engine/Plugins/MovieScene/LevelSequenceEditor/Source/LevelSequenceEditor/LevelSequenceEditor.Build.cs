@@ -59,6 +59,7 @@ public class LevelSequenceEditor : ModuleRules
 				"ToolMenus",
 				"ToolWidgets",
 				"AssetDefinition",
+				"UniversalObjectLocator"
 			}
 		);
 

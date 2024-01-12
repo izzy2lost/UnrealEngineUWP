@@ -22,7 +22,7 @@ public:
 	 * Construct a new universal object locator
 	 */
 	UFUNCTION(BlueprintPure, Category="Universal Object Locators")
-	static FUniversalObjectLocator MakeUniversalObjectLocator(UObject* Object, const UObject* Context);
+	static FUniversalObjectLocator MakeUniversalObjectLocator(UObject* Object, UObject* Context);
 
 	/**
 	 * Construct a new universal object locator from a string

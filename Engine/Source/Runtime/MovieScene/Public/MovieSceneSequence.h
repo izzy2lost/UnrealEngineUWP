@@ -89,6 +89,11 @@ public:
 	MOVIESCENE_API virtual const FMovieSceneBindingReferences* GetBindingReferences() const;
 
 	/**
+	 * Unloads an object that has been loaded via a locator.
+	 */
+	MOVIESCENE_API void UnloadBoundObject(const UE::UniversalObjectLocator::FResolveParams& ResolveParams, const FGuid& ObjectId, int32 BindingIndex);
+
+	/**
 	 * Called when Sequencer has created an object binding for a possessable object
 	 * 
 	 * @param ObjectId The guid used to map to the possessable object.  Note the guid can be bound to multiple objects at once

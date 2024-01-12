@@ -280,7 +280,7 @@ EMovieScenePlayerStatus::Type UCameraAnimationSequencePlayer::GetPlaybackStatus(
 	return Status;
 }
 
-void UCameraAnimationSequencePlayer::ResolveBoundObjects(const FGuid& InBindingId, FMovieSceneSequenceID InSequenceID, UMovieSceneSequence& InSequence, UObject* InResolutionContext, TArray<UObject*, TInlineAllocator<1>>& OutObjects) const
+void UCameraAnimationSequencePlayer::ResolveBoundObjects(UE::UniversalObjectLocator::FResolveParams& ResolveParams, const FGuid& InBindingId, FMovieSceneSequenceID SequenceID, UMovieSceneSequence& InSequence, TArray<UObject*, TInlineAllocator<1>>& OutObjects) const
 {
 	if (BoundObjectOverride)
 	{

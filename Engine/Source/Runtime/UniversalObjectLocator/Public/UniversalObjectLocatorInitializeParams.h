@@ -22,7 +22,7 @@ struct FInitializeParams
 
 	/** Retrieve the context as a specific type. */
 	template<typename T>
-	T* GetObjectAs() const
+	const T* GetObjectAs() const
 	{
 		return Cast<T>(Object);
 	}

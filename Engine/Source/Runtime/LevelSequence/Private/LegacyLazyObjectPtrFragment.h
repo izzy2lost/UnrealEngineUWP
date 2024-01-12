@@ -5,6 +5,7 @@
 #include "CoreTypes.h"
 #include "Misc/Guid.h"
 #include "UniversalObjectLocatorFwd.h"
+#include "IUniversalObjectLocatorModule.h"
 #include "LegacyLazyObjectPtrFragment.generated.h"
 
 class UObject;

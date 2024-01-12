@@ -23,11 +23,13 @@
 #include "GameFramework/PlayerController.h"
 #include "GameFramework/PlayerState.h"
 #include "Algo/BinarySearch.h"
+#include "UniversalObjectLocatorResolveParameterBuffer.inl"
 
 #if UE_WITH_IRIS
 #include "Iris/ReplicationSystem/ReplicationFragmentUtil.h"
 #include "Net/Iris/ReplicationSystem/ReplicationSystemUtil.h"
 #endif // UE_WITH_IRIS
+#include "MovieSceneObjectBindingID.h"
 
 
 #include UE_INLINE_GENERATED_CPP_BY_NAME(MovieSceneSequencePlayer)
@@ -182,13 +184,14 @@ FMovieSceneSpawnRegister& UMovieSceneSequencePlayer::GetSpawnRegister()
 	return SpawnRegister.IsValid() ? *SpawnRegister : IMovieScenePlayer::GetSpawnRegister();
 }
 
-void UMovieSceneSequencePlayer::ResolveBoundObjects(const FGuid& InBindingId, FMovieSceneSequenceID SequenceID, UMovieSceneSequence& InSequence, UObject* ResolutionContext, TArray<UObject*, TInlineAllocator<1>>& OutObjects) const
+void UMovieSceneSequencePlayer::ResolveBoundObjects(UE::UniversalObjectLocator::FResolveParams& ResolveParams, const FGuid& InBindingId, FMovieSceneSequenceID SequenceID, UMovieSceneSequence& InSequence, TArray<UObject*, TInlineAllocator<1>>& OutObjects) const
 {
+	using namespace UE::MovieScene;
 	bool bAllowDefault = PlaybackClient ? PlaybackClient->RetrieveBindingOverrides(InBindingId, SequenceID, OutObjects) : true;
 
 	if (bAllowDefault)
 	{
-		InSequence.LocateBoundObjects(InBindingId, UE::UniversalObjectLocator::FResolveParams(ResolutionContext), OutObjects);
+		InSequence.LocateBoundObjects(InBindingId, ResolveParams, OutObjects);
 	}
 }
 
