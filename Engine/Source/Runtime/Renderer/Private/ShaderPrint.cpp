@@ -305,6 +305,8 @@ namespace ShaderPrint
 		{
 			OutEnvironment.CompilerFlags.Add(CFLAG_ForceDXC);
 		}
+
+		OutEnvironment.SetDefine(TEXT("SHADER_PRINT_EXPLICIT_BINDING"), 1);
 	}
 
 	bool IsEnabled()
