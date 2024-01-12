@@ -118,7 +118,7 @@ namespace UE::Chaos::ClothAsset::Private
 
 				const FIntVector2& InnerStitch = InnerSeam[InnerStitchID];
 
-				for (const int32& SeamVertex : SeamEdgeVertices)
+				for (const int32& SeamVertex : SeamEdgeVertices) //-V1078
 				{
 					if (SeamVertex == InnerStitch[0] || SeamVertex == InnerStitch[1])
 					{

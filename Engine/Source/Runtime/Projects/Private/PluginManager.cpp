@@ -1436,7 +1436,7 @@ bool FPluginManager::ConfigureEnabledPlugins()
 					for (const FString& PotentialPluginName : PluginsToConfigure)
 					{
 						bool bMatchesAnyWildcard = false;
-						for (const FString& WildcardPluginName : WildcardPluginsList)
+						for (const FString& WildcardPluginName : WildcardPluginsList) //-V1078
 						{
 							if (PotentialPluginName.MatchesWildcard(WildcardPluginName))
 							{
@@ -1588,7 +1588,7 @@ bool FPluginManager::ConfigureEnabledPlugins()
 				SCOPED_BOOT_TIMING("ConfigureTargetEnabledPlugins");
 
 				TArray<FString> TargetEnabledPlugins = { UBT_TARGET_ENABLED_PLUGINS };
-				for (const FString& TargetEnabledPlugin : TargetEnabledPlugins)
+				for (const FString& TargetEnabledPlugin : TargetEnabledPlugins) //-V1078
 				{
 					if (!ConfiguredPluginNames.Contains(TargetEnabledPlugin))
 					{
@@ -1606,7 +1606,7 @@ bool FPluginManager::ConfigureEnabledPlugins()
 				SCOPED_BOOT_TIMING("ConfigureTargetDisabledPlugins");
 
 				TArray<FString> TargetDisabledPlugins = { UBT_TARGET_DISABLED_PLUGINS };
-				for (const FString& TargetDisabledPlugin : TargetDisabledPlugins)
+				for (const FString& TargetDisabledPlugin : TargetDisabledPlugins) //-V1078
 				{
 					if (!ConfiguredPluginNames.Contains(TargetDisabledPlugin))
 					{

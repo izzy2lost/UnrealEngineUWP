@@ -143,7 +143,7 @@ uint8 FOpenXRSwapchain::GetNearestSupportedSwapchainFormat(XrSession InSession, 
 	// Search for a fallback format in order of preference (first element in the array has the highest preference).
 	uint8 FallbackFormat = 0;
 	uint32 FallbackPlatformFormat = 0;
-	for (int64_t Format : Formats)
+	for (int64_t Format : Formats) //-V1078
 	{
 		if (RequestedFormat == PF_DepthStencil)
 		{

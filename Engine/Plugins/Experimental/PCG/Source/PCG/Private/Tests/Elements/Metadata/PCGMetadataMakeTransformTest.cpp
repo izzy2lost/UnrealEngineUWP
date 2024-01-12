@@ -226,7 +226,7 @@ bool FPCGMetadataMakeTransformTest::RunTest(const FString& Parameters)
 	AllTestData[0] = PairWhatData("Testing with point data as input", &TestDataSpatial);
 	AllTestData[1] = PairWhatData("Testing with param data as input", &TestDataParams);
 
-	for (PairWhatData& PairTestData : AllTestData)
+	for (PairWhatData& PairTestData : AllTestData) //-V1078
 	{
 		AddInfo(PairTestData.Key);
 		PCGTestsCommon::FTestData* TestData = PairTestData.Value;

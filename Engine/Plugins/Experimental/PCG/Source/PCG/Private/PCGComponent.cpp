@@ -1045,7 +1045,7 @@ FPCGTaskId UPCGComponent::CreateCleanupTask(bool bRemoveComponents, const TArray
 							return true;
 						});
 
-						for (const FFolder& FolderToDelete : SubfoldersToDelete)
+						for (const FFolder& FolderToDelete : SubfoldersToDelete) //-V1078
 						{
 							FActorFolders::Get().DeleteFolder(*ThisWorld, FolderToDelete);
 						}

@@ -2059,7 +2059,7 @@ void FUtils::CompileSchedule(UAnimNextSchedule* InSchedule)
 
 		// Build sources that need to run (thread-safe or not) at each index
 		TMap<FInsertionLocation, TArray<FAnimNextScheduleExternalParameterSource>> InsertionMap;
-		for(const TPair<FName, FParameterTracker>& TrackedParameterPair : TrackerMap)
+		for(const TPair<FName, FParameterTracker>& TrackedParameterPair : TrackerMap) //-V1078
 		{
 			// If an index/container was not set up, then the update of the set of parameters is not a pre-requisite of a task, so we just insert the task at the
 			// start of the schedule as the only requirement is that the parameters exist 

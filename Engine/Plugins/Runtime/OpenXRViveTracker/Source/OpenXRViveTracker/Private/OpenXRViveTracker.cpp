@@ -227,7 +227,7 @@ const void* FOpenXRViveTracker::OnCreateSession(XrInstance InInstance, XrSystemI
 
 	// Add LiveLink poses for trackers that have no role assigned
 	uint32 TrackerIndex = 0;
-	for (const XrViveTrackerPathsHTCX& TrackerPath : TrackerPaths)
+	for (const XrViveTrackerPathsHTCX& TrackerPath : TrackerPaths) //-V1078
 	{
 		if (TrackerPath.rolePath == XR_NULL_PATH)
 		{

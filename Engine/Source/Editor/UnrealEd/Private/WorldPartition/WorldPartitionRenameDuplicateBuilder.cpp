@@ -278,7 +278,7 @@ bool UWorldPartitionRenameDuplicateBuilder::RunInternal(UWorld* World, const FCe
 					}, false);
 
 					// Move dependant objects into the new actor package
-					for (UObject* DependantObject : DependantObjects)
+					for (UObject* DependantObject : DependantObjects) //-V1078
 					{
 						DependantObject->Rename(nullptr, Actor->GetExternalPackage(), REN_NonTransactional | REN_DontCreateRedirectors | REN_ForceNoResetLoaders | REN_DoNotDirty);
 					}
@@ -329,7 +329,7 @@ bool UWorldPartitionRenameDuplicateBuilder::RunInternal(UWorld* World, const FCe
 					}, false);
 
 					// Move back dependant objects into the previous actor package
-					for (UObject* DependantObject : DependantObjects)
+					for (UObject* DependantObject : DependantObjects) //-V1078
 					{
 						DependantObject->Rename(nullptr, Actor->GetExternalPackage(), REN_NonTransactional | REN_DontCreateRedirectors | REN_ForceNoResetLoaders | REN_DoNotDirty);
 					}

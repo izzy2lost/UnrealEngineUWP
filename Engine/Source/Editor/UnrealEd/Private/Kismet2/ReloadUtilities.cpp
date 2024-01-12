@@ -1111,7 +1111,7 @@ void FReload::Reinstance()
 	FBlueprintEditorUtils::UpdateEnumsInNodes(ChangedEnums, OnNodeFoundOrUpdated);
 
 	// Update all the nodes before we could possibly recompile
-	for (TPair<UBlueprint*, FBlueprintUpdateInfo>& KVP : ModifiedBlueprints)
+	for (TPair<UBlueprint*, FBlueprintUpdateInfo>& KVP : ModifiedBlueprints) //-V1078
 	{
 		UBlueprint* Blueprint = KVP.Key;
 		FBlueprintUpdateInfo& Info = KVP.Value;
@@ -1135,7 +1135,7 @@ void FReload::Reinstance()
 	rch.ReinstanceClasses(ClassesToReinstance);
 
 	// Recompile blueprints if they haven't already been recompiled)
-	for (TPair<UBlueprint*, FBlueprintUpdateInfo>& KVP : ModifiedBlueprints)
+	for (TPair<UBlueprint*, FBlueprintUpdateInfo>& KVP : ModifiedBlueprints) //-V1078
 	{
 		UBlueprint* Blueprint = KVP.Key;
 		FBlueprintUpdateInfo& Info = KVP.Value;

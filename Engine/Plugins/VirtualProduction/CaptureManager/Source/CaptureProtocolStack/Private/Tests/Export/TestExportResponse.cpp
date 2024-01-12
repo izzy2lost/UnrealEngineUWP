@@ -11,7 +11,7 @@
 TStaticArray<uint8, 16> CreateHash()
 {
 	TStaticArray<uint8, 16> StaticArray;
-	for (int32 Index = 0; Index < StaticArray.Num(); ++Index)
+	for (int32 Index = 0; Index < StaticArray.Num(); ++Index) //-V621 //-V654
 	{
 		StaticArray[Index] = Index;
 	}

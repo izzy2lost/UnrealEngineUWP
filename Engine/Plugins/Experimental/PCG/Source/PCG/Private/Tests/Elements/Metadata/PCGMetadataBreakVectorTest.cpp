@@ -325,7 +325,7 @@ bool FPCGMetadataBreakVectorTest::RunTest(const FString& Parameters)
 	// Setup error catching. This error should happen only twice (invalid type)
 	AddExpectedError(TEXT("Attribute/Property 'Float' from pin"), EAutomationExpectedErrorFlags::Contains, 2);
 
-	for (PairWhatData& PairTestData : AllTestData)
+	for (PairWhatData& PairTestData : AllTestData) //-V1078
 	{
 		AddInfo(PairTestData.Key);
 		PCGTestsCommon::FTestData* TestData = PairTestData.Value;

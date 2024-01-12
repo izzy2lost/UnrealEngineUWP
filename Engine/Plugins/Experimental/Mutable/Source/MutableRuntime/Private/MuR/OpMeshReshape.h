@@ -226,7 +226,7 @@ namespace mu
 
 		// Geometric linear regression of top, bottom and rings centroids.
 		FVector3f Centroid = FVector3f::Zero();
-		for (const FVector3f& C : Centroids)
+		for (const FVector3f& C : Centroids) //-V1078
 		{
 			Centroid += C;
 		}
@@ -234,7 +234,7 @@ namespace mu
 		constexpr float OneOverNumCentroids = 1.0f / static_cast<float>(NumCentroids);
 		Centroid *= OneOverNumCentroids;
 		
-		for (FVector3f& C : Centroids)
+		for (FVector3f& C : Centroids) //-V1078
 		{
 			C -= Centroid;
 		}
@@ -244,7 +244,7 @@ namespace mu
 		for (int32 Iter = 0; Iter < NumIters; ++Iter)
 		{
 			FVector3f IterDirRefinement = Direction;
-			for (const FVector3f& C : Centroids)
+			for (const FVector3f& C : Centroids) //-V1078
 			{
 				IterDirRefinement += C * FVector3f::DotProduct(Direction, C);
 			}
@@ -253,7 +253,7 @@ namespace mu
 		}
 
 		// Project centroids to the line described by Direction and Centroid.
-		for (FVector3f& C : Centroids)
+		for (FVector3f& C : Centroids) //-V1078
 		{
 			C = Centroid + Direction * FVector3f::DotProduct(C, Direction);
 		}
@@ -312,7 +312,7 @@ namespace mu
 	
 		// Geometric linear regression of top, bottom and ring centroids.
 		FVector3f Centroid = FVector3f::Zero();
-		for (const FVector3f& C : Centroids)
+		for (const FVector3f& C : Centroids) //-V1078
 		{
 			Centroid += C;
 		}
@@ -320,7 +320,7 @@ namespace mu
 		constexpr float OneOverNumCentroids = 1.0f / static_cast<float>(NumCentroids);
 		Centroid *= OneOverNumCentroids;
 		
-		for (FVector3f& C : Centroids)
+		for (FVector3f& C : Centroids) //-V1078
 		{
 			C -= Centroid;
 		}
@@ -330,7 +330,7 @@ namespace mu
 		for (int32 Iter = 0; Iter < NumIters; ++Iter)
 		{
 			FVector3f IterDirRefinement = Direction;
-			for (const FVector3f& C : Centroids)
+			for (const FVector3f& C : Centroids) //-V1078
 			{
 				IterDirRefinement += C * FVector3f::DotProduct(Direction, C);
 			}
@@ -339,7 +339,7 @@ namespace mu
 		}
 
 		// Project centroids to the line described by Direction and Centroid.
-		for (FVector3f& C : Centroids)
+		for (FVector3f& C : Centroids) //-V1078
 		{
 			C = Centroid + Direction * FVector3f::DotProduct(C, Direction);
 		}

@@ -132,7 +132,7 @@ bool UWorldPartitionRuntimeHashSet::Draw2D(FWorldPartitionDraw2DContext& DrawCon
 
 		if (FilteredCells.Num())
 		{
-			for (const UWorldPartitionRuntimeCell* Cell : FilteredCells)
+			for (const UWorldPartitionRuntimeCell* Cell : FilteredCells) //-V1078
 			{
 				const FVector2D CellBoundsSize = FVector2D(Cell->GetCellBounds().GetSize());
 				const FVector2D CellBoundsMin = FVector2D(Cell->GetCellBounds().Min);

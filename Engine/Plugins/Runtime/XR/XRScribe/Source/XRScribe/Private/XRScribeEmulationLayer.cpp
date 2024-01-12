@@ -297,7 +297,7 @@ void FOpenXREmulationLayer::PostLoadActions()
 
 	TArray<TStaticArray<ANSICHAR, XR_MAX_API_LAYER_NAME_SIZE>> EmulatedLayers;
 	SupportedEmulatedLayers = CaptureDecoder.GetApiLayerProperties().FilterByPredicate([EmulatedLayers](const XrApiLayerProperties& Layer) {
-		for (const TStaticArray<ANSICHAR, XR_MAX_API_LAYER_NAME_SIZE>& EmulatedLayerName : EmulatedLayers)
+		for (const TStaticArray<ANSICHAR, XR_MAX_API_LAYER_NAME_SIZE>& EmulatedLayerName : EmulatedLayers) //-V1078
 		{
 			if (FCStringAnsi::Strcmp(Layer.layerName, EmulatedLayerName.GetData()) == 0)
 			{

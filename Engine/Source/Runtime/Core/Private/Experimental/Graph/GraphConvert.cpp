@@ -744,7 +744,7 @@ bool FCondensationGraphTest_Core::RunTest(const FString& Parameters)
 						}
 					}
 				}
-				for (FVertex ReachableVertex : Reachable)
+				for (FVertex ReachableVertex : Reachable) //-V1078
 				{
 					if (ReachableVertex < Root)
 					{

@@ -2415,7 +2415,7 @@ void EndLoad(FUObjectSerializeContext* LoadContext, TArray<UPackage*>* OutLoaded
 	if (OutLoadedPackages)
 	{
 		OutLoadedPackages->Reserve(LoadedPackages.Num());
-		for (UPackage* Package : LoadedPackages)
+		for (UPackage* Package : LoadedPackages) //-V1078
 		{
 			OutLoadedPackages->Add(Package);
 		}

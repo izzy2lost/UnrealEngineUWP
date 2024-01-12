@@ -2062,7 +2062,7 @@ void FLightmapRenderer::Finalize(FRDGBuilder& GraphBuilder)
 
 	TStaticArray<FRDGTextureUAVRef, 3> ScratchTilePoolLayerUAVs;
 
-	for (int32 Index = 0; Index < ScratchTilePoolLayerUAVs.Num(); ++Index)
+	for (int32 Index = 0; Index < ScratchTilePoolLayerUAVs.Num(); ++Index) //-V621 //-V654
 	{
 		ScratchTilePoolLayerUAVs[Index] = GraphBuilder.CreateUAV(GraphBuilder.RegisterExternalTexture(ScratchTilePoolGPU->PooledRenderTargets[Index]));
 	}

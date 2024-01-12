@@ -443,7 +443,7 @@ namespace Metasound
 				FVector2D NextLocation = { 0.0f, 0.0f };
 				{
 					int32 NumBeforeDefined = 1;
-					for (const TPair<int32, FNodeHandle>& Pair : SortOrderToName)
+					for (const TPair<int32, FNodeHandle>& Pair : SortOrderToName) //-V1078
 					{
 						const FConstNodeHandle& NodeHandle = Pair.Value;
 						const FName NodeName = NodeHandle->GetNodeName();
@@ -468,7 +468,7 @@ namespace Metasound
 				}
 
 				// Iterate through sorted map in sequence, slotting in new locations after existing swapped nodes with predefined locations.
-				for (TPair<int32, FNodeHandle>& Pair : SortOrderToName)
+				for (TPair<int32, FNodeHandle>& Pair : SortOrderToName) //-V1078
 				{
 					FNodeHandle& NodeHandle = Pair.Value;
 					const FName NodeName = NodeHandle->GetNodeName();

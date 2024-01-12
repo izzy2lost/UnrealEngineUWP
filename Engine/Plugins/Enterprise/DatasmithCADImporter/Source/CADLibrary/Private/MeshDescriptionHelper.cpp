@@ -523,7 +523,7 @@ bool FillMesh(const FMeshConversionContext& MeshConversionContext, FBodyMesh& Bo
 			{
 				// compute normals of Symmetric vertex
 				FMatrix44f SymmetricMatrix = FDatasmithUtils::GetSymmetricMatrix(MeshConversionContext.MeshParameters.SymmetricOrigin, MeshConversionContext.MeshParameters.SymmetricNormal);
-				for (const FVertexInstanceID& VertexInstanceID : MeshVertexInstanceIDs)
+				for (const FVertexInstanceID& VertexInstanceID : MeshVertexInstanceIDs) //-V1078
 				{
 					VertexInstanceNormals[VertexInstanceID] = SymmetricMatrix.TransformVector(VertexInstanceNormals[VertexInstanceID]);
 				}
