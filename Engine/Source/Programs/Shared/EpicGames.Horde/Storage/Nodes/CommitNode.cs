@@ -9,8 +9,7 @@ namespace EpicGames.Horde.Storage.Nodes
 	/// <summary>
 	/// A node representing commit metadata
 	/// </summary>
-	[BlobType("{64D50724-41C0-6B22-1CB5-90A8171824D6}", 1)]
-	public class CommitNode : Node
+	public class CommitNode
 	{
 		/// <summary>
 		/// The commit number
@@ -20,7 +19,7 @@ namespace EpicGames.Horde.Storage.Nodes
 		/// <summary>
 		/// Reference to the parent commit
 		/// </summary>
-		public NodeRef<CommitNode>? Parent { get; set; }
+		public IBlobHandle<CommitNode>? Parent { get; set; }
 
 		/// <summary>
 		/// Human readable name of the author of this change
@@ -60,66 +59,82 @@ namespace EpicGames.Horde.Storage.Nodes
 		/// <summary>
 		/// Metadata for this commit, keyed by arbitrary GUID
 		/// </summary>
-		public Dictionary<Guid, HashedNodeRef> Metadata { get; } = new Dictionary<Guid, HashedNodeRef>();
+		public Dictionary<Guid, IBlobHandle<object>> Metadata { get; } = new Dictionary<Guid, IBlobHandle<object>>();
 
 		/// <summary>
 		/// Constructor
 		/// </summary>
-		/// <param name="number">Commit number</param>
-		/// <param name="parent">The parent commit</param>
-		/// <param name="author">Author of this commit</param>
-		/// <param name="message">Message for the commit</param>
-		/// <param name="time">The commit time</param>
-		/// <param name="contents">Contents of the tree at this commit</param>
-		public CommitNode(int number, NodeRef<CommitNode>? parent, string author, string message, DateTime time, DirectoryNodeRef contents)
+		public CommitNode(int number, IBlobHandle<CommitNode>? parent, string author, string? authorId, string? committer, string? commiterId, string message, DateTime time, DirectoryNodeRef contents, Dictionary<Guid, IBlobHandle<object>> metadata)
 		{
 			Number = number;
 			Parent = parent;
 			Author = author;
+			AuthorId = authorId;
+			Committer = committer;
+			CommitterId = commiterId;
 			Message = message;
 			Time = time;
 			Contents = contents;
+			Metadata = metadata;
 		}
+	}
 
-		/// <summary>
-		/// Deserializing constructor
-		/// </summary>
-		/// <param name="reader"></param>
-		public CommitNode(IBlobReader reader)
+	class CommitNodeConverter : BlobConverter<CommitNode>
+	{
+		static readonly BlobType s_blobType = new BlobType("{64D50724-41C0-6B22-1CB5-90A8171824D6}", 1);
+
+		public override CommitNode Read(IBlobReader reader, BlobSerializerOptions options)
 		{
-			Number = (int)reader.ReadUnsignedVarInt();
-			Parent = reader.ReadOptionalNodeRef<CommitNode>();
-			Author = reader.ReadString();
-			AuthorId = reader.ReadOptionalString();
-			Committer = reader.ReadOptionalString();
-			CommitterId = reader.ReadOptionalString();
-			Message = reader.ReadString();
-			Time = reader.ReadDateTime();
+			int number = (int)reader.ReadUnsignedVarInt();
 
-			IoHash hash = reader.ReadIoHash();
+			IBlobHandle<CommitNode>? parent;
+			if (reader.ReadBoolean())
+			{
+				parent = reader.ReadBlobHandle<CommitNode>();
+			}
+			else
+			{
+				parent = null; 
+			}
+
+			string author = reader.ReadString();
+			string? authorId = reader.ReadOptionalString();
+			string? committer = reader.ReadOptionalString();
+			string? committerId = reader.ReadOptionalString();
+			string message = reader.ReadString();
+			DateTime time = reader.ReadDateTime();
+
+			IBlobHandle<DirectoryNode> contentsNode = reader.ReadBlobHandle<DirectoryNode>();
 			long length = (long)reader.ReadUnsignedVarInt();
-			Contents = new DirectoryNodeRef(hash, length, reader.ReadBlobReference());
+			DirectoryNodeRef contents = new DirectoryNodeRef(length, contentsNode);
 
-			Metadata = reader.ReadDictionary(() => reader.ReadGuidUnrealOrder(), () => reader.ReadHashedNodeRef());
+			Dictionary<Guid, IBlobHandle<object>> metadata = reader.ReadDictionary(() => reader.ReadGuidUnrealOrder(), () => reader.ReadBlobHandle<object>());
+
+			return new CommitNode(number, parent, author, authorId, committer, committerId, message, time, contents, metadata);
 		}
 
 		/// <inheritdoc/>
-		public override void Serialize(IBlobWriter writer)
+		public override BlobType Write(IBlobWriter writer, CommitNode value, BlobSerializerOptions options)
 		{
-			writer.WriteUnsignedVarInt(Number);
-			writer.WriteOptionalNodeRef(Parent);
-			writer.WriteString(Author);
-			writer.WriteOptionalString(AuthorId);
-			writer.WriteOptionalString(Committer);
-			writer.WriteOptionalString(CommitterId);
-			writer.WriteString(Message);
-			writer.WriteDateTime(Time);
+			writer.WriteUnsignedVarInt(value.Number);
+			writer.WriteBoolean(value.Parent != null);
+			if (value.Parent != null)
+			{
+				writer.WriteBlobHandle(value.Parent);
+			}
+			writer.WriteString(value.Author);
+			writer.WriteOptionalString(value.AuthorId);
+			writer.WriteOptionalString(value.Committer);
+			writer.WriteOptionalString(value.CommitterId);
+			writer.WriteString(value.Message);
+			writer.WriteDateTime(value.Time);
 
-			writer.WriteIoHash(Contents.Hash);
-			writer.WriteUnsignedVarInt((ulong)Contents.Length);
-			writer.WriteBlobReference(Contents.Handle);
+			writer.WriteBlobHandle(value.Contents.Handle);
+			writer.WriteUnsignedVarInt((ulong)value.Contents.Length);
 
-			writer.WriteDictionary(Metadata, key => writer.WriteGuidUnrealOrder(key), value => writer.WriteHashedNodeRef(value));
+			writer.WriteDictionary(value.Metadata, key => writer.WriteGuidUnrealOrder(key), value => writer.WriteBlobHandle(value));
+
+			return s_blobType;
 		}
 	}
 }

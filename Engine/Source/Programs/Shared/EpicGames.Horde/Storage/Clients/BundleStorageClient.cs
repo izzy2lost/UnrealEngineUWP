@@ -64,7 +64,7 @@ namespace EpicGames.Horde.Storage.Clients
 					}
 					else
 					{
-						using BlobData blobData = await ReadAsync(cancellationToken);
+						using BlobData blobData = await ReadBlobDataAsync(cancellationToken);
 						refs.AddRange(blobData.Refs);
 					}
 
@@ -78,7 +78,7 @@ namespace EpicGames.Horde.Storage.Clients
 				=> _inner.OpenBodyAsync(offset, length, cancellationToken);
 
 			/// <inheritdoc/>
-			public async ValueTask<BlobData> ReadAsync(CancellationToken cancellationToken = default)
+			public async ValueTask<BlobData> ReadBlobDataAsync(CancellationToken cancellationToken = default)
 			{
 				IReadOnlyMemoryOwner<byte> data = await _inner.ReadBodyAsync(cancellationToken);
 
@@ -220,7 +220,7 @@ namespace EpicGames.Horde.Storage.Clients
 		public async ValueTask<BlobData> ReadBlobAsync(BlobLocator locator, CancellationToken cancellationToken = default)
 		{
 			IBlobHandle handle = CreateBlobHandle(locator);
-			return await handle.ReadAsync(cancellationToken);
+			return await handle.ReadBlobDataAsync(cancellationToken);
 		}
 
 		/// <inheritdoc/>

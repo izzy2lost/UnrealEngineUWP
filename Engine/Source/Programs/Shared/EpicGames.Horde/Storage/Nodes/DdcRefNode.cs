@@ -1,6 +1,7 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 using System.Collections.Generic;
+using System.Linq;
 using EpicGames.Core;
 using EpicGames.Horde.Storage;
 
@@ -9,8 +10,8 @@ namespace Horde.Server.Ddc
 	/// <summary>
 	/// A node containing ref data
 	/// </summary>
-	[BlobType("{0C7E5F25-4B55-454B-63F4-4A9B74D00651}", 1)]
-	public class DdcRefNode : Node
+	[BlobConverter(typeof(DdcRefNodeConverter))]
+	public class DdcRefNode
 	{
 		/// <summary>
 		/// Hash of the root node
@@ -30,27 +31,27 @@ namespace Horde.Server.Ddc
 			RootHash = rootHash;
 			References = new List<(IoHash, IBlobHandle)>();
 		}
+	}
 
-		/// <summary>
-		/// Constructor
-		/// </summary>
-		public DdcRefNode(IBlobReader reader)
+	class DdcRefNodeConverter : BlobConverter<DdcRefNode>
+	{
+		static BlobType s_blobType = new BlobType("{0C7E5F25-4B55-454B-63F4-4A9B74D00651}", 1);
+
+		public override DdcRefNode Read(IBlobReader reader, BlobSerializerOptions options)
 		{
-			RootHash = reader.ReadIoHash();
-			References = reader.ReadList(x => (reader.ReadIoHash(), reader.ReadBlobReference()));
+			IoHash rootHash = reader.ReadIoHash();
+			List<IBlobHandle<object>> references = reader.ReadList(x => reader.ReadBlobHandle<object>());
+
+			DdcRefNode refNode = new DdcRefNode(rootHash);
+			refNode.References.AddRange(references.Select(x => (x.Hash, (IBlobHandle)x)));
+			return refNode;
 		}
 
-		/// <inheritdoc/>
-		public override void Serialize(IBlobWriter writer)
+		public override BlobType Write(IBlobWriter writer, DdcRefNode value, BlobSerializerOptions options)
 		{
-			writer.WriteIoHash(RootHash);
-			writer.WriteList(References, x => WriteReference(writer, x.Hash, x.Handle));
-		}
-
-		static void WriteReference(IBlobWriter writer, IoHash hash, IBlobHandle handle)
-		{
-			writer.WriteIoHash(hash);
-			writer.WriteBlobReference(handle);
+			writer.WriteIoHash(value.RootHash);
+			writer.WriteList(value.References, x => writer.WriteBlobHandle(x.Handle.ForType<object>(x.Hash)));
+			return s_blobType;
 		}
 	}
 }

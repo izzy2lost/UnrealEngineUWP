@@ -68,7 +68,7 @@ namespace EpicGames.Horde.Storage.Bundles.V2
 		}
 
 		/// <inheritdoc/>
-		public ValueTask<BlobData> ReadAsync(CancellationToken cancellationToken = default)
+		public ValueTask<BlobData> ReadBlobDataAsync(CancellationToken cancellationToken = default)
 			=> _packet.ReadExportAsync(_exportIdx, cancellationToken);
 
 		/// <inheritdoc/>

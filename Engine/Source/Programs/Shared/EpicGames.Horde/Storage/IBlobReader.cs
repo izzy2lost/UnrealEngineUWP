@@ -17,19 +17,19 @@ namespace EpicGames.Horde.Storage
 		BlobType Type { get; }
 
 		/// <summary>
-		/// Version of the current node, as specified via <see cref="BlobTypeAttribute"/>
+		/// Version of the current node, as specified via <see cref="BlobType"/>
 		/// </summary>
 		int Version { get; }
 
 		/// <summary>
-		/// Locations of all referenced nodes.
+		/// Locations of all referenced nodes. These handles do not have valid hashes.
 		/// </summary>
 		IReadOnlyList<IBlobHandle> References { get; }
 
 		/// <summary>
 		/// Gets the next serialized blob handle
 		/// </summary>
-		IBlobHandle ReadBlobReference();
+		IBlobHandle<T> ReadBlobHandle<T>();
 	}
 
 	/// <summary>
@@ -43,7 +43,7 @@ namespace EpicGames.Horde.Storage
 		public BlobType Type => _blobData.Type;
 
 		/// <summary>
-		/// Version of the current node, as specified via <see cref="BlobTypeAttribute"/>
+		/// Version of the current node, as specified via <see cref="BlobType"/>
 		/// </summary>
 		public int Version => Type.Version;
 
@@ -82,6 +82,11 @@ namespace EpicGames.Horde.Storage
 		/// <summary>
 		/// Gets the next serialized blob handle
 		/// </summary>
-		public IBlobHandle ReadBlobReference() => _blobData.Refs[_refIdx++];
+		public IBlobHandle<T> ReadBlobHandle<T>()
+		{
+			IBlobHandle handle = References[_refIdx++];
+			IoHash hash = this.ReadIoHash();
+			return handle.ForType<T>(hash);
+		}
 	}
 }

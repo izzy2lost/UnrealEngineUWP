@@ -9,15 +9,40 @@ namespace EpicGames.Horde.Storage.Nodes
 	/// <summary>
 	/// A node containing arbitrary compact binary data
 	/// </summary>
-	[BlobType("{34A0793F-42F4-8364-A798-32862932841C}", 1)]
-	public class CbNode : Node
+	[BlobConverter(typeof(CbNodeConverter))]
+	public class CbNode
+	{
+		/// <summary>
+		/// The compact binary object
+		/// </summary>
+		public CbObject Object { get; set; }
+
+		/// <summary>
+		/// Imported nodes
+		/// </summary>
+		public IReadOnlyList<IBlobHandle<object>> References { get; }
+
+		/// <summary>
+		/// Constructor
+		/// </summary>
+		/// <param name="obj">The compact binary object</param>
+		/// <param name="references">List of references to attachments</param>
+		public CbNode(CbObject obj, IReadOnlyList<IBlobHandle<object>> references)
+		{
+			Object = obj;
+			References = references;
+		}
+	}
+
+	class CbNodeConverter : BlobConverter<CbNode>
 	{
 		class HandleMapper
 		{
 			readonly IBlobReader _reader;
-			readonly List<HashedNodeRef> _refs;
+			readonly List<IBlobHandle<object>> _refs;
+			int _refIdx;
 
-			public HandleMapper(IBlobReader reader, List<HashedNodeRef> refs)
+			public HandleMapper(IBlobReader reader, List<IBlobHandle<object>> refs)
 			{
 				_reader = reader;
 				_refs = refs;
@@ -27,8 +52,8 @@ namespace EpicGames.Horde.Storage.Nodes
 			{
 				if (field.IsAttachment())
 				{
-					IBlobHandle handle = _reader.ReadBlobReference();
-					_refs.Add(new HashedNodeRef(field.AsAttachment(), handle));
+					IBlobHandle handle = _reader.References[_refIdx++];
+					_refs.Add(handle.ForType<object>(field.AsAttachment()));
 				}
 				else if (field.IsArray())
 				{
@@ -43,45 +68,24 @@ namespace EpicGames.Horde.Storage.Nodes
 			}
 		}
 
-		/// <summary>
-		/// The compact binary object
-		/// </summary>
-		public CbObject Object { get; set; }
+		public static BlobType BlobType { get; } = new BlobType("{34A0793F-42F4-8364-A798-32862932841C}", 1);
 
-		/// <summary>
-		/// Imported nodes
-		/// </summary>
-		public IReadOnlyList<HashedNodeRef> References { get; }
-
-		/// <summary>
-		/// Constructor
-		/// </summary>
-		/// <param name="obj">The compact binary object</param>
-		/// <param name="references">List of references to attachments</param>
-		public CbNode(CbObject obj, IReadOnlyList<HashedNodeRef> references)
+		/// <inheritdoc/>
+		public override CbNode Read(IBlobReader reader, BlobSerializerOptions options)
 		{
-			Object = obj;
-			References = references;
-		}
+			CbObject Object = new CbObject(reader.GetMemory().ToArray());
 
-		/// <summary>
-		/// Deserialization constructor
-		/// </summary>
-		/// <param name="reader">Reader to deserialize from</param>
-		public CbNode(IBlobReader reader)
-		{
-			Object = new CbObject(reader.GetMemory().ToArray());
-
-			List<HashedNodeRef> references = new List<HashedNodeRef>();
+			List<IBlobHandle<object>> references = new List<IBlobHandle<object>>();
 			Object.IterateAttachments(new HandleMapper(reader, references).IterateField);
 
-			References = references;
+			return new CbNode(Object, references);
 		}
 
 		/// <inheritdoc/>
-		public override void Serialize(IBlobWriter writer)
+		public override BlobType Write(IBlobWriter writer, CbNode value, BlobSerializerOptions options)
 		{
-			writer.WriteFixedLengthBytes(Object.GetView().Span);
+			writer.WriteFixedLengthBytes(value.Object.GetView().Span);
+			return BlobType;
 		}
 	}
 }

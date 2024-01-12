@@ -650,7 +650,7 @@ namespace EpicGames.Horde.Storage
 					DirectoryReference subDirPath = DirectoryReference.Combine(dirRef, subDirEntry.Name.ToString());
 					DirectoryState subDirState = dirState.FindOrAddDirectory(subDirEntry.Name);
 
-					DirectoryNode subDirNode = await subDirEntry.ExpandAsync(cancellationToken);
+					DirectoryNode subDirNode = await subDirEntry.Handle.ReadBlobAsync(cancellationToken: cancellationToken);
 					await SyncDirectoryAsync(subDirPath, subDirState, subDirNode, flag, cacheDirState, cancellationToken);
 
 					dirState.LayerFlags |= flag;
@@ -723,14 +723,13 @@ namespace EpicGames.Horde.Storage
 
 		async Task ExtractDataAsync(ChunkedDataNodeRef nodeRef, Stream outputStream, CancellationToken cancellationToken)
 		{
-			BlobType blobType = await nodeRef.Handle.ReadTypeAsync(cancellationToken);
-			if (blobType.Guid == LeafChunkedDataNode.BlobType.Guid)
+			if (nodeRef.Type == ChunkedDataNodeType.Leaf)
 			{
 				await ExtractLeafDataAsync(nodeRef, outputStream, cancellationToken);
 			}
-			else if (blobType.Guid == InteriorChunkedDataNode.BlobType.Guid)
+			else if (nodeRef.Type == ChunkedDataNodeType.Interior)
 			{
-				InteriorChunkedDataNode interiorNode = await nodeRef.Handle.ReadNodeAsync<InteriorChunkedDataNode>(cancellationToken);
+				InteriorChunkedDataNode interiorNode = await nodeRef.Handle.ReadBlobAsync<InteriorChunkedDataNode>(cancellationToken: cancellationToken);
 				foreach (ChunkedDataNodeRef childNodeRef in interiorNode.Children)
 				{
 					await ExtractDataAsync(childNodeRef, outputStream, cancellationToken);
@@ -738,7 +737,7 @@ namespace EpicGames.Horde.Storage
 			}
 			else
 			{
-				throw new InvalidDataException($"Invalid node type {blobType}");
+				throw new InvalidDataException($"Invalid node type {nodeRef.Type}");
 			}
 		}
 
@@ -746,7 +745,7 @@ namespace EpicGames.Horde.Storage
 		{
 			// Try to copy cached data for this node
 			HashInfo? hashInfo;
-			if (_hashes.TryGetValue(nodeRef.Hash, out hashInfo))
+			if (_hashes.TryGetValue(nodeRef.Handle.Hash, out hashInfo))
 			{
 				if (await TryCopyCachedDataAsync(hashInfo, 0, hashInfo.Length, outputStream, cancellationToken))
 				{
@@ -755,7 +754,7 @@ namespace EpicGames.Horde.Storage
 			}
 
 			// Otherwise 
-			using BlobData blobData = await nodeRef.Handle.ReadAsync(cancellationToken);
+			using BlobData blobData = await nodeRef.Handle.ReadBlobDataAsync(cancellationToken);
 			await LeafChunkedDataNode.CopyToStreamAsync(blobData, outputStream, cancellationToken);
 		}
 

@@ -43,7 +43,7 @@ namespace Horde.Commands.Vcs
 						break;
 					}
 
-					tip = await tip.Parent.ExpandAsync();
+					tip = await tip.Parent.ReadBlobAsync();
 				}
 			}
 

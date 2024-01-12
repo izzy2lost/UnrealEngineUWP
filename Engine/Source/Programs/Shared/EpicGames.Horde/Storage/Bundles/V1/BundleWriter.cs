@@ -65,7 +65,7 @@ namespace EpicGames.Horde.Storage.Bundles.V1
 		}
 
 		/// <inheritdoc/>
-		public ValueTask<BlobData> ReadAsync(CancellationToken cancellationToken = default) => _reader.ReadNodeDataAsync(BundleLocator, ExportIdx, cancellationToken);
+		public ValueTask<BlobData> ReadBlobDataAsync(CancellationToken cancellationToken = default) => _reader.ReadNodeDataAsync(BundleLocator, ExportIdx, cancellationToken);
 
 		/// <inheritdoc/>
 		public ValueTask FlushAsync(CancellationToken cancellationToken = default) => new ValueTask();
@@ -113,7 +113,7 @@ namespace EpicGames.Horde.Storage.Bundles.V1
 				Packet = packet;
 				Offset = offset;
 				Length = length;
-				Refs = refs.ToArray();
+				Refs = refs.Select(x => x.Unwrap()).ToArray();
 				Aliases = aliases.ToArray();
 
 				_pendingBundle = pendingBundle;
@@ -136,7 +136,7 @@ namespace EpicGames.Horde.Storage.Bundles.V1
 			}
 
 			/// <inheritdoc/>
-			public async ValueTask<BlobData> ReadAsync(CancellationToken cancellationToken = default)
+			public async ValueTask<BlobData> ReadBlobDataAsync(CancellationToken cancellationToken = default)
 			{
 				if (_flushedHandle == null)
 				{
@@ -150,7 +150,7 @@ namespace EpicGames.Horde.Storage.Bundles.V1
 					}
 				}
 
-				return await _flushedHandle!.ReadAsync(cancellationToken);
+				return await _flushedHandle!.ReadBlobDataAsync(cancellationToken);
 			}
 
 			/// <inheritdoc/>
@@ -755,7 +755,7 @@ namespace EpicGames.Horde.Storage.Bundles.V1
 			// Add dependencies on all bundles containing a dependent node
 			foreach (IBlobHandle reference in references)
 			{
-				PendingNode? pendingReference = reference as PendingNode;
+				PendingNode? pendingReference = reference.Unwrap() as PendingNode;
 				if (pendingReference?.PendingBundle != null)
 				{
 					currentBundle.AddDependencyOn(pendingReference.PendingBundle, TraceLogger);
@@ -795,17 +795,6 @@ namespace EpicGames.Horde.Storage.Bundles.V1
 
 			await CompleteAsync(cancellationToken);
 			await _writeQueue.FlushAsync(cancellationToken);
-		}
-
-		/// <summary>
-		/// Flushes all the current nodes to storage
-		/// </summary>
-		/// <param name="root">Root for the tree</param>
-		/// <param name="cancellationToken">Cancellation token for the operation</param>
-		/// <returns></returns>
-		public async Task<IBlobHandle> FlushAsync(Node root, CancellationToken cancellationToken = default)
-		{
-			return await NodeRefExtensions.FlushAsync(this, root, cancellationToken);
 		}
 	}
 }

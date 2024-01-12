@@ -1,6 +1,8 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 using System;
+using System.Collections.Generic;
+using System.Threading;
 using System.Threading.Tasks;
 using EpicGames.Core;
 using EpicGames.Horde.Storage;
@@ -15,37 +17,48 @@ namespace EpicGames.Horde.Tests
 	[TestClass]
 	public class StorageClientTests
 	{
-		[BlobType("{99601905-4F6E-A089-03D6-F187711BAFEE}", 1)]
-		class TestNode : Node
+		[BlobConverter(typeof(TestNodeConverter))]
+		class TestNode
 		{
+			public static BlobType BlobType = new BlobType("{99601905-4F6E-A089-03D6-F187711BAFEE}", 1);
+
 			public int Value { get; }
 			public byte[] Padding { get; set; } = Array.Empty<byte>();
-			public NodeRef<TestNode>[] Refs { get; }
+			public IBlobHandle<TestNode>[] Refs { get; }
 
-			public TestNode(int value, params NodeRef<TestNode>[] refs)
+			public TestNode(int value, params IBlobHandle<TestNode>[] refs)
 			{
 				Value = value;
 				Refs = refs;
 			}
 
-			public TestNode(IBlobReader reader)
+			public TestNode(int value, byte[] padding, IBlobHandle<TestNode>[] refs)
 			{
-				Value = reader.ReadInt32();
-				Padding = reader.ReadVariableLengthBytes().ToArray();
-				Refs = reader.ReadVariableLengthArray(() => reader.ReadNodeRef<TestNode>());
-			}
-
-			public override void Serialize(IBlobWriter writer)
-			{
-				writer.WriteInt32(Value);
-				writer.WriteVariableLengthBytes(Padding);
-				writer.WriteVariableLengthArray(Refs, x => writer.WriteNodeRef(x));
+				Value = value;
+				Padding = padding;
+				Refs = refs;
 			}
 		}
 
-		static StorageClientTests()
+		class TestNodeConverter : BlobConverter<TestNode>
 		{
-			Node.RegisterType<TestNode>();
+			public override TestNode Read(IBlobReader reader, BlobSerializerOptions options)
+			{
+				int value = reader.ReadInt32();
+				byte[] padding = reader.ReadVariableLengthBytes().ToArray();
+				IBlobHandle<TestNode>[] refs = reader.ReadVariableLengthArray(() => reader.ReadBlobHandle<TestNode>());
+
+				return new TestNode(value, padding, refs);
+			}
+
+			public override BlobType Write(IBlobWriter writer, TestNode value, BlobSerializerOptions options)
+			{
+				writer.WriteInt32(value.Value);
+				writer.WriteVariableLengthBytes(value.Padding);
+				writer.WriteVariableLengthArray(value.Refs, x => writer.WriteBlobHandle(x));
+
+				return TestNode.BlobType;
+			}
 		}
 
 		[TestMethod]
@@ -66,12 +79,12 @@ namespace EpicGames.Horde.Tests
 
 		static async Task TestBasicAsync(IStorageClient store)
 		{
-			NodeRef nodeRef;
+			IBlobHandle<TestNode> nodeRef;
 			await using (IStorageWriter writer = store.CreateWriter())
 			{
-				nodeRef = await writer.WriteHashedNodeAsync(new TestNode(123));
+				nodeRef = await writer.WriteBlobAsync(new TestNode(123));
 			}
-			await store.WriteRefAsync("hello", nodeRef.Handle);
+			await store.WriteRefAsync("hello", nodeRef);
 
 			TestNode output = await store.ReadRefAsync<TestNode>("hello");
 			Assert.AreEqual(123, output.Value);
@@ -85,19 +98,19 @@ namespace EpicGames.Horde.Tests
 			using MemoryStorageClient memoryStore = new MemoryStorageClient();
 			using BundleStorageClient store = new BundleStorageClient(memoryStore, cache, NullLogger.Instance);
 
-			NodeRef<TestNode> nodeRef2;
+			IBlobHandle<TestNode> nodeRef2;
 			await using (IStorageWriter writer = store.CreateWriter())
 			{
-				NodeRef<TestNode> nodeRef1 = await writer.WriteNodeAsync(new TestNode(123));
-				nodeRef2 = await writer.WriteNodeAsync(new TestNode(456, nodeRef1));
+				IBlobHandle<TestNode> nodeRef1 = await writer.WriteBlobAsync(new TestNode(123));
+				nodeRef2 = await writer.WriteBlobAsync(new TestNode(456, nodeRef1));
 			}
-			await store.WriteRefAsync("hello", nodeRef2.Handle);
+			await store.WriteRefAsync("hello", nodeRef2);
 
 			TestNode output2 = await store.ReadRefAsync<TestNode>("hello");
 			Assert.AreEqual(456, output2.Value);
 			Assert.AreEqual(1, output2.Refs.Length);
 
-			TestNode output1 = await output2.Refs[0].ExpandAsync();
+			TestNode output1 = await output2.Refs[0].ReadBlobAsync();
 			Assert.AreEqual(0, output1.Refs.Length);
 			Assert.AreEqual(123, output1.Value);
 		}
@@ -111,23 +124,23 @@ namespace EpicGames.Horde.Tests
 			using BundleStorageClient store = new BundleStorageClient(memoryStore, cache, NullLogger.Instance);
 
 			await using IStorageWriter writer = store.CreateWriter(options: new BundleOptions { MinCompressionPacketSize = 100, MaxBlobSize = 1024 * 1024, MaxVersion = BundleVersion.LatestV2 });
-			NodeRef<TestNode> nodeRef1 = await writer.WriteNodeAsync(new TestNode(123) { Padding = new byte[1024] });
+			IBlobHandle<TestNode> nodeRef1 = await writer.WriteBlobAsync(new TestNode(123) { Padding = new byte[1024] });
 			await writer.FlushAsync();
-			NodeRef<TestNode> nodeRef2 = await writer.WriteNodeAsync(new TestNode(456, nodeRef1) { Padding = new byte[1024] });
-			NodeRef<TestNode> nodeRef3 = await writer.WriteNodeAsync(new TestNode(789, nodeRef2));
+			IBlobHandle<TestNode> nodeRef2 = await writer.WriteBlobAsync(new TestNode(456, nodeRef1) { Padding = new byte[1024] });
+			IBlobHandle<TestNode> nodeRef3 = await writer.WriteBlobAsync(new TestNode(789, nodeRef2));
 
 			// nodeRef1 is in a flushed bundle
-			BundleWriter.PendingExportHandle export1 = (BundleWriter.PendingExportHandle)nodeRef1.Handle;
+			BundleWriter.PendingExportHandle export1 = (BundleWriter.PendingExportHandle)nodeRef1.Unwrap();
 			BundleWriter.PendingPacketHandle packet1 = (BundleWriter.PendingPacketHandle)export1.Outer!;
 			BundleWriter.PendingBundleHandle bundle1 = (BundleWriter.PendingBundleHandle)packet1.Outer!;
 			Assert.IsNotNull(packet1.FlushedHandle);
 			Assert.IsNotNull(bundle1.FlushedHandle);
 
-			TestNode node1 = await export1.ReadNodeAsync<TestNode>();
+			TestNode node1 = await export1.ReadBlobAsync<TestNode>();
 			Assert.AreEqual(123, node1.Value);
 
 			// nodeRef2 is in a flushed packet, unflushed bundle
-			BundleWriter.PendingExportHandle export2 = (BundleWriter.PendingExportHandle)nodeRef2.Handle;
+			BundleWriter.PendingExportHandle export2 = (BundleWriter.PendingExportHandle)nodeRef2.Unwrap();
 
 			BundleWriter.PendingPacketHandle packet2 = (BundleWriter.PendingPacketHandle)export2.Outer!;
 			Assert.AreNotEqual(packet1, packet2);
@@ -137,11 +150,11 @@ namespace EpicGames.Horde.Tests
 			Assert.AreNotEqual(bundle1, bundle2);
 			Assert.IsNull(bundle2.FlushedHandle);
 
-			TestNode node2 = await export2.ReadNodeAsync<TestNode>();
+			TestNode node2 = await export2.ReadBlobAsync<TestNode>();
 			Assert.AreEqual(456, node2.Value);
 
 			// nodeRef3 is in an unflushed packet, unflushed bundle
-			BundleWriter.PendingExportHandle export3 = (BundleWriter.PendingExportHandle)nodeRef3.Handle;
+			BundleWriter.PendingExportHandle export3 = (BundleWriter.PendingExportHandle)nodeRef3.Unwrap();
 
 			BundleWriter.PendingPacketHandle packet3 = (BundleWriter.PendingPacketHandle)export3.Outer!;
 			Assert.AreNotEqual(packet2, packet3);
@@ -150,7 +163,7 @@ namespace EpicGames.Horde.Tests
 			BundleWriter.PendingBundleHandle bundle3 = (BundleWriter.PendingBundleHandle)packet3.Outer!;
 			Assert.AreEqual(bundle2, bundle3);
 
-			TestNode node3 = await export3.ReadNodeAsync<TestNode>();
+			TestNode node3 = await export3.ReadBlobAsync<TestNode>();
 			Assert.AreEqual(789, node3.Value);
 		}
 	}

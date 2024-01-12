@@ -12,10 +12,10 @@ namespace EpicGames.Horde.Storage
 	public interface IBlobWriter : IMemoryWriter
 	{
 		/// <summary>
-		/// Adds a reference to another blob. This reference is stored out of band, and will not result in any bytes written to the output.
+		/// Writes a reference to another blob. The blob's hash is serialized to the output stream.
 		/// </summary>
-		/// <param name="reference">Referenced blob</param>
-		void WriteBlobReference(IBlobHandle reference);
+		/// <param name="handle">Referenced blob</param>
+		void WriteBlobHandle<T>(IBlobHandle<T> handle);
 	}
 
 	/// <summary>
@@ -38,6 +38,11 @@ namespace EpicGames.Horde.Storage
 		public int Length => _length;
 
 		/// <summary>
+		/// Memory that has been written
+		/// </summary>
+		public ReadOnlyMemory<byte> WrittenMemory => _memory.Slice(0, _length);
+
+		/// <summary>
 		/// Constructor
 		/// </summary>
 		/// <param name="treeWriter"></param>
@@ -48,12 +53,6 @@ namespace EpicGames.Horde.Storage
 		}
 
 		/// <summary>
-		/// Adds a reference to another blob. This reference is stored out of band, and will not result in any bytes written to the output.
-		/// </summary>
-		/// <param name="reference">Referenced blob</param>
-		public void WriteBlobReference(IBlobHandle reference) => _refs.Add(reference);
-
-		/// <summary>
 		/// Computes the hash of the written data
 		/// </summary>
 		public IoHash ComputeHash() => IoHash.Compute(_memory.Span.Slice(0, _length));
@@ -61,10 +60,10 @@ namespace EpicGames.Horde.Storage
 		/// <summary>
 		/// Writes a handle to another node
 		/// </summary>
-		public void WriteHashedBlobHandle(IoHash hash, IBlobHandle target)
+		public void WriteBlobHandle<T>(IBlobHandle<T> target)
 		{
-			this.WriteIoHash(hash);
-			WriteBlobReference(target);
+			this.WriteIoHash(target.Hash);
+			_refs.Add(target);
 		}
 
 		/// <inheritdoc/>

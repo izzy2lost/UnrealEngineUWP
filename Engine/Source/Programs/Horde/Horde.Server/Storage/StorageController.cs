@@ -367,7 +367,7 @@ namespace Horde.Server.Storage
 				return false;
 			}
 		}
-
+		/*
 		/// <summary>
 		/// Gets information about a particular bundle in storage
 		/// </summary>
@@ -377,7 +377,7 @@ namespace Horde.Server.Storage
 		/// <returns></returns>
 		[HttpGet]
 		[Route("/api/v1/storage/{namespaceId}/nodes/{*locator}")]
-		public async Task<ActionResult<object>> GetNodeAsync(NamespaceId namespaceId, BlobLocator locator, CancellationToken cancellationToken = default)
+		public Task<ActionResult<object>> GetNodeAsync(NamespaceId namespaceId, BlobLocator locator, CancellationToken cancellationToken = default)
 		{
 			NamespaceConfig? namespaceConfig;
 			if (!_globalConfig.Value.Storage.TryGetNamespace(namespaceId, out namespaceConfig))
@@ -395,7 +395,7 @@ namespace Horde.Server.Storage
 
 			object content;
 
-			using BlobData blobData = await storageClient.CreateBlobHandle(locator).ReadAsync(cancellationToken);
+			using BlobData blobData = await storageClient.CreateBlobHandle(locator).ReadDataAsync(cancellationToken);
 
 			Node node = Node.Deserialize(blobData);
 			switch (node)
@@ -424,7 +424,7 @@ namespace Horde.Server.Storage
 
 			return new { type = blobData.Type.Guid, @class = node.GetType().Name, content = content };
 		}
-
+		*/
 		static string GetNodeLink(string linkBase, IBlobHandle handle) => GetNodeLink(linkBase, handle.GetLocator());
 		
 		static string GetNodeLink(string linkBase, BlobLocator locator) => $"{linkBase}/nodes/{locator}";

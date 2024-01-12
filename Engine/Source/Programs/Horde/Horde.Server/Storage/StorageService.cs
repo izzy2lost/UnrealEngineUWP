@@ -91,7 +91,7 @@ namespace Horde.Server.Storage
 			public ValueTask<IReadOnlyList<IBlobHandle>> ReadImportsAsync(CancellationToken cancellationToken = default) => new ValueTask<IReadOnlyList<IBlobHandle>>(Array.Empty<IBlobHandle>());
 
 			/// <inheritdoc/>
-			public async ValueTask<BlobData> ReadAsync(CancellationToken cancellationToken = default)
+			public async ValueTask<BlobData> ReadBlobDataAsync(CancellationToken cancellationToken = default)
 			{
 				IReadOnlyMemoryOwner<byte> obj = await _backend.ReadAsync(_path, cancellationToken);
 				return new BlobDataWithOwner(BlobType.Leaf, obj.Memory, Array.Empty<IBlobHandle>(), obj);
@@ -176,7 +176,7 @@ namespace Horde.Server.Storage
 			public async ValueTask<BlobData> ReadBlobAsync(BlobLocator locator, CancellationToken cancellationToken = default)
 			{
 				IBlobHandle handle = CreateBlobHandle(locator);
-				return await handle.ReadAsync(cancellationToken);
+				return await handle.ReadBlobDataAsync(cancellationToken);
 			}
 
 			/// <inheritdoc/>
@@ -696,10 +696,11 @@ namespace Horde.Server.Storage
 						if (scopedState.Value.Namespaces.TryGetValue(blobInfo.NamespaceId, out namespaceInfo))
 						{
 							IBlobHandle handle = namespaceInfo.Client.CreateBlobHandle(blobInfo.Locator);
-							IReadOnlyList<IBlobHandle> imports = await handle.ReadImportsAsync(cancellationToken);
+
+							BlobData data = await handle.ReadBlobDataAsync(cancellationToken);
 
 							List<ObjectId> importInfoIds = new List<ObjectId>();
-							foreach (IBlobHandle import in imports)
+							foreach (IBlobHandle import in data.Refs)
 							{
 								BlobLocator importLocator = import.GetLocator();
 								string importPath = importLocator.BaseLocator.ToString();

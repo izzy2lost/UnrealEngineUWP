@@ -103,7 +103,7 @@ namespace Horde.Server.Ddc
 				throw new BlobNotFoundException(ns, blob);
 			}
 
-			using BlobData data = await alias.Target.ReadAsync(cancellationToken);
+			using BlobData data = await alias.Target.ReadBlobDataAsync(cancellationToken);
 			return new BlobContents(data.Data.ToArray());
 		}
 
@@ -152,7 +152,7 @@ namespace Horde.Server.Ddc
 				using Stream stream = content.GetStream();
 				await stream.ReadFixedLengthBytesAsync(memory, cancellationToken);
 
-				blobHandle = await writer.WriteBlobAsync(s_rawBlobType, memory.Length, Array.Empty<IBlobHandle>(), cancellationToken);
+				blobHandle = await writer.WriteBlobAsync(s_rawBlobType, memory.Length, Array.Empty<IBlobHandle>(), Array.Empty<AliasInfo>(), cancellationToken);
 				await writer.FlushAsync(cancellationToken);
 			}
 

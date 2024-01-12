@@ -70,8 +70,8 @@ namespace Horde.Server.Tests
 				if (nodes.Add(root))
 				{
 					IBlobHandle handle = store.CreateBlobHandle(root);
-					IReadOnlyList<IBlobHandle> refs = await handle.ReadImportsAsync();
-					await FindNodesAsync(store, refs.ConvertAll(x => x.GetLocator()), nodes);
+					BlobData data = await handle.ReadBlobDataAsync();
+					await FindNodesAsync(store, data.Refs.ConvertAll(x => x.GetLocator()), nodes);
 				}
 			}
 		}
@@ -109,7 +109,7 @@ namespace Horde.Server.Tests
 				await using (IStorageWriter writer = store.CreateWriter("gctest"))
 				{
 					List<IBlobHandle> imports = children[idx].ConvertAll(x => store.CreateBlobHandle(locators[x]));
-					handle = await writer.WriteBlobAsync(blobType, 0, imports);
+					handle = await writer.WriteBlobAsync(blobType, 0, imports, Array.Empty<AliasInfo>());
 				}
 				locators[idx] = handle.GetLocator();
 			}

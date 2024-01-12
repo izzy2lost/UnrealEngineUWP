@@ -191,12 +191,14 @@ namespace EpicGames.Horde.Tests
 						DirectoryNode directory = new DirectoryNode();
 						directory.AddFile("hello.txt", FileEntryFlags.None, data.Length, chunkedData);
 
-						HashedNodeRef<DirectoryNode> directoryRef = await treeWriter.WriteHashedNodeAsync(directory, cancellationToken);
+						IBlobHandle<DirectoryNode> directoryRef = await treeWriter.WriteBlobAsync(directory, cancellationToken: cancellationToken);
 
 						DirectoryNode root = new DirectoryNode();
 						root.AddDirectory(new DirectoryEntry("subdir", directory.Length, directoryRef));
 
-						IBlobHandle handle = await treeWriter.FlushAsync(root, cancellationToken);
+						IBlobHandle<DirectoryNode> handle = await treeWriter.WriteBlobAsync(root, cancellationToken: cancellationToken);
+						await treeWriter.FlushAsync(cancellationToken);
+
 						await channel.UploadFilesAsync("", handle.GetLocator(), storage, cancellationToken);
 
 						Assert.IsTrue(FileReference.Exists(file));

@@ -65,8 +65,8 @@ namespace EpicGames.Horde.Tests
 				DirectoryNode directory = new DirectoryNode();
 				directory.AddFile("test.foo", FileEntryFlags.None, 0, chunkedData);
 
-				HashedNodeRef<DirectoryNode> directoryRef = await writer.WriteHashedNodeAsync(directory);
-				await store.WriteRefTargetAsync(RefName, directoryRef.Handle);
+				IBlobHandle handle = await writer.WriteBlobAsync(directory);
+				await store.WriteRefTargetAsync(RefName, handle);
 			}
 		}
 
@@ -120,12 +120,12 @@ namespace EpicGames.Horde.Tests
 				handle = (await fileWriter.FlushAsync(CancellationToken.None)).Root;
 			}
 
-			ChunkedDataNode root = await handle.ExpandAsync();
+			ChunkedDataNode root = await handle.ReadBlobAsync();
 
 			byte[] result;
 			using (MemoryStream stream = new MemoryStream())
 			{
-				await root.CopyToStreamAsync(stream, CancellationToken.None);
+				await root.CopyToStreamAsync(stream);
 				result = stream.ToArray();
 			}
 
@@ -157,7 +157,7 @@ namespace EpicGames.Horde.Tests
 				int childCount = interiorNode.Children.Count;
 				for (int idx = 0; idx < childCount; idx++)
 				{
-					ChunkedDataNode childNode = await interiorNode.Children[idx].ExpandAsync(CancellationToken.None);
+					ChunkedDataNode childNode = await interiorNode.Children[idx].ReadBlobAsync();
 					await CheckSizesAsync(childNode, options, idx == childCount - 1);
 				}
 			}

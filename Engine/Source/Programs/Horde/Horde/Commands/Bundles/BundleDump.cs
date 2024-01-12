@@ -29,15 +29,7 @@ namespace Horde.Commands.Bundles
 			string[] types = new string[header.Types.Count];
 			for (int idx = 0; idx < header.Types.Count; idx++)
 			{
-				string name;
-				if (Node.TryGetConcreteType(header.Types[idx].Guid, out Type? type))
-				{
-					name = type.Name;
-				}
-				else
-				{
-					name = header.Types[idx].Guid.ToString();
-				}
+				string name = header.Types[idx].Guid.ToString();
 				types[idx] = $"{name} v{header.Types[idx].Version}";
 			}
 

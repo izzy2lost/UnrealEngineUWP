@@ -304,7 +304,8 @@ namespace UnrealBuildTool
 			await using IStorageWriter writer = _storage.CreateWriter();
 			DirectoryNode sandbox = new();
 			await sandbox.AddFilesAsync(baseDir, files, writer, cancellationToken: cancellationToken);
-			IBlobHandle handle = await writer.FlushAsync(sandbox, cancellationToken);
+			IBlobHandle<DirectoryNode> handle = await writer.WriteBlobAsync(sandbox);
+			await writer.FlushAsync(cancellationToken);
 			return handle.GetLocator();
 		}
 

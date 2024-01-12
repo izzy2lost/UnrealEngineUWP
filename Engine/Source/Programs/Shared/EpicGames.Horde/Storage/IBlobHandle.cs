@@ -11,7 +11,7 @@ using EpicGames.Core;
 namespace EpicGames.Horde.Storage
 {
 	/// <summary>
-	/// Handle to a node. Can be used to reference nodes that have not been flushed yet. Handles should have value equality semantics, and must override <see cref="Object.Equals(Object?)"/> and <see cref="Object.GetHashCode()"/>.
+	/// Handle to a node. Can be used to reference nodes that have not been flushed yet.
 	/// </summary>
 	public interface IBlobHandle
 	{
@@ -64,7 +64,7 @@ namespace EpicGames.Horde.Storage
 		IBlobHandle? Outer { get; }
 
 		/// <summary>
-		/// Flush the referenced not to underlying storage
+		/// Flush the referenced data to underlying storage
 		/// </summary>
 		ValueTask FlushAsync(CancellationToken cancellationToken = default);
 
@@ -76,7 +76,7 @@ namespace EpicGames.Horde.Storage
 		/// <param name="cancellationToken">Cancellation token for the operation</param>
 		async Task<Stream> OpenBodyAsync(int offset = 0, int? length = null, CancellationToken cancellationToken = default)
 		{
-			BlobData blobData = await ReadAsync(cancellationToken);
+			BlobData blobData = await ReadBlobDataAsync(cancellationToken);
 			int maxLength = blobData.Data.Length - offset;
 			ReadOnlyMemory<byte> memory = blobData.Data.Slice(offset, length.HasValue ? Math.Min(length.Value, maxLength) : maxLength);
 			return new BlobDataStream(blobData, memory);
@@ -86,27 +86,7 @@ namespace EpicGames.Horde.Storage
 		/// Reads the blob's data
 		/// </summary>
 		/// <param name="cancellationToken">Cancellation token for the operation</param>
-		ValueTask<BlobData> ReadAsync(CancellationToken cancellationToken = default);
-
-		/// <summary>
-		/// Gets the type of this blob
-		/// </summary>
-		/// <param name="cancellationToken">Cancellation token for the operation</param>
-		async ValueTask<BlobType> ReadTypeAsync(CancellationToken cancellationToken = default)
-		{
-			using BlobData data = await ReadAsync(cancellationToken);
-			return data.Type;
-		}
-
-		/// <summary>
-		/// Gets the outward references from this blob
-		/// </summary>
-		/// <param name="cancellationToken">Cancellation token for the operation</param>
-		async ValueTask<IReadOnlyList<IBlobHandle>> ReadImportsAsync(CancellationToken cancellationToken = default)
-		{
-			using BlobData data = await ReadAsync(cancellationToken);
-			return data.Refs;
-		}
+		ValueTask<BlobData> ReadBlobDataAsync(CancellationToken cancellationToken = default);
 
 		/// <summary>
 		/// Reads part of the blob, and returns a handle that can be used to access the data.
@@ -127,7 +107,7 @@ namespace EpicGames.Horde.Storage
 		/// <returns></returns>
 		async ValueTask<IReadOnlyMemoryOwner<byte>> ReadBodyAsync(int offset, int? length, CancellationToken cancellationToken = default)
 		{
-			BlobData data = await ReadAsync(cancellationToken);
+			BlobData data = await ReadBlobDataAsync(cancellationToken);
 			return new BlobDataFragment(data, offset, length);
 		}
 
@@ -144,6 +124,18 @@ namespace EpicGames.Horde.Storage
 		/// <param name="fragment">Name of the blob fragment</param>
 		public IBlobHandle GetFragmentHandle(ReadOnlySpan<byte> fragment)
 			=> throw new InvalidOperationException("Not supported for this handle type.");
+	}
+
+	/// <summary>
+	/// Typed interface to a particular blob handle
+	/// </summary>
+	/// <typeparam name="T">Type of the deserialized blob</typeparam>
+	public interface IBlobHandle<out T> : IBlobHandle
+	{
+		/// <summary>
+		/// Hash of the target node
+		/// </summary>
+		IoHash Hash { get; }
 	}
 
 	/// <summary>
@@ -181,7 +173,7 @@ namespace EpicGames.Horde.Storage
 		}
 
 		/// <inheritdoc/>
-		public ValueTask<BlobData> ReadAsync(CancellationToken cancellationToken = default)
+		public ValueTask<BlobData> ReadBlobDataAsync(CancellationToken cancellationToken = default)
 		{
 			throw new NotSupportedException("Blob fragment handles cannot be read directly, and should be deconstructed into more specific types.");
 		}
@@ -198,6 +190,51 @@ namespace EpicGames.Horde.Storage
 	/// </summary>
 	public static class BlobHandleExtensions
 	{
+		interface IWrappedBlobHandle
+		{
+			public IBlobHandle Inner { get; }
+		}
+
+		class TypedBlobHandle<T> : IWrappedBlobHandle, IBlobHandle<T>
+		{
+			readonly IBlobHandle _inner;
+			readonly IoHash _hash;
+
+			public TypedBlobHandle(IBlobHandle inner, IoHash hash)
+			{
+				_inner = inner;
+				_hash = hash;
+			}
+
+			public IBlobHandle Inner => _inner;
+			public IoHash Hash => _hash;
+
+			public IBlobHandle? Outer => _inner.Outer;
+
+			public ValueTask FlushAsync(CancellationToken cancellationToken = default) => _inner.FlushAsync(cancellationToken);
+			public ValueTask<BlobData> ReadBlobDataAsync(CancellationToken cancellationToken = default) => _inner.ReadBlobDataAsync(cancellationToken);
+			public bool TryAppendIdentifier(Utf8StringBuilder builder) => _inner.TryAppendIdentifier(builder);
+		}
+
+		/// <summary>
+		/// Creates a typed blob handle
+		/// </summary>
+		public static IBlobHandle<T> ForType<T>(this IBlobHandle handle, IoHash hash) => new TypedBlobHandle<T>(handle, hash);
+
+		/// <summary>
+		/// 
+		/// </summary>
+		/// <param name="handle"></param>
+		/// <returns></returns>
+		public static IBlobHandle Unwrap(this IBlobHandle handle)
+		{
+			while (handle is IWrappedBlobHandle wrappedHandle)
+			{
+				handle = wrappedHandle.Inner;
+			}
+			return handle;
+		}
+
 		/// <summary>
 		/// Gets a path to this blob that can be used to describe blob references over the wire.
 		/// </summary>

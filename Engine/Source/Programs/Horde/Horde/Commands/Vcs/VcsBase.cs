@@ -352,7 +352,7 @@ namespace Horde.Commands.Vcs
 					{
 						return null;
 					}
-					tip = await tip.Parent.ExpandAsync();
+					tip = await tip.Parent.ReadBlobAsync();
 				}
 			}
 			return tip;

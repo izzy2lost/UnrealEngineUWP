@@ -157,16 +157,16 @@ namespace Horde.Agent.Tests
 						logger.LogInformation("Testing {Number}", idx);
 					}
 				}
-				file = await sink.Target!.ReadNodeAsync<LogNode>();
+				file = await sink.Target!.ReadBlobAsync<LogNode>();
 			}
 
 			// Check the index text
 			List<Utf8String> extractedIndexText = new List<Utf8String>();
 
-			LogIndexNode index = await file.IndexRef.ExpandAsync();
+			LogIndexNode index = await file.IndexRef.ReadBlobAsync();
 			foreach (LogChunkRef block in index.PlainTextChunkRefs)
 			{
-				LogChunkNode text = await block.ExpandAsync();
+				LogChunkNode text = await block.Target.ReadBlobAsync();
 				extractedIndexText.AddRange(text.Lines);
 			}
 
@@ -181,7 +181,7 @@ namespace Horde.Agent.Tests
 
 			foreach (LogChunkRef blockRef in file.TextChunkRefs)
 			{
-				LogChunkNode blockText = await blockRef.ExpandAsync();
+				LogChunkNode blockText = await blockRef.Target.ReadBlobAsync();
 				foreach (Utf8String line in blockText.Lines)
 				{
 					LogEvent logEvent = LogEvent.Read(line.Span);

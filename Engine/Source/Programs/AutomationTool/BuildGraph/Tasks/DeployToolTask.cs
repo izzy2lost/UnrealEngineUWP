@@ -174,7 +174,8 @@ namespace AutomationTool.Tasks
 				{
 					throw new AutomationException("Either File=... or Directory=... must be specified");
 				}
-				handle = await treeWriter.FlushAsync(sandbox);
+				handle = await treeWriter.WriteBlobAsync(sandbox);
+				await treeWriter.FlushAsync();
 			}
 
 			CreateDeploymentRequest request = new CreateDeploymentRequest();

@@ -35,7 +35,7 @@ namespace EpicGames.Horde.Storage.Bundles.V2
 			public ValueTask FlushAsync(CancellationToken cancellationToken = default) 
 				=> _packet.FlushAsync(cancellationToken);
 
-			public ValueTask<BlobData> ReadAsync(CancellationToken cancellationToken = default)
+			public ValueTask<BlobData> ReadBlobDataAsync(CancellationToken cancellationToken = default)
 				=> _packet.ReadExportAsync(_exportIdx, cancellationToken);
 
 			public bool TryAppendIdentifier(Utf8StringBuilder builder)
@@ -62,7 +62,7 @@ namespace EpicGames.Horde.Storage.Bundles.V2
 			public void CompletePacket(PacketHandle flushedHandle)
 				=> _flushedHandle = flushedHandle;
 
-			public ValueTask<BlobData> ReadAsync(CancellationToken cancellationToken = default)
+			public ValueTask<BlobData> ReadBlobDataAsync(CancellationToken cancellationToken = default)
 			{
 				lock (_bundle.LockObject)
 				{
@@ -71,7 +71,7 @@ namespace EpicGames.Horde.Storage.Bundles.V2
 						throw new NotSupportedException("Reading pending packets is not currently supported.");
 					}
 				}
-				return _flushedHandle!.ReadAsync(cancellationToken);
+				return _flushedHandle!.ReadBlobDataAsync(cancellationToken);
 			}
 
 			public async ValueTask<BlobData> ReadExportAsync(int exportIdx, CancellationToken cancellationToken = default)
@@ -286,8 +286,8 @@ namespace EpicGames.Horde.Storage.Bundles.V2
 			}
 
 			/// <inheritdoc/>
-			public ValueTask<BlobData> ReadAsync(CancellationToken cancellationToken)
-				=> GetFlushedHandle().ReadAsync(cancellationToken);
+			public ValueTask<BlobData> ReadBlobDataAsync(CancellationToken cancellationToken)
+				=> GetFlushedHandle().ReadBlobDataAsync(cancellationToken);
 
 			/// <inheritdoc/>
 			public async Task<Stream> OpenBodyAsync(int offset, int? length, CancellationToken cancellationToken = default)

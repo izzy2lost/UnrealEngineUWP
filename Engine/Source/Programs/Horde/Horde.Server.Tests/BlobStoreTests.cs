@@ -65,7 +65,7 @@ namespace Horde.Server.Tests
 			await using IStorageWriter writer = store.CreateWriter();
 			blob.Data.CopyTo(writer.GetOutputBuffer(0, blob.Data.Length));
 
-			IBlobHandle handle = await writer.WriteBlobAsync(s_blobType, blob.Data.Length, blob.References.ConvertAll(x => store.CreateBlobHandle(x)));
+			IBlobHandle handle = await writer.WriteBlobAsync(s_blobType, blob.Data.Length, blob.References.ConvertAll(x => store.CreateBlobHandle(x)), Array.Empty<AliasInfo>());
 			await handle.FlushAsync();
 
 			return handle.GetLocator();

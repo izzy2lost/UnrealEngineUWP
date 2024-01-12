@@ -1,6 +1,7 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 using EpicGames.Core;
+using EpicGames.Serialization;
 using Microsoft.Extensions.Logging;
 using System;
 using System.Buffers;
@@ -140,9 +141,14 @@ namespace EpicGames.Horde.Storage.Nodes
 	/// <summary>
 	/// A directory node
 	/// </summary>
-	[BlobType("{0714EC11-4D07-291A-8AE7-7F86799980D6}", 2)]
-	public class DirectoryNode : Node
+	[BlobConverter(typeof(DirectoryNodeConverter))]
+	public class DirectoryNode
 	{
+		/// <summary>
+		/// Type of serialized directory node blobs
+		/// </summary>
+		public static BlobType BlobType { get; } = new BlobType("{0714EC11-4D07-291A-8AE7-7F86799980D6}", 2);
+
 		readonly SortedDictionary<string, FileEntry> _nameToFileEntry = new SortedDictionary<string, FileEntry>(StringComparer.Ordinal);
 		readonly SortedDictionary<string, DirectoryEntry> _nameToDirectoryEntry = new SortedDictionary<string, DirectoryEntry>(StringComparer.Ordinal);
 
@@ -183,87 +189,6 @@ namespace EpicGames.Horde.Storage.Nodes
 		public DirectoryNode(DirectoryFlags flags = DirectoryFlags.None)
 		{
 			Flags = flags;
-		}
-
-		/// <summary>
-		/// Deserialization constructor
-		/// </summary>
-		/// <param name="reader">Reader to deserialize from</param>
-		public DirectoryNode(IBlobReader reader)
-		{
-			Flags = (DirectoryFlags)reader.ReadUnsignedVarInt();
-
-			int fileCount = (int)reader.ReadUnsignedVarInt();
-			for (int idx = 0; idx < fileCount; idx++)
-			{
-				IoHash targetHash = reader.ReadIoHash();
-
-				ChunkedDataNodeType targetType = ChunkedDataNodeType.Unknown;
-				if (reader.Version >= 2)
-				{
-					targetType = (ChunkedDataNodeType)reader.ReadUnsignedVarInt();
-				}
-
-				string name = reader.ReadString();
-				FileEntryFlags flags = (FileEntryFlags)reader.ReadUnsignedVarInt();
-				long length = (long)reader.ReadUnsignedVarInt();
-				IoHash streamHash = reader.ReadIoHash();
-				ChunkedDataNodeRef target = new ChunkedDataNodeRef(targetType, targetHash, length, reader.ReadBlobReference());
-
-				ReadOnlyMemory<byte> customData = default;
-				if ((flags & FileEntryFlags.HasCustomData) != 0)
-				{
-					customData = reader.ReadVariableLengthBytes();
-					flags &= ~FileEntryFlags.HasCustomData;
-				}
-
-				_nameToFileEntry[name] = new FileEntry(name, flags, length, streamHash, target, customData);
-			}
-
-			int directoryCount = (int)reader.ReadUnsignedVarInt();
-			for (int idx = 0; idx < directoryCount; idx++)
-			{
-				IoHash hash = reader.ReadIoHash();
-				long length = (long)reader.ReadUnsignedVarInt();
-				string name = reader.ReadString();
-
-				_nameToDirectoryEntry[name] = new DirectoryEntry(name, hash, length, reader.ReadBlobReference());
-			}
-		}
-
-		/// <inheritdoc/>
-		public override void Serialize(IBlobWriter writer)
-		{
-			writer.WriteUnsignedVarInt((ulong)Flags);
-
-			writer.WriteUnsignedVarInt(Files.Count);
-			foreach (FileEntry fileEntry in _nameToFileEntry.Values)
-			{
-				writer.WriteIoHash(fileEntry.Target.Hash);
-				writer.WriteUnsignedVarInt((int)fileEntry.Target.Type);
-				writer.WriteBlobReference(fileEntry.Target.Handle);
-
-				FileEntryFlags flags = (fileEntry.CustomData.Length > 0) ? (fileEntry.Flags | FileEntryFlags.HasCustomData) : (fileEntry.Flags & ~FileEntryFlags.HasCustomData);
-
-				writer.WriteString(fileEntry.Name);
-				writer.WriteUnsignedVarInt((ulong)flags);
-				writer.WriteUnsignedVarInt((ulong)fileEntry.Length);
-				writer.WriteIoHash(fileEntry.StreamHash);
-
-				if ((flags & FileEntryFlags.HasCustomData) != 0)
-				{
-					writer.WriteVariableLengthBytes(fileEntry.CustomData.Span);
-				}
-			}
-
-			writer.WriteUnsignedVarInt(Directories.Count);
-			foreach (DirectoryEntry directoryEntry in _nameToDirectoryEntry.Values)
-			{
-				writer.WriteIoHash(directoryEntry.Hash);
-				writer.WriteUnsignedVarInt((ulong)directoryEntry.Length);
-				writer.WriteString(directoryEntry.Name);
-				writer.WriteBlobReference(directoryEntry.Handle);
-			}
 		}
 
 		/// <summary>
@@ -359,9 +284,10 @@ namespace EpicGames.Horde.Storage.Nodes
 		/// Attempts to get a file entry from a path
 		/// </summary>
 		/// <param name="path">Path to the directory</param>
+		/// <param name="options">Options controling serialiation</param>
 		/// <param name="cancellationToken">Cancellation token</param>
 		/// <returns>The directory with the given path, or null if it was not found</returns>
-		public async ValueTask<FileEntry?> GetFileEntryByPathAsync(string path, CancellationToken cancellationToken = default)
+		public async ValueTask<FileEntry?> GetFileEntryByPathAsync(string path, BlobSerializerOptions? options = null, CancellationToken cancellationToken = default)
 		{
 			FileEntry? fileEntry;
 
@@ -375,7 +301,7 @@ namespace EpicGames.Horde.Storage.Nodes
 			}
 			else
 			{
-				DirectoryNode? directoryNode = await GetDirectoryByPathAsync(path.Substring(0, slashIdx), cancellationToken);
+				DirectoryNode? directoryNode = await GetDirectoryByPathAsync(path.Substring(0, slashIdx), options, cancellationToken);
 				if (directoryNode == null)
 				{
 					return null;
@@ -393,11 +319,12 @@ namespace EpicGames.Horde.Storage.Nodes
 		/// Attempts to get a directory entry from a path
 		/// </summary>
 		/// <param name="path">Path to the directory</param>
+		/// <param name="options">Options controling serialiation</param>
 		/// <param name="cancellationToken">Cancellation token</param>
 		/// <returns>The directory with the given path, or null if it was not found</returns>
-		public ValueTask<DirectoryNode?> GetDirectoryByPathAsync(string path, CancellationToken cancellationToken = default) => GetDirectoryByPathAsync(this, path, cancellationToken);
+		public ValueTask<DirectoryNode?> GetDirectoryByPathAsync(string path, BlobSerializerOptions? options = null, CancellationToken cancellationToken = default) => GetDirectoryByPathAsync(this, path, options, cancellationToken);
 
-		static async ValueTask<DirectoryNode?> GetDirectoryByPathAsync(DirectoryNode directoryNode, string path, CancellationToken cancellationToken = default)
+		static async ValueTask<DirectoryNode?> GetDirectoryByPathAsync(DirectoryNode directoryNode, string path, BlobSerializerOptions? options = null, CancellationToken cancellationToken = default)
 		{
 			while (path.Length > 0)
 			{
@@ -421,7 +348,7 @@ namespace EpicGames.Horde.Storage.Nodes
 					return null;
 				}
 
-				directoryNode = await directoryEntry.ExpandAsync(cancellationToken);
+				directoryNode = await directoryEntry.Handle.ReadBlobAsync(options, cancellationToken);
 			}
 			return directoryNode;
 		}
@@ -430,9 +357,10 @@ namespace EpicGames.Horde.Storage.Nodes
 		/// Deletes a file with the given path
 		/// </summary>
 		/// <param name="path"></param>
+		/// <param name="options">Options controlling serialization</param>
 		/// <param name="cancellationToken"></param>
 		/// <returns></returns>
-		public async ValueTask<bool> DeleteFileByPathAsync(string path, CancellationToken cancellationToken = default)
+		public async ValueTask<bool> DeleteFileByPathAsync(string path, BlobSerializerOptions? options = null, CancellationToken cancellationToken = default)
 		{
 			string remainingPath = path;
 			for (DirectoryNode? directory = this; directory != null;)
@@ -444,7 +372,7 @@ namespace EpicGames.Horde.Storage.Nodes
 				}
 				if (length > 0)
 				{
-					directory = await directory.TryOpenDirectoryAsync(remainingPath.Substring(0, length), cancellationToken);
+					directory = await directory.TryOpenDirectoryAsync(remainingPath.Substring(0, length), options, cancellationToken);
 				}
 				remainingPath = remainingPath.Substring(length + 1);
 			}
@@ -488,11 +416,12 @@ namespace EpicGames.Horde.Storage.Nodes
 		/// Tries to get a directory with the given name
 		/// </summary>
 		/// <param name="name">Name of the new directory</param>
+		/// <param name="options">Options controling serialiation</param>
 		/// <param name="cancellationToken">Cancellation token for the operation</param>
 		/// <returns>The new directory object</returns>
-		public async ValueTask<DirectoryNode> OpenDirectoryAsync(string name, CancellationToken cancellationToken = default)
+		public async ValueTask<DirectoryNode> OpenDirectoryAsync(string name, BlobSerializerOptions? options = null, CancellationToken cancellationToken = default)
 		{
-			DirectoryNode? directoryNode = await TryOpenDirectoryAsync(name, cancellationToken);
+			DirectoryNode? directoryNode = await TryOpenDirectoryAsync(name, options, cancellationToken);
 			if (directoryNode == null)
 			{
 				throw new DirectoryNotFoundException();
@@ -504,13 +433,14 @@ namespace EpicGames.Horde.Storage.Nodes
 		/// Tries to get a directory with the given name
 		/// </summary>
 		/// <param name="name">Name of the new directory</param>
+		/// <param name="options">Options controling serialiation</param>
 		/// <param name="cancellationToken">Cancellation token for the operation</param>
 		/// <returns>The new directory object</returns>
-		public async ValueTask<DirectoryNode?> TryOpenDirectoryAsync(string name, CancellationToken cancellationToken = default)
+		public async ValueTask<DirectoryNode?> TryOpenDirectoryAsync(string name, BlobSerializerOptions? options = null, CancellationToken cancellationToken = default)
 		{
 			if (TryGetDirectoryEntry(name, out DirectoryEntry? entry))
 			{
-				return await entry.ExpandAsync(cancellationToken);
+				return await entry.Handle.ReadBlobAsync(options, cancellationToken);
 			}
 			else
 			{
@@ -527,22 +457,22 @@ namespace EpicGames.Horde.Storage.Nodes
 
 		#endregion
 
-		/// <inheritdoc cref="AddFilesAsync(DirectoryReference, IEnumerable{FileInfo}, IStorageWriter, ChunkingOptions?, IProgress{ICopyStats}?, CancellationToken)"/>
-		public async Task AddFilesAsync(DirectoryInfo directoryInfo, IStorageWriter writer, ChunkingOptions? options = null, IProgress<ICopyStats>? progress = null, CancellationToken cancellationToken = default)
+		/// <inheritdoc cref="AddFilesAsync(DirectoryReference, IEnumerable{FileInfo}, IStorageWriter, ChunkingOptions?, IProgress{ICopyStats}?, BlobSerializerOptions?, CancellationToken)"/>
+		public async Task AddFilesAsync(DirectoryInfo directoryInfo, IStorageWriter writer, ChunkingOptions? options = null, IProgress<ICopyStats>? progress = null, BlobSerializerOptions? serializerOptions = null, CancellationToken cancellationToken = default)
 		{
-			await AddFilesAsync(new DirectoryReference(directoryInfo), directoryInfo.EnumerateFiles("*", SearchOption.AllDirectories).ToList(), writer, options, progress, cancellationToken);
+			await AddFilesAsync(new DirectoryReference(directoryInfo), directoryInfo.EnumerateFiles("*", SearchOption.AllDirectories).ToList(), writer, options, progress, serializerOptions, cancellationToken);
 		}
 
-		/// <inheritdoc cref="AddFilesAsync(DirectoryReference, IEnumerable{FileInfo}, IStorageWriter, ChunkingOptions?, IProgress{ICopyStats}?, CancellationToken)"/>
-		public Task AddFilesAsync(DirectoryReference baseDir, IEnumerable<FileReference> files, IStorageWriter writer, ChunkingOptions? options = null, IProgress<ICopyStats>? progress = null, CancellationToken cancellationToken = default)
+		/// <inheritdoc cref="AddFilesAsync(DirectoryReference, IEnumerable{FileInfo}, IStorageWriter, ChunkingOptions?, IProgress{ICopyStats}?, BlobSerializerOptions?, CancellationToken)"/>
+		public Task AddFilesAsync(DirectoryReference baseDir, IEnumerable<FileReference> files, IStorageWriter writer, ChunkingOptions? options = null, IProgress<ICopyStats>? progress = null, BlobSerializerOptions? serializerOptions = null, CancellationToken cancellationToken = default)
 		{
-			return AddFilesAsync(baseDir, files.Select(x => x.ToFileInfo()).ToList(), writer, options, progress, cancellationToken);
+			return AddFilesAsync(baseDir, files.Select(x => x.ToFileInfo()).ToList(), writer, options, progress, serializerOptions, cancellationToken);
 		}
 
-		/// <inheritdoc cref="AddFilesAsync(DirectoryReference, IEnumerable{FileInfo}, IStorageWriter, ChunkingOptions?, IProgress{ICopyStats}?, CancellationToken)"/>
-		public Task AddFilesAsync(DirectoryInfo baseDir, IEnumerable<FileInfo> files, IStorageWriter writer, ChunkingOptions? options = null, IProgress<ICopyStats>? progress = null, CancellationToken cancellationToken = default)
+		/// <inheritdoc cref="AddFilesAsync(DirectoryReference, IEnumerable{FileInfo}, IStorageWriter, ChunkingOptions?, IProgress{ICopyStats}?, BlobSerializerOptions?, CancellationToken)"/>
+		public Task AddFilesAsync(DirectoryInfo baseDir, IEnumerable<FileInfo> files, IStorageWriter writer, ChunkingOptions? options = null, IProgress<ICopyStats>? progress = null, BlobSerializerOptions? serializerOptions = null, CancellationToken cancellationToken = default)
 		{
-			return AddFilesAsync(new DirectoryReference(baseDir), files.ToList(), writer, options, progress, cancellationToken);
+			return AddFilesAsync(new DirectoryReference(baseDir), files.ToList(), writer, options, progress, serializerOptions, cancellationToken);
 		}
 
 		/// <summary>
@@ -553,8 +483,9 @@ namespace EpicGames.Horde.Storage.Nodes
 		/// <param name="options">Options for chunking file content</param>
 		/// <param name="writer">Writer for new node data</param>
 		/// <param name="progress">Feedback interface for progress updates</param>
+		/// <param name="serializerOptions">Options controlling serialization</param>
 		/// <param name="cancellationToken">Cancellation token for the operation</param>
-		public async Task AddFilesAsync(DirectoryReference baseDir, IEnumerable<FileInfo> files, IStorageWriter writer, ChunkingOptions? options = null, IProgress<ICopyStats>? progress = null, CancellationToken cancellationToken = default)
+		public async Task AddFilesAsync(DirectoryReference baseDir, IEnumerable<FileInfo> files, IStorageWriter writer, ChunkingOptions? options = null, IProgress<ICopyStats>? progress = null, BlobSerializerOptions? serializerOptions = null, CancellationToken cancellationToken = default)
 		{
 			options ??= new ChunkingOptions();
 
@@ -623,7 +554,7 @@ namespace EpicGames.Horde.Storage.Nodes
 			}
 
 			// Add all the new entries to the tree
-			await UpdateAsync(update, writer, cancellationToken);
+			await UpdateAsync(update, writer, serializerOptions, cancellationToken);
 		}
 
 		static List<(int Index, int Count)> ComputePartitions(IReadOnlyList<FileInfo> files, long totalSize)
@@ -691,12 +622,13 @@ namespace EpicGames.Horde.Storage.Nodes
 		/// </summary>
 		/// <param name="updates">Files to add</param>
 		/// <param name="writer">Writer for new node data</param>
+		/// <param name="options">Options controling serialiation</param>
 		/// <param name="cancellationToken">Cancellation token for the operation</param>
-		public Task UpdateAsync(IEnumerable<FileUpdate> updates, IStorageWriter writer, CancellationToken cancellationToken = default)
+		public Task UpdateAsync(IEnumerable<FileUpdate> updates, IStorageWriter writer, BlobSerializerOptions? options = null, CancellationToken cancellationToken = default)
 		{
 			DirectoryUpdate update = new DirectoryUpdate();
 			update.AddFiles(updates);
-			return UpdateAsync(update, writer, cancellationToken);
+			return UpdateAsync(update, writer, options, cancellationToken);
 		}
 
 		/// <summary>
@@ -704,8 +636,9 @@ namespace EpicGames.Horde.Storage.Nodes
 		/// </summary>
 		/// <param name="update">Files to add</param>
 		/// <param name="writer">Writer for new node data</param>
+		/// <param name="options">Options controling serialiation</param>
 		/// <param name="cancellationToken">Cancellation token for the operation</param>
-		public async Task UpdateAsync(DirectoryUpdate update, IStorageWriter writer, CancellationToken cancellationToken = default)
+		public async Task UpdateAsync(DirectoryUpdate update, IStorageWriter writer, BlobSerializerOptions? options = null, CancellationToken cancellationToken = default)
 		{
 			foreach ((string name, DirectoryUpdate? directory) in update.Directories)
 			{
@@ -715,11 +648,11 @@ namespace EpicGames.Horde.Storage.Nodes
 				}
 				else
 				{
-					DirectoryNode? childNode = await TryOpenDirectoryAsync(name, cancellationToken);
+					DirectoryNode? childNode = await TryOpenDirectoryAsync(name, options, cancellationToken);
 					childNode ??= new DirectoryNode();
-					await childNode.UpdateAsync(directory, writer, cancellationToken);
-					HashedNodeRef<DirectoryNode> nodeRef = await writer.WriteHashedNodeAsync(childNode, cancellationToken);
-					_nameToDirectoryEntry[name] = new DirectoryEntry(name, nodeRef.Hash, childNode.Length, nodeRef.Handle);
+					await childNode.UpdateAsync(directory, writer, options, cancellationToken);
+					IBlobHandle<DirectoryNode> handle = await writer.WriteBlobAsync<DirectoryNode>(childNode, options, cancellationToken);
+					_nameToDirectoryEntry[name] = new DirectoryEntry(name, childNode.Length, handle);
 				}
 			}
 			foreach ((string name, FileEntry? file) in update.Files)
@@ -741,8 +674,9 @@ namespace EpicGames.Horde.Storage.Nodes
 		/// <param name="stream">Input stream</param>
 		/// <param name="writer">Writer for new nodes</param>
 		/// <param name="options"></param>
+		/// <param name="serializerOptions">Options controling serialiation</param>
 		/// <param name="cancellationToken">Cancellation token for the operation</param>
-		public async Task CopyFromZipStreamAsync(Stream stream, IStorageWriter writer, ChunkingOptions options, CancellationToken cancellationToken = default)
+		public async Task CopyFromZipStreamAsync(Stream stream, IStorageWriter writer, ChunkingOptions options, BlobSerializerOptions? serializerOptions = null, CancellationToken cancellationToken = default)
 		{
 			// Create all the leaf nodes
 			List<(ZipArchiveEntry, LeafChunkedData)> entries = new List<(ZipArchiveEntry, LeafChunkedData)>();
@@ -776,16 +710,17 @@ namespace EpicGames.Horde.Storage.Nodes
 			}
 
 			// Update the tree
-			await UpdateAsync(updates, writer, cancellationToken);
+			await UpdateAsync(updates, writer, serializerOptions, cancellationToken);
 		}
 
 		/// <summary>
 		/// Utility function to allow extracting a packed directory to disk
 		/// </summary>
 		/// <param name="directoryInfo"></param>
+		/// <param name="options"></param>
 		/// <param name="logger"></param>
 		/// <param name="cancellationToken"></param>
-		public Task CopyToDirectoryAsync(DirectoryInfo directoryInfo, ILogger logger, CancellationToken cancellationToken) => CopyToDirectoryAsync(directoryInfo, null, logger, cancellationToken);
+		public Task CopyToDirectoryAsync(DirectoryInfo directoryInfo, BlobSerializerOptions? options, ILogger logger, CancellationToken cancellationToken) => CopyToDirectoryAsync(directoryInfo, null, options, logger, cancellationToken);
 
 		/// <summary>
 		/// Utility function to allow extracting a packed directory to disk
@@ -793,8 +728,9 @@ namespace EpicGames.Horde.Storage.Nodes
 		/// <param name="directoryInfo">Direcotry to write to</param>
 		/// <param name="progress">Sink for progress updates</param>
 		/// <param name="logger">Logger for output</param>
+		/// <param name="options">Options controlling serialization</param>
 		/// <param name="cancellationToken">Cancellation token for the operation</param>
-		public async Task CopyToDirectoryAsync(DirectoryInfo directoryInfo, IProgress<ICopyStats>? progress, ILogger logger, CancellationToken cancellationToken)
+		public async Task CopyToDirectoryAsync(DirectoryInfo directoryInfo, IProgress<ICopyStats>? progress, BlobSerializerOptions? options, ILogger logger, CancellationToken cancellationToken)
 		{
 			int numTasks = Math.Min(1 + (int)(Length / (16 * 1024 * 1024)), 128);
 			logger.LogInformation("Splitting read into {NumThreads} threads", numTasks);
@@ -820,7 +756,7 @@ namespace EpicGames.Horde.Storage.Nodes
 						maxOffset++;
 					}
 
-					tasks.Add(Task.Run(() => CopyToDirectoryInternalAsync(directoryInfo, minOffset, maxOffset - minOffset, copyStats, logger, cancellationToken), cancellationToken));
+					tasks.Add(Task.Run(() => CopyToDirectoryInternalAsync(directoryInfo, minOffset, maxOffset - minOffset, copyStats, options, logger, cancellationToken), cancellationToken));
 					offset = maxOffset;
 				}
 			}
@@ -831,7 +767,7 @@ namespace EpicGames.Horde.Storage.Nodes
 			}
 		}
 
-		async Task CopyToDirectoryInternalAsync(DirectoryInfo directoryInfo, long windowOffset, long windowLength, CopyStats? copyStats, ILogger logger, CancellationToken cancellationToken)
+		async Task CopyToDirectoryInternalAsync(DirectoryInfo directoryInfo, long windowOffset, long windowLength, CopyStats? copyStats, BlobSerializerOptions? options, ILogger logger, CancellationToken cancellationToken)
 		{
 			directoryInfo.Create();
 
@@ -853,8 +789,8 @@ namespace EpicGames.Horde.Storage.Nodes
 				if (windowOffset < directoryEntry.Length && windowOffset + windowLength >= 0)
 				{
 					DirectoryInfo subDirectoryInfo = directoryInfo.CreateSubdirectory(directoryEntry.Name.ToString());
-					DirectoryNode subDirectoryNode = await directoryEntry.ExpandAsync(cancellationToken);
-					await subDirectoryNode.CopyToDirectoryInternalAsync(subDirectoryInfo, windowOffset, windowLength, copyStats, logger, cancellationToken);
+					DirectoryNode subDirectoryNode = await directoryEntry.Handle.ReadBlobAsync(options, cancellationToken);
+					await subDirectoryNode.CopyToDirectoryInternalAsync(subDirectoryInfo, windowOffset, windowLength, copyStats, options, logger, cancellationToken);
 				}
 				windowOffset -= directoryEntry.Length;
 			}
@@ -864,9 +800,93 @@ namespace EpicGames.Horde.Storage.Nodes
 		/// Returns a stream containing the zipped contents of this directory
 		/// </summary>
 		/// <param name="filter">Filter for files to include in the zip</param>
+		/// <param name="options">Options controlling serialization</param>
 		/// <param name="logger">Logger for diagnostic output</param>
 		/// <returns>Stream containing zipped archive data</returns>
-		public Stream AsZipStream(FileFilter? filter = null, ILogger? logger = null) => new DirectoryNodeZipStream(this, filter, logger);
+		public Stream AsZipStream(FileFilter? filter = null, BlobSerializerOptions? options = null, ILogger? logger = null) => new DirectoryNodeZipStream(this, filter, options, logger);
+	}
+
+	class DirectoryNodeConverter : BlobConverter<DirectoryNode>
+	{
+		/// <inheritdoc/>
+		public override DirectoryNode Read(IBlobReader reader, BlobSerializerOptions options)
+		{
+			DirectoryNode directoryNode = new DirectoryNode((DirectoryFlags)reader.ReadUnsignedVarInt());
+
+			int fileCount = (int)reader.ReadUnsignedVarInt();
+			for (int idx = 0; idx < fileCount; idx++)
+			{
+				IBlobHandle<ChunkedDataNode> targetHandle = reader.ReadBlobHandle<ChunkedDataNode>();
+
+				ChunkedDataNodeType targetType = ChunkedDataNodeType.Unknown;
+				if (reader.Version >= 2)
+				{
+					targetType = (ChunkedDataNodeType)reader.ReadUnsignedVarInt();
+				}
+
+				string name = reader.ReadString();
+				FileEntryFlags flags = (FileEntryFlags)reader.ReadUnsignedVarInt();
+				long length = (long)reader.ReadUnsignedVarInt();
+				IoHash streamHash = reader.ReadIoHash();
+				ChunkedDataNodeRef target = new ChunkedDataNodeRef(targetType, length, targetHandle);
+
+				ReadOnlyMemory<byte> customData = default;
+				if ((flags & FileEntryFlags.HasCustomData) != 0)
+				{
+					customData = reader.ReadVariableLengthBytes();
+					flags &= ~FileEntryFlags.HasCustomData;
+				}
+
+				directoryNode.AddFile(new FileEntry(name, flags, length, streamHash, target, customData));
+			}
+
+			int directoryCount = (int)reader.ReadUnsignedVarInt();
+			for (int idx = 0; idx < directoryCount; idx++)
+			{
+				IBlobHandle<DirectoryNode> directoryHandle = reader.ReadBlobHandle<DirectoryNode>();
+				long length = (long)reader.ReadUnsignedVarInt();
+				string name = reader.ReadString();
+
+				directoryNode.AddDirectory(new DirectoryEntry(name, length, directoryHandle));
+			}
+
+			return directoryNode;
+		}
+
+		/// <inheritdoc/>
+		public override BlobType Write(IBlobWriter writer, DirectoryNode value, BlobSerializerOptions options)
+		{
+			writer.WriteUnsignedVarInt((ulong)value.Flags);
+
+			writer.WriteUnsignedVarInt(value.Files.Count);
+			foreach (FileEntry fileEntry in value.Files)
+			{
+				writer.WriteBlobHandle(fileEntry.Target.Handle);
+				writer.WriteUnsignedVarInt((int)fileEntry.Target.Type);
+
+				FileEntryFlags flags = (fileEntry.CustomData.Length > 0) ? (fileEntry.Flags | FileEntryFlags.HasCustomData) : (fileEntry.Flags & ~FileEntryFlags.HasCustomData);
+
+				writer.WriteString(fileEntry.Name);
+				writer.WriteUnsignedVarInt((ulong)flags);
+				writer.WriteUnsignedVarInt((ulong)fileEntry.Length);
+				writer.WriteIoHash(fileEntry.StreamHash);
+
+				if ((flags & FileEntryFlags.HasCustomData) != 0)
+				{
+					writer.WriteVariableLengthBytes(fileEntry.CustomData.Span);
+				}
+			}
+
+			writer.WriteUnsignedVarInt(value.Directories.Count);
+			foreach (DirectoryEntry directoryEntry in value.Directories)
+			{
+				writer.WriteBlobHandle(directoryEntry.Handle);
+				writer.WriteUnsignedVarInt((ulong)directoryEntry.Length);
+				writer.WriteString(directoryEntry.Name);
+			}
+
+			return DirectoryNode.BlobType;
+		}
 	}
 
 	/// <summary>
@@ -1042,11 +1062,12 @@ namespace EpicGames.Horde.Storage.Nodes
 		/// </summary>
 		/// <param name="node">Root node to copy from</param>
 		/// <param name="filter">Filter for files to include in the zip</param>
+		/// <param name="options">Options controling serialiation</param>
 		/// <param name="logger">Optional logger for debug tracing</param>
-		public DirectoryNodeZipStream(DirectoryNode node, FileFilter? filter, ILogger? logger)
+		public DirectoryNodeZipStream(DirectoryNode node, FileFilter? filter, BlobSerializerOptions? options, ILogger? logger)
 		{
 			_pipe = new Pipe();
-			_backgroundTask = BackgroundTask.StartNew(ctx => CopyToPipeAsync(node, filter, _pipe.Writer, logger, ctx));
+			_backgroundTask = BackgroundTask.StartNew(ctx => CopyToPipeAsync(node, filter, _pipe.Writer, options, logger, ctx));
 			_logger = logger;
 		}
 
@@ -1105,14 +1126,14 @@ namespace EpicGames.Horde.Storage.Nodes
 			return length;
 		}
 
-		static async Task CopyToPipeAsync(DirectoryNode node, FileFilter? filter, PipeWriter writer, ILogger? logger, CancellationToken cancellationToken)
+		static async Task CopyToPipeAsync(DirectoryNode node, FileFilter? filter, PipeWriter writer, BlobSerializerOptions? options, ILogger? logger, CancellationToken cancellationToken)
 		{
 			using Stream outputStream = writer.AsStream();
 			using ZipArchive archive = new ZipArchive(outputStream, ZipArchiveMode.Create);
-			await CopyFilesAsync(node, "", filter, archive, logger, cancellationToken);
+			await CopyFilesAsync(node, "", filter, archive, options, logger, cancellationToken);
 		}
 
-		static async Task CopyFilesAsync(DirectoryNode directory, string prefix, FileFilter? filter, ZipArchive archive, ILogger? logger, CancellationToken cancellationToken)
+		static async Task CopyFilesAsync(DirectoryNode directory, string prefix, FileFilter? filter, ZipArchive archive, BlobSerializerOptions? options, ILogger? logger, CancellationToken cancellationToken)
 		{
 			int numDirs = directory.Directories.Count;
 			int numFiles = directory.Files.Count;
@@ -1123,8 +1144,8 @@ namespace EpicGames.Horde.Storage.Nodes
 				string directoryPath = $"{prefix}{directoryEntry.Name}/";
 				if (filter == null || filter.PossiblyMatches(directoryPath))
 				{
-					DirectoryNode node = await directoryEntry.ExpandAsync(cancellationToken);
-					await CopyFilesAsync(node, directoryPath, filter, archive, logger, cancellationToken);
+					DirectoryNode node = await directoryEntry.Handle.ReadBlobAsync(options, cancellationToken);
+					await CopyFilesAsync(node, directoryPath, filter, archive, options, logger, cancellationToken);
 				}
 				numCopiedDirs++;
 			}
@@ -1181,31 +1202,31 @@ namespace EpicGames.Horde.Storage.Nodes
 		/// <summary>
 		/// Writes a tree of files to a storage writer
 		/// </summary>
-		public static async Task<HashedNodeRef<DirectoryNode>> WriteFilesAsync(this IStorageWriter writer, DirectoryReference baseDir, ChunkingOptions? options = null, IProgress<ICopyStats>? progress = null, CancellationToken cancellationToken = default)
+		public static async Task<IBlobHandle<DirectoryNode>> WriteFilesAsync(this IStorageWriter writer, DirectoryReference baseDir, ChunkingOptions? options = null, IProgress<ICopyStats>? progress = null, CancellationToken cancellationToken = default)
 		{
 			DirectoryNode outputNode = new DirectoryNode();
-			await outputNode.AddFilesAsync(baseDir, DirectoryReference.EnumerateFiles(baseDir, "*", SearchOption.AllDirectories), writer, options, progress, cancellationToken);
-			return await writer.WriteHashedNodeAsync(outputNode, cancellationToken);
+			await outputNode.AddFilesAsync(baseDir, DirectoryReference.EnumerateFiles(baseDir, "*", SearchOption.AllDirectories), writer, options, progress, null, cancellationToken);
+			return await writer.WriteBlobAsync(outputNode, cancellationToken: cancellationToken);
 		}
 
 		/// <summary>
 		/// Writes a tree of files to a storage writer
 		/// </summary>
-		public static async Task<HashedNodeRef<DirectoryNode>> WriteFilesAsync(this IStorageWriter writer, DirectoryInfo baseDir, IReadOnlyList<FileInfo> files, ChunkingOptions? options = null, IProgress<ICopyStats>? progress = null, CancellationToken cancellationToken = default)
+		public static async Task<IBlobHandle<DirectoryNode>> WriteFilesAsync(this IStorageWriter writer, DirectoryInfo baseDir, IReadOnlyList<FileInfo> files, ChunkingOptions? options = null, IProgress<ICopyStats>? progress = null, CancellationToken cancellationToken = default)
 		{
 			DirectoryNode outputNode = new DirectoryNode();
-			await outputNode.AddFilesAsync(baseDir, files, writer, options, progress, cancellationToken);
-			return await writer.WriteHashedNodeAsync(outputNode, cancellationToken);
+			await outputNode.AddFilesAsync(baseDir, files, writer, options, progress, null, cancellationToken);
+			return await writer.WriteBlobAsync(outputNode, cancellationToken: cancellationToken);
 		}
 
 		/// <summary>
 		/// Writes a tree of files to a storage writer
 		/// </summary>
-		public static async Task<HashedNodeRef<DirectoryNode>> WriteFilesAsync(this IStorageWriter writer, DirectoryReference baseDir, IReadOnlyList<FileReference> files, ChunkingOptions? options = null, IProgress<ICopyStats>? progress = null, CancellationToken cancellationToken = default)
+		public static async Task<IBlobHandle<DirectoryNode>> WriteFilesAsync(this IStorageWriter writer, DirectoryReference baseDir, IReadOnlyList<FileReference> files, ChunkingOptions? options = null, IProgress<ICopyStats>? progress = null, CancellationToken cancellationToken = default)
 		{
 			DirectoryNode outputNode = new DirectoryNode();
-			await outputNode.AddFilesAsync(baseDir, files, writer, options, progress, cancellationToken);
-			return await writer.WriteHashedNodeAsync(outputNode, cancellationToken);
+			await outputNode.AddFilesAsync(baseDir, files, writer, options, progress, null, cancellationToken);
+			return await writer.WriteBlobAsync(outputNode, cancellationToken: cancellationToken);
 		}
 	}
 }

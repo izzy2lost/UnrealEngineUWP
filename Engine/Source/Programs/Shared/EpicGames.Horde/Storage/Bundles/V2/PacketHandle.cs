@@ -95,7 +95,7 @@ namespace EpicGames.Horde.Storage.Bundles.V2
 		public ValueTask FlushAsync(CancellationToken cancellationToken = default) => default;
 
 		/// <inheritdoc/>
-		public async ValueTask<BlobData> ReadAsync(CancellationToken cancellationToken = default)
+		public async ValueTask<BlobData> ReadBlobDataAsync(CancellationToken cancellationToken = default)
 		{
 			try
 			{

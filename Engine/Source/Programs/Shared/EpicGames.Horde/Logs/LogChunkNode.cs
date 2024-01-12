@@ -14,9 +14,14 @@ namespace EpicGames.Horde.Logs
 	/// <summary>
 	/// Read-only buffer for log text, with indexed line offsets.
 	/// </summary>
-	[BlobType("{7020B6CA-4174-0F72-AA06-AAB630EFA360}", 1)]
-	public class LogChunkNode : Node
+	[BlobConverter(typeof(LogChunkConverter))]
+	public class LogChunkNode
 	{
+		/// <summary>
+		/// Type of this blob when serialized
+		/// </summary>
+		public static BlobType BlobType { get; } = new BlobType("{7020B6CA-4174-0F72-AA06-AAB630EFA360}", 1);
+
 		/// <summary>
 		/// Provides access to the lines for this chunk through a list interface
 		/// </summary>
@@ -108,21 +113,6 @@ namespace EpicGames.Horde.Logs
 		}
 
 		/// <summary>
-		/// Deserializing constructor
-		/// </summary>
-		/// <param name="reader">Reader to pull data from</param>
-		public LogChunkNode(IBlobReader reader)
-			: this(reader.ReadVariableLengthBytes())
-		{
-		}
-
-		/// <inheritdoc/>
-		public override void Serialize(IBlobWriter writer)
-		{
-			writer.WriteVariableLengthBytes(Data.Span);
-		}
-
-		/// <summary>
 		/// Accessor for an individual line
 		/// </summary>
 		/// <param name="idx">Index of the line to retrieve</param>
@@ -183,9 +173,29 @@ namespace EpicGames.Horde.Logs
 	}
 
 	/// <summary>
+	/// Converter from log chunks to blobs
+	/// </summary>
+	class LogChunkConverter : BlobConverter<LogChunkNode>
+	{
+		/// <inheritdoc/>
+		public override LogChunkNode Read(IBlobReader reader, BlobSerializerOptions options)
+		{
+			byte[] data = reader.ReadVariableLengthBytes().ToArray();
+			return new LogChunkNode(data);
+		}
+
+		/// <inheritdoc/>
+		public override BlobType Write(IBlobWriter writer, LogChunkNode value, BlobSerializerOptions options)
+		{
+			writer.WriteVariableLengthBytes(value.Data.Span);
+			return LogChunkNode.BlobType;
+		}
+	}
+
+	/// <summary>
 	/// Reference to a chunk of text, with information about its placement in the larger log file
 	/// </summary>
-	public class LogChunkRef : HashedNodeRef<LogChunkNode>
+	public class LogChunkRef
 	{
 		/// <summary>
 		/// First line within the file
@@ -208,6 +218,11 @@ namespace EpicGames.Horde.Logs
 		public int Length { get; }
 
 		/// <summary>
+		/// Handle to the target chunk
+		/// </summary>
+		public IBlobHandle<LogChunkNode> Target { get; }
+
+		/// <summary>
 		/// Constructor
 		/// </summary>
 		/// <param name="lineIndex">Index of the first line within this block</param>
@@ -215,13 +230,13 @@ namespace EpicGames.Horde.Logs
 		/// <param name="offset">Offset within the log file</param>
 		/// <param name="length">Length of the chunk</param>
 		/// <param name="target">Referenced log text</param>
-		public LogChunkRef(int lineIndex, int lineCount, long offset, int length, HashedNodeRef<LogChunkNode> target)
-			: base(target)
+		public LogChunkRef(int lineIndex, int lineCount, long offset, int length, IBlobHandle<LogChunkNode> target)
 		{
 			LineIndex = lineIndex;
 			LineCount = lineCount;
 			Offset = offset;
 			Length = length;
+			Target = target;
 		}
 
 		/// <summary>
@@ -229,8 +244,8 @@ namespace EpicGames.Horde.Logs
 		/// </summary>
 		/// <param name="reader"></param>
 		public LogChunkRef(IBlobReader reader)
-			: base(reader)
 		{
+			Target = reader.ReadBlobHandle<LogChunkNode>();
 			LineIndex = (int)reader.ReadUnsignedVarInt();
 			LineCount = (int)reader.ReadUnsignedVarInt();
 			Offset = (long)reader.ReadUnsignedVarInt();
@@ -238,10 +253,9 @@ namespace EpicGames.Horde.Logs
 		}
 
 		/// <inheritdoc/>
-		public override void Serialize(IBlobWriter writer)
+		public void Serialize(IBlobWriter writer)
 		{
-			base.Serialize(writer);
-
+			writer.WriteBlobHandle(Target);
 			writer.WriteUnsignedVarInt(LineIndex);
 			writer.WriteUnsignedVarInt(LineCount);
 			writer.WriteUnsignedVarInt((ulong)Offset);

@@ -18,6 +18,7 @@ using Microsoft.Extensions.Logging.Abstractions;
 using System.Reflection;
 using EpicGames.Horde.Storage.Bundles;
 using EpicGames.Horde.Storage.Bundles.V1;
+using EpicGames.Serialization;
 
 namespace EpicGames.Horde.Tests
 {
@@ -32,27 +33,29 @@ namespace EpicGames.Horde.Tests
 			Assert.IsTrue(a.SequenceEqual(b));
 		}
 
-		[BlobType("{F63606D4-4061-5DBB-446F-55A69E22654F}")]
-		class TextNode : Node
+		[BlobConverter(typeof(TextNodeConverter))]
+		class TextNode
 		{
 			public string Text { get; }
 
 			public TextNode(string text) => Text = text;
-
-			public TextNode(IBlobReader reader)
-			{
-				Text = reader.ReadString();
-			}
-
-			public override void Serialize(IBlobWriter writer)
-			{
-				writer.WriteString(Text);
-			}
 		}
 
-		public BundleStoreTests()
+		class TextNodeConverter : BlobConverter<TextNode>
 		{
-			Node.RegisterTypesFromAssembly(Assembly.GetExecutingAssembly());
+			public static BlobType BlobType { get; } = new BlobType("{F63606D4-4061-5DBB-446F-55A69E22654F}", 1);
+
+			public override TextNode Read(IBlobReader reader, BlobSerializerOptions options)
+			{
+				string text = reader.ReadString();
+				return new TextNode(text);
+			}
+
+			public override BlobType Write(IBlobWriter writer, TextNode value, BlobSerializerOptions options)
+			{
+				writer.WriteString(value.Text);
+				return BlobType;
+			}
 		}
 
 		static async Task<byte[]> CreateBundleNormalAsync()
@@ -62,10 +65,11 @@ namespace EpicGames.Horde.Tests
 			await using IStorageWriter writer = store.CreateWriter(options: new BundleOptions { MaxVersion = BundleVersion.ImportHashes, CompressionFormat = BundleCompressionFormat.None });
 
 			TextNode node = new TextNode("Hello world");
-			IBlobHandle handle = await writer.FlushAsync(node, CancellationToken.None);
+			IBlobHandle<TextNode> handle = await writer.WriteBlobAsync(node);
+			await writer.FlushAsync();
 
 			IBlobHandle bundleHandle = store.CreateBlobHandle(handle.GetLocator().BaseLocator);
-			using BlobData blobData = await bundleHandle.ReadAsync();
+			using BlobData blobData = await bundleHandle.ReadBlobDataAsync();
 
 			return blobData.Data.ToArray();
 		}
@@ -121,28 +125,35 @@ namespace EpicGames.Horde.Tests
 			Assert.AreEqual(1, blobStore.Refs.Count);
 		}
 
-		[BlobType("{F63606D4-4061-5DBB-446F-55A69F22654F}")]
-		class SimpleNode : Node
+		[BlobConverter(typeof(SimpleNodeConverter))]
+		class SimpleNode
 		{
-			public ReadOnlySequence<byte> Data { get; }
-			public IReadOnlyList<HashedNodeRef<SimpleNode>> Refs { get; }
+			public static BlobType BlobType { get; } = new BlobType("{F63606D4-4061-5DBB-446F-55A69F22654F}", 1);
 
-			public SimpleNode(ReadOnlySequence<byte> data, IReadOnlyList<HashedNodeRef<SimpleNode>> refs)
+			public ReadOnlySequence<byte> Data { get; }
+			public IReadOnlyList<IBlobHandle<SimpleNode>> Refs { get; }
+
+			public SimpleNode(ReadOnlySequence<byte> data, IReadOnlyList<IBlobHandle<SimpleNode>> refs)
 			{
 				Data = data;
 				Refs = refs;
 			}
+		}
 
-			public SimpleNode(IBlobReader reader)
+		class SimpleNodeConverter : BlobConverter<SimpleNode>
+		{
+			public override SimpleNode Read(IBlobReader reader, BlobSerializerOptions options)
 			{
-				Data = new ReadOnlySequence<byte>(reader.ReadVariableLengthBytes());
-				Refs = reader.ReadVariableLengthArray(() => reader.ReadHashedNodeRef<SimpleNode>());
+				ReadOnlyMemory<byte> data = reader.ReadVariableLengthBytes();
+				IReadOnlyList<IBlobHandle<SimpleNode>> refs = reader.ReadVariableLengthArray(() => reader.ReadBlobHandle<SimpleNode>());
+				return new SimpleNode(new ReadOnlySequence<byte>(data), refs);
 			}
 
-			public override void Serialize(IBlobWriter writer)
+			public override BlobType Write(IBlobWriter writer, SimpleNode value, BlobSerializerOptions options)
 			{
-				writer.WriteVariableLengthBytes(Data);
-				writer.WriteVariableLengthArray(Refs, x => writer.WriteHashedNodeRef(x));
+				writer.WriteVariableLengthBytes(value.Data);
+				writer.WriteVariableLengthArray(value.Refs, x => writer.WriteBlobHandle(x));
+				return SimpleNode.BlobType;
 			}
 		}
 
@@ -152,13 +163,13 @@ namespace EpicGames.Horde.Tests
 			{
 				await using IStorageWriter writer = store.CreateWriter("test", options);
 
-				SimpleNode node1 = new SimpleNode(new ReadOnlySequence<byte>(new byte[] { 1 }), Array.Empty<HashedNodeRef<SimpleNode>>());
-				SimpleNode node2 = new SimpleNode(new ReadOnlySequence<byte>(new byte[] { 2 }), new[] { await writer.WriteHashedNodeAsync(node1) });
-				SimpleNode node3 = new SimpleNode(new ReadOnlySequence<byte>(new byte[] { 3 }), new[] { await writer.WriteHashedNodeAsync(node2) });
-				SimpleNode node4 = new SimpleNode(new ReadOnlySequence<byte>(new byte[] { 4 }), Array.Empty<HashedNodeRef<SimpleNode>>());
+				SimpleNode node1 = new SimpleNode(new ReadOnlySequence<byte>(new byte[] { 1 }), Array.Empty<IBlobHandle<SimpleNode>>());
+				SimpleNode node2 = new SimpleNode(new ReadOnlySequence<byte>(new byte[] { 2 }), new[] { await writer.WriteBlobAsync(node1) });
+				SimpleNode node3 = new SimpleNode(new ReadOnlySequence<byte>(new byte[] { 3 }), new[] { await writer.WriteBlobAsync(node2) });
+				SimpleNode node4 = new SimpleNode(new ReadOnlySequence<byte>(new byte[] { 4 }), Array.Empty<IBlobHandle<SimpleNode>>());
 
-				SimpleNode root = new SimpleNode(new ReadOnlySequence<byte>(new byte[] { 5 }), new[] { await writer.WriteHashedNodeAsync(node4), await writer.WriteHashedNodeAsync(node3) });
-				NodeRef<SimpleNode> rootRef = await writer.WriteNodeAsync(root);
+				SimpleNode root = new SimpleNode(new ReadOnlySequence<byte>(new byte[] { 5 }), new[] { await writer.WriteBlobAsync(node4), await writer.WriteBlobAsync(node3) });
+				IBlobHandle<SimpleNode> rootRef = await writer.WriteBlobAsync(root);
 				await writer.FlushAsync();
 
 				await store.WriteRefTargetAsync(new RefName("test"), rootRef);
@@ -179,31 +190,31 @@ namespace EpicGames.Horde.Tests
 			SimpleNode node5 = root;
 			byte[] data5 = node5.Data.ToArray();
 			Assert.IsTrue(data5.SequenceEqual(new byte[] { 5 }));
-			IReadOnlyList<HashedNodeRef<SimpleNode>> refs5 = node5.Refs;
+			IReadOnlyList<IBlobHandle<SimpleNode>> refs5 = node5.Refs;
 			Assert.AreEqual(2, refs5.Count);
 
-			SimpleNode node4 = await refs5[0].ExpandAsync();
+			SimpleNode node4 = await refs5[0].ReadBlobAsync();
 			byte[] data4 = node4.Data.ToArray();
 			Assert.IsTrue(data4.SequenceEqual(new byte[] { 4 }));
-			IReadOnlyList<HashedNodeRef<SimpleNode>> refs4 = node4.Refs;
+			IReadOnlyList<IBlobHandle<SimpleNode>> refs4 = node4.Refs;
 			Assert.AreEqual(0, refs4.Count);
 
-			SimpleNode node3 = await refs5[1].ExpandAsync();
+			SimpleNode node3 = await refs5[1].ReadBlobAsync();
 			byte[] data3 = node3.Data.ToArray();
 			Assert.IsTrue(data3.SequenceEqual(new byte[] { 3 }));
-			IReadOnlyList<HashedNodeRef<SimpleNode>> refs3 = node3.Refs;
+			IReadOnlyList<IBlobHandle<SimpleNode>> refs3 = node3.Refs;
 			Assert.AreEqual(1, refs3.Count);
 
-			SimpleNode node2 = await refs3[0].ExpandAsync();
+			SimpleNode node2 = await refs3[0].ReadBlobAsync();
 			byte[] data2 = node2.Data.ToArray();
 			Assert.IsTrue(data2.SequenceEqual(new byte[] { 2 }));
-			IReadOnlyList<HashedNodeRef<SimpleNode>> refs2 = node2.Refs;
+			IReadOnlyList<IBlobHandle<SimpleNode>> refs2 = node2.Refs;
 			Assert.AreEqual(1, refs2.Count);
 
-			SimpleNode node1 = await refs2[0].ExpandAsync();
+			SimpleNode node1 = await refs2[0].ReadBlobAsync();
 			byte[] data1 = node1.Data.ToArray();
 			Assert.IsTrue(data1.SequenceEqual(new byte[] { 1 }));
-			IReadOnlyList<HashedNodeRef<SimpleNode>> refs1 = node1.Refs;
+			IReadOnlyList<IBlobHandle<SimpleNode>> refs1 = node1.Refs;
 			Assert.AreEqual(0, refs1.Count);
 		}
 
@@ -214,12 +225,12 @@ namespace EpicGames.Horde.Tests
 
 			RefName refName = new RefName("test");
 
-			NodeRef<SimpleNode> inputRef;
+			IBlobHandle<SimpleNode> inputRef;
 			await using (IStorageWriter writer = store.CreateWriter(refName))
 			{
-				inputRef = await writer.WriteNodeAsync(new SimpleNode(new ReadOnlySequence<byte>(new byte[] { (byte)123 }), Array.Empty<HashedNodeRef<SimpleNode>>()));
+				inputRef = await writer.WriteBlobAsync(new SimpleNode(new ReadOnlySequence<byte>(new byte[] { (byte)123 }), Array.Empty<IBlobHandle<SimpleNode>>()));
 			}
-			await store.WriteRefAsync(refName, inputRef.Handle);
+			await store.WriteRefAsync(refName, inputRef);
 
 			SimpleNode node = await store.ReadRefAsync<SimpleNode>(refName);
 
@@ -236,19 +247,19 @@ namespace EpicGames.Horde.Tests
 				await using (IStorageWriter writer = store.CreateWriter(new RefName("test")))
 				{
 					DirectoryNode world = new DirectoryNode();
-					HashedNodeRef<DirectoryNode> worldRef = await writer.WriteHashedNodeAsync(world);
+					IBlobHandle<DirectoryNode> worldRef = await writer.WriteBlobAsync(world);
 
 					DirectoryNode hello = new DirectoryNode();
 					hello.AddDirectory(new DirectoryEntry("world", 0, worldRef));
-					HashedNodeRef<DirectoryNode> helloRef = await writer.WriteHashedNodeAsync(hello);
+					IBlobHandle<DirectoryNode> helloRef = await writer.WriteBlobAsync(hello);
 
 					DirectoryNode root = new DirectoryNode(DirectoryFlags.None);
 					root.AddDirectory(new DirectoryEntry("hello", 0, helloRef));
-					HashedNodeRef<DirectoryNode> rootRef = await writer.WriteHashedNodeAsync(root);
+					IBlobHandle<DirectoryNode> rootRef = await writer.WriteBlobAsync(root);
 
 					await writer.FlushAsync();
 
-					await store.WriteRefTargetAsync(new RefName("test"), rootRef.Handle);
+					await store.WriteRefTargetAsync(new RefName("test"), rootRef);
 				}
 			}
 
@@ -264,11 +275,11 @@ namespace EpicGames.Horde.Tests
 			Assert.AreEqual(1, root.Directories.Count);
 			Assert.AreEqual("hello", root.Directories.First().Name);
 
-			DirectoryNode hello = await root.Directories.First().ExpandAsync(CancellationToken.None);
+			DirectoryNode hello = await root.Directories.First().Handle.ReadBlobAsync();
 			Assert.AreEqual(1, hello.Directories.Count);
 			Assert.AreEqual("world", hello.Directories.First().Name);
 
-			DirectoryNode world = await hello.Directories.First().ExpandAsync(CancellationToken.None);
+			DirectoryNode world = await hello.Directories.First().Handle.ReadBlobAsync();
 			Assert.AreEqual(0, world.Directories.Count);
 		}
 
@@ -292,7 +303,7 @@ namespace EpicGames.Horde.Tests
 				DirectoryNode root = new DirectoryNode();
 				await root.UpdateAsync(fileUpdates, writer);
 
-				HashedNodeRef<DirectoryNode> rootRef = await writer.WriteHashedNodeAsync(root);
+				IBlobHandle<DirectoryNode> rootRef = await writer.WriteBlobAsync(root);
 				await store.WriteRefTargetAsync(new RefName("test"), rootRef);
 
 				await CheckFileTreeAsync(root);
@@ -310,12 +321,12 @@ namespace EpicGames.Horde.Tests
 			Assert.AreEqual(1, root.Directories.Count);
 			Assert.AreEqual("hello", root.Directories.First().Name);
 
-			DirectoryNode hello = await root.Directories.First().ExpandAsync();
+			DirectoryNode hello = await root.Directories.First().Handle.ReadBlobAsync();
 			Assert.AreEqual(0, hello.Directories.Count);
 			Assert.AreEqual(1, hello.Files.Count);
 			Assert.AreEqual("world", hello.Files.First().Name);
 
-			ChunkedDataNode world = await hello.Files.First().Target.ExpandAsync();
+			ChunkedDataNode world = await hello.Files.First().Target.ReadBlobAsync();
 
 			byte[] worldData = await GetFileDataAsync(world);
 			Assert.IsTrue(worldData.SequenceEqual(Encoding.UTF8.GetBytes("world")));
@@ -351,10 +362,10 @@ namespace EpicGames.Horde.Tests
 
 			// Check we can read it back in
 			{
-				ChunkedDataNode newRoot = await nodeRef.ExpandAsync();
+				ChunkedDataNode newRoot = await nodeRef.ReadBlobAsync();
 
 				using MemoryStream stream = new MemoryStream();
-				await newRoot.CopyToStreamAsync(stream, CancellationToken.None);
+				await newRoot.CopyToStreamAsync(stream);
 
 				byte[] output = stream.ToArray();
 				Assert.IsTrue(chunk.SequenceEqual(output));
@@ -394,7 +405,7 @@ namespace EpicGames.Horde.Tests
 				root = new DirectoryNode(DirectoryFlags.None);
 				root.AddFile("test", FileEntryFlags.None, fileWriter.Length, chunkedData);
 
-				HashedNodeRef<DirectoryNode> rootRef = await writer.WriteHashedNodeAsync(root);
+				IBlobHandle<DirectoryNode> rootRef = await writer.WriteBlobAsync(root);
 				await store.WriteRefTargetAsync(new RefName("test"), rootRef);
 
 				await CheckLargeFileTreeAsync(root, data);
@@ -418,7 +429,7 @@ namespace EpicGames.Horde.Tests
 
 		static async Task GetUniqueBlobsAsync(IBlobHandle handle, Dictionary<BlobLocator, long> locatorToSize)
 		{
-			using BlobData data = await handle.ReadAsync();
+			using BlobData data = await handle.ReadBlobDataAsync();
 			locatorToSize[handle.GetLocator()] = data.Data.Length;
 
 			foreach (IBlobHandle reference in data.Refs)
@@ -435,8 +446,8 @@ namespace EpicGames.Horde.Tests
 
 			foreach ((FileEntry oldFileEntry, FileEntry newFileEntry) in oldNode.Files.Zip(newNode.Files))
 			{
-				ChunkedDataNode oldFile = await oldFileEntry.Target.ExpandAsync();
-				ChunkedDataNode newFile = await newFileEntry.Target.ExpandAsync();
+				ChunkedDataNode oldFile = await oldFileEntry.Target.ReadBlobAsync();
+				ChunkedDataNode newFile = await newFileEntry.Target.ReadBlobAsync();
 				await CompareTreesAsync(oldFile, newFile);
 			}
 		}
@@ -451,8 +462,8 @@ namespace EpicGames.Horde.Tests
 				int index = 0;
 				foreach ((ChunkedDataNodeRef oldFileRef, ChunkedDataNodeRef newFileRef) in oldInteriorNode.Children.Zip(newInteriorNode.Children))
 				{
-					ChunkedDataNode oldFile = await oldFileRef.ExpandAsync();
-					ChunkedDataNode newFile = await newFileRef.ExpandAsync();
+					ChunkedDataNode oldFile = await oldFileRef.ReadBlobAsync();
+					ChunkedDataNode newFile = await newFileRef.ReadBlobAsync();
 					await CompareTreesAsync(oldFile, newFile);
 					index++;
 				}
@@ -473,7 +484,7 @@ namespace EpicGames.Horde.Tests
 			Assert.AreEqual(0, root.Directories.Count);
 			Assert.AreEqual(1, root.Files.Count);
 
-			ChunkedDataNode world = await root.Files.First().Target.ExpandAsync(CancellationToken.None);
+			ChunkedDataNode world = await root.Files.First().Target.ReadBlobAsync();
 
 			int length = await CheckFileDataAsync(world, data);
 			Assert.AreEqual(data.Length, length);
@@ -491,7 +502,7 @@ namespace EpicGames.Horde.Tests
 			{
 				foreach (ChunkedDataNodeRef childRef in interiorFileNode.Children)
 				{
-					ChunkedDataNode child = await childRef.ExpandAsync();
+					ChunkedDataNode child = await childRef.ReadBlobAsync();
 					offset += await CheckFileDataAsync(child, data.Slice(offset));
 				}
 			}
@@ -506,7 +517,7 @@ namespace EpicGames.Horde.Tests
 		{
 			using (MemoryStream stream = new MemoryStream())
 			{
-				await fileNode.CopyToStreamAsync(stream, CancellationToken.None);
+				await fileNode.CopyToStreamAsync(stream);
 				return stream.ToArray();
 			}
 		}

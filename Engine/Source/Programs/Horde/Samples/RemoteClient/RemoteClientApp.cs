@@ -116,9 +116,9 @@ namespace RemoteClient
 
 				await using (IStorageWriter writer = storage.CreateWriter())
 				{
-					HashedNodeRef<DirectoryNode> sandbox = await writer.WriteFilesAsync(uploadDir);
+					IBlobHandle<DirectoryNode> sandbox = await writer.WriteFilesAsync(uploadDir);
 					await writer.FlushAsync();
-					await channel.UploadFilesAsync("", sandbox.Handle.GetLocator(), storage);
+					await channel.UploadFilesAsync("", sandbox.GetLocator(), storage);
 				}
 
 				// Run the task remotely in the background and echo the output to the console

@@ -40,13 +40,13 @@ namespace Horde.Commands
 		{
 			using IStorageClient storageClient = _httpStorageClientFactory.CreateClientWithPath($"api/v1/tools/{ToolId}");
 
-			HashedNodeRef<DirectoryNode> target;
+			IBlobHandle<DirectoryNode> target;
 			await using (IStorageWriter writer = storageClient.CreateWriter())
 			{
 				target = await writer.WriteFilesAsync(InputDir);
 			}
 
-			ToolDeploymentId deploymentId = await _hordeHttpClient.CreateToolDeploymentAsync(ToolId, Version, null, null, target.Handle.GetLocator());
+			ToolDeploymentId deploymentId = await _hordeHttpClient.CreateToolDeploymentAsync(ToolId, Version, null, null, target.GetLocator());
 			logger.LogInformation("Created deployment {DeploymentId}", deploymentId);
 
 			return 0;

@@ -519,7 +519,7 @@ namespace Horde.Server.Logs
 
 						// Get the chunk data
 						LogChunkRef chunk = _rootNode.TextChunkRefs[_chunkIdx];
-						LogChunkNode chunkNode = await chunk.ExpandAsync(cancellationToken);
+						LogChunkNode chunkNode = await chunk.Target.ReadBlobAsync(cancellationToken: cancellationToken);
 
 						// Get the source data
 						_sourceBuffer = chunkNode.Data;
@@ -625,7 +625,7 @@ namespace Horde.Server.Logs
 					for (; index < maxIndex && chunkIdx < root.TextChunkRefs.Count; chunkIdx++)
 					{
 						LogChunkRef chunk = root.TextChunkRefs[chunkIdx];
-						LogChunkNode chunkData = await chunk.ExpandAsync(cancellationToken);
+						LogChunkNode chunkData = await chunk.Target.ReadBlobAsync(cancellationToken: cancellationToken);
 
 						for (; index < maxIndex && index < chunk.LineIndex; index++)
 						{
@@ -1025,7 +1025,7 @@ namespace Horde.Server.Logs
 						long lastChunkLength = lastChunk.Length;
 						if (lastChunkLength <= 0)
 						{
-							LogChunkNode lastChunkNode = await lastChunk.ExpandAsync(cancellationToken);
+							LogChunkNode lastChunkNode = await lastChunk.Target.ReadBlobAsync(cancellationToken: cancellationToken);
 							lastChunkLength = lastChunkNode.Length;
 						}
 						length = Math.Min(length, (lastChunk.Offset + lastChunkLength) - offset);
@@ -1161,7 +1161,7 @@ namespace Horde.Server.Logs
 
 				int chunkIdx = root.TextChunkRefs.GetChunkForLine(lineIdx);
 				LogChunkRef chunk = root.TextChunkRefs[chunkIdx];
-				LogChunkNode chunkData = await chunk.ExpandAsync(cancellationToken);
+				LogChunkNode chunkData = await chunk.Target.ReadBlobAsync(cancellationToken: cancellationToken);
 
 				if (lineIdx < chunk.LineIndex)
 				{
@@ -1820,8 +1820,8 @@ namespace Horde.Server.Logs
 				LogNode? root = await storageClient.ReadRefAsync<LogNode>(logFile.RefName, cancellationToken: cancellationToken);
 				if(root != null)
 				{
-					LogIndexNode index = await root.IndexRef.ExpandAsync(cancellationToken);
-					await foreach (int lineIdx in index.SearchAsync(firstLine, searchText, searchStats, cancellationToken))
+					LogIndexNode index = await root.IndexRef.ReadBlobAsync(cancellationToken: cancellationToken);
+					await foreach (int lineIdx in index.SearchAsync(firstLine, searchText, searchStats, cancellationToken: cancellationToken))
 					{
 						yield return lineIdx;
 					}

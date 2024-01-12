@@ -518,19 +518,19 @@ namespace Horde.Agent.Execution
 
 					Stopwatch timer = Stopwatch.StartNew();
 
-					NodeRef<DirectoryNode> rootNodeRef;
+					IBlobHandle<DirectoryNode> rootNodeRef;
 					await using (IStorageWriter treeWriter = CreateStorageWriter(storage, artifact.RefName, logger))
 					{
 						DirectoryNode buildGraphNode = new DirectoryNode();
 						await buildGraphNode.AddFilesAsync(workspaceDir, buildGraphFiles, treeWriter, cancellationToken: cancellationToken);
-						HashedNodeRef<DirectoryNode> outputNodeRef = await treeWriter.WriteHashedNodeAsync(buildGraphNode, cancellationToken);
+						IBlobHandle<DirectoryNode> outputNodeRef = await treeWriter.WriteBlobAsync(buildGraphNode, cancellationToken);
 
 						DirectoryNode rootNode = new DirectoryNode();
 						rootNode.AddDirectory(new DirectoryEntry(BuildGraphTempStorageDir, buildGraphNode.Length, outputNodeRef));
 
-						rootNodeRef = await treeWriter.WriteNodeAsync(rootNode, cancellationToken);
+						rootNodeRef = await treeWriter.WriteBlobAsync(rootNode, cancellationToken);
 					}
-					await storage.WriteRefTargetAsync(artifact.RefName, rootNodeRef.Handle, new RefOptions(), cancellationToken);
+					await storage.WriteRefTargetAsync(artifact.RefName, rootNodeRef, new RefOptions(), cancellationToken);
 
 					logger.LogInformation("Upload took {Time:n1}s", timer.Elapsed.TotalSeconds);
 				}
@@ -769,10 +769,10 @@ namespace Horde.Agent.Execution
 					using IStorageClient storage = CreateStorageClient(namespaceId, artifact.Token);
 
 					DirectoryNode node = await storage.ReadRefAsync<DirectoryNode>(refName, cancellationToken: cancellationToken);
-					DirectoryNode? buildGraphDir = await node.TryOpenDirectoryAsync(BuildGraphTempStorageDir, cancellationToken);
+					DirectoryNode? buildGraphDir = await node.TryOpenDirectoryAsync(BuildGraphTempStorageDir, cancellationToken: cancellationToken);
 					if (buildGraphDir != null)
 					{
-						await buildGraphDir.CopyToDirectoryAsync(new DirectoryInfo(workspaceDir.FullName), logger, cancellationToken);
+						await buildGraphDir.CopyToDirectoryAsync(new DirectoryInfo(workspaceDir.FullName), null, logger, cancellationToken);
 						logger.LogInformation("Copying preprocessed script from {BuildGraphFolderName} into {OutputDir}", BuildGraphTempStorageDir, workspaceDir);
 					}
 					else
@@ -848,14 +848,14 @@ namespace Horde.Agent.Execution
 
 				using IStorageClient storage = CreateStorageClient(new NamespaceId(artifact.NamespaceId), artifact.Token);
 
-				NodeRef<DirectoryNode> rootRef;
+				IBlobHandle<DirectoryNode> rootRef;
 				await using (IStorageWriter writer = CreateStorageWriter(storage, new RefName(artifact.RefName), logger))
 				{
 					try
 					{
 						DirectoryNode dir = new DirectoryNode();
 						await dir.AddFilesAsync(baseDir, files, writer, progress: new CopyStatsLogger(logger), cancellationToken: cancellationToken);
-						rootRef = await writer.WriteNodeAsync(dir, cancellationToken);
+						rootRef = await writer.WriteBlobAsync(dir, cancellationToken: cancellationToken);
 					}
 					catch (Exception ex)
 					{
@@ -863,7 +863,7 @@ namespace Horde.Agent.Execution
 						throw;
 					}
 				}
-				await storage.WriteRefTargetAsync(new RefName(artifact.RefName), rootRef.Handle, cancellationToken: cancellationToken);
+				await storage.WriteRefTargetAsync(new RefName(artifact.RefName), rootRef, cancellationToken: cancellationToken);
 
 				Logger.LogInformation("Uploaded artifact {ArtifactId}", artifact.Id);
 			}
@@ -1051,7 +1051,7 @@ namespace Horde.Agent.Execution
 				// Upload the data
 				Stopwatch timer = Stopwatch.StartNew();
 
-				NodeRef<DirectoryNode> outputNodeRef;
+				IBlobHandle<DirectoryNode> outputNodeRef;
 				await using (IStorageWriter treeWriter = CreateStorageWriter(storage, artifact.RefName, logger))
 				{
 					DirectoryNode outputNode = new DirectoryNode();
@@ -1088,11 +1088,11 @@ namespace Horde.Agent.Execution
 						outputNode.AddFile(await TempStorage.ArchiveTagAsync(manifestDir, step.Name, outputName, workspaceDir, files, storageBlocks.ToArray(), treeWriter, logger, cancellationToken));
 					}
 
-					outputNodeRef = await treeWriter.WriteNodeAsync(outputNode, cancellationToken);
+					outputNodeRef = await treeWriter.WriteBlobAsync(outputNode, cancellationToken: cancellationToken);
 				}
 
 				// Write the final node
-				await storage.WriteRefTargetAsync(artifact.RefName, outputNodeRef.Handle, new RefOptions(), cancellationToken: cancellationToken);
+				await storage.WriteRefTargetAsync(artifact.RefName, outputNodeRef, new RefOptions(), cancellationToken: cancellationToken);
 				logger.LogInformation("Upload took {Time:n1}s", timer.Elapsed.TotalSeconds);
 			}
 

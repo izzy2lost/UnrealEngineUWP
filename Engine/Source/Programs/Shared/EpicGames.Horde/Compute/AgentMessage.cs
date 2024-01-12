@@ -371,11 +371,6 @@ namespace EpicGames.Horde.Compute
 		/// <summary>
 		/// Creates a sandbox on the remote machine
 		/// </summary>
-		/// <param name="channel">Current channel</param>
-		/// <param name="path">Root directory to extract files within the sandbox</param>
-		/// <param name="locator">Location of a <see cref="DirectoryNode"/> describing contents of the sandbox</param>
-		/// <param name="storage">Storage for the sandbox data</param>
-		/// <param name="cancellationToken">Cancellation token for the operation</param>
 		public static async Task UploadFilesAsync(this AgentMessageChannel channel, string path, BlobLocator locator, IStorageClient storage, CancellationToken cancellationToken = default)
 		{
 			using (IAgentMessageBuilder request = await channel.CreateMessageAsync(AgentMessageType.WriteFiles, cancellationToken))
