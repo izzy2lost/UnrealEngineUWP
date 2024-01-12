@@ -512,12 +512,29 @@ namespace Horde.Agent.TrayApp
 
 			for (; ; )
 			{
-				_idleCriticalProcessCount = _settings.Idle.CriticalProcesses
-					.Select(x => Path.GetFileNameWithoutExtension(x).ToUpperInvariant())
-					.Distinct()
-					.SelectMany(x => Process.GetProcessesByName(x))
-					.Count();
+				try
+				{
+					if (RuntimeInformation.IsOSPlatform(OSPlatform.Windows) && _settings.Idle.CriticalProcesses.Any())
+					{
+						IEnumerable<int> hordeProcessIds = Process.GetProcessesByName("HordeAgent").Select(x => x.Id);
+						IEnumerable<Process> criticalProcesses = _settings.Idle.CriticalProcesses
+							.Select(x => Path.GetFileNameWithoutExtension(x).ToUpperInvariant())
+							.Distinct()
+							.SelectMany(x => Process.GetProcessesByName(x));
 
+						// Ignore processes that are descendants of HordeAgent
+						if (hordeProcessIds.Any())
+						{
+							criticalProcesses = criticalProcesses.Where(x => !ProcessUtils.GetAncestorProcesses(x).Select(x => x.Id).Intersect(hordeProcessIds).Any());
+						}
+
+						_idleCriticalProcessCount = criticalProcesses.Count();
+					}
+				}
+				catch (InvalidOperationException)
+				{
+					// If a process stops running Process.Id will throw an exception
+				}
 				await Task.Delay(sampleInterval, cancellationToken);
 			}
 		}
