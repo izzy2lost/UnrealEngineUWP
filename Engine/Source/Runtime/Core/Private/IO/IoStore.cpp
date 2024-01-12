@@ -172,7 +172,7 @@ struct FChunkBlock
 	FName CompressionMethod = NAME_None;
 	FSHAHash Signature;
 
-	/** Hash of the block data as it would be found on disk */
+	/** Hash of the block data as it would be found on disk - this includes encryption alignment padding */
 	FIoHash DiskHash;
 };
 
@@ -191,7 +191,11 @@ struct FIoStoreWriteQueueEntry
 	// We make this optional because at the latest it might not be valid until FinishCompressionBarrior
 	// completes and we'd like to have a check() on that.
 	TOptional<uint64> UncompressedSize = 0;
-	uint64 CompressedSize = 0;
+
+	// this is not filled out until after encryption completes and *includes the alignment padding for encryption*!
+	// think of this as "size on disk".
+	uint64 CompressedSize = 0; 
+
 	uint64 Padding = 0;
 	uint64 Offset = 0;
 	TArray<FChunkBlock> ChunkBlocks;
@@ -212,6 +216,7 @@ struct FIoStoreWriteQueueEntry
 	bool bModified = false;
 	bool bStoreCompressedDataInDDC = false;
 	
+	bool bCouldBeFromReferenceDb = false; // Whether the chunk is a valid candidate for the reference db.
 	bool bLoadingFromReferenceDb = false;
 	// When we know we're loading from the reference chunk db, we don't read the source
 	// buffer but we still need to know the number of chunks which we get from the refdb.
@@ -726,13 +731,22 @@ public:
 
 	void SetReferenceChunkDatabase(TSharedPtr<IIoStoreWriterReferenceChunkDatabase> InReferenceChunkDatabase)
 	{
-		if (InReferenceChunkDatabase.IsValid() && InReferenceChunkDatabase->GetCompressionBlockSize() != WriterContext->GetSettings().CompressionBlockSize)
+		if (InReferenceChunkDatabase.IsValid() == false)
+		{
+			ReferenceChunkDatabase = InReferenceChunkDatabase;
+			return;
+		}
+
+		if (InReferenceChunkDatabase->GetCompressionBlockSize() != WriterContext->GetSettings().CompressionBlockSize)
 		{
 			UE_LOG(LogIoStore, Warning, TEXT("Reference chunk database has a different compression block size than the current writer!"));
 			UE_LOG(LogIoStore, Warning, TEXT("No chunks will match, so ignoring. ReferenceChunkDb: %d, IoStoreWriter: %d"), InReferenceChunkDatabase->GetCompressionBlockSize(), WriterContext->GetSettings().CompressionBlockSize);
 			return;
 		}
 		ReferenceChunkDatabase = InReferenceChunkDatabase;
+		
+		// Add ourselves to the reference chunk db's list of possibles
+		ReferenceChunkDatabase->NotifyAddedToWriter(ContainerSettings.ContainerId);
 	}
 	void SetHashDatabase(TSharedPtr<IIoStoreWriterHashDatabase> InHashDatabase, bool bInVerifyHashDatabase)
 	{
@@ -866,7 +880,8 @@ public:
 				if (ReferenceChunkDatabase.IsValid() && CompressionMethodForEntry(Entry) != NAME_None)
 				{
 					TPair<FIoContainerId, FIoChunkHash> ChunkKey(ContainerSettings.ContainerId, Entry->ChunkHash);
-					Entry->bLoadingFromReferenceDb = ReferenceChunkDatabase->ChunkExists(ChunkKey, Entry->NumChunkBlocksFromRefDb);
+					Entry->bLoadingFromReferenceDb = ReferenceChunkDatabase->ChunkExists(ChunkKey, Entry->ChunkId, Entry->NumChunkBlocksFromRefDb);
+					Entry->bCouldBeFromReferenceDb = true;
 				}
 				return;
 			}
@@ -901,7 +916,8 @@ public:
 			if (ReferenceChunkDatabase.IsValid() && CompressionMethodForEntry(Entry) != NAME_None)
 			{
 				TPair<FIoContainerId, FIoChunkHash> ChunkKey(ContainerSettings.ContainerId, Entry->ChunkHash);
-				Entry->bLoadingFromReferenceDb = ReferenceChunkDatabase->ChunkExists(ChunkKey, Entry->NumChunkBlocksFromRefDb);
+				Entry->bLoadingFromReferenceDb = ReferenceChunkDatabase->ChunkExists(ChunkKey, Entry->ChunkId, Entry->NumChunkBlocksFromRefDb);
+				Entry->bCouldBeFromReferenceDb = true;
 			}
 
 			// Release the source data buffer, it will be reloaded later when we start compressing the chunk
@@ -1211,6 +1227,7 @@ public:
 					CompressedContainerSize += ExtraPaddingBytes;
 					UncompressedContainerSize += ExtraPaddingBytes;
 					Partition.Offset += ExtraPaddingBytes;
+					TotalPaddingSize += ExtraPaddingBytes;
 				}
 			}
 			
@@ -1271,6 +1288,8 @@ public:
 		Result.PaddingSize = TotalPaddingSize;
 		Result.UncompressedContainerSize = UncompressedContainerSize;
 		Result.CompressedContainerSize = CompressedContainerSize;
+		Result.TotalEntryCompressedSize = TotalEntryCompressedSize;
+		Result.ReferenceCacheMissBytes = ReferenceCacheMissBytes;
 		Result.DirectoryIndexSize = TocResource.Header.DirectoryIndexSize;
 		Result.CompressionMethod = EnumHasAnyFlags(ContainerSettings.ContainerFlags, EIoContainerFlags::Compressed)
 			? WriterSettings.CompressionMethod
@@ -1588,6 +1607,7 @@ private:
 
 				uint64 TotalUncompressedSize = 0;
 				uint8* ReferenceData = ReadResult.IoBuffer.GetData();
+				uint64 TotalAlignedSize = 0;
 				for (int32 BlockIndex = 0; BlockIndex < ReadResult.Blocks.Num(); ++BlockIndex)
 				{
 					FIoStoreCompressedBlockInfo& ReferenceBlock = ReadResult.Blocks[BlockIndex];
@@ -1608,6 +1628,15 @@ private:
 					// we "could".
 					FMemory::Memcpy(Block.IoBuffer->GetData(), ReferenceData, Block.CompressedSize);
 					ReferenceData += ReferenceBlock.AlignedSize;
+					TotalAlignedSize += ReferenceBlock.AlignedSize;
+				}
+
+				if (TotalAlignedSize != ReadResult.IoBuffer.GetSize())
+				{
+					// If we hit this, we might have read garbage memory above! This is very bad.
+					UE_LOG(LogIoStore, Error, TEXT("Block aligned size does not match iobuffer source size! Blocks: %s source size: %s"),
+						*FText::AsNumber(TotalAlignedSize).ToString(),
+						*FText::AsNumber(ReadResult.IoBuffer.GetSize()).ToString());
 				}
 
 				Entry->UncompressedSize.Emplace(TotalUncompressedSize);
@@ -1845,6 +1874,10 @@ private:
 			}
 			if (WriterSettings.CompressionBlockAlignment)
 			{
+				// Try and prevent entries from crossing compression alignment blocks if possible. This is to avoid
+				// small entries from causing multiple file system block reads afaict. Large entries necesarily get
+				// aligned to prevent things like a blocksize + 2 entry being at alignment -1, causing 3 low level reads.
+				// ...I think.
 				bool bCrossesBlockBoundary = Align(TargetPartition->Offset, WriterSettings.CompressionBlockAlignment) != Align(TargetPartition->Offset + Entry->CompressedSize - 1, WriterSettings.CompressionBlockAlignment);
 				if (bCrossesBlockBoundary)
 				{
@@ -1898,6 +1931,13 @@ private:
 			BlockEntry.SetCompressedSize(uint32(ChunkBlock.CompressedSize));
 			BlockEntry.SetUncompressedSize(uint32(ChunkBlock.UncompressedSize));
 			BlockEntry.SetCompressionMethodIndex(Toc.AddCompressionMethodEntry(ChunkBlock.CompressionMethod));
+
+			// We do this here so that we get the total size of data excluding the encryption alignment
+			TotalEntryCompressedSize += ChunkBlock.CompressedSize;
+			if (Entry->bCouldBeFromReferenceDb && !Entry->bLoadingFromReferenceDb)
+			{
+				ReferenceCacheMissBytes += ChunkBlock.CompressedSize;
+			}
 
 			if (!ChunkBlock.CompressionMethod.IsNone())
 			{
@@ -1984,10 +2024,12 @@ private:
 	TUniquePtr<FArchive>		CsvArchive;
 	FIoStoreWriterResult		Result;
 	uint64						UncompressedFileOffset = 0;
-	uint64						TotalEntryUncompressedSize = 0;
+	uint64						TotalEntryUncompressedSize = 0; // sum of all entry source buffer sizes
+	uint64						TotalEntryCompressedSize = 0; // entry compressed size excluding encryption alignment
+	uint64						ReferenceCacheMissBytes = 0; // number of compressed bytes excluding alignment that could have been from refcache but weren't.
 	uint64						TotalPaddingSize = 0;
-	uint64						UncompressedContainerSize = 0;
-	uint64						CompressedContainerSize = 0;
+	uint64						UncompressedContainerSize = 0; // this is the size the container would be if it were uncompressed.
+	uint64						CompressedContainerSize = 0; // this is the size of the container with the given compression (which may be none).
 	int32						CurrentPartitionIndex = 0;
 	bool						bHasMemoryMappedEntry = false;
 	bool						bHasFlushed = false;

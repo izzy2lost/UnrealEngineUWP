@@ -451,6 +451,9 @@ struct FIoStoreWriterSettings
 {
 	FName CompressionMethod = NAME_None;
 	uint64 CompressionBlockSize = 64 << 10;
+
+	// This does not align every entry - it tries to prevent excess crossings of this boundary by inserting padding.
+	// and happens whether or not the entry is compressed.
 	uint64 CompressionBlockAlignment = 0;
 	int32 CompressionMinBytesSaved = 0;
 	int32 CompressionMinPercentSaved = 0;
@@ -514,9 +517,11 @@ struct FIoStoreWriterResult
 	int64 TocSize = 0;
 	int64 TocEntryCount = 0;
 	int64 PaddingSize = 0;
-	int64 UncompressedContainerSize = 0;
-	int64 CompressedContainerSize = 0;
+	int64 UncompressedContainerSize = 0; // this is the size the container would be if it were uncompressed.
+	int64 CompressedContainerSize = 0; // this is the size of the container with the given compression (which may be none). Should be the sum of all partition file sizes.
 	int64 DirectoryIndexSize = 0;
+	uint64 TotalEntryCompressedSize = 0; // sum of the compressed size of entries excluding encryption alignment.
+	uint64 ReferenceCacheMissBytes = 0; // number of compressed bytes excluding alignment that could have been from refcache but weren't.
 	uint64 AddedChunksCount = 0;
 	uint64 AddedChunksSize = 0;
 	uint64 ModifiedChunksCount = 0;
@@ -702,13 +707,18 @@ public:
 	* Quick synchronous existence check that returns the number of blocks for the chunk. This is used to set up
 	* the necessary structures without needing to read the source data for the chunk.
 	*/
-	virtual bool ChunkExists(const TPair<FIoContainerId, FIoChunkHash>& InChunkKey, uint32& OutNumChunkBlocks) = 0;
+	virtual bool ChunkExists(const TPair<FIoContainerId, FIoChunkHash>& InChunkKey, const FIoChunkId& InChunkId, uint32& OutNumChunkBlocks) = 0;
 
 	/*
 	* Returns the compression block size that was used to break up the IoChunks in the source containers. If this is different than what we want, 
 	* then none of the chunks will ever match. Knowing this up front allows us to only match on hash
 	*/
 	virtual uint32 GetCompressionBlockSize() const = 0;
+
+	/*
+	* Called by an iostore writer implementation to notify the ref cache it's been added
+	*/
+	virtual void NotifyAddedToWriter(const FIoContainerId& InContainerId) = 0;
 };
 
 /**
