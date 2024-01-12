@@ -213,7 +213,7 @@ namespace UE::PoseSearch
 			if (DatabaseAsset)
 			{
 				// Init statistics
-				if (FAsyncPoseSearchDatabasesManagement::RequestAsyncBuildIndex(GetPoseSearchDatabase(), ERequestAsyncBuildFlag::ContinueRequest))
+				if (EAsyncBuildIndexResult::Success == FAsyncPoseSearchDatabasesManagement::RequestAsyncBuildIndex(GetPoseSearchDatabase(), ERequestAsyncBuildFlag::ContinueRequest))
 				{
 					RefreshStatisticsWidgetInformation();
 				}

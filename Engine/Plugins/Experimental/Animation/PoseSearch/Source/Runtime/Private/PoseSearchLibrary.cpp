@@ -551,7 +551,7 @@ void UPoseSearchLibrary::UpdateMotionMatchingState(
 		const UPoseSearchDatabase* CurResultDatabase = CurResult.Database.Get();
 
 #if WITH_EDITOR
-		if (FAsyncPoseSearchDatabasesManagement::RequestAsyncBuildIndex(CurResultDatabase, ERequestAsyncBuildFlag::ContinueRequest))
+		if (EAsyncBuildIndexResult::Success == FAsyncPoseSearchDatabasesManagement::RequestAsyncBuildIndex(CurResultDatabase, ERequestAsyncBuildFlag::ContinueRequest))
 #endif // WITH_EDITOR
 		{
 			FAnimInstanceProxy* AnimInstanceProxy = Context.AnimInstanceProxy;
@@ -927,7 +927,7 @@ UE::PoseSearch::FSearchResult UPoseSearchLibrary::MotionMatch(const FAnimationBa
 			const UPoseSearchDatabase* Database = AssetsToSearchPerDatabasePair.Key;
 
 #if WITH_EDITOR
-			if (!FAsyncPoseSearchDatabasesManagement::RequestAsyncBuildIndex(Database, ERequestAsyncBuildFlag::ContinueRequest))
+			if (EAsyncBuildIndexResult::Success != FAsyncPoseSearchDatabasesManagement::RequestAsyncBuildIndex(Database, ERequestAsyncBuildFlag::ContinueRequest))
 			{
 				SearchContext.SetAsyncBuildIndexInProgress();
 			}

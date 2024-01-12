@@ -2165,12 +2165,11 @@ void FAsyncPoseSearchDatabasesManagement::AddReferencedObjects(FReferenceCollect
 	}
 }
 
-// returns true if the index has been built and the Database updated correctly  
-bool FAsyncPoseSearchDatabasesManagement::RequestAsyncBuildIndex(const UPoseSearchDatabase* Database, ERequestAsyncBuildFlag Flag)
+EAsyncBuildIndexResult FAsyncPoseSearchDatabasesManagement::RequestAsyncBuildIndex(const UPoseSearchDatabase* Database, ERequestAsyncBuildFlag Flag)
 {
 	if (!IsValid(Database))
 	{
-		return false;
+		return EAsyncBuildIndexResult::Failed;
 	}
 
 	FScopeLock Lock(&Mutex);
@@ -2216,7 +2215,17 @@ bool FAsyncPoseSearchDatabasesManagement::RequestAsyncBuildIndex(const UPoseSear
 		}
 	}
 
-	return Task->GetState() == FPoseSearchDatabaseAsyncCacheTask::EState::Ended;
+	if (Task->GetState() == FPoseSearchDatabaseAsyncCacheTask::EState::Ended)
+	{
+		return EAsyncBuildIndexResult::Success;
+	}
+
+	if (Task->GetState() == FPoseSearchDatabaseAsyncCacheTask::EState::Failed)
+	{
+		return EAsyncBuildIndexResult::Failed;
+	}
+
+	return EAsyncBuildIndexResult::InProgress;
 }
 
 } // namespace UE::PoseSearch

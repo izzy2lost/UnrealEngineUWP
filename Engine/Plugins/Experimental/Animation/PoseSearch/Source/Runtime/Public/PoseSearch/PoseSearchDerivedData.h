@@ -23,10 +23,17 @@ namespace UE::PoseSearch
 	};
 	ENUM_CLASS_FLAGS(ERequestAsyncBuildFlag);
 
+	enum class EAsyncBuildIndexResult
+	{
+		InProgress,						// indexing in progress
+		Success,						// the index has been built and the Database updated correctly
+		Failed							// indexing failed
+	};
+
 	class POSESEARCH_API FAsyncPoseSearchDatabasesManagement : public FTickableGameObject, public FTickableCookObject, public FGCObject
 	{
 	public:
-		static bool RequestAsyncBuildIndex(const UPoseSearchDatabase* Database, ERequestAsyncBuildFlag Flag);
+		static EAsyncBuildIndexResult RequestAsyncBuildIndex(const UPoseSearchDatabase* Database, ERequestAsyncBuildFlag Flag);
 
 	private:
 		FAsyncPoseSearchDatabasesManagement();

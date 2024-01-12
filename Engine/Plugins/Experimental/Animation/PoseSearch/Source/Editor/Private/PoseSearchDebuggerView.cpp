@@ -300,7 +300,7 @@ void SDebuggerView::Tick(const FGeometry& AllottedGeometry, const double InCurre
 				{
 					const UPoseSearchDatabase* Database = FTraceMotionMatchingStateMessage::GetObjectFromId<UPoseSearchDatabase>(DbEntry.DatabaseId);
 					if (Database && Database == CurrentDatabase &&
-						FAsyncPoseSearchDatabasesManagement::RequestAsyncBuildIndex(CurrentDatabase, ERequestAsyncBuildFlag::ContinueRequest) &&
+						EAsyncBuildIndexResult::Success == FAsyncPoseSearchDatabasesManagement::RequestAsyncBuildIndex(CurrentDatabase, ERequestAsyncBuildFlag::ContinueRequest) &&
 						DbEntry.QueryVector.Num() == Database->Schema->SchemaCardinality)
 					{
 						FDebugDrawParams DrawParams(Meshes, PoseHistories, RoleToIndex, CurrentDatabase, EDebugDrawFlags::DrawQuery);
@@ -323,7 +323,7 @@ void SDebuggerView::Tick(const FGeometry& AllottedGeometry, const double InCurre
 		{
 			const TSharedRef<FDebuggerDatabaseRowData>& Row = SelectedRows[RowIdx];
 			const UPoseSearchDatabase* RowDatabase = Row->SharedData->SourceDatabase.Get();
-			if (FAsyncPoseSearchDatabasesManagement::RequestAsyncBuildIndex(RowDatabase, ERequestAsyncBuildFlag::ContinueRequest))
+			if (EAsyncBuildIndexResult::Success == FAsyncPoseSearchDatabasesManagement::RequestAsyncBuildIndex(RowDatabase, ERequestAsyncBuildFlag::ContinueRequest))
 			{
 				FDebugDrawParams DrawParams(Meshes, PoseHistories, RoleToIndex, RowDatabase);
 				DrawParams.DrawFeatureVector(Row->PoseIdx);
@@ -339,7 +339,7 @@ void SDebuggerView::Tick(const FGeometry& AllottedGeometry, const double InCurre
 		if (!ActiveRows.IsEmpty())
 		{
 			const UPoseSearchDatabase* Database = ActiveRows[0]->SharedData->SourceDatabase.Get();
-			if (Database && FAsyncPoseSearchDatabasesManagement::RequestAsyncBuildIndex(Database, ERequestAsyncBuildFlag::ContinueRequest))
+			if (EAsyncBuildIndexResult::Success == FAsyncPoseSearchDatabasesManagement::RequestAsyncBuildIndex(Database, ERequestAsyncBuildFlag::ContinueRequest))
 			{
 				// Use the motion-matching state's pose idx, as the active row may be update-throttled at this point
 				FDebugDrawParams DrawParams(Meshes, PoseHistories, RoleToIndex, Database);
@@ -357,7 +357,7 @@ void SDebuggerView::Tick(const FGeometry& AllottedGeometry, const double InCurre
 		if (!ContinuingRows.IsEmpty())
 		{
 			const UPoseSearchDatabase* Database = ContinuingRows[0]->SharedData->SourceDatabase.Get();
-			if (Database && FAsyncPoseSearchDatabasesManagement::RequestAsyncBuildIndex(Database, ERequestAsyncBuildFlag::ContinueRequest))
+			if (EAsyncBuildIndexResult::Success == FAsyncPoseSearchDatabasesManagement::RequestAsyncBuildIndex(Database, ERequestAsyncBuildFlag::ContinueRequest))
 			{
 				FDebugDrawParams DrawParams(Meshes, PoseHistories, RoleToIndex, Database);
 				DrawParams.DrawFeatureVector(ContinuingRows[0]->PoseIdx);
