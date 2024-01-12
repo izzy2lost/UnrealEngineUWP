@@ -376,35 +376,53 @@ void UInterchangeGenericTexturePipeline::PostImportTextureAssetImport(UObject* C
 	// this is run on main thread
 	check(IsInGameThread());
 
+	UTexture* Texture = Cast<UTexture>(CreatedAsset);
+	if (Texture == nullptr)
+	{
+		return;
+	}
+
 	// (Note - as part of the standard interchange import this is called during the object
 	// import iteration, _before_ the iteration to call to PostEditChange which is what starts the texture build via UpdateResource,
 	// so altering properties here should be safe!)
-	if (!bIsAReimport && bDetectNormalMapTexture)
+	check(!FTextureCompilingManager::Get().IsCompilingTexture(Texture));
+	FTextureSource& Source = Texture->Source;
+
+	bool bRunNormapMapDetection = !bIsAReimport && bDetectNormalMapTexture && !Texture->IsNormalMap();
+
+	 // we probably got the info via Init() - if we didn't it's because it's compressed. Here we can decompress, so do it if needed.
+	bool bRunChannelScan = Source.GetLayerColorInfo().Num() == 0;
+
+	bool bNeedLockedMip = bRunChannelScan || bRunNormapMapDetection;
+	if (!bNeedLockedMip)
 	{
-		if (UTexture* Texture = Cast<UTexture>(CreatedAsset))
-		{
-			// if it's already a normal map, no need to run NormalMapIdentification
-			if (!Texture->IsNormalMap())
-			{
- 				check(!FTextureCompilingManager::Get().IsCompilingTexture(Texture)); // see comment above.
-
-				FTextureSource::FMipLock LockedMip(FTextureSource::ELockState::ReadOnly, &Texture->Source, 0);
-
-				if (LockedMip.IsValid())
-				{
-					// AdjustTextureForNormalMap technically only adjusts properties and doesn't kick a texture build, however
-					// if it guesses it's a normal map it pops a toast notification that can Revert the change, which does a whole
-					// Modify / PostEditChange which theoretically can kick a build before the PostEditChange in the outer interchange
-					// import chain if somehow the UI click chain routes before the outer loop calls PostEditChange.
-					UE::Interchange::Private::AdjustTextureForNormalMap(Texture, LockedMip.Image, bFlipNormalMapGreenChannel);
-				}
-				else
-				{
-					UE_LOG(LogInterchangePipeline, Display, TEXT("PostImport Texture failed to lock mip data, actions (like normal map detection) not performed!"));
-				}
-			}
-		}
+		return;
 	}
+
+	// Lock the mip outside of everything. We allow nested locks so this just makes sure
+	// that we don't decompress the mip data multiple times. Since the mips are all shared
+	// this is locking all of them even if it only exposes the one mip.
+	FTextureSource::FMipLock LockedMip0(FTextureSource::ELockState::ReadOnly, &Texture->Source, 0);
+	if (!LockedMip0.IsValid())
+	{
+		UE_LOG(LogInterchangePipeline, Error, TEXT("PostImport Texture failed to lock mip data, actions (like normal map detection) not performed on %s"), *Texture->GetPathName());
+		return;
+	}
+
+	if (bRunChannelScan)
+	{
+		Source.UpdateChannelLinearMinMax();
+	}
+
+	if (bRunNormapMapDetection)
+	{
+		// AdjustTextureForNormalMap technically only adjusts properties and doesn't kick a texture build, however
+		// if it guesses it's a normal map it pops a toast notification that can Revert the change, which does a whole
+		// Modify / PostEditChange which theoretically can kick a build before the PostEditChange in the outer interchange
+		// import chain if somehow the UI click chain routes before the outer loop calls PostEditChange.
+		UE::Interchange::Private::AdjustTextureForNormalMap(Texture, LockedMip0.Image, bFlipNormalMapGreenChannel);
+	}
+
 #endif //WITH_EDITOR
 }
 

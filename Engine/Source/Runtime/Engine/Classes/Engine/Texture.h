@@ -47,6 +47,20 @@ namespace UE::DerivedData { struct FValueId; }
 #endif
 
 USTRUCT()
+struct FTextureSourceLayerColorInfo
+{
+	GENERATED_USTRUCT_BODY();
+
+	/** Per channel min value of the colors for all blocks in mip0 in linear space */
+	UPROPERTY(VisibleAnywhere, Category = TextureSource)
+	FLinearColor ColorMin;
+
+	/** Per channel max value of the colors for all blocks in mip0 in linear space */
+	UPROPERTY(VisibleAnywhere, Category = TextureSource)
+	FLinearColor ColorMax;
+};
+
+USTRUCT()
 struct FTextureSourceBlock
 {
 	GENERATED_USTRUCT_BODY()
@@ -583,6 +597,10 @@ private:
 	// Internal implementation for locking the mip data, called by LockMipReadOnly or LockMip.
 	FMutableMemoryView LockMipInternal(int32 BlockIndex, int32 LayerIndex, int32 MipIndex, ELockState RequestedLockState);
 	
+	// As per UpdateChannelLinearMinMax(), except acts on incoming new data rather than locking existing mips.
+	// This only works on uncompressed incoming data - otherwise the channel bounds will get updated on save.
+	void UpdateChannelMinMaxFromIncomingTextureData(FMemoryView InNewTextureData);
+	
 	/** Returns the source data fully decompressed */
 	// ImageWrapperModule is not used
 	FSharedBuffer Decompress(class IImageWrapperModule* ImageWrapperModule = nullptr) const;
@@ -618,6 +636,13 @@ private:
 	bool EnsureBlocksAreSorted();
 
 public:
+	// Runs FImageCore::ComputeChannelLinearMinMax on all blocks and layers (but only mip0), returns false
+	// if the source was unable to be locked and leaves the channel minmax as unknown. Compute just gets
+	// the values and leaves the source untouched.
+	ENGINE_API bool UpdateChannelLinearMinMax();
+	ENGINE_API bool ComputeChannelLinearMinMax(int32 InLayerIndex, FLinearColor& OutMinColor, FLinearColor& OutMaxColor) const;
+	ENGINE_API const TArray<FTextureSourceLayerColorInfo>& GetLayerColorInfo() const { return LayerColorInfo; }
+
 	/** Uses a hash as the GUID, useful to prevent creating new GUIDs on load for legacy assets.
 	This is automatically done by Init() and Mip Lock/Unlock.  New textures should always have the data hash as Id. */
 	ENGINE_API void UseHashAsGuid();
@@ -684,6 +709,10 @@ private:
 	/** Uses hash instead of guid to identify content to improve DDC cache hit. */
 	UPROPERTY(VisibleAnywhere, Category=TextureSource)
 	bool bGuidIsHash;
+
+	/** Per layer color info. If this is empty we don't have the data, otherwise count is == NumLayers. */
+	UPROPERTY(VisibleAnywhere, Category=TextureSource)
+	TArray<FTextureSourceLayerColorInfo> LayerColorInfo;
 
 	/** Format in which the source data is stored. */
 	UPROPERTY(VisibleAnywhere, Category=TextureSource)

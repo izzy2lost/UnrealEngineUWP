@@ -79,6 +79,12 @@ static TAutoConsoleVariable<int32> CVarVirtualTexturesMenuRestricted(
 	TEXT("Restrict virtual texture menu options"),
 	ECVF_Default);
 
+static TAutoConsoleVariable<int32> CVarTexturesComputeChannelMinMaxDuringSave(
+	TEXT("r.TexturesComputeChannelMinMaxDuringSave"),
+	0,
+	TEXT("Whether textures determine per channel min/max on save for early format computation."),
+	ECVF_ReadOnly);
+
 // GSkipInvalidDXTDimensions prevents crash with non-4x4 aligned DXT
 // if the Texture code is working correctly, this should not be necessary
 // turn this bool off when possible ; FORT-515901
@@ -1318,6 +1324,13 @@ void UTexture::PreSave(FObjectPreSaveContext ObjectSaveContext)
 
 	if (!GEngine->IsAutosaving() && !ObjectSaveContext.IsProceduralSave())
 	{
+		if (Source.LayerColorInfo.Num() == 0 &&
+			CVarTexturesComputeChannelMinMaxDuringSave.GetValueOnGameThread())
+		{
+			// Decompresses and scans the texture.
+			Source.UpdateChannelLinearMinMax();
+		}
+
 		GWarn->StatusUpdate(0, 0, FText::Format(NSLOCTEXT("UnrealEd", "SavingPackage_CompressingSourceArt", "Compressing source art for texture:  {0}"), FText::FromString(GetName())));
 		Source.Compress();
 	}
@@ -2022,6 +2035,7 @@ void FTextureSource::InitBlocked(const ETextureSourceFormat* InLayerFormats,
 		}
 	}
 
+	UpdateChannelMinMaxFromIncomingTextureData(Buffer.GetView());
 	BulkData.UpdatePayload(Buffer.MoveToShared(), Owner);
 	BulkData.SetCompressionOptions(UE::Serialization::ECompressionOptions::Default);
 	UseHashAsGuid();
@@ -2035,6 +2049,7 @@ void FTextureSource::InitBlocked(const ETextureSourceFormat* InLayerFormats,
 {
 	InitBlockedImpl(InLayerFormats, InBlocks, InNumLayers, InNumBlocks);
 
+	UpdateChannelMinMaxFromIncomingTextureData(NewData.GetPayload().GetView());
 	BulkData.UpdatePayload(MoveTemp(NewData), Owner);
 	BulkData.SetCompressionOptions(UE::Serialization::ECompressionOptions::Default);
 	UseHashAsGuid();
@@ -2063,10 +2078,11 @@ void FTextureSource::InitLayered(
 	{
 		TotalBytes += CalcLayerSize(0, i);
 	}
-
+	
 	// Init with NewData == null is used to allocate space, which is then filled with LockMip
 	if (NewData != nullptr)
 	{
+		UpdateChannelMinMaxFromIncomingTextureData(FMemoryView(NewData, TotalBytes));
 		BulkData.UpdatePayload(FSharedBuffer::Clone(NewData, TotalBytes), Owner);
 	}
 	else
@@ -2076,7 +2092,7 @@ void FTextureSource::InitLayered(
 	}
 
 	BulkData.SetCompressionOptions(UE::Serialization::ECompressionOptions::Default);
-	UseHashAsGuid();
+	UseHashAsGuid(); // ?? with no incoming data this is hashing garbage ???
 }
 
 void FTextureSource::InitLayered(
@@ -2097,6 +2113,7 @@ void FTextureSource::InitLayered(
 		NewLayerFormat
 	);
 
+	UpdateChannelMinMaxFromIncomingTextureData(NewData.GetPayload().GetView());
 	BulkData.UpdatePayload(MoveTemp(NewData), Owner);
 	BulkData.SetCompressionOptions(UE::Serialization::ECompressionOptions::Default);
 	UseHashAsGuid();
@@ -2189,6 +2206,7 @@ void FTextureSource::InitWithCompressedSourceData(
 
 	CompressionFormat = NewSourceFormat;
 
+	UpdateChannelMinMaxFromIncomingTextureData(MakeMemoryView(NewData));
 	BulkData.UpdatePayload(FSharedBuffer::Clone(NewData.GetData(), NewData.Num()), Owner);
 	// Disable the internal bulkdata compression if the source data is already compressed
 	if (CompressionFormat == TSCF_None)
@@ -2224,6 +2242,8 @@ void FTextureSource::InitWithCompressedSourceData(
 	);
 
 	CompressionFormat = NewSourceFormat;
+	
+	UpdateChannelMinMaxFromIncomingTextureData(NewSourceData.GetPayload().GetView());
 
 	BulkData.UpdatePayload(MoveTemp(NewSourceData), Owner);
 	// Disable the internal bulkdata compression if the source data is already compressed
@@ -2529,6 +2549,13 @@ void FTextureSource::UnlockMip(int32 BlockIndex, int32 LayerIndex, int32 MipInde
 	check(MipIndex < MAX_TEXTURE_MIP_COUNT);
 	check(NumLockedMips > 0u);
 	check(LockState != ELockState::None);
+
+	// if we are the last unlock then run color analysis on the mip data if it's changed.
+	if (LockState == ELockState::ReadWrite &&
+		NumLockedMips == 1)
+	{
+		UpdateChannelLinearMinMax();
+	}
 
 	--NumLockedMips;
 	if (NumLockedMips == 0u)
@@ -2968,6 +2995,11 @@ void FTextureSource::ImportCustomProperties(const TCHAR* SourceText, FFeedbackCo
 			
 			if (bSuccess)
 			{
+				// Data changed - we don't know the bounds anymore.
+				// This seems very suspicious - expected data size doesn't seem to be checked at all? When is this used? Is then input data
+				// compressed? If its uncompressed then we can run the color analysis on it..?
+				LayerColorInfo.Empty();
+
 				BulkData.UpdatePayload(Buffer.MoveToShared(), Owner);
 			}
 		}
@@ -3042,6 +3074,8 @@ void FTextureSource::RemoveSourceData()
 	NumLockedMips = 0u;
 	LockState = ELockState::None;
 	
+	LayerColorInfo.Empty();
+
 	BulkData.UnloadData();
 
 	ForceGenerateGuid();
@@ -4031,15 +4065,20 @@ bool UTexture::ComputeTextureSourceChannelMinMax(FLinearColor & OutColorMin, FLi
 	OutColorMax = FLinearColor(ForceInit);
 
 #if WITH_EDITORONLY_DATA
-	FImage Image;
-	if ( ! const_cast<UTexture *>(this)->Source.GetMipImage(Image,0) )
+	if (Source.LayerColorInfo.Num())
 	{
-		UE_LOG(LogTexture, Error, TEXT("ComputeTextureSourceChannelMinMax failed to GetMipImage. (%s)"), *GetName());
-		return false;
+		// This function only operates on layer 1. 
+		OutColorMin = Source.LayerColorInfo[0].ColorMin;
+		OutColorMax = Source.LayerColorInfo[0].ColorMax;
+		return true;
+	}
+	else if (Source.ComputeChannelLinearMinMax(0 /* layer index */, OutColorMin, OutColorMax))
+	{
+		return true;
 	}
 
-	FImageCore::ComputeChannelLinearMinMax(Image,OutColorMin,OutColorMax);
-	return true;
+	UE_LOG(LogTexture, Error, TEXT("ComputeTextureSourceChannelMinMax failed to GetMipImage. (%s)"), *GetName());
+	return false;
 #else
 	UE_LOG(LogTexture, Error, TEXT("ComputeTextureSourceChannelMinMax can only be called WITH_EDITORONLY_DATA. (%s)"), *GetName());
 	return false;
@@ -4155,6 +4194,168 @@ void FTextureSource::FMipAllocation::CreateReadWriteBuffer(const void* SrcData, 
 	}
 
 	ReadOnlyReference = FSharedBuffer::MakeView(ReadWriteBuffer.Get(), DataLength);
+}
+
+bool FTextureSource::ComputeChannelLinearMinMax(int32 InLayerIndex, FLinearColor& OutMinColor, FLinearColor& OutMaxColor) const
+{
+	OutMinColor = FLinearColor(EForceInit::ForceInitToZero);
+	OutMaxColor = FLinearColor(EForceInit::ForceInitToZero);
+
+	if (CalcTotalSize() == 0)
+	{
+		return true;
+	}
+
+	TRACE_CPUPROFILER_EVENT_SCOPE(FTextureSource::ComputeChannelLinearMinMax);
+
+	// If we're already locked then just use what the existing lock type was since we aren't changing anything
+	// and if we try ReadOnly when we are locked ReadWrite we'll get a lock mismatch error.
+	FTextureSource::ELockState UseLockType = FTextureSource::ELockState::ReadOnly;
+	if (NumLockedMips)
+	{
+		UseLockType = LockState;
+	}
+
+	// have to strip const for the lock state
+	FTextureSource::FMipLock LockedMip0(UseLockType, (FTextureSource*)this, 0);
+	if (LockedMip0.IsValid() == false)
+	{
+		return false;
+	}
+
+	FLinearColor TotalMin(FLT_MAX, FLT_MAX, FLT_MAX, FLT_MAX);
+	FLinearColor TotalMax(-FLT_MAX, -FLT_MAX, -FLT_MAX, -FLT_MAX);
+
+	for (int32 BlockIndex = 0; BlockIndex < GetNumBlocks(); BlockIndex++)
+	{
+		// The data is already present and locked from the mip0 lock above, this just gets use the
+		// imageview.
+		// have to strip const for the lock state
+		FTextureSource::FMipLock LockedBlock(UseLockType, (FTextureSource*)this, BlockIndex, InLayerIndex, 0);
+		check(LockedBlock.IsValid()); // should be same as validity check above!!
+
+		FLinearColor MinColor, MaxColor;
+		FImageCore::ComputeChannelLinearMinMax(LockedBlock.Image, MinColor, MaxColor);
+
+		TotalMin.R = FMath::Min(MinColor.R, TotalMin.R);
+		TotalMin.G = FMath::Min(MinColor.G, TotalMin.G);
+		TotalMin.B = FMath::Min(MinColor.B, TotalMin.B);
+		TotalMin.A = FMath::Min(MinColor.A, TotalMin.A);
+
+		TotalMax.R = FMath::Max(MaxColor.R, TotalMax.R);
+		TotalMax.G = FMath::Max(MaxColor.G, TotalMax.G);
+		TotalMax.B = FMath::Max(MaxColor.B, TotalMax.B);
+		TotalMax.A = FMath::Max(MaxColor.A, TotalMax.A);
+	}
+
+	OutMinColor = TotalMin;
+	OutMaxColor = TotalMax;
+	return true;
+}
+
+void FTextureSource::UpdateChannelMinMaxFromIncomingTextureData(FMemoryView InNewTextureData)
+{
+	LayerColorInfo.Empty();
+
+	if (CompressionFormat != TSCF_None)
+	{
+		// Can't look at compressed data.
+		return;
+	}
+
+	bool bSucceeded = true;
+
+	for (int32 LayerIndex = 0; LayerIndex < NumLayers; LayerIndex++)
+	{
+		FTextureSourceLayerColorInfo& LayerInfo = LayerColorInfo.AddDefaulted_GetRef();
+
+		FLinearColor TotalMin(FLT_MAX, FLT_MAX, FLT_MAX, FLT_MAX);
+		FLinearColor TotalMax(-FLT_MAX, -FLT_MAX, -FLT_MAX, -FLT_MAX);
+
+		for (int32 BlockIndex = 0; BlockIndex < GetNumBlocks(); BlockIndex++)
+		{
+			FTextureSourceBlock Block;
+			GetBlock(BlockIndex, Block);
+
+			int64 MipOffset = CalcMipOffset(BlockIndex, LayerIndex, 0);
+			int64 MipSize = CalcMipSize(BlockIndex, LayerIndex, 0);
+
+			FMemoryView MipView = InNewTextureData.Mid(MipOffset, MipSize);
+			check(MipView.GetSize() == MipSize);
+
+			if (MipView.GetSize() == MipSize)
+			{
+				FImageView Image;
+				Image.RawData = (void*)MipView.GetData();
+				Image.SizeX = FMath::Max(Block.SizeX, 1);
+				Image.SizeY = FMath::Max(Block.SizeY, 1);
+				Image.NumSlices = GetMippedNumSlices(Block.NumSlices, 0);
+				Image.Format = FImageCoreUtils::ConvertToRawImageFormat(GetFormat(LayerIndex));
+				Image.GammaSpace = GetGammaSpace(LayerIndex);
+
+				FLinearColor MinColor, MaxColor;
+				FImageCore::ComputeChannelLinearMinMax(Image, MinColor, MaxColor);
+
+				TotalMin.R = FMath::Min(MinColor.R, TotalMin.R);
+				TotalMin.G = FMath::Min(MinColor.G, TotalMin.G);
+				TotalMin.B = FMath::Min(MinColor.B, TotalMin.B);
+				TotalMin.A = FMath::Min(MinColor.A, TotalMin.A);
+
+				TotalMax.R = FMath::Max(MaxColor.R, TotalMax.R);
+				TotalMax.G = FMath::Max(MaxColor.G, TotalMax.G);
+				TotalMax.B = FMath::Max(MaxColor.B, TotalMax.B);
+				TotalMax.A = FMath::Max(MaxColor.A, TotalMax.A);
+			}
+			else
+			{
+				UE_LOG(LogTexture, Error, TEXT("Invalid mip size in texture source init: passed in size doesn't accomodate all mips!"));
+				bSucceeded = false;
+			}
+		} // end each block
+
+		LayerInfo.ColorMax = TotalMax;
+		LayerInfo.ColorMin = TotalMin;
+	} // end each layer
+
+	if (!bSucceeded)
+	{
+		LayerColorInfo.Empty();
+	}
+}
+
+bool FTextureSource::UpdateChannelLinearMinMax()
+{
+	LayerColorInfo.Empty();
+
+	// If we're already locked then just use what the existing lock type was since we aren't changing anything
+	// and if we try ReadOnly when we are locked ReadWrite we'll get a lock mismatch error.
+	FTextureSource::ELockState UseLockType = FTextureSource::ELockState::ReadOnly;
+	if (NumLockedMips)
+	{
+		UseLockType = LockState;
+	}
+
+	// have to strip const for the lock state.
+	// we take a lock here so that we don't do a separate lock for each layer - its OK to nest locks.
+	FTextureSource::FMipLock LockedMip0(UseLockType, (FTextureSource*)this, 0);
+	if (LockedMip0.IsValid() == false)
+	{
+		return false;
+	}
+
+	for (int32 LayerIndex = 0; LayerIndex < NumLayers; LayerIndex++)
+	{
+		FTextureSourceLayerColorInfo& LayerInfo = LayerColorInfo.AddDefaulted_GetRef();
+
+		bool GotMinMax = ComputeChannelLinearMinMax(LayerIndex, LayerInfo.ColorMin, LayerInfo.ColorMax);
+		check(GotMinMax); // should be the same check as above
+		if (GotMinMax == false)
+		{
+			LayerColorInfo.Empty();
+			return false;
+		}
+	}
+	return true;
 }
 
 void FTextureSource::InitLayeredImpl(
