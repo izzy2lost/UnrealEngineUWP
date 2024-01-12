@@ -428,6 +428,12 @@ void UConversationInstance::ServerRefreshTaskChoiceData(const FConversationNodeH
 		}
 	}
 }
+
+void UConversationInstance::ServerRefreshCurrentConversationNode()
+{
+	ProcessCurrentConversationNode();
+}
+
 #endif // #if WITH_SERVER_CODE
 
 void UConversationInstance::ResetConversationProgress()
@@ -522,6 +528,11 @@ TArray<FGuid> UConversationInstance::DetermineBranches(const TArray<FGuid>& Sour
 
 void UConversationInstance::OnCurrentConversationNodeModified()
 {
+	ProcessCurrentConversationNode();
+}
+
+void UConversationInstance::ProcessCurrentConversationNode()
+{
 	check(GetCurrentChoiceReference().IsValid());
 
 	FConversationContext AnonContext = FConversationContext::CreateServerContext(this, nullptr);
@@ -587,4 +598,4 @@ void UConversationInstance::OnCurrentConversationNodeModified()
 	}
 }
 
-#endif
+#endif //WITH_SERVER_CODE

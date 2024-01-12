@@ -57,6 +57,10 @@ public:
 
 	void ServerRefreshTaskChoiceData(const FConversationNodeHandle& Handle);
 
+	/** Attempts to process the current conversation node again - only useful in very specific circumstances where you'd want to re-run the current node
+	  * without having to deal with conversation flow changes. */
+	void ServerRefreshCurrentConversationNode();
+
 	/**
      * This is memory that will last for the duration of the conversation instance.  Don't store
      * anything here you want to be long lived.
@@ -123,7 +127,9 @@ private:
 
 #if WITH_SERVER_CODE
 	void OnCurrentConversationNodeModified();
-#endif
+
+	void ProcessCurrentConversationNode();
+#endif //WITH_SERVER_CODE
 
 protected:
 
