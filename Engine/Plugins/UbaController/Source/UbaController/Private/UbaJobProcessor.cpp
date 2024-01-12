@@ -231,6 +231,7 @@ void FUbaJobProcessor::RunTaskWithUba(FTask* Task)
 	ProcessInfo.arguments = *Parameters;
 	ProcessInfo.description = *InputFileName;
 	ProcessInfo.workingDir = *AppDir;
+	ProcessInfo.writeOutputFilesOnFail = true;
 
 	if (UbaJobProcessorOptions::bProcessLogEnabled)
 		ProcessInfo.logFile = *LogPath;

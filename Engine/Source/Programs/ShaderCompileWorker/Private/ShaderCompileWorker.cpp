@@ -305,12 +305,12 @@ public:
 #if PLATFORM_WINDOWS // Currently only implemented for windows
 			if (HMODULE UbaDetoursModule = GetUbaModule())
 			{
-				using UbaRequestNextProcessFunc = bool(TCHAR* outArguments, uint32 outArgumentsCapacity);
+				using UbaRequestNextProcessFunc = bool(uint32 prevExitCode, TCHAR* outArguments, uint32 outArgumentsCapacity);
 				static UbaRequestNextProcessFunc* RequestNextProcess = (UbaRequestNextProcessFunc*)(void*)GetProcAddress(UbaDetoursModule, "UbaRequestNextProcess");
 
 				// Request new process
 				TCHAR Arguments[1024];
-				if (RequestNextProcess(Arguments, 1024))
+				if (RequestNextProcess(0, Arguments, 1024))
 				{
 					TArray<FString> Tokens;
 					TArray<FString> Switches;
