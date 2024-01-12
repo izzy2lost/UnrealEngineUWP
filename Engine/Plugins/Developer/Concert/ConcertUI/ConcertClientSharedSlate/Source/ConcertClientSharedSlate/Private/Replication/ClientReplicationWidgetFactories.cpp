@@ -2,6 +2,7 @@
 
 #include "Replication/ClientReplicationWidgetFactories.h"
 
+#include "Object/EditorObjectNameModel.h"
 #include "Replication/ReplicationWidgetFactories.h"
 #include "Replication/Editor/Model/ReplicationStreamObject.h"
 #include "Replication/Editor/Model/Subobject/ComponentHierarchySubobjectModel.h"
@@ -16,6 +17,11 @@ namespace UE::ConcertClientSharedSlate
 	TSharedRef<ConcertSharedSlate::ISubobjectModel> CreateSubobjectModelForComponentHierarchy()
 	{
 		return MakeShared<FComponentHierarchySubobjectModel>();
+	}
+
+	TSharedRef<ConcertSharedSlate::IObjectNameModel> CreateEditorObjectNameModel()
+	{
+		return MakeShared<FEditorObjectNameModel>();
 	}
 
 	TSharedRef<ConcertSharedSlate::IEditableReplicationStreamModel> CreateTransactionalStreamModel(

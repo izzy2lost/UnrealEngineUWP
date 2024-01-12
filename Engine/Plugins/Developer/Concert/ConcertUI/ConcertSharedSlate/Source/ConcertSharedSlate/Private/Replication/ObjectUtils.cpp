@@ -55,5 +55,17 @@ namespace UE::ConcertSharedSlate::ObjectUtils
 		const FSoftObjectPath PathToOwningActor(SoftObjectPath.GetAssetPath(), NewSubstring);
 		return PathToOwningActor;
 	}
+	
+	FString ExtractObjectDisplayStringFromPath(const FSoftObjectPath& Object)
+	{
+		// Subpath looks like this PersistentLevel.Actor.Component
+		const FString& Subpath = Object.GetSubPathString();
+		const int32 LastDotIndex = Subpath.Find(TEXT("."), ESearchCase::CaseSensitive, ESearchDir::FromEnd);
+		if (LastDotIndex == INDEX_NONE)
+		{
+			return {};
+		}
+		return Subpath.RightChop(LastDotIndex + 1);
+	}
 };
 

@@ -55,6 +55,7 @@ namespace UE::ConcertSharedSlate
 	void SPropertyTreeView::Construct(const FArguments& InArgs)
 	{
 		SelectedObjectsAttribute = InArgs._SelectedObjects;
+		NameModel = InArgs._NameModel;
 		
 		const FBuildFilterBarResult Filters = BuildFilterBar();
 		ChildSlot
@@ -188,9 +189,9 @@ namespace UE::ConcertSharedSlate
 		}
 
 		TSet<FString> Names;
-		Algo::Transform(Objects, Names, [](const FSoftObjectPath& ObjectPath)
+		Algo::Transform(Objects, Names, [this](const FSoftObjectPath& ObjectPath)
 		{
-			return DisplayUtils::GetObjectDisplayText(ObjectPath).ToString();
+			return DisplayUtils::GetObjectDisplayText(ObjectPath, NameModel).ToString();
 		});
 		
 		const FText ObjectsText = FText::FromString(FString::Join(Names, TEXT(", ")));

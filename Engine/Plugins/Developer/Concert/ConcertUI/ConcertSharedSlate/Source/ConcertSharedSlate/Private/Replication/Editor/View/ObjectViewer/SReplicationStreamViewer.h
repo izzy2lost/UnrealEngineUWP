@@ -25,6 +25,7 @@ namespace UE::ConcertSharedSlate
 	class FReplicatedPropertyData;
 	class FReplicatedObjectData;
 	class IEditableReplicationStreamModel;
+	class IObjectNameModel;
 	class IReplicationStreamModel;
 	class ISubobjectModel;
 	class SPropertyTreeView;
@@ -61,6 +62,8 @@ namespace UE::ConcertSharedSlate
 
 			/** Optional. If set, this determines the children nested under the root objects. */
 			SLATE_ARGUMENT(TSharedPtr<ISubobjectModel>, SubobjectModel)
+			/** Optional. If set, this determines the display text for objects. */
+			SLATE_ARGUMENT(TSharedPtr<IObjectNameModel>, NameModel)
 
 			/** Optional. Called when the delete key is pressed in the object view. */
 			SLATE_EVENT(SReplicationTreeView<FReplicatedObjectData>::FDeleteItems, OnDeleteObjects)
@@ -101,8 +104,10 @@ namespace UE::ConcertSharedSlate
 
 		/** The model this view is visualizing. */
 		TSharedPtr<IReplicationStreamModel> PropertiesModel;
-		/** Can be null. If set, this determines the children nested under the root objects. */
+		/** Can be null. If set, this determines the children nested under the root objects. Editor builds have access to e.g. to USubobjectDataSubsystem but programs do not. */
 		TSharedPtr<ISubobjectModel> SubobjectModel;
+		/** Can be null. If set, this determines the display text for objects. Editor builds have access to e.g. to USubobjectDataSubsystem but programs do not. */
+		TSharedPtr<IObjectNameModel> NameModel;
 
 		/** Lists the properties of the selected actor */
 		TSharedPtr<SExpandableArea> PropertyArea;

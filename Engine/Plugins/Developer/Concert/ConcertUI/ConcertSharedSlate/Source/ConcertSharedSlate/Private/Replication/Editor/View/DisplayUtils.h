@@ -2,8 +2,10 @@
 
 #pragma once
 
+#include "Templates/SharedPointer.h"
+#include "Internationalization/Text.h"
+
 class FString;
-class FText;
 class UObject;
 
 struct FConcertPropertyChain;
@@ -12,16 +14,19 @@ struct FSoftObjectPath;
 
 namespace UE::ConcertSharedSlate
 {
+	class IObjectNameModel;
 	class IReplicationStreamModel;
 }
 
 namespace UE::ConcertSharedSlate::DisplayUtils
 {
-	/** @return The text to use for displaying this object's name */
-	FText GetObjectDisplayText(const FSoftObjectPath& Object);
+	/** Unified version that reads from IObjectNameModel or defaults to extracting the name from the path. */
+	FText GetObjectDisplayText(const FSoftObjectPath& Object, IObjectNameModel* Model = nullptr);
+	inline FText GetObjectDisplayText(const FSoftObjectPath& Object, const TSharedPtr<IObjectNameModel>& Model = nullptr) { return GetObjectDisplayText(Object, Model.Get()); }
 	
-	/** @return More lightweight version of GetObjectDisplayText which does not construct any FText. */
-	FString GetObjectDisplayString(const FSoftObjectPath& Object);
+	/** @return The text to use for displaying this object's name */
+	FText ExtractObjectDisplayTextFromPath(const FSoftObjectPath& Object);
+	
 	/** @return More lightweight version of GetObjectDisplayText which does not construct any FText. */
 	FString GetObjectDisplayString(const UObject& Object);
 	

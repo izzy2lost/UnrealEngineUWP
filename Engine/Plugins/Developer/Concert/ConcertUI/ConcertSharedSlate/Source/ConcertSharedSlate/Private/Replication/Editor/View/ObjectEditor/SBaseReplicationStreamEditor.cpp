@@ -50,6 +50,7 @@ namespace UE::ConcertSharedSlate
 				.PrimaryPropertySort(InArgs._PrimaryPropertySort)
 				.SecondaryPropertySort(InArgs._SecondaryPropertySort)
 				.SubobjectModel(InArgs._SubobjectModel)
+				.NameModel(InArgs._NameModel)
 				.OnDeleteObjects(this, &SBaseReplicationStreamEditor::OnDeleteObjects)
 				.OnObjectsContextMenuOpening(this, &SBaseReplicationStreamEditor::OnObjectsContextMenuOpening)
 				.LeftOfObjectSearchBar()

@@ -3,7 +3,7 @@
 #include "Replication/Editor/View/SelectionViewerColumns.h"
 
 #include "Replication/Editor/Model/IEditableReplicationStreamModel.h"
-#include "Replication/Editor/Model/ISubobjectModel.h"
+#include "Replication/Editor/Model/Object/IObjectNameModel.h"
 #include "Replication/Editor/Model/ReplicatedPropertyData.h"
 #include "Replication/Editor/Model/ReplicatedObjectData.h"
 #include "Replication/Editor/View/DisplayUtils.h"
@@ -27,21 +27,12 @@ namespace UE::ConcertSharedSlate::ReplicationColumns::TopLevel
 	const FName LabelColumnId = TEXT("LabelColumn");
 	const FName TypeColumnId = TEXT("TypeColumn");
 	
-	FReplicationTopLevelObjectColumn LabelColumn(TSharedRef<IReplicationStreamModel> Model, ISubobjectModel* SubobjectModel)
+	FReplicationTopLevelObjectColumn LabelColumn(TSharedRef<IReplicationStreamModel> Model, IObjectNameModel* OptionalNameModel)
 	{
-		auto GetDisplayText = [SubobjectModel](const FReplicatedObjectData& ObjectData)
+		auto GetDisplayText = [OptionalNameModel](const FReplicatedObjectData& ObjectData)
 		{
 			const FSoftObjectPath& ObjectPath = ObjectData.GetObjectPath();
-			FText Text = DisplayUtils::GetObjectDisplayText(ObjectPath);
-			if (SubobjectModel && !SubobjectModel->IsTopLevelObject(ObjectPath))
-			{
-				if (const TOptional<FSoftObjectPath> OwningActorPath = ObjectUtils::GetActorOf(ObjectPath))
-				{
-					SubobjectModel->SetTopLevelObject(*OwningActorPath);
-					Text = SubobjectModel->GetSubobjectDisplayName(ObjectPath);
-				}
-			}
-			return Text;
+			return DisplayUtils::GetObjectDisplayText(ObjectPath, OptionalNameModel);
 		};
 		
 		return FReplicationTopLevelObjectColumn(
@@ -72,9 +63,9 @@ namespace UE::ConcertSharedSlate::ReplicationColumns::TopLevel
 							.Text(Text)
 						];
 				})
-				.PopulateSearchItems_Lambda([](const FReplicatedObjectData& ObjectData, TArray<FString>& InOutSearchStrings)
+				.PopulateSearchItems_Lambda([OptionalNameModel](const FReplicatedObjectData& ObjectData, TArray<FString>& InOutSearchStrings)
 				{
-					InOutSearchStrings.Add(DisplayUtils::GetObjectDisplayText(ObjectData.GetObjectPath()).ToString());
+					InOutSearchStrings.Add(DisplayUtils::GetObjectDisplayText(ObjectData.GetObjectPath(), OptionalNameModel).ToString());
 				})
 				.IsLessThan_Lambda([GetDisplayText](const FReplicatedObjectData& Left, const FReplicatedObjectData& Right)
 				{

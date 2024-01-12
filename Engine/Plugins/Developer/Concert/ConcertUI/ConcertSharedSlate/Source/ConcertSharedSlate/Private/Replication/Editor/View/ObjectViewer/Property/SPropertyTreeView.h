@@ -11,6 +11,7 @@ namespace UE::ConcertSharedSlate
 {
 	class FReplicatedObjectData;
 	class FReplicatedPropertyData;
+	class IObjectNameModel;
 	class SReplicationFilterBar;
 	
 	/** Displays a searchable tree view of properties (SReplicationTreeView) and decorates it with a SBasicFilterBar. */
@@ -42,6 +43,9 @@ namespace UE::ConcertSharedSlate
 			/** How many items are to allowed to be selected */
 			SLATE_ARGUMENT(ESelectionMode::Type, SelectionMode)
 		
+			/** Optional. If set, this determines the display text for objects. */
+			SLATE_ARGUMENT(TSharedPtr<IObjectNameModel>, NameModel)
+		
 			/** Optional widget to add to the left of the search bar. */
 			SLATE_NAMED_SLOT(FArguments, LeftOfSearchBar)
 
@@ -69,6 +73,9 @@ namespace UE::ConcertSharedSlate
 
 		/** Used to tell the user that the selected object have all properties filtered out. */
 		TAttribute<TArray<FSoftObjectPath>> SelectedObjectsAttribute;
+		
+		/** Optional. If set, this determines the display text for objects. */
+		TSharedPtr<IObjectNameModel> NameModel;
 
 		struct FBuildFilterBarResult
 		{

@@ -34,6 +34,9 @@ namespace UE::ConcertSharedSlate
 			/** Gets the root objects selected in the object outliner. */
 			SLATE_EVENT(FGetSelectedRootObjects, GetSelectedRootObjects)
 		
+			/** Optional. If set, this determines the display text for objects. */
+			SLATE_ARGUMENT(TSharedPtr<IObjectNameModel>, NameModel)
+		
 			/** Optional widget to add to the left of the property list search bar. */
 			SLATE_NAMED_SLOT(FArguments, LeftOfPropertySearchBar)
 		SLATE_END_ARGS()

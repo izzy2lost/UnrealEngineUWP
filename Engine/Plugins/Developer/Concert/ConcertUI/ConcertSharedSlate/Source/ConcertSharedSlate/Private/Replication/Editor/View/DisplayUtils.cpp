@@ -3,7 +3,9 @@
 #include "Replication/Editor/View/DisplayUtils.h"
 
 #include "ConcertLogGlobal.h"
+#include "Replication/ObjectUtils.h"
 #include "Replication/Editor/Model/IReplicationStreamModel.h"
+#include "Replication/Editor/Model/Object/IObjectNameModel.h"
 
 #include "Styling/SlateIconFinder.h"
 
@@ -16,29 +18,27 @@
 
 namespace UE::ConcertSharedSlate::DisplayUtils
 {
-	FText GetObjectDisplayText(const FSoftObjectPath& Object)
+	FText GetObjectDisplayText(const FSoftObjectPath& Object, IObjectNameModel* Model)
 	{
-		return FText::FromString(GetObjectDisplayString(Object));
-	}
-
-	FString GetObjectDisplayString(const FSoftObjectPath& Object)
-	{
-		// Important! The object may not be loaded, yet. This could be if the asset is using a level that was not opened.
+		if (Model)
+		{
+			return Model->GetObjectDisplayName(Object);
+		}
+		
 #if WITH_EDITOR
+		// Important! The object may not be loaded, yet. So only resolve, do not TryLoad. This could be if the asset is using a level that was not opened.
 		if (const UObject* LoadedObject = Object.ResolveObject())
 		{
-			return GetObjectDisplayString(*LoadedObject);
+			return FText::FromString(GetObjectDisplayString(*LoadedObject));
 		}
 #endif
 
-		// Subpath looks like this PersistentLevel.Actor.Component
-		const FString& Subpath = Object.GetSubPathString();
-		const int32 LastDotIndex = Subpath.Find(TEXT("."), ESearchCase::CaseSensitive, ESearchDir::FromEnd);
-		if (LastDotIndex == INDEX_NONE)
-		{
-			return {};
-		}
-		return Subpath.RightChop(LastDotIndex + 1);
+		return ExtractObjectDisplayTextFromPath(Object);
+	}
+	
+	FText ExtractObjectDisplayTextFromPath(const FSoftObjectPath& Object)
+	{
+		return FText::FromString(ObjectUtils::ExtractObjectDisplayStringFromPath(Object));
 	}
 
 	FString GetObjectDisplayString(const UObject& Object)

@@ -11,7 +11,7 @@ namespace UE::ConcertSharedSlate
 	class IEditableReplicationStreamModel;
 	class IReplicationStreamViewer;
 	class IReplicationStreamModel;
-	class ISubobjectModel;
+	class IObjectNameModel;
 }
 
 namespace UE::ConcertSharedSlate::ReplicationColumns::TopLevel
@@ -28,7 +28,7 @@ namespace UE::ConcertSharedSlate::ReplicationColumns::TopLevel
 		Type = 30,
 	};
 
-	CONCERTSHAREDSLATE_API FReplicationTopLevelObjectColumn LabelColumn(TSharedRef<IReplicationStreamModel> Model, ISubobjectModel* SubobjectModel = nullptr);
+	CONCERTSHAREDSLATE_API FReplicationTopLevelObjectColumn LabelColumn(TSharedRef<IReplicationStreamModel> Model, IObjectNameModel* OptionalNameModel = nullptr);
 	CONCERTSHAREDSLATE_API FReplicationTopLevelObjectColumn TypeColumn(TSharedRef<IReplicationStreamModel> Model);
 }
 

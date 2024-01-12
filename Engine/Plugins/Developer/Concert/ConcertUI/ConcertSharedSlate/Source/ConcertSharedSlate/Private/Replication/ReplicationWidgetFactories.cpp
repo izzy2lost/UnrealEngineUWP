@@ -26,6 +26,7 @@ namespace UE::ConcertSharedSlate
 			.PrimaryPropertySort(Params.ViewerParams.PrimaryPropertySort)
 			.SecondaryPropertySort(Params.ViewerParams.SecondaryPropertySort)
 			.SubobjectModel(Params.ViewerParams.SubobjectModel)
+			.NameModel(Params.ViewerParams.NameModel)
 			.OnExtendObjectsContextMenu(Params.ViewerParams.OnExtendObjectsContextMenu)
 			.LeftOfObjectSearchBar() [ Params.ViewerParams.LeftOfObjectSearchBar.Widget ]
 			.LeftOfPropertySearchBar() [ Params.ViewerParams.LeftOfPropertySearchBar.Widget ]

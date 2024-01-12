@@ -31,9 +31,6 @@ namespace UE::ConcertSharedSlate
 		 * Example: One category could be the the USceneComponent hierarchy and another could be all other UActorComponents (like in the SSubobjectEditor).
 		 */
 		virtual TArray<FName> GetCategories() const = 0;
-
-		/** Gets the display name for the subobject */
-		virtual FText GetSubobjectDisplayName(const FSoftObjectPath& ObjectPath) const = 0;
 		
 		/**
 		 * Gets the direct subobjects of the top level objects.
@@ -44,10 +41,6 @@ namespace UE::ConcertSharedSlate
 		virtual void ForEachRootSubobject(FName Category, TFunctionRef<EBreakBehavior(const FSoftObjectPath& Object)> Callback) const = 0;
 		/** Gets the direct subobject children of another subobject. Child subobjects are implicitly in the same category as Parent. */
 		virtual void ForEachDirectChildSubobject(const FSoftObjectPath& Parent, TFunctionRef<EBreakBehavior(const FSoftObjectPath& Object)> Callback) const = 0;
-
-		DECLARE_MULTICAST_DELEGATE(FOnHierarchyChanged)
-		/** Called when the hierarchy has changed, e.g. due to calling SetTopLevelObject. */
-		virtual FOnHierarchyChanged& OnHierarchyChanged() = 0;
 
 		/** Util for iterating all subobjects. */
 		void ForEachSubobject(TFunctionRef<EBreakBehavior(const FSoftObjectPath& Parent, const FSoftObjectPath& ChildObject)> Callback);

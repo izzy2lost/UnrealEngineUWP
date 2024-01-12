@@ -24,6 +24,7 @@ namespace UE::ConcertSharedSlate
 	{
 		PropertiesModel = MoveTemp(InPropertiesModel);
 		SubobjectModel = InArgs._SubobjectModel;
+		NameModel = InArgs._NameModel;
 		
 		ChildSlot
 		[
@@ -174,7 +175,7 @@ namespace UE::ConcertSharedSlate
 	{
 		TArray Columns
 		{
-			ReplicationColumns::TopLevel::LabelColumn(PropertiesModel.ToSharedRef(), SubobjectModel.Get()),
+			ReplicationColumns::TopLevel::LabelColumn(PropertiesModel.ToSharedRef(), NameModel.Get()),
 			ReplicationColumns::TopLevel::TypeColumn(PropertiesModel.ToSharedRef())
 		};
 		Columns.Append(InArgs._AdditionalObjectColumns);
@@ -235,6 +236,7 @@ namespace UE::ConcertSharedSlate
 					.PrimarySort(InArgs._PrimaryPropertySort)
 					.SecondarySort(InArgs._SecondaryPropertySort)
 					.GetSelectedRootObjects_Lambda([this](){ return GetSelectedOutlinerObjects(); })
+					.NameModel(InArgs._NameModel)
 					.LeftOfPropertySearchBar()
 					[
 						InArgs._LeftOfPropertySearchBar.Widget
@@ -272,7 +274,7 @@ namespace UE::ConcertSharedSlate
 
 	void SReplicationStreamViewer::BuildObjectHierarchyIfNeeded(TSharedPtr<FReplicatedObjectData> ReplicatedObjectData, TMap<FSoftObjectPath, TSharedPtr<FReplicatedObjectData>>& NewPathToObjectDataCache)
 	{
-		// We're are supposed to display any hierarchy in the outliner if SubobjectModel is not set.
+		// We're are not supposed to display any hierarchy in the outliner if SubobjectModel is not set.
 		const FSoftObjectPath& ObjectPath = ReplicatedObjectData->GetObjectPath();
 		if (!SubobjectModel)
 		{
@@ -288,6 +290,7 @@ namespace UE::ConcertSharedSlate
 		const FSoftObjectPath TopLevelObject = OwningActor.Get(ObjectPath);
 		SubobjectModel->SetTopLevelObject(TopLevelObject);
 		
+		// Add all objects that appear in the hierarchy of ReplicatedObjectData
 		const auto AddItem = [this, &NewPathToObjectDataCache](const FSoftObjectPath& ObjectPath)
 		{
 			const TSharedPtr<FReplicatedObjectData>* ExistingItem = PathToObjectDataCache.Find(ObjectPath);
@@ -296,11 +299,10 @@ namespace UE::ConcertSharedSlate
 			AllObjectRowData.AddUnique(Item);
 			NewPathToObjectDataCache.Emplace(ObjectPath, Item);
 		};
-		// Add all objects that appear in the hierarchy of ReplicatedObjectData
 		AddItem(TopLevelObject);
 		SubobjectModel->ForEachSubobject([this, &AddItem](const FSoftObjectPath&, const FSoftObjectPath& ChildObject)
 		{
-			 AddItem(ChildObject);
+			AddItem(ChildObject);
 			return EBreakBehavior::Continue;
 		});
 	}

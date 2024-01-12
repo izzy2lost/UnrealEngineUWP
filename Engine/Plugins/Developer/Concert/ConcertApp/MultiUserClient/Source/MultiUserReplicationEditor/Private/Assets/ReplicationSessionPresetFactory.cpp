@@ -16,7 +16,10 @@ UReplicationSessionPresetFactory::UReplicationSessionPresetFactory(const FObject
 
 bool UReplicationSessionPresetFactory::CanCreateNew() const
 {
-	return true;
+	// TODO UE-196506:
+	// The entire replication feature is a MVP created in 5.4.
+	// Offline editing is not exposed to protect end-users from relying on it until we figure out workflows & requirements.
+	return false;
 }
 
 FText UReplicationSessionPresetFactory::GetDisplayName() const
@@ -32,6 +35,8 @@ bool UReplicationSessionPresetFactory::ConfigureProperties()
 UObject* UReplicationSessionPresetFactory::FactoryCreateNew(UClass* Class, UObject* InParent, FName Name, EObjectFlags Flags, UObject* Context, FFeedbackContext* Warn)
 {
 	UMultiUserReplicationSessionPreset* Asset = NewObject<UMultiUserReplicationSessionPreset>(InParent, Name, Flags);
+	// TODO UE-196506:
+	ensureMsgf(false, TEXT("Should not be called in MVP"));
 	return Asset;
 }
 

@@ -129,6 +129,7 @@ namespace UE::ConcertSharedSlate
 				.PrimarySort(PrimarySort)
 				.SecondarySort(SecondarySort)
 				.SelectionMode(ESelectionMode::Multi)
+				.NameModel(InArgs._NameModel)
 				.LeftOfSearchBar()
 				[
 					InArgs._LeftOfPropertySearchBar.Widget

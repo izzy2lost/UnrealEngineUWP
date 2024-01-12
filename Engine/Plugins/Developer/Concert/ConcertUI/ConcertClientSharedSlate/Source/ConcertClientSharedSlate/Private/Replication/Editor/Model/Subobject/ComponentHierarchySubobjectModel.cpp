@@ -45,19 +45,12 @@ namespace UE::ConcertClientSharedSlate
 					}
 				}
 			}
-			OnHierarchyChangedDelegate.Broadcast();
 		}
 	}
 
 	bool FComponentHierarchySubobjectModel::IsTopLevelObject(const FSoftObjectPath& Object) const
 	{
 		return ConcertSharedSlate::ObjectUtils::IsActor(Object);
-	}
-
-	FText FComponentHierarchySubobjectModel::GetSubobjectDisplayName(const FSoftObjectPath& ObjectPath) const
-	{
-		const FObjectMetaData* MetaData = ObjectMetaData.Find(ObjectPath);
-		return MetaData ? MetaData->DisplayLabel : FText::GetEmpty();
 	}
 
 	void FComponentHierarchySubobjectModel::ForEachRootSubobject(FName Category, TFunctionRef<EBreakBehavior(const FSoftObjectPath& Object)> Callback) const
