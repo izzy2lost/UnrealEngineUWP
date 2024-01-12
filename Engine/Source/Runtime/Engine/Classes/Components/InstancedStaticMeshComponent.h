@@ -84,6 +84,13 @@ struct FInstancedStaticMeshRandomSeed
 
 	UPROPERTY()
 	int32 RandomSeed = 0;
+
+	friend FArchive& operator<<(FArchive& Ar, FInstancedStaticMeshRandomSeed& InstanceData)
+	{
+		Ar << InstanceData.StartInstanceIndex;
+		Ar << InstanceData.RandomSeed;
+		return Ar;
+	}
 };
 
 /** A component that efficiently renders multiple instances of the same StaticMesh. */
