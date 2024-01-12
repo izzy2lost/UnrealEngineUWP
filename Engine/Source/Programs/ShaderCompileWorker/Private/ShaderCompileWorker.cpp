@@ -68,7 +68,7 @@ inline bool IsUsingUBA()
 }
 
 #if USING_CODE_ANALYSIS
-	UE_NORETURN static inline void ExitWithoutCrash(FSCWErrorCode::ECode ErrorCode, const FString& Message);
+	[[noreturn]] static inline void ExitWithoutCrash(FSCWErrorCode::ECode ErrorCode, const FString& Message);
 #endif
 
 static inline void ExitWithoutCrash(FSCWErrorCode::ECode ErrorCode, const FString& Message)

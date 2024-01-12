@@ -325,20 +325,6 @@ namespace Private
 		return EncodedIndex % *VariantSizes;
 	}
 
-#if !PLATFORM_COMPILER_HAS_FOLD_EXPRESSIONS
-	/** Used to determine the total number of possible Visit invocations when fold expressions are not available. */
-	constexpr SIZE_T Multiply(const SIZE_T* Args, SIZE_T Num)
-	{
-		SIZE_T Result = 1;
-		while (Num)
-		{
-			Result *= *Args++;
-			--Num;
-		}
-		return Result;
-	}
-#endif
-
 	/** Cast a TVariant to its private base */
 	template <typename... Ts>
 	FORCEINLINE TVariantStorage<Ts...>& CastToStorage(TVariant<Ts...>& Variant)

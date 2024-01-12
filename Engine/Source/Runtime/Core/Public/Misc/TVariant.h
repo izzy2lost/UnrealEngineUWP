@@ -200,12 +200,7 @@ template <
 >
 decltype(auto) Visit(Func&& Callable, Variants&&... Args)
 {
-#if PLATFORM_COMPILER_HAS_FOLD_EXPRESSIONS
 	constexpr SIZE_T NumPermutations = (1 * ... * (TVariantSize_V<std::decay_t<Variants>>));
-#else
-	constexpr SIZE_T VariantSizes[] = { TVariantSize_V<std::decay_t<Variants>>... };
-	constexpr SIZE_T NumPermutations = UE::Core::Private::Multiply(VariantSizes, sizeof...(Variants));
-#endif
 
 	return UE::Core::Private::VisitImpl(
 		UE::Core::Private::EncodeIndices(Args...),

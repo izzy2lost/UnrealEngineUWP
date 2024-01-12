@@ -36,7 +36,7 @@ template<class TClass> class TSubclassOf;
 template <typename Type> struct TCastFlags;
 /// @endcond
 
-UE_NORETURN COREUOBJECT_API void CastLogError(const TCHAR* FromType, const TCHAR* ToType);
+[[noreturn]] COREUOBJECT_API void CastLogError(const TCHAR* FromType, const TCHAR* ToType);
 
 /**
  * Metafunction which detects whether or not a class is an IInterface.  Rules:
