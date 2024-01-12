@@ -193,6 +193,11 @@ extern "C"
 		storage->SaveCasTable(true);
 	}
 
+	void Storage_DeleteFile(uba::Storage* storage, const uba::tchar* file)
+	{
+		storage->DeleteCasForFile(file);
+	}
+
 	uba::Storage* CreateStorageServer(uba::NetworkServer& server, const uba::tchar* rootDir, uba::u64 casCapacityBytes, bool storeCompressed, uba::LogWriter& writer, const uba::tchar* zone)
 	{
 		using namespace uba;
@@ -471,9 +476,9 @@ uba::StorageClient* CreateStorageClient(uba::NetworkClient& client, const uba::t
 		delete scheduler;
 	}
 
-	void Scheduler_GetStats(uba::Scheduler* scheduler, uba::u32& outQueued, uba::u32& outActive, uba::u32& outFinished)
+	void Scheduler_GetStats(uba::Scheduler* scheduler, uba::u32& outQueued, uba::u32& outActiveLocal, uba::u32& outActiveRemote, uba::u32& outFinished)
 	{
-		scheduler->GetStats(outQueued, outActive, outFinished);
+		scheduler->GetStats(outQueued, outActiveLocal, outActiveRemote, outFinished);
 	}
 
 	void Uba_SetCustomAssertHandler(Uba_CustomAssertHandler* handler)

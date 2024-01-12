@@ -187,7 +187,11 @@ namespace uba
 		struct stat attr;
 		int res = stat(fileName, &attr);
 		if (res != 0)
-			return false;// logger.Error(TC("GetFileInformation: CreateFile failed for file %s (%s)"), fileName, strerror(errno));
+		{
+			UBA_ASSERTF(errno == ENOENT, TC("GetFileInformation: stat failed for file %s and this error handling not implemented (%s)"), fileName, strerror(errno));
+			SetLastError(ERROR_FILE_NOT_FOUND);
+			return false;
+		}
 		out.lastWriteTime = FromTimeSpec(attr.st_mtimespec);
 		out.attributes = attr.st_mode;
 		out.volumeSerialNumber = attr.st_dev;

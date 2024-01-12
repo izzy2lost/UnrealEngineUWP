@@ -22,8 +22,8 @@ namespace uba
 				scheduler.EnqueueProcess(processInfo);
 				scheduler.Start();
 
-				u32 queued, active, finished;
-				do { scheduler.GetStats(queued, active, finished); } while (queued != 0 || active != 0);
+				u32 queued, activeLocal, activeRemote, finished;
+				do { scheduler.GetStats(queued, activeLocal, activeRemote, finished); } while ((queued+activeLocal+activeRemote) != 0);
 
 				scheduler.Stop();
 				return true;
@@ -51,8 +51,8 @@ namespace uba
 				scheduler.EnqueueProcess(processInfo);
 				scheduler.Start();
 
-				u32 queued, active, finished;
-				do { scheduler.GetStats(queued, active, finished); } while (queued != 0 || active != 0);
+				u32 queued, activeLocal, activeRemote, finished;
+				do { scheduler.GetStats(queued, activeLocal, activeRemote, finished); } while ((queued + activeLocal + activeRemote) != 0);
 
 				scheduler.Stop();
 				return true;
@@ -80,8 +80,8 @@ namespace uba
 				scheduler.EnqueueProcess(processInfo);
 				scheduler.Start();
 
-				u32 queued, active, finished;
-				do { scheduler.GetStats(queued, active, finished); } while (queued != 0 || active != 0);
+				u32 queued, activeLocal, activeRemote, finished;
+				do { scheduler.GetStats(queued, activeLocal, activeRemote, finished); } while ((queued + activeLocal + activeRemote) != 0);
 
 				scheduler.Stop();
 				return true;

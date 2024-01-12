@@ -59,7 +59,8 @@ private:
 	uint32 LastTimeCheckedForTasks;
 	
 	/** Used to stop the processing loop in the next main loop */
-	TAtomic<bool> bShouldProcessJobs;
+	FCriticalSection bShouldProcessJobsLock;
+	bool bShouldProcessJobs;
 
 	/** Set to true when the main loop finishes*/
 	bool bIsWorkDone;

@@ -24,7 +24,7 @@ namespace UbaJobProcessorOptions
         SleepTimeBetweenActions,
         TEXT("How much time the job processor thread should sleep between actions .\n"));
 
-	static float MaxTimeWithoutTasks = 10.0f;
+	static float MaxTimeWithoutTasks = 100.0f;
 	static FAutoConsoleVariableRef CVarMaxTimeWithoutTasks(
         TEXT("r.UbaController.MaxTimeWithoutTasks"),
         MaxTimeWithoutTasks,
@@ -224,7 +224,7 @@ void FUbaJobProcessor::RunTaskWithUba(FTask* Task)
 	FString OutputFileName = FPaths::GetCleanFilename(Data.OutputFileName);
 	FString Parameters = FString::Printf(TEXT("\"%s/\" %d 0 \"%s\" \"%s\" %s "), *Data.WorkingDirectory, Data.DispatcherPID, *InputFileName, *OutputFileName, *Data.ExtraCommandArgs);
 	FString AppDir = FPaths::GetPath(Data.Command);
-	FString LogPath = FString::FromInt(Task->ID) + TEXT(".Log");
+	FString LogPath;
 
 	uba::ProcessStartInfo ProcessInfo;
 	ProcessInfo.application = *Data.Command;
@@ -234,18 +234,23 @@ void FUbaJobProcessor::RunTaskWithUba(FTask* Task)
 	ProcessInfo.writeOutputFilesOnFail = true;
 
 	if (UbaJobProcessorOptions::bProcessLogEnabled)
+	{
+		LogPath = FString::FromInt(Task->ID) + TEXT(".Log");
 		ProcessInfo.logFile = *LogPath;
+	}
 	
 	struct ExitedInfo
 	{
 		FUbaJobProcessor* Processor;
 		FString InputFile;
+		FString OutputFile;
 		FTask* Task;
 	};
 
 	auto Info = new ExitedInfo;
 	Info->Processor = this;
 	Info->InputFile = Data.InputFileName;
+	Info->OutputFile = Data.OutputFileName;
 	Info->Task = Task;
 
 	ProcessInfo.userData = Info;
@@ -256,6 +261,10 @@ void FUbaJobProcessor::RunTaskWithUba(FTask* Task)
 				IFileManager::Get().Delete(*Info->InputFile);
 				SessionServer_RegisterDeleteFile(Info->Processor->UbaSessionServer, *Info->InputFile);
 				Info->Processor->HandleUbaJobFinished(Info->Task);
+
+				Storage_DeleteFile(Info->Processor->UbaStorageServer, *Info->InputFile);
+				Storage_DeleteFile(Info->Processor->UbaStorageServer, *Info->OutputFile);
+
 				delete Info;
 			}
 		};
@@ -347,12 +356,17 @@ uint32 FUbaJobProcessor::Run()
 		const float ElapsedSeconds = (FPlatformTime::Cycles() - LastTimeSinceHadJobs) * FPlatformTime::GetSecondsPerCycle();
 
 		uint32 queued = 0;
-		uint32 active = 0;
+		uint32 activeLocal = 0;
+		uint32 activeRemote = 0;
 		uint32 finished = 0;
+
+		FScopeLock lock(&bShouldProcessJobsLock);
+
 		if (UbaScheduler)
 		{
-			Scheduler_GetStats(UbaScheduler, queued, active, finished);
+			Scheduler_GetStats(UbaScheduler, queued, activeLocal, activeRemote, finished);
 		}
+		uint32 active = activeLocal + activeRemote;
 
 		// We don't want to hog up Horde resources.
 		if (bShouldProcessJobs && ElapsedSeconds > UbaJobProcessorOptions::MaxTimeWithoutTasks && (queued + active) == 0)
@@ -378,6 +392,9 @@ uint32 FUbaJobProcessor::Run()
 
 		if (bShouldProcessJobs)
 		{
+			int32 MaxLocal = FMath::Max(1, int32(MaxLocalParallelJobs / 2) - int32(activeRemote / 5));
+			Scheduler_SetMaxLocalProcessors(UbaScheduler, MaxLocal);
+
 			int32 TargetCoreCount = FMath::Max(0, int32(queued + active) - MaxLocalParallelJobs);
 
 			HordeAgentManager->SetTargetCoreCount(TargetCoreCount);
@@ -385,6 +402,8 @@ uint32 FUbaJobProcessor::Run()
 			// TODO: Not sure this is a good idea in a cooking scenario where number of queued processes are going up and down
 			SessionServer_SetMaxRemoteProcessCount(UbaSessionServer, TargetCoreCount);
 		}
+
+		lock.Unlock();
 
 		FPlatformProcess::Sleep(UbaJobProcessorOptions::SleepTimeBetweenActions);
 	}
@@ -469,6 +488,8 @@ void FUbaJobProcessor::HandleUbaJobFinished(FTask* CompileTask)
 
 void FUbaJobProcessor::HandleTaskQueueUpdated(const FString& InputFileName)
 {
+	FScopeLock lock(&bShouldProcessJobsLock);
+
 	if (!UbaScheduler)
 	{
 		return;
@@ -490,9 +511,9 @@ bool FUbaJobProcessor::HasJobsInFlight() const
 		return false;
 	}
 	uint32 queued = 0;
-	uint32 active = 0;
+	uint32 activeLocal = 0;
+	uint32 activeRemote = 0;
 	uint32 finished = 0;
-	Scheduler_GetStats(UbaScheduler, queued, active, finished);
-		
-	return queued != 0 || active != 0;
+	Scheduler_GetStats(UbaScheduler, queued, activeLocal, activeRemote, finished);	
+	return (queued + activeLocal + activeRemote) != 0;
 }

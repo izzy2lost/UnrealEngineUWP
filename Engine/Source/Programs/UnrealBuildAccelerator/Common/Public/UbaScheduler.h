@@ -27,7 +27,7 @@ namespace uba
 
 		u32 EnqueueProcess(const ProcessStartInfo& info, float weight = 1.0f, const void* knownInputs = nullptr, u32 knownInputsBytes = 0, u32 knownInputsCount = 0);
 
-		void GetStats(u32& outQueued, u32& outActive, u32& outFinished);
+		void GetStats(u32& outQueued, u32& outActiveLocal, u32& outActiveRemote, u32& outFinished);
 	private:
 		struct ExitProcessInfo;
 

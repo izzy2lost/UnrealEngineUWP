@@ -2383,4 +2383,26 @@ namespace uba
 	{
 		return m_dirCache.CreateDirectory(m_logger, dir);
 	}
+
+	bool StorageImpl::DeleteCasForFile(const tchar* file)
+	{
+		StringBuffer<> forKey;
+		FixPath(file, nullptr, 0, forKey);
+		if (CaseInsensitiveFs)
+			forKey.MakeLower();
+		StringKey fileNameKey = ToStringKey(forKey);
+
+		ScopedReadLock lookupLock(m_fileTableLookupLock);
+		auto findIt = m_fileTableLookup.find(fileNameKey);
+		if (findIt == m_fileTableLookup.end())
+			return false;
+		FileEntry& fileEntry = findIt->second;
+		lookupLock.Leave();
+
+		ScopedWriteLock entryLock(fileEntry.lock);
+		fileEntry.verified = false;
+
+		return DropCasFile(fileEntry.casKey, true);
+	}
+
 }

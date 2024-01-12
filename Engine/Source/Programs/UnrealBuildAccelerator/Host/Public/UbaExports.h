@@ -55,6 +55,7 @@ extern "C"
 	UBA_API uba::Storage* CreateStorage(const uba::tchar* rootDir, uba::u64 casCapacityBytes, bool storeCompressed);
 	UBA_API void DestroyStorage(uba::Storage* storage);
 	UBA_API void Storage_SaveCasTable(uba::Storage* storage);
+	UBA_API void Storage_DeleteFile(uba::Storage* storage, const uba::tchar* file);
 
 	UBA_API uba::Storage* CreateStorageServer(uba::NetworkServer& server, const uba::tchar* rootDir, uba::u64 casCapacityBytes, bool storeCompressed, uba::LogWriter& writer = uba::g_consoleLogWriter, const uba::tchar* zone = TC(""));
 	UBA_API void DestroyStorageServer(uba::Storage* storageServer);
@@ -117,7 +118,7 @@ extern "C"
 	UBA_API void Scheduler_SetMaxLocalProcessors(uba::Scheduler* scheduler, uba::u32 maxLocalProcessors);
 	UBA_API void Scheduler_Stop(uba::Scheduler* scheduler);
 	UBA_API void Scheduler_Destroy(uba::Scheduler* scheduler);
-	UBA_API void Scheduler_GetStats(uba::Scheduler* scheduler, uba::u32& outQueued, uba::u32& outActive, uba::u32& outFinished);
+	UBA_API void Scheduler_GetStats(uba::Scheduler* scheduler, uba::u32& outQueued, uba::u32& outActiveLocal, uba::u32& outActiveRemote, uba::u32& outFinished);
 
 	// Misc
 	using Uba_CustomAssertHandler = void(const uba::tchar* text);

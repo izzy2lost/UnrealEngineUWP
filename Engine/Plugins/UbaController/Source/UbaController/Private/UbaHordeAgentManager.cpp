@@ -303,7 +303,9 @@ void FUbaHordeAgentManager::ThreadAgent(FHordeAgentWrapper& Wrapper)
 		{
 			ListenPortArg.c_str(),
 			"-nopoll",				// -nopoll recommended when running on remote Horde agents to make sure they exit after completion. Otherwise, it keeps running.
-			"-listenTimeout=20",	// increase timeout for the agent to listen from 5 to 20 seconds to give the editor enough time to establish the connection
+			"-listenTimeout=5",		// Agent will wait 5 seconds for this thread to connect (Server_AddClient does the connect)
+			"-quiet",				// Skip all the agent logging that would be sent over to here
+			"-maxidle=15",			// After 15 seconds of idling agent will automatically disconnect
 		};
 
 		// If the machine does not run Windows, enable the compatibility layer Wine to run UbaAgent.exe on POSIX systems
