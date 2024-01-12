@@ -17,6 +17,11 @@
 //------------------------------------------------------------------------------
 // FDisplayClusterProjectionEasyBlendPolicyViewDataDX11
 //------------------------------------------------------------------------------
+FDisplayClusterProjectionEasyBlendPolicyViewDataDX11::~FDisplayClusterProjectionEasyBlendPolicyViewDataDX11()
+{
+	ImplRelease();
+}
+
 void FDisplayClusterProjectionEasyBlendPolicyViewDataDX11::ImplRelease()
 {
 	if (EasyBlendMeshData.IsValid())

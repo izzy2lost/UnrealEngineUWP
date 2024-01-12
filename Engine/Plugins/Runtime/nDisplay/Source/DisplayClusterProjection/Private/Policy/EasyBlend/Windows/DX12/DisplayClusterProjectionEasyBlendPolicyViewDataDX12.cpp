@@ -40,6 +40,11 @@ namespace UE::DisplayClusterProjection::EasyBlend
 //------------------------------------------------------------------------------
 // FDisplayClusterProjectionEasyBlendPolicyViewDataDX12
 //------------------------------------------------------------------------------
+FDisplayClusterProjectionEasyBlendPolicyViewDataDX12::~FDisplayClusterProjectionEasyBlendPolicyViewDataDX12()
+{
+	ImplRelease();
+}
+
 void FDisplayClusterProjectionEasyBlendPolicyViewDataDX12::ImplRelease()
 {
 	if (EasyBlendMeshData.IsValid())

@@ -25,10 +25,7 @@ struct FDisplayClusterProjectionEasyBlendPolicyViewInfo
 class IDisplayClusterProjectionEasyBlendPolicyViewData
 {
 public:
-	virtual ~IDisplayClusterProjectionEasyBlendPolicyViewData()
-	{
-		ImplRelease();
-	}
+	virtual ~IDisplayClusterProjectionEasyBlendPolicyViewData() = default;
 
 	/** Creates and initializes the EasyBlend interface for the current RHI and OS.
 	* Returns nullptr if it is not implemented or cannot be initialized.
@@ -47,10 +44,6 @@ public:
 	*/
 	virtual bool HasPreviewMesh() { return false; }
 	virtual bool GetPreviewMeshGeometry(const FDisplayClusterProjectionEasyBlendPolicyConfiguration& InEasyBlendConfiguration, FDisplayClusterProjectionEasyBlendGeometryExportData& OutMeshData) { return false; }
-
-protected:
-	/** Release EasyBlend view data from any thread. */
-	virtual void ImplRelease() { }
 
 protected:
 	// Lock access to EasyBlendMeshData
