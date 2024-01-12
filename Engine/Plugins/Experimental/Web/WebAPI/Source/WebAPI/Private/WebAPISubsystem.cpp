@@ -150,8 +150,9 @@ bool UWebAPISubsystem::IsAllowedToTick() const
 
 void UWebAPISubsystem::Tick(float DeltaTime)
 {
-	for(TSharedRef<IHttpRequest>& Request : RequestBuffer)
+	for(auto It = RequestBuffer.CreateIterator(); It; ++It)
 	{
+		TSharedRef<IHttpRequest>& Request = *It;
 		const EHttpRequestStatus::Type RequestStatus = Request->GetStatus();
 		if(RequestStatus == EHttpRequestStatus::NotStarted)
 		{
@@ -180,13 +181,13 @@ void UWebAPISubsystem::Tick(float DeltaTime)
 							HostRequestBuffer.Add(Host);
 						}
 
-						RequestBuffer.Remove(Request);
+						It.RemoveCurrent();
 
 						continue;
 					}
 				}
-				
-				RequestBuffer.Remove(Request);			
+
+				It.RemoveCurrent();
 			}
 		}
 	}

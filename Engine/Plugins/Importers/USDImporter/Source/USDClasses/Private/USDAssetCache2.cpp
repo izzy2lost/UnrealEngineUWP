@@ -1547,8 +1547,9 @@ bool UUsdAssetCache2::TryUnloadAsset(FCachedAssetInfo& InOutInfo)
 		if (TObjectPtr<UObject> Asset = AssetStorage.FindRef(InOutInfo.Hash))
 		{
 			// Check to see if all of its Consumers can be unloaded too
-			for (const FSoftObjectPath& Consumer : InOutInfo.Consumers)
+			for (auto It = InOutInfo.Consumers.CreateIterator(); It; ++It)
 			{
+				const FSoftObjectPath& Consumer = *It;
 				if (FCachedAssetInfo* ConsumerInfo = LRUCache.Find(Consumer))
 				{
 					ensure(ConsumerInfo->Dependencies.Contains(Asset));
@@ -1563,7 +1564,7 @@ bool UUsdAssetCache2::TryUnloadAsset(FCachedAssetInfo& InOutInfo)
 				// We don't know about this Consumer anymore (maybe it was evicted?)
 				else
 				{
-					InOutInfo.Consumers.Remove(Consumer);
+					It.RemoveCurrent();
 				}
 			}
 

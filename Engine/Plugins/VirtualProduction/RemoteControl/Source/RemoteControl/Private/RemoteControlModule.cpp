@@ -2516,11 +2516,11 @@ void FRemoteControlModule::OnAssetRenamed(const FAssetData& AssetData, const FSt
 				// If it's not valid or doesn't have a valid id, search for it and remove it.
 				if (!bRemovedId)
 				{
-					for (const auto& PairInner : CachedPresetNamesById)
+					for (auto It = CachedPresetNamesById.CreateIterator(); It; ++It)
 					{
-						if (PairInner.Value == Pair.Key)
+						if (It.Value() == Pair.Key)
 						{
-							CachedPresetNamesById.Remove(PairInner.Key);
+							It.RemoveCurrent();
 						}
 					}
 				}
