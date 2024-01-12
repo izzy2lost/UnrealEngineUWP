@@ -75,7 +75,7 @@ namespace UnrealBuildTool.Artifacts
 			InteriorChunkedDataNodeOptions interiorOptions = new(1, 10, 20);
 			ChunkingOptions options = new() { LeafOptions = leafOptions, InteriorOptions = interiorOptions };
 
-			using ChunkedDataWriter fileWriter = new(writer, options);
+			using ChunkedDataWriter fileWriter = new(writer, options, null);
 			int index = 0;
 			foreach (ArtifactFile artifact in ArtifactAction.Outputs)
 			{

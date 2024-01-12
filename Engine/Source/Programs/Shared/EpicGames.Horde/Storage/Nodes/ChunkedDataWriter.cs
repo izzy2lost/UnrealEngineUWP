@@ -71,7 +71,8 @@ namespace EpicGames.Horde.Storage.Nodes
 		public const int DefaultBufferLength = 32 * 1024;
 
 		readonly IStorageWriter _writer;
-		readonly ChunkingOptions _options;
+		readonly ChunkingOptions _chunkingOptions;
+		readonly BlobSerializerOptions? _serializerOptions;
 		readonly Blake3.Hasher _hasher;
 
 		// Tree state
@@ -91,11 +92,13 @@ namespace EpicGames.Horde.Storage.Nodes
 		/// Constructor
 		/// </summary>
 		/// <param name="writer">Writer for new nodes</param>
-		/// <param name="options">Chunking options</param>
-		public ChunkedDataWriter(IStorageWriter writer, ChunkingOptions options)
+		/// <param name="chunkingOptions">Chunking options</param>
+		/// <param name="serializerOptions">Options for serialization</param>
+		public ChunkedDataWriter(IStorageWriter writer, ChunkingOptions chunkingOptions, BlobSerializerOptions? serializerOptions)
 		{
 			_writer = writer;
-			_options = options;
+			_chunkingOptions = chunkingOptions;
+			_serializerOptions = serializerOptions;
 			_hasher = Blake3.Hasher.New();
 		}
 
@@ -215,7 +218,7 @@ namespace EpicGames.Horde.Storage.Nodes
 			for (; ; )
 			{
 				Memory<byte> buffer = _writer.GetOutputBuffer(_leafLength, _leafLength);
-				int appendLength = AppendToLeafNode(buffer.Span.Slice(0, _leafLength), data.Span, ref _leafHash, _options.LeafOptions);
+				int appendLength = AppendToLeafNode(buffer.Span.Slice(0, _leafLength), data.Span, ref _leafHash, _chunkingOptions.LeafOptions);
 
 				buffer = _writer.GetOutputBuffer(_leafLength, _leafLength + appendLength);
 				data.Slice(0, appendLength).CopyTo(buffer.Slice(_leafLength));
@@ -320,7 +323,7 @@ namespace EpicGames.Horde.Storage.Nodes
 		public async Task<ChunkedData> CompleteAsync(CancellationToken cancellationToken)
 		{
 			await FlushLeafNodeAsync(cancellationToken);
-			ChunkedDataNodeRef rootHandle = await InteriorChunkedDataNode.CreateTreeAsync(_leafHandles, _options.InteriorOptions, _writer, cancellationToken);
+			ChunkedDataNodeRef rootHandle = await InteriorChunkedDataNode.CreateTreeAsync(_leafHandles, _chunkingOptions.InteriorOptions, _writer, _serializerOptions, cancellationToken);
 			return new ChunkedData(IoHash.FromBlake3(_hasher), rootHandle);
 		}
 

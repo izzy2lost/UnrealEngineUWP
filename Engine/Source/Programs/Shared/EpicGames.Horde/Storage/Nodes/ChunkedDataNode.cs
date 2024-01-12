@@ -42,7 +42,7 @@ namespace EpicGames.Horde.Storage.Nodes
 			{
 				await LeafChunkedDataNode.CopyToStreamAsync(blobData, outputStream, cancellationToken);
 			}
-			else if (blobData.Type.Guid == InteriorChunkedDataNodeConverter.BlobType.Guid)
+			else if (blobData.Type.Guid == InteriorChunkedDataNodeConverter.BlobTypeGuid)
 			{
 				await InteriorChunkedDataNode.CopyToStreamAsync(blobData, outputStream, cancellationToken);
 			}
@@ -96,7 +96,7 @@ namespace EpicGames.Horde.Storage.Nodes
 			{
 				return options.GetConverter<LeafChunkedDataNode>().Read(reader, options);
 			}
-			else if (reader.Type.Guid == InteriorChunkedDataNodeConverter.BlobType.Guid)
+			else if (reader.Type.Guid == InteriorChunkedDataNodeConverter.BlobTypeGuid)
 			{
 				return options.GetConverter<InteriorChunkedDataNode>().Read(reader, options);
 			}
@@ -445,12 +445,13 @@ namespace EpicGames.Horde.Storage.Nodes
 		/// </summary>
 		/// <param name="leafChunkedData">List of leaf handles</param>
 		/// <param name="options">Options for splitting the tree</param>
+		/// <param name="serializerOptions">Options for serialization</param>
 		/// <param name="writer">Output writer for new interior nodes</param>
 		/// <param name="cancellationToken">Cancellation token for the operation</param>
 		/// <returns>Handle to the root node of the tree</returns>
-		public static async Task<ChunkedData> CreateTreeAsync(LeafChunkedData leafChunkedData, InteriorChunkedDataNodeOptions options, IStorageWriter writer, CancellationToken cancellationToken)
+		public static async Task<ChunkedData> CreateTreeAsync(LeafChunkedData leafChunkedData, InteriorChunkedDataNodeOptions options, IStorageWriter writer, BlobSerializerOptions? serializerOptions, CancellationToken cancellationToken)
 		{
-			ChunkedDataNodeRef rootRef = await CreateTreeAsync(leafChunkedData.LeafHandles, options, writer, cancellationToken);
+			ChunkedDataNodeRef rootRef = await CreateTreeAsync(leafChunkedData.LeafHandles, options, writer, serializerOptions, cancellationToken);
 			return new ChunkedData(leafChunkedData.Hash, rootRef);
 		}
 
@@ -458,11 +459,12 @@ namespace EpicGames.Horde.Storage.Nodes
 		/// Create a tree of nodes from the given list of handles, splitting nodes in each layer based on the hash of the last node.
 		/// </summary>
 		/// <param name="nodeRefs">List of leaf nodes</param>
-		/// <param name="options">Options for splitting the tree</param>
+		/// <param name="chunkingOptions">Options for splitting the tree</param>
 		/// <param name="writer">Output writer for new interior nodes</param>
+		/// <param name="serializerOptions">Options for serializing blobs</param>
 		/// <param name="cancellationToken">Cancellation token for the operation</param>
 		/// <returns>Handle to the root node of the tree</returns>
-		public static async Task<ChunkedDataNodeRef> CreateTreeAsync(List<ChunkedDataNodeRef> nodeRefs, InteriorChunkedDataNodeOptions options, IStorageWriter writer, CancellationToken cancellationToken)
+		public static async Task<ChunkedDataNodeRef> CreateTreeAsync(List<ChunkedDataNodeRef> nodeRefs, InteriorChunkedDataNodeOptions chunkingOptions, IStorageWriter writer, BlobSerializerOptions? serializerOptions, CancellationToken cancellationToken)
 		{
 			List<ChunkedDataNodeRef> handleBuffer = new List<ChunkedDataNodeRef>();
 
@@ -470,12 +472,12 @@ namespace EpicGames.Horde.Storage.Nodes
 			while (nodeRefs.Count > 1)
 			{
 				interiorNodes.Clear();
-				CreateTreeLayer(nodeRefs, options, interiorNodes);
+				CreateTreeLayer(nodeRefs, chunkingOptions, interiorNodes);
 
 				handleBuffer.Clear();
 				foreach ((InteriorChunkedDataNode interiorNode, long interiorLength) in interiorNodes)
 				{
-					IBlobHandle<InteriorChunkedDataNode> interiorHandle = await writer.WriteBlobAsync(interiorNode, null, cancellationToken);
+					IBlobHandle<InteriorChunkedDataNode> interiorHandle = await writer.WriteBlobAsync(interiorNode, serializerOptions, cancellationToken);
 					handleBuffer.Add(new ChunkedDataNodeRef(ChunkedDataNodeType.Interior, interiorLength, interiorHandle));
 				}
 
@@ -555,13 +557,28 @@ namespace EpicGames.Horde.Storage.Nodes
 		}
 	}
 
-	class InteriorChunkedDataNodeConverter : BlobConverter<InteriorChunkedDataNode>
+	/// <summary>
+	/// Converter for interior node types
+	/// </summary>
+	public class InteriorChunkedDataNodeConverter : BlobConverter<InteriorChunkedDataNode>
 	{
 		/// <summary>
-		/// Static accessor for the blob type
+		/// Static accessor for the blob type guid
 		/// </summary>
-		public static BlobType BlobType { get; } = new BlobType("{F4DEDDBC-4C7A-70CB-11F0-4783B9CDCCAF}", 2); // Pending V3
+		public static Guid BlobTypeGuid { get; } = Guid.Parse("{F4DEDDBC-4C7A-70CB-11F0-4783B9CDCCAF}");
 
+		readonly int _writeVersion;
+
+		/// <summary>
+		/// Constructor
+		/// </summary>
+		/// <param name="writeVersion">Version number for serialized data</param>
+		public InteriorChunkedDataNodeConverter(int writeVersion = 3)
+		{
+			_writeVersion = writeVersion;
+		}
+
+		/// <inheritdoc/>
 		public override InteriorChunkedDataNode Read(IBlobReader reader, BlobSerializerOptions options)
 		{
 			// Keep this code in sync with CopyToStreamAsync
@@ -587,15 +604,22 @@ namespace EpicGames.Horde.Storage.Nodes
 			return new InteriorChunkedDataNode(children);
 		}
 
+		/// <inheritdoc/>
 		public override BlobType Write(IBlobWriter writer, InteriorChunkedDataNode value, BlobSerializerOptions options)
 		{
 			foreach (ChunkedDataNodeRef child in value.Children)
 			{
 				writer.WriteBlobHandle(child.Handle);
-				writer.WriteUnsignedVarInt((int)child.Type);
-				// Pending V3: writer.WriteUnsignedVarInt((ulong)child.Length);
+				if (_writeVersion >= 2)
+				{
+					writer.WriteUnsignedVarInt((int)child.Type);
+				}
+				if (_writeVersion >= 3)
+				{
+					writer.WriteUnsignedVarInt((ulong)child.Length);
+				}
 			}
-			return InteriorChunkedDataNodeConverter.BlobType;
+			return new BlobType(BlobTypeGuid, _writeVersion);
 		}
 	}
 }

@@ -522,7 +522,7 @@ namespace EpicGames.Horde.Storage.Nodes
 					await Parallel.ForEachAsync(partitions, cancellationToken, (filePartition, ctx) => CreateLeafChunkNodesAsync(writer, batch, leafChunkedFiles, filePartition.Start, filePartition.Count, copyStats, options, cancellationToken));
 
 					// Create interior nodes for all the leaf chunks
-					ChunkedData[] chunkedFiles = await CreateInteriorChunkNodesAsync(leafChunkedFiles, options.InteriorOptions, writer, cancellationToken);
+					ChunkedData[] chunkedFiles = await CreateInteriorChunkNodesAsync(leafChunkedFiles, options.InteriorOptions, writer, serializerOptions, cancellationToken);
 
 					// Write all the interior nodes and generate the directory update
 					for (int idx = 0; idx < batch.Count; idx++)
@@ -607,12 +607,12 @@ namespace EpicGames.Horde.Storage.Nodes
 			await writerFork.FlushAsync(cancellationToken);
 		}
 
-		static async Task<ChunkedData[]> CreateInteriorChunkNodesAsync(LeafChunkedData[] leafChunkedFiles, InteriorChunkedDataNodeOptions options, IStorageWriter writer, CancellationToken cancellationToken)
+		static async Task<ChunkedData[]> CreateInteriorChunkNodesAsync(LeafChunkedData[] leafChunkedFiles, InteriorChunkedDataNodeOptions chunkingOptions, IStorageWriter writer, BlobSerializerOptions? serializerOptions, CancellationToken cancellationToken)
 		{
 			ChunkedData[] chunkedFiles = new ChunkedData[leafChunkedFiles.Length];
 			for (int idx = 0; idx < leafChunkedFiles.Length; idx++)
 			{
-				chunkedFiles[idx] = await InteriorChunkedDataNode.CreateTreeAsync(leafChunkedFiles[idx], options, writer, cancellationToken);
+				chunkedFiles[idx] = await InteriorChunkedDataNode.CreateTreeAsync(leafChunkedFiles[idx], chunkingOptions, writer, serializerOptions, cancellationToken);
 			}
 			return chunkedFiles;
 		}
@@ -705,7 +705,7 @@ namespace EpicGames.Horde.Storage.Nodes
 					flags |= FileEntryFlags.Executable;
 				}
 
-				ChunkedData chunkedFile = await InteriorChunkedDataNode.CreateTreeAsync(leafChunkedFile, options.InteriorOptions, writer, cancellationToken);
+				ChunkedData chunkedFile = await InteriorChunkedDataNode.CreateTreeAsync(leafChunkedFile, options.InteriorOptions, writer, serializerOptions, cancellationToken);
 				updates.Add(new FileUpdate(entry.FullName, flags, entry.Length, chunkedFile));
 			}
 
