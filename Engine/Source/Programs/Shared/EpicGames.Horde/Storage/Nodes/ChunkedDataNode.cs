@@ -572,8 +572,15 @@ namespace EpicGames.Horde.Storage.Nodes
 		/// <summary>
 		/// Constructor
 		/// </summary>
+		public InteriorChunkedDataNodeConverter() : this(3)
+		{
+		}
+
+		/// <summary>
+		/// Constructor
+		/// </summary>
 		/// <param name="writeVersion">Version number for serialized data</param>
-		public InteriorChunkedDataNodeConverter(int writeVersion = 3)
+		public InteriorChunkedDataNodeConverter(int writeVersion)
 		{
 			_writeVersion = writeVersion;
 		}
