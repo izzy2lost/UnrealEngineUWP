@@ -5,6 +5,8 @@
 #include "DataWrappers/ChaosVDParticleDataWrapper.h"
 #include "IDetailChildrenBuilder.h"
 #include "PropertyHandle.h"
+#include "DetailsCustomizations/ChaosVDDetailsCustomizationUtils.h"
+
 
 TSharedRef<IPropertyTypeCustomization> FChaosVDParticleDataWrapperCustomization::MakeInstance()
 {
@@ -21,36 +23,13 @@ void FChaosVDParticleDataWrapperCustomization::CustomizeChildren(TSharedRef<IPro
 		return;
 	}
 
-	TSet<FName> ParticleDataViewersNames;
-	ParticleDataViewersNames.Reserve(5);
+	TArray<TSharedPtr<IPropertyHandle>> Handles;
+	Handles.Reserve(NumChildren);
 
-	ParticleDataViewersNames.Add(GET_MEMBER_NAME_CHECKED(FChaosVDParticleDataWrapper, ParticlePositionRotation));
-	ParticleDataViewersNames.Add(GET_MEMBER_NAME_CHECKED(FChaosVDParticleDataWrapper, ParticleVelocities));
-	ParticleDataViewersNames.Add(GET_MEMBER_NAME_CHECKED(FChaosVDParticleDataWrapper, ParticleDynamics));
-	ParticleDataViewersNames.Add(GET_MEMBER_NAME_CHECKED(FChaosVDParticleDataWrapper, ParticleDynamicsMisc));
-	ParticleDataViewersNames.Add(GET_MEMBER_NAME_CHECKED(FChaosVDParticleDataWrapper, ParticleMassProps));
-	ParticleDataViewersNames.Add(GET_MEMBER_NAME_CHECKED(FChaosVDParticleDataWrapper, ParticleCluster));
-	
 	for (uint32 ChildIndex = 0; ChildIndex < NumChildren; ++ChildIndex)
 	{
-		TSharedRef<IPropertyHandle> ChildHandle = StructPropertyHandle->GetChildHandle(ChildIndex).ToSharedRef();
-
-		const FName PropertyName = ChildHandle->GetProperty()->GetFName();
-		if (ParticleDataViewersNames.Contains(PropertyName))
-		{
-			void* Data = nullptr;
-			ChildHandle->GetValueData(Data);
-			if (Data)
-			{
-				FChaosVDParticleDataBase* DataViewer = static_cast<FChaosVDParticleDataBase*>(Data);
-
-				// The Particle Data viewer struct has several fields that will have default values if there was no recorded data for them in the trace file
-				// As these do not represent anything real value, we only add to the details panel the ones with recorded data
-				if (DataViewer->HasValidData())
-				{
-					StructBuilder.AddProperty(ChildHandle);
-				}
-			}
-		}
+		Handles.Add(StructPropertyHandle->GetChildHandle(ChildIndex).ToSharedRef());
 	}
+
+	FChaosVDDetailsCustomizationUtils::HideInvalidParticleDataProperties(Handles);
 }
