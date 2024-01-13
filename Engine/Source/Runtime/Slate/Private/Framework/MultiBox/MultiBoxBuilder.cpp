@@ -101,7 +101,7 @@ FMultiBoxCustomization FMultiBoxBuilder::GetCustomization() const
 	return FMultiBoxCustomization( MultiBox->GetCustomizationName() ); 
 }
 
-TSharedRef< class SWidget > FMultiBoxBuilder::MakeWidget( FMultiBox::FOnMakeMultiBoxBuilderOverride* InMakeMultiBoxBuilderOverride, uint32 MaxHeight /* = nullptr */ )
+TSharedRef< class SWidget > FMultiBoxBuilder::MakeWidget( FMultiBox::FOnMakeMultiBoxBuilderOverride* InMakeMultiBoxBuilderOverride)
 {
 	return MultiBox->MakeWidget( false, InMakeMultiBoxBuilderOverride );
 }
@@ -198,7 +198,12 @@ void FBaseMenuBuilder::AddMenuEntry(const FMenuEntryParams& InMenuEntryParams)
 	ApplyHook(InMenuEntryParams.ExtensionHook, EExtensionHook::After);
 }
 
-TSharedRef< class SWidget > FMenuBuilder::MakeWidget( FMultiBox::FOnMakeMultiBoxBuilderOverride* InMakeMultiBoxBuilderOverride /* = nullptr */, uint32 MaxHeight)
+TSharedRef< class SWidget > FMenuBuilder::MakeWidget( FMultiBox::FOnMakeMultiBoxBuilderOverride* InMakeMultiBoxBuilderOverride)
+{
+	return MakeWidget(InMakeMultiBoxBuilderOverride, 1000);
+}
+
+TSharedRef< class SWidget > FMenuBuilder::MakeWidget( FMultiBox::FOnMakeMultiBoxBuilderOverride* InMakeMultiBoxBuilderOverride, uint32 MaxHeight)
 {
 	// Make menu builders searchable (by default)
 	TAttribute<float> MaxHeightAttribute;
