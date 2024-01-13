@@ -157,6 +157,9 @@ public:
 	// UXRCreativeToolset();
 	//
 	// ~UXRCreativeToolset();
+
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="XR Creative")
+	FText ToolsetName;
 	
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="XR Creative")
 	TSubclassOf<AXRCreativeAvatar> Avatar;
