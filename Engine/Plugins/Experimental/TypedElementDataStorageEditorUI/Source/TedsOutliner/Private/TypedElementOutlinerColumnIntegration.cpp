@@ -194,10 +194,10 @@ public:
 			float Width = HeaderProperties->Width;
 			switch (HeaderProperties->ColumnSizeMode)
 			{
-				break; case EColumnSizeMode::Fill: Column.FillWidth(Width);
-				break; case EColumnSizeMode::Fixed: Column.FixedWidth(Width);
-				break; case EColumnSizeMode::Manual: Column.ManualWidth(Width);
-				break; case EColumnSizeMode::FillSized: Column.FillSized(Width);
+				case EColumnSizeMode::Fill: Column.FillWidth(Width); break;
+				case EColumnSizeMode::Fixed: Column.FixedWidth(Width); break;
+				case EColumnSizeMode::Manual: Column.ManualWidth(Width); break;
+				case EColumnSizeMode::FillSized: Column.FillSized(Width); break;
 			}
 		}
 		return Column;
