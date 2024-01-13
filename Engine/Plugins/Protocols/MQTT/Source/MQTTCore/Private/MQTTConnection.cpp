@@ -71,8 +71,8 @@ FMQTTConnection::~FMQTTConnection()
 	if (Thread != nullptr)
 	{
 		Thread->Kill(true);
-		Thread = nullptr;
 		delete Thread;
+		Thread = nullptr;
 	}
 
 	if (Socket)
