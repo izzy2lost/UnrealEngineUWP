@@ -146,6 +146,8 @@ namespace Horde.Server.Replicators
 		{
 			GetReplicatorResponse response = new GetReplicatorResponse();
 			response.Id = replicatorId;
+			response.StreamId = replicatorId.StreamId;
+			response.StreamReplicatorId = replicatorId.StreamReplicatorId;
 
 			if (replicator != null)
 			{

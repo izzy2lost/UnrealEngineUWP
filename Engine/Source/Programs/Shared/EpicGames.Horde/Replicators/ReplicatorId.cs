@@ -3,6 +3,8 @@
 using System;
 using System.ComponentModel;
 using System.Globalization;
+using System.Text.Json;
+using System.Text.Json.Serialization;
 using EpicGames.Core;
 using EpicGames.Horde.Streams;
 using EpicGames.Serialization;
@@ -15,8 +17,22 @@ namespace EpicGames.Horde.Replicators
 	[LogValueType]
 	[JsonSchemaString]
 	[TypeConverter(typeof(ReplicatorIdTypeConverter))]
+	[JsonConverter(typeof(ReplicatorIdJsonConverter))]
 	public record struct ReplicatorId(StreamId StreamId, StreamReplicatorId StreamReplicatorId)
 	{
+		/// <summary>
+		/// Parse a replicator id
+		/// </summary>
+		public static ReplicatorId Parse(string text)
+		{
+			ReplicatorId replicatorId;
+			if (!TryParse(text, out replicatorId))
+			{
+				throw new FormatException($"Unable to parse '{text}' as a replicator id");
+			}
+			return replicatorId;
+		}
+
 		/// <summary>
 		/// Parse a replicator id
 		/// </summary>
@@ -39,10 +55,18 @@ namespace EpicGames.Horde.Replicators
 		public override string ToString() => $"{StreamId}:{StreamReplicatorId}";
 	}
 
-	/// <summary>
-	/// Class which serializes types with a <see cref="StringIdConverter{T}"/> to Json
-	/// </summary>
-	public sealed class ReplicatorIdTypeConverter : TypeConverter
+	sealed class ReplicatorIdJsonConverter : JsonConverter<ReplicatorId>
+	{
+		/// <inheritdoc/>
+		public override ReplicatorId Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options)
+			=> ReplicatorId.Parse(reader.GetString() ?? String.Empty);
+
+		/// <inheritdoc/>
+		public override void Write(Utf8JsonWriter writer, ReplicatorId value, JsonSerializerOptions options)
+			=> writer.WriteStringValue(value.ToString());
+	}
+
+	sealed class ReplicatorIdTypeConverter : TypeConverter
 	{
 		/// <inheritdoc/>
 		public override bool CanConvertFrom(ITypeDescriptorContext? context, Type sourceType) => sourceType == typeof(string);

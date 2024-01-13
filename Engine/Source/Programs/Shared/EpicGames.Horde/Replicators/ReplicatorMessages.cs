@@ -1,6 +1,7 @@
 ﻿// Copyright Epic Games, Inc. All Rights Reserved.
 
 using System;
+using EpicGames.Horde.Streams;
 
 namespace EpicGames.Horde.Replicators
 {
@@ -13,6 +14,16 @@ namespace EpicGames.Horde.Replicators
 		/// Identifier for this replicator
 		/// </summary>
 		public ReplicatorId Id { get; set; }
+
+		/// <summary>
+		/// Identifier for the stream
+		/// </summary>
+		public StreamId StreamId { get; set; }
+
+		/// <summary>
+		/// Identifier for this replicator within the stream
+		/// </summary>
+		public StreamReplicatorId StreamReplicatorId { get; set; }
 
 		/// <summary>
 		/// Whether to pause replication
