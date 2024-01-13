@@ -119,6 +119,7 @@ namespace Chaos
 		int32 ChaosSolverDebugDrawBounds = 0;
 		int32 ChaosSolverDrawTransforms = 0;
 		int32 ChaosSolverDrawIslands = 0;
+		int32 ChaosSolverDebugDrawIslandSleepState = 0;
 		int32 ChaosSolverDrawCCDInteractions = 0;
 		int32 ChaosSolverDrawCCDThresholds = 0;
 		int32 ChaosSolverDrawShapesShowStatic = 1;
@@ -145,6 +146,7 @@ namespace Chaos
 		FAutoConsoleVariableRef CVarChaosSolverDrawBounds(TEXT("p.Chaos.Solver.DebugDrawBounds"), ChaosSolverDebugDrawBounds, TEXT("Draw bounding volumes inside the broadphase (0 = never; 1 = end of frame)."));
 		FAutoConsoleVariableRef CVarChaosSolverDrawTransforms(TEXT("p.Chaos.Solver.DebugDrawTransforms"), ChaosSolverDrawTransforms, TEXT("Draw particle transforms (0 = never; 1 = end of frame)."));
 		FAutoConsoleVariableRef CVarChaosSolverDrawIslands(TEXT("p.Chaos.Solver.DebugDrawIslands"), ChaosSolverDrawIslands, TEXT("Draw solver islands (0 = never; 1 = end of frame)."));
+		FAutoConsoleVariableRef CVarChaosSolverDrawIslandSleepState(TEXT("p.Chaos.Solver.DebugDrawSleepState"), ChaosSolverDebugDrawIslandSleepState, TEXT("Draw island sleep state."));
 		FAutoConsoleVariableRef CVarChaosSolverDrawCCD(TEXT("p.Chaos.Solver.DebugDrawCCDInteractions"), ChaosSolverDrawCCDInteractions, TEXT("Draw CCD interactions."));
 		FAutoConsoleVariableRef CVarChaosSolverDrawCCDThresholds(TEXT("p.Chaos.Solver.DebugDrawCCDThresholds"), ChaosSolverDrawCCDThresholds, TEXT("Draw CCD swept thresholds."));
 		FAutoConsoleVariableRef CVarChaosSolverDrawShapesShapesStatic(TEXT("p.Chaos.Solver.DebugDraw.ShowStatics"), ChaosSolverDrawShapesShowStatic, TEXT("If DebugDrawShapes is enabled, whether to show static objects"));
@@ -2484,6 +2486,10 @@ TRACE_COUNTER_SET(ChaosTraceCounter_##Name, Value)
 		{
 			DebugDraw::DrawConstraintGraph(FRigidTransform3(), GetEvolution()->GetIslandManager(), &ChaosSolverDebugDebugDrawSettings);
 		}
+		if (ChaosSolverDebugDrawIslandSleepState == 1)
+		{
+			GetEvolution()->GetIslandManager().DebugDrawSleepState(&ChaosSolverDebugDebugDrawSettings);
+		}
 		if (ChaosSolverDrawClusterConstraints == 1)
 		{
 			DebugDraw::DrawConnectionGraph(MEvolution->GetRigidClustering(), &ChaosSolverDebugDebugDrawSettings);
@@ -2515,7 +2521,6 @@ TRACE_COUNTER_SET(ChaosTraceCounter_##Name, Value)
 		{
 			DebugDraw::DrawSuspensionConstraints(FRigidTransform3(), GetEvolution()->GetSuspensionConstraints(), &ChaosSolverDebugDebugDrawSettings);
 		}
-
 #endif
 	}
 
@@ -2661,6 +2666,7 @@ TRACE_COUNTER_SET(ChaosTraceCounter_##Name, Value)
 		Rigid->SetMaxLinearSpeedSq(DynamicMisc.MaxLinearSpeedSq());
 		Rigid->SetMaxAngularSpeedSq(DynamicMisc.MaxAngularSpeedSq());
 		Rigid->SetInitialOverlapDepenetrationVelocity(DynamicMisc.InitialOverlapDepenetrationVelocity());
+		Rigid->SetSleepThresholdMultiplier(DynamicMisc.SleepThresholdMultiplier());
 		Rigid->SetCollisionGroup(DynamicMisc.CollisionGroup());
 		Rigid->SetDisabled(DynamicMisc.Disabled());
 		Rigid->SetCollisionConstraintFlags(DynamicMisc.CollisionConstraintFlags());

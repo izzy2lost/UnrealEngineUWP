@@ -1670,6 +1670,7 @@ void FGeometryCollectionPhysicsProxy::InitializeBodiesPT(Chaos::FPBDRigidsSolver
 				Handle->SetLinearEtherDrag(Parameters.LinearDamping);
 				Handle->SetAngularEtherDrag(Parameters.AngularDamping);
 				Handle->SetInitialOverlapDepenetrationVelocity(Parameters.InitialOverlapDepenetrationVelocity);
+				Handle->SetSleepThresholdMultiplier(Parameters.SleepThresholdMultiplier);
 			}
 
 #if !(UE_BUILD_SHIPPING || UE_BUILD_TEST)

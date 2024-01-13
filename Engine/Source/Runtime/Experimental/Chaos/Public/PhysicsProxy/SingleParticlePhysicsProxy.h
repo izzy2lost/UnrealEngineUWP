@@ -1279,7 +1279,7 @@ public:
 	FRealSingle GetInitialOverlapDepenetrationVelocity()
 	{
 		VerifyContext();
-		if (const TPBDRigidParticle<FReal, 3>*Rigid = GetParticle_LowLevel()->CastToRigidParticle())
+		if (const TPBDRigidParticle<FReal, 3>* Rigid = GetParticle_LowLevel()->CastToRigidParticle())
 		{
 			return Rigid->InitialOverlapDepenetrationVelocity();
 		}
@@ -1290,9 +1290,18 @@ public:
 	void SetInitialOverlapDepenetrationVelocity(FRealSingle InNewSpeed)
 	{
 		VerifyContext();
-		if (TPBDRigidParticle<FReal, 3>*Rigid = GetParticle_LowLevel()->CastToRigidParticle())
+		if (TPBDRigidParticle<FReal, 3>* Rigid = GetParticle_LowLevel()->CastToRigidParticle())
 		{
 			Rigid->SetInitialOverlapDepenetrationVelocity(InNewSpeed);
+		}
+	}
+
+	void SetSleepThresholdMultiplier(FRealSingle Multiplier)
+	{
+		VerifyContext();
+		if (TPBDRigidParticle<FReal, 3>* Rigid = GetParticle_LowLevel()->CastToRigidParticle())
+		{
+			Rigid->SetSleepThresholdMultiplier(Multiplier);
 		}
 	}
 

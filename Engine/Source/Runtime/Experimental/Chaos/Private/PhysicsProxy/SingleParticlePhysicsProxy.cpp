@@ -90,7 +90,7 @@ void PushToPhysicsStateImp(const Chaos::FDirtyPropertiesManager& Manager, Chaos:
 		auto NewVelocities = bHasKinematicData ? ParticleData.FindVelocities(Manager, DataIdx) : nullptr;
 		if(NewVelocities)
 		{
-			KinematicHandle->SetVelocities(*NewVelocities);
+			Evolution.SetParticleVelocities(KinematicHandle, NewVelocities->V(), NewVelocities->W());
 		}
 
 		auto NewKinematicTargetGT = bHasKinematicData ? ParticleData.FindKinematicTarget(Manager, DataIdx) : nullptr;

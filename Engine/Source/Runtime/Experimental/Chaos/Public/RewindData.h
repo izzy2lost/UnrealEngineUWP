@@ -1000,6 +1000,7 @@ public:
 	REWIND_PARTICLE_RIGID_PROPERTY(DynamicsMisc, MaxLinearSpeedSq)
 	REWIND_PARTICLE_RIGID_PROPERTY(DynamicsMisc, MaxAngularSpeedSq)
 	REWIND_PARTICLE_RIGID_PROPERTY(DynamicsMisc, InitialOverlapDepenetrationVelocity)
+	REWIND_PARTICLE_RIGID_PROPERTY(DynamicsMisc, SleepThresholdMultiplier)
 	REWIND_PARTICLE_RIGID_PROPERTY(DynamicsMisc, ObjectState)
 	REWIND_PARTICLE_RIGID_PROPERTY(DynamicsMisc, CollisionGroup)
 	REWIND_PARTICLE_RIGID_PROPERTY(DynamicsMisc, ControlFlags)
@@ -1063,6 +1064,7 @@ public:
 			REWIND_PARTICLE_TO_STR(MaxLinearSpeedSq)
 			REWIND_PARTICLE_TO_STR(MaxAngularSpeedSq)
 			REWIND_PARTICLE_TO_STR(InitialOverlapDepenetrationVelocity)
+			REWIND_PARTICLE_TO_STR(SleepThresholdMultiplier)
 
 			REWIND_PARTICLE_TO_STR(ObjectState)
 			REWIND_PARTICLE_TO_STR(CollisionGroup)

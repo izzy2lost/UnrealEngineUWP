@@ -1,5 +1,6 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 #include "Chaos/Island/IslandManager.h"
+#include "Chaos/ChaosDebugDraw.h"
 #include "Chaos/ParticleHandle.h"
 #include "Chaos/ParticleIterator.h"
 #include "Chaos/PBDConstraintContainer.h"
@@ -46,26 +47,38 @@ namespace Chaos::CVars
 
 	/** Cvar to enable/disable the island sleeping */
 	bool bChaosSolverSleepEnabled = true;
-	FAutoConsoleVariableRef CVarChaosSolverSleepEnabled(TEXT("p.Chaos.Solver.SleepEnabled"), bChaosSolverSleepEnabled, TEXT(""));
+	FAutoConsoleVariableRef CVarChaosSolverSleepEnabled(TEXT("p.Chaos.Solver.Sleep.Enabled"), bChaosSolverSleepEnabled, TEXT(""));
 
 	/** Cvar to override the sleep counter threshold if necessary */
 	int32 ChaosSolverCollisionDefaultSleepCounterThreshold = 20;
-	FAutoConsoleVariableRef CVarChaosSolverCollisionDefaultSleepCounterThreshold(TEXT("p.ChaosSolverCollisionDefaultSleepCounterThreshold"), ChaosSolverCollisionDefaultSleepCounterThreshold, TEXT("Default counter threshold for sleeping.[def:20]"));
+	FAutoConsoleVariableRef CVarChaosSolverCollisionDefaultSleepCounterThreshold(TEXT("p.Chaos.Solver.Sleep.Defaults.SleepCounterThreshold"), ChaosSolverCollisionDefaultSleepCounterThreshold, TEXT("Default counter threshold for sleeping.[def:20]"));
 
 	/** Cvar to override the sleep linear threshold if necessary */
 	FRealSingle ChaosSolverCollisionDefaultLinearSleepThreshold = 0.001f; // .001 unit mass cm
-	FAutoConsoleVariableRef CVarChaosSolverCollisionDefaultLinearSleepThreshold(TEXT("p.ChaosSolverCollisionDefaultLinearSleepThreshold"), ChaosSolverCollisionDefaultLinearSleepThreshold, TEXT("Default linear threshold for sleeping.[def:0.001]"));
+	FAutoConsoleVariableRef CVarChaosSolverCollisionDefaultLinearSleepThreshold(TEXT("p.Chaos.Solver.Sleep.Defaults.LinearSleepThreshold"), ChaosSolverCollisionDefaultLinearSleepThreshold, TEXT("Default linear threshold for sleeping.[def:0.001]"));
 
 	/** Cvar to override the sleep angular threshold if necessary */
 	FRealSingle ChaosSolverCollisionDefaultAngularSleepThreshold = 0.0087f;  //~1/2 unit mass degree
-	FAutoConsoleVariableRef CVarChaosSolverCollisionDefaultAngularSleepThreshold(TEXT("p.ChaosSolverCollisionDefaultAngularSleepThreshold"), ChaosSolverCollisionDefaultAngularSleepThreshold, TEXT("Default angular threshold for sleeping.[def:0.0087]"));
+	FAutoConsoleVariableRef CVarChaosSolverCollisionDefaultAngularSleepThreshold(TEXT("p.Chaos.Solver.Sleep.Defaults.AngularSleepThreshold"), ChaosSolverCollisionDefaultAngularSleepThreshold, TEXT("Default angular threshold for sleeping.[def:0.0087]"));
 
 	/** The size of object for which the angular sleep threshold is defined. Large objects reduce the threshold propertionally. 0 means do not apply size scale. */
 	// E.g., if ChaosSolverCollisionAngularSleepThresholdSize=100, an objects with a bounds of 500 will have 1/5x the sleep threshold.
 	// We are effectively converting the angular threshold into a linear threshold calculated at the object extents.
 	// @todo(chaos): male this a project setting or something
 	FRealSingle ChaosSolverCollisionAngularSleepThresholdSize = 0;
-	FAutoConsoleVariableRef CVarChaosSolverCollisionAngularSleepThresholdSize(TEXT("p.ChaosSolverCollisionAngularSleepThresholdSize"), ChaosSolverCollisionAngularSleepThresholdSize, TEXT("Scales the angular threshold based on size (0 to disable size based scaling)"));
+	FAutoConsoleVariableRef CVarChaosSolverCollisionAngularSleepThresholdSize(TEXT("p.Chaos.Solver.Sleep.AngularSleepThresholdSize"), ChaosSolverCollisionAngularSleepThresholdSize, TEXT("Scales the angular threshold based on size (0 to disable size based scaling)"));
+
+	/* Cvar to increase the sleep counter threshold for floating particles */
+	int32 IsolatedParticleSleepCounterThresholdMultiplier = 1;
+	FAutoConsoleVariableRef CVarChaosSolverIsolatedParticleSleepCounterThresholdMultiplier(TEXT("p.Chaos.Solver.Sleep.IsolatedParticle.CounterMultiplier"), IsolatedParticleSleepCounterThresholdMultiplier, TEXT("A multiplier applied to SleepCounterThreshold for floating particles"));
+
+	/* Cvar to adjust the sleep linear threshold for floating particles */
+	FRealSingle IsolatedParticleSleepLinearThresholdMultiplier = 1.0f;
+	FAutoConsoleVariableRef CVarChaosSolverIsolatedParticleSleepLinearThresholdMultiplier(TEXT("p.Chaos.Solver.Sleep.IsolatedParticle.LinearMultiplier"), IsolatedParticleSleepLinearThresholdMultiplier, TEXT("A multiplier applied to SleepLinearThreshold for floating particles"));
+
+	/* Cvar to adjust the sleep angular threshold for floating particles */
+	FRealSingle IsolatedParticleSleepAngularThresholdMultiplier = 1.0f;
+	FAutoConsoleVariableRef CVarChaosSolverIsolatedParticleSleepAngularThresholdMultiplier(TEXT("p.Chaos.Solver.Sleep.IsolatedParticle.AngularMultiplier"), IsolatedParticleSleepAngularThresholdMultiplier, TEXT("A multiplier applied to SleepAngularThreshold for floating particles"));
 }
 
 
@@ -132,7 +145,7 @@ namespace Chaos::Private
 		return (Particle != nullptr) && (Particle->SyncState() != ESyncState::InSync);
 	}
 
-	bool GetParticleSleepThresholds(
+	bool GetIslandParticleSleepThresholds(
 		const FGeometryParticleHandle* Particle,
 		const TArrayCollectionArray<TSerializablePtr<FChaosPhysicsMaterial>>* PhysicsMaterials,
 		const TArrayCollectionArray<TUniquePtr<FChaosPhysicsMaterial>>* PerParticlePhysicsMaterials,
@@ -148,17 +161,19 @@ namespace Chaos::Private
 		const FPBDRigidParticleHandle* Rigid = Particle->CastToRigidParticle();
 		if ((Rigid != nullptr) && (Rigid->SleepType() != ESleepType::NeverSleep))
 		{
+			const FRealSingle ParticleSleepThresholdMultiplier = Rigid->SleepThresholdMultiplier();
+
 			const FChaosPhysicsMaterial* PhysicsMaterial = Private::GetFirstPhysicsMaterial(Rigid, PhysicsMaterials, PerParticlePhysicsMaterials, SimMaterials);
 			if (PhysicsMaterial != nullptr)
 			{
-				OutSleepLinearThreshold = FRealSingle(PhysicsMaterial->SleepingLinearThreshold);
-				OutSleepAngularThreshold = FRealSingle(PhysicsMaterial->SleepingAngularThreshold);
+				OutSleepLinearThreshold = ParticleSleepThresholdMultiplier * FRealSingle(PhysicsMaterial->SleepingLinearThreshold);
+				OutSleepAngularThreshold = ParticleSleepThresholdMultiplier * FRealSingle(PhysicsMaterial->SleepingAngularThreshold);
 				OutSleepCounterThreshold = PhysicsMaterial->SleepCounterThreshold;
 			}
 			else
 			{
-				OutSleepLinearThreshold = CVars::ChaosSolverCollisionDefaultLinearSleepThreshold;
-				OutSleepAngularThreshold = CVars::ChaosSolverCollisionDefaultAngularSleepThreshold;
+				OutSleepLinearThreshold = ParticleSleepThresholdMultiplier * CVars::ChaosSolverCollisionDefaultLinearSleepThreshold;
+				OutSleepAngularThreshold = ParticleSleepThresholdMultiplier * CVars::ChaosSolverCollisionDefaultAngularSleepThreshold;
 				OutSleepCounterThreshold = CVars::ChaosSolverCollisionDefaultSleepCounterThreshold;
 			}
 
@@ -174,6 +189,30 @@ namespace Chaos::Private
 					OutSleepAngularThreshold *= ThresholdScale;
 				}
 			}
+
+			return true;
+		}
+
+		return false;
+	}
+
+	bool GetIsolatedParticleSleepThresholds(
+		const FGeometryParticleHandle* Particle,
+		const TArrayCollectionArray<TSerializablePtr<FChaosPhysicsMaterial>>* PhysicsMaterials,
+		const TArrayCollectionArray<TUniquePtr<FChaosPhysicsMaterial>>* PerParticlePhysicsMaterials,
+		const THandleArray<FChaosPhysicsMaterial>* SimMaterials,
+		FRealSingle& OutSleepLinearThreshold,
+		FRealSingle& OutSleepAngularThreshold,
+		int& OutSleepCounterThreshold)
+	{
+		if (GetIslandParticleSleepThresholds(Particle, PhysicsMaterials, PerParticlePhysicsMaterials, SimMaterials, OutSleepLinearThreshold, OutSleepAngularThreshold, OutSleepCounterThreshold))
+		{
+			// Sleep thresholds are tuned to hide minor collision jitter which isn't a problem for floating particles
+			// so we scale the thesholds to make sleeping harder. E.g., to avoid going to sleep at the apex of an
+			// upwards ballistic trajectory, or when a floating oscillating body reverses rotation, etc.
+			OutSleepCounterThreshold *= FMath::Max(1, CVars::IsolatedParticleSleepCounterThresholdMultiplier);
+			OutSleepLinearThreshold *= FMath::Max(0.0f, CVars::IsolatedParticleSleepLinearThresholdMultiplier);
+			OutSleepAngularThreshold *= FMath::Max(0.0f, CVars::IsolatedParticleSleepAngularThresholdMultiplier);
 
 			return true;
 		}
@@ -205,6 +244,16 @@ namespace Chaos::Private
 		}
 
 		return false;
+	}
+
+	template<typename TRigidParticleHandle>
+	void InitParticleSleepMetrics(TRigidParticleHandle& Rigid, FReal Dt)
+	{
+		if (Dt > UE_SMALL_NUMBER)
+		{
+			Rigid.SetVSmooth(Rigid.V());
+			Rigid.SetWSmooth(Rigid.W());
+		}
 	}
 
 	template<typename TRigidParticleHandle>
@@ -1110,7 +1159,7 @@ namespace Chaos::Private
 			FRealSingle SleepLinearThreshold, SleepAngularThreshold;
 			FRealSingle DisableLinearThreshold, DisableAngularThreshold;
 			int32 SleepCounterThreshold;
-			GetParticleSleepThresholds(Node->Particle, PhysicsMaterials, PerParticlePhysicsMaterials, SimMaterials, SleepLinearThreshold, SleepAngularThreshold, SleepCounterThreshold);
+			GetIslandParticleSleepThresholds(Node->Particle, PhysicsMaterials, PerParticlePhysicsMaterials, SimMaterials, SleepLinearThreshold, SleepAngularThreshold, SleepCounterThreshold);
 			GetParticleDisableThresholds(Node->Particle, PhysicsMaterials, PerParticlePhysicsMaterials, SimMaterials, DisableLinearThreshold, DisableAngularThreshold);
 
 			Node->SleepLinearThresholdSq = FMath::Square(SleepLinearThreshold);
@@ -2034,12 +2083,14 @@ namespace Chaos::Private
 			{
 				FRealSingle SleepLinearThreshold, SleepAngularThreshold;
 				int32 SleepCounterThreshold;
-				GetParticleSleepThresholds(Rigid.Handle(), PhysicsMaterials, PerParticlePhysicsMaterials, SimMaterials, SleepLinearThreshold, SleepAngularThreshold, SleepCounterThreshold);
+				GetIsolatedParticleSleepThresholds(Rigid.Handle(), PhysicsMaterials, PerParticlePhysicsMaterials, SimMaterials, SleepLinearThreshold, SleepAngularThreshold, SleepCounterThreshold);
 
 				// Check for sleep
 				if ((SleepLinearThreshold > 0) || (SleepAngularThreshold > 0))
 				{
-					UpdateParticleSleepMetrics(Rigid, Dt);
+					// NOTE: We do not use smoothed velocity for isolated particles (smoothed velocity is used to hide
+					// minor collision/joint jitter and that won't be present) so we reset it for isolated particles
+					InitParticleSleepMetrics(Rigid, Dt);
 
 					int32 SleepCounter = 0;
 					if (SleepCounterThreshold < TNumericLimits<int32>::Max())
@@ -2102,7 +2153,11 @@ namespace Chaos::Private
 				|| (Rigid->WSmooth().SizeSquared() > Node->SleepAngularThresholdSq))
 			{
 				bWithinSleepThreshold = false;
-				break;
+
+				// NOTE: We will not sleep if any particle exceeds the threshold, so we could "break" here.
+				// However but we still want to update the SleepMetrics for all particles because they 
+				// currently use a moving average, so must continue to remaining particles
+				continue;
 			}
 
 			// Take the longest sleep time
@@ -2428,5 +2483,68 @@ namespace Chaos::Private
 
 		return true;
 	}
+
+#if CHAOS_DEBUG_DRAW
+	void FPBDIslandManager::DebugDrawSleepState(const DebugDraw::FChaosDebugDrawSettings* DebugDrawSettings) const
+	{
+		// Loop over isolated particles
+		for (FTransientPBDRigidParticleHandle& Rigid : Particles.GetActiveDynamicMovingKinematicParticlesView())
+		{
+			if (Rigid.IsDynamic() && !Rigid.IsInConstraintGraph())
+			{
+				FColor Color = FColor(128, 128, 128);
+
+				if (!Rigid.IsSleeping())
+				{
+					FRealSingle SleepLinearThreshold, SleepAngularThreshold;
+					int32 SleepCounterThreshold;
+					GetIsolatedParticleSleepThresholds(Rigid.Handle(), PhysicsMaterials, PerParticlePhysicsMaterials, SimMaterials, SleepLinearThreshold, SleepAngularThreshold, SleepCounterThreshold);
+
+					// Check for sleep
+					if ((SleepLinearThreshold > 0) || (SleepAngularThreshold > 0))
+					{
+						if (SleepCounterThreshold < TNumericLimits<int32>::Max())
+						{
+							// Isolated particles have a max sleep counter of 127 (to reduce counter space in the particle)
+							SleepCounterThreshold = FMath::Min(SleepCounterThreshold, TNumericLimits<int8>::Max());
+
+							// Did we exceed the velocity threshold?
+							const bool bIsParticlePreventingSleep = ((Rigid.VSmooth().SizeSquared() > FMath::Square(SleepLinearThreshold)) || (Rigid.WSmooth().SizeSquared() > FMath::Square(SleepAngularThreshold)));
+							Color = (bIsParticlePreventingSleep) ? FColor::Red : FColor::Green;
+						}
+					}
+				}
+
+				DebugDraw::DrawParticleShapes(FRigidTransform3::Identity, Rigid.Handle(), Color, DebugDrawSettings);
+			}
+		}
+
+		// Loop over particles in islands
+		for (FPBDIsland* Island : Islands)
+		{
+			for (FPBDIslandParticle* Node : Island->GetParticles())
+			{
+				FColor Color = FColor(128, 128, 128);
+
+				if (!Island->Flags.bIsSleeping)
+				{
+					// All zeroes means never sleep/disable
+					if ((Node->SleepLinearThresholdSq > 0) || (Node->SleepAngularThresholdSq > 0))
+					{
+						// Check the particle state against the thresholds
+						if (FPBDRigidParticleHandle* Rigid = Node->GetParticle()->CastToRigidParticle())
+						{
+							// Did we exceed the velocity threshold?
+							const bool bIsParticlePreventingSleep = ((Rigid->VSmooth().SizeSquared() > Node->SleepLinearThresholdSq) || (Rigid->WSmooth().SizeSquared() > Node->SleepAngularThresholdSq));
+							Color = (bIsParticlePreventingSleep) ? FColor::Red : FColor::Green;
+						}
+					}
+				}
+
+				DebugDraw::DrawParticleShapes(FRigidTransform3::Identity, Node->GetParticle(), Color, DebugDrawSettings);
+			}
+		}
+	}
+#endif
 
 } // namsepace Chaos::Private

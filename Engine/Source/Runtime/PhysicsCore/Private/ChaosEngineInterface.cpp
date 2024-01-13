@@ -1161,6 +1161,11 @@ void FChaosEngineInterface::SetSleepEnergyThreshold_AssumesLocked(const FPhysics
 {
 }
 
+void FChaosEngineInterface::SetSleepThresholdMultiplier_AssumesLocked(const FPhysicsActorHandle& InActorReference, float InThresholdMultiplier)
+{
+	return InActorReference->GetGameThreadAPI().SetSleepThresholdMultiplier(InThresholdMultiplier);
+}
+
 void FChaosEngineInterface::SetMass_AssumesLocked(FPhysicsActorHandle& InActorReference,float InMass)
 {
 	Chaos::FRigidBodyHandle_External& Body_External = InActorReference->GetGameThreadAPI();

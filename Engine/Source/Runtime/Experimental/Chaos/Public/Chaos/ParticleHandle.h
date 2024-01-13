@@ -113,6 +113,7 @@ void PBDRigidParticleDefaultConstruct(FConcrete& Concrete, const FPBDRigidPartic
 	Concrete.SetMaxLinearSpeedSq(TNumericLimits<T>::Max());
 	Concrete.SetMaxAngularSpeedSq(TNumericLimits<T>::Max());
 	Concrete.SetInitialOverlapDepenetrationVelocity(-1.0f);
+	Concrete.SetSleepThresholdMultiplier(1.0f);
 	Concrete.SetM(1);
 	Concrete.SetInvM(1);
 	Concrete.SetCenterOfMass(TVector<T,d>(0));
@@ -903,6 +904,7 @@ public:
 	TVector<T, d>& W() { return KinematicGeometryParticles->W(ParticleIdx); }
 	void SetW(const TVector<T, d>& InW, bool bInvalidate = false) { KinematicGeometryParticles->W(ParticleIdx) = InW; }
 
+	UE_DEPRECATED(5.4, "Use FPBDRigidsEvolutionGBF::SetParticleVelocitied or (SetV, SetW if that is not appropriate)")
 	void SetVelocities(const FParticleVelocities& Velocities)
 	{
 		SetV(Velocities.V());
@@ -1174,6 +1176,9 @@ public:
 
 	FRealSingle InitialOverlapDepenetrationVelocity() const { return PBDRigidParticles->InitialOverlapDepenetrationVelocity(ParticleIdx); }
 	void SetInitialOverlapDepenetrationVelocity(FRealSingle InVel) { PBDRigidParticles->InitialOverlapDepenetrationVelocity(ParticleIdx) = InVel; }
+
+	inline FRealSingle SleepThresholdMultiplier() const { return PBDRigidParticles->SleepThresholdMultiplier(ParticleIdx); }
+	inline void SetSleepThresholdMultiplier(FRealSingle Multiplier) { PBDRigidParticles->SleepThresholdMultiplier(ParticleIdx) = Multiplier; }
 
 	EObjectStateType ObjectState() const { return PBDRigidParticles->ObjectState(ParticleIdx); }
 	EObjectStateType PreObjectState() const { return PBDRigidParticles->PreObjectState(ParticleIdx); }
@@ -2278,6 +2283,15 @@ public:
 			return RigidHandle->InitialOverlapDepenetrationVelocity();
 		}
 		return 0;
+	}
+
+	FRealSingle SleepThresholdMultiplier() const
+	{
+		if (auto RigidHandle = MHandle->CastToRigidParticle())
+		{
+			return RigidHandle->SleepThresholdMultiplier();
+		}
+		return 1.0f;
 	}
 
 	bool OneWayInteraction() const
@@ -3400,7 +3414,12 @@ public:
 	void SetInitialOverlapDepenetrationVelocity(FRealSingle InVel)
 	{
 		MMiscData.Modify(true, MDirtyFlags, Proxy, [InVel](auto& Data) { Data.SetInitialOverlapDepenetrationVelocity(InVel); });
-		
+	}
+
+	FRealSingle SleepThresholdMultiplier() const { return MMiscData.Read().SleepThresholdMultiplier(); }
+	void SetSleepThresholdMultiplier(FRealSingle Multiplier)
+	{
+		MMiscData.Modify(true, MDirtyFlags, Proxy, [Multiplier](auto& Data) { Data.SetSleepThresholdMultiplier(Multiplier); });
 	}
 
 	int32 Island() const { return MIsland; }

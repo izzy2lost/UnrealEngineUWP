@@ -408,7 +408,7 @@ namespace Chaos
 
 		if (const FParticleVelocities* NewVelocities = ParticleData.FindClusterVelocities(Manager, DataIdx))
 		{
-			Particle_Internal->SetVelocities(*NewVelocities);
+			Evolution.SetParticleVelocities(Particle_Internal, NewVelocities->V(), NewVelocities->W());
 		}
 	}
 

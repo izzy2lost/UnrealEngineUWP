@@ -646,6 +646,9 @@ namespace Chaos
 		// Cluster has one-way interaction only if all children are also one-way
 		bool bIsOneWayInteraction = (bIsNewCluster) || Cluster->InternalCluster->OneWayInteraction();
 
+		// Use the minimum sleep multiplier of all member particles
+		FRealSingle MinSleepThresholdMultiplier = TNumericLimits<FRealSingle>::Max();
+
 		for (FPBDRigidParticleHandle* Particle : FinalParticlesToAdd)
 		{
 			if (Particle->GetGeometry() == nullptr)
@@ -664,6 +667,7 @@ namespace Chaos
 			}
 
 			bIsOneWayInteraction &= Particle->OneWayInteraction();
+			MinSleepThresholdMultiplier = FMath::Min(MinSleepThresholdMultiplier, Particle->SleepThresholdMultiplier());
 
 			if (!Cluster->ChildProperties.Contains(Particle))
 			{
@@ -735,6 +739,11 @@ namespace Chaos
 		}
 
 		Cluster->InternalCluster->SetOneWayInteraction(bIsOneWayInteraction);
+
+		if (MinSleepThresholdMultiplier != TNumericLimits<FRealSingle>::Max())
+		{
+			Cluster->InternalCluster->SetSleepThresholdMultiplier(MinSleepThresholdMultiplier);
+		}
 	}
 
 	DECLARE_CYCLE_STAT(TEXT("FClusterUnionManager::DeferredClusterUnionUpdate"), STAT_DeferredClusterUnionUpdate, STATGROUP_Chaos);

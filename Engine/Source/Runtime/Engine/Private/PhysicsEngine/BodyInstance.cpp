@@ -96,6 +96,12 @@ FAutoConsoleVariableRef CVarSkipShapeCreationForEmptyBodySetup(
 	bSkipShapeCreationForEmptyBodySetup,
 	TEXT("If true, CreateShapesAndActors will not try to create actors and shapes for all instances if the body setup doesn't have any geometry."));
 
+float SensitiveSleepThresholdMultiplier = 1.0f/20.0f;
+FAutoConsoleVariableRef CVarSensitiveSleepThresholdMultiplier(
+	TEXT("p.SensitiveSleepThresholdMultiplier"),
+	SensitiveSleepThresholdMultiplier,
+	TEXT("The sleep threshold multiplier to use for bodies using the Sensitive sleep family."));
+
 using namespace PhysicsInterfaceTypes;
 
 bool IsRigidBodyKinematic_AssumesLocked(const FPhysicsActorHandle& InActorRef)
@@ -3232,7 +3238,7 @@ float FBodyInstance::GetSleepThresholdMultiplier() const
 {
 	if (SleepFamily == ESleepFamily::Sensitive)
 	{
-		return 1 / 20.0f;
+		return SensitiveSleepThresholdMultiplier;
 	}
 	else if (SleepFamily == ESleepFamily::Custom)
 	{
@@ -4162,6 +4168,9 @@ void FBodyInstance::InitDynamicProperties_AssumesLocked()
 			FPhysicsInterface::SetLinearVelocity_AssumesLocked(ActorHandle, InitialLinVel);
 		}
 
+		FPhysicsInterface::SetSleepThresholdMultiplier_AssumesLocked(ActorHandle, GetSleepThresholdMultiplier());
+
+		// @todo: implement sleep energy threshold
 		float SleepEnergyThresh = FPhysicsInterface::GetSleepEnergyThreshold_AssumesLocked(ActorHandle);
 		SleepEnergyThresh *= GetSleepThresholdMultiplier();
 		FPhysicsInterface::SetSleepEnergyThreshold_AssumesLocked(ActorHandle, SleepEnergyThresh);

@@ -13,6 +13,11 @@ namespace Chaos
 	class FPerParticleGravity;
 }
 
+namespace Chaos::DebugDraw
+{
+	struct FChaosDebugDrawSettings;
+}
+
 namespace Chaos::Private
 {
 	class FPBDIslandMergeSet;
@@ -462,6 +467,11 @@ namespace Chaos::Private
 		CHAOS_API TArray<const FGeometryParticleHandle*> FindParticlesInIslands(const TArray<const FPBDIsland*> Islands) const;
 		CHAOS_API TArray<const FConstraintHandle*> FindConstraintsInIslands(const TArray<const FPBDIsland*> Islands, int32 ContainerId) const;
 		CHAOS_API void SetParticleIslandIsSleeping(FGeometryParticleHandle* Particle, const bool bInIsSleeping);
+
+		// Debug draw
+#if CHAOS_DEBUG_DRAW
+		CHAOS_API void DebugDrawSleepState(const DebugDraw::FChaosDebugDrawSettings* DebugDrawSettings) const;
+#endif
 
 		// Deprecated API
 		UE_DEPRECATED(5.3, "Use Reset") void RemoveConstraints() { Reset(); }

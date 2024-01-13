@@ -176,6 +176,11 @@ namespace Chaos
 		 */
 		CHAOS_API void OnParticleMoved(FGeometryParticleHandle* InParticle, const FVec3& PrevX, const FRotation3& PrevR, const bool bIsTeleport);
 
+		/**
+		 * User has changed particle velocity or angular velocity
+		 */
+		CHAOS_API void SetParticleVelocities(FGeometryParticleHandle* InParticle, const FVec3& InV, const FVec3f& InW);
+
 
 		/**
 		 * Reload the particles cache for all particles where appropriate

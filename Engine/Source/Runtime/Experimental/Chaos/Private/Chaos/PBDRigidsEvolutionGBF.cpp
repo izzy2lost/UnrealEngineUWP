@@ -51,7 +51,7 @@ namespace Chaos
 		int CollisionDisableCulledContacts = 0;
 		FAutoConsoleVariableRef CVarDisableCulledContacts(TEXT("p.CollisionDisableCulledContacts"), CollisionDisableCulledContacts, TEXT("Allow the PBDRigidsEvolutionGBF collision constraints to throw out contacts mid solve if they are culled."));
 
-		FRealSingle SmoothedPositionLerpRate = 0.1f;
+		FRealSingle SmoothedPositionLerpRate = 0.3f;
 		FAutoConsoleVariableRef CVarSmoothedPositionLerpRate(TEXT("p.Chaos.SmoothedPositionLerpRate"), SmoothedPositionLerpRate, TEXT("The interpolation rate for the smoothed position calculation. Used for sleeping."));
 
 		int DisableParticleUpdateVelocityParallelFor = 0;
@@ -1137,11 +1137,39 @@ void FPBDRigidsEvolutionGBF::OnParticleMoved(FGeometryParticleHandle* InParticle
 	}
 }
 
+void FPBDRigidsEvolutionGBF::SetParticleVelocities(FGeometryParticleHandle* InParticle, const FVec3& InV, const FVec3f& InW)
+{
+	if (FKinematicGeometryParticleHandle* Kinematic = InParticle->CastToKinematicParticle())
+	{
+		Kinematic->SetV(InV);
+		Kinematic->SetW(InW);
+	}
+
+	if (FPBDRigidParticleHandle* Rigid = InParticle->CastToRigidParticle())
+	{
+		// Reset the velocity-based sleepiness tracking properties
+		if (Rigid->IsDynamic())
+		{
+			Rigid->SetVSmooth(InV);
+			Rigid->SetWSmooth(InW);
+
+			// Wake the particle if the velocity is non-zero
+			// NOTE: We do this even when not sleeping because we want to reset the sleep accumulators
+			if (!InV.IsNearlyZero() || !InW.IsNearlyZero())
+			{
+				WakeParticle(Rigid);
+			}
+
+			// @todo(chaos): do we want to reset static friction an any existing contacts as well?
+		}
+	}
+}
+
 void FPBDRigidsEvolutionGBF::ParticleMaterialChanged(FGeometryParticleHandle* Particle)
 {
 	Particle->ParticleCollisions().VisitCollisions([this](FPBDCollisionConstraint& Collision)
 	{
-		// Reset the material - the material properties will get collected later (collision activation)
+		// Reset the material. This is a fast operation - the material properties will get collected later if the collision is activated
 		Collision.ClearMaterialProperties();
 		return ECollisionVisitorResult::Continue;
 

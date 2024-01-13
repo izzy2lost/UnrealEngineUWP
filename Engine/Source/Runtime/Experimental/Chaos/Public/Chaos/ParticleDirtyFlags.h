@@ -455,10 +455,12 @@ public:
 		}
 
 		// @todo(chaos): add this
-		//Ar << MInitialOverlapDepenetrationVelocity
+		//Ar << MInitialOverlapDepenetrationVelocity;
+		//Ar << MSleepThresholdMultiplier;
 		if (Ar.IsLoading())
 		{
 			MInitialOverlapDepenetrationVelocity = 0;
+			MSleepThresholdMultiplier = 1.0f;
 		}
 
 		if (bAddControlFlags)
@@ -475,6 +477,7 @@ public:
 		SetMaxLinearSpeedSq(Other.MaxLinearSpeedSq());
 		SetMaxAngularSpeedSq(Other.MaxAngularSpeedSq());
 		SetInitialOverlapDepenetrationVelocity(Other.InitialOverlapDepenetrationVelocity());
+		SetSleepThresholdMultiplier(Other.SleepThresholdMultiplier());
 		SetObjectState(Other.ObjectState());
 		SetCollisionGroup(Other.CollisionGroup());
 		SetSleepType(Other.SleepType());
@@ -492,6 +495,7 @@ public:
 			&& MMaxLinearSpeedSq == FRealSingle(Other.MaxLinearSpeedSq())
 			&& MMaxAngularSpeedSq == FRealSingle(Other.MaxAngularSpeedSq())
 			&& InitialOverlapDepenetrationVelocity() == Other.InitialOverlapDepenetrationVelocity()
+			&& SleepThresholdMultiplier() == Other.SleepThresholdMultiplier()
 			&& CollisionGroup() == Other.CollisionGroup()
 			&& SleepType() == Other.SleepType()
 			&& CollisionConstraintFlags() == Other.CollisionConstraintFlags()
@@ -518,6 +522,9 @@ public:
 
 	FRealSingle InitialOverlapDepenetrationVelocity() const { return MInitialOverlapDepenetrationVelocity; }
 	void SetInitialOverlapDepenetrationVelocity(FRealSingle InVel) { MInitialOverlapDepenetrationVelocity = InVel; }
+
+	FRealSingle SleepThresholdMultiplier() const { return MSleepThresholdMultiplier; }
+	void SetSleepThresholdMultiplier(FRealSingle InSleepThresholdMultiplier) { MSleepThresholdMultiplier = InSleepThresholdMultiplier; }
 
 	EObjectStateType ObjectState() const { return MObjectState; }
 	void SetObjectState(EObjectStateType InState){ MObjectState = InState; }
@@ -563,6 +570,7 @@ private:
 	FRealSingle MMaxLinearSpeedSq;
 	FRealSingle MMaxAngularSpeedSq;
 	FRealSingle MInitialOverlapDepenetrationVelocity = 0;
+	FRealSingle MSleepThresholdMultiplier = 1;
 	int32 MCollisionGroup;
 
 	EObjectStateType MObjectState;

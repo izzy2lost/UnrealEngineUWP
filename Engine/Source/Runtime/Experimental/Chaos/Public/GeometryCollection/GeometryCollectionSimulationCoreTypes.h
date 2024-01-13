@@ -217,6 +217,7 @@ struct FSimulationParameters
 		, LinearDamping(0.01f)
 		, AngularDamping(0)
 		, InitialOverlapDepenetrationVelocity(-1.0f)
+		, SleepThresholdMultiplier(1.0f)
 		, bUseDamagePropagation(false)
 		, BreakDamagePropagationFactor(1.0f)
 		, ShockDamagePropagationFactor(0.0f)
@@ -279,6 +280,7 @@ struct FSimulationParameters
 		, LinearDamping(Other.LinearDamping)
 		, AngularDamping(Other.AngularDamping)
 		, InitialOverlapDepenetrationVelocity(Other.InitialOverlapDepenetrationVelocity)
+		, SleepThresholdMultiplier(Other.SleepThresholdMultiplier)
 		, bUseDamagePropagation(Other.bUseDamagePropagation)
 		, BreakDamagePropagationFactor(Other.BreakDamagePropagationFactor)
 		, ShockDamagePropagationFactor(Other.ShockDamagePropagationFactor)
@@ -371,6 +373,7 @@ struct FSimulationParameters
 	float LinearDamping;
 	float AngularDamping;
 	float InitialOverlapDepenetrationVelocity;
+	float SleepThresholdMultiplier;
 
 	bool bUseDamagePropagation;
 	float BreakDamagePropagationFactor;
