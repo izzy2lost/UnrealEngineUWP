@@ -128,7 +128,8 @@ namespace Horde.Server.Replicators
 				.AddRetry(new RetryStrategyOptions { MaxRetryAttempts = int.MaxValue, OnRetry = OnRetry })
 				.Build();
 
-			await pipeline.ExecuteAsync(async ctx => await _replicator.RunAsync(replicatorId, streamConfig, replicatorConfig, ctx), cancellationToken);
+			PerforceReplicationOptions replicationOptions = new PerforceReplicationOptions();
+			await pipeline.ExecuteAsync(async ctx => await _replicator.RunAsync(replicatorId, streamConfig, replicatorConfig, replicationOptions, ctx), cancellationToken);
 		}
 	}
 }

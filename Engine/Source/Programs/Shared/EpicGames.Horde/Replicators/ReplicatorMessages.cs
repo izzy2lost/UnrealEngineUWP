@@ -15,6 +15,26 @@ namespace EpicGames.Horde.Replicators
 		public ReplicatorId Id { get; set; }
 
 		/// <summary>
+		/// Whether to pause replication
+		/// </summary>
+		public bool? Pause { get; set; }
+
+		/// <summary>
+		/// Whether to perform a clean snapshot
+		/// </summary>
+		public bool? Clean { get; set; }
+
+		/// <summary>
+		/// Resets the replication
+		/// </summary>
+		public bool? Reset { get; set; }
+
+		/// <summary>
+		/// Pauses replication after the current change
+		/// </summary>
+		public bool? SingleStep { get; set; }
+
+		/// <summary>
 		/// The last change that was replicated
 		/// </summary>
 		public int? LastChange { get; set; }
@@ -35,9 +55,19 @@ namespace EpicGames.Horde.Replicators
 		public DateTime? CurrentChangeStartTime { get; set; }
 
 		/// <summary>
+		/// Size of data currently being replicated
+		/// </summary>
+		public long? CurrentSize { get; set; }
+
+		/// <summary>
+		/// Amount of data copied for the current change
+		/// </summary>
+		public long? CurrentCopiedSize { get; set; }
+
+		/// <summary>
 		/// Last error with replication, if there is one.
 		/// </summary>
-		public string? Error { get; set; }
+		public string? CurrentError { get; set; }
 	}
 
 	/// <summary>
@@ -46,18 +76,28 @@ namespace EpicGames.Horde.Replicators
 	public class UpdateReplicatorRequest
 	{
 		/// <summary>
-		/// Whether to pause replication
+		/// Whether to pause replication immediately
 		/// </summary>
-		public bool? Paused { get; set; }
+		public bool? Pause { get; set; }
 
 		/// <summary>
-		/// Resets the replication
+		/// Whether to perform a clean snapshot for the next replicated change
 		/// </summary>
-		public bool? Reset { get; set; }
+		public bool? Clean { get; set; }
 
 		/// <summary>
-		/// Sets the next change to replicate from
+		/// Discards all replicated changes and starts replication from scratch
 		/// </summary>
-		public int? Change { get; set; }
+ 		public bool? Reset { get; set; }
+
+		/// <summary>
+		/// Pauses replication after one change has been replicated
+		/// </summary>
+		public bool? SingleStep { get; set; }
+
+		/// <summary>
+		/// Change that should be replicated. Setting this to a value ahead of the last replicated change will cause changes inbetween to be skipped.
+		/// </summary>
+		public int? NextChange { get; set; }
 	}
 }

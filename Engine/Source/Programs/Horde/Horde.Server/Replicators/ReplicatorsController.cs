@@ -132,7 +132,7 @@ namespace Horde.Server.Replicators
 			{
 				IReplicator? replicator = await _replicatorCollection.GetOrAddAsync(replicatorId, cancellationToken: cancellationToken);
 
-				UpdateReplicatorOptions updateOptions = new UpdateReplicatorOptions(NewPaused: request.Paused, NewLastChange: (request.Reset ?? false) ? 0 : null, request.Change);
+				UpdateReplicatorOptions updateOptions = new UpdateReplicatorOptions(Pause: request.Pause, Clean: request.Clean, Reset: request.Reset, SingleStep: request.SingleStep, NextChange: request.NextChange);
 				if (await replicator.TryUpdateAsync(updateOptions, cancellationToken) != null)
 				{
 					break;
@@ -149,11 +149,17 @@ namespace Horde.Server.Replicators
 
 			if (replicator != null)
 			{
+				response.Pause = replicator.Pause;
+				response.Clean = replicator.Clean;
+				response.Reset = replicator.Reset;
+				response.SingleStep = replicator.SingleStep;
 				response.CurrentChange = replicator.CurrentChange;
 				response.CurrentChangeStartTime = replicator.CurrentChangeStartTime;
 				response.LastChange = replicator.LastChange;
 				response.LastChangeFinishTime = replicator.LastChangeFinishTime;
-				response.Error = replicator.Error;
+				response.CurrentSize = replicator.CurrentSize;
+				response.CurrentCopiedSize = replicator.CurrentCopiedSize;
+				response.CurrentError = replicator.CurrentError;
 			}
 
 			return response;

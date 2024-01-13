@@ -25,23 +25,41 @@ namespace Horde.Server.Replicators
 		{
 			public ReplicatorId Id { get; set; }
 
-			[BsonElement("pause")]
-			public bool Paused { get; set; }
+			[BsonElement("pause"), BsonIgnoreIfDefault]
+			public bool Pause { get; set; }
 
-			[BsonElement("lc")]
+			[BsonElement("clean"), BsonIgnoreIfDefault]
+			public bool Clean { get; set; }
+
+			[BsonElement("reset"), BsonIgnoreIfDefault]
+			public bool Reset { get; set; }
+
+			[BsonElement("sstep"), BsonIgnoreIfDefault]
+			public bool SingleStep { get; set; }
+
+			[BsonElement("lch")]
 			public int? LastChange { get; set; }
 
 			[BsonElement("lct")]
 			public DateTime? LastChangeFinishTime { get; set; }
 
-			[BsonElement("cc")]
+			[BsonElement("nch")]
+			public int? NextChange { get; set; }
+
+			[BsonElement("cch")]
 			public int? CurrentChange { get; set; }
 
 			[BsonElement("cct")]
 			public DateTime? CurrentChangeStartTime { get; set; }
 
+			[BsonElement("tsz"), BsonIgnoreIfDefault]
+			public long? CurrentSize { get; set; }
+
+			[BsonElement("csz"), BsonIgnoreIfDefault]
+			public long? CurrentCopiedSize { get; set; }
+
 			[BsonElement("err")]
-			public string? Error { get; set; }
+			public string? CurrentError { get; set; }
 
 			[BsonElement("idx")]
 			public int UpdateIndex { get; set; }
@@ -59,12 +77,18 @@ namespace Horde.Server.Replicators
 			}
 
 			public ReplicatorId Id => _document.Id;
-			public bool Paused => _document.Paused;
+			public bool Pause => _document.Pause;
+			public bool Clean => _document.Clean;
+			public bool Reset => _document.Reset;
+			public bool SingleStep => _document.SingleStep;
 			public int? LastChange => _document.LastChange;
+			public int? NextChange => _document.NextChange;
 			public DateTime? LastChangeFinishTime => _document.LastChangeFinishTime;
 			public int? CurrentChange => _document.CurrentChange;
 			public DateTime? CurrentChangeStartTime => _document.CurrentChangeStartTime;
-			public string? Error => _document.Error;
+			public long? CurrentSize => _document.CurrentSize;
+			public long? CurrentCopiedSize => _document.CurrentCopiedSize;
+			public string? CurrentError => _document.CurrentError;
 
 			public Task<IReplicator?> RefreshAsync(CancellationToken cancellationToken = default)
 				=> _collection.GetAsync(Id, cancellationToken);
@@ -119,7 +143,7 @@ namespace Horde.Server.Replicators
 		}
 
 		/// <inheritdoc/>
-		public async Task<IReplicator> GetOrAddAsync(ReplicatorId id, CreateReplicatorOptions? replicator, CancellationToken cancellationToken = default)
+		public async Task<IReplicator> GetOrAddAsync(ReplicatorId id, CancellationToken cancellationToken = default)
 		{
 			DateTime utcNow = _clock.UtcNow;
 
@@ -134,11 +158,6 @@ namespace Horde.Server.Replicators
 
 				document = new ReplicatorDoc();
 				document.Id = id;
-				document.LastChange = replicator?.LastChange;
-				document.LastChangeFinishTime = (document.LastChange == null) ? null : utcNow;
-				document.CurrentChange = replicator?.CurrentChange;
-				document.CurrentChangeStartTime = (document.CurrentChange == null) ? null : utcNow;
-				document.Error = replicator?.Error;
 				document.UpdateIndex = 1;
 
 				if (await _documents.InsertOneIgnoreDuplicatesAsync(document, cancellationToken))
@@ -162,44 +181,95 @@ namespace Horde.Server.Replicators
 		{
 			List<UpdateDefinition<ReplicatorDoc>> updates = new List<UpdateDefinition<ReplicatorDoc>>();
 
-			if (options.NewPaused != null)
+			if (options.Pause != null)
 			{
-				updates.Add(Builders<ReplicatorDoc>.Update.Set(x => x.Paused, options.NewPaused.Value));
+				updates.Add(Builders<ReplicatorDoc>.Update.SetOrUnsetBool(x => x.Pause, options.Pause ?? false));
 			}
 
-			if (options.NewLastChange != null)
+			if (options.Clean != null)
 			{
-				if (options.NewLastChange.Value == 0)
+				updates.Add(Builders<ReplicatorDoc>.Update.SetOrUnsetBool(x => x.Clean, options.Clean ?? false));
+			}
+
+			if (options.Reset != null)
+			{
+				updates.Add(Builders<ReplicatorDoc>.Update.SetOrUnsetBool(x => x.Reset, options.Reset ?? false));
+			}
+
+			if (options.SingleStep != null)
+			{
+				updates.Add(Builders<ReplicatorDoc>.Update.SetOrUnsetBool(x => x.SingleStep, options.SingleStep ?? false));
+			}
+
+			if (options.LastChange != null)
+			{
+				if (options.LastChange.Value == 0)
 				{
 					updates.Add(Builders<ReplicatorDoc>.Update.Unset(x => x.LastChange).Unset(x => x.LastChangeFinishTime));
 				}
 				else
 				{
-					updates.Add(Builders<ReplicatorDoc>.Update.Set(x => x.LastChange, options.NewLastChange).Set(x => x.LastChangeFinishTime, _clock.UtcNow));
+					updates.Add(Builders<ReplicatorDoc>.Update.Set(x => x.LastChange, options.LastChange).Set(x => x.LastChangeFinishTime, _clock.UtcNow));
 				}
 			}
 
-			if (options.NewCurrentChange != null)
+			if (options.NextChange != null)
 			{
-				if (options.NewCurrentChange.Value == 0)
+				if (options.NextChange.Value == 0)
+				{
+					updates.Add(Builders<ReplicatorDoc>.Update.Unset(x => x.NextChange));
+				}
+				else
+				{
+					updates.Add(Builders<ReplicatorDoc>.Update.Set(x => x.NextChange, options.NextChange));
+				}
+			}
+
+			if (options.CurrentChange != null)
+			{
+				if (options.CurrentChange.Value == 0)
 				{
 					updates.Add(Builders<ReplicatorDoc>.Update.Unset(x => x.CurrentChange).Unset(x => x.CurrentChangeStartTime));
 				}
 				else
 				{
-					updates.Add(Builders<ReplicatorDoc>.Update.Set(x => x.CurrentChange, options.NewCurrentChange.Value).Set(x => x.CurrentChangeStartTime, _clock.UtcNow));
+					updates.Add(Builders<ReplicatorDoc>.Update.Set(x => x.CurrentChange, options.CurrentChange.Value).Set(x => x.CurrentChangeStartTime, _clock.UtcNow));
 				}
 			}
 
-			if (options.NewError != null)
+			if (options.CurrentSize != null || options.CurrentChange != null)
 			{
-				if (options.NewError.Length == 0)
+				if (options.CurrentSize == null || options.CurrentSize.Value == 0)
 				{
-					updates.Add(Builders<ReplicatorDoc>.Update.Unset(x => x.Error));
+					updates.Add(Builders<ReplicatorDoc>.Update.Unset(x => x.CurrentSize));
 				}
 				else
 				{
-					updates.Add(Builders<ReplicatorDoc>.Update.Set(x => x.Error, options.NewError));
+					updates.Add(Builders<ReplicatorDoc>.Update.Set(x => x.CurrentSize, options.CurrentSize.Value));
+				}
+			}
+
+			if (options.CurrentCopiedSize != null || options.CurrentChange != null)
+			{
+				if (options.CurrentCopiedSize == null || options.CurrentCopiedSize.Value == 0)
+				{
+					updates.Add(Builders<ReplicatorDoc>.Update.Unset(x => x.CurrentCopiedSize));
+				}
+				else
+				{
+					updates.Add(Builders<ReplicatorDoc>.Update.Set(x => x.CurrentCopiedSize, options.CurrentCopiedSize.Value));
+				}
+			}
+
+			if (options.CurrentError != null || options.CurrentChange != null)
+			{
+				if (options.CurrentError == null || options.CurrentError.Length == 0)
+				{
+					updates.Add(Builders<ReplicatorDoc>.Update.Unset(x => x.CurrentError));
+				}
+				else
+				{
+					updates.Add(Builders<ReplicatorDoc>.Update.Set(x => x.CurrentError, options.CurrentError));
 				}
 			}
 

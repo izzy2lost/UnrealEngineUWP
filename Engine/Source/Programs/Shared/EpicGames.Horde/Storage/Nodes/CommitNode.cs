@@ -9,6 +9,7 @@ namespace EpicGames.Horde.Storage.Nodes
 	/// <summary>
 	/// A node representing commit metadata
 	/// </summary>
+	[BlobConverter(typeof(CommitNodeConverter))]
 	public class CommitNode
 	{
 		/// <summary>

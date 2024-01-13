@@ -5,6 +5,7 @@ using System.Buffers.Binary;
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.Linq;
+using System.Runtime.InteropServices;
 using System.Security.Cryptography;
 using System.Text;
 using System.Threading;
@@ -29,7 +30,6 @@ namespace Horde.Server.Replicators
 	/// </summary>
 	class PerforceReplicationOptions
 	{
-		public bool Clean { get; set; }
 		public bool IncludeContent { get; set; }
 		public BundleOptions TreeOptions { get; set; } = new BundleOptions();
 		public ChunkingOptions ChunkingOptions { get; set; } = new ChunkingOptions();
@@ -37,47 +37,82 @@ namespace Horde.Server.Replicators
 	}
 
 	/// <summary>
+	/// Exception thrown to indicate that the state of a replicator has been modified externally
+	/// </summary>
+	class ReplicatorModifiedException : Exception
+	{
+		public ReplicatorModifiedException() : base("The replicator has been modified externally")
+		{
+		}
+	}
+
+	/// <summary>
 	/// Replicates commits from Perforce into Horde's internal storage
 	/// </summary>
 	class PerforceReplicator
 	{
-		[BlobConverter(typeof(SyncNodeConverter))]
-		class SyncNode
+		[BlobConverter(typeof(StateNodeConverter))]
+		class StateNode
 		{
 			public int Change { get; }
 			public int ParentChange { get; }
-			public IBlobHandle<DirectoryNode> Contents { get; set; }
+			public IBlobHandle<CommitNode>? ParentHandle { get; }
+			public IBlobHandle<DirectoryNode>? Contents { get; set; }
 			public List<string> Paths { get; }
 
-			public SyncNode(int number, int parentNumber, IBlobHandle<DirectoryNode> contents, List<string>? paths = null)
+			public StateNode(int number, int parentNumber, IBlobHandle<CommitNode>? parentHandle, IBlobHandle<DirectoryNode>? contents, List<string>? paths = null)
 			{
 				Change = number;
 				ParentChange = parentNumber;
+				ParentHandle = parentHandle;
 				Contents = contents;
 				Paths = paths ?? new List<string>();
 			}
 		}
 
-		class SyncNodeConverter : BlobConverter<SyncNode>
+		class StateNodeConverter : BlobConverter<StateNode>
 		{
 			static BlobType s_blobType = new BlobType("{8C874966-4273-2E89-9FAC-ABA46DC89154}", 1);
 
-			public override SyncNode Read(IBlobReader reader, BlobSerializerOptions options)
+			public override StateNode Read(IBlobReader reader, BlobSerializerOptions options)
 			{
 				int change = (int)reader.ReadUnsignedVarInt();
 				int parentChange = (int)reader.ReadUnsignedVarInt();
-				IBlobHandle<DirectoryNode> contents = reader.ReadBlobHandle<DirectoryNode>();
-				List<string> paths = reader.ReadList(() => reader.ReadString());
 
-				return new SyncNode(change, parentChange, contents, paths);
+				IBlobHandle<CommitNode>? parentHandle = null;
+				if (reader.ReadBoolean())
+				{
+					parentHandle = reader.ReadBlobHandle<CommitNode>();
+				}
+
+				IBlobHandle<DirectoryNode>? contents = null;
+				if (reader.ReadBoolean())
+				{
+					contents = reader.ReadBlobHandle<DirectoryNode>();
+				}
+
+				List<string> paths = reader.ReadList(() => reader.ReadString());
+				return new StateNode(change, parentChange, parentHandle, contents, paths);
 			}
 
 			/// <inheritdoc/>
-			public override BlobType Write(IBlobWriter writer, SyncNode value, BlobSerializerOptions options)
+			public override BlobType Write(IBlobWriter writer, StateNode value, BlobSerializerOptions options)
 			{
 				writer.WriteUnsignedVarInt(value.Change);
 				writer.WriteUnsignedVarInt(value.ParentChange);
-				writer.WriteBlobHandle(value.Contents);
+
+				writer.WriteBoolean(value.ParentHandle != null);
+				if (value.ParentHandle != null)
+				{
+					writer.WriteBlobHandle(value.ParentHandle);
+				}
+
+				writer.WriteBoolean(value.Contents != null);
+				if (value.Contents != null)
+				{
+					writer.WriteBlobHandle(value.Contents);
+				}
+
 				writer.WriteList(value.Paths, x => writer.WriteString(x));
 
 				return s_blobType;
@@ -263,81 +298,86 @@ namespace Horde.Server.Replicators
 		/// <summary>
 		/// Runs a replication loop for a stream
 		/// </summary>
-		public async Task RunAsync(ReplicatorId replicatorId, StreamConfig streamConfig, ReplicatorConfig replicatorConfig, CancellationToken cancellationToken = default)
+		public async Task RunAsync(ReplicatorId replicatorId, StreamConfig streamConfig, ReplicatorConfig replicatorConfig, PerforceReplicationOptions options, CancellationToken cancellationToken = default)
 		{
-			RefName refName = new RefName(streamConfig.Id.ToString());
 			_logger.LogInformation("Starting replication background task for {ReplicatorId}", replicatorId);
 
-			using IStorageClient store = _storageService.CreateClient(Namespace.Perforce);
-
-			CommitNode? lastCommitNode = await store.TryReadRefAsync<CommitNode>(refName, cancellationToken: cancellationToken);
-			ICommitCollection commits = _perforceService.GetCommits(streamConfig);
-
-			PerforceReplicationOptions options = new PerforceReplicationOptions();
-
-			ICommit commit;
-			if (lastCommitNode == null)
+			IReplicator replicator = await _replicatorCollection.GetOrAddAsync(replicatorId, cancellationToken);
+			while (replicator.Pause)
 			{
-				RefName incRefName = GetIncrementalRefName(replicatorId);
-
-				SyncNode? syncNode = await store.TryReadRefAsync<SyncNode>(incRefName, cancellationToken: cancellationToken);
-				if (syncNode != null)
-				{
-					commit = await commits.GetAsync(syncNode.Change, cancellationToken);
-					_logger.LogInformation("Resuming {ReplicatorId} replication from CL {Change}", replicatorId, commit.Number);
-				}
-				else if (replicatorConfig.MinChange != null)
-				{
-					commit = await commits.SubscribeAsync(replicatorConfig.MinChange.Value, cancellationToken: cancellationToken).FirstAsync(cancellationToken);
-					_logger.LogInformation("Starting {ReplicatorId} replication from minimum CL {Change}", replicatorId, commit.Number);
-				}
-				else
-				{
-					commit = await commits.GetLatestAsync(cancellationToken);
-					_logger.LogInformation("Starting {ReplicatorId} replication from latest CL {Change}", replicatorId, commit.Number);
-				}
-			}
-			else
-			{
-				commit = await commits.SubscribeAsync(lastCommitNode.Number, cancellationToken: cancellationToken).FirstAsync(cancellationToken);
-				_logger.LogInformation("Starting {ReplicatorId} replication from next CL {Change}", replicatorId, commit.Number);
+				await Task.Delay(TimeSpan.FromSeconds(30.0), cancellationToken);
+				replicator = await _replicatorCollection.GetOrAddAsync(replicatorId, cancellationToken);
 			}
 
-			while (replicatorConfig.MaxChange == null || commit.Number <= replicatorConfig.MaxChange)
+			while (!cancellationToken.IsCancellationRequested)
 			{
-				await WriteAsync(replicatorId, streamConfig, commit.Number, options, cancellationToken);
-				commit = await commits.SubscribeAsync(commit.Number, cancellationToken: cancellationToken).FirstAsync(cancellationToken);
+				replicator = await RunOnceAsync(replicator, streamConfig, options, cancellationToken);
 			}
 		}
 
 		/// <summary>
-		/// Replicates a change to storage
+		/// Runs the replicator for a single change
 		/// </summary>
-		/// <param name="replicatorId">Identifier for the replicator</param>
-		/// <param name="streamConfig">Stream to replicate data from</param>
-		/// <param name="change">Changelist to replicate</param>
-		/// <param name="options">Options for replication</param>
-		/// <param name="cancellationToken">Cancellation token for the operation</param>
-		public async Task WriteAsync(ReplicatorId replicatorId, StreamConfig streamConfig, int change, PerforceReplicationOptions options, CancellationToken cancellationToken = default)
+		public async Task<IReplicator> RunOnceAsync(IReplicator replicator, StreamConfig streamConfig, PerforceReplicationOptions options, CancellationToken cancellationToken)
 		{
-			_logger.LogInformation("Replicating {ReplicatorId} change {Change}", replicatorId, change);
+			RefName refName = new RefName(streamConfig.Id.ToString());
+			RefName incRefName = GetIncrementalRefName(replicator.Id);
 
-			BlobSerializerOptions blobOptions = new BlobSerializerOptions();
+			using IStorageClient store = _storageService.CreateClient(Namespace.Perforce);
 
-			IReplicator? replicator = await _replicatorCollection.GetOrAddAsync(replicatorId, cancellationToken: cancellationToken);
-			if (replicator.CurrentChange != change)
+			ICommitCollection commits = _perforceService.GetCommits(streamConfig);
+
+			if (replicator.Reset)
 			{
-				replicator = await replicator.TryUpdateAsync(new UpdateReplicatorOptions { NewCurrentChange = change }, cancellationToken);
-				if (replicator == null)
-				{
-					return;
-				}
+				_logger.LogInformation("Resetting replication for {ReplicatorId}", replicator.Id);
+
+				await store.DeleteRefAsync(refName, cancellationToken);
+				await store.DeleteRefAsync(incRefName, cancellationToken);
+
+				UpdateReplicatorOptions updateOptions = new UpdateReplicatorOptions { Reset = false, LastChange = 0, CurrentChange = 0 };
+				replicator = await UpdateReplicatorAsync(replicator, updateOptions, cancellationToken);
 			}
 
+			if (replicator.NextChange != null)
+			{
+				_logger.LogInformation("Forcing current change for {ReplicatorId} to {Change}", replicator.Id, replicator.NextChange.Value);
+
+				await store.DeleteRefAsync(incRefName, cancellationToken);
+
+				UpdateReplicatorOptions updateOptions = new UpdateReplicatorOptions { NextChange = 0, CurrentChange = replicator.NextChange.Value };
+				replicator = await UpdateReplicatorAsync(replicator, updateOptions, cancellationToken);
+			}
+
+			if (replicator.CurrentChange == null)
+			{
+				ICommit? nextCommit;
+				if (replicator.LastChange != null)
+				{
+					nextCommit = await commits.SubscribeAsync(replicator.LastChange.Value, cancellationToken: cancellationToken).FirstAsync(cancellationToken);
+					_logger.LogInformation("Replicating next change for {ReplicatorId} at CL {Change}", replicator.Id, nextCommit.Number);
+				}
+				else
+				{
+					nextCommit = await commits.GetLatestAsync(cancellationToken);
+					_logger.LogInformation("Starting {ReplicatorId} replication from latest CL {Change}", replicator.Id, nextCommit.Number);
+				}
+
+				await store.DeleteRefAsync(incRefName, cancellationToken);
+
+				UpdateReplicatorOptions updateOptions = new UpdateReplicatorOptions { CurrentChange = nextCommit.Number };
+				replicator = await UpdateReplicatorAsync(replicator, updateOptions, cancellationToken);
+			}
+
+			int change = replicator.CurrentChange!.Value;
+			_logger.LogInformation("Replicating {ReplicatorId} change {Change}", replicator.Id, change);
+
+			PerforceReplicationOptions replicationOptions = new PerforceReplicationOptions();
+
+			BlobSerializerOptions blobOptions = new BlobSerializerOptions();
 			try
 			{
-				await WriteInternalAsync(replicatorId, streamConfig, change, options, blobOptions, cancellationToken);
-				await replicator.TryUpdateAsync(new UpdateReplicatorOptions { NewLastChange = change, NewCurrentChange = 0, NewError = "" }, cancellationToken);
+				replicator = await WriteInternalAsync(replicator, change, streamConfig, replicationOptions, blobOptions, cancellationToken);
+				return replicator;
 			}
 			catch (OperationCanceledException ex)
 			{
@@ -346,92 +386,82 @@ namespace Horde.Server.Replicators
 			}
 			catch (Exception ex)
 			{
-				_logger.LogError(ex, "Replication error for {ReplicatorId}: {Message}", replicatorId, ex.Message);
-				await replicator.TryUpdateAsync(new UpdateReplicatorOptions { NewError = ex.Message }, cancellationToken);
+				_logger.LogError(ex, "Replication error for {ReplicatorId}: {Message}", replicator.Id, ex.Message);
+
+				for (; ; )
+				{
+					IReplicator? nextReplicator = await replicator.TryUpdateAsync(new UpdateReplicatorOptions { CurrentError = ex.Message }, cancellationToken);
+					if (nextReplicator != null)
+					{
+						break;
+					}
+					replicator = await _replicatorCollection.GetOrAddAsync(replicator.Id, cancellationToken);
+				}
+
 				throw;
 			}
 		}
 
-		async Task WriteInternalAsync(ReplicatorId replicatorId, StreamConfig streamConfig, int change, PerforceReplicationOptions options, BlobSerializerOptions blobOptions, CancellationToken cancellationToken = default)
+		async Task<IReplicator> WriteInternalAsync(IReplicator replicator, int change, StreamConfig streamConfig, PerforceReplicationOptions options, BlobSerializerOptions blobOptions, CancellationToken cancellationToken = default)
 		{
 			using IStorageClient store = _storageService.CreateClient(Namespace.Perforce);
 
 			// Find the parent node
-			RefName refName = GetRefName(replicatorId);
-
-			CommitNode? parent = null;
-			IBlobHandle<CommitNode>? parentRef = null;
-			if (!options.Clean)
-			{
-				RedirectNode<CommitNode>? lastSync = await store.TryReadRefAsync<RedirectNode<CommitNode>>(refName, options: blobOptions, cancellationToken: cancellationToken);
-				parentRef = lastSync?.Target;
-
-				while (parentRef != null)
-				{
-					parent = await parentRef.ReadBlobAsync(blobOptions, cancellationToken);
-					if (parent.Number < change)
-					{
-						break;
-					}
-					parentRef = parent.Parent;
-				}
-			}
-
-			int parentChange = parent?.Number ?? 0;
+			RefName refName = GetRefName(replicator.Id);
 
 			// Read the current incremental state or create a new node to track the incremental state
-			RefName incRefName = GetIncrementalRefName(replicatorId);
+			RefName incRefName = GetIncrementalRefName(replicator.Id);
 
-			SyncNode? syncNode = null;
-			if (options.Clean)
+			StateNode? stateNode = null;
+			if (replicator.Clean)
 			{
-				_logger.LogInformation("Running clean snapshot due to replication option");
+				stateNode = new StateNode(change, 0, null, null, null);
 			}
 			else
 			{
-				syncNode = await store.TryReadRefAsync<SyncNode>(incRefName, cancellationToken: cancellationToken);
-				if (syncNode == null)
+				stateNode = await store.TryReadRefAsync<StateNode>(incRefName, cancellationToken: cancellationToken);
+				if (stateNode != null)
 				{
-					_logger.LogInformation("No incremental sync ref ({RefName}); performing full sync", incRefName);
+					if (stateNode.Change != change)
+					{
+						_logger.LogInformation("Incremental sync ref {RefName} has different changelist number {OldChange} vs {NewChange}", incRefName, stateNode.Change, change);
+						stateNode = null;
+					}
+					else
+					{
+						_logger.LogInformation("Using incremental sync node {RefName}", incRefName);
+					}
 				}
-				else if (syncNode.Change != change)
+				if (stateNode == null)
 				{
-					_logger.LogInformation("Incremental sync ref {RefName} has different changelist number {OldChange} vs {NewChange}", incRefName, syncNode.Change, change);
-					syncNode = null;
-				}
-				else if (syncNode.ParentChange != parentChange)
-				{
-					_logger.LogInformation("Incremental sync ref {RefName} has different parent changelist number {OldChange} vs {NewChange}", incRefName, syncNode.ParentChange, parentChange);
-					syncNode = null;
-				}
-				else
-				{
-					_logger.LogInformation("Using incremental sync node {RefName}", incRefName);
+					RedirectNode<CommitNode>? lastCommit = await store.TryReadRefAsync<RedirectNode<CommitNode>>(refName, options: blobOptions, cancellationToken: cancellationToken);
+
+					CommitNode? parent = null;
+					IBlobHandle<CommitNode>? parentHandle = lastCommit?.Target;
+					while (parentHandle != null)
+					{
+						parent = await parentHandle.ReadBlobAsync(blobOptions, cancellationToken);
+						if (parent.Number < change)
+						{
+							break;
+						}
+						parentHandle = parent.Parent;
+					}
+
+					stateNode = new StateNode(change, parent?.Number ?? 0, parentHandle, null, null);
 				}
 			}
 
-			if (syncNode == null)
+			if (stateNode.Paths.Count > 0)
 			{
-				if (parent == null)
-				{
-					syncNode = new SyncNode(change, parentChange, null!);
-				}
-				else
-				{
-					syncNode = new SyncNode(change, parentChange, parent.Contents.Handle);
-				}
-			}
-
-			if (syncNode.Paths.Count > 0)
-			{
-				_logger.LogInformation("Current sync paths: {Paths}", String.Join("\n", syncNode.Paths));
+				_logger.LogInformation("Current sync paths: {Paths}", String.Join("\n", stateNode.Paths));
 			}
 
 			// Get the root node
 			DirectoryNode root;
-			if (syncNode.Contents != null)
+			if (stateNode.Contents != null)
 			{
-				root = await syncNode.Contents.ReadBlobAsync(cancellationToken: cancellationToken);
+				root = await stateNode.Contents.ReadBlobAsync(cancellationToken: cancellationToken);
 			}
 			else
 			{
@@ -445,15 +475,15 @@ namespace Horde.Server.Replicators
 			using IPerforceConnection perforce = await PerforceConnection.CreateAsync(clientInfo.Settings, _logger);
 
 			// Apply all the updates
-			_logger.LogInformation("Syncing client {Client} from changelist {BaseChange} to {Change}", clientInfo.Client.Name, parentChange, change);
-			await FlushWorkspaceAsync(clientInfo, perforce, parentChange);
+			_logger.LogInformation("Syncing client {Client} from changelist {BaseChange} to {Change}", clientInfo.Client.Name, stateNode.ParentChange, change);
+			await FlushWorkspaceAsync(clientInfo, perforce, stateNode.ParentChange);
 			clientInfo.Change = -1;
 
 			string clientRoot = clientInfo.Client.Root;
 			string queryPath = $"//{clientInfo.Client.Name}/...";
 
 			// Replay the files that have already been synced
-			foreach (string path in syncNode.Paths)
+			foreach (string path in stateNode.Paths)
 			{
 				string flushPath = $"//{clientInfo.Client.Name}/{path}@{change}";
 				_logger.LogInformation("Flushing {FlushPath}", flushPath);
@@ -516,11 +546,17 @@ namespace Horde.Server.Replicators
 					Stopwatch flushTimer = Stopwatch.StartNew();
 
 					await root.UpdateAsync(rootUpdate, writer, blobOptions, cancellationToken);
-					syncNode.Contents = await writer.WriteBlobAsync(root, blobOptions, cancellationToken);
-					IBlobHandle<SyncNode> syncNodeRef = await writer.WriteBlobAsync(syncNode, blobOptions, cancellationToken);
+					stateNode.Contents = await writer.WriteBlobAsync(root, blobOptions, cancellationToken);
+					IBlobHandle<StateNode> syncNodeRef = await writer.WriteBlobAsync(stateNode, blobOptions, cancellationToken);
 					await writer.FlushAsync(cancellationToken);
 					await store.WriteRefTargetAsync(incRefName, syncNodeRef, cancellationToken: cancellationToken);
 					rootUpdate.Clear();
+
+					if (replicator.Clean)
+					{
+						UpdateReplicatorOptions cleanUpdateOptions = new UpdateReplicatorOptions { Clean = false };
+						replicator = await UpdateReplicatorAsync(replicator, cleanUpdateOptions, cancellationToken);
+					}
 
 					flushTimer.Stop();
 				}
@@ -544,6 +580,10 @@ namespace Horde.Server.Replicators
 				syncedSize += size;
 				double syncPct = (totalSize == 0) ? 100.0 : (syncedSize * 100.0) / totalSize;
 				_logger.LogInformation("Syncing {StreamId} to {Change} [{SyncPct:n1}%] ({Size:n1}mb)", streamConfig.Id, change, syncPct, size / (1024.0 * 1024.0));
+
+				// Update the replicator state
+				UpdateReplicatorOptions progressUpdateOptions = new UpdateReplicatorOptions { CurrentSize = totalSize, CurrentCopiedSize = syncedSize };
+				replicator = await UpdateReplicatorAsync(replicator, progressUpdateOptions, cancellationToken);
 
 				// Copy them to a separate list and remove any redundant paths
 				List<string> syncPaths = new List<string>();
@@ -656,9 +696,9 @@ namespace Horde.Server.Replicators
 				while (directories.Count > dirIdx)
 				{
 					string nextPath = directories[^1].Path;
-					if (syncNode.Paths.Count > 0)
+					if (stateNode.Paths.Count > 0)
 					{
-						string lastPath = syncNode.Paths[^1];
+						string lastPath = stateNode.Paths[^1];
 						for (int endIdx = 0; endIdx < lastPath.Length; endIdx++)
 						{
 							if (lastPath[endIdx] == '/')
@@ -667,19 +707,19 @@ namespace Horde.Server.Replicators
 								if (!nextPath.StartsWith(prefix, clientInfo.ServerInfo.PathComparison))
 								{
 									// Remove any paths that start with this prefix
-									while (syncNode.Paths.Count > 0 && syncNode.Paths[^1].StartsWith(prefix, clientInfo.ServerInfo.PathComparison))
+									while (stateNode.Paths.Count > 0 && stateNode.Paths[^1].StartsWith(prefix, clientInfo.ServerInfo.PathComparison))
 									{
-										syncNode.Paths.RemoveAt(syncNode.Paths.Count - 1);
+										stateNode.Paths.RemoveAt(stateNode.Paths.Count - 1);
 									}
 
 									// Replace it with a wildcard
-									syncNode.Paths.Add(prefix + "...");
+									stateNode.Paths.Add(prefix + "...");
 									break;
 								}
 							}
 						}
 					}
-					syncNode.Paths.Add(nextPath + "...");
+					stateNode.Paths.Add(nextPath + "...");
 					directories.RemoveAt(directories.Count - 1);
 				}
 			}
@@ -687,14 +727,32 @@ namespace Horde.Server.Replicators
 			// Create the commit node
 			ChangeRecord changeRecord = await perforce.GetChangeAsync(GetChangeOptions.None, change, cancellationToken);
 			DirectoryNodeRef rootRef = new DirectoryNodeRef(root.Length, await writer.WriteBlobAsync(root, blobOptions, cancellationToken));
-			CommitNode commitNode = new CommitNode(change, parentRef, changeRecord.User ?? "Unknown", null, null, null, changeRecord.Description ?? String.Empty, changeRecord.Date, rootRef, new Dictionary<Guid, IBlobHandle<object>>());
+			CommitNode commitNode = new CommitNode(change, stateNode.ParentHandle, changeRecord.User ?? "Unknown", null, null, null, changeRecord.Description ?? String.Empty, changeRecord.Date, rootRef, new Dictionary<Guid, IBlobHandle<object>>());
 			IBlobHandle<CommitNode> commitNodeRef = await writer.WriteBlobAsync(commitNode, blobOptions, cancellationToken);
 			await writer.FlushAsync(cancellationToken);
 
 			await store.WriteRefTargetAsync(refName, commitNodeRef, options.RefOptions, cancellationToken: cancellationToken);
 
+			// Update the replicator state
+			UpdateReplicatorOptions completeUpdateOptions = new UpdateReplicatorOptions 
+			{ 
+				Pause = replicator.SingleStep, 
+				Clean = false, 
+				SingleStep = false, 
+				LastChange = change, 
+				CurrentChange = 0, 
+			};
+			replicator = await UpdateReplicatorAsync(replicator, completeUpdateOptions, cancellationToken);
+
 			// Log the snapshot info
 			_logger.LogInformation("Snapshot for {StreamId} CL {Change} is ref {RefName} (commit: {CommitHandle}, root: {RootHandle})", streamConfig.Id, change, refName, commitNodeRef.GetLocator(), rootRef.Handle.GetLocator());
+			return replicator;
+		}
+
+		static async Task<IReplicator> UpdateReplicatorAsync(IReplicator replicator, UpdateReplicatorOptions options, CancellationToken cancellationToken)
+		{
+			IReplicator? nextReplicator = await replicator.TryUpdateAsync(options, cancellationToken);
+			return nextReplicator ?? throw new ReplicatorModifiedException();
 		}
 
 		static int GetFileOffset(string path)

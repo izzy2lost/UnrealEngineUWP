@@ -12,6 +12,7 @@ using EpicGames.Horde.Streams;
 using Horde.Server.Configuration;
 using EpicGames.Horde.Replicators;
 using Horde.Server.Replicators;
+using Microsoft.CodeAnalysis.Operations;
 
 namespace Horde.Server.Commands.Test
 {
@@ -26,6 +27,9 @@ namespace Horde.Server.Commands.Test
 
 		[CommandLine(Required = true)]
 		public int Change { get; set; }
+
+		[CommandLine]
+		public bool Reset { get; set; }
 
 		[CommandLine]
 		public bool Clean { get; set; }
@@ -47,7 +51,7 @@ namespace Horde.Server.Commands.Test
 			ConfigService configService = serviceProvider.GetRequiredService<ConfigService>();
 			GlobalConfig globalConfig = await configService.WaitForInitialConfigAsync();
 
-			PerforceReplicator replicator = serviceProvider.GetRequiredService<PerforceReplicator>();
+			PerforceReplicator perforceReplicator = serviceProvider.GetRequiredService<PerforceReplicator>();
 			IStreamCollection streamCollection = serviceProvider.GetRequiredService<IStreamCollection>();
 
 			StreamConfig? streamConfig;
@@ -56,11 +60,27 @@ namespace Horde.Server.Commands.Test
 				throw new FatalErrorException($"Stream '{StreamId}' not found");
 			}
 
+			IReplicatorCollection replicatorCollection = serviceProvider.GetRequiredService<IReplicatorCollection>();
+
 			ReplicatorId id = new ReplicatorId(new StreamId(StreamId), new StreamReplicatorId(ReplicatorId));
+			IReplicator replicator = await replicatorCollection.GetOrAddAsync(id);
+
+			while (replicator.Pause || replicator.Reset != Reset || replicator.Clean != Clean || replicator.NextChange != Change)
+			{
+				UpdateReplicatorOptions updateOptions = new UpdateReplicatorOptions { Pause = false, Reset = Reset, Clean = Clean, NextChange = Change };
+
+				IReplicator? nextReplicator = await replicator.TryUpdateAsync(updateOptions);
+				if (nextReplicator != null)
+				{
+					replicator = nextReplicator;
+					break;
+				}
+
+				replicator = await replicatorCollection.GetOrAddAsync(id);
+			}
 
 			PerforceReplicationOptions options = new PerforceReplicationOptions();
-			options.Clean = Clean;
-			await replicator.WriteAsync(id, streamConfig, Change, options, default);
+			await perforceReplicator.RunOnceAsync(replicator, streamConfig, options, default);
 
 			return 0;
 		}

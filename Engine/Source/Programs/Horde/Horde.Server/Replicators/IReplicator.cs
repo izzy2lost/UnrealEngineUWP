@@ -17,10 +17,36 @@ namespace Horde.Server.Replicators
 		/// </summary>
 		ReplicatorId Id { get; }
 
+		#region User requests
+
 		/// <summary>
 		/// Whether replication is paused
 		/// </summary>
-		bool Paused { get; }
+		bool Pause { get; }
+
+		/// <summary>
+		/// Whether to take a clean snapshot from the current change rather than intermentally syncing from the previous change
+		/// </summary>
+		bool Clean { get; }
+
+		/// <summary>
+		/// Whether to reset the change history from the current change
+		/// </summary>
+		bool Reset { get; }
+
+		/// <summary>
+		/// Pauses replication after the current change
+		/// </summary>
+		bool SingleStep { get; }
+
+		/// <summary>
+		/// The next change to replicate, requested by the user.
+		/// </summary>
+		int? NextChange { get; }
+
+		#endregion
+
+		#region Internal state
 
 		/// <summary>
 		/// The last change that was replicated
@@ -33,7 +59,7 @@ namespace Horde.Server.Replicators
 		DateTime? LastChangeFinishTime { get; }
 
 		/// <summary>
-		/// The current change being replicated
+		/// The current change being replicated. May be null if no change is currently being replicated.
 		/// </summary>
 		int? CurrentChange { get; }
 
@@ -43,9 +69,21 @@ namespace Horde.Server.Replicators
 		DateTime? CurrentChangeStartTime { get; }
 
 		/// <summary>
+		/// Total size of data to be replicated for the current change
+		/// </summary>
+		long? CurrentSize { get; }
+
+		/// <summary>
+		/// Size of data that has been replicated for the current change
+		/// </summary>
+		long? CurrentCopiedSize { get; }
+
+		/// <summary>
 		/// Last error with replication, if there is one.
 		/// </summary>
-		string? Error { get; }
+		string? CurrentError { get; }
+
+		#endregion
 
 		/// <summary>
 		/// Refreshes the replicator, ensuring it's the latest version
@@ -73,5 +111,5 @@ namespace Horde.Server.Replicators
 	/// <summary>
 	/// Parameters for updating <see cref="IReplicator"/>
 	/// </summary>
-	public record class UpdateReplicatorOptions(bool? NewPaused = null, int? NewLastChange = null, int? NewCurrentChange = null, string? NewError = null);
+	public record class UpdateReplicatorOptions(bool? Pause = null, bool? Clean = null, bool? Reset = null, bool? SingleStep = null, int? LastChange = null, int? NextChange = null, int? CurrentChange = null, long? CurrentSize = null, long? CurrentCopiedSize = null, string? CurrentError = null);
 }
