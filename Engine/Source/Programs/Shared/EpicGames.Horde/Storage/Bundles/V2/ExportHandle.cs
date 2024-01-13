@@ -10,22 +10,34 @@ using EpicGames.Core;
 namespace EpicGames.Horde.Storage.Bundles.V2
 {
 	/// <summary>
+	/// Base class for packet handles
+	/// </summary>
+	public abstract class ExportHandle : BlobHandle
+	{
+		/// <inheritdoc/>
+		public sealed override IBlobHandle? Outer => OuterPacket;
+
+		/// <inheritdoc cref="IBlobHandle.Outer"/>
+		public abstract PacketHandle? OuterPacket { get; }
+	}
+
+	/// <summary>
 	/// Handle to an export within a packet. Same implementation is used for flushed and pending exports.
 	/// </summary>
-	public class ExportHandle : IBlobHandle
+	class FlushedExportHandle : ExportHandle
 	{
 		static readonly Utf8String s_fragmentPrefix = new Utf8String("exp=");
 
-		readonly PacketHandle _packet;
+		readonly FlushedPacketHandle _packet;
 		readonly int _exportIdx;
 
 		/// <inheritdoc/>
-		public IBlobHandle? Outer => _packet;
+		public override PacketHandle? OuterPacket => _packet;
 
 		/// <summary>
 		/// Constructor
 		/// </summary>
-		public ExportHandle(PacketHandle packet, int exportIdx)
+		public FlushedExportHandle(FlushedPacketHandle packet, int exportIdx)
 		{
 			_packet = packet;
 			_exportIdx = exportIdx;
@@ -34,7 +46,7 @@ namespace EpicGames.Horde.Storage.Bundles.V2
 		/// <summary>
 		/// Constructor
 		/// </summary>
-		public ExportHandle(PacketHandle packet, ReadOnlySpan<byte> fragment)
+		public FlushedExportHandle(FlushedPacketHandle packet, ReadOnlySpan<byte> fragment)
 		{
 			_packet = packet;
 			if (!TryParse(fragment, out _exportIdx))
@@ -44,7 +56,7 @@ namespace EpicGames.Horde.Storage.Bundles.V2
 		}
 
 		/// <inheritdoc/>
-		public ValueTask FlushAsync(CancellationToken cancellationToken = default) => default;
+		public override ValueTask FlushAsync(CancellationToken cancellationToken = default) => default;
 
 		/// <summary>
 		/// Attempt to parse an export index from the given fragment
@@ -68,11 +80,11 @@ namespace EpicGames.Horde.Storage.Bundles.V2
 		}
 
 		/// <inheritdoc/>
-		public ValueTask<BlobData> ReadBlobDataAsync(CancellationToken cancellationToken = default)
+		public override ValueTask<BlobData> ReadBlobDataAsync(CancellationToken cancellationToken = default)
 			=> _packet.ReadExportAsync(_exportIdx, cancellationToken);
 
 		/// <inheritdoc/>
-		public bool TryAppendIdentifier(Utf8StringBuilder builder)
+		public override bool TryAppendIdentifier(Utf8StringBuilder builder)
 		{
 			AppendIdentifier(builder, _exportIdx);
 			return true;
@@ -89,7 +101,7 @@ namespace EpicGames.Horde.Storage.Bundles.V2
 
 		/// <inheritdoc/>
 		public override bool Equals(object? obj)
-			=> obj is ExportHandle other && _packet.Equals(other._packet) && _exportIdx == other._exportIdx;
+			=> obj is FlushedExportHandle other && _packet.Equals(other._packet) && _exportIdx == other._exportIdx;
 
 		/// <inheritdoc/>
 		public override int GetHashCode()

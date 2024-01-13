@@ -22,13 +22,13 @@ namespace EpicGames.Horde.Storage.Clients
 	/// </summary>
 	public sealed class HttpStorageClient : IStorageClient
 	{
-		class Handle : IBlobHandle
+		class Handle : BlobHandle
 		{
 			readonly HttpStorageClient _httpStorageClient;
 			readonly BlobLocator _locator;
 
 			/// <inheritdoc/>
-			public IBlobHandle? Outer => null;
+			public override IBlobHandle? Outer => null;
 
 			public Handle(HttpStorageClient httpStorageClient, BlobLocator locator)
 			{
@@ -37,18 +37,18 @@ namespace EpicGames.Horde.Storage.Clients
 			}
 
 			/// <inheritdoc/>
-			public ValueTask FlushAsync(CancellationToken cancellationToken = default) => default;
+			public override ValueTask FlushAsync(CancellationToken cancellationToken = default) => default;
 
 			/// <inheritdoc/>
-			public Task<Stream> OpenBodyAsync(int offset = 0, int? length = null, CancellationToken cancellationToken = default)
+			public override Task<Stream> OpenBodyAsync(int offset = 0, int? length = null, CancellationToken cancellationToken = default)
 				=> _httpStorageClient._backend.OpenAsync(_locator.ToString(), offset, length, cancellationToken);
 
 			/// <inheritdoc/>
-			public ValueTask<BlobData> ReadBlobDataAsync(CancellationToken cancellationToken = default)
+			public override ValueTask<BlobData> ReadBlobDataAsync(CancellationToken cancellationToken = default)
 				=> _httpStorageClient.ReadBlobAsync(_locator, cancellationToken);
 
 			/// <inheritdoc/>
-			public bool TryAppendIdentifier(Utf8StringBuilder builder)
+			public override bool TryAppendIdentifier(Utf8StringBuilder builder)
 			{
 				builder.Append(_locator.Path);
 				return true;

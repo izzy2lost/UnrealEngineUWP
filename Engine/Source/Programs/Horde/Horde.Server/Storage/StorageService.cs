@@ -51,13 +51,13 @@ namespace Horde.Server.Storage
 	/// </summary>
 	public sealed class StorageService : IHostedService, IStorageClientFactory, IAsyncDisposable
 	{
-		sealed class LeafBlobHandle : IBlobHandle
+		sealed class LeafBlobHandle : BlobHandle
 		{
 			readonly IStorageBackend _backend;
 			readonly string _path;
 			readonly Tracer _tracer;
 
-			public IBlobHandle? Outer => null;
+			public override IBlobHandle? Outer => null;
 
 			public LeafBlobHandle(IStorageBackend backend, string path, Tracer tracer)
 			{
@@ -67,10 +67,10 @@ namespace Horde.Server.Storage
 			}
 
 			/// <inheritdoc/>
-			public ValueTask FlushAsync(CancellationToken cancellationToken = default) => default;
+			public override ValueTask FlushAsync(CancellationToken cancellationToken = default) => default;
 
 			/// <inheritdoc/>
-			public async Task<Stream> OpenBodyAsync(int offset = 0, int? length = null, CancellationToken cancellationToken = default)
+			public override async Task<Stream> OpenBodyAsync(int offset = 0, int? length = null, CancellationToken cancellationToken = default)
 			{
 				using TelemetrySpan span = _tracer.StartActiveSpan($"{nameof(StorageService)}.{nameof(LeafBlobHandle)}.{nameof(OpenBodyAsync)}");
 				span.SetAttribute("path", _path);
@@ -86,14 +86,14 @@ namespace Horde.Server.Storage
 			}
 
 			/// <inheritdoc/>
-			public async ValueTask<BlobData> ReadBlobDataAsync(CancellationToken cancellationToken = default)
+			public override async ValueTask<BlobData> ReadBlobDataAsync(CancellationToken cancellationToken = default)
 			{
 				IReadOnlyMemoryOwner<byte> obj = await _backend.ReadAsync(_path, cancellationToken);
 				return new BlobDataWithOwner(BlobType.Leaf, obj.Memory, Array.Empty<IBlobHandle>(), obj);
 			}
 
 			/// <inheritdoc/>
-			public bool TryAppendIdentifier(Utf8StringBuilder builder)
+			public override bool TryAppendIdentifier(Utf8StringBuilder builder)
 			{
 				builder.Append(_path);
 				return true;

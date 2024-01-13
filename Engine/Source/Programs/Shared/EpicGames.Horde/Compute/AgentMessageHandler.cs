@@ -13,7 +13,6 @@ using Microsoft.Extensions.Logging;
 using EpicGames.Horde.Storage;
 using System.IO;
 using System.Linq;
-using EpicGames.Horde.Storage.Clients;
 using System.Runtime.ExceptionServices;
 using System.Text;
 using EpicGames.Horde.Storage.Bundles;

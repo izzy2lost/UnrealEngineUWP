@@ -14,13 +14,13 @@ namespace EpicGames.Horde.Storage.Clients
 	/// </summary>
 	public abstract class KeyValueStorageClient : IStorageClient
 	{
-		class Handle : IBlobHandle
+		class Handle : BlobHandle
 		{
 			readonly KeyValueStorageClient _keyValueStorageClient;
 			readonly BlobLocator _locator;
 
 			/// <inheritdoc/>
-			public IBlobHandle? Outer => null;
+			public override IBlobHandle? Outer => null;
 
 			/// <summary>
 			/// Constructor
@@ -32,13 +32,13 @@ namespace EpicGames.Horde.Storage.Clients
 			}
 
 			/// <inheritdoc/>
-			public ValueTask FlushAsync(CancellationToken cancellationToken = default) => default;
+			public override ValueTask FlushAsync(CancellationToken cancellationToken = default) => default;
 
 			/// <inheritdoc/>
-			public ValueTask<BlobData> ReadBlobDataAsync(CancellationToken cancellationToken = default) => _keyValueStorageClient.ReadBlobAsync(_locator, cancellationToken);
+			public override ValueTask<BlobData> ReadBlobDataAsync(CancellationToken cancellationToken = default) => _keyValueStorageClient.ReadBlobAsync(_locator, cancellationToken);
 
 			/// <inheritdoc/>
-			public bool TryAppendIdentifier(Utf8StringBuilder builder)
+			public override bool TryAppendIdentifier(Utf8StringBuilder builder)
 			{
 				builder.Append(_locator.Path);
 				return true;

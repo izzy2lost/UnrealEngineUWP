@@ -157,22 +157,22 @@ namespace EpicGames.Horde.Storage
 			internal bool TryGetValue(BlobKey key, [NotNullWhen(true)] out IBlobHandle? handle) => _blobKeyToHandle.TryGetValue(key, out handle);
 		}
 
-		class WrappedHandle : IBlobHandle
+		class WrappedHandle : BlobHandle
 		{
 			public object _lockObject = new object();
 			public IBlobHandle? _inner;
 
 			/// <inheritdoc/>
-			public IBlobHandle? Outer => _inner?.Outer;
+			public override IBlobHandle? Outer => _inner?.Outer;
 
 			/// <inheritdoc/>
-			public bool TryAppendIdentifier(Utf8StringBuilder builder)
+			public override bool TryAppendIdentifier(Utf8StringBuilder builder)
 			{
 				return _inner?.TryAppendIdentifier(builder) ?? false;
 			}
 
 			/// <inheritdoc/>
-			public ValueTask FlushAsync(CancellationToken cancellationToken)
+			public override ValueTask FlushAsync(CancellationToken cancellationToken)
 			{
 				if (_inner == null)
 				{
@@ -185,7 +185,7 @@ namespace EpicGames.Horde.Storage
 			}
 
 			/// <inheritdoc/>
-			public ValueTask<BlobData> ReadBlobDataAsync(CancellationToken cancellationToken = default)
+			public override ValueTask<BlobData> ReadBlobDataAsync(CancellationToken cancellationToken = default)
 			{
 				if (_inner == null)
 				{

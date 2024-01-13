@@ -183,22 +183,22 @@ namespace Horde.Server.Replicators
 
 			if (options.Pause != null)
 			{
-				updates.Add(Builders<ReplicatorDoc>.Update.SetOrUnsetBool(x => x.Pause, options.Pause ?? false));
+				updates.Add(Builders<ReplicatorDoc>.Update.SetOrUnsetBool(x => x.Pause, options.Pause.Value));
 			}
 
 			if (options.Clean != null)
 			{
-				updates.Add(Builders<ReplicatorDoc>.Update.SetOrUnsetBool(x => x.Clean, options.Clean ?? false));
+				updates.Add(Builders<ReplicatorDoc>.Update.SetOrUnsetBool(x => x.Clean, options.Clean.Value));
 			}
 
 			if (options.Reset != null)
 			{
-				updates.Add(Builders<ReplicatorDoc>.Update.SetOrUnsetBool(x => x.Reset, options.Reset ?? false));
+				updates.Add(Builders<ReplicatorDoc>.Update.SetOrUnsetBool(x => x.Reset, options.Reset.Value));
 			}
 
 			if (options.SingleStep != null)
 			{
-				updates.Add(Builders<ReplicatorDoc>.Update.SetOrUnsetBool(x => x.SingleStep, options.SingleStep ?? false));
+				updates.Add(Builders<ReplicatorDoc>.Update.SetOrUnsetBool(x => x.SingleStep, options.SingleStep.Value));
 			}
 
 			if (options.LastChange != null)

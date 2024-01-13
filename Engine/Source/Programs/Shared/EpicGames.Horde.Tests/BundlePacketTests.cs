@@ -16,12 +16,12 @@ namespace EpicGames.Horde.Tests
 	[TestClass]
 	public class BundlePacketTests
 	{
-		class FakeHandle : IBlobHandle
+		class FakeHandle : BlobHandle
 		{
 			readonly IBlobHandle? _outer;
 			readonly string? _fragment;
 
-			public IBlobHandle? Outer => _outer;
+			public override IBlobHandle? Outer => _outer;
 
 			public FakeHandle(IBlobHandle? outer, string? fragment)
 			{
@@ -29,10 +29,10 @@ namespace EpicGames.Horde.Tests
 				_fragment = fragment;
 			}
 
-			public ValueTask<BlobData> ReadBlobDataAsync(CancellationToken cancellationToken = default) => throw new NotImplementedException();
-			public ValueTask FlushAsync(CancellationToken cancellationToken = default) => throw new NotImplementedException();
+			public override ValueTask<BlobData> ReadBlobDataAsync(CancellationToken cancellationToken = default) => throw new NotImplementedException();
+			public override ValueTask FlushAsync(CancellationToken cancellationToken = default) => throw new NotImplementedException();
 
-			public bool TryAppendIdentifier(Utf8StringBuilder builder)
+			public override bool TryAppendIdentifier(Utf8StringBuilder builder)
 			{
 				if (_fragment == null)
 				{

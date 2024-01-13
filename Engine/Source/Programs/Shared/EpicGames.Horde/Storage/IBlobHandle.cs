@@ -14,6 +14,77 @@ namespace EpicGames.Horde.Storage
 	/// </summary>
 	public interface IBlobHandle
 	{
+		/// <summary>
+		/// For a blob nested within another blob, gets a handle to the containing blob (eg. For a bundle node, will return the packet. For a bundle packet, will return the bundle. For a bundle or other non-nested blob, returns null.)
+		/// </summary>
+		IBlobHandle? Outer { get; }
+
+		/// <summary>
+		/// Flush the referenced data to underlying storage
+		/// </summary>
+		ValueTask FlushAsync(CancellationToken cancellationToken = default);
+
+		/// <summary>
+		/// Open the blob's data stream
+		/// </summary>
+		/// <param name="offset">Start offset of the stream</param>
+		/// <param name="length">Length of the stream</param>
+		/// <param name="cancellationToken">Cancellation token for the operation</param>
+		Task<Stream> OpenBodyAsync(int offset = 0, int? length = null, CancellationToken cancellationToken = default);
+
+		/// <summary>
+		/// Reads the blob's data
+		/// </summary>
+		/// <param name="cancellationToken">Cancellation token for the operation</param>
+		ValueTask<BlobData> ReadBlobDataAsync(CancellationToken cancellationToken = default);
+
+		/// <summary>
+		/// Reads part of the blob, and returns a handle that can be used to access the data.
+		/// </summary>
+		/// <param name="cancellationToken">Cancellation token for the operation</param>
+		/// <returns></returns>
+		ValueTask<IReadOnlyMemoryOwner<byte>> ReadBodyAsync(CancellationToken cancellationToken = default);
+
+		/// <summary>
+		/// Reads part of the blob, and returns a handle that can be used to access the data.
+		/// </summary>
+		/// <param name="offset">Offset of the data within the blob</param>
+		/// <param name="length">Length of the data to read</param>
+		/// <param name="cancellationToken">Cancellation token for the operation</param>
+		/// <returns></returns>
+		ValueTask<IReadOnlyMemoryOwner<byte>> ReadBodyAsync(int offset, int? length, CancellationToken cancellationToken = default);
+
+		/// <summary>
+		/// Gets an identifier for this blob, relative to its outer
+		/// </summary>
+		/// <param name="builder">Builder for appending the identifier to</param>
+		/// <returns>True if an identifier was returned, false otherwise</returns>
+		bool TryAppendIdentifier(Utf8StringBuilder builder);
+
+		/// <summary>
+		/// Gets a handle to a nested blob object
+		/// </summary>
+		/// <param name="fragment">Name of the blob fragment</param>
+		public IBlobHandle GetFragmentHandle(ReadOnlySpan<byte> fragment);
+	}
+
+	/// <summary>
+	/// Typed interface to a particular blob handle
+	/// </summary>
+	/// <typeparam name="T">Type of the deserialized blob</typeparam>
+	public interface IBlobHandle<out T> : IBlobHandle
+	{
+		/// <summary>
+		/// Hash of the target node
+		/// </summary>
+		IoHash Hash { get; }
+	}
+
+	/// <summary>
+	/// Base class for blob handles
+	/// </summary>
+	public abstract class BlobHandle : IBlobHandle
+	{
 		private class BlobDataFragment : IReadOnlyMemoryOwner<byte>
 		{
 			readonly BlobData _data;
@@ -57,23 +128,14 @@ namespace EpicGames.Horde.Storage
 			}
 		}
 
-		/// <summary>
-		/// For a blob nested within another blob, gets a handle to the containing blob (eg. For a bundle node, will return the packet. For a bundle packet, will return the bundle. For a bundle or other non-nested blob, returns null.)
-		/// </summary>
-		IBlobHandle? Outer { get; }
+		/// <inheritdoc/>
+		public abstract IBlobHandle? Outer { get; }
 
-		/// <summary>
-		/// Flush the referenced data to underlying storage
-		/// </summary>
-		ValueTask FlushAsync(CancellationToken cancellationToken = default);
+		/// <inheritdoc/>
+		public abstract ValueTask FlushAsync(CancellationToken cancellationToken = default);
 
-		/// <summary>
-		/// Open the blob's data stream
-		/// </summary>
-		/// <param name="offset">Start offset of the stream</param>
-		/// <param name="length">Length of the stream</param>
-		/// <param name="cancellationToken">Cancellation token for the operation</param>
-		async Task<Stream> OpenBodyAsync(int offset = 0, int? length = null, CancellationToken cancellationToken = default)
+		/// <inheritdoc/>
+		public virtual async Task<Stream> OpenBodyAsync(int offset = 0, int? length = null, CancellationToken cancellationToken = default)
 		{
 			BlobData blobData = await ReadBlobDataAsync(cancellationToken);
 			int maxLength = blobData.Data.Length - offset;
@@ -81,71 +143,39 @@ namespace EpicGames.Horde.Storage
 			return new BlobDataStream(blobData, memory);
 		}
 
-		/// <summary>
-		/// Reads the blob's data
-		/// </summary>
-		/// <param name="cancellationToken">Cancellation token for the operation</param>
-		ValueTask<BlobData> ReadBlobDataAsync(CancellationToken cancellationToken = default);
+		/// <inheritdoc/>
+		public abstract ValueTask<BlobData> ReadBlobDataAsync(CancellationToken cancellationToken = default);
 
-		/// <summary>
-		/// Reads part of the blob, and returns a handle that can be used to access the data.
-		/// </summary>
-		/// <param name="cancellationToken">Cancellation token for the operation</param>
-		/// <returns></returns>
-		async ValueTask<IReadOnlyMemoryOwner<byte>> ReadBodyAsync(CancellationToken cancellationToken = default)
+		/// <inheritdoc/>
+		public virtual async ValueTask<IReadOnlyMemoryOwner<byte>> ReadBodyAsync(CancellationToken cancellationToken = default)
 		{
 			return await ReadBodyAsync(0, null, cancellationToken);
 		}
 
-		/// <summary>
-		/// Reads part of the blob, and returns a handle that can be used to access the data.
-		/// </summary>
-		/// <param name="offset">Offset of the data within the blob</param>
-		/// <param name="length">Length of the data to read</param>
-		/// <param name="cancellationToken">Cancellation token for the operation</param>
-		/// <returns></returns>
-		async ValueTask<IReadOnlyMemoryOwner<byte>> ReadBodyAsync(int offset, int? length, CancellationToken cancellationToken = default)
+		/// <inheritdoc/>
+		public virtual async ValueTask<IReadOnlyMemoryOwner<byte>> ReadBodyAsync(int offset, int? length, CancellationToken cancellationToken = default)
 		{
 			BlobData data = await ReadBlobDataAsync(cancellationToken);
 			return new BlobDataFragment(data, offset, length);
 		}
 
-		/// <summary>
-		/// Gets an identifier for this blob, relative to its outer
-		/// </summary>
-		/// <param name="builder">Builder for appending the identifier to</param>
-		/// <returns>True if an identifier was returned, false otherwise</returns>
-		bool TryAppendIdentifier(Utf8StringBuilder builder);
+		/// <inheritdoc/>
+		public abstract bool TryAppendIdentifier(Utf8StringBuilder builder);
 
-		/// <summary>
-		/// Gets a handle to a nested blob object
-		/// </summary>
-		/// <param name="fragment">Name of the blob fragment</param>
-		public IBlobHandle GetFragmentHandle(ReadOnlySpan<byte> fragment)
+		/// <inheritdoc/>
+		public virtual IBlobHandle GetFragmentHandle(ReadOnlySpan<byte> fragment)
 			=> throw new InvalidOperationException("Not supported for this handle type.");
-	}
-
-	/// <summary>
-	/// Typed interface to a particular blob handle
-	/// </summary>
-	/// <typeparam name="T">Type of the deserialized blob</typeparam>
-	public interface IBlobHandle<out T> : IBlobHandle
-	{
-		/// <summary>
-		/// Hash of the target node
-		/// </summary>
-		IoHash Hash { get; }
 	}
 
 	/// <summary>
 	/// Instance of <see cref="IBlobHandle"/> which wraps an inner handle and a fragment
 	/// </summary>
-	public class BlobFragmentHandle : IBlobHandle
+	public class BlobFragmentHandle : BlobHandle
 	{
 		/// <summary>
 		/// Handle to the outer blob
 		/// </summary>
-		public IBlobHandle Outer { get; }
+		public override IBlobHandle Outer { get; }
 
 		/// <summary>
 		/// The fragment portion of the handle
@@ -162,17 +192,17 @@ namespace EpicGames.Horde.Storage
 		}
 
 		/// <inheritdoc/>
-		public ValueTask FlushAsync(CancellationToken cancellationToken = default) => default;
+		public override ValueTask FlushAsync(CancellationToken cancellationToken = default) => default;
 
 		/// <inheritdoc/>
-		public bool TryAppendIdentifier(Utf8StringBuilder builder)
+		public override bool TryAppendIdentifier(Utf8StringBuilder builder)
 		{
 			builder.Append(Fragment);
 			return true;
 		}
 
 		/// <inheritdoc/>
-		public ValueTask<BlobData> ReadBlobDataAsync(CancellationToken cancellationToken = default)
+		public override ValueTask<BlobData> ReadBlobDataAsync(CancellationToken cancellationToken = default)
 		{
 			throw new NotSupportedException("Blob fragment handles cannot be read directly, and should be deconstructed into more specific types.");
 		}
@@ -207,11 +237,14 @@ namespace EpicGames.Horde.Storage
 
 			public IBlobHandle Inner => _inner;
 			public IoHash Hash => _hash;
-
 			public IBlobHandle? Outer => _inner.Outer;
 
 			public ValueTask FlushAsync(CancellationToken cancellationToken = default) => _inner.FlushAsync(cancellationToken);
+			public IBlobHandle GetFragmentHandle(ReadOnlySpan<byte> fragment) => _inner.GetFragmentHandle(fragment);
+			public Task<Stream> OpenBodyAsync(int offset = 0, int? length = null, CancellationToken cancellationToken = default) => _inner.OpenBodyAsync(offset, length, cancellationToken);
 			public ValueTask<BlobData> ReadBlobDataAsync(CancellationToken cancellationToken = default) => _inner.ReadBlobDataAsync(cancellationToken);
+			public ValueTask<IReadOnlyMemoryOwner<byte>> ReadBodyAsync(CancellationToken cancellationToken = default) => _inner.ReadBodyAsync(cancellationToken);
+			public ValueTask<IReadOnlyMemoryOwner<byte>> ReadBodyAsync(int offset, int? length, CancellationToken cancellationToken = default) => _inner.ReadBodyAsync(offset, length, cancellationToken);
 			public bool TryAppendIdentifier(Utf8StringBuilder builder) => _inner.TryAppendIdentifier(builder);
 		}
 

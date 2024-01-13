@@ -19,12 +19,12 @@ namespace EpicGames.Horde.Storage.Bundles.V2
 	public sealed class BundleWriter : IStorageWriter
 	{
 		// An export that has been written and is waiting to be flushed to disk
-		internal sealed class PendingExportHandle : IBlobHandle
+		internal sealed class PendingExportHandle : ExportHandle
 		{
 			readonly PendingPacketHandle _packet;
 			readonly int _exportIdx;
 
-			public IBlobHandle? Outer => _packet;
+			public override PacketHandle? OuterPacket => _packet;
 
 			public PendingExportHandle(PendingPacketHandle packet, int exportIdx)
 			{
@@ -32,37 +32,37 @@ namespace EpicGames.Horde.Storage.Bundles.V2
 				_exportIdx = exportIdx;
 			}
 
-			public ValueTask FlushAsync(CancellationToken cancellationToken = default) 
+			public override ValueTask FlushAsync(CancellationToken cancellationToken = default) 
 				=> _packet.FlushAsync(cancellationToken);
 
-			public ValueTask<BlobData> ReadBlobDataAsync(CancellationToken cancellationToken = default)
+			public override ValueTask<BlobData> ReadBlobDataAsync(CancellationToken cancellationToken = default)
 				=> _packet.ReadExportAsync(_exportIdx, cancellationToken);
 
-			public bool TryAppendIdentifier(Utf8StringBuilder builder)
+			public override bool TryAppendIdentifier(Utf8StringBuilder builder)
 			{
-				ExportHandle.AppendIdentifier(builder, _exportIdx);
+				FlushedExportHandle.AppendIdentifier(builder, _exportIdx);
 				return true;
 			}
 		}
 
 		// Packet that is still being built, but may be redirected to a flushed packet
-		internal sealed class PendingPacketHandle : IBlobHandle
+		internal sealed class PendingPacketHandle : PacketHandle
 		{
 			readonly PendingBundleHandle _bundle;
-			PacketHandle? _flushedHandle;
+			FlushedPacketHandle? _flushedHandle;
 
-			public IBlobHandle? Outer => _flushedHandle?.Outer ?? _bundle;
+			public override BundleHandle? OuterBundle => _flushedHandle?.OuterBundle ?? _bundle;
 			public IBlobHandle? FlushedHandle => _flushedHandle;
 
 			public PendingPacketHandle(PendingBundleHandle bundle) => _bundle = bundle;
 
-			public ValueTask FlushAsync(CancellationToken cancellationToken = default) 
+			public override ValueTask FlushAsync(CancellationToken cancellationToken = default) 
 				=> _bundle.FlushAsync(cancellationToken);
 
-			public void CompletePacket(PacketHandle flushedHandle)
+			public void CompletePacket(FlushedPacketHandle flushedHandle)
 				=> _flushedHandle = flushedHandle;
 
-			public ValueTask<BlobData> ReadBlobDataAsync(CancellationToken cancellationToken = default)
+			public override ValueTask<BlobData> ReadBlobDataAsync(CancellationToken cancellationToken = default)
 			{
 				lock (_bundle.LockObject)
 				{
@@ -86,12 +86,12 @@ namespace EpicGames.Horde.Storage.Bundles.V2
 				return await _flushedHandle!.ReadExportAsync(exportIdx, cancellationToken);
 			}
 
-			public bool TryAppendIdentifier(Utf8StringBuilder builder)
+			public override bool TryAppendIdentifier(Utf8StringBuilder builder)
 				=> _flushedHandle?.TryAppendIdentifier(builder) ?? false;
 		}
 
 		// Fragment of a bundle that needs to be written to storage.
-		internal sealed class PendingBundleHandle : IBlobHandle, IDisposable
+		internal sealed class PendingBundleHandle : BundleHandle, IDisposable
 		{
 			readonly object _lockObject = new object();
 
@@ -113,7 +113,7 @@ namespace EpicGames.Horde.Storage.Bundles.V2
 			/// </summary>
 			public object LockObject => _lockObject;
 
-			public IBlobHandle? Outer => null;
+			public override IBlobHandle? Outer => null;
 			public IBlobHandle? FlushedHandle => _flushedHandle;
 
 			/// <summary>
@@ -216,7 +216,7 @@ namespace EpicGames.Horde.Storage.Bundles.V2
 					// Point the packet handle to the encoded data
 					lock (_lockObject)
 					{
-						PacketHandle flushedPacketHandle = new PacketHandle(_storageClient, this, packetOffset, packetLength, _cache);
+						FlushedPacketHandle flushedPacketHandle = new FlushedPacketHandle(_storageClient, this, packetOffset, packetLength, _cache);
 						_packetHandle.CompletePacket(flushedPacketHandle);
 					}
 
@@ -238,7 +238,7 @@ namespace EpicGames.Horde.Storage.Bundles.V2
 			}
 
 			// Write this bundle to storage
-			public async ValueTask FlushAsync(CancellationToken cancellationToken = default)
+			public override async ValueTask FlushAsync(CancellationToken cancellationToken = default)
 			{
 				// Check we haven't already flushed this bundle
 				if (_encodedPacketWriter == null)
@@ -286,11 +286,11 @@ namespace EpicGames.Horde.Storage.Bundles.V2
 			}
 
 			/// <inheritdoc/>
-			public ValueTask<BlobData> ReadBlobDataAsync(CancellationToken cancellationToken)
+			public override ValueTask<BlobData> ReadBlobDataAsync(CancellationToken cancellationToken)
 				=> GetFlushedHandle().ReadBlobDataAsync(cancellationToken);
 
 			/// <inheritdoc/>
-			public async Task<Stream> OpenBodyAsync(int offset, int? length, CancellationToken cancellationToken = default)
+			public override async Task<Stream> OpenBodyAsync(int offset, int? length, CancellationToken cancellationToken = default)
 			{
 				if (_flushedHandle == null)
 				{
@@ -302,7 +302,7 @@ namespace EpicGames.Horde.Storage.Bundles.V2
 			}
 
 			/// <inheritdoc/>
-			public async ValueTask<IReadOnlyMemoryOwner<byte>> ReadBodyAsync(int offset, int? length, CancellationToken cancellationToken = default)
+			public override async ValueTask<IReadOnlyMemoryOwner<byte>> ReadBodyAsync(int offset, int? length, CancellationToken cancellationToken = default)
 			{
 				if (_flushedHandle == null)
 				{
@@ -323,7 +323,7 @@ namespace EpicGames.Horde.Storage.Bundles.V2
 			}
 
 			/// <inheritdoc/>
-			public bool TryAppendIdentifier(Utf8StringBuilder builder)
+			public override bool TryAppendIdentifier(Utf8StringBuilder builder)
 				=> _flushedHandle?.TryAppendIdentifier(builder) ?? false;
 
 			IBlobHandle GetFlushedHandle()

@@ -5,7 +5,6 @@ using System.Buffers.Binary;
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.Linq;
-using System.Runtime.InteropServices;
 using System.Security.Cryptography;
 using System.Text;
 using System.Threading;
@@ -14,7 +13,6 @@ using EpicGames.Core;
 using EpicGames.Horde.Replicators;
 using EpicGames.Horde.Storage;
 using EpicGames.Horde.Storage.Bundles;
-using EpicGames.Horde.Storage.Clients;
 using EpicGames.Horde.Storage.Nodes;
 using EpicGames.Horde.Streams;
 using EpicGames.Perforce;
@@ -39,9 +37,9 @@ namespace Horde.Server.Replicators
 	/// <summary>
 	/// Exception thrown to indicate that the state of a replicator has been modified externally
 	/// </summary>
-	class ReplicatorModifiedException : Exception
+	public class ReplicatorModifiedException : Exception
 	{
-		public ReplicatorModifiedException() : base("The replicator has been modified externally")
+		internal ReplicatorModifiedException() : base("The replicator has been modified externally")
 		{
 		}
 	}
@@ -298,7 +296,7 @@ namespace Horde.Server.Replicators
 		/// <summary>
 		/// Runs a replication loop for a stream
 		/// </summary>
-		public async Task RunAsync(ReplicatorId replicatorId, StreamConfig streamConfig, ReplicatorConfig replicatorConfig, PerforceReplicationOptions options, CancellationToken cancellationToken = default)
+		public async Task RunAsync(ReplicatorId replicatorId, StreamConfig streamConfig, PerforceReplicationOptions options, CancellationToken cancellationToken = default)
 		{
 			_logger.LogInformation("Starting replication background task for {ReplicatorId}", replicatorId);
 
@@ -318,7 +316,7 @@ namespace Horde.Server.Replicators
 		/// <summary>
 		/// Runs the replicator for a single change
 		/// </summary>
-		public async Task<IReplicator> RunOnceAsync(IReplicator replicator, StreamConfig streamConfig, PerforceReplicationOptions options, CancellationToken cancellationToken)
+		public async Task<IReplicator> RunOnceAsync(IReplicator replicator, StreamConfig streamConfig, PerforceReplicationOptions replicatorOptions, CancellationToken cancellationToken)
 		{
 			RefName refName = new RefName(streamConfig.Id.ToString());
 			RefName incRefName = GetIncrementalRefName(replicator.Id);
@@ -371,12 +369,10 @@ namespace Horde.Server.Replicators
 			int change = replicator.CurrentChange!.Value;
 			_logger.LogInformation("Replicating {ReplicatorId} change {Change}", replicator.Id, change);
 
-			PerforceReplicationOptions replicationOptions = new PerforceReplicationOptions();
-
 			BlobSerializerOptions blobOptions = new BlobSerializerOptions();
 			try
 			{
-				replicator = await WriteInternalAsync(replicator, change, streamConfig, replicationOptions, blobOptions, cancellationToken);
+				replicator = await WriteInternalAsync(replicator, change, streamConfig, replicatorOptions, blobOptions, cancellationToken);
 				return replicator;
 			}
 			catch (OperationCanceledException ex)

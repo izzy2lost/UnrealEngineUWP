@@ -91,7 +91,7 @@ namespace Horde.Server.Replicators
 								if (replicatorConfig.Enabled)
 								{
 									ReplicatorId replicatorId = new ReplicatorId(streamConfig.Id, replicatorConfig.Id);
-									replicatorIdToTask.Add(replicatorId, BackgroundTask.StartNew(ctx => RunReplicationGuardedAsync(replicatorId, streamConfig, replicatorConfig, ctx)));
+									replicatorIdToTask.Add(replicatorId, BackgroundTask.StartNew(ctx => RunReplicationGuardedAsync(replicatorId, streamConfig, ctx)));
 									removeReplicators.Remove(replicatorId);
 								}
 							}
@@ -114,7 +114,7 @@ namespace Horde.Server.Replicators
 			}
 		}
 
-		async Task RunReplicationGuardedAsync(ReplicatorId replicatorId, StreamConfig streamConfig, ReplicatorConfig replicatorConfig, CancellationToken cancellationToken)
+		async Task RunReplicationGuardedAsync(ReplicatorId replicatorId, StreamConfig streamConfig, CancellationToken cancellationToken)
 		{
 			_logger.LogInformation("Started background task for replication of {ReplicatorId}", replicatorId);
 
@@ -129,7 +129,7 @@ namespace Horde.Server.Replicators
 				.Build();
 
 			PerforceReplicationOptions replicationOptions = new PerforceReplicationOptions();
-			await pipeline.ExecuteAsync(async ctx => await _replicator.RunAsync(replicatorId, streamConfig, replicatorConfig, replicationOptions, ctx), cancellationToken);
+			await pipeline.ExecuteAsync(async ctx => await _replicator.RunAsync(replicatorId, streamConfig, replicationOptions, ctx), cancellationToken);
 		}
 	}
 }

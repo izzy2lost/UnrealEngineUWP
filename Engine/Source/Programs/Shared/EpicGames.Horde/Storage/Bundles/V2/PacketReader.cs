@@ -8,12 +8,12 @@ namespace EpicGames.Horde.Storage.Bundles.V2
 	/// <summary>
 	/// Utility class for constructing BlobData objects from a packet, caching any computed handles to other blobs.
 	/// </summary>
-	public sealed class PacketReader : IDisposable
+	sealed class PacketReader : IDisposable
 	{
 		readonly IStorageClient _storageClient;
 		readonly BundleCache _cache;
-		readonly IBlobHandle _bundleHandle;
-		readonly PacketHandle _packetHandle;
+		readonly BundleHandle _bundleHandle;
+		readonly FlushedPacketHandle _packetHandle;
 
 		Packet _decodedPacket;
 		IBlobHandle?[] _cachedImportHandles;
@@ -33,7 +33,7 @@ namespace EpicGames.Horde.Storage.Bundles.V2
 		/// <param name="packetHandle"></param>
 		/// <param name="decodedPacket">Data for the packet</param>
 		/// <param name="memoryOwner">Owner for the packet data</param>
-		public PacketReader(IStorageClient storageClient, BundleCache cache, IBlobHandle bundleHandle, PacketHandle packetHandle, Packet decodedPacket, IRefCountedHandle memoryOwner)
+		public PacketReader(IStorageClient storageClient, BundleCache cache, BundleHandle bundleHandle, FlushedPacketHandle packetHandle, Packet decodedPacket, IRefCountedHandle memoryOwner)
 		{
 			_storageClient = storageClient;
 			_cache = cache;
@@ -124,10 +124,10 @@ namespace EpicGames.Horde.Storage.Bundles.V2
 						importHandle = _storageClient.CreateBlobHandle(new BlobLocator(fragment));
 						break;
 					case PacketImport.CurrentBundleBaseIdx:
-						importHandle = new PacketHandle(_storageClient, _bundleHandle, fragment, _cache);
+						importHandle = new FlushedPacketHandle(_storageClient, _bundleHandle, fragment, _cache);
 						break;
 					case PacketImport.CurrentPacketBaseIdx:
-						importHandle = new ExportHandle(_packetHandle, fragment);
+						importHandle = new FlushedExportHandle(_packetHandle, fragment);
 						break;
 					default:
 						importHandle = GetImportHandle(import.BaseIdx).GetFragmentHandle(fragment);

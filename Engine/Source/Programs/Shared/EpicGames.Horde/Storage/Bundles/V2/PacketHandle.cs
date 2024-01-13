@@ -12,25 +12,37 @@ using EpicGames.Core;
 namespace EpicGames.Horde.Storage.Bundles.V2
 {
 	/// <summary>
+	/// Base class for packet handles
+	/// </summary>
+	public abstract class PacketHandle : BlobHandle
+	{
+		/// <inheritdoc/>
+		public sealed override IBlobHandle? Outer => OuterBundle;
+
+		/// <inheritdoc/>
+		public abstract BundleHandle? OuterBundle { get; }
+	}
+
+	/// <summary>
 	/// Handle to an packet within a bundle. 
 	/// </summary>
-	public class PacketHandle : IBlobHandle
+	class FlushedPacketHandle : PacketHandle
 	{
 		static readonly Utf8String s_fragmentPrefix = new Utf8String("pkt=");
 
 		readonly IStorageClient _storageClient;
-		readonly IBlobHandle _outer;
+		readonly BundleHandle _outer;
 		readonly int _packetOffset;
 		readonly int _packetLength;
 		readonly BundleCache _cache;
 
 		/// <inheritdoc/>
-		public IBlobHandle? Outer => _outer;
+		public override BundleHandle? OuterBundle => _outer;
 
 		/// <summary>
 		/// Constructor
 		/// </summary>
-		public PacketHandle(IStorageClient storageClient, IBlobHandle outer, int packetOffset, int packetLength, BundleCache cache)
+		public FlushedPacketHandle(IStorageClient storageClient, BundleHandle outer, int packetOffset, int packetLength, BundleCache cache)
 		{
 			_storageClient = storageClient;
 
@@ -43,7 +55,7 @@ namespace EpicGames.Horde.Storage.Bundles.V2
 		/// <summary>
 		/// Constructor
 		/// </summary>
-		public PacketHandle(IStorageClient storageClient, IBlobHandle outer, ReadOnlySpan<byte> fragment, BundleCache cache)
+		public FlushedPacketHandle(IStorageClient storageClient, BundleHandle outer, ReadOnlySpan<byte> fragment, BundleCache cache)
 		{
 			_storageClient = storageClient;
 
@@ -92,10 +104,10 @@ namespace EpicGames.Horde.Storage.Bundles.V2
 		}
 
 		/// <inheritdoc/>
-		public ValueTask FlushAsync(CancellationToken cancellationToken = default) => default;
+		public override ValueTask FlushAsync(CancellationToken cancellationToken = default) => default;
 
 		/// <inheritdoc/>
-		public async ValueTask<BlobData> ReadBlobDataAsync(CancellationToken cancellationToken = default)
+		public override async ValueTask<BlobData> ReadBlobDataAsync(CancellationToken cancellationToken = default)
 		{
 			try
 			{
@@ -148,7 +160,7 @@ namespace EpicGames.Horde.Storage.Bundles.V2
 		}
 
 		/// <inheritdoc/>
-		public bool TryAppendIdentifier(Utf8StringBuilder builder)
+		public override bool TryAppendIdentifier(Utf8StringBuilder builder)
 		{
 			AppendIdentifier(builder, _packetOffset, _packetLength);
 			return true;
@@ -166,12 +178,12 @@ namespace EpicGames.Horde.Storage.Bundles.V2
 		}
 
 		/// <inheritdoc/>
-		public IBlobHandle GetFragmentHandle(ReadOnlySpan<byte> fragment)
-			=> new ExportHandle(this, fragment);
+		public override IBlobHandle GetFragmentHandle(ReadOnlySpan<byte> fragment)
+			=> new FlushedExportHandle(this, fragment);
 
 		/// <inheritdoc/>
 		public override bool Equals(object? obj)
-			=> obj is PacketHandle other && _outer.Equals(other._outer) && _packetOffset == other._packetOffset;
+			=> obj is FlushedPacketHandle other && _outer.Equals(other._outer) && _packetOffset == other._packetOffset;
 
 		/// <inheritdoc/>
 		public override int GetHashCode()

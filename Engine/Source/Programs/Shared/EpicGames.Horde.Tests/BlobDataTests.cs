@@ -13,17 +13,17 @@ namespace EpicGames.Horde.Tests
 	[TestClass]
 	public class BlobDataTests
 	{
-		class DummyHandle : IBlobHandle
+		class DummyHandle : BlobHandle
 		{
 			readonly BlobLocator _locator;
 
-			public IBlobHandle? Outer => null;
+			public override IBlobHandle? Outer => null;
 
 			public DummyHandle(string locator) => _locator = new BlobLocator(new Utf8String(locator));
-			public ValueTask FlushAsync(CancellationToken cancellationToken = default) => default;
-			public ValueTask<BlobData> ReadBlobDataAsync(CancellationToken cancellationToken = default) => throw new NotImplementedException();
+			public override ValueTask FlushAsync(CancellationToken cancellationToken = default) => default;
+			public override ValueTask<BlobData> ReadBlobDataAsync(CancellationToken cancellationToken = default) => throw new NotImplementedException();
 
-			public bool TryAppendIdentifier(Utf8StringBuilder builder)
+			public override bool TryAppendIdentifier(Utf8StringBuilder builder)
 			{
 				builder.Append(_locator.Path);
 				return true;
