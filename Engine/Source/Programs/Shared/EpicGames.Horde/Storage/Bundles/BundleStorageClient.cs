@@ -11,9 +11,10 @@ using EpicGames.Core;
 using EpicGames.Horde.Storage.Bundles;
 using EpicGames.Horde.Storage.Bundles.V1;
 using EpicGames.Horde.Storage.Bundles.V2;
+using EpicGames.Horde.Storage.Clients;
 using Microsoft.Extensions.Logging;
 
-namespace EpicGames.Horde.Storage.Clients
+namespace EpicGames.Horde.Storage.Bundles
 {
 	/// <summary>
 	/// Base class for an implementation of <see cref="IStorageClient"/>, providing implementations for some common functionality using bundles.
