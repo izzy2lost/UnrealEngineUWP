@@ -22,6 +22,11 @@
 			"LoadingPhase": "Default"
 		},
 		{
+			"Name": "DataflowAssetTools",
+			"Type": "Editor",
+			"LoadingPhase": "Default"
+		},
+		{
 			"Name": "DataflowEnginePlugin",
 			"Type": "Runtime",
 			"LoadingPhase": "Default"

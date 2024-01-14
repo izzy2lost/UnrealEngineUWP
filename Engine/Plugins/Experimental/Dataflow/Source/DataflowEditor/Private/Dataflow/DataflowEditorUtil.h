@@ -36,21 +36,6 @@ namespace UE
 	{
 		UMaterial* LoadMaterialFromPath( const FName& Path, UObject* Outer);
 	}
-
-	namespace Conversion
-	{
-		// Convert a rendering facade to a dynamic mesh
-		void RenderingFacadeToDynamicMesh(const GeometryCollection::Facades::FRenderingFacade& Facade, UE::Geometry::FDynamicMesh3& DynamicMesh);
-
-		// Convert a dataflow component to a dynamic mesh
-		void DataflowToDynamicMesh(TSharedPtr<::Dataflow::FEngineContext> DataflowContext, UObject* Asset, UDataflow* Dataflow, UE::Geometry::FDynamicMesh3& DynamicMesh);
-
-		// Convert a dynamic mesh to a rendering facade
-		void DynamicMeshToRenderingFacade(const UE::Geometry::FDynamicMesh3& DynamicMesh, GeometryCollection::Facades::FRenderingFacade& Facade);
-
-		// Convert a dynamic mesh to a dataflow component
-		void DynamicMeshToDataflow(const UE::Geometry::FDynamicMesh3& DynamicMesh, UDataflow* Dataflow);
-	}
 }
 
 namespace Dataflow

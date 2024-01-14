@@ -12,6 +12,7 @@
 #include "Dataflow/DataflowOverrideNode.h"
 #include "Dataflow/DataflowSCommentNode.h"
 #include "Dataflow/DataflowSNode.h"
+#include "DataflowEditorTools/DataflowEditorWeightMapPaintTool.h"
 #include "EdGraphNode_Comment.h"
 #include "EdGraph/EdGraphNode.h"
 #include "Editor.h"
@@ -19,8 +20,12 @@
 
 #define LOCTEXT_NAMESPACE "DataflowEditorCommands"
 
-const FString FDataflowEditorCommandsImpl::BeginAttributeEditorToolIdentifier = TEXT("BeginAttributeEditorTool");
-const FString FDataflowEditorCommandsImpl::BeginMeshSelectionToolIdentifier = TEXT("BeginMeshSelectionTool");
+const FString FDataflowEditorCommandsImpl::BeginWeightMapPaintToolIdentifier = TEXT("BeginWeightMapPaintTool");
+const FString FDataflowEditorCommandsImpl::AddWeightMapNodeIdentifier = TEXT("AddWeightMapNode");
+
+// @todo(brice) Remove Example Tools
+//const FString FDataflowEditorCommandsImpl::BeginAttributeEditorToolIdentifier = TEXT("BeginAttributeEditorTool");
+//const FString FDataflowEditorCommandsImpl::BeginMeshSelectionToolIdentifier = TEXT("BeginMeshSelectionTool");
 
 FDataflowEditorCommandsImpl::FDataflowEditorCommandsImpl()
 	: TBaseCharacterFXEditorCommands<FDataflowEditorCommandsImpl>("DataflowEditor", 
@@ -44,8 +49,9 @@ void FDataflowEditorCommandsImpl::RegisterCommands()
 	UI_COMMAND(RemoveOptionPin, "RemoveOptionPin", "Remove the last option pin from the selected nodes.", EUserInterfaceActionType::Button, FInputChord());
 	UI_COMMAND(ZoomToFitGraph, "ZoomToFitGraph", "Fit the graph in the graph editor viewport.", EUserInterfaceActionType::None, FInputChord(EKeys::F));
 
-	UI_COMMAND(BeginAttributeEditorTool, "AttrEd", "Edit/configure mesh attributes", EUserInterfaceActionType::Button, FInputChord());
-	UI_COMMAND(BeginMeshSelectionTool, "SelVtx", "Select mesh vertices", EUserInterfaceActionType::Button, FInputChord());
+	UI_COMMAND(BeginWeightMapPaintTool, "Add Weight Map", "Paint weight maps on the mesh", EUserInterfaceActionType::None, FInputChord());
+	UI_COMMAND(AddWeightMapNode, "Add Weight Map", "Paint weight maps on the mesh", EUserInterfaceActionType::Button, FInputChord());
+
 
 	if (Dataflow::FNodeFactory* Factory = Dataflow::FNodeFactory::GetInstance())
 	{
@@ -69,6 +75,22 @@ void FDataflowEditorCommandsImpl::RegisterCommands()
 
 void FDataflowEditorCommandsImpl::GetToolDefaultObjectList(TArray<UInteractiveTool*>& ToolCDOs)
 {
+	ToolCDOs.Add(GetMutableDefault<UDataflowEditorWeightMapPaintTool>());
+}
+
+void FDataflowEditorCommandsImpl::UpdateToolCommandBinding(UInteractiveTool* Tool, TSharedPtr<FUICommandList> UICommandList, bool bUnbind)
+{
+	if (FDataflowEditorCommandsImpl::IsRegistered())
+	{
+		if (bUnbind)
+		{
+			FDataflowEditorCommandsImpl::Get().UnbindActiveCommands(UICommandList);
+		}
+		else
+		{
+			FDataflowEditorCommandsImpl::Get().BindCommandsForCurrentTool(UICommandList, Tool);
+		}
+	}
 }
 
 const FDataflowEditorCommandsImpl& FDataflowEditorCommands::Get()

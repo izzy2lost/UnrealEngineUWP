@@ -4,6 +4,8 @@
 
 #include "Dataflow/DataflowNodeParameters.h"
 #include "Dataflow/DataflowObjectInterface.h"
+#include "Dataflow/DataflowPatternVertexType.h"
+#include "Dataflow/DataflowEdNode.h"
 #include "DynamicMesh/DynamicMesh3.h"
 #include "GeometryCollection/ManagedArrayCollection.h"
 #include "Templates/SharedPointer.h"
@@ -15,12 +17,56 @@ class UDataflow;
 class USkeletalMesh;
 class USkeleton;
 class UAnimationAsset;
+class SDataflowGraphEditor;
+struct FManagedArrayCollection;
+
+
+UCLASS()
+class UDataflowEditorContextObject : public UObject
+{
+	GENERATED_BODY()
+public:
+
+	// @todo(brice) : Is this even needed?
+	void SetDataflowGraphEditor(TWeakPtr<SDataflowGraphEditor> InEditor) {DataflowGraphEditor = InEditor;}
+
+	/** Selection Collection Access */
+	void SetPrimarySelectedNode(TObjectPtr<UDataflowEdNode> InSelectedNode) { PrimarySelectedNode = InSelectedNode; }
+	const TObjectPtr<UDataflowEdNode> GetPrimarySelectedNode() const { return PrimarySelectedNode; }
+
+	/** Render Collection used to generate the DynamicMesh3D on the PrimarySelection */
+	void SetPrimaryRenderCollection(TSharedPtr<FManagedArrayCollection> InCollection) { PrimaryRenderCollection = InCollection; }
+	const TSharedPtr<const FManagedArrayCollection> GetPrimaryRenderCollection() const { return PrimaryRenderCollection; }
+
+	/** ViewMode Access */
+	void SetConstructionViewMode(Dataflow::EDataflowPatternVertexType InMode) {ConstructionViewMode = InMode;}
+	Dataflow::EDataflowPatternVertexType GetConstructionViewMode() const { return ConstructionViewMode; }
+
+	/** Get a single selected node of the specified type. Return nullptr if the specified node is not selected, or if multiple nodes are selected*/
+	template<typename NodeType>
+	NodeType* GetPrimarySelectedNodeOfType() const 
+	{
+		if (PrimarySelectedNode && PrimarySelectedNode->GetDataflowNode()) 
+		{
+			return PrimarySelectedNode->GetDataflowNode()->AsType<NodeType>();
+		}
+		return nullptr;
+	}
+
+protected:
+
+	TSharedPtr<FManagedArrayCollection> PrimaryRenderCollection = nullptr;
+	TObjectPtr<UDataflowEdNode> PrimarySelectedNode = nullptr;
+	TWeakPtr<SDataflowGraphEditor> DataflowGraphEditor;
+	Dataflow::EDataflowPatternVertexType ConstructionViewMode = Dataflow::EDataflowPatternVertexType::Sim3D;
+};
+
 
 /** 
  * Dataflow datas that will be used within the editor classes to evaluate the graph
  */
 UCLASS()
-class UDataflowEditorContent : public UObject
+class UDataflowEditorContent : public UDataflowEditorContextObject
 {
 	GENERATED_BODY()
 
@@ -100,4 +146,5 @@ private:
 	Dataflow::FTimestamp LastModifiedTimestamp = Dataflow::FTimestamp::Invalid;
 
 	bool bIsDirty = true;
+
 };

@@ -23,6 +23,7 @@ class UDataflow;
 class USkeletalMesh;
 class SDataflowGraphEditor;
 class UDataflowEditorContent;
+class FDataflowPreviewScene;
 
 namespace Dataflow
 {
@@ -74,6 +75,7 @@ protected:
 	void OnNodeTitleCommitted(const FText& InNewText, ETextCommit::Type InCommitType, UEdGraphNode* GraphNode);
 	void OnNodeSelectionChanged(const TSet<UObject*>& NewSelection);
 	void OnNodeDeleted(const TSet<UObject*>& NewSelection);
+	void OnNodeSingleClicked(UObject* ClickedNode) const;
 	void OnAssetPropertyValueChanged(const FPropertyChangedEvent& PropertyChangedEvent);
 	
 	// Callback to remove the closed one from the listener views
@@ -156,6 +158,12 @@ private:
     FDelegateHandle OnFinishedChangingPropertiesDelegateHandle;
     FDelegateHandle OnFinishedChangingAssetPropertiesDelegateHandle;
 
-	// Previous node selection to compare values in delegates
-	TSet<UObject*> PrevNodeSelection;
+	// The currently selected set of dataflow nodes. 
+	TSet<UObject*> SelectedDataflowNodes;
+
+	// The most recently selected dataflow node. (Top
+	TObjectPtr<UDataflowEdNode> PrimarySelection;
+
+	/** Scene in which the 3D sim space preview meshes live. Ownership shared with AdvancedPreviewSettingsWidget*/
+	TSharedPtr<FDataflowPreviewScene> DataflowPreviewScene;
 };

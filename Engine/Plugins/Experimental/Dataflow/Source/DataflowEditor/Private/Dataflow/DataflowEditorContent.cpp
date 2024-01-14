@@ -8,5 +8,11 @@
 
 
 UDataflowEditorContent::UDataflowEditorContent()
+	: UDataflowEditorContextObject()
 {
 }
+
+
+
+
+

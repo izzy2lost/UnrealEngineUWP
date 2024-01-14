@@ -3,6 +3,7 @@
 #include "Dataflow/DataflowToolTarget.h"
 
 #include "ConversionUtils/DynamicMeshViaMeshDescriptionUtil.h"
+#include "Dataflow/CollectionRenderingPatternUtility.h"
 #include "Dataflow/DataflowEditor.h"
 #include "Dataflow/DataflowEditorContent.h"
 #include "Dataflow/DataflowEditorToolkit.h"
@@ -104,7 +105,7 @@ FDynamicMesh3 UDataflowReadOnlyToolTarget::GetDynamicMesh()
 	FDynamicMesh3 DynamicMesh;
 	if(IsValid())
 	{
-		UE::Conversion::DataflowToDynamicMesh(Context, Asset, Dataflow, DynamicMesh);
+		Dataflow::Conversion::DataflowToDynamicMesh(Context, Asset, Dataflow, DynamicMesh);
 	}
 	return DynamicMesh;
 }
@@ -146,7 +147,7 @@ void UDataflowToolTarget::CommitDynamicMesh(const FDynamicMesh3& DynamicMesh, co
 {
 	if(IsValid())
 	{
-		UE::Conversion::DynamicMeshToDataflow(DynamicMesh, Dataflow);
+		Dataflow::Conversion::DynamicMeshToDataflow(DynamicMesh, Dataflow);
 	}
 }
 

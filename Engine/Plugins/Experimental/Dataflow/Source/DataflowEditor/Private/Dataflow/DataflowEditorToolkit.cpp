@@ -9,6 +9,8 @@
 #include "Dataflow/DataflowEditorContent.h"
 #include "Dataflow/DataflowEditorCommands.h"
 #include "Dataflow/DataflowEditorMode.h"
+#include "Dataflow/DataflowEditorModeToolkit.h"
+#include "Dataflow/DataflowEditorModeUILayer.h"
 #include "Dataflow/DataflowEditorViewport.h"
 #include "Dataflow/DataflowEditorViewportClient.h"
 #include "Dataflow/DataflowEdNode.h"
@@ -24,6 +26,7 @@
 #include "EditorViewportTabContent.h"
 #include "EditorViewportLayout.h"
 #include "EditorViewportCommands.h"
+#include "EdModeInteractiveToolsContext.h"
 #include "Engine/SkeletalMesh.h"
 #include "GraphEditorActions.h"
 #include "Modules/ModuleManager.h"
@@ -58,38 +61,53 @@ FDataflowEditorToolkit::FDataflowEditorToolkit(UAssetEditor* InOwningAssetEditor
 {
 	check(Cast<UDataflowEditor>(InOwningAssetEditor));
 
-	StandaloneDefaultLayout = FTabManager::NewLayout("Dataflow_Layout.V5")
+	StandaloneDefaultLayout = FTabManager::NewLayout(FName("DataflowEditorLayout.V9"))
 		->AddArea
 		(
-			FTabManager::NewPrimaryArea()->SetOrientation(Orient_Vertical)
+			FTabManager::NewPrimaryArea()->SetOrientation(Orient_Horizontal)
 			->Split
 			(
 				FTabManager::NewSplitter()->SetOrientation(Orient_Vertical)
+				->SetSizeCoefficient(0.8f)	// Relative width of (Tools Panel, Construction Viewport, Preview Viewport, Dataflow Graph Editor, Outliner) vs (Asset Details, Preview Scene Details, Dataflow Node Details)
 				->Split
 				(
 					FTabManager::NewSplitter()->SetOrientation(Orient_Horizontal)
-					->SetSizeCoefficient(0.9f)
+					->SetSizeCoefficient(0.55f)	// Relative height of (Tools Panel, Construction Viewport, Preview Viewport) vs (Dataflow Graph Editor, Outliner)
 					->Split
 					(
 						FTabManager::NewStack()
-						->SetSizeCoefficient(0.6f)
-						->AddTab(GraphCanvasTabId, ETabState::OpenedTab)
+						->SetSizeCoefficient(0.1f)		// Relative width of (Tools Panel) vs (Construction Viewport, Preview Viewport)
+						->SetExtensionId(UDataflowEditorUISubsystem::EditorSidePanelAreaName)
+						->SetHideTabWell(true)
 					)
 					->Split
 					(
-						FTabManager::NewSplitter()->SetOrientation(Orient_Vertical)
-						->SetSizeCoefficient(0.2f)
-						->Split
-						(
-							FTabManager::NewStack()
-							->SetSizeCoefficient(0.7f)
-							->AddTab(DetailsTabID, ETabState::OpenedTab)
-						)
+						FTabManager::NewStack()
+						->SetSizeCoefficient(0.9f)		// Relative width of (Construction Viewport) vs (Tools Panel, Preview Viewport)
+						->AddTab(ViewportTabID, ETabState::OpenedTab)
+						->SetExtensionId("RestSpaceViewportArea")
+						->SetHideTabWell(false)
 					)
 				)
+				->Split
+				(
+					FTabManager::NewStack()
+					->SetSizeCoefficient(0.45f)	// Relative height of (Dataflow Graph Editor, Outliner) vs (Tools Panel, Construction Viewport, Preview Viewport)
+					->AddTab(GraphCanvasTabId, ETabState::OpenedTab)
+					->SetExtensionId("GraphEditorArea")
+					->SetHideTabWell(false)
+					->SetForegroundTab(GraphCanvasTabId)
+				)
+			)
+			->Split
+			(
+				FTabManager::NewStack()
+				->SetSizeCoefficient(0.2f)	// Relative height of (Dataflow Node Details) vs (Asset Details, Preview Scene Details)
+				->AddTab(NodeDetailsTabId, ETabState::OpenedTab)
+				->SetExtensionId("NodeDetailsArea")
+				->SetHideTabWell(false)
 			)
 		);
-
 	FAdvancedPreviewScene::ConstructionValues PreviewSceneArgs;
 	PreviewSceneArgs.bShouldSimulatePhysics = 1;
 	PreviewSceneArgs.bCreatePhysicsScene = 1;
@@ -270,31 +288,57 @@ void FDataflowEditorToolkit::PostInitAssetEditor()
 	};
 	SetCommonViewportClientOptions(ViewportClient.Get());
 
+	//@todo(brice) : FChaosClothAssetEditorToolkit::PostInitAssetEditor() has alot more going on. 
+
 	// Set up 3D viewport
 	TSharedPtr<FDataflowEditorViewportClient> DataflowViewportClient = StaticCastSharedPtr<FDataflowEditorViewportClient>(ViewportClient);
 	DataflowViewportClient->SetDataflowEditorToolkit(StaticCastSharedRef<FDataflowEditorToolkit>(this->AsShared()));
 
+	//@todo(brice) : can we remove this coupling of the viewport and mode
+	UDataflowEditorMode* const DataflowMode = CastChecked<UDataflowEditorMode>(EditorModeManager->GetActiveScriptableMode(UDataflowEditorMode::EM_DataflowEditorModeId));
+	const TWeakPtr<FViewportClient> WeakViewportClient(ViewportClient);
+	DataflowMode->SetRestSpaceViewportClient(StaticCastWeakPtr<FDataflowEditorViewportClient>(WeakViewportClient));
+
+	check(GetDataflowEditorContent());
+
+
 	//SetEditingObject(GetDataflowEditorContent().DataflowOwner);
 
-	// @todo(DataflowMode) : Do this in UDataflowEditorMode::RefocusViewportClient and use the DataflowComponents bounds
-	//		... see ChaosClothAssetEditorMode::RefocusRestSpaceViewportClient() for reference
-	// FBoxSphereBounds SphereBounds = FBoxSphereBounds(EForceInit::ForceInitToZero);
-	// DataflowViewportClient->OverrideFarClipPlane(0);
-	// DataflowViewportClient->FocusViewportOnBox(SphereBounds.GetBox());
 }
 
 void FDataflowEditorToolkit::InitializeEdMode(UBaseCharacterFXEditorMode* EdMode)
 {
+
+	UDataflowEditorMode* DataflowMode = Cast<UDataflowEditorMode>(EdMode);
+	check(DataflowMode);
+
 	// We first set the preview scene in order to store the dynamic mesh elements
 	// generated by the tools
-	Cast<UDataflowEditorMode>(EdMode)->SetDataflowPreviewScene(
-		static_cast<FDataflowPreviewScene*>(ObjectScene.Get()));
+	DataflowMode->SetDataflowPreviewScene(static_cast<FDataflowPreviewScene*>(ObjectScene.Get()));
 
 	// Set of the graph editor to be able to add nodes
-	Cast<UDataflowEditorMode>(EdMode)->SetDataflowGraphEditor(GraphEditor);
+	DataflowMode->SetDataflowGraphEditor(GraphEditor);
 	
-	FBaseCharacterFXEditorToolkit::InitializeEdMode(EdMode);
+	TArray<TObjectPtr<UObject>> ObjectsToEdit;
+	OwningAssetEditor->GetObjectsToEdit(MutableView(ObjectsToEdit));
+	DataflowMode->InitializeTargets(ObjectsToEdit);
+
+	if (TSharedPtr<FModeToolkit> ModeToolkit = DataflowMode->GetToolkit().Pin())
+	{
+		FDataflowEditorModeToolkit* DataflowModeToolkit = static_cast<FDataflowEditorModeToolkit*>(ModeToolkit.Get());
+		DataflowModeToolkit->SetRestSpaceViewportWidget(DataflowEditorViewport);
+		//ClothModeToolkit->SetPreviewViewportWidget(PreviewViewportWidget);
+
+		FName ParentToolbarName;
+		const FName ToolBarName = GetToolMenuToolbarName(ParentToolbarName);
+		DataflowModeToolkit->BuildEditorToolBar(ToolBarName);
+	}
+
+	// @todo(brice) : This used to crash when comnmented out. 
+	//FBaseCharacterFXEditorToolkit::InitializeEdMode(EdMode);
 }
+
+
 
 void FDataflowEditorToolkit::CreateEditorModeUILayer()
 {
@@ -373,7 +417,7 @@ void FDataflowEditorToolkit::OnPropertyValueChanged(const FPropertyChangedEvent&
 		{
 			TSharedPtr<Dataflow::FEngineContext>& DataflowContext = EditorContent->GetDataflowContext();
 			Dataflow::FTimestamp& LastNodeTimestamp = EditorContent->GetLastModifiedTimestamp();
-			FDataflowEditorCommands::OnPropertyValueChanged(DataflowAsset, DataflowContext, LastNodeTimestamp, PropertyChangedEvent, PrevNodeSelection);
+			FDataflowEditorCommands::OnPropertyValueChanged(DataflowAsset, DataflowContext, LastNodeTimestamp, PropertyChangedEvent, SelectedDataflowNodes);
 		}
 	}
 }
@@ -396,70 +440,157 @@ void FDataflowEditorToolkit::OnNodeTitleCommitted(const FText& InNewText, ETextC
 	FDataflowEditorCommands::OnNodeTitleCommitted(InNewText, InCommitType, GraphNode);
 }
 
-void FDataflowEditorToolkit::OnNodeSelectionChanged(const TSet<UObject*>& NewSelection)
+void FDataflowEditorToolkit::OnNodeSelectionChanged(const TSet<UObject*>& InNewSelection)
 {
-	if (TObjectPtr<UDataflowEditorContent> EditorContent = GetDataflowEditorContent(); EditorContent->GetDataflowAsset())
+
+	auto FindDataflowNodesInSet = [](const TSet<UObject*>& InSet) {
+		TSet<UObject*> Results;
+		for (UObject* Item : InSet)
+		{
+			if (Cast<UDataflowEdNode>(Item))
+			{
+				Results.Add(Item);
+			}
+		}
+		return Results;
+	};
+
+	auto ResetListeners = [&ViewListeners = ViewListeners](UDataflowEdNode* Node = nullptr)
 	{
-		// Only keep UDataflowEdNode from NewSelection
-		TSet<UObject*> ValidatedSelection;
-
-		for (UObject* Item : NewSelection)
+		for (IDataflowViewListener* Listener : ViewListeners)
 		{
-			if (UDataflowEdNode* Node = Cast<UDataflowEdNode>(Item))
-			{
-				ValidatedSelection.Add(Item);
-			}
+			Listener->OnSelectedNodeChanged(nullptr);
 		}
-
-		if (ValidatedSelection.Num() > 0)
-		{
-			TSet<UObject*> SelectionToUse, SelectionDifference;
-
-			if (PrevNodeSelection.Num() > 0)
-			{
-				SelectionDifference = ValidatedSelection.Difference(PrevNodeSelection);
-
-				if (SelectionDifference.Num() > 0)
-				{
-					SelectionToUse.Add(SelectionDifference.Array()[SelectionDifference.Num() - 1]);
-				}
-				else
-				{
-					SelectionToUse.Add(ValidatedSelection.Array()[ValidatedSelection.Num() - 1]);
-				}
-			}
-			else
-			{
-				SelectionToUse.Add(ValidatedSelection.Array()[ValidatedSelection.Num() - 1]);
-			}
-
-			if (UDataflowEdNode* Node = Cast<UDataflowEdNode>(SelectionToUse.Array()[0]))
-			{
-				for (IDataflowViewListener* Listener : ViewListeners)
-				{
-					Listener->OnSelectedNodeChanged(Node);
-				}
-			}
-		}
-		else
+		if (Node)
 		{
 			for (IDataflowViewListener* Listener : ViewListeners)
 			{
-				Listener->OnSelectedNodeChanged(nullptr);
+				Listener->OnSelectedNodeChanged(Node);
+			}
+		}
+	};
+
+	auto EvaluateCollection = [](TObjectPtr<UDataflowEdNode> InDataflowEdNode, const TSharedPtr<Dataflow::FEngineContext> Context)
+	{
+		if (InDataflowEdNode && Context)
+		{
+			if (const TSharedPtr<FDataflowNode> InDataflowNode = InDataflowEdNode->GetDataflowNode())
+			{
+				for (const FDataflowOutput* const Output : InDataflowNode->GetOutputs())
+				{
+					if (Output->GetType() == FName("FManagedArrayCollection"))
+					{
+						const FManagedArrayCollection DefaultValue;
+						return TSharedPtr<FManagedArrayCollection>(new FManagedArrayCollection(Output->GetValue<FManagedArrayCollection>(*Context, DefaultValue)));
+					}
+				}
 			}
 		}
 
-		PrevNodeSelection = ValidatedSelection;
+		return TSharedPtr<FManagedArrayCollection>(new FManagedArrayCollection());
+	};
+
+	// Despite this function's name, we might not have actually changed which node is selected
+	bool bPrimarySelectionChanged = false;
+
+	if (TObjectPtr<UDataflowEditorContent> EditorContent = GetDataflowEditorContent(); EditorContent->GetDataflowAsset())
+	{
+		// Only keep UDataflowEdNode from NewSelection
+		TSet<UObject*> NodeSelection = FindDataflowNodesInSet(InNewSelection);
+
+		if (!NodeSelection.Num())
+		{
+			// The selection is empty. 
+			ResetListeners();
+			SelectedDataflowNodes = TSet<UObject*>();
+			PrimarySelection = nullptr;
+		}
+		else
+		{
+			TSet<UObject*> DeselectedNodes = SelectedDataflowNodes.Difference(NodeSelection);
+			TSet<UObject*> StillSelectedNodes = SelectedDataflowNodes.Intersect(NodeSelection);
+			TSet<UObject*> NewlySelectedNodes = NodeSelection.Difference(SelectedDataflowNodes);
+
+			// Something has been removed
+			if (DeselectedNodes.Num())
+			{
+				if (DeselectedNodes.Contains(PrimarySelection))
+				{
+					ResetListeners();
+
+					if (PrimarySelection) bPrimarySelectionChanged = true;
+					PrimarySelection = nullptr;
+
+					// pick a new primary if nothing new was selected
+					if (!NewlySelectedNodes.Num() && StillSelectedNodes.Num())
+					{
+						PrimarySelection = Cast< UDataflowEdNode>(StillSelectedNodes.Array()[0]);
+						ResetListeners(PrimarySelection);
+						bPrimarySelectionChanged = true;
+					}
+				}
+			}
+
+			// Something new has been selected.
+			if (NewlySelectedNodes.Num() == 1)
+			{
+				PrimarySelection = Cast< UDataflowEdNode>(NewlySelectedNodes.Array()[0]);
+				ResetListeners(PrimarySelection);
+				bPrimarySelectionChanged = true;
+			}
+
+			SelectedDataflowNodes = NodeSelection;
+		}
+
+		if (bPrimarySelectionChanged)
+		{
+			EditorContent->SetPrimarySelectedNode(nullptr);
+
+			UDataflowEditorMode* const DataflowMode = CastChecked<UDataflowEditorMode>(EditorModeManager->GetActiveScriptableMode(UDataflowEditorMode::EM_DataflowEditorModeId));
+			if (DataflowMode)
+			{
+				// Close any running tool. OnNodeSingleClicked() will start a new tool if a new node was clicked.
+				UEditorInteractiveToolsContext* const ToolsContext = DataflowMode->GetInteractiveToolsContext();
+				checkf(ToolsContext, TEXT("No valid ToolsContext found for FDataflowEditorToolkit"));
+				if (ToolsContext->HasActiveTool())
+				{
+					ToolsContext->EndTool(EToolShutdownType::Completed);
+				}
+
+				// Update the Construction viewport with the newly selected node's Collection
+				// @todo(brice) : Is this necessary? FDataflowPreviewScene::Update will generate a new RenderCollection 
+				TSharedPtr<FManagedArrayCollection> Collection = EvaluateCollection(PrimarySelection, EditorContent->GetDataflowContext());
+				if(Collection->HasGroup("Geometry"))
+				{
+					EditorContent->SetPrimarySelectedNode(PrimarySelection);
+					DataflowMode->SetSelectedCollection(Collection);
+				}
+			}
+		}
 	}
 }
+
+void FDataflowEditorToolkit::OnNodeSingleClicked(UObject* ClickedNode) const
+{
+	UDataflowEditorMode* DataflowMode = Cast<UDataflowEditorMode>(EditorModeManager->GetActiveScriptableMode(UDataflowEditorMode::EM_DataflowEditorModeId));
+	if (DataflowMode)
+	{
+		if (GraphEditor && GraphEditor->GetSingleSelectedNode() == ClickedNode)
+		{
+			// Start the corresponding tool
+			DataflowMode->StartToolForSelectedNode(ClickedNode);
+		}
+	}
+}
+
 
 void FDataflowEditorToolkit::OnNodeDeleted(const TSet<UObject*>& NewSelection)
 {
 	for (UObject* Node : NewSelection)
 	{
-		if (PrevNodeSelection.Contains(Node))
+		if (SelectedDataflowNodes.Contains(Node))
 		{
-			PrevNodeSelection.Remove(Node);
+			SelectedDataflowNodes.Remove(Node);
 		}
 	}
 }
@@ -513,6 +644,7 @@ TSharedRef<SDataflowGraphEditor> FDataflowEditorToolkit::CreateGraphEditorWidget
 	SGraphEditor::FGraphEditorEvents InEvents;
 	InEvents.OnVerifyTextCommit = FOnNodeVerifyTextCommit::CreateSP(this, &FDataflowEditorToolkit::OnNodeVerifyTitleCommit);
 	InEvents.OnTextCommitted = FOnNodeTextCommitted::CreateSP(this, &FDataflowEditorToolkit::OnNodeTitleCommitted);
+	InEvents.OnNodeSingleClicked = SGraphEditor::FOnNodeSingleClicked::CreateSP(this, &FDataflowEditorToolkit::OnNodeSingleClicked);
 
 	TSharedRef<SDataflowGraphEditor> NewGraphEditor = SNew(SDataflowGraphEditor, DataflowToEdit)
 		.GraphToEdit(DataflowToEdit)
@@ -522,6 +654,7 @@ TSharedRef<SDataflowGraphEditor> FDataflowEditorToolkit::CreateGraphEditorWidget
 
 	OnSelectionChangedMulticastDelegateHandle = NewGraphEditor->OnSelectionChangedMulticast.AddSP(this, &FDataflowEditorToolkit::OnNodeSelectionChanged);
 	OnNodeDeletedMulticastDelegateHandle = NewGraphEditor->OnNodeDeletedMulticast.AddSP(this, &FDataflowEditorToolkit::OnNodeDeleted);
+	GetDataflowEditorContent()->SetDataflowGraphEditor(NewGraphEditor);
 
 	return NewGraphEditor;
 }

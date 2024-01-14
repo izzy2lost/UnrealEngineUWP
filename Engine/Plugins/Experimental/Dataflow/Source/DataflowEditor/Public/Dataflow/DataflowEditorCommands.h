@@ -36,6 +36,15 @@ public:
 	// TInteractiveToolCommands<>
 	 virtual void GetToolDefaultObjectList(TArray<UInteractiveTool*>& ToolCDOs) override;
 
+	/**
+	* Add or remove commands relevant to Tool to the given UICommandList.
+	* Call this when the active tool changes (eg on ToolManager.OnToolStarted / OnToolEnded)
+	* @param bUnbind if true, commands are removed, otherwise added
+	*/
+	 static void UpdateToolCommandBinding(UInteractiveTool* Tool, TSharedPtr<FUICommandList> UICommandList, bool bUnbind = false);
+
+
+
 	TSharedPtr< FUICommandInfo > EvaluateNode;
 	TSharedPtr< FUICommandInfo > CreateComment;
 	TSharedPtr< FUICommandInfo > ToggleEnabledState;
@@ -48,14 +57,20 @@ public:
 
 	TMap< FName, TSharedPtr<FUICommandInfo> > CreateNodesMap;
 
-	// Temporary, just to test the editor, will be replace by the selection tool
-	const static FString BeginAttributeEditorToolIdentifier;
-	TSharedPtr<FUICommandInfo> BeginAttributeEditorTool;
+	const static FString BeginWeightMapPaintToolIdentifier;
+	TSharedPtr<FUICommandInfo> BeginWeightMapPaintTool;
+	const static FString AddWeightMapNodeIdentifier;
+	TSharedPtr<FUICommandInfo> AddWeightMapNode;
 
-	const static FString BeginMeshSelectionToolIdentifier;
-	TSharedPtr<FUICommandInfo> BeginMeshSelectionTool;
+	// @todo(brice) Remove Example Tools
+	//const static FString BeginAttributeEditorToolIdentifier;
+	//TSharedPtr<FUICommandInfo> BeginAttributeEditorTool;
+	//
+	//const static FString BeginMeshSelectionToolIdentifier;
+	//TSharedPtr<FUICommandInfo> BeginMeshSelectionTool;
 };
 
+//@todo(brice) Merge this into the above class
 class DATAFLOWEDITOR_API FDataflowEditorCommands
 {
 public:

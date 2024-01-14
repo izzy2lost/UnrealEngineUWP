@@ -10,9 +10,11 @@
 #include "Dataflow/DataflowPreviewScene.h"
 #include "Dataflow/DataflowXml.h"
 #include "EditorModeManager.h"
+#include "EdModeInteractiveToolsContext.h"
 #include "HAL/PlatformApplicationMisc.h"
 #include "PreviewScene.h"
 #include "Selection.h"
+#include "InputBehaviorSet.h"
 
 FDataflowEditorViewportClient::FDataflowEditorViewportClient(FEditorModeTools* InModeTools,
                                                              FPreviewScene* InPreviewScene,
@@ -33,6 +35,15 @@ void FDataflowEditorViewportClient::SetDataflowEditorToolkit(TWeakPtr<FDataflowE
 	DataflowEditorToolkitPtr = InDataflowEditorToolkitPtr;
 }
 
+void FDataflowEditorViewportClient::SetToolCommandList(TWeakPtr<FUICommandList> InToolCommandList)
+{
+	ToolCommandList = InToolCommandList;
+}
+
+//const UInputBehaviorSet* FDataflowEditorViewportClient::GetInputBehaviors() const
+//{
+//	return BehaviorSet;
+//}
 
 Dataflow::FTimestamp LatestTimestamp(const UDataflow* Dataflow, const ::Dataflow::FContext* Context)
 {
@@ -71,6 +82,48 @@ void FDataflowEditorViewportClient::Tick(float DeltaSeconds)
 			}
 		}
 	}
+}
+
+void FDataflowEditorViewportClient::SetConstructionViewMode(Dataflow::EDataflowPatternVertexType InViewMode)
+{
+	// @todo(Dataflow) : Add support for Sim2D
+	//const bool bSwitching2D3D = (ConstructionViewMode == Dataflow::EDataflowPatternVertexType::Sim2D) != (InViewMode == Dataflow::EDataflowPatternVertexType::Sim2D);
+	//if (bSwitching2D3D)
+	//{
+	//	Swap(SavedInactiveViewTransform, ViewTransformPerspective);
+	//}
+
+	ConstructionViewMode = Dataflow::EDataflowPatternVertexType::Sim3D;
+
+	
+	//if (ConstructionViewMode == EDataflowPatternVertexType::Sim2D)
+	//{
+	//	for (UInputBehavior* const Behavior : BehaviorsFor2DMode)
+	//	{
+	//		BehaviorSet->Add(Behavior);
+	//	}
+	//
+	//	const double AbsZ = FMath::Abs(ViewTransformPerspective.GetLocation().Z);
+	//	constexpr double CameraFarPlaneWorldZ = -10.0;
+	//	constexpr double CameraNearPlaneProportionZ = 0.8;
+	//	OverrideFarClipPlane(static_cast<float>(AbsZ - CameraFarPlaneWorldZ));
+	//	OverrideNearClipPlane(static_cast<float>(AbsZ * (1.0 - CameraNearPlaneProportionZ)));
+	//}
+	//else
+	//{
+	OverrideFarClipPlane(0);
+	OverrideNearClipPlane(UE_KINDA_SMALL_NUMBER);
+	//}
+
+	//ModeTools->GetInteractiveToolsContext()->InputRouter->DeregisterSource(this);
+	//ModeTools->GetInteractiveToolsContext()->InputRouter->RegisterSource(this);
+
+}
+
+
+Dataflow::EDataflowPatternVertexType FDataflowEditorViewportClient::GetConstructionViewMode() const
+{
+	return Dataflow::EDataflowPatternVertexType::Sim3D;// ConstructionViewMode;
 }
 
 void FDataflowEditorViewportClient::AddReferencedObjects(FReferenceCollector& Collector)

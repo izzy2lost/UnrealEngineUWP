@@ -13,6 +13,8 @@ class UAnimSingleNodeInstance;
 class UMaterialInterface;
 class FAssetEditorModeManager;
 class ADataflowActor;
+class UMeshElementsVisualizer;
+class UInteractiveToolPropertySet;
 
 namespace UE
 {
@@ -35,13 +37,92 @@ public:
 	virtual ~FDataflowPreviewScene();
 
 
+	//
+	// Functional API
+	//
+public:
+	/** Update the state of the scene.*/
 	void Update();
 
+	/** Tick */
+	// @todo(brice) : depricate
+	virtual void Tick(float DeltaTime) override;
+
+	/** Cleam up the scene on exit. */
+	void Exit();
+
+
+	//
+	// SkeletalMesh Rendering
+	//
+public:
 	/** Update Skeletal Mesh Component */
 	void UpdateSkeletalMeshComponent();
 
-	/** FGCObject interface */
-	virtual void AddReferencedObjects(FReferenceCollector& Collector) override;
+	/** Modify/Get the skeletal mesh component */
+	USkeletalMeshComponent* GetSkeletalMeshComponent() { return SkeletalMeshComponent; }
+	const USkeletalMeshComponent* GetSkeletalMeshComponent() const { return SkeletalMeshComponent; }
+
+
+
+
+	//
+	// ManagedArrayCollectionRendering
+	//
+public:
+	void UpdateDynamicMeshComponents();
+
+	/** Modify/Get the skeletal mesh component */
+	TArray<TObjectPtr<UDynamicMeshComponent>> GetDynamicMeshComponents() { return DynamicMeshComponents; }
+	const TArray<TObjectPtr<UDynamicMeshComponent>> GetDynamicMeshComponents() const { return DynamicMeshComponents; }
+
+	/** Trigger a Update when the render geometry has changed.*/
+	//@todo(brice) : deprecate
+	void ReinitializeDynamicMeshComponents();
+
+private:
+	/** Reset all the dynamic mesh components */
+	void ResetDynamicMeshComponents();
+	
+	/** Add a dynamic mesh component to the scene */
+	TObjectPtr<UDynamicMeshComponent>& AddDynamicMeshComponent(UE::Geometry::FDynamicMesh3&& DynamicMesh, const TArray<UMaterialInterface*>& MaterialSet);
+
+
+
+
+	//
+	// Wireframe
+	//
+public:
+	void UpdateWireframeMeshElementsVisualizer();
+
+private:
+	void ResetWireframeMeshElementsVisualizer();
+
+	void AddWireframeMeshElementsVisualizer();
+
+
+
+
+
+	//
+	// Visibility
+	//
+public:
+	/** Is there ANYTHING to render */
+	bool HasRenderableGeometry();
+
+	/** Build the scene bounding box */
+	FBox GetBoundingBox() const;
+
+	/** Build the selected objects bounding box */
+	FBox SelectedComponentBounds() const;
+
+
+	//
+	// General Access
+	//
+public:
 
 	/** Modify/Get the data flow datas */
 	TObjectPtr<UDataflowEditorContent> GetDataflowEditorContent() { return EditorContent; }
@@ -50,26 +131,15 @@ public:
 	/** Modify/Get the data flow mode manager */
 	TSharedPtr<FAssetEditorModeManager>& GetDataflowModeManager() { return DataflowModeManager; }
 	const TSharedPtr<FAssetEditorModeManager>& GetDataflowModeManager() const { return DataflowModeManager; }
-	
+
 	/** Modify/Get the preview anim instance */
 	UAnimSingleNodeInstance* GetPreviewAnimInstance() { return PreviewAnimInstance; }
 	const UAnimSingleNodeInstance* const GetPreviewAnimInstance() const { return PreviewAnimInstance; }
 
-	/** Modify/Get the skeletal mesh component */
-	USkeletalMeshComponent* GetSkeletalMeshComponent() { return SkeletalMeshComponent; }
-	const USkeletalMeshComponent* GetSkeletalMeshComponent() const { return SkeletalMeshComponent; }
+	/** FGCObject interface */
+	virtual void AddReferencedObjects(FReferenceCollector& Collector) override;
 
-	/** Reset all the dynamic mesh components */
-	void ResetDynamicMeshComponents();
-	
-	/** Add a dynamic mesh component to the scene */
-	TObjectPtr<UDynamicMeshComponent>& AddDynamicMeshComponent(UE::Geometry::FDynamicMesh3&& DynamicMesh, const TArray<UMaterialInterface*>& MaterialSet);
 
-	TArray<TObjectPtr<UDynamicMeshComponent>> GetDynamicMeshComponents() {return DynamicMeshComponents;}
-
-	/** Build the scene bounding box */
-	FBox GetBoundingBox() const;
-	
 private:
 	
 	/** Check if a primitive component is selected */
@@ -95,5 +165,16 @@ private:
 
 	/** Mode Manager for selection */
 	TSharedPtr<FAssetEditorModeManager> DataflowModeManager;
+
+	// Property objects (visible or not) that get ticked. [ticked]
+	TArray<TObjectPtr<UInteractiveToolPropertySet>> PropertyObjectsToTick;
+
+	// Rest space wireframe. They have to get ticked to be able to respond to setting changes. [ticked]
+	TObjectPtr<UMeshElementsVisualizer> WireframeDraw = nullptr;
+
+	// Show the wireframe on render. 
+	bool bConstructionViewWireframe = true;
+
+	
 };
 
