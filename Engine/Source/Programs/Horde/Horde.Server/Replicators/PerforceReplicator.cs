@@ -328,7 +328,7 @@ namespace Horde.Server.Replicators
 		/// </summary>
 		public async Task<IReplicator> RunOnceAsync(IReplicator replicator, StreamConfig streamConfig, PerforceReplicationOptions replicatorOptions, CancellationToken cancellationToken)
 		{
-			RefName refName = new RefName(streamConfig.Id.ToString());
+			RefName refName = GetRefName(replicator.Id);
 			RefName incRefName = GetIncrementalRefName(replicator.Id);
 
 			using IStorageClient store = _storageService.CreateClient(Namespace.Perforce);
