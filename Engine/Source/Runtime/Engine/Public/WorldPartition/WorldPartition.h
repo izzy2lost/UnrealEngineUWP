@@ -123,7 +123,6 @@ class UWorldPartition final : public UObject, public FActorDescContainerInstance
 	friend class FUnrealEdMisc;
 	friend class UActorDescContainer;
 	friend class UActorDescContainerInstance;
-	friend class FContentBundleContainer;
 
 public:
 #if WITH_EDITOR
