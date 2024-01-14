@@ -17,8 +17,4 @@ class VIRTUALSCOUTINGEDITOR_API UVirtualScoutingBlueprintFunctionLibrary : publi
 	UFUNCTION(BlueprintCallable, Category="VirtualScouting")
 	static bool CheckIsWithEditor();
 
-	/** Helper function to delete actors. This skips reference checks.*/
-	UFUNCTION(BlueprintCallable, Category="VirtualScouting")
-	static bool DeleteActors(const TArray<AActor*>& InActorsToDelete);
-
 };
