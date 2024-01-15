@@ -29,8 +29,8 @@ public:
 
 	ENGINE_API virtual void Tick(FRHICommandList& RHICmdList) override;
 
-	void RegisterProxyWithCachedRayTracingState(FPrimitiveSceneProxy* Proxy, const UStaticMesh* StaticMesh);
-	void UnregisterProxyWithCachedRayTracingState(FPrimitiveSceneProxy* Proxy, const UStaticMesh* StaticMesh);
+	ENGINE_API void RegisterProxyWithCachedRayTracingState(FPrimitiveSceneProxy* Proxy, const UStaticMesh* StaticMesh);
+	ENGINE_API void UnregisterProxyWithCachedRayTracingState(FPrimitiveSceneProxy* Proxy, const UStaticMesh* StaticMesh);
 
 	void RequestUpdateCachedRenderState(const UStaticMesh* StaticMesh);
 

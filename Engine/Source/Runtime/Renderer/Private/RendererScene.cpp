@@ -38,6 +38,7 @@
 #include "Components/InstancedStaticMeshComponent.h"
 #include "ScenePrivateBase.h"
 #include "SceneCore.h"
+#include "Rendering/RayTracingGeometryManager.h"
 #include "Rendering/MotionVectorSimulation.h"
 #include "PrimitiveSceneInfo.h"
 #include "LightSceneInfo.h"
@@ -5771,6 +5772,9 @@ void FScene::UpdateAllPrimitiveSceneInfos(FRDGBuilder& GraphBuilder, EUpdateAllP
 #if RHI_RAYTRACING
 				if (SceneProxy->IsNaniteMesh() && SceneProxy->HasRayTracingRepresentation())
 				{
+					auto* NaniteProxy = static_cast<Nanite::FSceneProxy*>(SceneProxy);
+					((FRayTracingGeometryManager*)GRayTracingGeometryManager)->UnregisterProxyWithCachedRayTracingState(NaniteProxy, NaniteProxy->GetStaticMesh());
+
 					Nanite::GRayTracingManager.Remove(PrimitiveSceneInfo);
 				}
 #endif
@@ -6083,6 +6087,9 @@ void FScene::UpdateAllPrimitiveSceneInfos(FRDGBuilder& GraphBuilder, EUpdateAllP
 #if RHI_RAYTRACING
 				if (SceneProxy->IsNaniteMesh() && SceneProxy->HasRayTracingRepresentation())
 				{
+					auto* NaniteProxy = static_cast<Nanite::FSceneProxy*>(SceneProxy);
+					((FRayTracingGeometryManager*)GRayTracingGeometryManager)->RegisterProxyWithCachedRayTracingState(NaniteProxy, NaniteProxy->GetStaticMesh());
+
 					Nanite::GRayTracingManager.Add(PrimitiveSceneInfo);
 				}
 #endif
