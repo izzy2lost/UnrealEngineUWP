@@ -10,6 +10,9 @@
 
 namespace UE::GC
 {
+	/** Current EInternalObjectFlags value representing a reachable object */
+	extern COREUOBJECT_API EInternalObjectFlags GReachableObjectFlag;
+
 	/** Current EInternalObjectFlags value representing an unreachable object */
 	extern COREUOBJECT_API EInternalObjectFlags GUnreachableObjectFlag;
 

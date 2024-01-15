@@ -384,14 +384,14 @@ void VerifyClustersAssumptions()
 	UE_CLOG(NumErrors.GetValue() > 0, LogGarbage, Fatal, TEXT("Encountered %d object(s) breaking GC Clusters assumptions. Please check log for details."), NumErrors.GetValue());
 }
 
-void VerifyObjectFlagMirroring()
+void VerifyObjectFlags()
 {
 	int32 MaxNumberOfObjects = GUObjectArray.GetObjectArrayNum();
 	int32 NumThreads = FMath::Max(1, FTaskGraphInterface::Get().GetNumWorkerThreads());
 	int32 NumberOfObjectsPerThread = (MaxNumberOfObjects / NumThreads) + 1;
 	std::atomic<uint32> NumErrors(0);
 
-	ParallelFor( TEXT("GC.VerifyFlagMirroring"),NumThreads,1, [&NumErrors, NumberOfObjectsPerThread, NumThreads, MaxNumberOfObjects](int32 ThreadIndex)
+	ParallelFor( TEXT("GC.VerifyObjectFlags"),NumThreads,1, [&NumErrors, NumberOfObjectsPerThread, NumThreads, MaxNumberOfObjects](int32 ThreadIndex)
 	{
 		int32 FirstObjectIndex = ThreadIndex * NumberOfObjectsPerThread;
 		int32 NumObjects = (ThreadIndex < (NumThreads - 1)) ? NumberOfObjectsPerThread : (MaxNumberOfObjects - (NumThreads - 1) * NumberOfObjectsPerThread);
@@ -401,22 +401,42 @@ void VerifyObjectFlagMirroring()
 			FUObjectItem& ObjectItem = GUObjectArray.GetObjectItemArrayUnsafe()[FirstObjectIndex + ObjectIndex];
 			if (ObjectItem.Object)
 			{
-				UObjectBaseUtility* Object = (UObjectBaseUtility*)ObjectItem.Object;
+				UObject* Object = (UObject*)ObjectItem.Object;
 				bool bHasObjectFlag = Object->HasAnyFlags(RF_MirroredGarbage);
 				bool bHasInternalFlag = ObjectItem.HasAnyFlags(EInternalObjectFlags::Garbage);
 				if (bHasObjectFlag != bHasInternalFlag)
 				{
-					UE_LOG(LogGarbage, Warning, TEXT("RF_Garbage (%d) and EInternalObjectFlags::Garbage (%d) flag mismatch on %s"),
+					UE_LOG(LogGarbage, Warning, TEXT("RF_Garbage (%d) and EInternalObjectFlags::Garbage (%d) flag mismatch on %s%s"),
 						(int32)bHasObjectFlag,
 						(int32)bHasInternalFlag,
+						*FReferenceChainSearch::GetObjectFlags(FGCObjectInfo(Object)),
 						*Object->GetFullName());
 
 					++NumErrors;
 				}
-		}
-	}});
 
-	UE_CLOG(NumErrors > 0, LogGarbage, Fatal, TEXT("Encountered %d object(s) breaking Object and Internal flag mirroring assumptions. Please check log for details."), (uint32)NumErrors);
+				if (!ObjectItem.HasAnyFlags(UE::GC::GReachableObjectFlag) && !GUObjectArray.IsDisregardForGC(Object))
+				{
+					UE_LOG(LogGarbage, Warning, TEXT("Object %s%s is NOT marked as Reachable at the beginning of GC"),
+						*FReferenceChainSearch::GetObjectFlags(FGCObjectInfo(Object)),
+						*Object->GetFullName());
+
+					++NumErrors;
+				}
+
+				if (ObjectItem.HasAnyFlags(UE::GC::GUnreachableObjectFlag| UE::GC::GMaybeUnreachableObjectFlag))
+				{
+					UE_LOG(LogGarbage, Warning, TEXT("Object %s%s is marked with at least one of the unreachable flags at the beginning of GC"),
+						*FReferenceChainSearch::GetObjectFlags(FGCObjectInfo(Object)),
+						*Object->GetFullName());
+
+					++NumErrors;
+				}
+			}
+		}
+	});
+
+	UE_CLOG(NumErrors > 0, LogGarbage, Fatal, TEXT("Encountered %d object(s) breaking Object and Internal flag assumptions. Please check log for details."), (uint32)NumErrors);
 }
 
 /**
@@ -476,7 +496,8 @@ public:
 					ReferencingObjectName = GetFullNameSafe(ReferencingObject);
 				}
 
-				UE_LOG(LogGarbage, Warning, TEXT("Unreachable object %s is being referenced by reachable object %s through %s"),
+				UE_LOG(LogGarbage, Warning, TEXT("Object %s%s is being referenced by reachable object %s through %s"),
+					*FReferenceChainSearch::GetObjectFlags(FGCObjectInfo(Object)),
 					*Object->GetFullName(),
 					*ReferencingObjectName,
 					*DebugInfo);
@@ -487,39 +508,90 @@ public:
 	}
 };
 
-void VerifyNoUnreachableObjects()
+void VerifyNoUnreachableObjects(int32 NumUnreachable)
 {
 	const double StartTime = FPlatformTime::Seconds();
 	const int32 MaxNumberOfReachableObjects = GUObjectArray.GetObjectArrayNum();
 	const int32 NumThreads = GetNumCollectReferenceWorkers();
 	const int32 NumberOfObjectsPerThread = (MaxNumberOfReachableObjects / NumThreads) + 1;
 	std::atomic<uint32> NumErrors(0);
+	std::atomic<int32> VerifiedNumUnreachable(0);
 
-	ParallelFor(TEXT("GC.VerifyNoUnreachableObjects"), NumThreads, 1, [&NumErrors, NumberOfObjectsPerThread, NumThreads, MaxNumberOfReachableObjects](int32 ThreadIndex)
+	ParallelFor(TEXT("GC.VerifyNoUnreachableObjects"), NumThreads, 1, [&NumErrors, &VerifiedNumUnreachable, NumberOfObjectsPerThread, NumThreads, MaxNumberOfReachableObjects, NumUnreachable](int32 ThreadIndex)
 	{
 		int32 FirstObjectIndex = ThreadIndex * NumberOfObjectsPerThread;
 		int32 NumObjects = (ThreadIndex < (NumThreads - 1)) ? NumberOfObjectsPerThread : (MaxNumberOfReachableObjects - (NumThreads - 1)*NumberOfObjectsPerThread);
 		TArray<UObject*> ObjectsToSerialize;
 		ObjectsToSerialize.Reserve(NumberOfObjectsPerThread);		
 
+		int32 ThisThreadUnrachableObjectsNum = 0;
+
 		for (int32 ObjectIndex = 0; ObjectIndex < NumObjects && (FirstObjectIndex + ObjectIndex) < GUObjectArray.GetObjectArrayNum(); ++ObjectIndex)
 		{
 			FUObjectItem& ObjectItem = GUObjectArray.GetObjectItemArrayUnsafe()[FirstObjectIndex + ObjectIndex];
-			if (ObjectItem.Object && !ObjectItem.HasAnyFlags(UE::GC::GMaybeUnreachableObjectFlag | UE::GC::GUnreachableObjectFlag))
+			if (ObjectItem.Object)
 			{
-				ObjectsToSerialize.Add(static_cast<UObject*>(ObjectItem.Object));
+				UObject* Object = static_cast<UObject*>(ObjectItem.Object);
+				if (!ObjectItem.HasAnyFlags(UE::GC::GUnreachableObjectFlag))
+				{
+					if (ObjectItem.HasAnyFlags(UE::GC::GMaybeUnreachableObjectFlag))
+					{
+						UE_LOG(LogGarbage, Warning, TEXT("Object %s%s is still marked as MaybeUnreachable after Reachability Analysis is complete."), 
+							*FReferenceChainSearch::GetObjectFlags(FGCObjectInfo(Object)),
+							*Object->GetFullName());
+						NumErrors++;
+					}
+					if (!ObjectItem.HasAnyFlags(UE::GC::GReachableObjectFlag) && !GUObjectArray.IsDisregardForGC(Object))
+					{
+						UE_LOG(LogGarbage, Warning, TEXT("Object %s%s is NOT marked as Unreachable and NOT marked as Reachable."),
+							*FReferenceChainSearch::GetObjectFlags(FGCObjectInfo(Object)),
+							*Object->GetFullName());
+						NumErrors++;
+					}					
+					ObjectsToSerialize.Add(Object);
+				}
+				else
+				{
+					ThisThreadUnrachableObjectsNum++;
+
+					if (ObjectItem.HasAnyFlags(UE::GC::GMaybeUnreachableObjectFlag))
+					{
+						UE_LOG(LogGarbage, Warning, TEXT("Object %s%s is still marked as MaybeUnreachable after Reachability Analysis is complete."),
+							*FReferenceChainSearch::GetObjectFlags(FGCObjectInfo(Object)),
+							*Object->GetFullName());
+						NumErrors++;
+					}
+					if (ObjectItem.HasAnyFlags(UE::GC::GReachableObjectFlag))
+					{
+						UE_LOG(LogGarbage, Warning, TEXT("Object %s%s is still marked as Reachable."),
+							*FReferenceChainSearch::GetObjectFlags(FGCObjectInfo(Object)),
+							*Object->GetFullName());
+						NumErrors++;
+					}
+				}
 			}
 		}
 
-		FUnreachableReferenceProcessor Processor;
-		UE::GC::FWorkerContext Context;
-		Context.SetInitialObjectsUnpadded(ObjectsToSerialize);
-		CollectReferences(Processor, Context);
-		NumErrors.fetch_add(Processor.GetErrorCount(), std::memory_order_acq_rel);
+		if (NumUnreachable > 0)
+		{
+			// No need to scan for unreachable obejcts if there's no unreachable objects. We only care about flag checks above in this case
+			FUnreachableReferenceProcessor Processor;
+			UE::GC::FWorkerContext Context;
+			Context.SetInitialObjectsUnpadded(ObjectsToSerialize);
+			CollectReferences(Processor, Context);
+			NumErrors.fetch_add(Processor.GetErrorCount(), std::memory_order_acq_rel);
+		}
+
+		VerifiedNumUnreachable.fetch_add(ThisThreadUnrachableObjectsNum, std::memory_order_acq_rel);
 	});
 
+	if (VerifiedNumUnreachable.load() != NumUnreachable)
+	{
+		NumErrors++;
+		UE_LOG(LogGarbage, Warning, TEXT("The actual number of objects with the Unreachable flag (%d) does not match the number of gathered unreachable objects (%d)."), VerifiedNumUnreachable.load(), NumUnreachable);
+	}
 
-	UE_CLOG(NumErrors > 0, LogGarbage, Fatal, TEXT("Encountered %d unreachable object(s) that are still reachable."), NumErrors.load());
+	UE_CLOG(NumErrors > 0, LogGarbage, Fatal, TEXT("Detected %d case(s) of breaking reachability assumptions."), NumErrors.load());
 
 	UE_LOG(LogGarbage, Log, TEXT("%f ms for VerifyNoUnreachableObjects"), (FPlatformTime::Seconds() - StartTime) * 1000);
 }

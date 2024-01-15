@@ -77,7 +77,7 @@ namespace UE::ReferenceChainSearch
 		bool IsRoot(FVertex Vertex, EReferenceChainSearchMode SearchMode) const
 		{
 			const UObject* Object = VertexToObject(Vertex);
-			return Object->HasAnyInternalFlags(EInternalObjectFlags_GarbageCollectionKeepFlags | EInternalObjectFlags::RootSet)
+			return Object->HasAnyInternalFlags(EInternalObjectFlags_RootFlags)
 				|| (GARBAGE_COLLECTION_KEEPFLAGS != RF_NoFlags && Object->HasAnyFlags(GARBAGE_COLLECTION_KEEPFLAGS)
 					&& !(SearchMode & EReferenceChainSearchMode::FullChain));
 		}
@@ -187,7 +187,7 @@ namespace UE::ReferenceChainSearch
 		bool IsRoot(FVertex Vertex, EReferenceChainSearchMode SearchMode) const
 		{
 			ObjectType Object = VertexToObject(Vertex);
-			return Object->HasAnyInternalFlags(EInternalObjectFlags_GarbageCollectionKeepFlags | EInternalObjectFlags::RootSet)
+			return Object->HasAnyInternalFlags(EInternalObjectFlags_RootFlags)
 				|| (GARBAGE_COLLECTION_KEEPFLAGS != RF_NoFlags && Object->HasAnyFlags(GARBAGE_COLLECTION_KEEPFLAGS)
 					&& !(SearchMode & EReferenceChainSearchMode::FullChain));
 		}
@@ -1263,61 +1263,79 @@ namespace UE::ReferenceChainSearch
 	}
 } // namespace UE::ReferenceChainSearch
 
-FString FReferenceChainSearch::GetObjectFlags(FGCObjectInfo* InObject)
+FString FReferenceChainSearch::GetObjectFlags(const FGCObjectInfo& InObject)
 {
 	FString Flags;
-	if (InObject->IsRooted())
+
+	if (!InObject.IsDisregardForGC())
+	{
+		if (!InObject.HasAnyInternalFlags(UE::GC::GReachableObjectFlag | UE::GC::GMaybeUnreachableObjectFlag | UE::GC::GUnreachableObjectFlag))
+		{
+			Flags += TEXT("(Error: No reachability flag) ");
+		}
+	}
+	else if (InObject.HasAnyInternalFlags(UE::GC::GReachableObjectFlag))
+	{
+		Flags += TEXT("(Error: Reachable but NeverGCed) ");
+	}
+
+	if (InObject.HasAnyInternalFlags(UE::GC::GMaybeUnreachableObjectFlag))
+	{
+		Flags += FString::Printf(TEXT("(MaybeUnreachable<%d>) "), (int32)UE::GC::GMaybeUnreachableObjectFlag);
+	}
+
+	if (InObject.HasAnyInternalFlags(UE::GC::GUnreachableObjectFlag))
+	{
+		Flags += FString::Printf(TEXT("(Unreachable<%d>) "), (int32)UE::GC::GUnreachableObjectFlag);
+	}
+
+	if (InObject.IsRooted())
 	{
 		Flags += TEXT("(root) ");
 	}
 
 	CA_SUPPRESS(6011)
-	if (InObject->IsNative())
+	if (InObject.IsNative())
 	{
 		Flags += TEXT("(native) ");
 	}
 
-	if (InObject->HasAnyInternalFlags(EInternalObjectFlags::Garbage))
+	if (InObject.HasAnyInternalFlags(EInternalObjectFlags::Garbage))
 	{
 		Flags += TEXT("(Garbage) ");
 	}
 
-	if (InObject->HasAnyFlags(RF_Standalone))
+	if (InObject.HasAnyFlags(RF_Standalone))
 	{
 		Flags += TEXT("(standalone) ");
 	}
 
-	if (InObject->HasAnyInternalFlags(EInternalObjectFlags::Async))
+	if (InObject.HasAnyInternalFlags(EInternalObjectFlags::Async))
 	{
 		Flags += TEXT("(async) ");
 	}
 
-	if (InObject->HasAnyInternalFlags(EInternalObjectFlags::AsyncLoading))
+	if (InObject.HasAnyInternalFlags(EInternalObjectFlags::AsyncLoading))
 	{
 		Flags += TEXT("(asyncloading) ");
 	}
 
-	if (InObject->HasAnyInternalFlags(EInternalObjectFlags::LoaderImport))
+	if (InObject.HasAnyInternalFlags(EInternalObjectFlags::LoaderImport))
 	{
 		Flags += TEXT("(loaderimport) ");
 	}
 
-	if (InObject->IsDisregardForGC())
+	if (InObject.IsDisregardForGC())
 	{
 		Flags += TEXT("(NeverGCed) ");
 	}
 
-	if (InObject->HasAnyInternalFlags(EInternalObjectFlags::ClusterRoot))
+	if (InObject.HasAnyInternalFlags(EInternalObjectFlags::ClusterRoot))
 	{
 		Flags += TEXT("(ClusterRoot) ");
 	}
 
-	if (InObject->HasAnyInternalFlags(UE::GC::GMaybeUnreachableObjectFlag))
-	{
-		Flags += TEXT("(MaybeUnreachable) ");
-	}
-
-	if (InObject->GetOwnerIndex() > 0)
+	if (InObject.GetOwnerIndex() > 0)
 	{
 		Flags += TEXT("(Clustered) ");
 	}
@@ -1385,7 +1403,7 @@ void FReferenceChainSearch::DumpChain(FReferenceChainSearch::FReferenceChain* Ch
 
 			Out.Logf(ELogVerbosity::Log, TEXT("%s%s %s"),
 				FCString::Spc(Params.Indent),
-				*GetObjectFlags(ReferencerObject),
+				*GetObjectFlags(*ReferencerObject),
 				*ReferencerObject->GetFullName());
 
 			bPostCallbackContinue = ReferenceCallback(Params);
@@ -1448,7 +1466,7 @@ void FReferenceChainSearch::DumpChain(FReferenceChainSearch::FReferenceChain* Ch
 				Out.Logf(ELogVerbosity::Log, TEXT("%s-> %s = %s %s"),
 					FCString::Spc(Params.Indent),
 					*ReferencingPropertyName,
-					*GetObjectFlags(Object),
+					*GetObjectFlags(*Object),
 					*Object->GetFullName());
 			}
 			else if (ReferenceInfo && ReferenceInfo->Type == EReferenceType::AddReferencedObjects)
@@ -1475,7 +1493,7 @@ void FReferenceChainSearch::DumpChain(FReferenceChainSearch::FReferenceChain* Ch
 				Out.Logf(ELogVerbosity::Log, TEXT("%s-> %s::AddReferencedObjects(%s %s)"),
 					FCString::Spc(Params.Indent),
 					*UObjectOrGCObjectName,
-					*GetObjectFlags(Object),
+					*GetObjectFlags(*Object),
 					*Object->GetFullName());
 
 				if (ReferenceInfo->StackFrames.Num())
@@ -1492,7 +1510,7 @@ void FReferenceChainSearch::DumpChain(FReferenceChainSearch::FReferenceChain* Ch
 				Out.Logf(ELogVerbosity::Log, TEXT("%s-> %s = %s %s"),
 					FCString::Spc(Params.Indent),
 					TEXT("Outer Chain"),
-					*GetObjectFlags(Object),
+					*GetObjectFlags(*Object),
 					*Object->GetFullName());
 			}
 			else
@@ -1500,7 +1518,7 @@ void FReferenceChainSearch::DumpChain(FReferenceChainSearch::FReferenceChain* Ch
 				Out.Logf(ELogVerbosity::Log, TEXT("%s-> %s = %s %s"),
 					FCString::Spc(Params.Indent),
 					TEXT("UNKNOWN"),
-					*GetObjectFlags(Object),
+					*GetObjectFlags(*Object),
 					*Object->GetFullName());
 			}
 
@@ -1685,31 +1703,31 @@ int32 FReferenceChainSearch::PrintResults(TFunctionRef<bool(FCallbackParams& Par
 
 	if (NumPrintedChains == 0)
 	{
-		auto LogUnreachableObject = [this](FGCObjectInfo* ObjInfo) {
-			if (ObjInfo->HasAnyInternalFlags(EInternalObjectFlags_GarbageCollectionKeepFlags))
+		auto LogUnreachableObject = [this](const FGCObjectInfo& ObjInfo) {
+			if (ObjInfo.HasAnyInternalFlags(EInternalObjectFlags_RootFlags))
 			{
-				UE_LOG(LogReferenceChain, Log, TEXT("%s%s is not currently reachable but it does have some of EInternalObjectFlags_GarbageCollectionKeepFlags set."), *GetObjectFlags(ObjInfo), *ObjInfo->GetFullName());
+				UE_LOG(LogReferenceChain, Log, TEXT("%s%s is not currently reachable but it does have some of EInternalObjectFlags_RootFlags set."), *GetObjectFlags(ObjInfo), *ObjInfo.GetFullName());
 			}
-			else if (ObjInfo->HasAnyFlags(GARBAGE_COLLECTION_KEEPFLAGS))
+			else if (ObjInfo.HasAnyFlags(GARBAGE_COLLECTION_KEEPFLAGS))
 			{
-				UE_LOG(LogReferenceChain, Log, TEXT("%s%s is not currently reachable but it does have some of GARBAGE_COLLECTION_KEEPFLAGS set."), *GetObjectFlags(ObjInfo), *ObjInfo->GetFullName());
+				UE_LOG(LogReferenceChain, Log, TEXT("%s%s is not currently reachable but it does have some of GARBAGE_COLLECTION_KEEPFLAGS set."), *GetObjectFlags(ObjInfo), *ObjInfo.GetFullName());
 			}
 			else
 			{
-				UE_LOG(LogReferenceChain, Log, TEXT("%s%s is not currently reachable. Try using GC history to debug transient leaks with 'gc.historysize 1'"), *GetObjectFlags(ObjInfo), *ObjInfo->GetFullName());
+				UE_LOG(LogReferenceChain, Log, TEXT("%s%s is not currently reachable. Try using GC history to debug transient leaks with 'gc.historysize 1'"), *GetObjectFlags(ObjInfo), *ObjInfo.GetFullName());
 			}
 		};
 		if (TargetObject)
 		{
 			FGCObjectInfo* ObjInfo = FGCObjectInfo::FindOrAddInfoHelper(TargetObject, const_cast<TMap<const UObject*, FGCObjectInfo*>&>(ObjectToInfoMap));
 			check(ObjInfo);
-			LogUnreachableObject(ObjInfo);
+			LogUnreachableObject(*ObjInfo);
 		}
 		else
 		{
 			for (FGCObjectInfo* ObjInfo : ObjectInfosToFindReferencesTo)
 			{
-				LogUnreachableObject(ObjInfo);
+				LogUnreachableObject(*ObjInfo);
 			}
 		}
 	}
@@ -1749,7 +1767,7 @@ FString FReferenceChainSearch::GetRootPath(TFunctionRef<bool(FCallbackParams& Pa
 		{
 			FGCObjectInfo ObjectInfo(TargetObject);
 			return FString::Printf(TEXT("%s%s is not currently reachable."),
-				*GetObjectFlags(&ObjectInfo),
+				*GetObjectFlags(ObjectInfo),
 				*ObjectInfo.GetFullName()
 			);
 		}
@@ -1784,7 +1802,7 @@ void FReferenceChainSearch::Cleanup()
 
 static FORCEINLINE bool HasGarbageCollectionKeepFlags(FGCObjectInfo* ObjectInfo)
 {
-	return ObjectInfo && (ObjectInfo->HasAnyFlags(GARBAGE_COLLECTION_KEEPFLAGS) || ObjectInfo->HasAnyInternalFlags(EInternalObjectFlags_GarbageCollectionKeepFlags | EInternalObjectFlags::RootSet));
+	return ObjectInfo && (ObjectInfo->HasAnyFlags(GARBAGE_COLLECTION_KEEPFLAGS) || ObjectInfo->HasAnyInternalFlags(EInternalObjectFlags_RootFlags));
 }
 
 static bool PrintStaleReferenceChainsAndFindReferencingObjects(UObject* ObjectToFindReferencesTo, FReferenceChainSearch& RefChainSearch, FGCObjectInfo*& OutGarbageObject, FGCObjectInfo*& OutReferencingObject, ELogVerbosity::Type Verbosity)

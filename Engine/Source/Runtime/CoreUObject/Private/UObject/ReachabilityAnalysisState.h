@@ -165,13 +165,38 @@ struct TGatherIterator
 	PayloadType Payload;
 };
 
+template <typename PayloadType>
+struct TDefaultPayloadOps
+{
+	inline static int32 Num(const PayloadType& InPayload)
+	{
+		return InPayload.Num();
+	}
+
+	inline static bool Reserve(const TArray<TGatherIterator<PayloadType>, TInlineAllocator<32>>& ThreadIterators, PayloadType& OutPayload)
+	{
+		int32 SizeToReserve = 0;
+		for (const TGatherIterator<PayloadType>& It : ThreadIterators)
+		{
+			SizeToReserve += TDefaultPayloadOps<PayloadType>::Num(It.Payload);
+		}
+		OutPayload.Reserve(TDefaultPayloadOps<PayloadType>::Num(OutPayload) + SizeToReserve);
+		return SizeToReserve > 0;
+	}
+
+	inline static void Append(const PayloadType& InSource, PayloadType& OutDest)
+	{
+		OutDest += InSource;
+	}
+};
+
 /** Helper class that holds the current state of Object Gathering phases */
-template <typename ObjectType>
+template <typename PayloadType, typename PayloadOps = TDefaultPayloadOps<PayloadType>>
 class TThreadedGather
 {
 public:
 
-	typedef TGatherIterator<TArray<ObjectType>> FIterator;
+	typedef TGatherIterator<PayloadType> FIterator;
 	typedef TArray<FIterator, TInlineAllocator<32>> FThreadIterators;
 
 	FORCEINLINE FThreadIterators& GetThreadIterators()
@@ -212,22 +237,17 @@ public:
 		}
 	}
 
-	FORCENOINLINE void Finish(TArray<ObjectType>& OutGatheredObjects)
+	FORCENOINLINE void Finish(PayloadType& OutGatheredObjects)
 	{
-		const int32 NumGatheredObjects = NumGathered();
-		if (NumGatheredObjects)
+		if (ThreadIterators.Num() == 1 && PayloadOps::Num(OutGatheredObjects) == 0)
 		{
-			OutGatheredObjects.Reserve(NumGatheredObjects);
-			if (ThreadIterators.Num() == 1)
+			OutGatheredObjects = MoveTemp(ThreadIterators[0].Payload);
+		}
+		else if (PayloadOps::Reserve(ThreadIterators, OutGatheredObjects))
+		{
+			for (FIterator& Iterator : ThreadIterators)
 			{
-				OutGatheredObjects = MoveTemp(ThreadIterators[0].Payload);
-			}
-			else
-			{
-				for (FIterator& Iterator : ThreadIterators)
-				{
-					OutGatheredObjects += Iterator.Payload;
-				}
+				PayloadOps::Append(Iterator.Payload, OutGatheredObjects);
 			}
 		}
 		ThreadIterators.Reset();
@@ -254,7 +274,7 @@ public:
 		int32 NumGathered = 0;
 		for (const FIterator& ThreadState : ThreadIterators)
 		{
-			NumGathered += ThreadState.Payload.Num();
+			NumGathered += PayloadOps::Num(ThreadState.Payload);
 		}
 		return NumGathered;
 	}

@@ -193,8 +193,8 @@ void FUObjectClusterContainer::DissolveClusterAndMarkObjectsAsUnreachable(FUObje
 	{
 		FUObjectItem* ClusterObjectItem = GUObjectArray.IndexToObjectUnsafeForGC(ClusterObjectIndex);
 		ClusterObjectItem->SetOwnerIndex(0);
-			ClusterObjectItem->SetMaybeUnreachable();
-		}
+		ClusterObjectItem->SetMaybeUnreachable();
+	}
 
 #if !UE_GCCLUSTER_VERBOSE_LOGGING
 	UObject* ClusterRootObject = static_cast<UObject*>(RootObjectItem->Object);
@@ -209,7 +209,7 @@ void FUObjectClusterContainer::DissolveClusterAndMarkObjectsAsUnreachable(FUObje
 		FUObjectItem* ReferencedByClusterRootItem = GUObjectArray.IndexToObjectUnsafeForGC(ReferencedByClusterRootIndex);
 		if (ReferencedByClusterRootItem->HasAnyFlags(EInternalObjectFlags::ClusterRoot))
 		{
-				ReferencedByClusterRootItem->SetMaybeUnreachable();
+			ReferencedByClusterRootItem->SetMaybeUnreachable();
 			DissolveClusterAndMarkObjectsAsUnreachable(ReferencedByClusterRootItem);
 		}
 	}

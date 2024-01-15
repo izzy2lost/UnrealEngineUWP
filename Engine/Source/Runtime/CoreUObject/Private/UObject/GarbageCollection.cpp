@@ -544,13 +544,16 @@ namespace UE::GC
 	}
 
 	EGCOptions GetReferenceCollectorOptions(bool bPerformFullPurge);
-	EGatherOptions GetObjectGatherOptions(bool bPerformFullPurge);
+	EGatherOptions GetObjectGatherOptions();
+
+	/** EInternalObjectFlags value representing a reachable object */
+	EInternalObjectFlags GReachableObjectFlag = EInternalObjectFlags::ReachabilityFlag0;
 
 	/** EInternalObjectFlag value representing an unreachable object */
-	EInternalObjectFlags GUnreachableObjectFlag = EInternalObjectFlags::ReachabilityFlag0;
+	EInternalObjectFlags GUnreachableObjectFlag = EInternalObjectFlags::ReachabilityFlag1;
 
 	/** EInternalObjectFlag value representing a maybe unreachable object */
-	EInternalObjectFlags GMaybeUnreachableObjectFlag = EInternalObjectFlags::ReachabilityFlag1;
+	EInternalObjectFlags GMaybeUnreachableObjectFlag = EInternalObjectFlags::ReachabilityFlag2;
 
 	bool GIsIncrementalReachabilityPending = false;
 } // namespace UE::GC
@@ -562,11 +565,92 @@ namespace UE::GC::Private
 	/** List of FUObjectItems representing cluster root objects marker as reachable by GC barrier (see UObject::MarkAsReachable()) */
 	static TExpandingChunkedList<FUObjectItem*> GReachableClusters;
 
-	typedef TThreadedGather<FUObjectItem*> FGatherUnreachableObjectsState;
+	using FGatherUnreachableObjectsState = TThreadedGather<TArray<FUObjectItem*>>;
 	static FGatherUnreachableObjectsState GGatherUnreachableObjectsState;
+
+	static TSet<int32> GRoots;
+	static FCriticalSection GRootsCritical;
 }
 
 static bool GatherUnreachableObjects(UE::GC::EGatherOptions Options, double TimeLimit = 0.0);
+
+bool FUObjectItem::SetRootFlags(EInternalObjectFlags FlagsToSet)
+{
+	using namespace UE::GC;
+	using namespace UE::GC::Private;
+	check(!GIsGarbageCollecting);
+	constexpr int32 RootFlags = (int32)EInternalObjectFlags_RootFlags;
+	bool bIChangedIt = false;
+	{
+		FScopeLock RootsLock(&GRootsCritical);
+		const int32 OldFlags = GetFlagsInternal();
+		if ((OldFlags & RootFlags) == 0)
+		{
+			if (!(GUObjectArray.IsOpenForDisregardForGC() & GUObjectArray.DisregardForGCEnabled())) //-V792
+			{
+				GRoots.Add(GUObjectArray.ObjectToIndex(Object));
+			}
+		}
+		bIChangedIt = ThisThreadAtomicallySetFlag_ForGC(FlagsToSet);
+	}
+	if (bIChangedIt & GIsIncrementalReachabilityPending) //-V792
+	{
+		// Setting any of the root flags on an object during incremental reachability requires a GC barrier
+		// to make sure an object with root flags does not get Garbage Collected
+		checkf(Object, TEXT("Setting an internal object flag on a null object entry"));
+		Object->MarkAsReachable();
+	}
+	return bIChangedIt;
+}
+
+bool FUObjectItem::ClearRootFlags(EInternalObjectFlags FlagsToClear)
+{
+	using namespace UE::GC::Private;
+
+	constexpr int32 RootFlags = (int32)EInternalObjectFlags_RootFlags;
+	FScopeLock RootsLock(&GRootsCritical);
+	const int32 OldFlags = GetFlagsInternal();
+	if ((OldFlags & RootFlags) != 0 && ((OldFlags & ~(int32)FlagsToClear) & RootFlags) == 0)
+	{
+		GRoots.Remove(GUObjectArray.ObjectToIndex(Object));
+	}
+	return ThisThreadAtomicallyClearedFlag_ForGC((EInternalObjectFlags)FlagsToClear);
+
+}
+
+void OnDisregardForGCSetDisabled(int32 NumObjects)
+{
+	using namespace UE::GC;
+	using namespace UE::GC::Private;
+	using FMarkMarkDisregardState = TThreadedGather<TArray<UObject*>>;
+
+	FMarkMarkDisregardState MarkDisregardState;
+	
+	MarkDisregardState.Start(EGatherOptions::Parallel, NumObjects);
+	FMarkMarkDisregardState::FThreadIterators& ThreadIterators = MarkDisregardState.GetThreadIterators();
+
+	// Objects in the disregard for GC set do not have any of the reachability flags set (this way they never become (Maybe)Unreachable) nor are they added to the GRoots array 
+	FScopeLock RootsLock(&GRootsCritical);
+	ParallelFor(TEXT("GC.OnDisregardForGCSetDisabled"), MarkDisregardState.NumWorkerThreads(), 1, [&ThreadIterators](int32 ThreadIndex)
+	{
+		TRACE_CPUPROFILER_EVENT_SCOPE(OnDisregardForGCSetDisabledTask);
+		FMarkMarkDisregardState::FIterator& ThreadState = ThreadIterators[ThreadIndex];
+
+		while (ThreadState.Index <= ThreadState.LastIndex)
+		{
+			int32 ObjectIndex = ThreadState.Index++;
+			FUObjectItem* RootItem = &GUObjectArray.GetObjectItemArrayUnsafe()[ObjectIndex];	
+			if (RootItem->Object)
+			{
+				RootItem->ThisThreadAtomicallySetFlag_ForGC(GReachableObjectFlag);
+				if (RootItem->HasAnyFlags(EInternalObjectFlags_RootFlags))
+				{
+					GRoots.Add(ObjectIndex);
+				}
+			}
+		}
+	}, (MarkDisregardState.NumWorkerThreads() == 1) ? EParallelForFlags::ForceSingleThread : EParallelForFlags::None);
+}
 
 /**
  * Helper class for destroying UObjects on a worker thread
@@ -997,7 +1081,7 @@ static bool MarkClusterMutableObjectsAsReachable(FUObjectCluster& Cluster, Conta
 			{
 				if (ReferencedMutableObjectItem->IsMaybeUnreachable())
 				{
-					if (ReferencedMutableObjectItem->ThisThreadAtomicallyClearedMaybeUnreachable())
+					if (ReferencedMutableObjectItem->MarkAsReachableInterlocked_ForGC())
 					{
 						// Needs doing because this is either a normal unclustered object (clustered objects are never unreachable) or a cluster root
 						ObjectsToSerialize.Add(static_cast<UObject*>(ReferencedMutableObjectItem->Object));
@@ -1019,7 +1103,7 @@ static bool MarkClusterMutableObjectsAsReachable(FUObjectCluster& Cluster, Conta
 						if (ReferencedMutableObjectsClusterRootItem->IsMaybeUnreachable())
 						{
 							// The root is also maybe unreachable so process it and all the referenced clusters
-							if (ReferencedMutableObjectsClusterRootItem->ThisThreadAtomicallyClearedMaybeUnreachable())
+							if (ReferencedMutableObjectsClusterRootItem->MarkAsReachableInterlocked_ForGC())
 							{
 								MarkReferencedClustersAsReachable<Options>(ReferencedMutableObjectsClusterRootItem->GetClusterIndex(), ObjectsToSerialize);
 							}
@@ -1078,10 +1162,7 @@ static FORCENOINLINE void MarkReferencedClustersAsReachable(int32 ClusterIndex, 
 			FUObjectItem* ReferencedClusterRootObjectItem = GUObjectArray.IndexToObjectUnsafeForGC(ReferncedClusterIndex);
 			if (!ReferencedClusterRootObjectItem->HasAnyFlags(EInternalObjectFlags::Garbage))
 			{
-				if (ReferencedClusterRootObjectItem->IsMaybeUnreachable())
-				{
-					ReferencedClusterRootObjectItem->ClearMaybeUnreachable();
-				}
+				ReferencedClusterRootObjectItem->FastMarkAsReachableInterlocked_ForGC();
 			}
 			else
 			{
@@ -1625,6 +1706,7 @@ private:
 		// shares cacheline with the raw UObject*. Not adding an offset leads to a bit faster and more compact code.
 		static constexpr uint32 InternalIndexPrefetchOffset = 0;
 		static constexpr uint32 PrefetchAhead = ValidatedPrefetchAhead;
+		static constexpr ::size_t OffsetOfFlags = FUObjectItem::OffsetOfFlags();
 
 		uint32 ObjectIndices[ValidatedBatchSize];
 		if (Num > PrefetchAhead)
@@ -1664,19 +1746,19 @@ private:
 
 			for (uint32 Idx = 0; Idx < PrefetchAhead; ++Idx)
 			{
-				FPlatformMisc::Prefetch(Metadatas[Idx].ObjectItem, offsetof(FUObjectItem, Flags));
+				FPlatformMisc::Prefetch(Metadatas[Idx].ObjectItem, OffsetOfFlags);
 			}
 			for (uint32 Idx = 0; Idx < Num; ++Idx)
 			{
 				Metadatas[Idx].Flags = Metadatas[Idx].ObjectItem->GetFlags();
-				FPlatformMisc::Prefetch(Metadatas[Idx + PrefetchAhead].ObjectItem, offsetof(FUObjectItem, Flags));
+				FPlatformMisc::Prefetch(Metadatas[Idx + PrefetchAhead].ObjectItem, OffsetOfFlags);
 			}
 		}
 		else
 		{
 			for (uint32 Idx = 0; Idx < Num; ++Idx)
 			{
-				FPlatformMisc::Prefetch(Metadatas[Idx].ObjectItem, offsetof(FUObjectItem, Flags));
+				FPlatformMisc::Prefetch(Metadatas[Idx].ObjectItem, OffsetOfFlags);
 			}
 			for (uint32 Idx = 0; Idx < Num; ++Idx)
 			{
@@ -2818,19 +2900,6 @@ constexpr FORCEINLINE EKillable MayKill(EOrigin Origin, bool bAllowKill)
 	return (bAllowKill & (IsEliminatingGarbage(Options) || Origin == EOrigin::Blueprint)) ? EKillable::Yes : EKillable::No;
 }
 
-// Return whether flag was cleared. Only thread-safe for concurrent clear, not concurrent set+clear. Don't use during mark phase.
-FORCEINLINE static bool ClearMaybeUnreachableInterlocked(int32& Flags)
-{
-	const int32 FlagToClear = int32(UE::GC::GMaybeUnreachableObjectFlag);
-	if (FPlatformAtomics::AtomicRead_Relaxed(&Flags) & FlagToClear)
-	{
-		int32 Old = FPlatformAtomics::InterlockedAnd(&Flags, ~FlagToClear);
-		return Old & FlagToClear;
-	}
-
-	return false;
-}
-
 FReachabilityAnalysisState GReachabilityState;
 
 template <EGCOptions InOptions>
@@ -2931,7 +3000,7 @@ public:
 
 	FORCEINLINE static bool HandleValidReference(FWorkerContext& Context, FImmutableReference Reference, FReferenceMetadata Metadata)
 	{
-		if (ClearMaybeUnreachableInterlocked(Metadata.ObjectItem->Flags))
+		if (Metadata.ObjectItem->MarkAsReachableInterlocked_ForGC())
 		{
 			// Objects that are part of a GC cluster should never have the unreachable flag set!
 			checkSlow(Metadata.ObjectItem->GetOwnerIndex() <= 0);
@@ -2959,7 +3028,7 @@ public:
 
 				if (Metadata.ObjectItem->ThisThreadAtomicallySetFlag_ForGC(EInternalObjectFlags::ReachableInCluster))
 				{
-					if (ClearMaybeUnreachableInterlocked(RootObjectItem->Flags))
+					if (RootObjectItem->MarkAsReachableInterlocked_ForGC())
 					{
 						// Make sure all referenced clusters are marked as reachable too
 						MarkReferencedClustersAsReachableThunk<Options>(RootObjectItem->GetClusterIndex(), Context.ObjectsToSerialize);
@@ -3857,11 +3926,8 @@ namespace UE::GC
 
 class FRealtimeGC : public FGarbageCollectionTracer
 {
-	typedef void(FRealtimeGC::*MarkObjectsFn)(EGCOptions, EObjectFlags);
 	typedef void(FRealtimeGC::*ReachabilityAnalysisFn)(FWorkerContext&);
 
-	/** Pointers to functions used for Marking objects as unreachable */
-	MarkObjectsFn MarkObjectsFunctions[2];
 	/** Pointers to functions used for Reachability Analysis */
 	ReachabilityAnalysisFn ReachabilityAnalysisFunctions[8];
 
@@ -3937,20 +4003,10 @@ class FRealtimeGC : public FGarbageCollectionTracer
 			(!!(InOptions & EGCOptions::IncrementalReachability) << 2);
 	}
 
-	static FORCEINLINE int32 GetMarkFunctionIndex(EGCOptions InOptions)
-	{
-		int32 Index = !!(InOptions & EGCOptions::EliminateGarbage);
-		checkf(Index >= 0 && Index <= 1, TEXT("Invalid MarkObjectsAsUnreachable function index (%d)"), Index);
-		return Index;
-	}
-
 public:
 	/** Default constructor, initializing all members. */
 	FRealtimeGC()
 	{
-		MarkObjectsFunctions[GetMarkFunctionIndex(EGCOptions::None)] = &FRealtimeGC::MarkObjectsAsUnreachable<false>;
-		MarkObjectsFunctions[GetMarkFunctionIndex(EGCOptions::EliminateGarbage)] = &FRealtimeGC::MarkObjectsAsUnreachable<true>;
-
 		ReachabilityAnalysisFunctions[GetGCFunctionIndex(EGCOptions::None)] = &FRealtimeGC::PerformReachabilityAnalysisOnObjectsInternal<EGCOptions::None | EGCOptions::None>;
 		ReachabilityAnalysisFunctions[GetGCFunctionIndex(EGCOptions::Parallel | EGCOptions::None)] = &FRealtimeGC::PerformReachabilityAnalysisOnObjectsInternal<EGCOptions::Parallel | EGCOptions::None>;
 
@@ -3966,200 +4022,218 @@ public:
 		FGCObject::StaticInit();
 	}
 
-	/** 
-	 * Marks all objects that don't have KeepFlags and EInternalObjectFlags_GarbageCollectionKeepFlags as unreachable
-	 * This function is a template to speed up the case where we don't need to assemble the token stream (saves about 6ms on PS4)
-	 */
-	template <bool bWithGarbageElimination>
-	void MarkObjectsAsUnreachable(const EGCOptions Options, const EObjectFlags KeepFlags)
+	struct FMarkClustersArrays
 	{
-		TRACE_CPUPROFILER_EVENT_SCOPE(MarkObjectsAsUnreachable);
-		const int32 MaxNumberOfObjects = GUObjectArray.GetObjectArrayNum() - GUObjectArray.GetFirstGCIndex();
-		const int32 NumThreads = FMath::Max(1, FTaskGraphInterface::Get().GetNumWorkerThreads());
-		const int32 NumberOfObjectsPerThread = (MaxNumberOfObjects / NumThreads) + 1;		
+		TArray<FUObjectItem*> KeepClusters;
+		TArray<FUObjectItem*> ClustersToDissolve;
 
-		TLockFreePointerListFIFO<FUObjectItem, PLATFORM_CACHE_LINE_SIZE> ClustersToDissolveList;
-		TLockFreePointerListFIFO<FUObjectItem, PLATFORM_CACHE_LINE_SIZE> KeepClusterRefsList;
-
-		TArray<TArray<UObject*>, TInlineAllocator<32>> ObjectsToSerializeArrays;
-		ObjectsToSerializeArrays.SetNum(NumThreads);
-
-		// Iterate over all objects. Note that we iterate over the UObjectArray and usually check only internal flags which
-		// are part of the array so we don't suffer from cache misses as much as we would if we were to check ObjectFlags.
-		ParallelFor( TEXT("GC.MarkUnreachable"),NumThreads,1,
-			[&ObjectsToSerializeArrays, &ClustersToDissolveList, &KeepClusterRefsList,
-			 KeepFlags, NumberOfObjectsPerThread, NumThreads, MaxNumberOfObjects, bIsRerun = Stats.bFoundGarbageRef] (int32 ThreadIndex)
+		inline static bool Reserve(const TArray<TGatherIterator<FMarkClustersArrays>, TInlineAllocator<32>>& InGatherResults, FMarkClustersArrays& OutCombinedResults)
 		{
-			TRACE_CPUPROFILER_EVENT_SCOPE(MarkObjectsAsUnreachableTask);
-			constexpr EInternalObjectFlags FastKeepFlags = EInternalObjectFlags_GarbageCollectionKeepFlags;
-			int32 FirstObjectIndex = ThreadIndex * NumberOfObjectsPerThread + GUObjectArray.GetFirstGCIndex();
-			int32 NumObjects = (ThreadIndex < (NumThreads - 1)) ? NumberOfObjectsPerThread : (MaxNumberOfObjects - (NumThreads - 1) * NumberOfObjectsPerThread);
-			int32 LastObjectIndex = FMath::Min(GUObjectArray.GetObjectArrayNum() - 1, FirstObjectIndex + NumObjects - 1);
-			int32 ObjectCountDuringMarkPhase = 0;
-			TArray<UObject*>& LocalObjectsToSerialize = ObjectsToSerializeArrays[ThreadIndex];
-
-			for (int32 ObjectIndex = FirstObjectIndex; ObjectIndex <= LastObjectIndex; ++ObjectIndex)
+			int32 NumKeepClusters = 0;
+			int32 NumClustersToDissolve = 0;
+			for (const TGatherIterator<FMarkClustersArrays>& It : InGatherResults)
 			{
-				FUObjectItem* ObjectItem = &GUObjectArray.GetObjectItemArrayUnsafe()[ObjectIndex];
-				if (ObjectItem->Object)
+				NumKeepClusters += It.Payload.KeepClusters.Num();
+				NumClustersToDissolve += It.Payload.ClustersToDissolve.Num();
+			}
+			OutCombinedResults.KeepClusters.Reserve(OutCombinedResults.KeepClusters.Num() + NumKeepClusters);
+			OutCombinedResults.ClustersToDissolve.Reserve(OutCombinedResults.ClustersToDissolve.Num() + NumClustersToDissolve);
+			return (NumKeepClusters + NumClustersToDissolve) > 0;
+		}
+
+		inline static int32 Num(const FMarkClustersArrays& InArrays)
+		{
+			return InArrays.KeepClusters.Num() + InArrays.ClustersToDissolve.Num();
+		}
+
+		inline static void Append(const FMarkClustersArrays& InSource, FMarkClustersArrays& OutDest)
+		{
+			OutDest.KeepClusters += InSource.KeepClusters;
+			OutDest.ClustersToDissolve += InSource.ClustersToDissolve;
+		}
+	};
+	
+	FORCENOINLINE void MarkClusteredObjectsAsReachable(const EGatherOptions Options, TArray<UObject*>& OutRootObjects)
+	{
+		using namespace UE::GC;
+		using namespace UE::GC::Private;
+		using FMarkClustersState = TThreadedGather<FMarkClustersArrays, FMarkClustersArrays>;
+
+		std::atomic<int32> TotalClusteredObjects = 0;
+		FMarkClustersState GatherClustersState;
+		TArray<FUObjectCluster>& ClusterArray = GUObjectClusters.GetClustersUnsafe();
+
+		// StartGathering calculates the number of threads based on the number of objects but here the objects are actually clusters
+		// that contain many more objects than the number of clusters so we want to be able to process at least two clusters per thread	
+		const int32 NumThreads = !!(Options & EGatherOptions::Parallel) ? FMath::Min(GetNumCollectReferenceWorkers(), (ClusterArray.Num() + 1) / 2) : 1;
+		GatherClustersState.Start(Options, ClusterArray.Num(), /* FirstIndex = */ 0, NumThreads);
+		FMarkClustersState::FThreadIterators& ThreadIterators = GatherClustersState.GetThreadIterators();
+
+		ParallelFor(TEXT("GC.MarkClusteredObjectsAsReachable"), GatherClustersState.NumWorkerThreads(), 1, [&ThreadIterators, &ClusterArray, &TotalClusteredObjects](int32 ThreadIndex)
+		{
+			TRACE_CPUPROFILER_EVENT_SCOPE(MarkClusteredObjectsAsReachableTask);
+			FMarkClustersState::FIterator& ThreadState = ThreadIterators[ThreadIndex];
+			int32 ThisThreadClusteredObjects = 0;
+
+			while (ThreadState.Index <= ThreadState.LastIndex)
+			{
+				int32 ClusterIndex = ThreadState.Index++;
+				FUObjectCluster& Cluster = ClusterArray[ClusterIndex];
+				if (Cluster.RootIndex >= 0)
 				{
-					UObject* Object = (UObject*)ObjectItem->Object;
+					FUObjectItem* RootItem = &GUObjectArray.GetObjectItemArrayUnsafe()[Cluster.RootIndex];
+					if (!RootItem->IsGarbage())
+					{
+						bool bKeepCluster = RootItem->HasAnyFlags(EInternalObjectFlags_RootFlags);
+						if (bKeepCluster)
+						{
+							RootItem->FastMarkAsReachableInterlocked_ForGC();
+							ThreadState.Payload.KeepClusters.Add(RootItem);
+						}
 
-					// We can't collect garbage during an async load operation and by now all unreachable objects should've been purged.
-					checkf(	bIsRerun ||
-							!ObjectItem->HasAnyFlags(UE::GC::GUnreachableObjectFlag | EInternalObjectFlags::PendingConstruction),
-							TEXT("Object: '%s' with ObjectFlags=0x%08x and InternalObjectFlags=0x%08x. ")
-							TEXT("State: IsEngineExitRequested=%d, GIsCriticalError=%d, GExitPurge=%d, GObjPurgeIsRequired=%d, GObjIncrementalPurgeIsInProgress=%d, GObjFinishDestroyHasBeenRoutedToAllObjects=%d, GGCObjectsPendingDestructionCount=%d"),
-							*Object->GetFullName(),
-							Object->GetFlags(),
-							Object->GetInternalFlags(),
-							IsEngineExitRequested(),
-							GIsCriticalError,
-							GExitPurge,
-							GObjPurgeIsRequired,
-							GObjIncrementalPurgeIsInProgress,
-							GObjFinishDestroyHasBeenRoutedToAllObjects,
-							GGCObjectsPendingDestructionCount);
+						for (int32 ObjectIndex : Cluster.Objects)
+						{
+							FUObjectItem* ClusteredItem = &GUObjectArray.GetObjectItemArrayUnsafe()[ObjectIndex];
 
-					// Objects may still be marked as MaybeUnreachable if we forced a full purge in the middle of incremental GC
-					checkf(UE::GC::GIsIncrementalReachabilityPending || !ObjectItem->IsMaybeUnreachable() || bIsRerun, TEXT("%s"), *Object->GetFullName());
+							ClusteredItem->FastMarkAsReachableAndClearReachaleInClusterInterlocked_ForGC();
 
-					// Keep track of how many objects are around.
-					ObjectCountDuringMarkPhase++;
-					
-					ObjectItem->ClearFlags(EInternalObjectFlags::ReachableInCluster);
-					
-					// Special case handling for objects that are part of the root set.
-					if (ObjectItem->IsRootSet())
+							if (!bKeepCluster && ClusteredItem->HasAnyFlags(EInternalObjectFlags_RootFlags))
+							{
+								ThreadState.Payload.KeepClusters.Add(RootItem);
+								bKeepCluster = true;
+							}
+						}
+					}
+					else
+					{
+						ThreadState.Payload.ClustersToDissolve.Add(RootItem);
+					}
+				}
+			}
+			TotalClusteredObjects += ThisThreadClusteredObjects;
+		}, (GatherClustersState.NumWorkerThreads() == 1) ? EParallelForFlags::ForceSingleThread : EParallelForFlags::None);
+	
+		FMarkClustersArrays MarkClustersResults;
+		GatherClustersState.Finish(MarkClustersResults);
+
+		for (FUObjectItem* ObjectItem : MarkClustersResults.ClustersToDissolve)
+		{
+			// Check if the object is still a cluster root - it's possible one of the previous
+			// DissolveClusterAndMarkObjectsAsUnreachable calls already dissolved its cluster
+			if (ObjectItem->HasAnyFlags(EInternalObjectFlags::ClusterRoot))
+			{
+				GUObjectClusters.DissolveClusterAndMarkObjectsAsUnreachable(ObjectItem);
+				GUObjectClusters.SetClustersNeedDissolving();
+			}
+		}
+
+		for (FUObjectItem* ObjectItem : MarkClustersResults.KeepClusters)
+		{
+			checkSlow(ObjectItem->HasAnyFlags(EInternalObjectFlags::ClusterRoot));
+			// this thing is definitely not marked unreachable, so don't test it here
+			// Make sure all referenced clusters are marked as reachable too
+			MarkReferencedClustersAsReachable<EGCOptions::None>(ObjectItem->GetClusterIndex(), OutRootObjects);
+		}
+	}
+
+	FORCENOINLINE void MarkRootObjectsAsReachable(const EGatherOptions Options, const EObjectFlags KeepFlags, TArray<UObject*>& OutRootObjects)
+	{
+		using namespace UE::GC;
+		using namespace UE::GC::Private;		
+		using FMarkRootsState = TThreadedGather<TArray<UObject*>>;
+
+		FMarkRootsState MarkRootsState;		
+
+		{
+			TArray<int32> RootsArray(GRoots.Array());				
+			MarkRootsState.Start(Options, RootsArray.Num());
+			FMarkRootsState::FThreadIterators& ThreadIterators = MarkRootsState.GetThreadIterators();
+
+			ParallelFor(TEXT("GC.MarkRootObjectsAsReachable"), MarkRootsState.NumWorkerThreads(), 1, [&ThreadIterators, &RootsArray](int32 ThreadIndex)
+			{
+				TRACE_CPUPROFILER_EVENT_SCOPE(MarkClusteredObjectsAsReachableTask);
+				FMarkRootsState::FIterator& ThreadState = ThreadIterators[ThreadIndex];
+
+				while (ThreadState.Index <= ThreadState.LastIndex)
+				{
+					FUObjectItem* RootItem = &GUObjectArray.GetObjectItemArrayUnsafe()[RootsArray[ThreadState.Index++]];
+					UObject* Object = static_cast<UObject*>(RootItem->Object);
+
+					// IsValidLowLevel is extremely slow in this loop so only do it in debug
+					checkSlow(Object->IsValidLowLevel());					
+#if DO_GUARD_SLOW
+					// We cannot mark Root objects as Garbage.
+					checkCode(if (ObjectItem->HasAllFlags(EInternalObjectFlags::Garbage | EInternalObjectFlags::RootSet)) { UE_LOG(LogGarbage, Fatal, TEXT("Object %s is part of root set though has been marked as Garbage!"), *Object->GetFullName()); });
+#endif
+
+					RootItem->FastMarkAsReachableInterlocked_ForGC();
+					ThreadState.Payload.Add(Object);
+				}
+			}, (MarkRootsState.NumWorkerThreads() == 1) ? EParallelForFlags::ForceSingleThread : EParallelForFlags::None);			
+		}
+
+		using FMarkObjectsState = TThreadedGather<TArray<UObject*>>;
+		FMarkObjectsState MarkObjectsState;
+
+		// This is super slow as we need to look through all existing UObjects and access their memory to check EObjectFlags
+		if (KeepFlags != RF_NoFlags)
+		{
+			MarkObjectsState.Start(Options, GUObjectArray.GetObjectArrayNum(), GUObjectArray.GetFirstGCIndex());
+
+			FMarkObjectsState::FThreadIterators& ThreadIterators = MarkObjectsState.GetThreadIterators();
+			ParallelFor(TEXT("GC.SlowMarkObjectAsReachable"), MarkObjectsState.NumWorkerThreads(), 1, [&ThreadIterators, &KeepFlags](int32 ThreadIndex)
+			{
+				TRACE_CPUPROFILER_EVENT_SCOPE(MarkClusteredObjectsAsReachableTask);
+				FMarkObjectsState::FIterator& ThreadState = ThreadIterators[ThreadIndex];
+				const bool bWithGarbageElimination = UObject::IsGarbageEliminationEnabled();
+
+				while (ThreadState.Index <= ThreadState.LastIndex)
+				{
+					FUObjectItem* ObjectItem = &GUObjectArray.GetObjectItemArrayUnsafe()[ThreadState.Index++];
+					UObject* Object = static_cast<UObject*>(ObjectItem->Object);
+					if (Object &&
+						!ObjectItem->HasAnyFlags(EInternalObjectFlags_RootFlags) && // It may be counter intuitive to reject roots but these are tracked with GRoots and have already been marked and added
+						!(bWithGarbageElimination && ObjectItem->IsGarbage()) && Object->HasAnyFlags(KeepFlags)) // Garbage elimination works regardless of KeepFlags
 					{
 						// IsValidLowLevel is extremely slow in this loop so only do it in debug
 						checkSlow(Object->IsValidLowLevel());
-						// We cannot use RF_PendingKill on objects that are part of the root set.
-#if DO_GUARD_SLOW
-						checkCode(if (ObjectItem->IsGarbage()) { UE_LOG(LogGarbage, Fatal, TEXT("Object %s is part of root set though has been marked as Garbage!"), *Object->GetFullName()); });
-#endif
-						if (ObjectItem->HasAnyFlags(EInternalObjectFlags::ClusterRoot) || ObjectItem->GetOwnerIndex() > 0)
-						{
-							KeepClusterRefsList.Push(ObjectItem);
-						}
 
-						LocalObjectsToSerialize.Add(Object);
+						ObjectItem->FastMarkAsReachableInterlocked_ForGC();
+						ThreadState.Payload.Add(Object);
 					}
-					// Cluster objects 
-					else if (ObjectItem->GetOwnerIndex() > 0)
-					{
-						// treat cluster objects with FastKeepFlags the same way as if they are in the root set
-						if (ObjectItem->HasAnyFlags(FastKeepFlags))
-						{
-							KeepClusterRefsList.Push(ObjectItem);
-							LocalObjectsToSerialize.Add(Object);
-						}
-					}
-					// Regular objects or cluster root objects
-					else
-					{
-						bool bMarkAsUnreachable = true;
-						// Internal flags are super fast to check and is used by async loading and must have higher precedence than Garbage
-						if (ObjectItem->HasAnyFlags(FastKeepFlags))
-						{
-							bMarkAsUnreachable = false;
-						}
-						// If KeepFlags is non zero this is going to be very slow due to cache misses
-						else if (!(bWithGarbageElimination && ObjectItem->IsGarbage()) && KeepFlags != RF_NoFlags && Object->HasAnyFlags(KeepFlags))
-						{
-							bMarkAsUnreachable = false;
-						}
-						else if (ObjectItem->HasAllFlags(EInternalObjectFlags::Garbage | EInternalObjectFlags::ClusterRoot))
-						{
-							ClustersToDissolveList.Push(ObjectItem);
-						}
-
-						// Mark objects as unreachable unless they have any of the passed in KeepFlags set and it's not marked for elimination..
-						if (!bMarkAsUnreachable)
-						{
-							// IsValidLowLevel is extremely slow in this loop so only do it in debug
-							checkSlow(Object->IsValidLowLevel());
-							LocalObjectsToSerialize.Add(Object);
-
-							if (ObjectItem->HasAnyFlags(EInternalObjectFlags::ClusterRoot))
-							{
-								KeepClusterRefsList.Push(ObjectItem);
-							}
-						}
-						else
-						{
-							ObjectItem->SetMaybeUnreachable();
-						}
-					}					
 				}
-			}
-
-			GObjectCountDuringLastMarkPhase.Add(ObjectCountDuringMarkPhase);
-		}, !(Options & EGCOptions::Parallel) ? EParallelForFlags::ForceSingleThread : EParallelForFlags::None);
-		
-		// Collect all objects to serialize from all threads and put them into a single array
-		{
-			int32 NumTotal = 0;
-			for (TArray<UObject*>& Objects : ObjectsToSerializeArrays)
-			{
-				NumTotal += Objects.Num();
-			}
-			InitialObjects.Reserve(InitialObjects.Num() + NumTotal + UE::GC::ObjectLookahead);
-			for (TArray<UObject*>& Objects : ObjectsToSerializeArrays)
-			{
-				InitialObjects.Append(Objects);
-			}
-
-			ObjectsToSerializeArrays.Empty();
+			}, (MarkObjectsState.NumWorkerThreads() == 1) ? EParallelForFlags::ForceSingleThread : EParallelForFlags::None);
 		}
 
+		// Preallocate the resulting array taking both MarkRootsState and MarkObjectsState results into account to avoild reallocating OutRootObjects in each of the Finish() calls.
+		OutRootObjects.Reserve(OutRootObjects.Num() + MarkRootsState.NumGathered() + MarkObjectsState.NumGathered() + ObjectLookahead);
+		MarkRootsState.Finish(OutRootObjects);
+		MarkObjectsState.Finish(OutRootObjects);
+	}
+
+	/**
+	 * Marks all objects that don't have KeepFlags and EInternalObjectFlags_GarbageCollectionKeepFlags as MaybeUnreachable
+	 */
+	FORCENOINLINE void MarkObjectsAsUnreachable(const EObjectFlags KeepFlags)
+	{
+		using namespace UE::GC;
+
+		// Don't swap the flags if we're re-entering this function to track garbage references
+		if (const bool bInitialMark = !Stats.bFoundGarbageRef)
 		{
-			TArray<FUObjectItem*> ClustersToDissolve;
-			ClustersToDissolveList.PopAll(ClustersToDissolve);
-			for (FUObjectItem* ObjectItem : ClustersToDissolve)
-			{
-				// Check if the object is still a cluster root - it's possible one of the previous
-				// DissolveClusterAndMarkObjectsAsUnreachable calls already dissolved its cluster
-				if (ObjectItem->HasAnyFlags(EInternalObjectFlags::ClusterRoot))
-				{
-					GUObjectClusters.DissolveClusterAndMarkObjectsAsUnreachable(ObjectItem);
-					GUObjectClusters.SetClustersNeedDissolving();
-				}
-			}
-		
-			TArray<FUObjectItem*> KeepClusterRefs;
-			KeepClusterRefsList.PopAll(KeepClusterRefs);
-			for (FUObjectItem* ObjectItem : KeepClusterRefs)
-			{
-				if (ObjectItem->GetOwnerIndex() > 0)
-				{
-					checkSlow(!ObjectItem->HasAnyFlags(EInternalObjectFlags::ClusterRoot));
-					bool bNeedsDoing = !ObjectItem->HasAnyFlags(EInternalObjectFlags::ReachableInCluster);
-					if (bNeedsDoing)
-					{
-						ObjectItem->ThisThreadAtomicallySetFlag_ForGC(EInternalObjectFlags::ReachableInCluster);
-						// Make sure cluster root object is reachable too
-						const int32 OwnerIndex = ObjectItem->GetOwnerIndex();
-						FUObjectItem* RootObjectItem = GUObjectArray.IndexToObjectUnsafeForGC(OwnerIndex);
-						checkSlow(RootObjectItem->HasAnyFlags(EInternalObjectFlags::ClusterRoot));
-						// if it is reachable via keep flags we will do this below (or maybe already have)
-						if (RootObjectItem->IsMaybeUnreachable()) 
-						{
-							RootObjectItem->ClearMaybeUnreachable();
-							// Make sure all referenced clusters are marked as reachable too
-							MarkReferencedClustersAsReachable<EGCOptions::None>(RootObjectItem->GetClusterIndex(), InitialObjects);
-						}
-					}
-				}
-				else
-				{
-					checkSlow(ObjectItem->HasAnyFlags(EInternalObjectFlags::ClusterRoot));
-					// this thing is definitely not marked unreachable, so don't test it here
-					// Make sure all referenced clusters are marked as reachable too
-					MarkReferencedClustersAsReachable<EGCOptions::None>(ObjectItem->GetClusterIndex(), InitialObjects);
-				}
-			}
+			// This marks all UObjects as MaybeUnreachable
+			Swap(GReachableObjectFlag, GMaybeUnreachableObjectFlag);
 		}
+
+		// Not counting the disregard for GC set to preserve legacy behavior
+		GObjectCountDuringLastMarkPhase.Set(GUObjectArray.GetObjectArrayNumMinusAvailable() - GUObjectArray.GetFirstGCIndex());
+
+		EGatherOptions GatherOptions = GetObjectGatherOptions();
+
+		// Now make sure all clustered objects and root objects are marked as Reachable. 
+		// This could be considered as initial part of reachability analysis and could be made incremental.
+		MarkClusteredObjectsAsReachable(GatherOptions, InitialObjects);
+		MarkRootObjectsAsReachable(GatherOptions, KeepFlags, InitialObjects);
 	}
 
 private:
@@ -4197,7 +4271,7 @@ private:
 
 		{
 			const double StartTime = FPlatformTime::Seconds();
-			(this->*MarkObjectsFunctions[GetMarkFunctionIndex(Options)])(Options, KeepFlags);
+			MarkObjectsAsUnreachable(KeepFlags);
 			UE_LOG(LogGarbage, Verbose, TEXT("%f ms for MarkObjectsAsUnreachable Phase (%d Objects To Serialize)"), (FPlatformTime::Seconds() - StartTime) * 1000, InitialObjects.Num());
 		}
 	}
@@ -4858,7 +4932,7 @@ void DissolveUnreachableClusters(UE::GC::EGatherOptions Options)
 
 	using namespace UE::GC;
 	using namespace UE::GC::Private;
-	typedef TThreadedGather<int32> FGatherClustersState;
+	using FGatherClustersState = TThreadedGather<TArray<int32>>;
 
 	std::atomic<int32> TotalClusteredObjects = 0;
 	FGatherClustersState GatherClustersState;
@@ -4999,10 +5073,10 @@ bool GatherUnreachableObjects(UE::GC::EGatherOptions Options, double TimeLimit /
 		}
 
 #if VERIFY_DISREGARD_GC_ASSUMPTIONS
-		if (GVerifyNoUnreachableObjects != 0 && GUnreachableObjects.Num() > 0 && !GExitPurge)
+		if (GVerifyNoUnreachableObjects != 0 && !GExitPurge)
 		{
 			DECLARE_SCOPE_CYCLE_COUNTER(TEXT("CollectGarbageInternal.VerifyNoUnreachableObjects"), STAT_CollectGarbageInternal_VerifyNoUnreachableObjects, STATGROUP_GC);
-			VerifyNoUnreachableObjects();
+			VerifyNoUnreachableObjects(GUnreachableObjects.Num());
 		}
 #endif // VERIFY_DISREGARD_GC_ASSUMPTIONS
 	}
@@ -5311,7 +5385,7 @@ void PreCollectGarbageImpl(EObjectFlags KeepFlags)
 				{
 					VerifyClustersAssumptions();
 				}
-				VerifyObjectFlagMirroring();
+				VerifyObjectFlags();
 				UE_LOG(LogGarbage, Log, TEXT("%.2f ms for Verify GC Assumptions"), (FPlatformTime::Seconds() - StartTime) * 1000);
 			}
 #endif
@@ -5873,7 +5947,7 @@ FORCEINLINE static void MarkObjectItemAsReachable(FUObjectItem* ObjectItem)
 	{
 		checkf(GIsIncrementalReachabilityPending, TEXT("%s is marked as MaybeUnreachable but Incremental Reachability Analysis is not in progress"), *static_cast<UObject*>(ObjectItem->Object)->GetFullName());
 	}
-	if (ObjectItem->ThisThreadAtomicallyClearedMaybeUnreachable())
+	if (ObjectItem->MarkAsReachableInterlocked_ForGC())
 	{
 		if (ObjectItem->GetOwnerIndex() >= 0)
 		{

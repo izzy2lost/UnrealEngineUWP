@@ -36,10 +36,14 @@ struct
 #endif
 	FUObjectItem
 {
+	friend class FUObjectArray;
+
 	// Pointer to the allocated object
 	class UObjectBase* Object;
-	// Internal flags
+private:
+	// Internal flags. These can only be changed via Set* and Clear* functions
 	int32 Flags;
+public:
 	// UObject Owner Cluster Index
 	int32 ClusterRootIndex;	
 	// Weak Object Pointer Serial number associated with the object
@@ -124,11 +128,11 @@ struct
 	}
 
 	/**
-	 * Uses atomics to clear the specified flag(s).
+	 * Uses atomics to clear the specified flag(s). GC internal version
 	 * @param FlagsToClear
 	 * @return True if this call cleared the flag, false if it has been cleared by another thread.
 	 */
-	FORCEINLINE bool ThisThreadAtomicallyClearedFlag(EInternalObjectFlags FlagToClear)
+	FORCEINLINE bool ThisThreadAtomicallyClearedFlag_ForGC(EInternalObjectFlags FlagToClear)
 	{
 		static_assert(sizeof(int32) == sizeof(Flags), "Flags must be 32-bit for atomics.");
 		bool bIChangedIt = false;
@@ -147,6 +151,24 @@ struct
 			}
 		}
 		return bIChangedIt;
+	}
+
+	/**
+	 * Uses atomics to clear the specified flag(s).
+	 * @param FlagsToClear
+	 * @return True if this call cleared the flag, false if it has been cleared by another thread.
+	 */
+	FORCEINLINE bool ThisThreadAtomicallyClearedFlag(EInternalObjectFlags FlagToClear)
+	{
+		FlagToClear &= ~UE::GC::GReachableObjectFlag; // reachability bit can only be cleared by GC through *_ForGC functions
+		if (!!(FlagToClear & EInternalObjectFlags_RootFlags))
+		{
+			return ClearRootFlags(FlagToClear);
+		}
+		else
+		{
+			return ThisThreadAtomicallyClearedFlag_ForGC(FlagToClear);
+		}
 	}
 
 	/**
@@ -181,17 +203,15 @@ struct
 	 * @return True if this call set the flag, false if it has been set by another thread.
 	 */
 	FORCEINLINE bool ThisThreadAtomicallySetFlag(EInternalObjectFlags FlagToSet)
-	{
-		bool bMarkAsReachable = UE::GC::GIsIncrementalReachabilityPending & !!(FlagToSet & EInternalObjectFlags_RootFlags); //-V792
-		bool bIChangedIt = ThisThreadAtomicallySetFlag_ForGC(FlagToSet);
-		if (bIChangedIt & bMarkAsReachable) //-V792
+	{		
+		if (!!(FlagToSet & EInternalObjectFlags_RootFlags))
 		{
-			// Setting any of the root flags on an object during incremental reachability requires a GC barrier
-			// to make sure an object with root flags does not get Garbage Collected
-			checkf(Object, TEXT("Setting an internal object flag on a null object entry"));
-			Object->MarkAsReachable();
+			return SetRootFlags(FlagToSet);
 		}
-		return bIChangedIt;
+		else
+		{
+			return ThisThreadAtomicallySetFlag_ForGC(FlagToSet);
+		}
 	}
 
 	FORCEINLINE bool HasAnyFlags(EInternalObjectFlags InFlags) const
@@ -206,19 +226,17 @@ struct
 
 	FORCEINLINE void SetUnreachable()
 	{
+		ThisThreadAtomicallyClearedFlag_ForGC(UE::GC::GReachableObjectFlag);
 		ThisThreadAtomicallySetFlag_ForGC(UE::GC::GUnreachableObjectFlag);
 	}
 	FORCEINLINE void SetMaybeUnreachable()
 	{
+		ThisThreadAtomicallyClearedFlag_ForGC(UE::GC::GReachableObjectFlag);
 		ThisThreadAtomicallySetFlag_ForGC(UE::GC::GMaybeUnreachableObjectFlag);
 	}
 	FORCEINLINE void ClearUnreachable()
 	{
-		ThisThreadAtomicallyClearedFlag(UE::GC::GUnreachableObjectFlag);
-	}
-	FORCEINLINE void ClearMaybeUnreachable()
-	{
-		ThisThreadAtomicallyClearedFlag(UE::GC::GMaybeUnreachableObjectFlag);
+		ThisThreadAtomicallyClearedRFUnreachable();
 	}
 	FORCEINLINE bool IsUnreachable() const
 	{
@@ -230,11 +248,12 @@ struct
 	}
 	FORCEINLINE bool ThisThreadAtomicallyClearedRFUnreachable()
 	{
-		return ThisThreadAtomicallyClearedFlag(UE::GC::GUnreachableObjectFlag);
-	}
-	FORCEINLINE bool ThisThreadAtomicallyClearedMaybeUnreachable()
-	{
-		return ThisThreadAtomicallyClearedFlag(UE::GC::GMaybeUnreachableObjectFlag);
+		if (ThisThreadAtomicallyClearedFlag_ForGC(UE::GC::GUnreachableObjectFlag))
+		{
+			ThisThreadAtomicallySetFlag_ForGC(UE::GC::GReachableObjectFlag);
+			return true;
+		}
+		return false;
 	}
 	FORCEINLINE void SetGarbage()
 	{
@@ -242,7 +261,7 @@ struct
 	}
 	FORCEINLINE void ClearGarbage()
 	{
-		ThisThreadAtomicallyClearedFlag(EInternalObjectFlags::Garbage);
+		ThisThreadAtomicallyClearedFlag_ForGC(EInternalObjectFlags::Garbage);
 	}
 	FORCEINLINE bool IsGarbage() const
 	{
@@ -281,11 +300,52 @@ struct
 #if STATS || ENABLE_STATNAMEDEVENTS_UOBJECT
 	COREUOBJECT_API void CreateStatID() const;
 #endif
+
+	// Mark this object item as Reachable and clear MaybeUnreachable flag. For GC use only.
+	FORCEINLINE void FastMarkAsReachableInterlocked_ForGC()
+	{
+		using namespace UE::GC;
+		FPlatformAtomics::InterlockedAnd(&Flags, ~int32(GMaybeUnreachableObjectFlag));
+		FPlatformAtomics::InterlockedOr(&Flags, int32(GReachableObjectFlag));
+	}
+
+	// Mark this object item as Reachable and clear ReachableInCluster and MaybeUnreachable flags. For GC use only.
+	FORCEINLINE void FastMarkAsReachableAndClearReachaleInClusterInterlocked_ForGC()
+	{
+		using namespace UE::GC;
+		FPlatformAtomics::InterlockedAnd(&Flags, ~int32(GMaybeUnreachableObjectFlag | EInternalObjectFlags::ReachableInCluster));
+		FPlatformAtomics::InterlockedOr(&Flags, int32(GReachableObjectFlag));
+	}
+
+	/**
+	 * Mark this object item as Reachable and clear MaybeUnreachable flag. Only thread-safe for concurrent clear, not concurrent set+clear. Don't use during mark phase. For GC use only.
+	 * @return True if this call cleared MaybeUnreachable flag, false if it has been cleared by another thread.
+	 */
+	FORCEINLINE bool MarkAsReachableInterlocked_ForGC()
+	{
+		using namespace UE::GC;
+		const int32 FlagToClear = int32(UE::GC::GMaybeUnreachableObjectFlag);
+		if (FPlatformAtomics::AtomicRead_Relaxed(&Flags) & FlagToClear)
+		{
+			int32 Old = FPlatformAtomics::InterlockedAnd(&Flags, ~FlagToClear);
+			FPlatformAtomics::InterlockedOr(&Flags, int32(GReachableObjectFlag));
+			return Old & FlagToClear;
+		}
+		return false;
+	}
+
+	FORCEINLINE static constexpr ::size_t OffsetOfFlags()
+	{
+		return offsetof(FUObjectItem, Flags);
+	}
+
 private:
 	FORCEINLINE int32 GetFlagsInternal() const
 	{
 		return FPlatformAtomics::AtomicRead_Relaxed((int32*)&Flags);
 	}
+	COREUOBJECT_API bool SetRootFlags(EInternalObjectFlags FlagsToSet);
+	COREUOBJECT_API bool ClearRootFlags(EInternalObjectFlags FlagsToClear);
 };
 
 namespace UE::UObjectArrayPrivate

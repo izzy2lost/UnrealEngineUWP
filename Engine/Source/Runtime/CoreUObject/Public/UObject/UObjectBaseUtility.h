@@ -177,7 +177,7 @@ public:
 	{
 		check(!IsRooted());
 		AtomicallySetFlags(RF_MirroredGarbage);
-		GUObjectArray.IndexToObject(InternalIndex)->ThisThreadAtomicallySetFlag(EInternalObjectFlags::Garbage);
+		GUObjectArray.IndexToObject(InternalIndex)->SetGarbage();
 	}
 
 	/**
@@ -186,7 +186,7 @@ public:
 	FORCEINLINE void ClearGarbage()
 	{
 		AtomicallyClearFlags(RF_MirroredGarbage);
-		GUObjectArray.IndexToObject(InternalIndex)->ThisThreadAtomicallyClearedFlag(EInternalObjectFlags::Garbage);
+		GUObjectArray.IndexToObject(InternalIndex)->ClearGarbage();
 	}
 
 	/**
