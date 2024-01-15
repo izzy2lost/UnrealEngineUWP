@@ -122,7 +122,7 @@ FString UNNERuntimeORTCpu::GetRuntimeName() const
 	return TEXT("NNERuntimeORTCpu");
 }
 
-bool UNNERuntimeORTCpu::CanCreateModelCPU(TObjectPtr<UNNEModelData> ModelData) const
+bool UNNERuntimeORTCpu::CanCreateModelCPU(const TObjectPtr<UNNEModelData> ModelData) const
 {
 	check(ModelData != nullptr);
 
@@ -147,7 +147,7 @@ bool UNNERuntimeORTCpu::CanCreateModelCPU(TObjectPtr<UNNEModelData> ModelData) c
 	return bResult;
 }
 
-TSharedPtr<UE::NNE::IModelCPU> UNNERuntimeORTCpu::CreateModelCPU(TObjectPtr<UNNEModelData> ModelData)
+TSharedPtr<UE::NNE::IModelCPU> UNNERuntimeORTCpu::CreateModelCPU(const TObjectPtr<UNNEModelData> ModelData)
 {
 	check(ModelData != nullptr);
 	check(ORTEnvironment.IsValid());
@@ -177,7 +177,7 @@ TSharedPtr<UE::NNE::IModelCPU> UNNERuntimeORTCpu::CreateModelCPU(TObjectPtr<UNNE
 }
 
 #if PLATFORM_WINDOWS
-bool UNNERuntimeORTDml::CanCreateModelGPU(TObjectPtr<UNNEModelData> ModelData) const
+bool UNNERuntimeORTDml::CanCreateModelGPU(const TObjectPtr<UNNEModelData> ModelData) const
 {
 	check(ModelData != nullptr);
 
@@ -211,7 +211,7 @@ bool UNNERuntimeORTDml::CanCreateModelGPU(TObjectPtr<UNNEModelData> ModelData) c
 	return bResult;
 }
 
-TSharedPtr<UE::NNE::IModelGPU> UNNERuntimeORTDml::CreateModelGPU(TObjectPtr<UNNEModelData> ModelData)
+TSharedPtr<UE::NNE::IModelGPU> UNNERuntimeORTDml::CreateModelGPU(const TObjectPtr<UNNEModelData> ModelData)
 {
 	check(ModelData != nullptr);
 	check(ORTEnvironment.IsValid());
@@ -242,12 +242,12 @@ TSharedPtr<UE::NNE::IModelGPU> UNNERuntimeORTDml::CreateModelGPU(TObjectPtr<UNNE
 
 #else // PLATFORM_WINDOWS
 
-bool UNNERuntimeORTDml::CanCreateModelGPU(TObjectPtr<UNNEModelData> ModelData) const
+bool UNNERuntimeORTDml::CanCreateModelGPU(const TObjectPtr<UNNEModelData> ModelData) const
 {
 	return false;
 }
 
-TSharedPtr<UE::NNE::IModelGPU> UNNERuntimeORTDml::CreateModelGPU(TObjectPtr<UNNEModelData> ModelData)
+TSharedPtr<UE::NNE::IModelGPU> UNNERuntimeORTDml::CreateModelGPU(const TObjectPtr<UNNEModelData> ModelData)
 {
 	return TSharedPtr<UE::NNE::IModelGPU>();
 }

@@ -30,8 +30,8 @@ public:
 	//~ End INNERuntime Interface
 
 	//~ Begin INNERuntimeCPU Interface
-	virtual bool CanCreateModelCPU(TObjectPtr<UNNEModelData> ModelData) const override;
-	virtual TSharedPtr<UE::NNE::IModelCPU> CreateModelCPU(TObjectPtr<UNNEModelData> ModelData) override;
+	virtual bool CanCreateModelCPU(const TObjectPtr<UNNEModelData> ModelData) const override;
+	virtual TSharedPtr<UE::NNE::IModelCPU> CreateModelCPU(const TObjectPtr<UNNEModelData> ModelData) override;
 	//~ End INNERuntimeCPU Interface
 
 	static void GetUpdatedPlatformConfig(const FString& PlatformName, FConfigFile& ConfigFile, FString& ConfigFilePath);
@@ -44,8 +44,8 @@ public:
 	//~ End INNERuntime Interface
 
 	//~ Begin INNERuntimeCPU Interface
-	virtual bool CanCreateModelCPU(TObjectPtr<UNNEModelData> ModelData) const override { return false; };
-	virtual TSharedPtr<UE::NNE::IModelCPU> CreateModelCPU(TObjectPtr<UNNEModelData> ModelData) override { return TSharedPtr<UE::NNE::IModelCPU>(); };
+	virtual bool CanCreateModelCPU(const TObjectPtr<UNNEModelData> ModelData) const override { return false; };
+	virtual TSharedPtr<UE::NNE::IModelCPU> CreateModelCPU(const TObjectPtr<UNNEModelData> ModelData) override { return TSharedPtr<UE::NNE::IModelCPU>(); };
 	//~ End INNERuntimeCPU Interface
 #endif // WITH_NNE_RUNTIME_IREE
 };
@@ -65,8 +65,8 @@ public:
 	//~ End INNERuntime Interface
 
 	//~ Begin INNERuntimeGPU Interface
-	virtual bool CanCreateModelGPU(TObjectPtr<UNNEModelData> ModelData) const override;
-	virtual TSharedPtr<UE::NNE::IModelGPU> CreateModelGPU(TObjectPtr<UNNEModelData> ModelData) override;
+	virtual bool CanCreateModelGPU(const TObjectPtr<UNNEModelData> ModelData) const override;
+	virtual TSharedPtr<UE::NNE::IModelGPU> CreateModelGPU(const TObjectPtr<UNNEModelData> ModelData) override;
 	//~ End INNERuntimeGPU Interface
 
 	virtual bool IsAvailable() const;
@@ -81,8 +81,8 @@ public:
 	//~ End INNERuntime Interface
 
 	//~ Begin INNERuntimeGPU Interface
-	virtual bool CanCreateModelGPU(TObjectPtr<UNNEModelData> ModelData) const override { return false; };
-	virtual TSharedPtr<UE::NNE::IModelGPU> CreateModelGPU(TObjectPtr<UNNEModelData> ModelData) override { return TSharedPtr<UE::NNE::IModelGPU>(); };
+	virtual bool CanCreateModelGPU(const TObjectPtr<UNNEModelData> ModelData) const override { return false; };
+	virtual TSharedPtr<UE::NNE::IModelGPU> CreateModelGPU(const TObjectPtr<UNNEModelData> ModelData) override { return TSharedPtr<UE::NNE::IModelGPU>(); };
 	//~ End INNERuntimeGPU Interface
 #endif // WITH_NNE_RUNTIME_IREE
 };
@@ -149,8 +149,8 @@ public:
 	//~ End INNERuntime Interface
 
 	//~ Begin INNERuntimeRdg Interface
-	virtual bool CanCreateModelRDG(TObjectPtr<UNNEModelData> ModelData) const override;
-	virtual TSharedPtr<UE::NNE::IModelRDG> CreateModelRDG(TObjectPtr<UNNEModelData> ModelData) override;
+	virtual bool CanCreateModelRDG(const TObjectPtr<UNNEModelData> ModelData) const override;
+	virtual TSharedPtr<UE::NNE::IModelRDG> CreateModelRDG(const TObjectPtr<UNNEModelData> ModelData) override;
 	//~ End INNERuntimeRdg Interface
 
 	bool IsAvailable() const;
@@ -163,8 +163,8 @@ public:
 	//~ End INNERuntime Interface
 
 	//~ Begin INNERuntimeRDG Interface
-	virtual bool CanCreateModelRDG(TObjectPtr<UNNEModelData> ModelData) const override { return false; };
-	virtual TSharedPtr<UE::NNE::IModelRDG> CreateModelRDG(TObjectPtr<UNNEModelData> ModelData) override { return TSharedPtr<UE::NNE::IModelRDG>(); };
+	virtual bool CanCreateModelRDG(const TObjectPtr<UNNEModelData> ModelData) const override { return false; };
+	virtual TSharedPtr<UE::NNE::IModelRDG> CreateModelRDG(const TObjectPtr<UNNEModelData> ModelData) override { return TSharedPtr<UE::NNE::IModelRDG>(); };
 	//~ End INNERuntimeRDG Interface
 #endif // WITH_NNE_RUNTIME_IREE
 };

@@ -61,7 +61,7 @@ FString UNNERuntimeBasicCpuImpl::GetModelDataIdentifier(const FString& FileType,
 	return FileId.ToString(EGuidFormats::Digits) + "-" + FString::FromInt(UE::NNE::RuntimeBasic::FModelCPU::ModelMagicNumber);
 }
 
-bool UNNERuntimeBasicCpuImpl::CanCreateModelCPU(TObjectPtr<UNNEModelData> ModelData) const
+bool UNNERuntimeBasicCpuImpl::CanCreateModelCPU(const TObjectPtr<UNNEModelData> ModelData) const
 {
 	check(ModelData != nullptr);
 
@@ -97,7 +97,7 @@ bool UNNERuntimeBasicCpuImpl::CanCreateModelCPU(TObjectPtr<UNNEModelData> ModelD
 	return true;
 }
 
-TSharedPtr<UE::NNE::IModelCPU> UNNERuntimeBasicCpuImpl::CreateModelCPU(TObjectPtr<UNNEModelData> ModelData)
+TSharedPtr<UE::NNE::IModelCPU> UNNERuntimeBasicCpuImpl::CreateModelCPU(const TObjectPtr<UNNEModelData> ModelData)
 {
 	check(ModelData != nullptr);
 

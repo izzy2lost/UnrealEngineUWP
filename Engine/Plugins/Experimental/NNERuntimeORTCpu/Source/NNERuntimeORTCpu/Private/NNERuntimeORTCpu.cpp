@@ -56,7 +56,7 @@ FString UNNERuntimeORTCustomCpuImpl::GetModelDataIdentifier(const FString& FileT
 	return FileId.ToString(EGuidFormats::Digits) + "-" + UNNERuntimeORTCustomCpuImpl::GUID.ToString(EGuidFormats::Digits) + "-" + FString::FromInt(UNNERuntimeORTCustomCpuImpl::Version);
 }
 
-bool UNNERuntimeORTCustomCpuImpl::CanCreateModelCPU(TObjectPtr<UNNEModelData> ModelData) const
+bool UNNERuntimeORTCustomCpuImpl::CanCreateModelCPU(const TObjectPtr<UNNEModelData> ModelData) const
 {
 	check(ModelData != nullptr);
 	
@@ -81,7 +81,7 @@ bool UNNERuntimeORTCustomCpuImpl::CanCreateModelCPU(TObjectPtr<UNNEModelData> Mo
 	return bResult;
 }
 
-TSharedPtr<UE::NNE::IModelCPU> UNNERuntimeORTCustomCpuImpl::CreateModelCPU(TObjectPtr<UNNEModelData> ModelData)
+TSharedPtr<UE::NNE::IModelCPU> UNNERuntimeORTCustomCpuImpl::CreateModelCPU(const TObjectPtr<UNNEModelData> ModelData)
 {
 	check(ModelData != nullptr);
 	

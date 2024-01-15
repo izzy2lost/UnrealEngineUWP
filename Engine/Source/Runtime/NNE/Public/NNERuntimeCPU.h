@@ -147,7 +147,7 @@ public:
 	 * @param ModelData The model data for which to create a model.
 	 * @return True if the runtime is able to create the model, false otherwise.
 	 */
-	virtual bool CanCreateModelCPU(TObjectPtr<UNNEModelData> ModelData) const = 0;
+	virtual bool CanCreateModelCPU(const TObjectPtr<UNNEModelData> ModelData) const = 0;
 	
 	/**
 	 * Create a model given some ModelData.
@@ -159,5 +159,5 @@ public:
 	 * @param ModelData The model data for which to create a model.
 	 * @return A caller owned model representing the neural network created from ModelData.
 	 */
-	virtual TSharedPtr<UE::NNE::IModelCPU> CreateModelCPU(TObjectPtr<UNNEModelData> ModelData) = 0;
+	virtual TSharedPtr<UE::NNE::IModelCPU> CreateModelCPU(const TObjectPtr<UNNEModelData> ModelData) = 0;
 };
