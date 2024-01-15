@@ -455,6 +455,7 @@ void FRemoteControlProperty::InitializeMetadata()
 		{
 			UStruct* Struct = CastFieldChecked<FStructProperty>(Property)->Struct;
 			return Struct->IsChildOf(TBaseStructure<FVector>::Get())
+				|| Struct->IsChildOf(TBaseStructure<FVector2D>::Get())
 				|| Struct->IsChildOf(TBaseStructure<FRotator>::Get());
 		}
 

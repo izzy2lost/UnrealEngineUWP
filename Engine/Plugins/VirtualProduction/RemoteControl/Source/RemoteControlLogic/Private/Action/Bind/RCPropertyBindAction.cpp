@@ -33,6 +33,14 @@ static void SetStructPropertyFromController(const FProperty* RemoteControlProper
 
 				RemoteControlHandle->SetValue(VectorValue);
 			}
+			// FVector2D
+			else if (TargetStructProperty->Struct == TBaseStructure<FVector2D>::Get())
+			{
+				FVector2D Vector2DValue;
+				Controller->GetValueVector2D(Vector2DValue);
+
+				RemoteControlHandle->SetValue(Vector2DValue);
+			}
 			// FColor
 			else if (TargetStructProperty->Struct == TBaseStructure<FColor>::Get())
 			{

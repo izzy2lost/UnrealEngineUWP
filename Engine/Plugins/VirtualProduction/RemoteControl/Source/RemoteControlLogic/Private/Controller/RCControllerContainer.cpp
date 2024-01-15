@@ -1,4 +1,4 @@
-﻿// Copyright Epic Games, Inc. All Rights Reserved.
+// Copyright Epic Games, Inc. All Rights Reserved.
 
 #include "Controller/RCControllerContainer.h"
 
@@ -29,7 +29,7 @@ URCVirtualPropertyInContainer* URCControllerContainer::AddProperty(const FName& 
 	// Vector Controllers
 	if (InValueType == EPropertyBagPropertyType::Struct)
 	{
-		if (InValueTypeObject == TBaseStructure<FVector>::Get())
+		if (InValueTypeObject == TBaseStructure<FVector>::Get() || InValueTypeObject == TBaseStructure<FVector2D>::Get())
 		{
 			MetaData.Add(FPropertyBagPropertyDescMetaData(FName("Delta"), FString::Printf(TEXT("%f"), VectorSliderDelta)));
 			MetaData.Add(FPropertyBagPropertyDescMetaData(FName("LinearDeltaSensitivity"), FString::Printf(TEXT("%f"), VectorLinearDeltaSensitivity)));

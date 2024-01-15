@@ -470,6 +470,12 @@ bool URCBehaviourBind::CopyPropertyValueToController(URCController* InController
 			PropertyHandle->GetValue(VectorValue);
 			InController->SetValueVector(VectorValue);
 		}
+		if (ControllerAsStructProperty->Struct == TBaseStructure<FVector2D>::Get())
+		{
+			FVector2D Vector2DValue;
+			PropertyHandle->GetValue(Vector2DValue);
+			InController->SetValueVector2D(Vector2DValue);
+		}
 		else if (ControllerAsStructProperty->Struct == TBaseStructure<FRotator>::Get())
 		{
 			FRotator RotatorValue;

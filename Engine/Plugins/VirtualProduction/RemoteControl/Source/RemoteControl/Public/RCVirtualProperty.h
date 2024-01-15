@@ -101,6 +101,9 @@ public:
 	/** Whether this Virtual Property represents an FVector*/
 	bool IsVectorType() const;
 
+	/** Whether this Virtual Property represents an FVector2D*/
+	bool IsVector2DType() const;
+
 	/** Whether this Virtual Property represents an FColor*/
 	bool IsColorType() const;
 
@@ -213,6 +216,10 @@ public:
 	UFUNCTION(BlueprintCallable, Category = "Remote Control Behaviour")
 	bool GetValueVector(FVector& OutVector) const;
 
+	/** Get Vector2D value from Virtual Property */
+	UFUNCTION(BlueprintCallable, Category = "Remote Control Behaviour")
+	bool GetValueVector2D(FVector2D& OutVector2D) const;
+
 	/** Get Rotator value from Virtual Property */
 	UFUNCTION(BlueprintCallable, Category = "Remote Control Behaviour")
 	bool GetValueRotator(FRotator& OutRotator) const;
@@ -294,6 +301,10 @@ public:
 	/** Set Vector value from Virtual Property */
 	UFUNCTION(BlueprintCallable, Category = "Remote Control Behaviour")
 	bool SetValueVector(const FVector& InVector);
+
+	/** Set Vector2D value from Virtual Property */
+	UFUNCTION(BlueprintCallable, Category = "Remote Control Behaviour")
+	bool SetValueVector2D(const FVector2D& InVector2D);
 
 	/** Set Rotator value from Virtual Property */
 	UFUNCTION(BlueprintCallable, Category = "Remote Control Behaviour")

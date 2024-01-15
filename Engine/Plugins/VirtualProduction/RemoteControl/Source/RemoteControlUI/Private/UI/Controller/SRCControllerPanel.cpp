@@ -108,6 +108,10 @@ static UObject* GetBaseStructForType(FName StructType)
 	{
 		return TBaseStructure<FVector>::Get();
 	}
+	else if (StructType == NAME_Vector2D)
+	{
+		return TBaseStructure<FVector2d>::Get();
+	}
 	else if (StructType == NAME_Color)
 	{
 		return TBaseStructure<FColor>::Get();

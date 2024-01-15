@@ -188,6 +188,17 @@ bool URCVirtualPropertyBase::IsVectorType() const
 	return false;
 }
 
+bool URCVirtualPropertyBase::IsVector2DType() const
+{
+	const FProperty* Property = GetProperty();
+	if (const FStructProperty* StructProperty = CastField<FStructProperty>(Property))
+	{
+		return StructProperty->Struct == TBaseStructure<FVector2D>::Get();
+	}
+
+	return false;
+}
+
 bool URCVirtualPropertyBase::IsColorType() const
 {
 	const FProperty* Property = GetProperty();
@@ -523,6 +534,11 @@ bool URCVirtualPropertyBase::GetValueVector(FVector& OutVector) const
 	return FRCVirtualPropertyCastHelpers::GetStructValue<FVector>(this, TBaseStructure<FVector>::Get(), &OutVector);
 }
 
+bool URCVirtualPropertyBase::GetValueVector2D(FVector2D& OutVector2D) const
+{
+	return FRCVirtualPropertyCastHelpers::GetStructValue<FVector2D>(this, TBaseStructure<FVector2D>::Get(), &OutVector2D);
+}
+
 bool URCVirtualPropertyBase::GetValueRotator(FRotator& OutRotator) const
 {
 	return FRCVirtualPropertyCastHelpers::GetStructValue<FRotator>(this, TBaseStructure<FRotator>::Get(), &OutRotator);
@@ -611,6 +627,13 @@ FString URCVirtualPropertyBase::GetDisplayValueAsString() const
 		GetValueVector(Vector);
 
 		return Vector.ToString();
+	}
+	else if (IsVector2DType())
+	{
+		FVector2D Vector2D;
+		GetValueVector2D(Vector2D);
+
+		return Vector2D.ToString();
 	}
 	else if (IsRotatorType())
 	{
@@ -727,6 +750,11 @@ bool URCVirtualPropertyBase::SetValueNumericInteger(const int64 InInt64Value)
 bool URCVirtualPropertyBase::SetValueVector(const FVector& InVector)
 {
 	return FRCVirtualPropertyCastHelpers::SetStructValue<FVector>(this, TBaseStructure<FVector>::Get(), InVector);
+}
+
+bool URCVirtualPropertyBase::SetValueVector2D(const FVector2D& InVector2D)
+{
+	return FRCVirtualPropertyCastHelpers::SetStructValue<FVector2D>(this, TBaseStructure<FVector2D>::Get(), InVector2D);
 }
 
 bool URCVirtualPropertyBase::SetValueRotator(const FRotator& InRotator)

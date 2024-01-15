@@ -64,6 +64,7 @@ namespace UE::RCControllerPanelList
 	{
 		static const TSet<UScriptStruct*> SupportedStructs = {
 			TBaseStructure<FVector>::Get(),
+			TBaseStructure<FVector2D>::Get(),
 			TBaseStructure<FRotator>::Get(),
 			TBaseStructure<FColor>::Get()
 		};
