@@ -1500,7 +1500,8 @@ static void RunHairStrandsInterpolation_Strands(
 		}
 		else
 		{
-			InstanceData.Instance->Strands.RestResource->GetTangentBuffer(GraphBuilder, ShaderMap, InstanceData.ActivePointCount, InstanceData.ActiveCurveCount);
+			FRDGExternalBuffer TangentBuffer = InstanceData.Instance->Strands.RestResource->GetTangentBuffer(GraphBuilder, ShaderMap, InstanceData.ActivePointCount, InstanceData.ActiveCurveCount);
+			InstanceData.RDGResources.TangentSRV = RegisterAsSRV(GraphBuilder, TangentBuffer);
 		}
 	}
 
