@@ -2352,7 +2352,7 @@ void UpdateGlobalDistanceFieldCache(
 		FRDGBufferRef PendingStreamingReadbackBuffer = nullptr;
 		if (bAnyClipmapHasPendingStreamingReadback)
 		{
-			FRDGBufferDesc HasPendingStreamingReadbackDesc = FRDGBufferDesc::CreateStructuredDesc(GlobalDistanceField::MaxClipmaps * sizeof(uint32), GlobalDistanceField::MaxClipmaps);
+			FRDGBufferDesc HasPendingStreamingReadbackDesc = FRDGBufferDesc::CreateStructuredDesc(sizeof(uint32), GlobalDistanceField::MaxClipmaps);
 			HasPendingStreamingReadbackDesc.Usage = EBufferUsageFlags(HasPendingStreamingReadbackDesc.Usage | BUF_SourceCopy);
 			PendingStreamingReadbackBuffer = GraphBuilder.CreateBuffer(HasPendingStreamingReadbackDesc, TEXT("GlobalDistanceField.HasPendingStreamingReadback"));
 			AddClearUAVPass(GraphBuilder, GraphBuilder.CreateUAV(PendingStreamingReadbackBuffer, PF_R32_UINT), 0);
