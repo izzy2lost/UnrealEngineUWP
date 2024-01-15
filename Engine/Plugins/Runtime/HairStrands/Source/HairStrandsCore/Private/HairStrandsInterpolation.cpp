@@ -513,6 +513,7 @@ public:
 	static void ModifyCompilationEnvironment(const FGlobalShaderPermutationParameters& Parameters, FShaderCompilerEnvironment& OutEnvironment)
 	{
 		FGlobalShader::ModifyCompilationEnvironment(Parameters, OutEnvironment);
+		ShaderPrint::ModifyCompilationEnvironment(Parameters, OutEnvironment);
 		OutEnvironment.SetDefine(TEXT("SHADER_HAIRINTERPOLATION"), 1);
 		OutEnvironment.SetDefine(TEXT("GROUP_SIZE"), GetGroupSize());
 		OutEnvironment.CompilerFlags.Add(CFLAG_Wave32);

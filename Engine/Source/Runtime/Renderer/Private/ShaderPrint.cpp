@@ -298,15 +298,20 @@ namespace ShaderPrint
 		return true;
 	}
 
-	void ModifyCompilationEnvironment(const FGlobalShaderPermutationParameters& Parameters, FShaderCompilerEnvironment& OutEnvironment)
+	void ModifyCompilationEnvironment(const EShaderPlatform Platform, FShaderCompilerEnvironment& OutEnvironment)
 	{
 		// Work around issues with HLSLcc by switching to DXC
-		if (IsHlslccShaderPlatform(Parameters.Platform))
+		if (IsHlslccShaderPlatform(Platform))
 		{
 			OutEnvironment.CompilerFlags.Add(CFLAG_ForceDXC);
 		}
 
 		OutEnvironment.SetDefine(TEXT("SHADER_PRINT_EXPLICIT_BINDING"), 1);
+	}
+
+	void ModifyCompilationEnvironment(const FGlobalShaderPermutationParameters& Parameters, FShaderCompilerEnvironment& OutEnvironment)
+	{
+		ModifyCompilationEnvironment(Parameters.Platform, OutEnvironment);
 	}
 
 	bool IsEnabled()

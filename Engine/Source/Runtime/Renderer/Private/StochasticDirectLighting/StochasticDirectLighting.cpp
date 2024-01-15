@@ -215,6 +215,7 @@ namespace StochasticDirectLighting
 	void ModifyCompilationEnvironment(EShaderPlatform Platform, FShaderCompilerEnvironment& OutEnvironment)
 	{
 		FForwardLightingParameters::ModifyCompilationEnvironment(Platform, OutEnvironment);
+		ShaderPrint::ModifyCompilationEnvironment(Platform, OutEnvironment);
 	}
 
 	// Keep in sync with TILE_TYPE_* in shaders

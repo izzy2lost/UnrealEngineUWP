@@ -52,6 +52,7 @@ namespace ShaderPrint
 	RENDERER_API bool IsSupported(EShaderPlatform Platform);
 
 	// Set any flags or defines needed when using ShaderPrint
+	RENDERER_API void ModifyCompilationEnvironment(const EShaderPlatform Platform, FShaderCompilerEnvironment& OutEnvironment);
 	RENDERER_API void ModifyCompilationEnvironment(const FGlobalShaderPermutationParameters& Parameters, FShaderCompilerEnvironment& OutEnvironment);
 
 	// Have we enabled the ShaderPrint system?
