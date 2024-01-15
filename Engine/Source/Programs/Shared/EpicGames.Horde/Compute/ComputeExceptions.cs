@@ -9,11 +9,13 @@ namespace EpicGames.Horde.Compute
 	/// </summary>
 	public abstract class ComputeException : Exception
 	{
-		/// <summary>
-		/// Constructor
-		/// </summary>
-		protected ComputeException(string message)
-			: base(message)
+		/// <inheritdoc/>
+		protected ComputeException(string message) : base(message)
+		{
+		}
+
+		/// <inheritdoc/>
+		protected ComputeException(string? message, Exception? innerException) : base(message, innerException)
 		{
 		}
 	}
