@@ -26,6 +26,8 @@ UPCGEditorSettings::UPCGEditorSettings(const FObjectInitializer& ObjectInitializ
 	ControlFlowNodeColor = FLinearColor(0.0f, 1.0f, 0.0f);
 	PointOpsNodeColor = FLinearColor(0.0f, 0.04f, 0.23f);
 	HierarchicalGenerationNodeColor = FLinearColor(1.0f, 0.132868f, 0.0f);
+	GraphParametersNodeColor = FLinearColor::Yellow;
+	RerouteNodeColor = FLinearColor(0.5f, 1.0f, 0.83f);
 
 	DefaultPinColor = FLinearColor(0.29f, 0.29f, 0.29f);
 	SpatialDataPinColor = FLinearColor(1.0f, 1.0f, 1.0f);
@@ -89,6 +91,10 @@ FLinearColor UPCGEditorSettings::GetColor(UPCGSettings* Settings) const
 			return ControlFlowNodeColor;
 		case EPCGSettingsType::PointOps:
 			return PointOpsNodeColor;
+		case EPCGSettingsType::GraphParameters:
+			return GraphParametersNodeColor;
+		case EPCGSettingsType::Reroute:
+			return RerouteNodeColor;
 		case EPCGSettingsType::Generic: // falls through
 		default:
 			// Finally, we couldn't find any match, so return the default value

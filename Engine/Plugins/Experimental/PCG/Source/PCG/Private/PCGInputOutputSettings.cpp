@@ -213,6 +213,42 @@ void UPCGGraphInputOutputSettings::PostEditChangeProperty(struct FPropertyChange
 }
 #endif // WITH_EDITOR
 
+TArray<FPCGPinProperties> UPCGGraphInputOutputSettings::InputPinProperties() const
+{
+	if (bIsInput)
+	{
+		TArray<FPCGPinProperties> InvisiblePins = Pins;
+		for (FPCGPinProperties& Pin : InvisiblePins)
+		{
+			Pin.bInvisiblePin = true;
+		}
+
+		return InvisiblePins;
+	}
+	else
+	{
+		return Pins;
+	}
+}
+
+TArray<FPCGPinProperties> UPCGGraphInputOutputSettings::OutputPinProperties() const
+{
+	if (bIsInput)
+	{
+		return Pins;
+	}
+	else
+	{
+		TArray<FPCGPinProperties> InvisiblePins = Pins;
+		for (FPCGPinProperties& Pin : InvisiblePins)
+		{
+			Pin.bInvisiblePin = true;
+		}
+
+		return InvisiblePins;
+	}
+}
+
 void UPCGGraphInputOutputSettings::FixPinProperties()
 {
 	// No need to fix if we have no pins

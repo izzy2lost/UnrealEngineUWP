@@ -60,7 +60,9 @@ enum class EPCGSettingsType : uint8
 	Param,
 	HierarchicalGeneration,
 	ControlFlow,
-	PointOps
+	PointOps,
+	GraphParameters,
+	Reroute
 };
 
 #if WITH_EDITOR
@@ -264,6 +266,8 @@ public:
 	virtual bool ShouldDrawNodeCompact() const { return false; }
 	/** Returns the icon to use instead of text in compact node form */
 	virtual bool GetCompactNodeIcon(FName& OutCompactNodeIcon) const { return false; }
+	/** Returns whether the user can directly interact with the node name */
+	virtual bool CanUserEditTitle() const { return true; }
 
 	/** UpdatePins will kick off invalid edges, so this is useful for moving edges around in case of pin changes. */
 	virtual void ApplyDeprecationBeforeUpdatePins(UPCGNode* InOutNode, TArray<TObjectPtr<UPCGPin>>& InputPins, TArray<TObjectPtr<UPCGPin>>& OutputPins);

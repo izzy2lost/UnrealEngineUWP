@@ -18,7 +18,7 @@
 
 namespace PCGSubgraphSettings
 {
-	void RemoveAdvancedModeOnConnectedPins(const UPCGGraph* Subgraph, TArray<FPCGPinProperties>& InOutPinProperties, const bool bIsInput)
+	void RemoveAdvancedAndInvisibleOnConnectedPins(const UPCGGraph* Subgraph, TArray<FPCGPinProperties>& InOutPinProperties, const bool bIsInput)
 	{
 		const UPCGNode* SubgraphNode = bIsInput ? Subgraph->GetInputNode() : Subgraph->GetOutputNode();
 		check(SubgraphNode);
@@ -26,9 +26,14 @@ namespace PCGSubgraphSettings
 		for (FPCGPinProperties& PinProperties : InOutPinProperties)
 		{
 			const UPCGPin* Pin = bIsInput ? SubgraphNode->GetOutputPin(PinProperties.Label) : SubgraphNode->GetInputPin(PinProperties.Label);
-			if (ensure(Pin) && Pin->IsConnected())
+			if (ensure(Pin))
 			{
-				PinProperties.bAdvancedPin = false;
+				PinProperties.bInvisiblePin = false;
+
+				if (Pin->IsConnected())
+				{
+					PinProperties.bAdvancedPin = false;
+				}
 			}
 		}
 	}
@@ -193,7 +198,7 @@ TArray<FPCGPinProperties> UPCGBaseSubgraphSettings::InputPinProperties() const
 	if (UPCGGraph* Subgraph = GetSubgraph())
 	{
 		TArray<FPCGPinProperties> InputPins = Subgraph->GetInputNode()->InputPinProperties();
-		PCGSubgraphSettings::RemoveAdvancedModeOnConnectedPins(Subgraph, InputPins, /*bIsInput=*/true);
+		PCGSubgraphSettings::RemoveAdvancedAndInvisibleOnConnectedPins(Subgraph, InputPins, /*bIsInput=*/true);
 		return InputPins;
 	}
 	else
@@ -207,7 +212,7 @@ TArray<FPCGPinProperties> UPCGBaseSubgraphSettings::OutputPinProperties() const
 	if (UPCGGraph* Subgraph = GetSubgraph())
 	{
 		TArray<FPCGPinProperties> OutputPins = Subgraph->GetOutputNode()->OutputPinProperties();
-		PCGSubgraphSettings::RemoveAdvancedModeOnConnectedPins(Subgraph, OutputPins, /*bIsInput=*/false);
+		PCGSubgraphSettings::RemoveAdvancedAndInvisibleOnConnectedPins(Subgraph, OutputPins, /*bIsInput=*/false);
 		return OutputPins;
 	}
 	else

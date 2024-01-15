@@ -39,7 +39,11 @@ TSharedPtr<SGraphNode> FPCGEditorGraphNodeFactory::CreateNode(UEdGraphNode* InNo
 		TSharedPtr<SGraphNode> VisualNode;
 		
 		const UPCGNode* PCGNode = GraphNode->GetPCGNode();
-		if (PCGNode && Cast<UPCGRerouteSettings>(PCGNode->GetSettings()))
+		if (PCGNode && Cast<UPCGNamedRerouteBaseSettings>(PCGNode->GetSettings()))
+		{
+			SAssignNew(VisualNode, SPCGEditorGraphVarNode, GraphNode);
+		}
+		else if (PCGNode && Cast<UPCGRerouteSettings>(PCGNode->GetSettings()))
 		{
 			SAssignNew(VisualNode, SPCGEditorGraphNodeKnot, GraphNode);
 		}
@@ -55,11 +59,6 @@ TSharedPtr<SGraphNode> FPCGEditorGraphNodeFactory::CreateNode(UEdGraphNode* InNo
 		VisualNode->SlatePrepass();
 
 		return VisualNode.ToSharedRef();
-	}
-	else if (UPCGEditorGraphNodeReroute* RerouteNode = Cast<UPCGEditorGraphNodeReroute>(InNode))
-	{
-		TSharedRef<SGraphNode> VisualNode = SNew(SGraphNodeKnot, RerouteNode);
-		return VisualNode;
 	}
 
 	return nullptr;

@@ -65,7 +65,24 @@ void UPCGEditorGraph::ReconstructGraph()
 			continue;
 		}
 
-		if (Cast<UPCGRerouteSettings>(PCGNode->GetSettings()))
+		// TODO: replace this with a templated lambda because this is all very similar
+		if (Cast<UPCGNamedRerouteDeclarationSettings>(PCGNode->GetSettings()))
+		{
+			FGraphNodeCreator<UPCGEditorGraphNodeNamedRerouteDeclaration> NodeCreator(*this);
+			UPCGEditorGraphNodeNamedRerouteDeclaration* RerouteGraphNode = NodeCreator.CreateNode(bSelectNewNode);
+			RerouteGraphNode->Construct(PCGNode);
+			NodeCreator.Finalize();
+			NodeLookup.Add(PCGNode, RerouteGraphNode);
+		}
+		else if (Cast<UPCGNamedRerouteUsageSettings>(PCGNode->GetSettings()))
+		{
+			FGraphNodeCreator<UPCGEditorGraphNodeNamedRerouteUsage> NodeCreator(*this);
+			UPCGEditorGraphNodeNamedRerouteUsage* RerouteGraphNode = NodeCreator.CreateNode(bSelectNewNode);
+			RerouteGraphNode->Construct(PCGNode);
+			NodeCreator.Finalize();
+			NodeLookup.Add(PCGNode, RerouteGraphNode);
+		}
+		else if (Cast<UPCGRerouteSettings>(PCGNode->GetSettings()))
 		{
 			FGraphNodeCreator<UPCGEditorGraphNodeReroute> NodeCreator(*this);
 			UPCGEditorGraphNodeReroute* RerouteGraphNode = NodeCreator.CreateNode(bSelectNewNode);
@@ -159,7 +176,7 @@ void UPCGEditorGraph::CreateLinks(UPCGEditorGraphNodeBase* GraphNode, bool bCrea
 	{
 		for (UPCGPin* InputPin : PCGNode->GetInputPins())
 		{
-			if (!InputPin)
+			if (!InputPin || InputPin->Properties.bInvisiblePin)
 			{
 				continue;
 			}
@@ -167,12 +184,8 @@ void UPCGEditorGraph::CreateLinks(UPCGEditorGraphNodeBase* GraphNode, bool bCrea
 			UEdGraphPin* InPin = GraphNode->FindPin(InputPin->Properties.Label, EEdGraphPinDirection::EGPD_Input);
 			if (!InPin)
 			{
-				if (!Cast<UPCGEditorGraphNodeInput>(GraphNode))
-				{
-					UE_LOG(LogPCGEditor, Error, TEXT("Invalid InputPin for %s"), *InputPin->Properties.Label.ToString());
-					ensure(false);
-				}
-
+				UE_LOG(LogPCGEditor, Error, TEXT("Invalid InputPin for %s"), *InputPin->Properties.Label.ToString());
+				ensure(false);
 				continue;
 			}
 
@@ -211,7 +224,7 @@ void UPCGEditorGraph::CreateLinks(UPCGEditorGraphNodeBase* GraphNode, bool bCrea
 	{
 		for (UPCGPin* OutputPin : PCGNode->GetOutputPins())
 		{
-			if (!OutputPin)
+			if (!OutputPin || OutputPin->Properties.bInvisiblePin)
 			{
 				continue;
 			}
@@ -219,11 +232,8 @@ void UPCGEditorGraph::CreateLinks(UPCGEditorGraphNodeBase* GraphNode, bool bCrea
 			UEdGraphPin* OutPin = GraphNode->FindPin(OutputPin->Properties.Label, EEdGraphPinDirection::EGPD_Output);
 			if (!OutPin)
 			{
-				if (!Cast<UPCGEditorGraphNodeOutput>(GraphNode))
-				{
-					UE_LOG(LogPCGEditor, Error, TEXT("Invalid OutputPin for %s"), *OutputPin->Properties.Label.ToString());
-				}
-
+				UE_LOG(LogPCGEditor, Error, TEXT("Invalid OutputPin for %s"), *OutputPin->Properties.Label.ToString());
+				ensure(false);
 				continue;
 			}
 

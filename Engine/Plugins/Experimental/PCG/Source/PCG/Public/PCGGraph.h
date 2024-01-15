@@ -270,6 +270,9 @@ public:
 	/** Returns true if the current graph contains a subgraph node using statically the specified graph, recursively. */
 	bool Contains(const UPCGGraph* InGraph) const;
 
+	/** Returns the node with the given settings in the graph, if any */
+	UPCGNode* FindNodeWithSettings(const UPCGSettingsInterface* InSettings, bool bRecursive = false) const;
+
 	const TArray<UPCGNode*>& GetNodes() const { return Nodes; }
 	void AddNode(UPCGNode* InNode);
 	void AddNodes(TArray<UPCGNode*>& InNodes);

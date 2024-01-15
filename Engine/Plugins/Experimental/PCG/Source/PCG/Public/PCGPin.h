@@ -46,6 +46,9 @@ struct PCG_API FPCGPinProperties
 	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = Settings)
 	bool bAdvancedPin = false;
 
+	UPROPERTY(BlueprintReadWrite, Category = Settings)
+	bool bInvisiblePin = false;
+
 #if WITH_EDITORONLY_DATA
 	UPROPERTY(EditAnywhere, Category = Settings)
 	FText Tooltip;

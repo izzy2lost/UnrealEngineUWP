@@ -42,8 +42,8 @@ public:
 	virtual void ApplyDeprecationBeforeUpdatePins(UPCGNode* InOutNode, TArray<TObjectPtr<UPCGPin>>& InputPins, TArray<TObjectPtr<UPCGPin>>& OutputPins) override;
 #endif
 
-	TArray<FPCGPinProperties> InputPinProperties() const override { return Pins; }
-	TArray<FPCGPinProperties> OutputPinProperties() const override { return Pins; }
+	TArray<FPCGPinProperties> InputPinProperties() const override;
+	TArray<FPCGPinProperties> OutputPinProperties() const override;
 
 	virtual TArray<FPCGPinProperties> DefaultInputPinProperties() const override;
 	virtual TArray<FPCGPinProperties> DefaultOutputPinProperties() const override;

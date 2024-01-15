@@ -2,6 +2,11 @@
 
 #include "PCGEditorGraphNodeReroute.h"
 
+#include "PCGEditorGraph.h"
+
+#include "PCGNode.h"
+#include "Elements/PCGReroute.h"
+
 #include "EdGraph/EdGraphPin.h"
 
 FText UPCGEditorGraphNodeReroute::GetNodeTitle(ENodeTitleType::Type TitleType) const
@@ -72,4 +77,113 @@ UEdGraphPin* UPCGEditorGraphNodeReroute::GetOutputPin() const
 	}
 
 	return nullptr;
+}
+
+FText UPCGEditorGraphNodeNamedRerouteBase::GetNodeTitle(ENodeTitleType::Type TitleType) const
+{
+	// Never show full title, only list view
+	return Super::GetNodeTitle(ENodeTitleType::ListView);
+}
+
+FText UPCGEditorGraphNodeNamedRerouteUsage::GetPinFriendlyName(const UPCGPin* InPin) const
+{
+	return FText::FromString(" ");
+}
+
+void UPCGEditorGraphNodeNamedRerouteUsage::RebuildEdgesFromPins_Internal()
+{
+	Super::RebuildEdgesFromPins_Internal();
+
+	check(PCGNode);
+
+	if (PCGNode->HasInboundEdges())
+	{
+		return;
+	}
+
+	UPCGGraph* Graph = PCGNode->GetGraph();
+
+	if (!Graph)
+	{
+		return;
+	}
+
+	UPCGNamedRerouteUsageSettings* Usage = Cast<UPCGNamedRerouteUsageSettings>(PCGNode->GetSettings());
+
+	if (!Usage)
+	{
+		return;
+	}
+
+	// Make sure we're hooked to the declaration if it's not already the case
+	if (UPCGNode* DeclarationNode = Graph->FindNodeWithSettings(Usage->Declaration))
+	{
+		DeclarationNode->AddEdgeTo(PCGNamedRerouteConstants::InvisiblePinLabel, PCGNode, PCGPinConstants::DefaultInputLabel);
+	}
+}
+
+FText UPCGEditorGraphNodeNamedRerouteDeclaration::GetPinFriendlyName(const UPCGPin* InPin) const
+{
+	return FText::FromString(" ");
+}
+
+void UPCGEditorGraphNodeNamedRerouteDeclaration::ApplyToUsageNodes(TFunctionRef<void(UPCGEditorGraphNodeNamedRerouteUsage*)> Action)
+{
+	if (!GetPCGNode())
+	{
+		return;
+	}
+
+	const UPCGNamedRerouteDeclarationSettings* Declaration = Cast<UPCGNamedRerouteDeclarationSettings>(GetPCGNode()->GetSettings());
+
+	if (!Declaration)
+	{
+		return;
+	}
+
+	UPCGEditorGraph* EditorGraph = Cast<UPCGEditorGraph>(GetGraph());
+
+	if (!EditorGraph)
+	{
+		return;
+	}
+
+	for (const TObjectPtr<UEdGraphNode>& EdGraphNode : EditorGraph->Nodes)
+	{
+		if (UPCGEditorGraphNodeNamedRerouteUsage* RerouteNode = Cast<UPCGEditorGraphNodeNamedRerouteUsage>(EdGraphNode))
+		{
+			if (RerouteNode->GetPCGNode() &&
+				Cast<UPCGNamedRerouteUsageSettings>(RerouteNode->GetPCGNode()->GetSettings()) &&
+				Cast<UPCGNamedRerouteUsageSettings>(RerouteNode->GetPCGNode()->GetSettings())->Declaration == Declaration)
+			{
+				Action(RerouteNode);
+			}
+		}
+	}
+}
+
+void UPCGEditorGraphNodeNamedRerouteDeclaration::ReconstructNodeOnChange()
+{
+	Super::ReconstructNodeOnChange();
+
+	// We must make sure to trigger a notify node changed on all editor nodes that are usages of that declaration
+	ApplyToUsageNodes([](UPCGEditorGraphNodeNamedRerouteUsage* RerouteNode)
+	{
+		RerouteNode->ReconstructNodeOnChange();
+	});
+}
+
+void UPCGEditorGraphNodeNamedRerouteDeclaration::OnRenameNode(const FString& NewName)
+{
+	Super::OnRenameNode(NewName);
+
+	// Propagate the name change to downstream usage nodes
+	ApplyToUsageNodes([&NewName](UPCGEditorGraphNodeNamedRerouteUsage* RerouteNode)
+	{
+		RerouteNode->bCanRenameNode = true;
+		RerouteNode->OnRenameNode(NewName);
+		RerouteNode->bCanRenameNode = false;
+	});
+
+	ReconstructNodeOnChange();
 }

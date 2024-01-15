@@ -110,6 +110,7 @@ protected:
 
 	/** Create PCG-side edges from editor pins/edges. */
 	void RebuildEdgesFromPins();
+	virtual void RebuildEdgesFromPins_Internal();
 
 	void OnNodeChanged(UPCGNode* InNode, EPCGChangeType ChangeType);
 	void OnPickColor();
@@ -119,9 +120,15 @@ protected:
 
 	void CreatePins(const TArray<UPCGPin*>& InInputPins, const TArray<UPCGPin*>& InOutputPins);
 
+	// Performs potentially custom logic when there's a change that would trigger a reconstruct (needed for linked nodes like the named reroutes)
+	virtual void ReconstructNodeOnChange() { ReconstructNode(); }
+
 	// Custom logic to hide some pins to the user (by not creating a UI pin, even if the model pin exists).
 	// Useful for deprecation
 	virtual bool ShouldCreatePin(const UPCGPin* InPin) const;
+
+	// Returns the appropriate pin name to allow for some flexibility
+	virtual FText GetPinFriendlyName(const UPCGPin* InPin) const;
 
 	UPROPERTY()
 	TObjectPtr<UPCGNode> PCGNode = nullptr;

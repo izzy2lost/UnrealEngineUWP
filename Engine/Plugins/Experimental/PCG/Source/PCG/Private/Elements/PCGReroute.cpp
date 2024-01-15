@@ -44,6 +44,43 @@ FPCGElementPtr UPCGRerouteSettings::CreateElement() const
 	return MakeShared<FPCGRerouteElement>();
 }
 
+TArray<FPCGPinProperties> UPCGNamedRerouteDeclarationSettings::OutputPinProperties() const
+{
+	TArray<FPCGPinProperties> PinProperties;
+	// Default visible pin
+	PinProperties.Emplace(
+		PCGPinConstants::DefaultOutputLabel, 
+		EPCGDataType::Any, 
+		/*bAllowMultipleConnections=*/true, 
+		/*bAllowMultipleData=*/true);
+
+	FPCGPinProperties& InvisiblePin = PinProperties.Emplace_GetRef(
+		PCGNamedRerouteConstants::InvisiblePinLabel,
+		EPCGDataType::Any,
+		/*bAllowMultipleConnections=*/true,
+		/*bAllowMultipleData=*/true);
+	InvisiblePin.bInvisiblePin = true;
+	
+	return PinProperties;
+}
+
+TArray<FPCGPinProperties> UPCGNamedRerouteUsageSettings::InputPinProperties() const
+{
+	TArray<FPCGPinProperties> PinProperties = Super::InputPinProperties();
+	if (ensure(PinProperties.Num() == 1))
+	{
+		PinProperties[0].bInvisiblePin = true;
+	}
+
+	return PinProperties;
+}
+
+EPCGDataType UPCGNamedRerouteUsageSettings::GetCurrentPinTypes(const UPCGPin* InPin) const
+{
+	// Defer to declaration if possible
+	return Declaration ? Declaration->GetCurrentPinTypes(InPin) : Super::GetCurrentPinTypes(InPin);
+}
+
 bool FPCGRerouteElement::ExecuteInternal(FPCGContext* Context) const
 {
 	ensureMsgf(false, TEXT("Reroute elements are not supposed to execute - reroutes should be culled during graph compilation."));

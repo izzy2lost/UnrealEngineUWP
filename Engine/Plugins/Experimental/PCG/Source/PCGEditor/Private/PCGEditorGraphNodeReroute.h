@@ -25,3 +25,40 @@ public:
 	UEdGraphPin* GetInputPin() const;
 	UEdGraphPin* GetOutputPin() const;
 };
+
+UCLASS()
+class UPCGEditorGraphNodeNamedRerouteBase : public UPCGEditorGraphNode
+{
+	GENERATED_BODY()
+
+public:
+	// ~Begin UEdGraphNode interface
+	virtual FText GetNodeTitle(ENodeTitleType::Type TitleType) const override;
+	// ~End UEdGraphNode interface
+};
+
+UCLASS()
+class UPCGEditorGraphNodeNamedRerouteUsage : public UPCGEditorGraphNodeNamedRerouteBase
+{
+	GENERATED_BODY()
+	friend class UPCGEditorGraphNodeNamedRerouteDeclaration;
+
+protected:
+	virtual void RebuildEdgesFromPins_Internal();
+	virtual FText GetPinFriendlyName(const UPCGPin* InPin) const override;
+};
+
+UCLASS()
+class UPCGEditorGraphNodeNamedRerouteDeclaration : public UPCGEditorGraphNodeNamedRerouteBase
+{
+	GENERATED_BODY()
+
+public:
+	virtual void OnRenameNode(const FString& NewName) override;
+
+protected:
+	virtual FText GetPinFriendlyName(const UPCGPin* InPin) const override;
+	virtual void ReconstructNodeOnChange() override;
+
+	void ApplyToUsageNodes(TFunctionRef<void(UPCGEditorGraphNodeNamedRerouteUsage*)> Action);
+};

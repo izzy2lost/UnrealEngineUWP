@@ -399,7 +399,7 @@ UEdGraphNode* FPCGEditorGraphSchemaAction_NewReroute::PerformAction(class UEdGra
 		return nullptr;
 	}
 
-	const FScopedTransaction Transaction(*FPCGEditorCommon::ContextIdentifier, LOCTEXT("PCGEditorNewReroute", "PCG Editor: New Reorute Node"), nullptr);
+	const FScopedTransaction Transaction(*FPCGEditorCommon::ContextIdentifier, LOCTEXT("PCGEditorNewReroute", "PCG Editor: New Reroute Node"), nullptr);
 	EditorGraph->Modify();
 
 	UPCGSettings* DefaultNodeSettings = nullptr;
@@ -417,6 +417,130 @@ UEdGraphNode* FPCGEditorGraphSchemaAction_NewReroute::PerformAction(class UEdGra
 
 	if (FromPin)
 	{
+		NewNode->AutowireNewNode(FromPin);
+	}
+
+	return NewNode;
+}
+
+UEdGraphNode* FPCGEditorGraphSchemaAction_NewNamedRerouteUsage::PerformAction(class UEdGraph* ParentGraph, UEdGraphPin* FromPin, const FVector2D Location, bool bSelectNewNode)
+{
+	check(DeclarationNode);
+
+	UPCGEditorGraph* EditorGraph = Cast<UPCGEditorGraph>(ParentGraph);
+	if (!EditorGraph)
+	{
+		UE_LOG(LogPCGEditor, Error, TEXT("Invalid EditorGraph"));
+		return nullptr;
+	}
+
+	UPCGGraph* PCGGraph = EditorGraph->GetPCGGraph();
+	if (!PCGGraph)
+	{
+		UE_LOG(LogPCGEditor, Error, TEXT("Invalid PCGGraph"));
+		return nullptr;
+	}
+
+	const FScopedTransaction Transaction(*FPCGEditorCommon::ContextIdentifier, LOCTEXT("PCGEditorNewNamedRerouteUsage", "PCG Editor: New Named Reroute Node Usage"), nullptr);
+	EditorGraph->Modify();
+
+	PCGGraph->DisableNotificationsForEditor();
+
+	ON_SCOPE_EXIT
+	{
+		PCGGraph->EnableNotificationsForEditor();
+	};
+
+	UPCGNamedRerouteDeclarationSettings* Declaration = CastChecked<UPCGNamedRerouteDeclarationSettings>(DeclarationNode->GetSettings());
+
+	UPCGSettings* DefaultNodeSettings = nullptr;
+	UPCGNode* NewPCGNode = PCGGraph->AddNodeOfType(UPCGNamedRerouteUsageSettings::StaticClass(), DefaultNodeSettings);
+
+	if (!NewPCGNode || !DefaultNodeSettings)
+	{
+		UE_LOG(LogPCGEditor, Error, TEXT("Failed creating named reroute node."));
+		return nullptr;
+	}
+
+	NewPCGNode->UpdateAfterSettingsChangeDuringCreation();
+
+	CastChecked<UPCGNamedRerouteUsageSettings>(DefaultNodeSettings)->Declaration = Declaration;
+	NewPCGNode->NodeTitle = DeclarationNode->NodeTitle;
+
+	// Create edge from the declaration to the new node
+	PCGGraph->AddEdge(const_cast<UPCGNode*>(DeclarationNode.Get()), PCGNamedRerouteConstants::InvisiblePinLabel, NewPCGNode, PCGPinConstants::DefaultInputLabel);
+	
+	FGraphNodeCreator<UPCGEditorGraphNodeNamedRerouteUsage> NodeCreator(*EditorGraph);
+	UPCGEditorGraphNodeNamedRerouteUsage* NewNode = NodeCreator.CreateUserInvokedNode(bSelectNewNode);
+	NewNode->Construct(NewPCGNode);
+	NewNode->NodePosX = Location.X;
+	NewNode->NodePosY = Location.Y;
+	NodeCreator.Finalize();
+
+	NewPCGNode->PositionX = Location.X;
+	NewPCGNode->PositionY = Location.Y;
+
+	return NewNode;
+}
+
+UEdGraphNode* FPCGEditorGraphSchemaAction_NewNamedRerouteDeclaration::PerformAction(class UEdGraph* ParentGraph, UEdGraphPin* FromPin, const FVector2D Location, bool bSelectNewNode)
+{
+	UPCGEditorGraph* EditorGraph = Cast<UPCGEditorGraph>(ParentGraph);
+	if (!EditorGraph)
+	{
+		UE_LOG(LogPCGEditor, Error, TEXT("Invalid EditorGraph"));
+		return nullptr;
+	}
+
+	UPCGGraph* PCGGraph = EditorGraph->GetPCGGraph();
+	if (!PCGGraph)
+	{
+		UE_LOG(LogPCGEditor, Error, TEXT("Invalid PCGGraph"));
+		return nullptr;
+	}
+
+	const FScopedTransaction Transaction(*FPCGEditorCommon::ContextIdentifier, LOCTEXT("PCGEditorNewNamedRerouteDeclaration", "PCG Editor: New Named Reroute Node Declaration"), nullptr);
+	EditorGraph->Modify();
+
+	UPCGSettings* DefaultNodeSettings = nullptr;
+	UPCGNode* NewPCGNode = PCGGraph->AddNodeOfType(UPCGNamedRerouteDeclarationSettings::StaticClass(), DefaultNodeSettings);
+
+	if (!NewPCGNode || !DefaultNodeSettings)
+	{
+		UE_LOG(LogPCGEditor, Error, TEXT("Failed creating named reroute node."));
+		return nullptr;
+	}
+
+	NewPCGNode->UpdateAfterSettingsChangeDuringCreation();
+
+	FGraphNodeCreator<UPCGEditorGraphNodeNamedRerouteDeclaration> NodeCreator(*EditorGraph);
+	UPCGEditorGraphNodeNamedRerouteDeclaration* NewNode = NodeCreator.CreateUserInvokedNode(bSelectNewNode);
+	NewNode->Construct(NewPCGNode);
+	NewNode->NodePosX = Location.X;
+	NewNode->NodePosY = Location.Y;
+	NodeCreator.Finalize();
+
+	NewPCGNode->PositionX = Location.X;
+	NewPCGNode->PositionY = Location.Y;
+
+	NewPCGNode->NodeTitle = TEXT("Reroute");
+
+	if (FromPin)
+	{
+		if (UPCGNamedRerouteDeclarationSettings* Declaration = Cast<UPCGNamedRerouteDeclarationSettings>(DefaultNodeSettings))
+		{
+			UPCGNode* FromNode = CastChecked<UPCGEditorGraphNodeBase>(FromPin->GetOwningNode())->GetPCGNode();
+
+			if (FromNode)
+			{
+				NewPCGNode->NodeTitle = FName(FromNode->GetNodeTitle(EPCGNodeTitleType::ListView).ToString() + " " + FromPin->PinName.ToString());
+			}
+			else
+			{
+				NewPCGNode->NodeTitle = FromPin->PinName;
+			}
+		}
+
 		NewNode->AutowireNewNode(FromPin);
 	}
 

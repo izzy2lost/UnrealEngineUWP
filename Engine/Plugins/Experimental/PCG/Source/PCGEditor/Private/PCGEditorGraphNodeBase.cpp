@@ -272,7 +272,20 @@ void UPCGEditorGraphNodeBase::RebuildEdgesFromPins()
 	{
 		PCGNode->GetGraph()->DisableNotificationsForEditor();
 	}
+
+	RebuildEdgesFromPins_Internal();
 	
+	if (PCGNode->GetGraph())
+	{
+		PCGNode->GetGraph()->EnableNotificationsForEditor();
+	}
+}
+
+void UPCGEditorGraphNodeBase::RebuildEdgesFromPins_Internal()
+{
+	check(PCGNode);
+	check(bDisableReconstructFromNode);
+
 	for (UEdGraphPin* Pin : Pins)
 	{
 		if (Pin->Direction == EEdGraphPinDirection::EGPD_Output)
@@ -288,11 +301,6 @@ void UPCGEditorGraphNodeBase::RebuildEdgesFromPins()
 				}
 			}
 		}
-	}
-
-	if (PCGNode->GetGraph())
-	{
-		PCGNode->GetGraph()->EnableNotificationsForEditor();
 	}
 }
 
@@ -328,7 +336,7 @@ void UPCGEditorGraphNodeBase::OnNodeChanged(UPCGNode* InNode, EPCGChangeType Cha
 
 		if (!!(ChangeType & (EPCGChangeType::Structural | EPCGChangeType::Node | EPCGChangeType::Edge | EPCGChangeType::Cosmetic)))
 		{
-			ReconstructNode();
+			ReconstructNodeOnChange();
 		}
 	}
 }
@@ -877,7 +885,7 @@ void UPCGEditorGraphNodeBase::UpdatePosition()
 
 bool UPCGEditorGraphNodeBase::ShouldCreatePin(const UPCGPin* InPin) const
 {
-	return true;
+	return InPin && !InPin->Properties.bInvisiblePin;
 }
 
 void UPCGEditorGraphNodeBase::CreatePins(const TArray<UPCGPin*>& InInputPins, const TArray<UPCGPin*>& InOutputPins)
@@ -892,7 +900,7 @@ void UPCGEditorGraphNodeBase::CreatePins(const TArray<UPCGPin*>& InInputPins, co
 		}
 
 		UEdGraphPin* Pin = CreatePin(EEdGraphPinDirection::EGPD_Input, GetPinType(InputPin), InputPin->Properties.Label);
-		Pin->PinFriendlyName = FText::FromString(FName::NameToDisplayString(InputPin->Properties.Label.ToString(), false));
+		Pin->PinFriendlyName = GetPinFriendlyName(InputPin);
 		Pin->bAdvancedView = InputPin->Properties.bAdvancedPin;
 		bHasAdvancedPin |= Pin->bAdvancedView;
 	}
@@ -905,7 +913,7 @@ void UPCGEditorGraphNodeBase::CreatePins(const TArray<UPCGPin*>& InInputPins, co
 		}
 
 		UEdGraphPin* Pin = CreatePin(EEdGraphPinDirection::EGPD_Output, GetPinType(OutputPin), OutputPin->Properties.Label);
-		Pin->PinFriendlyName = FText::FromString(FName::NameToDisplayString(OutputPin->Properties.Label.ToString(), false));
+		Pin->PinFriendlyName = GetPinFriendlyName(OutputPin);
 		Pin->bAdvancedView = OutputPin->Properties.bAdvancedPin;
 		bHasAdvancedPin |= Pin->bAdvancedView;
 	}
@@ -918,6 +926,12 @@ void UPCGEditorGraphNodeBase::CreatePins(const TArray<UPCGPin*>& InInputPins, co
 	{
 		AdvancedPinDisplay = ENodeAdvancedPins::NoPins;
 	}
+}
+
+FText UPCGEditorGraphNodeBase::GetPinFriendlyName(const UPCGPin* InPin) const
+{
+	check(InPin);
+	return FText::FromString(FName::NameToDisplayString(InPin->Properties.Label.ToString(), false));
 }
 
 #undef LOCTEXT_NAMESPACE

@@ -23,6 +23,7 @@
 #include "PCGEditorGraphNode.h"
 #include "PCGEditorGraphNodeInput.h"
 #include "PCGEditorGraphNodeOutput.h"
+#include "PCGEditorGraphNodeReroute.h"
 #include "PCGEditorGraphSchema.h"
 #include "PCGEditorGraphSchemaActions.h"
 #include "PCGEditorMenuContext.h"
@@ -1125,7 +1126,14 @@ bool FPCGEditor::CanRenameNode() const
 		return false;
 	}
 
-	return (*SelectedNodes.CreateConstIterator())->IsA<UPCGEditorGraphNodeBase>();
+	if (const UPCGEditorGraphNodeBase* SelectedNode = Cast<UPCGEditorGraphNodeBase>(*SelectedNodes.CreateConstIterator()))
+	{
+		return !SelectedNode->GetPCGNode() || !SelectedNode->GetPCGNode()->GetSettings() || SelectedNode->GetPCGNode()->GetSettings()->CanUserEditTitle();
+	}
+	else
+	{
+		return false;
+	}
 }
 
 void FPCGEditor::OnCollapseNodesInSubgraph()
@@ -1225,6 +1233,12 @@ bool FPCGEditor::CanExportNodes() const
 
 		// Exclude input and output nodes from the subgraph.
 		if (Object->IsA<UPCGEditorGraphNodeInput>() || Object->IsA<UPCGEditorGraphNodeOutput>())
+		{
+			continue;
+		}
+
+		// Also exclude reroute nodes
+		if (Object->IsA<UPCGEditorGraphNodeReroute>() || Object->IsA<UPCGEditorGraphNodeNamedRerouteBase>())
 		{
 			continue;
 		}

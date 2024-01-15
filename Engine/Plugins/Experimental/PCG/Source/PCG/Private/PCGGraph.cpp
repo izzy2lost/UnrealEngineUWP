@@ -390,6 +390,35 @@ bool UPCGGraph::Contains(const UPCGGraph* InGraph) const
 	return bContains;
 }
 
+UPCGNode* UPCGGraph::FindNodeWithSettings(const UPCGSettingsInterface* InSettings, bool bRecursive) const
+{
+	UPCGNode* NodeFound = nullptr;
+
+	auto FindNode = [&NodeFound, InSettings](UPCGNode* InNode)
+	{
+		if (InNode && InNode->GetSettingsInterface() == InSettings)
+		{
+			NodeFound = InNode;
+			return false; // stop execution
+		}
+		else
+		{
+			return true;
+		}
+	};
+
+	if (bRecursive)
+	{
+		ForEachNodeRecursively(FindNode);
+	}
+	else
+	{
+		ForEachNode(FindNode);
+	}
+
+	return NodeFound;
+}
+
 #if WITH_EDITOR
 void UPCGGraph::DeclareConstructClasses(TArray<FTopLevelAssetPath>& OutConstructClasses, const UClass* SpecificSubclass)
 {

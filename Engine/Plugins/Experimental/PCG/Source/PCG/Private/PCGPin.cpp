@@ -90,7 +90,8 @@ bool FPCGPinProperties::operator==(const FPCGPinProperties& Other) const
 		bAllowMultipleConnections == Other.bAllowMultipleConnections &&
 		bAllowMultipleData == Other.bAllowMultipleData &&
 		Usage == Other.Usage &&
-		bAdvancedPin == Other.bAdvancedPin;
+		bAdvancedPin == Other.bAdvancedPin &&
+		bInvisiblePin == Other.bInvisiblePin;
 }
 
 UPCGPin::UPCGPin(const FObjectInitializer& ObjectInitializer)

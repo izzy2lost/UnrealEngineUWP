@@ -6,6 +6,8 @@
 
 #include "SPCGEditorGraphVarNode.h"
 
+#include "PCGEditorGraphNodeReroute.h"
+
 #include "GraphEditorSettings.h"
 #include "SCommentBubble.h"
 #include "SGraphNode.h"
@@ -26,7 +28,7 @@ void SPCGEditorGraphVarNode::Construct(const FArguments& InArgs, UPCGEditorGraph
 
 FSlateColor SPCGEditorGraphVarNode::GetVariableColor() const
 {
-	return FColor::Yellow;
+	return GraphNode->GetNodeTitleColor();
 }
 
 void SPCGEditorGraphVarNode::UpdateGraphNode()
@@ -41,6 +43,27 @@ void SPCGEditorGraphVarNode::UpdateGraphNode()
 	FMargin ContentAreaMargin = FMargin(0.0f, 4.0f);
 
 	SetupErrorReporting();
+
+	bool bNeedsTitle = (Cast<UPCGEditorGraphNodeNamedRerouteBase>(GraphNode) != nullptr);
+
+	TSharedPtr<SWidget> TitleArea = SNullWidget::NullWidget.ToSharedPtr();
+
+	if (bNeedsTitle)
+	{
+		TSharedPtr<SNodeTitle> NodeTitle = SNew(SNodeTitle, GraphNode);
+		SAssignNew(TitleArea, SVerticalBox)
+			+ SVerticalBox::Slot()
+			.AutoHeight()
+			.VAlign(VAlign_Center)
+			[
+				CreateTitleWidget(NodeTitle)
+			]
+			+ SVerticalBox::Slot()
+			.AutoHeight()
+			[
+				NodeTitle.ToSharedRef()
+			];
+	}
 
 	// Setup a meta tag for this node
 	FGraphNodeMetaData TagMeta(TEXT("Graphnode"));
@@ -93,6 +116,13 @@ void SPCGEditorGraphVarNode::UpdateGraphNode()
 				[
 					// LEFT
 					SAssignNew(LeftNodeBox, SVerticalBox)
+				]
+				+ SHorizontalBox::Slot()
+				.AutoWidth()
+				.HAlign(HAlign_Center)
+				.VAlign(VAlign_Center)
+				[
+					TitleArea.ToSharedRef()
 				]
 				+ SHorizontalBox::Slot()
 				.AutoWidth()
