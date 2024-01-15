@@ -55,7 +55,7 @@ namespace Horde.Server.Replicators
 			public int Change { get; }
 			public int ParentChange { get; }
 			public IBlobHandle<CommitNode>? ParentHandle { get; }
-			public long CopiedSize;
+			public long CopiedSize { get; set; }
 			public IBlobHandle<DirectoryNode>? Contents { get; set; }
 			public List<string> Paths { get; }
 
@@ -85,16 +85,16 @@ namespace Horde.Server.Replicators
 					parentHandle = reader.ReadBlobHandle<CommitNode>();
 				}
 
-				IBlobHandle<DirectoryNode>? contents = null;
-				if (reader.ReadBoolean())
-				{
-					contents = reader.ReadBlobHandle<DirectoryNode>();
-				}
-
 				long copiedSize = 0;
 				if (reader.Version >= 2)
 				{
 					copiedSize = (long)reader.ReadUnsignedVarInt();
+				}
+
+				IBlobHandle<DirectoryNode>? contents = null;
+				if (reader.ReadBoolean())
+				{
+					contents = reader.ReadBlobHandle<DirectoryNode>();
 				}
 
 				List<string> paths = reader.ReadList(() => reader.ReadString());
