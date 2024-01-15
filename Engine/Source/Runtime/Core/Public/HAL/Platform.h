@@ -233,20 +233,8 @@
 #ifndef PLATFORM_COMPILER_HAS_TCHAR_WMAIN
 	#define PLATFORM_COMPILER_HAS_TCHAR_WMAIN 0
 #endif
-#ifndef PLATFORM_COMPILER_HAS_DECLTYPE_AUTO
-	#define PLATFORM_COMPILER_HAS_DECLTYPE_AUTO 1
-#endif
-#ifdef _MSC_VER
-	#define PLATFORM_COMPILER_HAS_IF_CONSTEXPR 1
-	#ifndef __clang__
-		#pragma deprecated("PLATFORM_COMPILER_HAS_IF_CONSTEXPR")
-	#endif
-#else
-	#define PLATFORM_COMPILER_HAS_IF_CONSTEXPR 1 UE_DEPRECATED_MACRO(5.1, "PLATFORM_COMPILER_HAS_IF_CONSTEXPR has been deprecated and should be replaced with 1.")
-#endif
-#ifndef PLATFORM_COMPILER_HAS_FOLD_EXPRESSIONS
-	#define PLATFORM_COMPILER_HAS_FOLD_EXPRESSIONS 0
-#endif
+#define PLATFORM_COMPILER_HAS_DECLTYPE_AUTO 1 UE_DEPRECATED_MACRO(5.4, "PLATFORM_COMPILER_HAS_DECLTYPE_AUTO has been deprecated and should be replaced with 1.")
+#define PLATFORM_COMPILER_HAS_FOLD_EXPRESSIONS 1 UE_DEPRECATED_MACRO(5.4, "PLATFORM_COMPILER_HAS_FOLD_EXPRESSIONS has been deprecated and should be replaced with 1.")
 #ifndef PLATFORM_COMPILER_HAS_GENERATED_COMPARISON_OPERATORS
 	#define PLATFORM_COMPILER_HAS_GENERATED_COMPARISON_OPERATORS (__cplusplus >= 202002L)
 #endif
@@ -648,13 +636,22 @@
 #endif
 
 /* Use before a function declaration to warn that callers should not ignore the return value */
-#if !defined(UE_NODISCARD) && defined(__has_cpp_attribute)
+#ifdef __has_cpp_attribute
 	#if __has_cpp_attribute(nodiscard)
-		#define UE_NODISCARD [[nodiscard]]
+		// Define this in when all UE_NODISCARD usage has been replaced and we are ready to deprecate
+		#ifdef _MSC_VER
+			#define UE_NODISCARD [[nodiscard]]
+			#ifndef __clang__
+				#pragma deprecated("UE_NODISCARD")
+			#endif
+		#else
+			#define UE_NODISCARD [[nodiscard]] UE_DEPRECATED_MACRO(5.4, "UE_NODISCARD has been deprecated and should be replaced with [[nodiscard]].")
+		#endif
+	#else
+		#error "Compiler is expected to support [[nodiscard]]"
 	#endif
-#endif
-#ifndef UE_NODISCARD
-	#define UE_NODISCARD
+#else
+	#error "Compiler is expected to support [[nodiscard]]"
 #endif
 
 // Use before a constructor declaration to warn when an unnamed temporary object is ignored, e.g. FScopeLock(CS); instead of FScopeLock Lock(CS);
@@ -672,13 +669,21 @@
 #endif
 
 /* Use before a function declaration to indicate that the function never returns */
-#if !defined(UE_NORETURN) && defined(__has_cpp_attribute)
+#ifdef __has_cpp_attribute
 	#if __has_cpp_attribute(noreturn)
-		#define UE_NORETURN [[noreturn]]
+		#ifdef _MSC_VER
+			#define UE_NORETURN [[noreturn]]
+			#ifndef __clang__
+				#pragma deprecated("UE_NORETURN")
+			#endif
+		#else
+			#define UE_NORETURN [[noreturn]] UE_DEPRECATED_MACRO(5.4, "UE_NORETURN has been deprecated and should be replaced with [[noreturn]].")
+		#endif
+	#else
+		#error "Compiler is expected to support [[noreturn]]"
 	#endif
-#endif
-#ifndef UE_NORETURN
-	#define UE_NORETURN
+#else
+	#error "Compiler is expected to support [[noreturn]]"
 #endif
 
 /* Macro wrapper for the consteval keyword which isn't yet present on all compilers - constexpr
@@ -785,9 +790,7 @@
 #ifndef ABSTRACT
 	#define ABSTRACT
 #endif
-#ifndef CONSTEXPR
-	#define CONSTEXPR constexpr
-#endif
+#define CONSTEXPR constexpr UE_DEPRECATED_MACRO(5.4, "CONSTEXPR has been deprecated and should be replaced with constexpr.")
 #ifndef IN
 	#define IN
 #endif

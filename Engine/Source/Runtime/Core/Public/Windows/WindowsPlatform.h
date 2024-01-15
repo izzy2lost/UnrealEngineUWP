@@ -102,7 +102,6 @@ typedef FWindowsPlatformTypes FPlatformTypes;
 #endif
 
 #define PLATFORM_SUPPORTS_STACK_SYMBOLS						1
-#define PLATFORM_COMPILER_HAS_DECLTYPE_AUTO					1
 
 #define PLATFORM_GLOBAL_LOG_CATEGORY						LogWindows
 
@@ -164,11 +163,6 @@ typedef FWindowsPlatformTypes FPlatformTypes;
 
 #pragma warning(disable : 4481) // nonstandard extension used: override specifier 'override'
 
-#if defined(__clang__) || _MSC_VER >= 1900
-	#define CONSTEXPR constexpr
-#else
-	#define CONSTEXPR
-#endif
 #define ABSTRACT abstract
 
 // Strings.

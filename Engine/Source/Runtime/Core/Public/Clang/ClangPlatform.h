@@ -12,10 +12,12 @@
 	#error "Compiler is expected to support if constexpr"
 #endif
 
-#if defined(__cpp_fold_expressions)
-	#define PLATFORM_COMPILER_HAS_FOLD_EXPRESSIONS 1
-#else
+#if !defined(__cpp_fold_expressions)
 	#error "Compiler is expected to support fold expressions"
+#endif
+
+#if !__has_feature(cxx_decltype_auto)
+	#error "Compiler is expected to support decltype(auto)"
 #endif
 
 #define PLATFORM_RETURN_ADDRESS()			__builtin_return_address(0)

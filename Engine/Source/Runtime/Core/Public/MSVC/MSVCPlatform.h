@@ -12,9 +12,7 @@
 	#error "Compiler is expected to support if constexpr"
 #endif
 
-#if defined(__cpp_fold_expressions)
-	#define PLATFORM_COMPILER_HAS_FOLD_EXPRESSIONS 1
-#else
+#if !defined(__cpp_fold_expressions)
 	#error "Compiler is expected to support fold expressions"
 #endif
 

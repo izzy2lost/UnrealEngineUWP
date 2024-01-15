@@ -94,12 +94,6 @@ typedef FMacPlatformTypes FPlatformTypes;
 
 #define PLATFORM_CODE_SECTION(Name)						__attribute__((section("__TEXT,__" Name ",regular,pure_instructions")))
 
-#if __has_feature(cxx_decltype_auto)
-	#define PLATFORM_COMPILER_HAS_DECLTYPE_AUTO			1
-#else
-	#define PLATFORM_COMPILER_HAS_DECLTYPE_AUTO			0
-#endif
-
 // Function type macros.
 #define VARARGS															/* Functions with variable arguments */
 #define CDECL															/* Standard C function */
