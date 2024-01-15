@@ -1,7 +1,6 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 #include "ChaosClothAsset/SimulationXPBDAreaSpringConfigNode.h"
-#include "ChaosClothAsset/SimulationBaseConfigNodePrivate.h"
 #include "Chaos/CollectionPropertyFacade.h"
 
 #include UE_INLINE_GENERATED_CPP_BY_NAME(SimulationXPBDAreaSpringConfigNode)
@@ -13,9 +12,11 @@ FChaosClothAssetSimulationXPBDAreaSpringConfigNode::FChaosClothAssetSimulationXP
 	RegisterInputConnection(&XPBDAreaSpringStiffness.WeightMap);
 }
 
-void FChaosClothAssetSimulationXPBDAreaSpringConfigNode::AddProperties(Dataflow::FContext& Context, ::Chaos::Softs::FCollectionPropertyMutableFacade& Properties) const
+void FChaosClothAssetSimulationXPBDAreaSpringConfigNode::AddProperties(FPropertyHelper& PropertyHelper) const
 {
-	UE_CHAOS_CLOTHASSET_SIMULATIONCONFIG_SETPROPERTYWEIGHTEDCHECKED1(
-		XPBDAreaSpringStiffness,
-		AreaSpringStiffness);  // Existing properties to warn against
+	PropertyHelper.SetPropertyWeighted(this,
+		&XPBDAreaSpringStiffness,
+		{
+			FName(TEXT("AreaSpringStiffness"))  // Existing properties to warn against
+		});
 }

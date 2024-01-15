@@ -1,7 +1,6 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 #include "ChaosClothAsset/SimulationXPBDBendingSpringConfigNode.h"
-#include "ChaosClothAsset/SimulationBaseConfigNodePrivate.h"
 #include "Chaos/CollectionPropertyFacade.h"
 
 #include UE_INLINE_GENERATED_CPP_BY_NAME(SimulationXPBDBendingSpringConfigNode)
@@ -14,16 +13,20 @@ FChaosClothAssetSimulationXPBDBendingSpringConfigNode::FChaosClothAssetSimulatio
 	RegisterInputConnection(&XPBDBendingSpringDamping.WeightMap);
 }
 
-void FChaosClothAssetSimulationXPBDBendingSpringConfigNode::AddProperties(Dataflow::FContext& Context, ::Chaos::Softs::FCollectionPropertyMutableFacade& Properties) const
+void FChaosClothAssetSimulationXPBDBendingSpringConfigNode::AddProperties(FPropertyHelper& PropertyHelper) const
 {
-	UE_CHAOS_CLOTHASSET_SIMULATIONCONFIG_SETPROPERTYWEIGHTEDCHECKED4(
-		XPBDBendingSpringStiffness,
-		BendingSpringStiffness,          // Existing properties to warn against
-		BendingElementStiffness,         //
-		XPBDBendingElementStiffness,     //
-		XPBDAnisoBendingStiffnessWarp);  //
-	UE_CHAOS_CLOTHASSET_SIMULATIONCONFIG_SETPROPERTYWEIGHTEDCHECKED2(
-		XPBDBendingSpringDamping,
-		XPBDBendingElementDamping,  // Existing properties to warn against
-		XPBDAnisoBendingDamping);   //
+	PropertyHelper.SetPropertyWeighted(this,
+		&XPBDBendingSpringStiffness,
+		{
+			FName(TEXT("BendingSpringStiffness")),        // Existing properties to warn against
+			FName(TEXT("BendingElementStiffness")),       //
+			FName(TEXT("XPBDBendingElementStiffness")),   //
+			FName(TEXT("XPBDAnisoBendingStiffnessWarp"))  //
+		});
+	PropertyHelper.SetPropertyWeighted(this,
+		&XPBDBendingSpringDamping,
+		{
+			FName(TEXT("XPBDBendingElementDamping")),  // Existing properties to warn against
+			FName(TEXT("XPBDAnisoBendingDamping"))     //
+		});
 }

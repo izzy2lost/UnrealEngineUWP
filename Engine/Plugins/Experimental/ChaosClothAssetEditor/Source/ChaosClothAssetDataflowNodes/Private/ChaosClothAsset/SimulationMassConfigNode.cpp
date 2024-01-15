@@ -1,7 +1,6 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 #include "ChaosClothAsset/SimulationMassConfigNode.h"
-#include "ChaosClothAsset/SimulationBaseConfigNodePrivate.h"
 #include "Chaos/CollectionPropertyFacade.h"
 
 #include UE_INLINE_GENERATED_CPP_BY_NAME(SimulationMassConfigNode)
@@ -12,7 +11,7 @@ FChaosClothAssetSimulationMassConfigNode::FChaosClothAssetSimulationMassConfigNo
 	RegisterCollectionConnections();
 }
 
-void FChaosClothAssetSimulationMassConfigNode::AddProperties(Dataflow::FContext& Context, ::Chaos::Softs::FCollectionPropertyMutableFacade& Properties) const
+void FChaosClothAssetSimulationMassConfigNode::AddProperties(FPropertyHelper& PropertyHelper) const
 {
 	float MassValue;
 	switch (MassMode)
@@ -23,7 +22,7 @@ void FChaosClothAssetSimulationMassConfigNode::AddProperties(Dataflow::FContext&
 	case EClothMassMode::Density: MassValue = Density; break;
 	}
 
-	UE_CHAOS_CLOTHASSET_SIMULATIONCONFIG_SETPROPERTYENUM(MassMode);
-	UE_CHAOS_CLOTHASSET_SIMULATIONCONFIG_SETPROPERTY(MassValue);
-	UE_CHAOS_CLOTHASSET_SIMULATIONCONFIG_SETPROPERTY(MinPerParticleMass);
+	PropertyHelper.SetPropertyEnum(this, &MassMode, {}, ECollectionPropertyFlags::Intrinsic);
+	PropertyHelper.SetProperty(FName(TEXT("MassValue")), MassValue, {}, ECollectionPropertyFlags::Intrinsic);
+	PropertyHelper.SetProperty(this, &MinPerParticleMass, {}, ECollectionPropertyFlags::Intrinsic);
 }

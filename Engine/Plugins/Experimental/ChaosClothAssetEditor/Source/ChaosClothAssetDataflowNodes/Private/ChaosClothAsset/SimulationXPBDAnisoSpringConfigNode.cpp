@@ -1,7 +1,6 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 #include "ChaosClothAsset/SimulationXPBDAnisoSpringConfigNode.h"
-#include "ChaosClothAsset/SimulationBaseConfigNodePrivate.h"
 #include "Chaos/CollectionPropertyFacade.h"
 
 #include UE_INLINE_GENERATED_CPP_BY_NAME(SimulationXPBDAnisoSpringConfigNode)
@@ -18,13 +17,13 @@ FChaosClothAssetSimulationXPBDAnisoSpringConfigNode::FChaosClothAssetSimulationX
 	RegisterInputConnection(&XPBDAnisoSpringWeftScale.WeightMap);
 }
 
-void FChaosClothAssetSimulationXPBDAnisoSpringConfigNode::AddProperties(Dataflow::FContext& Context, ::Chaos::Softs::FCollectionPropertyMutableFacade& Properties) const
+void FChaosClothAssetSimulationXPBDAnisoSpringConfigNode::AddProperties(FPropertyHelper& PropertyHelper) const
 {
-	UE_CHAOS_CLOTHASSET_SIMULATIONCONFIG_SETPROPERTYBOOL(XPBDAnisoSpringUse3dRestLengths);
-	UE_CHAOS_CLOTHASSET_SIMULATIONCONFIG_SETPROPERTYWEIGHTED(XPBDAnisoSpringStiffnessWarp);
-	UE_CHAOS_CLOTHASSET_SIMULATIONCONFIG_SETPROPERTYWEIGHTED(XPBDAnisoSpringStiffnessWeft);
-	UE_CHAOS_CLOTHASSET_SIMULATIONCONFIG_SETPROPERTYWEIGHTED(XPBDAnisoSpringStiffnessBias);
-	UE_CHAOS_CLOTHASSET_SIMULATIONCONFIG_SETPROPERTYWEIGHTED(XPBDAnisoSpringDamping);
-	UE_CHAOS_CLOTHASSET_SIMULATIONCONFIG_SETPROPERTYWEIGHTED(XPBDAnisoSpringWarpScale);
-	UE_CHAOS_CLOTHASSET_SIMULATIONCONFIG_SETPROPERTYWEIGHTED(XPBDAnisoSpringWeftScale);
+	PropertyHelper.SetPropertyBool(this, &bXPBDAnisoSpringUse3dRestLengths, {}, ECollectionPropertyFlags::None);  // Non animatable
+	PropertyHelper.SetPropertyWeighted(this, &XPBDAnisoSpringStiffnessWarp);
+	PropertyHelper.SetPropertyWeighted(this, &XPBDAnisoSpringStiffnessWeft);
+	PropertyHelper.SetPropertyWeighted(this, &XPBDAnisoSpringStiffnessBias);
+	PropertyHelper.SetPropertyWeighted(this, &XPBDAnisoSpringDamping);
+	PropertyHelper.SetPropertyWeighted(this, &XPBDAnisoSpringWarpScale);
+	PropertyHelper.SetPropertyWeighted(this, &XPBDAnisoSpringWeftScale);
 }

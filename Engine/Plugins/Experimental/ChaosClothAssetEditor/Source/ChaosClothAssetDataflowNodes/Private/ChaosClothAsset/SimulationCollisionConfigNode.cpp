@@ -1,7 +1,6 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 #include "ChaosClothAsset/SimulationCollisionConfigNode.h"
-#include "ChaosClothAsset/SimulationBaseConfigNodePrivate.h"
 #include "Chaos/CollectionPropertyFacade.h"
 
 #include UE_INLINE_GENERATED_CPP_BY_NAME(SimulationCollisionConfigNode)
@@ -12,10 +11,10 @@ FChaosClothAssetSimulationCollisionConfigNode::FChaosClothAssetSimulationCollisi
 	RegisterCollectionConnections();
 }
 
-void FChaosClothAssetSimulationCollisionConfigNode::AddProperties(Dataflow::FContext& Context, ::Chaos::Softs::FCollectionPropertyMutableFacade& Properties) const
+void FChaosClothAssetSimulationCollisionConfigNode::AddProperties(FPropertyHelper& PropertyHelper) const
 {
-	UE_CHAOS_CLOTHASSET_SIMULATIONCONFIG_SETPROPERTY(CollisionThickness);
-	UE_CHAOS_CLOTHASSET_SIMULATIONCONFIG_SETPROPERTY(FrictionCoefficient);
-	UE_CHAOS_CLOTHASSET_SIMULATIONCONFIG_SETPROPERTYBOOL(UseCCD);
-	UE_CHAOS_CLOTHASSET_SIMULATIONCONFIG_SETPROPERTY(ProximityStiffness);
+	PropertyHelper.SetProperty(this, &CollisionThickness);
+	PropertyHelper.SetProperty(this, &FrictionCoefficient);
+	PropertyHelper.SetPropertyBool(this, &bUseCCD);
+	PropertyHelper.SetProperty(this, &ProximityStiffness);
 }

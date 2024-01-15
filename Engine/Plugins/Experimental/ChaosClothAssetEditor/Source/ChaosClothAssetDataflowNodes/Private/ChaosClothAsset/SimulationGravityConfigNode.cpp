@@ -1,7 +1,6 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 #include "ChaosClothAsset/SimulationGravityConfigNode.h"
-#include "ChaosClothAsset/SimulationBaseConfigNodePrivate.h"
 #include "Chaos/CollectionPropertyFacade.h"
 
 #include UE_INLINE_GENERATED_CPP_BY_NAME(SimulationGravityConfigNode)
@@ -12,9 +11,9 @@ FChaosClothAssetSimulationGravityConfigNode::FChaosClothAssetSimulationGravityCo
 	RegisterCollectionConnections();
 }
 
-void FChaosClothAssetSimulationGravityConfigNode::AddProperties(Dataflow::FContext& Context, ::Chaos::Softs::FCollectionPropertyMutableFacade& Properties) const
+void FChaosClothAssetSimulationGravityConfigNode::AddProperties(FPropertyHelper& PropertyHelper) const
 {
-	UE_CHAOS_CLOTHASSET_SIMULATIONCONFIG_SETPROPERTYBOOL(UseGravityOverride);
-	UE_CHAOS_CLOTHASSET_SIMULATIONCONFIG_SETPROPERTY(GravityScale);
-	UE_CHAOS_CLOTHASSET_SIMULATIONCONFIG_SETPROPERTY(GravityOverride);
+	PropertyHelper.SetPropertyBool(this, &bUseGravityOverride);
+	PropertyHelper.SetProperty(this, &GravityScale);
+	PropertyHelper.SetProperty(this, &GravityOverride);
 }

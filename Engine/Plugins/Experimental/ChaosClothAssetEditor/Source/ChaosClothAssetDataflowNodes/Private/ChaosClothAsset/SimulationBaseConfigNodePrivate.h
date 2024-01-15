@@ -5,6 +5,8 @@
 #include "Dataflow/DataflowInputOutput.h"
 #include "ChaosClothAsset/WeightedValue.h"
 
+// These macros are now deprecated, use the FChaosClothAssetSimulationBaseConfigNode::FPropertyHelper struct instead.
+
 /** Macro for adding and setting value properties from inside AddProperties() */
 #define UE_CHAOS_CLOTHASSET_SIMULATIONCONFIG_SETPROPERTY(Property) \
 	const int32 Property##KeyIndex = AddPropertyHelper(Properties, FName(TEXT(#Property))); \

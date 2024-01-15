@@ -1,7 +1,6 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 #include "ChaosClothAsset/SimulationSolverConfigNode.h"
-#include "ChaosClothAsset/SimulationBaseConfigNodePrivate.h"
 #include "Chaos/CollectionPropertyFacade.h"
 
 #include UE_INLINE_GENERATED_CPP_BY_NAME(SimulationSolverConfigNode)
@@ -12,16 +11,16 @@ FChaosClothAssetSimulationSolverConfigNode::FChaosClothAssetSimulationSolverConf
 	RegisterCollectionConnections();
 }
 
-void FChaosClothAssetSimulationSolverConfigNode::AddProperties(Dataflow::FContext& Context, ::Chaos::Softs::FCollectionPropertyMutableFacade& Properties) const
+void FChaosClothAssetSimulationSolverConfigNode::AddProperties(FPropertyHelper& PropertyHelper) const
 {
-	UE_CHAOS_CLOTHASSET_SIMULATIONCONFIG_SETPROPERTY(NumIterations);
-	UE_CHAOS_CLOTHASSET_SIMULATIONCONFIG_SETPROPERTY(MaxNumIterations);
-	UE_CHAOS_CLOTHASSET_SIMULATIONCONFIG_SETPROPERTY(NumSubsteps);
-	UE_CHAOS_CLOTHASSET_SIMULATIONCONFIG_SETPROPERTYBOOL(EnableNumSelfCollisionSubsteps);
-	UE_CHAOS_CLOTHASSET_SIMULATIONCONFIG_SETPROPERTY(NumSelfCollisionSubsteps);
-	UE_CHAOS_CLOTHASSET_SIMULATIONCONFIG_SETPROPERTYBOOL(EnableForceBasedSolver);
-	UE_CHAOS_CLOTHASSET_SIMULATIONCONFIG_SETPROPERTY(NumNewtonIterations);
-	UE_CHAOS_CLOTHASSET_SIMULATIONCONFIG_SETPROPERTY(MaxNumCGIterations);
-	UE_CHAOS_CLOTHASSET_SIMULATIONCONFIG_SETPROPERTY(CGResidualTolerance);
-	UE_CHAOS_CLOTHASSET_SIMULATIONCONFIG_SETPROPERTYBOOL(DoQuasistatics);
+	PropertyHelper.SetProperty(this, &NumIterations);
+	PropertyHelper.SetProperty(this, &MaxNumIterations);
+	PropertyHelper.SetProperty(this, &NumSubsteps);
+	PropertyHelper.SetPropertyBool(this, &bEnableNumSelfCollisionSubsteps);
+	PropertyHelper.SetProperty(this, &NumSelfCollisionSubsteps);
+	PropertyHelper.SetPropertyBool(this, &bEnableForceBasedSolver, {}, ECollectionPropertyFlags::Intrinsic);
+	PropertyHelper.SetProperty(this, &NumNewtonIterations);
+	PropertyHelper.SetProperty(this, &MaxNumCGIterations);
+	PropertyHelper.SetProperty(this, &CGResidualTolerance);
+	PropertyHelper.SetPropertyBool(this, &bDoQuasistatics);
 }

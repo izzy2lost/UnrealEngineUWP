@@ -1,7 +1,6 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 #include "ChaosClothAsset/SimulationLongRangeAttachmentConfigNode.h"
-#include "ChaosClothAsset/SimulationBaseConfigNodePrivate.h"
 #include "ChaosClothAsset/ClothEngineTools.h"
 #include "Chaos/CollectionPropertyFacade.h"
 #include "Dataflow/DataflowInputOutput.h"
@@ -17,12 +16,12 @@ FChaosClothAssetSimulationLongRangeAttachmentConfigNode::FChaosClothAssetSimulat
 	RegisterInputConnection(&TetherScale.WeightMap);
 }
 
-void FChaosClothAssetSimulationLongRangeAttachmentConfigNode::AddProperties(Dataflow::FContext& Context, ::Chaos::Softs::FCollectionPropertyMutableFacade& Properties) const
+void FChaosClothAssetSimulationLongRangeAttachmentConfigNode::AddProperties(FPropertyHelper& PropertyHelper) const
 {
-	UE_CHAOS_CLOTHASSET_SIMULATIONCONFIG_SETPROPERTYWEIGHTED(TetherStiffness);
-	UE_CHAOS_CLOTHASSET_SIMULATIONCONFIG_SETPROPERTYWEIGHTED(TetherScale);
-	UE_CHAOS_CLOTHASSET_SIMULATIONCONFIG_SETPROPERTYBOOL(UseGeodesicTethers);
-	UE_CHAOS_CLOTHASSET_SIMULATIONCONFIG_SETPROPERTYSTRING(FixedEndWeightMap);
+	PropertyHelper.SetPropertyWeighted(this, &TetherStiffness);
+	PropertyHelper.SetPropertyWeighted(this, &TetherScale);
+	PropertyHelper.SetPropertyBool(this, &bUseGeodesicTethers);
+	PropertyHelper.SetPropertyString(this, &FixedEndWeightMap);
 }
 
 void FChaosClothAssetSimulationLongRangeAttachmentConfigNode::EvaluateClothCollection(Dataflow::FContext& Context, const TSharedRef<FManagedArrayCollection>& ClothCollection) const

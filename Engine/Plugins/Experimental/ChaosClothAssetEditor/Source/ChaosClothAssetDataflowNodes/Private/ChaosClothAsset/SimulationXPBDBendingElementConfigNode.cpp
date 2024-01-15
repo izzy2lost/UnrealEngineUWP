@@ -1,7 +1,6 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 #include "ChaosClothAsset/SimulationXPBDBendingElementConfigNode.h"
-#include "ChaosClothAsset/SimulationBaseConfigNodePrivate.h"
 #include "Chaos/CollectionPropertyFacade.h"
 
 #include UE_INLINE_GENERATED_CPP_BY_NAME(SimulationXPBDBendingElementConfigNode)
@@ -17,36 +16,51 @@ FChaosClothAssetSimulationXPBDBendingElementConfigNode::FChaosClothAssetSimulati
 	RegisterInputConnection(&XPBDBucklingStiffness.WeightMap);
 }
 
-void FChaosClothAssetSimulationXPBDBendingElementConfigNode::AddProperties(Dataflow::FContext& Context, ::Chaos::Softs::FCollectionPropertyMutableFacade& Properties) const
+void FChaosClothAssetSimulationXPBDBendingElementConfigNode::AddProperties(FPropertyHelper& PropertyHelper) const
 {
-	UE_CHAOS_CLOTHASSET_SIMULATIONCONFIG_SETPROPERTYENUMCHECKED2(
-		XPBDRestAngleType,
-		RestAngleType,            // Existing properties to warn against
-		XPBDAnisoRestAngleType);  //
-	UE_CHAOS_CLOTHASSET_SIMULATIONCONFIG_SETPROPERTYWEIGHTEDCHECKED2(
-		XPBDFlatnessRatio,
-		FlatnessRatio,            // Existing properties to warn against
-		XPBDAnisoFlatnessRatio);  //
-	UE_CHAOS_CLOTHASSET_SIMULATIONCONFIG_SETPROPERTYWEIGHTEDCHECKED2(
-		XPBDRestAngle,
-		RestAngle,            // Existing properties to warn against
-		XPBDAnisoRestAngle);  //
-	UE_CHAOS_CLOTHASSET_SIMULATIONCONFIG_SETPROPERTYWEIGHTEDCHECKED4(
-		XPBDBendingElementStiffness,
-		BendingSpringStiffness,          // Existing properties to warn against
-		BendingElementStiffness,         //
-		XPBDBendingSpringStiffness,      //
-		XPBDAnisoBendingStiffnessWarp);  //
-	UE_CHAOS_CLOTHASSET_SIMULATIONCONFIG_SETPROPERTYWEIGHTEDCHECKED2(
-		XPBDBendingElementDamping,
-		XPBDBendingSpringDamping,  // Existing properties to warn against
-		XPBDAnisoBendingDamping);  //
-	UE_CHAOS_CLOTHASSET_SIMULATIONCONFIG_SETPROPERTYCHECKED2(
-		XPBDBucklingRatio,
-		BucklingRatio,            // Existing properties to warn against
-		XPBDAnisoBucklingRatio);  //
-	UE_CHAOS_CLOTHASSET_SIMULATIONCONFIG_SETPROPERTYWEIGHTEDCHECKED2(
-		XPBDBucklingStiffness,
-		BucklingStiffness,                // Existing properties to warn against
-		XPBDAnisoBucklingStiffnessWarp);  //
+	PropertyHelper.SetPropertyEnum(this,
+		&XPBDRestAngleType,
+		{
+			FName(TEXT("RestAngleType")),          // Existing properties to warn against
+			FName(TEXT("XPBDAnisoRestAngleType"))  //
+		},
+		ECollectionPropertyFlags::None);  // Non animatable
+	PropertyHelper.SetPropertyWeighted(this,
+		&XPBDFlatnessRatio,
+		{
+			FName(TEXT("FlatnessRatio")),          // Existing properties to warn against
+			FName(TEXT("XPBDAnisoFlatnessRatio"))  //
+		});
+	PropertyHelper.SetPropertyWeighted(this,
+		&XPBDRestAngle,
+		{
+			FName(TEXT("RestAngle")),          // Existing properties to warn against
+			FName(TEXT("XPBDAnisoRestAngle"))  //
+		});
+	PropertyHelper.SetPropertyWeighted(this,
+		&XPBDBendingElementStiffness,
+		{
+			FName(TEXT("BendingSpringStiffness")),        // Existing properties to warn against
+			FName(TEXT("BendingElementStiffness")),       //
+			FName(TEXT("XPBDBendingSpringStiffness")),    //
+			FName(TEXT("XPBDAnisoBendingStiffnessWarp"))  //
+		});
+	PropertyHelper.SetPropertyWeighted(this,
+		&XPBDBendingElementDamping,
+		{
+			FName(TEXT("XPBDBendingSpringDamping")),  // Existing properties to warn against
+			FName(TEXT("XPBDAnisoBendingDamping"))    //
+		});
+	PropertyHelper.SetProperty(this,
+		&XPBDBucklingRatio,
+		{
+			FName(TEXT("BucklingRatio")),          // Existing properties to warn against
+			FName(TEXT("XPBDAnisoBucklingRatio"))  //
+		});
+	PropertyHelper.SetPropertyWeighted(this,
+		&XPBDBucklingStiffness,
+		{
+			FName(TEXT("BucklingStiffness")),              // Existing properties to warn against
+			FName(TEXT("XPBDAnisoBucklingStiffnessWarp"))  //
+		});
 }

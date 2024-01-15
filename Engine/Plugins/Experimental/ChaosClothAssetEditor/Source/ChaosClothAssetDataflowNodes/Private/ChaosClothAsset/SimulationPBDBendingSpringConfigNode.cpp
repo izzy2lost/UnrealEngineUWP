@@ -1,7 +1,6 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 #include "ChaosClothAsset/SimulationPBDBendingSpringConfigNode.h"
-#include "ChaosClothAsset/SimulationBaseConfigNodePrivate.h"
 #include "Chaos/CollectionPropertyFacade.h"
 
 #include UE_INLINE_GENERATED_CPP_BY_NAME(SimulationPBDBendingSpringConfigNode)
@@ -13,12 +12,14 @@ FChaosClothAssetSimulationPBDBendingSpringConfigNode::FChaosClothAssetSimulation
 	RegisterInputConnection(&BendingSpringStiffness.WeightMap);
 }
 
-void FChaosClothAssetSimulationPBDBendingSpringConfigNode::AddProperties(Dataflow::FContext& Context, ::Chaos::Softs::FCollectionPropertyMutableFacade& Properties) const
+void FChaosClothAssetSimulationPBDBendingSpringConfigNode::AddProperties(FPropertyHelper& PropertyHelper) const
 {
-	UE_CHAOS_CLOTHASSET_SIMULATIONCONFIG_SETPROPERTYWEIGHTEDCHECKED4(
-		BendingSpringStiffness,
-		BendingElementStiffness,         // Existing properties to warn against
-		XPBDBendingSpringStiffness,      //
-		XPBDBendingElementStiffness,     //
-		XPBDAnisoBendingStiffnessWarp);  //
+	PropertyHelper.SetPropertyWeighted(this,
+		&BendingSpringStiffness,
+		{
+			FName(TEXT("BendingElementStiffness")),       // Existing properties to warn against
+			FName(TEXT("XPBDBendingSpringStiffness")),    //
+			FName(TEXT("XPBDBendingElementStiffness")),   //
+			FName(TEXT("XPBDAnisoBendingStiffnessWarp"))  //
+		});
 }

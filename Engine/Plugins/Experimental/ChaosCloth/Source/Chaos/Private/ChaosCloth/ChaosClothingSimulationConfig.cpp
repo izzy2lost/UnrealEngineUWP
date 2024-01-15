@@ -27,11 +27,12 @@ namespace Chaos
 
 	void FClothingSimulationConfig::Initialize(const UChaosClothConfig* ClothConfig, const UChaosClothSharedSimConfig* ClothSharedConfig, bool bUseLegacyConfig)
 	{
-		constexpr ::Chaos::Softs::ECollectionPropertyFlags NonAnimatablePropertyFlags =
-			::Chaos::Softs::ECollectionPropertyFlags::Enabled |
-			::Chaos::Softs::ECollectionPropertyFlags::Legacy;  // Indicates a property set from a pre-property collection config (e.g. that can be overriden in Dataflow without warning)
-		constexpr ::Chaos::Softs::ECollectionPropertyFlags AnimatablePropertyFlags = NonAnimatablePropertyFlags |
-			::Chaos::Softs::ECollectionPropertyFlags::Animatable;
+		using namespace ::Chaos::Softs;
+		constexpr ECollectionPropertyFlags NonAnimatablePropertyFlags =
+			ECollectionPropertyFlags::Enabled |
+			ECollectionPropertyFlags::Legacy;  // Indicates a property set from a pre-property collection config (e.g. that can be overriden in Dataflow without warning)
+		constexpr ECollectionPropertyFlags AnimatablePropertyFlags = NonAnimatablePropertyFlags |
+			ECollectionPropertyFlags::Animatable;
 
 		// Clear all properties
 		PropertyCollections.Reset(1);
@@ -69,9 +70,9 @@ namespace Chaos
 					MassValue = ClothConfig->Density;
 					break;
 				}
-				Property->AddValue(TEXT("MassMode"), (int32)ClothConfig->MassMode, NonAnimatablePropertyFlags);
-				Property->AddValue(TEXT("MassValue"), MassValue, NonAnimatablePropertyFlags);
-				Property->AddValue(TEXT("MinPerParticleMass"), ClothConfig->MinPerParticleMass, NonAnimatablePropertyFlags);
+				Property->AddValue(TEXT("MassMode"), (int32)ClothConfig->MassMode, NonAnimatablePropertyFlags | ECollectionPropertyFlags::Intrinsic);
+				Property->AddValue(TEXT("MassValue"), MassValue, NonAnimatablePropertyFlags | ECollectionPropertyFlags::Intrinsic);
+				Property->AddValue(TEXT("MinPerParticleMass"), ClothConfig->MinPerParticleMass, NonAnimatablePropertyFlags | ECollectionPropertyFlags::Intrinsic);
 			}
 
 			// Edge constraint

@@ -67,7 +67,12 @@ void FChaosClothAssetSimulationBaseConfigNode::Evaluate(Dataflow::FContext& Cont
 		FCollectionPropertyMutableFacade Properties(ClothCollection);
 		Properties.DefineSchema();
 
-		AddProperties(Context, Properties);
+PRAGMA_DISABLE_DEPRECATION_WARNINGS
+		AddProperties(Context, Properties);  // Deprecated 5.4
+PRAGMA_ENABLE_DEPRECATION_WARNINGS
+
+		FPropertyHelper PropertyHelper(*this, Context, Properties);
+		AddProperties(PropertyHelper);
 
 		if (FCollectionClothFacade(ClothCollection).IsValid())  // Can only act on the collection if it is a valid cloth collection
 		{
@@ -81,8 +86,8 @@ void FChaosClothAssetSimulationBaseConfigNode::Evaluate(Dataflow::FContext& Cont
 int32 FChaosClothAssetSimulationBaseConfigNode::AddPropertyHelper(
 	::Chaos::Softs::FCollectionPropertyMutableFacade& Properties,
 	const FName& PropertyName,
-	bool bIsAnimatable,
-	const TArray<FName>& SimilarPropertyNames) const
+	const TArray<FName>& SimilarPropertyNames,
+	ECollectionPropertyFlags PropertyFlags) const
 {
 	using namespace UE::Chaos::ClothAsset;
 
@@ -98,9 +103,7 @@ int32 FChaosClothAssetSimulationBaseConfigNode::AddPropertyHelper(
 	// else don't warn and hope people know what they are doing
 
 	// Set/clear flags
-	Properties.SetEnabled(KeyIndex, true);  // Always enabled when then node is active
-	Properties.SetLegacy(KeyIndex, false);  // No longer a legacy property after beind set by this node
-	Properties.SetAnimatable(KeyIndex, bIsAnimatable);
+	Properties.SetFlags(KeyIndex, ECollectionPropertyFlags::Enabled | PropertyFlags); // Always enabled when then node is active, no longer a legacy property after being set by this node
 
 	// Check for similar properties
 	for (const FName& SimilarPropertyName : SimilarPropertyNames)
@@ -113,6 +116,89 @@ int32 FChaosClothAssetSimulationBaseConfigNode::AddPropertyHelper(
 	}
 
 	return KeyIndex;
+}
+
+FChaosClothAssetSimulationBaseConfigNode::FPropertyHelper::FPropertyHelper(const FChaosClothAssetSimulationBaseConfigNode& InConfigNode, Dataflow::FContext& InContext, ::Chaos::Softs::FCollectionPropertyMutableFacade& InProperties)
+	: ConfigNode(InConfigNode)
+	, Context(InContext)
+	, Properties(InProperties)
+{}
+
+int32 FChaosClothAssetSimulationBaseConfigNode::FPropertyHelper::SetPropertyBool(
+	const FName& PropertyName,
+	bool PropertyValue,
+	const TArray<FName>& SimilarPropertyNames,
+	ECollectionPropertyFlags PropertyFlags)
+{
+	checkf(!PropertyName.ToString().StartsWith(TEXT("b")), TEXT("Unlike its C++ counterpart the Boolean property name should not start with a 'b'."));
+	const int32 PropertyKeyIndex = ConfigNode.AddPropertyHelper(Properties, PropertyName, SimilarPropertyNames, PropertyFlags);
+	Properties.SetValue(PropertyKeyIndex, PropertyValue);
+	return PropertyKeyIndex;
+}
+
+int32 FChaosClothAssetSimulationBaseConfigNode::FPropertyHelper::SetPropertyString(
+	const FName& PropertyName,
+	const FString& PropertyValue,
+	const TArray<FName>& SimilarPropertyNames,
+	ECollectionPropertyFlags PropertyFlags)
+{
+	const int32 PropertyKeyIndex = ConfigNode.AddPropertyHelper(Properties, PropertyName, SimilarPropertyNames, PropertyFlags);
+	Properties.SetStringValue(PropertyKeyIndex, PropertyValue);
+	return PropertyKeyIndex;
+}
+
+int32 FChaosClothAssetSimulationBaseConfigNode::FPropertyHelper::SetPropertyWeighted(
+	const FName& PropertyName,
+	const FChaosClothAssetWeightedValue& PropertyValue,
+	const TArray<FName>& SimilarPropertyNames,
+	ECollectionPropertyFlags PropertyFlags)
+{
+	ensureMsgf(!EnumHasAnyFlags(PropertyFlags, ECollectionPropertyFlags::Animatable), TEXT("Animatable flag ignored. Weighted properties are set animatable through FChaosClothAssetWeightedValue::bIsAnimatable."));
+	if (PropertyValue.bIsAnimatable)
+	{
+		EnumAddFlags(PropertyFlags, ECollectionPropertyFlags::Animatable);  // Animatable
+	}
+	else
+	{
+		EnumRemoveFlags(PropertyFlags, ECollectionPropertyFlags::Animatable);  // Non-animatable
+	}
+	const int32 PropertyKeyIndex = ConfigNode.AddPropertyHelper(Properties, PropertyName, SimilarPropertyNames, PropertyFlags);
+	Properties.SetWeightedValue(PropertyKeyIndex, PropertyValue.Low, PropertyValue.High);
+	Properties.SetStringValue(PropertyKeyIndex, ConfigNode.GetValue<FString>(Context, &PropertyValue.WeightMap));
+	PropertyValue.WeightMap_Override = ConfigNode.GetValue<FString>(Context, &PropertyValue.WeightMap, UE::Chaos::ClothAsset::FWeightMapTools::NotOverridden);
+	return PropertyKeyIndex;
+}
+
+int32 FChaosClothAssetSimulationBaseConfigNode::FPropertyHelper::SetPropertyWeighted(
+	const FName& PropertyName,
+	const FChaosClothAssetWeightedValueNonAnimatable& PropertyValue,
+	const TArray<FName>& SimilarPropertyNames,
+	ECollectionPropertyFlags PropertyFlags)
+{
+	ensureMsgf(!EnumHasAnyFlags(PropertyFlags, ECollectionPropertyFlags::Animatable), TEXT("Animatable flag ignored. This code is for a non animatable weighted property."));
+	EnumRemoveFlags(PropertyFlags, ECollectionPropertyFlags::Animatable);  // Non animatable
+	const int32 PropertyKeyIndex = ConfigNode.AddPropertyHelper(Properties, PropertyName, SimilarPropertyNames, PropertyFlags);
+	Properties.SetWeightedValue(PropertyKeyIndex, PropertyValue.Low, PropertyValue.High);
+	Properties.SetStringValue(PropertyKeyIndex, ConfigNode.GetValue<FString>(Context, &PropertyValue.WeightMap));
+	PropertyValue.WeightMap_Override = ConfigNode.GetValue<FString>(Context, &PropertyValue.WeightMap, UE::Chaos::ClothAsset::FWeightMapTools::NotOverridden);
+	return PropertyKeyIndex;
+}
+
+int32 FChaosClothAssetSimulationBaseConfigNode::FPropertyHelper::SetPropertyWeighted(
+	const FName& PropertyName,
+	const FChaosClothAssetWeightedValueNonAnimatableNoLowHighRange& PropertyValue,
+	const TArray<FName>& SimilarPropertyNames,
+	ECollectionPropertyFlags PropertyFlags)
+{
+	ensureMsgf(!EnumHasAnyFlags(PropertyFlags, ECollectionPropertyFlags::Animatable), TEXT("Animatable flag ignored. This code is for a non animatable weighted property."));
+	EnumRemoveFlags(PropertyFlags, ECollectionPropertyFlags::Animatable);  // Non animatable
+	const int32 PropertyKeyIndex = ConfigNode.AddPropertyHelper(Properties, PropertyName, SimilarPropertyNames, PropertyFlags);
+	constexpr float Low = 0.f;
+	constexpr float High = 1.f;
+	Properties.SetWeightedValue(PropertyKeyIndex, Low, High);
+	Properties.SetStringValue(PropertyKeyIndex, ConfigNode.GetValue<FString>(Context, &PropertyValue.WeightMap));
+	PropertyValue.WeightMap_Override = ConfigNode.GetValue<FString>(Context, &PropertyValue.WeightMap, UE::Chaos::ClothAsset::FWeightMapTools::NotOverridden);
+	return PropertyKeyIndex;
 }
 
 #undef LOCTEXT_NAMESPACE

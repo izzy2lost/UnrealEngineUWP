@@ -1,7 +1,6 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 #include "ChaosClothAsset/SimulationAerodynamicsConfigNode.h"
-#include "ChaosClothAsset/SimulationBaseConfigNodePrivate.h"
 #include "Chaos/CollectionPropertyFacade.h"
 
 #include UE_INLINE_GENERATED_CPP_BY_NAME(SimulationAerodynamicsConfigNode)
@@ -14,10 +13,10 @@ FChaosClothAssetSimulationAerodynamicsConfigNode::FChaosClothAssetSimulationAero
 	RegisterInputConnection(&Lift.WeightMap);
 }
 
-void FChaosClothAssetSimulationAerodynamicsConfigNode::AddProperties(Dataflow::FContext& Context, ::Chaos::Softs::FCollectionPropertyMutableFacade& Properties) const
+void FChaosClothAssetSimulationAerodynamicsConfigNode::AddProperties(FPropertyHelper& PropertyHelper) const
 {
-	UE_CHAOS_CLOTHASSET_SIMULATIONCONFIG_SETPROPERTY(FluidDensity);
-	UE_CHAOS_CLOTHASSET_SIMULATIONCONFIG_SETPROPERTYWEIGHTED(Drag);
-	UE_CHAOS_CLOTHASSET_SIMULATIONCONFIG_SETPROPERTYWEIGHTED(Lift);
-	UE_CHAOS_CLOTHASSET_SIMULATIONCONFIG_SETPROPERTY(WindVelocity);
+	PropertyHelper.SetProperty(this, &FluidDensity);
+	PropertyHelper.SetPropertyWeighted(this, &Drag);
+	PropertyHelper.SetPropertyWeighted(this, &Lift);
+	PropertyHelper.SetProperty(this, &WindVelocity);
 }
