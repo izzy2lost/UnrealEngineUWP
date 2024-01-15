@@ -7,6 +7,7 @@
 #include "SceneManagement.h" // FPrimitiveDrawInterface
 #include "NavigationSystem.h"
 #include "NavigationData.h"
+#include "NavFilters/NavigationQueryFilter.h"
 #include "AI/Navigation/NavAgentInterface.h"
 #include "SmartObjectSettings.h"
 #include "SmartObjectUserComponent.h"

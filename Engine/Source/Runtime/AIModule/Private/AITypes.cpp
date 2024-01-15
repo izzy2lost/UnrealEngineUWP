@@ -3,6 +3,7 @@
 #include "AITypes.h"
 #include "UObject/Package.h"
 #include "Navigation/PathFollowingComponent.h"
+#include "NavFilters/NavigationQueryFilter.h"
 
 //----------------------------------------------------------------------//
 // FAIResourceLock

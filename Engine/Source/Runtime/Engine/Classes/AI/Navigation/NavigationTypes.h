@@ -8,7 +8,9 @@
 #include "Templates/SubclassOf.h"
 #include "Misc/CoreStats.h"
 #include "UObject/SoftObjectPath.h"
+#if UE_ENABLE_INCLUDE_ORDER_DEPRECATED_IN_5_4
 #include "GameFramework/Actor.h"
+#endif
 #if UE_ENABLE_INCLUDE_ORDER_DEPRECATED_IN_5_2
 #include "AI/Navigation/NavAgentSelector.h"
 #include "AI/Navigation/NavigationBounds.h"
@@ -554,11 +556,7 @@ public:
 	ENGINE_API FNavDataConfig(const FNavDataConfig& Other);
 	ENGINE_API FNavDataConfig& operator=(const FNavDataConfig& Other);
 
-	bool IsValid() const 
-	{
-		return FNavAgentProperties::IsValid() && NavDataClass.IsValid();
-	}
-
+	ENGINE_API bool IsValid() const; 
 	ENGINE_API void Invalidate();
 
 	ENGINE_API void SetNavDataClass(UClass* InNavDataClass);

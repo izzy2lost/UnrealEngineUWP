@@ -4,6 +4,7 @@
 #include "GameFramework/Actor.h"
 #include "AISystem.h"
 #include "Navigation/PathFollowingComponent.h"
+#include "NavFilters/NavigationQueryFilter.h"
 #include "BehaviorTree/Blackboard/BlackboardKeyType_Object.h"
 #include "BehaviorTree/Blackboard/BlackboardKeyType_Vector.h"
 #include "VisualLogger/VisualLogger.h"

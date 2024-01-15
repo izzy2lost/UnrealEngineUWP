@@ -6,6 +6,7 @@
 #include "FunctionalTestingModule.h"
 #include "FunctionalTestingManager.h"
 #include "NavigationSystem.h"
+#include "AI/Navigation/NavAreaBase.h"
 #include "AIController.h"
 #include "Blueprint/AIBlueprintHelperLibrary.h"
 #include "NavMesh/RecastNavMesh.h"

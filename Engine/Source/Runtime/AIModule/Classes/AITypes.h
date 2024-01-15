@@ -6,7 +6,9 @@
 #include "Stats/Stats.h"
 #include "UObject/ObjectMacros.h"
 #include "Templates/SubclassOf.h"
+#if UE_ENABLE_INCLUDE_ORDER_DEPRECATED_IN_5_4
 #include "NavFilters/NavigationQueryFilter.h"
+#endif
 #include "AI/Navigation/NavigationTypes.h"
 #include "NavigationSystemTypes.h"
 #include "GameFramework/Actor.h"

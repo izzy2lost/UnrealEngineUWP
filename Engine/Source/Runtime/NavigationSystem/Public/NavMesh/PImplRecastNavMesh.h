@@ -10,7 +10,9 @@
 
 #include "CoreMinimal.h"
 #include "UObject/WeakObjectPtr.h"
+#if UE_ENABLE_INCLUDE_ORDER_DEPRECATED_IN_5_4
 #include "NavFilters/NavigationQueryFilter.h"
+#endif
 #include "AI/Navigation/NavigationTypes.h"
 #include "NavMesh/RecastNavMesh.h"
 #include "NavMesh/RecastQueryFilter.h"

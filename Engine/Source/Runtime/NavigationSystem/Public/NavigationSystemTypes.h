@@ -3,7 +3,9 @@
 #pragma once
 
 #include "CoreMinimal.h"
+#if UE_ENABLE_INCLUDE_ORDER_DEPRECATED_IN_5_4
 #include "NavFilters/NavigationQueryFilter.h"
+#endif
 #include "AI/NavigationSystemConfig.h"
 #include "AI/Navigation/NavLinkDefinition.h"
 #include "Math/GenericOctreePublic.h"
@@ -22,6 +24,9 @@ class FNavigationOctree;
 class UNavigationPath;
 class ANavigationData;
 class INavigationInvokerInterface;
+
+struct FNavigationQueryFilter;
+typedef TSharedPtr<const FNavigationQueryFilter, ESPMode::ThreadSafe> FSharedConstNavQueryFilter;
 
 struct FPathFindingQueryData
 {

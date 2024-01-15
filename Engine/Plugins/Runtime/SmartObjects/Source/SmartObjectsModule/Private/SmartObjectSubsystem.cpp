@@ -12,6 +12,7 @@
 #include "Engine/LevelStreaming.h"
 #include "NavigationSystem.h"
 #include "AI/Navigation/NavigationTypes.h"
+#include "NavFilters/NavigationQueryFilter.h"
 #include "Annotations/SmartObjectSlotEntranceAnnotation.h"
 #include "Annotations/SmartObjectAnnotation_SlotUserCollision.h"
 #include "Misc/EnumerateRange.h"

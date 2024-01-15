@@ -13,6 +13,7 @@
 #include "AI/Navigation/NavigationDirtyElement.h"
 #include "AI/Navigation/NavigationInvokerInterface.h"
 #include "AI/Navigation/NavigationInvokerPriority.h"
+#include "NavFilters/NavigationQueryFilter.h"
 #include "UObject/UObjectIterator.h"
 #include "EngineUtils.h"
 #include "Logging/MessageLog.h"

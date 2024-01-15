@@ -12,6 +12,7 @@
 #include "NavMesh/RecastNavMesh.h"
 #include "Components/CapsuleComponent.h"
 #include "NavigationData.h"
+#include "NavFilters/NavigationQueryFilter.h"
 
 #include UE_INLINE_GENERATED_CPP_BY_NAME(NavigationTestingActor)
 

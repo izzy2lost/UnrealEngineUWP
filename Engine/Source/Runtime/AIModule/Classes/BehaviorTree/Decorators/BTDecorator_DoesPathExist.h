@@ -5,7 +5,9 @@
 #include "CoreMinimal.h"
 #include "UObject/ObjectMacros.h"
 #include "Templates/SubclassOf.h"
+#if UE_ENABLE_INCLUDE_ORDER_DEPRECATED_IN_5_4
 #include "NavFilters/NavigationQueryFilter.h"
+#endif
 #include "BehaviorTree/BehaviorTreeTypes.h"
 #include "BehaviorTree/BTDecorator.h"
 #include "BTDecorator_DoesPathExist.generated.h"

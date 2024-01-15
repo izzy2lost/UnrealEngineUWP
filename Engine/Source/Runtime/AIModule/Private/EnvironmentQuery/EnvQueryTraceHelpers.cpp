@@ -2,6 +2,7 @@
 
 #include "EnvironmentQuery/EnvQueryTraceHelpers.h"
 #include "NavigationData.h"
+#include "NavFilters/NavigationQueryFilter.h"
 #include "Algo/RemoveIf.h"
 
 template<>

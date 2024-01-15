@@ -5,6 +5,7 @@
 #include "NavigationDirtyAreasController.h"
 
 struct FNavigationDirtyElement;
+class UNavArea;
 
 struct FNavigationDataHandler
 {

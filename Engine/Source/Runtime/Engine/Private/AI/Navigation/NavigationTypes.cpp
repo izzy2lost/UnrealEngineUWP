@@ -110,6 +110,11 @@ void FNavDataConfig::SetNavDataClass(TSoftClassPtr<AActor> InNavDataClass)
 	NavDataClass = InNavDataClass;
 }
 
+bool FNavDataConfig::IsValid() const 
+{
+	return FNavAgentProperties::IsValid() && NavDataClass.IsValid();
+}
+
 void FNavDataConfig::Invalidate()
 {
 	new(this) FNavAgentProperties();

@@ -9,7 +9,9 @@
 #include "Engine/EngineTypes.h"
 #include "Async/TaskGraphInterfaces.h"
 #include "GameFramework/Actor.h"
+#if UE_ENABLE_INCLUDE_ORDER_DEPRECATED_IN_5_4
 #include "NavFilters/NavigationQueryFilter.h"
+#endif
 #include "AI/Navigation/NavigationTypes.h"
 #include "NavigationSystemTypes.h"
 #include "EngineDefines.h"
@@ -23,6 +25,7 @@ class INavAgentInterface;
 class INavLinkCustomInterface;
 class UNavArea;
 class UPrimitiveComponent;
+class UNavigationQueryFilter;
 
 USTRUCT()
 struct FSupportedAreaData

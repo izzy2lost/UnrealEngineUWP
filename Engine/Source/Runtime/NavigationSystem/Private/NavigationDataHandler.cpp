@@ -3,7 +3,7 @@
 #include "NavigationDataHandler.h"
 #include "Engine/Level.h"
 #include "NavMesh/RecastNavMeshGenerator.h"
-
+#include "NavAreas/NavArea.h"
 
 DEFINE_LOG_CATEGORY_STATIC(LogNavOctree, Warning, All);
 

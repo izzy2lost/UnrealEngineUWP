@@ -6,7 +6,9 @@
 #include "UObject/ObjectMacros.h"
 #include "InputCoreTypes.h"
 #include "Templates/SubclassOf.h"
+#if UE_ENABLE_INCLUDE_ORDER_DEPRECATED_IN_5_4
 #include "NavFilters/NavigationQueryFilter.h"
+#endif
 #include "AITypes.h"
 #include "BehaviorTree/Tasks/BTTask_BlackboardBase.h"
 #include "BTTask_MoveTo.generated.h"

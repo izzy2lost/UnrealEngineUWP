@@ -24,6 +24,7 @@
 #include "Tasks/GameplayTask_ClaimResource.h"
 #include "NetworkingDistanceConstants.h"
 #include "Navigation/PathFollowingComponent.h"
+#include "NavFilters/NavigationQueryFilter.h"
 
 #include UE_INLINE_GENERATED_CPP_BY_NAME(AIController)
 

@@ -15,6 +15,7 @@
 
 class INavRelevantInterface;
 class FNavigationOctree;
+class UActorComponent;
 typedef FNavigationRelevantDataFilter FNavigationOctreeFilter;
 
 LLM_DECLARE_TAG(NavigationOctree);

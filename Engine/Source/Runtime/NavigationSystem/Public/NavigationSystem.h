@@ -8,7 +8,9 @@
 #include "UObject/WeakObjectPtr.h"
 #include "Misc/CoreMisc.h"
 #include "Misc/CoreDelegates.h"
+#if UE_ENABLE_INCLUDE_ORDER_DEPRECATED_IN_5_4
 #include "NavFilters/NavigationQueryFilter.h"
+#endif
 #include "AI/Navigation/NavigationTypes.h"
 #include "AI/Navigation/NavigationDirtyElement.h"
 #include "AI/Navigation/NavigationInvokerPriority.h"

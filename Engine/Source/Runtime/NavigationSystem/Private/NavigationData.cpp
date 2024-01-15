@@ -8,6 +8,7 @@
 #include "Components/PrimitiveComponent.h"
 #include "AI/NavDataGenerator.h"
 #include "NavigationSystem.h"
+#include "NavFilters/NavigationQueryFilter.h"
 #include "Engine/Engine.h"
 #include "NavAreas/NavArea.h"
 #include "AI/Navigation/NavAreaBase.h"

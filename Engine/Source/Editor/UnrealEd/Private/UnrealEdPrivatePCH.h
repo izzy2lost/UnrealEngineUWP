@@ -470,7 +470,9 @@
 #include "Engine/Blueprint.h"
 #include "Engine/BlueprintCore.h"
 #include "AI/Navigation/NavigationTypes.h"
+#if UE_ENABLE_INCLUDE_ORDER_DEPRECATED_IN_5_4
 #include "NavFilters/NavigationQueryFilter.h"
+#endif
 #include "Engine/LatentActionManager.h"
 #include "Engine/World.h"
 #include "WorldCollision.h"
