@@ -6,15 +6,11 @@
 #include "CoreFwd.h"
 #include "HAL/CriticalSection.h"
 #include "Templates/UniquePtr.h"
+#include "Trace/StoreClient.h"
 #include "UObject/NameTypes.h"
 #include "UObject/UnrealNames.h"
 
 class FMenuBuilder;
-
-namespace UE::Trace
-{
-	class FStoreClient;
-}
 
 class TRACEINSIGHTS_API STraceServerControl
 {
