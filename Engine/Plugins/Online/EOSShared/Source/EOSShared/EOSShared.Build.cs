@@ -29,7 +29,8 @@ public class EOSShared : ModuleRules
 			new string[]
 			{
 				"Core",
-				"EOSSDK"
+				"EOSSDK",
+				"Slate"
 			}
 		);
 	}

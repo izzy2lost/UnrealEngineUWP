@@ -38,6 +38,10 @@ IEOSPlatformHandlePtr FEOSHelpers::CreatePlatform(EOS_Platform_Options& Platform
 	return nullptr;
 }
 
+void FEOSHelpers::AddExternalAccountMapping(IEOSPlatformHandlePtr PlatformHandlePtr, const EOS_EpicAccountId& EpicAccountId, int32 LocalUserNum)
+{
+}
+
 void FEOSHelpers::ShowAccountPortalUI(FOnlineSubsystemEOS* InEOSSubsystem, const int ControllerIndex, const FOnLoginUIClosedDelegate& Delegate)
 {
 	check(InEOSSubsystem != nullptr);
