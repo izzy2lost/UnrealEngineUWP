@@ -4,6 +4,7 @@
 #include "ContentBrowserAssetDataCore.h"
 #include "AssetRegistry/AssetRegistryModule.h"
 #include "AssetToolsModule.h"
+#include "AssetViewUtils.h"
 #include "CollectionManagerModule.h"
 #include "ContentBrowserAssetDataPayload.h"
 #include "ICollectionManager.h"
@@ -151,6 +152,11 @@ void UContentBrowserAssetDataSource::Initialize(const bool InAutoRegister)
 
 	// Populate the initial set of folder attributes
 	// This will be updated as the scan finds more content
+	AssetRegistry->EnumerateAllCachedPaths([this](FName PathName) { 
+		FNameBuilder NameBuilder{PathName};
+		OnPathsAdded({NameBuilder.ToView()});
+		return true; 
+	});
 	AssetRegistry->EnumerateAllAssets([this](const FAssetData& InAssetData)
 		{
 			OnPathPopulated(InAssetData);
@@ -2718,8 +2724,8 @@ FContentBrowserItemData UContentBrowserAssetDataSource::CreateAssetFolderItem(co
 
 	const EContentBrowserFolderAttributes FolderAttributes = GetAssetFolderAttributes(InFolderPath);
 	const bool bIsCookedPath = EnumHasAnyFlags(FolderAttributes, EContentBrowserFolderAttributes::HasContent) && !EnumHasAnyFlags(FolderAttributes, EContentBrowserFolderAttributes::HasSourceContent);
-
-	return ContentBrowserAssetData::CreateAssetFolderItem(this, VirtualizedPath, InFolderPath, bIsCookedPath);
+	const bool bIsPlugin = EnumHasAnyFlags(FolderAttributes, EContentBrowserFolderAttributes::IsInPlugin);
+	return ContentBrowserAssetData::CreateAssetFolderItem(this, VirtualizedPath, InFolderPath, bIsCookedPath, bIsPlugin);
 }
 
 FContentBrowserItemData UContentBrowserAssetDataSource::CreateAssetFileItem(const FAssetData& InAssetData)
@@ -2729,7 +2735,9 @@ PRAGMA_DISABLE_DEPRECATION_WARNINGS
 	TryConvertInternalPathToVirtual(InAssetData.ObjectPath, VirtualizedPath);
 PRAGMA_ENABLE_DEPRECATION_WARNINGS
 
-	return ContentBrowserAssetData::CreateAssetFileItem(this, VirtualizedPath, InAssetData);
+	const EContentBrowserFolderAttributes FolderAttributes = GetAssetFolderAttributes(InAssetData.PackagePath);
+	const bool bIsPlugin = EnumHasAnyFlags(FolderAttributes, EContentBrowserFolderAttributes::IsInPlugin);
+	return ContentBrowserAssetData::CreateAssetFileItem(this, VirtualizedPath, InAssetData, bIsPlugin);
 }
 
 FContentBrowserItemData UContentBrowserAssetDataSource::CreateUnsupportedAssetFileItem(const FAssetData& InAssetData)
@@ -2859,31 +2867,36 @@ void UContentBrowserAssetDataSource::OnObjectPreSave(UObject* InObject, FObjectP
 
 void UContentBrowserAssetDataSource::OnPathsAdded(TConstArrayView<FStringView> Paths)
 {
+	RecentlyPopulatedAssetFolders.Empty();
 	for (FStringView InPath : Paths)
 	{
 		// Completely ignore paths that do not pass the most inclusive filter
 		if (!ContentBrowserDataUtils::PathPassesAttributeFilter(InPath, 0, EContentBrowserItemAttributeFilter::IncludeAll))
 		{
-			return;
+			continue;
 		}
 
 		FName PathName(InPath);
-		RecentlyPopulatedAssetFolders.Empty();
-		
+		const bool bIsPlugin = AssetViewUtils::IsPluginFolder(InPath);
+		if (bIsPlugin)
+		{
+			OnPathPopulated(InPath, EContentBrowserFolderAttributes::IsInPlugin);
+		}
+
 		QueueItemDataUpdate(FContentBrowserItemDataUpdate::MakeItemAddedUpdate(CreateAssetFolderItem(PathName)));
 
-		FStringView PathView(InPath);
 		// Minus one because the test depth start at zero
-		const int32 CurrentDepth = ContentBrowserDataUtils::CalculateFolderDepthOfPath(PathView) - 1;
+		const int32 CurrentDepth = ContentBrowserDataUtils::CalculateFolderDepthOfPath(InPath) - 1;
 		int32 Index;
-		if (PathView.FindLastChar(TEXT('/'), Index))
+		if (InPath.FindLastChar(TEXT('/'), Index))
 		{ 
 			uint32 PathNameHash = GetTypeHash(PathName);
-			FName ParentPath(PathView.Left(Index));
+			FName ParentPath(InPath.Left(Index));
 			uint32 ParentPathHash = GetTypeHash(ParentPath);
-			OnAssetPathAddedDelegate.Broadcast(PathName, PathView, PathNameHash, ParentPath, ParentPathHash, CurrentDepth);
+			OnAssetPathAddedDelegate.Broadcast(PathName, InPath, PathNameHash, ParentPath, ParentPathHash, CurrentDepth);
 		}
 	}
+	RecentlyPopulatedAssetFolders.Empty();
 }
 
 void UContentBrowserAssetDataSource::OnPathsRemoved(TConstArrayView<FStringView> Paths)

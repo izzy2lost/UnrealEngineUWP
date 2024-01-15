@@ -103,6 +103,11 @@ enum class EContentBrowserFolderAttributes : uint8
 	 * This folder has source (uncooked) content that will appear in the Content Browser view.
 	 */
 	HasSourceContent = 1<<3,
+
+	/** 
+	 * This folder is inside a plugin.
+	 */
+	IsInPlugin = 1<<4,
 };
 ENUM_CLASS_FLAGS(EContentBrowserFolderAttributes);
 
