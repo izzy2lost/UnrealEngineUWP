@@ -159,6 +159,8 @@ void FInsightsStyle::FStyle::Initialize()
 	Set("Icons.Launcher", new TODO_IMAGE_BRUSH(Icon16x16));
 	Set("Icons.UTrace", new IMAGE_BRUSH_SVG("UTrace", Icon16x16));
 	Set("Icons.UTraceStack", new IMAGE_BRUSH_SVG("UTrace", Icon16x16));
+	Set("Icons.TraceServerStart", new CORE_IMAGE_BRUSH_SVG("Starship/Common/play", Icon16x16, FStyleColors::AccentGreen));
+	Set("Icons.TraceServerStop", new CORE_IMAGE_BRUSH_SVG("Starship/Common/close", Icon16x16, FStyleColors::AccentRed));
 
 	//////////////////////////////////////////////////
 	// Timing Insights

@@ -11,6 +11,7 @@
 class FLiveSessionTracker;
 class FMenuBuilder;
 class FUICommandList;
+class STraceServerControl;
 
 TSharedRef<SWidget> CreateInsightsStatusBarWidget();
 
@@ -159,6 +160,8 @@ private:
 	TSharedPtr<FLiveSessionTracker> LiveSessionTracker;
 
 	TSharedPtr<FUICommandList> CommandList;
+	
+	TArray<STraceServerControl> ServerControls;
 
 	TArray<TSharedPtr<FTraceFileInfo>> Traces;
 	FName LogListingName;

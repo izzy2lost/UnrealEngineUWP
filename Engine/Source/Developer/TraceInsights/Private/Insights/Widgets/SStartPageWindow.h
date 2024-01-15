@@ -2,6 +2,7 @@
 
 #pragma once
 
+#include "Insights/Widgets/STraceServerControl.h"
 #include "Async/TaskGraphInterfaces.h"
 #include "Containers/Ticker.h"
 #include "Misc/FilterCollection.h"
@@ -679,6 +680,8 @@ private:
 
 	FTickerDelegate OnTick;
 	FTSTicker::FDelegateHandle OnTickHandle;
+
+	TArray<STraceServerControl> ServerControls;
 
 #if PLATFORM_WINDOWS
 	void* AutoConnectEvent = nullptr;

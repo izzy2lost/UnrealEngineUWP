@@ -903,6 +903,9 @@ STraceStoreWindow::STraceStoreWindow()
 
 	SortColumn = TraceStoreColumns::Date;
 	SortMode = EColumnSortMode::Ascending;
+
+	// Add controls for the local server
+	ServerControls.Emplace(TEXT("127.0.0.1"), 0, FAppStyle::Get().GetStyleSetName());
 }
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -1960,7 +1963,7 @@ FText STraceStoreWindow::GetConnectionStatusTooltip() const
 {
 	using Insights::FStoreBrowser;
 
-	static FText Connected    = LOCTEXT("Connected",    "Connected to the trace server.\nServer version: {0}");
+	static FText Connected    = LOCTEXT("Connected",    "Connected to the trace server.\nServer version: {0}\nRecorder port: {1}, Store port: {2}");
 	static FText NotConnected = LOCTEXT("NoConnection", "Unable to connect to trace server.");
 	static FText Connecting   = LOCTEXT("Connecting",   "Trying to connect to trace server.");
 	static FText Disconnected = LOCTEXT("Disconnected", "Connection to trace server has been lost. Attempting to reconnect in {0} seconds.");
@@ -1973,8 +1976,14 @@ FText STraceStoreWindow::GetConnectionStatusTooltip() const
 		{
 			StoreBrowser->LockSettings();
 			FText Version = FText::FromString(StoreBrowser->GetVersion());
+			const uint32 RecorderPort = StoreBrowser->GetRecorderPort();
+			const uint32 StorePort = StoreBrowser->GetStorePort();	
 			StoreBrowser->UnlockSettings();
-			return FText::Format(Connected, Version);
+			return FText::Format(Connected,
+				Version,
+				FText::AsNumber(RecorderPort, &FNumberFormattingOptions::DefaultNoGrouping()),
+				FText::AsNumber(StorePort,  &FNumberFormattingOptions::DefaultNoGrouping())
+			);
 		}
 
 		case FStoreBrowser::EConnectionStatus::NoConnection:
@@ -2457,6 +2466,14 @@ void STraceStoreWindow::RefreshTraceList()
 		{
 			SettingsChangeSerial = NewSettingsChangeSerial;
 
+			// Add remote server controls. It's not possible to change server
+			// address on the fly so we can expect that there cannot be more than
+			// two entries (the local and possibly a currently connected remote server)
+			if (!StoreBrowser->GetHost().Equals(TEXT("127.0.0.1")) && ServerControls.Num() == 1)
+			{
+				 ServerControls.Emplace(*StoreBrowser->GetHost(), StoreBrowser->GetStorePort(), FAppStyle::Get().GetStyleSetName());
+			}
+			
 			// Update the host text
 			if (StoreHostTextBox)
 			{
@@ -3174,6 +3191,24 @@ TSharedRef<SWidget> STraceStoreWindow::MakeTraceListMenu()
 	}
 	MenuBuilder.EndSection();
 
+	MenuBuilder.BeginSection("Control", LOCTEXT("TraceListMenu_Section_Control", "Control"));
+	{
+		MenuBuilder.AddSubMenu(
+			LOCTEXT("ServerControlLabel", "UnrealTraceServer"),
+			LOCTEXT("ServerControlTooltip", "Control UnrealTraceServer instances"),
+			FNewMenuDelegate::CreateLambda([this](FMenuBuilder& MenuBuilder)
+			{
+				 for (auto& ServerControl : ServerControls)
+				 {
+					   ServerControl.MakeMenu(MenuBuilder);
+				 }
+			}),
+			false,
+			FSlateIcon(FAppStyle::Get().GetStyleSetName(), ("Icons.Server"))
+		);
+	}
+	MenuBuilder.EndSection();
+	
 	MenuBuilder.BeginSection("DebugOptions", LOCTEXT("TraceListMenu_Section_DebugOptions", "Debug Options"));
 
 	if (FGlobalTabmanager::Get()->HasTabSpawner(FInsightsManagerTabs::AutomationWindowTabId))

@@ -29,6 +29,7 @@
 #include "Trace/StoreClient.h"
 #include "Trace/Trace.h"
 #include "UnrealInsightsLauncher.h"
+#include "Insights/Widgets/STraceServerControl.h"
 #include "Widgets/SBoxPanel.h"
 #include "Widgets/SOverlay.h"
 #include "Widgets/Images/SImage.h"
@@ -248,6 +249,11 @@ TSharedRef<SWidget> SInsightsStatusBarWidget::MakeTraceMenu()
 {
 	LiveSessionTracker->StartQuery();
 
+	if (ServerControls.IsEmpty())
+	{
+		ServerControls.Emplace(TEXT("127.0.0.1"), 0, FEditorTraceUtilitiesStyle::Get().GetStyleSetName());
+	}
+
 	FMenuBuilder MenuBuilder(true, CommandList.ToSharedRef());
 
 	MenuBuilder.BeginSection("TraceData", LOCTEXT("TraceMenu_Section_Data", "Trace Data"));
@@ -402,6 +408,20 @@ TSharedRef<SWidget> SInsightsStatusBarWidget::MakeTraceMenu()
 
 	MenuBuilder.BeginSection("Insights", LOCTEXT("TraceMenu_Section_Insights", "Insights"));
 	{
+		MenuBuilder.AddSubMenu(
+			LOCTEXT("ServerControlLabel", "UnrealTraceServer"),
+			LOCTEXT("ServerControlTooltip", "Control UnrealTraceServer instances"),
+			FNewMenuDelegate::CreateLambda([this](FMenuBuilder& MenuBuilder)
+			{
+				for (auto& ServerControl : ServerControls)
+				{
+					 ServerControl.MakeMenu(MenuBuilder);
+				}
+			}),
+			false,
+			FSlateIcon(FAppStyle::Get().GetStyleSetName(), ("Icons.Server"))
+		);
+		
 		MenuBuilder.AddMenuEntry(
 			LOCTEXT("OpenInsightsLabel", "Unreal Insights (Session Browser)"),
 			LOCTEXT("OpenInsightsTooltip", "Launch the Unreal Insights Session Browser."),
