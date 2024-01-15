@@ -206,9 +206,6 @@ public:
 	/** Setter of CustomizableObject */
 	void SetCustomizableObject(UCustomizableObject* CustomizableObjectParameter);
 
-	/** Setter of AssetRegistryLoaded and LevelViewportClient::AssetRegistryLoaded */
-	void SetAssetRegistryLoaded(bool Value);
-
 	/** Called to bring up the screenshot UI */
 	void OnTakeHighResScreenshot();
 

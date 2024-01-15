@@ -31,9 +31,6 @@ public:
 
 	/** Refreshes everything in the Customizable Object Instance Editor. */
 	virtual void RefreshTool() = 0;
-
-	/** Getter of AssetRegistryLoaded */
-	virtual bool GetAssetRegistryLoaded() = 0;
 	
 	virtual void SetPoseAsset(UPoseAsset* PoseAssetParameter) {}
 

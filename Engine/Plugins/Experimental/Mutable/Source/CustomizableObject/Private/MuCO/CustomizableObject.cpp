@@ -232,27 +232,19 @@ void UCustomizableObject::PostLoad()
 		}
 	}
 
-
-#endif
-
-#if WITH_EDITORONLY_DATA
-	for (TTuple<TObjectPtr<const UObject>, FGuid>& ParticipatingObject : ParticipatingObjects)
+	if (!IsRunningCookCommandlet())
 	{
-		if (!ParticipatingObject.Key) // Object no longer exists.
+		ITargetPlatformManagerModule& TargetPlatformManager = GetTargetPlatformManagerRef();
+		const ITargetPlatform* RunningPlatform = TargetPlatformManager.GetRunningTargetPlatform();
+
+		const FAssetRegistryModule& AssetRegistryModule = FModuleManager::LoadModuleChecked<FAssetRegistryModule>("AssetRegistry");
+		if (AssetRegistryModule.Get().IsLoadingAssets())
 		{
-			continue;
+			AssetRegistryModule.Get().OnFilesLoaded().AddUObject(this, &UCustomizableObject::LoadCompiledDataFromDisk);
 		}
-		
-		PRAGMA_DISABLE_DEPRECATION_WARNINGS
-		const FGuid PackageGuid = ParticipatingObject.Key.GetPackage()->GetGuid();
-		PRAGMA_ENABLE_DEPRECATION_WARNINGS
-		
-		if (PackageGuid != ParticipatingObject.Value)
+		else
 		{
-			SetModel(nullptr);
-			
-			UE_LOG(LogMutable, Display, TEXT("Forcing recompilation due to changes in %s."), *ParticipatingObject.Key->GetFullName());
-			break;
+			LoadCompiledDataFromDisk();
 		}
 	}
 #endif
@@ -290,11 +282,6 @@ void UCustomizableObject::Serialize(FArchive& Ar_Asset)
 		// Can't remove this or saved customizable objects will fail to load
 		int64 InternalVersion = CurrentSupportedVersion;
 		Ar_Asset << InternalVersion;
-		
-		if (Ar_Asset.IsLoading())
-		{
-			LoadCompiledDataFromDisk();
-		}
 	}
 #else
 	if (Ar_Asset.IsLoading())
@@ -365,33 +352,6 @@ void UCustomizableObject::ClearCompiledData()
 
 	HashToStreamableBlock.Empty();
 	BulkData = nullptr;
-}
-
-
-void UCustomizableObject::UpdateCompiledDataFromModel()
-{
-	TSharedPtr<mu::Model, ESPMode::ThreadSafe> Model = Private->GetModel();
-
-	// Generate a map that using the resource id tells the offset and size of the resource inside the bulk data
-	if (Model)
-	{
-		uint64 Offset = 0;
-
-		const int32 NumStreamingFiles = Model->GetRomCount();
-		HashToStreamableBlock.Empty(NumStreamingFiles);
-
-		for (size_t FileIndex = 0; FileIndex < NumStreamingFiles; ++FileIndex)
-		{
-			const uint32 ResourceId = Model->GetRomId(FileIndex);
-			const uint32 ResourceSize = Model->GetRomSize(FileIndex);
-
-			HashToStreamableBlock.Add(ResourceId, FMutableStreamableBlock({0, Offset, ResourceSize }));
-			Offset += ResourceSize;
-		}
-	}
-
-	// Generate ParameterProperties and IntParameterLookUpTable
-	UpdateParameterPropertiesFromModel();
 }
 
 
@@ -576,6 +536,7 @@ void UCustomizableObject::SaveCompiledData(FArchive& MemoryWriter, bool bIsCooki
 	{
 		MemoryWriter << CustomizableObjectPathMap;
 		MemoryWriter << GroupNodeMap;
+		MemoryWriter << GetPrivate()->ParticipatingObjects;
 	}
 
 	MemoryWriter << LODSettings.NumLODsInRoot;
@@ -680,11 +641,42 @@ void UCustomizableObject::LoadCompiledData(FArchive& MemoryReader, const ITarget
 
 		MemoryReader << HashToStreamableBlock;
 
+		bool bForceRecompilation = false;
+
 		// All Editor Only data must be loaded here
 		if (!bIsCooking)
 		{
 			MemoryReader << CustomizableObjectPathMap;
 			MemoryReader << GroupNodeMap;
+
+			TMap<FName, FGuid>& ParticipatingObjects = GetPrivate()->ParticipatingObjects;
+			MemoryReader << ParticipatingObjects;
+
+			const FAssetRegistryModule& AssetRegistryModule = FModuleManager::LoadModuleChecked<FAssetRegistryModule>("AssetRegistry");
+			
+			for (TTuple<FName, FGuid>& ParticipatingObject : ParticipatingObjects)
+			{				
+				FAssetPackageData AssetPackageData;
+				const UE::AssetRegistry::EExists Result = AssetRegistryModule.Get().TryGetAssetPackageData(ParticipatingObject.Key, AssetPackageData);
+				if (Result == UE::AssetRegistry::EExists::Exists)
+				{
+					PRAGMA_DISABLE_DEPRECATION_WARNINGS
+					const FGuid PackageGuid = AssetPackageData.PackageGuid;
+					PRAGMA_ENABLE_DEPRECATION_WARNINGS
+		
+					bForceRecompilation = PackageGuid != ParticipatingObject.Value;
+				}
+				else
+				{
+					bForceRecompilation = true;
+				}
+		
+				if (bForceRecompilation)
+                {
+                	UE_LOG(LogMutable, Display, TEXT("Forcing recompilation due to changes in %s."), *ParticipatingObject.Key.ToString());
+					break;
+                }
+			}
 		}
 
 		MemoryReader << LODSettings.NumLODsInRoot;
@@ -698,7 +690,7 @@ void UCustomizableObject::LoadCompiledData(FArchive& MemoryReader, const ITarget
 		bool bModelSerialized = false;
 		MemoryReader << bModelSerialized;
 
-		if (bModelSerialized)
+		if (bModelSerialized && !bForceRecompilation)
 		{
 			UnrealMutableInputStream stream(MemoryReader);
 			mu::InputArchive arch(&stream);
@@ -707,9 +699,10 @@ void UCustomizableObject::LoadCompiledData(FArchive& MemoryReader, const ITarget
 			Private->SetModel(Model, Identifier);
 		}
 	}
-
-	UpdateParameterPropertiesFromModel();
+	
+	UpdateParameterPropertiesFromModel(GetModel());
 }
+
 
 void UCustomizableObject::LoadCompiledDataFromDisk()
 {
@@ -771,6 +764,14 @@ void UCustomizableObject::LoadCompiledDataFromDisk()
 
 		delete CompiledDataFileHandle;
 		delete StreamableDataFileHandle;
+	}
+
+	UCustomizableObjectPrivate* CustomizableObjectPrivate = GetPrivate();
+
+	if (!CustomizableObjectPrivate->GetModel()) // Not failed to load the model
+	{
+		CustomizableObjectPrivate->Status.NextState(FCustomizableObjectStatusTypes::EState::NoModel);
+		ConditionalAutoCompile(); // Recompile if no model has been loaded
 	}
 }
 
@@ -852,6 +853,12 @@ bool UCustomizableObject::ConditionalAutoCompile()
 		return true;
 	}
 
+	// Model has not loaded yet
+	if (GetPrivate()->Status.Get() == FCustomizableObjectStatusTypes::EState::Loading)
+	{
+		return false;
+	}
+
 	UCustomizableObjectSystem* System = UCustomizableObjectSystem::GetInstance();
 	if (!System || !System->IsValidLowLevel() || System->HasAnyFlags(RF_BeginDestroyed))
 	{
@@ -890,7 +897,7 @@ bool UCustomizableObject::ConditionalAutoCompile()
 	}
 	else
 	{
-		const FAssetRegistryModule& AssetRegistryModule = FModuleManager::LoadModuleChecked<FAssetRegistryModule>("AssetRegistry");
+		const FAssetRegistryModule& AssetRegistryModule = FModuleManager::GetModuleChecked<FAssetRegistryModule>(TEXT("AssetRegistry"));
 		const FAssetData AssetData = AssetRegistryModule.Get().GetAssetByObjectPath(UE_MUTABLE_OBJECTPATH(GetPathName()));
 		System->RecompileCustomizableObjectAsync(AssetData, this);
 	}
@@ -1044,10 +1051,11 @@ void UCustomizableObject::LoadEmbeddedData(FArchive& Ar)
 		UnrealMutableInputStream stream(Ar);
 		mu::InputArchive arch(&stream);
 		TSharedPtr<mu::Model, ESPMode::ThreadSafe> Model = mu::Model::StaticUnserialise( arch );
-		Private->SetModel( Model, FGuid());
 
 		// Create parameter properties
-		UpdateParameterPropertiesFromModel();
+		UpdateParameterPropertiesFromModel(Model);
+
+		Private->SetModel( Model, FGuid());
 	}
 }
 
@@ -1292,9 +1300,28 @@ TSharedPtr<mu::Model, ESPMode::ThreadSafe> UCustomizableObject::GetModel() const
 #if WITH_EDITOR
 void UCustomizableObject::SetModel(TSharedPtr<mu::Model, ESPMode::ThreadSafe> Model)
 {
+	// Generate a map that using the resource id tells the offset and size of the resource inside the bulk data
+	if (Model)
+	{
+		uint64 Offset = 0;
+
+		const int32 NumStreamingFiles = Model->GetRomCount();
+		HashToStreamableBlock.Empty(NumStreamingFiles);
+
+		for (size_t FileIndex = 0; FileIndex < NumStreamingFiles; ++FileIndex)
+		{
+			const uint32 ResourceId = Model->GetRomId(FileIndex);
+			const uint32 ResourceSize = Model->GetRomSize(FileIndex);
+
+			HashToStreamableBlock.Add(ResourceId, FMutableStreamableBlock({0, Offset, ResourceSize }));
+			Offset += ResourceSize;
+		}
+	}
+
+	// Generate ParameterProperties and IntParameterLookUpTable
+	UpdateParameterPropertiesFromModel(Model);
+
 	Private->SetModel(Model, GenerateIdentifier(*this));
-	
-	UpdateCompiledDataFromModel();
 }
 
 void UCustomizableObject::SetBoneNamesArray(const TArray<FName>& InBoneNames)
@@ -1379,11 +1406,11 @@ const FString & UCustomizableObject::GetParameterName(int32 ParamIndex) const
 }
 
 
-void UCustomizableObject::UpdateParameterPropertiesFromModel()
+void UCustomizableObject::UpdateParameterPropertiesFromModel(const TSharedPtr<mu::Model>& Model)
 {
-	if (Private->GetModel())
+	if (Model)
 	{
-		mu::ParametersPtr MutableParameters = mu::Model::NewParameters(Private->GetModel());
+		mu::ParametersPtr MutableParameters = mu::Model::NewParameters(Model);
 		int paramCount = MutableParameters->GetCount();
 
 		ParameterProperties.Reset(paramCount);
@@ -1905,18 +1932,28 @@ void FMeshCache::Add(const TArray<mu::FResourceID>& Key, USkeletalMesh* Value)
 
 void UCustomizableObjectPrivate::SetModel(const TSharedPtr<mu::Model, ESPMode::ThreadSafe>& Model, const FGuid Id)
 {
+	if (MutableModel == Model
+#if WITH_EDITOR
+		&& Identifier == Id
+#endif
+		)
+	{
+		return;
+	}
+	
 #if WITH_EDITOR
 	if (MutableModel)
 	{
 		MutableModel->Invalidate();
 	}
+
+	Identifier = Id;
 #endif
 	
 	MutableModel = Model;
 
-#if WITH_EDITOR
-	Identifier = Id;
-#endif
+	using EState = FCustomizableObjectStatus::EState;
+	Status.NextState(Model ? EState::ModelLoaded : EState::NoModel);
 }
 
 
@@ -1930,14 +1967,6 @@ TSharedPtr<const mu::Model, ESPMode::ThreadSafe> UCustomizableObjectPrivate::Get
 {
 	return MutableModel;
 }
-
-
-#if WITH_EDITORONLY_DATA
-TMap<TObjectPtr<const UObject>, FGuid>& UCustomizableObjectPrivate::GetParticipatingObjects(UCustomizableObject& Public)
-{
-	return Public.ParticipatingObjects;
-}
-#endif
 
 
 //-------------------------------------------------------------------------------------------------

@@ -9,6 +9,7 @@
 #include "MuCOE/CustomizableObjectCompiler.h"
 #include "MuCOE/ICustomizableObjectEditor.h"
 #include "TickableEditorObject.h"
+#include "MuCO/CustomizableObjectPrivate.h"
 #include "Widgets/Input/SNumericDropDown.h"
 
 #include "CustomizableObjectEditor.generated.h"
@@ -247,9 +248,6 @@ public:
 
 	virtual void UpdateGraphNodeProperties();
 
-	/** Getter of AssetRegistryLoaded */
-	bool GetAssetRegistryLoaded();
-
 	/** Callback to notify the editor when the PreviewInstance has been updated */
 	void OnUpdatePreviewInstance();
 
@@ -336,9 +334,6 @@ private:
 
 	virtual UEdGraphNode* CreateCommentBox(const FVector2D& NodePos) override;
 
-	/** Callback for the asset registry initial load */
-	void OnAssetRegistryLoadComplete();
-
 	/** Updates the visibility of PreviewSkeletalMeshComponent */
 	void UpdatePreviewVisibility();
 
@@ -363,6 +358,8 @@ private:
 	void CreatePreviewComponents();
 
 public:
+	void OnCustomizableObjectStatusChanged(FCustomizableObjectStatus::EState PreviousState, FCustomizableObjectStatus::EState NextState);
+
 	// Helpers to get the absolute parent of a Customizable Object
 	static UCustomizableObject* GetAbsoluteCOParent(const UCustomizableObjectNodeObject* const Root);
 	static void AddCachedReferencers(const FName& PathName, TArray<FName>& ArrayReferenceNames, TArray<FAssetData>& ArrayAssetData);
@@ -387,7 +384,6 @@ private:
 	TObjectPtr<UCustomizableObject> CustomizableObject;
 	TObjectPtr<UCustomizableObjectInstance> PreviewInstance = nullptr;
 	TArray<TObjectPtr<UCustomizableSkeletalComponent>> PreviewCustomizableSkeletalComponents;
-	TObjectPtr<UStaticMeshComponent> PreviewStaticMeshComponent = nullptr;
 	TArray<TObjectPtr<UDebugSkelMeshComponent>> PreviewSkeletalMeshComponents;
 
 	/** Object compiler */
@@ -416,15 +412,6 @@ private:
 
 	/** Widget to select which node pins are visible. */
 	TSharedPtr<class SCustomizableObjectNodePinViewer> NodePinViewer;
-
-	/** Handle for the OnObjectModified event */
-	FDelegateHandle OnObjectModifiedHandle;
-
-	/** Flag to know when the asset registry initial loading has completed */
-	bool AssetRegistryLoaded = false;
-
-	/** Flag to know whether the lasts steps when making a new preview instance need to be done when asset registry completes asset loading */
-	bool UpdateSkeletalMeshAfterAssetLoaded = false;
 	
 	/** UObject class to be able to use the update callback */
 	TObjectPtr<UUpdateClassWrapper> HelperCallback;
@@ -438,7 +425,7 @@ private:
 	/** Texture Analyzer table widget which shows the information of the transient textures used in the customizable object instance */
 	TSharedPtr<class SCustomizableObjecEditorTextureAnalyzer> TextureAnalyzer;
 
-	/** Performance report widget to test and analyze the current cusomizable object resource demands */
+	/** Performance report widget to test and analyze the current customizable object resource demands */
 	TSharedPtr<class SCustomizableObjecEditorPerformanceReport> PerformanceReport;
 
 	/** Widget to explore all the tags related with the Customizable Object open in the editor */

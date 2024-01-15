@@ -2,6 +2,7 @@
 
 #pragma once
 
+#include "MuCO/StateMachine.h"
 #include "Templates/SharedPointer.h"
 #include "UObject/WeakObjectPtr.h"
 #include "MuR/Types.h"
@@ -27,6 +28,33 @@ public:
 private:
 	TMap<TArray<mu::FResourceID>, TWeakObjectPtr<USkeletalMesh>> GeneratedMeshes;
 };
+
+struct FCustomizableObjectStatusTypes
+{
+	enum class EState : uint8
+	{
+		Loading = 0, // Waiting for PostLoad and Asset Registry to finish.
+		ModelLoaded, // Model loaded correctly.
+		NoModel, // No model (due to no model not found and automatic compilations disabled).
+		// Compiling, // Compiling the CO.
+
+		Count,
+	};
+	
+	static constexpr EState StartState = EState::Loading;
+
+	static constexpr bool ValidTransitions[3][3] =
+	{
+		// TO
+		// Loading, ModelLoaded, NoModel // FROM
+		{false,   true,        true},  // Loading
+		{false,   true,        true},  // ModelLoaded
+		{false,   true,        true},  // NoModel
+	};
+};
+
+
+using FCustomizableObjectStatus = FStateMachine<FCustomizableObjectStatusTypes>;
 
 
 UCLASS()
@@ -54,9 +82,17 @@ public:
 
 	bool bModelCompiledForCook = false;
 	TArray<FString> CachedPlatformNames;
+
+	/** List of external packages that if changed, a compilation is required.
+	 * Key is the package name. Value is the the UPackage::Guid, which is regenerated each time the packages is saved.
+	 *
+	 * Updated each time the CO is compiled and saved in the Derived Data. */
+	TMap<FName, FGuid> ParticipatingObjects;
 #endif
 
 	/** Cache of generated SkeletalMeshes */
 	FMeshCache MeshCache;
+
+	FCustomizableObjectStatus Status;
 };
 

@@ -5,6 +5,7 @@
 #include "MuCOE/ICustomizableObjectInstanceEditor.h"
 #include "MuCOE/CustomizableObjectEditorViewportLights.h"
 #include "TickableEditorObject.h"
+#include "MuCO/CustomizableObjectPrivate.h"
 
 #include "CustomizableObjectInstanceEditor.generated.h"
 
@@ -184,20 +185,16 @@ public:
 	virtual void ShowGizmoProjectorParameter(const FString& ParamName, int32 RangeIndex) override;
 	virtual void HideGizmoProjectorParameter() override;
 	
-	/** Getter of AssetRegistryLoaded */
-	bool GetAssetRegistryLoaded();
-
 	/** Callback to notify the editor when the PreviewInstance has been updated */
 	void OnUpdatePreviewInstance();
-
-	/** Compile the customizable object. */
-	void CompileObject(UCustomizableObject* Object);
 
 	/** FTickableGameObject interface */
 	virtual bool IsTickable(void) const override;
 	virtual void Tick(float InDeltaTime) override;
 	virtual TStatId GetStatId() const override;
 
+	void OnCustomizableObjectStatusChanged(FCustomizableObjectStatus::EState PreviousState, FCustomizableObjectStatus::EState NextState);
+	
 private:
 
 	TSharedRef<SDockTab> SpawnTab_Viewport(const FSpawnTabArgs& Args);
@@ -212,9 +209,6 @@ private:
 		
 	/** Callback when selection changes in the Property Tree. */
 	void OnInstancePropertySelectionChanged(FProperty* InProperty);
-
-	/** Callback for the asset registry initial load */
-	void OnAssetRegistryLoadComplete();
 
 	/** Updates the visibility of PreviewSkeletalMeshComponent */
 	void UpdatePreviewVisibility();
@@ -288,9 +282,6 @@ private:
 
 	/** Handle for the OnObjectModified event */
 	FDelegateHandle OnObjectModifiedHandle;
-
-	/** Flag to know when the asset registry initial loading has completed */
-	bool AssetRegistryLoaded = true;
 
 	/** UObject class to be able to use the update callback */
 	TObjectPtr<UUpdateClassWrapperClass> HelperCallback;

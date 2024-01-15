@@ -53,6 +53,7 @@
 #include "ScopedTransaction.h"
 #include "MuCOE/SCustomizableInstanceProperties.h"
 #include "MuCO/CustomizableInstancePrivateData.h"
+#include "MuCO/CustomizableObjectPrivate.h"
 #include "UObject/EnumProperty.h"
 #include "Widgets/Docking/SDockTab.h"
 #include "Widgets/Input/SSearchBox.h"
@@ -187,7 +188,9 @@ FCustomizableObjectEditor::~FCustomizableObjectEditor()
 		Compiler.ForceFinishBeforeStartCompilation(CustomizableObject);
 	}
 
-	FCoreUObjectDelegates::OnObjectModified.Remove(OnObjectModifiedHandle);
+	FCoreUObjectDelegates::OnObjectModified.RemoveAll(this);
+
+	CustomizableObject->GetPrivate()->Status.GetOnStateChangedDelegate().RemoveAll(this);
 
 	FAssetRegistryModule& AssetRegistryModule = FModuleManager::LoadModuleChecked<FAssetRegistryModule>(TEXT("AssetRegistry"));
 	AssetRegistryModule.Get().OnFilesLoaded().RemoveAll(this);
@@ -204,16 +207,6 @@ void FCustomizableObjectEditor::InitCustomizableObjectEditor(const EToolkitMode:
 
 	CustomSettings = NewObject<UCustomSettings>();
 	CustomSettings->SetEditor(SharedThis(this));
-
-	FAssetRegistryModule& AssetRegistryModule = FModuleManager::LoadModuleChecked<FAssetRegistryModule>(TEXT("AssetRegistry"));
-	if (AssetRegistryModule.Get().IsLoadingAssets())
-	{
-		AssetRegistryModule.Get().OnFilesLoaded().AddRaw(this, &FCustomizableObjectEditor::OnAssetRegistryLoadComplete);
-	}
-	else
-	{
-		AssetRegistryLoaded = true;
-	}
 
 	HelperCallback = nullptr;
 
@@ -249,7 +242,6 @@ void FCustomizableObjectEditor::InitCustomizableObjectEditor(const EToolkitMode:
 		.CustomizableObjectEditor(SharedThis(this));
 
 	Viewport->SetCustomizableObject(CustomizableObject);
-	Viewport->SetAssetRegistryLoaded(AssetRegistryLoaded);
 	ViewportClient = Viewport->GetViewportClient();
 
 	// \TODO: Create only when needed?
@@ -339,17 +331,13 @@ void FCustomizableObjectEditor::InitCustomizableObjectEditor(const EToolkitMode:
 	// Clears selection highlight.
 	OnObjectPropertySelectionChanged(NULL);
 	OnInstancePropertySelectionChanged(NULL);
-	OnObjectModifiedHandle = FCoreUObjectDelegates::OnObjectModified.AddRaw(this, &FCustomizableObjectEditor::OnObjectModified);
+	FCoreUObjectDelegates::OnObjectModified.AddRaw(this, &FCustomizableObjectEditor::OnObjectModified);
 
-	// Compile for the first time if necessary
-	if (!CustomizableObject->IsCompiled())
-	{
-		CompileObject();
-	}
-	else
-	{
-		CreatePreviewInstance();
-	}
+	UCustomizableObjectPrivate* CustomizableObjectPrivate = CustomizableObject->GetPrivate();
+
+	CustomizableObjectPrivate->Status.GetOnStateChangedDelegate().AddRaw(this, &FCustomizableObjectEditor::OnCustomizableObjectStatusChanged);
+	const FCustomizableObjectStatusTypes::EState CurrentStatus = CustomizableObjectPrivate->Status.Get();
+	OnCustomizableObjectStatusChanged(CurrentStatus, CurrentStatus);
 }
 
 
@@ -420,8 +408,6 @@ void FCustomizableObjectEditor::CreatePreviewInstance()
 	HelperCallback = NewObject<UUpdateClassWrapper>(GetTransientPackage());
 	PreviewInstance->UpdatedDelegate.AddDynamic(HelperCallback, &UUpdateClassWrapper::DelegatedCallback);
 
-	PreviewStaticMeshComponent = nullptr;
-
 	if (CustomizableObject->ReferenceSkeletalMeshes.Num())
 	{
 		CreatePreviewComponents();
@@ -430,24 +416,8 @@ void FCustomizableObjectEditor::CreatePreviewInstance()
 		{
 			HelperCallback->Delegate.BindSP(this, &FCustomizableObjectEditor::OnUpdatePreviewInstance);
 
-			if (AssetRegistryLoaded)
-			{
-				// Asset loading works in the Main Thread, there's a risk the sync loading could put to sleep the thread while
-				// waiting for the asset registry to load the content (that never gets executed)
-				Viewport->SetAssetRegistryLoaded(true);
-				PreviewInstance->SetBuildParameterRelevancy(true);
-				PreviewInstance->UpdateSkeletalMeshAsync(true, true);
-			}
-			else
-			{
-				FNotificationInfo Info(LOCTEXT("CustomizableObjectCompileTryLater", "Please wait until asset registry loads all assets"));
-				Info.bFireAndForget = true;
-				Info.bUseThrobber = true;
-				Info.FadeOutDuration = 1.0f;
-				Info.ExpireDuration = 2.0f;
-				FSlateNotificationManager::Get().AddNotification(Info);
-				UpdateSkeletalMeshAfterAssetLoaded = true;
-			}
+			PreviewInstance->SetBuildParameterRelevancy(true);
+			PreviewInstance->UpdateSkeletalMeshAsync(true, true);
 		}
 		else
 		{
@@ -476,7 +446,6 @@ void FCustomizableObjectEditor::AddReferencedObjects( FReferenceCollector& Colle
 	Collector.AddReferencedObject( CustomizableObject );
 	Collector.AddReferencedObject( PreviewInstance );
 	Collector.AddReferencedObjects( PreviewCustomizableSkeletalComponents );
-	Collector.AddReferencedObject( PreviewStaticMeshComponent );
 	Collector.AddReferencedObjects( PreviewSkeletalMeshComponents );
 	Collector.AddReferencedObject( HelperCallback );
 	Collector.AddReferencedObject( ProjectorParameter );
@@ -1474,9 +1443,9 @@ void FCustomizableObjectEditor::CompileObject()
 	UE_LOG(LogMutable, Verbose, TEXT("PROFILE: -----------------------------------------------------------"));
 	UE_LOG(LogMutable, Verbose, TEXT("PROFILE: [ %16.8f ] FCustomizableObjectEditor::CompileObject start."), FPlatformTime::Seconds());
 
-	if (!AssetRegistryLoaded)
+	if (CustomizableObject->GetPrivate()->Status.Get() == FCustomizableObjectStatus::EState::Loading)
 	{
-		FNotificationInfo Info(LOCTEXT("CustomizableObjectCompileTryLater", "Please wait until asset registry loads all assets"));
+		FNotificationInfo Info(LOCTEXT("CustomizableObjectCompileTryLater", "Please wait until Customizable Object is loaded"));
 		Info.bFireAndForget = true;
 		Info.bUseThrobber = true;
 		Info.FadeOutDuration = 1.0f;
@@ -1983,26 +1952,6 @@ UEdGraphNode* FCustomizableObjectEditor::CreateCommentBox(const FVector2D& InTar
 	GraphEditor->NotifyGraphChanged();
 
 	return NewComment;
-}
-
-
-void FCustomizableObjectEditor::OnAssetRegistryLoadComplete()
-{
-	AssetRegistryLoaded = true;
-
-	Viewport->SetAssetRegistryLoaded(true);
-
-	if (UpdateSkeletalMeshAfterAssetLoaded)
-	{
-		UpdateSkeletalMeshAfterAssetLoaded = false;
-
-		PreviewInstance->UpdateSkeletalMeshAsync(true, true);		
-	}
-
-	if (!CustomizableObject->IsCompiled())
-	{
-		CompileObject();
-	}
 }
 
 
@@ -2549,12 +2498,6 @@ void FCustomizableObjectEditor::UpdateGraphNodeProperties()
 }
 
 
-bool FCustomizableObjectEditor::GetAssetRegistryLoaded()
-{
-	return AssetRegistryLoaded;
-}
-
-
 void FCustomizableObjectEditor::OpenTextureAnalyzerTab()
 {
 	TabManager->TryInvokeTab(TextureAnalyzerTabId);
@@ -2780,6 +2723,25 @@ void FCustomizableObjectEditor::CreatePreviewComponents()
 		}
 	}
 }
+
+
+void FCustomizableObjectEditor::OnCustomizableObjectStatusChanged(FCustomizableObjectStatus::EState, const FCustomizableObjectStatus::EState NextState)
+{
+	switch (NextState)
+	{
+	case FCustomizableObjectStatus::EState::ModelLoaded: 
+		CreatePreviewInstance();
+		break;
+		
+	case FCustomizableObjectStatus::EState::NoModel:
+		CustomizableObject->ConditionalAutoCompile();
+		break;
+
+	default:
+		break;
+	}
+}
+
 
 
 #undef LOCTEXT_NAMESPACE

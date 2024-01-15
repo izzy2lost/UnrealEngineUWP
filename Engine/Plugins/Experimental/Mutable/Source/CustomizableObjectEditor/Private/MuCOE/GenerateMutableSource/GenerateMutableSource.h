@@ -476,10 +476,10 @@ struct FMutableGraphGenerationContext
 	FMutableGraphGenerationContext(UCustomizableObject* CustomizableObject, class FCustomizableObjectCompiler* InCompiler, const FCompilationOptions& InOptions);
 	~FMutableGraphGenerationContext();
 
-	/** See UCustomizableObject::ParticipatingObjects. */
+	/** See FCustomizableObjectPrivateData::ParticipatingObjects. */
 	void AddParticipatingObject(const UObject& Object);
 
-	/** See UCustomizableObject::ParticipatingObjects. */
+	/** See FCustomizableObjectPrivateData::ParticipatingObjects. */
 	template<typename Type>
 	void AddParticipatingObject(const TArray<Type>& InObjects)
 	{
@@ -782,8 +782,8 @@ struct FMutableGraphGenerationContext
 	TArray<FCustomizableObjectResourceData> AlwaysLoadedExtensionData;
 	TArray<UCustomizableObjectResourceDataContainer*> StreamedExtensionData;
 
-	/** See UCustomizableObject::ParticipatingObjects. */
-	TMap<TObjectPtr<const UObject>, FGuid> ParticipatingObjects;
+	/** See FCustomizableObjectPrivateData::ParticipatingObjects. */
+	TMap<FName, FGuid> ParticipatingObjects;
 
 	/** Map to relate a Composite Data Table Row and its original DataTable */
 	TMap<UDataTable*,TMap<FName, TArray<UDataTable*>>> CompositeDataTableRowToOriginalDataTableMap;

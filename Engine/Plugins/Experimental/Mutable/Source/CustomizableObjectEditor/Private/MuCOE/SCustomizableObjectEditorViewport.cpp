@@ -1031,12 +1031,6 @@ void SCustomizableObjectEditorViewportTabBody::SetCustomizableObject(UCustomizab
 }
 
 
-void SCustomizableObjectEditorViewportTabBody::SetAssetRegistryLoaded(bool Value)
-{
-	AssetRegistryLoaded = Value;
-	LevelViewportClient->SetAssetRegistryLoaded(Value);
-}
-
 FLinearColor SCustomizableObjectEditorViewportTabBody::GetViewportBackgroundColor() const
 {
 	return LevelViewportClient->GetBackgroundColor();

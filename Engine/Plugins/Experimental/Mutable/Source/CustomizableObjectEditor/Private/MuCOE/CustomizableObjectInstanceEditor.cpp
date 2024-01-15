@@ -197,7 +197,6 @@ void UCustomSettings::SetEditor(TSharedPtr<ICustomizableObjectInstanceEditor> In
 FCustomizableObjectInstanceEditor::FCustomizableObjectInstanceEditor()
 {
 	CustomizableObjectInstance = nullptr;
-	PreviewStaticMeshComponent = nullptr;
 	HelperCallback = nullptr;
 	PoseAsset = nullptr;
 }
@@ -212,8 +211,6 @@ FCustomizableObjectInstanceEditor::~FCustomizableObjectInstanceEditor()
 		HelperCallback = nullptr;
 	}
 
-	CustomizableObjectInstance = nullptr;
-
 	for (UCustomizableSkeletalComponent* PreviewCustomizableSkeletalComponent : PreviewCustomizableSkeletalComponents)
 	{
 		if (PreviewCustomizableSkeletalComponent)
@@ -224,7 +221,6 @@ FCustomizableObjectInstanceEditor::~FCustomizableObjectInstanceEditor()
 
 	PreviewCustomizableSkeletalComponents.Reset();
 	PreviewSkeletalMeshComponents.Reset();
-	PreviewStaticMeshComponent = nullptr;
 
 	CustomizableInstanceDetailsView.Reset();
 	Viewport.Reset();
@@ -235,8 +231,10 @@ FCustomizableObjectInstanceEditor::~FCustomizableObjectInstanceEditor()
 		Compiler->ForceFinishCompilation();
 	}
 
-	FAssetRegistryModule& AssetRegistryModule = FModuleManager::LoadModuleChecked<FAssetRegistryModule>(TEXT("AssetRegistry"));
-	AssetRegistryModule.Get().OnFilesLoaded().RemoveAll(this);
+	if (const UCustomizableObject* CustomizableObject = CustomizableObjectInstance->GetCustomizableObject())
+	{
+		CustomizableObject->GetPrivate()->Status.GetOnStateChangedDelegate().RemoveAll(this);		
+	}
 
 	FCoreUObjectDelegates::OnObjectPropertyChanged.RemoveAll(this);
 }
@@ -274,31 +272,6 @@ void FCustomizableObjectInstanceEditor::InitCustomizableObjectInstanceEditor( co
 	CustomizableObjectInstance = InCustomizableObjectInstance;
 	bOnlyRelevantParameters = InCustomizableObjectInstance->bShowOnlyRelevantParameters;
 	bOnlyRuntimeParameters = InCustomizableObjectInstance->bShowOnlyRuntimeParameters;
-
-	// Check if the asset registry has finished loading assets before compiling the object or updating the instance
-	FAssetRegistryModule& AssetRegistryModule = FModuleManager::LoadModuleChecked<FAssetRegistryModule>(TEXT("AssetRegistry"));
-	if (AssetRegistryModule.Get().IsLoadingAssets())
-	{
-		AssetRegistryModule.Get().OnFilesLoaded().AddRaw(this, &FCustomizableObjectInstanceEditor::OnAssetRegistryLoadComplete);
-		AssetRegistryLoaded = false;
-	}
-	else
-	{
-		UCustomizableObject* CustomizableObject = CustomizableObjectInstance->GetCustomizableObject();
-
-		// Compile for the first time if necessary
-		if (CustomizableObject && !CustomizableObject->IsCompiled())
-		{
-			
-			CompileObject(CustomizableObject);
-		}
-		else if (CustomizableObject)
-		{
-			CreatePreviewInstance();
-		}
-		
-		Viewport->SetAssetRegistryLoaded(true);
-	}
 
 	FAdvancedPreviewSceneModule& AdvancedPreviewSceneModule = FModuleManager::LoadModuleChecked<FAdvancedPreviewSceneModule>("AdvancedPreviewScene");
 
@@ -340,6 +313,15 @@ void FCustomizableObjectInstanceEditor::InitCustomizableObjectInstanceEditor( co
 
 	// Clears selection highlight.
 	OnInstancePropertySelectionChanged(NULL);
+	
+	if (const UCustomizableObject* CustomizableObject = CustomizableObjectInstance->GetCustomizableObject())
+	{
+		UCustomizableObjectPrivate* CustomizableObjectPrivate = CustomizableObject->GetPrivate();
+
+		CustomizableObjectPrivate->Status.GetOnStateChangedDelegate().AddRaw(this, &FCustomizableObjectInstanceEditor::OnCustomizableObjectStatusChanged);
+		const FCustomizableObjectStatusTypes::EState CurrentStatus = CustomizableObjectPrivate->Status.Get();
+		OnCustomizableObjectStatusChanged(CurrentStatus, CurrentStatus);
+	}
 }
 
 
@@ -368,12 +350,10 @@ void FCustomizableObjectInstanceEditor::CreatePreviewInstance()
 	HelperCallback->Delegate.BindSP(this, &FCustomizableObjectInstanceEditor::OnUpdatePreviewInstance);
 	CustomizableObjectInstance->UpdatedDelegate.AddDynamic(HelperCallback, &UUpdateClassWrapperClass::DelegatedCallback);
 
-	PreviewStaticMeshComponent = nullptr;
-
 	// Create a SkeletalMeshComponent for each component in the CO
 	const int32 NumMeshComponents = CustomizableObjectInstance->GetNumComponents();
-	PreviewSkeletalMeshComponents.AddZeroed(NumMeshComponents);
-	PreviewCustomizableSkeletalComponents.AddZeroed(NumMeshComponents);
+	PreviewSkeletalMeshComponents.SetNum(NumMeshComponents);
+	PreviewCustomizableSkeletalComponents.SetNum(NumMeshComponents);
 
 	for (int32 ComponentIndex = 0; ComponentIndex < NumMeshComponents; ++ComponentIndex)
 	{
@@ -391,30 +371,6 @@ void FCustomizableObjectInstanceEditor::CreatePreviewInstance()
 
 	CustomizableObjectInstance->UpdateSkeletalMeshAsync(true, true);
 	Viewport->SetPreviewComponents(PreviewSkeletalMeshComponents);
-}
-
-
-void FCustomizableObjectInstanceEditor::OnAssetRegistryLoadComplete()
-{
-	AssetRegistryLoaded = true;
-	Viewport->SetAssetRegistryLoaded(true);
-
-	check(CustomizableObjectInstance);
-	UCustomizableObject* CustomizableObject = CustomizableObjectInstance->GetCustomizableObject();
-	if (!CustomizableObject)
-	{
-		return;
-	}
-
-	// Compile for the first time if necessary
-	if (!CustomizableObject->IsCompiled())
-	{
-		CompileObject(CustomizableObject);
-	}
-	else
-	{
-		CreatePreviewInstance();
-	}
 }
 
 
@@ -478,8 +434,6 @@ void FCustomizableObjectInstanceEditor::AddReferencedObjects( FReferenceCollecto
 	{
 		Collector.AddReferencedObject(PreviewCustomizableSkeletalComponent);
 	}
-
-	Collector.AddReferencedObject( PreviewStaticMeshComponent );
 
 	for (auto& PreviewSkeletalMeshComponent : PreviewSkeletalMeshComponents)
 	{
@@ -687,12 +641,6 @@ void FCustomizableObjectInstanceEditor::HideGizmoProjectorParameter()
 }
 
 
-bool FCustomizableObjectInstanceEditor::GetAssetRegistryLoaded()
-{
-	return AssetRegistryLoaded;
-}
-
-
 void FCustomizableObjectInstanceEditor::OnInstancePropertySelectionChanged(FProperty* InProperty)
 {
 	Viewport->GetViewportClient()->Invalidate();
@@ -732,24 +680,6 @@ void FCustomizableObjectInstanceEditor::OnUpdatePreviewInstance()
 	{
 		TextureAnalyzer.Get()->RefreshTextureAnalyzerTable(CustomizableObjectInstance);
 	}
-}
-
-
-void FCustomizableObjectInstanceEditor::CompileObject(UCustomizableObject* Object)
-{
-	if (!Object || !Object->Source)
-	{
-		return;
-	}
-	
-	if (!Compiler)
-	{
-		Compiler = MakeUnique<FCustomizableObjectCompiler>();
-	}
-	
-	FCompilationOptions Options = Object->CompileOptions;
-	Options.bSilentCompilation = false;
-	Compiler->Compile(*Object, Options, true);
 }
 
 
@@ -801,6 +731,32 @@ TStatId FCustomizableObjectInstanceEditor::GetStatId() const
 {
 	RETURN_QUICK_DECLARE_CYCLE_STAT(FCustomizableObjectInstanceEditor, STATGROUP_Tickables);
 }
+
+
+void FCustomizableObjectInstanceEditor::OnCustomizableObjectStatusChanged(FCustomizableObjectStatus::EState, const FCustomizableObjectStatus::EState NextState)
+{
+	switch (NextState)
+	{
+	case FCustomizableObjectStatus::EState::ModelLoaded:
+		{
+			CreatePreviewInstance();
+			break;			
+		}
+		
+	case FCustomizableObjectStatus::EState::NoModel:
+		{
+			UCustomizableObject* CustomizableObject = CustomizableObjectInstance->GetCustomizableObject();
+			check(CustomizableObject)
+		
+			CustomizableObject->ConditionalAutoCompile();	
+			break;			
+		}
+
+	default:
+		break;
+	}	
+}
+
 
 void FCustomizableObjectInstanceEditor::OpenTextureAnalyzerTab()
 {

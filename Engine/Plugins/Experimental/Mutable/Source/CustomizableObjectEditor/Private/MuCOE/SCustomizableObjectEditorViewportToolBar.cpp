@@ -21,7 +21,10 @@
 #include "SViewportToolBarComboMenu.h"
 #include "Settings/LevelEditorViewportSettings.h"
 #include "UnrealEdGlobals.h"
+#include "AssetRegistry/AssetRegistryModule.h"
 #include "MuCO/CustomizableInstancePrivateData.h"
+#include "MuCO/CustomizableObject.h"
+#include "MuCO/CustomizableObjectPrivate.h"
 #include "MuCO/CustomizableObjectSystem.h"
 #include "Widgets/Input/SButton.h"
 #include "Widgets/Input/SMenuAnchor.h"
@@ -190,9 +193,22 @@ FText SCustomizableObjectEditorViewportToolBar::GetCompileErrorOverlayText() con
 		return {};
 	}
 
-	if (!Editor->GetAssetRegistryLoaded())
+	bool bLoading = false;
+
+	const UObject* EditingObject = (*Editor->GetObjectsCurrentlyBeingEdited())[0];
+	if (const UCustomizableObject* CustomizableObject = Cast<UCustomizableObject>(EditingObject))
 	{
-		return LOCTEXT("LoadingAssets", "Loading Assets");
+		bLoading = CustomizableObject->GetPrivate()->Status.Get() == FCustomizableObjectStatusTypes::EState::Loading;
+	}
+	else if (const UCustomizableObjectInstance* Instance = Cast<UCustomizableObjectInstance>(EditingObject))
+	{
+		const UCustomizableObject* InstanceCustomizableObject = Instance->GetCustomizableObject();
+		bLoading = InstanceCustomizableObject && InstanceCustomizableObject->GetPrivate()->Status.Get() == FCustomizableObjectStatusTypes::EState::Loading;
+	}
+
+	if (bLoading)
+	{
+		return LOCTEXT("LoadingAssets", "Loading Customizable Object");
 	}
 
 	const UCustomizableObjectInstance* Instance = Editor->GetPreviewInstance();
@@ -201,7 +217,7 @@ FText SCustomizableObjectEditorViewportToolBar::GetCompileErrorOverlayText() con
 		return LOCTEXT("NoPreviewInstance", "No Preview Instance");
 	}
 
-	UCustomizableObjectSystem* System = UCustomizableObjectSystem::GetInstanceChecked();
+	const UCustomizableObjectSystem* System = UCustomizableObjectSystem::GetInstanceChecked();
 	
 	if (System->IsUpdating(Instance))
 	{

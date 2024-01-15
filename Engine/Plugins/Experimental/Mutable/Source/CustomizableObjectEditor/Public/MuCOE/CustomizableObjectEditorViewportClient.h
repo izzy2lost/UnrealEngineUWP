@@ -225,9 +225,6 @@ public:
 	}
 	// End of FSerializableObject interface
 
-	/** Setter of AssetRegistryLoaded */
-	void SetAssetRegistryLoaded(bool Value);
-
 	/** Show pero LOD geometric information of the instance */
 	void ShowInstanceGeometryInformation(FCanvas* InCanvas);
 
@@ -340,9 +337,6 @@ private:
 
 	/** To know if the user has given permission to overwrite files when baking if already present */
 	bool BakingOverwritePermission;
-
-	/** Flag to know when the asset registry initial loading has completed, value set by the Customizable Object / Customizable Object Instance editor */
-	bool AssetRegistryLoaded;
 
 	/** To know if the orbital camera is being used or not */
 	bool bActivateOrbitalCamera;

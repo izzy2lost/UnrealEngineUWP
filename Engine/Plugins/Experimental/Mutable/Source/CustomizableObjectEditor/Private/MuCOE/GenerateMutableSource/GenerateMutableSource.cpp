@@ -137,7 +137,7 @@ void FMutableGraphGenerationContext::AddParticipatingObject(const UObject& InObj
 	const FGuid PackageGuid = InObject.GetPackage()->GetGuid();
 	PRAGMA_ENABLE_DEPRECATION_WARNINGS
 
-	ParticipatingObjects.Add(&InObject, PackageGuid);
+	ParticipatingObjects.Add(InObject.GetPackage()->GetFName(), PackageGuid);
 }
 
 

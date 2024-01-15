@@ -1392,7 +1392,7 @@ private:
 	TMap<FString, int32> ParameterPropertiesLookupTable;
 
 	// Rebuild ParameterProperties from the current compiled model.
-	void UpdateParameterPropertiesFromModel();
+	void UpdateParameterPropertiesFromModel(const TSharedPtr<mu::Model>& Model);
 
 	// This is a manual version number for the binary blobs in this asset.
 	// Increasing it invalidates all the previously compiled models.
@@ -1411,8 +1411,9 @@ public:
 
 #if WITH_EDITOR
 	
-	// Compile the object if Automatic Compilation is enabled and the object can be compiled.
-	// Automatic compilation can be enabled/disabled in the Mutable's Plugin Settings.
+	/** Compile the object if Automatic Compilation is enabled and has not been already compiled.
+	 * Automatic compilation can be enabled/disabled in the Mutable's Plugin Settings.
+	 * @return true if compiled */
 	bool ConditionalAutoCompile();
 	
 	// Add a profile that stores the values of the parameters used by the CustomInstance.
@@ -1448,8 +1449,6 @@ public:
 	bool IsCachedCookedPlatformDataLoaded(const ITargetPlatform* TargetPlatform) override;
 	// End UObject interface.
 
-	// Rebuild HashToStreamableBlocks and ParameterProperties from the current compiled model.
-	void UpdateCompiledDataFromModel();
 	
 	/** Generic Save/Load methods to write/read compiled data */
 	void SaveCompiledData(FArchive& Ar, bool bSkipEditorOnlyData = false);
@@ -1654,13 +1653,6 @@ private:
 	  * Only valid in packaged builds */
 	UPROPERTY()
 	TObjectPtr<UCustomizableObjectBulk> BulkData;
-
-#if WITH_EDITORONLY_DATA
-	/** List of external objects that if changed, a compilation is required.
-	 * The FGuid is the the UPackage::Guid, which is regenerated each time the packages is saved. */
-	UPROPERTY()
-	TMap<TObjectPtr<const UObject>, FGuid> ParticipatingObjects;
-#endif
 
 	UPROPERTY()
 	TObjectPtr<UCustomizableObjectPrivate> Private;

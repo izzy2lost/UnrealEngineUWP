@@ -713,6 +713,12 @@ void FCustomizableObjectCompiler::AddCachedReferencers(const FName& PathName, TA
 			ArrayAssetData.Add(ArrayAssetDataTemp[i]);
 		}
 	}
+
+	// Required to make compilations deterministic within editor runs.
+	ArrayReferenceNames.Sort([](const FName& A, const FName& B)
+	{
+		return A.LexicalLess(B);
+	});
 }
 
 
@@ -1150,23 +1156,10 @@ void FCustomizableObjectCompiler::CompileInternal(UCustomizableObject* Object, c
 
 		if (!ParamNamesToSelectedOptions.Num())
 		{
-			GenerationContext.ParticipatingObjects.Remove(Object); // Remove self CO reference.
-
-			checkCode
-			(
-				for (auto Pair : GenerationContext.ParticipatingObjects)
-				{
-					check(Pair.Key.GetPackage() != Object->GetPackage()); // Adding a reference to itself will always force a recompilation after the CO is saved, so avoid doing that.
-				}
-			);
+			const FName PackageName = Object->GetPackage()->GetFName();
+			GenerationContext.ParticipatingObjects.Remove(PackageName); // Remove self CO reference.
 			
-			TMap<TObjectPtr<const UObject>, FGuid>& ParticipatingObjects = Object->GetPrivate()->GetParticipatingObjects(*Object);
-			if (ParticipatingObjects != GenerationContext.ParticipatingObjects)
-			{
-				Object->MarkPackageDirty();
-			}
-
-			ParticipatingObjects = MoveTemp(GenerationContext.ParticipatingObjects);
+			Object->GetPrivate()->ParticipatingObjects = MoveTemp(GenerationContext.ParticipatingObjects);
 		}
 
 		if (CompileTask.IsValid()) // Don't start compilation if there's a compilation running

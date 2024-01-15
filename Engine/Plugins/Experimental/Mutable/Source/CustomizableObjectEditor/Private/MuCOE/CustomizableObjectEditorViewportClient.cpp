@@ -39,6 +39,7 @@
 #include "ScopedTransaction.h"
 #include "SkeletalDebugRendering.h"
 #include "UnrealWidget.h"
+#include "MuCO/CustomizableObjectPrivate.h"
 #include "Widgets/Input/SButton.h"
 #include "Widgets/Input/SEditableTextBox.h"
 #include "Widgets/Layout/SUniformGridPanel.h"
@@ -58,7 +59,6 @@ FCustomizableObjectEditorViewportClient::FCustomizableObjectEditorViewportClient
 	, CustomizableObjectEditorPtr(InCustomizableObjectEditor)
 	, CustomizableObject(nullptr)
 	, BakingOverwritePermission(false)
-	, AssetRegistryLoaded(false)
 {
 	// load config
 	ConfigOption = UPersonaOptions::StaticClass()->GetDefaultObject<UPersonaOptions>();
@@ -1632,9 +1632,9 @@ void FCustomizableObjectEditorViewportClient::BakeInstance()
 //-------------------------------------------------------------------------------------------------
 void FCustomizableObjectEditorViewportClient::BakeInstance(UCustomizableObjectInstance* InInstance)
 {
-	if (!AssetRegistryLoaded)
+	if (CustomizableObject->GetPrivate()->Status.Get() == FCustomizableObjectStatus::EState::Loading)
 	{
-		FNotificationInfo Info(NSLOCTEXT("CustomizableObjectEditor", "CustomizableObjectCompileTryLater", "Please wait until asset registry loads all assets"));
+		FNotificationInfo Info(NSLOCTEXT("CustomizableObjectEditor", "CustomizableObjectCompileTryLater", "Please wait unitl Customizable Object is loaded"));
 		Info.bFireAndForget = true;
 		Info.bUseThrobber = true;
 		Info.FadeOutDuration = 1.0f;
@@ -2363,12 +2363,6 @@ void FCustomizableObjectEditorViewportClient::AddReferencedObjects(FReferenceCol
 	{
 		Collector.AddReferencedObject(BakeTempInstance);
 	}
-}
-
-
-void FCustomizableObjectEditorViewportClient::SetAssetRegistryLoaded(bool Value)
-{
-	AssetRegistryLoaded = Value;
 }
 
 
