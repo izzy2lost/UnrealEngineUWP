@@ -7,31 +7,32 @@
 #include "WorldPartition/ActorDescContainerCollection.h"
 #include "WorldPartition/ActorDescContainerInstanceCollection.h"
 #include "WorldPartition/WorldPartitionActorDescInstance.h"
-#include "WorldPartition/WorldPartitionActorDescInstanceViewInterface.h"
+#include "WorldPartition/WorldPartitionActorDescInstanceView.h"
 
 // deprecated
 class FWorldPartitionActorDescView;
 
 class FStreamingGenerationActorDescViewMap;
 
-class FStreamingGenerationActorDescView : public IWorldPartitionActorDescInstanceView
+class FStreamingGenerationActorDescView : public FWorldPartitionActorDescInstanceView
 {
+	typedef FWorldPartitionActorDescInstanceView Super;
+
 	friend class FStreamingGenerationActorDescViewMap;
 	friend class FWorldPartitionStreamingGenerator;
 
 protected:
 	// Used for invalid reference error reporting
 	FStreamingGenerationActorDescView(const FWorldPartitionActorDescInstance* InActorDescInstance)
-		: ActorDescViewMap(nullptr)
-		, ActorDescInstance(InActorDescInstance)
+		: FWorldPartitionActorDescInstanceView(InActorDescInstance)
+		, ActorDescViewMap(nullptr)
 		, ParentView(nullptr)
 		, bIsForcedNonSpatiallyLoaded(false)
 		, bIsForcedNoRuntimeGrid(false)
 		, bIsForcedNoDataLayers(false)
 		, bIsForceNoHLODLayer(false)
 		, bIsUnsaved(false)
-	{
-	}
+	{}
 
 public:
 	FStreamingGenerationActorDescView(const FStreamingGenerationActorDescViewMap& InActorDescViewMap, const FWorldPartitionActorDescInstance* InActorDescInstance, bool bInUnsaved = false)
@@ -43,71 +44,13 @@ public:
 		
 	virtual ~FStreamingGenerationActorDescView() {}
 
-	//~ Begin FWorldPartitionActorDescViewProxy	
-	virtual const FGuid& GetGuid() const override { return ActorDescInstance->GetGuid(); }
-
-	virtual FTopLevelAssetPath GetBaseClass() const override { return ActorDescInstance->GetBaseClass(); }
-	virtual FTopLevelAssetPath GetNativeClass() const override { return ActorDescInstance->GetNativeClass(); }
-	virtual UClass* GetActorNativeClass() const override { return ActorDescInstance->GetActorNativeClass(); }
-
+	//~ Begin FWorldPartitionActorDescInstanceView interface
 	ENGINE_API virtual FName GetRuntimeGrid() const override;
 	ENGINE_API virtual bool GetIsSpatiallyLoaded() const override;
-	virtual bool GetActorIsEditorOnly() const override { return ActorDescInstance->GetActorIsEditorOnly(); }
-	virtual bool GetActorIsRuntimeOnly() const override { return ActorDescInstance->GetActorIsRuntimeOnly(); }
-	virtual bool IsRuntimeRelevant() const override { return ActorDescInstance->IsRuntimeRelevant(); }
-	virtual bool IsEditorRelevant() const override { return ActorDescInstance->IsEditorRelevant(); }
-
-	virtual bool IsUsingDataLayerAsset() const override { return ActorDescInstance->IsUsingDataLayerAsset(); }
-	virtual const TArray<FName>& GetDataLayers() const override { return ActorDescInstance->GetDataLayers(); }
-
-	virtual bool GetActorIsHLODRelevant() const override { return ActorDescInstance->GetActorIsHLODRelevant(); }
 	ENGINE_API virtual FSoftObjectPath GetHLODLayer() const override;
-
-	virtual const TArray<FName>& GetTags() const override { return ActorDescInstance->GetTags(); }
-	virtual FName GetActorPackage() const override { return ActorDescInstance->GetActorPackage(); }
-	virtual FSoftObjectPath GetActorSoftPath() const override { return ActorDescInstance->GetActorSoftPath(); }
-	virtual FName GetActorLabel() const override { return ActorDescInstance->GetActorLabel(); }
-	virtual FName GetActorName() const override { return ActorDescInstance->GetActorName(); }
-	virtual FName GetFolderPath() const override { return ActorDescInstance->GetFolderPath(); }
-	virtual const FGuid& GetFolderGuid() const override { return ActorDescInstance->GetFolderGuid(); }
-
-	virtual FBox GetEditorBounds() const override { return ActorDescInstance->GetEditorBounds(); }
-	virtual FBox GetRuntimeBounds() const override { return ActorDescInstance->GetRuntimeBounds(); }
-
-	virtual bool GetProperty(FName PropertyName, FName* PropertyValue) const override { return ActorDescInstance->GetProperty(PropertyName, PropertyValue); }
-	virtual bool HasProperty(FName PropertyName) const override { return ActorDescInstance->HasProperty(PropertyName); }
-
 	ENGINE_API virtual const TArray<FGuid>& GetReferences() const override;
-	virtual const TArray<FGuid>& GetEditorOnlyReferences() const override { return ActorDescInstance->GetEditorOnlyReferences(); }
-	virtual bool IsEditorOnlyReference(const FGuid& ReferenceGuid) const override { return ActorDescInstance->IsEditorOnlyReference(ReferenceGuid); }
-
-	virtual const FGuid& GetParentActor() const override { return ActorDescInstance->GetParentActor(); }
-
-	virtual FGuid GetContentBundleGuid() const override { return ActorDescInstance->GetContentBundleGuid(); }
-
-	virtual bool IsChildContainerInstance() const override { return ActorDescInstance->IsChildContainerInstance(); }
-	virtual FName GetChildContainerPackage() const override { return ActorDescInstance->GetChildContainerPackage(); }
-	virtual EWorldPartitionActorFilterType GetChildContainerFilterType() const override { return ActorDescInstance->GetChildContainerFilterType(); }
-	virtual const FWorldPartitionActorFilter* GetChildContainerFilter() const override { return ActorDescInstance->GetChildContainerFilter(); }
-	virtual bool GetChildContainerInstance(FWorldPartitionActorDesc::FContainerInstance& OutContainerInstance) const override { return ActorDescInstance->GetChildContainerInstance(OutContainerInstance); }
-
-	virtual bool IsMainWorldOnly() const override { return ActorDescInstance->IsMainWorldOnly(); }
-	virtual bool IsListedInSceneOutliner() const override { return ActorDescInstance->IsListedInSceneOutliner(); }
-	virtual const FGuid& GetSceneOutlinerParent() const override { return ActorDescInstance->GetSceneOutlinerParent(); }
-
-	virtual void CheckForErrors(IStreamingGenerationErrorHandler* ErrorHandler) const override { GetActorDesc()->CheckForErrors(this, ErrorHandler); }
-
-	virtual FString ToString(FWorldPartitionActorDesc::EToStringMode Mode) const override { return ActorDescInstance->ToString(Mode); }
-	virtual const FWorldPartitionActorDesc* GetActorDesc() const override { return ActorDescInstance->GetActorDesc(); }
-
-	virtual bool HasResolvedDataLayerInstanceNames() const override { return ActorDescInstance->HasResolvedDataLayerInstanceNames(); }
 	ENGINE_API const TArray<FName>& GetDataLayerInstanceNames() const override;
-
-	virtual AActor* GetActor(bool bEvenIfPendingKill = true, bool bEvenIfUnreachable = false) const override { return ActorDescInstance->GetActor(bEvenIfPendingKill, bEvenIfUnreachable); }
-	virtual bool IsLoaded(bool bEvenIfPendingKill = false) const override { return ActorDescInstance->IsLoaded(bEvenIfPendingKill); }
-
-	virtual UActorDescContainerInstance* GetContainerInstance() const override { return ActorDescInstance->GetContainerInstance(); }
-	//~ End
+	//~ End FWorldPartitionActorDescInstanceView interface
 
 	bool IsUnsaved() const { return bIsUnsaved; }
 	const FStreamingGenerationActorDescViewMap& GetActorDescViewMap() const { return *ActorDescViewMap; }
@@ -139,8 +82,6 @@ public:
 
 private:
 	const FStreamingGenerationActorDescViewMap* ActorDescViewMap;
-	const FWorldPartitionActorDescInstance* ActorDescInstance;
-		
 	const FStreamingGenerationActorDescView* ParentView;
 
 	bool bIsForcedNonSpatiallyLoaded;

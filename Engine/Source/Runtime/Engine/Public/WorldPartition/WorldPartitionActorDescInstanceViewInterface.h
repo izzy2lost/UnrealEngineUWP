@@ -7,19 +7,18 @@
 
 class AActor;
 class IStreamingGenerationErrorHandler;
-class UWorldPartition;
 struct FWorldPartitionActorFilter;
 enum class EWorldPartitionActorFilterType : uint8;
-#endif // WITH_EDITOR
 
 /**
- * Interface for a view on top of an actor desc, used to cache information that can be (potentially) different than the actor desc
- * itself due to streaming generation logic, etc.
+ * Interface for a view on top of an actor descriptor instance, used to cache information that can be different 
+ * than the actor descriptor instance itself.
  */
 class IWorldPartitionActorDescInstanceView
 {
-#if WITH_EDITOR
 public:
+	virtual ~IWorldPartitionActorDescInstanceView() {}
+
 	virtual const FGuid& GetGuid() const = 0;
 
 	virtual FTopLevelAssetPath GetBaseClass() const = 0;
@@ -85,6 +84,5 @@ public:
 	virtual UActorDescContainerInstance* GetContainerInstance() const = 0;
 
 	virtual void CheckForErrors(IStreamingGenerationErrorHandler* ErrorHandler) const = 0;
-#endif // WITH_EDITOR
 };
-
+#endif // WITH_EDITOR

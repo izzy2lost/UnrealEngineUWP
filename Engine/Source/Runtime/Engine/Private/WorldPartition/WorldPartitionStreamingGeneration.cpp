@@ -57,13 +57,13 @@ class FGCUnsavedDirtyActorContainerInstances : public FGCObject
 {
 	friend class FStreamingGenerationUnsavedDirtyActorDescInstance;
 public:
-	//~ Begin FGCObject
+	//~ Begin FGCObject interface
 	virtual void AddReferencedObjects(FReferenceCollector& Collector)
 	{
 		Collector.AddReferencedObjects(ContainerInstances);
 	}
 	virtual FString GetReferencerName() const { return TEXT("FUnsavedDirtyActorContainer"); }
-	//~ End
+	//~ End FGCObject interface
 
 protected:
 	TSet<TObjectPtr<UActorDescContainerInstance>> ContainerInstances;
@@ -104,7 +104,7 @@ public:
 		return MakeUnique<FStreamingGenerationUnsavedDirtyActorDescInstance>(HandlingContainer, InActor);
 	}
 
-	//~ Begin FWorldPartitionActorDescInstance	
+	//~ Begin FWorldPartitionActorDescInstance interface
 	virtual void RegisterChildContainerInstance() override
 	{
 		if (!UnsavedDirtyActorContainerInstances.IsValid())
@@ -129,9 +129,9 @@ public:
 		ChildContainerInstance->Uninitialize();
 		ChildContainerInstance = nullptr;
 	}
-	//~ End
-protected:
+	//~ End FWorldPartitionActorDescInstance interface
 
+protected:
 	TUniquePtr<FWorldPartitionActorDesc> ActorDescPtr;
 	static TUniquePtr<FGCUnsavedDirtyActorContainerInstances> UnsavedDirtyActorContainerInstances;
 };
@@ -173,7 +173,7 @@ FName FStreamingGenerationActorDescView::GetRuntimeGrid() const
 		return ParentView->GetRuntimeGrid();
 	}
 
-	return ActorDescInstance->GetRuntimeGrid();
+	return Super::GetRuntimeGrid();
 }
 
 bool FStreamingGenerationActorDescView::GetIsSpatiallyLoaded() const
@@ -183,7 +183,7 @@ bool FStreamingGenerationActorDescView::GetIsSpatiallyLoaded() const
 		return false;
 	}
 
-	bool bIsSpatiallyLoaded = ActorDescInstance->GetIsSpatiallyLoaded();
+	bool bIsSpatiallyLoaded = Super::GetIsSpatiallyLoaded();
 	if (bIsSpatiallyLoaded && ParentView)
 	{
 		bIsSpatiallyLoaded = ParentView->GetIsSpatiallyLoaded();
@@ -204,7 +204,7 @@ FSoftObjectPath FStreamingGenerationActorDescView::GetHLODLayer() const
 		return RuntimedHLODLayer.GetValue();
 	}
 
-	return ActorDescInstance->GetHLODLayer();
+	return Super::GetHLODLayer();
 }
 
 const TArray<FName>& FStreamingGenerationActorDescView::GetDataLayerInstanceNames() const
@@ -225,12 +225,12 @@ const TArray<FName>& FStreamingGenerationActorDescView::GetDataLayerInstanceName
 		return ResolvedDataLayerInstanceNames.GetValue();
 	}
 
-	return ActorDescInstance->GetDataLayerInstanceNames();
+	return Super::GetDataLayerInstanceNames();
 }
 
 const TArray<FGuid>& FStreamingGenerationActorDescView::GetReferences() const
 {
-	return RuntimeReferences.IsSet() ? RuntimeReferences.GetValue() : ActorDescInstance->GetReferences();
+	return RuntimeReferences.IsSet() ? RuntimeReferences.GetValue() : Super::GetReferences();
 }
 
 const TArray<FGuid>& FStreamingGenerationActorDescView::GetEditorReferences() const
@@ -247,7 +247,7 @@ void FStreamingGenerationActorDescView::SetParentView(const FStreamingGeneration
 
 void FStreamingGenerationActorDescView::SetDataLayerInstanceNames(const TArray<FName>& InDataLayerInstanceNames)
 {
-	check(!ActorDescInstance->HasResolvedDataLayerInstanceNames());
+	check(!Super::HasResolvedDataLayerInstanceNames());
 	ResolvedDataLayerInstanceNames = InDataLayerInstanceNames;
 }
 
