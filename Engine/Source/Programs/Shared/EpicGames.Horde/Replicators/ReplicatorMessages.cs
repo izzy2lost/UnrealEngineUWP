@@ -26,6 +26,11 @@ namespace EpicGames.Horde.Replicators
 		public StreamReplicatorId StreamReplicatorId { get; set; }
 
 		/// <summary>
+		/// Status description
+		/// </summary>
+		public string Status { get; set; } = String.Empty;
+
+		/// <summary>
 		/// Whether to pause replication
 		/// </summary>
 		public bool? Pause { get; set; }
