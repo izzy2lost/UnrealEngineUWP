@@ -177,24 +177,30 @@ void SRCActionPanel::UpdateWrappedWidget(TSharedPtr<FRCBehaviourModel> InBehavio
 		ActionDockPanel->AddHeaderToolbarItem(EToolbar::Right, AddAllSelectedActionsButton);
 		ActionDockPanel->AddHeaderToolbarItem(EToolbar::Right, AddAllActionsButton);
 
-		// Header Dock Panel
-		TSharedPtr<SRCMinorPanel> BehaviourDetailsPanel = SNew(SRCMinorPanel)
-			.EnableHeader(false)
-			[
-				SAssignNew(BehaviourDetailsWidget, SRCBehaviourDetails, SharedThis(this), InBehaviourItem.ToSharedRef())
-			];
-
 		TSharedRef<SRCMajorPanel> ActionsPanel = SNew(SRCMajorPanel)
 			.EnableFooter(false)
 			.EnableHeader(false)
 			.ChildOrientation(Orient_Vertical);
 
-		// Panel size of zero forces use of "SizeToContent" ensuring that each Behaviour only takes up as much space as necessary
-		ActionsPanel->AddPanel(BehaviourDetailsPanel.ToSharedRef(), 0.f);
+		if (InBehaviourItem->HasBehaviourDetailsWidget())
+		{
+			// Header Dock Panel
+			TSharedPtr<SRCMinorPanel> BehaviourDetailsPanel = SNew(SRCMinorPanel)
+				.EnableHeader(false)
+				[
+					SAssignNew(BehaviourDetailsWidget, SRCBehaviourDetails, SharedThis(this), InBehaviourItem.ToSharedRef())
+				];
 
+			// Panel size of zero forces use of "SizeToContent" ensuring that each Behaviour only takes up as much space as necessary
+			ActionsPanel->AddPanel(BehaviourDetailsPanel.ToSharedRef(), 0.f);
+		}
 		ActionsPanel->AddPanel(ActionDockPanel.ToSharedRef(), 0.5f);
 
 		WrappedBoxWidget->SetContent(ActionsPanel);
+
+		const bool bIsBehaviourEnabled = InBehaviourItem->IsBehaviourEnabled();
+		InBehaviourItem->RefreshIsBehaviourEnabled(bIsBehaviourEnabled);
+		RefreshIsBehaviourEnabled(bIsBehaviourEnabled);
 	}
 	else
 	{

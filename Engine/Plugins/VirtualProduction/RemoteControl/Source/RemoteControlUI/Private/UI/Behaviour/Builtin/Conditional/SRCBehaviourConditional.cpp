@@ -55,53 +55,78 @@ void SRCBehaviourConditional::Construct(const FArguments& InArgs, TSharedRef<FRC
 
 	ChildSlot
 	[
-		SNew(SVerticalBox)
-		// Conditions Panel Title
-		+ SVerticalBox::Slot()
-		.HAlign(HAlign_Left)
-		.Padding(FMargin(3.f))
-		.AutoHeight()
+		SNew(SHorizontalBox)
+		// Conditions Panel
+		+ SHorizontalBox::Slot()
+		.HAlign(HAlign_Center)
+		.FillWidth(0.5f)
 		[
-			SNew(STextBlock)
-			.Text(LOCTEXT("ConditionsPanelTitle", "Condition"))
-			.Font(FRemoteControlPanelStyle::Get()->GetFontStyle("RemoteControlPanel.Actions.ValuePanelHeader"))
-		]
-
-		// Conditions List
-		+ SVerticalBox::Slot()
-		.HAlign(HAlign_Left)
-		.Padding(FMargin(3.f))
-		.AutoHeight()
-		[
-			SAssignNew(ListViewConditions, SListView<TSharedPtr<ERCBehaviourConditionType>>)
-			.ListItemsSource(&Conditions)
-			.Orientation(Orient_Horizontal) // Horizontal List
-			.OnSelectionChanged(this, &SRCBehaviourConditional::OnConditionsListSelectionChanged)
-			.OnGenerateRow(this, &SRCBehaviourConditional::OnGenerateWidgetForConditionsList)
-			// @todo: Add dark background for list as per Figma
-		]
-
-		// Comparand Label
-		+ SVerticalBox::Slot()
-		.HAlign(HAlign_Left)
-		.Padding(FMargin(3.f, 6.f, 3.f, 3.f))
-		.AutoHeight()
-		[
-			SNew(STextBlock)
-			.Text(LOCTEXT("ConditionsPanelComparandLabel", "Input Value"))
-			.Font(FRemoteControlPanelStyle::Get()->GetFontStyle("RemoteControlPanel.Actions.ValuePanelHeader"))
-		]
-
-		// Comparand Value Widget
-		+ SVerticalBox::Slot()
-		.HAlign(HAlign_Left)
-		.Padding(FMargin(3.f))
-		.AutoHeight()
-		[
-			SAssignNew(ComparandFieldBoxWidget, SBox)
+			SNew(SVerticalBox)
+			// Conditions Panel Title
+			+ SVerticalBox::Slot()
+			.HAlign(HAlign_Center)
+			.Padding(FMargin(3.f))
+			.AutoHeight()
 			[
-				InBehaviourItem->GetComparandFieldWidget()
-			]			
+				SNew(STextBlock)
+				.Text(LOCTEXT("ConditionsPanelTitle", "Condition"))
+				.Font(FRemoteControlPanelStyle::Get()->GetFontStyle("RemoteControlPanel.Actions.ValuePanelHeader"))
+			]
+
+			// Conditions List
+			+ SVerticalBox::Slot()
+			.HAlign(HAlign_Center)
+			.Padding(FMargin(3.f))
+			.AutoHeight()
+			[
+				SAssignNew(ListViewConditions, SListView<TSharedPtr<ERCBehaviourConditionType>>)
+				.ListItemsSource(&Conditions)
+				.Orientation(Orient_Horizontal) // Horizontal List
+				.OnSelectionChanged(this, &SRCBehaviourConditional::OnConditionsListSelectionChanged)
+				.OnGenerateRow(this, &SRCBehaviourConditional::OnGenerateWidgetForConditionsList)
+				// @todo: Add dark background for list as per Figma
+			]
+		]
+
+		// Vertical Separator
+		+ SHorizontalBox::Slot()
+		.Padding(FMargin(5.f, 0.f))
+		.AutoWidth()
+		[
+			SNew(SSeparator)
+			.Orientation(Orient_Vertical)
+			.SeparatorImage(FAppStyle::Get().GetBrush("Separator"))
+			.Thickness(2.5f)
+		]
+
+		// Comparand Panel
+		+ SHorizontalBox::Slot()
+		.HAlign(HAlign_Center)
+		.FillWidth(0.5f)
+		[
+			SNew(SVerticalBox)
+			// Comparand Label
+			+ SVerticalBox::Slot()
+			.HAlign(HAlign_Center)
+			.Padding(FMargin(3.f))
+			.AutoHeight()
+			[
+				SNew(STextBlock)
+				.Text(LOCTEXT("ConditionsPanelComparandLabel", "Input Value"))
+				.Font(FRemoteControlPanelStyle::Get()->GetFontStyle("RemoteControlPanel.Actions.ValuePanelHeader"))
+			]
+
+			// Comparand Value Widget
+			+ SVerticalBox::Slot()
+			.HAlign(HAlign_Center)
+			.Padding(FMargin(3.f))
+			.AutoHeight()
+			[
+				SAssignNew(ComparandFieldBoxWidget, SBox)
+				[
+					InBehaviourItem->GetComparandFieldWidget()
+				]			
+			]
 		]
 	];
 

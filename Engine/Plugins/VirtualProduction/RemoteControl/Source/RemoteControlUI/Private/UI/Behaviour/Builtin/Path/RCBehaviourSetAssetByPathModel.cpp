@@ -82,6 +82,11 @@ FRCSetAssetByPathBehaviourModel::FRCSetAssetByPathBehaviourModel(URCSetAssetByPa
 	SelectorBox = GetSelectorWidget(InitialSelected);
 }
 
+bool FRCSetAssetByPathBehaviourModel::HasBehaviourDetailsWidget()
+{
+	return true;
+}
+
 TSharedRef<SWidget> FRCSetAssetByPathBehaviourModel::GetBehaviourDetailsWidget()
 {
 	return SNew(SRCBehaviourSetAssetByPath, SharedThis(this));

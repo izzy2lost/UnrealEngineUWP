@@ -26,10 +26,10 @@ FRCBehaviourModel::FRCBehaviourModel(URCBehaviour* InBehaviour
 
 	if (BehaviourWeakPtr.IsValid())
 	{
-		const FText BehaviorDisplayName = BehaviourWeakPtr->GetDisplayName();
+		const FText BehaviourDisplayName = BehaviourWeakPtr->GetDisplayName();
 		
 		SAssignNew(BehaviourTitleText, STextBlock)
-			.Text(BehaviorDisplayName)
+			.Text(BehaviourDisplayName)
 			.TextStyle(&RCPanelStyle->HeaderTextStyle);
 
 		RefreshIsBehaviourEnabled(BehaviourWeakPtr->bIsEnabled);
@@ -89,6 +89,11 @@ TSharedRef<SWidget> FRCBehaviourModel::GetWidget() const
 		[
 			BehaviourTitleText.ToSharedRef()
 		];
+}
+
+bool FRCBehaviourModel::HasBehaviourDetailsWidget()
+{
+	return false;
 }
 
 TSharedRef<SWidget> FRCBehaviourModel::GetBehaviourDetailsWidget()

@@ -38,6 +38,9 @@ public:
 	*/
 	virtual TSharedRef<SWidget> GetWidget() const override;
 
+	/** Returns true if this behaviour have a details widget or false if not*/
+	virtual bool HasBehaviourDetailsWidget();
+
 	/** Builds a Behaviour specific widget that child Behaviour classes can implement as required*/
 	virtual TSharedRef<SWidget> GetBehaviourDetailsWidget();
 

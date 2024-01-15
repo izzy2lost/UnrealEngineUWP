@@ -131,7 +131,28 @@ void SRCBehaviourPanelList::SetIsBehaviourEnabled(const bool bIsEnabled)
 	{
 		if (const TSharedPtr<SRCActionPanel> ActionPanel = RemoteControlPanel->GetLogicActionPanel())
 		{
-			ActionPanel->SetIsBehaviourEnabled(bIsEnabled);
+			ActionPanel->RefreshIsBehaviourEnabled(bIsEnabled);
+		}
+	}
+}
+
+void SRCBehaviourPanelList::SetIsBehaviourEnabled(const TSharedPtr<FRCBehaviourModel>& InBehaviourModel, const bool bIsEnabled)
+{
+	// Disable the behaviour
+	if (InBehaviourModel.IsValid())
+	{
+		InBehaviourModel->SetIsBehaviourEnabled(bIsEnabled);
+	}
+
+	// Disable the action panel
+	if (const TSharedPtr<SRemoteControlPanel> RemoteControlPanel = GetRemoteControlPanel())
+	{
+		if (const TSharedPtr<SRCActionPanel> ActionPanel = RemoteControlPanel->GetLogicActionPanel())
+		{
+			if (InBehaviourModel == ActionPanel->GetSelectedBehaviourItem())
+			{
+				ActionPanel->RefreshIsBehaviourEnabled(bIsEnabled);
+			}
 		}
 	}
 }
@@ -193,8 +214,38 @@ TSharedRef<ITableRow> SRCBehaviourPanelList::OnGenerateWidgetForList(TSharedPtr<
 	return SNew(STableRow<TSharedPtr<FString>>, OwnerTable)
 		.Style(&RCPanelStyle->TableRowStyle)
 		[
-			InItem->GetWidget()
+			SNew(SHorizontalBox)
+			+ SHorizontalBox::Slot()
+			[
+				InItem->GetWidget()
+			]
+
+			// Toggle Behaviour Button
+			+ SHorizontalBox::Slot()
+			.VAlign(VAlign_Center)
+			.AutoWidth()
+			.Padding(4.f, 0.f)
+			[
+				SNew(SCheckBox)
+				.AddMetaData<FTagMetaData>(FTagMetaData(TEXT("Toggle Behaviour")))
+				.ToolTipText(LOCTEXT("EditModeTooltip", "Enable/Disable this Behaviour.\nWhen a behaviour is disabled its Actions will not be processed when the Controller value changes"))
+				.HAlign(HAlign_Center)
+				.ForegroundColor(FLinearColor::White)
+				.Style(&RCPanelStyle->ToggleButtonStyle)
+				.IsChecked(this, &SRCBehaviourPanelList::IsBehaviourChecked, InItem)
+				.OnCheckStateChanged(this, &SRCBehaviourPanelList::OnToggleEnableBehaviour, InItem)
+			]
 		];
+}
+
+ECheckBoxState SRCBehaviourPanelList::IsBehaviourChecked(const TSharedPtr<FRCBehaviourModel> InBehaviourModel) const
+{
+	return InBehaviourModel.IsValid() && InBehaviourModel->IsBehaviourEnabled() ? ECheckBoxState::Checked : ECheckBoxState::Unchecked;
+}
+
+void SRCBehaviourPanelList::OnToggleEnableBehaviour(ECheckBoxState State, const TSharedPtr<FRCBehaviourModel> InBehaviourModel)
+{
+	SetIsBehaviourEnabled(InBehaviourModel, State == ECheckBoxState::Checked);
 }
 
 void SRCBehaviourPanelList::OnTreeSelectionChanged(TSharedPtr<FRCBehaviourModel> InItem, ESelectInfo::Type)

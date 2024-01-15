@@ -20,6 +20,9 @@ class FRCBehaviourBindModel : public FRCBehaviourModel
 public:
 	FRCBehaviourBindModel(URCBehaviourBind* BindBehaviour, const TSharedPtr<SRemoteControlPanel> InRemoteControlPanel);
 
+	/** Returns true if this behaviour have a details widget or false if not*/
+	virtual bool HasBehaviourDetailsWidget() override;
+
 	/** Builds a Behaviour specific details widget for Bind Behaviour*/
 	virtual TSharedRef<SWidget> GetBehaviourDetailsWidget() override;
 

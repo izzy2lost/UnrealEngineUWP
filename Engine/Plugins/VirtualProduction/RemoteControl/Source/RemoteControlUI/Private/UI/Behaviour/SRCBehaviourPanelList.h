@@ -2,6 +2,7 @@
 
 #pragma once
 
+#include "Styling/SlateTypes.h"
 #include "UI/BaseLogicUI/SRCLogicPanelListBase.h"
 
 struct FRCPanelStyle;
@@ -69,11 +70,20 @@ private:
 	/** Enables or Disables the currently selected behaviour */
 	void SetIsBehaviourEnabled(const bool bIsEnabled);
 
+	/** Enables or Disables the passed behaviour */
+	void SetIsBehaviourEnabled(const TSharedPtr<FRCBehaviourModel>& InBehaviourModel, const bool bIsEnabled);
+
 	void AddBehaviourToList(URCBehaviour* InBehaviour);
 
 	/** OnGenerateRow delegate for the Behaviours List View */
 	TSharedRef<ITableRow> OnGenerateWidgetForList( TSharedPtr<FRCBehaviourModel> InItem, const TSharedRef<STableViewBase>& OwnerTable );
-	
+
+	/** Return whether or not the given behaviour is checked */
+	ECheckBoxState IsBehaviourChecked(const TSharedPtr<FRCBehaviourModel> InBehaviourModel) const;
+
+	/** Executed when toggling the behaviour state */
+	void OnToggleEnableBehaviour(ECheckBoxState State, TSharedPtr<FRCBehaviourModel> InBehaviourModel);
+
 	/** OnSelectionChanged delegate for Behaviours List View */
 	void OnTreeSelectionChanged(TSharedPtr<FRCBehaviourModel> InItem , ESelectInfo::Type);
 
