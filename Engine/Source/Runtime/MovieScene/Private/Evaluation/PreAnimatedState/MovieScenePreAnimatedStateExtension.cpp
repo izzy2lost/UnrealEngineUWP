@@ -1,15 +1,16 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 #include "Evaluation/PreAnimatedState/MovieScenePreAnimatedStateExtension.h"
-#include "Evaluation/PreAnimatedState/MovieScenePreAnimatedEntityCaptureSource.h"
 #include "Evaluation/PreAnimatedState/MovieScenePreAnimatedCaptureSources.h"
 #include "Evaluation/PreAnimatedState/MovieSceneRestoreStateParams.h"
 #include "Evaluation/PreAnimatedState/MovieScenePreAnimatedCaptureSource.h"
 #include "Evaluation/PreAnimatedState/MovieScenePreAnimatedObjectTokenStorage.h"
 #include "Evaluation/PreAnimatedState/MovieScenePreAnimatedRootTokenStorage.h"
-#include "EntitySystem/MovieSceneEntitySystemTask.h"
-#include "EntitySystem/MovieSceneComponentPtr.h"
 #include "EntitySystem/BuiltInComponentTypes.h"
+#include "EntitySystem/MovieSceneComponentPtr.h"
+#include "EntitySystem/MovieSceneEntitySystemTask.h"
+#include "EntitySystem/MovieSceneSharedPlaybackState.h"
+#include "MovieSceneSequence.h"
 #include "Algo/Find.h"
 #include "Algo/IndexOf.h"
 #include "Algo/BinarySearch.h"
@@ -276,6 +277,34 @@ FPreAnimatedTrackInstanceInputCaptureSources* FPreAnimatedStateExtension::GetOrC
 	return TrackInstanceInputCaptureSource.Get();
 }
 
+FPreAnimatedTemplateCaptureSources* FPreAnimatedStateExtension::GetTemplateMetaData() const
+{
+	return TemplateCaptureSource.Get();
+}
+
+FPreAnimatedTemplateCaptureSources* FPreAnimatedStateExtension::GetOrCreateTemplateMetaData()
+{
+	if (!TemplateCaptureSource)
+	{
+		TemplateCaptureSource = MakeUnique<FPreAnimatedTemplateCaptureSources>(this);
+	}
+	return TemplateCaptureSource.Get();
+}
+
+FPreAnimatedEvaluationHookCaptureSources* FPreAnimatedStateExtension::GetEvaluationHookMetaData() const
+{
+	return EvaluationHookCaptureSource.Get();
+}
+
+FPreAnimatedEvaluationHookCaptureSources* FPreAnimatedStateExtension::GetOrCreateEvaluationHookMetaData()
+{
+	if (!EvaluationHookCaptureSource)
+	{
+		EvaluationHookCaptureSource = MakeUnique<FPreAnimatedEvaluationHookCaptureSources>(this);
+	}
+	return EvaluationHookCaptureSource.Get();
+}
+
 void FPreAnimatedStateExtension::AddWeakCaptureSource(TWeakPtr<IPreAnimatedCaptureSource> InWeakCaptureSource)
 {
 	WeakExternalCaptureSources.Add(InWeakCaptureSource);
@@ -319,6 +348,16 @@ void FPreAnimatedStateExtension::RestoreGlobalState(const FRestoreStateParams& P
 		TrackInstanceInputMetaData->GatherAndRemoveExpiredMetaData(Params, ExpiredMetaData);
 	}
 
+	if (FPreAnimatedTemplateCaptureSources* TemplateMetaData = GetTemplateMetaData())
+	{
+		TemplateMetaData->GatherAndRemoveExpiredMetaData(Params, ExpiredMetaData);
+	}
+
+	if (FPreAnimatedEvaluationHookCaptureSources* EvaluationHookMetaData = GetEvaluationHookMetaData())
+	{
+		EvaluationHookMetaData->GatherAndRemoveExpiredMetaData(Params, ExpiredMetaData);
+	}
+
 	for (int32 Index = WeakExternalCaptureSources.Num()-1; Index >= 0; --Index)
 	{
 		TSharedPtr<IPreAnimatedCaptureSource> MetaData = WeakExternalCaptureSources[Index].Pin();
@@ -333,80 +372,11 @@ void FPreAnimatedStateExtension::RestoreGlobalState(const FRestoreStateParams& P
 		}
 	}
 
-	// Remove all contributions
-	for (const FPreAnimatedStateMetaData& MetaData : ExpiredMetaData)
-	{
-		FAggregatePreAnimatedStateMetaData* Aggregate = FindMetaData(MetaData.Entry);
-		if (ensure(Aggregate))
-		{
-			const int32 TotalNum = --Aggregate->NumContributors;
-			if (MetaData.bWantsRestoreState)
+	HandleMetaDataToRemove(Params, ExpiredMetaData,
+			[Params](IPreAnimatedStorage& Storage, FPreAnimatedStorageIndex StorageIndex)
 			{
-				--Aggregate->NumRestoreContributors;
-			}
-
-			if (TotalNum == 0)
-			{
-				Aggregate->bWantedRestore = false;
-				Aggregate->TerminalInstanceHandle = MetaData.RootInstanceHandle;
-			}
-		}
-	}
-
-	// Ensure that the entries are restored in strictly the reverse order they were cached in
-	for (int32 Index = 0; Index < GroupMetaData.GetMaxIndex(); ++Index)
-	{
-		if (!GroupMetaData.IsAllocated(Index))
-		{
-			continue;
-		}
-
-		FPreAnimatedGroupMetaData& Group = GroupMetaData[Index];
-
-		for (int32 AggregateIndex = Group.AggregateMetaData.Num()-1; AggregateIndex >= 0; --AggregateIndex)
-		{
-			FAggregatePreAnimatedStateMetaData& Aggregate = Group.AggregateMetaData[AggregateIndex];
-			if (Aggregate.NumContributors == 0 && (!Aggregate.TerminalInstanceHandle.IsValid() || Aggregate.TerminalInstanceHandle == Params.TerminalInstanceHandle))
-			{
-				TSharedPtr<IPreAnimatedStorage> Storage = GetStorageChecked(Aggregate.ValueHandle.TypeID);
-				Storage->RestorePreAnimatedStateStorage(Aggregate.ValueHandle.StorageIndex, EPreAnimatedStorageRequirement::Persistent, EPreAnimatedStorageRequirement::None, Params);
-
-				Group.AggregateMetaData.RemoveAt(AggregateIndex, 1, false);
-			}
-
-			if (Group.AggregateMetaData.Num() == 0)
-			{
-				// Remove at will not re-allocate the array or shuffle items within the sparse array, so this is safe
-				Group.GroupManagerPtr->OnGroupDestroyed(Index);
-				GroupMetaData.RemoveAt(Index);
-			}
-		}
-	}
-
-	for (auto UngroupedIt = UngroupedMetaData.CreateIterator(); UngroupedIt; ++UngroupedIt)
-	{
-		FAggregatePreAnimatedStateMetaData& Aggregate = UngroupedIt.Value();
-		if (Aggregate.NumContributors == 0 && (!Aggregate.TerminalInstanceHandle.IsValid() || Aggregate.TerminalInstanceHandle == Params.TerminalInstanceHandle))
-		{
-			TSharedPtr<IPreAnimatedStorage> Storage = GetStorageChecked(Aggregate.ValueHandle.TypeID);
-			Storage->RestorePreAnimatedStateStorage(Aggregate.ValueHandle.StorageIndex, EPreAnimatedStorageRequirement::Persistent, EPreAnimatedStorageRequirement::None, Params);
-
-			UngroupedIt.RemoveCurrent();
-		}
-	}
-
-	GroupMetaData.Shrink();
-
-	// Invalidate cached data for any sequence instance that belongs to the terminal instance
-	if (Params.TerminalInstanceHandle.IsValid() && 
-			ensureMsgf(
-				Linker->GetInstanceRegistry()->IsHandleValid(Params.TerminalInstanceHandle),
-				TEXT("Terminal instance handle is not valid anymore, was the sequence destroyed?")))
-	{
-		Linker->GetInstanceRegistry()->MutateInstance(Params.TerminalInstanceHandle).InvalidateCachedData();
-	}
-
-	bEntriesInvalidated = true;
+				Storage.RestorePreAnimatedStateStorage(StorageIndex, EPreAnimatedStorageRequirement::Persistent, EPreAnimatedStorageRequirement::None, Params);
+			});
 }
 
 void FPreAnimatedStateExtension::DiscardStaleObjectState()
@@ -449,6 +419,16 @@ void FPreAnimatedStateExtension::DiscardGlobalState(const FRestoreStateParams& P
 		TrackInstanceInputMetaData->GatherAndRemoveExpiredMetaData(Params, ExpiredMetaData);
 	}
 
+	if (FPreAnimatedTemplateCaptureSources* TemplateMetaData = GetTemplateMetaData())
+	{
+		TemplateMetaData->GatherAndRemoveExpiredMetaData(Params, ExpiredMetaData);
+	}
+
+	if (FPreAnimatedEvaluationHookCaptureSources* EvaluationHookMetaData = GetEvaluationHookMetaData())
+	{
+		EvaluationHookMetaData->GatherAndRemoveExpiredMetaData(Params, ExpiredMetaData);
+	}
+
 	for (int32 Index = WeakExternalCaptureSources.Num() - 1; Index >= 0; --Index)
 	{
 		TSharedPtr<IPreAnimatedCaptureSource> MetaData = WeakExternalCaptureSources[Index].Pin();
@@ -463,77 +443,11 @@ void FPreAnimatedStateExtension::DiscardGlobalState(const FRestoreStateParams& P
 		}
 	}
 
-	// Remove all contributions
-	for (const FPreAnimatedStateMetaData& MetaData : ExpiredMetaData)
-	{
-		FAggregatePreAnimatedStateMetaData* Aggregate = FindMetaData(MetaData.Entry);
-		if (ensure(Aggregate))
-		{
-			const int32 TotalNum = --Aggregate->NumContributors;
-			if (MetaData.bWantsRestoreState)
+	HandleMetaDataToRemove(Params, ExpiredMetaData,
+			[](IPreAnimatedStorage& Storage, FPreAnimatedStorageIndex StorageIndex)
 			{
-				--Aggregate->NumRestoreContributors;
-			}
-
-			if (TotalNum == 0)
-			{
-				Aggregate->bWantedRestore = false;
-				Aggregate->TerminalInstanceHandle = MetaData.RootInstanceHandle;
-			}
-		}
-	}
-
-	// Ensure that the entries are discarded in strictly the reverse order they were cached in
-	for (int32 Index = 0; Index < GroupMetaData.GetMaxIndex(); ++Index)
-	{
-		if (!GroupMetaData.IsAllocated(Index))
-		{
-			continue;
-		}
-
-		FPreAnimatedGroupMetaData& Group = GroupMetaData[Index];
-
-		for (int32 AggregateIndex = Group.AggregateMetaData.Num() - 1; AggregateIndex >= 0; --AggregateIndex)
-		{
-			FAggregatePreAnimatedStateMetaData& Aggregate = Group.AggregateMetaData[AggregateIndex];
-			if (Aggregate.NumContributors == 0 && (!Aggregate.TerminalInstanceHandle.IsValid() || Aggregate.TerminalInstanceHandle == Params.TerminalInstanceHandle))
-			{
-				TSharedPtr<IPreAnimatedStorage> Storage = GetStorageChecked(Aggregate.ValueHandle.TypeID);
-				Storage->DiscardPreAnimatedStateStorage(Aggregate.ValueHandle.StorageIndex, EPreAnimatedStorageRequirement::Persistent);
-
-				Group.AggregateMetaData.RemoveAt(AggregateIndex, 1, false);
-			}
-
-			if (Group.AggregateMetaData.Num() == 0)
-			{
-				// Remove at will not re-allocate the array or shuffle items within the sparse array, so this is safe
-				Group.GroupManagerPtr->OnGroupDestroyed(Index);
-				GroupMetaData.RemoveAt(Index);
-			}
-		}
-	}
-
-	for (auto UngroupedIt = UngroupedMetaData.CreateIterator(); UngroupedIt; ++UngroupedIt)
-	{
-		FAggregatePreAnimatedStateMetaData& Aggregate = UngroupedIt.Value();
-		if (Aggregate.NumContributors == 0 && (!Aggregate.TerminalInstanceHandle.IsValid() || Aggregate.TerminalInstanceHandle == Params.TerminalInstanceHandle))
-		{
-			TSharedPtr<IPreAnimatedStorage> Storage = GetStorageChecked(Aggregate.ValueHandle.TypeID);
-			Storage->DiscardPreAnimatedStateStorage(Aggregate.ValueHandle.StorageIndex, EPreAnimatedStorageRequirement::Persistent);
-
-			UngroupedIt.RemoveCurrent();
-		}
-	}
-
-	GroupMetaData.Shrink();
-
-	// Invalidate cached data for any sequence instance that belongs to the terminal instance
-	if (Params.TerminalInstanceHandle.IsValid())
-	{
-		Linker->GetInstanceRegistry()->MutateInstance(Params.TerminalInstanceHandle).InvalidateCachedData();
-	}
-
-	bEntriesInvalidated = true;
+				Storage.DiscardPreAnimatedStateStorage(StorageIndex, EPreAnimatedStorageRequirement::Persistent);
+			});
 }
 
 void FPreAnimatedStateExtension::DiscardTransientState()
@@ -551,6 +465,16 @@ void FPreAnimatedStateExtension::DiscardTransientState()
 	if (FPreAnimatedTrackInstanceInputCaptureSources* TrackInstanceInputMetaData = GetTrackInstanceInputMetaData())
 	{
 		TrackInstanceInputMetaData->Reset();
+	}
+
+	if (FPreAnimatedTemplateCaptureSources* TemplateMetaData = GetTemplateMetaData())
+	{
+		TemplateMetaData->Reset();
+	}
+
+	if (FPreAnimatedEvaluationHookCaptureSources* EvaluationHookMetaData = GetEvaluationHookMetaData())
+	{
+		EvaluationHookMetaData->Reset();
 	}
 
 	for (int32 Index = WeakExternalCaptureSources.Num()-1; Index >= 0; --Index)
@@ -603,6 +527,16 @@ void FPreAnimatedStateExtension::DiscardStateForGroup(FPreAnimatedStorageGroupHa
 		TrackInstanceInputMetaData->GatherAndRemoveMetaDataForGroup(GroupHandle, MetaDataToRemove);
 	}
 
+	if (FPreAnimatedTemplateCaptureSources* TemplateMetaData = GetTemplateMetaData())
+	{
+		TemplateMetaData->GatherAndRemoveMetaDataForGroup(GroupHandle, MetaDataToRemove);
+	}
+
+	if (FPreAnimatedEvaluationHookCaptureSources* EvaluationHookMetaData = GetEvaluationHookMetaData())
+	{
+		EvaluationHookMetaData->GatherAndRemoveMetaDataForGroup(GroupHandle, MetaDataToRemove);
+	}
+
 	for (int32 Index = WeakExternalCaptureSources.Num()-1; Index >= 0; --Index)
 	{
 		if (TSharedPtr<IPreAnimatedCaptureSource> MetaData = WeakExternalCaptureSources[Index].Pin())
@@ -643,6 +577,16 @@ void FPreAnimatedStateExtension::DiscardStateForStorage(FPreAnimatedStorageID St
 	if (FPreAnimatedTrackInstanceInputCaptureSources* TrackInstanceInputMetaData = GetTrackInstanceInputMetaData())
 	{
 		TrackInstanceInputMetaData->GatherAndRemoveMetaDataForStorage(StorageID, StorageIndex, MetaDataToRemove);
+	}
+
+	if (FPreAnimatedTemplateCaptureSources* TemplateMetaData = GetTemplateMetaData())
+	{
+		TemplateMetaData->GatherAndRemoveMetaDataForStorage(StorageID, StorageIndex, MetaDataToRemove);
+	}
+
+	if (FPreAnimatedEvaluationHookCaptureSources* EvaluationHookMetaData = GetEvaluationHookMetaData())
+	{
+		EvaluationHookMetaData->GatherAndRemoveMetaDataForStorage(StorageID, StorageIndex, MetaDataToRemove);
 	}
 
 	for (int32 Index = WeakExternalCaptureSources.Num()-1; Index >= 0; --Index)
@@ -735,6 +679,38 @@ bool FPreAnimatedStateExtension::ContainsAnyStateForInstanceHandle(FRootInstance
 		}
 	}
 
+	if (FPreAnimatedTrackInstanceCaptureSources* TrackInstanceMetaData = GetTrackInstanceMetaData())
+	{
+		if (TrackInstanceMetaData->ContainsInstanceHandle(RootInstanceHandle))
+		{
+			return true;
+		}
+	}
+
+	if (FPreAnimatedTrackInstanceInputCaptureSources* TrackInstanceInputMetaData = GetTrackInstanceInputMetaData())
+	{
+		if (TrackInstanceInputMetaData->ContainsInstanceHandle(RootInstanceHandle))
+		{
+			return true;
+		}
+	}
+
+	if (FPreAnimatedTemplateCaptureSources* TemplateMetaData = GetTemplateMetaData())
+	{
+		if (TemplateMetaData->ContainsInstanceHandle(RootInstanceHandle))
+		{
+			return true;
+		}
+	}
+
+	if (FPreAnimatedEvaluationHookCaptureSources* EvaluationHookMetaData = GetEvaluationHookMetaData())
+	{
+		if (EvaluationHookMetaData->ContainsInstanceHandle(RootInstanceHandle))
+		{
+			return true;
+		}
+	}
+
 	for (int32 Index = WeakExternalCaptureSources.Num()-1; Index >= 0; --Index)
 	{
 		TSharedPtr<IPreAnimatedCaptureSource> MetaData = WeakExternalCaptureSources[Index].Pin();
@@ -745,6 +721,84 @@ bool FPreAnimatedStateExtension::ContainsAnyStateForInstanceHandle(FRootInstance
 	}
 
 	return false;
+}
+
+void FPreAnimatedStateExtension::HandleMetaDataToRemove(const FRestoreStateParams& Params, TArrayView<FPreAnimatedStateMetaData> MetaDataToRemove, FContributionRemover RemoveFunc)
+{
+	// Remove all contributions
+	for (const FPreAnimatedStateMetaData& MetaData : MetaDataToRemove)
+	{
+		FAggregatePreAnimatedStateMetaData* Aggregate = FindMetaData(MetaData.Entry);
+		if (ensure(Aggregate))
+		{
+			const int32 TotalNum = --Aggregate->NumContributors;
+			if (MetaData.bWantsRestoreState)
+			{
+				--Aggregate->NumRestoreContributors;
+			}
+
+			if (TotalNum == 0)
+			{
+				Aggregate->bWantedRestore = false;
+				Aggregate->TerminalInstanceHandle = MetaData.RootInstanceHandle;
+			}
+		}
+	}
+
+	// Ensure that the entries are removed in strictly the reverse order they were cached in
+	for (int32 Index = 0; Index < GroupMetaData.GetMaxIndex(); ++Index)
+	{
+		if (!GroupMetaData.IsAllocated(Index))
+		{
+			continue;
+		}
+
+		FPreAnimatedGroupMetaData& Group = GroupMetaData[Index];
+
+		for (int32 AggregateIndex = Group.AggregateMetaData.Num() - 1; AggregateIndex >= 0; --AggregateIndex)
+		{
+			FAggregatePreAnimatedStateMetaData& Aggregate = Group.AggregateMetaData[AggregateIndex];
+			if (Aggregate.NumContributors == 0 && (!Aggregate.TerminalInstanceHandle.IsValid() || Aggregate.TerminalInstanceHandle == Params.TerminalInstanceHandle))
+			{
+				TSharedPtr<IPreAnimatedStorage> Storage = GetStorageChecked(Aggregate.ValueHandle.TypeID);
+				RemoveFunc(*Storage.Get(), Aggregate.ValueHandle.StorageIndex);
+
+				Group.AggregateMetaData.RemoveAt(AggregateIndex, 1, false);
+			}
+
+			if (Group.AggregateMetaData.Num() == 0)
+			{
+				// Remove at will not re-allocate the array or shuffle items within the sparse array, so this is safe
+				Group.GroupManagerPtr->OnGroupDestroyed(Index);
+				GroupMetaData.RemoveAt(Index);
+			}
+		}
+	}
+
+	for (auto UngroupedIt = UngroupedMetaData.CreateIterator(); UngroupedIt; ++UngroupedIt)
+	{
+		FAggregatePreAnimatedStateMetaData& Aggregate = UngroupedIt.Value();
+		if (Aggregate.NumContributors == 0 && (!Aggregate.TerminalInstanceHandle.IsValid() || Aggregate.TerminalInstanceHandle == Params.TerminalInstanceHandle))
+		{
+			TSharedPtr<IPreAnimatedStorage> Storage = GetStorageChecked(Aggregate.ValueHandle.TypeID);
+			RemoveFunc(*Storage.Get(), Aggregate.ValueHandle.StorageIndex);
+
+			UngroupedIt.RemoveCurrent();
+		}
+	}
+
+	GroupMetaData.Shrink();
+
+	// Invalidate cached data for any sequence instance that belongs to the terminal instance
+	if (Params.TerminalInstanceHandle.IsValid() && 
+			ensureMsgf(
+				Linker->GetInstanceRegistry()->IsHandleValid(Params.TerminalInstanceHandle),
+				TEXT("Terminal instance handle is not valid anymore, was the sequence destroyed?")))
+	{
+		Linker->GetInstanceRegistry()->MutateInstance(Params.TerminalInstanceHandle).InvalidateCachedData();
+	}
+
+	bEntriesInvalidated = true;
 }
 
 bool FPreAnimatedStateExtension::HasActiveCaptureSource() const

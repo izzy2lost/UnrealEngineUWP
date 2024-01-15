@@ -21,18 +21,6 @@ struct IMovieScenePreAnimatedGlobalTokenProducer;
 struct IMovieScenePreAnimatedTokenProducer;
 template <typename FuncType> class TFunctionRef;
 
-namespace UE
-{
-namespace MovieScene
-{
-
-struct FPreAnimatedEvaluationHookCaptureSources;
-struct FPreAnimatedStateEntry;
-struct FPreAnimatedTemplateCaptureSources;
-
-}
-}
-
 /**
  * Class that caches pre-animated state for objects that were manipulated by sequencer
  */
@@ -77,12 +65,6 @@ public:
 	 * This will use the currently evaluating track template, evaluation hook or track instance (and its 'When Finished' property) as the capture source
 	 */
 	MOVIESCENE_API void SavePreAnimatedState(FMovieSceneAnimTypeID InTokenType, const IMovieScenePreAnimatedGlobalTokenProducer& Producer);
-
-public:
-
-	MOVIESCENE_API void OnFinishedEvaluating(const FMovieSceneEvaluationKey& Key);
-
-	MOVIESCENE_API void OnFinishedEvaluating(const UObject* EvaluationHook, FMovieSceneSequenceID SequenceID);
 
 public:
 
@@ -132,11 +114,6 @@ private:
 
 	/** Weak pointer to the linker that we're associated with */
 	TWeakObjectPtr<UMovieSceneEntitySystemLinker> WeakLinker;
-
-	/** Meta-data ledger for any pre-animated state that originates from track templates */
-	TSharedPtr<UE::MovieScene::FPreAnimatedTemplateCaptureSources> TemplateMetaData;
-	/** Meta-data ledger for any pre-animated state that originates from evaluation hooks */
-	TSharedPtr<UE::MovieScene::FPreAnimatedEvaluationHookCaptureSources> EvaluationHookMetaData;
 
 	/** The instance handle for the root sequence instance */
 	UE::MovieScene::FRootInstanceHandle InstanceHandle;

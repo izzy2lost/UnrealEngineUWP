@@ -9,42 +9,8 @@
 #include "Evaluation/PreAnimatedState/MovieScenePreAnimatedCaptureSources.h"
 #include "Evaluation/PreAnimatedState/MovieScenePreAnimatedObjectTokenStorage.h"
 #include "Evaluation/PreAnimatedState/MovieScenePreAnimatedRootTokenStorage.h"
-#include "Evaluation/PreAnimatedState/MovieScenePreAnimatedEntityCaptureSource.h"
 
 DECLARE_CYCLE_STAT(TEXT("Save Pre Animated State"), MovieSceneEval_SavePreAnimatedState, STATGROUP_MovieSceneEval);
-
-namespace UE
-{
-namespace MovieScene
-{
-
-IMovieScenePlayer* FRestoreStateParams::GetTerminalPlayer() const
-{
-	if (Linker && TerminalInstanceHandle.IsValid())
-	{
-		return Linker->GetInstanceRegistry()->GetInstance(TerminalInstanceHandle).GetPlayer();
-	}
-
-	ensureAlways(false);
-	return nullptr;
-}
-
-TSharedPtr<const FSharedPlaybackState> FRestoreStateParams::GetTerminalPlaybackState() const
-{
-	if (Linker && TerminalInstanceHandle.IsValid())
-	{
-		const FSequenceInstance& TerminalInstance = Linker->GetInstanceRegistry()->GetInstance(TerminalInstanceHandle);
-		return TerminalInstance.GetSharedPlaybackState().ToSharedPtr();
-	}
-
-	ensureAlways(false);
-	return nullptr;
-}
-
-} // namespace MovieScene
-} // namespace UE
-
-
 
 FMovieScenePreAnimatedState::~FMovieScenePreAnimatedState()
 {
@@ -70,9 +36,6 @@ void FMovieScenePreAnimatedState::Initialize(UMovieSceneEntitySystemLinker* Link
 	}
 
 	bCapturingGlobalPreAnimatedState = false;
-
-	TemplateMetaData = nullptr;
-	EvaluationHookMetaData = nullptr;
 
 	WeakLinker = Linker;
 	InstanceHandle = InInstanceHandle;
@@ -155,22 +118,6 @@ void FMovieScenePreAnimatedState::DiscardPreAnimatedState()
 	if (Linker)
 	{
 		Linker->PreAnimatedState.DiscardGlobalState(FRestoreStateParams{ Linker, InstanceHandle });
-	}
-}
-
-void FMovieScenePreAnimatedState::OnFinishedEvaluating(const FMovieSceneEvaluationKey& Key)
-{
-	if (TemplateMetaData)
-	{
-		TemplateMetaData->StopTrackingCaptureSource(Key);
-	}
-}
-
-void FMovieScenePreAnimatedState::OnFinishedEvaluating(const UObject* EvaluationHook, FMovieSceneSequenceID SequenceID)
-{
-	if (EvaluationHookMetaData)
-	{
-		EvaluationHookMetaData->StopTrackingCaptureSource(EvaluationHook, SequenceID);
 	}
 }
 

@@ -396,10 +396,11 @@ void FSequenceInstance::PostEvaluation()
 
 void FSequenceInstance::DestroyImmediately()
 {
-	if (!Ledger.IsEmpty())
+	UMovieSceneEntitySystemLinker* Linker = SharedPlaybackState->GetLinker();
+	
+	if (!Ledger.IsEmpty() && ensure(Linker))
 	{
 		UE_LOG(LogMovieSceneECS, Verbose, TEXT("Instance being destroyed without first having been finished by calling Finish()"));
-		UMovieSceneEntitySystemLinker* Linker = SharedPlaybackState->GetLinker();
 		Ledger.UnlinkEverything(Linker, EUnlinkEverythingMode::CleanGarbage);
 	}
 

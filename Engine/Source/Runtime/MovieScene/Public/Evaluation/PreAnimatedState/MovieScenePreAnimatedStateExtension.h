@@ -33,10 +33,13 @@ namespace UE
 namespace MovieScene
 {
 
-struct FAnimTypePreAnimatedStateRootStorage;
 struct FAnimTypePreAnimatedStateObjectStorage;
+struct FAnimTypePreAnimatedStateRootStorage;
 struct FPreAnimatedEntityCaptureSource;
+struct FPreAnimatedEvaluationHookCaptureSources;
+struct FPreAnimatedStateEntry;
 struct FPreAnimatedStateExtension;
+struct FPreAnimatedTemplateCaptureSources;
 struct FPreAnimatedTrackInstanceCaptureSources;
 struct FPreAnimatedTrackInstanceInputCaptureSources;
 struct FRestoreStateParams;
@@ -298,6 +301,12 @@ public:
 	MOVIESCENE_API FPreAnimatedTrackInstanceInputCaptureSources* GetTrackInstanceInputMetaData() const;
 	MOVIESCENE_API FPreAnimatedTrackInstanceInputCaptureSources* GetOrCreateTrackInstanceInputMetaData();
 
+	MOVIESCENE_API FPreAnimatedTemplateCaptureSources* GetTemplateMetaData() const;
+	MOVIESCENE_API FPreAnimatedTemplateCaptureSources* GetOrCreateTemplateMetaData();
+
+	MOVIESCENE_API FPreAnimatedEvaluationHookCaptureSources* GetEvaluationHookMetaData() const;
+	MOVIESCENE_API FPreAnimatedEvaluationHookCaptureSources* GetOrCreateEvaluationHookMetaData();
+
 	MOVIESCENE_API bool HasActiveCaptureSource() const;
 
 	MOVIESCENE_API void AddWeakCaptureSource(TWeakPtr<IPreAnimatedCaptureSource> InWeakMetaData);
@@ -320,6 +329,12 @@ private:
 
 	MOVIESCENE_API void AddReferencedObjects(UMovieSceneEntitySystemLinker*, FReferenceCollector& ReferenceCollector);
 
+	using FContributionRemover = TFunctionRef<void(IPreAnimatedStorage&, FPreAnimatedStorageIndex)>;
+	void HandleMetaDataToRemove(
+			const FRestoreStateParams& Params, 
+			TArrayView<FPreAnimatedStateMetaData> MetaDataToRemove, 
+			FContributionRemover RemoveFunc);
+
 public:
 
 	/** The number of requests that have been made to capture global state - only one should exist per playing sequence */
@@ -336,6 +351,12 @@ private:
 	/** Meta-data pertaining to pre-animated state originating from track instances from a specific input */
 	TUniquePtr<FPreAnimatedTrackInstanceInputCaptureSources> TrackInstanceInputCaptureSource;
 
+	/** Meta-data ledger for any pre-animated state that originates from track templates */
+	TUniquePtr<UE::MovieScene::FPreAnimatedTemplateCaptureSources> TemplateCaptureSource;
+
+	/** Meta-data ledger for any pre-animated state that originates from evaluation hooks */
+	TUniquePtr<UE::MovieScene::FPreAnimatedEvaluationHookCaptureSources> EvaluationHookCaptureSource;
+
 	/** Weakly held meta data provided by FMovieScenePreAnimatedState for various other origins */
 	TArray<TWeakPtr<IPreAnimatedCaptureSource>> WeakExternalCaptureSources;
 
@@ -346,7 +367,7 @@ private:
 
 private:
 
-	friend struct FScopedPreAnimatedCaptureSource;
+	friend struct ::FScopedPreAnimatedCaptureSource;
 
 	struct FAggregatePreAnimatedStateMetaData
 	{
