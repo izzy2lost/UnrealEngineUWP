@@ -102,6 +102,10 @@ inline void TrimEndingZero(FString& Str)
 FString FTableColumn::GetValueAsSerializableString(const FBaseTreeNode& InNode) const
 {
 	const TOptional<FTableCellValue> Value = GetValue(InNode);
+	if (!Value.IsSet())
+	{
+		return FString();
+	}
 	switch (Value->DataType)
 	{
 		case ETableCellDataType::Double:
