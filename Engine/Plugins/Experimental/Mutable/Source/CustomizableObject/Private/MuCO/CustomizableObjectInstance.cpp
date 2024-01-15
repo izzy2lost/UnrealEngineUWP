@@ -191,6 +191,7 @@ void UCustomizableInstancePrivate::SetLastMeshId(int32 ComponentIndex, int32 LOD
 void UCustomizableInstancePrivate::InvalidateGeneratedData()
 {
 	SkeletalMeshStatus = ESkeletalMeshStatus::NotGenerated;
+	SkeletalMeshes.Reset();
 
 	DescriptorHash = FDescriptorHash();
 	UpdateDescriptorHash = FDescriptorHash();
@@ -783,19 +784,19 @@ bool UCustomizableObjectInstance::IsParameterRelevant(const FString& ParamName) 
 }
 
 
-void UCustomizableInstancePrivate::PostEditChangePropertyWithoutEditor(USkeletalMesh* InSkeletalMesh)
+void UCustomizableInstancePrivate::PostEditChangePropertyWithoutEditor()
 {
-	MUTABLE_CPUPROFILER_SCOPE(UCustomizableInstancePrivateData::PostEditChangePropertyWithoutEditor);
+	MUTABLE_CPUPROFILER_SCOPE(UCustomizableInstancePrivate::PostEditChangePropertyWithoutEditor);
 
-	if (!InSkeletalMesh) return;
-
-	FSkeletalMeshRenderData* Resource = InSkeletalMesh->GetResourceForRendering();
-	if (!Resource) return;
-
+	for (USkeletalMesh* SkeletalMesh : SkeletalMeshes)
 	{
-		MUTABLE_CPUPROFILER_SCOPE(InitResources);
-		// reinitialize resource
-		InSkeletalMesh->InitResources();
+		if (SkeletalMesh && SkeletalMesh->GetResourceForRendering())
+		{
+			MUTABLE_CPUPROFILER_SCOPE(InitResources);
+
+			// reinitialize resources
+			SkeletalMesh->InitResources();
+		}
 	}
 }
 
@@ -1769,7 +1770,7 @@ bool UCustomizableInstancePrivate::DoComponentsNeedUpdate(UCustomizableObjectIns
 		}
 
 		// Update the component if there is a mesh and it shouldn't, or the other way around.
-		const bool bHasSkeletalMesh = Public->SkeletalMeshes.IsValidIndex(ComponentIndex) && Public->SkeletalMeshes[ComponentIndex];
+		const bool bHasSkeletalMesh = SkeletalMeshes.IsValidIndex(ComponentIndex) && SkeletalMeshes[ComponentIndex];
 		OutComponentNeedsUpdate[ComponentIndex] = (ComponentWithMesh[ComponentIndex] != bHasSkeletalMesh);
 
 		const FCustomizableInstanceComponentData* ComponentData = GetComponentData(ComponentIndex);
@@ -1792,7 +1793,7 @@ bool UCustomizableInstancePrivate::DoComponentsNeedUpdate(UCustomizableObjectIns
 
 bool UCustomizableInstancePrivate::UpdateSkeletalMesh_PostBeginUpdate0(UCustomizableObjectInstance* Public, const TSharedRef<FUpdateContextPrivate>& OperationData)
 {
-	MUTABLE_CPUPROFILER_SCOPE(UCustomizableInstancePrivateData::UpdateSkeletalMesh_PostBeginUpdate0)
+	MUTABLE_CPUPROFILER_SCOPE(UCustomizableInstancePrivate::UpdateSkeletalMesh_PostBeginUpdate0)
 
 	bool bHasInvalidMesh = false;
 
@@ -1803,8 +1804,6 @@ bool UCustomizableInstancePrivate::UpdateSkeletalMesh_PostBeginUpdate0(UCustomiz
 	if (bHasInvalidMesh)
 	{
 		UE_LOG(LogMutable, Warning, TEXT("Failed to generate SkeletalMesh for CO Instance %s. CO [%s]"), *Public->GetName(), *GetNameSafe(Public->GetCustomizableObject()));
-
-		Public->SkeletalMeshes.Reset(); // What about all the references
 
 		InvalidateGeneratedData();
 
@@ -1823,7 +1822,7 @@ bool UCustomizableInstancePrivate::UpdateSkeletalMesh_PostBeginUpdate0(UCustomiz
 
 	TextureReuseCache.Empty(); // Sections may have changed, so invalidate the texture reuse cache because it's indexed by section
 
-	TArray<TObjectPtr<USkeletalMesh>> OldSkeletalMeshes = Public->SkeletalMeshes;
+	TArray<TObjectPtr<USkeletalMesh>> OldSkeletalMeshes = SkeletalMeshes;
 
 	bool bSuccess = true;
 
@@ -1831,7 +1830,7 @@ bool UCustomizableInstancePrivate::UpdateSkeletalMesh_PostBeginUpdate0(UCustomiz
 	check(CustomizableObject);
 
 	// Initialize the maximum number of SkeletalMeshes we could possibly have. 
-	Public->SkeletalMeshes.Init(nullptr, CustomizableObject->GetComponentCount());
+	SkeletalMeshes.Init(nullptr, CustomizableObject->GetComponentCount());
 
 	const int32 NumMutableComponents = OperationData->InstanceUpdateData.Components.Num();
 	for (int32 ComponentIndex = 0; ComponentIndex < NumMutableComponents; ++ComponentIndex)
@@ -1843,14 +1842,14 @@ bool UCustomizableInstancePrivate::UpdateSkeletalMesh_PostBeginUpdate0(UCustomiz
 		{
 			if (OldSkeletalMeshes.IsValidIndex(Component.Id))
 			{
-				Public->SkeletalMeshes[Component.Id] = OldSkeletalMeshes[Component.Id];
+				SkeletalMeshes[Component.Id] = OldSkeletalMeshes[Component.Id];
 			}
 
 			continue;
 		}
 
 		// Check if we have initialized the component
-		if (Public->SkeletalMeshes[Component.Id])
+		if (SkeletalMeshes[Component.Id])
 		{
 			continue;
 		}
@@ -1859,7 +1858,7 @@ bool UCustomizableInstancePrivate::UpdateSkeletalMesh_PostBeginUpdate0(UCustomiz
 		{
 			if (USkeletalMesh* CachedMesh = CustomizableObject->GetPrivate()->MeshCache.Get(OperationData->MeshDescriptors[Component.Id]))
 			{
-				Public->SkeletalMeshes[Component.Id] = CachedMesh;
+				SkeletalMeshes[Component.Id] = CachedMesh;
 				continue;
 			}
 		}
@@ -1882,9 +1881,9 @@ bool UCustomizableInstancePrivate::UpdateSkeletalMesh_PostBeginUpdate0(UCustomiz
 		// Create and initialize the SkeletalMesh for this component
 		MUTABLE_CPUPROFILER_SCOPE(ConstructMesh);
 
-		Public->SkeletalMeshes[Component.Id] = NewObject<USkeletalMesh>(GetTransientPackage(), NAME_None, RF_Transient);
+		SkeletalMeshes[Component.Id] = NewObject<USkeletalMesh>(GetTransientPackage(), NAME_None, RF_Transient);
 
-		USkeletalMesh* SkeletalMesh = Public->SkeletalMeshes[Component.Id];
+		USkeletalMesh* SkeletalMesh = SkeletalMeshes[Component.Id];
 		check(SkeletalMesh);
 
 		// Set up the default information any mesh from this component will have (LODArrayInfos, RenderData, Mesh settings, etc). 
@@ -2061,7 +2060,7 @@ bool UCustomizableInstancePrivate::UpdateSkeletalMesh_PostBeginUpdate0(UCustomiz
 	{
 		MUTABLE_CPUPROFILER_SCOPE(BuildSkeletalMeshData);
 
-		const int32 NumComponents = Public->SkeletalMeshes.Num();
+		const int32 NumComponents = SkeletalMeshes.Num();
 		for (int32 ComponentIndex = 0; bSuccess && ComponentIndex < NumComponents; ++ComponentIndex)
 		{
 			if (OperationData->bUseMeshCache)
@@ -2078,7 +2077,7 @@ bool UCustomizableInstancePrivate::UpdateSkeletalMesh_PostBeginUpdate0(UCustomiz
 				continue;
 			}
 
-			USkeletalMesh* SkeletalMesh = Public->SkeletalMeshes[ComponentIndex];
+			USkeletalMesh* SkeletalMesh = SkeletalMeshes[ComponentIndex];
 
 			if (!SkeletalMesh)
 			{
@@ -2114,8 +2113,6 @@ bool UCustomizableInstancePrivate::UpdateSkeletalMesh_PostBeginUpdate0(UCustomiz
 
 	if (!bSuccess)
 	{
-		Public->SkeletalMeshes.Reset();
-
 		InvalidateGeneratedData();
 	}
 
@@ -2769,12 +2766,12 @@ void UCustomizableInstancePrivate::DiscardResources()
 
 	if (SkeletalMeshStatus == ESkeletalMeshStatus::Success)
 	{
-		for (int32 Component = 0; Component < Instance->SkeletalMeshes.Num(); ++Component)
+		for (int32 Component = 0; Component < SkeletalMeshes.Num(); ++Component)
 		{
-			if (Instance->SkeletalMeshes[Component] && Instance->SkeletalMeshes[Component]->IsValidLowLevel())
+			if (SkeletalMeshes[Component] && SkeletalMeshes[Component]->IsValidLowLevel())
 			{
-				Instance->SkeletalMeshes[Component]->ReleaseResources();
-				Instance->SkeletalMeshes[Component] = nullptr;
+				SkeletalMeshes[Component]->ReleaseResources();
+				SkeletalMeshes[Component] = nullptr;
 			}
 		}
 
@@ -2783,7 +2780,6 @@ void UCustomizableInstancePrivate::DiscardResources()
 	
 	InvalidateGeneratedData();
 	
-	Instance->SkeletalMeshes.Reset();
 }
 
 
@@ -3206,7 +3202,7 @@ FTexturePlatformData* MutableCreateImagePlatformData(mu::Ptr<const mu::Image> Mu
 
 void ConvertImage(UTexture2D* Texture, mu::Ptr<const mu::Image> MutableImage, const FMutableModelImageProperties& Props, int OnlyLOD, int32 ExtractChannel)
 {
-	MUTABLE_CPUPROFILER_SCOPE(UCustomizableInstancePrivateData::ConvertImage);
+	MUTABLE_CPUPROFILER_SCOPE(UCustomizableInstancePrivate::ConvertImage);
 
 	SetTexturePropertiesFromMutableImageProps(Texture, Props, false);
 
@@ -3285,7 +3281,7 @@ void ConvertImage(UTexture2D* Texture, mu::Ptr<const mu::Image> MutableImage, co
 
 void UCustomizableInstancePrivate::InitSkeletalMeshData(const TSharedRef<FUpdateContextPrivate>& OperationData, USkeletalMesh* SkeletalMesh, const FMutableRefSkeletalMeshData* RefSkeletalMeshData, const UCustomizableObject& CustomizableObject, int32 ComponentIndex)
 {
-	MUTABLE_CPUPROFILER_SCOPE(UCustomizableInstancePrivateData::InitSkeletalMesh);
+	MUTABLE_CPUPROFILER_SCOPE(UCustomizableInstancePrivate::InitSkeletalMesh);
 
 	check(SkeletalMesh);
 	check(RefSkeletalMeshData);
@@ -3370,7 +3366,7 @@ void UCustomizableInstancePrivate::InitSkeletalMeshData(const TSharedRef<FUpdate
 
 bool UCustomizableInstancePrivate::BuildSkeletonData(const TSharedRef<FUpdateContextPrivate>& OperationData, USkeletalMesh& SkeletalMesh, const FMutableRefSkeletalMeshData& RefSkeletalMeshData, UCustomizableObject& CustomizableObject, int32 ComponentIndex)
 {
-	MUTABLE_CPUPROFILER_SCOPE(UCustomizableInstancePrivateData::BuildSkeletonData);
+	MUTABLE_CPUPROFILER_SCOPE(UCustomizableInstancePrivate::BuildSkeletonData);
 
 	const TObjectPtr<USkeleton> Skeleton = MergeSkeletons(CustomizableObject, RefSkeletalMeshData, ComponentIndex);
 	if (!Skeleton)
@@ -3500,7 +3496,7 @@ bool UCustomizableInstancePrivate::BuildSkeletonData(const TSharedRef<FUpdateCon
 void UCustomizableInstancePrivate::BuildMeshSockets(const TSharedRef<FUpdateContextPrivate>& OperationData, USkeletalMesh* SkeletalMesh, const FMutableRefSkeletalMeshData* RefSkeletalMeshData, UCustomizableObjectInstance* Public, mu::MeshPtrConst MutableMesh)
 {
 	// Build mesh sockets.
-	MUTABLE_CPUPROFILER_SCOPE(UCustomizableInstancePrivateData::BuildMeshSockets);
+	MUTABLE_CPUPROFILER_SCOPE(UCustomizableInstancePrivate::BuildMeshSockets);
 
 	check(SkeletalMesh);
 	check(RefSkeletalMeshData);
@@ -3603,7 +3599,7 @@ void UCustomizableInstancePrivate::BuildMeshSockets(const TSharedRef<FUpdateCont
 
 void UCustomizableInstancePrivate::BuildOrCopyElementData(const TSharedRef<FUpdateContextPrivate>& OperationData, USkeletalMesh* SkeletalMesh, UCustomizableObjectInstance* CustomizableObjectInstance, int32 ComponentIndex)
 {
-	MUTABLE_CPUPROFILER_SCOPE(UCustomizableInstancePrivateData::BuildOrCopyElementData);
+	MUTABLE_CPUPROFILER_SCOPE(UCustomizableInstancePrivate::BuildOrCopyElementData);
 
 	for (int32 LODIndex = OperationData->CurrentMaxLOD; LODIndex >= FirstLODAvailable; --LODIndex)
 	{
@@ -3631,7 +3627,7 @@ void UCustomizableInstancePrivate::BuildOrCopyElementData(const TSharedRef<FUpda
 
 void UCustomizableInstancePrivate::BuildOrCopyMorphTargetsData(const TSharedRef<FUpdateContextPrivate>& OperationData, USkeletalMesh* SkeletalMesh, const USkeletalMesh* LastUpdateSkeletalMesh, UCustomizableObjectInstance* CustomizableObjectInstance, int32 ComponentIndex)
 {
-	MUTABLE_CPUPROFILER_SCOPE(UCustomizableInstancePrivateData::BuildOrCopyMorphTargetsData);
+	MUTABLE_CPUPROFILER_SCOPE(UCustomizableInstancePrivate::BuildOrCopyMorphTargetsData);
 
 	if (!SkeletalMesh || !CustomizableObjectInstance)
 	{
@@ -3783,7 +3779,7 @@ namespace
 
 void UCustomizableInstancePrivate::BuildOrCopyClothingData(const TSharedRef<FUpdateContextPrivate>&OperationData, USkeletalMesh * SkeletalMesh, const USkeletalMesh* LastUpdateSkeletalMesh, UCustomizableObjectInstance * CustomizableObjectInstance, int32 ComponentIndex)
 {
-	MUTABLE_CPUPROFILER_SCOPE(UCustomizableInstancePrivateData::BuildOrCopyClothingData);
+	MUTABLE_CPUPROFILER_SCOPE(UCustomizableInstancePrivate::BuildOrCopyClothingData);
 
 	if (!SkeletalMesh)
 	{
@@ -4649,7 +4645,7 @@ void UCustomizableInstancePrivate::BuildOrCopyClothingData(const TSharedRef<FUpd
 
 bool UCustomizableInstancePrivate::BuildOrCopyRenderData(const TSharedRef<FUpdateContextPrivate>& OperationData, USkeletalMesh* SkeletalMesh, const USkeletalMesh* LastUpdateSkeletalMesh, UCustomizableObjectInstance* Public, int32 ComponentIndex)
 {
-	MUTABLE_CPUPROFILER_SCOPE(UCustomizableInstancePrivateData::BuildOrCopyRenderData);
+	MUTABLE_CPUPROFILER_SCOPE(UCustomizableInstancePrivate::BuildOrCopyRenderData);
 
 	UCustomizableObject* CustomizableObject = Public->GetCustomizableObject();
 	check(CustomizableObject);
@@ -4819,7 +4815,7 @@ FAutoConsoleVariableRef CVarMutableHighPriorityLoading(
 
 FGraphEventRef UCustomizableInstancePrivate::LoadAdditionalAssetsAsync(const TSharedRef<FUpdateContextPrivate>& OperationData, UCustomizableObjectInstance* Public, FStreamableManager& StreamableManager)
 {
-	MUTABLE_CPUPROFILER_SCOPE(UCustomizableInstancePrivateData::LoadAdditionalAssetsAsync);
+	MUTABLE_CPUPROFILER_SCOPE(UCustomizableInstancePrivate::LoadAdditionalAssetsAsync);
 
 	UCustomizableObject* CustomizableObject = Public->GetCustomizableObject();
 
@@ -5103,7 +5099,7 @@ const TArray<TObjectPtr<UMaterialInterface>>* UCustomizableObjectInstance::GetOv
 
 void UCustomizableInstancePrivate::AdditionalAssetsAsyncLoaded(UCustomizableObjectInstance* Public)
 {
-	MUTABLE_CPUPROFILER_SCOPE(UCustomizableInstancePrivateData::AdditionalAssetsAsyncLoaded);
+	MUTABLE_CPUPROFILER_SCOPE(UCustomizableInstancePrivate::AdditionalAssetsAsyncLoaded);
 
 	UCustomizableObject* CustomizableObject = Public->GetCustomizableObject();
 
@@ -5378,7 +5374,7 @@ FAutoConsoleVariableRef CVarMutableReuseMaterialInstances(
 
 void UCustomizableInstancePrivate::BuildMaterials(const TSharedRef<FUpdateContextPrivate>& OperationData, UCustomizableObjectInstance* Public)
 {
-	MUTABLE_CPUPROFILER_SCOPE(UCustomizableInstancePrivateData::BuildMaterials)
+	MUTABLE_CPUPROFILER_SCOPE(UCustomizableInstancePrivate::BuildMaterials)
 
 	UCustomizableObject* CustomizableObject = Public->GetCustomizableObject();
 
@@ -5413,13 +5409,13 @@ void UCustomizableInstancePrivate::BuildMaterials(const TSharedRef<FUpdateContex
 
 	for (int32 ComponentIndex = 0; ComponentIndex < OperationData->NumComponents; ++ComponentIndex)
 	{
-		if (!Public->SkeletalMeshes.IsValidIndex(ComponentIndex))
+		if (!SkeletalMeshes.IsValidIndex(ComponentIndex))
 		{
 			// This could happen if there are no meshes at all.
 			continue;
 		}
 
-		USkeletalMesh* SkeletalMesh = Public->SkeletalMeshes[ComponentIndex];
+		USkeletalMesh* SkeletalMesh = SkeletalMeshes[ComponentIndex];
 
 		if (!SkeletalMesh)
 		{
@@ -6028,7 +6024,7 @@ void UCustomizableInstancePrivate::BuildMaterials(const TSharedRef<FUpdateContex
 			}
 
 			USkeletalMeshComponent* AttachedParent = CustomizableObjectInstanceUsage->GetAttachParent();
-			if (!AttachedParent || AttachedParent->GetSkeletalMeshAsset() != Public->SkeletalMeshes[ComponentIndex])
+			if (!AttachedParent || AttachedParent->GetSkeletalMeshAsset() != SkeletalMeshes[ComponentIndex])
 			{
 				continue;
 			}
@@ -6297,15 +6293,17 @@ const TArray<uint16>& UCustomizableObjectInstance::GetRequestedLODsPerComponent(
 
 USkeletalMesh* UCustomizableObjectInstance::GetSkeletalMesh(int32 ComponentIndex) const
 {
-	return SkeletalMeshes.IsValidIndex(ComponentIndex) ? SkeletalMeshes[ComponentIndex] : nullptr;
+	check(PrivateData);
+	return PrivateData->SkeletalMeshes.IsValidIndex(ComponentIndex) ? PrivateData->SkeletalMeshes[ComponentIndex] : nullptr;
 }
 
 
 bool UCustomizableObjectInstance::HasAnySkeletalMesh() const
 {
-	for (int32 Index = 0; Index < SkeletalMeshes.Num(); ++Index)
+	check(PrivateData);
+	for (int32 Index = 0; Index < PrivateData->SkeletalMeshes.Num(); ++Index)
 	{
-		if (SkeletalMeshes[Index])
+		if (PrivateData->SkeletalMeshes[Index])
 		{
 			return true;
 		}
@@ -6653,199 +6651,219 @@ TSet<UAssetUserData*> UCustomizableObjectInstance::GetMergedAssetUserData(int32 
 
 #if WITH_EDITORONLY_DATA
 
-void UCustomizableInstancePrivate::RegenerateImportedModel(USkeletalMesh* SkeletalMesh)
+void UCustomizableInstancePrivate::RegenerateImportedModels()
 {
-	FSkeletalMeshRenderData* SkelResource = SkeletalMesh->GetResourceForRendering();
-	if (!SkelResource)
-	{
-		return;
-	}
+	MUTABLE_CPUPROFILER_SCOPE(RegenerateImportedModels);
 
-	for (UClothingAssetBase* ClothingAssetBase : SkeletalMesh->GetMeshClothingAssets())
+	for (USkeletalMesh* SkeletalMesh : SkeletalMeshes)
 	{
-		if (!ClothingAssetBase)
+		if (!SkeletalMesh)
 		{
 			continue;
 		}
 
-		UClothingAssetCommon* ClothAsset = Cast<UClothingAssetCommon>(ClothingAssetBase);
-
-		if (!ClothAsset)
+		FSkeletalMeshRenderData* SkelResource = SkeletalMesh->GetResourceForRendering();
+		if (!SkelResource || SkelResource->IsInitialized())
 		{
 			continue;
 		}
 
-		if (!ClothAsset->LodData.Num())
+		for (UClothingAssetBase* ClothingAssetBase : SkeletalMesh->GetMeshClothingAssets())
 		{
-			continue;
-		}
-
-		for (FClothLODDataCommon& ClothLodData : ClothAsset->LodData)
-		{
-			ClothLodData.PointWeightMaps.Empty(16);
-			for (TPair<uint32, FPointWeightMap>& WeightMap : ClothLodData.PhysicalMeshData.WeightMaps)
+			if (!ClothingAssetBase)
 			{
-				if (WeightMap.Value.Num())
+				continue;
+			}
+
+			UClothingAssetCommon* ClothAsset = Cast<UClothingAssetCommon>(ClothingAssetBase);
+
+			if (!ClothAsset)
+			{
+				continue;
+			}
+
+			if (!ClothAsset->LodData.Num())
+			{
+				continue;
+			}
+
+			for (FClothLODDataCommon& ClothLodData : ClothAsset->LodData)
+			{
+				ClothLodData.PointWeightMaps.Empty(16);
+				for (TPair<uint32, FPointWeightMap>& WeightMap : ClothLodData.PhysicalMeshData.WeightMaps)
 				{
-					FPointWeightMap& PointWeightMap = ClothLodData.PointWeightMaps.AddDefaulted_GetRef();
-					PointWeightMap.Initialize(WeightMap.Value, WeightMap.Key);
+					if (WeightMap.Value.Num())
+					{
+						FPointWeightMap& PointWeightMap = ClothLodData.PointWeightMaps.AddDefaulted_GetRef();
+						PointWeightMap.Initialize(WeightMap.Value, WeightMap.Key);
+					}
 				}
 			}
 		}
-	}
 
-	FSkeletalMeshModel* ImportedModel = SkeletalMesh->GetImportedModel();
-	ImportedModel->bGuidIsHash = false;
-	ImportedModel->SkeletalMeshModelGUID = FGuid::NewGuid();
+		FSkeletalMeshModel* ImportedModel = SkeletalMesh->GetImportedModel();
+		ImportedModel->bGuidIsHash = false;
+		ImportedModel->SkeletalMeshModelGUID = FGuid::NewGuid();
 
-	ImportedModel->LODModels.Empty();
+		ImportedModel->LODModels.Empty();
 
-	int32 OriginalIndex = 0;
-	for (int32 LODIndex = 0; LODIndex < SkelResource->LODRenderData.Num(); ++LODIndex)
-	{
-		ImportedModel->LODModels.Add(new FSkeletalMeshLODModel());
-
-		FSkeletalMeshLODRenderData& LODModel = SkelResource->LODRenderData[LODIndex];
-		int32 CurrentSectionInitialVertex = 0;
-
-		ImportedModel->LODModels[LODIndex].ActiveBoneIndices = LODModel.ActiveBoneIndices;
-		ImportedModel->LODModels[LODIndex].NumTexCoords = LODModel.GetNumTexCoords();
-		ImportedModel->LODModels[LODIndex].RequiredBones = LODModel.RequiredBones;
-		ImportedModel->LODModels[LODIndex].NumVertices = LODModel.GetNumVertices();
-
-		// Indices
-		if (LODModel.MultiSizeIndexContainer.IsIndexBufferValid())
+		int32 OriginalIndex = 0;
+		for (int32 LODIndex = 0; LODIndex < SkelResource->LODRenderData.Num(); ++LODIndex)
 		{
-			const int32 NumIndices = LODModel.MultiSizeIndexContainer.GetIndexBuffer()->Num();
-			ImportedModel->LODModels[LODIndex].IndexBuffer.SetNum(NumIndices);
-			for (int32 Index = 0; Index < NumIndices; ++Index)
+			ImportedModel->LODModels.Add(new FSkeletalMeshLODModel());
+
+			FSkeletalMeshLODRenderData& LODModel = SkelResource->LODRenderData[LODIndex];
+			int32 CurrentSectionInitialVertex = 0;
+
+			ImportedModel->LODModels[LODIndex].ActiveBoneIndices = LODModel.ActiveBoneIndices;
+			ImportedModel->LODModels[LODIndex].NumTexCoords = LODModel.GetNumTexCoords();
+			ImportedModel->LODModels[LODIndex].RequiredBones = LODModel.RequiredBones;
+			ImportedModel->LODModels[LODIndex].NumVertices = LODModel.GetNumVertices();
+
+			// Indices
+			if (LODModel.MultiSizeIndexContainer.IsIndexBufferValid())
 			{
-				ImportedModel->LODModels[LODIndex].IndexBuffer[Index] = LODModel.MultiSizeIndexContainer.GetIndexBuffer()->Get(Index);
-			}
-		}
-
-		ImportedModel->LODModels[LODIndex].Sections.SetNum(LODModel.RenderSections.Num());
-
-		for (int SectionIndex = 0; SectionIndex < LODModel.RenderSections.Num(); ++SectionIndex)
-		{
-			const FSkelMeshRenderSection& RenderSection = LODModel.RenderSections[SectionIndex];
-			FSkelMeshSection& ImportedSection = ImportedModel->LODModels[LODIndex].Sections[SectionIndex];
-
-			ImportedSection.CorrespondClothAssetIndex = RenderSection.CorrespondClothAssetIndex;
-			ImportedSection.ClothingData = RenderSection.ClothingData;
-
-			if (RenderSection.ClothMappingDataLODs.Num())
-			{
-				ImportedSection.ClothMappingDataLODs.SetNum(1);
-				ImportedSection.ClothMappingDataLODs[0] = RenderSection.ClothMappingDataLODs[0];
-			}
-
-			// Vertices
-			ImportedSection.NumVertices = RenderSection.NumVertices;
-			ImportedSection.SoftVertices.Empty(RenderSection.NumVertices);
-			ImportedSection.SoftVertices.AddUninitialized(RenderSection.NumVertices);
-			ImportedSection.bUse16BitBoneIndex = LODModel.DoesVertexBufferUse16BitBoneIndex();
-
-			for (uint32 i = 0; i < RenderSection.NumVertices; ++i)
-			{
-				const FPositionVertex* PosPtr = static_cast<const FPositionVertex*>(LODModel.StaticVertexBuffers.PositionVertexBuffer.GetVertexData());
-				PosPtr += (CurrentSectionInitialVertex + i);
-
-				check(!LODModel.StaticVertexBuffers.StaticMeshVertexBuffer.GetUseHighPrecisionTangentBasis());
-				const FPackedNormal* TangentPtr = static_cast<const FPackedNormal*>(LODModel.StaticVertexBuffers.StaticMeshVertexBuffer.GetTangentData());
-				TangentPtr += ((CurrentSectionInitialVertex + i) * 2);
-
-				check(LODModel.StaticVertexBuffers.StaticMeshVertexBuffer.GetUseFullPrecisionUVs());
-
-				using UVsVectorType = typename TDecay<decltype(DeclVal<FSoftSkinVertex>().UVs[0])>::Type;
-
-				const UVsVectorType* TexCoordPosPtr = static_cast<const UVsVectorType*>(LODModel.StaticVertexBuffers.StaticMeshVertexBuffer.GetTexCoordData());
-				const uint32 NumTexCoords = LODModel.StaticVertexBuffers.StaticMeshVertexBuffer.GetNumTexCoords();
-				TexCoordPosPtr += ((CurrentSectionInitialVertex + i) * NumTexCoords);
-
-				FSoftSkinVertex& Vertex = ImportedSection.SoftVertices[i];
-				for (int32 j = 0; j < RenderSection.MaxBoneInfluences; ++j)
+				const int32 NumIndices = LODModel.MultiSizeIndexContainer.GetIndexBuffer()->Num();
+				ImportedModel->LODModels[LODIndex].IndexBuffer.SetNum(NumIndices);
+				for (int32 Index = 0; Index < NumIndices; ++Index)
 				{
-					Vertex.InfluenceBones[j] = LODModel.SkinWeightVertexBuffer.GetBoneIndex(CurrentSectionInitialVertex + i, j);
-					Vertex.InfluenceWeights[j] = LODModel.SkinWeightVertexBuffer.GetBoneWeight(CurrentSectionInitialVertex + i, j);
+					ImportedModel->LODModels[LODIndex].IndexBuffer[Index] = LODModel.MultiSizeIndexContainer.GetIndexBuffer()->Get(Index);
+				}
+			}
+
+			ImportedModel->LODModels[LODIndex].Sections.SetNum(LODModel.RenderSections.Num());
+
+			for (int SectionIndex = 0; SectionIndex < LODModel.RenderSections.Num(); ++SectionIndex)
+			{
+				const FSkelMeshRenderSection& RenderSection = LODModel.RenderSections[SectionIndex];
+				FSkelMeshSection& ImportedSection = ImportedModel->LODModels[LODIndex].Sections[SectionIndex];
+
+				ImportedSection.CorrespondClothAssetIndex = RenderSection.CorrespondClothAssetIndex;
+				ImportedSection.ClothingData = RenderSection.ClothingData;
+
+				if (RenderSection.ClothMappingDataLODs.Num())
+				{
+					ImportedSection.ClothMappingDataLODs.SetNum(1);
+					ImportedSection.ClothMappingDataLODs[0] = RenderSection.ClothMappingDataLODs[0];
 				}
 
-				for (int32 j = RenderSection.MaxBoneInfluences; j < MAX_TOTAL_INFLUENCES; ++j)
+				// Vertices
+				ImportedSection.NumVertices = RenderSection.NumVertices;
+				ImportedSection.SoftVertices.Empty(RenderSection.NumVertices);
+				ImportedSection.SoftVertices.AddUninitialized(RenderSection.NumVertices);
+				ImportedSection.bUse16BitBoneIndex = LODModel.DoesVertexBufferUse16BitBoneIndex();
+
+				for (uint32 i = 0; i < RenderSection.NumVertices; ++i)
 				{
-					Vertex.InfluenceBones[j] = 0;
-					Vertex.InfluenceWeights[j] = 0;
+					const FPositionVertex* PosPtr = static_cast<const FPositionVertex*>(LODModel.StaticVertexBuffers.PositionVertexBuffer.GetVertexData());
+					PosPtr += (CurrentSectionInitialVertex + i);
+
+					check(!LODModel.StaticVertexBuffers.StaticMeshVertexBuffer.GetUseHighPrecisionTangentBasis());
+					const FPackedNormal* TangentPtr = static_cast<const FPackedNormal*>(LODModel.StaticVertexBuffers.StaticMeshVertexBuffer.GetTangentData());
+					TangentPtr += ((CurrentSectionInitialVertex + i) * 2);
+
+					check(LODModel.StaticVertexBuffers.StaticMeshVertexBuffer.GetUseFullPrecisionUVs());
+
+					using UVsVectorType = typename TDecay<decltype(DeclVal<FSoftSkinVertex>().UVs[0])>::Type;
+
+					const UVsVectorType* TexCoordPosPtr = static_cast<const UVsVectorType*>(LODModel.StaticVertexBuffers.StaticMeshVertexBuffer.GetTexCoordData());
+					const uint32 NumTexCoords = LODModel.StaticVertexBuffers.StaticMeshVertexBuffer.GetNumTexCoords();
+					TexCoordPosPtr += ((CurrentSectionInitialVertex + i) * NumTexCoords);
+
+					FSoftSkinVertex& Vertex = ImportedSection.SoftVertices[i];
+					for (int32 j = 0; j < RenderSection.MaxBoneInfluences; ++j)
+					{
+						Vertex.InfluenceBones[j] = LODModel.SkinWeightVertexBuffer.GetBoneIndex(CurrentSectionInitialVertex + i, j);
+						Vertex.InfluenceWeights[j] = LODModel.SkinWeightVertexBuffer.GetBoneWeight(CurrentSectionInitialVertex + i, j);
+					}
+
+					for (int32 j = RenderSection.MaxBoneInfluences; j < MAX_TOTAL_INFLUENCES; ++j)
+					{
+						Vertex.InfluenceBones[j] = 0;
+						Vertex.InfluenceWeights[j] = 0;
+					}
+
+
+					Vertex.Color = FColor::White;
+
+					Vertex.Position = PosPtr->Position;
+
+					Vertex.TangentX = TangentPtr[0].ToFVector3f();
+					Vertex.TangentZ = TangentPtr[1].ToFVector3f();
+					float TangentSign = TangentPtr[1].Vector.W == 0 ? -1.f : 1.f;
+					Vertex.TangentY = FVector3f::CrossProduct(Vertex.TangentZ, Vertex.TangentX) * TangentSign;
+
+					Vertex.UVs[0] = TexCoordPosPtr[0];
+					Vertex.UVs[1] = NumTexCoords > 1 ? TexCoordPosPtr[1] : UVsVectorType::ZeroVector;
+					Vertex.UVs[2] = NumTexCoords > 2 ? TexCoordPosPtr[2] : UVsVectorType::ZeroVector;
+					Vertex.UVs[3] = NumTexCoords > 3 ? TexCoordPosPtr[3] : UVsVectorType::ZeroVector;
 				}
 
+				CurrentSectionInitialVertex += RenderSection.NumVertices;
 
-				Vertex.Color = FColor::White;
+				// Triangles
+				ImportedSection.NumTriangles = RenderSection.NumTriangles;
+				ImportedSection.BaseIndex = RenderSection.BaseIndex;
+				ImportedSection.BaseVertexIndex = RenderSection.BaseVertexIndex;
+				ImportedSection.BoneMap = RenderSection.BoneMap;
 
-				Vertex.Position = PosPtr->Position;
+				const TArray<int32>& LODMaterialMap = SkeletalMesh->GetLODInfoArray()[LODIndex].LODMaterialMap;
 
-				Vertex.TangentX = TangentPtr[0].ToFVector3f();
-				Vertex.TangentZ = TangentPtr[1].ToFVector3f();
-				float TangentSign = TangentPtr[1].Vector.W == 0 ? -1.f : 1.f;
-				Vertex.TangentY = FVector3f::CrossProduct(Vertex.TangentZ, Vertex.TangentX) * TangentSign;
-
-				Vertex.UVs[0] = TexCoordPosPtr[0];
-				Vertex.UVs[1] = NumTexCoords > 1 ? TexCoordPosPtr[1] : UVsVectorType::ZeroVector;
-				Vertex.UVs[2] = NumTexCoords > 2 ? TexCoordPosPtr[2] : UVsVectorType::ZeroVector;
-				Vertex.UVs[3] = NumTexCoords > 3 ? TexCoordPosPtr[3] : UVsVectorType::ZeroVector;
-			}
-
-			CurrentSectionInitialVertex += RenderSection.NumVertices;
-
-			// Triangles
-			ImportedSection.NumTriangles = RenderSection.NumTriangles;
-			ImportedSection.BaseIndex = RenderSection.BaseIndex;
-			ImportedSection.BaseVertexIndex = RenderSection.BaseVertexIndex;
-			ImportedSection.BoneMap = RenderSection.BoneMap;
-
-			const TArray<int32>& LODMaterialMap = SkeletalMesh->GetLODInfoArray()[LODIndex].LODMaterialMap;
-
-			if (LODMaterialMap.IsValidIndex(RenderSection.MaterialIndex))
-			{
-				ImportedSection.MaterialIndex = LODMaterialMap[RenderSection.MaterialIndex];
-			}
-			else
-			{
-				// The material should have been in the LODMaterialMap
-				ensureMsgf(false, TEXT("Unexpected material index in UCustomizableInstancePrivate::RegenerateImportedModel"));
-
-				// Fallback index, may shift materials around sections
-				if (SkeletalMesh->GetMaterials().IsValidIndex(RenderSection.MaterialIndex))
+				if (LODMaterialMap.IsValidIndex(RenderSection.MaterialIndex))
 				{
-					ImportedSection.MaterialIndex = RenderSection.MaterialIndex;
+					ImportedSection.MaterialIndex = LODMaterialMap[RenderSection.MaterialIndex];
 				}
 				else
 				{
-					ImportedSection.MaterialIndex = 0;
+					// The material should have been in the LODMaterialMap
+					ensureMsgf(false, TEXT("Unexpected material index in UCustomizableInstancePrivate::RegenerateImportedModel"));
+
+					// Fallback index, may shift materials around sections
+					if (SkeletalMesh->GetMaterials().IsValidIndex(RenderSection.MaterialIndex))
+					{
+						ImportedSection.MaterialIndex = LODMaterialMap[RenderSection.MaterialIndex];
+					}
+					else
+					{
+						// The material should have been in the LODMaterialMap
+						ensureMsgf(false, TEXT("Unexpected material index in UCustomizableInstancePrivate::RegenerateImportedModel"));
+
+						// Fallback index, may shift materials around sections
+						if (SkeletalMesh->GetMaterials().IsValidIndex(RenderSection.MaterialIndex))
+						{
+							ImportedSection.MaterialIndex = RenderSection.MaterialIndex;
+						}
+						else
+						{
+							ImportedSection.MaterialIndex = 0;
+						}
+					}
+
+					ImportedSection.MaxBoneInfluences = RenderSection.MaxBoneInfluences;
+					ImportedSection.OriginalDataSectionIndex = OriginalIndex++;
+
+					FSkelMeshSourceSectionUserData& SectionUserData = ImportedModel->LODModels[LODIndex].UserSectionsData.FindOrAdd(ImportedSection.OriginalDataSectionIndex);
+
+					SectionUserData.CorrespondClothAssetIndex = RenderSection.CorrespondClothAssetIndex;
+					SectionUserData.ClothingData.AssetGuid = RenderSection.ClothingData.AssetGuid;
+					SectionUserData.ClothingData.AssetLodIndex = RenderSection.ClothingData.AssetLodIndex;
+					SectionUserData.bCastShadow = RenderSection.bCastShadow;
 				}
+
+				ImportedModel->LODModels[LODIndex].SyncronizeUserSectionsDataArray();
+
+				// DDC keys
+				const USkeletalMeshLODSettings* LODSettings = SkeletalMesh->GetLODSettings();
+				const bool bValidLODSettings = LODSettings && LODSettings->GetNumberOfSettings() > LODIndex;
+				const FSkeletalMeshLODGroupSettings* SkeletalMeshLODGroupSettings = bValidLODSettings ? &LODSettings->GetSettingsForLODLevel(LODIndex) : nullptr;
+
+				FSkeletalMeshLODInfo* LODInfo = SkeletalMesh->GetLODInfo(LODIndex);
+				LODInfo->BuildGUID = LODInfo->ComputeDeriveDataCacheKey(SkeletalMeshLODGroupSettings);
+
+				ImportedModel->LODModels[LODIndex].BuildStringID = ImportedModel->LODModels[LODIndex].GetLODModelDeriveDataKey();
 			}
-
-			ImportedSection.MaxBoneInfluences = RenderSection.MaxBoneInfluences;
-			ImportedSection.OriginalDataSectionIndex = OriginalIndex++;
-
-			FSkelMeshSourceSectionUserData& SectionUserData = ImportedModel->LODModels[LODIndex].UserSectionsData.FindOrAdd(ImportedSection.OriginalDataSectionIndex);
-
-			SectionUserData.CorrespondClothAssetIndex = RenderSection.CorrespondClothAssetIndex;
-			SectionUserData.ClothingData.AssetGuid = RenderSection.ClothingData.AssetGuid;
-			SectionUserData.ClothingData.AssetLodIndex = RenderSection.ClothingData.AssetLodIndex;
-			SectionUserData.bCastShadow = RenderSection.bCastShadow;
 		}
-
-		ImportedModel->LODModels[LODIndex].SyncronizeUserSectionsDataArray();
-
-		// DDC keys
-		const USkeletalMeshLODSettings* LODSettings = SkeletalMesh->GetLODSettings();
-		const bool bValidLODSettings = LODSettings && LODSettings->GetNumberOfSettings() > LODIndex;
-		const FSkeletalMeshLODGroupSettings* SkeletalMeshLODGroupSettings = bValidLODSettings ? &LODSettings->GetSettingsForLODLevel(LODIndex) : nullptr;
-
-		FSkeletalMeshLODInfo* LODInfo = SkeletalMesh->GetLODInfo(LODIndex);
-		LODInfo->BuildGUID = LODInfo->ComputeDeriveDataCacheKey(SkeletalMeshLODGroupSettings);
-
-		ImportedModel->LODModels[LODIndex].BuildStringID = ImportedModel->LODModels[LODIndex].GetLODModelDeriveDataKey();
 	}
-
 }
 
 #endif

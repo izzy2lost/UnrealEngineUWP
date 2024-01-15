@@ -964,7 +964,7 @@ void SCustomizableObjecEditorPerformanceReport::UpdateSelectedInstanceData()
 	if (CurrentReportInstance && CurrentReportInstance->IsValidLowLevelFast())
 	{
 		// If we have at least one skeletal mesh in the instance, we know it's generated (at least once)
-		if (CurrentReportInstance->SkeletalMeshes.Num() > 0 && CurrentReportInstance->SkeletalMeshes[0])
+		if (CurrentReportInstance->HasAnySkeletalMesh())
 		{
 			PerformanceReportTextureAnalyzer->RefreshTextureAnalyzerTable(CurrentReportInstance);
 		}

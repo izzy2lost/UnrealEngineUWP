@@ -198,10 +198,10 @@ struct FGeneratedTexture
 
 	FMutableImageCacheKey Key;
 
-	UPROPERTY(Category = CustomizableObjectInstance, VisibleAnywhere)
+	UPROPERTY(Category = NoCategory, VisibleAnywhere)
 	FString Name;
 
-	UPROPERTY(Category = CustomizableObjectInstance, VisibleAnywhere)
+	UPROPERTY(Category = NoCategory, VisibleAnywhere)
 	TObjectPtr<UTexture> Texture = nullptr;
 
 	bool operator==(const FGeneratedTexture& Other) const = default;
@@ -213,10 +213,10 @@ struct FGeneratedMaterial
 {
 	GENERATED_USTRUCT_BODY();
 
-	UPROPERTY()
+	UPROPERTY(Category = NoCategory, VisibleAnywhere)
 	TObjectPtr<UMaterialInterface> MaterialInterface;
 
-	UPROPERTY(Category = CustomizedMaterial, VisibleAnywhere)
+	UPROPERTY(Category = NoCategory, VisibleAnywhere)
 	TArray< FGeneratedTexture > Textures;
 
 	// Surface or SharedSurface Id

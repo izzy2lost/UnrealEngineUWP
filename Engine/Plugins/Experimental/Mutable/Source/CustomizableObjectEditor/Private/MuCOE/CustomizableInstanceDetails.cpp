@@ -6,6 +6,7 @@
 #include "DetailWidgetRow.h"
 #include "IDetailsView.h"
 #include "MuCO/CustomizableObjectInstance.h"
+#include "MuCO/CustomizableInstancePrivateData.h"
 #include "MuCOE/SCustomizableInstanceProperties.h"
 
 class UObject;
@@ -28,8 +29,18 @@ void FCustomizableInstanceDetails::CustomizeDetails(const TSharedPtr<IDetailLayo
 	check(CustomInstance);
 	
 	LayoutBuilder = DetailBuilder;
+
+	IDetailCategoryBuilder& ResourcesCategory = DetailBuilder->EditCategory("Generated Resources");
 	
-	IDetailCategoryBuilder& MainCategory = DetailBuilder->EditCategory( "Customizable Instance" );
+	TArray<UObject*> Private;
+	Private.Add(CustomInstance->GetPrivate(	));
+	
+	FAddPropertyParams PrivatePropertyParams;
+	PrivatePropertyParams.HideRootObjectNode(true);
+	
+	IDetailPropertyRow* PrivateDataRow = ResourcesCategory.AddExternalObjects(Private, EPropertyLocation::Default, PrivatePropertyParams);
+
+	IDetailCategoryBuilder& MainCategory = DetailBuilder->EditCategory( "InstanceParameters" );
 
 	MainCategory.AddCustomRow( LOCTEXT("CustomizableInstanceDetails", "Instance Parameters") )
 	[
@@ -37,6 +48,8 @@ void FCustomizableInstanceDetails::CustomizeDetails(const TSharedPtr<IDetailLayo
 			.CustomInstance(CustomInstance)
 			.InstanceDetails(SharedThis(this))
 	];
+
+	DetailBuilder->EditCategory("TextureParameter");
 }
 
 
