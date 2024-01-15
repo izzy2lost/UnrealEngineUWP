@@ -10,7 +10,6 @@
 #include "WorldPartition/WorldPartition.h"
 #include "WorldPartition/WorldPartitionActorDesc.h"
 #include "WorldPartition/WorldPartitionActorDescUtils.h"
-#include "WorldPartition/DataLayer/DataLayerManager.h"
 #include "Editor.h"
 #endif
 
@@ -507,24 +506,6 @@ void UActorDescContainerInstance::OnObjectsReplaced(const TMap<UObject*, UObject
 	}
 }
 
-const UDataLayerManager* UActorDescContainerInstance::GetResolvingDataLayerManager() const
-{
-	if (UWorldPartition* WorldPartition = GetWorldPartition())
-	{
-		if (UWorld* OwningWorld = WorldPartition->GetWorld(); OwningWorld && !OwningWorld->IsGameWorld())
-		{
-			if (UWorldPartition* OwningWorldPartition = OwningWorld->GetWorldPartition())
-			{
-				return UDataLayerManager::GetDataLayerManager(OwningWorldPartition);
-			}
-		}
-
-		return UDataLayerManager::GetDataLayerManager(WorldPartition);
-	}
-
-	return nullptr;
-}
-
 void UActorDescContainerInstance::OnActorDescAdded(FWorldPartitionActorDesc* InActorDesc)
 {
 	FWorldPartitionActorDescInstance* NewActorDescInstance = AddActor(InActorDesc);
@@ -536,11 +517,6 @@ void UActorDescContainerInstance::OnActorDescAdded(FWorldPartitionActorDesc* InA
 
 	if (UWorldPartition* WorldPartition = GetWorldPartition())
 	{
-		if (const UDataLayerManager* DataLayerManager = GetResolvingDataLayerManager())
-		{
-			DataLayerManager->ResolveActorDescInstanceDataLayers(NewActorDescInstance);
-		}
-
 		WorldPartition->OnActorDescInstanceAdded(NewActorDescInstance);
 	}
 
@@ -581,11 +557,6 @@ void UActorDescContainerInstance::OnActorDescUpdated(FWorldPartitionActorDesc* I
 
 	if (UWorldPartition* WorldPartition = GetWorldPartition())
 	{
-		if (const UDataLayerManager* DataLayerManager = GetResolvingDataLayerManager())
-		{
-			DataLayerManager->ResolveActorDescInstanceDataLayers(ActorDescInstance->Get());
-		}
-
 		WorldPartition->OnActorDescInstanceUpdated(ActorDescInstance->Get());
 	}
 

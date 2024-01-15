@@ -456,6 +456,7 @@ public:
 	ENGINE_API void EnableStreamingIn();
 
 	ENGINE_API UDataLayerManager* GetDataLayerManager() const;
+	ENGINE_API UDataLayerManager* GetResolvingDataLayerManager() const;
 
 	inline EWorldPartitionDataLayersLogicOperator GetDataLayersLogicOperator() const { return DataLayersLogicOperator; }
 

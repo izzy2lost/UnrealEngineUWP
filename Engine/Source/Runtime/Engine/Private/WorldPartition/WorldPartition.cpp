@@ -782,6 +782,18 @@ UDataLayerManager* UWorldPartition::GetDataLayerManager() const
 	return DataLayerManager;
 }
 
+UDataLayerManager* UWorldPartition::GetResolvingDataLayerManager() const
+{
+	if (UWorld* OwningWorld = GetWorld(); OwningWorld && !OwningWorld->IsGameWorld())
+	{
+		if (UWorldPartition* OwningWorldPartition = OwningWorld->GetWorldPartition())
+		{
+			return UDataLayerManager::GetDataLayerManager(OwningWorldPartition);
+		}
+	}
+	return GetDataLayerManager();
+}
+
 bool UWorldPartition::IsInitialized() const
 {
 	return InitState == EWorldPartitionInitState::Initialized;
@@ -1196,6 +1208,11 @@ bool UWorldPartition::IsSimulating(bool bIncludeTestEnableSimulationStreamingSou
 #if WITH_EDITOR
 void UWorldPartition::OnActorDescInstanceAdded(FWorldPartitionActorDescInstance* NewActorDescInstance)
 {
+	if (const UDataLayerManager* ResolvingDataLayerManager = GetResolvingDataLayerManager())
+	{
+		ResolvingDataLayerManager->ResolveActorDescInstanceDataLayers(NewActorDescInstance);
+	}
+
 	NewActorDescInstance->SetForceNonSpatiallyLoadded(!IsStreamingEnabledInEditor());
 
 	HashActorDescInstance(NewActorDescInstance);
@@ -1248,6 +1265,11 @@ void UWorldPartition::OnActorDescInstanceUpdating(FWorldPartitionActorDescInstan
 
 void UWorldPartition::OnActorDescInstanceUpdated(FWorldPartitionActorDescInstance* ActorDescInstance)
 {
+	if (const UDataLayerManager* ResolvingDataLayerManager = GetResolvingDataLayerManager())
+	{
+		ResolvingDataLayerManager->ResolveActorDescInstanceDataLayers(ActorDescInstance);
+	}
+
 	HashActorDescInstance(ActorDescInstance);
 
 	if (WorldPartitionEditor)

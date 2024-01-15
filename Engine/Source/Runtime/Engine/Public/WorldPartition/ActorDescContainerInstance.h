@@ -13,7 +13,6 @@
 class UActorDescContainer;
 class FWorldPartitionActorDesc;
 class UWorldPartition;
-class UDataLayerManager;
 struct FWorldPartitionRuntimeCellPropertyOverride;
 
 class FActorDescInstanceList : public TActorDescList<FWorldPartitionActorDescInstance> { };
@@ -128,7 +127,6 @@ protected:
 	virtual FWorldPartitionActorDesc* GetActorDesc(const FGuid& InActorGuid) const;
 	virtual FWorldPartitionActorDesc* GetActorDescChecked(const FGuid& InActorGuid) const;
 
-	const UDataLayerManager* GetResolvingDataLayerManager() const;
 private:
 	void OnContainerUpdated(FName ContainerPackage);
 	void OnContainerReplaced(UActorDescContainer* InOldContainer, UActorDescContainer* InNewContainer);
