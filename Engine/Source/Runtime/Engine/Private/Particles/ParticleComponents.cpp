@@ -43,6 +43,7 @@
 #include "DeviceProfiles/DeviceProfile.h"
 #include "DeviceProfiles/DeviceProfileManager.h"
 #include "PSOPrecache.h"
+#include "PSOPrecacheMaterial.h"
 #include "PrimitiveSceneProxy.h"
 #include "RenderingThread.h"
 #include "SceneInterface.h"
@@ -147,30 +148,10 @@ void UFXSystemAsset::PostInitProperties()
 #endif
 }
 
-void UFXSystemAsset::LaunchPSOPrecaching(TArrayView<VFsPerMaterialData> VFsPerMaterials)
+void UFXSystemAsset::LaunchPSOPrecaching(const FMaterialInterfacePSOPrecacheParamsList& PSOPrecacheParamsList)
 {
-	FPSOPrecacheParams PreCachePSOParams;
-	PreCachePSOParams.SetMobility(EComponentMobility::Movable);
-	PreCachePSOParams.bRenderCustomDepth = true;
-
 	FGraphEventArray PrecachePSOsEvents;
-	for (VFsPerMaterialData& VFsPerMaterial : VFsPerMaterials)
-	{
-		if (VFsPerMaterial.MaterialInterface)
-		{
-			PreCachePSOParams.PrimitiveType = (EPrimitiveType)VFsPerMaterial.PrimitiveType;
-			PreCachePSOParams.bDisableBackFaceCulling = VFsPerMaterial.bDisableBackfaceCulling;
-			PreCachePSOParams.bReverseCulling = false;
-			PrecachePSOsEvents.Append(VFsPerMaterial.MaterialInterface->PrecachePSOs(VFsPerMaterial.VertexFactoryData, PreCachePSOParams, EPSOPrecachePriority::Medium, MaterialPSOPrecacheRequestIDs));
-
-			// Also precache with reverse culling if not two sided because we don't know of the component using the asset will have negative determinant
-			if (!PreCachePSOParams.bDisableBackFaceCulling)
-			{
-				PreCachePSOParams.bReverseCulling = true;
-				PrecachePSOsEvents.Append(VFsPerMaterial.MaterialInterface->PrecachePSOs(VFsPerMaterial.VertexFactoryData, PreCachePSOParams, EPSOPrecachePriority::Medium, MaterialPSOPrecacheRequestIDs));
-			}
-		}
-	}
+	PrecacheMaterialPSOs(PSOPrecacheParamsList, MaterialPSOPrecacheRequestIDs, PrecachePSOsEvents);
 
 	// Create task to signal that the PSO precache events are done by adding them as prerequisite to the task.
 	if (PrecachePSOsEvents.Num() > 0)
@@ -2731,7 +2712,11 @@ void UParticleSystem::PrecachePSOs()
 		return;
 	}
 
-	TArray<VFsPerMaterialData, TInlineAllocator<4>> VFsPerMaterials;
+	FMaterialInterfacePSOPrecacheParamsList PSOPrecacheParamsList;
+
+	FMaterialInterfacePSOPrecacheParams NewEntry;
+	NewEntry.PSOPrecacheParams.SetMobility(EComponentMobility::Movable);
+	NewEntry.PSOPrecacheParams.bRenderCustomDepth = true;
 
 	// No per component emitter materials known at this point in time
 	TArray<UMaterialInterface*> EmptyEmitterMaterials;
@@ -2771,29 +2756,17 @@ void UParticleSystem::PrecachePSOs()
 
 				for (UMaterialInterface* MaterialInterface : Materials)
 				{
-					EPrimitiveType PrimitiveType = PrecacheParams.PrimitiveType;
+					NewEntry.MaterialInterface = MaterialInterface;
+					NewEntry.VertexFactoryDataList = PrecacheParams.VertexFactoryDataList;
+					NewEntry.PSOPrecacheParams.PrimitiveType = PrecacheParams.PrimitiveType;
 
-					VFsPerMaterialData* VFsPerMaterial = VFsPerMaterials.FindByPredicate([MaterialInterface, PrimitiveType](const VFsPerMaterialData& Other)
-						{
-							return Other.MaterialInterface == MaterialInterface && Other.PrimitiveType == PrimitiveType;
-						});
-					if (VFsPerMaterial == nullptr)
-					{
-						VFsPerMaterial = &VFsPerMaterials.AddDefaulted_GetRef();
-						VFsPerMaterial->MaterialInterface = MaterialInterface;
-						VFsPerMaterial->PrimitiveType = PrimitiveType;
-					}
-					
-					for (FPSOPrecacheVertexFactoryData VFData : PrecacheParams.VertexFactoryDataList)
-					{
-						VFsPerMaterial->VertexFactoryData.AddUnique(VFData);
-					}
+					AddMaterialInterfacePSOPrecacheParamsToList(NewEntry, PSOPrecacheParamsList);
 				}
 			}
 		}
 	}
 
-	LaunchPSOPrecaching(VFsPerMaterials);
+	LaunchPSOPrecaching(PSOPrecacheParamsList);
 }
 
 void UParticleSystem::Serialize(FArchive& Ar)

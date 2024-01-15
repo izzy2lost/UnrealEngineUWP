@@ -184,6 +184,18 @@ struct FPSOPrecacheVertexFactoryDataPerMaterialIndex
 
 typedef TArray<FPSOPrecacheVertexFactoryDataPerMaterialIndex, TInlineAllocator<4> > FPSOPrecacheVertexFactoryDataPerMaterialIndexList;
 
+struct FMaterialInterfacePSOPrecacheParams
+{
+	EPSOPrecachePriority Priority = EPSOPrecachePriority::Medium;
+	UMaterialInterface* MaterialInterface = nullptr;
+	FPSOPrecacheParams PSOPrecacheParams;
+	FPSOPrecacheVertexFactoryDataList VertexFactoryDataList;
+};
+
+typedef TArray<FMaterialInterfacePSOPrecacheParams, TInlineAllocator<4> > FMaterialInterfacePSOPrecacheParamsList;
+
+extern ENGINE_API void AddMaterialInterfacePSOPrecacheParamsToList(const FMaterialInterfacePSOPrecacheParams& EntryToAdd, FMaterialInterfacePSOPrecacheParamsList& List);
+
 /**
  * Wrapper class around the initializer to collect some extra validation data during PSO collection on the different collectors
  */

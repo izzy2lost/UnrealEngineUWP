@@ -263,6 +263,7 @@ public:
 	NIAGARA_API virtual void GetUsedMaterials(TArray<UMaterialInterface*>& OutMaterials, bool bGetDebugMaterials = false) const override;
 	NIAGARA_API virtual void GetStreamingRenderAssetInfo(FStreamingTextureLevelContext& LevelContext, TArray<FStreamingRenderAssetPrimitiveInfo>& OutStreamingRenderAssets) const override;
 	NIAGARA_API virtual void OnAttachmentChanged() override;
+	NIAGARA_API virtual void CollectPSOPrecacheData(const FPSOPrecacheParams& BasePrecachePSOParams, FComponentPSOPrecacheParamsList& OutParams) override;
 	//~ End UPrimitiveComponent Interface
 
 	//~ Begin USceneComponent Interface
@@ -842,6 +843,9 @@ private:
 
 	/** Stores the current state for pause/unpause desired by the use. Allows us to pause/unpause correctly while also pausing/unpausing via scalability. */
 	uint32 bDesiredPauseState : 1;
+
+	/** Request recache the PSOs */
+	uint32 bRecachePSOs : 1;
 
 	/** Restore relative transform from auto attachment and optionally detach from parent (regardless of whether it was an auto attachment). */
 	NIAGARA_API void CancelAutoAttachment(bool bDetachFromParent);

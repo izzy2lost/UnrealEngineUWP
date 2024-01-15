@@ -205,7 +205,7 @@ void UNiagaraRibbonRendererProperties::GetUsedMaterials(const FNiagaraEmitterIns
 	OutMaterials.Add(MaterialInterface ? MaterialInterface : ToRawPtr(Material));
 }
 
-void UNiagaraRibbonRendererProperties::CollectPSOPrecacheData(FPSOPrecacheParamsList& OutParams)
+void UNiagaraRibbonRendererProperties::CollectPSOPrecacheData(const FNiagaraEmitterInstance* InEmitter, FPSOPrecacheParamsList& OutParams) const
 {
 	const FVertexFactoryType* VFType = GetVertexFactoryType();
 	UMaterialInterface* MaterialInterface = ToRawPtr(Material);

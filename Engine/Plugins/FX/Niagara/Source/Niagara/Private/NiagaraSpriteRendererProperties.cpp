@@ -131,7 +131,7 @@ void UNiagaraSpriteRendererProperties::GetUsedMaterials(const FNiagaraEmitterIns
 	OutMaterials.Add(MaterialInterface ? MaterialInterface : ToRawPtr(Material));
 }
 
-void UNiagaraSpriteRendererProperties::CollectPSOPrecacheData(FPSOPrecacheParamsList& OutParams)
+void UNiagaraSpriteRendererProperties::CollectPSOPrecacheData(const FNiagaraEmitterInstance* InEmitter, FPSOPrecacheParamsList& OutParams) const
 {
 	const FVertexFactoryType* VFType = GetVertexFactoryType();
 	UMaterialInterface* MaterialInterface = ToRawPtr(Material);

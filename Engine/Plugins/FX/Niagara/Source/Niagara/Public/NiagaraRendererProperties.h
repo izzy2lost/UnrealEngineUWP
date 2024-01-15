@@ -334,7 +334,7 @@ public:
 		FPSOPrecacheVertexFactoryDataList VertexFactoryDataList;
 	};
 	typedef TArray<FPSOPrecacheParams, TInlineAllocator<2> > FPSOPrecacheParamsList;
-	virtual void CollectPSOPrecacheData(FPSOPrecacheParamsList& OutParams) {};
+	virtual void CollectPSOPrecacheData(const FNiagaraEmitterInstance* InEmitter, FPSOPrecacheParamsList& OutParams) const {};
 
 #if WITH_EDITORONLY_DATA
 

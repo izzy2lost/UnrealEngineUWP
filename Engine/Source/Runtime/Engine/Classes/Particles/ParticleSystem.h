@@ -159,15 +159,8 @@ public:
 	const TArray<FMaterialPSOPrecacheRequestID>& GetMaterialPSOPrecacheRequestIDs() const { return MaterialPSOPrecacheRequestIDs; }
 
 protected:
-	struct VFsPerMaterialData
-	{
-		UMaterialInterface* MaterialInterface = nullptr;
-		EPrimitiveType PrimitiveType = PT_TriangleList; // must match FPSOPrecacheParams::PrimitiveType default value
-		bool bDisableBackfaceCulling = false;  // must match FPSOPrecacheParams::bDisableBackfaceCulling default value
-		FPSOPrecacheVertexFactoryDataList VertexFactoryData;
-	};
-
-	ENGINE_API void LaunchPSOPrecaching(TArrayView<VFsPerMaterialData> VFsPerMaterials);
+	
+	ENGINE_API void LaunchPSOPrecaching(const FMaterialInterfacePSOPrecacheParamsList& VFsPerMaterials);
 
 	FGraphEventRef PrecachePSOsEvent;
 	TArray<FMaterialPSOPrecacheRequestID> MaterialPSOPrecacheRequestIDs;

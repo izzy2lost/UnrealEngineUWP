@@ -137,7 +137,7 @@ public:
 	NIAGARA_API virtual const FVertexFactoryType* GetVertexFactoryType() const override;
 	virtual bool IsSimTargetSupported(ENiagaraSimTarget InSimTarget) const override { return true; };
 	NIAGARA_API virtual bool PopulateRequiredBindings(FNiagaraParameterStore& InParameterStore)  override;
-	NIAGARA_API virtual void CollectPSOPrecacheData(FPSOPrecacheParamsList& OutParams) override;
+	NIAGARA_API virtual void CollectPSOPrecacheData(const FNiagaraEmitterInstance* InEmitter, FPSOPrecacheParamsList& OutParams) const override;
 #if WITH_EDITOR
 	NIAGARA_API virtual const TArray<FNiagaraVariable>& GetOptionalAttributes() override;
 	NIAGARA_API virtual void GetAdditionalVariables(TArray<FNiagaraVariableBase>& OutArray) const override;

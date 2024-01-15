@@ -566,6 +566,7 @@ UNiagaraComponent::UNiagaraComponent(const FObjectInitializer& ObjectInitializer
 	, bIsCulledByScalability(false)
 	, bDuringUpdateContextReset(false)
 	, bDesiredPauseState(false)
+	, bRecachePSOs(false)
 	//, bIsChangingAutoAttachment(false)
 	, ScalabilityManagerHandle(INDEX_NONE)
 	, ForceUpdateTransformTime(0.0f)
@@ -1159,6 +1160,8 @@ bool UNiagaraComponent::InitializeSystem()
 			}
 		}
 
+		PrecachePSOs();
+
 #if WITH_EDITORONLY_DATA
 		OnSystemInstanceChangedDelegate.Broadcast();
 #endif
@@ -1655,6 +1658,12 @@ void UNiagaraComponent::PostSystemTick_GameThread()
 		{
 			SystemInstanceController->PostTickRenderers(*RenderData);
 		}
+	}
+
+	if (bRecachePSOs)
+	{
+		PrecachePSOs();
+		bRecachePSOs = false;
 	}
 }
 
@@ -2310,7 +2319,8 @@ FPrimitiveSceneProxy* UNiagaraComponent::CreateSceneProxy()
 #if UE_WITH_PSO_PRECACHING
 	if (Asset != nullptr)
 	{
-		// PSO request should have been handled by the Asset itself, so here we just ensure the request gets boosted
+		// If PSOs not precached yet then rely on PSOs reuqested by the shared asset itself - this will make sure
+		// those pending requests are boosted if still pending
 		if (!bPSOPrecacheCalled)
 		{
 			PrecacheAssetPSOs(Asset);
@@ -2327,6 +2337,26 @@ FPrimitiveSceneProxy* UNiagaraComponent::CreateSceneProxy()
 	// The constructor will set up the System renderers from the component.
 	FNiagaraSceneProxy* Proxy = new FNiagaraSceneProxy(this);
 	return Proxy;
+}
+
+void UNiagaraComponent::CollectPSOPrecacheData(const FPSOPrecacheParams& BasePrecachePSOParams, FComponentPSOPrecacheParamsList& OutParams)
+{
+	if (SystemInstanceController.IsValid())
+	{
+		FMaterialInterfacePSOPrecacheParamsList PSOPrecacheParamsList;
+		SystemInstanceController->CollectPSOPrecacheData(BasePrecachePSOParams, PSOPrecacheParamsList);
+
+		// Translate to component PSO precache params - will be removed with upcoming change but make CL bigger than needed
+		for (FMaterialInterfacePSOPrecacheParams& PSOPrecacheParams : PSOPrecacheParamsList)
+		{
+			FComponentPSOPrecacheParams& NewEntry = OutParams.AddDefaulted_GetRef();
+			NewEntry.Priority = PSOPrecacheParams.Priority;
+			NewEntry.MaterialInterface = PSOPrecacheParams.MaterialInterface;
+			NewEntry.PSOPrecacheParams = PSOPrecacheParams.PSOPrecacheParams;
+			NewEntry.VertexFactoryDataList = PSOPrecacheParams.VertexFactoryDataList;
+			
+		}
+	}
 }
 
 void UNiagaraComponent::GetUsedMaterials(TArray<UMaterialInterface*>& OutMaterials, bool bGetDebugMaterials) const
@@ -2741,6 +2771,9 @@ void UNiagaraComponent::SetVariableMaterial(FName InVariableName, UMaterialInter
 	{
 		OverrideParameters.SetUObject(InValue, VariableDesc);
 	}
+
+	bRecachePSOs = true;
+
 #if WITH_EDITOR
 	SetParameterOverride(VariableDesc, FNiagaraVariant(InValue));
 #endif
@@ -2758,6 +2791,9 @@ void UNiagaraComponent::SetVariableStaticMesh(FName InVariableName, UStaticMesh*
 	{
 		OverrideParameters.SetUObject(InValue, VariableDesc);
 	}
+
+	bRecachePSOs = true;
+
 #if WITH_EDITOR
 	SetParameterOverride(VariableDesc, FNiagaraVariant(InValue));
 #endif

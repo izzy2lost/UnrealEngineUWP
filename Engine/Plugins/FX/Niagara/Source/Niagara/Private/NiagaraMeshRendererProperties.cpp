@@ -763,18 +763,16 @@ void UNiagaraMeshRendererProperties::GetUsedMaterials(const FNiagaraEmitterInsta
 	}
 }
 
-void UNiagaraMeshRendererProperties::CollectPSOPrecacheData(FPSOPrecacheParamsList& OutParams)
+void UNiagaraMeshRendererProperties::CollectPSOPrecacheData(const FNiagaraEmitterInstance* InEmitter, FPSOPrecacheParamsList& OutParams) const
 {
 	const FVertexFactoryType* VFType = GetVertexFactoryType();
 	bool bSupportsManualVertexFetch = VFType->SupportsManualVertexFetch(GMaxRHIFeatureLevel);
 		
 	for (int32 MeshIndex = 0; MeshIndex < Meshes.Num(); ++MeshIndex)
 	{
-		// Don't have an instance yet to retrieve the possible material override data from
-		FNiagaraEmitterInstance* EmitterInstance = nullptr;
 		INiagaraRenderableMeshInterface* RenderableMeshInterface = nullptr;
 		UStaticMesh* StaticMesh = nullptr;
-		NiagaraMeshRendererPropertiesInternal::ResolveRenderableMeshInternal(Meshes[MeshIndex], EmitterInstance, RenderableMeshInterface, StaticMesh);
+		NiagaraMeshRendererPropertiesInternal::ResolveRenderableMeshInternal(Meshes[MeshIndex], InEmitter, RenderableMeshInterface, StaticMesh);
 		if (StaticMesh)
 		{
 			TArray<UMaterialInterface*> OrderedMeshMaterials;

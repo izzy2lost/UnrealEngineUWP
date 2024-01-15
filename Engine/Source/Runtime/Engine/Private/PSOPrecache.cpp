@@ -90,3 +90,24 @@ FPSOPrecacheVertexFactoryData::FPSOPrecacheVertexFactoryData(
 {
 	CustomDefaultVertexDeclaration = PipelineStateCache::GetOrCreateVertexDeclaration(ElementList);
 }
+
+void AddMaterialInterfacePSOPrecacheParamsToList(const FMaterialInterfacePSOPrecacheParams& EntryToAdd, FMaterialInterfacePSOPrecacheParamsList& List)
+{
+	FMaterialInterfacePSOPrecacheParams* CurrentEntry = List.FindByPredicate([EntryToAdd](const FMaterialInterfacePSOPrecacheParams& Other)
+		{
+			return (Other.Priority			== EntryToAdd.Priority &&
+					Other.MaterialInterface == EntryToAdd.MaterialInterface &&
+					Other.PSOPrecacheParams == EntryToAdd.PSOPrecacheParams);
+		});
+	if (CurrentEntry)
+	{
+		for (const FPSOPrecacheVertexFactoryData& VFData : EntryToAdd.VertexFactoryDataList)
+		{
+			CurrentEntry->VertexFactoryDataList.AddUnique(VFData);
+		}
+	}
+	else
+	{
+		List.Add(EntryToAdd);
+	}
+}

@@ -1173,7 +1173,11 @@ void UNiagaraSystem::PrecachePSOs()
 		return;
 	}
 
-	TArray<VFsPerMaterialData, TInlineAllocator<2>> VFsPerMaterials;
+	FMaterialInterfacePSOPrecacheParamsList MaterialInterfacePSOPrecacheParamsList;
+
+	FMaterialInterfacePSOPrecacheParams NewEntry;
+	NewEntry.PSOPrecacheParams.SetMobility(EComponentMobility::Movable);
+	NewEntry.PSOPrecacheParams.bRenderCustomDepth = true;
 
 	for (const FNiagaraEmitterHandle& EmitterHandle : GetEmitterHandles())
 	{
@@ -1188,29 +1192,28 @@ void UNiagaraSystem::PrecachePSOs()
 					{
 						return;
 					}
-					bool bDisableBackfaceCulling = Properties->IsBackfaceCullingDisabled();
+
+					NewEntry.PSOPrecacheParams.bDisableBackFaceCulling = Properties->IsBackfaceCullingDisabled();
+
+					// Don't have an instance yet to retrieve the possible material override data from
+					FNiagaraEmitterInstance* EmitterInstance = nullptr;
 
 					UNiagaraRendererProperties::FPSOPrecacheParamsList PSOPrecacheParamsList;
-					Properties->CollectPSOPrecacheData(PSOPrecacheParamsList);
+					Properties->CollectPSOPrecacheData(EmitterInstance, PSOPrecacheParamsList);
 
 					for (UNiagaraRendererProperties::FPSOPrecacheParams& PSOPrecacheParams: PSOPrecacheParamsList)
 					{
-						UMaterialInterface* MaterialInterface = PSOPrecacheParams.MaterialInterface;
-						VFsPerMaterialData* VFsPerMaterial = VFsPerMaterials.FindByPredicate([MaterialInterface, bDisableBackfaceCulling](const VFsPerMaterialData& Other) 
-						{ 
-							return (Other.MaterialInterface == MaterialInterface &&
-									Other.bDisableBackfaceCulling == bDisableBackfaceCulling);
-						});
-						if (VFsPerMaterial == nullptr)
-						{
-							VFsPerMaterial = &VFsPerMaterials.AddDefaulted_GetRef();
-							VFsPerMaterial->MaterialInterface = MaterialInterface;
-							VFsPerMaterial->bDisableBackfaceCulling = bDisableBackfaceCulling;
-						}
+						NewEntry.MaterialInterface = PSOPrecacheParams.MaterialInterface;
+						NewEntry.VertexFactoryDataList = PSOPrecacheParams.VertexFactoryDataList;
 
-						for (FPSOPrecacheVertexFactoryData& VFData : PSOPrecacheParams.VertexFactoryDataList)
+						NewEntry.PSOPrecacheParams.bReverseCulling = false;
+						AddMaterialInterfacePSOPrecacheParamsToList(NewEntry, MaterialInterfacePSOPrecacheParamsList);
+
+						// Also precache with reverse culling if not two sided because we don't know of the component using the asset will have negative determinant
+						if (!NewEntry.PSOPrecacheParams.bDisableBackFaceCulling)
 						{
-							VFsPerMaterial->VertexFactoryData.AddUnique(VFData);
+							NewEntry.PSOPrecacheParams.bReverseCulling = true;
+							AddMaterialInterfacePSOPrecacheParamsToList(NewEntry, MaterialInterfacePSOPrecacheParamsList);
 						}
 					}
 				}
@@ -1218,7 +1221,7 @@ void UNiagaraSystem::PrecachePSOs()
 		}
 	}
 
-	LaunchPSOPrecaching(VFsPerMaterials);
+	LaunchPSOPrecaching(MaterialInterfacePSOPrecacheParamsList);
 }
 
 
