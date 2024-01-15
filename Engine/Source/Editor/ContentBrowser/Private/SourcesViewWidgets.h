@@ -108,6 +108,7 @@ private:
 		Normal,
 		Code,
 		Developer,
+		Plugin,
 	};
 
 	/** The data for this item */
@@ -124,14 +125,6 @@ private:
 
 	/** True when this item has children and is expanded */
 	TAttribute<bool> IsItemExpanded;
-
-	/** Brushes for the different folder states */
-	const FSlateBrush* FolderOpenBrush;
-	const FSlateBrush* FolderClosedBrush;
-	const FSlateBrush* FolderOpenCodeBrush;
-	const FSlateBrush* FolderClosedCodeBrush;
-	const FSlateBrush* FolderOpenDeveloperBrush;
-	const FSlateBrush* FolderClosedDeveloperBrush;
 
 	/** Delegate called to get the selection state of an asset path */
 	FIsSelected IsSelected;

@@ -6058,6 +6058,8 @@ void FStarshipEditorStyle::FStyle::SetupContentBrowserStyle()
 		Set( "ContentBrowser.AssetTreeFolderClosedDeveloper", new IMAGE_BRUSH_SVG( "Starship/ContentBrowser/folder-developer", Icon16x16));
 		Set( "ContentBrowser.AssetTreeFolderOpenCode", new IMAGE_BRUSH_SVG( "Starship/ContentBrowser/folder-code-open", Icon16x16) );
 		Set( "ContentBrowser.AssetTreeFolderClosedCode", new IMAGE_BRUSH_SVG( "Starship/ContentBrowser/folder-code", Icon16x16) );
+		Set( "ContentBrowser.AssetTreeFolderOpenPlugin", new IMAGE_BRUSH_SVG("Starship/ContentBrowser/folder-plugin-open", Icon16x16));
+		Set( "ContentBrowser.AssetTreeFolderClosedPlugin", new IMAGE_BRUSH_SVG( "Starship/ContentBrowser/folder-plugin", Icon16x16));
 
 		Set("ContentBrowser.DefaultFolderColor", FStyleColors::AccentFolder);
 
