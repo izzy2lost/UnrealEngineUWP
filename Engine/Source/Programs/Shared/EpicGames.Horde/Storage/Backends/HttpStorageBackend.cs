@@ -1,7 +1,6 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 using System;
-using System.Collections.Generic;
 using System.IO;
 using System.Net.Http;
 using System.Net.Http.Headers;
@@ -51,19 +50,19 @@ namespace EpicGames.Horde.Storage.Backends
 		#region Blobs
 
 		/// <inheritdoc/>
-		public async Task<Stream> OpenAsync(string path, int offset, int? length, CancellationToken cancellationToken = default)
+		public async Task<Stream> OpenBlobAsync(BlobLocator locator, int offset, int? length, CancellationToken cancellationToken = default)
 		{
 			if (offset == 0 && length == null)
 			{
-				_logger.LogDebug("Reading {Locator}", path);
+				_logger.LogDebug("Reading {Locator}", locator);
 			}
 			else if (length == null)
 			{
-				_logger.LogDebug("Reading {Locator} ({Offset}..)", path, offset);
+				_logger.LogDebug("Reading {Locator} ({Offset}..)", locator, offset);
 			}
 			else
 			{
-				_logger.LogDebug("Reading {Locator} ({Offset}+{Length})", path, offset, length);
+				_logger.LogDebug("Reading {Locator} ({Offset}+{Length})", locator, offset, length);
 			}
 
 			if (length.HasValue && length.Value == 0)
@@ -73,7 +72,7 @@ namespace EpicGames.Horde.Storage.Backends
 
 			using (HttpClient httpClient = _createClient())
 			{
-				using (HttpRequestMessage request = new HttpRequestMessage(HttpMethod.Get, $"{_basePath}/blobs/{path}"))
+				using (HttpRequestMessage request = new HttpRequestMessage(HttpMethod.Get, $"{_basePath}/blobs/{locator}"))
 				{
 					if (offset != 0 || length != null)
 					{
@@ -88,9 +87,9 @@ namespace EpicGames.Horde.Storage.Backends
 		}
 
 		/// <inheritdoc/>
-		public async Task<IReadOnlyMemoryOwner<byte>> ReadAsync(string path, int offset, int? length, CancellationToken cancellationToken = default)
+		public async Task<IReadOnlyMemoryOwner<byte>> ReadBlobAsync(BlobLocator locator, int offset, int? length, CancellationToken cancellationToken = default)
 		{
-			using (Stream stream = await OpenAsync(path, offset, length, cancellationToken))
+			using (Stream stream = await OpenBlobAsync(locator, offset, length, cancellationToken))
 			{
 				byte[] data = await stream.ReadAllBytesAsync(cancellationToken);
 				return ReadOnlyMemoryOwner.Create(data);
@@ -98,7 +97,7 @@ namespace EpicGames.Horde.Storage.Backends
 		}
 
 		/// <inheritdoc/>
-		public async Task<string> WriteAsync(Stream stream, string? prefix = null, CancellationToken cancellationToken = default)
+		public async Task<BlobLocator> WriteBlobAsync(Stream stream, string? prefix = null, CancellationToken cancellationToken = default)
 		{
 			using StreamContent streamContent = new StreamContent(stream);
 
@@ -121,7 +120,7 @@ namespace EpicGames.Horde.Storage.Backends
 							}
 						}
 						_logger.LogDebug("Written {Locator} (using redirect)", redirectResponse.Blob);
-						return redirectResponse.Blob;
+						return new BlobLocator(redirectResponse.Blob);
 					}
 				}
 			}
@@ -129,11 +128,8 @@ namespace EpicGames.Horde.Storage.Backends
 			WriteBlobResponse response = await SendWriteRequestAsync(streamContent, prefix, cancellationToken);
 			_supportsUploadRedirects = response.SupportsRedirects ?? false;
 			_logger.LogDebug("Written {Locator} (direct)", response.Blob);
-			return response.Blob;
+			return new BlobLocator(response.Blob);
 		}
-
-		/// <inheritdoc/>
-		public Task WriteExplicitPathAsync(string path, Stream stream, CancellationToken cancellationToken = default) => throw new NotSupportedException();
 
 		async Task<WriteBlobResponse> SendWriteRequestAsync(StreamContent? streamContent, string? prefix = null, CancellationToken cancellationToken = default)
 		{
@@ -162,30 +158,21 @@ namespace EpicGames.Horde.Storage.Backends
 		}
 
 		/// <inheritdoc/>
-		public Task<bool> ExistsAsync(string path, CancellationToken cancellationToken = default) => throw new NotSupportedException();
-
-		/// <inheritdoc/>
-		public Task DeleteAsync(string path, CancellationToken cancellationToken = default) => throw new NotSupportedException();
-
-		/// <inheritdoc/>
-		public IAsyncEnumerable<string> EnumerateAsync(CancellationToken cancellationToken = default) => throw new NotSupportedException();
-
-		/// <inheritdoc/>
-		public ValueTask<Uri?> TryGetReadRedirectAsync(string path, CancellationToken cancellationToken = default)
+		public ValueTask<Uri?> TryGetBlobReadRedirectAsync(BlobLocator locator, CancellationToken cancellationToken = default)
 		{
 			// We don't currently have any need for getting a read redirect explicitly, though ReadAsync() calls may redirect us automatically.
 			return default;
 		}
 
 		/// <inheritdoc/>
-		public async ValueTask<(string, Uri)?> TryGetWriteRedirectAsync(string? prefix = null, CancellationToken cancellationToken = default)
+		public async ValueTask<(BlobLocator, Uri)?> TryGetBlobWriteRedirectAsync(string? prefix = null, CancellationToken cancellationToken = default)
 		{
 			if (_supportsUploadRedirects)
 			{
 				WriteBlobResponse redirectResponse = await SendWriteRequestAsync(null, prefix, cancellationToken);
 				if (redirectResponse.UploadUrl != null)
 				{
-					return (redirectResponse.Blob, redirectResponse.UploadUrl);
+					return (new BlobLocator(redirectResponse.Blob), redirectResponse.UploadUrl);
 				}
 			}
 			return null;

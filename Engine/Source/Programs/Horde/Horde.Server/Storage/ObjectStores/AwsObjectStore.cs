@@ -260,7 +260,7 @@ namespace Horde.Server.Storage.ObjectStores
 			}
 		}
 
-		string GetFullPath(ObjectKey key) => $"{_pathPrefix}{key}.blob";
+		string GetFullPath(ObjectKey key) => $"{_pathPrefix}{key}";
 
 		/// <inheritdoc/>
 		public Task<Stream> OpenAsync(ObjectKey key, int offset, int? length, CancellationToken cancellationToken)

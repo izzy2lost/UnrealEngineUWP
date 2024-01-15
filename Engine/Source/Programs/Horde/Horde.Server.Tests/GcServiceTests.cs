@@ -52,7 +52,7 @@ namespace Horde.Server.Tests
 			ObjectKey[] remaining = await backend.EnumerateAsync().ToArrayAsync();
 			Assert.AreEqual(nodes.Count, remaining.Length);
 
-			HashSet<ObjectKey> nodePaths = new HashSet<ObjectKey>(nodes.Select(x => new ObjectKey(x.BaseLocator.ToString())));
+			HashSet<ObjectKey> nodePaths = new HashSet<ObjectKey>(nodes.Select(x => StorageService.GetObjectKey(x.BaseLocator)));
 			Assert.IsTrue(remaining.All(x => nodePaths.Contains(x)));
 		}
 

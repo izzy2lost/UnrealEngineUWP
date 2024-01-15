@@ -4,7 +4,6 @@ using System;
 using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.IO;
-using System.Runtime.CompilerServices;
 using System.Threading;
 using System.Threading.Tasks;
 using EpicGames.Core;
@@ -19,12 +18,12 @@ namespace EpicGames.Horde.Storage.Backends
 		/// <summary>
 		/// Data storage
 		/// </summary>
-		readonly ConcurrentDictionary<string, byte[]> _pathToData = new ConcurrentDictionary<string, byte[]>();
+		readonly ConcurrentDictionary<BlobLocator, byte[]> _locatorToData = new ConcurrentDictionary<BlobLocator, byte[]>();
 
 		/// <summary>
 		/// Read only access to the stored blobs
 		/// </summary>
-		public IReadOnlyDictionary<string, byte[]> Blobs => _pathToData; 
+		public IReadOnlyDictionary<BlobLocator, byte[]> Blobs => _locatorToData; 
 
 		/// <inheritdoc/>
 		public bool SupportsRedirects => false;
@@ -35,20 +34,20 @@ namespace EpicGames.Horde.Storage.Backends
 		}
 
 		/// <inheritdoc/>
-		public Task<Stream> OpenAsync(string path, int offset, int? length, CancellationToken cancellationToken)
+		public Task<Stream> OpenBlobAsync(BlobLocator locator, int offset, int? length, CancellationToken cancellationToken)
 		{
-			return Task.FromResult<Stream>(new ReadOnlyMemoryStream(GetData(path, offset, length)));
+			return Task.FromResult<Stream>(new ReadOnlyMemoryStream(GetData(locator, offset, length)));
 		}
 
 		/// <inheritdoc/>
-		public Task<IReadOnlyMemoryOwner<byte>> ReadAsync(string path, int offset, int? length, CancellationToken cancellationToken)
+		public Task<IReadOnlyMemoryOwner<byte>> ReadBlobAsync(BlobLocator locator, int offset, int? length, CancellationToken cancellationToken)
 		{
-			return Task.FromResult(ReadOnlyMemoryOwner.Create(GetData(path, offset, length)));
+			return Task.FromResult(ReadOnlyMemoryOwner.Create(GetData(locator, offset, length)));
 		}
 
-		ReadOnlyMemory<byte> GetData(string path, int offset, int? length)
+		ReadOnlyMemory<byte> GetData(BlobLocator locator, int offset, int? length)
 		{
-			ReadOnlyMemory<byte> data = _pathToData[path].AsMemory(offset);
+			ReadOnlyMemory<byte> data = _locatorToData[locator].AsMemory(offset);
 			if (length != null && length.Value < data.Length)
 			{
 				data = data.Slice(0, length.Value);
@@ -57,52 +56,22 @@ namespace EpicGames.Horde.Storage.Backends
 		}
 
 		/// <inheritdoc/>
-		public async Task<string> WriteAsync(Stream stream, string? prefix = null, CancellationToken cancellationToken = default)
+		public async Task<BlobLocator> WriteBlobAsync(Stream stream, string? prefix = null, CancellationToken cancellationToken = default)
 		{
-			string path = StorageHelpers.CreateUniqueName(prefix);
-			await WriteExplicitPathAsync(path, stream, cancellationToken);
-			return path;
-		}
-
-		/// <inheritdoc/>
-		public async Task WriteExplicitPathAsync(string path, Stream stream, CancellationToken cancellationToken = default)
-		{
+			BlobLocator locator = StorageHelpers.CreateUniqueLocator(prefix);
 			using (MemoryStream buffer = new MemoryStream())
 			{
 				await stream.CopyToAsync(buffer, cancellationToken);
-				_pathToData[path] = buffer.ToArray();
+				_locatorToData[locator] = buffer.ToArray();
 			}
+			return locator;
 		}
 
 		/// <inheritdoc/>
-		public Task<bool> ExistsAsync(string path, CancellationToken cancellationToken)
-		{
-			return Task.FromResult(_pathToData.ContainsKey(path));
-		}
+		public ValueTask<Uri?> TryGetBlobReadRedirectAsync(BlobLocator locator, CancellationToken cancellationToken = default) => default;
 
 		/// <inheritdoc/>
-		public Task DeleteAsync(string path, CancellationToken cancellationToken)
-		{
-			_pathToData.TryRemove(path, out _);
-			return Task.CompletedTask;
-		}
-
-		/// <inheritdoc/>
-		public async IAsyncEnumerable<string> EnumerateAsync([EnumeratorCancellation] CancellationToken cancellationToken = default)
-		{
-			foreach (string path in _pathToData.Keys)
-			{
-				yield return path;
-				cancellationToken.ThrowIfCancellationRequested();
-				await Task.Yield();
-			}
-		}
-
-		/// <inheritdoc/>
-		public ValueTask<Uri?> TryGetReadRedirectAsync(string path, CancellationToken cancellationToken = default) => default;
-
-		/// <inheritdoc/>
-		public ValueTask<(string, Uri)?> TryGetWriteRedirectAsync(string? prefix = null, CancellationToken cancellationToken = default) => default;
+		public ValueTask<(BlobLocator, Uri)?> TryGetBlobWriteRedirectAsync(string? prefix = null, CancellationToken cancellationToken = default) => default;
 
 		/// <inheritdoc/>
 		public void GetStats(StorageStats stats) { }

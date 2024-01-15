@@ -193,7 +193,7 @@ namespace Horde.Server.Replicators
 			{
 				double copiedMb = (replicator.CurrentCopiedSize ?? 0) / (1024.0 * 1024.0);
 				double totalMb = replicator.CurrentSize.Value / (1024.0 * 1024.0);
-				message.Append($" ({copiedMb:n1}/{totalMb:n1}mb, {(copiedMb * 100.0) / totalMb:n1}%)");
+				message.Append($" ({copiedMb:n1}mb/{totalMb:n1}mb, {(copiedMb * 100.0) / totalMb:n1}%)");
 			}
 
 			return message.ToString();

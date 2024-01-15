@@ -41,7 +41,7 @@ namespace EpicGames.Horde.Storage.Clients
 
 			/// <inheritdoc/>
 			public override Task<Stream> OpenBodyAsync(int offset = 0, int? length = null, CancellationToken cancellationToken = default)
-				=> _httpStorageClient._backend.OpenAsync(_locator.ToString(), offset, length, cancellationToken);
+				=> _httpStorageClient._backend.OpenBlobAsync(_locator, offset, length, cancellationToken);
 
 			/// <inheritdoc/>
 			public override ValueTask<BlobData> ReadBlobDataAsync(CancellationToken cancellationToken = default)
@@ -108,31 +108,24 @@ namespace EpicGames.Horde.Storage.Clients
 		/// <inheritdoc/>
 		public async ValueTask<BlobData> ReadBlobAsync(BlobLocator locator, CancellationToken cancellationToken = default)
 		{
-			IReadOnlyMemoryOwner<byte> owner = await _backend.ReadAsync(locator.ToString(), cancellationToken);
+			IReadOnlyMemoryOwner<byte> owner = await _backend.ReadAsync(locator, cancellationToken);
 			return new BlobDataWithOwner(BlobType.Leaf, owner.Memory, Array.Empty<IBlobHandle>(), owner);
 		}
 
 		/// <inheritdoc/>
 		public async ValueTask<IBlobHandle> WriteBlobAsync(BlobType type, Stream stream, IReadOnlyList<IBlobHandle> references, string? basePath = null, CancellationToken cancellationToken = default)
 		{
-			string path = await _backend.WriteAsync(stream, basePath, cancellationToken);
-			return new Handle(this, new BlobLocator(path));
+			BlobLocator locator = await _backend.WriteBlobAsync(stream, basePath, cancellationToken);
+			return new Handle(this, locator);
 		}
 
 		/// <inheritdoc/>
 		public ValueTask<Uri?> TryGetReadRedirectAsync(BlobLocator locator, CancellationToken cancellationToken = default)
-			=> _backend.TryGetReadRedirectAsync(locator.ToString(), cancellationToken);
+			=> _backend.TryGetBlobReadRedirectAsync(locator, cancellationToken);
 
 		/// <inheritdoc/>
-		public async ValueTask<(BlobLocator, Uri)?> TryGetWriteRedirectAsync(string? prefix = null, CancellationToken cancellationToken = default)
-		{
-			(string Path, Uri Url)? result = await _backend.TryGetWriteRedirectAsync(prefix, cancellationToken);
-			if (result == null)
-			{
-				return null;
-			}
-			return (new BlobLocator(result.Value.Path), result.Value.Url);
-		}
+		public ValueTask<(BlobLocator, Uri)?> TryGetWriteRedirectAsync(string? prefix = null, CancellationToken cancellationToken = default)
+			=> _backend.TryGetBlobWriteRedirectAsync(prefix, cancellationToken);
 
 		#endregion
 

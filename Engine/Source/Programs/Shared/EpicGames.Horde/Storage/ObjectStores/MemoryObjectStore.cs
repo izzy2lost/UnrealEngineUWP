@@ -16,12 +16,12 @@ namespace EpicGames.Horde.Storage.ObjectStores
 	/// </summary>
 	public sealed class MemoryObjectStore : IObjectStore
 	{
-		readonly ConcurrentDictionary<ObjectKey, byte[]> _pathToData = new ConcurrentDictionary<ObjectKey, byte[]>();
+		readonly ConcurrentDictionary<ObjectKey, byte[]> _keyToData = new ConcurrentDictionary<ObjectKey, byte[]>();
 
 		/// <summary>
 		/// Read only access to the stored blobs
 		/// </summary>
-		public IReadOnlyDictionary<ObjectKey, byte[]> Blobs => _pathToData; 
+		public IReadOnlyDictionary<ObjectKey, byte[]> Blobs => _keyToData; 
 
 		/// <inheritdoc/>
 		public bool SupportsRedirects => false;
@@ -32,20 +32,20 @@ namespace EpicGames.Horde.Storage.ObjectStores
 		}
 
 		/// <inheritdoc/>
-		public Task<Stream> OpenAsync(ObjectKey locator, int offset, int? length, CancellationToken cancellationToken)
+		public Task<Stream> OpenAsync(ObjectKey key, int offset, int? length, CancellationToken cancellationToken)
 		{
-			return Task.FromResult<Stream>(new ReadOnlyMemoryStream(GetData(locator, offset, length)));
+			return Task.FromResult<Stream>(new ReadOnlyMemoryStream(GetData(key, offset, length)));
 		}
 
 		/// <inheritdoc/>
-		public Task<IReadOnlyMemoryOwner<byte>> ReadAsync(ObjectKey locator, int offset, int? length, CancellationToken cancellationToken)
+		public Task<IReadOnlyMemoryOwner<byte>> ReadAsync(ObjectKey key, int offset, int? length, CancellationToken cancellationToken)
 		{
-			return Task.FromResult(ReadOnlyMemoryOwner.Create(GetData(locator, offset, length)));
+			return Task.FromResult(ReadOnlyMemoryOwner.Create(GetData(key, offset, length)));
 		}
 
-		ReadOnlyMemory<byte> GetData(ObjectKey locator, int offset, int? length)
+		ReadOnlyMemory<byte> GetData(ObjectKey key, int offset, int? length)
 		{
-			ReadOnlyMemory<byte> data = _pathToData[locator].AsMemory(offset);
+			ReadOnlyMemory<byte> data = _keyToData[key].AsMemory(offset);
 			if (length != null && length.Value < data.Length)
 			{
 				data = data.Slice(0, length.Value);
@@ -54,44 +54,44 @@ namespace EpicGames.Horde.Storage.ObjectStores
 		}
 
 		/// <inheritdoc/>
-		public async Task WriteAsync(ObjectKey locator, Stream stream, CancellationToken cancellationToken = default)
+		public async Task WriteAsync(ObjectKey key, Stream stream, CancellationToken cancellationToken = default)
 		{
 			using (MemoryStream buffer = new MemoryStream())
 			{
 				await stream.CopyToAsync(buffer, cancellationToken);
-				_pathToData[locator] = buffer.ToArray();
+				_keyToData[key] = buffer.ToArray();
 			}
 		}
 
 		/// <inheritdoc/>
-		public Task<bool> ExistsAsync(ObjectKey locator, CancellationToken cancellationToken)
+		public Task<bool> ExistsAsync(ObjectKey key, CancellationToken cancellationToken)
 		{
-			return Task.FromResult(_pathToData.ContainsKey(locator));
+			return Task.FromResult(_keyToData.ContainsKey(key));
 		}
 
 		/// <inheritdoc/>
-		public Task DeleteAsync(ObjectKey locator, CancellationToken cancellationToken)
+		public Task DeleteAsync(ObjectKey key, CancellationToken cancellationToken)
 		{
-			_pathToData.TryRemove(locator, out _);
+			_keyToData.TryRemove(key, out _);
 			return Task.CompletedTask;
 		}
 
 		/// <inheritdoc/>
 		public async IAsyncEnumerable<ObjectKey> EnumerateAsync([EnumeratorCancellation] CancellationToken cancellationToken = default)
 		{
-			foreach (ObjectKey locator in _pathToData.Keys)
+			foreach (ObjectKey key in _keyToData.Keys)
 			{
-				yield return locator;
+				yield return key;
 				cancellationToken.ThrowIfCancellationRequested();
 				await Task.Yield();
 			}
 		}
 
 		/// <inheritdoc/>
-		public ValueTask<Uri?> TryGetReadRedirectAsync(ObjectKey path, CancellationToken cancellationToken = default) => default;
+		public ValueTask<Uri?> TryGetReadRedirectAsync(ObjectKey key, CancellationToken cancellationToken = default) => default;
 
 		/// <inheritdoc/>
-		public ValueTask<Uri?> TryGetWriteRedirectAsync(ObjectKey path, CancellationToken cancellationToken = default) => default;
+		public ValueTask<Uri?> TryGetWriteRedirectAsync(ObjectKey key, CancellationToken cancellationToken = default) => default;
 
 		/// <inheritdoc/>
 		public void GetStats(StorageStats stats) { }

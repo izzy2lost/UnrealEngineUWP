@@ -53,15 +53,17 @@ namespace Horde.Server.Storage
 		sealed class LeafBlobHandle : BlobHandle
 		{
 			readonly IObjectStore _store;
+			readonly BlobLocator _locator;
 			readonly ObjectKey _key;
 			readonly Tracer _tracer;
 
 			public override IBlobHandle? Outer => null;
 
-			public LeafBlobHandle(IObjectStore store, ObjectKey key, Tracer tracer)
+			public LeafBlobHandle(IObjectStore store, BlobLocator locator, Tracer tracer)
 			{
 				_store = store;
-				_key = key;
+				_locator = locator;
+				_key = GetObjectKey(locator);
 				_tracer = tracer;
 			}
 
@@ -94,7 +96,7 @@ namespace Horde.Server.Storage
 			/// <inheritdoc/>
 			public override bool TryAppendIdentifier(Utf8StringBuilder builder)
 			{
-				builder.Append(_key.Path);
+				builder.Append(_locator.Path);
 				return true;
 			}
 
@@ -152,11 +154,11 @@ namespace Horde.Server.Storage
 			{
 				if (locator.TryUnwrap(out BlobLocator baseLocator, out Utf8String fragment))
 				{
-					return new BlobFragmentHandle(new LeafBlobHandle(_store, new ObjectKey(baseLocator.ToString()), _tracer), fragment);
+					return new BlobFragmentHandle(new LeafBlobHandle(_store, baseLocator, _tracer), fragment);
 				}
 				else
 				{
-					return new LeafBlobHandle(_store, new ObjectKey(locator.ToString()), _tracer);
+					return new LeafBlobHandle(_store, locator, _tracer);
 				}
 			}
 
@@ -176,19 +178,18 @@ namespace Horde.Server.Storage
 			/// <inheritdoc/>
 			public async ValueTask<IBlobHandle> WriteBlobAsync(BlobType type, Stream stream, IReadOnlyList<IBlobHandle> references, string? basePath = null, CancellationToken cancellationToken = default)
 			{
-				string path = StorageHelpers.CreateUniqueName(basePath);
-				await _store.WriteAsync(new ObjectKey(path), stream, cancellationToken);
+				BlobLocator locator = StorageHelpers.CreateUniqueLocator(basePath);
 
-				BlobLocator locator = new BlobLocator(path);
+				await _store.WriteAsync(GetObjectKey(locator), stream, cancellationToken);
 				await _outer.AddBlobAsync(NamespaceId, locator, null, cancellationToken);
 
-				return CreateBlobHandle(new BlobLocator(path));
+				return CreateBlobHandle(locator);
 			}
 
 			/// <inheritdoc/>
 			public ValueTask<Uri?> TryGetReadRedirectAsync(BlobLocator locator, CancellationToken cancellationToken = default)
 			{
-				return _store.TryGetReadRedirectAsync(new ObjectKey(locator.Path.ToString()), cancellationToken);
+				return _store.TryGetReadRedirectAsync(GetObjectKey(locator), cancellationToken);
 			}
 
 			/// <inheritdoc/>
@@ -199,15 +200,14 @@ namespace Horde.Server.Storage
 					return null;
 				}
 
-				string path = StorageHelpers.CreateUniqueName(prefix);
+				BlobLocator locator = StorageHelpers.CreateUniqueLocator(prefix);
 
-				Uri? url = await _store.TryGetWriteRedirectAsync(new ObjectKey(path), cancellationToken);
+				Uri? url = await _store.TryGetWriteRedirectAsync(GetObjectKey(locator), cancellationToken);
 				if (url == null)
 				{
 					return null;
 				}
 
-				BlobLocator locator = new BlobLocator(path);
 				await _outer.AddBlobAsync(NamespaceId, locator, null, cancellationToken);
 
 				return (locator, url);
@@ -668,6 +668,8 @@ namespace Horde.Server.Storage
 			await _refTicker.DisposeAsync();
 			await _gcTicker.DisposeAsync();
 		}
+
+		internal static ObjectKey GetObjectKey(BlobLocator locator) => new ObjectKey($"{locator.Path}.blob");
 
 		/// <summary>
 		/// Creates a new storage client factory using the current global config value
@@ -1185,7 +1187,7 @@ namespace Horde.Server.Storage
 							_ = _redisService.GetDatabase().SortedSetAddAsync(checkSet, entries, flags: CommandFlags.FireAndForget);
 							score = Math.BitIncrement(score);
 						}
-						await namespaceInfo.Store.DeleteAsync(new ObjectKey(info.Path), cancellationToken);
+						await namespaceInfo.Store.DeleteAsync(GetObjectKey(new BlobLocator(info.Path)), cancellationToken);
 					}
 				}
 				_ = _redisService.GetDatabase().SortedSetRemoveAsync(checkSet, values[0], CommandFlags.FireAndForget);

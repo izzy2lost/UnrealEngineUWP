@@ -59,17 +59,17 @@ namespace EpicGames.Horde.Tests
 			using (TempDir tempDir = new TempDir("Cache"))
 			{
 				using FileStorageBackend backend = new FileStorageBackend(tempDir.Location);
-				string path = await backend.WriteBytesAsync(Encoding.UTF8.GetBytes("hello world"));
+				BlobLocator path = await backend.WriteBytesAsync(Encoding.UTF8.GetBytes("hello world"));
 
-				using (IReadOnlyMemoryOwner<byte> handle = await backend.ReadAsync(path, 0, null))
+				using (IReadOnlyMemoryOwner<byte> handle = await backend.ReadBlobAsync(path, 0, null))
 				{
 					Assert.AreEqual("hello world", Encoding.UTF8.GetString(handle.Memory.Span));
 				}
-				using (IReadOnlyMemoryOwner<byte> handle = await backend.ReadAsync(path, 0, 5))
+				using (IReadOnlyMemoryOwner<byte> handle = await backend.ReadBlobAsync(path, 0, 5))
 				{
 					Assert.AreEqual("hello", Encoding.UTF8.GetString(handle.Memory.Span));
 				}
-				using (IReadOnlyMemoryOwner<byte> handle = await backend.ReadAsync(path, 4, 3))
+				using (IReadOnlyMemoryOwner<byte> handle = await backend.ReadBlobAsync(path, 4, 3))
 				{
 					Assert.AreEqual("o w", Encoding.UTF8.GetString(handle.Memory.Span));
 				}
@@ -89,32 +89,32 @@ namespace EpicGames.Horde.Tests
 				await TestBackendAsync(cacheBackend);
 
 				Assert.AreEqual(1, cache.Items.Count());
-				byte[] value = await cacheBackend.ReadBytesAsync(cache.Items.First());
+				byte[] value = await cacheBackend.ReadBytesAsync(cache.GetLocators().First());
 				Assert.IsTrue(value.SequenceEqual(Encoding.UTF8.GetBytes("item 2")));
 
 				byte[] data3 = Encoding.UTF8.GetBytes("3");
-				string path3 = await cacheBackend.WriteBytesAsync(data3);
+				BlobLocator path3 = await cacheBackend.WriteBytesAsync(data3);
 				await cacheBackend.ReadBytesAsync(path3);
 
 				byte[] data4 = Encoding.UTF8.GetBytes("4");
-				string path4 = await cacheBackend.WriteBytesAsync(data4);
+				BlobLocator path4 = await cacheBackend.WriteBytesAsync(data4);
 				await cacheBackend.ReadBytesAsync(path4);
 
 				byte[] data5 = Encoding.UTF8.GetBytes("5");
-				string path5 = await cacheBackend.WriteBytesAsync(data5);
+				BlobLocator path5 = await cacheBackend.WriteBytesAsync(data5);
 				await cacheBackend.ReadBytesAsync(path5);
 
-				HashSet<string> paths = new HashSet<string>(cache.Items);
+				HashSet<BlobLocator> paths = new HashSet<BlobLocator>(cache.GetLocators());
 				Assert.AreEqual(4, paths.Count);
 				Assert.IsTrue(paths.Contains(path3));
 				Assert.IsTrue(paths.Contains(path4));
 				Assert.IsTrue(paths.Contains(path5));
 
 				byte[] data6 = Encoding.UTF8.GetBytes("12345678901");
-				string path6 = await cacheBackend.WriteBytesAsync(data6);
+				BlobLocator path6 = await cacheBackend.WriteBytesAsync(data6);
 				await cacheBackend.ReadBytesAsync(path6);
 
-				paths = new HashSet<string>(cache.Items);
+				paths = new HashSet<BlobLocator>(cache.GetLocators());
 				Assert.AreEqual(2, paths.Count);
 				Assert.IsTrue(paths.Contains(path5));
 				Assert.IsTrue(paths.Contains(path6));
@@ -122,7 +122,7 @@ namespace EpicGames.Horde.Tests
 				await cacheBackend.ReadBytesAsync(path3);
 				await cacheBackend.ReadBytesAsync(path4);
 
-				paths = new HashSet<string>(cache.Items);
+				paths = new HashSet<BlobLocator>(cache.GetLocators());
 				Assert.AreEqual(2, paths.Count);
 				Assert.IsTrue(paths.Contains(path3));
 				Assert.IsTrue(paths.Contains(path4));
@@ -134,10 +134,10 @@ namespace EpicGames.Horde.Tests
 			byte[] data1 = Encoding.UTF8.GetBytes("hello world");
 			byte[] data2 = Encoding.UTF8.GetBytes("item 2");
 
-			string path1 = await backend.WriteBytesAsync(data1);
+			BlobLocator path1 = await backend.WriteBytesAsync(data1);
 			byte[] outputData1 = await backend.ReadBytesAsync(path1);
 
-			string path2 = await backend.WriteBytesAsync(data2);
+			BlobLocator path2 = await backend.WriteBytesAsync(data2);
 			byte[] outputData2 = await backend.ReadBytesAsync(path2);
 
 			Assert.IsTrue(data1.SequenceEqual(outputData1));

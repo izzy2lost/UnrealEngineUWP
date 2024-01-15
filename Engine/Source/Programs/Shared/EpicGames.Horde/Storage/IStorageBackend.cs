@@ -1,7 +1,6 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 using System;
-using System.Collections.Generic;
 using System.IO;
 using System.Text;
 using System.Threading;
@@ -23,22 +22,22 @@ namespace EpicGames.Horde.Storage
 		/// <summary>
 		/// Attempts to open a read stream for the given path.
 		/// </summary>
-		/// <param name="path">Relative path within the bucket</param>
+		/// <param name="locator">Relative path within the bucket</param>
 		/// <param name="offset">Offset to start reading from</param>
 		/// <param name="length">Length of data to read</param>
 		/// <param name="cancellationToken">Cancellation token for the operation</param>
 		/// <returns></returns>
-		Task<Stream> OpenAsync(string path, int offset, int? length, CancellationToken cancellationToken = default);
+		Task<Stream> OpenBlobAsync(BlobLocator locator, int offset, int? length, CancellationToken cancellationToken = default);
 
 		/// <summary>
 		/// Reads an object into memory and returns a handle to it.
 		/// </summary>
-		/// <param name="path">Path to the file</param>
+		/// <param name="locator">Path to the file</param>
 		/// <param name="offset">Offset of the data to retrieve</param>
 		/// <param name="length">Length of the data</param>
 		/// <param name="cancellationToken">Cancellation token for the operation</param>
 		/// <returns>Handle to the data. Must be disposed by the caller.</returns>
-		Task<IReadOnlyMemoryOwner<byte>> ReadAsync(string path, int offset, int? length, CancellationToken cancellationToken = default);
+		Task<IReadOnlyMemoryOwner<byte>> ReadBlobAsync(BlobLocator locator, int offset, int? length, CancellationToken cancellationToken = default);
 
 		/// <summary>
 		/// Writes a stream to the storage backend. If the stream throws an exception during read, the write will be aborted.
@@ -47,48 +46,15 @@ namespace EpicGames.Horde.Storage
 		/// <param name="prefix">Path prefix for the uploaded data</param>
 		/// <param name="cancellationToken">Cancellation token for the operation</param>
 		/// <returns>Path to the uploaded object</returns>
-		Task<string> WriteAsync(Stream stream, string? prefix = null, CancellationToken cancellationToken = default);
-
-		/// <summary>
-		/// Writes a stream to the storage backend. This overload is deprecated; prefer passing a prefix to allow the server to determine a unique path.
-		/// </summary>
-		/// <param name="path"></param>
-		/// <param name="stream">Stream to write</param>
-		/// <param name="cancellationToken">Cancellation token for the operation</param>
-		/// <returns>Path to the uploaded object</returns>
-		[Obsolete("Use WriteAsync() instead. Ability to specify an explicit path is deprecated and will be removed in a future release.")]
-		Task WriteExplicitPathAsync(string path, Stream stream, CancellationToken cancellationToken = default);
-
-		/// <summary>
-		/// Tests whether the given path exists
-		/// </summary>
-		/// <param name="path">Relative path within the bucket</param>
-		/// <param name="cancellationToken">Cancellation token for the operation</param>
-		/// <returns></returns>
-		Task<bool> ExistsAsync(string path, CancellationToken cancellationToken = default);
-
-		/// <summary>
-		/// Deletes a file with the given path
-		/// </summary>
-		/// <param name="path">Relative path within the bucket</param>
-		/// <param name="cancellationToken">Cancellation token for the operation</param>
-		/// <returns>Async task</returns>
-		Task DeleteAsync(string path, CancellationToken cancellationToken = default);
-
-		/// <summary>
-		/// Enumerates all the objects in the store
-		/// </summary>
-		/// <param name="cancellationToken">Cancellation token for the operation</param>
-		/// <returns>Sequence of object paths</returns>
-		IAsyncEnumerable<string> EnumerateAsync(CancellationToken cancellationToken = default);
+		Task<BlobLocator> WriteBlobAsync(Stream stream, string? prefix = null, CancellationToken cancellationToken = default);
 
 		/// <summary>
 		/// Gets a HTTP redirect for a read request
 		/// </summary>
-		/// <param name="path">Path to read from</param>
+		/// <param name="locator">Path to read from</param>
 		/// <param name="cancellationToken">Cancellation token for the operation</param>
 		/// <returns>Path to upload the data to</returns>
-		ValueTask<Uri?> TryGetReadRedirectAsync(string path, CancellationToken cancellationToken = default);
+		ValueTask<Uri?> TryGetBlobReadRedirectAsync(BlobLocator locator, CancellationToken cancellationToken = default);
 
 		/// <summary>
 		/// Gets a HTTP redirect for a write request
@@ -96,7 +62,7 @@ namespace EpicGames.Horde.Storage
 		/// <param name="prefix">Prefix for the uploaded data</param>
 		/// <param name="cancellationToken">Cancellation token for the operation</param>
 		/// <returns>Path for retrieval, and URI to upload the data to</returns>
-		ValueTask<(string, Uri)?> TryGetWriteRedirectAsync(string? prefix = null, CancellationToken cancellationToken = default);
+		ValueTask<(BlobLocator, Uri)?> TryGetBlobWriteRedirectAsync(string? prefix = null, CancellationToken cancellationToken = default);
 
 		/// <summary>
 		/// Gets stats for this storage backend
@@ -124,7 +90,7 @@ namespace EpicGames.Horde.Storage
 		/// </summary>
 		/// <param name="prefix">The prefix to use</param>
 		/// <returns>Unique name generated with the given prefix</returns>
-		public static string CreateUniqueName(string? prefix)
+		public static BlobLocator CreateUniqueLocator(string? prefix)
 		{
 			StringBuilder builder = new StringBuilder(prefix);
 			if (builder.Length > 0 && builder[^1] != '/')
@@ -133,7 +99,7 @@ namespace EpicGames.Horde.Storage
 			}
 			builder.Append(s_sessionPrefix);
 			builder.Append(Interlocked.Increment(ref s_increment));
-			return builder.ToString();
+			return new BlobLocator(builder.ToString());
 		}
 	}
 
@@ -146,30 +112,30 @@ namespace EpicGames.Horde.Storage
 		/// Attempts to open a read stream for the given path.
 		/// </summary>
 		/// <param name="storageBackend">Backend to read from</param>
-		/// <param name="path">Object name within the store</param>
+		/// <param name="locator">Object name within the store</param>
 		/// <param name="cancellationToken">Cancellation token for the operation</param>
 		/// <returns>Stream for the object</returns>
-		public static Task<Stream> OpenAsync(this IStorageBackend storageBackend, string path, CancellationToken cancellationToken = default) => storageBackend.OpenAsync(path, 0, null, cancellationToken);
+		public static Task<Stream> OpenAsync(this IStorageBackend storageBackend, BlobLocator locator, CancellationToken cancellationToken = default) => storageBackend.OpenBlobAsync(locator, 0, null, cancellationToken);
 
 		/// <summary>
 		/// Attempts to open a read stream for the given path.
 		/// </summary>
 		/// <param name="storageBackend">Backend to read from</param>
-		/// <param name="path">Object name within the store</param>
+		/// <param name="locator">Object name within the store</param>
 		/// <param name="cancellationToken">Cancellation token for the operation</param>
 		/// <returns>Stream for the object</returns>
-		public static Task<IReadOnlyMemoryOwner<byte>> ReadAsync(this IStorageBackend storageBackend, string path, CancellationToken cancellationToken = default) => storageBackend.ReadAsync(path, 0, null, cancellationToken);
+		public static Task<IReadOnlyMemoryOwner<byte>> ReadAsync(this IStorageBackend storageBackend, BlobLocator locator, CancellationToken cancellationToken = default) => storageBackend.ReadBlobAsync(locator, 0, null, cancellationToken);
 
 		/// <summary>
 		/// Reads an object as an array of bytes
 		/// </summary>
 		/// <param name="storageBackend">Backend to read from</param>
-		/// <param name="path">Object name within the store</param>
+		/// <param name="locator">Object name within the store</param>
 		/// <param name="cancellationToken">Cancellation token for the operation</param>
 		/// <returns>Contents of the object</returns>
-		public static async Task<byte[]> ReadBytesAsync(this IStorageBackend storageBackend, string path, CancellationToken cancellationToken = default)
+		public static async Task<byte[]> ReadBytesAsync(this IStorageBackend storageBackend, BlobLocator locator, CancellationToken cancellationToken = default)
 		{
-			using IReadOnlyMemoryOwner<byte> storageObject = await storageBackend.ReadAsync(path, cancellationToken);
+			using IReadOnlyMemoryOwner<byte> storageObject = await storageBackend.ReadAsync(locator, cancellationToken);
 			return storageObject.Memory.ToArray();
 		}
 
@@ -180,11 +146,11 @@ namespace EpicGames.Horde.Storage
 		/// <param name="data">Data to be written</param>
 		/// <param name="prefix">Prefix for the uploaded data</param>
 		/// <param name="cancellationToken">Cancellation token for the operation</param>
-		public static async Task<string> WriteBytesAsync(this IStorageBackend storageBackend, ReadOnlyMemory<byte> data, string? prefix = null, CancellationToken cancellationToken = default)
+		public static async Task<BlobLocator> WriteBytesAsync(this IStorageBackend storageBackend, ReadOnlyMemory<byte> data, string? prefix = null, CancellationToken cancellationToken = default)
 		{
 			using (ReadOnlyMemoryStream stream = new ReadOnlyMemoryStream(data))
 			{
-				return await storageBackend.WriteAsync(stream, prefix, cancellationToken);
+				return await storageBackend.WriteBlobAsync(stream, prefix, cancellationToken);
 			}
 		}
 	}

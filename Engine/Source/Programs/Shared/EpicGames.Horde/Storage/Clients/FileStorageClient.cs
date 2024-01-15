@@ -64,15 +64,15 @@ namespace EpicGames.Horde.Storage.Clients
 		/// <inheritdoc/>
 		public override async ValueTask<BlobData> ReadBlobAsync(BlobLocator locator, CancellationToken cancellationToken = default)
 		{
-			IReadOnlyMemoryOwner<byte> owner = await _backend.ReadAsync(locator.ToString(), cancellationToken);
+			IReadOnlyMemoryOwner<byte> owner = await _backend.ReadAsync(locator, cancellationToken);
 			return new BlobDataWithOwner(BlobType.Leaf, owner.Memory, Array.Empty<IBlobHandle>(), owner);
 		}
 
 		/// <inheritdoc/>
 		public override async ValueTask<IBlobHandle> WriteBlobAsync(BlobType type, Stream stream, IReadOnlyList<IBlobHandle> references, string? basePath = null, CancellationToken cancellationToken = default)
 		{
-			string path = await _backend.WriteAsync(stream, basePath, cancellationToken);
-			return CreateBlobHandle(new BlobLocator(path));
+			BlobLocator locator = await _backend.WriteBlobAsync(stream, basePath, cancellationToken);
+			return CreateBlobHandle(locator);
 		}
 
 		/// <inheritdoc/>

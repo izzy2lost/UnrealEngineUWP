@@ -1,7 +1,7 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 using EpicGames.Core;
-using EpicGames.Horde.Storage.Backends;
+using EpicGames.Horde.Storage.ObjectStores;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
 using System;
@@ -21,15 +21,13 @@ namespace EpicGames.Horde.Storage
 	{
 		class Item
 		{
-			public string Key { get; }
-			public string Path { get; }
+			public ObjectKey Key { get; }
 			public long Length { get; }
 			public LinkedListNode<Item> ListNode { get; }
 
-			public Item(string key, string path, long length)
+			public Item(ObjectKey key, long length)
 			{
 				Key = key;
-				Path = path;
 				Length = length;
 				ListNode = new LinkedListNode<Item>(this);
 			}
@@ -80,7 +78,7 @@ namespace EpicGames.Horde.Storage
 			public async Task<IReadOnlyMemoryOwner<byte>> ReadAsync(ObjectKey key, int offset, int? length, CancellationToken cancellationToken = default)
 			{
 #pragma warning disable CA2000 // Dispose objects before losing scope
-				IReadOnlyMemoryOwner<byte> storageObject = await _cacheStorage.ReadAsync($"{_keyPrefix}{key}", ctx => _inner.OpenAsync(key, ctx), cancellationToken);
+				IReadOnlyMemoryOwner<byte> storageObject = await _cacheStorage.ReadAsync(new ObjectKey($"{_keyPrefix}{key}"), ctx => _inner.OpenAsync(key, ctx), cancellationToken);
 #pragma warning restore CA2000 // Dispose objects before losing scope
 				return storageObject.Slice(offset, length);
 			}
@@ -101,6 +99,8 @@ namespace EpicGames.Horde.Storage
 
 		sealed class BackendWrapper : IStorageBackend
 		{
+			public const string BlobExtension = ".blob";
+
 			readonly string _keyPrefix;
 			readonly StorageBackendCache _cacheStorage;
 			readonly IStorageBackend _inner;
@@ -116,31 +116,23 @@ namespace EpicGames.Horde.Storage
 
 			public void Dispose() => _inner.Dispose();
 
-			public async Task<Stream> OpenAsync(string path, int offset, int? length, CancellationToken cancellationToken = default)
+			public async Task<Stream> OpenBlobAsync(BlobLocator locator, int offset, int? length, CancellationToken cancellationToken = default)
 			{
-				IReadOnlyMemoryOwner<byte> storageObject = await ReadAsync(path, offset, length, cancellationToken);
+				IReadOnlyMemoryOwner<byte> storageObject = await ReadBlobAsync(locator, offset, length, cancellationToken);
 				return storageObject.AsStream();
 			}
 
-			public async Task<IReadOnlyMemoryOwner<byte>> ReadAsync(string path, int offset, int? length, CancellationToken cancellationToken = default)
+			public async Task<IReadOnlyMemoryOwner<byte>> ReadBlobAsync(BlobLocator locator, int offset, int? length, CancellationToken cancellationToken = default)
 			{
 #pragma warning disable CA2000 // Dispose objects before losing scope
-				IReadOnlyMemoryOwner<byte> storageObject = await _cacheStorage.ReadAsync($"{_keyPrefix}{path}", ctx => _inner.OpenAsync(path, ctx), cancellationToken);
+				IReadOnlyMemoryOwner<byte> storageObject = await _cacheStorage.ReadAsync(new ObjectKey($"{_keyPrefix}{locator}{BlobExtension}"), ctx => _inner.OpenAsync(locator, ctx), cancellationToken);
 #pragma warning restore CA2000 // Dispose objects before losing scope
 				return storageObject.Slice(offset, length);
 			}
 
-			public Task<string> WriteAsync(Stream stream, string? prefix = null, CancellationToken cancellationToken = default) => _inner.WriteAsync(stream, prefix, cancellationToken);
-
-#pragma warning disable CS0618 // Type or member is obsolete
-			public Task WriteExplicitPathAsync(string path, Stream stream, CancellationToken cancellationToken = default) => _inner.WriteExplicitPathAsync(path, stream, cancellationToken);
-#pragma warning restore CS0618 // Type or member is obsolete
-
-			public Task DeleteAsync(string path, CancellationToken cancellationToken = default) => _inner.DeleteAsync(path, cancellationToken);
-			public IAsyncEnumerable<string> EnumerateAsync(CancellationToken cancellationToken = default) => _inner.EnumerateAsync(cancellationToken);
-			public Task<bool> ExistsAsync(string path, CancellationToken cancellationToken = default) => _inner.ExistsAsync(path, cancellationToken);
-			public ValueTask<Uri?> TryGetReadRedirectAsync(string path, CancellationToken cancellationToken = default) => _inner.TryGetReadRedirectAsync(path, cancellationToken);
-			public ValueTask<(string, Uri)?> TryGetWriteRedirectAsync(string? prefix = null, CancellationToken cancellationToken = default) => _inner.TryGetWriteRedirectAsync(prefix, cancellationToken);
+			public Task<BlobLocator> WriteBlobAsync(Stream stream, string? prefix = null, CancellationToken cancellationToken = default) => _inner.WriteBlobAsync(stream, prefix, cancellationToken);
+			public ValueTask<Uri?> TryGetBlobReadRedirectAsync(BlobLocator locator, CancellationToken cancellationToken = default) => _inner.TryGetBlobReadRedirectAsync(locator, cancellationToken);
+			public ValueTask<(BlobLocator, Uri)?> TryGetBlobWriteRedirectAsync(string? prefix = null, CancellationToken cancellationToken = default) => _inner.TryGetBlobWriteRedirectAsync(prefix, cancellationToken);
 
 			public void GetStats(StorageStats stats)
 			{
@@ -151,13 +143,13 @@ namespace EpicGames.Horde.Storage
 
 		object LockObject => _items;
 
-		readonly FileStorageBackend _backend;
+		readonly FileObjectStore _objectStore;
 		readonly long _maxSize;
 		readonly ILogger _logger;
 
 		readonly LinkedList<Item> _items = new LinkedList<Item>();
-		readonly Dictionary<string, Item> _pathToItem = new Dictionary<string, Item>(StringComparer.Ordinal);
-		readonly Dictionary<string, PendingItem> _pathToPendingItem = new Dictionary<string, PendingItem>(StringComparer.Ordinal);
+		readonly Dictionary<ObjectKey, Item> _keyToItem = new Dictionary<ObjectKey, Item>();
+		readonly Dictionary<ObjectKey, PendingItem> _keyToPendingItem = new Dictionary<ObjectKey, PendingItem>();
 
 		long _size;
 		long _cleanCount;
@@ -166,7 +158,19 @@ namespace EpicGames.Horde.Storage
 		long _writeTimeTicks;
 		long _fetchBytes;
 
-		internal IEnumerable<string> Items => _items.Select(x => x.Key);
+		internal IEnumerable<ObjectKey> Items => _items.Select(x => x.Key);
+
+		internal IEnumerable<BlobLocator> GetLocators()
+		{
+			foreach (Item item in _items)
+			{
+				ObjectKey key = item.Key;
+				if (key.Path.ToString().EndsWith(BackendWrapper.BlobExtension))
+				{
+					yield return new BlobLocator(key.Path.Substring(0, key.Path.Length - BackendWrapper.BlobExtension.Length));
+				}
+			}
+		}
 
 		/// <summary>
 		/// Constructor
@@ -195,7 +199,7 @@ namespace EpicGames.Horde.Storage
 			cacheDir ??= new DirectoryReference(Path.Combine(Path.GetTempPath(), $"horde-{Guid.NewGuid().ToString("n")}"));
 			FileUtils.ForceDeleteDirectoryContents(cacheDir);
 
-			_backend = new FileStorageBackend(cacheDir);
+			_objectStore = new FileObjectStore(cacheDir);
 			_maxSize = maxSize ?? (50 * 1024 * 1024);
 			_logger = logger;
 		}
@@ -205,9 +209,9 @@ namespace EpicGames.Horde.Storage
 		{
 			foreach (Item item in _items)
 			{
-				_backend.Delete(item.Path);
+				_objectStore.Delete(item.Key);
 			}
-			_backend.Dispose();
+			_objectStore.Dispose();
 		}
 
 		/// <summary>
@@ -242,7 +246,7 @@ namespace EpicGames.Horde.Storage
 		}
 
 		/// <inheritdoc/>
-		public async Task<IReadOnlyMemoryOwner<byte>> ReadAsync(string key, Func<CancellationToken, Task<Stream>> createStreamAsync, CancellationToken cancellationToken = default)
+		public async Task<IReadOnlyMemoryOwner<byte>> ReadAsync(ObjectKey key, Func<CancellationToken, Task<Stream>> createStreamAsync, CancellationToken cancellationToken = default)
 		{
 			for (; ; )
 			{
@@ -250,17 +254,17 @@ namespace EpicGames.Horde.Storage
 				lock (LockObject)
 				{
 					Item? item;
-					if (_pathToItem.TryGetValue(key, out item))
+					if (_keyToItem.TryGetValue(key, out item))
 					{
 						_items.Remove(item.ListNode);
 						_items.AddFirst(item.ListNode);
-						return _backend.Read(item.Path, 0, null);
+						return _objectStore.Read(item.Key, 0, null);
 					}
 
-					if (!_pathToPendingItem.TryGetValue(key, out pendingItem))
+					if (!_keyToPendingItem.TryGetValue(key, out pendingItem))
 					{
 						pendingItem = new PendingItem(BackgroundTask.StartNew(x => ReadIntoCacheAsync(key, createStreamAsync, x)));
-						_pathToPendingItem.Add(key, pendingItem);
+						_keyToPendingItem.Add(key, pendingItem);
 					}
 
 					pendingItem.AddRef();
@@ -277,7 +281,7 @@ namespace EpicGames.Horde.Storage
 			}
 		}
 
-		async Task ReadIntoCacheAsync(string key, Func<CancellationToken, Task<Stream>> createStreamAsync, CancellationToken cancellationToken)
+		async Task ReadIntoCacheAsync(ObjectKey key, Func<CancellationToken, Task<Stream>> createStreamAsync, CancellationToken cancellationToken)
 		{
 			long openStartTicks = Stopwatch.GetTimestamp();
 			using Stream stream = await createStreamAsync(cancellationToken);
@@ -299,9 +303,9 @@ namespace EpicGames.Horde.Storage
 					Item item = node.Value;
 					try
 					{
-						_backend.Delete(item.Path);
+						_objectStore.Delete(item.Key);
 
-						_pathToItem.Remove(item.Key);
+						_keyToItem.Remove(item.Key);
 						_items.Remove(node);
 
 						_size -= item.Length;
@@ -309,7 +313,7 @@ namespace EpicGames.Horde.Storage
 					}
 					catch (Exception ex)
 					{
-						_logger.LogDebug(ex, "Unable to delete cache item {Path}: {Message}", item.Path, ex.Message);
+						_logger.LogDebug(ex, "Unable to delete cache item {Path}: {Message}", item.Key, ex.Message);
 					}
 				}
 			}
@@ -317,14 +321,14 @@ namespace EpicGames.Horde.Storage
 			Interlocked.Add(ref _cleanTimeTicks, cleanFinishTicks - cleanStartTicks);
 
 			long writeStartTicks = cleanFinishTicks;
-			string path = await _backend.WriteAsync(stream, cancellationToken: cancellationToken);
+			await _objectStore.WriteAsync(key, stream, cancellationToken: cancellationToken);
 			lock (LockObject)
 			{
-				Item item = new Item(key, path, totalLength);
+				Item item = new Item(key, totalLength);
 				_items.AddFirst(item.ListNode);
-				_pathToItem.Add(key, item);
+				_keyToItem.Add(key, item);
 
-				_pathToPendingItem.Remove(key);
+				_keyToPendingItem.Remove(key);
 			}
 			Interlocked.Add(ref _fetchBytes, totalLength);
 			long writeFinishTicks = Stopwatch.GetTimestamp();

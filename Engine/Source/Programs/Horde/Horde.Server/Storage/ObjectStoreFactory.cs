@@ -21,88 +21,88 @@ namespace Horde.Server.Storage
 	/// </summary>
 	class ObjectStoreFactory : IObjectStoreFactory
 	{
-		class RefCountedBackend : IDisposable
+		class RefCountedObjectStore : IDisposable
 		{
 			public BackendId Id { get; }
 			public IoHash Hash { get; }
-			public IObjectStore Backend { get; }
+			public IObjectStore Inner { get; }
 
 			public int _refCount = 1;
 
-			public RefCountedBackend(BackendId id, IoHash hash, IObjectStore backend)
+			public RefCountedObjectStore(BackendId id, IoHash hash, IObjectStore inner)
 			{
 				Id = id;
 				Hash = hash;
-				Backend = backend;
+				Inner = inner;
 			}
 
 			public void Dispose()
 			{
-				Backend.Dispose();
+				Inner.Dispose();
 			}
 		}
 
-		class BackendWrapper : IObjectStore
+		class ObjectStoreWrapper : IObjectStore
 		{
 			readonly ObjectStoreFactory _owner;
-			RefCountedBackend _refCountedBackend;
-			IObjectStore _backend;
+			RefCountedObjectStore _refCountedObjectStore;
+			IObjectStore _inner;
 
-			public BackendWrapper(ObjectStoreFactory owner, RefCountedBackend refCountedBackend)
+			public ObjectStoreWrapper(ObjectStoreFactory owner, RefCountedObjectStore refCountedObjectStore)
 			{
 				_owner = owner;
-				_refCountedBackend = refCountedBackend;
-				_backend = _refCountedBackend.Backend;
+				_refCountedObjectStore = refCountedObjectStore;
+				_inner = _refCountedObjectStore.Inner;
 			}
 
 			public void Dispose()
 			{
-				if (_refCountedBackend != null)
+				if (_refCountedObjectStore != null)
 				{
-					_owner.ReleaseBackend(_refCountedBackend);
-					_refCountedBackend = null!;
+					_owner.ReleaseBackend(_refCountedObjectStore);
+					_refCountedObjectStore = null!;
 
-					_backend = null!;
+					_inner = null!;
 				}
 			}
 
 			#region IObjectStore Implementation
 
 			/// <inheritdoc/>
-			public bool SupportsRedirects => _backend.SupportsRedirects;
+			public bool SupportsRedirects => _inner.SupportsRedirects;
 
 			/// <inheritdoc/>
-			public Task<bool> ExistsAsync(ObjectKey key, CancellationToken cancellationToken = default) => _backend.ExistsAsync(key, cancellationToken);
+			public Task<bool> ExistsAsync(ObjectKey key, CancellationToken cancellationToken = default) => _inner.ExistsAsync(key, cancellationToken);
 
 			/// <inheritdoc/>
-			public Task DeleteAsync(ObjectKey key, CancellationToken cancellationToken = default) => _backend.DeleteAsync(key, cancellationToken);
+			public Task DeleteAsync(ObjectKey key, CancellationToken cancellationToken = default) => _inner.DeleteAsync(key, cancellationToken);
 
 			/// <inheritdoc/>
-			public IAsyncEnumerable<ObjectKey> EnumerateAsync(CancellationToken cancellationToken = default) => _backend.EnumerateAsync(cancellationToken);
+			public IAsyncEnumerable<ObjectKey> EnumerateAsync(CancellationToken cancellationToken = default) => _inner.EnumerateAsync(cancellationToken);
 
 			/// <inheritdoc/>
 			public Task<Stream> OpenAsync(ObjectKey key, int offset, int? length, CancellationToken cancellationToken = default)
 			{
-				return _backend?.OpenAsync(key, offset, length, cancellationToken) ?? throw new InvalidOperationException("Backend has already been disposed");
+				return _inner?.OpenAsync(key, offset, length, cancellationToken) ?? throw new InvalidOperationException("Backend has already been disposed");
 			}
 
 			/// <inheritdoc/>
 			public Task<IReadOnlyMemoryOwner<byte>> ReadAsync(ObjectKey key, int offset, int? length, CancellationToken cancellationToken = default)
 			{
-				return _backend?.ReadAsync(key, offset, length, cancellationToken) ?? throw new InvalidOperationException("Backend has already been disposed");
+				return _inner?.ReadAsync(key, offset, length, cancellationToken) ?? throw new InvalidOperationException("Backend has already been disposed");
 			}
 
 			/// <inheritdoc/>
-			public Task WriteAsync(ObjectKey key, Stream stream, CancellationToken cancellationToken = default) => _backend.WriteAsync(key, stream, cancellationToken);
+			public Task WriteAsync(ObjectKey key, Stream stream, CancellationToken cancellationToken = default) => _inner.WriteAsync(key, stream, cancellationToken);
 
 			/// <inheritdoc/>
-			public ValueTask<Uri?> TryGetReadRedirectAsync(ObjectKey key, CancellationToken cancellationToken = default) => _backend.TryGetReadRedirectAsync(key, cancellationToken);
+			public ValueTask<Uri?> TryGetReadRedirectAsync(ObjectKey key, CancellationToken cancellationToken = default) => _inner.TryGetReadRedirectAsync(key, cancellationToken);
 
 			/// <inheritdoc/>
-			public ValueTask<Uri?> TryGetWriteRedirectAsync(ObjectKey key, CancellationToken cancellationToken = default) => _backend.TryGetWriteRedirectAsync(key, cancellationToken);
+			public ValueTask<Uri?> TryGetWriteRedirectAsync(ObjectKey key, CancellationToken cancellationToken = default) => _inner.TryGetWriteRedirectAsync(key, cancellationToken);
 
 			/// <inheritdoc/>
-			public void GetStats(StorageStats stats) => _backend.GetStats(stats);
+			public void GetStats(StorageStats stats) => _inner.GetStats(stats);
 
 			#endregion
 		}
@@ -110,7 +110,7 @@ namespace Horde.Server.Storage
 		readonly IServiceProvider _serviceProvider;
 		readonly StorageBackendCache _storageBackendCache;
 		readonly object _lockObject = new object();
-		readonly Dictionary<IoHash, RefCountedBackend> _backends = new Dictionary<IoHash, RefCountedBackend>();
+		readonly Dictionary<IoHash, RefCountedObjectStore> _objectStores = new Dictionary<IoHash, RefCountedObjectStore>();
 		readonly ILogger _logger;
 
 		/// <summary>
@@ -139,10 +139,10 @@ namespace Horde.Server.Storage
 			}
 
 			// See if we've got an existing backend we can use
-			RefCountedBackend? refCountedBackend;
+			RefCountedObjectStore? refCountedBackend;
 			lock (_lockObject)
 			{
-				if (_backends.TryGetValue(hash, out refCountedBackend))
+				if (_objectStores.TryGetValue(hash, out refCountedBackend))
 				{
 					refCountedBackend._refCount++;
 					_logger.LogDebug("Adding reference to storage backend {Id}@{Hash}", refCountedBackend.Id, hash);
@@ -150,16 +150,16 @@ namespace Horde.Server.Storage
 				else
 				{
 					IObjectStore newBackend = CreateStorageBackend(config);
-					refCountedBackend = new RefCountedBackend(config.Id, hash, newBackend);
-					_backends.Add(hash, refCountedBackend);
+					refCountedBackend = new RefCountedObjectStore(config.Id, hash, newBackend);
+					_objectStores.Add(hash, refCountedBackend);
 					_logger.LogInformation("Created storage backend {Id}@{Hash}", refCountedBackend.Id, hash);
 				}
 			}
 
-			return new BackendWrapper(this, refCountedBackend);
+			return new ObjectStoreWrapper(this, refCountedBackend);
 		}
 
-		void ReleaseBackend(RefCountedBackend backend)
+		void ReleaseBackend(RefCountedObjectStore backend)
 		{
 			lock (_lockObject)
 			{
@@ -167,7 +167,7 @@ namespace Horde.Server.Storage
 
 				if (--backend._refCount == 0)
 				{
-					_backends.Remove(backend.Hash);
+					_objectStores.Remove(backend.Hash);
 					backend.Dispose();
 					_logger.LogInformation("Disposed storage backend {Id}@{Hash}", backend.Id, backend.Hash);
 				}
