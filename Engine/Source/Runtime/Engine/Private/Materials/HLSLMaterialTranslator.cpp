@@ -5768,14 +5768,23 @@ int32 FHLSLMaterialTranslator::ParticlePosition(EPositionOrigin OriginType)
 		return NonVertexOrPixelShaderExpressionError();
 	}
 	bNeedsParticlePosition = true;
+
+	const TCHAR* TranslatedWP = TEXT("Parameters.Particle.TranslatedWorldPositionAndSize.xyz");
+	const TCHAR* AbsoluteWP = TEXT("LWCSubtract(Parameters.Particle.TranslatedWorldPositionAndSize.xyz, ResolvedView.PreViewTranslation)");
+	if ( bCompilingPreviousFrame && ShaderFrequency == SF_Vertex )
+	{
+		TranslatedWP = TEXT("Parameters.Particle.PrevTranslatedWorldPositionAndSize.xyz");
+		AbsoluteWP = TEXT("LWCSubtract(Parameters.Particle.PrevTranslatedWorldPositionAndSize.xyz, ResolvedView.PrevPreViewTranslation)");
+	}
+
 	if (OriginType == EPositionOrigin::CameraRelative)
 	{
-		return AddInlinedCodeChunkZeroDeriv(MCT_Float3, TEXT("Parameters.Particle.TranslatedWorldPositionAndSize.xyz"));
+		return AddInlinedCodeChunkZeroDeriv(MCT_Float3, TranslatedWP);
 	}
 	else
 	{
 		AddLWCFuncUsage(ELWCFunctionKind::Subtract);
-		const int32 Result = AddInlinedCodeChunkZeroDeriv(MCT_LWCVector3,TEXT("LWCSubtract(Parameters.Particle.TranslatedWorldPositionAndSize.xyz, ResolvedView.PreViewTranslation)"));
+		const int32 Result = AddInlinedCodeChunkZeroDeriv(MCT_LWCVector3, AbsoluteWP);
 		return CastToNonLWCIfDisabled(Result);
 	}
 }

@@ -201,6 +201,8 @@ struct FMaterialParticleParameters
 	half4 Color;
 	/** Particle translated world space position and size(radius). */
 	float4 TranslatedWorldPositionAndSize;
+	/** Previous Particle translated world space position and size */
+	float4 PrevTranslatedWorldPositionAndSize;
 	/** Macro UV scale and bias. */
 	half4 MacroUV;
 

@@ -310,6 +310,7 @@ FMaterialPixelParameters GetMaterialPixelParameters(FVertexFactoryInterpolantsVS
 #if USE_PARTICLE_POSITION
 	Result.Particle.TranslatedWorldPositionAndSize.xyz = Interpolants.ParticleTranslatedWorldPosition;
 	Result.Particle.TranslatedWorldPositionAndSize.w = 1;
+	Result.Particle.PrevTranslatedWorldPositionAndSize = Result.Particle.TranslatedWorldPositionAndSize;
 #endif
 
 #if USE_PARTICLE_VELOCITY
@@ -376,6 +377,8 @@ FMaterialVertexParameters GetMaterialVertexParameters(FVertexFactoryInput Input,
 #if NEEDS_PARTICLE_POSITION
 	Result.Particle.TranslatedWorldPositionAndSize.xyz = Intermediates.ParticleTranslatedWorldPosition;
 	Result.Particle.TranslatedWorldPositionAndSize.w = 1;
+	Result.Particle.PrevTranslatedWorldPositionAndSize.xyz = LWCToFloat(LWCAdd(LWCGetOrigin(Intermediates.PrevParticleToWorld), ResolvedView.PrevPreViewTranslation));
+	Result.Particle.PrevTranslatedWorldPositionAndSize.w = 1;
 #endif
 
 #if NEEDS_PARTICLE_VELOCITY
