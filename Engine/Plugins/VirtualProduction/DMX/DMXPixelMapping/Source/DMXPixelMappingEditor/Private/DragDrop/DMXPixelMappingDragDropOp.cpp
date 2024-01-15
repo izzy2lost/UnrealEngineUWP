@@ -116,21 +116,15 @@ FVector2D FDMXPixelMappingDragDropOp::ComputeGridSnapPosition(const FVector2D& D
 
 	// Grid snap to pixels even when grid snapping is disabled, if the first component is axis aligned
 	const bool bIsAxisAligned = FMath::IsNearlyZero(FMath::Abs(FMath::Fmod(FirstComponent->GetRotation(), 90.f)));
-	if (!PixelMapping->bGridSnappingEnabled && !bIsAxisAligned)
+	if (!PixelMapping->bGridSnappingEnabled)
 	{
 		return DesiredPosition;
 	}
 
 	const FVector2D CellSize = [PixelMapping, RendererOfFirstComponent]()
 		{
-			if (PixelMapping->bGridSnappingEnabled)
-			{
-				const FVector2D TextureSize = RendererOfFirstComponent->GetSize();
-				return TextureSize / FVector2D(PixelMapping->SnapGridColumns, PixelMapping->SnapGridRows);
-			}
-			
-			// Grid snap to pixels if grid snapping is disabled
-			return FVector2D(1.f, 1.f);
+			const FVector2D TextureSize = RendererOfFirstComponent->GetSize();
+			return TextureSize / FVector2D(PixelMapping->SnapGridColumns, PixelMapping->SnapGridRows);
 		}();
 
 	const int32 Column = FMath::RoundHalfToZero(DesiredPosition.X / CellSize.X);

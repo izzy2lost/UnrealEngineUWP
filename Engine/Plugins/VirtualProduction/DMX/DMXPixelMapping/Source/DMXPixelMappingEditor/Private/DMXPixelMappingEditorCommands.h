@@ -19,8 +19,8 @@ public:
 	TSharedPtr<FUICommandInfo> StopPlayingDMX;
 
 	// Designer related
-	TSharedPtr<FUICommandInfo> ResizeMode;
-	TSharedPtr<FUICommandInfo> RotateMode;
+	TSharedPtr<FUICommandInfo> EnableResizeMode;
+	TSharedPtr<FUICommandInfo> EnableRotateMode;
 
 	TSharedPtr<FUICommandInfo> ToggleGridSnapping;
 
@@ -33,4 +33,5 @@ public:
 	TSharedPtr<FUICommandInfo> ToggleShowComponentNames;
 	TSharedPtr<FUICommandInfo> ToggleShowPatchInfo;
 	TSharedPtr<FUICommandInfo> ToggleShowCellIDs;
+	TSharedPtr<FUICommandInfo> ToggleShowPivot;
 };

@@ -2,6 +2,7 @@
 
 #pragma once
 
+#include "Math/TransformCalculus2D.h"
 #include "Widgets/SCompoundWidget.h"
 
 class FDMXPixelMappingToolkit;
@@ -16,10 +17,7 @@ class SDMXPixelMappingOutputComponentText
 
 public:
 	SLATE_BEGIN_ARGS(SDMXPixelMappingOutputComponentText)
-		: _FontSize(8)
 		{}
-		
-		SLATE_ARGUMENT(int32, FontSize)
 
 	SLATE_END_ARGS()
 
@@ -38,9 +36,6 @@ protected:
 	//~ End SWidget Interface
 
 private:
-	/** Returns the render transform for this widget */
-	TOptional<FSlateRenderTransform> GetRenderTransform() const;
-
 	/** Helper to paint the component name */
 	void OnPaintComponentName(const FPaintArgs& Args, const FGeometry& AllottedGeometry, FSlateWindowElementList& OutDrawElements, int32 LayerId, const FVector2f& Scale) const;
 
@@ -50,6 +45,6 @@ private:
 	/** Helper to paint the patch info */
 	void OnPaintPatchInfo(const FPaintArgs& Args, const FGeometry& AllottedGeometry, FSlateWindowElementList& OutDrawElements, int32 LayerId, const FVector2f& Scale) const;
 
-	// Slate args
-	int32 FontSize;
+	/** Returns the current font size */
+	uint8 GetFontSize() const;
 };

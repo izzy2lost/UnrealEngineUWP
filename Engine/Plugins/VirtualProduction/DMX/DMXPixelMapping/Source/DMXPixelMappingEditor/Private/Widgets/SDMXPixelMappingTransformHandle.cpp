@@ -250,21 +250,15 @@ FVector2D SDMXPixelMappingTransformHandle::GetSnapSize(UDMXPixelMappingOutputCom
 	UDMXPixelMappingRendererComponent* RendererComponent = OutputComponent->GetRendererComponent();
 
 	const UDMXPixelMapping* PixelMapping = Toolkit->GetDMXPixelMapping();
-	if (!PixelMapping)
+	if (!PixelMapping || !PixelMapping->bGridSnappingEnabled)
 	{
 		return RequestedSize;
 	}
 
 	const FVector2D CellSize = [PixelMapping, RendererComponent]()
 		{
-			if (PixelMapping->bGridSnappingEnabled)
-			{
-				const FVector2D TextureSize = RendererComponent->GetSize();
-				return TextureSize / FVector2D(PixelMapping->SnapGridColumns, PixelMapping->SnapGridRows);
-			}
-
-			// Grid snap to pixels if grid snapping is disabled
-			return FVector2D(1.f, 1.f);
+			const FVector2D TextureSize = RendererComponent->GetSize();
+			return TextureSize / FVector2D(PixelMapping->SnapGridColumns, PixelMapping->SnapGridRows);
 		}();
 
 	// Grid snap bottom right

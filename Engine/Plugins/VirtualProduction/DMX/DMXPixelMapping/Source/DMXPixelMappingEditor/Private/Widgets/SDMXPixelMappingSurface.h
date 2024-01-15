@@ -101,10 +101,10 @@ protected:
 	int32 ZoomLevel;
 
 	/** Are we panning the view at the moment? */
-	bool bIsPanning;
+	bool bIsPanning = false;
 
 	/** Are we zooming the view with trackpad at the moment? */
-	bool bIsZooming;
+	bool bIsZooming = false;
 
 	/** Allow continuous zoom interpolation? */
 	TAttribute<bool> AllowContinousZoomInterpolation;

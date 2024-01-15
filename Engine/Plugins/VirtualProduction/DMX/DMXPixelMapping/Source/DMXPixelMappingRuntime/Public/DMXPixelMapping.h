@@ -145,20 +145,24 @@ public:
 
 #if WITH_EDITORONLY_DATA
 	/** If true, grid snapping is enabled */
-	UPROPERTY()
+	UPROPERTY(NonTransactional)
 	bool bGridSnappingEnabled = false;
 
 	/** The number of columns in the grid */
-	UPROPERTY()
+	UPROPERTY(NonTransactional)
 	int32 SnapGridColumns = 10;
 
 	/** The number of rows in the grid */
-	UPROPERTY()
+	UPROPERTY(NonTransactional)
 	int32 SnapGridRows = 10;
 
 	/** The color of the grid snapping grid */
-	UPROPERTY()
+	UPROPERTY(NonTransactional)
 	FLinearColor SnapGridColor;
+
+	/** Font size for the component labels in the designer view */
+	UPROPERTY(NonTransactional)
+	float ComponentLabelFontSize = 8.f;
 
 	/** If true, editor is set to scale children with parent. This is forwarded from the editor module (DMXPixelMappingEditorSettings) to be accessible in the runtime module. */
 	UPROPERTY(Transient, NonTransactional)

@@ -8,6 +8,7 @@
 
 enum class ECheckBoxState : uint8;
 class FDMXPixelMappingToolkit;
+class FReply;
 namespace UE::DMX { enum class EDMXPixelMappingTransformHandleMode : uint8; }
 
 
@@ -25,14 +26,14 @@ namespace UE::DMX
 
 		SLATE_END_ARGS()
 
-		~SDMXPixelMappingDesignerToolbar();
-
 		/** Constructs this widget */
 		void Construct(const FArguments& InArgs, const TSharedRef<FDMXPixelMappingToolkit>& InToolkit);
 
 	private:
-		/** Builds the toolbar for this widget */
-		void RegisterToolbarMenu(const FArguments& InArgs);
+		TSharedRef<SWidget> GenerateTransformHandleModeSection();
+		TSharedRef<SWidget> GenerateGridSnappingSection();
+		TSharedRef<SWidget> GenerateZoomToFitSection(const FArguments& InArgs);
+		TSharedRef<SWidget> GenerateSettingsSection();
 
 		/** Generates the grid snapping menu */
 		TSharedRef<SWidget> GenerateSnapGridMenu();
@@ -51,6 +52,18 @@ namespace UE::DMX
 
 		/** Returns the current checkbox state of the transform mode */
 		ECheckBoxState GetCheckboxStateForTransormHandleMode(UE::DMX::EDMXPixelMappingTransformHandleMode TransformHandleMode) const;
+
+		/** Generates the contents of the settings menu */
+		TSharedRef<SWidget> GenerateSettingsMenuContent();
+
+		/** Generates a widget to edit the font size */
+		TSharedRef<SWidget> GenerateComponentFontSizeEditWidget();
+
+		/** Gets the font size for component labels in the designer view */
+		TOptional<uint8> GetComponentFontSize() const;
+		
+		/** Sets the font size for component labels in the designer view */
+		void SetComponentFontSize(uint8 FontSize);
 
 		/** The toolkit that owns this widget */
 		TWeakPtr<FDMXPixelMappingToolkit> WeakToolkit;

@@ -58,8 +58,11 @@ namespace UE::DMX
 		/** Returns true if the cell ID should be shown */
 		bool ShouldDrawCellID() const;
 
-		/** Returns true if the patch inifo should be shown */
+		/** Returns true if the patch info should be shown */
 		bool ShouldDrawPatchInfo() const;
+
+		/** Returns true if the pivot should be shown */
+		bool ShouldDrawPivot() const;
 
 		/** Returns the addresses of the patch as text */
 		FText GetAddressesText() const;

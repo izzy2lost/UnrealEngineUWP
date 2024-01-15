@@ -4,6 +4,7 @@
 
 #include "Algo/Find.h"
 #include "DMXPixelMapping.h"
+#include "DMXPixelMappingEditorCommands.h"
 #include "DMXPixelMappingEditorStyle.h"
 #include "DragDrop/DMXPixelMappingGroupChildDragDropHelper.h"
 #include "Framework/Application/SlateApplication.h"
@@ -432,30 +433,36 @@ FReply SDMXPixelMappingDesignerView::OnMouseButtonDown(const FGeometry& MyGeomet
 
 FReply SDMXPixelMappingDesignerView::OnMouseButtonUp(const FGeometry& MyGeometry, const FPointerEvent& MouseEvent)
 {
-	SDMXPixelMappingSurface::OnMouseButtonUp(MyGeometry, MouseEvent);
-
-	// Select the output component under the mouse
-	PendingSelectedComponent = GetComponentUnderCursor();
-
-	// Select the Renderer if no Output Component was under the mouse
-	if (!PendingSelectedComponent.IsValid())
+	if (MouseEvent.GetEffectingButton() == EKeys::LeftMouseButton)
 	{
-		if (TSharedPtr<FDMXPixelMappingToolkit> ToolkitPtr = WeakToolkit.Pin())
+		// Select the output component under the mouse
+		PendingSelectedComponent = GetComponentUnderCursor();
+
+		// Select the Renderer if no Output Component was under the mouse
+		if (!PendingSelectedComponent.IsValid())
 		{
-			if (UDMXPixelMappingRendererComponent* RendererComponent = ToolkitPtr->GetActiveRendererComponent())
+			if (TSharedPtr<FDMXPixelMappingToolkit> ToolkitPtr = WeakToolkit.Pin())
 			{
-				PendingSelectedComponent = RendererComponent;
+				if (UDMXPixelMappingRendererComponent* RendererComponent = ToolkitPtr->GetActiveRendererComponent())
+				{
+					PendingSelectedComponent = RendererComponent;
+				}
 			}
 		}
+
+		const bool bClearPreviousSelection = !MouseEvent.IsShiftDown() && !MouseEvent.IsControlDown();
+		ResolvePendingSelectedComponents(bClearPreviousSelection);
 	}
+	else if (MouseEvent.GetEffectingButton() == EKeys::RightMouseButton &&
+		!bIsPanning &&
+		!bIsZooming)
+	{
+		OpenContextMenu();
+	}
+	
+	SDMXPixelMappingSurface::OnMouseButtonUp(MyGeometry, MouseEvent);
 
-	const bool bClearPreviousSelection = !MouseEvent.IsShiftDown() && !MouseEvent.IsControlDown();
-	ResolvePendingSelectedComponents(bClearPreviousSelection);
-
-	return FReply::Handled()
-		.EndDragDrop()
-		.ReleaseMouseCapture()
-		.SetUserFocus(AsShared());
+	return FReply::Handled().ReleaseMouseCapture();
 }
 
 FReply SDMXPixelMappingDesignerView::OnKeyDown(const FGeometry& MyGeometry, const FKeyEvent& InKeyEvent)
@@ -742,6 +749,66 @@ void SDMXPixelMappingDesignerView::ClearExtensionWidgets()
 	ExtensionWidgetCanvas->ClearChildren();
 }
 
+void SDMXPixelMappingDesignerView::OpenContextMenu()
+{
+	const TSharedPtr<FDMXPixelMappingToolkit> Toolkit = WeakToolkit.Pin();
+	if (!Toolkit.IsValid())
+	{
+		return;
+	}
+
+	constexpr bool bShouldCloseMenuAfterSelection = true;
+	FMenuBuilder MenuBuilder(bShouldCloseMenuAfterSelection, Toolkit->GetToolkitCommands());
+
+	MenuBuilder.BeginSection("EditorSettings", LOCTEXT("EditorSettingsSection", "Editor Settings"));
+	{
+		MenuBuilder.AddMenuEntry(FDMXPixelMappingEditorCommands::Get().ToggleAlwaysSelectGroup);
+		MenuBuilder.AddMenuEntry(FDMXPixelMappingEditorCommands::Get().ToggleScaleChildrenWithParent);
+	}
+	MenuBuilder.EndSection();
+
+	MenuBuilder.BeginSection("TransformModes", LOCTEXT("TransformModesSection", "Transform Modes"));
+	{		
+		MenuBuilder.AddMenuEntry(FDMXPixelMappingEditorCommands::Get().EnableResizeMode);
+		MenuBuilder.AddMenuEntry(FDMXPixelMappingEditorCommands::Get().EnableRotateMode);
+	}
+	MenuBuilder.EndSection();
+
+	MenuBuilder.BeginSection("DisplaySettings", LOCTEXT("SettingsSection", "Display Settings"));
+	{
+		MenuBuilder.AddMenuEntry(FDMXPixelMappingEditorCommands::Get().ToggleShowComponentNames);
+		MenuBuilder.AddMenuEntry(FDMXPixelMappingEditorCommands::Get().ToggleShowPatchInfo);
+		MenuBuilder.AddMenuEntry(FDMXPixelMappingEditorCommands::Get().ToggleShowMatrixCells);
+		MenuBuilder.AddMenuEntry(FDMXPixelMappingEditorCommands::Get().ToggleShowCellIDs);
+		MenuBuilder.AddMenuEntry(FDMXPixelMappingEditorCommands::Get().ToggleShowPivot);
+	}
+	MenuBuilder.EndSection();
+
+	if (Toolkit->CanSizeSelectedComponentToTexture())
+	{
+		MenuBuilder.BeginSection("AdvancedActions", LOCTEXT("ActionsSection", "Advanced Actions"));
+		{
+			MenuBuilder.AddMenuEntry(FDMXPixelMappingEditorCommands::Get().SizeComponentToTexture);
+		}
+		MenuBuilder.EndSection();
+	}
+
+	const TSharedRef<SWidget> MenuContent = 
+		SNew(SBorder)
+		.BorderImage(FAppStyle::GetBrush("Menu.Background"))
+		[
+			MenuBuilder.MakeWidget()
+		];
+
+	FSlateApplication::Get().PushMenu(
+		AsShared(),
+		FWidgetPath(),
+		MenuContent,
+		FSlateApplication::Get().GetCursorPos(),
+		FPopupTransitionEffect(FPopupTransitionEffect::ContextMenu)
+	);
+}
+
 EVisibility SDMXPixelMappingDesignerView::GetExtensionCanvasVisibility() const
 {
 	for (const FDMXPixelMappingComponentReference& Component : GetSelectedComponents())
@@ -786,18 +853,18 @@ FVector2D SDMXPixelMappingDesignerView::GetExtensionPosition(TSharedPtr<SDMXPixe
 			}();
 
 
-			FVector2D SelectedWidgetScale = FVector2D(SelectedComponentGeometry.GetAccumulatedRenderTransform().GetMatrix().GetScale().GetVector());
+			const FVector2D SelectedWidgetScale = FVector2D(SelectedComponentGeometry.GetAccumulatedRenderTransform().GetMatrix().GetScale().GetVector());
 
-			FVector2D ApplicationScaledOffset = Handle->GetOffset() * GetDesignerGeometry().Scale;
+			const FVector2D ApplicationScaledOffset = Handle->GetOffset() * GetDesignerGeometry().Scale;
 
-			FVector2D LocalOffsetFull = ApplicationScaledOffset / SelectedWidgetScale;
-			FVector2D PositionFullOffset = GetDesignerGeometry().AbsoluteToLocal(SelectedComponentGeometry.LocalToAbsolute(LocalPosition + LocalOffsetFull));
-			FVector2D LocalOffsetHalf = (ApplicationScaledOffset / 2.0f) / SelectedWidgetScale;
-			FVector2D PositionHalfOffset = GetDesignerGeometry().AbsoluteToLocal(SelectedComponentGeometry.LocalToAbsolute(LocalPosition + LocalOffsetHalf));
+			const FVector2D LocalOffsetFull = ApplicationScaledOffset / SelectedWidgetScale;
+			const FVector2D PositionFullOffset = GetDesignerGeometry().AbsoluteToLocal(SelectedComponentGeometry.LocalToAbsolute(LocalPosition + LocalOffsetFull));
+			const FVector2D LocalOffsetHalf = (ApplicationScaledOffset / 2.0f) / SelectedWidgetScale;
+			const FVector2D PositionHalfOffset = GetDesignerGeometry().AbsoluteToLocal(SelectedComponentGeometry.LocalToAbsolute(LocalPosition + LocalOffsetHalf));
 
-			FVector2D PivotCorrection = PositionHalfOffset - (PositionFullOffset + FVector2D(5.0f, 5.0f));
+			const FVector2D PivotCorrection = PositionHalfOffset - (PositionFullOffset + FVector2D(5.0f, 5.0f));
 
-			FVector2D FinalPosition = PositionFullOffset + PivotCorrection;
+			const FVector2D FinalPosition = PositionFullOffset + PivotCorrection;
 
 			return FVector2D(FinalPosition);
 		}

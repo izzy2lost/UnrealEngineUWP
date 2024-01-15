@@ -525,10 +525,7 @@ bool FDMXPixelMappingToolkit::CanSizeSelectedComponentToTexture() const
 			return
 				Component->GetClass() == UDMXPixelMappingFixtureGroupComponent::StaticClass() ||
 				Component->GetClass() == UDMXPixelMappingMatrixComponent::StaticClass() ||
-				Component->GetClass() == UDMXPixelMappingScreenComponent::StaticClass() ||
-				(Component->GetParent() && Component->GetParent()->GetClass() == UDMXPixelMappingFixtureGroupComponent::StaticClass()) ||
-				(Component->GetParent() && Component->GetParent()->GetClass() == UDMXPixelMappingMatrixComponent::StaticClass()) ||
-				(Component->GetParent() && Component->GetParent()->GetClass() == UDMXPixelMappingScreenComponent::StaticClass());
+				Component->GetClass() == UDMXPixelMappingScreenComponent::StaticClass();
 		}
 	}
 	return false;
@@ -878,14 +875,14 @@ void FDMXPixelMappingToolkit::SetupCommands()
 	);
 
 	GetToolkitCommands()->MapAction(
-		FDMXPixelMappingEditorCommands::Get().ResizeMode,
+		FDMXPixelMappingEditorCommands::Get().EnableResizeMode,
 		FExecuteAction::CreateSP(this, &FDMXPixelMappingToolkit::SetTransformHandleMode, EDMXPixelMappingTransformHandleMode::Resize),
 		FCanExecuteAction(),
 		FGetActionCheckState::CreateSP(this, &FDMXPixelMappingToolkit::GetTransformHandleModeCheckboxState, EDMXPixelMappingTransformHandleMode::Resize)
 	);
 
 	GetToolkitCommands()->MapAction(
-		FDMXPixelMappingEditorCommands::Get().RotateMode,
+		FDMXPixelMappingEditorCommands::Get().EnableRotateMode,
 		FExecuteAction::CreateSP(this, &FDMXPixelMappingToolkit::SetTransformHandleMode, EDMXPixelMappingTransformHandleMode::Rotate),
 		FCanExecuteAction(),
 		FGetActionCheckState::CreateSP(this, &FDMXPixelMappingToolkit::GetTransformHandleModeCheckboxState, EDMXPixelMappingTransformHandleMode::Rotate)
@@ -897,10 +894,10 @@ void FDMXPixelMappingToolkit::SetupCommands()
 	);
 
 	// Designer related
-	constexpr bool bTransactSizeComponentToTexture = true;
+	constexpr bool bSizeComponentToTexture = true;
 	GetToolkitCommands()->MapAction(
 		FDMXPixelMappingEditorCommands::Get().SizeComponentToTexture,
-		FExecuteAction::CreateSP(this, &FDMXPixelMappingToolkit::SizeSelectedComponentToTexture, bTransactSizeComponentToTexture),
+		FExecuteAction::CreateSP(this, &FDMXPixelMappingToolkit::SizeSelectedComponentToTexture, bSizeComponentToTexture),
 		FCanExecuteAction::CreateSP(this, &FDMXPixelMappingToolkit::CanSizeSelectedComponentToTexture)
 	);
 
@@ -912,6 +909,7 @@ void FDMXPixelMappingToolkit::SetupCommands()
 	UE_DMX_MAP_EDITOR_SETTING_TO_TOGGLE_COMMAND(EditorSettings, DesignerSettings, bShowComponentNames, ToggleShowComponentNames);
 	UE_DMX_MAP_EDITOR_SETTING_TO_TOGGLE_COMMAND(EditorSettings, DesignerSettings, bShowPatchInfo, ToggleShowPatchInfo);
 	UE_DMX_MAP_EDITOR_SETTING_TO_TOGGLE_COMMAND(EditorSettings, DesignerSettings, bShowCellIDs, ToggleShowCellIDs);
+	UE_DMX_MAP_EDITOR_SETTING_TO_TOGGLE_COMMAND(EditorSettings, DesignerSettings, bShowPivot, ToggleShowPivot);
 }
 #undef UE_DMX_MAP_EDITOR_SETTING_TO_TOGGLE_COMMAND
 

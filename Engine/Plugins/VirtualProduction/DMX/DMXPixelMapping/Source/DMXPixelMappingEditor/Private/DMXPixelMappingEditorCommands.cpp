@@ -14,8 +14,7 @@ FDMXPixelMappingEditorCommands::FDMXPixelMappingEditorCommands()
 		NAME_None,
 		FAppStyle::GetAppStyleSetName()
 	)
-{
-}
+{}
 
 void FDMXPixelMappingEditorCommands::RegisterCommands()
 {
@@ -23,8 +22,8 @@ void FDMXPixelMappingEditorCommands::RegisterCommands()
 	UI_COMMAND(PlayDMX, "Play DMX", "Starts to send DMX", EUserInterfaceActionType::Button, FInputChord());
 	UI_COMMAND(StopPlayingDMX, "Stop Playing DMX", "Stops playing DMX.", EUserInterfaceActionType::Button, FInputChord());
 
-	UI_COMMAND(ResizeMode, "Resize Mode", "Resizes components when transform handles are being dragged", EUserInterfaceActionType::Button, FInputChord());
-	UI_COMMAND(RotateMode, "Rotate Mode", "Rotates components when transform handles are being dragged", EUserInterfaceActionType::Button, FInputChord());
+	UI_COMMAND(EnableResizeMode, "Resize Mode", "Resizes components when transform handles are being dragged", EUserInterfaceActionType::RadioButton, FInputChord());
+	UI_COMMAND(EnableRotateMode, "Rotate Mode", "Rotates components when transform handles are being dragged", EUserInterfaceActionType::RadioButton, FInputChord());
 
 	UI_COMMAND(ToggleGridSnapping, "Toggle Grid Snapping", "Enables/disables grid snapping", EUserInterfaceActionType::Button, FInputChord());
 
@@ -37,6 +36,7 @@ void FDMXPixelMappingEditorCommands::RegisterCommands()
 	UI_COMMAND(ToggleShowComponentNames, "Show Component Names", "Sets if the name of components are displayed. It is recommended that this is turned off when pixel mapping large quantities of fixtures.", EUserInterfaceActionType::ToggleButton, FInputChord(EModifierKey::Alt, EKeys::S));
 	UI_COMMAND(ToggleShowPatchInfo, "Show Patch Info", "Sets if information about the pach is displayed. It is recommended that this is turned off when pixel mapping large quantities of fixtures.", EUserInterfaceActionType::ToggleButton, FInputChord(EModifierKey::Alt, EKeys::D));
 	UI_COMMAND(ToggleShowCellIDs, "Show Cell IDs", "Sets if the cell IDs of matrix cells are displayed. It is recommended that this is turned off when pixel mapping large quantities of fixtures.", EUserInterfaceActionType::ToggleButton, FInputChord(EModifierKey::Alt, EKeys::F));
+	UI_COMMAND(ToggleShowPivot, "Show Pivot", "Sets if the pivot is displayed for selected components.", EUserInterfaceActionType::ToggleButton, FInputChord());
 }
 
 #undef LOCTEXT_NAMESPACE 

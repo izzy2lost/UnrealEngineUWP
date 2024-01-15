@@ -50,6 +50,10 @@ struct FDMXPixelMappingDesignerSettings
 	UPROPERTY()
 	bool bApplyLayoutScriptWhenLoaded = true;
 
+	/** If true, a pivot is displayed for selected components */
+	UPROPERTY()
+	bool bShowPivot = true;
+
 	/**  If true, shows a widget for each cell. It is recommended that this is turned off when pixel mapping large quantities of fixtures. */
 	UPROPERTY()
 	bool bShowMatrixCells = true;

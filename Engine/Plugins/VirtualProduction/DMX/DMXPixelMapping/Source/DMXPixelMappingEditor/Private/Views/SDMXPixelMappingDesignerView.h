@@ -96,6 +96,9 @@ private:
 	/** Clears the extension widgets */
 	void ClearExtensionWidgets();
 
+	/** Opens the designer context menu */
+	void OpenContextMenu();
+
 	/** Returns if the extension widget canvas should be visible */
 	EVisibility GetExtensionCanvasVisibility() const;
 

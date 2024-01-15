@@ -118,7 +118,9 @@ namespace UE::DMX
 		const FLinearColor Color = Model->GetColor();
 
 		const FVector2D Size = Model->GetSize();
-		TArray<FVector2D> LinePoints
+		
+		// Draw the component box
+		TArray<FVector2D> BoxPoints
 		{
 			FVector2D::ZeroVector,
 			FVector2D(0.0, Size.Y),
@@ -127,17 +129,56 @@ namespace UE::DMX
 			FVector2D::ZeroVector
 		};
 
-		constexpr float LineThickness = 2.f;
 		constexpr bool bAntialias = true;
+		constexpr float BoxLineThickness = 2.f;
 		FSlateDrawElement::MakeLines(
 			OutDrawElements,
 			LayerId,
 			AllottedGeometry.ToPaintGeometry(),
-			LinePoints,
+			BoxPoints,
 			ESlateDrawEffect::None,
 			Color,
 			bAntialias,
-			LineThickness);
+			BoxLineThickness);
+
+		// Selectively draw the pivot
+		const UDMXPixelMappingEditorSettings* Settings = GetDefault<UDMXPixelMappingEditorSettings>();
+		if (Model->ShouldDrawPivot())
+		{
+			const float PivotLength = FMath::Min(Size.X / 16.0, Size.Y / 16.0); // Y is up
+			TArray<FVector2D> PivotPointsX
+			{
+				FVector2D(Size.X / 2.0, Size.Y / 2.0),
+				FVector2D(Size.X / 2.0 + PivotLength, Size.Y / 2.0)
+			};
+
+			TArray<FVector2D> PivotPointsY
+			{
+				FVector2D(Size.X / 2.0, Size.Y / 2.0),
+				FVector2D(Size.X / 2.0, Size.Y / 2.0 - PivotLength)
+			};
+
+			constexpr float PivotLineThickness = 1.f;
+			FSlateDrawElement::MakeLines(
+				OutDrawElements,
+				LayerId,
+				AllottedGeometry.ToPaintGeometry(),
+				PivotPointsX,
+				ESlateDrawEffect::None,
+				FLinearColor::Red,
+				bAntialias,
+				PivotLineThickness);
+
+			FSlateDrawElement::MakeLines(
+				OutDrawElements,
+				LayerId,
+				AllottedGeometry.ToPaintGeometry(),
+				PivotPointsY,
+				ESlateDrawEffect::None,
+				FLinearColor::Green,
+				bAntialias,
+				PivotLineThickness);
+		}
 
 		return LayerId + 1;
 	}

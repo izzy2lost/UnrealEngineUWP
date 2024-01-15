@@ -104,20 +104,18 @@ namespace UE::DMX
 	{
 		const FDMXPixelMappingDesignerSettings& DesignerSettings = GetDefault<UDMXPixelMappingEditorSettings>()->DesignerSettings;
 
-		return DesignerSettings.bShowComponentNames &&
+		return 
+			DesignerSettings.bShowComponentNames &&
 			OutputComponent &&
 			OutputComponent->GetClass() != UDMXPixelMappingMatrixCellComponent::StaticClass();
 	}
 
 	bool FDMXPixelMappingOutputComponentModel::ShouldDrawNameAbove() const
 	{
-		if (OutputComponent)
-		{
-			return
-				OutputComponent->GetClass() == UDMXPixelMappingFixtureGroupComponent::StaticClass() ||
-				OutputComponent->GetClass() == UDMXPixelMappingScreenComponent::StaticClass();
-		}
-		return true;
+		return
+			OutputComponent &&
+			(OutputComponent->GetClass() == UDMXPixelMappingFixtureGroupComponent::StaticClass() ||
+			OutputComponent->GetClass() == UDMXPixelMappingScreenComponent::StaticClass());
 	}
 
 	bool FDMXPixelMappingOutputComponentModel::ShouldDrawCellID() const
@@ -136,7 +134,16 @@ namespace UE::DMX
 
 		return
 			DesignerSettings.bShowPatchInfo &&
-			GetFixturePatch() != nullptr;;
+			GetFixturePatch() != nullptr;
+	}
+
+	bool FDMXPixelMappingOutputComponentModel::ShouldDrawPivot() const
+	{
+		const FDMXPixelMappingDesignerSettings& DesignerSettings = GetDefault<UDMXPixelMappingEditorSettings>()->DesignerSettings;
+
+		return 
+			bSelected &&
+			DesignerSettings.bShowPivot;
 	}
 
 	FText FDMXPixelMappingOutputComponentModel::GetAddressesText() const
@@ -184,7 +191,7 @@ namespace UE::DMX
 				}
 				else
 				{
-					const float Opacity = OutputComponent->GetEditorColor().A * .6f;
+					const float Opacity = OutputComponent->GetEditorColor().A * .5f;
 					return OutputComponent->GetEditorColor().CopyWithNewOpacity(Opacity);
 				}
 			}
