@@ -93,7 +93,7 @@ protected:
 	{
 		using namespace Chaos::Softs;
 		const ECollectionPropertyFlags Flags = bIsAnimatable ? ECollectionPropertyFlags::Animatable : ECollectionPropertyFlags::None;
-		AddPropertyHelper(Properties, PropertyName, SimilarPropertyNames, Flags);
+		return AddPropertyHelper(Properties, PropertyName, SimilarPropertyNames, Flags);
 	}
 
 	int32 AddPropertyHelper(
