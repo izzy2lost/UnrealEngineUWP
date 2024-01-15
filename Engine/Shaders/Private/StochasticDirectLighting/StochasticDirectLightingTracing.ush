@@ -89,7 +89,7 @@ FLightSampleTrace GetLightSampleTrace(float3 TranslatedWorldPosition, uint Local
 	LightSampleTrace.Direction = 0.0f;
 	LightSampleTrace.Distance = 0.0f;
 
-	if (LocalLightIndex != INVALID_LOCAL_LIGHT_INDEX)
+	if (LocalLightIndex != MAX_LOCAL_LIGHT_INDEX)
 	{
 		const FLocalLightData LocalLightData = GetLocalLightDataNonStereo(LocalLightIndex);
 		const FLightSceneData LightSceneData = GetLightSceneData(LocalLightData.LightSceneId);

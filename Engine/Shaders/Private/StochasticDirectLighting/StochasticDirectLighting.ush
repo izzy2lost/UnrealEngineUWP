@@ -23,18 +23,12 @@
 #define DEBUG_MODE_VISUALIZE_SAMPLING 1
 #define DEBUG_MODE_VISUALIZE_TRACING  2
 
-// Limited by PackLightSample
-#define LOCAL_LIGHT_INDEX_BITS		(14)
-#define LOCAL_LIGHT_INDEX_MASK		((1 << LOCAL_LIGHT_INDEX_BITS) - 1)
-#define INVALID_LOCAL_LIGHT_INDEX	(LOCAL_LIGHT_INDEX_MASK)
-
 // Keep in sync with StochasticDirectLighting.cpp
 #define SHADING_ATLAS_SIZE_IN_TILES 512
 #define DOWNSAMPLE_FACTOR			2
 #define TILE_SIZE					8
-#define MAX_LOCAL_LIGHT_INDEX_XY	16
-#define MAX_LOCAL_LIGHT_INDEX		(MAX_LOCAL_LIGHT_INDEX_XY * MAX_LOCAL_LIGHT_INDEX_XY)
-
+// Limited by PackLightSample, PackShadingTile and SharedCandidateLightHiMask
+#define MAX_LOCAL_LIGHT_INDEX		1024
 #define SHARED_LIGHT_MASK_SIZE		(MAX_LOCAL_LIGHT_INDEX / 32)
 
 // Keep in sync with StochasticDirectLighting::ETileType
@@ -72,7 +66,7 @@ struct FLightSample
 FLightSample InitLightSample()
 {
 	FLightSample LightSample;
-	LightSample.LocalLightIndex = INVALID_LOCAL_LIGHT_INDEX;
+	LightSample.LocalLightIndex = MAX_LOCAL_LIGHT_INDEX;
 	LightSample.Weight = 0.0f;
 	LightSample.bVisible = false;
 	LightSample.bCompleted = true;
@@ -81,7 +75,7 @@ FLightSample InitLightSample()
 
 uint PackLightSample(FLightSample LightSample)
 {
-	uint PackedLightSample = LightSample.LocalLightIndex & LOCAL_LIGHT_INDEX_MASK;
+	uint PackedLightSample = LightSample.LocalLightIndex & 0x3FFF;
 	PackedLightSample |= LightSample.bVisible ? 0x8000 : 0;
 	PackedLightSample |= LightSample.bCompleted ? 0x4000 : 0;
 	PackedLightSample |= f32tof16(LightSample.Weight) << 16;

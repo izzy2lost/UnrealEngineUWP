@@ -88,6 +88,8 @@ float4 HistoryScreenPositionScaleBias;
 float4 HistoryUVMinMax;
 
 groupshared uint SharedLightMask[SHARED_LIGHT_MASK_SIZE];
+
+groupshared uint SharedCandidateLightHiMask;
 groupshared uint SharedCandidateLightMask[SHARED_LIGHT_MASK_SIZE];
 
 void MarkLocalLightIndex(uint LocalLightIndex)
@@ -114,13 +116,14 @@ void GenerateLightSamplesCS(
 {
 	uint LinearThreadIndex = GroupThreadId.y * THREADGROUP_SIZE + GroupThreadId.x;
 
-	if (LinearThreadIndex < SHARED_LIGHT_MASK_SIZE)
+	if (LinearThreadIndex == 0)
 	{
-		SharedLightMask[LinearThreadIndex] = 0;
+		SharedCandidateLightHiMask = 0;
 	}
 
 	if (LinearThreadIndex < SHARED_LIGHT_MASK_SIZE)
 	{
+		SharedLightMask[LinearThreadIndex] = 0;
 		SharedCandidateLightMask[LinearThreadIndex] = 0;
 	}
 
@@ -146,6 +149,8 @@ void GenerateLightSamplesCS(
 			const FCulledLightsGridData CulledLightGridData = GetCulledLightsGrid(GridIndex, EyeIndex);
 			const uint NumLightsInGridCell = min(CulledLightGridData.NumLights, GetMaxLightsPerCell(EyeIndex));
 
+			uint LocalCandidateLightHiMask = 0;
+
 			for (uint GridLightIndex = 0; GridLightIndex < NumLightsInGridCell; ++GridLightIndex)
 			{
 				const uint LocalLightIndex = GetCulledLightDataGrid(CulledLightGridData.DataStartIndex + GridLightIndex);
@@ -156,7 +161,16 @@ void GenerateLightSamplesCS(
 					uint DWORDIndex = LocalLightIndex / 32;
 					uint BitMask = 1u << (LocalLightIndex % 32);
 					InterlockedOr(SharedCandidateLightMask[DWORDIndex], BitMask);
+
+					uint HiBitMask = 1u << DWORDIndex;
+					LocalCandidateLightHiMask |= HiBitMask;
 				}
+			}
+
+			if (WaveIsFirstLane())
+			{
+				LocalCandidateLightHiMask = WaveActiveBitOr(LocalCandidateLightHiMask);
+				InterlockedOr(SharedCandidateLightHiMask, LocalCandidateLightHiMask);
 			}
 		}
 	
@@ -248,9 +262,16 @@ void GenerateLightSamplesCS(
 				}
 				#endif
 
-				for (uint MaskIndex = 0; MaskIndex < SHARED_LIGHT_MASK_SIZE; ++MaskIndex)
+				uint CandidateLightHiMask = SharedCandidateLightHiMask;
+				while (CandidateLightHiMask != 0)
 				{
+					const uint NextHiBitIndex = firstbitlow(CandidateLightHiMask);
+					const uint NextHiBitMask = 1u << NextHiBitIndex;
+					CandidateLightHiMask ^= NextHiBitMask;
+
+					const uint MaskIndex = NextHiBitIndex;
 					uint CandidateLightMask = SharedCandidateLightMask[MaskIndex];
+
 					while (CandidateLightMask != 0)
 					{
 						const uint NextBitIndex = firstbitlow(CandidateLightMask);
@@ -351,7 +372,7 @@ void GenerateLightSamplesCS(
 			{
 				FLightSample LightSample = LightSamples[LightSampleIndex];
 
-				if (LightSample.LocalLightIndex != INVALID_LOCAL_LIGHT_INDEX)
+				if (LightSample.LocalLightIndex != MAX_LOCAL_LIGHT_INDEX)
 				{
 					const FLocalLightData LocalLightData = GetLocalLightDataNonStereo(LightSample.LocalLightIndex);
 					const FLightSceneData LightSceneData = GetLightSceneData(LocalLightData.LightSceneId);
@@ -365,7 +386,7 @@ void GenerateLightSamplesCS(
 				RWLightSamples[DownsampledScreenCoord * NumSamplesPerPixel + LightSampleOffsets[LightSampleIndex]] = PackLightSample(LightSample);
 
 				// Mark tiles which need to be processed
-				if (LightSample.LocalLightIndex != INVALID_LOCAL_LIGHT_INDEX)
+				if (LightSample.LocalLightIndex != MAX_LOCAL_LIGHT_INDEX)
 				{
 					MarkLocalLightIndex(LightSample.LocalLightIndex);
 				}

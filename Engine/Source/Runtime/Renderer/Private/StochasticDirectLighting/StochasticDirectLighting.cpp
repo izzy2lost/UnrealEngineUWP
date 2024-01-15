@@ -179,7 +179,7 @@ namespace StochasticDirectLighting
 		}
 
 		// SM6 because it uses typed loads to accumulate lights
-		return IsFeatureLevelSupported(Parameters.Platform, ERHIFeatureLevel::SM6);
+		return IsFeatureLevelSupported(Parameters.Platform, ERHIFeatureLevel::SM6) && RHISupportsWaveOperations(Parameters.Platform);
 	}
 
 	uint32 GetStateFrameIndex(FSceneViewState* ViewState)
@@ -369,6 +369,7 @@ class FGenerateLightSamplesCS : public FGlobalShader
 		FGlobalShader::ModifyCompilationEnvironment(Parameters, OutEnvironment);
 		StochasticDirectLighting::ModifyCompilationEnvironment(Parameters.Platform, OutEnvironment);
 		OutEnvironment.SetDefine(TEXT("THREADGROUP_SIZE"), GetGroupSize());
+		OutEnvironment.CompilerFlags.Add(CFLAG_WaveOperations);
 	}
 };
 

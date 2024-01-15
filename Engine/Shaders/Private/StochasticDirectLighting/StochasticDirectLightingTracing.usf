@@ -99,7 +99,7 @@ void CompactLightSampleTracesCS(
 		// #sdl_todo: try to preserve z-order here for improved tracing coherency
 		FLightSample LightSample = UnpackLightSample(LightSamples[SampleCoord]);
 
-		if (LightSample.LocalLightIndex != INVALID_LOCAL_LIGHT_INDEX && !LightSample.bCompleted)
+		if (LightSample.LocalLightIndex != MAX_LOCAL_LIGHT_INDEX && !LightSample.bCompleted)
 		{
 			#if WAVE_OPS
 			{
