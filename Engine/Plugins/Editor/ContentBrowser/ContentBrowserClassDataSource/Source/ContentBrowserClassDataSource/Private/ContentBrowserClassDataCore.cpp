@@ -100,7 +100,7 @@ bool IsPluginClass(const FName InPath)
 	return AssetViewUtils::IsPluginFolder(PathStr);
 }
 
-FContentBrowserItemData CreateClassFolderItem(UContentBrowserDataSource* InOwnerDataSource, const FName InVirtualPath, const FName InFolderPath)
+FContentBrowserItemData CreateClassFolderItem(UContentBrowserDataSource* InOwnerDataSource, const FName InVirtualPath, const FName InFolderPath, const bool bIsFromPlugin)
 {
 	static const FName GameRootPath = "/Classes_Game";
 	static const FName EngineRootPath = "/Classes_Engine";
@@ -121,12 +121,22 @@ FContentBrowserItemData CreateClassFolderItem(UContentBrowserDataSource* InOwner
 		FolderDisplayNameOverride = ContentBrowserDataUtils::GetFolderItemDisplayNameOverride(InFolderPath, FolderItemName, /*bIsClassesFolder*/ true);
 	}
 
-	return FContentBrowserItemData(InOwnerDataSource, EContentBrowserItemFlags::Type_Folder | EContentBrowserItemFlags::Category_Class, InVirtualPath, *FolderItemName, MoveTemp(FolderDisplayNameOverride), MakeShared<FContentBrowserClassFolderItemDataPayload>(InFolderPath));
+	return FContentBrowserItemData(InOwnerDataSource,
+		EContentBrowserItemFlags::Type_Folder | EContentBrowserItemFlags::Category_Class | (bIsFromPlugin ? EContentBrowserItemFlags::Category_Plugin : EContentBrowserItemFlags::None),
+		InVirtualPath,
+		*FolderItemName,
+		MoveTemp(FolderDisplayNameOverride),
+		MakeShared<FContentBrowserClassFolderItemDataPayload>(InFolderPath));
 }
 
-FContentBrowserItemData CreateClassFileItem(UContentBrowserDataSource* InOwnerDataSource, const FName InVirtualPath, const FName InClassPath, UClass* InClass)
+FContentBrowserItemData CreateClassFileItem(UContentBrowserDataSource* InOwnerDataSource, const FName InVirtualPath, const FName InClassPath, UClass* InClass, const bool bIsFromPlugin)
 {
-	return FContentBrowserItemData(InOwnerDataSource, EContentBrowserItemFlags::Type_File | EContentBrowserItemFlags::Category_Class, InVirtualPath, InClass->GetFName(), FText(), MakeShared<FContentBrowserClassFileItemDataPayload>(InClassPath, InClass));
+	return FContentBrowserItemData(InOwnerDataSource,
+		EContentBrowserItemFlags::Type_File | EContentBrowserItemFlags::Category_Class | (bIsFromPlugin ? EContentBrowserItemFlags::Category_Plugin : EContentBrowserItemFlags::None),
+		InVirtualPath,
+		InClass->GetFName(),
+		FText(),
+		MakeShared<FContentBrowserClassFileItemDataPayload>(InClassPath, InClass));
 }
 
 TSharedPtr<const FContentBrowserClassFolderItemDataPayload> GetClassFolderItemPayload(const UContentBrowserDataSource* InOwnerDataSource, const FContentBrowserItemData& InItem)
