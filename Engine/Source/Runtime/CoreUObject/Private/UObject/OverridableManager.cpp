@@ -48,25 +48,17 @@ FOverriddenPropertySet* FOverridableManager::GetOverriddenProperties(UObject& Ob
 	return OverriddenObjectAnnotations.Find(Object);
 }
 
+const FOverriddenPropertySet* FOverridableManager::GetOverriddenProperties(const UObject& Object)
+{
+	return OverriddenObjectAnnotations.Find(Object);
+}
+
 FOverriddenPropertySet& FOverridableManager::SetOverriddenProperties(UObject& Object, EOverriddenPropertyOperation Operation)
 {
 	FOverriddenPropertySet& ObjectOverriddenProperties = OverriddenObjectAnnotations.FindOrAdd(Object);
 	ObjectOverriddenProperties.Reset();
 	ObjectOverriddenProperties.SetOverriddenPropertyOperation(Operation, /*CurrentPropertyChain*/nullptr, /*Property*/nullptr);
 	return ObjectOverriddenProperties;
-}
-
-void FOverridableManager::CopyOverriddenProperties(UObject& DestObject, const UObject& SourceObject)
-{
-	if (const FOverriddenPropertySet* SourceObjectOverriddenProperties = OverriddenObjectAnnotations.Find(SourceObject))
-	{
-		FOverriddenPropertySet& DestObjectOverriddenProperties = OverriddenObjectAnnotations.FindOrAdd(DestObject);
-		DestObjectOverriddenProperties = *SourceObjectOverriddenProperties;
-	}
-	else
-	{
-		OverriddenObjectAnnotations.RemoveAnnotation(&DestObject);
-	}
 }
 
 EOverriddenState FOverridableManager::GetOverriddenState(UObject& Object)
@@ -151,7 +143,10 @@ void FOverridableManager::PostOverrideProperty(UObject& Object, const FPropertyC
 
 void FOverridableManager::NotifyPropertyChange(const EPropertyNotificationType Notification, UObject& Object, const FPropertyChangedEvent& PropertyEvent, const FEditPropertyChain::TDoubleLinkedListNode* PropertyNode)
 {
-	OverriddenObjectAnnotations.FindChecked(Object).NotifyPropertyChange(Notification, PropertyEvent, PropertyNode, &Object);
+	if (FOverriddenPropertySet* ThisObjectOverriddenProperties = OverriddenObjectAnnotations.Find(Object))
+	{
+		ThisObjectOverriddenProperties->NotifyPropertyChange(Notification, PropertyEvent, PropertyNode, &Object);
+	}
 }
 
 void FOverridableManager::ClearOverrides(UObject& Object)

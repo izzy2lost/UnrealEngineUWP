@@ -112,17 +112,17 @@ public:
 	COREUOBJECT_API FOverriddenPropertySet* GetOverriddenProperties(UObject& Object);
 
 	/**
+	 * Retrieve the overridden properties for the specified object
+	 * @param Object to fetch the overridden properties
+	 * @return the overridden properties if the object have overridable serialization enabled */
+	COREUOBJECT_API const FOverriddenPropertySet* GetOverriddenProperties(const UObject& Object);
+
+	/**
 	 * Set the override operation on this object and it will enable it if it wasn't already enabled
 	 * @param Object to set the override operation on
 	 * @param Operation the override operation to set on the object
 	 * @return the overridden properties of the object */
 	COREUOBJECT_API FOverriddenPropertySet& SetOverriddenProperties(UObject& Object, EOverriddenPropertyOperation Operation);
-
-	/**
-	 * Copies the overridden properties from one object to the other
-	 * @param DestObject copying the overridden properties to
-	 * @param SourceObject copying the overridden properties from */
-	COREUOBJECT_API void CopyOverriddenProperties(UObject& DestObject, const UObject& SourceObject);
 
 	/**
 	 * Retrieve the overridden state for the specified object
