@@ -154,6 +154,7 @@ FPropertyRowGenerator::FPropertyRowGenerator(const FPropertyRowGeneratorArgs& In
 	, PropertyUtilities(new FPropertyRowGeneratorUtilities(*this))
 	, PropertyGenerationUtilities(new FPropertyRowGeneratorGenerationUtilities(*this))
 {
+	CurrentFilter.bShowAllAdvanced = true;
 }
 
 FPropertyRowGenerator::FPropertyRowGenerator(const FPropertyRowGeneratorArgs& InArgs, TSharedPtr<FAssetThumbnailPool> InThumbnailPool)
@@ -161,7 +162,7 @@ FPropertyRowGenerator::FPropertyRowGenerator(const FPropertyRowGeneratorArgs& In
 	, PropertyUtilities(new FPropertyRowGeneratorUtilities(*this))
 	, PropertyGenerationUtilities(new FPropertyRowGeneratorGenerationUtilities(*this))
 {
-
+	CurrentFilter.bShowAllAdvanced = true;
 }
 
 FPropertyRowGenerator::~FPropertyRowGenerator()
@@ -353,6 +354,12 @@ void FPropertyRowGenerator::InvalidateCachedState()
 	{
 		ComplexRootNode->InvalidateCachedState();
 	}
+}
+
+void FPropertyRowGenerator::FilterNodes(const TArray<FString>& InFilterStrings)
+{
+	CurrentFilter.FilterStrings = InFilterStrings;
+	UpdateDetailRows();
 }
 
 void FPropertyRowGenerator::Tick(float DeltaTime)
@@ -568,9 +575,6 @@ void FPropertyRowGenerator::UpdateDetailRows()
 	FDetailNodeList InitialRootNodeList;
 
 	//NumVisbleTopLevelObjectNodes = 0;
-
-	FDetailFilter CurrentFilter;
-	CurrentFilter.bShowAllAdvanced = true;
 
 	for (int32 RootNodeIndex = 0; RootNodeIndex < RootPropertyNodes.Num(); ++RootNodeIndex)
 	{
