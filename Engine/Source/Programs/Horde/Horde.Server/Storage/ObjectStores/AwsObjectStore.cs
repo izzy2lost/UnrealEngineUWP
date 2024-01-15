@@ -19,7 +19,7 @@ using EpicGames.Horde.Storage;
 using OpenTelemetry.Trace;
 using EpicGames.Core;
 
-namespace Horde.Server.Storage.Backends
+namespace Horde.Server.Storage.ObjectStores
 {
 	/// <summary>
 	/// Exception wrapper for S3 requests
@@ -102,7 +102,7 @@ namespace Horde.Server.Storage.Backends
 	/// <summary>
 	/// Storage backend using AWS S3
 	/// </summary>
-	public sealed class AwsStorageBackend : IStorageBackend, IDisposable
+	public sealed class AwsObjectStore : IObjectStore, IDisposable
 	{
 		/// <summary>
 		/// S3 Client
@@ -138,7 +138,7 @@ namespace Horde.Server.Storage.Backends
 		/// <param name="configuration">Global configuration object</param>
 		/// <param name="options">Storage options</param>
 		/// <param name="logger">Logger interface</param>
-		public AwsStorageBackend(IConfiguration configuration, IAwsStorageOptions options, ILogger<AwsStorageBackend> logger)
+		public AwsObjectStore(IConfiguration configuration, IAwsStorageOptions options, ILogger<AwsObjectStore> logger)
 		{
 			AWSOptions awsOptions = GetAwsOptions(configuration, options);
 
@@ -179,7 +179,7 @@ namespace Horde.Server.Storage.Backends
 				case AwsCredentialsType.Profile:
 					if (options.AwsProfile == null)
 					{
-						throw new AwsException($"Missing {nameof(IAwsStorageOptions.AwsProfile)} setting for configuring {nameof(AwsStorageBackend)}", null);
+						throw new AwsException($"Missing {nameof(IAwsStorageOptions.AwsProfile)} setting for configuring {nameof(AwsObjectStore)}", null);
 					}
 
 					(string accessKey, string secretAccessKey, string secretToken) = AwsHelper.ReadAwsCredentials(options.AwsProfile);
@@ -188,7 +188,7 @@ namespace Horde.Server.Storage.Backends
 				case AwsCredentialsType.AssumeRole:
 					if (options.AwsRole == null)
 					{
-						throw new AwsException($"Missing {nameof(IAwsStorageOptions.AwsRole)} setting for configuring {nameof(AwsStorageBackend)}", null);
+						throw new AwsException($"Missing {nameof(IAwsStorageOptions.AwsRole)} setting for configuring {nameof(AwsObjectStore)}", null);
 					}
 					awsOptions.Credentials = new AssumeRoleAWSCredentials(FallbackCredentialsFactory.GetCredentials(), options.AwsRole, "Horde");
 					break;
@@ -260,10 +260,10 @@ namespace Horde.Server.Storage.Backends
 			}
 		}
 
-		string GetFullPath(string path) => $"{_pathPrefix}{path}.blob";
+		string GetFullPath(ObjectKey key) => $"{_pathPrefix}{key}.blob";
 
 		/// <inheritdoc/>
-		public Task<Stream> OpenAsync(string path, int offset, int? length, CancellationToken cancellationToken)
+		public Task<Stream> OpenAsync(ObjectKey key, int offset, int? length, CancellationToken cancellationToken)
 		{
 			string range;
 			if (length == null)
@@ -278,15 +278,15 @@ namespace Horde.Server.Storage.Backends
 			{
 				range = $"bytes={offset}-{offset + length.Value - 1}";
 			}
-			return OpenAsync(path, new ByteRange(range), cancellationToken);
+			return OpenAsync(key, new ByteRange(range), cancellationToken);
 		}
 
-		async Task<Stream> OpenAsync(string path, ByteRange? byteRange, CancellationToken cancellationToken)
+		async Task<Stream> OpenAsync(ObjectKey key, ByteRange? byteRange, CancellationToken cancellationToken)
 		{
-			using TelemetrySpan span = OpenTelemetryTracers.Horde.StartActiveSpan($"{nameof(AwsStorageBackend)}.{nameof(OpenAsync)}");
-			span.SetAttribute("path", path);
+			using TelemetrySpan span = OpenTelemetryTracers.Horde.StartActiveSpan($"{nameof(AwsObjectStore)}.{nameof(OpenAsync)}");
+			span.SetAttribute("path", key.ToString());
 
-			string fullPath = GetFullPath(path);
+			string fullPath = GetFullPath(key);
 
 			IDisposable? semaLock = null;
 			TelemetrySpan? semaphoreSpan = null;
@@ -295,8 +295,8 @@ namespace Horde.Server.Storage.Backends
 			{
 				semaLock = await _semaphore.WaitDisposableAsync(cancellationToken);
 
-				semaphoreSpan = OpenTelemetryTracers.Horde.StartActiveSpan($"{nameof(AwsStorageBackend)}.{nameof(OpenAsync)}.Semaphore");
-				semaphoreSpan.SetAttribute("path", path);
+				semaphoreSpan = OpenTelemetryTracers.Horde.StartActiveSpan($"{nameof(AwsObjectStore)}.{nameof(OpenAsync)}.Semaphore");
+				semaphoreSpan.SetAttribute("path", key.ToString());
 
 				GetObjectRequest newGetRequest = new GetObjectRequest();
 				newGetRequest.BucketName = _options.AwsBucketName;
@@ -345,40 +345,29 @@ namespace Horde.Server.Storage.Backends
 		}
 
 		/// <inheritdoc/>
-		public async Task<IReadOnlyMemoryOwner<byte>> ReadAsync(string path, int offset, int? length, CancellationToken cancellationToken)
+		public async Task<IReadOnlyMemoryOwner<byte>> ReadAsync(ObjectKey key, int offset, int? length, CancellationToken cancellationToken)
 		{
-			using Stream stream = await OpenAsync(path, offset, length, cancellationToken);
+			using Stream stream = await OpenAsync(key, offset, length, cancellationToken);
 			return ReadOnlyMemoryOwner.Create(await stream.ReadAllBytesAsync(cancellationToken));
 		}
 
 		/// <inheritdoc/>
-		public ValueTask<Uri?> TryGetReadRedirectAsync(string path, CancellationToken cancellationToken = default) => new ValueTask<Uri?>(GetPresignedUrl(path, HttpVerb.GET));
+		public ValueTask<Uri?> TryGetReadRedirectAsync(ObjectKey key, CancellationToken cancellationToken = default)
+			=> new ValueTask<Uri?>(GetPresignedUrl(key, HttpVerb.GET));
 
 		/// <inheritdoc/>
-		public ValueTask<(string, Uri)?> TryGetWriteRedirectAsync(string? prefix, CancellationToken cancellationToken = default)
-		{
-			string path = StorageHelpers.CreateUniqueName(prefix);
-
-			Uri? url = GetPresignedUrl(path, HttpVerb.PUT);
-			if (url == null)
-			{
-				return default;
-			}
-			else
-			{
-				return new ValueTask<(string, Uri)?>((path, url));
-			}
-		}
+		public ValueTask<Uri?> TryGetWriteRedirectAsync(ObjectKey key, CancellationToken cancellationToken = default)
+			=> new ValueTask<Uri?>(GetPresignedUrl(key, HttpVerb.PUT));
 
 		/// <summary>
 		/// Helper method to generate a presigned URL for a request
 		/// </summary>
-		Uri? GetPresignedUrl(string path, HttpVerb verb)
+		Uri? GetPresignedUrl(ObjectKey key, HttpVerb verb)
 		{
-			using TelemetrySpan span = OpenTelemetryTracers.Horde.StartActiveSpan($"{nameof(AwsStorageBackend)}.{nameof(GetPresignedUrl)}");
-			span.SetAttribute("path", path);
+			using TelemetrySpan span = OpenTelemetryTracers.Horde.StartActiveSpan($"{nameof(AwsObjectStore)}.{nameof(GetPresignedUrl)}");
+			span.SetAttribute("path", key.ToString());
 
-			string fullPath = GetFullPath(path);
+			string fullPath = GetFullPath(key);
 
 			try
 			{
@@ -400,15 +389,7 @@ namespace Horde.Server.Storage.Backends
 		}
 
 		/// <inheritdoc/>
-		public async Task<string> WriteAsync(Stream inputStream, string? prefix = null, CancellationToken cancellationToken = default)
-		{
-			string path = StorageHelpers.CreateUniqueName(prefix);
-			await WriteExplicitPathAsync(path, inputStream, cancellationToken);
-			return path;
-		}
-
-		/// <inheritdoc/>
-		public async Task WriteExplicitPathAsync(string path, Stream inputStream, CancellationToken cancellationToken = default)
+		public async Task WriteAsync(ObjectKey key, Stream inputStream, CancellationToken cancellationToken = default)
 		{
 			TimeSpan[] retryTimes =
 			{
@@ -417,14 +398,14 @@ namespace Horde.Server.Storage.Backends
 				TimeSpan.FromSeconds(10.0),
 			};
 
-			string fullPath = GetFullPath(path);
+			string fullPath = GetFullPath(key);
 			for (int attempt = 0; ; attempt++)
 			{
 				try
 				{
 					using IDisposable semaLock = await _semaphore.WaitDisposableAsync(cancellationToken);
 					await WriteInternalAsync(fullPath, inputStream, cancellationToken);
-					_logger.LogDebug("Written data to {Path}", path);
+					_logger.LogDebug("Written data to {Path}", key);
 					break;
 				}
 				catch (Exception ex) when (ex is not OperationCanceledException)
@@ -443,7 +424,7 @@ namespace Horde.Server.Storage.Backends
 		/// <inheritdoc/>
 		public async Task WriteInternalAsync(string fullPath, Stream stream, CancellationToken cancellationToken)
 		{
-			using TelemetrySpan span = OpenTelemetryTracers.Horde.StartActiveSpan($"{nameof(AwsStorageBackend)}.{nameof(WriteInternalAsync)}");
+			using TelemetrySpan span = OpenTelemetryTracers.Horde.StartActiveSpan($"{nameof(AwsObjectStore)}.{nameof(WriteInternalAsync)}");
 			span.SetAttribute("path", fullPath);
 
 			const int MinPartSize = 5 * 1024 * 1024;
@@ -550,28 +531,28 @@ namespace Horde.Server.Storage.Backends
 		}
 
 		/// <inheritdoc/>
-		public async Task DeleteAsync(string path, CancellationToken cancellationToken)
+		public async Task DeleteAsync(ObjectKey key, CancellationToken cancellationToken)
 		{
-			using TelemetrySpan span = OpenTelemetryTracers.Horde.StartActiveSpan($"{nameof(AwsStorageBackend)}.{nameof(DeleteAsync)}");
-			span.SetAttribute("path", path);
+			using TelemetrySpan span = OpenTelemetryTracers.Horde.StartActiveSpan($"{nameof(AwsObjectStore)}.{nameof(DeleteAsync)}");
+			span.SetAttribute("path", key.ToString());
 
 			DeleteObjectRequest newDeleteRequest = new DeleteObjectRequest();
 			newDeleteRequest.BucketName = _options.AwsBucketName;
-			newDeleteRequest.Key = GetFullPath(path);
+			newDeleteRequest.Key = GetFullPath(key);
 			await _client.DeleteObjectAsync(newDeleteRequest, cancellationToken);
 		}
 
 		/// <inheritdoc/>
-		public async Task<bool> ExistsAsync(string path, CancellationToken cancellationToken)
+		public async Task<bool> ExistsAsync(ObjectKey key, CancellationToken cancellationToken)
 		{
-			using TelemetrySpan span = OpenTelemetryTracers.Horde.StartActiveSpan($"{nameof(AwsStorageBackend)}.{nameof(ExistsAsync)}");
-			span.SetAttribute("path", path);
+			using TelemetrySpan span = OpenTelemetryTracers.Horde.StartActiveSpan($"{nameof(AwsObjectStore)}.{nameof(ExistsAsync)}");
+			span.SetAttribute("path", key.ToString());
 
 			try
 			{
 				GetObjectMetadataRequest request = new GetObjectMetadataRequest();
 				request.BucketName = _options.AwsBucketName;
-				request.Key = GetFullPath(path);
+				request.Key = GetFullPath(key);
 				await _client.GetObjectMetadataAsync(request, cancellationToken);
 				return true;
 			}
@@ -582,7 +563,7 @@ namespace Horde.Server.Storage.Backends
 		}
 
 		/// <inheritdoc/>
-		public async IAsyncEnumerable<string> EnumerateAsync([EnumeratorCancellation] CancellationToken cancellationToken = default)
+		public async IAsyncEnumerable<ObjectKey> EnumerateAsync([EnumeratorCancellation] CancellationToken cancellationToken = default)
 		{
 			ListObjectsV2Request request = new ListObjectsV2Request();
 			request.BucketName = _options.AwsBucketName;
@@ -599,7 +580,7 @@ namespace Horde.Server.Storage.Backends
 					string path = obj.Key;
 					if (path.StartsWith(_pathPrefix, StringComparison.Ordinal))
 					{
-						yield return path.Substring(_pathPrefix.Length);
+						yield return new ObjectKey(path.Substring(_pathPrefix.Length));
 					}
 					else
 					{

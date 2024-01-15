@@ -8,8 +8,8 @@ using System.Threading;
 using System.Threading.Tasks;
 using EpicGames.Core;
 using EpicGames.Horde.Storage;
-using EpicGames.Horde.Storage.Backends;
-using Horde.Server.Storage.Backends;
+using EpicGames.Horde.Storage.ObjectStores;
+using Horde.Server.Storage.ObjectStores;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
@@ -17,19 +17,19 @@ using Microsoft.Extensions.Logging;
 namespace Horde.Server.Storage
 {
 	/// <summary>
-	/// Default implementation of <see cref="IStorageBackendProvider"/>
+	/// Default implementation of <see cref="IObjectStoreFactory"/>
 	/// </summary>
-	class StorageBackendProvider : IStorageBackendProvider
+	class ObjectStoreFactory : IObjectStoreFactory
 	{
 		class RefCountedBackend : IDisposable
 		{
 			public BackendId Id { get; }
 			public IoHash Hash { get; }
-			public IStorageBackend Backend { get; }
+			public IObjectStore Backend { get; }
 
 			public int _refCount = 1;
 
-			public RefCountedBackend(BackendId id, IoHash hash, IStorageBackend backend)
+			public RefCountedBackend(BackendId id, IoHash hash, IObjectStore backend)
 			{
 				Id = id;
 				Hash = hash;
@@ -42,13 +42,13 @@ namespace Horde.Server.Storage
 			}
 		}
 
-		class BackendWrapper : IStorageBackend
+		class BackendWrapper : IObjectStore
 		{
-			readonly StorageBackendProvider _owner;
+			readonly ObjectStoreFactory _owner;
 			RefCountedBackend _refCountedBackend;
-			IStorageBackend _backend;
+			IObjectStore _backend;
 
-			public BackendWrapper(StorageBackendProvider owner, RefCountedBackend refCountedBackend)
+			public BackendWrapper(ObjectStoreFactory owner, RefCountedBackend refCountedBackend)
 			{
 				_owner = owner;
 				_refCountedBackend = refCountedBackend;
@@ -66,45 +66,40 @@ namespace Horde.Server.Storage
 				}
 			}
 
-			#region IStorageBackend Implementation
+			#region IObjectStore Implementation
 
 			/// <inheritdoc/>
 			public bool SupportsRedirects => _backend.SupportsRedirects;
 
 			/// <inheritdoc/>
-			public Task<bool> ExistsAsync(string path, CancellationToken cancellationToken = default) => _backend.ExistsAsync(path, cancellationToken);
+			public Task<bool> ExistsAsync(ObjectKey key, CancellationToken cancellationToken = default) => _backend.ExistsAsync(key, cancellationToken);
 
 			/// <inheritdoc/>
-			public Task DeleteAsync(string path, CancellationToken cancellationToken = default) => _backend.DeleteAsync(path, cancellationToken);
+			public Task DeleteAsync(ObjectKey key, CancellationToken cancellationToken = default) => _backend.DeleteAsync(key, cancellationToken);
 
 			/// <inheritdoc/>
-			public IAsyncEnumerable<string> EnumerateAsync(CancellationToken cancellationToken = default) => _backend.EnumerateAsync(cancellationToken);
+			public IAsyncEnumerable<ObjectKey> EnumerateAsync(CancellationToken cancellationToken = default) => _backend.EnumerateAsync(cancellationToken);
 
 			/// <inheritdoc/>
-			public Task<Stream> OpenAsync(string path, int offset, int? length, CancellationToken cancellationToken = default)
+			public Task<Stream> OpenAsync(ObjectKey key, int offset, int? length, CancellationToken cancellationToken = default)
 			{
-				return _backend?.OpenAsync(path, offset, length, cancellationToken) ?? throw new InvalidOperationException("Backend has already been disposed");
+				return _backend?.OpenAsync(key, offset, length, cancellationToken) ?? throw new InvalidOperationException("Backend has already been disposed");
 			}
 
 			/// <inheritdoc/>
-			public Task<IReadOnlyMemoryOwner<byte>> ReadAsync(string path, int offset, int? length, CancellationToken cancellationToken = default)
+			public Task<IReadOnlyMemoryOwner<byte>> ReadAsync(ObjectKey key, int offset, int? length, CancellationToken cancellationToken = default)
 			{
-				return _backend?.ReadAsync(path, offset, length, cancellationToken) ?? throw new InvalidOperationException("Backend has already been disposed");
+				return _backend?.ReadAsync(key, offset, length, cancellationToken) ?? throw new InvalidOperationException("Backend has already been disposed");
 			}
 
 			/// <inheritdoc/>
-			public Task<string> WriteAsync(Stream stream, string? prefix = null, CancellationToken cancellationToken = default) => _backend.WriteAsync(stream, prefix, cancellationToken);
-
-#pragma warning disable CS0618
-			/// <inheritdoc/>
-			public Task WriteExplicitPathAsync(string path, Stream stream, CancellationToken cancellationToken = default) => _backend.WriteExplicitPathAsync(path, stream, cancellationToken);
-#pragma warning restore CS0618
+			public Task WriteAsync(ObjectKey key, Stream stream, CancellationToken cancellationToken = default) => _backend.WriteAsync(key, stream, cancellationToken);
 
 			/// <inheritdoc/>
-			public ValueTask<Uri?> TryGetReadRedirectAsync(string path, CancellationToken cancellationToken = default) => _backend.TryGetReadRedirectAsync(path, cancellationToken);
+			public ValueTask<Uri?> TryGetReadRedirectAsync(ObjectKey key, CancellationToken cancellationToken = default) => _backend.TryGetReadRedirectAsync(key, cancellationToken);
 
 			/// <inheritdoc/>
-			public ValueTask<(string, Uri)?> TryGetWriteRedirectAsync(string? prefix = null, CancellationToken cancellationToken = default) => _backend.TryGetWriteRedirectAsync(prefix, cancellationToken);
+			public ValueTask<Uri?> TryGetWriteRedirectAsync(ObjectKey key, CancellationToken cancellationToken = default) => _backend.TryGetWriteRedirectAsync(key, cancellationToken);
 
 			/// <inheritdoc/>
 			public void GetStats(StorageStats stats) => _backend.GetStats(stats);
@@ -121,7 +116,7 @@ namespace Horde.Server.Storage
 		/// <summary>
 		/// Constructor
 		/// </summary>
-		public StorageBackendProvider(IServiceProvider serviceProvider, StorageBackendCache storageBackendCache, ILogger<StorageBackendProvider> logger)
+		public ObjectStoreFactory(IServiceProvider serviceProvider, StorageBackendCache storageBackendCache, ILogger<ObjectStoreFactory> logger)
 		{
 			_serviceProvider = serviceProvider;
 			_storageBackendCache = storageBackendCache;
@@ -129,7 +124,7 @@ namespace Horde.Server.Storage
 		}
 
 		/// <inheritdoc/>
-		public IStorageBackend CreateBackend(BackendConfig config)
+		public IObjectStore CreateObjectStore(BackendConfig config)
 		{
 			// Compute the new hash of the configuration data
 			IoHash hash;
@@ -154,7 +149,7 @@ namespace Horde.Server.Storage
 				}
 				else
 				{
-					IStorageBackend newBackend = CreateStorageBackend(config);
+					IObjectStore newBackend = CreateStorageBackend(config);
 					refCountedBackend = new RefCountedBackend(config.Id, hash, newBackend);
 					_backends.Add(hash, refCountedBackend);
 					_logger.LogInformation("Created storage backend {Id}@{Hash}", refCountedBackend.Id, hash);
@@ -184,21 +179,21 @@ namespace Horde.Server.Storage
 		/// </summary>
 		/// <param name="config">Configuration for the backend</param>
 		/// <returns>New storage backend instance</returns>
-		IStorageBackend CreateStorageBackend(BackendConfig config)
+		IObjectStore CreateStorageBackend(BackendConfig config)
 		{
 			switch (config.Type ?? StorageBackendType.FileSystem)
 			{
 				case StorageBackendType.FileSystem:
-					return new FileStorageBackend(DirectoryReference.Combine(ServerApp.DataDir, config.BaseDir ?? "Storage"));
+					return new FileObjectStore(DirectoryReference.Combine(ServerApp.DataDir, config.BaseDir ?? "Storage"));
 				case StorageBackendType.Aws:
 					{
 #pragma warning disable CA2000 // False positive? (Will be disposed with cache backend wrapper)
-						IStorageBackend backend = new AwsStorageBackend(_serviceProvider.GetRequiredService<IConfiguration>(), config, _serviceProvider.GetRequiredService<ILogger<AwsStorageBackend>>());
+						IObjectStore backend = new AwsObjectStore(_serviceProvider.GetRequiredService<IConfiguration>(), config, _serviceProvider.GetRequiredService<ILogger<AwsObjectStore>>());
 						return _storageBackendCache.CreateWrapper(config.Id.ToString(), backend);
 #pragma warning restore CA2000
 					}
 				case StorageBackendType.Memory:
-					return new MemoryStorageBackend();
+					return new MemoryObjectStore();
 				default:
 					throw new NotImplementedException();
 			}

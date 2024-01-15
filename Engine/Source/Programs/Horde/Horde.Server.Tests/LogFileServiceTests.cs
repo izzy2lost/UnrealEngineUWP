@@ -13,14 +13,13 @@ using EpicGames.Horde.Agents.Sessions;
 using EpicGames.Horde.Jobs;
 using EpicGames.Horde.Logs;
 using EpicGames.Horde.Storage;
-using EpicGames.Horde.Storage.Backends;
+using EpicGames.Horde.Storage.ObjectStores;
 using Horde.Server.Agents.Sessions;
 using Horde.Server.Jobs;
 using Horde.Server.Logs;
 using Horde.Server.Logs.Builder;
 using Horde.Server.Logs.Data;
 using Horde.Server.Logs.Storage;
-using Horde.Server.Storage;
 using Horde.Server.Utilities;
 using HordeCommon;
 using Microsoft.Extensions.Logging;
@@ -36,7 +35,7 @@ namespace Horde.Server.Tests
 		private readonly FakeClock _clock;
         private readonly LogFileService _logFileService;
 		private readonly ILoggerFactory _loggerFactory;
-		private readonly IStorageBackend _logStorageBackend;
+		private readonly IObjectStore _logObjectStore;
 		private readonly ILogStorage _logStorage;
 
 		public LogFileServiceTest()
@@ -48,8 +47,8 @@ namespace Horde.Server.Tests
 
             Tracer tracer = TracerProvider.Default.GetTracer("LogFileServiceTest");
             ILogBuilder logBuilder = new RedisLogBuilder(GetRedisServiceSingleton().ConnectionPool, tracer, NullLogger.Instance);
-			_logStorageBackend = new MemoryStorageBackend();
-			_logStorage = new PersistentLogStorage(_logStorageBackend.ForType<PersistentLogStorage>(), NullLogger<PersistentLogStorage>.Instance);
+			_logObjectStore = new MemoryObjectStore();
+			_logStorage = new PersistentLogStorage(_logObjectStore.ForType<PersistentLogStorage>(), NullLogger<PersistentLogStorage>.Instance);
 			_clock = new FakeClock();
 			TestOptions<ServerSettings> settingsOpts = new (new ServerSettings());
 			_logFileService = new LogFileService(logFileCollection, null!, logBuilder, _logStorage, _clock, null!, null!, settingsOpts, tracer, logger);
@@ -61,7 +60,7 @@ namespace Horde.Server.Tests
 
 			GC.SuppressFinalize(this);
 			await _logFileService.DisposeAsync();
-			_logStorageBackend.Dispose();
+			_logObjectStore.Dispose();
 			_logStorage.Dispose();
 			_loggerFactory.Dispose();
 		}

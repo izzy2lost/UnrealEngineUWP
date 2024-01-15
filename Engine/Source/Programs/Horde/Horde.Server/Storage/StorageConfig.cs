@@ -12,7 +12,7 @@ using System.Text.Json.Serialization;
 using EpicGames.Horde.Storage;
 using Horde.Server.Acls;
 using Horde.Server.Server;
-using Horde.Server.Storage.Backends;
+using Horde.Server.Storage.ObjectStores;
 
 namespace Horde.Server.Storage
 {

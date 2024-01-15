@@ -14,7 +14,6 @@ using Amazon.EC2;
 using EpicGames.Core;
 using EpicGames.Horde.Agents;
 using EpicGames.Horde.Storage;
-using EpicGames.Horde.Storage.Backends;
 using Horde.Server.Acls;
 using Horde.Server.Agents;
 using Horde.Server.Agents.Pools;
@@ -66,6 +65,7 @@ using OpenTelemetry.Trace;
 using Horde.Server.Jobs.Bisect;
 using Horde.Server.Telemetry.Sinks;
 using EpicGames.Horde.Agents.Pools;
+using EpicGames.Horde.Storage.ObjectStores;
 
 namespace Horde.Server.Tests
 {
@@ -276,9 +276,9 @@ namespace Horde.Server.Tests
 			services.AddSingleton<ConformTaskSource>();
 			services.AddSingleton<ICommitService, CommitService>();
 
-			services.AddSingleton<IStorageBackendProvider, StorageBackendProvider>();
-			services.AddSingleton<IStorageBackend<PersistentLogStorage>>(sp => new MemoryStorageBackend().ForType<PersistentLogStorage>());
-			services.AddSingleton<IStorageBackend<ArtifactCollectionV1>>(sp => new MemoryStorageBackend().ForType<ArtifactCollectionV1>());
+			services.AddSingleton<IObjectStoreFactory, ObjectStoreFactory>();
+			services.AddSingleton<IObjectStore<PersistentLogStorage>>(sp => new MemoryObjectStore().ForType<PersistentLogStorage>());
+			services.AddSingleton<IObjectStore<ArtifactCollectionV1>>(sp => new MemoryObjectStore().ForType<ArtifactCollectionV1>());
 
 			services.AddSingleton<StorageService>();
 			services.AddSingleton<StorageBackendCache>();

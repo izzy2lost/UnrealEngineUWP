@@ -27,7 +27,6 @@ using EpicGames.Horde.Projects;
 using EpicGames.Horde.Server;
 using EpicGames.Horde.Streams;
 using EpicGames.Horde.Storage;
-using EpicGames.Horde.Storage.Backends;
 using EpicGames.Horde.Users;
 using Grpc.Core;
 using Grpc.Core.Interceptors;
@@ -58,7 +57,7 @@ using Horde.Server.Notifications;
 using Horde.Server.Secrets;
 using Horde.Server.Server;
 using Horde.Server.Storage;
-using Horde.Server.Storage.Backends;
+using Horde.Server.Storage.ObjectStores;
 using Horde.Server.Tasks;
 using Horde.Server.Tools;
 using Horde.Server.Utilities;
@@ -119,6 +118,7 @@ using EpicGames.Horde.Jobs;
 using EpicGames.Horde.Logs;
 using Horde.Server.Replicators;
 using Swashbuckle.AspNetCore.SwaggerGen;
+using EpicGames.Horde.Storage.ObjectStores;
 
 namespace Horde.Server
 {
@@ -291,16 +291,16 @@ namespace Horde.Server
 			}
 		}
 
-		static IStorageBackend CreateStorageBackend(IServiceProvider sp, StorageBackendOptions options)
+		static IObjectStore CreateObjectStore(IServiceProvider sp, StorageBackendOptions options)
 		{
 			switch (options.Type ?? StorageBackendType.FileSystem)
 			{
 				case StorageBackendType.FileSystem:
-					return new FileStorageBackend(DirectoryReference.Combine(ServerApp.DataDir, options.BaseDir ?? "Storage"));
+					return new FileObjectStore(DirectoryReference.Combine(ServerApp.DataDir, options.BaseDir ?? "Storage"));
 				case StorageBackendType.Aws:
-					return new AwsStorageBackend(sp.GetRequiredService<IConfiguration>(), options, sp.GetRequiredService<ILogger<AwsStorageBackend>>());
+					return new AwsObjectStore(sp.GetRequiredService<IConfiguration>(), options, sp.GetRequiredService<ILogger<AwsObjectStore>>());
 				case StorageBackendType.Memory:
-					return new MemoryStorageBackend();
+					return new MemoryObjectStore();
 				default:
 					throw new NotImplementedException();
 			}
@@ -596,9 +596,9 @@ namespace Horde.Server
 			services.AddSingleton<SecretService>();
 
 			// Storage providers
-			services.AddSingleton<IStorageBackendProvider, StorageBackendProvider>();
-			services.AddSingleton(sp => CreateStorageBackend(sp, settings.LogStorage).ForType<PersistentLogStorage>());
-			services.AddSingleton(sp => CreateStorageBackend(sp, settings.ArtifactStorage).ForType<ArtifactCollectionV1>());
+			services.AddSingleton<IObjectStoreFactory, ObjectStoreFactory>();
+			services.AddSingleton(sp => CreateObjectStore(sp, settings.LogStorage).ForType<PersistentLogStorage>());
+			services.AddSingleton(sp => CreateObjectStore(sp, settings.ArtifactStorage).ForType<ArtifactCollectionV1>());
 
 			if (settings.WithAws)
 			{

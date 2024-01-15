@@ -5,7 +5,6 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Threading.Tasks;
 using Horde.Server.Server;
-using Horde.Server.Storage;
 using Horde.Server.Utilities;
 using MongoDB.Bson;
 using MongoDB.Bson.Serialization.Attributes;
@@ -59,17 +58,15 @@ namespace Horde.Server.Jobs.Artifacts
 			}
 		}
 
-		private readonly IStorageBackend _storageBackend;
+		private readonly IObjectStore _objectStore;
 		private readonly IMongoCollection<Artifact> _artifacts;
 
 		/// <summary>
 		/// Constructor
 		/// </summary>
-		/// <param name="mongoService">The database service</param>
-		/// <param name="storageBackend">The storage backend</param>
-		public ArtifactCollectionV1(MongoService mongoService, IStorageBackend<ArtifactCollectionV1> storageBackend)
+		public ArtifactCollectionV1(MongoService mongoService, IObjectStore<ArtifactCollectionV1> objectStore)
 		{
-			_storageBackend = storageBackend;
+			_objectStore = objectStore;
 
 			// Initialize Artifacts table
 			_artifacts = mongoService.GetCollection<Artifact>("Artifacts", keys => keys.Ascending(x => x.JobId));
@@ -88,9 +85,7 @@ namespace Horde.Server.Jobs.Artifacts
 		{
 			// upload first
 			string artifactName = ValidateName(name);
-#pragma warning disable CS0618
-			await _storageBackend.WriteExplicitPathAsync(GetPath(jobId, stepId, artifactName), data);
-#pragma warning restore CS0618
+			await _objectStore.WriteAsync(GetObjectKey(jobId, stepId, artifactName), data);
 
 			// then create entry
 			Artifact newArtifact = new Artifact(jobId, stepId, artifactName, data.Length, mimeType);
@@ -182,9 +177,7 @@ namespace Horde.Server.Jobs.Artifacts
 
 				// re-upload the data to external
 				string artifactName = ValidateName(artifact.Name);
-#pragma warning disable CS0618
-				await _storageBackend.WriteExplicitPathAsync(GetPath(artifact.JobId, artifact.StepId, artifactName), newData);
-#pragma warning restore CS0618
+				await _objectStore.WriteAsync(GetObjectKey(artifact.JobId, artifact.StepId, artifactName), newData);
 
 				if (await TryUpdateArtifactAsync((Artifact)artifact, updateBuilder.Combine(updates)))
 				{
@@ -203,7 +196,7 @@ namespace Horde.Server.Jobs.Artifacts
 		/// <returns>The chunk data</returns>
 		public async Task<System.IO.Stream> OpenArtifactReadStreamAsync(IArtifactV1 artifact)
 		{
-			System.IO.Stream stream = await _storageBackend.OpenAsync(GetPath(artifact.JobId, artifact.StepId, artifact.Name));
+			System.IO.Stream stream = await _objectStore.OpenAsync(GetObjectKey(artifact.JobId, artifact.StepId, artifact.Name));
 			return stream;
 		}
 
@@ -214,15 +207,15 @@ namespace Horde.Server.Jobs.Artifacts
 		/// <param name="stepId"></param>
 		/// <param name="name"></param>
 		/// <returns></returns>
-		private static string GetPath(JobId jobId, JobStepId? stepId, string name)
+		private static ObjectKey GetObjectKey(JobId jobId, JobStepId? stepId, string name)
 		{
 			if (stepId == null)
 			{
-				return $"{jobId}/{name}";
+				return new ObjectKey($"{jobId}/{name}");
 			}
 			else
 			{
-				return $"{jobId}/{stepId.Value}/{name}";
+				return new ObjectKey($"{jobId}/{stepId.Value}/{name}");
 			}
 		}
 

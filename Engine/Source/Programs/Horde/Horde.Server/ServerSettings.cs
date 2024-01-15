@@ -23,7 +23,7 @@ using Horde.Server.Jobs;
 using Horde.Server.Logs;
 using Horde.Server.Projects;
 using Horde.Server.Server;
-using Horde.Server.Storage.Backends;
+using Horde.Server.Storage.ObjectStores;
 using Horde.Server.Streams;
 using Horde.Server.Tools;
 using Horde.Server.Utilities;

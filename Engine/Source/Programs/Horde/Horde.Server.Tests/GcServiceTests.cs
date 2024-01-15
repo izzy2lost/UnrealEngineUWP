@@ -47,12 +47,12 @@ namespace Horde.Server.Tests
 
 			await Clock.AdvanceAsync(TimeSpan.FromDays(1.0));
 
-			IStorageBackend backend = ServiceProvider.GetRequiredService<IStorageBackendProvider>().CreateBackend(globalConfig.Storage.Backends[0]);
+			IObjectStore backend = ServiceProvider.GetRequiredService<IObjectStoreFactory>().CreateObjectStore(globalConfig.Storage.Backends[0]);
 
-			string[] remaining = await backend.EnumerateAsync().ToArrayAsync();
+			ObjectKey[] remaining = await backend.EnumerateAsync().ToArrayAsync();
 			Assert.AreEqual(nodes.Count, remaining.Length);
 
-			HashSet<string> nodePaths = new HashSet<string>(nodes.Select(x => x.BaseLocator.ToString()), StringComparer.Ordinal);
+			HashSet<ObjectKey> nodePaths = new HashSet<ObjectKey>(nodes.Select(x => new ObjectKey(x.BaseLocator.ToString())));
 			Assert.IsTrue(remaining.All(x => nodePaths.Contains(x)));
 		}
 

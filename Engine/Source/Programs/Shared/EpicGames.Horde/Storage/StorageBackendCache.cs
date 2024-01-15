@@ -54,6 +54,51 @@ namespace EpicGames.Horde.Storage
 			public Task WaitAsync(CancellationToken cancellationToken) => _readTask.WaitAsync(cancellationToken);
 		}
 
+		sealed class ObjectStoreWrapper : IObjectStore
+		{
+			readonly string _keyPrefix;
+			readonly StorageBackendCache _cacheStorage;
+			readonly IObjectStore _inner;
+
+			public bool SupportsRedirects => _inner.SupportsRedirects;
+
+			public ObjectStoreWrapper(string keyPrefix, StorageBackendCache cacheStorage, IObjectStore inner)
+			{
+				_keyPrefix = keyPrefix;
+				_cacheStorage = cacheStorage;
+				_inner = inner;
+			}
+
+			public void Dispose() => _inner.Dispose();
+
+			public async Task<Stream> OpenAsync(ObjectKey key, int offset, int? length, CancellationToken cancellationToken = default)
+			{
+				IReadOnlyMemoryOwner<byte> storageObject = await ReadAsync(key, offset, length, cancellationToken);
+				return storageObject.AsStream();
+			}
+
+			public async Task<IReadOnlyMemoryOwner<byte>> ReadAsync(ObjectKey key, int offset, int? length, CancellationToken cancellationToken = default)
+			{
+#pragma warning disable CA2000 // Dispose objects before losing scope
+				IReadOnlyMemoryOwner<byte> storageObject = await _cacheStorage.ReadAsync($"{_keyPrefix}{key}", ctx => _inner.OpenAsync(key, ctx), cancellationToken);
+#pragma warning restore CA2000 // Dispose objects before losing scope
+				return storageObject.Slice(offset, length);
+			}
+
+			public Task WriteAsync(ObjectKey key, Stream stream, CancellationToken cancellationToken = default) => _inner.WriteAsync(key, stream, cancellationToken);
+			public Task DeleteAsync(ObjectKey key, CancellationToken cancellationToken = default) => _inner.DeleteAsync(key, cancellationToken);
+			public IAsyncEnumerable<ObjectKey> EnumerateAsync(CancellationToken cancellationToken = default) => _inner.EnumerateAsync(cancellationToken);
+			public Task<bool> ExistsAsync(ObjectKey key, CancellationToken cancellationToken = default) => _inner.ExistsAsync(key, cancellationToken);
+			public ValueTask<Uri?> TryGetReadRedirectAsync(ObjectKey key, CancellationToken cancellationToken = default) => _inner.TryGetReadRedirectAsync(key, cancellationToken);
+			public ValueTask<Uri?> TryGetWriteRedirectAsync(ObjectKey key, CancellationToken cancellationToken = default) => _inner.TryGetWriteRedirectAsync(key, cancellationToken);
+
+			public void GetStats(StorageStats stats)
+			{
+				_inner.GetStats(stats);
+				_cacheStorage.GetStats(stats);
+			}
+		}
+
 		sealed class BackendWrapper : IStorageBackend
 		{
 			readonly string _keyPrefix;
@@ -163,6 +208,16 @@ namespace EpicGames.Horde.Storage
 				_backend.Delete(item.Path);
 			}
 			_backend.Dispose();
+		}
+
+		/// <summary>
+		/// Wraps an onject store in another store that routes requests through the cache
+		/// </summary>
+		/// <param name="keyPrefix">Prefix for items in this cache</param>
+		/// <param name="store">Backend to wrap</param>
+		public IObjectStore CreateWrapper(string keyPrefix, IObjectStore store)
+		{
+			return new ObjectStoreWrapper(keyPrefix, this, store);
 		}
 
 		/// <summary>

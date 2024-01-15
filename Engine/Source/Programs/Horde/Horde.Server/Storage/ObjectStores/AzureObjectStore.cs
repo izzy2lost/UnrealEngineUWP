@@ -15,7 +15,7 @@ using Azure.Storage.Sas;
 using Microsoft.Extensions.Logging;
 using OpenTelemetry.Trace;
 
-namespace Horde.Server.Storage.Backends
+namespace Horde.Server.Storage.ObjectStores
 {
 	/// <summary>
 	/// Exception wrapper for S3 requests
@@ -52,7 +52,7 @@ namespace Horde.Server.Storage.Backends
 	/// <summary>
 	/// Storage backend using Azure
 	/// </summary>
-	public sealed class AzureStorageBackend : IStorageBackend
+	public sealed class AzureObjectStore : IObjectStore
 	{
 		private readonly ILogger _logger;
 		private readonly Tracer _tracer;
@@ -64,7 +64,7 @@ namespace Horde.Server.Storage.Backends
 		/// <summary>
 		/// Constructor
 		/// </summary>
-		public AzureStorageBackend(IAzureStorageOptions options, ILogger<AzureStorageBackend> logger, Tracer tracer)
+		public AzureObjectStore(IAzureStorageOptions options, ILogger<AzureObjectStore> logger, Tracer tracer)
 		{
 			if (options.AzureConnectionString == null)
 			{
@@ -86,7 +86,7 @@ namespace Horde.Server.Storage.Backends
 		}
 
 		/// <inheritdoc/>
-		public async Task<Stream> OpenAsync(string path, int offset, int? length, CancellationToken cancellationToken = default)
+		public async Task<Stream> OpenAsync(ObjectKey key, int offset, int? length, CancellationToken cancellationToken = default)
 		{
 			if (!await _blobContainer.ExistsAsync(cancellationToken))
 			{
@@ -95,40 +95,32 @@ namespace Horde.Server.Storage.Backends
 
 			try
 			{
-				BlobClient blob = _blobContainer.GetBlobClient(path);
+				BlobClient blob = _blobContainer.GetBlobClient(key.ToString());
 				Response<BlobDownloadInfo> blobInfo = await blob.DownloadAsync(cancellationToken);
 				return blobInfo.Value.Content;
 			}
 			catch (RequestFailedException ex)
 			{
-				throw new AzureException($"Unable to read {path} from Azure", ex);
+				throw new AzureException($"Unable to read {key} from Azure", ex);
 			}
 		}
 
 		/// <inheritdoc/>
-		public async Task<IReadOnlyMemoryOwner<byte>> ReadAsync(string path, int offset, int? length, CancellationToken cancellationToken = default)
+		public async Task<IReadOnlyMemoryOwner<byte>> ReadAsync(ObjectKey key, int offset, int? length, CancellationToken cancellationToken = default)
 		{
-			using Stream stream = await OpenAsync(path, offset, length, cancellationToken);
+			using Stream stream = await OpenAsync(key, offset, length, cancellationToken);
 			return ReadOnlyMemoryOwner.Create(await stream.ReadAllBytesAsync(cancellationToken));
 		}
 
 		/// <inheritdoc/>
-		public async Task<string> WriteAsync(Stream inputStream, string? prefix = null, CancellationToken cancellationToken = default)
-		{
-			string path = StorageHelpers.CreateUniqueName(prefix);
-			await WriteExplicitPathAsync(path, inputStream, cancellationToken);
-			return path;
-		}
-
-		/// <inheritdoc/>
-		public async Task WriteExplicitPathAsync(string path, Stream stream, CancellationToken cancellationToken = default)
+		public async Task WriteAsync(ObjectKey key, Stream stream, CancellationToken cancellationToken = default)
 		{
 			await _blobContainer.CreateIfNotExistsAsync(cancellationToken: cancellationToken);
 
-			_logger.LogDebug("Fetching blob reference with name {ObjectName}", path);
+			_logger.LogDebug("Fetching blob reference with name {ObjectName}", key);
 			try
 			{
-				await _blobContainer.GetBlobClient(path).UploadAsync(stream, cancellationToken);
+				await _blobContainer.GetBlobClient(key.ToString()).UploadAsync(stream, cancellationToken);
 			}
 			catch (Exception ex)
 			{
@@ -137,83 +129,73 @@ namespace Horde.Server.Storage.Backends
 		}
 
 		/// <inheritdoc/>
-		public async Task<bool> ExistsAsync(string path, CancellationToken cancellationToken)
+		public async Task<bool> ExistsAsync(ObjectKey key, CancellationToken cancellationToken)
 		{
 			if (!await _blobContainer.ExistsAsync(cancellationToken))
 			{
 				return false;
 			}
 
-			BlobClient blob = _blobContainer.GetBlobClient(path);
+			BlobClient blob = _blobContainer.GetBlobClient(key.ToString());
 			return await blob.ExistsAsync(cancellationToken);
 		}
 
 		/// <inheritdoc/>
-		public async Task DeleteAsync(string path, CancellationToken cancellationToken)
+		public async Task DeleteAsync(ObjectKey key, CancellationToken cancellationToken)
 		{
 			if (!await _blobContainer.ExistsAsync(cancellationToken))
 			{
 				throw new InvalidOperationException($"Container {_blobContainer.Name} does not exist");
 			}
 
-			await _blobContainer.DeleteBlobAsync(path, cancellationToken: cancellationToken);
+			await _blobContainer.DeleteBlobAsync(key.ToString(), cancellationToken: cancellationToken);
 		}
 
 		/// <inheritdoc/>
-		public async IAsyncEnumerable<string> EnumerateAsync([EnumeratorCancellation] CancellationToken cancellationToken = default)
+		public async IAsyncEnumerable<ObjectKey> EnumerateAsync([EnumeratorCancellation] CancellationToken cancellationToken = default)
 		{
 			bool exists = await _blobContainer.ExistsAsync(cancellationToken);
 			if (exists)
 			{
 				await foreach (BlobItem? item in _blobContainer.GetBlobsAsync(BlobTraits.Metadata, cancellationToken: cancellationToken))
 				{
-					yield return item.Name;
+					yield return new ObjectKey(item.Name);
 				}
 			}
 		}
 
 		/// <inheritdoc/>
-		public async ValueTask<Uri?> TryGetReadRedirectAsync(string path, CancellationToken cancellationToken = default)
+		public async ValueTask<Uri?> TryGetReadRedirectAsync(ObjectKey key, CancellationToken cancellationToken = default)
 		{
 			if (!await _blobContainer.ExistsAsync(cancellationToken))
 			{
-				throw new InvalidOperationException($"Container {_blobContainer.Name} did not exist");
+				throw new InvalidOperationException($"Container {_blobContainer.Name} does not exist");
 			}
 
-			return TryGetPresignedUrl(path, BlobSasPermissions.Read);
+			return TryGetPresignedUrl(key, BlobSasPermissions.Read);
 		}
 
 		/// <inheritdoc/>
-		public async ValueTask<(string, Uri)?> TryGetWriteRedirectAsync(string? prefix = null, CancellationToken cancellationToken = default)
+		public async ValueTask<Uri?> TryGetWriteRedirectAsync(ObjectKey key, CancellationToken cancellationToken = default)
 		{
 			if (!await _blobContainer.ExistsAsync(cancellationToken))
 			{
-				throw new InvalidOperationException($"Container {_blobContainer.Name} did not exist");
+				throw new InvalidOperationException($"Container {_blobContainer.Name} does not exist");
 			}
 
-			string path = StorageHelpers.CreateUniqueName(prefix);
-
-			Uri? uri = TryGetPresignedUrl(path, BlobSasPermissions.Write);
-			if (uri != null)
-			{
-				return (path, uri);
-			}
-			else
-			{
-				return null;
-			}
+			return TryGetPresignedUrl(key, BlobSasPermissions.Write);
 		}
 
 		/// <summary>
 		/// Helper method to generate a presigned URL for a request
 		/// </summary>
-		Uri? TryGetPresignedUrl(string path, BlobSasPermissions permissions)
+		Uri? TryGetPresignedUrl(ObjectKey key, BlobSasPermissions permissions)
 		{
-			using TelemetrySpan span = _tracer.StartActiveSpan("azure.BuildPresignedUrl").SetAttribute("Path", path);
+			using TelemetrySpan span = _tracer.StartActiveSpan("azure.BuildPresignedUrl").SetAttribute("Path", key.ToString());
 
 			try
 			{
-				BlobClient blob = _blobContainer.GetBlobClient(path);
+				BlobClient blob = _blobContainer.GetBlobClient(key.ToString());
 				return blob.GenerateSasUri(permissions, DateTimeOffset.Now.AddHours(1.0));
 			}
 			catch (RequestFailedException e)

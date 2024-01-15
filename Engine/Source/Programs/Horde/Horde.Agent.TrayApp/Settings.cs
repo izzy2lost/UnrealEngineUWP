@@ -1,5 +1,7 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
+#pragma warning disable CS1591
+
 namespace Horde.Agent.TrayApp
 {
 	[Serializable]

@@ -3,11 +3,11 @@
 using System;
 using System.Collections.Generic;
 using System.IO;
-using System.IO.MemoryMappedFiles;
 using System.Runtime.CompilerServices;
 using System.Threading;
 using System.Threading.Tasks;
 using EpicGames.Core;
+using EpicGames.Horde.Storage.ObjectStores;
 
 namespace EpicGames.Horde.Storage.Backends
 {
@@ -16,160 +16,10 @@ namespace EpicGames.Horde.Storage.Backends
 	/// </summary>
 	public sealed class FileStorageBackend : IStorageBackend
 	{
-		// Item which has been opened from the cache using a memory mapped file
-		class MappedFile : IDisposable
-		{
-			public string Path { get; }
-			public LinkedListNode<MappedFile> ListNode { get; }
-
-			readonly FileInfo _fileInfo;
-
-			MemoryMappedFile? _memoryMappedFile;
-			MemoryMappedViewAccessor? _memoryMappedViewAccessor;
-			MemoryMappedView? _memoryMappedView;
-
-			int _refCount = 1;
-			ReadOnlyMemory<byte> _data;
-			bool _deleteOnDispose;
-
-			public int RefCount => _refCount;
-
-			public ulong MappedSize => _memoryMappedViewAccessor?.SafeMemoryMappedViewHandle.ByteLength ?? 0UL;
-
-			public MappedFile(string path, FileInfo fileInfo)
-			{
-				Path = path;
-				ListNode = new LinkedListNode<MappedFile>(this);
-
-				_fileInfo = fileInfo;
-
-				try
-				{
-					_memoryMappedFile = MemoryMappedFile.CreateFromFile(fileInfo.FullName, FileMode.Open, null, 0, MemoryMappedFileAccess.Read);
-					_memoryMappedViewAccessor = _memoryMappedFile.CreateViewAccessor(0, 0, MemoryMappedFileAccess.Read);
-					_memoryMappedView = new MemoryMappedView(_memoryMappedViewAccessor);
-
-					_data = _memoryMappedView.GetMemory(0, (int)fileInfo.Length);
-				}
-				catch
-				{
-					Dispose();
-					throw;
-				}
-			}
-
-			public void Dispose()
-			{
-				_data = ReadOnlyMemory<byte>.Empty;
-
-				if (_memoryMappedView != null)
-				{
-					_memoryMappedView.Dispose();
-					_memoryMappedView = null;
-				}
-				if (_memoryMappedViewAccessor != null)
-				{
-					_memoryMappedViewAccessor.Dispose();
-					_memoryMappedViewAccessor = null;
-				}
-				if (_memoryMappedFile != null)
-				{
-					_memoryMappedFile.Dispose();
-					_memoryMappedFile = null;
-				}
-
-				if (_deleteOnDispose)
-				{
-					try
-					{
-						_fileInfo.Delete();
-					}
-					catch { }
-				}
-			}
-
-			public ReadOnlyMemory<byte> GetData(int offset, int? length)
-			{
-				if (length == null)
-				{
-					return _data.Slice(offset);
-				}
-				else
-				{
-					return _data.Slice(offset, Math.Min(length.Value, _data.Length - offset));
-				}
-			}
-
-			public void AddRef()
-			{
-				Interlocked.Increment(ref _refCount);
-			}
-
-			public void Release()
-			{
-				if (Interlocked.Decrement(ref _refCount) == 0)
-				{
-					Dispose();
-				}
-			}
-
-			public void DeleteOnDispose()
-			{
-				_deleteOnDispose = true;
-			}
-
-			public override string ToString() => Path;
-		}
-
-		// Handle to a file in memory
-		class MappedFileHandle : IReadOnlyMemoryOwner<byte>
-		{
-			MappedFile? _mappedFile;
-			ReadOnlyMemory<byte> _data;
-
-			public ReadOnlyMemory<byte> Memory => _data;
-
-			public MappedFileHandle(MappedFile? mappedFile, ReadOnlyMemory<byte> data)
-			{
-				_mappedFile = mappedFile;
-				_mappedFile?.AddRef();
-				_data = data;
-			}
-
-			public MappedFileHandle Clone()
-			{
-				_mappedFile?.AddRef();
-				return new MappedFileHandle(_mappedFile, _data);
-			}
-
-			public void Dispose()
-			{
-				if (_mappedFile != null)
-				{
-					_mappedFile.Release();
-					_mappedFile = null!;
-				}
-
-				_data = ReadOnlyMemory<byte>.Empty;
-			}
-		}
-
-		/// <summary>
-		/// Base directory for log files
-		/// </summary>
-		private readonly DirectoryReference _baseDir;
+		readonly FileObjectStore _objectStore;
 
 		/// <inheritdoc/>
 		public bool SupportsRedirects => false;
-
-		readonly object _lockObject = new object();
-		readonly Dictionary<string, MappedFile> _pathToMappedFile = new Dictionary<string, MappedFile>(StringComparer.Ordinal);
-		readonly LinkedList<MappedFile> _mappedFiles = new LinkedList<MappedFile>();
-
-		long _mappedSize;
-
-		const long MaxMappedSize = 1024L * 1024 * 1024;
-		const int MaxMappedCount = 128;
 
 		/// <summary>
 		/// Constructor
@@ -177,81 +27,23 @@ namespace EpicGames.Horde.Storage.Backends
 		/// <param name="baseDir">Base directory for the store</param>
 		public FileStorageBackend(DirectoryReference baseDir)
 		{
-			_baseDir = baseDir;
-			DirectoryReference.CreateDirectory(_baseDir);
+			_objectStore = new FileObjectStore(baseDir);
 		}
 
 		/// <inheritdoc/>
 		public void Dispose()
 		{
-			lock (_lockObject)
-			{
-				UnmapFiles(0, 0);
-			}
+			_objectStore.Dispose();
 		}
 
 		/// <summary>
 		/// Gets the path for storing a file on disk
 		/// </summary>
-		FileReference GetBlobFile(string path) => FileReference.Combine(_baseDir, $"{path}.blob");
-
-		/// <summary>
-		/// Finds an existing mapped file or adds a new one for the given path
-		/// </summary>
-		MappedFile FindOrAddMappedFile(string path)
-		{
-			MappedFile? mappedFile;
-			if (!_pathToMappedFile.TryGetValue(path, out mappedFile))
-			{
-				FileInfo fileInfo = GetBlobFile(path).ToFileInfo();
-				if (fileInfo.Length == 0)
-				{
-					throw new Exception($"Unable to map empty memory mapped file: {fileInfo.FullName}");
-				}
-
-				long maxSize = MaxMappedSize - fileInfo.Length;
-				if (_mappedSize > maxSize || _mappedFiles.Count + 1 > MaxMappedCount)
-				{
-					UnmapFiles(maxSize, MaxMappedCount - 1);
-				}
-
-				mappedFile = new MappedFile(path, fileInfo);
-				_pathToMappedFile.Add(path, mappedFile);
-				_mappedFiles.AddFirst(mappedFile.ListNode);
-
-				_mappedSize += (long)mappedFile.MappedSize;
-			}
-			return mappedFile;
-		}
-
-		/// <summary>
-		/// Discard mapped files until only a certain size is mapped in memory
-		/// </summary>
-		/// <param name="maxMappedSize">Maximum mapped size</param>
-		/// <param name="maxMappedCount">Maximum number of mapped files</param>
-		void UnmapFiles(long maxMappedSize, int maxMappedCount)
-		{
-			for (LinkedListNode<MappedFile>? listNode = _mappedFiles.Last; listNode != null && (_mappedSize > maxMappedSize || _mappedFiles.Count > maxMappedCount);)
-			{
-				LinkedListNode<MappedFile>? nextListNode = listNode.Previous;
-				if (listNode.Value.RefCount == 1)
-				{
-					_pathToMappedFile.Remove(listNode.Value.Path);
-					_mappedFiles.Remove(listNode);
-					listNode.Value.Release();
-				}
-				listNode = nextListNode;
-			}
-		}
+		static ObjectKey GetBlobFile(string path) => new ObjectKey($"{path}.blob");
 
 		/// <inheritdoc/>
-		public async Task<Stream> OpenAsync(string path, int offset, int? length, CancellationToken cancellationToken)
-		{
-#pragma warning disable CA2000 // Dispose objects before losing scope
-			IReadOnlyMemoryOwner<byte> storageObject = await ReadAsync(path, offset, length, cancellationToken);
-			return storageObject.AsStream();
-#pragma warning restore CA2000 // Dispose objects before losing scope
-		}
+		public Task<Stream> OpenAsync(string path, int offset, int? length, CancellationToken cancellationToken)
+			=> _objectStore.OpenAsync(GetBlobFile(path), offset, length, cancellationToken);
 
 		/// <summary>
 		/// Maps a file into memory for reading, and returns a handle to it
@@ -261,19 +53,11 @@ namespace EpicGames.Horde.Storage.Backends
 		/// <param name="length">Length of the data</param>
 		/// <returns>Handle to the data. Must be disposed by the caller.</returns>
 		public IReadOnlyMemoryOwner<byte> Read(string path, int offset, int? length)
-		{
-			lock (_lockObject)
-			{
-				MappedFile mappedFile = FindOrAddMappedFile(path);
-				return new MappedFileHandle(mappedFile, mappedFile.GetData(offset, length));
-			}
-		}
+			=> _objectStore.Read(GetBlobFile(path), offset, length);
 
 		/// <inheritdoc/>
 		public Task<IReadOnlyMemoryOwner<byte>> ReadAsync(string path, int offset, int? length, CancellationToken cancellationToken = default)
-		{
-			return Task.FromResult(Read(path, offset, length));
-		}
+			=> _objectStore.ReadAsync(GetBlobFile(path), offset, length, cancellationToken);
 
 		/// <inheritdoc/>
 		public async Task<string> WriteAsync(Stream stream, string? prefix = null, CancellationToken cancellationToken = default)
@@ -284,111 +68,30 @@ namespace EpicGames.Horde.Storage.Backends
 		}
 
 		/// <inheritdoc/>
-		public async Task WriteExplicitPathAsync(string path, Stream stream, CancellationToken cancellationToken = default)
-		{
-			FileReference finalLocation = GetBlobFile(path);
-			DirectoryReference.CreateDirectory(finalLocation.Directory);
-			FileReference tempLocation = new FileReference($"{finalLocation}.tmp");
-
-			using (Stream outputStream = FileReference.Open(tempLocation, FileMode.Create, FileAccess.Write, FileShare.Read))
-			{
-				await stream.CopyToAsync(outputStream, cancellationToken);
-			}
-
-			// Move the temp file into place
-			try
-			{
-				FileReference.Move(tempLocation, finalLocation, true);
-			}
-			catch (IOException) // Already exists
-			{
-				if (FileReference.Exists(finalLocation))
-				{
-					FileReference.Delete(tempLocation);
-				}
-				else
-				{
-					throw;
-				}
-			}
-		}
+		public Task WriteExplicitPathAsync(string path, Stream stream, CancellationToken cancellationToken = default)
+			=> _objectStore.WriteAsync(GetBlobFile(path), stream, cancellationToken);
 
 		/// <inheritdoc/>
 		public Task<bool> ExistsAsync(string path, CancellationToken cancellationToken)
-		{
-			FileReference location = GetBlobFile(path);
-			return Task.FromResult(FileReference.Exists(location));
-		}
+			=> _objectStore.ExistsAsync(GetBlobFile(path), cancellationToken);
 
 		/// <summary>
 		/// Delete a file from the store
 		/// </summary>
 		/// <param name="path"></param>
 		public void Delete(string path)
-		{
-			lock(_lockObject)
-			{
-				MappedFile? mappedFile;
-				if (_pathToMappedFile.TryGetValue(path, out mappedFile))
-				{
-					mappedFile.DeleteOnDispose();
-
-					_pathToMappedFile.Remove(path);
-					_mappedFiles.Remove(mappedFile.ListNode);
-
-					mappedFile.Release();
-				}
-				else
-				{
-					FileReference location = GetBlobFile(path);
-					FileReference.Delete(location);
-				}
-			}
-		}
+			=> _objectStore.Delete(GetBlobFile(path));
 
 		/// <inheritdoc/>
 		public Task DeleteAsync(string path, CancellationToken cancellationToken)
-		{
-			Delete(path);
-			return Task.CompletedTask;
-		}
+			=> _objectStore.DeleteAsync(GetBlobFile(path), cancellationToken);
 
 		/// <inheritdoc/>
 		public async IAsyncEnumerable<string> EnumerateAsync([EnumeratorCancellation] CancellationToken cancellationToken = default)
 		{
-			Stack<IEnumerator<DirectoryInfo>> queue = new Stack<IEnumerator<DirectoryInfo>>();
-			try
+			await foreach (ObjectKey locator in _objectStore.EnumerateAsync(cancellationToken))
 			{
-				queue.Push(new List<DirectoryInfo> { _baseDir.ToDirectoryInfo() }.GetEnumerator());
-				while (queue.Count > 0)
-				{
-					IEnumerator<DirectoryInfo> top = queue.Peek();
-					if (!top.MoveNext())
-					{
-						top.Dispose();
-						queue.Pop();
-						continue;
-					}
-
-					DirectoryInfo current = top.Current;
-					foreach (FileInfo fileInfo in current.EnumerateFiles("*.blob"))
-					{
-						string path = fileInfo.FullName.Substring(_baseDir.FullName.Length + 1).Replace(Path.DirectorySeparatorChar, '/');
-						yield return path.Substring(0, path.Length - 5);
-					}
-
-					queue.Push(current.EnumerateDirectories().GetEnumerator());
-
-					cancellationToken.ThrowIfCancellationRequested();
-					await Task.Yield();
-				}
-			}
-			finally
-			{
-				while (queue.TryPop(out IEnumerator<DirectoryInfo>? enumerator))
-				{
-					enumerator.Dispose();
-				}
+				yield return locator.Path.ToString();
 			}
 		}
 
@@ -399,7 +102,8 @@ namespace EpicGames.Horde.Storage.Backends
 		public ValueTask<(string, Uri)?> TryGetWriteRedirectAsync(string? prefix = null, CancellationToken cancellationToken = default) => default;
 
 		/// <inheritdoc/>
-		public void GetStats(StorageStats stats) { }
+		public void GetStats(StorageStats stats)
+			=> _objectStore.GetStats(stats);
 	}
 }
 
