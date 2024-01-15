@@ -67,14 +67,14 @@ namespace PropertyCustomizationHelpers
 				SNew(SBox)
 				.HAlign(HAlign_Center)
 				.VAlign(VAlign_Center)
-				.WidthOverride(22)
-				.HeightOverride(22)
+				.WidthOverride(22.0f)
+				.HeightOverride(22.0f)
 				.ToolTipText(InArgs._Text)
 				[
 					SNew(SButton)
 					.ButtonStyle( FAppStyle::Get(), "SimpleButton" )
 					.OnClicked( this, &SPropertyEditorButton::OnClick )
-					.ContentPadding(0)
+					.ContentPadding(0.0f)
 					.IsFocusable(InArgs._IsFocusable)
 					[ 
 						SNew( SImage )
@@ -194,7 +194,7 @@ namespace PropertyCustomizationHelpers
 					return FReply::Handled();
 				})
 				.Text(LOCTEXT("SetButtonText", "Set to Value"))
-				.ContentPadding(0)
+				.ContentPadding(0.0f)
 				.IsFocusable(false)
 			];
 	}
@@ -286,7 +286,7 @@ namespace PropertyCustomizationHelpers
 		return
 			SNew(SComboButton)
 			.ComboButtonStyle( FAppStyle::Get(), "SimpleComboButton" )
-			.ContentPadding(2)
+			.ContentPadding(2.0f)
 			.ForegroundColor( FSlateColor::UseForeground() )
 			.HasDownArrow(true)
 			.MenuContent()
@@ -1093,7 +1093,7 @@ public:
 								[
 									SNew(SHorizontalBox)
 									+ SHorizontalBox::Slot()
-									.Padding(0)
+									.Padding(0.0f)
 									.VAlign(VAlign_Center)
 									.AutoWidth()
 									[
@@ -1110,7 +1110,7 @@ public:
 									+ SHorizontalBox::Slot()
 									.VAlign(VAlign_Center)
 									.FillWidth(1.0f)
-									.Padding(5, 0, 0, 0)
+									.Padding(5.0f, 0.0f, 0.0f, 0.0f)
 									[
 										SNew(SBox)
 										.HAlign(HAlign_Fill)
@@ -1121,7 +1121,7 @@ public:
 											SNew(SComboButton)
 											.OnGetMenuContent(this, &FSectionItemView::OnGetMaterialSlotNameMenuForSection)
 											.VAlign(VAlign_Center)
-											.ContentPadding(2)
+											.ContentPadding(2.0f)
 											.IsEnabled(!SectionItem.IsSectionUsingCloth)
 											.ButtonContent()
 											[

@@ -155,7 +155,7 @@ void SPropertyEditorEditInline::Construct( const FArguments& InArgs, const TShar
 		SAssignNew(ComboButton, SComboButton)
 		.IsEnabled(this, &SPropertyEditorEditInline::IsValueEnabled, WeakHandlePtr)
 		.OnGetMenuContent(this, &SPropertyEditorEditInline::GenerateClassPicker)
-		.ContentPadding(0)
+		.ContentPadding(0.0f)
 		.ToolTipText(InPropertyEditor, &FPropertyEditor::GetValueAsText )
 		.ButtonContent()
 		[

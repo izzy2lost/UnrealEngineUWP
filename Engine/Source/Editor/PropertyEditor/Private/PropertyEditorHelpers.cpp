@@ -42,7 +42,7 @@ void SPropertyNameWidget::Construct( const FArguments& InArgs, TSharedPtr<FPrope
 	[
 		SAssignNew(HorizontalBox, SHorizontalBox)
 		+SHorizontalBox::Slot()
-		.Padding( FMargin( 0, 1, 0, 1 ) )
+		.Padding( FMargin( 0.0f, 1.0f, 0.0f, 1.0f) )
 		.FillWidth(1)
 		[
 			SNew(SBorder)

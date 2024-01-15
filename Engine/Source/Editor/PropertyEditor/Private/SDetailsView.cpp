@@ -272,7 +272,7 @@ void SDetailsView::Construct(const FArguments& InArgs, const FDetailsViewArgs& I
 		SNew( SHorizontalBox )
 		+SHorizontalBox::Slot()
 		.Padding(6.f)
-		.FillWidth(1)
+		.FillWidth(1.0f)
 		[
 			// Create the search box
 			SAssignNew(SearchBox, SSearchBox)
@@ -284,7 +284,7 @@ void SDetailsView::Construct(const FArguments& InArgs, const FDetailsViewArgs& I
 	
 	{
 		FilterRowHBox->AddSlot()
-			.Padding(0)
+			.Padding(0.0f)
 			.HAlign(HAlign_Right)
 			.VAlign(VAlign_Center)
 			.AutoWidth()
@@ -307,7 +307,7 @@ void SDetailsView::Construct(const FArguments& InArgs, const FDetailsViewArgs& I
 	if (DetailsViewArgs.bAllowFavoriteSystem)
 	{
 		FilterRowHBox->AddSlot()
-			.Padding(0)
+			.Padding(0.0f)
 			.HAlign(HAlign_Right)
 			.VAlign(VAlign_Center)
 			.AutoWidth()
@@ -335,14 +335,14 @@ void SDetailsView::Construct(const FArguments& InArgs, const FDetailsViewArgs& I
 		FilterImage->AddLayer(TAttribute<const FSlateBrush*>(this, &SDetailsView::GetViewOptionsBadgeIcon));
 		
 		FilterRowHBox->AddSlot()
-			.Padding(0)
+			.Padding(0.0f)
 			.HAlign(HAlign_Right)
 			.VAlign(VAlign_Center)
 			.AutoWidth()
 			[
 				SNew( SComboButton )
 				.HasDownArrow(false)
-				.ContentPadding(0)
+				.ContentPadding(0.0f)
 				.ForegroundColor( FSlateColor::UseForeground() )
 				.ButtonStyle( FAppStyle::Get(), "SimpleButton" )
 				.AddMetaData<FTagMetaData>(FTagMetaData(TEXT("ViewOptions")))
@@ -366,12 +366,12 @@ void SDetailsView::Construct(const FArguments& InArgs, const FDetailsViewArgs& I
 		];
 
 	FilterRowVBox->AddSlot()
-		.Padding(8, 2, 8, 7)
+		.Padding(8.0f, 2.0f, 8.0f, 7.0f)
 		.AutoHeight()
 		[
 			SAssignNew(SectionSelectorBox, SWrapBox)
 			.UseAllottedSize(true)
-			.InnerSlotPadding(FVector2D(4,4))
+			.InnerSlotPadding(FVector2D(4.0f,4.0f))
 		];
 
 	RebuildSectionSelector();
@@ -392,8 +392,8 @@ void SDetailsView::Construct(const FArguments& InArgs, const FDetailsViewArgs& I
 	}
 
 	VerticalBox->AddSlot()
-	.FillHeight(1)
-	.Padding(0)
+	.FillHeight(1.0f)
+	.Padding(0.0f)
 	[
 		SNew(SOverlay)
 		+ SOverlay::Slot()
@@ -1318,7 +1318,7 @@ void SDetailsView::RebuildSectionSelector()
 		-> TSharedRef<SWidget>
 	{
 		return SNew(SBox)
-			.Padding(FMargin(0))
+			.Padding(FMargin(0.0f))
 			[
 				SNew(SCheckBox)
 				.Style(FAppStyle::Get(), "DetailsView.SectionButton")

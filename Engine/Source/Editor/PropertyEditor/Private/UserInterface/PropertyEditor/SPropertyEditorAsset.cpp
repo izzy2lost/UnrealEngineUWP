@@ -559,18 +559,18 @@ void SPropertyEditorAsset::Construct(const FArguments& InArgs, const TSharedPtr<
 		}
 
 		ValueContentBox->AddSlot()
-		.Padding(0,3,5,0)
+		.Padding(0.0f,3.0f,5.0f,0.0f)
 		.AutoWidth()
 		.VAlign(VAlign_Center)
 		[
 			SNew(SBorder)
 			.Visibility(EVisibility::SelfHitTestInvisible)
-			.Padding(FMargin(0, 0, 4, 4))
+			.Padding(FMargin(0.0f, 0.0f, 4.0f, 4.0f))
 			.BorderImage(FAppStyle::Get().GetBrush("PropertyEditor.AssetTileItem.DropShadow"))
 			[
 				SNew(SOverlay)
 				+SOverlay::Slot()
-				.Padding(1)
+				.Padding(1.0f)
 				[
 					SAssignNew(ThumbnailBorder, SBorder)
 					.Padding(0)
@@ -579,8 +579,8 @@ void SPropertyEditorAsset::Construct(const FArguments& InArgs, const TSharedPtr<
 					[
 						SNew(SBox)
 						.ToolTipText(TooltipAttribute)
-						.WidthOverride(InArgs._ThumbnailSize.X)
-						.HeightOverride(InArgs._ThumbnailSize.Y)
+						.WidthOverride(static_cast<float>(InArgs._ThumbnailSize.X))
+						.HeightOverride(static_cast<float>(InArgs._ThumbnailSize.Y))
 						[
 							AssetThumbnail->MakeThumbnailWidget(AssetThumbnailConfig)
 						]
@@ -597,7 +597,7 @@ void SPropertyEditorAsset::Construct(const FArguments& InArgs, const TSharedPtr<
 
 	
 		ValueContentBox->AddSlot()
-		.Padding(0)
+		.Padding(0.0f)
 		.VAlign(VAlign_Center)
 		[
 			SNew(SVerticalBox)

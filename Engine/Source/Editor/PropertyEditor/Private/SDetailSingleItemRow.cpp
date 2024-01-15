@@ -431,7 +431,7 @@ void SDetailSingleItemRow::Construct( const FArguments& InArgs, FDetailLayoutCus
 			Widget = SNew(SBorder)
 				.BorderImage(FAppStyle::Get().GetBrush("DetailsView.CategoryMiddle"))
 				.BorderBackgroundColor(this, &SDetailSingleItemRow::GetInnerBackgroundColor)
-				.Padding(0)
+				.Padding(0.0f)
 				[
 					Splitter
 				];
@@ -445,7 +445,7 @@ void SDetailSingleItemRow::Construct( const FArguments& InArgs, FDetailLayoutCus
 			NameColumnBox->AddSlot()
 				.HAlign(HAlign_Left)
 				.VAlign(VAlign_Fill)
-				.Padding(0)
+				.Padding(0.0f)
 				.AutoWidth()
 				[
 					SNew(SDetailRowIndent, SharedThis(this))
@@ -459,7 +459,7 @@ void SDetailSingleItemRow::Construct( const FArguments& InArgs, FDetailLayoutCus
 				NameColumnBox->AddSlot()
 					.HAlign(HAlign_Left)
 					.VAlign(VAlign_Center)
-					.Padding(-4, 0, -10, 0)
+					.Padding(-4.0f, 0.0f, -10.0f, 0.0f)
 					.AutoWidth()
 					[
 						ReorderHandle
@@ -479,7 +479,7 @@ void SDetailSingleItemRow::Construct( const FArguments& InArgs, FDetailLayoutCus
 					NameColumnBox->AddSlot()
 						.HAlign(HAlign_Left)
 						.VAlign(VAlign_Center)
-						.Padding(-4, 0, -10, 0)
+						.Padding(-4.0f, 0.0f, -10.0f, 0.0f)
 						.AutoWidth()
 						[
 							ArrayHandle
@@ -501,7 +501,7 @@ void SDetailSingleItemRow::Construct( const FArguments& InArgs, FDetailLayoutCus
 			NameColumnBox->AddSlot()
 				.HAlign(HAlign_Left)
 				.VAlign(VAlign_Center)
-				.Padding(2,0,0,0)
+				.Padding(2.0f,0.0f,0.0f,0.0f)
 				.AutoWidth()
 				[
 					SNew(SDetailExpanderArrow, SharedThis(this))
@@ -510,7 +510,7 @@ void SDetailSingleItemRow::Construct( const FArguments& InArgs, FDetailLayoutCus
 			NameColumnBox->AddSlot()
 				.VAlign(VAlign_Center)
 				.HAlign(HAlign_Left)
-				.Padding(2,0,0,0)
+				.Padding(2.0f,0.0f,0.0f,0.0f)
 				.AutoWidth()
 				[
 					SNew(SEditConditionWidget)
@@ -523,7 +523,7 @@ void SDetailSingleItemRow::Construct( const FArguments& InArgs, FDetailLayoutCus
 				NameColumnBox->AddSlot()
 					.HAlign(WidgetRow.NameWidget.HorizontalAlignment)
 					.VAlign(WidgetRow.NameWidget.VerticalAlignment)
-					.Padding(2,0,0,0)
+					.Padding(2.0f,0.0f,0.0f,0.0f)
 					[
 						NameWidget.ToSharedRef()
 					];
@@ -556,7 +556,7 @@ void SDetailSingleItemRow::Construct( const FArguments& InArgs, FDetailLayoutCus
 						+ SHorizontalBox::Slot()
 						.HAlign(WidgetRow.ExtensionWidget.HorizontalAlignment)
 						.VAlign(WidgetRow.ExtensionWidget.VerticalAlignment)
-						.Padding(5,0,0,0)
+						.Padding(5.0f,0.0f,0.0f,0.0f)
 						.AutoWidth()
 						[
 							ExtensionWidget.ToSharedRef()
@@ -571,7 +571,7 @@ void SDetailSingleItemRow::Construct( const FArguments& InArgs, FDetailLayoutCus
 				NameColumnBox->AddSlot()
 					.HAlign(WidgetRow.WholeRowWidget.HorizontalAlignment)
 					.VAlign(WidgetRow.WholeRowWidget.VerticalAlignment)
-					.Padding(2,0,0,0)
+					.Padding(2.0f,0.0f,0.0f,0.0f)
 					[
 						WidgetRow.WholeRowWidget.Widget
 					];
@@ -657,7 +657,7 @@ void SDetailSingleItemRow::Construct( const FArguments& InArgs, FDetailLayoutCus
 				.BorderBackgroundColor(this, &SDetailSingleItemRow::GetOuterBackgroundColor)
 				.HAlign(HAlign_Right)
 				.VAlign(VAlign_Center)
-				.Padding(0)
+				.Padding(0.0f)
 				[
 					PropertyUpdatedWidgetBuilder.IsValid() ?
 					PropertyUpdatedWidgetBuilder
@@ -721,7 +721,7 @@ void SDetailSingleItemRow::Construct( const FArguments& InArgs, FDetailLayoutCus
 		[
 			SNew( SBorder )
 			.BorderImage(FAppStyle::Get().GetBrush("DetailsView.GridLine"))
-			.Padding(FMargin(0,0,0,1))
+			.Padding(FMargin(0.0f,0.0f,0.0f,1.0f))
 			.Clipping(EWidgetClipping::ClipToBounds)
 			[
 				SNew(SBox)
@@ -739,7 +739,7 @@ void SDetailSingleItemRow::Construct( const FArguments& InArgs, FDetailLayoutCus
 							SNew( SBorder )
 							.BorderImage(FAppStyle::Get().GetBrush("DetailsView.CategoryMiddle"))
 							.BorderBackgroundColor(this, &SDetailSingleItemRow::GetOuterBackgroundColor)
-							.Padding(0)
+							.Padding(0.0f)
 							[
 								Widget
 							]

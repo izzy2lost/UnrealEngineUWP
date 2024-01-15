@@ -52,7 +52,7 @@ public:
 		+ SHorizontalBox::Slot()
 		.HAlign(HAlign_Left)
 		.VAlign(VAlign_Center)
-		.Padding(2, 0, 0, 0)
+		.Padding(2.0f, 0.0f, 0.0f, 0.0f)
 		.AutoWidth()
 		[
 			SAssignNew(ExpanderButton, SButton)
@@ -62,7 +62,7 @@ public:
 			.ClickMethod(EButtonClickMethod::MouseDown)
 			.OnClicked(InArgs._OnClicked)
 			.IsEnabled(InArgs._IsButtonEnabled)
-			.ContentPadding(0)
+			.ContentPadding(0.0f)
 			.IsFocusable(false)
 			.ToolTipText(this, &SAdvancedDropdownRow::GetAdvancedPulldownToolTipText )
 			[
@@ -74,7 +74,7 @@ public:
 		+ SHorizontalBox::Slot()
 		.VAlign(VAlign_Center)
 		.HAlign(HAlign_Fill)
-		.Padding(4, 0, 0, 0)
+		.Padding(4.0f, 0.0f, 0.0f, 0.0f)
 		[
 			SNew(SBox)
 			.VAlign(VAlign_Center)
@@ -108,7 +108,7 @@ public:
 		[
 			SNew(SBorder)
 			.BorderImage(FAppStyle::Get().GetBrush("DetailsView.GridLine"))
-			.Padding( 0, 0, 0, 1 )
+			.Padding( 0.0f, 0.0f, 0.0f, 1.0f )
 			[
 				SNew(SHorizontalBox)
 				+ SHorizontalBox::Slot()
@@ -117,7 +117,7 @@ public:
 					SNew(SBorder)
 					.BorderImage(FAppStyle::Get().GetBrush("DetailsView.CategoryMiddle"))
 					.BorderBackgroundColor(this, &SAdvancedDropdownRow::GetRowBackgroundColor)
-					.Padding(0)
+					.Padding(0.0f)
 					[
 						ContentWidget.ToSharedRef()
 					]

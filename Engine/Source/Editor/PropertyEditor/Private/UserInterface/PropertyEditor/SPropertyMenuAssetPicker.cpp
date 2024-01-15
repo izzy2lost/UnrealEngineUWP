@@ -164,8 +164,8 @@ void SPropertyMenuAssetPicker::Construct( const FArguments& InArgs )
 
 		TSharedRef<SWidget> MenuContent =
 			SNew(SBox)
-			.WidthOverride(PropertyEditorAssetConstants::ContentBrowserWindowSize.X)
-			.HeightOverride(PropertyEditorAssetConstants::ContentBrowserWindowSize.Y)
+			.WidthOverride(static_cast<float>(PropertyEditorAssetConstants::ContentBrowserWindowSize.X))
+			.HeightOverride(static_cast<float>(PropertyEditorAssetConstants::ContentBrowserWindowSize.Y))
 			[
 				AssetPickerWidget.ToSharedRef()
 			];
