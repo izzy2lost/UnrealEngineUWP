@@ -102,6 +102,12 @@ private:
 	/** Reparent items */
 	void HandleReparentModules(const TArray<FString>& InPaths, const FString& InParentPath);
 
+	/** Resolve connector */
+	void HandleConnectorResolved(const FRigElementKey& InConnector, const FRigElementKey& InTarget);
+
+	/** UnResolve connector */
+	void HandleConnectorDisconnect(const FRigElementKey& InConnector);
+
 	/** Set Selection Changed */
 	void OnSelectionChanged(TSharedPtr<FModularRigTreeElement> Selection, ESelectInfo::Type SelectInfo);
 

@@ -134,6 +134,7 @@ public:
 	virtual bool Execute_Internal(const FName& InEventName) override;
 	virtual void Evaluate_AnyThread() override;
 	virtual FRigElementKeyRedirector& GetElementKeyRedirector() override { return ElementKeyRedirector; }
+	virtual FRigElementKeyRedirector GetElementKeyRedirector() const override { return ElementKeyRedirector; }
 	virtual bool SupportsEvent(const FName& InEventName) const override { return SupportedEvents.Contains(InEventName); }
 	virtual const TArray<FName>& GetSupportedEvents() const override { return SupportedEvents; }
 	// END ControlRig

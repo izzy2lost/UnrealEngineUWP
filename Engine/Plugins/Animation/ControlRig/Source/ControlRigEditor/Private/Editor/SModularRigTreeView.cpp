@@ -15,27 +15,56 @@
 #include "ControlRig.h"
 #include "ControlRigEditorStyle.h"
 #include "ModularRig.h"
+#include "ModularRigRuleManager.h"
+#include "SRigHierarchyTreeView.h"
 #include "Blueprint/WidgetBlueprintLibrary.h"
 #include "Editor/SModularRigModel.h"
+#include "Fonts/FontMeasure.h"
 #include "Settings/ControlRigSettings.h"
 #include "Graph/ControlRigGraphSchema.h"
 #include "Rigs/AdditiveControlRig.h"
 #include "Rigs/RigHierarchyController.h"
 #include "Styling/AppStyle.h"
+#include "Widgets/Input/SComboButton.h"
+#include "Widgets/Input/SButton.h"
+#include "ScopedTransaction.h"
 
 #define LOCTEXT_NAMESPACE "SModularRigTreeView"
 
-TMap<FSoftObjectPath, FSlateBrush> SModularRigModelItem::IconPathToBrush;
+TMap<FSoftObjectPath, FSlateBrush> FModularRigTreeElement::IconPathToBrush;
 
 //////////////////////////////////////////////////////////////
 /// FModularRigTreeElement
 ///////////////////////////////////////////////////////////
-FModularRigTreeElement::FModularRigTreeElement(const FString& InKey, TWeakPtr<SModularRigTreeView> InTreeView, bool InSupportsRename)
+FModularRigTreeElement::FModularRigTreeElement(const FString& InKey, TWeakPtr<SModularRigTreeView> InTreeView, bool bInIsPrimary)
 {
 	Key = InKey;
+	bIsPrimary = bInIsPrimary;
+
 	FString ShortNameStr = Key;
-	FString ParentPath;
-	ShortNameStr.Split(UModularRig::NamespaceSeparator, &ParentPath, &ShortNameStr, ESearchCase::Type::CaseSensitive, ESearchDir::FromEnd);
+	ShortNameStr.Split(UModularRig::NamespaceSeparator, &ModulePath, &ShortNameStr, ESearchCase::Type::CaseSensitive, ESearchDir::FromEnd);
+	if (bIsPrimary)
+	{
+		ModulePath = Key;
+		if(const UModularRig* ModularRig = InTreeView.Pin()->GetRigTreeDelegates().GetModularRig())
+		{
+			if (const FRigModuleInstance* Module = ModularRig->FindModule(ModulePath))
+			{
+				if (const UControlRig* Rig = Module->GetRig())
+				{
+					if (const FRigModuleConnector* PrimaryConnector = Rig->GetRigModuleSettings().FindPrimaryConnector())
+					{
+						ConnectorName = PrimaryConnector->Name;
+					}
+				}
+			}
+		}
+	}
+	else
+	{
+		ConnectorName = ShortNameStr;
+	}
+	
 	ShortName = *ShortNameStr;
 	
 	if(InTreeView.IsValid())
@@ -49,7 +78,7 @@ FModularRigTreeElement::FModularRigTreeElement(const FString& InKey, TWeakPtr<SM
 
 void FModularRigTreeElement::RefreshDisplaySettings(const UModularRig* InModularRig)
 {
-	const TPair<const FSlateBrush*, FSlateColor> Result = SModularRigModelItem::GetBrushForElementType(InModularRig, Key);
+	const TPair<const FSlateBrush*, FSlateColor> Result = GetBrushAndColor(InModularRig);
 
 	IconBrush = Result.Key;
 	IconColor = Result.Value;
@@ -93,8 +122,50 @@ void SModularRigModelItem::Construct(const FArguments& InArgs, const TSharedRef<
 		return;
 	}
 
+	const FString& ModulePath = InRigTreeElement->ModulePath;
+
+	FString ConnectorPath = FString::Printf(TEXT("%s:%s"), *ModulePath, *InRigTreeElement->ConnectorName);
+	FRigElementKey ConnectorKey(*ConnectorPath, ERigElementType::Connector);
+
 	TSharedPtr< SInlineEditableTextBlock > InlineWidget;
 	TSharedPtr< SHorizontalBox > HorizontalBox;
+	TSharedPtr<SVerticalBox> ComboButtonBox;
+
+	FRigTreeDelegates TreeDelegates;
+	TreeDelegates.OnGetHierarchy = FOnGetRigTreeHierarchy::CreateLambda([this]()
+	{
+		return Delegates.GetModularRig()->GetHierarchy();
+	});
+	TreeDelegates.OnRigTreeIsItemVisible = FOnRigTreeIsItemVisible::CreateLambda([this, ConnectorKey, ModulePath](const FRigElementKey& InTarget)
+	{
+		if (const UModularRig* ModularRig = Delegates.GetModularRig())
+		{
+			if (const FRigModuleInstance* Module = ModularRig->FindModule(ModulePath))
+			{
+				if (URigHierarchy* Hierarchy = ModularRig->GetHierarchy())
+				{
+					if (FRigConnectorElement* ConnectorElement = Cast<FRigConnectorElement>(Hierarchy->Find(ConnectorKey)))
+					{
+						const UModularRigRuleManager* RuleManager = ModularRig->GetHierarchy()->GetRuleManager();
+						const FModularRigResolveResult Result = RuleManager->FindMatches(ConnectorElement, Module, ModularRig->GetElementKeyRedirector());
+						return Result.ContainsMatch(InTarget);
+					}
+				}
+			}
+		}
+		return false;
+	});
+	TreeDelegates.OnGetSelection.BindLambda([this, ConnectorKey]() -> TArray<FRigElementKey>
+	{
+		FRigElementKeyRedirector Redirector = Delegates.GetModularRig()->GetElementKeyRedirector();
+		if (const FRigElementKey* Key = Redirector.FindExternalKey(ConnectorKey))
+		{
+			return {*Key};
+		}
+		return {};
+	});
+	TreeDelegates.OnSelectionChanged.BindSP(this, &SModularRigModelItem::OnConnectorTargetChanged, ConnectorKey);
+
 
 	STableRow<TSharedPtr<FModularRigTreeElement>>::Construct(
 		STableRow<TSharedPtr<FModularRigTreeElement>>::FArguments()
@@ -106,52 +177,319 @@ void SModularRigModelItem::Construct(const FArguments& InArgs, const TSharedRef<
 		[
 			SAssignNew(HorizontalBox, SHorizontalBox)
 			+ SHorizontalBox::Slot()
-			.MaxWidth(18)
-			.FillWidth(1.0)
-			.HAlign(HAlign_Left)
-			.VAlign(VAlign_Center)
-			.Padding(FMargin(0.f, 0.f, 3.f, 0.f))
 			[
-				SNew(SImage)
-				.Image_Lambda([this]() -> const FSlateBrush*
-				{
-					if(WeakRigTreeElement.IsValid())
+				SNew(SHorizontalBox)
+				+SHorizontalBox::Slot()
+				.MaxWidth(25)
+				.HAlign(HAlign_Left)
+				.VAlign(VAlign_Center)
+				.Padding(FMargin(0.f, 0.f, 3.f, 0.f))
+				[
+					SNew(SVerticalBox)
+					+SVerticalBox::Slot()
+					.MaxHeight(25)
+					[
+						SNew(SImage)
+						.Image_Lambda([this]() -> const FSlateBrush*
+						{
+							if(WeakRigTreeElement.IsValid())
+							{
+								return WeakRigTreeElement.Pin()->IconBrush;
+							}
+							return nullptr;
+						})
+						.ColorAndOpacity_Lambda([this]()
+						{
+							if(WeakRigTreeElement.IsValid())
+							{
+								return WeakRigTreeElement.Pin()->IconColor;
+							}
+							return FSlateColor::UseForeground();
+						})
+					]
+				]
+
+				+ SHorizontalBox::Slot()
+				.FillWidth(1.0)
+				.VAlign(VAlign_Center)
+				[
+					SAssignNew(InlineWidget, SInlineEditableTextBlock)
+					.Text(this, &SModularRigModelItem::GetName, true)
+					.OnVerifyTextChanged(this, &SModularRigModelItem::OnVerifyNameChanged)
+					.OnTextCommitted(this, &SModularRigModelItem::OnNameCommitted)
+					.ToolTipText(this, &SModularRigModelItem::GetItemTooltip)
+					.MultiLine(false)
+					.ColorAndOpacity_Lambda([this]()
 					{
-						return WeakRigTreeElement.Pin()->IconBrush;
-					}
-					return nullptr;
-				})
-				.ColorAndOpacity_Lambda([this]()
-				{
-					if(WeakRigTreeElement.IsValid())
-					{
-						return WeakRigTreeElement.Pin()->IconColor;
-					}
-					return FSlateColor::UseForeground();
-				})
+						if(WeakRigTreeElement.IsValid())
+						{
+							return WeakRigTreeElement.Pin()->TextColor;
+						}
+						return FSlateColor::UseForeground();
+					})
+				]
 			]
+
 			+ SHorizontalBox::Slot()
+			.HAlign(HAlign_Right)
+			.VAlign(VAlign_Center)
+			[
+				SNew( SComboButton )
+				.ContentPadding(3)
+				.MenuPlacement(MenuPlacement_BelowAnchor)
+				.OnComboBoxOpened(this, &SModularRigModelItem::PopulateConnectorTargetList, ConnectorKey)
+				.ButtonContent()
+				[
+					// Wrap in configurable box to restrain height/width of menu
+					SNew(SBox)
+					.MinDesiredWidth(200.0f)
+					[
+						SAssignNew(ComboButtonBox, SVerticalBox)
+					]
+				]
+				.MenuContent()
+				[
+					SNew(SBorder)
+					.Visibility(EVisibility::Visible)
+					.BorderImage(FAppStyle::GetBrush("Menu.Background"))
+					[
+						SAssignNew(ConnectorComboBox, SSearchableRigHierarchyTreeView)
+							.RigTreeDelegates(TreeDelegates)
+					]
+				]
+			]
+
+			// Connection buttons
+			+SHorizontalBox::Slot()
 			.AutoWidth()
 			.VAlign(VAlign_Center)
+			.Padding(0.f, 0.f, 0.f, 0.f)
 			[
-				SAssignNew(InlineWidget, SInlineEditableTextBlock)
-				.Text(this, &SModularRigModelItem::GetName, true)
-				.OnVerifyTextChanged(this, &SModularRigModelItem::OnVerifyNameChanged)
-				.OnTextCommitted(this, &SModularRigModelItem::OnNameCommitted)
-				.ToolTipText(this, &SModularRigModelItem::GetItemTooltip)
-				.MultiLine(false)
-				.ColorAndOpacity_Lambda([this]()
-				{
-					if(WeakRigTreeElement.IsValid())
-					{
-						return WeakRigTreeElement.Pin()->TextColor;
-					}
-					return FSlateColor::UseForeground();
-				})
+				SNew(SVerticalBox)
+				+SVerticalBox::Slot()
+				.VAlign(VAlign_Center)
+				.AutoHeight()
+				[
+					// Reset button
+					SNew(SHorizontalBox)
+					+SHorizontalBox::Slot()
+					.AutoWidth()
+					.Padding(0.f, 0.f, 0.f, 0.f)
+					[
+						SAssignNew(ResetConnectorButton, SButton)
+						.ButtonStyle( FAppStyle::Get(), "NoBorder" )
+						.ButtonColorAndOpacity_Lambda([this, ConnectorKey]()
+						{
+							return ResetConnectorButton.IsValid() && ResetConnectorButton->IsHovered()
+								? FSlateColor(FLinearColor(1.f, 1.f, 1.f, 0.8))
+								: FSlateColor(FLinearColor(1.f, 1.f, 1.f, 0.4));
+						})
+						.OnClicked_Lambda([this, ConnectorKey]()
+						{
+							Delegates.HandleDisconnectConnector(ConnectorKey);
+							return FReply::Handled();
+						})
+						.ContentPadding(1.f)
+						.ToolTipText(NSLOCTEXT("ControlRigModuleDetails", "Reset_Connector", "Reset Connector"))
+						[
+							SNew(SImage)
+							.ColorAndOpacity_Lambda( [this, ConnectorKey]()
+							{
+								return ResetConnectorButton.IsValid() && ResetConnectorButton->IsHovered()
+								? FSlateColor(FLinearColor(1.f, 1.f, 1.f, 0.8))
+								: FSlateColor(FLinearColor(1.f, 1.f, 1.f, 0.4));
+							})
+							.Image(FSlateIcon(FAppStyle::Get().GetStyleSetName(), "PropertyWindow.DiffersFromDefault").GetIcon())
+						]
+					]
+
+					// Use button
+					+SHorizontalBox::Slot()
+					.AutoWidth()
+					.Padding(0.f, 0.f, 0.f, 0.f)
+					[
+						SAssignNew(UseSelectedButton, SButton)
+						.ButtonStyle( FAppStyle::Get(), "NoBorder" )
+						.ButtonColorAndOpacity_Lambda([this]()
+						{
+							return UseSelectedButton.IsValid() && UseSelectedButton->IsHovered()
+								? FSlateColor(FLinearColor(1.f, 1.f, 1.f, 0.8))
+								: FSlateColor(FLinearColor(1.f, 1.f, 1.f, 0.4));
+						})
+						.OnClicked_Lambda([this, ConnectorKey]()
+						{
+							if (const UModularRig* ModularRig = Delegates.GetModularRig())
+							{
+								const TArray<FRigElementKey>& Selected = ModularRig->GetHierarchy()->GetSelectedKeys();
+								if (Selected.Num() > 0)
+								{
+									Delegates.HandleResolveConnector(ConnectorKey, Selected[0]);
+								}
+							}
+							return FReply::Handled();
+						})
+						.ContentPadding(1.f)
+						.ToolTipText(NSLOCTEXT("ControlRigModuleDetails", "Use_Selected", "Use Selected"))
+						[
+							SNew(SImage)
+							.ColorAndOpacity_Lambda( [this]()
+							{
+								return UseSelectedButton.IsValid() && UseSelectedButton->IsHovered()
+								? FSlateColor(FLinearColor(1.f, 1.f, 1.f, 0.8))
+								: FSlateColor(FLinearColor(1.f, 1.f, 1.f, 0.4));
+							})
+							.Image(FAppStyle::GetBrush("Icons.CircleArrowLeft"))
+						]
+					]
+					
+					// Select in hierarchy button
+					+SHorizontalBox::Slot()
+					.AutoWidth()
+					.Padding(0.f, 0.f, 0.f, 0.f)
+					[
+						SAssignNew(SelectElementButton, SButton)
+						.ButtonStyle( FAppStyle::Get(), "NoBorder" )
+						.ButtonColorAndOpacity_Lambda([this]()
+						{
+							return SelectElementButton.IsValid() && SelectElementButton->IsHovered()
+								? FSlateColor(FLinearColor(1.f, 1.f, 1.f, 0.8))
+								: FSlateColor(FLinearColor(1.f, 1.f, 1.f, 0.4));
+						})
+						.OnClicked_Lambda([this, ConnectorKey]()
+						{
+							if (const UModularRig* ModularRig = Delegates.GetModularRig())
+							{
+								if (const FRigElementKey* TargetKey = ModularRig->GetElementKeyRedirector().FindExternalKey(ConnectorKey))
+								{
+									ModularRig->GetHierarchy()->GetController()->SelectElement(*TargetKey);
+								}
+							}
+							return FReply::Handled();
+						})
+						.ContentPadding(1.f)
+						.ToolTipText(NSLOCTEXT("ControlRigModuleDetails", "Select_Element", "Select Element"))
+						[
+							SNew(SImage)
+							.ColorAndOpacity_Lambda( [this]()
+							{
+								return SelectElementButton.IsValid() && SelectElementButton->IsHovered()
+								? FSlateColor(FLinearColor(1.f, 1.f, 1.f, 0.8))
+								: FSlateColor(FLinearColor(1.f, 1.f, 1.f, 0.4));
+							})
+							.Image(FAppStyle::GetBrush("Icons.Search"))
+						]
+					]
+				]
 			]
 		], OwnerTable);
 
 	InRigTreeElement->OnRenameRequested.BindSP(InlineWidget.Get(), &SInlineEditableTextBlock::EnterEditingMode);
+	FRigElementKey CurrentTargetKey;
+	if (const FRigElementKey* Key = Delegates.GetModularRig()->GetElementKeyRedirector().FindExternalKey(ConnectorKey))
+	{
+		CurrentTargetKey = *Key;
+	}
+	TPair<const FSlateBrush*, FSlateColor> IconAndColor = SRigHierarchyItem::GetBrushForElementType(Delegates.GetModularRig()->GetHierarchy(), CurrentTargetKey);
+	PopulateConnectorCurrentTarget(ComboButtonBox, ConnectorKey, CurrentTargetKey, IconAndColor.Key, IconAndColor.Value, FText::FromName(CurrentTargetKey.Name));
+}
+
+void SModularRigModelItem::PopulateConnectorTargetList(const FRigElementKey InConnectorKey)
+{
+	if (!WeakRigTreeElement.IsValid())
+	{
+		return;
+	}
+
+	if (const UModularRig* ModularRig = Delegates.GetModularRig())
+	{
+		if (URigHierarchy* Hierarchy = ModularRig->GetHierarchy())
+		{
+			if (FRigConnectorElement* ConnectorElement = Cast<FRigConnectorElement>(Hierarchy->Find(InConnectorKey)))
+			{
+				ConnectorComboBox->GetTreeView()->RefreshTreeView(true);
+			}
+		}
+	}
+}
+
+void SModularRigModelItem::PopulateConnectorCurrentTarget(TSharedPtr<SVerticalBox> InListBox, const FRigElementKey& InConnectorKey, const FRigElementKey& InTargetKey, const FSlateBrush* InBrush, const FSlateColor& InColor, const FText& InTitle)
+{
+	static const FSlateBrush* RoundedBoxBrush = FControlRigEditorStyle::Get().GetBrush(TEXT("ControlRig.SpacePicker.RoundedRect"));
+
+	TSharedPtr<SHorizontalBox> RowBox, ButtonBox;
+	InListBox->AddSlot()
+	.AutoHeight()
+	.VAlign(VAlign_Top)
+	.HAlign(HAlign_Fill)
+	.Padding(4.0, 0.0, 4.0, 0.0)
+	[
+		SNew( SButton )
+		.ButtonStyle(FAppStyle::Get(), "SimpleButton")
+		.ContentPadding(FMargin(0.0))
+		.OnClicked_Lambda([this, InConnectorKey, InTargetKey]()
+		{
+			//Controller->ConnectConnectorToElement(InConnectorKey, InTargetKey, true, Info.GetModularRig()->GetModularRigSettings().bAutoResolve);
+			PopulateConnectorTargetList(InConnectorKey);
+			return FReply::Handled();
+		})
+		[
+			SAssignNew(RowBox, SHorizontalBox)
+			+ SHorizontalBox::Slot()
+			.AutoWidth()
+			.VAlign(VAlign_Center)
+			.HAlign(HAlign_Fill)
+			.Padding(0)
+			[
+				SNew(SBorder)
+				.Padding(FMargin(5.0, 2.0, 5.0, 2.0))
+				.BorderImage(RoundedBoxBrush)
+				.BorderBackgroundColor(FSlateColor(FLinearColor::Transparent))
+				.Content()
+				[
+					SAssignNew(ButtonBox, SHorizontalBox)
+					+ SHorizontalBox::Slot()
+					.AutoWidth()
+					.VAlign(VAlign_Center)
+					.HAlign(HAlign_Left)
+					.Padding(FMargin(0.f, 0.f, 3.f, 0.f))
+					[
+						SNew(SImage)
+						.Image(InBrush)
+						.ColorAndOpacity(InColor)
+					]
+
+					+ SHorizontalBox::Slot()
+					.AutoWidth()
+					.VAlign(VAlign_Center)
+					.HAlign(HAlign_Left)
+					.Padding(0)
+					[
+						SNew( STextBlock )
+						.Text( InTitle )
+						//.Font( IDetailLayoutBuilder::GetDetailFont() )
+					]
+
+					+ SHorizontalBox::Slot()
+					.FillWidth(1.f)
+					[
+						SNew(SSpacer)
+					]
+				]
+			]
+		]
+	];
+}
+
+void SModularRigModelItem::OnConnectorTargetChanged(TSharedPtr<FRigTreeElement> Selection, ESelectInfo::Type SelectInfo, const FRigElementKey InConnectorKey)
+{
+	if (!Selection.IsValid() || SelectInfo == ESelectInfo::OnNavigation)
+	{
+		return;
+	}
+	
+	FScopedTransaction Transaction(LOCTEXT("ModuleHierarchyResolveConnector", "Resolve Connector"));
+	TSharedPtr<FRigTreeElement> NewSelection = Selection;
+	Delegates.HandleResolveConnector(InConnectorKey, NewSelection->Key);
 }
 
 void SModularRigModelItem::OnNameCommitted(const FText& InText, ETextCommit::Type InCommitType) const
@@ -161,7 +499,7 @@ void SModularRigModelItem::OnNameCommitted(const FText& InText, ETextCommit::Typ
 	if (InCommitType == ETextCommit::OnEnter)
 	{
 		FString NewName = InText.ToString();
-		const FString OldKey = WeakRigTreeElement.Pin()->Key;
+		const FString OldKey = WeakRigTreeElement.Pin()->ModulePath;
 
 		Delegates.HandleRenameElement(OldKey, *NewName);
 	}
@@ -170,7 +508,7 @@ void SModularRigModelItem::OnNameCommitted(const FText& InText, ETextCommit::Typ
 bool SModularRigModelItem::OnVerifyNameChanged(const FText& InText, FText& OutErrorMessage)
 {
 	const FName NewName = *InText.ToString();
-	const FString OldPath = WeakRigTreeElement.Pin()->Key;
+	const FString OldPath = WeakRigTreeElement.Pin()->ModulePath;
 	return Delegates.HandleVerifyElementNameChanged(OldPath, NewName, OutErrorMessage);
 }
 
@@ -180,7 +518,7 @@ FText SModularRigModelItem::GetName(bool bUseShortName) const
 	{
 		return (FText::FromName(WeakRigTreeElement.Pin()->ShortName));
 	}
-	return (FText::FromString(WeakRigTreeElement.Pin()->Key));
+	return (FText::FromString(WeakRigTreeElement.Pin()->ModulePath));
 }
 
 FText SModularRigModelItem::GetItemTooltip() const
@@ -338,30 +676,45 @@ bool SModularRigTreeView::AddElement(FString InKey, FString InParentKey)
 
 	if (!InKey.IsEmpty())
 	{
-		TSharedPtr<FModularRigTreeElement> NewItem = MakeShared<FModularRigTreeElement>(InKey, SharedThis(this), false);
+		TSharedPtr<FModularRigTreeElement> NewItem = MakeShared<FModularRigTreeElement>(InKey, SharedThis(this), true);
 
-		if (!InKey.IsEmpty())
+		ElementMap.Add(InKey, NewItem);
+		if (!InParentKey.IsEmpty())
 		{
-			ElementMap.Add(InKey, NewItem);
-			if (!InParentKey.IsEmpty())
-			{
-				ParentMap.Add(InKey, InParentKey);
-			}
+			ParentMap.Add(InKey, InParentKey);
 
-			if (!InParentKey.IsEmpty())
-			{
-				TSharedPtr<FModularRigTreeElement>* FoundItem = ElementMap.Find(InParentKey);
-				check(FoundItem);
-				FoundItem->Get()->Children.Add(NewItem);
-			}
-			else
-			{
-				RootElements.Add(NewItem);
-			}
+			TSharedPtr<FModularRigTreeElement>* FoundItem = ElementMap.Find(InParentKey);
+			check(FoundItem);
+			FoundItem->Get()->Children.Add(NewItem);
 		}
 		else
 		{
 			RootElements.Add(NewItem);
+		}
+
+		if (const UModularRig* ModularRig = Delegates.GetModularRig())
+		{
+			if (const FRigModuleInstance* Module = ModularRig->FindModule(NewItem->ModulePath))
+			{
+				if (const UControlRig* ModuleRig = Module->GetRig())
+				{
+					const UControlRig* CDO = ModuleRig->GetClass()->GetDefaultObject<UControlRig>();
+					const TArray<FRigModuleConnector>& Connectors = CDO->GetRigModuleSettings().ExposedConnectors;
+					for (const FRigModuleConnector& Connector : Connectors)
+					{
+						if (Connector.Settings.Type == EConnectorType::Primary)
+						{
+							continue;
+						}
+
+						const FString Key = FString::Printf(TEXT("%s:%s"), *NewItem->ModulePath, *Connector.Name);
+						TSharedPtr<FModularRigTreeElement> ConnectorItem = MakeShared<FModularRigTreeElement>(Key, SharedThis(this), false);
+						NewItem.Get()->Children.Add(ConnectorItem);
+						ElementMap.Add(Key, ConnectorItem);
+						ParentMap.Add(Key, InKey);
+					}
+				}
+			}
 		}
 	}
 
@@ -379,7 +732,8 @@ bool SModularRigTreeView::AddElement(const FRigModuleInstance* InElement)
 
 	const UModularRig* ModularRig = Delegates.GetModularRig();
 
-	if(!AddElement(InElement->GetPath(), FString()))
+	FString ElementPath = InElement->GetPath();
+	if(!AddElement(ElementPath, FString()))
 	{
 		return false;
 	}
@@ -388,16 +742,16 @@ bool SModularRigTreeView::AddElement(const FRigModuleInstance* InElement)
 	{
 		if(ModularRig)
 		{
-			FString ParentKey = ModularRig->GetParentPath(InElement->GetPath());
-			if (!ParentKey.IsEmpty())
+			FString ParentPath = ModularRig->GetParentPath(ElementPath);
+			if (!ParentPath.IsEmpty())
 			{
-				if(const FRigModuleInstance* ParentElement = ModularRig->FindModule(ParentKey))
+				if(const FRigModuleInstance* ParentElement = ModularRig->FindModule(ParentPath))
 				{
 					AddElement(ParentElement);
 
-					if(ElementMap.Contains(ParentKey))
+					if(ElementMap.Contains(ParentPath))
 					{
-						ReparentElement(InElement->GetPath(), ParentKey);
+						ReparentElement(ElementPath, ParentPath);
 					}
 				}
 			}
@@ -596,22 +950,63 @@ const TSharedPtr<FModularRigTreeElement>* SModularRigTreeView::FindItemAtPositio
 	return nullptr;
 }
 
-TPair<const FSlateBrush*, FSlateColor> SModularRigModelItem::GetBrushForElementType(const UModularRig* InModularRig, const FString& InKey)
+TPair<const FSlateBrush*, FSlateColor> FModularRigTreeElement::GetBrushAndColor(const UModularRig* InModularRig)
 {
 	const FSlateBrush* Brush = nullptr;
 	FSlateColor Color = FSlateColor::UseForeground();
 
-	if (const FRigModuleInstance* Module = InModularRig->FindModule(InKey))
+	if (const FRigModuleInstance* ConnectorModule = InModularRig->FindModule(ModulePath))
 	{
-		if (UControlRig* ModuleRig = Module->GetRig())
+		bool bIsConnected = false;
+		if (const FRigModuleReference* Reference = ConnectorModule->GetModuleReference())
 		{
-			FSoftObjectPath IconPath = ModuleRig->GetRigModuleSettings().Icon;
-			Brush = IconPathToBrush.Find(IconPath);
-			if (!Brush)
+			FRigElementKey ConnectorKey(*ConnectorName, ERigElementType::Connector);
+			const FRigElementKey* Target = Reference->Connections.Find(ConnectorKey);
+
+			if (!Target || !Target->IsValid())
 			{
-				if(UTexture2D* Icon = Cast<UTexture2D>(IconPath.TryLoad()))
+				Color = FStyleColors::AccentYellow;
+			}
+			else
+			{
+				bIsConnected = true;
+			}
+		}
+		
+		if (const UControlRig* ModuleRig = ConnectorModule->GetRig())
+		{
+			const FRigModuleConnector* Connector = ModuleRig->GetRigModuleSettings().ExposedConnectors.FindByPredicate([this](FRigModuleConnector& Connector)
+			{
+				return Connector.Name == ConnectorName;
+			});
+			if (Connector)
+			{
+				if (Connector->Settings.Type == EConnectorType::Primary)
 				{
-					Brush = &IconPathToBrush.Add(IconPath, UWidgetBlueprintLibrary::MakeBrushFromTexture(Icon, 16.0f, 16.0f));
+					if (bIsConnected)
+					{
+						FSoftObjectPath IconPath = ModuleRig->GetRigModuleSettings().Icon;
+						Brush = IconPathToBrush.Find(IconPath);
+						if (!Brush)
+						{
+							if(UTexture2D* Icon = Cast<UTexture2D>(IconPath.TryLoad()))
+							{
+								Brush = &IconPathToBrush.Add(IconPath, UWidgetBlueprintLibrary::MakeBrushFromTexture(Icon, 16.0f, 16.0f));
+							}
+						}
+					}
+					else
+					{
+						Brush = FControlRigEditorStyle::Get().GetBrush("ControlRig.Schematic.ConnectorWarning");
+					}
+				}
+				else if (Connector->Settings.bOptional)
+				{
+					Brush = FControlRigEditorStyle::Get().GetBrush("ControlRig.Schematic.ConnectorOptional");
+				}
+				else
+				{
+					Brush = FControlRigEditorStyle::Get().GetBrush("ControlRig.Schematic.ConnectorSecondary");
 				}
 			}
 		}
@@ -621,67 +1016,6 @@ TPair<const FSlateBrush*, FSlateColor> SModularRigModelItem::GetBrushForElementT
 		Brush = FControlRigEditorStyle::Get().GetBrush("ControlRig.Tree.RigidBody");
 	}
 	return TPair<const FSlateBrush*, FSlateColor>(Brush, Color);
-}
-
-FLinearColor SModularRigModelItem::GetColorForControlType(ERigControlType InControlType, UEnum* InControlEnum)
-{
-	FEdGraphPinType PinType;
-	switch(InControlType)
-	{
-		case ERigControlType::Bool:
-		{
-			PinType = RigVMTypeUtils::PinTypeFromCPPType(RigVMTypeUtils::BoolTypeName, nullptr);
-			break;
-		}
-		case ERigControlType::Float:
-		case ERigControlType::ScaleFloat:
-		{
-			PinType = RigVMTypeUtils::PinTypeFromCPPType(RigVMTypeUtils::FloatTypeName, nullptr);
-			break;
-		}
-		case ERigControlType::Integer:
-		{
-			if(InControlEnum)
-			{
-				PinType = RigVMTypeUtils::PinTypeFromCPPType(NAME_None, InControlEnum);
-			}
-			else
-			{
-				PinType = RigVMTypeUtils::PinTypeFromCPPType(RigVMTypeUtils::Int32TypeName, nullptr);
-			}
-			break;
-		}
-		case ERigControlType::Vector2D:
-		{
-			UScriptStruct* Struct = TBaseStructure<FVector2D>::Get(); 
-			PinType = RigVMTypeUtils::PinTypeFromCPPType(*RigVMTypeUtils::GetUniqueStructTypeName(Struct), Struct);
-			break;
-		}
-		case ERigControlType::Position:
-		case ERigControlType::Scale:
-		{
-			UScriptStruct* Struct = TBaseStructure<FVector>::Get(); 
-			PinType = RigVMTypeUtils::PinTypeFromCPPType(*RigVMTypeUtils::GetUniqueStructTypeName(Struct), Struct);
-			break;
-		}
-		case ERigControlType::Rotator:
-		{
-			UScriptStruct* Struct = TBaseStructure<FRotator>::Get(); 
-			PinType = RigVMTypeUtils::PinTypeFromCPPType(*RigVMTypeUtils::GetUniqueStructTypeName(Struct), Struct);
-			break;
-		}
-		case ERigControlType::Transform:
-		case ERigControlType::TransformNoScale:
-		case ERigControlType::EulerTransform:
-		default:
-		{
-			UScriptStruct* Struct = TBaseStructure<FTransform>::Get(); 
-			PinType = RigVMTypeUtils::PinTypeFromCPPType(*RigVMTypeUtils::GetUniqueStructTypeName(Struct), Struct);
-			break;
-		}
-	}
-	const UControlRigGraphSchema* Schema = GetDefault<UControlRigGraphSchema>();
-	return Schema->GetPinTypeColor(PinType);
 }
 
 //////////////////////////////////////////////////////////////

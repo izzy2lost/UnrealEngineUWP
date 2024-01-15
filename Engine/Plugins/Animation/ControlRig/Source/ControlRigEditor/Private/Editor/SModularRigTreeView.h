@@ -5,6 +5,7 @@
 #include "CoreMinimal.h"
 #include "Widgets/Views/STreeView.h"
 #include "ModularRig.h"
+#include "Editor/SRigHierarchyTreeView.h"
 
 class SSearchBox;
 class SModularRigTreeView;
@@ -15,6 +16,8 @@ class FModularRigTreeElement;
 DECLARE_DELEGATE_RetVal(const UModularRig*, FOnGetModularRigTreeRig);
 DECLARE_DELEGATE_OneParam(FOnModularRigTreeRequestDetailsInspection, const FString&);
 DECLARE_DELEGATE_RetVal_TwoParams(FName, FOnModularRigTreeRenameElement, const FString& /*OldPath*/, const FName& /*NewName*/);
+DECLARE_DELEGATE_TwoParams(FOnModularRigTreeResolveConnector, const FRigElementKey& /*Connector*/, const FRigElementKey& /*Target*/);
+DECLARE_DELEGATE_OneParam(FOnModularRigTreeDisconnectConnector, const FRigElementKey& /*Connector*/);
 DECLARE_DELEGATE_RetVal_ThreeParams(bool, FOnModularRigTreeVerifyElementNameChanged, const FString& /*OldPath*/, const FName& /*NewName*/, FText& /*OutErrorMessage*/);
 
 
@@ -35,6 +38,8 @@ struct CONTROLRIGEDITOR_API FModularRigTreeDelegates
 	FOnModularRigTreeRequestDetailsInspection OnRequestDetailsInspection;
 	FOnModularRigTreeRenameElement OnRenameElement;
 	FOnModularRigTreeVerifyElementNameChanged OnVerifyModuleNameChanged;
+	FOnModularRigTreeResolveConnector OnResolveConnector;
+	FOnModularRigTreeDisconnectConnector OnDisconnectConnector;
 	
 	FModularRigTreeDelegates()
 	{
@@ -66,6 +71,26 @@ struct CONTROLRIGEDITOR_API FModularRigTreeDelegates
 		}
 		return false;
 	}
+
+	bool HandleResolveConnector(const FRigElementKey& InConnector, const FRigElementKey& InTarget)
+	{
+		if(OnResolveConnector.IsBound())
+		{
+			OnResolveConnector.Execute(InConnector, InTarget);
+			return true;
+		}
+		return false;
+	}
+
+	bool HandleDisconnectConnector(const FRigElementKey& InConnector)
+	{
+		if(OnDisconnectConnector.IsBound())
+		{
+			OnDisconnectConnector.Execute(InConnector);
+			return true;
+		}
+		return false;
+	}
 };
 
 
@@ -73,11 +98,14 @@ struct CONTROLRIGEDITOR_API FModularRigTreeDelegates
 class FModularRigTreeElement : public TSharedFromThis<FModularRigTreeElement>
 {
 public:
-	FModularRigTreeElement(const FString& InKey, TWeakPtr<SModularRigTreeView> InTreeView, bool InSupportsRename);
+	FModularRigTreeElement(const FString& InKey, TWeakPtr<SModularRigTreeView> InTreeView, bool bInIsPrimary);
 
 public:
 	/** Element Data to display */
 	FString Key;
+	bool bIsPrimary;
+	FString ModulePath;
+	FString ConnectorName;
 	FName ShortName;
 	TArray<TSharedPtr<FModularRigTreeElement>> Children;
 
@@ -87,9 +115,13 @@ public:
 
 	void RefreshDisplaySettings(const UModularRig* InModularRig);
 
+	TPair<const FSlateBrush*, FSlateColor> GetBrushAndColor(const UModularRig* InModularRig);
+
 	/** Delegate for when the context menu requests a rename */
 	DECLARE_DELEGATE(FOnRenameRequested);
 	FOnRenameRequested OnRenameRequested;
+
+	static TMap<FSoftObjectPath, FSlateBrush> IconPathToBrush;
 
 	/** The brush to use when rendering an icon */
 	const FSlateBrush* IconBrush;
@@ -106,20 +138,29 @@ class SModularRigModelItem : public STableRow<TSharedPtr<FModularRigTreeElement>
 public:
 	
 	void Construct(const FArguments& InArgs, const TSharedRef<STableViewBase>& OwnerTable, TSharedRef<FModularRigTreeElement> InRigTreeElement, TSharedPtr<SModularRigTreeView> InTreeView, bool bPinned);
+	void PopulateConnectorTargetList(FRigElementKey InConnectorKey);
+	void PopulateConnectorCurrentTarget(
+		TSharedPtr<SVerticalBox> InListBox, 
+		const FRigElementKey& InConnectorKey,
+		const FRigElementKey& InTargetKey,
+		const FSlateBrush* InBrush,
+		const FSlateColor& InColor,
+		const FText& InTitle);
+	void OnConnectorTargetChanged(TSharedPtr<FRigTreeElement> Selection, ESelectInfo::Type SelectInfo, const FRigElementKey InConnectorKey);
 
 	void OnNameCommitted(const FText& InText, ETextCommit::Type InCommitType) const;
 	bool OnVerifyNameChanged(const FText& InText, FText& OutErrorMessage);
-	static TPair<const FSlateBrush*, FSlateColor> GetBrushForElementType(const UModularRig* InModularRig, const FString& InKey);
-	static FLinearColor GetColorForControlType(ERigControlType InControlType, UEnum* InControlEnum);
 
 private:
 	TWeakPtr<FModularRigTreeElement> WeakRigTreeElement;
  	FModularRigTreeDelegates Delegates;
+	TSharedPtr<SSearchableRigHierarchyTreeView> ConnectorComboBox;
+	TSharedPtr<SButton> ResetConnectorButton;
+	TSharedPtr<SButton> UseSelectedButton;
+	TSharedPtr<SButton> SelectElementButton;
 
 	FText GetName(bool bUseShortName) const;
 	FText GetItemTooltip() const;
-
-	static TMap<FSoftObjectPath, FSlateBrush> IconPathToBrush;
 
 	friend class SModularRigTreeView; 
 };

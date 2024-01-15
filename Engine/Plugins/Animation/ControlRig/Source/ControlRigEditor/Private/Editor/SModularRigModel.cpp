@@ -134,6 +134,8 @@ void SModularRigModel::Construct(const FArguments& InArgs, TSharedRef<FControlRi
 	Delegates.OnRequestDetailsInspection = FOnModularRigTreeRequestDetailsInspection::CreateSP(this, &SModularRigModel::OnRequestDetailsInspection);
 	Delegates.OnRenameElement = FOnModularRigTreeRenameElement::CreateSP(this, &SModularRigModel::HandleRenameModule);
 	Delegates.OnVerifyModuleNameChanged = FOnModularRigTreeVerifyElementNameChanged::CreateSP(this, &SModularRigModel::HandleVerifyNameChanged);
+	Delegates.OnResolveConnector = FOnModularRigTreeResolveConnector::CreateSP(this, &SModularRigModel::HandleConnectorResolved);
+	Delegates.OnDisconnectConnector = FOnModularRigTreeDisconnectConnector::CreateSP(this, &SModularRigModel::HandleConnectorDisconnect);
 	
 	ChildSlot
 	[
@@ -313,7 +315,7 @@ void SModularRigModel::OnItemClicked(TSharedPtr<FModularRigTreeElement> InItem)
 
 	if (ControlRigEditor.IsValid() && InItem.IsValid())
 	{
-		ControlRigEditor.Pin()->SetDetailViewForRigModules({InItem->Key});
+		ControlRigEditor.Pin()->SetDetailViewForRigModules({InItem->ModulePath});
 	}
 }
 
@@ -527,7 +529,7 @@ void SModularRigModel::HandleNewItem(UClass* InClass, const FString &InParentPat
 
 bool SModularRigModel::CanRenameModule() const
 {
-	return IsSingleSelected();
+	return IsSingleSelected() && TreeView->FindElement(GetSelectedKeys()[0])->bIsPrimary;
 }
 
 void SModularRigModel::HandleRenameModule()
@@ -611,7 +613,7 @@ void SModularRigModel::HandleDeleteModules()
 		{
 			if (Element.IsValid())
 			{
-				return Element->Key;
+				return Element->ModulePath;
 			}
 			return FString();
 		});
@@ -653,6 +655,35 @@ void SModularRigModel::HandleReparentModules(const TArray<FString>& InPaths, con
 		{
 			Controller->ReparentModule(Path, InParentPath);
 		}
+	}
+}
+
+void SModularRigModel::HandleConnectorResolved(const FRigElementKey& InConnector, const FRigElementKey& InTarget)
+{
+	if (ControlRigBlueprint.IsValid())
+	{
+		FScopedTransaction Transaction(LOCTEXT("ModularRigModelResolveConnector", "Resolve Connector"));
+
+		UModularRigController* Controller = ControlRigBlueprint->GetModularRigController();
+		check(Controller);
+
+		if (ControlRigBeingDebuggedPtr.IsValid())
+		{
+			Controller->ConnectConnectorToElement(InConnector, InTarget, true, ControlRigBeingDebuggedPtr->GetModularRigSettings().bAutoResolve);
+		}
+	}
+}
+
+void SModularRigModel::HandleConnectorDisconnect(const FRigElementKey& InConnector)
+{
+	if (ControlRigBlueprint.IsValid())
+	{
+		FScopedTransaction Transaction(LOCTEXT("ModularRigModelDisconnectConnector", "Disconnect Connector"));
+
+		UModularRigController* Controller = ControlRigBlueprint->GetModularRigController();
+		check(Controller);
+
+		Controller->DisconnectConnector(InConnector, true);
 	}
 }
 
@@ -792,7 +823,7 @@ FReply SModularRigModel::OnAcceptDrop(const FDragDropEvent& DragDropEvent, EItem
 	FString ParentPath;
 	if (ItemAtMouse && ItemAtMouse->IsValid())
 	{
-		ParentPath = ItemAtMouse->Get()->Key;
+		ParentPath = ItemAtMouse->Get()->ModulePath;
 	}
 
 	TSharedPtr<FAssetDragDropOp> AssetDragDropOperation = DragDropEvent.GetOperationAs<FAssetDragDropOp>();

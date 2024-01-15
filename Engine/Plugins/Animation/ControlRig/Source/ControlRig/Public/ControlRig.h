@@ -112,7 +112,8 @@ public:
 
 	// Returns the redirector from key to key for this rig
 	virtual FRigElementKeyRedirector& GetElementKeyRedirector();
-
+	virtual FRigElementKeyRedirector GetElementKeyRedirector() const { return ElementKeyRedirector; }
+	
 	// Returns the redirector from key to key for this rig
 	virtual void SetElementKeyRedirector(const FRigElementKeyRedirector InElementRedirector);
 

@@ -67,6 +67,14 @@ struct CONTROLRIG_API FRigModuleSettings
 			(!bRequireExposedConnectors || !ExposedConnectors.IsEmpty());
 	}
 
+	const FRigModuleConnector* FindPrimaryConnector() const
+	{
+		return ExposedConnectors.FindByPredicate([](const FRigModuleConnector& Connector)
+		{
+			return Connector.Settings.Type == EConnectorType::Primary;
+		});
+	}
+
 	// The identifier used to retrieve the module in the module library
 	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = Module)
 	FRigModuleIdentifier Identifier;
