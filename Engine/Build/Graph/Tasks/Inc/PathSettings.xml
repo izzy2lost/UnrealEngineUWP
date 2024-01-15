@@ -37,6 +37,8 @@
 	<!-- Publish automation reports to the network-->
 	<Option Name="PublishReports" DefaultValue="$(IsBuildMachine)" Description="Publish packaged builds to the builds folder on the netwok"/>
 
+	<!-- For pre-generated build -->
+	<Option Name="GeneratedBuildVersion" DefaultValue="" Description="The pre-generated build version"/>
 
 	<!-- Where builds are saved to locally -->
 	<Property Name="ProjectOutputDirectory" Value="$(ProjectPath)/Saved/StagedBuilds"/>
@@ -85,5 +87,8 @@
 		<Property Name="AutomationReportOutputDirectory" Value="$(AutomationReportOutputDirectory)/$(EscapedBranch)/$(ProjectName)/$(CL-String)"/>
 		<Property Name="AutomationReportUrl" Value="http://automation.epicgames.net/reports/$(EscapedBranch)/$(ProjectName)/$(CL-String)"/>
 	</Do>
+
+	<!-- Network path that can be used for storing reports and logs -->
+	<Property Name="GeneratedBuildDir" Value="$(NetworkPublishRoot)/$(EscapedBranch)/$(GeneratedBuildVersion)"/>
 
 </BuildGraph>
