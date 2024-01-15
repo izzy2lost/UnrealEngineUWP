@@ -379,7 +379,6 @@ bool FSequencerNodeTree::IsNodeFiltered(const TSharedPtr<UE::Sequencer::FViewMod
 
 	TViewModelPtr<IOutlinerExtension> OutlinerItem = CastViewModel<IOutlinerExtension>(Node);
 	return OutlinerItem && FilteredNodes.Contains(OutlinerItem);
-	return FilteredNodes.Contains(CastViewModel<IOutlinerExtension>(Node));
 }
 
 TSharedPtr<UE::Sequencer::FSectionModel> FSequencerNodeTree::GetSectionModel(const UMovieSceneSection* Section) const

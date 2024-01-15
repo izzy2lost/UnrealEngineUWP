@@ -68,9 +68,9 @@ bool HActor::AlwaysAllowsTranslucentPrimitives() const
 {
 #if WITH_EDITOR
 	return PrimComponent->bAlwaysAllowTranslucentSelect;
-#endif
-
+#else
 	return false;
+#endif
 }
 
 EMouseCursor::Type HTranslucentActor::GetMouseCursor()

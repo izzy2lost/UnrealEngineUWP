@@ -161,8 +161,9 @@ public:
 #if WITH_EDITORONLY_DATA
 		auto const* Found = MetaDataObjects.FindByPredicate([InClass](UObject* In) { return In && In->GetClass() == InClass; });
 		return Found ? CastChecked<UObject>(*Found) : nullptr;
-#endif
+#else
 		return nullptr;
+#endif
 	}
 
 	/**
@@ -181,8 +182,9 @@ public:
 			MetaDataObjects.Add(Found);
 		}
 		return Found;
-#endif
+#else
 		return nullptr;
+#endif
 	}
 
 	/**

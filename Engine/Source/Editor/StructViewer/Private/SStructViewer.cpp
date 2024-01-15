@@ -1527,8 +1527,6 @@ TSharedRef<SWidget> SStructViewer::GetViewButtonContent()
 	MenuBuilder.EndSection();
 
 	return MenuBuilder.MakeWidget();
-
-	return MenuBuilder.MakeWidget();
 }
 
 void SStructViewer::SetCurrentDeveloperViewType(EStructViewerDeveloperType NewType)
