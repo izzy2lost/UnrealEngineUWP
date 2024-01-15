@@ -91,6 +91,11 @@ void AddHairClusterAABBPass(
 ///////////////////////////////////////////////////////////////////////////////////////////////////
 // Utils
 
+bool IsHairManualSkinCacheEnabled()
+{
+	return GHairStrands_ManualSkinCache > 0;
+}
+
 EHairBufferSwapType GetHairSwapBufferType()
 {
 	switch (GHairStrands_SwapBufferType)
@@ -455,7 +460,7 @@ static void AddHairSkinCacheDebugPass(
 	FRDGBufferRef InfoBuffer = CreateVertexBuffer(GraphBuilder, TEXT("Hair.Debug.UniqueMeshNames"), FRDGBufferDesc::CreateBufferDesc(4, InfoInUints * Infos.Num()), Infos.GetData(), InfoInBytes * Infos.Num());
 
 	FHairDebugPrintHairSkinCacheCS::FParameters* Parameters = GraphBuilder.AllocParameters<FHairDebugPrintHairSkinCacheCS::FParameters>();
-	Parameters->HairSkinCacheEnable = GHairStrands_ManualSkinCache > 0 ? 1u : 0u;
+	Parameters->HairSkinCacheEnable = IsHairManualSkinCacheEnabled() ? 1u : 0u;
 	Parameters->GPUSkinCacheEnable	= bIsGPUSkinCacheEnable ? 1u : 0u;
 	Parameters->InstanceCount 		= InstanceCount;
 	Parameters->UniqueMeshCount 	= UniqueMeshCount;
@@ -600,7 +605,7 @@ static FCachedGeometry GetCacheGeometryForHair(
 					OutHairGeometryCache.AddDebug(Instance, SceneProxy, Out, PositionUpdateType, FHairGeometryCache::ECacheType::SkinCache);
 				}
 				// 2. If no cached geometry is  extracted from the skel. mesh proxy, compute it using the manual hair skin cache
-				else if (GHairStrands_ManualSkinCache > 0)
+				else if (IsHairManualSkinCacheEnabled())
 				{
 					uint32 OutTotalSectionCount = 0;
 					GetOrAllocateCachedGeometry(GraphBuilder, ShaderMap, SceneProxy, RootBulkData, bOutputTriangleData, Out, OutHairGeometryCache, OutTotalSectionCount);
