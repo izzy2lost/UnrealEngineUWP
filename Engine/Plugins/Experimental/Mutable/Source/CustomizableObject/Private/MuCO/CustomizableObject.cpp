@@ -104,13 +104,14 @@ void UCustomizableObject::GetAssetRegistryTags(TArray<FAssetRegistryTag>& OutTag
 void UCustomizableObject::GetAssetRegistryTags(FAssetRegistryTagsContext Context) const
 {
 	int32 isRoot = 0;
-
+#if WITH_EDITOR
 	FCustomizableObjectCompilerBase* Compiler = UCustomizableObjectSystem::GetInstance()->GetNewCompiler();
 	if (Compiler)
 	{
 		isRoot = Compiler->IsRootObject(this) ? 1 : 0;
 		delete Compiler;
 	}
+#endif
 
 	Context.AddTag(FAssetRegistryTag("IsRoot", FString::FromInt(isRoot), FAssetRegistryTag::TT_Numerical));
 	Super::GetAssetRegistryTags(Context);
@@ -322,16 +323,6 @@ void UCustomizableObject::BeginCacheForCookedPlatformData(const ITargetPlatform*
 bool UCustomizableObject::IsCachedCookedPlatformDataLoaded( const ITargetPlatform* TargetPlatform ) 
 {
 	return !TargetPlatform || Private->CachedPlatformNames.Find(TargetPlatform->PlatformName()) != INDEX_NONE;
-}
-
-
-FGuid GenerateIdentifier(const UCustomizableObject& CustomizableObject)
-{
-	// Generate the Identifier using the path and name of the asset
-	uint32 FullPathHash = GetTypeHash(CustomizableObject.GetFullName());
-	uint32 OutermostHash = GetTypeHash(GetNameSafe(CustomizableObject.GetOutermost()));
-	uint32 OuterHash = GetTypeHash(CustomizableObject.GetName());
-	return FGuid(0, FullPathHash, OutermostHash, OuterHash);
 }
 
 
@@ -705,7 +696,7 @@ void UCustomizableObject::LoadCompiledData(FArchive& MemoryReader, const ITarget
 			mu::InputArchive arch(&stream);
 			TSharedPtr<mu::Model, ESPMode::ThreadSafe> Model = mu::Model::StaticUnserialise( arch );
 
-			Private->SetModel(Model, GenerateIdentifier(*this));
+			Private->SetModel(Model, Identifier);
 		}
 	}
 	
@@ -957,10 +948,23 @@ FString UCustomizableObject::GetCompiledDataFolderPath() const
 }
 
 
+FGuid GenerateIdentifier(const UCustomizableObject& CustomizableObject)
+{
+	// Generate the Identifier using the path and name of the asset
+	uint32 FullPathHash = GetTypeHash(CustomizableObject.GetFullName());
+	uint32 OutermostHash = GetTypeHash(GetNameSafe(CustomizableObject.GetOutermost()));
+	uint32 OuterHash = GetTypeHash(CustomizableObject.GetName());
+	return FGuid(0, FullPathHash, OutermostHash, OuterHash);
+}
+
+
 FString UCustomizableObject::GetCompiledDataFileName(bool bIsModel, const ITargetPlatform* InTargetPlatform, bool bIsDiskStreamer)
 {
+	// Generate the Identifier using the path and name of the asset
+	Identifier = GenerateIdentifier(*this);
+
 	const FString PlatformName = InTargetPlatform ? InTargetPlatform->PlatformName() : FPlatformProperties::PlatformName();
-	const FString FileIdentifier = bIsDiskStreamer ? GetPrivate()->Identifier.ToString() : GenerateIdentifier(*this).ToString();
+	const FString FileIdentifier = bIsDiskStreamer ? GetPrivate()->Identifier.ToString() : Identifier.ToString();
 	const FString Extension = bIsModel ? TEXT("_M.mut") : TEXT("_S.mut");
 	return PlatformName + FileIdentifier + Extension;
 }
@@ -1143,6 +1147,43 @@ TSoftObjectPtr<USkeleton> UCustomizableObject::GetReferencedSkeletonAssetPtr( ui
 		"Try recompiling and saving the CustomizableObject asset [%s]."), *GetName());
 	return nullptr;
 }
+
+
+TObjectPtr<USkeleton> UCustomizableObject::GetCachedMergedSkeleton(const int32 ComponentIndex, const TArray<uint16>& SkeletonIds) const
+{
+	const FMergedSkeleton* MergedSkeleton = MergedSkeletons.FindByPredicate([&ComponentIndex, &SkeletonIds](const FMergedSkeleton& MergedSkeleton) 
+		{ return MergedSkeleton.ComponentIndex == ComponentIndex && MergedSkeleton.SkeletonIds == SkeletonIds; });
+
+	if (MergedSkeleton && MergedSkeleton->Skeleton.IsValid())
+	{
+		return MergedSkeleton->Skeleton.Get();
+	}
+
+	return nullptr;
+}
+
+
+void UCustomizableObject::CacheMergedSkeleton(const int32 ComponentIndex, const TArray<uint16>& SkeletonIds, TObjectPtr<USkeleton> Skeleton)
+{
+	if (Skeleton)
+	{
+		MergedSkeletons.AddUnique({ Skeleton, ComponentIndex, SkeletonIds });
+	}
+}
+
+
+void UCustomizableObject::UnCacheInvalidSkeletons()
+{
+	for (int32 SkeletonIndex = MergedSkeletons.Num() - 1; SkeletonIndex >= 0; --SkeletonIndex)
+	{
+		FMergedSkeleton& MergedSkeleton = MergedSkeletons[SkeletonIndex];
+		if (!MergedSkeleton.Skeleton.IsValid())
+		{
+			MergedSkeletons.RemoveSingleSwap(MergedSkeleton);
+		}
+	}
+}
+
 
 
 int32 UCustomizableObject::FindState( const FString& Name ) const
@@ -1889,33 +1930,6 @@ void FMeshCache::Add(const TArray<mu::FResourceID>& Key, USkeletalMesh* Value)
 }
 
 
-USkeleton* FSkeletonCache::Get(const TArray<uint16>& Key)
-{
-	const TWeakObjectPtr<USkeleton>* Result = MergedSkeletons.Find(Key);
-	return Result ? Result->Get() : nullptr;
-}
-
-
-void FSkeletonCache::Add(const TArray<uint16>& Key, USkeleton* Value)
-{
-	if (!Value)
-	{
-		return;
-	}
-
-	MergedSkeletons.Add(Key, Value);
-
-	// Remove invalid SkeletalMeshes from the cache.
-	for (auto SkeletonIterator = MergedSkeletons.CreateIterator(); SkeletonIterator; ++SkeletonIterator)
-	{
-		if (SkeletonIterator.Value().IsStale())
-		{
-			SkeletonIterator.RemoveCurrent();
-		}
-	}
-}
-
-
 void UCustomizableObjectPrivate::SetModel(const TSharedPtr<mu::Model, ESPMode::ThreadSafe>& Model, const FGuid Id)
 {
 	if (MutableModel == Model
@@ -1952,6 +1966,18 @@ const TSharedPtr<mu::Model, ESPMode::ThreadSafe>& UCustomizableObjectPrivate::Ge
 TSharedPtr<const mu::Model, ESPMode::ThreadSafe> UCustomizableObjectPrivate::GetModel() const
 {
 	return MutableModel;
+}
+
+
+//-------------------------------------------------------------------------------------------------
+//-------------------------------------------------------------------------------------------------
+//-------------------------------------------------------------------------------------------------
+FMergedSkeleton::FMergedSkeleton(TObjectPtr<USkeleton> InSkeleton, const int32 InComponentIndex, const TArray<uint16>& InSkeletonIds)
+{
+	check(InSkeleton);
+	Skeleton = InSkeleton;
+	ComponentIndex = InComponentIndex;
+	SkeletonIds = InSkeletonIds;
 }
 
 
