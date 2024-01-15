@@ -99,18 +99,20 @@ void FHairStrandsDatas::Reset()
 
 void FHairStrandsInterpolationDatas::Reset()
 {
-	PointsSimCurvesVertexWeights.Reset();
-	PointsSimCurvesVertexLerp.Reset();
-	PointsSimCurvesVertexIndex.Reset();
-	PointsSimCurvesIndex.Reset();
+	CurveSimWeights.Reset();
+	CurveSimIndices.Reset();
+	CurveSimRootPointIndex.Reset();
+	PointSimLerps.Reset();
+	PointSimIndices.Reset();
 }
 
-void FHairStrandsInterpolationDatas::SetNum(const uint32 NumCurves)
+void FHairStrandsInterpolationDatas::SetNum(const uint32 NumCurves, const uint32 NumPoints)
 {
-	PointsSimCurvesVertexWeights.SetNum(NumCurves);
-	PointsSimCurvesVertexLerp.SetNum(NumCurves);
-	PointsSimCurvesVertexIndex.SetNum(NumCurves);
-	PointsSimCurvesIndex.SetNum(NumCurves);
+	CurveSimIndices.SetNum(NumCurves);
+	CurveSimWeights.SetNum(NumCurves);
+	CurveSimRootPointIndex.SetNum(NumCurves);
+	PointSimIndices.SetNum(NumPoints);
+	PointSimLerps.SetNum(NumPoints);
 }
 
 void FHairStrandsClusterData::Reset()
@@ -613,6 +615,17 @@ void FHairStrandsBulkData::GetResources(FHairStrandsBulkCommon::FQuery& Out)
 	}
 }
 
+uint32 FHairStrandsBulkData::GetSize() const
+{
+	uint32 Out = 0;
+	Out += Data.Positions.GetBulkDataSize();
+	Out += Data.CurveAttributes.GetBulkDataSize();
+	Out += Data.PointAttributes.GetBulkDataSize();
+	Out += Data.PointToCurve.GetBulkDataSize();
+	Out += Data.Curves.GetBulkDataSize();
+	return Out;
+}
+
 void FHairStrandsBulkData::Reset()
 {
 	Header.CurveCount = 0;
@@ -660,25 +673,25 @@ void FHairStrandsInterpolationBulkData::Reset()
 {
 	Header.Flags = 0;
 	Header.PointCount = 0;
-	Header.SimPointCount = 0;
+	Header.CurveCount = 0;
 	
 	// Deallocate memory if needed
-	Data.Interpolation.RemoveBulkData();
-	Data.SimRootPointIndex.RemoveBulkData();
+	Data.CurveInterpolation.RemoveBulkData();
+	Data.PointInterpolation.RemoveBulkData();
 
 	// Reset the bulk byte buffer to ensure the (serialize) data size is reset to 0
-	Data.Interpolation		= FHairBulkContainer();
-	Data.SimRootPointIndex	= FHairBulkContainer();
+	Data.CurveInterpolation	= FHairBulkContainer();
+	Data.PointInterpolation	= FHairBulkContainer();
 }
 
 void FHairStrandsInterpolationBulkData::SerializeHeader(FArchive& Ar, UObject* Owner)
 {
 	Ar << Header.Flags;
 	Ar << Header.PointCount;
-	Ar << Header.SimPointCount;
+	Ar << Header.CurveCount;
 
-	Ar << Header.Strides.InterpolationStride;
-	Ar << Header.Strides.SimRootPointIndexStride;
+	Ar << Header.Strides.CurveInterpolationStride;
+	Ar << Header.Strides.PointInterpolationStride;
 }
 
 uint32 FHairStrandsInterpolationBulkData::GetResourceCount() const
@@ -694,20 +707,30 @@ void FHairStrandsInterpolationBulkData::GetResources(FHairStrandsBulkCommon::FQu
 	{
 		// Translate requested curve count into chunk/offset/size to be read
 		uint32 PointCount = 0;
+		uint32 CurveCount = 0;
 		if (Out.Type == FHairStrandsBulkCommon::FQuery::ReadIO || Out.Type == FHairStrandsBulkCommon::FQuery::ReadDDC || Out.Type == FHairStrandsBulkCommon::FQuery::UnloadData)
 		{
+			CurveCount = FMath::Min(Header.CurveCount, Out.GetCurveCount());
 			PointCount = FMath::Min(Header.PointCount, Out.GetPointCount());
 		}
 
-		Out.Add(Data.Interpolation, 	TEXT("_Interpolation"), 	Data.Interpolation.LoadedSize, 		PointCount * Header.Strides.InterpolationStride);
-		Out.Add(Data.SimRootPointIndex, TEXT("_SimRootPointIndex"), Data.SimRootPointIndex.LoadedSize, 	Header.SimPointCount * Header.Strides.SimRootPointIndexStride); // Load all data at once (guide data)
+		Out.Add(Data.CurveInterpolation, 	TEXT("_CurveInterpolation"), 	Data.CurveInterpolation.LoadedSize, 		CurveCount * Header.Strides.CurveInterpolationStride);
+		Out.Add(Data.PointInterpolation, 	TEXT("_PointInterpolation"), 	Data.PointInterpolation.LoadedSize, 		PointCount * Header.Strides.PointInterpolationStride);
 	}
+}
+
+uint32 FHairStrandsInterpolationBulkData::GetSize() const
+{
+	uint32 Out = 0;
+	Out += Data.CurveInterpolation.GetBulkDataSize();
+	Out += Data.PointInterpolation.GetBulkDataSize();
+	return Out;
 }
 
 void FHairStrandsInterpolationBulkData::ResetLoadedSize()
 {
-	Data.Interpolation.LoadedSize		= 0;
-	Data.SimRootPointIndex.LoadedSize	= 0;
+	Data.CurveInterpolation.LoadedSize = 0;
+	Data.PointInterpolation.LoadedSize = 0;
 }
 
 /////////////////////////////////////////////////////////////////////////////////////////
@@ -793,6 +816,15 @@ void FHairStrandsClusterBulkData::GetResources(FHairStrandsBulkCommon::FQuery & 
 		Out.Add(Data.CurveToClusterIds, TEXT("_CurveToClusterIds"), Data.CurveToClusterIds.LoadedSize, CurveCount * Header.Strides.CurveToClusterIdStride);
 		Out.Add(Data.PointLODs, TEXT("_PointLODs"), Data.PointLODs.LoadedSize, PointLODCount * Header.Strides.PointLODStride);
 	}
+}
+
+uint32 FHairStrandsClusterBulkData::GetSize() const
+{
+	uint32 Out = 0;;
+	Out += Data.PackedClusterInfos.GetBulkDataSize();
+	Out += Data.CurveToClusterIds.GetBulkDataSize();
+	Out += Data.PointLODs.GetBulkDataSize();
+	return Out;
 }
 
 uint32 FHairStrandsClusterBulkData::GetCurveCount(float InLODIndex) const
@@ -924,6 +956,23 @@ void FHairStrandsRootBulkData::GetResources(FQuery& Out)
 		Out.Add(DataLOD.MeshSampleIndicesAndSectionsBuffer, TEXT("_MeshSampleIndicesAndSectionsBuffer"),DataLOD.MeshSampleIndicesAndSectionsBuffer.LoadedSize, 	HeaderLOD.SampleCount * Header.Strides.MeshSampleIndicesAndSectionsBufferStride); 	// Load all data
 		Out.Add(DataLOD.RestSamplePositionsBuffer, 			TEXT("_RestSamplePositionsBuffer"), 		DataLOD.RestSamplePositionsBuffer.LoadedSize, 			HeaderLOD.SampleCount * Header.Strides.RestSamplePositionsBufferStride);			// Load all data
 	}
+}
+
+uint32 FHairStrandsRootBulkData::GetSize() const
+{
+	uint32 Out = 0;
+	for (const auto& LOD : Data.LODs)
+	{
+		Out += LOD.RootToUniqueTriangleIndexBuffer.GetBulkDataSize();
+		Out += LOD.RootBarycentricBuffer.GetBulkDataSize();
+		Out += LOD.UniqueTriangleIndexBuffer.GetBulkDataSize();
+		Out += LOD.RestUniqueTrianglePositionBuffer.GetBulkDataSize();
+
+		Out += LOD.MeshInterpolationWeightsBuffer.GetBulkDataSize();
+		Out += LOD.MeshSampleIndicesAndSectionsBuffer.GetBulkDataSize();
+		Out += LOD.RestSamplePositionsBuffer.GetBulkDataSize();
+	}
+	return Out;
 }
 
 void FHairStrandsRootBulkData::Reset()

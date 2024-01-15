@@ -1354,6 +1354,11 @@ static void RunHairStrandsInterpolation_Strands(
 	}
 
 	{
+		DECLARE_GPU_STAT(HairStrandsInterpolationCurve);
+		RDG_EVENT_SCOPE(GraphBuilder, "HairStrandsInterpolationCurve");
+		TRACE_CPUPROFILER_EVENT_SCOPE(HairStrandsInterpolationCurve);
+		RDG_GPU_STAT_SCOPE(GraphBuilder, HairStrandsInterpolationCurve);
+
 		TArray<FRDGBufferSRVRef> Transitions;
 		Transitions.Reserve(InstanceDatas.Num());
 		for (FInstanceData& InstanceData : InstanceDatas)
@@ -1370,6 +1375,8 @@ static void RunHairStrandsInterpolation_Strands(
 					ShaderPrintData,
 					InstanceData.Instance,
 					InstanceData.ActivePointCount,
+					InstanceData.ActiveCurveCount,
+					InstanceData.Instance->Strands.RestResource->BulkData.Header.MaxPointPerCurve,
 					InstanceData.MeshLODIndex,
 					InstanceData.Instance->Strands.Modifier.HairLengthScale,
 					InstanceData.Instance->Strands.HairInterpolationType,
@@ -1385,11 +1392,13 @@ static void RunHairStrandsInterpolation_Strands(
 					bHasSkinning && bValidGuide ? InstanceData.Instance->Guides.DeformedRootResource : nullptr,
 					RegisterAsSRV(GraphBuilder, InstanceData.Instance->Strands.RestResource->PositionBuffer),
 					RegisterAsSRV(GraphBuilder, InstanceData.Instance->Strands.RestResource->PointToCurveBuffer),
+					RegisterAsSRV(GraphBuilder, InstanceData.Instance->Strands.RestResource->CurveBuffer),
+					bValidGuide ? RegisterAsSRV(GraphBuilder, InstanceData.Instance->Guides.RestResource->CurveBuffer) : nullptr,
 					bUseSingleGuide,
-					bValidGuide ? RegisterAsSRV(GraphBuilder, InstanceData.Instance->Strands.InterpolationResource->InterpolationBuffer) : nullptr,
+					bValidGuide ? RegisterAsSRV(GraphBuilder, InstanceData.Instance->Strands.InterpolationResource->CurveInterpolationBuffer) : nullptr,
+					bValidGuide ? RegisterAsSRV(GraphBuilder, InstanceData.Instance->Strands.InterpolationResource->PointInterpolationBuffer) : nullptr,
 					bValidGuide ? RegisterAsSRV(GraphBuilder, InstanceData.Instance->Guides.RestResource->PositionBuffer) : nullptr,
 					bValidGuide ? RegisterAsSRV(GraphBuilder, InstanceData.Instance->Guides.DeformedResource->GetBuffer(FHairStrandsDeformedResource::Current)) : nullptr,
-					bValidGuide ? RegisterAsSRV(GraphBuilder, InstanceData.Instance->Strands.InterpolationResource->SimRootPointIndexBuffer) : nullptr,
 					bValidGuide ? RegisterAsSRV(GraphBuilder, InstanceData.Instance->Guides.RestResource->PointToCurveBuffer) : nullptr,
 					InstanceData.RDGResources.DeformerPositionSRV,
 					InstanceData.RDGResources.PositionUAV,
@@ -1530,7 +1539,8 @@ static void RunHairStrandsInterpolation_Strands(
 					Register(GraphBuilder, InstanceData.Instance->Strands.RestResource->CurveAttributeBuffer, ERDGImportedBufferFlags::CreateSRV).Buffer,
 					RegisterAsSRV(GraphBuilder, InstanceData.Instance->Strands.RestResource->CurveBuffer),
 					RegisterAsSRV(GraphBuilder, InstanceData.Instance->Strands.ClusterResource->CurveToClusterIdBuffer),
-					bValidGuide ? RegisterAsSRV(GraphBuilder, InstanceData.Instance->Strands.InterpolationResource->InterpolationBuffer) : nullptr,
+					bValidGuide ? RegisterAsSRV(GraphBuilder, InstanceData.Instance->Strands.InterpolationResource->CurveInterpolationBuffer) : nullptr,
+					bValidGuide ? RegisterAsSRV(GraphBuilder, InstanceData.Instance->Strands.InterpolationResource->PointInterpolationBuffer) : nullptr,
 					OutRenCurveAttributeBuffer);
 			}
 		}
@@ -1924,6 +1934,8 @@ static void RunHairStrandsInterpolation_Cards(
 					ShaderPrintData,
 					InstanceData.Instance,
 					LOD.Guides.RestResource->GetPointCount(),
+					LOD.Guides.RestResource->GetCurveCount(),
+					LOD.Guides.RestResource->BulkData.Header.MaxPointPerCurve,
 					InstanceData.MeshLODIndex,
 					1.0f,
 					LOD.Guides.HairInterpolationType,
@@ -1939,11 +1951,13 @@ static void RunHairStrandsInterpolation_Cards(
 					InstanceData.bHasSkinning && InstanceData.bValidGuide ? InstanceData.Instance->Guides.DeformedRootResource : nullptr,
 					RegisterAsSRV(GraphBuilder, LOD.Guides.RestResource->PositionBuffer),
 					RegisterAsSRV(GraphBuilder, LOD.Guides.RestResource->PointToCurveBuffer),
+					RegisterAsSRV(GraphBuilder, LOD.Guides.RestResource->CurveBuffer),
+					InstanceData.bValidGuide ? RegisterAsSRV(GraphBuilder, InstanceData.Instance->Guides.RestResource->CurveBuffer) : nullptr,
 					bUseSingleGuide,
-					InstanceData.bValidGuide ? RegisterAsSRV(GraphBuilder, LOD.Guides.InterpolationResource->InterpolationBuffer) : nullptr,
+					InstanceData.bValidGuide ? RegisterAsSRV(GraphBuilder, LOD.Guides.InterpolationResource->CurveInterpolationBuffer) : nullptr,
+					InstanceData.bValidGuide ? RegisterAsSRV(GraphBuilder, LOD.Guides.InterpolationResource->PointInterpolationBuffer) : nullptr,
 					InstanceData.bValidGuide ? RegisterAsSRV(GraphBuilder, InstanceData.Instance->Guides.RestResource->PositionBuffer) : nullptr,
 					InstanceData.bValidGuide ? RegisterAsSRV(GraphBuilder, InstanceData.Instance->Guides.DeformedResource->GetBuffer(FHairStrandsDeformedResource::Current)) : nullptr,
-					RegisterAsSRV(GraphBuilder, LOD.Guides.InterpolationResource->SimRootPointIndexBuffer),
 					InstanceData.bValidGuide ? RegisterAsSRV(GraphBuilder, InstanceData.Instance->Guides.RestResource->PointToCurveBuffer) : nullptr,
 					nullptr,
 					Guides_DeformedPositionUAV,

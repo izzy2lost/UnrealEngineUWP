@@ -610,6 +610,7 @@ static bool InternalImportGeometry_WithGeneratedGuides(
 		InternalCreateCardsInterpolation(Out.Cards, OutGuides, InterpolationData);
 
 		// Fill out the interpolation data
+		static_assert(sizeof(FHairCardsInterpolationVertex) == HAIR_INTERPOLATION_CARDS_GUIDE_STRIDE);
 		OutInterpolationBulkData.Interpolation.SetNum(PointCount);
 		for (uint32 PointIt = 0; PointIt < PointCount; ++PointIt)
 		{

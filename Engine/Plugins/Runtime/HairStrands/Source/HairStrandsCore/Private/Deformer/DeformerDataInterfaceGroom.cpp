@@ -226,7 +226,8 @@ void FOptimusGroomDataProviderProxy::AllocateResources(FRDGBuilder& GraphBuilder
 
 			{
 				FHairStrandsInstanceInterpolationParameters& R = Interpolations.AddDefaulted_GetRef();
-				R.InterpolationBuffer = Instance->Strands.InterpolationResource ? RegisterAsSRV(GraphBuilder, Instance->Strands.InterpolationResource->InterpolationBuffer) : nullptr;
+				R.CurveInterpolationBuffer = Instance->Strands.InterpolationResource ? RegisterAsSRV(GraphBuilder, Instance->Strands.InterpolationResource->CurveInterpolationBuffer) : nullptr;
+				R.PointInterpolationBuffer = Instance->Strands.InterpolationResource ? RegisterAsSRV(GraphBuilder, Instance->Strands.InterpolationResource->PointInterpolationBuffer) : nullptr;
 			}
 
 			if (!FallbackSRV)
@@ -257,7 +258,8 @@ void FOptimusGroomDataProviderProxy::GatherDispatchData(FDispatchData const& InD
 		Parameters.Resources.PointAttributeBuffer	= FallbackSRV;
 		Parameters.Resources.PointToCurveBuffer		= FallbackSRV;
 		Parameters.Resources.CurveBuffer			= FallbackSRV;
-		Parameters.Interpolation.InterpolationBuffer= FallbackSRV;
+		Parameters.Interpolation.CurveInterpolationBuffer = FallbackSRV;
+		Parameters.Interpolation.PointInterpolationBuffer = FallbackSRV;
 
 		if (FHairGroupInstance* Instance = GroomComponent->GetGroupInstance(InvocationIndex))
 		{
@@ -268,7 +270,7 @@ void FOptimusGroomDataProviderProxy::GatherDispatchData(FDispatchData const& InD
 			{
 				Parameters.Resources = Resources[InvocationIndex];
 			}
-			if (Interpolations[InvocationIndex].InterpolationBuffer != nullptr)
+			if (Interpolations[InvocationIndex].CurveInterpolationBuffer != nullptr)
 			{
 				Parameters.Interpolation = Interpolations[InvocationIndex];
 			}

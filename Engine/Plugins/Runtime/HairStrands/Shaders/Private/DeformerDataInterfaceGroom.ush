@@ -120,15 +120,14 @@ float ReadCurveNumPoint_{DataInterfaceName}(uint CurveIndex)
 
 uint ReadGuideIndex_{DataInterfaceName}(uint ControlPointIndex)
 {
-	FGuideData GuideData;
-	if ({DataInterfaceName}_bSingleGuide)
-	{
-		GuideData = UnpackGuideData({DataInterfaceName}_InterpolationBuffer.Load(ControlPointIndex * HAIR_INTERPOLATION_1GUIDE_STRIDE));
-	}
-	else
-	{
-		GuideData = UnpackGuideData({DataInterfaceName}_InterpolationBuffer.Load4(ControlPointIndex * HAIR_INTERPOLATION_3GUIDE_STRIDE));
-	}
+	// Find the rendering curve index
+	const uint CurveIndex = {DataInterfaceName}_PointToCurveBuffer.Load(ControlPointIndex);
 
-	return GuideData.VertexIndices.x;
+	// Fint the curve and point interpolation data
+	const FGuideCurveData CurveData = UnpackGuideCurveData({DataInterfaceName}_CurveInterpolationBuffer, CurveIndex, {DataInterfaceName}_bSingleGuide);
+	const FGuidePointData PointData = UnpackGuidePointData({DataInterfaceName}_PointInterpolationBuffer, ControlPointIndex, {DataInterfaceName}_bSingleGuide);
+
+	// Build the sim point index
+	const uint2 GuidePointIndices = CurveData.RootPointIndices + PointData.PointIndices;
+	return GuidePointIndices.x;
 }

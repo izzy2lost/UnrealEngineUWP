@@ -297,21 +297,21 @@ struct FHairStrandsInterpolationResource : public FHairCommonResource
 	virtual FHairStrandsBulkCommon* InternalGetBulkData() override { return &BulkData; }
 
 	/* Get the resource name */
-	virtual FString GetFriendlyName() const override { return TEXT("FHairStrandsInterplationResource"); }
+	virtual FString GetFriendlyName() const override { return TEXT("FHairStrandsInterpolationResource"); }
 
 	/* Return the memory size for GPU resources */
 	uint32 GetResourcesSize() const
 	{
 		uint32 Total = 0;
-		Total += GetBufferTotalNumBytes(InterpolationBuffer);
-		Total += GetBufferTotalNumBytes(SimRootPointIndexBuffer);
+		Total += GetBufferTotalNumBytes(CurveInterpolationBuffer);
+		Total += GetBufferTotalNumBytes(PointInterpolationBuffer);
 		return Total;
 	}
 
 	bool UseSingleGuide() const { return (BulkData.Header.Flags & FHairStrandsInterpolationBulkData::DataFlags_HasSingleGuideData) != 0; }
 
-	FRDGExternalBuffer InterpolationBuffer;
-	FRDGExternalBuffer SimRootPointIndexBuffer;
+	FRDGExternalBuffer CurveInterpolationBuffer;
+	FRDGExternalBuffer PointInterpolationBuffer;
 
 	/* Reference to the hair strands interpolation render data */
 	FHairStrandsInterpolationBulkData& BulkData;

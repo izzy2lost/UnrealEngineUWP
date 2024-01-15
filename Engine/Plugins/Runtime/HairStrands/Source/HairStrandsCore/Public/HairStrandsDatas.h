@@ -585,6 +585,7 @@ struct HAIRSTRANDSCORE_API FHairStrandsBulkData : FHairStrandsBulkCommon
 	float  GetMaxRadius() const { return Header.MaxRadius; }
 	FVector GetPositionOffset() const { return Header.BoundingBox.GetCenter(); }
 	const FBox& GetBounds() const { return Header.BoundingBox; }
+	uint32 GetSize() const;
 
 	uint32 GetCurveAttributeSizeInBytes(uint32 InCurveCount=HAIR_MAX_NUM_CURVE_PER_GROUP) const	{ return InCurveCount > 0 ? FMath::DivideAndRoundUp(FMath::Min(Header.CurveCount, InCurveCount), Header.Strides.CurveAttributeChunkElementCount) * Header.Strides.CurveAttributeChunkStride : 0; }
 	uint32 GetPointAttributeSizeInBytes(uint32 InPointCount=HAIR_MAX_NUM_POINT_PER_GROUP) const	{ return InPointCount > 0 ? FMath::DivideAndRoundUp(FMath::Min(Header.PointCount, InPointCount), Header.Strides.PointAttributeChunkElementCount) * Header.Strides.PointAttributeChunkStride : 0; }
@@ -642,27 +643,31 @@ struct HAIRSTRANDSCORE_API FHairStrandsBulkData : FHairStrandsBulkCommon
 struct HAIRSTRANDSCORE_API FHairStrandsInterpolationDatas
 {
 	/** Set the number of interpolated points */
-	void SetNum(const uint32 NumPoints);
+	void SetNum(const uint32 InCurveCount, const uint32 InPointCount);
 
 	/** Reset the interpolated points to 0 */
 	void Reset();
 
 	/** Get the number of interpolated points */
-	uint32 Num() const { return PointsSimCurvesVertexIndex.Num(); }
+	uint32 GetPointCount() const { return PointSimIndices.Num(); }
+	uint32 GetCurveCount() const { return CurveSimIndices.Num(); }
 
-	bool IsValid() const { return PointsSimCurvesIndex.Num() > 0; }
+	bool IsValid() const { return CurveSimIndices.Num() > 0; }
 
-	/** Simulation curve indices, ordered by closest influence */
-	TArray<FIntVector> PointsSimCurvesIndex;
+	/** Simulation curve indices, ordered by closest influence (per-curve data)*/
+	TArray<FIntVector2> CurveSimIndices;
 
-	/** Closest vertex indices on simulation curve, ordered by closest influence */
-	TArray<FIntVector> PointsSimCurvesVertexIndex;
+	/** Weight of simulation curve, ordered by closest influence (per-curve data)*/
+	TArray<FVector2f> CurveSimWeights;
 
-	/** Lerp value between the closest vertex indices and the next one, ordered by closest influence */
-	TArray<FVector3f> PointsSimCurvesVertexLerp;
+	/** (Global) Index of the root point of the curve*/
+	TArray<FIntVector2> CurveSimRootPointIndex;
 
-	/** Weight of vertex indices on simulation curve, ordered by closest influence */
-	TArray<FVector3f>	PointsSimCurvesVertexWeights;
+	/** Closest vertex (local, 0..255) indices on simulation curve, ordered by closest influence (per-point data)*/
+	TArray<FIntVector2> PointSimIndices;
+
+	/** Lerp value between the closest vertex indices and the next one, ordered by closest influence (per-point data)*/
+	TArray<FVector2f> PointSimLerps;
 
 	/** True, if interpolation data are built using a single guide */
 	bool bUseUniqueGuide = false;
@@ -683,24 +688,25 @@ struct HAIRSTRANDSCORE_API FHairStrandsInterpolationBulkData : FHairStrandsBulkC
 	virtual uint32 GetResourceCount() const override;
 	virtual void GetResources(FQuery& Out) override;
 	uint32 GetPointCount() const { return Header.PointCount; };
+	uint32 GetSize() const;
 
 	struct FHeader
 	{
 		uint32 Flags = 0;
 		uint32 PointCount = 0;
-		uint32 SimPointCount = 0;
+		uint32 CurveCount = 0;
 
 		struct FStrides
 		{
-			uint32 InterpolationStride = 0;
-			uint32 SimRootPointIndexStride = 0;
+			uint32 CurveInterpolationStride = 0;
+			uint32 PointInterpolationStride = 0;
 		} Strides;
 	} Header;
 
 	struct FData
 	{
-		FHairBulkContainer Interpolation;		// FHairStrandsInterpolationFormat  - Per-rendering-vertex interpolation data (closest guides, weight factors, ...). Data for a 1 or 3 guide(s))
-		FHairBulkContainer SimRootPointIndex;	// FHairStrandsRootIndexFormat      - Per-rendering-vertex index of the sim-root vertex
+		FHairBulkContainer CurveInterpolation;	// FHairStrandsInterpolationFormat  - Per-rendering-curve interpolation data (closest guides, weight factors, ...). Data for a 1 or 2 guide(s))
+		FHairBulkContainer PointInterpolation;	// FHairStrandsInterpolationFormat  - Per-rendering-point interpolation data (local point index, lerp factors,...). Data for a 1 or 2 guide(s))
 	} Data;
 };
 
@@ -733,6 +739,7 @@ struct HAIRSTRANDSCORE_API FHairStrandsClusterBulkData : FHairStrandsBulkCommon
 	virtual uint32 GetResourceCount() const override;
 	virtual void GetResources(FQuery& Out) override;
 	uint32 GetCurveCount(float InLODIndex) const;
+	uint32 GetSize() const;
 
 	bool IsValid() const { return Header.ClusterCount > 0 && Header.PointCount > 0; }
 
@@ -826,6 +833,7 @@ struct FHairStrandsRootBulkData : FHairStrandsBulkCommon
 	virtual void SerializeHeader(FArchive& Ar, UObject* Owner) override;
 	virtual uint32 GetResourceCount() const override;
 	virtual void GetResources(FQuery& Out) override;
+	uint32 GetSize() const;
 
 	void Reset();
 	virtual void ResetLoadedSize() override;

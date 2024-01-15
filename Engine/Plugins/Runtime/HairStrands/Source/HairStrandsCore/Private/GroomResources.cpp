@@ -1563,7 +1563,7 @@ void FHairStrandsDeformedRootResource::InternalRelease()
 
 FHairStrandsInterpolationResource::FHairStrandsInterpolationResource(FHairStrandsInterpolationBulkData& InBulkData, const FHairResourceName& InResourceName, const FName& InOwnerName) :
 	FHairCommonResource(EHairStrandsAllocationType::Deferred, InResourceName, InOwnerName),
-	InterpolationBuffer(), BulkData(InBulkData)
+CurveInterpolationBuffer(), PointInterpolationBuffer(),BulkData(InBulkData)
 {
 	MaxAvailableCurveCount = 0;
 
@@ -1585,14 +1585,14 @@ void FHairStrandsInterpolationResource::InternalAllocate(FRDGBuilder& GraphBuild
 	// If we enter this function, the request need to be completed
 	check(StreamingRequest.IsCompleted());
 
-	InternalCreateByteAddressBufferRDG_FromHairBulkData(GraphBuilder, BulkData.Data.Interpolation, InterpolationBuffer, ToHairResourceDebugName(TEXT("Hair.StrandsInterpolation_InterpolationBuffer"), ResourceName), OwnerName, EHairResourceUsageType::Static);
-	InternalCreateVertexBufferRDG_FromHairBulkData<FHairStrandsRootIndexFormat>(GraphBuilder, BulkData.Data.SimRootPointIndex, BulkData.Header.SimPointCount, SimRootPointIndexBuffer, ToHairResourceDebugName(TEXT("Hair.StrandsInterpolation_SimRootPointIndex"), ResourceName), OwnerName, EHairResourceUsageType::Static);
+	InternalCreateByteAddressBufferRDG_FromHairBulkData(GraphBuilder, BulkData.Data.CurveInterpolation, CurveInterpolationBuffer, ToHairResourceDebugName(TEXT("Hair.StrandsInterpolation_CurveInterpolationBuffer"), ResourceName), OwnerName, EHairResourceUsageType::Static);
+	InternalCreateByteAddressBufferRDG_FromHairBulkData(GraphBuilder, BulkData.Data.PointInterpolation, PointInterpolationBuffer, ToHairResourceDebugName(TEXT("Hair.StrandsInterpolation_PointInterpolationBuffer"), ResourceName), OwnerName, EHairResourceUsageType::Static);
 }
 
 void FHairStrandsInterpolationResource::InternalRelease()
 {
-	InterpolationBuffer.Release();
-	SimRootPointIndexBuffer.Release();
+	CurveInterpolationBuffer.Release();
+	PointInterpolationBuffer.Release();
 	MaxAvailableCurveCount = 0;
 }
 

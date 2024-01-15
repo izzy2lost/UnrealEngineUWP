@@ -506,3 +506,31 @@ void AddTransitionPass(
 		}
 	}
 }
+
+FPointPerCurveDispatchInfo GetPointPerCurveDispatchInfo(uint32 InAssetMaxPointPerCurve, uint32 InAssetCurveCount, uint32 InGroupSize)
+{
+	FPointPerCurveDispatchInfo Out;
+	Out.SourcePoinPerCurve = InAssetMaxPointPerCurve;
+	Out.SourceCurveCount = InAssetCurveCount;
+	Out.GroupSize = InGroupSize;
+
+	// Compute the rounded point-per-curve count, based on the asset and the shader's requirement
+	Out.PointPerCurve = FMath::Clamp(uint32(FMath::Pow(2u, FMath::RoundFromZero(FMath::Log2(float(InAssetMaxPointPerCurve))))), 4u, Out.GroupSize);
+	check(FMath::IsPowerOfTwo(Out.PointPerCurve));
+
+	// Compute the number of curve per group
+	Out.CurvePerGroup = Out.GroupSize / Out.PointPerCurve;
+
+	// Compute dispatch count
+	const uint32 LinearGroupCount = FMath::DivideAndRoundUp(Out.SourceCurveCount, Out.CurvePerGroup);
+	Out.DispatchCount = FIntVector(LinearGroupCount, 1, 1);
+	if (Out.DispatchCount.X > 0xFFFFu)
+	{
+		Out.DispatchCount.X = 64;
+		Out.DispatchCount.Y = FMath::DivideAndRoundUp(LinearGroupCount, uint32(Out.DispatchCount.X));
+	}
+	check(Out.DispatchCount.X <= 0xFFFFu);
+	check(Out.DispatchCount.Y <= 0xFFFFu);
+
+	return Out;
+}

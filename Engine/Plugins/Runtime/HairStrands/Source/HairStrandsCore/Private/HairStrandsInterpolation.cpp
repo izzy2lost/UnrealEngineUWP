@@ -452,21 +452,25 @@ class FHairInterpolationCS : public FGlobalShader
 	DECLARE_GLOBAL_SHADER(FHairInterpolationCS);
 	SHADER_USE_PARAMETER_STRUCT(FHairInterpolationCS, FGlobalShader);
 
+	class FPointPerCurve : SHADER_PERMUTATION_SPARSE_INT("PERMUTATION_POINT_PER_CURVE", 4, 8, 16, 32);
 	class FDynamicGeometry : SHADER_PERMUTATION_INT("PERMUTATION_DYNAMIC_GEOMETRY", 5);
 	class FSimulation : SHADER_PERMUTATION_BOOL("PERMUTATION_SIMULATION");
 	class FSingleGuide : SHADER_PERMUTATION_BOOL("PERMUTATION_USE_SINGLE_GUIDE");
-	class FCulling : SHADER_PERMUTATION_BOOL("PERMUTATION_CULLING");
 	class FDeformer : SHADER_PERMUTATION_BOOL("PERMUTATION_DEFORMER");
-	using FPermutationDomain = TShaderPermutationDomain<FDynamicGeometry, FSimulation, FSingleGuide, FCulling, FDeformer>;
+	using FPermutationDomain = TShaderPermutationDomain<FDynamicGeometry, FSimulation, FSingleGuide, FDeformer, FPointPerCurve>;
 
 	BEGIN_SHADER_PARAMETER_STRUCT(FParameters, )
 		SHADER_PARAMETER_STRUCT_INCLUDE(ShaderPrint::FShaderParameters, ShaderDrawParameters)
 		SHADER_PARAMETER(uint32, VertexCount)
+		SHADER_PARAMETER(uint32, CurveCount)
 		SHADER_PARAMETER(float, HairLengthScale)
 		SHADER_PARAMETER(FVector3f, InRenHairPositionOffset)
 		SHADER_PARAMETER(FVector3f, InSimHairPositionOffset)
-		SHADER_PARAMETER(uint32,  HairStrandsVFTODO_bCullingEnable)
 		SHADER_PARAMETER(FMatrix44f, LocalToWorldMatrix)
+		SHADER_PARAMETER(uint32,  DispatchCountX)
+	
+		SHADER_PARAMETER_RDG_BUFFER_SRV(Buffer, RenCurveBuffer)
+		SHADER_PARAMETER_RDG_BUFFER_SRV(Buffer, SimCurveBuffer)
 
 		SHADER_PARAMETER_RDG_BUFFER_SRV(Buffer, RenRestPosePositionBuffer)
 		SHADER_PARAMETER_RDG_BUFFER_SRV(Buffer, RenDeformerPositionBuffer)
@@ -475,7 +479,8 @@ class FHairInterpolationCS : public FGlobalShader
 		SHADER_PARAMETER_RDG_BUFFER_SRV(Buffer, SimRestPosePositionBuffer)
 		SHADER_PARAMETER_RDG_BUFFER_SRV(Buffer, SimDeformedPositionBuffer)
 
-		SHADER_PARAMETER_RDG_BUFFER_SRV(ByteAddressBuffer, InterpolationBuffer)
+		SHADER_PARAMETER_RDG_BUFFER_SRV(ByteAddressBuffer, CurveInterpolationBuffer)
+		SHADER_PARAMETER_RDG_BUFFER_SRV(ByteAddressBuffer, PointInterpolationBuffer)
 
 		SHADER_PARAMETER_RDG_BUFFER_SRV(Buffer<float4>, RenRootRestPositionBuffer)
 		SHADER_PARAMETER_RDG_BUFFER_SRV(Buffer<float4>, RenRootDeformedPositionBuffer)
@@ -488,7 +493,6 @@ class FHairInterpolationCS : public FGlobalShader
 		SHADER_PARAMETER_RDG_BUFFER_SRV(Buffer<float4>, SimRootDeformedPositionBuffer)
 
 		SHADER_PARAMETER_RDG_BUFFER_SRV(Buffer<uint>, SimRootBarycentricBuffer)
-		SHADER_PARAMETER_RDG_BUFFER_SRV(Buffer<uint>, SimPointToCurveBuffer)
 		SHADER_PARAMETER_RDG_BUFFER_SRV(Buffer<uint>, SimRootToUniqueTriangleIndexBuffer)
 
 		SHADER_PARAMETER_RDG_BUFFER_SRV(Buffer<uint>, SimRootPointIndexBuffer)
@@ -504,13 +508,14 @@ class FHairInterpolationCS : public FGlobalShader
 		END_SHADER_PARAMETER_STRUCT()
 
 public:
-	static uint32 GetGroupSize() { return HAIR_VERTEXCOUNT_GROUP_SIZE; }
+	static uint32 GetGroupSize() { return 32;}
 	static bool ShouldCompilePermutation(const FGlobalShaderPermutationParameters& Parameters) { return IsHairStrandsSupported(EHairStrandsShaderType::All, Parameters.Platform); }
 	static void ModifyCompilationEnvironment(const FGlobalShaderPermutationParameters& Parameters, FShaderCompilerEnvironment& OutEnvironment)
 	{
 		FGlobalShader::ModifyCompilationEnvironment(Parameters, OutEnvironment);
 		OutEnvironment.SetDefine(TEXT("SHADER_HAIRINTERPOLATION"), 1);
 		OutEnvironment.SetDefine(TEXT("GROUP_SIZE"), GetGroupSize());
+		OutEnvironment.CompilerFlags.Add(CFLAG_Wave32);
 	}
 };
 
@@ -530,6 +535,8 @@ void AddHairStrandsInterpolationPass(
 	const FShaderPrintData* ShaderPrintData,
 	const FHairGroupInstance* Instance,
 	const uint32 VertexCount,
+	const uint32 CurveCount,
+	const uint32 MaxPointPerCurve,
 	const int32 MeshLODIndex,
 	const float HairLengthScale,
 	const EHairInterpolationType HairInterpolationType,
@@ -545,12 +552,14 @@ void AddHairStrandsInterpolationPass(
 	const FHairStrandsDeformedRootResource* SimDeformedRootResources,
 	const FRDGBufferSRVRef& RenRestPosePositionBuffer,
 	const FRDGBufferSRVRef& RenPointToCurveBuffer,
+	const FRDGBufferSRVRef& RenCurveBuffer,
+	const FRDGBufferSRVRef& SimCurveBuffer,
 	const bool bUseSingleGuide,
-	const FRDGBufferSRVRef& InterpolationBuffer,
+	const FRDGBufferSRVRef& CurveInterpolationBuffer,
+	const FRDGBufferSRVRef& PointInterpolationBuffer,
 	const FRDGBufferSRVRef& SimRestPosePositionBuffer,
 	const FRDGBufferSRVRef& SimDeformedPositionBuffer,
 	const FRDGBufferSRVRef& SimRootPointIndexBuffer,
-	const FRDGBufferSRVRef& SimPointToCurveBuffer,
 	const FRDGBufferSRVRef& RenDeformerPositionBuffer,
 	FRDGBufferUAVRef& OutRenPositionBuffer,
 	const FHairStrandsDeformedRootResource::FLOD::EFrameType DeformedFrame)
@@ -559,10 +568,12 @@ void AddHairStrandsInterpolationPass(
 	Parameters->RenRestPosePositionBuffer = RenRestPosePositionBuffer;
 	Parameters->SimRestPosePositionBuffer = SimRestPosePositionBuffer;
 	Parameters->SimDeformedPositionBuffer = SimDeformedPositionBuffer;
-	Parameters->InterpolationBuffer = InterpolationBuffer;
+	Parameters->CurveInterpolationBuffer = CurveInterpolationBuffer;
+	Parameters->PointInterpolationBuffer = PointInterpolationBuffer;
 	Parameters->OutRenDeformedPositionBuffer = OutRenPositionBuffer;
 
 	Parameters->VertexCount = VertexCount;
+	Parameters->CurveCount = CurveCount;
 	Parameters->InRenHairPositionOffset = (FVector3f)InRenHairWorldOffset;
 	Parameters->InSimHairPositionOffset = (FVector3f)InSimHairWorldOffset;
 
@@ -570,19 +581,18 @@ void AddHairStrandsInterpolationPass(
 	Parameters->OutRenHairPositionOffsetBuffer = OutRenHairPositionOffsetBuffer;
 
 	Parameters->SimRootPointIndexBuffer = SimRootPointIndexBuffer;
-	Parameters->SimPointToCurveBuffer = SimPointToCurveBuffer;
 	Parameters->RenPointToCurveBuffer = RenPointToCurveBuffer;
 	
 	Parameters->LocalToWorldMatrix = FMatrix44f(Instance->LocalToWorld.ToMatrixWithScale());		// LWC_TODO: Precision loss
 	Parameters->HairLengthScale = HairLengthScale;
 
-	// Only needed if DEBUG_ENABLE is manually enabledin HairStrandsInterpolation.usf. This is for manual debug purpose only
-	#if 0
-	if (ShaderPrintData && ShaderPrintData->IsValid())
+	Parameters->RenCurveBuffer = RenCurveBuffer;
+	Parameters->SimCurveBuffer = SimCurveBuffer;
+
+	if (ShaderPrintData)
 	{
 		ShaderPrint::SetParameters(GraphBuilder, *ShaderPrintData, Parameters->ShaderDrawParameters);
 	}
-	#endif
 
 	const bool bSupportDynamicMesh = 
 		RenRestRootResources &&
@@ -632,8 +642,6 @@ void AddHairStrandsInterpolationPass(
 	}
 
 	const bool bHasLocalDeformation = Instance->Guides.bIsSimulationEnable || bSupportGlobalInterpolation || Instance->Guides.bIsDeformationEnable || Instance->Guides.bIsSimulationCacheEnable;
-	const bool bCullingEnable = IsHairStrandContinuousDecimationReorderingEnabled() ? false : (InstanceGeometryType == EHairGeometryType::Strands && CullingData.bCullingResultAvailable); 	// TODO: improve reordering so that culling can be used effectively
-	Parameters->HairStrandsVFTODO_bCullingEnable = bCullingEnable ? 1 : 0;
 
 	// Select dynamic geometry permutation, based on the Simulation/RBF/InterpolationType
 	int32 DynamicGeometryType = 0;
@@ -652,40 +660,23 @@ void AddHairStrandsInterpolationPass(
 		if (!bSupportDynamicMesh &&  bHasLocalDeformation) DynamicGeometryType = 0; // INTERPOLATION_RIGID
 	}
 
+	// Compute the dispatch information for pass dispatching work per curve
+	const FPointPerCurveDispatchInfo DispatchInfo = GetPointPerCurveDispatchInfo(MaxPointPerCurve, CurveCount, FHairInterpolationCS::GetGroupSize());
+	Parameters->DispatchCountX = DispatchInfo.DispatchCount.X;
+
 	FHairInterpolationCS::FPermutationDomain PermutationVector;
 	PermutationVector.Set<FHairInterpolationCS::FDynamicGeometry>(DynamicGeometryType);
 	PermutationVector.Set<FHairInterpolationCS::FSimulation>(bHasLocalDeformation);
 	PermutationVector.Set<FHairInterpolationCS::FSingleGuide>(bUseSingleGuide);
-	PermutationVector.Set<FHairInterpolationCS::FCulling>(bCullingEnable);
 	PermutationVector.Set<FHairInterpolationCS::FDeformer>(bSupportDeformer);
-
+	PermutationVector.Set<FHairInterpolationCS::FPointPerCurve>(DispatchInfo.PointPerCurve);
 	TShaderMapRef<FHairInterpolationCS> ComputeShader(ShaderMap, PermutationVector);
-
-	if (bCullingEnable)
-	{
-		Parameters->HairStrandsVFTODO_CullingIndirectBuffer = CullingData.HairStrandsVF_CullingIndirectBuffer.SRV;
-		Parameters->HairStrandsVFTODO_CullingIndexBuffer = CullingData.HairStrandsVF_CullingIndexBuffer.SRV;
-		Parameters->HairStrandsVFTODO_CullingRadiusScaleBuffer = CullingData.HairStrandsVF_CullingRadiusScaleBuffer.SRV;
-		Parameters->HairStrandsVFTODO_CullingIndirectBufferArgs = CullingData.HairStrandsVF_CullingIndirectBuffer.Buffer;
-
-		FComputeShaderUtils::AddPass(
-			GraphBuilder,
-			RDG_EVENT_NAME("HairStrands::Interpolation(culling=on)"),
-			ComputeShader, 
-			Parameters,
-			CullingData.HairStrandsVF_CullingIndirectBuffer.Buffer,
-			0);
-	}
-	else
-	{
-		const FIntVector DispatchCount(FMath::DivideAndRoundUp(VertexCount, FHairInterpolationCS::GetGroupSize()), 1, 1);
-		FComputeShaderUtils::AddPass(
-			GraphBuilder,
-			RDG_EVENT_NAME("HairStrands::Interpolation(culling=off)"),
-			ComputeShader,
-			Parameters,
-			DispatchCount);
-	}
+	FComputeShaderUtils::AddPass(
+		GraphBuilder,
+		RDG_EVENT_NAME("HairStrands::Interpolation(culling=off, PerCurve=%d, SingleGuide=%d, DynGeom:%d)", DispatchInfo.PointPerCurve, bUseSingleGuide ? 1u : 0u, DynamicGeometryType > 0 ? 1u : 0u),
+		ComputeShader,
+		Parameters,
+		DispatchInfo.DispatchCount);
 }
 
 ///////////////////////////////////////////////////////////////////////////////////////////////////
@@ -701,19 +692,23 @@ class FHairPatchAttributeCS : public FGlobalShader
 
 	BEGIN_SHADER_PARAMETER_STRUCT(FParameters, )
 		SHADER_PARAMETER(uint32, CurveCount)
+		SHADER_PARAMETER(uint32, bUseSingleGuide)
 		SHADER_PARAMETER_STRUCT_INCLUDE(FHairStrandsInstanceAttributeParameters, RenAttributes)
 		SHADER_PARAMETER_RDG_BUFFER_SRV(Buffer, RenCurveBuffer)
-		SHADER_PARAMETER_RDG_BUFFER_SRV(ByteAddressBuffer, InterpolationBuffer)
+		SHADER_PARAMETER_RDG_BUFFER_SRV(ByteAddressBuffer, CurveInterpolationBuffer)
+		SHADER_PARAMETER_RDG_BUFFER_SRV(ByteAddressBuffer, PointInterpolationBuffer)
 		SHADER_PARAMETER_RDG_BUFFER_SRV(Buffer, RenCurveToClusterIdBuffer)
 		SHADER_PARAMETER_RDG_BUFFER_UAV(RWByteAddressBuffer, OutRenAttributeBuffer)
 	END_SHADER_PARAMETER_STRUCT()
 
 public:
+	static uint32 GetGroupSize() { return 1024u; }
 	static bool ShouldCompilePermutation(const FGlobalShaderPermutationParameters& Parameters) { return IsHairStrandsSupported(EHairStrandsShaderType::Strands, Parameters.Platform); }
 	static void ModifyCompilationEnvironment(const FGlobalShaderPermutationParameters& Parameters, FShaderCompilerEnvironment& OutEnvironment)
 	{
 		FGlobalShader::ModifyCompilationEnvironment(Parameters, OutEnvironment);
 		OutEnvironment.SetDefine(TEXT("SHADER_PATCHATTRIBUTE"), 1);
+		OutEnvironment.SetDefine(TEXT("GROUP_SIZE"), GetGroupSize());
 	}
 };
 
@@ -730,19 +725,21 @@ void AddPatchAttributePass(
 	const FRDGBufferRef& RenAttributeBuffer,
 	const FRDGBufferSRVRef& RenCurveBuffer,
 	const FRDGBufferSRVRef& RenCurveToClusterIdBuffer,
-	const FRDGBufferSRVRef& InterpolationBuffer,
+	const FRDGBufferSRVRef& CurveInterpolationBuffer,
+	const FRDGBufferSRVRef& PointInterpolationBuffer,
 	FRDGImportedBuffer& OutRenAttributeBuffer)
 {
 	// Sanity check
 	check(Mode == EHairPatchAttribute::ClusterInfluence || Mode == EHairPatchAttribute::GuideInflucence)
 	if (Mode == EHairPatchAttribute::GuideInflucence && !bSimulation) return;
 
-	const FIntVector DispatchCount = FIntVector(FMath::DivideAndRoundUp(CurveCount, 1024u), 1, 1);
+	const FIntVector DispatchCount = FIntVector(FMath::DivideAndRoundUp(CurveCount, FHairPatchAttributeCS::GetGroupSize()), 1, 1);
 
 	// First copy all the rendering attributes into the new bufffer, before overriding some of them
 	AddCopyBufferPass(GraphBuilder, OutRenAttributeBuffer.Buffer, RenAttributeBuffer);
 
 	FHairPatchAttributeCS::FParameters* Parameters = GraphBuilder.AllocParameters<FHairPatchAttributeCS::FParameters>();
+	Parameters->bUseSingleGuide = bUseSingleGuide ? 1u : 0u;
 	Parameters->CurveCount = CurveCount;
 	Parameters->RenCurveBuffer = RenCurveBuffer;
 	Parameters->RenCurveToClusterIdBuffer = RenCurveToClusterIdBuffer;
@@ -750,7 +747,8 @@ void AddPatchAttributePass(
 
 	if (bSimulation)
 	{
-		Parameters->InterpolationBuffer  = InterpolationBuffer;
+		Parameters->CurveInterpolationBuffer  = CurveInterpolationBuffer;
+		Parameters->PointInterpolationBuffer  = PointInterpolationBuffer;
 	}
 
 	Parameters->OutRenAttributeBuffer = OutRenAttributeBuffer.UAV;

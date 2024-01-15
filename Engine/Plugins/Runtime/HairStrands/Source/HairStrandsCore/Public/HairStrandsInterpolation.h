@@ -119,6 +119,8 @@ void AddHairStrandsInterpolationPass(
 	const FShaderPrintData* ShaderPrintData,
 	const FHairGroupInstance* Instance,
 	const uint32 VertexCount,
+	const uint32 CurveCount,
+	const uint32 MaxPointPerCurve,
 	const int32 MeshLODIndex,
 	const float HairLengthScale,
 	const EHairInterpolationType HairInterpolationType,
@@ -134,12 +136,14 @@ void AddHairStrandsInterpolationPass(
 	const FHairStrandsDeformedRootResource* SimDeformedRootResources,
 	const FRDGBufferSRVRef& RenRestPosePositionBuffer,
 	const FRDGBufferSRVRef& RenPointToCurveBuffer,
+	const FRDGBufferSRVRef& RenCurveBuffer,
+	const FRDGBufferSRVRef& SimCurveBuffer,
 	const bool bUseSingleGuide,
-	const FRDGBufferSRVRef& InterpolationBuffer,
+	const FRDGBufferSRVRef& CurveInterpolationBuffer,
+	const FRDGBufferSRVRef& PoinInterpolationBuffer,
 	const FRDGBufferSRVRef& SimRestPosePositionBuffer,
 	const FRDGBufferSRVRef& SimDeformedPositionBuffer,
 	const FRDGBufferSRVRef& SimRootPointIndexBuffer,
-	const FRDGBufferSRVRef& SimPointToCurveBuffer,
 	const FRDGBufferSRVRef& RenDeformerPositionBuffer,
 	FRDGBufferUAVRef& OutRenPositionBuffer,
 	const FHairStrandsDeformedRootResource::FLOD::EFrameType DeformedFrame);
@@ -172,7 +176,8 @@ void AddPatchAttributePass(
 	const FRDGBufferRef& RenAttributeBuffer,
 	const FRDGBufferSRVRef& RenCurveBuffer,
 	const FRDGBufferSRVRef& RenCurveToClusterIdBuffer,
-	const FRDGBufferSRVRef& InterpolationBuffer,
+	const FRDGBufferSRVRef& CurveInterpolationBuffer,
+	const FRDGBufferSRVRef& PointInterpolationBuffer,
 	FRDGImportedBuffer& OutRenAttributeBuffer);
 
 void AddTransferPositionPass(

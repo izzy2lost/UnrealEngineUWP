@@ -44,7 +44,7 @@ class FHairClusterCullCS: public FGlobalShader
 		END_SHADER_PARAMETER_STRUCT()
 
 public:
-		static uint32 GetGroupSize() { return 64u; }
+	static uint32 GetGroupSize() { return 64u; }
 	static bool ShouldCompilePermutation(const FGlobalShaderPermutationParameters& Parameters) { return IsHairStrandsSupported(EHairStrandsShaderType::Strands, Parameters.Platform); }
 	static void ModifyCompilationEnvironment(const FGlobalShaderPermutationParameters& Parameters, FShaderCompilerEnvironment& OutEnvironment)
 	{
@@ -73,7 +73,7 @@ class FHairClusterCullArgsCS: public FGlobalShader
 		END_SHADER_PARAMETER_STRUCT()
 
 public:
-		static bool ShouldCompilePermutation(const FGlobalShaderPermutationParameters& Parameters) { return IsHairStrandsSupported(EHairStrandsShaderType::Strands, Parameters.Platform); }
+	static bool ShouldCompilePermutation(const FGlobalShaderPermutationParameters& Parameters) { return IsHairStrandsSupported(EHairStrandsShaderType::Strands, Parameters.Platform); }
 	static void ModifyCompilationEnvironment(const FGlobalShaderPermutationParameters& Parameters, FShaderCompilerEnvironment& OutEnvironment)
 	{
 		FGlobalShader::ModifyCompilationEnvironment(Parameters, OutEnvironment);
@@ -130,33 +130,19 @@ void AddClusterCullingPass(
 			ShaderPrint::SetParameters(GraphBuilder, *ShaderPrintData, Parameters->ShaderPrintUniformBuffer);
 		}
 
-		// Pick permutation based on groom max number of point per curve
-		//const uint32 PointPerCurve = FMath::Clamp(uint32(FMath::Pow( FMath::RoundFromZero(FMath::Log2(float(ClusterData.MaxPointPerCurve))),2u)), 4u, 32u);
-		const uint32 PointPerCurve = FMath::Clamp(uint32(FMath::Pow(2u, FMath::RoundFromZero(FMath::Log2(float(ClusterData.MaxPointPerCurve))))), 4u, 64u);
-		check(FMath::IsPowerOfTwo(PointPerCurve));
-
-		const uint32 CurvePerGroup = FHairClusterCullCS::GetGroupSize() / PointPerCurve;
-		const uint32 LinearGroupCount = FMath::DivideAndRoundUp(Parameters->CurveCount, CurvePerGroup);
-
-		FIntVector DispatchCount(LinearGroupCount, 1, 1);
-		if (DispatchCount.X > 0xFFFFu)
-		{
-			DispatchCount.X = 64;
-			DispatchCount.Y = FMath::DivideAndRoundUp(LinearGroupCount, uint32(DispatchCount.X));
-		}
-		Parameters->DispatchCountX = DispatchCount.X;
-		check(DispatchCount.X <= 0xFFFFu);
-		check(DispatchCount.Y <= 0xFFFFu);
+		// Compute the dispatch information for pass dispatching work per curve
+		const FPointPerCurveDispatchInfo DispatchInfo = GetPointPerCurveDispatchInfo(ClusterData.MaxPointPerCurve, Parameters->CurveCount, FHairClusterCullCS::GetGroupSize());
+		Parameters->DispatchCountX = DispatchInfo.DispatchCount.X;
 
 		FHairClusterCullCS::FPermutationDomain Permutation;
-		Permutation.Set<FHairClusterCullCS::FPointPerCurve>(PointPerCurve);
+		Permutation.Set<FHairClusterCullCS::FPointPerCurve>(DispatchInfo.PointPerCurve);
 		TShaderMapRef<FHairClusterCullCS> ComputeShader(ShaderMap, Permutation);
 		FComputeShaderUtils::AddPass(
 			GraphBuilder,
 			RDG_EVENT_NAME("HairStrands::ClusterCullPass2"),
 			ComputeShader,
 			Parameters,
-			DispatchCount);
+			DispatchInfo.DispatchCount);
 	}
 
 	// 2. Prepare indirect draw/dispatch args buffers

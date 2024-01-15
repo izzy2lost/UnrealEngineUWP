@@ -169,37 +169,107 @@ float UnpackHairAO(uint In)
 ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 // Guide
 
-struct FGuideData
+struct FGuideCurveData
+{
+	uint2  CurveIndices;		// Index of the sim curve
+	float2 CurveWeights;		// Weight of the sim curve
+	uint2  RootPointIndices;		// Index of the first/root point of the sim curve (stored to avoid indirect fetch on CurveBuffer)
+};
+
+FGuideCurveData UnpackGuideCurveData(ByteAddressBuffer InBuffer, uint InCurveIndex, bool bUseSingleGuide)
+{
+	// This code assumes:
+	// * HAIR_INTERPOLATION_CURVE_STRIDE == 8
+	// * HAIR_INTERPOLATION_MAX_GUIDE_COUNT == 2
+
+	FGuideCurveData Out = (FGuideCurveData)0;
+	if (bUseSingleGuide)
+	{
+		const uint AddressInBytes = InCurveIndex * HAIR_INTERPOLATION_CURVE_STRIDE;
+		const uint2 Data = InBuffer.Load2(AddressInBytes);
+
+		Out.CurveIndices = Data.x & 0xFFFFFF;
+		Out.CurveWeights = UnpackR8(Data.x>>24);
+		Out.RootPointIndices = Data.y & 0xFFFFFF;
+	}
+	else
+	{
+		const uint AddressInBytes = InCurveIndex * HAIR_INTERPOLATION_CURVE_STRIDE * HAIR_INTERPOLATION_MAX_GUIDE_COUNT;
+		const uint4 Data = InBuffer.Load4(AddressInBytes);
+
+		Out.CurveIndices.x = Data.x & 0xFFFFFF;
+		Out.CurveWeights.x = UnpackR8(Data.x>>24);
+		Out.RootPointIndices.x = Data.y & 0xFFFFFF;
+
+		Out.CurveIndices.y = Data.z & 0xFFFFFF;
+		Out.CurveWeights.y = UnpackR8(Data.z>>24);
+		Out.RootPointIndices.y = Data.w & 0xFFFFFF;
+	}
+	return Out;
+}
+
+struct FGuidePointData
+{
+	uint2  PointIndices;
+	float2 PointLerps;
+};
+
+FGuidePointData UnpackGuidePointData(ByteAddressBuffer InBuffer, uint InPointIndex, bool bUseSingleGuide)
+{
+	// This code assumes:
+	// * HAIR_INTERPOLATION_POINT_STRIDE == 2
+	// * HAIR_INTERPOLATION_MAX_GUIDE_COUNT == 2
+
+	FGuidePointData Out = (FGuidePointData)0;
+	if (bUseSingleGuide)
+	{
+		// Ensure address is aligned on 4
+		// Since the data is 16bit wide, odd index needs to be shifted out of the 32bit input
+		// [    uint 32bits   ][    uint 32bits   ] ...
+		// [ Point0 ][ Point1 ][ Point2 ][ Point3 ] ...
+		const uint AddressInBytes = InPointIndex * HAIR_INTERPOLATION_POINT_STRIDE;
+		const uint AlignedAddressInBytes = AddressInBytes & 0xFFFFFFFE;
+		uint Data = InBuffer.Load(AlignedAddressInBytes);
+		Data = InPointIndex & 1 ? (Data>>16u) : Data;
+		
+		Out.PointIndices	= Data & 0xFF;
+		Out.PointLerps		= UnpackR8(Data >> 8);
+	}
+	else
+	{
+		const uint AddressInBytes = InPointIndex * HAIR_INTERPOLATION_POINT_STRIDE * HAIR_INTERPOLATION_MAX_GUIDE_COUNT;
+		const uint Data = InBuffer.Load(AddressInBytes);
+
+		Out.PointIndices.x	= Data & 0xFF;
+		Out.PointLerps.x	= UnpackR8(Data >> 8);
+
+		Out.PointIndices.y	= (Data>>16) & 0xFF;
+		Out.PointLerps.y	= UnpackR8(Data >> 24);
+	}
+	return Out;
+}
+
+
+////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+// Cards guides
+
+struct FCardsGuideData
 {
 	uint3  VertexIndices;
 	float3 VertexLerps;
 	float3 VertexWeights;
 };
 
-FGuideData UnpackGuideData(uint In)
+FCardsGuideData UnpackCardGuideData(ByteAddressBuffer InBuffer, uint InVertexId)
 {
-	FGuideData Out = (FGuideData)0;
-	Out.VertexWeights		= float3(1, 0, 0);
-	Out.VertexIndices		= 0;
-	Out.VertexLerps			= 0;
-	Out.VertexIndices.x		= In & 0xFFFFFF;
-	Out.VertexLerps.x		= UnpackR8(In >> 24);
-	return Out;
-}
+	const uint Data = InBuffer.Load(InVertexId * HAIR_INTERPOLATION_CARDS_GUIDE_STRIDE);
 
-FGuideData UnpackGuideData(uint4 In)
-{
-	FGuideData Out = (FGuideData)0;
-	Out.VertexIndices.x = (In.x & 0xFFFF) | (((In.z      ) & 0xFF) << 16);
-	Out.VertexIndices.y = (In.x >> 16   ) | (((In.z >> 8 ) & 0xFF) << 16);
-	Out.VertexIndices.z = (In.y & 0xFFFF) | (((In.z >> 16) & 0xFF) << 16);
-
-	Out.VertexWeights	= float3(UnpackR8(In.y>>16), UnpackR8(In.y>>24), 0);
-	Out.VertexWeights.z = saturate(1.0f - (Out.VertexWeights.x + Out.VertexWeights.y));
-
-	Out.VertexLerps.x	= UnpackR8(In.w);
-	Out.VertexLerps.y	= UnpackR8(In.w >> 8);
-	Out.VertexLerps.z	= UnpackR8(In.w >> 16);
+	FCardsGuideData Out = (FCardsGuideData)0;
+	Out.VertexWeights	= float3(1, 0, 0);
+	Out.VertexIndices	= 0;
+	Out.VertexLerps		= 0;
+	Out.VertexIndices.x	= Data & 0xFFFFFF;
+	Out.VertexLerps.x	= UnpackR8(Data >> 24);
 	return Out;
 }
 

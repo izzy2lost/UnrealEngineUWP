@@ -90,7 +90,8 @@ END_SHADER_PARAMETER_STRUCT()
 
 // Instance interpolation resources (RDG)
 BEGIN_SHADER_PARAMETER_STRUCT(FHairStrandsInstanceInterpolationParameters, RENDERER_API)
-	SHADER_PARAMETER_RDG_BUFFER_SRV(ByteAddressBuffer, InterpolationBuffer)
+	SHADER_PARAMETER_RDG_BUFFER_SRV(ByteAddressBuffer, CurveInterpolationBuffer)
+	SHADER_PARAMETER_RDG_BUFFER_SRV(ByteAddressBuffer, PointInterpolationBuffer)
 END_SHADER_PARAMETER_STRUCT()
 
 // Instance resources (Raw)
@@ -439,6 +440,24 @@ struct FHairTransientResources
 	TArray<FCachedGeometry> RenMeshDatas;
 	const FCachedGeometry& GetMeshLODData(uint32 InRegisteredIndex, bool bSim) const { if (bSim) { check(SimMeshDatas.IsValidIndex(InRegisteredIndex)); return SimMeshDatas[InRegisteredIndex]; } else {check(RenMeshDatas.IsValidIndex(InRegisteredIndex)); return RenMeshDatas[InRegisteredIndex];} }
 };
+
+////////////////////////////////////////////////////////////////////////////////////////////////////
+// Helpers
+struct FPointPerCurveDispatchInfo
+{
+	// From the asset
+	uint32 SourceCurveCount = 0;
+	uint32 SourcePoinPerCurve = 0;
+
+	// Derived
+	uint32 CurvePerGroup = 0;
+	uint32 PointPerCurve = 0;
+	uint32 GroupSize = 0;
+	FIntVector DispatchCount = FIntVector::ZeroValue;
+};
+
+// Compute the dispatch information for pass dispatching work per curve
+RENDERER_API FPointPerCurveDispatchInfo GetPointPerCurveDispatchInfo(uint32 InAssetMaxPointPerCurve, uint32 InAssetCurveCount, uint32 InGroupSize);
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 // API for enabling/disabling the various geometry representation
