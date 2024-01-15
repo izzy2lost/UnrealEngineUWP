@@ -2147,10 +2147,12 @@ static void BuildRootBulkData(
 static bool InternalBuildBinding_CPU(const FGroomBindingBuilder::FInput& In, uint32 InGroupIndex, const ITargetPlatform* TargetPlatform, UGroomBindingAsset::FHairGroupPlatformData& OutPlatformData)
 {
 #if WITH_EDITORONLY_DATA
-	if (!In.GroomAsset || !In.bHasValidTarget || In.GroomAsset->GetNumHairGroups() == 0)
+	const bool bIsAssetValid = In.GroomAsset && In.bHasValidTarget && In.GroomAsset->GetNumHairGroups() > 0;
+	if (!bIsAssetValid)
 	{
-		UE_LOG(LogHairStrands, Error, TEXT("[Groom] Binding asset cannot be created/rebuilt."));
-		return false;
+		if (!In.GroomAsset)							{ UE_LOG(LogHairStrands, Error, TEXT("[Groom] Binding asset cannot be created/rebuilt - The groom binding has no groom asset.")); return false; }
+		if (!In.bHasValidTarget)					{ UE_LOG(LogHairStrands, Error, TEXT("[Groom] Binding asset cannot be created/rebuilt - The groom binding has no valid skel./geom cache. target")); return false; }
+		if (In.GroomAsset->GetNumHairGroups() == 0)	{ UE_LOG(LogHairStrands, Error, TEXT("[Groom] Binding asset cannot be created/rebuilt - The groom asset has no groups.")); return false; }
 	}
 
 	// 1. Build groom root data

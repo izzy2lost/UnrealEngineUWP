@@ -1029,7 +1029,7 @@ void UGroomBindingAsset::BeginCacheForCookedPlatformData(const ITargetPlatform* 
 	UGroomBindingAsset::FCachedCookedPlatformData* TargetPlatformData = FindCachedCookedPlatformData(GroupDerivedDataKeys, CachedCookedPlatformDatas);
 
 	// 3. If the target cooked data does not already exist, we build it
-	if (TargetPlatformData == nullptr)
+	if (TargetPlatformData == nullptr && GetGroom() != nullptr)
 	{
 		// 3.1 Build cooked derived data
 		const uint32 GroupCount = GroupDerivedDataKeys.Num();
