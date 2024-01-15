@@ -446,8 +446,7 @@ public:
 	/** Initializes all member variables. */
 	FNameEntryAllocator()
 	{
-		LLM_SCOPE(ELLMTag::FName);
-		Blocks[0] = (uint8*)FMemory::MallocPersistentAuxiliary(BlockSizeBytes, alignof(FNameEntry));
+		Blocks[0] = AllocBlock();
 	}
 
 	~FNameEntryAllocator()
@@ -654,12 +653,12 @@ private:
 
 	static uint8* AllocBlock()
 	{
+		LLM_SCOPE(ELLMTag::FName);
 		return (uint8*)FMemory::MallocPersistentAuxiliary(BlockSizeBytes, alignof(FNameEntry));
 	}
 	
 	void AllocateNewBlock()
 	{
-		LLM_SCOPE(ELLMTag::FName);
 		// Null-terminate final entry to allow DebugDump() entry iteration
 #if UE_FNAME_OUTLINE_NUMBER
 		if (CurrentByteCursor + NumberedEntrySize <= BlockSizeBytes)
