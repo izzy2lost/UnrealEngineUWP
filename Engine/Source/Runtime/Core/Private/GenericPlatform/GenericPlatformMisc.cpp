@@ -1559,8 +1559,7 @@ bool FGenericPlatformMisc::UseRenderThread()
 
 bool FGenericPlatformMisc::AllowThreadHeartBeat()
 {
-	// disable heartbeat thread when explicitly disabled via cmd line or when llm\llmcsv is specified as it's known to cause stalls that would result in a hung detection by a heartbeat thread
-	static bool bHeartbeat = !(FParse::Param(FCommandLine::Get(), TEXT("noheartbeatthread")) || FParse::Param(FCommandLine::Get(), TEXT("llm")) || FParse::Param(FCommandLine::Get(), TEXT("llmcsv")));
+	static bool bHeartbeat = !FParse::Param(FCommandLine::Get(), TEXT("noheartbeatthread"));
 	return bHeartbeat;
 }
 
