@@ -1218,7 +1218,7 @@ void FSkeletalMeshObjectGPUSkin::FSkeletalMeshObjectLOD::UpdateMorphVertexBuffer
 			RHICmdList.ClearUAVUint(MorphVertexBuffer.GetUAV(), FUintVector4(0, 0, 0, 0));
 		}
 
-		if (MorphTargetVertexInfoBuffers.GetNumMorphs() > 0)
+		if (MorphTargetVertexInfoBuffers.IsRHIIntialized() && (MorphTargetVertexInfoBuffers.GetNumMorphs() > 0))
 		{
 			{
 				SCOPED_DRAW_EVENTF(RHICmdList, MorphUpdateScatter, TEXT("Scatter"));
