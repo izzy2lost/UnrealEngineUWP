@@ -139,6 +139,10 @@ public:
 
 	TMap<FString, bool> ParamNameToExpandedMap; // Used to check whether a mutable param is expanded in the editor to show its child params
 
+	/** The generated skeletal meshes for this Instance, one for each component */
+	UPROPERTY(Transient, VisibleAnywhere, Category = CustomizableSkeletalMesh)
+	TArray< TObjectPtr<USkeletalMesh> > SkeletalMeshes;
+
 #if WITH_EDITOR
 	/** During editor, always remember the duration of the last update in the mutable runtime, for profiling. */
 	int32 LastUpdateMutableRuntimeCycles = 0;

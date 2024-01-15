@@ -363,8 +363,9 @@ void UCustomizableInstanceLODManagement::UpdateInstanceDistsAndLODs(FMutableInst
 #if WITH_EDITOR
 					// If the instance is generated but the component doesn't have a mesh, set it.
 					// Can happen when duplicating instances in the editor.
-					const USkeletalMesh* SkeletalMesh = COI->GetSkeletalMesh(ComponentIndex);
-					if (SkeletalMesh && !Parent->GetSkeletalMeshAsset())
+					if (COI->SkeletalMeshes.IsValidIndex(ComponentIndex) && 
+						Parent->GetSkeletalMeshAsset() == nullptr &&
+						COI->SkeletalMeshes[ComponentIndex])
 					{
 						// As the instance is already generated, this will be very fast and just set the mesh and call the delegates
 						COI->UpdateSkeletalMeshAsync();

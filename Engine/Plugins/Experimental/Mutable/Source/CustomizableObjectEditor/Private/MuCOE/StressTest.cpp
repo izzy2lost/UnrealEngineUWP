@@ -26,11 +26,14 @@ void ULiveInstance::AddInstanceInformation()
 {
 	if(!Instance->HasAnySkeletalMesh())
 	{
-		UE_LOG(LogMutable, Warning, TEXT("ERROR: No skeletal meshes found in ULiveInstance::AddInstanceInformation"));
+		UE_LOG(LogMutable, Warning, TEXT("ERROR: no skeletal mesh in ULiveInstance::AddInstanceInformataion"));
 		return;
 	}
 
-	const int32 MaxIndexLOD = Instance->GetNumLODsAvailable();
+	FSkeletalMeshRenderData* RenderData = Instance->GetSkeletalMesh()->GetResourceForRendering();
+	TIndirectArray<FSkeletalMeshLODRenderData>* ArrayLODRenderData = &RenderData->LODRenderData;
+	int32 MaxIndexLOD = RenderData->LODRenderData.Num();
+
 	for (int32 i = 0; i < MaxIndexLOD; ++i)
 	{
 		TMap<FString, MaterialBriefInfo> MapMaterialInfo;
@@ -39,29 +42,20 @@ void ULiveInstance::AddInstanceInformation()
 
 		TMap<FString, MeasuredData> MapMeasuredData = ULiveInstance::InitInstanceInformation();
 
-		const int32 NumComponents = Instance->GetNumComponents();
-		for (int32 c = 0; c < NumComponents; ++c)
+		for (int32 c = 0; c < Instance->SkeletalMeshes.Num(); ++c)
 		{
-			USkeletalMesh* SkeletalMesh = Instance->GetSkeletalMesh(c);
-			if (!SkeletalMesh)
-			{
-				continue;
-			}
-
-			FSkeletalMeshRenderData* RenderData = SkeletalMesh->GetResourceForRendering();
-			TIndirectArray<FSkeletalMeshLODRenderData>* ArrayLODRenderData = &RenderData->LODRenderData;
-
+			RenderData = Instance->GetSkeletalMesh(c)->GetResourceForRendering();
 			ArrayLODRenderData = &RenderData->LODRenderData;
-			const TArray<struct FSkeletalMeshLODInfo>& LODInfoArray = SkeletalMesh->GetLODInfoArray();
+			MaxIndexLOD = RenderData->LODRenderData.Num();
+			CurrentLODNumFaces = ((*ArrayLODRenderData)[i]).GetTotalFaces();
+			const TArray<struct FSkeletalMeshLODInfo>& LODInfoArray = Instance->GetSkeletalMesh(c)->GetLODInfoArray();
 			if (LODInfoArray.IsValidIndex(i))
 			{
 				const FSkeletalMeshLODInfo& LODInfo = LODInfoArray[i];
 
-				CurrentLODNumFaces += RenderData->LODRenderData[i].GetTotalFaces();
-
 				MapMeasuredData["Number of faces"].AddMeasureData((*ArrayLODRenderData)[i].GetTotalFaces());
 				MapMeasuredData["Number of texture coordinates"].AddMeasureData((*ArrayLODRenderData)[i].GetNumTexCoords());
-				const TArray<FSkeletalMaterial>& Materials = SkeletalMesh->GetMaterials();
+				const TArray<FSkeletalMaterial>& Materials = Instance->GetSkeletalMesh(c)->GetMaterials();
 				MapMeasuredData["Number of materials"].AddMeasureData(LODInfo.LODMaterialMap.Num());
 
 				for (int32 j = 0; j < LODInfo.LODMaterialMap.Num(); ++j)

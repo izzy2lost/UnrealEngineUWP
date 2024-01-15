@@ -129,7 +129,7 @@ void SCustomizableObjecEditorTextureAnalyzer::FillTextureAnalyzerTable(UCustomiz
 
 	if (PreviewInstance && PreviewInstance->HasAnySkeletalMesh())
 	{
-		for (int32 ComponentIndex = 0; ComponentIndex < PreviewInstance->GetNumComponents(); ++ComponentIndex)
+		for (int32 ComponentIndex = 0; ComponentIndex < PreviewInstance->SkeletalMeshes.Num(); ++ComponentIndex)
 		{
 			if (PreviewInstance->GetSkeletalMesh(ComponentIndex))
 			{

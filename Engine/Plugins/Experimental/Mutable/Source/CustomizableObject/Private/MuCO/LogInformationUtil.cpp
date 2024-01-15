@@ -170,9 +170,9 @@ void LogInformationUtil::LogShowInstanceDataFull(const UCustomizableObjectInstan
 	MessageChunk += FString::Printf(TEXT("        bIsCreatingSkeletalMesh = %d\n"), InstanceFlags & ECOInstanceFlags::CreatingSkeletalMesh);
 	LogData += MessageChunk;
 
-	for (int32 ComponentIndex = 0; ComponentIndex < CustomizableObjectInstance->GetNumComponents(); ++ComponentIndex)
+	for (int32 ComponentIndex = 0; ComponentIndex < CustomizableObjectInstance->SkeletalMeshes.Num(); ++ComponentIndex)
 	{
-		if (CustomizableObjectInstance->GetSkeletalMesh(ComponentIndex))
+		if ((CustomizableObjectInstance->GetSkeletalMesh(ComponentIndex) != nullptr) && (CustomizableObjectInstance->GetSkeletalMesh(ComponentIndex)->GetResourceForRendering()))
 		{
 			if (CustomizableObjectInstance->GetCurrentMinLOD() < 1)
 			{
