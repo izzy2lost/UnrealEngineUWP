@@ -259,7 +259,9 @@ static int32 MacOSVersionCompare(const NSOperatingSystemVersion& VersionA, const
 
 	if (GGuardedMainErrorLevel == 0)
 	{
-		[NSApp terminate: nil];
+        dispatch_async(dispatch_get_main_queue(), ^{
+            [NSApp terminate: nil];
+        });
 	}
 	else
 	{
