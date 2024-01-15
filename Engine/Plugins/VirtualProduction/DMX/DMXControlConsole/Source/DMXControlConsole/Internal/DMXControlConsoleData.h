@@ -9,6 +9,7 @@
 #include "DMXControlConsoleData.generated.h"
 
 class UDMXControlConsoleFaderGroup;
+class UDMXControlConsoleFaderGroupController;
 class UDMXControlConsoleFaderGroupRow;
 class UDMXEntity;
 class UDMXEntityFixturePatch;
@@ -17,7 +18,7 @@ class UDMXLibrary;
 
 DECLARE_MULTICAST_DELEGATE_OneParam(FDMXControlConsoleFaderGroupDelegate, const UDMXControlConsoleFaderGroup*);
 
-/** The DMX Control Console */
+/** This class is responsable of holding all the data of a DMX Control Console */
 UCLASS()
 class DMXCONTROLCONSOLE_API UDMXControlConsoleData 
 	: public UObject
@@ -41,16 +42,11 @@ public:
 	/** Gets an array of all Fader Groups in this DMX Control Console */
 	TArray<UDMXControlConsoleFaderGroup*> GetAllFaderGroups() const;
 
-#if WITH_EDITOR
-	/** Gets an array of all active Fader Groups in this DMX Control Console */
-	TArray<UDMXControlConsoleFaderGroup*> GetAllActiveFaderGroups() const;
-#endif // WITH_EDITOR 
+	/** Returns the Fader Group matching the given Fixture Patch or nullptr if it's no longer valid. */
+	UDMXControlConsoleFaderGroup* FindFaderGroupByFixturePatch(const UDMXEntityFixturePatch* InFixturePatch) const;
 
 	/** Generates sorted Fader Groups based on the DMX Control Console's current DMX Library */
 	void GenerateFromDMXLibrary();
-
-	/** Finds the Fader Group matching the given Fixture Patch, if valid */
-	UDMXControlConsoleFaderGroup* FindFaderGroupByFixturePatch(const UDMXEntityFixturePatch* InFixturePatch) const;
 
 	/** Gets this DMX Control Console's DMXLibrary */
 	UDMXLibrary* GetDMXLibrary() const { return CachedWeakDMXLibrary.Get(); }
@@ -73,16 +69,17 @@ public:
 	void UpdateOutputPorts(const TArray<FDMXOutputPortSharedRef> InOutputPorts);
 
 	/** Clears FaderGroupRows array from data */
-	void Clear();
-
-	/** Clears Patched Fader Groups from data */
-	void ClearPatchedFaderGroups();
-
-	/** Clears the DMX Control Console to its default */
-	void ClearAll(bool bOnlyPatchedFaderGroups = false);
+	void Clear(bool bOnlyPatchedFaderGroups = false);
 
 	/** Called when a Fixture Patch was added to a DMX Library */
 	void OnFixturePatchAddedToLibrary(UDMXLibrary* Library, TArray<UDMXEntity*> Entities);
+
+	//~ Begin UObject interface
+	virtual void PostLoad() override;
+#if WITH_EDITOR
+	virtual void PostEditChangeProperty(FPropertyChangedEvent& PropertyChangedEvent) override;
+#endif // WITH_EDITOR 
+	//~ End UObject interface
 
 	/** Gets a reference to OnFaderGroupAdded delegate */
 	FDMXControlConsoleFaderGroupDelegate& GetOnFaderGroupAdded() { return OnFaderGroupAdded; }
@@ -92,7 +89,7 @@ public:
 
 #if WITH_EDITOR
 	/** Called when the DMX Library has been changed */
-	static FSimpleMulticastDelegate& GetOnDMXLibraryChanged() { return OnDMXLibraryChanged; }
+	FSimpleMulticastDelegate& GetOnDMXLibraryChanged() { return OnDMXLibraryChanged; }
 #endif // WITH_EDITOR 
 
 #if WITH_EDITORONLY_DATA
@@ -104,14 +101,6 @@ public:
 	// Property Name getters
 	FORCEINLINE static FName GetDMXLibraryPropertyName() { return GET_MEMBER_NAME_CHECKED(UDMXControlConsoleData, SoftDMXLibraryPtr); }
 
-protected:
-	//~ Begin UObject interface
-	virtual void PostLoad() override;
-#if WITH_EDITOR
-	virtual void PostEditChangeProperty(FPropertyChangedEvent& PropertyChangedEvent) override;
-#endif // WITH_EDITOR 
-	//~ End UObject interface
-
 	// ~ Begin FTickableGameObject interface
 	virtual void Tick(float InDeltaTime) override;
 	virtual bool IsTickable() const override { return true; }
@@ -121,6 +110,12 @@ protected:
 	// ~ End FTickableGameObject interface
 
 private:
+	/** Clears the DMX Control Console to its default */
+	void ClearAll();
+
+	/** Clears Patched Fader Groups from data */
+	void ClearPatchedFaderGroups();
+
 	/** Called when a Fader Group is added to the Control Console */
 	FDMXControlConsoleFaderGroupDelegate OnFaderGroupAdded;
 
@@ -129,7 +124,7 @@ private:
 
 #if WITH_EDITOR
 	/** Called when the DMX Library has been changed */
-	static FSimpleMulticastDelegate OnDMXLibraryChanged;
+	FSimpleMulticastDelegate OnDMXLibraryChanged;
 #endif // WITH_EDITOR 
 
 	/** Library used to generate Fader Groups */

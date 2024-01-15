@@ -8,6 +8,7 @@
 enum class ECheckBoxState : uint8;
 class FDMXReadOnlyFixturePatchListItem;
 class FUICommandList;
+class UDMXControlConsoleEditorGlobalLayoutBase;
 class UDMXControlConsoleEditorGlobalLayoutRow;
 class UDMXControlConsoleEditorModel;
 class UDMXControlConsoleFaderGroup;
@@ -62,8 +63,8 @@ private:
 	/** Called when a fader group was added or removed from the console */
 	void OnFaderGroupAddedOrRemoved(const UDMXControlConsoleFaderGroup* FaderGroup);
 
-	/** Called when a global layout row changed */
-	void OnGlobalLayoutRowChanged(UDMXControlConsoleEditorGlobalLayoutRow* ChangedRow);
+	/** Called when the current active layout has changed */
+	void OnActiveLayoutChanged(const UDMXControlConsoleEditorGlobalLayoutBase* ActiveLayout);
 
 	/** Called when the context menu is opening */
 	TSharedPtr<SWidget> OnContextMenuOpening();
@@ -71,23 +72,29 @@ private:
 	/** Called when selection in the list changed */
 	void OnSelectionChanged(const TSharedPtr<FDMXReadOnlyFixturePatchListItem> NewSelection, ESelectInfo::Type SelectInfo);
 
+	/** Handles selection change when a single fixture patch is selected */
+	void HandleSinglePatchSelection() const;
+
+	/** Handles selection change when multiple fixture patches are selected */
+	void HandleMultiPatchSelection() const;
+
 	/** Called when a row was clicked */
 	void OnRowClicked(const TSharedPtr<FDMXReadOnlyFixturePatchListItem> ItemClicked);
 
 	/** Called when a row was double clicked */
 	void OnRowDoubleClicked(const TSharedPtr<FDMXReadOnlyFixturePatchListItem> ItemClicked);
 
-	/** Called to mute/unmute all Fader Groups in current Control Console */
-	void OnMuteAllFaderGroups(bool bMute, bool bOnlyActive) const;
+	/** Called to mute/unmute all Fader Group Controllers in current Control Console */
+	void OnMuteAllFaderGroupControllers(bool bMute, bool bOnlyActive) const;
 
-	/** Gets wheter any Fader Group is muted/unmuted */
-	bool IsAnyFaderGroupMuted(bool bMute, bool bOnlyActive) const;
+	/** Gets wheter any Fader Group Controller is muted/unmuted */
+	bool IsAnyFaderGroupControllerMuted(bool bMute, bool bOnlyActive) const;
 
 	/** Called to get wheter the whole list is checked or not */
-	ECheckBoxState GetGlobalFixtureGroupsMutedCheckBoxState() const;
+	ECheckBoxState GetGlobalFaderGroupControllersMutedCheckBoxState() const;
 
-	/** Called when the global fixture groups muted checkbox state changed */
-	void OnGlobalFixtureGroupsMutedCheckBoxStateChanged(ECheckBoxState CheckBoxState);
+	/** Called when the global fixture group controllers muted checkbox state changed */
+	void OnGlobalFaderGroupControllersMutedCheckBoxStateChanged(ECheckBoxState CheckBoxState);
 
 	/** Sets the show mode to be used */
 	void SetShowMode(EDMXReadOnlyFixturePatchListShowMode NewShowMode);

@@ -5,16 +5,14 @@
 #include "IDetailCustomization.h"
 #include "UObject/WeakObjectPtr.h"
 
-enum class ECheckBoxState : uint8;
-struct EVisibility;
-class FReply;
 class IPropertyUtilities;
 class UDMXControlConsoleEditorModel;
+class UDMXControlConsoleFaderGroup;
 
 
 namespace UE::DMX::Private
 {
-	/** Details Customization for DMX DMX Control Console */
+	/** Details Customization for DMX Control Console fader groups */
 	class FDMXControlConsoleFaderGroupDetails
 		: public IDetailCustomization
 	{
@@ -30,26 +28,17 @@ namespace UE::DMX::Private
 		//~ End of IDetailCustomization interface
 
 	private:
-		/** True if at least one selected Fader Group have any Fixture Patch bound */
-		bool DoSelectedFaderGroupsHaveAnyFixturePatches() const;
+		/** True if at least one selected fader group has any fixture patch bound */
+		bool IsAnyFaderGroupPatched() const;
 
-		/** Called when Clear button is clicked */
-		FReply OnClearButtonClicked();
-
-		/** Called to toggle the lock state of selected Fader Groups */
-		void OnLockToggleChanged(ECheckBoxState CheckState);
-
-		/** Gets the current lock state of selected Fader Groups */
-		ECheckBoxState IsLockChecked() const;
-
-		/** Gets current selected FaderGroup Fixture Patch name */
+		/** Gets the name of the current selected fader group's Fixture Patch */
 		FText GetFixturePatchText() const;
 
-		/** Gets visibility attribute of the Editor Color Property */
-		EVisibility GetEditorColorVisibility() const;
+		/** Returns the fader groups being edited in these details. Only returns currently valid objects. */
+		TArray<UDMXControlConsoleFaderGroup*> GetValidFaderGroupsBeingEdited() const;
 
-		/** Gets visibility attribute of the Clear button */
-		EVisibility GetClearButtonVisibility() const;
+		/** Property Utilities for this Details Customization layout */
+		TSharedPtr<IPropertyUtilities> PropertyUtilities;
 
 		/** Weak reference to the Control Console editor model */
 		TWeakObjectPtr<UDMXControlConsoleEditorModel> WeakEditorModel;

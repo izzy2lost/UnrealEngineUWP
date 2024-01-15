@@ -2,7 +2,7 @@
 
 #pragma once
 
-#include "Controllers/DMXControlConsoleElementController.h"
+#include "Layouts/Controllers/DMXControlConsoleElementController.h"
 #include "Templates/SharedPointer.h"
 #include "UObject/WeakObjectPtr.h"
 
@@ -13,7 +13,7 @@ class UDMXControlConsoleFixturePatchMatrixCell;
 
 namespace UE::DMX::Private
 {
-	/** Model for an element controller in a fader group */
+	/** Model for an element controller in the Control Console */
 	class FDMXControlConsoleElementControllerModel
 		: public TSharedFromThis<FDMXControlConsoleElementControllerModel>
 	{
@@ -27,7 +27,7 @@ namespace UE::DMX::Private
 		/** Gets the first available Fader in the Element Controller, if valid */
 		UDMXControlConsoleFaderBase* GetFirstAvailableFader() const;
 
-		/** Gets the Matrix Cell Element in the Controller, if valid */
+		/** Gets the first Matrix Cell Element in the Controller, if valid */
 		UDMXControlConsoleFixturePatchMatrixCell* GetMatrixCellElement() const;
 
 		/** Gets the name of the Element Controller, relative to the contained Elements */
@@ -47,6 +47,15 @@ namespace UE::DMX::Private
 
 		/** True if the Controller has Elements with the same data type */
 		bool HasUniformDataType() const;
+
+		/** True if the Controller has Elements with the same value */
+		bool HasUniformValue() const;
+
+		/** True if the Controller has Elements with the same min value */
+		bool HasUniformMinValue() const;
+
+		/** True if the Controller has Elements with the same max value */
+		bool HasUniformMaxValue() const;
 
 		/** True if all Elements in the controller are raw faders */
 		bool HasOnlyRawFaders() const;

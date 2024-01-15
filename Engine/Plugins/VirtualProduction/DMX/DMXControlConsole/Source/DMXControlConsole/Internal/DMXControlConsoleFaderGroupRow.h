@@ -35,11 +35,6 @@ public:
 
 	/** Gets the Fader Group array of this Fader Group Row */
 	const TArray<UDMXControlConsoleFaderGroup*>& GetFaderGroups() const { return FaderGroups; }
-	
-#if WITH_EDITOR
-	/** Gets only active Fader Groups of this Fader Group Row */
-	TArray<UDMXControlConsoleFaderGroup*> GetActiveFaderGroups() const;
-#endif // WITH_EDITOR
 
 	/** Gets the Index of this Row according to the DMX Control Console */
 	int32 GetRowIndex() const;

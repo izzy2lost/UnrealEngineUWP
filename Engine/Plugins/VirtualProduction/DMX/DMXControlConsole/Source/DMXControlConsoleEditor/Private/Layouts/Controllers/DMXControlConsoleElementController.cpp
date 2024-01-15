@@ -1,11 +1,13 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
-#include "Controllers/DMXControlConsoleElementController.h"
+#include "DMXControlConsoleElementController.h"
 
 #include "Algo/AnyOf.h"
+#include "Algo/Sort.h"
 #include "Algo/Transform.h"
 #include "DMXControlConsoleFaderBase.h"
 #include "DMXControlConsoleFaderGroup.h"
+#include "DMXControlConsoleFaderGroupController.h"
 #include "Oscillators/DMXControlConsoleFloatOscillator.h"
 
 
@@ -18,20 +20,18 @@ void UDMXControlConsoleElementController::Possess(const TScriptInterface<IDMXCon
 		return;
 	}
 
-	UDMXControlConsoleElementController* OldController = InElement->GetElementController();
+	UDMXControlConsoleElementController* OldController = Cast<UDMXControlConsoleElementController>(InElement->GetElementController());
 	if (OldController == this)
 	{
 		return;
 	}
 	 
-	if (OldController)
+	InElement->SetElementController(this);
+	if (!Elements.Contains(InElement))
 	{
-		OldController->UnPossess(InElement);
+		Elements.AddUnique(InElement);
+		SyncElements();
 	}
-
-	Elements.AddUnique(InElement);
-
-	SyncElements();
 }
 
 void UDMXControlConsoleElementController::Possess(TArray<TScriptInterface<IDMXControlConsoleFaderGroupElement>> InElements)
@@ -40,46 +40,75 @@ void UDMXControlConsoleElementController::Possess(TArray<TScriptInterface<IDMXCo
 		{
 			if (Element)
 			{
-				const UDMXControlConsoleElementController* OldController = Element->GetElementController();
+				const UDMXControlConsoleElementController* OldController = Cast<UDMXControlConsoleElementController>(Element->GetElementController());
 				return OldController == this;
 			}
 			return true;
 		});
 
-	for (const TScriptInterface<IDMXControlConsoleFaderGroupElement>& Element : InElements)
+	if (!InElements.IsEmpty())
+	{
+		for (const TScriptInterface<IDMXControlConsoleFaderGroupElement>& Element : InElements)
+		{
+			if (!Element)
+			{
+				continue;
+			}
+
+			Element->SetElementController(this);
+		}
+
+		Elements.Append(InElements);
+		SyncElements();
+	}
+}
+
+void UDMXControlConsoleElementController::UnPossess(const TScriptInterface<IDMXControlConsoleFaderGroupElement>& InElement)
+{
+	if (!InElement || !Elements.Contains(InElement))
+	{
+		return;
+	}
+
+	InElement->SetElementController(nullptr);
+	Elements.Remove(InElement);
+}
+
+void UDMXControlConsoleElementController::ClearElements()
+{
+	for (const TScriptInterface<IDMXControlConsoleFaderGroupElement>& Element : Elements)
 	{
 		if (!Element)
 		{
 			continue;
 		}
 
-		UDMXControlConsoleElementController* OldController = Element->GetElementController();
-		if (OldController)
-		{
-			OldController->UnPossess(Element);
-		}
+		Element->SetElementController(nullptr);
 	}
-	
-	Elements.Append(InElements);
-	SyncElements();
-}
 
-void UDMXControlConsoleElementController::UnPossess(const TScriptInterface<IDMXControlConsoleFaderGroupElement>& InElement)
-{
-	if (InElement)
-	{
-		Elements.Remove(InElement);
-	}
-}
-
-void UDMXControlConsoleElementController::ClearElements()
-{
 	Elements.Reset();
 }
 
-UDMXControlConsoleFaderGroup& UDMXControlConsoleElementController::GetOwnerFaderGroupChecked() const
+void UDMXControlConsoleElementController::SortElementsByStartingAddress()
 {
-	UDMXControlConsoleFaderGroup* Outer = Cast<UDMXControlConsoleFaderGroup>(GetOuter());
+	Algo::Sort(Elements, 
+		[](const TScriptInterface<IDMXControlConsoleFaderGroupElement>& ItemA, const TScriptInterface<IDMXControlConsoleFaderGroupElement>& ItemB)
+		{
+			if (!ItemA || !ItemB)
+			{
+				return false;
+			}
+
+			const int32 StartingAddressA = ItemA->GetStartingAddress();
+			const int32 StartingAddressB = ItemB->GetStartingAddress();
+
+			return StartingAddressA < StartingAddressB;
+		});
+}
+
+UDMXControlConsoleFaderGroupController& UDMXControlConsoleElementController::GetOwnerFaderGroupControllerChecked() const
+{
+	UDMXControlConsoleFaderGroupController* Outer = Cast<UDMXControlConsoleFaderGroupController>(GetOuter());
 	checkf(Outer, TEXT("Invalid outer for '%s', cannot get controller owner correctly."), *GetName());
 
 	return *Outer;
@@ -87,10 +116,10 @@ UDMXControlConsoleFaderGroup& UDMXControlConsoleElementController::GetOwnerFader
 
 int32 UDMXControlConsoleElementController::GetIndex() const
 {
-	const UDMXControlConsoleFaderGroup& OwnerFaderGroup = GetOwnerFaderGroupChecked();
+	const UDMXControlConsoleFaderGroupController& OwnerFaderGroupController = GetOwnerFaderGroupControllerChecked();
 
-	const TArray<UDMXControlConsoleElementController*> Controllers = OwnerFaderGroup.GetElementControllers();
-	const int32 Index = Controllers.IndexOfByKey(this);
+	const TArray<UDMXControlConsoleElementController*> ElementControllers = OwnerFaderGroupController.GetElementControllers();
+	const int32 Index = ElementControllers.IndexOfByKey(this);
 	return Index;
 }
 
@@ -110,7 +139,7 @@ TArray<UDMXControlConsoleFaderBase*> UDMXControlConsoleElementController::GetFad
 	return Faders;
 }
 
-FString UDMXControlConsoleElementController::GenerateControllerNameByElementsNames() const
+FString UDMXControlConsoleElementController::GenerateUserNameByElementsNames() const
 {
 	FString NewName = TEXT("");
 	for (const TScriptInterface<IDMXControlConsoleFaderGroupElement>& Element : Elements)
@@ -130,16 +159,16 @@ FString UDMXControlConsoleElementController::GenerateControllerNameByElementsNam
 		NewName.Append(ElementName);
 		if (Elements.Last() != Element)
 		{
-			NewName.Append("_");
+			NewName.Append(TEXT("_"));
 		}
 	}
 
 	return NewName;
 }
 
-void UDMXControlConsoleElementController::SetControllerName(const FString& NewName)
+void UDMXControlConsoleElementController::SetUserName(const FString& NewName)
 {
-	ControllerName = NewName;
+	UserName = NewName;
 }
 
 void UDMXControlConsoleElementController::SetValue(float NewValue)
@@ -201,6 +230,30 @@ void UDMXControlConsoleElementController::SetMaxValue(float NewMaxValue)
 	}
 }
 
+void UDMXControlConsoleElementController::ResetToDefault()
+{
+	if (Elements.IsEmpty())
+	{
+		return;
+	}
+
+	UDMXControlConsoleFaderBase* Fader = Cast<UDMXControlConsoleFaderBase>(Elements[0].GetObject());
+	if (!Fader)
+	{
+		return;
+	}
+
+	Fader->ResetToDefault();
+
+	const uint8 NumBytes = static_cast<uint8>(Fader->GetDataType()) + 1;
+	const float ValueRange = FMath::Pow(2.f, 8.f * NumBytes) - 1;
+	const float NormalizedValue = Fader->GetValue() / ValueRange;
+
+	SetValue(NormalizedValue);
+	SetMinValue(0.f);
+	SetMaxValue(1.f);
+}
+
 void UDMXControlConsoleElementController::SetMute(bool bMute)
 {
 	bIsMuted = bMute;
@@ -233,14 +286,11 @@ void UDMXControlConsoleElementController::ToggleLock()
 	SetLock(!bIsLocked);
 }
 
-#if WITH_EDITOR
 bool UDMXControlConsoleElementController::IsActive() const
 {
-	return GetOwnerFaderGroupChecked().IsActive();
+	return GetOwnerFaderGroupControllerChecked().IsActive();
 }
-#endif // WITH_EDITOR
 
-#if WITH_EDITOR
 bool UDMXControlConsoleElementController::IsMatchingFilter() const
 {
 	const bool bIsAnyElementMatchingFilter = Algo::AnyOf(Elements, 
@@ -251,31 +301,25 @@ bool UDMXControlConsoleElementController::IsMatchingFilter() const
 
 	return bIsAnyElementMatchingFilter;
 }
-#endif // WITH_EDITOR
 
 void UDMXControlConsoleElementController::Destroy()
 {
-	UDMXControlConsoleFaderGroup& OwnerFaderGroup = GetOwnerFaderGroupChecked();
+	ClearElements();
 
-#if WITH_EDITOR
-	OwnerFaderGroup.PreEditChange(UDMXControlConsoleFaderGroup::StaticClass()->FindPropertyByName(UDMXControlConsoleFaderGroup::GetElementControllersPropertyName()));
-#endif // WITH_EDITOR
+	UDMXControlConsoleFaderGroupController& OwnerFaderGroupController = GetOwnerFaderGroupControllerChecked();
 
-	OwnerFaderGroup.DeleteElementController(this);
-
-#if WITH_EDITOR
-	OwnerFaderGroup.PostEditChange();
-#endif // WITH_EDITOR
+	OwnerFaderGroupController.PreEditChange(UDMXControlConsoleFaderGroupController::StaticClass()->FindPropertyByName(UDMXControlConsoleFaderGroupController::GetElementControllersPropertyName()));
+	OwnerFaderGroupController.DeleteElementController(this);
+	OwnerFaderGroupController.PostEditChange();
 }
 
 void UDMXControlConsoleElementController::PostInitProperties()
 {
 	Super::PostInitProperties();
 
-	ControllerName = GetName();
+	UserName = GetName();
 }
 
-#if WITH_EDITOR
 void UDMXControlConsoleElementController::PostEditChangeProperty(FPropertyChangedEvent& PropertyChangedEvent)
 {
 	Super::PostEditChangeProperty(PropertyChangedEvent);
@@ -293,7 +337,6 @@ void UDMXControlConsoleElementController::PostEditChangeProperty(FPropertyChange
 		}
 	}
 }
-#endif // WITH_EDITOR
 
 void UDMXControlConsoleElementController::Tick(float DeltaTime)
 {

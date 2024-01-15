@@ -6,6 +6,7 @@
 #include "Widgets/SCompoundWidget.h"
 
 class SHorizontalBox;
+class UDMXControlConsoleEditorGlobalLayoutBase;
 class UDMXControlConsoleEditorModel;
 
 
@@ -46,6 +47,9 @@ namespace UE::DMX::Private
 
 		/** True if the current layout widget's type name matches the given one */
 		bool IsCurrentLayoutWidgetType(const FName& InWidgetTypeName) const;
+
+		/** Called when the current Active Layout has changed */
+		void OnActiveLayoutChanged(const UDMXControlConsoleEditorGlobalLayoutBase* ActiveLayout);
 
 		/** Reference to the current layout widget */
 		TSharedPtr<SDMXControlConsoleEditorLayout> Layout;

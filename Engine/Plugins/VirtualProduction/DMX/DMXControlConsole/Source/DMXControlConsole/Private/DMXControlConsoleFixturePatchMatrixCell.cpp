@@ -4,11 +4,11 @@
 
 #include "Algo/Find.h"
 #include "Algo/Sort.h"
-#include "Controllers/DMXControlConsoleMatrixCellController.h"
 #include "DMXAttribute.h"
 #include "DMXProtocolTypes.h"
 #include "DMXControlConsoleFaderGroup.h"
 #include "DMXControlConsoleFixturePatchCellAttributeFader.h"
+#include "Layouts/Controllers/DMXControlConsoleControllerBase.h"
 #include "Library/DMXEntityFixturePatch.h"
 #include "Library/DMXEntityFixtureType.h"
 
@@ -23,21 +23,21 @@ UDMXControlConsoleFaderGroup& UDMXControlConsoleFixturePatchMatrixCell::GetOwner
 	return *Outer;
 }
 
-UDMXControlConsoleElementController* UDMXControlConsoleFixturePatchMatrixCell::GetElementController()
+UDMXControlConsoleControllerBase* UDMXControlConsoleFixturePatchMatrixCell::GetElementController() const
 {
-	const UDMXControlConsoleFaderGroup& OwnerFaderGroup = GetOwnerFaderGroupChecked();
-	return OwnerFaderGroup.GetControllerByElement(this);
+	return CachedWeakElementController.Get();
+}
+
+void UDMXControlConsoleFixturePatchMatrixCell::SetElementController(UDMXControlConsoleControllerBase* NewController)
+{
+	SoftControllerPtr = NewController;
+	CachedWeakElementController = NewController;
 }
 
 int32 UDMXControlConsoleFixturePatchMatrixCell::GetIndex() const
 {
-	const UDMXControlConsoleFaderGroup* Outer = Cast<UDMXControlConsoleFaderGroup>(GetOuter());
-	if (!ensureMsgf(Outer, TEXT("Invalid outer for '%s', cannot get fader index correctly."), *GetName()))
-	{
-		return INDEX_NONE;
-	}
-
-	const TArray<TScriptInterface<IDMXControlConsoleFaderGroupElement>>& Elements = Outer->GetElements();
+	const UDMXControlConsoleFaderGroup& OwnerFaderGroup = GetOwnerFaderGroupChecked();
+	const TArray<TScriptInterface<IDMXControlConsoleFaderGroupElement>>& Elements = OwnerFaderGroup.GetElements();
 	const int32 Index = Elements.IndexOfByKey(this);
 	return Index;
 }
@@ -81,20 +81,16 @@ void UDMXControlConsoleFixturePatchMatrixCell::SetIsMatchingFilter(bool bMatches
 
 void UDMXControlConsoleFixturePatchMatrixCell::Destroy() 
 {
-	UDMXControlConsoleFaderGroup* Outer = Cast<UDMXControlConsoleFaderGroup>(GetOuter());
-	if (!ensureMsgf(Outer, TEXT("Invalid outer for '%s', cannot destroy fader correctly."), *GetName()))
-	{
-		return;
-	}
+	UDMXControlConsoleFaderGroup& OwnerFaderGroup = GetOwnerFaderGroupChecked();
 
 #if WITH_EDITOR
-	Outer->PreEditChange(UDMXControlConsoleFaderGroup::StaticClass()->FindPropertyByName(UDMXControlConsoleFaderGroup::GetElementsPropertyName()));
+	OwnerFaderGroup.PreEditChange(UDMXControlConsoleFaderGroup::StaticClass()->FindPropertyByName(UDMXControlConsoleFaderGroup::GetElementsPropertyName()));
 #endif // WITH_EDITOR
 
-	Outer->DeleteElement(this);
+	OwnerFaderGroup.DeleteElement(this);
 
 #if WITH_EDITOR
-	Outer->PostEditChange();
+	OwnerFaderGroup.PostEditChange();
 #endif // WITH_EDITOR
 }
 
@@ -167,70 +163,9 @@ void UDMXControlConsoleFixturePatchMatrixCell::SetPropertiesFromCell(const FDMXC
 		const int32 AbsoluteChannel = StartingChannel + RelativeChannel;
 
 		UDMXControlConsoleFixturePatchCellAttributeFader* CellAttributeFader = AddFixturePatchCellAttributeFader(CellAttribute, InUniverseID, AbsoluteChannel);
-		const FString ControllerName = CellAttributeFader ? CellAttributeFader->GetFaderName() : FString();
-		CreateMatrixCellController(CellAttributeFader, ControllerName);
 	}
 
 	SortElementsByStartingAddress();
-}
-
-UDMXControlConsoleMatrixCellController* UDMXControlConsoleFixturePatchMatrixCell::CreateMatrixCellController(const TScriptInterface<IDMXControlConsoleFaderGroupElement>& InElement, const FString& ControllerName)
-{
-	if (!InElement)
-	{
-		return nullptr;
-	}
-
-	const TArray<TScriptInterface<IDMXControlConsoleFaderGroupElement>> ElementAsArray = { InElement };
-	UDMXControlConsoleMatrixCellController* MatrixCellController = CreateMatrixCellController(ElementAsArray, ControllerName);
-	return MatrixCellController;
-}
-
-UDMXControlConsoleMatrixCellController* UDMXControlConsoleFixturePatchMatrixCell::CreateMatrixCellController(const TArray<TScriptInterface<IDMXControlConsoleFaderGroupElement>> InElements, const FString& ControllerName)
-{
-	if (InElements.IsEmpty())
-	{
-		return nullptr;
-	}
-
-	UDMXControlConsoleMatrixCellController* MatrixCellController = NewObject<UDMXControlConsoleMatrixCellController>(this, NAME_None, RF_Transactional);
-	MatrixCellController->Possess(InElements);
-
-	const FString NewName = ControllerName.IsEmpty() ? FString::FromInt(MatrixCellControllers.Num() + 1) : ControllerName;
-	MatrixCellController->SetControllerName(NewName);
-
-	MatrixCellControllers.Add(MatrixCellController);
-	return MatrixCellController;
-}
-
-void UDMXControlConsoleFixturePatchMatrixCell::DeleteMatrixCellController(UDMXControlConsoleMatrixCellController* MatrixCellController)
-{
-	if (!ensureMsgf(MatrixCellController, TEXT("Invalid matrix cell controller, cannot delete from '%s'."), *GetName()))
-	{
-		return;
-	}
-
-	if (!ensureMsgf(MatrixCellControllers.Contains(MatrixCellController), TEXT("'%s' matrix cell is not owner of '%s'. Cannot delete controller correctly."), *GetName(), *MatrixCellController->GetControllerName()))
-	{
-		return;
-	}
-
-	MatrixCellControllers.Remove(MatrixCellController);
-}
-
-UDMXControlConsoleMatrixCellController* UDMXControlConsoleFixturePatchMatrixCell::GetControllerByElement(const TScriptInterface<IDMXControlConsoleFaderGroupElement>& Element) const
-{
-	if (Element)
-	{
-		const TObjectPtr<UDMXControlConsoleMatrixCellController>* ControllerPtr = Algo::FindByPredicate(MatrixCellControllers, [Element](const UDMXControlConsoleMatrixCellController* Controller)
-			{
-				return Controller && Controller->GetElements().Contains(Element);
-			});
-
-		return ControllerPtr ? ControllerPtr->Get() : nullptr;
-	}
-
-	return nullptr;
 }
 
 void UDMXControlConsoleFixturePatchMatrixCell::SortElementsByStartingAddress() const
@@ -244,30 +179,6 @@ void UDMXControlConsoleFixturePatchMatrixCell::SortElementsByStartingAddress() c
 		};
 
 	Algo::Sort(CellAttributeFaders, SortElementsByStartingAddressLambda);
-
-	const auto SortControllersByStartingAddressLambda = [SortElementsByStartingAddressLambda](const UDMXControlConsoleMatrixCellController* ItemA, const UDMXControlConsoleMatrixCellController* ItemB)
-		{
-			const TArray<TScriptInterface<IDMXControlConsoleFaderGroupElement>>& ElementsA = ItemA->GetElements();
-			const TArray<TScriptInterface<IDMXControlConsoleFaderGroupElement>>& ElementsB = ItemB->GetElements();
-
-			Algo::Sort(ElementsA, SortElementsByStartingAddressLambda);
-			Algo::Sort(ElementsB, SortElementsByStartingAddressLambda);
-
-			if (ElementsA.IsEmpty() || ElementsB.IsEmpty())
-			{
-				return false;
-			}
-
-			const TScriptInterface<IDMXControlConsoleFaderGroupElement> ElementA = ElementsA[0];
-			const TScriptInterface<IDMXControlConsoleFaderGroupElement> ElementB = ElementsB[0];
-
-			const int32 StartingAddressA = ElementA->GetStartingAddress();
-			const int32 StartingAddressB = ElementB->GetStartingAddress();
-
-			return StartingAddressA < StartingAddressB;
-		};
-
-	Algo::Sort(MatrixCellControllers, SortControllersByStartingAddressLambda);
 }
 
 #if WITH_EDITOR
@@ -304,11 +215,12 @@ void UDMXControlConsoleFixturePatchMatrixCell::PostLoad()
 {
 	Super::PostLoad();
 
+	CachedWeakElementController = Cast<UDMXControlConsoleControllerBase>(SoftControllerPtr.ToSoftObjectPath().TryLoad());
+
 	UDMXControlConsoleFaderGroup& FaderGroup = GetOwnerFaderGroupChecked();
 	UDMXEntityFixturePatch* FixturePatch = FaderGroup.GetFixturePatch();
 	if (!FixturePatch)
 	{
-		UpdateMatrixCellControllers();
 		return;
 	}
 
@@ -419,8 +331,6 @@ void UDMXControlConsoleFixturePatchMatrixCell::UpdateFixturePatchCellAttributeFa
 		else
 		{
 			UDMXControlConsoleFixturePatchCellAttributeFader* NewCellAttributeFader = AddFixturePatchCellAttributeFader(CellAttribute, UniverseID, AbsoluteChannel);
-			const FString ControllerName = NewCellAttributeFader ? NewCellAttributeFader->GetFaderName() : FString();
-			CreateMatrixCellController(NewCellAttributeFader, ControllerName);
 		}
 	}
 
@@ -433,48 +343,6 @@ void UDMXControlConsoleFixturePatchMatrixCell::UpdateFixturePatchCellAttributeFa
 	};
 
 	Algo::Sort(CellAttributeFaders, SortFadersByStartingAddressLambda);
-	UpdateMatrixCellControllers();
-}
-
-void UDMXControlConsoleFixturePatchMatrixCell::UpdateMatrixCellControllers()
-{
-	// Create matrix cell controllers for elements with no controller
-	for (UDMXControlConsoleFaderBase* CellAttributeFader : CellAttributeFaders)
-	{
-		if (!CellAttributeFader)
-		{
-			continue;
-		}
-
-		if (GetControllerByElement(CellAttributeFader))
-		{
-			continue;
-		}
-
-		const FString ControllerName = CellAttributeFader->GetFaderName();
-
-		const uint8 NumChannels = static_cast<uint8>(CellAttributeFader->GetDataType()) + 1;
-		const float ValueRange = FMath::Pow(2.f, 8.f * NumChannels) - 1;
-		const float ControllerValue = CellAttributeFader->GetValue() / ValueRange;
-		const float ControllerMinValue = CellAttributeFader->GetMinValue() / ValueRange;
-		const float ControllerMaxValue = CellAttributeFader->GetMaxValue() / ValueRange;
-		
-		UDMXControlConsoleMatrixCellController* NewController = CreateMatrixCellController(CellAttributeFader, ControllerName);
-		if (NewController)
-		{
-			NewController->SetValue(ControllerValue);
-			NewController->SetMinValue(ControllerValue);
-			NewController->SetMaxValue(ControllerValue);
-		}
-	}
-
-	// Remove all matrix cell controllers with no elements
-	MatrixCellControllers.RemoveAll([](const UDMXControlConsoleMatrixCellController* MatrixCellController)
-		{
-			return MatrixCellController && MatrixCellController->GetElements().IsEmpty();
-		});
-
-	SortElementsByStartingAddress();
 }
 
 #undef LOCTEXT_NAMESPACE

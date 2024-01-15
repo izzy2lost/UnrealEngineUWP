@@ -6,6 +6,7 @@
 
 #include "DMXControlConsoleEditorLayouts.generated.h"
 
+class UDMXControlConsoleData;
 class UDMXControlConsoleEditorGlobalLayoutBase;
 
 
@@ -15,6 +16,8 @@ class UDMXControlConsoleEditorLayouts
 	: public UDMXControlConsoleEditorLayoutsBase
 {
 	GENERATED_BODY()
+
+	DECLARE_MULTICAST_DELEGATE_OneParam(FDMXControlConsoleEditorLayoutDelegate, const UDMXControlConsoleEditorGlobalLayoutBase*);
 
 	// Allow a UDMXControlConsoleEditorGlobalLayoutBase to read Editor Layouts data
 	friend UDMXControlConsoleEditorGlobalLayoutBase;
@@ -50,21 +53,26 @@ public:
 	/** Updates the default Layout to Control Console Data */
 	void UpdateDefaultLayout();
 
-	/** Called after the Active Layout has been changed */
-	FSimpleMulticastDelegate& GetOnActiveLayoutChanged() { return OnActiveLayoutChanged; }
+	/** Registers all the layouts */
+	void Register(UDMXControlConsoleData* ControlConsoleData);
 
-	/** Called after the Active Layouts's layout mode has been changed */
-	FSimpleMulticastDelegate& GetOnLayoutModeChanged() { return OnLayoutModeChanged; }
+	/** Unregisters all the layouts */
+	void Unregister(UDMXControlConsoleData* ControlConsoleData);
 
-protected:
 	//~ Begin UObject interface
 	virtual void BeginDestroy() override;
 	virtual void PostLoad() override;
 	//~ End UObject interface
 
+	/** Called after the Active Layout has been changed */
+	FDMXControlConsoleEditorLayoutDelegate& GetOnActiveLayoutChanged() { return OnActiveLayoutChanged; }
+
+	/** Called after the Active Layouts's layout mode has been changed */
+	FSimpleMulticastDelegate& GetOnLayoutModeChanged() { return OnLayoutModeChanged; }
+
 private:
 	/** Called after the Active Layout has been changed */
-	FSimpleMulticastDelegate OnActiveLayoutChanged;
+	FDMXControlConsoleEditorLayoutDelegate OnActiveLayoutChanged;
 
 	/** Called after the Active Layouts's layout mode has been changed */
 	FSimpleMulticastDelegate OnLayoutModeChanged;

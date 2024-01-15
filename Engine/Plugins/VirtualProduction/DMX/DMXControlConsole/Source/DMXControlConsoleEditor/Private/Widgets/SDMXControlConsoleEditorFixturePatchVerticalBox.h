@@ -7,8 +7,6 @@
 class FReply;
 class SDMXControlConsoleFixturePatchList;
 class UDMXControlConsoleEditorModel;
-class UDMXControlConsoleFaderGroup;
-class UDMXEntityFixturePatch;
 
 
 /** A container for the Fixture Patch List widget */
@@ -39,10 +37,7 @@ private:
 	/** Creates a menu for the Add Patch combo button */
 	TSharedRef<SWidget> CreateAddPatchMenu();
 
-	/** Edits the given Fader Group according to the given Fixture Patch */
-	void GenerateFaderGroupFromFixturePatch(UDMXControlConsoleFaderGroup* FaderGroup, UDMXEntityFixturePatch* FixturePatch);
-
-	/** Called on Add All Patches button clicked to generate Fader Groups form a Library */
+	/** Called on Add All Patches button clicked to generate Fader Group Controllers form a Library */
 	FReply OnAddAllPatchesClicked();
 
 	/** Gets the enable state for the Add All Patches button when a DMX Library is selected */

@@ -3,7 +3,6 @@
 #include "Toolkits/DMXControlConsoleEditorToolkit.h"
 
 #include "Commands/DMXControlConsoleEditorCommands.h"
-#include "Controllers/DMXControlConsoleElementController.h"
 #include "DMXControlConsole.h"
 #include "DMXControlConsoleData.h"
 #include "DMXControlConsoleEditorData.h"
@@ -16,6 +15,8 @@
 #include "DMXEditorUtils.h"
 #include "Editor.h"
 #include "Framework/Commands/GenericCommands.h"
+#include "Layouts/Controllers/DMXControlConsoleElementController.h"
+#include "Layouts/Controllers/DMXControlConsoleFaderGroupController.h"
 #include "Layouts/DMXControlConsoleEditorGlobalLayoutBase.h"
 #include "Layouts/DMXControlConsoleEditorLayouts.h"
 #include "Models/DMXControlConsoleEditorModel.h"
@@ -116,39 +117,47 @@ namespace UE::DMX::Private
 		}
 
 		const TSharedRef<FDMXControlConsoleEditorSelection> SelectionHandler = EditorModel->GetSelectionHandler();
-		const TArray<TWeakObjectPtr<UObject>> SelectedFaderGroupsObjects = SelectionHandler->GetSelectedFaderGroups();
-		if (SelectedFaderGroupsObjects.IsEmpty())
+		const TArray<TWeakObjectPtr<UObject>> SelectedFaderGroupControllersObjects = SelectionHandler->GetSelectedFaderGroupControllers();
+		if (SelectedFaderGroupControllersObjects.IsEmpty())
 		{
 			return;
 		}
 
 		const FScopedTransaction RemoveAllSelectedElementsTransaction(LOCTEXT("RemoveAllSelectedElementsTransaction", "Selected Elements removed"));
 
-		// Delete all selected fader groups
-		for (const TWeakObjectPtr<UObject>& SelectedFaderGroupObject : SelectedFaderGroupsObjects)
+		// Delete all selected fader group controllers
+		for (const TWeakObjectPtr<UObject>& SelectedFaderGroupControllerObject : SelectedFaderGroupControllersObjects)
 		{
-			UDMXControlConsoleFaderGroup* SelectedFaderGroup = Cast<UDMXControlConsoleFaderGroup>(SelectedFaderGroupObject);
-			if (SelectedFaderGroup &&
-				SelectionHandler->GetSelectedElementControllersFromFaderGroup(SelectedFaderGroup).IsEmpty())
+			UDMXControlConsoleFaderGroupController* SelectedFaderGroupController = Cast<UDMXControlConsoleFaderGroupController>(SelectedFaderGroupControllerObject);
+			if (SelectedFaderGroupController &&
+				SelectionHandler->GetSelectedElementControllersFromFaderGroupController(SelectedFaderGroupController).IsEmpty())
 			{
-				// If there's only one fader group to delete, replace it in selection
-				if (SelectedFaderGroupsObjects.Num() == 1)
+				// If there's only one fader group controller to delete, replace it in selection
+				if (SelectedFaderGroupControllersObjects.Num() == 1)
 				{
-					SelectionHandler->ReplaceInSelection(SelectedFaderGroup);
+					SelectionHandler->ReplaceInSelection(SelectedFaderGroupController);
 				}
 
-				constexpr bool bNotifySelectedFaderGroupChange = false;
-				SelectionHandler->RemoveFromSelection(SelectedFaderGroup, bNotifySelectedFaderGroupChange);
+				constexpr bool bNotifySelectedFaderGroupControllerChange = false;
+				SelectionHandler->RemoveFromSelection(SelectedFaderGroupController, bNotifySelectedFaderGroupControllerChange);
+
+				// Destroy all unpatched fader groups in the controller
+				const TArray<TWeakObjectPtr<UDMXControlConsoleFaderGroup>>& FaderGroups = SelectedFaderGroupController->GetFaderGroups();
+				for (const TWeakObjectPtr<UDMXControlConsoleFaderGroup>& FaderGroup : FaderGroups)
+				{
+					if (FaderGroup.IsValid() && !FaderGroup->HasFixturePatch())
+					{
+						FaderGroup->Destroy();
+					}
+				}
+				
+				SelectedFaderGroupController->PreEditChange(nullptr);
+				SelectedFaderGroupController->Destroy();
+				SelectedFaderGroupController->PostEditChange();
 
 				ActiveLayout->PreEditChange(nullptr);
-				ActiveLayout->RemoveFromLayout(SelectedFaderGroup);
-				ActiveLayout->RemoveFromActiveFaderGroups(SelectedFaderGroup);
+				ActiveLayout->RemoveFromActiveFaderGroupControllers(SelectedFaderGroupController);
 				ActiveLayout->PostEditChange();
-
-				if (!SelectedFaderGroup->HasFixturePatch())
-				{
-					SelectedFaderGroup->Destroy();
-				}
 			}
 		}
 
@@ -159,8 +168,7 @@ namespace UE::DMX::Private
 			for (TWeakObjectPtr<UObject> SelectedElementControllerObject : SelectedElementControllers)
 			{
 				UDMXControlConsoleElementController* SelectedElementController = Cast<UDMXControlConsoleElementController>(SelectedElementControllerObject);
-				const bool bOwnerFaderGroupHasPatch = SelectedElementController && !SelectedElementController->GetOwnerFaderGroupChecked().HasFixturePatch();
-				if (!bOwnerFaderGroupHasPatch)
+				if (!SelectedElementController)
 				{
 					continue;
 				}
@@ -175,19 +183,18 @@ namespace UE::DMX::Private
 				SelectionHandler->RemoveFromSelection(SelectedElementController, bNotifyFaderSelectionChange);
 
 				// Destroy all elements in the selected element controller
-				SelectedElementController->PreEditChange(nullptr);
 				const TArray<TScriptInterface<IDMXControlConsoleFaderGroupElement>> Elements = SelectedElementController->GetElements();
 				for (const TScriptInterface<IDMXControlConsoleFaderGroupElement>& Element : Elements)
 				{
-					if (Element)
+					if (Element && !Element->GetOwnerFaderGroupChecked().HasFixturePatch())
 					{
-						SelectedElementController->UnPossess(Element);
 						Element->Destroy();
 					}
 				}
-				SelectedElementController->PostEditChange();
 
+				SelectedElementController->PreEditChange(nullptr);
 				SelectedElementController->Destroy();
+				SelectedElementController->PostEditChange();
 			}
 		}
 
@@ -217,25 +224,27 @@ namespace UE::DMX::Private
 		}
 
 		const FScopedTransaction ClearAllTransaction(LOCTEXT("ClearAllTransaction", "Clear All"));
-		ActiveLayout->Modify();
+		ActiveLayout->PreEditChange(nullptr);
 		ActiveLayout->ClearAll();
 		if (ActiveLayout == &ControlConsoleLayouts->GetDefaultLayoutChecked())
 		{
+			constexpr bool bClearOnlyPatchedControllers = true;
 			const TArray<UDMXControlConsoleEditorGlobalLayoutBase*> UserLayouts = ControlConsoleLayouts->GetUserLayouts();
 			for (UDMXControlConsoleEditorGlobalLayoutBase* UserLayout : UserLayouts)
 			{
-				UserLayout->Modify();
-				constexpr bool bOnlyPatchedFaderGroups = true;
-				UserLayout->ClearAll(bOnlyPatchedFaderGroups);
+				UserLayout->PreEditChange(nullptr);
+				UserLayout->ClearAll(bClearOnlyPatchedControllers);
+				UserLayout->PostEditChange();
 			}
 
 			if (UDMXControlConsoleData* ControlConsoleData = GetControlConsoleData())
 			{
-				ControlConsoleData->Modify();
-				constexpr bool bOnlyPatchedFaderGroups = true;
-				ControlConsoleData->ClearAll(bOnlyPatchedFaderGroups);
+				ControlConsoleData->PreEditChange(nullptr);
+				ControlConsoleData->Clear(bClearOnlyPatchedControllers);
+				ControlConsoleData->PostEditChange();
 			}
 		}
+		ActiveLayout->PostEditChange();
 	}
 
 	void FDMXControlConsoleEditorToolkit::ResetToDefault()
@@ -267,7 +276,7 @@ namespace UE::DMX::Private
 				Fader->ResetToDefault();
 				Fader->PostEditChange();
 
-				UDMXControlConsoleElementController* ElementController = Fader->GetElementController();
+				UDMXControlConsoleElementController* ElementController = Cast<UDMXControlConsoleElementController>(Fader->GetElementController());
 				if (!ElementController)
 				{
 					continue;
@@ -286,22 +295,23 @@ namespace UE::DMX::Private
 
 	void FDMXControlConsoleEditorToolkit::ResetToZero()
 	{
-		UDMXControlConsoleData* ControlConsoleData = GetControlConsoleData();
-		if (!ensureMsgf(ControlConsoleData, TEXT("Invalid control console data, cannot reset to default correctly.")))
+		const UDMXControlConsoleEditorLayouts* ControlConsoleLayouts = GetControlConsoleLayouts();
+		UDMXControlConsoleEditorGlobalLayoutBase* ActiveLayout = ControlConsoleLayouts ? ControlConsoleLayouts->GetActiveLayout() : nullptr;
+		if (!ensureMsgf(ActiveLayout, TEXT("Invalid layout, cannot reset to zero correctly.")))
 		{
 			return;
 		}
 
-		const FScopedTransaction BlankOutTransaction(LOCTEXT("BlankOutTransaction", "Reset to zero"));
-		const TArray<UDMXControlConsoleFaderGroup*> FaderGroups = ControlConsoleData->GetAllFaderGroups();
-		for (const UDMXControlConsoleFaderGroup* FaderGroup : FaderGroups)
+		const FScopedTransaction BlankOutTransaction(LOCTEXT("ResetToZeroTransaction", "Reset to zero"));
+		const TArray<UDMXControlConsoleFaderGroupController*> FaderGroupControllers = ActiveLayout->GetAllFaderGroupControllers();
+		for (const UDMXControlConsoleFaderGroupController* FaderGroupController : FaderGroupControllers)
 		{
-			if (!FaderGroup)
+			if (!FaderGroupController)
 			{
 				continue;
 			}
 
-			const TArray<UDMXControlConsoleElementController*> ElementControllers = FaderGroup->GetAllElementControllers();
+			const TArray<UDMXControlConsoleElementController*> ElementControllers = FaderGroupController->GetAllElementControllers();
 			for (UDMXControlConsoleElementController* ElementController : ElementControllers)
 			{
 				if (!ElementController)

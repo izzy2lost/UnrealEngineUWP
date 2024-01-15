@@ -8,15 +8,15 @@ struct EVisibility;
 class FReply;
 class SScrollBox;
 class SVerticalBox;
-class UDMXControlConsoleFaderGroup;
 class UDMXControlConsoleEditorGlobalLayoutRow;
+class UDMXControlConsoleFaderGroupController;
 
 
 namespace UE::DMX::Private
 { 
 	class SDMXControlConsoleEditorLayoutRowView;
 
-	/** A widget to describe control console grid layout sorting */
+	/** Draws the fader groups of a control console in a grid */
 	class SDMXControlConsoleEditorGridLayout
 		: public SDMXControlConsoleEditorLayout
 	{
@@ -36,17 +36,17 @@ namespace UE::DMX::Private
 		//~ End SDMXControlConsoleEditorLayout interface
 
 	private:
-		/** Checks if LayoutRowViews array contains a reference to the given */
+		/** Checks if the LayoutRowViews array contains a reference to the given */
 		bool IsLayoutRowContained(UDMXControlConsoleEditorGlobalLayoutRow* LayoutRow);
 
 		/** Finds LayoutRowView by the given LayoutRow, if valid */
 		TSharedPtr<SDMXControlConsoleEditorLayoutRowView> FindLayoutRowView(const UDMXControlConsoleEditorGlobalLayoutRow* LayoutRow);
 
-		/** Called to add the first Fader Group */
-		FReply OnAddFirstFaderGroup();
+		/** Called to add the first Fader Group Controller */
+		FReply OnAddFirstFaderGroupController();
 
 		/** Called when a LayoutRowView needs to be scrolled into view */
-		void OnScrollIntoView(const UDMXControlConsoleFaderGroup* FaderGroup);
+		void OnScrollIntoView(const UDMXControlConsoleFaderGroupController* FaderGroupController);
 
 		/** Gets visibility for each LayoutRowView widget */
 		EVisibility GetLayoutRowViewVisibility(TWeakObjectPtr<UDMXControlConsoleEditorGlobalLayoutRow> LayoutRow) const;

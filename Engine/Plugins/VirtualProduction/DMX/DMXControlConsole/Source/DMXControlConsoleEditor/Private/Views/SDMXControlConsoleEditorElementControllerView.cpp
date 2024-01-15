@@ -2,14 +2,14 @@
 
 #include "SDMXControlConsoleEditorElementControllerView.h"
 
-#include "Controllers/DMXControlConsoleElementController.h"
 #include "DMXControlConsoleEditorData.h"
 #include "DMXControlConsoleEditorSelection.h"
-#include "DMXControlConsoleFaderGroup.h"
 #include "DMXControlConsoleFixturePatchMatrixCell.h"
 #include "Framework/Application/SlateApplication.h"
 #include "Framework/MultiBox/MultiBoxBuilder.h"
 #include "Layout/WidgetPath.h"
+#include "Layouts/Controllers/DMXControlConsoleElementController.h"
+#include "Layouts/Controllers/DMXControlConsoleFaderGroupController.h"
 #include "Misc/Optional.h"
 #include "Models/DMXControlConsoleEditorModel.h"
 #include "Models/DMXControlConsoleElementControllerModel.h"
@@ -443,7 +443,7 @@ namespace UE::DMX::Private
 	FString SDMXControlConsoleEditorElementControllerView::GetElementControllerName() const
 	{
 		const UDMXControlConsoleElementController* ElementController = GetElementController();
-		return ElementController ? ElementController->GetControllerName() : FString();
+		return ElementController ? ElementController->GetUserName() : FString();
 	}
 
 	FText SDMXControlConsoleEditorElementControllerView::GetElementControllerNameText() const
@@ -454,7 +454,17 @@ namespace UE::DMX::Private
 
 	FText SDMXControlConsoleEditorElementControllerView::GetValueAsText() const
 	{
-		const UDMXControlConsoleElementController* ElementController = ElementControllerModel.IsValid() ? ElementControllerModel->GetElementController() : nullptr;
+		if (!ElementControllerModel.IsValid())
+		{
+			return FText::GetEmpty();
+		}
+
+		if (!ElementControllerModel->HasUniformValue())
+		{
+			return LOCTEXT("MultipleValues", "Multiple Values");
+		}
+
+		const UDMXControlConsoleElementController* ElementController = ElementControllerModel->GetElementController();
 		const UDMXControlConsoleEditorData* ControlConsoleEditorData = EditorModel.IsValid() ? EditorModel->GetControlConsoleEditorData() : nullptr;
 		if (!ElementController || !ControlConsoleEditorData)
 		{
@@ -522,7 +532,17 @@ namespace UE::DMX::Private
 
 	FText SDMXControlConsoleEditorElementControllerView::GetMinValueAsText() const
 	{
-		const UDMXControlConsoleElementController* ElementController = ElementControllerModel.IsValid() ? ElementControllerModel->GetElementController() : nullptr;
+		if (!ElementControllerModel.IsValid())
+		{
+			return FText::GetEmpty();
+		}
+
+		if (!ElementControllerModel->HasUniformMinValue())
+		{
+			return LOCTEXT("MultipleValues", "Multiple Values");
+		}
+
+		const UDMXControlConsoleElementController* ElementController = ElementControllerModel->GetElementController();
 		const UDMXControlConsoleEditorData* ControlConsoleEditorData = EditorModel.IsValid() ? EditorModel->GetControlConsoleEditorData() : nullptr;
 		if (!ElementController || !ControlConsoleEditorData)
 		{
@@ -599,7 +619,17 @@ namespace UE::DMX::Private
 
 	FText SDMXControlConsoleEditorElementControllerView::GetMaxValueAsText() const
 	{
-		const UDMXControlConsoleElementController* ElementController = ElementControllerModel.IsValid() ? ElementControllerModel->GetElementController() : nullptr;
+		if (!ElementControllerModel.IsValid())
+		{
+			return FText::GetEmpty();
+		}
+
+		if (!ElementControllerModel->HasUniformMaxValue())
+		{
+			return LOCTEXT("MultipleValues", "Multiple Values");
+		}
+
+		const UDMXControlConsoleElementController* ElementController = ElementControllerModel->GetElementController();
 		const UDMXControlConsoleEditorData* ControlConsoleEditorData = EditorModel.IsValid() ? EditorModel->GetControlConsoleEditorData() : nullptr;
 		if (!ElementController || !ControlConsoleEditorData)
 		{
@@ -691,46 +721,41 @@ namespace UE::DMX::Private
 
 		const FScopedTransaction RemoveElementControllerOptionTransaction(LOCTEXT("RemoveElementControllerOptionTransaction", "Fader removed"));
 		
-		ElementController->PreEditChange(nullptr);
 		const TArray<TScriptInterface<IDMXControlConsoleFaderGroupElement>> Elements = ElementController->GetElements();
 		for (const TScriptInterface<IDMXControlConsoleFaderGroupElement>& Element : Elements)
 		{
 			if (Element)
 			{
-				ElementController->UnPossess(Element);
 				Element->Destroy();
 			}
 		}
-		ElementController->PostEditChange();
 
+		ElementController->PreEditChange(nullptr);
 		ElementController->Destroy();
+		ElementController->PostEditChange();
 	}
 
 	void SDMXControlConsoleEditorElementControllerView::OnResetElementController() const
 	{
 		UDMXControlConsoleElementController* ElementController = ElementControllerModel.IsValid() ? ElementControllerModel->GetElementController() : nullptr;
-		if (!ElementController || !ElementControllerModel->HasSingleElement())
-		{
-			return;
-		}
-		
-		UDMXControlConsoleFaderBase* Fader = ElementControllerModel->GetFirstAvailableFader();
-		if (!Fader)
+		if (!ElementController)
 		{
 			return;
 		}
 
 		const FScopedTransaction ResetElementControllerOptionTransaction(LOCTEXT("ResetElementControllerOptionTransaction", "Fader reset to default"));
-		Fader->PreEditChange(nullptr);
-		Fader->ResetToDefault();
-		Fader->PostEditChange();
-
-		const uint8 NumBytes = static_cast<uint8>(Fader->GetDataType()) + 1;
-		const float ValueRange = FMath::Pow(2.f, 8.f * NumBytes) - 1;
-		const float NormalizedValue = Fader->GetValue() / ValueRange;
-
-		ElementController->PreEditChange(UDMXControlConsoleElementController::StaticClass()->FindPropertyByName(UDMXControlConsoleElementController::GetValuePropertyName()));
-		ElementController->SetValue(NormalizedValue);
+			
+		// Ensure that each fader in the controller is registered to the transaction
+		for (UDMXControlConsoleFaderBase* Fader : ElementController->GetFaders())
+		{
+			if (Fader)
+			{
+				Fader->Modify();
+			}
+		}
+			
+		ElementController->PreEditChange(nullptr);
+		ElementController->ResetToDefault();
 		ElementController->PostEditChange();
 	}
 
@@ -825,8 +850,8 @@ namespace UE::DMX::Private
 			return ECheckBoxState::Unchecked;
 		}
 
-		const UDMXControlConsoleFaderGroup& OwnerFaderGroup = ElementController->GetOwnerFaderGroupChecked();
-		return OwnerFaderGroup.IsMuted() ? ECheckBoxState::Undetermined : ECheckBoxState::Checked;
+		const UDMXControlConsoleFaderGroupController& OwnerFaderGroupController = ElementController->GetOwnerFaderGroupControllerChecked();
+		return OwnerFaderGroupController.IsMuted() ? ECheckBoxState::Undetermined : ECheckBoxState::Checked;
 	}
 
 	FOptionalSize SDMXControlConsoleEditorElementControllerView::GetElementControllerHeightByViewMode() const

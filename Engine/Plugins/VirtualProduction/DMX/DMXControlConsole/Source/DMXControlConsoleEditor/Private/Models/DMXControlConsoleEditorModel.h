@@ -12,7 +12,7 @@ class FDMXControlConsoleEditorSelection;
 class UDMXControlConsole;
 class UDMXControlConsoleEditorData;
 class UDMXControlConsoleEditorLayouts;
-class UDMXControlConsoleFaderGroup;
+class UDMXControlConsoleFaderGroupController;
 
 namespace UE::DMX::Private { class FDMXControlConsoleEditorToolkit; }
 namespace UE::DMX::Private { class FFilterModel; }
@@ -24,6 +24,8 @@ class UDMXControlConsoleEditorModel
 	: public UObject
 {
 	GENERATED_BODY()
+
+	DECLARE_MULTICAST_DELEGATE_OneParam(FDMXControlConsoleFaderGroupControllerDelegate, const UDMXControlConsoleFaderGroupController*);
 
 public:
 	/** Initializes the model */
@@ -47,23 +49,22 @@ public:
 	/** Gets a reference to the Filter Model */
 	TSharedRef<UE::DMX::Private::FFilterModel> GetFilterModel();
 
-	/** Scrolls the given FaderGroup into view */
-	void ScrollIntoView(const UDMXControlConsoleFaderGroup* FaderGroup) const;
+	/** Scrolls the given Fader Group Controller into view */
+	void ScrollIntoView(const UDMXControlConsoleFaderGroupController* FaderGroupController) const;
 
 	/** Requests the Editor Model to be updated */
 	void RequestUpdateEditorModel();
 
-	/** Returns a delegate broadcast whenever a Fader Group needs to be scrolled into view */
-	FDMXControlConsoleFaderGroupDelegate& GetOnScrollFaderGroupIntoView() { return OnScrollFaderGroupIntoView; }
-
-	/** Returns a delegate broadcast whenever Editor Model has changed */
-	FSimpleMulticastDelegate& GetOnEditorModelUpdated() { return OnEditorModelUpdated; }
-
-protected:
 	//~ Begin UObject interface
 	virtual void PostInitProperties() override;
 	virtual void BeginDestroy() override;
 	//~ End UObject interface
+
+	/** Returns a delegate broadcast whenever a Fader Group Controller needs to be scrolled into view */
+	FDMXControlConsoleFaderGroupControllerDelegate& GetOnScrollFaderGroupControllerIntoView() { return OnScrollFaderGroupControllerIntoView; }
+
+	/** Returns a delegate broadcast whenever Editor Model has changed */
+	FSimpleMulticastDelegate& GetOnEditorModelUpdated() { return OnEditorModelUpdated; }
 
 private:
 	/** Updates the Editor Model */
@@ -93,8 +94,8 @@ private:
 	/** Called before the engine is shut down */
 	void OnEnginePreExit();
 
-	/** Called when a Fader Group needs to be scrolled into view */
-	FDMXControlConsoleFaderGroupDelegate OnScrollFaderGroupIntoView;
+	/** Called when a Fader Group Controller needs to be scrolled into view */
+	FDMXControlConsoleFaderGroupControllerDelegate OnScrollFaderGroupControllerIntoView;
 
 	/** Called when Editor Model has been updated */
 	FSimpleMulticastDelegate OnEditorModelUpdated;

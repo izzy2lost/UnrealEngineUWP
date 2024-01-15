@@ -2,13 +2,10 @@
 
 #include "SDMXControlConsoleEditorFixturePatchVerticalBox.h"
 
-#include "Algo/Find.h"
-#include "Algo/ForEach.h"
 #include "DMXControlConsoleData.h"
 #include "DMXControlConsoleFaderGroup.h"
 #include "DMXControlConsoleFaderGroupRow.h"
-#include "DMXControlConsoleEditorSelection.h"
-#include "Framework/MultiBox/MultiBoxBuilder.h"
+#include "Layouts/Controllers/DMXControlConsoleFaderGroupController.h"
 #include "Layouts/DMXControlConsoleEditorGlobalLayoutBase.h"
 #include "Layouts/DMXControlConsoleEditorGlobalLayoutRow.h"
 #include "Layouts/DMXControlConsoleEditorLayouts.h"
@@ -185,22 +182,6 @@ TSharedRef<SWidget> SDMXControlConsoleEditorFixturePatchVerticalBox::CreateAddPa
 	return SNullWidget::NullWidget;
 }
 
-void SDMXControlConsoleEditorFixturePatchVerticalBox::GenerateFaderGroupFromFixturePatch(UDMXControlConsoleFaderGroup* FaderGroup, UDMXEntityFixturePatch* FixturePatch)
-{
-	if (!EditorModel.IsValid() || !FaderGroup || !FixturePatch)
-	{
-		return;
-	}
-
-	const TSharedRef<FDMXControlConsoleEditorSelection> SelectionHandler = EditorModel->GetSelectionHandler();
-	SelectionHandler->ClearElementControllersSelection(FaderGroup);
-
-	const FScopedTransaction GenerateFaderGroupFromFixturePatchTransaction(LOCTEXT("GenerateFaderGroupFromFixturePatchTransaction", "Generate Fader Group from Fixture Patch"));
-	FaderGroup->PreEditChange(UDMXControlConsoleFaderGroup::StaticClass()->FindPropertyByName(UDMXControlConsoleFaderGroup::GetSoftFixturePatchPtrPropertyName()));
-	FaderGroup->GenerateFromFixturePatch(FixturePatch);
-	FaderGroup->PostEditChange();
-}
-
 FReply SDMXControlConsoleEditorFixturePatchVerticalBox::OnAddAllPatchesClicked()
 {
 	const UDMXControlConsoleData* ControlConsoleData = EditorModel.IsValid() ? EditorModel->GetControlConsoleData() : nullptr;
@@ -217,6 +198,8 @@ FReply SDMXControlConsoleEditorFixturePatchVerticalBox::OnAddAllPatchesClicked()
 	}
 
 	const FScopedTransaction AddAllPatchesTransaction(LOCTEXT("AddAllPatchesTransaction", "Add All Patches"));
+	ActiveLayout->PreEditChange(nullptr);
+
 	const TArray<UDMXControlConsoleFaderGroupRow*> FaderGroupRows = ControlConsoleData->GetFaderGroupRows();
 	for (const UDMXControlConsoleFaderGroupRow* FaderGroupRow : FaderGroupRows)
 	{
@@ -225,32 +208,39 @@ FReply SDMXControlConsoleEditorFixturePatchVerticalBox::OnAddAllPatchesClicked()
 			continue;
 		}
 
-		// Remove Fader Groups already in the layout and all unpatched Fader Groups
 		TArray<UDMXControlConsoleFaderGroup*> FaderGroups = FaderGroupRow->GetFaderGroups();
-		FaderGroups.RemoveAll([&ActiveLayout](const UDMXControlConsoleFaderGroup* FaderGroup)
-			{
-				return FaderGroup && 
-					(!FaderGroup->HasFixturePatch() ||
-						ActiveLayout->ContainsFaderGroup(FaderGroup));
-			});
-
-		ActiveLayout->PreEditChange(nullptr);
-		UDMXControlConsoleEditorGlobalLayoutRow* LayoutRow = ActiveLayout->AddNewRowToLayout();
-		ActiveLayout->PostEditChange();
-
-		if (LayoutRow)
+		if (FaderGroups.IsEmpty())
 		{
-			LayoutRow->PreEditChange(nullptr);
-			LayoutRow->AddToLayoutRow(FaderGroups);
-			LayoutRow->PostEditChange();
+			continue;
+		}
 
-			Algo::ForEach(FaderGroups,[](UDMXControlConsoleFaderGroup* FaderGroup)
-				{
-					FaderGroup->Modify();
-					FaderGroup->SetIsActive(true);
-				});
+		UDMXControlConsoleEditorGlobalLayoutRow* LayoutRow = ActiveLayout->AddNewRowToLayout();
+		if (!LayoutRow)
+		{
+			continue;
+		}
+
+		// Remove Fader Groups already in the layout and all unpatched Fader Groups
+		for (UDMXControlConsoleFaderGroup* FaderGroup : FaderGroups)
+		{
+			if (!FaderGroup || ActiveLayout->ContainsFaderGroup(FaderGroup))
+			{
+				continue;
+			}
+
+			LayoutRow->PreEditChange(nullptr);
+			UDMXControlConsoleFaderGroupController* NewController = LayoutRow->CreateFaderGroupController(FaderGroup, FaderGroup->GetFaderGroupName());
+			LayoutRow->PostEditChange();
+			if (NewController)
+			{
+				NewController->Modify();
+				NewController->SetIsActive(true);
+				ActiveLayout->AddToActiveFaderGroupControllers(NewController);
+			}
 		}
 	}
+
+	ActiveLayout->PostEditChange();
 
 	return FReply::Handled();
 }

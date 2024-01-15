@@ -2,7 +2,6 @@
 
 #include "DMXControlConsoleFixturePatchCellAttributeFader.h"
 
-#include "Controllers/DMXControlConsoleMatrixCellController.h"
 #include "DMXControlConsoleFixturePatchMatrixCell.h"
 #include "Library/DMXEntityFixtureType.h"
 
@@ -13,21 +12,10 @@ UDMXControlConsoleFaderGroup& UDMXControlConsoleFixturePatchCellAttributeFader::
 	return MatrixCellFader.GetOwnerFaderGroupChecked();
 }
 
-UDMXControlConsoleElementController* UDMXControlConsoleFixturePatchCellAttributeFader::GetElementController()
-{
-	const UDMXControlConsoleFixturePatchMatrixCell& OwnerMatrixCell = GetOwnerMatrixCellChecked();
-	return OwnerMatrixCell.GetControllerByElement(this);
-}
-
 int32 UDMXControlConsoleFixturePatchCellAttributeFader::GetIndex() const
 {
-	const UDMXControlConsoleFixturePatchMatrixCell* Outer = Cast<UDMXControlConsoleFixturePatchMatrixCell>(GetOuter());
-	if (!ensureMsgf(Outer, TEXT("Invalid outer for '%s', cannot get matrix cell fader index correctly."), *GetName()))
-	{
-		return INDEX_NONE;
-	}
-
-	const TArray<UDMXControlConsoleFaderBase*> CellAttributeFaders = Outer->GetFaders();
+	const UDMXControlConsoleFixturePatchMatrixCell& OwnerMatrixCell = GetOwnerMatrixCellChecked();
+	const TArray<UDMXControlConsoleFaderBase*> CellAttributeFaders = OwnerMatrixCell.GetFaders();
 	return CellAttributeFaders.IndexOfByKey(this);
 }
 
@@ -54,20 +42,16 @@ void UDMXControlConsoleFixturePatchCellAttributeFader::SetIsMatchingFilter(bool 
 
 void UDMXControlConsoleFixturePatchCellAttributeFader::Destroy()
 {
-	UDMXControlConsoleFixturePatchMatrixCell* Outer = Cast<UDMXControlConsoleFixturePatchMatrixCell>(GetOuter());
-	if (!ensureMsgf(Outer, TEXT("Invalid outer for '%s', cannot destroy fader correctly."), *GetName()))
-	{
-		return;
-	}
+	UDMXControlConsoleFixturePatchMatrixCell& OwnerMatrixCell = GetOwnerMatrixCellChecked();
 
 #if WITH_EDITOR
-	Outer->PreEditChange(UDMXControlConsoleFixturePatchMatrixCell::StaticClass()->FindPropertyByName(UDMXControlConsoleFixturePatchMatrixCell::GetCellAttributeFadersPropertyName()));
+	OwnerMatrixCell.PreEditChange(UDMXControlConsoleFixturePatchMatrixCell::StaticClass()->FindPropertyByName(UDMXControlConsoleFixturePatchMatrixCell::GetCellAttributeFadersPropertyName()));
 #endif // WITH_EDITOR
 
-	Outer->DeleteCellAttributeFader(this);
+	OwnerMatrixCell.DeleteCellAttributeFader(this);
 
 #if WITH_EDITOR
-	Outer->PostEditChange();
+	OwnerMatrixCell.PostEditChange();
 #endif // WITH_EDITOR
 }
 

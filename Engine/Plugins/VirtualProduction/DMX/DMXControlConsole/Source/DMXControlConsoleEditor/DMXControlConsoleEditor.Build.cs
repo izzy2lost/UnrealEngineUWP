@@ -6,6 +6,8 @@ public class DMXControlConsoleEditor : ModuleRules
 {
 	public DMXControlConsoleEditor(ReadOnlyTargetRules Target) : base(Target)
 	{
+		ShortName = "DMXCtrlConsoleEditor";
+
 		PCHUsage = ModuleRules.PCHUsageMode.UseExplicitOrSharedPCHs;
 
 		PublicDependencyModuleNames.AddRange(

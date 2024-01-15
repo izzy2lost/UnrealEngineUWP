@@ -43,6 +43,9 @@ namespace UE::DMX::Private
 		/** Searches this widget's parents to see if it's a child of InDockTab */
 		bool IsWidgetInTab(TSharedPtr<SDockTab> InDockTab, TSharedPtr<SWidget> InWidget) const;
 
+		/** Shows details of the current selected Fader Group Controllers */
+		TSharedPtr<IDetailsView> FaderGroupControllersDetailsView;
+
 		/** Shows details of the current selected Fader Groups */
 		TSharedPtr<IDetailsView> FaderGroupsDetailsView;
 

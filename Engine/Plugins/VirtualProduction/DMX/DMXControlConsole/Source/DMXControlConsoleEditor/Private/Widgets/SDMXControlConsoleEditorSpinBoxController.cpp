@@ -2,10 +2,10 @@
 
 #include "SDMXControlConsoleEditorSpinBoxController.h"
 
-#include "Controllers/DMXControlConsoleElementController.h"
 #include "DMXControlConsoleEditorData.h"
 #include "DMXControlConsoleEditorSelection.h"
 #include "DMXControlConsoleFaderBase.h"
+#include "Layouts/Controllers/DMXControlConsoleElementController.h"
 #include "Misc/Optional.h"
 #include "Models/DMXControlConsoleEditorModel.h"
 #include "Models/DMXControlConsoleElementControllerModel.h"
@@ -140,13 +140,28 @@ namespace UE::DMX::Private
 
 	float SDMXControlConsoleEditorSpinBoxController::GetValue() const
 	{
-		const UDMXControlConsoleElementController* ElementController = GetElementController();
-		return ElementController ? ElementController->GetValue() : 0.f;
+		if (!ElementControllerModel.IsValid())
+		{
+			return 1.f;
+		}
+
+		const UDMXControlConsoleElementController* ElementController = ElementControllerModel->GetElementController();
+		return ElementController && ElementControllerModel->HasUniformValue() ? ElementController->GetValue() : 1.f;
 	}
 
 	FText SDMXControlConsoleEditorSpinBoxController::GetValueAsText() const
 	{
-		const UDMXControlConsoleElementController* ElementController = ElementControllerModel.IsValid() ? ElementControllerModel->GetElementController() : nullptr;
+		if (!ElementControllerModel.IsValid())
+		{
+			return FText::GetEmpty();
+		}
+
+		if (!ElementControllerModel->HasUniformValue())
+		{
+			return FText::Format(LOCTEXT("MultipleValues", "Multiple{0}Values"), FText::FromString(LINE_TERMINATOR));
+		}
+
+		const UDMXControlConsoleElementController* ElementController = ElementControllerModel->GetElementController();
 		const UDMXControlConsoleEditorData* ControlConsoleEditorData = EditorModel.IsValid() ? EditorModel->GetControlConsoleEditorData() : nullptr;
 		if (!ElementController || !ControlConsoleEditorData)
 		{
@@ -168,7 +183,7 @@ namespace UE::DMX::Private
 			Value = ElementController->GetValue();
 		}
 
-		return FText::FromString(FString::SanitizeFloat(Value));
+		return FText::FromString(FString::SanitizeFloat(Value, 2).Left(4));
 	}
 
 	TOptional<float> SDMXControlConsoleEditorSpinBoxController::GetMinValue() const
@@ -358,7 +373,7 @@ namespace UE::DMX::Private
 		const UDMXControlConsoleElementController* ElementController = GetElementController();
 		if (ElementController)
 		{
-			const FString& ElementControllerName = ElementController->GetControllerName();
+			const FString& ElementControllerName = ElementController->GetUserName();
 			const FString ElementControllerValueAsString = FString::SanitizeFloat(ElementController->GetValue());
 			const FString ElementControllerMaxValueAsString = FString::SanitizeFloat(ElementController->GetMaxValue());
 			const FString ToolTipString = FString::Format(TEXT("{0}{1}/{2}"), { ElementControllerName + LINE_TERMINATOR, ElementControllerValueAsString, ElementControllerMaxValueAsString });

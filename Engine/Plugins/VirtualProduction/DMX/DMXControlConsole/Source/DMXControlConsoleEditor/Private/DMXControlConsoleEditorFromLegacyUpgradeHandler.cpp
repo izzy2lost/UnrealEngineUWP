@@ -2,13 +2,14 @@
 
 #include "DMXControlConsoleEditorFromLegacyUpgradeHandler.h"
 
-#include "Controllers/DMXControlConsoleElementController.h"
 #include "DMXControlConsoleData.h"
 #include "DMXControlConsoleFaderGroup.h"
 #include "DMXControlConsoleFaderGroupRow.h"
 #include "DMXControlConsoleRawFader.h"
 #include "DMXEditorSettings.h"
 #include "Factories/DMXControlConsoleFactory.h"
+#include "Layouts/Controllers/DMXControlConsoleElementController.h"
+#include "Layouts/Controllers/DMXControlConsoleFaderGroupController.h"
 #include "Misc/CoreDelegates.h"	
 #include "UObject/Package.h"
 
@@ -91,8 +92,7 @@ UDMXControlConsoleRawFader* FDMXControlConsoleEditorFromLegacyUpgradeHandler::Cr
 	}
 
 	UDMXControlConsoleRawFader* Fader = FaderGroup->AddRawFader();
-	UDMXControlConsoleElementController* FaderController = FaderGroup->CreateElementController(Fader);
-	if (!Fader || !FaderController)
+	if (!Fader)
 	{
 		return nullptr;
 	}
@@ -101,14 +101,6 @@ UDMXControlConsoleRawFader* FDMXControlConsoleEditorFromLegacyUpgradeHandler::Cr
 	Fader->SetUniverseID(FaderDescriptor.UniversID);
 	Fader->SetAddressRange(FaderDescriptor.StartingAddress);
 	Fader->SetValue(FaderDescriptor.Value);
-
-	FaderController->SetControllerName(FaderDescriptor.FaderName);
-
-	const uint8 NumChannels = static_cast<uint8>(Fader->GetDataType()) + 1;
-	const float ValueRange = FMath::Pow(2.f, 8.f * NumChannels) - 1;
-	const float NormalizedValue = FaderDescriptor.Value / ValueRange;
-	FaderController->SetValue(NormalizedValue);
-
 	return Fader;
 }
 PRAGMA_ENABLE_DEPRECATION_WARNINGS

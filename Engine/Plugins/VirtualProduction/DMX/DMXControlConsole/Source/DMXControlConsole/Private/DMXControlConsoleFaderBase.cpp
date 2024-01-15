@@ -2,12 +2,10 @@
 
 #include "DMXControlConsoleFaderBase.h"
 
-#include "Controllers/DMXControlConsoleElementController.h"
 #include "DMXControlConsoleFaderGroup.h"
+#include "Layouts/Controllers/DMXControlConsoleControllerBase.h"
 #include "Oscillators/DMXControlConsoleFloatOscillator.h"
 
-
-#define LOCTEXT_NAMESPACE "DMXControlConsoleFaderBase"
 
 UDMXControlConsoleFaderGroup& UDMXControlConsoleFaderBase::GetOwnerFaderGroupChecked() const
 {
@@ -17,10 +15,15 @@ UDMXControlConsoleFaderGroup& UDMXControlConsoleFaderBase::GetOwnerFaderGroupChe
 	return *Outer;
 }
 
-UDMXControlConsoleElementController* UDMXControlConsoleFaderBase::GetElementController()
+UDMXControlConsoleControllerBase* UDMXControlConsoleFaderBase::GetElementController() const
 {
-	const UDMXControlConsoleFaderGroup& OwnerFaderGroup = GetOwnerFaderGroupChecked();
-	return OwnerFaderGroup.GetControllerByElement(this);
+	return CachedWeakElementController.Get();
+}
+
+void UDMXControlConsoleFaderBase::SetElementController(UDMXControlConsoleControllerBase* NewController)
+{
+	SoftControllerPtr = NewController;
+	CachedWeakElementController = NewController;
 }
 
 UDMXControlConsoleFaderBase::UDMXControlConsoleFaderBase()
@@ -31,36 +34,23 @@ UDMXControlConsoleFaderBase::UDMXControlConsoleFaderBase()
 
 int32 UDMXControlConsoleFaderBase::GetIndex() const
 {
-	int32 Index = -1;
-
-	const UDMXControlConsoleFaderGroup* Outer = Cast<UDMXControlConsoleFaderGroup>(GetOuter());
-	if (!ensureMsgf(Outer, TEXT("Invalid outer for '%s', cannot get fader index correctly."), *GetName()))
-	{
-		return Index;
-	}
-
-	const TArray<TScriptInterface<IDMXControlConsoleFaderGroupElement>>& Elements = Outer->GetElements();
-	Index = Elements.IndexOfByKey(this);
-
-	return Index;
+	const UDMXControlConsoleFaderGroup& OwnerFaderGroup = GetOwnerFaderGroupChecked();
+	const TArray<TScriptInterface<IDMXControlConsoleFaderGroupElement>>& Elements = OwnerFaderGroup.GetElements();
+	return Elements.IndexOfByKey(this);
 }
 
 void UDMXControlConsoleFaderBase::Destroy()
 {
-	UDMXControlConsoleFaderGroup* Outer = Cast<UDMXControlConsoleFaderGroup>(GetOuter());
-	if (!ensureMsgf(Outer, TEXT("Invalid outer for '%s', cannot destroy fader correctly."), *GetName()))
-	{
-		return;
-	}
+	UDMXControlConsoleFaderGroup& OwnerFaderGroup = GetOwnerFaderGroupChecked();
 
 #if WITH_EDITOR
-	Outer->PreEditChange(UDMXControlConsoleFaderGroup::StaticClass()->FindPropertyByName(UDMXControlConsoleFaderGroup::GetElementsPropertyName()));
+	OwnerFaderGroup.PreEditChange(UDMXControlConsoleFaderGroup::StaticClass()->FindPropertyByName(UDMXControlConsoleFaderGroup::GetElementsPropertyName()));
 #endif // WITH_EDITOR
 
-	Outer->DeleteElement(this);
+	OwnerFaderGroup.DeleteElement(this);
 
 #if WITH_EDITOR
-	Outer->PostEditChange();
+	OwnerFaderGroup.PostEditChange();
 #endif // WITH_EDITOR
 }
 
@@ -90,7 +80,7 @@ void UDMXControlConsoleFaderBase::SetMaxValue(uint32 NewMaxValue)
 
 bool UDMXControlConsoleFaderBase::IsLocked()
 {
-	const UDMXControlConsoleElementController* ElementController = GetElementController();
+	const UDMXControlConsoleControllerBase* ElementController = GetElementController();
 	return ElementController && ElementController->IsLocked();
 }
 
@@ -110,6 +100,13 @@ void UDMXControlConsoleFaderBase::PostInitProperties()
 
 	FaderName = GetName();
 	DefaultValue = MinValue;
+}
+
+void UDMXControlConsoleFaderBase::PostLoad()
+{
+	Super::PostLoad();
+
+	CachedWeakElementController = Cast<UDMXControlConsoleControllerBase>(SoftControllerPtr.ToSoftObjectPath().TryLoad());
 }
 
 void UDMXControlConsoleFaderBase::SetUniverseID(int32 InUniverseID)
@@ -138,5 +135,3 @@ void UDMXControlConsoleFaderBase::SetAddressRange(int32 InStartingAddress)
 	StartingAddress = FMath::Clamp(InStartingAddress, 1, DMX_MAX_ADDRESS - NumChannels);
 	EndingAddress = StartingAddress + NumChannels;
 }
-
-#undef LOCTEXT_NAMESPACE

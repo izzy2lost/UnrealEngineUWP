@@ -8,12 +8,15 @@
 class SHorizontalBox;
 class UDMXControlConsoleEditorModel;
 class UDMXControlConsoleFaderGroup;
+class UDMXControlConsoleFaderGroupController;
+
 
 namespace UE::DMX::Private
 {
-	class SDMXControlConsoleEditorFaderGroupView;
+	class FDMXControlConsoleFaderGroupControllerModel;
+	class SDMXControlConsoleEditorFaderGroupControllerView;
 
-	/** A widget which gathers a collection of Fader Groups */
+	/** A widget which displays a collection of Fader Group Controllers */
 	class SDMXControlConsoleEditorLayoutRowView
 		: public SCompoundWidget
 	{
@@ -29,8 +32,8 @@ namespace UE::DMX::Private
 		/** Gets the Layout Row this row is based on */
 		UDMXControlConsoleEditorGlobalLayoutRow* GetLayoutRow() const { return LayoutRow.Get(); }
 
-		/** Finds FaderGroupView by the given FaderGroup, if valid */
-		TSharedPtr<SDMXControlConsoleEditorFaderGroupView> FindFaderGroupView(const UDMXControlConsoleFaderGroup* FaderGroup) const;
+		/** Finds the matching Fader Group Controller view by the given Fader Group Controller, if valid */
+		TSharedPtr<SDMXControlConsoleEditorFaderGroupControllerView> FindFaderGroupControllerView(const UDMXControlConsoleFaderGroupController* FaderGroupController) const;
 
 	protected:
 		//~ Begin SWidget interface
@@ -41,26 +44,26 @@ namespace UE::DMX::Private
 		/** Refreshes layout row */
 		void Refresh();
 
-		/** Should be called when a Fader Group was added to the Layout Row this view displays */
-		void OnFaderGroupAdded();
+		/** Should be called when a Fader Group Controller was added to the Layout Row this view displays */
+		void OnFaderGroupControllerAdded();
 
-		/** Adds a Fader Group slot widget */
-		void AddFaderGroup(UDMXControlConsoleFaderGroup* FaderGroup);
+		/** Adds a Fader Group Controller slot widget */
+		void AddFaderGroupController(UDMXControlConsoleFaderGroupController* FaderGroupController);
 
-		/** Should be called when a Fader Group was deleted from the Layout Row this view displays */
-		void OnFaderGroupRemoved();
+		/** Should be called when a Fader Group Controller was deleted from the Layout Row this view displays */
+		void OnFaderGroupControllerRemoved();
 
-		/** Checks if FaderGroups array contains a reference to the given Fader Group */
-		bool ContainsFaderGroup(UDMXControlConsoleFaderGroup* FaderGroup);
+		/** Checks if the FaderGroupControllerViews array contains a reference to the given Fader Group Controller */
+		bool ContainsFaderGroupController(const UDMXControlConsoleFaderGroupController* FaderGroupController);
 
-		/** Gets visibility for each FaderGroupView widget in this row */
-		EVisibility GetFaderGroupViewVisibility(UDMXControlConsoleFaderGroup* FaderGroup) const;
+		/** Gets visibility for each Fader Group Controller view in this row */
+		EVisibility GetFaderGroupControllerViewVisibility(TSharedPtr<FDMXControlConsoleFaderGroupControllerModel> FaderGroupControllerModel) const;
 
-		/** Reference to the container widget of this Layout Row's Fader Group slots  */
-		TSharedPtr<SHorizontalBox> FaderGroupsHorizontalBox;
+		/** Reference to the container widget of this Layout Row's Fader Group Controller slots  */
+		TSharedPtr<SHorizontalBox> FaderGroupControllersHorizontalBox;
 
-		/** Array of weak references to Fader Group widgets */
-		TArray<TWeakPtr<SDMXControlConsoleEditorFaderGroupView>> FaderGroupViews;
+		/** Array of weak references to Fader Group Controller views */
+		TArray<TWeakPtr<SDMXControlConsoleEditorFaderGroupControllerView>> FaderGroupControllerViews;
 
 		/** Weak Reference to this Layout Row */
 		TWeakObjectPtr<UDMXControlConsoleEditorGlobalLayoutRow> LayoutRow;

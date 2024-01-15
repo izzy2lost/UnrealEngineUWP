@@ -4,9 +4,9 @@
 
 #include "Algo/Transform.h"
 #include "Application/ThrottleManager.h"
-#include "Controllers/DMXControlConsoleElementController.h"
 #include "Customizations/DMXControlConsoleElementControllerDetails.h"
 #include "Customizations/DMXControlConsoleFaderDetails.h"
+#include "Customizations/DMXControlConsoleFaderGroupControllerDetails.h"
 #include "Customizations/DMXControlConsoleFaderGroupDetails.h"
 #include "Delegates/IDelegateInstance.h"
 #include "DMXControlConsoleEditorSelection.h"
@@ -14,6 +14,8 @@
 #include "DMXControlConsoleFaderGroup.h"
 #include "Editor.h"
 #include "IDetailsView.h"
+#include "Layouts/Controllers/DMXControlConsoleElementController.h"
+#include "Layouts/Controllers/DMXControlConsoleFaderGroupController.h"
 #include "Models/DMXControlConsoleEditorModel.h"
 #include "Models/Filter/FilterModel.h"
 #include "Modules/ModuleManager.h"
@@ -57,9 +59,13 @@ namespace UE::DMX::Private
 		DetailsViewArgs.DefaultsOnlyVisibility = EEditDefaultsOnlyNodeVisibility::Automatic;
 
 		FPropertyEditorModule& PropertyEditor = FModuleManager::Get().GetModuleChecked<FPropertyEditorModule>("PropertyEditor");
+		FaderGroupControllersDetailsView = PropertyEditor.CreateDetailView(DetailsViewArgs);
 		FaderGroupsDetailsView = PropertyEditor.CreateDetailView(DetailsViewArgs);
 		ElementControllersDetailsView = PropertyEditor.CreateDetailView(DetailsViewArgs);
 		FadersDetailsView = PropertyEditor.CreateDetailView(DetailsViewArgs);
+
+		const FOnGetDetailCustomizationInstance FaderGroupControllersCustomizationInstance = FOnGetDetailCustomizationInstance::CreateStatic(&FDMXControlConsoleFaderGroupControllerDetails::MakeInstance, EditorModel);
+		FaderGroupControllersDetailsView->RegisterInstancedCustomPropertyLayout(UDMXControlConsoleFaderGroupController::StaticClass(), FaderGroupControllersCustomizationInstance);
 
 		const FOnGetDetailCustomizationInstance FaderGroupsCustomizationInstance = FOnGetDetailCustomizationInstance::CreateStatic(&FDMXControlConsoleFaderGroupDetails::MakeInstance, EditorModel);
 		FaderGroupsDetailsView->RegisterInstancedCustomPropertyLayout(UDMXControlConsoleFaderGroup::StaticClass(), FaderGroupsCustomizationInstance);
@@ -106,6 +112,18 @@ namespace UE::DMX::Private
 					+ SVerticalBox::Slot()
 					.AutoHeight()
 					[
+						FaderGroupControllersDetailsView.ToSharedRef()
+					]
+
+					+ SVerticalBox::Slot()
+					.AutoHeight()
+					[
+						SNew(SSeparator)
+					]
+
+					+ SVerticalBox::Slot()
+					.AutoHeight()
+					[
 						FaderGroupsDetailsView.ToSharedRef()
 					]
 				]
@@ -134,12 +152,26 @@ namespace UE::DMX::Private
 		constexpr bool bForceRefresh = true;
 		const TSharedRef<FDMXControlConsoleEditorSelection> SelectionHandler = EditorModel->GetSelectionHandler();
 
-		// Fader Groups
-		TArray<TWeakObjectPtr<UObject>> SelectedFaderGroupObjects = SelectionHandler->GetSelectedFaderGroups();
-		SelectedFaderGroupObjects.RemoveAll([](const TWeakObjectPtr<UObject>& SelectedFaderGroupObject)
+		// Fader Group Controllers
+		TArray<TWeakObjectPtr<UObject>> SelectedFaderGroupControllerObjects = SelectionHandler->GetSelectedFaderGroupControllers();
+		SelectedFaderGroupControllerObjects.RemoveAll([](const TWeakObjectPtr<UObject>& SelectedFaderGroupControllerObject)
 			{
-				const UDMXControlConsoleFaderGroup* SelectedFaderGroup = Cast<UDMXControlConsoleFaderGroup>(SelectedFaderGroupObject);
-				return SelectedFaderGroup && !SelectedFaderGroup->IsMatchingFilter();
+				const UDMXControlConsoleFaderGroupController* SelectedFaderGroupController = Cast<UDMXControlConsoleFaderGroupController>(SelectedFaderGroupControllerObject);
+				return SelectedFaderGroupController && !SelectedFaderGroupController->IsMatchingFilter();
+			});
+		FaderGroupControllersDetailsView->SetObjects(SelectedFaderGroupControllerObjects, bForceRefresh);
+
+		// Fader Groups
+		const TArray<TWeakObjectPtr<UDMXControlConsoleFaderGroup>> SelectedFaderGroups = SelectionHandler->GetSelectedFaderGroups();
+		TArray<TWeakObjectPtr<UObject>> SelectedFaderGroupObjects;
+		Algo::TransformIf(SelectedFaderGroups, SelectedFaderGroupObjects,
+			[](const TWeakObjectPtr<UDMXControlConsoleFaderGroup>& FaderGroup)
+			{
+				return FaderGroup.IsValid();
+			},
+			[](const TWeakObjectPtr<UDMXControlConsoleFaderGroup>& FaderGroup)
+			{
+				return FaderGroup.Get();
 			});
 		FaderGroupsDetailsView->SetObjects(SelectedFaderGroupObjects, bForceRefresh);
 
@@ -152,7 +184,7 @@ namespace UE::DMX::Private
 			});
 		ElementControllersDetailsView->SetObjects(SelectedElementControllerObjects, bForceRefresh);
 
-		//Faders
+		// Elements
 		const TArray<TScriptInterface<IDMXControlConsoleFaderGroupElement>> SelectedElements = SelectionHandler->GetSelectedElements();
 		TArray<TWeakObjectPtr<UObject>> SelectedElementObjects;
 		Algo::TransformIf(SelectedElements, SelectedElementObjects,

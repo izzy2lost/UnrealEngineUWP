@@ -2,28 +2,16 @@
 
 #include "DMXControlConsoleFaderGroupDetails.h"
 
-#include "Algo/AllOf.h"
 #include "Algo/AnyOf.h"
-#include "Algo/Find.h"
-#include "Algo/ForEach.h"
 #include "DetailCategoryBuilder.h"
 #include "DetailLayoutBuilder.h"
 #include "DetailWidgetRow.h"
-#include "DMXControlConsoleEditorSelection.h"
 #include "DMXControlConsoleFaderGroup.h"
-#include "DMXControlConsoleFaderGroupRow.h"
 #include "IPropertyUtilities.h"
-#include "Layout/Visibility.h"
-#include "Layouts/DMXControlConsoleEditorGlobalLayoutBase.h"
-#include "Layouts/DMXControlConsoleEditorLayouts.h"
 #include "Library/DMXEntityFixturePatch.h"
 #include "Models/DMXControlConsoleEditorModel.h"
 #include "PropertyHandle.h"
-#include "ScopedTransaction.h"
-#include "Widgets/Input/SButton.h"
 #include "Widgets/Input/SEditableTextBox.h"
-#include "Widgets/Input/SCheckBox.h"
-#include "Widgets/Layout/SBox.h"
 #include "Widgets/Text/STextBlock.h"
 
 
@@ -42,18 +30,14 @@ namespace UE::DMX::Private
 
 	void FDMXControlConsoleFaderGroupDetails::CustomizeDetails(IDetailLayoutBuilder& InDetailLayout)
 	{
+		PropertyUtilities = InDetailLayout.GetPropertyUtilities();
+
 		IDetailCategoryBuilder& FaderGroupCategory = InDetailLayout.EditCategory("DMX Fader Group", FText::GetEmpty());
 
 		const TSharedRef<IPropertyHandle> FaderGroupNameHandle = InDetailLayout.GetProperty(UDMXControlConsoleFaderGroup::GetFaderGroupNamePropertyName());
 		InDetailLayout.HideProperty(FaderGroupNameHandle);
-		const TSharedRef<IPropertyHandle> EditorColorHandle = InDetailLayout.GetProperty(UDMXControlConsoleFaderGroup::GetEditorColorPropertyName());
-		InDetailLayout.HideProperty(EditorColorHandle);
-		const TSharedRef<IPropertyHandle> IsMutedHandle = InDetailLayout.GetProperty(UDMXControlConsoleFaderGroup::GetIsMutedPropertyName());
-		InDetailLayout.HideProperty(IsMutedHandle);
 
 		FaderGroupCategory.AddProperty(FaderGroupNameHandle);
-		FaderGroupCategory.AddProperty(EditorColorHandle)
-			.Visibility(TAttribute<EVisibility>::CreateSP(this, &FDMXControlConsoleFaderGroupDetails::GetEditorColorVisibility));
 
 		// Fixture Patch section
 		FaderGroupCategory.AddCustomRow(FText::GetEmpty())
@@ -70,198 +54,17 @@ namespace UE::DMX::Private
 				.IsReadOnly(true)
 				.Text(this, &FDMXControlConsoleFaderGroupDetails::GetFixturePatchText)
 			];
-
-		// Clear button section
-		FaderGroupCategory.AddCustomRow(FText::GetEmpty())
-			.Visibility(TAttribute<EVisibility>::CreateSP(this, &FDMXControlConsoleFaderGroupDetails::GetClearButtonVisibility))
-			.WholeRowContent()
-			[
-				SNew(SBox)
-				.Padding(5.f)
-				[
-					SNew(SButton)
-					.HAlign(HAlign_Center)
-					.OnClicked(this, &FDMXControlConsoleFaderGroupDetails::OnClearButtonClicked)
-					[
-						SNew(STextBlock)
-						.Font(FAppStyle::GetFontStyle(TEXT("PropertyWindow.NormalFont")))
-						.Text(LOCTEXT("ClearButtonTitle", "Clear"))
-					]
-				]
-			];
-
-		// Mute property section
-		FaderGroupCategory.AddProperty(IsMutedHandle);
-
-		// Lock CheckBox section
-		FaderGroupCategory.AddCustomRow(FText::GetEmpty())
-			.NameContent()
-			[
-				SNew(STextBlock)
-				.Font(FAppStyle::GetFontStyle(TEXT("PropertyWindow.NormalFont")))
-				.Text(LOCTEXT("FaderGroupLoxkCheckBox", "Is Locked"))
-			]
-			.ValueContent()
-			[
-				SNew(SCheckBox)
-				.IsChecked(this, &FDMXControlConsoleFaderGroupDetails::IsLockChecked)
-				.OnCheckStateChanged(this, &FDMXControlConsoleFaderGroupDetails::OnLockToggleChanged)
-			];
 	}
 
-	bool FDMXControlConsoleFaderGroupDetails::DoSelectedFaderGroupsHaveAnyFixturePatches() const
+	bool FDMXControlConsoleFaderGroupDetails::IsAnyFaderGroupPatched() const
 	{
-		if (!WeakEditorModel.IsValid())
-		{
-			return false;
-		}
-
-		const TSharedRef<FDMXControlConsoleEditorSelection> SelectionHandler = WeakEditorModel->GetSelectionHandler();
-		TArray<TWeakObjectPtr<UObject>> SelectedFaderGroupObjects = SelectionHandler->GetSelectedFaderGroups();
-
-		// Remove Fader Groups which don't match filtering
-		SelectedFaderGroupObjects.RemoveAll([](const TWeakObjectPtr<UObject>& SelectedFaderGroupObject)
+		const TArray<UDMXControlConsoleFaderGroup*> SelectedFaderGroups = GetValidFaderGroupsBeingEdited();
+		const bool bIsAnyFaderGroupPatched = Algo::AnyOf(SelectedFaderGroups, [](const UDMXControlConsoleFaderGroup* SelectedFaderGroup)
 			{
-				const UDMXControlConsoleFaderGroup* SelectedFaderGroup = Cast<UDMXControlConsoleFaderGroup>(SelectedFaderGroupObject);
-				return SelectedFaderGroup && !SelectedFaderGroup->IsMatchingFilter();
+				return SelectedFaderGroup && SelectedFaderGroup->HasFixturePatch();
 			});
 
-		if (SelectedFaderGroupObjects.IsEmpty())
-		{
-			return false;
-		}
-
-		const TWeakObjectPtr<UObject>* PatchedSelectedFaderGroup = Algo::FindByPredicate(SelectedFaderGroupObjects, [](const TWeakObjectPtr<UObject>& SelectedFaderGroupObject)
-			{
-				const UDMXControlConsoleFaderGroup* SelectedFaderGroup = Cast<UDMXControlConsoleFaderGroup>(SelectedFaderGroupObject);
-				return IsValid(SelectedFaderGroup) && SelectedFaderGroup->GetFixturePatch();
-			});
-
-		return PatchedSelectedFaderGroup && PatchedSelectedFaderGroup->IsValid();
-	}
-
-	FReply FDMXControlConsoleFaderGroupDetails::OnClearButtonClicked()
-	{
-		if (!WeakEditorModel.IsValid())
-		{
-			return FReply::Handled();
-		}
-
-		const UDMXControlConsoleEditorLayouts* ControlConsoleLayouts = WeakEditorModel->GetControlConsoleLayouts();
-		if (!ControlConsoleLayouts)
-		{
-			return FReply::Handled();
-		}
-
-		UDMXControlConsoleEditorGlobalLayoutBase* ActiveLayout = ControlConsoleLayouts->GetActiveLayout();
-		if (!ActiveLayout)
-		{
-			return FReply::Handled();
-		}
-
-		const FScopedTransaction FaderGroupFixturePatchClearTransaction(LOCTEXT("FaderGroupFixturePatchClearTransaction", "Clear Fixture Patch"));
-
-		TArray<UObject*> FaderGroupsToSelect;
-		TArray<UObject*> FaderGroupsToUnselect;
-		const TSharedRef<FDMXControlConsoleEditorSelection> SelectionHandler = WeakEditorModel->GetSelectionHandler();
-		const TArray<TWeakObjectPtr<UObject>> SelectedFaderGroupsObjects = SelectionHandler->GetSelectedFaderGroups();
-		for (const TWeakObjectPtr<UObject>& SelectedFaderGroupObject : SelectedFaderGroupsObjects)
-		{
-			UDMXControlConsoleFaderGroup* SelectedFaderGroup = Cast<UDMXControlConsoleFaderGroup>(SelectedFaderGroupObject);
-			if (!SelectedFaderGroup || !SelectedFaderGroup->IsMatchingFilter() || !SelectedFaderGroup->HasFixturePatch())
-			{
-				continue;
-			}
-
-			// Create new unpatched Fader Group to replace the Patched one
-			UDMXControlConsoleFaderGroupRow& OwnerRow = SelectedFaderGroup->GetOwnerFaderGroupRowChecked();
-			OwnerRow.PreEditChange(nullptr);
-			UDMXControlConsoleFaderGroup* FaderGroupToAdd = OwnerRow.AddFaderGroup(SelectedFaderGroup->GetIndex());
-			OwnerRow.PostEditChange();
-
-			const int32 RowIndex = ActiveLayout->GetFaderGroupRowIndex(SelectedFaderGroup);
-			const int32 ColumnIndex = ActiveLayout->GetFaderGroupColumnIndex(SelectedFaderGroup);
-
-			ActiveLayout->PreEditChange(nullptr);
-			ActiveLayout->RemoveFromLayout(SelectedFaderGroup);
-			ActiveLayout->AddToLayout(FaderGroupToAdd, RowIndex, ColumnIndex);
-			ActiveLayout->PostEditChange();
-
-			FaderGroupToAdd->Modify();
-			FaderGroupToAdd->SetIsActive(true);
-			FaderGroupToAdd->SetIsExpanded(SelectedFaderGroup->IsExpanded());
-
-			SelectedFaderGroup->Modify();
-			SelectedFaderGroup->SetIsActive(false);
-
-			FaderGroupsToSelect.Add(FaderGroupToAdd);
-			FaderGroupsToUnselect.Add(SelectedFaderGroup);
-		}
-
-		constexpr bool bNotifySelectionChange = false;
-		SelectionHandler->AddToSelection(FaderGroupsToSelect, bNotifySelectionChange);
-		SelectionHandler->RemoveFromSelection(FaderGroupsToUnselect);
-
-		WeakEditorModel->RequestUpdateEditorModel();
-
-		return FReply::Handled();
-	}
-
-	ECheckBoxState FDMXControlConsoleFaderGroupDetails::IsLockChecked() const
-	{
-		if (!WeakEditorModel.IsValid())
-		{
-			return ECheckBoxState::Undetermined;
-		}
-
-		const TSharedRef<FDMXControlConsoleEditorSelection> SelectionHandler = WeakEditorModel->GetSelectionHandler();
-		TArray<TWeakObjectPtr<UObject>> SelectedFaderGroupObjects = SelectionHandler->GetSelectedFaderGroups();
-
-		// Remove Fader Groups which don't match filtering
-		SelectedFaderGroupObjects.RemoveAll([](const TWeakObjectPtr<UObject>& SelectedFaderGroupObject)
-			{
-				const UDMXControlConsoleFaderGroup* SelectedFaderGroup = Cast<UDMXControlConsoleFaderGroup>(SelectedFaderGroupObject);
-				return SelectedFaderGroup && !SelectedFaderGroup->IsMatchingFilter();
-			});
-
-		const bool bAreAllFaderGroupsUnlocked = Algo::AllOf(SelectedFaderGroupObjects, [](const TWeakObjectPtr<UObject>& SelectedFaderGroupObject)
-			{
-				const UDMXControlConsoleFaderGroup* SelectedFaderGroup = Cast<UDMXControlConsoleFaderGroup>(SelectedFaderGroupObject);
-				return SelectedFaderGroup && !SelectedFaderGroup->IsLocked();
-			});
-
-		if (bAreAllFaderGroupsUnlocked)
-		{
-			return ECheckBoxState::Unchecked;
-		}
-
-		const bool bIsAnyFaderGroupUnlocked = Algo::AnyOf(SelectedFaderGroupObjects, [](const TWeakObjectPtr<UObject>& SelectedFaderGroupObject)
-			{
-				const UDMXControlConsoleFaderGroup* SelectedFaderGroup = Cast<UDMXControlConsoleFaderGroup>(SelectedFaderGroupObject);
-				return SelectedFaderGroup && !SelectedFaderGroup->IsLocked();
-			});
-
-		return bIsAnyFaderGroupUnlocked ? ECheckBoxState::Undetermined : ECheckBoxState::Checked;
-	}
-
-	void FDMXControlConsoleFaderGroupDetails::OnLockToggleChanged(ECheckBoxState CheckState)
-	{
-		if (!WeakEditorModel.IsValid())
-		{
-			return;
-		}
-
-		const TSharedRef<FDMXControlConsoleEditorSelection> SelectionHandler = WeakEditorModel->GetSelectionHandler();
-		const TArray<TWeakObjectPtr<UObject>> SelectedFaderGroupObjects = SelectionHandler->GetSelectedFaderGroups();
-		Algo::ForEach(SelectedFaderGroupObjects, [CheckState](const TWeakObjectPtr<UObject>& SelectedFaderGroupObject)
-			{
-				UDMXControlConsoleFaderGroup* SelectedFaderGroup = Cast<UDMXControlConsoleFaderGroup>(SelectedFaderGroupObject);
-				if (SelectedFaderGroup && SelectedFaderGroup->IsMatchingFilter())
-				{
-					const bool bIsLocked = CheckState == ECheckBoxState::Checked;
-					SelectedFaderGroup->SetLock(bIsLocked);
-				}
-			});
+		return bIsAnyFaderGroupPatched;
 	}
 
 	FText FDMXControlConsoleFaderGroupDetails::GetFixturePatchText() const
@@ -271,19 +74,18 @@ namespace UE::DMX::Private
 			return FText::GetEmpty();
 		}
 
-		const TSharedRef<FDMXControlConsoleEditorSelection> SelectionHandler = WeakEditorModel->GetSelectionHandler();
-		const TArray<TWeakObjectPtr<UObject>> SelectedFaderGroupsObjects = SelectionHandler->GetSelectedFaderGroups();
+		const TArray<UDMXControlConsoleFaderGroup*> SelectedFaderGroups = GetValidFaderGroupsBeingEdited();
 
-		if (SelectedFaderGroupsObjects.IsEmpty())
+		if (SelectedFaderGroups.IsEmpty())
 		{
 			return FText::GetEmpty();
 		}
-		else if (SelectedFaderGroupsObjects.Num() > 1 && DoSelectedFaderGroupsHaveAnyFixturePatches())
+		else if (SelectedFaderGroups.Num() > 1 && IsAnyFaderGroupPatched())
 		{
 			return FText::FromString(TEXT("Multiple Values"));
 		}
 
-		const UDMXControlConsoleFaderGroup* SelectedFaderGroup = Cast<UDMXControlConsoleFaderGroup>(SelectedFaderGroupsObjects[0]);
+		const UDMXControlConsoleFaderGroup* SelectedFaderGroup = SelectedFaderGroups[0];
 		if (!SelectedFaderGroup)
 		{
 			return FText::GetEmpty();
@@ -298,21 +100,22 @@ namespace UE::DMX::Private
 		return FText::FromString(FixturePatch->GetDisplayName());
 	}
 
-	EVisibility FDMXControlConsoleFaderGroupDetails::GetEditorColorVisibility() const
+	TArray<UDMXControlConsoleFaderGroup*> FDMXControlConsoleFaderGroupDetails::GetValidFaderGroupsBeingEdited() const
 	{
-		return DoSelectedFaderGroupsHaveAnyFixturePatches() ? EVisibility::Collapsed : EVisibility::Visible;
-	}
+		const TArray<TWeakObjectPtr<UObject>> EditedObjects = PropertyUtilities->GetSelectedObjects();
+		TArray<UDMXControlConsoleFaderGroup*> Result;
+		Algo::TransformIf(EditedObjects, Result,
+			[](TWeakObjectPtr<UObject> Object)
+			{
+				return IsValid(Cast<UDMXControlConsoleFaderGroup>(Object.Get()));
+			},
+			[](TWeakObjectPtr<UObject> Object)
+			{
+				return Cast<UDMXControlConsoleFaderGroup>(Object.Get());
+			}
+		);
 
-	EVisibility FDMXControlConsoleFaderGroupDetails::GetClearButtonVisibility() const
-	{
-		bool bIsVisible = DoSelectedFaderGroupsHaveAnyFixturePatches();
-		const UDMXControlConsoleEditorLayouts* ControlConsoleLayouts = WeakEditorModel.IsValid() ? WeakEditorModel->GetControlConsoleLayouts() : nullptr;
-		if (ControlConsoleLayouts)
-		{
-			const UDMXControlConsoleEditorGlobalLayoutBase* ActiveLayout = ControlConsoleLayouts->GetActiveLayout();
-			bIsVisible &= ActiveLayout != &ControlConsoleLayouts->GetDefaultLayoutChecked();
-		}
-		return bIsVisible ? EVisibility::Visible : EVisibility::Collapsed;
+		return Result;
 	}
 }
 

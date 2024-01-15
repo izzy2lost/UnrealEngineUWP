@@ -7,6 +7,7 @@
 #include "DMXControlConsoleFaderGroup.h"
 #include "Framework/Commands/UICommandList.h"
 #include "Framework/MultiBox/MultiBoxBuilder.h"
+#include "Layouts/Controllers/DMXControlConsoleFaderGroupController.h"
 #include "Layouts/DMXControlConsoleEditorGlobalLayoutBase.h"
 #include "Layouts/DMXControlConsoleEditorGlobalLayoutRow.h"
 #include "Layouts/DMXControlConsoleEditorLayouts.h"
@@ -100,7 +101,7 @@ bool SDMXControlConsoleAddFixturePatchMenu::CanAddPatchesToTheRight() const
 		bCanExecute &=
 			IsValid(CurrentLayout) &&
 			CurrentLayout->GetLayoutMode() != EDMXControlConsoleLayoutMode::Vertical &&
-			!CurrentLayout->GetAllFaderGroups().IsEmpty() &&
+			!CurrentLayout->GetAllFaderGroupControllers().IsEmpty() &&
 			ControlConsoleData->FilterString.IsEmpty();
 	}
 
@@ -131,14 +132,15 @@ void SDMXControlConsoleAddFixturePatchMenu::AddPatchesToTheRight()
 	int32 ColumnIndex = INDEX_NONE;
 
 	const TSharedRef<FDMXControlConsoleEditorSelection> SelectionHandler = EditorModel->GetSelectionHandler();
-	const TArray<TWeakObjectPtr<UObject>> SelectedFaderGroupsObjects = SelectionHandler->GetSelectedFaderGroups();
-	if (!SelectedFaderGroupsObjects.IsEmpty())
+	const TArray<TWeakObjectPtr<UObject>> SelectedFaderGroupControllersObjects = SelectionHandler->GetSelectedFaderGroupControllers();
+	if (!SelectedFaderGroupControllersObjects.IsEmpty())
 	{
-		UDMXControlConsoleFaderGroup* SelectedFaderGroup = SelectionHandler->GetFirstSelectedFaderGroup(true);
-		RowIndex = ActiveLayout->GetFaderGroupRowIndex(SelectedFaderGroup);
-		ColumnIndex = ActiveLayout->GetFaderGroupColumnIndex(SelectedFaderGroup) + 1;
+		UDMXControlConsoleFaderGroupController* SelectedFaderGroupController = SelectionHandler->GetFirstSelectedFaderGroupController(true);
+		RowIndex = ActiveLayout->GetFaderGroupControllerRowIndex(SelectedFaderGroupController);
+		ColumnIndex = ActiveLayout->GetFaderGroupControllerColumnIndex(SelectedFaderGroupController);
 	}
 
+	const FScopedTransaction AddToLastRowTransaction(LOCTEXT("AddToLastRowTransaction", "Add Fader Group"));
 	// Add all selected Fixture Patches from Fixture Patch List
 	for (const TWeakObjectPtr<UDMXEntityFixturePatch> WeakFixturePatch : FixturePatches)
 	{
@@ -154,28 +156,25 @@ void SDMXControlConsoleAddFixturePatchMenu::AddPatchesToTheRight()
 			continue;
 		}
 
-		if (ActiveLayout->GetAllFaderGroups().Contains(FaderGroup))
+		if (ActiveLayout->ContainsFaderGroup(FaderGroup))
 		{
 			continue;
 		}
 
-		const FScopedTransaction AddToLastRowTransaction(LOCTEXT("AddToLastRowTransaction", "Add Fader Group"));
-		ActiveLayout->PreEditChange(nullptr);
-		ActiveLayout->AddToActiveFaderGroups(FaderGroup);
-		if (ColumnIndex == INDEX_NONE)
+		if (ColumnIndex != INDEX_NONE)
 		{
-			ActiveLayout->AddToLayout(FaderGroup, RowIndex);
-		}
-		else
-		{
-			ActiveLayout->AddToLayout(FaderGroup, RowIndex, ColumnIndex);
 			ColumnIndex++;
 		}
 
-		FaderGroup->Modify();
-		FaderGroup->SetIsActive(true);
-
+		ActiveLayout->PreEditChange(nullptr);
+		UDMXControlConsoleFaderGroupController* NewController = ActiveLayout->AddToLayout(FaderGroup, FaderGroup->GetFaderGroupName(), RowIndex, ColumnIndex);
 		ActiveLayout->PostEditChange();
+		if (NewController)
+		{
+			NewController->Modify();
+			NewController->SetIsActive(true);
+			ActiveLayout->AddToActiveFaderGroupControllers(NewController);
+		}
 	}
 }
 
@@ -228,20 +227,20 @@ void SDMXControlConsoleAddFixturePatchMenu::AddPatchesOnNewRow()
 	int32 NewRowIndex = INDEX_NONE;
 
 	const TSharedRef<FDMXControlConsoleEditorSelection> SelectionHandler = EditorModel->GetSelectionHandler();
-	const TArray<TWeakObjectPtr<UObject>> SelectedFaderGroupsObjects = SelectionHandler->GetSelectedFaderGroups();
-	if (SelectedFaderGroupsObjects.IsEmpty())
+	const TArray<TWeakObjectPtr<UObject>> SelectedFaderGroupControllersObjects = SelectionHandler->GetSelectedFaderGroupControllers();
+	if (SelectedFaderGroupControllersObjects.IsEmpty())
 	{
 		NewRowIndex = ActiveLayout->GetLayoutRows().Num();
 	}
 	else
 	{
-		UDMXControlConsoleFaderGroup* SelectedFaderGroup = SelectionHandler->GetFirstSelectedFaderGroup(true);
-		if (!SelectedFaderGroup)
+		UDMXControlConsoleFaderGroupController* SelectedFaderGroupController = SelectionHandler->GetFirstSelectedFaderGroupController(true);
+		if (!SelectedFaderGroupController)
 		{
 			return;
 		}
 
-		NewRowIndex = ActiveLayout->GetFaderGroupRowIndex(SelectedFaderGroup) + 1;
+		NewRowIndex = ActiveLayout->GetFaderGroupControllerRowIndex(SelectedFaderGroupController) + 1;
 	}
 
 	const FScopedTransaction AddToNewtRowTransaction(LOCTEXT("AddToNewtRowTransaction", "Add Fader Group"));
@@ -265,16 +264,18 @@ void SDMXControlConsoleAddFixturePatchMenu::AddPatchesOnNewRow()
 				continue;
 			}
 
-			if (ActiveLayout->GetAllFaderGroups().Contains(FaderGroup))
+			if (ActiveLayout->ContainsFaderGroup(FaderGroup))
 			{
 				continue;
 			}
 
-			NewLayoutRow->AddToLayoutRow(FaderGroup);
-			ActiveLayout->AddToActiveFaderGroups(FaderGroup);
-
-			FaderGroup->Modify();
-			FaderGroup->SetIsActive(true);
+			UDMXControlConsoleFaderGroupController* NewController = NewLayoutRow->CreateFaderGroupController(FaderGroup, FaderGroup->GetFaderGroupName());
+			if (NewController)
+			{
+				NewController->Modify();
+				NewController->SetIsActive(true);
+				ActiveLayout->AddToActiveFaderGroupControllers(NewController);
+			}
 		}
 
 		NewLayoutRow->PostEditChange();
@@ -316,8 +317,8 @@ void SDMXControlConsoleAddFixturePatchMenu::SetPatchOnFaderGroup()
 	}
 
 	const TSharedRef<FDMXControlConsoleEditorSelection> SelectionHandler = EditorModel->GetSelectionHandler();
-	const UDMXControlConsoleFaderGroup* FirstSelectedFaderGroup = SelectionHandler->GetFirstSelectedFaderGroup();
-	if (!FirstSelectedFaderGroup)
+	const UDMXControlConsoleFaderGroupController* FirstSelectedFaderGroupController = SelectionHandler->GetFirstSelectedFaderGroupController();
+	if (!FirstSelectedFaderGroupController)
 	{
 		return;
 	}
@@ -328,15 +329,14 @@ void SDMXControlConsoleAddFixturePatchMenu::SetPatchOnFaderGroup()
 		return;
 	}
 
-	const int32 RowIndex = ActiveLayout->GetFaderGroupRowIndex(FirstSelectedFaderGroup);
+	const int32 RowIndex = ActiveLayout->GetFaderGroupControllerRowIndex(FirstSelectedFaderGroupController);
 
 	const FScopedTransaction ReplaceSelectedFaderGroupTransaction(LOCTEXT("ReplaceSelectedFaderGroupTransaction", "Replace Fader Group"));
 	ActiveLayout->PreEditChange(nullptr);
 
-	// Add all Selected Patches Fader Groups to layout
-	TArray<UObject*> FaderGroupsToSelect;
-
-	int32 ColumnIndex = ActiveLayout->GetFaderGroupColumnIndex(FirstSelectedFaderGroup);
+	// Add all Selected Patches Fader Group Controllers to layout
+	TArray<UObject*> FaderGroupControllersToSelect;
+	int32 ColumnIndex = ActiveLayout->GetFaderGroupControllerColumnIndex(FirstSelectedFaderGroupController);
 	for (TWeakObjectPtr<UDMXEntityFixturePatch> WeakFixturePatch : FixturePatches)
 	{
 		const UDMXEntityFixturePatch* FixturePatch = WeakFixturePatch.Get();
@@ -346,45 +346,67 @@ void SDMXControlConsoleAddFixturePatchMenu::SetPatchOnFaderGroup()
 		}
 
 		UDMXControlConsoleFaderGroup* FaderGroupToAdd = ControlConsoleData->FindFaderGroupByFixturePatch(FixturePatch);
-		ActiveLayout->AddToLayout(FaderGroupToAdd, RowIndex, ColumnIndex);
-		ActiveLayout->AddToActiveFaderGroups(FaderGroupToAdd);
-
-		FaderGroupToAdd->Modify();
-		FaderGroupToAdd->SetIsActive(true);
-		FaderGroupToAdd->SetIsExpanded(FirstSelectedFaderGroup->IsExpanded());
-
-		FaderGroupsToSelect.Add(FaderGroupToAdd);
-
-		ColumnIndex++;
-	}
-
-	// Remove all Selected Fader Groups from layout
-	TArray<UObject*> FaderGroupsToUnselect;
-	const TArray<TWeakObjectPtr<UObject>> SelectedFaderGroupsObjects = SelectionHandler->GetSelectedFaderGroups();
-	for (const TWeakObjectPtr<UObject> SelectedFaderGroupObject : SelectedFaderGroupsObjects)
-	{
-		UDMXControlConsoleFaderGroup* SelectedFaderGroup = SelectedFaderGroupObject.IsValid() ? Cast<UDMXControlConsoleFaderGroup>(SelectedFaderGroupObject.Get()) : nullptr;
-		if (!SelectedFaderGroup)
+		if (!FaderGroupToAdd)
 		{
 			continue;
 		}
 
-		ActiveLayout->RemoveFromLayout(SelectedFaderGroup);
-		ActiveLayout->RemoveFromActiveFaderGroups(SelectedFaderGroup);
-		if (!SelectedFaderGroup->HasFixturePatch())
+		UDMXControlConsoleFaderGroupController*	NewController = ActiveLayout->AddToLayout(FaderGroupToAdd, FaderGroupToAdd->GetFaderGroupName(), RowIndex, ColumnIndex);
+		if (NewController)
 		{
-			SelectedFaderGroup->Destroy();
+			NewController->Modify();
+			NewController->SetIsActive(true);
+			NewController->SetIsExpanded(FirstSelectedFaderGroupController->IsExpanded());
+
+			ActiveLayout->AddToActiveFaderGroupControllers(NewController);
 		}
 
-		FaderGroupsToUnselect.Add(SelectedFaderGroup);
+		FaderGroupControllersToSelect.Add(NewController);
+
+		ColumnIndex++;
+	}
+
+	// Remove all Selected Fader Group Controllers from layout
+	TArray<UObject*> FaderGroupControllersToUnselect;
+	const TArray<TWeakObjectPtr<UObject>> SelectedFaderGroupControllersObjects = SelectionHandler->GetSelectedFaderGroupControllers();
+	for (const TWeakObjectPtr<UObject> SelectedFaderGroupControllerObject : SelectedFaderGroupControllersObjects)
+	{
+		UDMXControlConsoleFaderGroupController* SelectedFaderGroupController =  Cast<UDMXControlConsoleFaderGroupController>(SelectedFaderGroupControllerObject.Get());
+		if (!SelectedFaderGroupController)
+		{
+			continue;
+		}
+
+		FaderGroupControllersToUnselect.Add(SelectedFaderGroupController);
+		if (SelectedFaderGroupController->HasFixturePatch())
+		{
+			continue;
+		}
+
+		// Destroy all unpatched fader groups in the controller
+		SelectedFaderGroupController->Modify();
+		const TArray<TWeakObjectPtr<UDMXControlConsoleFaderGroup>>& FaderGroups = SelectedFaderGroupController->GetFaderGroups();
+		for (const TWeakObjectPtr<UDMXControlConsoleFaderGroup>& FaderGroup : FaderGroups)
+		{
+			if (FaderGroup.IsValid())
+			{
+				SelectedFaderGroupController->UnPossess(FaderGroup.Get());
+
+				FaderGroup->Modify();
+				FaderGroup->Destroy();
+			}
+		}
+
+		ActiveLayout->RemoveFromActiveFaderGroupControllers(SelectedFaderGroupController);
+		SelectedFaderGroupController->Destroy();
 	}
 
 	ActiveLayout->ClearEmptyLayoutRows();
 	ActiveLayout->PostEditChange();
 
 	constexpr bool bNotifySelectionChange = false;
-	SelectionHandler->AddToSelection(FaderGroupsToSelect, bNotifySelectionChange);
-	SelectionHandler->RemoveFromSelection(FaderGroupsToUnselect);
+	SelectionHandler->AddToSelection(FaderGroupControllersToSelect, bNotifySelectionChange);
+	SelectionHandler->RemoveFromSelection(FaderGroupControllersToUnselect);
 
 	EditorModel->RequestUpdateEditorModel();
 }

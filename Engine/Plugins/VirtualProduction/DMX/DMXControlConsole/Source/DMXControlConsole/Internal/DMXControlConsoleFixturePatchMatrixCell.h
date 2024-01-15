@@ -8,7 +8,7 @@
 
 struct FDMXCell;
 struct FDMXFixtureCellAttribute;
-class UDMXControlConsoleElementController;
+class UDMXControlConsoleControllerBase;
 class UDMXControlConsoleFaderGroup;
 class UDMXControlConsoleFixturePatchCellAttributeFader;
 class UDMXControlConsoleMatrixCellController;
@@ -26,7 +26,8 @@ class DMXCONTROLCONSOLE_API UDMXControlConsoleFixturePatchMatrixCell
 public:
 	//~ Being IDMXControlConsoleFaderGroupElementInterface
 	virtual UDMXControlConsoleFaderGroup& GetOwnerFaderGroupChecked() const override;
-	virtual UDMXControlConsoleElementController* GetElementController() override;
+	virtual UDMXControlConsoleControllerBase* GetElementController() const override;
+	virtual void SetElementController(UDMXControlConsoleControllerBase* NewController) override;
 	virtual int32 GetIndex() const override;
 	virtual const TArray<UDMXControlConsoleFaderBase*>& GetFaders() const override { return CellAttributeFaders; }
 	virtual int32 GetUniverseID() const override;
@@ -46,21 +47,6 @@ public:
 
 	/** Sets Fader's properties values from the given AttributeToChannel map */
 	void SetPropertiesFromCell(const FDMXCell& Cell, const int32 InUniverseID, const int32 InStartingChannel);
-
-	/** Creates a Matrix Controller for the given Element */
-	UDMXControlConsoleMatrixCellController* CreateMatrixCellController(const TScriptInterface<IDMXControlConsoleFaderGroupElement>& InElement, const FString& ControllerName = "");
-
-	/** Creates a Matrix Controller for the given array of Elements */
-	UDMXControlConsoleMatrixCellController* CreateMatrixCellController(const TArray<TScriptInterface<IDMXControlConsoleFaderGroupElement>> InElements, const FString& ControllerName = "");
-
-	/** Deletes the given Matrix Controller */
-	void DeleteMatrixCellController(UDMXControlConsoleMatrixCellController* MatrixCellController);
-
-	/** Gets the array of Matrix Controllers for this Matrix Cell */
-	TArray<UDMXControlConsoleMatrixCellController*> GetMatrixCellControllers() const { return MatrixCellControllers; }
-
-	/** Gets the Matrix Controller for the given Element, if valid */
-	UDMXControlConsoleMatrixCellController* GetControllerByElement(const TScriptInterface<IDMXControlConsoleFaderGroupElement>& Element) const;
 
 	/** Sorts the array of Elements by their starting address */
 	void SortElementsByStartingAddress() const;
@@ -82,16 +68,14 @@ public:
 	void ShowAllFadersInEditor();
 #endif // WITH_EDITOR
 
-	// Property Name getters
-	FORCEINLINE static FName GetCellXPropertyName() { return GET_MEMBER_NAME_CHECKED(UDMXControlConsoleFixturePatchMatrixCell, CellX); }
-	FORCEINLINE static FName GetCellYPropertyName() { return GET_MEMBER_NAME_CHECKED(UDMXControlConsoleFixturePatchMatrixCell, CellY); }
-	FORCEINLINE static FName GetMatrixCellControllersPropertyName() { return GET_MEMBER_NAME_CHECKED(UDMXControlConsoleFixturePatchMatrixCell, MatrixCellControllers); }
-	FORCEINLINE static FName GetCellAttributeFadersPropertyName() { return GET_MEMBER_NAME_CHECKED(UDMXControlConsoleFixturePatchMatrixCell, CellAttributeFaders); }
-
-protected:
 	//~ Begin UObject interface
 	virtual void PostLoad() override;
 	//~ End UObject interface
+
+	// Property Name getters
+	FORCEINLINE static FName GetCellXPropertyName() { return GET_MEMBER_NAME_CHECKED(UDMXControlConsoleFixturePatchMatrixCell, CellX); }
+	FORCEINLINE static FName GetCellYPropertyName() { return GET_MEMBER_NAME_CHECKED(UDMXControlConsoleFixturePatchMatrixCell, CellY); }
+	FORCEINLINE static FName GetCellAttributeFadersPropertyName() { return GET_MEMBER_NAME_CHECKED(UDMXControlConsoleFixturePatchMatrixCell, CellAttributeFaders); }
 
 private:
 	/** Called when the Fixture Patch is changed inside its DMX Library */
@@ -99,9 +83,6 @@ private:
 
 	/** Updates CellAttributeFaders properties according to the given FixturePatch */
 	void UpdateFixturePatchCellAttributeFaders(UDMXEntityFixturePatch* InFixturePatch);
-
-	/** Updates the Matrix Cell Controllers array to ensure that each Element has its own Controller */
-	void UpdateMatrixCellControllers();
 
 	/** Cell Index ID */
 	UPROPERTY(VisibleAnywhere, Category = "DMX Matrix Cell")
@@ -115,9 +96,13 @@ private:
 	UPROPERTY(VisibleAnywhere, Category = "DMX Matrix Cell")
 	int32 CellY = 0;
 
-	/** The array of Controllers for the Elements in this Matrix Cell */
+	/** Soft reference to the Controller of this Element */
 	UPROPERTY()
-	TArray<TObjectPtr<UDMXControlConsoleMatrixCellController>> MatrixCellControllers;
+	TSoftObjectPtr<UDMXControlConsoleControllerBase> SoftControllerPtr;
+
+	/** Cached reference to the Controller of this Element, for fast access */
+	UPROPERTY(Transient)
+	TWeakObjectPtr<UDMXControlConsoleControllerBase> CachedWeakElementController;
 
 	/** Faders array of this Matrix Cell */
 	UPROPERTY(VisibleAnywhere, Category = "DMX Matrix Cell")

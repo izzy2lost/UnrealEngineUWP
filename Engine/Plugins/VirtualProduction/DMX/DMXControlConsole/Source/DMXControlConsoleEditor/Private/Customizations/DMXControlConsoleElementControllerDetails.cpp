@@ -3,9 +3,10 @@
 #include "DMXControlConsoleElementControllerDetails.h"
 
 #include "Algo/Transform.h"
-#include "Controllers/DMXControlConsoleElementController.h"
+#include "DetailCategoryBuilder.h"
 #include "DetailLayoutBuilder.h"
 #include "IPropertyUtilities.h"
+#include "Layouts/Controllers/DMXControlConsoleElementController.h"
 #include "Models/DMXControlConsoleEditorModel.h"
 #include "PropertyHandle.h"
 
@@ -27,20 +28,32 @@ namespace UE::DMX::Private
 	{
 		PropertyUtilities = InDetailLayout.GetPropertyUtilities();
 
+		InDetailLayout.HideCategory("DMX Controller");
+
+		IDetailCategoryBuilder& ElementControllerCategory = InDetailLayout.EditCategory("DMX Element Controller", FText::GetEmpty());
+		ElementControllerCategory.AddProperty(UDMXControlConsoleElementController::GetUserNamePropertyName());
+
 		// Value property handle
 		const TSharedRef<IPropertyHandle> ValueHandle = InDetailLayout.GetProperty(UDMXControlConsoleElementController::GetValuePropertyName(), UDMXControlConsoleElementController::StaticClass());
 		ValueHandle->SetOnPropertyValueChanged(FSimpleDelegate::CreateSP(this, &FDMXControlConsoleElementControllerDetails::OnSelectedElementControllersValueChanged));
+		ElementControllerCategory.AddProperty(ValueHandle);
 
 		// MinValue property handle
 		const TSharedRef<IPropertyHandle> MinValueHandle = InDetailLayout.GetProperty(UDMXControlConsoleElementController::GetMinValuePropertyName(), UDMXControlConsoleElementController::StaticClass());
 		MinValueHandle->SetOnPropertyValueChanged(FSimpleDelegate::CreateSP(this, &FDMXControlConsoleElementControllerDetails::OnSelectedElementControllersMinValueChanged));
+		ElementControllerCategory.AddProperty(MinValueHandle);
 
 		// MaxValue property handle
 		const TSharedRef<IPropertyHandle> MaxValueHandle = InDetailLayout.GetProperty(UDMXControlConsoleElementController::GetMaxValuePropertyName(), UDMXControlConsoleElementController::StaticClass());
 		MaxValueHandle->SetOnPropertyValueChanged(FSimpleDelegate::CreateSP(this, &FDMXControlConsoleElementControllerDetails::OnSelectedElementControllersMaxValueChanged));
+		ElementControllerCategory.AddProperty(MaxValueHandle);
+
+		// bIsMuted property handle
+		ElementControllerCategory.AddProperty(UDMXControlConsoleControllerBase::GetIsMutedPropertyName(), UDMXControlConsoleControllerBase::StaticClass());
 
 		// bIsLocked property handle
-		const TSharedRef<IPropertyHandle> LockStateHandle = InDetailLayout.GetProperty(UDMXControlConsoleElementController::GetIsLockedPropertyName(), UDMXControlConsoleElementController::StaticClass());
+		const TSharedRef<IPropertyHandle> LockStateHandle = InDetailLayout.GetProperty(UDMXControlConsoleControllerBase::GetIsLockedPropertyName(), UDMXControlConsoleControllerBase::StaticClass());
+		ElementControllerCategory.AddProperty(LockStateHandle);
 		LockStateHandle->SetOnPropertyValueChanged(FSimpleDelegate::CreateSP(this, &FDMXControlConsoleElementControllerDetails::OnSelectedElementControllersLockStateChanged));
 	}
 

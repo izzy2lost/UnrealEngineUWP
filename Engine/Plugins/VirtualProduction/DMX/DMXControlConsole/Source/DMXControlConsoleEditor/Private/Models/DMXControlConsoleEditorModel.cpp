@@ -67,9 +67,9 @@ TSharedRef<UE::DMX::Private::FFilterModel> UDMXControlConsoleEditorModel::GetFil
 	return FilterModel.ToSharedRef();
 }
 
-void UDMXControlConsoleEditorModel::ScrollIntoView(const UDMXControlConsoleFaderGroup* FaderGroup) const
+void UDMXControlConsoleEditorModel::ScrollIntoView(const UDMXControlConsoleFaderGroupController* FaderGroupController) const
 {
-	OnScrollFaderGroupIntoView.Broadcast(FaderGroup);
+	OnScrollFaderGroupControllerIntoView.Broadcast(FaderGroupController);
 }
 
 void UDMXControlConsoleEditorModel::RequestUpdateEditorModel()
@@ -178,11 +178,7 @@ void UDMXControlConsoleEditorModel::RegisterEditorLayouts() const
 		return;
 	}
 
-	UDMXControlConsoleEditorGlobalLayoutBase& DefaultLayout = ControlConsoleLayouts->GetDefaultLayoutChecked();
-	if (!DefaultLayout.IsRegistered())
-	{
-		DefaultLayout.Register(ControlConsoleData);
-	}
+	ControlConsoleLayouts->Register(ControlConsoleData);
 }
 
 void UDMXControlConsoleEditorModel::UnregisterEditorLayouts() const
@@ -194,11 +190,7 @@ void UDMXControlConsoleEditorModel::UnregisterEditorLayouts() const
 		return;
 	}
 
-	UDMXControlConsoleEditorGlobalLayoutBase& DefaultLayout = ControlConsoleLayouts->GetDefaultLayoutChecked();
-	if (DefaultLayout.IsRegistered())
-	{
-		DefaultLayout.Unregister(ControlConsoleData);
-	}
+	ControlConsoleLayouts->Unregister(ControlConsoleData);
 }
 
 void UDMXControlConsoleEditorModel::OnDMXLibraryChanged()
@@ -220,14 +212,13 @@ void UDMXControlConsoleEditorModel::OnDMXLibraryChanged()
 		}
 
 		UserLayout->PreEditChange(nullptr);
-		constexpr bool bOnlyPatchedFaderGroups = true;
-		UserLayout->ClearAll(bOnlyPatchedFaderGroups);
+		constexpr bool bClearOnlyPatchedFaderGroupControllers = true;
+		UserLayout->ClearAll(bClearOnlyPatchedFaderGroupControllers);
 		UserLayout->PostEditChange();
 	}
 
 	// Regenerate control console data with new library data
 	ControlConsoleData->PreEditChange(nullptr);
-	ControlConsoleData->ClearPatchedFaderGroups();
 	ControlConsoleData->GenerateFromDMXLibrary();
 	ControlConsoleData->PostEditChange();
 

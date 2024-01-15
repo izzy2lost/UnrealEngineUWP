@@ -28,6 +28,12 @@ UDMXControlConsoleEditorGlobalLayoutBase* UDMXControlConsoleEditorLayouts::AddUs
 
 	UserLayouts.Add(UserLayout);
 
+	const UDMXControlConsole* OwnerConsole = Cast<UDMXControlConsole>(GetOuter());
+	if (OwnerConsole)
+	{
+		UserLayout->Register(OwnerConsole->GetControlConsoleData());
+	}
+
 	return UserLayout;
 }
 
@@ -41,6 +47,12 @@ void UDMXControlConsoleEditorLayouts::DeleteUserLayout(UDMXControlConsoleEditorG
 	if (!ensureMsgf(UserLayouts.Contains(UserLayout), TEXT("'%s' is not owner of '%s'. Cannot delete layout correctly."), *GetName(), *UserLayout->LayoutName))
 	{
 		return;
+	}
+
+	const UDMXControlConsole* OwnerConsole = Cast<UDMXControlConsole>(GetOuter());
+	if (OwnerConsole)
+	{
+		UserLayout->Unregister(OwnerConsole->GetControlConsoleData());
 	}
 
 	UserLayouts.Remove(UserLayout);
@@ -59,6 +71,19 @@ UDMXControlConsoleEditorGlobalLayoutBase* UDMXControlConsoleEditorLayouts::FindU
 void UDMXControlConsoleEditorLayouts::ClearUserLayouts()
 {
 	ActiveLayout = DefaultLayout;
+
+	const UDMXControlConsole* OwnerConsole = Cast<UDMXControlConsole>(GetOuter());
+	if (OwnerConsole)
+	{
+		for (UDMXControlConsoleEditorGlobalLayoutBase* UserLayout : UserLayouts)
+		{
+			if (UserLayout)
+			{
+				UserLayout->Unregister(OwnerConsole->GetControlConsoleData());
+			}
+		}
+	}
+
 	UserLayouts.Reset();
 }
 
@@ -73,9 +98,9 @@ void UDMXControlConsoleEditorLayouts::SetActiveLayout(UDMXControlConsoleEditorGl
 	if (InLayout && InLayout != ActiveLayout)
 	{
 		ActiveLayout = InLayout;
-		ActiveLayout->SetActiveFaderGroupsInLayout(true);
+		ActiveLayout->SetActiveFaderGroupControllersInLayout(true);
 
-		OnActiveLayoutChanged.Broadcast();
+		OnActiveLayoutChanged.Broadcast(ActiveLayout);
 		OnLayoutModeChanged.Broadcast();
 	}
 }
@@ -97,12 +122,44 @@ void UDMXControlConsoleEditorLayouts::UpdateDefaultLayout()
 	DefaultLayout->GenerateLayoutByControlConsoleData(OwnerConsole->GetControlConsoleData());
 }
 
+void UDMXControlConsoleEditorLayouts::Register(UDMXControlConsoleData* ControlConsoleData)
+{
+	if (DefaultLayout && !DefaultLayout->IsRegistered())
+	{
+		DefaultLayout->Register(ControlConsoleData);
+	}
+
+	for (UDMXControlConsoleEditorGlobalLayoutBase* UserLayout : UserLayouts)
+	{
+		if (UserLayout && !UserLayout->IsRegistered())
+		{
+			UserLayout->Register(ControlConsoleData);
+		}
+	}
+}
+
+void UDMXControlConsoleEditorLayouts::Unregister(UDMXControlConsoleData* ControlConsoleData)
+{
+	if (DefaultLayout && DefaultLayout->IsRegistered())
+	{
+		DefaultLayout->Unregister(ControlConsoleData);
+	}
+
+	for (UDMXControlConsoleEditorGlobalLayoutBase* UserLayout : UserLayouts)
+	{
+		if (UserLayout && UserLayout->IsRegistered())
+		{
+			UserLayout->Unregister(ControlConsoleData);
+		}
+	}
+}
+
 void UDMXControlConsoleEditorLayouts::BeginDestroy()
 {
 	Super::BeginDestroy();
 
-	if (!DefaultLayout || !DefaultLayout->IsRegistered())
-	{  
+	if (IsTemplate())
+	{
 		return;
 	}
 
@@ -114,7 +171,7 @@ void UDMXControlConsoleEditorLayouts::BeginDestroy()
 
 	if (UDMXControlConsoleData* ControlConsoleData = OwnerConsole->GetControlConsoleData())
 	{
-		DefaultLayout->Unregister(ControlConsoleData);
+		Unregister(ControlConsoleData);
 	}
 }
 

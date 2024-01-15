@@ -3,7 +3,6 @@
 #include "DMXControlConsoleElementControllerModel.h"
 
 #include "Algo/AllOf.h"
-#include "Algo/Find.h"
 #include "DMXControlConsoleFixturePatchMatrixCell.h"
 #include "DMXControlConsoleRawFader.h"
 #include "IDMXControlConsoleFaderGroupElement.h"
@@ -40,21 +39,25 @@ namespace UE::DMX::Private
 
 	UDMXControlConsoleFixturePatchMatrixCell* FDMXControlConsoleElementControllerModel::GetMatrixCellElement() const
 	{
-		if (!WeakElementController.IsValid() || !HasSingleElement())
+		if (!WeakElementController.IsValid())
 		{
 			return nullptr;
 		}
 
 		const TArray<TScriptInterface<IDMXControlConsoleFaderGroupElement>> Elements = WeakElementController->GetElements();
-		const TScriptInterface<IDMXControlConsoleFaderGroupElement>* ElementPtr =
-			Algo::FindByPredicate(Elements,
-				[](const TScriptInterface<IDMXControlConsoleFaderGroupElement>& Element)
-				{
-					return Element && IsValid(Cast<UDMXControlConsoleFixturePatchMatrixCell>(Element.GetObject()));
-				});
+		if (Elements.IsEmpty())
+		{
+			return nullptr;
+		}
 
-		UDMXControlConsoleFixturePatchMatrixCell* MatrixCellElement = ElementPtr ? Cast<UDMXControlConsoleFixturePatchMatrixCell>(ElementPtr->GetObject()) : nullptr;
-		return MatrixCellElement;
+		const bool bHasOnlyMatrixCellElements = 
+			Algo::AllOf(Elements,
+			[](const TScriptInterface<IDMXControlConsoleFaderGroupElement>& Element)
+			{
+				return Element && IsValid(Cast<UDMXControlConsoleFixturePatchMatrixCell>(Element.GetObject()));
+			});
+
+		return bHasOnlyMatrixCellElements ? Cast<UDMXControlConsoleFixturePatchMatrixCell>(Elements[0].GetObject()) : nullptr;
 	}
 
 	FString FDMXControlConsoleElementControllerModel::GetRelativeControllerName() const
@@ -66,13 +69,13 @@ namespace UE::DMX::Private
 
 		if (!HasSingleElement())
 		{
-			return WeakElementController->GetControllerName();
+			return WeakElementController->GetUserName();
 		}
 
 		const UDMXControlConsoleFaderBase* FirstFader = GetFirstAvailableFader();
 		if (!FirstFader)
 		{
-			return WeakElementController->GetControllerName();
+			return WeakElementController->GetUserName();
 		}
 
 		return FirstFader->GetFaderName();
@@ -166,6 +169,90 @@ namespace UE::DMX::Private
 			});
 
 		return bHasUniformDataType;
+	}
+
+	bool FDMXControlConsoleElementControllerModel::HasUniformValue() const
+	{
+		if (!WeakElementController.IsValid() || !HasUniformDataType())
+		{
+			return false;
+		}
+
+		const TArray<UDMXControlConsoleFaderBase*> Faders = WeakElementController->GetFaders();
+		if (Faders.IsEmpty())
+		{
+			return false;
+		}
+
+		const UDMXControlConsoleFaderBase* FirstFader = Faders[0];
+		if (!FirstFader)
+		{
+			return false;
+		}
+
+		// Check if the values of all the faders in the controller are uniform
+		const bool bHasUniformValue = Algo::AllOf(Faders, [FirstFader](const UDMXControlConsoleFaderBase* Fader)
+			{
+				return Fader && Fader->GetValue() == FirstFader->GetValue();
+			});
+
+		return bHasUniformValue;
+	}
+
+	bool FDMXControlConsoleElementControllerModel::HasUniformMinValue() const
+	{
+		if (!WeakElementController.IsValid())
+		{
+			return false;
+		}
+
+		const TArray<UDMXControlConsoleFaderBase*> Faders = WeakElementController->GetFaders();
+		if (Faders.IsEmpty())
+		{
+			return false;
+		}
+
+		const UDMXControlConsoleFaderBase* FirstFader = Faders[0];
+		if (!FirstFader)
+		{
+			return false;
+		}
+
+		// Check if the values of all the faders in the controller are uniform
+		const bool bHasUniformMinValue = Algo::AllOf(Faders, [FirstFader](const UDMXControlConsoleFaderBase* Fader)
+			{
+				return Fader && Fader->GetMinValue() == FirstFader->GetMinValue();
+			});
+
+		return bHasUniformMinValue;
+	}
+
+	bool FDMXControlConsoleElementControllerModel::HasUniformMaxValue() const
+	{
+		if (!WeakElementController.IsValid())
+		{
+			return false;
+		}
+
+		const TArray<UDMXControlConsoleFaderBase*> Faders = WeakElementController->GetFaders();
+		if (Faders.IsEmpty())
+		{
+			return false;
+		}
+
+		const UDMXControlConsoleFaderBase* FirstFader = Faders[0];
+		if (!FirstFader)
+		{
+			return false;
+		}
+
+		// Check if the values of all the faders in the controller are uniform
+		const bool bHasUniformMaxValue = Algo::AllOf(Faders, [FirstFader](const UDMXControlConsoleFaderBase* Fader)
+			{
+				return Fader && Fader->GetMaxValue() == FirstFader->GetMaxValue();
+			});
+
+		return bHasUniformMaxValue;
 	}
 
 	bool FDMXControlConsoleElementControllerModel::HasOnlyRawFaders() const

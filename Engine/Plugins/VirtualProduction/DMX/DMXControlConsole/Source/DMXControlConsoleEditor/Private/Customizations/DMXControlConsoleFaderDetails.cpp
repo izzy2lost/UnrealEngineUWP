@@ -4,7 +4,6 @@
 
 #include "Algo/AllOf.h"
 #include "Algo/Transform.h"
-#include "Controllers/DMXControlConsoleElementController.h"
 #include "DetailCategoryBuilder.h"
 #include "DetailLayoutBuilder.h"
 #include "DetailWidgetRow.h"
@@ -12,6 +11,7 @@
 #include "DMXControlConsoleFaderBase.h"
 #include "DMXControlConsoleRawFader.h"
 #include "IPropertyUtilities.h"
+#include "Layouts/Controllers/DMXControlConsoleElementController.h"
 #include "Models/DMXControlConsoleEditorModel.h"
 #include "PropertyHandle.h"
 #include "ScopedTransaction.h"
@@ -115,7 +115,7 @@ namespace UE::DMX::Private
 			const uint32 CurrentValue = Fader->GetValue();
 			Fader->SetValue(CurrentValue); 
 			
-			UDMXControlConsoleElementController* ElementController = Fader->GetElementController();
+			UDMXControlConsoleElementController* ElementController = Cast<UDMXControlConsoleElementController>(Fader->GetElementController());
 			if (!ElementController)
 			{
 				continue;
@@ -143,7 +143,7 @@ namespace UE::DMX::Private
 			const uint32 CurrentMinValue = Fader->GetMinValue();
 			Fader->SetMinValue(CurrentMinValue);
 
-			UDMXControlConsoleElementController* ElementController = Fader->GetElementController();
+			UDMXControlConsoleElementController* ElementController = Cast<UDMXControlConsoleElementController>(Fader->GetElementController());
 			if (!ElementController)
 			{
 				continue;
@@ -171,7 +171,7 @@ namespace UE::DMX::Private
 			const uint32 CurrentMaxValue = Fader->GetMaxValue();
 			Fader->SetMaxValue(CurrentMaxValue);
 
-			UDMXControlConsoleElementController* ElementController = Fader->GetElementController();
+			UDMXControlConsoleElementController* ElementController = Cast<UDMXControlConsoleElementController>(Fader->GetElementController());
 			if (!ElementController)
 			{
 				continue;
@@ -219,7 +219,7 @@ namespace UE::DMX::Private
 
 			Fader->PostEditChange();
 
-			UDMXControlConsoleElementController* ElementController = Fader->GetElementController();
+			UDMXControlConsoleElementController* ElementController = Cast<UDMXControlConsoleElementController>(Fader->GetElementController());
 			if (!ElementController)
 			{
 				continue;
@@ -268,7 +268,7 @@ namespace UE::DMX::Private
 			RawFader->SetValue(CurrentValue);
 			RawFader->PostEditChange();
 
-			UDMXControlConsoleElementController* ElementController = RawFader->GetElementController();
+			UDMXControlConsoleElementController* ElementController = Cast<UDMXControlConsoleElementController>(RawFader->GetElementController());
 			if (!ElementController)
 			{
 				continue;

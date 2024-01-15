@@ -8,14 +8,15 @@
 #include "DMXControlConsoleFaderGroup.h"
 #include "DMXControlConsoleFaderGroupRow.h"
 #include "Editor.h"
+#include "Layouts/Controllers/DMXControlConsoleFaderGroupController.h"
 #include "Layouts/DMXControlConsoleEditorGlobalLayoutBase.h"
 #include "Layouts/DMXControlConsoleEditorGlobalLayoutRow.h"
 #include "Layouts/DMXControlConsoleEditorLayouts.h"
 #include "Models/DMXControlConsoleEditorModel.h"
 #include "ScopedTransaction.h"
 #include "TimerManager.h"
+#include "Views/SDMXControlConsoleEditorFaderGroupControllerView.h"
 #include "Views/SDMXControlConsoleEditorLayoutRowView.h"
-#include "Views/SDMXControlConsoleEditorFaderGroupView.h"
 #include "Widgets/Layout/SBox.h"
 #include "Widgets/Layout/SScrollBar.h"
 #include "Widgets/Layout/SScrollBox.h"
@@ -38,7 +39,7 @@ namespace UE::DMX::Private
 		EditorLayout = InLayout;
 
 		EditorModel->GetOnEditorModelUpdated().AddSP(this, &SDMXControlConsoleEditorGridLayout::Refresh);
-		EditorModel->GetOnScrollFaderGroupIntoView().AddSP(this, &SDMXControlConsoleEditorGridLayout::OnScrollIntoView);
+		EditorModel->GetOnScrollFaderGroupControllerIntoView().AddSP(this, &SDMXControlConsoleEditorGridLayout::OnScrollIntoView);
 
 		const TSharedRef<SScrollBar> VerticalScrollBar = SNew(SScrollBar)
 			.Orientation(Orient_Vertical);
@@ -75,7 +76,7 @@ namespace UE::DMX::Private
 								.VAlign(VAlign_Center)
 								[
 									SNew(SDMXControlConsoleEditorAddButton)
-									.OnClicked(this, &SDMXControlConsoleEditorGridLayout::OnAddFirstFaderGroup)
+									.OnClicked(this, &SDMXControlConsoleEditorGridLayout::OnAddFirstFaderGroupController)
 									.Visibility(TAttribute<EVisibility>(this, &SDMXControlConsoleEditorGridLayout::GetAddButtonVisibility))
 								]
 							]
@@ -264,10 +265,10 @@ namespace UE::DMX::Private
 		return nullptr;
 	}
 
-	FReply SDMXControlConsoleEditorGridLayout::OnAddFirstFaderGroup()
+	FReply SDMXControlConsoleEditorGridLayout::OnAddFirstFaderGroupController()
 	{
 		UDMXControlConsoleData* ControlConsoleData = EditorModel.IsValid() ? EditorModel->GetControlConsoleData() : nullptr;
-		if (!ensureMsgf(ControlConsoleData, TEXT("Invalid control console data, can't add fader group correctly.")))
+		if (!ensureMsgf(ControlConsoleData, TEXT("Invalid control console data, can't add fader group controller correctly.")))
 		{
 			return FReply::Unhandled();
 		}
@@ -278,7 +279,7 @@ namespace UE::DMX::Private
 		ControlConsoleData->PostEditChange();
 
 		const UDMXControlConsoleEditorLayouts* ControlConsoleLayouts = EditorModel.IsValid() ? EditorModel->GetControlConsoleLayouts() : nullptr;
-		if (!ensureMsgf(ControlConsoleLayouts, TEXT("Invalid control console layouts, can't add fader group correctly.")))
+		if (!ensureMsgf(ControlConsoleLayouts, TEXT("Invalid control console layouts, can't add fader group controller correctly.")))
 		{
 			return FReply::Unhandled();
 		}
@@ -298,17 +299,29 @@ namespace UE::DMX::Private
 		}
 
 		UDMXControlConsoleFaderGroup* NewFaderGroup = !NewRow->GetFaderGroups().IsEmpty() ? NewRow->GetFaderGroups()[0] : nullptr;
+		if (!NewFaderGroup)
+		{
+			return FReply::Unhandled();
+		}
+
+		// Create a new controller for the fader group
 		NewLayoutRow->PreEditChange(nullptr);
-		NewLayoutRow->AddToLayoutRow(NewFaderGroup);
+		UDMXControlConsoleFaderGroupController* NewController = NewLayoutRow->CreateFaderGroupController(NewFaderGroup, NewFaderGroup->GetFaderGroupName());
 		NewLayoutRow->PostEditChange();
+		if (NewController)
+		{
+			NewController->Modify();
+			NewController->SetIsActive(true);
+			ActiveLayout->AddToActiveFaderGroupControllers(NewController);
+		}
 
 		return FReply::Handled();
 	}
 
-	void SDMXControlConsoleEditorGridLayout::OnScrollIntoView(const UDMXControlConsoleFaderGroup* FaderGroup)
+	void SDMXControlConsoleEditorGridLayout::OnScrollIntoView(const UDMXControlConsoleFaderGroupController* FaderGroupController)
 	{
 		const UDMXControlConsoleEditorLayouts* ControlConsoleLayouts = EditorModel.IsValid() ? EditorModel->GetControlConsoleLayouts() : nullptr;
-		if (!ControlConsoleLayouts || !FaderGroup)
+		if (!ControlConsoleLayouts || !FaderGroupController)
 		{
 			return;
 		}
@@ -324,15 +337,15 @@ namespace UE::DMX::Private
 			return;
 		}
 
-		const UDMXControlConsoleEditorGlobalLayoutRow* LayoutRow = ActiveLayout->GetLayoutRow(FaderGroup);
+		const UDMXControlConsoleEditorGlobalLayoutRow* LayoutRow = ActiveLayout->GetLayoutRow(FaderGroupController);
 		const TSharedPtr<SDMXControlConsoleEditorLayoutRowView> LayoutRowView = FindLayoutRowView(LayoutRow);
 		if (LayoutRowView.IsValid())
 		{
-			const TSharedPtr<SDMXControlConsoleEditorFaderGroupView> FaderGroupView = LayoutRowView->FindFaderGroupView(FaderGroup);
-			if (FaderGroupView.IsValid())
+			const TSharedPtr<SDMXControlConsoleEditorFaderGroupControllerView> FaderGroupControllerView = LayoutRowView->FindFaderGroupControllerView(FaderGroupController);
+			if (FaderGroupControllerView.IsValid())
 			{
 				VerticalScrollBox->ScrollDescendantIntoView(LayoutRowView, true, EDescendantScrollDestination::Center);
-				HorizontalScrollBox->ScrollDescendantIntoView(FaderGroupView, true, EDescendantScrollDestination::TopOrLeft);
+				HorizontalScrollBox->ScrollDescendantIntoView(FaderGroupControllerView, true, EDescendantScrollDestination::TopOrLeft);
 			}
 		}
 	}
@@ -344,18 +357,18 @@ namespace UE::DMX::Private
 			return EVisibility::Collapsed;
 		}
 
-		const auto IsAnyFaderGroupVisibleLambda = [](const TWeakObjectPtr<UDMXControlConsoleFaderGroup>& FaderGroup)
+		const auto IsAnyFaderGroupControllerVisibleLambda = [](const UDMXControlConsoleFaderGroupController* FaderGroupController)
 		{
-			if (!FaderGroup.IsValid())
+			if (!FaderGroupController)
 			{
 				return false;
 			}
 
-			return FaderGroup->IsActive() && FaderGroup->IsMatchingFilter();
+			return FaderGroupController->IsActive() && FaderGroupController->IsMatchingFilter();
 		};
 
-		const TArray<TWeakObjectPtr<UDMXControlConsoleFaderGroup>> FaderGroups = LayoutRow->GetFaderGroups();
-		const bool bIsVisible = Algo::AnyOf(FaderGroups, IsAnyFaderGroupVisibleLambda);
+		const TArray<UDMXControlConsoleFaderGroupController*> FaderGroupControllers = LayoutRow->GetFaderGroupControllers();
+		const bool bIsVisible = Algo::AnyOf(FaderGroupControllers, IsAnyFaderGroupControllerVisibleLambda);
 		return bIsVisible ? EVisibility::Visible : EVisibility::Collapsed;
 	}
 
@@ -374,7 +387,7 @@ namespace UE::DMX::Private
 				ActiveLayout != &ControlConsoleLayouts->GetDefaultLayoutChecked() &&
 				ControlConsoleData->FilterString.IsEmpty() &&
 				(ActiveLayout->GetLayoutRows().IsEmpty() ||
-				ActiveLayout->GetAllActiveFaderGroups().IsEmpty());
+				ActiveLayout->GetAllActiveFaderGroupControllers().IsEmpty());
 		}
 
 		return bIsVisible ? EVisibility::Visible : EVisibility::Collapsed;

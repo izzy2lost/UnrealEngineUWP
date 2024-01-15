@@ -9,7 +9,7 @@
 #include "DMXControlConsoleFaderBase.generated.h"
 
 enum class EDMXFixtureSignalFormat : uint8;
-class UDMXControlConsoleElementController;
+class UDMXControlConsoleControllerBase;
 class UDMXControlConsoleFaderGroup;
 
 
@@ -27,7 +27,8 @@ public:
 
 	//~ Being IDMXControlConsoleFaderGroupElement interface
 	virtual UDMXControlConsoleFaderGroup& GetOwnerFaderGroupChecked() const override;
-	virtual UDMXControlConsoleElementController* GetElementController() override;
+	virtual UDMXControlConsoleControllerBase* GetElementController() const override;
+	virtual void SetElementController(UDMXControlConsoleControllerBase* NewController) override;
 	virtual int32 GetIndex() const override;
 	virtual const TArray<UDMXControlConsoleFaderBase*>& GetFaders() const override { return ThisFaderAsArray; }
 	virtual int32 GetUniverseID() const override { return UniverseID; }
@@ -41,7 +42,7 @@ public:
 
 	/** Sets the name of the Fader */
 	virtual void SetFaderName(const FString& NewName);
-	
+
 	/** Gets Fader's Data Type */
 	virtual EDMXFixtureSignalFormat GetDataType() const { return DataType; }
 
@@ -75,6 +76,11 @@ public:
 	/** Resets the fader to its default value */
 	void ResetToDefault();
 
+	//~ Begin of UObject interface
+	virtual void PostInitProperties() override;
+	virtual void PostLoad() override;
+	//~ End of UObject interface
+
 	// Property Name getters
 	FORCEINLINE static FName GetFaderNamePropertyName() { return GET_MEMBER_NAME_CHECKED(UDMXControlConsoleFaderBase, FaderName); }
 	FORCEINLINE static FName GetDataTypePropertyName() { return GET_MEMBER_NAME_CHECKED(UDMXControlConsoleFaderBase, DataType); }
@@ -87,10 +93,6 @@ public:
 	FORCEINLINE static FName GetUseLSBModePropertyName() { return GET_MEMBER_NAME_CHECKED(UDMXControlConsoleFaderBase, bUseLSBMode); }
 
 protected:
-	//~ Begin of UObject interface
-	virtual void PostInitProperties() override;
-	//~ End of UObject interface
-
 	/** Sets a new universe ID, checking for its validity */
 	virtual void SetUniverseID(int32 InUniversID);
 
@@ -146,6 +148,14 @@ protected:
 	/** If true, the value of the Fader can't be changed */
 	UPROPERTY()
 	bool bIsLocked = false;
+
+	/** Soft reference to the Controller of this Fader */
+	UPROPERTY()
+	TSoftObjectPtr<UDMXControlConsoleControllerBase> SoftControllerPtr;
+
+	/** Cached reference to the Controller of this Fader, for fast access */
+	UPROPERTY(Transient)
+	TWeakObjectPtr<UDMXControlConsoleControllerBase> CachedWeakElementController;
 
 	/** This fader as an array for fast access */
 	TArray<UDMXControlConsoleFaderBase*> ThisFaderAsArray;

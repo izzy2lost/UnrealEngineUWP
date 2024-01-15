@@ -28,8 +28,6 @@ namespace UE::DMX::Private
 		checkf(InEditorModel, TEXT("Invalid control console editor model, can't constuct dmx library view correctly."));
 		EditorModel = InEditorModel;
 
-		UDMXControlConsoleData::GetOnDMXLibraryChanged().AddSP(this, &SDMXControlConsoleEditorDMXLibraryView::OnDMXLibraryChanged);
-
 		FDetailsViewArgs DetailsViewArgs;
 		DetailsViewArgs.NameAreaSettings = FDetailsViewArgs::HideNameArea;
 		DetailsViewArgs.bAllowSearch = false;
@@ -48,6 +46,7 @@ namespace UE::DMX::Private
 		{
 			constexpr bool bForceRefresh = true;
 			ControlConsoleDataDetailsView->SetObject(ControlConsoleData, bForceRefresh);
+			ControlConsoleData->GetOnDMXLibraryChanged().AddSP(this, &SDMXControlConsoleEditorDMXLibraryView::OnDMXLibraryChanged);
 		}
 
 		ChildSlot

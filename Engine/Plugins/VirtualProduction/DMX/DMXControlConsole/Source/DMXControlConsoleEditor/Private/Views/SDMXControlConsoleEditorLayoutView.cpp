@@ -31,7 +31,7 @@ namespace UE::DMX::Private
 
 		if (UDMXControlConsoleEditorLayouts* ControlConsoleLayouts = EditorModel->GetControlConsoleLayouts())
 		{
-			ControlConsoleLayouts->GetOnActiveLayoutChanged().AddSP(this, &SDMXControlConsoleEditorLayoutView::UpdateLayout);
+			ControlConsoleLayouts->GetOnActiveLayoutChanged().AddSP(this, &SDMXControlConsoleEditorLayoutView::OnActiveLayoutChanged);
 			ControlConsoleLayouts->GetOnLayoutModeChanged().AddSP(this, &SDMXControlConsoleEditorLayoutView::UpdateLayout);
 		}
 
@@ -193,6 +193,14 @@ namespace UE::DMX::Private
 		}
 
 		return false;
+	}
+
+	void SDMXControlConsoleEditorLayoutView::OnActiveLayoutChanged(const UDMXControlConsoleEditorGlobalLayoutBase* ActiveLayout)
+	{
+		if (ActiveLayout)
+		{
+			UpdateLayout();
+		}
 	}
 }
 

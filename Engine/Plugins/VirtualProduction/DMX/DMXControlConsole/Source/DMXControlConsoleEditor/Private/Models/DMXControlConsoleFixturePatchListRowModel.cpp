@@ -2,7 +2,7 @@
 
 #include "DMXControlConsoleFixturePatchListRowModel.h"
 
-#include "DMXControlConsoleFaderGroup.h"
+#include "Layouts/Controllers/DMXControlConsoleFaderGroupController.h"
 #include "Layouts/DMXControlConsoleEditorGlobalLayoutBase.h"
 #include "Layouts/DMXControlConsoleEditorLayouts.h"
 #include "Models/DMXControlConsoleEditorModel.h"
@@ -49,8 +49,8 @@ bool FDMXControlConsoleFixturePatchListRowModel::IsRowEnabled() const
 		return true;
 	}
 
-	const UDMXControlConsoleFaderGroup* FaderGroup = ActiveLayout->FindFaderGroupByFixturePatch(FixturePatch);
-	return !IsValid(FaderGroup);
+	const UDMXControlConsoleFaderGroupController* FaderGroupController = ActiveLayout->FindFaderGroupControllerByFixturePatch(FixturePatch);
+	return !IsValid(FaderGroupController);
 }
 
 ECheckBoxState FDMXControlConsoleFixturePatchListRowModel::GetFaderGroupMutedState() const
@@ -68,10 +68,12 @@ ECheckBoxState FDMXControlConsoleFixturePatchListRowModel::GetFaderGroupMutedSta
 		return ECheckBoxState::Undetermined;
 	}
 
-	if (const UDMXControlConsoleData* ControlConsoleData = EditorModel->GetControlConsoleData())
+	const UDMXControlConsoleEditorLayouts* ControlConsoleLayouts = EditorModel->GetControlConsoleLayouts();
+	const UDMXControlConsoleEditorGlobalLayoutBase* ActiveLayout = ControlConsoleLayouts ? ControlConsoleLayouts->GetActiveLayout() : nullptr;
+	if (ActiveLayout)
 	{
-		const UDMXControlConsoleFaderGroup* FaderGroup = ControlConsoleData->FindFaderGroupByFixturePatch(FixturePatch);
-		return IsValid(FaderGroup) && FaderGroup->IsMuted() ? ECheckBoxState::Unchecked : ECheckBoxState::Checked;
+		const UDMXControlConsoleFaderGroupController* FaderGroupController = ActiveLayout->FindFaderGroupControllerByFixturePatch(FixturePatch);
+		return IsValid(FaderGroupController) && FaderGroupController->IsMuted() ? ECheckBoxState::Unchecked : ECheckBoxState::Checked;
 	}
 
 	return ECheckBoxState::Undetermined;
@@ -91,23 +93,23 @@ void FDMXControlConsoleFixturePatchListRowModel::SetFaderGroupMuted(bool bMuted)
 		return;
 	}
 
-	UDMXControlConsoleData* ControlConsoleData = EditorModel->GetControlConsoleData();
-	if (!ControlConsoleData)
+	const UDMXControlConsoleEditorLayouts* ControlConsoleLayouts = EditorModel->GetControlConsoleLayouts();
+	const UDMXControlConsoleEditorGlobalLayoutBase* ActiveLayout = ControlConsoleLayouts ? ControlConsoleLayouts->GetActiveLayout() : nullptr;
+	if (!ActiveLayout)
 	{
 		return;
 	}
 
-	if (UDMXControlConsoleFaderGroup* FaderGroup = ControlConsoleData->FindFaderGroupByFixturePatch(FixturePatch))
+	if (UDMXControlConsoleFaderGroupController* FaderGroupController = ActiveLayout->FindFaderGroupControllerByFixturePatch(FixturePatch))
 	{
 		const FText TransactionText = bMuted ?
 			LOCTEXT("MuteFaderGroupTransaction", "Mute Fader Group") :
 			LOCTEXT("UnmuteFaderGroupTransaction", "Unmute Fader Group");
 		const FScopedTransaction SetFaderGroupMutedTransaction(TransactionText);
 
-		FaderGroup->Modify();
-		FaderGroup->SetMute(bMuted);
+		FaderGroupController->Modify();
+		FaderGroupController->SetMute(bMuted);
 	}
 }
 
 #undef LOCTEXT_NAMESPACE 
-
