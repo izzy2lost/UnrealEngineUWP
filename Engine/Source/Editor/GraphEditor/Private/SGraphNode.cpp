@@ -593,22 +593,14 @@ FVector2D SGraphNode::GetPosition() const
 
 FString SGraphNode::GetEditableNodeTitle() const
 {
-	if (GraphNode != NULL)
+	if (GraphNode != nullptr)
 	{
 		// Trying to catch a non-reproducible crash in this function
 		check(GraphNode->IsValidLowLevel());
-	}
-
-	if(GraphNode)
-	{
 		return GraphNode->GetNodeTitle(ENodeTitleType::EditableTitle).ToString();
 	}
-	return NSLOCTEXT("GraphEditor", "NullNode", "Null Node").ToString();
 
-	// Get the portion of the node that is actually editable text (may be a subsection of the title, or something else entirely)
-	return (GraphNode != NULL)
-		? GraphNode->GetNodeTitle(ENodeTitleType::EditableTitle).ToString()
-		: NSLOCTEXT("GraphEditor", "NullNode", "Null Node").ToString();
+	return NSLOCTEXT("GraphEditor", "NullNode", "Null Node").ToString();
 }
 
 FText SGraphNode::GetEditableNodeTitleAsText() const

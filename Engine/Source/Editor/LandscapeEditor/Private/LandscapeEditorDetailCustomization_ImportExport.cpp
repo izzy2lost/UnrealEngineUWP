@@ -936,12 +936,8 @@ FText FLandscapeEditorDetailCustomization_ImportExport::GetImportLandscapeResolu
 		Args.Add(TEXT("Height"), Height);
 		return FText::Format(LOCTEXT("ImportResolution_Format", "{Width}\u00D7{Height}"), Args);
 	}
-	else
-	{
-		return LOCTEXT("ImportResolution_Invalid", "(invalid)");
-	}
-	
-	return FText::GetEmpty();
+
+	return LOCTEXT("ImportResolution_Invalid", "(invalid)");
 }
 
 

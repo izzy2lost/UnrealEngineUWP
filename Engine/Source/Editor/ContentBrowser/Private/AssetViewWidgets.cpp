@@ -1330,29 +1330,20 @@ void SAssetViewItem::CacheDisplayTags()
 	
 					return FText::AsNumber(Num, &NumFormatOpts);
 				}
-				else
+
+				const bool bIsSigned = InNumberString.Len() > 0 && (InNumberString[0] == TEXT('-') || InNumberString[0] == TEXT('+'));
+				if (bIsSigned)
 				{
-					const bool bIsSigned = InNumberString.Len() > 0 && (InNumberString[0] == TEXT('-') || InNumberString[0] == TEXT('+'));
-	
-					if (bIsSigned)
-					{
-						// Convert the number as a signed int
-						int64 Num = 0;
-						LexFromString(Num, *InNumberString);
-	
-						return FText::AsNumber(Num);
-					}
-					else
-					{
-						// Convert the number as an unsigned int
-						uint64 Num = 0;
-						LexFromString(Num, *InNumberString);
-	
-						return FText::AsNumber(Num);
-					}
+					// Convert the number as a signed int
+					int64 Num = 0;
+					LexFromString(Num, *InNumberString);
+					return FText::AsNumber(Num);
 				}
-	
-				return FText::GetEmpty();
+
+				// Convert the number as an unsigned int
+				uint64 Num = 0;
+				LexFromString(Num, *InNumberString);
+				return FText::AsNumber(Num);
 			};
 	
 			bool bHasSetDisplayValue = false;

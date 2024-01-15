@@ -36,10 +36,10 @@ FText GetOperatorText(const EGenericAICheck Operator)
 		return FText::FromString(TEXT("&gt;="));
 		break;
 	default:
-		return FText::FromString(TEXT("??"));
 		break;
 	}
-	return FText::GetEmpty();
+
+	return FText::FromString(TEXT("??"));
 }
 #endif // WITH_EDITOR
 

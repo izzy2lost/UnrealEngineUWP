@@ -465,7 +465,7 @@ FText FMediaIOCorePlayerBase::GetTrackDisplayName(EMediaTrackType TrackType, int
 		return LOCTEXT("DefaultVideoTrackName", "Video Track");
 
 	default:
-		return FText::GetEmpty();
+		break;
 	}
 }
 

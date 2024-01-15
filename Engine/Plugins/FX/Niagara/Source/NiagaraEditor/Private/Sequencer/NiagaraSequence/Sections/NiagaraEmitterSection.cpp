@@ -25,13 +25,13 @@ int32 FNiagaraEmitterSection::OnPaintSection(FSequencerSectionPainter& InPainter
 	return InPainter.PaintSectionBackground();
 
 	// TODO: Fix the looping drawing and interaction
+	/*
 	TSharedPtr<FNiagaraEmitterHandleViewModel> EmitterHandleViewModel = EmitterSection->GetEmitterHandleViewModel();
 	if (EmitterHandleViewModel.IsValid() == false)
 	{
 		return InPainter.LayerId;
 	}
 
-	/*
 	// draw the first run of the emitter
 	FSlateDrawElement::MakeBox
 	(
@@ -59,8 +59,8 @@ int32 FNiagaraEmitterSection::OnPaintSection(FSequencerSectionPainter& InPainter
 			FLinearColor(0.3f, 0.3f, 0.6f, 0.25f)
 		);
 	}
-	*/
 	return InPainter.LayerId;
+	*/
 }
 
 FText FNiagaraEmitterSection::GetSectionTitle(void) const
