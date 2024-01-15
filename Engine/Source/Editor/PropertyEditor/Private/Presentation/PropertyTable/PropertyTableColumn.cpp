@@ -348,7 +348,7 @@ FORCEINLINE int32 FCompareRowByColumnAscending<FStructProperty>::CompareProperty
 
 		if ( LhsPropertyHandle->GetValue(LhsVector) != FPropertyAccess::Fail && RhsPropertyHandle->GetValue(RhsVector) != FPropertyAccess::Fail )
 		{
-			return RhsVector.SizeSquared() - LhsVector.SizeSquared();
+			return static_cast<int32>(RhsVector.SizeSquared() - LhsVector.SizeSquared());
 		}
 
 		FVector2D LhsVector2D;
@@ -356,7 +356,7 @@ FORCEINLINE int32 FCompareRowByColumnAscending<FStructProperty>::CompareProperty
 
 		if ( LhsPropertyHandle->GetValue(LhsVector2D) != FPropertyAccess::Fail && RhsPropertyHandle->GetValue(RhsVector2D) != FPropertyAccess::Fail )
 		{
-			return RhsVector2D.SizeSquared() - LhsVector2D.SizeSquared();
+			return static_cast<int32>(RhsVector2D.SizeSquared() - LhsVector2D.SizeSquared());
 		}
 
 		FVector4 LhsVector4;
@@ -364,7 +364,7 @@ FORCEINLINE int32 FCompareRowByColumnAscending<FStructProperty>::CompareProperty
 
 		if ( LhsPropertyHandle->GetValue(LhsVector4) != FPropertyAccess::Fail && RhsPropertyHandle->GetValue(RhsVector4) != FPropertyAccess::Fail )
 		{
-			return RhsVector4.SizeSquared() - LhsVector4.SizeSquared();
+			return static_cast<int32>(RhsVector4.SizeSquared() - LhsVector4.SizeSquared());
 		}
 	}
 

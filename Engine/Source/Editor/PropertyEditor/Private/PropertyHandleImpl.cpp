@@ -925,7 +925,7 @@ static Type ClampIntegerValueFromMetaData(Type InValue, FPropertyHandleBase& InP
 		FObjectPropertyNode* ObjectPropertyNode = InPropertyNode.FindObjectItemParent();
 		if (ObjectPropertyNode && ObjectPropertyNode->GetNumObjects() == 1)
 		{
-			Type LastValidIndex = GetArrayPropertyLastValidIndex(ObjectPropertyNode, ArrayClampString);
+			Type LastValidIndex = static_cast<Type>(GetArrayPropertyLastValidIndex(ObjectPropertyNode, ArrayClampString));
 			RetVal = FMath::Clamp<Type>(RetVal, 0, LastValidIndex);
 		}
 		else
@@ -3839,7 +3839,7 @@ FPropertyAccess::Result FPropertyHandleByte::GetValue( uint8& OutValue ) const
 		else
 		{
 			check(PropertyNodePin.IsValid());
-			OutValue = CastFieldChecked<FEnumProperty>(Property)->GetUnderlyingProperty()->GetUnsignedIntPropertyValue(PropValue);
+			OutValue = static_cast<uint8>(CastFieldChecked<FEnumProperty>(Property)->GetUnderlyingProperty()->GetUnsignedIntPropertyValue(PropValue));
 		}
 	}
 
@@ -4457,7 +4457,7 @@ FPropertyAccess::Result FPropertyHandleMixed::GetValue(float& OutValue) const
 {
 	double AsDouble;
 	FPropertyAccess::Result Res = GetValue(AsDouble);
-	OutValue = AsDouble;
+	OutValue = static_cast<float>(AsDouble);
 	return Res;
 }
 
