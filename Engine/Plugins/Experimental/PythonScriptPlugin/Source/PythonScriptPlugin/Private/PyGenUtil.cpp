@@ -1101,6 +1101,12 @@ bool UnpackReturnValues(PyObject* InRetVals, const FOutParmRec* InOutputParms, c
 		const bool bReturnValue = InRetVals != Py_None;
 		BoolReturn->SetPropertyValue(OutParamRec->PropAddr, bReturnValue);
 
+		if (!bReturnValue)
+		{
+			// None was returned, so there's nothing to unpack into any additional output arguments
+			return true;
+		}
+
 		OutParamRec = OutParamRec->NextOutParm; // Start unpacking at the 1st out value
 		check(OutParamRec);
 	}

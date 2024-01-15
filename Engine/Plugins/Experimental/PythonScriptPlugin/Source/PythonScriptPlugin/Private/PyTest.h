@@ -225,6 +225,9 @@ public:
 	UFUNCTION(BlueprintImplementableEvent, Category = "Python|Internal")
 	int32 FuncBlueprintImplementable(const int32 InValue) const;
 
+	UFUNCTION(BlueprintImplementableEvent, Category = "Python|Internal")
+	bool FuncBlueprintImplementablePackedGetter(int32& OutValue) const;
+
 	UFUNCTION(BlueprintNativeEvent, Category = "Python|Internal")
 	int32 FuncBlueprintNative(const int32 InValue) const;
 
@@ -233,6 +236,9 @@ public:
 
 	UFUNCTION(BlueprintCallable, Category = "Python|Internal")
 	int32 CallFuncBlueprintImplementable(const int32 InValue) const;
+
+	UFUNCTION(BlueprintCallable, Category = "Python|Internal")
+	bool CallFuncBlueprintImplementablePackedGetter(int32& OutValue) const;
 
 	UFUNCTION(BlueprintCallable, Category = "Python|Internal")
 	int32 CallFuncBlueprintNative(const int32 InValue) const;
