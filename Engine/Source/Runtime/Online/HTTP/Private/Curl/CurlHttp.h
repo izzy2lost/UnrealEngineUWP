@@ -346,7 +346,6 @@ private:
 
 	/** Broadcast newly received headers */
 	void BroadcastNewlyReceivedHeaders();
-	void BroadcastNewlyReceivedHeader(const FString& HeaderKey, const FString& HeaderValue);
 
 	/** Combine a header's key/value in the format "Key: Value" */
 	static FString CombineHeaderKeyValue(const FString& HeaderKey, const FString& HeaderValue);
@@ -387,10 +386,14 @@ private:
 	float TimeSinceLastResponse;
 	/** Have we had any HTTP activity with the host? Sending headers, SSL handshake, etc */
 	bool bAnyHttpActivity;
+	/** Newly received headers we need to inform listeners about */
+	TSpscQueue<TPair<FString, FString>> NewlyReceivedHeaders;
 	/** Number of bytes sent already */
 	std::atomic<int64> BytesSent;
 	/** Total number of bytes sent already (includes data re-sent by seek attempts) */
 	std::atomic<int64> TotalBytesSent;
+	/** Caches how many bytes of the response we've read so far */
+	std::atomic<int64> TotalBytesRead;
 	/** Last bytes read reported to progress delegate */
 	uint64 LastReportedBytesRead;
 	/** Last bytes sent reported to progress delegate */
@@ -439,12 +442,8 @@ private:
 	TArray<uint8> Payload;
 	/** The stream to receive response body */
 	TSharedPtr<FArchive> ResponseBodyReceiveStream;
-	/** Caches how many bytes of the response we've read so far */
-	std::atomic<int64> TotalBytesRead;
 	/** Cached key/value header pairs. Parsed once request completes. Only accessible on the game thread. */
 	TMap<FString, FString> Headers;
-	/** Newly received headers we need to inform listeners about */
-	TSpscQueue<TPair<FString, FString>> NewlyReceivedHeaders;
 	/** Cached code from completed response */
 	int32 HttpCode;
 	/** Cached content length from completed response */
