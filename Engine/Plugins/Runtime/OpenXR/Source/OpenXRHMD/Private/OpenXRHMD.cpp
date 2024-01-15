@@ -375,19 +375,35 @@ float FOpenXRHMD::GetWorldToMetersScale() const
 
 FVector2D FOpenXRHMD::GetPlayAreaBounds(EHMDTrackingOrigin::Type Origin) const
 {
-	XrReferenceSpaceType Space = XR_REFERENCE_SPACE_TYPE_STAGE;
+	XrReferenceSpaceType Space = XR_REFERENCE_SPACE_TYPE_LOCAL;
 	switch (Origin)
 	{
-	case EHMDTrackingOrigin::Eye:
+	case EHMDTrackingOrigin::View:
 		Space = XR_REFERENCE_SPACE_TYPE_VIEW;
 		break;
-	case EHMDTrackingOrigin::Floor:
+	case EHMDTrackingOrigin::Local:
 		Space = XR_REFERENCE_SPACE_TYPE_LOCAL;
+		break;
+	case EHMDTrackingOrigin::LocalFloor:
+		Space = XR_REFERENCE_SPACE_TYPE_LOCAL_FLOOR_EXT;
 		break;
 	case EHMDTrackingOrigin::Stage:
 		Space = XR_REFERENCE_SPACE_TYPE_STAGE;
 		break;
+	case EHMDTrackingOrigin::CustomOpenXR:
+		if (bUseCustomReferenceSpace)
+		{
+			Space = TrackingSpaceType;
+			break;
+		}
+		else
+		{
+			UE_LOG(LogHMD, Warning, TEXT("GetPlayAreaBounds(EHMDTrackingOrigin::CustomOpenXR), but we are not using a custom reference space now. Returning zero vector."));
+			return FVector2D::ZeroVector;
+		}
 	default:
+		check(false);
+
 		break;
 	}
 	XrExtent2Df Bounds;
@@ -452,7 +468,7 @@ bool FOpenXRHMD::GetTrackingOriginTransform(TEnumAsByte<EHMDTrackingOrigin::Type
 	XrSpace Space = XR_NULL_HANDLE;
 	switch (Origin)
 	{
-	case EHMDTrackingOrigin::Eye:
+	case EHMDTrackingOrigin::Local:
 		{
 			FReadScopeLock DeviceLock(DeviceMutex);
 			if (DeviceSpaces.Num())
@@ -461,15 +477,15 @@ bool FOpenXRHMD::GetTrackingOriginTransform(TEnumAsByte<EHMDTrackingOrigin::Type
 			}
 		}
 		break;
-	case EHMDTrackingOrigin::Floor:
-		Space = LocalSpace;
+	case EHMDTrackingOrigin::LocalFloor:
+		Space = bLocalFloorExtensionSupported? LocalFloorSpace : LocalSpace;
 		break;
 	case EHMDTrackingOrigin::Stage:
 		Space = StageSpace;
 		break;
-	//case EHMDTrackingOrigin::???:
-		//Space = CustomSpace
-		//break;
+	case EHMDTrackingOrigin::CustomOpenXR:
+		Space = CustomSpace;
+		break;
 	default:
 		check(false);
 		break;
@@ -762,7 +778,15 @@ void FOpenXRHMD::Recenter(EOrientPositionSelector::Type Selector, float Yaw)
 	}
 	XrSpaceLocation DeviceLocation = { XR_TYPE_SPACE_LOCATION, nullptr };
 
-	XrSpace BaseSpace = TrackingSpaceType == XR_REFERENCE_SPACE_TYPE_STAGE ? StageSpace : LocalSpace;
+	XrSpace BaseSpace = XR_NULL_HANDLE;
+	if (bLocalFloorExtensionSupported && TrackingSpaceType == XR_REFERENCE_SPACE_TYPE_LOCAL_FLOOR_EXT)
+	{
+		BaseSpace = LocalFloorSpace;
+	}
+	else
+	{
+		BaseSpace = TrackingSpaceType == XR_REFERENCE_SPACE_TYPE_STAGE ? StageSpace : LocalSpace;
+	}
 	if (bUseCustomReferenceSpace)
 	{
 		BaseSpace = CustomSpace;
@@ -830,6 +854,81 @@ void FOpenXRHMD::SetBasePosition(const FVector& InBasePosition)
 FVector FOpenXRHMD::GetBasePosition() const
 {
 	return BasePosition;
+}
+
+void FOpenXRHMD::SetTrackingOrigin(EHMDTrackingOrigin::Type NewOrigin)
+{
+	if (NewOrigin == EHMDTrackingOrigin::View)
+	{
+		UE_LOG(LogHMD, Warning, TEXT("SetTrackingOrigin(EHMDTrackingOrigin::View) called, which is invalid (We allow getting the view transform as a tracking space, but we do not allow setting the tracking space origin to the View).  We are setting the tracking space to Local, to maintain legacy behavior, however ideally the blueprint calling this would be fixed to use Local space."), OpenXRReferenceSpaceTypeToString(TrackingSpaceType));
+		TrackingSpaceType = XR_REFERENCE_SPACE_TYPE_LOCAL;  // Local space is always supported
+	}
+
+	if (NewOrigin == EHMDTrackingOrigin::CustomOpenXR)
+	{
+		if (!bUseCustomReferenceSpace)
+		{
+			UE_LOG(LogHMD, Warning, TEXT("SetTrackingOrigin(EHMDTrackingOrigin::CustomOpenXR) called when bUseCustomReferenceSpace is false.  This call is being ignored.  Reference space will remain %s."), OpenXRReferenceSpaceTypeToString(TrackingSpaceType));
+			return;
+		}
+		// The case, where we set to custom and custom is supported doesn't need to do anything.
+		// It isn't really useful to do this, but it is easy to imagine that allowing it to happen might make implementing a project that supports multiple types of reference spaces easier.
+		return;
+	}
+	
+	if (bUseCustomReferenceSpace)
+	{
+		UE_LOG(LogHMD, Warning, TEXT("SetTrackingOrigin(%i) called when bUseCustomReferenceSpace is true.  This call is being ignored.  Reference space will remain custom %s."), NewOrigin, OpenXRReferenceSpaceTypeToString(TrackingSpaceType));
+		return;
+	}
+
+	if (NewOrigin == EHMDTrackingOrigin::LocalFloor && bLocalFloorExtensionSupported)
+	{
+		TrackingSpaceType = XR_REFERENCE_SPACE_TYPE_LOCAL_FLOOR_EXT;
+	}
+	else if (NewOrigin == EHMDTrackingOrigin::Local)
+	{
+		TrackingSpaceType = XR_REFERENCE_SPACE_TYPE_LOCAL;  // Local space is always supported
+	}
+	else if (StageSpace) // Either stage is requested, or floor was requested but floor is not supported.
+	{
+		TrackingSpaceType = XR_REFERENCE_SPACE_TYPE_STAGE;
+	}
+	else
+	{
+		TrackingSpaceType = XR_REFERENCE_SPACE_TYPE_LOCAL;
+	}
+
+	// Force the tracking space to refresh next frame
+	bTrackingSpaceInvalid = true;
+}
+
+EHMDTrackingOrigin::Type FOpenXRHMD::GetTrackingOrigin() const
+{
+	switch (TrackingSpaceType)
+	{
+	case XR_REFERENCE_SPACE_TYPE_STAGE:
+		return EHMDTrackingOrigin::Stage;
+	case XR_REFERENCE_SPACE_TYPE_LOCAL_FLOOR_EXT:
+		return EHMDTrackingOrigin::LocalFloor;
+	case XR_REFERENCE_SPACE_TYPE_LOCAL:
+		return EHMDTrackingOrigin::Local;
+	case XR_REFERENCE_SPACE_TYPE_VIEW:
+		check(false); // Note: we do not expect this to actually happen because view cannot be the tracking origin.
+		return EHMDTrackingOrigin::View;
+	default:
+		if (bUseCustomReferenceSpace)
+		{
+			// The custom reference space covers multiple potential extension tracking origins
+			return EHMDTrackingOrigin::CustomOpenXR;
+		}
+		else
+		{
+			UE_LOG(LogHMD, Warning, TEXT("GetTrackingOrigin() called when unexpected tracking space %s is in use.  Returning EHMDTrackingOrigin::Local because it gives the fewest guarantees, but this value is not correct!  Perhaps this function needs to support more TrackingSpaceTypes?"), OpenXRReferenceSpaceTypeToString(TrackingSpaceType));
+			check(false);
+			return EHMDTrackingOrigin::Local;
+		}
+	}
 }
 
 bool FOpenXRHMD::IsStereoEnabled() const
@@ -1315,6 +1414,7 @@ FOpenXRHMD::FOpenXRHMD(const FAutoRegister& AutoRegister, XrInstance InInstance,
 	, System(XR_NULL_SYSTEM_ID)
 	, Session(XR_NULL_HANDLE)
 	, LocalSpace(XR_NULL_HANDLE)
+	, LocalFloorSpace(XR_NULL_HANDLE)
 	, StageSpace(XR_NULL_HANDLE)
 	, CustomSpace(XR_NULL_HANDLE)
 	, TrackingSpaceType(XR_REFERENCE_SPACE_TYPE_STAGE)
@@ -1354,6 +1454,8 @@ FOpenXRHMD::FOpenXRHMD(const FAutoRegister& AutoRegister, XrInstance InInstance,
 #ifdef XR_USE_GRAPHICS_API_VULKAN
 	bFoveationExtensionSupported &= IsExtensionEnabled(XR_FB_FOVEATION_VULKAN_EXTENSION_NAME) && GRHISupportsAttachmentVariableRateShading && GRHIVariableRateShadingImageDataType == VRSImage_Fractional;
 #endif
+
+	bLocalFloorExtensionSupported = IsExtensionEnabled(XR_EXT_LOCAL_FLOOR_EXTENSION_NAME);
 
 #if PLATFORM_HOLOLENS || PLATFORM_ANDROID
 	bIsStandaloneStereoOnlyDevice = IStereoRendering::IsStartInVR();
@@ -1815,8 +1917,11 @@ bool FOpenXRHMD::OnStereoStartup()
 
 	if (!XR_ENSURE(xrCreateSession(Instance, &SessionInfo, &Session)))
 	{
+		UE_LOG(LogHMD, Warning, TEXT("xrCreateSession failed."), Session)
 		return false;
 	}
+
+	UE_LOG(LogHMD, Verbose, TEXT("xrCreateSession created %llu"), Session);
 
 	for (IOpenXRExtensionPlugin* Module : ExtensionPlugins)
 	{
@@ -1851,6 +1956,19 @@ bool FOpenXRHMD::OnStereoStartup()
 	SpaceInfo.referenceSpaceType = XR_REFERENCE_SPACE_TYPE_LOCAL;
 	XR_ENSURE(xrCreateReferenceSpace(Session, &SpaceInfo, &LocalSpace));
 
+	if(bLocalFloorExtensionSupported)
+	{
+		ensure(ReferenceSpaces.Contains(XR_REFERENCE_SPACE_TYPE_LOCAL_FLOOR_EXT));
+		SpaceInfo.referenceSpaceType = XR_REFERENCE_SPACE_TYPE_LOCAL_FLOOR_EXT;
+		XR_ENSURE(xrCreateReferenceSpace(Session, &SpaceInfo, &LocalFloorSpace));
+	}
+
+	if (ReferenceSpaces.Contains(XR_REFERENCE_SPACE_TYPE_STAGE))
+	{
+		SpaceInfo.referenceSpaceType = TrackingSpaceType;
+		XR_ENSURE(xrCreateReferenceSpace(Session, &SpaceInfo, &StageSpace));
+	}
+
 	bUseCustomReferenceSpace = false;
 	XrReferenceSpaceType CustomReferenceSpaceType;
 	for (IOpenXRExtensionPlugin* Module : ExtensionPlugins)
@@ -1873,8 +1991,11 @@ bool FOpenXRHMD::OnStereoStartup()
 	else if (ReferenceSpaces.Contains(XR_REFERENCE_SPACE_TYPE_STAGE))
 	{
 		TrackingSpaceType = XR_REFERENCE_SPACE_TYPE_STAGE;
-		SpaceInfo.referenceSpaceType = TrackingSpaceType;
-		XR_ENSURE(xrCreateReferenceSpace(Session, &SpaceInfo, &StageSpace));
+	}
+	else if (bLocalFloorExtensionSupported)
+	{
+		ensure(ReferenceSpaces.Contains(XR_REFERENCE_SPACE_TYPE_LOCAL_FLOOR_EXT));
+		TrackingSpaceType = XR_REFERENCE_SPACE_TYPE_LOCAL_FLOOR_EXT;
 	}
 	else
 	{

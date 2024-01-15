@@ -570,6 +570,7 @@ bool FOpenXRHMDModule::GetOptionalExtensions(TArray<const ANSICHAR*>& OutExtensi
 	OutExtensions.Add(XR_OCULUS_AUDIO_DEVICE_GUID_EXTENSION_NAME);
 #endif
 
+	OutExtensions.Add(XR_EXT_LOCAL_FLOOR_EXTENSION_NAME);
 	return true;
 }
 
@@ -1086,6 +1087,8 @@ bool FOpenXRHMDModule::TryCreateInstance(XrInstanceCreateInfo& Info)
 
 		return false;
 	}
+
+	UE_LOG(LogHMD, Verbose, TEXT("xrCreateInstance created: %llu"), Instance);
 
 	return true;
 }

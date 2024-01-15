@@ -232,28 +232,13 @@ void UHeadMountedDisplayFunctionLibrary::SetTrackingOrigin(TEnumAsByte<EHMDTrack
 {
 	if (GEngine->XRSystem.IsValid())
 	{
-		EHMDTrackingOrigin::Type Origin = EHMDTrackingOrigin::Eye;
-		switch (InOrigin)
-		{
-		case EHMDTrackingOrigin::Eye:
-			Origin = EHMDTrackingOrigin::Eye;
-			break;
-		case EHMDTrackingOrigin::Floor:
-			Origin = EHMDTrackingOrigin::Floor;
-			break;
-		case EHMDTrackingOrigin::Stage:
-			Origin = EHMDTrackingOrigin::Stage;
-			break;
-		default:
-			break;
-		}
-		GEngine->XRSystem->SetTrackingOrigin(Origin);
+		GEngine->XRSystem->SetTrackingOrigin(InOrigin);
 	}
 }
 
 TEnumAsByte<EHMDTrackingOrigin::Type> UHeadMountedDisplayFunctionLibrary::GetTrackingOrigin()
 {
-	EHMDTrackingOrigin::Type Origin = EHMDTrackingOrigin::Eye;
+	EHMDTrackingOrigin::Type Origin = EHMDTrackingOrigin::Local;
 
 	if (GEngine->XRSystem.IsValid())
 	{
@@ -610,22 +595,7 @@ FVector2D UHeadMountedDisplayFunctionLibrary::GetPlayAreaBounds(TEnumAsByte<EHMD
 {
 	if (GEngine->XRSystem.IsValid())
 	{
-		EHMDTrackingOrigin::Type Origin = EHMDTrackingOrigin::Stage;
-		switch (InOrigin)
-		{
-		case EHMDTrackingOrigin::Eye:
-			Origin = EHMDTrackingOrigin::Eye;
-			break;
-		case EHMDTrackingOrigin::Floor:
-			Origin = EHMDTrackingOrigin::Floor;
-			break;
-		case EHMDTrackingOrigin::Stage:
-			Origin = EHMDTrackingOrigin::Stage;
-			break;
-		default:
-			break;
-		}
-		return GEngine->XRSystem->GetPlayAreaBounds(Origin);
+		return GEngine->XRSystem->GetPlayAreaBounds(InOrigin);
 	}
 	return FVector2D::ZeroVector;
 }

@@ -229,18 +229,8 @@ public:
 	virtual void SetBasePosition(const FVector& InBasePosition) override;
 	virtual FVector GetBasePosition() const override;
 
-	virtual void SetTrackingOrigin(EHMDTrackingOrigin::Type NewOrigin) override
-	{
-		if (!bUseCustomReferenceSpace)
-		{
-			TrackingSpaceType = (NewOrigin == EHMDTrackingOrigin::Eye || StageSpace == XR_NULL_HANDLE) ? XR_REFERENCE_SPACE_TYPE_LOCAL : XR_REFERENCE_SPACE_TYPE_STAGE;
-			bTrackingSpaceInvalid = true;
-		}
-	}
-	virtual EHMDTrackingOrigin::Type GetTrackingOrigin() const override
-	{
-		return (TrackingSpaceType == XR_REFERENCE_SPACE_TYPE_LOCAL) ? EHMDTrackingOrigin::Eye : EHMDTrackingOrigin::Stage;
-	}
+	virtual void SetTrackingOrigin(EHMDTrackingOrigin::Type NewOrigin) override;
+	virtual EHMDTrackingOrigin::Type GetTrackingOrigin() const override;
 
 	virtual class IHeadMountedDisplay* GetHMDDevice() override
 	{
@@ -476,6 +466,7 @@ private:
 	XrSystemId				System;
 	XrSession				Session;
 	XrSpace					LocalSpace;
+	XrSpace					LocalFloorSpace;
 	XrSpace					StageSpace;
 	XrSpace					CustomSpace;
 	XrReferenceSpaceType	TrackingSpaceType;
@@ -519,6 +510,7 @@ private:
 	TUniquePtr<FFBFoveationImageGenerator> FBFoveationImageGenerator;
 	bool					bFoveationExtensionSupported;
 	bool					bRuntimeFoveationSupported;
+	bool					bLocalFloorExtensionSupported;
 
 	XrColor4f				LayerColorScale;
 	XrColor4f				LayerColorBias;
