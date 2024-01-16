@@ -203,6 +203,7 @@ enum class EClothEditorWeightMapPaintToolActions
 
 	FloodFillCurrent,
 	ClearAll,
+	Invert
 };
 
 
@@ -229,6 +230,12 @@ public:
 	void FloodFillCurrent()
 	{
 		PostAction(EClothEditorWeightMapPaintToolActions::FloodFillCurrent);
+	}
+
+	UFUNCTION(CallInEditor, Category = Operations, meta = (DisplayPriority = 13))
+	void Invert()
+	{
+		PostAction(EClothEditorWeightMapPaintToolActions::Invert);
 	}
 
 };
@@ -301,10 +308,11 @@ private:
 	UPROPERTY()
 	TObjectPtr<UWeightMapEraseBrushOpProps> EraseBrushOpProperties;
 
-public:
 	void FloodFillCurrentWeightAction();
 	void ClearAllWeightsAction();
+	void InvertWeightsAction();
 
+public:
 	void SetVerticesToWeightMap(const TSet<int32>& Vertices, double WeightValue, bool bIsErase);
 
 	bool HaveVisibilityFilter() const;

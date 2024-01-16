@@ -649,6 +649,26 @@ void UClothEditorWeightMapPaintTool::UpdateROI(const FSculptBrushStamp& BrushSta
 		ApplyVisibilityFilter(VertexSetBuffer, TempROIBuffer, ResultBuffer);
 	}
 
+	if (bHaveDynamicMeshToWeightConversion)
+	{
+		// Find triangles whose vertices map to the same welded vertex as any vertex in VertexSetBuffer and add them to TriangleROI
+
+		for (const int VertexID : VertexSetBuffer)
+		{
+			for (const int OtherVertexID : WeightToDynamicMesh[DynamicMeshToWeight[VertexID]])
+			{
+				if (OtherVertexID != VertexID)
+				{
+					Mesh->EnumerateVertexTriangles(OtherVertexID, [this](int32 AdjacentTri)
+					{
+						TriangleROI.Add(AdjacentTri);
+					});
+				}
+			}
+		}
+	}
+
+
 	VertexROI.SetNum(0, false);
 	//TODO: If we paint a 2D projection of UVs, these will need to be the 2D vertices not the 3D original mesh vertices
 	BufferUtil::AppendElements(VertexROI, VertexSetBuffer);
@@ -1638,6 +1658,33 @@ void UClothEditorWeightMapPaintTool::ClearAllWeightsAction()
 	EndChange();
 }
 
+void UClothEditorWeightMapPaintTool::InvertWeightsAction()
+{
+	if (!ActiveWeightMap)
+	{
+		return;
+	}
+	BeginChange();
+
+	const FDynamicMesh3* Mesh = DynamicMeshComponent->GetMesh();
+	checkf(Mesh, TEXT("Paint Tool's DynamicMeshComponent has no FDynamicMesh"));
+
+	for (const int32 VertexID : Mesh->VertexIndicesItr())
+	{
+		ActiveWeightEditChangeTracker->SaveVertexOneRingTriangles(VertexID, true);
+
+		float WeightValue;
+		ActiveWeightMap->GetValue(VertexID, &WeightValue);
+		WeightValue = 1.0f - WeightValue;
+		ActiveWeightMap->SetValue(VertexID, &WeightValue);
+	}
+
+	// update colors
+	UpdateVertexColorOverlay();
+	DynamicMeshComponent->FastNotifyVertexAttributesUpdated(EMeshRenderAttributeFlags::VertexColors);
+	GetToolManager()->PostInvalidation();
+	EndChange();
+}
 
 void UClothEditorWeightMapPaintTool::UpdateSelectedNode()
 {
@@ -1933,6 +1980,11 @@ void UClothEditorWeightMapPaintTool::ApplyAction(EClothEditorWeightMapPaintToolA
 	case EClothEditorWeightMapPaintToolActions::ClearAll:
 		ClearAllWeightsAction();
 		break;
+
+	case EClothEditorWeightMapPaintToolActions::Invert:
+		InvertWeightsAction();
+		break;
+
 	}
 }
 
