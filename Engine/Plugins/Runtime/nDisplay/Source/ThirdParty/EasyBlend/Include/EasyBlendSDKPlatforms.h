@@ -30,24 +30,12 @@
           func __attribute__ ((deprecated))
 #endif /* ifndef _EASYBLENDSDK_LINUX */
 
-#if   defined EASYBLENDSDK_GRAPHICS_API_OGL   //OpenGL entry points
-#pragma message ("Using EasyBlendSDK in OpenGL Mode.")
-#elif defined EASYBLENDSDK_GRAPHICS_API_DX12  //DX12 entry points
-#pragma message ("Using EasyBlendSDK in DX12 Mode.")
-#elif defined EASYBLENDSDK_GRAPHICS_API_VK
-#pragma message ("Using EasyBlendSDK in Vulkan Mode.")
-#elif defined EASYBLENDSDK_GRAPHICS_API_NONE  //no graphics API entry points (data only mode)
-#pragma message ("Using EasyBlendSDK in Data Only Mode.")
-#else
-  #if defined(_WIN32) || defined(WIN32)
-    #pragma message ("Using EasyBlendSDK with all Graphics APIs.")
-    #define EASYBLENDSDK_GRAPHICS_API_OGL  //entry points for all graphics APIs
-    #define EASYBLENDSDK_GRAPHICS_API_DX12
-    //#define EASYBLENDSDK_GRAPHICS_API_VK
-  #else
-    #pragma message ("Using EasyBlendSDK in OpenGL Mode.")
-    #define EASYBLENDSDK_GRAPHICS_API_OGL  //entry points for all graphics APIs
-  #endif
+#if defined(_WIN32) || defined(WIN32)
+	#define EASYBLENDSDK_GRAPHICS_API_DX12
+
+	//EasyBlend VK and OGL is not currently supported by nDisplay.
+	//#define EASYBLENDSDK_GRAPHICS_API_OGL
+	//#define EASYBLENDSDK_GRAPHICS_API_VK
 #endif
 
 #endif // _EasyBlendSDKPlatforms_H_
