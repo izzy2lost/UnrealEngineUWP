@@ -2345,9 +2345,20 @@ void UK2Node_CallFunction::ValidateNodeDuringCompilation(class FCompilerResultsL
 
 		// enforce WorldContext restrictions
 		const bool bInsideBpFuncLibrary = Blueprint && (BPTYPE_FunctionLibrary == Blueprint->BlueprintType);
-		if (!bInsideBpFuncLibrary && 
+		
+		// go through all of the pins and verify if we have a visible world context or not.
+		bool bVisibleWorldContext = false;
+		for (const UEdGraphPin* Pin : Pins)
+		{
+			if (!Pin->bHidden && Pin->PinName.IsEqual(FName("WorldContextObject")))
+			{
+				bVisibleWorldContext = true;
+				break;
+			}
+		}
+		if (!bInsideBpFuncLibrary &&
 			Function->HasMetaData(FBlueprintMetadata::MD_WorldContext) && 
-			!Function->HasMetaData(FBlueprintMetadata::MD_CallableWithoutWorldContext))
+			(!Function->HasMetaData(FBlueprintMetadata::MD_CallableWithoutWorldContext) && !bVisibleWorldContext))
 		{
 			check(Blueprint);
 			UClass* ParentClass = Blueprint->ParentClass;

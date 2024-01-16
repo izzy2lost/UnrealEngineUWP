@@ -910,9 +910,10 @@ bool UEdGraphSchema_K2::CanFunctionBeUsedInGraph(const UClass* InClass, const UF
 				{
 					UBlueprint* BP = FBlueprintEditorUtils::FindBlueprintForGraph(InDestGraph);
 					const bool bIsFunctLib = BP && (EBlueprintType::BPTYPE_FunctionLibrary == BP->BlueprintType);
+					const bool bIsMacroLib = BP && (EBlueprintType::BPTYPE_MacroLibrary == BP->BlueprintType);
 					UClass* ParentClass = BP ? BP->ParentClass : NULL;
 					const bool bIncompatibleParent = ParentClass && (!FBlueprintEditorUtils::ImplementsGetWorld(BP) && !ParentClass->HasMetaDataHierarchical(FBlueprintMetadata::MD_ShowWorldContextPin));
-					if (!bIsFunctLib && bIncompatibleParent)
+					if (!bIsMacroLib && !bIsFunctLib && bIncompatibleParent)
 					{
 						if (OutReason != nullptr)
 						{
