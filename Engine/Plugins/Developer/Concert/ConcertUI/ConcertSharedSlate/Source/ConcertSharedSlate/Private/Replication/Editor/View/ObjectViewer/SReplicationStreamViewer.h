@@ -8,6 +8,7 @@
 #include "Replication/Editor/View/Tree/SReplicationTreeView.h"
 #include "Replication/Editor/View/SelectionViewerColumns.h"
 #include "SReplicatedPropertyView.h"
+#include "StreamViewerObjectViewOptions.h"
 
 #include "Algo/Transform.h"
 #include "Misc/Optional.h"
@@ -29,6 +30,8 @@ namespace UE::ConcertSharedSlate
 	class IReplicationStreamModel;
 	class IObjectHierarchyModel;
 	class SPropertyTreeView;
+	
+	enum class EChildRelationship : uint8;
 	
 	/**
 	 * Root widget for viewing UMultiUserPropertyReplicationSelection.
@@ -73,8 +76,13 @@ namespace UE::ConcertSharedSlate
 		
 			/** Optional widget to add to the left of the object list search bar. */
 			SLATE_NAMED_SLOT(FArguments, LeftOfObjectSearchBar)
+			/** Optional widget to add to the right of the object list search bar. */
+			SLATE_NAMED_SLOT(FArguments, RightOfObjectSearchBar)
+		
 			/** Optional widget to add to the left of the property list search bar. */
 			SLATE_NAMED_SLOT(FArguments, LeftOfPropertySearchBar)
+			/** Optional widget to add to the right of the object list search bar. */
+			SLATE_NAMED_SLOT(FArguments, RightOfPropertySearchBar)
 
 			/** Optional text to display when no object is in the outliner. Defaults to "No objects to display." "*/
 			SLATE_ATTRIBUTE(FText, NoOutlinerObjects)
@@ -125,6 +133,8 @@ namespace UE::ConcertSharedSlate
 		TMap<FSoftObjectPath, TSharedPtr<FReplicatedObjectData>> PathToObjectDataCache;
 
 		bool bIsPropertyAreaExpanded = false;
+		/** View options for the object outliner. */
+		FStreamViewerObjectViewOptions ObjectViewOptions;
 
 		static TSharedRef<FReplicatedObjectData> AllocateObjectData(FSoftObjectPath ObjectPath);
 
@@ -143,5 +153,13 @@ namespace UE::ConcertSharedSlate
 		/** Handles how much space the 'Clients' area uses with respect to its expansion state. */
 		SSplitter::ESizeRule GetPropertyAreaSizeRule() const { return bIsPropertyAreaExpanded ? SSplitter::ESizeRule::FractionOfParent : SSplitter::ESizeRule::SizeToContent; }
 		void OnPropertyAreaExpansionChanged(bool bExpanded) { bIsPropertyAreaExpanded = bExpanded; }
+
+		/** Called in response to subobject display view option being changed. Rebuilds the entire hierarchy. */
+		void OnSubobjectViewOptionToggled()
+		{
+			RefreshObjectData();
+			RefreshPropertyData();
+		}
+		bool ShouldDisplayObject(const FSoftObjectPath& Object, EChildRelationship Relationship) const;
 	};
 }

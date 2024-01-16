@@ -130,10 +130,8 @@ namespace UE::ConcertSharedSlate
 				.SecondarySort(SecondarySort)
 				.SelectionMode(ESelectionMode::Multi)
 				.NameModel(InArgs._NameModel)
-				.LeftOfSearchBar()
-				[
-					InArgs._LeftOfPropertySearchBar.Widget
-				]
+				.LeftOfSearchBar() [ InArgs._LeftOfPropertySearchBar.Widget ]
+				.RightOfSearchBar() [ InArgs._RightOfPropertySearchBar.Widget ]
 				.SelectedObjects(this, &SReplicatedPropertyView::GetObjectsSelectedForPropertyEditing)
 			]
 			

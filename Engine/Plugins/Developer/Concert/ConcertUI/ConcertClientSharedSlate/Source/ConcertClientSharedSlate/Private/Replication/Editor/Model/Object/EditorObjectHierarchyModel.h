@@ -27,6 +27,7 @@ namespace UE::ConcertClientSharedSlate
 			TFunctionRef<EBreakBehavior(const FSoftObjectPath& Object, ConcertSharedSlate::EChildRelationship Relationship)> Callback,
 			ConcertSharedSlate::EChildRelationshipFlags InclusionFlags
 			) const override;
+		virtual TOptional<FParentInfo> GetParentInfo(const FSoftObjectPath& ChildObject) const override;
 		//~ End IObjectHierarchy Interface
 	};
 }

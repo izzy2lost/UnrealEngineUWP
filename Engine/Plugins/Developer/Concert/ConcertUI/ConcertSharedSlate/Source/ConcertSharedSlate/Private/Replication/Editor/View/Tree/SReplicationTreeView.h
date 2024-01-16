@@ -89,6 +89,8 @@ namespace UE::ConcertSharedSlate
 
 			/** Optional widget to add to the left of the search bar. */
 			SLATE_NAMED_SLOT(FArguments, LeftOfSearchBar)
+			/** Optional widget to add to the right of the search bar. */
+			SLATE_NAMED_SLOT(FArguments, RightOfSearchBar)
 			/** Optional widget to add between the search bar and the table view (e.g. a SBasicFilterBar). */
 			SLATE_NAMED_SLOT(FArguments, RowBelowSearchBar)
 
@@ -139,6 +141,13 @@ namespace UE::ConcertSharedSlate
 						.OnTextChanged(this, &SReplicationTreeView::OnSearchTextChanged)
 						.OnTextCommitted(this, &SReplicationTreeView::OnSearchTextCommitted)
 						.DelayChangeNotificationsWhileTyping(true)
+					]
+
+					+SHorizontalBox::Slot()
+					.Padding(1.f)
+					.AutoWidth()
+					[
+						InArgs._RightOfSearchBar.Widget
 					]
 				]
 

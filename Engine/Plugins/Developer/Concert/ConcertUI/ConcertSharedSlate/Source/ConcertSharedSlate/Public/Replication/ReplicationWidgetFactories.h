@@ -77,8 +77,12 @@ namespace UE::ConcertSharedSlate
 		
 		/** Optional widget to add to the left of the object list search bar. */
 		TAlwaysValidWidget LeftOfObjectSearchBar;
+		/** Optional widget to add to the right of the object list search bar. */
+		TAlwaysValidWidget RightOfObjectSearchBar;
 		/** Optional widget to add to the left of the property list search bar. */
 		TAlwaysValidWidget LeftOfPropertySearchBar;
+		/** Optional widget to add to the right of the property list search bar. */
+		TAlwaysValidWidget RightOfPropertySearchBar;
 	};
 
 	// TODO DP 5.5: Create factory function that uses FCreateViewerParams and creates an IReplicationStreamViewer

@@ -39,6 +39,8 @@ namespace UE::ConcertSharedSlate
 		
 			/** Optional widget to add to the left of the property list search bar. */
 			SLATE_NAMED_SLOT(FArguments, LeftOfPropertySearchBar)
+			/** Optional widget to add to the right of the property list search bar. */
+			SLATE_NAMED_SLOT(FArguments, RightOfPropertySearchBar)
 		SLATE_END_ARGS()
 
 		void Construct(const FArguments& InArgs, TSharedRef<IReplicationStreamModel> InPropertiesModel);

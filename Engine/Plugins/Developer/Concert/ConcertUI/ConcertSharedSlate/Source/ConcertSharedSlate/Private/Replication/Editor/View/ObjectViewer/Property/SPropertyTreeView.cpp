@@ -86,6 +86,7 @@ namespace UE::ConcertSharedSlate
 						InArgs._LeftOfSearchBar.Widget
 					]
 				]
+				.RightOfSearchBar() [ InArgs._RightOfSearchBar.Widget ]
 				.RowBelowSearchBar() [ FilterBar.ToSharedRef() ]
 				.NoItemsContent() [ SNew(STextBlock).Text(this, &SPropertyTreeView::GetAllFilteredText) ]
 		];

@@ -29,7 +29,9 @@ namespace UE::ConcertSharedSlate
 			.NameModel(Params.ViewerParams.NameModel)
 			.OnExtendObjectsContextMenu(Params.ViewerParams.OnExtendObjectsContextMenu)
 			.LeftOfObjectSearchBar() [ Params.ViewerParams.LeftOfObjectSearchBar.Widget ]
+			.RightOfObjectSearchBar() [ Params.ViewerParams.RightOfObjectSearchBar.Widget ]
 			.LeftOfPropertySearchBar() [ Params.ViewerParams.LeftOfPropertySearchBar.Widget ]
+			.RightOfPropertySearchBar() [ Params.ViewerParams.RightOfPropertySearchBar.Widget ]
 			.IsEditingEnabled(Params.IsEditingEnabled)
 			.EditingDisabledToolTipText(Params.EditingDisabledToolTipText);
 	}

@@ -76,8 +76,13 @@ namespace UE::ConcertSharedSlate
 
 			/** Optional widget to add to the left of the object list search bar. */
 			SLATE_NAMED_SLOT(FArguments, LeftOfObjectSearchBar)
+			/** Optional widget to add to the right of the object list search bar. */
+			SLATE_NAMED_SLOT(FArguments, RightOfObjectSearchBar)
+		
 			/** Optional widget to add to the left of the property list search bar. */
 			SLATE_NAMED_SLOT(FArguments, LeftOfPropertySearchBar)
+			/** Optional widget to add to the right of the property list search bar. */
+			SLATE_NAMED_SLOT(FArguments, RightOfPropertySearchBar)
 
 			/** Optional. Determines whether all UI for changing the model should be disabled. */
 			SLATE_ATTRIBUTE(bool, IsEditingEnabled)

@@ -4,10 +4,10 @@
 
 #include "Delegates/Delegate.h"
 #include "Misc/EBreakBehavior.h"
+#include "UObject/SoftObjectPath.h"
 #include "Templates/Function.h"
 
 enum class EBreakBehavior : uint8;
-struct FSoftObjectPath;
 
 namespace UE::ConcertSharedSlate
 {
@@ -71,6 +71,16 @@ namespace UE::ConcertSharedSlate
 			TFunctionRef<EBreakBehavior(const FSoftObjectPath& Object, EChildRelationship Relationship)> Callback,
 			EChildRelationshipFlags InclusionFlags = EChildRelationshipFlags::All
 			) const = 0;
+
+		struct FParentInfo
+		{
+			/** The parent of the child object in the hierarchy. */
+			FSoftObjectPath Parent;
+			/** Relationship that the child has to Parent, e.g. the child could be a component of Parent. */
+			EChildRelationship Relationship;
+		};
+		/** Gets parent info for ChildObject, if it has a child. */
+		virtual TOptional<FParentInfo> GetParentInfo(const FSoftObjectPath& ChildObject) const = 0;
 
 		/** Util for iterating all subobjects. */
 		void ForEachChildRecursive(

@@ -68,15 +68,21 @@ namespace UE::ConcertSharedSlate
 		// Do a complete refresh.
 		// Complete refresh is acceptable because the list is updated infrequently and typically small < 500 items.
 		// An alternative would be to change RefreshObjectData to be called with two variables ObjectsAdded and ObjectsRemoved.
-		PropertiesModel->ForEachReplicatedObject([this, &NewPathToObjectDataCache](const FSoftObjectPath& Path) mutable
+		PropertiesModel->ForEachReplicatedObject([this, &NewPathToObjectDataCache](const FSoftObjectPath& ObjectPath) mutable
 		{
-			const TSharedPtr<FReplicatedObjectData>* ExistingItem = PathToObjectDataCache.Find(Path);
-			ExistingItem = ExistingItem ? ExistingItem : NewPathToObjectDataCache.Find(Path);
-			const TSharedRef<FReplicatedObjectData> Item = ExistingItem ? ExistingItem->ToSharedRef() : AllocateObjectData(Path);
-			AllObjectRowData.AddUnique(Item);
-			NewPathToObjectDataCache.Emplace(Path, Item);
+			TOptional<IObjectHierarchyModel::FParentInfo> ParentInfo = ObjectHierarchy->GetParentInfo(ObjectPath);
+			const bool bIsActor = !ParentInfo; 
+			if (bIsActor || ShouldDisplayObject(ObjectPath, ParentInfo->Relationship))
+			{
+				const TSharedPtr<FReplicatedObjectData>* ExistingItem = PathToObjectDataCache.Find(ObjectPath);
+				ExistingItem = ExistingItem ? ExistingItem : NewPathToObjectDataCache.Find(ObjectPath);
+				const TSharedRef<FReplicatedObjectData> Item = ExistingItem ? ExistingItem->ToSharedRef() : AllocateObjectData(ObjectPath);
+				AllObjectRowData.AddUnique(Item);
+				NewPathToObjectDataCache.Emplace(ObjectPath, Item);
+				
+				BuildObjectHierarchyIfNeeded(Item, NewPathToObjectDataCache);
+			}
 			
-			BuildObjectHierarchyIfNeeded(Item, NewPathToObjectDataCache);
 			return EBreakBehavior::Continue;
 		});
 
@@ -190,6 +196,8 @@ namespace UE::ConcertSharedSlate
 		const FColumnSortInfo SecondaryObjectSort = InArgs._SecondaryObjectSort.IsValid()
 			? InArgs._SecondaryObjectSort
 			: FColumnSortInfo{ ReplicationColumns::TopLevel::LabelColumnId, EColumnSortMode::Ascending };
+
+		ObjectViewOptions.OnDisplaySubobjectsToggled().AddSP(this, &SReplicationStreamViewer::OnSubobjectViewOptionToggled);
 		
 		return SAssignNew(ReplicatedObjects, SReplicationTreeView<FReplicatedObjectData>)
 			.RootItemsSource(&RootObjectRowData)
@@ -205,6 +213,22 @@ namespace UE::ConcertSharedSlate
 			.SecondarySort(SecondaryObjectSort)
 			.SelectionMode(ESelectionMode::Multi)
 			.LeftOfSearchBar() [ InArgs._LeftOfObjectSearchBar.Widget ]
+			.RightOfSearchBar()
+			[
+				SNew(SHorizontalBox)
+
+				+SHorizontalBox::Slot()
+				.AutoWidth()
+				[
+					InArgs._RightOfObjectSearchBar.Widget
+				]
+				
+				+SHorizontalBox::Slot()
+				.AutoWidth()
+				[
+					ObjectViewOptions.MakeViewOptionsComboButton()
+				]
+			]
 			.NoItemsContent() [ SNew(STextBlock).Text(NoObjectsAttribute) ];
 	}
 
@@ -237,10 +261,8 @@ namespace UE::ConcertSharedSlate
 					.SecondarySort(InArgs._SecondaryPropertySort)
 					.GetSelectedRootObjects_Lambda([this](){ return GetSelectedOutlinerObjects(); })
 					.NameModel(InArgs._NameModel)
-					.LeftOfPropertySearchBar()
-					[
-						InArgs._LeftOfPropertySearchBar.Widget
-					]
+					.LeftOfPropertySearchBar() [ InArgs._LeftOfPropertySearchBar.Widget ]
+					.RightOfPropertySearchBar() [ InArgs._RightOfPropertySearchBar.Widget ]
 				]
 			];
 	}
@@ -297,10 +319,14 @@ namespace UE::ConcertSharedSlate
 			AllObjectRowData.AddUnique(Item);
 			NewPathToObjectDataCache.Emplace(ObjectPath, Item);
 		};
+		
 		AddItem(OwningActor);
-		ObjectHierarchy->ForEachChildRecursive(OwningActor, [this, &AddItem](const FSoftObjectPath&, const FSoftObjectPath& ChildObject, EChildRelationship)
+		ObjectHierarchy->ForEachChildRecursive(OwningActor, [this, &AddItem](const FSoftObjectPath&, const FSoftObjectPath& ChildObject, EChildRelationship Relationship)
 		{
-			AddItem(ChildObject);
+			if (ShouldDisplayObject(ChildObject, Relationship))
+			{
+				AddItem(ChildObject);
+			}
 			return EBreakBehavior::Continue;
 		});
 	}
@@ -315,7 +341,7 @@ namespace UE::ConcertSharedSlate
 			return;
 		}
 
-		ObjectHierarchy->ForEachDirectChild(SearchedObject, [this, &ProcessChild](const FSoftObjectPath& ChildObject, EChildRelationship)
+		ObjectHierarchy->ForEachDirectChild(SearchedObject, [this, &ProcessChild](const FSoftObjectPath& ChildObject, EChildRelationship Relationship)
 		{
 			if (const TSharedPtr<FReplicatedObjectData>* ObjectData = PathToObjectDataCache.Find(ChildObject))
 			{
@@ -323,6 +349,12 @@ namespace UE::ConcertSharedSlate
 			}
 			return EBreakBehavior::Continue;
 		});
+	}
+
+	bool SReplicationStreamViewer::ShouldDisplayObject(const FSoftObjectPath& Object, EChildRelationship Relationship) const
+	{
+		const bool bSkipSubobject = Relationship == EChildRelationship::Subobject && !ObjectViewOptions.ShouldDisplaySubobjects();
+		return !bSkipSubobject;
 	}
 }
 

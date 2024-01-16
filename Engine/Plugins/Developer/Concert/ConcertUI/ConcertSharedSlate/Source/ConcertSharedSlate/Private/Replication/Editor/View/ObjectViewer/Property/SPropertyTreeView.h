@@ -48,6 +48,8 @@ namespace UE::ConcertSharedSlate
 		
 			/** Optional widget to add to the left of the search bar. */
 			SLATE_NAMED_SLOT(FArguments, LeftOfSearchBar)
+			/** Optional widget to add to the left of the search bar. */
+			SLATE_NAMED_SLOT(FArguments, RightOfSearchBar)
 
 			/*************** Own arguments ***************/
 			// Please add new arguments here in the future

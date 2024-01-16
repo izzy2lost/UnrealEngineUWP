@@ -92,4 +92,27 @@ namespace UE::ConcertClientSharedSlate
 			}, bIncludeNestedSubobjects);
 		}
 	}
+
+	TOptional<ConcertSharedSlate::IObjectHierarchyModel::FParentInfo> FEditorObjectHierarchyModel::GetParentInfo(const FSoftObjectPath& ChildObject) const
+	{
+		using namespace ConcertSharedSlate;
+
+		// In the context of replication, only resolve objects but do not load them. Case: client 1 may be viewing objects of client 2 but they are in different worlds.
+		const UObject* Object = ChildObject.ResolveObject();
+		if (!Object)
+		{
+			return {};
+		}
+
+		if (Object->IsA<AActor>()
+			// Unlikely but theoretically possible that it's an asset or some transient object.
+			|| !Object->IsInA(AActor::StaticClass()))
+		{
+			return {};
+		}
+		
+		const UObject* Outer = Object->GetOuter();
+		const EChildRelationship Relationship = Object->IsA<UActorComponent>() ? EChildRelationship::Component : EChildRelationship::Subobject;
+		return FParentInfo{ Outer, Relationship };
+	}
 }
