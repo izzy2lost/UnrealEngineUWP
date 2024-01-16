@@ -366,12 +366,12 @@ struct FGBufferData
 	// 0..1, 2 bits, use CastContactShadow(GBuffer) or HasDynamicIndirectShadowCasterRepresentation(GBuffer) to extract
 	half PerObjectGBufferData;
 	// in world units
-	half CustomDepth;
+	float CustomDepth;
 	// Custom depth stencil value
 	uint CustomStencil;
 	// in unreal units (linear), can be used to reconstruct world position,
 	// only valid when decoding the GBuffer as the value gets reconstructed from the Z buffer
-	half Depth;
+	float Depth;
 	// Velocity for motion blur (only used when WRITES_VELOCITY_TO_GBUFFER is enabled)
 	half4 Velocity;
 
