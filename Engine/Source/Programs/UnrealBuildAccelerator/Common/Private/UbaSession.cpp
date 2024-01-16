@@ -897,9 +897,9 @@ namespace uba
 		out.push_back({ library, temp3.data, attr, isSystem });
 
 		bool result = true;
-		FindImports(applicationName, [&](const tchar* importName)
+		FindImports(applicationName, [&](const tchar* importName, bool isKnown)
 			{
-				if (result)
+				if (result && !isKnown)
 					result = CopyImports(out, importName, applicationDir, applicationDirEnd, handledImports);
 			});
 		return result;
@@ -1890,7 +1890,7 @@ namespace uba
 	bool Session::GetFullFileName(GetFullFileNameResponse& out, const GetFullFileNameMessage& msg)
 	{
 		UBA_ASSERTF(false, TC("SHOULD NOT HAPPEN (only remote)"));
-		return false;
+		return SearchPathForFile(m_logger, out.fileName, msg.fileName.data, msg.process.m_virtualApplicationDir.c_str());
 	}
 
 	bool Session::GetListDirectoryInfo(ListDirectoryResponse& out, tchar* dirName, const StringKey& dirKey)

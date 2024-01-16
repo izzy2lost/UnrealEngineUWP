@@ -420,6 +420,7 @@ namespace uba
 		TString arguments;
 		TString workingDir;
 		TString description;
+		TString logFile;
 	};
 
 }

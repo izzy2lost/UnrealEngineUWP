@@ -769,6 +769,7 @@ namespace uba
 						StringBuffer<> logPath;
 						logPath.Append(m_sessionLogDir).Append(destination.data + 5);
 						m_storage.CopyOrLink(casKey, logPath.data, attributes);
+						m_storage.DropCasFile(casKey, true);
 						writer.WriteBool(true);
 						return true;
 					}
@@ -1140,6 +1141,7 @@ namespace uba
 					writer.WriteString(nextProcess.arguments);
 					writer.WriteString(nextProcess.workingDir);
 					writer.WriteString(nextProcess.description);
+					writer.WriteString(nextProcess.logFile);
 				}
 				return true;
 			}

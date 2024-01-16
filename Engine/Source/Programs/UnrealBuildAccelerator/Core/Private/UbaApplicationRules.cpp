@@ -357,14 +357,6 @@ namespace uba
 #endif // #if PLATFORM_WINDOWS
 	};
 
-	class ApplicationRulesShaderCompileWorker : public ApplicationRules
-	{
-		virtual bool DetourImageGetDigestStream() override
-		{
-			return true;
-		}
-	};
-
 	const RulesRec* GetApplicationRules()
 	{
 		static RulesRec rules[]
@@ -390,7 +382,6 @@ namespace uba
 			{ TC("llvm-objcopy.exe"),			new ApplicationRulesLlvmObjCopyExe() },
 			{ TC("UnrealBuildTool.dll"),		new ApplicationRulesUBTDll() },
 			{ TC("PVS-Studio.exe"),				new ApplicationRulesPVSStudio() },
-			{ TC("ShaderCompileWorker.exe"),	new ApplicationRulesShaderCompileWorker() },
 			//{ L"MSBuild.dll"),				new ApplicationRules() },
 			//{ L"BreakpadSymbolEncoder.exe"),	new ApplicationRulesClang() },
 			//{ L"cmd.exe"),		new ApplicationRules() },

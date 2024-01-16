@@ -265,7 +265,7 @@ uba::StorageClient* CreateStorageClient(uba::NetworkClient& client, const uba::t
 		return handle->GetExecutingHost();
 	}
 
-	const uba::tchar* ProcessHandle_GetLogLine(uba::ProcessHandle* handle, uba::u32 index)
+	const uba::tchar* ProcessHandle_GetLogLine(const uba::ProcessHandle* handle, uba::u32 index)
 	{
 		const auto& lines = handle->GetLogLines();
 		if (index >= lines.size()) return nullptr;
@@ -489,7 +489,7 @@ uba::StorageClient* CreateStorageClient(uba::NetworkClient& client, const uba::t
 	void Uba_FindImports(const uba::tchar* binary, ImportFunc* func, void* userData)
 	{
 #if PLATFORM_WINDOWS
-		uba::FindImports(binary, [&](const uba::tchar* importName) { func(importName, userData); });
+		uba::FindImports(binary, [&](const uba::tchar* importName, bool isKnown) { func(importName, userData); });
 #endif
 	}
 }

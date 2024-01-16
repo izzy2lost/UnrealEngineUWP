@@ -2272,14 +2272,14 @@ HMODULE Recursive_LoadLibraryExW(LPCWSTR lpLibFileName, LPCWSTR originalName, DW
 		return 0;
 
 	// Important that this code is not doing allocations.. it could cause a recursive stack overflow
-	struct Import { wchar_t name[128]; Import(const wchar_t* s) { wcscpy_s(name, sizeof_array(name), s); } };
+	struct Import { wchar_t name[128]; bool isKnown;  Import(const wchar_t* s, bool ik) : isKnown(ik) { wcscpy_s(name, sizeof_array(name), s); } };
 	std::vector<Import, GrowingAllocator<Import>> importedModules(&g_memoryBlock);
 	{
 		SuppressCreateFileDetourScope cfs;
-		if (!FindImports(lpLibFileName, [&](const wchar_t* import)
+		if (!FindImports(lpLibFileName, [&](const wchar_t* import, bool isKnown)
 			{
 				if (!GetModuleHandleW(import))
-					importedModules.emplace_back(import);
+					importedModules.emplace_back(import, isKnown);
 			}))
 		{
 			UBA_ASSERTF(false, L"Failed to find imports for binary %ls (%ls)", lpLibFileName, originalName);
@@ -2287,8 +2287,22 @@ HMODULE Recursive_LoadLibraryExW(LPCWSTR lpLibFileName, LPCWSTR originalName, DW
 	}
 	for (auto& importedModule : importedModules)
 	{
-		if (GetModuleHandleW(importedModule.name))
+		if (importedModule.isKnown && !g_isRunningWine)
 			continue;
+
+		HMODULE checkModule = GetModuleHandleW(importedModule.name);
+		if (checkModule)
+			continue;
+
+		if (importedModule.isKnown) // We need to catch dbghelp.dll and imagehlp.dll
+		{
+			if (HMODULE h = True_LoadLibraryExW(importedModule.name, 0, 0))
+			{
+				OnModuleLoaded(h, importedModule.name);
+				additionalLoads.push_back(h);
+			}
+			continue;
+		}
 
 		const wchar_t* path = importedModule.name;
 		if (path[1] == ':')
@@ -2315,10 +2329,15 @@ HMODULE Recursive_LoadLibraryExW(LPCWSTR lpLibFileName, LPCWSTR originalName, DW
 
 	SuppressCreateFileDetourScope cfs;
 	auto res = True_LoadLibraryExW(lpLibFileName, 0, 0);
-	if (res && originalName[1] == ':')
+	if (res)
 	{
-		ScopedWriteLock lock(g_loadedModulesLock);
-		g_loadedModules[res] = originalName;
+		if (originalName[1] == ':')
+		{
+			ScopedWriteLock lock(g_loadedModulesLock);
+			g_loadedModules[res] = originalName;
+		}
+		if (g_isRunningWine)
+			OnModuleLoaded(res, lpLibFileName);
 	}
 	return res;
 }

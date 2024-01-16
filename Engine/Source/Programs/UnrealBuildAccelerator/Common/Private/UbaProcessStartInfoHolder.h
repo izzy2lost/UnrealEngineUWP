@@ -46,11 +46,8 @@ namespace uba
 			description = si.description;
 			startInfo.description = description.c_str();
 
-			if (si.logFile)
-			{
-				logFile = si.logFile;
-				startInfo.logFile = logFile.c_str();
-			}
+			logFile = si.logFile;
+			startInfo.logFile = logFile.c_str();
 		}
 
 		void Write(BinaryWriter& writer)
@@ -59,6 +56,7 @@ namespace uba
 			writer.WriteString(application);
 			writer.WriteString(arguments);
 			writer.WriteString(workingDir);
+			writer.WriteString(logFile);
 			writer.WriteU32(*(u32*)&weight);
 			writer.WriteBool(startInfo.writeOutputFilesOnFail);
 			writer.WriteU64(startInfo.outputStatsThresholdMs);
@@ -70,6 +68,7 @@ namespace uba
 			application = reader.ReadString();
 			arguments = reader.ReadString();
 			workingDir = reader.ReadString();
+			logFile = reader.ReadString();
 
 			Replace(application.data(), '/', PathSeparator); // TODO: Is this needed?
 
@@ -83,6 +82,7 @@ namespace uba
 			startInfo.application = application.c_str();
 			startInfo.arguments = arguments.c_str();
 			startInfo.workingDir = workingDir.c_str();
+			startInfo.logFile = logFile.c_str();
 		}
 
 		ProcessStartInfoHolder(const ProcessStartInfoHolder& o)
@@ -102,12 +102,8 @@ namespace uba
 			startInfo.arguments = arguments.c_str();
 			description = o.description;
 			startInfo.description = description.c_str();
-
-			if (o.startInfo.logFile)
-			{
-				logFile = o.logFile;
-				startInfo.logFile = logFile.c_str();
-			}
+			logFile = o.logFile;
+			startInfo.logFile = logFile.c_str();
 		}
 
 		ProcessStartInfo startInfo;

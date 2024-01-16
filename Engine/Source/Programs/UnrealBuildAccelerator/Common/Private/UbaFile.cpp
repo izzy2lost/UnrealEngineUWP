@@ -122,7 +122,7 @@ namespace uba
 		dwFlagsAndAttributes |= (overlapped ? FILE_FLAG_OVERLAPPED : FILE_FLAG_SEQUENTIAL_SCAN);
 		#endif
 
-		outHandle = uba::CreateFileW(fileName, GENERIC_READ, FILE_SHARE_READ, OPEN_EXISTING, dwFlagsAndAttributes);
+		outHandle = uba::CreateFileW(fileName, GENERIC_READ, FILE_SHARE_READ|FILE_SHARE_WRITE, OPEN_EXISTING, dwFlagsAndAttributes);
 		if (outHandle != InvalidFileHandle)
 			return true;
 		u32 lastError = GetLastError();

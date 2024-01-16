@@ -118,12 +118,6 @@ namespace uba
 		{
 			// Do nothing
 		}
-
-		// ImageGetDigestStream is buggy in wine so we have to detour it for ShaderCompileWorker
-		virtual bool DetourImageGetDigestStream()
-		{
-			return false;
-		}
 	};
 
 

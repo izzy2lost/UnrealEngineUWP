@@ -265,6 +265,7 @@ namespace uba
 		outNextProcess.arguments = si.arguments;
 		outNextProcess.workingDir = si.workingDir;
 		outNextProcess.description = si.description;
+		outNextProcess.logFile = si.logFile;
 		return true;
 	}
 }

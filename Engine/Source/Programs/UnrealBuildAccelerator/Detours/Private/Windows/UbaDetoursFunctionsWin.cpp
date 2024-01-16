@@ -577,6 +577,8 @@ void SendExitMessage(DWORD exitCode, u64 startTime)
 	writer.Flush(g_isChild);
 }
 
+void OnModuleLoaded(HMODULE moduleHandle, const wchar_t* name);
+
 // Variables used to communicate state from kernelbase functions to ntdll functions
 thread_local const wchar_t* t_renameFileNewName;
 thread_local const wchar_t* t_createFileFileName;
@@ -586,6 +588,7 @@ thread_local const wchar_t* t_createFileFileName;
 #include "UbaDetoursFunctionsKernelBase.inl"
 #include "UbaDetoursFunctionsUcrtBase.inl"
 #include "UbaDetoursFunctionsImagehlp.inl"
+#include "UbaDetoursFunctionsDbgHelp.inl"
 
 void DetourAttachFunction(void** trueFunc, void* detouredFunc, const char* funcName)
 {
@@ -610,6 +613,9 @@ void DetourDetachFunction(void** trueFunc, void* detouredFunc, const char* funcN
 
 int DetourAttachFunctions(bool runningRemote)
 {
+	DetourTransactionBegin();
+	DetourUpdateThread(GetCurrentThread());
+
 	#define DETOURED_FUNCTION(Func) True_##Func = (decltype(True_##Func))GetProcAddress(moduleHandle, #Func);
 
 	if (HMODULE moduleHandle = GetModuleHandleW(L"kernelbase.dll"))
@@ -643,18 +649,6 @@ int DetourAttachFunctions(bool runningRemote)
 
 	#undef DETOURED_FUNCTION
 
-
-	if (g_isRunningWine && g_rules->DetourImageGetDigestStream())
-	{
-		if (HMODULE moduleHandle = LoadLibraryW(L"Imagehlp.dll"))
-		{
-			True_ImageGetDigestStream = (ImageGetDigestStreamFunc*)GetProcAddress(moduleHandle, "ImageGetDigestStream");
-			DetourAttachFunction((PVOID*)&True_ImageGetDigestStream, Detoured_ImageGetDigestStream, "ImageGetDigestStream");
-		}
-	}
-
-
-
 	// Can't attach to these when running through debugger with some vs extensions (Microsoft child process debugging)
 #if UBA_DEBUG
 	if (IsDebuggerPresent())
@@ -675,7 +669,44 @@ int DetourAttachFunctions(bool runningRemote)
 	}
 	#undef DETOURED_FUNCTION
 
+
+	LONG error = DetourTransactionCommit();
+	if (error != NO_ERROR)
+	{
+		printf("Error detouring: %ld\n", error);
+		ExitProcess(1343);
+	}
+
 	return 0;
+}
+
+void OnModuleLoaded(HMODULE moduleHandle, const wchar_t* name)
+{
+	UBA_ASSERT(g_isRunningWine);
+
+	// SymLoadModuleExW do something bad that cause remote wine to fail everything after this call.. TODO: Revisit
+	if (!True_SymLoadModuleExW && Contains(name, L"dbghelp.dll"))
+	{
+		True_SymLoadModuleExW = (SymLoadModuleExWFunc*)GetProcAddress(moduleHandle, "SymLoadModuleExW");
+		UBA_ASSERT(True_SymLoadModuleExW);
+		DetourTransactionBegin();
+		DetourUpdateThread(GetCurrentThread());
+		DetourAttachFunction((PVOID*)&True_SymLoadModuleExW, Detoured_SymLoadModuleExW, "SymLoadModuleExW");
+		LONG error = DetourTransactionCommit(); (void)error;
+		UBA_ASSERT(!error);
+	}
+
+	// ImageGetDigestStream is buggy in wine so we have to detour it for ShaderCompileWorker
+	if (!True_ImageGetDigestStream && Contains(name, L"imagehlp.dll"))
+	{
+		True_ImageGetDigestStream = (ImageGetDigestStreamFunc*)GetProcAddress(moduleHandle, "ImageGetDigestStream");
+		UBA_ASSERT(True_ImageGetDigestStream);
+		DetourTransactionBegin();
+		DetourUpdateThread(GetCurrentThread());
+		DetourAttachFunction((PVOID*)&True_ImageGetDigestStream, Detoured_ImageGetDigestStream, "ImageGetDigestStream");
+		LONG error = DetourTransactionCommit(); (void)error;
+		UBA_ASSERT(!error);
+	}
 }
 
 int DetourDetachFunctions()
@@ -734,7 +765,7 @@ void PreInit(const DetoursPayload& payload)
 		if (!payload.logFile.IsEmpty())
 		{
 			g_logName.Append(payload.logFile);
-			HANDLE debugFile = CreateFileW(payload.logFile.data, GENERIC_WRITE, FILE_SHARE_READ, NULL, CREATE_ALWAYS, FILE_ATTRIBUTE_NORMAL | FILE_FLAG_SEQUENTIAL_SCAN, NULL);
+			HANDLE debugFile = CreateFileW(payload.logFile.data, GENERIC_WRITE, FILE_SHARE_READ, NULL, CREATE_ALWAYS, FILE_ATTRIBUTE_NORMAL, NULL);
 			#if UBA_DEBUG_LOG_ENABLED
 			g_debugFile = (FileHandle)(u64)debugFile;
 			#else
@@ -807,15 +838,7 @@ void Init(const DetoursPayload& payload, u64 startTime)
 			});
 	}
 
-	DetourTransactionBegin();
-	DetourUpdateThread(GetCurrentThread());
 	DetourAttachFunctions(g_runningRemote);
-	LONG error = DetourTransactionCommit();
-	if (error != NO_ERROR)
-	{
-		printf("Error detouring: %ld\n", error);
-		ExitProcess(1343);
-	}
 
 	if (g_isDetachedProcess)
 	{
@@ -1033,6 +1056,10 @@ extern "C"
 
 	UBA_DETOURED_API bool UbaRequestNextProcess(u32 prevExitCode, wchar_t* outArguments, u32 outArgumentsCapacity)
 	{
+		#if UBA_DEBUG_LOG_ENABLED
+		FlushDebugLog();
+		#endif
+
 		*outArguments = 0;
 		bool newProcess;
 		{
@@ -1048,12 +1075,27 @@ extern "C"
 			newProcess = reader.ReadBool();
 			if (newProcess)
 			{
-				g_stats = {};
 				reader.ReadString(outArguments, outArgumentsCapacity);
-				//writer.SkipString(workingDir);
-				//writer.SkipString(description);
+				reader.SkipString(); // workingDir
+				reader.SkipString(); // description
+				reader.ReadString(g_logName.Clear());
 			}
 		}
+
+		if (newProcess)
+		{
+			g_stats = {};
+
+			#if UBA_DEBUG_LOG_ENABLED
+			SuppressCreateFileDetourScope scope;
+			HANDLE debugFile = (HANDLE)g_debugFile;
+			g_debugFile = InvalidFileHandle;
+			CloseHandle(debugFile);
+			debugFile = CreateFileW(g_logName.data, GENERIC_WRITE, FILE_SHARE_READ, NULL, CREATE_ALWAYS, FILE_ATTRIBUTE_NORMAL, NULL);
+			g_debugFile = (FileHandle)(u64)debugFile;
+			#endif
+		}
+
 		Rpc_UpdateTables();
 		return newProcess;
 	}

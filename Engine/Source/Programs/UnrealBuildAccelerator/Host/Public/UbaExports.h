@@ -68,7 +68,7 @@ extern "C"
 
 	UBA_API uba::u32 ProcessHandle_GetExitCode(uba::ProcessHandle* handle);
 	UBA_API const uba::tchar* ProcessHandle_GetExecutingHost(uba::ProcessHandle* handle);
-	UBA_API const uba::tchar* ProcessHandle_GetLogLine(uba::ProcessHandle* handle, uba::u32 index);
+	UBA_API const uba::tchar* ProcessHandle_GetLogLine(const uba::ProcessHandle* handle, uba::u32 index);
 	UBA_API uba::u64 ProcessHandle_GetHash(uba::ProcessHandle* handle);
 	UBA_API uba::u64 ProcessHandle_GetTotalProcessorTime(uba::ProcessHandle* handle);
 	UBA_API uba::u64 ProcessHandle_GetTotalWallTime(uba::ProcessHandle* handle);

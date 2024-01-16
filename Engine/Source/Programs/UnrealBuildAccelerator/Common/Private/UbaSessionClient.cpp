@@ -1242,6 +1242,38 @@ namespace uba
 		msg.Send();
 	}
 
+	void SessionClient::SendLogFileToServer(ProcessImpl& pi)
+	{
+		auto logFile = pi.m_startInfo.logFile;
+		if (!logFile || !*logFile)
+			return;
+		WrittenFile f;
+		f.name = logFile;
+		f.attributes = DefaultAttributes();
+		StringBuffer<> dest;
+		if (const tchar* lastSlash = TStrrchr(logFile, PathSeparator))
+			logFile = lastSlash + 1;
+		dest.Append(TC("<log>")).Append(logFile);
+		f.key = ToStringKeyLower(dest);
+		SendFile(pi, f, dest.data);
+	}
+
+	void SessionClient::GetLogFileName(StringBufferBase& out, const tchar* logFile, const tchar* arguments)
+	{
+		out.Append(m_sessionLogDir.data);
+		if (logFile && *logFile)
+		{
+			if (const tchar* lastSeparator = TStrrchr(logFile, PathSeparator))
+				logFile = lastSeparator + 1;
+			out.Append(logFile);
+		}
+		else
+		{
+			GetNameFromArguments(out, arguments, true);
+			out.Append(TC(".log"));
+		}
+	}
+
 	void SessionClient::ThreadCreateProcessLoop()
 	{
 		struct ProcessRec
@@ -1408,9 +1440,7 @@ namespace uba
 					StringBuffer<> logFile;
 					if (m_logToFile)
 					{
-						logFile.Append(m_sessionLogDir.data);
-						GetNameFromArguments(logFile, startInfo.arguments, true);
-						logFile.Append(TC(".log"));
+						GetLogFileName(logFile, startInfo.logFile, startInfo.arguments);
 						startInfo.logFile = logFile.data;
 					}
 
@@ -1459,20 +1489,7 @@ namespace uba
 
 						auto& startInfo = h.GetStartInfo();
 						if (session.m_shouldSendLogToServer)
-						{
-							if (const tchar* logFile = startInfo.logFile)
-							{
-								WrittenFile f;
-								f.name = logFile;
-								f.attributes = DefaultAttributes();
-								StringBuffer<> dest;
-								if (const tchar* lastSlash = TStrrchr(logFile, PathSeparator))
-									logFile = lastSlash + 1;
-								dest.Append(TC("<log>")).Append(logFile);
-								f.key = ToStringKeyLower(dest);
-								session.SendFile(*(ProcessImpl*)h.m_process, f, dest.data);
-							}
-						}
+							session.SendLogFileToServer(*(ProcessImpl*)h.m_process);
 
 						auto decreaseWeight = MakeGuard([&]()
 							{
@@ -1669,6 +1686,9 @@ namespace uba
 		outNewProcess = reader.ReadBool();
 		if (outNewProcess)
 		{
+			if (m_shouldSendLogToServer)
+				SendLogFileToServer(pi);
+
 			pi.m_exitCode = prevExitCode;
 			if (m_processFinished)
 				m_processFinished(&process);
@@ -1682,10 +1702,23 @@ namespace uba
 			outNextProcess.arguments = reader.ReadString();
 			outNextProcess.workingDir = reader.ReadString();
 			outNextProcess.description = reader.ReadString();
+			outNextProcess.logFile = reader.ReadString();
+
+			if (m_logToFile)
+			{
+				StringBuffer<512> logFile;
+				GetLogFileName(logFile, outNextProcess.logFile.c_str(), outNextProcess.arguments.c_str());
+				outNextProcess.logFile = logFile.data;
+			}
 
 			// TODO: Probably need to fill up with more stuff.. this is fine for current usecase
 			pi.m_arguments = outNextProcess.arguments;
 			pi.m_description = outNextProcess.description;
+			pi.m_logFile = outNextProcess.logFile;
+
+			pi.m_startInfo.arguments = pi.m_arguments.c_str();
+			pi.m_startInfo.description = pi.m_description.c_str();
+			pi.m_startInfo.logFile = pi.m_logFile.c_str();
 		}
 
 		reader.Reset();

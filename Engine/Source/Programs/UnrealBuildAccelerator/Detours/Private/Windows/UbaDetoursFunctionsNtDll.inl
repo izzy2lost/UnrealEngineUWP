@@ -1317,7 +1317,6 @@ NTSTATUS NTAPI Detoured_NtClose(HANDLE handle)
 NTSTATUS Detoured_NtQueryObject(HANDLE Handle, OBJECT_INFORMATION_CLASS ObjectInformationClass, PVOID ObjectInformation, ULONG ObjectInformationLength, PULONG ReturnLength)
 {
 	DETOURED_CALL(NtQueryObject);
-	DEBUG_LOG_TRUE(L"NtQueryObject", L"%llu", uintptr_t(Handle));
 
 	// This can be other things than FILES.. Is used by GetHandleInformation
 	if (isDetouredHandle(Handle))
@@ -1325,7 +1324,9 @@ NTSTATUS Detoured_NtQueryObject(HANDLE Handle, OBJECT_INFORMATION_CLASS ObjectIn
 		Handle = asDetouredHandle(Handle).trueHandle;
 		UBA_ASSERTF(Handle != INVALID_HANDLE_VALUE, L"NtQueryObject");
 	}
-	return True_NtQueryObject(Handle, ObjectInformationClass, ObjectInformation, ObjectInformationLength, ReturnLength);
+	auto res = True_NtQueryObject(Handle, ObjectInformationClass, ObjectInformation, ObjectInformationLength, ReturnLength);
+	DEBUG_LOG_TRUE(L"NtQueryObject", L"(%i) %llu -> %ls", ObjectInformationClass, uintptr_t(Handle), ToString(res));
+	return res;
 }
 
 NTSTATUS Detoured_NtQueryInformationProcess(HANDLE ProcessHandle, PROCESSINFOCLASS ProcessInformationClass, PVOID ProcessInformation, ULONG ProcessInformationLength, PULONG ReturnLength)
