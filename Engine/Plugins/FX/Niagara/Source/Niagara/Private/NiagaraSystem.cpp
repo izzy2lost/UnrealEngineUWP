@@ -3353,6 +3353,17 @@ void UNiagaraSystem::ResetToEmptySystem()
 
 	// while we'd like to remove these as well, BP will generate warnings for missing parameters
 	//ExposedParameters = FNiagaraUserRedirectionParameterStore();
+
+	// in the case of dedicated servers, clearing out the system is sufficient to remove unnecessary data as the emitters and scripts
+	// will not be loaded on the target platform.  This is not strictly true for all platforms that don't support AV data and so we
+	// also want to be a bit more invasive with resetting the underlying objects (Emitters & Scripts).
+	ForEachScript([&](UNiagaraScript* Script)
+	{
+		if (Script)
+		{
+			Script->InvalidateCompileResults(TEXT("Parent system ResetToEmptySystem"));
+		}
+	});
 }
 
 #endif
