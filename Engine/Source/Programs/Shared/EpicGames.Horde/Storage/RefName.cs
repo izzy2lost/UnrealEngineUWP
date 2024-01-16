@@ -80,6 +80,17 @@ namespace EpicGames.Horde.Storage
 						lastSlashIdx = idx;
 					}
 				}
+				else if (text[idx] == '.')
+				{
+					if (idx == 0 || text[idx - 1] == '/')
+					{
+						throw new ArgumentException($"{Encoding.UTF8.GetString(text)} is not a valid ref name (path fragment cannot start with a period)", argumentName);
+					}
+					if (idx + 1 == text.Length || text[idx + 1] == '/')
+					{
+						throw new ArgumentException($"{Encoding.UTF8.GetString(text)} is not a valid ref name (path fragment cannot end with a period)", argumentName);
+					}
+				}
 				else
 				{
 					if (!IsValidChar(text[idx]))
@@ -94,7 +105,7 @@ namespace EpicGames.Horde.Storage
 
 		static uint[] CreateValidCharsArray()
 		{
-			const string ValidChars = "0123456789abcdefghijklmnopqrstuvwxyz_/-+";
+			const string ValidChars = "0123456789abcdefghijklmnopqrstuvwxyz_/-+.";
 
 			uint[] validChars = new uint[256 / 8];
 			for (int idx = 0; idx < ValidChars.Length; idx++)

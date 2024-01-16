@@ -128,6 +128,11 @@ namespace EpicGames.Horde
 				throw new ArgumentException($"String id may not be longer than {MaxLength} characters", paramName);
 			}
 
+			if (text.Length > 0 && (text[0] == '.' || text[^1] == '.'))
+			{
+				throw new ArgumentException($"'{text}' is not a valid string id (cannot start or end with a period)");
+			}
+
 			for (int idx = 0; idx < text.Length; idx++)
 			{
 				char character = (char)text[idx];
@@ -139,7 +144,7 @@ namespace EpicGames.Horde
 					}
 					else
 					{
-						throw new ArgumentException($"{text} is not a valid string id", paramName);
+						throw new ArgumentException($"'{text}' is not a valid string id (character '{character}' is not allowed)", paramName);
 					}
 				}
 			}
