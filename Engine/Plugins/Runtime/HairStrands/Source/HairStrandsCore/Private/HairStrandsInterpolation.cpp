@@ -495,8 +495,6 @@ class FHairInterpolationCS : public FGlobalShader
 		SHADER_PARAMETER_RDG_BUFFER_SRV(Buffer<uint>, SimRootBarycentricBuffer)
 		SHADER_PARAMETER_RDG_BUFFER_SRV(Buffer<uint>, SimRootToUniqueTriangleIndexBuffer)
 
-		SHADER_PARAMETER_RDG_BUFFER_SRV(Buffer<uint>, SimRootPointIndexBuffer)
-
 		SHADER_PARAMETER_RDG_BUFFER_SRV(Buffer<float4>, OutSimHairPositionOffsetBuffer)
 		SHADER_PARAMETER_RDG_BUFFER_SRV(Buffer<float4>, OutRenHairPositionOffsetBuffer)
 
@@ -552,7 +550,6 @@ void AddHairStrandsInterpolationPass(
 	const FHairStrandsDeformedRootResource* RenDeformedRootResources,
 	const FHairStrandsDeformedRootResource* SimDeformedRootResources,
 	const FRDGBufferSRVRef& RenRestPosePositionBuffer,
-	const FRDGBufferSRVRef& RenPointToCurveBuffer,
 	const FRDGBufferSRVRef& RenCurveBuffer,
 	const FRDGBufferSRVRef& SimCurveBuffer,
 	const bool bUseSingleGuide,
@@ -560,7 +557,6 @@ void AddHairStrandsInterpolationPass(
 	const FRDGBufferSRVRef& PointInterpolationBuffer,
 	const FRDGBufferSRVRef& SimRestPosePositionBuffer,
 	const FRDGBufferSRVRef& SimDeformedPositionBuffer,
-	const FRDGBufferSRVRef& SimRootPointIndexBuffer,
 	const FRDGBufferSRVRef& RenDeformerPositionBuffer,
 	FRDGBufferUAVRef& OutRenPositionBuffer,
 	const FHairStrandsDeformedRootResource::FLOD::EFrameType DeformedFrame)
@@ -580,9 +576,6 @@ void AddHairStrandsInterpolationPass(
 
 	Parameters->OutSimHairPositionOffsetBuffer = OutSimHairPositionOffsetBuffer;
 	Parameters->OutRenHairPositionOffsetBuffer = OutRenHairPositionOffsetBuffer;
-
-	Parameters->SimRootPointIndexBuffer = SimRootPointIndexBuffer;
-	Parameters->RenPointToCurveBuffer = RenPointToCurveBuffer;
 	
 	Parameters->LocalToWorldMatrix = FMatrix44f(Instance->LocalToWorld.ToMatrixWithScale());		// LWC_TODO: Precision loss
 	Parameters->HairLengthScale = HairLengthScale;

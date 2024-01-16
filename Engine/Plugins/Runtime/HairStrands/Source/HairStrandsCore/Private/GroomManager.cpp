@@ -1396,7 +1396,6 @@ static void RunHairStrandsInterpolation_Strands(
 					bHasSkinning ? InstanceData.Instance->Strands.DeformedRootResource : nullptr,
 					bHasSkinning && bValidGuide ? InstanceData.Instance->Guides.DeformedRootResource : nullptr,
 					RegisterAsSRV(GraphBuilder, InstanceData.Instance->Strands.RestResource->PositionBuffer),
-					RegisterAsSRV(GraphBuilder, InstanceData.Instance->Strands.RestResource->PointToCurveBuffer),
 					RegisterAsSRV(GraphBuilder, InstanceData.Instance->Strands.RestResource->CurveBuffer),
 					bValidGuide ? RegisterAsSRV(GraphBuilder, InstanceData.Instance->Guides.RestResource->CurveBuffer) : nullptr,
 					bUseSingleGuide,
@@ -1404,7 +1403,6 @@ static void RunHairStrandsInterpolation_Strands(
 					bValidGuide ? RegisterAsSRV(GraphBuilder, InstanceData.Instance->Strands.InterpolationResource->PointInterpolationBuffer) : nullptr,
 					bValidGuide ? RegisterAsSRV(GraphBuilder, InstanceData.Instance->Guides.RestResource->PositionBuffer) : nullptr,
 					bValidGuide ? RegisterAsSRV(GraphBuilder, InstanceData.Instance->Guides.DeformedResource->GetBuffer(FHairStrandsDeformedResource::Current)) : nullptr,
-					bValidGuide ? RegisterAsSRV(GraphBuilder, InstanceData.Instance->Guides.RestResource->PointToCurveBuffer) : nullptr,
 					InstanceData.RDGResources.DeformerPositionSRV,
 					InstanceData.RDGResources.PositionUAV,
 					FHairStrandsDeformedRootResource::FLOD::Current);
@@ -1956,7 +1954,6 @@ static void RunHairStrandsInterpolation_Cards(
 					InstanceData.bHasSkinning ? LOD.Guides.DeformedRootResource : nullptr,
 					InstanceData.bHasSkinning && InstanceData.bValidGuide ? InstanceData.Instance->Guides.DeformedRootResource : nullptr,
 					RegisterAsSRV(GraphBuilder, LOD.Guides.RestResource->PositionBuffer),
-					RegisterAsSRV(GraphBuilder, LOD.Guides.RestResource->PointToCurveBuffer),
 					RegisterAsSRV(GraphBuilder, LOD.Guides.RestResource->CurveBuffer),
 					InstanceData.bValidGuide ? RegisterAsSRV(GraphBuilder, InstanceData.Instance->Guides.RestResource->CurveBuffer) : nullptr,
 					bUseSingleGuide,
@@ -1964,7 +1961,6 @@ static void RunHairStrandsInterpolation_Cards(
 					InstanceData.bValidGuide ? RegisterAsSRV(GraphBuilder, LOD.Guides.InterpolationResource->PointInterpolationBuffer) : nullptr,
 					InstanceData.bValidGuide ? RegisterAsSRV(GraphBuilder, InstanceData.Instance->Guides.RestResource->PositionBuffer) : nullptr,
 					InstanceData.bValidGuide ? RegisterAsSRV(GraphBuilder, InstanceData.Instance->Guides.DeformedResource->GetBuffer(FHairStrandsDeformedResource::Current)) : nullptr,
-					InstanceData.bValidGuide ? RegisterAsSRV(GraphBuilder, InstanceData.Instance->Guides.RestResource->PointToCurveBuffer) : nullptr,
 					nullptr,
 					Guides_DeformedPositionUAV,
 					FHairStrandsDeformedRootResource::FLOD::Current); // <- this should be optional

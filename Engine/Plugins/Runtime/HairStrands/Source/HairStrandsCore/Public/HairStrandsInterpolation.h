@@ -135,7 +135,6 @@ void AddHairStrandsInterpolationPass(
 	const FHairStrandsDeformedRootResource* RenDeformedRootResources,
 	const FHairStrandsDeformedRootResource* SimDeformedRootResources,
 	const FRDGBufferSRVRef& RenRestPosePositionBuffer,
-	const FRDGBufferSRVRef& RenPointToCurveBuffer,
 	const FRDGBufferSRVRef& RenCurveBuffer,
 	const FRDGBufferSRVRef& SimCurveBuffer,
 	const bool bUseSingleGuide,
@@ -143,7 +142,7 @@ void AddHairStrandsInterpolationPass(
 	const FRDGBufferSRVRef& PoinInterpolationBuffer,
 	const FRDGBufferSRVRef& SimRestPosePositionBuffer,
 	const FRDGBufferSRVRef& SimDeformedPositionBuffer,
-	const FRDGBufferSRVRef& SimRootPointIndexBuffer,
+
 	const FRDGBufferSRVRef& RenDeformerPositionBuffer,
 	FRDGBufferUAVRef& OutRenPositionBuffer,
 	const FHairStrandsDeformedRootResource::FLOD::EFrameType DeformedFrame);
