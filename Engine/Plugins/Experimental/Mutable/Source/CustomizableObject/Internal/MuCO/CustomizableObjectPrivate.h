@@ -16,6 +16,7 @@
 namespace mu { class Model; }
 class UCustomizableObject;
 class USkeletalMesh;
+class USkeleton;
 
 
 class FMeshCache
@@ -57,6 +58,18 @@ struct FCustomizableObjectStatusTypes
 using FCustomizableObjectStatus = FStateMachine<FCustomizableObjectStatusTypes>;
 
 
+class FSkeletonCache
+{
+public:
+	USkeleton* Get(const TArray<uint16>& Key);
+
+	void Add(const TArray<uint16>& Key, USkeleton* Value);
+
+private:
+	TMap<TArray<uint16>, TWeakObjectPtr<USkeleton>> MergedSkeletons;
+};
+
+
 UCLASS()
 class UCustomizableObjectPrivate : public UObject
 {
@@ -80,7 +93,6 @@ public:
 #if WITH_EDITOR
 	FGuid Identifier;
 
-	bool bModelCompiledForCook = false;
 	TArray<FString> CachedPlatformNames;
 
 	/** List of external packages that if changed, a compilation is required.
@@ -92,6 +104,9 @@ public:
 
 	/** Cache of generated SkeletalMeshes */
 	FMeshCache MeshCache;
+
+	/** Cache of merged Skeletons */
+	FSkeletonCache SkeletonCache;
 
 	FCustomizableObjectStatus Status;
 };

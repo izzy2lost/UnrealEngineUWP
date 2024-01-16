@@ -1101,7 +1101,7 @@ USkeleton* UCustomizableInstancePrivate::MergeSkeletons(UCustomizableObject& Cus
 		}
 
 		// Add Skeleton to the cache
-		CustomizableObject.CacheMergedSkeleton(ComponentIndex, ReferencedSkeletons.SkeletonIds, FinalSkeleton);
+		CustomizableObject.GetPrivate()->SkeletonCache.Add(ReferencedSkeletons.SkeletonIds, FinalSkeleton);
 		ReferencedSkeletons.SkeletonIds.Empty();
 	}
 	
@@ -4866,8 +4866,6 @@ FGraphEventRef UCustomizableInstancePrivate::LoadAdditionalAssetsAsync(const TSh
 		}
 	}
 
-	// Clear invalid skeletons from the MergedSkeletons cache
-	CustomizableObject->UnCacheInvalidSkeletons();
 
 	// Load Skeletons required by the SubMeshes of the newly generated Mesh, will be merged later
 	for (FInstanceUpdateData::FSkeletonData& SkeletonData : OperationData->InstanceUpdateData.Skeletons)
@@ -4880,7 +4878,7 @@ FGraphEventRef UCustomizableInstancePrivate::LoadAdditionalAssetsAsync(const TSh
 		}
 
 		// Reuse merged Skeleton if cached
-		ComponentData->Skeletons.Skeleton = CustomizableObject->GetCachedMergedSkeleton(SkeletonData.ComponentIndex, SkeletonData.SkeletonIds);
+		ComponentData->Skeletons.Skeleton = CustomizableObject->GetPrivate()->SkeletonCache.Get(SkeletonData.SkeletonIds);
 		if (ComponentData->Skeletons.Skeleton)
 		{
 			ComponentData->Skeletons.SkeletonIds.Empty();

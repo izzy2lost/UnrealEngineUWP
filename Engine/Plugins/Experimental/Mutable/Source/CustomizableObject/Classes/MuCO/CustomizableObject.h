@@ -48,24 +48,6 @@ namespace mu
 
 CUSTOMIZABLEOBJECT_API DECLARE_LOG_CATEGORY_EXTERN(LogMutable, Log, All);
 
-struct FMergedSkeleton
-{
-	FMergedSkeleton(TObjectPtr<USkeleton> InSkeleton, const int32 InComponentIndex, const TArray<uint16>& InSkeletonIds);
-
-	// Merged skeleton
-	TWeakObjectPtr<USkeleton> Skeleton;
-	
-	// Component Index and Ids of the Skeletons involved in the merge. Used to identify the skeleton
-	uint16 ComponentIndex;
-	TArray<uint16> SkeletonIds;
-
-	bool operator==(const FMergedSkeleton& Other) const
-	{
-		return ComponentIndex == Other.ComponentIndex
-			&& SkeletonIds == Other.SkeletonIds;
-	}
-};
-
 
 USTRUCT()
 struct FFParameterOptionsTags
@@ -1287,15 +1269,6 @@ public:
 	
 	TSoftObjectPtr<UMaterialInterface> GetReferencedMaterialAssetPtr(uint32 Index);
 
-	// Return a valid Skeletons if cached. ComponentIndex and SkeletonIds are used as a key to find the skeleton.
-	TObjectPtr<USkeleton> GetCachedMergedSkeleton(int32 ComponentIndex, const TArray<uint16>& SkeletonIds) const;
-
-	// Add merged skeleton to the cache. It'll be cached as a TWeakObjPtr.
-	void CacheMergedSkeleton(const int32 ComponentIndex, const TArray<uint16>& SkeletonIds, TObjectPtr<USkeleton> Skeleton);
-
-	// Remove skeletons that have been destroyed by the garbage collector from the cache.
-	void UnCacheInvalidSkeletons();
-
 private:
 
 	
@@ -1585,10 +1558,6 @@ public:
 	UPROPERTY()
 	bool bIsChildObject = false;
 
-	/** Unique Identifier - Deterministic. Used to locate Model and Streamable data on disk. Should not be modified. */
-	UPROPERTY(Transient)
-	FGuid Identifier;
-
 	ECustomizableObjectCompilationState CompilationState = ECustomizableObjectCompilationState::None;
 
 	FPostCompileDelegate PostCompileDelegate;
@@ -1645,9 +1614,6 @@ private:
 	/** Stores the bone names of all the bones that can possibly use the generated meshes */
 	UPROPERTY()
 	TArray<FName> BoneNames;
-
-	/** Cache of merged skeletons */
-	TArray<FMergedSkeleton> MergedSkeletons;
 
 	/** BulkData that stores all in-game resources used by Mutable when generating instances.
 	  * Only valid in packaged builds */
