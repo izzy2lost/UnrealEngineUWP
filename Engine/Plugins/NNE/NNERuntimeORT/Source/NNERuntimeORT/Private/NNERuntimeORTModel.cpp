@@ -328,6 +328,8 @@ namespace UE::NNERuntimeORT::Private
 			return false;
 		}
 
+		SessionOptions->SetExecutionMode(ExecutionMode::ORT_SEQUENTIAL);
+		SessionOptions->DisableMemPattern();
 		SessionOptions->DisableCpuMemArena();
 
 		// In order to use DirectML we need D3D12
