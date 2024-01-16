@@ -290,7 +290,7 @@ void MainPS(noperspective float4 UVAndScreenPos : TEXCOORD0, float4 SvPosition :
 	}
 #endif
 
-#if POST_PROCESS_ALPHA
+#if defined(DIM_ALPHA_CHANNEL) && DIM_ALPHA_CHANNEL == 1
 	FLATTEN
 	if (OutColor.a > 0.999)
 	{

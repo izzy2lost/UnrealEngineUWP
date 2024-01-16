@@ -9,6 +9,7 @@
 #include "MobileBasePassRendering.h"
 #include "PixelShaderUtils.h"
 #include "Substrate/Substrate.h"
+#include "PostProcessing.h"
 
 namespace
 {
@@ -33,10 +34,11 @@ namespace
 			SHADER_PARAMETER(uint32, bOpaqueEditorGizmo)
 			SHADER_PARAMETER(uint32, bCompositeAnyNonNullDepth)
 			SHADER_PARAMETER(FVector2f, DepthTextureJitter)
+			SHADER_PARAMETER(uint32, bProcessAlpha)
 			RENDER_TARGET_BINDING_SLOTS()
-			END_SHADER_PARAMETER_STRUCT()
+		END_SHADER_PARAMETER_STRUCT()
 
-			static void ModifyCompilationEnvironment(const FGlobalShaderPermutationParameters& Parameters, FShaderCompilerEnvironment& OutEnvironment)
+		static void ModifyCompilationEnvironment(const FGlobalShaderPermutationParameters& Parameters, FShaderCompilerEnvironment& OutEnvironment)
 		{
 			FGlobalShader::ModifyCompilationEnvironment(Parameters, OutEnvironment);
 		}
@@ -388,6 +390,7 @@ FScreenPassTexture AddEditorPrimitivePass(
 		PassParameters->bOpaqueEditorGizmo = bOpaqueEditorGizmo;
 		PassParameters->bCompositeAnyNonNullDepth = bProducedByPriorPass;
 		PassParameters->DepthTextureJitter = SceneDepthJitter;
+		PassParameters->bProcessAlpha = IsPostProcessingWithAlphaChannelSupported();
 
 		for (int32 i = 0; i < int32(NumMSAASamples); i++)
 		{

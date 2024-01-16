@@ -420,6 +420,8 @@ const FVector2f kContantlyBlockingAffineTransformation(0, 0);
 class FDiaphragmDOFShader : public FGlobalShader
 {
 public:
+	class FAlphaChannelDim : SHADER_PERMUTATION_BOOL("DIM_ALPHA_CHANNEL");
+
 	static bool ShouldCompilePermutation(const FGlobalShaderPermutationParameters& Parameters)
 	{
 		return DiaphragmDOF::IsSupported(Parameters.Platform);
@@ -722,7 +724,7 @@ class FDiaphragmDOFSetupCS : public FDiaphragmDOFShader
 
 	class FOutputResDivisor : SHADER_PERMUTATION_INT("DIM_OUTPUT_RES_DIVISOR", 3);
 
-	using FPermutationDomain = TShaderPermutationDomain<FOutputResDivisor>;
+	using FPermutationDomain = TShaderPermutationDomain<FDiaphragmDOFShader::FAlphaChannelDim, FOutputResDivisor>;
 
 	BEGIN_SHADER_PARAMETER_STRUCT(FParameters, )
 		SHADER_PARAMETER_STRUCT_INCLUDE(FDOFCommonShaderParameters, CommonParameters)
@@ -747,7 +749,7 @@ class FDiaphragmDOFCocFlattenCS : public FDiaphragmDOFShader
 
 	class FDoCocGather4 : SHADER_PERMUTATION_BOOL("DIM_DO_COC_GATHER4");
 
-	using FPermutationDomain = TShaderPermutationDomain<FDoCocGather4>;
+	using FPermutationDomain = TShaderPermutationDomain<FDiaphragmDOFShader::FAlphaChannelDim, FDoCocGather4>;
 	
 	BEGIN_SHADER_PARAMETER_STRUCT(FParameters, )
 		SHADER_PARAMETER(FIntRect, ViewportRect)
@@ -799,7 +801,9 @@ class FDiaphragmDOFDownsampleCS : public FDiaphragmDOFShader
 		}
 		return FDiaphragmDOFShader::ShouldCompilePermutation(Parameters);
 	}
-	
+
+	using FPermutationDomain = TShaderPermutationDomain<FDiaphragmDOFShader::FAlphaChannelDim>;
+
 	BEGIN_SHADER_PARAMETER_STRUCT(FParameters, )
 		SHADER_PARAMETER(FIntRect, ViewportRect)
 		SHADER_PARAMETER(FVector2f, MaxBufferUV)
@@ -824,6 +828,7 @@ class FDiaphragmDOFReduceCS : public FDiaphragmDOFShader
 	class FDisableOutputMip0 : SHADER_PERMUTATION_BOOL("DIM_DISABLE_OUTPUT_MIP0");
 
 	using FPermutationDomain = TShaderPermutationDomain<
+		FDiaphragmDOFShader::FAlphaChannelDim,
 		FReduceMipCount,
 		FHybridScatterForeground,
 		FHybridScatterBackground,
@@ -976,6 +981,7 @@ class FDiaphragmDOFGatherCS : public FDiaphragmDOFShader
 	SHADER_USE_PARAMETER_STRUCT(FDiaphragmDOFGatherCS, FDiaphragmDOFShader);
 
 	using FPermutationDomain = TShaderPermutationDomain<
+		FDiaphragmDOFShader::FAlphaChannelDim,
 		FDDOFLayerProcessingDim,
 		FDDOFGatherRingCountDim,
 		FDDOFBokehSimulationDim,
@@ -1141,7 +1147,11 @@ class FDiaphragmDOFPostfilterCS : public FDiaphragmDOFShader
 
 	class FTileOptimization : SHADER_PERMUTATION_BOOL("DIM_TILE_PERMUTATION");
 
-	using FPermutationDomain = TShaderPermutationDomain<FDDOFLayerProcessingDim, FDDOFPostfilterMethodDim, FTileOptimization>;
+	using FPermutationDomain = TShaderPermutationDomain<
+		FDiaphragmDOFShader::FAlphaChannelDim,
+		FDDOFLayerProcessingDim,
+		FDDOFPostfilterMethodDim,
+		FTileOptimization>;
 
 	static FPermutationDomain RemapPermutationVector(FPermutationDomain PermutationVector)
 	{
@@ -1267,7 +1277,11 @@ class FDiaphragmDOFRecombineCS : public FDiaphragmDOFShader
 
 	class FQualityDim : SHADER_PERMUTATION_INT("DIM_QUALITY", 3);
 
-	using FPermutationDomain = TShaderPermutationDomain<FDDOFLayerProcessingDim, FDDOFBokehSimulationDim, FQualityDim>;
+	using FPermutationDomain = TShaderPermutationDomain<
+		FDiaphragmDOFShader::FAlphaChannelDim,
+		FDDOFLayerProcessingDim,
+		FDDOFBokehSimulationDim,
+		FQualityDim>;
 
 	static bool ShouldCompilePermutation(const FGlobalShaderPermutationParameters& Parameters)
 	{
@@ -1575,6 +1589,7 @@ FRDGTextureRef DiaphragmDOF::AddPasses(
 		bool bOutputHalfResolution = PrefilteringResolutionDivisor == 2;
 		
 		FDiaphragmDOFSetupCS::FPermutationDomain PermutationVector;
+		PermutationVector.Set<FDiaphragmDOFShader::FAlphaChannelDim>(bProcessSceneAlpha);
 	
 		FIntPoint PassViewSize = FullResViewSize;
 		FIntPoint GroupSize(kDefaultGroupSize, kDefaultGroupSize);
@@ -1717,6 +1732,7 @@ FRDGTextureRef DiaphragmDOF::AddPasses(
 			PassParameters->TileOutput = CreateUAVs(GraphBuilder, FlattenedTileClassificationTextures);
 			
 			FDiaphragmDOFCocFlattenCS::FPermutationDomain PermutationVector;
+			PermutationVector.Set<FDiaphragmDOFShader::FAlphaChannelDim>(bProcessSceneAlpha);
 			PermutationVector.Set<FDiaphragmDOFCocFlattenCS::FDoCocGather4>(PreprocessViewSize != GatheringViewSize);
 
 			TShaderMapRef<FDiaphragmDOFCocFlattenCS> ComputeShader(View.ShaderMap, PermutationVector);
@@ -1932,6 +1948,9 @@ FRDGTextureRef DiaphragmDOF::AddPasses(
 
 			FIntPoint PassViewSize = FIntPoint::DivideAndRoundUp(PreprocessViewSize, 2);
 
+			FDiaphragmDOFDownsampleCS::FPermutationDomain PermutationVector;
+			PermutationVector.Set<FDiaphragmDOFShader::FAlphaChannelDim>(bProcessSceneAlpha);
+
 			FDiaphragmDOFDownsampleCS::FParameters* PassParameters = GraphBuilder.AllocParameters<FDiaphragmDOFDownsampleCS::FParameters>();
 			PassParameters->CommonParameters = CommonParameters;
 			PassParameters->ViewportRect = FIntRect(0, 0, PassViewSize.X, PassViewSize.Y);
@@ -1945,7 +1964,7 @@ FRDGTextureRef DiaphragmDOF::AddPasses(
 
 			PassParameters->OutDownsampledGatherInput = CreateUAVs(GraphBuilder, QuarterResGatherInputTextures);
 			
-			TShaderMapRef<FDiaphragmDOFDownsampleCS> ComputeShader(View.ShaderMap);
+			TShaderMapRef<FDiaphragmDOFDownsampleCS> ComputeShader(View.ShaderMap, PermutationVector);
 			FComputeShaderUtils::AddPass(
 				GraphBuilder,
 				RDG_EVENT_NAME("DOF Downsample %dx%d", PassViewSize.X, PassViewSize.Y),
@@ -1976,6 +1995,7 @@ FRDGTextureRef DiaphragmDOF::AddPasses(
 			FIntPoint PassViewSize = PreprocessViewSize;
 
 			FDiaphragmDOFReduceCS::FPermutationDomain PermutationVector;
+			PermutationVector.Set<FDiaphragmDOFShader::FAlphaChannelDim>(bProcessSceneAlpha);
 			PermutationVector.Set<FDiaphragmDOFReduceCS::FReduceMipCount>(ProcessingMipLevelCount);
 			PermutationVector.Set<FDiaphragmDOFReduceCS::FHybridScatterForeground>(bForegroundHybridScattering);
 			PermutationVector.Set<FDiaphragmDOFReduceCS::FHybridScatterBackground>(bBackgroundHybridScattering);
@@ -2259,6 +2279,7 @@ FRDGTextureRef DiaphragmDOF::AddPasses(
 			FIntPoint SrcSize = ReducedGatherInputTextures.SceneColor->Desc.Extent;
 
 			FDiaphragmDOFGatherCS::FPermutationDomain PermutationVector;
+			PermutationVector.Set<FDiaphragmDOFShader::FAlphaChannelDim>(bProcessSceneAlpha);
 			PermutationVector.Set<FDDOFLayerProcessingDim>(ConvolutionSettings.LayerProcessing);
 			PermutationVector.Set<FDDOFGatherRingCountDim>(ConvolutionSettings.RingCount);
 			PermutationVector.Set<FDDOFGatherQualityDim>(ConvolutionSettings.QualityConfig);
@@ -2396,6 +2417,7 @@ FRDGTextureRef DiaphragmDOF::AddPasses(
 			}
 
 			FDiaphragmDOFPostfilterCS::FPermutationDomain PermutationVector;
+			PermutationVector.Set<FDiaphragmDOFShader::FAlphaChannelDim>(bProcessSceneAlpha);
 			PermutationVector.Set<FDDOFLayerProcessingDim>(ConvolutionSettings.LayerProcessing);
 			PermutationVector.Set<FDDOFPostfilterMethodDim>(ConvolutionSettings.PostfilterMethod);
 			PermutationVector.Set<FDiaphragmDOFPostfilterCS::FTileOptimization>(true); // TODO
@@ -2645,6 +2667,7 @@ FRDGTextureRef DiaphragmDOF::AddPasses(
 		FIntRect PassViewRect = View.ViewRect;
 
 		FDiaphragmDOFRecombineCS::FPermutationDomain PermutationVector;
+		PermutationVector.Set<FDiaphragmDOFShader::FAlphaChannelDim>(bProcessSceneAlpha);
 		if (bGatherForeground && bGatherBackground)
 		{
 			PermutationVector.Set<FDDOFLayerProcessingDim>(EDiaphragmDOFLayerProcessing::ForegroundAndBackground);

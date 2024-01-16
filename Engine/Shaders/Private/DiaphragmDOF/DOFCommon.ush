@@ -13,6 +13,11 @@
 #include "../CircleDOFCommon.ush"
 
 
+//------------------------------------------------------- RECOMPILE HASH
+
+#pragma message("UESHADERMETADATA_VERSION 65292827-F021-4C62-9790-FC626A1BFE69")
+
+
 //------------------------------------------------------- COMPILER CONFIG
 
 // Generate vector truncation warnings to errors.
@@ -104,7 +109,11 @@
 #define BOKEH_LUT_SIZE 32
 
 /** Whether alpha channel should be processed or not. */
-#define CONFIG_DOF_ALPHA (POST_PROCESS_ALPHA)
+#ifdef DIM_ALPHA_CHANNEL
+	#define CONFIG_DOF_ALPHA (DIM_ALPHA_CHANNEL)
+#else
+	#define CONFIG_DOF_ALPHA 0
+#endif
 
 /** Amount of error tolerated to quick fast gathering in. */
 #define FAST_GATHERING_COC_ERROR 0.05
