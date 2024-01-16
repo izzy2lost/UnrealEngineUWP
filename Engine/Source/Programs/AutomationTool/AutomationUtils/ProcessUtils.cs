@@ -486,51 +486,65 @@ namespace AutomationTool
 				bProcTerminated = (Proc == null);
 			}
 			// Keep checking if we got all output messages until the process terminates.
-			if (!bProcTerminated)
+			Stopwatch Watch = Stopwatch.StartNew();
+			int MaxWaitUntilMessagesReceived = 60 * 1000;
+			int WaitTimeout = 500;
+			if (GlobalCommandLine.WaitForStdStreams >= 0)
 			{
-				// Check messages
-				int MaxWaitUntilMessagesReceived = 120;
-				while (MaxWaitUntilMessagesReceived > 0 && !(bStdOutSignalReceived && bStdErrSignalReceived))
+				MaxWaitUntilMessagesReceived = GlobalCommandLine.WaitForStdStreams;
+			}
+			if (MaxWaitUntilMessagesReceived > WaitTimeout)
+			{
+				WaitTimeout = 1 + (MaxWaitUntilMessagesReceived / 10);
+			}
+			while (!(bStdOutSignalReceived && bStdErrSignalReceived))
+			{
+				if (!bStdOutSignalReceived)
 				{
-					if (!bStdOutSignalReceived)
-					{
-						bStdOutSignalReceived = OutputWaitHandle.WaitOne(500);
-					}
-					if (!bStdErrSignalReceived)
-					{
-						bStdErrSignalReceived = ErrorWaitHandle.WaitOne(500);
-					}
-					// Check if the process terminated
-					lock (ProcSyncObject)
-					{
-						bProcTerminated = (Proc == null) || Proc.HasExited;
-					}
-					if (bProcTerminated)
-					{
-						// Process terminated but make sure we got all messages, don't wait forever though
-						MaxWaitUntilMessagesReceived--;
-					}
+					bStdOutSignalReceived = OutputWaitHandle.WaitOne(WaitTimeout);
 				}
-				if (!(bStdOutSignalReceived && bStdErrSignalReceived))
+				if (!bStdErrSignalReceived)
 				{
-					Logger.LogDebug("Waited for a long time for output of {AppName}, some output may be missing; we gave up.", AppName);
+					bStdErrSignalReceived = ErrorWaitHandle.WaitOne(WaitTimeout);
 				}
-
-				// Double-check if the process terminated
+				// Check if the process terminated
 				lock (ProcSyncObject)
 				{
 					bProcTerminated = (Proc == null) || Proc.HasExited;
-
-					if (Proc != null)
+				}
+				if (!bProcTerminated)
+				{
+					// Timeout starts when process has terminated
+					Watch.Restart();
+				}
+				else
+				{
+					if (Watch.ElapsedMilliseconds > MaxWaitUntilMessagesReceived)
 					{
-						if (!bProcTerminated)
-						{
-							// The process did not terminate yet but we've read all output messages, wait until the process terminates
-							Proc.WaitForExit();
-						}
-
-						ExitCode = Proc.ExitCode;
+						// Timeout passed, do not wait any longer
+						break;
 					}
+				}
+			}
+			if (!(bStdOutSignalReceived && bStdErrSignalReceived))
+			{
+				Logger.LogInformation("Waited for {0:n2}s for output of {AppName}, some output may be missing; we gave up.", Watch.Elapsed.TotalSeconds, AppName);
+			}
+
+			// Double-check if the process terminated
+			lock (ProcSyncObject)
+			{
+				bProcTerminated = (Proc == null) || Proc.HasExited;
+
+				if (Proc != null)
+				{
+					if (!bProcTerminated)
+					{
+						// The process did not terminate yet but we've read all output messages, wait until the process terminates
+						Proc.WaitForExit();
+					}
+
+					ExitCode = Proc.ExitCode;
 				}
 			}
 		}
