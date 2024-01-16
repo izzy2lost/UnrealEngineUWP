@@ -145,6 +145,68 @@ FOverriddenPropertyNode& FOverriddenPropertySet::FindOrAddNode(FOverriddenProper
 	return OverriddenPropertyNodes.Get(NewID);
 }
 
+EOverriddenPropertyOperation FOverriddenPropertySet::GetOverriddenPropertyOperation(const FOverriddenPropertyNode& ParentPropertyNode, const FEditPropertyChain::TDoubleLinkedListNode* PropertyNode) const
+{
+	// No need to look further
+	// if it is the entire property is replaced or
+	// if it is the FOverriddenPropertySet struct which is always Overridden
+	if (ParentPropertyNode.Operation == EOverriddenPropertyOperation::Replace)
+	{
+		return EOverriddenPropertyOperation::Replace;
+	}
+
+	const FEditPropertyChain::TDoubleLinkedListNode* PropertyIterator = PropertyNode;
+	const FOverriddenPropertyNode* OverriddenPropertyNode = &ParentPropertyNode;
+	while (PropertyIterator && OverriddenPropertyNode && OverriddenPropertyNode->Operation != EOverriddenPropertyOperation::Replace)
+	{
+		const FProperty* CurrentProperty = PropertyIterator->GetValue();
+		const FName CurrentPropID = CurrentProperty->GetFName();
+		if (const FOverriddenPropertyNodeID* CurrentPropKey = OverriddenPropertyNode->SubPropertyNodeKeys.Find(CurrentPropID))
+		{
+			OverriddenPropertyNode = OverriddenPropertyNodes.FindByHash(GetTypeHash(*CurrentPropKey), *CurrentPropKey);
+			checkf(OverriddenPropertyNode, TEXT("Expecting a node"));
+		}
+		else
+		{
+			OverriddenPropertyNode = nullptr;
+			break;
+		}
+		PropertyIterator = PropertyIterator->GetNextNode();
+	}
+
+	return OverriddenPropertyNode ? OverriddenPropertyNode->Operation : EOverriddenPropertyOperation::None;
+}
+
+FOverriddenPropertyNode* FOverriddenPropertySet::SetOverriddenPropertyOperation(EOverriddenPropertyOperation Operation, FOverriddenPropertyNode& ParentPropertyNode, const FEditPropertyChain::TDoubleLinkedListNode* PropertyNode)
+{
+	// No need to look further
+	// if it is the entire property is replaced or
+	// if it is the FOverriddenPropertySet struct which is always Overridden
+	if (ParentPropertyNode.Operation == EOverriddenPropertyOperation::Replace)
+	{
+		return nullptr;
+	}
+
+	const FEditPropertyChain::TDoubleLinkedListNode* PropertyIterator = PropertyNode;
+	FOverriddenPropertyNode* OverriddenPropertyNode = &ParentPropertyNode;
+	while (PropertyIterator && OverriddenPropertyNode->Operation != EOverriddenPropertyOperation::Replace)
+	{
+		const FProperty* CurrentProperty = PropertyIterator->GetValue();
+		const FName CurrentPropID = CurrentProperty->GetFName();
+		OverriddenPropertyNode = &FindOrAddNode(*OverriddenPropertyNode, CurrentPropID);
+		PropertyIterator = PropertyIterator->GetNextNode();
+	}
+
+	// Might have stop before as one of the parent property was completely replaced.
+	if (!PropertyIterator)
+	{
+		OverriddenPropertyNode->Operation = Operation;
+		return OverriddenPropertyNode;
+	}
+
+	return nullptr;
+}
+
 void FOverriddenPropertySet::NotifyPropertyChange(FOverriddenPropertyNode* ParentPropertyNode, const EPropertyNotificationType Notification, const FPropertyChangedEvent& PropertyEvent, const FEditPropertyChain::TDoubleLinkedListNode* PropertyNode, const void* Data)
 {
 	checkf(IsValid(Owner), TEXT("Expecting a valid overridable owner"));
@@ -682,6 +744,20 @@ void FOverriddenPropertySet::RemoveOverriddenSubProperties(FOverriddenPropertyNo
 		OverriddenPropertyNodes.RemoveByHash(GetTypeHash(Pair.Value), Pair.Value);
 	}
 	PropertyNode.SubPropertyNodeKeys.Empty();
+}
+
+EOverriddenPropertyOperation FOverriddenPropertySet::GetOverriddenPropertyOperation(const FEditPropertyChain::TDoubleLinkedListNode* PropertyNode) const
+{
+	if (const FOverriddenPropertyNode* RootNode = OverriddenPropertyNodes.FindByHash(GetTypeHash(RootNodeID), RootNodeID))
+	{
+		return GetOverriddenPropertyOperation(*RootNode, PropertyNode);
+	}
+	return EOverriddenPropertyOperation::None;
+}
+
+FOverriddenPropertyNode* FOverriddenPropertySet::SetOverriddenPropertyOperation(EOverriddenPropertyOperation Operation, const FEditPropertyChain::TDoubleLinkedListNode* PropertyNode)
+{
+	return SetOverriddenPropertyOperation(Operation, OverriddenPropertyNodes.FindOrAddByHash(GetTypeHash(RootNodeID), RootNodeID), PropertyNode);
 }
 
 void FOverriddenPropertySet::NotifyPropertyChange(const EPropertyNotificationType Notification, const FPropertyChangedEvent& PropertyEvent, const FEditPropertyChain::TDoubleLinkedListNode* PropertyNode, const void* Data)

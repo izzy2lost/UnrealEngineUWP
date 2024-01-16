@@ -196,6 +196,23 @@ public:
 	COREUOBJECT_API void NotifyPropertyChange(const EPropertyNotificationType Notification, UObject& Object, const FPropertyChangedEvent& PropertyEvent, const FEditPropertyChain::TDoubleLinkedListNode* PropertyNode);
 
 	/**
+	 * Retrieve the overridable operation from the specified the edit property chain
+	 * @param Object owning the property
+	 * @param PropertyChain leading to the property the caller is interested in
+	 * @return the current type of override operation on the property
+	 */
+	COREUOBJECT_API EOverriddenPropertyOperation GetOverriddenPropertyOperation(UObject& Object, const FEditPropertyChain& PropertyChain);
+
+	/**
+	 * Set the overridable operation from the specified the edit property chain
+	 * @param Object owning the property
+	 * @param PropertyChain leading to the property the caller is interested in
+	 * @param Operation the override operation to set on the property
+	 * @return if the operation was successful
+	 */
+	COREUOBJECT_API bool SetOverriddenPropertyOperation(UObject& Object, const FEditPropertyChain& PropertyChain, EOverriddenPropertyOperation Operation);
+
+	/**
 	 * Serializes the overriden properties of the specified object into the record
 	 * @param Object to serialize the overriden property
 	 * @param ObjectRecord the record to use for serialization

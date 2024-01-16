@@ -214,6 +214,19 @@ public:
 	{}
 
 	/**
+	 * Retrieve the overridable operation from the specified the edit property chain and the specified property
+	 * @param PropertyNode in the linked list leading to the property the caller is interested in
+	 * @return the current type of override operation on the property */
+	EOverriddenPropertyOperation GetOverriddenPropertyOperation(const FEditPropertyChain::TDoubleLinkedListNode* PropertyNode) const;
+
+	/**
+	 * Setup the overridable operation of the current property from the serialized property chain and the specified property
+	 * @param Operation to set for this property
+	 * @param PropertyNode in the linked list leading to the property the caller is interested in
+	 * @return the node containing the information of the overridden property */
+	FOverriddenPropertyNode* SetOverriddenPropertyOperation(EOverriddenPropertyOperation Operation, const FEditPropertyChain::TDoubleLinkedListNode* PropertyNode);
+
+	/**
 	 * Handling and storing modification on a property of an object
 	 * @param Notification type either pre/post property overridden
 	 * @param PropertyEvent information about the type of change
@@ -230,7 +243,7 @@ public:
 
 	/**
 	 * Setup the overridable operation of the current property from the serialized property chain and the specified property
-	 * @param Operation to set on the proto set for this property
+	 * @param Operation to set for this property
 	 * @param CurrentPropertyChain leading to the property being serialized if any
 	 * @param Property being serialized if any, otherwise will fallback on the last property of the chain
 	 * @return the node containing the information of the overridden property */
@@ -263,15 +276,18 @@ public:
 
 protected:
 
+	FOverriddenPropertyNode& FindOrAddNode(FOverriddenPropertyNode& ParentPropertyNode, FOverriddenPropertyNodeID NodeID);
+
+	EOverriddenPropertyOperation GetOverriddenPropertyOperation(const FOverriddenPropertyNode& ParentPropertyNode, const FEditPropertyChain::TDoubleLinkedListNode* PropertyNode) const;
+	FOverriddenPropertyNode* SetOverriddenPropertyOperation(EOverriddenPropertyOperation Operation, FOverriddenPropertyNode& ParentPropertyNode, const FEditPropertyChain::TDoubleLinkedListNode* PropertyNode);
 	void NotifyPropertyChange(FOverriddenPropertyNode* ParentPropertyNode, const EPropertyNotificationType Notification, const FPropertyChangedEvent& PropertyEvent, const FEditPropertyChain::TDoubleLinkedListNode* PropertyNode, const void* Data);
+
 	EOverriddenPropertyOperation GetOverriddenPropertyOperation(const FOverriddenPropertyNode& ParentPropertyNode, const FArchiveSerializedPropertyChain* CurrentPropertyChain, FProperty* Property) const;
 	FOverriddenPropertyNode* SetOverriddenPropertyOperation(EOverriddenPropertyOperation Operation, FOverriddenPropertyNode& ParentPropertyNode, const FArchiveSerializedPropertyChain* CurrentPropertyChain, FProperty* Property);
-
 	const FOverriddenPropertyNode* GetOverriddenPropertyNode(const FOverriddenPropertyNode& ParentPropertyNode, const FArchiveSerializedPropertyChain* CurrentPropertyChain) const;
 
 	void RemoveOverriddenSubProperties(FOverriddenPropertyNode& PropertyNode);
 
-	FOverriddenPropertyNode& FindOrAddNode(FOverriddenPropertyNode& ParentPropertyNode, FOverriddenPropertyNodeID NodeID);
 
 private:
 	UPROPERTY()

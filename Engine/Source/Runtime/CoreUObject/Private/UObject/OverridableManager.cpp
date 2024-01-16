@@ -149,6 +149,24 @@ void FOverridableManager::NotifyPropertyChange(const EPropertyNotificationType N
 	}
 }
 
+EOverriddenPropertyOperation FOverridableManager::GetOverriddenPropertyOperation(UObject& Object, const FEditPropertyChain& PropertyChain)
+{
+	if (FOverriddenPropertySet* ThisObjectOverriddenProperties = OverriddenObjectAnnotations.Find(Object))
+	{
+		return ThisObjectOverriddenProperties->GetOverriddenPropertyOperation(PropertyChain.GetHead());
+	}
+	return EOverriddenPropertyOperation::None;
+}
+
+bool FOverridableManager::SetOverriddenPropertyOperation(UObject& Object, const FEditPropertyChain& PropertyChain, EOverriddenPropertyOperation Operation)
+{
+	if (FOverriddenPropertySet* ThisObjectOverriddenProperties = OverriddenObjectAnnotations.Find(Object))
+	{
+		return ThisObjectOverriddenProperties->SetOverriddenPropertyOperation(Operation, PropertyChain.GetHead()) != nullptr;
+	}
+	return false;
+}
+
 void FOverridableManager::ClearOverrides(UObject& Object)
 {
 	if(FOverriddenPropertySet* ThisObjectOverriddenProperties = OverriddenObjectAnnotations.Find(Object))
