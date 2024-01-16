@@ -52,6 +52,10 @@ final class WebRTCClient: NSObject {
         super.init()
     }
     
+    deinit {
+        Log.info("WebRTCClient destructed.")
+    }
+    
     // MARK: PeerConnection Config
     func setupPeerConnection(rtcConfiguration: RTCConfiguration) {
         
@@ -67,6 +71,15 @@ final class WebRTCClient: NSObject {
         
         self.configureAudioSession()
         self.peerConnection!.delegate = self
+    }
+    
+    func close() {
+        if let pc = self.peerConnection {
+            pc.close()
+            self.peerConnection = nil
+        }
+        self.remoteVideoTrack = nil
+        self.dataChannel = nil
     }
 
     func stats(_ completionHandler : @escaping RTCStatisticsCompletionHandler) {

@@ -34,21 +34,25 @@ class WebRTCStatsView: UIView {
     // Graphs will be displayed in a grid layout, rowsxcols, where nRows and nCols are determined by frameWidth/graphWidth
     // When graphs exceed nCols on a single row then a new row will begin
     // There is no maximum number of rows, but some graphs may be drawn offscreen if there is too many rows
-    private var nCols : Int = 5
+    private var nCols : Int = 6
+    private var nRows : Int = 3
     
     override init(frame: CGRect) {
         super.init(frame: frame)
+        
+        self.graphLeftMargin = Int(frame.width / 100)
+        self.graphRightMargin = Int(frame.width / 100)
+        
+        let scale = abs(2 - UIScreen.main.scale) + 1
+        
+        self.graphWidth = Int(frame.width / (scale * CGFloat(self.nCols + 1)))
+        self.graphHeight = Int(frame.height / (scale * CGFloat(self.nRows + 1)))
         
         // Disable user interaction so stats do not block underlying video
         self.isUserInteractionEnabled = false
         
         // set transparent background color
         self.backgroundColor = UIColor.clear
-        
-        // Calculate nRows and nCols
-        let frameWidth : CGFloat = frame.width - CGFloat(self.graphLeftMargin) - CGFloat(self.graphRightMargin)
-        self.nCols = Int( floor( frameWidth / CGFloat(self.graphWidth) ))
-
     }
     
     required init?(coder: NSCoder) {

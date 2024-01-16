@@ -35,8 +35,8 @@ struct TouchPoint {
 
 final class TouchControls : TouchDelegate {
     
-    let webRTCClient : WebRTCClient
-    let touchView : UIView
+    weak var webRTCClient : WebRTCClient?
+    weak var touchView : UIView?
     var videoAspectRatio : CGFloat
     
     // We need a way to give each touch a unique finger id that is persistent throughout
@@ -63,6 +63,10 @@ final class TouchControls : TouchDelegate {
         self.webRTCClient = webRTCClient
         self.touchView = touchView
         self.videoAspectRatio = CGFloat.zero
+    }
+    
+    deinit {
+        Log.info("TouchControls destructed.")
     }
     
     func rememberTouch(_ touch : UITouch) {
@@ -126,35 +130,40 @@ final class TouchControls : TouchDelegate {
     
     // Unsigned XY positions are normalized to the ratio (0.0..1.0) along a viewport axis and then quantized into an uint16 (0..65536).
     func normalizeAndQuantize(_ touch: UITouch) -> TouchPoint {
-        let uiAspectRatio : CGFloat = touchView.bounds.width / touchView.bounds.height
-        let touchLocation : CGPoint = touch.location(in: touchView)
-        let viewBounds : CGRect = touchView.bounds
-        
-        // normalise x,y to the UI element bounds
-        var normalizedX : CGFloat = touchLocation.x / viewBounds.width
-        if uiAspectRatio > videoAspectRatio {
-            normalizedX = (normalizedX - 0.5) * (uiAspectRatio / videoAspectRatio) + 0.5
-        }
-        
-        var normalizedY : CGFloat = touchLocation.y / viewBounds.height
-        if uiAspectRatio < videoAspectRatio {
-            normalizedY = (normalizedY - 0.5) * (videoAspectRatio / uiAspectRatio) + 0.5
-        }
-        
-        // normalize force value of touch
-        let normalizedForce : UInt8 = touch.maximumPossibleForce > 0 ? UInt8(touch.force / touch.maximumPossibleForce * CGFloat(UInt8.max)) : 1
-        
-        // Detect if touch is out of bounds
-        if normalizedX < 0.0 || normalizedX > 1.0 || normalizedY < 0.0 || normalizedY > 1.0 {
-            return TouchPoint(x: UInt16.max, y: UInt16.max, inRange: false, force: 0)
+        if let tv = touchView {
+            let uiAspectRatio : CGFloat = tv.bounds.width / tv.bounds.height
+            let touchLocation : CGPoint = touch.location(in: tv)
+            let viewBounds : CGRect = tv.bounds
+            
+            // normalise x,y to the UI element bounds
+            var normalizedX : CGFloat = touchLocation.x / viewBounds.width
+            if uiAspectRatio > videoAspectRatio {
+                normalizedX = (normalizedX - 0.5) * (uiAspectRatio / videoAspectRatio) + 0.5
+            }
+            
+            var normalizedY : CGFloat = touchLocation.y / viewBounds.height
+            if uiAspectRatio < videoAspectRatio {
+                normalizedY = (normalizedY - 0.5) * (videoAspectRatio / uiAspectRatio) + 0.5
+            }
+            
+            // normalize force value of touch
+            let normalizedForce : UInt8 = touch.maximumPossibleForce > 0 ? UInt8(touch.force / touch.maximumPossibleForce * CGFloat(UInt8.max)) : 1
+            
+            // Detect if touch is out of bounds
+            if normalizedX < 0.0 || normalizedX > 1.0 || normalizedY < 0.0 || normalizedY > 1.0 {
+                return TouchPoint(x: UInt16.max, y: UInt16.max, inRange: false, force: 0)
+            } else {
+                return TouchPoint(x: UInt16(normalizedX * CGFloat(UInt16.max)), y: UInt16(normalizedY * CGFloat(UInt16.max)), inRange: true, force: normalizedForce)
+            }
         } else {
-            return TouchPoint(x: UInt16(normalizedX * CGFloat(UInt16.max)), y: UInt16(normalizedY * CGFloat(UInt16.max)), inRange: true, force: normalizedForce)
+            return TouchPoint(x: UInt16.max, y: UInt16.max, inRange: false, force: 0)
         }
     }
     
     func sendTouchData(messageType: PixelStreamingToStreamerMessage, touches: Set<UITouch>) {
         
         guard relayTouchEvents else { return }
+        guard (webRTCClient != nil) else { return }
         
         var bytes: [UInt8] = []
         
@@ -190,7 +199,7 @@ final class TouchControls : TouchDelegate {
         }
         
         let data = Data(bytes)
-        self.webRTCClient.sendData(data)
+        self.webRTCClient?.sendData(data)
     }
     
 }
