@@ -857,11 +857,16 @@ void UContextualAnimSceneActorComponent::SetIgnoreCollisionWithOtherActors(bool 
 		AActor* OtherActor = Binding.GetActor();
 		if (OtherActor && OtherActor != OwnerActor)
 		{
-			if (UPrimitiveComponent* RootPrimitiveComponent = Cast<UPrimitiveComponent>(OwnerActor->GetRootComponent()))
-			{
-				RootPrimitiveComponent->IgnoreActorWhenMoving(OtherActor, bValue);
-			}
+			SetIgnoreCollisionWithActor(*OtherActor, bValue);
 		}
+	}
+}
+
+void UContextualAnimSceneActorComponent::SetIgnoreCollisionWithActor(AActor& Actor, bool bValue) const
+{
+	if (UPrimitiveComponent* RootPrimitiveComponent = Cast<UPrimitiveComponent>(GetOwner()->GetRootComponent()))
+	{
+		RootPrimitiveComponent->IgnoreActorWhenMoving(&Actor, bValue);
 	}
 }
 
@@ -998,6 +1003,20 @@ void UContextualAnimSceneActorComponent::LeaveScene()
 
 		RestoreMovementState(*Binding);
 
+		// Notify the other actors in the interaction
+		// @TODO: This should be refactored so only the leader of the interaction maintains the full bindings
+		for (const FContextualAnimSceneBinding& OtherBinding : Bindings)
+		{
+			AActor* OwnerActor = GetOwner();
+			if (OtherBinding.GetActor() != OwnerActor)
+			{
+				if (UContextualAnimSceneActorComponent* Comp = OtherBinding.GetSceneActorComponent())
+				{
+					Comp->OtherActorLeftScene(*OwnerActor);
+				}
+			}
+		}
+
 		OnLeaveScene(*Binding);
 
 		OnLeftSceneDelegate.Broadcast(this);
@@ -1005,6 +1024,23 @@ void UContextualAnimSceneActorComponent::LeaveScene()
 		AnimsPlayed.Reset();
 
 		Bindings.Reset();
+	}
+}
+
+void UContextualAnimSceneActorComponent::OtherActorLeftScene(AActor& Actor)
+{
+	if (Bindings.IsValid())
+	{
+		if (const UContextualAnimSceneAsset* Asset = Bindings.GetSceneAsset())
+		{
+			const EContextualAnimCollisionBehavior CollisionBehavior = Asset->GetCollisionBehavior();
+			if (CollisionBehavior == EContextualAnimCollisionBehavior::IgnoreActorWhenMoving)
+			{
+				SetIgnoreCollisionWithActor(Actor, false);
+			}
+
+			Bindings.RemoveActor(Actor);
+		}
 	}
 }
 
@@ -1104,7 +1140,6 @@ void UContextualAnimSceneActorComponent::OnMontageBlendingOut(UAnimMontage* Mont
 		}
 	}
 }
-
 
 void UContextualAnimSceneActorComponent::OnPlayMontageNotifyBegin(FName NotifyName, const FBranchingPointNotifyPayload& BranchingPointNotifyPayload)
 {

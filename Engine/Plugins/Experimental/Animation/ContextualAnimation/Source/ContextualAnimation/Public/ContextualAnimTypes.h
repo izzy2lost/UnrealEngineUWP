@@ -509,6 +509,8 @@ struct CONTEXTUALANIMATION_API FContextualAnimSceneBindings
 	int32 FindAnimSetForTransitionTo(int32 NewSectionIdx) const;
 	void TransitionTo(int32 NewSectionIdx, int32 NewAnimSetIdx);
 
+	bool RemoveActor(AActor& ActorRef);
+
 private:
 
 	friend class UContextualAnimManager;

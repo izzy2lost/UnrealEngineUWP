@@ -280,6 +280,7 @@ protected:
 	UFUNCTION()
 	void OnRep_TransitionData();
 
+	void SetIgnoreCollisionWithActor(AActor& Actor, bool bValue) const;
 	void SetIgnoreCollisionWithOtherActors(bool bValue) const;
 	
 	virtual void SetCollisionState(const FContextualAnimSceneBinding& Binding);
@@ -328,6 +329,8 @@ protected:
 	virtual void OnTransitionScene(const FContextualAnimSceneBinding& Binding, int32 SectionIdx, int32 AnimSetIdx);
 
 	virtual void OnTransitionSingleActor(const FContextualAnimSceneBinding& Binding, int32 SectionIdx, int32 AnimSetIdx);
+
+	void OtherActorLeftScene(AActor& Actor);
 
 private:
 

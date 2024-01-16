@@ -889,3 +889,17 @@ void FContextualAnimSceneBindings::TransitionTo(int32 NewSectionIdx, int32 NewAn
 		}
 	}
 }
+
+bool FContextualAnimSceneBindings::RemoveActor(AActor& ActorRef)
+{
+	for (int32 Idx = 0; Idx < Data.Num(); Idx++)
+	{
+		if (Data[Idx].GetActor() == &ActorRef)
+		{
+			Data.RemoveAt(Idx);
+			return true;
+		}
+	}
+
+	return false;
+}
