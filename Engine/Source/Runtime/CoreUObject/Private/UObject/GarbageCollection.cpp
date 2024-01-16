@@ -578,7 +578,7 @@ bool FUObjectItem::SetRootFlags(EInternalObjectFlags FlagsToSet)
 {
 	using namespace UE::GC;
 	using namespace UE::GC::Private;
-	check(!GIsGarbageCollecting);
+
 	constexpr int32 RootFlags = (int32)EInternalObjectFlags_RootFlags;
 	bool bIChangedIt = false;
 	{
