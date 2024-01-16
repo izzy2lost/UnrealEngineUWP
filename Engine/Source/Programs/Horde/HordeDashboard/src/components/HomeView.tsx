@@ -30,7 +30,7 @@ export const HomeView: React.FC = observer(() => {
 								return (
 									<Stack.Item key={project.id} className={hordeClasses.projectLogoCardDropShadow}>
 										<Link onClick={() => { projectStore.setActive(project.id); }} to={`/project/${project.id}`}>
-											<img src={`/api/v1/projects/${project.id}/logo`} alt="" width={560} height={280} />
+											<img src={`/api/v1/projects/${project.id}/logo`} alt="Project logo" width={560} height={280} />
 										</Link>
 									</Stack.Item>
 								);

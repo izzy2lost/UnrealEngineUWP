@@ -131,7 +131,7 @@ export const ProjectHome: React.FC = observer(() => {
                                     <Stack tokens={{ childrenGap: 18 }} style={{ padding: 0 }}>
                                         <Stack.Item align={'center'} className={hordeClasses.projectLogoCard}>
                                             {
-                                                activeProject ? <img style={imgStyle} src={`/api/v1/projects/${activeProject!.id}/logo`} alt="" /> : <div></div>            
+                                                activeProject ? <img style={imgStyle} src={`/api/v1/projects/${activeProject!.id}/logo`} alt="Project logo" height={300} /> : <div></div>            
                                             }
                                         </Stack.Item>
                                         <Stack tokens={{ childrenGap: 20 }} className={hordeClasses.raised}>
