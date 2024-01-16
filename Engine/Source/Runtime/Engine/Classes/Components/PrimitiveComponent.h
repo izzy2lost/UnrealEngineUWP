@@ -903,15 +903,7 @@ public:
 	/**
 	 * Collect all the data required for PSO precaching 
 	 */
-	struct FComponentPSOPrecacheParams
-	{
-		EPSOPrecachePriority Priority = EPSOPrecachePriority::Medium;
-		UMaterialInterface* MaterialInterface = nullptr;
-		FPSOPrecacheVertexFactoryDataList VertexFactoryDataList;
-		FPSOPrecacheParams PSOPrecacheParams;
-	};
-	typedef TArray<FComponentPSOPrecacheParams, TInlineAllocator<2> > FComponentPSOPrecacheParamsList;
-	virtual void CollectPSOPrecacheData(const FPSOPrecacheParams& BasePrecachePSOParams, FComponentPSOPrecacheParamsList& OutParams) {}
+	virtual void CollectPSOPrecacheData(const FPSOPrecacheParams& BasePrecachePSOParams, FMaterialInterfacePSOPrecacheParamsList& OutParams) {}
 
 	/** Precache all PSOs which can be used by the primitive component */
 	ENGINE_API virtual void PrecachePSOs() override;

@@ -1589,7 +1589,7 @@ void UStaticMeshComponent::CollectPSOPrecacheDataImpl(
 	const FVertexFactoryType* VFType, 
 	const FPSOPrecacheParams& BasePrecachePSOParams, 
 	GetPSOVertexElementsFn GetVertexElements,
-	FComponentPSOPrecacheParamsList& OutParams) const
+	FMaterialInterfacePSOPrecacheParamsList& OutParams) const
 {
 	check(StaticMesh != nullptr && StaticMesh->GetRenderData() != nullptr);
 
@@ -1650,7 +1650,7 @@ void UStaticMeshComponent::CollectPSOPrecacheDataImpl(
 			MaterialInterface = UMaterial::GetDefaultMaterial(MD_Surface);
 		}
 
-		FComponentPSOPrecacheParams& ComponentParams = OutParams[OutParams.AddDefaulted()];
+		FMaterialInterfacePSOPrecacheParams& ComponentParams = OutParams[OutParams.AddDefaulted()];
 		ComponentParams.MaterialInterface = MaterialInterface;
 		ComponentParams.VertexFactoryDataList = VFsPerMaterial.VertexFactoryDataList;
 		ComponentParams.PSOPrecacheParams = PrecachePSOParams;
@@ -1660,7 +1660,7 @@ void UStaticMeshComponent::CollectPSOPrecacheDataImpl(
 	if (OverlayMaterialInterface && VFTypesPerMaterialIndex.Num() != 0)
 	{
 		// Overlay is rendered with the same set of VFs
-		FComponentPSOPrecacheParams& ComponentParams = OutParams[OutParams.AddDefaulted()];
+		FMaterialInterfacePSOPrecacheParams& ComponentParams = OutParams[OutParams.AddDefaulted()];
 		
 		ComponentParams.MaterialInterface = OverlayMaterialInterface;
 		ComponentParams.VertexFactoryDataList = VFTypesPerMaterialIndex[0].VertexFactoryDataList;
@@ -1669,7 +1669,7 @@ void UStaticMeshComponent::CollectPSOPrecacheDataImpl(
 	}
 }
 
-void UStaticMeshComponent::CollectPSOPrecacheData(const FPSOPrecacheParams& BasePrecachePSOParams, FComponentPSOPrecacheParamsList& OutParams)
+void UStaticMeshComponent::CollectPSOPrecacheData(const FPSOPrecacheParams& BasePrecachePSOParams, FMaterialInterfacePSOPrecacheParamsList& OutParams)
 {
 	if (StaticMesh == nullptr || StaticMesh->GetRenderData() == nullptr)
 	{

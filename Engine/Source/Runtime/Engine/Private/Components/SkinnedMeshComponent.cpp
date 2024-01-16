@@ -592,7 +592,7 @@ void USkinnedMeshComponent::PostLoad()
 	PrecachePSOs();
 }
 
-void USkinnedMeshComponent::CollectPSOPrecacheData(const FPSOPrecacheParams& BasePrecachePSOParams, FComponentPSOPrecacheParamsList& OutParams)
+void USkinnedMeshComponent::CollectPSOPrecacheData(const FPSOPrecacheParams& BasePrecachePSOParams, FMaterialInterfacePSOPrecacheParamsList& OutParams)
 {
 	if (GetSkinnedAsset() == nullptr ||
 		GetSkinnedAsset()->GetResourceForRendering() == nullptr)
@@ -621,7 +621,7 @@ void USkinnedMeshComponent::CollectPSOPrecacheData(const FPSOPrecacheParams& Bas
 			MaterialInterface = UMaterial::GetDefaultMaterial(MD_Surface);
 		}
 
-		FComponentPSOPrecacheParams& ComponentParams = OutParams[OutParams.AddDefaulted()];
+		FMaterialInterfacePSOPrecacheParams& ComponentParams = OutParams[OutParams.AddDefaulted()];
 		ComponentParams.MaterialInterface = MaterialInterface;
 		ComponentParams.VertexFactoryDataList = VFsPerMaterial.VertexFactoryDataList;
 		ComponentParams.PSOPrecacheParams = PrecachePSOParams;
@@ -631,7 +631,7 @@ void USkinnedMeshComponent::CollectPSOPrecacheData(const FPSOPrecacheParams& Bas
 	if (OverlayMaterialInterface && VFsPerMaterials.Num() != 0)
 	{
 		// Overlay is rendered with the same set of VFs
-		FComponentPSOPrecacheParams& ComponentParams = OutParams[OutParams.AddDefaulted()];
+		FMaterialInterfacePSOPrecacheParams& ComponentParams = OutParams[OutParams.AddDefaulted()];
 
 		ComponentParams.MaterialInterface = OverlayMaterialInterface;
 		ComponentParams.VertexFactoryDataList = VFsPerMaterials[0].VertexFactoryDataList;

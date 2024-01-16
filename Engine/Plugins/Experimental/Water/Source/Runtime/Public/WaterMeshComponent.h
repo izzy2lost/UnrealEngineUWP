@@ -42,7 +42,7 @@ public:
 	virtual bool IsNavigationRelevant() const override { return false; }
 	//~ End INavRelevantInterface Interface
 
-	virtual void CollectPSOPrecacheData(const FPSOPrecacheParams& BasePrecachePSOParams, FComponentPSOPrecacheParamsList& OutParams) override;
+	virtual void CollectPSOPrecacheData(const FPSOPrecacheParams& BasePrecachePSOParams, FMaterialInterfacePSOPrecacheParamsList& OutParams) override;
 
 	void Update();
 

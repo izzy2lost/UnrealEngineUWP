@@ -1095,7 +1095,7 @@ public:
 	ENGINE_API void SetForceWireframe(bool InForceWireframe);
 
 	/** Precache all PSOs which can be used by the component */
-	ENGINE_API virtual void CollectPSOPrecacheData(const FPSOPrecacheParams& BasePrecachePSOParams, FComponentPSOPrecacheParamsList& OutParams) override;
+	ENGINE_API virtual void CollectPSOPrecacheData(const FPSOPrecacheParams& BasePrecachePSOParams, FMaterialInterfacePSOPrecacheParamsList& OutParams) override;
 	
 #if WITH_EDITOR
 	/** Return value of SectionIndexPreview  */

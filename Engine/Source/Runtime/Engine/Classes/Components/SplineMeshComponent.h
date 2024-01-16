@@ -435,7 +435,7 @@ public:
 
 	ENGINE_API virtual float GetTextureStreamingTransformScale() const override;
 
-	ENGINE_API virtual void CollectPSOPrecacheData(const FPSOPrecacheParams& BasePrecachePSOParams, FComponentPSOPrecacheParamsList& OutParams) override;
+	ENGINE_API virtual void CollectPSOPrecacheData(const FPSOPrecacheParams& BasePrecachePSOParams, FMaterialInterfacePSOPrecacheParamsList& OutParams) override;
 
 private:
 	ENGINE_API void UpdateRenderStateAndCollision_Internal(bool bConcurrent);

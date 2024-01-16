@@ -74,12 +74,12 @@ void ULandscapeNaniteComponent::PostLoad()
 	}
 }
 
-void ULandscapeNaniteComponent::CollectPSOPrecacheData(const FPSOPrecacheParams& BasePrecachePSOParams, FComponentPSOPrecacheParamsList& OutParams)
+void ULandscapeNaniteComponent::CollectPSOPrecacheData(const FPSOPrecacheParams& BasePrecachePSOParams, FMaterialInterfacePSOPrecacheParamsList& OutParams)
 {
 	Super::CollectPSOPrecacheData(BasePrecachePSOParams, OutParams);
 	
 	// Mark high priority
-	for (FComponentPSOPrecacheParams& Params : OutParams)
+	for (FMaterialInterfacePSOPrecacheParams& Params : OutParams)
 	{
 		Params.Priority = EPSOPrecachePriority::High;
 	}

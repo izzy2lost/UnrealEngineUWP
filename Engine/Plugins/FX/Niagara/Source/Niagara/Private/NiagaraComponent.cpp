@@ -2339,23 +2339,11 @@ FPrimitiveSceneProxy* UNiagaraComponent::CreateSceneProxy()
 	return Proxy;
 }
 
-void UNiagaraComponent::CollectPSOPrecacheData(const FPSOPrecacheParams& BasePrecachePSOParams, FComponentPSOPrecacheParamsList& OutParams)
+void UNiagaraComponent::CollectPSOPrecacheData(const FPSOPrecacheParams& BasePrecachePSOParams, FMaterialInterfacePSOPrecacheParamsList& OutParams)
 {
 	if (SystemInstanceController.IsValid())
 	{
-		FMaterialInterfacePSOPrecacheParamsList PSOPrecacheParamsList;
-		SystemInstanceController->CollectPSOPrecacheData(BasePrecachePSOParams, PSOPrecacheParamsList);
-
-		// Translate to component PSO precache params - will be removed with upcoming change but make CL bigger than needed
-		for (FMaterialInterfacePSOPrecacheParams& PSOPrecacheParams : PSOPrecacheParamsList)
-		{
-			FComponentPSOPrecacheParams& NewEntry = OutParams.AddDefaulted_GetRef();
-			NewEntry.Priority = PSOPrecacheParams.Priority;
-			NewEntry.MaterialInterface = PSOPrecacheParams.MaterialInterface;
-			NewEntry.PSOPrecacheParams = PSOPrecacheParams.PSOPrecacheParams;
-			NewEntry.VertexFactoryDataList = PSOPrecacheParams.VertexFactoryDataList;
-			
-		}
+		SystemInstanceController->CollectPSOPrecacheData(BasePrecachePSOParams, OutParams);
 	}
 }
 

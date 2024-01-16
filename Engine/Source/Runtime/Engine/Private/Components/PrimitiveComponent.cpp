@@ -4682,14 +4682,11 @@ void UPrimitiveComponent::PrecachePSOs()
 	// Collect the data from the derived classes
 	FPSOPrecacheParams PSOPrecacheParams;
 	SetupPrecachePSOParams(PSOPrecacheParams);
-	FComponentPSOPrecacheParamsList PSOPrecacheDataArray;
+	FMaterialInterfacePSOPrecacheParamsList PSOPrecacheDataArray;
 	CollectPSOPrecacheData(PSOPrecacheParams, PSOPrecacheDataArray);
 
 	FGraphEventArray GraphEvents;
-	for (FComponentPSOPrecacheParams& ComponentPSOPrecacheData : PSOPrecacheDataArray)
-	{
-		GraphEvents.Append(ComponentPSOPrecacheData.MaterialInterface->PrecachePSOs(ComponentPSOPrecacheData.VertexFactoryDataList, ComponentPSOPrecacheData.PSOPrecacheParams, ComponentPSOPrecacheData.Priority, MaterialPSOPrecacheRequestIDs));
-	}	
+	PrecacheMaterialPSOs(PSOPrecacheDataArray, MaterialPSOPrecacheRequestIDs, GraphEvents);
 
 	RequestRecreateRenderStateWhenPSOPrecacheFinished(GraphEvents);
 #endif
