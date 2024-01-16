@@ -2729,8 +2729,11 @@ void FCustomizableObjectEditor::OnCustomizableObjectStatusChanged(FCustomizableO
 {
 	switch (NextState)
 	{
-	case FCustomizableObjectStatus::EState::ModelLoaded: 
-		CreatePreviewInstance();
+	case FCustomizableObjectStatus::EState::ModelLoaded:
+		if (!PreviewInstance)
+		{
+			CreatePreviewInstance();
+		}
 		break;
 		
 	case FCustomizableObjectStatus::EState::NoModel:
