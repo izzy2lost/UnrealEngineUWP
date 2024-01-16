@@ -710,8 +710,12 @@ void FHairStrandsInterpolationBulkData::GetResources(FHairStrandsBulkCommon::FQu
 		uint32 CurveCount = 0;
 		if (Out.Type == FHairStrandsBulkCommon::FQuery::ReadIO || Out.Type == FHairStrandsBulkCommon::FQuery::ReadDDC || Out.Type == FHairStrandsBulkCommon::FQuery::UnloadData)
 		{
+			// Aligned requested point to get data aligned on 4-bytes
+			// See GroomBuilder.cpp for details
+			const uint32 RequestedPointCount = (Header.Flags & DataFlags_HasSingleGuideData) ? FMath::DivideAndRoundUp(Out.GetPointCount(),2u)*2u : Out.GetPointCount();
+
 			CurveCount = FMath::Min(Header.CurveCount, Out.GetCurveCount());
-			PointCount = FMath::Min(Header.PointCount, Out.GetPointCount());
+			PointCount = FMath::Min(Header.PointCount, RequestedPointCount);
 		}
 
 		Out.Add(Data.CurveInterpolation, 	TEXT("_CurveInterpolation"), 	Data.CurveInterpolation.LoadedSize, 		CurveCount * Header.Strides.CurveInterpolationStride);

@@ -40,7 +40,7 @@ static FAutoConsoleVariableRef CVarHairGroupIndexBuilder_MaxVoxelResolution(TEXT
 
 FString FGroomBuilder::GetVersion()
 {
-	return TEXT("v10a");
+	return TEXT("v10b");
 }
 
 // For debug purpose
@@ -1513,17 +1513,10 @@ namespace HairInterpolationBuilder
 		const uint32 KCount = HairInterpolation.bUseUniqueGuide ? 1u : HAIR_INTERPOLATION_MAX_GUIDE_COUNT;
 		if (HairInterpolation.bUseUniqueGuide)
 		{
-
 			OutBulkData.Header.Flags |= FHairStrandsInterpolationBulkData::DataFlags_HasSingleGuideData;
-			OutBulkData.Header.Strides.CurveInterpolationStride = sizeof(FHairInterpolationCurve);
-			OutBulkData.Header.Strides.PointInterpolationStride = sizeof(FHairInterpolationPoint);
 		}
-		else
-		{
-
-			OutBulkData.Header.Strides.CurveInterpolationStride = sizeof(FHairInterpolationCurve) * HAIR_INTERPOLATION_MAX_GUIDE_COUNT;
-			OutBulkData.Header.Strides.PointInterpolationStride = sizeof(FHairInterpolationPoint) * HAIR_INTERPOLATION_MAX_GUIDE_COUNT;
-		}
+		OutBulkData.Header.Strides.CurveInterpolationStride = sizeof(FHairInterpolationCurve) * KCount;
+		OutBulkData.Header.Strides.PointInterpolationStride = sizeof(FHairInterpolationPoint) * KCount;
 		
 		// Data
 		{
@@ -1565,6 +1558,32 @@ namespace HairInterpolationBuilder
 					}
 				}
 			}
+
+			// Sanity check
+			{
+				// Check on data size aligned on 4-byte address
+				const uint32 PointTotalSize = OutInterpolationPoints.GetTypeSize() * OutInterpolationPoints.Num();
+				check((PointTotalSize & 0x3) == 0);
+
+				// Check on point count to ensure address is 4-byte aligned
+				// This is needed as resources are allocated from header description. This optionally adds dummy point.
+				uint32 PointSizeFromHeader = OutBulkData.Header.PointCount * OutBulkData.Header.Strides.PointInterpolationStride;
+				if ((PointSizeFromHeader & 0x3) != 0)
+				{
+					if (HairInterpolation.bUseUniqueGuide)
+					{
+						OutBulkData.Header.PointCount = FMath::DivideAndRoundUp(OutBulkData.Header.PointCount, 2u) * 2u;
+					}
+					else
+					{
+						// This shouldn't happen
+						check(false);
+					}
+				}
+				PointSizeFromHeader = OutBulkData.Header.PointCount * OutBulkData.Header.Strides.PointInterpolationStride;
+				check(PointSizeFromHeader == PointTotalSize);
+			}
+			
 
 			HairStrandsBuilder::CopyToBulkData<FHairStrandsInterpolationFormat>(OutBulkData.Data.CurveInterpolation, OutInterpolationCurves);
 			HairStrandsBuilder::CopyToBulkData<FHairStrandsInterpolationFormat>(OutBulkData.Data.PointInterpolation, OutInterpolationPoints);
