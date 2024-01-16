@@ -97,7 +97,6 @@ FScreenTransform ColorToDepth;
 
 float2 DepthTextureJitter;
 uint bCameraCut;
-uint bProcessAlpha;
 
 float4 SampleOffsetArray[MSAA_SAMPLE_COUNT];
 
@@ -403,13 +402,9 @@ void MainCompositeEditorPrimitivesPS(
 	// Blend editor ptimitives with scene color.
 	OutColor.rgb = SceneColor.rgb * (1 - EditorPrimitiveColor.a) + EditorPrimitiveColor.rgb * (DarkenMask * HiddenMask);
 
-	FLATTEN
-	if (bProcessAlpha)
-	{
+	#if POST_PROCESS_ALPHA
 		OutColor.a = lerp(SceneColor.a, 1, EditorPrimitiveColor.a * DarkenMask * HiddenMask);
-	}
-	else
-	{
+	#else
 		OutColor.a = 0;
-	}
+	#endif
 }

@@ -9,7 +9,6 @@
 #include "RendererModule.h"
 #include "Rendering/Texture2DResource.h"
 #include "ScenePrivate.h"
-#include "PostProcessing.h"
 
 namespace
 {
@@ -154,7 +153,6 @@ public:
 	SHADER_USE_PARAMETER_STRUCT(FBloomClampKernelCS, FFFTBloomShader);
 
 	BEGIN_SHADER_PARAMETER_STRUCT(FParameters, )
-		SHADER_PARAMETER(int32, bProcessAlpha)
 		SHADER_PARAMETER_RDG_TEXTURE(Texture2D, KernelSpatialTexture)
 		SHADER_PARAMETER_RDG_BUFFER_SRV(StructuredBuffer<uint>, KernelConstantsBuffer)
 		SHADER_PARAMETER_RDG_TEXTURE_UAV(RWTexture2D<float4>, ClampedKernelSpatialOutput)
@@ -584,7 +582,6 @@ void InitDomainAndGetKernel(
 			}
 
 			FBloomClampKernelCS::FParameters* PassParameters = GraphBuilder.AllocParameters<FBloomClampKernelCS::FParameters>();
-			PassParameters->bProcessAlpha = IsPostProcessingWithAlphaChannelSupported();
 			PassParameters->KernelSpatialTexture = SpatialKernelTexture;
 			PassParameters->KernelConstantsBuffer = GraphBuilder.CreateSRV(KernelConstantsBuffer);
 			PassParameters->ClampedKernelSpatialOutput = GraphBuilder.CreateUAV(ClampedKernelTexture);

@@ -428,11 +428,10 @@ class FMotionBlurFilterCS : public FMotionBlurShader
 	{
 		return TileClassification == ETileClassification::GatherHalfRes || TileClassification == ETileClassification::ScatterAsGatherOneVelocityHalfRes;
 	}
-
-	class FAlphaChannelDim : SHADER_PERMUTATION_BOOL("DIM_ALPHA_CHANNEL");
+	
 	class FTileClassificationDim : SHADER_PERMUTATION_ENUM_CLASS("DIM_TILE_CLASSIFICATION", ETileClassification);
 
-	using FPermutationDomain = TShaderPermutationDomain<FMotionBlurDirections, FTileClassificationDim, FAlphaChannelDim>;
+	using FPermutationDomain = TShaderPermutationDomain<FMotionBlurDirections, FTileClassificationDim>;
 
 	BEGIN_SHADER_PARAMETER_STRUCT(FParameters, )
 		SHADER_PARAMETER_STRUCT(FScreenPassTextureViewportParameters, Color)
@@ -870,8 +869,6 @@ FMotionBlurOutputs AddMotionBlurFilterPass(
 
 	const FIntVector FilterTileCount = FComputeShaderUtils::GetGroupCount(Viewports.Color.Rect.Size(), kMotionBlurFilterTileSize);
 
-	const bool bAlphaChannel = IsPostProcessingWithAlphaChannelSupported();
-	
 	int32 TileListMaxSize = FilterTileCount.X * FilterTileCount.Y;
 
 	// Tile classify the filtering
@@ -998,7 +995,7 @@ FMotionBlurOutputs AddMotionBlurFilterPass(
 		{
 			FRDGTextureDesc Desc = FRDGTextureDesc::Create2D(
 				ColorTexture->Desc.Texture->Desc.Extent,
-				bAlphaChannel ? PF_FloatRGBA : PF_FloatRGB,
+				IsPostProcessingWithAlphaChannelSupported() ? PF_FloatRGBA : PF_FloatRGB,
 				FClearValueBinding::None,
 				TexCreate_UAV | TexCreate_ShaderResource | GFastVRamConfig.MotionBlur);
 
@@ -1063,9 +1060,8 @@ FMotionBlurOutputs AddMotionBlurFilterPass(
 
 		OriginalPassParameters.DebugOutput = CreateDebugUAV(GraphBuilder, Output.FullRes.TextureSRV->Desc.Texture->Desc.Extent, TEXT("Debug.MotionBlur.Filter"));
 
-		RDG_EVENT_SCOPE(GraphBuilder, "MotionBlur FullResFilter(BlurDirections=%d MaxSamples=%d%s%s%s%s) %dx%d",
+		RDG_EVENT_SCOPE(GraphBuilder, "MotionBlur FullResFilter(BlurDirections=%d MaxSamples=%d%s%s%s) %dx%d",
 			BlurDirections, OriginalPassParameters.MaxSampleCount,
-			bAlphaChannel ? TEXT(" AlphaChannel") : TEXT(""),
 			PostMotionBlurTranslucency ? TEXT(" ComposeTranslucency") : TEXT(""),
 			OriginalPassParameters.OutputMip1 ? TEXT(" OutputMip1") : TEXT(""),
 			OriginalPassParameters.OutputMip2 ? TEXT(" OutputMip2") : TEXT(""),
@@ -1078,7 +1074,6 @@ FMotionBlurOutputs AddMotionBlurFilterPass(
 			PassParameters->TileListOffset = TileListMaxSize * TileClassifcation;
 
 			FMotionBlurFilterCS::FPermutationDomain PermutationVector;
-			PermutationVector.Set<FMotionBlurFilterCS::FAlphaChannelDim>(bAlphaChannel);
 			PermutationVector.Set<FMotionBlurFilterCS::FTileClassificationDim>(FMotionBlurFilterCS::ETileClassification(TileClassifcation));
 			PermutationVector.Set<FMotionBlurDirections>(BlurDirections);
 			PermutationVector = FMotionBlurFilterCS::RemapPermutation(PermutationVector);

@@ -98,7 +98,6 @@ inline bool DoesPlatformSupportTemporalHistoryUpscale(EShaderPlatform Platform)
 class FTemporalAA : public FGlobalShader
 {
 public:
-	class FAlphaChannelDim : SHADER_PERMUTATION_BOOL("TAA_ALPHA_CHANNEL");
 	class FTAAPassConfigDim : SHADER_PERMUTATION_ENUM_CLASS("TAA_PASS_CONFIG", ETAAPassConfig);
 	class FTAAQualityDim : SHADER_PERMUTATION_ENUM_CLASS("TAA_QUALITY", ETAAQuality);
 	class FTAAScreenPercentageDim : SHADER_PERMUTATION_INT("TAA_SCREEN_PERCENTAGE_RANGE", 4);
@@ -179,7 +178,6 @@ class FTemporalAAPS : public FTemporalAA
 	SHADER_USE_PARAMETER_STRUCT(FTemporalAAPS, FTemporalAA);
 
 	using FPermutationDomain = TShaderPermutationDomain<
-		FTemporalAA::FAlphaChannelDim,
 		FTemporalAA::FTAAPassConfigDim,
 		FTemporalAA::FTAAQualityDim,
 		FTemporalAA::FTAAScreenPercentageDim>;
@@ -188,35 +186,10 @@ class FTemporalAAPS : public FTemporalAA
 		SHADER_PARAMETER_STRUCT_INCLUDE(FTemporalAA::FParameters, Common)
 		RENDER_TARGET_BINDING_SLOTS()
 	END_SHADER_PARAMETER_STRUCT()
-		
-	static FPermutationDomain RemapPermutation(FPermutationDomain PermutationVector)
-	{
-		if (PermutationVector.Get<FTemporalAA::FTAAPassConfigDim>() == ETAAPassConfig::Main ||
-			PermutationVector.Get<FTemporalAA::FTAAPassConfigDim>() == ETAAPassConfig::MainUpsampling ||
-			PermutationVector.Get<FTemporalAA::FTAAPassConfigDim>() == ETAAPassConfig::MainSuperSampling ||
-			PermutationVector.Get<FTemporalAA::FTAAPassConfigDim>() == ETAAPassConfig::DiaphragmDOF ||
-			PermutationVector.Get<FTemporalAA::FTAAPassConfigDim>() == ETAAPassConfig::DiaphragmDOFUpsampling)
-		{
-			// NOP
-		}
-		else
-		{
-			// Alpha channel is not supported on these permutations
-			PermutationVector.Set<FAlphaChannelDim>(false);
-		}
-
-		return PermutationVector;
-	}
 
 	static bool ShouldCompilePermutation(const FGlobalShaderPermutationParameters& Parameters)
 	{
 		FPermutationDomain PermutationVector(Parameters.PermutationId);
-
-		// Don't compile the shader permutation if gets remaped at runtime.
-		if (PermutationVector != RemapPermutation(PermutationVector))
-		{
-			return false;
-		}
 
 		// Pixel shader is only used on mobile to utilize the hardware frame buffer compression to save bandwidth
 		if (!IsMobilePlatform(Parameters.Platform))
@@ -271,7 +244,6 @@ class FTemporalAACS : public FTemporalAA
 	class FTAADownsampleDim : SHADER_PERMUTATION_BOOL("TAA_DOWNSAMPLE");
 
 	using FPermutationDomain = TShaderPermutationDomain<
-		FTemporalAA::FAlphaChannelDim,
 		FTemporalAA::FTAAPassConfigDim,
 		FTemporalAA::FTAAQualityDim,
 		FTemporalAA::FTAAScreenPercentageDim,
@@ -314,20 +286,6 @@ class FTemporalAACS : public FTemporalAA
 
 			// Only the Main and Main Upsampling can downsample the output.
 			PermutationVector.Set<FTAADownsampleDim>(false);
-		}
-
-		if (PermutationVector.Get<FTemporalAA::FTAAPassConfigDim>() == ETAAPassConfig::Main ||
-			PermutationVector.Get<FTemporalAA::FTAAPassConfigDim>() == ETAAPassConfig::MainUpsampling ||
-			PermutationVector.Get<FTemporalAA::FTAAPassConfigDim>() == ETAAPassConfig::MainSuperSampling ||
-			PermutationVector.Get<FTemporalAA::FTAAPassConfigDim>() == ETAAPassConfig::DiaphragmDOF ||
-			PermutationVector.Get<FTemporalAA::FTAAPassConfigDim>() == ETAAPassConfig::DiaphragmDOFUpsampling)
-		{
-			// NOP
-		}
-		else
-		{
-			// Alpha channel is not supported on these permutations
-			PermutationVector.Set<FAlphaChannelDim>(false);
 		}
 
 		return PermutationVector;
@@ -869,7 +827,6 @@ FTAAOutputs AddTemporalAAPass(
 	if (bIsComputePass)
 	{
 		FTemporalAACS::FPermutationDomain PermutationVector;
-		PermutationVector.Set<FTemporalAA::FAlphaChannelDim>(bSupportsAlpha);
 		PermutationVector.Set<FTemporalAA::FTAAPassConfigDim>(Inputs.Pass);
 		PermutationVector.Set<FTemporalAA::FTAAQualityDim>(Inputs.Quality);
 		PermutationVector.Set<FTemporalAACS::FTAADownsampleDim>(Inputs.bDownsample);
@@ -938,10 +895,9 @@ FTAAOutputs AddTemporalAAPass(
 
 		FComputeShaderUtils::AddPass(
 			GraphBuilder,
-			RDG_EVENT_NAME("TAA(%s Quality=%s%s) %dx%d -> %dx%d",
+			RDG_EVENT_NAME("TAA(%s Quality=%s) %dx%d -> %dx%d",
 				PassName,
 				kTAAQualityNames[int32(PermutationVector.Get<FTemporalAA::FTAAQualityDim>())],
-				PermutationVector.Get<FTemporalAA::FAlphaChannelDim>() ? TEXT(" Alpha") : TEXT(""),
 				PracticableSrcRect.Width(), PracticableSrcRect.Height(),
 				PracticableDestRect.Width(), PracticableDestRect.Height()),
 			ComputeShader,
@@ -953,7 +909,6 @@ FTAAOutputs AddTemporalAAPass(
 		check(IsMobilePlatform(View.GetShaderPlatform()));
 
 		FTemporalAAPS::FPermutationDomain PermutationVector;
-		PermutationVector.Set<FTemporalAA::FAlphaChannelDim>(bSupportsAlpha);
 		PermutationVector.Set<FTemporalAA::FTAAPassConfigDim>(Inputs.Pass);
 		PermutationVector.Set<FTemporalAA::FTAAQualityDim>(Inputs.Quality);
 
@@ -980,8 +935,6 @@ FTAAOutputs AddTemporalAAPass(
 			}
 		}
 
-		PermutationVector = FTemporalAAPS::RemapPermutation(PermutationVector);
-
 		FTemporalAAPS::FParameters* PassParameters = GraphBuilder.AllocParameters<FTemporalAAPS::FParameters>();
 
 		SetupTemporalAACommonPassParameters(&PassParameters->Common);
@@ -995,10 +948,9 @@ FTAAOutputs AddTemporalAAPass(
 		FPixelShaderUtils::AddFullscreenPass(
 			GraphBuilder,
 			View.ShaderMap,
-			RDG_EVENT_NAME("TAA(%s Quality=%s%s) %dx%d -> %dx%d",
+			RDG_EVENT_NAME("TAA(%s Quality=%s) %dx%d -> %dx%d",
 				PassName,
 				kTAAQualityNames[int32(PermutationVector.Get<FTemporalAA::FTAAQualityDim>())],
-				PermutationVector.Get<FTemporalAA::FAlphaChannelDim>() ? TEXT(" Alpha") : TEXT(""),
 				PracticableSrcRect.Width(), PracticableSrcRect.Height(),
 				PracticableDestRect.Width(), PracticableDestRect.Height()),
 			PixelShader,

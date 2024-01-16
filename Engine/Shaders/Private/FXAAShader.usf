@@ -98,7 +98,7 @@ SamplerState Input_Sampler;
 			fxaaConsoleEdgeThresholdMin,
 			fxaaConsole360ConstDir);
 
-		#if DIM_ALPHA_CHANNEL == 0
+		#if (POST_PROCESS_ALPHA != 2)
 			OutColor.a = 1.0;
 		#endif
 	}

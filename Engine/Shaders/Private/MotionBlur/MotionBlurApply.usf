@@ -65,8 +65,6 @@
 	#define CONFIG_SKIP_CENTER 0
 #endif
 
-#define CONFIG_SCENE_COLOR_ALPHA (DIM_ALPHA_CHANNEL)
-
 
 //------------------------------------------------------- CONSTANTS
 
@@ -134,7 +132,7 @@ RWTexture2D<float4> DebugOutput;
 
 groupshared mb_half4 SharedArray0[TILE_SIZE * TILE_SIZE];
 
-#if CONFIG_SCENE_COLOR_ALPHA
+#if POST_PROCESS_ALPHA
 groupshared mb_half  SharedArray1[TILE_SIZE * TILE_SIZE];
 #endif
 
@@ -823,7 +821,7 @@ void MainCS(
 		}
 		#elif CONFIG_SHUFFLE_HALF_RES && !PLATFORM_SUPPORTS_WAVE_BROADCAST
 		{
-			#if CONFIG_SCENE_COLOR_ALPHA
+			#if POST_PROCESS_ALPHA
 				SharedArray0[GroupThreadIndex] = MotionBlurColor;
 				SharedArray1[GroupThreadIndex] = FullResBlend;
 			#else
@@ -835,7 +833,7 @@ void MainCS(
 			MotionBlurColor2 = SharedArray0[(GroupThreadIndex & (~0x3)) | 0x2];
 			MotionBlurColor3 = SharedArray0[(GroupThreadIndex & (~0x3)) | 0x3];
 		
-			#if CONFIG_SCENE_COLOR_ALPHA
+			#if POST_PROCESS_ALPHA
 				FullResBlend0 = SharedArray1[(GroupThreadIndex & (~0x3)) | 0x0];
 				FullResBlend1 = SharedArray1[(GroupThreadIndex & (~0x3)) | 0x1];
 				FullResBlend2 = SharedArray1[(GroupThreadIndex & (~0x3)) | 0x2];
@@ -889,7 +887,7 @@ void MainCS(
 		
 		// Ensure that alpha values that are expected to be opaque (but are only close to opaque) are forced to be opaque.
 		// (0.995 chosen to accommodate handling of 254/255)
-		#if CONFIG_SCENE_COLOR_ALPHA
+		#if POST_PROCESS_ALPHA
 		{
 			OutputColor0[3] = select(OutputColor0[3] > mb_half(0.995), mb_half(1.0), OutputColor0[3]);
 			OutputColor1[3] = select(OutputColor1[3] > mb_half(0.995), mb_half(1.0), OutputColor1[3]);
@@ -1013,7 +1011,7 @@ void MainCS(
 
 		// Ensure that alpha values that are expected to be opaque (but are only close to opaque) are forced to be opaque.
 		// (0.995 chosen to accommodate handling of 254/255)
-		#if CONFIG_SCENE_COLOR_ALPHA
+		#if POST_PROCESS_ALPHA
 		{
 			OutputColor[3] = select(OutputColor[3] > mb_half(0.995), mb_half(1.0), OutputColor[3]);
 			OutputColor[3] = select(OutputColor[3] < mb_half(0.005), mb_half(0.0), OutputColor[3]);

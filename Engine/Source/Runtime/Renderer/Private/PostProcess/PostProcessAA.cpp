@@ -26,9 +26,8 @@ public:
 		return true;
 	}
 
-	class FAlphaChannelDim : SHADER_PERMUTATION_BOOL("DIM_ALPHA_CHANNEL");
 	class FQualityDimension : SHADER_PERMUTATION_ENUM_CLASS("FXAA_PRESET", EFXAAQuality);
-	using FPermutationDomain = TShaderPermutationDomain<FAlphaChannelDim, FQualityDimension>;
+	using FPermutationDomain = TShaderPermutationDomain<FQualityDimension>;
 
 	BEGIN_SHADER_PARAMETER_STRUCT(FParameters, )
 		SHADER_PARAMETER_STRUCT(FScreenPassTextureInput, Input)
@@ -99,7 +98,6 @@ FScreenPassTexture AddFXAAPass(FRDGBuilder& GraphBuilder, const FSceneView& InSc
 	PassParameters->fxaaConsoleEdgeThresholdMin = 0.05f;
 
 	FFXAAPS::FPermutationDomain PixelPermutationVector;
-	PixelPermutationVector.Set<FFXAAPS::FAlphaChannelDim>(IsPostProcessingWithAlphaChannelSupported());
 	PixelPermutationVector.Set<FFXAAPS::FQualityDimension>(Inputs.Quality);
 
 	TShaderMapRef<FFXAAPS> PixelShader(View.ShaderMap, PixelPermutationVector);
@@ -107,11 +105,8 @@ FScreenPassTexture AddFXAAPass(FRDGBuilder& GraphBuilder, const FSceneView& InSc
 	FPixelShaderUtils::AddFullscreenPass(
 		GraphBuilder,
 		View.ShaderMap,
-		RDG_EVENT_NAME("FXAA(Quality=%d%s) %dx%d PS",
-			Inputs.Quality,
-			PixelPermutationVector.Get<FFXAAPS::FAlphaChannelDim>() ? TEXT(" Alpha") : TEXT(""),
-			Output.ViewRect.Width(),
-			Output.ViewRect.Height()),
+		RDG_EVENT_NAME("FXAA(Quality=%d) %dx%d PS",
+			Inputs.Quality, Output.ViewRect.Width(), Output.ViewRect.Height()),
 		PixelShader,
 		PassParameters,
 		Output.ViewRect);
