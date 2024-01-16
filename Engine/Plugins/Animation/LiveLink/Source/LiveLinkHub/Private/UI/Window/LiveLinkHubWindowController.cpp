@@ -98,6 +98,7 @@ TSharedPtr<FModalWindowManager> FLiveLinkHubWindowController::InitializeSlateApp
 {
 	TRACE_CPUPROFILER_EVENT_SCOPE(FLiveLinkHubWindowController::InitializeAsStandaloneApplication);
 	FSlateApplication::InitializeAsStandaloneApplication(GetStandardStandaloneRenderer());
+	FSlateApplication::InitHighDPI(true);
 
 	const FText ApplicationTitle = LOCTEXT("AppTitle", "LiveLink Hub");
 	FGlobalTabmanager::Get()->SetApplicationTitle(ApplicationTitle);
