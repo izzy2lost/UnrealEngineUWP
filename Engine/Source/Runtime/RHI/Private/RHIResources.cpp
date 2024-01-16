@@ -240,11 +240,36 @@ FRHIViewDesc::FTexture::FViewInfo FRHIViewDesc::FTexture::GetViewInfo(FRHITextur
 	);
 
 	checkf(ArrayRange.Num > 0 || ArrayRange.First == 0, TEXT("ArrayRange.Num cannot be zero, unless creating a view of the entire range."));
-	checkf((ArrayRange.First + ArrayRange.Num) <= Desc.ArraySize, TEXT("Array range (first: %d, num: %d) is out of bounds for texture description (array size: %d)."),
-		ArrayRange.First,
-		ArrayRange.Num,
-		Desc.ArraySize
-	);
+
+	// make sure the view fits in the texture
+	{
+		uint16 TextureArraySize = Desc.IsTextureCube() ? Desc.ArraySize * 6 : Desc.ArraySize;
+		uint16 ViewArrayFirst = ArrayRange.First;
+		uint16 ViewArrayNum = ArrayRange.Num == 0 ? Desc.ArraySize : ArrayRange.Num;
+
+		bool bIsCubeView = false;
+		if (Dimension == EDimension::TextureCube || Dimension == EDimension::TextureCubeArray)
+		{
+			bIsCubeView = true;
+			ViewArrayFirst *= 6;
+			ViewArrayNum *= 6;
+		}
+
+		uint16 SliceDividerForCheckMessage = bIsCubeView ? 6 : 1; // We want the message to report the number of elements in the units of the view
+		checkf(ViewArrayFirst + ViewArrayNum <= TextureArraySize, TEXT("Array range (first: %d, num: %d) is out of bounds for texture description (array size: %d)."),
+			ViewArrayFirst / SliceDividerForCheckMessage,
+			ViewArrayNum / SliceDividerForCheckMessage,
+			TextureArraySize / SliceDividerForCheckMessage
+		);
+	}
+
+	// When ArrayRange.Num == 0, we use the number of elements from the texture. If the view is a 2D array and the texture a cube (array), we need to do x6 on the number of slices
+	// We already checked that we can only create cube views on cube textures, so we only need to take into account the 2D view on cube texture case
+	uint16 AdjustedTextureArraySize = Desc.ArraySize;
+	if (Dimension == EDimension::Texture2DArray && Desc.IsTextureCube())
+	{
+		AdjustedTextureArraySize *= 6;
+	}
 
 	FViewInfo Info = {};
 	Info.Format = Format == PF_Unknown ? Desc.Format : Format;
@@ -293,8 +318,8 @@ FRHIViewDesc::FTexture::FViewInfo FRHIViewDesc::FTexture::GetViewInfo(FRHITextur
 	);
 
 	Info.ArrayRange.First = ArrayRange.First;
-	Info.ArrayRange.Num = ArrayRange.Num == 0 ? Desc.ArraySize : ArrayRange.Num;
-	Info.bAllSlices = Info.ArrayRange.First == 0 && Info.ArrayRange.Num == Desc.ArraySize;
+	Info.ArrayRange.Num = ArrayRange.Num == 0 ? AdjustedTextureArraySize : ArrayRange.Num;
+	Info.bAllSlices = Info.ArrayRange.First == 0 && Info.ArrayRange.Num == AdjustedTextureArraySize;
 
 	return Info;
 }

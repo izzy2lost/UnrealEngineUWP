@@ -436,7 +436,7 @@ void FVulkanShaderResourceView::UpdateView()
 
 		uint32 ArrayFirst = Info.ArrayRange.First;
 		uint32 ArrayNum = Info.ArrayRange.Num;
-		if (Texture->GetDesc().IsTextureCube())
+		if (Info.Dimension == FRHIViewDesc::EDimension::TextureCube || Info.Dimension == FRHIViewDesc::EDimension::TextureCubeArray)
 		{
 			ArrayFirst *= 6;
 			ArrayNum *= 6;
@@ -526,7 +526,7 @@ void FVulkanUnorderedAccessView::UpdateView()
 
 		uint32 ArrayFirst = Info.ArrayRange.First;
 		uint32 ArrayNum = Info.ArrayRange.Num;
-		if (Texture->GetDesc().IsTextureCube())
+		if (Info.Dimension == FRHIViewDesc::EDimension::TextureCube || Info.Dimension == FRHIViewDesc::EDimension::TextureCubeArray)
 		{
 			ArrayFirst *= 6;
 			ArrayNum *= 6;

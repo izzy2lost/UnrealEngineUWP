@@ -153,18 +153,17 @@ static FD3D12UnorderedAccessView::EFlags TranslateDesc(D3D12_UNORDERED_ACCESS_VI
 	uint32 const PlaneSlice = UE::DXGIUtilities::GetPlaneSliceFromViewFormat(BaseFormat, ViewFormat);
 	FRHIRange8 const PlaneRange(PlaneSlice, 1);
 
-	// No need to use Info.Dimension, since D3D supports mixing Texture2D view types.
-	// Create a view which matches the underlying resource dimension.
-	switch (TextureDesc.Dimension)
+	FRHIViewDesc::EDimension ViewDimension = UE::RHICore::AdjustViewInfoDimensionForNarrowing(Info, TextureDesc);
+	switch (ViewDimension)
 	{
-	case ETextureDimension::Texture2D:
+	case FRHIViewDesc::EDimension::Texture2D:
 		UAVDesc.ViewDimension = D3D12_UAV_DIMENSION_TEXTURE2D;
 		UAVDesc.Texture2D.MipSlice = Info.MipLevel;
 		UAVDesc.Texture2D.PlaneSlice = PlaneSlice;
 		break;
 
-	case ETextureDimension::TextureCube:
-	case ETextureDimension::TextureCubeArray:
+	case FRHIViewDesc::EDimension::TextureCube:
+	case FRHIViewDesc::EDimension::TextureCubeArray:
 		UAVDesc.ViewDimension = D3D12_UAV_DIMENSION_TEXTURE2DARRAY;
 		UAVDesc.Texture2DArray.FirstArraySlice = Info.ArrayRange.First * 6;
 		UAVDesc.Texture2DArray.ArraySize = Info.ArrayRange.Num * 6;
@@ -172,7 +171,7 @@ static FD3D12UnorderedAccessView::EFlags TranslateDesc(D3D12_UNORDERED_ACCESS_VI
 		UAVDesc.Texture2DArray.PlaneSlice = PlaneSlice;
 		break;
 
-	case ETextureDimension::Texture2DArray:
+	case FRHIViewDesc::EDimension::Texture2DArray:
 		UAVDesc.ViewDimension = D3D12_UAV_DIMENSION_TEXTURE2DARRAY;
 		UAVDesc.Texture2DArray.FirstArraySlice = Info.ArrayRange.First;
 		UAVDesc.Texture2DArray.ArraySize = Info.ArrayRange.Num;
@@ -180,7 +179,7 @@ static FD3D12UnorderedAccessView::EFlags TranslateDesc(D3D12_UNORDERED_ACCESS_VI
 		UAVDesc.Texture2DArray.PlaneSlice = PlaneSlice;
 		break;
 
-	case ETextureDimension::Texture3D:
+	case FRHIViewDesc::EDimension::Texture3D:
 		UAVDesc.ViewDimension = D3D12_UAV_DIMENSION_TEXTURE3D;
 		UAVDesc.Texture3D.FirstWSlice = 0;
 		UAVDesc.Texture3D.WSize = FMath::Max(TextureDesc.Depth >> Info.MipLevel, 1);

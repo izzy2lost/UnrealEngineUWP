@@ -174,12 +174,10 @@ static FD3D12ShaderResourceView::EFlags TranslateDesc(D3D12_SHADER_RESOURCE_VIEW
 
 	uint32 const PlaneSlice = UE::DXGIUtilities::GetPlaneSliceFromViewFormat(BaseFormat, ViewFormat);
 	FRHIRange8 const PlaneRange(PlaneSlice, 1);
-
-	// No need to use Info.Dimension, since D3D supports mixing Texture2D view types.
-	// Create a view which matches the underlying resource dimension.
-	switch (TextureDesc.Dimension)
+	FRHIViewDesc::EDimension ViewDimension = UE::RHICore::AdjustViewInfoDimensionForNarrowing(Info, TextureDesc);
+	switch (ViewDimension)
 	{
-	case ETextureDimension::Texture2D:
+	case FRHIViewDesc::EDimension::Texture2D:
 		if (TextureDesc.NumSamples > 1)
 		{
 			SRVDesc.ViewDimension = D3D12_SRV_DIMENSION_TEXTURE2DMS;
@@ -193,7 +191,7 @@ static FD3D12ShaderResourceView::EFlags TranslateDesc(D3D12_SHADER_RESOURCE_VIEW
 		}
 		break;
 
-	case ETextureDimension::Texture2DArray:
+	case FRHIViewDesc::EDimension::Texture2DArray:
 		if (TextureDesc.NumSamples > 1)
 		{
 			SRVDesc.ViewDimension = D3D12_SRV_DIMENSION_TEXTURE2DMSARRAY;
@@ -211,19 +209,19 @@ static FD3D12ShaderResourceView::EFlags TranslateDesc(D3D12_SHADER_RESOURCE_VIEW
 		}
 		break;
 
-	case ETextureDimension::Texture3D:
+	case FRHIViewDesc::EDimension::Texture3D:
 		SRVDesc.ViewDimension = D3D12_SRV_DIMENSION_TEXTURE3D;
 		SRVDesc.Texture3D.MostDetailedMip = Info.MipRange.First;
 		SRVDesc.Texture3D.MipLevels = Info.MipRange.Num;
 		break;
 
-	case ETextureDimension::TextureCube:
+	case FRHIViewDesc::EDimension::TextureCube:
 		SRVDesc.ViewDimension = D3D12_SRV_DIMENSION_TEXTURECUBE;
 		SRVDesc.TextureCube.MostDetailedMip = Info.MipRange.First;
 		SRVDesc.TextureCube.MipLevels = Info.MipRange.Num;
 		break;
 
-	case ETextureDimension::TextureCubeArray:
+	case FRHIViewDesc::EDimension::TextureCubeArray:
 		SRVDesc.ViewDimension = D3D12_SRV_DIMENSION_TEXTURECUBEARRAY;
 		SRVDesc.TextureCubeArray.MostDetailedMip = Info.MipRange.First;
 		SRVDesc.TextureCubeArray.MipLevels = Info.MipRange.Num;
