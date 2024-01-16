@@ -278,6 +278,7 @@ protected:
 		TAttribute<float> EntryWidth;
 		bool bWrapDirectionalNavigation = false;
 		const FScrollBarStyle* ScrollBarStyle = &FUMGCoreStyle::Get().GetWidgetStyle<FScrollBarStyle>("ScrollBar");
+		EVisibility ScrollbarDisabledVisibility = EVisibility::Collapsed;
 	};
 
 	template <template<typename> class TileViewT = STileView, typename UListViewBaseT>
@@ -299,6 +300,7 @@ protected:
 			.ItemAlignment(Args.TileAlignment)
 			.Orientation(Args.Orientation)
 			.ScrollBarStyle(Args.ScrollBarStyle)
+			.ScrollbarDisabledVisibility(Args.ScrollbarDisabledVisibility)
 			.OnGenerateTile_UObject(Implementer, &UListViewBaseT::HandleGenerateRow)
 			.OnTileReleased_UObject(Implementer, &UListViewBaseT::HandleRowReleased)
 			.OnSelectionChanged_UObject(Implementer, &UListViewBaseT::HandleSelectionChanged)

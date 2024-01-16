@@ -145,6 +145,9 @@ public:
 	/** Set ScrollBarTrackAlwaysVisible attribute */
 	SLATE_API void SetScrollBarTrackAlwaysVisible(bool InAlwaysVisible);
 
+	/** Set the visibility of the ScrollBar when it is not needed. The default value is EVisibility::Collapsed. */
+	SLATE_API void SetScrollbarDisabledVisibility(EVisibility InVisibility);
+
 	/** Returns True when the scrollbar should always be shown, else False */
 	SLATE_API bool AlwaysShowScrollbar() const;
 
@@ -187,6 +190,7 @@ protected:
 	bool bAlwaysShowScrollbarTrack;
 	EFocusCause DragFocusCause;
 	bool bHideWhenNotInUse;
+	EVisibility ScrollbarDisabledVisibility = EVisibility::Collapsed;
 	/*
 	 * Holds whether or not to prevent throttling during mouse capture
 	 * When true, the viewport will be updated with every single change to the value during dragging

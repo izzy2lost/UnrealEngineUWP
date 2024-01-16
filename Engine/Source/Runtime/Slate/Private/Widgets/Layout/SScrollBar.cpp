@@ -323,7 +323,7 @@ const FSlateBrush* SScrollBar::GetDragThumbImage() const
 EVisibility SScrollBar::ShouldBeVisible() const
 {
 	const EVisibility CurrentVisibility = GetVisibility();
-    EVisibility NewVisibility = EVisibility::Collapsed;
+    EVisibility NewVisibility = ScrollbarDisabledVisibility;
     
 	if ( this->HasMouseCapture() )
 	{
@@ -419,6 +419,11 @@ void SScrollBar::SetScrollBarTrackAlwaysVisible(bool InAlwaysVisible)
 {
 	// Doesn't need to be invalidated here, tick updates these values.
 	bAlwaysShowScrollbarTrack = InAlwaysVisible;
+}
+
+SLATE_API void SScrollBar::SetScrollbarDisabledVisibility(EVisibility InVisibility)
+{
+	ScrollbarDisabledVisibility = InVisibility;
 }
 
 bool SScrollBar::AlwaysShowScrollbar() const
