@@ -337,6 +337,7 @@ void UCustomizableObject::ClearCompiledData()
 	ReferenceSkeletalMeshesData.Empty();
 	ReferencedMaterials.Empty();
 	ReferencedMaterialSlotNames.Empty();
+	ReferencedPassThroughTextures.Empty();
 	ReferencedSkeletons.Empty();
 	ImageProperties.Empty();
 	ParameterUIDataMap.Empty();
@@ -509,6 +510,15 @@ void UCustomizableObject::SaveCompiledData(FArchive& MemoryWriter, bool bIsCooki
 		MemoryWriter << StringRef;
 	}
 
+	int32 NumPassthroughTextures = ReferencedPassThroughTextures.Num();
+	MemoryWriter << NumPassthroughTextures;
+
+	for (const TSoftObjectPtr<UTexture>& PassthroughTexture : ReferencedPassThroughTextures)
+	{
+		FString StringRef = PassthroughTexture.ToSoftObjectPath().ToString();
+		MemoryWriter << StringRef;
+	}
+
 	MemoryWriter << ImageProperties;
 	MemoryWriter << ParameterUIDataMap;
 	MemoryWriter << StateUIDataMap;
@@ -608,6 +618,17 @@ void UCustomizableObject::LoadCompiledData(FArchive& MemoryReader, const ITarget
 			MemoryReader << StringRef;
 
 			ReferencedSkeletons.Add(TSoftObjectPtr<USkeleton>(FSoftObjectPath(StringRef)));
+		}
+
+		int32 NumPassthroughTextures = 0;
+		MemoryReader << NumPassthroughTextures;
+
+		for (int32 Index = 0; Index < NumPassthroughTextures; ++Index)
+		{
+			FString StringRef;
+			MemoryReader << StringRef;
+
+			ReferencedPassThroughTextures.Add(TSoftObjectPtr<UTexture>(FSoftObjectPath(StringRef)));
 		}
 
 		MemoryReader << ImageProperties;
