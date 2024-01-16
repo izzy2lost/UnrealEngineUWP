@@ -26,7 +26,7 @@ public class LiveLinkHubTarget : TargetRules
 		AdditionalPlugins.Add("QuicMessaging");
 		AdditionalPlugins.Add("PropertyAccessEditor");
 		AdditionalPlugins.Add("PythonScriptPlugin");
-
+		AdditionalPlugins.Add("LiveLinkInputDevice");
 		OptionalPlugins.AddRange(new string[]
 		{
 			"AppleARKitFaceSupport",

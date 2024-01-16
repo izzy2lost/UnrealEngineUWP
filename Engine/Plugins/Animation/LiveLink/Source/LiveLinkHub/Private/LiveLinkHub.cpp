@@ -64,6 +64,8 @@ void FLiveLinkHub::Initialize()
 	LiveLinkHubClient->OnLiveLinkSubjectRemoved().AddSP(this, &FLiveLinkHub::OnSubjectRemoved);
 
 	PlaybackController->Start();
+
+	GIsRunning = true;
 }
 
 FLiveLinkHub::~FLiveLinkHub()

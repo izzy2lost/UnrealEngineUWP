@@ -10,6 +10,7 @@
 	"EnabledByDefault": true,
 	"IsBetaVersion": false,
 	"CanContainContent": false,
+    "SupportedPrograms": ["LiveLinkHub"],
 	"SupportedTargetPlatforms":
 	[
 		"Win64"
@@ -19,6 +20,7 @@
 		{
 			"Name": "XInputDevice",
 			"Type": "Runtime",
+            "ProgramAllowList": ["LiveLinkHub"],
 			"PlatformAllowList":
 			[
 				"Win64"
