@@ -960,18 +960,23 @@ bool FSlateFontCache::AddNewEntry(const FShapedGlyphEntry& InShapedGlyph, const 
 	FCharacterRenderData RenderData;
 	const bool bDidRender = FontRenderer->GetRenderData(InShapedGlyph, InOutlineSettings, RenderData);
 
-	OutAtlasData.Valid = bDidRender && AddNewEntry(RenderData, OutAtlasData.TextureIndex, OutAtlasData.StartU, OutAtlasData.StartV, OutAtlasData.USize, OutAtlasData.VSize);
+	uint8 PaddingOffset = 0;
+	OutAtlasData.Valid = bDidRender && AddNewEntry(RenderData, OutAtlasData.TextureIndex, OutAtlasData.StartU, OutAtlasData.StartV, OutAtlasData.USize, OutAtlasData.VSize, PaddingOffset);
 	if (OutAtlasData.Valid)
 	{
-		OutAtlasData.VerticalOffset = RenderData.VerticalOffset;
-		OutAtlasData.HorizontalOffset = RenderData.HorizontalOffset;
+		int32 VerticalOffset = RenderData.VerticalOffset + (int32)PaddingOffset;
+		int32 HorizontalOffset = RenderData.HorizontalOffset - (int32)PaddingOffset;
+		ensureMsgf(VerticalOffset >= std::numeric_limits<int16>::min() && VerticalOffset <= std::numeric_limits<int16>::max(), TEXT("The Glyph offset is too big"));
+		ensureMsgf(HorizontalOffset >= std::numeric_limits<int16>::min() && HorizontalOffset <= std::numeric_limits<int16>::max(), TEXT("The Glyph offset is too big"));
+		OutAtlasData.VerticalOffset = (int16)VerticalOffset;
+		OutAtlasData.HorizontalOffset = (int16)HorizontalOffset;
 		OutAtlasData.SupportsOutline = RenderData.bSupportsOutline;
 	}
 
 	return OutAtlasData.Valid;
 }
 
-bool FSlateFontCache::AddNewEntry( const FCharacterRenderData InRenderData, uint8& OutTextureIndex, uint16& OutGlyphX, uint16& OutGlyphY, uint16& OutGlyphWidth, uint16& OutGlyphHeight )
+bool FSlateFontCache::AddNewEntry( const FCharacterRenderData InRenderData, uint8& OutTextureIndex, uint16& OutGlyphX, uint16& OutGlyphY, uint16& OutGlyphWidth, uint16& OutGlyphHeight, uint8& OutPaddingOffset )
 {
 	// Will this entry fit within any atlas texture?
 	const FIntPoint FontAtlasSize = FontAtlasFactory->GetAtlasSize(InRenderData.ContentType);
@@ -999,7 +1004,8 @@ bool FSlateFontCache::AddNewEntry( const FCharacterRenderData InRenderData, uint
 			OutGlyphY = 0;
 			OutGlyphWidth = InRenderData.SizeX;
 			OutGlyphHeight = InRenderData.SizeY;
-			
+			OutPaddingOffset = 0;
+
 			if (!bFlushRequested)
 			{
 				UpdateFlushCounters(GrayscaleFontAtlasIndices.Num(), ColorFontAtlasIndices.Num(), MsdfFontAtlasIndices.Num(), NonAtlasedTextureIndices.Num());
@@ -1017,18 +1023,19 @@ bool FSlateFontCache::AddNewEntry( const FCharacterRenderData InRenderData, uint
 
 	auto FillOutputParamsFromAtlasedTextureSlot = [&](const FAtlasedTextureSlot& AtlasedTextureSlot)
 	{
-		int32 GlyphX = AtlasedTextureSlot.X + (int32)AtlasedTextureSlot.Padding;
-		int32 GlyphY = AtlasedTextureSlot.Y + (int32)AtlasedTextureSlot.Padding;
-		int32 GlyphWidth = AtlasedTextureSlot.Width - (int32)(2.f * AtlasedTextureSlot.Padding);
-		int32 GlyphHeight = AtlasedTextureSlot.Height - (int32)(2.f * AtlasedTextureSlot.Padding);
-		ensureMsgf(GlyphX >= 0 && GlyphX <= std::numeric_limits<uint16>::max(), TEXT("The Glyph size is too big"));
-		ensureMsgf(GlyphY >= 0 && GlyphY <= std::numeric_limits<uint16>::max(), TEXT("The Glyph size is too big"));
-		ensureMsgf(GlyphWidth >= 0 && GlyphWidth <= std::numeric_limits<uint16>::max(), TEXT("The Glyph size is too big"));
-		ensureMsgf(GlyphHeight >= 0 && GlyphHeight <= std::numeric_limits<uint16>::max(), TEXT("The Glyph size is too big"));
+		uint32 GlyphX = AtlasedTextureSlot.X;
+		uint32 GlyphY = AtlasedTextureSlot.Y;
+		uint32 GlyphWidth = AtlasedTextureSlot.Width;
+		uint32 GlyphHeight = AtlasedTextureSlot.Height;
+		ensureMsgf(GlyphX <= std::numeric_limits<uint16>::max(), TEXT("The Glyph size is too big"));
+		ensureMsgf(GlyphY <= std::numeric_limits<uint16>::max(), TEXT("The Glyph size is too big"));
+		ensureMsgf(GlyphWidth <= std::numeric_limits<uint16>::max(), TEXT("The Glyph size is too big"));
+		ensureMsgf(GlyphHeight <= std::numeric_limits<uint16>::max(), TEXT("The Glyph size is too big"));
 		OutGlyphX = (uint16)GlyphX;
 		OutGlyphY = (uint16)GlyphY;
 		OutGlyphWidth = (uint16)GlyphWidth;
 		OutGlyphHeight = (uint16)GlyphHeight;
+		OutPaddingOffset = AtlasedTextureSlot.Padding;
 	};
 
 	TArray<uint8>* FontAtlasIndicesPtr = NULL;

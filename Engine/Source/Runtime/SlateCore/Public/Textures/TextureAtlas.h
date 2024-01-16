@@ -65,7 +65,7 @@ SLATECORE_API uint32 GetSlateFontAtlasContentBytesPerPixel(ESlateFontAtlasConten
  *
  * When a slot is occupied by texture data, the remaining space in the slot (if big enough) is split off into two new (smaller) slots,
  * building a tree of texture rectangles which, instead of being stored as a tree, are flattened into two linked-lists:
- *	- AtlastEmptySlots:	A linked-list of empty slots ready for texture data - iterates in same order as a depth-first-search on a tree
+ *	- AtlasEmptySlots:	A linked-list of empty slots ready for texture data - iterates in same order as a depth-first-search on a tree
  *	- AtlasUsedSlots:	An unordered linked-list of slots containing texture data
  */
 struct FAtlasedTextureSlot : public TIntrusiveLinkedList<FAtlasedTextureSlot>
