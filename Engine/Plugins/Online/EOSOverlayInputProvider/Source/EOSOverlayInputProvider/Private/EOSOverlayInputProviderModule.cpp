@@ -5,6 +5,7 @@
 #include "CoreGlobals.h"
 #include "Features/IModularFeatures.h"
 #include "Framework/Application/SlateApplication.h"
+#include "Misc/App.h"
 #include "Misc/CoreDelegates.h"
 #include "Modules/ModuleManager.h"
 
