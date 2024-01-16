@@ -1,5 +1,6 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
+#define _CRT_SECURE_CPP_OVERLOAD_SECURE_NAMES 0
 #define UBA_IS_DETOURED_INCLUDE 1
 
 #include "UbaDetoursFunctionsWin.h"
