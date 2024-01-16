@@ -87,12 +87,19 @@ void STG_OutputSelectionDlg::AddExportItems()
 			{
 				UTG_EdGraphNode* EdNode = EdGraph->GetViewModelNode(Node->GetId());
 				TiledBlobPtr ThumbBlob = EdNode->GetCachedThumbBlob(Id);
+
+				if (!ThumbBlob)
+				{
+					ThumbBlob = TextureHelper::GetBlack();
+				}
+
 				TSharedPtr<STG_NodeThumbnail> NodeThumbnail = SNew(STG_NodeThumbnail);
 				ThumbBlob->OnFinalise()
-				.then([ThumbBlob, NodeThumbnail]
-				{
-					NodeThumbnail->UpdateBlob(ThumbBlob);
-				});
+					.then([ThumbBlob, NodeThumbnail]
+					{
+						NodeThumbnail->UpdateBlob(ThumbBlob);
+					});
+
 				ThumbnailWidget = NodeThumbnail;
 			}
 			// else if color do something

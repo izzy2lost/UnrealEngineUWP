@@ -40,7 +40,7 @@ cti::continuable<int32> Job_ExportAsUAsset::PreExecAsync(ENamedThreads::Type exe
 	auto hash = Job::Hash();
 	BlobPtr cachedResult = MixerEngine::GetBlobber()->Find(hash->Value());
 
-	//TODO: Need to cache the result so that the job do not execute every time with matching arguments
+	//TODO: Need to cache the Result so that the job do not execute every time with matching arguments
 	if (cachedResult)
 	{
 		bIsCulled = true;
@@ -69,46 +69,48 @@ cti::continuable<int32> Job_ExportAsUAsset::ExecAsync(ENamedThreads::Type execTh
 	RawBufferPtr rawPtr;
 
 	return Job::BeginNative(RunInfo)
-	.then([]()
-	{
-		return PromiseUtil::OnGameThread();
-	})
-	.then([this](int32)
-	{
-		return Setting.Map->CombineTiles(false,false);
-	})
-	.then([this](BufferResultPtr bufferPtr)
-	{
+		.then([]()
+		{
+			return PromiseUtil::OnGameThread();
+		})
+		.then([this](int32)
+		{
+			return Setting.Map->CombineTiles(false,false);
+		})
+		.then([this](BufferResultPtr bufferPtr)
+		{
 			UE_LOG(LogData, Log, TEXT("[Export As UAsset - %s] Calling Export ..."), *Setting.Name.ToString());
-			DeviceBufferRef buffer = Setting.Map->GetBufferRef();
+			DeviceBufferRef Buffer = Setting.Map->GetBufferRef();
+			return Buffer->Raw();
+		})
+		.then([this](RawBufferPtr RawObj)
+		{
+			FName fileName = Setting.Name;
 
-		return buffer->Raw();
-	})
-	.then([this](RawBufferPtr raw)
-	{
-		FName fileName = Setting.Name;
+			check(RawObj->GetData());
 
-		check(raw->GetData());
-
-		UE_LOG(LogData, Display, TEXT("   - Writing raw buffer to filename: %s"), *fileName.ToString());
-		return TextureExporter::ExportRawAsUAsset(raw, Setting, OutFolder, fileName);
-	})
-	.then([this](int32 result) mutable
-	{
-		Setting.OnDone.ExecuteIfBound(Setting);
-		//promise.set_value(0);
-		UE_LOG(LogData, Display, TEXT("Exporting finished"));
-		EndNative();
-		SetPromise(0);
-		return 0;
-	})
-	.fail([this](std::exception_ptr e) mutable
-	{
-		UE_LOG(LogData, Log, TEXT("[Exporting As UAsset - %s] Promise failure!"), *Setting.Name.ToString());
-		Setting.OnDone.ExecuteIfBound(Setting);
-		EndNative();
-		return -1;
-	});
+			UE_LOG(LogData, Display, TEXT("   - Writing RawObj Buffer to filename: %s"), *fileName.ToString());
+			return TextureExporter::ExportRawAsUAsset(RawObj, Setting, OutFolder, fileName);
+		})
+		.then([this](int32) mutable
+		{
+			Setting.OnDone.ExecuteIfBound(Setting);
+			//promise.set_value(0);
+			UE_LOG(LogData, Display, TEXT("Exporting finished"));
+			return EndNative();
+		})
+		.then([this](JobResultPtr)
+		{
+			SetPromise(0);
+			return 0;
+		})
+		.fail([this](std::exception_ptr e) mutable
+		{
+			UE_LOG(LogData, Log, TEXT("[Exporting As UAsset - %s] Promise failure!"), *Setting.Name.ToString());
+			Setting.OnDone.ExecuteIfBound(Setting);
+			EndNative();
+			return -1;
+		});
 #else
 	return cti::make_ready_continuable(0);
 #endif 

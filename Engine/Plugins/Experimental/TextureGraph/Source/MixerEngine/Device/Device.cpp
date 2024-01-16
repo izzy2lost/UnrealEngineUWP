@@ -714,10 +714,10 @@ AsyncDeviceBufferRef Device::CombineFromTiles(const CombineSplitArgs& CombineArg
 	return cti::make_ready_continuable(Buffer);
 }
 
-AsyncDeviceBufferRef Device::SplitToTiles_Generic(const CombineSplitArgs& splitArgs)
+AsyncDeviceBufferRef Device::SplitToTiles_Generic(const CombineSplitArgs& SplitArgs)
 {
-	const T_Tiles<DeviceBufferRef>& Tiles = splitArgs.Tiles;
-	auto Buffer = splitArgs.Buffer;
+	const T_Tiles<DeviceBufferRef>& Tiles = SplitArgs.Tiles;
+	auto Buffer = SplitArgs.Buffer;
 
 	RawBufferPtrTiles RawTileBuffers(0, 0);
 	RawBufferPtr Raw = Buffer->Raw_Now();
@@ -739,18 +739,18 @@ AsyncDeviceBufferRef Device::SplitToTiles_Generic(const CombineSplitArgs& splitA
 	{
 		for (int32 TileY = 0; TileY < Tiles.Cols(); TileY++)
 		{
-			DeviceBufferRef tile = Tiles[TileX][TileY];
-			RawBufferPtr rawTile = RawTileBuffers[TileX][TileY];
-			check(rawTile);
+			DeviceBufferRef Tile = Tiles[TileX][TileY];
+			RawBufferPtr RawTile = RawTileBuffers[TileX][TileY];
+			check(RawTile);
 
-			AsyncBufferResultPtr tilePromise = tile->UpdateRaw(rawTile);
-			Promises.push_back(std::move(tilePromise));
+			AsyncBufferResultPtr TilePromise = Tile->UpdateRaw(RawTile);
+			Promises.push_back(std::move(TilePromise));
 		}
 	}
 
 	return cti::when_all(Promises.begin(), Promises.end()).then([Buffer]() mutable
 	{
-		UE_LOG(LogDevice, Log, TEXT("SplitTiles_Generic tile updates finished!"));
+		UE_LOG(LogDevice, Log, TEXT("SplitTiles_Generic Tile updates finished!"));
 		return Buffer;
 	});
 }

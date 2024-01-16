@@ -359,8 +359,6 @@ void CHash::UpdateLinks()
 
 CHashPtr CHash::UpdateHash(CHashPtr NewHash, CHashPtr PrevHash)
 {
-	check(NewHash->IsFinal());
-
 	if (PrevHash)
 	{
 		check(NewHash != PrevHash);

@@ -40,6 +40,7 @@ class MIXERENGINE_API Blob : public std::enable_shared_from_this<Blob>
 public:
 	static const char*				LODTransformName;	
 	typedef std::vector<BlobPtrW>	OwnerList;
+	typedef std::vector<std::weak_ptr<Blob>> LinkedBlobsVec;
 
 protected:
 	DeviceBufferRef					Buffer;							/// Device buffer that is attached to this blob
@@ -59,6 +60,13 @@ protected:
 	BlobPtrW						LODSource;						/// The original source of this blob, the mip Level 0
 
 	bool							bIsLODLevel = false;			/// Whether this blob already represents an LOD'd blob
+	LinkedBlobsVec					LinkedBlobs;					/// Blobs that are linked to this tiled blob. These are objects that are 
+																	/// uniquely created within the system but eventually resolve to the same
+																	/// tiled blob. We need to ensure that these are resolved correctly
+																	/// so that if some object is holding a pointer to a particular TiledBlob_Promise
+																	/// it gets the same view upon the completion.
+																	/// This is usually very uncommon with Blobs but more of a possibility with TiledBlob_Promise
+																	/// but we need to ensure that it works correctly for all blobs
 
 #if DEBUG_BLOB_REF_KEEPING == 1
 	OwnerList						_owners;						/// The TiledBlobs that contain this blob as a tile
@@ -71,6 +79,11 @@ protected:
 	virtual void					Touch(uint64 BatchId);
 	virtual void					UpdateAccessInfo(uint64 batchId);
 	virtual void					SetHash(CHashPtr Hash);
+
+	virtual void					UpdateLinkedBlobs(bool bDoFinalise);
+	virtual void					AddLinkedBlob(BlobPtr LinkedBlob);
+
+	virtual void					FinaliseFrom(const Blob* RHS);
 
 public:
 									Blob(DeviceBufferRef InBuffer);
@@ -97,7 +110,7 @@ public:
 	virtual bool					IsTiled() const { return false; }
 	virtual bool					CanCalculateHash() const { return IsFinalised(); }
 
-	virtual void					Finalise_Now(bool bNoCalcHash, CHashPtr FixedHash);
+	virtual void					FinaliseNow(bool bNoCalcHash, CHashPtr FixedHash);
 	virtual AsyncBufferResultPtr	Finalise(bool bNoCalcHash, CHashPtr FixedHash);
 
 	virtual AsyncRawBufferPtr		Raw();			/// SLOW: Read doc for DeviceBuffer::Raw() in DeviceBuffer.h

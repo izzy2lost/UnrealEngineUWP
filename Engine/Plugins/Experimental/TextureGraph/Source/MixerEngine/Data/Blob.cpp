@@ -195,7 +195,7 @@ AsyncDeviceBufferRef Blob::TransferTo(Device* TargetDevice)
 
 AsyncBufferResultPtr Blob::Bind(const BlobTransform* Transform, const ResourceBindInfo& BindInfo)
 {
-	/// Ok, we must have a raw buffer over here to transfer over to the device buffer
+	/// Ok, we must have a RawObj buffer over here to transfer over to the device buffer
 	//check(_buffer);
 
 	Device* Dev = BindInfo.Dev;
@@ -213,9 +213,9 @@ AsyncBufferResultPtr Blob::Bind(const BlobTransform* Transform, const ResourceBi
 	/// If the buffer isn't compatible then we transfer it over to the other new device
 	if (!Buffer->IsCompatible(Dev))
 	{
-		return Dev->Transfer(Buffer).then([this, Transform, BindInfo](DeviceBufferRef result)
+		return Dev->Transfer(Buffer).then([this, Transform, BindInfo](DeviceBufferRef Result)
 		{
-			Buffer = result;
+			Buffer = Result;
 			return Buffer->Bind(Transform, BindInfo);
 		});
 	}
@@ -238,27 +238,27 @@ bool Blob::IsValid() const
 AsyncRawBufferPtr Blob::Raw()
 {
 	/// Could possibly be going to another thread
-	/// Save the current temp hash
-	CHashPtr prevHash = Buffer->Hash(false);
-	check(!prevHash || prevHash->IsTemp());
+	/// Save the current temp Hash
+	CHashPtr PrevHash = Buffer->Hash(false);
+	check(!PrevHash || PrevHash->IsTemp());
 
-	return Buffer->Raw().then([this, prevHash](RawBufferPtr raw)
+	return Buffer->Raw().then([this, PrevHash](RawBufferPtr RawObj)
 	{
-		const BufferDescriptor& desc = Buffer->Descriptor();
-		CHashPtr hash = Buffer->Hash(false);
+		const BufferDescriptor& BufferDesc = Buffer->Descriptor();
+		CHashPtr Hash = Buffer->Hash(false);
 
-		if (!desc.bIsTransient && hash->IsFinal() && (!prevHash || !prevHash->IsFinal()))
+		if (!BufferDesc.bIsTransient && Hash->IsFinal() && (!PrevHash || !PrevHash->IsFinal()))
 			Buffer = Buffer->GetOwnerDevice()->AddInternal(Buffer);
 		else
 		{
-			HashType prevHashValue = prevHash ? prevHash->Value() : DataUtil::GNullHash;
-			UE_LOG(LogDevice, VeryVerbose, TEXT("DeviceBuffer has a new hash without owning reference. Unless this is manually cached by the device, this buffer will be deleted which is undesirable. Name: %s, Hash: %llu [Prev Hash: %llu, Size: %dx%d]"),
-				*desc.Name, prevHashValue, hash->Value(), desc.Width, desc.Height);
+			HashType PrevHashValue = PrevHash ? PrevHash->Value() : DataUtil::GNullHash;
+			UE_LOG(LogDevice, VeryVerbose, TEXT("DeviceBuffer has a new Hash without owning reference. Unless this is manually cached by the device, this buffer will be deleted which is undesirable. Name: %s, Hash: %llu [Prev Hash: %llu, Size: %dx%d]"),
+				*BufferDesc.Name, PrevHashValue, Hash->Value(), BufferDesc.Width, BufferDesc.Height);
 		}
 
 		/// TODO: do we really need this?
-		if (prevHash != nullptr)
-			MixerEngine::GetBlobber()->UpdateHash(prevHash->Value(), hash);
+		if (PrevHash != nullptr)
+			MixerEngine::GetBlobber()->UpdateHash(PrevHash->Value(), Hash);
 
 		return Buffer->Raw_Now();
 	});
@@ -266,12 +266,12 @@ AsyncRawBufferPtr Blob::Raw()
 
 AscynCHashPtr Blob::CalcHash()
 {
-	/// If we already have a have a hash for the buffer then don't bother
+	/// If we already have a have a Hash for the buffer then don't bother
 	if (Buffer)
 	{
-		CHashPtr bufferHash = Buffer->Hash(false);
-		if (bufferHash && bufferHash->IsFinal())
-			return cti::make_ready_continuable(bufferHash);
+		CHashPtr BufferHash = Buffer->Hash(false);
+		if (BufferHash && BufferHash->IsFinal())
+			return cti::make_ready_continuable(BufferHash);
 	}
 
 	return Raw().then([this] 
@@ -287,7 +287,7 @@ bool Blob::IsNull() const
 
 CHashPtr Blob::Hash() const
 {
-	/// Use own address as hash. This will still ensure that we detect object re-use
+	/// Use own address as Hash. This will still ensure that we detect object re-use
 	/// even if they're late bound or haven't been calculated yet
 	return Buffer->Hash(false);
 }
@@ -475,19 +475,65 @@ void Blob::SetLODLevel(int32 Level, BlobPtr LODBlob, BlobPtrW LODParentBlob, Blo
 	}
 }
 
-void Blob::Finalise_Now(bool bNoCalcHash, CHashPtr FixedHash)
+void Blob::UpdateLinkedBlobs(bool bDoFinalise)
+{
+	check(IsInGameThread());
+
+	for (BlobPtrW LinkedBlobW : LinkedBlobs)
+	{
+		BlobPtr LinkedBlob = LinkedBlobW.lock();
+
+		if (LinkedBlob && bDoFinalise)
+		{
+			LinkedBlob->FinaliseFrom(this);
+		}
+	}
+}
+
+void Blob::AddLinkedBlob(BlobPtr LinkedBlob)
+{
+	if (IsFinalised())
+	{
+		*LinkedBlob = *this;
+		return;
+	}
+	LinkedBlobs.push_back(LinkedBlob);
+}
+
+void Blob::FinaliseFrom(const Blob* RHS)
+{
+	Buffer = RHS->Buffer;
+	LODLevels = RHS->LODLevels;
+	MinMax = RHS->MinMax;
+	MinValue = RHS->MinValue;
+	MaxValue = RHS->MaxValue;
+	Histogram = RHS->Histogram;
+	LODParent = RHS->LODParent;
+	LODSource = RHS->LODSource;
+	bIsLODLevel = RHS->bIsLODLevel;
+
+	FinaliseNow(true, nullptr);
+}
+
+void Blob::FinaliseNow(bool bNoCalcHash, CHashPtr FixedHash)
 {
 	/// If already finalised then nothing to do over here
 	if (bIsFinalised)
+	{
 		return;
+	}
+
+	check(IsInGameThread());
 
 	bIsFinalised = true;
 	FinaliseTS = FDateTime::Now();
+
+	UpdateLinkedBlobs(true);
 }
 
 AsyncBufferResultPtr Blob::Finalise(bool bNoCalcHash, CHashPtr FixedHash)
 {
-	Finalise_Now(bNoCalcHash, FixedHash);
+	FinaliseNow(bNoCalcHash, FixedHash);
 	return cti::make_ready_continuable(std::make_shared<BufferResult>());
 }
 
@@ -508,7 +554,7 @@ CHashPtrVec Blob::CalculateMipHashes(CHashPtr MainHash, CHashPtr ParentHash, int
 	CHashPtr MainHashAtLOD = CalculateMipHash(MainHash, Level);
 	CHashPtr ParentHashAtLOD = CalculateMipHash(ParentHash, Level);
 
-	/// Just return one unique hash
+	/// Just return one unique Hash
 	if (MainHashAtLOD->Value() != ParentHashAtLOD->Value())
 		return { MainHashAtLOD, ParentHashAtLOD };
 

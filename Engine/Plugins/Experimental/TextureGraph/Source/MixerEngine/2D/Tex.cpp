@@ -996,7 +996,9 @@ AsyncTiledBlobRef Tex::ToSingleBlob(CHashPtr Hash, bool TransferToRT /* = false 
 			TiledBlobRef FinalBlobRef = TiledBlobObj;
 
 			if (!NoCache)
+			{
 				FinalBlobRef = MixerEngine::GetBlobber()->AddTiledResult(BlobHash, std::move(TiledBlobObj));
+			}
 
 			check(FinalBlobRef);
 			
@@ -1005,7 +1007,12 @@ AsyncTiledBlobRef Tex::ToSingleBlob(CHashPtr Hash, bool TransferToRT /* = false 
 			Texture = nullptr;
 
 			if (!ResolveOnRenderThread)
-				return static_cast<AsyncTiledBlobRef>(PromiseUtil::OnGameThread().then([=]() { return FinalBlobRef; }));
+			{
+				return static_cast<AsyncTiledBlobRef>(PromiseUtil::OnGameThread().then([=]() 
+					{ 
+						return FinalBlobRef; 
+					}));
+			}
 
 			return static_cast<AsyncTiledBlobRef>(cti::make_ready_continuable<TiledBlobRef>(std::move(FinalBlobRef)));
 		});
@@ -1092,7 +1099,7 @@ AsyncTiledBlobRef Tex::ToBlob(int32 XTiles, int32 YTiles, uint32 Width /* = 0 */
 
 			bool bIsNowRT = RT != nullptr;	// Have we shifted to being an RT now?
 
-			DeviceBufferRef Buffer = bIsNowRT ? Device_FX::Get()->CreateFromRT(RT, Desc.ToBufferDescriptor()) : Device_FX::Get()->CreateFromTexture(Texture,Desc.ToBufferDescriptor());
+			DeviceBufferRef Buffer = bIsNowRT ? Device_FX::Get()->CreateFromRT(RT, Desc.ToBufferDescriptor()) : Device_FX::Get()->CreateFromTexture(Texture, Desc.ToBufferDescriptor());
 			T_Tiles<DeviceBufferRef> TileBuffers(XTiles, YTiles);
 
 			for (int32 TileX = 0; TileX < XTiles; TileX++)
@@ -1123,6 +1130,8 @@ AsyncTiledBlobRef Tex::ToBlob(int32 XTiles, int32 YTiles, uint32 Width /* = 0 */
 				{
 					BlobUPtr& Tile = TilesPtr[TileX * YTiles + TileY];
 					check(Tile);
+
+					//check(Tile->IsFinalised());
 
 					/// make sure that there's a Hash
 					CHashPtr TileHash = Tile->Hash();

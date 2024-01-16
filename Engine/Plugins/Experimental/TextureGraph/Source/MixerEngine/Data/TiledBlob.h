@@ -36,6 +36,9 @@ protected:
 	TiledBlob&						operator = (const TiledBlob& RHS);
 	virtual void					SetHash(CHashPtr Hash) override;
 
+	virtual void					AddLinkedBlob(BlobPtr LinkedBlob) override;
+	virtual void					FinaliseFrom(const Blob* RHS) override;
+
 public:
 	static AsyncBufferResultPtr		TileBuffer(DeviceBufferRef Buffer, BlobPtrTiles& Tiles);
 	AsyncBufferResultPtr			CombineTiles(bool bTouch, bool bIsArray, uint64 BatchId = 0);
@@ -153,10 +156,14 @@ class MIXERENGINE_API TiledBlob_Promise : public TiledBlob
 protected:
 	mutable std::vector<BlobReadyCallback> Callbacks;		/// The callbacks to call when the promised tiled BlobObj is ready
 	bool							bMakeSingleBlob = false;/// Make single BlobObj on finalise
+	std::weak_ptr<TiledBlob_Promise> CachedBlob;			/// The cached blob that this is derived off
 
 	virtual void					OnFinaliseInternal(BlobReadyCallback Callback) const override;
 	TiledBlob_Promise&				operator = (const TiledBlob_Promise& RHS);
 	virtual void					NotifyCallbacks();
+
+	virtual void					AddLinkedBlob(BlobPtr LinkedBlob) override;
+	virtual void					FinaliseFrom(const Blob* RHS) override;
 
 public:
 									TiledBlob_Promise(TiledBlobPtr Source);
@@ -173,8 +180,8 @@ public:
 	virtual void					CopyResolveLateBound(BlobPtr RHS) override;
 	virtual bool					IsPromise() const override { return true; }
 
-	virtual void					Finalise_Now(bool NocalcHash, CHashPtr FixedHash) override;
-	virtual AsyncBufferResultPtr	Finalise(bool NocalcHash, CHashPtr FixedHash) override;
+	virtual void					FinaliseNow(bool bNoCalcHash, CHashPtr FixedHash) override;
+	virtual AsyncBufferResultPtr	Finalise(bool bNoCalcHash, CHashPtr FixedHash) override;
 	AsyncBufferResultPtr			FinaliseFrom(std::shared_ptr<TiledBlob_Promise> RHS);
 
 	void							ResetForReplay(); /// For debug purpose, reset the state of the tile as a promise to NOT finalised, increment the replayCount

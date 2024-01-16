@@ -721,9 +721,26 @@ TiledBlobRef Blobber::AddTiledResult(TiledBlobPtr Result, BlobCacheOptions Optio
 TiledBlobRef Blobber::AddTiledResult(CHashPtr LHash, TiledBlobPtr Result, BlobCacheOptions Options /* = {} */)
 {
 	BlobRef Ret = AddResult(LHash, std::static_pointer_cast<Blob>(Result), Options);
-	auto Ptr = Ret.get();
-	check(Ptr->IsTiled());
-	return TiledBlobRef(std::static_pointer_cast<TiledBlob>(Ptr), Ret.IsKeepStrong(), false);
+	check(Ret->IsTiled());
+	TiledBlobPtr CachedPtr = std::static_pointer_cast<TiledBlob>(Ret.get());
+
+	if (CachedPtr && Result != CachedPtr)
+	{
+		if (typeid(*CachedPtr) == typeid(*Result))
+			CachedPtr->AddLinkedBlob(Result);
+	}
+
+	/// If we got a different pointer back from the blobber then that means that this result was already cached into 
+	/// the system. We need to copy it over to the original pointer if it's a finalised blob
+	/// so that anyone keeping a copy of Result has the exact same view as the original result 
+	/// and we don't have do any awkward pointer adjustment shenanigans to make things work
+	//if (Result && CachedPtr->IsFinalised() && Result != CachedPtr)
+	//{
+	//	/// Copy the contents over
+	//	*Result = *CachedPtr;
+	//}
+
+	return TiledBlobRef(std::static_pointer_cast<TiledBlob>(CachedPtr), Ret.IsKeepStrong(), false);
 }
 
 BlobRef Blobber::AddResult(CHashPtr LHash, BlobRef Result, BlobCacheOptions Options)
