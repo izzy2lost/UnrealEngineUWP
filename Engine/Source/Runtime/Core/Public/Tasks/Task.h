@@ -112,7 +112,7 @@ namespace UE::Tasks
 				TaskBodyType&& TaskBody,
 				ETaskPriority Priority = ETaskPriority::Normal,
 				EExtendedTaskPriority ExtendedPriority = EExtendedTaskPriority::None,
-				ETaskFlags Flags = ETaskFlags::DoNotRunInsideBusyWait
+				ETaskFlags Flags = ETaskFlags::None
 			)
 			{
 				check(!IsValid());
@@ -139,7 +139,7 @@ namespace UE::Tasks
 				PrerequisitesCollectionType&& Prerequisites,
 				ETaskPriority Priority = ETaskPriority::Normal,
 				EExtendedTaskPriority ExtendedPriority = EExtendedTaskPriority::None,
-				ETaskFlags Flags = ETaskFlags::DoNotRunInsideBusyWait
+				ETaskFlags Flags = ETaskFlags::None
 			)
 			{
 				check(!IsValid());
@@ -259,7 +259,7 @@ namespace UE::Tasks
 		TaskBodyType&& TaskBody,
 		ETaskPriority Priority = ETaskPriority::Normal,
 		EExtendedTaskPriority ExtendedPriority = EExtendedTaskPriority::None,
-		ETaskFlags Flags = ETaskFlags::DoNotRunInsideBusyWait
+		ETaskFlags Flags = ETaskFlags::None
 	)
 	{
 		using FResult = TInvokeResult_T<TaskBodyType>;
@@ -283,7 +283,7 @@ namespace UE::Tasks
 		PrerequisitesCollectionType&& Prerequisites,
 		ETaskPriority Priority = ETaskPriority::Normal,
 		EExtendedTaskPriority ExtendedPriority = EExtendedTaskPriority::None,
-		ETaskFlags Flags = ETaskFlags::DoNotRunInsideBusyWait
+		ETaskFlags Flags = ETaskFlags::None
 	)
 	{
 		using FResult = TInvokeResult_T<TaskBodyType>;
