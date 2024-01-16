@@ -200,7 +200,7 @@ namespace mu
 
 
 	//---------------------------------------------------------------------------------------------
-	const FString& Parameters::GetUid( int index ) const
+	const FGuid& Parameters::GetUid( int index ) const
 	{
 		const FProgram& program = m_pD->m_pModel->GetPrivate()->m_program;
 		check( index>=0 && index<(int)program.m_parameters.Num() );

@@ -408,7 +408,7 @@ namespace Private
         FString m_name;
 
         //! Unique id (provided externally, so no actual guarantee that it is unique.)
-		FString m_uid;
+		FGuid m_uid;
 
         PARAMETER_TYPE m_type = PARAMETER_TYPE::T_NONE;
 
@@ -462,7 +462,7 @@ namespace Private
         //!
         void Serialise( OutputArchive& arch ) const
         {
-            const int32 ver = 8;
+            const int32 ver = 9;
             arch << ver;
 
 			arch << m_name;
@@ -478,7 +478,7 @@ namespace Private
         {
             int32 ver;
             arch >> ver;
-            check( ver==8 );
+            check( ver==9 );
 
 			arch >> m_name;
 			arch >> m_uid;

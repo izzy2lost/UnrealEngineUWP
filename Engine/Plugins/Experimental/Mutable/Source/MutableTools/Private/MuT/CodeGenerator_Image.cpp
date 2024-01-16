@@ -273,8 +273,9 @@ namespace mu
             op->type = OP_TYPE::IM_PARAMETER;
 
 			op->parameter.m_name = node.m_name;
-			op->parameter.m_uid = node.m_uid;
-            op->parameter.m_type = PARAMETER_TYPE::T_IMAGE;
+        	const TCHAR* CStr = ToCStr(node.m_uid);
+        	op->parameter.m_uid.ImportTextItem(CStr, 0, nullptr, nullptr);
+        	op->parameter.m_type = PARAMETER_TYPE::T_IMAGE;
         	op->parameter.m_defaultValue.Set<ParamImageType>(node.m_defaultValue);
 
 			// Generate the code for the ranges

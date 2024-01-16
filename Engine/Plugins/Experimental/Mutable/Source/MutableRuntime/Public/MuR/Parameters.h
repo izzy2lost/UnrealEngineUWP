@@ -192,7 +192,7 @@ namespace mu
 
 		//! Return the Guid of the parameter, resistant to parameter name changes.
 		//! \param index Index of the parameter from 0 to GetCount()-1
-		const FString& GetUid( int index ) const;
+		const FGuid& GetUid( int index ) const;
 
 		//! Find the parameter index by name.
 		//! It returns -1 if the parameter doesn't exist.

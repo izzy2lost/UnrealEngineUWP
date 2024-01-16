@@ -59,7 +59,7 @@ struct FCustomizableObjectBoolParameterValue
 	bool ParameterValue = true;
 
 	UPROPERTY(Category = CustomizableObjectBoolParameterValue, VisibleAnywhere)
-	FString Uid;
+	FGuid Uid;
 };
 
 
@@ -87,7 +87,7 @@ struct FCustomizableObjectIntParameterValue
 	FString ParameterValueName;
 
 	UPROPERTY(Category = CustomizableObjectIntParameterValue, VisibleAnywhere)
-	FString Uid;
+	FGuid Uid;
 
 	// Same as ParameterValueName but for multidimensional params
 	UPROPERTY()
@@ -97,7 +97,7 @@ struct FCustomizableObjectIntParameterValue
 	{
 	}
 
-	FCustomizableObjectIntParameterValue(const FString & InParamName, const FString & InParameterValueName, const FString & InUid, const TArray<FString>& InParameterRangeValueNames)
+	FCustomizableObjectIntParameterValue(const FString & InParamName, const FString & InParameterValueName, const FGuid & InUid, const TArray<FString>& InParameterRangeValueNames)
 		: ParameterName(InParamName), ParameterValueName(InParameterValueName), Uid(InUid)
 	{
 		ParameterRangeValueNames = InParameterRangeValueNames;
@@ -133,7 +133,7 @@ struct FCustomizableObjectFloatParameterValue
 	float ParameterValue = 0.0f;
 
 	UPROPERTY(Category = CustomizableObjectFloatParameterValue, VisibleAnywhere)
-	FString Uid;
+	FGuid Uid;
 
 	UPROPERTY(Category = CustomizableObjectFloatParameterValue, VisibleAnywhere)
 	TArray<float> ParameterRangeValues;
@@ -168,7 +168,7 @@ struct FCustomizableObjectTextureParameterValue
 	FName ParameterValue;
 
 	UPROPERTY(Category = CustomizableObjectTextureParameterValue, VisibleAnywhere)
-	FString Uid;
+	FGuid Uid;
 
 	UPROPERTY(Category = CustomizableObjectTextureParameterValue, VisibleAnywhere)
 	TArray<FName> ParameterRangeValues;
@@ -203,7 +203,7 @@ struct FCustomizableObjectVectorParameterValue
 	FLinearColor ParameterValue = FLinearColor(ForceInit);
 
 	UPROPERTY(Category = CustomizableObjectVectorParameterValue, VisibleAnywhere)
-	FString Uid;
+	FGuid Uid;
 };
 
 
@@ -290,7 +290,7 @@ struct FCustomizableObjectProjectorParameterValue
 	FCustomizableObjectProjector Value;
 
 	UPROPERTY(Category = CustomizableObjectVectorParameterValue, VisibleAnywhere)
-	FString Uid;
+	FGuid Uid;
 
 	UPROPERTY(Category = CustomizableObjectVectorParameterValue, VisibleAnywhere)
 	TArray<FCustomizableObjectProjector> RangeValues;

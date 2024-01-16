@@ -466,7 +466,7 @@ mu::ParametersPtr FCustomizableObjectInstanceDescriptor::GetParameters() const
 	for (int32 ParamIndex = 0; ParamIndex < ParamCount; ++ParamIndex)
 	{
 		const FString& Name = MutableParameters->GetName(ParamIndex);
-		const FString& Uid = MutableParameters->GetUid(ParamIndex);
+		const FGuid& Uid = MutableParameters->GetUid(ParamIndex);
 		const mu::PARAMETER_TYPE MutableType = MutableParameters->GetType(ParamIndex);
 
 		switch (MutableType)
@@ -475,7 +475,7 @@ mu::ParametersPtr FCustomizableObjectInstanceDescriptor::GetParameters() const
 		{
 			for (const FCustomizableObjectBoolParameterValue& BoolParameter : BoolParameters)
 			{
-				if (BoolParameter.ParameterName == Name || (!Uid.IsEmpty() && BoolParameter.Uid == Uid))
+				if (BoolParameter.ParameterName == Name || (Uid.IsValid() && BoolParameter.Uid == Uid))
 				{
 					MutableParameters->SetBoolValue(ParamIndex,  BoolParameter.ParameterValue);
 					break;
@@ -489,7 +489,7 @@ mu::ParametersPtr FCustomizableObjectInstanceDescriptor::GetParameters() const
 		{
 			for (const FCustomizableObjectIntParameterValue& IntParameter : IntParameters)
 			{
-				if (IntParameter.ParameterName.Equals(Name, ESearchCase::CaseSensitive) || (!Uid.IsEmpty() && IntParameter.Uid == Uid))
+				if (IntParameter.ParameterName.Equals(Name, ESearchCase::CaseSensitive) || (Uid.IsValid() && IntParameter.Uid == Uid))
 				{
 					if (mu::RangeIndexPtr RangeIdxPtr = MutableParameters->NewRangeIndex(ParamIndex))
 					{
@@ -519,7 +519,7 @@ mu::ParametersPtr FCustomizableObjectInstanceDescriptor::GetParameters() const
 		{
 			for (const FCustomizableObjectFloatParameterValue& FloatParameter : FloatParameters)
 			{
-				if (FloatParameter.ParameterName == Name || (!Uid.IsEmpty() && FloatParameter.Uid == Uid))
+				if (FloatParameter.ParameterName == Name || (Uid.IsValid() && FloatParameter.Uid == Uid))
 				{
 					if (mu::RangeIndexPtr RangeIdxPtr = MutableParameters->NewRangeIndex(ParamIndex))
 					{
@@ -545,7 +545,7 @@ mu::ParametersPtr FCustomizableObjectInstanceDescriptor::GetParameters() const
 		{
 			for (const FCustomizableObjectVectorParameterValue& VectorParameter : VectorParameters)
 			{
-				if (VectorParameter.ParameterName == Name || (!Uid.IsEmpty() && VectorParameter.Uid == Uid))
+				if (VectorParameter.ParameterName == Name || (Uid.IsValid() && VectorParameter.Uid == Uid))
 				{
 					MutableParameters->SetColourValue(ParamIndex, VectorParameter.ParameterValue.R, VectorParameter.ParameterValue.G, VectorParameter.ParameterValue.B);
 
@@ -560,7 +560,7 @@ mu::ParametersPtr FCustomizableObjectInstanceDescriptor::GetParameters() const
 		{
 			for (const auto& ProjectorParameter : ProjectorParameters)
 			{
-				if (ProjectorParameter.ParameterName == Name || (!Uid.IsEmpty() && ProjectorParameter.Uid == Uid))
+				if (ProjectorParameter.ParameterName == Name || (Uid.IsValid() && ProjectorParameter.Uid == Uid))
 				{
 					auto CopyProjector = [&MutableParameters, ParamIndex](const FCustomizableObjectProjector& Value, const mu::RangeIndexPtr RangeIdxPtr = nullptr)
 					{
@@ -621,7 +621,7 @@ mu::ParametersPtr FCustomizableObjectInstanceDescriptor::GetParameters() const
 		{
 			for (const FCustomizableObjectTextureParameterValue& TextureParameter : TextureParameters)
 			{
-				if (TextureParameter.ParameterName == Name || (!Uid.IsEmpty() && TextureParameter.Uid == Uid))
+				if (TextureParameter.ParameterName == Name || (Uid.IsValid() && TextureParameter.Uid == Uid))
 				{
 					if (mu::RangeIndexPtr RangeIdxPtr = MutableParameters->NewRangeIndex(ParamIndex))
 					{
@@ -779,7 +779,7 @@ void FCustomizableObjectInstanceDescriptor::ReloadParameters()
 	for (int32 ParamIndex = 0; ParamIndex < ParamCount; ++ParamIndex)
 	{
 		const FString& Name = MutableParameters->GetName(ParamIndex);
-		const FString& Uid = MutableParameters->GetUid(ParamIndex);
+		const FGuid& Uid = MutableParameters->GetUid(ParamIndex);
 		const mu::PARAMETER_TYPE MutableType = MutableParameters->GetType(ParamIndex);
 
 		switch (MutableType)
@@ -792,7 +792,7 @@ void FCustomizableObjectInstanceDescriptor::ReloadParameters()
 
 			auto FindByNameAndUid = [&](const FCustomizableObjectBoolParameterValue& P)
 			{
-				return P.ParameterName == Name || (!Uid.IsEmpty() && P.Uid == Uid);
+				return P.ParameterName == Name || (Uid.IsValid() && P.Uid == Uid);
 			};
 
 			if (FCustomizableObjectBoolParameterValue* Result = OldBoolParameters.FindByPredicate(FindByNameAndUid))
@@ -816,7 +816,7 @@ void FCustomizableObjectInstanceDescriptor::ReloadParameters()
 
 			auto FindByNameAndUid = [&](const FCustomizableObjectIntParameterValue& P)
 			{
-				return P.ParameterName == Name || (!Uid.IsEmpty() && P.Uid == Uid);
+				return P.ParameterName == Name || (Uid.IsValid() && P.Uid == Uid);
 			};
 			
 			if (FCustomizableObjectIntParameterValue* Result = OldIntParameters.FindByPredicate(FindByNameAndUid))
@@ -920,7 +920,7 @@ void FCustomizableObjectInstanceDescriptor::ReloadParameters()
 
 			auto FindByNameAndUid = [&](const FCustomizableObjectFloatParameterValue& P)
 			{
-				return P.ParameterName == Name || (!Uid.IsEmpty() && P.Uid == Uid);
+				return P.ParameterName == Name || (Uid.IsValid() && P.Uid == Uid);
 			};
 			
 			if (FCustomizableObjectFloatParameterValue* Result = OldFloatParameters.FindByPredicate(FindByNameAndUid))
@@ -971,7 +971,7 @@ void FCustomizableObjectInstanceDescriptor::ReloadParameters()
 
 			auto FindByNameAndUid = [&](const FCustomizableObjectVectorParameterValue& P)
 			{
-				return P.ParameterName == Name || (!Uid.IsEmpty() && P.Uid == Uid);
+				return P.ParameterName == Name || (Uid.IsValid() && P.Uid == Uid);
 			};
 
 			if (FCustomizableObjectVectorParameterValue* Result = OldVectorParameters.FindByPredicate(FindByNameAndUid))
@@ -996,7 +996,7 @@ void FCustomizableObjectInstanceDescriptor::ReloadParameters()
 
 			auto FindByNameAndUid = [&](const FCustomizableObjectProjectorParameterValue& P)
 			{
-				return P.ParameterName == Name || (!Uid.IsEmpty() && P.Uid == Uid);
+				return P.ParameterName == Name || (Uid.IsValid() && P.Uid == Uid);
 			};
 			
 			if (FCustomizableObjectProjectorParameterValue* Result = OldProjectorParameters.FindByPredicate(FindByNameAndUid))
@@ -1071,7 +1071,7 @@ void FCustomizableObjectInstanceDescriptor::ReloadParameters()
 
 			auto FindByNameAndUid = [&](const FCustomizableObjectTextureParameterValue& P)
 			{
-				return P.ParameterName == Name || (!Uid.IsEmpty() && P.Uid == Uid);
+				return P.ParameterName == Name || (Uid.IsValid() && P.Uid == Uid);
 			};
 			
 			if (FCustomizableObjectTextureParameterValue* Result = OldTextureParameters.FindByPredicate(FindByNameAndUid))

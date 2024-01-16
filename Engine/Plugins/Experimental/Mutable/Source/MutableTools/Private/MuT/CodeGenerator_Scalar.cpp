@@ -137,7 +137,8 @@ namespace mu
 		{
 			FParameterDesc param;
 			param.m_name = node.m_name;
-			param.m_uid = node.m_uid;
+			const TCHAR* CStr = ToCStr(node.m_uid);
+			param.m_uid.ImportTextItem(CStr, 0, nullptr, nullptr);
 			param.m_type = PARAMETER_TYPE::T_FLOAT;
 			param.m_defaultValue.Set<ParamFloatType>(node.m_defaultValue);
 
@@ -176,7 +177,8 @@ namespace mu
 		{
 			FParameterDesc param;
 			param.m_name = node.m_name;
-			param.m_uid = node.m_uid;
+			const TCHAR* CStr = ToCStr(node.m_uid);
+			param.m_uid.ImportTextItem(CStr, 0, nullptr, nullptr);
 			param.m_type = PARAMETER_TYPE::T_INT;
 			param.m_defaultValue.Set<ParamIntType>(node.m_defaultValue);
 

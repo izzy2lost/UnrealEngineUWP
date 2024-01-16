@@ -581,7 +581,8 @@ namespace mu
             op->type = OP_TYPE::NU_PARAMETER;
 
             op->parameter.m_name = Private->Name;
-            op->parameter.m_uid = Private->Uid;
+			const TCHAR* CStr = ToCStr(Private->Uid);
+			op->parameter.m_uid.ImportTextItem(CStr, 0, nullptr, nullptr);
             op->parameter.m_type = PARAMETER_TYPE::T_INT;
             op->parameter.m_defaultValue.Set<ParamIntType>(Private->DefaultValue);
 
@@ -613,7 +614,8 @@ namespace mu
                         op->type = OP_TYPE::BO_PARAMETER;
 
                         op->parameter.m_name = pChildNode->GetName();
-                        op->parameter.m_uid = pChildNode->GetUid();
+                   		const TCHAR* CStr = ToCStr(Private->Uid);
+                   		op->parameter.m_uid.ImportTextItem(CStr, 0, nullptr, nullptr);
                         op->parameter.m_type = PARAMETER_TYPE::T_BOOL;
                         op->parameter.m_defaultValue.Set<ParamBoolType>(false);
 
