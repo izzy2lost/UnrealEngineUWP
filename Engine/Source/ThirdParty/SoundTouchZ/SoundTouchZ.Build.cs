@@ -14,7 +14,8 @@ public class SoundTouchZ : ModuleRules
 			return Target.Platform.IsInGroup(UnrealPlatformGroup.Windows) ||
 				   Target.IsInPlatformGroup(UnrealPlatformGroup.Unix) ||
 				   Target.Platform == UnrealTargetPlatform.Mac ||
-				   Target.Platform == UnrealTargetPlatform.Android ||
+				   // we only have arm64 libs, so we can't enable it when building for x86 or x86+arm64, since there's only one #define possible
+				   (Target.Platform == UnrealTargetPlatform.Android && !Target.Architectures.bIsMultiArch && Target.Architecture == UnrealArch.Arm64) ||
 				   Target.Platform == UnrealTargetPlatform.IOS;
 		}
 	}

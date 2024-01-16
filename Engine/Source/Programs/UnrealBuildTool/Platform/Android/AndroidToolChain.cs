@@ -1016,8 +1016,8 @@ namespace UnrealBuildTool
 			return StripPath.Replace("-ar", "-strip");
 		}
 
-		private bool bHasHandledLaunchModule = false;
-		private bool bHasHandledCoreModule = false;
+		private HashSet<UnrealArch> HasHandledLaunchModule = new();
+		private HashSet<UnrealArch> HasHandledCoreModule = new();
 
 		protected override CPPOutput CompileCPPFiles(CppCompileEnvironment CompileEnvironment, IEnumerable<FileItem> InputFiles, DirectoryReference OutputDir, string ModuleName, IActionGraphBuilder Graph)
 		{
@@ -1029,21 +1029,22 @@ namespace UnrealBuildTool
 			List<FileItem> ModifiedInputFiles = new(InputFiles);
 
 			// Deal with Launch module special if first time seen
-			if (!bHasHandledLaunchModule && (ModuleName.Equals("Launch") || ModuleName.Equals("AndroidLauncher")))
+			if (!HasHandledLaunchModule.Contains(CompileEnvironment.Architecture) && (ModuleName.Equals("Launch") || ModuleName.Equals("AndroidLauncher")))
 			{
 				// Directly added NDK files for NDK extensions
 				ModifiedInputFiles.Add(FileItem.GetItemByPath(GetNativeGluePath()));
 				// Deal with dynamic modules removed by architecture
 				GenerateEmptyLinkFunctionsForRemovedModules(ModifiedInputFiles, CompileEnvironment.Architecture, ModuleName, OutputDir, Graph, Logger);
 
-				bHasHandledLaunchModule = true;
+				HasHandledLaunchModule.Add(CompileEnvironment.Architecture);
 			}
 
-			if (!bHasHandledCoreModule && ModuleName.Equals("Core") && (CompileEnvironment.PrecompiledHeaderAction == PrecompiledHeaderAction.None))
+			if (!HasHandledCoreModule.Contains(CompileEnvironment.Architecture) && ModuleName.Equals("Core") && (CompileEnvironment.PrecompiledHeaderAction == PrecompiledHeaderAction.None))
 			{
 				// This is used by Crypto code in Core
 				ModifiedInputFiles.Add(FileItem.GetItemByPath(GetCpuFeaturesPath()));
-				bHasHandledCoreModule = true;
+				HasHandledCoreModule.Add(CompileEnvironment.Architecture);
+				
 			}
 
 			return base.CompileCPPFiles(CompileEnvironment, ModifiedInputFiles, OutputDir, ModuleName, Graph);
