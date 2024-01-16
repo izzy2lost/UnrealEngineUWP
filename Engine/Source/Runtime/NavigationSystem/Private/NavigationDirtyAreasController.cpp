@@ -74,16 +74,16 @@ void FNavigationDirtyAreasController::Tick(const float DeltaSeconds, const TArra
 				SeedsBoundsArrayPtr = &NavSys->GetInvokersSeedBounds();
 			}
 
-			if (SeedsBoundsArrayPtr != nullptr && SeedsBoundsArrayPtr->Num() > 0)
+			for (const FNavigationDirtyArea& DirtyArea : DirtyAreas)
 			{
-				for (const FNavigationDirtyArea& DirtyArea : DirtyAreas)
+				const FBox& AreaBound = DirtyArea.Bounds;
+				if (!ensureMsgf(AreaBound.IsValid, TEXT("%hs Attempting to use DirtyArea.Bounds which are not valid. SourceObject: %s"), __FUNCTION__, *GetFullNameSafe(DirtyArea.OptionalSourceObject.Get())))
 				{
-					const FBox& AreaBound = DirtyArea.Bounds;
-					if (!ensureMsgf(AreaBound.IsValid, TEXT("%hs Attempting to use DirtyArea.Bounds which are not valid. SourceObject: %s"), __FUNCTION__, *GetFullNameSafe(DirtyArea.OptionalSourceObject.Get())))
-					{
-						continue;
-					}
-					
+					continue;
+				}
+
+				if (SeedsBoundsArrayPtr != nullptr && SeedsBoundsArrayPtr->Num() > 0)
+				{
 					for (const FBox& SeedBounds : *SeedsBoundsArrayPtr)
 					{
 						// Compute sub area bound
@@ -93,6 +93,10 @@ void FNavigationDirtyAreasController::Tick(const float DeltaSeconds, const TArra
 							SubAreaArray.Emplace(OverlapBox, DirtyArea.Flags, DirtyArea.OptionalSourceObject.Get());
 						}
 					}
+				}
+				else
+				{
+					SubAreaArray.Emplace(DirtyArea);
 				}
 			}
 		}
