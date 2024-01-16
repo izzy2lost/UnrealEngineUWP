@@ -41,7 +41,11 @@ uint32 UWorldPartitionHLODSourceActorsFromCell::GetHLODHash(const TArray<FWorldP
 	TArray<FWorldPartitionRuntimeCellObjectMapping>& MutableSourceActors(const_cast<TArray<FWorldPartitionRuntimeCellObjectMapping>&>(InSourceActors));
 
 	FArchiveCrc32 Ar;
-	Ar << MutableSourceActors;
+	for (FWorldPartitionRuntimeCellObjectMapping& Mapping : MutableSourceActors)
+	{
+		Ar << Mapping;
+	}
+	
 	return Ar.GetCrc();
 }
 
