@@ -10,6 +10,7 @@
 #include "MuCO/CustomizableObjectDGGUI.h"
 #include "MuCO/CustomizableObjectExtension.h"
 #include "MuCO/CustomizableObjectInstanceUsage.h"
+#include "MuCO/CustomizableObjectSystem.h"
 #include "MuCO/ICustomizableObjectModule.h"
 #include "UObject/StrongObjectPtr.h"
 #include "GPUSkinPublicDefs.h"
@@ -38,6 +39,8 @@ public:
 private:
 	void RefreshExtensionData();
 
+	static void InitializeSystem();
+
 	// Command to look for Customizable Object Instance in the player pawn of the current world and open a DGGUI to edit its parameters
 	IConsoleCommand* LaunchDGGUICommand;
 	static void ToggleDGGUI(const TArray<FString>& Arguments);
@@ -60,6 +63,8 @@ void FCustomizableObjectModule::StartupModule()
 		TEXT("mutable.ToggleDGGUI"),
 		TEXT("Looks for a Customizable Object Instance within the player pawn and opens a UI to modify its parameters, or closes it if it's open. Specify slot ID to control which component is modified."),
 		FConsoleCommandWithArgsDelegate::CreateStatic(&FCustomizableObjectModule::ToggleDGGUI));
+
+	FCoreDelegates::OnPostEngineInit.AddStatic(&FCustomizableObjectModule::InitializeSystem);
 }
 
 
@@ -214,6 +219,12 @@ void FCustomizableObjectModule::RefreshExtensionData()
 			AdditionalObjectNodePins.Add(RegisteredPin);
 		}
 	}
+}
+
+
+void FCustomizableObjectModule::InitializeSystem()
+{
+	UCustomizableObjectSystem::GetInstance();
 }
 
 

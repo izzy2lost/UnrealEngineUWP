@@ -198,9 +198,6 @@ void UCustomizableObject::PostLoad()
 {
 	Super::PostLoad();
 
-	// Make sure mutable has been initialised.
-	UCustomizableObjectSystem::GetInstance();
-
 #if WITH_EDITOR
 	if (ReferenceSkeletalMesh_DEPRECATED)
 	{

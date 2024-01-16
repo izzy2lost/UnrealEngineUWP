@@ -556,9 +556,6 @@ void UCustomizableObjectInstance::Serialize(FArchive& Ar)
 
 void UCustomizableObjectInstance::PostLoad()
 {
-	// Make sure mutable has been initialised.
-	UCustomizableObjectSystem::GetInstance(); 
-
 	Super::PostLoad();
 
 #if WITH_EDITOR
