@@ -19,6 +19,7 @@
 #include "Expressions/Input/TG_Expression_Material.h"
 #include "Expressions/Input/TG_Expression_MaterialFunction.h"
 #include "Expressions/Input/TG_Expression_Texture.h"
+#include "Expressions/CommandChange/TG_PinConnectionChange.h"
 
 #define LOCTEXT_NAMESPACE "TG_GraphSchema"
 
@@ -276,6 +277,8 @@ bool UTG_EdGraphSchema::TryCreateConnection(UEdGraphPin* InA, UEdGraphPin* InB) 
 		UTG_Graph* TG_Graph = TG_NodeA->GetGraph();
 		check(TG_Graph);
 
+		FTG_PinConnectionChange::StoreChange(TG_Graph, *TG_NodeB, B->PinName);
+
 		auto edge = TG_Graph->Connect(*TG_NodeA, A->PinName, *TG_NodeB, B->PinName);
 	}
 
@@ -328,6 +331,8 @@ void UTG_EdGraphSchema::BreakPinLinks(UEdGraphPin& TargetPin, bool bSendsNodeNot
 	UTG_Graph* TextureGraph = TSNode->GetGraph();
 	check(TextureGraph);
 
+	FTG_PinConnectionBreakChange::StoreChange(TextureGraph, *TSNode, TargetPin.PinName);
+
 	TextureGraph->RemovePinEdges(*TSNode, TargetPin.PinName);
 }
 
@@ -349,6 +354,8 @@ void UTG_EdGraphSchema::BreakSinglePinLink(UEdGraphPin* SourcePin, UEdGraphPin* 
 
 	UTG_Graph* TextureGraph = SourceTSNode->GetGraph();
 	check(TextureGraph);
+
+	FTG_PinConnectionBreakChange::StoreChange(TextureGraph, *TargetTSNode, TargetPin->PinName);
 	TextureGraph->RemoveEdge(*SourceTSNode, SourcePin->PinName, *TargetTSNode, TargetPin->PinName);
 }
 
@@ -421,6 +428,9 @@ void UTG_EdGraphSchema::DroppedAssetsOnNode(const TArray<FAssetData>& Assets, co
 
 		if(Expression->CanHandleAsset(Asset))
 		{
+			const FScopedTransaction Transaction(NSLOCTEXT("UTG_EdGraphSchema", "DroppedAssetsOnNode", "Dropped Assets OnNode"));
+			Expression->Modify();
+
 			Expression->SetAsset(Asset);
 		}
 	}

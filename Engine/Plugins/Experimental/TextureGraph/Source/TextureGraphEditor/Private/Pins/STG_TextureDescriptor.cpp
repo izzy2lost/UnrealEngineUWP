@@ -13,6 +13,7 @@
 #include "SGraphPinComboBox.h"
 #include "FrameWork/MultiBox/MultiBoxBuilder.h"
 #include "TG_Graph.h"
+#include "Expressions/TG_Expression.h"
 #include "EDGraph/TG_EdGraphSchema.h"
 #include "Widgets/Layout/SSeparator.h"
 #include "TG_HelperFunctions.h"
@@ -181,13 +182,12 @@ FTG_TextureDescriptor STG_TextureDescriptor::GetTextureDescriptor() const
 
 void STG_TextureDescriptor::SetValue(FTG_TextureDescriptor Descriptor)
 {
+	const FScopedTransaction Transaction(NSLOCTEXT("STG_TextureDescriptor", "SetValue", "Output Settings Pin Changed"));
+
 	const UTG_EdGraphSchema* Schema = Cast<const UTG_EdGraphSchema>(GraphPinObj->GetSchema());
 	UTG_Pin* TGPin = Schema->GetTGPinFromEdPin(GraphPinObj);
 	check(TGPin->GetArgument().IsTexture());
-	//FTG_Texture OutTexture;
-	//TGPin->GetValue(OutTexture);
-	
-	//OutTexture.Descriptor = Descriptor;
+	TGPin->Modify();
 
 	TGPin->SetValue(Descriptor);
 

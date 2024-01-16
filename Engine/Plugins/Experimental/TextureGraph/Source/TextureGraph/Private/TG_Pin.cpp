@@ -210,6 +210,13 @@ void UTG_Pin::PostEditChangeProperty(FPropertyChangedEvent& PropertyChangedEvent
 		SetAliasName(AliasName);
 	}
 }
+
+bool UTG_Pin::Modify(bool bAlwaysMarkDirty)
+{
+	//Calling the Pin expression Modify here to make sure we have the snapshot of data
+	GetNodePtr()->GetExpression()->Modify();
+	return Super::Modify(bAlwaysMarkDirty);
+}
 #endif
 
 FProperty* UTG_Pin::GetExpressionProperty() const

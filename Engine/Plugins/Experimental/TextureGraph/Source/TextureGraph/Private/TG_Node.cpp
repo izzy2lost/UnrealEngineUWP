@@ -187,6 +187,33 @@ void UTG_Node::OnPinConnectionChanged(FTG_Id InPinId, FTG_Id OldPinId, FTG_Id Ne
 		FTG_Variant::EType CommonType = EvalExpressionCommonVariantType();
 		GetExpression()->NotifyCommonVariantTypeChanged(CommonType);
 	}
+
+	if (!ThePin->IsConnected())
+	{
+		if (ThePin->IsArgTexture())
+		{
+			//Reset the FTGTexture
+			ThePin->EditSelfVar()->EditAs<FTG_Texture>() = nullptr;
+			GetExpression()->CopyVarToExpressionArgument(ThePin->GetArgument(), ThePin->EditSelfVar());
+		}
+	}
+}
+
+void UTG_Node::OnPinConnectionUndo(FTG_Id InPinId)
+{
+	UTG_Pin* PinTo = GetPin(InPinId);
+	// Reset the Pin to Default in this case
+	if (PinTo->IsArgVariant())
+	{
+		FTG_Variant::EType CommonType = FTG_Variant::EType::Scalar;
+		GetExpression()->NotifyCommonVariantTypeChanged(CommonType);
+	}
+	else if (PinTo->IsArgTexture())
+	{
+		//Reset the FTGTexture
+		PinTo->EditSelfVar()->EditAs<FTG_Texture>() = nullptr;
+		GetExpression()->CopyVarToExpressionArgument(PinTo->GetArgument(), PinTo->EditSelfVar());
+	}
 }
 
 

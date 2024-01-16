@@ -170,6 +170,8 @@ public:
 	// only valid for expression with FTG_Variant arguments
 	FTG_Variant::EType GetExpressionCommonVariantType() const;
 
+	void OnPinConnectionUndo(FTG_Id InPinId);
+
 protected:
 
 	// Return the array of alias name of all the pins

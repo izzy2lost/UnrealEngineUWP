@@ -105,6 +105,9 @@ protected:
 	*/
 	void OnBeginSliderMovement()
 	{
+		GEditor->BeginTransaction(NSLOCTEXT("GraphEditor", "ChangeNumberPinValueSlider", "Change Number Pin Value slider"));
+		GraphPinObj->Modify();
+
 		SliderValue = LastSliderCommittedValue = GetNumericValue().GetValue();
 		bIsUsingSlider = true;
 	}
@@ -115,6 +118,7 @@ protected:
 	void OnEndSliderMovement( NumericType NewValue )
 	{
 		bIsUsingSlider = false;
+		GEditor->EndTransaction();
 	}
 	
 	TOptional<NumericType> GetNumericValue() const

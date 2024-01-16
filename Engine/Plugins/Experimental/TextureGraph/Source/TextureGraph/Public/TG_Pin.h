@@ -91,6 +91,9 @@ protected:
 public:
 	// Override serialization for conditional serialization of SelfVar
 	virtual	void		Serialize(FArchive& Ar) override;
+#if WITH_EDITOR
+	virtual bool		Modify(bool bAlwaysMarkDirty = true) override;
+#endif
 
 	bool				IsValid() const { return Id != FTG_Id::INVALID; }
 
