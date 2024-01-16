@@ -1760,8 +1760,9 @@ static void VulkanCreateDXCCompileBatchFiles(
 
 // Quick and dirty way to get the location of the entrypoint in the source
 // NOTE: Preprocessed shaders have mcros resolves and comments removed, it makes this easier...
-static FString ParseEntrypointDecl(FStringView PreprocessedShader, FStringView Entrypoint)
+static FString ParseEntrypointDecl(FShaderSource::FViewType PreprocessedShader, FStringView Entrypoint)
 {
+	FShaderSource::FStringType EntrypointConverted(Entrypoint);
 	auto SkipWhitespace = [&](int32& Index)
 	{
 		while (FChar::IsWhitespace(PreprocessedShader[Index]))
@@ -1786,14 +1787,14 @@ static FString ParseEntrypointDecl(FStringView PreprocessedShader, FStringView E
 	FString EntryPointDecl;
 
 	// Go through all the case sensitive matches in the source
-	int32 EntrypointIndex = PreprocessedShader.Find(Entrypoint);
+	int32 EntrypointIndex = PreprocessedShader.Find(EntrypointConverted);
 	check(EntrypointIndex != INDEX_NONE);
 	while (EntrypointIndex != INDEX_NONE)
 	{
 		// This should be the beginning of a new word
 		if ((EntrypointIndex == 0) || !FChar::IsWhitespace(PreprocessedShader[EntrypointIndex - 1]))
 		{
-			EntrypointIndex = PreprocessedShader.Find(Entrypoint, EntrypointIndex + 1);
+			EntrypointIndex = PreprocessedShader.Find(EntrypointConverted, EntrypointIndex + 1);
 			continue;
 		}
 
@@ -1802,38 +1803,38 @@ static FString ParseEntrypointDecl(FStringView PreprocessedShader, FStringView E
 
 		int32 ParamsStart = EntrypointIndex + Entrypoint.Len();
 		SkipWhitespace(ParamsStart);
-		if (PreprocessedShader[ParamsStart] != TEXT('('))
+		if (PreprocessedShader[ParamsStart] != '(')
 		{
-			EntrypointIndex = PreprocessedShader.Find(Entrypoint, ParamsStart);
+			EntrypointIndex = PreprocessedShader.Find(EntrypointConverted, ParamsStart);
 			continue;
 		}
 
-		int32 ParamsEnd = PreprocessedShader.Find(TEXT(")"), ParamsStart+1);
+		int32 ParamsEnd = PreprocessedShader.Find(SHADER_SOURCE_LITERAL(")"), ParamsStart + 1);
 		check(ParamsEnd != INDEX_NONE);
 		if (ParamsEnd == INDEX_NONE)
 		{
 			// Suspicious
-			EntrypointIndex = PreprocessedShader.Find(Entrypoint, ParamsStart);
+			EntrypointIndex = PreprocessedShader.Find(EntrypointConverted, ParamsStart);
 			continue;
 		}
 
 		// Make sure to grab everything up to the function content
 
 		int32 DeclEnd = ParamsEnd + 1;
-		while (PreprocessedShader[DeclEnd] != TEXT('{') && (PreprocessedShader[DeclEnd] != TEXT(';')))
+		while (PreprocessedShader[DeclEnd] != '{' && (PreprocessedShader[DeclEnd] != ';'))
 		{
 			++DeclEnd;
 		}
-		if (PreprocessedShader[DeclEnd] != TEXT('{'))
+		if (PreprocessedShader[DeclEnd] != '{')
 		{
-			EntrypointIndex = PreprocessedShader.Find(Entrypoint, DeclEnd);
+			EntrypointIndex = PreprocessedShader.Find(EntrypointConverted, DeclEnd);
 			continue;
 		}
 
 		// Now back up to pick up the return value, the attributes and everything else that can come with it, like "[numthreads(1,1,1)]"
 
 		int32 DeclBegin = EntrypointIndex - 1;
-		while ( (DeclBegin > 0) && (PreprocessedShader[DeclBegin] != TEXT(';')) && (PreprocessedShader[DeclBegin] != TEXT('}')))
+		while ( (DeclBegin > 0) && (PreprocessedShader[DeclBegin] != ';') && (PreprocessedShader[DeclBegin] != '}'))
 		{
 			--DeclBegin;
 		}
@@ -1850,7 +1851,7 @@ static FString ParseEntrypointDecl(FStringView PreprocessedShader, FStringView E
 
 uint8 ParseWaveSize(
 	const FVulkanShaderCompilerInternalState& InternalState,
-	FStringView PreprocessedShader
+	FShaderSource::FViewType PreprocessedShader
 	)
 {
 	uint8 WaveSize = 0;
@@ -1902,7 +1903,7 @@ uint8 ParseWaveSize(
 
 static bool CompileWithShaderConductor(
 	const FVulkanShaderCompilerInternalState& InternalState,
-	FStringView PreprocessedShader,
+	FShaderSource::FViewType PreprocessedShader,
 	VulkanShaderCompilerSerializedOutput& SerializedOutput,
 	FShaderCompilerOutput&	Output
 )
@@ -2264,7 +2265,7 @@ static void UpdateBindlessUBs(const FVulkanShaderCompilerInternalState& Internal
 
 static bool CompileShaderGroup(
 	FVulkanShaderCompilerInternalState& InternalState,
-	const FString& OriginalPreprocessedShaderSource,
+	const FShaderSource::FStringType& OriginalPreprocessedShaderSource,
 	FShaderCompilerOutput& MergedOutput
 )
 {
@@ -2282,7 +2283,7 @@ static bool CompileShaderGroup(
 		const bool bIsClosestHit = (HitGroupShaderType == FVulkanShaderCompilerInternalState::EHitGroupShaderType::ClosestHit);
 		FShaderCompilerOutput& PartialOutput = bIsClosestHit ? MergedOutput : TempOutput;
 
-		FStringView OrigSourceView(OriginalPreprocessedShaderSource);
+		FShaderSource::FViewType OrigSourceView(OriginalPreprocessedShaderSource);
 		FShaderSource PartialPreprocessedShaderSource(OrigSourceView);
 		UE::ShaderCompilerCommon::RemoveDeadCode(PartialPreprocessedShaderSource, InternalState.GetEntryPointName(), PartialOutput.Errors);
 
@@ -2446,17 +2447,26 @@ void CompileVulkanShader(const FShaderCompilerInput& Input, const FShaderPreproc
 
 	bool bSuccess = false;
 
+#if SHADER_SOURCE_ANSI
+	// Convert to ANSI prior to calling into ShaderConductor. This copy would have been incurred
+	// by SC itself anyways, but would (will?) also be unnecessary if (when) shader parameter parser
+	// is modified to operate on ANSI strings.
+	const FShaderSource::FStringType PreprocessedSourceToCompile(PreprocessedSource);
+#else
+	const FShaderSource::FStringType& PreprocessedSourceToCompile = PreprocessedSource;
+#endif
+
 #if PLATFORM_MAC || PLATFORM_WINDOWS || PLATFORM_LINUX
 	// HitGroup shaders might have multiple entrypoints that we combine into a single blob
 	if (InternalState.HasMultipleEntryPoints())
 	{
-		bSuccess = CompileShaderGroup(InternalState, PreprocessedSource, Output);
+		bSuccess = CompileShaderGroup(InternalState, PreprocessedSourceToCompile, Output);
 	}
 	else
 	{
 		// Compile regular shader via ShaderConductor (DXC)
 		VulkanShaderCompilerSerializedOutput SerializedOutput;
-		bSuccess = CompileWithShaderConductor(InternalState, PreprocessedSource, SerializedOutput, Output);
+		bSuccess = CompileWithShaderConductor(InternalState, PreprocessedSourceToCompile, SerializedOutput, Output);
 
 		if (InternalState.bUseBindlessUniformBuffer)
 		{

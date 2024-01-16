@@ -6,7 +6,7 @@
 
 #include "Containers/UnrealString.h"
 #include "Misc/EnumClassFlags.h"
-#include "ShaderPreprocessTypes.h"
+#include "ShaderSource.h"
 
 namespace UE::ShaderMinifier
 {

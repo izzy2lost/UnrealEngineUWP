@@ -70,16 +70,28 @@ public:
 
 	FAnsiStringView GetSourceViewAnsi() const
 	{
+#if SHADER_SOURCE_ANSI
+		return PreprocessedSource.GetView();
+#else
 		if (AnsiSource.IsEmpty())
 		{
 			AnsiSource = FAnsiString(PreprocessedSource.GetView());
 		}
 		return FAnsiStringView(AnsiSource);
+#endif
 	}
 
 	FStringView GetSourceViewWide() const
 	{
+#if SHADER_SOURCE_ANSI
+		if (WideSource.IsEmpty())
+		{
+			WideSource = FString(PreprocessedSource.GetView());
+		}
+		return FStringView(WideSource);
+#else
 		return PreprocessedSource.GetView();
+#endif
 	}
 
 	UE_DEPRECATED(5.4, "Use GetUnstrippedSourceView")
@@ -94,7 +106,25 @@ public:
 	{
 		// if the unstripped source is requested, check if the "original source" field has been populated
 		// if not then stripping hasn't occurred so there's only one preprocessed source; return it
+#if SHADER_SOURCE_ANSI
+		if (OriginalPreprocessedSource.IsEmpty())
+		{
+			return FStringView(WideSource);
+		}
+		else
+		{
+			if (WideSourceUnstripped.IsEmpty())
+			{
+				// convert and store wide version of unstripped source if view is requested. 
+				// this is only called in debug paths (a particular case of shader debug dumps,
+				// and visualizing shader source in the editor) so the overhead doesn't matter.
+				WideSourceUnstripped = FString(OriginalPreprocessedSource.GetView());
+			}
+			return FStringView(WideSourceUnstripped);
+		}
+#else
 		return OriginalPreprocessedSource.IsEmpty() ? PreprocessedSource.GetView() : OriginalPreprocessedSource.GetView();
+#endif
 	}
 
 	FShaderSource& EditSource()
@@ -235,8 +265,15 @@ private:
 	// Set by Finalize; original preprocessed source as set by IShaderFormat::PreprocessShader
 	FShaderSource OriginalPreprocessedSource;
 
+#if SHADER_SOURCE_ANSI
+	// Set when GetSourceViewWide or GetUnstrippedSourceView accessors are called (if source is ANSI)
+	// Mutable so we can maintain const correctness in the API otherwise.
+	mutable FString WideSource;
+	mutable FString WideSourceUnstripped;
+#else
 	// Set when GetSourceViewAnsi is called (if source is wide)
 	mutable FAnsiString AnsiSource;
+#endif
 
 	// Array of errors encountered in preprocessing; should be populated by IShaderFormat::PreprocessShader
 	TArray<FShaderCompilerError> Errors;

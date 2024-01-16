@@ -16,12 +16,14 @@ void FShaderSource::Set(FShaderSource::FViewType InSrc, int32 AdditionalSlack)
 	FMemory::Memcpy(SourceData, InSrc.GetData(), sizeof(FShaderSource::CharType) * InSrc.Len());
 }
 
+#if !SHADER_SOURCE_ANSI
 void FShaderSource::Set(FAnsiStringView InSrc)
 {
 	TStringConvert<ANSICHAR, TCHAR> Convert;
 	SetLen(InSrc.Len());
 	Convert.Convert(Source.GetData(), Source.Num(), InSrc.GetData(), InSrc.Len());
 }
+#endif
 
 FShaderSource& FShaderSource::operator=(FShaderSource::FStringType&& InSrc)
 {

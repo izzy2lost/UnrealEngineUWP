@@ -7,8 +7,15 @@
 #include "Containers/StringView.h"
 #include "Containers/UnrealString.h"
 
+#define SHADER_SOURCE_ANSI 1
+
+#if SHADER_SOURCE_ANSI
+#define SHADER_SOURCE_LITERAL(S) S
+#define SHADER_SOURCE_VIEWLITERAL(S) ANSITEXTVIEW(S)
+#else
 #define SHADER_SOURCE_LITERAL(S) TEXT(S)
 #define SHADER_SOURCE_VIEWLITERAL(S) TEXTVIEW(S)
+#endif
 
 /* Class used in shader compilation pipelines which wraps source code and ensures sufficient padding such that 16-byte wide SIMD
  * operations on the source are guaranteed to read valid memory even if starting from the last character.
@@ -23,10 +30,17 @@ private:
 	}
 
 public:
+#if SHADER_SOURCE_ANSI
+	typedef ANSICHAR CharType;
+	typedef FAnsiStringView FViewType;
+	typedef FAnsiString FStringType;
+	typedef FCStringAnsi FCStringType;
+#else
 	typedef TCHAR CharType;
 	typedef FStringView FViewType;
 	typedef FString FStringType;
 	typedef FCString FCStringType;
+#endif
 
 	/** Constexpr predicate indicating whether wide or ansi chars are used */
 	static constexpr bool IsWide() { return sizeof(CharType) == 2; }
@@ -43,7 +57,7 @@ public:
 	 * @param InSrc The source string to be copied
 	 * @param AdditionalSlack optional additional space to allocate; this is on top of the automatic padding.
 	 */
-	RENDERCORE_API FShaderSource(FViewType InSrc, int32 AdditionalSlack = 0);
+	RENDERCORE_API explicit FShaderSource(FViewType InSrc, int32 AdditionalSlack = 0);
 
 	/* Set the given string as the contents of this shader source object. The inner allocation will grow to fit
 	 * the string contents as needed.
@@ -52,12 +66,14 @@ public:
 	 * @param AdditionalSlack optional additional space to allocate; this is on top of the automatic padding.
 	 */
 	RENDERCORE_API void Set(FViewType InSrc, int32 AdditionalSlack = 0);
-
+#if !SHADER_SOURCE_ANSI
 	/* Set the given ANSI string as the contents of this shader source object. The inner allocation will grow to fit
 	 * the string contents as needed. Note that this will incur a conversion to TCHAR and memcpy of the string contents.
+	 * Note that this is only needed if SHADER_SOURCE_ANSI is 0; redundant with Set function accepting a FViewType otherwise.
 	 * @param InSrc The source ANSI string to be copied
 	 */
 	RENDERCORE_API void Set(FAnsiStringView InSrc);
+#endif
 
 	/* Move assignment operator accepting a string object. This will append padding bytes to the existing string, as such it's
 	 * best if there's sufficient extra capacity in the string storage to avoid incurring a realloc-and-copy here.
@@ -102,7 +118,11 @@ public:
 	friend FArchive& operator<<(FArchive& Ar, FShaderSource& ShaderSource);
 	
 private:
-
+#if SHADER_SOURCE_ANSI
+	static constexpr int32 ShaderSourceSimdPadding = 15;
+#else
 	static constexpr int32 ShaderSourceSimdPadding = 7;
+#endif
 	TArray<CharType> Source;
 };
+

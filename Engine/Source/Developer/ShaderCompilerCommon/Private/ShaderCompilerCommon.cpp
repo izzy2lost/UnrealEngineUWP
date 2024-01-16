@@ -467,7 +467,20 @@ bool UE::ShaderCompilerCommon::RemoveDeadCode(FShaderSource& InOutPreprocessedSh
 	           |  UE::ShaderMinifier::EMinifyShaderFlags::OutputStats;  // Output a comment detailing how many blocks of each type (functions/structs/etc.) were emitted
 #endif
 
-	UE::ShaderMinifier::FMinifiedShader Minified = UE::ShaderMinifier::Minify(InOutPreprocessedShaderSource, InRequiredSymbols,
+#if SHADER_SOURCE_ANSI
+	TArray<FShaderSource::FStringType> ConvertedRequiredSymbols;
+	TArray<FShaderSource::FViewType> RequiredSymbolViews;
+	for (FStringView InSymbol : InRequiredSymbols)
+	{
+		FShaderSource::FStringType& ConvertedString = ConvertedRequiredSymbols.AddDefaulted_GetRef();
+		ConvertedString.Append(InSymbol);
+		RequiredSymbolViews.Add(FShaderSource::FViewType(ConvertedString));
+	}
+#else
+	TConstArrayView<FStringView> RequiredSymbolViews = InRequiredSymbols;
+#endif
+
+	UE::ShaderMinifier::FMinifiedShader Minified  = UE::ShaderMinifier::Minify(InOutPreprocessedShaderSource, RequiredSymbolViews,
 		  UE::ShaderMinifier::EMinifyShaderFlags::OutputCommentLines // Preserve comments that were left after preprocessing
 		| UE::ShaderMinifier::EMinifyShaderFlags::OutputLines        // Emit #line directives
 		| ExtraFlags);
