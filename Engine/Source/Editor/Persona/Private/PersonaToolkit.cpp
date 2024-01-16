@@ -76,6 +76,11 @@ void FPersonaToolkit::Initialize(UAnimationAsset* InAnimationAsset, const FPerso
 	FindCounterpartAssets(InAnimationAsset, Skeleton, Mesh);
 
 	CommonInitialSetup(PersonaToolkitArgs);
+
+	if (AnimationAsset != nullptr)
+	{
+		PreviewScene->SetPreviewAnimationAsset(AnimationAsset);
+	}
 }
 
 void FPersonaToolkit::Initialize(USkeletalMesh* InSkeletalMesh, const FPersonaToolkitArgs& PersonaToolkitArgs)
@@ -138,6 +143,12 @@ void FPersonaToolkit::CreatePreviewScene(const FPersonaToolkitArgs& PersonaToolk
 		}
 
 		PreviewScene = MakeShareable(new FAnimationEditorPreviewScene(FPreviewScene::ConstructionValues().AllowAudioPlayback(true).ShouldSimulatePhysics(true), EditableSkeleton, AsShared()));
+
+		PreviewScene->SetIsBeingConstructed(true);
+		ON_SCOPE_EXIT
+		{
+			PreviewScene->SetIsBeingConstructed(false);
+		};
 
 		//Temporary fix for missing attached assets - MDW
 		PreviewScene->GetWorld()->GetWorldSettings()->SetIsTemporarilyHiddenInEditor(false);
