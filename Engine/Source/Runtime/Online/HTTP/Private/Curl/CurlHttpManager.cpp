@@ -453,6 +453,11 @@ void FCurlHttpManager::UpdateConfigs()
 FHttpThreadBase* FCurlHttpManager::CreateHttpThread()
 {
 	bool bUseEventLoop = (FMath::RandRange(0, 99) < CVarCurlEventLoopEnableChance.GetValueOnGameThread());
+
+	// Also support to change it through runtime args.
+	// Can't set cvar CVarCurlEventLoopEnableChance through runtime args or .ini files because http module initialized too early
+	FParse::Bool(FCommandLine::Get(), TEXT("useeventloop="), bUseEventLoop);
+
 	if (bUseEventLoop)
 	{
 #if WITH_CURL_MULTIPOLL
