@@ -615,6 +615,7 @@ class UAnimMontage : public UAnimCompositeBase
 	GENERATED_UCLASS_BODY()
 
 	friend struct FAnimMontageInstance;
+	friend class UAnimMontageFactory;
 	
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = BlendOption)
 	EMontageBlendMode BlendModeIn;
