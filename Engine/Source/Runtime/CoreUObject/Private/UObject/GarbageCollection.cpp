@@ -4145,7 +4145,9 @@ public:
 		FMarkRootsState MarkRootsState;		
 
 		{
+			GRootsCritical.Lock();
 			TArray<int32> RootsArray(GRoots.Array());				
+			GRootsCritical.Unlock();
 			MarkRootsState.Start(Options, RootsArray.Num());
 			FMarkRootsState::FThreadIterators& ThreadIterators = MarkRootsState.GetThreadIterators();
 
