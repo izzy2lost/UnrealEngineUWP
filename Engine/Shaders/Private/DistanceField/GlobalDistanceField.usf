@@ -26,42 +26,49 @@
 	#define THREADGROUP_SIZE_Z 1
 #endif
 
-struct FPackedClipmap
+// Must match FPackedClipmapData in GlobalDistanceField.cpp
+struct FPackedClipmapData
 {
-	float3 TranslatedWorldCenter;
-	float3 WorldExtent;
-	float3 ViewTilePosition;
-	float3 RelativePreViewTranslation;
+	float3 TranslatedWorldCenter; // Camera-centered world space
+	float MeshSDFRadiusThreshold;	
 
-	bool bReadbackHasPendingStreaming;
-	uint ClipmapIndex; // Global index
-	float MeshSDFRadiusThreshold;
+	float3 WorldExtent;
 	float InfluenceRadiusSq;
+
+	uint ClipmapIndex; 
+	uint Flags;
+	uint Padding0;
+	uint Padding1;	
 };
 
-// Keep in sync with GlobalDistanceField::PackedClipmapBufferStride
-#define PACKED_CLIPMAP_BUFFER_STRIDE 4
-StructuredBuffer<float4> PackedClipmapBuffer;
+struct FPackedClipmap
+{
+	float3 TranslatedWorldCenter; // Camera-centered world space
+	float3 WorldExtent;
+
+	float MeshSDFRadiusThreshold;
+	float InfluenceRadiusSq;
+
+	uint ClipmapIndex; // Global index
+	bool bReadbackHasPendingStreaming;
+};
+
+StructuredBuffer<FPackedClipmapData> PackedClipmapBuffer;
 
 FPackedClipmap GetPackedClipmap(uint PackedClipmapIndex)
 {
-	uint BaseOffset = PACKED_CLIPMAP_BUFFER_STRIDE * PackedClipmapIndex;
+	FPackedClipmapData ClipmapData = PackedClipmapBuffer[PackedClipmapIndex];
 
 	FPackedClipmap PackedClipmap;
 
-	const float4 V0 = PackedClipmapBuffer[BaseOffset + 0];
-	const float4 V1 = PackedClipmapBuffer[BaseOffset + 1];
-	const float4 V2 = PackedClipmapBuffer[BaseOffset + 2];
-	const float4 V3 = PackedClipmapBuffer[BaseOffset + 3];
+	PackedClipmap.TranslatedWorldCenter = ClipmapData.TranslatedWorldCenter;
+	PackedClipmap.WorldExtent = ClipmapData.WorldExtent;
 
-	PackedClipmap.TranslatedWorldCenter = V0.xyz;
-	PackedClipmap.MeshSDFRadiusThreshold = V0.w;
-	PackedClipmap.WorldExtent = V1.xyz;
-	PackedClipmap.InfluenceRadiusSq = V1.w;
-	PackedClipmap.ViewTilePosition = V2.xyz;
-	PackedClipmap.bReadbackHasPendingStreaming = V2.w > 0.0f;
-	PackedClipmap.RelativePreViewTranslation = V3.xyz;
-	PackedClipmap.ClipmapIndex = V3.w;
+	PackedClipmap.MeshSDFRadiusThreshold = ClipmapData.MeshSDFRadiusThreshold;
+	PackedClipmap.InfluenceRadiusSq = ClipmapData.InfluenceRadiusSq;
+
+	PackedClipmap.ClipmapIndex = ClipmapData.ClipmapIndex;
+	PackedClipmap.bReadbackHasPendingStreaming = ClipmapData.Flags != 0;
 
 	return PackedClipmap;
 }
@@ -82,9 +89,10 @@ RWStructuredBuffer<uint> RWObjectIndexNumBuffer;
 
 RWStructuredBuffer<uint> RWHasPendingStreaming;
 
-float3 ClipmapTranslatedWorldCenter;
-float3 ClipmapWorldExtent;
-float InfluenceRadius;
+
+float3 ViewTilePosition;
+float3 RelativePreViewTranslation;
+
 // 0: accept only mostly static objects, 1: accept only often moving objects, 2: accept all objects
 uint AcceptOftenMovingObjectsOnly;
 uint NumPackedClipmaps;
@@ -105,15 +113,16 @@ void CullObjectsToClipmapCS(
 
 		if (bMatchingMobility && bVisible)
 		{
+			const FLWCVector3 PreViewTranslation = MakeLWCVector3(-ViewTilePosition, RelativePreViewTranslation);
+			const float3 TranslatedWorldObjectBoundsCenter = LWCToFloat(LWCAdd(DFObjectBounds.Center, PreViewTranslation));
+
 			for (uint PackedClipmapIndex = 0; PackedClipmapIndex < NumPackedClipmaps; ++PackedClipmapIndex)
 			{
 				FPackedClipmap Clipmap = GetPackedClipmap(PackedClipmapIndex);
 
 				if (DFObjectBounds.SphereRadius > Clipmap.MeshSDFRadiusThreshold || DFObjectBounds.bEmissiveLightSource)
 				{
-					const FLWCVector3 PreViewTranslation = MakeLWCVector3(-Clipmap.ViewTilePosition, Clipmap.RelativePreViewTranslation);
-					const float3 TranslatedBoundsCenter = LWCToFloat(LWCAdd(DFObjectBounds.Center, PreViewTranslation));
-					float DistanceSq = ComputeSquaredDistanceBetweenAABBs(Clipmap.TranslatedWorldCenter, Clipmap.WorldExtent, TranslatedBoundsCenter, DFObjectBounds.BoxExtent);
+					float DistanceSq = ComputeSquaredDistanceBetweenAABBs(Clipmap.TranslatedWorldCenter, Clipmap.WorldExtent, TranslatedWorldObjectBoundsCenter, DFObjectBounds.BoxExtent);
 
 					if (DistanceSq < Clipmap.InfluenceRadiusSq)
 					{
@@ -349,8 +358,6 @@ float3 InvPageGridResolution;
 float3 PageWorldExtent;
 float PageWorldRadius;
 float ClipmapInfluenceRadius;
-float3 ViewTilePosition;
-float3 RelativePreViewTranslation;
 
 RWStructuredBuffer<uint> RWPageComposeTileBuffer;
 

@@ -410,9 +410,6 @@ namespace GlobalDistanceField
 	// Every distance field page stores 4^3 object grid cells with 4 * uint32 elements per cell
 	const int32 ObjectGridPageBufferStride = 4 * sizeof(uint32);
 	const int32 ObjectGridPageBufferNumElementsPerPage = 4 * 4 * 4;
-
-	// Keep in sync with PACKED_CLIPMAP_BUFFER_STRIDE
-	const int32 PackedClipmapBufferStride = 4;
 }
 const int32 GGlobalDistanceFieldPageResolutionInAtlas = 8; // Includes 0.5 texel trilinear filter margin
 const int32 GGlobalDistanceFieldCoveragePageResolutionInAtlas = 4; // Includes 0.5 texel trilinear filter margin
@@ -1412,6 +1409,8 @@ class FCullObjectsToClipmapCS : public FGlobalShader
 		SHADER_PARAMETER(uint32, AcceptOftenMovingObjectsOnly)
 		SHADER_PARAMETER(uint32, NumPackedClipmaps)
 		SHADER_PARAMETER(uint32, ObjectIndexBufferStride)
+		SHADER_PARAMETER(FVector3f, ViewTilePosition)
+		SHADER_PARAMETER(FVector3f, RelativePreViewTranslation)
 	END_SHADER_PARAMETER_STRUCT()
 
 	class FReadbackHasPendingStreaming : SHADER_PERMUTATION_BOOL("READBACK_HAS_PENDING_STREAMING");
@@ -2361,17 +2360,23 @@ void UpdateGlobalDistanceFieldCache(
 		// Upload packed clipmap data to GPU
 		FRDGBufferRef PackedClipmapBuffer = nullptr;
 		{
-			TArray<FVector4f> UploadData;
+			// Must match FPackedClipmapData in GlobalDistanceField.usf
+			struct FPackedClipmapData
+			{
+				FVector3f TranslatedWorldCenter; // Camera-centered world space
+				float MeshSDFRadiusThreshold;
 
-			if (PackedClipmaps.Num() > 0)
-			{
-				UploadData.SetNum(GlobalDistanceField::PackedClipmapBufferStride * PackedClipmaps.Num());
-			}
-			else
-			{
-				// Create a dummy entry filled with 0 in order to be able to create a dummy PackedClipmapBuffer resource
-				UploadData.SetNumZeroed(GlobalDistanceField::PackedClipmapBufferStride);
-			}
+				FVector3f WorldExtent;
+				float InfluenceRadiusSq;
+
+				uint32 ClipmapIndex;
+				uint32 Flags;
+				uint32 Padding0;
+				uint32 Padding1;
+			};
+
+			TArray<FPackedClipmapData> UploadData;
+			UploadData.SetNum(FMath::Max(PackedClipmaps.Num(), 1));
 
 			for (int32 PackedClipmapIndex = 0; PackedClipmapIndex < PackedClipmaps.Num(); ++PackedClipmapIndex)
 			{
@@ -2380,10 +2385,22 @@ void UpdateGlobalDistanceFieldCache(
 				const float RadiusThresholdScale = bLumenEnabled ? 1.0f / FMath::Clamp(View.FinalPostProcessSettings.LumenSceneDetail, .01f, 100.0f) : 1.0f;
 				const float MeshSDFRadiusThreshold = GetMinMeshSDFRadius(PackedClipmap.VoxelSize.X) * RadiusThresholdScale;
 
-				UploadData[PackedClipmapIndex * GlobalDistanceField::PackedClipmapBufferStride + 0] = FVector4f((FVector3f)PackedClipmap.TranslatedBounds.GetCenter(), MeshSDFRadiusThreshold);
-				UploadData[PackedClipmapIndex * GlobalDistanceField::PackedClipmapBufferStride + 1] = FVector4f((FVector3f)PackedClipmap.TranslatedBounds.GetExtent(), PackedClipmap.InfluenceRadius * PackedClipmap.InfluenceRadius);
-				UploadData[PackedClipmapIndex * GlobalDistanceField::PackedClipmapBufferStride + 2] = FVector4f(PackedClipmap.ViewTilePosition, PackedClipmap.bRecacheClipmapsWithPendingStreaming ? 1.0f : 0.0f);
-				UploadData[PackedClipmapIndex * GlobalDistanceField::PackedClipmapBufferStride + 3] = FVector4f(PackedClipmap.RelativePreViewTranslation, PackedClipmap.Index);
+				// Camera-centered world space
+				const FGlobalDistanceFieldClipmap& Clipmap = Clipmaps[PackedClipmap.Index];
+				const FVector TranslatedWorldCenter = Clipmap.Bounds.GetCenter() + View.ViewMatrices.GetPreViewTranslation();
+
+				FPackedClipmapData& ClipmapData = UploadData[PackedClipmapIndex];
+
+				ClipmapData.TranslatedWorldCenter = (FVector3f)TranslatedWorldCenter;
+				ClipmapData.MeshSDFRadiusThreshold = MeshSDFRadiusThreshold;
+
+				ClipmapData.WorldExtent = (FVector3f)PackedClipmap.TranslatedBounds.GetExtent();
+				ClipmapData.InfluenceRadiusSq = PackedClipmap.InfluenceRadius * PackedClipmap.InfluenceRadius;
+
+				ClipmapData.ClipmapIndex = PackedClipmap.Index;
+				ClipmapData.Flags = PackedClipmap.bRecacheClipmapsWithPendingStreaming ? 1u : 0u;
+				ClipmapData.Padding0 = 0;
+				ClipmapData.Padding1 = 0;
 			}
 
 			PackedClipmapBuffer =
@@ -2418,6 +2435,11 @@ void UpdateGlobalDistanceFieldCache(
 			PassParameters->ObjectIndexBufferStride = ObjectIndexBufferStride;
 			PassParameters->DistanceFieldObjectBuffers = DistanceFieldObjectBuffers;
 			PassParameters->DistanceFieldAtlasParameters = DistanceFieldAtlas;
+
+			const FLargeWorldRenderPosition AbsoluteViewOrigin(View.ViewMatrices.GetViewOrigin());
+			const FVector ViewTileOffset = AbsoluteViewOrigin.GetTileOffset();
+			PassParameters->RelativePreViewTranslation = FVector3f(View.ViewMatrices.GetPreViewTranslation() + ViewTileOffset);
+			PassParameters->ViewTilePosition = AbsoluteViewOrigin.GetTile();
 
 			FCullObjectsToClipmapCS::FPermutationDomain PermutationVector;
 			PermutationVector.Set<FCullObjectsToClipmapCS::FReadbackHasPendingStreaming>(bAnyClipmapHasPendingStreamingReadback);
