@@ -410,7 +410,37 @@ void FD3D12Viewport::Resize(uint32 InSizeX, uint32 InSizeY, bool bInIsFullscreen
 		CustomPresent->OnBackBufferResize();
 	}
 
+	bool bWaitForBackBuffersUAVDelete = false;
 	// Release our backbuffer reference, as required by DXGI before calling ResizeBuffers.
+	for (uint32 i = 0; i < NumBackBuffers; ++i)
+	{
+		if (IsValidRef(BackBuffersUAV[i]))
+		{
+			bWaitForBackBuffersUAVDelete = true;
+			// Tell the back buffer to delete immediately so that we can call resize.
+			if (BackBuffersUAV[i]->GetRefCount() != 1)
+			{
+				UE_LOG(LogD3D12RHI, Log, TEXT("Backbuffer %d leaking with %d refs during Resize."), i, BackBuffersUAV[i]->GetRefCount());
+			}
+			check(BackBuffersUAV[i]->GetRefCount() == 1);
+
+			for (FD3D12UnorderedAccessView& Uav : *BackBuffersUAV[i])
+			{
+				Uav.GetResource()->DoNotDeferDelete();
+			}
+		}
+
+		BackBuffersUAV[i].SafeRelease();
+		check(BackBuffersUAV[i] == nullptr);
+	}
+
+	if (bWaitForBackBuffersUAVDelete)
+	{
+		// The D3D12 UAV releases don't happen immediately, but are pushed to a delete queue processed on the RHI Thread. We need to ensure these are processed before releasing the swapchain buffers
+        // Calling FlushRenderingCommands is enough because it calls ImmediateFlush(EImmediateFlushType::FlushRHIThreadFlushResources) / ImmediateFlush(EImmediateFlushType::FlushRHIThread) internally
+		FlushRenderingCommands();
+	}
+
 	for (uint32 i = 0; i < NumBackBuffers; ++i)
 	{
 		if (IsValidRef(BackBuffers[i]))
@@ -427,27 +457,9 @@ void FD3D12Viewport::Resize(uint32 InSizeX, uint32 InSizeY, bool bInIsFullscreen
 				Tex.GetResource()->DoNotDeferDelete();
 			}
 		}
-		
+
 		BackBuffers[i].SafeRelease();
 		check(BackBuffers[i] == nullptr);
-
-		if (IsValidRef(BackBuffersUAV[i]))
-		{
-			// Tell the back buffer to delete immediately so that we can call resize.
-			if (BackBuffersUAV[i]->GetRefCount() != 1)
-			{
-				UE_LOG(LogD3D12RHI, Log, TEXT("Backbuffer %d leaking with %d refs during Resize."), i, BackBuffersUAV[i]->GetRefCount());
-			}
-			check(BackBuffersUAV[i]->GetRefCount() == 1);
-
-			for (FD3D12UnorderedAccessView& Uav : *BackBuffersUAV[i])
-			{
-				Uav.GetResource()->DoNotDeferDelete();
-			}
-		}
-
-		BackBuffersUAV[i].SafeRelease();
-		check(BackBuffersUAV[i] == nullptr);
 
 		if (IsValidRef(SDRBackBuffers[i]))
 		{
