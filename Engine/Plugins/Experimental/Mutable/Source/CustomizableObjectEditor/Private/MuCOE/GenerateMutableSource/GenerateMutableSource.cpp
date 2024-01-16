@@ -1124,6 +1124,7 @@ mu::NodeObjectPtr GenerateMutableSource(const UEdGraphPin * Pin, FMutableGraphGe
 		const int32 TotalNumChildren = NumChildren + ExternalChildNodes.Num();
 
 		GroupNode->SetChildCount(TotalNumChildren);
+		GroupNode->SetDefaultValue(Type == mu::NodeObjectGroup::CS_ONE_OR_NONE ? -1 : 0);
 		int32 ChildIndex = 0;
 
 		// UI data
@@ -1145,12 +1146,13 @@ mu::NodeObjectPtr GenerateMutableSource(const UEdGraphPin * Pin, FMutableGraphGe
 			UCustomizableObjectNodeObject* CustomizableObjectNodeObject = Cast<UCustomizableObjectNodeObject>(ConnectedChildrenPins[ChildIndex]->GetOwningNode());
 
 			FString* SelectedOptionName = GenerationContext.ParamNamesToSelectedOptions.Find(TypedNodeGroup->GroupName); // If the param is in the map restrict to only the selected option
+			mu::NodeObjectPtr ChildNode = nullptr;
 
 			if (bConnectAtLeastTheLastChild || !SelectedOptionName || *SelectedOptionName == CustomizableObjectNodeObject->ObjectName)
 			{
 				bAtLeastOneConnected = true;
 
-				mu::NodeObjectPtr ChildNode = GenerateMutableSource(ConnectedChildrenPins[ChildIndex], GenerationContext, bPartialCompilation);
+				ChildNode = GenerateMutableSource(ConnectedChildrenPins[ChildIndex], GenerationContext, bPartialCompilation);
 				GroupNode->SetChild(ChildIndex, ChildNode.get());
 
 				if (CustomizableObjectNodeObject)
@@ -1171,9 +1173,16 @@ mu::NodeObjectPtr GenerateMutableSource(const UEdGraphPin * Pin, FMutableGraphGe
 			}
 			else
 			{
-				mu::NodeObjectPtr ChildNode = new mu::NodeObjectNew;
+				ChildNode = new mu::NodeObjectNew;
 				ChildNode->SetName(CustomizableObjectNodeObject->ObjectName);
 				GroupNode->SetChild(ChildIndex, ChildNode.get());
+			}
+
+			if ((TypedNodeGroup->GroupType == ECustomizableObjectGroupType::COGT_ONE ||
+				TypedNodeGroup->GroupType == ECustomizableObjectGroupType::COGT_ONE_OR_NONE)
+				&& TypedNodeGroup->DefaultValue == ChildNode->GetName())
+			{
+				GroupNode->SetDefaultValue(ChildIndex);
 			}
 		}
 
@@ -1228,12 +1237,13 @@ mu::NodeObjectPtr GenerateMutableSource(const UEdGraphPin * Pin, FMutableGraphGe
 			UCustomizableObjectNodeObject* CustomizableObjectNodeObject = Cast<UCustomizableObjectNodeObject>(ExternalChildNode->OutputPin()->GetOwningNode());
 
 			FString* SelectedOptionName = GenerationContext.ParamNamesToSelectedOptions.Find(TypedNodeGroup->GroupName); // If the param is in the map restrict to only the selected option
+			mu::NodeObjectPtr ChildNode = nullptr;
 
 			if (bConnectAtLeastTheLastChild || !SelectedOptionName || *SelectedOptionName == CustomizableObjectNodeObject->ObjectName)
 			{
 				bAtLeastOneConnected = true;
 
-				mu::NodeObjectPtr ChildNode = GenerateMutableSource(ExternalChildNode->OutputPin(), GenerationContext, bPartialCompilation);
+				ChildNode = GenerateMutableSource(ExternalChildNode->OutputPin(), GenerationContext, bPartialCompilation);
 				GroupNode->SetChild(ChildIndex, ChildNode.get());
 
 				if (CustomizableObjectNodeObject)
@@ -1259,9 +1269,16 @@ mu::NodeObjectPtr GenerateMutableSource(const UEdGraphPin * Pin, FMutableGraphGe
 			}
 			else
 			{
-				mu::NodeObjectPtr ChildNode = new mu::NodeObjectNew;
+				ChildNode = new mu::NodeObjectNew;
 				ChildNode->SetName(CustomizableObjectNodeObject->ObjectName);
 				GroupNode->SetChild(ChildIndex, ChildNode.get());
+			}
+
+			if ((TypedNodeGroup->GroupType == ECustomizableObjectGroupType::COGT_ONE ||
+				TypedNodeGroup->GroupType == ECustomizableObjectGroupType::COGT_ONE_OR_NONE)
+				&& TypedNodeGroup->DefaultValue == ChildNode->GetName())
+			{
+				GroupNode->SetDefaultValue(ChildIndex);
 			}
 
 			ChildIndex++;

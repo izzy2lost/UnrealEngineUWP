@@ -2124,10 +2124,10 @@ bool SCustomizableInstanceProperties::SetParameterValueToDefault(int32 Parameter
 	}
 	case EMutableParameterType::Int:
 	{
-		int32 IndexValue = CustomObject->GetIntParameterDefaultValue(ParameterName);
-		FString DefaultValue = CustomObject->GetIntParameterAvailableOption(ParameterIndex, IndexValue);
+		int32 DefaultValue = CustomObject->GetIntParameterDefaultValue(ParameterName);
+		FString ValueName = CustomObject->FindIntParameterValueName(ParameterIndex, DefaultValue);
 
-		if (!DefaultValue.IsEmpty())
+		if (!ValueName.IsEmpty())
 		{
 			if (CustomObject->IsParameterMultidimensional(ParameterName))
 			{
@@ -2135,12 +2135,12 @@ bool SCustomizableInstanceProperties::SetParameterValueToDefault(int32 Parameter
 
 				for (int32 RangeIndex = 0; RangeIndex < NumRanges; ++RangeIndex)
 				{
-					CustomInstance->SetIntParameterSelectedOption(ParameterName, DefaultValue, RangeIndex);
+					CustomInstance->SetIntParameterSelectedOption(ParameterName, ValueName, RangeIndex);
 				}
 			}
 			else
 			{
-				CustomInstance->SetIntParameterSelectedOption(ParameterName, DefaultValue);
+				CustomInstance->SetIntParameterSelectedOption(ParameterName, ValueName);
 			}
 		}
 		break;

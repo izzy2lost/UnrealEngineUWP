@@ -90,6 +90,12 @@ namespace mu
 		//! Set a child object node
 		void SetChild( int index, NodeObjectPtr );
 
+		//! Set default value for CS_ONE_OR_NONE or CS_ALWAYS_ONE groups
+		//! the value is the index of the child option in the group
+		//! -1 is the value for the None option.
+		//! 0 is the first child whether or not the NONE option is present.
+		void SetDefaultValue(int32 Value);
+
 		//-----------------------------------------------------------------------------------------
 		// Interface pattern
 		//-----------------------------------------------------------------------------------------

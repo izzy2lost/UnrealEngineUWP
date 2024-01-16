@@ -583,7 +583,7 @@ namespace mu
             op->parameter.m_name = Private->Name;
             op->parameter.m_uid = Private->Uid;
             op->parameter.m_type = PARAMETER_TYPE::T_INT;
-            op->parameter.m_defaultValue.Set<ParamIntType>(-1);
+            op->parameter.m_defaultValue.Set<ParamIntType>(Private->DefaultValue);
 
             if (Private->m_type==NodeObjectGroup::CS_ONE_OR_NONE )
             {
@@ -591,7 +591,6 @@ namespace mu
                 nullValue.m_value = -1;
                 nullValue.m_name = "None";
                 op->parameter.m_possibleValues.Add( nullValue );
-                op->parameter.m_defaultValue.Set<ParamIntType>(nullValue.m_value);
             }
 
             enumOp = op;
@@ -640,12 +639,6 @@ namespace mu
                         value.m_value = (int16)t;
                         value.m_name = pChildNode->GetName();
                         enumOp->parameter.m_possibleValues.Add( value );
-
-                        // Set as default if none has been set.
-                        if ( enumOp->parameter.m_defaultValue.Get<ParamIntType>() == -1 )
-                        {
-                            enumOp->parameter.m_defaultValue.Set<ParamIntType>(t);
-                        }
 
                         check(enumOp);
 

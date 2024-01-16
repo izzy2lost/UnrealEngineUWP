@@ -129,6 +129,10 @@ namespace mu
 		return pLayout;
 	}
 
+	void NodeObjectGroup::SetDefaultValue(int32 Value)
+	{
+		m_pD->DefaultValue = Value;
+	}
 
 }
 

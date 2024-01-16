@@ -28,17 +28,19 @@ namespace mu
 		void SetSelectionType( CHILD_SELECTION );
 
 		TArray<NodeObjectPtr> m_children;
+		int32 DefaultValue;
 
 		//!
 		void Serialise( OutputArchive& arch ) const
 		{
-            uint32_t ver = 2;
+            uint32_t ver = 3;
 			arch << ver;
 
 			arch << m_type;
 			arch << Name;
 			arch << Uid;
 			arch << m_children;
+			arch << DefaultValue;
 		}
 
 		//!
@@ -46,7 +48,7 @@ namespace mu
 		{
             uint32_t ver;
 			arch >> ver;
-            check(ver>=1 && ver<=2);
+            check(ver>=1 && ver<=3);
 
 			arch >> m_type;
 			if (ver <= 1)
@@ -64,6 +66,11 @@ namespace mu
 			}
 
 			arch >> m_children;
+
+			if (ver >= 3)
+			{
+				arch >> DefaultValue;
+			}
 		}
 
 
