@@ -154,7 +154,10 @@ void FLiveLinkHub::OnFrameDataReceived_AnyThread(const FLiveLinkSubjectKey& InSu
 	FrameDataCopy.InitializeWith(InFrameDataStruct);
 
 	const FName OverridenName = GetSubjectNameOverride(InSubjectKey);
-	LiveLinkProvider->UpdateSubjectFrameData(OverridenName, MoveTemp(FrameDataCopy));
+	if (LiveLinkHubClient->IsSubjectEnabled(OverridenName))
+	{
+		LiveLinkProvider->UpdateSubjectFrameData(OverridenName, MoveTemp(FrameDataCopy));
+	}
 }
 
 void FLiveLinkHub::OnSubjectAdded(FLiveLinkSubjectKey InSubjectKey) const
