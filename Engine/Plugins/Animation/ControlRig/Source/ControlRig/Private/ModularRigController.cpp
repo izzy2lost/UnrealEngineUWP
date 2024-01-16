@@ -380,6 +380,12 @@ bool UModularRigController::DisconnectConnector(const FRigElementKey& InConnecto
 		return false;
 	}
 
+	const FRigElementKey ConnectorKey(*ConnectorName, ERigElementType::Connector);
+	if(!Module->Connections.Contains(ConnectorKey))
+	{
+		return false;
+	}
+
 #if WITH_EDITOR
 	TSharedPtr<FScopedTransaction> TransactionPtr;
 	if (bSetupUndo)
@@ -389,7 +395,6 @@ bool UModularRigController::DisconnectConnector(const FRigElementKey& InConnecto
 	}
 #endif 
 
-	const FRigElementKey ConnectorKey(*ConnectorName, ERigElementType::Connector);
 	Module->Connections.Remove(ConnectorKey);
 
 	if (Connector->Settings.Type == EConnectorType::Primary)

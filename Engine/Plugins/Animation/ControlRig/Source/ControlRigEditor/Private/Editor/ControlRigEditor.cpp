@@ -2571,10 +2571,10 @@ void FControlRigEditor::CacheNameLists()
 
 void FControlRigEditor::HandleSchematicViewportCreated(const TSharedRef<SSchematicGraphPanel>& InViewport)
 {
-	InViewport->OnNodeClickedDelegate.BindRaw(&SchematicModel, &FControlRigSchematicModel::HandleSchematicNodeClicked);
-	InViewport->OnBeginDragDelegate.BindRaw(&SchematicModel, &FControlRigSchematicModel::HandleSchematicBeginDrag);
-	InViewport->OnEndDragDelegate.BindRaw(&SchematicModel, &FControlRigSchematicModel::HandleSchematicEndDrag);
-	InViewport->OnDropDelegate.BindRaw(&SchematicModel, &FControlRigSchematicModel::HandleSchematicDrop);
+	InViewport->OnNodeClicked().BindRaw(&SchematicModel, &FControlRigSchematicModel::HandleSchematicNodeClicked);
+	InViewport->OnBeginDrag().BindRaw(&SchematicModel, &FControlRigSchematicModel::HandleSchematicBeginDrag);
+	InViewport->OnEndDrag().BindRaw(&SchematicModel, &FControlRigSchematicModel::HandleSchematicEndDrag);
+	InViewport->OnAcceptDrop().BindRaw(&SchematicModel, &FControlRigSchematicModel::HandleSchematicDrop);
 }
 
 FVector2D FControlRigEditor::ComputePersonaProjectedScreenPos(const FVector& InWorldPos, bool bClampToScreenRectangle)

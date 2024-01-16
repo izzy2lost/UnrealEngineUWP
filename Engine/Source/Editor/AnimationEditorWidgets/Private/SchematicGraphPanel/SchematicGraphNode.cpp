@@ -4,8 +4,19 @@
 
 #include "SchematicGraphPanel/SchematicGraphNode.h"
 #include "SchematicGraphPanel/SchematicGraphModel.h"
+#include <SchematicGraphPanel/SchematicGraphStyle.h>
+#include "Framework/Application/SlateApplication.h"
 
 #define LOCTEXT_NAMESPACE "SchematicGraphNode"
+
+FSchematicGraphNode::FSchematicGraphNode()
+{
+	static const FSlateBrush* BackgroundBrush = FSchematicGraphStyle::Get().GetBrush( "Schematic.Background");
+	static const FSlateBrush* OutlineBrush = FSchematicGraphStyle::Get().GetBrush( "Schematic.Outline.Single");
+	static const FSlateBrush* DotBrush = FSchematicGraphStyle::Get().GetBrush( "Schematic.Dot.Small");
+	Brushes = { BackgroundBrush, OutlineBrush, DotBrush };
+	Colors = { FLinearColor::White * 0.4f, FLinearColor::White, FLinearColor::Blue };
+}
 
 const FSchematicGraphNode* FSchematicGraphNode::GetParentNode() const
 {
@@ -14,6 +25,29 @@ const FSchematicGraphNode* FSchematicGraphNode::GetParentNode() const
 		return Model->FindNode(ParentNodeGuid);
 	}
 	return nullptr;
+}
+
+const FGuid& FSchematicGraphNode::GetRootNodeGuid() const
+{
+	if(const FSchematicGraphNode* ParentNode = GetParentNode())
+	{
+		return ParentNode->GetRootNodeGuid();
+	}
+	return GetGuid();
+}
+
+const FSchematicGraphNode* FSchematicGraphNode::GetRootNode() const
+{
+	if(Model)
+	{
+		return Model->FindNode(GetRootNodeGuid());
+	}
+	return nullptr;
+}
+
+const FSchematicGraphGroupNode* FSchematicGraphNode::GetGroupNode() const
+{
+	return Cast<FSchematicGraphGroupNode>(GetParentNode());
 }
 
 const FSchematicGraphNode* FSchematicGraphNode::GetChildNode(int32 InChildNodeIndex) const
@@ -28,22 +62,151 @@ const FSchematicGraphNode* FSchematicGraphNode::GetChildNode(int32 InChildNodeIn
 	return nullptr;
 }
 
+TOptional<ESchematicGraphVisibility::Type> FSchematicGraphNode::GetVisibilityForChildNode(const FGuid& InChildGuid) const
+{
+	if(Model)
+	{
+		if(const FSchematicGraphNode* ChildNode = Model->FindNode(InChildGuid))
+		{
+			return GetVisibilityForChildNode(ChildNode);
+		}
+	}
+	return TOptional<ESchematicGraphVisibility::Type>();
+}
+
+TOptional<FVector2d> FSchematicGraphNode::GetPositionForChildNode(const FGuid& InChildGuid) const
+{
+	if(Model)
+	{
+		if(const FSchematicGraphNode* ChildNode = Model->FindNode(InChildGuid))
+		{
+			return GetPositionForChildNode(ChildNode);
+		}
+	}
+	return TOptional<FVector2d>();
+}
+
+TOptional<float> FSchematicGraphNode::GetScaleForChildNode(const FGuid& InChildGuid) const
+{
+	if(Model)
+	{
+		if(const FSchematicGraphNode* ChildNode = Model->FindNode(InChildGuid))
+		{
+			return GetScaleForChildNode(ChildNode);
+		}
+	}
+	return TOptional<float>();
+}
+
+TOptional<bool> FSchematicGraphNode::GetInteractivityForChildNode(const FGuid& InChildGuid) const
+{
+	if(Model)
+	{
+		if(const FSchematicGraphNode* ChildNode = Model->FindNode(InChildGuid))
+		{
+			return GetInteractivityForChildNode(ChildNode);
+		}
+	}
+	return TOptional<bool>();
+}
+
+FVector2d FSchematicGraphNode::GetPosition() const
+{
+	if(const FSchematicGraphNode* ParentNode = GetParentNode())
+	{
+		const TOptional<FVector2d> ParentPosition = Model->GetPositionForChildNode(ParentNode, this);
+		if(ParentPosition.IsSet())
+		{
+			return ParentPosition.GetValue();
+		}
+	}
+	return Position;
+}
+
+const FText& FSchematicGraphNode::GetToolTip() const
+{
+	return ToolTip;
+}
+
 ESchematicGraphVisibility::Type FSchematicGraphNode::GetVisibility() const
 {
 	if(Visibility == ESchematicGraphVisibility::Hidden)
 	{
 		return Visibility;
 	}
+
+	const FSchematicGraphNode* ParentNode = GetParentNode();
 	
-	if(const FSchematicGraphNode* ParentNode = GetParentNode())
+	if(const FSchematicGraphGroupNode* LastExpandedNode = Model->GetLastExpandedNode())
 	{
-		const ESchematicGraphVisibility::Type ParentVisibility = Model->GetVisibilityForChildNodes(ParentNode);
-		if(ParentVisibility != ESchematicGraphVisibility::Visible)
+		if(LastExpandedNode != this && LastExpandedNode != ParentNode)
 		{
-			return ParentVisibility;
+			return ESchematicGraphVisibility::FadedOut;
+		}
+	}
+	
+	if(ParentNode)
+	{
+		const TOptional<ESchematicGraphVisibility::Type> ParentVisibility = Model->GetVisibilityForChildNode(ParentNode, this);
+		if(ParentVisibility.IsSet())
+		{
+			return ParentVisibility.GetValue();
 		}
 	}
 	return Visibility;
+}
+
+bool FSchematicGraphNode::IsInteractive() const
+{
+	if(GetVisibility() != ESchematicGraphVisibility::Visible)
+	{
+		return false;
+	}
+	
+	if(const FSchematicGraphNode* ParentNode = GetParentNode())
+	{
+		const TOptional<bool> ParentInteractivity = Model->GetInteractivityForChildNode(ParentNode, this);
+		if(ParentInteractivity.IsSet())
+		{
+			return ParentInteractivity.GetValue();
+		}
+	}
+	return true;
+}
+
+FReply FSchematicGraphNode::OnClicked(const FPointerEvent& InMouseEvent)
+{
+	return FReply::Unhandled();
+}
+
+void FSchematicGraphNode::OnMouseEnter()
+{
+	SetScaleOffset(ScaledUp);
+}
+
+void FSchematicGraphNode::OnMouseLeave()
+{
+	SetScaleOffset(1.f);
+}
+
+void FSchematicGraphNode::OnDragOver()
+{
+	SetScaleOffset(ScaledDown);
+
+	if(FSchematicGraphGroupNode* GroupNode = const_cast<FSchematicGraphGroupNode*>(GetGroupNode()))
+	{
+		GroupNode->SetExpanded(true);
+	}
+}
+
+void FSchematicGraphNode::OnDragLeave()
+{
+	SetScaleOffset(1.f);
+
+	if(FSchematicGraphGroupNode* GroupNode = const_cast<FSchematicGraphGroupNode*>(GetGroupNode()))
+	{
+		GroupNode->SetExpanded(false);
+	}
 }
 
 FString FSchematicGraphNode::GetDragDropDecoratorLabel() const
@@ -78,13 +241,205 @@ void FSchematicGraphNode::NotifyTagAdded(const TSharedPtr<FSchematicGraphTag>& T
 	}
 }
 
-ESchematicGraphVisibility::Type FSchematicGraphGroupNode::GetVisibilityForChildNodes() const
+FSchematicGraphGroupNode::FSchematicGraphGroupNode()
+	: AnimationSettings(EEasingInterpolatorType::CubicEaseOut, 0.35f)
+{
+	static const FSlateBrush* BackgroundBrush = FSchematicGraphStyle::Get().GetBrush( "Schematic.Background");
+	static const FSlateBrush* OutlineBrush = FSchematicGraphStyle::Get().GetBrush( "Schematic.Outline.Single");
+	static const FSlateBrush* GroupBrush = FSchematicGraphStyle::Get().GetBrush( "Schematic.Dot.Group");
+	Brushes = { BackgroundBrush, OutlineBrush, GroupBrush };
+	Colors = { FLinearColor::White * 0.4f, FLinearColor::White, FLinearColor::Gray };
+
+	ExpansionState = TAnimatedAttribute<float>::Create(AnimationSettings, 0.f);
+	(void)AddTag<FSchematicGraphGroupTag>();
+}
+
+bool FSchematicGraphGroupNode::IsExpanded() const
+{
+	return GetExpansionState() > SMALL_NUMBER;
+}
+
+bool FSchematicGraphGroupNode::IsExpanding() const
+{
+	return (ExpansionState->Get() < 1.f - SMALL_NUMBER) &&
+		(ExpansionState->GetDesiredValue() >= 1.f - SMALL_NUMBER);
+}
+
+bool FSchematicGraphGroupNode::IsCollapsing() const
+{
+	return (ExpansionState->Get() >= SMALL_NUMBER) &&
+		(ExpansionState->GetDesiredValue() < SMALL_NUMBER);
+}
+
+float FSchematicGraphGroupNode::GetExpansionState() const
+{
+	if(!ExpansionState.IsValid())
+	{
+		return 0.f;
+	}
+	return ExpansionState->Get();
+}
+
+void FSchematicGraphGroupNode::SetExpanded(bool InExpanded, bool bAutoCloseParentGroups)
+{
+	if(InExpanded)
+	{
+		if(GetNumChildNodes() == 0)
+		{
+			return;
+		}
+	}
+	
+	if(!InExpanded && GetExpansionState() < SMALL_NUMBER)
+	{
+		ExpansionState->SetValueAndStop(0.f);
+	}
+	else
+	{
+		if(InExpanded && !ExpansionState->IsPlaying())
+		{
+			// set the state to an initial value so that IsExpanded will return correctly
+			if(ExpansionState->Get() < SMALL_NUMBER)
+			{
+				ExpansionState->SetValueAndStop(SMALL_NUMBER * 2.f);
+			}
+		}
+		if(!ExpansionState->GetDelay().IsSet())
+		{
+			ExpansionState->SetDelayOneShot(GetDelayDuration(InExpanded));
+		}
+		ExpansionState->Set(InExpanded ? 1.f : 0.f);
+	}
+
+	if(InExpanded || bAutoCloseParentGroups)
+	{
+		if(FSchematicGraphGroupNode* GroupNode = const_cast<FSchematicGraphGroupNode*>(GetGroupNode()))
+		{
+			GroupNode->SetExpanded(InExpanded, bAutoCloseParentGroups);
+		}
+	}
+
+	if(InExpanded)
+	{
+		Model->SetLastExpandedNode(this);
+	}
+	else if(const FSchematicGraphGroupNode* GroupNode = GetGroupNode())
+	{
+		if(GroupNode->IsExpanded())
+		{
+			Model->SetLastExpandedNode(GroupNode);
+		}
+	}
+}
+
+TOptional<ESchematicGraphVisibility::Type> FSchematicGraphGroupNode::GetVisibilityForChildNode(const FSchematicGraphNode* InChildNode) const
 {
 	if(!IsExpanded())
 	{
 		return ESchematicGraphVisibility::Hidden;
 	}
-	return FSchematicGraphNode::GetVisibilityForChildNodes();
+	return Super::GetVisibilityForChildNode(InChildNode);
+}
+
+TOptional<FVector2d> FSchematicGraphGroupNode::GetPositionForChildNode(const FSchematicGraphNode* InChildNode) const
+{
+	if(IsExpanded() && Model)
+	{
+		const int32 ChildNodeIndex = ChildNodeGuids.Find(InChildNode->GetGuid());
+		if(ChildNodeIndex != INDEX_NONE)
+		{
+			const float Distance = ExpansionRadius * GetExpansionState();
+			const float Angle = 360.f * float(ChildNodeIndex) / float(ChildNodeGuids.Num());
+			const FVector2d Offset = FVector2d(Distance, 0).GetRotated(Angle);
+			return Model->GetPositionForNode(this) + Offset;
+		}
+	}
+	return Super::GetPositionForChildNode(InChildNode);
+}
+
+TOptional<float> FSchematicGraphGroupNode::GetScaleForChildNode(const FSchematicGraphNode* InChildNode) const
+{
+	if(IsExpanded() && Model)
+	{
+		return GetExpansionState();
+	}
+	return Super::GetScaleForChildNode(InChildNode);
+}
+
+TOptional<bool> FSchematicGraphGroupNode::GetInteractivityForChildNode(const FSchematicGraphNode* InChildNode) const
+{
+	if(GetExpansionState() < 1.f - SMALL_NUMBER)
+	{
+		return false;
+	}
+	return Super::GetInteractivityForChildNode(InChildNode);
+}
+
+FReply FSchematicGraphGroupNode::OnClicked(const FPointerEvent& InMouseEvent)
+{
+	if(GetNumChildNodes() > 0)
+	{
+		SetExpanded(!IsExpanded());
+		return FReply::Handled();
+	}
+	return FSchematicGraphNode::OnClicked(InMouseEvent);
+}
+
+void FSchematicGraphGroupNode::OnDragOver()
+{
+	Super::OnDragOver();
+	SetExpanded(true, true);
+}
+
+void FSchematicGraphGroupNode::OnDragLeave()
+{
+	Super::OnDragLeave();
+	SetExpanded(false, true);
+}
+
+float FSchematicGraphGroupNode::GetDelayDuration(bool bEnter) const
+{
+	if (FSlateApplication::Get().IsDragDropping())
+	{
+		return bEnter ? EnterDelayDuration : LeaveDelayDuration;
+	}
+	return 0.f;
+}
+
+void FSchematicGraphGroupNode::SetAnimationSettings(const TEasingAttributeInterpolator<float>::FSettings& InSettings)
+{
+	ExpansionState = TAnimatedAttribute<float>::Create(AnimationSettings, IsExpanded() ? 1.f : 0.f);
+}
+
+const FText& FSchematicGraphAutoGroupNode::GetLabel() const
+{
+	const FText& SuperLabel = FSchematicGraphGroupNode::GetLabel();
+	if(SuperLabel.IsEmpty() && !IsExpanded())
+	{
+		AutoGroupLabel = FText();
+
+		for(int32 Index = 0; Index < GetNumChildNodes(); Index++)
+		{
+			if(const FSchematicGraphNode* ChildNode = GetChildNode(Index))
+			{
+				const FText& ChildLabel = ChildNode->GetLabel();
+				if(!ChildLabel.IsEmpty())
+				{
+					if(!AutoGroupLabel.IsEmpty())
+					{
+						AutoGroupLabel = FText::Format(LOCTEXT("AutoGroupLabelAppendFormat", "{0}\n{1}"), AutoGroupLabel, ChildLabel);
+					}
+					else
+					{
+						AutoGroupLabel = ChildLabel;
+					}
+				}
+			}
+		}
+
+		return AutoGroupLabel;
+	}
+	return SuperLabel;
 }
 
 #undef LOCTEXT_NAMESPACE

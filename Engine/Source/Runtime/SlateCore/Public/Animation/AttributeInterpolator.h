@@ -85,6 +85,7 @@ public:
 		InterpolatedValue.Reset();
 		LastValue.Reset();
 		DesiredValue.Reset();
+		Delay.Reset();
 		if(bFireStopEvent)
 		{
 			InterpolationStopped.Broadcast(TOptional<NumericType>());
@@ -194,6 +195,18 @@ public:
 				SetValueAndStop(LastValue.GetValue());
 				return;
 			}
+		}
+
+		if(Delay.IsSet())
+		{
+			const float DelayLeft = Delay.GetValue() - InDeltaTime;
+			if(DelayLeft > SMALL_NUMBER)
+			{
+				Delay = DelayLeft;
+				return;
+			}
+			Delay.Reset();
+			InDeltaTime = -DelayLeft;
 		}
 
 		(void)PlayIfStopped();

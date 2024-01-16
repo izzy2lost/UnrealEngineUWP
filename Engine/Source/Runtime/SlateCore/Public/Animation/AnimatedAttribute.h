@@ -109,6 +109,10 @@ public:
 	void Set( const OtherType& InNewValue )
 	{
 		Getter.Unbind();
+		if(DesiredValue.IsSet() && !Interpolator->DesiredValue.IsSet())
+		{
+			Interpolator->SetValue(DesiredValue.GetValue());
+		}
 		DesiredValue = InNewValue;
 		Interpolator->SetValue(DesiredValue.GetValue());
 	}
@@ -124,10 +128,26 @@ public:
 	void Set( NumericType&& InNewValue )
 	{
 		Getter.Unbind();
+		if(DesiredValue.IsSet() && !Interpolator->DesiredValue.IsSet())
+		{
+			Interpolator->SetValue(DesiredValue.GetValue());
+		}
 		DesiredValue = InNewValue;
 		Interpolator->SetValue(DesiredValue.GetValue());
 	}
 
+	/**
+	 * Sets the attribute's value and disables animation. The interpolator
+	 * will be stopped and the value will become the new current value.
+	 * 
+	 * @param InNewValue  The value to set the attribute to
+     */
+	void SetValueAndStop( const NumericType& InNewValue )
+	{
+		Set(InNewValue);
+		Interpolator->Reset();
+	}
+	
 	/**
 	 * Sets the attribute's value and disables animation. The interpolator
 	 * will be stopped and the value will become the new current value.
@@ -197,11 +217,32 @@ public:
 	}
 
 	/**
+	 * Returns the desired value this attribute is trying to reach.
+	 */
+	const NumericType& GetDesiredValue() const
+	{
+		if(DesiredValue.IsSet())
+		{
+			return DesiredValue.GetValue();
+		}
+		static const NumericType EmptyResult = NumericType();
+		return EmptyResult;
+	}
+
+	/**
 	 * Returns the overall deltatime of the interpolator
 	 */
 	double GetOverAllDeltaTime() const
 	{
 		return Interpolator->GetOverAllDeltaTime();
+	}
+
+	/**
+	 * Returns the currently set delay on the interpolator
+	 */
+	TOptional<NumericType> GetDelay() const
+	{
+		return Interpolator->Delay;
 	}
 
 	/**
@@ -218,6 +259,14 @@ public:
 	void SetTolerance( double Tolerance )
 	{
 		Interpolator->SetTolerance(Tolerance);
+	}
+
+	/**
+	 * Returns true if the attribute is currently animating
+	 */
+	bool IsPlaying() const
+	{
+		return Interpolator->IsPlaying();
 	}
 
 	/**

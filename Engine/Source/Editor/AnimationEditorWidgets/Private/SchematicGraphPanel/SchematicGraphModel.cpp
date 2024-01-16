@@ -36,12 +36,25 @@ bool FSchematicGraphModel::RemoveNode(const FGuid& InNodeGuid)
 				(void)RemoveLink(LinkGuid);
 			}
 		}
-		
+
+		if(LastExpandedNode == InNodeGuid)
+		{
+			LastExpandedNode = FGuid();
+		}
+			
 		if (OnNodeRemovedDelegate.IsBound())
 		{
 			OnNodeRemovedDelegate.Broadcast(Node);
 		}
+
+		const TArray<FGuid> ChildNodeGuids = Node->GetChildNodeGuids(); 
+		for(const FGuid& ChildNodeGuid : ChildNodeGuids)
+		{
+			(void)RemoveFromParentNode(ChildNodeGuid);
+		}
+		
 		const FGuid NodeGuid = Node->GetGuid();
+		(void)RemoveFromParentNode(NodeGuid);
 		NodeByGuid.Remove(Node->GetGuid());
 		Nodes.RemoveAll([NodeGuid](const TSharedPtr<FSchematicGraphNode>& ExistingNode) -> bool
 		{
@@ -52,16 +65,16 @@ bool FSchematicGraphModel::RemoveNode(const FGuid& InNodeGuid)
 	return false;
 }
 
-bool FSchematicGraphModel::SetParentNode(const FGuid& InChildNodeGuid, const FGuid& InParentNodeGuid)
+bool FSchematicGraphModel::SetParentNode(const FGuid& InChildNodeGuid, const FGuid& InParentNodeGuid, bool bUpdateGroupNode)
 {
 	if(const FSchematicGraphNode* Node = FindNode(InChildNodeGuid))
 	{
-		return SetParentNode(Node, FindNode(InParentNodeGuid));
+		return SetParentNode(Node, FindNode(InParentNodeGuid), bUpdateGroupNode);
 	}
 	return false;
 }
 
-bool FSchematicGraphModel::SetParentNode(const FSchematicGraphNode* InChildNode, const FSchematicGraphNode* InParentNode)
+bool FSchematicGraphModel::SetParentNode(const FSchematicGraphNode* InChildNode, const FSchematicGraphNode* InParentNode, bool bUpdateGroupNode)
 {
 	check(InChildNode);
 
@@ -72,7 +85,7 @@ bool FSchematicGraphModel::SetParentNode(const FSchematicGraphNode* InChildNode,
 			return false;
 		}
 		
-		(void)RemoveFromParentNode(InChildNode);
+		(void)RemoveFromParentNode(InChildNode, bUpdateGroupNode);
 		const_cast<FSchematicGraphNode*>(InParentNode)->ChildNodeGuids.AddUnique(InChildNode->GetGuid());
 		const_cast<FSchematicGraphNode*>(InChildNode)->ParentNodeGuid = InParentNode->GetGuid();
 		return true;
@@ -80,7 +93,19 @@ bool FSchematicGraphModel::SetParentNode(const FSchematicGraphNode* InChildNode,
 	
 	if(const FSchematicGraphNode* CurrentParentNode = InChildNode->GetParentNode())
 	{
-		(void)const_cast<FSchematicGraphNode*>(CurrentParentNode)->ChildNodeGuids.Remove(InChildNode->GetGuid());
+		FSchematicGraphNode* MutableParentNode = const_cast<FSchematicGraphNode*>(CurrentParentNode);
+		if(bUpdateGroupNode && (MutableParentNode->ChildNodeGuids.Num() == 1))
+		{
+			if(FSchematicGraphGroupNode* GroupParentNode = Cast<FSchematicGraphGroupNode>(MutableParentNode))
+			{
+				GroupParentNode->SetExpanded(false);
+				if(LastExpandedNode == GroupParentNode->GetGuid())
+				{
+					ClearLastExpandedNode();
+				}
+			}
+		}
+		(void)MutableParentNode->ChildNodeGuids.Remove(InChildNode->GetGuid());
 		const_cast<FSchematicGraphNode*>(InChildNode)->ParentNodeGuid = FGuid();
 		return true;
 	}
@@ -88,19 +113,19 @@ bool FSchematicGraphModel::SetParentNode(const FSchematicGraphNode* InChildNode,
 	return false;
 }
 
-bool FSchematicGraphModel::RemoveFromParentNode(const FGuid& InChildNodeGuid)
+bool FSchematicGraphModel::RemoveFromParentNode(const FGuid& InChildNodeGuid, bool bUpdateGroupNode)
 {
 	if(const FSchematicGraphNode* Node = FindNode(InChildNodeGuid))
 	{
-		return RemoveFromParentNode(Node);
+		return RemoveFromParentNode(Node, bUpdateGroupNode);
 	}
 	return false;
 }
 
-bool FSchematicGraphModel::RemoveFromParentNode(const FSchematicGraphNode* InChildNode)
+bool FSchematicGraphModel::RemoveFromParentNode(const FSchematicGraphNode* InChildNode, bool bUpdateGroupNode)
 {
 	check(InChildNode);
-	return SetParentNode(InChildNode, nullptr);
+	return SetParentNode(InChildNode, nullptr, bUpdateGroupNode);
 }
 
 FVector2d FSchematicGraphModel::GetPositionForNode(const FGuid& InNodeGuid) const
@@ -161,22 +186,29 @@ FVector2d FSchematicGraphModel::GetSizeForNode(const FSchematicGraphNode* InNode
 	return SSchematicGraphNode::DefaultNodeSize;
 }
 
-float FSchematicGraphModel::GetScaleForNode(const FGuid& InNodeGuid, bool bIncludeScaleOffset) const
+float FSchematicGraphModel::GetScaleForNode(const FGuid& InNodeGuid) const
 {
 	if(const FSchematicGraphNode* Node = FindNode(InNodeGuid))
 	{
-		return GetScaleForNode(Node, bIncludeScaleOffset);
+		return GetScaleForNode(Node);
 	}
 	return 1.f;
 }
 
-float FSchematicGraphModel::GetScaleForNode(const FSchematicGraphNode* InNode, bool bIncludeScaleOffset) const
+float FSchematicGraphModel::GetScaleForNode(const FSchematicGraphNode* InNode) const
 {
-	if(bIncludeScaleOffset)
+	float Scale = 1.f;
+
+	if(const FSchematicGraphNode* ParentNode = InNode->GetParentNode())
 	{
-		return GetScaleOffsetForNode(InNode);
+		const TOptional<float> ParentScale = GetScaleForChildNode(ParentNode, InNode);
+		if(ParentScale.IsSet())
+		{
+			Scale *= ParentScale.GetValue();
+		}
 	}
-	return 1.f;
+	
+	return Scale * GetScaleOffsetForNode(InNode);
 }
 
 float FSchematicGraphModel::GetScaleOffsetForNode(const FGuid& InNodeGuid) const
@@ -224,6 +256,10 @@ float FSchematicGraphModel::GetScaleOffsetForNode(const FSchematicGraphNode* InN
 bool FSchematicGraphModel::IsAutoScaleEnabledForNode(const FSchematicGraphNode* InNode) const
 {
 	check(InNode);
+	if(InNode->HasParentNode())
+	{
+		return false;
+	}
 	return InNode->IsAutoScaleEnabled();
 }
 
@@ -327,19 +363,80 @@ ESchematicGraphVisibility::Type FSchematicGraphModel::GetVisibilityForNode(const
 	return InNode->GetVisibility();
 }
 
-ESchematicGraphVisibility::Type FSchematicGraphModel::GetVisibilityForChildNodes(const FGuid& InNodeGuid) const
+TOptional<ESchematicGraphVisibility::Type> FSchematicGraphModel::GetVisibilityForChildNode(const FGuid& InParentNodeGuid, const FGuid& InChildNodeGuid) const
 {
-	if(const FSchematicGraphNode* Node = FindNode(InNodeGuid))
+	if(const FSchematicGraphNode* ParentNode = FindNode(InParentNodeGuid))
 	{
-		return GetVisibilityForChildNodes(Node);
+		if(const FSchematicGraphNode* ChildNode = FindNode(InChildNodeGuid))
+		{
+			return GetVisibilityForChildNode(ParentNode, ChildNode);
+		}
 	}
-	return ESchematicGraphVisibility::Visible;
+	return TOptional<ESchematicGraphVisibility::Type>();
 }
 
-ESchematicGraphVisibility::Type FSchematicGraphModel::GetVisibilityForChildNodes(const FSchematicGraphNode* InNode) const
+TOptional<ESchematicGraphVisibility::Type> FSchematicGraphModel::GetVisibilityForChildNode(const FSchematicGraphNode* InParentNode, const FSchematicGraphNode* InChildNode) const
 {
-	check(InNode);
-	return InNode->GetVisibilityForChildNodes();
+	check(InParentNode);
+	check(InChildNode);
+	return InParentNode->GetVisibilityForChildNode(InChildNode);
+}
+
+TOptional<FVector2d> FSchematicGraphModel::GetPositionForChildNode(const FGuid& InParentNodeGuid, const FGuid& InChildNodeGuid) const
+{
+	if(const FSchematicGraphNode* ParentNode = FindNode(InParentNodeGuid))
+	{
+		if(const FSchematicGraphNode* ChildNode = FindNode(InChildNodeGuid))
+		{
+			return GetPositionForChildNode(ParentNode, ChildNode);
+		}
+	}
+	return TOptional<FVector2d>();
+}
+
+TOptional<FVector2d> FSchematicGraphModel::GetPositionForChildNode(const FSchematicGraphNode* InParentNode, const FSchematicGraphNode* InChildNode) const
+{
+	check(InParentNode);
+	check(InChildNode);
+	return InParentNode->GetPositionForChildNode(InChildNode);
+}
+
+TOptional<float> FSchematicGraphModel::GetScaleForChildNode(const FGuid& InParentNodeGuid, const FGuid& InChildNodeGuid) const
+{
+	if(const FSchematicGraphNode* ParentNode = FindNode(InParentNodeGuid))
+	{
+		if(const FSchematicGraphNode* ChildNode = FindNode(InChildNodeGuid))
+		{
+			return GetScaleForChildNode(ParentNode, ChildNode);
+		}
+	}
+	return TOptional<float>();
+}
+
+TOptional<float> FSchematicGraphModel::GetScaleForChildNode(const FSchematicGraphNode* InParentNode, const FSchematicGraphNode* InChildNode) const
+{
+	check(InParentNode);
+	check(InChildNode);
+	return InParentNode->GetScaleForChildNode(InChildNode);
+}
+
+TOptional<bool> FSchematicGraphModel::GetInteractivityForChildNode(const FGuid& InParentNodeGuid, const FGuid& InChildNodeGuid) const
+{
+	if(const FSchematicGraphNode* ParentNode = FindNode(InParentNodeGuid))
+	{
+		if(const FSchematicGraphNode* ChildNode = FindNode(InChildNodeGuid))
+		{
+			return GetInteractivityForChildNode(ParentNode, ChildNode);
+		}
+	}
+	return TOptional<bool>();
+}
+
+TOptional<bool> FSchematicGraphModel::GetInteractivityForChildNode(const FSchematicGraphNode* InParentNode, const FSchematicGraphNode* InChildNode) const
+{
+	check(InParentNode);
+	check(InChildNode);
+	return InParentNode->GetInteractivityForChildNode(InChildNode);
 }
 
 bool FSchematicGraphModel::IsDragSupportedForNode(const FGuid& InNodeGuid) const
@@ -498,6 +595,18 @@ ESchematicGraphVisibility::Type FSchematicGraphModel::GetVisibilityForTag(const 
 ESchematicGraphVisibility::Type FSchematicGraphModel::GetVisibilityForTag(const FSchematicGraphTag* InTag) const
 {
 	check(InTag);
+
+	if(InTag->IsA<FSchematicGraphGroupTag>())
+	{
+		if(const FSchematicGraphAutoGroupNode* AutoGroupNode = Cast<FSchematicGraphAutoGroupNode>(InTag->GetNode()))
+		{
+			if(AutoGroupNode->GetNumChildNodes() < 3 || AutoGroupNode->IsExpanded())
+			{
+				return ESchematicGraphVisibility::Hidden;
+			}
+		}
+	}
+	
 	return InTag->GetVisibility();
 }
 
@@ -724,6 +833,43 @@ ESchematicGraphVisibility::Type FSchematicGraphModel::GetVisibilityForLink(const
 {
 	check(InLink);
 	return InLink->GetVisibility();
+}
+
+FSchematicGraphGroupNode* FSchematicGraphModel::AddAutoGroupNode()
+{
+	return AddNode<FSchematicGraphAutoGroupNode>(); 
+}
+
+const FSchematicGraphGroupNode* FSchematicGraphModel::GetLastExpandedNode() const
+{
+	if(LastExpandedNode.IsValid())
+	{
+		return FindNode<FSchematicGraphGroupNode>(LastExpandedNode);
+	}
+	return nullptr;
+}
+
+void FSchematicGraphModel::SetLastExpandedNode(const FSchematicGraphGroupNode* InGroupNode)
+{
+	LastExpandedNode = InGroupNode ? InGroupNode->GetGuid() : FGuid();
+}
+
+void FSchematicGraphModel::Tick(float InDeltaTime)
+{
+	if(LastExpandedNode.IsValid())
+	{
+		if(const FSchematicGraphGroupNode* GroupNode = GetLastExpandedNode())
+		{
+			if(!GroupNode->IsExpanded())
+			{
+				LastExpandedNode = FGuid();
+			}
+		}
+		else
+		{
+			LastExpandedNode = FGuid();
+		}
+	}
 }
 
 #undef LOCTEXT_NAMESPACE

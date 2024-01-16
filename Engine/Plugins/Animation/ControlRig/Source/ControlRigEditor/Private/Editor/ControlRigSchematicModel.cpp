@@ -1,6 +1,7 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 #include "ControlRigSchematicModel.h"
+
 #include "ControlRig.h"
 #include "ControlRigBlueprint.h"
 #include "ControlRigEditor.h"
@@ -10,6 +11,9 @@
 #include "DragAndDrop/AssetDragDropOp.h"
 #include "Rigs/RigHierarchyController.h"
 #include "Async/TaskGraphInterfaces.h"
+#include <SchematicGraphPanel/SchematicGraphStyle.h>
+
+#define LOCTEXT_NAMESPACE "ControlRigSchematicModel"
 
 FString FControlRigSchematicRigElementKeyNode::GetDragDropDecoratorLabel() const
 {
@@ -48,7 +52,7 @@ void FControlRigSchematicModel::SetEditor(const TSharedRef<FControlRigEditor>& I
 
 void FControlRigSchematicModel::Reset()
 {
-	FSchematicGraphModel::Reset();
+	Super::Reset();
 	RigElementKeyToGuid.Reset();
 }
 
@@ -59,15 +63,47 @@ FControlRigSchematicRigElementKeyNode* FControlRigSchematicModel::AddElementKeyN
 	{
 		Node->Key = InKey;
 
-		/*
-		FSchematicGraphTag* Tag = Node->AddTag();
-		static const FSlateBrush* BackgroundBrush = FControlRigEditorStyle::Get().GetBrush( "ControlRig.Schematic.Background");
-		Tag->SetBackgroundBrush(BackgroundBrush);
-		Tag->SetLabelColor(FLinearColor::White);
-		Tag->SetLabel(FText::FromString(FString::FromInt(Nodes.Num() * 7)));
-		*/
+		Node->SetLabel(FText::FromString(Node->GetKey().ToString())); 
+		switch(Node->GetKey().Type)
+		{
+			case ERigElementType::Socket:
+			{
+				if (ControlRigBeingDebuggedPtr.IsValid())
+				{
+					if (const URigHierarchy* Hierarchy = ControlRigBeingDebuggedPtr->GetHierarchy())
+					{
+						if(const FRigSocketElement* Socket = Hierarchy->Find<FRigSocketElement>(Node->GetKey()))
+						{
+							const FString Description = Socket->GetDescription(Hierarchy);
+							if(!Description.IsEmpty())
+							{
+								Node->SetLabel(
+									FText::Format(LOCTEXT("NodeLabelFormat", "{0}\n{1}"), 
+									Node->GetLabel(), 
+									FText::FromString(Description))
+								);
+							}
+						}
+					}
+				}
+				break;
+			}
+			default:
+			{
+				break;
+			}
+		}
 
 		RigElementKeyToGuid.Add(Node->GetKey(), Node->GetGuid());
+
+		FRigElementKey ResolvedKey;
+		if(IsConnectorResolved(InKey, &ResolvedKey))
+		{
+			if(const FControlRigSchematicRigElementKeyNode* ResolvedNode = FindElementKeyNode(ResolvedKey))
+			{
+				SetParentNode(Node->GetGuid(), ResolvedNode->GetGuid());
+			}
+		}
 
 		if (bNotify && OnNodeAddedDelegate.IsBound())
 		{
@@ -100,7 +136,7 @@ bool FControlRigSchematicModel::RemoveNode(const FGuid& InGuid)
 	{
 		KeyToRemove = Node->GetKey();
 	}
-	if(FSchematicGraphModel::RemoveNode(InGuid))
+	if(Super::RemoveNode(InGuid))
 	{
 		RigElementKeyToGuid.Remove(KeyToRemove);
 		return true;
@@ -171,7 +207,12 @@ void FControlRigSchematicModel::UpdateElementKeyLinks()
 				const FControlRigSchematicRigElementKeyNode* ChildNode = VisitElement(Child, Node, OutExpectedLinks);
 				if(Node && ChildNode && Node != ChildNode)
 				{
-					OutExpectedLinks.Emplace(Node->GetKey(), ChildNode->GetKey());
+					const FRigElementKey ParentA = Hierarchy->GetFirstParent(Node->GetKey());
+					const FRigElementKey ParentB = Hierarchy->GetFirstParent(ChildNode->GetKey());
+					if(!ParentA || !ParentB.IsValid() || ParentA != ParentB)
+					{
+						OutExpectedLinks.Emplace(Node->GetKey(), ChildNode->GetKey());
+					}
 				}
 			}
 
@@ -425,6 +466,43 @@ void FControlRigSchematicModel::HandleModularRigModified(EModularRigNotification
 	{
 		case EModularRigNotification::ConnectionChanged:
 		{
+			if (ControlRigBeingDebuggedPtr.IsValid())
+			{
+				if (const URigHierarchy* Hierarchy = ControlRigBeingDebuggedPtr->GetHierarchy())
+				{
+					const TArray<FRigElementKey> Connectors = Hierarchy->GetConnectorKeys();
+					for(const FRigElementKey& ConnectorKey : Connectors)
+					{
+						if(const FSchematicGraphNode* ConnectorNode = FindElementKeyNode(ConnectorKey))
+						{
+							const FString NameString = ConnectorKey.Name.ToString();
+							if(NameString.StartsWith(InModule->GetNamespace(), ESearchCase::CaseSensitive))
+							{
+								const FString LocalName = NameString.Mid(InModule->GetNamespace().Len());
+								if(!LocalName.Contains(UModularRig::NamespaceSeparator))
+								{
+									const FRigElementKey LocalKey(*LocalName, ConnectorKey.Type);
+									if(const FRigElementKey* ResolvedKey = InModule->Connections.Find(LocalKey))
+									{
+										if(const FSchematicGraphNode* ResolvedNode = FindElementKeyNode(*ResolvedKey))
+										{
+											(void)SetParentNode(ConnectorNode, ResolvedNode);
+											const_cast<FSchematicGraphNode*>(ConnectorNode)->OnMouseLeave();
+											return;
+										}
+									}
+									if(const FSchematicGraphNode* ParentNode = ConnectorNode->GetParentNode())
+									{
+										(void)RemoveFromParentNode(ConnectorNode);
+										const_cast<FSchematicGraphNode*>(ConnectorNode)->OnMouseLeave();
+									}
+									return;
+								}
+							}
+						}
+					}
+				}
+			}
 			break;
 		}
 		default:
@@ -438,35 +516,38 @@ FVector2d FControlRigSchematicModel::GetPositionForNode(const FSchematicGraphNod
 {
 	if(const FControlRigSchematicRigElementKeyNode* Node = Cast<FControlRigSchematicRigElementKeyNode>(InNode))
 	{
-		FRigElementKey Key = Node->GetKey();
-		if(Key.Type == ERigElementType::Connector)
+		if(!InNode->HasParentNode())
 		{
-			FRigElementKey ResolvedKey;
-			if(IsConnectorResolved(Key, &ResolvedKey))
+			FRigElementKey Key = Node->GetKey();
+			if(Key.Type == ERigElementType::Connector)
 			{
-				Key = ResolvedKey;
-			}
-		}
-
-		if(Key.IsValid())
-		{
-			if(const TSharedPtr<FControlRigEditor> Editor = ControlRigEditor.Pin())
-			{
-				if(Editor.IsValid())
+				FRigElementKey ResolvedKey;
+				if(IsConnectorResolved(Key, &ResolvedKey))
 				{
-					if(const UControlRig* ControlRig = Editor->GetControlRig())
+					Key = ResolvedKey;
+				}
+			}
+
+			if(Key.IsValid())
+			{
+				if(const TSharedPtr<FControlRigEditor> Editor = ControlRigEditor.Pin())
+				{
+					if(Editor.IsValid())
 					{
-						if(const URigHierarchy* Hierarchy = ControlRig->GetHierarchy())
+						if(const UControlRig* ControlRig = Editor->GetControlRig())
 						{
-							const FTransform Transform = Hierarchy->GetGlobalTransform(Key);
-							return Editor->ComputePersonaProjectedScreenPos(Transform.GetLocation());
+							if(const URigHierarchy* Hierarchy = ControlRig->GetHierarchy())
+							{
+								const FTransform Transform = Hierarchy->GetGlobalTransform(Key);
+								return Editor->ComputePersonaProjectedScreenPos(Transform.GetLocation());
+							}
 						}
 					}
 				}
 			}
 		}
 	}
-	return FSchematicGraphModel::GetPositionForNode(InNode);
+	return Super::GetPositionForNode(InNode);
 }
 
 bool FControlRigSchematicModel::GetPositionAnimationEnabledForNode(const FSchematicGraphNode* InNode) const
@@ -475,7 +556,7 @@ bool FControlRigSchematicModel::GetPositionAnimationEnabledForNode(const FSchema
 	{
 		return false;
 	}
-	return FSchematicGraphModel::GetPositionAnimationEnabledForNode(InNode);
+	return Super::GetPositionAnimationEnabledForNode(InNode);
 }
 
 int32 FControlRigSchematicModel::GetNumLayersForNode(const FSchematicGraphNode* InNode) const
@@ -484,7 +565,7 @@ int32 FControlRigSchematicModel::GetNumLayersForNode(const FSchematicGraphNode* 
 	{
 		return 3;
 	}
-	return FSchematicGraphModel::GetNumLayersForNode(InNode);
+	return Super::GetNumLayersForNode(InNode);
 }
 
 const FSlateBrush* FControlRigSchematicModel::GetBrushForNode(const FSchematicGraphNode* InNode, int32 InLayerIndex) const
@@ -493,30 +574,65 @@ const FSlateBrush* FControlRigSchematicModel::GetBrushForNode(const FSchematicGr
 	{
 		if(InLayerIndex == 0)
 		{
-			static const FSlateBrush* BackgroundBrush = FControlRigEditorStyle::Get().GetBrush( "ControlRig.Schematic.Background");
+			static const FSlateBrush* BackgroundBrush = FSchematicGraphStyle::Get().GetBrush( "Schematic.Background");
 			return BackgroundBrush;
 		}
 		if(InLayerIndex == 1)
 		{
-			static const FSlateBrush* OutlineBrush = FControlRigEditorStyle::Get().GetBrush( "ControlRig.Schematic.Outline");
-			return OutlineBrush;
+			static const FSlateBrush* OutlineSingleBrush = FSchematicGraphStyle::Get().GetBrush( "Schematic.Outline.Single");
+			static const FSlateBrush* OutlineDoubleBrush = FSchematicGraphStyle::Get().GetBrush( "Schematic.Outline.Double");
+
+			if(Node->GetKey().Type == ERigElementType::Socket)
+			{
+				if (ControlRigBlueprint.IsValid())
+				{
+					int32 Count = 0;
+					for(const TPair<FRigElementKey, FRigElementKey>& Pair : ControlRigBlueprint->ConnectionMap)
+					{
+						if(Pair.Value == Node->GetKey())
+						{
+							Count++;
+							if(Count == 2)
+							{
+								return OutlineDoubleBrush;
+							}
+						}
+					}
+				}
+			}
+			return OutlineSingleBrush;
 		}
 		
 		switch(Node->GetKey().Type)
 		{
 			case ERigElementType::Socket:
 			{
-				static const FSlateBrush* UnresolvedSocketBrush = FControlRigEditorStyle::Get().GetBrush( "ControlRig.Schematic.SocketUnresolved");
-				static const FSlateBrush* ResolvedSocketBrush = FControlRigEditorStyle::Get().GetBrush( "ControlRig.Schematic.SocketResolved");
+				static const FSlateBrush* UnresolvedSocketBrush = FSchematicGraphStyle::Get().GetBrush( "Schematic.Dot.Small");
+				static const FSlateBrush* ResolvedSocketBrush = FSchematicGraphStyle::Get().GetBrush( "Schematic.Dot.Large");
+				static const FSlateBrush* ResolvedMultipleSocketBrush = FSchematicGraphStyle::Get().GetBrush( "Schematic.Dot.Medium");
 
 				if (ControlRigBlueprint.IsValid())
 				{
+					int32 Count = 0;
 					for(const TPair<FRigElementKey, FRigElementKey>& Pair : ControlRigBlueprint->ConnectionMap)
 					{
 						if(Pair.Value == Node->GetKey())
 						{
-							return ResolvedSocketBrush;
+							Count++;
+							if(Count == 2)
+							{
+								break;
+							}
 						}
+					}
+
+					if(Count == 1)
+					{
+						return ResolvedSocketBrush;
+					}
+					if(Count == 2)
+					{
+						return ResolvedMultipleSocketBrush;
 					}
 				}
 
@@ -567,7 +683,7 @@ const FSlateBrush* FControlRigSchematicModel::GetBrushForNode(const FSchematicGr
 			}
 		}
 	}
-	return FSchematicGraphModel::GetBrushForNode(InNode, InLayerIndex);
+	return Super::GetBrushForNode(InNode, InLayerIndex);
 }
 
 FLinearColor FControlRigSchematicModel::GetColorForNode(const FSchematicGraphNode* InNode, int32 InLayerIndex) const
@@ -631,60 +747,7 @@ FLinearColor FControlRigSchematicModel::GetColorForNode(const FSchematicGraphNod
 			}
 		}
 	}
-	return FSchematicGraphModel::GetColorForNode(InNode, InLayerIndex);
-}
-
-FText FControlRigSchematicModel::GetToolTipForNode(const FSchematicGraphNode* InNode) const
-{
-	if(const FControlRigSchematicRigElementKeyNode* Node = Cast<FControlRigSchematicRigElementKeyNode>(InNode))
-	{
-		switch(Node->GetKey().Type)
-		{
-			case ERigElementType::Socket:
-			{
-				if (ControlRigBeingDebuggedPtr.IsValid())
-				{
-					if (const URigHierarchy* Hierarchy = ControlRigBeingDebuggedPtr->GetHierarchy())
-					{
-						if(const FRigSocketElement* Socket = Hierarchy->Find<FRigSocketElement>(Node->GetKey()))
-						{
-							const FString Description = Socket->GetDescription(Hierarchy);
-							if(!Description.IsEmpty())
-							{
-								return FText::FromString(Node->GetKey().ToString()+TEXT("\n")+Description);
-							}
-						}
-					}
-				}
-				break;
-			}
-			default:
-			{
-				break;
-			}
-		}
-		return FText::FromString(Node->GetKey().ToString());
-	}
-	return FSchematicGraphModel::GetToolTipForNode(InNode);
-}
-
-ESchematicGraphVisibility::Type FControlRigSchematicModel::GetVisibilityForNode(const FSchematicGraphNode* InNode) const
-{
-	if(const FControlRigSchematicRigElementKeyNode* Node = Cast<FControlRigSchematicRigElementKeyNode>(InNode))
-	{
-		if(Node->GetKey().Type == ERigElementType::Connector)
-		{
-			FRigElementKey ResolvedSocket;
-			if(IsConnectorResolved(Node->GetKey(), &ResolvedSocket))
-			{
-				if(ContainsElementKeyNode(ResolvedSocket))
-				{
-					return ESchematicGraphVisibility::Hidden;
-				}
-			}
-		}
-	}
-	return FSchematicGraphModel::GetVisibilityForNode(InNode);
+	return Super::GetColorForNode(InNode, InLayerIndex);
 }
 
 ESchematicGraphPlacementConstraint::Type FControlRigSchematicModel::GetPlacementForNode(const FSchematicGraphNode* InNode) const
@@ -699,24 +762,27 @@ ESchematicGraphPlacementConstraint::Type FControlRigSchematicModel::GetPlacement
 			}
 		}
 	}
-	return FSchematicGraphModel::GetPlacementForNode(InNode);
+	return Super::GetPlacementForNode(InNode);
 }
 
 const FSlateBrush* FControlRigSchematicModel::GetBrushForLink(const FSchematicGraphLink* InLink) const
 {
-	if(const FSchematicGraphNode* SourceNode = FindNode(InLink->GetSourceNodeGuid()))
+	if(InLink->IsA<FControlRigSchematicRigElementKeyLink>())
 	{
-		if(const FSchematicGraphNode* TargetNode = FindNode(InLink->GetTargetNodeGuid()))
+		if(const FSchematicGraphNode* SourceNode = FindNode(InLink->GetSourceNodeGuid()))
 		{
-			if(SourceNode->IsA<FControlRigSchematicRigElementKeyNode>() &&
-				TargetNode->IsA<FControlRigSchematicRigElementKeyNode>())
+			if(const FSchematicGraphNode* TargetNode = FindNode(InLink->GetTargetNodeGuid()))
 			{
-				static const FSlateBrush* LinkBrush = FControlRigEditorStyle::Get().GetBrush( "ControlRig.Schematic.Link");
-				return LinkBrush;
+				if(SourceNode->IsA<FControlRigSchematicRigElementKeyNode>() &&
+					TargetNode->IsA<FControlRigSchematicRigElementKeyNode>())
+				{
+					static const FSlateBrush* LinkBrush = FControlRigEditorStyle::Get().GetBrush( "ControlRig.Schematic.Link");
+					return LinkBrush;
+				}
 			}
 		}
 	}
-	return FSchematicGraphModel::GetBrushForLink(InLink);
+	return Super::GetBrushForLink(InLink);
 }
 
 FLinearColor FControlRigSchematicModel::GetColorForLink(const FSchematicGraphLink* InLink) const
@@ -733,29 +799,28 @@ FLinearColor FControlRigSchematicModel::GetColorForLink(const FSchematicGraphLin
 			}
 		}
 	}
-	return FSchematicGraphModel::GetColorForLink(InLink);
+	return Super::GetColorForLink(InLink);
 }
 
-bool FControlRigSchematicModel::GetForwardedNodeForDrag(FGuid& InOutGuid) const
+ESchematicGraphVisibility::Type FControlRigSchematicModel::GetVisibilityForTag(const FSchematicGraphTag* InTag) const
 {
-	if(const FControlRigSchematicRigElementKeyNode* ElementKeyNode = Cast<FControlRigSchematicRigElementKeyNode>(FindNode(InOutGuid)))
+	if(InTag->IsA<FSchematicGraphGroupTag>())
 	{
-		for(const TPair<FRigElementKey, FRigElementKey>& Pair : ControlRigBlueprint->ConnectionMap)
+		if(const FControlRigSchematicRigElementKeyNode* Node = Cast<FControlRigSchematicRigElementKeyNode>(InTag->GetNode()))
 		{
-			if(Pair.Value == ElementKeyNode->GetKey())
+			if(Node->GetKey().Type == ERigElementType::Socket)
 			{
-				if(const FControlRigSchematicRigElementKeyNode* ForwardedNode = FindElementKeyNode(Pair.Key))
+				if(Node->GetNumChildNodes() < 3)
 				{
-					InOutGuid = ForwardedNode->GetGuid();
-					return true;
+					return ESchematicGraphVisibility::Hidden;
 				}
 			}
 		}
 	}
-	return FSchematicGraphModel::GetForwardedNodeForDrag(InOutGuid);
+	return Super::GetVisibilityForTag(InTag);
 }
 
-void FControlRigSchematicModel::HandleSchematicNodeClicked(SSchematicGraphPanel* InPanel, SSchematicGraphNode* InNode)
+void FControlRigSchematicModel::HandleSchematicNodeClicked(SSchematicGraphPanel* InPanel, SSchematicGraphNode* InNode, const FPointerEvent& InMouseEvent)
 {
 	for (const TSharedPtr<FSchematicGraphNode>& Node : Nodes)
 	{
@@ -864,7 +929,7 @@ void FControlRigSchematicModel::HandleSchematicBeginDrag(SSchematicGraphPanel* I
 			ExistingElementKeyNode->SetVisibility(Matches.ContainsByPredicate([ExistingElementKeyNode](const FRigElementResolveResult& Match)
 			{
 				return ExistingElementKeyNode->GetKey() == Match.GetKey();
-			}) ? ESchematicGraphVisibility::Visible : ESchematicGraphVisibility::FadedOut);
+			}) ? ESchematicGraphVisibility::Visible : ESchematicGraphVisibility::Hidden);
 		}
 	};
 }
@@ -881,6 +946,7 @@ void FControlRigSchematicModel::HandleSchematicEndDrag(SSchematicGraphPanel* InP
 	{
 		Node->SetVisibility(ESchematicGraphVisibility::Visible);
 	}
+	UpdateElementKeyLinks();
 }
 
 void FControlRigSchematicModel::HandleSchematicDrop(SSchematicGraphPanel* InPanel, SSchematicGraphNode* InNode, const FDragDropEvent& InDragDropEvent)
@@ -1015,10 +1081,22 @@ void FControlRigSchematicModel::HandleSchematicDrop(SSchematicGraphPanel* InPane
 
 bool FControlRigSchematicModel::IsConnectorResolved(const FRigElementKey& InConnectorKey, FRigElementKey* OutKey) const
 {
-	if(ControlRigBlueprint.IsValid())
+	if(ControlRigBlueprint.IsValid() && InConnectorKey.Type == ERigElementType::Connector)
 	{
 		if(const FRigElementKey* TargetKey = ControlRigBlueprint->ConnectionMap.Find(InConnectorKey))
 		{
+			// make sure the target exists
+			if(ControlRigBeingDebuggedPtr.IsValid())
+			{
+				if(const URigHierarchy* DebuggedHierarchy = ControlRigBeingDebuggedPtr->GetHierarchy())
+				{
+					if(!DebuggedHierarchy->Contains(*TargetKey))
+					{
+						return false;
+					}
+				}
+			}
+			
 			if(OutKey)
 			{
 				*OutKey = *TargetKey;
@@ -1028,3 +1106,5 @@ bool FControlRigSchematicModel::IsConnectorResolved(const FRigElementKey& InConn
 	}
 	return false;
 }
+
+#undef LOCTEXT_NAMESPACE

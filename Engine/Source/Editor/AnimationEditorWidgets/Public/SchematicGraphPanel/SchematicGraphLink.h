@@ -8,7 +8,7 @@
 #define SCHEMATICGRAPHLINK_BODY(ClassName, SuperClass) \
 SCHEMATICGRAPHELEMENT_BODY(ClassName, SuperClass, FSchematicGraphNode)
 
-class ANIMATIONEDITORWIDGETS_API FSchematicGraphLink
+class ANIMATIONEDITORWIDGETS_API FSchematicGraphLink : public TSharedFromThis<FSchematicGraphLink>
 {
 public:
 

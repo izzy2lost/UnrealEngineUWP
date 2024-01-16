@@ -6,6 +6,8 @@
 #include "CoreMinimal.h"
 #include "Styling/SlateBrush.h"
 
+ANIMATIONEDITORWIDGETS_API DECLARE_LOG_CATEGORY_EXTERN(LogSchematicGraph, Log, All);
+
 class FSchematicGraphTag;
 class FSchematicGraphNode;
 class FSchematicGraphLink;
@@ -101,6 +103,7 @@ friend T* CastChecked(ClassName* InElement) \
 }
 
 #define SCHEMATICGRAPHELEMENT_BODY(ClassName, SuperClass, BaseClass) \
+typedef SuperClass Super; \
 inline static const FName& Type = TEXT(#ClassName); \
 virtual const FName& GetType() const override { return ClassName::Type; } \
 virtual bool IsA(const FName& InType) const \

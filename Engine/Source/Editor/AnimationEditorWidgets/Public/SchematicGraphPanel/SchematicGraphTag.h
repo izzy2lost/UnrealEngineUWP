@@ -8,11 +8,13 @@
 #define SCHEMATICGRAPHTAG_BODY(ClassName, SuperClass) \
 SCHEMATICGRAPHELEMENT_BODY(ClassName, SuperClass, FSchematicGraphTag)
 
-class ANIMATIONEDITORWIDGETS_API FSchematicGraphTag
+class ANIMATIONEDITORWIDGETS_API FSchematicGraphTag : public TSharedFromThis<FSchematicGraphTag>
 {
 public:
 	
 	SCHEMATICGRAPHELEMENT_BODY_BASE(FSchematicGraphTag)
+
+	FSchematicGraphTag();
 
 	const FSchematicGraphNode* GetNode() const;
 	const FGuid& GetGuid() const { return Guid; }
@@ -26,9 +28,9 @@ public:
 	virtual void SetBackgroundBrush(const FSlateBrush* InBackgroundBrush) { BackgroundBrush = InBackgroundBrush; }
 	virtual const FSlateBrush* GetForegroundBrush() const { return ForegroundBrush; }
 	virtual void SetForegroundBrush(const FSlateBrush* InForegroundBrush) { ForegroundBrush = InForegroundBrush; }
-	virtual const FText& GetLabel() const { return Label; }
+	virtual FText GetLabel() const { return Label; }
 	virtual void SetLabel(const FText& InLabel) { Label = InLabel; }
-	virtual const FText& GetToolTip() const { return ToolTip; }
+	virtual FText GetToolTip() const { return ToolTip; }
 	virtual void SetToolTip(const FText& InToolTip) { ToolTip = InToolTip; }
 	virtual float GetPlacementAngle() const { return PlacementAngle; }
 	virtual void SetPlacementAngle(float InPlacementAngle) { PlacementAngle = InPlacementAngle; }
@@ -37,8 +39,7 @@ public:
 
 protected:
 
-	FSchematicGraphModel* Model = nullptr;
-	TWeakPtr<FSchematicGraphNode> Node;
+	FSchematicGraphNode* Node = nullptr;
 	FGuid Guid = FGuid::NewGuid();
 	FLinearColor BackgroundColor = FLinearColor(FColor(0, 112, 224));
 	FLinearColor ForegroundColor = FLinearColor::White;
@@ -52,6 +53,18 @@ protected:
 
 	friend class FSchematicGraphModel;
 	friend class FSchematicGraphNode;
+};
+
+class ANIMATIONEDITORWIDGETS_API FSchematicGraphGroupTag : public FSchematicGraphTag
+{
+public:
+
+	SCHEMATICGRAPHTAG_BODY(FSchematicGraphGroupTag, FSchematicGraphTag)
+
+	virtual ~FSchematicGraphGroupTag() override {}
+
+	virtual ESchematicGraphVisibility::Type GetVisibility() const override;
+	virtual FText GetLabel() const override;
 };
 
 #endif

@@ -58,7 +58,7 @@ public:
 	typedef TAnimatedAttribute<float> FFloatAttribute;
 	typedef TAnimatedAttribute<FLinearColor> FLinearColorAttribute;
 	
-	DECLARE_DELEGATE_OneParam(FOnClicked, SSchematicGraphNode*);
+	DECLARE_DELEGATE_TwoParams(FOnClicked, SSchematicGraphNode*, const FPointerEvent&);
 	DECLARE_DELEGATE_TwoParams(FOnBeginDrag, SSchematicGraphNode*, const FDragDropOperation&);
 	DECLARE_DELEGATE_TwoParams(FOnEndDrag, SSchematicGraphNode*, const FDragDropOperation&);
 	DECLARE_DELEGATE_TwoParams(FOnDrop, SSchematicGraphNode*, const FDragDropEvent&);
@@ -98,18 +98,18 @@ public:
 	const FVector2d& GetOriginalSize() const { return OriginalSize; }
 
 	const FSchematicGraphNode* GetNodeData() const { return NodeData; }
+	FSchematicGraphNode* GetNodeData() { return NodeData; }
 	const FGuid GetGuid() const;
 	bool IsInteractive() const;
 
-	const bool IsBeingDragged() const { return bIsBeingDragged; } 
+	const bool IsBeingDragged() const { return bIsBeingDragged; }
+	const bool IsFadedOut() const;
 	
 private:
 
 	bool bIsBeingDragged = false;
 	static inline const FVector2d DefaultNodeSize = FVector2d(32.0,32.0);  
 	FVector2d OriginalSize = DefaultNodeSize;
-	static inline constexpr float ScaledUp = 1.25;
-	static inline constexpr float ScaledDown = 0.75;
 
 	FSchematicGraphNode* NodeData = nullptr;
 	TSharedPtr<FVector2dAttribute> Position;
@@ -126,6 +126,7 @@ private:
 	FOnEndDrag OnEndDragDelegate;
 	FOnDrop OnDropDelegate;
 	SSchematicGraphPanel* SchematicGraphPanel = nullptr;
+	TSharedPtr<FFloatAttribute> ExpansionCircleFactor;
 
 	friend class SSchematicGraphPanel;
 	friend class FSchematicGraphModel;
@@ -141,7 +142,7 @@ public:
 	using FFloatAttribute = SSchematicGraphNode::FFloatAttribute;
 	using FLinearColorAttribute = SSchematicGraphNode::FLinearColorAttribute;
 
-	DECLARE_DELEGATE_TwoParams(FOnNodeClicked, SSchematicGraphPanel*, SSchematicGraphNode*);
+	DECLARE_DELEGATE_ThreeParams(FOnNodeClicked, SSchematicGraphPanel*, SSchematicGraphNode*, const FPointerEvent&);
 	DECLARE_DELEGATE_ThreeParams(FOnBeginDrag, SSchematicGraphPanel*, SSchematicGraphNode*, const FDragDropOperation&);
 	DECLARE_DELEGATE_ThreeParams(FOnEndDrag, SSchematicGraphPanel*, SSchematicGraphNode*, const FDragDropOperation&);
 	DECLARE_DELEGATE_ThreeParams(FOnDrop, SSchematicGraphPanel*, SSchematicGraphNode*, const FDragDropEvent&);
@@ -175,16 +176,20 @@ public:
 	}
 
 	void SetSchematicGraph(FSchematicGraphModel* InGraphData);
+	const FSchematicGraphModel* GetSchematicGraph() const { return GraphData; }
+	FSchematicGraphModel* GetSchematicGraph() { return GraphData; }
 	void Construct(const FArguments& InArgs);
 
 	void RebuildPanel();
 	void AddNode(const FSchematicGraphNode* InNodeToAdd);
 	void RemoveNode(const FSchematicGraphNode* InNodeToRemove);
 	const SSchematicGraphNode* FindNode(const FGuid& InGuid) const;
+	SSchematicGraphNode* FindNode(const FGuid& InGuid);
 	void AddLink(const FSchematicGraphLink* InLinkToAdd);
 	void RemoveLink(const FSchematicGraphLink* InLinkToRemove);
 	const FSchematicLinkWidgetInfo* FindLink(const FGuid& InGuid) const;
-	
+	FSchematicLinkWidgetInfo* FindLink(const FGuid& InGuid);
+
 	// SNodePanel interface
 	virtual void OnArrangeChildren(const FGeometry& AllottedGeometry, FArrangedChildren& ArrangedChildren) const override;
 	virtual int32 OnPaint(const FPaintArgs& Args, const FGeometry& AllottedGeometry, const FSlateRect& MyCullingRect, FSlateWindowElementList& OutDrawElements, int32 LayerId, const FWidgetStyle& InWidgetStyle, bool bParentEnabled) const override;
@@ -201,7 +206,7 @@ public:
 	virtual bool IsTickable() const override { return true; }
 	// End of FTickableEditorObject interface
 
-	void OnNodeClicked(SSchematicGraphNode* Node);
+	void OnNodeClicked(SSchematicGraphNode* Node, const FPointerEvent& MouseEvent);
 	void OnBeginDragEvent(SSchematicGraphNode* Node, const FDragDropOperation& InDragDropEvent);
 	void OnEndDragEvent(SSchematicGraphNode* Node, const FDragDropOperation& InDragDropEvent);
 	void OnDropEvent(SSchematicGraphNode* Node, const FDragDropEvent& InDragDropEvent);
@@ -209,21 +214,34 @@ public:
 
 	virtual FVector2d GetPositionForNode(FGuid InNodeGuid) const;
 	virtual FLinearColor GetColorForNode(FGuid InNodeGuid, int32 InLayerIndex) const;
-	virtual float GetScaleForNode(FGuid InNodeGuid, bool bIncludeScaleOffset) const;
+	virtual float GetScaleForNode(FGuid InNodeGuid) const;
+
+	virtual bool IsAutoGroupingEnabled() const;
+	virtual float GetAutoGroupingDistance() const;
+
 	virtual bool IsAutoScaleEnabledForNode(FGuid InNodeGuid) const;
 	virtual float GetMinimumLinkDistanceForNode(FGuid InLinkGuid, bool bIncludeScale = true) const;
 
+	FOnNodeClicked& OnNodeClicked() { return OnNodeClickedDelegate; }
+	FOnBeginDrag& OnBeginDrag() { return OnBeginDragDelegate; }
+	FOnEndDrag& OnEndDrag() { return OnEndDragDelegate; }
+	FOnDrop& OnAcceptDrop() { return OnDropDelegate; }
+
+private:
+
+	void UpdatePerNodeCaches(bool bRemoveNodesFromAutoGroups);
+	void UpdateAutoGroupingForNodes();
 	void UpdateAutoScalingForNodes();
 
 	bool bIsDragDropping = false;
-	bool bIsOverlay;
+	bool bIsOverlay = false;
 	int32 PaddingLeft = 0;
 	int32 PaddingRight = 0;
 	int32 PaddingTop = 0;
 	int32 PaddingBottom = 0;
 	int32 PaddingInterNode = 0;
 	TSharedPtr<FFloatAttribute> FadeBackgroundAlpha;
-	FSchematicGraphModel* GraphData;
+	FSchematicGraphModel* GraphData = nullptr;
 	FOnNodeClicked OnNodeClickedDelegate;
 	FOnBeginDrag OnBeginDragDelegate;
 	FOnEndDrag OnEndDragDelegate;
@@ -234,11 +252,31 @@ public:
 	TArray<FGuid> NodesBottomRight;
 	TMap<FGuid, TSharedPtr<SSchematicGraphNode>> NodeByGuid;
 
+	struct FPerNodeCache
+	{
+		FPerNodeCache()
+			: bHasParent(false)
+			, Visibility(ESchematicGraphVisibility::Visible)
+			, bIsAutoScaling(false)
+			, Position(FVector2d::ZeroVector)
+			, Radius(0.0)
+		{}
+
+		bool bHasParent;
+		ESchematicGraphVisibility::Type Visibility;
+		bool bIsAutoScaling;
+		FVector2d Position;
+		double Radius;
+	};
+
+	TArray<FPerNodeCache> PerNodeCaches;
+	TMap<uint32, FGuid> GroupNodeGuidByHash;
+
 	TMap<FGuid, TSharedPtr<FSchematicLinkWidgetInfo>> LinkByGuid;
 
 	mutable TMap<FGuid, FVector2d> NodeCenterByGuid;
-	mutable TArray<bool> NodeVisibilityByIndex;
-	mutable TMap<FGuid, bool> NodeVisibilityByGuid;
+	mutable TArray<ESchematicGraphVisibility::Type> NodeVisibilityByIndex;
+	mutable TMap<FGuid, ESchematicGraphVisibility::Type> NodeVisibilityByGuid;
 };
 
 #endif

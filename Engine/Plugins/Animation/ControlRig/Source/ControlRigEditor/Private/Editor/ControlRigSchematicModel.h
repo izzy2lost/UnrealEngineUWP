@@ -13,11 +13,11 @@ class URigHierarchy;
 struct FRigBaseElement;
 
 /** Node for the schematic view */
-class FControlRigSchematicRigElementKeyNode : public FSchematicGraphNode
+class FControlRigSchematicRigElementKeyNode : public FSchematicGraphGroupNode
 {
 public:
 
-	SCHEMATICGRAPHNODE_BODY(FControlRigSchematicRigElementKeyNode, FSchematicGraphNode)
+	SCHEMATICGRAPHNODE_BODY(FControlRigSchematicRigElementKeyNode, FSchematicGraphGroupNode)
 
 	virtual ~FControlRigSchematicRigElementKeyNode() override {}
 	
@@ -53,11 +53,13 @@ protected:
 	friend class FControlRigSchematicModel;
 };
 
-
 /** Model for the schematic views */
 class FControlRigSchematicModel : public FSchematicGraphModel
 {
 public:
+
+	SCHEMATICGRAPHNODE_BODY(FControlRigSchematicModel, FSchematicGraphModel)
+
 	virtual ~FControlRigSchematicModel() override;
 	
 	void SetEditor(const TSharedRef<FControlRigEditor>& InEditor);
@@ -80,22 +82,19 @@ public:
 	virtual int32 GetNumLayersForNode(const FSchematicGraphNode* InNode) const override;
 	virtual const FSlateBrush* GetBrushForNode(const FSchematicGraphNode* InNode, int32 InLayerIndex) const override;
 	virtual FLinearColor GetColorForNode(const FSchematicGraphNode* InNode, int32 InLayerIndex) const override;
-	virtual FText GetToolTipForNode(const FSchematicGraphNode* InNode) const override;
-	virtual ESchematicGraphVisibility::Type GetVisibilityForNode(const FSchematicGraphNode* InNode) const override;
 	virtual ESchematicGraphPlacementConstraint::Type GetPlacementForNode(const FSchematicGraphNode* InNode) const override;
 	virtual const FSlateBrush* GetBrushForLink(const FSchematicGraphLink* InLink) const override;
 	virtual FLinearColor GetColorForLink(const FSchematicGraphLink* InLink) const override;
-
-	virtual bool GetForwardedNodeForDrag(FGuid& InOutGuid) const override;
+	virtual ESchematicGraphVisibility::Type GetVisibilityForTag(const FSchematicGraphTag* InTag) const override;
 
 private:
 
-	void HandleSchematicNodeClicked(SSchematicGraphPanel* InPanel, SSchematicGraphNode* InNode);
+	void HandleSchematicNodeClicked(SSchematicGraphPanel* InPanel, SSchematicGraphNode* InNode, const FPointerEvent& InMouseEvent);
 	void HandleSchematicBeginDrag(SSchematicGraphPanel* InPanel, SSchematicGraphNode* InNode, const FDragDropOperation& InDragDropOperation);
 	void HandleSchematicEndDrag(SSchematicGraphPanel* InPanel, SSchematicGraphNode* InNode, const FDragDropOperation& InDragDropOperation);
 	void HandleSchematicDrop(SSchematicGraphPanel* InPanel, SSchematicGraphNode* InNode, const FDragDropEvent& InDragDropEvent);
 	bool IsConnectorResolved(const FRigElementKey& InConnectorKey, FRigElementKey* OutKey = nullptr) const;
-	
+
 	TWeakPtr<FControlRigEditor> ControlRigEditor;
 	TWeakObjectPtr<UControlRigBlueprint> ControlRigBlueprint;
 	TWeakObjectPtr<UControlRig> ControlRigBeingDebuggedPtr;
