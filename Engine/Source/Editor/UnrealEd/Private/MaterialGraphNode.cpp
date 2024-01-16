@@ -26,6 +26,7 @@
 #include "Materials/MaterialExpressionMaterialAttributeLayers.h"
 #include "Materials/MaterialExpressionRuntimeVirtualTextureSample.h"
 #include "Materials/MaterialExpressionSparseVolumeTextureSample.h"
+#include "Materials/MaterialExpressionSparseVolumeTextureObject.h"
 #include "Materials/MaterialExpressionScalarParameter.h"
 #include "Materials/MaterialExpressionStaticBool.h"
 #include "Materials/MaterialExpressionStaticBoolParameter.h"
@@ -375,7 +376,7 @@ void UMaterialGraphNode::GetNodeContextMenuActions(UToolMenu* Menu, UGraphNodeCo
 		FToolMenuSection& NodeSection = Menu->AddSection("MaterialSchemaNodeActions", LOCTEXT("NodeActionsMenuHeader", "Node Actions"), MenuPosition);
 		if (MaterialExpression)
 		{
-			if (MaterialExpression->IsA(UMaterialExpressionTextureBase::StaticClass()))
+			if (MaterialExpression->IsA(UMaterialExpressionTextureBase::StaticClass()) || MaterialExpression->IsA(UMaterialExpressionSparseVolumeTextureBase::StaticClass()))
 			{
 				{
 					NodeSection.AddMenuEntry(FMaterialEditorCommands::Get().UseCurrentTexture);
@@ -383,11 +384,11 @@ void UMaterialGraphNode::GetNodeContextMenuActions(UToolMenu* Menu, UGraphNodeCo
 
 				// Add a 'Convert To Texture' option for convertible types
 				{
-					if ( MaterialExpression->IsA(UMaterialExpressionTextureSample::StaticClass()) && !MaterialExpression->HasAParameterName())
+					if ( (MaterialExpression->IsA(UMaterialExpressionTextureSample::StaticClass()) || MaterialExpression->IsA(UMaterialExpressionSparseVolumeTextureSample::StaticClass())) && !MaterialExpression->HasAParameterName())
 					{
 						NodeSection.AddMenuEntry(FMaterialEditorCommands::Get().ConvertToTextureObjects);
 					}
-					else if ( MaterialExpression->IsA(UMaterialExpressionTextureObject::StaticClass()))
+					else if ( MaterialExpression->IsA(UMaterialExpressionTextureObject::StaticClass()) || MaterialExpression->IsA(UMaterialExpressionSparseVolumeTextureObject::StaticClass()) )
 					{
 						NodeSection.AddMenuEntry(FMaterialEditorCommands::Get().ConvertToTextureSamples);
 					}
@@ -421,8 +422,9 @@ void UMaterialGraphNode::GetNodeContextMenuActions(UToolMenu* Menu, UGraphNodeCo
 				|| MaterialExpression->IsA(UMaterialExpressionConstant4Vector::StaticClass())
 				|| (MaterialExpression->IsA(UMaterialExpressionTextureSample::StaticClass()) && !MaterialExpression->HasAParameterName())
 				|| (MaterialExpression->IsA(UMaterialExpressionRuntimeVirtualTextureSample::StaticClass()) && !MaterialExpression->HasAParameterName())
-				|| (MaterialExpression->IsA(UMaterialExpressionSparseVolumeTextureSampleParameter::StaticClass()) && !MaterialExpression->HasAParameterName())
+				|| (MaterialExpression->IsA(UMaterialExpressionSparseVolumeTextureSample::StaticClass()) && !MaterialExpression->HasAParameterName())
 				|| MaterialExpression->IsA(UMaterialExpressionTextureObject::StaticClass())
+				|| MaterialExpression->IsA(UMaterialExpressionSparseVolumeTextureObject::StaticClass())
 				|| MaterialExpression->IsA(UMaterialExpressionComponentMask::StaticClass()))
 			{
 				{
@@ -437,7 +439,8 @@ void UMaterialGraphNode::GetNodeContextMenuActions(UToolMenu* Menu, UGraphNodeCo
 			// Add a 'Convert To Constant' option for convertible types
 			if (bIsAStandardScalarParam
 				|| MaterialExpression->IsA(UMaterialExpressionVectorParameter::StaticClass())
-				|| MaterialExpression->IsA(UMaterialExpressionTextureObjectParameter::StaticClass()))
+				|| MaterialExpression->IsA(UMaterialExpressionTextureObjectParameter::StaticClass())
+				|| MaterialExpression->IsA(UMaterialExpressionSparseVolumeTextureObjectParameter::StaticClass()))
 			{
 				{
 					NodeSection.AddMenuEntry(FMaterialEditorCommands::Get().ConvertToConstant);
@@ -1052,6 +1055,10 @@ bool UMaterialGraphNode::UsesVectorColour(UMaterialExpression* Expression)
 bool UMaterialGraphNode::UsesObjectColour(UMaterialExpression* Expression)
 {
 	if (Expression->IsA<UMaterialExpressionTextureBase>())
+	{
+		return true;
+	}
+	else if (Expression->IsA<UMaterialExpressionSparseVolumeTextureBase>())
 	{
 		return true;
 	}

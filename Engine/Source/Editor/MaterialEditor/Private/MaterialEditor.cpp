@@ -42,6 +42,7 @@
 #include "Engine/TextureCube.h"
 #include "Engine/Texture2DArray.h"
 #include "Engine/TextureCubeArray.h"
+#include "SparseVolumeTexture/SparseVolumeTexture.h"
 #include "Dialogs/Dialogs.h"
 #include "UnrealEdGlobals.h"
 #include "Editor.h"
@@ -85,6 +86,8 @@
 #include "Materials/MaterialExpressionTextureSampleParameter2DArray.h"
 #include "Materials/MaterialExpressionTextureSampleParameterCubeArray.h"
 #include "Materials/MaterialExpressionTextureSampleParameterSubUV.h"
+#include "Materials/MaterialExpressionSparseVolumeTextureSample.h"
+#include "Materials/MaterialExpressionSparseVolumeTextureObject.h"
 #include "Materials/MaterialExpressionTransformPosition.h"
 #include "Materials/MaterialExpressionVectorParameter.h"
 #include "Materials/MaterialExpressionDoubleVectorParameter.h"
@@ -3913,7 +3916,8 @@ void FMaterialEditor::OnUseCurrentTexture()
 	// as the texture to use in all selected texture sample expressions.
 	FEditorDelegates::LoadSelectedAssetsIfNeeded.Broadcast();
 	UTexture* SelectedTexture = GEditor->GetSelectedObjects()->GetTop<UTexture>();
-	if ( SelectedTexture )
+	USparseVolumeTexture* SelectedSparseVolumeTexture = GEditor->GetSelectedObjects()->GetTop<USparseVolumeTexture>();
+	if ( SelectedTexture || SelectedSparseVolumeTexture )
 	{
 		const FScopedTransaction Transaction( NSLOCTEXT("UnrealEd", "UseCurrentTexture", "Use Current Texture") );
 		const FGraphPanelSelectionSet SelectedNodes = GetSelectedNodes();
@@ -3921,12 +3925,18 @@ void FMaterialEditor::OnUseCurrentTexture()
 		for (FGraphPanelSelectionSet::TConstIterator NodeIt(SelectedNodes); NodeIt; ++NodeIt)
 		{
 			UMaterialGraphNode* GraphNode = Cast<UMaterialGraphNode>(*NodeIt);
-			if (GraphNode && GraphNode->MaterialExpression->IsA(UMaterialExpressionTextureBase::StaticClass()) )
+			if (SelectedTexture && GraphNode && GraphNode->MaterialExpression->IsA(UMaterialExpressionTextureBase::StaticClass()) )
 			{
 				UMaterialExpressionTextureBase* TextureBase = static_cast<UMaterialExpressionTextureBase*>(GraphNode->MaterialExpression);
 				TextureBase->Modify();
 				TextureBase->Texture = SelectedTexture;
 				TextureBase->AutoSetSampleType();
+			}
+			else if (SelectedSparseVolumeTexture && GraphNode && GraphNode->MaterialExpression->IsA(UMaterialExpressionSparseVolumeTextureBase::StaticClass()))
+			{
+				UMaterialExpressionSparseVolumeTextureBase* TextureBase = static_cast<UMaterialExpressionSparseVolumeTextureBase*>(GraphNode->MaterialExpression);
+				TextureBase->Modify();
+				TextureBase->SparseVolumeTexture = SelectedSparseVolumeTexture;
 			}
 		}
 
@@ -4062,6 +4072,8 @@ void FMaterialEditor::OnConvertObjects()
 				UMaterialExpressionTextureObjectParameter* TextureObjectParameterExpression = Cast<UMaterialExpressionTextureObjectParameter>(CurrentSelectedExpression);
 				UMaterialExpressionRuntimeVirtualTextureSample* RuntimeVirtualTextureSampleExpression = Cast<UMaterialExpressionRuntimeVirtualTextureSample>(CurrentSelectedExpression);
 				UMaterialExpressionSparseVolumeTextureSample* SparseVolumeTextureSampleExpression = Cast<UMaterialExpressionSparseVolumeTextureSample>(CurrentSelectedExpression);
+				UMaterialExpressionSparseVolumeTextureObject* SparseVolumeTextureObjectExpression = Cast<UMaterialExpressionSparseVolumeTextureObject>(CurrentSelectedExpression);
+				UMaterialExpressionSparseVolumeTextureObjectParameter* SparseVolumeTextureObjectParameterExpression = Cast<UMaterialExpressionSparseVolumeTextureObjectParameter>(CurrentSelectedExpression);
 
 				// Setup the class to convert to
 				UClass* ClassToCreate = NULL;
@@ -4105,9 +4117,17 @@ void FMaterialEditor::OnConvertObjects()
 				{
 					ClassToCreate = UMaterialExpressionRuntimeVirtualTextureSampleParameter::StaticClass();
 				}
+				else if (SparseVolumeTextureObjectParameterExpression) // Has to come before SparseVolumeTextureSample comparison 
+				{
+					ClassToCreate = UMaterialExpressionSparseVolumeTextureObject::StaticClass();
+				}
 				else if (SparseVolumeTextureSampleExpression)
 				{
 					ClassToCreate = UMaterialExpressionSparseVolumeTextureSampleParameter::StaticClass();
+				}
+				else if (SparseVolumeTextureObjectExpression)
+				{
+					ClassToCreate = UMaterialExpressionSparseVolumeTextureObjectParameter::StaticClass();
 				}
 				else if (ComponentMaskExpression)
 				{
@@ -4203,12 +4223,24 @@ void FMaterialEditor::OnConvertObjects()
 							NewRuntimeVirtualTextureExpression->MipValueMode = RuntimeVirtualTextureSampleExpression->MipValueMode;
 							NewGraphNode->ReconstructNode();
 						}
-						else if (SparseVolumeTextureSampleExpression)
+						else if (SparseVolumeTextureSampleExpression && !SparseVolumeTextureObjectParameterExpression) // Sample -> SampleParameter
 						{
 							bNeedsRefresh = true;
 							UMaterialExpressionSparseVolumeTextureSampleParameter* NewSparseVolumeTextureExpression = CastChecked<UMaterialExpressionSparseVolumeTextureSampleParameter>(NewExpression);
 							NewSparseVolumeTextureExpression->SparseVolumeTexture = SparseVolumeTextureSampleExpression->SparseVolumeTexture;
 							NewGraphNode->ReconstructNode();
+						}
+						else if (SparseVolumeTextureObjectExpression && !SparseVolumeTextureObjectParameterExpression) // Object -> ObjectParameter
+						{
+							bNeedsRefresh = true;
+							UMaterialExpressionSparseVolumeTextureObjectParameter* NewSparseVolumeTextureObjectParameterExpression = CastChecked<UMaterialExpressionSparseVolumeTextureObjectParameter>(NewExpression);
+							NewSparseVolumeTextureObjectParameterExpression->SparseVolumeTexture = SparseVolumeTextureObjectExpression->SparseVolumeTexture;
+						}
+						else if (SparseVolumeTextureObjectParameterExpression) // ObjectParameter -> Object
+						{
+							bNeedsRefresh = true;
+							UMaterialExpressionSparseVolumeTextureObject* NewTextureObjectExpression = CastChecked<UMaterialExpressionSparseVolumeTextureObject>(NewExpression);
+							NewTextureObjectExpression->SparseVolumeTexture = SparseVolumeTextureObjectParameterExpression->SparseVolumeTexture;
 						}
 						else if (ComponentMaskExpression)
 						{
@@ -4285,6 +4317,8 @@ void FMaterialEditor::OnConvertTextures()
 				UMaterialExpression* CurrentSelectedExpression = GraphNode->MaterialExpression;
 				UMaterialExpressionTextureSample* TextureSampleExpression = Cast<UMaterialExpressionTextureSample>(CurrentSelectedExpression);
 				UMaterialExpressionTextureObject* TextureObjectExpression = Cast<UMaterialExpressionTextureObject>(CurrentSelectedExpression);
+				UMaterialExpressionSparseVolumeTextureSample* SparseVolumeTextureSampleExpression = Cast<UMaterialExpressionSparseVolumeTextureSample>(CurrentSelectedExpression);
+				UMaterialExpressionSparseVolumeTextureObject* SparseVolumeTextureObjectExpression = Cast<UMaterialExpressionSparseVolumeTextureObject>(CurrentSelectedExpression);
 
 				// Setup the class to convert to
 				UClass* ClassToCreate = NULL;
@@ -4295,6 +4329,14 @@ void FMaterialEditor::OnConvertTextures()
 				else if (TextureObjectExpression)
 				{
 					ClassToCreate = UMaterialExpressionTextureSample::StaticClass();
+				}
+				else if (SparseVolumeTextureSampleExpression)
+				{
+					ClassToCreate = UMaterialExpressionSparseVolumeTextureObject::StaticClass();
+				}
+				else if (SparseVolumeTextureObjectExpression)
+				{
+					ClassToCreate = UMaterialExpressionSparseVolumeTextureSample::StaticClass();
 				}
 
 				if (ClassToCreate)
@@ -4323,6 +4365,18 @@ void FMaterialEditor::OnConvertTextures()
 							NewTextureExpr->AutoSetSampleType();
 							NewTextureExpr->IsDefaultMeshpaintTexture = TextureObjectExpression->IsDefaultMeshpaintTexture;
 							NewTextureExpr->MipValueMode = TMVM_None;
+						}
+						else if (SparseVolumeTextureSampleExpression)
+						{
+							bNeedsRefresh = true;
+							UMaterialExpressionSparseVolumeTextureObject* NewTextureExpr = CastChecked<UMaterialExpressionSparseVolumeTextureObject>(NewExpression);
+							NewTextureExpr->SparseVolumeTexture = SparseVolumeTextureSampleExpression->SparseVolumeTexture;
+						}
+						else if (SparseVolumeTextureObjectExpression)
+						{
+							bNeedsRefresh = true;
+							UMaterialExpressionSparseVolumeTextureSample* NewTextureExpr = CastChecked<UMaterialExpressionSparseVolumeTextureSample>(NewExpression);
+							NewTextureExpr->SparseVolumeTexture = SparseVolumeTextureObjectExpression->SparseVolumeTexture;
 						}
 
 						if (bNeedsRefresh)
