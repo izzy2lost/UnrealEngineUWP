@@ -103,12 +103,14 @@ public:
 	virtual int32 GetNumMaterials() const override { return 1; }
 	virtual bool ShouldRenderSelected() const override { return true; }
 	virtual void GetUsedMaterials(TArray<UMaterialInterface*>& OutMaterials, bool bGetDebugMaterials = false) const override;
+	virtual void SetMaterial(int32 ElementIndex, class UMaterialInterface* Material) override;
 	//~ End UPrimitiveComponent Interface.
 
 private:
 	const USparseVolumeTexture* PreviousSVT;
 
-	const USparseVolumeTexture* GetSparseVolumeTexture() const;
+	static USparseVolumeTexture* GetSparseVolumeTexture(UMaterialInterface* MaterialInterface, int32 ParameterIndex, FName* OutParamName = nullptr);
+	static UMaterialInstanceDynamic* CreateOrCastToMID(UMaterialInterface* MaterialInterface);
 	void OnSparseVolumeTextureChanged(const USparseVolumeTexture* SparseVolumeTexture);
 };
 
