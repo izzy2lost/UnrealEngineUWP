@@ -392,11 +392,7 @@ bool FTraceAuxiliaryImpl::EnableChannel(const TCHAR* Channel)
 		return false;
 	}
 
-	EPlatformEvent Event = PlatformEvents_GetEvent(Channel);
-	if (Event != EPlatformEvent::None)
-	{
-		PlatformEvents_Enable(Event);
-	}
+	FPlatformEventsTrace::OnTraceChannelUpdated(Channel, true);
 
 	return UE::Trace::ToggleChannel(Channel, true);
 }
@@ -412,11 +408,7 @@ void FTraceAuxiliaryImpl::DisableChannel(const TCHAR* Channel)
 		return;
 	}
 
-	EPlatformEvent Event = PlatformEvents_GetEvent(Channel);
-	if (Event != EPlatformEvent::None)
-	{
-		PlatformEvents_Disable(Event);
-	}
+	FPlatformEventsTrace::OnTraceChannelUpdated(Channel, false);
 
 	UE::Trace::ToggleChannel(Channel, false);
 }
@@ -1535,8 +1527,8 @@ void FTraceAuxiliary::Initialize(const TCHAR* CommandLine)
 	// By default use 1 msec for stack sampling interval.
 	uint32 Microseconds = 1000;
 	FParse::Value(CommandLine, TEXT("-samplinginterval="), Microseconds);
-	PlatformEvents_Init(Microseconds);
-	PlatformEvents_PostInit();
+	FPlatformEventsTrace::Init(Microseconds);
+	FPlatformEventsTrace::PostInit();
 
 #if CSV_PROFILER
 	FCoreDelegates::OnEndFrame.AddRaw(&GTraceAuxiliary, &FTraceAuxiliaryImpl::UpdateCsvStats);
@@ -1590,7 +1582,7 @@ void FTraceAuxiliary::Shutdown()
 
 	// Make sure all platform event functionality has shut down as on some
 	// platforms it impacts whole system, even if application has terminated.
-	PlatformEvents_Stop();
+	FPlatformEventsTrace::Stop();
 #endif
 }
 

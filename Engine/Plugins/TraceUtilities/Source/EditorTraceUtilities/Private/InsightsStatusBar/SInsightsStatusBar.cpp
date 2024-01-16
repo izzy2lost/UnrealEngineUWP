@@ -22,6 +22,7 @@
 #include "Modules/ModuleManager.h"
 #include "ProfilingDebugging/MiscTrace.h"
 #include "ProfilingDebugging/TraceScreenshot.h"
+#include "ProfilingDebugging/PlatformEvents.h"
 #include "SRecentTracesList.h"
 #include "Styling/StyleColors.h"
 #include "ToolMenus.h"
@@ -956,7 +957,11 @@ void SInsightsStatusBarWidget::ToggleChannel_Execute(int32 Index)
 {
 	if (Index < ChannelsInfo.Num())
 	{
-		UE::Trace::ToggleChannel(*ChannelsInfo[Index].Name, !ChannelsInfo[Index].bIsEnabled);
+		const FString& ChannelName = ChannelsInfo[Index].Name;
+		bool bChannelShouldBeEnabled = !ChannelsInfo[Index].bIsEnabled;
+		UE::Trace::ToggleChannel(*ChannelName, bChannelShouldBeEnabled);
+
+		FPlatformEventsTrace::OnTraceChannelUpdated(ChannelName, bChannelShouldBeEnabled);
 	}
 }
 
