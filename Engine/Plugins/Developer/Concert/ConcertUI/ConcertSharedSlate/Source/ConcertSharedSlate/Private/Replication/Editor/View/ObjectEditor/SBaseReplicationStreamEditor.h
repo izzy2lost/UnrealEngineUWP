@@ -25,7 +25,7 @@ namespace UE::ConcertSharedSlate
 	class IPropertySelectionSourceModel;
 	class IReplicationStreamModel;
 	class IReplicationSubobjectView;
-	class ISubobjectModel;
+	class IObjectHierarchyModel;
 	class SReplicationStreamViewer;
 	
 	enum class EReplicatedObjectChangeReason : uint8;
@@ -67,7 +67,7 @@ namespace UE::ConcertSharedSlate
 			SLATE_ARGUMENT(FColumnSortInfo, SecondaryPropertySort)
 		
 			/** Optional. If set, this determines the children nested under the root objects. */
-			SLATE_ARGUMENT(TSharedPtr<ISubobjectModel>, SubobjectModel)
+			SLATE_ARGUMENT(TSharedPtr<IObjectHierarchyModel>, ObjectHierarchy)
 			/** Optional. If set, this determines the display text for objects. */
 			SLATE_ARGUMENT(TSharedPtr<IObjectNameModel>, NameModel)
 
@@ -112,7 +112,7 @@ namespace UE::ConcertSharedSlate
 		 */
 		TSharedPtr<FFakeObjectToPropertiesEditorModel> PropertiesModelAdapter;
 		/** Can be null. If set, adds all subobjects to the top level view. */
-		TSharedPtr<ISubobjectModel> SubobjectModel;
+		TSharedPtr<IObjectHierarchyModel> ObjectHierarchy;
 		
 		/** For deciding which objects can be added to EditablePropertiesModel. */
 		TSharedPtr<IObjectSelectionSourceModel> ObjectSelectionSource;

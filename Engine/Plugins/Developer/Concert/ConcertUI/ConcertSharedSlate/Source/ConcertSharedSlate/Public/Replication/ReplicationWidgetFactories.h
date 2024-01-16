@@ -29,7 +29,7 @@ namespace UE::ConcertSharedSlate
 	class IReplicationStreamViewer;
 	class IReplicationSubobjectView;
 	class IStreamExtender;
-	class ISubobjectModel;
+	class IObjectHierarchyModel;
 	class IPropertySelectionSourceModel;
 	
 	/**
@@ -53,7 +53,7 @@ namespace UE::ConcertSharedSlate
 		 * If left unspecified, the top will only display actors.
 		 * @note The created view will keep a strong reference to this.
 		 */
-		TSharedPtr<ISubobjectModel> SubobjectModel;
+		TSharedPtr<IObjectHierarchyModel> ObjectHierarchy;
 
 		/** Optional. Determines the display name of objects. */
 		TSharedPtr<IObjectNameModel> NameModel;

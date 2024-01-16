@@ -12,7 +12,7 @@
 #include "Replication/Editor/Model/ObjectSource/IObjectSelectionSourceModel.h"
 
 #include "Algo/AnyOf.h"
-#include "Replication/Editor/Model/ISubobjectModel.h"
+#include "Replication/Editor/Model/Object/IObjectHierarchyModel.h"
 #include "UObject/Class.h"
 #include "Widgets/SBoxPanel.h"
 
@@ -28,7 +28,7 @@ namespace UE::ConcertSharedSlate
 	{
 		ObjectSelectionSource = MoveTemp(InObjectSelectionSource);
 		PropertySelectionSource = MoveTemp(InPropertySelectionSource);
-		SubobjectModel = InArgs._SubobjectModel;
+		ObjectHierarchy = InArgs._ObjectHierarchy;
 		
 		EditablePropertiesModel = MoveTemp(InPropertiesModel);
 		EditablePropertiesModel->OnObjectsChanged().AddSP(this, &SBaseReplicationStreamEditor::OnObjectsChanged);
@@ -49,7 +49,7 @@ namespace UE::ConcertSharedSlate
 				.AdditionalPropertyColumns(InArgs._AdditionalPropertyColumns)
 				.PrimaryPropertySort(InArgs._PrimaryPropertySort)
 				.SecondaryPropertySort(InArgs._SecondaryPropertySort)
-				.SubobjectModel(InArgs._SubobjectModel)
+				.ObjectHierarchy(InArgs._ObjectHierarchy)
 				.NameModel(InArgs._NameModel)
 				.OnDeleteObjects(this, &SBaseReplicationStreamEditor::OnDeleteObjects)
 				.OnObjectsContextMenuOpening(this, &SBaseReplicationStreamEditor::OnObjectsContextMenuOpening)

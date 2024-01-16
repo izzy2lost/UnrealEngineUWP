@@ -49,6 +49,8 @@ namespace UE::ConcertClientSharedSlate
 			{
 				return FoundSubobjectName;
 			}
+
+			return FText::FromString(ResolvedObject->GetName());
 		}
 		
 		return FText::FromString(ConcertSharedSlate::ObjectUtils::ExtractObjectDisplayStringFromPath(ObjectPath));

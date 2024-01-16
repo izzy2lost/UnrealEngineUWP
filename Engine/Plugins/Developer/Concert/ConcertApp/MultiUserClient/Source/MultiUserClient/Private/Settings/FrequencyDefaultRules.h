@@ -59,7 +59,7 @@ struct FMultiUserFrequencyDefaultRules
 
 	/**
 	 * Default frequency settings that are used by objects when they do not match any specific rules in FrequencyRuleStack.
-	 * These are the settings that are set for the Multi User stream's FSharedReplicationStreamDescription::FrequencySettings::Defaults member.
+	 * These are the settings that are set for the Multi User stream's FConcertBaseStreamInfo::FrequencySettings::Defaults member.
 	 */
 	UPROPERTY(Category = "Replication Settings|Frequency", EditAnywhere)
 	FConcertObjectReplicationSettings DefaultObjectFrequencySettings { EConcertObjectReplicationMode::SpecifiedRate, 30 };
@@ -84,7 +84,7 @@ struct FMultiUserFrequencyDefaultRules
 	 * Goes through FrequencyRuleStack and returns the FConcertObjectReplicationSettings of the entry that was matched.
 	 * 
 	 * If none was matched, the object should not have any frequency override and should default to the stream's
-	 * FSharedReplicationStreamDescription::FrequencySettings::Defaults, which should be set to DefaultObjectFrequencySettings. 
+	 * FConcertBaseStreamInfo::FrequencySettings::Defaults, which should be set to DefaultObjectFrequencySettings. 
 	 */
 	TOptional<FConcertObjectReplicationSettings> FindOverrideSettings(UObject& Object) const;
 };

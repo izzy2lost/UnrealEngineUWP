@@ -2,10 +2,10 @@
 
 #include "Replication/ClientReplicationWidgetFactories.h"
 
-#include "Object/EditorObjectNameModel.h"
 #include "Replication/ReplicationWidgetFactories.h"
+#include "Replication/Editor/Model/Object/EditorObjectHierarchyModel.h"
+#include "Replication/Editor/Model/Object/EditorObjectNameModel.h"
 #include "Replication/Editor/Model/ReplicationStreamObject.h"
-#include "Replication/Editor/Model/Subobject/ComponentHierarchySubobjectModel.h"
 #include "Replication/Editor/Model/TransactionalReplicationStreamModel.h"
 #include "Replication/Editor/View/ObjectEditor/SDefaultReplicationStreamEditor.h"
 
@@ -14,9 +14,9 @@
 
 namespace UE::ConcertClientSharedSlate
 {
-	TSharedRef<ConcertSharedSlate::ISubobjectModel> CreateSubobjectModelForComponentHierarchy()
+	TSharedRef<ConcertSharedSlate::IObjectHierarchyModel> CreateObjectHierarchyForComponentHierarchy()
 	{
-		return MakeShared<FComponentHierarchySubobjectModel>();
+		return MakeShared<FEditorObjectHierarchyModel>();
 	}
 
 	TSharedRef<ConcertSharedSlate::IObjectNameModel> CreateEditorObjectNameModel()

@@ -11,7 +11,7 @@ namespace UE::ConcertSharedSlate
 	class IEditableReplicationStreamModel;
 	class IReplicationStreamViewer;
 	class IReplicationStreamModel;
-	class ISubobjectModel;
+	class IObjectHierarchyModel;
 }
 
 namespace UE::ConcertClientSharedSlate::ReplicationColumns::Property

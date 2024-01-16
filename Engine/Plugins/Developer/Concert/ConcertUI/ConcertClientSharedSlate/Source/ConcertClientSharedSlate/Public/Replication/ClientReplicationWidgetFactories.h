@@ -13,14 +13,14 @@ namespace UE::ConcertSharedSlate
 	class IObjectNameModel;
 	class IReplicationStreamEditor;
 	class IStreamExtender;
-	class ISubobjectModel;
+	class IObjectHierarchyModel;
 	struct FCreateEditorParams;
 }
 
 namespace UE::ConcertClientSharedSlate
 {
 	/** Builds a similar tree hierarchy as SSubobjectEditor. Reports only components as subobjects. */
-	CONCERTCLIENTSHAREDSLATE_API TSharedRef<ConcertSharedSlate::ISubobjectModel> CreateSubobjectModelForComponentHierarchy();
+	CONCERTCLIENTSHAREDSLATE_API TSharedRef<ConcertSharedSlate::IObjectHierarchyModel> CreateObjectHierarchyForComponentHierarchy();
 
 	/** Name model that uses editor data for determining display names: actors use their labels, components ask USubobjectDataSubsystem. */
 	CONCERTCLIENTSHAREDSLATE_API TSharedRef<ConcertSharedSlate::IObjectNameModel> CreateEditorObjectNameModel();

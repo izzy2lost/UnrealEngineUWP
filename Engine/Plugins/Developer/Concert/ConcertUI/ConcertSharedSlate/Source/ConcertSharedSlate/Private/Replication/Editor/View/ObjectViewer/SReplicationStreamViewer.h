@@ -27,7 +27,7 @@ namespace UE::ConcertSharedSlate
 	class IEditableReplicationStreamModel;
 	class IObjectNameModel;
 	class IReplicationStreamModel;
-	class ISubobjectModel;
+	class IObjectHierarchyModel;
 	class SPropertyTreeView;
 	
 	/**
@@ -61,7 +61,7 @@ namespace UE::ConcertSharedSlate
 			SLATE_ARGUMENT(FColumnSortInfo, SecondaryPropertySort)
 
 			/** Optional. If set, this determines the children nested under the root objects. */
-			SLATE_ARGUMENT(TSharedPtr<ISubobjectModel>, SubobjectModel)
+			SLATE_ARGUMENT(TSharedPtr<IObjectHierarchyModel>, ObjectHierarchy)
 			/** Optional. If set, this determines the display text for objects. */
 			SLATE_ARGUMENT(TSharedPtr<IObjectNameModel>, NameModel)
 
@@ -105,7 +105,7 @@ namespace UE::ConcertSharedSlate
 		/** The model this view is visualizing. */
 		TSharedPtr<IReplicationStreamModel> PropertiesModel;
 		/** Can be null. If set, this determines the children nested under the root objects. Editor builds have access to e.g. to USubobjectDataSubsystem but programs do not. */
-		TSharedPtr<ISubobjectModel> SubobjectModel;
+		TSharedPtr<IObjectHierarchyModel> ObjectHierarchy;
 		/** Can be null. If set, this determines the display text for objects. Editor builds have access to e.g. to USubobjectDataSubsystem but programs do not. */
 		TSharedPtr<IObjectNameModel> NameModel;
 
