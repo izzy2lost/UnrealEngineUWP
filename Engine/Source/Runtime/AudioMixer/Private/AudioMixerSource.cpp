@@ -529,7 +529,6 @@ namespace Audio
 		, bIsEffectTailsDone(false)
 		, bIsPlayingEffectTails(false)
 		, bEditorWarnedChangedSpatialization(false)
-		, bUsingHRTFSpatialization(false)
 		, bIs3D(false)
 		, bDebugMode(false)
 		, bIsVorbis(false)
@@ -592,6 +591,8 @@ namespace Audio
 		bIsStopping = false;
 		bIsEffectTailsDone = true;
 		bIsDone = false;
+
+		bBypassingSubmixModulation = false;
 
 		FSoundBuffer* SoundBuffer = static_cast<FSoundBuffer*>(MixerBuffer);
 		if (SoundBuffer->NumChannels > 0)
@@ -1640,11 +1641,11 @@ namespace Audio
 		{
 			FModulationDestination* SubmixOutVolDest = CurrSubmixPtr->GetOutputVolumeDestination();
 			FModulationDestination* SubmixWetVolDest = CurrSubmixPtr->GetWetVolumeDestination();
-			if (SubmixOutVolDest && SubmixOutVolDest->IsActive())
+			if (SubmixOutVolDest)
 			{
 				SubmixModVolume *= SubmixOutVolDest->GetValue();
 			}
-			if (SubmixWetVolDest && SubmixWetVolDest->IsActive())
+			if (SubmixWetVolDest)
 			{
 				SubmixModVolume *= SubmixWetVolDest->GetValue();
 			}

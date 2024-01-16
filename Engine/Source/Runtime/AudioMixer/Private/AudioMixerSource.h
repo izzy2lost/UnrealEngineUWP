@@ -187,7 +187,6 @@ namespace Audio
 		FThreadSafeBool bIsReleasing;
 
 		uint32 bEditorWarnedChangedSpatialization : 1;
-		uint32 bUsingHRTFSpatialization : 1;
 		uint32 bIs3D : 1;
 		uint32 bDebugMode : 1;
 		uint32 bIsVorbis : 1;
