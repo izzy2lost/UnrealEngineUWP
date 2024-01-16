@@ -880,9 +880,9 @@ bool UCustomizableObject::ConditionalAutoCompile()
 		return false;
 	}
 
-	// Don't compile if the cook commandlet is running. Do not add a warning/error. Otherwise, we could end up
-	// invalidating the cook for no reason.
-	if (IsRunningCookCommandlet())
+	// By default, don't compile in a commandlet.
+	// Notice that the cook is also a commandlet. Do not add a warning/error, otherwise we could end up invalidating the cook for no reason.
+	if (IsRunningCookCommandlet() || (IsRunningCommandlet() && !System->IsAutoCompileCommandletEnabled()))
 	{
 		return false;
 	}

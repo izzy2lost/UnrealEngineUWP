@@ -1425,6 +1425,18 @@ bool UCustomizableObjectSystem::IsAutoCompileEnabled() const
 }
 
 
+bool UCustomizableObjectSystem::IsAutoCompileCommandletEnabled() const
+{
+	return GetPrivate()->bAutoCompileCommandletEnabled;
+}
+
+
+void UCustomizableObjectSystem::SetAutoCompileCommandletEnabled(bool bValue)
+{
+	GetPrivate()->bAutoCompileCommandletEnabled = bValue;
+}
+
+
 bool UCustomizableObjectSystem::IsAutoCompilationSync() const
 {
 	return EditorSettings.bCompileObjectsSynchronously;

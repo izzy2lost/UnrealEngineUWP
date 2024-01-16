@@ -238,6 +238,12 @@ public:
 	// If true, uncompiled Customizable Objects will be compiled whenever an instance update is required
 	bool IsAutoCompileEnabled() const;
 
+	/** Return true if inside commandlets uncompiled Customizable Objects will be compiled whenever an instance update is required. */
+	bool IsAutoCompileCommandletEnabled() const;
+
+	/** Set if inside commandlets uncompiled Customizable Objects will be compiled whenever an instance update is required. */
+	void SetAutoCompileCommandletEnabled(bool bValue);
+	
 	// If true, uncompiled Customizable Objects will be compiled synchronously
 	bool IsAutoCompilationSync() const;
 

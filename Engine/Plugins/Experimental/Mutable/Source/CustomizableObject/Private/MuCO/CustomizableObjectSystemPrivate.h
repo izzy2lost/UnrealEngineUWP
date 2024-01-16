@@ -662,6 +662,8 @@ public:
 	FLogBenchmarkUtil LogBenchmarkUtil;
 
 	int32 NumSkeletalMeshes = 0;
+
+	bool bAutoCompileCommandletEnabled = false;
 };
 
 
