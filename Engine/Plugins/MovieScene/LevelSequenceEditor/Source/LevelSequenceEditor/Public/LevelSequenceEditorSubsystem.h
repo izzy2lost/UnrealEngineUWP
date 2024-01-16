@@ -59,11 +59,11 @@ struct FMovieSceneUniversalLocatorInfo
 
 	// Flags for how to resolve the locator when in editor
 	UPROPERTY(EditAnywhere, Category = "Default")
-	ELocatorResolveFlags EditorResolveFlags;
+	ELocatorResolveFlags EditorResolveFlags = ELocatorResolveFlags::None;
 
 	// Flags for how to resolve the locator when in runtime
 	UPROPERTY(EditAnywhere, Category = "Default")
-	ELocatorResolveFlags RuntimeResolveFlags;
+	ELocatorResolveFlags RuntimeResolveFlags = ELocatorResolveFlags::None;
 };
 
 // Helper struct for editing arrays of locators for object bindings

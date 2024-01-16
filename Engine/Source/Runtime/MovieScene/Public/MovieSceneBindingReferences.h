@@ -27,11 +27,11 @@ struct FMovieSceneBindingReference
 
 #if WITH_EDITORONLY_DATA
 	UPROPERTY()
-	ELocatorResolveFlags EditorResolveFlags;
+	ELocatorResolveFlags EditorResolveFlags = ELocatorResolveFlags::None;
 #endif
 
 	UPROPERTY()
-	ELocatorResolveFlags RuntimeResolveFlags;
+	ELocatorResolveFlags RuntimeResolveFlags = ELocatorResolveFlags::None;
 
 	void InitializeLocatorResolveFlags();
 };
