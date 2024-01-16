@@ -72,15 +72,47 @@ void FActorPrimitiveColorHandler::RefreshPrimitiveColorHandler(FName InHandlerNa
 	{
 		for (TActorIterator<AActor> It(InWorld); It; ++It)
 		{
-			TInlineComponentArray<UPrimitiveComponent*> PrimitiveComponents;
-			It->GetComponents(PrimitiveComponents);
-
-			for (UPrimitiveComponent* PrimitiveComponent : PrimitiveComponents)
+			It->ForEachComponent<UPrimitiveComponent>(false, [this](UPrimitiveComponent* PrimitiveComponent)
 			{
 				if (PrimitiveComponent->IsRegistered())
 				{
 					PrimitiveComponent->PushPrimitiveColorToProxy(GetPrimitiveColor(PrimitiveComponent));
 				}
+			});
+		}
+	}
+#endif
+}
+
+void FActorPrimitiveColorHandler::RefreshPrimitiveColorHandler(FName InHandlerName, const TArray<AActor*>& InActors)
+{
+#if ENABLE_ACTOR_PRIMITIVE_COLOR_HANDLER
+	if (ActivePrimitiveColorHandlerName == InHandlerName)
+	{
+		for (AActor* Actor : InActors)
+		{
+			Actor->ForEachComponent<UPrimitiveComponent>(false, [this](UPrimitiveComponent* PrimitiveComponent)
+			{
+				if (PrimitiveComponent->IsRegistered())
+				{
+					PrimitiveComponent->PushPrimitiveColorToProxy(GetPrimitiveColor(PrimitiveComponent));
+				}
+			});
+		}
+	}
+#endif
+}
+
+void FActorPrimitiveColorHandler::RefreshPrimitiveColorHandler(FName InHandlerName, const TArray<UPrimitiveComponent*>& InPrimitiveComponents)
+{
+#if ENABLE_ACTOR_PRIMITIVE_COLOR_HANDLER
+	if (ActivePrimitiveColorHandlerName == InHandlerName)
+	{
+		for (UPrimitiveComponent* PrimitiveComponent : InPrimitiveComponents)
+		{
+			if (PrimitiveComponent && PrimitiveComponent->IsRegistered())
+			{
+				PrimitiveComponent->PushPrimitiveColorToProxy(GetPrimitiveColor(PrimitiveComponent));
 			}
 		}
 	}

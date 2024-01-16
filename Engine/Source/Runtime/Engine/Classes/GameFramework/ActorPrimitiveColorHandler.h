@@ -34,12 +34,18 @@ public:
 
 	FActorPrimitiveColorHandler();
 	static FActorPrimitiveColorHandler& Get();
+
 	void RegisterPrimitiveColorHandler(FName InHandlerName, FText InHandlerText, const FFunc& InHandlerFunc);
 	void UnregisterPrimitiveColorHandler(FName InHandlerName);
-	bool SetActivePrimitiveColorHandler(FName InHandlerName, UWorld* InWorld);
-	void RefreshPrimitiveColorHandler(FName InHandlerName, UWorld* InWorld);
-	FName GetActivePrimitiveColorHandler() const;
 	void GetRegisteredPrimitiveColorHandlers(TArray<FPrimitiveColorHandler>& OutPrimitiveColorHandlers) const;
+
+	FName GetActivePrimitiveColorHandler() const;
+	bool SetActivePrimitiveColorHandler(FName InHandlerName, UWorld* InWorld);
+
+	void RefreshPrimitiveColorHandler(FName InHandlerName, UWorld* InWorld);
+	void RefreshPrimitiveColorHandler(FName InHandlerName, const TArray<AActor*>& InActors);
+	void RefreshPrimitiveColorHandler(FName InHandlerName, const TArray<UPrimitiveComponent*>& InPrimitiveComponents);
+
 	FLinearColor GetPrimitiveColor(const UPrimitiveComponent* InPrimitiveComponent) const;
 
 private:
