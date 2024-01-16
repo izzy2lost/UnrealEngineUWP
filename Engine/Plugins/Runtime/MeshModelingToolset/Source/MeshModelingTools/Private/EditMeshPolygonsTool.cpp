@@ -1373,7 +1373,7 @@ void UEditMeshPolygonsTool::StartActivity(TObjectPtr<UInteractiveToolActivity> A
 					Params.OverrideAcceptButtonText = LOCTEXT("AcceptSubActionButton", "Accept Action");
 					Params.OverrideAcceptButtonTooltip = LOCTEXT("AcceptSubActionTooltip", "Accept the action currently being performed.");
 					Params.OverrideCancelButtonText = LOCTEXT("CancelSubActionButton", "Cancel Action");
-					Params.OverrideCancelButtonTooltip = LOCTEXT("AcceptSubActionTooltip", "Cancel the action currently being performed.");
+					Params.OverrideCancelButtonTooltip = LOCTEXT("CancelSubActionTooltip", "Cancel the action currently being performed.");
 					Params.CanAccept = [this]() { return CurrentActivity->CanAccept(); };
 					Params.OnAcceptCancelTriggered = [this](bool bAccept) 
 					{ 

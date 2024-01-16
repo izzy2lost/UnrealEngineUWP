@@ -58,9 +58,6 @@ UModelingToolsHostCustomizationAPI* UModelingToolsHostCustomizationAPI::Register
 		ensure(ToolsContext->ContextObjectStore->AddContextObject(Instance));
 		return Instance;
 	}
-
-	ensure(false); // Shouldn't get here
-	return nullptr;
 }
 
 bool UModelingToolsHostCustomizationAPI::Deregister(UInteractiveToolsContext* ToolsContext)
