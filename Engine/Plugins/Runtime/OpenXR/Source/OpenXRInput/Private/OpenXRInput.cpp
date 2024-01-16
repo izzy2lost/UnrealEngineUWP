@@ -543,6 +543,9 @@ bool FOpenXRInputPlugin::FOpenXRInput::BuildActions(XrSession Session)
 	}
 
 	bActionsAttached = XR_ENSURE(xrAttachSessionActionSets(Session, &SessionActionSetsAttachInfo));
+	// NOTE: xrAttachSessionActionSets may fail with XR_ERROR_HANDLE_INVALID when using the Meta openxr runtime because the VivePort eye tracking openxr layer is incompatible with that runtime.
+	// Not sure what to do about that at the moment.  Perhaps we could simply log a warning when the layer is seen indicating that uninstalling it might fix problems?  
+	// But to help consumers that would need to pop up a UI or something.
 
 	return bActionsAttached;
 }

@@ -306,6 +306,10 @@ class XRBASE_API UHeadMountedDisplayFunctionLibrary : public UBlueprintFunctionL
 
 	/**
 	 * Cross XR-System query that returns critical information about the motion controller (position, orientation, hand/finger position)
+	 *
+	 * @param  WorldContext				Any object in the world (the player pawn would work).  Used in PIE to make sure we get this data from a motioncontroller component that is currently active, rather than one in an editor view world that is never tracked.
+	 * @param  Hand						Indicates which hand we want data for.
+	 * @param  MotionControllerData		[out] Struct filled with information about the motion controller state.
 	 */
 	UFUNCTION(BlueprintCallable, Category = "Input|XRTracking")
 	static void GetMotionControllerData(UObject* WorldContext, const EControllerHand Hand, FXRMotionControllerData& MotionControllerData);
