@@ -91,8 +91,8 @@ namespace uba
 			u64 prevSend = 0;
 			u64 prevRecv = 0;
 			u64 memTotal = 0;
-			u64 processActiveCount = 0;
-			u64 processExitedCount = 0;
+			u32 processActiveCount = 0;
+			u32 processExitedCount = 0;
 
 			TString proxyName;
 			bool proxyCreated = false;
@@ -114,6 +114,9 @@ namespace uba
 		Vector<TString> strings;
 		u64 startTime = 0;
 		u64 frequency = 0;
+		u32 totalProcessActiveCount = 0;
+		u32 totalProcessExitedCount = 0;
+		u32 activeSessionCount = 0;
 		u32 version = 0;
 		bool finished = true;
 	};

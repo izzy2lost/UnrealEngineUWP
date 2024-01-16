@@ -319,6 +319,8 @@ namespace uba
 			TraceView::Session& session = GetSession(out, sessionIndex);
 			session.name = sessionName.data;
 			session.clientUid = clientUid;
+
+			++out.activeSessionCount;
 			break;
 		}
 		case TraceType_SessionUpdate:
@@ -421,6 +423,8 @@ namespace uba
 			for (auto it = session.storedFiles.begin(), end = session.storedFiles.end(); it != end; ++it)
 				if (it->stop == ~u64(0))
 					it->stop = time;
+
+			--out.activeSessionCount;
 			break;
 		}
 		case TraceType_SessionSummary:
@@ -477,6 +481,7 @@ namespace uba
 			m_activeProcesses.try_emplace(id, TraceView::ProcessLocation{sessionIndex, processorIndex, u32(processor->processes.size() - 1)});
 			
 			++session.processActiveCount;
+			++out.totalProcessActiveCount;
 
 			process.id = id;
 			process.description = desc.data;
@@ -508,6 +513,9 @@ namespace uba
 			auto& session = GetSession(out, active.sessionIndex);
 			++session.processExitedCount;
 			--session.processActiveCount;
+
+			++out.totalProcessExitedCount;
+			--out.totalProcessActiveCount;
 
 			TraceView::Process& process = session.processors[active.processorIndex].processes[active.processIndex];
 			process.processStats.Read(reader, out.version);
@@ -576,6 +584,7 @@ namespace uba
 
 			auto& session = GetSession(out, active.sessionIndex);
 			--session.processActiveCount;
+			--out.totalProcessActiveCount;
 
 			TraceView::Process& process = session.processors[active.processorIndex].processes[active.processIndex];
 			process.exitCode = 0;
