@@ -886,19 +886,19 @@ void UpdateSkeletalMesh(const TSharedRef<FUpdateContextPrivate>& Context)
 
 		if (IsValid(CustomizableObjectInstanceUsage) &&
 			(CustomizableObjectInstanceUsage->GetCustomizableObjectInstance() == CustomizableObjectInstance) &&
-			CustomizableObjectInstance->SkeletalMeshes.IsValidIndex(CustomizableObjectInstanceUsage->GetComponentIndex())
+			CustomizableObjectInstancePrivateData->SkeletalMeshes.IsValidIndex(CustomizableObjectInstanceUsage->GetComponentIndex())
 		   )
 		{
 			MUTABLE_CPUPROFILER_SCOPE(UpdateSkeletalMesh_SetSkeletalMesh);
 
 			const bool bIsCreatingSkeletalMesh = CustomizableObjectInstancePrivateData->HasCOInstanceFlags(CreatingSkeletalMesh); //TODO MTBL-391: Review
-			CustomizableObjectInstanceUsage->SetSkeletalMesh(CustomizableObjectInstance->SkeletalMeshes[CustomizableObjectInstanceUsage->GetComponentIndex()], false, bIsCreatingSkeletalMesh);
+			CustomizableObjectInstanceUsage->SetSkeletalMesh(CustomizableObjectInstancePrivateData->SkeletalMeshes[CustomizableObjectInstanceUsage->GetComponentIndex()], false, bIsCreatingSkeletalMesh);
 
 			if (CustomizableObjectInstancePrivateData->HasCOInstanceFlags(ReplacePhysicsAssets))
 			{
 				CustomizableObjectInstanceUsage->SetPhysicsAsset(
-					CustomizableObjectInstance->SkeletalMeshes[CustomizableObjectInstanceUsage->GetComponentIndex()] ?
-					CustomizableObjectInstance->SkeletalMeshes[CustomizableObjectInstanceUsage->GetComponentIndex()]->GetPhysicsAsset() : nullptr);
+					CustomizableObjectInstancePrivateData->SkeletalMeshes[CustomizableObjectInstanceUsage->GetComponentIndex()] ?
+					CustomizableObjectInstancePrivateData->SkeletalMeshes[CustomizableObjectInstanceUsage->GetComponentIndex()]->GetPhysicsAsset() : nullptr);
 			}
 		}
 	}
@@ -2293,17 +2293,11 @@ namespace impl
 				// This used to be CustomizableObjectInstance::UpdateSkeletalMesh_PostBeginUpdate2
 				{
 					MUTABLE_CPUPROFILER_SCOPE(UpdateSkeletalMesh_PostBeginUpdate2);
-
-					for (TObjectPtr<USkeletalMesh>& SkeletalMesh : CustomizableObjectInstance->SkeletalMeshes)
-					{
-						if (SkeletalMesh && SkeletalMesh->GetResourceForRendering() && !SkeletalMesh->GetResourceForRendering()->IsInitialized())
-						{
-#if WITH_EDITOR
-							UCustomizableInstancePrivate::RegenerateImportedModel(SkeletalMesh);
+					
+#if WITH_EDITORONLY_DATA
+					CustomizableInstancePrivateData->RegenerateImportedModels();
 #endif
-							CustomizableInstancePrivateData->PostEditChangePropertyWithoutEditor(SkeletalMesh);
-						}
-					}
+					CustomizableInstancePrivateData->PostEditChangePropertyWithoutEditor();
 				}
 			}
 		} // if (!bInstanceValid)
@@ -3749,7 +3743,7 @@ void UCustomizableObjectSystemPrivate::UpdateStats()
 			continue;
 		}
 
-		NumSkeletalMeshes += Instance->SkeletalMeshes.Num();
+		NumSkeletalMeshes += Instance->GetPrivate()->SkeletalMeshes.Num();
 	}
 }
 

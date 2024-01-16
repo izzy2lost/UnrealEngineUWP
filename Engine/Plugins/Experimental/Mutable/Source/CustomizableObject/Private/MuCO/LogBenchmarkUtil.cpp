@@ -99,9 +99,9 @@ void FLogBenchmarkUtil::GetInstancesStats(int32& OutNumInstances, int32& OutNumB
 			++OutNumBuiltInstances;
 		}
 		
-		for (int32 ComponentIndex = 0; ComponentIndex < Instance->SkeletalMeshes.Num(); ++ComponentIndex)
+		for (int32 ComponentIndex = 0; ComponentIndex < Instance->GetNumComponents(); ++ComponentIndex)
 		{
-			if (Instance->SkeletalMeshes[ComponentIndex] && Instance->SkeletalMeshes[ComponentIndex]->GetResourceForRendering())
+			if (Instance->GetSkeletalMesh(ComponentIndex))
 			{
 				++OutNumAllocatedSkeletalMeshes;
 			}

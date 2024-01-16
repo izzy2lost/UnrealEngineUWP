@@ -1658,18 +1658,7 @@ void FCustomizableObjectEditorViewportClient::BakeInstance(UCustomizableObjectIn
 		return;
 	}
 
-	bool bHasSkeletalMesh = false;
-	int32 NumComponents = Instance->SkeletalMeshes.Num();
-
-	for (int32 ComponentIndex = 0; ComponentIndex < NumComponents; ++ComponentIndex)
-	{
-		if (Instance->SkeletalMeshes.IsValidIndex(ComponentIndex) && Instance->SkeletalMeshes[ComponentIndex])
-		{
-			bHasSkeletalMesh = true;
-		}
-	}
-		
-	if (!bHasSkeletalMesh)
+	if (!Instance->HasAnySkeletalMesh())
 	{
 		return;
 	}
@@ -1689,7 +1678,6 @@ void FCustomizableObjectEditorViewportClient::BakeInstance(UCustomizableObjectIn
 		System->SetImagePixelFormatOverride(UnrealPixelFormatFunc);
 
 		BakeTempInstance = Instance->Clone();
-		BakeTempInstance->SkeletalMeshes.Empty();
 		BakeTempInstance->UpdatedNativeDelegate.AddSP(this, &FCustomizableObjectEditorViewportClient::BakeInstance);
 		BakeTempInstance->UpdateSkeletalMeshAsync(true, true);
 
@@ -1772,11 +1760,11 @@ void FCustomizableObjectEditorViewportClient::BakeInstance(UCustomizableObjectIn
 		{
 			TArray<UPackage*> PackagesToSave;
 
+			const int32 NumComponents = Instance->GetNumComponents();
 			for (int32 ComponentIndex = 0; ComponentIndex < NumComponents; ++ComponentIndex)
 			{
-				USkeletalMesh* Mesh = Instance->SkeletalMeshes.IsValidIndex(ComponentIndex) && Instance->SkeletalMeshes[ComponentIndex] ?
-					Cast<USkeletalMesh>(Instance->SkeletalMeshes[ComponentIndex]) : nullptr;
-				
+				USkeletalMesh* Mesh = Instance->GetSkeletalMesh(ComponentIndex);
+
 				if (!Mesh)
 				{
 					continue;
