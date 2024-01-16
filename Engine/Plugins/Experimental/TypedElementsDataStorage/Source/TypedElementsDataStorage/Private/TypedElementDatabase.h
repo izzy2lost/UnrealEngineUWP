@@ -101,9 +101,6 @@ public:
 	void DebugPrintQueryCallbacks(FOutputDevice& Output);
 
 private:
-	/** Converts a set of column types into Mass specific fragment and tag bit sets. Returns true if any values were added. */
-	static bool ColumnsToBitSets(TConstArrayView<const UScriptStruct*> Columns, FMassFragmentBitSet& Fragments, FMassTagBitSet& Tags);
-
 	void PreparePhase(EQueryTickPhase Phase, float DeltaTime);
 	void FinalizePhase(EQueryTickPhase Phase, float DeltaTime);
 	void Reset();
