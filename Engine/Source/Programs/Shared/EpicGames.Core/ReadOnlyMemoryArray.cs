@@ -128,7 +128,7 @@ namespace EpicGames.Core
 		/// <inheritdoc/>
 		public IEnumerator<ReadOnlyMemory<byte>> GetEnumerator()
 		{
-			int offset = 0;
+			int offset = GetOffset(0);
 			for (int index = 0; index < Count; index++)
 			{
 				int nextOffset = GetOffset(index + 1);
