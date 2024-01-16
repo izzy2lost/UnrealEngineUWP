@@ -175,6 +175,9 @@ public:
 #endif
 	ENGINE_API bool IsLevelPartition() const;
 
+protected:
+	ENGINE_API virtual bool DoesSupportWorldType(const EWorldType::Type WorldType) const override;
+
 private:
 
 #if WITH_EDITOR
