@@ -171,9 +171,15 @@ void FD3D12Viewport::Init()
 
 			TRefCountPtr<IDXGISwapChain> SwapChain;
 			
-			HRESULT hr = DXGISwapchainProvider ?
-				DXGISwapchainProvider->CreateSwapChain(Factory2, CommandQueue, &SwapChainDesc, SwapChain.GetInitReference()) :
-				Factory2->CreateSwapChain(CommandQueue, &SwapChainDesc, SwapChain.GetInitReference());
+			HRESULT hr;
+						
+			{
+				// Don't create swap chain and release back buffer at the same time (see notes on critical section)
+				FScopeLock Lock(&DXGIBackBufferLock); 
+				hr = DXGISwapchainProvider ?
+					DXGISwapchainProvider->CreateSwapChain(Factory2, CommandQueue, &SwapChainDesc, SwapChain.GetInitReference()) :
+					Factory2->CreateSwapChain(CommandQueue, &SwapChainDesc, SwapChain.GetInitReference());
+			}
 			
 			if (FAILED(hr))
 			{
