@@ -42,6 +42,7 @@ protected:
 
 		// Show toggles
 		TSharedPtr<FUICommandInfo> ShowActors;
+		TSharedPtr<FUICommandInfo> ShowHLODActors;
 		TSharedPtr<FUICommandInfo> ShowGrid;
 		TSharedPtr<FUICommandInfo> ShowMiniMap;
 		TSharedPtr<FUICommandInfo> ShowCoords;
@@ -136,6 +137,9 @@ protected:
 	void UpdateSelectionBox(bool bSnap);
 	void ClearSelection();
 
+	bool ShouldShowActorBounds(AActor* InActor) const;
+	bool ShouldShowActorBounds(FWorldPartitionActorDescInstance* ActorDescInstance) const;
+
 	const TSharedRef<FUICommandList> CommandList;
 
 	FSingleWidgetChildrenWithBasicLayoutSlot ChildSlot;
@@ -163,6 +167,7 @@ protected:
 	bool bIsPanning;
 	bool bIsMeasuring;
 	bool bShowActors;
+	bool bShowHLODActors;
 	bool bShowGrid;
 	bool bShowMiniMap;
 	bool bFollowPlayerInPIE;
