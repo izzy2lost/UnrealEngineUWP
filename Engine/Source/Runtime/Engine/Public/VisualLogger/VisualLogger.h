@@ -660,11 +660,17 @@ public:
 
 	virtual ~FVisualLogger() {}
 
+	UE_DEPRECATED(5.4, "Following the base class convention and using the name TearDown. Since FVisualLogger::Get() is used internally everywhere, this class isn't designed to be inherited.")
+	ENGINE_API virtual void Shutdown() {}
+
 	// called on engine shutdown to flush all, etc.
-	ENGINE_API virtual void Shutdown();
+	ENGINE_API virtual void TearDown() override;
 
 	// Removes all logged data 
 	ENGINE_API void Cleanup(UWorld* OldWorld, bool bReleaseMemory = false);
+
+	// Use when a visual logger device has discarded all of its data, waiting for new data
+	ENGINE_API void OnDataReset();
 
 	/** Set log owner redirection from one object to another, to combine logs */
 	static void Redirect(const UObject* FromObject, const UObject* ToObject)
@@ -723,7 +729,7 @@ public:
 	bool IsRecordingOnServer() const { return !!bIsRecordingOnServer; }
 
 	/** Configure whether VisLog should be using decorated, unique names */
-	void SetUseUniqueNames(const bool bEnable) { bForceUniqueLogNames = bEnable; }
+	ENGINE_API void SetUseUniqueNames(const bool bEnable);
 
 	/** Add visual logger output device */
 	void AddDevice(FVisualLogDevice* InDevice) { OutputDevices.AddUnique(InDevice); }
@@ -760,10 +766,10 @@ public:
 	/** internal check for each usage of visual logger */
 	static ENGINE_API bool CheckVisualLogInputInternal(const UObject* Object, const FName& CategoryName, ELogVerbosity::Type Verbosity, UWorld **OutWorld, FVisualLogEntry **OutCurrentEntry);
 	
-	/** Returns time stamp for object */
+	/** Returns a current time stamp to associate with a recorded event that occurred on Object (used for ordering events on a timeline) */
 	ENGINE_API double GetTimeStampForObject(const UObject* Object) const;
 
-	/** Sets function to call to get a timestamp instead of the default implementation (i.e. world time) */
+	/** Sets function to call to get a timestamp instead of the default implementation (e.g. using a network synchronized clock instead of the local world time) */
 	ENGINE_API void SetGetTimeStampFunc(TFunction<double(const UObject*)> Function);
 
 	typedef TMap<FObjectKey, TArray<TWeakObjectPtr<const UObject> > > FOwnerToChildrenRedirectionMap;
@@ -885,8 +891,13 @@ protected:
 	/** Delegate to set project specific file name for vlogs */
 	FVisualLogFilenameGetterDelegate LogFileNameGetter;
 
-	/** function to call when getting the time stamp */
+	/** Function to call when recording the absolute time stamp of an event. Useful for manually aligning events across multiple instances (e.g. using FPlatformTime::Seconds() rather than WorldTime) */
 	TFunction<double(const UObject*)> GetTimeStampFunc;
+
+#if WITH_EDITOR
+	/** Handle for registering with PIEStarted to reset the EditorBaseTimeStamp */
+	FDelegateHandle PIEStartedHandle;
+#endif
 
 	// if set we are recording and collecting all vlog data
 	static ENGINE_API int32 bIsRecording;

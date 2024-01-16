@@ -172,7 +172,10 @@ struct FVisualLogDataBlock
 struct FVisualLogEntry
 {
 #if ENABLE_VISUAL_LOG
+	/** For absolute position of events along a timeline (can involve multiple worlds/game instances such as clients and server) */
 	double TimeStamp;
+	/** The time of the event according to its UWorld (can vary widely between game instances such as clients and server) */
+	double WorldTimeStamp;
 	FVector Location;
 	uint8 bPassedClassAllowList : 1;
 	uint8 bPassedObjectAllowList : 1;	
@@ -188,7 +191,11 @@ struct FVisualLogEntry
 	TArray<FVisualLogDataBlock>	DataBlocks;
 
 	FVisualLogEntry() { Reset(); }
+
+	UE_DEPRECATED(5.4, "To be removed.  Build up the FVisualLogEntry manually or write your own helper function which doesn't rely on Children being IVisualLoggerDebugSnapshotInterface")
 	ENGINE_API FVisualLogEntry(const AActor* InActor, TArray<TWeakObjectPtr<UObject> >* Children);
+	
+	UE_DEPRECATED(5.4, "To be removed.  Build up the FVisualLogEntry manually or write your own helper function which doesn't rely on Children being IVisualLoggerDebugSnapshotInterface")
 	ENGINE_API FVisualLogEntry(double InTimeStamp, FVector InLocation, const UObject* Object, TArray<TWeakObjectPtr<UObject> >* Children);
 
 	bool ShouldLog(const ECreateIfNeeded ShouldCreate) const

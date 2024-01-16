@@ -8,6 +8,7 @@
 #include "UObject/Interface.h"
 #include "UObject/UE5MainStreamObjectVersion.h"
 #include "VisualLogger/VisualLoggerCustomVersion.h"
+#include "VisualLogger/VisualLogger.h"
 #endif
 
 namespace
@@ -67,11 +68,18 @@ FVisualLogEntry::FVisualLogEntry(const AActor* InActor, TArray<TWeakObjectPtr<UO
 	if (!IsValid(InActor))
 	{
 		Reset();
+		return;
 	}
 
-	TimeStamp = InActor->GetWorld()->TimeSeconds; // Should we be bypassing FVisualLogger::GetTimeStampForObject() ?
+	WorldTimeStamp = InActor->GetWorld()->TimeSeconds;
 	Location = InActor->GetActorLocation();
 	bIsLocationValid = true;
+
+#if ENABLE_VISUAL_LOG
+	TimeStamp = FVisualLogger::Get().GetTimeStampForObject(InActor);
+#else
+	TimeStamp = WorldTimeStamp;
+#endif
 
 	const IVisualLoggerDebugSnapshotInterface* DebugSnapshotInterface = Cast<const IVisualLoggerDebugSnapshotInterface>(InActor);
 	if (DebugSnapshotInterface)
@@ -127,12 +135,14 @@ void FVisualLogEntry::InitializeEntry(const double InTimeStamp)
 {
 	Reset();
 	TimeStamp = InTimeStamp;
+	WorldTimeStamp = InTimeStamp;
 	bIsInitialized = true;
 }
 
 void FVisualLogEntry::Reset()
 {
-	TimeStamp = -1.;
+	TimeStamp = -1.0;
+	WorldTimeStamp = -1.0;
 	Location = FVector::ZeroVector;
 	bIsLocationValid = false;
 	Events.Reset();
@@ -599,10 +609,7 @@ FArchive& operator<<(FArchive& Ar, FVisualLogEntry& LogEntry)
 	const int32 VLogsOldVer = Ar.CustomVer(EVisualLoggerVersion::GUID);
 	const int32 VLogsStreamObjectVer = Ar.CustomVer(FUE5MainStreamObjectVersion::GUID);
 
-	// @todo replace with FUE5MainStreamObjectVersion::VisualLoggerTimeStampAsDouble when it becomes available
-	constexpr int32 TEMPVisualLoggerTimeStampAsDouble = 98;
-
-	if (VLogsStreamObjectVer >= TEMPVisualLoggerTimeStampAsDouble)
+	if (VLogsStreamObjectVer >= FUE5MainStreamObjectVersion::VisualLoggerTimeStampAsDouble)
 	{
 		Ar << LogEntry.TimeStamp;
 	}
@@ -611,6 +618,15 @@ FArchive& operator<<(FArchive& Ar, FVisualLogEntry& LogEntry)
 		float TimeStampFlt = static_cast<float>(LogEntry.TimeStamp);
 		Ar << TimeStampFlt;
 		LogEntry.TimeStamp = TimeStampFlt;
+	}
+
+	if (VLogsStreamObjectVer < FUE5MainStreamObjectVersion::VisualLoggerAddedSeparateWorldTime)
+	{
+		LogEntry.WorldTimeStamp = LogEntry.TimeStamp;
+	}
+	else
+	{
+		Ar << LogEntry.WorldTimeStamp;
 	}
 
 	if (VLogsOldVer >= EVisualLoggerVersion::LargeWorldCoordinatesAndLocationValidityFlag)

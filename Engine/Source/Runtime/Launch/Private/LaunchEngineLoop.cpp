@@ -5046,7 +5046,7 @@ void FEngineLoop::Exit()
 
 	// shutdown visual logger and flush all data
 #if ENABLE_VISUAL_LOG
-	FVisualLogger::Get().Shutdown();
+	FVisualLogger::Get().TearDown();
 #endif
 
 	FAssetCompilingManager::Get().Shutdown();

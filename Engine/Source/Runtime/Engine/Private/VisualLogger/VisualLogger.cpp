@@ -19,9 +19,25 @@
 #include "Serialization/CustomVersion.h"
 #endif
 
-
 DEFINE_LOG_CATEGORY(LogVisual);
 #if ENABLE_VISUAL_LOG
+
+namespace UE::VisLog::Private
+{
+	/** Denotes the consecutive run number, giving us the ability to differentiate UObjectName_0 in Run 1 from UObjectName_0 in Run 2 */
+	static int32 UniqueRunNumber = 0;
+
+	/** Cached prefix string when using bForceUniqueLogNames (denotes UniqueRunNumber) */
+	static FString UniqueLogPrefix;
+
+#if WITH_EDITOR
+	namespace EditorOnly
+	{
+		/** When in Editor, use this TimeStamp as a Base time so our values don't grow too large (and are canonically around 0.0). */
+		static double EditorBaseTimeStamp = 0.0;
+	}
+#endif
+}
 
 DEFINE_STAT(STAT_VisualLog);
 
@@ -221,17 +237,43 @@ bool FVisualLogger::CheckVisualLogInputInternal(const UObject* Object, const FNa
 
 double FVisualLogger::GetTimeStampForObject(const UObject* Object) const
 {
+	// Licensees can write their own synchronized clock that can work across the network
+	// such an implementation could use the exchanged ServerTime and the relative ClientTime offset.
 	if (GetTimeStampFunc)
 	{
 		return GetTimeStampFunc(Object);
 	}
 
-	if (const UWorld* World = GetWorldForVisualLogger(Object))
+	const UWorld* WorldForTimeStamp = nullptr;
+#if WITH_EDITOR
+	// When we're in the Editor, use a Global Engine TimeStamp so that we can synchronize between Client and Server instances.
+	UEditorEngine* EditorEngine = GIsEditor ? Cast<UEditorEngine>(GEngine) : nullptr;
+	if (EditorEngine)
 	{
-		return World->TimeSeconds;
+		// We will always have the Editor world to use.  This will ensure a consistent clock since it does not reset
+		// when more clients are added or removed and can exist before a PIE session is started.
+		WorldForTimeStamp = EditorEngine->GetEditorWorldContext().World();
+		if (ensureMsgf(WorldForTimeStamp, TEXT("We always expect to have an EditorWorld in Editor")))
+		{
+			using namespace UE::VisLog::Private;
+			if (EditorOnly::EditorBaseTimeStamp <= 0.0)
+			{
+				EditorOnly::EditorBaseTimeStamp = WorldForTimeStamp->TimeSeconds;
+			}
+
+			return WorldForTimeStamp->TimeSeconds - EditorOnly::EditorBaseTimeStamp;
+		}
 	}
 
-	return 0;
+#endif
+
+	// This will be the fallback mode in standalone.  We do not have a synchronized clock.
+	if (!WorldForTimeStamp)
+	{
+		WorldForTimeStamp = GetWorldForVisualLogger(Object);
+	}
+
+	return WorldForTimeStamp ? WorldForTimeStamp->TimeSeconds : 0.0;
 }
 
 void FVisualLogger::SetGetTimeStampFunc(const TFunction<double(const UObject*)> Function)
@@ -408,6 +450,8 @@ FVisualLogEntry* FVisualLogger::GetEntryToWrite(const UObject* Object, const dou
 
 FVisualLogEntry* FVisualLogger::GetEntryToWriteInternal(const UObject* Object, const double TimeStamp, const ECreateIfNeeded ShouldCreate)
 {
+	using namespace UE::VisLog::Private;
+
 	// No redirection needed, it should have been done at the time of the thread entry was computed
 	const UObject* LogOwner = Object;
 	if (LogOwner == nullptr)
@@ -436,12 +480,17 @@ FVisualLogEntry* FVisualLogger::GetEntryToWriteInternal(const UObject* Object, c
 		// It's first and only one usage of LogOwner as regular object to get names. We assume once that LogOwner is correct here and only here.
 		CurrentEntry = &CurrentEntryPerObject.Add(LogOwner);
 
+		if (bForceUniqueLogNames && UniqueLogPrefix.IsEmpty())
+		{
+			UniqueLogPrefix = FString::Printf(TEXT("[%d] "), UniqueRunNumber);
+		}
+
 		const UWorld* World = GetWorldForVisualLogger(LogOwner);
 		const bool bIsStandalone = (World == nullptr || World->GetNetMode() == NM_Standalone);
 		const FName LogName(*FString::Printf(TEXT("%s%s%s"),
-			bIsStandalone ? TEXT("") : *FString::Printf(TEXT("(%s) "), *ToString(World->GetNetMode())),
-			*LogOwner->GetName(),
-			bForceUniqueLogNames ? *FString::Printf(TEXT(" [%d]"), LogOwner->GetUniqueID()) : TEXT("")));
+			*UniqueLogPrefix,
+			bIsStandalone ? TEXT("") : *FString::Printf(TEXT("(%s) "), *GetDebugStringForWorld(World)),
+			*LogOwner->GetName()));
 
 		ObjectToNameMap.Add(LogOwner, LogName);
 		ObjectToClassNameMap.Add(LogOwner, *(LogOwner->GetClass()->GetName()));
@@ -457,6 +506,14 @@ FVisualLogEntry* FVisualLogger::GetEntryToWriteInternal(const UObject* Object, c
 		checkf(CurrentEntry != nullptr, TEXT("bInitializeEntry can only be true when CurrentEntry is valid."));
 		CurrentEntry->InitializeEntry(TimeStamp);
 
+		// Let's record the World Time as the local instance sees it.
+		if (const TWeakObjectPtr<const UWorld>* WorldWeakPtr = ObjectToWorldMap.Find(LogOwner))
+		{
+			if (const UWorld* World = WorldWeakPtr->Get())
+			{
+				CurrentEntry->WorldTimeStamp = World->TimeSeconds;
+			}
+		}
 
 		if (const AActor* ObjectAsActor = Cast<AActor>(LogOwner))
 		{
@@ -704,13 +761,57 @@ FVisualLogger::FVisualLogger()
 
 		return true;
 	});
+
+#if WITH_EDITOR
+	// When PIE is Starting, we want to reset the EditorBaseTimeStamp on the very first PIE World Instance (but not the other instances).
+	// This gives us a pseudo-world time (that starts at zero) while still being synchronized across multiple PIE instances.
+	PIEStartedHandle = FWorldDelegates::OnPIEStarted.AddLambda(
+		[this](UGameInstance*) {
+			// We only want to do this if we are using unique log names, otherwise it makes more sense
+			// to just continue logging at later timestamps on the same timeline as the previous one.
+			if (bForceUniqueLogNames)
+			{
+				if (GEngine->IsSettingUpPlayWorld())
+				{
+					int32 OldUniqueNumber = UE::VisLog::Private::UniqueRunNumber;
+					OnDataReset();
+					UE::VisLog::Private::UniqueRunNumber = OldUniqueNumber + 1;
+				}
+
+			}
+		});
+#endif
 }
 
-void FVisualLogger::Shutdown()
+void FVisualLogger::TearDown()
 {
+#if WITH_EDITOR
+	FWorldDelegates::OnPIEStarted.Remove(PIEStartedHandle);
+#endif
+
 	SetIsRecording(false);
 	SetIsRecordingToFile(false);
 	RemoveDevice(&FVisualLoggerBinaryFileDevice::Get());
+}
+
+void FVisualLogger::OnDataReset()
+{
+	using namespace UE::VisLog::Private;
+
+	UniqueRunNumber = 0;
+	UniqueLogPrefix.Empty();
+
+#if WITH_EDITOR
+	UEditorEngine* EditorEngine = GIsEditor ? Cast<UEditorEngine>(GEngine) : nullptr;
+	if (EditorEngine)
+	{
+		const UWorld* EditorWorld = EditorEngine->GetEditorWorldContext().World();
+		if (EditorWorld)
+		{
+			EditorOnly::EditorBaseTimeStamp = EditorWorld->TimeSeconds;
+		}
+	}
+#endif
 }
 
 void FVisualLogger::Cleanup(UWorld* OldWorld, const bool bReleaseMemory)
@@ -1006,6 +1107,11 @@ void FVisualLogger::SetIsRecordingToTrace(const bool InIsRecording)
 	bIsRecordingToTrace = InIsRecording;
 }
 
+void FVisualLogger::SetUseUniqueNames(const bool bEnable)
+{
+	bForceUniqueLogNames = bEnable;
+	UE::VisLog::Private::UniqueLogPrefix.Empty();
+}
 
 void FVisualLogger::DiscardRecordingToFile()
 {
@@ -1086,7 +1192,7 @@ protected:
 				FVisualLogger::Get().AddCategoryToAllowList(*Category);
 				return true;
 			}
-			else if (FModuleManager::Get().LoadModulePtr<IModuleInterface>("LogVisualizer"))
+			else if (Command.IsEmpty() && FModuleManager::Get().LoadModulePtr<IModuleInterface>("LogVisualizer"))
 			{
 				FGlobalTabmanager::Get()->TryInvokeTab(FName(TEXT("VisualLogger")));
 				return true;
