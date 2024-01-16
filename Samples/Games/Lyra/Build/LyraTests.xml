@@ -72,23 +72,25 @@
 	<!-- CONTENT VALIDATION -->
 	<!-- =============================================================================== -->
 	
-	<Agent Name="$(ProjectName) Content Validation" Type="Win64">
-		<Node Name="$(ProjectName) Content Validation" Requires="$(PreNodeName)Compile Editor Win64">
-			<Property Name="RefExtensionsTypelist" Value=".uasset,.umap,.cpp,.c,.h,.inl,.ini,.uproject,.uplugin,.json"/>
+	<Do If="ContainsItem('$(RequiredEditorPlatforms)', 'Win64', '+')">
+		<Agent Name="$(ProjectName) Content Validation" Type="Win64">
+			<Node Name="$(ProjectName) Content Validation" Requires="$(PreNodeName)Compile Editor Win64">
+				<Property Name="RefExtensionsTypelist" Value=".uasset,.umap,.cpp,.c,.h,.inl,.ini,.uproject,.uplugin,.json"/>
 
-			<Property Name="CLArgs" Value="-CL=$(Change) -LastGoodContentCLPath=$(NetworkOutputDirectory)/AutoTest/LastGoodContentCL"/>
-			<Property Name="CLArgs" Value="-CL=$(PreflightChange) -shelved" If="$(IsPreflight)" />
-			<Property Name="CLArgs" Value="-opened" If="!$(IsBuildMachine)" />
+				<Property Name="CLArgs" Value="-CL=$(Change) -LastGoodContentCLPath=$(NetworkOutputDirectory)/AutoTest/LastGoodContentCL"/>
+				<Property Name="CLArgs" Value="-CL=$(PreflightChange) -shelved" If="$(IsPreflight)" />
+				<Property Name="CLArgs" Value="-opened" If="!$(IsBuildMachine)" />
 
-			<Property Name="CheckAssetReferencesArgs" Value="-Branch=$(Branch) $(CLArgs) -ExtTypeList=&quot;$(RefExtensionsTypelist)&quot; -MaxPackagesToLoad=3000" />
-			<Command Name="LyraContentValidation" Arguments="$(CheckAssetReferencesArgs)"/>
-		</Node>
-		<Label Category="Test" Name="Content Validation" Requires="$(ProjectName) Content Validation" />
-	</Agent>
+				<Property Name="CheckAssetReferencesArgs" Value="-Branch=$(Branch) $(CLArgs) -ExtTypeList=&quot;$(RefExtensionsTypelist)&quot; -MaxPackagesToLoad=3000" />
+				<Command Name="LyraContentValidation" Arguments="$(CheckAssetReferencesArgs)"/>
+			</Node>
+			<Label Category="Test" Name="Content Validation" Requires="$(ProjectName) Content Validation" />
+		</Agent>
 
-	<Do If="!$(SkipTest)">
-		<!-- Append Content Validation to the list of things to do -->
-		<Property Name="BuildAndTestExtendedRequirements" Value="$(BuildAndTestExtendedRequirements);$(ProjectName) Content Validation"/>
+		<Do If="!$(SkipTest)">
+			<!-- Append Content Validation to the list of things to do -->
+			<Property Name="BuildAndTestExtendedRequirements" Value="$(BuildAndTestExtendedRequirements);$(ProjectName) Content Validation"/>
+		</Do>
 	</Do>
 
 	<!-- =============================================================================== -->
@@ -96,7 +98,7 @@
 	<!-- =============================================================================== -->
 	<Option Name="SkipLocalization" DefaultValue="false" Description="Should we skip performing a localization gather?"/>
 	
-	<Do If="!$(SkipLocalization)">
+	<Do If="!$(SkipLocalization) and ContainsItem('$(RequiredEditorPlatforms)', 'Win64', '+')">
 
 		<Property Name="ProjectsIncludedInLocalization" Value="Game,EngineOverrides"/>
 		
