@@ -179,6 +179,23 @@ namespace UE::SLevelViewport::Internal
 
 		return true;
 	}
+
+	// Clears existing selection, then selects the specified actor 
+	void SelectActor(AActor* InActor)
+	{
+		check(InActor);
+
+		const FLevelEditorModule& LevelEditorModule = FModuleManager::LoadModuleChecked<FLevelEditorModule>(LevelEditorName);
+		FEditorModeTools& EditorModeManager = LevelEditorModule.GetFirstLevelEditor()->GetEditorModeManager();
+		
+		// Deselect any currently selected actors
+		EditorModeManager.SelectNone();
+		EditorModeManager.GetSelectedActors()->DeselectAll();
+		EditorModeManager.GetSelectedObjects()->DeselectAll();
+		EditorModeManager.GetSelectedActors()->Select(InActor, true);
+
+		EditorModeManager.ActorSelectionChangeNotify();
+	}
 }
 
 class FLevelViewportDropContextMenuImpl
@@ -1573,6 +1590,12 @@ void SLevelViewport::BindViewCommands( FUICommandList& OutCommandList )
 		);
 
 	OutCommandList.MapAction(
+		ViewportActions.SelectPilotedActor,
+		FExecuteAction::CreateSP( this, &SLevelViewport::OnSelectLockedActor ),
+		FCanExecuteAction::CreateSP( this, &SLevelViewport::CanExecuteSelectLockedActor )
+		);
+
+	OutCommandList.MapAction(
 		ViewportActions.EjectActorPilot,
 		FExecuteAction::CreateSP( this, &SLevelViewport::OnActorUnlock ),
 		FCanExecuteAction::CreateSP( this, &SLevelViewport::CanExecuteActorUnlock )
@@ -1992,13 +2015,8 @@ void SLevelViewport::OnCreateCameraActor(UClass* InClass)
 	pNewCamera->SetActorRotation( ViewportClient->GetViewRotation() );
 	pNewCamera->GetCameraComponent()->SetFieldOfView( ViewportClient->ViewFOV );
 
-	// Deselect any currently selected actors
-	GUnrealEd->SelectNone( false, true );
-	GEditor->GetSelectedActors()->DeselectAll();
-	GEditor->GetSelectedObjects()->DeselectAll();
-
-	// Select newly created Camera
-	GEditor->SelectActor( pNewCamera, true, true );
+	// Deselect any currently selected actors, then select newly created camera
+	UE::SLevelViewport::Internal::SelectActor(pNewCamera);
 
 	// Send notification about actors that may have changed
 	ULevel::LevelDirtiedEvent.Broadcast();
@@ -2551,6 +2569,25 @@ bool SLevelViewport::CanFindSelectedInLevelScript() const
 {
 	AActor* Actor = GEditor->GetSelectedActors()->GetTop<AActor>();
 	return (Actor != nullptr);
+}
+
+void SLevelViewport::OnSelectLockedActor()
+{
+	if (AActor* LockedActor = LevelViewportClient->GetActiveActorLock().Get())
+	{
+		// Deselect any currently selected actors, then select the locked/piloted actor
+		UE::SLevelViewport::Internal::SelectActor(LockedActor);
+	}
+}
+
+bool SLevelViewport::CanExecuteSelectLockedActor() const
+{
+	if (const AActor* LockedActor = LevelViewportClient->GetActiveActorLock().Get())
+	{
+		return LockedActor->IsSelectable();
+	}
+
+	return false;
 }
 
 void SLevelViewport::OnActorUnlock()

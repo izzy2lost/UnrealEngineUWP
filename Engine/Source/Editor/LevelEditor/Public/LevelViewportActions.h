@@ -171,6 +171,7 @@ PRAGMA_ENABLE_DEPRECATION_WARNINGS
 	TSharedPtr< FUICommandInfo > ClearAllBookmarks;
 
 	/** Actor pilot commands */
+	TSharedPtr< FUICommandInfo > SelectPilotedActor;
 	TSharedPtr< FUICommandInfo > EjectActorPilot;
 	TSharedPtr< FUICommandInfo > PilotSelectedActor;
 

@@ -589,6 +589,14 @@ private:
 	/** Can we find the currently selected actor in the level script. */
 	bool CanFindSelectedInLevelScript() const;
 
+	/** Called to select the currently locked actor */
+	void OnSelectLockedActor();
+
+	/**
+	 * @return true if the currently locked actor is selectable
+	 */
+	bool CanExecuteSelectLockedActor() const;
+
 	/** Called to clear the current actor lock */
 	void OnActorUnlock();
 
