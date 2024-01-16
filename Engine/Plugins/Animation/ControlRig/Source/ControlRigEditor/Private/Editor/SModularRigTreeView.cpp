@@ -28,6 +28,7 @@
 #include "Widgets/Input/SComboButton.h"
 #include "Widgets/Input/SButton.h"
 #include "ScopedTransaction.h"
+#include "DetailLayoutBuilder.h"
 
 #define LOCTEXT_NAMESPACE "SModularRigTreeView"
 
@@ -243,6 +244,8 @@ void SModularRigModelItem::Construct(const FArguments& InArgs, const TSharedRef<
 					// Wrap in configurable box to restrain height/width of menu
 					SNew(SBox)
 					.MinDesiredWidth(200.0f)
+					.Padding(0, 0, 0, 0)
+					.HAlign(HAlign_Left)
 					[
 						SAssignNew(ComboButtonBox, SVerticalBox)
 					]
@@ -393,6 +396,7 @@ void SModularRigModelItem::Construct(const FArguments& InArgs, const TSharedRef<
 	PopulateConnectorCurrentTarget(ComboButtonBox, ConnectorKey, CurrentTargetKey, IconAndColor.Key, IconAndColor.Value, FText::FromName(CurrentTargetKey.Name));
 }
 
+
 void SModularRigModelItem::PopulateConnectorTargetList(const FRigElementKey InConnectorKey)
 {
 	if (!WeakRigTreeElement.IsValid())
@@ -420,59 +424,60 @@ void SModularRigModelItem::PopulateConnectorCurrentTarget(TSharedPtr<SVerticalBo
 	InListBox->AddSlot()
 	.AutoHeight()
 	.VAlign(VAlign_Top)
-	.HAlign(HAlign_Fill)
-	.Padding(4.0, 0.0, 4.0, 0.0)
+	.HAlign(HAlign_Left)
+	.Padding(0.0, 0.0, 4.0, 0.0)
 	[
-		SNew( SButton )
-		.ButtonStyle(FAppStyle::Get(), "SimpleButton")
-		.ContentPadding(FMargin(0.0))
-		.OnClicked_Lambda([this, InConnectorKey, InTargetKey]()
-		{
-			//Controller->ConnectConnectorToElement(InConnectorKey, InTargetKey, true, Info.GetModularRig()->GetModularRigSettings().bAutoResolve);
-			PopulateConnectorTargetList(InConnectorKey);
-			return FReply::Handled();
-		})
+		SNew(SHorizontalBox)
+		+ SHorizontalBox::Slot()
+		.AutoWidth()
+		.HAlign(HAlign_Left)
+		.Padding(0, 0, 0, 0)
 		[
-			SAssignNew(RowBox, SHorizontalBox)
-			+ SHorizontalBox::Slot()
-			.AutoWidth()
-			.VAlign(VAlign_Center)
-			.HAlign(HAlign_Fill)
-			.Padding(0)
+			SNew( SButton )
+			.ButtonStyle(FAppStyle::Get(), "SimpleButton")
+			.ContentPadding(FMargin(0.0))
+			.OnClicked_Lambda([this, InConnectorKey, InTargetKey]()
+			{
+				//Controller->ConnectConnectorToElement(InConnectorKey, InTargetKey, true, Info.GetModularRig()->GetModularRigSettings().bAutoResolve);
+				PopulateConnectorTargetList(InConnectorKey);
+				return FReply::Handled();
+			})
 			[
-				SNew(SBorder)
-				.Padding(FMargin(5.0, 2.0, 5.0, 2.0))
-				.BorderImage(RoundedBoxBrush)
-				.BorderBackgroundColor(FSlateColor(FLinearColor::Transparent))
-				.Content()
+				SAssignNew(RowBox, SHorizontalBox)
+				+ SHorizontalBox::Slot()
+				.AutoWidth()
+				.VAlign(VAlign_Center)
+				.HAlign(HAlign_Fill)
+				.Padding(0)
 				[
-					SAssignNew(ButtonBox, SHorizontalBox)
-					+ SHorizontalBox::Slot()
-					.AutoWidth()
-					.VAlign(VAlign_Center)
-					.HAlign(HAlign_Left)
-					.Padding(FMargin(0.f, 0.f, 3.f, 0.f))
+					SNew(SBorder)
+					.Padding(FMargin(2.0, 2.0, 5.0, 2.0))
+					.BorderImage(RoundedBoxBrush)
+					.BorderBackgroundColor(FSlateColor(FLinearColor::Transparent))
+					.Content()
 					[
-						SNew(SImage)
-						.Image(InBrush)
-						.ColorAndOpacity(InColor)
-					]
+						SAssignNew(ButtonBox, SHorizontalBox)
+						+ SHorizontalBox::Slot()
+						.AutoWidth()
+						.VAlign(VAlign_Center)
+						.HAlign(HAlign_Left)
+						.Padding(FMargin(0.f, 0.f, 3.f, 0.f))
+						[
+							SNew(SImage)
+							.Image(InBrush)
+							.ColorAndOpacity(InColor)
+						]
 
-					+ SHorizontalBox::Slot()
-					.AutoWidth()
-					.VAlign(VAlign_Center)
-					.HAlign(HAlign_Left)
-					.Padding(0)
-					[
-						SNew( STextBlock )
-						.Text( InTitle )
-						//.Font( IDetailLayoutBuilder::GetDetailFont() )
-					]
-
-					+ SHorizontalBox::Slot()
-					.FillWidth(1.f)
-					[
-						SNew(SSpacer)
+						+ SHorizontalBox::Slot()
+						.AutoWidth()
+						.VAlign(VAlign_Center)
+						.HAlign(HAlign_Left)
+						.Padding(0)
+						[
+							SNew( STextBlock )
+							.Text( InTitle )
+							.Font( IDetailLayoutBuilder::GetDetailFont() )
+						]
 					]
 				]
 			]
@@ -997,7 +1002,7 @@ TPair<const FSlateBrush*, FSlateColor> FModularRigTreeElement::GetBrushAndColor(
 					}
 					else
 					{
-						Brush = FControlRigEditorStyle::Get().GetBrush("ControlRig.Schematic.ConnectorWarning");
+						Brush = FControlRigEditorStyle::Get().GetBrush("ControlRig.ConnectorWarning");
 					}
 				}
 				else if (Connector->Settings.bOptional)

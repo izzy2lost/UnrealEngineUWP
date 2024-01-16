@@ -114,7 +114,7 @@
 #define LOCTEXT_NAMESPACE "ControlRigEditor"
 
 TAutoConsoleVariable<bool> CVarControlRigShowTestingToolbar(TEXT("ControlRig.Test.EnableTestingToolbar"), false, TEXT("When true we'll show the testing toolbar in Control Rig Editor."));
-TAutoConsoleVariable<bool> CVarShowSchematicPanelOverlay(TEXT("ControlRig.Preview.ShowSchematicPanelOverlay"), false, TEXT("When true we'll add an overlay to the persona viewport to show modular rig information."));
+TAutoConsoleVariable<bool> CVarShowSchematicPanelOverlay(TEXT("ControlRig.Preview.ShowSchematicPanelOverlay"), true, TEXT("When true we'll add an overlay to the persona viewport to show modular rig information."));
 
 const FName FControlRigEditorModes::ControlRigEditorMode = TEXT("Rigging");
 const TArray<FName> FControlRigEditor::ForwardsSolveEventQueue = {FRigUnit_BeginExecution::EventName};
@@ -341,6 +341,11 @@ void FControlRigEditor::InitRigVMEditor(const EToolkitMode::Type Mode, const TSh
 	}
 
 	CreateRigHierarchyToGraphDragAndDropMenu();
+
+	if(SchematicViewport.IsValid())
+	{
+		SchematicModel.UpdateControlRigContent();
+	}
 }
 
 void FControlRigEditor::CreatePersonaToolKitIfRequired()
@@ -2285,7 +2290,15 @@ void FControlRigEditor::HandleViewportCreated(const TSharedRef<class IPersonaVie
 	InViewport->GetKeyDownDelegate().BindLambda([&](const FGeometry& MyGeometry, const FKeyEvent& InKeyEvent) -> FReply {
 		if (OnKeyDownDelegate.IsBound())
 		{
-			return OnKeyDownDelegate.Execute(MyGeometry, InKeyEvent);
+			FReply Reply = OnKeyDownDelegate.Execute(MyGeometry, InKeyEvent);
+			if(Reply.IsEventHandled())
+			{
+				return Reply;
+			}
+		}
+		if(GetToolkitCommands()->ProcessCommandBindings(InKeyEvent.GetKey(), InKeyEvent.GetModifierKeys(), false))
+		{
+			return FReply::Handled();
 		}
 		return FReply::Unhandled();
 	});
@@ -2329,6 +2342,20 @@ void FControlRigEditor::OnToolbarAxesScaleChanged(float InValue)
 	if (UControlRigEditModeSettings* Settings = GetMutableDefault<UControlRigEditModeSettings>())
 	{
 		Settings->AxisScale = InValue;
+	}
+}
+
+void FControlRigEditor::HandleToggleSchematicViewport()
+{
+	if(SchematicViewport.IsValid())
+	{
+		SchematicModel.UpdateControlRigContent();
+
+		const EVisibility PreviousVisibility = SchematicViewport.Pin()->GetVisibility();
+		SchematicViewport.Pin()->SetVisibility(
+			PreviousVisibility == EVisibility::Hidden ?
+			EVisibility::SelfHitTestInvisible :
+			EVisibility::Hidden);
 	}
 }
 
@@ -2571,6 +2598,7 @@ void FControlRigEditor::CacheNameLists()
 
 void FControlRigEditor::HandleSchematicViewportCreated(const TSharedRef<SSchematicGraphPanel>& InViewport)
 {
+	SchematicViewport = InViewport.ToWeakPtr();
 	InViewport->OnNodeClicked().BindRaw(&SchematicModel, &FControlRigSchematicModel::HandleSchematicNodeClicked);
 	InViewport->OnBeginDrag().BindRaw(&SchematicModel, &FControlRigSchematicModel::HandleSchematicBeginDrag);
 	InViewport->OnEndDrag().BindRaw(&SchematicModel, &FControlRigSchematicModel::HandleSchematicEndDrag);
@@ -3314,6 +3342,11 @@ void FControlRigEditor::BindCommands()
 	GetToolkitCommands()->MapAction(
 		FControlRigEditorCommands::Get().BackwardsAndForwardsSolveEvent,
 		FExecuteAction::CreateSP(this, &FRigVMEditor::SetEventQueue, TArray<FName>(BackwardsAndForwardsSolveEventQueue)),
+		FCanExecuteAction());
+
+	GetToolkitCommands()->MapAction(
+		FControlRigEditorCommands::Get().ToggleSchematicViewportVisibility,
+		FExecuteAction::CreateSP(this, &FControlRigEditor::HandleToggleSchematicViewport),
 		FCanExecuteAction());
 }
 

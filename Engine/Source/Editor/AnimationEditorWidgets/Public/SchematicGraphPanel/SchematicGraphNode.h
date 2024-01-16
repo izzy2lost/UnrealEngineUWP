@@ -88,17 +88,27 @@ public:
 	}
 
 	template<typename TagType = FSchematicGraphTag>
-	const TagType* FindTag(const FGuid& InTagGuid) const
+	const TagType* FindTag(const FGuid& InTagGuid = FGuid()) const
 	{
 		if(const TSharedPtr<FSchematicGraphTag>* ExistingTag = TagByGuid.Find(InTagGuid))
 		{
 			return Cast<TagType>(ExistingTag->Get());
 		};
+		if(!InTagGuid.IsValid())
+		{
+			for(const TSharedPtr<FSchematicGraphTag>& Tag : Tags)
+			{
+				if(Tag->IsA<TagType>())
+				{
+					return Cast<TagType>(Tag.Get());
+				}
+			}
+		}
 		return nullptr;
 	}
 
 	template<typename TagType = FSchematicGraphTag>
-	TagType* FindTag(const FGuid& InTagGuid)
+	TagType* FindTag(const FGuid& InTagGuid = FGuid())
 	{
 		const FSchematicGraphNode* ConstThis = this;
 		return const_cast<TagType*>(ConstThis->FindTag<TagType>(InTagGuid));

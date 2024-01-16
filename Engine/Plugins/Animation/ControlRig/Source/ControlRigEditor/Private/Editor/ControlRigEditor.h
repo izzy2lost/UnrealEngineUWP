@@ -244,6 +244,7 @@ private:
 	void OnToolbarDrawAxesOnSelectionChanged(ECheckBoxState InNewValue);
 	TOptional<float> GetToolbarAxesScale() const;
 	void OnToolbarAxesScaleChanged(float InValue);
+	void HandleToggleSchematicViewport();
 
 	/** Handle schematic panel setup*/
 	void HandleSchematicViewportCreated(const TSharedRef<class SSchematicGraphPanel>& InViewport);
@@ -354,6 +355,7 @@ protected:
 	TSharedPtr<SComboBox<TSharedPtr<FString>>> DirectManipulationCombo;
 	bool bRefreshDirectionManipulationTargetsRequired;
 	FSimpleMulticastDelegate RequestNavigateToConnectorWarningDelegate;
+	TWeakPtr<SSchematicGraphPanel> SchematicViewport;
 
 	static const TArray<FName> ForwardsSolveEventQueue;
 	static const TArray<FName> BackwardsSolveEventQueue;

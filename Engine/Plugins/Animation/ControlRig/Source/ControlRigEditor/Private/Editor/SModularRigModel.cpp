@@ -172,6 +172,14 @@ void SModularRigModel::Construct(const FArguments& InArgs, TSharedRef<FControlRi
 	}
 	
 	CreateContextMenu();
+
+	if(const UModularRig* Rig = GetModularRigForTreeView())
+	{
+		if(URigHierarchy* Hierarchy = Rig->GetHierarchy())
+		{
+			Hierarchy->OnModified().AddSP(this, &SModularRigModel::OnHierarchyModified);
+		}
+	}
 }
 
 void SModularRigModel::OnEditorClose(const FRigVMEditor* InEditor, URigVMBlueprint* InBlueprint)
@@ -190,7 +198,15 @@ void SModularRigModel::OnEditorClose(const FRigVMEditor* InEditor, URigVMBluepri
 		BP->OnModularRigPreCompiled().RemoveAll(this);
 		BP->OnModularRigCompiled().RemoveAll(this);
 	}
-	
+
+	if(const UModularRig* Rig = GetModularRigForTreeView())
+	{
+		if(URigHierarchy* Hierarchy = Rig->GetHierarchy())
+		{
+			Hierarchy->OnModified().RemoveAll(this);
+		}
+	}
+
 	ControlRigEditor.Reset();
 	ControlRigBlueprint.Reset();
 }
@@ -286,11 +302,24 @@ void SModularRigModel::HandleSetObjectBeingDebugged(UObject* InObject)
 		return;
 	}
 
+	if(ControlRigBeingDebuggedPtr.IsValid())
+	{
+		if(URigHierarchy* Hierarchy = ControlRigBeingDebuggedPtr->GetHierarchy())
+		{
+			Hierarchy->OnModified().RemoveAll(this);
+		}
+	}
+
 	ControlRigBeingDebuggedPtr.Reset();
-	
+
 	if(UModularRig* ControlRig = Cast<UModularRig>(InObject))
 	{
 		ControlRigBeingDebuggedPtr = ControlRig;
+
+		if(URigHierarchy* Hierarchy = ControlRig->GetHierarchy())
+		{
+			Hierarchy->OnModified().AddSP(this, &SModularRigModel::OnHierarchyModified);
+		}
 	}
 
 	RefreshTreeView();
@@ -684,6 +713,64 @@ void SModularRigModel::HandleConnectorDisconnect(const FRigElementKey& InConnect
 		check(Controller);
 
 		Controller->DisconnectConnector(InConnector, true);
+	}
+}
+
+void SModularRigModel::OnSelectionChanged(TSharedPtr<FModularRigTreeElement> Selection, ESelectInfo::Type SelectInfo)
+{
+}
+
+void SModularRigModel::OnHierarchyModified(ERigHierarchyNotification InNotif, URigHierarchy* InHierarchy, const FRigBaseElement* InElement)
+{
+	if(!ControlRigBlueprint.IsValid())
+	{
+		return;
+	}
+	
+	switch(InNotif)
+	{
+		case ERigHierarchyNotification::ElementSelected:
+		case ERigHierarchyNotification::ElementDeselected:
+		{
+			const FRigConnectorElement* Connector = Cast<FRigConnectorElement>(InElement);
+			if(Connector == nullptr)
+			{
+				for(const TPair<FRigElementKey, FRigElementKey>& Pair : ControlRigBlueprint->ConnectionMap)
+				{
+					check(Pair.Key.Type == ERigElementType::Connector);
+					if(Pair.Value == InElement->GetKey())
+					{
+						if(const FRigConnectorElement* TargetConnector = InHierarchy->Find<FRigConnectorElement>(Pair.Key))
+						{
+							OnHierarchyModified(InNotif, InHierarchy, TargetConnector);
+						}
+					}
+				}
+				return;
+			}
+
+			FString ModulePathOrConnectorName;
+			if(Connector->Settings.Type == EConnectorType::Primary)
+			{
+				ModulePathOrConnectorName = InHierarchy->GetNameMetadata(Connector->GetKey(), URigHierarchy::NameSpaceMetadataName, NAME_None).ToString();
+				ModulePathOrConnectorName = ModulePathOrConnectorName.LeftChop(1);
+			}
+			else
+			{
+				ModulePathOrConnectorName = Connector->GetName();
+			}
+
+			TSharedPtr<FModularRigTreeElement> Item = TreeView->FindElement(ModulePathOrConnectorName);
+			if(Item.IsValid())
+			{
+				const bool bSelected = InNotif == ERigHierarchyNotification::ElementSelected;
+				TreeView->SetItemSelection(Item, bSelected);
+			}
+		}
+		default:
+		{
+			break;
+		}
 	}
 }
 

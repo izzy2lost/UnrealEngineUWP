@@ -53,6 +53,28 @@ protected:
 	friend class FControlRigSchematicModel;
 };
 
+/** Tag to mark up connectors */
+class FControlRigSchematicConnectorTag : public FSchematicGraphTag
+{
+public:
+
+	SCHEMATICGRAPHTAG_BODY(FControlRigSchematicConnectorTag, FSchematicGraphTag)
+
+	FControlRigSchematicConnectorTag();
+	virtual ~FControlRigSchematicConnectorTag() override {}
+};
+
+class FControlRigSchematicWarningTag : public FSchematicGraphTag
+{
+public:
+
+	SCHEMATICGRAPHTAG_BODY(FControlRigSchematicWarningTag, FSchematicGraphTag)
+
+	FControlRigSchematicWarningTag();
+	virtual ~FControlRigSchematicWarningTag() override {}
+};
+
+
 /** Model for the schematic views */
 class FControlRigSchematicModel : public FSchematicGraphModel
 {
@@ -71,23 +93,31 @@ public:
 	virtual bool RemoveNode(const FGuid& InGuid) override;
 	bool RemoveElementKeyNode(const FRigElementKey& InKey);
 	FControlRigSchematicRigElementKeyLink* AddElementKeyLink(const FRigElementKey& InSourceKey, const FRigElementKey& InTargetKey, bool bNotify = true);
+	void UpdateElementKeyNodes();
 	void UpdateElementKeyLinks();
+	void UpdateControlRigContent();
 
 	void OnSetObjectBeingDebugged(UObject* InObject);
 	void OnHierarchyModified(ERigHierarchyNotification InNotif, URigHierarchy* InHierarchy, const FRigBaseElement* InElement);
 	void HandleModularRigModified(EModularRigNotification InNotification, const FRigModuleReference* InModule);
 
+	virtual FSchematicGraphGroupNode* AddAutoGroupNode() override;
 	virtual FVector2d GetPositionForNode(const FSchematicGraphNode* InNode) const override;
 	virtual bool GetPositionAnimationEnabledForNode(const FSchematicGraphNode* InNode) const override;
 	virtual int32 GetNumLayersForNode(const FSchematicGraphNode* InNode) const override;
+	const FSlateBrush* GetBrushForKey(const FRigElementKey& InKey, bool bResolveConnectors) const;
 	virtual const FSlateBrush* GetBrushForNode(const FSchematicGraphNode* InNode, int32 InLayerIndex) const override;
 	virtual FLinearColor GetColorForNode(const FSchematicGraphNode* InNode, int32 InLayerIndex) const override;
 	virtual ESchematicGraphPlacementConstraint::Type GetPlacementForNode(const FSchematicGraphNode* InNode) const override;
 	virtual const FSlateBrush* GetBrushForLink(const FSchematicGraphLink* InLink) const override;
 	virtual FLinearColor GetColorForLink(const FSchematicGraphLink* InLink) const override;
 	virtual ESchematicGraphVisibility::Type GetVisibilityForTag(const FSchematicGraphTag* InTag) const override;
+	virtual const FSlateBrush* GetForegroundBrushForTag(const FSchematicGraphTag* InTag) const override;
+	virtual const FText GetToolTipForTag(const FSchematicGraphTag* InTag) const override;
 
 private:
+
+	void ConfigureElementKeyNode(FControlRigSchematicRigElementKeyNode* InNode, const FRigElementKey& InKey);
 
 	void HandleSchematicNodeClicked(SSchematicGraphPanel* InPanel, SSchematicGraphNode* InNode, const FPointerEvent& InMouseEvent);
 	void HandleSchematicBeginDrag(SSchematicGraphPanel* InPanel, SSchematicGraphNode* InNode, const FDragDropOperation& InDragDropOperation);

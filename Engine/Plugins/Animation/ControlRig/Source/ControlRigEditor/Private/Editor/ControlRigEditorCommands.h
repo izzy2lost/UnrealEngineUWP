@@ -39,6 +39,9 @@ public:
 	/** Request per node direct manipulation on a scale */
 	TSharedPtr< FUICommandInfo > RequestDirectManipulationScale;
 
+	/** Toggle visibility of the schematic */
+	TSharedPtr< FUICommandInfo > ToggleSchematicViewportVisibility;
+
 	/**
 	 * Initialize commands
 	 */

@@ -13,6 +13,7 @@ void FControlRigEditorCommands::RegisterCommands()
 	UI_COMMAND(RequestDirectManipulationPosition, "Request Direct Manipulation for Position", "Request per node direct manipulation on a position", EUserInterfaceActionType::Button, FInputChord(EKeys::W));
 	UI_COMMAND(RequestDirectManipulationRotation, "Request Direct Manipulation for Rotation", "Request per node direct manipulation on a rotation", EUserInterfaceActionType::Button, FInputChord(EKeys::E));
 	UI_COMMAND(RequestDirectManipulationScale, "Request Direct Manipulation for Scale", "Request per node direct manipulation on a scale", EUserInterfaceActionType::Button, FInputChord(EKeys::R));
+	UI_COMMAND(ToggleSchematicViewportVisibility, "Toggle the viewport schematic", "Toggles the visibility of the viewport schematic", EUserInterfaceActionType::Button, FInputChord(EKeys::Y));
 }
 
 #undef LOCTEXT_NAMESPACE
