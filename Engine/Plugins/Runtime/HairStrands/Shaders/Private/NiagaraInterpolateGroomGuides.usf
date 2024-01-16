@@ -71,7 +71,7 @@ void MainCS(uint3 DispatchThreadId : SV_DispatchThreadID)
 {
 	if (DispatchThreadId.x < uint(NumPoints))
 	{
-		const int StrandIndex = PointToCurveIndexBuffer[DispatchThreadId.x];
+		const int StrandIndex = UnpackHairPointToCurveIndex(PointToCurveIndexBuffer, DispatchThreadId.x);
 
 		const FHairCurve Curve = UnpackHairCurve(CurvesOffsetsBuffer[StrandIndex]);
 		const int PointBegin = Curve.PointIndex;

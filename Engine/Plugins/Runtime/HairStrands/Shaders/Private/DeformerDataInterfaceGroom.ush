@@ -121,7 +121,7 @@ float ReadCurveNumPoint_{DataInterfaceName}(uint CurveIndex)
 uint ReadGuideIndex_{DataInterfaceName}(uint ControlPointIndex)
 {
 	// Find the rendering curve index
-	const uint CurveIndex = {DataInterfaceName}_PointToCurveBuffer.Load(ControlPointIndex);
+	const uint CurveIndex = UnpackHairPointToCurveIndex({DataInterfaceName}_PointToCurveBuffer, ControlPointIndex);
 
 	// Fint the curve and point interpolation data
 	const FGuideCurveData CurveData = UnpackGuideCurveData({DataInterfaceName}_CurveInterpolationBuffer, CurveIndex, {DataInterfaceName}_bSingleGuide);

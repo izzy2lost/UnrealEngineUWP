@@ -40,7 +40,7 @@ static FAutoConsoleVariableRef CVarHairGroupIndexBuilder_MaxVoxelResolution(TEXT
 
 FString FGroomBuilder::GetVersion()
 {
-	return TEXT("v10b");
+	return TEXT("v11b");
 }
 
 // For debug purpose
@@ -183,17 +183,9 @@ namespace HairStrandsBuilder
 		OutPackedPositions.SetNum(NumPoints * FHairStrandsPositionFormat::ComponentCount);
 		OutPackedCurves.SetNum(NumCurves * FHairStrandsCurveFormat::ComponentCount);
 
-		const bool bUse16bitsCurveIndex = NumCurves < 65536;
-		TArray<FHairStrandsPointToCurveFormat16::Type> OutPointToCurve16;
-		TArray<FHairStrandsPointToCurveFormat32::Type> OutPointToCurve32;
-		if (bUse16bitsCurveIndex)
-		{
-			OutPointToCurve16.SetNum(NumPoints);
-		}
-		else
-		{
-			OutPointToCurve32.SetNum(NumPoints);
-		}
+		const uint32 PointToCurveChunkElementCount = 8u;
+		TArray<FHairStrandsPointToCurveFormat::Type> OutPointToCurve;
+		OutPointToCurve.SetNum(FMath::DivideAndRoundUp(NumPoints, PointToCurveChunkElementCount));
 
 		const uint32 Attributes = HairStrands.GetAttributes();
 		const uint32 AttributeFlags = HairStrands.GetAttributeFlags();
@@ -282,14 +274,48 @@ namespace HairStrandsBuilder
 					PackedPosition.UCoord = uint8(FMath::Clamp(CoordU * 255.f, 0.f, 255.f));
 				}
 
-				// Vertex to Curve
-				if (bUse16bitsCurveIndex)
+				// Point to Curve
 				{
-					OutPointToCurve16[PointIndex + IndexOffset] = CurveIndex;
-				}
-				else
-				{
-					OutPointToCurve32[PointIndex + IndexOffset] = CurveIndex;
+					static_assert(PointToCurveChunkElementCount == 8u);
+
+					const uint32 CurrentIndex    = PointIndex + IndexOffset;
+					const uint32 CurrentIndex4   = CurrentIndex >> 3u;
+					const uint32 LocalPointIndex = CurrentIndex & 0x7;
+					const bool bIsFirstPoint     = LocalPointIndex == 0;
+
+					// Format
+					// Encode 8 points per uint with a base curve index + delta bits
+					// [                         32bits                         ]
+					// [     24bits     ][                8bits                 ]
+					// [ BaseCurveIndex ][Pt0][Pt0][Pt2][Pt3][Pt4][Pt5][Pt6][Pt7]
+					if (bIsFirstPoint)
+					{
+						OutPointToCurve[CurrentIndex4] = CurveIndex;
+					}
+					else
+					{
+						const uint32 BaseCurveIndex = (OutPointToCurve[CurrentIndex4] & 0xFFFFFF);
+						uint32 PackedDeltas   = (OutPointToCurve[CurrentIndex4]>>24u) & 0xFF;
+
+						// Rebuilt curve indices from the detla encoding
+						uint32 CurveIndices[8] = {0,0,0,0,0,0,0,0};
+						CurveIndices[0] = BaseCurveIndex;
+						for (uint32 PointIt = 1; PointIt <= LocalPointIndex; ++PointIt)
+						{
+							CurveIndices[PointIt] = CurveIndices[PointIt-1] + ((PackedDeltas >> PointIt) & 0x1);
+						}
+
+						// Sanity check
+						check(CurveIndices[LocalPointIndex] == CurveIndex || CurveIndices[LocalPointIndex]+1 == CurveIndex);
+
+						// Add curve bit if needed
+						if (CurveIndices[LocalPointIndex] != CurveIndex)
+						{
+							PackedDeltas |= 1u << LocalPointIndex;
+						}
+
+						OutPointToCurve[CurrentIndex4] = BaseCurveIndex | PackedDeltas<<24u;
+					}
 				}
 
 				// Per-Vertex Color
@@ -538,7 +564,6 @@ namespace HairStrandsBuilder
 			const uint32 ChunkElementCount = FMath::Min(PointAttributeChunkElementCount, OutBulkData.Header.PointCount);
 			for (uint32 ChunkIt=0; ChunkIt<ChunkCount; ++ChunkIt)
 			{
-
 				if (HasHairAttribute(Attributes, EHairAttribute::Color))
 				{
 					AppendAttribute(HAIR_POINT_ATTRIBUTE_COLOR, Stride_Color, AttributeColor, ChunkIt, ChunkCount);
@@ -568,17 +593,8 @@ namespace HairStrandsBuilder
 		ReportSize(TEXT("Positions"), OutPackedPositions);
 		CopyToBulkData<FHairStrandsCurveFormat>(OutBulkData.Data.Curves, OutPackedCurves);
 		ReportSize(TEXT("PackedCurves"), OutPackedCurves);
-		if (bUse16bitsCurveIndex)
-		{
-			OutBulkData.Header.Flags |= FHairStrandsBulkData::DataFlags_Has16bitsCurveIndex;
-			CopyToBulkData<FHairStrandsPointToCurveFormat16>(OutBulkData.Data.PointToCurve, OutPointToCurve16);
-			ReportSize(TEXT("PointToCurve"), OutPointToCurve16);
-		}
-		else
-		{
-			CopyToBulkData<FHairStrandsPointToCurveFormat32>(OutBulkData.Data.PointToCurve, OutPointToCurve32);
-			ReportSize(TEXT("PointToCurve"), OutPointToCurve32);
-		}
+		CopyToBulkData<FHairStrandsPointToCurveFormat>(OutBulkData.Data.PointToCurve, OutPointToCurve);
+		ReportSize(TEXT("PointToCurve"), OutPointToCurve);
 
 		// Build curve to point count mapping for runtime CLOD
 		OutBulkData.Header.CurveToPointCount.Reserve(OutPackedCurves.Num());
@@ -590,7 +606,9 @@ namespace HairStrandsBuilder
 		// Stride datas
 		OutBulkData.Header.Strides.PositionStride = FHairStrandsPositionFormat::SizeInByte;
 		OutBulkData.Header.Strides.CurveStride = FHairStrandsCurveFormat::SizeInByte;
-		OutBulkData.Header.Strides.PointToCurveStride = (bUse16bitsCurveIndex ? FHairStrandsPointToCurveFormat16::SizeInByte : FHairStrandsPointToCurveFormat32::SizeInByte);
+
+		OutBulkData.Header.Strides.PointToCurveChunkStride = FHairStrandsPointToCurveFormat::SizeInByte;
+		OutBulkData.Header.Strides.PointToCurveChunkElementCount = PointToCurveChunkElementCount;
 
 		OutBulkData.Header.Strides.CurveAttributeChunkStride = CurveAttributeChunkStride;
 		OutBulkData.Header.Strides.PointAttributeChunkStride = PointAttributeChunkStride;

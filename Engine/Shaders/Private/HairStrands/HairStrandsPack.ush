@@ -303,6 +303,22 @@ FHairCurve UnpackHairCurve(uint In)
 	return Out;
 }
 
+uint UnpackHairPointToCurveIndex(Buffer<uint> InBuffer, uint InPointIndex)
+{
+	// Encoding: base curve index + detla encoding for 8 consecutive control points
+
+	const uint PointIndex8 = InPointIndex >> 3u;
+	const uint LocalIndex8 = InPointIndex & 0x7;
+	const uint Data = InBuffer[PointIndex8];
+
+	// Extract the curve index delta encoding
+	const uint Mask     = BitFieldMaskU32(LocalIndex8+1, 0);
+	const uint Bitfield = BitFieldExtractI32(Data, 8u, 24u);
+	const uint Deltas   = countbits(Mask & Bitfield);
+
+	return (Data & 0xFFFFFF) + Deltas;
+}
+
 ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 // UVs
 

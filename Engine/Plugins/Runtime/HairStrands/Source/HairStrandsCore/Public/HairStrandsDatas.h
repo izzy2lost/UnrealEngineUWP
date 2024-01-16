@@ -98,17 +98,7 @@ struct FHairStrandsAttributeFormat
 	static const EPixelFormat Format = PF_R32_UINT;
 };
 
-struct FHairStrandsPointToCurveFormat16
-{
-	typedef uint16 Type;
-	typedef uint16 BulkType;
-	static const uint32 ComponentCount = 1;
-	static const uint32 SizeInByte = sizeof(Type);
-	static const EVertexElementType VertexElementType = VET_MAX;
-	static const EPixelFormat Format = PF_R16_UINT;
-};
-
-struct FHairStrandsPointToCurveFormat32
+struct FHairStrandsPointToCurveFormat
 {
 	typedef uint32 Type;
 	typedef uint32 BulkType;
@@ -566,8 +556,7 @@ struct HAIRSTRANDSCORE_API FHairStrandsBulkData : FHairStrandsBulkCommon
 	enum EDataFlags
 	{
 		DataFlags_HasData = 1,				// Contains valid data. Otherwise: Position, Attributes, ... are all empty
-		DataFlags_Has16bitsCurveIndex = 2,	// Use 16bits index for vertex to curve mapping
-		DataFlags_HasPointAttribute = 4,	// Contains point attribute data.
+		DataFlags_HasPointAttribute = 2,	// Contains point attribute data.
 	};
 
 	virtual void SerializeHeader(FArchive& Ar, UObject* Owner) override;
@@ -589,6 +578,7 @@ struct HAIRSTRANDSCORE_API FHairStrandsBulkData : FHairStrandsBulkCommon
 
 	uint32 GetCurveAttributeSizeInBytes(uint32 InCurveCount=HAIR_MAX_NUM_CURVE_PER_GROUP) const	{ return InCurveCount > 0 ? FMath::DivideAndRoundUp(FMath::Min(Header.CurveCount, InCurveCount), Header.Strides.CurveAttributeChunkElementCount) * Header.Strides.CurveAttributeChunkStride : 0; }
 	uint32 GetPointAttributeSizeInBytes(uint32 InPointCount=HAIR_MAX_NUM_POINT_PER_GROUP) const	{ return InPointCount > 0 ? FMath::DivideAndRoundUp(FMath::Min(Header.PointCount, InPointCount), Header.Strides.PointAttributeChunkElementCount) * Header.Strides.PointAttributeChunkStride : 0; }
+	uint32 GetPointToCurveSizeInBytes(uint32 InPointCount=HAIR_MAX_NUM_POINT_PER_GROUP) const	{ return InPointCount > 0 ? FMath::DivideAndRoundUp(FMath::Min(Header.PointCount, InPointCount), Header.Strides.PointToCurveChunkElementCount)   * Header.Strides.PointToCurveChunkStride   : 0; }
 
 	struct FHeader
 	{
@@ -616,11 +606,12 @@ struct HAIRSTRANDSCORE_API FHairStrandsBulkData : FHairStrandsBulkCommon
 		{
 			uint32 PositionStride = 0;
 			uint32 CurveStride = 0;
-			uint32 PointToCurveStride = 0;
+			uint32 PointToCurveChunkStride = 0;
 			uint32 CurveAttributeChunkStride = 0;
 			uint32 PointAttributeChunkStride = 0;
 
 			// Number of element per chunk block
+			uint32 PointToCurveChunkElementCount = 0;
 			uint32 CurveAttributeChunkElementCount = 0;
 			uint32 PointAttributeChunkElementCount = 0;
 		} Strides;

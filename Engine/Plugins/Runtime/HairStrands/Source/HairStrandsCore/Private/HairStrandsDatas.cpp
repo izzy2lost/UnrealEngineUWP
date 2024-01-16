@@ -564,7 +564,10 @@ void FHairStrandsBulkData::SerializeHeader(FArchive& Ar, UObject* Owner)
 
 	Ar << Header.Strides.PositionStride;
 	Ar << Header.Strides.CurveStride;
-	Ar << Header.Strides.PointToCurveStride;
+
+	Ar << Header.Strides.PointToCurveChunkStride;
+	Ar << Header.Strides.PointToCurveChunkElementCount;
+
 	Ar << Header.Strides.CurveAttributeChunkStride;
 	Ar << Header.Strides.PointAttributeChunkStride;
 	Ar << Header.Strides.CurveAttributeChunkElementCount;
@@ -586,8 +589,7 @@ void FHairStrandsBulkData::GetResources(FHairStrandsBulkCommon::FQuery& Out)
 {
 	static_assert(sizeof(FHairStrandsPositionFormat::BulkType) == sizeof(FHairStrandsPositionFormat::Type));
 	static_assert(sizeof(FHairStrandsAttributeFormat::BulkType) == sizeof(FHairStrandsAttributeFormat::Type));
-	static_assert(sizeof(FHairStrandsPointToCurveFormat16::BulkType) == sizeof(FHairStrandsPointToCurveFormat16::Type));
-	static_assert(sizeof(FHairStrandsPointToCurveFormat32::BulkType) == sizeof(FHairStrandsPointToCurveFormat32::Type));
+	static_assert(sizeof(FHairStrandsPointToCurveFormat::BulkType) == sizeof(FHairStrandsPointToCurveFormat::Type));
 	static_assert(sizeof(FHairStrandsRootIndexFormat::BulkType) == sizeof(FHairStrandsRootIndexFormat::Type)); 
 
 	// Translate requested curve count into chunk/offset/size to be read
@@ -601,6 +603,7 @@ void FHairStrandsBulkData::GetResources(FHairStrandsBulkCommon::FQuery& Out)
 
 	const uint32 PointAttributeSize = GetPointAttributeSizeInBytes(PointCount);
 	const uint32 CurveAttributeSize = GetCurveAttributeSizeInBytes(CurveCount);
+	const uint32 PointToCurveIndexSize = GetPointToCurveSizeInBytes(PointCount);
 
 	if (!!(Header.Flags & DataFlags_HasData))
 	{
@@ -610,7 +613,7 @@ void FHairStrandsBulkData::GetResources(FHairStrandsBulkCommon::FQuery& Out)
 		{
 			Out.Add(Data.PointAttributes, 	TEXT("_PointAttributes"), 	Data.PointAttributes.LoadedSize,PointAttributeSize);
 		}
-		Out.Add(Data.PointToCurve, 			TEXT("_PointToCurve"), 		Data.PointToCurve.LoadedSize,	PointCount * Header.Strides.PointToCurveStride);
+		Out.Add(Data.PointToCurve, 			TEXT("_PointToCurve"), 		Data.PointToCurve.LoadedSize,	PointToCurveIndexSize);
 		Out.Add(Data.Curves, 				TEXT("_Curves"), 			Data.Curves.LoadedSize, 		CurveCount * Header.Strides.CurveStride);
 	}
 }
