@@ -51,6 +51,7 @@
 #include "PerPlatformPropertyCustomization.h"
 #include "Misc/ScopedSlowTask.h"
 #include "MeshCardRepresentation.h"
+#include "NaniteDefinitions.h"
 
 const uint32 MaxHullCount = 64;
 const uint32 MinHullCount = 1;
