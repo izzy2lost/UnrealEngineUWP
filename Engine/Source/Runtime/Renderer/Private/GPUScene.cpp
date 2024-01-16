@@ -29,6 +29,7 @@
 #include "InstanceCulling/InstanceCullingOcclusionQuery.h"
 #include "PrimitiveUniformShaderParametersBuilder.h"
 #include "InstanceDataSceneProxy.h"
+#include "SceneRendererInterface.h"
 
 // Useful for debugging
 #define FORCEINLINE_GPUSCENE FORCEINLINE
@@ -1571,7 +1572,7 @@ struct FUploadDataSourceAdapterDynamicPrimitives
 	TArray<uint32, SceneRenderingAllocator> PrimitivesIds;
 };
 
-void FGPUScene::UploadDynamicPrimitiveShaderDataForViewInternal(FRDGBuilder& GraphBuilder, FViewInfo& View, bool bIsShadowView)
+void FGPUScene::UploadDynamicPrimitiveShaderDataForViewInternal(FRDGBuilder& GraphBuilder, FViewInfo& View, UE::Renderer::Private::IShadowInvalidatingInstances *ShadowInvalidatingInstances)
 {
 	LLM_SCOPE_BYTAG(GPUScene);
 
@@ -1610,20 +1611,14 @@ void FGPUScene::UploadDynamicPrimitiveShaderDataForViewInternal(FRDGBuilder& Gra
 		ensure(UploadIdStart < DynamicPrimitivesOffset);
 		ensure(InstanceIdStart != INDEX_NONE);
 
-		if (bIsShadowView)
+		if (ShadowInvalidatingInstances)
 		{
 			// Enqueue cache invalidations for all dynamic primitives' instances, as they will be removed this frame and are not associated
 			// with any particular FPrimitiveSceneInfo. Will occur on the next call to UpdateAllPrimitiveSceneInfos
 			for (const FGPUScenePrimitiveCollector::FPrimitiveData& PrimitiveData : Collector.UploadData->PrimitiveData)
 			{
-				ensure(PrimitiveData.LocalInstanceSceneDataOffset != INDEX_NONE);				
-				DynamicPrimitiveInstancesToInvalidate.Add(
-					FInstanceRange
-					{
-						PrimitiveData.LocalInstanceSceneDataOffset + InstanceIdStart,
-						PrimitiveData.NumInstances
-					}
-				);
+				check(PrimitiveData.LocalInstanceSceneDataOffset != INDEX_NONE);
+				ShadowInvalidatingInstances->AddInstanceRange(PrimitiveData.LocalInstanceSceneDataOffset + uint32(InstanceIdStart), PrimitiveData.NumInstances);
 			}
 		}
 
@@ -1787,13 +1782,13 @@ void FGPUScene::Update(FRDGBuilder& GraphBuilder, FSceneUniformBuffer& SceneUB, 
 	}
 }
 
-void FGPUScene::UploadDynamicPrimitiveShaderDataForView(FRDGBuilder& GraphBuilder, FViewInfo& View, bool bIsShadowView)
+void FGPUScene::UploadDynamicPrimitiveShaderDataForView(FRDGBuilder& GraphBuilder, FViewInfo& View, UE::Renderer::Private::IShadowInvalidatingInstances *ShadowInvalidatingInstances)
 {
 	if (bIsEnabled)
 	{
 		RDG_GPU_MASK_SCOPE(GraphBuilder, FRHIGPUMask::All());
 
-		UploadDynamicPrimitiveShaderDataForViewInternal(GraphBuilder, View, bIsShadowView);
+		UploadDynamicPrimitiveShaderDataForViewInternal(GraphBuilder, View, ShadowInvalidatingInstances);
 	}
 }
 
@@ -2167,7 +2162,6 @@ SIZE_T FGPUScene::GetAllocatedSize() const
 	return PrimitivesToUpdate.GetAllocatedSize()
 		+ InstanceRangesToClear.GetAllocatedSize()
 		+ PrimitiveDirtyState.GetAllocatedSize()
-		+ DynamicPrimitiveInstancesToInvalidate.GetAllocatedSize()
 		+ DeferredGPUWritePassDelegates[uint32(EGPUSceneGPUWritePass::PostOpaqueRendering)].GetAllocatedSize();
 }
 

@@ -298,6 +298,16 @@ bool FVirtualShadowMapPerLightCacheEntry::UpdateLocal(const FProjectedShadowInit
 	return Prev.RenderedFrameNumber >= 0;
 }
 
+void FVirtualShadowMapArrayCacheManager::FShadowInvalidatingInstancesImplementation::AddPrimitive(const FPrimitiveSceneInfo* PrimitiveSceneInfo)
+{
+	AddInstanceRange(PrimitiveSceneInfo->GetInstanceSceneDataOffset(), PrimitiveSceneInfo->GetNumInstanceSceneDataEntries());
+}
+
+void FVirtualShadowMapArrayCacheManager::FShadowInvalidatingInstancesImplementation::AddInstanceRange(uint32 InstanceSceneDataOffset, uint32 NumInstanceSceneDataEntries)
+{
+	PrimitiveInstancesToInvalidate.Add(FVirtualShadowMapInstanceRange{int32(InstanceSceneDataOffset), int32(NumInstanceSceneDataEntries)});
+}		
+
 void FVirtualShadowMapPerLightCacheEntry::Invalidate()
 {
 	Prev.RenderedFrameNumber = -1;
@@ -312,19 +322,18 @@ FVirtualShadowMapArrayCacheManager::FInvalidatingPrimitiveCollector::FInvalidati
 
 void FVirtualShadowMapArrayCacheManager::FInvalidatingPrimitiveCollector::AddDynamicAndGPUPrimitives()
 {
-	// Add and clear pending invalidations enqueued on the GPU Scene from dynamic primitives added since last invalidation
-	for (const FGPUScene::FInstanceRange& Range : GPUScene.DynamicPrimitiveInstancesToInvalidate)
+	// Add and clear pending invalidations enqueued since the last invalidation (scene update)
+	// This includes "dynamic primitives"
+	for (const FVirtualShadowMapInstanceRange& Range : Manager.ShadowInvalidatingInstancesImplementation.PrimitiveInstancesToInvalidate)
 	{
-		// Dynamic primitives are never cached as static; see FUploadDataSourceAdapterDynamicPrimitives::GetPrimitiveInfo
-		// TODO: Do we ever need to invalidate these "post" update?
 		Instances.Add(Range.InstanceSceneDataOffset, Range.NumInstanceSceneDataEntries, 0);
 	}
 
-	GPUScene.DynamicPrimitiveInstancesToInvalidate.Reset();
+	Manager.ShadowInvalidatingInstancesImplementation.PrimitiveInstancesToInvalidate.Reset();
 
 	for (auto& CacheEntry : Manager.CacheEntries)
 	{
-		for (const FVirtualShadowMapPerLightCacheEntry::FInstanceRange& Range : CacheEntry.Value->PrimitiveInstancesToInvalidate)
+		for (const FVirtualShadowMapInstanceRange& Range : CacheEntry.Value->PrimitiveInstancesToInvalidate)
 		{
 			// TODO: Do we ever need to invalidate these "post" update?
 			Instances.Add(Range.InstanceSceneDataOffset, Range.NumInstanceSceneDataEntries, 0);
@@ -464,6 +473,7 @@ FVirtualShadowMapFeedback::FReadbackInfo FVirtualShadowMapFeedback::GetLatestRea
 
 FVirtualShadowMapArrayCacheManager::FVirtualShadowMapArrayCacheManager(FScene* InScene) 
 	: Scene(InScene)
+	, ShadowInvalidatingInstancesImplementation(*this)
 {
 	// Handle message with status sent back from GPU
 	StatusFeedbackSocket = GPUMessage::RegisterHandler(TEXT("Shadow.Virtual.StatusFeedback"), [this](GPUMessage::FReader Message)
@@ -842,10 +852,7 @@ void FVirtualShadowMapPerLightCacheEntry::OnPrimitiveRendered(const FPrimitiveSc
 		// Skip if the invalidation mode is NOT auto (because Always will do it elsewhere & the others should prevent this).
 		if (PrimitiveSceneInfo->Proxy->HasDeformableMesh() && PrimitiveSceneInfo->Proxy->GetShadowCacheInvalidationBehavior() == EShadowCacheInvalidationBehavior::Auto)
 		{
-			PrimitiveInstancesToInvalidate.Add(FInstanceRange{ 
-				PrimitiveSceneInfo->GetInstanceSceneDataOffset(),
-				PrimitiveSceneInfo->GetNumInstanceSceneDataEntries()
-			});
+			PrimitiveInstancesToInvalidate.Add(FVirtualShadowMapInstanceRange{ PrimitiveSceneInfo->GetInstanceSceneDataOffset(), PrimitiveSceneInfo->GetNumInstanceSceneDataEntries() });
 		}
 	}
 }

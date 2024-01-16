@@ -170,6 +170,18 @@ void FShadowSceneRenderer::BeginRender(FRDGBuilder& GraphBuilder)
 	});
 }
 
+UE::Renderer::Private::IShadowInvalidatingInstances *FShadowSceneRenderer::GetInvalidatingInstancesInterface(const FSceneView *SceneView)
+{
+	// No need to collect invalidations if there is nothing to invalidate.
+	if (Scene.VirtualShadowMapCache && Scene.VirtualShadowMapCache->IsCacheDataAvailable())
+	{
+		// TODO: Make use of the SceneView parameter to register invalidations for view-dependent shadows appropriately.
+		return Scene.VirtualShadowMapCache->GetInvalidatingInstancesInterface();
+	}
+	return nullptr;
+}
+
+
 static float GetResolutionLODBiasLocal(float LightMobilityFactor)
 {
 	return FVirtualShadowMapArray::InterpolateResolutionBias(

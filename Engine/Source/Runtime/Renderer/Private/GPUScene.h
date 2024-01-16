@@ -28,6 +28,10 @@ class FScenePostUpdateChangeSet;
 class FPrimitiveSceneProxy;
 class IVisibilityTaskData;
 struct FLightSceneChangeSet;
+namespace UE::Renderer::Private
+{
+	class IShadowInvalidatingInstances;
+}
 
 DECLARE_GPU_STAT_NAMED_EXTERN(GPUSceneUpdate, TEXT("GPUSceneUpdate"))
 
@@ -217,7 +221,7 @@ public:
 	/**
 	 * Upload primitives from View.DynamicPrimitiveCollector.
 	 */
-	void UploadDynamicPrimitiveShaderDataForView(FRDGBuilder& GraphBuilder, FViewInfo& View, bool bIsShadowView = false);
+	void UploadDynamicPrimitiveShaderDataForView(FRDGBuilder& GraphBuilder, FViewInfo& View, UE::Renderer::Private::IShadowInvalidatingInstances *ShadowInvalidatingInstances = nullptr);
 
 	/**
 	 * Modifies the GPUScene specific scene UB parameters to the current versions. Returns true if any of the parameters changed.
@@ -321,9 +325,6 @@ public:
 	FRDGAsyncScatterUploadBuffer   LightmapUploadBuffer;
 
 	using FInstanceRange = FGPUSceneInstanceRange;
-
-	TArray<FInstanceRange> DynamicPrimitiveInstancesToInvalidate;
-
 	using FInstanceGPULoadBalancer = TInstanceCullingLoadBalancer<SceneRenderingAllocator>;
 
 	inline const FScene &GetScene() const { return Scene; }
@@ -428,7 +429,7 @@ private:
 
 	static void InitLightData(const FLightSceneInfoCompact& LightInfoCompact, bool bAllowStaticLighting, FLightSceneData& DataOut);
 
-	void UploadDynamicPrimitiveShaderDataForViewInternal(FRDGBuilder& GraphBuilder, FViewInfo& View, bool bIsShadowView);
+	void UploadDynamicPrimitiveShaderDataForViewInternal(FRDGBuilder& GraphBuilder, FViewInfo& View, UE::Renderer::Private::IShadowInvalidatingInstances *ShadowInvalidatingInstances);
 
 	void UpdateInternal(FRDGBuilder& GraphBuilder, FSceneUniformBuffer& SceneUB, FRDGExternalAccessQueue& ExternalAccessQueue, IVisibilityTaskData* VisibilityTaskData);
 

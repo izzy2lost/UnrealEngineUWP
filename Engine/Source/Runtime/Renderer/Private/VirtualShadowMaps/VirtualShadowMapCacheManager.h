@@ -8,6 +8,7 @@
 #include "InstanceCulling/InstanceCullingLoadBalancer.h"
 #include "GPUScene.h"
 #include "GPUMessaging.h"
+#include "SceneRendererInterface.h"
 
 class FRHIGPUBufferReadback;
 class FGPUScene;
@@ -15,6 +16,12 @@ class FVirtualShadowMapPerLightCacheEntry;
 class FInvalidatePagesParameters;
 
 namespace Nanite { struct FPackedViewParams; }
+
+struct FVirtualShadowMapInstanceRange
+{
+	int32 InstanceSceneDataOffset;
+	int32 NumInstanceSceneDataEntries;
+};
 
 #define VSM_LOG_INVALIDATIONS 0
 
@@ -127,14 +134,7 @@ public:
 	// One entry represents the cached state of a given shadow map in the set of either a clipmap(N), one cube map(6) or a regular VSM (1)
 	TArray<FVirtualShadowMapCacheEntry> ShadowMapEntries;
 
-	// TODO: refactor this to not ne stored in the cache entry when we move (some) invalidaitons to the end of frame rather than in the scene primitive updates.
-	struct FInstanceRange
-	{
-		int32 InstanceSceneDataOffset;
-		int32 NumInstanceSceneDataEntries;
-	};
-
-	TArray<FInstanceRange> PrimitiveInstancesToInvalidate;
+	TArray<FVirtualShadowMapInstanceRange> PrimitiveInstancesToInvalidate;
 
 private:
 	FProjectedShadowInitializer LocalCacheKey;
@@ -345,7 +345,23 @@ public:
 		return CacheEntries.CreateConstIterator();
 	}
 
+	UE::Renderer::Private::IShadowInvalidatingInstances *GetInvalidatingInstancesInterface() { return &ShadowInvalidatingInstancesImplementation; }
+
 private:
+
+	/** 
+	 */
+	class FShadowInvalidatingInstancesImplementation : public UE::Renderer::Private::IShadowInvalidatingInstances
+	{
+	public:
+		FShadowInvalidatingInstancesImplementation(FVirtualShadowMapArrayCacheManager &InCacheManager) : CacheManager(InCacheManager) {}
+		virtual void AddPrimitive(const FPrimitiveSceneInfo *PrimitiveSceneInfo);
+		virtual void AddInstanceRange(uint32 InstanceSceneDataOffset, uint32 NumInstanceSceneDataEntries);
+
+		FVirtualShadowMapArrayCacheManager &CacheManager;
+		TArray<FVirtualShadowMapInstanceRange> PrimitiveInstancesToInvalidate;
+	};
+
 	// Invalidate the cache for all shadows, causing any pages to be rerendered
 	void Invalidate(FRDGBuilder& GraphBuilder);
 
@@ -402,8 +418,6 @@ private:
 	float GlobalResolutionLodBias = 0.0f;
 	uint32 LastFrameOverPageAllocationBudget = 0;
 	
-	
-
 	// Debug stuff
 #if !UE_BUILD_SHIPPING
 	FDelegateHandle ScreenMessageDelegate;
@@ -426,4 +440,5 @@ private:
 #endif // UE_BUILD_SHIPPING
 
 	FScene* Scene;
+	FShadowInvalidatingInstancesImplementation ShadowInvalidatingInstancesImplementation;
 };

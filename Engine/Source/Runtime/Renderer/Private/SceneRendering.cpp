@@ -4520,6 +4520,15 @@ void FSceneRenderer::RenderThreadEnd(FRHICommandListImmediate& RHICmdList, const
 	}
 }
 
+UE::Renderer::Private::IShadowInvalidatingInstances *FSceneRenderer::GetShadowInvalidatingInstancesInterface(const FSceneView *SceneView)
+{
+	if (ShadowSceneRenderer)
+	{
+		return ShadowSceneRenderer->GetInvalidatingInstancesInterface(SceneView);
+	}
+	return nullptr;
+}
+
 void FSceneRenderer::CleanUp(FRHICommandListImmediate& RHICmdList)
 {
 	if (GSceneRenderCleanUpState.CompletionMode == ESceneRenderCleanUpMode::Immediate || GSceneRenderCleanUpState.Renderers.IsEmpty())

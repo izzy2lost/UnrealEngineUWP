@@ -16,6 +16,10 @@ class FRDGBuilder;
 class FVirtualShadowMapPerLightCacheEntry;
 struct FNaniteVisibilityQuery;
 class FShadowScene;
+namespace UE::Renderer::Private
+{
+	class IShadowInvalidatingInstances;
+}
 
 /**
  * Transient scope for per-frame rendering resources for the shadow rendering.
@@ -95,6 +99,8 @@ public:
 	{
 		return RendererSetupTask;
 	}
+
+	UE::Renderer::Private::IShadowInvalidatingInstances *GetInvalidatingInstancesInterface(const FSceneView *SceneView);
 
 private:
 	UE::Tasks::FTask RendererSetupTask;
