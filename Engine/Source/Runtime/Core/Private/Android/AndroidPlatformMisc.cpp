@@ -2307,7 +2307,7 @@ static void EstablishVulkanDeviceSupport()
 	}
 }
 
-bool IsDesktopVulkanAvailable()
+bool FAndroidMisc::IsDesktopVulkanAvailable()
 {
 	static int CachedDesktopVulkanAvailable = -1;
 

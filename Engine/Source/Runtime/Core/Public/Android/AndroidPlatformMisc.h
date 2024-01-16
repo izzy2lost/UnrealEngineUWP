@@ -200,6 +200,7 @@ public:
 	 *			and not we are not forcing GLES with a command line switch
 	 */
 	static CORE_API bool IsVulkanAvailable();
+	static CORE_API bool IsDesktopVulkanAvailable();
 
 	/* ShouldUseVulkan
 	 * @return true if Vulkan is available, and not disabled by device profile cvar
