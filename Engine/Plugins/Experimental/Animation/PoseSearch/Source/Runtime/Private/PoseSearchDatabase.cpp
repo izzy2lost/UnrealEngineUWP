@@ -775,12 +775,12 @@ void UPoseSearchDatabase::SynchronizeWithExternalDependencies()
 	TArray<FAssetIdentifier> Referencers;
 	AssetRegistry.GetReferencers(GetPackage()->GetFName(), Referencers);
 
+	TArray<UAnimSequenceBase*> SequencesBase;
 	for (const FAssetIdentifier& Referencer : Referencers)
 	{
 		TArray<FAssetData> Assets;
 		AssetRegistry.GetAssetsByPackageName(Referencer.PackageName, Assets);
 
-		TArray<UAnimSequenceBase*> SequencesBase;
 		for (const FAssetData& Asset : Assets)
 		{
 			if (Asset.IsInstanceOf(UAnimSequenceBase::StaticClass()))
@@ -793,7 +793,7 @@ void UPoseSearchDatabase::SynchronizeWithExternalDependencies()
 						{
 							if (BranchIn->Database == this)
 							{
-								SequencesBase.Add(SequenceBase);
+								SequencesBase.AddUnique(SequenceBase);
 								break;
 							}
 						}
@@ -801,11 +801,11 @@ void UPoseSearchDatabase::SynchronizeWithExternalDependencies()
 				}
 			}
 		}
-		
-		if (!SequencesBase.IsEmpty())
-		{
-			SynchronizeWithExternalDependencies(SequencesBase);
-		}
+	}
+
+	if (!SequencesBase.IsEmpty())
+	{
+		SynchronizeWithExternalDependencies(SequencesBase);
 	}
 }
 
@@ -815,15 +815,18 @@ void UPoseSearchDatabase::SynchronizeWithExternalDependencies(TConstArrayView<UA
 	TArray<FInstancedStruct> NewAnimationAssets;
 
 	// collecting all the database AnimationAsset(s) that don't require synchronization
+	TArray<bool> DisableReselection;
+	DisableReselection.Reserve(AnimationAssets.Num());
 	for (FInstancedStruct& AnimationAsset : AnimationAssets)
 	{
-		if (const FPoseSearchDatabaseAnimationAssetBase* AnimationAssetBase = AnimationAsset.GetPtr<FPoseSearchDatabaseAnimationAssetBase>())
+		FPoseSearchDatabaseAnimationAssetBase& AnimationAssetBase = AnimationAsset.GetMutable<FPoseSearchDatabaseAnimationAssetBase>();
+		DisableReselection.Add(AnimationAssetBase.bDisableReselection);
+		AnimationAssetBase.bDisableReselection = false;
+
+		const bool bRequiresSynchronization = AnimationAssetBase.bSynchronizeWithExternalDependency && SequencesBase.Contains(AnimationAssetBase.GetAnimationAsset());
+		if (!bRequiresSynchronization)
 		{
-			const bool bRequiresSynchronization = AnimationAssetBase->bSynchronizeWithExternalDependency && SequencesBase.Contains(AnimationAssetBase->GetAnimationAsset());
-			if (!bRequiresSynchronization)
-			{
-				NewAnimationAssets.Add(AnimationAsset);
-			}
+			NewAnimationAssets.Add(AnimationAsset);
 		}
 	}
 
@@ -838,11 +841,21 @@ void UPoseSearchDatabase::SynchronizeWithExternalDependencies(TConstArrayView<UA
 				{
 					if (PoseSearchBranchIn->Database == this)
 					{
+						auto GetSamplingRange = [](const FAnimNotifyEvent& NotifyEvent, const UAnimSequenceBase* SequenceBase) -> FFloatInterval
+						{
+							FFloatInterval SamplingRange(NotifyEvent.GetTime(), NotifyEvent.GetTime() + NotifyEvent.GetDuration());
+							if (SamplingRange.Min <= NotifyEvent.TriggerTimeOffset && SamplingRange.Max >= SequenceBase->GetPlayLength() - NotifyEvent.TriggerTimeOffset)
+							{
+								SamplingRange = FFloatInterval(0.f, 0.f);
+							}
+							return SamplingRange;
+						};
+
 						if (UAnimSequence* Sequence = Cast<UAnimSequence>(SequenceBase))
 						{
 							FPoseSearchDatabaseSequence DatabaseSequence;
 							DatabaseSequence.Sequence = Sequence;
-							DatabaseSequence.SamplingRange = FFloatInterval(NotifyEvent.GetTime(), NotifyEvent.GetTime() + NotifyEvent.GetDuration());
+							DatabaseSequence.SamplingRange = GetSamplingRange(NotifyEvent, SequenceBase);
 							DatabaseSequence.bSynchronizeWithExternalDependency = true;
 							NewAnimationAssets.Add(FInstancedStruct::Make(DatabaseSequence));
 						}
@@ -850,7 +863,7 @@ void UPoseSearchDatabase::SynchronizeWithExternalDependencies(TConstArrayView<UA
 						{
 							FPoseSearchDatabaseAnimComposite DatabaseAnimComposite;
 							DatabaseAnimComposite.AnimComposite = AnimComposite;
-							DatabaseAnimComposite.SamplingRange = FFloatInterval(NotifyEvent.GetTime(), NotifyEvent.GetTime() + NotifyEvent.GetDuration());
+							DatabaseAnimComposite.SamplingRange = GetSamplingRange(NotifyEvent, SequenceBase);
 							DatabaseAnimComposite.bSynchronizeWithExternalDependency = true;
 							NewAnimationAssets.Add(FInstancedStruct::Make(DatabaseAnimComposite));
 						}
@@ -858,7 +871,7 @@ void UPoseSearchDatabase::SynchronizeWithExternalDependencies(TConstArrayView<UA
 						{
 							FPoseSearchDatabaseAnimMontage DatabaseAnimMontage;
 							DatabaseAnimMontage.AnimMontage = AnimMontage;
-							DatabaseAnimMontage.SamplingRange = FFloatInterval(NotifyEvent.GetTime(), NotifyEvent.GetTime() + NotifyEvent.GetDuration());
+							DatabaseAnimMontage.SamplingRange = GetSamplingRange(NotifyEvent, SequenceBase);
 							DatabaseAnimMontage.bSynchronizeWithExternalDependency = true;
 							NewAnimationAssets.Add(FInstancedStruct::Make(DatabaseAnimMontage));
 						}
@@ -875,7 +888,9 @@ void UPoseSearchDatabase::SynchronizeWithExternalDependencies(TConstArrayView<UA
 		const int32 FoundIndex = NewAnimationAssets.Find(AnimationAssets[AnimationAssetIndex]);
 		if (FoundIndex >= 0)
 		{
-			NewAnimationAssets.RemoveAt(FoundIndex);
+			FPoseSearchDatabaseAnimationAssetBase& AnimationAssetBase = AnimationAssets[AnimationAssetIndex].GetMutable<FPoseSearchDatabaseAnimationAssetBase>();
+			AnimationAssetBase.bDisableReselection = DisableReselection[AnimationAssetIndex];
+			NewAnimationAssets.RemoveAt(FoundIndex); 
 		}
 		else
 		{

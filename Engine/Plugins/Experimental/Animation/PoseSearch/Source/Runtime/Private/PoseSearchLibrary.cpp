@@ -591,7 +591,7 @@ void UPoseSearchLibrary::MotionMatch(
 	TArray<FName, TInlineAllocator<PreallocatedRolesNum, TMemStackAllocator<>>> Roles;
 	Roles.Add(UE::PoseSearch::DefaultRole);
 
-	MotionMatch(AnimInstances, Roles, Database, PoseHistoryName, Result, Future.FutureAnimation, Future.FutureAnimationStartTime, Future.TimeToFutureAnimationStart, DebugSessionUniqueIdentifier);
+	MotionMatch(AnimInstances, Roles, Database, PoseHistoryName, Future, Result, DebugSessionUniqueIdentifier);
 }
 
 void UPoseSearchLibrary::MotionMatchMulti(
@@ -617,7 +617,7 @@ void UPoseSearchLibrary::MotionMatchMulti(
 		AnimInstances.Add(AnimInstance);
 	}
 
-	MotionMatch(AnimInstances, Roles, Database, PoseHistoryName, Result, nullptr, 0.f, 0.f, DebugSessionUniqueIdentifier);
+	MotionMatch(AnimInstances, Roles, Database, PoseHistoryName, FPoseSearchFutureProperties(), Result, DebugSessionUniqueIdentifier);
 }
 
 void UPoseSearchLibrary::MotionMatch(
@@ -625,10 +625,8 @@ void UPoseSearchLibrary::MotionMatch(
 	TConstArrayView<FName> Roles,
 	const UPoseSearchDatabase* Database,
 	const FName PoseHistoryName,
+	const FPoseSearchFutureProperties& Future,
 	FPoseSearchBlueprintResult& Result,
-	const UAnimationAsset* FutureAnimation,
-	float FutureAnimationStartTime,
-	float TimeToFutureAnimationStart,
 	const int32 DebugSessionUniqueIdentifier)
 {
 #if ENABLE_DRAW_DEBUG && ENABLE_ANIM_DEBUG
@@ -720,7 +718,8 @@ void UPoseSearchLibrary::MotionMatch(
 		return;
 	}
 
-	if (FutureAnimation)
+	float FutureIntervalTime = Future.IntervalTime;
+	if (Future.Animation)
 	{
 		if (AnimInstances.Num() != 1)
 		{
@@ -728,17 +727,18 @@ void UPoseSearchLibrary::MotionMatch(
 			return;
 		}
 		
-		if (FutureAnimationStartTime < FiniteDelta)
+		float FutureAnimationTime = Future.AnimationTime;
+		if (FutureAnimationTime < FiniteDelta)
 		{
-			UE_LOG(LogPoseSearch, Warning, TEXT("UPoseSearchLibrary::MotionMatch - provided FutureAnimationStartTime (%f) is too small to be able to calculate velocities. Clamping it to minimum value of %f"), FutureAnimationStartTime, FiniteDelta);
-			FutureAnimationStartTime = FiniteDelta;
+			UE_LOG(LogPoseSearch, Warning, TEXT("UPoseSearchLibrary::MotionMatch - provided Future.AnimationTime (%f) is too small to be able to calculate velocities. Clamping it to minimum value of %f"), FutureAnimationTime, FiniteDelta);
+			FutureAnimationTime = FiniteDelta;
 		}
 
-		const float MinTimeToFutureAnimationStart = FiniteDelta + UE_KINDA_SMALL_NUMBER;
-		if (TimeToFutureAnimationStart < MinTimeToFutureAnimationStart)
+		const float MinFutureIntervalTime = FiniteDelta + UE_KINDA_SMALL_NUMBER;
+		if (FutureIntervalTime < MinFutureIntervalTime)
 		{
-			UE_LOG(LogPoseSearch, Warning, TEXT("UPoseSearchLibrary::MotionMatch - provided TimeToFutureAnimationStart (%f) is too small. Clamping it to minimum value of %f"), TimeToFutureAnimationStart, MinTimeToFutureAnimationStart);
-			TimeToFutureAnimationStart = MinTimeToFutureAnimationStart;
+			UE_LOG(LogPoseSearch, Warning, TEXT("UPoseSearchLibrary::MotionMatch - provided TimeToFutureAnimationStart (%f) is too small. Clamping it to minimum value of %f"), FutureIntervalTime, MinFutureIntervalTime);
+			FutureIntervalTime = MinFutureIntervalTime;
 		}
 
 		// extracting 2 poses to be able to calculate velocities
@@ -747,15 +747,15 @@ void UPoseSearchLibrary::MotionMatch(
 		Pose.SetBoneContainer(&AnimInstances[0]->GetRequiredBonesOnAnyThread());
 		
 		// @todo: add input BlendParameters to support sampling FutureAnimation blendspaces and support for multi character
-		const FAnimationAssetSampler Sampler(FutureAnimation);
+		const FAnimationAssetSampler Sampler(Future.Animation);
 		for (int32 i = 0; i < 2; ++i)
 		{
-			const float ExtractionTime = FutureAnimationStartTime + (i - 1) * FiniteDelta;
-			const float FutureAnimationTime = TimeToFutureAnimationStart + (i - 1) * FiniteDelta;
+			const float FuturePoseExtractionTime = FutureAnimationTime + (i - 1) * FiniteDelta;
+			const float FuturePoseAnimationTime = FutureIntervalTime + (i - 1) * FiniteDelta;
 				
-			Sampler.ExtractPose(ExtractionTime, Pose);
+			Sampler.ExtractPose(FuturePoseExtractionTime, Pose);
 			ComponentSpacePose.InitPose(Pose);
-			MemStackPoseHistories[0].AddFuturePose(FutureAnimationTime, ComponentSpacePose);
+			MemStackPoseHistories[0].AddFuturePose(FuturePoseAnimationTime, ComponentSpacePose);
 		}
 
 #if ENABLE_DRAW_DEBUG && ENABLE_ANIM_DEBUG
@@ -766,7 +766,7 @@ void UPoseSearchLibrary::MotionMatch(
 #endif // ENABLE_DRAW_DEBUG && ENABLE_ANIM_DEBUG
 	}
 
-	FSearchContext SearchContext(TimeToFutureAnimationStart);
+	FSearchContext SearchContext(FutureIntervalTime);
 	for (int32 RoleIndex = 0; RoleIndex < Roles.Num(); ++RoleIndex)
 	{
 		SearchContext.AddRole(Roles[RoleIndex], AnimInstances[RoleIndex], MemStackPoseHistories[RoleIndex].GetThisOrPoseHistory());
@@ -790,7 +790,7 @@ void UPoseSearchLibrary::MotionMatch(
 			
 			// figuring out the WantedPlayRate
 			Result.WantedPlayRate = 1.f;
-			if (FutureAnimation)
+			if (Future.Animation)
 			{
 				if (const UPoseSearchFeatureChannel_PermutationTime* PermutationTimeChannel = Database->Schema->FindFirstChannelOfType<UPoseSearchFeatureChannel_PermutationTime>())
 				{
@@ -798,8 +798,8 @@ void UPoseSearchLibrary::MotionMatch(
 					if (!SearchIndex.IsValuesEmpty())
 					{
 						TConstArrayView<float> ResultData = Database->GetSearchIndex().GetPoseValues(SearchResult.PoseIdx);
-						const float ActualTimeToFutureAnimationStart = PermutationTimeChannel->GetPermutationTime(ResultData);
-						Result.WantedPlayRate = ActualTimeToFutureAnimationStart / TimeToFutureAnimationStart;
+						const float ActualIntervalTime = PermutationTimeChannel->GetPermutationTime(ResultData);
+						Result.WantedPlayRate = ActualIntervalTime / FutureIntervalTime;
 					}
 				}
 			}
@@ -945,10 +945,17 @@ UE::PoseSearch::FSearchResult UPoseSearchLibrary::MotionMatch(const FAnimationBa
 					{
 						if (PlayingAnimationAsset == DatabaseAnimationAssetBase->GetAnimationAsset())
 						{
-							const float FirstSampleTime = SearchIndexAsset.GetFirstSampleTime(Database->Schema->SampleRate);
-							const float LastSampleTime = SearchIndexAsset.GetLastSampleTime(Database->Schema->SampleRate) - DeltaSeconds;
-							const float MaxTimeToBeAbleToContinuingPlayingAnimation = LastSampleTime - DeltaSeconds;
-							if (PlayingAssetAccumulatedTime >= FirstSampleTime && PlayingAssetAccumulatedTime < MaxTimeToBeAbleToContinuingPlayingAnimation)
+							bool bCanAdvance = true;
+							if (!SearchIndexAsset.IsLooping())
+							{
+								const float FirstSampleTime = SearchIndexAsset.GetFirstSampleTime(Database->Schema->SampleRate);
+								const float LastSampleTime = SearchIndexAsset.GetLastSampleTime(Database->Schema->SampleRate) - DeltaSeconds;
+								const float MaxTimeToBeAbleToContinuingPlayingAnimation = LastSampleTime - DeltaSeconds;
+
+								bCanAdvance = PlayingAssetAccumulatedTime >= FirstSampleTime && PlayingAssetAccumulatedTime < MaxTimeToBeAbleToContinuingPlayingAnimation;
+							}
+
+							if (bCanAdvance)
 							{
 								ReconstructedPreviousSearchResult.Database = Database;
 								ReconstructedPreviousSearchResult.AssetTime = PlayingAssetAccumulatedTime;

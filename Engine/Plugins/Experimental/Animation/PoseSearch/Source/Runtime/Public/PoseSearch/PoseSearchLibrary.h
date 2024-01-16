@@ -94,17 +94,17 @@ struct POSESEARCH_API FPoseSearchFutureProperties
 	GENERATED_BODY()
 
 public:
-	// Input animation we want to match after TimeToFutureAnimationStart seconds
+	// Animation to play (it'll start at AnimationTime seconds)
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category=State)
-	TObjectPtr<UAnimationAsset> FutureAnimation;
+	TObjectPtr<UAnimationAsset> Animation;
 
-	// Input start time for the first pose of FutureAnimation
+	// Start time for Animation
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category=State)
-	float FutureAnimationStartTime = 0.f;
+	float AnimationTime = 0.f;
 
-	// Input time in seconds before start playing FutureAnimation (from FutureAnimationStartTime seconds)
+	// Interval time before playing Animation
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category=State)
-	float TimeToFutureAnimationStart = 0.f;
+	float IntervalTime = 0.f;
 };
 
 UCLASS()
@@ -198,10 +198,8 @@ public:
 		TConstArrayView<FName> Roles,
 		const UPoseSearchDatabase* Database,
 		const FName PoseHistoryName,
+		const FPoseSearchFutureProperties& Future,
 		FPoseSearchBlueprintResult& Result,
-		const UAnimationAsset* FutureAnimation,
-		float FutureAnimationStartTime,
-		float TimeToFutureAnimationStart,
 		const int32 DebugSessionUniqueIdentifier);
 
 	static UE::PoseSearch::FSearchResult MotionMatch(const FAnimationBaseContext& Context, TConstArrayView<UObject*> AssetsToSearch,
