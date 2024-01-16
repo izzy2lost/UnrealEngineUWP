@@ -1361,7 +1361,16 @@ void FPrimitiveSceneProxy::SetPrimitiveColor_GameThread(const FLinearColor& InPr
 	ENQUEUE_RENDER_COMMAND(SetSelectionOutlineColorIndex)(
 		[this, InPrimitiveColor](FRHICommandListImmediate&)
 		{
-			PrimitiveColor = InPrimitiveColor;
+			if (PrimitiveColor != InPrimitiveColor)
+			{
+				PrimitiveColor = InPrimitiveColor;
+
+				if (PrimitiveSceneInfo)
+				{
+					Scene->RequestUniformBufferUpdate(*PrimitiveSceneInfo);
+					Scene->RequestGPUSceneUpdate(*PrimitiveSceneInfo, EPrimitiveDirtyState::ChangedOther);
+				}
+			}
 		});
 }
 #endif
