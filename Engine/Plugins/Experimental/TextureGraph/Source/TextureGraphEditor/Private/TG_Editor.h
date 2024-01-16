@@ -95,20 +95,21 @@ public:
 	/** Called to bring focus to the details panel */
 	void											FocusDetailsPanel();
 
-	/*
-	 * Refresh Errors and Warnings
-	 */
+	/** Refresh Errors and Warnings **/
 	void											RefreshErrors();
-	/**
-	 * Refreshes the viewport containing the preview mesh.
-	 */
+
+	/** Refreshes the viewport containing the preview mesh. **/
 	void											RefreshPreviewViewport();
+	
 	/** Called to update the selection view */
 	void											RefreshSelectionPreview(const TSet<class UObject*>& NewSelection);
 
 	void											SetMesh(class UMeshComponent* InPreviewMesh, class UWorld* InWorld) override;
-	bool SetPreviewAsset(UObject* InAsset);
-	bool SetPreviewAssetByName(const TCHAR* InAssetName);
+	bool 											SetPreviewAsset(UObject* InAsset);
+	bool 											SetPreviewAssetByName(const TCHAR* InAssetName);
+
+	/** Force Refresh Details View **/
+	void											RefreshDetailsView() const;
 
 protected:
 	TArray<UTG_EdGraphNode*>						GetCurrentSelectedTG_EdGraphNodes() const;
@@ -121,8 +122,8 @@ protected:
 
 	virtual void									RefreshViewport() override;
 
-
 	virtual void									RefreshTool() override;
+
 
 	// ~Begin FAssetEditorToolkit interface
 	/** Called when "Save" is clicked for this asset */

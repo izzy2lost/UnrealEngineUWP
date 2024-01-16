@@ -63,6 +63,11 @@ public:
 	void PostCopyNode();
 	virtual void PostPasteNode() override;
 
+#if WITH_EDITOR
+	void UpdatePinVisibility(UEdGraphPin* Pin, FProperty* Property) const;
+	void UpdateInputPinsVisibility() const;
+#endif
+	
 	/** Called when the DefaultValue of one of the pins of this node is changed in the editor */
 	virtual void PinDefaultValueChangedWithTweaking(UEdGraphPin* Pin, bool bIsTweaking);
 	virtual void PinConnectionListChanged(UEdGraphPin* Pin) override;
@@ -101,7 +106,7 @@ protected:
 	void UpdatePosition();
 
 	void OnNodePostEvaluate(const FTG_EvaluationContext* Fts_EvaluationContext);
-	void UpdateEdPinDefaultValue(UEdGraphPin* EdPin, const UTG_EdGraphSchema* Schema);
+	bool UpdateEdPinDefaultValue(UEdGraphPin* EdPin, const UTG_EdGraphSchema* Schema);
 
 	void OnUpdateCommentText(const FString& NewComment) override;
 	void OnCommentBubbleToggled(bool bInCommentBubbleVisible) override;

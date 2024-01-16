@@ -65,7 +65,8 @@ public:
 	virtual void Evaluate(FTG_EvaluationContext* InContext) {}
 
 #if WITH_EDITOR
-	void PropertyChangeTriggered(FProperty* Property, EPropertyChangeType::Type ChangeType);	
+	void PropertyChangeTriggered(FProperty* Property, EPropertyChangeType::Type ChangeType);
+	virtual bool CanEditChange( const FProperty* InProperty ) const override;	
 #endif
 	
 	// Validate internal checks, warnings and errors
@@ -128,7 +129,6 @@ protected:
 #if WITH_EDITOR
 	virtual void PostEditChangeProperty(FPropertyChangedEvent& PropertyChangedEvent) override;
 	virtual void PostEditUndo() override;
-	virtual bool CanEditChange( const FProperty* InProperty ) const override;
 #endif
 };
 

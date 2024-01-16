@@ -190,7 +190,7 @@ void FTG_Editor::InitEditor(const EToolkitMode::Type Mode, const TSharedPtr< cla
 	TG_EdGraph = NewObject<UTG_EdGraph>(EditedTextureGraph, UTG_EdGraph::StaticClass(), NAME_None, RF_Transactional | RF_Transient);
 	TG_EdGraph->Schema = UTG_EdGraphSchema::StaticClass();
 
-	TG_EdGraph->InitializeFromTextureGraph(EditedTextureGraph);
+	TG_EdGraph->InitializeFromTextureGraph(EditedTextureGraph, SharedThis(this));
 
 	TG_EdGraph->PinSelectionManager.OnPinSelectionUpdated.AddSP(this, &FTG_Editor::OnPinSelectionUpdated);
 
@@ -1390,6 +1390,11 @@ void FTG_Editor::RefreshViewport()
 void FTG_Editor::RefreshTool()
 {
 	RefreshViewport();
+}
+
+void FTG_Editor::RefreshDetailsView() const
+{
+	DetailsView->ForceRefresh();
 }
 
 void FTG_Editor::SaveAsset_Execute()

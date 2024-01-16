@@ -6,12 +6,13 @@
 #include "EdGraph/TG_EdGraphNode.h"
 #include "Expressions/TG_Expression.h"
 #include "TextureGraph.h"
+#include "TG_Editor.h"
 #include "TG_Graph.h"
 
-void UTG_EdGraph::InitializeFromTextureGraph(UTextureGraph* InTextureGraph)
+void UTG_EdGraph::InitializeFromTextureGraph(UTextureGraph* InTextureGraph, TWeakPtr<FTG_Editor> InTGEditor)
 {
 	TextureGraph = InTextureGraph;
-
+	TGEditor = InTGEditor;
 	// And now build the EdGraph viewmodel matching the script
 	BuildEdGraphViewmodel();
 }
@@ -108,6 +109,15 @@ UTG_EdGraphNode* UTG_EdGraph::GetViewModelNode(FTG_Id NodeId)
 	};
 	auto Result = Nodes.FindByPredicate(Predicate);
 	return (Result ? Cast<UTG_EdGraphNode>(Result->Get()) : nullptr);
+}
+
+void UTG_EdGraph::RefreshEditorDetails() const
+{
+	//Tell Editor to update details
+	if (TGEditor.IsValid())
+	{
+		TGEditor.Pin()->RefreshDetailsView();
+	}
 }
 
 void UTG_EdGraph::GraphChanged(UTG_Graph* InGraph, UTG_Node* InNode, bool Tweaking)

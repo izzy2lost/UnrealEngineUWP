@@ -29,7 +29,7 @@ public:
      *
      * @param TextureGraph 
      */
-    void InitializeFromTextureGraph(UTextureGraph* InTextureGraph);
+    void InitializeFromTextureGraph(UTextureGraph* InTextureGraph, TWeakPtr<class FTG_Editor> InTGEditor);
 
 	/**
 	 * Add a TG_Node to the Graph and create a EdGraphNode controlling it
@@ -48,10 +48,15 @@ public:
 	 */
 	UTG_EdGraphNode* GetViewModelNode(FTG_Id NodeId);
 
-
+	/**
+	 * Force refresh Editor details
+	 */
+	void RefreshEditorDetails() const;
+	
 	UPROPERTY()
 	TObjectPtr<UTextureGraph> TextureGraph = nullptr;
-
+	
+	TWeakPtr<FTG_Editor> TGEditor = nullptr;
 	FTG_PinSelectionManager PinSelectionManager;
 
 private:

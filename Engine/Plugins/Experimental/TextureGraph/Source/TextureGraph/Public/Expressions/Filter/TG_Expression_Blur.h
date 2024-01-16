@@ -23,16 +23,21 @@ class TEXTUREGRAPH_API UTG_Expression_Blur : public UTG_Expression
 public:
 	TG_DECLARE_EXPRESSION(TG_Category::Filter);
 	
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = NoCategory, meta = (TGType = "TG_Setting", ClampMin = 0, ClampMax = 100, EditCondition="BlurType==EBlurType::Gaussian || BlurType==EBlurType::Radial", EditConditionHides))
+#if WITH_EDITOR
+	// Used to implement EditCondition logic for both Node UI and Details View
+	virtual bool CanEditChange(const FProperty* InProperty) const override;
+#endif
+	
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = NoCategory, meta = (TGType = "TG_Setting", ClampMin = 0, ClampMax = 100, EditConditionHides))
 	int32 Radius = 1;
 	
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = NoCategory, meta = (TGType = "TG_Setting", ClampMin = -180, ClampMax = 180, EditCondition="BlurType==EBlurType::Directional", EditConditionHides))
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = NoCategory, meta = (TGType = "TG_Setting", ClampMin = -180, ClampMax = 180, EditConditionHides))
 	float Angle = 0.0f;
 	
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = NoCategory, meta = (TGType = "TG_Setting", ClampMin = 0, ClampMax = 1, EditCondition="BlurType==EBlurType::Directional || BlurType==EBlurType::Radial", EditConditionHides))
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = NoCategory, meta = (TGType = "TG_Setting", ClampMin = 0, ClampMax = 1, EditConditionHides))
 	float Strength = 0.1f;
 
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = NoCategory, meta = (TGType = "TG_Setting"))
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = NoCategory, meta = (TGType = "TG_Setting", RegenPinsOnChange))
 	EBlurType BlurType = EBlurType::Gaussian;
 
 	UPROPERTY(EditAnywhere, Category = NoCategory, meta = (TGType = "TG_Output", PinDisplayName = ""))

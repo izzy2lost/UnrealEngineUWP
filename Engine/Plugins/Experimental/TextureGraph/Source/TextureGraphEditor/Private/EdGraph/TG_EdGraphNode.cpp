@@ -205,7 +205,9 @@ void UTG_EdGraphNode::AllocateDefaultPins()
 				}
 				NewPin->bNotConnectable = true;
 			}
-			
+#if WITH_EDITOR
+			UpdatePinVisibility(NewPin, Property);
+#endif
 			NewPin->DefaultValue = DefaultValue;
 			// This updates the UObject (Texture/Material) picker UI in the Node to get updated
 			if (Property && Property->GetClass()->IsChildOf(FObjectProperty::StaticClass()))
@@ -358,6 +360,7 @@ void UTG_EdGraphNode::ReconstructNode()
 		}
 	}
 
+	
 	// Remove old pins
 	for (UEdGraphPin* OldPin : OldPins)
 	{
@@ -439,6 +442,44 @@ void UTG_EdGraphNode::PostPasteNode()
 	// Our TG node is a new node that need to be taken care of and added to the graph
 	Graph->AddPostPasteNode(Node);
 }
+
+#if WITH_EDITOR
+void UTG_EdGraphNode::UpdatePinVisibility(UEdGraphPin* Pin, FProperty* Property) const
+{
+	UTG_Expression* Expression = GetNode()->GetExpression();
+	bool bCanEditChange = Expression->CanEditChange(Property);
+	bool bEditConditionHides = Property->HasMetaData("EditConditionHides");
+
+	// update Metadata with EditCondition to also update details view
+	FName NAME_EditCondition(TEXT("EditCondition"));
+	Property->SetMetaData(NAME_EditCondition, bCanEditChange ? TEXT("true") : TEXT("false"));
+	
+	Pin->bHidden = !bCanEditChange && bEditConditionHides;
+	Pin->bDefaultValueIsReadOnly = bCanEditChange;
+}
+
+void UTG_EdGraphNode::UpdateInputPinsVisibility() const
+{
+	auto Expression = Node->GetExpression();
+	// go through all pins and match them with their property hide states
+	for (FTG_Id OtherPinId : Node->GetInputPinIds())
+	{
+		TObjectPtr<UTG_Pin> TGPin = Node->GetGraph()->GetPin(OtherPinId);
+		check(TGPin);
+
+		const FName& OtherPinName = TGPin->GetArgumentName();
+		UEdGraphPin* EdPin = FindPinChecked(OtherPinName, EEdGraphPinDirection::EGPD_Input);
+
+		// check hide state
+		
+		auto PinProperty = TGPin->GetExpressionProperty();
+		if (PinProperty)
+		{
+			UpdatePinVisibility(EdPin, PinProperty);
+		}
+	}
+}
+#endif
 
 void UTG_EdGraphNode::PinDefaultValueChangedWithTweaking(UEdGraphPin* Pin, bool bIsTweaking)
 {
@@ -589,8 +630,9 @@ void UTG_EdGraphNode::OnNodePostEvaluate(const FTG_EvaluationContext* Evaluation
 	OnNodeChanged(GetNode());
 }
 
-void UTG_EdGraphNode::UpdateEdPinDefaultValue(UEdGraphPin* EdPin, const UTG_EdGraphSchema* Schema)
+bool UTG_EdGraphNode::UpdateEdPinDefaultValue(UEdGraphPin* EdPin, const UTG_EdGraphSchema* Schema)
 {
+	bool bShouldUpdatePinsVisibility = false;
 	UTG_Pin* TSPin = Schema->GetTGPinFromEdPin(EdPin);
 	if (TSPin)
 	{
@@ -623,6 +665,8 @@ void UTG_EdGraphNode::UpdateEdPinDefaultValue(UEdGraphPin* EdPin, const UTG_EdGr
 				DefaultValue = Enum->GetNameByValue(FCString::Atoi(*DefaultValue)).ToString();
 			}
 		}
+		// check here if the property has a tag for regen pins and value has changed
+		bShouldUpdatePinsVisibility = Property->HasMetaData("RegenPinsOnChange") && EdPin->DefaultValue != DefaultValue;
 		
 		EdPin->bDefaultValueIsReadOnly = false;
 		EdPin->DefaultValue = DefaultValue;
@@ -634,16 +678,34 @@ void UTG_EdGraphNode::UpdateEdPinDefaultValue(UEdGraphPin* EdPin, const UTG_EdGr
 		}
 		EdPin->bDefaultValueIsReadOnly = EdPin->HasAnyConnections();
 	}
+	return bShouldUpdatePinsVisibility;
 }
 
 void UTG_EdGraphNode::OnNodeChanged(UTG_Node* InNode)
 {
+	bool bShouldUpdatePinsVisibility = false;
 	// Update Default Values to their respective Var values;
 	for(UEdGraphPin* EdPin : Pins)
 	{
 		const UTG_EdGraphSchema* Schema = Cast<const UTG_EdGraphSchema>(GetSchema());
-		UpdateEdPinDefaultValue(EdPin, Schema);
+		bShouldUpdatePinsVisibility |= UpdateEdPinDefaultValue(EdPin, Schema);
 	}
+#if WITH_EDITOR
+	// if there was a pin which triggered regeneration of all other input pins (used meta "RegenPinsOnChange"), we update them
+	if (bShouldUpdatePinsVisibility)
+	{
+		UpdateInputPinsVisibility();
+		
+		// cache advanced visibility
+		TEnumAsByte<ENodeAdvancedPins::Type> CachedAdvancedPinDisplay = this->AdvancedPinDisplay;
+		ReconstructNode();
+		this->AdvancedPinDisplay = CachedAdvancedPinDisplay;
+
+		//Tell Editor to update details
+		Cast<UTG_EdGraph>(GetGraph())->RefreshEditorDetails();
+	}
+#endif
+	
 }
 
 void UTG_EdGraphNode::PostTransacted(const FTransactionObjectEvent& TransactionEvent)
