@@ -16,6 +16,7 @@ struct VersionInfo
 // This minimum should match the version installed by
 // Engine/Source/Programs/PrereqInstaller/Resources/VCRedist/VC_redist.x64.exe
 static const VersionInfo MinRedistVersion = { 14, 36, 32532, 0 };
+static const VersionInfo MinXInputVersion = { 9, 18, 944, 0 };
 
 bool IsVersionValid(const VersionInfo& Version, const VersionInfo& MinVersion)
 {
@@ -184,6 +185,27 @@ int InstallMissingPrerequisites(const WCHAR* BaseDirectory, const WCHAR* ExecDir
 		}
 	}
 
+	{
+		bool bInstallDirectXRuntime = true;
+
+		// Check the file version of bundled directx dlls
+		if (IsDllValid(ExecDirectory, L"xinput1_3.dll", MinXInputVersion))
+		{
+			bInstallDirectXRuntime = false;
+		}
+
+		// Check the file version of system dirextx dlls
+		if (bInstallDirectXRuntime && IsDllValid(L"xinput1_3.dll", MinXInputVersion))
+		{
+			bInstallDirectXRuntime = false;
+		}
+
+		// No valid directx dll was found
+		if (bInstallDirectXRuntime)
+		{
+			wcscat_s(MissingPrerequisites, TEXT("DirectX Runtime\n"));
+		}
+	}
 
 	// Check if there's anything missing
 	if(MissingPrerequisites[0] != 0)
