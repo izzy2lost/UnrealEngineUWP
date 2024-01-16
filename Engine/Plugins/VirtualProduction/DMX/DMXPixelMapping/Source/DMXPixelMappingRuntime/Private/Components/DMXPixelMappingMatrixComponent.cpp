@@ -444,6 +444,8 @@ void UDMXPixelMappingMatrixComponent::HandleMatrixChanged()
 		return;
 	}
 
+	const double RestoreRotation = GetRotation();
+	SetRotation(0.0);
 	CoordinateGrid = 0;
 
 	// Remove all existing children and rebuild them anew
@@ -492,7 +494,11 @@ void UDMXPixelMappingMatrixComponent::HandleMatrixChanged()
 		},
 		bUpdateSizeRecursive);
 
+	SetRotation(RestoreRotation);
+
+	PRAGMA_DISABLE_DEPRECATION_WARNINGS
 	GetOnMatrixChanged().Broadcast(PixelMapping, this);
+	PRAGMA_ENABLE_DEPRECATION_WARNINGS
 }
 
 void UDMXPixelMappingMatrixComponent::QueueDownsample()

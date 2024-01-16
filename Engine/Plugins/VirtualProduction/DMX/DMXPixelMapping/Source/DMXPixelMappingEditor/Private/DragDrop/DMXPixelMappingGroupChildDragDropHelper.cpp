@@ -159,33 +159,22 @@ void FDMXPixelMappingGroupChildDragDropHelper::LayoutUnaligned(const FVector2D& 
 		return;
 	}
 
+	// Find where the first component grid snaps
 	const FVector2D Anchor = FirstComponent->GetPositionRotated();
+	const FVector2D AnchorOffset = Anchor - FirstComponent->GetPositionRotated();
+
+	const FVector2D DesiredPosition = GraphSpacePosition - AnchorOffset - DragDropOp->GraphSpaceDragOffset;
+	const FVector2D GridSnapPosition = DragDropOp->ComputeGridSnapPosition(DesiredPosition);
+
+	// Translate all
+	const FVector2D Translation = GridSnapPosition - Anchor;
 	for (const TWeakObjectPtr<UDMXPixelMappingOutputComponent>& WeakOutputComponent : WeakChildComponents)
 	{
 		if (UDMXPixelMappingOutputComponent* ChildComponent = WeakOutputComponent.Get())
 		{
-			ChildComponent->PreEditChange(nullptr);
+			ChildComponent->Modify();
 
-			constexpr bool bModifyChildrenRecursive = true;
-			ChildComponent->ForEachChild([](UDMXPixelMappingBaseComponent* Component)
-				{
-					Component->Modify();
-				}, bModifyChildrenRecursive);
-
-			const FVector2D AnchorOffset = Anchor - ChildComponent->GetPositionRotated();
-
-			const FVector2D NewPosition = GraphSpacePosition - AnchorOffset - DragDropOp->GraphSpaceDragOffset;
-			ChildComponent->SetPositionRotated(NewPosition);
-		}
-	}
-	const FVector2D GridSnapPosition = DragDropOp->ComputeGridSnapPosition(FirstComponent->GetPositionRotated());
-	FirstComponent->SetPositionRotated(GridSnapPosition);
-
-	for (const TWeakObjectPtr<UDMXPixelMappingOutputComponent>& WeakOutputComponent : WeakChildComponents)
-	{
-		if (UDMXPixelMappingOutputComponent* ChildComponent = WeakOutputComponent.Get())
-		{
-			ChildComponent->PostEditChange();
+			ChildComponent->SetPosition(ChildComponent->GetPosition() + Translation);
 		}
 	}
 }

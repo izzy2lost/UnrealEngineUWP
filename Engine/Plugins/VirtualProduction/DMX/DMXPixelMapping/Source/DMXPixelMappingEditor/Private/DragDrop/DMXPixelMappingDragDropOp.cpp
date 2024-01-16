@@ -84,12 +84,16 @@ void FDMXPixelMappingDragDropOp::LayoutOutputComponents(const FVector2D& GraphSp
 	{
 		if (UDMXPixelMappingOutputComponent* OutputComponent = Cast<UDMXPixelMappingOutputComponent>(Component.Get()))
 		{
+			OutputComponent->PreEditChange(nullptr);
+
 			if (ensureMsgf(OutputComponent->GetClass() != UDMXPixelMappingMatrixComponent::StaticClass(),
 				TEXT("Matrix components cannot be laid out with FDMXPixelMappingDragDropOp::LayoutOutputComponents. Please use FGroupChildDragDropHelper instead (see FDMXPixelMappingDragDropOp::GetGroupChildDragDropHelper().")))
 			{
 				OutputComponent->Modify();
 				OutputComponent->SetPosition(OutputComponent->GetPosition() + Translation);
 			}
+
+			OutputComponent->PostEditChange();
 		}
 	}
 }

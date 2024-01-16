@@ -130,7 +130,7 @@ void FDMXPixelMappingComponentGeometryCache::PropagonateSizeChangesToChildren(co
 
 		constexpr bool bRecursive = false;
 		OutputComponent->ForEachChildOfClass<UDMXPixelMappingOutputComponent>(
-			[Scalar, DeltaSize, this](UDMXPixelMappingOutputComponent* Child)
+			[Scalar, this](UDMXPixelMappingOutputComponent* Child)
 			{
 				const FVector2D OldChildPosition = Child->GetPosition();
 				const FVector2D OldChildSize = Child->GetSize();

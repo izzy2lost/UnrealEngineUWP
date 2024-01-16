@@ -35,10 +35,11 @@ public:
 	UDMXPixelMappingMatrixComponent();
 
 	/** Gets an Event broadcast when a the matrix (and by that its num cells) changed */
+	UE_DEPRECATED(5.4, "OnMatrixChanged is removed without replacement. This is handled internally and should not require external handling.")
 	static FDMXPixelMappingOnMatrixChanged& GetOnMatrixChanged()
 	{
-		static FDMXPixelMappingOnMatrixChanged OnMatrixChanged;
-		return OnMatrixChanged;
+		static FDMXPixelMappingOnMatrixChanged OnMatrixChanged_DEPRECATED;
+		return OnMatrixChanged_DEPRECATED;
 	}
 
 	// ~Begin UObject interface
