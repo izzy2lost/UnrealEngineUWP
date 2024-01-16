@@ -5,7 +5,6 @@
 #include "NNE.h"
 #include "NNETypes.h"
 #include "NNERuntimeRDG.h"
-#include "NNERuntimeCPU.h"
 #include "NNEModelData.h"
 
 #include "NeuralPostProcessModelInstance.generated.h"
@@ -16,7 +15,6 @@
 
 //Util functions
 TSharedPtr<UE::NNE::IModelInstanceRDG> CreateNNEModelInstance(UNNEModelData* NNEModelData, FString RuntimeName);
-TSharedPtr<UE::NNE::IModelInstanceCPU> CreateNNECpuModelInstance(UNNEModelData* NNEModelData);
 
 enum class ENeuralModelTileType : uint8;
 enum class ETileOverlapResolveType : uint8;

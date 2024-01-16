@@ -217,7 +217,7 @@ public:
 		{
 			// Need to create the ModelInstance in order to get the dimension in case the Model is not created
 			// in the rendering thread.
-			TSharedPtr<UE::NNE::IModelInstanceCPU> ModelInstance = CreateNNECpuModelInstance(ModelData);
+			TSharedPtr<UE::NNE::IModelInstanceRDG> ModelInstance = CreateNNEModelInstance(ModelData, RuntimeName);
 
 			if (ModelInstance)
 			{
@@ -246,7 +246,7 @@ public:
 
 		if (UNNEModelData* ModelData = Cast<UNNEModelData>(NNEModelData))
 		{
-			TSharedPtr<UE::NNE::IModelInstanceCPU> ModelInstance = CreateNNECpuModelInstance(ModelData);
+			TSharedPtr<UE::NNE::IModelInstanceRDG> ModelInstance = CreateNNEModelInstance(ModelData, RuntimeName);
 			
 			if (ModelInstance)
 			{

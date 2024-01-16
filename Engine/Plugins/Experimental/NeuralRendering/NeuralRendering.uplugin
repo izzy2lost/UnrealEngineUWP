@@ -32,10 +32,6 @@
 		{
 			"Name": "NNERuntimeRDG",
 			"Enabled": true
-		},
-		{
-			"Name": "NNERuntimeORTCpu",
-			"Enabled": true
 		}
 	]
 }

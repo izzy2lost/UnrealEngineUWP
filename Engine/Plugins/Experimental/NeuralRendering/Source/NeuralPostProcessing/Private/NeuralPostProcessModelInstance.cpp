@@ -39,40 +39,6 @@ TSharedPtr<UE::NNE::IModelInstanceRDG> CreateNNEModelInstance(UNNEModelData* NNE
 	return ModelRDG->CreateModelInstanceRDG();
 }
 
-TSharedPtr<UE::NNE::IModelInstanceCPU> CreateNNECpuModelInstance(UNNEModelData* NNEModelData)
-{
-	check(NNEModelData);
-	const FString RuntimeName = "NNERuntimeORTCpu";
-	TWeakInterfacePtr<INNERuntime> Runtime = UE::NNE::GetRuntime<INNERuntime>(RuntimeName);
-	TWeakInterfacePtr<INNERuntimeCPU> RuntimeCPU = UE::NNE::GetRuntime<INNERuntimeCPU>(RuntimeName);
-	if (!Runtime.IsValid())
-	{
-#if WITH_EDITOR
-		UE_LOG(LogNeuralPostProcessing, Error, TEXT("Can't get %s runtime."), *RuntimeName);
-#endif
-		return nullptr;
-	}
-
-	if (!RuntimeCPU.IsValid())
-	{
-#if WITH_EDITOR
-		UE_LOG(LogNeuralPostProcessing, Error, TEXT("No CPU runtime '%s' found"), *RuntimeName);
-#endif
-		return nullptr;
-	}
-
-	TSharedPtr<UE::NNE::IModelCPU> ModelCPU = RuntimeCPU->CreateModelCPU(NNEModelData);
-	if (!ModelCPU.IsValid())
-	{
-#if WITH_EDITOR
-		UE_LOG(LogNeuralPostProcessing, Error, TEXT("CreateModelCPU failed for Model = %s, Runtime = %s"), *NNEModelData->GetName(), *RuntimeName);
-#endif
-		return nullptr;
-	}
-
-	return ModelCPU->CreateModelInstanceCPU();
-}
-
 UNeuralPostProcessModelInstance::UNeuralPostProcessModelInstance(FObjectInitializer const& ObjectInitializer)
 	:Super(ObjectInitializer)
 {
