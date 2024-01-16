@@ -469,7 +469,7 @@ namespace Horde.Server
 			services.AddSingleton<IBisectTaskCollection, BisectTaskCollection>();
 			services.AddSingleton<IReplicatorCollection, ReplicatorCollection>();
 			services.AddSingleton<ISessionCollection, SessionCollection>();
-			services.AddSingleton<IServiceAccountCollection, ServiceAccountCollection>();
+			services.AddSingleton<IHordeAccountCollection, HordeAccountCollection>();
 			services.AddSingleton<ISubscriptionCollection, SubscriptionCollection>();
 			services.AddSingleton<IStreamCollection, StreamCollection>();
 			services.AddSingleton<ITemplateCollection, TemplateCollection>();
@@ -690,8 +690,8 @@ namespace Horde.Server
 			});
 			schemes.Add(CookieAuthenticationDefaults.AuthenticationScheme);
 
-			authBuilder.AddServiceAccount(options => { });
-			schemes.Add(ServiceAccountAuthHandler.AuthenticationScheme);
+			authBuilder.AddHordeAccount(options => { });
+			schemes.Add(HordeAccountAuthHandler.AuthenticationScheme);
 
 			
 			switch (settings.AuthMethod)

@@ -56,17 +56,17 @@ namespace Horde.Server.Server
 			"td { margin:5px; font-size:13px; }";
 
 		readonly IUserCollection _users;
-		readonly IServiceAccountCollection _serviceAccounts;
+		readonly IHordeAccountCollection _hordeAccounts;
 		readonly string _authenticationScheme;
 		readonly IOptionsSnapshot<GlobalConfig> _globalConfig;
 
 		/// <summary>
 		/// Constructor
 		/// </summary>
-		public AccountController(IUserCollection users, IServiceAccountCollection serviceAccounts, IOptionsMonitor<ServerSettings> serverSettings, IOptionsSnapshot<GlobalConfig> globalConfig)
+		public AccountController(IUserCollection users, IHordeAccountCollection hordeAccounts, IOptionsMonitor<ServerSettings> serverSettings, IOptionsSnapshot<GlobalConfig> globalConfig)
 		{
 			_users = users;
-			_serviceAccounts = serviceAccounts;
+			_hordeAccounts = hordeAccounts;
 			_authenticationScheme = GetAuthScheme(serverSettings.CurrentValue.AuthMethod);
 			_globalConfig = globalConfig;
 		}
@@ -179,7 +179,7 @@ namespace Horde.Server.Server
 				return LoginFormError(ErrorMsg, returnUrl);
 			}
 
-			IServiceAccount? account = await _serviceAccounts.GetByLogin(username);
+			IHordeAccount? account = await _hordeAccounts.GetByLogin(username);
 			if (account == null)
 			{
 				return LoginFormError(ErrorMsg, returnUrl);

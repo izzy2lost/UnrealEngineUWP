@@ -20,8 +20,8 @@ namespace Horde.Server.Tests.Authentication;
 public class AccountControllerTest : IAsyncDisposable
 {
 	private readonly FakeHordeWebApp _app;
-	private readonly IServiceAccountCollection _serviceAccounts;
-	private IServiceAccount _sa1 = null!;
+	private readonly IHordeAccountCollection _hordeAccounts;
+	private IHordeAccount _sa1 = null!;
 
 	public AccountControllerTest()
 	{
@@ -31,7 +31,7 @@ public class AccountControllerTest : IAsyncDisposable
 			{ "Horde:AuthMethod", "Horde" },
 		};
 		_app = new FakeHordeWebApp(settings, allowAutoRedirect: false);
-		_serviceAccounts = _app.ServiceProvider.GetRequiredService<IServiceAccountCollection>();
+		_hordeAccounts = _app.ServiceProvider.GetRequiredService<IHordeAccountCollection>();
 	}
 	
 	public async ValueTask DisposeAsync()
@@ -48,7 +48,7 @@ public class AccountControllerTest : IAsyncDisposable
 			new UserClaim("myClaimType1", "myClaimValue1"),
 			new UserClaim("myClaimType2", "myClaimValue2")
 		};
-		_sa1 = await _serviceAccounts.AddAsync("name1", "login1", claims, email: "foo@horde", description: "desc1", password: "pass1");
+		_sa1 = await _hordeAccounts.AddAsync("name1", "login1", claims, email: "foo@horde", description: "desc1", password: "pass1");
 	}
 
 	[TestMethod]

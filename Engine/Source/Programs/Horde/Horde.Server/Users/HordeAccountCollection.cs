@@ -94,12 +94,12 @@ namespace Horde.Server.Users
 	/// <summary>
 	/// Collection of service account documents
 	/// </summary>
-	public class ServiceAccountCollection : IServiceAccountCollection
+	public class HordeAccountCollection : IHordeAccountCollection
 	{
 		/// <summary>
-		/// Concrete implementation of IServiceAccount
+		/// Concrete implementation of IHordeAccount
 		/// </summary>
-		private class ServiceAccountDocument : IServiceAccount
+		private class HordeAccountDocument : IHordeAccount
 		{
 			public const string ClaimSeparator = "###";
 			
@@ -135,11 +135,11 @@ namespace Horde.Server.Users
 			public string Description { get; set; } = "";
 
 			[BsonConstructor]
-			private ServiceAccountDocument()
+			private HordeAccountDocument()
 			{
 			}
 
-			public ServiceAccountDocument(ObjectId id, string name, string login)
+			public HordeAccountDocument(ObjectId id, string name, string login)
 			{
 				Id = id;
 				Name = name;
@@ -156,7 +156,7 @@ namespace Horde.Server.Users
 				}).ToList();
 			}
 
-			protected bool Equals(ServiceAccountDocument other)
+			protected bool Equals(HordeAccountDocument other)
 			{
 				bool areClaimsEqual = !Claims.Except(other.Claims).Any();
 
@@ -177,7 +177,7 @@ namespace Horde.Server.Users
 				{
 					return false;
 				}
-				return Equals((ServiceAccountDocument) obj);
+				return Equals((HordeAccountDocument) obj);
 			}
 
 			public override int GetHashCode()
@@ -189,19 +189,19 @@ namespace Horde.Server.Users
 		/// <summary>
 		/// Collection of session documents
 		/// </summary>
-		private readonly IMongoCollection<ServiceAccountDocument> _serviceAccounts;
+		private readonly IMongoCollection<HordeAccountDocument> _serviceAccounts;
 
 		/// <summary>
 		/// Constructor
 		/// </summary>
 		/// <param name="mongoService">The database service</param>
-		public ServiceAccountCollection(MongoService mongoService)
+		public HordeAccountCollection(MongoService mongoService)
 		{
-			_serviceAccounts = mongoService.GetCollection<ServiceAccountDocument>("ServiceAccounts", keys => keys.Ascending(x => x.SecretToken));
+			_serviceAccounts = mongoService.GetCollection<HordeAccountDocument>("ServiceAccounts", keys => keys.Ascending(x => x.SecretToken));
 		}
 
 		/// <inheritdoc/>
-		public async Task<IServiceAccount> AddAsync(
+		public async Task<IHordeAccount> AddAsync(
 			string name,
 			string login,
 			List<IUserClaim>? claims,
@@ -211,9 +211,9 @@ namespace Horde.Server.Users
 			string? password)
 		{
 			List<string> stringClaims = (claims ?? new List<IUserClaim>())
-				.Select(x => $"{x.Type}{ServiceAccountDocument.ClaimSeparator}{x.Value}").ToList();
+				.Select(x => $"{x.Type}{HordeAccountDocument.ClaimSeparator}{x.Value}").ToList();
 			
-			ServiceAccountDocument account = new(ObjectId.GenerateNewId(), name, login)
+			HordeAccountDocument account = new(ObjectId.GenerateNewId(), name, login)
 			{
 				Email = email,
 				SecretToken = secretToken,
@@ -231,19 +231,19 @@ namespace Horde.Server.Users
 		}
 
 		/// <inheritdoc/>
-		public async Task<IServiceAccount?> GetAsync(ObjectId id)
+		public async Task<IHordeAccount?> GetAsync(ObjectId id)
 		{
 			return await _serviceAccounts.Find(x => x.Id == id).FirstOrDefaultAsync();
 		}
 
 		/// <inheritdoc/>
-		public async Task<IServiceAccount?> GetBySecretTokenAsync(string secretToken)
+		public async Task<IHordeAccount?> GetBySecretTokenAsync(string secretToken)
 		{
 			return await _serviceAccounts.Find(x => x.SecretToken == secretToken).FirstOrDefaultAsync();
 		}
 		
 		/// <inheritdoc/>
-		public async Task<IServiceAccount?> GetByLogin(string login)
+		public async Task<IHordeAccount?> GetByLogin(string login)
 		{
 			return await _serviceAccounts.Find(x => x.Login == login).FirstOrDefaultAsync();
 		}
@@ -260,8 +260,8 @@ namespace Horde.Server.Users
 			bool? enabled,
 			string? description)
 		{
-			UpdateDefinitionBuilder<ServiceAccountDocument> update = Builders<ServiceAccountDocument>.Update;
-			List<UpdateDefinition<ServiceAccountDocument>> updates = new List<UpdateDefinition<ServiceAccountDocument>>();
+			UpdateDefinitionBuilder<HordeAccountDocument> update = Builders<HordeAccountDocument>.Update;
+			List<UpdateDefinition<HordeAccountDocument>> updates = new List<UpdateDefinition<HordeAccountDocument>>();
 		
 			if (name != null)
 			{
@@ -312,7 +312,7 @@ namespace Horde.Server.Users
 		/// <inheritdoc/>
 		public async Task SetPasswordAsync(ObjectId id, string password)
 		{
-			IServiceAccount? sa = await GetAsync(id);
+			IHordeAccount? sa = await GetAsync(id);
 			if (sa == null)
 			{
 				throw new Exception($"Account with ID {id} not found");
@@ -320,7 +320,7 @@ namespace Horde.Server.Users
 			
 			byte[] salt = PasswordHasher.GenerateSalt();
 			byte[] hashedPassword = PasswordHasher.HashPassword(password, salt);
-			await (this as IServiceAccountCollection).UpdateAsync(
+			await (this as IHordeAccountCollection).UpdateAsync(
 				id,
 				passwordHash: Convert.ToHexString(hashedPassword),
 				passwordSalt: Convert.ToHexString(salt));

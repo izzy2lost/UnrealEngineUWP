@@ -9,16 +9,16 @@ using Microsoft.VisualStudio.TestTools.UnitTesting;
 namespace Horde.Server.Tests
 {
 	[TestClass]
-	public class ServiceAccountCollectionTests : DatabaseIntegrationTest
+	public class HordeAccountCollectionTests : DatabaseIntegrationTest
 	{
-		private readonly IServiceAccountCollection _serviceAccounts;
-		private readonly IServiceAccount _serviceAccount;
+		private readonly IHordeAccountCollection _hordeAccounts;
+		private readonly IHordeAccount _hordeAccount;
 		
-		public ServiceAccountCollectionTests()
+		public HordeAccountCollectionTests()
 		{
 			MongoService mongoService = GetMongoServiceSingleton();
-			_serviceAccounts = new ServiceAccountCollection(mongoService);
-			_serviceAccount = _serviceAccounts.AddAsync("myName", "myLogin",
+			_hordeAccounts = new HordeAccountCollection(mongoService);
+			_hordeAccount = _hordeAccounts.AddAsync("myName", "myLogin",
 				claims: new List<IUserClaim> { new UserClaim("myClaim", "myValue")},
 				description: "myDesc").Result;
 		}
@@ -26,7 +26,7 @@ namespace Horde.Server.Tests
 		[TestMethod]
 		public async Task AddAsync()
 		{
-			IServiceAccount sa = await _serviceAccounts.AddAsync("myName", "myLogin",
+			IHordeAccount sa = await _hordeAccounts.AddAsync("myName", "myLogin",
 				secretToken: "addToken",
 				claims: new List<IUserClaim> { new UserClaim("myClaim", "myValue")},
 				description: "myDesc");
@@ -40,32 +40,32 @@ namespace Horde.Server.Tests
 		[TestMethod]
 		public async Task GetAsync()
 		{
-			IServiceAccount sa = (await _serviceAccounts.GetAsync(_serviceAccount.Id))!;
-			Assert.AreEqual(_serviceAccount, sa);
+			IHordeAccount sa = (await _hordeAccounts.GetAsync(_hordeAccount.Id))!;
+			Assert.AreEqual(_hordeAccount, sa);
 		}
 		
 		[TestMethod]
 		public async Task GetBySecretTokenAsync()
 		{
-			IServiceAccount sa = (await _serviceAccounts.GetBySecretTokenAsync(_serviceAccount.SecretToken!))!;
-			Assert.AreEqual(_serviceAccount, sa);
+			IHordeAccount sa = (await _hordeAccounts.GetBySecretTokenAsync(_hordeAccount.SecretToken!))!;
+			Assert.AreEqual(_hordeAccount, sa);
 		}
 		
 		[TestMethod]
 		public async Task GetByLoginAsync()
 		{
-			IServiceAccount sa = (await _serviceAccounts.GetByLogin(_serviceAccount.Login))!;
-			Assert.AreEqual(_serviceAccount.Id, sa.Id);
-			Assert.AreEqual(_serviceAccount.Login, sa.Login);
+			IHordeAccount sa = (await _hordeAccounts.GetByLogin(_hordeAccount.Login))!;
+			Assert.AreEqual(_hordeAccount.Id, sa.Id);
+			Assert.AreEqual(_hordeAccount.Login, sa.Login);
 			
-			Assert.IsNull(await _serviceAccounts.GetByLogin("does-not-exist"));
+			Assert.IsNull(await _hordeAccounts.GetByLogin("does-not-exist"));
 		}
 		
 		[TestMethod]
 		public async Task UpdateAsync()
 		{
 			List<string> newClaims = new () {"newClaim1###newValue1", "newClaim2###newValue2"};
-			await _serviceAccounts.UpdateAsync(_serviceAccount.Id,
+			await _hordeAccounts.UpdateAsync(_hordeAccount.Id,
 				name: "newName",
 				login: "newLogin",
 				email: "foo@bar.com",
@@ -75,7 +75,7 @@ namespace Horde.Server.Tests
 				claims: newClaims,
 				enabled: false,
 				description: "newDesc");
-			IServiceAccount sa = (await _serviceAccounts.GetAsync(_serviceAccount.Id))!;
+			IHordeAccount sa = (await _hordeAccounts.GetAsync(_hordeAccount.Id))!;
 			
 			Assert.AreEqual("newName", sa.Name);
 			Assert.AreEqual("newLogin", sa.Login);
@@ -92,8 +92,8 @@ namespace Horde.Server.Tests
 		[TestMethod]
 		public async Task DeleteAsync()
 		{
-			await _serviceAccounts.DeleteAsync(_serviceAccount.Id);
-			IServiceAccount? result = await _serviceAccounts.GetAsync(_serviceAccount.Id);
+			await _hordeAccounts.DeleteAsync(_hordeAccount.Id);
+			IHordeAccount? result = await _hordeAccounts.GetAsync(_hordeAccount.Id);
 			Assert.IsNull(result);
 		}
 	}

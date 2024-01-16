@@ -6,10 +6,12 @@ using MongoDB.Bson;
 namespace Horde.Server.Users
 {
 	/// <summary>
-	/// A service account used for authenticating during server-to-server communication
-	/// For example between Robomerge and Horde.
+	/// An internal Horde account representing a user or service
+	///
+	/// Service-to-service authentication always use this for authentication (for example, Robomerge accessing Horde)
+	/// When external authentication is enabled (such as OpenID Connect) users cannot be authenticated through this.
 	/// </summary>
-	public interface IServiceAccount
+	public interface IHordeAccount
 	{
 		/// <summary>
 		/// Unique internal ID for this Horde account

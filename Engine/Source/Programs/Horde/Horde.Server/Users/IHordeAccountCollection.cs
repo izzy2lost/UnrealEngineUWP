@@ -9,7 +9,7 @@ namespace Horde.Server.Users
 	/// <summary>
 	/// Interface for a collection of service account documents
 	/// </summary>
-	public interface IServiceAccountCollection
+	public interface IHordeAccountCollection
 	{
 		/// <summary>
 		/// Adds a new account to the collection
@@ -21,7 +21,7 @@ namespace Horde.Server.Users
 		/// <param name="email">Optional e-mail address</param>
 		/// <param name="secretToken">Optional secret token to authenticate for API based auth</param>
 		/// <param name="password">Optional password for interactive login</param>
-		Task<IServiceAccount> AddAsync(
+		Task<IHordeAccount> AddAsync(
 			string name,
 			string login,
 			List<IUserClaim>? claims = null,
@@ -35,21 +35,21 @@ namespace Horde.Server.Users
 		/// </summary>
 		/// <param name="id">The unique service account id</param>
 		/// <returns>The service account</returns>
-		Task<IServiceAccount?> GetAsync(ObjectId id);
+		Task<IHordeAccount?> GetAsync(ObjectId id);
 		
 		/// <summary>
 		/// Get service account via secret token
 		/// </summary>
 		/// <param name="secretToken">Secret token to use for searching</param>
 		/// <returns>The service account</returns>
-		Task<IServiceAccount?> GetBySecretTokenAsync(string secretToken);
+		Task<IHordeAccount?> GetBySecretTokenAsync(string secretToken);
 		
 		/// <summary>
 		/// Get an account via login ID
 		/// </summary>
 		/// <param name="login">Login or username to use for searching</param>
 		/// <returns>The service account</returns>
-		Task<IServiceAccount?> GetByLogin(string login);
+		Task<IHordeAccount?> GetByLogin(string login);
 
 		/// <summary>
 		/// Update an account from the collection
