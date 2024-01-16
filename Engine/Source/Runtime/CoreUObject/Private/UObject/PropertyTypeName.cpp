@@ -32,11 +32,6 @@ inline uint32 GetTypeHash(const FPropertyTypeNameNode& Node)
 	return HashCombineFast(GetTypeHashHelper(Node.Name), GetTypeHashHelper(Node.InnerCount));
 }
 
-inline bool operator==(const FPropertyTypeNameNode& Lhs, const FPropertyTypeNameNode& Rhs)
-{
-	return Lhs.Name == Rhs.Name && Lhs.InnerCount == Rhs.InnerCount;
-}
-
 inline FArchive& operator<<(FArchive& Ar, FPropertyTypeNameNode& Node)
 {
 	return Ar << Node.Name << Node.InnerCount;
@@ -94,12 +89,31 @@ struct FPropertyTypeNameNodeProxy
 		const FPropertyTypeNameNode* RhsNode = Rhs.First;
 		for (int32 Remaining = 1; Remaining > 0; --Remaining, ++LhsNode, ++RhsNode)
 		{
-			if (*LhsNode == *RhsNode)
+			if (LhsNode->Name == RhsNode->Name && LhsNode->InnerCount == RhsNode->InnerCount)
 			{
 				Remaining += LhsNode->InnerCount;
 				continue;
 			}
 			return false;
+		}
+		return true;
+	}
+
+	friend inline bool operator<(const FPropertyTypeNameNodeProxy& Lhs, const FPropertyTypeNameNodeProxy& Rhs)
+	{
+		const FPropertyTypeNameNode* LhsNode = Lhs.First;
+		const FPropertyTypeNameNode* RhsNode = Rhs.First;
+		for (int32 Remaining = 1; Remaining > 0; --Remaining, ++LhsNode, ++RhsNode)
+		{
+			if (const int32 Compare = LhsNode->Name.Compare(RhsNode->Name))
+			{
+				return Compare < 0;
+			}
+			if (const int32 Compare = LhsNode->InnerCount - RhsNode->InnerCount)
+			{
+				return Compare < 0;
+			}
+			Remaining += LhsNode->InnerCount;
 		}
 		return true;
 	}
@@ -255,6 +269,18 @@ bool operator==(const FPropertyTypeName& Lhs, const FPropertyTypeName& Rhs)
 	const FPropertyTypeNameNode* LhsNode = GPropertyTypeNameTable.ResolveByIndex(Lhs.Index);
 	const FPropertyTypeNameNode* RhsNode = GPropertyTypeNameTable.ResolveByIndex(Rhs.Index);
 	return FPropertyTypeNameNodeProxy{LhsNode} == FPropertyTypeNameNodeProxy{RhsNode};
+}
+
+bool operator<(const FPropertyTypeName& Lhs, const FPropertyTypeName& Rhs)
+{
+	if (Lhs.Index == Rhs.Index)
+	{
+		return false;
+	}
+
+	const FPropertyTypeNameNode* LhsNode = GPropertyTypeNameTable.ResolveByIndex(Lhs.Index);
+	const FPropertyTypeNameNode* RhsNode = GPropertyTypeNameTable.ResolveByIndex(Rhs.Index);
+	return FPropertyTypeNameNodeProxy{LhsNode} < FPropertyTypeNameNodeProxy{RhsNode};
 }
 
 FArchive& operator<<(FArchive& Ar, FPropertyTypeName& TypeName)

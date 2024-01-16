@@ -24,81 +24,92 @@ namespace UE
 		bool bAddIfNeeded = false;
 	};
 
-	static void BuildSegmentTypeFromProperty(const FProperty* Property, TStringBuilder<256>& OutType)
+	static void BuildSegmentTypeFromProperty(const FProperty* Property, FPropertyTypeNameBuilder& OutType)
 	{
-		auto Push = [&OutType](FName TypeName)
-		{
-			if (OutType.Len() > 0)
-			{
-				OutType.AppendChar(' ');
-			}
-			FName::GetEntry(TypeName.GetDisplayIndex())->AppendNameToString(OutType);
-		};
-		
 #if false // TODO: @jordan.hoffmann when complete type info is finished use this branch instead
-		OutType.Add(Property->GetID());
+		OutType.AddTypeName(Property->GetID());
 		if (const FObjectProperty* AsObjectProperty = CastField<FObjectProperty>(Property))
 		{
-			Push(AsObjectProperty->GetID());
+			OutType.BeginTypeParameters();
+			OutType.AddTypeName(AsObjectProperty->GetID());
+			OutType.EndTypeParameters();
 		}
 		else if (const FEnumProperty* AsEnumProperty = CastField<FEnumProperty>(Property))
 		{
-			Push(AsEnumProperty->GetEnum()->GetFName());
+			OutType.BeginTypeParameters();
+			OutType.AddTypeName(AsEnumProperty->GetEnum()->GetFName());
+			OutType.EndTypeParameters();
 		}
 		else if (const FArrayProperty* AsArrayProperty = CastField<FArrayProperty>(Property))
 		{
+			OutType.BeginTypeParameters();
 			BuildSegmentTypeFromProperty(AsArrayProperty->Inner, OutType);
+			OutType.EndTypeParameters();
 		}
 		else if (const FSetProperty* AsSetProperty = CastField<FSetProperty>(Property))
 		{
+			OutType.BeginTypeParameters();
 			BuildSegmentTypeFromProperty(AsSetProperty->ElementProp, OutType);
+			OutType.EndTypeParameters();
 		}
 		else if (const FMapProperty* AsMapProperty = CastField<FMapProperty>(Property))
 		{
+			OutType.BeginTypeParameters();
 			BuildSegmentTypeFromProperty(AsMapProperty->KeyProp, OutType);
 			BuildSegmentTypeFromProperty(AsMapProperty->ValueProp, OutType);
+			OutType.EndTypeParameters();
 		}
 #else
-		Push(Property->GetID());
+		OutType.AddTypeName(Property->GetID());
 		if (const FStructProperty* AsStructProperty = CastField<FStructProperty>(Property))
 		{
-			Push(AsStructProperty->Struct->GetFName());
+			OutType.BeginTypeParameters();
+			OutType.AddTypeName(AsStructProperty->Struct->GetFName());
+			OutType.EndTypeParameters();
 		}
 		else if (const FEnumProperty* AsEnumProperty = CastField<FEnumProperty>(Property))
 		{
-			Push(AsEnumProperty->GetEnum()->GetFName());
+			OutType.BeginTypeParameters();
+			OutType.AddTypeName(AsEnumProperty->GetEnum()->GetFName());
+			OutType.EndTypeParameters();
 		}
 		else if (const FArrayProperty* AsArrayProperty = CastField<FArrayProperty>(Property))
 		{
+			OutType.BeginTypeParameters();
 			if (AsArrayProperty->Inner->IsA<FEnumProperty>())
 			{
 				// enum paths currently don't recurse when they're in containers
-				Push(AsArrayProperty->Inner->GetClass()->GetFName());
+				OutType.AddTypeName(AsArrayProperty->Inner->GetClass()->GetFName());
 			}
 			else
 			{
 				BuildSegmentTypeFromProperty(AsArrayProperty->Inner, OutType);
 			}
+			OutType.EndTypeParameters();
 		}
 		else if (const FSetProperty* AsSetProperty = CastField<FSetProperty>(Property))
 		{
 			// sets currently don't recurse their element property types
-			Push(AsSetProperty->ElementProp->GetClass()->GetFName());
+			OutType.BeginTypeParameters();
+			OutType.AddTypeName(AsSetProperty->ElementProp->GetClass()->GetFName());
+			OutType.EndTypeParameters();
 		}
 		else if (const FMapProperty* AsMapProperty = CastField<FMapProperty>(Property))
 		{
 			// maps currently don't recurse their key/value property types
-			Push(AsMapProperty->KeyProp->GetClass()->GetFName());
-			Push(AsMapProperty->ValueProp->GetClass()->GetFName());
+			OutType.BeginTypeParameters();
+			OutType.AddTypeName(AsMapProperty->KeyProp->GetClass()->GetFName());
+			OutType.AddTypeName(AsMapProperty->ValueProp->GetClass()->GetFName());
+			OutType.EndTypeParameters();
 		}
 #endif
 	}
 	
-	static FName GetSegmentTypeFromProperty(const FProperty* Property)
+	static FPropertyTypeName GetSegmentTypeFromProperty(const FProperty* Property)
 	{
-		TStringBuilder<256> Type;
-		BuildSegmentTypeFromProperty(Property, Type);
-		return FName(Type);
+		FPropertyTypeNameBuilder TypeBuilder;
+		BuildSegmentTypeFromProperty(Property, TypeBuilder);
+		return TypeBuilder.Build();
 	}
 	
 	static bool ResolvePropertyPathNameHelper(const UStruct* Struct, ResolvePropertyPathNameHelperParams& Params);
@@ -186,7 +197,7 @@ namespace UE
 		for (FProperty* Property : TFieldRange<FProperty>(Struct))
 		{
 			// find a property that matches the segment
-			const FName PropertySegmentType = GetSegmentTypeFromProperty(Property);
+			const FPropertyTypeName PropertySegmentType = GetSegmentTypeFromProperty(Property);
 			if (Segment.Name != Property->GetFName() || Segment.Type != PropertySegmentType)
 			{
 				continue;

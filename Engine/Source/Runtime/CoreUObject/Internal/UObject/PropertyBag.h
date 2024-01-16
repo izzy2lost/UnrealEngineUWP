@@ -6,6 +6,7 @@
 #include "Containers/Map.h"
 #include "Misc/TVariant.h"
 #include "UObject/PropertyPathName.h"
+#include "UObject/PropertyTypeName.h"
 #include "UObject/PropertyTag.h"
 
 #define UE_API COREUOBJECT_API
@@ -43,7 +44,7 @@ class FPropertyBag
 
 	struct FNode
 	{
-		FName Type;
+		FPropertyTypeName Type;
 		FValue Value;
 		FNodeMap Nodes;
 	};

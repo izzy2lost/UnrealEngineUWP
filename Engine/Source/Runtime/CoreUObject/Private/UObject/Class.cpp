@@ -1576,26 +1576,35 @@ void UStruct::SerializeVersionedTaggedProperties(FStructuredArchive::FSlot Slot,
 
 				if (SerializeContext && SerializeContext->bTrackSerializedPropertyPath)
 				{
-					const FName Name = Property ? Property->GetFName() : Tag.Name;
-					const int32 Index = Tag.ArrayIndex > 0 || (Property && Property->ArrayDim > 1) ? Tag.ArrayIndex : INDEX_NONE;
-					SerializeContext->SerializedPropertyPath.Push({Name, Tag.Type, Index});
+					FPropertyTypeNameBuilder TypeBuilder;
+					TypeBuilder.AddTypeName(Tag.Type);
 
 					if (!Tag.StructName.IsNone())
 					{
-						SerializeContext->SerializedPropertyPath.PushType(Tag.StructName);
+						TypeBuilder.BeginTypeParameters();
+						TypeBuilder.AddTypeName(Tag.StructName);
+						TypeBuilder.EndTypeParameters();
 					}
 					else if (!Tag.EnumName.IsNone())
 					{
-						SerializeContext->SerializedPropertyPath.PushType(Tag.EnumName);
+						TypeBuilder.BeginTypeParameters();
+						TypeBuilder.AddTypeName(Tag.EnumName);
+						TypeBuilder.EndTypeParameters();
 					}
 					else if (!Tag.InnerType.IsNone())
 					{
-						SerializeContext->SerializedPropertyPath.PushType(Tag.InnerType);
+						TypeBuilder.BeginTypeParameters();
+						TypeBuilder.AddTypeName(Tag.InnerType);
 						if (!Tag.ValueType.IsNone())
 						{
-							SerializeContext->SerializedPropertyPath.PushType(Tag.ValueType);
+							TypeBuilder.AddTypeName(Tag.ValueType);
 						}
+						TypeBuilder.EndTypeParameters();
 					}
+
+					const FName Name = Property ? Property->GetFName() : Tag.Name;
+					const int32 Index = Tag.ArrayIndex > 0 || (Property && Property->ArrayDim > 1) ? Tag.ArrayIndex : INDEX_NONE;
+					SerializeContext->SerializedPropertyPath.Push({Name, TypeBuilder.Build(), Index});
 				}
 
 				if (Property)

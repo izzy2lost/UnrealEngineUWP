@@ -173,7 +173,7 @@ TEST_CASE_NAMED(FPropertyTypeNameSmokeTest, "CoreUObject::PropertyTypeName::Smok
 		CHECK(TypeName.GetTypeParameter(2).IsEmpty());
 	}
 
-	SECTION("Equals+GetTypeHash")
+	SECTION("Equals+Less+GetTypeHash")
 	{
 		const FPropertyTypeName Int = PropertyTypeNameTest::CreateInt();
 		const FPropertyTypeName VectorArray = PropertyTypeNameTest::CreateVectorArray();
@@ -204,21 +204,36 @@ TEST_CASE_NAMED(FPropertyTypeNameSmokeTest, "CoreUObject::PropertyTypeName::Smok
 		CHECK(GetTypeHash(FPropertyTypeName()) == GetTypeHash(FPropertyTypeName()));
 
 		CHECK(Int == CopyTemp(Int));
+		CHECK_FALSE(Int < CopyTemp(Int));
+		CHECK(GetTypeHash(Int) == GetTypeHash(CopyTemp(Int)));
+
 		CHECK_FALSE(Int == VectorArray);
 		CHECK_FALSE(Int == FPropertyTypeName());
-		CHECK(GetTypeHash(Int) == GetTypeHash(CopyTemp(Int)));
+		CHECK_FALSE(VectorArray < VectorArray);
+		CHECK_FALSE(Int < VectorArray);
+		CHECK(VectorArray < Int);
 		CHECK_FALSE(GetTypeHash(Int) == GetTypeHash(VectorArray));
 		CHECK_FALSE(GetTypeHash(Int) == GetTypeHash(FPropertyTypeName()));
 
 		CHECK(Int == MapIntToInt.GetTypeParameter(0));
 		CHECK_FALSE(Int == MapIntToInt);
 		CHECK_FALSE(MapIntToInt == Int);
+		CHECK_FALSE(MapIntToInt < MapIntToInt);
+		CHECK(Int < MapIntToInt);
+		CHECK_FALSE(MapIntToInt < Int);
+		CHECK_FALSE(MapIntToInt < VectorArray);
+		CHECK(VectorArray < MapIntToInt);
 		CHECK(GetTypeHash(Int) == GetTypeHash(MapIntToInt.GetTypeParameter(0)));
 		CHECK_FALSE(GetTypeHash(Int) == GetTypeHash(MapIntToInt));
 		CHECK_FALSE(GetTypeHash(MapIntToInt) == GetTypeHash(Int));
 
 		CHECK(MapIntToInt == MapIntToIntToInt.GetTypeParameter(1));
 		CHECK_FALSE(MapIntToInt == MapIntToIntToInt);
+		CHECK_FALSE(MapIntToIntToInt < MapIntToIntToInt);
+		CHECK(MapIntToInt < MapIntToIntToInt);
+		CHECK_FALSE(MapIntToIntToInt < MapIntToInt);
+		CHECK_FALSE(MapIntToIntToInt < VectorArray);
+		CHECK(VectorArray < MapIntToIntToInt);
 		CHECK(GetTypeHash(MapIntToInt) == GetTypeHash(MapIntToIntToInt.GetTypeParameter(1)));
 		CHECK_FALSE(GetTypeHash(MapIntToInt) == GetTypeHash(MapIntToIntToInt));
 	}

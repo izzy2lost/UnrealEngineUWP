@@ -24,7 +24,7 @@ inline int32 FPropertyPathName::FSegment::Compare(const FSegment& Segment) const
 	{
 		return CompareNameWithIndex;
 	}
-	return Type.CompareLexical(Segment.Type);
+	return Type < Segment.Type;
 }
 
 bool FPropertyPathName::operator==(const FPropertyPathName& Path) const
@@ -63,52 +63,6 @@ bool FPropertyPathName::operator<(const FPropertyPathName& Path) const
 	return SegmentCountA < SegmentCountB;
 }
 
-void FPropertyPathName::PushTypeInternal(FName Type)
-{
-	FNameEntryId& LastType = Segments.Last().Type;
-
-	TStringBuilder<256> CombinedTypes;
-	FName::GetEntry(LastType)->AppendNameToString(CombinedTypes);
-	CombinedTypes.AppendChar(' ');
-	Type.AppendString(CombinedTypes);
-
-	LastType = FName(CombinedTypes).GetDisplayIndex();
-}
-
-FName FPropertyPathName::PopType()
-{
-	if (Segments.IsEmpty())
-	{
-		return FName();
-	}
-
-	FNameEntryId& LastType = Segments.Last().Type;
-
-	if (LastType.IsNone())
-	{
-		return FName();
-	}
-
-	FName PoppedType;
-	TStringBuilder<256> CombinedTypes;
-	FName::GetEntry(LastType)->AppendNameToString(CombinedTypes);
-
-	const int32 Index = String::FindLastChar(CombinedTypes, TEXT(' '));
-	if (Index == INDEX_NONE)
-	{
-		PoppedType = FName::CreateFromDisplayId(LastType, NAME_NO_NUMBER_INTERNAL);
-		LastType = FNameEntryId();
-	}
-	else
-	{
-		const FStringView CombinedTypesView(CombinedTypes);
-		PoppedType = FName(CombinedTypesView.RightChop(Index + 1));
-		LastType = FName(CombinedTypesView.Left(Index)).GetDisplayIndex();
-	}
-
-	return PoppedType;
-}
-
 void FPropertyPathName::ToString(FStringBuilderBase& Out, FStringView Separator) const
 {
 	bool bFirst = true;
@@ -131,7 +85,7 @@ void FPropertyPathName::ToString(FStringBuilderBase& Out, FStringView Separator)
 			Out << TEXT('[') << Index << TEXT(']');
 		}
 
-		if (!UnpackedSegment.Type.IsNone())
+		if (!UnpackedSegment.Type.IsEmpty())
 		{
 			Out << TEXTVIEW(" (") << UnpackedSegment.Type << TEXT(')');
 		}

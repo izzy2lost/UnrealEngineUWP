@@ -619,7 +619,26 @@ void FArrayProperty::SerializeItem(FStructuredArchive::FSlot Slot, void* Value, 
 	FUObjectSerializeContext* Context = FUObjectThreadContext::Get().GetSerializeContext();
 	if (Context && Context->bTrackSerializedPropertyPath && MaybeInnerTag)
 	{
-		Context->SerializedPropertyPath.PushType(MaybeInnerTag->StructName);
+		if (const int32 SegmentCount = Context->SerializedPropertyPath.GetSegmentCount(); SegmentCount > 0)
+		{
+			const UE::FPropertyTypeName ExistingArrayType = Context->SerializedPropertyPath.GetSegment(SegmentCount - 1).Type;
+			if (ExistingArrayType.GetTypeName() == NAME_ArrayProperty && ExistingArrayType.GetTypeParameterCount() == 1)
+			{
+				const UE::FPropertyTypeName ExistingStructType = ExistingArrayType.GetTypeParameter(0);
+				if (ExistingStructType.GetTypeName() == NAME_StructProperty && ExistingStructType.GetTypeParameterCount() == 0)
+				{
+					UE::FPropertyTypeNameBuilder NewTypeBuilder;
+					NewTypeBuilder.AddTypeName(NAME_ArrayProperty);
+					NewTypeBuilder.BeginTypeParameters();
+					NewTypeBuilder.AddTypeName(NAME_StructProperty);
+					NewTypeBuilder.BeginTypeParameters();
+					NewTypeBuilder.AddTypeName(MaybeInnerTag->StructName);
+					NewTypeBuilder.EndTypeParameters();
+					NewTypeBuilder.EndTypeParameters();
+					Context->SerializedPropertyPath.SetType(NewTypeBuilder.Build());
+				}
+			}
+		}
 	}
 
 	// need to know how much data this call to SerializeItem consumes, so mark where we are

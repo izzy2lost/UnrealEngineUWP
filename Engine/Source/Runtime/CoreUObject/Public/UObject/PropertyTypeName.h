@@ -16,7 +16,7 @@ namespace UE { class FPropertyTypeNameBuilder; }
 namespace UE
 {
 
-struct UE_INTERNAL FPropertyTypeNameNode
+struct FPropertyTypeNameNode
 {
 	FName Name;
 	int32 InnerCount = 0;
@@ -76,6 +76,7 @@ private:
 	UE_API friend uint32 GetTypeHash(const FPropertyTypeName& TypeName);
 
 	UE_API friend bool operator==(const FPropertyTypeName& Lhs, const FPropertyTypeName& Rhs);
+	UE_API friend bool operator<(const FPropertyTypeName& Lhs, const FPropertyTypeName& Rhs);
 
 	UE_API friend FArchive& operator<<(FArchive& Ar, FPropertyTypeName& TypeName);
 
