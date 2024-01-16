@@ -11,11 +11,11 @@ using System.Threading;
 using System.Threading.Tasks;
 using EpicGames.Core;
 using EpicGames.Horde;
+using EpicGames.Horde.Common;
 using EpicGames.Horde.Compute;
 using EpicGames.Horde.Compute.Clients;
 using EpicGames.Horde.Storage;
 using EpicGames.Horde.Storage.Bundles;
-using EpicGames.Horde.Storage.Clients;
 using EpicGames.Horde.Storage.Nodes;
 using EpicGames.OIDC;
 using Microsoft.Extensions.Configuration;
@@ -354,7 +354,7 @@ namespace UnrealBuildTool
 				"LogicalCores"
 			};
 
-		public async Task<bool> AddWorkerAsync(Requirements requirements, CancellationToken cancellationToken)
+		public async Task<bool> AddWorkerAsync(Requirements requirements, UnrealBuildAcceleratorHordeConfig hordeConfig, CancellationToken cancellationToken)
 		{
 			if (_client == null)
 			{
@@ -439,7 +439,7 @@ namespace UnrealBuildTool
 					Port = ubaPort,
 					ProxyPort = ubaProxyPort,
 				};
-				worker.BackgroundTask = RunWorkerAsync(worker, lease, locator, exeName, workerLogger, _cancellationTokenSource.Token);
+				worker.BackgroundTask = RunWorkerAsync(worker, lease, locator, exeName, workerLogger, hordeConfig, _cancellationTokenSource.Token);
 				_workers.Add(worker);
 				lease = null; // Will be disposed by RunWorkerAsync
 
@@ -563,7 +563,7 @@ namespace UnrealBuildTool
 			return result.AccessToken;
 		}
 
-		async Task RunWorkerAsync(Worker self, IComputeLease lease, BlobLocator tool, string executable, ILogger logger, CancellationToken cancellationToken)
+		async Task RunWorkerAsync(Worker self, IComputeLease lease, BlobLocator tool, string executable, ILogger logger, UnrealBuildAcceleratorHordeConfig hordeConfig, CancellationToken cancellationToken)
 		{
 			logger.LogInformation("Running worker task..");
 			try
@@ -592,12 +592,12 @@ namespace UnrealBuildTool
 						await channel.UploadFilesAsync("", tool, _storage, cancellationToken);
 
 						string hordeHost = _owner.UBAConfig.Host;
-						if (!String.IsNullOrEmpty(_owner.HordeConfig.HordeHost))
+						if (!String.IsNullOrEmpty(hordeConfig.HordeHost))
 						{
-							hordeHost = _owner.HordeConfig.HordeHost;
+							hordeHost = hordeConfig.HordeHost;
 						}
 
-						bool useListen = !String.IsNullOrEmpty(_owner.HordeConfig.HordeHost);
+						bool useListen = !String.IsNullOrEmpty(hordeConfig.HordeHost);
 						List<string> arguments = new();
 
 						if (useListen)
@@ -616,9 +616,9 @@ namespace UnrealBuildTool
 
 						arguments.Add("-NoPoll");
 						arguments.Add("-Quiet");
-						if (!String.IsNullOrEmpty(_owner.HordeConfig.UBASentryUrl))
+						if (!String.IsNullOrEmpty(hordeConfig.UBASentryUrl))
 						{
-							arguments.Add($"-Sentry=\"{_owner.HordeConfig.UBASentryUrl}\"");
+							arguments.Add($"-Sentry=\"{hordeConfig.UBASentryUrl}\"");
 						}
 						arguments.Add("-ProxyPort=" + self.ProxyPort.AgentPort);
 						if (_owner.UBAConfig.bUseQuic)
@@ -685,5 +685,171 @@ namespace UnrealBuildTool
 				}
 			}
 		}
+	}
+
+	class UBAAgentCoordinatorHorde : IUBAAgentCoordinator
+	{
+		public UBAAgentCoordinatorHorde(ILogger logger, UnrealBuildAcceleratorConfig ubaConfig, CommandLineArguments? additionalArguments = null)
+		{
+			_logger = logger;
+			_ubaConfig = ubaConfig;
+
+			XmlConfig.ApplyTo(_hordeConfig);
+			additionalArguments?.ApplyTo(_hordeConfig);
+
+			// Sentry is currently unsupported for non-Windows and non-x64
+			if (!OperatingSystem.IsWindows() || RuntimeInformation.ProcessArchitecture != Architecture.X64)
+			{
+				_hordeConfig.UBASentryUrl = null;
+			}
+		}
+
+		public DirectoryReference? GetUBARootDir()
+		{
+			DirectoryReference? hordeSharedDir = DirectoryReference.FromString(Environment.GetEnvironmentVariable("UE_HORDE_SHARED_DIR"));
+			if (hordeSharedDir != null)
+			{
+				return DirectoryReference.Combine(hordeSharedDir, "UbaHost");
+			}
+			return null;
+		}
+
+		public async Task InitAsync(UBAExecutor executor)
+		{
+			if (_ubaConfig.bDisableRemote)
+			{
+				return;
+			}
+
+			_cancellationSource = new CancellationTokenSource();
+			_hordeSessionTask = UBAHordeSession.TryCreateHordeSession(_hordeConfig, executor, _ubaConfig.bStrict, _logger, _cancellationSource.Token);
+			await _hordeSessionTask;
+		}
+
+		public void Start(ImmediateActionQueue queue, Func<LinkedAction, bool> canRunRemotely)
+		{
+			int timerPeriod = 5000;
+			bool shownNoAgentsFoundMessage = false;
+
+			if (_hordeSessionTask == null)
+			{
+				return;
+			}
+
+			_timer = new(async (_) =>
+			{
+				_timer?.Change(Timeout.Infinite, Timeout.Infinite);
+
+				UBAHordeSession? hordeSession = await _hordeSessionTask!;
+
+				if (hordeSession == null)
+				{
+					return;
+				}
+
+				hordeSession.RemoveCompleteWorkers();
+
+				if (queue.IsDone)
+				{
+					return;
+				}
+
+				// We are assuming all active logical cores are already being used.. so queueWeight is essentially work that could be executed but can't because of bandwidth
+				double queueThreshold = _ubaConfig.bForceBuildAllRemote ? 0 : 5;
+
+				try
+				{
+					double queueWeight = queue.EnumerateReadyToCompileActions().Where(x => canRunRemotely(x)).Sum(x => x.Weight);
+
+					queueWeight -= hordeSession.QueuedUpCores();
+					while (true)
+					{
+						int currentLogicalCores = hordeSession.NumLogicalCores;
+
+						if (queueWeight <= queueThreshold || currentLogicalCores >= _hordeConfig.HordeMaxCores || _cancellationSource!.IsCancellationRequested)
+						{
+							break;
+						}
+
+						Requirements requirements = new()
+						{
+							Exclusive = true
+						};
+
+						if (!String.IsNullOrEmpty(_hordeConfig.HordePool))
+						{
+							requirements.Pool = _hordeConfig.HordePool;
+						}
+
+						if (_hordeConfig.HordeCondition != null)
+						{
+							requirements.Condition = Condition.Parse(_hordeConfig.HordeCondition);
+						}
+
+						if (!await hordeSession.AddWorkerAsync(requirements, _hordeConfig, _cancellationSource.Token))
+						{
+							_logger.LogDebug("No additional workers available");
+							break;
+						}
+						int coresAdded = hordeSession.NumLogicalCores - currentLogicalCores;
+						queueWeight -= coresAdded;
+					}
+				}
+				catch (NoComputeAgentsFoundException ex)
+				{
+					if (!shownNoAgentsFoundMessage)
+					{
+						_logger.Log(_ubaConfig.bStrict ? LogLevel.Warning : LogLevel.Information, KnownLogEvents.Systemic_Horde_Compute, ex, "No agents found matching requirements (cluster: {ClusterId}, requirements: {Requirements})", ex.ClusterId, ex.Requirements);
+						shownNoAgentsFoundMessage = true;
+					}
+				}
+				catch (Exception ex)
+				{
+					if (!_cancellationSource!.IsCancellationRequested)
+					{
+						_logger.Log(_ubaConfig.bStrict ? LogLevel.Error : LogLevel.Information, KnownLogEvents.Systemic_Horde_Compute, ex, "Unable to get worker: {Ex}", ex.ToString());
+					}
+				}
+
+				_timer?.Change(timerPeriod, Timeout.Infinite);
+			}, null, _hordeConfig.HordeDelay * 1000, timerPeriod);
+		}
+
+		public void Stop()
+		{
+			_cancellationSource?.Cancel();
+
+			_timer?.Dispose();
+		}
+
+		public async Task CloseAsync()
+		{
+			_cancellationSource?.Cancel();
+
+			if (_hordeSessionTask == null)
+			{
+				return;
+			}
+
+			UBAHordeSession? hordeSession = await _hordeSessionTask;
+			if (hordeSession != null)
+			{
+				await hordeSession.DisposeAsync();
+			}
+		}
+
+		public void Dispose()
+		{
+			Stop();
+			CloseAsync().Wait();
+		}
+
+		ILogger _logger;
+		UnrealBuildAcceleratorConfig _ubaConfig;
+		UnrealBuildAcceleratorHordeConfig _hordeConfig { get; init; } = new();
+
+		CancellationTokenSource? _cancellationSource;
+		Task<UBAHordeSession?>? _hordeSessionTask;
+		Timer? _timer;
 	}
 }
