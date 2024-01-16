@@ -83,6 +83,7 @@ class FGenericDataDrivenShaderPlatformInfo
 	uint32 bSupportsMeshShadersTier1 : 1;
 	uint32 bSupportsMeshShadersWithClipDistance : 1;
 	uint32 MaxMeshShaderThreadGroupSize : 10;
+	uint32 bRequiresUnwrappedMeshShaderArgs : 1;
 	uint32 bSupportsPerPixelDBufferMask : 1;
 	uint32 bIsHlslcc : 1;
 	uint32 bSupportsDxc : 1; // Whether DirectXShaderCompiler (DXC) is supported
@@ -574,6 +575,12 @@ public:
 	{
 		check(IsValid(Platform));
 		return Infos[Platform].MaxMeshShaderThreadGroupSize;
+	}
+
+	static FORCEINLINE_DEBUGGABLE const bool GetRequiresUnwrappedMeshShaderArgs(const FStaticShaderPlatform Platform)
+	{
+		check(IsValid(Platform));
+		return Infos[Platform].bRequiresUnwrappedMeshShaderArgs;
 	}
 
 	static FORCEINLINE_DEBUGGABLE const bool GetSupportsPerPixelDBufferMask(const FStaticShaderPlatform Platform)

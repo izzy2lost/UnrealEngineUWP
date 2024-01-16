@@ -258,6 +258,7 @@ void FGenericDataDrivenShaderPlatformInfo::ParseDataDrivenShaderInfo(const FConf
 	GET_SECTION_BOOL_HELPER(bSupportsMeshShadersTier1);
 	GET_SECTION_BOOL_HELPER(bSupportsMeshShadersWithClipDistance);
 	GET_SECTION_INT_HELPER(MaxMeshShaderThreadGroupSize);
+	GET_SECTION_BOOL_HELPER(bRequiresUnwrappedMeshShaderArgs);
 	GET_SECTION_BOOL_HELPER(bSupportsPerPixelDBufferMask);
 	GET_SECTION_BOOL_HELPER(bIsHlslcc);
 	GET_SECTION_BOOL_HELPER(bSupportsDxc);

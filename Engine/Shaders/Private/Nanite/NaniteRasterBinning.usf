@@ -129,6 +129,7 @@ void RasterBinFinalize(uint RasterBinIndex : SV_DispatchThreadID)
 	{
 		uint Offset = (RasterBinIndex * NANITE_RASTERIZER_ARG_COUNT);
 
+	#if !PLATFORM_REQUIRES_UNWRAPPED_MESH_SHADER_ARGS
 		BRANCH
 		if (RenderFlags & NANITE_RENDER_FLAG_MESH_SHADER)
 		{
@@ -146,6 +147,7 @@ void RasterBinFinalize(uint RasterBinIndex : SV_DispatchThreadID)
 			OutRasterBinArgsSWHW[Offset + 5u] = GroupCount.y;
 			OutRasterBinArgsSWHW[Offset + 6u] = GroupCount.z;
 		}
+	#endif
 	}
 }
 
