@@ -471,7 +471,7 @@ void FReplicationWriter::StartReplication(uint32 InternalIndex)
 		if (ensure(RootObjectInternalIndex != FNetRefHandleManager::InvalidInternalIndex))
 		{
 			FReplicationInfo& OwnerInfo = ReplicatedObjects[RootObjectInternalIndex];
-			if (OwnerInfo.GetState() != EReplicatedObjectState::Invalid)
+			if (OwnerInfo.GetState() != EReplicatedObjectState::Invalid && ensureMsgf(OwnerInfo.GetState() < EReplicatedObjectState::PendingDestroy, TEXT("Unsupported state %s"), LexToString(OwnerInfo.GetState())))
 			{
 				ObjectsWithDirtyChanges.SetBit(RootObjectInternalIndex);
 				OwnerInfo.HasDirtySubObjects = 1U;
@@ -619,6 +619,7 @@ void FReplicationWriter::SetPendingDestroyOrSubObjectPendingDestroyState(uint32 
 			{
 				SubObjectInfo.SetState(EReplicatedObjectState::PendingDestroy);
 				SubObjectInfo.SubObjectPendingDestroy = 0U;
+				ObjectsWithDirtyChanges.ClearBit(SubObjectIndex);
 			}
 		}
 	}
@@ -684,6 +685,30 @@ void FReplicationWriter::UpdateScope(const FNetBitArrayView& UpdatedScope)
 					ensureAlwaysMsgf(!OwnerInfo.TearOff, TEXT("Parent is tearing off ( InternalIndex: %u ) currently in State: %s "), ObjectData.SubObjectRootIndex, LexToString(OwnerInfo.GetState()));
 					OwnerInfo.HasDirtySubObjects |= Info.HasDirtyChangeMask;
 					ObjectsWithDirtyChanges.SetBitValue(ObjectData.SubObjectRootIndex, ObjectsWithDirtyChanges.GetBit(ObjectData.SubObjectRootIndex) || Info.HasDirtyChangeMask);
+				}
+			}
+			else if (!Info.IsSubObject)
+			{
+				// If there are subobjects pending destroy we should make sure they're once again resorting to getting destroyed via state replication.
+				bool bHasSubObjectsPendingDestroy = false;
+				for (uint32 SubObjectIndex : NetRefHandleManager->GetSubObjects(Index))
+				{
+					FReplicationInfo& SubObjectInfo = GetReplicationInfo(SubObjectIndex);
+					if (SubObjectInfo.GetState() == EReplicatedObjectState::PendingDestroy)
+					{
+						SubObjectInfo.SetState(EReplicatedObjectState::SubObjectPendingDestroy);
+						SubObjectInfo.SubObjectPendingDestroy = 1U;
+
+						ObjectsWithDirtyChanges.SetBit(SubObjectIndex);
+
+						bHasSubObjectsPendingDestroy = true;
+					}
+				}
+
+				if (bHasSubObjectsPendingDestroy)
+				{
+					ObjectsWithDirtyChanges.SetBit(Index);
+					Info.HasDirtySubObjects = 1U;
 				}
 			}
 		}
@@ -1647,6 +1672,7 @@ uint32 FReplicationWriter::WriteObjectsPendingDestroy(FNetSerializationContext& 
 						OwnerInfo.HasDirtySubObjects = 1U;
 
 						ObjectsWithDirtyChanges.SetBit(ObjectData.SubObjectRootIndex);
+						ObjectsWithDirtyChanges.SetBit(InternalIndex);
 						continue;
 					}
 				}
@@ -3481,7 +3507,7 @@ void FReplicationWriter::MarkObjectDirty(FInternalNetRefIndex InternalIndex, con
 	if (bValidateObjectsWithDirtyChanges)
 	{
 		const FReplicationInfo& ObjectInfo = ReplicatedObjects[InternalIndex];
-		if (!ensureMsgf(ObjectInfo.GetState() != EReplicatedObjectState::Invalid, TEXT("Object ( InternalIndex: %u ) with Invalid state marked dirty. Caller: %hs"), InternalIndex, Caller))
+		if (!ensureMsgf(ObjectInfo.GetState() != EReplicatedObjectState::Invalid && ObjectInfo.GetState() < EReplicatedObjectState::PendingDestroy, TEXT("Object ( InternalIndex: %u ) with Invalid state marked dirty. Caller: %hs"), InternalIndex, Caller))
 		{
 			return;
 		}
