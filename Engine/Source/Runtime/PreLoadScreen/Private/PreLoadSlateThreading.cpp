@@ -233,7 +233,7 @@ void FPreLoadScreenSlateSynchMechanism::RunMainLoop_SlateThread()
 			{
 				if (IsSlateMainLoopRunning_AnyThread() && FPreLoadScreenManager::bRenderingEnabled)
 				{
-					WidgetRenderer->DrawWindow(DeltaTime);
+					WidgetRenderer->DrawWindow(static_cast<float>(DeltaTime));
 
 					bRenderCommandEnqeued = true;
 
