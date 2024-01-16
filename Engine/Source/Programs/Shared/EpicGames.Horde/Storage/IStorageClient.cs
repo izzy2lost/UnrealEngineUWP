@@ -2,58 +2,13 @@
 
 using System;
 using System.Collections.Generic;
-using System.IO;
 using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
-using EpicGames.Core;
 using Microsoft.Extensions.Logging;
 
 namespace EpicGames.Horde.Storage
 {
-	/// <summary>
-	/// Base exception for the storage service
-	/// </summary>
-	public class StorageException : Exception
-	{
-		/// <summary>
-		/// Constructor
-		/// </summary>
-		public StorageException(string message)
-			: base(message)
-		{
-		}
-
-		/// <summary>
-		/// Constructor
-		/// </summary>
-		public StorageException(string message, Exception? innerException)
-			: base(message, innerException)
-		{
-		}
-	}
-
-	/// <summary>
-	/// Exception for a ref not existing
-	/// </summary>
-	public sealed class RefNameNotFoundException : StorageException
-	{
-		/// <summary>
-		/// Name of the missing ref
-		/// </summary>
-		public RefName Name { get; }
-
-		/// <summary>
-		/// Constructor
-		/// </summary>
-		/// <param name="name"></param>
-		public RefNameNotFoundException(RefName name)
-			: base($"Ref name '{name}' not found")
-		{
-			Name = name;
-		}
-	}
-
 	/// <summary>
 	/// Options for a new ref
 	/// </summary>
@@ -82,11 +37,6 @@ namespace EpicGames.Horde.Storage
 	/// </summary>
 	public interface IStorageClient : IDisposable
 	{
-		/// <summary>
-		/// Whether the backend supports http redirects
-		/// </summary>
-		bool SupportsRedirects { get; }
-
 		#region Blobs
 
 		/// <summary>
@@ -102,39 +52,6 @@ namespace EpicGames.Horde.Storage
 		/// <param name="basePath">Base path for any nodes written from the writer.</param>
 		/// <returns>New writer instance. Must be disposed after use.</returns>
 		IStorageWriter CreateWriter(string? basePath = null);
-
-		/// <summary>
-		/// Read a blob from the underlying storage system. Calling <see cref="IBlobHandle.ReadBlobDataAsync(CancellationToken)"/> is more efficient than calling this method repeatedly for small blobs.
-		/// </summary>
-		/// <param name="locator">Locator for the blob</param>
-		/// <param name="cancellationToken">Cancellation token for the operation</param>
-		ValueTask<BlobData> ReadBlobAsync(BlobLocator locator, CancellationToken cancellationToken = default);
-
-		/// <summary>
-		/// Write a blob to the underlying storage system. Using the writer instance returned from <see cref="IStorageClient.CreateWriter(String)"/> is more efficient than calling this method repeatedly for small blobs.
-		/// </summary>
-		/// <param name="type">Type of the blob</param>
-		/// <param name="stream">Pipe to read data from</param>
-		/// <param name="references">References to other blobs</param>
-		/// <param name="basePath">Base path for writes</param>
-		/// <param name="cancellationToken">Cancellation token for the operation</param>
-		ValueTask<IBlobHandle> WriteBlobAsync(BlobType type, Stream stream, IReadOnlyList<IBlobHandle> references, string? basePath = null, CancellationToken cancellationToken = default);
-
-		/// <summary>
-		/// Attempts to get a redirect URL for the given blob
-		/// </summary>
-		/// <param name="locator">Blob to read</param>
-		/// <param name="cancellationToken">Cancellation token for the operation</param>
-		/// <returns>Optional url to read from</returns>
-		ValueTask<Uri?> TryGetReadRedirectAsync(BlobLocator locator, CancellationToken cancellationToken = default);
-
-		/// <summary>
-		/// Gets a write redirect for a new blob
-		/// </summary>
-		/// <param name="prefix">Prefix for the new blob</param>
-		/// <param name="cancellationToken">Cancellation token for the operation</param>
-		/// <returns>Locator for the blob and url to upload to</returns>
-		ValueTask<(BlobLocator, Uri)?> TryGetWriteRedirectAsync(string? prefix = null, CancellationToken cancellationToken = default);
 
 		#endregion
 
@@ -335,34 +252,6 @@ namespace EpicGames.Horde.Storage
 		/// <param name="refName">Ref name to use as a base path</param>
 		public static IStorageWriter CreateWriter(this IStorageClient store, RefName refName) => store.CreateWriter(refName.ToString());
 
-		/// <summary>
-		/// Write a blob to the underlying storage system. Using the writer instance returned from <see cref="IStorageClient.CreateWriter(String)"/> is more efficient than calling this method repeatedly for small blobs.
-		/// </summary>
-		/// <param name="store">The store instance to read from</param>
-		/// <param name="type">Type of the blob</param>
-		/// <param name="data">Data to be stored</param>
-		/// <param name="references">References to other blobs</param>
-		/// <param name="cancellationToken">Cancellation token for the operation</param>
-		public static ValueTask<IBlobHandle> WriteBlobAsync(this IStorageClient store, BlobType type, ReadOnlyMemory<byte> data, IReadOnlyList<IBlobHandle> references, CancellationToken cancellationToken = default)
-		{
-			return WriteBlobAsync(store, null, type, data, references, cancellationToken);
-		}
-
-		/// <summary>
-		/// Write a blob to the underlying storage system. Using the writer instance returned from <see cref="IStorageClient.CreateWriter(String)"/> is more efficient than calling this method repeatedly for small blobs.
-		/// </summary>
-		/// <param name="store">The store instance to read from</param>
-		/// <param name="basePath">Base path for writes</param>
-		/// <param name="type">Type of the blob</param>
-		/// <param name="data">Data to be stored</param>
-		/// <param name="references">References to other blobs</param>
-		/// <param name="cancellationToken">Cancellation token for the operation</param>
-		public static async ValueTask<IBlobHandle> WriteBlobAsync(this IStorageClient store, string? basePath, BlobType type, ReadOnlyMemory<byte> data, IReadOnlyList<IBlobHandle> references, CancellationToken cancellationToken = default)
-		{
-			using ReadOnlyMemoryStream stream = new ReadOnlyMemoryStream(data);
-			return await store.WriteBlobAsync(type, stream, references, basePath, cancellationToken);
-		}
-
 		#endregion
 
 		#region Aliases
@@ -392,7 +281,7 @@ namespace EpicGames.Horde.Storage
 		/// <param name="cacheTime">Minimum coherency for any cached value to be returned</param>
 		/// <param name="cancellationToken">Cancellation token for the operation</param>
 		/// <returns>True if the ref exists, false if it did not exist</returns>
-		public static async Task<bool> HasRefAsync(this IStorageClient store, RefName name, RefCacheTime cacheTime = default, CancellationToken cancellationToken = default)
+		public static async Task<bool> RefExistsAsync(this IStorageClient store, RefName name, RefCacheTime cacheTime = default, CancellationToken cancellationToken = default)
 		{
 			IBlobHandle? target = await store.TryReadRefAsync(name, cacheTime, cancellationToken);
 			return target != null;

@@ -39,7 +39,7 @@ namespace Horde.Server.Artifacts
 	public class ArtifactsController : HordeControllerBase
 	{
 		readonly IArtifactCollection _artifactCollection;
-		readonly IStorageClientFactory _storageClientFactory;
+		readonly StorageService _storageService;
 		readonly ILeaseCollection _leaseCollection;
 		readonly IJobCollection _jobCollection;
 		readonly AclService _aclService;
@@ -49,10 +49,10 @@ namespace Horde.Server.Artifacts
 		/// <summary>
 		/// Constructor
 		/// </summary>
-		public ArtifactsController(IArtifactCollection artifactCollection, IStorageClientFactory storageClientFactory, ILeaseCollection leaseCollection, IJobCollection jobCollection, AclService aclService, IOptionsSnapshot<GlobalConfig> globalConfig, ILogger<ArtifactsController> logger)
+		public ArtifactsController(IArtifactCollection artifactCollection, StorageService storageService, ILeaseCollection leaseCollection, IJobCollection jobCollection, AclService aclService, IOptionsSnapshot<GlobalConfig> globalConfig, ILogger<ArtifactsController> logger)
 		{
 			_artifactCollection = artifactCollection;
-			_storageClientFactory = storageClientFactory;
+			_storageService = storageService;
 			_leaseCollection = leaseCollection;
 			_jobCollection = jobCollection;
 			_aclService = aclService;
@@ -154,7 +154,7 @@ namespace Horde.Server.Artifacts
 
 		async Task<RefName?> GetPrevRefNameForArtifactAsync(IArtifact artifact, CancellationToken cancellationToken)
 		{
-			using IStorageClient storageClient = _storageClientFactory.CreateClient(artifact.NamespaceId);
+			using IStorageBackend storageBackend = _storageService.CreateBackend(artifact.NamespaceId);
 			await foreach (IArtifact prevArtifact in _artifactCollection.FindAsync(artifact.StreamId, maxChange: artifact.Change - 1, name: artifact.Name, type: artifact.Type, cancellationToken: cancellationToken))
 			{
 				if (prevArtifact.NamespaceId != artifact.NamespaceId)
@@ -162,8 +162,8 @@ namespace Horde.Server.Artifacts
 					break;
 				}
 
-				IBlobHandle? blobHandle = await storageClient.TryReadRefAsync(prevArtifact.RefName, cancellationToken: cancellationToken);
-				if (blobHandle != null)
+				BlobLocator? blobLocator = await storageBackend.TryReadRefAsync(prevArtifact.RefName, cancellationToken: cancellationToken);
+				if (blobLocator != null)
 				{
 					return prevArtifact.RefName;
 				}
@@ -221,8 +221,8 @@ namespace Horde.Server.Artifacts
 				return BadRequest("Invalid blob id for artifact");
 			}
 
-			using IStorageClient storageClient = _storageClientFactory.CreateClient(artifact.NamespaceId);
-			return await StorageController.ReadBlobInternalAsync(storageClient, locator, Request.Headers, cancellationToken);
+			using IStorageBackend storageBackend = _storageService.CreateBackend(artifact.NamespaceId);
+			return await StorageController.ReadBlobInternalAsync(storageBackend, locator, Request.Headers, cancellationToken);
 		}
 
 		/// <summary>
@@ -245,7 +245,7 @@ namespace Horde.Server.Artifacts
 				return Forbid(ArtifactAclAction.ReadArtifact, artifact.AclScope);
 			}
 
-			return await StorageController.ReadRefInternalAsync(_storageClientFactory, artifact.NamespaceId, artifact.RefName, Request.Headers, cancellationToken);
+			return await StorageController.ReadRefInternalAsync(_storageService, artifact.NamespaceId, artifact.RefName, Request.Headers, cancellationToken);
 		}
 
 		/// <summary>
@@ -271,7 +271,7 @@ namespace Horde.Server.Artifacts
 				return Forbid(ArtifactAclAction.ReadArtifact, artifact.AclScope);
 			}
 
-			using IStorageClient storageClient = _storageClientFactory.CreateClient(artifact.NamespaceId);
+			using IStorageClient storageClient = _storageService.CreateClient(artifact.NamespaceId);
 
 			DirectoryNode directoryNode;
 			try
@@ -378,7 +378,7 @@ namespace Horde.Server.Artifacts
 				return Forbid(ArtifactAclAction.ReadArtifact, artifact.AclScope);
 			}
 
-			using IStorageClient storageClient = _storageClientFactory.CreateClient(artifact.NamespaceId);
+			using IStorageClient storageClient = _storageService.CreateClient(artifact.NamespaceId);
 			DirectoryNode directory = await storageClient.ReadRefAsync<DirectoryNode>(artifact.RefName, DateTime.UtcNow.AddHours(1.0), cancellationToken: cancellationToken);
 
 			FileEntry? fileEntry = await directory.GetFileEntryByPathAsync(path, cancellationToken: cancellationToken);
@@ -451,7 +451,7 @@ namespace Horde.Server.Artifacts
 			}
 
 #pragma warning disable CA2000
-			IStorageClient storageClient = _storageClientFactory.CreateClient(artifact.NamespaceId);
+			IStorageClient storageClient = _storageService.CreateClient(artifact.NamespaceId);
 			try
 			{
 				DirectoryNode directory = await storageClient.ReadRefAsync<DirectoryNode>(artifact.RefName, DateTime.UtcNow.AddHours(1.0), cancellationToken: cancellationToken);

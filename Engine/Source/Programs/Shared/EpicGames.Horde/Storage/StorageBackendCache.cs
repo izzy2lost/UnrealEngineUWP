@@ -125,7 +125,7 @@ namespace EpicGames.Horde.Storage
 			public async Task<IReadOnlyMemoryOwner<byte>> ReadBlobAsync(BlobLocator locator, int offset, int? length, CancellationToken cancellationToken = default)
 			{
 #pragma warning disable CA2000 // Dispose objects before losing scope
-				IReadOnlyMemoryOwner<byte> storageObject = await _cacheStorage.ReadAsync(new ObjectKey($"{_keyPrefix}{locator}{BlobExtension}"), ctx => _inner.OpenAsync(locator, ctx), cancellationToken);
+				IReadOnlyMemoryOwner<byte> storageObject = await _cacheStorage.ReadAsync(new ObjectKey($"{_keyPrefix}{locator}{BlobExtension}"), ctx => _inner.OpenBlobAsync(locator, ctx), cancellationToken);
 #pragma warning restore CA2000 // Dispose objects before losing scope
 				return storageObject.Slice(offset, length);
 			}
@@ -139,6 +139,32 @@ namespace EpicGames.Horde.Storage
 				_inner.GetStats(stats);
 				_cacheStorage.GetStats(stats);
 			}
+
+			#region Aliases
+
+			public Task AddAliasAsync(string name, BlobLocator locator, int rank = 0, ReadOnlyMemory<byte> data = default, CancellationToken cancellationToken = default)
+				=> _inner.AddAliasAsync(name, locator, rank, data, cancellationToken);
+
+			public Task RemoveAliasAsync(string name, BlobLocator locator, CancellationToken cancellationToken = default)
+				=> _inner.RemoveAliasAsync(name, locator, cancellationToken);
+
+			public Task<BlobAliasLocator[]> FindAliasesAsync(string name, int? maxResults = null, CancellationToken cancellationToken = default)
+				=> _inner.FindAliasesAsync(name, maxResults, cancellationToken);
+
+			#endregion
+
+			#region Refs
+
+			public Task<BlobLocator?> TryReadRefAsync(RefName name, RefCacheTime cacheTime = default, CancellationToken cancellationToken = default)
+				=> _inner.TryReadRefAsync(name, cacheTime, cancellationToken);
+
+			public Task WriteRefAsync(RefName name, BlobLocator locator, RefOptions? options = null, CancellationToken cancellationToken = default)
+				=> _inner.WriteRefAsync(name, locator, options, cancellationToken);
+
+			public Task<bool> DeleteRefAsync(RefName name, CancellationToken cancellationToken = default)
+				=> _inner.DeleteRefAsync(name, cancellationToken);
+
+			#endregion
 		}
 
 		object LockObject => _items;

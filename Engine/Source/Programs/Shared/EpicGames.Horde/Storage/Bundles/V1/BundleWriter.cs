@@ -18,7 +18,7 @@ namespace EpicGames.Horde.Storage.Bundles.V1
 	/// <summary>
 	/// Implementation of <see cref="IBlobHandle"/> for nodes which can be read from storage
 	/// </summary>
-	sealed class FlushedNodeHandle : BlobHandle
+	sealed class FlushedNodeHandle : IBlobHandle
 	{
 		readonly BundleReader _reader;
 
@@ -26,12 +26,12 @@ namespace EpicGames.Horde.Storage.Bundles.V1
 		public int ExportIdx { get; }
 
 		/// <inheritdoc/>
-		public override IBlobHandle Outer { get; }
+		public BundleHandle Outer { get; }
 
 		/// <summary>
 		/// Constructor
 		/// </summary>
-		public FlushedNodeHandle(BundleReader reader, BlobLocator bundleLocator, IBlobHandle bundleHandle, int exportIdx)
+		public FlushedNodeHandle(BundleReader reader, BlobLocator bundleLocator, BundleHandle bundleHandle, int exportIdx)
 		{
 			Debug.Assert(!bundleLocator.CanUnwrap());
 
@@ -41,7 +41,7 @@ namespace EpicGames.Horde.Storage.Bundles.V1
 			ExportIdx = exportIdx;
 		}
 
-		public FlushedNodeHandle(BundleReader reader, BlobLocator bundleLocator, IBlobHandle bundleHandle, ReadOnlySpan<byte> fragment)
+		public FlushedNodeHandle(BundleReader reader, BlobLocator bundleLocator, BundleHandle bundleHandle, ReadOnlySpan<byte> fragment)
 		{
 			Debug.Assert(!bundleLocator.CanUnwrap());
 
@@ -58,17 +58,24 @@ namespace EpicGames.Horde.Storage.Bundles.V1
 		}
 
 		/// <inheritdoc/>
-		public override bool TryAppendIdentifier(Utf8StringBuilder builder)
+		public bool TryAppendIdentifier(Utf8StringBuilder builder)
 		{
 			builder.Append(ExportIdx);
 			return true;
 		}
 
 		/// <inheritdoc/>
-		public override ValueTask<BlobData> ReadBlobDataAsync(CancellationToken cancellationToken = default) => _reader.ReadNodeDataAsync(BundleLocator, ExportIdx, cancellationToken);
+		public bool TryGetLocator(out BlobLocator locator)
+		{
+			locator = new BlobLocator($"{BundleLocator}#{ExportIdx}");
+			return true;
+		}
 
 		/// <inheritdoc/>
-		public override ValueTask FlushAsync(CancellationToken cancellationToken = default) => new ValueTask();
+		public ValueTask<BlobData> ReadBlobDataAsync(CancellationToken cancellationToken = default) => _reader.ReadNodeDataAsync(BundleLocator, ExportIdx, cancellationToken);
+
+		/// <inheritdoc/>
+		public ValueTask FlushAsync(CancellationToken cancellationToken = default) => new ValueTask();
 
 		/// <inheritdoc/>
 		public override bool Equals(object? obj) => obj is FlushedNodeHandle other && BundleLocator == other.BundleLocator && ExportIdx == other.ExportIdx;
@@ -84,7 +91,7 @@ namespace EpicGames.Horde.Storage.Bundles.V1
 	public sealed class BundleWriter : IStorageWriter
 	{
 		// Information about a unique output node. Note that multiple node refs may de-duplicate to the same output node.
-		internal class PendingNode : BlobHandle
+		internal class PendingNode : IBlobHandle
 		{
 			readonly BundleReader _reader;
 
@@ -103,7 +110,7 @@ namespace EpicGames.Horde.Storage.Bundles.V1
 			public PendingBundle? PendingBundle => _pendingBundle;
 			public FlushedNodeHandle? FlushedNodeHandle => _flushedHandle;
 
-			public override IBlobHandle? Outer => (_flushedHandle != null) ? _flushedHandle.Outer : throw new NotSupportedException();
+			public BundleHandle Outer => (_flushedHandle != null) ? _flushedHandle.Outer : throw new NotSupportedException();
 
 			public PendingNode(BundleReader reader, BlobType blobType, int packet, int offset, int length, IReadOnlyList<IBlobHandle> refs, IReadOnlyList<AliasInfo> aliases, PendingBundle pendingBundle)
 			{
@@ -120,7 +127,7 @@ namespace EpicGames.Horde.Storage.Bundles.V1
 			}
 
 			/// <inheritdoc/>
-			public override bool TryAppendIdentifier(Utf8StringBuilder builder)
+			public bool TryAppendIdentifier(Utf8StringBuilder builder)
 			{
 				return _flushedHandle?.TryAppendIdentifier(builder) ?? false;
 			}
@@ -136,7 +143,7 @@ namespace EpicGames.Horde.Storage.Bundles.V1
 			}
 
 			/// <inheritdoc/>
-			public override async ValueTask<BlobData> ReadBlobDataAsync(CancellationToken cancellationToken = default)
+			public async ValueTask<BlobData> ReadBlobDataAsync(CancellationToken cancellationToken = default)
 			{
 				if (_flushedHandle == null)
 				{
@@ -154,7 +161,7 @@ namespace EpicGames.Horde.Storage.Bundles.V1
 			}
 
 			/// <inheritdoc/>
-			public override async ValueTask FlushAsync(CancellationToken cancellationToken = default)
+			public async ValueTask FlushAsync(CancellationToken cancellationToken = default)
 			{
 				if (_flushedHandle != null)
 				{
@@ -171,6 +178,17 @@ namespace EpicGames.Horde.Storage.Bundles.V1
 				{
 					await pendingBundle.FlushAsync(cancellationToken);
 				}
+			}
+
+			/// <inheritdoc/>
+			public bool TryGetLocator(out BlobLocator locator)
+			{
+				if (_flushedHandle == null)
+				{
+					locator = default;
+					return false;
+				}
+				return _flushedHandle.TryGetLocator(out locator);
 			}
 
 			/// <inheritdoc/>
@@ -400,7 +418,7 @@ namespace EpicGames.Horde.Storage.Bundles.V1
 			}
 
 			// Mark the bundle as complete
-			public async Task WriteAsync(IStorageClient store, string? basePath, ILogger? traceLogger)
+			public async Task WriteAsync(BundleStorageClient store, string? basePath, ILogger? traceLogger)
 			{
 				traceLogger?.LogInformation("Marking bundle {BundleId} as complete ({NumNodes} nodes); adding to write queue.", BundleId, _queue.Count);
 
@@ -411,10 +429,10 @@ namespace EpicGames.Horde.Storage.Bundles.V1
 					(BundleHeader header, List<ReadOnlyMemory<byte>> packets) = CreateBundle();
 
 					// Write the bundle to storage
-					IBlobHandle[] imports = new IBlobHandle[header.Imports.Count];
+					BundleHandle[] imports = new BundleHandle[header.Imports.Count];
 					for (int idx = 0; idx < header.Imports.Count; idx++)
 					{
-						imports[idx] = store.CreateBlobHandle(new BlobLocator(header.Imports[idx].Path));
+						imports[idx] = new FlushedBundleHandle(store, new BlobLocator(header.Imports[idx].Path));
 					}
 
 					// Create the output sequence
@@ -427,15 +445,15 @@ namespace EpicGames.Horde.Storage.Bundles.V1
 					}
 
 					// Write it
-					IBlobHandle handle;
+					BlobLocator locator;
 					using (ReadOnlySequenceStream stream = new ReadOnlySequenceStream(sequence.Construct()))
 					{
-						handle = await store.WriteBlobAsync(Bundle.BlobType, stream, imports, basePath);
+						locator = await store.Backend.WriteBlobAsync(stream, basePath, CancellationToken.None);
 					}
 
-					BlobLocator locator = handle.GetLocator();
 					traceLogger?.LogInformation("Written bundle {BundleId} as {Locator}", BundleId, locator);
 
+					FlushedBundleHandle handle = new FlushedBundleHandle(store, locator);
 					for (int idx = 0; idx < _queue.Count; idx++)
 					{
 						PendingNode node = _queue[idx];
@@ -559,7 +577,7 @@ namespace EpicGames.Horde.Storage.Bundles.V1
 		class WriteQueue
 		{
 			long _memoryFootprint;
-			readonly IStorageClient _store;
+			readonly BundleStorageClient _store;
 			readonly string? _basePath;
 			readonly long _maxMemoryFootprint;
 			readonly ILogger? _traceLogger;
@@ -567,7 +585,7 @@ namespace EpicGames.Horde.Storage.Bundles.V1
 			int _refCount;
 			readonly List<Task> _writeTasks = new List<Task>();
 
-			public WriteQueue(IStorageClient store, string? basePath, long maxMemoryFootprint, ILogger? traceLogger)
+			public WriteQueue(BundleStorageClient store, string? basePath, long maxMemoryFootprint, ILogger? traceLogger)
 			{
 				_store = store;
 				_basePath = basePath;
@@ -642,7 +660,7 @@ namespace EpicGames.Horde.Storage.Bundles.V1
 
 		static readonly BundleOptions s_defaultOptions = new BundleOptions();
 
-		readonly IStorageClient _store;
+		readonly BundleStorageClient _store;
 		readonly BundleReader _reader;
 		readonly BundleOptions _options;
 		readonly string? _basePath;
@@ -663,7 +681,7 @@ namespace EpicGames.Horde.Storage.Bundles.V1
 		/// <param name="basePath">Base path for new nodes</param>
 		/// <param name="options">Options for the writer</param>
 		/// <param name="traceLogger">Optional logger for trace information</param>
-		public BundleWriter(IStorageClient store, BundleReader reader, string? basePath, BundleOptions? options = null, ILogger? traceLogger = null)
+		public BundleWriter(BundleStorageClient store, BundleReader reader, string? basePath, BundleOptions? options = null, ILogger? traceLogger = null)
 			: this(store, reader, basePath, options, null, traceLogger)
 		{
 		}
@@ -681,7 +699,7 @@ namespace EpicGames.Horde.Storage.Bundles.V1
 		/// <summary>
 		/// Internal constructor
 		/// </summary>
-		private BundleWriter(IStorageClient store, BundleReader reader, string? basePath, BundleOptions? options, WriteQueue? writeQueue, ILogger? traceLogger = null)
+		private BundleWriter(BundleStorageClient store, BundleReader reader, string? basePath, BundleOptions? options, WriteQueue? writeQueue, ILogger? traceLogger = null)
 		{
 			_store = store;
 			_reader = reader;

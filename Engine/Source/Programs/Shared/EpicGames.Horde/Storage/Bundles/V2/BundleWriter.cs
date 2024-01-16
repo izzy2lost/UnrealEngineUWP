@@ -18,41 +18,14 @@ namespace EpicGames.Horde.Storage.Bundles.V2
 	/// </summary>
 	public sealed class BundleWriter : IStorageWriter
 	{
-		// An export that has been written and is waiting to be flushed to disk
-		internal sealed class PendingExportHandle : ExportHandle
-		{
-			readonly PendingPacketHandle _packet;
-			readonly int _exportIdx;
-
-			public override PacketHandle? OuterPacket => _packet;
-
-			public PendingExportHandle(PendingPacketHandle packet, int exportIdx)
-			{
-				_packet = packet;
-				_exportIdx = exportIdx;
-			}
-
-			public override ValueTask FlushAsync(CancellationToken cancellationToken = default) 
-				=> _packet.FlushAsync(cancellationToken);
-
-			public override ValueTask<BlobData> ReadBlobDataAsync(CancellationToken cancellationToken = default)
-				=> _packet.ReadExportAsync(_exportIdx, cancellationToken);
-
-			public override bool TryAppendIdentifier(Utf8StringBuilder builder)
-			{
-				FlushedExportHandle.AppendIdentifier(builder, _exportIdx);
-				return true;
-			}
-		}
-
 		// Packet that is still being built, but may be redirected to a flushed packet
 		internal sealed class PendingPacketHandle : PacketHandle
 		{
 			readonly PendingBundleHandle _bundle;
 			FlushedPacketHandle? _flushedHandle;
 
-			public override BundleHandle? OuterBundle => _flushedHandle?.OuterBundle ?? _bundle;
-			public IBlobHandle? FlushedHandle => _flushedHandle;
+			public override BundleHandle Bundle => _flushedHandle?.Bundle ?? _bundle;
+			public FlushedPacketHandle? FlushedHandle => _flushedHandle;
 
 			public PendingPacketHandle(PendingBundleHandle bundle) => _bundle = bundle;
 
@@ -62,19 +35,7 @@ namespace EpicGames.Horde.Storage.Bundles.V2
 			public void CompletePacket(FlushedPacketHandle flushedHandle)
 				=> _flushedHandle = flushedHandle;
 
-			public override ValueTask<BlobData> ReadBlobDataAsync(CancellationToken cancellationToken = default)
-			{
-				lock (_bundle.LockObject)
-				{
-					if (_flushedHandle == null)
-					{
-						throw new NotSupportedException("Reading pending packets is not currently supported.");
-					}
-				}
-				return _flushedHandle!.ReadBlobDataAsync(cancellationToken);
-			}
-
-			public async ValueTask<BlobData> ReadExportAsync(int exportIdx, CancellationToken cancellationToken = default)
+			public override async ValueTask<BlobData> ReadExportAsync(int exportIdx, CancellationToken cancellationToken = default)
 			{
 				lock (_bundle.LockObject)
 				{
@@ -95,17 +56,16 @@ namespace EpicGames.Horde.Storage.Bundles.V2
 		{
 			readonly object _lockObject = new object();
 
-			readonly IStorageClient _storageClient;
+			readonly BundleStorageClient _storageClient;
 			readonly string? _basePath;
 			readonly BundleCache _cache;
 			readonly BundleOptions _options;
 
-			IBlobHandle? _flushedHandle;
+			FlushedBundleHandle? _flushedHandle;
 
 			PacketWriter? _packetWriter;
 			PendingPacketHandle? _packetHandle;
-			List<IBlobHandle>? _bundleReferences;
-			List<(PendingExportHandle, AliasInfo)>? _pendingExportAliases;
+			List<(ExportHandle, AliasInfo)>? _pendingExportAliases;
 			RefCountedMemoryWriter? _encodedPacketWriter;
 
 			/// <summary>
@@ -113,22 +73,20 @@ namespace EpicGames.Horde.Storage.Bundles.V2
 			/// </summary>
 			public object LockObject => _lockObject;
 
-			public override IBlobHandle? Outer => null;
-			public IBlobHandle? FlushedHandle => _flushedHandle;
+			public FlushedBundleHandle? FlushedHandle => _flushedHandle;
 
 			/// <summary>
 			/// Compressed length of this bundle
 			/// </summary>
 			public int Length => _encodedPacketWriter?.Length ?? throw new InvalidOperationException("Bundle has been flushed");
 
-			public PendingBundleHandle(IStorageClient storageClient, string? basePath, BundleCache cache, BundleOptions options)
+			public PendingBundleHandle(BundleStorageClient storageClient, string? basePath, BundleCache cache, BundleOptions options)
 			{
 				_storageClient = storageClient;
 				_basePath = basePath;
 				_cache = cache;
 				_options = options;
 
-				_bundleReferences = new List<IBlobHandle>();
 				_encodedPacketWriter = new RefCountedMemoryWriter(_cache.Allocator, 65536);
 
 				StartPacket();
@@ -151,7 +109,6 @@ namespace EpicGames.Horde.Storage.Bundles.V2
 
 				// Also clear out any arrays that can be GC'd
 				_packetHandle = null;
-				_bundleReferences = null;
 				_pendingExportAliases = null;
 			}
 
@@ -167,17 +124,17 @@ namespace EpicGames.Horde.Storage.Bundles.V2
 				return _packetWriter.GetExport(exportIdx);
 			}
 
-			public PendingExportHandle CompleteExport(BlobType type, int size, IReadOnlyList<IBlobHandle> references, IReadOnlyList<AliasInfo> aliases)
+			public ExportHandle CompleteExport(BlobType type, int size, IReadOnlyList<IBlobHandle> references, IReadOnlyList<AliasInfo> aliases)
 			{
 				RuntimeAssert(_packetWriter != null);
 				RuntimeAssert(_packetHandle != null);
 
 				int exportIdx = _packetWriter.CompleteExport(size, type, references);
-				PendingExportHandle exportHandle = new PendingExportHandle(_packetHandle, exportIdx);
+				ExportHandle exportHandle = new ExportHandle(_packetHandle, exportIdx);
 
 				if (aliases.Count > 0)
 				{
-					_pendingExportAliases ??= new List<(PendingExportHandle, AliasInfo)>();
+					_pendingExportAliases ??= new List<(ExportHandle, AliasInfo)>();
 					_pendingExportAliases.AddRange(aliases.Select(x => (exportHandle, x)));
 				}
 
@@ -203,7 +160,6 @@ namespace EpicGames.Horde.Storage.Bundles.V2
 			{
 				RuntimeAssert(_packetHandle != null);
 				RuntimeAssert(_packetWriter != null);
-				RuntimeAssert(_bundleReferences != null);
 				RuntimeAssert(_encodedPacketWriter != null);
 
 				if (_packetWriter.GetExportCount() > 0)
@@ -218,16 +174,6 @@ namespace EpicGames.Horde.Storage.Bundles.V2
 					{
 						FlushedPacketHandle flushedPacketHandle = new FlushedPacketHandle(_storageClient, this, packetOffset, packetLength, _cache);
 						_packetHandle.CompletePacket(flushedPacketHandle);
-					}
-
-					// Find all the other bundles that are referenced
-					for (int importIdx = 0; importIdx < packet.GetImportCount(); importIdx++)
-					{
-						PacketImport import = packet.GetImport(importIdx);
-						if (import.BaseIdx == -1)
-						{
-							_bundleReferences.Add(_packetWriter.GetImport(importIdx));
-						}
 					}
 				}
 
@@ -256,17 +202,16 @@ namespace EpicGames.Horde.Storage.Bundles.V2
 					return;
 				}
 
-				Debug.Assert(_bundleReferences != null);
-
 				// Write the bundle data
-				IBlobHandle flushedHandle;
+				FlushedBundleHandle flushedHandle;
 				using (ReadOnlySequenceStream stream = new ReadOnlySequenceStream(_encodedPacketWriter.AsSequence()))
 				{
-					flushedHandle = await _storageClient.WriteBlobAsync(Bundle.BlobType, stream, _bundleReferences, _basePath, cancellationToken);
+					BlobLocator locator = await _storageClient.Backend.WriteBlobAsync(stream, _basePath, cancellationToken);
+					flushedHandle = new FlushedBundleHandle(_storageClient, locator);
 				}
 
 				// Release all the intermediate data
-				List<(PendingExportHandle, AliasInfo)>? pendingExportAliases = _pendingExportAliases;
+				List<(ExportHandle, AliasInfo)>? pendingExportAliases = _pendingExportAliases;
 				lock (_lockObject)
 				{
 					_flushedHandle = flushedHandle;
@@ -278,7 +223,7 @@ namespace EpicGames.Horde.Storage.Bundles.V2
 				// Add all the aliases
 				if (pendingExportAliases != null)
 				{
-					foreach ((PendingExportHandle exportHandle, AliasInfo aliasInfo) in pendingExportAliases)
+					foreach ((ExportHandle exportHandle, AliasInfo aliasInfo) in pendingExportAliases)
 					{
 						await _storageClient.AddAliasAsync(aliasInfo.Name, exportHandle, aliasInfo.Rank, aliasInfo.Data, cancellationToken);
 					}
@@ -286,23 +231,19 @@ namespace EpicGames.Horde.Storage.Bundles.V2
 			}
 
 			/// <inheritdoc/>
-			public override ValueTask<BlobData> ReadBlobDataAsync(CancellationToken cancellationToken)
-				=> GetFlushedHandle().ReadBlobDataAsync(cancellationToken);
-
-			/// <inheritdoc/>
-			public override async Task<Stream> OpenBodyAsync(int offset, int? length, CancellationToken cancellationToken = default)
+			public override async Task<Stream> OpenAsync(int offset, int? length, CancellationToken cancellationToken = default)
 			{
 				if (_flushedHandle == null)
 				{
-					IReadOnlyMemoryOwner<byte> owner = await ReadBodyAsync(offset, length, cancellationToken);
+					IReadOnlyMemoryOwner<byte> owner = await ReadAsync(offset, length, cancellationToken);
 					return owner.AsStream();
 				}
 
-				return await _flushedHandle.OpenBodyAsync(offset, length, cancellationToken);
+				return await _flushedHandle.OpenAsync(offset, length, cancellationToken);
 			}
 
 			/// <inheritdoc/>
-			public override async ValueTask<IReadOnlyMemoryOwner<byte>> ReadBodyAsync(int offset, int? length, CancellationToken cancellationToken = default)
+			public override async ValueTask<IReadOnlyMemoryOwner<byte>> ReadAsync(int offset, int? length, CancellationToken cancellationToken = default)
 			{
 				if (_flushedHandle == null)
 				{
@@ -319,18 +260,22 @@ namespace EpicGames.Horde.Storage.Bundles.V2
 					}
 				}
 
-				return await _flushedHandle.ReadBodyAsync(offset, length, cancellationToken);
+				return await _flushedHandle.ReadAsync(offset, length, cancellationToken);
 			}
 
 			/// <inheritdoc/>
-			public override bool TryAppendIdentifier(Utf8StringBuilder builder)
-				=> _flushedHandle?.TryAppendIdentifier(builder) ?? false;
-
-			IBlobHandle GetFlushedHandle()
-				=> _flushedHandle ?? throw new NotSupportedException("Bundle has not yet been flushed");
+			public override bool TryGetLocator(out BlobLocator locator)
+			{
+				if (_flushedHandle == null)
+				{
+					locator = default;
+					return false;
+				}
+				return _flushedHandle.TryGetLocator(out locator);
+			}
 		}
 
-		readonly IStorageClient _storageClient;
+		readonly BundleStorageClient _storageClient;
 		readonly string? _basePath;
 		readonly BundleOptions _options;
 		readonly BundleCache _bundleCache;
@@ -340,7 +285,7 @@ namespace EpicGames.Horde.Storage.Bundles.V2
 		/// <summary>
 		/// 
 		/// </summary>
-		public BundleWriter(IStorageClient storageClient, string? basePath, BundleCache bundleCache, BundleOptions options)
+		public BundleWriter(BundleStorageClient storageClient, string? basePath, BundleCache bundleCache, BundleOptions options)
 		{
 			_storageClient = storageClient;
 			_basePath = basePath;
@@ -376,7 +321,7 @@ namespace EpicGames.Horde.Storage.Bundles.V2
 		/// <inheritdoc/>
 		public async ValueTask<IBlobHandle> WriteBlobAsync(BlobType type, int size, IReadOnlyList<IBlobHandle> references, IReadOnlyList<AliasInfo> aliases, CancellationToken cancellationToken = default)
 		{
-			PendingExportHandle exportHandle = _currentBundle.CompleteExport(type, size, references, aliases);
+			ExportHandle exportHandle = _currentBundle.CompleteExport(type, size, references, aliases);
 			if (_currentBundle.Length > _options.MaxBlobSize)
 			{
 				await FlushAsync(cancellationToken);

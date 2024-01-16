@@ -13,6 +13,7 @@ using EpicGames.Horde.Storage;
 using Microsoft.Extensions.Options;
 using EpicGames.Horde;
 using EpicGames.Horde.Storage.Clients;
+using EpicGames.Horde.Storage.Backends;
 
 namespace Horde
 {
@@ -42,6 +43,7 @@ namespace Horde
 			services.AddHordeHttpClient((sp, client) => client.BaseAddress = sp.GetRequiredService<IOptions<CmdConfig>>().Value.Server);
 			services.AddSingleton<BundleCache>(CreateStorageClientCache);
 			services.AddSingleton<StorageBackendCache>(CreateStorageBackendCache);
+			services.AddSingleton<HttpStorageBackendFactory>();
 			services.AddSingleton<HttpStorageClientFactory>();
 
 			// Execute all the commands

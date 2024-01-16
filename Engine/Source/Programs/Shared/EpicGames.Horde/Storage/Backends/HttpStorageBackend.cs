@@ -2,11 +2,13 @@
 
 using System;
 using System.IO;
+using System.Net;
 using System.Net.Http;
 using System.Net.Http.Headers;
 using System.Net.Http.Json;
 using System.Threading;
 using System.Threading.Tasks;
+using System.Web;
 using EpicGames.Core;
 using Microsoft.Extensions.Logging;
 
@@ -180,7 +182,195 @@ namespace EpicGames.Horde.Storage.Backends
 
 		#endregion
 
+		#region Aliases
+
+		/// <inheritdoc/>
+		public Task AddAliasAsync(string name, BlobLocator target, int rank = 0, ReadOnlyMemory<byte> data = default, CancellationToken cancellationToken = default)
+		{
+			throw new NotSupportedException("Http storage client does not currently support aliases.");
+		}
+
+		/// <inheritdoc/>
+		public Task RemoveAliasAsync(string name, BlobLocator target, CancellationToken cancellationToken = default)
+		{
+			throw new NotSupportedException("Http storage client does not currently support aliases.");
+		}
+
+		/// <inheritdoc/>
+		public async Task<BlobAliasLocator[]> FindAliasesAsync(string alias, int? maxResults = null, CancellationToken cancellationToken = default)
+		{
+			_logger.LogDebug("Finding nodes with alias {Alias}", alias);
+			using (HttpClient httpClient = _createClient())
+			{
+				string queryPath = $"{_basePath}/nodes?alias={HttpUtility.UrlEncode(alias.ToString())}";
+				if (maxResults != null)
+				{
+					queryPath += $"&maxResults={maxResults.Value}";
+				}
+
+				using (HttpRequestMessage request = new HttpRequestMessage(HttpMethod.Get, queryPath))
+				{
+					using (HttpResponseMessage response = await httpClient.SendAsync(request, cancellationToken))
+					{
+						response.EnsureSuccessStatusCode();
+
+						FindNodesResponse? message = await response.Content.ReadFromJsonAsync<FindNodesResponse>(cancellationToken: cancellationToken);
+
+						BlobAliasLocator[] aliases = new BlobAliasLocator[message!.Nodes.Count];
+						for (int idx = 0; idx < message.Nodes.Count; idx++)
+						{
+							FindNodeResponse node = message.Nodes[idx];
+							aliases[idx] = new BlobAliasLocator(node.Blob, node.Rank, node.Data);
+						}
+
+						return aliases;
+					}
+				}
+			}
+		}
+
+		#endregion
+
+		#region Refs
+
+		/// <inheritdoc/>
+		public async Task<bool> DeleteRefAsync(RefName name, CancellationToken cancellationToken)
+		{
+			_logger.LogDebug("Deleting ref {RefName}", name);
+			using (HttpClient httpClient = _createClient())
+			{
+				using (HttpRequestMessage request = new HttpRequestMessage(HttpMethod.Delete, $"{_basePath}/refs/{name}"))
+				{
+					using (HttpResponseMessage response = await httpClient.SendAsync(request, cancellationToken))
+					{
+						if (response.IsSuccessStatusCode)
+						{
+							return true;
+						}
+						if (response.StatusCode == HttpStatusCode.NotFound)
+						{
+							return false;
+						}
+
+						response.EnsureSuccessStatusCode();
+						return false;
+					}
+				}
+			}
+		}
+
+		/// <inheritdoc/>
+		public async Task<BlobLocator?> TryReadRefAsync(RefName name, RefCacheTime cacheTime = default, CancellationToken cancellationToken = default)
+		{
+			using (HttpClient httpClient = _createClient())
+			{
+				using (HttpRequestMessage request = new HttpRequestMessage(HttpMethod.Get, $"{_basePath}/refs/{name}"))
+				{
+					if (cacheTime.IsSet())
+					{
+						request.Headers.CacheControl = new CacheControlHeaderValue { MaxAge = cacheTime.MaxAge };
+					}
+
+					using (HttpResponseMessage response = await httpClient.SendAsync(request, cancellationToken))
+					{
+						if (response.StatusCode == HttpStatusCode.NotFound)
+						{
+							_logger.LogDebug("Read ref {RefName} -> None", name);
+							return null;
+						}
+						else if (!response.IsSuccessStatusCode)
+						{
+							_logger.LogError("Unable to read ref {RefName} (status: {StatusCode}, body: {Body})", name, response.StatusCode, await response.Content.ReadAsStringAsync(cancellationToken));
+							throw new StorageException($"Unable to read ref '{name}'");
+						}
+						else
+						{
+							response.EnsureSuccessStatusCode();
+							ReadRefResponse? data = await response.Content.ReadFromJsonAsync<ReadRefResponse>(cancellationToken: cancellationToken);
+							_logger.LogDebug("Read ref {RefName} -> {Blob}", name, data!.Target);
+
+							return data.Target;
+						}
+					}
+				}
+			}
+		}
+
+		/// <inheritdoc/>
+		public async Task WriteRefAsync(RefName name, BlobLocator locator, RefOptions? options = null, CancellationToken cancellationToken = default)
+		{
+			_logger.LogDebug("Writing ref {RefName} -> {RefTarget}", name, locator);
+			using (HttpClient httpClient = _createClient())
+			{
+				WriteRefRequest request = new WriteRefRequest();
+				request.Target = locator;
+				request.Options = options;
+
+				using (HttpResponseMessage response = await httpClient.PutAsync($"{_basePath}/refs/{name}", request, cancellationToken))
+				{
+					response.EnsureSuccessStatusCode();
+				}
+			}
+		}
+
+		#endregion
+
 		/// <inheritdoc/>
 		public void GetStats(StorageStats stats) { }
+	}
+
+	/// <summary>
+	/// Factory for constructing HttpStorageBackend instances
+	/// </summary>
+	public sealed class HttpStorageBackendFactory
+	{
+		readonly IHttpClientFactory _httpClientFactory;
+		readonly StorageBackendCache _backendCache;
+		readonly ILogger<HttpStorageBackend> _backendLogger;
+
+		/// <summary>
+		/// Constructor
+		/// </summary>
+		public HttpStorageBackendFactory(IHttpClientFactory httpClientFactory, StorageBackendCache backendCache, ILogger<HttpStorageBackend> backendLogger)
+		{
+			_httpClientFactory = httpClientFactory;
+			_backendCache = backendCache;
+			_backendLogger = backendLogger;
+		}
+
+		/// <summary>
+		/// Creates a new HTTP storage client
+		/// </summary>
+		/// <param name="basePath">Base path for all requests</param>
+		/// <param name="accessToken">Custom access token to use for requests</param>
+		/// <param name="withBackendCache"></param>
+		public IStorageBackend CreateBackend(string basePath, string? accessToken = null, bool withBackendCache = true)
+		{
+			HttpClient CreateClient()
+			{
+				HttpClient httpClient = _httpClientFactory.CreateClient(HordeHttpClient.HttpClientName);
+				if (accessToken != null)
+				{
+					httpClient.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", accessToken);
+				}
+				return httpClient;
+			}
+
+			IStorageBackend backend = new HttpStorageBackend(basePath, CreateClient, _backendLogger);
+			if (_backendCache != null && withBackendCache)
+			{
+				backend = _backendCache.CreateWrapper(basePath, backend);
+			}
+
+			return backend;
+		}
+
+		/// <summary>
+		/// Creates a new HTTP storage client
+		/// </summary>
+		/// <param name="namespaceId">Namespace to create a client for</param>
+		/// <param name="accessToken">Custom access token to use for requests</param>
+		/// <param name="withBackendCache">Whether to enable the backend cache, which caches full bundles to disk</param>
+		public IStorageBackend CreateBackend(NamespaceId namespaceId, string? accessToken = null, bool withBackendCache = true) => CreateBackend($"api/v1/storage/{namespaceId}", accessToken, withBackendCache);
 	}
 }

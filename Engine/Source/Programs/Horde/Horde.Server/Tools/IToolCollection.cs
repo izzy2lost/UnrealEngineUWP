@@ -54,10 +54,17 @@ namespace Horde.Server.Tools
 		Task<ITool?> UpdateDeploymentAsync(ITool tool, ToolDeploymentId deploymentId, ToolDeploymentState action);
 
 		/// <summary>
-		/// Gets the storage client for a particular tool
+		/// Gets the storage backend for a particular tool
 		/// </summary>
-		/// <param name="tool">The tool to get a storage client for</param>
-		/// <returns>Instance of the storage client</returns>
+		/// <param name="tool">The tool to get a storage backend for</param>
+		/// <returns>Instance of the backend client</returns>
+		IStorageBackend CreateStorageBackend(ITool tool);
+
+		/// <summary>
+		/// Gets the storage backend for a particular tool
+		/// </summary>
+		/// <param name="tool">The tool to get a storage backend for</param>
+		/// <returns>Instance of the backend client</returns>
 		IStorageClient CreateStorageClient(ITool tool);
 
 		/// <summary>

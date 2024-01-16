@@ -10,6 +10,7 @@ using System.Threading.Tasks;
 using EpicGames.Core;
 using EpicGames.Horde;
 using EpicGames.Horde.Storage;
+using EpicGames.Horde.Storage.Backends;
 using EpicGames.Horde.Storage.Clients;
 using Google.Protobuf.WellKnownTypes;
 using Grpc.Core;
@@ -70,6 +71,7 @@ namespace Horde.Agent.Tests
 			_serviceCollection.AddSingleton<IServerLoggerFactory, FakeServerLoggerFactory>();
 			_serviceCollection.AddSingleton<BundleCache>();
 			_serviceCollection.AddSingleton<StorageBackendCache>();
+			_serviceCollection.AddSingleton<HttpStorageBackendFactory>();
 			_serviceCollection.AddSingleton<HttpStorageClientFactory>();
 			_serviceCollection.AddSingleton<LeaseLoggerFactory>();
 

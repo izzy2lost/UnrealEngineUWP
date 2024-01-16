@@ -1,6 +1,7 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 using System;
+using System.Diagnostics;
 using EpicGames.Core;
 
 namespace EpicGames.Horde.Storage.Bundles.V2
@@ -10,13 +11,11 @@ namespace EpicGames.Horde.Storage.Bundles.V2
 	/// </summary>
 	sealed class PacketReader : IDisposable
 	{
-		readonly IStorageClient _storageClient;
+		readonly BundleStorageClient _storageClient;
 		readonly BundleCache _cache;
-		readonly BundleHandle _bundleHandle;
-		readonly FlushedPacketHandle _packetHandle;
 
 		Packet _decodedPacket;
-		IBlobHandle?[] _cachedImportHandles;
+		object?[] _cachedImportHandles;
 		IRefCountedHandle _memoryOwner;
 
 		/// <summary>
@@ -29,25 +28,21 @@ namespace EpicGames.Horde.Storage.Bundles.V2
 		/// </summary>
 		/// <param name="storageClient"></param>
 		/// <param name="cache"></param>
-		/// <param name="bundleHandle"></param>
-		/// <param name="packetHandle"></param>
 		/// <param name="decodedPacket">Data for the packet</param>
 		/// <param name="memoryOwner">Owner for the packet data</param>
-		public PacketReader(IStorageClient storageClient, BundleCache cache, BundleHandle bundleHandle, FlushedPacketHandle packetHandle, Packet decodedPacket, IRefCountedHandle memoryOwner)
+		public PacketReader(BundleStorageClient storageClient, BundleCache cache, Packet decodedPacket, IRefCountedHandle memoryOwner)
 		{
 			_storageClient = storageClient;
 			_cache = cache;
-			_bundleHandle = bundleHandle;
-			_packetHandle = packetHandle;
 			_decodedPacket = decodedPacket;
 			_memoryOwner = memoryOwner;
-			_cachedImportHandles = new IBlobHandle?[_decodedPacket.GetImportCount()];
+			_cachedImportHandles = new object?[_decodedPacket.GetImportCount()];
 		}
 
 		/// <inheritdoc/>
 		public void Dispose()
 		{
-			if(_memoryOwner != null)
+			if (_memoryOwner != null)
 			{
 				_memoryOwner.Dispose();
 				_memoryOwner = null!;
@@ -65,7 +60,7 @@ namespace EpicGames.Horde.Storage.Bundles.V2
 			IBlobHandle[] imports = new IBlobHandle[_decodedPacket.GetImportCount()];
 			for (int idx = 0; idx < imports.Length; idx++)
 			{
-				imports[idx] = GetImportHandle(idx);
+				imports[idx] = GetImportedBlobHandle(idx);
 			}
 			return new BlobDataWithOwner(Packet.BlobType, _decodedPacket.Data, imports, _memoryOwner.AddRef());
 		}
@@ -84,7 +79,7 @@ namespace EpicGames.Horde.Storage.Bundles.V2
 			IBlobHandle[] imports = new IBlobHandle[exportHeader.Imports.Length];
 			for (int idx = 0; idx < exportHeader.Imports.Length; idx++)
 			{
-				imports[idx] = GetImportHandle(exportHeader.Imports[idx]);
+				imports[idx] = GetImportedBlobHandle(exportHeader.Imports[idx]);
 			}
 
 			if (_memoryOwner == null)
@@ -110,33 +105,52 @@ namespace EpicGames.Horde.Storage.Bundles.V2
 		/// <summary>
 		/// Gets an import handle for the packet
 		/// </summary>
-		IBlobHandle GetImportHandle(int index)
+		IBlobHandle GetImportedBlobHandle(int blobIdx)
 		{
-			IBlobHandle? importHandle = _cachedImportHandles[index];
-			if (importHandle is null)
+			IBlobHandle? blobHandle = _cachedImportHandles[blobIdx] as IBlobHandle;
+			if (blobHandle is null)
 			{
-				PacketImport import = _decodedPacket.GetImport(index);
+				PacketImport blobImport = _decodedPacket.GetImport(blobIdx);
+				Trace.Assert(blobImport.BaseIdx != -1);
 
-				Utf8String fragment = import.Fragment.Clone(); // Handles may outlive the current packet reader, so duplicate the fragment string.
-				switch (import.BaseIdx)
-				{
-					case PacketImport.InvalidBaseIdx:
-						importHandle = _storageClient.CreateBlobHandle(new BlobLocator(fragment));
-						break;
-					case PacketImport.CurrentBundleBaseIdx:
-						importHandle = new FlushedPacketHandle(_storageClient, _bundleHandle, fragment, _cache);
-						break;
-					case PacketImport.CurrentPacketBaseIdx:
-						importHandle = new FlushedExportHandle(_packetHandle, fragment);
-						break;
-					default:
-						importHandle = GetImportHandle(import.BaseIdx).GetFragmentHandle(fragment);
-						break;
-				}
+				int packetIdx = blobImport.BaseIdx;
+				PacketHandle packetHandle = GetImportedPacketHandle(packetIdx);
 
-				_cachedImportHandles[index] = importHandle;
+				blobHandle = new ExportHandle(packetHandle, blobImport.Fragment);
+				_cachedImportHandles[blobIdx] = blobHandle;
 			}
-			return importHandle;
+			return blobHandle;
+		}
+
+		PacketHandle GetImportedPacketHandle(int packetIdx)
+		{
+			PacketHandle? packetHandle = _cachedImportHandles[packetIdx] as PacketHandle;
+			if (packetHandle is null)
+			{
+				PacketImport packetImport = _decodedPacket.GetImport(packetIdx);
+				Trace.Assert(packetImport.BaseIdx != -1);
+
+				int bundleIdx = packetImport.BaseIdx;
+				BundleHandle bundleHandle = GetImportedBundleHandle(bundleIdx);
+
+				packetHandle = new FlushedPacketHandle(_storageClient, bundleHandle, packetImport.Fragment, _cache);
+				_cachedImportHandles[packetIdx] = packetHandle;
+			}
+			return packetHandle;
+		}
+
+		BundleHandle GetImportedBundleHandle(int bundleIdx)
+		{
+			BundleHandle? bundleHandle = _cachedImportHandles[bundleIdx] as BundleHandle;
+			if (bundleHandle is null)
+			{
+				PacketImport bundleImport = _decodedPacket.GetImport(bundleIdx);
+				Trace.Assert(bundleImport.BaseIdx == -1);
+
+				bundleHandle = new FlushedBundleHandle(_storageClient, new BlobLocator(bundleImport.Fragment.Clone()));
+				_cachedImportHandles[bundleIdx] = bundleHandle;
+			}
+			return bundleHandle;
 		}
 	}
 }

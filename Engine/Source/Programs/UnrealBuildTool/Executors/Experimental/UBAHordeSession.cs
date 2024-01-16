@@ -161,7 +161,7 @@ namespace UnrealBuildTool
 
 		readonly UBAExecutor _owner;
 
-		readonly IStorageClient _storage = BundleStorageClient.CreateFromMemory(NullLogger.Instance);
+		readonly BundleStorageClient _storage = BundleStorageClient.CreateInMemory(NullLogger.Instance);
 		BlobLocator _ubaAgentLocator;
 
 		readonly ServiceProvider _serviceProvider;
@@ -589,7 +589,7 @@ namespace UnrealBuildTool
 						}
 
 						logger.LogInformation("Uploading files...");
-						await channel.UploadFilesAsync("", tool, _storage, cancellationToken);
+						await channel.UploadFilesAsync("", tool, _storage.Backend, cancellationToken);
 
 						string hordeHost = _owner.UBAConfig.Host;
 						if (!String.IsNullOrEmpty(hordeConfig.HordeHost))

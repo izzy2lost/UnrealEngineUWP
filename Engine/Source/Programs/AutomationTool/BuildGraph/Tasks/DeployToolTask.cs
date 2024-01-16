@@ -154,8 +154,7 @@ namespace AutomationTool.Tasks
 
 			string basePath = $"api/v1/tools/{Parameters.Id}";
 			using HttpStorageBackend httpStorageBackend = new HttpStorageBackend(basePath, CreateHttpClient, Logger);
-			using HttpStorageClient httpStorageClient = new HttpStorageClient(basePath, CreateHttpClient, httpStorageBackend, Logger);
-			using BundleStorageClient storageClient = new BundleStorageClient(httpStorageClient, BundleCache.None, Logger);
+			using BundleStorageClient storageClient = new BundleStorageClient(httpStorageBackend, BundleCache.None, Logger);
 
 			await using (IStorageWriter treeWriter = storageClient.CreateWriter())
 			{

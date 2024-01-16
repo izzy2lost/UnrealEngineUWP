@@ -52,7 +52,7 @@ namespace Horde.Server.Tests
 
 		static async ValueTask<Blob> ReadBlobAsync(IStorageClient store, BlobLocator locator)
 		{
-			using (BlobData blobData = await store.ReadBlobAsync(locator))
+			using (BlobData blobData = await store.CreateBlobHandle(locator).ReadBlobDataAsync())
 			{
 				byte[] data = blobData.Data.ToArray();
 				List<BlobLocator> locators = blobData.Refs.ConvertAll(x => x.GetLocator());

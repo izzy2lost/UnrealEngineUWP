@@ -18,6 +18,7 @@ using Microsoft.Extensions.Logging.Abstractions;
 using EpicGames.Horde.Storage.Bundles;
 using EpicGames.Horde.Storage.Bundles.V1;
 using EpicGames.Serialization;
+using EpicGames.Horde.Storage.Backends;
 
 namespace EpicGames.Horde.Tests
 {
@@ -59,7 +60,7 @@ namespace EpicGames.Horde.Tests
 
 		static async Task<byte[]> CreateBundleNormalAsync()
 		{
-			using MemoryStorageClient memoryStore = new MemoryStorageClient();
+			using MemoryStorageBackend memoryStore = new MemoryStorageBackend();
 			using BundleStorageClient store = new BundleStorageClient(memoryStore, BundleCache.None, NullLogger.Instance);
 			await using IStorageWriter writer = store.CreateWriter(options: new BundleOptions { MaxVersion = BundleVersion.ImportHashes, CompressionFormat = BundleCompressionFormat.None });
 
@@ -67,10 +68,8 @@ namespace EpicGames.Horde.Tests
 			IBlobHandle<TextNode> handle = await writer.WriteBlobAsync(node);
 			await writer.FlushAsync();
 
-			IBlobHandle bundleHandle = store.CreateBlobHandle(handle.GetLocator().BaseLocator);
-			using BlobData blobData = await bundleHandle.ReadBlobDataAsync();
-
-			return blobData.Data.ToArray();
+			IReadOnlyMemoryOwner<byte> owner = await memoryStore.ReadBlobAsync(handle.GetLocator().BaseLocator, 0, null);
+			return owner.Memory.ToArray();
 		}
 
 		static byte[] CreateBundleManually()
@@ -101,7 +100,7 @@ namespace EpicGames.Horde.Tests
 		{
 			using IMemoryCache cache = new MemoryCache(new MemoryCacheOptions());
 
-			using MemoryStorageClient blobStore = new MemoryStorageClient();
+			using MemoryStorageBackend blobStore = new MemoryStorageBackend();
 			using BundleStorageClient bundleStore = new BundleStorageClient(blobStore, BundleCache.None, NullLogger.Instance);
 
 			await TestTreeAsync(bundleStore, new BundleOptions { MaxBlobSize = 1024 * 1024 });
@@ -115,7 +114,7 @@ namespace EpicGames.Horde.Tests
 		{
 			using IMemoryCache cache = new MemoryCache(new MemoryCacheOptions());
 
-			using MemoryStorageClient blobStore = new MemoryStorageClient();
+			using MemoryStorageBackend blobStore = new MemoryStorageBackend();
 			using BundleStorageClient bundleStore = new BundleStorageClient(blobStore, BundleCache.None, NullLogger.Instance);
 
 			await TestTreeAsync(bundleStore, new BundleOptions { MaxBlobSize = 1 });
@@ -220,7 +219,7 @@ namespace EpicGames.Horde.Tests
 		[TestMethod]
 		public async Task SimpleNodeAsync()
 		{
-			using MemoryStorageClient store = new MemoryStorageClient();
+			using KeyValueStorageClient store = KeyValueStorageClient.CreateInMemory();
 
 			RefName refName = new RefName("test");
 
@@ -239,7 +238,7 @@ namespace EpicGames.Horde.Tests
 		[TestMethod]
 		public async Task DirectoryNodesAsync()
 		{
-			using MemoryStorageClient store = new MemoryStorageClient();
+			using KeyValueStorageClient store = KeyValueStorageClient.CreateInMemory();
 
 			// Generate a tree
 			{
@@ -286,7 +285,7 @@ namespace EpicGames.Horde.Tests
 		public async Task FileNodesAsync()
 		{
 			using IMemoryCache cache = new MemoryCache(new MemoryCacheOptions());
-			using MemoryStorageClient store = new MemoryStorageClient();
+			using BundleStorageClient store = BundleStorageClient.CreateInMemory(NullLogger.Instance);
 			BundleReader reader = new BundleReader(store, BundleCache.None, NullLogger.Instance);
 
 			// Generate a tree
@@ -334,7 +333,7 @@ namespace EpicGames.Horde.Tests
 		[TestMethod]
 		public async Task StreamTestAsync()
 		{
-			using MemoryStorageClient memoryStore = new MemoryStorageClient();
+			using MemoryStorageBackend memoryStore = new MemoryStorageBackend();
 			using BundleStorageClient store = new BundleStorageClient(memoryStore, BundleCache.None, NullLogger.Instance);
 
 			const int Length = 4096;
@@ -375,7 +374,7 @@ namespace EpicGames.Horde.Tests
 		public async Task LargeFileTestAsync()
 		{
 			using IMemoryCache cache = new MemoryCache(new MemoryCacheOptions());
-			using MemoryStorageClient memoryStore = new MemoryStorageClient();
+			using MemoryStorageBackend memoryStore = new MemoryStorageBackend();
 			using BundleStorageClient store = new BundleStorageClient(memoryStore, BundleCache.None, NullLogger.Instance);
 
 			const int Length = 1024;

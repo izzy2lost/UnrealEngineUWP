@@ -206,7 +206,7 @@ namespace EpicGames.Horde.Storage.ObjectStores
 				FileInfo fileInfo = GetBlobFile(locator).ToFileInfo();
 				if (fileInfo.Length == 0)
 				{
-					throw new Exception($"Unable to map empty memory mapped file: {fileInfo.FullName}");
+					throw new StorageException($"Unable to map empty memory mapped file: {fileInfo.FullName}");
 				}
 
 				long maxSize = MaxMappedSize - fileInfo.Length;

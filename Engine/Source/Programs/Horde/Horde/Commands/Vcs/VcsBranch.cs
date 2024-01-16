@@ -26,7 +26,7 @@ namespace Horde.Commands.Vcs
 			using IStorageClient store = CreateStorageClient();
 
 			RefName branchName = new RefName(Name);
-			if (await store.HasRefAsync(branchName))
+			if (await store.RefExistsAsync(branchName))
 			{
 				logger.LogError("Branch {BranchName} already exists - use checkout instead.", branchName);
 				return 1;

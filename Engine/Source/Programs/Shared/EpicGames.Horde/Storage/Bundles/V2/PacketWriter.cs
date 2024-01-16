@@ -14,8 +14,8 @@ namespace EpicGames.Horde.Storage.Bundles.V2
 	/// </summary>
 	public sealed class PacketWriter : IDisposable
 	{
-		readonly IBlobHandle _bundleHandle;
-		readonly IBlobHandle _packetHandle;
+		readonly BundleHandle _bundleHandle;
+		readonly PacketHandle _packetHandle;
 		readonly IMemoryAllocator<byte> _allocator;
 		readonly object _lockObject;
 
@@ -26,8 +26,8 @@ namespace EpicGames.Horde.Storage.Bundles.V2
 
 		readonly List<BlobType> _types = new List<BlobType>();
 		readonly List<PacketImport> _imports = new List<PacketImport>();
-		readonly List<IBlobHandle> _importHandles = new List<IBlobHandle>();
-		readonly Dictionary<IBlobHandle, int> _importMap = new Dictionary<IBlobHandle, int>();
+		readonly List<object> _importHandles = new List<object>();
+		readonly Dictionary<object, int> _importMap = new Dictionary<object, int>();
 		readonly List<int> _exportOffsets = new List<int>();
 
 		/// <summary>
@@ -38,7 +38,7 @@ namespace EpicGames.Horde.Storage.Bundles.V2
 		/// <summary>
 		/// Constructor
 		/// </summary>
-		public PacketWriter(IBlobHandle bundleHandle, IBlobHandle packetHandle, IMemoryAllocator<byte> allocator, object lockObject)
+		public PacketWriter(BundleHandle bundleHandle, PacketHandle packetHandle, IMemoryAllocator<byte> allocator, object lockObject)
 		{
 			_bundleHandle = bundleHandle;
 			_packetHandle = packetHandle;
@@ -59,9 +59,10 @@ namespace EpicGames.Horde.Storage.Bundles.V2
 			_bufferHandle = RefCountedHandle.Create(_allocator.Alloc(1024));
 			_buffer = _bufferHandle.Target;
 
-			Bundle.WriteSignature(_buffer.Span, new BundleSignature(BundleVersion.LatestV2, 0));
+			BundleSignature signature = new BundleSignature(BundleVersion.LatestV2, 0);
+			signature.Write(_buffer.Span);
 
-			_length = Bundle.SignatureLength + (sizeof(int) * 3);
+			_length = BundleSignature.NumBytes + (sizeof(int) * 3);
 			_exportOffsets.Add(_length);
 		}
 
@@ -93,7 +94,7 @@ namespace EpicGames.Horde.Storage.Bundles.V2
 			int[] importIndices = new int[references.Count];
 			for (int idx = 0; idx < references.Count; idx++)
 			{
-				importIndices[idx] = FindOrAddImport(references[idx]);
+				importIndices[idx] = FindOrAddImport(references[idx].Unwrap());
 			}
 
 			int typeIdx = FindOrAddType(type);
@@ -152,7 +153,7 @@ namespace EpicGames.Horde.Storage.Bundles.V2
 				for (int idx = 0; idx < header.Imports.Length; idx++)
 				{
 					int importIdx = header.Imports[idx];
-					imports[idx] = _importHandles[importIdx + PacketImport.Bias];
+					imports[idx] = (IBlobHandle)_importHandles[importIdx + PacketImport.Bias];
 				}
 
 				IReadOnlyMemoryOwner<byte> body = ReadOnlyMemoryOwner.Create(export.GetPayload(), _bufferHandle.AddRef());
@@ -176,50 +177,78 @@ namespace EpicGames.Horde.Storage.Bundles.V2
 			return idx;
 		}
 
+		int AddImport(int baseIdx, Utf8String fragment, object handle)
+		{
+			PacketImport import = new PacketImport(baseIdx, fragment);
+			int idx = _imports.Count;
+			_imports.Add(import);
+			_importMap.Add(handle, idx);
+
+			Debug.Assert(idx + PacketImport.Bias == _importHandles.Count);
+			_importHandles.Add(handle);
+
+			return idx;
+		}
+
 		/// <summary>
 		/// Adds a new imported blob locator
 		/// </summary>
 		/// <param name="handle">Handle to add</param>
 		/// <returns>Index of the import</returns>
-		public int FindOrAddImport(IBlobHandle handle)
+		public int FindOrAddImport(IBlobHandle handle) => FindOrAddImportInternal(handle);
+
+		int FindOrAddImportInternal(object handle)
 		{
 			int idx;
-			if (!_importMap.TryGetValue(handle, out idx))
+			if (_importMap.TryGetValue(handle, out idx))
 			{
-				Utf8String fragment;
-				if (!handle.TryGetIdentifier(out fragment))
-				{
-					throw new InvalidOperationException("Handle does not have an existing import entry");
-				}
-
-				IBlobHandle? outer = handle.Outer;
-
-				int baseIdx;
-				if (outer != null)
-				{
-					baseIdx = FindOrAddImport(outer);
-				}
-				else
-				{
-					baseIdx = PacketImport.InvalidBaseIdx;
-				}
-
-				PacketImport import = new PacketImport(baseIdx, fragment);
-				idx = _imports.Count;
-				_imports.Add(import);
-				_importMap.Add(handle, idx);
-
-				Debug.Assert(idx + PacketImport.Bias == _importHandles.Count);
-				_importHandles.Add(handle);
+				return idx;
 			}
-			return idx;
+			else if (handle is ExportHandle exportHandle)
+			{
+				int baseIdx = FindOrAddImportInternal(exportHandle.Packet);
+				return AddImport(baseIdx, exportHandle.GetIdentifier(), handle);
+			}
+			else if (handle is PacketHandle packetHandle)
+			{
+				Utf8StringBuilder builder = new Utf8StringBuilder();
+				if (!packetHandle.TryAppendIdentifier(builder))
+				{
+					throw new NotSupportedException();
+				}
+
+				int baseIdx = FindOrAddImportInternal(packetHandle.Bundle);
+				return AddImport(baseIdx, builder.ToUtf8String(), handle);
+			}
+			else if (handle is BundleHandle bundleHandle)
+			{
+				BlobLocator locator;
+				if (!bundleHandle.TryGetLocator(out locator))
+				{
+					throw new NotSupportedException();
+				}
+				return AddImport(-1, locator.Path, handle);
+			}
+			else if (handle is IBlobHandle blobHandle)
+			{
+				BlobLocator locator;
+				if (!blobHandle.TryGetLocator(out locator))
+				{
+					throw new NotSupportedException();
+				}
+				return AddImport(-1, locator.Path, handle);
+			}
+			else
+			{
+				throw new NotSupportedException();
+			}
 		}
 
 		/// <summary>
 		/// Gets the import assigned to a particular index
 		/// </summary>
 		public IBlobHandle GetImport(int importIdx)
-			=> _importHandles[importIdx + PacketImport.Bias];
+			=> (_importHandles[importIdx + PacketImport.Bias] as IBlobHandle) ?? throw new InvalidOperationException("Import is not a blob handle");
 
 		/// <summary>
 		/// Gets data to write new export

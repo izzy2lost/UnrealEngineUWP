@@ -9,7 +9,6 @@ using EpicGames.Horde.Compute;
 using EpicGames.Horde.Compute.Clients;
 using EpicGames.Horde.Storage;
 using EpicGames.Horde.Storage.Bundles;
-using EpicGames.Horde.Storage.Clients;
 using EpicGames.Horde.Storage.Nodes;
 using Microsoft.Extensions.Logging;
 
@@ -127,15 +126,14 @@ namespace Horde.Commands.Compute
 			JsonComputeTask jsonComputeTask = JsonSerializer.Deserialize<JsonComputeTask>(data, new JsonSerializerOptions { AllowTrailingCommas = true, PropertyNameCaseInsensitive = true, PropertyNamingPolicy = JsonNamingPolicy.CamelCase })!;
 
 			// Create a sandbox from the data to be uploaded
-			using MemoryStorageClient memoryStorage = new MemoryStorageClient();
-			using BundleStorageClient storage = new BundleStorageClient(memoryStorage, BundleCache.None, logger);
+			using BundleStorageClient storage = BundleStorageClient.CreateInMemory(logger);
 			BlobLocator sandbox = await CreateSandboxAsync(TaskFile, storage, cancellationToken);
 
 			// Open a socket and upload the sandbox
 			using (AgentMessageChannel channel = lease.Socket.CreateAgentMessageChannel(ControlChannelId, 4 * 1024 * 1024))
 			{
 				await channel.WaitForAttachAsync(cancellationToken);
-				await channel.UploadFilesAsync("", sandbox, storage, cancellationToken);
+				await channel.UploadFilesAsync("", sandbox, storage.Backend, cancellationToken);
 
 				await using (AgentManagedProcess process = await channel.ExecuteAsync(jsonComputeTask.Executable, jsonComputeTask.Arguments, jsonComputeTask.WorkingDir, jsonComputeTask.EnvVars, ExecuteProcessFlags.None, cancellationToken))
 				{

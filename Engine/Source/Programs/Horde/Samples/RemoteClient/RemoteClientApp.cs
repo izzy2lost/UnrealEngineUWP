@@ -110,15 +110,13 @@ namespace RemoteClient
 				await channel.ForkAsync(BackgroundChannelId, 4 * 1024 * 1024, default);
 
 				// Upload the sandbox to the primary channel.
-				await using BundleCache cache = new BundleCache();
-				using MemoryStorageClient memoryStorage = new MemoryStorageClient();
-				using BundleStorageClient storage = new BundleStorageClient(memoryStorage, cache, logger);
+				using BundleStorageClient storage =  BundleStorageClient.CreateInMemory(logger);
 
 				await using (IStorageWriter writer = storage.CreateWriter())
 				{
 					IBlobHandle<DirectoryNode> sandbox = await writer.WriteFilesAsync(uploadDir);
 					await writer.FlushAsync();
-					await channel.UploadFilesAsync("", sandbox.GetLocator(), storage);
+					await channel.UploadFilesAsync("", sandbox.GetLocator(), storage.Backend);
 				}
 
 				// Run the task remotely in the background and echo the output to the console

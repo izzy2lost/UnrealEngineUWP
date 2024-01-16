@@ -7,7 +7,6 @@ using System.Threading;
 using System.Threading.Tasks;
 using EpicGames.Core;
 using EpicGames.Horde.Storage;
-using EpicGames.Horde.Storage.Clients;
 using EpicGames.Horde.Logs;
 using Horde.Agent.Utility;
 using HordeCommon;
@@ -17,6 +16,7 @@ using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.VisualStudio.TestTools.UnitTesting;
 using System.Linq;
 using EpicGames.Horde.Storage.Bundles.V1;
+using EpicGames.Horde.Storage.Bundles;
 
 namespace Horde.Agent.Tests
 {
@@ -139,7 +139,7 @@ namespace Horde.Agent.Tests
 		public async Task StorageLoggerTestAsync()
 		{
 			await using BundleCache cache = new BundleCache();
-			using MemoryStorageClient store = new MemoryStorageClient();
+			using BundleStorageClient store = BundleStorageClient.CreateInMemory(NullLogger.Instance);
 
 			BundleReader reader = new BundleReader(store, cache, NullLogger.Instance);
 

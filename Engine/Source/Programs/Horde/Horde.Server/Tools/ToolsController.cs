@@ -63,8 +63,8 @@ namespace Horde.Server.Tools
 				return Forbid(ToolAclAction.UploadTool, id);
 			}
 
-			using IStorageClient storageClient = _toolCollection.CreateStorageClient(tool);
-			return await StorageController.WriteBlobAsync(storageClient, file, cancellationToken: cancellationToken);
+			using IStorageBackend storageBackend = _toolCollection.CreateStorageBackend(tool);
+			return await StorageController.WriteBlobAsync(storageBackend, file, cancellationToken: cancellationToken);
 		}
 
 		/// <summary>
@@ -389,8 +389,8 @@ namespace Horde.Server.Tools
 				return BadRequest("Invalid blob id for tool");
 			}
 
-			using IStorageClient storageClient = _toolCollection.CreateStorageClient(tool);
-			return StorageController.ReadBlobInternalAsync(storageClient, locator, Request.Headers, cancellationToken);
+			using IStorageBackend storageBackend = _toolCollection.CreateStorageBackend(tool);
+			return StorageController.ReadBlobInternalAsync(storageBackend, locator, Request.Headers, cancellationToken);
 		}
 
 		bool AuthorizeDownload(ToolConfig toolConfig)

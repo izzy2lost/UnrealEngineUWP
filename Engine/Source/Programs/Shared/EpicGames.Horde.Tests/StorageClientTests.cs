@@ -62,16 +62,14 @@ namespace EpicGames.Horde.Tests
 		[TestMethod]
 		public async Task TestBasicAsync()
 		{
-			using MemoryStorageClient store = new MemoryStorageClient();
+			using KeyValueStorageClient store = KeyValueStorageClient.CreateInMemory();
 			await TestBasicAsync(store);
 		}
 
 		[TestMethod]
 		public async Task TestBasicBundleV2Async()
 		{
-			using MemoryStorageClient store = new MemoryStorageClient();
-			await using BundleCache cache = new BundleCache();
-			using BundleStorageClient storeV2 = new BundleStorageClient(store, cache, NullLogger.Instance);
+			using BundleStorageClient storeV2 = BundleStorageClient.CreateInMemory(NullLogger.Instance);
 			await TestBasicAsync(storeV2);
 		}
 
@@ -93,8 +91,7 @@ namespace EpicGames.Horde.Tests
 		{
 			await using BundleCache cache = new BundleCache();
 
-			using MemoryStorageClient memoryStore = new MemoryStorageClient();
-			using BundleStorageClient store = new BundleStorageClient(memoryStore, cache, NullLogger.Instance);
+			using BundleStorageClient store = BundleStorageClient.CreateInMemory(NullLogger.Instance);
 
 			IBlobHandle<TestNode> nodeRef2;
 			await using (IStorageWriter writer = store.CreateWriter())
@@ -118,8 +115,7 @@ namespace EpicGames.Horde.Tests
 		{
 			await using BundleCache cache = new BundleCache();
 
-			using MemoryStorageClient memoryStore = new MemoryStorageClient();
-			using BundleStorageClient store = new BundleStorageClient(memoryStore, cache, NullLogger.Instance);
+			using BundleStorageClient store = BundleStorageClient.CreateInMemory(NullLogger.Instance);
 
 			await using IStorageWriter writer = store.CreateWriter(options: new BundleOptions { MinCompressionPacketSize = 100, MaxBlobSize = 1024 * 1024, MaxVersion = BundleVersion.LatestV2 });
 			IBlobHandle<TestNode> nodeRef1 = await writer.WriteBlobAsync(new TestNode(123) { Padding = new byte[1024] });
@@ -128,9 +124,9 @@ namespace EpicGames.Horde.Tests
 			IBlobHandle<TestNode> nodeRef3 = await writer.WriteBlobAsync(new TestNode(789, nodeRef2));
 
 			// nodeRef1 is in a flushed bundle
-			BundleWriter.PendingExportHandle export1 = (BundleWriter.PendingExportHandle)nodeRef1.Unwrap();
-			BundleWriter.PendingPacketHandle packet1 = (BundleWriter.PendingPacketHandle)export1.Outer!;
-			BundleWriter.PendingBundleHandle bundle1 = (BundleWriter.PendingBundleHandle)packet1.Outer!;
+			ExportHandle export1 = (ExportHandle)nodeRef1.Unwrap();
+			BundleWriter.PendingPacketHandle packet1 = (BundleWriter.PendingPacketHandle)export1.Packet;
+			BundleWriter.PendingBundleHandle bundle1 = (BundleWriter.PendingBundleHandle)packet1.Bundle;
 			Assert.IsNotNull(packet1.FlushedHandle);
 			Assert.IsNotNull(bundle1.FlushedHandle);
 
@@ -138,13 +134,13 @@ namespace EpicGames.Horde.Tests
 			Assert.AreEqual(123, node1.Value);
 
 			// nodeRef2 is in a flushed packet, unflushed bundle
-			BundleWriter.PendingExportHandle export2 = (BundleWriter.PendingExportHandle)nodeRef2.Unwrap();
+			ExportHandle export2 = (ExportHandle)nodeRef2.Unwrap();
 
-			BundleWriter.PendingPacketHandle packet2 = (BundleWriter.PendingPacketHandle)export2.Outer!;
+			BundleWriter.PendingPacketHandle packet2 = (BundleWriter.PendingPacketHandle)export2.Packet;
 			Assert.AreNotEqual(packet1, packet2);
 			Assert.IsNotNull(packet2.FlushedHandle);
 
-			BundleWriter.PendingBundleHandle bundle2 = (BundleWriter.PendingBundleHandle)packet2.Outer!;
+			BundleWriter.PendingBundleHandle bundle2 = (BundleWriter.PendingBundleHandle)packet2.Bundle;
 			Assert.AreNotEqual(bundle1, bundle2);
 			Assert.IsNull(bundle2.FlushedHandle);
 
@@ -152,13 +148,13 @@ namespace EpicGames.Horde.Tests
 			Assert.AreEqual(456, node2.Value);
 
 			// nodeRef3 is in an unflushed packet, unflushed bundle
-			BundleWriter.PendingExportHandle export3 = (BundleWriter.PendingExportHandle)nodeRef3.Unwrap();
+			ExportHandle export3 = (ExportHandle)nodeRef3.Unwrap();
 
-			BundleWriter.PendingPacketHandle packet3 = (BundleWriter.PendingPacketHandle)export3.Outer!;
+			BundleWriter.PendingPacketHandle packet3 = (BundleWriter.PendingPacketHandle)export3.Packet;
 			Assert.AreNotEqual(packet2, packet3);
 			Assert.IsNull(packet3.FlushedHandle);
 
-			BundleWriter.PendingBundleHandle bundle3 = (BundleWriter.PendingBundleHandle)packet3.Outer!;
+			BundleWriter.PendingBundleHandle bundle3 = (BundleWriter.PendingBundleHandle)packet3.Bundle;
 			Assert.AreEqual(bundle2, bundle3);
 
 			TestNode node3 = await export3.ReadBlobAsync<TestNode>();

@@ -15,15 +15,21 @@ namespace EpicGames.Horde.Storage.Backends
 	/// </summary>
 	public sealed class MemoryStorageBackend : IStorageBackend
 	{
-		/// <summary>
-		/// Data storage
-		/// </summary>
-		readonly ConcurrentDictionary<BlobLocator, byte[]> _locatorToData = new ConcurrentDictionary<BlobLocator, byte[]>();
+		record class AliasListNode(BlobLocator Locator, int Rank, ReadOnlyMemory<byte> Data, AliasListNode? Next);
+
+		readonly ConcurrentDictionary<BlobLocator, ReadOnlyMemory<byte>> _blobs = new ConcurrentDictionary<BlobLocator, ReadOnlyMemory<byte>>();
+		readonly ConcurrentDictionary<RefName, BlobLocator> _refs = new ConcurrentDictionary<RefName, BlobLocator>();
+		readonly ConcurrentDictionary<string, AliasListNode?> _aliases = new ConcurrentDictionary<string, AliasListNode?>(StringComparer.Ordinal);
 
 		/// <summary>
-		/// Read only access to the stored blobs
+		/// All data stored by the client
 		/// </summary>
-		public IReadOnlyDictionary<BlobLocator, byte[]> Blobs => _locatorToData; 
+		public IReadOnlyDictionary<BlobLocator, ReadOnlyMemory<byte>> Blobs => _blobs;
+
+		/// <summary>
+		/// Accessor for all refs stored by the client
+		/// </summary>
+		public IReadOnlyDictionary<RefName, BlobLocator> Refs => _refs;
 
 		/// <inheritdoc/>
 		public bool SupportsRedirects => false;
@@ -33,47 +39,164 @@ namespace EpicGames.Horde.Storage.Backends
 		{
 		}
 
+		#region Blobs
+
 		/// <inheritdoc/>
-		public Task<Stream> OpenBlobAsync(BlobLocator locator, int offset, int? length, CancellationToken cancellationToken)
+		public Task<Stream> OpenBlobAsync(BlobLocator locator, int offset, int? length, CancellationToken cancellationToken = default)
 		{
-			return Task.FromResult<Stream>(new ReadOnlyMemoryStream(GetData(locator, offset, length)));
+			ReadOnlyMemory<byte> memory = GetBlob(locator, offset, length);
+			return Task.FromResult<Stream>(new ReadOnlyMemoryStream(memory));
 		}
 
 		/// <inheritdoc/>
-		public Task<IReadOnlyMemoryOwner<byte>> ReadBlobAsync(BlobLocator locator, int offset, int? length, CancellationToken cancellationToken)
+		public Task<IReadOnlyMemoryOwner<byte>> ReadBlobAsync(BlobLocator locator, int offset, int? length, CancellationToken cancellationToken = default)
 		{
-			return Task.FromResult(ReadOnlyMemoryOwner.Create(GetData(locator, offset, length)));
+			ReadOnlyMemory<byte> memory = GetBlob(locator, offset, length);
+			return Task.FromResult<IReadOnlyMemoryOwner<byte>>(ReadOnlyMemoryOwner.Create<byte>(memory));
 		}
 
-		ReadOnlyMemory<byte> GetData(BlobLocator locator, int offset, int? length)
+		ReadOnlyMemory<byte> GetBlob(BlobLocator locator, int offset, int? length)
 		{
-			ReadOnlyMemory<byte> data = _locatorToData[locator].AsMemory(offset);
-			if (length != null && length.Value < data.Length)
+			ReadOnlyMemory<byte> memory = _blobs[locator];
+			if (offset != 0)
 			{
-				data = data.Slice(0, length.Value);
+				memory = memory.Slice(offset);
 			}
-			return data;
+			if (length != null)
+			{
+				memory = memory.Slice(0, Math.Min(length.Value, memory.Length));
+			}
+			return memory;
 		}
 
 		/// <inheritdoc/>
 		public async Task<BlobLocator> WriteBlobAsync(Stream stream, string? prefix = null, CancellationToken cancellationToken = default)
 		{
 			BlobLocator locator = StorageHelpers.CreateUniqueLocator(prefix);
-			using (MemoryStream buffer = new MemoryStream())
-			{
-				await stream.CopyToAsync(buffer, cancellationToken);
-				_locatorToData[locator] = buffer.ToArray();
-			}
+			_blobs[locator] = await stream.ReadAllBytesAsync(cancellationToken);
 			return locator;
 		}
 
 		/// <inheritdoc/>
-		public ValueTask<Uri?> TryGetBlobReadRedirectAsync(BlobLocator locator, CancellationToken cancellationToken = default) => default;
+		public ValueTask<Uri?> TryGetBlobReadRedirectAsync(BlobLocator locator, CancellationToken cancellationToken = default)
+			=> default;
 
 		/// <inheritdoc/>
-		public ValueTask<(BlobLocator, Uri)?> TryGetBlobWriteRedirectAsync(string? prefix = null, CancellationToken cancellationToken = default) => default;
+		public ValueTask<(BlobLocator, Uri)?> TryGetBlobWriteRedirectAsync(string? prefix = null, CancellationToken cancellationToken = default)
+			=> default;
+
+		#endregion
+
+		#region Aliases
 
 		/// <inheritdoc/>
-		public void GetStats(StorageStats stats) { }
+		public Task AddAliasAsync(string name, BlobLocator locator, int rank = 0, ReadOnlyMemory<byte> data = default, CancellationToken cancellationToken = default)
+		{
+			_aliases.AddOrUpdate(name, _ => new AliasListNode(locator, rank, data, null), (_, entry) => new AliasListNode(locator, rank, data, entry));
+			return Task.CompletedTask;
+		}
+
+		/// <inheritdoc/>
+		public Task RemoveAliasAsync(string name, BlobLocator locator, CancellationToken cancellationToken = default)
+		{
+			for (; ; )
+			{
+				AliasListNode? entry;
+				if (!_aliases.TryGetValue(name, out entry))
+				{
+					break;
+				}
+
+				AliasListNode? newEntry = RemoveAliasFromList(entry, locator);
+				if (entry == newEntry)
+				{
+					break;
+				}
+
+				if (newEntry == null)
+				{
+					if (_aliases.TryRemove(new KeyValuePair<string, AliasListNode?>(name, entry)))
+					{
+						break;
+					}
+				}
+				else
+				{
+					if (_aliases.TryUpdate(name, newEntry, entry))
+					{
+						break;
+					}
+				}
+			}
+			return Task.CompletedTask;
+		}
+
+		static AliasListNode? RemoveAliasFromList(AliasListNode? entry, BlobLocator locator)
+		{
+			if (entry == null)
+			{
+				return null;
+			}
+			if (entry.Locator == locator)
+			{
+				return entry.Next;
+			}
+
+			AliasListNode? nextEntry = RemoveAliasFromList(entry.Next, locator);
+			if (nextEntry != entry.Next)
+			{
+				entry = new AliasListNode(entry.Locator, entry.Rank, entry.Data, nextEntry);
+			}
+			return entry;
+		}
+
+		/// <inheritdoc/>
+		public Task<BlobAliasLocator[]> FindAliasesAsync(string alias, int? maxResults = null, CancellationToken cancellationToken = default)
+		{
+			List<BlobAliasLocator> aliases = new List<BlobAliasLocator>();
+			if (_aliases.TryGetValue(alias, out AliasListNode? entry))
+			{
+				for (; entry != null; entry = entry.Next)
+				{
+					aliases.Add(new BlobAliasLocator(entry.Locator, entry.Rank, entry.Data));
+				}
+			}
+			return Task.FromResult(aliases.ToArray());
+		}
+
+		#endregion
+
+		#region Refs
+
+		/// <inheritdoc/>
+		public Task<bool> DeleteRefAsync(RefName name, CancellationToken cancellationToken) => Task.FromResult(_refs.TryRemove(name, out _));
+
+		/// <inheritdoc/>
+		public Task<BlobLocator?> TryReadRefAsync(RefName name, RefCacheTime cacheTime = default, CancellationToken cancellationToken = default)
+		{
+			BlobLocator locator;
+			if (_refs.TryGetValue(name, out locator))
+			{
+				return Task.FromResult<BlobLocator?>(locator);
+			}
+			else
+			{
+				return Task.FromResult<BlobLocator?>(null);
+			}
+		}
+
+		/// <inheritdoc/>
+		public Task WriteRefAsync(RefName name, BlobLocator locator, RefOptions? options = null, CancellationToken cancellationToken = default)
+		{
+			_refs[name] = locator;
+			return Task.CompletedTask;
+		}
+
+		#endregion
+
+		/// <inheritdoc/>
+		public void GetStats(StorageStats stats)
+		{
+		}
 	}
 }

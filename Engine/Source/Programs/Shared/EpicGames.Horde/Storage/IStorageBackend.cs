@@ -14,6 +14,8 @@ namespace EpicGames.Horde.Storage
 	/// </summary>
 	public interface IStorageBackend : IDisposable
 	{
+		#region Blobs
+
 		/// <summary>
 		/// Whether this storage backend supports HTTP redirects for reads and writes
 		/// </summary>
@@ -63,6 +65,69 @@ namespace EpicGames.Horde.Storage
 		/// <param name="cancellationToken">Cancellation token for the operation</param>
 		/// <returns>Path for retrieval, and URI to upload the data to</returns>
 		ValueTask<(BlobLocator, Uri)?> TryGetBlobWriteRedirectAsync(string? prefix = null, CancellationToken cancellationToken = default);
+
+		#endregion
+
+		#region Aliases
+
+		/// <summary>
+		/// Adds an alias to a given blob
+		/// </summary>
+		/// <param name="name">Alias for the blob</param>
+		/// <param name="locator">Locator for the blob</param>
+		/// <param name="rank">Rank for this alias. In situations where an alias has multiple mappings, the alias with the highest rank will be returned by default.</param>
+		/// <param name="data">Additional data to be stored inline with the alias</param>
+		/// <param name="cancellationToken">Cancellation token for the operation</param>
+		Task AddAliasAsync(string name, BlobLocator locator, int rank = 0, ReadOnlyMemory<byte> data = default, CancellationToken cancellationToken = default);
+
+		/// <summary>
+		/// Removes an alias from a blob
+		/// </summary>
+		/// <param name="name">Name of the alias</param>
+		/// <param name="locator">Locator for the blob</param>
+		/// <param name="cancellationToken">Cancellation token for the operation</param>
+		Task RemoveAliasAsync(string name, BlobLocator locator, CancellationToken cancellationToken = default);
+
+		/// <summary>
+		/// Finds blobs with the given alias. Unlike refs, aliases do not serve as GC roots.
+		/// </summary>
+		/// <param name="name">Alias for the blob</param>
+		/// <param name="maxResults">Maximum number of aliases to return</param>
+		/// <param name="cancellationToken">Cancellation token for the operation</param>
+		/// <returns>Blobs matching the given handle</returns>
+		Task<BlobAliasLocator[]> FindAliasesAsync(string name, int? maxResults = null, CancellationToken cancellationToken = default);
+
+		#endregion
+
+		#region Refs
+
+		/// <summary>
+		/// Reads data for a ref from the store
+		/// </summary>
+		/// <param name="name">The ref name</param>
+		/// <param name="cacheTime">Minimum coherency for any cached value to be returned</param>
+		/// <param name="cancellationToken">Cancellation token for the operation</param>
+		/// <returns>Blob pointed to by the ref</returns>
+		Task<BlobLocator?> TryReadRefAsync(RefName name, RefCacheTime cacheTime = default, CancellationToken cancellationToken = default);
+
+		/// <summary>
+		/// Writes a new ref to the store
+		/// </summary>
+		/// <param name="name">Ref to write</param>
+		/// <param name="locator">Locator for the target blob</param>
+		/// <param name="options">Options for the new ref</param>
+		/// <param name="cancellationToken">Cancellation token for the operation</param>
+		/// <returns>Unique identifier for the blob</returns>
+		Task WriteRefAsync(RefName name, BlobLocator locator, RefOptions? options = null, CancellationToken cancellationToken = default);
+
+		/// <summary>
+		/// Reads data for a ref from the store
+		/// </summary>
+		/// <param name="name">The ref identifier</param>
+		/// <param name="cancellationToken">Cancellation token for the operation</param>
+		Task<bool> DeleteRefAsync(RefName name, CancellationToken cancellationToken = default);
+
+		#endregion
 
 		/// <summary>
 		/// Gets stats for this storage backend
@@ -115,7 +180,7 @@ namespace EpicGames.Horde.Storage
 		/// <param name="locator">Object name within the store</param>
 		/// <param name="cancellationToken">Cancellation token for the operation</param>
 		/// <returns>Stream for the object</returns>
-		public static Task<Stream> OpenAsync(this IStorageBackend storageBackend, BlobLocator locator, CancellationToken cancellationToken = default) => storageBackend.OpenBlobAsync(locator, 0, null, cancellationToken);
+		public static Task<Stream> OpenBlobAsync(this IStorageBackend storageBackend, BlobLocator locator, CancellationToken cancellationToken = default) => storageBackend.OpenBlobAsync(locator, 0, null, cancellationToken);
 
 		/// <summary>
 		/// Attempts to open a read stream for the given path.
@@ -124,7 +189,7 @@ namespace EpicGames.Horde.Storage
 		/// <param name="locator">Object name within the store</param>
 		/// <param name="cancellationToken">Cancellation token for the operation</param>
 		/// <returns>Stream for the object</returns>
-		public static Task<IReadOnlyMemoryOwner<byte>> ReadAsync(this IStorageBackend storageBackend, BlobLocator locator, CancellationToken cancellationToken = default) => storageBackend.ReadBlobAsync(locator, 0, null, cancellationToken);
+		public static Task<IReadOnlyMemoryOwner<byte>> ReadBlobAsync(this IStorageBackend storageBackend, BlobLocator locator, CancellationToken cancellationToken = default) => storageBackend.ReadBlobAsync(locator, 0, null, cancellationToken);
 
 		/// <summary>
 		/// Reads an object as an array of bytes
@@ -135,7 +200,7 @@ namespace EpicGames.Horde.Storage
 		/// <returns>Contents of the object</returns>
 		public static async Task<byte[]> ReadBytesAsync(this IStorageBackend storageBackend, BlobLocator locator, CancellationToken cancellationToken = default)
 		{
-			using IReadOnlyMemoryOwner<byte> storageObject = await storageBackend.ReadAsync(locator, cancellationToken);
+			using IReadOnlyMemoryOwner<byte> storageObject = await storageBackend.ReadBlobAsync(locator, cancellationToken);
 			return storageObject.Memory.ToArray();
 		}
 

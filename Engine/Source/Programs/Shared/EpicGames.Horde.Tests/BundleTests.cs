@@ -2,9 +2,9 @@
 
 using EpicGames.Core;
 using EpicGames.Horde.Storage;
+using EpicGames.Horde.Storage.Backends;
 using EpicGames.Horde.Storage.Bundles;
 using EpicGames.Horde.Storage.Bundles.V1;
-using EpicGames.Horde.Storage.Clients;
 using EpicGames.Horde.Storage.Nodes;
 using Microsoft.Extensions.Caching.Memory;
 using Microsoft.Extensions.Logging.Abstractions;
@@ -22,13 +22,13 @@ namespace EpicGames.Horde.Tests
 	public sealed class BundleTests : IDisposable
 	{
 		readonly IMemoryCache _cache;
-		readonly MemoryStorageClient _memoryStore;
+		readonly MemoryStorageBackend _memoryStore;
 		readonly BundleStorageClient _storage;
 
 		public BundleTests()
 		{
 			_cache = new MemoryCache(new MemoryCacheOptions());
-			_memoryStore = new MemoryStorageClient();
+			_memoryStore = new MemoryStorageBackend();
 			_storage = new BundleStorageClient(_memoryStore, BundleCache.None, NullLogger.Instance);
 		}
 
@@ -219,9 +219,9 @@ namespace EpicGames.Horde.Tests
 			Assert.AreEqual(1, _memoryStore.Blobs.Count);
 
 			// Check the ref
-			IBlobHandle refTarget =  await store.ReadRefTargetAsync(refName);
-			IBlobHandle bundleTarget = store.CreateBlobHandle(refTarget.GetLocator().BaseLocator);
-			using BlobData bundleData = await bundleTarget.ReadBlobDataAsync();
+//			IBlobHandle refTarget =  await store.ReadRefTargetAsync(refName);
+//			IBlobHandle bundleTarget = store.CreateBlobHandle(refTarget.GetLocator().BaseLocator);
+//			using BlobData bundleData = await bundleTarget.ReadBlobDataAsync();
 
 // This is specific to V1 data
 //			BundleHeader bundleHeader = BundleHeader.Read(bundleData.Data);

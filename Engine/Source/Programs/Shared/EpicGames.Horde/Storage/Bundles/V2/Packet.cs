@@ -191,12 +191,14 @@ namespace EpicGames.Horde.Storage.Bundles.V2
 		/// <param name="writer">Writer for the encoded data</param>
 		public void Encode(BundleCompressionFormat format, IMemoryWriter writer)
 		{
-			Span<byte> signatureSpan = writer.GetSpanAndAdvance(Bundle.SignatureLength);
+			Span<byte> signatureSpan = writer.GetSpanAndAdvance(BundleSignature.NumBytes);
 			writer.WriteInt32(_data.Length);
 			writer.WriteUInt8((byte)format);
 
 			int encodedLength = BundleData.Compress(format, _data, writer);
-			Bundle.WriteSignature(signatureSpan, new BundleSignature(BundleVersion.LatestV2, Bundle.SignatureLength + encodedLength + sizeof(int) + 1));
+
+			BundleSignature signature = new BundleSignature(BundleVersion.LatestV2, BundleSignature.NumBytes + encodedLength + sizeof(int) + 1);
+			signature.Write(signatureSpan);
 		}
 
 		/// <summary>
@@ -205,14 +207,14 @@ namespace EpicGames.Horde.Storage.Bundles.V2
 		/// <returns></returns>
 		public static IRefCountedHandle<Packet> Decode(ReadOnlyMemory<byte> data, IMemoryAllocator<byte> allocator)
 		{
-			BundleSignature signature = Bundle.ReadSignature(data.Span);
+			BundleSignature signature = BundleSignature.Read(data.Span);
 			if (signature.Version <= BundleVersion.LatestV1 || signature.Version > BundleVersion.LatestV2)
 			{
 				throw new InvalidOperationException($"Cannot read bundle packet; unsupported version {(int)signature.Version}");
 			}
 
 			data = data.Slice(0, signature.HeaderLength);
-			ReadOnlySpan<byte> span = data.Span.Slice(Bundle.SignatureLength);
+			ReadOnlySpan<byte> span = data.Span.Slice(BundleSignature.NumBytes);
 
 			int decodedLength = BinaryPrimitives.ReadInt32LittleEndian(span);
 			span = span[4..];

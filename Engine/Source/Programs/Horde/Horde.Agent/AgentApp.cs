@@ -11,6 +11,7 @@ using Datadog.Trace.OpenTracing;
 using EpicGames.Core;
 using EpicGames.Horde;
 using EpicGames.Horde.Storage;
+using EpicGames.Horde.Storage.Backends;
 using EpicGames.Horde.Storage.Clients;
 using Horde.Agent.Execution;
 using Horde.Agent.Leases;
@@ -217,6 +218,7 @@ namespace Horde.Agent
 
 			services.AddSingleton<BundleCache>();
 			services.AddSingleton<StorageBackendCache>(CreateStorageBackendCache);
+			services.AddSingleton<HttpStorageBackendFactory>();
 			services.AddSingleton<HttpStorageClientFactory>();
 
 			services.AddSingleton<ComputeListenerService>();

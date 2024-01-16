@@ -2,6 +2,7 @@
 
 using EpicGames.Core;
 using EpicGames.Horde.Storage;
+using EpicGames.Horde.Storage.Backends;
 using EpicGames.Horde.Storage.Bundles;
 using EpicGames.Horde.Storage.Nodes;
 using EpicGames.Horde.Tools;
@@ -425,6 +426,23 @@ namespace Horde.Server.Tools
 			else
 			{
 				return _storageService.CreateClient(Namespace.Tools);
+			}
+		}
+
+		/// <summary>
+		/// Gets the storage client containing data for a particular tool
+		/// </summary>
+		/// <param name="tool">Identifier for the tool</param>
+		/// <returns>Storage client for the data</returns>
+		public IStorageBackend CreateStorageBackend(ITool tool)
+		{
+			if (tool.Config is BundledToolConfig bundledConfig)
+			{
+				return new FileStorageBackend(DirectoryReference.Combine(ServerApp.AppDir, bundledConfig.DataDir ?? $"tools/{tool.Id}"), _logger);
+			}
+			else
+			{
+				return _storageService.CreateBackend(Namespace.Tools);
 			}
 		}
 

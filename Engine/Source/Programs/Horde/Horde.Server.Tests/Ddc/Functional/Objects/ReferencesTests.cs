@@ -24,6 +24,7 @@ using Horde.Server.Server;
 using Microsoft.Extensions.Options;
 using Horde.Server.Storage;
 using Horde.Server.Configuration;
+using RefNotFoundException = Horde.Server.Ddc.RefNotFoundException;
 
 namespace Horde.Server.Tests.Ddc.FunctionalTests.References
 {

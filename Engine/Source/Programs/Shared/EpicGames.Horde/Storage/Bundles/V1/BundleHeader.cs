@@ -127,7 +127,7 @@ namespace EpicGames.Horde.Storage.Bundles.V1
 			ChunkedArrayMemoryWriter writer = new ChunkedArrayMemoryWriter();
 
 			// Create the prelude
-			Span<byte> signatureData = writer.GetSpanAndAdvance(Bundle.SignatureLength);
+			Span<byte> signatureData = writer.GetSpanAndAdvance(BundleSignature.NumBytes);
 
 			// Write all the sections
 			WriteSectionHeader(writer, BundleSectionType.Types, Types.Measure());
@@ -147,7 +147,7 @@ namespace EpicGames.Horde.Storage.Bundles.V1
 
 			// Fill in the length of the header, and append it to the builder
 			BundleSignature signature = new BundleSignature(BundleVersion.LatestV1, writer.Length);
-			Bundle.WriteSignature(signatureData, signature);
+			signature.Write(signatureData);
 
 			writer.AppendTo(builder);
 		}
@@ -194,10 +194,10 @@ namespace EpicGames.Horde.Storage.Bundles.V1
 		/// <returns>New header object</returns>
 		public static async Task<BundleHeader> ReadAsync(Stream stream, CancellationToken cancellationToken = default)
 		{
-			byte[] prelude = new byte[Bundle.SignatureLength];
+			byte[] prelude = new byte[BundleSignature.NumBytes];
 			await stream.ReadFixedLengthBytesAsync(prelude, cancellationToken);
 
-			return await ReadAsync(Bundle.ReadSignature(prelude), stream, cancellationToken);
+			return await ReadAsync(BundleSignature.Read(prelude), stream, cancellationToken);
 		}
 
 		/// <summary>
@@ -215,11 +215,11 @@ namespace EpicGames.Horde.Storage.Bundles.V1
 			}
 			else if (signature.Version >= BundleVersion.InPlace)
 			{
-				return await ReadLatestAsync(signature.Version, stream, signature.HeaderLength - Bundle.SignatureLength, cancellationToken);
+				return await ReadLatestAsync(signature.Version, stream, signature.HeaderLength - BundleSignature.NumBytes, cancellationToken);
 			}
 			else
 			{
-				byte[] data = new byte[signature.HeaderLength - Bundle.SignatureLength];
+				byte[] data = new byte[signature.HeaderLength - BundleSignature.NumBytes];
 				await stream.ReadFixedLengthBytesAsync(data, cancellationToken);
 
 				return ReadLegacy(data);

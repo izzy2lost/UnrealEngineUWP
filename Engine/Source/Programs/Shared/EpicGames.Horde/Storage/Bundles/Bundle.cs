@@ -70,29 +70,19 @@ namespace EpicGames.Horde.Storage.Bundles
 	/// </summary>
 	/// <param name="Version">Version number for the following file data</param>
 	/// <param name="HeaderLength">Length of the initial header</param>
-	public record struct BundleSignature(BundleVersion Version, int HeaderLength);
-
-	/// <summary>
-	/// Methods for manipulating bundles
-	/// </summary>
-	public static class Bundle
+	public record struct BundleSignature(BundleVersion Version, int HeaderLength)
 	{
-		/// <summary>
-		/// Blob type for bundles
-		/// </summary>
-		public static BlobType BlobType { get; } = new BlobType("{7C5BA294-4F92-2D21-2F85-BE851E4CCC48}", 1);
-
 		/// <summary>
 		/// Number of bytes in a signature when serialized
 		/// </summary>
-		public const int SignatureLength = 8;
+		public const int NumBytes = 8;
 
 		/// <summary>
 		/// Validates that the prelude bytes for a bundle header are correct
 		/// </summary>
 		/// <param name="span">The signature bytes</param>
 		/// <returns>Length of the header data, including the prelude</returns>
-		public static BundleSignature ReadSignature(ReadOnlySpan<byte> span)
+		public static BundleSignature Read(ReadOnlySpan<byte> span)
 		{
 			if (span[0] == 'U' && span[1] == 'E' && span[2] == 'B' && span[3] == 'N')
 			{
@@ -111,23 +101,23 @@ namespace EpicGames.Horde.Storage.Bundles
 		/// <summary>
 		/// Writes a signature to the given memory
 		/// </summary>
-		public static void WriteSignature(Span<byte> span, BundleSignature signature)
+		public void Write(Span<byte> span)
 		{
-			if (signature.Version == BundleVersion.Initial)
+			if (Version == BundleVersion.Initial)
 			{
 				span[0] = (byte)'U';
 				span[1] = (byte)'E';
 				span[2] = (byte)'B';
 				span[3] = (byte)'N';
-				BinaryPrimitives.WriteInt32BigEndian(span[4..], signature.HeaderLength);
+				BinaryPrimitives.WriteInt32BigEndian(span[4..], HeaderLength);
 			}
 			else
 			{
 				span[0] = (byte)'U';
 				span[1] = (byte)'B';
 				span[2] = (byte)'N';
-				span[3] = (byte)signature.Version;
-				BinaryPrimitives.WriteInt32LittleEndian(span[4..], signature.HeaderLength);
+				span[3] = (byte)Version;
+				BinaryPrimitives.WriteInt32LittleEndian(span[4..], HeaderLength);
 			}
 		}
 	}

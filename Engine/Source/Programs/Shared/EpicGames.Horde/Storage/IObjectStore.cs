@@ -10,26 +10,6 @@ using EpicGames.Core;
 namespace EpicGames.Horde.Storage
 {
 	/// <summary>
-	/// Exception thrown when an object does not exist
-	/// </summary>
-	public sealed class ObjectNotFoundException : Exception
-	{
-		/// <summary>
-		/// Path to the object
-		/// </summary>
-		public ObjectKey Locator { get; }
-
-		/// <summary>
-		/// Constructor
-		/// </summary>
-		public ObjectNotFoundException(ObjectKey locator)
-			: base($"Object '{locator}' was not found")
-		{
-			Locator = locator;
-		}
-	}
-
-	/// <summary>
 	/// Interface for a object storage service.
 	/// </summary>
 	public interface IObjectStore : IDisposable

@@ -62,69 +62,6 @@ namespace EpicGames.Horde.Storage
 	}
 
 	/// <summary>
-	/// Default implementation of <see cref="IStorageWriter"/> which writes each node individually the the owning client.
-	/// </summary>
-	public sealed class DefaultStorageWriter : IStorageWriter
-	{
-		readonly IStorageClient _outer;
-		readonly string _basePath;
-		byte[] _data = Array.Empty<byte>();
-		int _offset;
-
-		/// <summary>
-		/// Constructor
-		/// </summary>
-		public DefaultStorageWriter(IStorageClient outer, string? basePath)
-		{
-			_outer = outer;
-			_basePath = basePath ?? String.Empty;
-
-			if (!_basePath.EndsWith("/", StringComparison.Ordinal))
-			{
-				_basePath += "/";
-			}
-		}
-
-		/// <inheritdoc/>
-		public ValueTask DisposeAsync() => new ValueTask();
-
-		/// <inheritdoc/>
-		public Task FlushAsync(CancellationToken cancellationToken = default) => Task.CompletedTask;
-
-		/// <inheritdoc/>
-		public IStorageWriter Fork() => new DefaultStorageWriter(_outer, _basePath);
-
-		/// <inheritdoc/>
-		public Memory<byte> GetOutputBuffer(int usedSize, int desiredSize)
-		{
-			if (_offset + desiredSize > _data.Length)
-			{
-				byte[] newData = new byte[(desiredSize + 4095) & ~4095];
-				_data.AsSpan(_offset, usedSize).CopyTo(newData);
-				_data = newData;
-				_offset = 0;
-			}
-			return _data.AsMemory(_offset);
-		}
-
-		/// <inheritdoc/>
-		public async ValueTask<IBlobHandle> WriteBlobAsync(BlobType type, int size, IReadOnlyList<IBlobHandle> references, IReadOnlyList<AliasInfo> aliases, CancellationToken cancellationToken = default)
-		{
-			ReadOnlyMemory<byte> data = _data.AsMemory(_offset, size);
-			_offset += size;
-
-			using ReadOnlyMemoryStream stream = new ReadOnlyMemoryStream(data);
-
-			IBlobHandle handle = await _outer.WriteBlobAsync(type, stream, references, _basePath, cancellationToken);
-			foreach (AliasInfo aliasInfo in aliases)
-			{
-				await _outer.AddAliasAsync(aliasInfo.Name, handle, aliasInfo.Rank, aliasInfo.Data, cancellationToken);
-			}
-			return handle;
-		}
-	}
-
-	/// <summary>
 	/// Index of known nodes that can be used for deduplication.
 	/// </summary>
 	public sealed class DedupeStorageWriter : IStorageWriter
@@ -157,45 +94,22 @@ namespace EpicGames.Horde.Storage
 			internal bool TryGetValue(BlobKey key, [NotNullWhen(true)] out IBlobHandle? handle) => _blobKeyToHandle.TryGetValue(key, out handle);
 		}
 
-		class WrappedHandle : BlobHandle
+		class WrappedHandle : IBlobHandle
 		{
 			public object _lockObject = new object();
 			public IBlobHandle? _inner;
 
 			/// <inheritdoc/>
-			public override IBlobHandle? Outer => _inner?.Outer;
+			public bool TryGetLocator(out BlobLocator locator)
+				=> _inner!.TryGetLocator(out locator);
 
 			/// <inheritdoc/>
-			public override bool TryAppendIdentifier(Utf8StringBuilder builder)
-			{
-				return _inner?.TryAppendIdentifier(builder) ?? false;
-			}
+			public ValueTask FlushAsync(CancellationToken cancellationToken)
+				=> _inner!.FlushAsync(cancellationToken);
 
 			/// <inheritdoc/>
-			public override ValueTask FlushAsync(CancellationToken cancellationToken)
-			{
-				if (_inner == null)
-				{
-					throw new InvalidOperationException();
-				}
-				else
-				{
-					return _inner.FlushAsync(cancellationToken);
-				}
-			}
-
-			/// <inheritdoc/>
-			public override ValueTask<BlobData> ReadBlobDataAsync(CancellationToken cancellationToken = default)
-			{
-				if (_inner == null)
-				{
-					throw new InvalidOperationException();
-				}
-				else
-				{
-					return _inner.ReadBlobDataAsync(cancellationToken);
-				}
-			}
+			public ValueTask<BlobData> ReadBlobDataAsync(CancellationToken cancellationToken = default)
+				=> _inner!.ReadBlobDataAsync(cancellationToken);
 
 			/// <inheritdoc/>
 			public override bool Equals(object? obj) => _inner is not null && obj is WrappedHandle other && _inner == other._inner;

@@ -14,13 +14,40 @@ namespace EpicGames.Horde.Storage.Bundles.V2
 	/// <summary>
 	/// Base class for packet handles
 	/// </summary>
-	public abstract class PacketHandle : BlobHandle
+	public abstract class PacketHandle
 	{
-		/// <inheritdoc/>
-		public sealed override IBlobHandle? Outer => OuterBundle;
+		/// <summary>
+		/// Bundle containing this packet
+		/// </summary>
+		public abstract BundleHandle Bundle { get; }
 
-		/// <inheritdoc/>
-		public abstract BundleHandle? OuterBundle { get; }
+		/// <inheritdoc cref="IBlobHandle.FlushAsync(CancellationToken)"/>
+		public abstract ValueTask FlushAsync(CancellationToken cancellationToken = default);
+
+		/// <summary>
+		/// Reads an export from this packet
+		/// </summary>
+		public abstract ValueTask<BlobData> ReadExportAsync(int exportIdx, CancellationToken cancellationToken = default);
+
+		/// <summary>
+		/// Append the identifier for this packet to the given string builder
+		/// </summary>
+		public abstract bool TryAppendIdentifier(Utf8StringBuilder builder);
+
+		/// <summary>
+		/// Appends the locator to the given string builder
+		/// </summary>
+		public bool TryAppendLocator(Utf8StringBuilder builder)
+		{
+			BlobLocator locator;
+			if (Bundle.TryGetLocator(out locator))
+			{
+				builder.Append(locator.Path);
+				builder.Append('?');
+				return TryAppendIdentifier(builder);
+			}
+			return false;
+		}
 	}
 
 	/// <summary>
@@ -28,21 +55,21 @@ namespace EpicGames.Horde.Storage.Bundles.V2
 	/// </summary>
 	class FlushedPacketHandle : PacketHandle
 	{
-		static readonly Utf8String s_fragmentPrefix = new Utf8String("pkt=");
-
-		readonly IStorageClient _storageClient;
+		readonly BundleStorageClient _storageClient;
 		readonly BundleHandle _outer;
 		readonly int _packetOffset;
 		readonly int _packetLength;
 		readonly BundleCache _cache;
 
+		static readonly Utf8String s_fragmentPrefix = new Utf8String("pkt=");
+
 		/// <inheritdoc/>
-		public override BundleHandle? OuterBundle => _outer;
+		public override BundleHandle Bundle => _outer;
 
 		/// <summary>
 		/// Constructor
 		/// </summary>
-		public FlushedPacketHandle(IStorageClient storageClient, BundleHandle outer, int packetOffset, int packetLength, BundleCache cache)
+		public FlushedPacketHandle(BundleStorageClient storageClient, BundleHandle outer, int packetOffset, int packetLength, BundleCache cache)
 		{
 			_storageClient = storageClient;
 
@@ -55,7 +82,7 @@ namespace EpicGames.Horde.Storage.Bundles.V2
 		/// <summary>
 		/// Constructor
 		/// </summary>
-		public FlushedPacketHandle(IStorageClient storageClient, BundleHandle outer, ReadOnlySpan<byte> fragment, BundleCache cache)
+		public FlushedPacketHandle(BundleStorageClient storageClient, BundleHandle outer, ReadOnlySpan<byte> fragment, BundleCache cache)
 		{
 			_storageClient = storageClient;
 
@@ -103,30 +130,29 @@ namespace EpicGames.Horde.Storage.Bundles.V2
 			return true;
 		}
 
-		/// <inheritdoc/>
-		public override ValueTask FlushAsync(CancellationToken cancellationToken = default) => default;
+		/// <summary>
+		/// 
+		/// </summary>
+		/// <returns></returns>
+		Utf8String GetLocator()
+		{
+			Utf8StringBuilder builder = new Utf8StringBuilder();
+			if (!TryAppendLocator(builder))
+			{
+				throw new NotImplementedException();
+			}
+			return builder.ToUtf8String();
+		}
 
 		/// <inheritdoc/>
-		public override async ValueTask<BlobData> ReadBlobDataAsync(CancellationToken cancellationToken = default)
-		{
-			try
-			{
-				using IRefCountedHandle<PacketReader> packetReaderHandle = await GetPacketReaderAsync(cancellationToken);
-				return packetReaderHandle.Target.Read();
-			}
-			catch (Exception ex)
-			{
-				BlobLocator locator = this.GetLocator();
-				throw new StorageException($"Unable to read {locator}: {ex.Message}", ex);
-			}
-		}
+		public override ValueTask FlushAsync(CancellationToken cancellationToken = default) => default;
 
 		/// <summary>
 		/// Reads an export from this packet
 		/// </summary>
 		/// <param name="exportIdx">Index of the export</param>
 		/// <param name="cancellationToken">Cancellation token for the operation</param>
-		public async ValueTask<BlobData> ReadExportAsync(int exportIdx, CancellationToken cancellationToken = default)
+		public override async ValueTask<BlobData> ReadExportAsync(int exportIdx, CancellationToken cancellationToken = default)
 		{
 			try
 			{
@@ -135,26 +161,7 @@ namespace EpicGames.Horde.Storage.Bundles.V2
 			}
 			catch (Exception ex)
 			{
-				BlobLocator locator = this.GetLocator();
-				throw new StorageException($"Unable to read {locator}: {ex.Message}", ex);
-			}
-		}
-
-		/// <summary>
-		/// Reads an export body from this packet
-		/// </summary>
-		/// <param name="exportIdx">Index of the export</param>
-		/// <param name="cancellationToken">Cancellation token for the operation</param>
-		public async ValueTask<IReadOnlyMemoryOwner<byte>> ReadExportBodyAsync(int exportIdx, CancellationToken cancellationToken = default)
-		{
-			try
-			{
-				using IRefCountedHandle<PacketReader> packetReaderHandle = await GetPacketReaderAsync(cancellationToken);
-				return packetReaderHandle.Target.ReadExportBody(exportIdx);
-			}
-			catch (Exception ex)
-			{
-				BlobLocator locator = this.GetLocator();
+				Utf8String locator = GetLocator();
 				throw new StorageException($"Unable to read {locator}: {ex.Message}", ex);
 			}
 		}
@@ -178,10 +185,6 @@ namespace EpicGames.Horde.Storage.Bundles.V2
 		}
 
 		/// <inheritdoc/>
-		public override IBlobHandle GetFragmentHandle(ReadOnlySpan<byte> fragment)
-			=> new FlushedExportHandle(this, fragment);
-
-		/// <inheritdoc/>
 		public override bool Equals(object? obj)
 			=> obj is FlushedPacketHandle other && _outer.Equals(other._outer) && _packetOffset == other._packetOffset;
 
@@ -191,8 +194,8 @@ namespace EpicGames.Horde.Storage.Bundles.V2
 
 		#region Packet reader access
 
-		record struct PacketReaderCacheKey(IBlobHandle Bundle, int Offset);
-		record struct EncodedPacketCacheKey(IBlobHandle Bundle, int Offset);
+		record struct PacketReaderCacheKey(BundleHandle Bundle, int Offset);
+		record struct EncodedPacketCacheKey(BundleHandle Bundle, int Offset);
 
 		async ValueTask<IRefCountedHandle<PacketReader>> GetPacketReaderAsync(CancellationToken cancellationToken = default)
 		{
@@ -204,7 +207,7 @@ namespace EpicGames.Horde.Storage.Bundles.V2
 		{
 			using IRefCountedHandle<IReadOnlyMemoryOwner<byte>> encodedData = await ReadEncodedPacketAsync(cancellationToken);
 			IRefCountedHandle<Packet> packet = Packet.Decode(encodedData.Target.Memory, _cache.Allocator);
-			return new PacketReader(_storageClient, _cache, _outer, this, packet.Target, packet);
+			return new PacketReader(_storageClient, _cache, packet.Target, packet);
 		}
 
 		async ValueTask<IRefCountedHandle<IReadOnlyMemoryOwner<byte>>> ReadEncodedPacketAsync(CancellationToken cancellationToken)
@@ -221,7 +224,7 @@ namespace EpicGames.Horde.Storage.Bundles.V2
 			{
 				// Read more data than was requested so we can add additional packets to the cache
 				int readLength = Math.Max(_packetLength, 512 * 1024);
-				using Stream stream = await _outer.OpenBodyAsync(_packetOffset, readLength, cancellationToken);
+				using Stream stream = await _outer.OpenAsync(_packetOffset, readLength, cancellationToken);
 
 				// Read the first packet
 				leadingPacket = _cache.Allocator.Alloc(_packetLength);
@@ -229,8 +232,8 @@ namespace EpicGames.Horde.Storage.Bundles.V2
 				await stream.ReadFixedLengthBytesAsync(memory, cancellationToken);
 
 				// Read any other packets in the same stream
-				byte[] header = new byte[Bundle.SignatureLength];
-				for (int readOffset = _packetLength; readOffset + Bundle.SignatureLength < readLength;)
+				byte[] header = new byte[BundleSignature.NumBytes];
+				for (int readOffset = _packetLength; readOffset + BundleSignature.NumBytes < readLength;)
 				{
 					int readBytes = await stream.ReadGreedyAsync(header, cancellationToken);
 					if (readBytes < header.Length)
@@ -238,7 +241,7 @@ namespace EpicGames.Horde.Storage.Bundles.V2
 						break;
 					}
 
-					BundleSignature signature = Bundle.ReadSignature(header);
+					BundleSignature signature = BundleSignature.Read(header);
 					if (readOffset + signature.HeaderLength >= readLength)
 					{
 						break;
@@ -247,7 +250,7 @@ namespace EpicGames.Horde.Storage.Bundles.V2
 					trailingPacket = _cache.Allocator.Alloc(signature.HeaderLength);
 					memory = trailingPacket.Memory.Slice(0, signature.HeaderLength);
 					header.CopyTo(memory);
-					await stream.ReadFixedLengthBytesAsync(memory.Slice(Bundle.SignatureLength), cancellationToken);
+					await stream.ReadFixedLengthBytesAsync(memory.Slice(BundleSignature.NumBytes), cancellationToken);
 
 					EncodedPacketCacheKey trailingKey = new EncodedPacketCacheKey(key.Bundle, _packetOffset + readOffset);
 

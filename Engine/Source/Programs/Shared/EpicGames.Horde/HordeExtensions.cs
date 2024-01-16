@@ -4,6 +4,7 @@ using System;
 using System.Net.Http;
 using System.Net.Http.Headers;
 using EpicGames.Horde.Storage;
+using EpicGames.Horde.Storage.Backends;
 using EpicGames.Horde.Storage.Clients;
 using Microsoft.Extensions.DependencyInjection;
 
@@ -59,6 +60,7 @@ namespace EpicGames.Horde
 			serviceCollection.AddHordeHttpClient(ConfigureHttpClient, options.AllowAuthPrompt);
 			serviceCollection.AddSingleton<BundleCache>(sp => new BundleCache(options.BundleCache));
 			serviceCollection.AddSingleton<StorageBackendCache>();
+			serviceCollection.AddSingleton<HttpStorageBackendFactory>();
 			serviceCollection.AddSingleton<HttpStorageClientFactory>();
 		}
 	}

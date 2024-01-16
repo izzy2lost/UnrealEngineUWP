@@ -6,6 +6,7 @@ using System.Threading;
 using System.Threading.Tasks;
 using EpicGames.Core;
 using EpicGames.Horde.Storage.ObjectStores;
+using Microsoft.Extensions.Logging;
 
 namespace EpicGames.Horde.Storage.Backends
 {
@@ -14,7 +15,9 @@ namespace EpicGames.Horde.Storage.Backends
 	/// </summary>
 	public sealed class FileStorageBackend : IStorageBackend
 	{
+		readonly DirectoryReference _rootDir;
 		readonly FileObjectStore _objectStore;
+		readonly ILogger _logger;
 
 		/// <inheritdoc/>
 		public bool SupportsRedirects => false;
@@ -22,10 +25,13 @@ namespace EpicGames.Horde.Storage.Backends
 		/// <summary>
 		/// Constructor
 		/// </summary>
-		/// <param name="baseDir">Base directory for the store</param>
-		public FileStorageBackend(DirectoryReference baseDir)
+		/// <param name="rootDir">Base directory for the store</param>
+		/// <param name="logger">Logger interface</param>
+		public FileStorageBackend(DirectoryReference rootDir, ILogger logger)
 		{
-			_objectStore = new FileObjectStore(baseDir);
+			_rootDir = rootDir;
+			_objectStore = new FileObjectStore(rootDir);
+			_logger = logger;
 		}
 
 		/// <inheritdoc/>
@@ -33,6 +39,8 @@ namespace EpicGames.Horde.Storage.Backends
 		{
 			_objectStore.Dispose();
 		}
+
+		#region Blobs
 
 		/// <summary>
 		/// Gets the path for storing a file on disk
@@ -71,9 +79,90 @@ namespace EpicGames.Horde.Storage.Backends
 		/// <inheritdoc/>
 		public ValueTask<(BlobLocator, Uri)?> TryGetBlobWriteRedirectAsync(string? prefix = null, CancellationToken cancellationToken = default) => default;
 
+		#endregion
+
+		/// <summary>
+		/// Reads a ref from a file on disk
+		/// </summary>
+		public static async ValueTask<BlobLocator> ReadRefAsync(FileReference file)
+		{
+			string text = await FileReference.ReadAllTextAsync(file);
+			return new BlobLocator(text);
+		}
+
+		FileReference GetRefFile(RefName name) => FileReference.Combine(_rootDir, name.ToString() + ".ref");
+
+		#region Aliases
+
+		/// <inheritdoc/>
+		public Task AddAliasAsync(string name, BlobLocator locator, int rank = 0, ReadOnlyMemory<byte> data = default, CancellationToken cancellationToken = default)
+			=> throw new NotSupportedException("File storage client does not currently support aliases.");
+
+		/// <inheritdoc/>
+		public Task RemoveAliasAsync(string name, BlobLocator locator, CancellationToken cancellationToken = default)
+			=> throw new NotSupportedException("File storage client does not currently support aliases.");
+
+		/// <inheritdoc/>
+		public Task<BlobAliasLocator[]> FindAliasesAsync(string alias, int? maxResults = null, CancellationToken cancellationToken = default)
+			=> throw new NotSupportedException("File storage client does not currently support aliases.");
+
+		#endregion
+
+		#region Refs
+
+		/// <inheritdoc/>
+		public Task<bool> DeleteRefAsync(RefName name, CancellationToken cancellationToken = default)
+		{
+			FileInfo file = GetRefFile(name).ToFileInfo();
+			if (file.Exists)
+			{
+				file.Delete();
+				return Task.FromResult(true);
+			}
+			return Task.FromResult(false);
+		}
+
+		/// <inheritdoc/>
+		public async Task<BlobLocator?> TryReadRefAsync(RefName name, RefCacheTime cacheTime = default, CancellationToken cancellationToken = default)
+		{
+			FileReference file = GetRefFile(name);
+			if (!FileReference.Exists(file))
+			{
+				return null;
+			}
+
+			_logger.LogInformation("Reading {File}", file);
+			string[] lines = await FileReference.ReadAllLinesAsync(file, cancellationToken);
+
+			return new BlobLocator(lines[0].Trim());
+		}
+
+		/// <inheritdoc/>
+		public async Task WriteRefAsync(RefName name, BlobLocator locator, RefOptions? options = null, CancellationToken cancellationToken = default)
+		{
+			FileReference file = GetRefFile(name);
+			DirectoryReference.CreateDirectory(file.Directory);
+			_logger.LogInformation("Writing {File}", file);
+
+			for (int attempt = 0; ; attempt++)
+			{
+				try
+				{
+					await FileReference.WriteAllTextAsync(file, locator.ToString());
+					break;
+				}
+				catch (IOException ex) when (attempt < 3)
+				{
+					_logger.LogDebug(ex, "Unable to write to {File}; retrying...", file);
+					await Task.Delay(100 * attempt, cancellationToken);
+				}
+			}
+		}
+
+		#endregion
+
 		/// <inheritdoc/>
 		public void GetStats(StorageStats stats)
 			=> _objectStore.GetStats(stats);
 	}
 }
-

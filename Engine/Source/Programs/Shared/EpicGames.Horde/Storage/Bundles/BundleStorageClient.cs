@@ -3,11 +3,13 @@
 using System;
 using System.Buffers.Text;
 using System.Collections.Generic;
-using System.IO;
+using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
 using EpicGames.Core;
-using EpicGames.Horde.Storage.Clients;
+using EpicGames.Horde.Storage.Backends;
+using EpicGames.Horde.Storage.Bundles.V1;
+using EpicGames.Horde.Storage.Bundles.V2;
 using Microsoft.Extensions.Logging;
 
 namespace EpicGames.Horde.Storage.Bundles
@@ -17,7 +19,7 @@ namespace EpicGames.Horde.Storage.Bundles
 	/// </summary>
 	public sealed class BundleStorageClient : IStorageClient
 	{
-		readonly IStorageClient _inner;
+		readonly IStorageBackend _backend;
 		readonly BundleCache _cache;
 		readonly Bundles.V1.BundleReader _bundleReader;
 
@@ -29,19 +31,21 @@ namespace EpicGames.Horde.Storage.Bundles
 		public IMemoryAllocator<byte> Allocator => _cache.Allocator;
 
 		/// <summary>
+		/// Accessor for the storage backend
+		/// </summary>
+		public IStorageBackend Backend => _backend;
+
+		/// <summary>
 		/// Cache for bundle data
 		/// </summary>
 		public BundleCache Cache => _cache;
 
-		/// <inheritdoc/>
-		public bool SupportsRedirects { get; } = false;
-
 		/// <summary>
 		/// Constructor
 		/// </summary>
-		public BundleStorageClient(IStorageClient inner, BundleCache cache, ILogger logger)
+		public BundleStorageClient(IStorageBackend backend, BundleCache cache, ILogger logger)
 		{
-			_inner = inner;
+			_backend = backend;
 			_cache = cache;
 			_bundleReader = new Bundles.V1.BundleReader(this, cache, logger);
 		}
@@ -49,16 +53,16 @@ namespace EpicGames.Horde.Storage.Bundles
 		/// <inheritdoc/>
 		public void Dispose()
 		{
-			_inner.Dispose();
+			_backend.Dispose();
 		}
 
 		/// <summary>
 		/// Creates a bundle storage client around a memory client backend
 		/// </summary>
-		public static BundleStorageClient CreateFromMemory(ILogger logger)
+		public static BundleStorageClient CreateInMemory(ILogger logger)
 		{
-			MemoryStorageClient blobStore = new MemoryStorageClient();
-			return new BundleStorageClient(blobStore, BundleCache.None, logger);
+			MemoryStorageBackend backend = new MemoryStorageBackend();
+			return new BundleStorageClient(backend, BundleCache.None, logger);
 		}
 
 		/// <summary>
@@ -66,105 +70,92 @@ namespace EpicGames.Horde.Storage.Bundles
 		/// </summary>
 		public static BundleStorageClient CreateFromDirectory(DirectoryReference rootDir, BundleCache cache, ILogger logger)
 		{
-			FileStorageClient fileStorageClient = new FileStorageClient(rootDir, logger);
-			return new BundleStorageClient(fileStorageClient, cache, logger);
+			FileStorageBackend backend = new FileStorageBackend(rootDir, logger);
+			return new BundleStorageClient(backend, cache, logger);
 		}
 
-		#region Blobs
-
-		/// <inheritdoc/>
-		public async Task<Stream> OpenBlobAsync(BlobLocator locator, int offset = 0, int? length = null, CancellationToken cancellationToken = default) 
-			=> await OpenBundleAsync(locator, offset, length, cancellationToken);
-
-		/// <inheritdoc/>
-		public async ValueTask<BlobData> ReadBlobAsync(BlobLocator locator, CancellationToken cancellationToken = default)
+		/// <summary>
+		/// Helper method for GC which allows enumerating all references to other bundles
+		/// </summary>
+		public async Task<IEnumerable<BlobLocator>> ReadBundleReferencesAsync(BlobLocator locator, CancellationToken cancellationToken)
 		{
-			IBlobHandle handle = CreateBlobHandle(locator);
-			return await handle.ReadBlobDataAsync(cancellationToken);
+			IReadOnlyMemoryOwner<byte> data = await Backend.ReadBlobAsync(locator, 0, 32 * 1024 * 1024, cancellationToken);
+			return ReadBundleReferences(data.Memory);
 		}
 
-		/// <inheritdoc/>
-		public async ValueTask<IBlobHandle> WriteBlobAsync(BlobType type, Stream stream, IReadOnlyList<IBlobHandle> references, string? basePath = null, CancellationToken cancellationToken = default)
+		/// <summary>
+		/// Helper method for GC which allows enumerating all references to other bundles
+		/// </summary>
+		IEnumerable<BlobLocator> ReadBundleReferences(ReadOnlyMemory<byte> data)
 		{
-			if (type == Bundle.BlobType)
+			BundleSignature signature = BundleSignature.Read(data.Span);
+			if (signature.Version <= BundleVersion.LatestV1)
 			{
-				return await WriteBundleAsync(stream, references, basePath, cancellationToken);
+				return ReadImportsFromDataV1(data);
+			}
+			else if (signature.Version <= BundleVersion.LatestV2)
+			{
+				return ReadImportsFromDataV2(data);
 			}
 			else
 			{
-				await using IStorageWriter writer = CreateWriter(basePath);
-
-				int length = 0;
-				for (; ; )
-				{
-					int readLength = await stream.ReadAsync(writer.GetOutputBuffer(length, length + 1), cancellationToken);
-					if (readLength == 0)
-					{
-						break;
-					}
-					length += readLength;
-				}
-
-				return await writer.WriteBlobAsync(type, length, references, Array.Empty<AliasInfo>(), cancellationToken);
+				throw new InvalidOperationException($"Unsupported bundle version {(int)signature.Version}");
 			}
 		}
 
-		/// <inheritdoc/>
-		public ValueTask<Uri?> TryGetReadRedirectAsync(BlobLocator locator, CancellationToken cancellationToken = default) => new ValueTask<Uri?>();
+		static IEnumerable<BlobLocator> ReadImportsFromDataV1(ReadOnlyMemory<byte> data)
+		{
+			BundleHeader header = BundleHeader.Read(data);
+			return header.Imports.Select(x => x.BaseLocator);
+		}
 
-		/// <inheritdoc/>
-		public ValueTask<(BlobLocator, Uri)?> TryGetWriteRedirectAsync(string? prefix = null, CancellationToken cancellationToken = default) => new ValueTask<(BlobLocator, Uri)?>();
+		IEnumerable<BlobLocator> ReadImportsFromDataV2(ReadOnlyMemory<byte> data)
+		{
+			HashSet<BlobLocator> locators = new HashSet<BlobLocator>();
+			while (data.Length > 0)
+			{
+				BundleSignature signature = BundleSignature.Read(data.Span);
 
-		#endregion
+				using IRefCountedHandle<Bundles.V2.Packet> packet = Bundles.V2.Packet.Decode(data, Cache.Allocator);
+				for (int idx = 0; idx < packet.Target.GetImportCount(); idx++)
+				{
+					PacketImport import = packet.Target.GetImport(idx);
+					if (import.BaseIdx == -1)
+					{
+						locators.Add(new BlobLocator(import.Fragment.Clone()));
+					}
+				}
 
-		#region Bundles
-
-		/// <summary>
-		/// Read a bundle from the underlying storage
-		/// </summary>
-		async Task<Stream> OpenBundleAsync(BlobLocator locator, int offset, int? length, CancellationToken cancellationToken)
-			=> await _inner.CreateBlobHandle(locator).OpenBodyAsync(offset, length, cancellationToken);
-
-		/// <summary>
-		/// Write a bundle to the underlying storage
-		/// </summary>
-		ValueTask<IBlobHandle> WriteBundleAsync(Stream stream, IReadOnlyList<IBlobHandle> references, string? basePath = null, CancellationToken cancellationToken = default)
-			=> _inner.WriteBlobAsync(Bundle.BlobType, stream, references, basePath, cancellationToken);
-
-		/// <inheritdoc/>
-		public Task<Bundles.V1.BundleHeader> ReadHeaderAsync(BlobLocator locator, CancellationToken cancellationToken) => _bundleReader.ReadHeaderAsync(locator, cancellationToken);
-
-		#endregion
+				data = data.Slice(signature.HeaderLength);
+			}
+			return locators;
+		}
 
 		#region Nodes
 
 		/// <inheritdoc/>
 		public IBlobHandle CreateBlobHandle(BlobLocator locator)
 		{
-			if (locator.TryUnwrap(out BlobLocator baseLocator, out Utf8String fragment))
+			if (!locator.TryUnwrap(out BlobLocator baseLocator, out Utf8String fragment))
 			{
-				FlushedBundleHandle bundleHandle = new FlushedBundleHandle(this, CreateBlobHandle(baseLocator));
-
-				int exportIdx;
-				if (Utf8Parser.TryParse(fragment.Span, out exportIdx, out int numBytesRead) && numBytesRead == fragment.Length)
-				{
-					return new Bundles.V1.FlushedNodeHandle(_bundleReader, baseLocator, bundleHandle, exportIdx);
-				}
-
-				int ampIdx = fragment.IndexOf('&');
-				if (ampIdx == -1)
-				{
-					return new Bundles.V2.FlushedPacketHandle(this, bundleHandle, fragment.Span, _cache);
-				}
-				else
-				{
-					return new Bundles.V2.FlushedExportHandle(new Bundles.V2.FlushedPacketHandle(this, bundleHandle, fragment.Slice(0, ampIdx).Span, _cache), fragment.Span.Slice(ampIdx + 1));
-				}
+				throw new Exception($"{locator} is not valid");
 			}
-			else
+
+			FlushedBundleHandle bundleHandle = new FlushedBundleHandle(this, baseLocator);
+
+			int exportIdx;
+			if (Utf8Parser.TryParse(fragment.Span, out exportIdx, out int numBytesRead) && numBytesRead == fragment.Length)
 			{
-				return new FlushedBundleHandle(this, _inner.CreateBlobHandle(baseLocator));
+				return new Bundles.V1.FlushedNodeHandle(_bundleReader, baseLocator, bundleHandle, exportIdx);
 			}
+
+			int ampIdx = fragment.IndexOf('&');
+			if (ampIdx != -1)
+			{
+				throw new Exception($"{locator} is not valid");
+			}
+
+			return new Bundles.V2.ExportHandle(new Bundles.V2.FlushedPacketHandle(this, bundleHandle, fragment.Slice(0, ampIdx).Span, _cache), fragment.Slice(ampIdx + 1));
 		}
 
 		/// <inheritdoc/>
@@ -194,23 +185,31 @@ namespace EpicGames.Horde.Storage.Bundles
 		#region Aliases
 
 		/// <inheritdoc/>
-		public Task AddAliasAsync(string name, IBlobHandle handle, int rank, ReadOnlyMemory<byte> data, CancellationToken cancellationToken)
-			=> _inner.AddAliasAsync(name, handle, rank, data, cancellationToken);
+		public async Task AddAliasAsync(string name, IBlobHandle handle, int rank, ReadOnlyMemory<byte> data, CancellationToken cancellationToken)
+		{
+			await handle.FlushAsync(cancellationToken);
+			await _backend.AddAliasAsync(name, handle.GetLocator(), rank, data, cancellationToken);
+		}
 
 		/// <inheritdoc/>
-		public Task RemoveAliasAsync(string name, IBlobHandle handle, CancellationToken cancellationToken)
-			=> _inner.RemoveAliasAsync(name, handle, cancellationToken);
+		public async Task RemoveAliasAsync(string name, IBlobHandle handle, CancellationToken cancellationToken)
+		{
+			await handle.FlushAsync(cancellationToken);
+			await _backend.RemoveAliasAsync(name, handle.GetLocator(), cancellationToken);
+		}
 
 		/// <inheritdoc/>
 		public async Task<BlobAlias[]> FindAliasesAsync(string name, int? maxLength = null, CancellationToken cancellationToken = default)
 		{
-			BlobAlias[] aliases = await _inner.FindAliasesAsync(name, maxLength, cancellationToken);
+			BlobAliasLocator[] aliases = await _backend.FindAliasesAsync(name, maxLength, cancellationToken);
+
+			BlobAlias[] result = new BlobAlias[aliases.Length];
 			for (int idx = 0; idx < aliases.Length; idx++)
 			{
-				BlobAlias alias = aliases[idx];
-				aliases[idx] = new BlobAlias(CreateBlobHandle(alias.Target.GetLocator()), alias.Rank, alias.Data);
+				BlobAliasLocator alias = aliases[idx];
+				result[idx] = new BlobAlias(CreateBlobHandle(alias.Target), alias.Rank, alias.Data);
 			}
-			return aliases;
+			return result;
 		}
 
 		#endregion
@@ -219,29 +218,32 @@ namespace EpicGames.Horde.Storage.Bundles
 
 		/// <inheritdoc/>
 		public Task<bool> DeleteRefAsync(RefName name, CancellationToken cancellationToken = default)
-			=> _inner.DeleteRefAsync(name, cancellationToken);
+			=> _backend.DeleteRefAsync(name, cancellationToken);
 
 		/// <inheritdoc/>
 		public async Task<IBlobHandle?> TryReadRefAsync(RefName name, RefCacheTime cacheTime = default, CancellationToken cancellationToken = default)
 		{
-			IBlobHandle? target = await _inner.TryReadRefAsync(name, cacheTime, cancellationToken);
-			if (target != null)
+			BlobLocator? target = await _backend.TryReadRefAsync(name, cacheTime, cancellationToken);
+			if (target == null)
 			{
-				target = CreateBlobHandle(target.GetLocator());
+				return null;
 			}
-			return target;
+			return CreateBlobHandle(target.Value);
 		}
 
 		/// <inheritdoc/>
-		public Task WriteRefAsync(RefName name, IBlobHandle target, RefOptions? options = null, CancellationToken cancellationToken = default)
-			=> _inner.WriteRefAsync(name, target, options, cancellationToken);
+		public async Task WriteRefAsync(RefName name, IBlobHandle target, RefOptions? options = null, CancellationToken cancellationToken = default)
+		{
+			await target.FlushAsync(cancellationToken);
+			await _backend.WriteRefAsync(name, target.GetLocator(), options, cancellationToken);
+		}
 
 		#endregion
 
 		/// <inheritdoc/>
 		public void GetStats(StorageStats stats)
 		{
-			_inner.GetStats(stats);
+			_backend.GetStats(stats);
 			_bundleReader.GetStats(stats);
 		}
 	}

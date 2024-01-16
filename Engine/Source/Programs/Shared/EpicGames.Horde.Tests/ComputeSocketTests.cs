@@ -14,7 +14,6 @@ using EpicGames.Horde.Compute;
 using EpicGames.Horde.Compute.Transports;
 using EpicGames.Horde.Storage;
 using EpicGames.Horde.Storage.Bundles;
-using EpicGames.Horde.Storage.Clients;
 using EpicGames.Horde.Storage.Nodes;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
@@ -174,8 +173,7 @@ namespace EpicGames.Horde.Tests
 						await channel2.CloseAsync(cancellationToken);
 					}
 
-					using MemoryStorageClient memoryStorage = new MemoryStorageClient();
-					using BundleStorageClient storage = new BundleStorageClient(memoryStorage, BundleCache.None, NullLogger.Instance);
+					using BundleStorageClient storage = BundleStorageClient.CreateInMemory(NullLogger.Instance);
 					await using (IStorageWriter treeWriter = storage.CreateWriter())
 					{
 						FileReference file = FileReference.Combine(tempDir, "subdir/hello.txt");
@@ -201,7 +199,7 @@ namespace EpicGames.Horde.Tests
 						IBlobHandle<DirectoryNode> handle = await treeWriter.WriteBlobAsync(root, cancellationToken: cancellationToken);
 						await treeWriter.FlushAsync(cancellationToken);
 
-						await channel.UploadFilesAsync("", handle.GetLocator(), storage, cancellationToken);
+						await channel.UploadFilesAsync("", handle.GetLocator(), storage.Backend, cancellationToken);
 
 						Assert.IsTrue(FileReference.Exists(file));
 						byte[] readData = await FileReference.ReadAllBytesAsync(file, cancellationToken);

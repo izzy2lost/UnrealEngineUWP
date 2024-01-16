@@ -2,7 +2,7 @@
 
 using System;
 using System.Buffers.Text;
-using System.Text;
+using System.Diagnostics.CodeAnalysis;
 using System.Threading;
 using System.Threading.Tasks;
 using EpicGames.Core;
@@ -10,34 +10,29 @@ using EpicGames.Core;
 namespace EpicGames.Horde.Storage.Bundles.V2
 {
 	/// <summary>
-	/// Base class for packet handles
+	/// Handle class for blobs exported from a bundle
 	/// </summary>
-	public abstract class ExportHandle : BlobHandle
-	{
-		/// <inheritdoc/>
-		public sealed override IBlobHandle? Outer => OuterPacket;
-
-		/// <inheritdoc cref="IBlobHandle.Outer"/>
-		public abstract PacketHandle? OuterPacket { get; }
-	}
-
-	/// <summary>
-	/// Handle to an export within a packet. Same implementation is used for flushed and pending exports.
-	/// </summary>
-	class FlushedExportHandle : ExportHandle
+	public class ExportHandle : IBlobHandle
 	{
 		static readonly Utf8String s_fragmentPrefix = new Utf8String("exp=");
 
-		readonly FlushedPacketHandle _packet;
-		readonly int _exportIdx;
+		/// <summary>
+		/// Accessor for the packet that this export is in
+		/// </summary>
+		public PacketHandle Packet => _packet;
 
-		/// <inheritdoc/>
-		public override PacketHandle? OuterPacket => _packet;
+		/// <summary>
+		/// Export index within the packet
+		/// </summary>
+		public int ExportIdx => _exportIdx;
+
+		readonly PacketHandle _packet;
+		readonly int _exportIdx;
 
 		/// <summary>
 		/// Constructor
 		/// </summary>
-		public FlushedExportHandle(FlushedPacketHandle packet, int exportIdx)
+		public ExportHandle(PacketHandle packet, int exportIdx)
 		{
 			_packet = packet;
 			_exportIdx = exportIdx;
@@ -46,22 +41,27 @@ namespace EpicGames.Horde.Storage.Bundles.V2
 		/// <summary>
 		/// Constructor
 		/// </summary>
-		public FlushedExportHandle(FlushedPacketHandle packet, ReadOnlySpan<byte> fragment)
+		public ExportHandle(PacketHandle packet, ReadOnlySpan<byte> fragment)
 		{
 			_packet = packet;
 			if (!TryParse(fragment, out _exportIdx))
 			{
-				throw new FormatException($"Invalid fragment {Encoding.UTF8.GetString(fragment)} relative to {packet}");
+				throw new ArgumentException("Invalid fragment");
 			}
 		}
 
 		/// <inheritdoc/>
-		public override ValueTask FlushAsync(CancellationToken cancellationToken = default) => default;
+		public ValueTask FlushAsync(CancellationToken cancellationToken = default)
+			=> Packet.FlushAsync(cancellationToken);
+
+		/// <inheritdoc/>
+		public ValueTask<BlobData> ReadBlobDataAsync(CancellationToken cancellationToken = default)
+			=> Packet.ReadExportAsync(ExportIdx, cancellationToken);
 
 		/// <summary>
 		/// Attempt to parse an export index from the given fragment
 		/// </summary>
-		static bool TryParse(ReadOnlySpan<byte> fragment, out int exportIdx)
+		public static bool TryParse(ReadOnlySpan<byte> fragment, out int exportIdx)
 		{
 			if (!fragment.StartsWith(s_fragmentPrefix))
 			{
@@ -79,32 +79,61 @@ namespace EpicGames.Horde.Storage.Bundles.V2
 			return true;
 		}
 
-		/// <inheritdoc/>
-		public override ValueTask<BlobData> ReadBlobDataAsync(CancellationToken cancellationToken = default)
-			=> _packet.ReadExportAsync(_exportIdx, cancellationToken);
-
-		/// <inheritdoc/>
-		public override bool TryAppendIdentifier(Utf8StringBuilder builder)
+		/// <summary>
+		/// Get an identifier for this export within the outer packet
+		/// </summary>
+		public Utf8String GetIdentifier()
 		{
-			AppendIdentifier(builder, _exportIdx);
-			return true;
+			Utf8StringBuilder builder = new Utf8StringBuilder();
+			AppendIdentifier(builder);
+			return builder.ToUtf8String();
+		}
+
+		/// <summary>
+		/// Append a locator for this export to the given string builder
+		/// </summary>
+		public bool TryAppendLocator(Utf8StringBuilder builder)
+		{
+			if (Packet.TryAppendLocator(builder))
+			{
+				builder.Append('&');
+				AppendIdentifier(builder);
+				return true;
+			}
+			return false;
 		}
 
 		/// <summary>
 		/// Appends an export identifier to the given string builder
 		/// </summary>
-		public static void AppendIdentifier(Utf8StringBuilder builder, int exportIdx)
+		public void AppendIdentifier(Utf8StringBuilder builder)
 		{
 			builder.Append(s_fragmentPrefix);
-			builder.Append(exportIdx);
+			builder.Append(_exportIdx);
+		}
+
+		/// <inheritdoc/>
+		public bool TryGetLocator([NotNullWhen(true)] out BlobLocator locator)
+		{
+			Utf8StringBuilder builder = new Utf8StringBuilder();
+			if (TryAppendLocator(builder))
+			{
+				locator = new BlobLocator(builder.ToUtf8String());
+				return true;
+			}
+			else
+			{
+				locator = default;
+				return false;
+			}
 		}
 
 		/// <inheritdoc/>
 		public override bool Equals(object? obj)
-			=> obj is FlushedExportHandle other && _packet.Equals(other._packet) && _exportIdx == other._exportIdx;
+			=> obj is ExportHandle other && Packet.Equals(other.Packet) && ExportIdx == other.ExportIdx;
 
 		/// <inheritdoc/>
 		public override int GetHashCode()
-			=> HashCode.Combine(_packet, _exportIdx);
+			=> HashCode.Combine(Packet, ExportIdx);
 	}
 }

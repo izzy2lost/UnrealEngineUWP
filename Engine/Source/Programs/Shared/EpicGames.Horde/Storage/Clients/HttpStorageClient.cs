@@ -1,297 +1,27 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
-using System;
-using System.Net;
-using System.Net.Http;
-using System.Net.Http.Headers;
-using System.Net.Http.Json;
-using System.Threading;
-using System.Threading.Tasks;
-using System.Web;
-using EpicGames.Core;
 using Microsoft.Extensions.Logging;
 using EpicGames.Horde.Storage.Backends;
-using System.IO;
-using System.Collections.Generic;
 using EpicGames.Horde.Storage.Bundles;
 
 namespace EpicGames.Horde.Storage.Clients
 {
 	/// <summary>
-	/// Implementation of <see cref="IStorageClient"/> which communicates with an upstream Horde instance via HTTP.
-	/// </summary>
-	public sealed class HttpStorageClient : IStorageClient
-	{
-		class Handle : BlobHandle
-		{
-			readonly HttpStorageClient _httpStorageClient;
-			readonly BlobLocator _locator;
-
-			/// <inheritdoc/>
-			public override IBlobHandle? Outer => null;
-
-			public Handle(HttpStorageClient httpStorageClient, BlobLocator locator)
-			{
-				_httpStorageClient = httpStorageClient;
-				_locator = locator;
-			}
-
-			/// <inheritdoc/>
-			public override ValueTask FlushAsync(CancellationToken cancellationToken = default) => default;
-
-			/// <inheritdoc/>
-			public override Task<Stream> OpenBodyAsync(int offset = 0, int? length = null, CancellationToken cancellationToken = default)
-				=> _httpStorageClient._backend.OpenBlobAsync(_locator, offset, length, cancellationToken);
-
-			/// <inheritdoc/>
-			public override ValueTask<BlobData> ReadBlobDataAsync(CancellationToken cancellationToken = default)
-				=> _httpStorageClient.ReadBlobAsync(_locator, cancellationToken);
-
-			/// <inheritdoc/>
-			public override bool TryAppendIdentifier(Utf8StringBuilder builder)
-			{
-				builder.Append(_locator.Path);
-				return true;
-			}
-
-			/// <inheritdoc/>
-			public override bool Equals(object? obj) => obj is Handle other && _locator == other._locator;
-
-			/// <inheritdoc/>
-			public override int GetHashCode() => _locator.GetHashCode();
-		}
-
-		readonly string _basePath;
-		readonly Func<HttpClient> _createClient;
-		readonly IStorageBackend _backend;
-		readonly ILogger _logger;
-
-		/// <inheritdoc/>
-		public bool SupportsRedirects => _backend.SupportsRedirects;
-
-		/// <summary>
-		/// Constructor
-		/// </summary>
-		public HttpStorageClient(string basePath, Func<HttpClient> createClient, IStorageBackend backend, ILogger logger) 
-		{
-			_basePath = basePath.TrimEnd('/');
-			_createClient = createClient;
-			_backend = backend;
-			_logger = logger;
-		}
-
-		/// <inheritdoc/>
-		public void Dispose()
-		{
-			_backend.Dispose();
-		}
-
-		#region Blobs
-
-		/// <inheritdoc/>
-		public IBlobHandle CreateBlobHandle(BlobLocator locator)
-		{
-			if (locator.TryUnwrap(out BlobLocator outer, out Utf8String fragment))
-			{
-				return new BlobFragmentHandle(new Handle(this, outer), fragment);
-			}
-			else
-			{
-				return new Handle(this, locator);
-			}
-		}
-
-		/// <inheritdoc/>
-		public IStorageWriter CreateWriter(string? basePath = null)
-			=> new DefaultStorageWriter(this, basePath);
-
-		/// <inheritdoc/>
-		public async ValueTask<BlobData> ReadBlobAsync(BlobLocator locator, CancellationToken cancellationToken = default)
-		{
-			IReadOnlyMemoryOwner<byte> owner = await _backend.ReadAsync(locator, cancellationToken);
-			return new BlobDataWithOwner(BlobType.Leaf, owner.Memory, Array.Empty<IBlobHandle>(), owner);
-		}
-
-		/// <inheritdoc/>
-		public async ValueTask<IBlobHandle> WriteBlobAsync(BlobType type, Stream stream, IReadOnlyList<IBlobHandle> references, string? basePath = null, CancellationToken cancellationToken = default)
-		{
-			BlobLocator locator = await _backend.WriteBlobAsync(stream, basePath, cancellationToken);
-			return new Handle(this, locator);
-		}
-
-		/// <inheritdoc/>
-		public ValueTask<Uri?> TryGetReadRedirectAsync(BlobLocator locator, CancellationToken cancellationToken = default)
-			=> _backend.TryGetBlobReadRedirectAsync(locator, cancellationToken);
-
-		/// <inheritdoc/>
-		public ValueTask<(BlobLocator, Uri)?> TryGetWriteRedirectAsync(string? prefix = null, CancellationToken cancellationToken = default)
-			=> _backend.TryGetBlobWriteRedirectAsync(prefix, cancellationToken);
-
-		#endregion
-
-		#region Aliases
-
-		/// <inheritdoc/>
-		public Task AddAliasAsync(string name, IBlobHandle target, int rank = 0, ReadOnlyMemory<byte> data = default, CancellationToken cancellationToken = default)
-		{
-			throw new NotSupportedException("Http storage client does not currently support aliases.");
-		}
-
-		/// <inheritdoc/>
-		public Task RemoveAliasAsync(string name, IBlobHandle target, CancellationToken cancellationToken = default)
-		{
-			throw new NotSupportedException("Http storage client does not currently support aliases.");
-		}
-
-		/// <inheritdoc/>
-		public async Task<BlobAlias[]> FindAliasesAsync(string alias, int? maxResults = null, CancellationToken cancellationToken = default)
-		{
-			_logger.LogDebug("Finding nodes with alias {Alias}", alias);
-			using (HttpClient httpClient = _createClient())
-			{
-				string queryPath = $"{_basePath}/nodes?alias={HttpUtility.UrlEncode(alias.ToString())}";
-				if (maxResults != null)
-				{
-					queryPath += $"&maxResults={maxResults.Value}";
-				}
-
-				using (HttpRequestMessage request = new HttpRequestMessage(HttpMethod.Get, queryPath))
-				{
-					using (HttpResponseMessage response = await httpClient.SendAsync(request, cancellationToken))
-					{
-						response.EnsureSuccessStatusCode();
-
-						FindNodesResponse? message = await response.Content.ReadFromJsonAsync<FindNodesResponse>(cancellationToken: cancellationToken);
-
-						BlobAlias[] aliases = new BlobAlias[message!.Nodes.Count];
-						for (int idx = 0; idx < message.Nodes.Count; idx++)
-						{
-							FindNodeResponse node = message.Nodes[idx];
-							IBlobHandle handle = CreateBlobHandle(node.Blob);
-							aliases[idx] = new BlobAlias(handle, node.Rank, node.Data);
-						}
-
-						return aliases;
-					}
-				}
-			}
-		}
-
-		#endregion
-
-		#region Refs
-
-		/// <inheritdoc/>
-		public async Task<bool> DeleteRefAsync(RefName name, CancellationToken cancellationToken)
-		{
-			_logger.LogDebug("Deleting ref {RefName}", name);
-			using (HttpClient httpClient = _createClient())
-			{
-				using (HttpRequestMessage request = new HttpRequestMessage(HttpMethod.Delete, $"{_basePath}/refs/{name}"))
-				{
-					using (HttpResponseMessage response = await httpClient.SendAsync(request, cancellationToken))
-					{
-						if (response.IsSuccessStatusCode)
-						{
-							return true;
-						}
-						if (response.StatusCode == HttpStatusCode.NotFound)
-						{
-							return false;
-						}
-
-						response.EnsureSuccessStatusCode();
-						return false;
-					}
-				}
-			}
-		}
-
-		/// <inheritdoc/>
-		public async Task<IBlobHandle?> TryReadRefAsync(RefName name, RefCacheTime cacheTime = default, CancellationToken cancellationToken = default)
-		{
-			using (HttpClient httpClient = _createClient())
-			{
-				using (HttpRequestMessage request = new HttpRequestMessage(HttpMethod.Get, $"{_basePath}/refs/{name}"))
-				{
-					if (cacheTime.IsSet())
-					{
-						request.Headers.CacheControl = new CacheControlHeaderValue { MaxAge = cacheTime.MaxAge };
-					}
-
-					using (HttpResponseMessage response = await httpClient.SendAsync(request, cancellationToken))
-					{
-						if (response.StatusCode == HttpStatusCode.NotFound)
-						{
-							_logger.LogDebug("Read ref {RefName} -> None", name);
-							return null;
-						}
-						else if (!response.IsSuccessStatusCode)
-						{
-							_logger.LogError("Unable to read ref {RefName} (status: {StatusCode}, body: {Body})", name, response.StatusCode, await response.Content.ReadAsStringAsync(cancellationToken));
-							throw new StorageException($"Unable to read ref '{name}'");
-						}
-						else
-						{
-							response.EnsureSuccessStatusCode();
-							ReadRefResponse? data = await response.Content.ReadFromJsonAsync<ReadRefResponse>(cancellationToken: cancellationToken);
-							_logger.LogDebug("Read ref {RefName} -> {Blob}", name, data!.Target);
-
-							return CreateBlobHandle(data.Target);
-						}
-					}
-				}
-			}
-		}
-
-		/// <inheritdoc/>
-		public async Task WriteRefAsync(RefName name, IBlobHandle target, RefOptions? options = null, CancellationToken cancellationToken = default)
-		{
-			await target.FlushAsync(cancellationToken);
-			BlobLocator locator = target.GetLocator();
-
-			_logger.LogDebug("Writing ref {RefName} -> {RefTarget}", name, locator);
-			using (HttpClient httpClient = _createClient())
-			{
-				WriteRefRequest request = new WriteRefRequest();
-				request.Target = locator;
-				request.Options = options;
-
-				using (HttpResponseMessage response = await httpClient.PutAsync($"{_basePath}/refs/{name}", request, cancellationToken))
-				{
-					response.EnsureSuccessStatusCode();
-				}
-			}
-		}
-
-		#endregion
-
-		/// <inheritdoc/>
-		public void GetStats(StorageStats stats)
-		{
-		}
-	}
-
-	/// <summary>
 	/// Factory for constructing HttpStorageClient instances
 	/// </summary>
 	public sealed class HttpStorageClientFactory : IStorageClientFactory
 	{
-		readonly IHttpClientFactory _httpClientFactory;
-		readonly StorageBackendCache _backendCache;
+		readonly HttpStorageBackendFactory _backendFactory;
 		readonly BundleCache _bundleCache;
-		readonly ILogger<HttpStorageBackend> _backendLogger;
-		readonly ILogger<HttpStorageClient> _clientLogger;
+		readonly ILogger<BundleStorageClient> _clientLogger;
 
 		/// <summary>
 		/// Constructor
 		/// </summary>
-		public HttpStorageClientFactory(IHttpClientFactory httpClientFactory, StorageBackendCache backendCache, BundleCache bundleCache, ILogger<HttpStorageBackend> backendLogger, ILogger<HttpStorageClient> clientLogger)
+		public HttpStorageClientFactory(HttpStorageBackendFactory backendFactory, BundleCache bundleCache, ILogger<BundleStorageClient> clientLogger)
 		{
-			_httpClientFactory = httpClientFactory;
-			_backendCache = backendCache;
+			_backendFactory = backendFactory;
 			_bundleCache = bundleCache;
-			_backendLogger = backendLogger;
 			_clientLogger = clientLogger;
 		}
 
@@ -303,24 +33,8 @@ namespace EpicGames.Horde.Storage.Clients
 		/// <param name="withBackendCache"></param>
 		public IStorageClient CreateClientWithPath(string basePath, string? accessToken = null, bool withBackendCache = true)
 		{
-			HttpClient CreateClient()
-			{
-				HttpClient httpClient = _httpClientFactory.CreateClient(HordeHttpClient.HttpClientName);
-				if (accessToken != null)
-				{
-					httpClient.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", accessToken);
-				}
-				return httpClient;
-			}
-
-			IStorageBackend backend = new HttpStorageBackend(basePath, CreateClient, _backendLogger);
-			if (_backendCache != null && withBackendCache)
-			{
-				backend = _backendCache.CreateWrapper(basePath, backend);
-			}
-
-			HttpStorageClient client = new HttpStorageClient(basePath, CreateClient, backend, _clientLogger);
-			return new BundleStorageClient(client, _bundleCache, _clientLogger);
+			IStorageBackend backend = _backendFactory.CreateBackend(basePath, accessToken, withBackendCache);
+			return new BundleStorageClient(backend, _bundleCache, _clientLogger);
 		}
 
 		/// <summary>

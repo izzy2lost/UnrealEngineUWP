@@ -212,7 +212,7 @@ namespace UnrealBuildTool.Artifacts
 		/// <returns>Storage client instance</returns>
 		public static IArtifactCache CreateMemoryCache(ILogger logger)
 		{
-			HordeStorageArtifactCache cache = new(new MemoryStorageClient(), logger)
+			HordeStorageArtifactCache cache = new(BundleStorageClient.CreateInMemory(logger), logger)
 			{
 				State = ArtifactCacheState.Available
 			};
