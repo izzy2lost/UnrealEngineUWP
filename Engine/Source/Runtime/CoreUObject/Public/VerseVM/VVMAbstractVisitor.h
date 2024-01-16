@@ -129,7 +129,14 @@ struct FAbstractVisitor
 			{
 				VCell* Scratch = nullptr;
 				Visit(Scratch, ElementName);
-				Value.Set(GetLoadingContext(), Scratch->StaticCast<T>());
+				if (Scratch != nullptr)
+				{
+					Value.Set(GetLoadingContext(), Scratch->StaticCast<T>());
+				}
+				else
+				{
+					Value.Reset();
+				}
 			}
 		}
 		else
