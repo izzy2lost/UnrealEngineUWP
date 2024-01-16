@@ -12,6 +12,7 @@
 
 class AActor;
 class AWorldPartitionHLOD;
+class UPrimitiveComponent;
 class UWorldPartition;
 struct FWorldPartitionHLODEditorData;
 
@@ -50,6 +51,8 @@ private:
 	void OnWorldPartitionInitialized(UWorldPartition* InWorldPartition);
 	void OnWorldPartitionUninitialized(UWorldPartition* InWorldPartition);
 
+	void OnObjectPostEditChange(UObject* Object, FPropertyChangedEvent& PropertyChangedEvent);
+
 	void OnLoaderAdapterStateChanged(const IWorldPartitionActorLoaderInterface::ILoaderAdapter* LoaderAdapter);
 
 	void ForceHLODStateUpdate();
@@ -59,8 +62,11 @@ private:
 	double CachedHLODMinDrawDistance;
 	double CachedHLODMaxDrawDistance;
 	bool bCachedShowHLODsOverLoadedRegions;
-
+	bool bRefreshPrimitiveColorHandlerOnNextTick;
 	bool bForceHLODStateUpdate;
+
+	UPROPERTY(Transient)
+	TSet<TObjectPtr<UPrimitiveComponent>> RefreshPrimitivesColorsOnNextTick;
 
 	TPimplPtr<FWorldPartitionHLODEditorData> HLODEditorData;
 };

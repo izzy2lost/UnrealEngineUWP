@@ -3030,7 +3030,11 @@ void UStaticMeshComponent::ApplyComponentInstanceData(FStaticMeshComponentInstan
 
 bool UStaticMeshComponent::IsHLODRelevant() const
 {
-	if (HasAnyFlags(RF_Transient))
+	if (HasAnyFlags(RF_Transient)
+#if WITH_EDITOR 
+		&& !(GetOwner() && GetOwner()->IsInLevelInstance())			// Treat components in LI as HLOD relevant for the sake of visualisation modes
+#endif
+		)
 	{
 		return false;
 	}

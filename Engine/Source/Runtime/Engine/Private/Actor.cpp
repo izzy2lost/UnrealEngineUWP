@@ -6000,7 +6000,11 @@ bool AActor::IsHLODRelevant() const
 		return false;
 	}
 
-	if (HasAnyFlags(RF_Transient))
+	if (HasAnyFlags(RF_Transient)
+#if WITH_EDITOR 
+		&& !IsInLevelInstance()			// Treat actors in LI as HLOD relevant for the sake of visualisation modes
+#endif
+	   )
 	{
 		return false;
 	}
