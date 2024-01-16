@@ -617,7 +617,6 @@ void FNiagaraRendererMeshes::InitializeSortInfo(const FParticleMeshRenderData& P
 	OutSortInfo.MeshIndexAttributeOffset = ParticleMeshRenderData.MeshIndexOffset;
 	OutSortInfo.RendererVisibility = RendererVisibility;
 	OutSortInfo.DistanceCullRange = DistanceCullRange;
-	OutSortInfo.SystemLWCTile = UseLocalSpace(&SceneProxy) ? FVector3f::Zero() :SceneProxy.GetLWCRenderTile();
 
 	if (ParticleMeshRenderData.bSortCullOnGpu)
 	{
@@ -712,6 +711,18 @@ void FNiagaraRendererMeshes::InitializeSortInfo(const FParticleMeshRenderData& P
 			for (FPlane& Plane : OutSortInfo.CullPlanes)
 			{
 				Plane = Plane.TransformBy(SceneProxy.GetLocalToWorldInverse());
+			}
+		}
+	}
+	else
+	{
+		const FVector LWCTileOffset = FVector(SceneProxy.GetLWCRenderTile()) * FLargeWorldRenderScalar::GetTileSize();
+		OutSortInfo.ViewOrigin -= LWCTileOffset;
+		if (bEnableFrustumCulling)
+		{
+			for (FPlane& Plane : OutSortInfo.CullPlanes)
+			{
+				Plane = Plane.TranslateBy(-LWCTileOffset);
 			}
 		}
 	}
@@ -2098,40 +2109,3 @@ bool FNiagaraRendererMeshes::IsMaterialValid(const UMaterialInterface* Mat)const
 
 	return bIsMaterialValid;
 }
-
-
-//////////////////////////////////////////////////////////////////////////
-// Proposed class for ensuring Niagara/Cascade components who's proxies reference render data of other objects (Materials, Meshes etc) do not have data freed from under them.
-// Our components register themselves with the referenced component which then calls InvalidateRenderDependencies() whenever it's render data is changed or when it is destroyed.
-// UNTESTED - DO NOT USE.
-struct FComponentRenderDependencyHandler
-{
-	void AddDependency(UPrimitiveComponent* Component)
-	{
-		DependentComponents.Add(Component);
-	}
-
-	void RemoveDependancy(UPrimitiveComponent* Component)
-	{
-		DependentComponents.RemoveSwap(Component);
-	}
-
-	void InvalidateRenderDependencies()
-	{
-		int32 i = DependentComponents.Num();
-		while (--i >= 0)
-		{
-			if (UPrimitiveComponent* Comp = DependentComponents[i].Get())
-			{
-				Comp->MarkRenderStateDirty();
-			}
-			else
-			{
-				DependentComponents.RemoveAtSwap(i);
-			}
-		}
-	}
-
-	TArray<TWeakObjectPtr<UPrimitiveComponent>> DependentComponents;
-};
-
