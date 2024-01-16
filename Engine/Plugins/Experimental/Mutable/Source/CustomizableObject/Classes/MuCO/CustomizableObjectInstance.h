@@ -334,6 +334,7 @@ public:
 	
 	bool bShowOnlyRuntimeParameters = true;
 	bool bShowOnlyRelevantParameters = true;
+	bool bShowUISections = false;
 
 	// DEPRECATED: Use the method in the CustomizableObject instead which takes an index among all parameters
 	// Returns how many possible options an int parameter has

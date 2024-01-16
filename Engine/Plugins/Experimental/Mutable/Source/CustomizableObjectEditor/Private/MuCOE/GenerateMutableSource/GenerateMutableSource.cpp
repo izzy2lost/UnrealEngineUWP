@@ -825,7 +825,6 @@ mu::NodeObjectPtr GenerateMutableSource(const UEdGraphPin * Pin, FMutableGraphGe
 			}
 		}
 
-
 		// States
 		int NumStates = TypedNodeObj->States.Num();
 		ObjectNode->SetStateCount(NumStates);
@@ -880,12 +879,6 @@ mu::NodeObjectPtr GenerateMutableSource(const UEdGraphPin * Pin, FMutableGraphGe
 		{
 			GenerationContext.CurrentAutoLODStrategy = TypedNodeObj->AutoLODStrategy;
 		}
-
-		// UI Data
-		GenerationContext.ParameterUIDataMap.Add(TypedNodeObj->ObjectName, FParameterUIData(
-			TypedNodeObj->ObjectName,
-			TypedNodeObj->ParamUIMetadata,
-			EMutableParameterType::Int));
 
 		// Mesh components per instance
 		if (!GenerationContext.NumMeshComponentsInRoot)
@@ -1168,6 +1161,12 @@ mu::NodeObjectPtr GenerateMutableSource(const UEdGraphPin * Pin, FMutableGraphGe
 					if (TypedNodeGroup->GroupType == ECustomizableObjectGroupType::COGT_TOGGLE)
 					{
 						GenerationContext.AddParameterNameUnique(CustomizableObjectNodeObject, CustomizableObjectNodeObject->ObjectName);
+						
+						// UI Data is only relevant when the group node is set to Toggle
+						GenerationContext.ParameterUIDataMap.Add(CustomizableObjectNodeObject->ObjectName, FParameterUIData(
+							CustomizableObjectNodeObject->ObjectName,
+							CustomizableObjectNodeObject->ParamUIMetadata,
+							EMutableParameterType::Int));
 					}
 				}
 			}
@@ -1264,6 +1263,12 @@ mu::NodeObjectPtr GenerateMutableSource(const UEdGraphPin * Pin, FMutableGraphGe
 					if (TypedNodeGroup->GroupType == ECustomizableObjectGroupType::COGT_TOGGLE)
 					{
 						GenerationContext.AddParameterNameUnique(CustomizableObjectNodeObject, CustomizableObjectNodeObject->ObjectName);
+
+						// UI Data is only relevant when the group node is set to Toggle
+						GenerationContext.ParameterUIDataMap.Add(CustomizableObjectNodeObject->ObjectName, FParameterUIData(
+							CustomizableObjectNodeObject->ObjectName,
+							CustomizableObjectNodeObject->ParamUIMetadata,
+							EMutableParameterType::Int));
 					}
 				}
 			}

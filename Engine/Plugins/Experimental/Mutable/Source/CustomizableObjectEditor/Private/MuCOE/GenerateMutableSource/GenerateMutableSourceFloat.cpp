@@ -74,6 +74,11 @@ mu::NodeScalarPtr GenerateMutableSourceFloat(const UEdGraphPin* Pin, FMutableGra
 		return static_cast<mu::NodeScalar*>(Generated->Node.get());
 	}
 
+	if (Node->IsNodeOutDatedAndNeedsRefresh())
+	{
+		Node->SetRefreshNodeWarning();
+	}
+
 	bool bDoNotAddToGeneratedCache = false;
 
 	mu::NodeScalarPtr Result;
@@ -326,7 +331,7 @@ mu::NodeScalarPtr GenerateMutableSourceFloat(const UEdGraphPin* Pin, FMutableGra
 			{
 				// Generating a new data table if not exists
 				mu::TablePtr Table;
-				Table = GenerateMutableSourceTable(DataTable->GetName(), Pin, GenerationContext);
+				Table = GenerateMutableSourceTable(DataTable, TypedNodeTable, GenerationContext);
 
 				if (Table)
 				{
@@ -360,8 +365,6 @@ mu::NodeScalarPtr GenerateMutableSourceFloat(const UEdGraphPin* Pin, FMutableGra
 						ScalarTableNode->SetColumn(ColumnName);
 						ScalarTableNode->SetParameterName(TypedNodeTable->ParameterName);
 						ScalarTableNode->SetNoneOption(TypedNodeTable->bAddNoneOption);
-
-						GenerationContext.AddParameterNameUnique(Node, TypedNodeTable->ParameterName);
 					}
 				}
 				else

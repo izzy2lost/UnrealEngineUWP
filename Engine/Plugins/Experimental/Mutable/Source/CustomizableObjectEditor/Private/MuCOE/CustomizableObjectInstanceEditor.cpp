@@ -257,7 +257,7 @@ void FCustomizableObjectInstanceEditor::InitCustomizableObjectInstanceEditor( co
 
 	FDetailsViewArgs DetailsViewArgs;
 	DetailsViewArgs.NameAreaSettings = FDetailsViewArgs::ENameAreaSettings::HideNameArea;
-	DetailsViewArgs.bAllowSearch = false;
+	DetailsViewArgs.bAllowSearch = true;
 	DetailsViewArgs.bShowObjectLabel = false;
 	
 	CustomizableInstanceDetailsView = PropPlugin.CreateDetailView( DetailsViewArgs );

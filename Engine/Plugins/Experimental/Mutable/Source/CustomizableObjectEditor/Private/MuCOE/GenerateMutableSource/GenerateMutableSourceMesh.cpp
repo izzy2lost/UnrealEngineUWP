@@ -3648,7 +3648,7 @@ mu::NodeMeshPtr GenerateMutableSourceMesh(const UEdGraphPin* Pin,
 			{
 				// Generating a new data table if not exists
 				mu::TablePtr Table = nullptr;
-				Table = GenerateMutableSourceTable(DataTable->GetName(), Pin, GenerationContext);
+				Table = GenerateMutableSourceTable(DataTable, TypedNodeTable, GenerationContext);
 
 				if (Table)
 				{
@@ -3690,8 +3690,6 @@ mu::NodeMeshPtr GenerateMutableSourceMesh(const UEdGraphPin* Pin,
 						MeshTableNode->SetColumn(MutableColumnName);
 						MeshTableNode->SetParameterName(TypedNodeTable->ParameterName);
 						MeshTableNode->SetNoneOption(TypedNodeTable->bAddNoneOption);
-
-						GenerationContext.AddParameterNameUnique(Node, TypedNodeTable->ParameterName);
 
 						if (DefaultSkeletalMesh)
 						{

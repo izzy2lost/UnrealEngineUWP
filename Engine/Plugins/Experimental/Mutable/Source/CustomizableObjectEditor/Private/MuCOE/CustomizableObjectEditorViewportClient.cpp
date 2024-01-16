@@ -54,8 +54,8 @@ class UTextureMipDataProviderFactory;
 #define LOCTEXT_NAMESPACE "CustomizableObjectEditor" 
 
 
-FCustomizableObjectEditorViewportClient::FCustomizableObjectEditorViewportClient(TWeakPtr<ICustomizableObjectInstanceEditor> InCustomizableObjectEditor, FPreviewScene* InPreviewScene)
-	: FEditorViewportClient(&GLevelEditorModeTools(), InPreviewScene)
+FCustomizableObjectEditorViewportClient::FCustomizableObjectEditorViewportClient(TWeakPtr<ICustomizableObjectInstanceEditor> InCustomizableObjectEditor, FPreviewScene* InPreviewScene, const TSharedPtr<SEditorViewport>& EditorViewportWidget)
+	: FEditorViewportClient(&GLevelEditorModeTools(), InPreviewScene, EditorViewportWidget)
 	, CustomizableObjectEditorPtr(InCustomizableObjectEditor)
 	, CustomizableObject(nullptr)
 	, BakingOverwritePermission(false)

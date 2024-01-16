@@ -666,7 +666,7 @@ bool GenerateTableColumn(const UCustomizableObjectNodeTable* TableNode, const UE
 			{
 				bool bCellGenerated = FillTableColumn(TableNode, MutableTable, DataTableColumnName, RowNames[RowIndex].ToString(), RowIndex, CellData, ColumnProperty,
 					LODIndexConnected, SectionIndexConnected, LODIndex, SectionIndex, bOnlyConnectedLOD, GenerationContext);
-				
+
 				if (!bCellGenerated)
 				{
 					return false;
@@ -679,75 +679,68 @@ bool GenerateTableColumn(const UCustomizableObjectNodeTable* TableNode, const UE
 }
 
 
-mu::TablePtr GenerateMutableSourceTable(const FString& TableName, const UEdGraphPin* Pin, FMutableGraphGenerationContext& GenerationContext)
-{	
+void GenerateTableParameterUIData(const UDataTable* DataTable, const UCustomizableObjectNodeTable* TableNode, FMutableGraphGenerationContext& GenerationContext)
+{
+	// Checking if the parameter name already exists
+	GenerationContext.AddParameterNameUnique(TableNode, TableNode->ParameterName);
+
+	// Generating Parameter UI MetaData if not exists
+	if (!GenerationContext.ParameterUIDataMap.Contains(TableNode->ParameterName))
+	{
+		// Getting Table and row names to access the information
+		const TArray<FName>& RowNames = TableNode->GetRowNames(DataTable);
+		FParameterUIData ParameterUIData(TableNode->ParameterName, TableNode->ParamUIMetadata, EMutableParameterType::Int);
+
+		for (int32 NameIndex = 0; NameIndex < RowNames.Num(); ++NameIndex)
+		{
+			ParameterUIData.ArrayIntegerParameterOption.Add(FIntegerParameterUIData(RowNames[NameIndex].ToString(), FMutableParamUIMetadata()));
+		}
+
+		ParameterUIData.IntegerParameterGroupType = TableNode->bAddNoneOption ? ECustomizableObjectGroupType::COGT_ONE_OR_NONE : ECustomizableObjectGroupType::COGT_ONE;
+		GenerationContext.ParameterUIDataMap.Add(TableNode->ParameterName, ParameterUIData);
+	}
+}
+
+
+mu::TablePtr GenerateMutableSourceTable(const UDataTable* DataTable, const UCustomizableObjectNodeTable* TableNode, FMutableGraphGenerationContext& GenerationContext)
+{
+	check(DataTable && TableNode);
+
+	// Checking if the table in the cache
+	const FString TableName = DataTable->GetName();
+
 	if (mu::TablePtr* Result = GenerationContext.GeneratedTables.Find(TableName))
 	{
+		// Generating Parameter Metadata for parameters that reuse a Table
+		GenerateTableParameterUIData(DataTable, TableNode, GenerationContext);
+
 		return *Result;
 	}
 
 	mu::TablePtr MutableTable = new mu::Table();
-	
-	UCustomizableObjectNode* Node = CastChecked<UCustomizableObjectNode>(Pin->GetOwningNode());
-	if (Node->IsNodeOutDatedAndNeedsRefresh())
+
+	if (const UScriptStruct* TableStruct = DataTable->GetRowStruct())
 	{
-		Node->SetRefreshNodeWarning();
-	}
+		// Getting Table and row names to access the information
+		const TArray<FName>& RowNames = TableNode->GetRowNames(DataTable);
 
-	if (const UCustomizableObjectNodeTable* TypedTable = Cast<UCustomizableObjectNodeTable>(Node))
-	{
-		UDataTable* DataTable = GetDataTable(TypedTable, GenerationContext);
+		// Adding and filling Name Column
+		MutableTable->AddColumn("Name", mu::ETableColumnType::String);
 
-		if (!DataTable)
+		for (int32 NameIndex = 0; NameIndex < RowNames.Num(); ++NameIndex)
 		{
-			FString msg = "Couldn't find the Data Table asset in the Node.";
-			GenerationContext.Compiler->CompilerLog(FText::FromString(msg), Node);
-
-			return nullptr;
+			MutableTable->AddRow(NameIndex);
+			MutableTable->SetCell(0, NameIndex, RowNames[NameIndex].ToString());
 		}
 
-		const UScriptStruct* TableStruct = DataTable->GetRowStruct();
-
-		if (TableStruct)
-		{
-			// Getting names of the rows to access the information
-			const TArray<FName>& RowNames = TypedTable->GetRowNames(DataTable);
-
-			// Adding and filling Name Column
-			MutableTable->AddColumn("Name", mu::ETableColumnType::String);
-
-			// Add metadata
-			FParameterUIData ParameterUIData(
-				TypedTable->ParameterName,
-				TypedTable->ParamUIMetadata,
-				EMutableParameterType::Int);
-			
-			ParameterUIData.IntegerParameterGroupType = TypedTable->bAddNoneOption ? ECustomizableObjectGroupType::COGT_ONE_OR_NONE : ECustomizableObjectGroupType::COGT_ONE;
-
-			for (int32 i = 0; i < RowNames.Num(); ++i)
-			{
-				MutableTable->AddRow(i);
-				FString RowName= RowNames[i].ToString();
-				MutableTable->SetCell(0, i, RowName);
-				ParameterUIData.ArrayIntegerParameterOption.Add(FIntegerParameterUIData(
-					RowName,
-					FMutableParamUIMetadata()));
-			}
-
-			GenerationContext.ParameterUIDataMap.Add(TypedTable->ParameterName, ParameterUIData);
-		}
-		else
-		{
-			FString msg = "Couldn't find the Data Table's Struct asset in the Node.";
-			GenerationContext.Compiler->CompilerLog(FText::FromString(msg), Node);
-			
-			return nullptr;
-		}
+		// Generating Parameter Metadata for new table parameters
+		GenerateTableParameterUIData(DataTable, TableNode, GenerationContext);
 	}
 	else
 	{
-		GenerationContext.Compiler->CompilerLog(LOCTEXT("UnimplementedNode", "Node type not implemented yet."), Node);
-
+		FString msg = "Couldn't find the Data Table's Struct asset in the Node.";
+		GenerationContext.Compiler->CompilerLog(FText::FromString(msg), DataTable);
+		
 		return nullptr;
 	}
 

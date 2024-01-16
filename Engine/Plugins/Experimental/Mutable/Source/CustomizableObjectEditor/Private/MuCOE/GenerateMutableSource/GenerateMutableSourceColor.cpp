@@ -47,6 +47,11 @@ mu::NodeColourPtr GenerateMutableSourceColor(const UEdGraphPin* Pin, FMutableGra
 		return static_cast<mu::NodeColour*>(Generated->Node.get());
 	}
 
+	if (Node->IsNodeOutDatedAndNeedsRefresh())
+	{
+		Node->SetRefreshNodeWarning();
+	}
+
 	mu::NodeColourPtr Result;
 
 	if (const UCustomizableObjectNodeColorConstant* TypedNodeColorConst = Cast<UCustomizableObjectNodeColorConstant>(Node))
@@ -292,7 +297,7 @@ mu::NodeColourPtr GenerateMutableSourceColor(const UEdGraphPin* Pin, FMutableGra
 			{
 				// Generating a new data table if not exists
 				mu::TablePtr Table;
-				Table = GenerateMutableSourceTable(DataTable->GetName(), Pin, GenerationContext);
+				Table = GenerateMutableSourceTable(DataTable, TypedNodeTable, GenerationContext);
 
 				if (Table)
 				{
@@ -320,8 +325,6 @@ mu::NodeColourPtr GenerateMutableSourceColor(const UEdGraphPin* Pin, FMutableGra
 						ColorTableNode->SetColumn(ColumnName);
 						ColorTableNode->SetParameterName(TypedNodeTable->ParameterName);
 						ColorTableNode->SetNoneOption(TypedNodeTable->bAddNoneOption);
-
-						GenerationContext.AddParameterNameUnique(Node, TypedNodeTable->ParameterName);
 					}
 				}
 				else

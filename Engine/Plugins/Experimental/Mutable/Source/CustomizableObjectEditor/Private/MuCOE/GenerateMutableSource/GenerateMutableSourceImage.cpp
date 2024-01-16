@@ -143,6 +143,11 @@ mu::NodeImagePtr GenerateMutableSourceImage(const UEdGraphPin* Pin, FMutableGrap
 		return static_cast<mu::NodeImage*>(Generated->Node.get());
 	}
 
+	if (Node->IsNodeOutDatedAndNeedsRefresh())
+	{
+		Node->SetRefreshNodeWarning();
+	}
+
 	bool bDoNotAddToGeneratedCache = false;
 
 	mu::NodeImagePtr Result;
@@ -1010,7 +1015,7 @@ mu::NodeImagePtr GenerateMutableSourceImage(const UEdGraphPin* Pin, FMutableGrap
 				{
 					// Generating a new data table if not exists
 					mu::TablePtr Table = nullptr;
-					Table = GenerateMutableSourceTable(DataTable->GetName(), Pin, GenerationContext);
+					Table = GenerateMutableSourceTable(DataTable, TypedNodeTable, GenerationContext);
 
 					if (Table)
 					{
@@ -1080,8 +1085,6 @@ mu::NodeImagePtr GenerateMutableSourceImage(const UEdGraphPin* Pin, FMutableGrap
 								ImageTableNode->SetMaxTextureSize(FMath::Max(DefaultTexture2D->Source.GetSizeX(), DefaultTexture2D->Source.GetSizeY()));
 								ImageTableNode->SetReferenceImageDescriptor(GenerateImageDescriptor(DefaultTexture2D));
 							}
-							
-							GenerationContext.AddParameterNameUnique(Node, TypedNodeTable->ParameterName);
 						}
 					}
 					else

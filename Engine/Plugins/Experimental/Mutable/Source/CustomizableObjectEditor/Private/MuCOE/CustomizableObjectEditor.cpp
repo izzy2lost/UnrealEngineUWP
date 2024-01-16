@@ -228,7 +228,7 @@ void FCustomizableObjectEditor::InitCustomizableObjectEditor(const EToolkitMode:
 	FDetailsViewArgs DetailsViewArgs;
 	DetailsViewArgs.NotifyHook = this;
 	DetailsViewArgs.NameAreaSettings = FDetailsViewArgs::ENameAreaSettings::HideNameArea;
-	DetailsViewArgs.bAllowSearch = false;
+	DetailsViewArgs.bAllowSearch = true;
 	//DetailsViewArgs.bShowActorLabel = false;
 	DetailsViewArgs.bShowObjectLabel = false;
 	DetailsViewArgs.bShowScrollBar = false;
