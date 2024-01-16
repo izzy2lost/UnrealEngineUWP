@@ -211,7 +211,7 @@ bool FOnlineSubsystemEOS::PlatformCreate()
 		OverlayFlags |= EOS_PF_DISABLE_SOCIAL_OVERLAY;
 	}
 #if WITH_EDITOR
-	if (!EOSSettings.bEnableEditorOverlay)
+	if (GIsEditor && EOSSettings.bEnableEditorOverlay)
 	{
 		OverlayFlags |= EOS_PF_LOADING_IN_EDITOR;
 	}
