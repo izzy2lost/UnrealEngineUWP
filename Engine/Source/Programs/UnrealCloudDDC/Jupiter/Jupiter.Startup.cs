@@ -183,6 +183,9 @@ namespace Jupiter
 			services.AddSingleton<BlobIndexConsistencyCheckService>();
 			services.AddHostedService<BlobIndexConsistencyCheckService>(p => p.GetService<BlobIndexConsistencyCheckService>()!);
 
+			services.AddSingleton<RefStoreConsistencyCheckService>();
+			services.AddHostedService<RefStoreConsistencyCheckService>(p => p.GetService<RefStoreConsistencyCheckService>()!);
+
 			services.AddSingleton<MetricsService>();
 			services.AddHostedService<MetricsService>(p => p.GetService<MetricsService>()!);
 

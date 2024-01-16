@@ -54,6 +54,17 @@ namespace Jupiter.Implementation
 			return Task.CompletedTask;
 		}
 
+		public Task<DateTime?> GetLastAccessTimeAsync(NamespaceId ns, BucketId bucket, RefId key)
+		{
+			DateTime? lastAccessTime = null;
+			if (_objects.TryGetValue(BuildKey(ns, bucket, key), out MemoryStoreObject? o))
+			{
+				lastAccessTime = o.LastAccessTime;
+			}
+
+			return Task.FromResult(lastAccessTime);
+		}
+
 		public Task UpdateLastAccessTimeAsync(NamespaceId ns, BucketId bucket, RefId key, DateTime lastAccessTime)
 		{
 			if (!_objects.TryGetValue(BuildKey(ns, bucket, key), out MemoryStoreObject? o))

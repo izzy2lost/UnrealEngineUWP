@@ -92,6 +92,11 @@ namespace Jupiter.Implementation.Objects
 			return _actualStore.FinalizeAsync(ns, bucket, key, blobIdentifier);
 		}
 
+		public Task<DateTime?> GetLastAccessTimeAsync(NamespaceId ns, BucketId bucket, RefId key)
+		{
+			return _actualStore.GetLastAccessTimeAsync(ns, bucket, key);
+		}
+
 		private void FinalizeCacheEntry(NamespaceId ns, BucketId bucket, RefId key)
 		{
 			MemoryCache cache = GetCacheForNamespace(ns);

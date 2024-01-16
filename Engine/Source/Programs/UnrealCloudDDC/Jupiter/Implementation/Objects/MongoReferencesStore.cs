@@ -108,6 +108,15 @@ namespace Jupiter.Implementation
 			);
 		}
 
+		public async Task<DateTime?> GetLastAccessTimeAsync(NamespaceId ns, BucketId bucket, RefId key)
+		{
+			IMongoCollection<MongoReferencesModelV0> collection = GetCollection<MongoReferencesModelV0>();
+			IAsyncCursor<MongoReferencesModelV0>? cursor = await collection.FindAsync(m => m.Ns == ns.ToString() && m.Bucket == bucket.ToString() && m.Key == key.ToString());
+			MongoReferencesModelV0? model = await cursor.FirstOrDefaultAsync();
+
+			return model?.LastAccessTime;
+		}
+
 		public async Task UpdateLastAccessTimeAsync(NamespaceId ns, BucketId bucket, RefId key, DateTime newLastAccessTime)
 		{
 			IMongoCollection<MongoReferencesModelV0> collection = GetCollection<MongoReferencesModelV0>();

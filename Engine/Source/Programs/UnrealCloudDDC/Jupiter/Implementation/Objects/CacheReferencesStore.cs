@@ -64,6 +64,26 @@ namespace Jupiter.Implementation
 			await Task.WhenAll(cacheFinalize, upstreamFinalize);
 		}
 
+		public async Task<DateTime?> GetLastAccessTimeAsync(NamespaceId ns, BucketId bucket, RefId key)
+		{
+			try
+			{
+				DateTime? lastAccessTimeCache = await _mongoReferenceStore.GetLastAccessTimeAsync(ns, bucket, key);
+				return lastAccessTimeCache;
+			}
+			catch (RefNotFoundException)
+			{
+				// not cached, we check the upstream for it
+			}
+			DateTime? lastAccessTime = await _upstreamReferenceStore.GetLastAccessTimeAsync(ns, bucket, key);
+			if (lastAccessTime.HasValue)
+			{
+				await _mongoReferenceStore.UpdateLastAccessTimeAsync(ns, bucket, key, lastAccessTime.Value);
+			}
+
+			return lastAccessTime;
+		}
+
 		public async Task UpdateLastAccessTimeAsync(NamespaceId ns, BucketId bucket, RefId key, DateTime newLastAccessTime)
 		{
 			Task cacheUpdateLastAccess = _mongoReferenceStore.UpdateLastAccessTimeAsync(ns, bucket, key, newLastAccessTime);
@@ -187,6 +207,19 @@ namespace Jupiter.Implementation
 			{
 				// TODO: we assume here that all the objects that are missing are content ids, that may not be true, but as needs only contains a list with mixed hashes we can not detect the difference
 				throw new PartialReferenceResolveException(putObjectResponse.Needs.Select(hash => new ContentId(hash.HashData)).ToList());
+			}
+		}
+
+		public async Task<DateTime?> GetLastAccessTimeAsync(NamespaceId ns, BucketId bucket, RefId key)
+		{
+			try
+			{
+				RefRecord foo = await GetAsync(ns, bucket, key, IReferencesStore.FieldFlags.None, IReferencesStore.OperationFlags.None);
+				return foo.LastAccess;
+			}
+			catch (RefNotFoundException)
+			{
+				return null;
 			}
 		}
 
