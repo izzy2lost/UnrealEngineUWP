@@ -165,7 +165,7 @@ namespace EpicGames.Horde.Storage
 			foreach (Item item in _items)
 			{
 				ObjectKey key = item.Key;
-				if (key.Path.ToString().EndsWith(BackendWrapper.BlobExtension))
+				if (key.Path.ToString().EndsWith(BackendWrapper.BlobExtension, StringComparison.OrdinalIgnoreCase))
 				{
 					yield return new BlobLocator(key.Path.Substring(0, key.Path.Length - BackendWrapper.BlobExtension.Length));
 				}
