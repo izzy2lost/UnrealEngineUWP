@@ -770,7 +770,7 @@ class AuditLine {
             const logId = this.properties.get("LogId")?.value;
 
             if (logId && leaseId) {
-               let to = `/log/${logId}?leaseId=${leaseId}`;
+               let to = `/log/${logId}`;
                element = <Link to={to} >{this.highlight(key, leaseId)}</Link>
             }
 
@@ -779,11 +779,10 @@ class AuditLine {
          // LogId
          if (tag === "LogId") {
 
-            const logId = property.value as string;
-            const leaseId = this.properties.get("LeaseId")?.value;
+            const logId = property.value as string;            
 
-            if (logId && leaseId) {
-               let to = `/log/${logId}?leaseId=${leaseId}`;
+            if (logId) {
+               let to = `/log/${logId}`;
                element = <Link to={to} >{this.highlight(key, logId)}</Link>
             }
 

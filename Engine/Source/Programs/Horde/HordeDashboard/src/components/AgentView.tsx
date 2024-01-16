@@ -2579,7 +2579,7 @@ export const AgentViewInner: React.FC<{ agentId?: string, poolId?: string, searc
                         link = `/job/${lease.details['jobId']}`;
                      }
                      else if ('logId' in lease.details) {
-                        link = `/log/${lease.details['logId']}?leaseId=${lease.id}&agentId=${agent.id}`;
+                        link = `/log/${lease.details['logId']}&agentId=${agent.id}`;
                      }
                   }
                   if (link !== "") {

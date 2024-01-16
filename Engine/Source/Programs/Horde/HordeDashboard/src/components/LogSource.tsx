@@ -197,7 +197,7 @@ export abstract class LogSource {
       if (this.polling) {
          if (this.active) {
             this.pollID = setTimeout(() => { this.poll(); }, !!this._logItems.find(i => !!i.line) ? this.pollMS : 3000);
-         }         
+         }
          return;
       }
 
@@ -280,21 +280,42 @@ export abstract class LogSource {
 
    query?: URLSearchParams;
 
-   static create(logId: string, query: URLSearchParams): LogSource {
+   static async create(logId: string, query: URLSearchParams): Promise<LogSource> {
 
-      const leaseId = query.get("leaseId");
+      return new Promise<LogSource>(async (resolve, reject) => {
 
-      let line: number | undefined;
-      if (query.get("lineindex")) {
-         line = parseInt(query.get("lineindex")!);
-      }
+         const data = await backend.getLogData(logId);
 
-      const source = leaseId ? new LeaseLogSource(leaseId) : new JobLogSource();
-      source.startLine = line;
-      source.logId = logId;
-      source.query = query;
+         const value = Number(`0x${data.jobId}`);
 
-      return source;
+         let source: LogSource | undefined;
+
+         if (!value) {
+
+            if (!data.leaseId) {
+               reject("Bad lease log");
+               return;
+            }
+
+            source = new LeaseLogSource(data.leaseId!)
+         } else {
+            source = new JobLogSource();
+
+         }
+
+         let line: number | undefined;
+         if (query.get("lineindex")) {
+            line = parseInt(query.get("lineindex")!);
+         }
+
+         source.startLine = line;
+         source.logId = logId;
+         source.query = query;
+
+         resolve(source);
+
+      });
+
 
    }
 }

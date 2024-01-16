@@ -618,10 +618,10 @@ export const HistoryModal: React.FC<{ agentId: string | undefined, onDismiss: (.
             case 'id':
                link = "";
                if (lease.details && 'LogId' in lease.details) {
-                  link = '/log/' + lease.details['LogId'] + '?leaseId=' + lease.id;
+                  link = '/log/' + lease.details['LogId'];
                }
                else if (lease.logId) {
-                  link = `/log/${lease.logId}?leaseId=${lease.id}`;
+                  link = `/log/${lease.logId}`;
                }
                if (link) {
                   return <Stack style={{ height: "100%" }} verticalAlign="center"><Link to={link}>{lease.id}</Link></Stack>
@@ -649,7 +649,7 @@ export const HistoryModal: React.FC<{ agentId: string | undefined, onDismiss: (.
                }
 
                if (!link && (lease.parentId && lease.details && lease.details["parentLogId"])) {
-                  link = `/log/${lease.details["parentLogId"]}?leaseId=${lease.parentId}`
+                  link = `/log/${lease.details["parentLogId"]}`
                   return <Stack styles={{ root: { height: '100%' } }} horizontal><Stack.Item align={"center"}><Text style={{ fontSize: "12px" }}>{name} (parent: </Text><Link style={{ fontSize: "12px" }} to={link}>{lease.parentId}</Link><Text style={{ fontSize: "12px" }}>)</Text></Stack.Item></Stack>;
                }
 

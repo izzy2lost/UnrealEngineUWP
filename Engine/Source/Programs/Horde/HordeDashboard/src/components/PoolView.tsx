@@ -736,7 +736,7 @@ const ConformPanel: React.FC = () => {
             return null;
          }
          return <Stack horizontalAlign="end" style={{ paddingRight: 32 }}>
-            <Link to={`/log/${lease.logId}?leaseId=${lease.id}`} target="_blank">
+            <Link to={`/log/${lease.logId}`} target="_blank">
                <Stack horizontal verticalAlign="center" tokens={{ childrenGap: 0, padding: 0 }} style={{ width: "100%", height: "100%" }}>
                   <Text styles={{ root: { margin: '0px', padding: '0px', paddingRight: '8px' } }} className={"view-log-link"}>View Log</Text>
                </Stack>

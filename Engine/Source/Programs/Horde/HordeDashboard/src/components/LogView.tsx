@@ -541,8 +541,8 @@ export const LogList: React.FC<{ logId: string }> = observer(({ logId }) => {
    }
 
    if (!handler) {
-      const source = LogSource.create(logId, query);
-      source.init().then(() => {
+      LogSource.create(logId, query).then(async (source) => {
+         await source.init();
 
          const handler = new LogHandler();
 
@@ -552,10 +552,10 @@ export const LogList: React.FC<{ logId: string }> = observer(({ logId }) => {
 
          handler.logSource = source;
          setHandler(handler);
+      });
 
-      }).catch(reason => console.error(reason));
       return <Spinner size={SpinnerSize.large} />;
-   }
+   };
 
    // subscribe
    if (handler.updated) { }
@@ -766,13 +766,7 @@ export const LogList: React.FC<{ logId: string }> = observer(({ logId }) => {
 
    let summaryText = logSource.summary;
 
-   const leaseId = logSource.getLeaseId();
-
    let baseUrl = location.pathname;
-
-   if (leaseId) {
-      baseUrl = baseUrl + `?leaseId=${leaseId}`;
-   }
 
    /*
    if (agentId && summaryText) {
@@ -1171,7 +1165,7 @@ export const LogList: React.FC<{ logId: string }> = observer(({ logId }) => {
                                     }}
 
                                  />
-                                 <Stack horizontal style={{ borderWidth: 1, borderStyle: "solid", borderColor: dashboard.darktheme ?  "#3F3F3F" : "rgb(96, 94, 92)", height: 32, borderLeft: 0 }}>
+                                 <Stack horizontal style={{ borderWidth: 1, borderStyle: "solid", borderColor: dashboard.darktheme ? "#3F3F3F" : "rgb(96, 94, 92)", height: 32, borderLeft: 0 }}>
                                     <IconButton style={{ height: 30 }} iconProps={{ iconName: 'ChevronUp' }} onClick={(event: any) => {
                                        searchUp();
                                     }} />
@@ -1193,7 +1187,7 @@ export const LogList: React.FC<{ logId: string }> = observer(({ logId }) => {
                               />
 
                               <PrimaryButton
-                                 text="Download"                                 
+                                 text="Download"
                                  split
                                  onClick={() => logSource.download(false)}
                                  menuProps={downloadProps}

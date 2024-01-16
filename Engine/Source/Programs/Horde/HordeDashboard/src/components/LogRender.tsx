@@ -163,7 +163,7 @@ const renderTags = (navigate: NavigateFunction, line: LogLine, lineNumber: numbe
          const navigateToLeaseLog = async (toplevel: boolean) => {
 
             const logData = await backend.getLease(text);
-            const url = `/log/${logData?.logId}?leaseId=${text}`;
+            const url = `/log/${logData?.logId}`;
             if (!toplevel) {
                navigate(url)
             } else {
