@@ -27,7 +27,6 @@ namespace Jupiter.FunctionalTests.References
 		}
 
 		private TestServer? _server;
-		private HttpClient? _httpClient;
 		private readonly NamespaceId _testNamespaceName;
 
 		private readonly BucketId DefaultBucket = new BucketId("default");
@@ -76,7 +75,6 @@ namespace Jupiter.FunctionalTests.References
 				.UseSerilog(logger)
 				.UseStartup<JupiterStartup>()
 			);
-			_httpClient = server.CreateClient();
 			_server = server;
 
 			// Seed storage
@@ -157,7 +155,6 @@ namespace Jupiter.FunctionalTests.References
 			byte[] b = writer.ToByteArray();
 			return (BlobId.FromBlob(b), new CbObject(b));
 		}
-
 	}
 
 	[TestClass]
@@ -187,6 +184,7 @@ namespace Jupiter.FunctionalTests.References
 	}
 
 	[TestClass]
+	[DoNotParallelize]
 	public class ScyllaRefStoreTests : RefStoreConsistencyTests
 	{
 		public ScyllaRefStoreTests() : base("scylla")
