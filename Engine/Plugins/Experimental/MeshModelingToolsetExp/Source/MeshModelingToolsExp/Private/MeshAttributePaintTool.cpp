@@ -336,7 +336,6 @@ void UMeshAttributePaintTool::OnBeginDrag(const FRay& WorldRay)
 		StartStamp = UBaseBrushTool::LastBrushStamp;
 		LastStamp = StartStamp;
 		bStampPending = true;
-		LongTransactions.Open(LOCTEXT("AttributeValuesChange", "Paint"), GetToolManager());
 	}
 }
 
@@ -741,6 +740,8 @@ void UMeshAttributePaintTool::BeginChange()
 	}
 	ActiveChangeBuilder->BeginNewChange();
 	ActiveChangeBuilder->Change->CustomData = CurrentAttributeIndex;
+
+	LongTransactions.Open(LOCTEXT("AttributeValuesChange", "Paint"), GetToolManager());
 }
 
 
