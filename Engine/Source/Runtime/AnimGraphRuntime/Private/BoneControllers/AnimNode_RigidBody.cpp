@@ -1037,10 +1037,8 @@ void FAnimNode_RigidBody::InitPhysics(const UAnimInstance* InAnimInstance)
 
 	ensure(SkeletonAsset == SkeletalMeshAsset->GetSkeleton());
 
-	const int32 SkelMeshLinkupIndex = SkeletonAsset->GetMeshLinkupIndex(SkeletalMeshAsset);
-	ensure(SkelMeshLinkupIndex != INDEX_NONE);
-	const FSkeletonToMeshLinkup& SkeletonToMeshLinkupTable = SkeletonAsset->LinkupCache[SkelMeshLinkupIndex];
-	const TArray<int32>& MeshToSkeletonBoneIndex = SkeletonToMeshLinkupTable.MeshToSkeletonTable;
+	const FSkeletonToMeshLinkup& LinkupTable = SkeletonAsset->FindOrAddMeshLinkupData(SkeletalMeshAsset);
+	const TArray<int32>& MeshToSkeletonBoneIndex = LinkupTable.MeshToSkeletonTable;
 	
 	const int32 NumSkeletonBones = SkeletonAsset->GetReferenceSkeleton().GetNum();
 	SkeletonBoneIndexToBodyIndex.Reset(NumSkeletonBones);

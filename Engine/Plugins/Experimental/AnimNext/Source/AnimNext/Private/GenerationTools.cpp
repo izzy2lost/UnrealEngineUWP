@@ -123,10 +123,7 @@ struct FCompareBoneIndexType
 				}
 
 				// Removing const here because the linkup lazily builds the mapping and caches it
-				const int32 SkelMeshLinkupIndex = const_cast<USkeleton*>(Skeleton)->GetMeshLinkupIndex(SkeletalMesh);
-				check(SkelMeshLinkupIndex != INDEX_NONE);
-
-				const FSkeletonToMeshLinkup& LinkupTable = Skeleton->LinkupCache[SkelMeshLinkupIndex];
+				const FSkeletonToMeshLinkup& LinkupTable = const_cast<USkeleton*>(Skeleton)->FindOrAddMeshLinkupData(SkeletalMesh);
 
 				// Generate a Skeleton to LOD look up table
 				const int32 NumOrderedBones = LODBoneIndexToMeshBoneIndexMap.Num();

@@ -23,6 +23,7 @@
 #include "Interfaces/Interface_AssetUserData.h"
 #include "Interfaces/Interface_PreviewMeshProvider.h"
 #include "Delegates/DelegateCombinations.h"
+#include "UObject/ObjectKey.h"
 #include "Skeleton.generated.h"
 
 class UAnimCurveMetaData;
@@ -636,15 +637,24 @@ public:
 
 	typedef TArray<FBoneNode> FBoneTreeType;
 
-	//Use this Lock everytime you change or access LinkupCache and SkelMesh2LinkupCache member.
+	
+	UE_DEPRECATED(5.4, "Public access to this member variable is deprecated.")
 	FCriticalSection LinkupCacheLock;
 
 	/** Non-serialised cache of linkups between different skeletal meshes and this Skeleton. */
+	UE_DEPRECATED(5.4, "Public access to this member variable is deprecated.")
 	TArray<struct FSkeletonToMeshLinkup> LinkupCache;
 
 private:
-	/** Runtime built mapping table between SkinnedAssets, and LinkupCache array indices. */
+	UE_DEPRECATED(5.4, "Please, use SkinnedAssetLinkupCache.")
 	TMap<TWeakObjectPtr<USkinnedAsset>, int32> SkinnedAsset2LinkupCache;
+	
+	//Use this Lock everytime you change or access SkinnedAssetLinkupCache member.
+	FRWLock SkinnedAssetLinkupCacheLock;
+
+	/** Runtime built mapping table between SkinnedAssets and Mesh Linkup Data*/
+	TMap<TObjectKey<USkinnedAsset>, TUniquePtr<FSkeletonToMeshLinkup>> SkinnedAssetLinkupCache;
+
 public:
 	UE_DEPRECATED(5.1, "Public access to this member variable is deprecated.")
 	TMap<TWeakObjectPtr<USkeletalMesh>, int32> SkelMesh2LinkupCache;
@@ -795,11 +805,22 @@ public:
 	/** Clears all cache data **/
 	ENGINE_API void ClearCacheData();
 
-	/** 
+	UE_DEPRECATED(5.4, "Please use FindOrAddMeshLinkupData.")
+	ENGINE_API int32 GetMeshLinkupIndex(const USkinnedAsset* InSkinnedAsset);
+
+	/**
 	 * Find a mesh linkup table (mapping of skeleton bone tree indices to refpose indices) for a particular SkinnedAsset
 	 * If one does not already exist, create it now.
 	 */
-	ENGINE_API int32 GetMeshLinkupIndex(const USkinnedAsset* InSkinnedAsset);
+	ENGINE_API const FSkeletonToMeshLinkup& FindOrAddMeshLinkupData(const USkinnedAsset* InSkinnedAsset);
+
+	/**
+	 * Adds a new Mesh Linkup Table to the map  for a particular SkinnedAsset
+	 *
+	 * @param	InSkinnedAsset	: SkinnedAsset to build look up for
+	 * @return	Const ref to the added FSkeletonToMeshLinkup unique ptr
+	 */
+	ENGINE_API const FSkeletonToMeshLinkup& AddMeshLinkupData(const USkinnedAsset* InSkinnedAsset);
 
 	/** 
 	 * Merge Bones (RequiredBones from InSkinnedAsset) to BoneTrees if not exists
@@ -958,7 +979,16 @@ protected:
 	 * @param	InSkinnedAsset	: SkinnedAsset to build look up for
 	 * @return	Index of LinkupCache that this SkelMesh is linked to
 	 */
+	UE_DEPRECATED(5.4, "Please use BuildLinkup with USkinnedAsset and FSkeletonToMeshLinkup parameters.")
 	int32 BuildLinkup(const USkinnedAsset* InSkinnedAsset);
+
+	/**
+	 * Build Look up between SkinnedAsset to BoneTree
+	 *
+	 * @param	InSkinnedAsset			: SkinnedAsset to build look up for
+	 * @param	FSkeletonToMeshLinkup	: Out mesh linkup data
+	 */
+	void BuildLinkupData(const USkinnedAsset* InSkinnedAsset, FSkeletonToMeshLinkup& NewMeshLinkup);
 
 #if WITH_EDITORONLY_DATA
 	/**

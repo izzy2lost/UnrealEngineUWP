@@ -553,10 +553,8 @@ bool FBoneContainer::BoneIsChildOf(const FCompactPoseBoneIndex& BoneIndex, const
 void FBoneContainer::RemapFromSkelMesh(USkeletalMesh const & SourceSkeletalMesh, USkeleton& TargetSkeleton)
 {
 	LLM_SCOPE_BYNAME(TEXT("Animation/BoneContainer"));
-	int32 const SkelMeshLinkupIndex = TargetSkeleton.GetMeshLinkupIndex(&SourceSkeletalMesh);
-	check(SkelMeshLinkupIndex != INDEX_NONE);
-
-	FSkeletonToMeshLinkup const & LinkupTable = TargetSkeleton.LinkupCache[SkelMeshLinkupIndex];
+	
+	const FSkeletonToMeshLinkup& LinkupTable = TargetSkeleton.FindOrAddMeshLinkupData(&SourceSkeletalMesh);
 
 	// Copy LinkupTable arrays for now.
 	// @laurent - Long term goal is to trim that down based on LOD, so we can get rid of the BoneIndicesArray and branch cost of testing if PoseBoneIndex is in that required bone index array.

@@ -733,26 +733,60 @@ bool USkeleton::IsCompatibleMesh(const USkinnedAsset* InSkinnedAsset, bool bDoPa
 
 void USkeleton::ClearCacheData()
 {
+	{
+		FRWScopeLock Lock(SkinnedAssetLinkupCacheLock, SLT_Write);
+		SkinnedAssetLinkupCache.Empty();
+	}
+
+	PRAGMA_DISABLE_DEPRECATION_WARNINGS
 	FScopeLock ScopeLock(&LinkupCacheLock);
 	LinkupCache.Empty();
-	PRAGMA_DISABLE_DEPRECATION_WARNINGS
 	SkelMesh2LinkupCache.Empty();
-	PRAGMA_ENABLE_DEPRECATION_WARNINGS
 	SkinnedAsset2LinkupCache.Empty();
+	PRAGMA_ENABLE_DEPRECATION_WARNINGS
+}
+
+const FSkeletonToMeshLinkup& USkeleton::FindOrAddMeshLinkupData(const USkinnedAsset* InSkinnedAsset)
+{
+	const TUniquePtr<FSkeletonToMeshLinkup>* SkeletonToMeshLinkupPtr = nullptr;
+
+	{
+		FRWScopeLock Lock(SkinnedAssetLinkupCacheLock, SLT_ReadOnly);
+		SkeletonToMeshLinkupPtr = SkinnedAssetLinkupCache.Find(InSkinnedAsset);
+	}
+
+	return (SkeletonToMeshLinkupPtr != nullptr)
+		? *SkeletonToMeshLinkupPtr->Get()
+		: AddMeshLinkupData(InSkinnedAsset);
+}
+
+const FSkeletonToMeshLinkup& USkeleton::AddMeshLinkupData(const USkinnedAsset* InSkinnedAsset)
+{
+	TUniquePtr<FSkeletonToMeshLinkup> TmpLinkup = MakeUnique<FSkeletonToMeshLinkup>();
+	BuildLinkupData(InSkinnedAsset, *TmpLinkup.Get());
+
+	{
+		FRWScopeLock Lock(SkinnedAssetLinkupCacheLock, SLT_Write);
+		return *SkinnedAssetLinkupCache.Add(TObjectKey<USkinnedAsset>(InSkinnedAsset), MoveTemp(TmpLinkup)).Get();
+	}
 }
 
 int32 USkeleton::GetMeshLinkupIndex(const USkinnedAsset* InSkinnedAsset)
 {
 	int32* IndexPtr = nullptr;
 	{
+		PRAGMA_DISABLE_DEPRECATION_WARNINGS
 		FScopeLock ScopeLock(&LinkupCacheLock);
 		IndexPtr = SkinnedAsset2LinkupCache.Find(MakeWeakObjectPtr(const_cast<USkinnedAsset*>(InSkinnedAsset)));
+		PRAGMA_ENABLE_DEPRECATION_WARNINGS
 	}
 	int32 LinkupIndex = INDEX_NONE;
 
 	if ( IndexPtr == NULL )
 	{
+		PRAGMA_DISABLE_DEPRECATION_WARNINGS
 		LinkupIndex = BuildLinkup(InSkinnedAsset);
+		PRAGMA_ENABLE_DEPRECATION_WARNINGS
 	}
 	else
 	{
@@ -760,9 +794,11 @@ int32 USkeleton::GetMeshLinkupIndex(const USkinnedAsset* InSkinnedAsset)
 	}
 
 	{
+		PRAGMA_DISABLE_DEPRECATION_WARNINGS
 		FScopeLock ScopeLock(&LinkupCacheLock);
 		// make sure it's not out of range
 		check(LinkupIndex < LinkupCache.Num());
+		PRAGMA_ENABLE_DEPRECATION_WARNINGS
 	}
 
 	return LinkupIndex;
@@ -770,25 +806,51 @@ int32 USkeleton::GetMeshLinkupIndex(const USkinnedAsset* InSkinnedAsset)
 
 void USkeleton::RemoveLinkup(const USkinnedAsset* InSkinnedAsset)
 {
-	FScopeLock ScopeLock(&LinkupCacheLock);
+	{
+		FRWScopeLock Lock(SkinnedAssetLinkupCacheLock, SLT_Write);
+		SkinnedAssetLinkupCache.Remove(InSkinnedAsset);
+	}
+
 	PRAGMA_DISABLE_DEPRECATION_WARNINGS
+	FScopeLock ScopeLock(&LinkupCacheLock);
 	if (const USkeletalMesh* const InSkelMesh = Cast<const USkeletalMesh>(InSkinnedAsset))
 	{
 		SkelMesh2LinkupCache.Remove(MakeWeakObjectPtr(const_cast<USkeletalMesh*>(InSkelMesh)));
 	}
-	PRAGMA_ENABLE_DEPRECATION_WARNINGS
 	SkinnedAsset2LinkupCache.Remove(MakeWeakObjectPtr(const_cast<USkinnedAsset*>(InSkinnedAsset)));
+	PRAGMA_ENABLE_DEPRECATION_WARNINGS
 }
 
 int32 USkeleton::BuildLinkup(const USkinnedAsset* InSkinnedAsset)
 {
-	const FReferenceSkeleton& SkeletonRefSkel = ReferenceSkeleton;
-	const FReferenceSkeleton& MeshRefSkel = InSkinnedAsset->GetRefSkeleton();
-
 	// @todoanim : need to refresh NULL SkeletalMeshes from Cache
 	// since now they're autoweak pointer, they will go away if not used
 	// so whenever map transition happens, this links will need to clear up
 	FSkeletonToMeshLinkup NewMeshLinkup;
+
+	BuildLinkupData(InSkinnedAsset, NewMeshLinkup);
+
+	int32 NewIndex = INDEX_NONE;
+	//LinkupCache lock scope
+	{
+		PRAGMA_DISABLE_DEPRECATION_WARNINGS
+		FScopeLock ScopeLock(&LinkupCacheLock);
+		NewIndex = LinkupCache.Add(NewMeshLinkup);
+		check(NewIndex != INDEX_NONE);
+			if (const USkeletalMesh* const InSkelMesh = Cast<const USkeletalMesh>(InSkinnedAsset))
+			{
+				SkelMesh2LinkupCache.Add(MakeWeakObjectPtr(const_cast<USkeletalMesh*>(InSkelMesh)), NewIndex);
+			}
+		SkinnedAsset2LinkupCache.Add(MakeWeakObjectPtr(const_cast<USkinnedAsset*>(InSkinnedAsset)), NewIndex);
+		PRAGMA_ENABLE_DEPRECATION_WARNINGS
+	}
+	return NewIndex;
+}
+
+void USkeleton::BuildLinkupData(const USkinnedAsset* InSkinnedAsset, FSkeletonToMeshLinkup& NewMeshLinkup)
+{
+	const FReferenceSkeleton& SkeletonRefSkel = ReferenceSkeleton;
+	const FReferenceSkeleton& MeshRefSkel = InSkinnedAsset->GetRefSkeleton();
 
 	// First, make sure the Skeleton has all the bones the SkeletalMesh possesses.
 	// This can get out of sync if a mesh was imported on that Skeleton, but the Skeleton was not saved.
@@ -842,22 +904,6 @@ int32 USkeleton::BuildLinkup(const USkinnedAsset* InSkinnedAsset)
 		const int32 MeshBoneIndex = MeshRefSkel.FindBoneIndex( SkeletonRefSkel.GetBoneName(SkeletonBoneIndex) );
 		NewMeshLinkup.SkeletonToMeshTable[SkeletonBoneIndex] = MeshBoneIndex;
 	}
-
-	int32 NewIndex = INDEX_NONE;
-	//LinkupCache lock scope
-	{
-		FScopeLock ScopeLock(&LinkupCacheLock);
-		NewIndex = LinkupCache.Add(NewMeshLinkup);
-		check(NewIndex != INDEX_NONE);
-		PRAGMA_DISABLE_DEPRECATION_WARNINGS
-		if (const USkeletalMesh* const InSkelMesh = Cast<const USkeletalMesh>(InSkinnedAsset))
-		{
-			SkelMesh2LinkupCache.Add(MakeWeakObjectPtr(const_cast<USkeletalMesh*>(InSkelMesh)), NewIndex);
-		}
-		PRAGMA_ENABLE_DEPRECATION_WARNINGS
-		SkinnedAsset2LinkupCache.Add(MakeWeakObjectPtr(const_cast<USkinnedAsset*>(InSkinnedAsset)), NewIndex);
-	}
-	return NewIndex;
 }
 
 
@@ -866,7 +912,7 @@ void USkeleton::RebuildLinkup(const USkinnedAsset* InSkinnedAsset)
 	// remove the key
 	RemoveLinkup(InSkinnedAsset);
 	// build new one
-	BuildLinkup(InSkinnedAsset);
+	AddMeshLinkupData(InSkinnedAsset);
 }
 
 void USkeleton::UpdateReferencePoseFromMesh(const USkinnedAsset* InSkinnedAsset)
@@ -1113,31 +1159,19 @@ int32 USkeleton::GetRawAnimationTrackIndex(const int32 InSkeletonBoneIndex, cons
 	return INDEX_NONE;
 }
 
+
 int32 USkeleton::GetSkeletonBoneIndexFromMeshBoneIndex(const USkinnedAsset* InSkinnedAsset, const int32 MeshBoneIndex)
 {
 	check(MeshBoneIndex != INDEX_NONE);
-	const int32 LinkupCacheIdx = GetMeshLinkupIndex(InSkinnedAsset);
-
-	//LinkupCache lock scope
-	{
-		FScopeLock ScopeLock(&LinkupCacheLock);
-		const FSkeletonToMeshLinkup& LinkupTable = LinkupCache[LinkupCacheIdx];
-		return LinkupTable.MeshToSkeletonTable[MeshBoneIndex];
-	}
+	const FSkeletonToMeshLinkup& LinkupTable = FindOrAddMeshLinkupData(InSkinnedAsset);
+	return LinkupTable.MeshToSkeletonTable[MeshBoneIndex];
 }
-
 
 int32 USkeleton::GetMeshBoneIndexFromSkeletonBoneIndex(const USkinnedAsset* InSkinnedAsset, const int32 SkeletonBoneIndex)
 {
 	check(SkeletonBoneIndex != INDEX_NONE);
-	const int32 LinkupCacheIdx = GetMeshLinkupIndex(InSkinnedAsset);
-
-	//LinkupCache lock scope
-	{
-		FScopeLock ScopeLock(&LinkupCacheLock);
-		const FSkeletonToMeshLinkup& LinkupTable = LinkupCache[LinkupCacheIdx];
-		return LinkupTable.SkeletonToMeshTable[SkeletonBoneIndex];
-	}
+	const FSkeletonToMeshLinkup& LinkupTable = FindOrAddMeshLinkupData(InSkinnedAsset);
+	return LinkupTable.SkeletonToMeshTable[SkeletonBoneIndex];
 }
 
 
