@@ -12,6 +12,7 @@
     <EmbedUntrackedSources>false</EmbedUntrackedSources>
     <DebugType>pdbonly</DebugType>
     <Configurations>Debug;Release;Analyze</Configurations>
+    <NoWarn>1701;1702;NU3003</NoWarn>
   </PropertyGroup>
 
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|AnyCPU'">
