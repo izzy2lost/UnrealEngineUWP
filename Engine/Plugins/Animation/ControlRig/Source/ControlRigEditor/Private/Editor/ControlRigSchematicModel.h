@@ -53,17 +53,6 @@ protected:
 	friend class FControlRigSchematicModel;
 };
 
-/** Tag to mark up connectors */
-class FControlRigSchematicConnectorTag : public FSchematicGraphTag
-{
-public:
-
-	SCHEMATICGRAPHTAG_BODY(FControlRigSchematicConnectorTag, FSchematicGraphTag)
-
-	FControlRigSchematicConnectorTag();
-	virtual ~FControlRigSchematicConnectorTag() override {}
-};
-
 class FControlRigSchematicWarningTag : public FSchematicGraphTag
 {
 public:
@@ -87,6 +76,7 @@ public:
 	void SetEditor(const TSharedRef<FControlRigEditor>& InEditor);
 
 	virtual void Reset() override;
+	virtual void Tick(float InDeltaTime) override;
 	FControlRigSchematicRigElementKeyNode* AddElementKeyNode(const FRigElementKey& InKey, bool bNotify = true);
 	const FControlRigSchematicRigElementKeyNode* FindElementKeyNode(const FRigElementKey& InKey) const;
 	bool ContainsElementKeyNode(const FRigElementKey& InKey) const;
@@ -105,14 +95,14 @@ public:
 	virtual FVector2d GetPositionForNode(const FSchematicGraphNode* InNode) const override;
 	virtual bool GetPositionAnimationEnabledForNode(const FSchematicGraphNode* InNode) const override;
 	virtual int32 GetNumLayersForNode(const FSchematicGraphNode* InNode) const override;
-	const FSlateBrush* GetBrushForKey(const FRigElementKey& InKey, bool bResolveConnectors) const;
+	const FSlateBrush* GetBrushForKey(const FRigElementKey& InKey, const FSchematicGraphNode* InNode) const;
 	virtual const FSlateBrush* GetBrushForNode(const FSchematicGraphNode* InNode, int32 InLayerIndex) const override;
 	virtual FLinearColor GetColorForNode(const FSchematicGraphNode* InNode, int32 InLayerIndex) const override;
 	virtual ESchematicGraphPlacementConstraint::Type GetPlacementForNode(const FSchematicGraphNode* InNode) const override;
+	virtual ESchematicGraphVisibility::Type GetVisibilityForNode(const FSchematicGraphNode* InNode) const override;
 	virtual const FSlateBrush* GetBrushForLink(const FSchematicGraphLink* InLink) const override;
 	virtual FLinearColor GetColorForLink(const FSchematicGraphLink* InLink) const override;
 	virtual ESchematicGraphVisibility::Type GetVisibilityForTag(const FSchematicGraphTag* InTag) const override;
-	virtual const FSlateBrush* GetForegroundBrushForTag(const FSchematicGraphTag* InTag) const override;
 	virtual const FText GetToolTipForTag(const FSchematicGraphTag* InTag) const override;
 
 private:
@@ -131,6 +121,8 @@ private:
 
 	TArray<FGuid> TemporaryNodeGuids;
 	TMap<FRigElementKey, FGuid> RigElementKeyToGuid;
+	mutable TMap<FSoftObjectPath, FSlateBrush> ModuleIcons;
+	bool bUpdateConnectorTargetsOnTick = false;
 
 	friend class FControlRigEditor;
 };

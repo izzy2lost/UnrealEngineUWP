@@ -135,6 +135,23 @@ const FRigModuleReference* FRigModuleInstance::GetModuleReference() const
 	return nullptr;
 }
 
+const FRigConnectorElement* FRigModuleInstance::FindPrimaryConnector() const
+{
+	if(const UControlRig* Rig = GetRig())
+	{
+		if(const FRigModuleConnector* ExposedConnector = Rig->GetRigModuleSettings().FindPrimaryConnector())
+		{
+			if(const URigHierarchy* Hierarchy = Rig->GetHierarchy())
+			{
+				const FString ConnectorName = URigHierarchy::JoinNameSpace(GetNamespace(), ExposedConnector->Name); 
+				const FRigElementKey ConnectorKey(*ConnectorName, ERigElementType::Connector);
+				return Hierarchy->Find<FRigConnectorElement>(ConnectorKey);
+			}
+		}
+	}
+	return nullptr;
+}
+
 void UModularRig::InitializeVMs(bool bRequestInit)
 {
 	URigVMHost::Initialize(bRequestInit);

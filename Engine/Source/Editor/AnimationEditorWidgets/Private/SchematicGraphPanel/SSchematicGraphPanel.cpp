@@ -77,7 +77,7 @@ void SSchematicGraphNode::Construct(const FArguments& InArgs)
 {
 	if(InArgs._NodeData)
 	{
-		NodeData = const_cast<FSchematicGraphNode*>(InArgs._NodeData);
+		NodeData = const_cast<FSchematicGraphNode*>(InArgs._NodeData)->AsShared();
 	}
 	OnClickedDelegate = InArgs._OnClicked;
 	OnBeginDragDelegate = InArgs._OnBeginDrag;
@@ -99,7 +99,7 @@ void SSchematicGraphNode::Construct(const FArguments& InArgs)
 
 	SetVisibility(TAttribute<EVisibility>::CreateSP(this, &SSchematicGraphNode::GetNodeVisibility));
 
-	if(const FSchematicGraphGroupNode* GroupNode = Cast<FSchematicGraphGroupNode>(NodeData))
+	if(const FSchematicGraphGroupNode* GroupNode = Cast<FSchematicGraphGroupNode>(GetNodeData()))
 	{
 		ExpansionCircleFactor = FFloatAttribute::Create(GroupNode->GetAnimationSettings(), 0.f);
 	}
@@ -121,7 +121,7 @@ int32 SSchematicGraphNode::OnPaint(const FPaintArgs& Args, const FGeometry& Allo
 	const bool bIsFadedOut = IsFadedOut();
 	const float FadedOutFactor = bIsFadedOut ? 0.5f : 1.f;
 
-	if(const FSchematicGraphGroupNode* GroupNode = Cast<FSchematicGraphGroupNode>(NodeData))
+	if(const FSchematicGraphGroupNode* GroupNode = Cast<FSchematicGraphGroupNode>(GetNodeData()))
 	{
 		if(GroupNode->GetExpansionState() > SMALL_NUMBER)
 		{
@@ -494,7 +494,7 @@ const bool SSchematicGraphNode::IsFadedOut() const
 	{
 		if(const FSchematicGraphModel* Graph = NodeData->GetGraph())
 		{
-			return Graph->GetVisibilityForNode(NodeData) == ESchematicGraphVisibility::FadedOut;
+			return Graph->GetVisibilityForNode(GetNodeData()) == ESchematicGraphVisibility::FadedOut;
 		}
 	}
 	return false;
@@ -535,11 +535,16 @@ void SSchematicGraphPanel::Construct(const FArguments& InArgs)
 	OnBeginDragDelegate = InArgs._OnBeginDrag;
 	OnEndDragDelegate = InArgs._OnEndDrag;
 	OnDropDelegate = InArgs._OnDrop;
+	BackgroundAlpha = InArgs._BackgroundAlpha;
 
-	TEasingAttributeInterpolator<float>::FSettings FloatInterpolationSettings(EEasingInterpolatorType::CubicEaseOut, 0.35f);
+	TEasingAttributeInterpolator<float>::FSettings FloatInterpolationSettings(EEasingInterpolatorType::CubicEaseOut, 0.75f);
 	FadeBackgroundAlpha = FFloatAttribute::CreateWithGetter(FloatInterpolationSettings, FFloatAttribute::FGetter::CreateLambda([this]() -> float
 	{
-		return bIsDragDropping ? 0.5f : 0.f;
+		if(!bIsOverlay || (GetVisibility() == EVisibility::Hidden))
+		{
+			return 0.f;
+		}
+		return BackgroundAlpha.Get();
 	}));
 	
 	SNodePanel::Construct();
@@ -578,7 +583,11 @@ void SSchematicGraphPanel::AddNode(const FSchematicGraphNode* InNodeToAdd)
 	{
 		return;
 	}
-
+	if(NodeByGuid.Contains(InNodeToAdd->GetGuid()))
+	{
+		return;
+	}
+	
 	static const TEasingAttributeInterpolator<FVector2d>::FSettings Vector2DInterpolationSettings(EEasingInterpolatorType::CubicEaseOut, 0.2f);
 	static const TEasingAttributeInterpolator<float>::FSettings FloatInterpolationSettings(EEasingInterpolatorType::CubicEaseOut, 0.2f);
 	static const TEasingAttributeInterpolator<FLinearColor>::FSettings ColorInterpolationSettings(EEasingInterpolatorType::CubicEaseOut, 0.2f);
@@ -607,11 +616,11 @@ void SSchematicGraphPanel::AddNode(const FSchematicGraphNode* InNodeToAdd)
 														.LayerColors(Colors)
 														.EnableAutoScale(this, &SSchematicGraphPanel::IsAutoScaleEnabledForNode, InNodeToAdd->GetGuid())
 														.BrushGetter(BrushGetter)
-														.ToolTipText_Raw(GraphData, &FSchematicGraphModel::GetToolTipForNode, InNodeToAdd)
-														.OnClicked_Raw(this, &SSchematicGraphPanel::OnNodeClicked)
-														.OnBeginDrag_Raw(this, &SSchematicGraphPanel::OnBeginDragEvent)
-														.OnEndDrag_Raw(this, &SSchematicGraphPanel::OnEndDragEvent)
-														.OnDrop_Raw(this, &SSchematicGraphPanel::OnDropEvent)
+														.ToolTipText(this, &SSchematicGraphPanel::GetToolTipForNode, InNodeToAdd->GetGuid())
+														.OnClicked(this, &SSchematicGraphPanel::OnNodeClicked)
+														.OnBeginDrag(this, &SSchematicGraphPanel::OnBeginDragEvent)
+														.OnEndDrag(this, &SSchematicGraphPanel::OnEndDragEvent)
+														.OnDrop(this, &SSchematicGraphPanel::OnDropEvent)
 														.NodeData(InNodeToAdd);
 	SNodePanel::AddGraphNode(NewNode);
 	NewNode->SchematicGraphPanel = this;
@@ -712,7 +721,9 @@ void SSchematicGraphPanel::OnArrangeChildren(const FGeometry& AllottedGeometry, 
 
 int32 SSchematicGraphPanel::OnPaint(const FPaintArgs& Args, const FGeometry& AllottedGeometry, const FSlateRect& MyCullingRect, FSlateWindowElementList& OutDrawElements, int32 LayerId, const FWidgetStyle& InWidgetStyle, bool bParentEnabled) const
 {
-	const int32 LinkLayerId = LayerId + 1;
+	const int32 BackgroundLayer = LayerId + 1;
+	const int32 OutlineLayer = BackgroundLayer + 1;
+	const int32 LinkLayerId = OutlineLayer + 2;
 	const int32 NodeLayerId = LinkLayerId + 1;
     int32 MaxLayerId = NodeLayerId;
     	
@@ -720,22 +731,6 @@ int32 SSchematicGraphPanel::OnPaint(const FPaintArgs& Args, const FGeometry& All
 	{
 		const FSlateBrush* DefaultBackground = FAppStyle::GetBrush(TEXT("Graph.Panel.SolidBackground"));
 		PaintBackgroundAsLines(DefaultBackground, AllottedGeometry, MyCullingRect, OutDrawElements, LayerId);
-		MaxLayerId++;
-	}
-
-	const float BackgroundAlpha = FadeBackgroundAlpha->Get();
-	if (BackgroundAlpha > 0.f)
-	{
-		const FSlateBrush* Brush = FAppStyle::GetBrush(TEXT("Graph.Panel.SolidBackground"));
-		const FLinearColor TransparentGrey = FLinearColor(0.5, 0.5, 0.5, BackgroundAlpha);
-		FSlateDrawElement::MakeBox(
-				OutDrawElements,
-				MaxLayerId,
-				AllottedGeometry.ToPaintGeometry(),
-				Brush,
-				ESlateDrawEffect::None,
-				TransparentGrey
-				);
 		MaxLayerId++;
 	}
 	
@@ -749,6 +744,8 @@ int32 SSchematicGraphPanel::OnPaint(const FPaintArgs& Args, const FGeometry& All
 
 	NodeCenterByGuid.Reset();
 	NodeCenterByGuid.Reserve(ArrangedChildren.Num());
+	NodeCenterByIndex.Reset();
+	NodeCenterByIndex.Reserve(ArrangedChildren.Num());
 	NodeVisibilityByIndex.Reset();
 	NodeVisibilityByIndex.Reserve(ArrangedChildren.Num());
 	NodeVisibilityByGuid.Reset();
@@ -759,7 +756,9 @@ int32 SSchematicGraphPanel::OnPaint(const FPaintArgs& Args, const FGeometry& All
 		FArrangedWidget& CurWidget = ArrangedChildren[ChildIndex];
 		const TSharedRef<SSchematicGraphNode> ChildNode = StaticCastSharedRef<SSchematicGraphNode>(CurWidget.Widget);
 
-		NodeCenterByGuid.Add(ChildNode->GetGuid(), CurWidget.Geometry.GetLocalPositionAtCoordinates({0.5, 0.5}));
+		const FVector2d NodeCenter = CurWidget.Geometry.GetLocalPositionAtCoordinates({0.5, 0.5});
+		NodeCenterByIndex.Add(NodeCenter);
+		NodeCenterByGuid.Add(ChildNode->GetGuid(), NodeCenter);
 
 		const FSchematicGraphNode* NodeData = ChildNode->GetNodeData();
 
@@ -809,6 +808,93 @@ int32 SSchematicGraphPanel::OnPaint(const FPaintArgs& Args, const FGeometry& All
 		}
 	}
 
+	FBox2d Bounds(EForceInit::ForceInit);
+	for (int32 ChildIndex = 0; ChildIndex < ArrangedChildren.Num(); ++ChildIndex)
+	{
+		if(NodeVisibilityByIndex[ChildIndex] == ESchematicGraphVisibility::Hidden)
+		{
+			continue;
+		}
+		if(NodeCenterByIndex[ChildIndex].IsNearlyZero())
+		{
+			continue;
+		}
+		Bounds += NodeCenterByIndex[ChildIndex] + FVector2d(120, 120);
+		Bounds += NodeCenterByIndex[ChildIndex] - FVector2d(120, 120);
+	}
+
+	const float Alpha = FadeBackgroundAlpha->Get();
+	if (Alpha > 0.f && !Bounds.GetSize().IsNearlyZero())
+	{
+		const FSlateBrush* Brush = FAppStyle::GetBrush(TEXT("Graph.Panel.SolidBackground"));
+		const FLinearColor TransparentGrey = FLinearColor(0.5, 0.5, 0.5, Alpha);
+		FSlateDrawElement::MakeBox(
+				OutDrawElements,
+				BackgroundLayer,
+				AllottedGeometry.ToPaintGeometry(Bounds.GetSize(), FSlateLayoutTransform(Bounds.Min)),
+				Brush,
+				ESlateDrawEffect::None,
+				TransparentGrey
+			);
+
+		TArray<FVector2d> LinePoints;
+		LinePoints.AddZeroed(2);
+
+		constexpr float Step = 10.f;
+		for(float X = Bounds.Min.X; X < Bounds.Max.X - Step; X += Step * 2)
+		{
+			LinePoints[0] = FVector2d(X, Bounds.Min.Y + 0.5f);
+			LinePoints[1] = LinePoints[0] + FVector2d(Step, 0.f);
+			
+			FSlateDrawElement::MakeLines(
+				OutDrawElements,
+				OutlineLayer,
+				AllottedGeometry.ToPaintGeometry(),
+				LinePoints,
+				ESlateDrawEffect::None,
+				FLinearColor(0.7, 0.7, 0.7, 0.95),
+				true);
+
+			LinePoints[0] = FVector2d(X, Bounds.Max.Y - 0.5f);
+			LinePoints[1] = LinePoints[0] + FVector2d(Step, 0.f);
+			
+			FSlateDrawElement::MakeLines(
+				OutDrawElements,
+				OutlineLayer,
+				AllottedGeometry.ToPaintGeometry(),
+				LinePoints,
+				ESlateDrawEffect::None,
+				FLinearColor(0.7, 0.7, 0.7, 0.95),
+				true);
+		}
+		for(float Y = Bounds.Min.Y; Y < Bounds.Max.Y - Step; Y += Step * 2)
+		{
+			LinePoints[0] = FVector2d(Bounds.Min.X + 0.5f, Y);
+			LinePoints[1] = LinePoints[0] + FVector2d(0.f, Step);
+			
+			FSlateDrawElement::MakeLines(
+				OutDrawElements,
+				OutlineLayer,
+				AllottedGeometry.ToPaintGeometry(),
+				LinePoints,
+				ESlateDrawEffect::None,
+				FLinearColor(0.7, 0.7, 0.7, 0.95),
+				true);
+
+			LinePoints[0] = FVector2d(Bounds.Max.X - 0.5f, Y);
+			LinePoints[1] = LinePoints[0] + FVector2d(0.f, Step);
+			
+			FSlateDrawElement::MakeLines(
+				OutDrawElements,
+				OutlineLayer,
+				AllottedGeometry.ToPaintGeometry(),
+				LinePoints,
+				ESlateDrawEffect::None,
+				FLinearColor(0.7, 0.7, 0.7, 0.95),
+				true);
+		}
+	}
+	
 	// draw all of the links
 	for(const TPair<FGuid, TSharedPtr<FSchematicLinkWidgetInfo>>& Pair : LinkByGuid)
 	{
@@ -1014,6 +1100,10 @@ void SSchematicGraphPanel::Tick(float DeltaTime)
 
 		// update the animation state of the node
 		Widget->EnablePositionAnimation(GraphData->GetPositionAnimationEnabledForNode(Widget->GetGuid()));
+		if(Widget->GetVisibility() != EVisibility::Visible)
+		{
+			continue;
+		}
 
 		// collect the nodes displayed in the corners
 		switch(GraphData->GetPlacementForNode(Widget->GetNodeData()))
@@ -1074,6 +1164,15 @@ void SSchematicGraphPanel::Tick(const FGeometry& AllottedGeometry, const double 
 {
 	SNodePanel::Tick(AllottedGeometry, InCurrentTime, InDeltaTime);
 	Tick(InDeltaTime);
+}
+
+void SSchematicGraphPanel::ToggleVisibility()
+{
+	const EVisibility PreviousVisibility = GetVisibility();
+	SetVisibility(
+		PreviousVisibility == EVisibility::Hidden ?
+		EVisibility::SelfHitTestInvisible :
+		EVisibility::Hidden);
 }
 
 void SSchematicGraphPanel::OnNodeClicked(SSchematicGraphNode* Node, const FPointerEvent& MouseEvent)
@@ -1185,6 +1284,15 @@ FLinearColor SSchematicGraphPanel::GetColorForNode(FGuid InNodeGuid, int32 InLay
 		return GraphData->GetColorForNode(InNodeGuid, InLayerIndex);
 	}
 	return FLinearColor::White;
+}
+
+FText SSchematicGraphPanel::GetToolTipForNode(FGuid InNodeGuid) const
+{
+	if(GraphData)
+	{
+		return GraphData->GetToolTipForNode(InNodeGuid);
+	}
+	return FText();
 }
 
 float SSchematicGraphPanel::GetScaleForNode(FGuid InNodeGuid) const

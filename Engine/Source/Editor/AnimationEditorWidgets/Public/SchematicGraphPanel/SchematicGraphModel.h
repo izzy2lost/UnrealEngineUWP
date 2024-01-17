@@ -271,7 +271,7 @@ public:
 		SetLastExpandedNode(nullptr);
 	}
 
-	void Tick(float InDeltaTime);
+	virtual void Tick(float InDeltaTime);
 
 protected:
 

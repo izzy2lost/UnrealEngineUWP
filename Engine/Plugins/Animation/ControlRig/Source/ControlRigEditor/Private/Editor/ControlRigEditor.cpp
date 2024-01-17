@@ -2350,12 +2350,7 @@ void FControlRigEditor::HandleToggleSchematicViewport()
 	if(SchematicViewport.IsValid())
 	{
 		SchematicModel.UpdateControlRigContent();
-
-		const EVisibility PreviousVisibility = SchematicViewport.Pin()->GetVisibility();
-		SchematicViewport.Pin()->SetVisibility(
-			PreviousVisibility == EVisibility::Hidden ?
-			EVisibility::SelfHitTestInvisible :
-			EVisibility::Hidden);
+		SchematicViewport.Pin()->ToggleVisibility();
 	}
 }
 

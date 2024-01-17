@@ -79,6 +79,7 @@ public:
 	void SetRig(UControlRig* InRig);
 	bool ContainsRig(const UControlRig* InRig) const;
 	const FRigModuleReference* GetModuleReference() const;
+	const FRigConnectorElement* FindPrimaryConnector() const;
 };
 
 USTRUCT(BlueprintType)

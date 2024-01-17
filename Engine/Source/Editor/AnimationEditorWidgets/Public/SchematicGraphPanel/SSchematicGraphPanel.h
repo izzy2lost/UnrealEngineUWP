@@ -97,8 +97,8 @@ public:
 
 	const FVector2d& GetOriginalSize() const { return OriginalSize; }
 
-	const FSchematicGraphNode* GetNodeData() const { return NodeData; }
-	FSchematicGraphNode* GetNodeData() { return NodeData; }
+	const FSchematicGraphNode* GetNodeData() const { return NodeData.Get(); }
+	FSchematicGraphNode* GetNodeData() { return NodeData.Get(); }
 	const FGuid GetGuid() const;
 	bool IsInteractive() const;
 
@@ -111,7 +111,7 @@ private:
 	static inline const FVector2d DefaultNodeSize = FVector2d(32.0,32.0);  
 	FVector2d OriginalSize = DefaultNodeSize;
 
-	FSchematicGraphNode* NodeData = nullptr;
+	TSharedPtr<FSchematicGraphNode> NodeData;
 	TSharedPtr<FVector2dAttribute> Position;
 	TOptional<FVector2d> PositionDuringDrag;
 	TOptional<FVector2d> OffsetDuringDrag;
@@ -147,7 +147,9 @@ public:
 	DECLARE_DELEGATE_ThreeParams(FOnEndDrag, SSchematicGraphPanel*, SSchematicGraphNode*, const FDragDropOperation&);
 	DECLARE_DELEGATE_ThreeParams(FOnDrop, SSchematicGraphPanel*, SSchematicGraphNode*, const FDragDropEvent&);
 	
-	SLATE_BEGIN_ARGS(SSchematicGraphPanel) {}
+	SLATE_BEGIN_ARGS(SSchematicGraphPanel)
+		: _BackgroundAlpha(0.5f)
+	{}
 	SLATE_ARGUMENT(bool, IsOverlay)
 	SLATE_ARGUMENT(FSchematicGraphModel*, GraphData)
 	SLATE_ARGUMENT(int32, PaddingLeft)
@@ -159,6 +161,7 @@ public:
 	SLATE_EVENT(FOnBeginDrag, OnBeginDrag)
 	SLATE_EVENT(FOnEndDrag, OnEndDrag)
 	SLATE_EVENT(FOnDrop, OnDrop)
+	SLATE_ATTRIBUTE(float, BackgroundAlpha)
 	SLATE_END_ARGS()
 
 	struct FSchematicLinkWidgetInfo
@@ -206,6 +209,7 @@ public:
 	virtual bool IsTickable() const override { return true; }
 	// End of FTickableEditorObject interface
 
+	void ToggleVisibility();
 	void OnNodeClicked(SSchematicGraphNode* Node, const FPointerEvent& MouseEvent);
 	void OnBeginDragEvent(SSchematicGraphNode* Node, const FDragDropOperation& InDragDropEvent);
 	void OnEndDragEvent(SSchematicGraphNode* Node, const FDragDropOperation& InDragDropEvent);
@@ -214,6 +218,7 @@ public:
 
 	virtual FVector2d GetPositionForNode(FGuid InNodeGuid) const;
 	virtual FLinearColor GetColorForNode(FGuid InNodeGuid, int32 InLayerIndex) const;
+	virtual FText GetToolTipForNode(FGuid InNodeGuid) const;
 	virtual float GetScaleForNode(FGuid InNodeGuid) const;
 
 	virtual bool IsAutoGroupingEnabled() const;
@@ -240,6 +245,7 @@ private:
 	int32 PaddingTop = 0;
 	int32 PaddingBottom = 0;
 	int32 PaddingInterNode = 0;
+	TAttribute<float> BackgroundAlpha;
 	TSharedPtr<FFloatAttribute> FadeBackgroundAlpha;
 	FSchematicGraphModel* GraphData = nullptr;
 	FOnNodeClicked OnNodeClickedDelegate;
@@ -275,6 +281,7 @@ private:
 	TMap<FGuid, TSharedPtr<FSchematicLinkWidgetInfo>> LinkByGuid;
 
 	mutable TMap<FGuid, FVector2d> NodeCenterByGuid;
+	mutable TArray<FVector2d> NodeCenterByIndex;
 	mutable TArray<ESchematicGraphVisibility::Type> NodeVisibilityByIndex;
 	mutable TMap<FGuid, ESchematicGraphVisibility::Type> NodeVisibilityByGuid;
 };
