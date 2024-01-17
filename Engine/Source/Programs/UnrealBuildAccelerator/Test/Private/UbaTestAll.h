@@ -10,6 +10,17 @@
 
 namespace uba
 {
+#if PLATFORM_MAC
+	#define UBA_EXTRA_TESTS
+#else
+	#define UBA_EXTRA_TESTS \
+		UBA_TEST(TestMultipleDetouredProcesses) \
+		UBA_TEST(TestLogLines) \
+		UBA_TEST(TestLocalSchedule) \
+		UBA_TEST(TestLocalScheduleReuse) \
+		UBA_TEST(TestRemoteScheduleReuse) \
+
+#endif 
 
 	#define UBA_TESTS \
 		UBA_TEST(TestTime) \
@@ -26,11 +37,8 @@ namespace uba
 		UBA_TEST(TestDetouredTouch) \
 		UBA_TEST(TestRemoteDetouredTestApp) \
 		UBA_TEST(TestCustomService) \
-		UBA_TEST(TestMultipleDetouredProcesses) \
-		UBA_TEST(TestLogLines) \
-		UBA_TEST(TestLocalSchedule) \
-		UBA_TEST(TestLocalScheduleReuse) \
-		UBA_TEST(TestRemoteScheduleReuse) \
+		UBA_EXTRA_TESTS
+
 
 	#define UBA_TEST(x) \
 		logger.Info(TC("Running %hs..."), #x); \
@@ -61,8 +69,8 @@ namespace uba
 
 		logger.Info(TC("Running tests (Test rootdir: %s)"), testRootDir.data);
 
-		UBA_TEST(TestRemoteScheduleReuse)
-		//UBA_TESTS
+		// UBA_TEST(TestRemoteDetouredTestApp)
+		UBA_TESTS
 
 		logger.Info(TC("Tests finished successfully!"));
 		Sleep(3000);

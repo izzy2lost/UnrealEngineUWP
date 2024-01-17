@@ -40,6 +40,7 @@ bool IsLibraryLoaded(const char* libraryToMatch)
 					return strstr(info->dlpi_name, (const char*)libraryToMatch) != 0 ? 1 : 0;
 				}, (void*)libraryToMatch);
 #elif PLATFORM_MAC
+
 		bool foundDetoursLib = false;
 		unsigned int count = _dyld_image_count();
 		for (int i = 0; i < count; i++)
@@ -62,10 +63,17 @@ bool IsLibraryLoaded(const char* libraryToMatch)
 // UbaTestSession.h
 int main()
 {
-	bool foundDetoursLib = IsLibraryLoaded(UBA_DETOURS_LIBRARY);
+	bool runningRemote = false;
+	char* tmp = getenv("UBA_REMOTE");
+	if (tmp && tmp[0] == '1')
+		runningRemote = true;
+
+	// Make the assumption that if we're running remote the detour lib will be there.
+	bool foundDetoursLib = IsLibraryLoaded(UBA_DETOURS_LIBRARY) || runningRemote;
+
 
 	if (!foundDetoursLib)
-		return LogError("libUbaDetours.so not loaded. This app is designed to only start from inside UnrealBuildAccelerator.");
+		return LogError("libUbaDetours not loaded. This app is designed to only start from inside UnrealBuildAccelerator.");
 
 	char cwd[1024];
 	if (!getcwd(cwd, sizeof(cwd)))

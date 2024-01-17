@@ -203,7 +203,7 @@ namespace uba
 		while ((pDirent = readdir(dir)) != NULL)
 		{
 			char* fileName = pDirent->d_name;
-			if (fileName[0] == '.' && (fileName[1] == 0 || (fileName[1] == '.' && fileName[2] == 0)))
+			if (fileName[0] == '.' && (fileName[1] == 0 || (fileName[1] == '.' && fileName[2] == 0))) 
 				continue;
 
 			strcpy(dirPath2 + dirPathLen, fileName);
@@ -216,15 +216,11 @@ namespace uba
 				// just in case.
 				if (errno == ENOENT) {
 					res = lstat(dirPath2, &attr);
-
-					if (res == 0)
-						continue;
 				}
 
 				if (errno == ENODEV || errno == EACCES)
 					continue;
-				UBA_ASSERTF(false, "TraverseDir:stat error handling not added for file %s (error %s)", dirPath2, strerror(errno));
-				continue;
+				UBA_ASSERTF(res == 0, "TraverseDir:stat error handling not added for file %s (error %s)", dirPath2, strerror(errno));
 			}
 
 			DirectoryEntry entry;

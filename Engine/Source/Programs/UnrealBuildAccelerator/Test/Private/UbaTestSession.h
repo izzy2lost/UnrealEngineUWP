@@ -149,6 +149,24 @@ namespace uba
 
 		return true;
 	}
+
+	bool ExecuteCommand(LoggerWithWriter& logger, const tchar* command, StringBufferBase& commandOutput)
+	{
+		FILE* fpCommand = popen(command, "r");
+		if (fpCommand == nullptr || fgets(commandOutput.data, commandOutput.capacity, fpCommand) == nullptr || pclose(fpCommand) != 0)
+		{
+			logger.Error("Failed to get an Xcode from xcode-select");
+			return false;
+		}
+
+		commandOutput.count = strlen(commandOutput.data);
+		while (isspace(commandOutput.data[commandOutput.count-1]))
+		{
+			commandOutput.data[commandOutput.count-1] = 0;
+			commandOutput.count--;
+		}
+		return true;
+	}
 	
 	bool RunClang(LoggerWithWriter& logger, SessionServer& session, const tchar* workingDir, const RunProcessFunction& runProcess)
 	{
@@ -163,11 +181,27 @@ namespace uba
 		if (!codeFile.Close())
 			return false;
 
+#if PLATFORM_MAC
+		StringBuffer<512> xcodePath;
+		ExecuteCommand(logger, "/usr/bin/xcrun -f clang++", xcodePath);
+		const tchar* clangPath = xcodePath.data;
+#else
 		const tchar* clangPath = TC("/usr/bin/clang++");
+#endif
 
 		ProcessStartInfo processInfo;
 		processInfo.application = clangPath;
+#if PLATFORM_MAC
+		StringBuffer<512> xcodeSDKPath;
+		StringBuffer<> args;
+		ExecuteCommand(logger, "xcrun --show-sdk-path", xcodeSDKPath);
+		args.Append("-isysroot ");
+		args.Append(xcodeSDKPath.data);
+		args.Append(" -o code Code.cpp");
+		processInfo.arguments = args.data;
+#else
 		processInfo.arguments = TC("-o code Code.cpp");
+#endif
 		processInfo.workingDir = workingDir;
 		//processInfo.logFile = TC("/home/honk/RunClang.log");
 		ProcessHandle process = runProcess(processInfo);
