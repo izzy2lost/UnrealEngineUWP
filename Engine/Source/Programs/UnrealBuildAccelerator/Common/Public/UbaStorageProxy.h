@@ -9,6 +9,7 @@ namespace uba
 {
     class NetworkClient;
 	class NetworkServer;
+	class StorageImpl;
 	struct BinaryReader;
 	struct BinaryWriter;
 	struct ConnectionInfo;
@@ -16,7 +17,7 @@ namespace uba
 	class StorageProxy
 	{
 	public:
-		StorageProxy(NetworkServer& server, NetworkClient& client, const Guid& storageServerUid, const tchar* name);
+		StorageProxy(NetworkServer& server, NetworkClient& client, const Guid& storageServerUid, const tchar* name, StorageImpl* localStorage = nullptr);
 
 		bool Disconnect(u32 timeoutMs); // Use a timeout to try to make more graceful disconnect
 		void PrintSummary();
@@ -30,6 +31,7 @@ namespace uba
 
 		NetworkServer& m_server;
 		NetworkClient& m_client;
+		StorageImpl* m_localStorage;
 
 		LoggerWithWriter m_logger;
 
@@ -37,7 +39,9 @@ namespace uba
 
 		TString m_name;
 
-		struct FileEntry { ReaderWriterLock lock; MappedView view; bool hasSegments = false; bool storeCompressed = false; };
+		u32 m_inProcessClientId = 0;
+
+		struct FileEntry { ReaderWriterLock lock; MappedView view; bool storeCompressed = false; };
 		ReaderWriterLock m_filesLock;
 		UnorderedMap<CasKey, FileEntry> m_files;
 

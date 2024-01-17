@@ -101,8 +101,9 @@ namespace uba
 
 	bool CloseSocket(Logger& logger, SOCKET s)
 	{
-		if (closesocket(s) == SOCKET_ERROR)
-			return logger.Error(TC("failed to close socket (%s)"), LastErrorToText(WSAGetLastError()).data);
+		if (s != INVALID_SOCKET)
+			if (closesocket(s) == SOCKET_ERROR)
+				return logger.Error(TC("failed to close socket (%s)"), LastErrorToText(WSAGetLastError()).data);
 		return true;
 	}
 

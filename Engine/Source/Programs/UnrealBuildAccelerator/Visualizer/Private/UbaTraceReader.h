@@ -107,7 +107,7 @@ namespace uba
 		};
 
 		Process* GetProcess(const ProcessLocation& loc) { return &(sessions[loc.sessionIndex].processors[loc.processorIndex].processes[loc.processIndex]); }
-		void Clear() { sessions.clear(); workTracks.clear(); strings.clear(); startTime = 0; finished = true; };
+		void Clear() { sessions.clear(); workTracks.clear(); strings.clear(); startTime = 0; finished = true; totalProcessActiveCount = 0; totalProcessExitedCount = 0; activeSessionCount = 0; };
 
 		Vector<Session> sessions;
 		Vector<WorkTrack> workTracks;

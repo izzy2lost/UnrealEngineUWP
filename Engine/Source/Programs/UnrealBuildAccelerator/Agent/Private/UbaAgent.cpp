@@ -1014,6 +1014,7 @@ namespace uba
 				u32& targetTcpConnectionCount;
 				NetworkServer* server = nullptr;
 				StorageProxy* storage = nullptr;
+				StorageClient* storageClient = nullptr;
 				TString serverPrefix;
 			} proxy { g_consoleLogWriter, client, wakeupSessionWait, maxTcpConnectionCount, targetTcpConnectionCount };
 			auto psg = MakeGuard([&]() { delete proxy.server; });
@@ -1037,7 +1038,7 @@ namespace uba
 						delete proxy.server;
 						return false;
 					}
-					proxy.storage = new StorageProxy(*proxy.server, *proxy.client, storageServerUid, TC("Wooohoo"));
+					proxy.storage = new StorageProxy(*proxy.server, *proxy.client, storageServerUid, TC("Wooohoo"), proxy.storageClient);
 					proxy.server->StartListen(proxy.client->GetTcpBackend(), proxyPort);
 					proxy.targetTcpConnectionCount = proxy.maxTcpConnectionCount;
 					proxy.wakeupSessionWait.Set();
@@ -1063,6 +1064,8 @@ namespace uba
 
 			if (!storageClient->PopulateCasFromDirs(populateCasDirs, maxProcessCount))
 				return -1;
+
+			proxy.storageClient = storageClient;
 
 			SessionClient* sessionClient = nullptr;
 

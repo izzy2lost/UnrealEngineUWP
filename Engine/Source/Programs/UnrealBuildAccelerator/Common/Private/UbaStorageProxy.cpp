@@ -1,6 +1,7 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 #include "UbaStorageProxy.h"
+#include "UbaFileAccessor.h"
 #include "UbaNetworkClient.h"
 #include "UbaNetworkMessage.h"
 #include "UbaNetworkServer.h"
@@ -8,9 +9,10 @@
 
 namespace uba
 {
-	StorageProxy::StorageProxy(NetworkServer& server, NetworkClient& client, const Guid& storageServerUid, const tchar* name)
+	StorageProxy::StorageProxy(NetworkServer& server, NetworkClient& client, const Guid& storageServerUid, const tchar* name, StorageImpl* localStorage)
 	:	m_server(server)
 	,	m_client(client)
+	,	m_localStorage(localStorage)
 	,	m_logger(client.GetLogWriter(), TC("StorageProxy"))
 	,	m_storageServerUid(storageServerUid)
 	,	m_name(name)
@@ -71,6 +73,9 @@ namespace uba
 					m_logger.Error(TC("Different network versions. Client: %u, Server: %u. Disconnecting"), clientVersion, StorageNetworkVersion);
 					return false;
 				}
+				bool isInProcessClient = reader.ReadBool();
+				if (isInProcessClient)
+					m_inProcessClientId = connectionInfo.GetId();
 
 				//m_logger.Info(TC("%s connected"), clientName.data);
 				writer.WriteGuid(m_storageServerUid);
@@ -95,70 +100,109 @@ namespace uba
 
 				ScopedWriteLock fileLock(file.lock);
 
-				if (file.view.size != 0)
+				while (true)
 				{
-					fileLock.Leave();
-					view = m_fileMapping.MapView(file.view.handle, file.view.offset, file.view.size, hint.data);
-				}
-				else
-				{
-					NetworkMessage msg(m_client, ServiceId, messageType, writer2);
-					writer2.WriteBool(false); // Wants proxy
-					writer2.WriteCasKey(casKey);
-					writer2.WriteString(hint);
-					writer2.WriteBytes(reader.GetPositionData(), reader.GetLeft());
-
-					if (!msg.Send(reader2))
-						return false;
-
-					BinaryReader tempReader(reader2.GetPositionData(), 0, reader2.GetLeft());
-					u32 sizeOfFirstMessage = u32(reader2.GetLeft());
-					u16 fetchId = tempReader.ReadU16();
-					if (fetchId == 0)
+					if (file.view.size != 0)
 					{
-						m_logger.Error(TC("FetchBegin failed for cas file %s (%s)"), CasKeyString(casKey).str, hint.data);
-						writer.WriteU16(0);
-						return true;
+						fileLock.Leave();
+						view = m_fileMapping.MapView(file.view.handle, file.view.offset, file.view.size, hint.data);
+						break;
 					}
-					u64 fileSize = tempReader.Read7BitEncoded();
-					view = m_fileMapping.AllocAndMapView(MappedView_Transient, fileSize, 1, hint.data);
 
-					u8 flags = tempReader.ReadByte();
-					bool storeCompressed = (flags >> 0) & 1;
-					bool sendEnd = (flags >> 1) & 1;
-					u64 fetchedSize = tempReader.GetLeft();
+					bool storeCompressed = true;
 
-					u32 responseSize = u32(fetchedSize);
-
-					u64 left = fileSize;
-					u8* readBuffer = view.memory;
-
-					memcpy(view.memory, tempReader.GetPositionData(), responseSize);
-					left -= responseSize;
-					readBuffer += responseSize;
-
-					if (!StorageClient::SendAllSegments(m_client, fetchId, readBuffer, left, sizeOfFirstMessage))
-						return false;
-
-					if (sendEnd)
+					if (m_localStorage && IsCompressed(casKey) && m_inProcessClientId && connectionInfo.GetId() != m_inProcessClientId)
 					{
-						StackBinaryWriter<128> writer3;
-						NetworkMessage msg2(m_client, ServiceId, StorageMessageType_FetchEnd, writer3);
-						writer3.WriteCasKey(casKey);
-						if (!msg2.Send())
+						// We need to leave this lock here since the in-process storage client might be asking for this file too and then we can end up in a deadlock
+						fileLock.Leave();
+
+						bool hasCas = m_localStorage->EnsureCasFile(casKey, nullptr);
+
+						// Enter lock again, and also check if another thread might have already handled this file while we looked if it existed in local storage
+						fileLock.Enter();
+						if (file.view.size != 0)
+							continue;
+
+						if (hasCas)
+						{
+
+							StringBuffer<> casFile;
+							if (m_localStorage->GetCasFileName(casFile, casKey))
+							{
+								FileAccessor sourceFile(m_logger, casFile.data);
+								if (sourceFile.OpenMemoryRead())
+								{
+									u64 fileSize = sourceFile.GetSize();
+									view = m_fileMapping.AllocAndMapView(MappedView_Transient, fileSize, 1, hint.data);
+									if (!view.memory)
+										return false;
+									memcpy(view.memory, sourceFile.GetData(), fileSize);
+								}
+							}
+						}
+					}
+
+					if (!view.handle.IsValid())
+					{
+						NetworkMessage msg(m_client, ServiceId, messageType, writer2);
+						writer2.WriteBool(false); // Wants proxy
+						writer2.WriteCasKey(casKey);
+						writer2.WriteString(hint);
+						writer2.WriteBytes(reader.GetPositionData(), reader.GetLeft());
+
+						if (!msg.Send(reader2))
 							return false;
-					}
 
+						BinaryReader tempReader(reader2.GetPositionData(), 0, reader2.GetLeft());
+						u32 sizeOfFirstMessage = u32(reader2.GetLeft());
+						u16 fetchId = tempReader.ReadU16();
+						if (fetchId == 0)
+						{
+							m_logger.Error(TC("FetchBegin failed for cas file %s (%s)"), CasKeyString(casKey).str, hint.data);
+							writer.WriteU16(0);
+							return true;
+						}
+						u64 fileSize = tempReader.Read7BitEncoded();
+						view = m_fileMapping.AllocAndMapView(MappedView_Transient, fileSize, 1, hint.data);
+
+						u8 flags = tempReader.ReadByte();
+						storeCompressed = (flags >> 0) & 1;
+						bool sendEnd = (flags >> 1) & 1;
+						u64 fetchedSize = tempReader.GetLeft();
+
+						u32 responseSize = u32(fetchedSize);
+
+						u64 left = fileSize;
+						u8* readBuffer = view.memory;
+
+						memcpy(view.memory, tempReader.GetPositionData(), responseSize);
+						left -= responseSize;
+						readBuffer += responseSize;
+
+						if (!StorageClient::SendAllSegments(m_client, fetchId, readBuffer, left, sizeOfFirstMessage))
+							return false;
+
+						if (sendEnd)
+						{
+							StackBinaryWriter<128> writer3;
+							NetworkMessage msg2(m_client, ServiceId, StorageMessageType_FetchEnd, writer3);
+							writer3.WriteCasKey(casKey);
+							if (!msg2.Send())
+								return false;
+						}
+					}
 					file.storeCompressed = storeCompressed;
-					file.hasSegments = fetchId != u16(~0);
 					file.view = view;
 					fileLock.Leave();
+					break;
 				}
 
 				u16 fetchId = u16(~0);
-				u64 fetchedSize = view.size;
 
-				if (file.hasSegments)
+				u64 headerSize = sizeof(u16) + Get7BitEncodedCount(file.view.size) + sizeof(u8);
+				u64 fetchedSize = Min(view.size, m_client.GetMessageMaxSize() - m_client.GetMessageReceiveHeaderSize() - headerSize);
+
+				if (fetchedSize < view.size)
 				{
 					fetchId = PopId();
 					ScopedWriteLock lock(m_activeFetchesLock);
@@ -168,9 +212,6 @@ namespace uba
 					UBA_ASSERT(res.second);
 					ActiveFetch& fetch = res.first->second;
 					lock.Leave();
-
-					u64 headerSize = sizeof(u16) + Get7BitEncodedCount(file.view.size) + sizeof(u8);
-					fetchedSize = Min(view.size, m_client.GetMessageMaxSize() - m_client.GetMessageReceiveHeaderSize() - headerSize);
 
 					fetch.fetchedSize = fetchedSize;
 					fetch.file = &file;

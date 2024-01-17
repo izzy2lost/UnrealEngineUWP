@@ -59,10 +59,8 @@ namespace uba
 		u32 traceSize = reader.ReadU32(); (void)traceSize;
 		u32 version = reader.ReadU32();
 		if (version < TraceReadCompatibilityVersion || version > TraceVersion)
-		{
-			m_logger.Error(L"Incompatible trace version (%u). Current executable supports version %u to %u.", version, TraceReadCompatibilityVersion, TraceVersion);
-			return false;
-		}
+			return m_logger.Error(L"Incompatible trace version (%u). Current executable supports version %u to %u.", version, TraceReadCompatibilityVersion, TraceVersion);
+
 		out.version = version;
 		reader.ReadU32(); // ProcessId
 		u64 traceSystemStartTimeUs = 0;
@@ -564,6 +562,9 @@ namespace uba
 			process2.start = time;
 			process2.stop = ~u64(0);
 			process2.exitCode = ~0u;
+
+			++session.processExitedCount;
+			++out.totalProcessExitedCount;
 			break;
 		}
 		case TraceType_ProcessReturned:

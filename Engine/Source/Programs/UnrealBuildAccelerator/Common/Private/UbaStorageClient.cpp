@@ -298,6 +298,7 @@ namespace uba
 				{
 					StringBuffer<> proxyHost;
 					u16 proxyPort;
+					bool isInProcessClient = false;
 					if (reader.ReadBool())
 					{
 						proxyPort = reader.ReadU16();
@@ -306,6 +307,7 @@ namespace uba
 							// TODO: Tell server we failed
 						}
 						proxyHost.Append(TC("127.0.0.1"));
+						isInProcessClient = true;
 					}
 					else
 					{
@@ -358,6 +360,7 @@ namespace uba
 
 						proxyWriter.WriteString(TC("ProxyClient"));
 						proxyWriter.WriteU32(StorageNetworkVersion);
+						proxyWriter.WriteBool(isInProcessClient);
 						StackBinaryReader<256> proxyReader;
 						if (!proxyMsg.Send(proxyReader))
 							continue;
