@@ -11,95 +11,88 @@ DEFINE_LOG_CATEGORY(LogNNE);
 
 namespace UE::NNE
 {
+
 	class FRegistry
 	{
 	public:
-
-		static FRegistry* Get()
+		static FRegistry& GetInstance()
 		{
-			static FRegistry Inst;
-
-			return &Inst;
+			static FRegistry Instance;
+			return Instance;
 		}
 
-		bool Add(TWeakInterfacePtr<INNERuntime> Runtime)
+		EResultStatus Add(TWeakInterfacePtr<INNERuntime> Runtime)
 		{
-			if (!Runtime.IsValid())
+			checkf(Runtime.IsValid(), TEXT("Runtime is not valid"));
+
+			const FString RuntimeName = Runtime->GetRuntimeName();
+			checkf(!RuntimeName.IsEmpty(), TEXT("Runtime name is empty"));
+
+			if (Runtimes.Contains(RuntimeName))
 			{
-				return false;
-			}
-			
-			if (FindByName(Runtime->GetRuntimeName()) >= 0)
-			{
-				UE_LOG(LogNNE, Warning, TEXT("Runtime %s is already registered"), *Runtime->GetRuntimeName());
-				return false;
+				UE_LOG(LogNNE, Warning, TEXT("Runtime %s is already registered"), *RuntimeName);
+				return EResultStatus::Fail;
 			}
 
-			Runtimes.Add(Runtime);
+			Runtimes.Add(RuntimeName, Runtime);
 
-			return true;
+			return EResultStatus::Ok;
 		}
 
-		bool Remove(TWeakInterfacePtr<INNERuntime> Runtime)
+		EResultStatus Remove(TWeakInterfacePtr<INNERuntime> Runtime)
 		{
-			if (!Runtime.IsValid())
-			{
-				return false;
-			}
-			
-			int Index = FindByName(Runtime->GetRuntimeName());
-			if (Index >= 0)
-			{
-				Runtimes.RemoveAtSwap(Index);
-				return true;
-			}
+			checkf(Runtime.IsValid(), TEXT("Runtime is not valid"));
 
-			return false;
+			const FString RuntimeName = Runtime->GetRuntimeName();
+			checkf(!RuntimeName.IsEmpty(), TEXT("Runtime name is empty"));
+
+			return Runtimes.Remove(RuntimeName) >= 1 ? EResultStatus::Ok : EResultStatus::Fail;
 		}
 
-
-		TArrayView<TWeakInterfacePtr<INNERuntime>> GetAllRuntimes()
+		TWeakInterfacePtr<INNERuntime> Get(const FString& Name) const
 		{
-			RemoveInvalidPtrs();
-			return Runtimes;
+			checkf(!Name.IsEmpty(), TEXT("Name is empty"));
+
+			if (Runtimes.Contains(Name))
+			{
+				TWeakInterfacePtr<INNERuntime> Result = Runtimes.FindChecked(Name);
+				ensureMsgf(Result.IsValid(), TEXT("Runtime %s is not valid"), *Name);
+
+				return Result;
+			}
+
+			return {};
+		}
+
+		TArray<FString> GetAllNames() const
+		{
+			TArray<FString> Result;
+			Runtimes.GenerateKeyArray(Result);
+
+			Result.SetNum(Algo::RemoveIf(Result, [&] (const FString &RuntimeName)
+			{
+				return !ensureMsgf(Runtimes.FindChecked(RuntimeName).IsValid(), TEXT("Runtime %s is not valid"), *RuntimeName);
+			}));
+
+			return Result;
 		}
 
 	private:
-
-		void RemoveInvalidPtrs()
-		{
-			Runtimes.RemoveAllSwap([](TWeakInterfacePtr<INNERuntime> Runtime) -> bool {return !Runtime.IsValid();}, false);
-		}
-
-		int FindByName(const FString& Name)
-		{
-			RemoveInvalidPtrs();
-			
-			int Index = -1;
-
-			for (int Idx = 0; Idx < Runtimes.Num(); ++Idx)
-			{
-				if (Runtimes[Idx]->GetRuntimeName() == Name)
-				{
-					Index = Idx;
-					break;
-				}
-			}
-
-			return Index;
-		}
-
-		TArray<TWeakInterfacePtr<INNERuntime>>	Runtimes;
+		TMap<FString, TWeakInterfacePtr<INNERuntime>> Runtimes;
 	};
 
-	bool RegisterRuntime(TWeakInterfacePtr<INNERuntime> Runtime)
+	ERegisterRuntimeResultStatus RegisterRuntime(TWeakInterfacePtr<INNERuntime> Runtime)
 	{
+		const ERegisterRuntimeResultStatus Result = FRegistry::GetInstance().Add(Runtime);
+
 #ifdef WITH_EDITOR
 		FModuleManager::Get().LoadModule(TEXT("NNEEditor"));
 #endif
 
-		FString RuntimeName = Runtime->GetRuntimeName();
-		FCoreDelegates::OnAllModuleLoadingPhasesComplete.AddLambda([RuntimeName]() {
+		const FString RuntimeName = Runtime->GetRuntimeName();
+
+		FCoreDelegates::OnAllModuleLoadingPhasesComplete.AddLambda([RuntimeName]()
+		{
 			if (FEngineAnalytics::IsAvailable())
 			{
 				TArray<FAnalyticsEventAttribute> Attributes = MakeAnalyticsEventAttributeArray(
@@ -110,16 +103,21 @@ namespace UE::NNE
 			}
 		});
 
-		return FRegistry::Get()->Add(Runtime);
+		return Result;
 	}
 
-	bool UnregisterRuntime(TWeakInterfacePtr<INNERuntime> Runtime)
+	EUnregisterRuntimeResultStatus UnregisterRuntime(TWeakInterfacePtr<INNERuntime> Runtime)
 	{
-		return FRegistry::Get()->Remove(Runtime);
+		return FRegistry::GetInstance().Remove(Runtime);
 	}
 
-	TArrayView<TWeakInterfacePtr<INNERuntime>> GetAllRuntimes()
+	TArray<FString> GetAllRuntimeNames()
 	{
-		return FRegistry::Get()->GetAllRuntimes();
+		return FRegistry::GetInstance().GetAllNames();
+	}
+
+	TWeakInterfacePtr<INNERuntime> GetRuntime(const FString& Name)
+	{
+		return FRegistry::GetInstance().Get(Name);
 	}
 }

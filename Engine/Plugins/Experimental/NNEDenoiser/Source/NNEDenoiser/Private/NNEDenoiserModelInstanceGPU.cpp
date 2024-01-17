@@ -34,12 +34,9 @@ namespace UE::NNEDenoiser::Private
 		if (!RuntimeGPU.IsValid())
 		{
 			UE_LOG(LogNNEDenoiser, Error, TEXT("No GPU runtime '%s' found. Valid GPU runtimes are: "), *RuntimeGPUName);
-			for (TWeakInterfacePtr<INNERuntime> Runtime : UE::NNE::GetAllRuntimes())
+			for (const FString& RuntimeName : UE::NNE::GetAllRuntimeNames<INNERuntimeGPU>())
 			{
-				if (Runtime.IsValid() && UE::NNE::GetRuntime<INNERuntimeGPU>(Runtime->GetRuntimeName()).IsValid())
-				{
-					UE_LOG(LogNNEDenoiser, Error, TEXT("- %s"), *Runtime->GetRuntimeName());
-				}
+				UE_LOG(LogNNEDenoiser, Error, TEXT("- %s"), *RuntimeName);
 			}
 			return {};
 		}

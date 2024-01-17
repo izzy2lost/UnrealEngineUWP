@@ -2,39 +2,54 @@
 
 #pragma once
 
+#include "Algo/RemoveIf.h"
 #include "Containers/ArrayView.h"
 #include "Containers/UnrealString.h"
 #include "NNERuntime.h"
+#include "NNEStatus.h"
 #include "UObject/WeakInterfacePtr.h"
 
 NNE_API DECLARE_LOG_CATEGORY_EXTERN(LogNNE, Log, All);
 
 namespace UE::NNE
 {
+	using ERegisterRuntimeResultStatus = EResultStatus;
+	using EUnregisterRuntimeResultStatus = EResultStatus;
+
 	/**
 	 * Register a runtime to make it accessible to NNE clients.
 	 *
 	 * The caller needs to keep a strong pointer to the runtime object to prevent it from being garbage collected.
 	 *
 	 * @param Runtime A weak interface pointer to the runtime to be registered.
-	 * @return True if the runtime has been registered successfully, false otherwise.
+	 * @return Status indicating success or failure (e.g. if the runtime already has been registered).
 	 */
-	NNE_API bool RegisterRuntime(TWeakInterfacePtr<INNERuntime> Runtime);
+	NNE_API ERegisterRuntimeResultStatus RegisterRuntime(TWeakInterfacePtr<INNERuntime> Runtime);
 
 	/**
 	 * Unregister a registered runtime.
 	 *
 	 * @param Runtime A weak interface pointer to the runtime to be unregistered.
-	 * @return True if the runtime has been unregistered successfully, false otherwise (e.g. if the runtime has not been registered).
+	 * @return Status indicating success or failure (e.g. if the runtime has not been registered).
 	 */
-	NNE_API bool UnregisterRuntime(TWeakInterfacePtr<INNERuntime> Runtime);
+	NNE_API EUnregisterRuntimeResultStatus UnregisterRuntime(TWeakInterfacePtr<INNERuntime> Runtime);
 	
 	/**
-	 * List and return all registered runtimes.
+	 * List and return all registered runtime names.
 	 *
-	 * @return An array containing weak pointers to all registered runtimes.
+	 * @return An array containing runtime names of all registered runtimes.
 	 */
-	NNE_API TArrayView<TWeakInterfacePtr<INNERuntime>> GetAllRuntimes();
+	NNE_API TArray<FString> GetAllRuntimeNames();
+
+	/**
+	 * Find and return a runtime by name.
+	 *
+	 * This function tries to find a runtime by name.
+	 *
+	 * @param Name The name of the runtime.
+	 * @return A weak pointer to the runtime if it has been found or an invalid pointer otherwise.
+	 */
+	NNE_API TWeakInterfacePtr<INNERuntime> GetRuntime(const FString& Name);
 
 	/**
 	 * Find and return a runtime by name and interface.
@@ -44,17 +59,30 @@ namespace UE::NNE
 	 * @param Name The name of the runtime.
 	 * @return A weak pointer to the runtime if it has been found and implements the interface in the template argument or an invalid pointer otherwise.
 	 */
-	template<class T> TWeakInterfacePtr<T> GetRuntime(const FString& Name)
+	template<class T>
+	TWeakInterfacePtr<T> GetRuntime(const FString& Name)
 	{
-		for (TWeakInterfacePtr<INNERuntime> Runtime : GetAllRuntimes())
-		{
-			if (Runtime->GetRuntimeName() == Name)
-			{
-				T* RuntimePtr = Cast<T>(Runtime.Get());
-				return TWeakInterfacePtr<T>(RuntimePtr);
-			}
-		}
-		return TWeakInterfacePtr<T>(nullptr);
+		TWeakInterfacePtr<INNERuntime> Runtime = GetRuntime(Name);
+
+		T* RuntimePtr = Cast<T>(Runtime.Get());
+
+		return TWeakInterfacePtr<T>(RuntimePtr);
 	}
-	
+
+	/**
+	 * List and return all registered runtime names that implement the provided interface.
+	 *
+	 * @return An array containing runtime names of all registered runtimes that implement the interface in the template argument.
+	 */
+	template<class T>
+	TArray<FString> GetAllRuntimeNames()
+	{
+		TArray<FString> Result = GetAllRuntimeNames();
+		Result.SetNum(Algo::RemoveIf(Result, [] (const FString &RuntimeName)
+		{
+			return GetRuntime<T>(RuntimeName).IsValid();
+		}));
+
+		return Result;
+	}
 }

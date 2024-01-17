@@ -125,11 +125,7 @@ void SRuntimesWidget::InitCheckBoxNames()
 	CheckBoxNames.Reset();
 
 	CheckBoxNames.Add(TEXT("All"));
-
-	for (TWeakInterfacePtr<INNERuntime> Runtime : UE::NNE::GetAllRuntimes())
-	{
-		CheckBoxNames.Add(Runtime->GetRuntimeName());
-	}
+	CheckBoxNames.Append(UE::NNE::GetAllRuntimeNames());
 
 	//A runtime could possibly be in the target list but not registered to the editor
 	for (const FString& EnabledRuntimeName : TargetRuntimes.Get())

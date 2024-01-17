@@ -31,12 +31,9 @@ namespace UE::NNEDenoiser::Private
 		if (!RuntimeCPU.IsValid())
 		{
 			UE_LOG(LogNNEDenoiser, Error, TEXT("No CPU runtime '%s' found. Valid CPU runtimes are: "), *RuntimeCPUName);
-			for (TWeakInterfacePtr<INNERuntime> Runtime : UE::NNE::GetAllRuntimes())
+			for (const FString& RuntimeName : UE::NNE::GetAllRuntimeNames<INNERuntimeCPU>())
 			{
-				if (Runtime.IsValid() && UE::NNE::GetRuntime<INNERuntimeCPU>(Runtime->GetRuntimeName()).IsValid())
-				{
-					UE_LOG(LogNNEDenoiser, Error, TEXT("- %s"), *Runtime->GetRuntimeName());
-				}
+				UE_LOG(LogNNEDenoiser, Error, TEXT("- %s"), *RuntimeName);
 			}
 			return {};
 		}

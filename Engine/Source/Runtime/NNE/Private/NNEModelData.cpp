@@ -144,10 +144,10 @@ namespace UE::NNE::ModelData
 		else
 		{
 			UE_LOG(LogNNE, Error, TEXT("UNNEModelData: No runtime '%s' found. Valid runtimes are: "), *RuntimeName);
-			TArrayView<TWeakInterfacePtr<INNERuntime>> Runtimes = UE::NNE::GetAllRuntimes();
+			TArray<FString> Runtimes = UE::NNE::GetAllRuntimeNames();
 			for (int32 i = 0; i < Runtimes.Num(); i++)
 			{
-				UE_LOG(LogNNE, Error, TEXT("- %s"), *Runtimes[i]->GetRuntimeName());
+				UE_LOG(LogNNE, Error, TEXT("- %s"), *Runtimes[i]);
 			}
 		}
 		return TSharedPtr<UE::NNE::FSharedModelData>();
@@ -240,10 +240,7 @@ void UNNEModelData::Serialize(FArchive& Ar)
 				TArray<FString, TInlineAllocator<10>> CookRuntimeNames;
 				if (GetTargetRuntimes().IsEmpty())
 				{
-					for (const TWeakInterfacePtr<INNERuntime>& Runtime : UE::NNE::GetAllRuntimes())
-					{
-						CookRuntimeNames.Add(Runtime->GetRuntimeName());
-					}
+					CookRuntimeNames.Append(UE::NNE::GetAllRuntimeNames());
 				}
 				else
 				{

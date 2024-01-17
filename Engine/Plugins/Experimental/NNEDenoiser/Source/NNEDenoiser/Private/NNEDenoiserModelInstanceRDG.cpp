@@ -27,12 +27,9 @@ namespace UE::NNEDenoiser::Private
 		if (!RuntimeRDG.IsValid())
 		{
 			UE_LOG(LogNNEDenoiser, Error, TEXT("No RDG runtime '%s' found. Valid RDG runtimes are: "), *RuntimeRDGName);
-			for (TWeakInterfacePtr<INNERuntime> Runtime : UE::NNE::GetAllRuntimes())
+			for (const FString& RuntimeName : UE::NNE::GetAllRuntimeNames<INNERuntimeRDG>())
 			{
-				if (Runtime.IsValid() && UE::NNE::GetRuntime<INNERuntimeRDG>(Runtime->GetRuntimeName()).IsValid())
-				{
-					UE_LOG(LogNNEDenoiser, Error, TEXT("- %s"), *Runtime->GetRuntimeName());
-				}
+				UE_LOG(LogNNEDenoiser, Error, TEXT("- %s"), *RuntimeName);
 			}
 			return {};
 		}
