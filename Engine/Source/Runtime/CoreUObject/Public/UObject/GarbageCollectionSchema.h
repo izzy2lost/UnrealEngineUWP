@@ -122,7 +122,7 @@ public:
 	explicit FSchemaView(const FMemberWord* Data, EOrigin Origin = EOrigin::Other)
 	: Handle(reinterpret_cast<uint64>(Data) | static_cast<uint64>(Origin))
 	{
-		static_assert(sizeof(Handle) >= sizeof(Data));
+		static_assert(sizeof(Handle) >= sizeof(Data)); //-V568
 	} 
 	
 		

@@ -236,7 +236,7 @@ CORE_API bool IsAudioThreadRunning()
 
 CORE_API bool IsInAudioThread()
 {
-	return GIsAudioThreadRunning.load(std::memory_order_acquire) && !GIsAudioThreadSuspended.load(std::memory_order_acquire) ? GAudioPipe.IsInContext() : IsInGameThread();
+	return (GIsAudioThreadRunning.load(std::memory_order_acquire) && !GIsAudioThreadSuspended.load(std::memory_order_acquire)) ? GAudioPipe.IsInContext() : IsInGameThread();
 }
 
 CORE_API TAtomic<int32> GIsRenderingThreadSuspended(0);

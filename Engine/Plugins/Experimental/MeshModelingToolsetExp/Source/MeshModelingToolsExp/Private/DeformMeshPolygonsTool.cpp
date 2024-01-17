@@ -398,7 +398,7 @@ void FConstrainedMeshDeformerTask::DoWork()
 
 	if (bSuccessfulSolve)
 	{
-		if (*bAbortSource == true)
+		if (*bAbortSource == true) //-V547
 		{
 			return;
 		}

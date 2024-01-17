@@ -1077,7 +1077,7 @@ ILegacyCacheStore* FFileSystemCacheStore::TryCreate(
 			bRetryOnFailure = FPlatformMisc::MessageBoxExt(EAppMsgType::YesNo, *Message, TEXT("Failed to access Derived Data Cache")) == EAppReturnType::Yes;
 		}
 	}
-	while (bRetryOnFailure);
+	while (bRetryOnFailure); //-V654
 
 	UE_LOG(LogDerivedDataCache, Warning, TEXT("%s: Path %s is not available and this cache store will be disabled."), *Params.CacheName, *Params.CachePath);
 	return nullptr;

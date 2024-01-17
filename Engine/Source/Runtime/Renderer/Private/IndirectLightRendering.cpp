@@ -806,7 +806,7 @@ void FDeferredShadingSceneRenderer::SetupCommonDiffuseIndirectParameters(
 		RayStoragePerPixelVectorPolicies[2].X = FMath::RoundUpToPowerOfTwo(FMath::CeilToInt(FMath::Sqrt(static_cast<float>(RayCountPerPixel)))) / 2;
 
 		// Compute the Y coordinate.
-		for (int32 PolicyId = 0; PolicyId < RayStoragePerPixelVectorPolicies.Num(); PolicyId++)
+		for (int32 PolicyId = 0; PolicyId < RayStoragePerPixelVectorPolicies.Num(); PolicyId++) //-V621 //-V654
 		{
 			if (RayStoragePerPixelVectorPolicies[PolicyId].X == 0)
 				RayStoragePerPixelVectorPolicies[PolicyId].X = 1;
@@ -818,7 +818,7 @@ void FDeferredShadingSceneRenderer::SetupCommonDiffuseIndirectParameters(
 			int32 BestPolicyId = -1;
 			int32 BestWastage = RayCountPerPixel;
 
-			for (int32 PolicyId = 0; PolicyId < RayStoragePerPixelVectorPolicies.Num(); PolicyId++)
+			for (int32 PolicyId = 0; PolicyId < RayStoragePerPixelVectorPolicies.Num(); PolicyId++) //-V621 //-V654
 			{
 				int32 PolicyWastage = RayStoragePerPixelVectorPolicies[PolicyId].X * RayStoragePerPixelVectorPolicies[PolicyId].Y - RayCountPerPixel;
 

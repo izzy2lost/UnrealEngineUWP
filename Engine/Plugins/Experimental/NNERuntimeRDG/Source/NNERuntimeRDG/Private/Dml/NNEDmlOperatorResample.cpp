@@ -153,7 +153,7 @@ public:
 				return false;
 			}
 
-			if(InputShapes.Num() > 1)
+			if(InputShapes.Num() > 1) //-V547
 			{
 				if (!CheckGenericTensor1D(OpName, InputTypes[1], InputShapes[1], 
 					{ 	ENNETensorDataType::Float

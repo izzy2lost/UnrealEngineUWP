@@ -1650,7 +1650,7 @@ int32 ReportCrash( LPEXCEPTION_POINTERS ExceptionInfo )
 #if !NOINITCRASHREPORTER
 	// Only create a minidump the first time this function is called.
 	// (Can be called the first time from the RenderThread, then a second time from the MainThread.)
-	if (GCrashReportingThread)
+	if (GCrashReportingThread.IsSet())
 	{
 		if (GLog)
 		{

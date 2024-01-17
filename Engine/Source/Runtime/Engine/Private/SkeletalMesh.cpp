@@ -3400,7 +3400,7 @@ void USkeletalMesh::FinishPostLoadInternal(FSkinnedAssetPostLoadContext& Context
 			PerQualityLevelData.Default = PerPlatformData.Default;
 
 			// iterate over all platform and platform group entry: ex: XBOXONE = 2, CONSOLE=1, MOBILE = 3
-			if (PerQualityLevelData.PerQuality.Num() == 0)
+			if (PerQualityLevelData.PerQuality.Num() == 0) //-V547
 			{
 				TMap<FName, int32> SortedPerPlatforms = PerPlatformData.PerPlatform;
 				SortedPerPlatforms.KeySort([&](const FName& A, const FName& B) { return (PlatformGroupNameArray.Contains(A) > PlatformGroupNameArray.Contains(B)); });

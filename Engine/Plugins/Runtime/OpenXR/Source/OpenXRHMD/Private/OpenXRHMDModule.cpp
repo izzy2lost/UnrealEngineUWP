@@ -213,7 +213,7 @@ FString FOpenXRHMDModule::GetDeviceSystemName()
 			SystemProperties.next = nullptr;
 			XR_ENSURE(xrGetSystemProperties(Instance, System, &SystemProperties));
 
-			return FString(UTF8_TO_TCHAR(SystemProperties.systemName));
+			return FString(UTF8_TO_TCHAR(SystemProperties.systemName)); //-V614
 		}
 	}
 	return FString("");

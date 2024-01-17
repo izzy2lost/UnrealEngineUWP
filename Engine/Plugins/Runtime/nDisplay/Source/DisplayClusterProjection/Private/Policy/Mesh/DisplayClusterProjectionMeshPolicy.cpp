@@ -188,11 +188,11 @@ bool FDisplayClusterProjectionMeshPolicy::GetWarpMeshConfiguration(IDisplayClust
 	int32 CfgBaseUVIndex = INDEX_NONE;
 	if (DisplayClusterHelpers::map::template ExtractValueFromString(GetParameters(), DisplayClusterProjectionStrings::cfg::mesh::BaseUVIndex, CfgBaseUVIndex))
 	{
-		if (CfgBaseUVIndex >= 0)
+		if (CfgBaseUVIndex >= 0) //-V547
 		{
 			UE_LOG(LogDisplayClusterProjectionMesh, Verbose, TEXT("Found BaseUVIndex value - '%d'"), CfgBaseUVIndex);
 		}
-		else if(CfgBaseUVIndex != INDEX_NONE)
+		else if(CfgBaseUVIndex != INDEX_NONE) //-V547
 		{
 			UE_LOG(LogDisplayClusterProjectionMesh, Error, TEXT("Invalid BaseUVIndex value - '%d'"), CfgBaseUVIndex);
 			CfgBaseUVIndex = INDEX_NONE;
@@ -203,11 +203,11 @@ bool FDisplayClusterProjectionMeshPolicy::GetWarpMeshConfiguration(IDisplayClust
 	int32 CfgChromakeyUVIndex = INDEX_NONE;
 	if (DisplayClusterHelpers::map::template ExtractValueFromString(GetParameters(), DisplayClusterProjectionStrings::cfg::mesh::ChromakeyUVIndex, CfgChromakeyUVIndex))
 	{
-		if (CfgChromakeyUVIndex >= 0)
+		if (CfgChromakeyUVIndex >= 0) //-V547
 		{
 			UE_LOG(LogDisplayClusterProjectionMesh, Verbose, TEXT("Found ChromakeyUVIndex value - '%d'"), CfgChromakeyUVIndex);
 		}
-		else if(CfgChromakeyUVIndex != INDEX_NONE)
+		else if(CfgChromakeyUVIndex != INDEX_NONE) //-V547
 		{
 			UE_LOG(LogDisplayClusterProjectionMesh, Error, TEXT("Invalid ChromakeyUVIndex value - '%d'"), CfgChromakeyUVIndex);
 			CfgChromakeyUVIndex = INDEX_NONE;
@@ -221,10 +221,10 @@ bool FDisplayClusterProjectionMeshPolicy::GetWarpMeshConfiguration(IDisplayClust
 
 	if (OutWarpCfg.StaticMeshComponent != nullptr)
 	{
-		int CfgLODIndex;
+		int CfgLODIndex = 0;
 		if (DisplayClusterHelpers::map::template ExtractValueFromString(GetParameters(), DisplayClusterProjectionStrings::cfg::mesh::LODIndex, CfgLODIndex))
 		{
-			if (CfgLODIndex >= 0)
+			if (CfgLODIndex >= 0) //-V547
 			{
 				UE_LOG(LogDisplayClusterProjectionMesh, Verbose, TEXT("Found StaticMeshComponent LODIndex value - '%d'"), CfgLODIndex);
 
@@ -252,10 +252,10 @@ bool FDisplayClusterProjectionMeshPolicy::GetWarpMeshConfiguration(IDisplayClust
 			return false;
 		}
 
-		int32 CfgSectionIndex;
+		int32 CfgSectionIndex = 0;
 		if (DisplayClusterHelpers::map::template ExtractValueFromString(GetParameters(), DisplayClusterProjectionStrings::cfg::mesh::SectionIndex, CfgSectionIndex))
 		{
-			if (CfgSectionIndex >= 0)
+			if (CfgSectionIndex >= 0) //-V547
 			{
 				UE_LOG(LogDisplayClusterProjectionMesh, Verbose, TEXT("Found ProceduralMeshComponent SectionIndex value - '%d'"), CfgSectionIndex);
 

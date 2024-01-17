@@ -609,7 +609,7 @@ void UProceduralMeshComponent::CreateMeshSection(int32 SectionIndex, const TArra
 	{
 		int32 a, b, c;
 		Tie(a, b, c) = GetTriIndices(IndexIdx);
-		NumDegenerateTriangles += a == b || a == c || b == c;
+		NumDegenerateTriangles += a == b || a == c || b == c; //-V614
 	}
 	if (NumDegenerateTriangles > 0)
 	{
@@ -626,7 +626,7 @@ void UProceduralMeshComponent::CreateMeshSection(int32 SectionIndex, const TArra
 		int32 a, b, c;
 		Tie(a, b, c) = GetTriIndices(IndexIdx);
 
-		if (a != b && a != c && b != c)
+		if (a != b && a != c && b != c) //-V614
 		{
 			NewSection.ProcIndexBuffer[CopyIndexIdx++] = a;
 			NewSection.ProcIndexBuffer[CopyIndexIdx++] = b;

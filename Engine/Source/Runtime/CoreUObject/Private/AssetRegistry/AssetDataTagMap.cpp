@@ -1447,7 +1447,7 @@ FAssetDataTagMapSharedView::FAssetDataTagMapSharedView(const FAssetDataTagMapSha
 	}
 	else if (IsLoose())
 	{
-		Loose->RefCount.Increment();
+		Loose->RefCount.Increment(); //-V614
 	}
 }
 

@@ -1339,7 +1339,7 @@ EConvertFromTypeResult FProperty::ConvertFromType(const FPropertyTag& Tag, FStru
 
 namespace UE::CoreUObject::Private
 {
-	[[noreturn]] void OnInvalidPropertySize(uint32 InvalidPropertySize, const FProperty* Prop)
+	[[noreturn]] void OnInvalidPropertySize(uint32 InvalidPropertySize, const FProperty* Prop) //-V1082
 	{
 		UE_LOG(LogProperty, Fatal, TEXT("Invalid property size %u when linking property %s of size %d"), InvalidPropertySize, *Prop->GetFullName(), Prop->GetSize());
 		for (;;);

@@ -165,7 +165,7 @@ bool FControlConstraintChannelInterface::SmartConstraintKey(
 					{ ChildLocals[0] }, ChannelsToKey, TickResolution, nullptr,true);
 
 				// set tangents at Time-1
-				if (NumChannels > 0)
+				if (NumChannels > 0) //-V547
 				{
 					SetTangentsAtThisTime<FMovieSceneFloatChannel>(ChannelIndex, NumChannels, TransformSection, TimeMinusOne, Tangents);
 				}

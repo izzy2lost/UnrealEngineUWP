@@ -1643,7 +1643,7 @@ void FZenCacheStore::Initialize(const FZenCacheStoreParams& Params)
 		FHealthReceiver HealthReceiver(Health);
 		THttpUniquePtr<IHttpResponse> ReadinessResponse;
 		ReadinessRequest->Send(&HealthReceiver, ReadinessResponse);
-		bReady = Health == EHealth::Ok;
+		bReady = Health == EHealth::Ok; // -V547
 	}
 
 	FHttpClientParams ClientParams;

@@ -1990,7 +1990,7 @@ FScreenPassTexture AddVisualizePathTracingDenoisingPass(FRDGBuilder& GraphBuilde
 		);
 	}
 
-	if (ShouldVisualizeWarping(Inputs.DenoisingContext) && Inputs.DenoisedTexture)
+	if (ShouldVisualizeWarping(Inputs.DenoisingContext))
 	{
 		const FScreenPassTextureViewport TargetViewport(Inputs.DenoisedTexture, View.ViewRect);
 		typedef FVisualizeWarpingPS SHADER;

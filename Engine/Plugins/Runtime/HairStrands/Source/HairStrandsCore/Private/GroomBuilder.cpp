@@ -270,7 +270,7 @@ namespace HairStrandsBuilder
 					FPackedRadiusAndType PackedRadiusAndType;
 					PackedRadiusAndType.Data.ControlPointType = (PointIndex == 0) ? HAIR_CONTROLPOINT_START : (PointIndex == (PointCount - 1) ? HAIR_CONTROLPOINT_END : HAIR_CONTROLPOINT_INSIDE);
 					PackedRadiusAndType.Data.NormalizedRadius = uint8(FMath::Clamp(NormalizedRadius * 63.f, 0.f, 63.f));
-					PackedPosition.PackedRadiusAndType = PackedRadiusAndType.Packed;
+					PackedPosition.PackedRadiusAndType = PackedRadiusAndType.Packed; //-V614
 					PackedPosition.UCoord = uint8(FMath::Clamp(CoordU * 255.f, 0.f, 255.f));
 				}
 

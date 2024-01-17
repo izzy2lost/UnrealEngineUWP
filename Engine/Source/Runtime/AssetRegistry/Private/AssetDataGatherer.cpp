@@ -3437,7 +3437,7 @@ public:
 	FPreloader()
 		// The callback needs to occur after GIsEditor, ProjectIntermediateDir, IsRunningCommandlet, and
 		// IsRunningCookCommandlet have been set
-		:FDelayedAutoRegisterHelper(EDelayedRegisterRunPhase::IniSystemReady, [this]() { DelayedInitialize(); })
+		:FDelayedAutoRegisterHelper(EDelayedRegisterRunPhase::IniSystemReady, [this]() { DelayedInitialize(); }) //-V1099
 	{
 	}
 

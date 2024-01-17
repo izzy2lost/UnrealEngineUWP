@@ -401,7 +401,7 @@ float FRecastQueryFilter::GetHeuristicScale() const
 bool FRecastQueryFilter::IsEqual(const INavigationQueryFilterInterface* Other) const
 {
 	// @NOTE: not type safe, should be changed when another filter type is introduced
-	return FMemory::Memcmp(this, Other, sizeof(FRecastQueryFilter)) == 0;
+	return FMemory::Memcmp(this, Other, sizeof(FRecastQueryFilter)) == 0; //-V598
 }
 
 void FRecastQueryFilter::SetIncludeFlags(uint16 Flags)

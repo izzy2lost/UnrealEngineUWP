@@ -109,7 +109,7 @@ void FPlatformEventsTrace::OnTraceChannelUpdated(const FString& ChannelName, boo
 
 void FPlatformEventsTrace::PostInit()
 {
-	if (TRACE_PRIVATE_CHANNELEXPR_IS_ENABLED(ContextSwitchChannel))
+	if (TRACE_PRIVATE_CHANNELEXPR_IS_ENABLED(ContextSwitchChannel)) //-V517
 	{
 		Enable(FPlatformEventsTrace::EEventType::ContextSwitch);
 	}

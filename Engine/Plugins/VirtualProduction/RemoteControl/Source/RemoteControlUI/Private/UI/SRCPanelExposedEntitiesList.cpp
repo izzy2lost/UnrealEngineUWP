@@ -432,7 +432,7 @@ void SRCPanelExposedEntitiesList::Construct(const FArguments& InArgs, URemoteCon
 		)
 		.Visibility_Lambda([this]()
 			{
-				return bIsInProtocolsMode.Get() && !ActiveProtocol.IsNone() ? EVisibility::Visible : EVisibility::Collapsed;
+				return (bIsInProtocolsMode.Get() && !ActiveProtocol.IsNone()) ? EVisibility::Visible : EVisibility::Collapsed;
 			}
 		);
 

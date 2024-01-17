@@ -41,7 +41,7 @@ TEST_CASE_NAMED(FStringFindTest, "System::Core::String::Find", "[Core][String][S
 
 		CHECK(FindFirst("AbCABCAbCABC", "ABC") == 3);
 
-		CHECK(FindFirst(FStringView(nullptr, 0), TEXT("SearchTerm")) == INDEX_NONE);
+		CHECK(FindFirst(FStringView(nullptr, 0), TEXT("SearchTerm")) == INDEX_NONE); //-V575
 		CHECK(FindFirst(FStringView(), TEXT("SearchTerm")) == INDEX_NONE);
 	}
 
@@ -72,7 +72,7 @@ TEST_CASE_NAMED(FStringFindTest, "System::Core::String::Find", "[Core][String][S
 
 		CHECK(FindLast("AbCABCAbCABC", "ABC") == 9);
 
-		CHECK(FindLast(FStringView(nullptr, 0), TEXT("SearchTerm")) == INDEX_NONE);
+		CHECK(FindLast(FStringView(nullptr, 0), TEXT("SearchTerm")) == INDEX_NONE); //-V575
 		CHECK(FindLast(FStringView(), TEXT("SearchTerm")) == INDEX_NONE);
 	}
 
@@ -105,7 +105,7 @@ TEST_CASE_NAMED(FStringFindTest, "System::Core::String::Find", "[Core][String][S
 
 		CHECK(FindFirstOfAny("AbCABCAbCABC", {"CABc", "ABC"}) == 3);
 
-		CHECK(FindFirstOfAny(FStringView(nullptr, 0), {TEXT("ABC"), TEXT("ABD")}) == INDEX_NONE);
+		CHECK(FindFirstOfAny(FStringView(nullptr, 0), {TEXT("ABC"), TEXT("ABD")}) == INDEX_NONE); //-V575
 		CHECK(FindFirstOfAny(FStringView(), {TEXT("ABC"), TEXT("ABD")}) == INDEX_NONE);
 	}
 
@@ -138,7 +138,7 @@ TEST_CASE_NAMED(FStringFindTest, "System::Core::String::Find", "[Core][String][S
 
 		CHECK(FindLastOfAny("AbCABCAbCABC", {"CABc", "ABC"}) == 9);
 
-		CHECK(FindLastOfAny(FStringView(nullptr, 0), { TEXT("ABC"), TEXT("ABD") }) == INDEX_NONE);
+		CHECK(FindLastOfAny(FStringView(nullptr, 0), { TEXT("ABC"), TEXT("ABD") }) == INDEX_NONE); //-V575
 		CHECK(FindLastOfAny(FStringView(), { TEXT("ABC"), TEXT("ABD") }) == INDEX_NONE);
 	}
 
@@ -158,7 +158,7 @@ TEST_CASE_NAMED(FStringFindTest, "System::Core::String::Find", "[Core][String][S
 
 		CHECK(FindFirstChar("AbCABCAbCABC", 'B') == 4);
 
-		CHECK(FindFirstChar(FStringView(nullptr, 0), TEXT('A')) == INDEX_NONE);
+		CHECK(FindFirstChar(FStringView(nullptr, 0), TEXT('A')) == INDEX_NONE); //-V575
 		CHECK(FindFirstChar(FStringView(), TEXT('A')) == INDEX_NONE);
 	}
 
@@ -178,7 +178,7 @@ TEST_CASE_NAMED(FStringFindTest, "System::Core::String::Find", "[Core][String][S
 
 		CHECK(FindLastChar("AbCABCAbCABC", 'B') == 10);
 
-		CHECK(FindLastChar(FStringView(nullptr, 0), TEXT('A')) == INDEX_NONE);
+		CHECK(FindLastChar(FStringView(nullptr, 0), TEXT('A')) == INDEX_NONE); //-V575
 		CHECK(FindLastChar(FStringView(), TEXT('A')) == INDEX_NONE);
 	}
 
@@ -198,7 +198,7 @@ TEST_CASE_NAMED(FStringFindTest, "System::Core::String::Find", "[Core][String][S
 
 		CHECK(FindFirstOfAnyChar("AbCABCAbcABC", {'c', 'B'}) == 4);
 
-		CHECK(FindFirstOfAnyChar(FStringView(nullptr, 0), { TEXT('A'), TEXT('B') }) == INDEX_NONE);
+		CHECK(FindFirstOfAnyChar(FStringView(nullptr, 0), { TEXT('A'), TEXT('B') }) == INDEX_NONE); //-V575
 		CHECK(FindFirstOfAnyChar(FStringView(), { TEXT('A'), TEXT('B') }) == INDEX_NONE);
 	}
 
@@ -218,7 +218,7 @@ TEST_CASE_NAMED(FStringFindTest, "System::Core::String::Find", "[Core][String][S
 
 		CHECK(FindLastOfAnyChar("AbCABCAbcABC", {'c', 'B'}) == 10);
 
-		CHECK(FindLastOfAnyChar(FStringView(nullptr, 0), { TEXT('A'), TEXT('B') }) == INDEX_NONE);
+		CHECK(FindLastOfAnyChar(FStringView(nullptr, 0), { TEXT('A'), TEXT('B') }) == INDEX_NONE); //-V575
 		CHECK(FindLastOfAnyChar(FStringView(), { TEXT('A'), TEXT('B') }) == INDEX_NONE);
 	}
 }

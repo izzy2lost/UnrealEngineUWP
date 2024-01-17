@@ -702,7 +702,7 @@ bool UncompressJpeg(const ERGBFormat Format, int32 BitDepth, int32 Width, int32 
 	}
 
 	void* Decompressor(tjInitDecompress());
-	check(Decompressor);
+	check(Decompressor); //-V516
 	check(compressedData.Num());
 
 	UncompressedData.Reset(Width * Height * NumChannels);

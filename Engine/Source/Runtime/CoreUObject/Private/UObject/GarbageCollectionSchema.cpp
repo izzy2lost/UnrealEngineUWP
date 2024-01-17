@@ -68,7 +68,7 @@ FName ToName(EMemberType Type)
 
 //////////////////////////////////////////////////////////////////////////
 
-static_assert(sizeof(FMemberWord) == 8 && alignof(FMemberWord) == 8);
+static_assert(sizeof(FMemberWord) == 8 && alignof(FMemberWord) == 8); //-V547
 
 static bool IsSet(FMemberWord Word)
 {

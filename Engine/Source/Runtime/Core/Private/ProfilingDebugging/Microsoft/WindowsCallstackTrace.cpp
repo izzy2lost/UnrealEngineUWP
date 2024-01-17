@@ -768,7 +768,7 @@ void CallstackTrace_CreateInternal(FMalloc* Malloc)
 		[] (bool bLoad, void* Module, const TCHAR* Name)
 		{
 			bLoad
-				? FBacktracer::Get()->AddModule(UPTRINT(Module), Name)
+				? FBacktracer::Get()->AddModule(UPTRINT(Module), Name) //-V522
 				: FBacktracer::Get()->RemoveModule(UPTRINT(Module));
 		}
 	);

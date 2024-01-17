@@ -529,16 +529,7 @@ FDynamicSkelMeshObjectDataCPUSkin::FDynamicSkelMeshObjectDataCPUSkin(
 
 	// Update the clothing simulation mesh positions and normals
 	FMatrix LocalToWorld;
-	if (InMeshComponent)
-	{
-		InMeshComponent->GetUpdateClothSimulationData_AnyThread(ClothSimulUpdateData, LocalToWorld, ClothBlendWeight);
-	}
-	else
-	{
-		ClothSimulUpdateData.Reset();
-		LocalToWorld = FMatrix::Identity;
-		ClothBlendWeight = 0.f;
-	}
+	InMeshComponent->GetUpdateClothSimulationData_AnyThread(ClothSimulUpdateData, LocalToWorld, ClothBlendWeight);
 
 	WorldToLocal = LocalToWorld.InverseFast();
 	if (!IsSkeletalMeshClothBlendEnabled())
@@ -547,10 +538,7 @@ FDynamicSkelMeshObjectDataCPUSkin::FDynamicSkelMeshObjectDataCPUSkin(
 	}
 
 #if !(UE_BUILD_SHIPPING || UE_BUILD_TEST)
-	if (InMeshComponent)
-	{
-		MeshComponentSpaceTransforms = InMeshComponent->GetComponentSpaceTransforms();
-	}
+	MeshComponentSpaceTransforms = InMeshComponent->GetComponentSpaceTransforms();
 #endif
 }
 

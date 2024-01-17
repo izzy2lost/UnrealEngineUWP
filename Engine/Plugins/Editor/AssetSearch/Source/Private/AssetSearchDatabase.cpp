@@ -390,7 +390,7 @@ public:
 	FGetAllAssets Statement_GetAllAssets;
 	bool GetAllAssets(TFunctionRef<ESQLitePreparedStatementExecuteRowResult(FString&&)> InCallback)
 	{
-		return Statement_GetAllAssets.BindAndExecute([&InCallback](const FGetAllAssets& InStatement)
+		return Statement_GetAllAssets.BindAndExecute([&InCallback](const FGetAllAssets& InStatement) //-V562
 		{
 			FString AssetPath;
 			if (InStatement.GetColumnValues(AssetPath))

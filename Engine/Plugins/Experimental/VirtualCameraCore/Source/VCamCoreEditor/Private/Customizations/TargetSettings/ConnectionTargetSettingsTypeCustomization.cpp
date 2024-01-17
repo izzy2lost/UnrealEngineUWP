@@ -294,7 +294,7 @@ namespace UE::VCamCoreEditor::Private
 						{
 							return EVisibility::Collapsed;
 						}
-						return HasDataSourceAttr.Get() && !GetOptionsAttr.Get().Contains(Value)
+						return (HasDataSourceAttr.Get() && !GetOptionsAttr.Get().Contains(Value))
 							? EVisibility::Visible
 							: EVisibility::Collapsed;
 					})

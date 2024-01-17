@@ -1568,10 +1568,13 @@ FGraphAppearanceInfo FRigVMEditor::GetGraphAppearance(UEdGraph* InGraph) const
 		{
 			if(RigVMHost->GetVM() && RigVMHost->GetVM()->IsNativized())
 			{
-				AppearanceInfo.InstructionFade = 1;
-				AppearanceInfo.InstructionText = FText::FromString(
-					FString::Printf(TEXT("This graph runs a nativized VM (U%s)."), *RigVMHost->GetVM()->GetNativizedClass()->GetName())
-				);
+				if (UClass* NativizedClass = RigVMHost->GetVM()->GetNativizedClass())
+				{
+					AppearanceInfo.InstructionFade = 1;
+					AppearanceInfo.InstructionText = FText::FromString(
+						FString::Printf(TEXT("This graph runs a nativized VM (U%s)."), *NativizedClass->GetName())
+					);
+				}
 			}
 
 			if(RigVMHost->VMRuntimeSettings.bEnableProfiling)

@@ -48,7 +48,7 @@ public:
 			return false;
 		}
 
-		if(InputShapes.Num() == 2)
+		if(InputShapes.Num() == 2) //-V547
 		{
 			if (!CheckGenericTensor1D(OpName, InputTypes[1], InputShapes[1], 
 				{ 	ENNETensorDataType::Int64, ENNETensorDataType::Int32, ENNETensorDataType::UInt32
