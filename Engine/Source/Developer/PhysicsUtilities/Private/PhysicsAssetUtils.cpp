@@ -1294,3 +1294,5 @@ void SanitizeRestrictedContent(UPhysicsAsset* PhysAsset)
 }
 
 }; // namespace FPhysicsAssetUtils
+
+IMPLEMENT_MODULE(FDefaultModuleImpl, PhysicsAssetUtils)
