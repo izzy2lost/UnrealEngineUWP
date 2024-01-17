@@ -23,7 +23,11 @@ UDMXPixelMappingMatrixCellComponent::UDMXPixelMappingMatrixCellComponent()
 {
 #if WITH_EDITORONLY_DATA
 	bLockInDesigner = true;
+
+	PRAGMA_DISABLE_DEPRECATION_WARNINGS
+	// EditorColor should no longer be accessed publicly, however it is ok to access it here.
 	EditorColor = FLinearColor::White.CopyWithNewOpacity(.25f);
+	PRAGMA_ENABLE_DEPRECATION_WARNINGS
 #endif // WITH_EDITORONLY_DATA
 }
 
@@ -69,13 +73,6 @@ void UDMXPixelMappingMatrixCellComponent::PostEditChangeProperty(FPropertyChange
 	UpdateRenderElement();
 
 	InvalidatePixelMapRenderer();
-}
-#endif // WITH_EDITOR
-
-#if WITH_EDITOR
-FLinearColor UDMXPixelMappingMatrixCellComponent::GetEditorColor() const
-{
-	return EditorColor;
 }
 #endif // WITH_EDITOR
 

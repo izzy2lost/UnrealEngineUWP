@@ -92,9 +92,17 @@ bool UDMXPixelMappingOutputComponent::IsVisible() const
 #if WITH_EDITOR
 void UDMXPixelMappingOutputComponent::SetZOrder(int32 NewZOrder)
 {
-	const int32 DeltaZOrder = NewZOrder - ZOrder;
-	
 	ZOrder = NewZOrder;
+}
+#endif // WITH_EDITOR
+
+#if WITH_EDITOR
+FLinearColor UDMXPixelMappingOutputComponent::GetEditorColor() const
+{
+	PRAGMA_DISABLE_DEPRECATION_WARNINGS
+	// EditorColor should not be publicly accessed. However it is ok to access it here.
+	return EditorColor;
+	PRAGMA_ENABLE_DEPRECATION_WARNINGS
 }
 #endif // WITH_EDITOR
 

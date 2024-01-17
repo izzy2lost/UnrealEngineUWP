@@ -150,7 +150,7 @@ public:
 	}
 
 	/** Get Pixel Mapping asset UObject */
-	UDMXPixelMapping* GetPixelMapping();
+	UDMXPixelMapping* GetPixelMapping() const;
 
 	/** Get root component of the component tree */
 	const UDMXPixelMappingRootComponent* GetRootComponent() const;

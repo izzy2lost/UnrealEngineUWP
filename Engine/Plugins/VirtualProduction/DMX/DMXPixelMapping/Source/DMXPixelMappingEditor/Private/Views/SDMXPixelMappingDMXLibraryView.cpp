@@ -23,7 +23,9 @@
 #include "ViewModels/DMXPixelMappingDMXLibraryViewModel.h"
 #include "Widgets/Images/SImage.h"
 #include "Widgets/Input/SButton.h"
+#include "Widgets/Input/SCheckBox.h"
 #include "Widgets/Layout/SWidgetSwitcher.h"
+#include "Widgets/Layout/SWrapBox.h"
 #include "Widgets/SBoxPanel.h"
 #include "Widgets/SDMXPixelMappingFixturePatchList.h"
 
@@ -133,15 +135,15 @@ void SDMXPixelMappingDMXLibraryView::Construct(const FArguments& InArgs, const T
 				ModelDetailsView.ToSharedRef()
 			]
 
-			// 'Add selected Fixture Patches' and 'Add all Patches' buttons
+			// Add Patches
 			+ SVerticalBox::Slot()
 			.AutoHeight()
 			[
-				SAssignNew(AddPatchesHorizontalBox, SHorizontalBox)
+				SAssignNew(AddPatchesWrapBox, SWrapBox)
+				.UseAllottedWidth(true)
 
-				+ SHorizontalBox::Slot()
+				+ SWrapBox::Slot()
 				.Padding(4.f)
-				.AutoWidth()
 				[
 					SNew(SButton)
 					.ButtonStyle(FAppStyle::Get(), "FlatButton.Success")
@@ -156,9 +158,8 @@ void SDMXPixelMappingDMXLibraryView::Construct(const FArguments& InArgs, const T
 					]
 				]
 
-				+ SHorizontalBox::Slot()
+				+ SWrapBox::Slot()
 				.Padding(8.f, 4.f)
-				.AutoWidth()
 				[
 					SNew(SButton)
 					.ButtonStyle(FAppStyle::Get(), "FlatButton.Success")
@@ -172,8 +173,23 @@ void SDMXPixelMappingDMXLibraryView::Construct(const FArguments& InArgs, const T
 						.Text(LOCTEXT("AddAllPatchesLabel", "Add All Patches"))
 					]
 				]
+
+				+ SWrapBox::Slot()
+				.Padding(8.f, 4.f)
+				.VAlign(VAlign_Center)
+				[
+					SNew(SCheckBox)
+					.IsChecked(this, &SDMXPixelMappingDMXLibraryView::GetUsePatchColorCheckState)
+					.OnCheckStateChanged(this, &SDMXPixelMappingDMXLibraryView::OnUsePatchColorCheckStateChanged)
+					[
+						SNew(STextBlock)
+						.Text(LOCTEXT("UsePatchColorCheckBoxLabel", "Use Patch Color"))
+						.Font(FAppStyle::GetFontStyle("PropertyWindow.NormalFont"))
+					]
+				]
 			]
-		
+
+			// The fixture patch list
 			+ SVerticalBox::Slot()
 			.FillHeight(1.f)
 			[
@@ -292,7 +308,7 @@ void SDMXPixelMappingDMXLibraryView::ForceRefresh()
 
 		// Only show the list and options to add or select when fixture patches are available
 		const EVisibility AddFixturePatchOptionsVisibility = FixturePatchesInDMXLibrary.Num() > HiddenFixturePatches.Num() ? EVisibility::Visible : EVisibility::Collapsed;
-		AddPatchesHorizontalBox->SetVisibility(AddFixturePatchOptionsVisibility);
+		AddPatchesWrapBox->SetVisibility(AddFixturePatchOptionsVisibility);
 
 		if (AddFixturePatchOptionsVisibility == EVisibility::Visible)
 		{
@@ -388,6 +404,20 @@ FReply SDMXPixelMappingDMXLibraryView::OnAddAllPatchesClicked()
 	}
 
 	return FReply::Handled();
+}
+
+ECheckBoxState SDMXPixelMappingDMXLibraryView::GetUsePatchColorCheckState() const
+{
+	return ViewModel && ViewModel->ShouldNewComponentsUsePatchColor() ? ECheckBoxState::Checked : ECheckBoxState::Unchecked;
+}
+
+void SDMXPixelMappingDMXLibraryView::OnUsePatchColorCheckStateChanged(ECheckBoxState NewCheckState)
+{
+	if (ensureMsgf(ViewModel, TEXT("Invalid view model for PixelMapping DMX Library View, cannot display view.")))
+	{
+		const bool bNewPatchesShouldUsePatchColor = NewCheckState == ECheckBoxState::Checked;
+		ViewModel->SetNewComponentsUsePatchColor(bNewPatchesShouldUsePatchColor);
+	}
 }
 
 TArray<UDMXEntityFixturePatch*> SDMXPixelMappingDMXLibraryView::GetFixturePatchesInDMXLibrary() const

@@ -65,7 +65,7 @@ public:
 	virtual int32 GetZOrder() const { return ZOrder; }
 
 	/** Returns an editor color for the widget */
-	virtual FLinearColor GetEditorColor() const { return EditorColor; }
+	virtual FLinearColor GetEditorColor() const;
 #endif // WITH_EDITOR
 
 	/** Returns true if the the component's over all its parents. */
@@ -76,15 +76,15 @@ public:
 
 	/** Returns true if the component overlaps the other */
 	UE_DEPRECATED(5.4, "Removed without replacement. GetEdges and test against other if this method is needed.")
-		virtual bool OverlapsComponent(UDMXPixelMappingOutputComponent* Other) const;
+	virtual bool OverlapsComponent(UDMXPixelMappingOutputComponent* Other) const;
 
 	/** Get pixel index in downsample texture */
 	UE_DEPRECATED(5.3, "Please use UDMXPixelMappingPixelMapRenderer to render the pixel map")
-		virtual int32 GetDownsamplePixelIndex() const { return 0; }
+	virtual int32 GetDownsamplePixelIndex() const { return 0; }
 
 	/** Queue rendering to downsample rendering target */
 	UE_DEPRECATED(5.3, "Please use UDMXPixelMappingPixelMapRenderer to render the pixel map")
-		virtual void QueueDownsample() {}
+	virtual void QueueDownsample() {}
 
 	/** Returns the absolute position, without rotation */
 	FVector2D GetPosition() const;
@@ -132,11 +132,11 @@ public:
 	int32 ZOrder = 1;
 
 	/** The color displayed in editor */
+	UE_DEPRECATED(5.4, "Should no longer be publicly accessed, instead call GetEditorColor.")
 	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = "Editor Settings")
 	FLinearColor EditorColor = FLinearColor::Blue;
 #endif // WITH_EDITORONLY_DATA
 
-public:
 #if WITH_EDITOR
 	// Property Name getters
 	FORCEINLINE static FName GetLockInDesignerPropertyName() { return GET_MEMBER_NAME_CHECKED(UDMXPixelMappingOutputComponent, bLockInDesigner); }
@@ -156,24 +156,23 @@ protected:
 	float PositionY = 0.f;
 
 #if WITH_EDITORONLY_DATA
-	UPROPERTY(EditAnywhere, Transient, Category = "Transform", Meta = (EditCondition = "!bLockInDesigner", AllowPrivateAccess = true, DisplayName = "Position (with Rotation)"))
+	UPROPERTY(EditAnywhere, Transient, Category = "Transform", Meta = (EditCondition = "!bLockInDesigner", DisplayName = "Position (with Rotation)"))
 	FVector2D EditorPositionWithRotation = FVector2D::ZeroVector;
 #endif // WITH_EDITORONLY_DATA
 
-	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Transform", Meta = (ClampMin = 0.0001, EditCondition = "!bLockInDesigner", AllowPrivateAccess = true))
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Transform", Meta = (ClampMin = 0.0001, EditCondition = "!bLockInDesigner"))
 	float SizeX = 1.f;
 
-	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Transform", Meta = (ClampMin = 0.0001, EditCondition = "!bLockInDesigner", AllowPrivateAccess = true))
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Transform", Meta = (ClampMin = 0.0001, EditCondition = "!bLockInDesigner"))
 	float SizeY = 1.f;
 
-	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Transform", Meta = (UIMin = -180, UIMax = 180, EditCondition = "!bLockInDesigner", AllowPrivateAccess = true))
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Transform", Meta = (UIMin = -180, UIMax = 180, EditCondition = "!bLockInDesigner"))
 	double Rotation = 0.0;
 
 	UPROPERTY(Transient)
 	FDMXPixelMappingComponentGeometryCache CachedGeometry;
 
 #if WITH_EDITORONLY_DATA
-protected:
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Editor Settings")
 	bool bLockInDesigner;
 

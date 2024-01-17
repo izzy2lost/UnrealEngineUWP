@@ -35,6 +35,12 @@ public:
 	/** Sets the fixture group for this model from what's currently selected. Note only single selection is supported as of 5.3 */
 	void UpdateFixtureGroupFromSelection(TWeakPtr<FDMXPixelMappingToolkit> InWeakToolkit);
 
+	/** Sets if new components should use the patch color */
+	void SetNewComponentsUsePatchColor(bool bUsePatchColor);
+
+	/** Returns true if new components should use the patch color */
+	bool ShouldNewComponentsUsePatchColor() const;
+
 	/** Adds specified fixture patches to the pixel mapping. Ensures all patches are of the same library as the one of the current group. */
 	void AddFixturePatchesEnsured(const TArray<UDMXEntityFixturePatch*>& FixturePatches);
 

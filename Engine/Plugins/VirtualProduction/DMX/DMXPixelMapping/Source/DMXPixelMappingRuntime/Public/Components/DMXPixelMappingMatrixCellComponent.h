@@ -49,10 +49,7 @@ public:
 	virtual FString GetUserName() const override;
 	//~ End UDMXPixelMappingBaseComponent implementation
 
-	//~ Begin UDMXPixelMappingOutputComponent implementation
-#if WITH_EDITOR
-	virtual FLinearColor GetEditorColor() const override;
-#endif // WITH_EDITOR	
+	//~ Begin UDMXPixelMappingOutputComponent implementation	
 	virtual bool IsOverParent() const override;
 	virtual int32 GetDownsamplePixelIndex() const override { return DownsamplePixelIndex; }
 	virtual void QueueDownsample() override;

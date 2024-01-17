@@ -115,11 +115,11 @@ public:
 	UPROPERTY()
 	EDMXPixelMappingDistribution Distribution;
 
-	/** Inverts the cell ordering along the X-axis. Useful when the matrix is facing away from the screen, rotated horizontally. */
+	/** Inverts the cell ordering along the X-axis. Useful when the matrix is facing away from the screen. */
 	UPROPERTY(EditAnywhere, Category = "Matrix")
 	bool bInvertCellsX = false;
 
-	/** Inverts the cell ordering along the Y-axis. Useful when the matrix is facing away from the screen, rotated vertically. */
+	/** Inverts the cell ordering along the Y-axis. Useful when the matrix is facing away from the screen . */
 	UPROPERTY(EditAnywhere, Category = "Matrix")
 	bool bInvertCellsY = false;
 

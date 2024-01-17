@@ -291,7 +291,6 @@ TSharedRef<SWidget> SDMXPixelMappingPreviewView::CreateOverlayUI()
 				.ButtonColorAndOpacity(FLinearColor::Transparent)
 				.ToolTipText(LOCTEXT("ZoomToFit_ToolTip", "Zoom To Fit"))
 				.OnClicked(this, &SDMXPixelMappingPreviewView::HandleZoomToFitClicked)
-				.ContentPadding(FAppStyle::Get().GetMargin("ViewportMenu.SToolBarButtonBlock.Button.Padding"))
 				[
 					SNew(SImage)
 					.Image(FAppStyle::GetBrush("UMGEditor.ZoomToFit"))

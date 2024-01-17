@@ -100,7 +100,7 @@ void UDMXPixelMappingBaseComponent::ForEachChild(TComponentPredicate Predicate, 
 	}
 }
 
-UDMXPixelMapping* UDMXPixelMappingBaseComponent::GetPixelMapping()
+UDMXPixelMapping* UDMXPixelMappingBaseComponent::GetPixelMapping() const
 {
 	if (const UDMXPixelMappingRootComponent* RootComponent = GetRootComponent())
 	{

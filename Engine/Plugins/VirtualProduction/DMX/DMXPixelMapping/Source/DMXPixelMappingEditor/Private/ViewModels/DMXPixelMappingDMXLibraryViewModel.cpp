@@ -122,6 +122,21 @@ void UDMXPixelMappingDMXLibraryViewModel::UpdateFixtureGroupFromSelection(TWeakP
 	}
 }
 
+void UDMXPixelMappingDMXLibraryViewModel::SetNewComponentsUsePatchColor(bool bUsePatchColor)
+{
+	UDMXPixelMapping* PixelMapping = WeakToolkit.IsValid() ? WeakToolkit.Pin()->GetDMXPixelMapping() : nullptr;
+	if (PixelMapping)
+	{
+		PixelMapping->bNewComponentsUsePatchColor = bUsePatchColor;
+	}
+}
+
+bool UDMXPixelMappingDMXLibraryViewModel::ShouldNewComponentsUsePatchColor() const
+{
+	const UDMXPixelMapping* PixelMapping = WeakToolkit.IsValid() ? WeakToolkit.Pin()->GetDMXPixelMapping() : nullptr;
+	return PixelMapping ? PixelMapping->bNewComponentsUsePatchColor : false;
+}
+
 void UDMXPixelMappingDMXLibraryViewModel::AddFixturePatchesEnsured(const TArray<UDMXEntityFixturePatch*>& FixturePatches)
 {
 	const TSharedPtr<FDMXPixelMappingToolkit> Toolkit = WeakToolkit.Pin();

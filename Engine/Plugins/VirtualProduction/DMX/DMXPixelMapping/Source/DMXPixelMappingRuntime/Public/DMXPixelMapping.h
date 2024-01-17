@@ -164,6 +164,10 @@ public:
 	UPROPERTY(NonTransactional)
 	float ComponentLabelFontSize = 8.f;
 
+	/** If true, new components use the fixture patch color instead of the default pixel mapping color. */
+	UPROPERTY(NonTransactional)
+	bool bNewComponentsUsePatchColor = true;
+
 	/** If true, editor is set to scale children with parent. This is forwarded from the editor module (DMXPixelMappingEditorSettings) to be accessible in the runtime module. */
 	UPROPERTY(Transient, NonTransactional)
 	bool bEditorScaleChildrenWithParent = false;
