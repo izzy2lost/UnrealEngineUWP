@@ -115,6 +115,14 @@ public:
 	UPROPERTY()
 	EDMXPixelMappingDistribution Distribution;
 
+	/** Inverts the cell ordering along the X-axis. Useful when the matrix is facing away from the screen, rotated horizontally. */
+	UPROPERTY(EditAnywhere, Category = "Matrix")
+	bool bInvertCellsX = false;
+
+	/** Inverts the cell ordering along the Y-axis. Useful when the matrix is facing away from the screen, rotated vertically. */
+	UPROPERTY(EditAnywhere, Category = "Matrix")
+	bool bInvertCellsY = false;
+
 	/** Layout script for the children of this component (hidden in customizations and displayed in its own panel). */
 	UPROPERTY(EditAnywhere, Instanced, Category = "Layout")
 	TObjectPtr<UDMXPixelMappingLayoutScript> LayoutScript;

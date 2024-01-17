@@ -183,6 +183,8 @@ void UDMXPixelMappingMatrixComponent::PostEditChangeProperty(FPropertyChangedEve
 	}
 	else if (PropertyName == GET_MEMBER_NAME_CHECKED(UDMXPixelMappingMatrixComponent, FixturePatchRef) ||
 		PropertyName == GET_MEMBER_NAME_CHECKED(UDMXPixelMappingMatrixComponent, CoordinateGrid) ||
+		PropertyName == GET_MEMBER_NAME_CHECKED(UDMXPixelMappingMatrixComponent, bInvertCellsX) ||
+		PropertyName == GET_MEMBER_NAME_CHECKED(UDMXPixelMappingMatrixComponent, bInvertCellsY) ||
 		PropertyName == GET_MEMBER_NAME_CHECKED(FDMXEntityReference, DMXLibrary))
 	{
 		HandleMatrixChanged();
@@ -485,12 +487,21 @@ void UDMXPixelMappingMatrixComponent::HandleMatrixChanged()
 		CellSize = FVector2D(GetSize().X / CoordinateGrid.X, GetSize().Y / CoordinateGrid.Y);
 	}
 
+	auto InvertCellsIfRequiredLambda = [this](FIntPoint CellCoordinate)
+		{
+			CellCoordinate.X = bInvertCellsX ? FMath::Abs(CellCoordinate.X - CoordinateGrid.X) - 1 : CellCoordinate.X;
+			CellCoordinate.Y = bInvertCellsY ? FMath::Abs(CellCoordinate.Y - CoordinateGrid.Y) - 1 : CellCoordinate.Y;
+			return CellCoordinate;
+		};
+
 	constexpr bool bUpdateSizeRecursive = false;
-	ForEachChildOfClass<UDMXPixelMappingMatrixCellComponent>([this](UDMXPixelMappingMatrixCellComponent* ChildComponent)
+	ForEachChildOfClass<UDMXPixelMappingMatrixCellComponent>([this, &InvertCellsIfRequiredLambda](UDMXPixelMappingMatrixCellComponent* ChildComponent)
 		{
 			ChildComponent->SetRotation(GetRotation());
 			ChildComponent->SetSize(CellSize);
-			ChildComponent->SetPosition(GetPosition() + FVector2D(CellSize * ChildComponent->GetCellCoordinate()));
+
+			const FIntPoint CellCoordinate = InvertCellsIfRequiredLambda(ChildComponent->GetCellCoordinate());
+			ChildComponent->SetPosition(GetPosition() + FVector2D(CellSize * CellCoordinate));
 		},
 		bUpdateSizeRecursive);
 

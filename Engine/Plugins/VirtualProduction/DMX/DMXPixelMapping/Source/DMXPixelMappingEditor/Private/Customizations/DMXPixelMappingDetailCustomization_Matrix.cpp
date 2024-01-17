@@ -81,6 +81,12 @@ void FDMXPixelMappingDetailCustomization_Matrix::CustomizeDetails(IDetailLayoutB
 				(*TransformCategoryPtr)->SetSortOrder(SortOrder++);
 			}
 
+			IDetailCategoryBuilder* const* MatrixCategoryPtr = CategoryMap.Find("Matrix");
+			if (MatrixCategoryPtr)
+			{
+				(*MatrixCategoryPtr)->SetSortOrder(SortOrder++);
+			}
+
 			IDetailCategoryBuilder* const* EditorSettingsCategoryPtr = CategoryMap.Find("Editor Settings");
 			if (EditorSettingsCategoryPtr)
 			{
