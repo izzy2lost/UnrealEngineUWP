@@ -10,10 +10,12 @@ using System.Diagnostics;
 using System.Diagnostics.CodeAnalysis;
 using System.IO;
 using System.IO.Compression;
+using System.IO.MemoryMappedFiles;
 using System.IO.Pipelines;
 using System.Linq;
 using System.Runtime.InteropServices;
 using System.Threading;
+using System.Threading.Channels;
 using System.Threading.Tasks;
 
 namespace EpicGames.Horde.Storage.Nodes
@@ -722,6 +724,10 @@ namespace EpicGames.Horde.Storage.Nodes
 		/// <param name="cancellationToken"></param>
 		public Task CopyToDirectoryAsync(DirectoryInfo directoryInfo, BlobSerializerOptions? options, ILogger logger, CancellationToken cancellationToken) => CopyToDirectoryAsync(directoryInfo, null, options, logger, cancellationToken);
 
+		record class OutputDir(string Path, DirectoryNode Node);
+		record class OutputFile(OutputDir Directory, FileEntry FileEntry);
+		record class OutputChunk(OutputFile File, long Offset, long Length, IBlobHandle Handle);
+
 		/// <summary>
 		/// Utility function to allow extracting a packed directory to disk
 		/// </summary>
@@ -732,7 +738,7 @@ namespace EpicGames.Horde.Storage.Nodes
 		/// <param name="cancellationToken">Cancellation token for the operation</param>
 		public async Task CopyToDirectoryAsync(DirectoryInfo directoryInfo, IProgress<ICopyStats>? progress, BlobSerializerOptions? options, ILogger logger, CancellationToken cancellationToken)
 		{
-			int numTasks = Math.Min(1 + (int)(Length / (16 * 1024 * 1024)), 128);
+			int numTasks = Math.Min(1 + (int)(Length / (16 * 1024 * 1024)), 4);
 			logger.LogInformation("Splitting read into {NumThreads} threads", numTasks);
 
 			CopyStats? copyStats = null;
@@ -741,58 +747,158 @@ namespace EpicGames.Horde.Storage.Nodes
 				copyStats = new CopyStats(progress);
 			}
 
-			List<Task> tasks = new List<Task>();
-			try
+			Channel<OutputChunk> chunks = Channel.CreateBounded<OutputChunk>(new BoundedChannelOptions(128) { FullMode = BoundedChannelFullMode.Wait });
+			using (CancellationTokenSource cancellationSource = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken))
 			{
-				long offset = 0;
-				for (int taskIdx = 0; taskIdx < numTasks; taskIdx++)
+				// Helper method to run a background task and set a cancellation source on error
+				async Task RunBackgroundTask(Func<CancellationToken, Task> taskFunc)
 				{
-					long minOffset = offset;
-					long maxOffset = (Length * (taskIdx + 1)) / numTasks;
-
-					// Entries may be zero-length, so need to make sure the last window will include everything
-					if (taskIdx == numTasks - 1)
+					try
 					{
-						maxOffset++;
+						await taskFunc(cancellationSource.Token);
 					}
-
-					tasks.Add(Task.Run(() => CopyToDirectoryInternalAsync(directoryInfo, minOffset, maxOffset - minOffset, copyStats, options, logger, cancellationToken), cancellationToken));
-					offset = maxOffset;
+					catch (OperationCanceledException)
+					{
+						// Ignore
+					}
+					catch (Exception ex)
+					{
+						logger.LogError(ex, "Error while extracting data: {Message}", ex.Message);
+						cancellationSource.Cancel();
+					}
 				}
-			}
-			finally
-			{
+
+				List<Task> tasks = new List<Task>();
+				tasks.Add(RunBackgroundTask(ctx => FindOutputChunksRootAsync(chunks.Writer, options, ctx)));
+				for (int idx = 0; idx < numTasks; idx++)
+				{
+					tasks.Add(RunBackgroundTask(ctx => ExtractAsync(chunks.Reader, new DirectoryReference(directoryInfo), copyStats, ctx)));
+				}
+
 				await Task.WhenAll(tasks);
-				copyStats?.Flush();
 			}
 		}
 
-		async Task CopyToDirectoryInternalAsync(DirectoryInfo directoryInfo, long windowOffset, long windowLength, CopyStats? copyStats, BlobSerializerOptions? options, ILogger logger, CancellationToken cancellationToken)
+		static async Task ExtractAsync(ChannelReader<OutputChunk> chunkReader, DirectoryReference baseDir, CopyStats? copyStats, CancellationToken cancellationToken)
 		{
-			directoryInfo.Create();
-
-			foreach (FileEntry fileEntry in _nameToFileEntry.Values)
+			OutputChunk? chunk = await ReadNextChunkAsync(chunkReader, cancellationToken);
+			while (chunk != null)
 			{
-				// Extract any file that starts within the window (window starts before this file, window ends after the start of the file)
-				if (windowOffset <= 0 && windowOffset + windowLength > 0)
+				// Open the file for the current chunk
+				OutputFile file = chunk.File;
+				FileReference locator = FileReference.Combine(baseDir, file.Directory.Path, file.FileEntry.Name);
+				DirectoryReference.CreateDirectory(locator.Directory);
+
+				await using FileStream stream = FileReference.Open(locator, FileMode.OpenOrCreate, FileAccess.ReadWrite, FileShare.ReadWrite);
+				stream.SetLength(file.FileEntry.Length);
+
+				// If this file is empty, don't write anything and just move to the next chunk
+				if (file.FileEntry.Length == 0)
 				{
-					FileInfo fileInfo = new FileInfo(Path.Combine(directoryInfo.FullName, fileEntry.Name.ToString()));
-					await fileEntry.CopyToFileAsync(fileInfo, cancellationToken);
-					copyStats?.Update(1, fileEntry.Length);
+					chunk = await ReadNextChunkAsync(chunkReader, cancellationToken);
+					continue;
 				}
-				windowOffset -= fileEntry.Length;
+
+				// Process as many chunks as we can for this file
+				using MemoryMappedFile memoryMappedFile = MemoryMappedFile.CreateFromFile(stream, null, file.FileEntry.Length, MemoryMappedFileAccess.ReadWrite, HandleInheritability.None, false);
+				using MemoryMappedViewAccessor memoryMappedViewAccessor = memoryMappedFile.CreateViewAccessor(0, file.FileEntry.Length);
+				using MemoryMappedView memoryMappedView = new MemoryMappedView(memoryMappedViewAccessor);
+
+				while (chunk != null && chunk.File == file)
+				{
+					// Write this chunk
+					using (BlobData data = await chunk.Handle.ReadBlobDataAsync(cancellationToken))
+					{
+						data.Data.CopyTo(memoryMappedView!.GetMemory(chunk.Offset, data.Data.Length));
+					}
+
+					// Update the stats
+					int numCompleteFiles = 0;
+					if (chunk.Offset + chunk.Length == file.FileEntry.Length)
+					{
+						numCompleteFiles = 1;
+					}
+
+					copyStats?.Update(numCompleteFiles, chunk.Length);
+
+					// Read the next chunk
+					chunk = await ReadNextChunkAsync(chunkReader, cancellationToken);
+				}
+			}
+		}
+
+		static async ValueTask<OutputChunk?> ReadNextChunkAsync(ChannelReader<OutputChunk> chunkReader, CancellationToken cancellationToken)
+		{
+			await chunkReader.WaitToReadAsync(cancellationToken);
+
+			OutputChunk? chunk;
+			if (chunkReader.TryRead(out chunk))
+			{
+				return chunk;
+			}
+			else
+			{
+				return null;
+			}
+		}
+
+		async Task FindOutputChunksRootAsync(ChannelWriter<OutputChunk> chunks, BlobSerializerOptions? options, CancellationToken cancellationToken)
+		{
+			await FindOutputChunksAsync("", this, chunks, options, cancellationToken);
+			chunks.Complete();
+		}
+
+		static async Task FindOutputChunksAsync(string path, DirectoryNode node, ChannelWriter<OutputChunk> chunks, BlobSerializerOptions? options, CancellationToken cancellationToken)
+		{
+			OutputDir outputDir = new OutputDir(path, node);
+
+			foreach (FileEntry fileEntry in node._nameToFileEntry.Values)
+			{
+				OutputFile outputFile = new OutputFile(outputDir, fileEntry);
+				await FindOutputChunksAsync(outputFile, 0, fileEntry.Target, chunks, cancellationToken);
 			}
 
-			foreach (DirectoryEntry directoryEntry in _nameToDirectoryEntry.Values)
+			foreach (DirectoryEntry directoryEntry in node._nameToDirectoryEntry.Values)
 			{
-				// Traverse into any directory that overlaps with the window (window starts before end of the directory, and window ends at or beyond the start of the directory)
-				if (windowOffset < directoryEntry.Length && windowOffset + windowLength >= 0)
+				DirectoryNode subDirectoryNode = await directoryEntry.Handle.ReadBlobAsync(options, cancellationToken);
+				await FindOutputChunksAsync(CombinePaths(outputDir.Path, directoryEntry.Name), subDirectoryNode, chunks, options, cancellationToken);
+			}
+		}
+
+		static async Task FindOutputChunksAsync(OutputFile outputFile, long offset, ChunkedDataNodeRef dataRef, ChannelWriter<OutputChunk> chunks, CancellationToken cancellationToken)
+		{
+			if (dataRef.Type == ChunkedDataNodeType.Leaf)
+			{
+				await chunks.WriteAsync(new OutputChunk(outputFile, offset, dataRef.Length, dataRef.Handle), cancellationToken);
+			}
+			else
+			{
+				using BlobData data = await dataRef.Handle.ReadBlobDataAsync(cancellationToken);
+				if (data.Type.Guid == LeafChunkedDataNodeConverter.BlobType.Guid)
 				{
-					DirectoryInfo subDirectoryInfo = directoryInfo.CreateSubdirectory(directoryEntry.Name.ToString());
-					DirectoryNode subDirectoryNode = await directoryEntry.Handle.ReadBlobAsync(options, cancellationToken);
-					await subDirectoryNode.CopyToDirectoryInternalAsync(subDirectoryInfo, windowOffset, windowLength, copyStats, options, logger, cancellationToken);
+					await chunks.WriteAsync(new OutputChunk(outputFile, offset, dataRef.Length, dataRef.Handle), cancellationToken);
 				}
-				windowOffset -= directoryEntry.Length;
+				else
+				{
+					InteriorChunkedDataNode interiorNode = BlobSerializer.Deserialize<InteriorChunkedDataNode>(data);
+					foreach (ChunkedDataNodeRef childRef in interiorNode.Children)
+					{
+						await FindOutputChunksAsync(outputFile, offset, childRef, chunks, cancellationToken);
+						offset += childRef.Length;
+					}
+				}
+			}
+		}
+
+		static string CombinePaths(string basePath, string nextPath)
+		{
+			if (basePath.Length > 0)
+			{
+				return $"{basePath}/{nextPath}";
+			}
+			else
+			{
+				return nextPath;
 			}
 		}
 

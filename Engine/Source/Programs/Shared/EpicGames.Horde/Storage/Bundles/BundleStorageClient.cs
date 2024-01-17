@@ -21,6 +21,7 @@ namespace EpicGames.Horde.Storage.Bundles
 	{
 		readonly IStorageBackend _backend;
 		readonly BundleCache _cache;
+		readonly PacketReaderStats _packetReaderStats = new PacketReaderStats();
 		readonly Bundles.V1.BundleReader _bundleReader;
 
 		internal Bundles.V1.BundleReader BundleReader => _bundleReader;
@@ -39,6 +40,11 @@ namespace EpicGames.Horde.Storage.Bundles
 		/// Cache for bundle data
 		/// </summary>
 		public BundleCache Cache => _cache;
+
+		/// <summary>
+		/// Stats for reading bundles
+		/// </summary>
+		internal PacketReaderStats PacketReaderStats => _packetReaderStats;
 
 		/// <summary>
 		/// Constructor
@@ -244,8 +250,10 @@ namespace EpicGames.Horde.Storage.Bundles
 		/// <inheritdoc/>
 		public void GetStats(StorageStats stats)
 		{
+			_cache.GetStats(stats);
 			_backend.GetStats(stats);
 			_bundleReader.GetStats(stats);
+			_packetReaderStats.GetStats(stats);
 		}
 	}
 }

@@ -178,6 +178,7 @@ namespace EpicGames.Horde.Storage
 		readonly CancellationTokenSource _cancellationSource = new CancellationTokenSource();
 		readonly MemoryAllocator _allocator;
 
+		int _numCacheHits;
 		long _currentSize;
 
 		readonly MemoryCache? _headerCache;
@@ -300,6 +301,7 @@ namespace EpicGames.Horde.Storage
 				CacheValue? item;
 				if (_itemLookup.TryGetValue(key, out item) && item.InitTask.TryGetResult(out IDisposable result))
 				{
+					Interlocked.Increment(ref _numCacheHits);
 					item.AddRef();
 					return new CacheValueHandle<TValue>(item, (TValue)result);
 				}
@@ -349,6 +351,7 @@ namespace EpicGames.Horde.Storage
 					CacheValue? untypedItem;
 					if (_itemLookup.TryGetValue(key, out untypedItem))
 					{
+						Interlocked.Increment(ref _numCacheHits);
 						item = untypedItem;
 					}
 					else
@@ -393,6 +396,15 @@ namespace EpicGames.Horde.Storage
 		void ReleaseSpace(long size)
 		{
 			Interlocked.Add(ref _currentSize, -size);
+		}
+
+		/// <summary>
+		/// Gets stats for the cache
+		/// </summary>
+		public void GetStats(StorageStats stats)
+		{
+			stats.Add("Num cache hits", _numCacheHits);
+			stats.Add("Cache size", _currentSize);
 		}
 
 		#region V1

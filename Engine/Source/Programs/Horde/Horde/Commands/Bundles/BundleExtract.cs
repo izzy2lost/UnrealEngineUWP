@@ -36,6 +36,10 @@ namespace Horde.Commands.Bundles
 		[Description("Directory to write extracted files.")]
 		public DirectoryReference OutputDir { get; set; } = null!;
 
+		[CommandLine("-CleanOutput")]
+		[Description("If set, deletes the contents of the output directory before extraction.")]
+		public bool CleanOutput { get; set; }
+
 		public BundleExtract(HttpStorageClientFactory storageClientFactory, BundleCache bundleCache, IOptions<CmdConfig> config)
 			: base(storageClientFactory, bundleCache, config)
 		{
@@ -43,6 +47,12 @@ namespace Horde.Commands.Bundles
 
 		public override async Task<int> ExecuteAsync(ILogger logger)
 		{
+			if(CleanOutput)
+			{
+				logger.LogInformation("Deleting contents of {OutputDir}...", OutputDir);
+				FileUtils.ForceDeleteDirectoryContents(OutputDir);
+			}
+
 			if (File != null)
 			{
 				using IStorageClient store = BundleStorageClient.CreateFromDirectory(File.Directory, BundleCache, logger);

@@ -231,6 +231,11 @@ namespace EpicGames.Horde.Storage.Bundles.V2
 				Memory<byte> memory = leadingPacket.Memory.Slice(0, _packetLength);
 				await stream.ReadFixedLengthBytesAsync(memory, cancellationToken);
 
+				PacketReaderStats packetReaderStats = _storageClient.PacketReaderStats;
+				Interlocked.Increment(ref packetReaderStats._numReads);
+				Interlocked.Add(ref packetReaderStats._numBytesRead, _packetLength);
+				Interlocked.Increment(ref packetReaderStats._numPacketsRead);
+
 				// Read any other packets in the same stream
 				byte[] header = new byte[BundleSignature.NumBytes];
 				for (int readOffset = _packetLength; readOffset + BundleSignature.NumBytes < readLength;)
@@ -238,12 +243,14 @@ namespace EpicGames.Horde.Storage.Bundles.V2
 					int readBytes = await stream.ReadGreedyAsync(header, cancellationToken);
 					if (readBytes < header.Length)
 					{
+						Interlocked.Add(ref packetReaderStats._numWastedBytesRead, readBytes);
 						break;
 					}
 
 					BundleSignature signature = BundleSignature.Read(header);
 					if (readOffset + signature.HeaderLength >= readLength)
 					{
+						Interlocked.Add(ref packetReaderStats._numWastedBytesRead, readLength - readOffset);
 						break;
 					}
 
@@ -264,6 +271,9 @@ namespace EpicGames.Horde.Storage.Bundles.V2
 #pragma warning restore CA2000
 
 					readOffset += signature.HeaderLength;
+
+					Interlocked.Add(ref packetReaderStats._numBytesRead, signature.HeaderLength);
+					Interlocked.Increment(ref packetReaderStats._numPacketsRead);
 				}
 			}
 			catch

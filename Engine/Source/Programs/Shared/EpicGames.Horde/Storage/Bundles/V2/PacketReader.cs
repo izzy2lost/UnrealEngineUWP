@@ -7,6 +7,25 @@ using EpicGames.Core;
 namespace EpicGames.Horde.Storage.Bundles.V2
 {
 	/// <summary>
+	/// Counters used for tracking operations performed by a BundleStorageClient
+	/// </summary>
+	class PacketReaderStats
+	{
+		public int _numReads;
+		public int _numPacketsRead;
+		public long _numBytesRead;
+		public long _numWastedBytesRead;
+
+		public void GetStats(StorageStats stats)
+		{
+			stats.Add("Num reads (v2)", _numReads);
+			stats.Add("Num packets read (v2)", _numPacketsRead);
+			stats.Add("Num bytes read (v2)", _numBytesRead);
+			stats.Add("Num wasted bytes read (v2)", _numWastedBytesRead);
+		}
+	}
+
+	/// <summary>
 	/// Utility class for constructing BlobData objects from a packet, caching any computed handles to other blobs.
 	/// </summary>
 	sealed class PacketReader : IDisposable

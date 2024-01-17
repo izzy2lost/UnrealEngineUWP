@@ -586,10 +586,22 @@ namespace EpicGames.Horde.Storage.Bundles.V1
 		/// </summary>
 		public void GetStats(StorageStats stats)
 		{
-			stats.Add("Num bytes read", _numBytesRead);
-			stats.Add("Num header reads", _numHeaderReads);
-			stats.Add("Num packet reads", _numPacketReads);
-			stats.Add("Decode time (ms)", (_decodeTimeTicks * 1000) / Stopwatch.Frequency);
+			if (_numBytesRead > 0)
+			{
+				stats.Add("Num bytes read (v1)", _numBytesRead);
+			}
+			if (_numHeaderReads > 0)
+			{
+				stats.Add("Num header reads (v1)", _numHeaderReads);
+			}
+			if (_numPacketReads > 0)
+			{
+				stats.Add("Num packet reads (v1)", _numPacketReads);
+			}
+			if (_decodeTimeTicks > 0)
+			{
+				stats.Add("Decode time (ms) (v1)", (_decodeTimeTicks * 1000) / Stopwatch.Frequency);
+			}
 		}
 	}
 }
