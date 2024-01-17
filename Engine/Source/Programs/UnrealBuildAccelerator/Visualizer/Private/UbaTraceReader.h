@@ -2,6 +2,7 @@
 
 #pragma once
 
+#include "UbaProcessHandle.h"
 #include "UbaStats.h"
 #include "UbaTrace.h"
 
@@ -27,6 +28,7 @@ namespace uba
 			SessionStats sessionStats;
 			StorageStats storageStats;
 			SystemStats systemStats;
+			Vector<ProcessLogLine> logLines;
 		};
 
 		struct Processor

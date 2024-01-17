@@ -13,6 +13,7 @@ enum
 {
 	Popup_CopySessionInfo = 3,
 	Popup_CopyProcessInfo,
+	Popup_CopyProcessLog,
 	Popup_SaveAs,
 	Popup_Quit,
 };
@@ -1062,6 +1063,11 @@ namespace uba
 			bool hasStorageStats = false;
 			u32 lineCount = 4;
 			u64 duration = 0;
+			
+			int width = 290;
+			Vector<TString> logLines;
+			u32 maxCharCount = 50u;
+
 			bool hasExited = process.stop != ~u64(0);
 			if (hasExited)
 			{
@@ -1078,13 +1084,34 @@ namespace uba
 				duration = process.stop - process.start;
 				if (process.exitCode != 0)
 					++lineCount;
+
+				if (!process.logLines.empty())
+				{
+					u32 lineMaxCount = 0;
+					for (auto& line : process.logLines)
+					{
+						u32 offset = 0;
+						u32 left = u32(line.text.size());
+						while (left)
+						{
+							u32 toCopy = Min(left, maxCharCount);
+							lineMaxCount = Max(lineMaxCount, toCopy);
+							logLines.push_back(line.text.substr(offset, toCopy));
+							offset += toCopy;
+							left -= toCopy;
+						}
+					}
+
+					width = Max(width, int(lineMaxCount) * 7 + 2*14);
+
+					lineCount += u32(logLines.size()) + 1;
+				}
 			}
 			else
 			{
 				duration = playTime - process.start;
 			}
 
-			int width = 290;
 			int height = lineCount*m_popupFontHeight;
 
 			POINT p;
@@ -1132,6 +1159,14 @@ namespace uba
 					logger.Info(L"");
 					logger.Info(L"  ----------- System stats ------------");
 					process.systemStats.Print(logger, false, m_traceView.frequency);
+				}
+
+				if (!logLines.empty())
+				{
+					logger.Info(L"  ---------------- Log ----------------");
+					logger.rect.left += 14;
+					for (auto& line : logLines)
+						logger.Log(LogEntryType_Info, line.c_str(), u32(line.size()));
 				}
 			}
 		}
@@ -2259,7 +2294,11 @@ namespace uba
 			}
 			else if (m_processSelected)
 			{
+				TraceView::Process& process = *m_traceView.GetProcess(m_processSelectedLocation);
+
 				AppendMenuW(hMenu, MF_STRING, Popup_CopyProcessInfo, L"&Copy Process Info");
+				if (!process.logLines.empty())
+					AppendMenuW(hMenu, MF_STRING, Popup_CopyProcessLog, L"&Copy Process Log");
 				AppendMenuW(hMenu, MF_SEPARATOR, 0, NULL);
 			}
 			AppendMenuW(hMenu, MF_STRING, Popup_SaveAs, L"&Save Trace");
@@ -2312,6 +2351,21 @@ namespace uba
 				WriteTextLogger logger(str);
 				TraceView::Process& process = *m_traceView.GetProcess(m_processSelectedLocation);
 				WriteProcessStats(logger, process);
+				CopyTextToClipboard(str);
+				break;
+			}
+			case Popup_CopyProcessLog:
+			{
+				TString str;
+				TraceView::Process& process = *m_traceView.GetProcess(m_processSelectedLocation);
+				bool isFirst = true;
+				for (auto line : process.logLines)
+				{
+					if (!isFirst)
+						str += '\n';
+					isFirst = false;
+					str += line.text;
+				}
 				CopyTextToClipboard(str);
 				break;
 			}

@@ -1322,7 +1322,10 @@ namespace uba
 		{
 			StackBinaryWriter<1024> writer;
 			process.m_processStats.Write(writer);
-			m_trace.ProcessExited(id, process.GetExitCode(), writer.GetData(), writer.GetPosition());
+			u32 exitCode = process.GetExitCode();
+			Vector<ProcessLogLine> emptyLines;
+			auto& logLines = (exitCode != 0 || m_detailedTrace) ? process.m_logLines : emptyLines;
+			m_trace.ProcessExited(id, exitCode, writer.GetData(), writer.GetPosition(), logLines);
 			ScopedWriteLock lock(m_processStatsLock);
 			m_processStats.Add(process.m_processStats);
 		}

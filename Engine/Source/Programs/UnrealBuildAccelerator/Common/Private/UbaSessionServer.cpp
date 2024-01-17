@@ -425,7 +425,7 @@ namespace uba
 		StackBinaryWriter<1024> statsWriter;
 		ProcessStats processStats;
 		processStats.Write(statsWriter);
-		m_trace.ProcessExited(id, exitCode, statsWriter.GetData(), statsWriter.GetPosition());
+		m_trace.ProcessExited(id, exitCode, statsWriter.GetData(), statsWriter.GetPosition(), Vector<ProcessLogLine>());
 	}
 
 	NetworkServer& SessionServer::GetServer()
@@ -1023,7 +1023,9 @@ namespace uba
 						func(process.startInfo.logLineUserData, line.text.c_str(), u32(line.text.size()), line.type);
 
 				u32 id = process.m_processId;
-				m_trace.ProcessExited(id, exitCode, reader.GetPositionData(), reader.GetLeft());
+				Vector<ProcessLogLine> emptyLines;
+				auto& logLines = (exitCode != 0 || m_detailedTrace) ? process.m_logLines : emptyLines;
+				m_trace.ProcessExited(id, exitCode, reader.GetPositionData(), reader.GetLeft(), logLines);
 
 				ProcessStats processStats;
 				processStats.Read(reader, ~0u);

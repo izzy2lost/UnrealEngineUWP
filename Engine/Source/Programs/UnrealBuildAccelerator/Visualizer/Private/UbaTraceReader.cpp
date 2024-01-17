@@ -526,6 +526,18 @@ namespace uba
 				process.storageStats.Read(reader);
 				process.systemStats.Read(reader);
 			}
+
+			if (out.version >= 20)
+			{
+				u64 logLineCount = reader.Read7BitEncoded();
+				process.logLines.reserve(logLineCount);
+				while (logLineCount--)
+				{
+					auto type = (LogEntryType)reader.ReadByte();
+					process.logLines.emplace_back(reader.ReadString(), type);
+				}
+			}
+
 			process.exitCode = exitCode;
 			process.stop = time;
 			process.bitmapDirty = true;

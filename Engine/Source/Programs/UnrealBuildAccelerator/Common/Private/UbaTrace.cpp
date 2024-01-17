@@ -2,6 +2,7 @@
 
 #include "UbaTrace.h"
 #include "UbaFileAccessor.h"
+#include "UbaProcessHandle.h"
 
 namespace uba
 {
@@ -187,12 +188,18 @@ namespace uba
 		writer.WriteBytes(data, dataSize);
 	}
 
-	void Trace::ProcessExited(u32 processId, u32 exitCode, const u8* data, u64 dataSize)
+	void Trace::ProcessExited(u32 processId, u32 exitCode, const u8* data, u64 dataSize, const Vector<ProcessLogLine>& logLines)
 	{
 		BEGIN_TRACE_ENTRY(TraceType_ProcessExited);
 		writer.WriteU32(processId);
 		writer.WriteU32(exitCode);
 		writer.WriteBytes(data, dataSize);
+		writer.Write7BitEncoded(u64(logLines.size()));
+		for (auto& line : logLines)
+		{
+			writer.WriteByte(line.type);
+			writer.WriteString(line.text);
+		}
 	}
 
 	void Trace::ProcessReturned(u32 processId)
