@@ -1251,17 +1251,20 @@ void HWRasterizeMS(
 #endif
 )
 {
+	bool bValidIndex = true;
+
+#if PLATFORM_REQUIRES_UNWRAPPED_MESH_SHADER_ARGS
+	uint VisibleIndex = GroupID.x;
+#else
 	// Avoid overflowing the 64k limit on single dimension of SV_GroupID
 	uint VisibleIndex = GetUnWrappedDispatchGroupId(GroupID);
-	
-	bool bValidIndex = true;
-	
 	BRANCH
 	if (GroupID.y > 0 || GroupID.z > 0)
 	{
 		// Due to wrapping, the visible index can be out of range
 		bValidIndex = (VisibleIndex < RasterBinMeta[ActiveRasterBin].BinHWCount);
 	}
+#endif
 
 	// NOTE: Doing a simple early out here doesn't work. Likely because divergent control
 	// flow is not allowed around SetMeshOutputCounts, even if the condition is uniform for
