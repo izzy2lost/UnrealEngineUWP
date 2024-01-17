@@ -73,7 +73,7 @@ public:
 	{
 		SelectedWindowIndex = InIndex;
 		PickedWidgets.Reset();
-		PhysicalOffset = FVector2D::ZeroVector;
+		PhysicalOffset = FVector2f::ZeroVector;
 	}
 
 	int32 GetSelectedWindowIndex() const
@@ -113,7 +113,7 @@ public:
 		const TSharedRef<SWidget>& ChildWidget = ChildSlot.GetWidget();
 		if (ChildWidget->GetVisibility() != EVisibility::Collapsed)
 		{
-			const FVector2D& WidgetDesiredSize = ChildWidget->GetDesiredSize();
+			const FVector2f& WidgetDesiredSize = ChildWidget->GetDesiredSize();
 
 			// Clamp the pan offset based on our current geometry
 			SScrollableSnapshotImage* const NonConstThis = const_cast<SScrollableSnapshotImage*>(this);
@@ -142,7 +142,7 @@ public:
 	{
 		struct FWidgetPicker
 		{
-			static bool FindWidgetsUnderPoint(const FVector2D& InHitTestPoint, const FVector2D& InWindowPosition, const TSharedRef<FWidgetReflectorNodeBase>& InWidget, TArray<TSharedRef<FWidgetReflectorNodeBase>>& OutWidgets)
+			static bool FindWidgetsUnderPoint(const FVector2f& InHitTestPoint, const FVector2f& InWindowPosition, const TSharedRef<FWidgetReflectorNodeBase>& InWidget, TArray<TSharedRef<FWidgetReflectorNodeBase>>& OutWidgets)
 			{
 				const bool bNeedsHitTesting = InWidget->GetHitTestInfo().IsHitTestVisible || InWidget->GetHitTestInfo().AreChildrenHitTestVisible;
 				if (bNeedsHitTesting)
@@ -178,9 +178,9 @@ public:
 		if (bIsPicking)
 		{
 			// We need to pick in the snapshot window space, so convert the mouse co-ordinates to be relative to our top-left position
-			const FVector2D& ScreenMousePos = MouseEvent.GetScreenSpacePosition();
-			const FVector2D LocalMousePos = MyGeometry.AbsoluteToLocal(ScreenMousePos);
-			const FVector2D ScrolledPos = LocalMousePos - PhysicalOffset;
+			const FVector2f& ScreenMousePos = MouseEvent.GetScreenSpacePosition();
+			const FVector2f LocalMousePos = MyGeometry.AbsoluteToLocal(ScreenMousePos);
+			const FVector2f ScrolledPos = LocalMousePos - PhysicalOffset;
 
 			PickedWidgets.Reset();
 
@@ -248,7 +248,7 @@ public:
 				for (int32 WidgetIndex = 0; WidgetIndex < PickedWidgets.Num(); ++WidgetIndex)
 				{
 					const TSharedRef<FWidgetReflectorNodeBase>& PickedWidget = PickedWidgets[WidgetIndex];
-					const float ColorFactor = static_cast<float>(WidgetIndex)/PickedWidgets.Num();
+					const float ColorFactor = static_cast<float>(WidgetIndex)/ static_cast<float>(PickedWidgets.Num());
 					const FLinearColor Tint(1.0f - ColorFactor, ColorFactor, 0.0f, 1.0f);
 
 					FSlateDrawElement::MakeBox(
@@ -288,11 +288,11 @@ public:
 
 	virtual bool ScrollBy(const FVector2D& Offset) override
 	{
-		const FVector2D PrevPhysicalOffset = PhysicalOffset;
-		PhysicalOffset += Offset;
+		const FVector2f PrevPhysicalOffset = PhysicalOffset;
+		PhysicalOffset += UE::Slate::CastToVector2f(Offset);
 
 		const TSharedRef<SWidget>& ChildWidget = ChildSlot.GetWidget();
-		const FVector2D& WidgetDesiredSize = ChildWidget->GetDesiredSize();
+		const FVector2f& WidgetDesiredSize = ChildWidget->GetDesiredSize();
 		ClampViewOffset(WidgetDesiredSize, CachedSize);
 
 		return PhysicalOffset != PrevPhysicalOffset;
@@ -309,7 +309,7 @@ public:
 	}
 
 private:
-	void ClampViewOffset(const FVector2D& ViewportSize, const FVector2D& LocalSize)
+	void ClampViewOffset(const FVector2f& ViewportSize, const FVector2f& LocalSize)
 	{
 		PhysicalOffset.X = ClampViewOffsetAxis(ViewportSize.X, LocalSize.X, PhysicalOffset.X);
 		PhysicalOffset.Y = ClampViewOffsetAxis(ViewportSize.Y, LocalSize.Y, PhysicalOffset.Y);
@@ -342,8 +342,8 @@ private:
 		return CurrentOffset;
 	}
 
-	FVector2D PhysicalOffset;
-	mutable FVector2D CachedSize;
+	FVector2f PhysicalOffset;
+	mutable FVector2f CachedSize;
 
 	FScrollyZoomy ScrollyZoomy;
 
