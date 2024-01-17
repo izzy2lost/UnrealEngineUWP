@@ -75,6 +75,10 @@ namespace Metasound
 					check(!Instance);
 				}
 				Instance = &InInterface;
+
+#if WITH_SERVER_CODE
+				OnManagerSet.Broadcast();
+#endif //WITH_SERVER_CODE
 			}
 
 			static IMetaSoundAssetManager* Get()
@@ -87,6 +91,11 @@ namespace Metasound
 				check(Instance);
 				return *Instance;
 			}
+
+#if WITH_SERVER_CODE
+			//to allow the server to preload UMetaSoundSource objects before the manager has been set up
+			static TMulticastDelegate<void()> OnManagerSet;
+#endif //WITH_SERVER_CODE
 
 			struct FAssetInfo
 			{

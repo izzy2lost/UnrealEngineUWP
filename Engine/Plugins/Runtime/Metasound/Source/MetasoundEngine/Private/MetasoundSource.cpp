@@ -497,6 +497,10 @@ FTopLevelAssetPath UMetaSoundSource::GetAssetPathChecked() const
 
 void UMetaSoundSource::BeginDestroy()
 {
+#if WITH_SERVER_CODE
+	Metasound::Frontend::IMetaSoundAssetManager::OnManagerSet.RemoveAll(this);
+#endif //WITH_SERVER_CODE
+
 	OnNotifyBeginDestroy();
 	Super::BeginDestroy();
 }
@@ -720,7 +724,20 @@ void UMetaSoundSource::InitResources()
 
 	if (IsInGameThread())
 	{
+#if WITH_SERVER_CODE
+		
+		if (IMetaSoundAssetManager::Get())
+		{
+			RegisterGraphWithFrontend(GetInitRegistrationOptions());
+		}
+		else
+		{
+			//to allow the server to preload UMetaSoundSource objects before the manager has been set up
+			IMetaSoundAssetManager::OnManagerSet.AddUObject(this, &UMetaSoundSource::InitResources);
+		}
+#else
 		RegisterGraphWithFrontend(GetInitRegistrationOptions());
+#endif //WITH_SERVER_CODE
 	}
 	else
 	{
