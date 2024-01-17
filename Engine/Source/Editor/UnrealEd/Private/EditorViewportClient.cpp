@@ -5892,7 +5892,7 @@ void FEditorViewportClient::TakeScreenshot(FViewport* InViewport, bool bInValida
 	{
 		TArray<FLinearColor> RawPixels;
 		RawPixels.SetNum(CaptureRect.Area());
-		if (!InViewport->ReadLinearColorPixels(RawPixels, FReadSurfaceDataFlags(RCM_UNorm, CubeFace_MAX), CaptureRect))
+		if (!InViewport->ReadLinearColorPixels(RawPixels, FReadSurfaceDataFlags(RCM_MinMax, CubeFace_MAX), CaptureRect))
 		{
 			// Failed to read the image from the viewport
 			SaveMessagePtr->SetText(NSLOCTEXT("UnrealEd", "ScreenshotFailedViewport", "Screenshot failed, unable to read image from viewport"));
