@@ -206,7 +206,7 @@ class FLumenSceneUpdateCS : public FGlobalShader
 		SHADER_PARAMETER(float, FarFieldCardMaxDistanceSq)
 		SHADER_PARAMETER(float, FarFieldCardTexelDensity)
 		SHADER_PARAMETER(float, MinCardResolution)
-		SHADER_PARAMETER_ARRAY(FVector4f, WorldCameraOrigins, [Lumen::MaxViews])
+		SHADER_PARAMETER_ARRAY(FVector4f, WorldCameraOrigins, [LUMEN_MAX_VIEWS])
 		SHADER_PARAMETER(uint32, NumCameraOrigins)
 	END_SHADER_PARAMETER_STRUCT()
 
@@ -312,7 +312,7 @@ void LumenScene::GPUDrivenUpdate(FRDGBuilder& GraphBuilder, const FScene* Scene,
 	AddClearUAVPass(GraphBuilder, GraphBuilder.CreateUAV(ReadbackBuffers.RemoveOps), 0);
 
 	{
-		TArray<FVector, TInlineAllocator<Lumen::MaxViews>> LumenSceneCameraOrigins;
+		TArray<FVector, TInlineAllocator<LUMEN_MAX_VIEWS>> LumenSceneCameraOrigins;
 		float CardMaxDistance = 0.0f;
 		float LumenSceneDetail = 0.0f;
 

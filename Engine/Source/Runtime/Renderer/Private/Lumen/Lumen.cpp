@@ -117,7 +117,7 @@ bool ShouldRenderLumenForViewFamily(const FScene* Scene, const FSceneViewFamily&
 {
 	return Scene
 		&& Scene->GetLumenSceneData(*ViewFamily.Views[0])
-		&& ViewFamily.Views.Num() <= Lumen::MaxViews
+		&& ViewFamily.Views.Num() <= LUMEN_MAX_VIEWS
 		&& DoesPlatformSupportLumenGI(Scene->GetShaderPlatform(), bSkipProjectCheck);
 }
 

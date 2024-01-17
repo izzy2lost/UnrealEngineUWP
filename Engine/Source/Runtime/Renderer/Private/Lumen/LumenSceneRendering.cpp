@@ -1513,7 +1513,7 @@ void FDeferredShadingSceneRenderer::BeginUpdateLumenSceneTasks(FRDGBuilder& Grap
 			LumenSceneData.RemoveAllMeshCards();
 		}
 
-		TArray<FVector, TInlineAllocator<Lumen::MaxViews>> LumenSceneCameraOrigins;
+		TArray<FVector, TInlineAllocator<LUMEN_MAX_VIEWS>> LumenSceneCameraOrigins;
 		float MaxCardUpdateDistanceFromCamera = 0.0f;
 		float LumenSceneDetail = 0.0f;
 		bool bAddTranslucentToCache = false;

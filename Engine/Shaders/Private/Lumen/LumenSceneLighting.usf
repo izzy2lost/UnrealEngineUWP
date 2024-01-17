@@ -41,7 +41,7 @@ uint MaxDirectLightingTilesToUpdate;
 uint MaxIndirectLightingTilesToUpdate;
 float FirstClipmapWorldExtentRcp;
 uint NumCameraOrigins;
-float4 WorldCameraOrigins[2];
+float4 WorldCameraOrigins[LUMEN_MAX_VIEWS];
 
 float DirectLightingUpdateFactor;
 float IndirectLightingUpdateFactor;

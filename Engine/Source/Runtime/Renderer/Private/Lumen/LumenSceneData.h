@@ -11,6 +11,7 @@
 #include "Lumen/LumenSceneGPUDrivenUpdate.h"
 #include "Lumen/LumenSurfaceCacheFeedback.h"
 #include "Lumen/LumenUniqueList.h"
+#include "LumenDefinitions.h"
 #include "MeshCardRepresentation.h"
 #include "RenderTransform.h"
 #include "ShaderParameterMacros.h"
@@ -53,7 +54,6 @@ END_GLOBAL_SHADER_PARAMETER_STRUCT()
 namespace Lumen
 {
 	constexpr uint32 FeedbackBufferElementStride = 2;
-	constexpr uint32 MaxViews = 2;
 
 	uint32 GetFeedbackBufferSize(const FViewFamilyInfo& ViewFamily);
 	uint32 GetCompactedFeedbackBufferSize();
