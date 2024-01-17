@@ -3,30 +3,31 @@
 #include "ContentBrowserAssetDataCore.h"
 
 #include "AssetDefinition.h"
-#include "ContentBrowserDataSource.h"
-#include "ContentBrowserAssetDataPayload.h"
-#include "IAssetTools.h"
-#include "ContentBrowserDataSubsystem.h"
-#include "IContentBrowserDataModule.h"
+#include "AssetFileContextMenu.h"
+#include "AssetFolderContextMenu.h"
+#include "AssetPropertyTagCache.h"
 #include "AssetRegistry/IAssetRegistry.h"
 #include "AssetViewUtils.h"
-#include "AssetPropertyTagCache.h"
-#include "Editor/UnrealEdTypes.h"
-#include "ObjectTools.h"
-#include "HAL/FileManager.h"
-#include "FileHelpers.h"
-#include "Editor.h"
-#include "IAssetTypeActions.h"
-#include "Subsystems/AssetEditorSubsystem.h"
-#include "AssetFolderContextMenu.h"
-#include "AssetFileContextMenu.h"
-#include "ContentBrowserDataUtils.h"
+#include "ContentBrowserAssetDataPayload.h"
 #include "ContentBrowserDataMenuContexts.h"
+#include "ContentBrowserDataSource.h"
+#include "ContentBrowserDataSubsystem.h"
+#include "ContentBrowserDataUtils.h"
+#include "Editor.h"
+#include "Editor/UnrealEdTypes.h"
 #include "Engine/Level.h"
+#include "FileHelpers.h"
+#include "HAL/FileManager.h"
+#include "IAssetTools.h"
+#include "IAssetTypeActions.h"
+#include "IContentBrowserDataModule.h"
 #include "Misc/PackageName.h"
-#include "Misc/WarnIfAssetsLoadedInScope.h"
 #include "Misc/Paths.h"
+#include "Misc/WarnIfAssetsLoadedInScope.h"
+#include "ObjectTools.h"
+#include "Subsystems/AssetEditorSubsystem.h"
 #include "ToolMenu.h"
+#include "Virtualization/VirtualizationSystem.h"
 
 #define LOCTEXT_NAMESPACE "ContentBrowserAssetDataSource"
 
@@ -1449,10 +1450,29 @@ bool GetVirtualizationItemAttribute(const FAssetData& InAssetData, IAssetRegistr
 
 	if (TOptional<FAssetPackageData> PackageData = InAssetRegistry->GetAssetPackageDataCopy(InAssetData.PackageName))
 	{
-		// We could set a bool here but that will display the value in lower case, where as asset properties 
-		// use a string value with the first letter in upper case, so we replicate that here to avoid the 
-		// entry looking out of place.
-		OutAttributeValue.SetValue(PackageData->HasVirtualizedPayloads() ? TEXT("True") : TEXT("False"));
+		if (UE::Virtualization::IVirtualizationSystem::Get().IsEnabled())
+		{
+			if (PackageData->FileVersionUE >= EUnrealEngineObjectUE5Version::PAYLOAD_TOC)
+			{
+				OutAttributeValue.SetValue(PackageData->HasVirtualizedPayloads() ? TEXT("True") : TEXT("False"));
+			}
+			else
+			{
+				OutAttributeValue.SetValue(TEXT("Version too old, resave to enable"));
+			}
+		}
+		else
+		{
+			if (PackageData->HasVirtualizedPayloads())
+			{
+				OutAttributeValue.SetValue(TEXT("True"));
+			}
+			else
+			{
+				// The VA system is disabled and nothing in the package is virtualized, so no need to display this in the tool tip
+				return false;
+			}
+		}
 
 		if (InIncludeMetaData)
 		{
