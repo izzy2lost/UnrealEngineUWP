@@ -7,7 +7,8 @@ IMPLEMENT_APPLICATION(AutoRTFMTests, "AutoRTFMTests");
 
 #include "catch_amalgamated.cpp"
 
-class SetupListener : public Catch::EventListenerBase {
+class SetupListener final : public Catch::EventListenerBase
+{
 public:
 	using Catch::EventListenerBase::EventListenerBase;
 
@@ -16,7 +17,7 @@ public:
 		GEngineLoop.PreInit(0, nullptr);
 		FModuleManager::Get().StartProcessingNewlyLoadedObjects();
 
-		AutoRTFM::SetAutoRTFMRuntime(AutoRTFM::EAutoRTFMEnabledState::AutoRTFM_Enabled);
+		AutoRTFM::ForTheRuntime::SetAutoRTFMRuntime(AutoRTFM::ForTheRuntime::EAutoRTFMEnabledState::AutoRTFM_Enabled);
 	}
 
 	void testRunEnded(const Catch::TestRunStats&) override

@@ -33,30 +33,33 @@ static FDelayedAutoRegisterHelper DelayedAutoRegister(EDelayedRegisterRunPhase::
 
 namespace AutoRTFM
 {
-	bool SetAutoRTFMRuntime(EAutoRTFMEnabledState State)
+	namespace ForTheRuntime
 	{
-		// #noop if AutoRTFM is not compiled in, as GAutoRTFMRuntimeEnabled is a static constexpr when no AutoRTFM compiled in
+		bool SetAutoRTFMRuntime(EAutoRTFMEnabledState State)
+		{
+			// #noop if AutoRTFM is not compiled in, as GAutoRTFMRuntimeEnabled is a static constexpr when no AutoRTFM compiled in
 #if UE_AUTORTFM
 		// If we have ForcedDisabled AutoRTFM from the CVar we will not change it from other means
-		if (GAutoRTFMRuntimeEnabled == EAutoRTFMEnabledState::AutoRTFM_ForcedDisabled)
-		{
-			UE_LOG(LogCore, Log, TEXT("Enabling AutoRTFM is disabled due to GAutoRTFMRuntimeEnabled set to forced disabled"));
+			if (GAutoRTFMRuntimeEnabled == EAutoRTFMEnabledState::AutoRTFM_ForcedDisabled)
+			{
+				UE_LOG(LogCore, Log, TEXT("Enabling AutoRTFM is disabled due to GAutoRTFMRuntimeEnabled set to forced disabled"));
+				return false;
+			}
+
+			GAutoRTFMRuntimeEnabled = State;
+
+			UpdateAutoRTFMRuntimeCrashData();
+
+			return true;
+#else
 			return false;
+#endif
 		}
 
-		GAutoRTFMRuntimeEnabled = State;
-
-		UpdateAutoRTFMRuntimeCrashData();
-
-		return true;
-#else
-		return false;
-#endif
-	}
-
-	bool IsAutoRTFMRuntimeEnabled()
-	{
-		return GAutoRTFMRuntimeEnabled == EAutoRTFMEnabledState::AutoRTFM_Enabled;
+		bool IsAutoRTFMRuntimeEnabled()
+		{
+			return GAutoRTFMRuntimeEnabled == EAutoRTFMEnabledState::AutoRTFM_Enabled;
+		}
 	}
 }
 
@@ -93,7 +96,7 @@ UE_AUTORTFM_FORCEINLINE autortfm_result TransactThenOpenImpl(void (*Work)(void* 
 
 extern "C" UE_AUTORTFM_AUTORTFM("RTFM_autortfm_is_transactional") bool autortfm_is_transactional()
 {
-	if (IsAutoRTFMRuntimeEnabled())
+	if (ForTheRuntime::IsAutoRTFMRuntimeEnabled())
 	{
 		return FContext::Get()->IsTransactional();
 	}
@@ -109,7 +112,7 @@ extern "C" UE_AUTORTFM_AUTORTFM("RTFM_autortfm_is_closed") bool autortfm_is_clos
 // First Part - the API exposed outside transactions.
 extern "C" UE_AUTORTFM_AUTORTFM("RTFM_autortfm_transact") autortfm_result autortfm_transact(void (*Work)(void* Arg), void* Arg)
 {
-	if (IsAutoRTFMRuntimeEnabled())
+	if (ForTheRuntime::IsAutoRTFMRuntimeEnabled())
 	{
 	    return static_cast<autortfm_result>(FContext::Get()->Transact(Work, Arg));
 	}
@@ -169,7 +172,7 @@ extern "C" UE_AUTORTFM_AUTORTFM("RTFM_autortfm_clear_transaction_status") void a
 
 extern "C" UE_AUTORTFM_NOAUTORTFM bool autortfm_is_aborting()
 {
-	if (IsAutoRTFMRuntimeEnabled())
+	if (ForTheRuntime::IsAutoRTFMRuntimeEnabled())
 	{
 		return FContext::Get()->IsAborting();
 	}
@@ -201,7 +204,7 @@ extern "C" UE_AUTORTFM_AUTORTFM("RTFM_autortfm_close") autortfm_status autortfm_
 {
 	autortfm_status Result = autortfm_status_ontrack;
 
-	if (IsAutoRTFMRuntimeEnabled())
+	if (ForTheRuntime::IsAutoRTFMRuntimeEnabled())
 	{
 		UE_CLOG(!FContext::IsTransactional(), LogAutoRTFM, Fatal, TEXT("Close called from an outside a transaction."));
 

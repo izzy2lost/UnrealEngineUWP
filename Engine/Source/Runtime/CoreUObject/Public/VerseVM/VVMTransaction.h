@@ -95,7 +95,7 @@ struct FTransaction
 
 		if (!bHasAborted)
 		{
-			AutoRTFM::StartTransaction();
+			AutoRTFM::ForTheRuntime::StartTransaction();
 			Parent = Context.CurrentTransaction();
 			Context.SetCurrentTransaction(this);
 		}
@@ -108,7 +108,7 @@ struct FTransaction
 		V_DIE_IF(bHasAborted);
 		V_DIE_IF(bHasCommitted);
 		bHasCommitted = true;
-		AutoRTFM::CommitTransaction();
+		AutoRTFM::ForTheRuntime::CommitTransaction();
 		if (Parent)
 		{
 			Parent->Log.Join(Log);
@@ -127,7 +127,7 @@ struct FTransaction
 			V_DIE_UNLESS(Context.CurrentTransaction() == this);
 
 			AutoRTFM::AbortTransaction();
-			AutoRTFM::ClearTransactionStatus();
+			AutoRTFM::ForTheRuntime::ClearTransactionStatus();
 			Log.Abort(Context);
 			Context.SetCurrentTransaction(Parent);
 		}

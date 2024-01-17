@@ -711,7 +711,7 @@ TEST_CASE("API.Close")
 
 TEST_CASE("API.RegisterOpenFunction")
 {
-    AutoRTFM::RegisterOpenFunction(
+    AutoRTFM::ForTheRuntime::RegisterOpenFunction(
         reinterpret_cast<void*>(NoAutoRTFM::DoSomethingCpp),
         reinterpret_cast<void*>(NoAutoRTFM::DoSomethingInTransactionCpp));
 
@@ -903,6 +903,6 @@ TEST_CASE("API.CheckConsistencyAssumingNoRaces")
 {
     AutoRTFM::Commit([&]
     {
-        AutoRTFM::CheckConsistencyAssumingNoRaces();
+        AutoRTFM::ForTheRuntime::CheckConsistencyAssumingNoRaces();
     });
 }

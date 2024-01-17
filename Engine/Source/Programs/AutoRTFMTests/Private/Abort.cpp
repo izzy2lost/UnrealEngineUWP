@@ -180,7 +180,7 @@ TEST_CASE("Abort.CascadeThroughManualTransaction")
 
 		AutoRTFM::Open([&]
 		{
-			REQUIRE(true == AutoRTFM::StartTransaction());
+			REQUIRE(true == AutoRTFM::ForTheRuntime::StartTransaction());
 
 			const AutoRTFM::EContextStatus Status = AutoRTFM::Close([&]
 			{
@@ -190,7 +190,7 @@ TEST_CASE("Abort.CascadeThroughManualTransaction")
 			REQUIRE(AutoRTFM::EContextStatus::AbortedByCascade == Status);
 
 			// We need to clear the status ourselves.
-			AutoRTFM::ClearTransactionStatus();
+			AutoRTFM::ForTheRuntime::ClearTransactionStatus();
 
 			// Before manually starting the cascade again.
 			AutoRTFM::CascadingAbortTransaction();
