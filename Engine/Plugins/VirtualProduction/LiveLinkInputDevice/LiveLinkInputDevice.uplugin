@@ -16,7 +16,6 @@
 	"Installed": false,
 	"EnabledByDefault": false,
 	"SupportedPrograms": ["LiveLinkHub"],
-	"SupportedTargetPlatforms": ["Win64"],
 	"Modules": [
 		{
 			"Name": "LiveLinkInputDevice",
