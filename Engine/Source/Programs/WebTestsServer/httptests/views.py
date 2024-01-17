@@ -1,3 +1,5 @@
+import asyncio
+from datetime import datetime
 from django.shortcuts import render, redirect
 from django.http.response import JsonResponse
 from django.http import JsonResponse
@@ -25,15 +27,14 @@ def get_large_response_without_chunks(request, bytes_number):
     return JsonResponse({'data' : data})
 
 @api_view(['GET'])
-def nonstreaming_receivetimeout(request, wait_time):
-    time.sleep(wait_time)
-    return JsonResponse({})
-
-@api_view(['GET'])
-def streaming_download(request, chunks, chunk_size):
-    def data_chunk_generator():
+def streaming_download(request, chunks, chunk_size, chunk_latency):
+    async def data_chunk_generator(): # using 'async' for StreamingHttpResponse in asgi
         for x in range(chunks):
+            if chunk_latency > 0:
+                logger.debug("[%s]sleeping %d seconds", datetime.now().strftime("%H:%M:%S:%f"), chunk_latency)
+                await asyncio.sleep(chunk_latency)  # using 'await asyncio.sleep' instead of 'time.sleep' for StreamingHttpResponse in asgi
             data_chunk = 'd' * chunk_size
+            logger.debug("[%s]sending %d bytes of data", datetime.now().strftime("%H:%M:%S:%f"), chunk_size)
             yield data_chunk
     response = StreamingHttpResponse(data_chunk_generator())
     response['Content-Length'] = chunks * chunk_size
@@ -71,4 +72,9 @@ def redirect_from(request):
 
 @api_view(['GET'])
 def redirect_to(request):
+    return JsonResponse({})
+
+@api_view(['GET'])
+def mock_latency(request, latency):
+    time.sleep(latency)
     return JsonResponse({})
