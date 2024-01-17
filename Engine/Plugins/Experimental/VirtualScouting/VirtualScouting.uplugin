@@ -104,6 +104,10 @@
 		{
 			"Name": "CineCameraSceneCapture",
 			"Enabled": true
+		},
+		{
+			"Name": "VirtualProductionUtilities",
+			"Enabled": true
 		}
 	]
 }
