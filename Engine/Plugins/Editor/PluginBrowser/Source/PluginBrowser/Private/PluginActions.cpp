@@ -1,4 +1,4 @@
-// Copyright Epic Games, Inc. All Rights Reser
+// Copyright Epic Games, Inc. All Rights Reserved.
 
 #include "PluginActions.h"
 
