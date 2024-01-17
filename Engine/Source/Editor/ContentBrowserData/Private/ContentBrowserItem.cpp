@@ -290,6 +290,12 @@ bool FContentBrowserItem::IsFile() const
 	return PrimaryItemData && PrimaryItemData->IsFile();
 }
 
+bool FContentBrowserItem::IsInPlugin() const
+{
+	const FContentBrowserItemData* PrimaryItemData = GetPrimaryInternalItem();
+	return PrimaryItemData && PrimaryItemData->IsPlugin();
+}
+
 bool FContentBrowserItem::IsSupported() const
 {
 	const FContentBrowserItemData* PrimaryItemData = GetPrimaryInternalItem();

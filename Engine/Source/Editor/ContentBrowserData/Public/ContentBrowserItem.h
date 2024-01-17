@@ -136,6 +136,12 @@ public:
 	bool IsFile() const;
 
 	/**
+	 * Check to see whether this item is in a plugin.
+	 * @note Equivalent to testing whether EContentBrowserItemFlags::Category_Plugin is set on GetItemFlags().
+	 */
+	bool IsInPlugin() const;
+
+	/**
 	 * Check if the item is representing a supported item
 	 * The content browser can also display some unsupported asset
 	 * @note Equivalent to testing whether EContentBrowserItemFlags::Misc_Unsupported is not set on GetItemFlags()
