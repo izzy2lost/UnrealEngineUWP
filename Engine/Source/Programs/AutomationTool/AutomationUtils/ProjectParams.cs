@@ -1610,6 +1610,11 @@ namespace AutomationTool
 
 				return SpecifiedUnrealExe;
 			}
+			set 
+			{
+				// allow code override
+				SpecifiedUnrealExe = value; 
+			}
 		}
 
 		/// <summary>
