@@ -1127,7 +1127,7 @@ bool UNiagaraNodeFunctionCall::RefreshFromExternalChanges()
 	}
 }
 
-void UNiagaraNodeFunctionCall::GatherExternalDependencyData(ENiagaraScriptUsage InUsage, const FGuid& InUsageId, TArray<FNiagaraCompileHash>& InReferencedCompileHashes, TArray<FString>& InReferencedObjs) const
+void UNiagaraNodeFunctionCall::GatherExternalDependencyData(ENiagaraScriptUsage InUsage, const FGuid& InUsageId, FNiagaraScriptHashCollector& HashCollector) const
 {
 	if (HasValidScriptAndGraph())
 	{
@@ -1140,9 +1140,8 @@ void UNiagaraNodeFunctionCall::GatherExternalDependencyData(ENiagaraScriptUsage 
 			FNiagaraCompileHash FoundCompileHash = FunctionGraph->GetCompileDataHash((ENiagaraScriptUsage)i, FGuid(0, 0, 0, 0));
 			if (FoundGuid.IsValid() && FoundCompileHash.IsValid())
 			{
-				InReferencedCompileHashes.AddUnique(FoundCompileHash);
-				InReferencedObjs.Add(FunctionGraph->GetPathName());
-				FunctionGraph->GatherExternalDependencyData((ENiagaraScriptUsage)i, FGuid(0, 0, 0, 0), InReferencedCompileHashes, InReferencedObjs);
+				HashCollector.AddHash(FoundCompileHash, FunctionGraph->GetPathName());
+				FunctionGraph->GatherExternalDependencyData((ENiagaraScriptUsage)i, FGuid(0, 0, 0, 0), HashCollector);
 			}
 		}
 	}

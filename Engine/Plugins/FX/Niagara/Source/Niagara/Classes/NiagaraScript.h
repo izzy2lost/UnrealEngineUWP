@@ -219,6 +219,21 @@ struct FNiagaraScriptDebuggerInfo
 	TAtomic<bool> bWritten;
 };
 
+#if WITH_EDITORONLY_DATA
+struct FNiagaraScriptHashCollector
+{
+	FNiagaraScriptHashCollector(bool bCollectHashSources);
+
+	NIAGARA_API void AddHash(const FNiagaraCompileHash& CompileHash, FStringView CompileHashSource);
+	FString BuildCompileHashSourceString(const FNiagaraCompileHash& CompileHash) const;
+
+	TArray<FNiagaraCompileHash> ReferencedHashes;
+	TMap<FNiagaraCompileHash, TArray<FString>> ReferencedHashSources;
+
+	const bool bCollectSources = false;
+};
+#endif
+
 /** Struct containing all of the data necessary to look up a NiagaraScript's VM executable results from the Derived Data Cache.*/
 USTRUCT()
 struct FNiagaraVMExecutableDataId
@@ -280,9 +295,6 @@ public:
 	/** Compile hashes of any top level scripts the script was dependent on that might trigger a recompile if they change. */
 	UPROPERTY()
 	TArray<FNiagaraCompileHash> ReferencedCompileHashes;
-
-	/** Temp storage while generating the Id. This is NOT serialized and shouldn't be used in any comparisons*/
-	TArray<FString> DebugReferencedObjects;
 #endif
 
 	/** The version of the script that was compiled. If empty then just the latest version. */
@@ -338,8 +350,7 @@ public:
 
 #if WITH_EDITORONLY_DATA
 	/** Appends string representations of this Id to a key string. */
-	NIAGARA_API void AppendKeyString(FString& KeyString, const FString& Delimiter = TEXT("_"), bool bAppendObjectForDebugging = false) const;
-
+	NIAGARA_API void AppendKeyString(FString& KeyString, const FString& Delimiter = TEXT("_"), bool bAppendObjectForDebugging = false, const FNiagaraScriptHashCollector* HashCollector = nullptr) const;
 #endif
 };
 
@@ -996,9 +1007,10 @@ public:
 	TObjectPtr<class UNiagaraScriptSourceBase>	Source_DEPRECATED;
 
 	NIAGARA_API static const FName NiagaraCustomVersionTagName;
+
+	NIAGARA_API void ComputeVMCompilationId(FNiagaraVMExecutableDataId& Id, const FGuid& VersionGuid, FNiagaraScriptHashCollector* HashCollector = nullptr) const;
 #endif
 
-	NIAGARA_API void ComputeVMCompilationId(FNiagaraVMExecutableDataId& Id, const FGuid& VersionGuid) const;
 	const FNiagaraVMExecutableDataId& GetComputedVMCompilationId() const
 	{
 #if WITH_EDITORONLY_DATA

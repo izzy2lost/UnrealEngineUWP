@@ -32,7 +32,7 @@ UNiagaraScriptSource::UNiagaraScriptSource(const FObjectInitializer& ObjectIniti
 {
 }
 
-void UNiagaraScriptSource::RegisterVMCompilationIdDependencies(struct FNiagaraVMExecutableDataId& Id, ENiagaraScriptUsage InUsage, const FGuid& InUsageId) const
+void UNiagaraScriptSource::RegisterVMCompilationIdDependencies(FNiagaraScriptHashCollector& Collector, ENiagaraScriptUsage InUsage, const FGuid& InUsageId) const
 {
 	if (!AllowShaderCompiling())
 	{
@@ -53,8 +53,7 @@ void UNiagaraScriptSource::RegisterVMCompilationIdDependencies(struct FNiagaraVM
 			
 			if (Hash.IsValid())
 			{
-				Id.ReferencedCompileHashes.AddUnique(Hash);
-				Id.DebugReferencedObjects.Emplace(GetPathName());
+				Collector.AddHash(Hash, GetPathName());
 			}
 			else
 			{
@@ -65,7 +64,7 @@ void UNiagaraScriptSource::RegisterVMCompilationIdDependencies(struct FNiagaraVM
 }
 
 
-void UNiagaraScriptSource::ComputeVMCompilationId(FNiagaraVMExecutableDataId& Id, ENiagaraScriptUsage InUsage, const FGuid& InUsageId) const
+void UNiagaraScriptSource::ComputeVMCompilationId(FNiagaraVMExecutableDataId& Id, FNiagaraScriptHashCollector& HashCollector, ENiagaraScriptUsage InUsage, const FGuid& InUsageId) const
 {
 	if (!AllowShaderCompiling())
 	{
@@ -79,19 +78,17 @@ void UNiagaraScriptSource::ComputeVMCompilationId(FNiagaraVMExecutableDataId& Id
 	{
 		NodeGraph->RebuildCachedCompileIds();
 		Id.BaseScriptCompileHash = FNiagaraCompileHash(NodeGraph->GetCompileDataHash(InUsage, InUsageId));
-		NodeGraph->GatherExternalDependencyData(InUsage, InUsageId, Id.ReferencedCompileHashes, Id.DebugReferencedObjects);
+
+		NodeGraph->GatherExternalDependencyData(InUsage, InUsageId, HashCollector);
 	}
 
 	// Add in any referenced HLSL files.
 	FSHAHash Hash = GetShaderFileHash((TEXT("/Plugin/FX/Niagara/Private/NiagaraEmitterInstanceShader.usf")), EShaderPlatform::SP_PCD3D_SM5);
-	Id.ReferencedCompileHashes.AddUnique(FNiagaraCompileHash(Hash.Hash, sizeof(Hash.Hash)/sizeof(uint8)));
-	Id.DebugReferencedObjects.Emplace(TEXT("/Plugin/FX/Niagara/Private/NiagaraEmitterInstanceShader.usf"));
+	HashCollector.AddHash(FNiagaraCompileHash(Hash.Hash, sizeof(Hash.Hash) / sizeof(uint8)), TEXT("/Plugin/FX/Niagara/Private/NiagaraEmitterInstanceShader.usf"));
 	Hash = GetShaderFileHash((TEXT("/Plugin/FX/Niagara/Private/NiagaraShaderVersion.ush")), EShaderPlatform::SP_PCD3D_SM5);
-	Id.ReferencedCompileHashes.AddUnique(FNiagaraCompileHash(Hash.Hash, sizeof(Hash.Hash)/sizeof(uint8)));
-	Id.DebugReferencedObjects.Emplace(TEXT("/Plugin/FX/Niagara/Private/NiagaraShaderVersion.ush"));
+	HashCollector.AddHash(FNiagaraCompileHash(Hash.Hash, sizeof(Hash.Hash) / sizeof(uint8)), TEXT("/Plugin/FX/Niagara/Private/NiagaraShaderVersion.ush"));
 	Hash = GetShaderFileHash((TEXT("/Engine/Public/ShaderVersion.ush")), EShaderPlatform::SP_PCD3D_SM5);
-	Id.ReferencedCompileHashes.AddUnique(FNiagaraCompileHash(Hash.Hash, sizeof(Hash.Hash)/sizeof(uint8)));
-	Id.DebugReferencedObjects.Emplace(TEXT("/Engine/Public/ShaderVersion.ush"));
+	HashCollector.AddHash(FNiagaraCompileHash(Hash.Hash, sizeof(Hash.Hash) / sizeof(uint8)), TEXT("/Engine/Public/ShaderVersion.ush"));
 }
 
 void UNiagaraScriptSource::RefreshGraphCompileId()

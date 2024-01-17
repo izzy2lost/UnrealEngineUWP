@@ -11,6 +11,9 @@
 #include "GraphEditAction.h"
 #include "NiagaraScriptSource.generated.h"
 
+struct FNiagaraScriptHashCollector;
+struct FNiagaraVMExecutableDataId;
+
 UCLASS(MinimalAPI)
 class UNiagaraScriptSource : public UNiagaraScriptSourceBase
 {
@@ -38,8 +41,8 @@ class UNiagaraScriptSource : public UNiagaraScriptSourceBase
 	virtual FGuid GetChangeID() override;
 	FVersionedNiagaraEmitter GetOuterEmitter() const;
 
-	virtual void RegisterVMCompilationIdDependencies(struct FNiagaraVMExecutableDataId& Id, ENiagaraScriptUsage InUsage, const FGuid& InUsageId) const override;
-	virtual void ComputeVMCompilationId(struct FNiagaraVMExecutableDataId& Id, ENiagaraScriptUsage InUsage, const FGuid& InUsageId) const override;
+	virtual void RegisterVMCompilationIdDependencies(FNiagaraScriptHashCollector& Collector, ENiagaraScriptUsage InUsage, const FGuid& InUsageId) const override;
+	virtual void ComputeVMCompilationId(FNiagaraVMExecutableDataId& Id, FNiagaraScriptHashCollector& HashCollector, ENiagaraScriptUsage InUsage, const FGuid& InUsageId) const override;
 
 	// Will conditionally refresh the graph's CompileId
 	virtual void RefreshGraphCompileId() override;

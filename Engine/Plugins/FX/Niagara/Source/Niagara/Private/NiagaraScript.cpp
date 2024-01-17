@@ -218,6 +218,38 @@ FNiagaraScriptDebuggerInfo::FNiagaraScriptDebuggerInfo(FName InName, ENiagaraScr
 	}
 }
 
+#if WITH_EDITORONLY_DATA
+FNiagaraScriptHashCollector::FNiagaraScriptHashCollector(bool bCollectHashSources)
+	: bCollectSources(bCollectHashSources)
+{
+}
+
+void FNiagaraScriptHashCollector::AddHash(const FNiagaraCompileHash& CompileHash, FStringView CompileHashSource)
+{
+	ReferencedHashes.AddUnique(CompileHash);
+	if (bCollectSources)
+	{
+		ReferencedHashSources.FindOrAdd(CompileHash).Emplace(CompileHashSource);
+	}
+}
+
+FString FNiagaraScriptHashCollector::BuildCompileHashSourceString(const FNiagaraCompileHash& CompileHash) const
+{
+	FString SourceString;
+
+	for (const FString& HashSource : ReferencedHashSources.FindRef(CompileHash))
+	{
+		if (!SourceString.IsEmpty())
+		{
+			SourceString.Append(TEXT(", "));
+		}
+
+		SourceString.Append(HashSource);
+	}
+
+	return SourceString;
+}
+#endif
 
 UNiagaraScriptSourceBase::UNiagaraScriptSourceBase(const FObjectInitializer& ObjectInitializer)
 	: Super(ObjectInitializer)
@@ -881,7 +913,7 @@ bool FNiagaraVMExecutableDataId::operator==(const FNiagaraVMExecutableDataId& Re
 }
 
 #if WITH_EDITORONLY_DATA
-void FNiagaraVMExecutableDataId::AppendKeyString(FString& KeyString, const FString& Delimiter, bool bAppendObjectForDebugging) const
+void FNiagaraVMExecutableDataId::AppendKeyString(FString& KeyString, const FString& Delimiter, bool bAppendObjectForDebugging, const FNiagaraScriptHashCollector* HashCollector) const
 {
 	KeyString += FString::Printf(TEXT("%d%s"), (int32)ScriptUsageType, *Delimiter);
 	KeyString += ScriptUsageTypeID.ToString();
@@ -952,9 +984,9 @@ void FNiagaraVMExecutableDataId::AppendKeyString(FString& KeyString, const FStri
 	{
 		KeyString += ReferencedCompileHashes[HashIndex].ToString();
 
-		if (bAppendObjectForDebugging && DebugReferencedObjects.Num() > HashIndex)
+		if (bAppendObjectForDebugging && HashCollector)
 		{
-			KeyString += TEXT(" [") + DebugReferencedObjects[HashIndex] + TEXT("]") ;
+			KeyString += TEXT(" [") + HashCollector->BuildCompileHashSourceString(ReferencedCompileHashes[HashIndex]) + TEXT("]");
 		}
 
 		if (HashIndex < ReferencedCompileHashes.Num() - 1)
@@ -1055,7 +1087,7 @@ FString UNiagaraScript::GetNiagaraDDCKeyString(const FGuid& ScriptVersion, const
 	return BuildNiagaraDDCKeyString(GetLastGeneratedVMId(ScriptVersion), ScriptPath);
 }
 
-void UNiagaraScript::ComputeVMCompilationId(FNiagaraVMExecutableDataId& Id, const FGuid& VersionGuid) const
+void UNiagaraScript::ComputeVMCompilationId(FNiagaraVMExecutableDataId& Id, const FGuid& VersionGuid, FNiagaraScriptHashCollector* OutHashCollector) const
 {
 	Id = FNiagaraVMExecutableDataId();
 
@@ -1075,6 +1107,8 @@ void UNiagaraScript::ComputeVMCompilationId(FNiagaraVMExecutableDataId& Id, cons
 	int32 SystemSpawnIdx = INDEX_NONE;
 	int32 SystemUpdateIdx = INDEX_NONE;
 	TArray<UNiagaraScript*> Scripts;
+
+	FNiagaraScriptHashCollector HashCollector(GNiagaraDumpKeyGen == 1 || (OutHashCollector ? OutHashCollector->bCollectSources : false));
 
 	if (EmitterData != nullptr)
 	{
@@ -1251,8 +1285,7 @@ void UNiagaraScript::ComputeVMCompilationId(FNiagaraVMExecutableDataId& Id, cons
 		// Append all Shader Parameter compile hashes
 		if (GNiagaraCompileHashAllDataInterfaces)
 		{
-			Id.ReferencedCompileHashes.AddUnique(NiagaraScriptInternal::CompileHashAllDataInterfaces());
-			Id.DebugReferencedObjects.Add(TEXT("AllDataInterfaceHashes"));
+			HashCollector.AddHash(NiagaraScriptInternal::CompileHashAllDataInterfaces(), TEXT("AllDataInterfaceHashes"));
 		}
 
 		// Has simulation stages
@@ -1275,8 +1308,7 @@ void UNiagaraScript::ComputeVMCompilationId(FNiagaraVMExecutableDataId& Id, cons
 			HashState.GetHash(DataHash.GetData());
 
 			FNiagaraCompileHash Hash(DataHash);
-			Id.ReferencedCompileHashes.AddUnique(Hash);
-			Id.DebugReferencedObjects.Add(TEXT("SimulationStageHeaders"));
+			HashCollector.AddHash(FNiagaraCompileHash(DataHash), TEXT("SimulationStageHeaders"));
 		}
 
 		if (IsParticleEventScript(Usage))
@@ -1369,7 +1401,7 @@ void UNiagaraScript::ComputeVMCompilationId(FNiagaraVMExecutableDataId& Id, cons
 		// We assume that latest source is ok because these are all top-level scripts in either systems or emitters.
 		if (Script->GetLatestSource())
 		{
-			Script->GetLatestSource()->RegisterVMCompilationIdDependencies(Id, Script->Usage, Script->UsageId);
+			Script->GetLatestSource()->RegisterVMCompilationIdDependencies(HashCollector, Script->Usage, Script->UsageId);
 		}
 
 		for (const FNiagaraVariable& Var : Vars)
@@ -1465,28 +1497,33 @@ void UNiagaraScript::ComputeVMCompilationId(FNiagaraVMExecutableDataId& Id, cons
 		DataHash.AddUninitialized(FSHA1::DigestSize);
 		HashState.GetHash(DataHash.GetData());
 
-		FNiagaraCompileHash Hash(DataHash);
-		Id.ReferencedCompileHashes.AddUnique(Hash);
-		Id.DebugReferencedObjects.Add(TEXT("RIParams"));
+		HashCollector.AddHash(FNiagaraCompileHash(DataHash), TEXT("RIParams"));
 	}
 
 	if (const FVersionedNiagaraScriptData* ScriptData = GetScriptData(Id.ScriptVersionID))
 	{
 		if (ScriptData->Source)
 		{
-			ScriptData->Source->ComputeVMCompilationId(Id, Usage, UsageId);
+			ScriptData->Source->ComputeVMCompilationId(Id, HashCollector, Usage, UsageId);
 		}
 	}
 
 	// Append the state of the "Fail If Not Set severity" cvar, as it may affect the LastCompileEvents which is a member of the script's VMExecutableData.
 	Id.AdditionalDefines.Add(FString::Printf(TEXT("FailIfNotSetMessageSeverity: %d"), GNiagaraTranslatorFailIfNotSetSeverity));
+	Id.ReferencedCompileHashes = MoveTemp(HashCollector.ReferencedHashes);
 
 	FNiagaraVMExecutableDataId& LastGeneratedVMId = GetLastGeneratedVMId(VersionGuid);
+
+	// normalize the order
+	Id.AdditionalDefines.Sort();
+	Id.ReferencedCompileHashes.Sort();
+	Id.AdditionalVariables.Sort([](const FNiagaraVariableBase& Lhs, const FNiagaraVariableBase& Rhs) { return Lhs.GetName().LexicalLess(Rhs.GetName()); });
+
 	if (GNiagaraDumpKeyGen == 1 && Id != LastGeneratedVMId)
 	{
 		TArray<FString> OutputByLines;
 		FString StrDump;
-		Id.AppendKeyString(StrDump, TEXT("\n"), true);
+		Id.AppendKeyString(StrDump, TEXT("\n"), true, &HashCollector);
 		StrDump.ParseIntoArrayLines(OutputByLines, false);
 
 		UE_LOG(LogNiagara, Display, TEXT("KeyGen %s\n==================\n"), *GetPathName());
@@ -1496,10 +1533,10 @@ void UNiagaraScript::ComputeVMCompilationId(FNiagaraVMExecutableDataId& Id, cons
 		}
 	}
 
-	// normalize the order
-	Id.AdditionalDefines.Sort();
-	Id.ReferencedCompileHashes.Sort();
-	Id.AdditionalVariables.Sort([](const FNiagaraVariableBase& Lhs, const FNiagaraVariableBase& Rhs) { return Lhs.GetName().LexicalLess(Rhs.GetName()); });
+	if (OutHashCollector && OutHashCollector->bCollectSources)
+	{
+		OutHashCollector->ReferencedHashSources = MoveTemp(HashCollector.ReferencedHashSources);
+	}
 
 	LastGeneratedVMId = Id;
 }
@@ -2576,7 +2613,9 @@ bool UNiagaraScript::AreScriptAndSourceSynchronized(const FGuid& VersionGuid) co
 	if (ScriptData && ScriptData->Source)
 	{
 		FNiagaraVMExecutableDataId NewId;
-		ComputeVMCompilationId(NewId, VersionGuid);
+		FNiagaraScriptHashCollector HashCollector(GEnableVerboseNiagaraChangeIdLogging > 0);
+		ComputeVMCompilationId(NewId, VersionGuid, &HashCollector);
+
 		bool bSynchronized = (NewId.IsValid() && NewId == CachedScriptVMId);
 		if (!bSynchronized && NewId.IsValid() && CachedScriptVMId.IsValid() && CachedScriptVM.IsValid())
 		{
@@ -2603,7 +2642,7 @@ bool UNiagaraScript::AreScriptAndSourceSynchronized(const FGuid& VersionGuid) co
 							{
 								UE_LOG(LogNiagara, Log, TEXT("AreScriptAndSourceSynchronized referenced compile hash %d doesn't match. %s != %s, script %s, source %s"),
 									i, *NewId.ReferencedCompileHashes[i].ToString(), *CachedScriptVMId.ReferencedCompileHashes[i].ToString(), *GetPathName(),
-									*NewId.DebugReferencedObjects[i]);
+									*HashCollector.BuildCompileHashSourceString(NewId.ReferencedCompileHashes[i]));
 							}
 						}
 					}
@@ -3025,15 +3064,10 @@ void UNiagaraScript::SetVMCompilationResults(const FNiagaraVMExecutableDataId& I
 
 	if (bApplyRapidIterationParameters)
 	{
-		const bool bClearBindings = false;
-		RapidIterationParameters.Empty(bClearBindings);
-		for (const FNiagaraVariable& Parameter : InScriptVM.BakedRapidIterationParameters)
-		{
-			const bool bInitialize = false;
-			const bool bTriggerRebind = false;
-			RapidIterationParameters.AddParameter(Parameter, bInitialize, bTriggerRebind);
-		}
-		RapidIterationParameters.TriggerOnLayoutChanged();
+		// if we are applying rapid iteration parameters then the data supplied by InScriptVM, which could have
+		// come from the DDC, could invalidate the CompileID that we had previous generated so generate it again
+		// now that we've updated everything
+		ComputeVMCompilationId(CachedScriptVMId, FGuid());
 	}
 
 	GenerateStatIDs();

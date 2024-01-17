@@ -3765,7 +3765,7 @@ void UNiagaraGraph::ForceGraphToRecompileOnNextCheck()
 	MarkGraphRequiresSynchronization(__FUNCTION__);
 }
 
-void UNiagaraGraph::GatherExternalDependencyData(ENiagaraScriptUsage InUsage, const FGuid& InUsageId, TArray<FNiagaraCompileHash>& InReferencedCompileHashes, TArray<FString>& InReferencedObjs)
+void UNiagaraGraph::GatherExternalDependencyData(ENiagaraScriptUsage InUsage, const FGuid& InUsageId, FNiagaraScriptHashCollector& HashCollector)
 {
 	RebuildCachedCompileIds();
 	
@@ -3776,7 +3776,7 @@ void UNiagaraGraph::GatherExternalDependencyData(ENiagaraScriptUsage InUsage, co
 		{
 			for (UNiagaraNode* Node : CachedUsageInfo[i].Traversal)
 			{
-				Node->GatherExternalDependencyData(InUsage, InUsageId, InReferencedCompileHashes, InReferencedObjs);
+				Node->GatherExternalDependencyData(InUsage, InUsageId, HashCollector);
 			}
 		}
 		// Now add any other dependency chains that we might have...
@@ -3784,17 +3784,16 @@ void UNiagaraGraph::GatherExternalDependencyData(ENiagaraScriptUsage InUsage, co
 		{
 			if (GNiagaraUseGraphHash == 1)
 			{
-				InReferencedCompileHashes.AddUnique(CachedUsageInfo[i].CompileHashFromGraph);
+				HashCollector.AddHash(CachedUsageInfo[i].CompileHashFromGraph, CachedUsageInfo[i].Traversal.Last()->GetPathName());
 			}
 			else
 			{
-				InReferencedCompileHashes.AddUnique(CachedUsageInfo[i].CompileHash);
+				HashCollector.AddHash(CachedUsageInfo[i].CompileHash, CachedUsageInfo[i].Traversal.Last()->GetPathName());
 			}
-			InReferencedObjs.Add(CachedUsageInfo[i].Traversal.Last()->GetPathName());
 
 			for (UNiagaraNode* Node : CachedUsageInfo[i].Traversal)
 			{
-				Node->GatherExternalDependencyData(InUsage, InUsageId, InReferencedCompileHashes, InReferencedObjs);
+				Node->GatherExternalDependencyData(InUsage, InUsageId, HashCollector);
 			}
 		}
 	}

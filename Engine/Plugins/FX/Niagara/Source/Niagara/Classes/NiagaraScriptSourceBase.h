@@ -12,7 +12,10 @@
 
 class INiagaraParameterDefinitionsSubscriber;
 class UNiagaraParameterDefinitionsBase;
+struct FNiagaraParameterStore;
+struct FNiagaraScriptHashCollector;
 class UNiagaraScriptSourceBase;
+struct FNiagaraVMExecutableDataId;
 
 struct EditorExposedVectorConstant
 {
@@ -93,8 +96,6 @@ public:
 	TArray<FNiagaraVariableBase> AdditionalVariables;
 };
 
-struct FNiagaraParameterStore;
-
 /** Runtime data for a Niagara system */
 UCLASS(MinimalAPI)
 class UNiagaraScriptSourceBase : public UObject
@@ -118,8 +119,8 @@ class UNiagaraScriptSourceBase : public UObject
 
 	virtual FGuid GetChangeID() { return FGuid(); }
 
-	virtual void RegisterVMCompilationIdDependencies(struct FNiagaraVMExecutableDataId& Id, ENiagaraScriptUsage InUsage, const FGuid& InUsageId) const {};
-	virtual void ComputeVMCompilationId(struct FNiagaraVMExecutableDataId& Id, ENiagaraScriptUsage InUsage, const FGuid& InUsageId) const {};
+	virtual void RegisterVMCompilationIdDependencies(FNiagaraScriptHashCollector& Collector, ENiagaraScriptUsage InUsage, const FGuid& InUsageId) const {};
+	virtual void ComputeVMCompilationId(FNiagaraVMExecutableDataId& Id, FNiagaraScriptHashCollector& HashCollector, ENiagaraScriptUsage InUsage, const FGuid& InUsageId) const {};
 
 #if WITH_EDITORONLY_DATA
 	// Will conditionally refresh the graph's CompileId

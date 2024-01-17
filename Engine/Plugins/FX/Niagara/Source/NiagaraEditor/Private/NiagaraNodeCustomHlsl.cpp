@@ -559,7 +559,7 @@ FNiagaraCompileHash GetFileContentHash(const FString& FileContents)
 	return FNiagaraCompileHash(DataHash);
 }
 
-void UNiagaraNodeCustomHlsl::GatherExternalDependencyData(ENiagaraScriptUsage InUsage, const FGuid& InUsageId, TArray<FNiagaraCompileHash>& InReferencedCompileHashes, TArray<FString>& InReferencedObjs) const
+void UNiagaraNodeCustomHlsl::GatherExternalDependencyData(ENiagaraScriptUsage InUsage, const FGuid& InUsageId, FNiagaraScriptHashCollector& HashCollector) const
 {
 	for (const auto& [IncludePath] : AbsoluteIncludeFilePaths)
 	{
@@ -570,8 +570,7 @@ void UNiagaraNodeCustomHlsl::GatherExternalDependencyData(ENiagaraScriptUsage In
 
 		if (FString FileContents; FFileHelper::LoadFileToString(FileContents, *IncludePath))
 		{
-			InReferencedObjs.AddUnique(IncludePath);
-			InReferencedCompileHashes.AddUnique(GetFileContentHash(FileContents));
+			HashCollector.AddHash(GetFileContentHash(FileContents), IncludePath);
 		}
 	}
 
@@ -585,8 +584,7 @@ void UNiagaraNodeCustomHlsl::GatherExternalDependencyData(ENiagaraScriptUsage In
 		FString FileContents;
 		if(LoadShaderSourceFile(*IncludePath, SP_PCD3D_SM5, &FileContents, nullptr))
 		{
-			InReferencedObjs.AddUnique(IncludePath);
-			InReferencedCompileHashes.AddUnique(GetFileContentHash(FileContents));
+			HashCollector.AddHash(GetFileContentHash(FileContents), IncludePath);
 		}
 	}
 }
