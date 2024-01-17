@@ -1300,11 +1300,28 @@ void FRelevancePacket::ComputeRelevance(FDynamicPrimitiveIndexList& DynamicPrimi
 		}
 	};
 
-	for (int32 BitIndex : Input.Prims)
+	for (int32 InputPrimsIndex = 0; InputPrimsIndex < Input.Prims.Num(); ++InputPrimsIndex)
 	{
+		int32 BitIndex = Input.Prims[InputPrimsIndex];
+
+		if (InputPrimsIndex + 1 < Input.Prims.Num())
+		{
+			int32 NextBitIndex = Input.Prims[InputPrimsIndex + 1];
+
+			// Prefetch the next primitive / proxy pair for the next loop.
+			FPlatformMisc::Prefetch(Scene.Primitives[NextBitIndex]);
+			FPlatformMisc::Prefetch(Scene.PrimitiveSceneProxies[NextBitIndex]);
+		}
+
 		FPrimitiveSceneInfo* PrimitiveSceneInfo = Scene.Primitives[BitIndex];
 		FPrimitiveViewRelevance& ViewRelevance = const_cast<FPrimitiveViewRelevance&>(View.PrimitiveViewRelevanceMap[BitIndex]);
+
 		const FPrimitiveSceneProxy* PrimitiveSceneProxy = PrimitiveSceneInfo->Proxy;
+
+		// Prefetch the scene data and static mesh relevance array now while we call GetViewRelevance to reduce memory waits.
+		FPlatformMisc::Prefetch(PrimitiveSceneInfo->StaticMeshRelevances.GetData());
+		FPlatformMisc::Prefetch(PrimitiveSceneInfo->GetSceneData());
+
 		ViewRelevance = PrimitiveSceneProxy->GetViewRelevance(&View);
 		ViewRelevance.bInitializedThisFrame = true;
 

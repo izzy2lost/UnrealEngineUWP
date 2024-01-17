@@ -1426,6 +1426,9 @@ private:
 	const FInstanceSceneDataBuffers *InstanceSceneDataBuffersInternal = nullptr;
 
 protected:
+	/** Cached material relevance available for GetMaterialRelevance call. */
+	FMaterialRelevance CombinedMaterialRelevance;
+
 	/** Quality of interpolated indirect lighting for Movable components. */
 	TEnumAsByte<EIndirectLightingCacheQuality> IndirectLightingCacheQuality;
 

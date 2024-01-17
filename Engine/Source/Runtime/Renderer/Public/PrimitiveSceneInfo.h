@@ -601,6 +601,9 @@ public:
 	 */
 	FInstanceDataBufferHeader GetInstanceDataHeader() const;
 
+	/** Returns the primitive scene data for this proxy. */
+	const FPrimitiveSceneInfoData* GetSceneData() const { return SceneData; }
+
 private:
 	
 	FPrimitiveSceneInfo(const FPrimitiveSceneInfoAdapter& InAdapter, FScene* InScene);

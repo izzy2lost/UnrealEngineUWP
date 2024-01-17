@@ -317,7 +317,6 @@ protected:
 
 protected:
 	TArray<FMaterialSection> MaterialSections;
-	FMaterialRelevance CombinedMaterialRelevance;
 
 #if WITH_EDITOR
 	TArray<FHitProxyId> HitProxyIds;
