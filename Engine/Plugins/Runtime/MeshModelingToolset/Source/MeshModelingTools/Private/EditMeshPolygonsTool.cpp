@@ -850,7 +850,9 @@ void UEditMeshPolygonsTool::RegisterActions(FInteractiveToolActionSet& ActionSet
 	auto OnDeletionKeyPress = [this]() 
 	{
 		if ((EditActions && EditActions->IsPropertySetEnabled())
-			|| (EditActions_Triangles && EditActions_Triangles->IsPropertySetEnabled()))
+			|| (EditActions_Triangles && EditActions_Triangles->IsPropertySetEnabled())
+			|| (EditEdgeActions && EditEdgeActions->IsPropertySetEnabled())
+			)
 		{
 			RequestAction(EEditMeshPolygonsToolActions::Delete);
 		}
@@ -1579,6 +1581,26 @@ void UEditMeshPolygonsTool::UpdateFromCurrentMesh(bool bUpdateTopology)
 
 
 
+void UEditMeshPolygonsTool::ApplyDelete()
+{
+	if (BeginMeshFaceEditChange())
+	{
+		ApplyDeleteFaces();
+	}
+	else if (BeginMeshEdgeEditChange())
+	{
+		ApplyDeleteEdges();
+	}
+	else
+	{
+		GetToolManager()->DisplayMessage(
+			LOCTEXT("OnDeleteFailedMessage", "Cannot Delete Current Selection"),
+			EToolMessageLevel::UserWarning);
+	}
+}
+
+
+
 void UEditMeshPolygonsTool::ApplyMerge()
 {
 	if (BeginMeshFaceEditChange() == false)
@@ -1612,16 +1634,8 @@ void UEditMeshPolygonsTool::ApplyMerge()
 
 
 
-void UEditMeshPolygonsTool::ApplyDelete()
+void UEditMeshPolygonsTool::ApplyDeleteFaces()
 {
-	if (BeginMeshFaceEditChange() == false)
-	{
-		GetToolManager()->DisplayMessage(
-			LOCTEXT("OnDeleteFailedMessage", "Cannot Delete Current Selection"),
-			EToolMessageLevel::UserWarning);
-		return;
-	}
-
 	FDynamicMesh3* Mesh = CurrentMesh.Get();
 
 	// prevent deleting all triangles
@@ -1640,7 +1654,7 @@ void UEditMeshPolygonsTool::ApplyDelete()
 	Editor.RemoveTriangles(ActiveTriangleSelection, true);
 
 	FGroupTopologySelection NewSelection;
-	EmitCurrentMeshChangeAndUpdate(LOCTEXT("PolyMeshDeleteChange", "Delete"),
+	EmitCurrentMeshChangeAndUpdate(LOCTEXT("PolyMeshDeleteFacesChange", "Delete Faces"),
 		ChangeTracker.EndChange(), NewSelection);
 }
 
@@ -2130,6 +2144,48 @@ void UEditMeshPolygonsTool::ApplyStraightenEdges()
 		ChangeTracker.EndChange(), NewSelection);
 }
 
+void UEditMeshPolygonsTool::ApplyDeleteEdges()
+{
+	FDynamicMesh3* Mesh = CurrentMesh.Get();
+	FDynamicMeshChangeTracker ChangeTracker(Mesh);
+	FGroupTopologySelection NewSelection;
+	FMeshConnectedComponents Components(Mesh);
+
+	// Using sets here because we only want unique triangles/edges
+	TSet<int32> EdgeIDs;
+	TSet<int32> SeedTriangleIDs;
+	for (FSelectedEdge& Edge : ActiveEdgeSelection)
+	{
+		for (int32 Eid : Edge.EdgeIDs)
+		{
+			FIndex2i AdjacentTriangles = Mesh->GetEdgeT(Eid);
+			EdgeIDs.Add(Eid);
+			SeedTriangleIDs.Add(AdjacentTriangles.A);
+			if (AdjacentTriangles.B != FDynamicMesh3::InvalidID)
+			{
+				SeedTriangleIDs.Add(AdjacentTriangles.B);
+			}
+		}
+	}
+	
+	Components.FindTrianglesConnectedToSeeds(SeedTriangleIDs.Array(), [&Mesh, &EdgeIDs](int32 t0, int32 t1)
+	{
+		return Mesh->GetTriangleGroup(t0) == Mesh->GetTriangleGroup(t1) || EdgeIDs.Contains(Mesh->FindEdgeFromTriPair(t0,t1));
+	});
+	
+	ChangeTracker.BeginChange();
+	
+	for (FMeshConnectedComponents::FComponent& Component : Components.Components)
+	{
+		ChangeTracker.SaveTriangles(Component.Indices, true);
+		int32 NewGroupID = Mesh->GetTriangleGroup(Component.Indices[0]);
+		FaceGroupUtil::SetGroupID(*Mesh, Component.Indices, NewGroupID);
+		NewSelection.SelectedGroupIDs.Add(NewGroupID);
+	}
+	
+	EmitCurrentMeshChangeAndUpdate(LOCTEXT("PolyMeshDeleteEdgesChange", "Delete Edges"),
+		ChangeTracker.EndChange(), NewSelection);
+}
 
 void UEditMeshPolygonsTool::ApplySimplifyAlongEdges()
 {

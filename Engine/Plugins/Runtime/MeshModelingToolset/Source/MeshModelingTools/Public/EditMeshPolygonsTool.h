@@ -271,7 +271,7 @@ public:
 	void Merge() { PostAction(EEditMeshPolygonsToolActions::Merge);	}
 
 	/** Delete the current set of selected faces */
-	UFUNCTION(CallInEditor, Category = FaceEdits, meta = (DisplayName = "Delete", DisplayPriority = 4))
+	UFUNCTION(CallInEditor, Category = FaceEdits, meta = (DisplayName = "Delete Faces", DisplayPriority = 4))
 	void Delete() { PostAction(EEditMeshPolygonsToolActions::Delete); }
 
 	/** Cut the current set of selected faces. Click twice in viewport to set cut line. */
@@ -344,7 +344,7 @@ public:
 	void Outset() { PostAction(EEditMeshPolygonsToolActions::Outset);	}
 
 	/** Delete the current set of selected faces */
-	UFUNCTION(CallInEditor, Category = TriangleEdits, meta = (DisplayName = "Delete", DisplayPriority = 4))
+	UFUNCTION(CallInEditor, Category = TriangleEdits, meta = (DisplayName = "Delete Faces", DisplayPriority = 4))
 	void Delete() { PostAction(EEditMeshPolygonsToolActions::Delete); }
 
 	/** Cut the current set of selected faces. Click twice in viewport to set cut line. */
@@ -423,6 +423,10 @@ public:
 	/** Simplify the underlying triangulation along the selected edges, when doing so won't change the shape or UVs, or make low-quality triangles */
 	UFUNCTION(CallInEditor, Category = EdgeEdits, meta = (DisplayPriority = 6))
 	void Simplify() { PostAction(EEditMeshPolygonsToolActions::SimplifyAlongEdges); }
+	
+	/** Delete selected edge, implicitly merging any connected faces */
+	UFUNCTION(CallInEditor, Category = EdgeEdits, meta = (DisplayName = "Delete Edges", DisplayPriority = 7))
+	void DeleteEdge() { PostAction(EEditMeshPolygonsToolActions::Delete); }
 };
 
 
@@ -450,7 +454,6 @@ public:
 	/** Split the selected edges, inserting a new vertex at each edge midpoint */
 	UFUNCTION(CallInEditor, Category = EdgeEdits, meta = (DisplayName = "Split", DisplayPriority = 1))
 	void Split() { PostAction(EEditMeshPolygonsToolActions::SplitSingleEdge); }
-
 };
 
 
@@ -644,8 +647,10 @@ protected:
 
 	void UpdateGizmoVisibility();
 
-	void ApplyMerge();
 	void ApplyDelete();
+	
+	void ApplyMerge();
+	void ApplyDeleteFaces();
 	void ApplyRecalcNormals();
 	void ApplyFlipNormals();
 	void ApplyRetriangulate();
@@ -657,6 +662,7 @@ protected:
 	void ApplyCollapseEdge();
 	void ApplyWeldEdges();
 	void ApplyStraightenEdges();
+	void ApplyDeleteEdges();
 	void ApplyFillHole();
 	void ApplyBridgeEdges();
 	void ApplySimplifyAlongEdges();
