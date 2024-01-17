@@ -440,7 +440,7 @@ public:
 	{
 		// Empty the elements array, and reallocate it for the expected number of elements.
 		const int32 DesiredHashSize = Allocator::GetNumberOfHashBuckets(ExpectedNumElements);
-		const bool ShouldDoRehash = ShouldRehash(ExpectedNumElements,DesiredHashSize,true);
+		const bool ShouldDoRehash = ShouldRehash(ExpectedNumElements, DesiredHashSize, EAllowShrinking::Yes);
 
 		if (!ShouldDoRehash)
 		{
@@ -530,7 +530,7 @@ public:
 	/** Relaxes the set's hash to a size strictly bounded by the number of elements in the set. */
 	FORCEINLINE void Relax()
 	{
-		ConditionalRehash(Elements.Num(),true);
+		ConditionalRehash(Elements.Num(), EAllowShrinking::Yes);
 	}
 
 	/** 
@@ -718,7 +718,7 @@ private:
 	FORCEINLINE void RehashOrLink(uint32 KeyHash, SetElementType& Element, SizeType ElementIndex)
 	{
 		// Check if the hash needs to be resized.
-		if (!ConditionalRehash(Elements.Num()))
+		if (!ConditionalRehash(Elements.Num(), EAllowShrinking::No))
 		{
 			// If the rehash didn't add the new element to the hash, add it.
 			LinkElement(ElementIndex, Element, KeyHash);
@@ -1505,28 +1505,28 @@ private:
 	 * Checks if the hash has an appropriate number of buckets, and if it should be resized.
 	 * @param NumHashedElements - The number of elements to size the hash for.
 	 * @param DesiredHashSize - Desired size if we should rehash.
-	 * @param bAllowShrinking - true if the hash is allowed to shrink.
+	 * @param AllowShrinking - If the hash is allowed to shrink.
 	 * @return true if the set should berehashed.
 	 */
-	FORCEINLINE bool ShouldRehash(int32 NumHashedElements,int32 DesiredHashSize,bool bAllowShrinking = false) const
+	FORCEINLINE bool ShouldRehash(int32 NumHashedElements, int32 DesiredHashSize, EAllowShrinking AllowShrinking) const
 	{
 		// If the hash hasn't been created yet, or is smaller than the desired hash size, rehash.
 		// If shrinking is allowed and the hash is bigger than the desired hash size, rehash.
-		return ((NumHashedElements > 0 && HashSize < DesiredHashSize) || (bAllowShrinking && HashSize > DesiredHashSize));
+		return ((NumHashedElements > 0 && HashSize < DesiredHashSize) || (AllowShrinking == EAllowShrinking::Yes && HashSize > DesiredHashSize));
 	}
 
 	/**
 	 * Checks if the hash has an appropriate number of buckets, and if not resizes it.
 	 * @param NumHashedElements - The number of elements to size the hash for.
-	 * @param bAllowShrinking - true if the hash is allowed to shrink.
+	 * @param AllowShrinking - If the hash is allowed to shrink.
 	 * @return true if the set was rehashed.
 	 */
-	bool ConditionalRehash(int32 NumHashedElements,bool bAllowShrinking = false) const
+	bool ConditionalRehash(int32 NumHashedElements, EAllowShrinking AllowShrinking) const
 	{
 		// Calculate the desired hash size for the specified number of elements.
 		const int32 DesiredHashSize = Allocator::GetNumberOfHashBuckets(NumHashedElements);
 
-		if (ShouldRehash(NumHashedElements, DesiredHashSize, bAllowShrinking))
+		if (ShouldRehash(NumHashedElements, DesiredHashSize, AllowShrinking))
 		{
 			HashSize = DesiredHashSize;
 			Rehash();
@@ -1644,7 +1644,7 @@ private:
 			, Index(INDEX_NONE)
 		{
 			// The set's hash needs to be initialized to find the elements with the specified key.
-			Set.ConditionalRehash(Set.Elements.Num());
+			Set.ConditionalRehash(Set.Elements.Num(), EAllowShrinking::No);
 			if (Set.HashSize)
 			{
 				NextIndex = Set.GetTypedHash(KeyFuncs::GetKeyHash(Key)).Index;
@@ -2204,7 +2204,7 @@ struct TSetPrivateFriend
 			Set.HashSize = 0;
 
 			// Hash the newly loaded elements.
-			Set.ConditionalRehash(Set.Elements.Num());
+			Set.ConditionalRehash(Set.Elements.Num(), EAllowShrinking::No);
 		}
 
 		return Ar;
@@ -2223,7 +2223,7 @@ struct TSetPrivateFriend
 			Set.HashSize = 0;
 
 			// Hash the newly loaded elements.
-			Set.ConditionalRehash(Set.Elements.Num());
+			Set.ConditionalRehash(Set.Elements.Num(), EAllowShrinking::No);
 		}
  	}
 

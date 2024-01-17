@@ -1711,7 +1711,7 @@ static int32 GetRandomSerialNumber(int32 MaxVal = MAX_int32)
 	return RandomStream.RandHelper(MaxVal);
 }
 
-void FImportOrImportIndexArray::HeapPop(int32& OutItem, bool bAllowShrinking)
+void FImportOrImportIndexArray::HeapPop(int32& OutItem, EAllowShrinking AllowShrinking)
 {
 	if (GRandomizeLoadOrder)
 	{
@@ -1720,7 +1720,7 @@ void FImportOrImportIndexArray::HeapPop(int32& OutItem, bool bAllowShrinking)
 		RemoveAt(Index, 1, false);
 		return;
 	}
-	TArray<int32>::HeapPop(OutItem, bAllowShrinking);
+	TArray<int32>::HeapPop(OutItem, AllowShrinking);
 }
 
 

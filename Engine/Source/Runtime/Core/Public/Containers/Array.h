@@ -8,6 +8,7 @@
 #include "HAL/UnrealMemory.h"
 #include "Templates/UnrealTypeTraits.h"
 #include "Templates/UnrealTemplate.h"
+#include "Containers/AllowShrinking.h"
 #include "Containers/ContainerAllocationPolicies.h"
 #include "Containers/ContainerElementTypeCompatibility.h"
 #include "Serialization/Archive.h"
@@ -829,15 +830,20 @@ public:
 	/**
 	 * Pops element from the array.
 	 *
-	 * @param bAllowShrinking If this call allows shrinking of the array during element remove.
+	 * @param AllowShrinking If this call allows shrinking of the array during element remove.
 	 * @returns Popped element.
 	 */
-	FORCEINLINE ElementType Pop(bool bAllowShrinking = true)
+	ElementType Pop(EAllowShrinking AllowShrinking = EAllowShrinking::Yes)
 	{
 		RangeCheck(0);
 		ElementType Result = MoveTempIfPossible(GetData()[ArrayNum - 1]);
-		RemoveAt(ArrayNum - 1, 1, bAllowShrinking);
+		RemoveAt(ArrayNum - 1, 1, AllowShrinking);
 		return Result;
+	}
+	UE_ALLOWSHRINKING_BOOL_DEPRECATED("Pop")
+	FORCEINLINE ElementType Pop(bool bAllowShrinking)
+	{
+		return Pop(bAllowShrinking ? EAllowShrinking::Yes : EAllowShrinking::No);
 	}
 
 	/**
@@ -1684,7 +1690,7 @@ public:
 	}
 
 private:
-	void RemoveAtImpl(SizeType Index, SizeType Count, bool bAllowShrinking)
+	void RemoveAtImpl(SizeType Index, SizeType Count, EAllowShrinking AllowShrinking)
 	{
 		if (Count)
 		{
@@ -1705,7 +1711,7 @@ private:
 
 			SlackTrackerNumChanged();
 
-			if (bAllowShrinking)
+			if (AllowShrinking == EAllowShrinking::Yes)
 			{
 				ResizeShrink();
 			}
@@ -1721,7 +1727,7 @@ public:
 	 */
 	FORCEINLINE void RemoveAt(SizeType Index)
 	{
-		RemoveAtImpl(Index, 1, true);
+		RemoveAtImpl(Index, 1, EAllowShrinking::Yes);
 	}
 
 	/**
@@ -1730,17 +1736,23 @@ public:
 	 *
 	 * @param Index Location in array of the element to remove.
 	 * @param Count (Optional) Number of elements to remove. Default is 1.
-	 * @param bAllowShrinking (Optional) Tells if this call can shrink array if suitable after remove. Default is true.
+	 * @param AllowShrinking (Optional) Tells if this call can shrink array if suitable after remove. Default is yes.
 	 */
 	template <typename CountType>
-	FORCEINLINE void RemoveAt(SizeType Index, CountType Count, bool bAllowShrinking = true)
+	FORCEINLINE void RemoveAt(SizeType Index, CountType Count, EAllowShrinking AllowShrinking = EAllowShrinking::Yes)
 	{
 		static_assert(!std::is_same_v<CountType, bool>, "TArray::RemoveAt: unexpected bool passed as the Count argument");
-		RemoveAtImpl(Index, (SizeType)Count, bAllowShrinking);
+		RemoveAtImpl(Index, (SizeType)Count, AllowShrinking);
+	}
+	template <typename CountType>
+	UE_ALLOWSHRINKING_BOOL_DEPRECATED("RemoveAt")
+	FORCEINLINE void RemoveAt(SizeType Index, CountType Count, bool bAllowShrinking)
+	{
+		RemoveAt(Index, Count, bAllowShrinking ? EAllowShrinking::Yes : EAllowShrinking::No);
 	}
 
 private:
-	void RemoveAtSwapImpl(SizeType Index, SizeType Count = 1, bool bAllowShrinking = true)
+	void RemoveAtSwapImpl(SizeType Index, SizeType Count, EAllowShrinking AllowShrinking)
 	{
 		if (Count)
 		{
@@ -1763,7 +1775,7 @@ private:
 
 			SlackTrackerNumChanged();
 
-			if (bAllowShrinking)
+			if (AllowShrinking == EAllowShrinking::Yes)
 			{
 				ResizeShrink();
 			}
@@ -1782,7 +1794,7 @@ public:
 	 */
 	FORCEINLINE void RemoveAtSwap(SizeType Index)
 	{
-		RemoveAtSwapImpl(Index, 1, true);
+		RemoveAtSwapImpl(Index, 1, EAllowShrinking::Yes);
 	}
 
 	/**
@@ -1794,14 +1806,20 @@ public:
 	 *
 	 * @param Index Location in array of the element to remove.
 	 * @param Count (Optional) Number of elements to remove. Default is 1.
-	 * @param bAllowShrinking (Optional) Tells if this call can shrink array if
-	 *                        suitable after remove. Default is true.
+	 * @param AllowShrinking (Optional) Tells if this call can shrink array if
+	 *                        suitable after remove. Default is yes.
 	 */
 	template <typename CountType>
-	FORCEINLINE void RemoveAtSwap(SizeType Index, CountType Count, bool bAllowShrinking = true)
+	FORCEINLINE void RemoveAtSwap(SizeType Index, CountType Count, EAllowShrinking AllowShrinking = EAllowShrinking::Yes)
 	{
 		static_assert(!std::is_same_v<CountType, bool>, "TArray::RemoveAtSwap: unexpected bool passed as the Count argument");
-		RemoveAtSwapImpl(Index, Count, bAllowShrinking);
+		RemoveAtSwapImpl(Index, Count, AllowShrinking);
+	}
+	template <typename CountType>
+	UE_ALLOWSHRINKING_BOOL_DEPRECATED("RemoveAtSwap")
+	FORCEINLINE void RemoveAtSwap(SizeType Index, CountType Count, bool bAllowShrinking)
+	{
+		RemoveAtSwapImpl(Index, Count, bAllowShrinking ? EAllowShrinking::Yes : EAllowShrinking::No);
 	}
 
 	/**
@@ -1862,9 +1880,9 @@ public:
 	 * Resizes array to given number of elements.
 	 *
 	 * @param NewNum New size of the array.
-	 * @param bAllowShrinking Tell if this function can shrink the memory in-use if suitable.
+	 * @param AllowShrinking Tell if this function can shrink the memory in-use if suitable.
 	 */
-	void SetNum(SizeType NewNum, bool bAllowShrinking = true)
+	void SetNum(SizeType NewNum, EAllowShrinking AllowShrinking = EAllowShrinking::Yes)
 	{
 		if (NewNum > Num())
 		{
@@ -1879,8 +1897,13 @@ public:
 		}
 		else if (NewNum < Num())
 		{
-			RemoveAt(NewNum, Num() - NewNum, bAllowShrinking);
+			RemoveAt(NewNum, Num() - NewNum, AllowShrinking);
 		}
+	}
+	UE_ALLOWSHRINKING_BOOL_DEPRECATED("SetNum")
+	FORCEINLINE void SetNum(SizeType NewNum, bool bAllowShrinking)
+	{
+		SetNum(NewNum, bAllowShrinking ? EAllowShrinking::Yes : EAllowShrinking::No);
 	}
 
 	/**
@@ -1888,9 +1911,9 @@ public:
 	 * New elements will be zeroed.
 	 *
 	 * @param NewNum New size of the array.
-	 * @param bAllowShrinking Tell if this function can shrink the memory in-use if suitable.
+	 * @param AllowShrinking Tell if this function can shrink the memory in-use if suitable.
 	 */
-	void SetNumZeroed(SizeType NewNum, bool bAllowShrinking = true)
+	void SetNumZeroed(SizeType NewNum, EAllowShrinking AllowShrinking = EAllowShrinking::Yes)
 	{
 		if (NewNum > Num())
 		{
@@ -1903,16 +1926,22 @@ public:
 		}
 		else if (NewNum < Num())
 		{
-			RemoveAt(NewNum, Num() - NewNum, bAllowShrinking);
+			RemoveAt(NewNum, Num() - NewNum, AllowShrinking);
 		}
+	}
+	UE_ALLOWSHRINKING_BOOL_DEPRECATED("SetNumZeroed")
+	FORCEINLINE void SetNumZeroed(SizeType NewNum, bool bAllowShrinking)
+	{
+		SetNumZeroed(NewNum, bAllowShrinking ? EAllowShrinking::Yes : EAllowShrinking::No);
 	}
 
 	/**
 	 * Resizes array to given number of elements. New elements will be uninitialized.
 	 *
 	 * @param NewNum New size of the array.
+	 * @param AllowShrinking Tell if this function can shrink the memory in-use if suitable.
 	 */
-	void SetNumUninitialized(SizeType NewNum, bool bAllowShrinking = true)
+	void SetNumUninitialized(SizeType NewNum, EAllowShrinking AllowShrinking = EAllowShrinking::Yes)
 	{
 		if (NewNum > Num())
 		{
@@ -1925,8 +1954,13 @@ public:
 		}
 		else if (NewNum < Num())
 		{
-			RemoveAt(NewNum, Num() - NewNum, bAllowShrinking);
+			RemoveAt(NewNum, Num() - NewNum, AllowShrinking);
 		}
+	}
+	UE_ALLOWSHRINKING_BOOL_DEPRECATED("SetNumUninitialized")
+	FORCEINLINE void SetNumUninitialized(SizeType NewNum, bool bAllowShrinking)
+	{
+		SetNumUninitialized(NewNum, bAllowShrinking ? EAllowShrinking::Yes : EAllowShrinking::No);
 	}
 
 	/**
@@ -2637,11 +2671,11 @@ public:
 	 * Remove all instances that match the predicate
 	 *
 	 * @param Predicate Predicate class instance
-	 * @param bAllowShrinking Tell if this function can shrink the memory in-use if suitable.
+	 * @param AllowShrinking Tell if this function can shrink the memory in-use if suitable.
 	 * @see Remove, RemoveSingle, RemoveSingleSwap, RemoveSwap
 	 */
 	template <class PREDICATE_CLASS>
-	SizeType RemoveAllSwap(const PREDICATE_CLASS& Predicate, bool bAllowShrinking = true)
+	SizeType RemoveAllSwap(const PREDICATE_CLASS& Predicate, EAllowShrinking AllowShrinking = EAllowShrinking::Yes)
 	{
 		bool bRemoved = false;
 		const SizeType OriginalNum = ArrayNum;
@@ -2658,12 +2692,18 @@ public:
 			}
 		}
 
-		if (bRemoved && bAllowShrinking)
+		if (bRemoved && AllowShrinking == EAllowShrinking::Yes)
 		{
 			ResizeShrink();
 		}
 
 		return OriginalNum - ArrayNum;
+	}
+	template <class PREDICATE_CLASS>
+	UE_ALLOWSHRINKING_BOOL_DEPRECATED("RemoveAllSwap")
+	FORCEINLINE SizeType RemoveAllSwap(const PREDICATE_CLASS& Predicate, bool bAllowShrinking)
+	{
+		return RemoveAllSwap(Predicate, bAllowShrinking ? EAllowShrinking::Yes : EAllowShrinking::No);
 	}
 
 	/**
@@ -2671,12 +2711,12 @@ public:
 	 * O(Count) instead of O(ArrayNum), but does not preserve the order
 	 *
 	 * @param Item The item to remove
-	 * @param bAllowShrinking Tell if this function can shrink the memory in-use if suitable.
+	 * @param AllowShrinking Tell if this function can shrink the memory in-use if suitable.
 	 *
 	 * @returns The number of items removed. For RemoveSingleItem, this is always either 0 or 1.
 	 * @see Add, Insert, Remove, RemoveAll, RemoveAllSwap, RemoveSwap
 	 */
-	SizeType RemoveSingleSwap(const ElementType& Item, bool bAllowShrinking = true)
+	SizeType RemoveSingleSwap(const ElementType& Item, EAllowShrinking AllowShrinking = EAllowShrinking::Yes)
 	{
 		SizeType Index = Find(Item);
 		if (Index == INDEX_NONE)
@@ -2684,23 +2724,31 @@ public:
 			return 0;
 		}
 
-		RemoveAtSwap(Index, 1, bAllowShrinking);
+		RemoveAtSwap(Index, 1, AllowShrinking);
 
 		// Removed one item
 		return 1;
 	}
+	UE_ALLOWSHRINKING_BOOL_DEPRECATED("RemoveSingleSwap")
+	FORCEINLINE SizeType RemoveSingleSwap(const ElementType& Item, bool bAllowShrinking)
+	{
+		return RemoveSingleSwap(Item, bAllowShrinking ? EAllowShrinking::Yes : EAllowShrinking::No);
+	}
 
 	/**
-	 * Removes item from the array.
+	 * Removes all instances of a given item from the array.
 	 *
 	 * This version is much more efficient, because it uses RemoveAtSwap
 	 * internally which is O(Count) instead of RemoveAt which is O(ArrayNum),
 	 * but does not preserve the order.
 	 *
+	 * @param Item The item to remove
+	 * @param AllowShrinking Tell if this function can shrink the memory in-use if suitable.
+	 *
 	 * @returns Number of elements removed.
 	 * @see Add, Insert, Remove, RemoveAll, RemoveAllSwap
 	 */
-	SizeType RemoveSwap(const ElementType& Item, bool bAllowShrinking = true)
+	SizeType RemoveSwap(const ElementType& Item, EAllowShrinking AllowShrinking = EAllowShrinking::Yes)
 	{
 		CheckAddress(&Item);
 
@@ -2715,12 +2763,17 @@ public:
 			}
 		}
 
-		if (bRemoved && bAllowShrinking)
+		if (bRemoved && AllowShrinking == EAllowShrinking::Yes)
 		{
 			ResizeShrink();
 		}
 
 		return OriginalNum - ArrayNum;
+	}
+	UE_ALLOWSHRINKING_BOOL_DEPRECATED("RemoveSwap")
+	FORCEINLINE SizeType RemoveSwap(const ElementType& Item, bool bAllowShrinking)
+	{
+		return RemoveSwap(Item, bAllowShrinking ? EAllowShrinking::Yes : EAllowShrinking::No);
 	}
 
 	/**
@@ -3271,19 +3324,26 @@ public:
 	 *
 	 * @param OutItem The removed item.
 	 * @param Predicate Predicate class instance.
+	 * @param AllowShrinking Tell if this function can shrink the memory in-use if suitable.
 	 *
 	 * @note: If your array contains raw pointers, they will be automatically dereferenced during heapification.
 	 *        Therefore, your predicate will be passed references rather than pointers.
 	 *        The auto-dereferencing behavior does not occur with smart pointers.
 	 */
 	template <class PREDICATE_CLASS>
-	void HeapPop(ElementType& OutItem, const PREDICATE_CLASS& Predicate, bool bAllowShrinking = true)
+	void HeapPop(ElementType& OutItem, const PREDICATE_CLASS& Predicate, EAllowShrinking AllowShrinking = EAllowShrinking::Yes)
 	{
 		OutItem = MoveTemp((*this)[0]);
-		RemoveAtSwap(0, 1, bAllowShrinking);
+		RemoveAtSwap(0, 1, AllowShrinking);
 
 		TDereferenceWrapper< ElementType, PREDICATE_CLASS> PredicateWrapper(Predicate);
 		AlgoImpl::HeapSiftDown(GetData(), (SizeType)0, Num(), FIdentityFunctor(), PredicateWrapper);
+	}
+	template <class PREDICATE_CLASS>
+	UE_ALLOWSHRINKING_BOOL_DEPRECATED("HeapPop")
+	FORCEINLINE void HeapPop(ElementType& OutItem, const PREDICATE_CLASS& Predicate, bool bAllowShrinking)
+	{
+		HeapPop(OutItem, Predicate, bAllowShrinking ? EAllowShrinking::Yes : EAllowShrinking::No);
 	}
 
 	/** 
@@ -3291,15 +3351,20 @@ public:
 	 * the template type.
 	 *
 	 * @param OutItem The removed item.
-	 * @param bAllowShrinking (Optional) Tells if this call can shrink the array allocation if suitable after the pop. Default is true.
+	 * @param AllowShrinking (Optional) Tells if this call can shrink the array allocation if suitable after the pop. Default is yes.
 	 *
 	 * @note: If your array contains raw pointers, they will be automatically dereferenced during heapification.
 	 *        Therefore, your array will be heapified by the values being pointed to, rather than the pointers' values.
 	 *        The auto-dereferencing behavior does not occur with smart pointers.
 	 */
-	void HeapPop(ElementType& OutItem, bool bAllowShrinking = true)
+	void HeapPop(ElementType& OutItem, EAllowShrinking AllowShrinking = EAllowShrinking::Yes)
 	{
-		HeapPop(OutItem, TLess<ElementType>(), bAllowShrinking);
+		HeapPop(OutItem, TLess<ElementType>(), AllowShrinking);
+	}
+	UE_ALLOWSHRINKING_BOOL_DEPRECATED("HeapPop")
+	FORCEINLINE void HeapPop(ElementType& OutItem, bool bAllowShrinking)
+	{
+		HeapPop(OutItem, bAllowShrinking ? EAllowShrinking::Yes : EAllowShrinking::No);
 	}
 
 	/**
@@ -3317,33 +3382,44 @@ public:
 	 * Removes the top element from the heap.
 	 *
 	 * @param Predicate Predicate class instance.
-	 * @param bAllowShrinking (Optional) Tells if this call can shrink the array allocation if suitable after the discard. Default is true.
+	 * @param AllowShrinking (Optional) Tells if this call can shrink the array allocation if suitable after the discard. Default is yes.
 	 *
 	 * @note: If your array contains raw pointers, they will be automatically dereferenced during heapification.
 	 *        Therefore, your predicate will be passed references rather than pointers.
 	 *        The auto-dereferencing behavior does not occur with smart pointers.
 	 */
 	template <class PREDICATE_CLASS>
-	void HeapPopDiscard(const PREDICATE_CLASS& Predicate, bool bAllowShrinking = true)
+	void HeapPopDiscard(const PREDICATE_CLASS& Predicate, EAllowShrinking AllowShrinking = EAllowShrinking::Yes)
 	{
-		RemoveAtSwap(0, 1, bAllowShrinking);
+		RemoveAtSwap(0, 1, AllowShrinking);
 		TDereferenceWrapper< ElementType, PREDICATE_CLASS> PredicateWrapper(Predicate);
 		AlgoImpl::HeapSiftDown(GetData(), (SizeType)0, Num(), FIdentityFunctor(), PredicateWrapper);
+	}
+	template <class PREDICATE_CLASS>
+	UE_ALLOWSHRINKING_BOOL_DEPRECATED("HeapPopDiscard")
+	FORCEINLINE void HeapPopDiscard(const PREDICATE_CLASS& Predicate, bool bAllowShrinking)
+	{
+		HeapPopDiscard(Predicate, bAllowShrinking ? EAllowShrinking::Yes : EAllowShrinking::No);
 	}
 
 	/** 
 	 * Removes the top element from the heap. Assumes < operator is defined for the template type.
 	 *
-	 * @param bAllowShrinking (Optional) Tells if this call can shrink the array
-	 *		allocation if suitable after the discard. Default is true.
+	 * @param AllowShrinking (Optional) Tells if this call can shrink the array
+	 *		allocation if suitable after the discard. Default is yes.
 	 *
 	 * @note: If your array contains raw pointers, they will be automatically dereferenced during heapification.
 	 *        Therefore, your array will be heapified by the values being pointed to, rather than the pointers' values.
 	 *        The auto-dereferencing behavior does not occur with smart pointers.
 	 */
-	void HeapPopDiscard(bool bAllowShrinking = true)
+	void HeapPopDiscard(EAllowShrinking AllowShrinking = EAllowShrinking::Yes)
 	{
-		HeapPopDiscard(TLess<ElementType>(), bAllowShrinking);
+		HeapPopDiscard(TLess<ElementType>(), AllowShrinking);
+	}
+	UE_ALLOWSHRINKING_BOOL_DEPRECATED("HeapPopDiscard")
+	FORCEINLINE void HeapPopDiscard(bool bAllowShrinking)
+	{
+		HeapPopDiscard(TLess<ElementType>(), bAllowShrinking ? EAllowShrinking::Yes : EAllowShrinking::No);
 	}
 
 	/** 
@@ -3373,37 +3449,48 @@ public:
 	 *
 	 * @param Index Position at which to remove item.
 	 * @param Predicate Predicate class instance.
-	 * @param bAllowShrinking (Optional) Tells if this call can shrink the array allocation
-	 *		if suitable after the remove (default = true).
+	 * @param AllowShrinking (Optional) Tells if this call can shrink the array allocation
+	 *		if suitable after the remove (default = yes).
 	 *
 	 * @note: If your array contains raw pointers, they will be automatically dereferenced during heapification.
 	 *        Therefore, your predicate will be passed references rather than pointers.
 	 *        The auto-dereferencing behavior does not occur with smart pointers.
 	 */
 	template <class PREDICATE_CLASS>
-	void HeapRemoveAt(SizeType Index, const PREDICATE_CLASS& Predicate, bool bAllowShrinking = true)
+	void HeapRemoveAt(SizeType Index, const PREDICATE_CLASS& Predicate, EAllowShrinking AllowShrinking = EAllowShrinking::Yes)
 	{
-		RemoveAtSwap(Index, 1, bAllowShrinking);
+		RemoveAtSwap(Index, 1, AllowShrinking);
 
 		TDereferenceWrapper< ElementType, PREDICATE_CLASS> PredicateWrapper(Predicate);
 		AlgoImpl::HeapSiftDown(GetData(), Index, Num(), FIdentityFunctor(), PredicateWrapper);
 		AlgoImpl::HeapSiftUp(GetData(), (SizeType)0, FPlatformMath::Min(Index, Num() - 1), FIdentityFunctor(), PredicateWrapper);
+	}
+	template <class PREDICATE_CLASS>
+	UE_ALLOWSHRINKING_BOOL_DEPRECATED("HeapRemoveAt")
+	void HeapRemoveAt(SizeType Index, const PREDICATE_CLASS& Predicate, bool bAllowShrinking)
+	{
+		HeapRemoveAt(Index, Predicate, bAllowShrinking ? EAllowShrinking::Yes : EAllowShrinking::No);
 	}
 
 	/**
 	 * Removes an element from the heap. Assumes < operator is defined for the template type.
 	 *
 	 * @param Index Position at which to remove item.
-	 * @param bAllowShrinking (Optional) Tells if this call can shrink the array allocation
-	 *		if suitable after the remove (default = true).
+	 * @param AllowShrinking (Optional) Tells if this call can shrink the array allocation
+	 *		if suitable after the remove (default = yes).
 	 *
 	 * @note: If your array contains raw pointers, they will be automatically dereferenced during heapification.
 	 *        Therefore, your array will be heapified by the values being pointed to, rather than the pointers' values.
 	 *        The auto-dereferencing behavior does not occur with smart pointers.
 	 */
-	void HeapRemoveAt(SizeType Index, bool bAllowShrinking = true)
+	void HeapRemoveAt(SizeType Index, EAllowShrinking AllowShrinking = EAllowShrinking::Yes)
 	{
-		HeapRemoveAt(Index, TLess< ElementType >(), bAllowShrinking);
+		HeapRemoveAt(Index, TLess< ElementType >(), AllowShrinking);
+	}
+	UE_ALLOWSHRINKING_BOOL_DEPRECATED("HeapRemoveAt")
+	FORCEINLINE void HeapRemoveAt(SizeType Index, bool bAllowShrinking)
+	{
+		HeapRemoveAt(Index, bAllowShrinking ? EAllowShrinking::Yes : EAllowShrinking::No);
 	}
 
 	/**

@@ -645,9 +645,9 @@ void UE_STRING_CLASS::InsertAt(int32 Index, const UE_STRING_CLASS& Characters)
 	}
 }
 
-void UE_STRING_CLASS::RemoveAt(int32 Index, int32 Count, bool bAllowShrinking)
+void UE_STRING_CLASS::RemoveAt(int32 Index, int32 Count, EAllowShrinking AllowShrinking)
 {
-	Data.RemoveAt(Index, FMath::Clamp(Count, 0, Len()-Index), bAllowShrinking);
+	Data.RemoveAt(Index, FMath::Clamp(Count, 0, Len()-Index), AllowShrinking);
 }
 
 bool UE_STRING_CLASS::RemoveFromStart(const ElementType* InPrefix, int32 InPrefixLen, ESearchCase::Type SearchCase)

@@ -446,11 +446,16 @@ public:
 	/**
 	 * Removes characters within the string.
 	 *
-	 * @param Index           The index of the first character to remove.
-	 * @param Count           The number of characters to remove.
-	 * @param bAllowShrinking Whether or not to reallocate to shrink the storage after removal.
+	 * @param Index          The index of the first character to remove.
+	 * @param Count          The number of characters to remove.
+	 * @param AllowShrinking Whether or not to reallocate to shrink the storage after removal.
 	 */
-	CORE_API void RemoveAt(int32 Index, int32 Count = 1, bool bAllowShrinking = true);
+	CORE_API void RemoveAt(int32 Index, int32 Count = 1, EAllowShrinking AllowShrinking = EAllowShrinking::Yes);
+	UE_ALLOWSHRINKING_BOOL_DEPRECATED("RemoveAt")
+	FORCEINLINE void RemoveAt(int32 Index, int32 Count, bool bAllowShrinking)
+	{
+		RemoveAt(Index, Count, bAllowShrinking ? EAllowShrinking::Yes : EAllowShrinking::No);
+	}
 
 	/**
 	 * Removes the text from the start of the string if it exists.
@@ -1092,11 +1097,16 @@ public:
 	}
 
 	/** Modifies the string such that it is now the left most given number of characters */
-	FORCEINLINE void LeftInline(int32 Count, bool bAllowShrinking = true)
+	FORCEINLINE void LeftInline(int32 Count, EAllowShrinking AllowShrinking = EAllowShrinking::Yes)
 	{
 		const int32 Length = Len();
 		Count = FMath::Clamp(Count, 0, Length);
-		RemoveAt(Count, Length-Count, bAllowShrinking);
+		RemoveAt(Count, Length-Count, AllowShrinking);
+	}
+	UE_ALLOWSHRINKING_BOOL_DEPRECATED("LeftInline")
+	FORCEINLINE void LeftInline(int32 Count, bool bAllowShrinking)
+	{
+		LeftInline(Count, bAllowShrinking ? EAllowShrinking::Yes : EAllowShrinking::No);
 	}
 
 	/** Returns the left most characters from the string chopping the given number of characters from the end */
@@ -1113,10 +1123,15 @@ public:
 	}
 
 	/** Modifies the string such that it is now the left most characters chopping the given number of characters from the end */
-	FORCEINLINE void LeftChopInline(int32 Count, bool bAllowShrinking = true)
+	FORCEINLINE void LeftChopInline(int32 Count, EAllowShrinking AllowShrinking = EAllowShrinking::Yes)
 	{
 		const int32 Length = Len();
-		RemoveAt(FMath::Clamp(Length-Count, 0, Length), Count, bAllowShrinking);
+		RemoveAt(FMath::Clamp(Length-Count, 0, Length), Count, AllowShrinking);
+	}
+	UE_ALLOWSHRINKING_BOOL_DEPRECATED("LeftChopInline")
+	FORCEINLINE void LeftChopInline(int32 Count, bool bAllowShrinking)
+	{
+		LeftChopInline(Count, bAllowShrinking ? EAllowShrinking::Yes : EAllowShrinking::No);
 	}
 
 	/** Returns the string to the right of the specified location, counting back from the right (end of the word). */
@@ -1133,10 +1148,15 @@ public:
 	}
 
 	/** Modifies the string such that it is now the right most given number of characters */
-	FORCEINLINE void RightInline(int32 Count, bool bAllowShrinking = true)
+	FORCEINLINE void RightInline(int32 Count, EAllowShrinking AllowShrinking = EAllowShrinking::Yes)
 	{
 		const int32 Length = Len();
-		RemoveAt(0, Length-FMath::Clamp(Count,0,Length), bAllowShrinking);
+		RemoveAt(0, Length-FMath::Clamp(Count,0,Length), AllowShrinking);
+	}
+	UE_ALLOWSHRINKING_BOOL_DEPRECATED("RightInline")
+	FORCEINLINE void RightInline(int32 Count, bool bAllowShrinking)
+	{
+		RightInline(Count, bAllowShrinking ? EAllowShrinking::Yes : EAllowShrinking::No);
 	}
 
 	/** Returns the string to the right of the specified location, counting forward from the left (from the beginning of the word). */
@@ -1149,9 +1169,14 @@ public:
 	}
 
 	/** Modifies the string such that it is now the string to the right of the specified location, counting forward from the left (from the beginning of the word). */
-	FORCEINLINE void RightChopInline(int32 Count, bool bAllowShrinking = true)
+	FORCEINLINE void RightChopInline(int32 Count, EAllowShrinking AllowShrinking = EAllowShrinking::Yes)
 	{
-		RemoveAt(0, Count, bAllowShrinking);
+		RemoveAt(0, Count, AllowShrinking);
+	}
+	UE_ALLOWSHRINKING_BOOL_DEPRECATED("RightChopInline")
+	FORCEINLINE void RightChopInline(int32 Count, bool bAllowShrinking)
+	{
+		RightChopInline(Count, bAllowShrinking ? EAllowShrinking::Yes : EAllowShrinking::No);
 	}
 
 	/** Returns the substring from Start position for Count characters. */
@@ -1163,13 +1188,18 @@ public:
 	[[nodiscard]] FORCEINLINE UE_STRING_CLASS Mid(int32 Start) && { return ((UE_STRING_CLASS&&)*this).RightChop(Start); }
 
 	/** Modifies the string such that it is now the substring from Start position for Count characters. */
-	FORCEINLINE void MidInline(int32 Start, int32 Count = MAX_int32, bool bAllowShrinking = true)
+	FORCEINLINE void MidInline(int32 Start, int32 Count = MAX_int32, EAllowShrinking AllowShrinking = EAllowShrinking::Yes)
 	{
 		if (Count != MAX_int32 && int64(Start) + Count < MAX_int32)
 		{
 			LeftInline(Count + Start, false);
 		}
-		RightChopInline(Start, bAllowShrinking);
+		RightChopInline(Start, AllowShrinking);
+	}
+	UE_ALLOWSHRINKING_BOOL_DEPRECATED("MidInline")
+	FORCEINLINE void MidInline(int32 Start, int32 Count, bool bAllowShrinking)
+	{
+		MidInline(Start, Count, bAllowShrinking ? EAllowShrinking::Yes : EAllowShrinking::No);
 	}
 
 	/**

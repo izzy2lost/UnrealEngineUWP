@@ -321,7 +321,7 @@ public:
 	 * Resizes array to the parameter number of elements.
 	 * The allow shrinking parameter indicates whether the container page allocation can be reduced if possible.
 	 */
-	void SetNum(SizeType NewNum, bool bAllowShrinking = true)
+	void SetNum(SizeType NewNum, EAllowShrinking AllowShrinking = EAllowShrinking::Yes)
 	{
 		const SizeType RequiredPageCount = NumRequiredPages(NewNum);
 		if (NewNum > Num())
@@ -343,13 +343,18 @@ public:
 		else if (NewNum < Num())
 		{
 			SizeType PendingCount = Num() - NewNum;
-			Pages.SetNum(RequiredPageCount, bAllowShrinking);
+			Pages.SetNum(RequiredPageCount, AllowShrinking);
 			if (const SizeType Mod = NewNum % PageTraits::Capacity)
 			{
 				Pages.Last().SetNum(Mod, false);
 			}
 		}
 		Count = NewNum;
+	}
+	UE_ALLOWSHRINKING_BOOL_DEPRECATED("SetNum")
+	FORCEINLINE void SetNum(SizeType NewNum, bool bAllowShrinking)
+	{
+		SetNum(NewNum, bAllowShrinking ? EAllowShrinking::Yes : EAllowShrinking::No);
 	}
 
 	/*
@@ -518,18 +523,23 @@ public:
 	/*
 	 * Removes the last element in the container.
 	 */
-	void Pop(bool bAllowShrinking = true)
+	void Pop(EAllowShrinking AllowShrinking = EAllowShrinking::Yes)
 	{
 		CheckValidIndex(0);
 		const SizeType LastIndex = Num() - 1;
 		const SizeType LastPageIndex = GetPageIndex(LastIndex);
 		const SizeType LastIndexInPage = GetPageOffset(LastIndex);
 		Pages[LastPageIndex].RemoveAt(LastIndexInPage, 1, false);
-		if (bAllowShrinking && LastIndexInPage == 0)
+		if (AllowShrinking == EAllowShrinking::Yes && LastIndexInPage == 0)
 		{
 			Pages.SetNum(LastPageIndex);
 		}
 		--Count;
+	}
+	UE_ALLOWSHRINKING_BOOL_DEPRECATED("Pop")
+	FORCEINLINE void Pop(bool bAllowShrinking)
+	{
+		Pop(bAllowShrinking ? EAllowShrinking::Yes : EAllowShrinking::No);
 	}
 
 	/**
@@ -537,7 +547,7 @@ public:
 	 * to ensure the range is contiguous. This method provides efficient removal O(1) but it doesn't preserve the
 	 * insertion order.
 	 */
-	void RemoveAtSwap(SizeType Index, bool bAllowShrinking = true)
+	void RemoveAtSwap(SizeType Index, EAllowShrinking AllowShrinking = EAllowShrinking::Yes)
 	{
 		CheckValidIndex(Index);
 		const SizeType TargetPageIndex = GetPageIndex(Index);
@@ -547,7 +557,7 @@ public:
 		if (TargetPageIndex == LastPageIndex)
 		{
 			Pages[TargetPageIndex].RemoveAtSwap(TargetIndexInPage, 1, false);
-			if (bAllowShrinking && Pages[TargetPageIndex].IsEmpty())
+			if (AllowShrinking == EAllowShrinking::Yes && Pages[TargetPageIndex].IsEmpty())
 			{
 				Pages.SetNum(TargetPageIndex);
 			}
@@ -559,6 +569,11 @@ public:
 			Pages[LastPageIndex].RemoveAt(LastIndexInPage, 1, false);
 		}
 		--Count;
+	}
+	UE_ALLOWSHRINKING_BOOL_DEPRECATED("RemoveAtSwap")
+	FORCEINLINE void RemoveAtSwap(SizeType Index, bool bAllowShrinking)
+	{
+		RemoveAtSwap(Index, bAllowShrinking ? EAllowShrinking::Yes : EAllowShrinking::No);
 	}
 
 	/*

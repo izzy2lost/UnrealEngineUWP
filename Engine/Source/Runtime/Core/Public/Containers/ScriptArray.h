@@ -5,6 +5,7 @@
 #include "CoreTypes.h"
 #include "Misc/AssertionMacros.h"
 #include "HAL/UnrealMemory.h"
+#include "Containers/AllowShrinking.h"
 #include "Containers/ContainerAllocationPolicies.h"
 #include "Containers/Array.h"
 #include <initializer_list>
@@ -100,7 +101,7 @@ public:
 			ResizeTo(ArrayNum, NumBytesPerElement, AlignmentOfElement);
 		}
 	}
-	void SetNumUninitialized(int32 NewNum, int32 NumBytesPerElement, uint32 AlignmentOfElement, bool bAllowShrinking = true)
+	void SetNumUninitialized(int32 NewNum, int32 NumBytesPerElement, uint32 AlignmentOfElement, EAllowShrinking AllowShrinking = EAllowShrinking::Yes)
 	{
 		checkSlow(NewNum >= 0);
 		int32 OldNum = Num();
@@ -110,8 +111,13 @@ public:
 		}
 		else if (NewNum < OldNum)
 		{
-			Remove(NewNum, OldNum - NewNum, NumBytesPerElement, AlignmentOfElement, bAllowShrinking);
+			Remove(NewNum, OldNum - NewNum, NumBytesPerElement, AlignmentOfElement, AllowShrinking);
 		}
+	}
+	UE_ALLOWSHRINKING_BOOL_DEPRECATED("SetNumUninitialized")
+	FORCEINLINE void SetNumUninitialized(int32 NewNum, int32 NumBytesPerElement, uint32 AlignmentOfElement, bool bAllowShrinking)
+	{
+		SetNumUninitialized(NewNum, NumBytesPerElement, AlignmentOfElement, bAllowShrinking ? EAllowShrinking::Yes : EAllowShrinking::No);
 	}
 	void MoveAssign(TScriptArray& Other, int32 NumBytesPerElement, uint32 AlignmentOfElement)
 	{
@@ -178,7 +184,7 @@ public:
 		return ArrayMax - ArrayNum;
 	}
 
-	void Remove( int32 Index, int32 Count, int32 NumBytesPerElement, uint32 AlignmentOfElement, bool bAllowShrinking = true )
+	void Remove( int32 Index, int32 Count, int32 NumBytesPerElement, uint32 AlignmentOfElement, EAllowShrinking AllowShrinking = EAllowShrinking::Yes )
 	{
 		if (Count)
 		{
@@ -202,13 +208,18 @@ public:
 
 			SlackTrackerNumChanged();
 
-			if (bAllowShrinking)
+			if (AllowShrinking == EAllowShrinking::Yes)
 			{
 				ResizeShrink(NumBytesPerElement, AlignmentOfElement);
 			}
 			checkSlow(ArrayNum >= 0);
 			checkSlow(ArrayMax >= ArrayNum);
 		}
+	}
+	UE_ALLOWSHRINKING_BOOL_DEPRECATED("Remove")
+	FORCEINLINE void Remove(int32 Index, int32 Count, int32 NumBytesPerElement, uint32 AlignmentOfElement, bool bAllowShrinking)
+	{
+		Remove(Index, Count, NumBytesPerElement, AlignmentOfElement, bAllowShrinking ? EAllowShrinking::Yes : EAllowShrinking::No);
 	}
 	SIZE_T GetAllocatedSize(int32 NumBytesPerElement) const
 	{
