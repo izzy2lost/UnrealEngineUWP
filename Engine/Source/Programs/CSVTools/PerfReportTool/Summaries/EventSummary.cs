@@ -13,6 +13,7 @@ namespace PerfSummaries
 	{
 		public EventSummary(XElement element, XmlVariableMappings vars, string baseXmlDirectory)
 		{
+			ReadStatsFromXML(element, vars);
 			title = element.GetSafeAttribute(vars, "title", "Events");
 			summaryStatName = element.GetRequiredAttribute<string>(vars, "summaryStatName");
 			events = element.Element("events").Value.Split(',');
@@ -23,8 +24,9 @@ namespace PerfSummaries
 
 		public override string GetName() { return "event"; }
 
-		public override void WriteSummaryData(System.IO.StreamWriter htmlFile, CsvStats csvStats, CsvStats csvStatsUnstripped, bool bWriteSummaryCsv, SummaryTableRowData rowData, string htmlFileName)
+		public override HtmlSection WriteSummaryData(bool bWriteHtml, CsvStats csvStats, CsvStats csvStatsUnstripped, bool bWriteSummaryCsv, SummaryTableRowData rowData, string htmlFileName)
 		{
+			HtmlSection htmlSection = null;
 			Dictionary<string, int> eventCountsDict = new Dictionary<string, int>();
 			int eventCount = 0;
 			foreach (CsvEvent ev in csvStats.Events)
@@ -53,16 +55,16 @@ namespace PerfSummaries
 			}
 
 			// Output HTML
-			if (htmlFile != null && eventCountsDict.Count > 0)
+			if (bWriteHtml && eventCountsDict.Count > 0)
 			{
-				htmlFile.WriteLine("  <h2>" + title + "</h2>");
-				htmlFile.WriteLine("  <table border='0' style='width:1200'>");
-				htmlFile.WriteLine("  <tr><th>Name</th><th><b>Count</th></tr>");
+				htmlSection = new HtmlSection(title, bStartCollapsed);
+				htmlSection.WriteLine("  <table border='0' style='width:1200'>");
+				htmlSection.WriteLine("  <tr><th>Name</th><th><b>Count</th></tr>");
 				foreach (KeyValuePair<string, int> pair in eventCountsDict.ToList())
 				{
-					htmlFile.WriteLine("  <tr><td>" + pair.Key + "</td><td>" + pair.Value + "</td></tr>");
+					htmlSection.WriteLine("  <tr><td>" + pair.Key + "</td><td>" + pair.Value + "</td></tr>");
 				}
-				htmlFile.WriteLine("  </table>");
+				htmlSection.WriteLine("  </table>");
 			}
 
 			// Output summary table row data
@@ -81,6 +83,7 @@ namespace PerfSummaries
 				}
 				rowData.Add(SummaryTableElement.Type.SummaryTableMetric, summaryStatName, (double)eventCount, thresholdList);
 			}
+			return htmlSection;
 		}
 		public override void PostInit(ReportTypeInfo reportTypeInfo, CsvStats csvStats)
 		{

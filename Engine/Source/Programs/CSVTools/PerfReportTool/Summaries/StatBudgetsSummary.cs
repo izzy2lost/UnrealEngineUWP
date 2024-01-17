@@ -87,8 +87,9 @@ namespace PerfSummaries
 			return statName;
 		}
 
-		public override void WriteSummaryData(System.IO.StreamWriter htmlFile, CsvStats csvStats, CsvStats csvStatsUnstripped, bool bWriteSummaryCsv, SummaryTableRowData rowData, string htmlFileName)
+		public override HtmlSection WriteSummaryData(bool bWriteHtml, CsvStats csvStats, CsvStats csvStatsUnstripped, bool bWriteSummaryCsv, SummaryTableRowData rowData, string htmlFileName)
 		{
+			HtmlSection htmlSection = null;
 			// Find all referenced stats/metadata and sum them
 			double totalValue = 0.0;
 			List<StatInfo> statInfoList = new List<StatInfo>();
@@ -177,11 +178,11 @@ namespace PerfSummaries
 			}
 
 			// Output HTML
-			if (htmlFile != null)
+			if (bWriteHtml)
 			{
-				htmlFile.WriteLine("  <h2>" + title + "</h2>");
-				htmlFile.WriteLine("  <table border='0' style='width:400'>");
-				htmlFile.WriteLine("  <tr><th>Stat</th><th>Value (Avg)</th><th>Budget</th></tr>");
+				htmlSection = new HtmlSection(title, bStartCollapsed);
+				htmlSection.WriteLine("  <table border='0' style='width:400'>");
+				htmlSection.WriteLine("  <tr><th>Stat</th><th>Value (Avg)</th><th>Budget</th></tr>");
 				foreach (StatInfo statInfo in statInfoList)
 				{
 					if (showTotal == false && statInfo == totalStatInfo)
@@ -204,10 +205,11 @@ namespace PerfSummaries
 					{
 						displayName = StripStatPrefix(statInfo.name);
 					}
-					htmlFile.WriteLine("  <tr><td>" + displayName + "</td><td bgcolor=" + bgcolor + ">" + statInfo.averageValue.ToString("0.00") + "</td><td>" + budgetStr + "</td></tr>");
+					htmlSection.WriteLine("  <tr><td>" + displayName + "</td><td bgcolor=" + bgcolor + ">" + statInfo.averageValue.ToString("0.00") + "</td><td>" + budgetStr + "</td></tr>");
 				}
-				htmlFile.WriteLine("  </table>");
+				htmlSection.WriteLine("  </table>");
 			}
+			return htmlSection;
 		}
 
 		ColourThresholdList colorThresholdsTotal = null;

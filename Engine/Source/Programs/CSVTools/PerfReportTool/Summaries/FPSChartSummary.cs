@@ -177,8 +177,10 @@ namespace PerfSummaries
 			return colorThresholdListOut;
 		}
 
-		public override void WriteSummaryData(System.IO.StreamWriter htmlFile, CsvStats csvStats, CsvStats csvStatsUnstripped, bool bWriteSummaryCsv, SummaryTableRowData rowData, string htmlFileName)
+		public override HtmlSection WriteSummaryData(bool bWriteHtml, CsvStats csvStats, CsvStats csvStatsUnstripped, bool bWriteSummaryCsv, SummaryTableRowData rowData, string htmlFileName)
 		{
+			HtmlSection htmlSection = null;
+
 			System.IO.StreamWriter statsCsvFile = null;
 			if (bWriteSummaryCsv)
 			{
@@ -298,8 +300,9 @@ namespace PerfSummaries
 			}
 
 			// Output HTML
-			if (htmlFile != null)
+			if (bWriteHtml)
 			{
+				htmlSection = new HtmlSection("FPSChart", bStartCollapsed);
 				string HeaderRow = "";
 				string ValueRow = "";
 				HeaderRow += "<th>Section Name</th>";
@@ -320,10 +323,9 @@ namespace PerfSummaries
 					HeaderRow += "<th>" + TableUtil.FormatStatName(columnName) + "</th>";
 					ValueRow += "<td bgcolor=" + column.Color + ">" + column.Value.ToString("0.00") + "</td>";
 				}
-				htmlFile.WriteLine("  <h2>FPSChart</h2>");
-				htmlFile.WriteLine("<table border='0' style='width:400'>");
-				htmlFile.WriteLine("  <tr>" + HeaderRow + "</tr>");
-				htmlFile.WriteLine("  <tr>" + ValueRow + "</tr>");
+				htmlSection.WriteLine("<table border='0' style='width:400'>");
+				htmlSection.WriteLine("  <tr>" + HeaderRow + "</tr>");
+				htmlSection.WriteLine("  <tr>" + ValueRow + "</tr>");
 			}
 
 			// Output CSV
@@ -442,7 +444,7 @@ namespace PerfSummaries
 					}
 
 					// Output HTML
-					if (htmlFile != null)
+					if (htmlSection != null)
 					{
 						string ValueRow = "";
 						ValueRow += "<td>" + CapRange.name + "</td>";
@@ -450,7 +452,7 @@ namespace PerfSummaries
 						{
 							ValueRow += "<td bgcolor=" + column.Color + ">" + column.Value.ToString("0.00") + "</td>";
 						}
-						htmlFile.WriteLine("  <tr>" + ValueRow + "</tr>");
+						htmlSection.WriteLine("  <tr>" + ValueRow + "</tr>");
 					}
 
 					// Output CSV
@@ -474,16 +476,17 @@ namespace PerfSummaries
 				}
 			}
 
-			if (htmlFile != null)
+			if (htmlSection != null)
 			{
-				htmlFile.WriteLine("</table>");
-				htmlFile.WriteLine("<p style='font-size:8'>Engine hitch metric: " + (bUseEngineHitchMetric ? "enabled" : "disabled") + "</p>");
+				htmlSection.WriteLine("</table>");
+				htmlSection.WriteLine("<p style='font-size:8'>Engine hitch metric: " + (bUseEngineHitchMetric ? "enabled" : "disabled") + "</p>");
 			}
 
 			if (statsCsvFile != null)
 			{
 				statsCsvFile.Close();
 			}
+			return htmlSection;
 		}
 		public override void PostInit(ReportTypeInfo reportTypeInfo, CsvStats csvStats)
 		{

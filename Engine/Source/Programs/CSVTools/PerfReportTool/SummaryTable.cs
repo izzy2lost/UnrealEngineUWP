@@ -2020,7 +2020,7 @@ namespace PerfSummaries
 			}
 
 			htmlFile.WriteLine("<p style='font-size:8'>Created with PerfReportTool " + VersionString + extraString + "</p>");
-			htmlFile.WriteLine("</font></body></html>");
+			htmlFile.WriteLine("</body></html>");
 
 			htmlFile.Close();
 		}

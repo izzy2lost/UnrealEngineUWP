@@ -66,7 +66,8 @@ namespace PerfSummaries
         };
         public ExtraLinksSummary(XElement element, XmlVariableMappings vars, string baseXmlDirectory, bool bInLinkTemplates=false)
         {
-            title = "Links";
+			ReadStatsFromXML(element, vars);
+			title = "Links";
             if (element != null)
             {
                 title = element.GetSafeAttribute(vars, "title", title);
@@ -78,8 +79,9 @@ namespace PerfSummaries
 
 		public override string GetName() { return "extralinks"; }
 
-		public override void WriteSummaryData(System.IO.StreamWriter htmlFile, CsvStats csvStats, CsvStats csvStatsUnstripped, bool bWriteSummaryCsv, SummaryTableRowData rowData, string htmlFileName)
+		public override HtmlSection WriteSummaryData(bool bWriteHtml, CsvStats csvStats, CsvStats csvStatsUnstripped, bool bWriteSummaryCsv, SummaryTableRowData rowData, string htmlFileName)
 		{
+			HtmlSection htmlSection = null;
 			List<ExtraLink> links = new List<ExtraLink>();
 
             string csvId = null;
@@ -93,14 +95,14 @@ namespace PerfSummaries
 			if (csvFilename == null)
 			{
 				Console.WriteLine("Can't find CSV filename for ExtraLinks summary. Skipping");
-				return;
+				return null;
 			}
 
 			string linksFilename = csvFilename + ".links";
 			if (!File.Exists(linksFilename))
 			{
 				Console.WriteLine("Can't find file " + linksFilename + " for ExtraLinks summary. Skipping");
-				return;
+				return null;
 			}
 			string[] lines = File.ReadAllLines(linksFilename);
 			foreach (string line in lines)
@@ -109,19 +111,19 @@ namespace PerfSummaries
 			}
 			if (links.Count == 0)
 			{
-				return;
+				return null;
 			}
 
 			// Output HTML
-			if (htmlFile != null)
+			if (bWriteHtml)
 			{
-				htmlFile.WriteLine("  <h2>" + title + "</h2>");
-				htmlFile.WriteLine("  <ul>");
+				htmlSection = new HtmlSection(title, bStartCollapsed);
+				htmlSection.WriteLine("  <ul>");
 				foreach (ExtraLink link in links)
 				{
-					htmlFile.WriteLine("  <li>" + link.GetLinkString(false) + "</li>");
+					htmlSection.WriteLine("  <li>" + link.GetLinkString(false) + "</li>");
 				}
-				htmlFile.WriteLine("  </ul>");
+				htmlSection.WriteLine("  </ul>");
 			}
 
 			// Output summary row data
@@ -132,6 +134,8 @@ namespace PerfSummaries
 					rowData.Add(SummaryTableElement.Type.SummaryTableMetric, link.ReportText, link.GetLinkString(true), null);
 				}
 			}
+
+			return htmlSection;
 		}
 		public override void PostInit(ReportTypeInfo reportTypeInfo, CsvStats csvStats)
 		{

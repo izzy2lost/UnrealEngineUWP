@@ -143,11 +143,14 @@ namespace PerfSummaries
 			}
 		}
 
-		public override void WriteSummaryData(System.IO.StreamWriter htmlFile, CsvStats csvStats, CsvStats csvStatsUnstripped, bool bWriteSummaryCsv, SummaryTableRowData rowData, string htmlFileName)
+		public override HtmlSection WriteSummaryData(bool bWriteHtml, CsvStats csvStats, CsvStats csvStatsUnstripped, bool bWriteSummaryCsv, SummaryTableRowData rowData, string htmlFileName)
 		{
+			HtmlSection htmlSection = null;
+
 			// Output HTML
-			if (htmlFile != null)
+			if (bWriteHtml)
 			{
+				htmlSection = new HtmlSection(title, bStartCollapsed);
 				string outputDirectory = System.IO.Path.GetDirectoryName(System.IO.Path.GetFullPath(htmlFileName));
 				string outputMapFilename = System.IO.Path.Combine(outputDirectory, destImageFilename);
 
@@ -168,9 +171,8 @@ namespace PerfSummaries
 				}
 
 				// Check if the file exists in the output directory
-				htmlFile.WriteLine("  <h2>" + title + "</h2>");
-				htmlFile.WriteLine("<svg version='1.1' xmlns='http://www.w3.org/2000/svg' xmlns:xlink='http://www.w3.org/1999/xlink' width='" + imageWidth + "' height='" + imageHeight + "'>");
-				htmlFile.WriteLine("<image href='" + destImageFilename + "' width='" + imageWidth + "' height='" + imageHeight + "' />");
+				htmlSection.WriteLine("<svg version='1.1' xmlns='http://www.w3.org/2000/svg' xmlns:xlink='http://www.w3.org/1999/xlink' width='" + imageWidth + "' height='" + imageHeight + "'>");
+				htmlSection.WriteLine("<image href='" + destImageFilename + "' width='" + imageWidth + "' height='" + imageHeight + "' />");
 
 				// Draw the overlays
 				foreach (MapOverlay overlay in overlays)
@@ -215,7 +217,7 @@ namespace PerfSummaries
 					// Draw the lines
 					string currentLineColor = overlay.lineColor;
 					string lineStartTemplate = "<polyline style='fill:none;stroke-width:1.3;stroke:{LINECOLOUR}' points='";
-					htmlFile.Write(lineStartTemplate.Replace("{LINECOLOUR}", currentLineColor));
+					htmlSection.Write(lineStartTemplate.Replace("{LINECOLOUR}", currentLineColor));
 					float adjustedLineSplitDistanceThreshold = lineSplitDistanceThreshold * framesPerLineSegment;
 					float oldx = 0;
 					float oldy = 0;
@@ -249,20 +251,20 @@ namespace PerfSummaries
 						}
 						else
 						{
-							htmlFile.Write(lineCoordsStr);
+							htmlSection.Write(lineCoordsStr);
 						}
 
 						if (restartLineStrip)
 						{
-							htmlFile.WriteLine("'/>");
-							htmlFile.Write(lineStartTemplate.Replace("{LINECOLOUR}", currentLineColor));
-							htmlFile.Write(lineCoordsStr);
+							htmlSection.WriteLine("'/>");
+							htmlSection.Write(lineStartTemplate.Replace("{LINECOLOUR}", currentLineColor));
+							htmlSection.Write(lineCoordsStr);
 						}
 						oldx = x;
 						oldy = y;
 						lastFrameIndex = i;
 					}
-					htmlFile.WriteLine("'/>");
+					htmlSection.WriteLine("'/>");
 
 					// Plot the events 
 					float circleRadius = 3;
@@ -278,21 +280,22 @@ namespace PerfSummaries
 								float y = yStat.samples[ev.Frame];
 								int svgX = toSvgX(x, y);
 								int svgY = toSvgY(x, y);
-								htmlFile.Write("<circle cx='" + svgX + "' cy='" + svgY + "' r='" + circleRadius + "' fill='" + eventColourString + "' fill-opacity='1.0'/>");
-								htmlFile.WriteLine("<text x='" + (svgX + 5) + "' y='" + svgY + "' text-anchor='left' style='font-family: Verdana;fill: #ffffff; font-size: " + 9 + "px;'>" + eventText + "</text>");
+								htmlSection.Write("<circle cx='" + svgX + "' cy='" + svgY + "' r='" + circleRadius + "' fill='" + eventColourString + "' fill-opacity='1.0'/>");
+								htmlSection.WriteLine("<text x='" + (svgX + 5) + "' y='" + svgY + "' text-anchor='left' style='font-family: Verdana;fill: #ffffff; font-size: " + 9 + "px;'>" + eventText + "</text>");
 							}
 						}
 					}
 				}
 
-				//htmlFile.WriteLine("<text x='50%' y='" + (imageHeight * 0.05) + "' text-anchor='middle' style='font-family: Verdana;fill: #FFFFFF; stroke: #C0C0C0;  font-size: " + 20 + "px;'>" + title + "</text>");
-				htmlFile.WriteLine("</svg>");
+				//htmlSection.WriteLine("<text x='50%' y='" + (imageHeight * 0.05) + "' text-anchor='middle' style='font-family: Verdana;fill: #FFFFFF; stroke: #C0C0C0;  font-size: " + 20 + "px;'>" + title + "</text>");
+				htmlSection.WriteLine("</svg>");
 			}
 
 			// Output row data
 			if (rowData != null)
 			{
 			}
+			return htmlSection;
 		}
 		public override void PostInit(ReportTypeInfo reportTypeInfo, CsvStats csvStats)
 		{

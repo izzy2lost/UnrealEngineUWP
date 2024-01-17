@@ -81,8 +81,9 @@ namespace PerfSummaries
 
 		public override string GetName() { return "boundedstatvalues"; }
 
-		public override void WriteSummaryData(System.IO.StreamWriter htmlFile, CsvStats csvStats, CsvStats csvStatsUnstripped, bool bWriteSummaryCsv, SummaryTableRowData rowData, string htmlFileName)
+		public override HtmlSection WriteSummaryData(bool bWriteHtml, CsvStats csvStats, CsvStats csvStatsUnstripped, bool bWriteSummaryCsv, SummaryTableRowData rowData, string htmlFileName)
 		{
+			HtmlSection htmlSection = null;
 			int startFrame = -1;
 			int endFrame = int.MaxValue;
 
@@ -100,7 +101,7 @@ namespace PerfSummaries
 				if (startFrame == -1)
 				{
 					Console.WriteLine("BoundedStatValuesSummary: Begin event " + beginEvent + " was not found");
-					return;
+					return htmlSection;
 				}
 			}
 			if (endEvent != null)
@@ -119,13 +120,13 @@ namespace PerfSummaries
 				if (endFrame == int.MaxValue)
 				{
 					Console.WriteLine("BoundedStatValuesSummary: End event " + endEvent + " was not found");
-					return;
+					return htmlSection;
 				}
 			}
 			if (startFrame >= endFrame)
 			{
 				Console.WriteLine("Warning: BoundedStatValuesSummary: end event "+ endEvent + " appeared before the start event "+beginEvent);
-				return;
+				return htmlSection;
 			}
 			endFrame = Math.Min(endFrame, csvStats.SampleCount - 1);
 			startFrame = Math.Max(startFrame, 0);
@@ -155,7 +156,7 @@ namespace PerfSummaries
 			// Nothing to report, so bail out!
 			if (filteredColumns.Count == 0)
 			{
-				return;
+				return htmlSection;
 			}
 
 			// Process the column values
@@ -358,17 +359,18 @@ namespace PerfSummaries
 			}
 
 			// Output HTML
-			if (htmlFile != null)
+			if (bWriteHtml)
 			{
-				htmlFile.WriteLine("  <h2>" + title + "</h2>");
-				htmlFile.WriteLine("  <table border='0' style='width:1400'>");
-				htmlFile.WriteLine("  <tr>");
+				htmlSection = new HtmlSection(title, bStartCollapsed);
+
+				htmlSection.WriteLine("  <table border='0' style='width:1400'>");
+				htmlSection.WriteLine("  <tr>");
 				foreach (Column col in filteredColumns)
 				{
-					htmlFile.WriteLine("<th>" + col.name + "</th>");
+					htmlSection.WriteLine("<th>" + col.name + "</th>");
 				}
-				htmlFile.WriteLine("  </tr>");
-				htmlFile.WriteLine("  <tr>");
+				htmlSection.WriteLine("  </tr>");
+				htmlSection.WriteLine("  <tr>");
 				foreach (Column col in filteredColumns)
 				{
 					string bgcolor = "'#ffffff'";
@@ -376,10 +378,10 @@ namespace PerfSummaries
 					{
 						bgcolor = col.colourThresholdList.GetColourForValue(col.value);
 					}
-					htmlFile.WriteLine("<td bgcolor=" + bgcolor + ">" + col.value.ToString("0.00") + "</td>");
+					htmlSection.WriteLine("<td bgcolor=" + bgcolor + ">" + col.value.ToString("0.00") + "</td>");
 				}
-				htmlFile.WriteLine("  </tr>");
-				htmlFile.WriteLine("  </table>");
+				htmlSection.WriteLine("  </tr>");
+				htmlSection.WriteLine("  </table>");
 			}
 
 			// Output summary table row data
@@ -393,6 +395,7 @@ namespace PerfSummaries
 					}
 				}
 			}
+			return htmlSection;
 		}
 		public override void PostInit(ReportTypeInfo reportTypeInfo, CsvStats csvStats)
 		{

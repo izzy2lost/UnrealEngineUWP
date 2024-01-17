@@ -23,7 +23,7 @@ namespace PerfReportTool
     class Version
     {
 		// Format: Major.Minor.Bugfix
-        private static string VersionString = "4.226.1";
+        private static string VersionString = "4.227.0";
 
         public static string Get() { return VersionString; }
     };
@@ -1323,15 +1323,46 @@ namespace PerfReportTool
 				}
 				htmlFile.WriteLine("    ]]>");
 				htmlFile.WriteLine("    <title>" + titleStr + "</title>");
+
+				// Scripting for collapsibles
+				htmlFile.WriteLine("    <script>");
+				htmlFile.WriteLine("        document.addEventListener('DOMContentLoaded', function (event) { setupCollapsibles(); })");
+				htmlFile.WriteLine("        function setupCollapsibles() {");
+
+				htmlFile.WriteLine("            var collapsibles = document.getElementsByClassName('collapsibleHeading');");
+				htmlFile.WriteLine("            var i;");
+				htmlFile.WriteLine("            for (i = 0; i < collapsibles.length; i++) {");
+				htmlFile.WriteLine("                collapsibles[i].addEventListener('click', function() {");
+				htmlFile.WriteLine("                this.classList.toggle('expanded');");
+				htmlFile.WriteLine("                this.nextElementSibling.classList.toggle('expanded');");
+				htmlFile.WriteLine("             	});");
+				htmlFile.WriteLine("            }");
+				htmlFile.WriteLine("        }");
+				htmlFile.WriteLine("    </script>");
+
+				// CSS
 				htmlFile.WriteLine("    <style type='text/css'>");
+
 				htmlFile.WriteLine("      table, th, td { border: 2px solid black; border-collapse: collapse; padding: 3px; vertical-align: top; font-family: 'Verdana', Times, serif; font-size: 12px;}");
 				htmlFile.WriteLine("      p {  font-family: 'Verdana', Times, serif; font-size: 12px }");
+				htmlFile.WriteLine("      ul {  font-family: 'Verdana', Times, serif; font-size: 14px }");
 				htmlFile.WriteLine("      h1 {  font-family: 'Verdana', Times, serif; font-size: 20px; padding-top:10px }");
-				htmlFile.WriteLine("      h2 {  font-family: 'Verdana', Times, serif; font-size: 18px; padding-top:20px }");
-				htmlFile.WriteLine("      h3 {  font-family: 'Verdana', Times, serif; font-size: 16px; padding-top:20px }");
+				htmlFile.WriteLine("      h2 {  font-family: 'Verdana', Times, serif; font-size: 18px; padding-top:5px; padding-bottom:0px; margin-block-end: 0.4em }");
+				htmlFile.WriteLine("      h3 {  font-family: 'Verdana', Times, serif; font-size: 16px; padding-top:5px }");
+
+				// Collapsibles
+				htmlFile.WriteLine("      .collapsibleHeading { background-color: #ffffff; cursor: pointer; width: fit-content; border: none; text-align: left; outline: none; display: flex; justify-content: flex-start; align-items: flex-end; flex-direction: row; flex-wrap: nowrap; }");
+				htmlFile.WriteLine("      .expanded { background-color: #fff; }");
+				htmlFile.WriteLine("      .collapsibleHeading:hover { background-color: #c4c4c4; }");
+				htmlFile.WriteLine("      .collapsibleHeading:after { content: '\u25B2'; font-size: 14px; color: #4d4d4d; font-variant: normal; float: right; margin-left: 5px;}");
+				htmlFile.WriteLine("      .collapsibleHeading.expanded:after { content: '\u25BC'; }");
+				htmlFile.WriteLine("      .collapsibleSection { display: grid; grid-template-rows: 0fr; transition: grid-template-rows 0.2s ease-out; }");
+				htmlFile.WriteLine("      .collapsibleSection.expanded { grid-template-rows: 1fr; }");
+				htmlFile.WriteLine("      .collapsibleSectionInner { overflow: auto; overflow-y: hidden; }");
+
 				htmlFile.WriteLine("    </style>");
 				htmlFile.WriteLine("  </head>");
-				htmlFile.WriteLine("  <body><font face='verdana'>");
+				htmlFile.WriteLine("  <body>");
 				htmlFile.WriteLine("  <h1>" + titleStr + "</h1>");
 
 				// show the range
@@ -1344,8 +1375,6 @@ namespace PerfReportTool
 					}
 					htmlFile.WriteLine(")</font>");
 				}
-
-				htmlFile.WriteLine("  <h2>Summary</h2>");
 
 				htmlFile.WriteLine("<table style='width:800'>");
 
@@ -1395,7 +1424,12 @@ namespace PerfReportTool
 			PeakSummary peakSummary = null;
 			foreach (Summary summary in summaries)
 			{
-				summary.WriteSummaryData(htmlFile, summary.useUnstrippedCsvStats ? csvStatsUnstripped : csvStats, csvStatsUnstripped, bWriteSummaryCsv, summaryRowData, htmlFilename);
+				HtmlSection htmlSection = summary.WriteSummaryData(htmlFile != null, summary.useUnstrippedCsvStats ? csvStatsUnstripped : csvStats, csvStatsUnstripped, bWriteSummaryCsv, summaryRowData, htmlFilename);
+				if (htmlSection != null)
+				{
+					htmlSection.WriteToFile(htmlFile);
+				}
+					
 				if (summary.GetType() == typeof(PeakSummary))
 				{
 					peakSummary = (PeakSummary)summary;
@@ -1454,12 +1488,12 @@ namespace PerfReportTool
 					ReportGraph graph = graphs[svgFileIndex];
 
 					string svgTitle = graph.title;
-					htmlFile.WriteLine("  <br><a name='" + StripSpaces(svgTitle) + "'></a> <h2>" + svgTitle + "</h2>");
+					HtmlSection htmlSection = new HtmlSection(svgTitle, false, StripSpaces(svgTitle));
 					if (graph.isExternal)
 					{
 						string outFilename = htmlFilename.Replace(".html", "_" + svgTitle.Replace(" ", "_") + ".svg");
 						File.Copy(svgFilename, outFilename, true);
-						htmlFile.WriteLine("<a href='" + outFilename + "'>" + svgTitle + " (external)</a>");
+						htmlSection.WriteLine("<a href='" + outFilename + "'>" + svgTitle + " (external)</a>");
 					}
 					else
 					{
@@ -1467,9 +1501,10 @@ namespace PerfReportTool
 						foreach (string line in svgLines)
 						{
 							string modLine = line.Replace("__MAKEUNIQUE__", "U_" + svgFileIndex.ToString());
-							htmlFile.WriteLine(modLine);
+							htmlSection.WriteLine(modLine);
 						}
 					}
+					htmlSection.WriteToFile(htmlFile);
 				}
 
 				if (GetBoolArg("noWatermarks"))
@@ -1480,7 +1515,6 @@ namespace PerfReportTool
 				{
 					htmlFile.WriteLine("<p style='font-size:8'>Created with PerfReportTool " + Version.Get() + "</p>");
 				}
-				htmlFile.WriteLine("  </font>");
 				htmlFile.WriteLine("  </body>");
 				htmlFile.WriteLine("</html>");
 				htmlFile.Close();
@@ -1544,7 +1578,12 @@ namespace PerfReportTool
 			PeakSummary peakSummary = null;
 			foreach (Summary summary in reportTypeInfo.summaries)
 			{
-				summary.WriteSummaryData(htmlFile, csvStats, csvStatsUnstripped, bWriteSummaryCsv, null, htmlFilename);
+				HtmlSection htmlSection = summary.WriteSummaryData(htmlFile != null, csvStats, csvStatsUnstripped, bWriteSummaryCsv, null, htmlFilename);
+				if (htmlSection != null)
+				{
+					htmlSection.WriteToFile(htmlFile);
+				}
+
 				if (summary.GetType() == typeof(PeakSummary))
 				{
 					peakSummary = (PeakSummary)summary;

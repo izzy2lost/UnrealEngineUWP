@@ -8,6 +8,7 @@ using CSVStats;
 using PerfReportTool;
 using System.Reflection;
 using System.Drawing;
+using System.Text;
 
 namespace PerfSummaries
 {
@@ -79,10 +80,12 @@ namespace PerfSummaries
             StatThresholds = new Dictionary<string, ColourThresholdList>();
 
         }
-        public virtual void WriteSummaryData(System.IO.StreamWriter htmlFile, CsvStats csvStats, CsvStats csvStatsUnstripped, bool bWriteSummaryCsv, SummaryTableRowData rowData, string htmlFileName)
-        { }
+		public virtual HtmlSection WriteSummaryData(bool bWriteHtml, CsvStats csvStats, CsvStats csvStatsUnstripped, bool bWriteSummaryCsv, SummaryTableRowData rowData, string htmlFileName)
+		{
+			return null;
+		}
 
-        public virtual void PostInit(ReportTypeInfo reportTypeInfo, CsvStats csvStats)
+		public virtual void PostInit(ReportTypeInfo reportTypeInfo, CsvStats csvStats)
         {
 			// Resolve wildcards and remove duplicates
 			stats = csvStats.GetStatNamesMatchingStringList(stats.ToArray());
@@ -93,6 +96,7 @@ namespace PerfSummaries
         public void ReadStatsFromXML(XElement element, XmlVariableMappings vars)
         {
 			useUnstrippedCsvStats = element.GetSafeAttribute<bool>(vars, "useUnstrippedCsvStats", false);
+			bStartCollapsed = element.GetSafeAttribute<bool>(vars, "collapsed", false);
 			XElement statsElement = element.Element("stats");
 			if (statsElement != null)
 			{
@@ -233,11 +237,90 @@ namespace PerfSummaries
         public List<string> stats;
         public Dictionary<string, ColourThresholdList> StatThresholds;
 		public bool useUnstrippedCsvStats;
+		public bool bStartCollapsed;
     };
 
 
 
+	class HtmlSection
+	{
+		public HtmlSection(string titleIn, bool bStartCollapsedIn, string anchorNameIn = null)
+		{
+			title = titleIn;
+			bStartCollapsed = bStartCollapsedIn;
+			anchorName = anchorNameIn; 
+		}
 
+		public void WriteLine(string text) 
+		{
+			FlushPendingLine();
+			lines.Add(text);
+		}
+		public void Write(string text)
+		{
+			pendingLine.Append(text);
+		}
+
+		public void WriteToFile( System.IO.StreamWriter htmlFile )
+		{
+			FlushPendingLine();
+			BeginHtmlSection(htmlFile);
+			foreach (string line in lines)
+			{
+				htmlFile.WriteLine(line);
+			}
+			EndHtmlSection(htmlFile);
+		}
+
+		private void FlushPendingLine()
+		{
+			if (pendingLine.Length > 0)
+			{
+				lines.Add(pendingLine.ToString());
+				pendingLine.Clear();
+			}
+		}
+
+		protected void BeginHtmlSection(System.IO.StreamWriter htmlFile)
+		{
+			if (htmlFile != null)
+			{
+				string headingClass = "collapsibleHeading";
+				string divClass = "collapsibleSection";
+
+				if (!bStartCollapsed)
+				{
+					headingClass += " expanded";
+					divClass += " expanded";
+				}
+
+				if (anchorName != null)
+				{
+					htmlFile.WriteLine("<a name='" + anchorName + "'></a>");
+				}				
+
+				htmlFile.WriteLine("<h2 class='" + headingClass + "'>" + title + "</h2>");
+				htmlFile.WriteLine("<div class='" + divClass + "'>");
+				htmlFile.WriteLine("<div class='collapsibleSectionInner'>");
+			}
+		}
+
+		protected void EndHtmlSection(System.IO.StreamWriter htmlFile)
+		{
+			if (htmlFile != null)
+			{
+				htmlFile.WriteLine("</div>");
+				htmlFile.WriteLine("</div>");
+			}
+		}
+
+
+		string title;
+		StringBuilder pendingLine = new StringBuilder();
+		List<string> lines = new List<string>();
+		bool bStartCollapsed;
+		string anchorName;
+	};
 
 
 
