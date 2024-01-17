@@ -43,7 +43,7 @@ namespace EpicGames.Horde.Storage.Bundles.V2
 			if (Bundle.TryGetLocator(out locator))
 			{
 				builder.Append(locator.Path);
-				builder.Append('?');
+				builder.Append('#');
 				return TryAppendIdentifier(builder);
 			}
 			return false;
@@ -207,7 +207,7 @@ namespace EpicGames.Horde.Storage.Bundles.V2
 		{
 			using IRefCountedHandle<IReadOnlyMemoryOwner<byte>> encodedData = await ReadEncodedPacketAsync(cancellationToken);
 			IRefCountedHandle<Packet> packet = Packet.Decode(encodedData.Target.Memory, _cache.Allocator);
-			return new PacketReader(_storageClient, _cache, packet.Target, packet);
+			return new PacketReader(_storageClient, _cache, _outer, this, packet.Target, packet);
 		}
 
 		async ValueTask<IRefCountedHandle<IReadOnlyMemoryOwner<byte>>> ReadEncodedPacketAsync(CancellationToken cancellationToken)

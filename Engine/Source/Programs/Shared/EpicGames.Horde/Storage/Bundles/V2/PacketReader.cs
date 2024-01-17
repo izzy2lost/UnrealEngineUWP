@@ -13,6 +13,8 @@ namespace EpicGames.Horde.Storage.Bundles.V2
 	{
 		readonly BundleStorageClient _storageClient;
 		readonly BundleCache _cache;
+		readonly BundleHandle _bundleHandle;
+		readonly FlushedPacketHandle _packetHandle;
 
 		Packet _decodedPacket;
 		object?[] _cachedImportHandles;
@@ -28,12 +30,16 @@ namespace EpicGames.Horde.Storage.Bundles.V2
 		/// </summary>
 		/// <param name="storageClient"></param>
 		/// <param name="cache"></param>
+		/// <param name="bundleHandle"></param>
+		/// <param name="packetHandle"></param>
 		/// <param name="decodedPacket">Data for the packet</param>
 		/// <param name="memoryOwner">Owner for the packet data</param>
-		public PacketReader(BundleStorageClient storageClient, BundleCache cache, Packet decodedPacket, IRefCountedHandle memoryOwner)
+		public PacketReader(BundleStorageClient storageClient, BundleCache cache, BundleHandle bundleHandle, FlushedPacketHandle packetHandle, Packet decodedPacket, IRefCountedHandle memoryOwner)
 		{
 			_storageClient = storageClient;
 			_cache = cache;
+			_bundleHandle = bundleHandle;
+			_packetHandle = packetHandle;
 			_decodedPacket = decodedPacket;
 			_memoryOwner = memoryOwner;
 			_cachedImportHandles = new object?[_decodedPacket.GetImportCount()];
@@ -124,6 +130,11 @@ namespace EpicGames.Horde.Storage.Bundles.V2
 
 		PacketHandle GetImportedPacketHandle(int packetIdx)
 		{
+			if (packetIdx == PacketImport.CurrentPacketBaseIdx)
+			{
+				return _packetHandle;
+			}
+
 			PacketHandle? packetHandle = _cachedImportHandles[packetIdx] as PacketHandle;
 			if (packetHandle is null)
 			{
@@ -141,6 +152,11 @@ namespace EpicGames.Horde.Storage.Bundles.V2
 
 		BundleHandle GetImportedBundleHandle(int bundleIdx)
 		{
+			if (bundleIdx == PacketImport.CurrentBundleBaseIdx)
+			{
+				return _bundleHandle;
+			}
+
 			BundleHandle? bundleHandle = _cachedImportHandles[bundleIdx] as BundleHandle;
 			if (bundleHandle is null)
 			{

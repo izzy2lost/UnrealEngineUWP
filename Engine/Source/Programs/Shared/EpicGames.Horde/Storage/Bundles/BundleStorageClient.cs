@@ -150,12 +150,13 @@ namespace EpicGames.Horde.Storage.Bundles
 			}
 
 			int ampIdx = fragment.IndexOf('&');
-			if (ampIdx != -1)
+			if (ampIdx == -1)
 			{
 				throw new Exception($"{locator} is not valid");
 			}
 
-			return new Bundles.V2.ExportHandle(new Bundles.V2.FlushedPacketHandle(this, bundleHandle, fragment.Slice(0, ampIdx).Span, _cache), fragment.Slice(ampIdx + 1));
+			Bundles.V2.PacketHandle packetHandle = new Bundles.V2.FlushedPacketHandle(this, bundleHandle, fragment.Slice(0, ampIdx).Span, _cache);
+			return new Bundles.V2.ExportHandle(packetHandle, fragment.Slice(ampIdx + 1));
 		}
 
 		/// <inheritdoc/>
