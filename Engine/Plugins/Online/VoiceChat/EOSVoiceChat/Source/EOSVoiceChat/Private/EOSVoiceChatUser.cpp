@@ -649,22 +649,9 @@ void FEOSVoiceChatUser::LeaveChannel(const FString& ChannelName, const FOnVoiceC
 	LeaveChannelInternal(ChannelName, Delegate);
 }
 
-void FEOSVoiceChatUser::Set3DPosition(const FString& ChannelName, const FVector& SpeakerPosition, const FVector& ListenerPosition, const FVector& ListenerForwardDirection, const FVector& ListenerUpDirection)
+void FEOSVoiceChatUser::Set3DPosition(const FString& ChannelName, const FVector& Position)
 {
-#if EOS_VOICE_TODO
-	FChannelSession& ChannelSession = GetChannelSessionGT(ChannelName);
-
-	// Transform Pos and Direction to up -> (0,1,0) and left -> (-1, 0, 0)
-	FVector RotatedPos(ListenerPosition.Y, ListenerPosition.Z, -ListenerPosition.X);
-	FVector RotatedForwardDirection(ListenerForwardDirection.Y, ListenerForwardDirection.Z, -ListenerForwardDirection.X);
-	FVector RotatedUpDirection(ListenerUpDirection.Y, ListenerUpDirection.Z, -ListenerUpDirection.X);
-
-	EOSClientApi::VCSStatus Status = EOSClientConnection.Set3DPosition(LoginSession.AccountName, ChannelSession.ChannelUri, ToEOSVector(SpeakerPosition), ToEOSVector(ListenerPosition), ToEOSVector(ListenerForwardDirection), ToEOSVector(ListenerUpDirection));
-	if (Status.IsError())
-	{
-		EOSVOICECHATUSER_LOG(Warning, TEXT("Set3DPosition failed: channel:%s error:%s (%i)"), ANSI_TO_TCHAR(ChannelSession.ChannelUri), ANSI_TO_TCHAR(Status.ToString()), Status.GetStatusCode());
-	}
-#endif
+	// Unimplemented
 }
 
 TArray<FString> FEOSVoiceChatUser::GetChannels() const

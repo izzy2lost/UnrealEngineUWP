@@ -611,9 +611,9 @@ FOnVoiceChatCallStatsUpdatedDelegate& FEOSVoiceChat::OnVoiceChatCallStatsUpdated
 	return GetVoiceChatUser().OnVoiceChatCallStatsUpdated();
 }
 
-void FEOSVoiceChat::Set3DPosition(const FString& ChannelName, const FVector& SpeakerPosition, const FVector& ListenerPosition, const FVector& ListenerForwardDirection, const FVector& ListenerUpDirection)
+void FEOSVoiceChat::Set3DPosition(const FString& ChannelName, const FVector& Position)
 {
-	GetVoiceChatUser().Set3DPosition(ChannelName, SpeakerPosition, ListenerPosition, ListenerForwardDirection, ListenerUpDirection);
+	GetVoiceChatUser().Set3DPosition(ChannelName, Position);
 }
 
 TArray<FString> FEOSVoiceChat::GetChannels() const
