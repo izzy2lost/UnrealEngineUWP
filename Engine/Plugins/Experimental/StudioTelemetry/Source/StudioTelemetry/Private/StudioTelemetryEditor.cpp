@@ -410,6 +410,55 @@ void FStudioTelemetryEditor::Initialize()
 
 	EditorBootSpan->AddAttributes(Attributes);
 
+	ensureMsgf(GWarn, TEXT("GWarn was not valid"));
+
+	if (GWarn != nullptr)
+	{
+		// Start the SlowTask span
+		GWarn->OnStartSlowTaskWithGuid().AddLambda([this](FGuid TaskGuid, const FText& TaskName)
+			{
+				// Slow tasks can possibly be started from multiple threads, so we need to protect the registered span table
+				FScopeLock ScopeLock(&TaskSpanCriticalSection);
+
+				TSharedPtr<IAnalyticsSpan>* SpanPtr = TaskSpans.Find(TaskGuid);
+
+				// Only one task with this Guid is running asynchronously is supported at this time.
+				if (SpanPtr == nullptr)
+				{
+					TArray<FAnalyticsEventAttribute> Attributes;
+					Attributes.Emplace(TEXT("MapName"), EditorMapName);
+					Attributes.Emplace(TEXT("TaskName"), TaskName.ToString());
+
+					// Create and start a new slow task span
+					const FName SpanName(TEXT("ST ") + TaskName.ToString());
+					TSharedPtr<IAnalyticsSpan> SlowTaskSpan = FStudioTelemetry::Get().StartSpan(SpanName, Attributes);
+
+					// Store this SlowTask span so we can find it when it finishes
+					TaskSpans.Add(TaskGuid, SlowTaskSpan);
+				}
+			});
+
+		// End the SlowTask span
+		GWarn->OnFinalizeSlowTaskWithGuid().AddLambda([this](FGuid TaskGuid, double TaskDuration)
+			{
+				// Slow tasks can possibly be finalized from multiple threads, so we need to protect the registered span table
+				FScopeLock ScopeLock(&TaskSpanCriticalSection);
+
+				// Find the task we stored off when we started this task
+				TSharedPtr<IAnalyticsSpan>* SpanPtr = TaskSpans.Find(TaskGuid);
+
+				if (SpanPtr != nullptr)
+				{
+					TSharedPtr<IAnalyticsSpan> SlowTaskSpan = *SpanPtr;
+
+					FStudioTelemetry::Get().EndSpan(SlowTaskSpan);
+
+					// Remove the SlowTask span from the registry
+					TaskSpans.Remove(TaskGuid);
+				}
+			});
+	}
+
 	FEditorDelegates::OnMapLoad.AddLambda([this](const FString& MapName, FCanLoadMap& OutCanLoadMap)
 		{
 			// The Editor loads a new map
@@ -501,56 +550,7 @@ void FStudioTelemetryEditor::Initialize()
 					});
 			}
 
-			ensureMsgf(GWarn, TEXT("GWarn was not valid"));
-
-			if (GWarn != nullptr)
-			{
-				// Start the SlowTask span
-				GWarn->OnStartSlowTask().AddLambda([this](const FText& TaskName)
-					{	
-						// Slow tasks can possibly be started from multiple threads, so we need to protect the registered span table
-						FScopeLock ScopeLock(&TaskSpanCriticalSection);
-						
-						FString Name = TaskName.ToString();
-						TSharedPtr<IAnalyticsSpan>* SpanPtr = TaskSpans.Find(Name);
-						
-						// Only one task with this name running asynchronously is supported at this time.
-						if (SpanPtr==nullptr)
-						{
-							TArray<FAnalyticsEventAttribute> Attributes;
-							Attributes.Emplace(TEXT("MapName"), EditorMapName);
-							Attributes.Emplace(TEXT("TaskName"), TaskName.ToString());
-
-							// Create and start a new slow task span
-							TSharedPtr<IAnalyticsSpan> SlowTaskSpan = FStudioTelemetry::Get().StartSpan(TEXT("SlowTask"), Attributes);
-
-							// Store this SlowTask span so we can find it when it finishes
-							TaskSpans.Add(Name, SlowTaskSpan);
-						}
-					});
-
-				// End the SlowTask span
-				GWarn->OnFinalizeSlowTask().AddLambda([this](const FText& TaskName, double TaskDurationSeconds)
-					{
-						// Slow tasks can possibly be finalized from multiple threads, so we need to protect the registered span table
-						FScopeLock ScopeLock(&TaskSpanCriticalSection);
-
-						FString Name = TaskName.ToString();
-
-						// Find the task we stored off when we started this task
-						TSharedPtr<IAnalyticsSpan>* SpanPtr = TaskSpans.Find(Name);
-						
-						if (SpanPtr!=nullptr)
-						{
-							TSharedPtr<IAnalyticsSpan> SlowTaskSpan = *SpanPtr;
-
-							FStudioTelemetry::Get().EndSpan(SlowTaskSpan);
-					
-							// Remove the SlowTask span from the registry
-							TaskSpans.Remove(Name);
-						}
-					});
-			}
+			
 		});
 
 	// Install PIE Mode callbacks

@@ -119,10 +119,7 @@ void FStudioTelemetry::StartSession()
 		FString SessionLabel;
 		FParse::Value(FCommandLine::Get(), TEXT("SessionLabel="), SessionLabel);
 
-		// Set the default event attributes
-		DefaultEventAttributes.Emplace(TEXT("User_ID"), UserID);
-		DefaultEventAttributes.Emplace(TEXT("Application_Commandline"), FCommandLine::Get());
-
+		// Set the default event attributes	
 		DefaultEventAttributes.Emplace(TEXT("ProjectName"), ProjectName);
 		DefaultEventAttributes.Emplace(TEXT("ProjectID"), ProjectID);
 
@@ -137,7 +134,6 @@ void FStudioTelemetry::StartSession()
 		DefaultEventAttributes.Emplace(TEXT("Build_BranchName"), FApp::GetBranchName().ToLower());
 		DefaultEventAttributes.Emplace(TEXT("Build_Changelist"), BuildSettings::GetCurrentChangelist());
 
-		DefaultEventAttributes.Emplace(TEXT("Hardware_ComputerName"), ComputerName.ToLower());
 		DefaultEventAttributes.Emplace(TEXT("Hardware_Platform"), FString(FPlatformProperties::IniPlatformName()));
 		DefaultEventAttributes.Emplace(TEXT("Hardware_GPU"), GRHIAdapterName);
 		DefaultEventAttributes.Emplace(TEXT("Hardware_CPU"), FPlatformMisc::GetCPUBrand());
