@@ -7,6 +7,7 @@
 #include "IDesktopPlatform.h"
 #include "HttpModule.h"
 #include "Misc/Paths.h"
+#include "HAL/PlatformMisc.h"
 
 FHordeHttpClient::FHordeHttpClient(FString InServerUrl)
 	: ServerUrl(InServerUrl)
@@ -31,6 +32,17 @@ bool FHordeHttpClient::LoginWithOidc(const TCHAR* Profile, bool bUnattended, FFe
 			Token = NewToken;
 			return true;
 		}
+	}
+	return false;
+}
+
+bool FHordeHttpClient::LoginWithEnvironmentVariable()
+{
+	FString EnvVarHordeToken = FPlatformMisc::GetEnvironmentVariable(TEXT("UE_HORDE_TOKEN"));
+	if (!EnvVarHordeToken.IsEmpty())
+	{
+		Token = MoveTemp(EnvVarHordeToken);
+		return true;
 	}
 	return false;
 }

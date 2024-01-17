@@ -30,11 +30,23 @@ bool FUbaHordeMetaClient::RefreshHttpClient()
 	if (bConnectWithAuthentication)
 	{
 		check(!OAuthProviderIdentifier.IsEmpty());
-		UE_LOG(LogUbaHorde, Display, TEXT("Logging in to Horde server with OIDC: %s"), *ServerUrl);
-		if (!HttpClient->LoginWithOidc(*OAuthProviderIdentifier, FApp::IsUnattended()))
+		if (FApp::IsUnattended())
 		{
-			UE_LOG(LogUbaHorde, Error, TEXT("Login to Horde server [%s] failed"), *ServerUrl);
-			return false;
+			UE_LOG(LogUbaHorde, Display, TEXT("Logging in to Horde server with environment variable UE_HORDE_TOKEN: %s"), *ServerUrl);
+			if (!HttpClient->LoginWithEnvironmentVariable())
+			{
+				UE_LOG(LogUbaHorde, Error, TEXT("Login to Horde server [%s] failed"), *ServerUrl);
+				return false;
+			}
+		}
+		else
+		{
+			UE_LOG(LogUbaHorde, Display, TEXT("Logging in to Horde server with OIDC: %s"), *ServerUrl);
+			if (!HttpClient->LoginWithOidc(*OAuthProviderIdentifier, FApp::IsUnattended()))
+			{
+				UE_LOG(LogUbaHorde, Error, TEXT("Login to Horde server [%s] failed"), *ServerUrl);
+				return false;
+			}
 		}
 	}
 	return true;

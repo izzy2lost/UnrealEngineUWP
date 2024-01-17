@@ -14,6 +14,8 @@ public:
 	~FHordeHttpClient();
 
 	bool LoginWithOidc(const TCHAR* Profile, bool bUnattended, FFeedbackContext* Warn = nullptr);
+
+	bool LoginWithEnvironmentVariable();
 	
 	TSharedRef<IHttpRequest> CreateRequest(const TCHAR* Verb, const TCHAR* Path);
 	TSharedRef<IHttpResponse> Get(const TCHAR* Path);
