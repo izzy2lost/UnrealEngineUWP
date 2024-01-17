@@ -217,6 +217,11 @@ namespace EpicGames.Horde.Compute
 					await ExecuteProcessInternalAsync(channel, executable, arguments, workingDir, envVars, flags, cancellationToken);
 				}
 			}
+			catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+			{
+				// Skip sending back over compute socket as invocation is already being cancelled
+				_logger.LogInformation("Compute process execution cancelled");
+			}
 			catch (Exception ex)
 			{
 				await channel.SendExceptionAsync(ex, cancellationToken);
