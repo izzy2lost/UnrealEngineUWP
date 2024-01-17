@@ -218,7 +218,7 @@ bool FMediaIOCoreTextureSampleBase::ApplyColorConversion(FTexture2DRHIRef& InSrc
 			CachedOCIOResources = MakeShared<FOpenColorIORenderPassResources>();
 
 			FOpenColorIOTransformResource* ShaderResource = nullptr;
-			TSortedMap<int32, FTextureResource*> TransformTextureResources;
+			TSortedMap<int32, TWeakObjectPtr<UTexture>> TransformTextureResources;
 
 			if (ColorConversionSettings->ConfigurationSource != nullptr)
 			{

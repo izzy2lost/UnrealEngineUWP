@@ -496,8 +496,13 @@ FOpenColorIOTransformResource* UOpenColorIOColorTransform::AllocateResource()
 	return new FOpenColorIOTransformResource();
 }
 
-bool UOpenColorIOColorTransform::GetRenderResources(ERHIFeatureLevel::Type InFeatureLevel, FOpenColorIOTransformResource*& OutShaderResource, TSortedMap<int32, FTextureResource*>& OutTextureResources) const
+bool UOpenColorIOColorTransform::GetRenderResources(ERHIFeatureLevel::Type InFeatureLevel, FOpenColorIOTransformResource*& OutShaderResource, TSortedMap<int32, TWeakObjectPtr<UTexture>>& OutTextureResources) const
 {
+	if (!AreRenderResourcesReady())
+	{
+		return false;
+	}
+
 	OutShaderResource = ColorTransformResources[InFeatureLevel];
 	
 	if (OutShaderResource)
@@ -506,18 +511,7 @@ bool UOpenColorIOColorTransform::GetRenderResources(ERHIFeatureLevel::Type InFea
 
 		for (const TPair<int32, TObjectPtr<UTexture>>& Pair : Textures)
 		{
-			if (FTextureResource* TextureResource = Pair.Value->GetResource())
-			{
-				OutTextureResources.Add(Pair.Key, TextureResource);
-			}
-			else
-			{
-				// The texture doesn't exist, we can't get all the resources we need
-				OutShaderResource = nullptr;
-				OutTextureResources.Empty();
-
-				return false;
-			}
+			OutTextureResources.Add(Pair.Key, Pair.Value);
 		}
 	}
 	

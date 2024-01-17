@@ -43,14 +43,32 @@ void FOpenColorIORendering::AddPass_RenderThread(
 	TShaderMapRef<FScreenPassVS> VertexShader(ShaderMap);
 
 	bool bRenderPassSuccessed = false;
-	if (InPassResource.ShaderResource != nullptr)
+
+	TSortedMap<int32, FTextureResource*> TextureResources;
+	TextureResources.Reserve(InPassResource.TextureResources.Num());
+
+	for (const TPair<int32, TWeakObjectPtr<UTexture>>& Pair : InPassResource.TextureResources)
+	{
+		if (Pair.Value.IsValid(false, true))
+		{
+			// UTexture's GetResource() is safe to call from the render thread.
+			if (FTextureResource* TextureResource = Pair.Value->GetResource())
+			{
+				TextureResources.Add(Pair.Key, TextureResource);
+			}
+		}
+	}
+
+	const bool bAllExpectedTexturesResources = TextureResources.Num() == InPassResource.TextureResources.Num();
+
+	if (bAllExpectedTexturesResources && InPassResource.ShaderResource != nullptr)
 	{
 		TShaderRef<FOpenColorIOPixelShader> OCIOPixelShader = InPassResource.ShaderResource->GetShader<FOpenColorIOPixelShader>();
 
 		FOpenColorIOPixelShaderParameters* Parameters = GraphBuilder.AllocParameters<FOpenColorIOPixelShaderParameters>();
 		Parameters->InputTexture = Input.Texture;
 		Parameters->InputTextureSampler = TStaticSamplerState<>::GetRHI();
-		if (OpenColorIOBindTextureResources(Parameters, InPassResource.TextureResources))
+		if (OpenColorIOBindTextureResources(Parameters, TextureResources))
 		{
 			Parameters->Gamma = InGamma;
 			Parameters->TransformAlpha = (uint32)TransformAlpha;
@@ -173,11 +191,11 @@ bool FOpenColorIORendering::ApplyColorTransform(UWorld* InWorld, const FOpenColo
 
 	const ERHIFeatureLevel::Type FeatureLevel = InWorld->Scene->GetFeatureLevel();
 	FOpenColorIOTransformResource* ShaderResource = nullptr;
-	TSortedMap<int32, FTextureResource*> TransformTextureResources;
+	TSortedMap<int32, TWeakObjectPtr<UTexture>> TransformTextures;
 
 	if (InSettings.ConfigurationSource != nullptr)
 	{
-		const bool bFoundTransform = InSettings.ConfigurationSource->GetRenderResources(FeatureLevel, InSettings, ShaderResource, TransformTextureResources);
+		const bool bFoundTransform = InSettings.ConfigurationSource->GetRenderResources(FeatureLevel, InSettings, ShaderResource, TransformTextures);
 
 		if (bFoundTransform)
 		{
@@ -193,7 +211,7 @@ bool FOpenColorIORendering::ApplyColorTransform(UWorld* InWorld, const FOpenColo
 	}
 	
 	ENQUEUE_RENDER_COMMAND(ProcessColorSpaceTransform)(
-		[FeatureLevel, InputResource, OutputResource, ShaderResource, TextureResources = MoveTemp(TransformTextureResources), TransformName = InSettings.ToString()](FRHICommandListImmediate& RHICmdList)
+		[FeatureLevel, InputResource, OutputResource, ShaderResource, Textures = MoveTemp(TransformTextures), TransformName = InSettings.ToString()](FRHICommandListImmediate& RHICmdList)
 		{
 			FRDGBuilder GraphBuilder(RHICmdList);
 
@@ -208,7 +226,7 @@ bool FOpenColorIORendering::ApplyColorTransform(UWorld* InWorld, const FOpenColo
 				FeatureLevel,
 				FScreenPassTexture(InputTexture),
 				Output,
-				FOpenColorIORenderPassResources{ShaderResource, TextureResources, TransformName},
+				FOpenColorIORenderPassResources{ShaderResource, Textures, TransformName},
 				1.0f); // Set Gamma to 1., since we do not have any display parameters or requirement for Gamma.
 
 			GraphBuilder.Execute();

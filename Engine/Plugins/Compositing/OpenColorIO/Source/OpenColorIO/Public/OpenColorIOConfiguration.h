@@ -18,6 +18,7 @@ class FOpenColorIOWrapperConfig;
 class FOpenColorIOTransformResource;
 class FTextureResource;
 class UOpenColorIOColorTransform;
+class UTexture;
 struct FImageView;
 struct FFileChangeData;
 class SNotificationItem;
@@ -38,7 +39,15 @@ public:
 public:
 
 	bool IsTransformReady(const FOpenColorIOColorConversionSettings& InSettings);
-	bool GetRenderResources(ERHIFeatureLevel::Type InFeatureLevel, const FOpenColorIOColorConversionSettings& InSettings, FOpenColorIOTransformResource*& OutShaderResource, TSortedMap<int32, FTextureResource*>& OutTextureResources);
+	
+	UE_DEPRECATED(5.4, "This method is deprecated.")
+	bool GetRenderResources(ERHIFeatureLevel::Type InFeatureLevel, const FOpenColorIOColorConversionSettings& InSettings, FOpenColorIOTransformResource*& OutShaderResource, TSortedMap<int32, FTextureResource*>& OutTextureResources)
+	{
+		return false;
+	}
+
+	bool GetRenderResources(ERHIFeatureLevel::Type InFeatureLevel, const FOpenColorIOColorConversionSettings& InSettings, FOpenColorIOTransformResource*& OutShaderResource, TSortedMap<int32, TWeakObjectPtr<UTexture>>& OutTextureResources);
+	
 	bool HasTransform(const FString& InSourceColorSpace, const FString& InDestinationColorSpace);
 	bool HasTransform(const FString& InSourceColorSpace, const FString& InDisplay, const FString& InView, EOpenColorIOViewTransformDirection InDirection);
 	bool HasDesiredColorSpace(const FOpenColorIOColorSpace& ColorSpace) const;

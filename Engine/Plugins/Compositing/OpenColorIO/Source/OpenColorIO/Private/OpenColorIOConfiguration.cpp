@@ -71,7 +71,7 @@ bool UOpenColorIOConfiguration::IsTransformReady(const FOpenColorIOColorConversi
 	return false;
 }
 
-bool UOpenColorIOConfiguration::GetRenderResources(ERHIFeatureLevel::Type InFeatureLevel, const FOpenColorIOColorConversionSettings& InSettings, FOpenColorIOTransformResource*& OutShaderResource, TSortedMap<int32, FTextureResource*>& OutTextureResources)
+bool UOpenColorIOConfiguration::GetRenderResources(ERHIFeatureLevel::Type InFeatureLevel, const FOpenColorIOColorConversionSettings& InSettings, FOpenColorIOTransformResource*& OutShaderResource, TSortedMap<int32, TWeakObjectPtr<UTexture>>& OutTextureResources)
 {
 	TObjectPtr<const UOpenColorIOColorTransform> Transform = FindTransform(InSettings);
 	if (IsValid(Transform))
