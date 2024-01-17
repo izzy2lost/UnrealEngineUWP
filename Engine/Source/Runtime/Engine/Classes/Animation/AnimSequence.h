@@ -938,4 +938,5 @@ public:
 	friend class FAnimDataControllerTestBase;
 	friend class UE::Anim::FAnimSequenceCompilingManager;
 	friend struct FAnimNextAnimSequenceKeyframeTask;
+	friend class FAnimSequenceDetails;
 };
