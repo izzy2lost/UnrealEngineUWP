@@ -22,6 +22,15 @@ namespace EpicGames.Horde.Storage
 		/// Constructor
 		/// </summary>
 		/// <param name="path">Path to the blob. The meaning of this string is implementation defined.</param>
+		public ObjectKey(string path)
+			: this(new Utf8String(path))
+		{
+		}
+
+		/// <summary>
+		/// Constructor
+		/// </summary>
+		/// <param name="path">Path to the blob. The meaning of this string is implementation defined.</param>
 		public ObjectKey(Utf8String path)
 		{
 			_path = path;
@@ -34,13 +43,17 @@ namespace EpicGames.Horde.Storage
 				}
 				for (int idx = 0; idx < path.Length; idx++)
 				{
-					if (path[idx] == '/' && path[idx - 1] == '/')
+					byte character = path[idx];
+					if (!StringId.IsValidCharacter(character))
 					{
-						throw new FormatException($"Object locator '{path}' is invalid; locators may not contain double consecutive slashes");
-					}
-					if (!IsValidChar(path[idx]))
-					{
-						throw new FormatException($"Object locator '{path}' is invalid; character '{(char)path[idx]}' is not allowed");
+						if (path[idx] == '/' && path[idx - 1] != '/')
+						{
+							// Non-consecutive path separator; allowed.
+						}
+						else
+						{
+							throw new FormatException($"Object locator '{path}' is invalid; character '{(char)path[idx]}' is not allowed");
+						}
 					}
 				}
 			}
@@ -50,27 +63,9 @@ namespace EpicGames.Horde.Storage
 			=> (character >= 'a' && character <= 'z') || (character >=  '0' && character <= '9') || character == '_' || character == '.' || character == '/';
 
 		/// <summary>
-		/// Constructor
-		/// </summary>
-		/// <param name="path">Path to the blob. The meaning of this string is implementation defined.</param>
-		public ObjectKey(string path) => _path = new Utf8String(path);
-
-		/// <summary>
 		/// Whether the blob locator is valid
 		/// </summary>
 		public bool IsValid() => !_path.IsEmpty;
-
-		/// <summary>
-		/// Checks whether this blob is within the given folder
-		/// </summary>
-		/// <param name="folder">Name of the folder</param>
-		/// <returns>True if the the blob id is within the given folder</returns>
-		public bool WithinFolder(ObjectKey folder)
-		{
-			Utf8String path = Path;
-			Utf8String folderPath = folder.Path;
-			return path.Length > folderPath.Length && path.StartsWith(folderPath) && path[folderPath.Length] == '/';
-		}
 
 		/// <inheritdoc/>
 		public override bool Equals(object? obj) => obj is BlobLocator blobId && Equals(blobId);

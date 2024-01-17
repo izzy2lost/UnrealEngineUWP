@@ -675,7 +675,7 @@ namespace Horde.Server.Storage
 
 							if (!String.IsNullOrEmpty(namespaceConfig.Prefix))
 							{
-								objectStore = new PrefixedObjectStore(new ObjectKey(namespaceConfig.Prefix), objectStore);
+								objectStore = new PrefixedObjectStore(namespaceConfig.Prefix, objectStore);
 							}
 
 #pragma warning disable CA2000 // Dispose objects before losing scope

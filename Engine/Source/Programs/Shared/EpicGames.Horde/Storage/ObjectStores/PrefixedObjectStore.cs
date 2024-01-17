@@ -15,20 +15,22 @@ namespace EpicGames.Horde.Storage.ObjectStores
 	/// </summary>
 	public sealed class PrefixedObjectStore : IObjectStore
 	{
-		readonly ObjectKey _prefix;
+		readonly Utf8String _prefix;
 		readonly IObjectStore _inner;
 
 		/// <inheritdoc/>
 		public bool SupportsRedirects => _inner.SupportsRedirects;
 
-		ObjectKey GetFullLocator(ObjectKey locator) => new ObjectKey($"{_prefix}/{locator}");
+		ObjectKey GetKeyWithPrefix(ObjectKey key) => new ObjectKey(_prefix + key.Path);
 
 		/// <summary>
 		/// Constructor
 		/// </summary>
-		public PrefixedObjectStore(ObjectKey prefix, IObjectStore inner)
+		public PrefixedObjectStore(string prefix, IObjectStore inner)
 		{
-			_prefix = prefix;
+			prefix = prefix.TrimEnd('/').ToLowerInvariant();
+			_ = new ObjectKey(prefix); // Validate the syntax
+			_prefix = new Utf8String($"{prefix}/");
 			_inner = inner;
 		}
 
@@ -38,37 +40,37 @@ namespace EpicGames.Horde.Storage.ObjectStores
 		}
 
 		/// <inheritdoc/>
-		public Task DeleteAsync(ObjectKey locator, CancellationToken cancellationToken = default) => _inner.DeleteAsync(GetFullLocator(locator), cancellationToken);
+		public Task DeleteAsync(ObjectKey locator, CancellationToken cancellationToken = default) => _inner.DeleteAsync(GetKeyWithPrefix(locator), cancellationToken);
 
 		/// <inheritdoc/>
 		public async IAsyncEnumerable<ObjectKey> EnumerateAsync([EnumeratorCancellation] CancellationToken cancellationToken = default)
 		{
-			await foreach (ObjectKey locator in _inner.EnumerateAsync(cancellationToken))
+			await foreach (ObjectKey key in _inner.EnumerateAsync(cancellationToken))
 			{
-				if (locator.WithinFolder(_prefix))
+				if (key.Path.StartsWith(_prefix))
 				{
-					yield return new ObjectKey(locator.Path.Substring(_prefix.Path.Length));
+					yield return new ObjectKey(key.Path.Substring(_prefix.Length));
 				}
 			}
 		}
 
 		/// <inheritdoc/>
-		public Task<bool> ExistsAsync(ObjectKey locator, CancellationToken cancellationToken = default) => _inner.ExistsAsync(GetFullLocator(locator), cancellationToken);
+		public Task<bool> ExistsAsync(ObjectKey locator, CancellationToken cancellationToken = default) => _inner.ExistsAsync(GetKeyWithPrefix(locator), cancellationToken);
 
 		/// <inheritdoc/>
-		public Task<Stream> OpenAsync(ObjectKey locator, int offset, int? length, CancellationToken cancellationToken = default) => _inner.OpenAsync(GetFullLocator(locator), offset, length, cancellationToken);
+		public Task<Stream> OpenAsync(ObjectKey locator, int offset, int? length, CancellationToken cancellationToken = default) => _inner.OpenAsync(GetKeyWithPrefix(locator), offset, length, cancellationToken);
 
 		/// <inheritdoc/>
-		public Task<IReadOnlyMemoryOwner<byte>> ReadAsync(ObjectKey locator, int offset, int? length, CancellationToken cancellationToken = default) => _inner.ReadAsync(GetFullLocator(locator), offset, length, cancellationToken);
+		public Task<IReadOnlyMemoryOwner<byte>> ReadAsync(ObjectKey locator, int offset, int? length, CancellationToken cancellationToken = default) => _inner.ReadAsync(GetKeyWithPrefix(locator), offset, length, cancellationToken);
 
 		/// <inheritdoc/>
-		public ValueTask<Uri?> TryGetReadRedirectAsync(ObjectKey locator, CancellationToken cancellationToken = default) => _inner.TryGetReadRedirectAsync(GetFullLocator(locator), cancellationToken);
+		public ValueTask<Uri?> TryGetReadRedirectAsync(ObjectKey locator, CancellationToken cancellationToken = default) => _inner.TryGetReadRedirectAsync(GetKeyWithPrefix(locator), cancellationToken);
 
 		/// <inheritdoc/>
-		public ValueTask<Uri?> TryGetWriteRedirectAsync(ObjectKey locator, CancellationToken cancellationToken = default) => _inner.TryGetWriteRedirectAsync(GetFullLocator(locator), cancellationToken);
+		public ValueTask<Uri?> TryGetWriteRedirectAsync(ObjectKey locator, CancellationToken cancellationToken = default) => _inner.TryGetWriteRedirectAsync(GetKeyWithPrefix(locator), cancellationToken);
 
 		/// <inheritdoc/>
-		public Task WriteAsync(ObjectKey locator, Stream stream, CancellationToken cancellationToken = default) => _inner.WriteAsync(GetFullLocator(locator), stream, cancellationToken);
+		public Task WriteAsync(ObjectKey locator, Stream stream, CancellationToken cancellationToken = default) => _inner.WriteAsync(GetKeyWithPrefix(locator), stream, cancellationToken);
 
 		/// <inheritdoc/>
 		public void GetStats(StorageStats stats) => _inner.GetStats(stats);

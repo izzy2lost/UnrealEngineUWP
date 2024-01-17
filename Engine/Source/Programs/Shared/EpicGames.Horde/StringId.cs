@@ -135,7 +135,7 @@ namespace EpicGames.Horde
 
 			for (int idx = 0; idx < text.Length; idx++)
 			{
-				char character = (char)text[idx];
+				byte character = text[idx];
 				if (!IsValidCharacter(character))
 				{
 					if (character >= 'A' && character <= 'Z')
@@ -177,7 +177,14 @@ namespace EpicGames.Horde
 		/// </summary>
 		/// <param name="character">The character to check</param>
 		/// <returns>True if the character is valid</returns>
-		static bool IsValidCharacter(char character)
+		public static bool IsValidCharacter(char character) => character <= 0x7f && IsValidCharacter((byte)character);
+
+		/// <summary>
+		/// Checks whether the given character is valid within a string id
+		/// </summary>
+		/// <param name="character">The character to check</param>
+		/// <returns>True if the character is valid</returns>
+		public static bool IsValidCharacter(byte character)
 		{
 			if (character >= 'a' && character <= 'z')
 			{

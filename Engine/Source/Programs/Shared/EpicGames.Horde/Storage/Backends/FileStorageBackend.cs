@@ -45,7 +45,7 @@ namespace EpicGames.Horde.Storage.Backends
 		/// <summary>
 		/// Gets the path for storing a file on disk
 		/// </summary>
-		static ObjectKey GetBlobFile(BlobLocator locator) => new ObjectKey(locator.Path);
+		static ObjectKey GetBlobFile(BlobLocator locator) => new ObjectKey($"{locator}.blob");
 
 		/// <inheritdoc/>
 		public Task<Stream> OpenBlobAsync(BlobLocator locator, int offset, int? length, CancellationToken cancellationToken)
