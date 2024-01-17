@@ -11,6 +11,7 @@
 #include "VisualLogger/VisualLoggerCustomVersion.h"
 #include "VisualLogger/VisualLoggerTraceDevice.h"
 #include "VisualLogger/VisualLoggerDebugSnapshotInterface.h"
+#include "UnrealEngine.h"
 
 #if WITH_EDITOR
 #include "Editor/EditorEngine.h"
