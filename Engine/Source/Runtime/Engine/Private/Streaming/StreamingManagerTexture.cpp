@@ -1729,7 +1729,7 @@ public:
 	}
 	static FORCEINLINE ENamedThreads::Type GetDesiredThread()
 	{
-		return ENamedThreads::AnyNormalThreadNormalTask;
+		return ENamedThreads::AnyBackgroundThreadNormalTask;
 	}
 	static FORCEINLINE ESubsequentsMode::Type GetSubsequentsMode()
 	{
