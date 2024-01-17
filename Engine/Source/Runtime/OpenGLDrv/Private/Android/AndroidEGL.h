@@ -145,6 +145,7 @@ private:
 	bool bSupportsKHRCreateContext;
 	bool bSupportsKHRSurfacelessContext;
 	bool bSupportsKHRNoErrorContext;
+	bool bSupportsEXTRobustContext;
 
 	int *ContextAttributes;
 };
