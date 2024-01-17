@@ -28,7 +28,8 @@ namespace uba
 
 	struct Timer
 	{
-		Timer() = default;
+        Timer(Timer &o) { time.store(o.time.load()); count.store(o.count.load());}
+        Timer() = default;
 		Timer(u64 t, u32 c) : time(t), count(c) {}
 		Timer(Timer&& o) noexcept : time(o.time.load()), count(o.count.load()) {}
 		void operator=(const Timer& o) { time.store(o.time.load()); count.store(o.count.load()); }
