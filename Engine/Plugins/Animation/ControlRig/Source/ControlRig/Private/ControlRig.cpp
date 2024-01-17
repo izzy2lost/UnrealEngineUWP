@@ -2025,10 +2025,13 @@ void UControlRig::SwitchToParent(const FRigElementKey& InElementKey, const FRigE
 	{
 		return;
 	}
-	FRigBaseElement* Parent = DynamicHierarchy->Find<FRigBaseElement>(InNewParentKey);
-	if(Parent == nullptr)
+	if (InNewParentKey.Type != ERigElementType::Reference)
 	{
-		return;
+		FRigBaseElement* Parent = DynamicHierarchy->Find<FRigBaseElement>(InNewParentKey);
+		if (Parent == nullptr)
+		{
+			return;
+		}
 	}
 	if (bIsAdditive)
 	{

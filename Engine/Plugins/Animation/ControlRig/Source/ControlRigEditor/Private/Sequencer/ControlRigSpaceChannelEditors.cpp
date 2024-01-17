@@ -712,10 +712,10 @@ void  FControlRigSpaceChannelHelpers::SequencerSpaceChannelKeyDeleted(UControlRi
 			switch (PreviousValue.SpaceType)
 			{
 			case EMovieSceneControlRigSpaceType::Parent:
-				RigHierarchy->SwitchToDefaultParent(ControlKey);
+				ControlRig->SwitchToParent(ControlKey, RigHierarchy->GetDefaultParent(ControlKey), false, true);
 				break;
 			case EMovieSceneControlRigSpaceType::World:
-				RigHierarchy->SwitchToWorldSpace(ControlKey);
+				ControlRig->SwitchToParent(ControlKey, RigHierarchy->GetWorldSpaceReferenceKey(), false, true);
 				break;
 			case EMovieSceneControlRigSpaceType::ControlRig:
 				ControlRig->SwitchToParent(ControlKey, PreviousValue.ControlRigElement, false, true);
@@ -1130,10 +1130,10 @@ void FControlRigSpaceChannelHelpers::SequencerBakeControlInSpace(UControlRig* Co
 				switch (EndFrameValue.SpaceType)
 				{
 				case EMovieSceneControlRigSpaceType::Parent:
-					RigHierarchy->SwitchToDefaultParent(ControlKey);
+					ControlRig->SwitchToParent(ControlKey, RigHierarchy->GetDefaultParent(ControlKey), false, true);
 					break;
 				case EMovieSceneControlRigSpaceType::World:
-					RigHierarchy->SwitchToWorldSpace(ControlKey);
+					ControlRig->SwitchToParent(ControlKey, RigHierarchy->GetWorldSpaceReferenceKey(), false, true);
 					break;
 				case EMovieSceneControlRigSpaceType::ControlRig:
 					ControlRig->SwitchToParent(ControlKey, EndFrameValue.ControlRigElement, false, true);
@@ -1344,16 +1344,17 @@ void FControlRigSpaceChannelHelpers::CompensateIfNeeded(
 								ControlRigParentWorldTransforms, ControlWorldTransforms);
 
 							//set space to previous space value that's different.
+							const FRigElementKey ControlKey = Control->GetKey();
 							switch (PreviousValue.SpaceType)
 							{
 								case EMovieSceneControlRigSpaceType::Parent:
-									RigHierarchy->SwitchToDefaultParent(Control->GetKey());
+									ControlRig->SwitchToParent(ControlKey, RigHierarchy->GetDefaultParent(ControlKey), false, true);
 									break;
 								case EMovieSceneControlRigSpaceType::World:
-									RigHierarchy->SwitchToWorldSpace(Control->GetKey());
+									ControlRig->SwitchToParent(ControlKey, RigHierarchy->GetWorldSpaceReferenceKey(), false, true);
 									break;
 								case EMovieSceneControlRigSpaceType::ControlRig:
-									ControlRig->SwitchToParent(Control->GetKey(), PreviousValue.ControlRigElement, false, true);
+									ControlRig->SwitchToParent(ControlKey, PreviousValue.ControlRigElement, false, true);
 									break;
 							}
 							

@@ -386,9 +386,8 @@ void FControlRigEditMode::Enter()
 		if (!Toolkit.IsValid())
 		{
 			Toolkit = MakeShareable(new FControlRigEditModeToolkit(*this));
+			Toolkit->Init(Owner->GetToolkitHost());
 		}
-
-		Toolkit->Init(Owner->GetToolkitHost());
 
 		FEditorModeTools* ModeManager = GetModeManager();
 
@@ -471,7 +470,6 @@ void FControlRigEditMode::Exit()
 	if (Toolkit.IsValid())
 	{
 		FToolkitManager::Get().CloseToolkit(Toolkit.ToSharedRef());
-		Toolkit.Reset();
 	}
 
 	DestroyShapesActors(nullptr);

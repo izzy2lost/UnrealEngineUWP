@@ -1672,17 +1672,19 @@ static void EvaluateThisControl(UMovieSceneControlRigParameterSection* Section, 
 			TOptional<FMovieSceneControlRigSpaceBaseKey> SpaceKey = Section->EvaluateSpaceChannel(FrameTime, ControlName);
 			if (SpaceKey.IsSet())
 			{
+				const FRigElementKey ControlKey = ControlElement->GetKey();
 				switch (SpaceKey.GetValue().SpaceType)
 				{
 				case EMovieSceneControlRigSpaceType::Parent:
-					RigHierarchy->SwitchToDefaultParent(ControlElement->GetKey());
+					ControlRig->SwitchToParent(ControlKey, RigHierarchy->GetDefaultParent(ControlKey), false, true);
 					break;
 				case EMovieSceneControlRigSpaceType::World:
-					RigHierarchy->SwitchToWorldSpace(ControlElement->GetKey());
+					ControlRig->SwitchToParent(ControlKey, RigHierarchy->GetWorldSpaceReferenceKey(), false, true);
 					break;
 				case EMovieSceneControlRigSpaceType::ControlRig:
-					ControlRig->SwitchToParent(ControlElement->GetKey(), SpaceKey.GetValue().ControlRigElement, false, true);
-					break;
+					ControlRig->SwitchToParent(ControlKey, SpaceKey.GetValue().ControlRigElement, false, true);
+					break;	
+
 				}
 			}
 		}
@@ -5295,6 +5297,14 @@ FControlRigEditMode* FControlRigParameterTrackEditor::GetEditMode(bool bForceAct
 		if (bForceActivate && !EditorModetools->IsModeActive(FControlRigEditMode::ModeName))
 		{
 			EditorModetools->ActivateMode(FControlRigEditMode::ModeName);
+			if (bForceActivate)
+			{
+				FControlRigEditMode* EditMode = static_cast<FControlRigEditMode*>(EditorModetools->GetActiveMode(FControlRigEditMode::ModeName));
+				if (EditMode && EditMode->GetToolkit().IsValid() == false)
+				{
+					EditMode->Enter();
+				}
+			}
 		}
 
 		return static_cast<FControlRigEditMode*>(EditorModetools->GetActiveMode(FControlRigEditMode::ModeName));

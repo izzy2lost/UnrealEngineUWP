@@ -785,7 +785,6 @@ struct FControlRigParameterPreAnimatedTokenProducer : IMovieScenePreAnimatedToke
 							const bool bSetupUndo = false;
 							if (URigHierarchy* RigHierarchy = ControlRig->GetHierarchy())
 							{
-
 								FRigElementKey ControlKey;
 								ControlKey.Type = ERigElementType::Control;
 								for (FControlSpaceAndValue& SpaceNameAndValue : SpaceValues)
@@ -793,19 +792,19 @@ struct FControlRigParameterPreAnimatedTokenProducer : IMovieScenePreAnimatedToke
 									ControlKey.Name = SpaceNameAndValue.ControlName;
 									switch (SpaceNameAndValue.Value.SpaceType)
 									{
-									case EMovieSceneControlRigSpaceType::Parent:
-										RigHierarchy->SwitchToDefaultParent(ControlKey);
+										case EMovieSceneControlRigSpaceType::Parent:
+											ControlRig->SwitchToParent(ControlKey, RigHierarchy->GetDefaultParent(ControlKey), false, true);
 										break;
-									case EMovieSceneControlRigSpaceType::World:
-										RigHierarchy->SwitchToWorldSpace(ControlKey);
+										case EMovieSceneControlRigSpaceType::World:
+											ControlRig->SwitchToParent(ControlKey, RigHierarchy->GetWorldSpaceReferenceKey(), false, true);
 										break;
-									case EMovieSceneControlRigSpaceType::ControlRig:
+										case EMovieSceneControlRigSpaceType::ControlRig:
 										{
 #if WITH_EDITOR
 											ControlRig->SwitchToParent(ControlKey, SpaceNameAndValue.Value.ControlRigElement, false, true);
 #else
-											RigHierarchy->SwitchToParent(ControlKey, SpaceNameAndValue.Value.ControlRigElement);
-#endif
+											ControlRig->SwitchToParent(ControlKey, SpaceNameAndValue.Value.ControlRigElement, false, true);
+#endif	
 										}
 										break;
 									}

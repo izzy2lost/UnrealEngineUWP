@@ -48,7 +48,7 @@ const FName FControlRigEditModeToolkit::SpacePickerTabName = FName(TEXT("Control
 
 void FControlRigEditModeToolkit::Init(const TSharedPtr<IToolkitHost>& InitToolkitHost)
 {
-	SAssignNew(ModeTools, SControlRigEditModeTools, SharedThis(this), EditMode, EditMode.GetWorld());
+	SAssignNew(ModeTools, SControlRigEditModeTools, SharedThis(this), EditMode);
 
 	FPropertyEditorModule& PropertyEditorModule = FModuleManager::GetModuleChecked<FPropertyEditorModule>("PropertyEditor");
 

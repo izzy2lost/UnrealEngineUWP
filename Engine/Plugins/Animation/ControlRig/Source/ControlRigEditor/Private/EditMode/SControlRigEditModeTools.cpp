@@ -87,7 +87,7 @@ const URigHierarchy* SControlRigEditModeTools::GetHierarchy() const
 	return nullptr;
 }
 
-void SControlRigEditModeTools::Construct(const FArguments& InArgs, TSharedPtr<FControlRigEditModeToolkit> InOwningToolkit, FControlRigEditMode& InEditMode,UWorld* InWorld)
+void SControlRigEditModeTools::Construct(const FArguments& InArgs, TSharedPtr<FControlRigEditModeToolkit> InOwningToolkit, FControlRigEditMode& InEditMode)
 {
 	bIsChangingRigHierarchy = false;
 	OwningToolkit = InOwningToolkit;
@@ -420,13 +420,17 @@ void SControlRigEditModeTools::Construct(const FArguments& InArgs, TSharedPtr<FC
 						SNew(SButton)
 						.ContentPadding(0.0f)
 						.ButtonStyle(FAppStyle::Get(), "NoBorder")
-						.IsEnabled_Lambda([InWorld]()
+						.IsEnabled_Lambda([this]()
 						{
-							const ULevel* CurrentLevel = InWorld->GetCurrentLevel();
-							const TArray<AActor*> SelectedActors = ObjectPtrDecay(CurrentLevel->Actors).FilterByPredicate( [](const AActor* Actor)
+							TArray<AActor*> SelectedActors;
+							if (FControlRigEditMode* EditMode = static_cast<FControlRigEditMode*>(ModeTools->GetActiveMode(FControlRigEditMode::ModeName)))
 							{
-								return Actor && Actor->IsSelected();
-							});
+								const ULevel* CurrentLevel = EditMode->GetWorld()->GetCurrentLevel();
+								SelectedActors = ObjectPtrDecay(CurrentLevel->Actors).FilterByPredicate([](const AActor* Actor)
+								{
+									return Actor && Actor->IsSelected();
+								});
+							}
 							return !SelectedActors.IsEmpty();
 						})
 						.OnClicked(this, &SControlRigEditModeTools::HandleAddConstraintClicked)
