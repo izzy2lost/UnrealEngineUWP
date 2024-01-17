@@ -10,6 +10,8 @@
 
 #include "Render/DisplayDevice/IDisplayClusterDisplayDeviceProxy.h"
 
+#include "PostProcess/PostProcessAA.h"
+
 #include "EngineUtils.h"
 #include "ScreenRendering.h"
 #include "SceneView.h"
@@ -144,6 +146,14 @@ public:
 	//~~ END IDisplayClusterViewportProxy
 
 public:
+	/**
+	* Fill the entire texture with the specified color.
+	* 
+	* @param InRenderTargetTexture - texture,  must be RTT.
+	* @param InColor - the texture will be filled with this color.
+	*/
+	static void FillTextureWithColor_RenderThread(FRHICommandListImmediate& RHICmdList, FRHITexture2D* InRenderTargetTexture, const FLinearColor& InColor);
+
 	/** Get valid resource type
 	 * 
 	 * @param InResourceType - the requested resource type from the entire namespace
@@ -168,6 +178,12 @@ public:
 	 * @return - none
 	 */
 	void UpdateDeferredResources(FRHICommandListImmediate& RHICmdList) const;
+
+	/** Called at the end of the frame, after all callbacks.
+	* At the end, some resources may be filled with black, etc.
+	* This is useful because the resources are reused and the image from the previous frame goes into the new one.
+	*/
+	void CleanupResources_RenderThread(FRHICommandListImmediate& RHICmdList) const;
 
 	/** nDisplay VE Callback [subscribed to Renderer:ResolvedSceneColorCallbacks].
 	 *
@@ -277,6 +293,11 @@ public:
 
 	void UpdateViewportProxyData_RenderThread(const class FDisplayClusterViewportProxyData& InViewportProxyData);
 
+	/** Viewports should be processed in the appropriate order.
+	* Viewports with lower priority values will be processed earlier.
+	*/
+	uint8 GetPriority_RenderThread() const;
+
 private:
 	bool ImplGetResourcesWithRects_RenderThread(const EDisplayClusterViewportResourceType InResourceType, TArray<FRHITexture2D*>& OutResources, TArray<FIntRect>& OutResourceRects, const int32 InRecursionDepth) const;
 	bool ImplGetResources_RenderThread(const EDisplayClusterViewportResourceType InResourceType, TArray<FRHITexture2D*>& OutResources, const int32 InRecursionDepth) const;
@@ -284,6 +305,15 @@ private:
 	void ImplViewportRemap_RenderThread(FRHICommandListImmediate& RHICmdList) const;
 
 	bool ImplResolveResources_RenderThread(FRHICommandListImmediate& RHICmdList, FDisplayClusterViewportProxy const* SourceProxy, const EDisplayClusterViewportResourceType InputResourceType, const EDisplayClusterViewportResourceType OutputResourceType, const int32 InContextNum = INDEX_NONE) const;
+
+	/** Copy the tile to the target viewport. */
+	void ImplResolveTileResource_RenderThread(FRHICommandListImmediate& RHICmdList, FDisplayClusterViewportProxy const* InDestViewportProxy) const;
+
+	/** Returns true if this viewport requires FXAA to be applied.
+	* 
+	* @param OutFXAAQuality - (out) FXAA shader parameter that define quality level.
+	*/
+	bool ShouldApplyFXAA_RenderThread(EFXAAQuality& OutFXAAQuality) const;
 
 	/** When a resource by type can be overridden from another viewport, true is returned. */
 	bool ShouldOverrideViewportResource(const EDisplayClusterViewportResourceType InResourceType) const;

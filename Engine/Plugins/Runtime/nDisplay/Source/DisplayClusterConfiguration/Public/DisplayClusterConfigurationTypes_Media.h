@@ -121,6 +121,10 @@ public:
 	/** Cluster nodes that use media source below */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = Media, meta = (ClusterItemType = ClusterNodes))
 	FDisplayClusterConfigurationClusterItemReferenceList ClusterNodes;
+
+	/** Cluster nodes with tiles that use the media source below */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = Media, meta = (ClusterItemType = ClusterNodes))
+	FDisplayClusterConfigurationClusterTileItemReferenceList ClusterNodesWithTiles;
 };
 
 
@@ -137,6 +141,10 @@ public:
 	/** Cluster nodes that export media via MediaOutput below */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = Media, meta = (ClusterItemType = ClusterNodes))
 	FDisplayClusterConfigurationClusterItemReferenceList ClusterNodes;
+
+	/** Cluster nodes with tiles that export media via MediaOutput below */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = Media, meta = (ClusterItemType = ClusterNodes))
+	FDisplayClusterConfigurationClusterTileItemReferenceList ClusterNodesWithTiles;
 };
 
 
@@ -177,6 +185,13 @@ public:
 
 	/** Returns media outputs bound to a specific cluster node */
 	TArray<FDisplayClusterConfigurationMediaOutputGroup> GetMediaOutputGroups(const FString& NodeId) const;
+
+
+	/** Returns media source bound to a specific cluster node with tiles. */
+	UMediaSource* GetMediaSourceForTiles(const FString& NodeId, TArray<FIntPoint>& OutTiles) const;
+
+	/** Returns media outputs bound to a specific cluster node */
+	TArray<FDisplayClusterConfigurationMediaOutputGroup> GetMediaOutputGroupsForTiles(const FString& NodeId) const;
 
 public:
 	UE_DEPRECATED(5.3, "This function has beend deprecated. Please use GetMediaOutputGroups.")

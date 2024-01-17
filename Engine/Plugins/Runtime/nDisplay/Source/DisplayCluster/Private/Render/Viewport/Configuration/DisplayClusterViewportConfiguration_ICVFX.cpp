@@ -402,7 +402,7 @@ bool FDisplayClusterViewportConfiguration_ICVFX::ImplGetTargetViewports(TArray<T
 		for (const TSharedPtr<FDisplayClusterViewport, ESPMode::ThreadSafe>& ViewportIt : ViewportManager->ImplGetCurrentRenderFrameViewports())
 		{
 			// Process only external viewports:
-			if (ViewportIt.IsValid() && !EnumHasAnyFlags(ViewportIt->GetRenderSettingsICVFX().RuntimeFlags, EDisplayClusterViewportRuntimeICVFXFlags::InternalResource))
+			if (ViewportIt.IsValid() && !ViewportIt->IsInternalViewport())
 			{
 				//Raise new projection target if possible
 				if (ViewportIt->GetRenderSettings().bEnable && EnumHasAnyFlags(ViewportIt->GetRenderSettingsICVFX().Flags, EDisplayClusterViewportICVFXFlags::Enable))

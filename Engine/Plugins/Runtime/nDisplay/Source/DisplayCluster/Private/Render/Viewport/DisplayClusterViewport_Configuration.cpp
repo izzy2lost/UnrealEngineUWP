@@ -57,42 +57,9 @@ void FDisplayClusterViewport::UpdateConfiguration_OverlayRenderSettings(const FD
 	RenderSettings.bForceMono = FDisplayClusterViewportConfigurationHelpers::IsForceMonoscopicRendering(InOverlaySettings.StereoMode);
 }
 
-void FDisplayClusterViewport::UpdateConfiguration_Overscan(const FDisplayClusterConfigurationViewport_Overscan& InOverscan)
+void FDisplayClusterViewport::UpdateConfiguration_Overscan(const FDisplayClusterViewport_OverscanSettings& InOverscanSettings)
 {
-	FDisplayClusterViewport_OverscanSettings& OutOverscanSettings = RenderSettings.OverscanSettings;
-
-	OutOverscanSettings.bEnabled = false;
-	OutOverscanSettings.bOversize = InOverscan.bOversize;
-
-	if (InOverscan.bEnabled)
-	{
-		switch (InOverscan.Mode)
-		{
-		case EDisplayClusterConfigurationViewportOverscanMode::Percent:
-			OutOverscanSettings.bEnabled = InOverscan.bEnabled;
-			OutOverscanSettings.Unit = EDisplayClusterViewport_FrustumUnit::Percent;
-
-			// Scale 0..100% to 0..1 range
-			OutOverscanSettings.Left = .01f * InOverscan.Left;
-			OutOverscanSettings.Right = .01f * InOverscan.Right;
-			OutOverscanSettings.Top = .01f * InOverscan.Top;
-			OutOverscanSettings.Bottom = .01f * InOverscan.Bottom;
-			break;
-
-		case EDisplayClusterConfigurationViewportOverscanMode::Pixels:
-			OutOverscanSettings.bEnabled = InOverscan.bEnabled;
-			OutOverscanSettings.Unit = EDisplayClusterViewport_FrustumUnit::Pixels;
-
-			OutOverscanSettings.Left = InOverscan.Left;
-			OutOverscanSettings.Right = InOverscan.Right;
-			OutOverscanSettings.Top = InOverscan.Top;
-			OutOverscanSettings.Bottom = InOverscan.Bottom;
-			break;
-
-		default:
-			break;
-		}
-	}
+	RenderSettings.OverscanSettings = InOverscanSettings;
 }
 
 void FDisplayClusterViewport::UpdateConfiguration_CameraMotionBlur(const FDisplayClusterViewport_CameraMotionBlur& InCameraMotionBlur)

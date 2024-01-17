@@ -44,6 +44,46 @@ bool FDisplayClusterViewportConfigurationHelpers::IsForceMonoscopicRendering(con
 	return StereoMode == EDisplayClusterConfigurationViewport_StereoMode::ForceMono;
 }
 
+FDisplayClusterViewport_OverscanSettings FDisplayClusterViewportConfigurationHelpers::GetViewportOverscanSettings(const FDisplayClusterConfigurationViewport_Overscan& InOverscan)
+{
+	FDisplayClusterViewport_OverscanSettings OutOverscanSettings;
+
+	OutOverscanSettings.bEnabled = false;
+	OutOverscanSettings.bOversize = InOverscan.bOversize;
+
+	if (InOverscan.bEnabled)
+	{
+		switch (InOverscan.Mode)
+		{
+		case EDisplayClusterConfigurationViewportOverscanMode::Percent:
+			OutOverscanSettings.bEnabled = InOverscan.bEnabled;
+			OutOverscanSettings.Unit = EDisplayClusterViewport_FrustumUnit::Percent;
+
+			// Scale 0..100% to 0..1 range
+			OutOverscanSettings.Left = .01f * InOverscan.Left;
+			OutOverscanSettings.Right = .01f * InOverscan.Right;
+			OutOverscanSettings.Top = .01f * InOverscan.Top;
+			OutOverscanSettings.Bottom = .01f * InOverscan.Bottom;
+			break;
+
+		case EDisplayClusterConfigurationViewportOverscanMode::Pixels:
+			OutOverscanSettings.bEnabled = InOverscan.bEnabled;
+			OutOverscanSettings.Unit = EDisplayClusterViewport_FrustumUnit::Pixels;
+
+			OutOverscanSettings.Left = InOverscan.Left;
+			OutOverscanSettings.Right = InOverscan.Right;
+			OutOverscanSettings.Top = InOverscan.Top;
+			OutOverscanSettings.Bottom = InOverscan.Bottom;
+			break;
+
+		default:
+			break;
+		}
+	}
+
+	return OutOverscanSettings;
+}
+
 void FDisplayClusterViewportConfigurationHelpers::UpdateBaseViewportSetting(FDisplayClusterViewport& DstViewport, const UDisplayClusterConfigurationViewport& InConfigurationViewport)
 {
 	// Gain direct access to internal settings of the viewport:
@@ -86,7 +126,7 @@ void FDisplayClusterViewportConfigurationHelpers::UpdateBaseViewportSetting(FDis
 	{
 		DstViewport.SetViewportBufferRatio(InRenderSettings.BufferRatio);
 
-		DstViewport.UpdateConfiguration_Overscan(InRenderSettings.Overscan);
+		DstViewport.UpdateConfiguration_Overscan(GetViewportOverscanSettings(InRenderSettings.Overscan));
 
 		DstViewport.UpdateConfiguration_PostRenderOverride(InRenderSettings.Replace);
 		DstViewport.UpdateConfiguration_PostRenderBlur(InRenderSettings.PostprocessBlur);
@@ -96,32 +136,6 @@ void FDisplayClusterViewportConfigurationHelpers::UpdateBaseViewportSetting(FDis
 
 		InOutRenderSettings.StereoGPUIndex = InRenderSettings.StereoGPUIndex;
 		InOutRenderSettings.RenderTargetRatio = InRenderSettings.RenderTargetRatio;
-	}
-
-	// Set media related configuration (runtime only for now)
-	if (IDisplayCluster::Get().GetOperationMode() == EDisplayClusterOperationMode::Cluster)
-	{
-		// Check if nDisplay media enabled
-		static const TConsoleVariableData<int32>* const ICVarMediaEnabled = IConsoleManager::Get().FindTConsoleVariableDataInt(TEXT("nDisplay.media.Enabled"));
-		if (ICVarMediaEnabled && !!ICVarMediaEnabled->GetValueOnGameThread())
-		{
-			const FDisplayClusterConfigurationMedia& MediaSettings = InConfigurationViewport.RenderSettings.Media;
-
-			if (MediaSettings.bEnable)
-			{
-				const bool bMediaInputAssigned  = MediaSettings.IsMediaInputAssigned();
-				const bool bMediaOutputAssigned = MediaSettings.IsMediaOutputAssigned();
-
-				// Don't render this viewport if media input assigned
-				InOutRenderSettings.bSkipSceneRenderingButLeaveResourcesAvailable = bMediaInputAssigned;
-
-				// Mark this viewport is going to be captured by a capture device
-				InOutRenderSettings.bIsBeingCaptured = bMediaOutputAssigned;
-
-				// Late OCIO pass
-				InOutRenderSettings.bForceLateOCIOPass = (bMediaOutputAssigned || bMediaInputAssigned ? MediaSettings.bLateOCIOPass : false);
-			}
-		}
 	}
 
 	// FDisplayClusterConfigurationViewport_ICVFX property:

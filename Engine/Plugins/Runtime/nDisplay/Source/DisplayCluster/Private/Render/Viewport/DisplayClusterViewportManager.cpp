@@ -414,64 +414,19 @@ bool FDisplayClusterViewportManager::ShouldUseAdditionalFrameTargetableResource(
 
 void FDisplayClusterViewportManager::UpdateCurrentRenderFrameViewports() const
 {
-	const FString& InClusterNodeId = Configuration->GetClusterNodeId();
-	TArray<TSharedPtr<FDisplayClusterViewport, ESPMode::ThreadSafe>> ActiveViewports;
+	TArray<TSharedPtr<FDisplayClusterViewport, ESPMode::ThreadSafe>>& OutViewports = (TArray<TSharedPtr<FDisplayClusterViewport, ESPMode::ThreadSafe>>&)CurrentRenderFrameViewports;
 
-	// Get viewports used to rendering of the current frame
-	if (InClusterNodeId.IsEmpty())
-	{
-		// When a cluster node name is empty, we render without the cluster nodes
-		ActiveViewports = ImplGetEntireClusterViewports();
-	}
-	else
-	{
-		// Get viewport for current cluster nodes
-		for (const TSharedPtr<FDisplayClusterViewport, ESPMode::ThreadSafe>& Viewport : ImplGetEntireClusterViewports())
+	// Get the viewports from the current cluster node.
+	OutViewports = ImplGetEntireClusterViewports().FilterByPredicate([InClusterNodeId = Configuration->GetClusterNodeId()](const TSharedPtr<FDisplayClusterViewport, ESPMode::ThreadSafe>& InViewport)
 		{
-			if (Viewport.IsValid() && (Viewport->GetClusterNodeId() == InClusterNodeId))
-			{
-				ActiveViewports.Add(Viewport);
-			}
-		}
-	}
+			return InViewport.IsValid() && (InClusterNodeId.IsEmpty() || InViewport->GetClusterNodeId() == InClusterNodeId);
+		});
 
-	// Per-viewport preview render required special render order for viewports
-	// Sort viewports: move linked and overridden viewports to last
-	if (Configuration->IsPreviewRendering())
-	{
-		TArray<TSharedPtr<FDisplayClusterViewport, ESPMode::ThreadSafe>> LinkedViewports;
-		TArray<TSharedPtr<FDisplayClusterViewport, ESPMode::ThreadSafe>> OverriddenViewports;
-
-		TArray<TSharedPtr<FDisplayClusterViewport, ESPMode::ThreadSafe>> UsedViewports(ActiveViewports);
-		ActiveViewports.Reset();
-
-		for (const TSharedPtr<FDisplayClusterViewport, ESPMode::ThreadSafe>& Viewport : UsedViewports)
+	// Sort viewports by priority
+	OutViewports.Sort([](const TSharedPtr<FDisplayClusterViewport, ESPMode::ThreadSafe>& InViewport1, const TSharedPtr<FDisplayClusterViewport, ESPMode::ThreadSafe>& InViewport2)
 		{
-			if (!Viewport.IsValid())
-			{
-				continue;
-			}
-
-			if (Viewport->GetRenderSettings().IsViewportOverridden())
-			{
-				OverriddenViewports.Add(Viewport);
-			}
-			else if (Viewport->GetRenderSettings().IsViewportHasParent())
-			{
-				LinkedViewports.Add(Viewport);
-			}
-			else
-			{
-				ActiveViewports.Add(Viewport);
-			}
-		}
-
-		ActiveViewports.Append(LinkedViewports);
-		ActiveViewports.Append(OverriddenViewports);
-	}
-
-	// This is a mutable class variable intended only for this function
-	(TArray<TSharedPtr<FDisplayClusterViewport, ESPMode::ThreadSafe>>&)CurrentRenderFrameViewports = ActiveViewports;
+			return InViewport1->GetPriority() < InViewport2->GetPriority();
+		});
 }
 
 void FDisplayClusterViewportManager::RegisterCallbacks()

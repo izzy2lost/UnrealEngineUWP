@@ -59,7 +59,7 @@ bool FDisplayClusterRenderFrameManager::BuildRenderFrame(FViewport* InViewport, 
 		// Find all viewports being captured
 		TArray<TSharedPtr<FDisplayClusterViewport, ESPMode::ThreadSafe>> ViewportsBeingCaptured = SortedViewports.FilterByPredicate([](const TSharedPtr<FDisplayClusterViewport, ESPMode::ThreadSafe>& Viewport)
 		{
-			return Viewport.IsValid() && Viewport->GetRenderSettings().bIsBeingCaptured;
+			return Viewport.IsValid() && Viewport->GetRenderSettings().HasAnyMediaStates(EDisplayClusterViewportMediaState::Capture);
 		});
 
 		// Put them all in the beginning of the list
@@ -91,7 +91,7 @@ bool FDisplayClusterRenderFrameManager::BuildSimpleFrame(FViewport* InViewport, 
 				{
 					FrameView.ContextNum = ContextIt.ContextNum;
 					FrameView.Viewport = ViewportIt.ToSharedRef();
-					FrameView.bDisableRender = ContextIt.bDisableRender || ViewportIt->GetRenderSettings().bSkipSceneRenderingButLeaveResourcesAvailable;
+					FrameView.bDisableRender = ContextIt.bDisableRender;
 					FrameView.bFreezeRendering = ViewportIt->GetRenderSettings().bFreezeRendering;
 				}
 

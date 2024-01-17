@@ -26,29 +26,28 @@ static FAutoConsoleVariableRef CVarDisplayClusterRenderCustomFrustumMaxValue(
 namespace UE::DisplayCluster::Viewport::CustomFrustumHelpers
 {
 	/** Clamp percent for custom frustum settings. */
-	static inline float ClampPercent(float InValue)
+	static inline double ClampPercent(double InValue)
 	{
-		const float MaxCustomFrustumValue = float(GDisplayClusterRenderCustomFrustumMaxValue) / 100;
+		const double MaxCustomFrustumValue = double(GDisplayClusterRenderCustomFrustumMaxValue) / 100;
 
 		return FMath::Clamp(InValue, -MaxCustomFrustumValue, MaxCustomFrustumValue);
 	}
 };
-using namespace UE::DisplayCluster::Viewport;
 
 ///////////////////////////////////////////////////////////////////////////////////////////
 // FDisplayClusterViewport_CustomFrustumRuntimeSettings
 ///////////////////////////////////////////////////////////////////////////////////////////
 bool FDisplayClusterViewport_CustomFrustumRuntimeSettings::UpdateProjectionAngles(
 	const FDisplayClusterViewport_CustomFrustumRuntimeSettings& InRuntimeSettings,
-	float& InOutLeft,
-	float& InOutRight,
-	float& InOutTop,
-	float& InOutBottom)
+	double& InOutLeft,
+	double& InOutRight,
+	double& InOutTop,
+	double& InOutBottom)
 {
 	if (InRuntimeSettings.bIsEnabled)
 	{
-		const float Horizontal = InOutRight - InOutLeft;
-		const float Vertical = InOutTop - InOutBottom;
+		const double Horizontal = InOutRight - InOutLeft;
+		const double Vertical = InOutTop - InOutBottom;
 
 		InOutLeft   -= Horizontal * InRuntimeSettings.CustomFrustumPercent.Left;
 		InOutRight  += Horizontal * InRuntimeSettings.CustomFrustumPercent.Right;
@@ -67,6 +66,8 @@ void FDisplayClusterViewport_CustomFrustumRuntimeSettings::UpdateCustomFrustumSe
 	FDisplayClusterViewport_CustomFrustumRuntimeSettings& InOutRuntimeSettings,
 	FIntRect& InOutRenderTargetRect)
 {
+	using namespace UE::DisplayCluster::Viewport;
+
 	const FIntPoint Size = InOutRenderTargetRect.Size();
 
 	// Disable viewport CustomFrustum feature

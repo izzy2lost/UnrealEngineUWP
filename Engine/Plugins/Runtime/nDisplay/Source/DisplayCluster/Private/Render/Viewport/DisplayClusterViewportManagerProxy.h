@@ -81,6 +81,12 @@ public:
 	/** Apply WarpBlend and resolve to frame resources. */
 	void UpdateFrameResources_RenderThread(FRHICommandListImmediate& RHICmdList) const;
 
+	/** Called at the end of the frame, after all callbacks.
+	* At the end, some resources may be filled with black, etc.
+	* This is useful because the resources are reused and the image from the previous frame goes into the new one.
+	*/
+	void CleanupResources_RenderThread(FRHICommandListImmediate& RHICmdList) const;
+
 	/** Release all referenced objects and resources. */
 	void Release_RenderThread();
 

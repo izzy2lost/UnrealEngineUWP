@@ -26,17 +26,17 @@ struct FDisplayClusterViewport_OverscanRuntimeSettings
 	* @param InOutTop                  - the value of the top projection plane that you want to change
 	* @parma InOutBottom               - the value of the bottom projection plane that you want to change
 	*/
-	static bool UpdateProjectionAngles(const FDisplayClusterViewport_OverscanRuntimeSettings& InOverscanRuntimeSettings, float& InOutLeft, float& InOutRight, float& InOutTop, float& InOutBottom);
+	static bool UpdateProjectionAngles(const FDisplayClusterViewport_OverscanRuntimeSettings& InOverscanRuntimeSettings, double& InOutLeft, double& InOutRight, double& InOutTop, double& InOutBottom);
 
 	/**
 	* Overscan values in percent
 	*/
 	struct FOverscanPercent
 	{
-		float Left = 0;
-		float Right = 0;
-		float Top = 0;
-		float Bottom = 0;
+		double Left = 0;
+		double Right = 0;
+		double Top = 0;
+		double Bottom = 0;
 	};
 
 	/**

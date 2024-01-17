@@ -135,7 +135,6 @@ bool FDisplayClusterRenderTargetManager::AllocateRenderFrameResources(FViewport*
 							{
 								// Array already resized in function FDisplayClusterViewport::UpdateFrameContexts() with RenderTargets.AddZeroed(ViewportContextAmount);
 								check(ViewportPtr->GetViewportResources(EDisplayClusterViewportResource::RenderTargets).IsValidIndex(ViewIt.ContextNum));
-								check(!ViewportPtr->GetContexts()[ViewIt.ContextNum].bDisableRender);
 
 								ViewportPtr->GetViewportResourcesImpl(EDisplayClusterViewportResource::RenderTargets)[ViewIt.ContextNum] = NewResource;
 

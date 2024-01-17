@@ -7,6 +7,7 @@
 #include "Render/Viewport/Configuration/DisplayClusterViewportConfigurationHelpers_OpenColorIO.h"
 #include "Render/Viewport/Configuration/DisplayClusterViewportConfigurationHelpers_Postprocess.h"
 #include "Render/Viewport/Configuration/DisplayClusterViewportConfigurationHelpers_Visibility.h"
+#include "Render/Viewport/Configuration/DisplayClusterViewportConfigurationHelpers_Tile.h"
 
 #include "Render/Viewport/DisplayClusterViewport.h"
 #include "Render/Viewport/DisplayClusterViewportManager.h"
@@ -543,33 +544,8 @@ void FDisplayClusterViewportConfigurationHelpers_ICVFX::UpdateCameraViewportSett
 	// Set viewport buffer ratio
 	DstViewport.SetViewportBufferRatio(InCameraSettings.GetCameraBufferRatio(*StageSettings));
 
-	// Set media related configuration (runtime only for now)
-	if (IDisplayCluster::Get().GetOperationMode() == EDisplayClusterOperationMode::Cluster)
-	{
-		// Check if nDisplay media enabled
-		static const TConsoleVariableData<int32>* const ICVarMediaEnabled = IConsoleManager::Get().FindTConsoleVariableDataInt(TEXT("nDisplay.media.Enabled"));
-		if (ICVarMediaEnabled && !!ICVarMediaEnabled->GetValueOnGameThread())
-		{
-			const FDisplayClusterConfigurationMediaICVFX& MediaICVFXSettings = InCameraSettings.RenderSettings.Media;
-
-			if (MediaICVFXSettings.bEnable)
-			{
-				const FString ThisClusterNodeId = DstViewport.GetClusterNodeId();
-
-				const bool bMediaInputAssigned  = MediaICVFXSettings.IsMediaInputAssigned(ThisClusterNodeId);
-				const bool bMediaOutputAssigned = MediaICVFXSettings.IsMediaOutputAssigned(ThisClusterNodeId);
-
-				// Don't render the viewport if media input assigned
-				InOutRenderSettings.bSkipSceneRenderingButLeaveResourcesAvailable = bMediaInputAssigned;
-
-				// Mark this viewport is going to be captured by a capture device
-				InOutRenderSettings.bIsBeingCaptured = bMediaOutputAssigned;
-
-				// Late OCIO pass
-				InOutRenderSettings.bForceLateOCIOPass = (bMediaOutputAssigned || bMediaInputAssigned ? MediaICVFXSettings.bLateOCIOPass : false);
-			}
-		}
-	}
+	// InCamera tile rendering.
+	FDisplayClusterViewportConfigurationHelpers_Tile::UpdateICVFXCameraViewportTileSettings(DstViewport, InCameraSettings.CameraTile);
 }
 
 void FDisplayClusterViewportConfigurationHelpers_ICVFX::UpdateChromakeyViewportSettings(FDisplayClusterViewport& DstViewport, FDisplayClusterViewport& InCameraViewport, const FDisplayClusterConfigurationICVFX_CameraSettings& InCameraSettings)

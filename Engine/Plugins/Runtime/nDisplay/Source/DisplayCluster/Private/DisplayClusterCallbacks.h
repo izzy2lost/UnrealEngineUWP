@@ -137,6 +137,11 @@ public:
 		return FDisplayClusterPreProcessIcvfxEvent;
 	}
 
+	virtual FDisplayClusterUpdateViewportMediaState& OnDisplayClusterUpdateViewportMediaState() override
+	{
+		return DisplayClusterUpdateViewportMediaStateEvent;
+	}
+
 private:
 	FDisplayClusterStartSessionEvent         DisplayClusterStartSessionEvent;
 	FDisplayClusterEndSessionEvent           DisplayClusterEndSessionEvent;
@@ -165,4 +170,6 @@ private:
 	FDisplayClusterPostBackbufferUpdate_RenderThread DisplayClusterPostBackbufferUpdateEvent;
 	FDisplayClusterPostBackbufferUpdated_RenderThread DisplayClusterPostBackbufferUpdatedEvent;
 	FDisplayClusterPreProcessIcvfx_RenderThread      FDisplayClusterPreProcessIcvfxEvent;
+
+	FDisplayClusterUpdateViewportMediaState DisplayClusterUpdateViewportMediaStateEvent;
 };

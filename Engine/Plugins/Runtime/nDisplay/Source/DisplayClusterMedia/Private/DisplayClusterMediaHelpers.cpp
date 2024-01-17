@@ -13,7 +13,7 @@ namespace DisplayClusterMediaHelpers
 	namespace MediaId
 	{
 		// Generate media ID for a specific entity
-		FString GenerateMediaId(EMediaDeviceType DeviceType, EMediaOwnerType OwnerType, const FString& NodeId, const FString& DCRAName, const FString& OwnerName, uint8 Index)
+		FString GenerateMediaId(EMediaDeviceType DeviceType, EMediaOwnerType OwnerType, const FString& NodeId, const FString& DCRAName, const FString& OwnerName, uint8 Index, const FIntPoint* InTilePos)
 		{
 			if (DeviceType == EMediaDeviceType::Input)
 			{
@@ -23,10 +23,14 @@ namespace DisplayClusterMediaHelpers
 					return FString::Printf(TEXT("%s_%s_backbuffer_input"), *NodeId, *DCRAName);
 
 				case EMediaOwnerType::Viewport:
-					return FString::Printf(TEXT("%s_%s_%s_viewport_input"), *NodeId, *DCRAName, *OwnerName);
+					return InTilePos
+						? FString::Printf(TEXT("%s_%s_%s_tile_%d_%d_viewport_input"), *NodeId, *DCRAName, *OwnerName, InTilePos->X, InTilePos->Y)
+						: FString::Printf(TEXT("%s_%s_%s_viewport_input"), *NodeId, *DCRAName, *OwnerName);
 
 				case EMediaOwnerType::ICVFXCamera:
-					return FString::Printf(TEXT("%s_%s_%s_icvfx_input"), *NodeId, *DCRAName, *OwnerName);
+					return InTilePos
+						? FString::Printf(TEXT("%s_%s_%s_tile_%d_%d_icvfx_input"), *NodeId, *DCRAName, *OwnerName, InTilePos->X, InTilePos->Y)
+						: FString::Printf(TEXT("%s_%s_%s_icvfx_input"), *NodeId, *DCRAName, *OwnerName);
 
 				default:
 					unimplemented();
@@ -40,10 +44,14 @@ namespace DisplayClusterMediaHelpers
 					return FString::Printf(TEXT("%s_%s_backbuffer_capture_%u"), *NodeId, *DCRAName, Index);
 
 				case EMediaOwnerType::Viewport:
-					return FString::Printf(TEXT("%s_%s_%s_viewport_capture_%u"), *NodeId, *DCRAName, *OwnerName, Index);
+					return InTilePos
+						? FString::Printf(TEXT("%s_%s_%s_tile_%d_%d_viewport_capture_%u"), *NodeId, *DCRAName, *OwnerName, InTilePos->X, InTilePos->Y, Index)
+						: FString::Printf(TEXT("%s_%s_%s_viewport_capture_%u"), *NodeId, *DCRAName, *OwnerName, Index);
 
 				case EMediaOwnerType::ICVFXCamera:
-					return FString::Printf(TEXT("%s_%s_%s_icvfx_capture_%u"), *NodeId, *DCRAName, *OwnerName, Index);
+					return InTilePos
+						? FString::Printf(TEXT("%s_%s_%s_tile_%d_%d_icvfx_capture_%u"), *NodeId, *DCRAName, *OwnerName, InTilePos->X, InTilePos->Y, Index)
+						: FString::Printf(TEXT("%s_%s_%s_icvfx_capture_%u"), *NodeId, *DCRAName, *OwnerName, Index);;
 
 				default:
 					checkNoEntry();
@@ -59,6 +67,12 @@ namespace DisplayClusterMediaHelpers
 	FString GenerateICVFXViewportName(const FString& ClusterNodeId, const FString& ICVFXCameraName)
 	{
 		return FString::Printf(TEXT("%s_icvfx_%s_incamera"), *ClusterNodeId, *ICVFXCameraName);
+	}
+
+	//@todo This needs to be exposed from the DisplayCluster core module after its refactoring
+	FString GenerateTileViewportName(const FString& InViewportId, const FIntPoint& InTilePos)
+	{
+		return FString::Printf(TEXT("%s_tile_%d_%d"), *InViewportId, InTilePos.X, InTilePos.Y);
 	}
 
 	template<class TScreenPixelShader>

@@ -202,18 +202,8 @@ public:
 
 	void AddReferencedObjects(FReferenceCollector& Collector);
 
-	void ResetRuntimeParameters()
-	{
-		// Reset runtim flags from prev frame:
-		RenderSettings.BeginUpdateSettings();
-		RenderSettingsICVFX.BeginUpdateSettings();
-		PostRenderSettings.BeginUpdateSettings();
-		VisibilitySettings.BeginUpdateSettings();
-		CameraMotionBlur.BeginUpdateSettings();
-
-		OverscanRuntimeSettings = FDisplayClusterViewport_OverscanRuntimeSettings();
-		CustomFrustumRuntimeSettings = FDisplayClusterViewport_CustomFrustumRuntimeSettings();
-	}
+	/** This function MUST always be called before configuring the viewport at the beginning of each frame. */
+	void ResetRuntimeParameters();	
 
 	// Active view extension for this viewport
 	const TArray<FSceneViewExtensionRef> GatherActiveExtensions(FViewport* InViewport) const;
@@ -286,12 +276,50 @@ public:
 		return PostRenderSettings;
 	}
 
-	/** Gain direct access to internal data of the viewport. */
+	/** Gain direct access to internal visibility data of the viewport. */
 	FDisplayClusterViewport_VisibilitySettings& GetVisibilitySettingsImpl()
 	{
 		check(IsInGameThread());
 		return VisibilitySettings;
 	}
+
+	/** Gain direct access to internal camera motion blur data of the viewport. */
+	FImplDisplayClusterViewport_CameraMotionBlur& GetCameraMotionBlurImpl()
+	{
+		check(IsInGameThread());
+		return CameraMotionBlur;
+	}
+
+	/** Gain direct access to internal depth of field data of the viewport. */
+	FDisplayClusterViewport_CameraDepthOfField& GetCameraDepthOfFieldImpl()
+	{
+		check(IsInGameThread());
+		return CameraDepthOfField;
+	}
+
+	/** Some viewports are used as internal and skip some logic steps.
+	* These viewports are handled separately from regular viewports.
+	* Context: icvfx, tile
+	*/
+	bool IsInternalViewport() const;
+
+	/** Returns true if the RTT of this viewport is changed externally.
+	* This means that this viewport will not be rendered.
+	* This function is used as the basis for many others. Be careful when making changes to it.
+	*/
+	bool IsExternalRendering() const;
+
+	/** Returns true if this viewport should be rendered. */
+	bool IsRenderEnabled() const;
+
+	/** Returns true if this viewport is to be used as a tile source. */
+	bool CanSplitIntoTiles() const;
+
+	/** Returns true if this viewport should use the RTT. */
+	bool ShouldUseRenderTargetResource() const;
+
+	/** Returns true if this viewport should use internal resources such as Input, Mips, Additional. */
+	bool ShouldUseInternalResources() const;
 
 	/** Start a new frame with the specified size. The associated objects and geometries will be updated accordingly. */
 	void BeginNewFrame(const FIntPoint& InRenderFrameSize);
@@ -313,7 +341,7 @@ public:
 	void UpdateConfiguration_OverlayRenderSettings(const struct FDisplayClusterConfigurationICVFX_OverlayAdvancedRenderSettings& InOverlaySettings);
 
 	/** setup overscan configuration for this viewport. */
-	void UpdateConfiguration_Overscan(const struct FDisplayClusterConfigurationViewport_Overscan& InOverscan);
+	void UpdateConfiguration_Overscan(const struct FDisplayClusterViewport_OverscanSettings& InOverscanSettings);
 
 	/** setup CameraMotionBlur configuration for this viewport. */
 	void UpdateConfiguration_CameraMotionBlur(const struct FDisplayClusterViewport_CameraMotionBlur& InCameraMotionBlur);
@@ -358,6 +386,11 @@ public:
 		EnumRemoveFlags(ShowLogMsgOnceFlags, InLogState);
 	}
 
+	/** Viewports should be processed in the appropriate order.
+	* Viewports with lower priority values will be processed earlier.
+	*/
+	uint8 GetPriority() const;
+
 private:
 	float GetClusterRenderTargetRatioMult(const FDisplayClusterRenderFrameSettings& InFrameSettings) const;
 	FIntPoint GetDesiredContextSize(const FIntPoint& InSize, const FDisplayClusterRenderFrameSettings& InFrameSettings) const;
@@ -394,7 +427,7 @@ private:
 	FDisplayClusterViewport_CustomPostProcessSettings CustomPostProcessSettings;
 
 	// Visibility settings
-	FDisplayClusterViewport_VisibilitySettings        VisibilitySettings;
+	FDisplayClusterViewport_VisibilitySettings VisibilitySettings;
 
 	// Additional features
 	FImplDisplayClusterViewport_CameraMotionBlur CameraMotionBlur;

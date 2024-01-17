@@ -79,3 +79,35 @@ TArray<FDisplayClusterConfigurationMediaOutputGroup> FDisplayClusterConfiguratio
 			return Item.ClusterNodes.ItemNames.Contains(NodeId);
 		});
 }
+
+UMediaSource* FDisplayClusterConfigurationMediaICVFX::GetMediaSourceForTiles(const FString& NodeId, TArray<FIntPoint>& OutTiles) const
+{
+	OutTiles.Empty();
+
+	// Look up for a group that contains node ID specified
+	for (const FDisplayClusterConfigurationMediaInputGroup& MediaInputGroup : MediaInputGroups)
+	{
+		if (IsValid(MediaInputGroup.MediaSource))
+		{
+			if (const FDisplayClusterConfigurationClusterNodeTilesReferenceList* TilesReferenceList = MediaInputGroup.ClusterNodesWithTiles.Find(NodeId))
+			{
+				for(const FDisplayClusterConfigurationTileIndex& TileIndexIt : TilesReferenceList->Tiles)
+				{
+					OutTiles.AddUnique(FIntPoint(TileIndexIt.TileX, TileIndexIt.TileY));
+				}
+			}
+
+			return MediaInputGroup.MediaSource;
+		}
+	}
+
+	return nullptr;
+}
+
+TArray<FDisplayClusterConfigurationMediaOutputGroup> FDisplayClusterConfigurationMediaICVFX::GetMediaOutputGroupsForTiles(const FString& NodeId) const
+{
+	return MediaOutputGroups.FilterByPredicate([NodeId](const FDisplayClusterConfigurationMediaOutputGroup& Item)
+		{
+			return Item.ClusterNodesWithTiles.Contains(NodeId);
+		});
+}

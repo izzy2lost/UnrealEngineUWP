@@ -229,7 +229,45 @@ void FDisplayClusterMediaModule::InitializeMedia()
 								ICVFXViewportId,
 								MediaSource);
 
+							// Saves special media flags from the configuration to the media instance.
+							//
+							// Note: viewport is unaware of the media's configurations.
+							// Therefore, any future changes to the USTRUCT used by media do not affect the logic in the DisplayCluster module.
+							// These flags are passed to the viewport in the OnUpdateViewportMediaState() callback function.
+							NewICVFXInput->ForceLateOCIOPass = MediaSettings.bLateOCIOPass;
+
 							InputViewports.Emplace(MediaInputId, MoveTemp(NewICVFXInput));
+						}
+
+						// Media input for tile rendering
+						TArray<FIntPoint> InputTiles;
+						if (UMediaSource* MediaSource = MediaSettings.GetMediaSourceForTiles(ClusterNodeId, InputTiles))
+						{
+							for (const FIntPoint& TilePos : InputTiles)
+							{
+								const FString ICVFXViewportTileId = DisplayClusterMediaHelpers::GenerateTileViewportName(ICVFXViewportId, TilePos);
+
+								const FString MediaInputId = DisplayClusterMediaHelpers::MediaId::GenerateMediaId(
+									DisplayClusterMediaHelpers::MediaId::EMediaDeviceType::Input,
+									DisplayClusterMediaHelpers::MediaId::EMediaOwnerType::ICVFXCamera,
+									*ClusterNodeId, *RootActor->GetName(), ICVFXCameraName, 0, &TilePos);
+
+								UE_LOG(LogDisplayClusterMedia, Log, TEXT("Initializing ICVFX media input '%s' for camera '%s' tile '%d,%d'"), *MediaInputId, *ICVFXCameraName, TilePos.X, TilePos.Y);
+
+								TSharedPtr<FDisplayClusterMediaInputViewport> NewICVFXInput = MakeShared<FDisplayClusterMediaInputViewport>(
+									MediaInputId, ClusterNodeId,
+									ICVFXViewportTileId,
+									MediaSource);
+
+								// Saves special media flags from the configuration to the media instance.
+								//
+								// Note: viewport is unaware of the media's configurations.
+								// Therefore, any future changes to the USTRUCT used by media do not affect the logic in the DisplayCluster module.
+								// These flags are passed to the viewport in the OnUpdateViewportMediaState() callback function.
+								NewICVFXInput->ForceLateOCIOPass = MediaSettings.bLateOCIOPass;
+
+								InputViewports.Emplace(MediaInputId, MoveTemp(NewICVFXInput));
+							}
 						}
 
 						// Media capture
@@ -252,10 +290,59 @@ void FDisplayClusterMediaModule::InitializeMedia()
 									MediaOutputItem.MediaOutput,
 									MediaOutputItem.OutputSyncPolicy);
 
+								// Saves special media flags from the configuration to the media instance.
+								//
+								// Note: viewport is unaware of the media's configurations.
+								// Therefore, any future changes to the USTRUCT used by media do not affect the logic in the DisplayCluster module.
+								// These flags are passed to the viewport in the OnUpdateViewportMediaState() callback function.
+								NewICVFXCapture->ForceLateOCIOPass = MediaSettings.bLateOCIOPass;
+
 								CaptureViewports.Emplace(MediaCaptureId, MoveTemp(NewICVFXCapture));
 							}
 
 							++CaptureIdx;
+						}
+
+						// Media capture for tiles
+						const TArray<FDisplayClusterConfigurationMediaOutputGroup> MediaOutputTileItems = MediaSettings.GetMediaOutputGroupsForTiles(ClusterNodeId);
+						uint8 CaptureTileIdx = 0;
+						for (const FDisplayClusterConfigurationMediaOutputGroup& MediaOutputTileItem : MediaOutputTileItems)
+						{
+							if (IsValid(MediaOutputTileItem.MediaOutput))
+							{
+								if (const FDisplayClusterConfigurationClusterNodeTilesReferenceList* TilesReferenceList = MediaOutputTileItem.ClusterNodesWithTiles.Find(ClusterNodeId))
+								{
+									for (const FDisplayClusterConfigurationTileIndex& TileIndex : TilesReferenceList->Tiles)
+									{
+										const FIntPoint TilePos(TileIndex.TileX, TileIndex.TileY);
+										const FString ICVFXViewportTileId = DisplayClusterMediaHelpers::GenerateTileViewportName(ICVFXViewportId, TilePos);
+
+										const FString MediaCaptureId = DisplayClusterMediaHelpers::MediaId::GenerateMediaId(
+											DisplayClusterMediaHelpers::MediaId::EMediaDeviceType::Output,
+											DisplayClusterMediaHelpers::MediaId::EMediaOwnerType::ICVFXCamera,
+											*ClusterNodeId, *RootActor->GetName(), ICVFXCameraName, CaptureTileIdx, &TilePos);
+
+										UE_LOG(LogDisplayClusterMedia, Log, TEXT("Initializing ICVFX capture [%u]: '%s' for camera '%s' tile '%d,%d'"), CaptureTileIdx, *MediaCaptureId, *ICVFXCameraName, TilePos.X, TilePos.Y);
+
+										TSharedPtr<FDisplayClusterMediaCaptureViewport> NewICVFXCapture = MakeShared<FDisplayClusterMediaCaptureCamera>(
+											MediaCaptureId, ClusterNodeId,
+											ICVFXCameraName, ICVFXViewportTileId,
+											MediaOutputTileItem.MediaOutput,
+											MediaOutputTileItem.OutputSyncPolicy);
+
+										// Saves special media flags from the configuration to the media instance.
+										//
+										// Note: viewport is unaware of the media's configurations.
+										// Therefore, any future changes to the USTRUCT used by media do not affect the logic in the DisplayCluster module.
+										// These flags are passed to the viewport in the OnUpdateViewportMediaState() callback function.
+										NewICVFXCapture->ForceLateOCIOPass = MediaSettings.bLateOCIOPass;
+
+										CaptureViewports.Emplace(MediaCaptureId, MoveTemp(NewICVFXCapture));
+									}
+								}
+							}
+
+							++CaptureTileIdx;
 						}
 					}
 				}

@@ -6,6 +6,9 @@
 
 #include "DisplayClusterViewport_OverscanSettings.h"
 #include "DisplayClusterViewport_CustomFrustumSettings.h"
+#include "DisplayClusterViewport_TileSettings.h"
+
+#include "Render/Viewport/Containers/DisplayClusterViewport_Enums.h"
 
 /**
  * nDisplay viewport render settings.
@@ -36,11 +39,6 @@ public:
 	// Freeze viewport resources, skip rendering internal viewport resources. But still use it for final compositing
 	bool bFreezeRendering = false;
 
-	// This flag means no scene rendering required, but all internal resources should still be valid for
-	// the media subsystem. It's a temporary solution. The flags 'bSkipRendering' and 'bFreezeRendering'
-	// above, plus this one, need to be refactored at some point.
-	bool bSkipSceneRenderingButLeaveResourcesAvailable = false;
-
 	// Render alpha channel from input texture to warp output
 	bool bWarpBlendRenderAlphaChannel = false;
 
@@ -56,14 +54,11 @@ public:
 	// Viewport frustum overscan settings
 	FDisplayClusterViewport_OverscanSettings OverscanSettings;
 
+	// Viewport tile rendering settings
+	FDisplayClusterViewport_TileSettings TileSettings;
+
 	// Useful to render some viewports in mono, then copied to stereo backbuffers identical image
 	bool bForceMono = false;
-
-	// Is this viewport being captured by a media capture device?
-	bool bIsBeingCaptured = false;
-
-	// Should OCIO be forcibly applied at later pass (custom nDisplay pass)?
-	bool bForceLateOCIOPass = false;
 
 	// Enable cross-GPU transfer for this viewport.
 	// It may be disabled in some configurations. For example, when using offscreen rendering with TextureShare,
@@ -179,6 +174,18 @@ public:
 		ViewportOverrideId = InViewportOverrideId;
 	}
 
+	/** Returns true if the media state of this viewport is set to any of the requested states.*/
+	inline bool HasAnyMediaStates(const EDisplayClusterViewportMediaState InMediaStates) const
+	{
+		return EnumHasAnyFlags(MediaState, InMediaStates);
+	}
+
+	/** Set media state for this viewport. */
+	inline void AssignMediaStates(const EDisplayClusterViewportMediaState InMediaStates)
+	{
+		MediaState = InMediaStates;
+	}
+
 protected:
 	// Parent viewport name
 	FString ParentViewportId;
@@ -188,4 +195,8 @@ protected:
 
 	// Override mode, which defines its rules.
 	EDisplayClusterViewportOverrideMode ViewportOverrideMode = EDisplayClusterViewportOverrideMode::None;
+
+	// Viewport can be used by external media, and this affects its rules.
+	// This variable is always updated at the beginning of each viewport configuration.
+	EDisplayClusterViewportMediaState MediaState = EDisplayClusterViewportMediaState::None;
 };

@@ -41,6 +41,29 @@ public:
 	// Overscan Projection Matrix (internal use)
 	FMatrix OverscanProjectionMatrix = FMatrix::Identity;
 
+	/** Cached projection data */
+	struct FCachedProjectionData
+	{
+		bool bValid = false;
+
+		// Is overscan used
+		bool bUseOverscan = false;
+
+		// Projection angles [Left, Right, Top, Bottom]
+		FVector4 ProjectionAngles;
+
+		// Projection angles for Overscan [Left, Right, Top, Bottom]
+		FVector4 OverscanProjectionAngles;
+
+		// Projection planes
+		double ZNear = 0.f;
+		double ZFar = 0.f;
+	};
+	
+	// Cached projection values
+	// This values updated from function FDisplayClusterViewport::CalculateProjectionMatrix()
+	FCachedProjectionData ProjectionData;
+
 	// World scale
 	float WorldToMeters = 100.f;
 
@@ -59,6 +82,9 @@ public:
 
 	// Location and size on a frame target texture
 	FIntRect FrameTargetRect;
+
+	// Tile location and size in the source viewport
+	FIntRect TileDestRect;
 
 	// Buffer ratio
 	float CustomBufferRatio = 1;

@@ -84,8 +84,8 @@ void FDisplayClusterViewportConfiguration_ViewportManager::ImplUpdateViewports()
 	const TArray<TSharedPtr<FDisplayClusterViewport, ESPMode::ThreadSafe>> EntireClusterDCViewports = ViewportManager->ImplGetEntireClusterViewports();
 	for (const TSharedPtr<FDisplayClusterViewport, ESPMode::ThreadSafe>& Viewport : EntireClusterDCViewports)
 	{
-		// ignore internal resources
-		if (Viewport.IsValid() && !EnumHasAnyFlags(Viewport->GetRenderSettingsICVFX().RuntimeFlags, EDisplayClusterViewportRuntimeICVFXFlags::InternalResource))
+		// ignore internal viewports
+		if (Viewport.IsValid() && !Viewport->IsInternalViewport())
 		{
 			// Delete an existing viewport when it is removed from the configuration
 			if (!ImplFindViewportInEntireCluster(Viewport->GetId()))

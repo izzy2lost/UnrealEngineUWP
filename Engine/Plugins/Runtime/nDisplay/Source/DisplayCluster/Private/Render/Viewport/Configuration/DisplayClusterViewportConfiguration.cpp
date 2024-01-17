@@ -8,6 +8,7 @@
 #include "DisplayClusterViewportConfiguration_ProjectionPolicy.h"
 #include "DisplayClusterViewportConfiguration_ICVFX.h"
 #include "DisplayClusterViewportConfiguration_ICVFXCamera.h"
+#include "DisplayClusterViewportConfiguration_Tile.h"
 
 #include "DisplayClusterViewportConfigurationHelpers_RenderFrameSettings.h"
 
@@ -352,6 +353,7 @@ bool FDisplayClusterViewportConfiguration::ImplUpdateConfiguration(EDisplayClust
 	FDisplayClusterViewportConfiguration_Postprocess      ConfigurationPostprocess(*this);
 	FDisplayClusterViewportConfiguration_ProjectionPolicy ConfigurationProjectionPolicy(*this);
 	FDisplayClusterViewportConfiguration_ICVFX            ConfigurationICVFX(*this);
+	FDisplayClusterViewportConfiguration_Tile             ConfigurationTile(*this);
 
 	// when InClusterNodeId==PreviewNodeAll, means that it is an undefined cluster node
 	const FString ClusterNodeId = InClusterNodeId == DisplayClusterConfigurationStrings::gui::preview::PreviewNodeAll ? TEXT("") : InClusterNodeId;
@@ -372,8 +374,12 @@ bool FDisplayClusterViewportConfiguration::ImplUpdateConfiguration(EDisplayClust
 	}
 
 	ConfigurationICVFX.Update();
+	ConfigurationTile.Update();
+
 	ConfigurationProjectionPolicy.Update();
+
 	ConfigurationICVFX.PostUpdate();
+	ConfigurationTile.PostUpdate();
 
 	ImplUpdateConfigurationVisibility();
 

@@ -65,8 +65,8 @@ bool FDisplayClusterViewportConfiguration_Viewport::UpdateViewportConfiguration(
 
 void FDisplayClusterViewportConfiguration_Viewport::SetViewportWarpPolicy(const TSharedPtr<FDisplayClusterViewport, ESPMode::ThreadSafe>& InViewport, IDisplayClusterWarpPolicy* InWarpPolicy)
 {
-	// ignore internal resources
-	if (InViewport.IsValid() && !EnumHasAnyFlags(InViewport->GetRenderSettingsICVFX().RuntimeFlags, EDisplayClusterViewportRuntimeICVFXFlags::InternalResource))
+	// ignore internal viewports
+	if (InViewport.IsValid() && !InViewport->IsInternalViewport())
 	{
 		if (InViewport->GetProjectionPolicy().IsValid())
 		{

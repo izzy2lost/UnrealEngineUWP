@@ -25,29 +25,28 @@ static FAutoConsoleVariableRef CVarDisplayClusterRenderOverscanMaxValue(
 namespace UE::DisplayCluster::Viewport::OverscanHelpers
 {
 	/** Clamp percent for overscan settings. */
-	static inline float ClampPercent(float InValue)
+	static inline double ClampPercent(double InValue)
 	{
-		const float MaxCustomFrustumValue = float(GDisplayClusterRenderOverscanMaxValue) / 100;
+		const double MaxCustomFrustumValue = double(GDisplayClusterRenderOverscanMaxValue) / 100;
 
 		return FMath::Clamp(InValue, -MaxCustomFrustumValue, MaxCustomFrustumValue);
 	}
 };
-using namespace UE::DisplayCluster::Viewport;
 
 ///////////////////////////////////////////////////////////////////////////////////////////
 // FDisplayClusterViewport_OverscanRuntimeSettings
 ///////////////////////////////////////////////////////////////////////////////////////////
 bool FDisplayClusterViewport_OverscanRuntimeSettings::UpdateProjectionAngles(
 	const FDisplayClusterViewport_OverscanRuntimeSettings& InOverscanRuntimeSettings,
-	float& InOutLeft,
-	float& InOutRight,
-	float& InOutTop,
-	float& InOutBottom)
+	double& InOutLeft,
+	double& InOutRight,
+	double& InOutTop,
+	double& InOutBottom)
 {
 	if (InOverscanRuntimeSettings.bIsEnabled)
 	{
-		float Horizontal = InOutRight - InOutLeft;
-		float Vertical = InOutTop - InOutBottom;
+		double Horizontal = InOutRight - InOutLeft;
+		double Vertical = InOutTop - InOutBottom;
 
 		InOutLeft   -= Horizontal * InOverscanRuntimeSettings.OverscanPercent.Left;
 		InOutRight  += Horizontal * InOverscanRuntimeSettings.OverscanPercent.Right;
@@ -66,6 +65,8 @@ void FDisplayClusterViewport_OverscanRuntimeSettings::UpdateOverscanSettings(
 	FDisplayClusterViewport_OverscanRuntimeSettings& InOutOverscanRuntimeSettings,
 	FIntRect& InOutRenderTargetRect)
 {
+	using namespace UE::DisplayCluster::Viewport;
+
 	const FIntPoint Size = InOutRenderTargetRect.Size();
 
 	// Disable viewport overscan feature
@@ -129,8 +130,8 @@ void FDisplayClusterViewport_OverscanRuntimeSettings::UpdateOverscanSettings(
 		}
 		else
 		{
-			float scaleX = float(Size.X) / OverscanSize.X;
-			float scaleY = float(Size.Y) / OverscanSize.Y;
+			double scaleX = double(Size.X) / OverscanSize.X;
+			double scaleY = double(Size.Y) / OverscanSize.Y;
 
 			InOutOverscanRuntimeSettings.OverscanPixels.Left   *= scaleX;
 			InOutOverscanRuntimeSettings.OverscanPixels.Right  *= scaleX;

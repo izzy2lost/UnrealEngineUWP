@@ -13,6 +13,7 @@
 #include "DisplayClusterConfigurationTypes_PostRender.h"
 #include "DisplayClusterConfigurationTypes_Postprocess.h"
 #include "DisplayClusterConfigurationTypes_ViewportRemap.h"
+#include "DisplayClusterConfigurationTypes_ViewportOverscan.h"
 
 #include "Containers/DisplayClusterShader_Enums.h"
 #include "Render/Viewport/Containers/DisplayClusterViewport_EnumsICVFX.h"
@@ -23,41 +24,6 @@
 #include "DisplayClusterConfigurationTypes_Viewport.generated.h"
 
 struct FDisplayClusterConfigurationICVFX_StageSettings;
-
-USTRUCT(Blueprintable)
-struct DISPLAYCLUSTERCONFIGURATION_API FDisplayClusterConfigurationViewport_Overscan
-{
-	GENERATED_BODY()
-
-public:
-	/** Enable/disable Viewport Overscan and specify units as percent or pixel values. */
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "NDisplay Viewport", meta = (DisplayName = "Enable"))
-	bool bEnabled = false;
-
-	/** Enable/disable Viewport Overscan and specify units as percent or pixel values. */
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "NDisplay Viewport")
-	EDisplayClusterConfigurationViewportOverscanMode Mode = EDisplayClusterConfigurationViewportOverscanMode::Percent;
-
-	/** Left */
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "NDisplay Viewport")
-	float Left = 0;
-
-	/** Right */
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "NDisplay Viewport")
-	float Right = 0;
-
-	/** Top */
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "NDisplay Viewport")
-	float Top  = 0;
-
-	/** Bottom */
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "NDisplay Viewport")
-	float Bottom = 0;
-
-	/** Set to True to render at the overscan resolution, set to false to render at the resolution in the configuration and scale for overscan. */
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "NDisplay Viewport", meta = (DisplayName = "Adapt Resolution", DisplayAfter = "Mode"))
-	bool bOversize = true;
-};
 
 USTRUCT(BlueprintType)
 struct DISPLAYCLUSTERCONFIGURATION_API FDisplayClusterConfigurationViewport_ICVFX

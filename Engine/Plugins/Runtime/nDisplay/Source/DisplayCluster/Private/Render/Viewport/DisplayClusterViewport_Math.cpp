@@ -32,7 +32,7 @@ namespace UE::DisplayCluster::Viewport::Math
 	 * 
 	 * @return - the distance to the eye from the original ViewLocation
 	 */
-	static inline FVector ImplGetViewOffset(const float PassOffsetSwap, FVector& InOutViewLocation, const FRotator& InViewRotation)
+	static inline FVector ImplGetViewOffset(const double PassOffsetSwap, FVector& InOutViewLocation, const FRotator& InViewRotation)
 	{
 		// Apply computed offset to the view location
 		const FQuat EyeQuat = InViewRotation.Quaternion();
@@ -42,8 +42,23 @@ namespace UE::DisplayCluster::Viewport::Math
 
 		return ViewOffset;
 	}
+
+	/** check frustum. */
+	static inline void GetNonZeroFrustumRange(double& InOutValue0, double& InOutValue1, double n)
+	{
+		static const double MinHalfFOVRangeRad = FMath::DegreesToRadians(0.5f);
+		static const double MinRangeBase = FMath::Tan(MinHalfFOVRangeRad * 2);;
+
+		const double MinRangeValue = n * MinRangeBase;
+		if ((InOutValue1 - InOutValue0) < MinRangeValue)
+		{
+			// Get minimal values from center of range
+			const double CenterRad = (FMath::Atan(InOutValue0 / n) + (FMath::Atan(InOutValue1 / n))) * 0.5f;
+			InOutValue0 = double(n * FMath::Tan(CenterRad - MinHalfFOVRangeRad));
+			InOutValue1 = double(n * FMath::Tan(CenterRad + MinHalfFOVRangeRad));
+		}
+	}
 };
-using namespace UE::DisplayCluster::Viewport::Math;
 ///////////////////////////////////////////////////////////////////////////////////////
 //          FDisplayClusterViewport
 ///////////////////////////////////////////////////////////////////////////////////////
@@ -66,6 +81,8 @@ FVector2D FDisplayClusterViewport::GetClippingPlanes() const
 
 bool FDisplayClusterViewport::GetViewPointCameraEye(const uint32 InContextNum, FVector& OutViewLocation, FRotator& OutViewRotation, FVector& OutViewOffset)
 {
+	using namespace UE::DisplayCluster::Viewport::Math;
+
 	// Here we use the ViewPoint component as the eye position
 	if (UDisplayClusterCameraComponent* SceneCameraComponent = GetViewPointCameraComponent(EDisplayClusterRootActorType::Scene))
 	{
@@ -83,6 +100,8 @@ bool FDisplayClusterViewport::GetViewPointCameraEye(const uint32 InContextNum, F
 
 bool FDisplayClusterViewport::CalculateView(const uint32 InContextNum, FVector& InOutViewLocation, FRotator& InOutViewRotation, const float WorldToMeters)
 {
+	using namespace UE::DisplayCluster::Viewport::Math;
+
 	if (Contexts.IsValidIndex(InContextNum))
 	{
 		if (!EnumHasAnyFlags(Contexts[InContextNum].ContextState, EDisplayClusterViewportContextState::InvalidViewPoint))
@@ -177,34 +196,21 @@ bool FDisplayClusterViewport::GetProjectionMatrix(const uint32 InContextNum, FMa
 	return false;
 }
 
-inline void GetNonZeroFrustumRange(float& InOutValue0, float& InOutValue1, float n)
-{
-	static const float MinHalfFOVRangeRad = FMath::DegreesToRadians(0.5f);
-	static const float MinRangeBase = FMath::Tan(MinHalfFOVRangeRad * 2);;
-
-	const float MinRangeValue = n * MinRangeBase;
-	if ((InOutValue1 - InOutValue0) < MinRangeValue)
-	{
-		// Get minimal values from center of range
-		const float CenterRad = (FMath::Atan(InOutValue0 / n) + (FMath::Atan(InOutValue1 / n))) * 0.5f;
-		InOutValue0 = float(n * FMath::Tan(CenterRad - MinHalfFOVRangeRad));
-		InOutValue1 = float(n * FMath::Tan(CenterRad + MinHalfFOVRangeRad));
-	}
-}
-
 void FDisplayClusterViewport::CalculateProjectionMatrix(const uint32 InContextNum, float Left, float Right, float Top, float Bottom, float ZNear, float ZFar, bool bIsAnglesInput)
 {
+	using namespace UE::DisplayCluster::Viewport::Math;
+
 	// limit max frustum to 89
-	static const float MaxFrustumAngle = FMath::Tan(FMath::DegreesToRadians(89));
-	const float MaxValue = ZNear * MaxFrustumAngle;
+	static const double MaxFrustumAngle = FMath::Tan(FMath::DegreesToRadians(89));
+	const double MaxValue = ZNear * MaxFrustumAngle;
 
-	const float n = ZNear;
-	const float f = ZFar;
+	const double n = ZNear;
+	const double f = ZFar;
 
-	float t = bIsAnglesInput ? (ZNear * FMath::Tan(FMath::DegreesToRadians(Top)))    : Top;
-	float b = bIsAnglesInput ? (ZNear * FMath::Tan(FMath::DegreesToRadians(Bottom))) : Bottom;
-	float l = bIsAnglesInput ? (ZNear * FMath::Tan(FMath::DegreesToRadians(Left)))   : Left;
-	float r = bIsAnglesInput ? (ZNear * FMath::Tan(FMath::DegreesToRadians(Right)))  : Right;
+	double t = bIsAnglesInput ? (ZNear * FMath::Tan(FMath::DegreesToRadians(Top)))    : Top;
+	double b = bIsAnglesInput ? (ZNear * FMath::Tan(FMath::DegreesToRadians(Bottom))) : Bottom;
+	double l = bIsAnglesInput ? (ZNear * FMath::Tan(FMath::DegreesToRadians(Left)))   : Left;
+	double r = bIsAnglesInput ? (ZNear * FMath::Tan(FMath::DegreesToRadians(Right)))  : Right;
 
 	// Protect PrjMatrix from bad input values, and fix\clamp FOV to limits
 	{
@@ -228,7 +234,7 @@ void FDisplayClusterViewport::CalculateProjectionMatrix(const uint32 InContextNu
 	}
 
 	// Support custom frustum rendering
-	const float OrigValues[] = {l, r, t, b};
+	const double OrigValues[] = {l, r, t, b};
 	if (FDisplayClusterViewport_CustomFrustumRuntimeSettings::UpdateProjectionAngles(CustomFrustumRuntimeSettings, l, r, t, b))
 	{
 		const bool bIsValidLimits =  FMath::IsWithin(l, -MaxValue, MaxValue)
@@ -254,6 +260,13 @@ void FDisplayClusterViewport::CalculateProjectionMatrix(const uint32 InContextNu
 
 	Contexts[InContextNum].ProjectionMatrix = IDisplayClusterViewport::MakeProjectionMatrix(l, r, t, b, n, f);
 
+	// Update cached projection data:
+	FDisplayClusterViewport_Context::FCachedProjectionData& CachedProjectionData = Contexts[InContextNum].ProjectionData;
+	CachedProjectionData.ProjectionAngles = FVector4(l, r, t, b);
+	CachedProjectionData.ZNear = n;
+	CachedProjectionData.ZFar = f;
+	CachedProjectionData.bValid = true;
+
 	if (FDisplayClusterViewport_OverscanRuntimeSettings::UpdateProjectionAngles(OverscanRuntimeSettings, l, r, t, b))
 	{
 		if (FMath::IsWithin(l, -MaxValue, MaxValue) &&
@@ -264,6 +277,11 @@ void FDisplayClusterViewport::CalculateProjectionMatrix(const uint32 InContextNu
 		{
 			// Use overscan projection matrix
 			Contexts[InContextNum].OverscanProjectionMatrix = IDisplayClusterViewport::MakeProjectionMatrix(l, r, t, b, n, f);
+
+			// Cache projection data for overscan
+			CachedProjectionData.bUseOverscan = true;
+			CachedProjectionData.OverscanProjectionAngles = FVector4(l, r, t, b);
+
 			return;
 		}
 	}

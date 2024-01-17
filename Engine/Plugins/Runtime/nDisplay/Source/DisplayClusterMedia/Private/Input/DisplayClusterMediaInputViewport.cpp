@@ -2,6 +2,7 @@
 
 #include "Input/DisplayClusterMediaInputViewport.h"
 #include "Render/Viewport/IDisplayClusterViewportManagerProxy.h"
+#include "Render/Viewport/IDisplayClusterViewport.h"
 
 #include "IDisplayCluster.h"
 #include "IDisplayClusterCallbacks.h"
@@ -25,6 +26,12 @@ bool FDisplayClusterMediaInputViewport::Play()
 	if (FDisplayClusterMediaInputBase::Play())
 	{
 		IDisplayCluster::Get().GetCallbacks().OnDisplayClusterPostCrossGpuTransfer_RenderThread().AddRaw(this, &FDisplayClusterMediaInputViewport::PostCrossGpuTransfer_RenderThread);
+
+		// Subscribes to viewport callback to raise media flags for viewport.
+		// Note: viewport is unaware of the media's configurations.
+		// Therefore, any future changes to the USTRUCT used by media do not affect the logic in the DisplayCluster module.
+		IDisplayCluster::Get().GetCallbacks().OnDisplayClusterUpdateViewportMediaState().AddRaw(this, &FDisplayClusterMediaInputViewport::OnUpdateViewportMediaState);
+
 		return true;
 	}
 
@@ -35,8 +42,29 @@ void FDisplayClusterMediaInputViewport::Stop()
 {
 	// Stop receiving notifications
 	IDisplayCluster::Get().GetCallbacks().OnDisplayClusterPostCrossGpuTransfer_RenderThread().RemoveAll(this);
+
+	// Stop raising media flags for the viewport.
+	IDisplayCluster::Get().GetCallbacks().OnDisplayClusterUpdateViewportMediaState().RemoveAll(this);
+
 	// Stop playing
 	FDisplayClusterMediaInputBase::Stop();
+}
+
+void FDisplayClusterMediaInputViewport::OnUpdateViewportMediaState(IDisplayClusterViewport* InViewport, EDisplayClusterViewportMediaState& InOutMediaState)
+{
+	// Note: Media currently supports only one DCRA.
+	// In the future, after the media redesign, the DCRA name will also need to be checked here.
+	if (InViewport && InViewport->GetId().Equals(GetViewportId(), ESearchCase::IgnoreCase))
+	{
+		// Raise flags that this viewport texture will be overridden by media.
+		InOutMediaState |= EDisplayClusterViewportMediaState::Input;
+
+		if (ForceLateOCIOPass)
+		{
+			// Raise flags that this viewport requires ForceLateOCIOPass.
+			InOutMediaState |= EDisplayClusterViewportMediaState::Input_ForceLateOCIOPass;
+		}
+	}
 }
 
 void FDisplayClusterMediaInputViewport::PostCrossGpuTransfer_RenderThread(FRHICommandListImmediate& RHICmdList, const IDisplayClusterViewportManagerProxy* ViewportManagerProxy, FViewport* Viewport)

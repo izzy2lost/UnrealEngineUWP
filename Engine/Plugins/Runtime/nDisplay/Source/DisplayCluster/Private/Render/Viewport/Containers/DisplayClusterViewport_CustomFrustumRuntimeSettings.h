@@ -26,17 +26,17 @@ struct FDisplayClusterViewport_CustomFrustumRuntimeSettings
 	* @param InOutTop                  - the value of the top projection plane that you want to change
 	* @parma InOutBottom               - the value of the bottom projection plane that you want to change
 	*/
-	static bool UpdateProjectionAngles(const FDisplayClusterViewport_CustomFrustumRuntimeSettings& InRuntimeSettings, float& InOutLeft, float& InOutRight, float& InOutTop, float& InOutBottom);
+	static bool UpdateProjectionAngles(const FDisplayClusterViewport_CustomFrustumRuntimeSettings& InRuntimeSettings, double& InOutLeft, double& InOutRight, double& InOutTop, double& InOutBottom);
 
 	/**
 	* Values in percent
 	*/
 	struct FCustomFrustumPercent
 	{
-		float Left = 0;
-		float Right = 0;
-		float Top = 0;
-		float Bottom = 0;
+		double Left = 0;
+		double Right = 0;
+		double Top = 0;
+		double Bottom = 0;
 	};
 
 	/**

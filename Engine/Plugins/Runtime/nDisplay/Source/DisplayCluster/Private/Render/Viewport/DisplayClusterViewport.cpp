@@ -10,6 +10,8 @@
 
 #include "Render/Viewport/Configuration/DisplayClusterViewportConfiguration.h"
 #include "Render/Viewport/Configuration/DisplayClusterViewportConfigurationProxy.h"
+#include "Render/Viewport/Configuration/DisplayClusterViewportConfigurationHelpers_Tile.h"
+
 #include "Render/Viewport/LightCard/DisplayClusterViewportLightCardManager.h"
 
 #include "Render/Projection/IDisplayClusterProjectionPolicy.h"
@@ -164,28 +166,6 @@ void FDisplayClusterViewport::FinalizeNewFrame()
 	RenderSettings.FinishUpdateSettings();
 }
 
-bool FDisplayClusterViewport::IsOpenColorIOEquals(const FDisplayClusterViewport& InViewport) const
-{
-	bool bEnabledOCIO_1 = OpenColorIO.IsValid();
-	bool bEnabledOCIO_2 = InViewport.OpenColorIO.IsValid();
-
-	if (bEnabledOCIO_1 == bEnabledOCIO_2)
-	{
-		if (!bEnabledOCIO_1)
-		{
-			// Both OCIO disabled
-			return true;
-		}
-
-		if (OpenColorIO->IsConversionSettingsEqual(InViewport.OpenColorIO->GetConversionSettings()))
-		{
-			return true;
-		}
-	}
-
-	return false;
-}
-
 const TArray<FSceneViewExtensionRef> FDisplayClusterViewport::GatherActiveExtensions(FViewport* InViewport) const
 {
 	// Use VE from engine for default render and MRQ:
@@ -299,60 +279,6 @@ void FDisplayClusterViewport::AddReferencedObjects(FReferenceCollector& Collecto
 	// ViewStates released on rendering thread from viewport proxy object
 }
 
-bool FDisplayClusterViewport::ShouldUseAdditionalTargetableResource() const
-{
-	check(IsInGameThread());
-
-	// PostRender Blur require additional RTT for shader
-	if (PostRenderSettings.PostprocessBlur.IsEnabled())
-	{
-		return true;
-	}
-
-	// Supoport projection policy additional resource
-	if (ProjectionPolicy.IsValid() && ProjectionPolicy->ShouldUseAdditionalTargetableResource())
-	{
-		return true;
-	}
-
-	return false;
-}
-
-bool FDisplayClusterViewport::ShouldUseOutputTargetableResources() const
-{
-	// Do not create output RTTs for internal ICVFX resources (invisible viewports that are only used to compose the output of other viewports)
-	if (EnumHasAnyFlags(RenderSettingsICVFX.RuntimeFlags, EDisplayClusterViewportRuntimeICVFXFlags::InternalResource))
-	{
-		return false;
-	}
-
-	// Only if this viewport is enabled and visible on the final frame.
-	return RenderSettings.bEnable && RenderSettings.bVisible;
-}
-
-bool FDisplayClusterViewport::ShouldUseAdditionalFrameTargetableResource() const
-{
-	if (ShouldUseOutputTargetableResources())
-	{
-		// OutputFrameTargetableResources must be used for AdditionalFrameTargetableResource
-		if (ViewportRemap.IsUsed())
-		{
-			return true;
-		}
-	}
-
-	return false;
-}
-
-bool FDisplayClusterViewport::ShouldUseFullSizeFrameTargetableResource() const
-{
-	if (ViewportRemap.IsUsed())
-	{
-		return true;
-	}
-
-	return false;
-}
 
 void FDisplayClusterViewport::SetViewportBufferRatio(const float InBufferRatio)
 {
@@ -595,6 +521,48 @@ bool FDisplayClusterViewport::UpdateFrameContexts(const uint32 InStereoViewIndex
 	// Scale context for rendering
 	FIntPoint DesiredContextSize = GetDesiredContextSize(FrameTargetRect.Size(), InFrameSettings);
 
+	// Tile rendering use custom size
+	bool bUseTileRendering = false;
+	FIntPoint TileContextSize = DesiredContextSize;
+	FIntRect TileDestRect;
+	FVector4 TileFrustumRegion(0,1,0,1);
+	if (RenderSettings.TileSettings.GetType() == EDisplayClusterViewportTileType::Tile)
+	{
+		if (FDisplayClusterViewportManager* ViewportManager = Configuration->GetViewportManagerImpl())
+		{
+			// Source viewport shold be updated before tile.
+			// The function GetPriority()
+			TSharedPtr<FDisplayClusterViewport, ESPMode::ThreadSafe> SourceViewport = ViewportManager->ImplFindViewport(RenderSettings.TileSettings.GetSourceViewportId());
+			if (SourceViewport.IsValid())
+			{
+				const TArray<FDisplayClusterViewport_Context>& SourceContexts = SourceViewport->GetContexts();
+				if (!SourceContexts.IsEmpty())
+				{
+					// Currently Context[0] is always used to get the RenderTargetRect value.
+					// But this will only work if the RenderTargetRect values for both contexts are the same, which is true when using a separate RTT for each context.
+					// In the future we may set a goal to optimize stereo rendering within one RTT and one ViewFamily, then we will need to update this code.
+					// Currently we always use a separate RTT for each viewport context to be able to use the highest possible texture resolution.
+					// This is important when we use buffer ratio multiplier, overscan rendering function, etc.
+					const FIntRect SrcRect = SourceContexts[0].RenderTargetRect;
+
+					// Get the target rectangle for the tile in the original RTT viewport.
+					TileDestRect = FDisplayClusterViewportConfigurationHelpers_Tile::GetDestRect(RenderSettings.TileSettings, SrcRect);
+
+					// Use a custom tile size for rendering.
+					TileContextSize = DesiredContextSize = TileDestRect.Size();
+
+					bUseTileRendering = true;
+				}
+			}
+		}
+
+		if (!bUseTileRendering)
+		{
+			// don't use this tile
+			return false;
+		}
+	}
+
 	// Apply restrictions on the maximum size of the viewport texture.
 	const int32 ViewportTextureMaxSize = InFrameSettings.GetViewportTextureMaxSize();
 	if (ViewportTextureMaxSize > 0)
@@ -624,54 +592,25 @@ bool FDisplayClusterViewport::UpdateFrameContexts(const uint32 InStereoViewIndex
 
 	FIntPoint ContextSize = RenderTargetRect.Size();
 
+	if (bUseTileRendering && ContextSize != TileContextSize)
+	{
+		if (CanShowLogMsgOnce(EDisplayClusterViewportShowLogMsgOnce::UpdateFrameContexts_TileSizeNotEqualContextSize))
+		{
+			UE_LOG(LogDisplayClusterViewport, Error, TEXT("The viewport '%s' context size [%dx%d] should be equal with tile size [%dx%d]: Disabled"), *GetId(), ContextSize.X, ContextSize.Y, TileContextSize.X, TileContextSize.Y);
+		}
+
+		return false;
+	}
+
 	// Support overscan rendering feature
 	if (!RenderSettings.bDisableFrustumOverscanFeature)
 	{
 		FDisplayClusterViewport_OverscanRuntimeSettings::UpdateOverscanSettings(GetId(), RenderSettings.OverscanSettings, OverscanRuntimeSettings, RenderTargetRect);
 	}
 
-	const float BaseCustomBufferRatio = GetCustomBufferRatio(InFrameSettings);
-
-	// Fix buffer ratio value vs MaxTextureSize:
-	const float CustomBufferRatio = FDisplayClusterViewportHelpers::GetValidSizeMultiplier(RenderTargetRect.Size(), BaseCustomBufferRatio, 1.f);
-
-	bool bDisableRender = false;
-	if (PostRenderSettings.Replace.IsEnabled())
-	{
-		bDisableRender = true;
-	}
-
-	bool bDisableInternalResources = false;
-	if (RenderSettings.bSkipRendering)
-	{
-		bDisableInternalResources = true;
-		bDisableRender = true;
-	}
-
-	if (RenderSettings.IsViewportOverridden())
-	{
-		switch (RenderSettings.GetViewportOverrideMode())
-		{
-		case EDisplayClusterViewportOverrideMode::InernalRTT:
-			bDisableRender = true;
-			break;
-
-		case EDisplayClusterViewportOverrideMode::All:
-			bDisableRender = true;
-			bDisableInternalResources = true;
-			break;
-
-		default:
-			break;
-		}
-	}
-
 	// UV LightCard viewport use unique whole-cluster texture from LC manager
 	if (EnumHasAllFlags(RenderSettingsICVFX.RuntimeFlags, EDisplayClusterViewportRuntimeICVFXFlags::UVLightcard))
 	{
-		// Use external texture from LightCardManager instead of rendering
-		bDisableRender = true;
-
 		// Use the UVLightCard viewport only when this type of lightcards has been defined
 		bool bUseUVLightCardViewport = false;
 
@@ -700,6 +639,12 @@ bool FDisplayClusterViewport::UpdateFrameContexts(const uint32 InStereoViewIndex
 		}
 	}
 
+	// Get the BufferRatio value so that the texture size does not exceed the maximum value.
+	const float CustomBufferRatio = FDisplayClusterViewportHelpers::GetValidSizeMultiplier(RenderTargetRect.Size(), GetCustomBufferRatio(InFrameSettings), 1.f);
+
+	// Is this viewport can be rendered.
+	const bool bEnableRender = IsRenderEnabled();
+
 	//Add new contexts
 	for (uint32 ContextIt = 0; ContextIt < ViewportContextAmount; ++ContextIt)
 	{
@@ -717,7 +662,7 @@ bool FDisplayClusterViewport::UpdateFrameContexts(const uint32 InStereoViewIndex
 		}
 
 		const int32 MaxExplicitGPUIndex = GDisplayClusterMultiGPUEnable ? GNumExplicitGPUsForRendering - 1 : 0;
-		if (MaxExplicitGPUIndex > 0 && !bDisableRender)
+		if (MaxExplicitGPUIndex > 0 && bEnableRender)
 		{
 			// Experimental: allow mGPU for preview rendering:
 			if (const FIntPoint* GPURange = InFrameSettings.GetPreviewMultiGPURendering())
@@ -743,6 +688,7 @@ bool FDisplayClusterViewport::UpdateFrameContexts(const uint32 InStereoViewIndex
 
 		Context.FrameTargetRect = FrameTargetRect;
 		Context.RenderTargetRect = RenderTargetRect;
+		Context.TileDestRect = TileDestRect;
 		Context.ContextSize = ContextSize;
 
 		// r.ScreenPercentage
@@ -758,18 +704,18 @@ bool FDisplayClusterViewport::UpdateFrameContexts(const uint32 InStereoViewIndex
 			Context.CustomBufferRatio = CustomBufferRatio;
 		}
 
-		Context.bDisableRender = bDisableRender;
+		Context.bDisableRender = !bEnableRender;
 
 		Contexts.Add(Context);
 	}
 
 	// Reserve for resources
-	if (!bDisableRender)
+	if (ShouldUseRenderTargetResource())
 	{
 		Resources[EDisplayClusterViewportResource::RenderTargets].AddZeroed(FrameTargetsAmount);
 	}
 
-	if (!bDisableInternalResources)
+	if (ShouldUseInternalResources())
 	{
 		Resources[EDisplayClusterViewportResource::InputShaderResources].AddZeroed(FrameTargetsAmount);
 

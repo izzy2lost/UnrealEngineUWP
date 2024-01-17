@@ -32,4 +32,8 @@ public:
 	{
 		return true;
 	}
+
+private:
+	/** Get parent viewport name. */
+	const FString& GetParentViewport(IDisplayClusterViewport* InViewport) const;
 };

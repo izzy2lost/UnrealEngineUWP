@@ -27,12 +27,26 @@ const FString& FDisplayClusterProjectionLinkPolicy::GetType() const
 	return Type;
 }
 
+const FString& FDisplayClusterProjectionLinkPolicy::GetParentViewport(IDisplayClusterViewport* InViewport) const
+{
+	check(InViewport);
+
+	const FDisplayClusterViewport_RenderSettings& RenderSettings = InViewport->GetRenderSettings();
+	if (RenderSettings.TileSettings.GetType() == EDisplayClusterViewportTileType::Tile)
+	{
+		return RenderSettings.TileSettings.GetSourceViewportId();
+	}
+
+	return RenderSettings.GetParentViewportId();
+}
+
 void FDisplayClusterProjectionLinkPolicy::SetupProjectionViewPoint(IDisplayClusterViewport* InViewport, const float InDeltaTime, FMinimalViewInfo& InOutViewInfo, float* OutCustomNearClippingPlane)
 {
+
 	// Getting the right data from a parent
 	if (IDisplayClusterViewportManager* ViewportManager = InViewport->GetConfiguration().GetViewportManager())
 	{
-		if (IDisplayClusterViewport* ParentViewport = ViewportManager->FindViewport(InViewport->GetRenderSettings().GetParentViewportId()))
+		if (IDisplayClusterViewport* ParentViewport = ViewportManager->FindViewport(GetParentViewport(InViewport)))
 		{
 			if (ParentViewport->GetProjectionPolicy().IsValid())
 			{
@@ -49,23 +63,23 @@ bool FDisplayClusterProjectionLinkPolicy::CalculateView(IDisplayClusterViewport*
 
 	if (IDisplayClusterViewportManager* ViewportManager = InViewport->GetConfiguration().GetViewportManager())
 	{
-		if (IDisplayClusterViewport* ParentViewport = ViewportManager->FindViewport(InViewport->GetRenderSettings().GetParentViewportId()))
+		if (IDisplayClusterViewport* ParentViewport = ViewportManager->FindViewport(GetParentViewport(InViewport)))
 		{
 			const TArray<FDisplayClusterViewport_Context>& ParentContexts = ParentViewport->GetContexts();
 			if (InContextNum < (uint32)ParentContexts.Num())
 			{
+				bool bResult = true;
 				if (ParentContexts[InContextNum].bDisableRender && ParentViewport->GetProjectionPolicy().IsValid())
 				{
-					return ParentViewport->GetProjectionPolicy()->CalculateView(ParentViewport, InContextNum, InOutViewLocation, InOutViewRotation, ViewOffset, WorldToMeters, NCP, FCP);
+					// When the parent viewport is not rendered, we must force a refresh.
+					bResult = ParentViewport->CalculateView(InContextNum, InOutViewLocation, InOutViewRotation, WorldToMeters);
 				}
-				else
-				{
-					const FDisplayClusterViewport_Context& ParentContext = ParentContexts[InContextNum];
-					InOutViewLocation = ParentContext.ViewLocation;
-					InOutViewRotation = ParentContext.ViewRotation;
 
-					return true;
-				}
+				const FDisplayClusterViewport_Context& ParentContext = ParentContexts[InContextNum];
+				InOutViewLocation = ParentContext.ViewLocation;
+				InOutViewRotation = ParentContext.ViewRotation;
+
+				return bResult;
 			}
 		}
 	}
@@ -80,22 +94,71 @@ bool FDisplayClusterProjectionLinkPolicy::GetProjectionMatrix(IDisplayClusterVie
 
 	if (IDisplayClusterViewportManager* ViewportManager = InViewport->GetConfiguration().GetViewportManager())
 	{
-		if (IDisplayClusterViewport* ParentViewport = ViewportManager->FindViewport(InViewport->GetRenderSettings().GetParentViewportId()))
+		if (IDisplayClusterViewport* ParentViewport = ViewportManager->FindViewport(GetParentViewport(InViewport)))
 		{
 			const TArray<FDisplayClusterViewport_Context>& ParentContexts = ParentViewport->GetContexts();
 			if (InContextNum < (uint32)ParentContexts.Num())
 			{
+				bool bResult = true;
 				if (ParentContexts[InContextNum].bDisableRender && ParentViewport->GetProjectionPolicy().IsValid())
 				{
-					return ParentViewport->GetProjectionPolicy()->GetProjectionMatrix(ParentViewport, InContextNum, OutPrjMatrix);
+					// When the parent viewport is not rendered, we must force a refresh.
+					bResult = ParentViewport->GetProjectionMatrix(InContextNum, OutPrjMatrix);
 				}
-				else
-				{
-					const FDisplayClusterViewport_Context& ParentContext = ParentContexts[InContextNum];
-					OutPrjMatrix = ParentContext.ProjectionMatrix;
 
-					return true;
+				const FDisplayClusterViewport_Context& ParentContext = ParentContexts[InContextNum];
+
+				// Projection angles [Left, Right, Top, Bottom]
+				FVector4 ProjectionAngles = ParentContext.ProjectionData.ProjectionAngles;
+
+				const FDisplayClusterViewport_RenderSettings& InRenderSettings = InViewport->GetRenderSettings();
+				if (InRenderSettings.TileSettings.GetType() == EDisplayClusterViewportTileType::Tile
+				&& InViewport->GetContexts().IsValidIndex(InContextNum))
+				{
+					const FDisplayClusterViewport_Context& InContext = InViewport->GetContexts()[InContextNum];
+
+					const FIntRect SrcRect      = ParentContext.RenderTargetRect;
+					const FIntRect TileDestRect = InContext.TileDestRect;
+
+					// Get frustum split multipliers
+					// Frustum split multipliers [Left, Right, Top, Bottom]
+					const FVector4 TileFrustumRegion(
+						double(TileDestRect.Min.X - SrcRect.Min.X) / double(SrcRect.Width()),
+						double(TileDestRect.Max.X - SrcRect.Min.X) / double(SrcRect.Width()),
+						1-double(TileDestRect.Min.Y - SrcRect.Min.Y) / double(SrcRect.Height()),
+						1-double(TileDestRect.Max.Y - SrcRect.Min.Y) / double(SrcRect.Height())
+					);
+
+					if (ParentContext.ProjectionData.bUseOverscan)
+					{
+						// We are tiling a viewport that uses overscan, so we need to use extended corners
+						ProjectionAngles = ParentContext.ProjectionData.OverscanProjectionAngles;
+					}
+					
+					const double FrustumWidth  = ProjectionAngles.Y - ProjectionAngles.X;
+					const double FrustumHeight = ProjectionAngles.Z - ProjectionAngles.W;
+					const double FrustumLeft   = ProjectionAngles.X;
+					const double FrustumBottom = ProjectionAngles.W;
+
+					// Split frustum into tiles.
+					ProjectionAngles.X = FrustumLeft   + TileFrustumRegion.X * FrustumWidth;
+					ProjectionAngles.Y = FrustumLeft   + TileFrustumRegion.Y * FrustumWidth;
+					ProjectionAngles.Z = FrustumBottom + TileFrustumRegion.Z * FrustumHeight;
+					ProjectionAngles.W = FrustumBottom + TileFrustumRegion.W * FrustumHeight;
 				}
+
+				// Calculate projection matrix:
+				InViewport->CalculateProjectionMatrix(
+					InContextNum,
+					ProjectionAngles.X,ProjectionAngles.Y, ProjectionAngles.Z, ProjectionAngles.W,
+					ParentContext.ProjectionData.ZNear,
+					ParentContext.ProjectionData.ZFar,
+					false
+				);
+
+				OutPrjMatrix = InViewport->GetContexts()[InContextNum].ProjectionMatrix;
+
+				return bResult;
 			}
 		}
 	}

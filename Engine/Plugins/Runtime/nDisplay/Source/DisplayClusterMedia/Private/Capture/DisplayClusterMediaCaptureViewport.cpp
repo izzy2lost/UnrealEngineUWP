@@ -7,6 +7,7 @@
 #include "IDisplayCluster.h"
 #include "IDisplayClusterCallbacks.h"
 
+#include "Render/Viewport/IDisplayClusterViewport.h"
 #include "Render/Viewport/IDisplayClusterViewportManagerProxy.h"
 #include "RHICommandList.h"
 #include "RHIResources.h"
@@ -25,6 +26,11 @@ bool FDisplayClusterMediaCaptureViewport::StartCapture()
 	if (FDisplayClusterMediaCaptureBase::StartCapture())
 	{
 		IDisplayCluster::Get().GetCallbacks().OnDisplayClusterPostRenderViewFamily_RenderThread().AddRaw(this, &FDisplayClusterMediaCaptureViewport::OnPostRenderViewFamily_RenderThread);
+
+		// Subscribes to viewport callback to raise media flags for viewport.
+		// Note: viewport is unaware of the media's configurations.
+		// Therefore, any future changes to the USTRUCT used by media do not affect the logic in the DisplayCluster module.
+		IDisplayCluster::Get().GetCallbacks().OnDisplayClusterUpdateViewportMediaState().AddRaw(this, &FDisplayClusterMediaCaptureViewport::OnUpdateViewportMediaState);
 		return true;
 	}
 
@@ -35,8 +41,29 @@ void FDisplayClusterMediaCaptureViewport::StopCapture()
 {
 	// Stop rendering notifications
 	IDisplayCluster::Get().GetCallbacks().OnDisplayClusterPostRenderViewFamily_RenderThread().RemoveAll(this);
+
+	// Stop raising media flags for the viewport.
+	IDisplayCluster::Get().GetCallbacks().OnDisplayClusterUpdateViewportMediaState().RemoveAll(this);
+
 	// Stop capturing
 	FDisplayClusterMediaCaptureBase::StopCapture();
+}
+
+void FDisplayClusterMediaCaptureViewport::OnUpdateViewportMediaState(IDisplayClusterViewport* InViewport, EDisplayClusterViewportMediaState& InOutMediaState)
+{
+	// Note: Media currently supports only one DCRA.
+	// In the future, after the media redesign, the DCRA name will also need to be checked here.
+	if (InViewport && InViewport->GetId().Equals(GetViewportId(), ESearchCase::IgnoreCase))
+	{
+		// Raise flags that this viewport will be captured by media.
+		InOutMediaState |= EDisplayClusterViewportMediaState::Capture;
+
+		if (ForceLateOCIOPass)
+		{
+			// Raise flags that this capture requires ForceLateOCIOPass.
+			InOutMediaState |= EDisplayClusterViewportMediaState::Capture_ForceLateOCIOPass;
+		}
+	}
 }
 
 FIntPoint FDisplayClusterMediaCaptureViewport::GetCaptureSize() const

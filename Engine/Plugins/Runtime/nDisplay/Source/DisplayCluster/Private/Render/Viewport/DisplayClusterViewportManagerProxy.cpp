@@ -6,7 +6,6 @@
 #include "Render/Viewport/Configuration/DisplayClusterViewportConfiguration.h"
 #include "Render/Viewport/Configuration/DisplayClusterViewportConfigurationProxy.h"
 
-#include "ClearQuad.h"
 #include "Misc/DisplayClusterLog.h"
 
 #include "IDisplayCluster.h"
@@ -74,24 +73,31 @@ void FDisplayClusterViewportManagerProxy::Release_RenderThread()
 
 void FDisplayClusterViewportManagerProxy::ImplUpdateClusterNodeViewportProxies_RenderThread()
 {
-	// Get viewports used to rendering of the current frame
+	TArray<TSharedPtr<FDisplayClusterViewportProxy, ESPMode::ThreadSafe>>& OutViewports = (TArray<TSharedPtr<FDisplayClusterViewportProxy, ESPMode::ThreadSafe>>&)CurrentRenderFrameViewportProxies;
+
 	if (ConfigurationProxy->GetClusterNodeId_RenderThread().IsEmpty())
 	{
-		// When a cluster node name is empty, we render without the cluster nodes
-		CurrentRenderFrameViewportProxies = ImplGetEntireClusterViewportProxies_RenderThread();
+		// When a cluster node name is empty, we render without the cluster nodes.
+		OutViewports = ImplGetEntireClusterViewportProxies_RenderThread();
 	}
 	else
 	{
-		// Get viewport proxies for current cluster nodes
-		CurrentRenderFrameViewportProxies.Reset();
+		// Get viewports for current cluster nodes.
+		OutViewports.Reset();
 		for (const TSharedPtr<FDisplayClusterViewportProxy, ESPMode::ThreadSafe>& ViewportProxyIt : ImplGetEntireClusterViewportProxies_RenderThread())
 		{
 			if (ViewportProxyIt.IsValid() && (ViewportProxyIt->GetClusterNodeId() == ConfigurationProxy->GetClusterNodeId_RenderThread()))
 			{
-				CurrentRenderFrameViewportProxies.Add(ViewportProxyIt);
+				OutViewports.Add(ViewportProxyIt);
 			}
 		}
 	}
+
+	// Sort viewports by priority.
+	OutViewports.Sort([](const TSharedPtr<FDisplayClusterViewportProxy, ESPMode::ThreadSafe>& InViewportProxy1, const TSharedPtr<FDisplayClusterViewportProxy, ESPMode::ThreadSafe>& InViewportProxy2)
+		{
+			return InViewportProxy1->GetPriority_RenderThread() < InViewportProxy2->GetPriority_RenderThread();
+		});
 }
 
 void FDisplayClusterViewportManagerProxy::CreateViewport_RenderThread(const TSharedPtr<FDisplayClusterViewportProxy, ESPMode::ThreadSafe>& InViewportProxy)
@@ -267,6 +273,10 @@ PRAGMA_DISABLE_DEPRECATION_WARNINGS
 PRAGMA_ENABLE_DEPRECATION_WARNINGS
 			}
 		}
+
+		// At the end, some resources may be filled with black, etc.
+		// This is useful because the resources are reused and the image from the previous frame goes into the new one.
+		ViewportManagerProxy->CleanupResources_RenderThread(RHICmdList);
 	});
 }
 
@@ -274,41 +284,14 @@ void FDisplayClusterViewportManagerProxy::UpdateDeferredResources_RenderThread(F
 {
 	check(IsInRenderingThread());
 
-	TArray<TSharedPtr<FDisplayClusterViewportProxy, ESPMode::ThreadSafe>> OverriddenViewports;
-	OverriddenViewports.Reserve(ImplGetCurrentRenderFrameViewportProxies_RenderThread().Num());
-
+	// Viewports in the CurrentRenderFrameViewportProxies list are already sorted using GetPriority_RenderThread().
 	for (const TSharedPtr<FDisplayClusterViewportProxy, ESPMode::ThreadSafe>& ViewportProxy : ImplGetCurrentRenderFrameViewportProxies_RenderThread())
 	{
-		if (!ViewportProxy->GetRenderSettings_RenderThread().IsViewportOverridden())
+		if (ViewportProxy.IsValid())
 		{
 			ViewportProxy->UpdateDeferredResources(RHICmdList);
 		}
-		else
-		{
-			// Update after all
-			OverriddenViewports.Add(ViewportProxy);
-		}
 	}
-
-	// Update deferred viewports after all
-	for (TSharedPtr<FDisplayClusterViewportProxy, ESPMode::ThreadSafe>& ViewportProxy : OverriddenViewports)
-	{
-		ViewportProxy->UpdateDeferredResources(RHICmdList);
-	}
-}
-
-static void ImplClearRenderTargetResource_RenderThread(FRHICommandListImmediate& RHICmdList, FRHITexture2D* InRenderTargetTexture)
-{
-	FRHIRenderPassInfo RPInfo(InRenderTargetTexture, ERenderTargetActions::DontLoad_Store);
-	RHICmdList.Transition(FRHITransitionInfo(InRenderTargetTexture, ERHIAccess::Unknown, ERHIAccess::RTV));
-	RHICmdList.BeginRenderPass(RPInfo, TEXT("nDisplay_ClearRTT"));
-	{
-		const FIntPoint Size = InRenderTargetTexture->GetSizeXY();
-		RHICmdList.SetViewport(0, 0, 0.0f, Size.X, Size.Y, 1.0f);
-		DrawClearQuad(RHICmdList, FLinearColor::Black);
-	}
-	RHICmdList.EndRenderPass();
-	RHICmdList.Transition(FRHITransitionInfo(InRenderTargetTexture, ERHIAccess::Unknown, ERHIAccess::SRVMask));
 }
 
 void FDisplayClusterViewportManagerProxy::ImplClearFrameTargets_RenderThread(FRHICommandListImmediate& RHICmdList) const
@@ -318,9 +301,9 @@ void FDisplayClusterViewportManagerProxy::ImplClearFrameTargets_RenderThread(FRH
 	TArray<FIntPoint> TargetOffset;
 	if (GetFrameTargets_RenderThread(FrameResources, TargetOffset, &AdditionalFrameResources))
 	{
-		for (FRHITexture2D* It : FrameResources)
+		for (FRHITexture2D* FrameResourceIt : FrameResources)
 		{
-			ImplClearRenderTargetResource_RenderThread(RHICmdList, It);
+			FDisplayClusterViewportProxy::FillTextureWithColor_RenderThread(RHICmdList, FrameResourceIt, FLinearColor::Black);
 		}
 	}
 }
@@ -417,6 +400,20 @@ void FDisplayClusterViewportManagerProxy::UpdateFrameResources_RenderThread(FRHI
 	IDisplayCluster::Get().GetCallbacks().OnDisplayClusterPostWarp_RenderThread().Broadcast(RHICmdList, this);
 
 	PostProcessManager->PerformPostProcessFrameAfterWarpBlend_RenderThread(RHICmdList, this);
+}
+
+void FDisplayClusterViewportManagerProxy::CleanupResources_RenderThread(FRHICommandListImmediate& RHICmdList) const
+{
+	check(IsInRenderingThread());
+
+	// Viewports in the CurrentRenderFrameViewportProxies list are already sorted using GetPriority_RenderThread().
+	for (const TSharedPtr<FDisplayClusterViewportProxy, ESPMode::ThreadSafe>& ViewportProxy : ImplGetCurrentRenderFrameViewportProxies_RenderThread())
+	{
+		if (ViewportProxy.IsValid())
+		{
+			ViewportProxy->CleanupResources_RenderThread(RHICmdList);
+		}
+	}
 }
 
 void FDisplayClusterViewportManagerProxy::DoCrossGPUTransfers_RenderThread(FRHICommandListImmediate& RHICmdList) const

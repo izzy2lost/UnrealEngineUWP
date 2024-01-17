@@ -51,8 +51,8 @@ void FDisplayClusterViewportConfiguration_ProjectionPolicy::Update()
 	{
 		for (const TSharedPtr<FDisplayClusterViewport, ESPMode::ThreadSafe>& ViewportIt : ViewportManager->ImplGetCurrentRenderFrameViewports())
 		{
-			// ignore ICVFX internal resources
-			if (ViewportIt.IsValid() && !EnumHasAnyFlags(ViewportIt->GetRenderSettingsICVFX().RuntimeFlags, EDisplayClusterViewportRuntimeICVFXFlags::InternalResource))
+			// ignore internal viewport
+			if (ViewportIt.IsValid() && !ViewportIt->IsInternalViewport())
 			{
 				// Support advanced logic for 'camera' projection policy
 				if (ViewportIt->GetProjectionPolicy().IsValid())

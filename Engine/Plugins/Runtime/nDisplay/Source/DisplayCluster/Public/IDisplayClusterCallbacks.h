@@ -3,12 +3,14 @@
 #pragma once
 
 #include "DisplayClusterEnums.h"
+#include "Render/Viewport/Containers/DisplayClusterViewport_Enums.h"
 
 class FDisplayClusterShaderParameters_ICVFX;
 class FRDGBuilder;
 class FRHICommandListImmediate;
 class FSceneViewFamily;
 class FViewport;
+class IDisplayClusterViewport;
 class IDisplayClusterViewportProxy;
 class IDisplayClusterViewportManagerProxy;
 struct FDisplayClusterShaderParameters_WarpBlend;
@@ -123,4 +125,13 @@ public:
 	/** Called before applying ICVFX shaders **/
 	DECLARE_EVENT_FourParams(IDisplayClusterCallbacks, FDisplayClusterPreProcessIcvfx_RenderThread, FRHICommandListImmediate&, const IDisplayClusterViewportProxy*, FDisplayClusterShaderParameters_WarpBlend&, FDisplayClusterShaderParameters_ICVFX&);
 	virtual FDisplayClusterPreProcessIcvfx_RenderThread& OnDisplayClusterPreProcessIcvfx_RenderThread() = 0;
+
+	/** The viewport can be used by external media, which affects the internal logic of the viewport.
+	* Media must use this callback and return their own media states for this viewport.
+	*
+	* @param InViewport - this viewport wants to know its media state.
+	* @param InOutMediaState - the delegate function should raise the desired media state flags to this variable.
+	*/
+	DECLARE_MULTICAST_DELEGATE_TwoParams(FDisplayClusterUpdateViewportMediaState, IDisplayClusterViewport*, EDisplayClusterViewportMediaState&);
+	virtual FDisplayClusterUpdateViewportMediaState& OnDisplayClusterUpdateViewportMediaState() = 0;
 };

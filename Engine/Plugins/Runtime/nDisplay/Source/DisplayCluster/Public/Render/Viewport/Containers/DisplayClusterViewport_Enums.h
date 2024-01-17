@@ -181,3 +181,23 @@ enum class EDisplayClusterRootActorType : uint8
 };
 ENUM_CLASS_FLAGS(EDisplayClusterRootActorType);
 
+/**
+ * The type of media usage for the viewport.
+ */
+enum class EDisplayClusterViewportMediaState : uint8
+{
+	// This viewport does not use media.
+	None = 0,
+
+	// This viewport will be captured by the media device.
+	Capture = 1 << 0,
+	Capture_ForceLateOCIOPass = 1 << 1,
+
+	// This viewport is overridden by the media device.
+	Input = 1 << 4,
+	Input_ForceLateOCIOPass = 1 << 5,
+
+	ForceLateOCIOPass = Capture_ForceLateOCIOPass | Input_ForceLateOCIOPass,
+};
+ENUM_CLASS_FLAGS(EDisplayClusterViewportMediaState);
+

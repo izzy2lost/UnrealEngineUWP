@@ -15,6 +15,13 @@ public:
 	/** Sets the appropriate depth of field settings in the scene view */
 	void SetupSceneView(FSceneView& InOutView) const;
 
+	/** At the beginning of each frame, all settings must be restored to default. */
+	void BeginUpdateSettings()
+	{
+		// Reset all values to default values.
+		*this = FDisplayClusterViewport_CameraDepthOfField();
+	}
+
 public:
 	/** Indicates whether depth of field correction is enabled for the ICVFX camera */
 	bool bEnableDepthOfFieldCompensation = false;
