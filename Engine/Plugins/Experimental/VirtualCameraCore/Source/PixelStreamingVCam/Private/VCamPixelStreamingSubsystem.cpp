@@ -36,8 +36,9 @@ void UVCamPixelStreamingSubsystem::RegisterActiveOutputProvider(UVCamPixelStream
 {
 	if (ensure(OutputProvider) && LiveLinkSource)
 	{
-		LiveLinkSource->CreateSubject(OutputProvider->GetFName());
-		LiveLinkSource->PushTransformForSubject(OutputProvider->GetFName(), FTransform::Identity);
+		FName SubjectName = FName(OutputProvider->StreamerId);
+		LiveLinkSource->CreateSubject(SubjectName);
+		LiveLinkSource->PushTransformForSubject(SubjectName, FTransform::Identity);
 	}
 }
 
@@ -45,7 +46,8 @@ void UVCamPixelStreamingSubsystem::UnregisterActiveOutputProvider(UVCamPixelStre
 {
 	if (ensure(OutputProvider) && LiveLinkSource)
 	{
-		LiveLinkSource->RemoveSubject(OutputProvider->GetFName());
+		FName SubjectName = FName(OutputProvider->StreamerId);
+		LiveLinkSource->RemoveSubject(SubjectName);
 	}
 }
 
@@ -56,7 +58,7 @@ TSharedPtr<FPixelStreamingLiveLinkSource> UVCamPixelStreamingSubsystem::TryGetLi
 	{
 		return nullptr;
 	}
-	
+
 	ILiveLinkClient* LiveLinkClient = &ModularFeatures.GetModularFeature<ILiveLinkClient>(ILiveLinkClient::ModularFeatureName);
 	if (!LiveLinkSource.IsValid()
 		// User can manually remove live link sources via UI
@@ -67,8 +69,9 @@ TSharedPtr<FPixelStreamingLiveLinkSource> UVCamPixelStreamingSubsystem::TryGetLi
 
 		if (IsValid(OutputProvider))
 		{
-			LiveLinkSource->CreateSubject(OutputProvider->GetFName());
-			LiveLinkSource->PushTransformForSubject(OutputProvider->GetFName(), FTransform::Identity);
+			FName SubjectName = FName(OutputProvider->StreamerId);
+			LiveLinkSource->CreateSubject(SubjectName);
+			LiveLinkSource->PushTransformForSubject(SubjectName, FTransform::Identity);
 		}
 	}
 	return LiveLinkSource;

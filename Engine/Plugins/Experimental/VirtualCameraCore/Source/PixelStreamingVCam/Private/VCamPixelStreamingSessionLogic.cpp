@@ -414,7 +414,7 @@ namespace UE::PixelStreamingVCam::Private
 
 				if (const TSharedPtr<FPixelStreamingLiveLinkSource> LiveLinkSource = UVCamPixelStreamingSubsystem::Get()->TryGetLiveLinkSource(WeakThisUObjectPtr.Get()))
 				{
-					LiveLinkSource->PushTransformForSubject(WeakThisUObjectPtr->GetFName(), FTransform(ARKitMatrix), Timestamp);
+					LiveLinkSource->PushTransformForSubject(FName(WeakThisUObjectPtr->StreamerId), FTransform(ARKitMatrix), Timestamp);
 				}
 			};
 
@@ -492,7 +492,7 @@ namespace UE::PixelStreamingVCam::Private
 		UVCamComponent* VCamComponent = This->GetTypedOuter<UVCamComponent>();
 		if (This->bAutoSetLiveLinkSubject && IsValid(VCamComponent) && This->IsActive())
 		{
-			VCamComponent->SetLiveLinkSubobject(This->GetFName());
+			VCamComponent->SetLiveLinkSubobject(FName(This->StreamerId));
 		}
 	}
 
@@ -505,7 +505,7 @@ namespace UE::PixelStreamingVCam::Private
 				{
 					return;
 				}
-				
+
 				MediaOutput->GetStreamer()->SendPlayerMessage(FPixelStreamingInputProtocol::FromStreamerProtocol.Find("Response")->GetID(), FString::FromInt((int)NumARKitEvents));
 
 				FName GraphName = FName(*(FString(TEXT("NTransformsSentSec_")) + WeakThisUObjectPtr->GetFName().ToString()));
