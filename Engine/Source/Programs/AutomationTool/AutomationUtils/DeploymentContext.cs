@@ -314,10 +314,10 @@ public class DeploymentContext //: ProjectParams
 	public HashSet<StagedFileReference> ExtraFilesAllowList = new HashSet<StagedFileReference>();
 
 	/// <summary>
-	/// Optional copy handler that during CopyOrWriteManifestFilesToStageDir will be passed to SafeCopy to handle
-	/// the copy operation of files.
+	/// Optional stage handler that during CopyOrWriteManifestFilesToStageDir will handle the copy operation of files and creation
+	/// of the plugin manifest file.
 	/// </summary>
-	public OverrideCopyDelegate OverrideCopyHandler = null;
+	public CustomStageCopyHandler CustomStageCopyHandler = null;
 
 	/// <summary>
 	/// List of ini keys to strip when staging

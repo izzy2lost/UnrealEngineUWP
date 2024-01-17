@@ -2050,6 +2050,18 @@ namespace AutomationScripts
 			return InputPaths;
 		}
 
+		static PluginDescriptor CreatePluginDescriptorForManifest(DeploymentContext SC, FileReference File)
+		{
+			if (SC.CustomStageCopyHandler != null)
+			{
+				return SC.CustomStageCopyHandler.CreateDescriptorForPluginManifest(Logger, File);
+			}
+			else
+			{
+				return PluginDescriptor.FromFile(File);
+			}
+		}
+
 		static void CreatePluginManifest(DeploymentContext SC, Dictionary<StagedFileReference, FileReference> FileMapping, StagedFileType FileType, string ManifestName)
 		{
 			// Get the path to the project's mods directory. We wont include anything under here in the manifest
@@ -2061,7 +2073,7 @@ namespace AutomationScripts
 			{
 				if (!File.Value.IsUnderDirectory(ModsDir) && File.Value.HasExtension(".uplugin"))
 				{
-					PluginDescriptor Descriptor = PluginDescriptor.FromFile(File.Value);
+					PluginDescriptor Descriptor = CreatePluginDescriptorForManifest(SC, File.Value);
 					StagedPlugins[File.Key] = Descriptor;
 				}
 			}
@@ -2137,6 +2149,8 @@ namespace AutomationScripts
 		{
 			if (bPerformCopy)
 			{
+				OverrideCopyDelegate OverrideCopyHandler = (SC.CustomStageCopyHandler != null) ? SC.CustomStageCopyHandler.StageFile : null;
+
 				var StageDirectory = ManifestName == "DebugFiles" ? SC.DebugStageDirectory : SC.StageDirectory;
 				Logger.LogInformation("Copying {ManifestName} to staging directory: {StageDirectory}", ManifestName, StageDirectory);
 				foreach (KeyValuePair<StagedFileReference, FileReference> Pair in Mapping)
@@ -2145,7 +2159,7 @@ namespace AutomationScripts
 					FileReference Dest = FileReference.Combine(StageDirectory, Pair.Key.Name);
 					if (Src != Dest)  // special case for things created in the staging directory, like the pak file
 					{
-						CopyFileIncremental(Src, Dest, SC.OverrideCopyHandler, IniKeyDenyList: SC.IniKeyDenyList, IniSectionDenyList: SC.IniSectionDenyList);
+						CopyFileIncremental(Src, Dest, OverrideCopyHandler, IniKeyDenyList: SC.IniKeyDenyList, IniSectionDenyList: SC.IniSectionDenyList);
 					}
 				}
 			}
@@ -5268,16 +5282,8 @@ namespace AutomationScripts
 
 			if (!string.IsNullOrEmpty(CustomStageCopyHandlerName))
 			{
-				CustomStageCopyHandler CustomStageCopyHandler = CustomStageCopyHandler.Create(CustomStageCopyHandlerName);
-				if (CustomStageCopyHandler != null)
-				{
-					Logger.LogInformation("CopyBuildToStagingDirectory using CustomStageCopyHandler {0}", CustomStageCopyHandlerName);
-
-					SC.OverrideCopyHandler = (ILogger Logger, string SourceName, string TargetName) =>
-					{
-						return CustomStageCopyHandler.StageFile(Logger, SourceName, TargetName);
-					};
-				}
+				Logger.LogInformation("CopyBuildToStagingDirectory using CustomStageCopyHandler {0}", CustomStageCopyHandlerName);
+				SC.CustomStageCopyHandler = CustomStageCopyHandler.Create(CustomStageCopyHandlerName);
 			}
 		}
 

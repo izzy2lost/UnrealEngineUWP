@@ -1,6 +1,7 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 using AutomationTool;
+using EpicGames.Core;
 using System;
 using System.Collections.Generic;
 using System.Linq;
@@ -10,7 +11,23 @@ using Microsoft.Extensions.Logging;
 
 public abstract class CustomStageCopyHandler
 {
-	public virtual bool StageFile(ILogger Logger, string SourceName, string TargetName) { return false; }
+	/// <summary>
+	/// Called when copying files to the staging directory.
+	/// </summary>
+	/// <returns>true if the file was handled. false to fallback on the default stage copy implementation</returns>
+	public virtual bool StageFile(ILogger Logger, string SourceName, string TargetName)
+	{ 
+		return false;
+	}
+
+	/// <summary>
+	/// Called when writing plugin descriptor files to the plugin manifest file.
+	/// </summary>
+	/// <returns>The PluginDescriptor to write into the manifest</returns>
+	public virtual PluginDescriptor CreateDescriptorForPluginManifest(ILogger Logger, FileReference PluginFile)
+	{ 
+		return PluginDescriptor.FromFile(PluginFile);
+	}
 
 	public static CustomStageCopyHandler Create(string Name)
 	{
