@@ -43,7 +43,12 @@ bool USimpleTargetingSelectionTask::AddTargetActor(const FTargetingRequestHandle
 bool USimpleTargetingSelectionTask::AddHitResult(const FTargetingRequestHandle& TargetingHandle, const FHitResult& HitResult) const
 {
 	FTargetingDefaultResultsSet& ResultsSet = FTargetingDefaultResultsSet::FindOrAdd(TargetingHandle);
-	if (!ResultsSet.TargetResults.FindByPredicate([HitResult](const FTargetingDefaultResultData& ResultData){ return ResultData.HitResult.GetActor() == HitResult.GetActor(); }))
+	if (!ResultsSet.TargetResults.FindByPredicate([HitResult](const FTargetingDefaultResultData& ResultData)
+	{
+		bool bIsSameActor = ResultData.HitResult.GetActor() == HitResult.GetActor();
+		bool bHasSameComponent = ResultData.HitResult.GetComponent() == HitResult.GetComponent();
+		return bIsSameActor && bHasSameComponent;
+	}))
 	{
 		FTargetingDefaultResultData& ResultData = ResultsSet.TargetResults.AddDefaulted_GetRef();
 		ResultData.HitResult = HitResult;
