@@ -221,6 +221,7 @@ void FCineCameraRigRailDetails::CustomizeDriveModeCategory(IDetailLayoutBuilder&
 	TSharedPtr<IPropertyHandle> SpeedHandle = DetailBuilder.GetProperty(GET_MEMBER_NAME_CHECKED(ACineCameraRigRail, Speed));
 	TSharedPtr<IPropertyHandle> PlayHandle = DetailBuilder.GetProperty(GET_MEMBER_NAME_CHECKED(ACineCameraRigRail, bPlay));
 	TSharedPtr<IPropertyHandle> LoopHandle = DetailBuilder.GetProperty(GET_MEMBER_NAME_CHECKED(ACineCameraRigRail, bLoop));
+	TSharedPtr<IPropertyHandle> ReverseHandle = DetailBuilder.GetProperty(GET_MEMBER_NAME_CHECKED(ACineCameraRigRail, bReverse));
 
 	DriveModeCategory.AddProperty(DriveModeHandle.ToSharedRef());
 
@@ -231,6 +232,8 @@ void FCineCameraRigRailDetails::CustomizeDriveModeCategory(IDetailLayoutBuilder&
 	DriveModeCategory.AddProperty(PlayHandle.ToSharedRef())
 		.EditCondition(TAttribute<bool>::Create([this]() { return GetDriveMode() != ECineCameraRigRailDriveMode::Manual; }), nullptr);
 	DriveModeCategory.AddProperty(LoopHandle.ToSharedRef())
+		.EditCondition(TAttribute<bool>::Create([this]() { return GetDriveMode() != ECineCameraRigRailDriveMode::Manual; }), nullptr);
+	DriveModeCategory.AddProperty(ReverseHandle.ToSharedRef())
 		.EditCondition(TAttribute<bool>::Create([this]() { return GetDriveMode() != ECineCameraRigRailDriveMode::Manual; }), nullptr);
 
 }

@@ -121,6 +121,10 @@ public:
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "DriveMode")
 	bool bPlay = true;
 
+	/* Determine if it plays in reverse.*/
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "DriveMode")
+	bool bReverse = false;
+
 	/* Enable loop in speed or duration mode */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "DriveMode")
 	bool bLoop = true;

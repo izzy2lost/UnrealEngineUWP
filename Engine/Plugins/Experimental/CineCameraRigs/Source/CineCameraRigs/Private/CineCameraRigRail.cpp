@@ -377,11 +377,12 @@ void ACineCameraRigRail::PostLoad()
 void ACineCameraRigRail::DriveByParam(float DeltaTime)
 {
 	const float PositionDuration = LastPositionValue() - StartPositionValue();
-	float Param = PositionDuration * UKismetMathLibrary::SafeDivide(DeltaTime, CineSplineComponent->Duration);
+	float Increment = bReverse ? -DeltaTime : DeltaTime;
+	float Param = PositionDuration * UKismetMathLibrary::SafeDivide(Increment, CineSplineComponent->Duration);
 	Param += bUseAbsolutePosition ? AbsolutePositionOnRail : CurrentPositionOnRail;
 	if (bLoop)
 	{
-		Param = PositionDuration > 0.0f ? FMath::Fmod(Param - StartPositionValue(), PositionDuration) : 0.0;
+		Param = PositionDuration > 0.0f ? FMath::Fmod(Param - StartPositionValue() + PositionDuration, PositionDuration) : 0.0;
 		Param += StartPositionValue();
 	}
 	else
@@ -400,7 +401,8 @@ void ACineCameraRigRail::DriveBySpeed(float DeltaTime)
 
 	float TotalTime = CineSplineComponent->GetSplineLength() / FMath::Abs(Speed);
 	float CurrentTime = TotalTime * SpeedProgress;
-	CurrentTime += (FMath::Sign(Speed) * DeltaTime);
+	float Increment = bReverse ? -DeltaTime : DeltaTime;
+	CurrentTime += (FMath::Sign(Speed) * Increment);
 	CurrentTime = bLoop ? FMath::Fmod(CurrentTime + TotalTime, TotalTime) : FMath::Clamp(CurrentTime, 0.0f, TotalTime);
 
 	SpeedProgress = CurrentTime / TotalTime;
