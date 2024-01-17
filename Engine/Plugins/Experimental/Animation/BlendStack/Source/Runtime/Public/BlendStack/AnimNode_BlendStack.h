@@ -15,7 +15,7 @@ struct BLENDSTACK_API FBlendStackAnimPlayer
 	
 	void Initialize(const FAnimationInitializeContext& Context, UAnimationAsset* AnimationAsset, float AccumulatedTime, bool bLoop,
 		bool bMirrored, UMirrorDataTable* MirrorDataTable, float BlendTime, float RootBoneBlendTime,
-		const UBlendProfile* BlendProfile, EAlphaBlendOption InBlendOption, const FVector& BlendParameters, float PlayRate, int32 InPoseLinkIdx,
+		const UBlendProfile* BlendProfile, EAlphaBlendOption InBlendOption, const FVector& BlendParameters, float PlayRate, float ActivationDelay, int32 InPoseLinkIdx,
 		FName GroupName, EAnimGroupRole::Type GroupRole, EAnimSyncMethod Method);
 	
 	void UpdatePlayRate(float PlayRate);
@@ -36,7 +36,9 @@ struct BLENDSTACK_API FBlendStackAnimPlayer
 
 	float GetTotalBlendInTime() const { return TotalBlendInTime; }
 	float GetCurrentBlendInTime() const { return CurrentBlendInTime; }
-	void AdvanceBlendInTime(const float DeltaTime, int32 PlayerDepth, float PlayerDepthBlendInTimeMultiplier);
+	float GetTimeToActivation() const { return TimeToActivation; }
+	
+	void UpdateWithDeltaTime(float DeltaTime, int32 PlayerDepth, float PlayerDepthBlendInTimeMultiplier);
 	bool GetMirror() const { return MirrorNode.GetMirror(); }
 	FVector GetBlendParameters() const;
 	void SetBlendParameters(const FVector& BlendParameters);
@@ -49,7 +51,8 @@ struct BLENDSTACK_API FBlendStackAnimPlayer
 	void RestorePoseContext(FPoseContext& PoseContext) const;
 	void UpdateSourceLinkNode();
 	bool IsLooping() const;
-	
+	bool IsActive() const;
+
 	// Curves to add to the pose after the player evaluates
 	TBaseBlendedCurve<FDefaultAllocator, UE::Anim::FCurveElement> OverrideCurve;
 
@@ -82,6 +85,7 @@ private:
 
 	float TotalBlendInTime = 0.f;
 	float CurrentBlendInTime = 0.f;
+	float TimeToActivation = 0.f;
 };
 
 USTRUCT(BlueprintInternalUseOnly)
@@ -129,7 +133,7 @@ struct BLENDSTACK_API FAnimNode_BlendStack_Standalone : public FAnimNode_AssetPl
 	void BlendTo(const FAnimationUpdateContext& Context, UAnimationAsset* AnimationAsset, float AccumulatedTime = 0.f, bool bLoop = false, 
 		bool bMirrored = false, UMirrorDataTable* MirrorDataTable = nullptr, float BlendTime = 0.2f, float RootBoneBlendTime = -1.f,
 		const UBlendProfile* BlendProfile = nullptr, EAlphaBlendOption BlendOption = EAlphaBlendOption::Linear, 
-		bool bUseInertialBlend = false, const FVector& BlendParameters = FVector::Zero(), float PlayRate = 1.f,
+		bool bUseInertialBlend = false, const FVector& BlendParameters = FVector::Zero(), float PlayRate = 1.f, float ActivationDelay = 0.f,
 		FName GroupName = NAME_None, EAnimGroupRole::Type GroupRole = EAnimGroupRole::CanBeLeader, EAnimSyncMethod Method = EAnimSyncMethod::DoNotSync);
 	void UpdatePlayRate(float PlayRate);
 	void Reset();

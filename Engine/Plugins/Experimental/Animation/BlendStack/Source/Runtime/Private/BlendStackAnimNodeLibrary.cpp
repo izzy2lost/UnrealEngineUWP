@@ -17,41 +17,40 @@ void UBlendStackAnimNodeLibrary::BlendTo(const FAnimUpdateContext& Context,
 										bool bMirrored,
 										float BlendTime,
 										FVector BlendParameters,
-										float WantedPlayRate)
+										float WantedPlayRate,
+										float ActivationDelay)
 {
-	if (FAnimNode_BlendStack* BlendStackNodePtr = BlendStackNode.GetAnimNodePtr<FAnimNode_BlendStack>())
+	if (AnimationAsset != nullptr)
 	{
-		if (const FAnimationUpdateContext* AnimationUpdateContext = Context.GetContext())
+		if (FAnimNode_BlendStack* BlendStackNodePtr = BlendStackNode.GetAnimNodePtr<FAnimNode_BlendStack>())
 		{
-			if (AnimationAsset == nullptr)
+			if (const FAnimationUpdateContext* AnimationUpdateContext = Context.GetContext())
 			{
-				UE_LOG(LogBlendStack, Warning, TEXT("UBlendStackAnimNodeLibrary::BlendTo called with null animation asset."));
-				return;
+				BlendStackNodePtr->BlendTo(
+					*AnimationUpdateContext,
+					AnimationAsset,
+					AnimationTime,
+					bLoop,
+					bMirrored,
+					BlendStackNodePtr->MirrorDataTable,
+					BlendTime,
+					BlendStackNodePtr->RootBoneBlendTime,
+					BlendStackNodePtr->BlendProfile,
+					BlendStackNodePtr->BlendOption,
+					BlendStackNodePtr->bUseInertialBlend,
+					BlendParameters,
+					WantedPlayRate,
+					ActivationDelay);
 			}
-
-			BlendStackNodePtr->BlendTo(
-				*AnimationUpdateContext, 
-				AnimationAsset, 
-				AnimationTime, 
-				bLoop,
-				bMirrored,
-				BlendStackNodePtr->MirrorDataTable,
-				BlendTime,
-				BlendStackNodePtr->RootBoneBlendTime,
-				BlendStackNodePtr->BlendProfile,
-				BlendStackNodePtr->BlendOption,
-				BlendStackNodePtr->bUseInertialBlend,
-				BlendParameters,
-				WantedPlayRate);
+			else
+			{
+				UE_LOG(LogBlendStack, Warning, TEXT("UBlendStackAnimNodeLibrary::BlendTo called with an invalid context."));
+			}
 		}
 		else
 		{
-			UE_LOG(LogBlendStack, Warning, TEXT("UBlendStackAnimNodeLibrary::BlendTo called with an invalid context."));
+			UE_LOG(LogBlendStack, Warning, TEXT("UBlendStackAnimNodeLibrary::BlendTo called with an invalid type."));
 		}
-	}
-	else
-	{
-		UE_LOG(LogBlendStack, Warning, TEXT("UBlendStackAnimNodeLibrary::BlendTo called with an invalid type."));
 	}
 }
 

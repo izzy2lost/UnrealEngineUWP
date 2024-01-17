@@ -49,5 +49,6 @@ public:
 						bool bMirrored = false,
 						float BlendTime = 0.2f,
 						FVector BlendParameters = FVector::ZeroVector,
-						float WantedPlayRate = 1.f);
+						float WantedPlayRate = 1.f,
+						float ActivationDelay = 0.f);
 };

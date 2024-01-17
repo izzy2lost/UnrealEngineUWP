@@ -2,8 +2,7 @@
 
 #pragma once
 
-#include "EdGraph/EdGraph.h"
-
+#include "AnimationGraph.h"
 #include "AnimationBlendStackGraph.generated.h"
 
 class UObject;
@@ -13,7 +12,7 @@ class UObject;
 *	The input node is dynamically linked to the blend stack's sample pose.
 */
 UCLASS(MinimalAPI)
-class UAnimationBlendStackGraph : public UEdGraph
+class UAnimationBlendStackGraph : public UAnimationGraph
 {
 	GENERATED_BODY()
 
