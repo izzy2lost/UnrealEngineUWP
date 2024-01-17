@@ -55,18 +55,6 @@ static constexpr uint32 NcdhwDimensionCount = 5;
 static constexpr uint32 NcdhwSpatialDimensionCount = 3;
 static constexpr uint32 NonspatialDimensionCount = 2;		//!< The batch and channel dimensions of NCW, NCHW, NCDHW....
 
-template<typename T>
-inline TArrayView<T> MakeEmptyArrayView()
-{
-	return MakeArrayView(static_cast<T*>(nullptr), 0);
-}
-
-template<typename T>
-inline TConstArrayView<T> MakeEmptyConstArrayView()
-{
-	return TConstArrayView<T>(static_cast<const T*>(nullptr), 0);
-}
-
 class FDmlDeviceContext
 {
 public:
@@ -124,7 +112,7 @@ template<typename OutputType, typename AllocatorType>
 inline bool GetArrayAttributeNoOverflow(
 	const FNNEAttributeValue* Attr, 
 	TArray<OutputType, AllocatorType>& OutputArray, 
-	TConstArrayView<OutputType> DefaultValues = MakeEmptyConstArrayView<OutputType>()
+	TConstArrayView<OutputType> DefaultValues = TConstArrayView<OutputType>()
 	)
 {
 	if (Attr)

@@ -375,7 +375,7 @@ protected:
 
 public:
 
-	void Evaluate(TConstArrayView<uint32> InputShape, TConstArrayView<uint32> PaddingsValue = MakeEmptyConstArrayView<uint32>())
+	void Evaluate(TConstArrayView<uint32> InputShape, TConstArrayView<uint32> PaddingsValue = TConstArrayView<uint32>())
 	{
 		if (bIsGlobalKernel && WindowSize.IsEmpty())
 		{
