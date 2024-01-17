@@ -169,6 +169,9 @@ private:
 	/** if true this will be visible in the material stats. grid */
 	bool bPresentInGrid = false;
 
+	/** if true this platform is always present in material stats grid */
+	bool bAlwaysOn = false;
+
 	/** if true this will be listed in the 'view code' menu */
 	bool bAllowCodeView = false;
 
@@ -200,7 +203,8 @@ public:
 		const FName _Name,
 		const bool _bAllowPresenceInGrid,
 		const bool _bAllowCodeView,
-		const FString& _Description);
+		const FString& _Description,
+		const bool bAlwaysOn);
 	~FShaderPlatformSettings();
 
 	/** returns the name of this platform given in the constructor */
@@ -241,14 +245,14 @@ public:
 	/** returns whether or not this material was chosen to be displayed in the stats grid widget with any material quality level */
 	FORCEINLINE bool IsPresentInGrid() const;
 
+	/** returns whether or not this material is always presnet in the stats grid widget */
+	FORCEINLINE bool IsAlwaysOn() const;
+
 	/** used by the grid widget to enable or disable the presence of this material */
 	FORCEINLINE bool FlipPresentInGrid();
 
 	/** used  to enable or disable the presence of this material in the stats grid widget */
 	FORCEINLINE void SetPresentInGrid(const bool bValue);
-
-	/** marks the need to extract statistics for the specified material quality */
-	FORCEINLINE void SetExtractStatsQualityLevel(const EMaterialQualityLevel::Type Quality, const bool bActive);
 
 	/** flags shader compilation for a specific quality level */
 	FORCEINLINE void SetNeedShaderCompilation(const EMaterialQualityLevel::Type QualityLevel, const bool bValue, const bool bOnlyCompileDerivedMI);
@@ -306,6 +310,7 @@ class FMaterialStats : public FGCObject, public TSharedFromThis<FMaterialStats>
 
 	/** array of bools that flag a specific global material quality setting of the stats grid widget */
 	bool bArrStatsQualitySelector[EMaterialQualityLevel::Num] = { false };
+	bool bArrStatsQualitySelectorAlwaysOn[EMaterialQualityLevel::Num] = { false };
 
 	/** inspect all derived material instances also */
 	EMaterialStatsDerivedMIOption MaterialStatsDerivedMIOption = EMaterialStatsDerivedMIOption::CompileOnly;
@@ -349,11 +354,10 @@ class FMaterialStats : public FGCObject, public TSharedFromThis<FMaterialStats>
 
 private:
 	/** adds a specified platform in the grid widget for analysis; usually called from BuildShaderPlatformDB() */
-	TSharedPtr<FShaderPlatformSettings> AddShaderPlatform(const EPlatformCategoryType PlatformType, const EShaderPlatform PlatformID, const FName PlatformName,
-		const bool bAllowPresenceInGrid, const bool bAllowCodeView, const FString& Description);
+	TSharedPtr<FShaderPlatformSettings> AddShaderPlatform(const EPlatformCategoryType PlatformType, const EShaderPlatform PlatformID, const FName PlatformName, const bool bAllowCodeView, const FString& Description, const bool bAlwaysOn = false);
 
 	/** build a collection of available shader platform for which we can extract various statistics */
-	void BuildShaderPlatformDB();
+	void BuildShaderPlatformDB(const bool bAllowIgnoringCompilationErrors);
 
 	/** this will spawn the window that will display the a specific set of shaders from the analyzed material */
 	TSharedRef<class SDockTab> SpawnTab_ShaderCode(const class FSpawnTabArgs& Args, const EShaderPlatform PlatformID, const EMaterialQualityLevel::Type QualityType, const int32 InstanceIndex);
@@ -394,7 +398,7 @@ private:
 	void DisplayStatsGrid(const bool bShow);
 	void DisplayOldStats(const bool bShow);
 
-	void LoadSettings();
+	void LoadSettings(const bool bAllowIgnoringCompilationErrors);
 	void SaveSettings();
 
 	/** function that will collect (eventual) warning messages when the stats grid is not properly configured */
@@ -433,6 +437,7 @@ public:
 	bool SwitchStatsQualityFlag(const EMaterialQualityLevel::Type Quality);
 	void SetStatusQualityFlag(const EMaterialQualityLevel::Type Quality, const bool bValue);
 	FORCEINLINE bool GetStatsQualityFlag(const EMaterialQualityLevel::Type Quality);
+	FORCEINLINE bool GetStatsQualityFlagAlwaysOn(const EMaterialQualityLevel::Type Quality);
 
 	void SetMaterialStatsDerivedMIOption(const EMaterialStatsDerivedMIOption value);
 	FORCEINLINE EMaterialStatsDerivedMIOption GetMaterialStatsDerivedMIOption() const;
@@ -479,7 +484,7 @@ public:
 
 private:
 	/** this function will do the setup procedure and its called from FMaterialStatsUtils::CreateMaterialStats()  */
-	void Initialize(IMaterialEditor *MaterialEditor, const bool ShowMaterialInstancesMenu);
+	void Initialize(IMaterialEditor *MaterialEditor, const bool bShowMaterialInstancesMenu, const bool bAllowIgnoringCompilationErrors);
 public:
 	//end Setup Functions
 	///////////////////////////////////////////
@@ -568,6 +573,12 @@ FORCEINLINE bool FMaterialStats::GetStatsQualityFlag(const EMaterialQualityLevel
 {
 	check(Quality < EMaterialQualityLevel::Num);
 	return bArrStatsQualitySelector[(int32)Quality];
+}
+
+FORCEINLINE bool FMaterialStats::GetStatsQualityFlagAlwaysOn(const EMaterialQualityLevel::Type Quality)
+{
+	check(Quality < EMaterialQualityLevel::Num);
+	return bArrStatsQualitySelectorAlwaysOn[(int32)Quality];
 }
 
 FORCEINLINE EMaterialStatsDerivedMIOption FMaterialStats::GetMaterialStatsDerivedMIOption() const
@@ -665,6 +676,11 @@ FORCEINLINE bool FShaderPlatformSettings::IsPresentInGrid() const
 	return bPresentInGrid;
 }
 
+FORCEINLINE bool FShaderPlatformSettings::IsAlwaysOn() const
+{
+	return bAlwaysOn;
+}
+
 FORCEINLINE bool FShaderPlatformSettings::FlipPresentInGrid()
 {
 	SetPresentInGrid(!IsPresentInGrid());
@@ -674,12 +690,24 @@ FORCEINLINE bool FShaderPlatformSettings::FlipPresentInGrid()
 
 FORCEINLINE void FShaderPlatformSettings::SetPresentInGrid(const bool bValue)
 {
-	bPresentInGrid = bValue;
-}
-
-FORCEINLINE void FShaderPlatformSettings::SetExtractStatsQualityLevel(const EMaterialQualityLevel::Type Quality, const bool bActive)
-{
-	PlatformData[Quality].bExtractStats = bActive;
+	if (bAllowPresenceInGrid) // if we're allowed to be present in the stats grid
+	{
+		if (!bAlwaysOn) // and bAlwaysOn is false - then any bValue is fine
+		{
+			bPresentInGrid = bValue;
+		}
+		else if (bValue == true) // otherwise only enabling is fine, as we shouldn't be able to disable this platform
+		{
+			bPresentInGrid = bValue;
+		}
+	}
+	else
+	{
+		if (bValue == false) // if we're not allowed to be present, only disabling this platform is fine
+		{
+			bPresentInGrid = bValue;
+		}
+	}
 }
 
 FORCEINLINE void FShaderPlatformSettings::SetNeedShaderCompilation(const EMaterialQualityLevel::Type QualityLevel, const bool bValue, const bool bOnlyCompileDerivedMI)

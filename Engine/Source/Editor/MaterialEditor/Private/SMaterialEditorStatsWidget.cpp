@@ -354,7 +354,7 @@ uint32 SMaterialEditorStatsWidget::CountSubPlatforms(EPlatformCategoryType Categ
 	for (int32 i = 0; i < ArrPlatforms.Num(); ++i)
 	{
 		auto PlatformPtr = ArrPlatforms[i];
-		if (!PlatformPtr.IsValid() || !PlatformPtr->IsStatsGridPresenceAllowed())
+		if (!PlatformPtr.IsValid())
 		{
 			continue;
 		}
@@ -387,7 +387,7 @@ void SMaterialEditorStatsWidget::CreatePlatformMenus(FMenuBuilder& Builder, EPla
 	for (int32 i = 0; i < ArrPlatforms.Num(); ++i)
 	{
 		auto PlatformPtr = ArrPlatforms[i];
-		if (!PlatformPtr.IsValid() || !PlatformPtr->IsStatsGridPresenceAllowed())
+		if (!PlatformPtr.IsValid())
 		{
 			continue;
 		}
@@ -405,6 +405,12 @@ void SMaterialEditorStatsWidget::CreatePlatformMenus(FMenuBuilder& Builder, EPla
 			return ECheckBoxState::Unchecked;
 		};
 
+		// lambda function used to determine the enable state for the shader platform checkboxes
+		auto Lamda_PlatformEnableState = [PlatformPtr = PlatformPtr]()
+		{
+			return PlatformPtr.IsValid() && !PlatformPtr->IsAlwaysOn() && PlatformPtr->IsStatsGridPresenceAllowed();
+		};
+
 		// lambda used with shader platform checkboxes to add or remove selected shader platforms
 		auto Lamda_PlatformFlipState = [WidgetPtr = this, PlatformPtr = PlatformPtr](const ECheckBoxState NewState)
 		{
@@ -418,9 +424,10 @@ void SMaterialEditorStatsWidget::CreatePlatformMenus(FMenuBuilder& Builder, EPla
 			WidgetPtr->RequestRefresh();
 		};
 
-		auto PlatformWidget = SNew(SCheckBox)			
+		auto PlatformWidget = SNew(SCheckBox)
 			.OnCheckStateChanged_Lambda(Lamda_PlatformFlipState)
 			.IsChecked_Lambda(Lamda_PlatformCheckState)
+			.IsEnabled_Lambda(Lamda_PlatformEnableState)
 			.Content()
 			[
 				SNew(STextBlock)
@@ -480,11 +487,18 @@ void SMaterialEditorStatsWidget::CreateQualityMenus(FMenuBuilder& Builder)
 			return ECheckBoxState::Unchecked;
 		};
 
+		auto Lamba_QualityCheckAlwaysOn = [QualityType = (EMaterialQualityLevel::Type)i, MaterialStatsWPtr = MaterialStatsWPtr]()
+		{
+			const auto StatsPtr = MaterialStatsWPtr.Pin();
+			return StatsPtr.IsValid() && !StatsPtr->GetStatsQualityFlagAlwaysOn(QualityType);
+		};
+
 		const FText QualitySettingName = FText::FromString(FMaterialStatsUtils::MaterialQualityToString(QualityLevel));
 
 		auto QualityWidget = SNew(SCheckBox)
 			.OnCheckStateChanged(this, &SMaterialEditorStatsWidget::OnFlipQualityState, QualityLevel)
 			.IsChecked_Lambda(Lamda_QualityCheckState)
+			.IsEnabled_Lambda(Lamba_QualityCheckAlwaysOn)
 			.Content()
 			[
 				SNew(STextBlock)
@@ -514,7 +528,10 @@ void SMaterialEditorStatsWidget::CreateDerivedMaterialsMenu(class FMenuBuilder& 
 	{
 		DerivedMaterialInstancesComboBoxItems[static_cast<int32>(Option)] = MakeShared<EMaterialStatsDerivedMIOption>(Option);
 	};
-	AddOption(EMaterialStatsDerivedMIOption::Ignore);
+	if (bAllowIgnoringCompilationErrors)
+	{
+		AddOption(EMaterialStatsDerivedMIOption::Ignore);
+	}
 	AddOption(EMaterialStatsDerivedMIOption::CompileOnly);
 	AddOption(EMaterialStatsDerivedMIOption::ShowStats);
 
@@ -566,7 +583,7 @@ TSharedRef<SWidget> SMaterialEditorStatsWidget::GetSettingsButtonContent()
 	FMenuBuilder Builder(false, nullptr);
 
 	CreatePlatformCategoryMenus(Builder);
-	if (ShowMaterialInstancesMenu)
+	if (bShowMaterialInstancesMenu)
 	{
 		Builder.AddMenuSeparator();
 		CreateDerivedMaterialsMenu(Builder);
@@ -625,7 +642,8 @@ void SMaterialEditorStatsWidget::ClearMessages()
 void SMaterialEditorStatsWidget::Construct(const FArguments& InArgs)
 {
 	MaterialStatsWPtr = InArgs._MaterialStatsWPtr;
-	ShowMaterialInstancesMenu = InArgs._ShowMaterialInstancesMenu;
+	bShowMaterialInstancesMenu = InArgs._ShowMaterialInstancesMenu;
+	bAllowIgnoringCompilationErrors = InArgs._AllowIgnoringCompilationErrors;
 
 	const auto StatsPtr = MaterialStatsWPtr.Pin();
 

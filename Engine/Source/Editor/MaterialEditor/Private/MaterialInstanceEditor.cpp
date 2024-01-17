@@ -69,6 +69,8 @@ const FName FMaterialInstanceEditor::PropertiesTabId( TEXT( "MaterialInstanceEdi
 const FName FMaterialInstanceEditor::LayerPropertiesTabId(TEXT("MaterialInstanceEditor_MaterialLayerProperties"));
 const FName FMaterialInstanceEditor::PreviewSettingsTabId(TEXT("MaterialInstanceEditor_PreviewSettings"));
 
+extern TAutoConsoleVariable<bool> CVarMaterialEdAllowIgnoringCompilationErrors;
+
 //////////////////////////////////////////////////////////////////////////
 // SMaterialTreeWidgetItem
 class SMaterialTreeWidgetItem : public SMultiColumnTableRow< TWeakObjectPtr<UMaterialInterface> >
@@ -414,7 +416,7 @@ void FMaterialInstanceEditor::InitMaterialInstanceEditor( const EToolkitMode::Ty
 	MaterialEditorInstance->SetSourceInstance(InstanceConstant);
 	MaterialEditorInstance->SetSourceFunction(MaterialFunctionOriginal);
 
-	MaterialStatsManager = FMaterialStatsUtils::CreateMaterialStats(this, false);
+	MaterialStatsManager = FMaterialStatsUtils::CreateMaterialStats(this, false, CVarMaterialEdAllowIgnoringCompilationErrors.GetValueOnGameThread());
 	MaterialStatsManager->SetMaterialsDisplayNames({MaterialEditorInstance->SourceInstance->GetName()});
 
 	// Register our commands. This will only register them if not previously registered

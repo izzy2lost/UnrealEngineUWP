@@ -18,6 +18,7 @@
 #include "DataDrivenShaderPlatformInfo.h"
 #include "Modules/ModuleManager.h"
 #include "MessageLogModule.h"
+#include "Interfaces/IShaderFormat.h"
 
 #define LOCTEXT_NAMESPACE "MaterialStats"
 
@@ -34,11 +35,14 @@ FShaderPlatformSettings::FShaderPlatformSettings(
 	const FName _Name,
 	const bool _bAllowPresenceInGrid,
 	const bool _bAllowCodeView,
-	const FString& _Description)
+	const FString& _Description,
+	const bool bAlwaysOn
+	)
 	: PlatformType(_PlatformType)
 	, PlatformShaderID(_ShaderPlatformID)
 	, PlatformName(_Name)
 	, PlatformDescription(_Description)
+	, bAlwaysOn(bAlwaysOn)
 	, bAllowCodeView(_bAllowCodeView)
 	, bAllowPresenceInGrid(_bAllowPresenceInGrid)
 {
@@ -413,21 +417,22 @@ FMaterialStats::~FMaterialStats()
 	SaveSettings();
 }
 
-void FMaterialStats::Initialize(IMaterialEditor* InMaterialEditor, const bool ShowMaterialInstancesMenu)
+void FMaterialStats::Initialize(IMaterialEditor* InMaterialEditor, const bool bShowMaterialInstancesMenu, const bool bAllowIgnoringCompilationErrors)
 {
 	MaterialEditor = InMaterialEditor;
 
 	StatsGrid = MakeShareable(new FMaterialStatsGrid(AsShared()));
 
-	BuildShaderPlatformDB();
+	BuildShaderPlatformDB(bAllowIgnoringCompilationErrors);
 
-	LoadSettings();
+	LoadSettings(bAllowIgnoringCompilationErrors);
 
 	StatsGrid->BuildGrid();
 
 	GridStatsWidget = SNew(SMaterialEditorStatsWidget)
 		.MaterialStatsWPtr(SharedThis(this))
-		.ShowMaterialInstancesMenu(ShowMaterialInstancesMenu);
+		.ShowMaterialInstancesMenu(bShowMaterialInstancesMenu)
+		.AllowIgnoringCompilationErrors(bAllowIgnoringCompilationErrors);
 
 	FMessageLogModule& MessageLogModule = FModuleManager::LoadModuleChecked<FMessageLogModule>("MessageLog");
 	FMessageLogInitializationOptions LogOptions;
@@ -455,7 +460,7 @@ void FMaterialStats::Initialize(IMaterialEditor* InMaterialEditor, const bool Sh
 		FIsActionChecked::CreateSP(this, &FMaterialStats::IsShowingOldStats));
 }
 
-void FMaterialStats::LoadSettings()
+void FMaterialStats::LoadSettings(const bool bAllowIgnoringCompilationErrors)
 {
 	Options = NewObject<UMaterialStatsOptions>();
 
@@ -471,19 +476,25 @@ void FMaterialStats::LoadSettings()
 	for (int32 i = 0; i < EMaterialQualityLevel::Num; ++i)
 	{
 		const bool bUsed = !!Options->bMaterialQualityUsed[i];
-		bArrStatsQualitySelector[(EMaterialQualityLevel::Type)i] = bUsed;
+		bArrStatsQualitySelector[(EMaterialQualityLevel::Type)i] = bUsed || bArrStatsQualitySelectorAlwaysOn[(EMaterialQualityLevel::Type)i];
 
 		for (const auto& PlatformEntry : ShaderPlatformStatsDB)
 		{
 			TSharedPtr<FShaderPlatformSettings> SomePlatform = PlatformEntry.Value;
 			if (SomePlatform.IsValid())
 			{
-				SomePlatform->SetExtractStatsQualityLevel((EMaterialQualityLevel::Type)i, bUsed);
+				SomePlatform->SetExtractStatsFlag((EMaterialQualityLevel::Type)i, bUsed);
 			}
 		}
 	}
 
 	MaterialStatsDerivedMIOption = Options->MaterialStatsDerivedMIOption;
+
+	// force compilation of derived instances if we're not allowed to ignore compilation errors
+	if (!bAllowIgnoringCompilationErrors && (MaterialStatsDerivedMIOption == EMaterialStatsDerivedMIOption::Ignore || MaterialStatsDerivedMIOption == EMaterialStatsDerivedMIOption::InvalidOrMax))
+	{
+		MaterialStatsDerivedMIOption = EMaterialStatsDerivedMIOption::CompileOnly;
+	}
 }
 
 void FMaterialStats::SaveSettings()
@@ -568,35 +579,44 @@ void FMaterialStats::RefreshStatsGrid()
 	GetGridStatsWidget()->RequestRefresh();
 }
 
-void FMaterialStats::BuildShaderPlatformDB()
+void FMaterialStats::BuildShaderPlatformDB(const bool bAllowIgnoringCompilationErrors)
 {
-	bool bCanCompileMacDesktopSPs = (PLATFORM_MAC != 0);
-	bool bCanCompileMacMobileSPs = (PLATFORM_MAC != 0) || (PLATFORM_WINDOWS != 0);
+	// set High quality level as always on if we're not allowed to ignore compilation errors in UI
+	// this will not allow to disable this particular quality level 
+	if (!bAllowIgnoringCompilationErrors)
+	{
+		bArrStatsQualitySelectorAlwaysOn[EMaterialQualityLevel::High] = true;
+		bArrStatsQualitySelector[EMaterialQualityLevel::High] = true;
+	}
 
 #if PLATFORM_WINDOWS
 	// DirectX
-	AddShaderPlatform(EPlatformCategoryType::Desktop, SP_PCD3D_SM5, TEXT("DirectX SM5"), true, true, TEXT("Desktop, DirectX, Shader Model 5"));
-	AddShaderPlatform(EPlatformCategoryType::Desktop, SP_PCD3D_SM6, TEXT("DirectX SM6"), true, true, TEXT("Desktop, DirectX, Shader Model 6"));
-	AddShaderPlatform(EPlatformCategoryType::Desktop, SP_PCD3D_ES3_1, TEXT("DirectX  Mobile"), true, true, TEXT("Desktop, DirectX, Mobile"));
+	AddShaderPlatform(EPlatformCategoryType::Desktop, SP_PCD3D_SM5, TEXT("DirectX SM5"), true, TEXT("Desktop, DirectX, Shader Model 5"));
+	AddShaderPlatform(EPlatformCategoryType::Desktop, SP_PCD3D_SM6, TEXT("DirectX SM6"), true, TEXT("Desktop, DirectX, Shader Model 6"), !bAllowIgnoringCompilationErrors);
+	AddShaderPlatform(EPlatformCategoryType::Desktop, SP_PCD3D_ES3_1, TEXT("DirectX  Mobile"), true, TEXT("Desktop, DirectX, Mobile"), !bAllowIgnoringCompilationErrors);
 #endif
 
 	// Vulkan
-	AddShaderPlatform(EPlatformCategoryType::Desktop, SP_VULKAN_SM5, TEXT("Vulkan SM5"), true, true, TEXT("Desktop, Vulkan, Shader Model 5"));
-	AddShaderPlatform(EPlatformCategoryType::Desktop, SP_VULKAN_SM6, TEXT("Vulkan SM6"), true, true, TEXT("Desktop, Vulkan, Shader Model 6"));
-	AddShaderPlatform(EPlatformCategoryType::Desktop, SP_VULKAN_PCES3_1, TEXT("Vulkan Mobile"), true, true, TEXT("Desktop, Vulkan, Mobile"));
+	AddShaderPlatform(EPlatformCategoryType::Desktop, SP_VULKAN_SM5, TEXT("Vulkan SM5"), true, TEXT("Desktop, Vulkan, Shader Model 5"));
+	AddShaderPlatform(EPlatformCategoryType::Desktop, SP_VULKAN_SM6, TEXT("Vulkan SM6"), true, TEXT("Desktop, Vulkan, Shader Model 6"));
+	AddShaderPlatform(EPlatformCategoryType::Desktop, SP_VULKAN_PCES3_1, TEXT("Vulkan Mobile"), true, TEXT("Desktop, Vulkan, Mobile"));
 
 	// Android
-	AddShaderPlatform(EPlatformCategoryType::Android, SP_OPENGL_ES3_1_ANDROID, TEXT("Android GLES Mobile"), true, true, TEXT("Android, OpenGLES Mobile"));
-	AddShaderPlatform(EPlatformCategoryType::Android, SP_VULKAN_ES3_1_ANDROID, TEXT("Android Vulkan Mobile"), true, true, TEXT("Android, Vulkan Mobile"));
-	AddShaderPlatform(EPlatformCategoryType::Android, SP_VULKAN_SM5_ANDROID, TEXT("Android Vulkan SM5"), true, true, TEXT("Android, Vulkan SM5"));
+	AddShaderPlatform(EPlatformCategoryType::Android, SP_OPENGL_ES3_1_ANDROID, TEXT("Android GLES Mobile"), true, TEXT("Android, OpenGLES Mobile"));
+	AddShaderPlatform(EPlatformCategoryType::Android, SP_VULKAN_ES3_1_ANDROID, TEXT("Android Vulkan Mobile"), true, TEXT("Android, Vulkan Mobile"));
+	AddShaderPlatform(EPlatformCategoryType::Android, SP_VULKAN_SM5_ANDROID, TEXT("Android Vulkan SM5"), true, TEXT("Android, Vulkan SM5"));
 
-	// Apple
-	AddShaderPlatform(EPlatformCategoryType::Desktop, SP_METAL_SM5, TEXT("Metal SM5"), bCanCompileMacDesktopSPs, true, TEXT("macOS, Metal, Shader Model 5"));
-    AddShaderPlatform(EPlatformCategoryType::Desktop, SP_METAL_SM6, TEXT("Metal SM6"), bCanCompileMacDesktopSPs, true, TEXT("macOS, Metal, Shader Model 6"));
-	AddShaderPlatform(EPlatformCategoryType::Desktop, SP_METAL_MRT_MAC, TEXT("Metal SM5 (MRT)"), bCanCompileMacDesktopSPs, true, TEXT("macOS, Metal, Shader Model 5"));
-	AddShaderPlatform(EPlatformCategoryType::IOS, SP_METAL, TEXT("Metal"), bCanCompileMacMobileSPs, true, TEXT("iOS, Metal, Mobile"));
-	AddShaderPlatform(EPlatformCategoryType::IOS, SP_METAL_MRT, TEXT("Metal MRT"), bCanCompileMacMobileSPs, true, TEXT("iOS, Metal, Shader Model 5"));
-	AddShaderPlatform(EPlatformCategoryType::IOS, SP_METAL_SIM, TEXT("Metal Simulator"), bCanCompileMacMobileSPs, true, TEXT("iOS, Metal, Mobile"));
+#if PLATFORM_MAC
+	// macOS
+	AddShaderPlatform(EPlatformCategoryType::Desktop, SP_METAL_SM5, TEXT("Metal SM5"), true, TEXT("macOS, Metal, Shader Model 5"));
+	AddShaderPlatform(EPlatformCategoryType::Desktop, SP_METAL_SM6, TEXT("Metal SM6"), true, TEXT("macOS, Metal, Shader Model 6"), !bAllowIgnoringCompilationErrors);
+	AddShaderPlatform(EPlatformCategoryType::Desktop, SP_METAL_MRT_MAC, TEXT("Metal SM5 (MRT)"), true, TEXT("macOS, Metal, Shader Model 5"));
+#endif
+
+	// iOS
+	AddShaderPlatform(EPlatformCategoryType::IOS, SP_METAL, TEXT("Metal"), true, TEXT("iOS, Metal, Mobile"));
+	AddShaderPlatform(EPlatformCategoryType::IOS, SP_METAL_MRT, TEXT("Metal MRT"), true, TEXT("iOS, Metal, Shader Model 5"));
+	AddShaderPlatform(EPlatformCategoryType::IOS, SP_METAL_SIM, TEXT("Metal Simulator"), true, TEXT("iOS, Metal, Mobile"));
 
 	ITargetPlatformManagerModule& TPM = GetTargetPlatformManagerRef();
 
@@ -612,22 +632,25 @@ void FMaterialStats::BuildShaderPlatformDB()
 			if (TPM.FindShaderFormat(ShaderFormat) != nullptr)
 			{
 				const FName PlatformName = ShaderPlatformToPlatformName(ShaderPlatform);
-				AddShaderPlatform(bIsConsole ? EPlatformCategoryType::Console : EPlatformCategoryType::Desktop, ShaderPlatform, PlatformName, true, true, PlatformName.ToString());
+				AddShaderPlatform(bIsConsole ? EPlatformCategoryType::Console : EPlatformCategoryType::Desktop, ShaderPlatform, PlatformName, true, PlatformName.ToString());
 			}
 		}
 	}
 
 }
 
-TSharedPtr<FShaderPlatformSettings> FMaterialStats::AddShaderPlatform(const EPlatformCategoryType PlatformType, const EShaderPlatform PlatformID, const FName PlatformName,
-	const bool bAllowPresenceInGrid, const bool bAllowCodeView, const FString& Description)
+TSharedPtr<FShaderPlatformSettings> FMaterialStats::AddShaderPlatform(const EPlatformCategoryType PlatformType, const EShaderPlatform PlatformID, const FName PlatformName, const bool bAllowCodeView, const FString& Description, const bool bAlwaysOn)
 {
+	ITargetPlatformManagerModule& TPM = GetTargetPlatformManagerRef();
+	const IShaderFormat* ShaderFormat = TPM.FindShaderFormat(LegacyShaderPlatformToShaderFormat(PlatformID));
+	const bool bAllowPresenceInGrid = ShaderFormat ? ShaderFormat->CanCompileBinaryShaders() : false;
+
 	if (!FDataDrivenShaderPlatformInfo::IsValid(PlatformID))
 	{
 		return TSharedPtr<FShaderPlatformSettings>();
 	}
 
-	TSharedPtr<FShaderPlatformSettings> PlatformPtr = MakeShareable(new FShaderPlatformSettings(PlatformType, PlatformID, PlatformName, bAllowPresenceInGrid, bAllowCodeView, Description));
+	TSharedPtr<FShaderPlatformSettings> PlatformPtr = MakeShareable(new FShaderPlatformSettings(PlatformType, PlatformID, PlatformName, bAllowPresenceInGrid, bAllowCodeView, Description, bAlwaysOn));
 	ShaderPlatformStatsDB.Add(PlatformID, PlatformPtr);
 
 	auto& ArrayPlatforms = PlatformTypeDB.FindOrAdd(PlatformType);
@@ -635,7 +658,7 @@ TSharedPtr<FShaderPlatformSettings> FMaterialStats::AddShaderPlatform(const EPla
 
 	for (int32 i = 0; i < EMaterialQualityLevel::Num; ++i)
 	{
-		PlatformPtr->SetExtractStatsFlag((EMaterialQualityLevel::Type)i, bArrStatsQualitySelector[i]);
+		PlatformPtr->SetExtractStatsFlag((EMaterialQualityLevel::Type)i, bAlwaysOn && bArrStatsQualitySelectorAlwaysOn[i]);
 	}
 
 	return PlatformPtr;
@@ -672,14 +695,14 @@ void FMaterialStats::SetStatusQualityFlag(const EMaterialQualityLevel::Type Qual
 {
 	check(QualityLevel < EMaterialQualityLevel::Num);
 
-	bArrStatsQualitySelector[QualityLevel] = bValue;
+	bArrStatsQualitySelector[QualityLevel] = bValue || bArrStatsQualitySelectorAlwaysOn[QualityLevel];
 
 	for (const auto& PlatformEntry : ShaderPlatformStatsDB)
 	{
 		TSharedPtr<FShaderPlatformSettings> SomePlatform = PlatformEntry.Value;
 		if (SomePlatform.IsValid())
 		{
-			SomePlatform->SetExtractStatsQualityLevel(QualityLevel, bValue);
+			SomePlatform->SetExtractStatsFlag(QualityLevel, bValue);
 		}
 	}
 

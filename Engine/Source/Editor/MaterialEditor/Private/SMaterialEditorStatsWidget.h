@@ -20,10 +20,12 @@ public:
 	SLATE_BEGIN_ARGS(SMaterialEditorStatsWidget)
 		: _MaterialStatsWPtr(nullptr)
 		, _ShowMaterialInstancesMenu(true)
+		, _AllowIgnoringCompilationErrors(true)
 	{}
 
 		SLATE_ARGUMENT(TWeakPtr<FMaterialStats>, MaterialStatsWPtr)
 		SLATE_ARGUMENT(bool, ShowMaterialInstancesMenu)
+		SLATE_ARGUMENT(bool, AllowIgnoringCompilationErrors)
 	SLATE_END_ARGS()
 
 	void Construct(const FArguments& InArgs);
@@ -82,7 +84,8 @@ protected:
 	TSharedPtr<SVerticalBox> MessageBoxWidget;
 
 	TWeakPtr<FMaterialStats> MaterialStatsWPtr;
-	bool ShowMaterialInstancesMenu;
+	bool bShowMaterialInstancesMenu;
+	bool bAllowIgnoringCompilationErrors;
 
 	TSharedPtr<SListView<TSharedPtr<int32>>> MaterialInfoList;
 

@@ -191,6 +191,11 @@ static TAutoConsoleVariable<int32> CVarMaterialEdMaxDerivedMaterialInstances(
 	-1,
 	TEXT("Limits amount of derived material instance shown in platform stats. Use negative number to disable the limit. Material editor must be re-opened if changed at runtime."));
 
+TAutoConsoleVariable<bool> CVarMaterialEdAllowIgnoringCompilationErrors(
+	TEXT("r.MaterialEditor.AllowIgnoringCompilationErrors"),
+	true,
+	TEXT("Allow ignoring compilation errors of platform shaders and derived materials."));
+
 ///////////////////////////
 // FMatExpressionPreview //
 ///////////////////////////
@@ -565,7 +570,7 @@ void FMaterialEditor::InitMaterialEditor( const EToolkitMode::Type Mode, const T
 
 	GEditor->RegisterForUndo(this);
 
-	MaterialStatsManager = FMaterialStatsUtils::CreateMaterialStats(this, true);
+	MaterialStatsManager = FMaterialStatsUtils::CreateMaterialStats(this, true, CVarMaterialEdAllowIgnoringCompilationErrors.GetValueOnGameThread());
 	MaterialStatsManager->SetMaterialsDisplayNames({OriginalMaterial->GetName()});
 	MaterialStatsManager->GetOldStatsListing()->OnMessageTokenClicked().AddSP(this, &FMaterialEditor::OnMessageLogLinkActivated);
 

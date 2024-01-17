@@ -927,7 +927,7 @@ void FMaterialStatsGrid::OnQualitySettingChanged(const EMaterialQualityLevel::Ty
 	if (!StatsManager.IsValid())
 		return;
 
-	bool bQualityOn = StatsManager->GetStatsQualityFlag(QualityLevel);
+	const bool bQualityOn = StatsManager->GetStatsQualityFlag(QualityLevel);
 
 	const auto& PlatformDB = StatsManager->GetPlatformsDB();
 	for (auto PlatformPair : PlatformDB)

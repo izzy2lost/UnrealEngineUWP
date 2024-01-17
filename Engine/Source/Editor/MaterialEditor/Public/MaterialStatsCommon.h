@@ -93,7 +93,7 @@ public:
 
 public:
 	/** call this to create an instance to FMaterialStats */
-	static TSharedPtr<class FMaterialStats> CreateMaterialStats(class IMaterialEditor* MaterialEditor, const bool ShowMaterialInstancesMenu);
+	static TSharedPtr<class FMaterialStats> CreateMaterialStats(class IMaterialEditor* MaterialEditor, const bool bShowMaterialInstancesMenu, const bool bAllowIgnoringCompilationErrors);
 
 	/** utility functions that translate various enum values to strings */
 	static FString MaterialQualityToString(const EMaterialQualityLevel::Type Quality);

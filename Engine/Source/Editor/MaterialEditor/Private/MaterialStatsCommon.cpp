@@ -27,10 +27,10 @@ void FMaterialResourceStats::SetupExtraCompilationSettings(const EShaderPlatform
 /***********************************************************************************************************************/
 /*begin FMaterialStatsUtils */
 
-TSharedPtr<FMaterialStats> FMaterialStatsUtils::CreateMaterialStats(class IMaterialEditor* MaterialEditor, const bool ShowMaterialInstancesMenu)
+TSharedPtr<FMaterialStats> FMaterialStatsUtils::CreateMaterialStats(class IMaterialEditor* MaterialEditor, const bool bShowMaterialInstancesMenu, const bool bAllowIgnoringCompilationErrors)
 {
 	TSharedPtr<FMaterialStats> MaterialStats = MakeShareable(new FMaterialStats());
-	MaterialStats->Initialize(MaterialEditor, ShowMaterialInstancesMenu);
+	MaterialStats->Initialize(MaterialEditor, bShowMaterialInstancesMenu, bAllowIgnoringCompilationErrors);
 
 	return MaterialStats;
 }
