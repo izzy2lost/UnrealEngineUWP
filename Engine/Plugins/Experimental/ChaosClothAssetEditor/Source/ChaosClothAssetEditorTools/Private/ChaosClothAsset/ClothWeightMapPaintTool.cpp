@@ -345,7 +345,7 @@ void UClothEditorWeightMapPaintTool::Setup()
 	ActiveWeightMap->SetName(FName("PaintLayer"));
 
 	// Copy weights from selected node to the preview mesh
-	const TArray<float>& CurrentWeights = WeightMapNodeToUpdate->VertexWeights;
+	const TArray<float>& CurrentWeights = WeightMapNodeToUpdate->GetVertexWeights();
 	
 	if (bHaveDynamicMeshToWeightConversion)
 	{
@@ -1696,15 +1696,15 @@ void UClothEditorWeightMapPaintTool::UpdateSelectedNode()
 
 	if (bHaveDynamicMeshToWeightConversion)
 	{
-		WeightMapNodeToUpdate->VertexWeights.Init(0.f, WeightToDynamicMesh.Num());
+		WeightMapNodeToUpdate->GetVertexWeights().Init(0.f, WeightToDynamicMesh.Num());
 		for (int32 DynamicMeshIdx = 0; DynamicMeshIdx < CurrentWeights.Num(); ++DynamicMeshIdx)
 		{
-			WeightMapNodeToUpdate->VertexWeights[DynamicMeshToWeight[DynamicMeshIdx]] = CurrentWeights[DynamicMeshIdx];
+			WeightMapNodeToUpdate->GetVertexWeights()[DynamicMeshToWeight[DynamicMeshIdx]] = CurrentWeights[DynamicMeshIdx];
 		}
 	}
 	else
 	{
-		WeightMapNodeToUpdate->VertexWeights = CurrentWeights;
+		WeightMapNodeToUpdate->GetVertexWeights() = CurrentWeights;
 	}
 	
 	WeightMapNodeToUpdate->Name = UpdateWeightMapProperties->Name;

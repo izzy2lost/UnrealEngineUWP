@@ -1125,6 +1125,22 @@ void FChaosClothAssetEditorToolkit::OnNodeSelectionChanged(const TSet<UObject*>&
 											SelectedDataflowNode->OnSelected(*DataflowContext);
 										}
 									}
+									// The detail panel won't update correctly when a change affects a node's properties and needs a refresh
+									if (NodeDetailsEditor && NodeDetailsEditor->GetDetailsView())
+									{
+										NodeDetailsEditor->GetDetailsView()->ForceRefresh();
+									}
+									// The node has just been invalidated, best to close the current tool
+									if (const UChaosClothAssetEditorMode* const ClothMode = 
+										CastChecked<UChaosClothAssetEditorMode>(EditorModeManager->GetActiveScriptableMode(UChaosClothAssetEditorMode::EM_ChaosClothAssetEditorModeId)))
+									{
+										UEditorInteractiveToolsContext* const ToolsContext = ClothMode->GetInteractiveToolsContext();
+										checkf(ToolsContext, TEXT("No valid ToolsContext found for FChaosClothAssetEditorToolkit"));
+										if (ToolsContext->HasActiveTool())
+										{
+											ToolsContext->EndTool(ToolsContext->CanCancelActiveTool() ? EToolShutdownType::Cancel : EToolShutdownType::Completed);
+										}
+									}
 								});
 						}
 					}
