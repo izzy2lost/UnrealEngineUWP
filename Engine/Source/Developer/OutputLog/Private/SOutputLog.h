@@ -20,6 +20,7 @@
 class FMenuBuilder;
 class FOutputLogTextLayoutMarshaller;
 class FTextLayout;
+struct FToolMenuSection;
 class SMenuAnchor;
 
 /**
@@ -355,6 +356,9 @@ public:
 	 */
 	static bool CreateLogMessages(const TCHAR* V, ELogVerbosity::Type Verbosity, const class FName& Category, TArray< TSharedPtr<FOutputLogMessage> >& OutMessages);
 
+	/** Registers settings dropdown tool menu for extensibility. */
+	static void RegisterSettingsMenu();
+
 	/**
 	* Called when delete all is selected
 	*/
@@ -481,9 +485,13 @@ private:
 	void SetClearOnPIE(ECheckBoxState InValue);
 #endif
 
-	FSlateColor GetViewButtonForegroundColor() const;
-
-	TSharedRef<SWidget> GetViewButtonContent(EOutputLogSettingsMenuFlags Flags);
+	static void RegisterSettingsMenu_WordWrap(FToolMenuSection& InSection);
+	static void RegisterSettingsMenu_TimestampMode(FToolMenuSection& InSection);
+	static void RegisterSettingsMenu_ClearOnPIE(FToolMenuSection& InSection);
+	static void RegisterSettingsMenu_BrowseLogs(FToolMenuSection& InSection);
+	static void RegisterSettingsMenu_OpenLogExternal(FToolMenuSection& InSection);
+	FName GetSettingsMenuProfileForFlags(EOutputLogSettingsMenuFlags InFlags);
+	TSharedRef<SWidget> GetSettingsMenuContent(FName InMenuProfileName);
 
 	TSharedRef<SWidget> CreateDrawerDockButton();
 
