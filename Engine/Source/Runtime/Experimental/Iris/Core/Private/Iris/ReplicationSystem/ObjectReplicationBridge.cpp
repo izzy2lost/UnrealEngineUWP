@@ -795,7 +795,7 @@ void UObjectReplicationBridge::PreSendUpdate()
 
 	ReconcileNewSubObjects(ObjectsConsideredForPolling);
 
-	Poll(ObjectsConsideredForPolling);
+	PollAndCopy(ObjectsConsideredForPolling);
 }
 
 void UObjectReplicationBridge::OnPostSendUpdate()
@@ -867,14 +867,14 @@ void UObjectReplicationBridge::ForcePollObject(FNetRefHandle Handle)
 
 	if (Handle.IsValid())
 	{
-		IRIS_PROFILER_SCOPE(UObjectReplicationBridge_ForcePollObject);
+		IRIS_PROFILER_SCOPE(UObjectReplicationBridge_ForcePollAndCopyObject);
 
 		FObjectPoller::FInitParams PollerInitParams;
 		PollerInitParams.ObjectReplicationBridge = this;
 		PollerInitParams.ReplicationSystemInternal = GetReplicationSystem()->GetReplicationSystemInternal();
 		FObjectPoller Poller(PollerInitParams);
 
-		Poller.PollSingleObject(Handle);
+		Poller.PollAndCopySingleObject(Handle);
 	}
 }
 
@@ -1034,18 +1034,18 @@ void UObjectReplicationBridge::PreUpdate(const UE::Net::FNetBitArrayView Objects
 	UE_NET_TRACE_FRAME_STATSCOUNTER(ReplicationSystem->GetId(), ReplicationSystem.PreUpdatedObjectCount, Stats.PreUpdatedObjectCount, ENetTraceVerbosity::Trace);
 }
 
-void UObjectReplicationBridge::Poll(const UE::Net::FNetBitArrayView ObjectsConsideredForPolling)
+void UObjectReplicationBridge::PollAndCopy(const UE::Net::FNetBitArrayView ObjectsConsideredForPolling)
 {
 	using namespace UE::Net::Private;
 
-	IRIS_PROFILER_SCOPE(UObjectReplicationBridge_Poll);
+	IRIS_PROFILER_SCOPE(UObjectReplicationBridge_PollAndCopy);
 
 	FObjectPoller::FInitParams PollerInitParams;
 	PollerInitParams.ObjectReplicationBridge = this;
 	PollerInitParams.ReplicationSystemInternal = GetReplicationSystem()->GetReplicationSystemInternal();
 
 	FObjectPoller Poller(PollerInitParams);
-	Poller.PollObjects(ObjectsConsideredForPolling);
+	Poller.PollAndCopyObjects(ObjectsConsideredForPolling);
 	
 	FObjectPoller::FPreUpdateAndPollStats Stats = Poller.GetPollStats();
 

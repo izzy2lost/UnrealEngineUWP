@@ -55,11 +55,11 @@ public:
 	 */
 	void PreUpdatePass(const FNetBitArrayView& ObjectsConsideredForPolling);
 
-	/** Poll all the objects whose bit index is set in the array */
-	void PollObjects(const FNetBitArrayView& ObjectsConsideredForPolling);
+	/** Poll all the objects whose bit index is set in the array and copy any dirty data into ReplicationState buffers*/
+	void PollAndCopyObjects(const FNetBitArrayView& ObjectsConsideredForPolling);
 
 	/** Poll a single replicated object */
-	void PollSingleObject(FNetRefHandle Handle);
+	void PollAndCopySingleObject(FNetRefHandle Handle);
 
 private:
 
@@ -83,7 +83,7 @@ private:
 
 	const FNetBitArrayView AccumulatedDirtyObjects;
 
-	FNetBitArrayView DirtyObjectsToCopy;
+	FNetBitArrayView DirtyObjectsToQuantize;
 	FNetBitArrayView DirtyObjectsThisFrame;
 	FNetBitArrayView GarbageCollectionAffectedObjects;
 

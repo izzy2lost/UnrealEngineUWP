@@ -25,7 +25,7 @@ FObjectPoller::FObjectPoller(const FInitParams& InitParams)
 	, NetStatsContext(nullptr)
 	, ReplicatedInstances(LocalNetRefHandleManager.GetReplicatedInstances())
 	, AccumulatedDirtyObjects(ReplicationSystemInternal->GetDirtyNetObjectTracker().GetAccumulatedDirtyNetObjects())
-	, DirtyObjectsToCopy(LocalNetRefHandleManager.GetDirtyObjectsToCopy())
+	, DirtyObjectsToQuantize(LocalNetRefHandleManager.GetDirtyObjectsToQuantize())
 {
 	GarbageCollectionAffectedObjects = MakeNetBitArrayView(ObjectReplicationBridge->GarbageCollectionAffectedObjects);
 
@@ -67,7 +67,7 @@ void FObjectPoller::CallPreUpdate(FInternalNetRefIndex ObjectIndex)
 	}
 }
 
-void FObjectPoller::PollObjects(const FNetBitArrayView& ObjectsConsideredForPolling)
+void FObjectPoller::PollAndCopyObjects(const FNetBitArrayView& ObjectsConsideredForPolling)
 {
 	FDirtyObjectsAccessor DirtyObjectsAccessor(ReplicationSystemInternal->GetDirtyNetObjectTracker());
 	DirtyObjectsThisFrame = DirtyObjectsAccessor.GetDirtyNetObjects();
@@ -76,7 +76,7 @@ void FObjectPoller::PollObjects(const FNetBitArrayView& ObjectsConsideredForPoll
 
 	if (IsIrisPushModelEnabled())
 	{
-		IRIS_PROFILER_SCOPE_VERBOSE(PollPushBased);
+		IRIS_PROFILER_SCOPE_VERBOSE(PollAndCopyPushBased);
 		ObjectsConsideredForPolling.ForAllSetBits([this](FInternalNetRefIndex Objectindex)
 		{
 			PushModelPollObject(Objectindex);
@@ -84,7 +84,7 @@ void FObjectPoller::PollObjects(const FNetBitArrayView& ObjectsConsideredForPoll
 	}
 	else
 	{
-		IRIS_PROFILER_SCOPE_VERBOSE(ForcePoll);
+		IRIS_PROFILER_SCOPE_VERBOSE(ForcePollAndCopy);
 		ObjectsConsideredForPolling.ForAllSetBits([this](FInternalNetRefIndex Objectindex)
 		{
 			ForcePollObject(Objectindex);
@@ -94,7 +94,7 @@ void FObjectPoller::PollObjects(const FNetBitArrayView& ObjectsConsideredForPoll
 	NetStatsContext = nullptr;
 }
 
-void FObjectPoller::PollSingleObject(FNetRefHandle Handle)
+void FObjectPoller::PollAndCopySingleObject(FNetRefHandle Handle)
 {
 	if (uint32 InternalObjectIndex = LocalNetRefHandleManager.GetInternalIndex(Handle))
 	{
@@ -129,7 +129,7 @@ void FObjectPoller::ForcePollObject(FInternalNetRefIndex ObjectIndex)
 	// Poll properties if the instance protocol requires it
 	if (EnumHasAnyFlags(ObjectData.InstanceProtocol->InstanceTraits, EReplicationInstanceProtocolTraits::NeedsPoll))
 	{
-		IRIS_PROFILER_SCOPE_VERBOSE(Poll);
+		IRIS_PROFILER_SCOPE_VERBOSE(PollAndCopy);
 		UE_NET_IRIS_STATS_TIMER(Timer, NetStatsContext);
 
 		const bool bIsGCAffectedObject = GarbageCollectionAffectedObjects.GetBit(ObjectIndex);
@@ -140,12 +140,12 @@ void FObjectPoller::ForcePollObject(FInternalNetRefIndex ObjectIndex)
 		PollOptions |= bIsGCAffectedObject ? EReplicationFragmentPollFlags::ForceRefreshCachedObjectReferencesAfterGC : EReplicationFragmentPollFlags::None;
 
 		const bool bWasAlreadyDirty = DirtyObjectsThisFrame.IsBitSet(ObjectIndex);
-		const bool bPollFoundDirty = FReplicationInstanceOperations::PollAndRefreshCachedPropertyData(ObjectData.InstanceProtocol, PollOptions);
+		const bool bPollFoundDirty = FReplicationInstanceOperations::PollAndCopyPropertyData(ObjectData.InstanceProtocol, PollOptions);
 		if (bWasAlreadyDirty || bPollFoundDirty)
 		{
 			UE_NET_IRIS_STATS_ADD_TIME_AND_COUNT_FOR_OBJECT(Timer, Poll, ObjectIndex);
 
-			DirtyObjectsToCopy.SetBit(ObjectIndex);
+			DirtyObjectsToQuantize.SetBit(ObjectIndex);
 			DirtyObjectsThisFrame.SetBit(ObjectIndex);
 		}
 		else
@@ -156,7 +156,7 @@ void FObjectPoller::ForcePollObject(FInternalNetRefIndex ObjectIndex)
 	}
 	else
 	{
-		DirtyObjectsToCopy.SetBit(ObjectIndex);
+		DirtyObjectsToQuantize.SetBit(ObjectIndex);
 		DirtyObjectsThisFrame.SetBit(ObjectIndex);
 	}
 }
@@ -180,7 +180,7 @@ void FObjectPoller::PushModelPollObject(FInternalNetRefIndex ObjectIndex)
 
 	if (bIsDirtyObject)
 	{
-		DirtyObjectsToCopy.SetBit(ObjectIndex);
+		DirtyObjectsToQuantize.SetBit(ObjectIndex);
 		DirtyObjectsThisFrame.SetBit(ObjectIndex);
 	}
 
@@ -209,14 +209,14 @@ void FObjectPoller::PushModelPollObject(FInternalNetRefIndex ObjectIndex)
 			// We need to do a poll if object is marked as dirty
 			EReplicationFragmentPollFlags PollOptions = EReplicationFragmentPollFlags::PollAllState;
 			PollOptions |= bIsGCAffectedObject ? EReplicationFragmentPollFlags::ForceRefreshCachedObjectReferencesAfterGC : EReplicationFragmentPollFlags::None;
-			bPollFoundDirty = FReplicationInstanceOperations::PollAndRefreshCachedPropertyData(InstanceProtocol, EReplicationFragmentTraits::None, PollOptions);
+			bPollFoundDirty = FReplicationInstanceOperations::PollAndCopyPropertyData(InstanceProtocol, EReplicationFragmentTraits::None, PollOptions);
 			++PollStats.PolledObjectCount;
 		}
 		else if (bIsGCAffectedObject)
 		{
 			// If this object might have been affected by GC, only refresh cached references
 			const EReplicationFragmentTraits RequiredTraits = EReplicationFragmentTraits::HasPushBasedDirtiness;
-			bPollFoundDirty = FReplicationInstanceOperations::PollAndRefreshCachedObjectReferences(InstanceProtocol, RequiredTraits);
+			bPollFoundDirty = FReplicationInstanceOperations::PollAndCopyObjectReferences(InstanceProtocol, RequiredTraits);
 			++PollStats.PolledReferencesObjectCount;
 		}
 	}
@@ -230,7 +230,7 @@ void FObjectPoller::PushModelPollObject(FInternalNetRefIndex ObjectIndex)
 		{
 			// Only states which has push based dirtiness need to be updated as the other states will be polled in full anyway.
 			const EReplicationFragmentTraits RequiredTraits = EReplicationFragmentTraits::HasPushBasedDirtiness;
-			bPollFoundDirty = FReplicationInstanceOperations::PollAndRefreshCachedObjectReferences(InstanceProtocol, RequiredTraits);
+			bPollFoundDirty = FReplicationInstanceOperations::PollAndCopyObjectReferences(InstanceProtocol, RequiredTraits);
 			++PollStats.PolledReferencesObjectCount;
 		}
 
@@ -240,7 +240,7 @@ void FObjectPoller::PushModelPollObject(FInternalNetRefIndex ObjectIndex)
 
 		// If the object is not new or dirty at this point we only need to poll non-push based fragments as we know that pushed based states have not been modified
 		const EReplicationFragmentTraits ExcludeTraits = (bIsDirtyObject || bWantsFullPoll) ? EReplicationFragmentTraits::None : EReplicationFragmentTraits::HasPushBasedDirtiness;
-		bPollFoundDirty |= FReplicationInstanceOperations::PollAndRefreshCachedPropertyData(InstanceProtocol, ExcludeTraits, PollOptions);
+		bPollFoundDirty |= FReplicationInstanceOperations::PollAndCopyPropertyData(InstanceProtocol, ExcludeTraits, PollOptions);
 		++PollStats.PolledObjectCount;
 	}
 
@@ -248,7 +248,7 @@ void FObjectPoller::PushModelPollObject(FInternalNetRefIndex ObjectIndex)
 	{
 		UE_NET_IRIS_STATS_ADD_TIME_AND_COUNT_FOR_OBJECT(Timer, Poll, ObjectIndex);
 
-		DirtyObjectsToCopy.SetBit(ObjectIndex);
+		DirtyObjectsToQuantize.SetBit(ObjectIndex);
 		DirtyObjectsThisFrame.SetBit(ObjectIndex);
 	}
 	else

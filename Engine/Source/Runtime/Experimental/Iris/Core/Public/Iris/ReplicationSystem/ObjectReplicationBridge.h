@@ -327,8 +327,8 @@ private:
 	/** Find any new subobjects created inside PreUpdate and ensure they will be replicated this frame */
 	void ReconcileNewSubObjects(UE::Net::FNetBitArrayView ObjectsConsideredForPolling);
 
-	/** Poll all objects set in the list */
-	void Poll(const UE::Net::FNetBitArrayView ObjectsConsideredForPolling);
+	/** Poll all objects in the list and copy the dirty source data into the ReplicationState buffers*/
+	void PollAndCopy(const UE::Net::FNetBitArrayView ObjectsConsideredForPolling);
 
 	/** Remove mapping between handle and object instance. */
 	void UnregisterInstance(FNetRefHandle RefHandle);

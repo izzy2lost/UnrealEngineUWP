@@ -395,15 +395,15 @@ public:
 		ValidConnections.ForAllSetBits(UpdateDirtyChangeMasks);
 	}
 
-	void CopyDirtyStateData()
+	void QuantizeDirtyStateData()
 	{
-		IRIS_PROFILER_SCOPE(FReplicationSystem_CopyDirtyStateData);
+		IRIS_PROFILER_SCOPE(FReplicationSystem_QuantizeDirtyStateData);
 		LLM_SCOPE_BYTAG(IrisState);
 
 		FNetRefHandleManager& NetRefHandleManager = ReplicationSystemInternal.GetNetRefHandleManager();
 		FChangeMaskCache& Cache = ReplicationSystemInternal.GetChangeMaskCache();
 
-		uint32 CopiedObjectCount = 0;
+		uint32 QuantizedObjectCount = 0;
 		
 		// Prepare cache
 		constexpr uint32 ReservedIndexCount = 2048;
@@ -421,18 +421,18 @@ public:
 		SerializationContext.SetNetStatsContext(ReplicationSystemInternal.GetNetTypeStats().GetNetStatsContext());
 
 		// Copy the state data of objects that were dirty this frame.
-		FNetBitArrayView DirtyObjectsToCopy = NetRefHandleManager.GetDirtyObjectsToCopy();
+		FNetBitArrayView DirtyObjectsToQuantize = NetRefHandleManager.GetDirtyObjectsToQuantize();
 
-		auto CopyFunction = [&ChangeMaskWriter, &Cache, &NetRefHandleManager, &CopiedObjectCount, &SerializationContext](uint32 DirtyIndex)
+		auto QuantizeFunction = [&ChangeMaskWriter, &Cache, &NetRefHandleManager, &QuantizedObjectCount, &SerializationContext](uint32 DirtyIndex)
 		{
-			CopiedObjectCount += FReplicationInstanceOperationsInternal::CopyObjectStateData(ChangeMaskWriter, Cache, NetRefHandleManager, SerializationContext, DirtyIndex);
+			QuantizedObjectCount += FReplicationInstanceOperationsInternal::QuantizeObjectStateData(ChangeMaskWriter, Cache, NetRefHandleManager, SerializationContext, DirtyIndex);
 		};
 
-		DirtyObjectsToCopy.ForAllSetBits(CopyFunction);
-		DirtyObjectsToCopy.Reset();
+		DirtyObjectsToQuantize.ForAllSetBits(QuantizeFunction);
+		DirtyObjectsToQuantize.Reset();
 
 		const uint32 ReplicationSystemId = ReplicationSystem->GetId();
-		UE_NET_TRACE_FRAME_STATSCOUNTER(ReplicationSystemId, ReplicationSystem.CopiedObjectCount, CopiedObjectCount, ENetTraceVerbosity::Trace);
+		UE_NET_TRACE_FRAME_STATSCOUNTER(ReplicationSystemId, ReplicationSystem.QuantizedObjectCount, QuantizedObjectCount, ENetTraceVerbosity::Trace);
 	}
 
 	void ResetObjectStateDirtiness()
@@ -686,8 +686,8 @@ void UReplicationSystem::PreSendUpdate(const FSendUpdateParams& Params)
 			// Update conditionals
 			Impl->UpdateConditionals();
 
-			// Copy dirty state data. We need this to happen before both filtering and prioritization
-			Impl->CopyDirtyStateData();
+			// Quantize dirty state data. We need this to happen before both filtering and prioritization
+			Impl->QuantizeDirtyStateData();
 
 			// We must process all attachments to objects going out of scope before we update the scope
 			Impl->ProcessNetObjectAttachmentSendQueue(FNetBlobManager::EProcessMode::ProcessObjectsGoingOutOfScope);
