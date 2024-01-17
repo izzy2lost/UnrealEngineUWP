@@ -2534,10 +2534,7 @@ void FDynamicSkelMeshObjectDataGPUSkin::InitDynamicSkelMeshObjectDataGPUSkin(
 #if !(UE_BUILD_SHIPPING || UE_BUILD_TEST)
 	check(!MeshComponentSpaceTransforms.Num());
 	// append instead of equals to avoid alloc
-	if (InMeshComponent != nullptr)
-	{
-		MeshComponentSpaceTransforms.Append(InMeshComponent->GetComponentSpaceTransforms());
-	}	
+	MeshComponentSpaceTransforms.Append(InMeshComponent->GetComponentSpaceTransforms());
 #endif
 	SectionIdsUseByActiveMorphTargets.Reset();
 
@@ -2578,28 +2575,19 @@ void FDynamicSkelMeshObjectDataGPUSkin::InitDynamicSkelMeshObjectDataGPUSkin(
 	}
 
 	// Update local to world transform
-	LocalToWorld = InMeshComponent ? InMeshComponent->GetComponentTransform().ToMatrixWithScale() : FMatrix::Identity;
+	LocalToWorld = InMeshComponent->GetComponentTransform().ToMatrixWithScale();
 
 	// Update the clothing simulation mesh positions and normals
-	if (InMeshComponent)
-	{
-		InMeshComponent->GetUpdateClothSimulationData_AnyThread(ClothingSimData, ClothObjectLocalToWorld, ClothBlendWeight);
-	}
-	else
-	{
-		ClothingSimData.Reset();
-		ClothObjectLocalToWorld = FMatrix::Identity;
-		ClothBlendWeight = 0.f;
-	}
+	InMeshComponent->GetUpdateClothSimulationData_AnyThread(ClothingSimData, ClothObjectLocalToWorld, ClothBlendWeight);
 
 	if (!IsSkeletalMeshClothBlendEnabled())
 	{
 		ClothBlendWeight = 0.f;
 	}
 
-	bIsSkinCacheAllowed = InMeshComponent ? InMeshComponent->IsSkinCacheAllowed(InLODIndex) : false;
-	bHasMeshDeformer = InMeshComponent ? InMeshComponent->GetMeshDeformerInstance() != nullptr && LODIndex <= InMeshComponent->GetMeshDeformerMaxLOD() : false;
-	bForceUpdateDynamicDataImmediately = InMeshComponent ? InMeshComponent->GetForceUpdateDynamicDataImmediately() : false;
+	bIsSkinCacheAllowed = InMeshComponent->IsSkinCacheAllowed(InLODIndex);
+	bHasMeshDeformer = InMeshComponent->GetMeshDeformerInstance() != nullptr && LODIndex <= InMeshComponent->GetMeshDeformerMaxLOD();
+	bForceUpdateDynamicDataImmediately = InMeshComponent->GetForceUpdateDynamicDataImmediately();
 	// Force immediate update when using mesh deformer.
 	bForceUpdateDynamicDataImmediately |= bHasMeshDeformer;
 

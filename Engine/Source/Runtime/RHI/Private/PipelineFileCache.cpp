@@ -2143,7 +2143,9 @@ public:
 			GRHILazyShaderCodeLoading = true;
 		}
 
+#if !UE_BUILD_SHIPPING
 		uint32 InvalidEntryCount = 0;
+#endif
 		
         for (auto const& Entry : TOC.MetaData)
         {
@@ -2166,10 +2168,12 @@ public:
 #endif
         }
 		
-        if(InvalidEntryCount > 0)
+#if !UE_BUILD_SHIPPING
+		if(InvalidEntryCount > 0)
         {
         	UE_LOG(LogRHI, Warning, TEXT("Found %d / %d PSO entries marked as invalid."), InvalidEntryCount, TOC.MetaData.Num());
         }
+#endif
 		
 		INC_MEMORY_STAT_BY(STAT_FileCacheMemory, TOC.MetaData.GetAllocatedSize());
 
@@ -2258,7 +2262,9 @@ public:
 				TOCOffset = 0;
 			}
 
+#if !UE_BUILD_SHIPPING
 			uint32 InvalidEntryCount = 0;
+#endif
 
 			for (auto const& Entry : TOC.MetaData)
 			{
@@ -2278,10 +2284,12 @@ public:
 #endif
 			}
 
+#if !UE_BUILD_SHIPPING
 			if (InvalidEntryCount > 0)
 			{
 				UE_LOG(LogRHI, Warning, TEXT("Found %d / %d PSO entries marked as invalid."), InvalidEntryCount, TOC.MetaData.Num());
 			}
+#endif
 		}
 		INC_MEMORY_STAT_BY(STAT_FileCacheMemory, TOC.MetaData.GetAllocatedSize());
 		return bUserFileOk;

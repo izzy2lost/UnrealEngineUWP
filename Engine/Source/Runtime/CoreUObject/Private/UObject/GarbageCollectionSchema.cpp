@@ -263,7 +263,7 @@ FMemberInfo GetMemberDebugInfo(FSchemaView Schema, FMemberId Id)
 			}
 			else if (IsIn<StopTypes>(Member.Type))
 			{
-				return { Offset, DebugNameIdx >= 0 ? ((FName*)WordIt)[DebugNameIdx] : EName::Error };
+				return { Offset, DebugNameIdx >= 0 ? ((FName*)WordIt)[DebugNameIdx] : EName::Error }; //-V547
 			}
 			else if (Member.Type == EMemberType::Jump)
 			{

@@ -71,7 +71,7 @@ public:
 			// @todo: these are not in par with the other Smart Object debug rendering.
 			const FVector DebugPosition = Transform.GetLocation();
 			const FVector Direction = Transform.GetRotation().GetForwardVector();
-			if (SlotShape == ESmartObjectSlotShape::Circle)
+			if (SlotShape == ESmartObjectSlotShape::Circle) //-V547
 			{
 				Cylinders.Emplace(DebugPosition, FVector::UpVector, SlotSize, DebugCylinderHalfHeight, DebugColor);
 			}

@@ -3045,16 +3045,16 @@ bool ARecastNavMesh::TestHierarchicalPath(const FNavAgentProperties& AgentProper
 			{
 #if WITH_NAVMESH_CLUSTER_LINKS
 				ENavigationQueryResult::Type Result = RecastNavMesh->RecastNavMeshImpl->TestClusterPath(Query.StartLocation, AdjustedEndLocation, NumVisitedNodes);
-#else
-				UE_LOG(LogNavigation, Error, TEXT("Navmesh requires generation of clusters for hierarchical path. Set WITH_NAVMESH_CLUSTER_LINKS to 1 to generate them."));
-				ENavigationQueryResult::Type Result = ENavigationQueryResult::Invalid;
-#endif // WITH_NAVMESH_CLUSTER_LINKS
 				bPathExists = (Result == ENavigationQueryResult::Success);
 
 				if (Result == ENavigationQueryResult::Error)
 				{
 					bUseFallbackSearch = true;
 				}
+#else
+				UE_LOG(LogNavigation, Error, TEXT("Navmesh requires generation of clusters for hierarchical path. Set WITH_NAVMESH_CLUSTER_LINKS to 1 to generate them."));
+				bPathExists = false;
+#endif // WITH_NAVMESH_CLUSTER_LINKS
 			}
 			else
 			{

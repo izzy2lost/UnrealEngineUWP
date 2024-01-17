@@ -1082,19 +1082,13 @@ void FUECompressedAnimData::InitViewsFromBuffer(const TArrayView<uint8> BulkData
 }
 
 template<typename T>
-void InitArrayViewSize(TArrayView<T>& Dest, const TArray<T>& Src)
-{
-	Dest = TArrayView<T>((T*)nullptr, Src.Num());
-}
-
-template<typename T>
 void SerializeView(class FArchive& Ar, TArrayView<T>& View)
 {
 	int32 Size = View.Num();
 	if (Ar.IsLoading())
 	{
 		Ar << Size;
-		View = TArrayView<T>((T*)nullptr, Size);
+		View = TArrayView<T>((T*)nullptr, Size); //-V575
 	}
 	else
 	{

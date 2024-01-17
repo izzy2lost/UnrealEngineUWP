@@ -3628,7 +3628,7 @@ bool UGameViewportClient::HandleViewModeCommand( const TCHAR* Cmd, FOutputDevice
 #if UE_BUILD_TEST || UE_BUILD_SHIPPING
 	Ar.Logf(TEXT("Debug viewmodes not allowed in Test or Shipping builds."));
 	ViewModeIndex = VMI_Lit;
-#endif
+#else
 
 	if ((ViewModeIndex != VMI_Lit && ViewModeIndex != VMI_ShaderComplexity) && !AllowDebugViewmodes())
 	{
@@ -3651,6 +3651,7 @@ bool UGameViewportClient::HandleViewModeCommand( const TCHAR* Cmd, FOutputDevice
 			ViewModeIndex = VMI_Lit;
 		}
 	}
+#endif
 #endif
 
 	ApplyViewMode((EViewModeIndex)ViewModeIndex, true, EngineShowFlags);

@@ -576,13 +576,16 @@ FDeferredLightUniformStruct GetDeferredLightParameters(const FSceneView& View, c
 	if (!bAllowStaticLighting)
 	{
 		ShadowMapChannel = INDEX_NONE;
+		Out.ShadowMapChannelMask = FVector4f(0);
 	}
-
-	Out.ShadowMapChannelMask = FVector4f(
-		ShadowMapChannel == 0 ? 1 : 0,
-		ShadowMapChannel == 1 ? 1 : 0,
-		ShadowMapChannel == 2 ? 1 : 0,
-		ShadowMapChannel == 3 ? 1 : 0);
+	else
+	{
+		Out.ShadowMapChannelMask = FVector4f(
+			ShadowMapChannel == 0 ? 1 : 0,
+			ShadowMapChannel == 1 ? 1 : 0,
+			ShadowMapChannel == 2 ? 1 : 0,
+			ShadowMapChannel == 3 ? 1 : 0);
+	}
 
 	const bool bDynamicShadows = View.Family->EngineShowFlags.DynamicShadows && GetShadowQuality() > 0;
 	const bool bHasLightFunction = LightSceneInfo.Proxy->GetLightFunctionMaterial() != NULL && !bUseLightFunctionAtlas;

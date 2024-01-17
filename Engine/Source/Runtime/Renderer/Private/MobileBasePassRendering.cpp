@@ -388,13 +388,8 @@ void SetupMobileDirectionalLightUniformParameters(
 		Params.DirectionalLightDistanceFadeMADAndSpecularScale.Y = -FadeParams.X * FadeParams.Y;
 		Params.DirectionalLightDistanceFadeMADAndSpecularScale.Z = Light->Proxy->GetSpecularScale();
 
-		int32 ShadowMapChannel = Light->Proxy->GetShadowMapChannel();
+		const int32 ShadowMapChannel = IsStaticLightingAllowed() ? Light->Proxy->GetShadowMapChannel() : INDEX_NONE;
 		int32 DynamicShadowMapChannel = Light->GetDynamicShadowMapChannel();
-
-		if (!IsStaticLightingAllowed())
-		{
-			ShadowMapChannel = INDEX_NONE;
-		}
 
 		// Static shadowing uses ShadowMapChannel, dynamic shadows are packed into light attenuation using DynamicShadowMapChannel
 		Params.DirectionalLightShadowMapChannelMask =
