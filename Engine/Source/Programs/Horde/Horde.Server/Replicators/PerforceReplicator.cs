@@ -732,10 +732,13 @@ namespace Horde.Server.Replicators
 				}
 			}
 
+			// Create the root node
+			await root.UpdateAsync(rootUpdate, writer, blobOptions, cancellationToken);
+			IBlobHandle<DirectoryNode> rootHandle = await writer.WriteBlobAsync(root, blobOptions, cancellationToken);
+			DirectoryNodeRef rootRef = new DirectoryNodeRef(root.Length, rootHandle);
+
 			// Create the commit node
 			ChangeRecord changeRecord = await perforce.GetChangeAsync(GetChangeOptions.None, change, cancellationToken);
-			DirectoryNodeRef rootRef = new DirectoryNodeRef(root.Length, await writer.WriteBlobAsync(root, blobOptions, cancellationToken));
-
 			CommitNode commitNode = new CommitNode(change, stateNode.ParentHandle, changeRecord.User ?? "Unknown", null, null, null, changeRecord.Description ?? String.Empty, changeRecord.Date, rootRef, new Dictionary<Guid, IBlobHandle<object>>());
 			IBlobHandle<CommitNode> commitNodeRef = await writer.WriteBlobAsync(commitNode, blobOptions, cancellationToken);
 
