@@ -2173,8 +2173,12 @@ public:
 	FRDGScatterUploadBuffer UploadHeightFieldBoundsBuffer;
 	FRDGScatterUploadBuffer UploadDistanceFieldDataBuffer;
 	FRDGScatterUploadBuffer UploadDistanceFieldBoundsBuffer;
-	
+
+	// track indices that need to be updated using both an array and a set
+	// array is used for fast iteration and support ParallelFor
+	// set is used to prevent duplicate indices
 	TArray<int32> IndicesToUpdateInObjectBuffers;
+	TSet<int32> IndicesToUpdateInObjectBuffersSet;
 
 	TSet<FDistanceFieldAssetState, TFDistanceFieldAssetStateFuncs> AssetStateArray;
 	TRefCountPtr<FRDGPooledBuffer> AssetDataBuffer;
