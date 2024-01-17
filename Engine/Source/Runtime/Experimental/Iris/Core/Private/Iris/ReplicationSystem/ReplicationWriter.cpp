@@ -1841,8 +1841,6 @@ void FReplicationWriter::SerializeObjectStateDelta(FNetSerializationContext& Con
 
 FReplicationWriter::EWriteObjectStatus FReplicationWriter::WriteObjectAndSubObjects(FNetSerializationContext& Context, uint32 InternalIndex, uint32 WriteObjectFlags, FBatchInfo& OutBatchInfo)
 {
-	IRIS_PROFILER_SCOPE(FReplicationWriter_WriteObjectAndSubObjects);
-
 	FNetBitStreamWriter& Writer = *Context.GetBitStreamWriter();
 	
 	FReplicationInfo& Info = GetReplicationInfo(InternalIndex);
@@ -1859,6 +1857,8 @@ FReplicationWriter::EWriteObjectStatus FReplicationWriter::WriteObjectAndSubObje
 
 	const FNetRefHandleManager::FReplicatedObjectData& ObjectData = NetRefHandleManager->GetReplicatedObjectDataNoCheck(InternalIndex);
 	const FNetRefHandle NetRefHandle = ObjectData.RefHandle;
+
+	IRIS_PROFILER_PROTOCOL_NAME(ObjectData.Protocol?ObjectData.Protocol->DebugName->Name:TEXT("NoProtocol"));
 
 #if UE_NET_TRACE_ENABLED
 	FNetRefHandle NetRefHandleForTraceScope = NetRefHandle;
@@ -1930,7 +1930,6 @@ FReplicationWriter::EWriteObjectStatus FReplicationWriter::WriteObjectAndSubObje
 	uint8* ReplicatedObjectStateBuffer = NetRefHandleManager->GetReplicatedObjectStateBufferNoCheck(InternalIndex);
 
 	const bool bIsInitialState = IsInitialState(State);
-	//IRIS_PROFILER_PROTOCOL_NAME(ObjectData.Protocol?ObjectData.Protocol->DebugName->Name:TEXT("NoProtocol"));
 
 	// Filter out changemasks that are not supposed to be replicated to this connection
 	const bool bNeedToFilterChangeMask = (bIsInitialState || Info.HasDirtyChangeMask) && Info.HasChangemaskFilter;
@@ -2318,8 +2317,6 @@ FReplicationWriter::EWriteObjectStatus FReplicationWriter::WriteObjectAndSubObje
 
 FReplicationWriter::EWriteObjectStatus FReplicationWriter::WriteObjectInBatch(FNetSerializationContext& Context, uint32 InternalIndex, uint32 WriteObjectFlags, FBatchInfo& OutBatchInfo)
 {
-	IRIS_PROFILER_SCOPE(FReplicationWriter_WriteObjectInBatch);
-
 	UE_NET_IRIS_STATS_TIMER(Timer, Context.GetNetStatsContext());
 
 	// Reset pending exports

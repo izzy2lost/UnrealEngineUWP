@@ -520,7 +520,7 @@ void FReplicationConditionals::GetChildSubObjectsToReplicate(uint32 ReplicatingC
 
 void FReplicationConditionals::GetSubObjectsToReplicate(uint32 ReplicationConnectionId, FInternalNetRefIndex RootObjectIndex, FSubObjectsToReplicateArray& OutSubObjectsToReplicate)
 {
-	IRIS_PROFILER_SCOPE(FReplicationConditionals_GetSubObjectsToReplicate);
+	//IRIS_PROFILER_SCOPE_VERBOSE(FReplicationConditionals_GetSubObjectsToReplicate);
 
 	// For now, we do nothing to detect if a conditional has changed on the RootParent, we simply defer this until the next
 	// time the subobjects are marked as dirty. We might want to consider to explicitly mark object and subobjects as dirty when 
@@ -532,7 +532,7 @@ void FReplicationConditionals::GetSubObjectsToReplicate(uint32 ReplicationConnec
 
 bool FReplicationConditionals::ApplyConditionalsToChangeMask(uint32 ReplicatingConnectionId, bool bIsInitialState, FInternalNetRefIndex ParentObjectIndex, FInternalNetRefIndex ObjectIndex, uint32* ChangeMaskData, const uint32* ConditionalChangeMaskData, const FReplicationProtocol* Protocol)
 {
-	IRIS_PROFILER_SCOPE(FReplicationConditionals_ApplyConditionalsToChangeMask);
+	//IRIS_PROFILER_SCOPE_VERBOSE(FReplicationConditionals_ApplyConditionalsToChangeMask);
 
 	bool bMaskWasModified = false;
 
