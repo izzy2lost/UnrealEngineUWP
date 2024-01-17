@@ -41,15 +41,15 @@ struct FMovieGraphPropertyInfo
 	GENERATED_BODY()
 	
 	/** The name of the property. */
-	UPROPERTY()
+	UPROPERTY(BlueprintReadOnly, Category = "Movie Graph")
 	FName Name;
 
 	/** Whether this property is dynamic (ie, it does not correspond to a native UPROPERTY on the node). */
-	UPROPERTY()
+	UPROPERTY(BlueprintReadOnly, Category = "Movie Graph")
 	bool bIsDynamicProperty = false;
 
 	/** The type of the value pointed to by the property. */
-	UPROPERTY()
+	UPROPERTY(BlueprintReadOnly, Category = "Movie Graph")
 	EMovieGraphValueType ValueType = EMovieGraphValueType::None;
 
 	/** The associated value type object if the ValueType is an enum, struct, class, or object. */
@@ -177,6 +177,7 @@ public:
 	virtual TArray<FMovieGraphPropertyInfo> GetOverrideablePropertyInfo() const;
 
 	/** Gets the information about properties which are currently exposed as pins on the node. */
+	UFUNCTION(BlueprintCallable, Category = "Movie Graph")
 	virtual TArray<FMovieGraphPropertyInfo> GetExposedProperties() const
 	{
 		return ExposedPropertyInfo;
@@ -205,6 +206,7 @@ public:
 	}
 
 	/** Toggles the promotion of the property with the given name to a pin on the node. */
+	UFUNCTION(BlueprintCallable, Category = "Movie Graph")
 	virtual void TogglePromotePropertyToPin(const FName& PropertyName);
 
 	/**
@@ -228,10 +230,12 @@ public:
 	 * Gets the input pin with the specified name, or nullptr if one could not be found. Most pins on a node are
 	 * "built-in", meaning they ship with the node. Dynamic pins (pins which are not built-in) can potentially have the
 	 * same name as a built-in (eg, the option pins on the Select node). To disambiguate between built-in and dynamic
-	 * pins, PinRequirement can be specified. */
+	 * pins, specify bIsBuiltInPin = false if trying to fetch a pin that is not built-in.  */
+	UFUNCTION(BlueprintCallable, Category = "Movie Graph")
 	UMovieGraphPin* GetInputPin(const FName& InPinLabel, const EMovieGraphPinQueryRequirement PinRequirement = EMovieGraphPinQueryRequirement::BuiltInOrDynamic) const;
 
 	/** Gets the output pin with the specified name, or nullptr if one could not be found. */
+	UFUNCTION(BlueprintCallable, Category = "Movie Graph")
 	UMovieGraphPin* GetOutputPin(const FName& InPinLabel) const;
 
 	/** Gets the first input pin on the node which has a connection, or nullptr if no pins are connected. */
@@ -253,10 +257,14 @@ public:
 	bool IsDisabled() const;
 
 #if WITH_EDITOR
+	UFUNCTION(BlueprintPure, Category = "Movie Graph")
 	int32 GetNodePosX() const { return NodePosX; }
+	UFUNCTION(BlueprintPure, Category = "Movie Graph")
 	int32 GetNodePosY() const { return NodePosY; }
 
+	UFUNCTION(BlueprintCallable, Category = "Movie Graph")
 	void SetNodePosX(const int32 InNodePosX) { NodePosX = InNodePosX; }
+	UFUNCTION(BlueprintCallable, Category = "Movie Graph")
 	void SetNodePosY(const int32 InNodePosY) { NodePosY = InNodePosY; }
 
 	/** Gets the node's title color, as visible in the graph. */
@@ -265,13 +273,19 @@ public:
 	/** Gets the node's icon and icon tint, as visible in the graph. */
 	virtual FSlateIcon GetIconAndTint(FLinearColor& OutColor) const;
 
+	UFUNCTION(BlueprintPure, Category = "Movie Graph")
 	FString GetNodeComment() const { return NodeComment; }
+	UFUNCTION(BlueprintCallable, Category = "Movie Graph")
 	void SetNodeComment(const FString& InNodeComment) { NodeComment = InNodeComment; }
 
+	UFUNCTION(BlueprintPure, Category = "Movie Graph")
 	bool IsCommentBubblePinned() const { return bIsCommentBubblePinned; }
+	UFUNCTION(BlueprintCallable, Category = "Movie Graph")
 	void SetIsCommentBubblePinned(const uint8 bIsPinned) { bIsCommentBubblePinned = bIsPinned; }
 
+	UFUNCTION(BlueprintPure, Category = "Movie Graph")
 	bool IsCommentBubbleVisible() const { return bIsCommentBubbleVisible; }
+	UFUNCTION(BlueprintCallable, Category = "Movie Graph")
 	void SetIsCommentBubbleVisible(uint8 bIsVisible) { bIsCommentBubbleVisible = bIsVisible; }
 #endif
 

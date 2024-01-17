@@ -1,4 +1,4 @@
-﻿// Copyright Epic Games, Inc. All Rights Reserved.
+// Copyright Epic Games, Inc. All Rights Reserved.
 
 #pragma once
 
@@ -21,9 +21,11 @@ public:
 	virtual bool GetResolvedValueForOutputPin(const FName& InPinName, const FMovieGraphTraversalContext* InContext, TObjectPtr<UMovieGraphValueContainer>& OutValueContainer) const override;
 
 	/** Gets the variable that this node represents. */
+	UFUNCTION(BlueprintCallable, Category = "Movie Graph")
 	UMovieGraphVariable* GetVariable() const { return GraphVariable; }
 
 	/** Sets the variable that this node represents. */
+	UFUNCTION(BlueprintCallable, Category = "Movie Graph")
 	void SetVariable(UMovieGraphVariable* InVariable);
 
 	/** Returns true if this node represents a global variable, else false. */

@@ -159,7 +159,7 @@ namespace UE::MovieGraph::Private::Tests
 		UMovieGraphNode* NodeFrom, UMovieGraphNode* NodeTo,
 		UMovieGraphPin* OutputPin, UMovieGraphPin* InputPin)
 	{
-		GraphConfig->RemoveEdge(NodeFrom, OutputPin->Properties.Label,
+		GraphConfig->RemoveLabeledEdge(NodeFrom, OutputPin->Properties.Label,
 			NodeTo, InputPin->Properties.Label);
 
 		InTestBase->TestTrue(

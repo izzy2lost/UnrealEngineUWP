@@ -36,9 +36,11 @@ public:
 	UMovieGraphConfig* GetOwningGraph() const;
 
 	/** Gets the name of this member. */
+	UFUNCTION(BlueprintCallable, Category = "Movie Graph")
 	FString GetMemberName() const { return Name; }
 
 	/** Sets the name of this member. Returns true if the rename was successful, else false. */
+	UFUNCTION(BlueprintCallable, Category ="Movie Graph")
 	virtual bool SetMemberName(const FString& InNewName);
 
 	/**
@@ -48,6 +50,7 @@ public:
 	virtual bool CanRename(const FText& InNewName, FText& OutError) const;
 
 	/** Gets the GUID that uniquely identifies this member. */
+	UFUNCTION(BlueprintCallable, Category = "Movie Graph")
 	const FGuid& GetGuid() const { return Guid; }
 
 	/** Sets the GUID that uniquely identifies this member. */
@@ -560,40 +563,86 @@ public:
 	virtual void PostLoad() override;
 	//~ End UObject interface
 
+	/**
+	* Add a connection in the graph between the given nodes and pin names. Pin name may be empty for basic
+	* nodes (if no name is displayed in the UI). Can be used for either input or output pins.
+	* Returns False if the pin could not be found, or the connection could not be made (type mismatches).
+	*/
+	UFUNCTION(BlueprintCallable, Category = "Movie Graph")
 	bool AddLabeledEdge(UMovieGraphNode* FromNode, const FName& FromPinLabel, UMovieGraphNode* ToNode, const FName& ToPinLabel);
-	bool RemoveEdge(UMovieGraphNode* FromNode, const FName& FromPinName, UMovieGraphNode* ToNode, const FName& ToPinName);
+
+	/**
+	* Like AddLabeledEdge, removes the given connection between Node A and Node B (for the specified pins by name).
+	*/
+	UFUNCTION(BlueprintCallable, Category = "Movie Graph")
+	bool RemoveLabeledEdge(UMovieGraphNode* FromNode, const FName& FromPinName, UMovieGraphNode* ToNode, const FName& ToPinName);
+	
+	
+	/**
+	* Convinence function which removes all Inbound (pins on the left side of a node) edges for the given node.
+	*/
+	UFUNCTION(BlueprintCallable, Category = "Movie Graph")
 	bool RemoveAllInboundEdges(UMovieGraphNode* InNode);
+	/**
+	* Convinence function which removes all Outbound (pins on the right side of a node) edges for the given node.
+	*/
+	UFUNCTION(BlueprintCallable, Category = "Movie Graph")
 	bool RemoveAllOutboundEdges(UMovieGraphNode* InNode);
+
+	/**
+	* Convinence function which removes all Inbound (pins on the left side of a node) edges connected to the given inbound pin by name, for the given node.
+	*/
+	UFUNCTION(BlueprintCallable, Category = "Movie Graph")
 	bool RemoveInboundEdges(UMovieGraphNode* InNode, const FName& InPinName);
+	
+	/**
+	* Convinence function which removes all Outobund (pins on the right side of a node) edges connected to the given outbound pin by name, for the given node.
+	*/
+	UFUNCTION(BlueprintCallable, Category = "Movie Graph")
 	bool RemoveOutboundEdges(UMovieGraphNode* InNode, const FName& InPinName);
 
 	/** 
 	* Add the specified node instance to the graph. This will rename the node to ensure the graph is the outer
 	* and then it will add it to the internal list of nodes used by the graph. See ConstructRuntimeNode if you
 	* want to construct a node by class and don't already have an instance.
+	* 
+	* Not currently exposed to the Blueprint API as it's generally internal use only.
 	*/
 	void AddNode(UMovieGraphNode* InNode);
 
-	/** Removes the specified node from the graph. */
+	/** 
+	* Removes the specified node from the graph, disconnecting connected edges as it goes. */
+	UFUNCTION(BlueprintCallable, Category = "Movie Graph")
 	bool RemoveNode(UMovieGraphNode* InNode);
-	/** Removes the specified nodes from the graph. */
+
+	/** Like RemoveNode but takes an entire array at once for convinence. */
+	UFUNCTION(BlueprintCallable, Category = "Movie Graph")
 	bool RemoveNodes(TArray<UMovieGraphNode*> InNodes);
 
+	/** Gets the automatically generated "Inputs" node in the Graph. */
+	UFUNCTION(BlueprintPure, Category = "Movie Graph")
 	UMovieGraphNode* GetInputNode() const { return InputNode; }
+
+	/** Gets the automatically generated "Outputs" node in the Graph. */
+	UFUNCTION(BlueprintPure, Category = "Movie Graph")
 	UMovieGraphNode* GetOutputNode() const { return OutputNode; }
+
+
 	const TArray<TObjectPtr<UMovieGraphNode>>& GetNodes() const { return AllNodes; }
 
 	/**
 	 * Adds a new variable member with default values to the graph. The new variable will have a base name of
 	 * "Variable" unless specified in InCustomBaseName. Returns the new variable on success, else nullptr.
 	 */
-	UFUNCTION(BlueprintCallable, Category="Experimental")
+	UFUNCTION(BlueprintCallable, Category="Movie Graph")
 	UMovieGraphVariable* AddVariable(const FName InCustomBaseName = NAME_None);
 
 	/** Adds a new input member to the graph. Returns the new input on success, else nullptr. */
+	UFUNCTION(BlueprintCallable, Category = "Movie Graph")
 	UMovieGraphInput* AddInput();
 
 	/** Adds a new output member to the graph. Returns the new output on success, else nullptr. */
+	UFUNCTION(BlueprintCallable, Category = "Movie Graph")
 	UMovieGraphOutput* AddOutput();
 
 	/** Gets the variable in the graph with the specified GUID, else nullptr if one could not be found. */
@@ -603,7 +652,7 @@ public:
 	 * Gets all variables that are available to be used in the graph. Global variables can optionally be included if
 	 * bIncludeGlobal is set to true.
 	 */
-	UFUNCTION(BlueprintCallable, Category="Experimental")
+	UFUNCTION(BlueprintCallable, Category="Movie Graph")
 	TArray<UMovieGraphVariable*> GetVariables(const bool bIncludeGlobal = false) const;
 
 	/** Updates the values of all global variables. */
@@ -611,12 +660,15 @@ public:
 	void UpdateGlobalVariableValues(const UMovieGraphPipeline* InPipeline);
 
 	/** Gets all inputs that have been defined on the graph. */
+	UFUNCTION(BlueprintCallable, Category = "Movie Graph")
 	TArray<UMovieGraphInput*> GetInputs() const;
 
 	/** Gets all outputs that have been defined on the graph. */
+	UFUNCTION(BlueprintCallable, Category = "Movie Graph")
 	TArray<UMovieGraphOutput*> GetOutputs() const;
 
 	/** Remove the specified member (input, output, variable) from the graph. */
+	UFUNCTION(BlueprintCallable, Category = "Movie Graph")
 	bool DeleteMember(UMovieGraphMember* MemberToDelete);
 
 #if WITH_EDITOR
@@ -719,27 +771,37 @@ public:
 	TObjectPtr<UEdGraph> PipelineEdGraph;
 #endif
 
-	template<class T>
-	T* ConstructRuntimeNode(TSubclassOf<UMovieGraphNode> PipelineGraphNodeClass = T::StaticClass())
+	/**
+	* Creates the given node type in this graph. Does not create any connections, and a node will not be
+	* considered during evaluation unless it is connected to other nodes in the graph.
+	*/
+	UFUNCTION(BlueprintCallable, meta = (DeterminesOutputType = "InClass"), Category = "Movie Graph")
+	UMovieGraphNode* CreateNodeByClass(const TSubclassOf<UMovieGraphNode> InClass)
 	{
-		if (!PipelineGraphNodeClass)
+		if (!InClass)
 		{
 			FFrame::KismetExecutionMessage(
 				*FString::Printf(
 					TEXT("%hs: Invalid PipelineGraphNodeClass. Please specify a valid class."), __FUNCTION__),
-					ELogVerbosity::Error);
-		
+				ELogVerbosity::Error);
+
 			return nullptr;
 		}
-		
+
 		// Construct a new object with ourselves as the outer, then keep track of it.
-		T* RuntimeNode = NewObject<T>(this, PipelineGraphNodeClass, NAME_None, RF_Transactional);
+		UMovieGraphNode* RuntimeNode = NewObject<UMovieGraphNode>(this, InClass, NAME_None, RF_Transactional);
 		RuntimeNode->UpdateDynamicProperties();
 		RuntimeNode->UpdatePins();
 		RuntimeNode->Guid = FGuid::NewGuid();
-		
+
 		AddNode(RuntimeNode);
 		return RuntimeNode;
+	}
+
+	template<class T>
+	T* ConstructRuntimeNode(TSubclassOf<UMovieGraphNode> PipelineGraphNodeClass = T::StaticClass())
+	{
+		return Cast<T>(CreateNodeByClass(PipelineGraphNodeClass));
 	}
 
 private:

@@ -153,6 +153,14 @@ void UMovieGraphNode::TogglePromotePropertyToPin(const FName& PropertyName)
 			});
 		}
 	}
+	else
+	{
+		// They requested a property that didn't exist, throw a kismet exception so scripts can know.
+		FFrame::KismetExecutionMessage(
+			*FString::Printf(
+				TEXT("%hs: Could not find a property with the name '%s' to promote to pin."), __FUNCTION__, *PropertyName.ToString()),
+			ELogVerbosity::Error);
+	}
 
 	UpdatePins();
 }

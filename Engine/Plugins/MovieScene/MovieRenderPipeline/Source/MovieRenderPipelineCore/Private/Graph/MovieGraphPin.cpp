@@ -230,6 +230,33 @@ TArray<UMovieGraphPin*> UMovieGraphPin::GetAllConnectedPins() const
 	return ConnectedPins;
 }
 
+TArray<UMovieGraphNode*> UMovieGraphPin::GetConnectedNodes() const
+{
+	TArray<TObjectPtr<UMovieGraphNode>> OutNodes;
+	for (const TObjectPtr<UMovieGraphEdge>& Edge : Edges)
+	{
+		if (!Edge)
+		{
+			continue;
+		}
+
+		UMovieGraphPin* OtherPin = Edge->GetOtherPin(this);
+		if (!OtherPin)
+		{
+			continue;
+		}
+
+		if (!OtherPin->Node)
+		{
+			continue;
+		}
+
+		OutNodes.Add(OtherPin->Node);
+	}
+
+	return OutNodes;
+}
+
 bool UMovieGraphPin::IsConnectionToBranchAllowed(const UMovieGraphPin* OtherPin, FText& OutError) const
 {
 	const UMovieGraphPin* InputPin = IsInputPin() ? this : OtherPin;

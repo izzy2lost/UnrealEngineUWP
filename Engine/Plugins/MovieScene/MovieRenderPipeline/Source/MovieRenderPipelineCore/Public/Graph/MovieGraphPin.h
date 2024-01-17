@@ -119,6 +119,14 @@ public:
 	TArray<UMovieGraphPin*> GetAllConnectedPins() const;
 
 	/**
+	* Utility function for scripting which gathers all of the nodes connected
+	* to this particular pin. Equivalent to looping through all of the edges,
+	* getting the connected pin, and then getting the node associated with that pin.
+	*/
+	UFUNCTION(BlueprintCallable, Category = "Movie Graph")
+	TArray<UMovieGraphNode*> GetConnectedNodes() const;
+
+	/**
 	 * Determines if the connection between this pin and OtherPin follows branch restriction rules. OutError is populated
 	 * with an error if the connection should be rejected and the function will return false.
 	 */

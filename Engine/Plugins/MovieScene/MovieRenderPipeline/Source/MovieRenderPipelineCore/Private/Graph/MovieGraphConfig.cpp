@@ -13,6 +13,7 @@
 #include "Graph/Nodes/MovieGraphRemoveRenderSettingNode.h"
 #include "Graph/Nodes/MovieGraphSubgraphNode.h"
 #include "Graph/Nodes/MovieGraphVariableNode.h"
+#include "Graph/Nodes/MovieGraphSelectNode.h"
 #include "MovieGraphUtils.h"
 #include "MoviePipelineQueue.h"
 #include "MovieRenderPipelineCoreModule.h"
@@ -93,11 +94,13 @@ bool UMovieGraphVariable::CanRename(const FText& InNewName, FText& OutError) con
 
 bool UMovieGraphVariable::SetMemberName(const FString& InNewName)
 {
+	bool bSuccess = Super::SetMemberName(InNewName);
+
 #if WITH_EDITOR
 	OnMovieGraphVariableChangedDelegate.Broadcast(this);
 #endif
 	
-	return Super::SetMemberName(InNewName);
+	return bSuccess;
 }
 
 #if WITH_EDITOR
@@ -211,11 +214,12 @@ bool UMovieGraphInput::CanRename(const FText& InNewName, FText& OutError) const
 
 bool UMovieGraphInput::SetMemberName(const FString& InNewName)
 {
+	bool bSuccess = Super::SetMemberName(InNewName);
+
 #if WITH_EDITOR
 	OnMovieGraphInputChangedDelegate.Broadcast(this);
 #endif
-	
-	return Super::SetMemberName(InNewName);
+	return bSuccess;
 }
 
 #if WITH_EDITOR
@@ -254,11 +258,13 @@ bool UMovieGraphOutput::CanRename(const FText& InNewName, FText& OutError) const
 
 bool UMovieGraphOutput::SetMemberName(const FString& InNewName)
 {
+	bool bSuccess = Super::SetMemberName(InNewName);
+
 #if WITH_EDITOR
 	OnMovieGraphOutputChangedDelegate.Broadcast(this);
 #endif
 	
-	return Super::SetMemberName(InNewName);
+	return bSuccess;
 }
 
 #if WITH_EDITOR
@@ -438,7 +444,7 @@ bool UMovieGraphConfig::AddLabeledEdge(UMovieGraphNode* FromNode, const FName& F
 	return bConnectionBrokeOtherEdges;
 }
 
-bool UMovieGraphConfig::RemoveEdge(UMovieGraphNode* FromNode, const FName& FromPinLabel, UMovieGraphNode* ToNode, const FName& ToPinLabel)
+bool UMovieGraphConfig::RemoveLabeledEdge(UMovieGraphNode* FromNode, const FName& FromPinLabel, UMovieGraphNode* ToNode, const FName& ToPinLabel)
 {
 	if (!FromNode || !ToNode)
 	{
@@ -1324,6 +1330,31 @@ bool UMovieGraphConfig::CreateFlattenedGraph_Recursive(UMovieGraphEvaluatedConfi
 
 	if (bShouldIncludeNode)
 	{
+#if WITH_EDITOR
+		// Normally we copy properties if we find a matching bOverride_ property. Unfortunately this creates a somewhat common
+		// scenario where you've created a bOverride_ property but typo'd the real property name, so the real property doesn't
+		// actually get updated, but we don't produce a warning (as it's valid to have properties with no matching bOverride_).
+		// So to avoid this we have this editor ensure to prompt you when we find a bOverride_ property with no matching "real" property.
+		for (TFieldIterator<FProperty> PropertyIterator(Node->GetClass()); PropertyIterator; ++PropertyIterator)
+		{
+			// If we're looking at an override property... 
+			if (PropertyIterator->GetName().StartsWith(TEXT("bOverride_")))
+			{
+				const FString RealPropertyName = PropertyIterator->GetName().RightChop(10); // Chop off bOverride_ to get the name of the property we're searching for.
+				bool bFoundProperty = false;
+				for (TFieldIterator<FProperty> InnerPropertyIterator(Node->GetClass()); InnerPropertyIterator; ++InnerPropertyIterator)
+				{
+					if (InnerPropertyIterator->GetName() == RealPropertyName)
+					{
+						bFoundProperty = true;
+						break;
+					}
+				}
+
+				ensureAlwaysMsgf(bFoundProperty, TEXT("Found override property named %s, but could not find real property named %s"), *PropertyIterator->GetName(), *RealPropertyName);
+			}
+		}
+#endif
 		const UMovieGraphSettingNode* NodeAsSetting = CastChecked<UMovieGraphSettingNode>(Node);
 		const FString& NodeInstanceName = NodeAsSetting->GetNodeInstanceName();
 		
@@ -1591,6 +1622,4 @@ UMovieGraphEvaluatedConfig* UMovieGraphConfig::CreateFlattenedGraph(const FMovie
 
 	return NewContext;
 }
-
-
 #undef LOCTEXT_NAMESPACE
