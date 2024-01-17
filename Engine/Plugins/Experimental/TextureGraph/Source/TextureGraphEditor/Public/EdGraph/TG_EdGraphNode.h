@@ -64,7 +64,7 @@ public:
 	virtual void PostPasteNode() override;
 
 #if WITH_EDITOR
-	void UpdatePinVisibility(UEdGraphPin* Pin, FProperty* Property) const;
+	void UpdatePinVisibility(UEdGraphPin* Pin, UTG_Pin* TGPin) const;
 	void UpdateInputPinsVisibility() const;
 #endif
 	

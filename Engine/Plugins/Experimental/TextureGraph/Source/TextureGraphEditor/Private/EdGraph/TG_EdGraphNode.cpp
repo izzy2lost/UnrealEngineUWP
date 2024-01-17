@@ -184,7 +184,7 @@ void UTG_EdGraphNode::AllocateDefaultPins()
 			NewPin->bNotConnectable = Pin->IsNotConnectable() || Pin->IsParam();
 
 			FString DefaultValue = Pin->GetSelfVar()->LogValue();
-			FProperty* Property = Pin->GetExpressionProperty();
+			FProperty* Property = Pin->GetExpressionProperty(); //// BEWARE Pin do NOT all have a Property, it is potentially NULL
 			FByteProperty* ByteProperty = CastField<FByteProperty>(Property);
 			if (ByteProperty)
 			{
@@ -205,9 +205,6 @@ void UTG_EdGraphNode::AllocateDefaultPins()
 				}
 				NewPin->bNotConnectable = true;
 			}
-#if WITH_EDITOR
-			UpdatePinVisibility(NewPin, Property);
-#endif
 			NewPin->DefaultValue = DefaultValue;
 			// This updates the UObject (Texture/Material) picker UI in the Node to get updated
 			if (Property && Property->GetClass()->IsChildOf(FObjectProperty::StaticClass()))
@@ -216,6 +213,10 @@ void UTG_EdGraphNode::AllocateDefaultPins()
 			}
 			NewPin->PinFriendlyName = FText::FromName(Pin->GetAliasName());
 			NewPin->PinToolTip = Pin->LogTooltip();
+
+#if WITH_EDITOR
+			UpdatePinVisibility(NewPin, Pin);
+#endif		
 		}
 	}
 	AdvancedPinDisplay = showAdvancedPinDisplay ? ENodeAdvancedPins::Hidden : ENodeAdvancedPins::NoPins;
@@ -444,16 +445,25 @@ void UTG_EdGraphNode::PostPasteNode()
 }
 
 #if WITH_EDITOR
-void UTG_EdGraphNode::UpdatePinVisibility(UEdGraphPin* Pin, FProperty* Property) const
+void UTG_EdGraphNode::UpdatePinVisibility(UEdGraphPin* Pin, UTG_Pin* TGPin) const
 {
 	UTG_Expression* Expression = GetNode()->GetExpression();
-	bool bCanEditChange = Expression->CanEditChange(Property);
-	bool bEditConditionHides = Property->HasMetaData("EditConditionHides");
+	bool bCanEditChange = !TGPin->IsConnected();
+	bool bEditConditionHides = false;
 
-	// update Metadata with EditCondition to also update details view
-	FName NAME_EditCondition(TEXT("EditCondition"));
-	Property->SetMetaData(NAME_EditCondition, bCanEditChange ? TEXT("true") : TEXT("false"));
-	
+	// Rely on the FProperty meta information for potential conditional editability / visibility
+	FProperty* Property = TGPin->GetExpressionProperty();
+	if (Property)
+	{
+		bCanEditChange = Expression->CanEditChange(Property);
+		bEditConditionHides = Property->HasMetaData("EditConditionHides");
+
+		// update Metadata with EditCondition to also update details view
+		FName NAME_EditCondition(TEXT("EditCondition"));
+		Property->SetMetaData(NAME_EditCondition, bCanEditChange ? TEXT("true") : TEXT("false"));
+
+	}
+
 	Pin->bHidden = !bCanEditChange && bEditConditionHides;
 	Pin->bDefaultValueIsReadOnly = bCanEditChange;
 }
@@ -471,12 +481,7 @@ void UTG_EdGraphNode::UpdateInputPinsVisibility() const
 		UEdGraphPin* EdPin = FindPinChecked(OtherPinName, EEdGraphPinDirection::EGPD_Input);
 
 		// check hide state
-		
-		auto PinProperty = TGPin->GetExpressionProperty();
-		if (PinProperty)
-		{
-			UpdatePinVisibility(EdPin, PinProperty);
-		}
+		UpdatePinVisibility(EdPin, TGPin);
 	}
 }
 #endif
