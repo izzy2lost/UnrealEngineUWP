@@ -76,7 +76,7 @@ namespace EpicGames.Horde.Tests
 		static async Task TestBasicAsync(IStorageClient store)
 		{
 			IBlobHandle<TestNode> nodeRef;
-			await using (IStorageWriter writer = store.CreateWriter())
+			await using (IBlobWriter writer = store.CreateBlobWriter())
 			{
 				nodeRef = await writer.WriteBlobAsync(new TestNode(123));
 			}
@@ -94,7 +94,7 @@ namespace EpicGames.Horde.Tests
 			using BundleStorageClient store = BundleStorageClient.CreateInMemory(NullLogger.Instance);
 
 			IBlobHandle<TestNode> nodeRef2;
-			await using (IStorageWriter writer = store.CreateWriter())
+			await using (IBlobWriter writer = store.CreateBlobWriter())
 			{
 				IBlobHandle<TestNode> nodeRef1 = await writer.WriteBlobAsync(new TestNode(123));
 				nodeRef2 = await writer.WriteBlobAsync(new TestNode(456, nodeRef1));
@@ -117,7 +117,7 @@ namespace EpicGames.Horde.Tests
 
 			using BundleStorageClient store = BundleStorageClient.CreateInMemory(NullLogger.Instance);
 
-			await using IStorageWriter writer = store.CreateWriter(options: new BundleOptions { MinCompressionPacketSize = 100, MaxBlobSize = 1024 * 1024, MaxVersion = BundleVersion.LatestV2 });
+			await using IBlobWriter writer = store.CreateBlobWriter(options: new BundleOptions { MinCompressionPacketSize = 100, MaxBlobSize = 1024 * 1024, MaxVersion = BundleVersion.LatestV2 });
 			IBlobHandle<TestNode> nodeRef1 = await writer.WriteBlobAsync(new TestNode(123) { Padding = new byte[1024] });
 			await writer.FlushAsync();
 			IBlobHandle<TestNode> nodeRef2 = await writer.WriteBlobAsync(new TestNode(456, nodeRef1) { Padding = new byte[1024] });

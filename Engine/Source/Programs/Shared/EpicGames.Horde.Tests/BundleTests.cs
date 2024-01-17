@@ -72,7 +72,7 @@ namespace EpicGames.Horde.Tests
 		public async Task BasicChunkingTestsAsync()
 		{
 			RefName refName = new RefName("test");
-			await using IStorageWriter writer = _storage.CreateWriter(refName);
+			await using IBlobWriter writer = _storage.CreateBlobWriter(refName);
 
 			ChunkingOptions options = new ChunkingOptions();
 			options.LeafOptions = new LeafChunkedDataNodeOptions(8, 8, 8);
@@ -195,7 +195,7 @@ namespace EpicGames.Horde.Tests
 			IStorageClient store = _storage;
 
 			IBlobHandle<DirectoryNode> rootRef;
-			await using (IStorageWriter writer = store.CreateWriter())
+			await using (IBlobWriter writer = store.CreateBlobWriter())
 			{
 				DirectoryNode world = new DirectoryNode();
 				IBlobHandle<DirectoryNode> worldRef = await writer.WriteBlobAsync(world);
@@ -254,7 +254,7 @@ namespace EpicGames.Horde.Tests
 			BundleOptions options = new BundleOptions();
 			options.MaxBlobSize = 1;
 
-			await using (IStorageWriter writer = new DedupeStorageWriter(_storage.CreateWriter(options: options)))
+			await using (IBlobWriter writer = new DedupeStorageWriter(_storage.CreateBlobWriter(options: options)))
 			{
 				DirectoryNode root = new DirectoryNode();
 				for (int idx = 1; idx <= 3; idx++)
@@ -282,7 +282,7 @@ namespace EpicGames.Horde.Tests
 			RefName refName = new RefName("ref");
 
 			{
-				await using (IStorageWriter writer = _storage.CreateWriter(options: options))
+				await using (IBlobWriter writer = _storage.CreateBlobWriter(options: options))
 				{
 					IBlobHandle<DirectoryNode> rootRef = await writer.WriteBlobAsync(new DirectoryNode());
 					for (int idx = 4; idx >= 1; idx--)

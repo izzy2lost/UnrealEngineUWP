@@ -316,7 +316,7 @@ namespace Horde.Server.Storage
 			public IBlobHandle CreateBlobHandle(BlobLocator locator) => _inner.CreateBlobHandle(locator);
 
 			/// <inheritdoc/>
-			public IStorageWriter CreateWriter(string? basePath = null) => _inner.CreateWriter(basePath);
+			public IBlobWriter CreateBlobWriter(string? basePath = null) => _inner.CreateBlobWriter(basePath);
 
 			#endregion
 

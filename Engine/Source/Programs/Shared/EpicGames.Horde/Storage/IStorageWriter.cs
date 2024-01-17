@@ -10,61 +10,9 @@ using EpicGames.Core;
 namespace EpicGames.Horde.Storage
 {
 	/// <summary>
-	/// Information about an alias to be added alongside a blob
-	/// </summary>
-	/// <param name="Name">Name of the alias</param>
-	/// <param name="Rank">Rank of the alias</param>
-	/// <param name="Data">Inline data to be stored for the alias</param>
-	public record class AliasInfo(string Name, int Rank, ReadOnlyMemory<byte> Data)
-	{
-		/// <summary>
-		/// Constructor
-		/// </summary>
-		public AliasInfo(string name, int rank = 0) : this(name, rank, ReadOnlyMemory<byte>.Empty)
-		{ }
-	}
-
-	/// <summary>
-	/// Interface for writing new nodes to the store
-	/// </summary>
-	public interface IStorageWriter : IAsyncDisposable
-	{
-		/// <summary>
-		/// Create another writer instance, allowing multiple threads to write in parallel.
-		/// </summary>
-		/// <returns>New writer instance</returns>
-		IStorageWriter Fork();
-
-		/// <summary>
-		/// Flush any pending nodes to storage
-		/// </summary>
-		/// <param name="cancellationToken">Cancellation token for the operation</param>
-		Task FlushAsync(CancellationToken cancellationToken = default);
-
-		/// <summary>
-		/// Gets an output buffer for writing.
-		/// </summary>
-		/// <param name="usedSize">Current size in the existing buffer that has been written to</param>
-		/// <param name="desiredSize">Desired size of the returned buffer</param>
-		/// <returns>Buffer to be written into.</returns>
-		Memory<byte> GetOutputBuffer(int usedSize, int desiredSize);
-
-		/// <summary>
-		/// Finish writing a blob that has been written into the output buffer.
-		/// </summary>
-		/// <param name="type">Type of the node that was written</param>
-		/// <param name="size">Used size of the buffer</param>
-		/// <param name="references">References to other nodes</param>
-		/// <param name="aliases">Aliases for this node</param>
-		/// <param name="cancellationToken">Cancellation token for the operation</param>
-		/// <returns>Handle to the written node</returns>
-		ValueTask<IBlobHandle> WriteBlobAsync(BlobType type, int size, IReadOnlyList<IBlobHandle> references, IReadOnlyList<AliasInfo> aliases, CancellationToken cancellationToken = default);
-	}
-
-	/// <summary>
 	/// Index of known nodes that can be used for deduplication.
 	/// </summary>
-	public sealed class DedupeStorageWriter : IStorageWriter
+	public sealed class DedupeStorageWriter : BlobWriter
 	{
 		record BlobKey(IoHash Hash, BlobType Type);
 
@@ -123,7 +71,7 @@ namespace EpicGames.Horde.Storage
 		/// </summary>
 		public const int DefaultMaxKeys = 64 * 1024;
 
-		readonly IStorageWriter _inner;
+		readonly BlobWriter _inner;
 		readonly DedupeCache _cache;
 
 		/// <summary>
@@ -131,32 +79,32 @@ namespace EpicGames.Horde.Storage
 		/// </summary>
 		/// <param name="inner"></param>
 		/// <param name="maxKeys"></param>
-		public DedupeStorageWriter(IStorageWriter inner, int maxKeys = DefaultMaxKeys)
+		public DedupeStorageWriter(IBlobWriter inner, int maxKeys = DefaultMaxKeys)
 		{
-			_inner = inner;
+			_inner = (BlobWriter)inner;
 			_cache = new DedupeCache(maxKeys);
 		}
 
-		private DedupeStorageWriter(IStorageWriter inner, DedupeCache cache)
+		private DedupeStorageWriter(IBlobWriter inner, DedupeCache cache)
 		{
-			_inner = inner;
+			_inner = (BlobWriter)inner;
 			_cache = cache;
 		}
 
 		/// <inheritdoc/>
-		public ValueTask DisposeAsync() => _inner.DisposeAsync();
+		public override ValueTask DisposeAsync() => _inner.DisposeAsync();
 
 		/// <inheritdoc/>
-		public Task FlushAsync(CancellationToken cancellationToken = default) => _inner.FlushAsync(cancellationToken);
+		public override Task FlushAsync(CancellationToken cancellationToken = default) => _inner.FlushAsync(cancellationToken);
 
 		/// <inheritdoc/>
-		public IStorageWriter Fork() => new DedupeStorageWriter(_inner.Fork(), _cache);
+		public override IBlobWriter Fork() => new DedupeStorageWriter(_inner.Fork(), _cache);
 
 		/// <inheritdoc/>
-		public Memory<byte> GetOutputBuffer(int usedSize, int desiredSize) => _inner.GetOutputBuffer(usedSize, desiredSize);
+		public override Memory<byte> GetOutputBuffer(int usedSize, int desiredSize) => _inner.GetOutputBuffer(usedSize, desiredSize);
 
 		/// <inheritdoc/>
-		public async ValueTask<IBlobHandle> WriteBlobAsync(BlobType type, int size, IReadOnlyList<IBlobHandle> references, IReadOnlyList<AliasInfo> aliases, CancellationToken cancellationToken = default)
+		public override async ValueTask<IBlobHandle> WriteBlobAsync(BlobType type, int size, IReadOnlyList<IBlobHandle> references, IReadOnlyList<AliasInfo> aliases, CancellationToken cancellationToken = default)
 		{
 			ReadOnlyMemory<byte> data = _inner.GetOutputBuffer(size, size).Slice(0, size);
 			IoHash hash = IoHash.Compute(data.Span);
@@ -181,29 +129,13 @@ namespace EpicGames.Horde.Storage
 	}
 
 	/// <summary>
-	/// Extension methods for <see cref="IStorageWriter"/>
+	/// Extension methods for <see cref="IBlobWriter"/>
 	/// </summary>
 	public static class StorageWriterExtensions
 	{
 		/// <summary>
-		/// Wraps a <see cref="IStorageWriter"/> with a <see cref="DedupeStorageWriter"/>
+		/// Wraps a <see cref="IBlobWriter"/> with a <see cref="DedupeStorageWriter"/>
 		/// </summary>
-		public static DedupeStorageWriter WithDedupe(this IStorageWriter writer, int maxKeys = DedupeStorageWriter.DefaultMaxKeys) => new DedupeStorageWriter(writer, maxKeys);
-
-		/// <summary>
-		/// Finish writing a node.
-		/// </summary>
-		/// <param name="writer">Writer instance to manipulate</param>
-		/// <param name="type">Type of the node that was written</param>
-		/// <param name="size">Used size of the buffer</param>
-		/// <param name="references">References to other nodes</param>
-		/// <param name="cancellationToken">Cancellation token for the operation</param>
-		/// <returns>Handle to the written node</returns>
-		public static async ValueTask<IBlobHandle<T>> WriteBlobAsync<T>(this IStorageWriter writer, BlobType type, int size, IReadOnlyList<IBlobHandle> references, CancellationToken cancellationToken = default)
-		{
-			IoHash hash = IoHash.Compute(writer.GetOutputBuffer(size, size).Span.Slice(0, size));
-			IBlobHandle blobHandle = await writer.WriteBlobAsync(type, size, references, Array.Empty<AliasInfo>(), cancellationToken);
-			return blobHandle.ForType<T>(hash);
-		}
+		public static DedupeStorageWriter WithDedupe(this IBlobWriter writer, int maxKeys = DedupeStorageWriter.DefaultMaxKeys) => new DedupeStorageWriter(writer, maxKeys);
 	}
 }

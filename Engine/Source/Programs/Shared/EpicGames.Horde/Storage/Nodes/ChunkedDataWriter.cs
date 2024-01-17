@@ -61,7 +61,7 @@ namespace EpicGames.Horde.Storage.Nodes
 	public record class ChunkedData(IoHash StreamHash, ChunkedDataNodeRef Root);
 
 	/// <summary>
-	/// Utility class for generating FileNode data directly into <see cref="IStorageWriter"/> instances, without constructing node representations first.
+	/// Utility class for generating FileNode data directly into <see cref="IBlobWriter"/> instances, without constructing node representations first.
 	/// </summary>
 	public sealed class ChunkedDataWriter : IDisposable
 	{
@@ -70,7 +70,7 @@ namespace EpicGames.Horde.Storage.Nodes
 		/// </summary>
 		public const int DefaultBufferLength = 32 * 1024;
 
-		readonly IStorageWriter _writer;
+		readonly IBlobWriter _writer;
 		readonly ChunkingOptions _chunkingOptions;
 		readonly BlobSerializerOptions? _serializerOptions;
 		readonly Blake3.Hasher _hasher;
@@ -81,7 +81,6 @@ namespace EpicGames.Horde.Storage.Nodes
 
 		// Leaf node state
 		uint _leafHash;
-		int _leafLength;
 
 		/// <summary>
 		/// Length of the file so far
@@ -94,7 +93,7 @@ namespace EpicGames.Horde.Storage.Nodes
 		/// <param name="writer">Writer for new nodes</param>
 		/// <param name="chunkingOptions">Chunking options</param>
 		/// <param name="serializerOptions">Options for serialization</param>
-		public ChunkedDataWriter(IStorageWriter writer, ChunkingOptions chunkingOptions, BlobSerializerOptions? serializerOptions)
+		public ChunkedDataWriter(IBlobWriter writer, ChunkingOptions chunkingOptions, BlobSerializerOptions? serializerOptions)
 		{
 			_writer = writer;
 			_chunkingOptions = chunkingOptions;
@@ -125,7 +124,6 @@ namespace EpicGames.Horde.Storage.Nodes
 		void ResetLeafState()
 		{
 			_leafHash = 0;
-			_leafLength = 0;
 		}
 
 		/// <summary>
@@ -217,13 +215,9 @@ namespace EpicGames.Horde.Storage.Nodes
 		{
 			for (; ; )
 			{
-				Memory<byte> buffer = _writer.GetOutputBuffer(_leafLength, _leafLength);
-				int appendLength = AppendToLeafNode(buffer.Span.Slice(0, _leafLength), data.Span, ref _leafHash, _chunkingOptions.LeafOptions);
+				int appendLength = AppendToLeafNode(_writer.WrittenMemory.Span, data.Span, ref _leafHash, _chunkingOptions.LeafOptions);
+				_writer.WriteFixedLengthBytes(data.Slice(0, appendLength).Span);
 
-				buffer = _writer.GetOutputBuffer(_leafLength, _leafLength + appendLength);
-				data.Slice(0, appendLength).CopyTo(buffer.Slice(_leafLength));
-
-				_leafLength += appendLength;
 				data = data.Slice(appendLength);
 
 				_totalLength += appendLength;
@@ -346,8 +340,9 @@ namespace EpicGames.Horde.Storage.Nodes
 		/// <returns>Handle to the written leaf node</returns>
 		async ValueTask FlushLeafNodeAsync(CancellationToken cancellationToken)
 		{
-			IBlobHandle<LeafChunkedDataNode> leafHandle = await _writer.WriteBlobAsync<LeafChunkedDataNode>(LeafChunkedDataNodeConverter.BlobType, _leafLength, Array.Empty<IBlobHandle>(), cancellationToken);
-			_leafHandles.Add(new ChunkedDataNodeRef(_leafLength, leafHandle));
+			int leafLength = _writer.WrittenMemory.Length;
+			IBlobHandle<LeafChunkedDataNode> leafHandle = await _writer.CompleteAsync<LeafChunkedDataNode>(LeafChunkedDataNodeConverter.BlobType, cancellationToken);
+			_leafHandles.Add(new ChunkedDataNodeRef(leafLength, leafHandle));
 			ResetLeafState();
 		}
 	}

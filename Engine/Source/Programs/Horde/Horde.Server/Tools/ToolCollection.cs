@@ -254,7 +254,7 @@ namespace Horde.Server.Tools
 			using IStorageClient client = _storageService.CreateClient(tool.Config.NamespaceId);
 
 			IBlobHandle<DirectoryNode> nodeRef;
-			await using (IStorageWriter writer = client.CreateWriter(refName))
+			await using (IBlobWriter writer = client.CreateBlobWriter(refName))
 			{
 				DirectoryNode directoryNode = new DirectoryNode();
 				await directoryNode.CopyFromZipStreamAsync(stream, writer, new ChunkingOptions(), cancellationToken: cancellationToken);

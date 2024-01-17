@@ -16,7 +16,7 @@ namespace EpicGames.Horde.Storage.Bundles.V2
 	/// <summary>
 	/// Implements the primary storage writer interface for V2 bundles. Writes exports into packets, and flushes them to storage in bundles.
 	/// </summary>
-	public sealed class BundleWriter : IStorageWriter
+	public sealed class BundleWriter : BlobWriter
 	{
 		// Packet that is still being built, but may be redirected to a flushed packet
 		internal sealed class PendingPacketHandle : PacketHandle
@@ -296,14 +296,14 @@ namespace EpicGames.Horde.Storage.Bundles.V2
 		}
 
 		/// <inheritdoc/>
-		public async ValueTask DisposeAsync()
+		public override async ValueTask DisposeAsync()
 		{
 			await FlushAsync();
 			_currentBundle.Dispose();
 		}
 
 		/// <inheritdoc/>
-		public async Task FlushAsync(CancellationToken cancellationToken = default)
+		public override async Task FlushAsync(CancellationToken cancellationToken = default)
 		{
 			await _currentBundle.FlushAsync(cancellationToken);
 			_currentBundle.Dispose();
@@ -311,15 +311,15 @@ namespace EpicGames.Horde.Storage.Bundles.V2
 		}
 
 		/// <inheritdoc/>
-		public IStorageWriter Fork()
+		public override IBlobWriter Fork()
 			=> new BundleWriter(_storageClient, _basePath, _bundleCache, _options);
 
 		/// <inheritdoc/>
-		public Memory<byte> GetOutputBuffer(int usedSize, int desiredSize)
+		public override Memory<byte> GetOutputBuffer(int usedSize, int desiredSize)
 			=> _currentBundle.GetOutputBuffer(usedSize, desiredSize);
 
 		/// <inheritdoc/>
-		public async ValueTask<IBlobHandle> WriteBlobAsync(BlobType type, int size, IReadOnlyList<IBlobHandle> references, IReadOnlyList<AliasInfo> aliases, CancellationToken cancellationToken = default)
+		public override async ValueTask<IBlobHandle> WriteBlobAsync(BlobType type, int size, IReadOnlyList<IBlobHandle> references, IReadOnlyList<AliasInfo> aliases, CancellationToken cancellationToken = default)
 		{
 			ExportHandle exportHandle = _currentBundle.CompleteExport(type, size, references, aliases);
 			if (_currentBundle.Length > _options.MaxBlobSize)

@@ -79,7 +79,7 @@ namespace Horde.Server.Ddc
 				RefName refName = GetRefName(bucket, key);
 
 				IBlobHandle<DdcRefNode> refNodeRef;
-				await using (IStorageWriter writer = storageClient.CreateWriter(refName))
+				await using (IBlobWriter writer = storageClient.CreateBlobWriter(refName))
 				{
 					DdcRefNode refNode = new DdcRefNode(blobHash.Hash);
 					refNode.References.Add((blobHash.Hash, blobHandle));

@@ -429,20 +429,20 @@ namespace Horde.Agent.Execution
 			return StorageFactory.CreateClient(namespaceId, token, withBackendCache);
 		}
 
-		IStorageWriter CreateStorageWriter(IStorageClient client, string? basePath, ILogger logger)
+		IBlobWriter CreateStorageWriter(IStorageClient client, string? basePath, ILogger logger)
 		{
 			if (JobOptions.BundleVersion != 0 && client is BundleStorageClient bundleClient)
 			{
 				logger.LogInformation("Using bundle version {Version}", JobOptions.BundleVersion);
-				return bundleClient.CreateWriter(basePath, new BundleOptions { MaxVersion = (BundleVersion)JobOptions.BundleVersion });
+				return bundleClient.CreateBlobWriter(basePath, new BundleOptions { MaxVersion = (BundleVersion)JobOptions.BundleVersion });
 			}
 			else
 			{
-				return client.CreateWriter(basePath);
+				return client.CreateBlobWriter(basePath);
 			}
 		}
 
-		IStorageWriter CreateStorageWriter(IStorageClient client, RefName refName, ILogger logger) => CreateStorageWriter(client, refName.Text.ToString(), logger);
+		IBlobWriter CreateStorageWriter(IStorageClient client, RefName refName, ILogger logger) => CreateStorageWriter(client, refName.Text.ToString(), logger);
 
 		protected virtual async Task<bool> SetupAsync(BeginStepResponse step, DirectoryReference workspaceDir, DirectoryReference? sharedStorageDir, bool? useP4, ILogger logger, CancellationToken cancellationToken)
 		{
@@ -519,7 +519,7 @@ namespace Horde.Agent.Execution
 					Stopwatch timer = Stopwatch.StartNew();
 
 					IBlobHandle<DirectoryNode> rootNodeRef;
-					await using (IStorageWriter treeWriter = CreateStorageWriter(storage, artifact.RefName, logger))
+					await using (IBlobWriter treeWriter = CreateStorageWriter(storage, artifact.RefName, logger))
 					{
 						DirectoryNode buildGraphNode = new DirectoryNode();
 						await buildGraphNode.AddFilesAsync(workspaceDir, buildGraphFiles, treeWriter, cancellationToken: cancellationToken);
@@ -849,7 +849,7 @@ namespace Horde.Agent.Execution
 				using IStorageClient storage = CreateStorageClient(new NamespaceId(artifact.NamespaceId), artifact.Token);
 
 				IBlobHandle<DirectoryNode> rootRef;
-				await using (IStorageWriter writer = CreateStorageWriter(storage, new RefName(artifact.RefName), logger))
+				await using (IBlobWriter writer = CreateStorageWriter(storage, new RefName(artifact.RefName), logger))
 				{
 					try
 					{
@@ -1052,7 +1052,7 @@ namespace Horde.Agent.Execution
 				Stopwatch timer = Stopwatch.StartNew();
 
 				IBlobHandle<DirectoryNode> outputNodeRef;
-				await using (IStorageWriter treeWriter = CreateStorageWriter(storage, artifact.RefName, logger))
+				await using (IBlobWriter treeWriter = CreateStorageWriter(storage, artifact.RefName, logger))
 				{
 					DirectoryNode outputNode = new DirectoryNode();
 

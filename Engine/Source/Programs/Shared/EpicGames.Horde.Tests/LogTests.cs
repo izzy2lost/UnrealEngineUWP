@@ -70,7 +70,7 @@ namespace EpicGames.Horde.Tests
 
 			// Flush it to storage, and read the finished log node
 			IBlobHandle<LogNode> logRef;
-			await using (IStorageWriter writer = store.CreateWriter())
+			await using (IBlobWriter writer = store.CreateBlobWriter())
 			{
 				logRef = await builder.FlushAsync(writer, true, null, CancellationToken.None);
 			}
@@ -119,7 +119,7 @@ namespace EpicGames.Horde.Tests
 			}
 
 			IBlobHandle<LogNode> rootNodeRef;
-			await using (IStorageWriter writer = store.CreateWriter())
+			await using (IBlobWriter writer = store.CreateBlobWriter())
 			{
 				rootNodeRef = await builder.FlushAsync(writer, true, null, CancellationToken.None);
 			}

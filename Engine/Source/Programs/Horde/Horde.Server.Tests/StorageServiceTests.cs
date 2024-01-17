@@ -2,6 +2,7 @@
 
 using System;
 using System.Threading.Tasks;
+using EpicGames.Core;
 using EpicGames.Horde.Storage;
 using Horde.Server.Storage;
 using Microsoft.Extensions.DependencyInjection;
@@ -27,16 +28,19 @@ namespace Horde.Server.Tests
 			IBlobHandle handle1a;
 			IBlobHandle handle1b;
 			IBlobHandle handle2;
-			await using (IStorageWriter writer = client.CreateWriter())
+			await using (IBlobWriter writer = client.CreateBlobWriter())
 			{
-				data1.CopyTo(writer.GetOutputBuffer(0, data1.Length));
-				handle1a = await writer.WriteBlobAsync(type1, data1.Length, Array.Empty<IBlobHandle>(), new AliasInfo[] { new AliasInfo("foo", 2) });
+				writer.WriteFixedLengthBytes(data1);
+				writer.AddAlias("foo", 2);
+				handle1a = await writer.CompleteAsync(type1);
 
-				data1.CopyTo(writer.GetOutputBuffer(0, data1.Length));
-				handle1b = await writer.WriteBlobAsync(type1, data1.Length, Array.Empty<IBlobHandle>(), new AliasInfo[] { new AliasInfo("foo", 1) });
+				writer.WriteFixedLengthBytes(data1);
+				writer.AddAlias("foo", 1);
+				handle1b = await writer.CompleteAsync(type1);
 
-				data2.CopyTo(writer.GetOutputBuffer(0, data2.Length));
-				handle2 = await writer.WriteBlobAsync(type2, data2.Length, Array.Empty<IBlobHandle>(), new AliasInfo[] { new AliasInfo("bar") });
+				writer.WriteFixedLengthBytes(data2);
+				writer.AddAlias("bar", 0);
+				handle2 = await writer.CompleteAsync(type2);
 			}
 
 			BlobAlias[] aliases;

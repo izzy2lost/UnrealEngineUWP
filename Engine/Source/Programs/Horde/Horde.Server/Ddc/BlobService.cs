@@ -144,15 +144,16 @@ namespace Horde.Server.Ddc
 			using IStorageClient storageClient = _storageClientFactory.CreateClient(ns);
 
 			IBlobHandle blobHandle;
-			await using (IStorageWriter writer = storageClient.CreateWriter())
+			await using (IBlobWriter writer = storageClient.CreateBlobWriter())
 			{
 				int contentLength = (int)content.Length;
-				Memory<byte> memory = writer.GetOutputBuffer(0, contentLength).Slice(0, contentLength);
+				Memory<byte> memory = writer.GetMemory(contentLength).Slice(0, contentLength);
 
 				using Stream stream = content.GetStream();
 				await stream.ReadFixedLengthBytesAsync(memory, cancellationToken);
+				writer.Advance(contentLength);
 
-				blobHandle = await writer.WriteBlobAsync(s_rawBlobType, memory.Length, Array.Empty<IBlobHandle>(), Array.Empty<AliasInfo>(), cancellationToken);
+				blobHandle = await writer.CompleteAsync(s_rawBlobType, cancellationToken);
 				await writer.FlushAsync(cancellationToken);
 			}
 

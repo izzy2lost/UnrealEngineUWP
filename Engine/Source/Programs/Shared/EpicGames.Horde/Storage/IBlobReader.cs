@@ -35,7 +35,7 @@ namespace EpicGames.Horde.Storage
 	/// <summary>
 	/// Reader for blob objects
 	/// </summary>
-	sealed class BlobReader : MemoryReader, IBlobReader
+	public sealed class BlobReader : MemoryReader, IBlobReader
 	{
 		/// <summary>
 		/// Type to deserialize

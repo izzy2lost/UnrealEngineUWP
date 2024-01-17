@@ -81,7 +81,7 @@ namespace Horde.Commands.Bundles
 			// Create the bundle
 			Stopwatch timer = Stopwatch.StartNew();
 
-			await using (IStorageWriter writer = store.CreateWriter())
+			await using (IBlobWriter writer = store.CreateBlobWriter())
 			{
 				ChunkingOptions options = new ChunkingOptions();
 

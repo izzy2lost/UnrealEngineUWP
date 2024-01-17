@@ -50,7 +50,7 @@ namespace EpicGames.Horde.Storage.Clients
 			public override int GetHashCode() => _locator.GetHashCode();
 		}
 
-		class Writer : IStorageWriter
+		class Writer : BlobWriter
 		{
 			readonly KeyValueStorageClient _outer;
 			readonly string _basePath;
@@ -72,16 +72,16 @@ namespace EpicGames.Horde.Storage.Clients
 			}
 
 			/// <inheritdoc/>
-			public ValueTask DisposeAsync() => new ValueTask();
+			public override ValueTask DisposeAsync() => new ValueTask();
 
 			/// <inheritdoc/>
-			public Task FlushAsync(CancellationToken cancellationToken = default) => Task.CompletedTask;
+			public override Task FlushAsync(CancellationToken cancellationToken = default) => Task.CompletedTask;
 
 			/// <inheritdoc/>
-			public IStorageWriter Fork() => new Writer(_outer, _basePath);
+			public override IBlobWriter Fork() => new Writer(_outer, _basePath);
 
 			/// <inheritdoc/>
-			public Memory<byte> GetOutputBuffer(int usedSize, int desiredSize)
+			public override Memory<byte> GetOutputBuffer(int usedSize, int desiredSize)
 			{
 				if (_offset + desiredSize > _data.Length)
 				{
@@ -94,7 +94,7 @@ namespace EpicGames.Horde.Storage.Clients
 			}
 
 			/// <inheritdoc/>
-			public async ValueTask<IBlobHandle> WriteBlobAsync(BlobType type, int size, IReadOnlyList<IBlobHandle> references, IReadOnlyList<AliasInfo> aliases, CancellationToken cancellationToken = default)
+			public override async ValueTask<IBlobHandle> WriteBlobAsync(BlobType type, int size, IReadOnlyList<IBlobHandle> references, IReadOnlyList<AliasInfo> aliases, CancellationToken cancellationToken = default)
 			{
 				ReadOnlyMemory<byte> data = _data.AsMemory(_offset, size);
 				_offset += size;
@@ -143,7 +143,7 @@ namespace EpicGames.Horde.Storage.Clients
 		}
 
 		/// <inheritdoc/>
-		public IStorageWriter CreateWriter(string? basePath = null) => new Writer(this, basePath);
+		public IBlobWriter CreateBlobWriter(string? basePath = null) => new Writer(this, basePath);
 
 		/// <inheritdoc/>
 		public async ValueTask<BlobData> ReadBlobAsync(BlobLocator locator, CancellationToken cancellationToken = default)

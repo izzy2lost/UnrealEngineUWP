@@ -112,7 +112,7 @@ namespace RemoteClient
 				// Upload the sandbox to the primary channel.
 				using BundleStorageClient storage =  BundleStorageClient.CreateInMemory(logger);
 
-				await using (IStorageWriter writer = storage.CreateWriter())
+				await using (IBlobWriter writer = storage.CreateBlobWriter())
 				{
 					IBlobHandle<DirectoryNode> sandbox = await writer.WriteFilesAsync(uploadDir);
 					await writer.FlushAsync();

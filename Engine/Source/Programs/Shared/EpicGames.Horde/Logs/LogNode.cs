@@ -263,7 +263,7 @@ namespace EpicGames.Horde.Logs
 		/// <param name="complete">Whether the log is complete</param>
 		/// <param name="options">Options for serialization</param>
 		/// <param name="cancellationToken">Cancellation token for the operation</param>
-		public async Task<IBlobHandle<LogNode>> FlushAsync(IStorageWriter writer, bool complete, BlobSerializerOptions? options, CancellationToken cancellationToken)
+		public async Task<IBlobHandle<LogNode>> FlushAsync(IBlobWriter writer, bool complete, BlobSerializerOptions? options, CancellationToken cancellationToken)
 		{
 			// Capture the new data that needs to be written
 			IReadOnlyList<LogChunkNode> writeTextChunks;

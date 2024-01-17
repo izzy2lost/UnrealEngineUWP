@@ -54,18 +54,31 @@ namespace Horde.Server.Tests
 		{
 			using (BlobData blobData = await store.CreateBlobHandle(locator).ReadBlobDataAsync())
 			{
-				byte[] data = blobData.Data.ToArray();
-				List<BlobLocator> locators = blobData.Refs.ConvertAll(x => x.GetLocator());
+				BlobReader reader = new BlobReader(blobData);
+				ReadOnlyMemory<byte> data = reader.ReadVariableLengthBytes();
+
+				List<IBlobHandle> handles = new List<IBlobHandle>();
+				while (reader.RemainingMemory.Length > 0)
+				{
+					handles.Add(reader.ReadBlobHandle<object>());
+				}
+
+				List<BlobLocator> locators = handles.ConvertAll(x => x.GetLocator());
 				return new Blob(data, locators);
 			}
 		}
 
 		static async ValueTask<BlobLocator> WriteBlobAsync(IStorageClient store, Blob blob)
 		{
-			await using IStorageWriter writer = store.CreateWriter();
-			blob.Data.CopyTo(writer.GetOutputBuffer(0, blob.Data.Length));
+			await using IBlobWriter writer = store.CreateBlobWriter();
+			writer.WriteVariableLengthBytes(blob.Data.Span);
 
-			IBlobHandle handle = await writer.WriteBlobAsync(s_blobType, blob.Data.Length, blob.References.ConvertAll(x => store.CreateBlobHandle(x)), Array.Empty<AliasInfo>());
+			foreach (BlobLocator reference in blob.References)
+			{
+				writer.WriteBlobHandle(store.CreateBlobHandle(reference).ForType<object>(IoHash.Zero));
+			}
+
+			IBlobHandle handle = await writer.CompleteAsync(s_blobType);
 			await handle.FlushAsync();
 
 			return handle.GetLocator();

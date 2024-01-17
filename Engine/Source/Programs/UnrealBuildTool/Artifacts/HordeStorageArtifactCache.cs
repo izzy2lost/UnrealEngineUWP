@@ -70,7 +70,7 @@ namespace UnrealBuildTool.Artifacts
 		/// <param name="writer">Destination writer</param>
 		/// <param name="cancellationToken">Cancellation token</param>
 		/// <returns>Task</returns>
-		public async Task WriteFilesAsync(IStorageWriter writer, CancellationToken cancellationToken)
+		public async Task WriteFilesAsync(IBlobWriter writer, CancellationToken cancellationToken)
 		{
 			LeafChunkedDataNodeOptions leafOptions = new(512 * 1024, 1 * 1024 * 1024, 2 * 1024 * 1024);
 			InteriorChunkedDataNodeOptions interiorOptions = new(1, 10, 20);
@@ -476,7 +476,7 @@ namespace UnrealBuildTool.Artifacts
 					node.ArtifactActions[artifactAction.ActionKey] = hordeArtifactAction;
 
 					// Save the artifact action file
-					await using IStorageWriter writer = _store!.CreateWriter();
+					await using IBlobWriter writer = _store!.CreateBlobWriter();
 					await hordeArtifactAction.WriteFilesAsync(writer, cancellationToken);
 					IBlobHandle<ArtifactActionCollectionNode> nodeRef = await writer.WriteBlobAsync(node);
 					await writer.FlushAsync();

@@ -170,7 +170,7 @@ namespace Horde.Server.Replicators
 				public long _sizeWritten;
 				public readonly IncrementalHash Hash;
 
-				public Handle(IStorageWriter writer, ChunkingOptions options)
+				public Handle(IBlobWriter writer, ChunkingOptions options)
 				{
 					Hash = IncrementalHash.CreateHash(HashAlgorithmName.MD5);
 					FileWriter = new ChunkedDataWriter(writer, options, BlobSerializerOptions.Default);
@@ -183,13 +183,13 @@ namespace Horde.Server.Replicators
 				}
 			}
 
-			readonly IStorageWriter _writer;
+			readonly IBlobWriter _writer;
 			readonly ChunkingOptions _options;
 			readonly Stack<Handle> _freeHandles = new Stack<Handle>();
 			readonly Dictionary<int, Handle> _openHandles = new Dictionary<int, Handle>();
 			readonly ILogger _logger;
 
-			public FileWriter(IStorageWriter writer, ChunkingOptions options, ILogger logger)
+			public FileWriter(IBlobWriter writer, ChunkingOptions options, ILogger logger)
 			{
 				_writer = writer;
 				_options = options;
@@ -540,7 +540,7 @@ namespace Horde.Server.Replicators
 
 			// Create the tree writer
 			BundleStorageClient? bundleStore = store as BundleStorageClient;
-			await using IStorageWriter writer = (bundleStore != null)? bundleStore.CreateWriter(refName.ToString(), new BundleOptions { MaxVersion = BundleVersion.LatestV2 }) : store.CreateWriter(refName);
+			await using IBlobWriter writer = (bundleStore != null)? bundleStore.CreateBlobWriter(refName.ToString(), new BundleOptions { MaxVersion = BundleVersion.LatestV2 }) : store.CreateBlobWriter(refName);
 
 			// Keep track of changes to make to the directory structure
 			DirectoryUpdate rootUpdate = new DirectoryUpdate();

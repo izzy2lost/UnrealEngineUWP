@@ -241,7 +241,7 @@ namespace EpicGames.Horde.Storage.Nodes
 		/// <param name="options">Options for finding chunk boundaries</param>
 		/// <param name="cancellationToken">Cancellation token for the operation</param>
 		/// <returns>Hash of the full file data</returns>
-		public static async Task<LeafChunkedData> CreateFromFileAsync(IStorageWriter writer, FileReference file, LeafChunkedDataNodeOptions options, CancellationToken cancellationToken)
+		public static async Task<LeafChunkedData> CreateFromFileAsync(IBlobWriter writer, FileReference file, LeafChunkedDataNodeOptions options, CancellationToken cancellationToken)
 		{
 			using (FileStream stream = FileReference.Open(file, FileMode.Open, FileAccess.Read, FileShare.Read))
 			{
@@ -257,7 +257,7 @@ namespace EpicGames.Horde.Storage.Nodes
 		/// <param name="options">Options for finding chunk boundaries</param>
 		/// <param name="cancellationToken">Cancellation token for the operation</param>
 		/// <returns>Hash of the full file data</returns>
-		public static async Task<LeafChunkedData> CreateFromFileAsync(IStorageWriter writer, FileInfo file, LeafChunkedDataNodeOptions options, CancellationToken cancellationToken)
+		public static async Task<LeafChunkedData> CreateFromFileAsync(IBlobWriter writer, FileInfo file, LeafChunkedDataNodeOptions options, CancellationToken cancellationToken)
 		{
 			using (FileStream stream = file.Open(FileMode.Open, FileAccess.Read, FileShare.Read))
 			{
@@ -273,7 +273,7 @@ namespace EpicGames.Horde.Storage.Nodes
 		/// <param name="options">Options for finding chunk boundaries</param>
 		/// <param name="cancellationToken">Cancellation token for the operation</param>
 		/// <returns>Hash of the full file data</returns>
-		public static Task<LeafChunkedData> CreateFromStreamAsync(IStorageWriter writer, Stream stream, LeafChunkedDataNodeOptions options, CancellationToken cancellationToken)
+		public static Task<LeafChunkedData> CreateFromStreamAsync(IBlobWriter writer, Stream stream, LeafChunkedDataNodeOptions options, CancellationToken cancellationToken)
 		{
 			return CreateFromStreamAsync(writer, stream, options, null, cancellationToken);
 		}
@@ -287,7 +287,7 @@ namespace EpicGames.Horde.Storage.Nodes
 		/// <param name="copyStats">Stats for the copy operation</param>
 		/// <param name="cancellationToken">Cancellation token for the operation</param>
 		/// <returns>Hash of the full file data</returns>
-		internal static async Task<LeafChunkedData> CreateFromStreamAsync(IStorageWriter writer, Stream stream, LeafChunkedDataNodeOptions options, CopyStats? copyStats, CancellationToken cancellationToken)
+		internal static async Task<LeafChunkedData> CreateFromStreamAsync(IBlobWriter writer, Stream stream, LeafChunkedDataNodeOptions options, CopyStats? copyStats, CancellationToken cancellationToken)
 		{
 			using Blake3.Hasher hasher = Blake3.Hasher.New();
 			using IMemoryOwner<byte> readBuffer = MemoryPool<byte>.Shared.Rent(options.MaxSize);
@@ -306,9 +306,9 @@ namespace EpicGames.Horde.Storage.Nodes
 
 				int nextLength = GetChunkLength(readBuffer.Memory.Span.Slice(0, size), options);
 
-				Memory<byte> outputBuffer = writer.GetOutputBuffer(0, nextLength).Slice(0, nextLength);
-				readBuffer.Memory.Slice(0, nextLength).CopyTo(outputBuffer);
-				hasher.Update(outputBuffer.Span);
+				ReadOnlyMemory<byte> nextBlobData = readBuffer.Memory.Slice(0, nextLength);
+				writer.WriteFixedLengthBytes(nextBlobData.Span);
+				hasher.Update(nextBlobData.Span);
 
 				sizeSinceProgressUpdate += nextLength;
 				if (sizeSinceProgressUpdate > 512 * 1024)
@@ -317,7 +317,7 @@ namespace EpicGames.Horde.Storage.Nodes
 					sizeSinceProgressUpdate = 0;
 				}
 
-				IBlobHandle<LeafChunkedDataNode> blobHandle = await writer.WriteBlobAsync<LeafChunkedDataNode>(LeafChunkedDataNodeConverter.BlobType, nextLength, Array.Empty<IBlobHandle>(), cancellationToken);
+				IBlobHandle<LeafChunkedDataNode> blobHandle = await writer.CompleteAsync<LeafChunkedDataNode>(LeafChunkedDataNodeConverter.BlobType, cancellationToken);
 				leafNodeRefs.Add(new ChunkedDataNodeRef(nextLength, blobHandle));
 
 				readBuffer.Memory.Slice(nextLength, size - nextLength).CopyTo(readBuffer.Memory);
@@ -449,7 +449,7 @@ namespace EpicGames.Horde.Storage.Nodes
 		/// <param name="writer">Output writer for new interior nodes</param>
 		/// <param name="cancellationToken">Cancellation token for the operation</param>
 		/// <returns>Handle to the root node of the tree</returns>
-		public static async Task<ChunkedData> CreateTreeAsync(LeafChunkedData leafChunkedData, InteriorChunkedDataNodeOptions options, IStorageWriter writer, BlobSerializerOptions? serializerOptions, CancellationToken cancellationToken)
+		public static async Task<ChunkedData> CreateTreeAsync(LeafChunkedData leafChunkedData, InteriorChunkedDataNodeOptions options, IBlobWriter writer, BlobSerializerOptions? serializerOptions, CancellationToken cancellationToken)
 		{
 			ChunkedDataNodeRef rootRef = await CreateTreeAsync(leafChunkedData.LeafHandles, options, writer, serializerOptions, cancellationToken);
 			return new ChunkedData(leafChunkedData.Hash, rootRef);
@@ -464,7 +464,7 @@ namespace EpicGames.Horde.Storage.Nodes
 		/// <param name="serializerOptions">Options for serializing blobs</param>
 		/// <param name="cancellationToken">Cancellation token for the operation</param>
 		/// <returns>Handle to the root node of the tree</returns>
-		public static async Task<ChunkedDataNodeRef> CreateTreeAsync(List<ChunkedDataNodeRef> nodeRefs, InteriorChunkedDataNodeOptions chunkingOptions, IStorageWriter writer, BlobSerializerOptions? serializerOptions, CancellationToken cancellationToken)
+		public static async Task<ChunkedDataNodeRef> CreateTreeAsync(List<ChunkedDataNodeRef> nodeRefs, InteriorChunkedDataNodeOptions chunkingOptions, IBlobWriter writer, BlobSerializerOptions? serializerOptions, CancellationToken cancellationToken)
 		{
 			List<ChunkedDataNodeRef> handleBuffer = new List<ChunkedDataNodeRef>();
 

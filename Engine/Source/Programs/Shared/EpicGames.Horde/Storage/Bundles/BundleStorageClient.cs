@@ -166,7 +166,7 @@ namespace EpicGames.Horde.Storage.Bundles
 		}
 
 		/// <inheritdoc/>
-		public IStorageWriter CreateWriter(string? basePath = null, BundleOptions? options = null)
+		public IBlobWriter CreateBlobWriter(string? basePath = null, BundleOptions? options = null)
 		{
 			options ??= BundleOptions.Default;
 
@@ -185,7 +185,7 @@ namespace EpicGames.Horde.Storage.Bundles
 		}
 
 		/// <inheritdoc/>
-		IStorageWriter IStorageClient.CreateWriter(string? basePath) => CreateWriter(basePath);
+		IBlobWriter IStorageClient.CreateBlobWriter(string? basePath) => CreateBlobWriter(basePath);
 
 		#endregion
 

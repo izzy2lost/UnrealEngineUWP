@@ -88,7 +88,7 @@ namespace EpicGames.Horde.Storage.Bundles.V1
 	/// Writes nodes of a tree to an <see cref="IStorageClient"/>, packed into bundles. Each <see cref="BundleWriter"/> instance is single threaded,
 	/// but multiple instances may be written to in parallel.
 	/// </summary>
-	public sealed class BundleWriter : IStorageWriter
+	public sealed class BundleWriter : BlobWriter
 	{
 		// Information about a unique output node. Note that multiple node refs may de-duplicate to the same output node.
 		internal class PendingNode : IBlobHandle
@@ -710,10 +710,10 @@ namespace EpicGames.Horde.Storage.Bundles.V1
 		}
 
 		/// <inheritdoc/>
-		IStorageWriter IStorageWriter.Fork() => new BundleWriter(this);
+		public override IBlobWriter Fork() => new BundleWriter(this);
 
 		/// <inheritdoc/>
-		public async ValueTask DisposeAsync()
+		public override async ValueTask DisposeAsync()
 		{
 			if (!_disposed)
 			{
@@ -747,7 +747,7 @@ namespace EpicGames.Horde.Storage.Bundles.V1
 		/// <param name="usedSize">Current size in the existing buffer that has been written to</param>
 		/// <param name="desiredSize">Desired size of the returned buffer</param>
 		/// <returns>Buffer to be written into.</returns>
-		public Memory<byte> GetOutputBuffer(int usedSize, int desiredSize)
+		public override Memory<byte> GetOutputBuffer(int usedSize, int desiredSize)
 		{
 			PendingBundle currentBundle = GetCurrentBundle();
 			return currentBundle.GetBuffer(usedSize, desiredSize);
@@ -762,7 +762,7 @@ namespace EpicGames.Horde.Storage.Bundles.V1
 		/// <param name="aliases">Aliases for the node</param>
 		/// <param name="cancellationToken">Cancellation token for the operation</param>
 		/// <returns>Handle to the written node</returns>
-		public async ValueTask<IBlobHandle> WriteBlobAsync(BlobType type, int size, IReadOnlyList<IBlobHandle> references, IReadOnlyList<AliasInfo> aliases, CancellationToken cancellationToken = default)
+		public override async ValueTask<IBlobHandle> WriteBlobAsync(BlobType type, int size, IReadOnlyList<IBlobHandle> references, IReadOnlyList<AliasInfo> aliases, CancellationToken cancellationToken = default)
 		{
 			PendingBundle currentBundle = GetCurrentBundle();
 
@@ -804,7 +804,7 @@ namespace EpicGames.Horde.Storage.Bundles.V1
 		/// </summary>
 		/// <param name="cancellationToken">Cancellation token for the operation</param>
 		/// <returns></returns>
-		public async Task FlushAsync(CancellationToken cancellationToken = default)
+		public override async Task FlushAsync(CancellationToken cancellationToken = default)
 		{
 			if (_disposed)
 			{

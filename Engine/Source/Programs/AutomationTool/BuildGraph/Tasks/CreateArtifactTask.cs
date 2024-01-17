@@ -117,7 +117,7 @@ namespace AutomationTool.Tasks
 			HttpStorageClientFactory httpStorageClientFactory = serviceProvider.GetRequiredService<HttpStorageClientFactory>();
 			using (IStorageClient client = httpStorageClientFactory.CreateClient(response.NamespaceId, response.Token))
 			{
-				await using (IStorageWriter writer = client.CreateWriter(response.RefName))
+				await using (IBlobWriter writer = client.CreateBlobWriter(response.RefName))
 				{
 					DirectoryReference baseDir = ResolveDirectory(Parameters.BaseDir);
 					List<FileInfo> files = ResolveFilespec(baseDir, Parameters.Files, TagNameToFileSet).Select(x => x.ToFileInfo()).ToList();

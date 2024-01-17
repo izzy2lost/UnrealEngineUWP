@@ -12,25 +12,9 @@ namespace EpicGames.Horde.Storage
 	/// <summary>
 	/// Options for a new ref
 	/// </summary>
-	public class RefOptions
-	{
-		/// <summary>
-		/// Time until a ref is expired
-		/// </summary>
-		public TimeSpan? Lifetime { get; set; }
-
-		/// <summary>
-		/// Whether to extend the remaining lifetime of a ref whenever it is fetched. Defaults to true.
-		/// </summary>
-		public bool? Extend { get; set; }
-	}
-
-	/// <summary>
-	/// Stored value for a ref
-	/// </summary>
-	/// <param name="Target">Target blob</param>
-	/// <param name="Data">Inline data stored with the ref</param>
-	public record class RefValue(IBlobHandle Target, ReadOnlyMemory<byte> Data);
+	/// <param name="Lifetime">Time until a ref is expired</param>
+	/// <param name="Extend">Whether to extend the remaining lifetime of a ref whenever it is fetched. Defaults to true.</param>
+	public record class RefOptions(TimeSpan? Lifetime = null, bool? Extend = null);
 
 	/// <summary>
 	/// Interface for the storage system.
@@ -51,7 +35,7 @@ namespace EpicGames.Horde.Storage
 		/// </summary>
 		/// <param name="basePath">Base path for any nodes written from the writer.</param>
 		/// <returns>New writer instance. Must be disposed after use.</returns>
-		IStorageWriter CreateWriter(string? basePath = null);
+		IBlobWriter CreateBlobWriter(string? basePath = null);
 
 		#endregion
 
@@ -250,7 +234,7 @@ namespace EpicGames.Horde.Storage
 		/// </summary>
 		/// <param name="store">The store instance to read from</param>
 		/// <param name="refName">Ref name to use as a base path</param>
-		public static IStorageWriter CreateWriter(this IStorageClient store, RefName refName) => store.CreateWriter(refName.ToString());
+		public static IBlobWriter CreateBlobWriter(this IStorageClient store, RefName refName) => store.CreateBlobWriter(refName.ToString());
 
 		#endregion
 

@@ -41,7 +41,7 @@ namespace Horde.Commands
 			using IStorageClient storageClient = _httpStorageClientFactory.CreateClientWithPath($"api/v1/tools/{ToolId}");
 
 			IBlobHandle<DirectoryNode> target;
-			await using (IStorageWriter writer = storageClient.CreateWriter())
+			await using (IBlobWriter writer = storageClient.CreateBlobWriter())
 			{
 				target = await writer.WriteFilesAsync(InputDir);
 			}

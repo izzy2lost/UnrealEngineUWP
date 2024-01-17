@@ -175,7 +175,7 @@ namespace EpicGames.Horde.Storage
 		/// <param name="value">The object to serialize</param>
 		/// <param name="cancellationToken">Cancellation token for the operation</param>
 		/// <returns>Handle to the serialized blob</returns>
-		public static ValueTask<IBlobHandle<T>> WriteBlobAsync<T>(this IStorageWriter writer, T value, CancellationToken cancellationToken)
+		public static ValueTask<IBlobHandle<T>> WriteBlobAsync<T>(this IBlobWriter writer, T value, CancellationToken cancellationToken)
 		{
 			return WriteBlobAsync<T>(writer, value, null, cancellationToken);
 		}
@@ -188,11 +188,10 @@ namespace EpicGames.Horde.Storage
 		/// <param name="options">Options to control serialization</param>
 		/// <param name="cancellationToken">Cancellation token for the operation</param>
 		/// <returns>Handle to the serialized blob</returns>
-		public static ValueTask<IBlobHandle<T>> WriteBlobAsync<T>(this IStorageWriter writer, T value, BlobSerializerOptions? options = null, CancellationToken cancellationToken = default)
+		public static async ValueTask<IBlobHandle<T>> WriteBlobAsync<T>(this IBlobWriter writer, T value, BlobSerializerOptions? options = null, CancellationToken cancellationToken = default)
 		{
-			BlobWriter blobWriter = new BlobWriter(writer);
-			BlobType blobType = BlobSerializer.Serialize<T>(blobWriter, value, options);
-			return writer.WriteBlobAsync<T>(blobType, blobWriter.Length, blobWriter.References, cancellationToken);
+			BlobType blobType = BlobSerializer.Serialize<T>(writer, value, options);
+			return await writer.CompleteAsync<T>(blobType, cancellationToken);
 		}
 
 		/// <summary>

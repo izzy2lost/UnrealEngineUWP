@@ -52,7 +52,7 @@ namespace EpicGames.Horde.Tests
 			using KeyValueStorageClient store = KeyValueStorageClient.CreateInMemory();
 
 			const string RefName = "hello";
-			await using (IStorageWriter writer = store.CreateWriter(RefName))
+			await using (IBlobWriter writer = store.CreateBlobWriter(RefName))
 			{
 				ChunkingOptions options = new ChunkingOptions();
 				options.LeafOptions = new LeafChunkedDataNodeOptions(64, 64, 64);
@@ -96,7 +96,7 @@ namespace EpicGames.Horde.Tests
 
 			using KeyValueStorageClient store = KeyValueStorageClient.CreateInMemory();
 
-			await using IStorageWriter writer = store.CreateWriter();
+			await using IBlobWriter writer = store.CreateBlobWriter();
 
 			byte[] data = new byte[4096];
 			new Random(0).NextBytes(data);

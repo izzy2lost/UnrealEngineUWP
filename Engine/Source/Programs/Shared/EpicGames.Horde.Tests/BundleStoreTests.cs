@@ -62,7 +62,7 @@ namespace EpicGames.Horde.Tests
 		{
 			using MemoryStorageBackend memoryStore = new MemoryStorageBackend();
 			using BundleStorageClient store = new BundleStorageClient(memoryStore, BundleCache.None, NullLogger.Instance);
-			await using IStorageWriter writer = store.CreateWriter(options: new BundleOptions { MaxVersion = BundleVersion.ImportHashes, CompressionFormat = BundleCompressionFormat.None });
+			await using IBlobWriter writer = store.CreateBlobWriter(options: new BundleOptions { MaxVersion = BundleVersion.ImportHashes, CompressionFormat = BundleCompressionFormat.None });
 
 			TextNode node = new TextNode("Hello world");
 			IBlobHandle<TextNode> handle = await writer.WriteBlobAsync(node);
@@ -159,7 +159,7 @@ namespace EpicGames.Horde.Tests
 		{
 			// Generate a tree
 			{
-				await using IStorageWriter writer = store.CreateWriter("test", options);
+				await using IBlobWriter writer = store.CreateBlobWriter("test", options);
 
 				SimpleNode node1 = new SimpleNode(new ReadOnlySequence<byte>(new byte[] { 1 }), Array.Empty<IBlobHandle<SimpleNode>>());
 				SimpleNode node2 = new SimpleNode(new ReadOnlySequence<byte>(new byte[] { 2 }), new[] { await writer.WriteBlobAsync(node1) });
@@ -224,7 +224,7 @@ namespace EpicGames.Horde.Tests
 			RefName refName = new RefName("test");
 
 			IBlobHandle<SimpleNode> inputRef;
-			await using (IStorageWriter writer = store.CreateWriter(refName))
+			await using (IBlobWriter writer = store.CreateBlobWriter(refName))
 			{
 				inputRef = await writer.WriteBlobAsync(new SimpleNode(new ReadOnlySequence<byte>(new byte[] { (byte)123 }), Array.Empty<IBlobHandle<SimpleNode>>()));
 			}
@@ -242,7 +242,7 @@ namespace EpicGames.Horde.Tests
 
 			// Generate a tree
 			{
-				await using (IStorageWriter writer = store.CreateWriter(new RefName("test")))
+				await using (IBlobWriter writer = store.CreateBlobWriter(new RefName("test")))
 				{
 					DirectoryNode world = new DirectoryNode();
 					IBlobHandle<DirectoryNode> worldRef = await writer.WriteBlobAsync(world);
@@ -290,7 +290,7 @@ namespace EpicGames.Horde.Tests
 
 			// Generate a tree
 			{
-				await using IStorageWriter writer = store.CreateWriter();
+				await using IBlobWriter writer = store.CreateBlobWriter();
 
 				using ChunkedDataWriter fileWriter = new ChunkedDataWriter(writer, new ChunkingOptions(), BlobSerializerOptions.Default);
 				ChunkedData fileHandle = await fileWriter.CreateAsync(Encoding.UTF8.GetBytes("world"), CancellationToken.None);
@@ -344,7 +344,7 @@ namespace EpicGames.Horde.Tests
 			// Generate a tree
 			ChunkedDataNodeRef nodeRef;
 			{
-				await using IStorageWriter writer = store.CreateWriter(options: new BundleOptions { MaxBlobSize = 1024 });
+				await using IBlobWriter writer = store.CreateBlobWriter(options: new BundleOptions { MaxBlobSize = 1024 });
 
 				ChunkingOptions options = new ChunkingOptions();
 				options.LeafOptions = new LeafChunkedDataNodeOptions(128, 256, 64 * 1024);
@@ -392,7 +392,7 @@ namespace EpicGames.Horde.Tests
 			// Generate a tree
 			DirectoryNode root;
 			{
-				await using DedupeStorageWriter writer = new DedupeStorageWriter(store.CreateWriter(options: new BundleOptions { MaxBlobSize = 1024 }));
+				await using DedupeStorageWriter writer = new DedupeStorageWriter(store.CreateBlobWriter(options: new BundleOptions { MaxBlobSize = 1024 }));
 
 				ChunkingOptions options = new ChunkingOptions();
 				options.LeafOptions = new LeafChunkedDataNodeOptions(128, 256, 64 * 1024);

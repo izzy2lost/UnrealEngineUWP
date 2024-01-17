@@ -150,7 +150,7 @@ namespace Horde.Commands.Compute
 
 		static async Task<BlobLocator> CreateSandboxAsync(FileReference taskFile, IStorageClient storage, CancellationToken cancellationToken)
 		{
-			await using IStorageWriter writer = storage.CreateWriter();
+			await using IBlobWriter writer = storage.CreateBlobWriter();
 
 			IBlobHandle<DirectoryNode> sandbox = await writer.WriteFilesAsync(taskFile.Directory, cancellationToken: cancellationToken);
 			await writer.FlushAsync(cancellationToken);
