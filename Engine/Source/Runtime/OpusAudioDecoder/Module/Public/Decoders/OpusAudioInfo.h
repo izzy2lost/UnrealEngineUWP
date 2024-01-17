@@ -18,9 +18,8 @@ struct FSoundQualityInfo;
 class FOpusAudioInfo : public IStreamedCompressedInfo
 {
 public:
-	ENGINE_API FOpusAudioInfo();
-	ENGINE_API virtual ~FOpusAudioInfo();
-
+	OPUSAUDIODECODER_API FOpusAudioInfo();
+	OPUSAUDIODECODER_API virtual ~FOpusAudioInfo();
 	//~ Begin IStreamedCompressedInfo Interface
 	bool ParseHeader(const uint8* InSrcBufferData, uint32 InSrcBufferDataSize, FSoundQualityInfo* QualityInfo) override;
 	int32 GetFrameSize() override;
@@ -31,8 +30,7 @@ public:
 	void SeekToTime(const float SeekTime) override;
 	void SeekToFrame(const uint32 SeekFrame) override;
 	//~ End IStreamedCompressedInfo Interface
-
-	struct ENGINE_API FHeader
+	struct OPUSAUDIODECODER_API FHeader
 	{
 		char Identifier[8];
 		uint8 Version = 0;
@@ -75,8 +73,7 @@ public:
 				+ sizeof(int32);	// NumSilentSamplesAtEnd
 		}
 	};
-	static ENGINE_API bool ParseHeader(FHeader& OutHeader, uint32& OutNumRead, const uint8* InSrcBufferData, uint32 InSrcBufferDataSize);
-
+	static OPUSAUDIODECODER_API bool ParseHeader(FHeader& OutHeader, uint32& OutNumRead, const uint8* InSrcBufferData, uint32 InSrcBufferDataSize);
 protected:
 	/** Wrapper around Opus-specific decoding state and APIs */
 	FOpusDecoderWrapper* OpusDecoderWrapper;

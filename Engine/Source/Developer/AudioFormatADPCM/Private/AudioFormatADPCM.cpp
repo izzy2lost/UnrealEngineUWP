@@ -12,7 +12,7 @@
 #include "Interfaces/IAudioFormatModule.h"
 #include "AudioDecompress.h"
 #include "Audio.h"
-#include "ADPCMAudioInfo.h"
+#include "Decoders/ADPCMAudioInfo.h"
 
 DEFINE_LOG_CATEGORY_STATIC(LogAudioFormatADPCM, Log, All);
 

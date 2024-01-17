@@ -171,14 +171,11 @@ public class Engine : ModuleRules
 				);
 		}
 
-		// Cross platform Audio Codecs:
-		AddEngineThirdPartyPrivateStaticDependencies(Target,
-			"UEOgg",
-			"Vorbis",
-			"VorbisFile",
-			"libOpus"
-			);
+		// Cross platform Audio Codecs: (we build here, but don't depend on them directly)
 		DynamicallyLoadedModuleNames.Add("BinkAudioDecoder");
+		DynamicallyLoadedModuleNames.Add("VorbisAudioDecoder");
+		DynamicallyLoadedModuleNames.Add("OpusAudioDecoder");
+		DynamicallyLoadedModuleNames.Add("AdpcmAudioDecoder");
 		
 		DynamicallyLoadedModuleNames.Add("EyeTracker");
 
@@ -449,12 +446,6 @@ public class Engine : ModuleRules
 
 		if (Target.IsInPlatformGroup(UnrealPlatformGroup.Android))
 		{
-			AddEngineThirdPartyPrivateStaticDependencies(Target,
-				"UEOgg",
-				"Vorbis",
-				"VorbisFile"
-				);
-
 			PrivateIncludePathModuleNames.Add("AndroidRuntimeSettings");
 		}
 
@@ -462,16 +453,6 @@ public class Engine : ModuleRules
 		{
 			PublicIncludePathModuleNames.Add("IOSPlatformFeatures");
 			PrivateIncludePathModuleNames.Add("IOSRuntimeSettings");
-		}
-
-		if (Target.IsInPlatformGroup(UnrealPlatformGroup.Unix))
-		{
-			AddEngineThirdPartyPrivateStaticDependencies(Target,
-				"UEOgg",
-				"Vorbis",
-				"VorbisFile",
-				"libOpus"
-				);
 		}
 
 		PublicDefinitions.Add("GPUPARTICLE_LOCAL_VF_ONLY=0");

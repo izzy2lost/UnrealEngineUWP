@@ -2,8 +2,8 @@
 #include "AudioDevice.h"
 
 #include "ActiveSoundUpdateInterface.h"
-#include "ADPCMAudioInfo.h"
 #include "AudioCompressionSettingsUtils.h"
+#include "AudioDecompress.h"
 #include "AudioEffect.h"
 #include "AudioMixerTrace.h"
 #include "AudioPluginUtilities.h"
@@ -239,14 +239,10 @@ namespace Audio
 		{
 			return nullptr;
 		}
-		// Multi-platform decoders -- can be instantiated here for all platforms.
-		else if (InRuntimeFormat == Audio::NAME_ADPCM || InRuntimeFormat == Audio::NAME_PCM)
-		{
-			// Our PCM is currently really our "ADPCM" encoder at 100 quality
-			return new FADPCMAudioInfo();
-		}
-		ensureMsgf(false, TEXT("Unknown runtime sound asset format type."));
-		return nullptr;
+
+		ICompressedAudioInfo* Decoder = IAudioInfoFactoryRegistry::Get().Create(InRuntimeFormat);
+		ensureMsgf(Decoder, TEXT("Unknown runtime sound asset format type. '%s' "), *InRuntimeFormat.ToString());
+		return Decoder;
 	}
 
 	uint64 GetTransmitterID(uint64 ComponentID, UPTRINT WaveInstanceHash, uint32 PlayOrder)

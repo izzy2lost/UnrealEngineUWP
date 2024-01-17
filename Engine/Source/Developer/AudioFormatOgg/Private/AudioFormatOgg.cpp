@@ -5,8 +5,7 @@
 #include "Modules/ModuleManager.h"
 #include "Interfaces/IAudioFormat.h"
 #include "Interfaces/IAudioFormatModule.h"
-#include "VorbisAudioInfo.h"
-
+#include "Decoders/VorbisAudioInfo.h"
 
 #if WITH_OGGVORBIS
 	#pragma pack(push, 8)

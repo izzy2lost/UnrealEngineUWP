@@ -1,7 +1,7 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 
-#include "OpusAudioInfo.h"
+#include "Decoders/OpusAudioInfo.h"
 #include "Interfaces/IAudioFormat.h"
 #include <opus_defines.h>
 #include <opus_types.h>
@@ -379,3 +379,18 @@ void FOpusAudioInfo::SeekToFrame(const uint32 InSeekFrame)
 	NumRemainingSamplesToSkip = Header.NumSilentSamplesAtBeginning + Header.NumPreSkipSamples;
 	PreviousDecodedUnusedSamples.Empty();
 }
+
+class OPUSAUDIODECODER_API FOpusAudioDecoderModule : public IModuleInterface
+{
+public:	
+	TUniquePtr<IAudioInfoFactory> Factory;
+
+	virtual void StartupModule() override
+	{
+		Factory = MakeUnique<FSimpleAudioInfoFactory>([] { return new FOpusAudioInfo(); }, Audio::NAME_OPUS);
+	}
+
+	virtual void ShutdownModule() override {}
+};
+
+IMPLEMENT_MODULE(FOpusAudioDecoderModule, OpusAudioDecoder)

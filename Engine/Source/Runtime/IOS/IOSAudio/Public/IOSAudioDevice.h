@@ -34,6 +34,7 @@ DECLARE_LOG_CATEGORY_EXTERN(LogIOSAudio, Log, All);
 struct FWaveInstance;
 class FIOSAudioDevice;
 class FIOSAudioEffectsManager;
+class ICompressedAudioInfo;
 
 enum ESoundFormat
 {
@@ -94,7 +95,7 @@ public:
 	uint32 BufferSize;
 	
 	/** Wrapper to assist in the bookkeeping of uncompressed data when streaming */
-	class FADPCMAudioInfo*		DecompressionState;
+	ICompressedAudioInfo*		DecompressionState;
 	bool	bStreaming;
 	bool    bIsProcedural;
 };

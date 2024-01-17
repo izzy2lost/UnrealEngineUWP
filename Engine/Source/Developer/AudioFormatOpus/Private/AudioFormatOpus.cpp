@@ -6,8 +6,9 @@
 #include "Modules/ModuleManager.h"
 #include "Interfaces/IAudioFormat.h"
 #include "Interfaces/IAudioFormatModule.h"
-#include "OpusAudioInfo.h"
-#include "VorbisAudioInfo.h"	// for VorbisChannelInfo
+
+#include "Decoders/OpusAudioInfo.h"
+#include "Decoders/VorbisAudioInfo.h"	// for VorbisChannelInfo
 
 THIRD_PARTY_INCLUDES_START
 #include "opus_multistream.h"

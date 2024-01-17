@@ -42,8 +42,6 @@ DEFINE_STAT(STAT_AudioFinishedDelegates);
 DEFINE_STAT(STAT_AudioBufferTime);
 DEFINE_STAT(STAT_AudioBufferTimeChannels);
 
-DEFINE_STAT(STAT_VorbisDecompressTime);
-DEFINE_STAT(STAT_VorbisPrepareDecompressionTime);
 DEFINE_STAT(STAT_AudioDecompressTime);
 DEFINE_STAT(STAT_AudioPrepareDecompressionTime);
 DEFINE_STAT(STAT_AudioStreamedDecompressTime);

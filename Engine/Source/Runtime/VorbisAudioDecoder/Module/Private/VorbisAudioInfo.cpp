@@ -1,7 +1,7 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 
-#include "VorbisAudioInfo.h"
+#include "Decoders/VorbisAudioInfo.h"
 #include "Interfaces/IAudioFormat.h"
 #include "Audio.h"
 #include <ogg/os_types.h>
@@ -375,7 +375,6 @@ bool FVorbisAudioInfo::ReadCompressedInfo( const uint8* InSrcBufferData, uint32 
 		return false;
 	}
 	
-	SCOPE_CYCLE_COUNTER( STAT_VorbisPrepareDecompressionTime );
 
 	FScopeLock ScopeLock(&VorbisCriticalSection);
 
@@ -471,12 +470,7 @@ bool FVorbisAudioInfo::ReadCompressedData( uint8* InDestination, bool bLooping, 
 	bool		bLooped;
 	uint32		TotalBytesRead;
 
-#if PLATFORM_ANDROID
-	// Something on android spams threads, so we will only mark the GT and AT
-	CONDITIONAL_SCOPE_CYCLE_COUNTER(STAT_VorbisDecompressTime, IsInGameThread() || IsInAudioThread());
-#else
-	SCOPE_CYCLE_COUNTER(STAT_VorbisDecompressTime);
-#endif
+
 
 	FScopeLock ScopeLock(&VorbisCriticalSection);
 
@@ -604,7 +598,7 @@ bool FVorbisAudioInfo::StreamCompressedInfoInternal(const FSoundWaveProxyPtr& In
 			return false;
 		}
 
-		SCOPE_CYCLE_COUNTER( STAT_VorbisPrepareDecompressionTime );
+	
 
 		FScopeLock ScopeLock(&VorbisCriticalSection);
 
@@ -690,12 +684,7 @@ bool FVorbisAudioInfo::StreamCompressedData(uint8* InDestination, bool bLooping,
 
 	check( VFWrapper != NULL );
 
-#if PLATFORM_ANDROID
-	// Something on android spams threads, so we will only mark the GT and AT
-	CONDITIONAL_SCOPE_CYCLE_COUNTER(STAT_VorbisDecompressTime, IsInGameThread() || IsInAudioThread());
-#else
-	SCOPE_CYCLE_COUNTER(STAT_VorbisDecompressTime);
-#endif
+
 	FScopeLock ScopeLock(&VorbisCriticalSection);
 
 	if (!bHeaderParsed)
@@ -855,3 +844,18 @@ void LoadVorbisLibraries()
 
 #endif		// WITH_OGGVORBIS
 
+class VORBISAUDIODECODER_API FVorbisAudioDecoderModule : public IModuleInterface
+{
+public:	
+	TUniquePtr<IAudioInfoFactory> Factory;
+
+	virtual void StartupModule() override
+	{
+		LoadVorbisLibraries();
+		Factory = MakeUnique<FSimpleAudioInfoFactory>([] { return new FVorbisAudioInfo(); }, Audio::NAME_OGG);
+	}
+
+	virtual void ShutdownModule() override {}
+};
+
+IMPLEMENT_MODULE(FVorbisAudioDecoderModule, VorbisAudioDecoder)

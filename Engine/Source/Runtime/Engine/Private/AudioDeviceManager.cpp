@@ -15,9 +15,7 @@
 #include "UObject/UObjectIterator.h"
 
 #include "Sound/AudioFormatSettings.h"
-#include "ADPCMAudioInfo.h"
-#include "VorbisAudioInfo.h"
-#include "OpusAudioInfo.h"
+#include "AudioDecompress.h"
 
 #if INSTRUMENT_AUDIODEVICE_HANDLES
 #include "Containers/StringConv.h"
@@ -356,17 +354,7 @@ void FAudioDeviceManager::RegisterAudioInfoFactories()
 			FModuleManager::Get().LoadModuleChecked(*i);
 		}
 	}
-	
-	// Hardcode the loading of the built in codecs.
-	LoadVorbisLibraries();
-	FModuleManager::Get().LoadModuleChecked(TEXT("BinkAudioDecoder"));
-
-	// Register the engine formats.
-	EngineFormats.Add(MakePimpl<FSimpleAudioInfoFactory>([] { return new FADPCMAudioInfo(); }, Audio::NAME_PCM));
-	EngineFormats.Add(MakePimpl<FSimpleAudioInfoFactory>([] { return new FADPCMAudioInfo(); }, Audio::NAME_ADPCM));
-	EngineFormats.Add(MakePimpl<FSimpleAudioInfoFactory>([] { return new FVorbisAudioInfo(); }, Audio::NAME_OGG));
-	EngineFormats.Add(MakePimpl<FSimpleAudioInfoFactory>([] { return new FOpusAudioInfo(); }, Audio::NAME_OPUS));
-
+		
 	// Sanity check we have all the Factories we need to run now by 
 	TArray<FName> AllFormats;
 	GetAudioFormatSettings().GetAllWaveFormats(AllFormats);

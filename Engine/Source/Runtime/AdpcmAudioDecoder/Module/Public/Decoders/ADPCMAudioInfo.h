@@ -91,15 +91,14 @@ namespace ADPCM
 class FADPCMAudioInfo : public ICompressedAudioInfo
 {
 public:
-	ENGINE_API FADPCMAudioInfo(void);
-	ENGINE_API virtual ~FADPCMAudioInfo(void);
-
+	ADPCMAUDIODECODER_API FADPCMAudioInfo(void);
+	ADPCMAUDIODECODER_API virtual ~FADPCMAudioInfo(void);
 	// ICompressedAudioInfo Interface
-	ENGINE_API virtual bool ReadCompressedInfo(const uint8* InSrcBufferData, uint32 InSrcBufferDataSize, struct FSoundQualityInfo* QualityInfo);
-	ENGINE_API virtual bool ReadCompressedData(uint8* Destination, bool bLooping, uint32 BufferSize);
-	ENGINE_API virtual void SeekToTime(const float SeekTime);
-	ENGINE_API virtual void SeekToFrame(const uint32 SeekFrame);
-	ENGINE_API virtual void ExpandFile(uint8* DstBuffer, struct FSoundQualityInfo* QualityInfo);
+	ADPCMAUDIODECODER_API virtual bool ReadCompressedInfo(const uint8* InSrcBufferData, uint32 InSrcBufferDataSize, struct FSoundQualityInfo* QualityInfo);
+	ADPCMAUDIODECODER_API virtual bool ReadCompressedData(uint8* Destination, bool bLooping, uint32 BufferSize);
+	ADPCMAUDIODECODER_API virtual void SeekToTime(const float SeekTime);
+	ADPCMAUDIODECODER_API virtual void SeekToFrame(const uint32 SeekFrame);
+	ADPCMAUDIODECODER_API virtual void ExpandFile(uint8* DstBuffer, struct FSoundQualityInfo* QualityInfo);
 	virtual void EnableHalfRate(bool HalfRate) {};
 	virtual uint32 GetSourceBufferSize() const { return SrcBufferDataSize; }
 	virtual bool UsesVorbisChannelOrdering() const { return false; }
