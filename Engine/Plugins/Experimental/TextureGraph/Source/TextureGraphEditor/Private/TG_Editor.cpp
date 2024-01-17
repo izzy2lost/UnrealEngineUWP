@@ -187,7 +187,7 @@ void FTG_Editor::InitEditor(const EToolkitMode::Type Mode, const TSharedPtr< cla
 
 	MixerEngine::RegisterErrorReporter(EditedTextureGraph, std::make_shared<FTG_EditorErrorReporter>(this));
 
-	TG_EdGraph = NewObject<UTG_EdGraph>(EditedTextureGraph, UTG_EdGraph::StaticClass(), NAME_None, RF_Transactional | RF_Transient);
+	TG_EdGraph = NewObject<UTG_EdGraph>(EditedTextureGraph, UTG_EdGraph::StaticClass(), NAME_None, RF_Transactional);
 	TG_EdGraph->Schema = UTG_EdGraphSchema::StaticClass();
 
 	TG_EdGraph->InitializeFromTextureGraph(EditedTextureGraph, SharedThis(this));

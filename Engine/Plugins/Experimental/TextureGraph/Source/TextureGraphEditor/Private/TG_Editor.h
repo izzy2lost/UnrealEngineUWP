@@ -266,15 +266,15 @@ private:
 	
 public:
 	/** Original Texture Graph */
-	TObjectPtr<UTextureGraph>							OriginalTextureGraph;
+	TObjectPtr<UTextureGraph>						OriginalTextureGraph;
 
 	/** Duplicated Texture Graph used in the editor */
-	TObjectPtr<UTextureGraph>							EditedTextureGraph;
+	TObjectPtr<UTextureGraph>						EditedTextureGraph;
 	TObjectPtr<UTG_EdGraph>							TG_EdGraph;
 
 private:
 	TObjectPtr<UTG_Parameters>						TG_Parameters;
-	FExportSettings                                  TargetExportSettings;
+	FExportSettings                                 TargetExportSettings;
 	// FEditorUndoClient Interface
 	virtual void PostUndo(bool bSuccess) override;
 	virtual void PostRedo(bool bSuccess) override { PostUndo(bSuccess); }
