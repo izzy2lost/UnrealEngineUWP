@@ -50,6 +50,10 @@ class SMetasoundPalette;
 class FSlateRect;
 class IDetailsView;
 class IToolkitHost;
+namespace Metasound::Editor
+{
+	class SFindInMetasound;
+}
 class SVerticalBox;
 class UAudioComponent;
 class UEdGraphNode;
@@ -335,6 +339,9 @@ namespace Metasound
 
 			void RefreshEditorContext();
 
+			/** Show and focus the Find in MetaSound tab. */
+			void ShowFindInMetaSound();
+
 		private:
 			void RemoveInvalidSelection();
 
@@ -435,6 +442,9 @@ namespace Metasound
 
 			/** Spectrum analyzer used in the analyzer tab for auditioning preview output. */
 			TSharedPtr<AudioWidgets::FAudioSpectrumAnalyzer> OutputSpectrumAnalyzer;
+
+			/** Find in MetaSound widget. */
+			TSharedPtr<SFindInMetasound> FindWidget;
 
 			/** Palette of Node types */
 			TSharedPtr<SMetasoundPalette> Palette;

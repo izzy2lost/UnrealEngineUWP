@@ -67,6 +67,8 @@ namespace MetasoundFrontendLiteralPrivate
 				Builder << TLiteralValueToStringHelper<ElementType>::Convert(InArray[i]);
 			}
 
+			Builder << TEXT("]");
+
 			return FString(Builder);
 		}
 	};
@@ -825,6 +827,43 @@ FString FMetasoundFrontendLiteral::ToString() const
 		default:
 			static_assert(static_cast<int32>(EMetasoundFrontendLiteralType::Invalid) == 12, "Possible missing literal type switch coverage");
 			return FString();
+	}
+}
+
+int32 FMetasoundFrontendLiteral::GetArrayNum() const
+{
+	switch (Type)
+	{
+	case EMetasoundFrontendLiteralType::None:
+	case EMetasoundFrontendLiteralType::Boolean:
+	case EMetasoundFrontendLiteralType::Integer:
+	case EMetasoundFrontendLiteralType::Float:
+	case EMetasoundFrontendLiteralType::String:
+	case EMetasoundFrontendLiteralType::UObject:
+		return INDEX_NONE;
+
+	case EMetasoundFrontendLiteralType::NoneArray:
+		return AsNumDefault;
+
+	case EMetasoundFrontendLiteralType::BooleanArray:
+		return AsBoolean.Num();
+
+	case EMetasoundFrontendLiteralType::IntegerArray:
+		return AsInteger.Num();
+
+	case EMetasoundFrontendLiteralType::FloatArray:
+		return AsFloat.Num();
+
+	case EMetasoundFrontendLiteralType::StringArray:
+		return AsString.Num();
+
+	case EMetasoundFrontendLiteralType::UObjectArray:
+		return AsUObject.Num();
+
+	case EMetasoundFrontendLiteralType::Invalid:
+	default:
+		static_assert(static_cast<int32>(EMetasoundFrontendLiteralType::Invalid) == 12, "Possible missing literal type switch coverage");
+		return INDEX_NONE;
 	}
 }
 

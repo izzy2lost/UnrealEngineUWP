@@ -666,6 +666,14 @@ namespace Metasound
 			.SetDisplayName(LOCTEXT("InterfacesTab", "Interfaces"))
 			.SetGroup(WorkspaceMenuCategoryRef)
 			.SetIcon(FSlateIcon(FAppStyle::GetAppStyleSetName(), "ClassIcon.Interface"));
+
+			InTabManager->RegisterTabSpawner(TabFactory::Names::Find, FOnSpawnTab::CreateLambda([InFindWidget = FindWidget](const FSpawnTabArgs& Args)
+			{
+				return TabFactory::CreateFindTab(InFindWidget, Args);
+			}))
+			.SetDisplayName(LOCTEXT("FindTab", "Find in MetaSound"))
+			.SetGroup(WorkspaceMenuCategoryRef)
+			.SetIcon(FSlateIcon(FAppStyle::GetAppStyleSetName(), "Kismet.Tabs.FindResults"));
 		}
 
 		void FEditor::UnregisterTabSpawners(const TSharedRef<FTabManager>& InTabManager)
@@ -679,6 +687,7 @@ namespace Metasound
 			InTabManager->UnregisterTabSpawner(TabFactory::Names::Details);
 			InTabManager->UnregisterTabSpawner(TabFactory::Names::Members);
 			InTabManager->UnregisterTabSpawner(TabFactory::Names::Interfaces);
+			InTabManager->UnregisterTabSpawner(TabFactory::Names::Find);
 		}
 
 		TSharedPtr<SWidget> FEditor::BuildAnalyzerWidget() const
@@ -811,7 +820,7 @@ namespace Metasound
 				NotifyAssetPrimeInProgress();
 			}
 
-			const TSharedRef<FTabManager::FLayout> StandaloneDefaultLayout = FTabManager::NewLayout("Standalone_MetasoundEditor_Layout_v10")
+			const TSharedRef<FTabManager::FLayout> StandaloneDefaultLayout = FTabManager::NewLayout("Standalone_MetasoundEditor_Layout_v11")
 				->AddArea
 				(
 					FTabManager::NewPrimaryArea()
@@ -847,11 +856,25 @@ namespace Metasound
 						)
 						->Split
 						(
-							FTabManager::NewStack()
+							FTabManager::NewSplitter()
 							->SetSizeCoefficient(0.77f)
-							->SetHideTabWell(true)
-							->AddTab(TabFactory::Names::GraphCanvas, ETabState::OpenedTab)
+							->SetOrientation(Orient_Vertical)
+							->Split
+							(
+								FTabManager::NewStack()
+								->SetSizeCoefficient(0.8f)
+								->SetHideTabWell(true)
+								->AddTab(TabFactory::Names::GraphCanvas, ETabState::OpenedTab)
+							)
+							->Split
+							(
+								FTabManager::NewStack()
+								->SetSizeCoefficient(0.2f)
+								->SetHideTabWell(true)
+								->AddTab(TabFactory::Names::Find, ETabState::OpenedTab)
+							)
 						)
+
 						->Split
 						(
 							FTabManager::NewStack()
@@ -1156,6 +1179,8 @@ namespace Metasound
 			}
 
 			Palette = SNew(SMetasoundPalette);
+
+			FindWidget = SNew(SFindInMetasound, SharedThis(this));
 		}
 
 		// TODO: Tie in rename on GraphActionMenu.  For now, just renameable via field in details
@@ -1430,6 +1455,10 @@ namespace Metasound
 			ToolkitCommands->MapAction(
 				FEditorCommands::Get().UpdateNodeClass,
 				FExecuteAction::CreateSP(this, &FEditor::UpdateSelectedNodeClasses));
+
+			ToolkitCommands->MapAction(
+				FEditorCommands::Get().FindInMetaSound,
+				FExecuteAction::CreateSP(this, &FEditor::ShowFindInMetaSound));
 		}
 
 		void FEditor::Import()
@@ -3690,6 +3719,15 @@ namespace Metasound
 					.Image(FAppStyle::Get().GetBrush("Icons.PlusCircle"))
 					.ColorAndOpacity(FSlateColor::UseForeground())
 				];
+		}
+
+		void FEditor::ShowFindInMetaSound()
+		{
+			TabManager->TryInvokeTab(TabFactory::Names::Find);
+			if (FindWidget.IsValid())
+			{
+				FindWidget->FocusForUse();
+			}
 		}
 	}
 }

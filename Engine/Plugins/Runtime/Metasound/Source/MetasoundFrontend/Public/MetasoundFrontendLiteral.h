@@ -139,6 +139,9 @@ public:
 	void SetFromLiteral(const Metasound::FLiteral& InLiteral);
 
 	EMetasoundFrontendLiteralType GetType() const;
+	
+	// Get the number of array elements if this literal is an array type, otherwise return 0
+	int32 GetArrayNum() const;
 
 	// Return a Metasound::FLiteral representation of this object. 
 	//
