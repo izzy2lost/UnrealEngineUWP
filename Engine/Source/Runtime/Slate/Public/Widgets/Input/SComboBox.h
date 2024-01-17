@@ -196,6 +196,7 @@ public:
 		ItemStyle = InArgs._ItemStyle;
 		ComboBoxStyle = InArgs._ComboBoxStyle;
 		MenuRowPadding = ComboBoxStyle->MenuRowPadding;
+		bShowMenuBackground = false;
 
 		// Work out which values we should use based on whether we were given an override, or should use the style's version
 		const FComboButtonStyle& OurComboButtonStyle = ComboBoxStyle->ComboButtonStyle;
@@ -268,6 +269,7 @@ public:
 			ComboListView->RequestScrollIntoView(ValidatedItem, 0);
 		}
 
+		ComboListView->SetBackgroundBrush(FStyleDefaults::GetNoBrush());
 	}
 
 		SComboBox()
