@@ -6850,17 +6850,17 @@ void UCustomizableInstancePrivate::RegenerateImportedModels()
 							ImportedSection.MaterialIndex = 0;
 						}
 					}
-
-					ImportedSection.MaxBoneInfluences = RenderSection.MaxBoneInfluences;
-					ImportedSection.OriginalDataSectionIndex = OriginalIndex++;
-
-					FSkelMeshSourceSectionUserData& SectionUserData = ImportedModel->LODModels[LODIndex].UserSectionsData.FindOrAdd(ImportedSection.OriginalDataSectionIndex);
-
-					SectionUserData.CorrespondClothAssetIndex = RenderSection.CorrespondClothAssetIndex;
-					SectionUserData.ClothingData.AssetGuid = RenderSection.ClothingData.AssetGuid;
-					SectionUserData.ClothingData.AssetLodIndex = RenderSection.ClothingData.AssetLodIndex;
-					SectionUserData.bCastShadow = RenderSection.bCastShadow;
 				}
+
+				ImportedSection.MaxBoneInfluences = RenderSection.MaxBoneInfluences;
+				ImportedSection.OriginalDataSectionIndex = OriginalIndex++;
+
+				FSkelMeshSourceSectionUserData& SectionUserData = ImportedModel->LODModels[LODIndex].UserSectionsData.FindOrAdd(ImportedSection.OriginalDataSectionIndex);
+
+				SectionUserData.CorrespondClothAssetIndex = RenderSection.CorrespondClothAssetIndex;
+				SectionUserData.ClothingData.AssetGuid = RenderSection.ClothingData.AssetGuid;
+				SectionUserData.ClothingData.AssetLodIndex = RenderSection.ClothingData.AssetLodIndex;
+				SectionUserData.bCastShadow = RenderSection.bCastShadow;
 
 				ImportedModel->LODModels[LODIndex].SyncronizeUserSectionsDataArray();
 
