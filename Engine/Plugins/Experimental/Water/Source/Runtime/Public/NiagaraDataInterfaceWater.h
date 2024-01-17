@@ -30,6 +30,10 @@ public:
 	virtual bool UpgradeFunctionCall(FNiagaraFunctionSignature& FunctionSignature) override;
 #endif
 
+#if WITH_NIAGARA_DEBUGGER
+	virtual void DrawDebugHud(FNDIDrawDebugHudContext& DebugHudContext) const override;
+#endif
+
 	void GetWaterDataAtPoint(FVectorVMExternalFunctionContext& Context);
 
 	void GetWaveParamLookupTableOffset(FVectorVMExternalFunctionContext& Context);
