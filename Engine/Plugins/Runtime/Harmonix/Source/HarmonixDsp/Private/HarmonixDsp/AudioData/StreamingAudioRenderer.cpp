@@ -1,0 +1,554 @@
+// Copyright Epic Games, Inc. All Rights Reserved.
+#include "HarmonixDsp/AudioData/StreamingAudioRenderer.h"
+#include "HarmonixDsp/AudioData/StreamingAudioData.h"
+
+#include "HarmonixDsp/FusionSampler/FusionSampler.h"
+
+#include "HarmonixDsp/AudioData.h"
+#include "HarmonixDsp/AudioUtility.h"
+#include "HarmonixDsp/Conversions.h"
+#include "HarmonixDsp/GainMatrix.h"
+#include "HarmonixDsp/PannerDetails.h"
+
+#include "Sound/SoundWave.h"
+#include "Sound/SoundWaveProxyReader.h"
+
+#include "Math/UnrealMathUtility.h"
+
+DEFINE_LOG_CATEGORY(LogHarmonixStreamingAudioRenderer);
+
+FStreamingAudioRenderer::FStreamingAudioRenderer()
+{
+}
+
+FStreamingAudioRenderer::~FStreamingAudioRenderer()
+{
+}
+
+void FStreamingAudioRenderer::Reset()
+{
+	WaveProxyReader.Reset();
+	InterleavedCircularBuffer.SetNum(0);
+	Shifter = nullptr;
+}
+
+void FStreamingAudioRenderer::SetAudioData(TSharedRef<HarmonixDsp::IAudioData, ESPMode::ThreadSafe> AudioData, const FSettings& InSettings)
+{
+	if (AudioData->GetFormat() == EAudioEncodedFormat::Float32)
+	{
+		TSharedRef<FStreamingAudioData, ESPMode::ThreadSafe> StreamingAudioDataRef = StaticCastSharedRef<FStreamingAudioData>(AudioData);
+		SetAudioData(StreamingAudioDataRef, InSettings);
+	}
+	else
+	{
+		// this renderer is only set up for StreamingAudioData
+		checkNoEntry();
+	}
+}
+
+void FStreamingAudioRenderer::SetAudioData(TSharedRef<FStreamingAudioData, ESPMode::ThreadSafe> InStreamingAudioData, const FSettings& InSettings)
+{
+	StreamingAudioData = InStreamingAudioData.ToSharedPtr();
+
+	WaveProxyReader.Reset();
+	WaveProxyReader = StreamingAudioData->CreateWaveProxyReader();
+
+	check(WaveProxyReader.IsValid());
+
+	int32 WaveProxyNumChannels = WaveProxyReader->GetNumChannels();
+
+	int32 DecodeBufferSize = WaveProxyNumChannels * DeinterleaveBlockSizeInFrames;
+	DecodeBuffer.Reset(DecodeBufferSize);
+	DecodeBuffer.AddUninitialized(DecodeBufferSize);
+
+	NumDeinterleaveChannels = WaveProxyNumChannels;
+
+	// interleaved circular buffer for streaming source audio data
+	// make it larger than then amount we decode each block to avoid underruns
+	int32 FrameCapacity = DecodeBufferSize * 2;
+	InterleavedCircularBuffer.SetCapacity(FrameCapacity);
+
+	TrackChannelInfo = InSettings.TrackChannelInfo;
+	Shifter = InSettings.Shifter;
+	MySampler = InSettings.Sampler;
+
+	if (Shifter)
+	{
+		TSharedPtr<const HarmonixDsp::IAudioData, ESPMode::ThreadSafe> AudioData = StaticCastSharedPtr<const HarmonixDsp::IAudioData>(StreamingAudioData);
+		Shifter->SetSampleSourceReset(AudioData, AsShared());
+	}
+}
+
+const TSharedPtr<HarmonixDsp::IAudioData, ESPMode::ThreadSafe> FStreamingAudioRenderer::GetAudioData() const
+{
+	return StreamingAudioData;
+}
+
+void FStreamingAudioRenderer::MigrateToSampler(const FFusionSampler* InSampler)
+{
+	MySampler = InSampler;
+}
+
+void FStreamingAudioRenderer::SetFrame(uint32 InFrameNum)
+{
+	SeekSourceAudioToFrame(InFrameNum);
+}
+
+double FStreamingAudioRenderer::Render(TAudioBuffer<float>& OutBuffer, double InPos, int32 InMaxFrame, double InResampleInc, double InPitchShift, double InSpeed, bool MaintainPitchWhenSpeedChanges, bool InShouldHonorLoopPoints, const FGainMatrix& InGain)
+{
+	if (!StreamingAudioData || StreamingAudioData->GetNumFrames() == 0)
+	{
+		OutBuffer.ZeroValidFrames();
+		return InPos;
+	}
+
+	if (!Shifter)
+	{
+		double Increment = InResampleInc * InPitchShift;
+		if (!MaintainPitchWhenSpeedChanges)
+		{
+			Increment *= InSpeed;
+		}
+		return RenderInternal(OutBuffer, InPos, InMaxFrame, Increment, InShouldHonorLoopPoints, InGain);
+	}
+
+	return Shifter->Render(OutBuffer, InPos, InMaxFrame, InResampleInc, InPitchShift, InSpeed, MaintainPitchWhenSpeedChanges, InShouldHonorLoopPoints, InGain);
+}
+
+double FStreamingAudioRenderer::RenderInternal(TAudioBuffer<float>& OutBuffer, double InPos, int32 InMaxFrame, double InInc, bool InShouldHonorLoopPoints, const FGainMatrix& InGain)
+{
+	check(OutBuffer.GetNumValidFrames() <= AudioRendering::kMicroSliceSize);
+
+	if (!StreamingAudioData || StreamingAudioData->GetNumFrames() < (uint32)FMath::FloorToInt32(InPos))
+	{
+		OutBuffer.ZeroValidFrames();
+		return InPos;
+	}
+	
+	uint32 NumOutFrames = OutBuffer.GetNumValidFrames();
+
+	FLerpData LerpArray[AudioRendering::kMicroSliceSize];
+	InPos = CalculateLerpData(LerpArray, AudioRendering::kMicroSliceSize, NumOutFrames, InPos, InMaxFrame, InShouldHonorLoopPoints, InInc);
+
+	if (TrackChannelInfo && TrackChannelInfo->Num() > 0)
+	{
+		RenderMultiChannelRoutedUnshifted(OutBuffer, LerpArray, NumOutFrames, InGain, InInc, InShouldHonorLoopPoints);
+	}
+	else if (StreamingAudioData->GetNumChannels() <= 2)
+	{
+		RenderSimpleUnshifted(OutBuffer, LerpArray, NumOutFrames, InGain, InInc, InShouldHonorLoopPoints);
+	}
+	else
+	{
+		RenderMultiChannelUnshifted(OutBuffer, LerpArray, NumOutFrames, InGain, InInc, InShouldHonorLoopPoints);
+	}
+
+	return InPos;
+}
+
+double FStreamingAudioRenderer::RenderUnshifted(TAudioBuffer<float>& OutBuffer, double InPos, int32 InMaxFrame, double InInc, bool InShouldHonorLoopPoints, const FGainMatrix& InGain)
+{
+	if (!StreamingAudioData)
+	{
+		OutBuffer.ZeroValidFrames();
+		return InPos;
+	}
+
+	return RenderInternal(OutBuffer, InPos, InMaxFrame, InInc, InShouldHonorLoopPoints, InGain);
+}
+
+void FStreamingAudioRenderer::RenderSimpleUnshifted(TAudioBuffer<float>& OutBuffer, const FLerpData* LerpArray, uint32 InNumFrames, const FGainMatrix& InGain, double InInc, bool InShouldHonorLoopPoints)
+{
+	check(InNumFrames <= AudioRendering::kMicroSliceSize);
+
+	// need to zero out here because we are going to do an accumulate below
+	OutBuffer.ZeroValidFrames();
+
+	int32 NumOutChannels = OutBuffer.GetNumValidChannels();
+	int32 NumInputChannels = StreamingAudioData->GetNumChannels();
+
+	uint32 StartFrameIndex = LerpArray[0].PosA;
+	int32 NumSourceFramesNeeded = InNumFrames * InInc + 2;
+
+	// Interleaved
+	int32 NumSamplesNeeded = NumInputChannels * NumSourceFramesNeeded + NumInputChannels;
+
+	if (LerpArray[0].PosA != 0 || LerpArray[0].PosB != 0 || !FMath::IsNearlyZero(LerpArray[0].WeightA) || !FMath::IsNearlyZero(LerpArray[0].WeightB))
+	{
+		WorkBuffer.SetNum(NumSamplesNeeded);
+		GenerateSourceAudio(StartFrameIndex, WorkBuffer, InShouldHonorLoopPoints);
+	}
+	else
+	{
+		return;
+	}
+	
+	uint32 PosA;
+	uint32 PosB;
+	float SampleA;
+	float SampleB;
+
+	for (int32 ich = 0; ich < NumInputChannels; ++ich)
+	{
+		for (uint32 FrameNum = 0; FrameNum < InNumFrames; ++FrameNum)
+		{
+			const FLerpData& Lerp = LerpArray[FrameNum];
+
+			PosA = Lerp.PosARelative * NumInputChannels + ich;
+			PosB = Lerp.PosBRelative * NumInputChannels + ich;
+
+			SampleA = WorkBuffer[PosA];
+			SampleB = WorkBuffer[PosB];
+			float Sample = SampleA * Lerp.WeightA + SampleB * Lerp.WeightB;
+
+			for (int32 och = 0; och < NumOutChannels; ++och)
+			{
+				if (FMath::Abs(InGain[ich].f[och]) < UE_KINDA_SMALL_NUMBER)
+				{
+					continue;
+				}
+
+				float* OutData = OutBuffer.GetValidChannelData(och);
+				OutData[FrameNum] += Sample* InGain[ich].f[och];
+			}
+		}
+	}
+}
+
+void FStreamingAudioRenderer::RenderMultiChannelUnshifted(TAudioBuffer<float>& OutBuffer, const FLerpData* LerpArray, uint32 InNumFrames, const FGainMatrix& InGain, double InInc, bool InShouldHonorLoopPoints)
+{
+	check(InNumFrames <= AudioRendering::kMicroSliceSize);
+
+	// need to zero out here because we are going to do an accumulate below
+	OutBuffer.ZeroValidFrames();
+
+	int32 NumOutChannels = OutBuffer.GetNumValidChannels();
+	int32 NumInputChannels = StreamingAudioData->GetNumChannels();
+
+	// interleaved
+	Audio::FAlignedFloatBuffer ResampleBuffer;
+	constexpr int32 kNumResampleChannels = 2;
+	ResampleBuffer.SetNum(kNumResampleChannels * InNumFrames);
+
+	uint32 StartFrameIndex = LerpArray[0].PosA;
+	int32 NumSourceFramesNeeded = InNumFrames * InInc + 2;
+
+	// Interleaved
+	int32 NumSamplesNeeded = NumInputChannels * NumSourceFramesNeeded + NumInputChannels;
+	if (LerpArray[0].PosA != 0 || LerpArray[0].PosB != 0 || !FMath::IsNearlyZero(LerpArray[0].WeightA) || !FMath::IsNearlyZero(LerpArray[0].WeightB))
+	{
+		WorkBuffer.SetNum(NumSamplesNeeded);
+		GenerateSourceAudio(StartFrameIndex, WorkBuffer, InShouldHonorLoopPoints);
+	}
+	else
+	{
+		return;
+	}
+
+	uint32 PosA;
+	uint32 PosB;
+	float SampleA;
+	float SampleB;
+
+	for (int32 ich = 0; ich < NumInputChannels; ++ich)
+	{
+		for (uint32 FrameNum = 0; FrameNum < InNumFrames; ++FrameNum)
+		{
+			const FLerpData& Lerp = LerpArray[FrameNum];
+
+			PosA = Lerp.PosARelative * NumInputChannels + ich;
+			PosB = Lerp.PosBRelative * NumInputChannels + ich;
+
+			SampleA = WorkBuffer[PosA];
+			SampleB = WorkBuffer[PosB];
+			float Sample = SampleA * Lerp.WeightA + SampleB * Lerp.WeightB;
+			
+			uint32 ipos = FrameNum * kNumResampleChannels + ich;
+			ResampleBuffer[ipos] += Sample;
+		}
+	}
+
+	// map the rendered stereo into the output buffer
+	for (int32 ich = 0; ich < kNumResampleChannels; ++ich)
+	{
+		for (int32 och = 0; och < NumOutChannels; ++och)
+		{
+			if (FMath::Abs(InGain[ich].f[och]) < UE_KINDA_SMALL_NUMBER)
+			{
+				continue;
+			}
+
+			float* OutChannelData = OutBuffer.GetValidChannelData(och);
+
+			for (uint32 FrameIdx = 0; FrameIdx < InNumFrames; ++FrameIdx)
+			{
+				uint32 ipos = FrameIdx * kNumResampleChannels + ich;
+				OutChannelData[FrameIdx] += ResampleBuffer[ipos] * InGain[ich].f[och];
+			}
+		}
+	}
+}
+
+void FStreamingAudioRenderer::RenderMultiChannelRoutedUnshifted(TAudioBuffer<float>& OutBuffer, const FLerpData* LerpArray, uint32 InNumFrames, const FGainMatrix& InGain, double InInc, bool InShouldHonorLoopPoints)
+{
+	check(InNumFrames <= AudioRendering::kMicroSliceSize);
+
+	// need to zero out here because we are going to do an accumulate below
+	OutBuffer.ZeroValidFrames();
+
+	int32 NumOutChannels = OutBuffer.GetNumValidChannels();
+	int32 NumInputChannels = StreamingAudioData->GetNumChannels();
+
+	// interleaved
+	Audio::FAlignedFloatBuffer ResampleBuffer;
+	constexpr int32 kNumResampleChannels = 2;
+	ResampleBuffer.SetNum(kNumResampleChannels * InNumFrames);
+
+	uint32 StartFrameIndex = LerpArray[0].PosA;
+	int32 NumSourceFramesNeeded = InNumFrames * InInc + 2;
+
+	// Interleaved
+	int32 NumSamplesNeeded = NumInputChannels * NumSourceFramesNeeded + NumInputChannels;
+	if (LerpArray[0].PosA != 0 || LerpArray[0].PosB != 0 || !FMath::IsNearlyZero(LerpArray[0].WeightA) || !FMath::IsNearlyZero(LerpArray[0].WeightB))
+	{
+		WorkBuffer.SetNum(NumSamplesNeeded);
+		GenerateSourceAudio(StartFrameIndex, WorkBuffer, InShouldHonorLoopPoints);
+	}
+	else
+	{
+		return;
+	}
+
+	
+	uint32 PosA;
+	uint32 PosB;
+	float SampleA;
+	float SampleB;
+
+	for (int32 ich = 0; ich < NumInputChannels; ++ich)
+	{
+		// get gain for this channel...
+		float chGain = 1.0f;
+		float ssGain = 1.0f;
+		FGainMatrix chGainMatrix(kNumResampleChannels, OutBuffer.GetNumValidChannels(), OutBuffer.GetChannelLayout());
+		bool FoundTrack = false;
+		for (uint32 Idx = 0; Idx < (uint32)TrackChannelInfo->Num(); Idx++)
+		{
+			if ((*TrackChannelInfo)[Idx].GetStreamIndexesGain(ich, chGain))
+			{
+				FPannerDetails chPan;
+				(*TrackChannelInfo)[Idx].GetStreamIndexesPan(ich, chPan);
+				ssGain = MySampler ? MySampler->GetSubstreamGain(Idx) : 1.0f;
+				chGainMatrix.Set(ssGain, chPan);
+				FoundTrack = true;
+				break;
+			}
+		}
+
+		UE_LOG(LogHarmonixStreamingAudioRenderer, Warning, TEXT("TODO: Apply chGain and ssGain to gain matrix!"));
+
+		if (!FoundTrack)
+		{
+			continue;
+		}
+
+		float chPanMixLeft = 0.0f;
+		float chPanMixRight = 0.0f;
+		UE_LOG(LogHarmonixStreamingAudioRenderer, Warning, TEXT("TODO: Don't use chPanMix... vars but use gain matrix!"));
+		//PanToGainsConstantPower(chPan, chPanMixLeft, chPanMixRight);
+
+		for (uint32 FrameNum = 0; FrameNum < InNumFrames; ++FrameNum)
+		{
+			const FLerpData& Lerp = LerpArray[FrameNum];
+
+			PosA = Lerp.PosARelative * NumInputChannels + ich;
+			PosB = Lerp.PosBRelative * NumInputChannels + ich;
+
+			SampleA = WorkBuffer[PosA];
+			SampleB = WorkBuffer[PosB];
+			float Sample = SampleA * Lerp.WeightA + SampleB * Lerp.WeightB;
+
+			uint32 ipos0 = FrameNum * kNumResampleChannels;
+			uint32 ipos1 = FrameNum * kNumResampleChannels + 1;
+			ResampleBuffer[ipos0] += Sample * chGain * chPanMixLeft * ssGain;
+			ResampleBuffer[ipos1] += Sample * chGain * chPanMixRight * ssGain;
+		}
+	}
+
+	// map the rendered stereo into the output buffer
+	for (int32 ich = 0; ich < kNumResampleChannels; ++ich)
+	{
+		for (int32 och = 0; och < NumOutChannels; ++och)
+		{
+			if (FMath::Abs(InGain[ich].f[och]) < UE_KINDA_SMALL_NUMBER)
+			{
+				continue;
+			}
+
+			float* OutChannelData = OutBuffer.GetValidChannelData(och);
+
+			for (uint32 FrameIdx = 0; FrameIdx < InNumFrames; ++FrameIdx)
+			{
+				uint32 ipos = FrameIdx * kNumResampleChannels + ich;
+				OutChannelData[FrameIdx] += ResampleBuffer[ipos] * InGain[ich].f[och];
+			}
+		}
+	}
+}
+
+void FStreamingAudioRenderer::SeekSourceAudioToFrame(uint32 FrameIdx)
+{
+	uint32 SourceFrameIndex = GetSourceAudioFrameIndex();
+	if (SourceFrameIndex == FrameIdx)
+	{
+		// no need to seek
+		return;
+	}
+	uint32 FramesInWave = (uint32)WaveProxyReader->GetNumFramesInWave();
+	if (FrameIdx >= FramesInWave)
+	{
+		// passed the end
+		return;
+	}
+
+	// check if we can advance to the desired frame by popping off samples
+	if (FrameIdx > SourceFrameIndex)
+	{
+		int32 NumFramesAhead = FrameIdx - SourceFrameIndex;
+		int32 NumSourceFramesAvailable = InterleavedCircularBuffer.Num() / NumDeinterleaveChannels;
+
+		if (NumFramesAhead <= NumSourceFramesAvailable)
+		{
+			InterleavedCircularBuffer.Pop(NumFramesAhead * NumDeinterleaveChannels);
+			check(GetSourceAudioFrameIndex() == FrameIdx);
+			return;
+		}
+	}
+
+	// do the actual seek
+	if (WaveProxyReader->SeekToFrame(FrameIdx))
+	{
+		// at this point, we should be synced up!!
+		ensure(WaveProxyReader->GetFrameIndex() == FrameIdx);
+		InterleavedCircularBuffer.SetNum(0);
+	}
+
+	check(GetSourceAudioFrameIndex() == FrameIdx);
+}
+
+void FStreamingAudioRenderer::DecodeSourceAudio(Audio::TCircularAudioBuffer<float>& OutBuffer)
+{
+	const int32 NumSamplesToGenerate = DeinterleaveBlockSizeInFrames * WaveProxyReader->GetNumChannels();
+	check(NumSamplesToGenerate == DecodeBuffer.Num());
+	
+	if (OutBuffer.Remainder() == 0)
+	{
+		return;
+	}
+	else if (OutBuffer.Remainder() < (uint32)DecodeBuffer.Num())
+	{
+		Audio::FAlignedFloatBuffer RemainderBuffer;
+		RemainderBuffer.SetNum(OutBuffer.Remainder());
+		int32 NumPopped = WaveProxyReader->PopAudio(RemainderBuffer);
+		OutBuffer.Push(RemainderBuffer.GetData(), NumPopped);
+	}
+	else
+	{
+		int32 NumPopped = WaveProxyReader->PopAudio(DecodeBuffer);
+		OutBuffer.Push(DecodeBuffer.GetData(), NumPopped);
+	}
+}
+
+uint32 FStreamingAudioRenderer::GetSourceAudioFrameIndex()
+{
+	int32 ReaderFrameIndex = WaveProxyReader->GetFrameIndex();
+	int32 NumDecodedSamples = InterleavedCircularBuffer.Num();
+	int32 NumDecodedFrames = NumDecodedSamples / NumDeinterleaveChannels;
+
+	return ReaderFrameIndex - NumDecodedFrames;
+
+}
+
+void FStreamingAudioRenderer::GenerateSourceAudio(uint32 StartFrameIndex, Audio::FAlignedFloatBuffer& OutAudio, bool bHonorLoopRegion)
+{
+	check(OutAudio.Num() % NumDeinterleaveChannels == 0);
+
+	if (bHonorLoopRegion && StreamingAudioData->GetHasLoopSection())
+	{
+		uint32 NumFramesRequested = OutAudio.Num() / NumDeinterleaveChannels;
+		uint32 LoopStartFrame = StreamingAudioData->GetLoopStartFrame();
+		uint32 LoopEndFrame = StreamingAudioData->GetLoopEndFrame();
+		uint32 LoopLengthFrames = LoopEndFrame - LoopStartFrame;
+		if (!ensure(StartFrameIndex <= LoopEndFrame))
+		{
+			GenerateSourceAudioInternal(StartFrameIndex, OutAudio.GetData(), OutAudio.Num());
+			return;
+		}
+
+		if (StartFrameIndex + NumFramesRequested >= LoopEndFrame)
+		{
+			check(NumFramesRequested < LoopLengthFrames);
+			// include the end frame index
+			int32 NumFrames = LoopEndFrame - StartFrameIndex;
+			int32 NumSamples = NumFrames * NumDeinterleaveChannels;
+			GenerateSourceAudioInternal(StartFrameIndex, OutAudio.GetData(), NumSamples);
+
+			int32 SampleOffset = NumSamples;
+			NumFrames = NumFramesRequested - NumFrames;
+			NumSamples = NumFrames * NumDeinterleaveChannels;
+			GenerateSourceAudioInternal(LoopStartFrame, OutAudio.GetData() + SampleOffset, NumSamples);
+		}
+		else
+		{
+			GenerateSourceAudioInternal(StartFrameIndex, OutAudio.GetData(), OutAudio.Num());
+		}
+	}
+	else
+	{
+		GenerateSourceAudioInternal(StartFrameIndex, OutAudio.GetData(), OutAudio.Num());
+	}
+}
+
+void FStreamingAudioRenderer::GenerateSourceAudioInternal(uint32 StartFrameIndex, float* OutAudioData, uint32 NumSamples)
+{
+	int32 NumSamplesRequested = NumSamples;
+	uint32 StartSampleIndex = StartFrameIndex * NumDeinterleaveChannels;
+
+	int32 BufferIdx = 0;
+	while (NumSamplesRequested > 0)
+	{
+		if (GetSourceAudioFrameIndex() != StartFrameIndex)
+		{
+			SeekSourceAudioToFrame(StartFrameIndex);
+		}
+		
+		check(InterleavedCircularBuffer.Num() % NumDeinterleaveChannels == 0);
+
+		int32 NumSamplesAvailable = InterleavedCircularBuffer.Num();
+
+		if (NumSamplesRequested > NumSamplesAvailable)
+		{
+			DecodeSourceAudio(InterleavedCircularBuffer);
+		}
+
+		int32 NumSamplesToRead = FMath::Min((int32)InterleavedCircularBuffer.Num(), NumSamplesRequested);
+
+		if (NumSamplesToRead == 0)
+		{
+			break;
+		}
+
+		InterleavedCircularBuffer.Peek(OutAudioData + BufferIdx, NumSamplesToRead);
+		NumSamplesRequested -= NumSamplesToRead;
+		BufferIdx += NumSamplesToRead;
+		StartFrameIndex += (uint32)(NumSamplesToRead / NumDeinterleaveChannels);
+	}
+
+	if (NumSamplesRequested > 0)
+	{
+		FMemory::Memzero(&OutAudioData[BufferIdx], sizeof(float) * NumSamplesRequested);
+
+		UE_LOG(LogHarmonixStreamingAudioRenderer, Verbose, TEXT("%s: Failed to generated samples: StartFrameIndex: %d, NumSamplesRequested: %d"), 
+			*StreamingAudioData->GetName().ToString(), StartFrameIndex, NumSamplesRequested);
+	}
+}
