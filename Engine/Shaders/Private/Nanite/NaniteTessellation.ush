@@ -109,6 +109,18 @@ float3 GetSplitFactors( float3 TessFactors )
 #endif
 }
 
+float2 CalculateUVDerivativeForDomainPoint(
+	FNaniteView NaniteView,
+	float ViewZ,
+	float UniformScale,
+	float UVDensity )
+{
+	const bool bOrtho = NaniteView.ViewToClip[3][3] >= 1;
+	const float dUV_dTri = (bOrtho ? 1.0f : ViewZ) / (UVDensity * UniformScale * NaniteView.LODScale * InvDiceRate);
+
+	return dUV_dTri.xx;
+}
+
 struct FTessellatedPatch
 {
 	uint4	TableOffsets;

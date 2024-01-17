@@ -757,7 +757,7 @@ void PatchRasterize( uint GroupID, uint GroupThreadIndex )
 	
 			Barycentrics = SplitPatch.TransformBarycentrics( Barycentrics );
 
-			GroupVerts[ VertIndex ] = CalculateSubpixelCoordinates( Raster, MaterialShader.EvaluateDomain( Barycentrics ) ).xyz;
+			GroupVerts[ VertIndex ] = CalculateSubpixelCoordinates( Raster, MaterialShader.EvaluateDomain( SplitPatch.TriIndex, Barycentrics ) ).xyz;
 		}
 	
 		GroupMemoryBarrierWithGroupSync();

@@ -144,7 +144,7 @@ void FDiceTask::RunChild( uint LocalItemIndex )
 		Barycentrics.Value_dx	= 0;
 		Barycentrics.Value_dy	= 0;
 
-		VertCache( FirstVert + MaxVertIndex ) = CalculateSubpixelCoordinates( Raster, Shader.EvaluateDomain( Barycentrics ) );
+		VertCache( FirstVert + MaxVertIndex ) = CalculateSubpixelCoordinates( Raster, Shader.EvaluateDomain( PatchIndex, Barycentrics ) );
 	}
 			
 	GroupMemoryBarrier();
@@ -168,7 +168,7 @@ void FDiceTask::RunChild( uint LocalItemIndex )
 		Barycentrics.Value_dx	= 0;	// float3( -1, 1, 0 ) / TessFactors.x;
 		Barycentrics.Value_dy	= 0;	// float3( 0, -1, 1 ) / TessFactors.y;
 
-		Verts[i] = CalculateSubpixelCoordinates( Raster, Shader.EvaluateDomain( Barycentrics ) );
+		Verts[i] = CalculateSubpixelCoordinates( Raster, Shader.EvaluateDomain( PatchIndex, Barycentrics ) );
 	}
 #endif
 
