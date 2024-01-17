@@ -23,7 +23,7 @@ namespace PerfReportTool
     class Version
     {
 		// Format: Major.Minor.Bugfix
-        private static string VersionString = "4.227.0";
+        private static string VersionString = "4.227.1";
 
         public static string Get() { return VersionString; }
     };
@@ -1312,6 +1312,8 @@ namespace PerfReportTool
 				htmlFile.WriteLine("<html>");
 				htmlFile.WriteLine("  <head>");
 				htmlFile.WriteLine("    <meta http-equiv='X-UA-Compatible' content='IE=edge'/>");
+				htmlFile.WriteLine("    <meta charset='UTF-8'/>");
+
 				if (GetBoolArg("noWatermarks"))
 				{
 					htmlFile.WriteLine("    <![CDATA[ \nCreated with PerfReportTool");

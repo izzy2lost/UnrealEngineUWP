@@ -95,6 +95,10 @@ namespace PerfSummaries
 
         public void ReadStatsFromXML(XElement element, XmlVariableMappings vars)
         {
+			if (element == null) 
+			{
+				return;
+			}
 			useUnstrippedCsvStats = element.GetSafeAttribute<bool>(vars, "useUnstrippedCsvStats", false);
 			bStartCollapsed = element.GetSafeAttribute<bool>(vars, "collapsed", false);
 			XElement statsElement = element.Element("stats");
