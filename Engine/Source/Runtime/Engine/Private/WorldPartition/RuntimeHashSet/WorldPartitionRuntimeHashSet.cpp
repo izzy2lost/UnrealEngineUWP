@@ -104,6 +104,44 @@ void UWorldPartitionRuntimeHashSet::SetDefaultValues()
 	RuntimePartitionDesc.MainLayer = NewObject<URuntimePartitionLHGrid>(this, NAME_None);
 	RuntimePartitionDesc.MainLayer->Name = RuntimePartitionDesc.Name;
 	RuntimePartitionDesc.MainLayer->SetDefaultValues();
+
+	UWorldPartition* WorldPartition = GetTypedOuter<UWorldPartition>();
+	check(WorldPartition);
+
+	if (const UHLODLayer* HLODLayer = WorldPartition->GetDefaultHLODLayer())
+	{
+		uint32 HLODIndex = 0;
+		while (HLODLayer)
+		{
+			FRuntimePartitionHLODSetup& HLODSetup = RuntimePartitionDesc.HLODSetups.AddDefaulted_GetRef();
+
+			HLODSetup.Name = HLODLayer->GetFName();
+			HLODSetup.bIsSpatiallyLoaded = HLODLayer->IsSpatiallyLoaded();
+			HLODSetup.HLODLayers = { HLODLayer };
+
+			if (HLODSetup.bIsSpatiallyLoaded)
+			{
+				URuntimePartitionLHGrid* HLODLHGrid = NewObject<URuntimePartitionLHGrid>(this, NAME_None);
+				HLODLHGrid->CellSize = CastChecked<URuntimePartitionLHGrid>(RuntimePartitionDesc.MainLayer)->CellSize * (2 << HLODIndex);
+				HLODLHGrid->LoadingRange = RuntimePartitionDesc.MainLayer->LoadingRange * (2 << HLODIndex);
+				HLODSetup.PartitionLayer = HLODLHGrid;
+			}
+			else
+			{
+				HLODSetup.PartitionLayer = NewObject<URuntimePartitionPersistent>(this, NAME_None);
+				HLODSetup.PartitionLayer->LoadingRange = 0;
+			}
+
+			HLODSetup.PartitionLayer->Name = HLODSetup.Name;
+			HLODSetup.PartitionLayer->bBlockOnSlowStreaming = false;
+			HLODSetup.PartitionLayer->bClientOnlyVisible = true;
+			HLODSetup.PartitionLayer->Priority = 0;
+			HLODSetup.PartitionLayer->HLODIndex = HLODIndex;
+
+			HLODLayer = HLODLayer->GetParentLayer();
+			HLODIndex++;
+		}
+	}
 }
 
 void UWorldPartitionRuntimeHashSet::FlushStreaming()

@@ -42,13 +42,14 @@ UWorldPartitionRuntimeHashSet* UWorldPartitionRuntimeHashSet::CreateFrom(const U
 
 				if (const UHLODLayer* HLODLayer = ActorDescView.GetHLODLayer().IsValid() ? Cast<UHLODLayer>(ActorDescView.GetHLODLayer().TryLoad()) : DefaultHLODLayer)
 				{
-					uint32 HLODLIndex = 0;
+					uint32 HLODIndex = 0;
 					while (HLODLayer)
 					{
 						const FName GridName = ActorDescView.GetRuntimeGrid().IsNone() ? SpatialHash->Grids[0].GridName : ActorDescView.GetRuntimeGrid();
-						const FName HLODGridName = HLODLayer->GetRuntimeGrid(HLODLIndex++);
+						const FName HLODGridName = HLODLayer->GetRuntimeGrid(HLODIndex);
 						GridHLODLayersMap.FindOrAdd(GridName).FindOrAdd(HLODGridName).Add(HLODLayer);
 						HLODLayer = HLODLayer->GetParentLayer();
+						HLODIndex++;
 					}
 				}
 			});
