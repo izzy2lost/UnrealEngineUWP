@@ -1142,8 +1142,9 @@ TIoStatusOr<FIoStoreUploadResult> UploadContainerFiles(
 			uint64 EncodedChunkSize = 0;
 			for (const FIoStoreCompressedBlockInfo& BlockInfo : ReadResult.Blocks)
 			{
-				const uint64 EncodedBlockSize = Align(BlockInfo.CompressedSize, FAES::AESBlockSize);
-				ContainerEntry.BlockSizes.Add(uint32(EncodedBlockSize));
+				check(Align(BlockInfo.CompressedSize, FAES::AESBlockSize) == BlockInfo.AlignedSize);
+				const uint64 EncodedBlockSize = BlockInfo.AlignedSize;
+				ContainerEntry.BlockSizes.Add(uint32(BlockInfo.CompressedSize));
 
 				FMemoryView EncodedBlock = EncodedBlocks.Left(EncodedBlockSize);
 				EncodedBlocks += EncodedBlock.GetSize();

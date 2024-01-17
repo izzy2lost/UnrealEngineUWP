@@ -1101,8 +1101,9 @@ static TIoStatusOr<FOnDemandToc> GenerateOnDemandTocFromDisk(FStringView TocHash
 				uint64 EncodedChunkSize = 0;
 				for (const FIoStoreCompressedBlockInfo& BlockInfo : CompressedChunkInfo.Blocks)
 				{
-					const uint64 EncodedBlockSize = Align(BlockInfo.CompressedSize, FAES::AESBlockSize);
-					Container.BlockSizes.Add(uint32(EncodedBlockSize));
+					check(Align(BlockInfo.CompressedSize, FAES::AESBlockSize) == BlockInfo.AlignedSize);
+					const uint64 EncodedBlockSize = BlockInfo.AlignedSize;
+					Container.BlockSizes.Add(uint32(BlockInfo.CompressedSize));
 
 					FIoBlockHash BlockHash;
 					FMemory::Memcpy(&BlockHash, &BlockInfo.DiskHash, sizeof(FIoBlockHash));
