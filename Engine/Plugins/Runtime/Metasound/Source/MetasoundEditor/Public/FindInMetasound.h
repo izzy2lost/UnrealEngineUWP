@@ -44,10 +44,10 @@ namespace Metasound::Editor
 		FString GetCommentText() const;
 
 		/** Gets the value of the pin or node if any */
-		FString GetValueText();
+		FText GetValueText();
 			
 		/** Gets the value tooltip (longer version of value text) of the pin or node if any */
-		FString GetValueTooltipText();
+		FText GetValueTooltipText();
 
 		/** Any children listed under this category */
 		TArray<TSharedPtr<FFindInMetasoundResult>> Children;
@@ -74,7 +74,7 @@ namespace Metasound::Editor
 		FString CommentText;
 
 		/** Cache value text */
-		FString ValueText;
+		FText ValueText;
 
 		/** Helper function to get MetaSound graph member from an ed graph node */
 		static const UMetasoundEditorGraphMember* GetMetaSoundGraphMember(const UEdGraphNode* EdGraphNode);
@@ -88,7 +88,7 @@ namespace Metasound::Editor
 		SLATE_BEGIN_ARGS(SFindInMetasound) {}
 		SLATE_END_ARGS()
 
-			void Construct(const FArguments& InArgs, TSharedPtr<class FEditor> InMetaSoundEditor);
+		void Construct(const FArguments& InArgs, TSharedPtr<class FEditor> InMetaSoundEditor);
 
 		/** Focuses this widget's search box */
 		void FocusForUse();
