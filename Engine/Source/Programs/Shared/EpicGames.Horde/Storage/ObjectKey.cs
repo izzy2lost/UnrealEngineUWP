@@ -59,9 +59,6 @@ namespace EpicGames.Horde.Storage
 			}
 		}
 
-		static bool IsValidChar(byte character)
-			=> (character >= 'a' && character <= 'z') || (character >=  '0' && character <= '9') || character == '_' || character == '.' || character == '/';
-
 		/// <summary>
 		/// Whether the blob locator is valid
 		/// </summary>

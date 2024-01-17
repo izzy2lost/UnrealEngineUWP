@@ -738,7 +738,7 @@ namespace EpicGames.Horde.Storage.Nodes
 		/// <param name="cancellationToken">Cancellation token for the operation</param>
 		public async Task CopyToDirectoryAsync(DirectoryInfo directoryInfo, IProgress<ICopyStats>? progress, BlobSerializerOptions? options, ILogger logger, CancellationToken cancellationToken)
 		{
-			int numTasks = Math.Min(1 + (int)(Length / (16 * 1024 * 1024)), 4);
+			int numTasks = Math.Min(1 + (int)(Length / (16 * 1024 * 1024)), 16);
 			logger.LogInformation("Splitting read into {NumThreads} threads", numTasks);
 
 			CopyStats? copyStats = null;
@@ -801,8 +801,7 @@ namespace EpicGames.Horde.Storage.Nodes
 
 				// Process as many chunks as we can for this file
 				using MemoryMappedFile memoryMappedFile = MemoryMappedFile.CreateFromFile(stream, null, file.FileEntry.Length, MemoryMappedFileAccess.ReadWrite, HandleInheritability.None, false);
-				using MemoryMappedViewAccessor memoryMappedViewAccessor = memoryMappedFile.CreateViewAccessor(0, file.FileEntry.Length);
-				using MemoryMappedView memoryMappedView = new MemoryMappedView(memoryMappedViewAccessor);
+				using MemoryMappedView memoryMappedView = new MemoryMappedView(memoryMappedFile, 0, file.FileEntry.Length);
 
 				while (chunk != null && chunk.File == file)
 				{

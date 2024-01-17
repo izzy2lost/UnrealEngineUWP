@@ -2,7 +2,10 @@
 
 using System;
 using System.Buffers;
+using System.Diagnostics;
 using System.IO.MemoryMappedFiles;
+using System.Runtime.InteropServices;
+using Microsoft.Win32.SafeHandles;
 
 namespace EpicGames.Core
 {
@@ -35,8 +38,46 @@ namespace EpicGames.Core
 			protected override void Dispose(bool disposing) { }
 		}
 
-		readonly MemoryMappedViewAccessor _memoryMappedViewAccessor;
+		const uint FILE_MAP_ALL_ACCESS = 0x000F001F;
+
+		[DllImport("kernel32.dll")]
+		static extern unsafe void* MapViewOfFile(SafeMemoryMappedFileHandle handle, uint desiredAccess, uint fileOffsetHigh, uint fileOffsetLow, long numberOfBytes);
+
+		[DllImport("kernel32.dll")]
+		static extern unsafe bool UnmapViewOfFile(void* ptr);
+		
 		byte* _data;
+		Action? _disposeMethod;
+
+		/// <summary>
+		/// Create a view of a memory mapped file
+		/// </summary>
+		/// <param name="memoryMappedFile"></param>
+		public MemoryMappedView(MemoryMappedFile memoryMappedFile, long offset, long length)
+		{
+			if (RuntimeInformation.IsOSPlatform(OSPlatform.Windows))
+			{
+				_data = (byte*)MapViewOfFile(memoryMappedFile.SafeMemoryMappedFileHandle, FILE_MAP_ALL_ACCESS, (uint)(offset >> 32), (uint)offset, length);
+				Trace.Assert(_data != null);
+
+				_disposeMethod = () =>
+				{
+					UnmapViewOfFile(_data);
+				};
+			}
+			else
+			{
+				MemoryMappedViewAccessor memoryMappedViewAccessor = memoryMappedFile.CreateViewAccessor(offset, length);
+				memoryMappedViewAccessor.SafeMemoryMappedViewHandle.AcquirePointer(ref _data);
+				Trace.Assert(_data != null);
+
+				_disposeMethod = () =>
+				{
+					memoryMappedViewAccessor.SafeMemoryMappedViewHandle.ReleasePointer();
+					memoryMappedViewAccessor.Dispose();
+				};
+			}
+		}
 
 		/// <summary>
 		/// Constructor
@@ -44,8 +85,8 @@ namespace EpicGames.Core
 		/// <param name="memoryMappedViewAccessor"></param>
 		public MemoryMappedView(MemoryMappedViewAccessor memoryMappedViewAccessor)
 		{
-			_memoryMappedViewAccessor = memoryMappedViewAccessor;
 			memoryMappedViewAccessor.SafeMemoryMappedViewHandle.AcquirePointer(ref _data);
+			_disposeMethod = () => memoryMappedViewAccessor.SafeMemoryMappedViewHandle.ReleasePointer();
 		}
 
 		/// <summary>
@@ -68,11 +109,12 @@ namespace EpicGames.Core
 		/// <inheritdoc/>
 		public void Dispose()
 		{
-			if (_data != null)
+			if (_disposeMethod != null)
 			{
-				_memoryMappedViewAccessor.SafeMemoryMappedViewHandle.ReleasePointer();
-				_data = null;
+				_disposeMethod();
+				_disposeMethod = null;
 			}
+			_data = null;
 		}
 	}
 }

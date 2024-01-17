@@ -28,7 +28,9 @@ namespace EpicGames.Horde.Storage.ObjectStores
 		/// </summary>
 		public PrefixedObjectStore(string prefix, IObjectStore inner)
 		{
+#pragma warning disable CA1308 // Use ToUpperInvariant()
 			prefix = prefix.TrimEnd('/').ToLowerInvariant();
+#pragma warning restore CA1308
 			_ = new ObjectKey(prefix); // Validate the syntax
 			_prefix = new Utf8String($"{prefix}/");
 			_inner = inner;

@@ -639,7 +639,9 @@ namespace Horde.Server.Storage
 		/// <inheritdoc/>
 		public IStorageClient? TryCreateClient(GlobalConfig globalConfig, NamespaceId namespaceId)
 		{
+#pragma warning disable CA2000 // Call dispose on backend; will be disposed by BundleStorageClient
 			IStorageBackend? backend = TryCreateBackend(globalConfig, namespaceId);
+#pragma warning restore CA2000
 			if (backend == null)
 			{
 				return null;
@@ -1123,7 +1125,7 @@ namespace Horde.Server.Storage
 
 		async Task TickGcForNamespaceAsync(NamespaceInfo namespaceInfo, ObjectId lastImportBlobInfoId, DateTime utcNow, CancellationToken cancellationToken)
 		{
-			IStorageClient client = this.CreateClient(namespaceInfo.Id);
+			using IStorageClient client = this.CreateClient(namespaceInfo.Id);
 
 			double score = GetGcTimestamp(utcNow);
 
