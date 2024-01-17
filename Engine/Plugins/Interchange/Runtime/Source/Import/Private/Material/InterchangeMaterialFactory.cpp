@@ -412,7 +412,7 @@ namespace UE::Interchange::MaterialFactory::Internal
 	}
 
 
-	void UpdateParameterBool(UMaterialInstance& MaterialInstance, const FString& InputName, const UInterchangeMaterialInstanceFactoryNode& FactoryNode)
+	void UpdateParameterBool(UMaterialInstance& MaterialInstance, const FString& InputName, const UInterchangeMaterialInstanceFactoryNode& FactoryNode, bool bIsAParameter)
 	{
 #if WITH_EDITORONLY_DATA
 		const FName ParameterName = *InputName;
@@ -421,7 +421,8 @@ namespace UE::Interchange::MaterialFactory::Internal
 		if (MaterialInstance.GetStaticSwitchParameterValue(ParameterName, bInstanceValue, Uid))
 		{
 			bool bInputValue = false;
-			FactoryNode.GetBooleanAttribute(UInterchangeShaderPortsAPI::MakeInputValueKey(InputName), bInputValue);
+			const FString InputKey = bIsAParameter ? UInterchangeShaderPortsAPI::MakeInputParameterKey(InputName) : UInterchangeShaderPortsAPI::MakeInputValueKey(InputName);
+			FactoryNode.GetBooleanAttribute(InputKey, bInputValue);
 
 			if (bInputValue != bInstanceValue)
 			{
@@ -434,7 +435,7 @@ namespace UE::Interchange::MaterialFactory::Internal
 #endif // #if WITH_EDITORONLY_DATA
 	}
 
-	void UpdateParameterFloat(UMaterialInstance& MaterialInstance, const FString& InputName, const UInterchangeMaterialInstanceFactoryNode& FactoryNode)
+	void UpdateParameterFloat(UMaterialInstance& MaterialInstance, const FString& InputName, const UInterchangeMaterialInstanceFactoryNode& FactoryNode, bool bIsAParameter)
 	{
 		const FName ParameterName = *InputName;
 		float InstanceValue;
@@ -442,7 +443,8 @@ namespace UE::Interchange::MaterialFactory::Internal
 		if (MaterialInstance.GetScalarParameterValue(ParameterName, InstanceValue))
 		{
 			float InputValue = 0.f;
-			FactoryNode.GetFloatAttribute(UInterchangeShaderPortsAPI::MakeInputValueKey(InputName), InputValue);
+			const FString InputKey = bIsAParameter ? UInterchangeShaderPortsAPI::MakeInputParameterKey(InputName) : UInterchangeShaderPortsAPI::MakeInputValueKey(InputName);
+			FactoryNode.GetFloatAttribute(InputKey, InputValue);
 
 			if (!FMath::IsNearlyEqual(InputValue, InstanceValue))
 			{
@@ -461,7 +463,7 @@ namespace UE::Interchange::MaterialFactory::Internal
 		}
 	}
 
-	void UpdateParameterLinearColor(UMaterialInstance& MaterialInstance, const FString& InputName, const UInterchangeMaterialInstanceFactoryNode& FactoryNode)
+	void UpdateParameterLinearColor(UMaterialInstance& MaterialInstance, const FString& InputName, const UInterchangeMaterialInstanceFactoryNode& FactoryNode, bool bIsAParameter)
 	{
 		const FName ParameterName = *InputName;
 		FLinearColor InstanceValue;
@@ -469,7 +471,8 @@ namespace UE::Interchange::MaterialFactory::Internal
 		if (MaterialInstance.GetVectorParameterValue(ParameterName, InstanceValue))
 		{
 			FLinearColor InputValue;
-			if (FactoryNode.GetLinearColorAttribute(UInterchangeShaderPortsAPI::MakeInputValueKey(InputName), InputValue))
+			const FString InputKey = bIsAParameter ? UInterchangeShaderPortsAPI::MakeInputParameterKey(InputName) : UInterchangeShaderPortsAPI::MakeInputValueKey(InputName);
+			if (FactoryNode.GetLinearColorAttribute(InputKey, InputValue))
 			{
 				if (!InputValue.Equals(InstanceValue))
 				{
@@ -489,7 +492,7 @@ namespace UE::Interchange::MaterialFactory::Internal
 		}
 	}
 
-	void UpdateParameterTexture(UMaterialInstance& MaterialInstance, const FString& InputName, const UInterchangeMaterialInstanceFactoryNode& FactoryNode, const UInterchangeBaseNodeContainer& NodeContainer)
+	void UpdateParameterTexture(UMaterialInstance& MaterialInstance, const FString& InputName, const UInterchangeMaterialInstanceFactoryNode& FactoryNode, const UInterchangeBaseNodeContainer& NodeContainer, bool bIsAParameter)
 	{
 		const FName ParameterName = *InputName;
 		UTexture* InstanceValue;
@@ -497,7 +500,8 @@ namespace UE::Interchange::MaterialFactory::Internal
 		if (MaterialInstance.GetTextureParameterValue(ParameterName, InstanceValue))
 		{
 			FString InputValue;
-			if (FactoryNode.GetStringAttribute(UInterchangeShaderPortsAPI::MakeInputValueKey(InputName), InputValue))
+			const FString InputKey = bIsAParameter ? UInterchangeShaderPortsAPI::MakeInputParameterKey(InputName) : UInterchangeShaderPortsAPI::MakeInputValueKey(InputName);
+			if (FactoryNode.GetStringAttribute(InputKey, InputValue))
 			{
 				if (const UInterchangeTextureFactoryNode* TextureFactoryNode = Cast<UInterchangeTextureFactoryNode>(NodeContainer.GetNode(InputValue)))
 				{
@@ -1702,20 +1706,21 @@ void UInterchangeMaterialFactory::SetupMaterialInstance(UMaterialInstance& Mater
 	for (const FString& InputName : Inputs)
 	{
 		const FName ParameterName = *InputName;
+		const bool bIsAParameter = UInterchangeShaderPortsAPI::HasParameter(&FactoryNode, ParameterName);
 
-		switch (UInterchangeShaderPortsAPI::GetInputType(&FactoryNode, InputName))
+		switch (UInterchangeShaderPortsAPI::GetInputType(&FactoryNode, InputName, bIsAParameter))
 		{
 		case UE::Interchange::EAttributeTypes::Bool:
-			UpdateParameterBool(MaterialInstance, InputName, FactoryNode);
+			UpdateParameterBool(MaterialInstance, InputName, FactoryNode, bIsAParameter);
 			break;
 		case UE::Interchange::EAttributeTypes::Float:
-			UpdateParameterFloat(MaterialInstance, InputName, FactoryNode);
+			UpdateParameterFloat(MaterialInstance, InputName, FactoryNode, bIsAParameter);
 			break;
 		case UE::Interchange::EAttributeTypes::LinearColor:
-			UpdateParameterLinearColor(MaterialInstance, InputName, FactoryNode);
+			UpdateParameterLinearColor(MaterialInstance, InputName, FactoryNode, bIsAParameter);
 			break;
 		case UE::Interchange::EAttributeTypes::String:
-			UpdateParameterTexture(MaterialInstance, InputName, FactoryNode, NodeContainer);
+			UpdateParameterTexture(MaterialInstance, InputName, FactoryNode, NodeContainer, bIsAParameter);
 			break;
 		}
 	}
@@ -1771,8 +1776,8 @@ void UInterchangeMaterialFactory::SetupReimportedMaterialInstance(UMaterialInsta
 
 	for (const FString& InputName : Inputs)
 	{
-		const FString ParameterName = *InputName;
-		const FString AttributKey = UInterchangeShaderPortsAPI::MakeInputValueKey(InputName);
+		bool bIsAParameter = UInterchangeShaderPortsAPI::HasParameter(&FactoryNode, *InputName);
+		const FString AttributKey = bIsAParameter ? UInterchangeShaderPortsAPI::MakeInputParameterKey(InputName) : UInterchangeShaderPortsAPI::MakeInputValueKey(InputName);
 
 		FGuid Uid;
 		switch (UInterchangeShaderPortsAPI::GetInputType(&FactoryNode, InputName))
@@ -1789,12 +1794,9 @@ void UInterchangeMaterialFactory::SetupReimportedMaterialInstance(UMaterialInsta
 						bPreviousInputValue = bInstanceValue;
 					}
 
-					bool bInputValue = false;
-					FactoryNode.GetBooleanAttribute(AttributKey, bInputValue);
-
 					if (bInstanceValue == bPreviousInputValue)
 					{
-						UpdateParameterBool(MaterialInstance, InputName, FactoryNode);
+						UpdateParameterBool(MaterialInstance, InputName, FactoryNode, bIsAParameter);
 					}
 				}
 			}
@@ -1815,7 +1817,7 @@ void UInterchangeMaterialFactory::SetupReimportedMaterialInstance(UMaterialInsta
 
 				if(bUpdateParameter)
 				{
-					UpdateParameterFloat(MaterialInstance, InputName, FactoryNode);
+					UpdateParameterFloat(MaterialInstance, InputName, FactoryNode, bIsAParameter);
 				}
 			}
 			break;
@@ -1834,7 +1836,7 @@ void UInterchangeMaterialFactory::SetupReimportedMaterialInstance(UMaterialInsta
 
 				if (bUpdateParameter)
 				{
-					UpdateParameterLinearColor(MaterialInstance, InputName, FactoryNode);
+					UpdateParameterLinearColor(MaterialInstance, InputName, FactoryNode, bIsAParameter);
 				}
 			}
 			break;
@@ -1854,7 +1856,7 @@ void UInterchangeMaterialFactory::SetupReimportedMaterialInstance(UMaterialInsta
 
 				if (bUpdateParameter)
 				{
-					UpdateParameterTexture(MaterialInstance, InputName, FactoryNode, NodeContainer);
+					UpdateParameterTexture(MaterialInstance, InputName, FactoryNode, NodeContainer, bIsAParameter);
 				}
 			}
 			break;
