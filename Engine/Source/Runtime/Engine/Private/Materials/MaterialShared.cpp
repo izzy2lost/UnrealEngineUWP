@@ -435,11 +435,7 @@ const UE::HLSLTree::FExpression* FExpressionInput::AcquireHLSLExpression(FMateri
 		{
 			return Generator.NewErrorExpressionf(TEXT("Missing input '%s'"), *LocalInputName.ToString());
 		}
-		else
-		{
-			Generator.NewErrorExpression(TEXT("Missing input"));
-		}
-		return nullptr;
+		return Generator.NewErrorExpression(TEXT("Missing input"));
 	}
 	return TryAcquireHLSLExpression(Generator, Scope, InputIndex);
 }

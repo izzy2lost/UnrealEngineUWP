@@ -544,6 +544,7 @@ const UE::HLSLTree::FExpression* FMaterialHLSLGenerator::AcquireExpression(UE::H
 		const FExpression** Found = GeneratedExpressionMap.Find(KeyHash);
 		Expression = Found ? *Found : nullptr;
 
+		check(MaterialExpression);
 		if (!Expression && MaterialExpression->GenerateHLSLExpression(*this, Scope, OutputIndex, Expression))
 		{
 			GeneratedExpressionMap.Add(KeyHash, Expression);

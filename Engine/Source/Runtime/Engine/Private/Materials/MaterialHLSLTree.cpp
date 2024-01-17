@@ -1788,6 +1788,11 @@ void FExpressionStaticTerrainLayerWeight::EmitValueShader(FEmitContext& Context,
 		TextureValue.Texture = bTextureArrayEnabled ? GEngine->WeightMapArrayPlaceholderTexture : GEngine->WeightMapPlaceholderTexture;
 		TextureValue.ParameterInfo.Name = BuildWeightmapName(TEXT("Weightmap"), WeightmapIndex, !bTextureArrayEnabled);
 
+		if (!EmitTexCoordValue)
+		{
+			EmitTexCoordValue = TexCoordExpression->GetValueShader(Context, Scope, TexCoordType);
+		}
+
 		if (bTextureArrayEnabled)
 		{
 			EmitTexCoordValue = Context.EmitExpression(Scope, Shader::EValueType::Float3, TEXT("float3((%).xy,%)"), EmitTexCoordValue, WeightmapIndex);

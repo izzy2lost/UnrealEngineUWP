@@ -111,13 +111,13 @@ public:
 	const UE::HLSLTree::FExpression* NewSwizzle(const UE::HLSLTree::FSwizzleParameters& Params, const UE::HLSLTree::FExpression* Input);
 
 	template<typename StringType>
-	inline const UE::HLSLTree::FExpression* NewErrorExpression(const StringType& InError)
+	[[nodiscard]] inline const UE::HLSLTree::FExpression* NewErrorExpression(const StringType& InError)
 	{
 		return InternalNewErrorExpression(FStringView(InError));
 	}
 
 	template<typename FormatType, typename... Types>
-	const UE::HLSLTree::FExpression* NewErrorExpressionf(const FormatType& Format, Types... Args)
+	[[nodiscard]] const UE::HLSLTree::FExpression* NewErrorExpressionf(const FormatType& Format, Types... Args)
 	{
 		TStringBuilder<1024> String;
 		String.Appendf(Format, Forward<Types>(Args)...);

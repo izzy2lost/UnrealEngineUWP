@@ -266,8 +266,15 @@ bool UMaterialExpressionNamedRerouteDeclaration::GenerateHLSLExpression(FMateria
 
 bool UMaterialExpressionNamedRerouteUsage::GenerateHLSLExpression(FMaterialHLSLGenerator& Generator, UE::HLSLTree::FScope& Scope, int32 OutputIndex, UE::HLSLTree::FExpression const*& OutExpression) const
 {
-	OutExpression = Generator.AcquireExpression(Scope, 0, Declaration, 0, UE::HLSLTree::FSwizzleParameters());
-	return OutExpression != nullptr;
+	if (IsDeclarationValid())
+	{
+		OutExpression = Generator.AcquireExpression(Scope, 0, Declaration, 0, UE::HLSLTree::FSwizzleParameters());
+	}
+	else
+	{
+		OutExpression = Generator.NewErrorExpression(TEXT("Invalid named reroute variable"));
+	}
+	return true;
 }
 
 bool UMaterialExpressionGenericConstant::GenerateHLSLExpression(FMaterialHLSLGenerator& Generator, UE::HLSLTree::FScope& Scope, int32 OutputIndex, UE::HLSLTree::FExpression const*& OutExpression) const
@@ -1509,6 +1516,10 @@ bool UMaterialExpressionTextureSample::GenerateHLSLExpressionBase(FMaterialHLSLG
 	}
 
 	const FExpression* TexCoordExpression = Coordinates.AcquireHLSLExpressionOrExternalInput(Generator, Scope, Material::MakeInputTexCoord(ConstCoordinate));
+	if (!TexCoordExpression)
+	{
+		return false;
+	}
 	const FExpression* MipLevelExpression = nullptr;
 	FExpressionDerivatives TexCoordDerivatives;
 	switch (MipValueMode)
@@ -3848,6 +3859,10 @@ bool UMaterialExpressionPanner::GenerateHLSLExpression(FMaterialHLSLGenerator& G
 
 	const FExpression* ExpressionTime = Time.AcquireHLSLExpressionOrExternalInput(Generator, Scope, Material::EExternalInput::GameTime);
 	const FExpression* ExpressionSpeed = Speed.AcquireHLSLExpressionOrConstant(Generator, Scope, FVector2f(SpeedX, SpeedY));
+	if (!ExpressionTime || !ExpressionSpeed)
+	{
+		return false;
+	}
 	const FExpression* ExpressionOffset = Generator.GetTree().NewMul(ExpressionSpeed, ExpressionTime);
 	if (bFractionalPart)
 	{
