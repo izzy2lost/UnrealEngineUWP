@@ -884,10 +884,13 @@ void FDetailCategoryImpl::InitializeObjectName()
 	{
 		if (const FObjectPropertyNode* Object = Node->AsObjectNode())
 		{
-			if (const UObject* CategoryObject = Object->GetUObject(0))
+			if (Object->GetNumObjects() > 0)
 			{
-				const FName Name{CategoryObject->GetName()};
-				ObjectName = Name;
+				if (const UObject* CategoryObject = Object->GetUObject(0))
+				{
+					const FName Name{ CategoryObject->GetName() };
+					ObjectName = Name;
+				}
 			}
 		}
 	}	
