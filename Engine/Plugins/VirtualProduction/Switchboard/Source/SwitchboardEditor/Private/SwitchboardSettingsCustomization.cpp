@@ -200,7 +200,7 @@ void FSwitchboardEditorSettingsCustomization::CustomizeDetails(IDetailLayoutBuil
 		]
 	];
 
-#if SB_LISTENER_AUTOLAUNCH
+#if SWITCHBOARD_LISTENER_AUTOLAUNCH
 	// This checkbox isn't backed by a property; it directly reflects the state
 	// of a Windows registry entry, and therefore only exists on Windows.
 	const FText& ListenerAutolaunchLabel = LOCTEXT("ListenerAutolaunchLabel", "Launch Switchboard Listener on Login");
@@ -232,7 +232,7 @@ void FSwitchboardEditorSettingsCustomization::CustomizeDetails(IDetailLayoutBuil
 			FSwitchboardEditorModule::Get().SetListenerAutolaunchEnabled(bShouldAutolaunch);
 		})
 	];
-#endif // #if SB_LISTENER_AUTOLAUNCH
+#endif // #if SWITCHBOARD_LISTENER_AUTOLAUNCH
 }
 
 
