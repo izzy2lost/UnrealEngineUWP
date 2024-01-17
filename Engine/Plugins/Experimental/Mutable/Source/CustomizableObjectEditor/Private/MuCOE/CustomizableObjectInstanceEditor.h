@@ -193,7 +193,7 @@ public:
 	virtual void Tick(float InDeltaTime) override;
 	virtual TStatId GetStatId() const override;
 
-	void OnCustomizableObjectStatusChanged(FCustomizableObjectStatus::EState PreviousState, FCustomizableObjectStatus::EState NextState);
+	void OnCustomizableObjectStatusChanged(FCustomizableObjectStatus::EState PreviousState, FCustomizableObjectStatus::EState CurrentState);
 	
 private:
 

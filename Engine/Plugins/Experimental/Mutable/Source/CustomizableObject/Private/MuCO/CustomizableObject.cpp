@@ -798,7 +798,6 @@ void UCustomizableObject::LoadCompiledDataFromDisk()
 	if (!CustomizableObjectPrivate->GetModel()) // Not failed to load the model
 	{
 		CustomizableObjectPrivate->Status.NextState(FCustomizableObjectStatusTypes::EState::NoModel);
-		ConditionalAutoCompile(); // Recompile if no model has been loaded
 	}
 }
 

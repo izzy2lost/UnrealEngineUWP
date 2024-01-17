@@ -2723,9 +2723,9 @@ void FCustomizableObjectEditor::CreatePreviewComponents()
 }
 
 
-void FCustomizableObjectEditor::OnCustomizableObjectStatusChanged(FCustomizableObjectStatus::EState, const FCustomizableObjectStatus::EState NextState)
+void FCustomizableObjectEditor::OnCustomizableObjectStatusChanged(FCustomizableObjectStatus::EState, const FCustomizableObjectStatus::EState CurrentState)
 {
-	switch (NextState)
+	switch (CurrentState)
 	{
 	case FCustomizableObjectStatus::EState::ModelLoaded:
 		if (!PreviewInstance)

@@ -23,9 +23,10 @@ public:
 	void NextState(EState State)
 	{
 		check(T::ValidTransitions[static_cast<int32>(CurrentState)][static_cast<int32>(State)])
-		
-		OnStateChangedDelegate.Broadcast(CurrentState, State);
+
+		EState PreviousState = CurrentState; 
 		CurrentState = State;
+		OnStateChangedDelegate.Broadcast(PreviousState, CurrentState);
 	}
 
 	EState Get() const

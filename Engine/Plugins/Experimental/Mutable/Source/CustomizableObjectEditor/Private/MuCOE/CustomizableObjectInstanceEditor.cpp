@@ -340,7 +340,7 @@ FText FCustomizableObjectInstanceEditor::GetBaseToolkitName() const
 void FCustomizableObjectInstanceEditor::CreatePreviewInstance()
 {
 	check(CustomizableObjectInstance);
-	if (!CustomizableObjectInstance->CanUpdateInstance())
+	if (!CustomizableObjectInstance->GetCustomizableObject())
 	{
 		return;
 	}
@@ -733,9 +733,9 @@ TStatId FCustomizableObjectInstanceEditor::GetStatId() const
 }
 
 
-void FCustomizableObjectInstanceEditor::OnCustomizableObjectStatusChanged(FCustomizableObjectStatus::EState, const FCustomizableObjectStatus::EState NextState)
+void FCustomizableObjectInstanceEditor::OnCustomizableObjectStatusChanged(FCustomizableObjectStatus::EState, const FCustomizableObjectStatus::EState CurrentState)
 {
-	switch (NextState)
+	switch (CurrentState)
 	{
 	case FCustomizableObjectStatus::EState::ModelLoaded:
 		{
