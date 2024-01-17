@@ -140,7 +140,7 @@ FArchive& FActorDescArchivePatcher::operator<<(FSoftObjectPath& Value)
 	TGuardValue<bool> GuardIsPatching(bIsPatching, true);
 	FActorDescArchive::operator<<(Value);
 	AssetDataPatcher->DoPatch(Value);
-	OutAr << Value;
+	Value.SerializePathWithoutFixup(OutAr);
 	return *this;
 }
 
