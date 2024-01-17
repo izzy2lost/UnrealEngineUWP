@@ -614,7 +614,7 @@ namespace mu
                         op->type = OP_TYPE::BO_PARAMETER;
 
                         op->parameter.m_name = pChildNode->GetName();
-                   		const TCHAR* CStr = ToCStr(Private->Uid);
+                   		const TCHAR* CStr = ToCStr(pChildNode->GetUid());
                    		op->parameter.m_uid.ImportTextItem(CStr, 0, nullptr, nullptr);
                         op->parameter.m_type = PARAMETER_TYPE::T_BOOL;
                         op->parameter.m_defaultValue.Set<ParamBoolType>(false);
