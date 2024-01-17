@@ -250,6 +250,32 @@ constexpr SerializeMethodSig GetSerializeMethod()
 	}
 }
 
+template <typename T, typename = void>
+struct SerializeNewable : std::false_type
+{
+};
+
+template <typename T>
+struct SerializeNewable<T, std::void_t<decltype(T::SerializeNew(std::declval<FAllocationContext>()))>> : std::true_type
+{
+};
+
+using SerializeNewSig = VCell& (*)(FAllocationContext Context);
+template <typename CellType>
+constexpr SerializeNewSig GetSerializeNewMethod()
+{
+	if constexpr (SerializeNewable<CellType>::value)
+	{
+		return [](FAllocationContext Context) -> VCell& {
+			return CellType::SerializeNew(Context);
+		};
+	}
+	else
+	{
+		return nullptr;
+	}
+}
+
 } // namespace Details
 
 } // namespace Verse

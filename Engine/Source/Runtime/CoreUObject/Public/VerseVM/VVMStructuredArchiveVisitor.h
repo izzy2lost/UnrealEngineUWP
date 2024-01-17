@@ -7,6 +7,7 @@
 #include "CoreTypes.h"
 #include "Serialization/StructuredArchiveSlotBase.h"
 #include "Serialization/StructuredArchiveSlots.h"
+#include "UObject/ObjectResource.h"
 #include "VVMAbstractVisitor.h"
 
 class FStructuredArchive;
@@ -15,11 +16,30 @@ namespace Verse
 {
 struct VCppClassInfo;
 
+struct FVCellSerializeContext
+{
+	TMap<VCell*, FPackageIndex> CellToPackageIndex;
+	TArray<VCell*> ExportMap;
+
+	struct FBatch
+	{
+#if !UE_BUILD_SHIPPING
+		int Iterations;
+#endif
+		FPackageIndex RootCell;
+		TArray<FPackageIndex> Exports;
+		TArray<FPackageIndex> Precreate;
+	};
+
+	FBatch BuildBatch(VCell* Root);
+};
+
 struct FStructuredArchiveVisitor : FAbstractVisitor
 {
-	FStructuredArchiveVisitor(FAllocationContext InContext, FStructuredArchive& InStructuredArchive)
+	FStructuredArchiveVisitor(FAllocationContext InContext, FStructuredArchive& InStructuredArchive, FVCellSerializeContext* InSerializeContext = nullptr)
 		: Context(InContext)
 		, StructuredArchive(InStructuredArchive)
+		, SerializeContext(InSerializeContext)
 	{
 	}
 
@@ -72,6 +92,8 @@ private:
 		Char,
 		Char32,
 		Cell, // The name will follow this value
+		Batch,
+		CellIndex,
 	};
 
 	struct FEncodedType
@@ -97,9 +119,17 @@ private:
 	FStructuredArchiveSlot Slot(const TCHAR* ElementName);
 
 	// Read/Write a cell while handling null, true, and false types
+	void WriteCellBodyInternal(FStructuredArchiveRecord Record, VCell* InCell);
 	void WriteCellBody(FStructuredArchiveRecord Record, VCell* InCell);
+	void ReadCellBodyInternal(FStructuredArchiveRecord Record, FEncodedType EncodedType, VCell*& InOutCell);
 	VCell* ReadCellBody(FStructuredArchiveRecord Record, FEncodedType EncodedType);
 	void VisitCellBody(FStructuredArchiveRecord Record, VCell*& InOutCell);
+
+	// Read/Write a value
+	VValue FollowPlaceholder(VValue InValue);
+	void WriteValueBody(FStructuredArchiveRecord Record, VValue InValue);
+	VValue ReadValueBody(FStructuredArchiveRecord Record, FEncodedType EncodedType);
+	void VisitValueBody(FStructuredArchiveRecord Record, VValue& InOutValue);
 
 	struct NestingEntry
 	{
@@ -109,6 +139,8 @@ private:
 	TArray<NestingEntry> NestingInfo;
 	FAllocationContext Context;
 	FStructuredArchive& StructuredArchive;
+	FVCellSerializeContext* SerializeContext = nullptr;
+	bool bIsInBatch = false;
 
 	struct ScopedRecord
 	{

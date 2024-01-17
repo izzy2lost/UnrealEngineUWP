@@ -97,6 +97,7 @@ public:                                                                         
 		},                                                                                                                                                                      \
 		::Verse::Details::GetToStringMethod<CellType>(),                                                                                                                        \
 		::Verse::Details::GetSerializeMethod<CellType>(),                                                                                                                       \
+		::Verse::Details::GetSerializeNewMethod<CellType>(),                                                                                                                    \
 	};                                                                                                                                                                          \
 	::Verse::VCppClassInfoRegister CellType##_Register(&CellType::StaticCppClassInfo);
 
@@ -128,6 +129,7 @@ struct VCppClassInfo
 	uint32 (*GetTypeHash)(VCell* This);
 	void (*ToString)(VCell* This, FStringBuilderBase& Builder, FAllocationContext Context, const FCellFormatter& Formatter);
 	void (*Serialize)(VCell*& This, FAllocationContext Context, FAbstractVisitor& Visitor);
+	VCell& (*SerializeNew)(FAllocationContext Context);
 
 	bool IsA(const VCppClassInfo* Other) const
 	{
