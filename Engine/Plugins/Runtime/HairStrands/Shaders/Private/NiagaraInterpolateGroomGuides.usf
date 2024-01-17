@@ -130,12 +130,12 @@ void MainCS(uint3 DispatchThreadId : SV_DispatchThreadID)
 
 		const float3 LocalPointDisplace = (TrianglePrevNodePosition - TrianglePrevRestPosition)  * (1.0 - PointAlpha) + (TriangleNextNodePosition - TriangleNextRestPosition) * PointAlpha;
 		
-		const uint4 Packed = RestPositionBuffer[DispatchThreadId.x];
+		const FPackedHairPosition Packed = ReadPackedHairPosition(RestPositionBuffer, DispatchThreadId.x);
 		const float3 LocalTrianglePosition = DIHairStrands_TriangleLocalPosition(RestTrianglePosition, RestTriangleOrientation, 
 					UnpackHairControlPointPosition(Packed, RestPositionOffset)) + LocalPointDisplace;
 		
 		const float3 LocalComponentPosition = DIHairStrands_TriangleWorldPosition(DeformedTrianglePosition, DeformedTriangleOrientation, LocalTrianglePosition) - DeformedPositionOffset[0].xyz;
-		DeformedPositionBuffer[DispatchThreadId.x] = PackHairControlPointPosition(Packed, LocalComponentPosition);
+		WritePackedHairControlPointPosition(DeformedPositionBuffer, DispatchThreadId.x, Packed, LocalComponentPosition);
 
 #endif
 		
@@ -143,9 +143,9 @@ void MainCS(uint3 DispatchThreadId : SV_DispatchThreadID)
 		
 		const float3 LocalPointDisplace = (LocalPrevNodePosition - LocalPrevRestPosition)  * (1.0 - PointAlpha) + (LocalNextNodePosition - LocalNextRestPosition) * PointAlpha;
 
-		const uint4 Packed = RestPositionBuffer[DispatchThreadId.x];
-		const float3 LocalComponentPosition = UnpackHairControlPointPosition(RestPositionBuffer[DispatchThreadId.x], RestPositionOffset) + LocalPointDisplace;
-		DeformedPositionBuffer[DispatchThreadId.x] = PackHairControlPointPosition(Packed, LocalComponentPosition, DeformedPositionOffset[0].xyz);
+		const FPackedHairPosition Packed = ReadPackedHairPosition(RestPositionBuffer, DispatchThreadId.x);
+		const float3 LocalComponentPosition = ReadHairControlPointPosition(RestPositionBuffer, DispatchThreadId.x, RestPositionOffset) + LocalPointDisplace;
+		WritePackedHairControlPointPosition(DeformedPositionBuffer, DispatchThreadId.x, Packed, LocalComponentPosition, DeformedPositionOffset[0].xyz);
 		
 #endif
 	}

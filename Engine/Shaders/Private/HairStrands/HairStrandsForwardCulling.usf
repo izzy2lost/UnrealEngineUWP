@@ -118,15 +118,17 @@ void CSMain(uint DispatchThreadID : SV_DispatchThreadID, uint GroupThreadID : SV
 			if (bValidPoint)
 			{
 				// Fetch both control points
-				const FHairControlPoint CP0 = UnpackHairControlPoint(
-					HairStrandsVF_PositionBuffer[PrimID],
+				const FHairControlPoint CP0 = ReadHairControlPoint(
+					HairStrandsVF_PositionBuffer,
+					PrimID,
 					PositionOffset,
 					HairStrandsVF_Radius,
 					HairStrandsVF_RootScale,
 					HairStrandsVF_TipScale);
 
-				const FHairControlPoint CP1 = UnpackHairControlPoint(
-					HairStrandsVF_PositionBuffer[PrimID + 1],
+				const FHairControlPoint CP1 = ReadHairControlPoint(
+					HairStrandsVF_PositionBuffer,
+					PrimID + 1,
 					PositionOffset,
 					HairStrandsVF_Radius,
 					HairStrandsVF_RootScale,
@@ -174,15 +176,17 @@ void CSMain(uint DispatchThreadID : SV_DispatchThreadID, uint GroupThreadID : SV
 			if (bValidPoint)
 			{
 				// Fetch both control points
-				const FHairControlPoint CP0 = UnpackHairControlPoint(
-					HairStrandsVF_PositionBuffer[PrimID],
+				const FHairControlPoint CP0 = ReadHairControlPoint(
+					HairStrandsVF_PositionBuffer,
+					PrimID,
 					PositionOffset,
 					HairStrandsVF_Radius,
 					HairStrandsVF_RootScale,
 					HairStrandsVF_TipScale);
 
-				const FHairControlPoint CP1 = UnpackHairControlPoint(
-					HairStrandsVF_PositionBuffer[PrimID + 1],
+				const FHairControlPoint CP1 = ReadHairControlPoint(
+					HairStrandsVF_PositionBuffer,
+					PrimID + 1,
 					PositionOffset,
 					HairStrandsVF_Radius,
 					HairStrandsVF_RootScale,
@@ -263,8 +267,9 @@ void CSMain(uint DispatchThreadID : SV_DispatchThreadID, uint GroupThreadID : SV
 		const float3 PositionOffset = HairStrandsVF_GetHairInstancePositionOffset();
 
 		// Fetch both control points
-		FHairControlPoint CP0 = UnpackHairControlPoint(
-			HairStrandsVF_PositionBuffer[ControlPointId],
+		FHairControlPoint CP0 = ReadHairControlPoint(
+			HairStrandsVF_PositionBuffer,
+			ControlPointId,
 			PositionOffset,
 			HairStrandsVF_Radius,
 			HairStrandsVF_RootScale,
@@ -273,8 +278,9 @@ void CSMain(uint DispatchThreadID : SV_DispatchThreadID, uint GroupThreadID : SV
 		FHairControlPoint CP1 = CP0;
 		if (CP0.Type != HAIR_CONTROLPOINT_END)
 		{
-			CP1 = UnpackHairControlPoint(
-				HairStrandsVF_PositionBuffer[ControlPointId + 1],
+			CP1 = ReadHairControlPoint(
+				HairStrandsVF_PositionBuffer,
+				ControlPointId + 1,
 				PositionOffset,
 				HairStrandsVF_Radius,
 				HairStrandsVF_RootScale,

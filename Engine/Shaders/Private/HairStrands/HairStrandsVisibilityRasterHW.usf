@@ -85,8 +85,9 @@ VSOutput VSMain(VSInput Input)
 	const float3 PositionOffset = HairStrandsVF_GetHairInstancePositionOffset();
 
 	// Fetch both control points
-	const FHairControlPoint CP0 = UnpackHairControlPoint(
-		HairStrandsVF_PositionBuffer[PrimID],
+	const FHairControlPoint CP0 = ReadHairControlPoint(
+		HairStrandsVF_PositionBuffer,
+		PrimID,
 		PositionOffset,
 		HairStrandsVF_Radius,
 		HairStrandsVF_RootScale,
@@ -98,8 +99,9 @@ VSOutput VSMain(VSInput Input)
 		return GetNullOutput();
 	}
 
-	const FHairControlPoint CP1 = UnpackHairControlPoint(
-		HairStrandsVF_PositionBuffer[PrimID + 1],
+	const FHairControlPoint CP1 = ReadHairControlPoint(
+		HairStrandsVF_PositionBuffer,
+		PrimID + 1,
 		PositionOffset,
 		HairStrandsVF_Radius,
 		HairStrandsVF_RootScale,

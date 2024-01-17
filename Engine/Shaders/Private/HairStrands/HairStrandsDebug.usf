@@ -273,8 +273,9 @@ void MainCS(uint3 DispatchThreadId : SV_DispatchThreadID)
 		VertexIndex = HairStrandsVF.CullingIndexBuffer[VertexIndex];
 	}
 
-	const float3 P_Local = UnpackHairControlPoint(
-		HairStrandsVF.PositionBuffer[VertexIndex],
+	const float3 P_Local = ReadHairControlPoint(
+		HairStrandsVF.PositionBuffer,
+		VertexIndex,
 		ReadRenPositionOffset(HairStrandsVF.PositionOffsetBuffer, HairStrandsVF.RegisteredIndex),
 		HairStrandsVF.Radius * ScaleR,
 		HairStrandsVF.RootScale,
@@ -2001,47 +2002,44 @@ void MainCS(uint3 DispatchThreadId : SV_DispatchThreadID)
 	if (VertexId+1 >= VertexCount)
 		return;
 
-	uint4 PackedP0 = 0;
-	uint4 PackedP1 = 0;
+	FHairControlPoint P0 = (FHairControlPoint)0;
+	FHairControlPoint P1 = (FHairControlPoint)0;
 	float3 Offset = 0;
 	float4 ColorRoot = ColorWhite;
 	float4 ColorTip  = ColorWhite;
 
 	if (DebugMode == DEBUGMODE_REN_REST)
 	{
-		PackedP0 = RenRestPosition[VertexId];
-		PackedP1 = RenRestPosition[VertexId + 1];
+		P0       = ReadHairControlPoint(RenRestPosition, VertexId, 1, 1, 1);
+		P1       = ReadHairControlPoint(RenRestPosition, VertexId + 1, 1, 1, 1);
 		Offset   = RenRestOffset;
 		ColorRoot= ColorYellow;
 		ColorTip = ColorPurple;
 	}
 	else if (DebugMode == DEBUGMODE_REN_DEFORMED)
 	{
-		PackedP0 = RenDeformedPosition[VertexId];
-		PackedP1 = RenDeformedPosition[VertexId + 1];
+		P0       = ReadHairControlPoint(RenDeformedPosition, VertexId, 1, 1, 1);
+		P1       = ReadHairControlPoint(RenDeformedPosition, VertexId + 1, 1, 1, 1);
 		Offset   = ReadCardPositionOffset(RenDeformedOffset, InstanceRegisteredIndex, CardLODIndex);
 		ColorRoot= ColorYellow;
 		ColorTip = ColorPurple;
 	}
 	else if (DebugMode == DEBUGMODE_SIM_REST)
 	{
-		PackedP0 = SimRestPosition[VertexId];
-		PackedP1 = SimRestPosition[VertexId + 1];
+		P0       = ReadHairControlPoint(SimRestPosition, VertexId, 1, 1, 1);
+		P1       = ReadHairControlPoint(SimRestPosition, VertexId + 1, 1, 1, 1);
 		Offset   = SimRestOffset;
 		ColorRoot= ColorCyan;
 		ColorTip = ColorRed;
 	}
 	else if (DebugMode == DEBUGMODE_SIM_DEFORMED)
 	{
-		PackedP0 = SimDeformedPosition[VertexId];
-		PackedP1 = SimDeformedPosition[VertexId + 1];
+		P0       = ReadHairControlPoint(SimDeformedPosition, VertexId, 1, 1, 1);
+		P1       = ReadHairControlPoint(SimDeformedPosition, VertexId + 1, 1, 1, 1);
 		Offset   = ReadSimPositionOffset(SimDeformedOffset, InstanceRegisteredIndex);
 		ColorRoot= ColorCyan;
 		ColorTip = ColorRed;
 	}
-
-	const FHairControlPoint P0 = UnpackHairControlPoint(PackedP0, Offset, 1, 1, 1);
-	const FHairControlPoint P1 = UnpackHairControlPoint(PackedP1, Offset, 1, 1, 1);
 
 	if (P1.Type != HAIR_CONTROLPOINT_START)
 	{
@@ -2600,8 +2598,9 @@ void CSMain(
 		const FHairVis VisNode = UnpackHairVis(NodeVisBuffer[SampleIndex]);
 		if (VisNode.MaterialId == MaterialId)
 		{
-			FHairControlPoint Out = UnpackHairControlPoint(
-				HairInstance_PositionBuffer[VisNode.ControlPointId],
+			FHairControlPoint Out = ReadHairControlPoint(
+				HairInstance_PositionBuffer,
+				VisNode.ControlPointId,
 				HairInstance_GetHairInstancePositionOffset(),
 				HairInstance_Radius,
 				HairInstance_RootScale,

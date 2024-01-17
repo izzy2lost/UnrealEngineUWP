@@ -49,10 +49,10 @@ float3 ComputeDynamicGeometryOffset(
 	float3 RootBarycentric,
 	float3 GuideDeformedPositionOffset)
 {
-	const float3 RestGuidePoint = UnpackHairControlPointPosition(GuideRestPositionBuffer[GuideIndex], GuideRestPositionOffset);
+	const float3 RestGuidePoint = ReadHairControlPointPosition(GuideRestPositionBuffer, GuideIndex, GuideRestPositionOffset);
 	const float3 LocalRestGuidePoint = ToTriangle(RestGuidePoint, RootBarycentric, RestTriangle);
 
-	const float3 DeformedGuidePoint = UnpackHairControlPointPosition(GuideDeformedPositionBuffer[GuideIndex], GuideDeformedPositionOffset);
+	const float3 DeformedGuidePoint = ReadHairControlPointPosition(GuideDeformedPositionBuffer, GuideIndex, GuideDeformedPositionOffset);
 	const float3 LocalDeformedGuidePoint = ToTriangle(DeformedGuidePoint, RootBarycentric, DeformedTriangle);
 
 	return (LocalDeformedGuidePoint - LocalRestGuidePoint) * GuideVertexWeight;
@@ -95,29 +95,33 @@ void MainCS(uint DispatchThreadId : SV_DispatchThreadID)
 	const uint GuideIndex1 = min(GuideIndex0+1, GuideVertexCount-1);
 	const float GuideLerp = GuideData.VertexLerps.x;
 
-	const FHairControlPoint RestGuideP0 = UnpackHairControlPoint(
-		GuideRestPositionBuffer[GuideIndex0],
+	const FHairControlPoint RestGuideP0 = ReadHairControlPoint(
+		GuideRestPositionBuffer, 
+		GuideIndex0,
 		GuideRestPositionOffset,
 		GuideRadius,
 		GuideRootScale,
 		GuideTipScale);
 
-	const FHairControlPoint RestGuideP1 = UnpackHairControlPoint(
-		GuideRestPositionBuffer[GuideIndex1],
+	const FHairControlPoint RestGuideP1 = ReadHairControlPoint(
+		GuideRestPositionBuffer,
+		GuideIndex1,
 		GuideRestPositionOffset,
 		GuideRadius,
 		GuideRootScale,
 		GuideTipScale);
 
-	const FHairControlPoint DeformedGuideP0 = UnpackHairControlPoint(
-		GuideDeformedPositionBuffer[GuideIndex0],
+	const FHairControlPoint DeformedGuideP0 = ReadHairControlPoint(
+		GuideDeformedPositionBuffer,
+		GuideIndex0,
 		GuideDeformedPositionOffset,
 		GuideRadius,
 		GuideRootScale,
 		GuideTipScale);
 
-	const FHairControlPoint DeformedGuideP1 = UnpackHairControlPoint(
-		GuideDeformedPositionBuffer[GuideIndex1],
+	const FHairControlPoint DeformedGuideP1 = ReadHairControlPoint(
+		GuideDeformedPositionBuffer,
+		GuideIndex1,
 		GuideDeformedPositionOffset,
 		GuideRadius,
 		GuideRootScale,

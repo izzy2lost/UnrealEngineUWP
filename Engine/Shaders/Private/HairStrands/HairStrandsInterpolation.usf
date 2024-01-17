@@ -140,9 +140,9 @@ float3 ComputeStaticGeometryOffset(
 	float GuideVertexWeight, 
 	float3 OutSimHairPositionOffset)
 {
-	const float3 RestGuidePoint = UnpackHairControlPointPosition(SimRestPosePositionBuffer[GuideIndex.PointIndex], InSimHairPositionOffset);
+	const float3 RestGuidePoint = ReadHairControlPointPosition(SimRestPosePositionBuffer, GuideIndex.PointIndex, InSimHairPositionOffset);
 
-	const float3 DeformedGuidePoint = UnpackHairControlPointPosition(SimDeformedPositionBuffer[GuideIndex.PointIndex], OutSimHairPositionOffset);
+	const float3 DeformedGuidePoint = ReadHairControlPointPosition(SimDeformedPositionBuffer, GuideIndex.PointIndex, OutSimHairPositionOffset);
 
 	return (DeformedGuidePoint - RestGuidePoint) * GuideVertexWeight;
 }
@@ -151,9 +151,9 @@ float3 ComputeLocalGeometryOffset(
 	FGuideIndex GuideIndex, 
 	float GuideVertexWeight)
 {
-	const float3 RestGuidePoint = UnpackHairControlPointPosition(SimRestPosePositionBuffer[GuideIndex.PointIndex]) - UnpackHairControlPointPosition(SimRestPosePositionBuffer[GuideIndex.RootPointIndex]);
+	const float3 RestGuidePoint = ReadHairControlPointPosition(SimRestPosePositionBuffer, GuideIndex.PointIndex) - ReadHairControlPointPosition(SimRestPosePositionBuffer, GuideIndex.RootPointIndex);
 
-	const float3 DeformedGuidePoint = UnpackHairControlPointPosition(SimDeformedPositionBuffer[GuideIndex.PointIndex]) - UnpackHairControlPointPosition(SimDeformedPositionBuffer[GuideIndex.RootPointIndex]);
+	const float3 DeformedGuidePoint = ReadHairControlPointPosition(SimDeformedPositionBuffer, GuideIndex.PointIndex) - ReadHairControlPointPosition(SimDeformedPositionBuffer, GuideIndex.RootPointIndex);
 
 	return (DeformedGuidePoint - RestGuidePoint) * GuideVertexWeight;
 }
@@ -166,10 +166,10 @@ float3 ComputeDynamicGeometryOffset(
 	float3 RootBarycentric,
 	float3 OutSimHairPositionOffset)
 {
-	const float3 RestGuidePoint = UnpackHairControlPointPosition(SimRestPosePositionBuffer[GuideIndex.PointIndex], InSimHairPositionOffset);
+	const float3 RestGuidePoint = ReadHairControlPointPosition(SimRestPosePositionBuffer, GuideIndex.PointIndex, InSimHairPositionOffset);
 	const float3 LocalRestGuidePoint = ToTriangle(RestGuidePoint, RootBarycentric, RestTriangle);
 
-	const float3 DeformedGuidePoint = UnpackHairControlPointPosition(SimDeformedPositionBuffer[GuideIndex.PointIndex], OutSimHairPositionOffset);
+	const float3 DeformedGuidePoint = ReadHairControlPointPosition(SimDeformedPositionBuffer, GuideIndex.PointIndex, OutSimHairPositionOffset);
 	const float3 LocalDeformedGuidePoint = ToTriangle(DeformedGuidePoint, RootBarycentric, DeformedTriangle);
 
 	return (LocalDeformedGuidePoint - LocalRestGuidePoint) * GuideVertexWeight;
@@ -179,9 +179,9 @@ float3 ComputeTranslateGeometryOffset(
 	FGuideIndex GuideIndex, 
 	float GuideVertexWeight)
 {
-	const float3 RestGuidePoint = UnpackHairControlPointPosition(SimRestPosePositionBuffer[GuideIndex.PointIndex]) - UnpackHairControlPointPosition(SimRestPosePositionBuffer[GuideIndex.RootPointIndex]);
+	const float3 RestGuidePoint = ReadHairControlPointPosition(SimRestPosePositionBuffer, GuideIndex.PointIndex) - ReadHairControlPointPosition(SimRestPosePositionBuffer, GuideIndex.RootPointIndex);
 
-	const float3 DeformedGuidePoint = UnpackHairControlPointPosition(SimDeformedPositionBuffer[GuideIndex.PointIndex]) - UnpackHairControlPointPosition(SimDeformedPositionBuffer[GuideIndex.RootPointIndex]);
+	const float3 DeformedGuidePoint = ReadHairControlPointPosition(SimDeformedPositionBuffer, GuideIndex.PointIndex) - ReadHairControlPointPosition(SimDeformedPositionBuffer, GuideIndex.RootPointIndex);
 
 	return (DeformedGuidePoint - RestGuidePoint) * GuideVertexWeight;
 }
@@ -192,10 +192,10 @@ float3 ComputeRotateGeometryOffset(
 	FHairMeshTriangle RestTriangle, 
 	FHairMeshTriangle DeformedTriangle)
 {	
-	const float3 RestGuidePoint = UnpackHairControlPointPosition(SimRestPosePositionBuffer[GuideIndex.PointIndex]) - UnpackHairControlPointPosition(SimRestPosePositionBuffer[GuideIndex.RootPointIndex]);
+	const float3 RestGuidePoint = ReadHairControlPointPosition(SimRestPosePositionBuffer, GuideIndex.PointIndex) - ReadHairControlPointPosition(SimRestPosePositionBuffer, GuideIndex.RootPointIndex);
 	const float3 LocalRestGuidePoint = VectorToTriangle(RestGuidePoint, RestTriangle);
 
-	const float3 DeformedGuidePoint = UnpackHairControlPointPosition(SimDeformedPositionBuffer[GuideIndex.PointIndex]) - UnpackHairControlPointPosition(SimDeformedPositionBuffer[GuideIndex.RootPointIndex]);
+	const float3 DeformedGuidePoint = ReadHairControlPointPosition(SimDeformedPositionBuffer, GuideIndex.PointIndex) - ReadHairControlPointPosition(SimDeformedPositionBuffer, GuideIndex.RootPointIndex);
 	const float3 LocalDeformedGuidePoint = VectorToTriangle(DeformedGuidePoint, DeformedTriangle);
 
 	return (LocalDeformedGuidePoint - LocalRestGuidePoint) * GuideVertexWeight;
@@ -514,7 +514,7 @@ void MainCS(uint3 DispatchThreadId : SV_DispatchThreadID, uint ThreadIndex : SV_
 				#endif
 
 				// Manual decoding of the rest position
-				uint4 PackedRestPosition = RenRestPosePositionBuffer[VertexIndex];
+				FPackedHairPosition PackedRestPosition = ReadPackedHairPosition(RenRestPosePositionBuffer, VertexIndex);
 				const float3 RestPosition = UnpackHairControlPointPosition(PackedRestPosition, InRenHairPositionOffset);
 				
 				float3 OutPosition = 0.0f;
@@ -552,10 +552,10 @@ void MainCS(uint3 DispatchThreadId : SV_DispatchThreadID, uint ThreadIndex : SV_
 				// 3. Apply deformer
 				#if PERMUTATION_DEFORMER
 				{
-					const uint4 PackedDeformerPosition = RenDeformerPositionBuffer[VertexIndex];
+					const FPackedHairPosition PackedDeformerPosition = ReadPackedHairPosition(RenDeformerPositionBuffer, VertexIndex);
 					const float3 DeformerPosition = UnpackHairControlPointPosition(PackedDeformerPosition, InRenHairPositionOffset);
 					OutPosition = ApplyDeformer(RenTri, RestPosition, DeformerPosition, OutPosition);
-					PackedRestPosition.w = PackedDeformerPosition.w;
+					CopyPackedAttribute(PackedRestPosition, PackedDeformerPosition);
 				}
 				#endif
 
@@ -570,7 +570,7 @@ void MainCS(uint3 DispatchThreadId : SV_DispatchThreadID, uint ThreadIndex : SV_
 					}
 				}
 
-				OutRenDeformedPositionBuffer[VertexIndex] = PackHairControlPointPosition(PackedRestPosition, OutPosition, RenPositionOffset);
+				WritePackedHairControlPointPosition(OutRenDeformedPositionBuffer, VertexIndex, PackedRestPosition, OutPosition, RenPositionOffset);
 			}
 		}
 	}
@@ -661,7 +661,7 @@ void MainCS(uint3 DispatchThreadId : SV_DispatchThreadID, uint ThreadIndex : SV_
 				#endif
 
 				// Manual decoding of the rest position
-				uint4 PackedRestPosition = RenRestPosePositionBuffer[VertexIndex];
+				FPackedHairPosition PackedRestPosition = ReadPackedHairPosition(RenRestPosePositionBuffer, VertexIndex);
 				const float3 RestPosition = UnpackHairControlPointPosition(PackedRestPosition, InRenHairPositionOffset);
 
 				float3 OutPosition = 0.0f;
@@ -699,10 +699,10 @@ void MainCS(uint3 DispatchThreadId : SV_DispatchThreadID, uint ThreadIndex : SV_
 				// 3. Apply deformer
 				#if PERMUTATION_DEFORMER
 				{
-					const uint4 PackedDeformerPosition = RenDeformerPositionBuffer[VertexIndex];
+					const FPackedHairPosition PackedDeformerPosition = ReadPackedHairPosition(RenDeformerPositionBuffer, VertexIndex);
 					const float3 DeformerPosition = UnpackHairControlPointPosition(PackedDeformerPosition, InRenHairPositionOffset);
 					OutPosition = ApplyDeformer(RenTri, RestPosition, DeformerPosition, OutPosition);
-					PackedRestPosition.w = PackedDeformerPosition.w;
+					CopyPackedAttribute(PackedRestPosition, PackedDeformerPosition);
 				}
 				#endif
 
@@ -717,7 +717,7 @@ void MainCS(uint3 DispatchThreadId : SV_DispatchThreadID, uint ThreadIndex : SV_
 					}
 				}
 
-				OutRenDeformedPositionBuffer[VertexIndex] = PackHairControlPointPosition(PackedRestPosition, OutPosition, RenPositionOffset);
+				WritePackedHairControlPointPosition(OutRenDeformedPositionBuffer, VertexIndex, PackedRestPosition, OutPosition, RenPositionOffset);
 			}
 		}
 	}
@@ -878,7 +878,7 @@ void MainCS(uint DispatchThreadId : SV_DispatchThreadID)
 		InPosition1Buffer[Index3+2]);
 	
 	const float3 WorldVertexPosition = lerp(InPosition0, InPosition1, InterpolationFactor);
-	FHairControlPoint CP = UnpackHairControlPoint(InRestPoseBuffer[Index], float3(0, 0, 0), 1, 1, 1);
+	FHairControlPoint CP = ReadHairControlPoint(InRestPoseBuffer, Index, float3(0, 0, 0), 1, 1, 1);
 	CP.Position = WorldVertexPosition;
 
 	if (bHasRadiusData == 1)

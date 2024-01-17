@@ -174,7 +174,7 @@ void Main(uint3 DispatchThreadId : SV_DispatchThreadID, uint ThreadIndex : SV_Gr
 		// 2.2 Mark point having their LOD visibility smaller than the requested LOD level
 		float RadiusFade = 1.0f;
 		ValidPoints[CurveIndex][CurrentPointIndex] = 0; 
-		if (CurveIndex < CurveCount)
+		if (CurveIndex < CurveCount) // incorrect
 		{	
 			if (CurrentPointIndex < CurvePointCount[CurveIndex])
 			{
@@ -504,7 +504,7 @@ groupshared float3 OutHairPositionOffset;
 		{
 			const uint GlobalPointIndex = CurvePointIndex + LocalPointIndex;
 			const bool bIsActive = IsHairControlPointActive(GlobalPointIndex, RenPointLODBuffer, LODIndex);
-			const FHairControlPoint CP = UnpackHairControlPoint(RenderDeformedPositionBuffer[GlobalPointIndex], OutHairPositionOffset, 1, 1, 1);
+			const FHairControlPoint CP = ReadHairControlPoint(RenderDeformedPositionBuffer, GlobalPointIndex, OutHairPositionOffset, 1, 1, 1);
 			if (bIsActive && all(IsFinite(CP.Position)))
 			{
 				const int3 WorldSpaceCentimeters = int3(mul(float4(CP.Position, 1.0f), LocalToTranslatedWorldMatrix).xyz);

@@ -19,8 +19,9 @@ uint				NumWorkGroups;
 
 bool ShouldSoftwareRasterize(float3 PositionOffset, uint PrimID, out bool bSegValid)
 {
-	FHairControlPoint CP0 = UnpackHairControlPoint(
-		HairStrandsVF_PositionBuffer[PrimID],
+	FHairControlPoint CP0 = ReadHairControlPoint(
+		HairStrandsVF_PositionBuffer,
+		PrimID,
 		PositionOffset,
 		HairStrandsVF_Radius,
 		HairStrandsVF_RootScale,
@@ -33,8 +34,9 @@ bool ShouldSoftwareRasterize(float3 PositionOffset, uint PrimID, out bool bSegVa
 		return false;
 	}
 
-	FHairControlPoint CP1 = UnpackHairControlPoint(
-		HairStrandsVF_PositionBuffer[PrimID + 1],
+	FHairControlPoint CP1 = ReadHairControlPoint(
+		HairStrandsVF_PositionBuffer,
+		PrimID + 1,
 		PositionOffset,
 		HairStrandsVF_Radius,
 		HairStrandsVF_RootScale,

@@ -9,6 +9,18 @@
 ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 // Hair control points
 
+#define FPackedHairPosition uint4
+
+FPackedHairPosition ReadPackedHairPosition(Buffer<FPackedHairPosition> InBuffer, uint InPointIndex)
+{
+	return InBuffer[InPointIndex];
+}
+
+void CopyPackedAttribute(inout FPackedHairPosition Out, in FPackedHairPosition In)
+{
+	Out.w = Out.w;
+}
+
 struct FHairControlPoint
 {
 	float3 Position;
@@ -17,19 +29,19 @@ struct FHairControlPoint
 	uint   Type;
 };
 
-uint4 PackHairControlPoint(
+FPackedHairPosition PackHairControlPoint(
 	FHairControlPoint CP,
 	float3 InVF_PositionOffset,
-	float InVF_Radius)
+	float InVF_Radius) 
 {
 	uint PackedAttribute =  (uint(clamp(CP.UCoord * 0xFFu, 0u, 0xFFu)) << 8) |
 							(uint(clamp((CP.WorldRadius / InVF_Radius) * 63u, 0u, 63u)) << 2u) |
 							(CP.Type & 0x3);
-	return uint4(f32tof16(CP.Position - InVF_PositionOffset), PackedAttribute);
+	return FPackedHairPosition(f32tof16(CP.Position - InVF_PositionOffset), PackedAttribute);
 }
 
 FHairControlPoint UnpackHairControlPoint(
-	uint4 InPackedData,
+	FPackedHairPosition InPackedData,
 	float3 InVF_PositionOffset=0,
 	float InVF_Radius=1,
 	float InVF_RootScale=1,
@@ -48,26 +60,52 @@ FHairControlPoint UnpackHairControlPoint(
 	return Out;	
 }
 
-float UnpackHairControlPointCoordU(uint4 InPackedData)
+FHairControlPoint ReadHairControlPoint(
+	Buffer<FPackedHairPosition> InBuffer,
+	uint InIndex,
+	float3 InVF_PositionOffset=0,
+	float InVF_Radius=1,
+	float InVF_RootScale=1,
+	float InVF_TipScale=1)
+{
+	return UnpackHairControlPoint(
+		InBuffer[InIndex],
+		InVF_PositionOffset,
+		InVF_Radius,
+		InVF_RootScale,
+		InVF_TipScale);
+}
+
+float UnpackHairControlPointCoordU(FPackedHairPosition InPackedData)
 {
 	const uint PackedAlpha = asuint(InPackedData.w);
 	return ((PackedAlpha & 0xFF00) >> 8) / 255.f;
 }
 
-float3 UnpackHairControlPointPosition(uint4 InPackedData, float3 InVF_PositionOffset=0)
+float3 UnpackHairControlPointPosition(FPackedHairPosition InPackedData, float3 InVF_PositionOffset=0)
 {
 	return f16tof32(InPackedData.xyz) + InVF_PositionOffset;
 }
 
-uint4 PackHairControlPointPosition(uint4 InPackedData, float3 InNewPosition, float3 InPositionOffset=0)
+float3 ReadHairControlPointPosition(Buffer<FPackedHairPosition> InBuffer, uint InPointIndex, float3 InVF_PositionOffset=0)
 {
-	return uint4(f32tof16(InNewPosition.xyz - InPositionOffset), InPackedData.w);
+	return UnpackHairControlPointPosition(InBuffer[InPointIndex], InVF_PositionOffset);
 }
 
-uint4 PackHairControlPointRadius(uint4 InPackedData, float InNewWorldRadius, float InVFRadius)
+FPackedHairPosition PackHairControlPointPosition(FPackedHairPosition InPackedData, float3 InNewPosition, float3 InPositionOffset=0)
+{
+	return FPackedHairPosition(f32tof16(InNewPosition.xyz - InPositionOffset), InPackedData.w);
+}
+
+void WritePackedHairControlPointPosition(RWBuffer<FPackedHairPosition> OutBuffer, uint InIndex, FPackedHairPosition InPackedData, float3 InNewPosition, float3 InPositionOffset=0)
+{
+	OutBuffer[InIndex] = PackHairControlPointPosition(InPackedData, InNewPosition, InPositionOffset);
+}
+
+FPackedHairPosition PackHairControlPointRadius(FPackedHairPosition InPackedData, float InNewWorldRadius, float InVFRadius)
 {
 	const uint PackedNewRadius = uint(clamp(saturate(InNewWorldRadius / InVFRadius) * 63u, 0u, 63u)) << 2u;	
-	return uint4(InPackedData.xyz, (InPackedData.w & (~0xFC)) | PackedNewRadius);
+	return FPackedHairPosition(InPackedData.xyz, (InPackedData.w & (~0xFC)) | PackedNewRadius);
 }
 
 bool IsValidHairStrandsSegment(const FHairControlPoint CP0, const FHairControlPoint CP1)

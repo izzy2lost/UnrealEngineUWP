@@ -39,8 +39,9 @@ FHairControlPoint GetControlPoint(uint ControlPointId)
 
 	if (ControlPointId < PointCount)
 	{
-		Out = UnpackHairControlPoint(
-			PositionBuffer[ControlPointId],
+		Out = ReadHairControlPoint(
+			PositionBuffer, 
+			ControlPointId,
 			ReadRenPositionOffset(PositionOffsetBuffer, HairStrandsVF_RegisteredIndex),
 			HairStrandsVF_HairRadius,
 			HairStrandsVF_HairRootScale,
@@ -340,8 +341,8 @@ void MainCS(uint2 DispatchThreadId : SV_DispatchThreadID, uint LinearIndex : SV_
 		// Position comparison
 		if (bIsValid)
 		{
-			const FHairControlPoint Curr = UnpackHairControlPoint(CurrPositionBuffer[VertexIndex0], float3(0, 0, 0), 1, 1, 1);
-			const FHairControlPoint Prev = UnpackHairControlPoint(PrevPositionBuffer[VertexIndex0], float3(0, 0, 0), 1, 1, 1);
+			const FHairControlPoint Curr = ReadHairControlPoint(CurrPositionBuffer, VertexIndex0, float3(0, 0, 0), 1, 1, 1);
+			const FHairControlPoint Prev = ReadHairControlPoint(PrevPositionBuffer, VertexIndex0, float3(0, 0, 0), 1, 1, 1);
 			const float3 Diff = Curr.Position - Prev.Position;
 			const bool bIsInvalid = dot(Diff, Diff) > PositionThreshold2;
 

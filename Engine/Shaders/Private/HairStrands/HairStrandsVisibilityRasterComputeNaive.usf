@@ -182,8 +182,9 @@ void CSMain(uint DispatchThreadID : SV_DispatchThreadID, uint GroupThreadID : SV
 		}
 
 		// Fetch both control points
-		FHairControlPoint CP0 = UnpackHairControlPoint(
-			HairStrandsVF_PositionBuffer[PrimID],
+		FHairControlPoint CP0 = ReadHairControlPoint(
+			HairStrandsVF_PositionBuffer,
+			PrimID,
 			PositionOffset,
 			HairStrandsVF_Radius,
 			HairStrandsVF_RootScale,
@@ -194,8 +195,9 @@ void CSMain(uint DispatchThreadID : SV_DispatchThreadID, uint GroupThreadID : SV
 			continue;
 		}
 
-		const FHairControlPoint CP1 = UnpackHairControlPoint(
-			HairStrandsVF_PositionBuffer[PrimID + 1],
+		const FHairControlPoint CP1 = ReadHairControlPoint(
+			HairStrandsVF_PositionBuffer,
+			PrimID + 1,
 			PositionOffset,
 			HairStrandsVF_Radius,
 			HairStrandsVF_RootScale,

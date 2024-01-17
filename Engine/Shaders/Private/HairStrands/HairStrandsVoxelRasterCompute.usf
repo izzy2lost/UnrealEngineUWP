@@ -708,8 +708,9 @@ void MainCS(uint2 DispatchThreadID : SV_DispatchThreadID)
 
 	const float3 PositionOffset = HairStrandsVF_GetHairInstancePositionOffset();
 
-	const FHairControlPoint CP0 = UnpackHairControlPoint(
-		HairStrandsVF_PositionBuffer[VertexIndex0],
+	const FHairControlPoint CP0 = ReadHairControlPoint(
+		HairStrandsVF_PositionBuffer,
+		VertexIndex0,
 		PositionOffset,
 		HairStrandsVF_Radius * LodRadiusScale0,
 		HairStrandsVF_RootScale,
@@ -718,8 +719,9 @@ void MainCS(uint2 DispatchThreadID : SV_DispatchThreadID)
 	if (CP0.Type == HAIR_CONTROLPOINT_END)
 		return;
 
-	const FHairControlPoint CP1 = UnpackHairControlPoint(
-		HairStrandsVF_PositionBuffer[VertexIndex1],
+	const FHairControlPoint CP1 = ReadHairControlPoint(
+		HairStrandsVF_PositionBuffer,
+		VertexIndex1,
 		PositionOffset,
 		HairStrandsVF_Radius * LodRadiusScale1,
 		HairStrandsVF_RootScale,

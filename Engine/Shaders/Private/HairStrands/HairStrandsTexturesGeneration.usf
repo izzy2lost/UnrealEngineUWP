@@ -322,11 +322,8 @@ bool Trace(
 						const uint P0 = P0_P1.x;
 						const uint P1 = P0_P1.y;
 
-						const uint4 PackedCP_P0 = InVF_PositionBuffer[P0];
-						const uint4 PackedCP_P1 = InVF_PositionBuffer[P1];
-
-						const FHairControlPoint CP_Curr = UnpackHairControlPoint(PackedCP_P0, InVF_PositionOffset, InVF_Radius, InVF_RootScale, InVF_TipScale);
-						const FHairControlPoint CP_Next = UnpackHairControlPoint(PackedCP_P1, InVF_PositionOffset, InVF_Radius, InVF_RootScale, InVF_TipScale);
+						const FHairControlPoint CP_Curr = ReadHairControlPoint(InVF_PositionBuffer, P0, InVF_PositionOffset, InVF_Radius, InVF_RootScale, InVF_TipScale);
+						const FHairControlPoint CP_Next = ReadHairControlPoint(InVF_PositionBuffer, P1, InVF_PositionOffset, InVF_Radius, InVF_RootScale, InVF_TipScale);
 
 						const float3 Tangent = ComputeTangent(CP_Curr, CP_Next);
 
@@ -664,9 +661,8 @@ void MainCS(int2 DispatchThreadId : SV_DispatchThreadID)
 	uint VertexIndex = DispatchThreadId.x;
 	if (VertexIndex < MaxVertexCount)
 	{
-		const uint4 PackedPosition = InPositions[VertexIndex];
 		const float3 PositionOffset = InPositionOffset[0].xyz;
-		const FHairControlPoint CP = UnpackHairControlPoint(PackedPosition, PositionOffset, 1.0f /*InVF_Radius*/, 1.0f /*InVF_RootScale*/, 1.0f /*InVF_TipScale*/);
+		const FHairControlPoint CP = ReadHairControlPoint(InPositions, VertexIndex, PositionOffset, 1.0f /*InVF_Radius*/, 1.0f /*InVF_RootScale*/, 1.0f /*InVF_TipScale*/);
 		
 		OutPositions[VertexIndex] = float4(CP.Position, CP.Type);
 	}

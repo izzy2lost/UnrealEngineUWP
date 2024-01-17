@@ -82,10 +82,11 @@ float3 NDCToPixelCoord(float4 InDC)
 	return float3(UV * OutputResolution, NDC.z);
 }
 
-void CalcHomogenousPos(in uint4 PB, in float3 PBO, out float4 HP, out uint Type)
+void CalcHomogenousPos(in uint InPointIndex, in float3 PBO, out float4 HP, out uint Type)
 {
-	const FHairControlPoint CP = UnpackHairControlPoint(
-		PB,
+	const FHairControlPoint CP = ReadHairControlPoint(
+		HairStrandsVF_PositionBuffer,
+		InPointIndex,
 		PBO,
 		HairStrandsVF_Radius,
 		HairStrandsVF_RootScale,
@@ -96,10 +97,11 @@ void CalcHomogenousPos(in uint4 PB, in float3 PBO, out float4 HP, out uint Type)
 	Type = CP.Type;
 }
 
-void CalcHomogenousPosAndRad(in uint4 PB, in float3 PBO, out float4 HP, out float Rad, out uint Type)
+void CalcHomogenousPosAndRad(in uint InPointIndex, in float3 PBO, out float4 HP, out float Rad, out uint Type)
 {
-	const FHairControlPoint CP = UnpackHairControlPoint(
-		PB,
+	const FHairControlPoint CP = ReadHairControlPoint(
+		HairStrandsVF_PositionBuffer,
+		InPointIndex,
 		PBO,
 		HairStrandsVF_Radius,
 		HairStrandsVF_RootScale,
@@ -471,14 +473,14 @@ void BinningCS(uint DispatchThreadID : SV_DispatchThreadID, uint GroupThreadID :
 			float4 H0 = 0.0f;
 			float4 H1 = 0.0f;
 			uint Type = -1;
-			CalcHomogenousPos(HairStrandsVF_PositionBuffer[PrimID], InstancePositionOffset, H0, Type);
+			CalcHomogenousPos(PrimID, InstancePositionOffset, H0, Type);
 
 			bool bIsEndCV = (Type == HAIR_CONTROLPOINT_END);
 			bSegValid = !bIsEndCV;
 
 			if (bSegValid)
 			{
-				CalcHomogenousPos(HairStrandsVF_PositionBuffer[PrimID + 1], InstancePositionOffset, H1, Type);
+				CalcHomogenousPos(PrimID + 1, InstancePositionOffset, H1, Type);
 				
 				// Do clipping in homogenous coordinates
 				bSegValid = BlinnLineClipping(H0, H1);

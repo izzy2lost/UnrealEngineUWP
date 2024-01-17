@@ -62,9 +62,9 @@ void MainCS(uint DispatchThreadId : SV_DispatchThreadID)
 
 	if (IndexCurr < MaxPointCount)
 	{
-		const FHairControlPoint CPCurr = UnpackHairControlPoint(PositionBuffer[IndexCurr]);
-		const FHairControlPoint CPPrev = UnpackHairControlPoint(PositionBuffer[IndexPrev]);
-		const FHairControlPoint CPNext = UnpackHairControlPoint(PositionBuffer[IndexNext]);
+		const FHairControlPoint CPCurr = ReadHairControlPoint(PositionBuffer,IndexCurr);
+		const FHairControlPoint CPPrev = ReadHairControlPoint(PositionBuffer,IndexPrev);
+		const FHairControlPoint CPNext = ReadHairControlPoint(PositionBuffer,IndexNext);
 
 		float3 T0 = 0;
 		const bool bIsPrevValid = bPrevValid && (CPPrev.Type == HAIR_CONTROLPOINT_INSIDE || CPPrev.Type == HAIR_CONTROLPOINT_START);
