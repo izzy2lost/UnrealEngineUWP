@@ -321,6 +321,7 @@ TEMPLATE_BUFFERS(StructuredBuffer<float4> Structured, )
 TEMPLATE_BUFFERS(Buffer<uint> VertexUInt, )
 TEMPLATE_BUFFERS(Buffer<uint4> VertexUInt4, )
 TEMPLATE_BUFFERS(Buffer<float4> VertexFloat4, )
+TEMPLATE_BUFFERS(ByteAddressBuffer ByteAddress, )
 
 RWStructuredBuffer<uint> DummyOutput;
 uint DummyValue;
@@ -340,8 +341,12 @@ void MainCS(uint3 DispatchThreadId : SV_DispatchThreadID)
 		TEMPLATE_BUFFERS(Acc += VertexUInt, [0])
 	#elif PERMUTATION_BUFFER_TYPE == 2
 		TEMPLATE_BUFFERS(Acc += VertexUInt4, [0].x)
-	#else
+	#elif PERMUTATION_BUFFER_TYPE == 3
 		TEMPLATE_BUFFERS(Acc += VertexFloat4, [0].x)
+	#elif PERMUTATION_BUFFER_TYPE == 4
+		TEMPLATE_BUFFERS(Acc += ByteAddress, .Load(0))
+	#else
+		#error Not implemented
 	#endif
 		DummyOutput[0] = Acc;
 	}

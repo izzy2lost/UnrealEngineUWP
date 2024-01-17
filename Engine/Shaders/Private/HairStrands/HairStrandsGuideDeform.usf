@@ -12,8 +12,8 @@ uint VertexCount;
 uint InstanceRegisteredIndex;
 
 StructuredBuffer<float4> SimDeformedOffsetBuffer;
-Buffer<uint4> SimRestPosePositionBuffer;
-RWBuffer<uint4> OutSimDeformedPositionBuffer;
+ByteAddressBuffer SimRestPosePositionBuffer;
+RWByteAddressBuffer OutSimDeformedPositionBuffer;
 
 #define DEFORMATION_BYPASS 0
 #define DEFORMATION_OFFSET_GUIDE 1

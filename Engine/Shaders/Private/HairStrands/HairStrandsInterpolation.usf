@@ -80,9 +80,9 @@ float3 InRenHairPositionOffset;
 float3 InSimHairPositionOffset;
 float4x4 LocalToWorldMatrix;
 
-Buffer<uint4> RenRestPosePositionBuffer;
-Buffer<uint4> SimRestPosePositionBuffer;
-Buffer<uint4> SimDeformedPositionBuffer;
+ByteAddressBuffer RenRestPosePositionBuffer;
+ByteAddressBuffer SimRestPosePositionBuffer;
+ByteAddressBuffer SimDeformedPositionBuffer;
 
 uint HairStrandsVFTODO_bCullingEnable;
 #if PERMUTATION_CULLING == 1
@@ -92,9 +92,9 @@ Buffer<float>	HairStrandsVFTODO_CullingRadiusScaleBuffer;
 #endif
 
 #if PERMUTATION_DEFORMER
-Buffer<uint4>  RenDeformerPositionBuffer;
+ByteAddressBuffer  RenDeformerPositionBuffer;
 #endif
-RWBuffer<uint4> OutRenDeformedPositionBuffer; 
+RWByteAddressBuffer OutRenDeformedPositionBuffer; 
 
 #if PERMUTATION_DYNAMIC_GEOMETRY >= 1 
 
@@ -824,8 +824,8 @@ void MainCS(uint2 DispatchThreadId : SV_DispatchThreadID, uint GroupThread1D : S
 #if SHADER_HAIRTRANSFER_PREV_POSITION
 
 uint ElementCount;
-Buffer<uint4> InBuffer;
-RWBuffer<uint4> OutBuffer;
+ByteAddressBuffer InBuffer;
+RWByteAddressBuffer OutBuffer;
 
 [numthreads(GROUP_SIZE, 1, 1)]
 void MainCS(uint DispatchThreadId : SV_DispatchThreadID)
@@ -835,7 +835,7 @@ void MainCS(uint DispatchThreadId : SV_DispatchThreadID)
 	{
 		return;
 	}
-	OutBuffer[Index] = InBuffer[Index];
+	CopyPackedHairControlPoint(OutBuffer, InBuffer, Index);
 }
 
 #endif // SHADER_HAIRTRANSFER_PREV_POSITION
@@ -855,9 +855,9 @@ Buffer<float> InPosition1Buffer;
 Buffer<float> InRadius0Buffer;
 Buffer<float> InRadius1Buffer;
 
-Buffer<uint4>  InRestPoseBuffer;
+ByteAddressBuffer  InRestPoseBuffer;
 StructuredBuffer<float4> InDeformedOffsetBuffer;
-RWBuffer<uint4> OutDeformedBuffer;
+RWByteAddressBuffer OutDeformedBuffer;
 
 [numthreads(GROUP_SIZE, 1, 1)]
 void MainCS(uint DispatchThreadId : SV_DispatchThreadID)
@@ -880,7 +880,7 @@ void MainCS(uint DispatchThreadId : SV_DispatchThreadID)
 		InPosition1Buffer[Index3+2]);
 	
 	const float3 WorldVertexPosition = lerp(InPosition0, InPosition1, InterpolationFactor);
-	FHairControlPoint CP = ReadHairControlPoint(InRestPoseBuffer, Index, float3(0, 0, 0), 1, 1, 1);
+	FHairControlPoint CP = ReadHairControlPoint(InRestPoseBuffer, Index, float3(0, 0, 0)/*Offset*/, 1/*Radius*/, 1/*RootScale*/, 1/*TipScale*/);
 	CP.Position = WorldVertexPosition;
 
 	if (bHasRadiusData == 1)
@@ -889,7 +889,8 @@ void MainCS(uint DispatchThreadId : SV_DispatchThreadID)
 	}
 
 	const float3 DeformedPositionOffset = ReadRenPositionOffset(InDeformedOffsetBuffer, InstanceRegisteredIndex);
-	OutDeformedBuffer[Index] = PackHairControlPoint(CP, DeformedPositionOffset, 1);
+
+	WriteHairControlPointPosition(OutDeformedBuffer, Index, CP, DeformedPositionOffset, 1 /*Radius*/);
 }
 
 #endif // SHADER_GROOMCACHE_UPDATE

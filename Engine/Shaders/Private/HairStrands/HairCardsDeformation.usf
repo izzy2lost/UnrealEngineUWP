@@ -8,7 +8,7 @@
 #define DEBUG_ENABLE 0
 
 #if DEBUG_ENABLE
-#include "../ShaderPrint.ush"?
+#include "../ShaderPrint.ush"
 #endif
 
 #if SHADER_DEFORM_CARDS
@@ -21,8 +21,8 @@ uint GuideVertexCount;
 float3 GuideRestPositionOffset;
 StructuredBuffer<float4> GuideDeformedPositionOffsetBuffer;
 
-Buffer<uint4>  GuideRestPositionBuffer;
-Buffer<uint4>  GuideDeformedPositionBuffer;
+ByteAddressBuffer GuideRestPositionBuffer;
+ByteAddressBuffer GuideDeformedPositionBuffer;
 Buffer<float4> CardsRestPositionBuffer;
 ByteAddressBuffer CardsInterpolationBuffer;
 

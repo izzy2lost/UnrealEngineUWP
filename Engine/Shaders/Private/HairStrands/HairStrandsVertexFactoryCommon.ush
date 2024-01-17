@@ -78,7 +78,7 @@ float3 ReadCardPositionOffset(StructuredBuffer<float4> In, uint InIndex, uint In
 	uint						Prefix##_PointAttributeIndexToChunkDivAsShift; \
 	uint						Prefix##_PointAttributeChunkElementCount; \
 	uint						Prefix##_PointAttributeChunkStrideInBytes; \
-	Buffer<uint4>				Prefix##_PositionBuffer; \
+	ByteAddressBuffer			Prefix##_PositionBuffer; \
 	StructuredBuffer<float4>	Prefix##_PositionOffsetBuffer; \
 	Buffer<uint>				Prefix##_CurveBuffer; \
 	Buffer<uint>				Prefix##_PointToCurveBuffer; \

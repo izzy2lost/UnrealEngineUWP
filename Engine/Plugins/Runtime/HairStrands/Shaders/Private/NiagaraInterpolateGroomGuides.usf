@@ -24,10 +24,10 @@ Buffer<uint>		RootToUniqueTriangleIndexBuffer;
 #endif
 
 Buffer<uint>		PointToCurveIndexBuffer;
-RWBuffer<uint4>		DeformedPositionBuffer;
-Buffer<uint4>		RestPositionBuffer;
+RWByteAddressBuffer	DeformedPositionBuffer;
+ByteAddressBuffer	RestPositionBuffer;
 Buffer<uint>		CurvesOffsetsBuffer;
-Buffer<float4>		DeformedPositionOffset;
+StructuredBuffer<float4> DeformedPositionOffset;
 float3				RestPositionOffset;
 float4x4			WorldToLocal;
 

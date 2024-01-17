@@ -164,7 +164,7 @@ void FOptimusGroomGuideDataProviderProxy::AllocateResources(FRDGBuilder& GraphBu
 
 			if (!FallbackSRV)
 			{
-				FallbackSRV = GraphBuilder.CreateSRV(GraphBuilder.RegisterExternalBuffer(GWhiteVertexBufferWithRDG->Buffer), PF_R16G16B16A16_UINT);
+				FallbackSRV = GraphBuilder.CreateSRV(GraphBuilder.RegisterExternalBuffer(GWhiteVertexBufferWithRDG->Buffer), PF_R16G16B16A16_UINT); // This should be a byte address buffer
 			}
 		}
 	}

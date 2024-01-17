@@ -5,8 +5,8 @@ NiagaraDataInterfaceHairStrands.ush
 =============================================================================*/
 #include "/Engine/Private/HairStrands/HairStrandsBindingCommon.ush"
 
-RWBuffer<uint4>		{ParameterName}_DeformedPositionBuffer;
-Buffer<uint4>		{ParameterName}_RestPositionBuffer;
+RWByteAddressBuffer	{ParameterName}_DeformedPositionBuffer;
+ByteAddressBuffer	{ParameterName}_RestPositionBuffer;
 Buffer<uint>		{ParameterName}_CurvesOffsetsBuffer;
 Buffer<float4>		{ParameterName}_RestTrianglePositionBuffer;
 Buffer<float4>		{ParameterName}_DeformedTrianglePositionBuffer;

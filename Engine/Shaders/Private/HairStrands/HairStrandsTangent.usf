@@ -8,7 +8,7 @@
 #if SHADER_TANGENT
 uint PointCount;
 
-Buffer<uint4>  	 PositionBuffer;
+ByteAddressBuffer PositionBuffer;
 RWBuffer<float4> OutputTangentBuffer;
 
 uint			HairStrandsVF_bCullingEnable;

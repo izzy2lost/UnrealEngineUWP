@@ -109,6 +109,20 @@ float UnpackR8(uint In)
 }
 
 //
+//	float <-> u6
+//
+
+uint PackR6(float Value)
+{
+	return uint(saturate(Value) * 63.0f);
+}
+
+float UnpackR6(uint In)
+{
+	return float(In & 0x3F) * (1.0f / 63.0f);
+}
+
+//
 //	float4 <-> u32 as u8.u8.u8.u8
 //
 

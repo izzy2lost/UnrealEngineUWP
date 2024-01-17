@@ -359,7 +359,7 @@ private:
 	DECLARE_GLOBAL_SHADER(FHairResourceTransitionPass);
 	SHADER_USE_PARAMETER_STRUCT(FHairResourceTransitionPass, FGlobalShader);
 
-	class FBufferType : SHADER_PERMUTATION_INT("PERMUTATION_BUFFER_TYPE", 4);
+	class FBufferType : SHADER_PERMUTATION_INT("PERMUTATION_BUFFER_TYPE", 5);
 	using FPermutationDomain = TShaderPermutationDomain<FBufferType>;
 
 	BEGIN_SHADER_PARAMETER_STRUCT(FParameters, )
@@ -368,6 +368,7 @@ private:
 		SHADER_PARAMETER_RDG_BUFFER_SRV_ARRAY(Buffer<uint4>, VertexUInt4Buffers, [MaxBufferCount])
 		SHADER_PARAMETER_RDG_BUFFER_SRV_ARRAY(Buffer<float4>, VertexFloat4Buffers, [MaxBufferCount])
 		SHADER_PARAMETER_RDG_BUFFER_SRV_ARRAY(StructuredBuffer<float4>, StructuredBuffers, [MaxBufferCount])
+		SHADER_PARAMETER_RDG_BUFFER_SRV_ARRAY(ByteAddressBuffer, ByteAddressBuffers, [MaxBufferCount])
 		SHADER_PARAMETER_RDG_BUFFER_UAV(RWStructuredBuffer<uint>, DummyOutput)
 	END_SHADER_PARAMETER_STRUCT()
 
@@ -376,10 +377,15 @@ public:
 	// 1 : Buffer<uint>
 	// 2 : Buffer<uint4>
 	// 3 : Buffer<float4>
-	static const int32 PermutationCount = 4;
-	static int32 GetPermutationIndex(bool bStructured, bool bInteger, int32 NumComponents)
+	// 4 : ByteAdressBuffer
+	static const int32 PermutationCount = 5;
+	static int32 GetPermutationIndex(bool bStructured, bool bByteAddressBuffer, bool bInteger, int32 NumComponents)
 	{
-		if (bStructured)
+		if (bByteAddressBuffer)
+		{
+			return 4;
+		}
+		else if (bStructured)
 		{
 			return 0;
 		}
@@ -432,12 +438,14 @@ void AddTransitionPass(
 	DummyInputs[1] = GraphBuilder.CreateSRV(GSystemTextures.GetDefaultBuffer(GraphBuilder, 4u, 1u), PF_R32_UINT);
 	DummyInputs[2] = GraphBuilder.CreateSRV(GSystemTextures.GetDefaultBuffer(GraphBuilder, 16u, 1u), PF_R32G32B32A32_UINT);
 	DummyInputs[3] = GraphBuilder.CreateSRV(GSystemTextures.GetDefaultBuffer(GraphBuilder, 16u, 1u), PF_A32B32G32R32F);
+	DummyInputs[4] = GraphBuilder.CreateSRV(GSystemTextures.GetDefaultByteAddressBuffer(GraphBuilder, 4u));
 
 	int32 ArrayCounts[FHairResourceTransitionPass::PermutationCount];
 	ArrayCounts[0] = 0;
 	ArrayCounts[1] = 0;
 	ArrayCounts[2] = 0;
 	ArrayCounts[3] = 0;
+	ArrayCounts[4] = 0;
 
 	auto FlushArray = [&](int32 PermutationIndex, int32 TransitionCount)
 	{
@@ -452,6 +460,7 @@ void AddTransitionPass(
 		case 1: ParamArray = &PassParameters->VertexUIntBuffers; break;
 		case 2: ParamArray = &PassParameters->VertexUInt4Buffers; break;
 		case 3: ParamArray = &PassParameters->VertexFloat4Buffers; break;
+		case 4: ParamArray = &PassParameters->ByteAddressBuffers; break;
 		default: checkNoEntry();
 		};
 
@@ -484,11 +493,12 @@ void AddTransitionPass(
 	for (int32 TransitionIndex = 0; TransitionIndex < Transitions.Num(); ++TransitionIndex)
 	{
 		const bool bStructuredBuffer = EnumHasAnyFlags(Transitions[TransitionIndex]->Desc.Buffer->Desc.Usage, EBufferUsageFlags::StructuredBuffer);
+		const bool bByteAddressBuffer = EnumHasAnyFlags(Transitions[TransitionIndex]->Desc.Buffer->Desc.Usage, EBufferUsageFlags::ByteAddressBuffer);
 		const EPixelFormat PixelFormat = Transitions[TransitionIndex]->Desc.Format;
 		const bool bIsIntegerFormat = IsInteger(PixelFormat);
 		const int32 NumComponents = GPixelFormats[PixelFormat].NumComponents;
 
-		const int32 PermutationIndex = FHairResourceTransitionPass::GetPermutationIndex(bStructuredBuffer, bIsIntegerFormat, NumComponents);
+		const int32 PermutationIndex = FHairResourceTransitionPass::GetPermutationIndex(bStructuredBuffer, bByteAddressBuffer, bIsIntegerFormat, NumComponents);
 
 		SortedTransitions[PermutationIndex][ArrayCounts[PermutationIndex]++] = Transitions[TransitionIndex];
 

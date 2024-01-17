@@ -40,7 +40,7 @@ static FAutoConsoleVariableRef CVarHairGroupIndexBuilder_MaxVoxelResolution(TEXT
 
 FString FGroomBuilder::GetVersion()
 {
-	return TEXT("v11b");
+	return TEXT("v12c");
 }
 
 // For debug purpose
@@ -167,15 +167,17 @@ namespace HairStrandsBuilder
 		CopyToBulkData<TFormatType>(Out.Data, Data);
 	}
 
-	/** Build the packed datas for gpu rendering/simulation */
-	void BuildRenderData(const FHairStrandsDatas& HairStrands, const TArray<uint8>& RandomSeeds, FHairStrandsBulkData& OutBulkData)
+	/** Build the bulk/packed datas for gpu rendering/simulation */
+	void BuildBulkData(const FHairStrandsDatas& HairStrands, const TArray<uint8>& RandomSeeds, FHairStrandsBulkData& OutBulkData)
 	{
-		TRACE_CPUPROFILER_EVENT_SCOPE(HairStrandsBuilder::BuildRenderData);
+		TRACE_CPUPROFILER_EVENT_SCOPE(HairStrandsBuilder::BuildBulkData);
 
 		const uint32 NumCurves = HairStrands.GetNumCurves();
 		const uint32 NumPoints = HairStrands.GetNumPoints();
 		if (!(NumCurves > 0 && NumPoints > 0))
+		{
 			return;
+		}
 
 		TArray<FHairStrandsPositionFormat::Type> OutPackedPositions;
 		TArray<FHairStrandsCurveFormat::Type> OutPackedCurves;
@@ -226,24 +228,13 @@ namespace HairStrandsBuilder
 		const float MaxLength = GetHairStrandsMaxLength(HairStrands);
 		const float MaxRadius = GetHairStrandsMaxRadius(HairStrands);
 
-		struct FPackedRadiusAndType
-		{
-			union
-			{
-				struct
-				{
-					uint8 ControlPointType : 2;
-					uint8 NormalizedRadius : 6;
-				} Data;
-				uint8 Packed;
-			};
-		};
+		static_assert(sizeof(FPackedHairVertex) == sizeof(FPackedHairVertex::BulkType));
+		static_assert(sizeof(FPackedHairVertex) == 8u);
 
 		uint32 MinPointPerCurve = HAIR_MAX_NUM_POINT_PER_CURVE;
 		uint32 MaxPointPerCurve = 0;
 		uint32 AccPointPerCurve = 0;
 
-		static_assert(sizeof(FPackedRadiusAndType) == sizeof(uint8));
 		const bool bSeedValid = RandomSeeds.Num() > 0;
 		for (uint32 CurveIndex = 0; CurveIndex < NumCurves; ++CurveIndex)
 		{
@@ -260,18 +251,16 @@ namespace HairStrandsBuilder
 				const uint32 NextIndex = FMath::Min(PointCount + 1, PointCount - 1);
 				const FVector3f& PointPosition = Points.PointsPosition[PointIndex + IndexOffset];
 
-				// Packed Position|CoordU|NormalizedRadius
+				// Packed Position|CoordU|NormalizedRadius|Type
 				{
 					const float CoordU = Points.PointsCoordU[PointIndex + IndexOffset];
 					const float NormalizedRadius = Points.PointsRadius[PointIndex + IndexOffset] / MaxRadius;
 
 					FHairStrandsPositionFormat::Type& PackedPosition = OutPackedPositions[PointIndex + IndexOffset];
 					CopyVectorToPosition(PointPosition - HairBoxCenter, PackedPosition);
-					FPackedRadiusAndType PackedRadiusAndType;
-					PackedRadiusAndType.Data.ControlPointType = (PointIndex == 0) ? HAIR_CONTROLPOINT_START : (PointIndex == (PointCount - 1) ? HAIR_CONTROLPOINT_END : HAIR_CONTROLPOINT_INSIDE);
-					PackedRadiusAndType.Data.NormalizedRadius = uint8(FMath::Clamp(NormalizedRadius * 63.f, 0.f, 63.f));
-					PackedPosition.PackedRadiusAndType = PackedRadiusAndType.Packed; //-V614
 					PackedPosition.UCoord = uint8(FMath::Clamp(CoordU * 255.f, 0.f, 255.f));
+					PackedPosition.Radius = uint8(FMath::Clamp(NormalizedRadius * 63.f, 0.f, 63.f));
+					PackedPosition.Type = (PointIndex == 0) ? HAIR_CONTROLPOINT_START : (PointIndex == (PointCount - 1) ? HAIR_CONTROLPOINT_END : HAIR_CONTROLPOINT_INSIDE);
 				}
 
 				// Point to Curve
@@ -617,10 +606,10 @@ namespace HairStrandsBuilder
 		OutBulkData.Header.Strides.PointAttributeChunkElementCount = PointAttributeChunkElementCount;
 	}
 
-	void BuildRenderData(const FHairStrandsDatas& HairStrands, FHairStrandsBulkData& OutBulkData)
+	void BuildBulkData(const FHairStrandsDatas& HairStrands, FHairStrandsBulkData& OutBulkData)
 	{
 		TArray<uint8> RandomSeeds;
-		BuildRenderData(HairStrands, RandomSeeds, OutBulkData);
+		BuildBulkData(HairStrands, RandomSeeds, OutBulkData);
 	}
 
 } // namespace HairStrandsBuilder
@@ -2230,7 +2219,7 @@ void FGroomBuilder::BuildBulkData(
 	{
 		CurveSeeds[Index] = Random.RandHelper(255);
 	}
-	HairStrandsBuilder::BuildRenderData(InData, CurveSeeds, OutBulkData);
+	HairStrandsBuilder::BuildBulkData(InData, CurveSeeds, OutBulkData);
 }
 
 void FGroomBuilder::BuildInterplationData(

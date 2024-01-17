@@ -96,7 +96,7 @@ END_SHADER_PARAMETER_STRUCT()
 
 // Instance resources (Raw)
 BEGIN_SHADER_PARAMETER_STRUCT(FHairStrandsInstanceResourceRawParameters, RENDERER_API)
-	SHADER_PARAMETER_SRV(Buffer<uint4>, PositionBuffer)
+	SHADER_PARAMETER_SRV(ByteAddressBuffer, PositionBuffer)
 	SHADER_PARAMETER_SRV(StructuredBuffer<float4>, PositionOffsetBuffer)
 	SHADER_PARAMETER_SRV(Buffer<uint>, CurveBuffer)
 	SHADER_PARAMETER_SRV(Buffer<uint>, PointToCurveBuffer)
@@ -107,7 +107,7 @@ END_SHADER_PARAMETER_STRUCT()
 
 // Instance prev. resources (Raw)
 BEGIN_SHADER_PARAMETER_STRUCT(FHairStrandsInstancePrevResourceRawParameters, RENDERER_API)
-	SHADER_PARAMETER_SRV(Buffer<uint4>, PreviousPositionBuffer)
+	SHADER_PARAMETER_SRV(ByteAddressBuffer, PreviousPositionBuffer)
 	SHADER_PARAMETER_SRV(StructuredBuffer<float4>, PreviousPositionOffsetBuffer)
 END_SHADER_PARAMETER_STRUCT()
 

@@ -3396,11 +3396,6 @@ uint PackR6(float Value, float Dither)
 	return uint(DitheredValue * 63.0f);
 }
 
-float UnpackR6(uint Value)
-{
-	return float(Value & 0x3F) * (1.0f / 63.0f);
-}
-
 // Simple Octahedral from "A Survey of Efficient Representations for Independent Unit Vectors" http://jcgt.org/published/0003/02/01/
 float SignNotZero(in float k)
 {

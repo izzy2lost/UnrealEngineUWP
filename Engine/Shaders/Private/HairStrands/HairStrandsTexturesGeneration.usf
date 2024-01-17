@@ -652,7 +652,7 @@ void MainCS(int2 DispatchThreadId : SV_DispatchThreadID)
 #include "HairStrandsVertexFactoryCommon.ush"
 
 uint MaxVertexCount;
-Buffer<uint4> InPositions;
+ByteAddressBuffer InPositions;
 Buffer<float4> InPositionOffset;
 RWBuffer<float4> OutPositions;
 [numthreads(128, 1, 1)]

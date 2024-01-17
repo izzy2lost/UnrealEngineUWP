@@ -448,7 +448,7 @@ float4x4 LocalToTranslatedWorldMatrix;
 
 Buffer<uint> RenCurveBuffer;
 Buffer<uint> RenPointLODBuffer;
-Buffer<uint4> RenderDeformedPositionBuffer;
+ByteAddressBuffer RenderDeformedPositionBuffer;
 StructuredBuffer<float4> RenderDeformedOffsetBuffer;
 
 RWBuffer<int> OutClusterAABBBuffer; 	// Cluster data packed as {uint3 AABBMin, uint3 AABBMax}

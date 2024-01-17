@@ -16,7 +16,7 @@ float HairStrandsVF_HairTipScale;
 
 uint HairStrandsVF_RegisteredIndex;
 StructuredBuffer<float4> PositionOffsetBuffer;
-Buffer<uint4> 	 PositionBuffer;
+ByteAddressBuffer PositionBuffer;
 Buffer<float4> 	 TangentBuffer;
 RWBuffer<float4> OutputPositionBuffer;	
 #if PERMUTATION_PROCEDURAL_PRIMITIVE 
@@ -307,8 +307,8 @@ float PositionThreshold2;
 uint HairStrandsVF_bCullingEnable;
 Buffer<uint> 	 HairStrandsVF_CullingIndirectBuffer;
 Buffer<uint> 	 HairStrandsVF_CullingIndexBuffer;
-Buffer<uint4> 	 CurrPositionBuffer;
-Buffer<uint4> 	 PrevPositionBuffer;
+ByteAddressBuffer CurrPositionBuffer;
+ByteAddressBuffer PrevPositionBuffer;
 Buffer<int> 	 GroupAABBBuffer;
 RWBuffer<uint> 	 InvalidationBuffer;
 RWBuffer<uint> 	 InvalidationPrintCounter;

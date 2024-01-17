@@ -1974,18 +1974,13 @@ float3 SimRestOffset;
 
 float4x4 LocalToWorld;
 
-Buffer<uint4> RenRestPosition;
-Buffer<uint4> RenDeformedPosition;
+ByteAddressBuffer RenRestPosition;
+ByteAddressBuffer RenDeformedPosition;
 StructuredBuffer<float4> RenDeformedOffset;
 
-Buffer<uint4> SimRestPosition;
-Buffer<uint4> SimDeformedPosition;
+ByteAddressBuffer SimRestPosition;
+ByteAddressBuffer SimDeformedPosition;
 StructuredBuffer<float4> SimDeformedOffset;
-
-float3 RestOffset;
-float3 DeformedOffset;
-Buffer<uint4> RestPosition;
-Buffer<uint4> DeformedPosition; 
 
 int DebugMode;
 
@@ -2004,39 +1999,39 @@ void MainCS(uint3 DispatchThreadId : SV_DispatchThreadID)
 
 	FHairControlPoint P0 = (FHairControlPoint)0;
 	FHairControlPoint P1 = (FHairControlPoint)0;
-	float3 Offset = 0;
+
 	float4 ColorRoot = ColorWhite;
 	float4 ColorTip  = ColorWhite;
 
 	if (DebugMode == DEBUGMODE_REN_REST)
 	{
-		P0       = ReadHairControlPoint(RenRestPosition, VertexId, 1, 1, 1);
-		P1       = ReadHairControlPoint(RenRestPosition, VertexId + 1, 1, 1, 1);
-		Offset   = RenRestOffset;
+		P0       = ReadHairControlPoint(RenRestPosition, VertexId,     RenRestOffset, 1, 1, 1);
+		P1       = ReadHairControlPoint(RenRestPosition, VertexId + 1, RenRestOffset, 1, 1, 1);
 		ColorRoot= ColorYellow;
 		ColorTip = ColorPurple;
 	}
 	else if (DebugMode == DEBUGMODE_REN_DEFORMED)
 	{
-		P0       = ReadHairControlPoint(RenDeformedPosition, VertexId, 1, 1, 1);
-		P1       = ReadHairControlPoint(RenDeformedPosition, VertexId + 1, 1, 1, 1);
-		Offset   = ReadCardPositionOffset(RenDeformedOffset, InstanceRegisteredIndex, CardLODIndex);
+		const float3 Offset = ReadCardPositionOffset(RenDeformedOffset, InstanceRegisteredIndex, CardLODIndex);
+
+		P0       = ReadHairControlPoint(RenDeformedPosition, VertexId,     Offset, 1, 1, 1);
+		P1       = ReadHairControlPoint(RenDeformedPosition, VertexId + 1, Offset, 1, 1, 1);
 		ColorRoot= ColorYellow;
 		ColorTip = ColorPurple;
 	}
 	else if (DebugMode == DEBUGMODE_SIM_REST)
 	{
-		P0       = ReadHairControlPoint(SimRestPosition, VertexId, 1, 1, 1);
-		P1       = ReadHairControlPoint(SimRestPosition, VertexId + 1, 1, 1, 1);
-		Offset   = SimRestOffset;
+		P0       = ReadHairControlPoint(SimRestPosition, VertexId,     SimRestOffset, 1, 1, 1);
+		P1       = ReadHairControlPoint(SimRestPosition, VertexId + 1, SimRestOffset, 1, 1, 1);
 		ColorRoot= ColorCyan;
 		ColorTip = ColorRed;
 	}
 	else if (DebugMode == DEBUGMODE_SIM_DEFORMED)
 	{
-		P0       = ReadHairControlPoint(SimDeformedPosition, VertexId, 1, 1, 1);
-		P1       = ReadHairControlPoint(SimDeformedPosition, VertexId + 1, 1, 1, 1);
-		Offset   = ReadSimPositionOffset(SimDeformedOffset, InstanceRegisteredIndex);
+		const float3 Offset = ReadSimPositionOffset(SimDeformedOffset, InstanceRegisteredIndex);
+
+		P0       = ReadHairControlPoint(SimDeformedPosition, VertexId,     Offset, 1, 1, 1);
+		P1       = ReadHairControlPoint(SimDeformedPosition, VertexId + 1, Offset, 1, 1, 1);
 		ColorRoot= ColorCyan;
 		ColorTip = ColorRed;
 	}

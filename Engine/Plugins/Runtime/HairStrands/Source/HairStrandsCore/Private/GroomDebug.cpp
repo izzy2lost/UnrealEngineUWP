@@ -523,11 +523,11 @@ class FDrawDebugCardGuidesCS : public FGlobalShader
 		SHADER_PARAMETER(FVector3f, SimRestOffset)
 		SHADER_PARAMETER_RDG_BUFFER_SRV(StructuredBuffer, SimDeformedOffset)
 
-		SHADER_PARAMETER_RDG_BUFFER_SRV(Buffer, RenRestPosition)
-		SHADER_PARAMETER_RDG_BUFFER_SRV(Buffer, RenDeformedPosition)
+		SHADER_PARAMETER_RDG_BUFFER_SRV(ByteAddressBuffer, RenRestPosition)
+		SHADER_PARAMETER_RDG_BUFFER_SRV(ByteAddressBuffer, RenDeformedPosition)
 
-		SHADER_PARAMETER_RDG_BUFFER_SRV(Buffer, SimRestPosition)
-		SHADER_PARAMETER_RDG_BUFFER_SRV(Buffer, SimDeformedPosition)
+		SHADER_PARAMETER_RDG_BUFFER_SRV(ByteAddressBuffer, SimRestPosition)
+		SHADER_PARAMETER_RDG_BUFFER_SRV(ByteAddressBuffer, SimDeformedPosition)
 
 		SHADER_PARAMETER_STRUCT_INCLUDE(ShaderPrint::FShaderParameters, ShaderPrintParameters)
 	END_SHADER_PARAMETER_STRUCT()
@@ -599,6 +599,7 @@ static void AddDrawDebugCardsGuidesPass(
 	if (!bRen && !bGuideValid)						{ return; }
 	if (!bRen && bDeformed && !bGuideDeformValid)	{ return; }
 
+	FRDGBufferSRVRef DefaultByteAddreeBuffer = GraphBuilder.CreateSRV(GSystemTextures.GetDefaultByteAddressBuffer(GraphBuilder, 8u));
 	FRDGBufferSRVRef DefaultBuffer = GraphBuilder.CreateSRV(GSystemTextures.GetDefaultBuffer(GraphBuilder, 8, 0u), PF_R16G16B16A16_UINT);
 
 	FDrawDebugCardGuidesCS::FParameters* Parameters = GraphBuilder.AllocParameters<FDrawDebugCardGuidesCS::FParameters>();
@@ -608,15 +609,15 @@ static void AddDrawDebugCardsGuidesPass(
 	Parameters->CardLODIndex = HairLODIndex;
 	Parameters->RenVertexCount = 0;
 	Parameters->RenRestOffset = FVector3f::ZeroVector;
-	Parameters->RenRestPosition = DefaultBuffer;
+	Parameters->RenRestPosition = DefaultByteAddreeBuffer;
 	Parameters->RenDeformedOffset = DefaultBuffer;
-	Parameters->RenDeformedPosition = DefaultBuffer;
+	Parameters->RenDeformedPosition = DefaultByteAddreeBuffer;
 
 	Parameters->SimVertexCount = 0;
 	Parameters->SimRestOffset = FVector3f::ZeroVector;
-	Parameters->SimRestPosition = DefaultBuffer;
+	Parameters->SimRestPosition = DefaultByteAddreeBuffer;
 	Parameters->SimDeformedOffset = DefaultBuffer;
-	Parameters->SimDeformedPosition = DefaultBuffer;
+	Parameters->SimDeformedPosition = DefaultByteAddreeBuffer;
 
 	if (bRen)
 	{

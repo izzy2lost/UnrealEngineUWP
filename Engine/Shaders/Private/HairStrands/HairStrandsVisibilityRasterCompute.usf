@@ -962,8 +962,8 @@ void RasterCS(uint DispatchThreadID : SV_DispatchThreadID, uint GroupThreadID : 
 			group_PrimMatID[Prim] = PackHairVisControlPointMaterialId(PrimID, HairMaterialId);
 
 			uint TypeDummy;
-			CalcHomogenousPosAndRad(HairStrandsVF_PositionBuffer[PrimID], group_PositionOffset, group_SP0[Prim], group_Rad0[Prim], TypeDummy);
-			CalcHomogenousPosAndRad(HairStrandsVF_PositionBuffer[PrimID+1], group_PositionOffset, group_SP1[Prim], group_Rad1[Prim], TypeDummy);
+			CalcHomogenousPosAndRad(PrimID, group_PositionOffset, group_SP0[Prim], group_Rad0[Prim], TypeDummy);
+			CalcHomogenousPosAndRad(PrimID+1, group_PositionOffset, group_SP1[Prim], group_Rad1[Prim], TypeDummy);
 		}
 
 		if (bWaveThreadValid)
@@ -1011,8 +1011,8 @@ void RasterCS(uint DispatchThreadID : SV_DispatchThreadID, uint GroupThreadID : 
 				PrimMatID = PackHairVisControlPointMaterialId(PrimID, HairMaterialId);
 
 				uint TypeDummy;
-				CalcHomogenousPosAndRad(HairStrandsVF_PositionBuffer[PrimID], group_PositionOffset, SP0, Rad0, TypeDummy);
-				CalcHomogenousPosAndRad(HairStrandsVF_PositionBuffer[PrimID + 1], group_PositionOffset, SP1, Rad1, TypeDummy);
+				CalcHomogenousPosAndRad(PrimID, group_PositionOffset, SP0, Rad0, TypeDummy);
+				CalcHomogenousPosAndRad(PrimID + 1, group_PositionOffset, SP1, Rad1, TypeDummy);
 			}
 
 			// Clipping
@@ -1360,8 +1360,8 @@ void RasterMultiSampleCS(uint DispatchThreadID : SV_DispatchThreadID, uint Group
 			PrimMatID = PackHairVisControlPointMaterialId(PrimID, HairMaterialId);
 
 			uint Type;
-			CalcHomogenousPosAndRad(HairStrandsVF_PositionBuffer[PrimID], group_PositionOffset, SP0, Rad0, Type);
-			CalcHomogenousPosAndRad(HairStrandsVF_PositionBuffer[PrimID + 1], group_PositionOffset, SP1, Rad1, Type);
+			CalcHomogenousPosAndRad(PrimID, group_PositionOffset, SP0, Rad0, Type);
+			CalcHomogenousPosAndRad(PrimID + 1, group_PositionOffset, SP1, Rad1, Type);
 			bIsEndPoint = (Type == HAIR_CONTROLPOINT_END);
 
 			SP0 = float4(NDCToPixelCoord(SP0), 1.0f / SP0.w);

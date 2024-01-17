@@ -40,8 +40,9 @@ struct FPackedHairVertex
 	typedef uint64 BulkType;
 
 	FFloat16 X, Y, Z;
-	uint8 PackedRadiusAndType;
 	uint8 UCoord;
+	uint8 Radius : 6;
+	uint8 Type : 2;
 };
 
 struct FPackedHairAttribute0Vertex
@@ -76,7 +77,7 @@ struct FHairStrandsPositionFormat
 	static const uint32 ComponentCount = 1;
 	static const uint32 SizeInByte = sizeof(Type);
 	static const EVertexElementType VertexElementType = VET_UShort4;
-	static const EPixelFormat Format = PF_R16G16B16A16_UINT;
+	static const EPixelFormat Format = PF_R32G32_UINT;
 };
 
 struct FHairStrandsPositionOffsetFormat

@@ -81,12 +81,12 @@ uint InternalGetHairStrandsAttributesPerVertex(uint HairControlPointId, uint Att
 	return InternalGetHairStrandsAttributes(HairControlPointId, AttributeOffsetInBytes, AttributeStrideInBytes, InAttributeBuffer, InIndexToChunkDivAsShift, InChunkElementCount, InChunkStrideInBytes);
 }
 
-float InternalGetHairStrandsCoordU(Buffer<uint4> InPositionBuffer, uint InPointIndex, float InRadius, float InRootScale, float InTipScale)
+float InternalGetHairStrandsCoordU(ByteAddressBuffer InPositionBuffer, uint InPointIndex, float InRadius, float InRootScale, float InTipScale)
 {
 	return ReadHairControlPoint(InPositionBuffer, InPointIndex, float3(0, 0, 0), InRadius, InRootScale, InTipScale).UCoord;
 }
 
-float InternalGetHairStrandsWorldRadius(Buffer<uint4> InPositionBuffer, uint InPointIndex, float InRadius, float InRootScale, float InTipScale)
+float InternalGetHairStrandsWorldRadius(ByteAddressBuffer InPositionBuffer, uint InPointIndex, float InRadius, float InRootScale, float InTipScale)
 {
 	return ReadHairControlPoint(InPositionBuffer, InPointIndex, float3(0, 0, 0), InRadius, InRootScale, InTipScale).WorldRadius;
 }
