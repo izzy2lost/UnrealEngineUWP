@@ -735,10 +735,14 @@ namespace UnrealBuildTool
 			{
 				return;
 			}
-
 			_timer = new(async (_) =>
 			{
 				_timer?.Change(Timeout.Infinite, Timeout.Infinite);
+
+				if (_cancellationSource!.IsCancellationRequested)
+				{
+					return;
+				}	
 
 				UBAHordeSession? hordeSession = await _hordeSessionTask!;
 
@@ -818,8 +822,6 @@ namespace UnrealBuildTool
 		public void Stop()
 		{
 			_cancellationSource?.Cancel();
-
-			_timer?.Dispose();
 		}
 
 		public async Task CloseAsync()
