@@ -3064,15 +3064,10 @@ void UNiagaraScript::SetVMCompilationResults(const FNiagaraVMExecutableDataId& I
 
 	if (bApplyRapidIterationParameters)
 	{
-		const bool bClearBindings = false;
-		RapidIterationParameters.Empty(bClearBindings);
-		for (const FNiagaraVariable& Parameter : InScriptVM.BakedRapidIterationParameters)
-		{
-			const bool bInitialize = false;
-			const bool bTriggerRebind = false;
-			RapidIterationParameters.AddParameter(Parameter, bInitialize, bTriggerRebind);
-		}
-		RapidIterationParameters.TriggerOnLayoutChanged();
+		// if we are applying rapid iteration parameters then the data supplied by InScriptVM, which could have
+		// come from the DDC, could invalidate the CompileID that we had previous generated so generate it again
+		// now that we've updated everything
+		ComputeVMCompilationId(CachedScriptVMId, FGuid());
 	}
 
 	GenerateStatIDs();
@@ -3246,6 +3241,19 @@ bool UNiagaraScript::IsShaderMapCached(const ITargetPlatform* TargetPlatform, co
 	}
 
 	return false;
+}
+
+void UNiagaraScript::AssignRapidIterationParameters(const FNiagaraVMExecutableData& InScriptVM)
+{
+	const bool bClearBindings = false;
+	RapidIterationParameters.Empty(bClearBindings);
+	for (const FNiagaraVariable& Parameter : InScriptVM.BakedRapidIterationParameters)
+	{
+		const bool bInitialize = false;
+		const bool bTriggerRebind = false;
+		RapidIterationParameters.AddParameter(Parameter, bInitialize, bTriggerRebind);
+	}
+	RapidIterationParameters.TriggerOnLayoutChanged();
 }
 
 bool UNiagaraScript::ApplyRapidIterationParameters(TConstArrayView<FNiagaraVariable> InParameters, bool bAllowRemoval)

@@ -1290,6 +1290,8 @@ public:
 
 	NIAGARA_API bool IsShaderMapCached(const ITargetPlatform* TargetPlatform, const FNiagaraShaderMapId& ShaderMapId) const;
 
+	NIAGARA_API void AssignRapidIterationParameters(const FNiagaraVMExecutableData& InScriptVM);
+
 	/** Updates the RI parameter store based on the provided variables (missing entries will be
 	    added and stale entries will be removed.  Returns true if the parameter store was modified. */
 	NIAGARA_API bool ApplyRapidIterationParameters(TConstArrayView<FNiagaraVariable> InParameters, bool bAllowRemoval);
