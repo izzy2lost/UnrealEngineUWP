@@ -401,7 +401,7 @@ namespace Chaos::Private
 		CHAOS_API int32 ReserveParticles(const int32 InNumParticles);
 		CHAOS_API void UpdateParticleMaterial(FGeometryParticleHandle* Particle);
 		CHAOS_API int32 GetParticleLevel(FGeometryParticleHandle* Particle) const;
-		CHAOS_API void WakeParticleIsland(FGeometryParticleHandle* Particle);
+		CHAOS_API void WakeParticleIslands(FGeometryParticleHandle* Particle);
 
 		// Constraint management
 		int32 GetNumConstraints() const { return Edges.Num(); }
@@ -411,6 +411,7 @@ namespace Chaos::Private
 		CHAOS_API void RemoveParticleConstraints(FGeometryParticleHandle* Particle);
 		CHAOS_API void RemoveParticleContainerConstraints(FGeometryParticleHandle* Particle, const int32 ContainerId);
 		CHAOS_API void RemoveContainerConstraints(const int32 ContainerId);
+		CHAOS_API void WakeConstraintIsland(FConstraintHandle* Constraint);
 
 		// Access to Islands
 		int32 GetNumIslands() const { return Islands.Num(); }

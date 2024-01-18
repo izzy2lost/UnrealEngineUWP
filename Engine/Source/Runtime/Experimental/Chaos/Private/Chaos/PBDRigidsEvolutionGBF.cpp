@@ -1104,13 +1104,23 @@ void FPBDRigidsEvolutionGBF::SetParticleKinematicTarget(FGeometryParticleHandle*
 
 void FPBDRigidsEvolutionGBF::OnParticleMoved(FGeometryParticleHandle* InParticle, const FVec3& PrevX, const FRotation3& PrevR, const bool bIsTeleport)
 {
-	// When a particle is moved, we need to tell the collisions because they cache friction state and 
-	// would attempt to undo small translations within the friction cone
-	InParticle->ParticleCollisions().VisitCollisions([this, InParticle](FPBDCollisionConstraint& Collision)
-		{
-			Collision.UpdateParticleTransform(InParticle);
-			return ECollisionVisitorResult::Continue;
-		});
+	// When a particle is moved, we need to 
+	// - tell the collisions because they cache friction state and would attempt to undo small translations within the friction cone
+	// - wake the island(s) that the particle is in
+	// NOTE: we have a tolerance on the transform change because SetParticleTransform may be called with the "same" transform that
+	// is different by very small amounts around 1e-7 in both position and rotation when switching from dynamic to kinematic.
+	const FReal CollisionPositionTolerance = FReal(1.e-4);
+	const FReal CollisionRotationTolerance = FReal(1.e-6);
+	if (!FVec3::IsNearlyEqual(PrevX, InParticle->X(), CollisionPositionTolerance) || !FRotation3::IsNearlyEqual(PrevR, InParticle->R(), CollisionRotationTolerance))
+	{
+		GetIslandManager().WakeParticleIslands(InParticle);
+
+		InParticle->ParticleCollisions().VisitCollisions([this, InParticle](FPBDCollisionConstraint& Collision)
+			{
+				Collision.UpdateParticleTransform(InParticle);
+				return ECollisionVisitorResult::Continue;
+			});
+	}
 
 	// If this is a teleport, we assume other state has been set separately (V, W, etc) if required, which 
 	// would include resetting any sleep-related state. If this is not a teleport, we want to prevent 

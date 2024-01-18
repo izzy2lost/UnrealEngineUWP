@@ -1107,7 +1107,7 @@ namespace Chaos
 
 			// Reset the sleep counters etc in the sleep management system
 			// @todo(chaos): ideally we would just set reset the sleepiness of the particle
-			IslandManager.WakeParticleIsland(Particle);
+			IslandManager.WakeParticleIslands(Particle);
 		}
 	}
 

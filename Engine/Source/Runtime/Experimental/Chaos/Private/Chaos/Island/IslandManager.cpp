@@ -736,16 +736,29 @@ namespace Chaos::Private
 		return IslandConstraints;
 	}
 
-	void FPBDIslandManager::WakeParticleIsland(FGeometryParticleHandle* Particle)
+	void FPBDIslandManager::WakeParticleIslands(FGeometryParticleHandle* Particle)
 	{
+		// We want to wake for at least one frame (i.e., prevent re-sleeping this frame)
+		const bool bIsSleepAllowed = false;
+
 		// When we explicitly wake we reset sleep counters etc
 		if (FPBDIslandParticle* Node = GetGraphNode(Particle))
 		{
-			// If we are in an island flag for sleep reset
+			// NOTE: We could check Flags.bIsDynamic here, but checking the Island pointer means we 
+			// are automatically handling the case where a kinematic with constraints on it 
+			// was made dynamic right before calling WakeParticleIsland
 			if (Node->Island != nullptr)
 			{
-				const bool bIsSleepAllowed = false;
+				// This is a dynamic particle and we know its island
 				EnqueueIslandCheckSleep(Node->Island, bIsSleepAllowed);
+			}
+			else
+			{
+				// This is a kinematic particle, visit our edges to find the islands we are in
+				for (const FPBDIslandConstraint* Edge : Node->Edges)
+				{
+					EnqueueIslandCheckSleep(Edge->Island, bIsSleepAllowed);
+				}
 			}
 		}
 
@@ -844,6 +857,10 @@ namespace Chaos::Private
 			FPBDIslandParticle* Node0 = Edge->Nodes[0];
 			FPBDIslandParticle* Node1 = Edge->Nodes[1];
 
+			// Wake the island when we remove a constraint
+			const bool bIsSleepAllowed = true;
+			EnqueueIslandCheckSleep(Edge->Island, bIsSleepAllowed);
+
 			// Remove edge from the island
 			RemoveEdgeFromIsland(Edge);
 
@@ -904,6 +921,15 @@ namespace Chaos::Private
 		{
 			FPBDIslandConstraint* Edge = Edges[EdgeIndex];
 			RemoveConstraint(Edge->Constraint);
+		}
+	}
+
+	void FPBDIslandManager::WakeConstraintIsland(FConstraintHandle* Constraint)
+	{
+		if (FPBDIslandConstraint* Edge = GetGraphEdge(Constraint))
+		{
+			const bool bIsSleepAllowed = false;
+			EnqueueIslandCheckSleep(Edge->Island, bIsSleepAllowed);
 		}
 	}
 
