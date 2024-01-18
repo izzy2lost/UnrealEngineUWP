@@ -64,7 +64,7 @@ namespace HarmonixMetasound
 
 		/**
 		* Parses the FilterString to a Bitfield and assigns it to the TrackFilter
-		* if it fails, will assign MidiChannelFilter to 0
+		* if it fails, will assign TrackFilter to 0
 		*/
 		bool SetTrackFilterFromString(const FString& FilterString, FString& OutErrorMessage);
 
