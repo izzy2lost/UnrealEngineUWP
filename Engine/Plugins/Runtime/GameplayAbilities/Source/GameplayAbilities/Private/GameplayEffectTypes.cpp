@@ -950,7 +950,7 @@ void FGameplayEffectSpec::PrintAll() const
 
 FString FGameplayEffectSpec::ToSimpleString() const
 {
-	return FString::Printf(TEXT("%s"), *GetNameSafe(Def));
+	return GetNameSafe(Def);
 }
 
 const FGameplayTagContainer* FTagContainerAggregator::GetAggregatedTags() const

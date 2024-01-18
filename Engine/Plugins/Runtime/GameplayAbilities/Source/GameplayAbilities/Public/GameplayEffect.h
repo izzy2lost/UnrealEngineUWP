@@ -20,6 +20,8 @@
 #include "GameplayAbilitySpec.h"
 #include "ActiveGameplayEffectIterator.h"
 #include "UObject/ObjectKey.h"
+#include "VisualLogger/VisualLoggerDebugSnapshotInterface.h"
+#include "VisualLogger/VisualLoggerTypes.h"
 #include "GameplayEffect.generated.h"
 
 /**
@@ -1120,6 +1122,10 @@ struct GAMEPLAYABILITIES_API FGameplayEffectSpec
 	/** Simple const accessor to the dynamic asset tags */
 	const FGameplayTagContainer& GetDynamicAssetTags() const;
 
+#if ENABLE_VISUAL_LOG
+	FVisualLogStatusCategory GrabVisLogStatus() const;
+#endif
+
 private:
 
 	void CaptureDataFromSource(bool bSkipRecaptureSourceActorTags = false);
@@ -1616,7 +1622,8 @@ struct GAMEPLAYABILITIES_API FActiveGameplayEffectsContainer : public FFastArray
 	/** Stores a record of gameplay effects that have executed and their results. Useful for debugging */
 	TArray<DebugExecutedGameplayEffectData> DebugExecutedGameplayEffects;
 
-	void GrabDebugSnapshot(FVisualLogEntry* Snapshot) const;
+	/** Report our current state to the VisLog */
+	void DescribeSelfToVisLog(FVisualLogEntry* Snapshot) const;
 #endif // ENABLE_VISUAL_LOG
 
 	void GetActiveGameplayEffectDataByAttribute(TMultiMap<FGameplayAttribute, FActiveGameplayEffectsContainer::DebugExecutedGameplayEffectData>& EffectMap) const;

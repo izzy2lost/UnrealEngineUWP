@@ -34,6 +34,7 @@
 #include "ProfilingDebugging/CsvProfiler.h"
 #include "GameFramework/Character.h"
 #include "GameFramework/CharacterMovementComponent.h"
+#include "VisualLogger/VisualLogger.h"
 
 #define LOCTEXT_NAMESPACE "AbilitySystemComponent"
 
@@ -282,6 +283,7 @@ FGameplayAbilitySpecHandle UAbilitySystemComponent::GiveAbility(const FGameplayA
 	// If locked, add to pending list. The Spec.Handle is not regenerated when we receive, so returning this is ok.
 	if (AbilityScopeLockCount > 0)
 	{
+		UE_LOG(LogAbilitySystem, Verbose, TEXT("%s: GiveAbility %s delayed (ScopeLocked)"), *GetNameSafe(GetOwner()), *GetNameSafe(Spec.Ability));
 		AbilityPendingAdds.Add(Spec);
 		return Spec.Handle;
 	}
@@ -298,6 +300,8 @@ FGameplayAbilitySpecHandle UAbilitySystemComponent::GiveAbility(const FGameplayA
 	OnGiveAbility(OwnedSpec);
 	MarkAbilitySpecDirty(OwnedSpec, true);
 
+	UE_LOG(LogAbilitySystem, Log, TEXT("%s: GiveAbility %s [%s] Level: %d Source: %s"), *GetNameSafe(GetOwner()), *GetNameSafe(Spec.Ability), *Spec.Handle.ToString(), Spec.Level, *GetNameSafe(Spec.SourceObject.Get()));
+	UE_VLOG(GetOwner(), VLogAbilitySystem, Log, TEXT("GiveAbility %s [%s] Level: %d Source: %s"), *GetNameSafe(Spec.Ability), *Spec.Handle.ToString(), Spec.Level, *GetNameSafe(Spec.SourceObject.Get()));
 	return OwnedSpec.Handle;
 }
 
@@ -682,6 +686,9 @@ void UAbilitySystemComponent::OnRemoveAbility(FGameplayAbilitySpec& Spec)
 
 	Spec.ReplicatedInstances.Empty();
 	Spec.NonReplicatedInstances.Empty();
+
+	UE_LOG(LogAbilitySystem, Log, TEXT("%s: Removed Ability %s [%s] Level: %d"), *GetNameSafe(GetOwner()), *GetNameSafe(Spec.Ability), *Spec.Handle.ToString(), Spec.Level);
+	UE_VLOG(GetOwner(), VLogAbilitySystem, Log, TEXT("Removed Ability %s [%s] Level: %d"), *GetNameSafe(Spec.Ability), *Spec.Handle.ToString(), Spec.Level);
 }
 
 void UAbilitySystemComponent::CheckForClearedAbilities()
@@ -1107,6 +1114,9 @@ void UAbilitySystemComponent::NotifyAbilityEnded(FGameplayAbilitySpecHandle Hand
 		// The ability spec may have been removed while we were ending. We can assume everything was cleaned up if the spec isnt here.
 		return;
 	}
+
+	UE_LOG(LogAbilitySystem, Log, TEXT("%s: Ended [%s] %s. Level: %d. WasCancelled: %d."), *GetNameSafe(GetOwner()), *Handle.ToString(), Spec->GetPrimaryInstance() ? *Spec->GetPrimaryInstance()->GetName() : *Ability->GetName(), Spec->Level, bWasCancelled);
+	UE_VLOG(GetOwner(), VLogAbilitySystem, Log, TEXT("Ended [%s] %s. Level: %d. WasCancelled: %d."), *Handle.ToString(), Spec->GetPrimaryInstance() ? *Spec->GetPrimaryInstance()->GetName() : *Ability->GetName(), Spec->Level, bWasCancelled);
 
 	ENetRole OwnerRole = GetOwnerRole();
 
@@ -1625,8 +1635,8 @@ bool UAbilitySystemComponent::InternalTryActivateAbility(FGameplayAbilitySpecHan
 		if (Ability->GetNetExecutionPolicy() == EGameplayAbilityNetExecutionPolicy::LocalOnly || (Ability->GetNetExecutionPolicy() == EGameplayAbilityNetExecutionPolicy::LocalPredicted && !InPredictionKey.IsValidKey()))
 		{
 			// If we have a valid prediction key, the ability was started on the local client so it's okay
-
-			ABILITY_LOG(Warning, TEXT("Can't activate %s ability %s when not local."), *UEnum::GetValueAsString<EGameplayAbilityNetExecutionPolicy::Type>(Ability->GetNetExecutionPolicy()), *Ability->GetName());
+			UE_LOG(LogAbilitySystem, Warning, TEXT("%s: Can't activate %s ability %s when not local"), *GetNameSafe(GetOwner()), *UEnum::GetValueAsString<EGameplayAbilityNetExecutionPolicy::Type>(Ability->GetNetExecutionPolicy()), *Ability->GetName());
+			UE_VLOG(GetOwner(), VLogAbilitySystem, Warning, TEXT("Can't activate %s ability %s when not local"), *UEnum::GetValueAsString<EGameplayAbilityNetExecutionPolicy::Type>(Ability->GetNetExecutionPolicy()), *Ability->GetName());
 
 			if (NetworkFailTag.IsValid())
 			{
@@ -1640,7 +1650,8 @@ bool UAbilitySystemComponent::InternalTryActivateAbility(FGameplayAbilitySpecHan
 
 	if (NetMode != ROLE_Authority && (Ability->GetNetExecutionPolicy() == EGameplayAbilityNetExecutionPolicy::ServerOnly || Ability->GetNetExecutionPolicy() == EGameplayAbilityNetExecutionPolicy::ServerInitiated))
 	{
-		ABILITY_LOG(Warning, TEXT("Can't activate %s ability %s when not the server."), *UEnum::GetValueAsString<EGameplayAbilityNetExecutionPolicy::Type>(Ability->GetNetExecutionPolicy()), *Ability->GetName());
+		UE_LOG(LogAbilitySystem, Warning, TEXT("%s: Can't activate %s ability %s when not the server"), *GetNameSafe(GetOwner()), *UEnum::GetValueAsString<EGameplayAbilityNetExecutionPolicy::Type>(Ability->GetNetExecutionPolicy()), *Ability->GetName());
+		UE_VLOG(GetOwner(), VLogAbilitySystem, Warning, TEXT("Can't activate %s ability %s when not the server"), *UEnum::GetValueAsString<EGameplayAbilityNetExecutionPolicy::Type>(Ability->GetNetExecutionPolicy()), *Ability->GetName());
 
 		if (NetworkFailTag.IsValid())
 		{
@@ -1653,12 +1664,15 @@ bool UAbilitySystemComponent::InternalTryActivateAbility(FGameplayAbilitySpecHan
 
 	// If it's an instanced one, the instanced ability will be set, otherwise it will be null
 	UGameplayAbility* InstancedAbility = Spec->GetPrimaryInstance();
+	UGameplayAbility* AbilitySource = InstancedAbility ? InstancedAbility : Ability;
 
 	if (TriggerEventData)
 	{
-		UGameplayAbility* AbilitySource = InstancedAbility ? InstancedAbility : Ability;
 		if (!AbilitySource->ShouldAbilityRespondToEvent(ActorInfo, TriggerEventData))
 		{
+			UE_LOG(LogAbilitySystem, Verbose, TEXT("%s: Can't activate %s because ShouldAbilityRespondToEvent was false."), *GetNameSafe(GetOwner()), *Ability->GetName());
+			UE_VLOG(GetOwner(), VLogAbilitySystem, Verbose, TEXT("Can't activate %s because ShouldAbilityRespondToEvent was false."), *Ability->GetName());
+
 			NotifyAbilityFailed(Handle, AbilitySource, InternalTryActivateAbilityFailureTags);
 			return false;
 		}
@@ -1668,14 +1682,11 @@ bool UAbilitySystemComponent::InternalTryActivateAbility(FGameplayAbilitySpecHan
 		const FGameplayTagContainer* SourceTags = TriggerEventData ? &TriggerEventData->InstigatorTags : nullptr;
 		const FGameplayTagContainer* TargetTags = TriggerEventData ? &TriggerEventData->TargetTags : nullptr;
 
-		// If we have an instanced ability, call CanActivateAbility on it.
-		// Otherwise we always do a non instanced CanActivateAbility check using the CDO of the Ability.
-		UGameplayAbility* const CanActivateAbilitySource = InstancedAbility ? InstancedAbility : Ability;
 		FScopedCanActivateAbilityLogEnabler LogEnabler;
-
-		if (!CanActivateAbilitySource->CanActivateAbility(Handle, ActorInfo, SourceTags, TargetTags, &InternalTryActivateAbilityFailureTags))
+		if (!AbilitySource->CanActivateAbility(Handle, ActorInfo, SourceTags, TargetTags, &InternalTryActivateAbilityFailureTags))
 		{
-			NotifyAbilityFailed(Handle, CanActivateAbilitySource, InternalTryActivateAbilityFailureTags);
+			// CanActivateAbility with LogEnabler will have UE_LOG/UE_VLOG so don't add more failure logs here
+			NotifyAbilityFailed(Handle, AbilitySource, InternalTryActivateAbilityFailureTags);
 			return false;
 		}
 	}
@@ -1687,13 +1698,16 @@ bool UAbilitySystemComponent::InternalTryActivateAbility(FGameplayAbilitySpecHan
 		{
 			if (Ability->bRetriggerInstancedAbility && InstancedAbility)
 			{
+				UE_LOG(LogAbilitySystem, Verbose, TEXT("%s: Ending %s prematurely to retrigger."), *GetNameSafe(GetOwner()), *Ability->GetName());
+				UE_VLOG(GetOwner(), VLogAbilitySystem, Verbose, TEXT("Ending %s prematurely to retrigger."), *Ability->GetName());
+
 				bool bReplicateEndAbility = true;
 				bool bWasCancelled = false;
 				InstancedAbility->EndAbility(Handle, ActorInfo, Spec->ActivationInfo, bReplicateEndAbility, bWasCancelled);
 			}
 			else
 			{
-				ABILITY_LOG(Verbose, TEXT("Can't activate instanced per actor ability %s when their is already a currently active instance for this actor."), *Ability->GetName());
+				UE_LOG(LogAbilitySystem, Verbose, TEXT("Can't activate instanced per actor ability %s when their is already a currently active instance for this actor."), *Ability->GetName());
 				return false;
 			}
 		}
@@ -1702,7 +1716,7 @@ bool UAbilitySystemComponent::InternalTryActivateAbility(FGameplayAbilitySpecHan
 	// Make sure we have a primary
 	if (Ability->GetInstancingPolicy() == EGameplayAbilityInstancingPolicy::InstancedPerActor && !InstancedAbility)
 	{
-		ABILITY_LOG(Warning, TEXT("InternalTryActivateAbility called but instanced ability is missing! NetMode: %d. Ability: %s"), (int32)NetMode, *Ability->GetName());
+		UE_LOG(LogAbilitySystem, Warning, TEXT("InternalTryActivateAbility called but instanced ability is missing! NetMode: %d. Ability: %s"), (int32)NetMode, *Ability->GetName());
 		return false;
 	}
 
@@ -1759,13 +1773,9 @@ bool UAbilitySystemComponent::InternalTryActivateAbility(FGameplayAbilitySpecHan
 			InstancedAbility = CreateNewInstanceOfAbility(*Spec, Ability);
 			InstancedAbility->CallActivateAbility(Handle, ActorInfo, ActivationInfo, OnGameplayAbilityEndedDelegate, TriggerEventData);
 		}
-		else if (InstancedAbility)
-		{
-			InstancedAbility->CallActivateAbility(Handle, ActorInfo, ActivationInfo, OnGameplayAbilityEndedDelegate, TriggerEventData);
-		}
 		else
 		{
-			Ability->CallActivateAbility(Handle, ActorInfo, ActivationInfo, OnGameplayAbilityEndedDelegate, TriggerEventData);
+			AbilitySource->CallActivateAbility(Handle, ActorInfo, ActivationInfo, OnGameplayAbilityEndedDelegate, TriggerEventData);
 		}
 	}
 	else if (Ability->GetNetExecutionPolicy() == EGameplayAbilityNetExecutionPolicy::LocalPredicted)
@@ -1819,13 +1829,9 @@ bool UAbilitySystemComponent::InternalTryActivateAbility(FGameplayAbilitySpecHan
 				ABILITY_LOG(Error, TEXT("InternalTryActivateAbility called on ability %s that is InstancePerExecution and Replicated. This is an invalid configuration."), *Ability->GetName() );
 			}
 		}
-		else if (InstancedAbility)
+		else
 		{
-			InstancedAbility->CallActivateAbility(Handle, ActorInfo, ActivationInfo, OnGameplayAbilityEndedDelegate, TriggerEventData);
-		}
-		else 
-		{
-			Ability->CallActivateAbility(Handle, ActorInfo, ActivationInfo, OnGameplayAbilityEndedDelegate, TriggerEventData);
+			AbilitySource->CallActivateAbility(Handle, ActorInfo, ActivationInfo, OnGameplayAbilityEndedDelegate, TriggerEventData);
 		}
 	}
 	
@@ -1847,6 +1853,8 @@ bool UAbilitySystemComponent::InternalTryActivateAbility(FGameplayAbilitySpecHan
 
 	AbilityLastActivatedTime = GetWorld()->GetTimeSeconds();
 
+	UE_LOG(LogAbilitySystem, Log, TEXT("%s: Activated [%s] %s. Level: %d. PredictionKey: %s."), *GetNameSafe(GetOwner()), *Spec->Handle.ToString(), *GetNameSafe(AbilitySource), Spec->Level, *ActivationInfo.GetActivationPredictionKey().ToString());
+	UE_VLOG(GetOwner(), VLogAbilitySystem, Log, TEXT("Activated [%s] %s. Level: %d. PredictionKey: %s."), *Spec->Handle.ToString(), *GetNameSafe(AbilitySource), Spec->Level, *ActivationInfo.GetActivationPredictionKey().ToString());
 	return true;
 }
 

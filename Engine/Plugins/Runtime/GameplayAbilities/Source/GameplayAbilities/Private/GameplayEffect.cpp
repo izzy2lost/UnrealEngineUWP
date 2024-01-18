@@ -799,7 +799,7 @@ bool UGameplayEffect::OnAddedToActiveContainer(FActiveGameplayEffectsContainer& 
 		}
 	}
 
-	UE_VLOG_UELOG(ActiveGEContainer.Owner->GetOwnerActor(), LogGameplayEffects, VeryVerbose, TEXT("%s: %s. ShouldBeActive: %d"), ANSI_TO_TCHAR(__func__), *ActiveGE.GetDebugString(), bShouldBeActive);
+	UE_VLOG_UELOG(ActiveGEContainer.Owner->GetOwnerActor(), LogGameplayEffects, Log, TEXT("Added: %s. Auth: %d. ReplicationID: %d. ShouldBeActive: %d"), *ActiveGE.GetDebugString(), ActiveGEContainer.IsNetAuthority(), ActiveGE.ReplicationID, bShouldBeActive);
 
 	return bShouldBeActive;
 }
@@ -814,7 +814,7 @@ void UGameplayEffect::OnExecuted(FActiveGameplayEffectsContainer& ActiveGEContai
 		}
 	}
 
-	UE_VLOG_UELOG(ActiveGEContainer.Owner->GetOwnerActor(), LogGameplayEffects, VeryVerbose, TEXT("%s: %s"), ANSI_TO_TCHAR(__func__), *GetNameSafe(GESpec.Def));
+	UE_VLOG_UELOG(ActiveGEContainer.Owner->GetOwnerActor(), LogGameplayEffects, Log, TEXT("Executed: %s"), *GetNameSafe(GESpec.Def));
 }
 
 void UGameplayEffect::OnApplied(FActiveGameplayEffectsContainer& ActiveGEContainer, FGameplayEffectSpec& GESpec, FPredictionKey& PredictionKey) const
@@ -827,7 +827,7 @@ void UGameplayEffect::OnApplied(FActiveGameplayEffectsContainer& ActiveGEContain
 		}
 	}
 
-	UE_VLOG_UELOG(ActiveGEContainer.Owner->GetOwnerActor(), LogGameplayEffects, VeryVerbose, TEXT("%s: %s"), ANSI_TO_TCHAR(__func__), *GetNameSafe(GESpec.Def));
+	UE_LOG(LogGameplayEffects, Verbose, TEXT("Applied: %s"), *GetNameSafe(GESpec.Def));
 }
 
 int32 UGameplayEffect::GetStackLimitCount() const
@@ -1834,6 +1834,135 @@ void FGameplayEffectSpec::RecaptureAttributeDataForClone(UAbilitySystemComponent
 		CaptureAttributeDataFromTarget(NewASC);
 	}
 }
+
+#if ENABLE_VISUAL_LOG
+FVisualLogStatusCategory FGameplayEffectSpec::GrabVisLogStatus() const
+{
+	FVisualLogStatusCategory SpecStatus;
+	SpecStatus.Category = FString::Printf(TEXT("Spec: %s"), *GetNameSafe(Def));
+
+	SpecStatus.Add(TEXT("Level"), FString::Printf(TEXT("%.2f"), Level));
+
+	if (Duration == UGameplayEffect::INSTANT_APPLICATION)
+	{
+		SpecStatus.Add(TEXT("Duration"), TEXT("Instant"));
+	}
+	else if (Duration == UGameplayEffect::INFINITE_DURATION)
+	{
+		SpecStatus.Add(TEXT("Duration"), TEXT("Infinite"));
+	}
+	else
+	{
+		SpecStatus.Add(TEXT("Duration"), FString::Printf(TEXT("%.3f"), Duration));
+	}
+
+	if (Period > 0.0f)
+	{
+		SpecStatus.Add(TEXT("Period"), FString::Printf(TEXT("%.3f"), Period));
+	}
+
+	int32 LocalStackCount = GetStackCount();
+	if (LocalStackCount > 0)
+	{
+		SpecStatus.Add(TEXT("StackCount"), FString::Printf(TEXT("%d"), LocalStackCount));
+	}
+
+	if (DynamicGrantedTags.Num() > 0)
+	{
+		SpecStatus.Add(TEXT("DynamicGrantedTags"), DynamicGrantedTags.ToStringSimple());
+	}
+
+	if (GetDynamicAssetTags().Num() > 0)
+	{
+		SpecStatus.Add(TEXT("DynamicAssetTags"), GetDynamicAssetTags().ToStringSimple());
+	}
+
+	auto AddTagContainerAggregator = [&](FString&& InName, const FTagContainerAggregator& InContainer)
+		{
+			const FGameplayTagContainer* AggregatedTags = InContainer.GetAggregatedTags();
+			if (InContainer.GetActorTags().Num() || InContainer.GetSpecTags().Num() || (AggregatedTags && AggregatedTags->Num()))
+			{
+				FVisualLogStatusCategory Status;
+				Status.Category = MoveTemp(InName);
+
+				Status.Add(TEXT("ActorTags"), InContainer.GetActorTags().ToStringSimple());
+				Status.Add(TEXT("AggregatedTags"), AggregatedTags ? AggregatedTags->ToStringSimple() : FString{});
+				Status.Add(TEXT("SpecTags"), InContainer.GetSpecTags().ToStringSimple());
+
+				SpecStatus.AddChild(Status);
+			}
+		};
+	AddTagContainerAggregator(TEXT("CapturedSourceTags"), CapturedSourceTags);
+	AddTagContainerAggregator(TEXT("CapturedTargetTags"), CapturedTargetTags);
+
+	// Handle the SetByCallers
+	{
+		FVisualLogStatusCategory SetByCallersStatus;
+		SetByCallersStatus.Category = TEXT("SetByCallers");
+		for (const auto& Entry : SetByCallerNameMagnitudes)
+		{
+			SetByCallersStatus.Add(Entry.Key.ToString(), FString::Printf(TEXT("%.3f"), Entry.Value));
+		}
+
+		for (const auto& Entry : SetByCallerTagMagnitudes)
+		{
+			SetByCallersStatus.Add(Entry.Key.ToString(), FString::Printf(TEXT("%.3f"), Entry.Value));
+		}
+
+		// If we had any data, attach us
+		if (SetByCallersStatus.Data.Num() > 0)
+		{
+			SpecStatus.AddChild(SetByCallersStatus);
+		}
+	}
+
+	// Handle the EffectContext
+	{
+		FVisualLogStatusCategory EffectContextStatus;
+		EffectContextStatus.Category = TEXT("Effect Context");
+
+		const FGameplayEffectContextHandle& LocalContext = GetEffectContext();
+
+		if (const UGameplayAbility* GrantingAbility = LocalContext.GetAbility())
+		{
+			EffectContextStatus.Add(TEXT("Ability"), *GrantingAbility->GetName());
+		}
+
+		if (const UObject* SourceObject = LocalContext.GetSourceObject())
+		{
+			EffectContextStatus.Add(TEXT("SourceObject"), *SourceObject->GetName());
+		}
+
+		if (const AActor* Instigator = LocalContext.GetInstigator())
+		{
+			EffectContextStatus.Add(TEXT("Instigator"), *Instigator->GetName());
+		}
+
+		if (const AActor* EffectCauser = LocalContext.GetEffectCauser())
+		{
+			EffectContextStatus.Add(TEXT("EffectCauser"), *EffectCauser->GetName());
+		}
+
+		if (LocalContext.HasOrigin())
+		{
+			EffectContextStatus.Add(TEXT("Origin"), *LocalContext.GetOrigin().ToString());
+		}
+
+		if (const FHitResult* HitResult = LocalContext.GetHitResult())
+		{
+			EffectContextStatus.Add(TEXT("HitResult"), *HitResult->ToString());
+		}
+
+		// If we had any data, attach us
+		if (EffectContextStatus.Data.Num() > 0)
+		{
+			SpecStatus.AddChild(EffectContextStatus);
+		}
+	}
+
+	return SpecStatus;
+}
+#endif
 
 const FGameplayEffectModifiedAttribute* FGameplayEffectSpec::GetModifiedAttribute(const FGameplayAttribute& Attribute) const
 {
@@ -3931,8 +4060,6 @@ PRAGMA_ENABLE_DEPRECATION_WARNINGS
 	}
 	else
 	{
-		UE_VLOG_UELOG(OwnerActor, LogGameplayEffects, Verbose, TEXT("Adding GE: %s. Auth: %d. ReplicationID: %d. ReplicationKey: %d."), *AppliedActiveGE->GetDebugString(), IsNetAuthority(), AppliedActiveGE->ReplicationID, AppliedActiveGE->ReplicationKey);
-
 		// Since we are applying it locally (and possibly predictively) invoke the cues.  Unless it's an Instant Cue, in which case we're not invoking the OnActive/WhileActive cues.
 		const bool bInvokeGameplayCueEvents = (Spec.Def->DurationPolicy != EGameplayEffectDurationType::Instant);
 		InternalOnActiveGameplayEffectAdded(*AppliedActiveGE, bInvokeGameplayCueEvents);
@@ -5112,39 +5239,95 @@ void FActiveGameplayEffectsContainer::GetActiveGameplayEffectDataByAttribute(TMu
 }
 
 #if ENABLE_VISUAL_LOG
-void FActiveGameplayEffectsContainer::GrabDebugSnapshot(FVisualLogEntry* Snapshot) const
+void FActiveGameplayEffectsContainer::DescribeSelfToVisLog(FVisualLogEntry* Snapshot) const
 {
-	FVisualLogStatusCategory ActiveEffectsCategory;
-	ActiveEffectsCategory.Category = TEXT("Effects");
-
 	TMultiMap<FGameplayAttribute, FActiveGameplayEffectsContainer::DebugExecutedGameplayEffectData> EffectMap;
 
 	GetActiveGameplayEffectDataByAttribute(EffectMap);
 
-	// For each attribute that was modified go through all of its modifiers and list them
-	TArray<FGameplayAttribute> AttributeKeys;
-	EffectMap.GetKeys(AttributeKeys);
-
-	for (const FGameplayAttribute& Attribute : AttributeKeys)
+	if (EffectMap.Num() > 0)
 	{
-		float CombinedModifierValue = 0.f;
-		ActiveEffectsCategory.Add(TEXT(" --- Attribute --- "), Attribute.GetName());
+		FVisualLogStatusCategory AttributeModStatus;
+		AttributeModStatus.Category = TEXT("Attribute Mods");
 
-		TArray<FActiveGameplayEffectsContainer::DebugExecutedGameplayEffectData> AttributeEffects;
-		EffectMap.MultiFind(Attribute, AttributeEffects);
+		// For each attribute that was modified go through all of its modifiers and list them
+		TArray<FGameplayAttribute> AttributeKeys;
+		EffectMap.GetKeys(AttributeKeys);
 
-		for (const FActiveGameplayEffectsContainer::DebugExecutedGameplayEffectData& DebugData : AttributeEffects)
+		for (const FGameplayAttribute& Attribute : AttributeKeys)
 		{
-			ActiveEffectsCategory.Add(DebugData.GameplayEffectName, DebugData.ActivationState);
-			ActiveEffectsCategory.Add(TEXT("Magnitude"), FString::Printf(TEXT("%f"), DebugData.Magnitude));
+			FVisualLogStatusCategory AttributeModCategory;
+			AttributeModCategory.Category = Attribute.GetName();
 
-			if (DebugData.ActivationState != "INHIBITED")
+			TArray<FActiveGameplayEffectsContainer::DebugExecutedGameplayEffectData> AttributeEffects;
+			EffectMap.MultiFind(Attribute, AttributeEffects);
+
+			float CombinedModifierValue = 0.f;
+			for (const FActiveGameplayEffectsContainer::DebugExecutedGameplayEffectData& DebugData : AttributeEffects)
 			{
-				CombinedModifierValue += DebugData.Magnitude;
+				AttributeModCategory.Add(DebugData.GameplayEffectName, DebugData.ActivationState);
+				AttributeModCategory.Add(TEXT("Magnitude"), FString::Printf(TEXT("%f"), DebugData.Magnitude));
+
+				if (DebugData.ActivationState != "INHIBITED")
+				{
+					CombinedModifierValue += DebugData.Magnitude;
+				}
 			}
+
+			AttributeModCategory.Add(TEXT("Total Modification"), FString::Printf(TEXT("%f"), CombinedModifierValue));
+			AttributeModStatus.AddChild(AttributeModCategory);
 		}
 
-		ActiveEffectsCategory.Add(TEXT("Total Modification"), FString::Printf(TEXT("%f"), CombinedModifierValue));
+		Snapshot->Status.Add(AttributeModStatus);
+	}
+
+	FVisualLogStatusCategory ActiveEffectsCategory;
+	ActiveEffectsCategory.Category = TEXT("Active Effects");
+
+	// Iterating through manually since this is a removal operation and we need to pass the index into InternalRemoveActiveGameplayEffect
+	int32 NumGameplayEffects = GetNumGameplayEffects();
+	for (int32 ActiveGEIdx = 0; ActiveGEIdx < NumGameplayEffects; ++ActiveGEIdx)
+	{
+		FVisualLogStatusCategory ActiveGELog;
+
+		const FActiveGameplayEffect& Effect = *GetActiveGameplayEffect(ActiveGEIdx);
+		ActiveGELog.Category = FString::Printf(TEXT("[%s] %s"), *Effect.Handle.ToString(), *Effect.Spec.ToSimpleString());
+
+		FVisualLogStatusCategory SpecLogStatus = Effect.Spec.GrabVisLogStatus();
+		ActiveGELog.AddChild(SpecLogStatus);
+
+		if (Effect.StartWorldTime > 0.0f)
+		{
+			ActiveGELog.Add(TEXT("StartWorldTime"), FString::Printf(TEXT("%.3f"), Effect.StartWorldTime));
+		}
+
+		if (Effect.StartServerWorldTime > 0.0f)
+		{
+			ActiveGELog.Add(TEXT("ServerStartWorldTime"), FString::Printf(TEXT("%.3f"), Effect.StartServerWorldTime));
+		}
+
+		if (Effect.DurationHandle.IsValid())
+		{
+			ActiveGELog.Add(TEXT("Duration"), FString::Printf(TEXT("%.3f"), Effect.GetDuration()));
+			ActiveGELog.Add(TEXT("TimeRemaining"), FString::Printf(TEXT("%.3f"), Effect.GetTimeRemaining(GetWorldTime())));
+		}
+
+		if (Effect.PredictionKey.IsValidKey())
+		{
+			ActiveGELog.Add(TEXT("PredictionKey"), Effect.PredictionKey.ToString());
+		}
+
+		if (Effect.IsPendingRemove)
+		{
+			ActiveGELog.Add(TEXT("IsPendingRemove"), TEXT("true"));
+		}
+
+		if (Effect.bIsInhibited)
+		{
+			ActiveGELog.Add(TEXT("Inhibited"), TEXT("true"));
+		}
+
+		ActiveEffectsCategory.AddChild(ActiveGELog);
 	}
 
 	Snapshot->Status.Add(ActiveEffectsCategory);
@@ -5737,7 +5920,7 @@ void FActiveGameplayEffectsContainer::DecrementLock()
 
 			if (Effect.IsPendingRemove)
 			{
-				UE_VLOG_UELOG(Owner->GetOwnerActor(), LogGameplayEffects, Verbose, TEXT("Finish PendingRemove: %s. Auth: %d"), *Effect.GetDebugString(), IsNetAuthority());
+				UE_LOG(LogGameplayEffects, Verbose, TEXT("%s: Finish PendingRemove: %s. Auth: %d"), *GetNameSafe(Owner->GetOwnerActor()), *Effect.GetDebugString(), IsNetAuthority());
 				GameplayEffects_Internal.RemoveAtSwap(idx, 1, false);
 				ModifiedArray = true;
 				PendingRemoves--;

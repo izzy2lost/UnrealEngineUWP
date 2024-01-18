@@ -880,13 +880,13 @@ FActiveGameplayEffectHandle UAbilitySystemComponent::ApplyGameplayEffectSpecToSe
 			// Log results of applied GE spec
 			if (UE_LOG_ACTIVE(VLogAbilitySystem, Log))
 			{
-				ABILITY_VLOG(GetOwnerActor(), Log, TEXT("Applied %s"), *OurCopyOfSpec->Def->GetFName().ToString());
+				UE_VLOG(GetOwnerActor(), VLogAbilitySystem, Log, TEXT("Applied %s"), *OurCopyOfSpec->Def->GetFName().ToString());
 
 				for (const FGameplayModifierInfo& Modifier : Spec.Def->Modifiers)
 				{
 					float Magnitude = 0.f;
 					Modifier.ModifierMagnitude.AttemptCalculateMagnitude(Spec, Magnitude);
-					ABILITY_VLOG(GetOwnerActor(), Log, TEXT("         %s: %s %f"), *Modifier.Attribute.GetName(), *EGameplayModOpToString(Modifier.ModifierOp), Magnitude);
+					UE_VLOG(GetOwnerActor(), VLogAbilitySystem, Log, TEXT("         %s: %s %f"), *Modifier.Attribute.GetName(), *EGameplayModOpToString(Modifier.ModifierOp), Magnitude);
 				}
 			}
 		}
@@ -1002,13 +1002,13 @@ void UAbilitySystemComponent::ExecuteGameplayEffect(FGameplayEffectSpec &Spec, F
 
 	if (UE_LOG_ACTIVE(VLogAbilitySystem, Log))
 	{
-		ABILITY_VLOG(GetOwnerActor(), Log, TEXT("Executed %s"), *Spec.Def->GetFName().ToString());
+		UE_VLOG(GetOwnerActor(), VLogAbilitySystem, Log, TEXT("Executed %s"), *Spec.Def->GetFName().ToString());
 		
 		for (const FGameplayModifierInfo& Modifier : Spec.Def->Modifiers)
 		{
 			float Magnitude = 0.f;
 			Modifier.ModifierMagnitude.AttemptCalculateMagnitude(Spec, Magnitude);
-			ABILITY_VLOG(GetOwnerActor(), Log, TEXT("         %s: %s %f"), *Modifier.Attribute.GetName(), *EGameplayModOpToString(Modifier.ModifierOp), Magnitude);
+			UE_VLOG(GetOwnerActor(), VLogAbilitySystem, Log, TEXT("         %s: %s %f"), *Modifier.Attribute.GetName(), *EGameplayModOpToString(Modifier.ModifierOp), Magnitude);
 		}
 	}
 
@@ -1802,6 +1802,100 @@ void UAbilitySystemComponent::PrintAllGameplayEffects() const
 	ABILITY_LOG(Log, TEXT("Owner: %s. Avatar: %s"), *GetOwner()->GetName(), *AbilityActorInfo->AvatarActor->GetName());
 	ActiveGameplayEffects.PrintAllGameplayEffects();
 }
+
+#if ENABLE_VISUAL_LOG
+static FVisualLogStatusCategory GrabDebugSnapshot_GameplayAbilities(const UAbilitySystemComponent* ASC)
+{
+	FVisualLogStatusCategory AllAbilitiesStatus;
+	AllAbilitiesStatus.Category = TEXT("Gameplay Abilities");
+
+	for (const FGameplayAbilitySpec& Spec : ASC->GetActivatableAbilities())
+	{
+		FVisualLogStatusCategory AbilityStatus;
+		const UGameplayAbility* AbilitySource = Spec.GetPrimaryInstance() ? Spec.GetPrimaryInstance() : Spec.Ability.Get();
+		AbilityStatus.Category = FString::Printf(TEXT("%s[%s] %s"), Spec.IsActive() ? TEXT("**") : TEXT(""), *Spec.Handle.ToString(), *GetNameSafe(AbilitySource));
+
+		AbilityStatus.Add(TEXT("ActiveCount"), FString::Printf(TEXT("%d"), Spec.ActiveCount));
+		AbilityStatus.Add(TEXT("Level"), FString::Printf(TEXT("%d"), Spec.Level));
+
+		if (UObject* SourceObject = Spec.SourceObject.Get())
+		{
+			AbilityStatus.Add(TEXT("SourceObject"), *GetNameSafe(SourceObject));
+		}
+
+		FActiveGameplayEffectHandle AGEHandle = ASC->FindActiveGameplayEffectHandle(Spec.Handle);
+		if (AGEHandle.IsValid())
+		{
+			if (const FActiveGameplayEffect* ActiveGE = ASC->GetActiveGameplayEffect(AGEHandle))
+			{
+				AbilityStatus.Add(TEXT("Granting Effect"), FString::Printf(TEXT("[%s] %s"), *AGEHandle.ToString(), *ActiveGE->Spec.ToSimpleString()));
+			}
+			else
+			{
+				AbilityStatus.Add(TEXT("Granting Effect"), FString::Printf(TEXT("[%s] NOT FOUND"), *AGEHandle.ToString()));
+			}
+		}
+
+		if (FGameplayEventData* GameplayEventData = Spec.GameplayEventData.Get())
+		{
+			FVisualLogStatusCategory EventDataStatus;
+			EventDataStatus.Category = TEXT("GameplayEventData");
+
+			EventDataStatus.Add(TEXT("EventTag"), GameplayEventData->EventTag.ToString());
+
+#define EventDataStatus_AddOptional(x) if (GameplayEventData-> x) { EventDataStatus.Add(TEXT("##x"), *GetNameSafe(GameplayEventData-> x)); }
+			EventDataStatus_AddOptional(Instigator);
+			EventDataStatus_AddOptional(Target);
+			EventDataStatus_AddOptional(OptionalObject);
+			EventDataStatus_AddOptional(OptionalObject2);
+#undef EventDataStatus_AddOptional
+
+			EventDataStatus.Add(TEXT("Context"), GameplayEventData->ContextHandle.ToString());
+
+			if (GameplayEventData->InstigatorTags.Num())
+			{
+				EventDataStatus.Add(TEXT("InstigatorTags"), GameplayEventData->InstigatorTags.ToStringSimple());
+			}
+
+			if (GameplayEventData->TargetTags.Num())
+			{
+				EventDataStatus.Add(TEXT("TargetTags"), GameplayEventData->TargetTags.ToStringSimple());
+			}
+
+			if (GameplayEventData->EventMagnitude != 0.0f)
+			{
+				EventDataStatus.Add(TEXT("EventMagnitude"), FString::Printf(TEXT("%.3f"), GameplayEventData->EventMagnitude));
+			}
+
+			for (int32 Index = 0; Index < GameplayEventData->TargetData.Num(); ++Index)
+			{
+				FGameplayAbilityTargetData* TargetData = GameplayEventData->TargetData.Get(Index);
+				EventDataStatus.Add(FString::Printf(TEXT("TargetData[%d]"), Index), TargetData ? *TargetData->ToString() : TEXT("null"));
+			}
+
+			AbilityStatus.AddChild(EventDataStatus);
+		}
+
+		AllAbilitiesStatus.AddChild(AbilityStatus);
+	}
+
+	return AllAbilitiesStatus;
+}
+
+void UAbilitySystemComponent::GrabDebugSnapshot(FVisualLogEntry* Snapshot) const
+{
+	Super::GrabDebugSnapshot(Snapshot);
+
+	if (ActivatableAbilities.Items.Num() > 0)
+	{
+		FVisualLogStatusCategory AbilitiesStatus = GrabDebugSnapshot_GameplayAbilities(this);
+		Snapshot->Status.Add(AbilitiesStatus);
+	}
+
+	ActiveGameplayEffects.DescribeSelfToVisLog(Snapshot);
+}
+#endif
+
 
 bool UAbilitySystemComponent::IsOwnerActorAuthoritative() const
 {

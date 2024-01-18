@@ -353,6 +353,13 @@ bool UGameplayAbility::CanActivateAbility(const FGameplayAbilitySpecHandle Handl
 		return false;
 	}
 
+	FGameplayAbilitySpec* Spec = AbilitySystemComponent->FindAbilitySpecFromHandle(Handle);
+	if (!Spec)
+	{
+		ABILITY_LOG(Warning, TEXT("CanActivateAbility %s failed, called with invalid Handle"), *GetName());
+		return false;
+	}
+
 	if (AbilitySystemComponent->GetUserAbilityActivationInhibited())
 	{
 		/**
@@ -364,6 +371,12 @@ bool UGameplayAbility::CanActivateAbility(const FGameplayAbilitySpecHandle Handl
 		 *	Basically: CanActivateAbility is only used by user activated abilities now. If triggered abilities need to check costs/cooldowns, then we may
 		 *	want to split this function up and change the calling API to distinguish between 'can I initiate an ability activation' and 'can this ability be activated'.
 		 */ 
+
+		if (FScopedCanActivateAbilityLogEnabler::IsLoggingEnabled())
+		{
+			UE_LOG(LogAbilitySystem, Verbose, TEXT("%s: %s could not be activated due to GetUserAbilityActivationInhibited"), *GetNameSafe(ActorInfo->OwnerActor.Get()), *GetNameSafe(Spec->Ability));
+			UE_VLOG(ActorInfo->OwnerActor.Get(), VLogAbilitySystem, Verbose, TEXT("%s could not be activated due to GetUserAbilityActivationInhibited"), *GetNameSafe(Spec->Ability));
+		}
 		return false;
 	}
 	
@@ -373,7 +386,8 @@ bool UGameplayAbility::CanActivateAbility(const FGameplayAbilitySpecHandle Handl
 	{
 		if (FScopedCanActivateAbilityLogEnabler::IsLoggingEnabled())
 		{
-			ABILITY_VLOG(ActorInfo->OwnerActor.Get(), Verbose, TEXT("Ability could not be activated due to Cooldown: %s"), *GetName());
+			UE_LOG(LogAbilitySystem, Verbose, TEXT("%s: %s could not be activated due to Cooldown"), *GetNameSafe(ActorInfo->OwnerActor.Get()), *GetNameSafe(Spec->Ability));
+			UE_VLOG(ActorInfo->OwnerActor.Get(), VLogAbilitySystem, Verbose, TEXT("%s could not be activated due to Cooldown"), *GetNameSafe(Spec->Ability));
 		}
 		return false;
 	}
@@ -382,7 +396,8 @@ bool UGameplayAbility::CanActivateAbility(const FGameplayAbilitySpecHandle Handl
 	{
 		if (FScopedCanActivateAbilityLogEnabler::IsLoggingEnabled())
 		{
-			ABILITY_VLOG(ActorInfo->OwnerActor.Get(), Verbose, TEXT("Ability could not be activated due to Cost: %s"), *GetName());
+			UE_LOG(LogAbilitySystem, Verbose, TEXT("%s: %s could not be activated due to Cost"), *GetNameSafe(ActorInfo->OwnerActor.Get()), *GetNameSafe(Spec->Ability));
+			UE_VLOG(ActorInfo->OwnerActor.Get(), VLogAbilitySystem, Verbose, TEXT("%s could not be activated due to Cost"), *GetNameSafe(Spec->Ability));
 		}
 		return false;
 	}
@@ -391,15 +406,9 @@ bool UGameplayAbility::CanActivateAbility(const FGameplayAbilitySpecHandle Handl
 	{	// If the ability's tags are blocked, or if it has a "Blocking" tag or is missing a "Required" tag, then it can't activate.
 		if (FScopedCanActivateAbilityLogEnabler::IsLoggingEnabled())
 		{
-			ABILITY_VLOG(ActorInfo->OwnerActor.Get(), Verbose, TEXT("Ability could not be activated due to Blocking Tags or Missing Required Tags: %s"), *GetName());
+			UE_LOG(LogAbilitySystem, Verbose, TEXT("%s: %s could not be activated due to Blocking Tags or Missing Required Tags"), *GetNameSafe(ActorInfo->OwnerActor.Get()), *GetNameSafe(Spec->Ability));
+			UE_VLOG(ActorInfo->OwnerActor.Get(), VLogAbilitySystem, Verbose, TEXT("%s could not be activated due to Blocking Tags or Missing Required Tags"), *GetNameSafe(Spec->Ability));
 		}
-		return false;
-	}
-
-	FGameplayAbilitySpec* Spec = AbilitySystemComponent->FindAbilitySpecFromHandle(Handle);
-	if (!Spec)
-	{
-		ABILITY_LOG(Warning, TEXT("CanActivateAbility %s failed, called with invalid Handle"), *GetName());
 		return false;
 	}
 
@@ -408,7 +417,8 @@ bool UGameplayAbility::CanActivateAbility(const FGameplayAbilitySpecHandle Handl
 	{
 		if (FScopedCanActivateAbilityLogEnabler::IsLoggingEnabled())
 		{
-			ABILITY_VLOG(ActorInfo->OwnerActor.Get(), Verbose, TEXT("Ability could not be activated due to blocked input ID %i: %s"), Spec->InputID, *GetName());
+			UE_LOG(LogAbilitySystem, Verbose, TEXT("%s: %s could not be activated due to blocked input ID %d"), *GetNameSafe(ActorInfo->OwnerActor.Get()), *GetNameSafe(Spec->Ability), Spec->InputID);
+			UE_VLOG(ActorInfo->OwnerActor.Get(), VLogAbilitySystem, Verbose, TEXT("%s could not be activated due to blocked input ID %d"), *GetNameSafe(Spec->Ability), Spec->InputID);
 		}
 		return false;
 	}
@@ -417,7 +427,12 @@ bool UGameplayAbility::CanActivateAbility(const FGameplayAbilitySpecHandle Handl
 	{
 		if (K2_CanActivateAbility(*ActorInfo, Handle, OutTags) == false)
 		{
-			ABILITY_LOG(Log, TEXT("CanActivateAbility %s failed, blueprint refused"), *GetName());
+			if (FScopedCanActivateAbilityLogEnabler::IsLoggingEnabled())
+			{
+				UE_LOG(LogAbilitySystem, Verbose, TEXT("%s: CanActivateAbility on %s failed, Blueprint override returned false"), *GetNameSafe(ActorInfo->OwnerActor.Get()), *GetNameSafe(Spec->Ability));
+				UE_VLOG(ActorInfo->OwnerActor.Get(), VLogAbilitySystem, Verbose, TEXT("CanActivateAbility on %s failed, Blueprint override returned false"), *GetNameSafe(Spec->Ability));
+			}
+
 			return false;
 		}
 	}
@@ -1358,14 +1373,16 @@ void UGameplayAbility::OnGameplayTaskInitialized(UGameplayTask& Task)
 
 void UGameplayAbility::OnGameplayTaskActivated(UGameplayTask& Task)
 {
-	ABILITY_VLOG(CastChecked<AActor>(GetOuter()), Log, TEXT("Task Started %s"), *Task.GetName());
+	UE_VLOG(CastChecked<AActor>(GetOuter()), LogGameplayTasks, VeryVerbose, TEXT("GameplayAbility Task Started %s"), *Task.GetName());
+	UE_LOG(LogGameplayTasks, VeryVerbose, TEXT("GameplayAbility Task Started %s"), *Task.GetName());
 
 	ActiveTasks.Add(&Task);
 }
 
 void UGameplayAbility::OnGameplayTaskDeactivated(UGameplayTask& Task)
 {
-	ABILITY_VLOG(CastChecked<AActor>(GetOuter()), Log, TEXT("Task Ended %s"), *Task.GetName());
+	UE_VLOG(CastChecked<AActor>(GetOuter()), LogGameplayTasks, VeryVerbose, TEXT("GameplayAbility Task Ended %s"), *Task.GetName());
+	UE_LOG(LogGameplayTasks, VeryVerbose, TEXT("GameplayAbility Task Ended %s"), *Task.GetName());
 
 	ActiveTasks.Remove(&Task);
 
