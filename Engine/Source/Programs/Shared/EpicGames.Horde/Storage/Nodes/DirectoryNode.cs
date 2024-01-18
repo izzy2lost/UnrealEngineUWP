@@ -801,7 +801,10 @@ namespace EpicGames.Horde.Storage.Nodes
 
 				// Process as many chunks as we can for this file
 				using MemoryMappedFile memoryMappedFile = MemoryMappedFile.CreateFromFile(stream, null, file.FileEntry.Length, MemoryMappedFileAccess.ReadWrite, HandleInheritability.None, false);
-				using MemoryMappedView memoryMappedView = new MemoryMappedView(memoryMappedFile, 0, file.FileEntry.Length);
+				using MemoryMappedViewAccessor memoryMappedViewAccessor = memoryMappedFile.CreateViewAccessor(0, file.FileEntry.Length);
+				using MemoryMappedView memoryMappedView = new MemoryMappedView(memoryMappedViewAccessor);
+
+//				using MemoryMappedView memoryMappedView = new MemoryMappedView(memoryMappedFile, 0, file.FileEntry.Length);
 
 				while (chunk != null && chunk.File == file)
 				{

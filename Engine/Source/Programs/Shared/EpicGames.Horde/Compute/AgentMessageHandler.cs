@@ -219,7 +219,7 @@ namespace EpicGames.Horde.Compute
 					}
 					if (hash != fileEntry.StreamHash)
 					{
-						_logger.LogError("Hash mismatch for {File}; expected {ExpectedHash}, got {ActualHash}", file, fileEntry.StreamHash, fileEntry.StreamHash);
+						_logger.LogError("Hash mismatch for {File}; expected {ExpectedHash}, got {ActualHash}", file, fileEntry.StreamHash, hash);
 						result = false;
 					}
 				}
