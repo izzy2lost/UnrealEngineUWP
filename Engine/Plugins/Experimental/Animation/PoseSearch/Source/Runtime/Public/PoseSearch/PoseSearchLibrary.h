@@ -96,7 +96,7 @@ struct POSESEARCH_API FPoseSearchFutureProperties
 public:
 	// Animation to play (it'll start at AnimationTime seconds)
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category=State)
-	TObjectPtr<UAnimationAsset> Animation;
+	TObjectPtr<UObject> Animation;
 
 	// Start time for Animation
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category=State)
@@ -164,45 +164,63 @@ public:
 	* Implementation of the core motion matching algorithm
 	*
 	* @param AnimInstance					Input animation instance
-	* @param Database						Input database to search
+	* @param AssetsToSearch					Input assets to search (UPoseSearchDatabase or any animation asset containing UAnimNotifyState_PoseSearchBranchIn)
 	* @param PoseHistoryName				Input tag of the associated PoseSearchHistoryCollector node in the anim graph
-	* @param SelectedAnimation				Output selected animation from the Database asset
-	* @param SelectedTime					Output selected animation time
-	* @param bLoop							Output selected animation looping state
-	* @param bIsMirrored					Output selected animation mirror state
-	* @param BlendParameters				Output selected animation blend space parameters (if SelectedAnimation is a blend space)
-	* @param SearchCost						Output search associated cost
 	* @param Future							Input future properties to match (animation / start time / time offset)
+	* @param SelectedAnimation				Output selected animation from the Database asset
+	* @param Result							Output FPoseSearchBlueprintResult with the search result
 	* @param DebugSessionUniqueIdentifier	Input unique identifier used to identify TraceMotionMatchingState (rewind debugger / pose search debugger) session. Similarly the MM node uses Context.GetCurrentNodeId()
 	*/
 	UFUNCTION(BlueprintPure, Category = "Animation|Pose Search|Experimental", meta = (BlueprintThreadSafe, Keywords = "PoseMatch"))
 	static void MotionMatch(
 		UAnimInstance* AnimInstance,
-		const UPoseSearchDatabase* Database,
+		TArray<UObject*> AssetsToSearch,
 		const FName PoseHistoryName,
 		FPoseSearchFutureProperties Future,
 		FPoseSearchBlueprintResult& Result,
 		const int32 DebugSessionUniqueIdentifier = 6174);
 
+	/**
+	* Implementation of the core motion matching algorithm for multiple characters
+	*
+	* @param AnimInstances					Input animation instances
+	* @param Roles							Input Roles associated to the animation instances
+	* @param AssetsToSearch					Input assets to search (UPoseSearchDatabase or any animation asset containing UAnimNotifyState_PoseSearchBranchIn)
+	* @param PoseHistoryName				Input tag of the associated PoseSearchHistoryCollector node in the anim graphs of the AnimInstances
+	* @param Result							Output FPoseSearchBlueprintResult with the search result
+	* @param DebugSessionUniqueIdentifier	Input unique identifier used to identify TraceMotionMatchingState (rewind debugger / pose search debugger) session. Similarly the MM node uses Context.GetCurrentNodeId()
+	*/
 	UFUNCTION(BlueprintPure, Category = "Animation|Pose Search|Experimental", meta = (BlueprintThreadSafe, Keywords = "PoseMatch"))
 	static void MotionMatchMulti(
 		TArray<ACharacter*> AnimInstances,
 		TArray<FName> Roles,
-		const UPoseSearchDatabase* Database,
+		TArray<UObject*> AssetsToSearch,
 		const FName PoseHistoryName,
 		FPoseSearchBlueprintResult& Result,
 		const int32 DebugSessionUniqueIdentifier = 6174);
 
 	static void MotionMatch(
 		TArrayView<UAnimInstance*> AnimInstances,
-		TConstArrayView<FName> Roles,
-		const UPoseSearchDatabase* Database,
+		TArrayView<const UE::PoseSearch::FRole> Roles,
+		TArrayView<const UObject*> AssetsToSearch,
 		const FName PoseHistoryName,
 		const FPoseSearchFutureProperties& Future,
 		FPoseSearchBlueprintResult& Result,
 		const int32 DebugSessionUniqueIdentifier);
 
-	static UE::PoseSearch::FSearchResult MotionMatch(const FAnimationBaseContext& Context, TConstArrayView<UObject*> AssetsToSearch,
-		const UObject* PlayingAsset = nullptr, float PlayingAssetAccumulatedTime = 0.f);
+	static UE::PoseSearch::FSearchResult MotionMatch(
+		const FAnimationBaseContext& Context,
+		TArrayView<const UObject*> AssetsToSearch,
+		const UObject* PlayingAsset = nullptr,
+		float PlayingAssetAccumulatedTime = 0.f);
+
+	static UE::PoseSearch::FSearchResult MotionMatch(
+		TArrayView<UAnimInstance*> AnimInstances,
+		TArrayView<const UE::PoseSearch::FRole> Roles,
+		TArrayView<const UE::PoseSearch::IPoseHistory*> PoseHistories, 
+		TArrayView<const UObject*> AssetsToSearch,
+		const UObject* PlayingAsset,
+		float PlayingAssetAccumulatedTime,
+		const int32 DebugSessionUniqueIdentifier);
 };
 

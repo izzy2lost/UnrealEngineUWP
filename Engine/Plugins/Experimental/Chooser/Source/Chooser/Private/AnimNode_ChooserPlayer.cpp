@@ -35,7 +35,7 @@ UAnimationAsset* FAnimNode_ChooserPlayer::ChooseAsset(const FAnimationUpdateCont
 		{
 			if (UE::Anim::IPoseSearchProvider* PoseSearchProvider = UE::Anim::IPoseSearchProvider::Get())
 			{
-				TArray<UObject*, TInlineAllocator<128>> ChosenAssets;
+				TArray<const UObject*, TInlineAllocator<128>> ChosenAssets;
 				ChooserBase.ChooseMulti(ChooserContext, FObjectChooserBase::FObjectChooserIteratorCallback::CreateLambda([&ChosenAssets](UObject* InResult)
 					{
 						ChosenAssets.Add(InResult);
