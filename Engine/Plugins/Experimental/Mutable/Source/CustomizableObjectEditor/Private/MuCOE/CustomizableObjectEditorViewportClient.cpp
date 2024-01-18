@@ -1864,6 +1864,19 @@ void BakeCustomizableObjectInstance(
 	// Ensure that the state of the COI provided is valid --------------------------------------------------------------------------------------------
 	UCustomizableObject* InstanceCO = InInstance.GetCustomizableObject();
 	check (InstanceCO);
+
+	// Ensure the CO of the COI is accessible 
+	if (!InstanceCO || InstanceCO->IsLocked())
+	{
+		FCustomizableObjectEditorLogger::CreateLog(
+		LOCTEXT("CustomizableObjectCompilingTryLater_Baking", "Please wait until the Customizable Object is compiled"))
+		.Category(ELoggerCategory::COInstanceBaking)
+		.CustomNotification()
+		.Notification(true)
+		.Log();
+
+		return;
+	}
 	
 	if (InstanceCO->GetPrivate()->Status.Get() == FCustomizableObjectStatus::EState::Loading)
 	{
@@ -1886,19 +1899,6 @@ void BakeCustomizableObjectInstance(
 	if (!ValidateProvidedAssetPath(FileName,AssetPath,InstanceCO))
 	{
 		UE_LOG(LogMutable, Error, TEXT("The AssetPath for the instance baking is not valid."));
-		return;
-	}
-	
-	// Ensure the CO of the COI is accessible 
-	if (!InstanceCO || InstanceCO->IsLocked())
-	{
-		FCustomizableObjectEditorLogger::CreateLog(
-		LOCTEXT("CustomizableObjectCompilingTryLater_Baking", "Please wait until the Customizable Object is compiled"))
-		.Category(ELoggerCategory::COInstanceBaking)
-		.CustomNotification()
-		.Notification(true)
-		.Log();
-
 		return;
 	}
 	
