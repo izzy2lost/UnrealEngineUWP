@@ -1168,6 +1168,14 @@ void UCommonUIActionRouterBase::RegisterWidgetBindings(const FActivatableTreeNod
 	}
 }
 
+void UCommonUIActionRouterBase::RefreshActiveRootFocusRestorationTarget() const
+{
+	if (ActiveRootNode)
+	{
+		ActiveRootNode->RefreshCachedRestorationTarget();
+	}
+}
+
 void UCommonUIActionRouterBase::RefreshActiveRootFocus()
 {
 	if (ActiveRootNode)
@@ -1182,6 +1190,11 @@ void UCommonUIActionRouterBase::RefreshUIInputConfig()
 	{
 		ApplyUIInputConfig(ActiveInputConfig.GetValue(), /*bForceRefresh*/ true);
 	}
+}
+
+TWeakPtr<FActivatableTreeRoot> UCommonUIActionRouterBase::GetActiveRoot() const
+{
+	return ActiveRootNode;
 }
 
 void UCommonUIActionRouterBase::SetActiveRoot(FActivatableTreeRootPtr NewActiveRoot)

@@ -97,7 +97,7 @@ public:
 
 	UCommonInputSubsystem& GetInputSubsystem() const;
 
-	ERouteUIInputResult ProcessInput(FKey Key, EInputEvent InputEvent) const;
+	virtual ERouteUIInputResult ProcessInput(FKey Key, EInputEvent InputEvent) const;
 	bool CanProcessNormalGameInput() const;
 
 	bool IsPendingTreeChange() const;
@@ -125,6 +125,7 @@ public:
 
 	int32 GetLocalPlayerIndex() const;
 
+	void RefreshActiveRootFocusRestorationTarget() const;
 	void RefreshActiveRootFocus();
 	void RefreshUIInputConfig();
 
@@ -135,6 +136,7 @@ protected:
 	virtual void PostAnalogCursorCreate();
 	void RegisterAnalogCursorTick();
 
+	TWeakPtr<FActivatableTreeRoot> GetActiveRoot() const;
 	virtual void SetActiveRoot(FActivatableTreeRootPtr NewActiveRoot);
 	void SetForceResetActiveRoot(bool bInForceResetActiveRoot);
 
