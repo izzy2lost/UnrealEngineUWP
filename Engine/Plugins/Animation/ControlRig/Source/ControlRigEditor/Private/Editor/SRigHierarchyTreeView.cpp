@@ -792,7 +792,10 @@ void SRigHierarchyTreeView::RefreshTreeView(bool bRebuildContent)
 				int32& Depth = ElementDepth.Add(Element, 0);
 				if(const FRigBaseElement* ParentElement = Hierarchy->GetFirstParent(Element))
 				{
-					Depth = ElementDepth.FindChecked(ParentElement) + 1;
+					if (int32* ParentDepth = ElementDepth.Find(ParentElement))
+					{
+						Depth = *ParentDepth + 1;
+					}
 				}
 				
 				if(const FRigSocketElement* Socket = Cast<FRigSocketElement>(Element))
