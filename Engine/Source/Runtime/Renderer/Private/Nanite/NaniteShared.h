@@ -599,7 +599,6 @@ struct FNaniteRasterMaterialCacheKey
 			uint16 bHasVirtualShadowMap		: 1;
 			uint16 bIsDepthOnly				: 1;
 			uint16 bIsTwoSided				: 1;
-			uint16 bPatches					: 1;
 			uint16 bSplineMesh				: 1;
 		};
 
@@ -641,7 +640,8 @@ struct FNaniteRasterMaterialCache
 	TShaderRef<FHWRasterizePS> RasterPixelShader;
 	TShaderRef<FHWRasterizeVS> RasterVertexShader;
 	TShaderRef<FHWRasterizeMS> RasterMeshShader;
-	TShaderRef<FMicropolyRasterizeCS> RasterComputeShader;
+	TShaderRef<FMicropolyRasterizeCS> ClusterComputeShader;
+	TShaderRef<FMicropolyRasterizeCS> PatchComputeShader;
 
 	TOptional<uint32> MaterialBitFlags;
 	bool bFinalized = false;
