@@ -1044,7 +1044,7 @@ protected:
 
 		if (FoundDelegate != INDEX_NONE)
 		{
-			InvocationList.RemoveAtSwap(FoundDelegate, 1, false);
+			InvocationList.RemoveAtSwap(FoundDelegate, 1, EAllowShrinking::No);
 		}
 	}
 

@@ -63,7 +63,7 @@ void FPackageDependencyData::LoadDependenciesFromPackageHeader(FName SourcePacka
 	PackageDependencies.Sort(FSortPackageDependency());
 
 	int UniqueNum = Algo::Unique(PackageDependencies);
-	PackageDependencies.SetNum(UniqueNum, false);
+	PackageDependencies.SetNum(UniqueNum, EAllowShrinking::No);
 
 	check(SoftPackageReferenceList.Num() == SoftPackageUsedInGame.Num());
 	for (int32 SoftPackageIdx = 0; SoftPackageIdx < SoftPackageReferenceList.Num(); ++SoftPackageIdx)

@@ -1088,7 +1088,7 @@ const TCHAR* FGenericPlatformMisc::RootDir()
 		int32 chopPos = TempPath.Find(TEXT("/Engine"), ESearchCase::IgnoreCase, ESearchDir::FromEnd);
 		if (chopPos != INDEX_NONE)
 		{
-			TempPath.LeftInline(chopPos + 1, false);
+			TempPath.LeftInline(chopPos + 1, EAllowShrinking::No);
 		}
 		else
 		{
@@ -1097,7 +1097,7 @@ const TCHAR* FGenericPlatformMisc::RootDir()
 			// if the path ends in a separator, remove it
 			if (TempPath.Right(1) == TEXT("/"))
 			{
-				TempPath.LeftChopInline(1, false);
+				TempPath.LeftChopInline(1, EAllowShrinking::No);
 			}
 
 			// keep going until we've removed Binaries
@@ -1108,7 +1108,7 @@ const TCHAR* FGenericPlatformMisc::RootDir()
 #endif
 			if (pos != INDEX_NONE)
 			{
-				TempPath.LeftInline(pos + 1, false);
+				TempPath.LeftInline(pos + 1, EAllowShrinking::No);
 			}
 			else
 			{
@@ -1121,7 +1121,7 @@ const TCHAR* FGenericPlatformMisc::RootDir()
 				{
 					while (TempPath.Len() && TempPath.Right(1) != TEXT("/"))
 					{
-						TempPath.LeftChopInline(1, false);
+						TempPath.LeftChopInline(1, EAllowShrinking::No);
 					}
 				}
 			}

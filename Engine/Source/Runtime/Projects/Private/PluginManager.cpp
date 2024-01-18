@@ -1160,7 +1160,7 @@ void FPluginManager::FindPluginsInDirectory(const FString& PluginsDirectory, TAr
 					// Since we found a .uplugin, ignore sub-directories (stop from iterating deeper) -- 
 					// there shouldn't be any other .uplugin files deeper.
 					// Also, disallow shrinking -- because we're trying to be fast and would rather skip mem reallocs.
-					OutDirectoriesToVisitNext.RemoveAt(StartingDirIndex, OutDirectoriesToVisitNext.Num() - StartingDirIndex, /*bAllowShrinking =*/false);
+					OutDirectoriesToVisitNext.RemoveAt(StartingDirIndex, OutDirectoriesToVisitNext.Num() - StartingDirIndex, EAllowShrinking::No);
 
 					// Multiple tasks may be trying to write to this at the same time, lock it
 					FRWScopeLock ScopeLock(FoundFilesLock, SLT_Write);

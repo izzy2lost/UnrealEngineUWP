@@ -2594,7 +2594,7 @@ DEFINE_FUNCTION(UObject::execPopExecutionFlow)
 	// Try to pop an entry off the stack and go there
 	if (Stack.FlowStack.Num())
 	{
-		CodeSkipSizeType Offset = Stack.FlowStack.Pop(/*bAllowShrinking=*/ false);
+		CodeSkipSizeType Offset = Stack.FlowStack.Pop(EAllowShrinking::No);
 		Stack.Code = &Stack.Node->Script[ Offset ];
 	}
 	else
@@ -2619,7 +2619,7 @@ DEFINE_FUNCTION(UObject::execPopExecutionFlowIfNot)
 		// Try to pop an entry off the stack and go there
 		if (Stack.FlowStack.Num())
 		{
-			CodeSkipSizeType Offset = Stack.FlowStack.Pop(/*bAllowShrinking=*/ false);
+			CodeSkipSizeType Offset = Stack.FlowStack.Pop(EAllowShrinking::No);
 			Stack.Code = &Stack.Node->Script[ Offset ];
 		}
 		else

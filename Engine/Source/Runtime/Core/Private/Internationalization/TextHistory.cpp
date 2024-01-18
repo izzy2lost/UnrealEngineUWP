@@ -108,7 +108,7 @@ const TCHAR* ReadNumberFromBuffer(const TCHAR* Buffer, FFormatArgumentValue& Out
 	while (NumericString.Len() > 0 && FCString::Strchr(SuffixNumericChars, NumericString[NumericString.Len() - 1]))
 	{
 		SuffixString += NumericString[NumericString.Len() - 1];
-		NumericString.RemoveAt(NumericString.Len() - 1, 1, /*bAllowShrinking*/false);
+		NumericString.RemoveAt(NumericString.Len() - 1, 1, EAllowShrinking::No);
 	}
 
 	if (!NumericString.IsNumeric())

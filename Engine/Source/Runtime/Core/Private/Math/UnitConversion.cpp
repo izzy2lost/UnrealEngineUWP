@@ -505,7 +505,7 @@ struct FUnitExpressionParser
 			if (WasOpAssign)
 			{
 				Tokens.Insert(FExpressionToken(Context, InExistingValue), 0);
-				Tokens.RemoveAt(2, 1, false);
+				Tokens.RemoveAt(2, 1, EAllowShrinking::No);
 			}
 		}
 

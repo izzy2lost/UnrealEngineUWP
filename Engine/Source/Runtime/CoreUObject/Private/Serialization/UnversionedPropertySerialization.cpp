@@ -781,7 +781,7 @@ public:
 		while (Fragments.Num() > 1 && Fragments.Last().ValueNum == 0)
 		{
 			checkf(!Fragments.Last().bHasAnyZeroes, TEXT("No values implies no zero-values"));			
-			Fragments.Pop(/* allow shrink */ false);
+			Fragments.Pop(EAllowShrinking::No);
 		}
 
 		Fragments.Last().bIsLast = true;

@@ -1215,7 +1215,7 @@ void FEDLCookChecker::FEDLNodeData::Merge(FEDLCookChecker::FEDLNodeData&& Other)
 
 	ImportingPackagesSorted.Append(Other.ImportingPackagesSorted);
 	Algo::Sort(ImportingPackagesSorted, FNameFastLess());
-	ImportingPackagesSorted.SetNum(Algo::Unique(ImportingPackagesSorted), true /* bAllowShrinking */);
+	ImportingPackagesSorted.SetNum(Algo::Unique(ImportingPackagesSorted), EAllowShrinking::Yes);
 }
 
 FEDLCookCheckerThreadState::FEDLCookCheckerThreadState()

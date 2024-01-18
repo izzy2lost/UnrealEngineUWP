@@ -690,7 +690,7 @@ inline bool GetSizeForDevID(const FString& TargetDevID, int32& Width, int32& Hei
 			if (CM_Get_Device_ID(DevInfoData.DevInst, Buffer, MAX_DEVICE_ID_LEN, 0) == CR_SUCCESS)
 			{
 				FString DevID(Buffer);
-				DevID.MidInline(8, DevID.Find(TEXT("\\"), ESearchCase::CaseSensitive, ESearchDir::FromStart, 9) - 8, false);
+				DevID.MidInline(8, DevID.Find(TEXT("\\"), ESearchCase::CaseSensitive, ESearchDir::FromStart, 9) - 8, EAllowShrinking::No);
 				if (DevID == TargetDevID)
 				{
 					HKEY hDevRegKey = SetupDiOpenDevRegKey(DevInfo, &DevInfoData, DICS_FLAG_GLOBAL, 0, DIREG_DEV, KEY_READ);

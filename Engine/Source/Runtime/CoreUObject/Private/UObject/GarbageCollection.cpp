@@ -1329,7 +1329,7 @@ private:
 		void* Pop()
 		{
 			FScopeLock Scope(&Lock);
-			return Pages.IsEmpty() ? nullptr : Pages.Pop(/* shrink */ false);
+			return Pages.IsEmpty() ? nullptr : Pages.Pop(EAllowShrinking::No);
 		}
 
 		FCriticalSection Lock;
@@ -2289,7 +2289,7 @@ public:
 		{
 			--LocalNum;
 		}
-		LocalBlocks.SetNum(LocalNum, /* shrink */ false);
+		LocalBlocks.SetNum(LocalNum, EAllowShrinking::No);
 
 		return Out;
 	}
@@ -6097,7 +6097,7 @@ bool FStructProperty::ContainsObjectReference(TArray<const FStructProperty*>& En
 		}
 		Property = Property->PropertyLinkNext;
 	}
-	EncounteredStructProps.RemoveSingleSwap(this, false /*bAllowShrinking*/);
+	EncounteredStructProps.RemoveSingleSwap(this, EAllowShrinking::No);
 	return bValue;
 }
 
@@ -6238,7 +6238,7 @@ void FStructProperty::EmitReferenceInfo(UE::GC::FSchemaBuilder& Schema, int32 Ba
 		{
 			bHasPropertiesWithObjectReferences = Property->ContainsObjectReference(EncounteredStructProps, EPropertyObjectReferenceType::Strong);
 		}
-		EncounteredStructProps.RemoveSingleSwap(this, false /* bAllowShrinking */);
+		EncounteredStructProps.RemoveSingleSwap(this, EAllowShrinking::No);
 	}
 
 	// Emit schema members

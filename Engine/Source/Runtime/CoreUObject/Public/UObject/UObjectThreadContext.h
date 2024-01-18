@@ -49,7 +49,7 @@ public:
 	*/
 	void PopInitializer()
 	{
-		InitializerStack.Pop(/*bAllowShrinking=*/ false);
+		InitializerStack.Pop(EAllowShrinking::No);
 	}
 
 	/**

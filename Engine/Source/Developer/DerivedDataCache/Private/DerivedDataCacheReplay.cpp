@@ -396,7 +396,7 @@ bool FCacheReplayReader::FState::DispatchRequests(
 			}
 			else
 			{
-				Requests.Pop(/*bAllowShrinking*/ false);
+				Requests.Pop(EAllowShrinking::No);
 			}
 		}
 	}

@@ -90,7 +90,7 @@ namespace UE4Paths_Private
 			{
 				if (!FCString::Strchr(VALID_SAVEDDIRSUFFIX_CHARACTERS, NonDefaultSavedDirSuffix[CharIdx]))
 				{
-					NonDefaultSavedDirSuffix.RemoveAt(CharIdx, 1, false);
+					NonDefaultSavedDirSuffix.RemoveAt(CharIdx, 1, EAllowShrinking::No);
 					--CharIdx;
 				}
 			}
@@ -936,8 +936,8 @@ FString FPaths::GetCleanFilename(FString&& InPath)
 
 	if (StartPos <= EndPos)
 	{
-		InPath.RemoveAt(EndPos, InPath.Len() - EndPos, false);
-		InPath.RemoveAt(0, StartPos, false);
+		InPath.RemoveAt(EndPos, InPath.Len() - EndPos, EAllowShrinking::No);
+		InPath.RemoveAt(0, StartPos, EAllowShrinking::No);
 	}
 	else
 	{
@@ -1003,7 +1003,7 @@ FString FPaths::GetPath(FString&& InPath)
 	FString Result;
 	if (Pos != INDEX_NONE)
 	{
-		InPath.RemoveAt(Pos, InPath.Len() - Pos, false);
+		InPath.RemoveAt(Pos, InPath.Len() - Pos, EAllowShrinking::No);
 		Result = MoveTemp(InPath);
 	}
 
@@ -1028,8 +1028,8 @@ FString FPaths::GetPathLeaf(FString&& InPath)
 	int32 EndPos   = InPath.FindLastCharByPredicate(UE4Paths_Private::IsNotSlashOrBackslash) + 1;
 	int32 StartPos = InPath.FindLastCharByPredicate(UE4Paths_Private::IsSlashOrBackslash, EndPos) + 1;
 
-	InPath.RemoveAt(EndPos, InPath.Len() - EndPos, false);
-	InPath.RemoveAt(0, StartPos, false);
+	InPath.RemoveAt(EndPos, InPath.Len() - EndPos, EAllowShrinking::No);
+	InPath.RemoveAt(0, StartPos, EAllowShrinking::No);
 
 	return MoveTemp(InPath);
 }
@@ -1155,7 +1155,7 @@ bool FPaths::IsDrive(const FString& InPath)
 				int32 SlashIndex = CheckPath.Find(TEXT("\\"), ESearchCase::CaseSensitive);
 				if (SlashIndex != INDEX_NONE)
 				{
-					CheckPath.RightInline(CheckPath.Len() - SlashIndex  - 1, false);
+					CheckPath.RightInline(CheckPath.Len() - SlashIndex  - 1, EAllowShrinking::No);
 				}
 				else
 				{
@@ -1184,7 +1184,7 @@ bool FPaths::IsDrive(const FString& InPath)
 					// It's a real folder, so add one to the count
 					CheckCount++;
 				}
-				CheckPath.RightInline(CheckPath.Len() - SlashIndex  - 1, false);
+				CheckPath.RightInline(CheckPath.Len() - SlashIndex  - 1, EAllowShrinking::No);
 				SlashIndex = CheckPath.Find(TEXT("\\"), ESearchCase::CaseSensitive);
 			}
 
@@ -1317,7 +1317,7 @@ bool FPaths::CollapseRelativeDirectories(FString& InPath)
 			return false;
 		}
 
-		InPath.RemoveAt(PreviousSeparatorIndex, Index - PreviousSeparatorIndex + ParentDirLength, false);
+		InPath.RemoveAt(PreviousSeparatorIndex, Index - PreviousSeparatorIndex + ParentDirLength, EAllowShrinking::No);
 	}
 
 	InPath.ReplaceInline(TEXT("./"), TEXT(""), ESearchCase::CaseSensitive);
@@ -1651,7 +1651,7 @@ bool FPaths::ValidatePath( const FString& InPath, FText* OutReason )
 	// The loop below requires that the path not end with a /
 	if(Standardized.EndsWith(TEXT("/"), ESearchCase::CaseSensitive))
 	{
-		Standardized.LeftChopInline(1, false);
+		Standardized.LeftChopInline(1, EAllowShrinking::No);
 	}
 
 	// Walk each part of the path looking for name errors

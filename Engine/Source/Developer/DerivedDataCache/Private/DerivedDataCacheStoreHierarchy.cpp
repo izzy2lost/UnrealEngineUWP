@@ -303,7 +303,7 @@ FCacheStoreHierarchy::~FCacheStoreHierarchy()
 				Stats->Type, Stats->Name, Stats->Path);
 		}
 
-		Nodes.Pop(/*bAllowShrinking*/ false);
+		Nodes.Pop(EAllowShrinking::No);
 	}
 }
 

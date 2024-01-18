@@ -2116,7 +2116,7 @@ FString FPackageName::GetDelegateResolvedPackagePath(const FString& InSourcePack
 		if (PathName.FindChar(TEXT('.'), DotIndex))
 		{
 			ObjectName = PathName.Mid(DotIndex + 1);
-			PathName.LeftInline(DotIndex, false);
+			PathName.LeftInline(DotIndex, EAllowShrinking::No);
 		}
 
 		for (auto Delegate : FCoreDelegates::PackageNameResolvers)
@@ -2434,12 +2434,12 @@ void FPackageName::QueryRootContentPaths(TArray<FString>& OutRootContentPaths, b
 		{
 			if (bWithoutTrailingSlashes && It.Len() > 1 && It[It.Len() - 1] == TEXT('/'))
 			{
-				It.RemoveAt(It.Len() - 1, /*Count*/ 1, /*bAllowShrinking*/ false);
+				It.RemoveAt(It.Len() - 1, /*Count*/ 1, EAllowShrinking::No);
 			}
 
 			if (bWithoutLeadingSlashes && It.Len() > 1 && It[0] == TEXT('/'))
 			{
-				It.RemoveAt(0, /*Count*/ 1, /*bAllowShrinking*/ false);
+				It.RemoveAt(0, /*Count*/ 1, EAllowShrinking::No);
 			}
 		}
 	}

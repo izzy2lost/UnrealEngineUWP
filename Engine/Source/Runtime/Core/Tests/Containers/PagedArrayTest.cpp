@@ -761,7 +761,7 @@ TEST_CASE_NAMED(FPagedArrayRemoveAtSwapTest, "System::Core::Containers::TPagedAr
 		}
 
 		// Test page shrinking after removing last element in page
-		PagedArray.RemoveAtSwap(0, false);
+		PagedArray.RemoveAtSwap(0, EAllowShrinking::No);
 		CHECK(PagedArray.Max() == ArrayType::MaxPerPage());
 		PagedArray.Emplace(0);
 		PagedArray.RemoveAtSwap(0);
@@ -1041,7 +1041,7 @@ TEST_CASE_NAMED(FPagedArrayComparisonTest, "System::Core::Containers::TPagedArra
 
 		// Verify same content with same  different page allocation
 		PagedArray.Emplace(0);
-		PagedArray.Pop(false);
+		PagedArray.Pop(EAllowShrinking::No);
 		CHECK(PagedArray.Max() == ArrayType::MaxPerPage() * 2);
 		CHECK(OtherPagedArray.Max() == ArrayType::MaxPerPage());
 		CHECK(PagedArray == OtherPagedArray);

@@ -67,7 +67,7 @@ bool FAssetBundleEntry::ExportTextItem(FString& ValueStr, const FAssetBundleEntr
 		}
 
 		// Remove last comma
-		ValueStr.LeftChopInline(1, /* shrink */ false);
+		ValueStr.LeftChopInline(1, EAllowShrinking::No);
 
 		ValueStr += AssetPathsSuffix;
 	}
@@ -515,7 +515,7 @@ bool FAssetBundleData::ExportTextItem(FString& ValueStr, FAssetBundleData const&
 	}
 
 	// Remove last comma
-	ValueStr.LeftChopInline(1, /* shrink */ false);
+	ValueStr.LeftChopInline(1, EAllowShrinking::No);
 
 	ValueStr += BundlesSuffix;
 

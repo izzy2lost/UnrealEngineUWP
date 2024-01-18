@@ -230,7 +230,7 @@ void FAutomationTestFramework::FAutomationTestOutputDevice::Serialize( const TCH
 			if (LogString.StartsWith(*AnalyticsString))
 			{
 				//Remove "analytics" from the string
-				LogString.RightInline(LogString.Len() - (AnalyticsString.Len() + 1), false);
+				LogString.RightInline(LogString.Len() - (AnalyticsString.Len() + 1), EAllowShrinking::No);
 
 				LocalCurTest->AddAnalyticsItem(LogString);
 			}

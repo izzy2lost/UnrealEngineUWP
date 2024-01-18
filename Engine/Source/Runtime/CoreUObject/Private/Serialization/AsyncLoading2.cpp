@@ -4658,7 +4658,7 @@ void FEventLoadNode2::ProcessDependencies(FAsyncLoadingThreadState2& ThreadState
 		ThreadState.bShouldFireNodes = false;
 		while (ThreadState.NodesToFire.Num())
 		{
-			ThreadState.NodesToFire.Pop(false)->Fire(&ThreadState);
+			ThreadState.NodesToFire.Pop(EAllowShrinking::No)->Fire(&ThreadState);
 		}
 		ThreadState.bShouldFireNodes = true;
 	}

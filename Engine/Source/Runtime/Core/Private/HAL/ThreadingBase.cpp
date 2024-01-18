@@ -888,7 +888,7 @@ IQueuedWork* FThreadPoolPriorityQueue::Dequeue(EQueuedWorkPriority* OutDequeuedW
 			// queued and never done
 			Work = QueuedWork[0];
 			// Remove it from the list so no one else grabs it
-			QueuedWork.RemoveAt(0, 1, /* do not allow shrinking */ false);
+			QueuedWork.RemoveAt(0, 1, EAllowShrinking::No);
 
 			FirstNonEmptyQueueIndex = QueueIndex;
 			NumQueuedWork--;
@@ -1231,7 +1231,7 @@ public:
 
 			Thread = QueuedThreads[ThreadIndex];
 			// Remove it from the list so no one else grabs it
-			QueuedThreads.RemoveAt(ThreadIndex, 1, /* do not allow shrinking */ false);
+			QueuedThreads.RemoveAt(ThreadIndex, 1, EAllowShrinking::No);
 		}
 
 		// Tell our chosen thread to do the work

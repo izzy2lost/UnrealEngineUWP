@@ -360,7 +360,7 @@ void AssignStringWithoutShrinking(FString& InOutResult, FStringView Value)
 	}
 	else
 	{
-		Result.SetNumUninitialized(Value.Len() + 1, false /* bAllowShrinking */);
+		Result.SetNumUninitialized(Value.Len() + 1, EAllowShrinking::No);
 		FMemory::Memcpy(Result.GetData(), Value.GetData(), Value.Len() * sizeof(Value[0]));
 		Result[Value.Len()] = '\0';
 	}
@@ -1172,7 +1172,7 @@ void FScanDir::ForEachDescendent(const CallbackType& Callback)
 		int32& NextIndex = Top.Get<1>();
 		if (NextIndex == ParentOnStack->SubDirs.Num())
 		{
-			Stack.SetNum(Stack.Num() - 1, false /* bAllowShrinking */);
+			Stack.SetNum(Stack.Num() - 1, EAllowShrinking::No);
 			continue;
 		}
 		FScanDir* Child = ParentOnStack->SubDirs[NextIndex++];
@@ -5556,7 +5556,7 @@ void FFilesToSearch::FTreeNode::PopFiles(RangeType& Out, int32& NumToPop)
 {
 	while (NumToPop > 0 && !Files.IsEmpty())
 	{
-		Out.Add(Files.Pop(false /* bAllowShrinking */));
+		Out.Add(Files.Pop(EAllowShrinking::No));
 		--NumToPop;
 	}
 	while (NumToPop > 0 && SubDirs.Num() != 0)
@@ -5575,7 +5575,7 @@ void FFilesToSearch::FTreeNode::PopAllFiles(RangeType& Out)
 {
 	while (!Files.IsEmpty())
 	{
-		Out.Add(Files.Pop(false /* bAllowShrinking */));
+		Out.Add(Files.Pop(EAllowShrinking::No));
 	}
 	for (int32 Index = SubDirs.Num() - 1; Index >= 0; --Index) // Match the order of PopFiles
 	{

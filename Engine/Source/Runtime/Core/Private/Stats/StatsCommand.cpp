@@ -2145,7 +2145,7 @@ static void StatCmd(FString InCmd, bool bStatCommand, FOutputDevice* Ar /*= null
 				const bool bHierarchy = MaybeGroup[MaybeGroup.Len() - 1] == TEXT('+');
 				if (bHierarchy)
 				{
-					MaybeGroup.RemoveAt(PlusPos, 1, false);
+					MaybeGroup.RemoveAt(PlusPos, 1, EAllowShrinking::No);
 				}
 
 				const FName MaybeGroupFName = FName(*MaybeGroup);

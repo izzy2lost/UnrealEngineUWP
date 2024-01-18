@@ -2923,7 +2923,7 @@ static void AppendGetAndHeadOpsForChunkRequestGroupItem(
 			{
 				//Steal existing head contents first
 				RequiredGetRequests.Emplace(MoveTemp(RequiredHeadRequests.Last()));
-				RequiredHeads.SetNum(RequiredHeads.Num() - 1, false);
+				RequiredHeads.SetNum(RequiredHeads.Num() - 1, EAllowShrinking::No);
 			}
 			else
 			{

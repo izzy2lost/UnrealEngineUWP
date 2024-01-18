@@ -1092,7 +1092,7 @@ public:
 
 	[[nodiscard]] FORCEINLINE UE_STRING_CLASS Left(int32 Count) &&
 	{
-		LeftInline(Count, false);
+		LeftInline(Count, EAllowShrinking::No);
 		return MoveTemp(*this);
 	}
 
@@ -1118,7 +1118,7 @@ public:
 
 	[[nodiscard]] FORCEINLINE UE_STRING_CLASS LeftChop(int32 Count)&&
 	{
-		LeftChopInline(Count, false);
+		LeftChopInline(Count, EAllowShrinking::No);
 		return MoveTemp(*this);
 	}
 
@@ -1143,7 +1143,7 @@ public:
 
 	[[nodiscard]] FORCEINLINE UE_STRING_CLASS Right(int32 Count) &&
 	{
-		RightInline(Count, false);
+		RightInline(Count, EAllowShrinking::No);
 		return MoveTemp(*this);
 	}
 
@@ -1164,7 +1164,7 @@ public:
 
 	[[nodiscard]] FORCEINLINE UE_STRING_CLASS RightChop(int32 Count) &&
 	{
-		RightChopInline(Count, false);
+		RightChopInline(Count, EAllowShrinking::No);
 		return MoveTemp(*this);
 	}
 
@@ -1192,7 +1192,7 @@ public:
 	{
 		if (Count != MAX_int32 && int64(Start) + Count < MAX_int32)
 		{
-			LeftInline(Count + Start, false);
+			LeftInline(Count + Start, EAllowShrinking::No);
 		}
 		RightChopInline(Start, AllowShrinking);
 	}

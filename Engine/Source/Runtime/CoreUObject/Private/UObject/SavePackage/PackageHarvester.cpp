@@ -261,7 +261,7 @@ FPackageHarvester::FHarvestScope FPackageHarvester::EnterConditionalEditorOnlySc
 		// editor-only objects to be added to the game realm.
 		if (!SaveContext.GetTargetPlatform() || !SaveContext.GetTargetPlatform()->AllowsEditorObjects())
 		{
-			CurrentExportHarvestingRealms.RemoveSwap(ESaveRealm::Game, false /* bAllowShrinking */);
+			CurrentExportHarvestingRealms.RemoveSwap(ESaveRealm::Game, EAllowShrinking::No);
 		}
 	}
 	return Scope;
@@ -310,7 +310,7 @@ FPackageHarvester::FHarvestScope FPackageHarvester::EnterNewExportOnlyScope(UObj
 	CurrentExportHarvestingRealms.RemoveAllSwap([this, Export](ESaveRealm HarvestingRealm)
 		{
 			return SaveContext.GetHarvestedRealm(HarvestingRealm).IsExport(Export);
-		}, false /* bAllowShrinking */);
+		}, EAllowShrinking::No);
 	return Scope;
 }
 
@@ -320,7 +320,7 @@ FPackageHarvester::FHarvestScope FPackageHarvester::EnterNotExcludedScope(TObjec
 	CurrentExportHarvestingRealms.RemoveAllSwap([this, Object](ESaveRealm HarvestingRealm)
 		{
 			return ConditionallyExcludeObjectForRealm(SaveContext, Object, HarvestingRealm);
-		}, false /* bAllowShrinking */);
+		}, EAllowShrinking::No);
 	return Scope;
 }
 
@@ -330,7 +330,7 @@ FPackageHarvester::FHarvestScope FPackageHarvester::EnterNotPreviouslyExcludedSc
 	CurrentExportHarvestingRealms.RemoveAllSwap([this, Object](ESaveRealm HarvestingRealm)
 		{
 			return SaveContext.GetHarvestedRealm(HarvestingRealm).IsExcluded(Object); 
-		}, false /* bAllowShrinking */);
+		}, EAllowShrinking::No);
 	return Scope;
 }
 
@@ -340,7 +340,7 @@ FPackageHarvester::FHarvestScope FPackageHarvester::EnterIncludedScope(TObjectPt
 	CurrentExportHarvestingRealms.RemoveAllSwap([this, Object](ESaveRealm HarvestingRealm)
 		{
 			return !SaveContext.GetHarvestedRealm(HarvestingRealm).IsIncluded(Object);
-		}, false /* bAllowShrinking */);
+		}, EAllowShrinking::No);
 	return Scope;
 }
 

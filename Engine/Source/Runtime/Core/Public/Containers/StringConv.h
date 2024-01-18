@@ -155,7 +155,7 @@ namespace StringConv
 	{
 #if PLATFORM_TCHAR_IS_4_BYTES
 		const int32 NewStrLen = InlineCombineSurrogates_Buffer(StrBuffer.GetData(), StrBuffer.Num() - 1);
-		StrBuffer.SetNum(NewStrLen + 1, /*bAllowShrinking*/false);
+		StrBuffer.SetNum(NewStrLen + 1, EAllowShrinking::No);
 #endif	// PLATFORM_TCHAR_IS_4_BYTES
 	}
 

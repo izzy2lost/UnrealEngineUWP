@@ -495,7 +495,7 @@ public:
 			}
 
 			// Truncate unallocated elements at the end of the data array.
-			Data.RemoveAt(FirstIndexToRemove, Data.Num() - FirstIndexToRemove, false);
+			Data.RemoveAt(FirstIndexToRemove, Data.Num() - FirstIndexToRemove, EAllowShrinking::No);
 			AllocationFlags.RemoveAt(FirstIndexToRemove,AllocationFlags.Num() - FirstIndexToRemove);
 		}
 
@@ -541,7 +541,7 @@ public:
 			FreeIndex = NextFreeIndex;
 		}
 
-		Data.RemoveAt(TargetIndex, NumFree, false);
+		Data.RemoveAt(TargetIndex, NumFree, EAllowShrinking::No);
 		AllocationFlags.RemoveAt(TargetIndex, NumFree);
 
 		NumFreeIndices = 0;

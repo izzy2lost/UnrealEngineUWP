@@ -988,7 +988,7 @@ int32 FAsyncLoadingThread::CreateAsyncPackagesFromQueue(bool bUseTimeLimit, bool
 			}
 			if (NumCopied)
 			{
-				QueuedPackages.RemoveAt(0, NumCopied, false);
+				QueuedPackages.RemoveAt(0, NumCopied, EAllowShrinking::No);
 			}
 			else
 			{
@@ -1717,7 +1717,7 @@ void FImportOrImportIndexArray::HeapPop(int32& OutItem, EAllowShrinking AllowShr
 	{
 		int32 Index = FMath::Clamp<int32>(GetRandomSerialNumber(Num() - 1), 0, Num() - 1);
 		OutItem = (*this)[Index];
-		RemoveAt(Index, 1, false);
+		RemoveAt(Index, 1, EAllowShrinking::No);
 		return;
 	}
 	TArray<int32>::HeapPop(OutItem, AllowShrinking);
@@ -3583,7 +3583,7 @@ void FAsyncPackage::StartPrecacheRequest()
 	int32 LocalExportIndex = -1;
 	while (true)
 	{
-		ExportsThatCanHaveIOStarted.HeapPop(LocalExportIndex, false);
+		ExportsThatCanHaveIOStarted.HeapPop(LocalExportIndex, EAllowShrinking::No);
 		FObjectExport& Export = Linker->ExportMap[LocalExportIndex];
 		bool bReady = false;
 		if (Export.Object && Export.Object->HasAnyFlags(RF_NeedLoad))
@@ -3646,7 +3646,7 @@ void FAsyncPackage::StartPrecacheRequest()
 			{
 				// ready right now, release it and remove it from the queue
 				int32 TempExportIndex = -1;
-				ExportsThatCanHaveIOStarted.HeapPop(TempExportIndex, false);
+				ExportsThatCanHaveIOStarted.HeapPop(TempExportIndex, EAllowShrinking::No);
 				check(TempExportIndex == MaybeLastExportIndex);
 				RemoveNode(EEventLoadNode::Export_StartIO, FPackageIndex::FromExport(MaybeLastExportIndex));
 				break;
@@ -3673,7 +3673,7 @@ void FAsyncPackage::StartPrecacheRequest()
 				break;
 			}
 			// this export is good to merge into the request
-			ExportsThatCanHaveIOStarted.HeapPop(LastExportIndex, false);
+			ExportsThatCanHaveIOStarted.HeapPop(LastExportIndex, EAllowShrinking::No);
 			check(LastExportIndex == MaybeLastExportIndex);
 			NewReq.BytesToRead = LaterExport.SerialOffset + LaterExport.SerialSize - NewReq.Offset;
 			check(NewReq.BytesToRead > 0);
@@ -3713,7 +3713,7 @@ void FAsyncPackage::MakeNextPrecacheRequestCurrent()
 	LLM_SCOPE(ELLMTag::AsyncLoading);
 
 	check(ReadyPrecacheRequests.Num());
-	IAsyncReadRequest* Read = ReadyPrecacheRequests.Pop(false);
+	IAsyncReadRequest* Read = ReadyPrecacheRequests.Pop(EAllowShrinking::No);
 	FExportIORequest& Req = PrecacheRequests.FindChecked(Read);
 	CurrentBlockOffset = Req.Offset;
 	CurrentBlockBytes = Req.BytesToRead;
@@ -3779,7 +3779,7 @@ EAsyncPackageState::Type FAsyncPackage::ProcessImportsAndExports_Event()
 		{
 			bDidSomething = true;
 			int32 LocalImportIndex = -1;
-			ImportsThatAreNowCreated.HeapPop(LocalImportIndex, false);
+			ImportsThatAreNowCreated.HeapPop(LocalImportIndex, EAllowShrinking::No);
 			{
 				// GC can't run in here
 				FGCScopeGuard GCGuard;
@@ -3797,7 +3797,7 @@ EAsyncPackageState::Type FAsyncPackage::ProcessImportsAndExports_Event()
 		{
 			bDidSomething = true;
 			int32 LocalImportIndex = -1;
-			ImportsThatAreNowSerialized.HeapPop(LocalImportIndex, false);
+			ImportsThatAreNowSerialized.HeapPop(LocalImportIndex, EAllowShrinking::No);
 			FObjectImport& Import = Linker->ImportMap[LocalImportIndex];
 			if (Import.XObject)
 			{
@@ -3815,7 +3815,7 @@ EAsyncPackageState::Type FAsyncPackage::ProcessImportsAndExports_Event()
 		{
 			bDidSomething = true;
 			int32 LocalExportIndex = -1;
-			ExportsThatCanBeCreated.HeapPop(LocalExportIndex, false);
+			ExportsThatCanBeCreated.HeapPop(LocalExportIndex, EAllowShrinking::No);
 			{
 				FGCScopeGuard GCGuard;
 				EventDrivenCreateExport(LocalExportIndex);
@@ -3841,7 +3841,7 @@ EAsyncPackageState::Type FAsyncPackage::ProcessImportsAndExports_Event()
 		{
 			bDidSomething = true;
 			int32 LocalExportIndex = -1;
-			ExportsThatCanBeSerialized.HeapPop(LocalExportIndex, false);
+			ExportsThatCanBeSerialized.HeapPop(LocalExportIndex, EAllowShrinking::No);
 
 			if (ExportsInThisBlock.Remove(LocalExportIndex) == 1)
 			{
@@ -4442,7 +4442,7 @@ EAsyncPackageState::Type FAsyncLoadingThread::ProcessAsyncLoading(int32& OutPack
 						AsyncPackageNameLookup.Remove(Package->GetPackageName());
 						int32 PackageIndex = AsyncPackages.Find(Package);
 						AsyncPackages.RemoveAt(PackageIndex);
-						AsyncPackagesReadyForTick.RemoveAt(0, 1, false); //@todoio this should maybe be a heap or something to avoid the removal cost
+						AsyncPackagesReadyForTick.RemoveAt(0, 1, EAllowShrinking::No); //@todoio this should maybe be a heap or something to avoid the removal cost
 					}
 
 					// We're done, at least on this thread, so we can remove the package now.

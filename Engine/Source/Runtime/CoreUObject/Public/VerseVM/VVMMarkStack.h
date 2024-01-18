@@ -43,7 +43,7 @@ struct FMarkStack
 		}
 		else
 		{
-			return Stack.Pop(/*bAllowShrinking =*/false);
+			return Stack.Pop(EAllowShrinking::No);
 		}
 	}
 

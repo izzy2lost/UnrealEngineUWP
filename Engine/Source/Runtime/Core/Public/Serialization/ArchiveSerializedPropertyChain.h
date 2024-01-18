@@ -48,7 +48,7 @@ public:
 	{
 		check(InProperty);
 		check(SerializedPropertyChain.Num() > 0 && SerializedPropertyChain.Last() == InProperty);
-		SerializedPropertyChain.Pop(/*bAllowShrinking*/false);
+		SerializedPropertyChain.Pop(EAllowShrinking::No);
 
 		IncrementUpdateCount();
 

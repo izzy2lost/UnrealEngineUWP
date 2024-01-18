@@ -151,7 +151,7 @@ namespace UE::Core::Private
 			int32 NewEndIndex = (int32)(NewEnd - Dest);
 			if (NewEndIndex < Count)
 			{
-				Out.SetNumUninitialized(OldEnd + NewEndIndex + 1, /*bAllowShrinking=*/false);
+				Out.SetNumUninitialized(OldEnd + NewEndIndex + 1, EAllowShrinking::No);
 			}
 		}
 
@@ -583,7 +583,7 @@ void UE_STRING_CLASS::RemoveSpacesInline()
 	if (CopyToIndex <= StringLength)
 	{
 		RawData[CopyToIndex] = CHARTEXT(ElementType, '\0');
-		Data.SetNum(CopyToIndex + 1, false);
+		Data.SetNum(CopyToIndex + 1, EAllowShrinking::No);
 	}
 }
 
@@ -814,7 +814,7 @@ void UE_STRING_CLASS::PathAppend(const ElementType* Str, int32 StrLength)
 			}
 			else
 			{
-				Data.Pop(false);
+				Data.Pop(EAllowShrinking::No);
 				--DataNum;
 			}
 		}
@@ -848,7 +848,7 @@ UE_STRING_CLASS UE_STRING_CLASS::Mid(int32 Start, int32 Count) const &
 
 UE_STRING_CLASS UE_STRING_CLASS::Mid(int32 Start, int32 Count) &&
 {
-	MidInline(Start, Count, false);
+	MidInline(Start, Count, EAllowShrinking::No);
 	return MoveTemp(*this);
 }
 
@@ -956,7 +956,7 @@ void UE_STRING_CLASS::TrimCharInline(const ElementType CharacterToTrim, bool* bC
 	{
 		*bCharRemoved = bQuotesWereRemoved;
 	}
-	MidInline(Start, Count, false);
+	MidInline(Start, Count, EAllowShrinking::No);
 }
 
 void UE_STRING_CLASS::TrimQuotesInline(bool* bQuotesRemoved)
@@ -1210,7 +1210,7 @@ UE_STRING_CLASS UE_STRING_CLASS::SanitizeFloat( double InFloat, const int32 InMi
 		}
 	}
 	check(TrimIndex != INDEX_NONE && DecimalSeparatorIndex != INDEX_NONE);
-	TempString.RemoveAt(TrimIndex, TempString.Len() - TrimIndex, /*bAllowShrinking*/false);
+	TempString.RemoveAt(TrimIndex, TempString.Len() - TrimIndex, EAllowShrinking::No);
 
 	// Pad the number back to the minimum number of fractional digits
 	if (InMinFractionalDigits > 0)
@@ -1661,7 +1661,7 @@ void UE_STRING_CLASS::ConvertTabsToSpacesInline(const int32 InSpacesPerTab)
 	while ((TabIndex = Find(CHARTEXT(ElementType, "\t"), ESearchCase::CaseSensitive)) != INDEX_NONE )
 	{
 		UE_STRING_CLASS RightSide = Mid(TabIndex+1);
-		LeftInline(TabIndex, false);
+		LeftInline(TabIndex, EAllowShrinking::No);
 
 		//for a tab size of 4, 
 		int32 LineBegin = Find(CHARTEXT(ElementType, "\n"), ESearchCase::CaseSensitive, ESearchDir::FromEnd, TabIndex);

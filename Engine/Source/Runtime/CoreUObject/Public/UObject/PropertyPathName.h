@@ -98,7 +98,7 @@ public:
 	/** Pops the last segment off the end of the path. */
 	inline void Pop()
 	{
-		Segments.Pop(/*bAllowShrinking*/ false);
+		Segments.Pop(EAllowShrinking::No);
 	}
 
 	/** Sets the type of the last segment of the path. Ignored if the path is empty. */

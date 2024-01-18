@@ -1786,7 +1786,7 @@ void UObject::DeclareCustomVersions(FArchive& Ar, const UClass* SpecificSubclass
 		}
 		if (!bPushedStack)
 		{
-			StructStack.Pop(false /* bAllowShrinking */);
+			StructStack.Pop(EAllowShrinking::No);
 		}
 	}
 }
@@ -2237,7 +2237,7 @@ void UObject::GetAssetRegistryTags(TArray<FAssetRegistryTag>& OutTags) const
 		GAssetRegistryTagsObjectsBeingForwarded.Add(this);
 		GetAssetRegistryTags(Context);
 		check(!GAssetRegistryTagsObjectsBeingForwarded.IsEmpty() && GAssetRegistryTagsObjectsBeingForwarded.Last() == this);
-		GAssetRegistryTagsObjectsBeingForwarded.Pop(false /* bAllowShrinking */);
+		GAssetRegistryTagsObjectsBeingForwarded.Pop(EAllowShrinking::No);
 
 		OutTags.Reserve(OutTags.Num() + Context.Tags.Num());
 		for (TPair<FName, FAssetRegistryTag>& Pair : Context.Tags)
@@ -2280,7 +2280,7 @@ void UObject::GetAssetRegistryTags(FAssetRegistryTagsContext Context) const
 		GAssetRegistryTagsObjectsBeingForwarded.Add(this);
 		AddLegacyTags([this](TArray<FAssetRegistryTag>& Tags) { GetAssetRegistryTags(Tags); });
 		check(!GAssetRegistryTagsObjectsBeingForwarded.IsEmpty() && GAssetRegistryTagsObjectsBeingForwarded.Last() == this);
-		GAssetRegistryTagsObjectsBeingForwarded.Pop(false /* bAllowShrinking */);
+		GAssetRegistryTagsObjectsBeingForwarded.Pop(EAllowShrinking::No);
 		if (Context.WantsBundleResult() && BundleResult)
 		{
 			Context.SetBundleResult(BundleResult);
@@ -4102,13 +4102,13 @@ bool StaticExec( UWorld* InWorld, const TCHAR* Cmd, FOutputDevice& Ar )
 					if (AsteriskPos != INDEX_NONE && (QuestionPos == INDEX_NONE || QuestionPos > AsteriskPos))
 					{
 						WildcardPieces.Emplace(PropWildcard.Left(AsteriskPos), true);
-						PropWildcard.RightInline(PropWildcard.Len() - AsteriskPos - 1, false);
+						PropWildcard.RightInline(PropWildcard.Len() - AsteriskPos - 1, EAllowShrinking::No);
 						bFound = true;
 					}
 					else if (QuestionPos != INDEX_NONE)
 					{
 						WildcardPieces.Emplace(PropWildcard.Left(QuestionPos), false);
-						PropWildcard.RightInline(PropWildcard.Len() - QuestionPos - 1, false);
+						PropWildcard.RightInline(PropWildcard.Len() - QuestionPos - 1, EAllowShrinking::No);
 						bFound = true;
 					}
 				}
@@ -4152,7 +4152,7 @@ bool StaticExec( UWorld* InWorld, const TCHAR* Cmd, FOutputDevice& Ar )
 							break;
 						}
 
-						Match.RightInline(Match.Len() - Pos - WildcardPieces[i].Str.Len(), false);
+						Match.RightInline(Match.Len() - Pos - WildcardPieces[i].Str.Len(), EAllowShrinking::No);
 					}
 				}
 				if (bResult)

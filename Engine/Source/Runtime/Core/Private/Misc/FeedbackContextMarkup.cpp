@@ -81,7 +81,7 @@ bool FFeedbackContextMarkup::PipeProcessOutput(const FText& Description, const F
 					Warn->Log(*Line);
 				}
 
-				BufferedText.MidInline(EndOfLineIdx + 1, MAX_int32, false);
+				BufferedText.MidInline(EndOfLineIdx + 1, MAX_int32, EAllowShrinking::No);
 			}
 
 			FPlatformProcess::Sleep(0.1f);

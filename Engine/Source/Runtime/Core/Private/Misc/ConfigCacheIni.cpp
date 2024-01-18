@@ -1619,7 +1619,7 @@ void FConfigFile::WriteToStringInternal(FString& InOutText, bool bIsADefaultIniW
 #endif
 		}
 
-		InOutText.LeftInline(InitialInOutTextSize, false);
+		InOutText.LeftInline(InitialInOutTextSize, EAllowShrinking::No);
 		PropertiesAddedLookup.Reset();
 
 		for( FConfigSection::TConstIterator It2(Section); It2; ++It2 )
@@ -1694,7 +1694,7 @@ void FConfigFile::WriteToStringInternal(FString& InOutText, bool bIsADefaultIniW
 	}
 
 	// Join all of the sections together
-	InOutText.LeftInline(InitialInOutTextSize, false);
+	InOutText.LeftInline(InitialInOutTextSize, EAllowShrinking::No);
 	InOutText.Reserve(InitialInOutTextSize + EstimatedFinalTextSize);
 	TSet<FString> SectionNamesLeftToWrite;
 	SectionNamesLeftToWrite.Reserve(InOutSectionTexts.Num());
@@ -4425,7 +4425,7 @@ private:
 		const FString Endl(LINE_TERMINATOR);
 		while (InStr.EndsWith(LINE_TERMINATOR, ESearchCase::CaseSensitive))
 		{
-			InStr.LeftChopInline(Endl.Len(), false);
+			InStr.LeftChopInline(Endl.Len(), EAllowShrinking::No);
 		}
 	}
 	

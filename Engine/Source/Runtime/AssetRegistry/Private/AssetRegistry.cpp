@@ -1347,11 +1347,11 @@ void InitializeSerializationOptionsFromIni(FAssetRegistrySerializationOptions& O
 		TrimmedEntry.TrimStartAndEndInline();
 		if (TrimmedEntry.Left(1) == TEXT("("))
 		{
-			TrimmedEntry.RightChopInline(1, false);
+			TrimmedEntry.RightChopInline(1, EAllowShrinking::No);
 		}
 		if (TrimmedEntry.Right(1) == TEXT(")"))
 		{
-			TrimmedEntry.LeftChopInline(1, false);
+			TrimmedEntry.LeftChopInline(1, EAllowShrinking::No);
 		}
 
 		TArray<FString> Tokens;
@@ -2749,7 +2749,7 @@ static void ConvertAssetIdentifiersToPackageNames(const TArray<FAssetIdentifier>
 	OutPackageNames.Sort( FNameFastLess() );
 
 	int UniqueNum = Algo::Unique( OutPackageNames );
-	OutPackageNames.SetNum(UniqueNum,false);
+	OutPackageNames.SetNum(UniqueNum, EAllowShrinking::No);
 }
 
 bool UAssetRegistryImpl::GetDependencies(FName PackageName, TArray<FName>& OutDependencies, UE::AssetRegistry::EDependencyCategory Category, const UE::AssetRegistry::FDependencyQuery& Flags) const
@@ -6847,7 +6847,7 @@ void UAssetRegistryImpl::OnContentPathDismounted(const FString& InAssetPath, con
 	if (AssetPathNoTrailingSlash.EndsWith(TEXT("/"), ESearchCase::CaseSensitive))
 	{
 		// We don't want a trailing slash here as it could interfere with RemoveAssetPath
-		AssetPathNoTrailingSlash.LeftChopInline(1, false);
+		AssetPathNoTrailingSlash.LeftChopInline(1, EAllowShrinking::No);
 	}
 
 #if WITH_EDITOR
@@ -8189,13 +8189,13 @@ bool ShouldSearchAllAssetsAtStart()
 			{
 				if (CommandlineCommandlet.EndsWith(CommandletToken))
 				{
-					CommandlineCommandlet.LeftChopInline(CommandletToken.Len(), false /* bAllowShrinking */);
+					CommandlineCommandlet.LeftChopInline(CommandletToken.Len(), EAllowShrinking::No);
 				}
 				for (FString& CommandletUsingAR : CommandletsUsingAR)
 				{
 					if (CommandletUsingAR.EndsWith(CommandletToken))
 					{
-						CommandletUsingAR.LeftChopInline(CommandletToken.Len(), false /* bAllowShrinking */);
+						CommandletUsingAR.LeftChopInline(CommandletToken.Len(), EAllowShrinking::No);
 					}
 					if (CommandletUsingAR == CommandlineCommandlet)
 					{

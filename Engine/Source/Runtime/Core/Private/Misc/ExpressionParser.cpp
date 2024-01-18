@@ -474,7 +474,7 @@ struct FExpressionCompiler
 		{
 			int32 ShortCircuitIndex = OperatorStack.Last().ShortCircuitIndex;
 
-			Commands.Add(OperatorStack.Pop(false).Steal());
+			Commands.Add(OperatorStack.Pop(EAllowShrinking::No).Steal());
 			if (ShortCircuitIndex != INDEX_NONE)
 			{
 				Commands[ShortCircuitIndex].ShortCircuitIndex = Commands.Num() - 1;

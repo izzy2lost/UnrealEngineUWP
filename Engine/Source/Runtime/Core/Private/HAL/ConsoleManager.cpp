@@ -2445,7 +2445,7 @@ bool FConsoleManager::ProcessUserConsoleInput(const TCHAR* InInput, FOutputDevic
 	const bool bCommandEndedInQuestion = Param1.EndsWith(TEXT("?"), ESearchCase::CaseSensitive);
 	if (bCommandEndedInQuestion)
 	{
-		Param1.MidInline(0, Param1.Len() - 1, false);
+		Param1.MidInline(0, Param1.Len() - 1, EAllowShrinking::No);
 	}
 
 	// look for the <cvar>@<platform[/deviceprofile]> syntax
@@ -2560,13 +2560,13 @@ bool FConsoleManager::ProcessUserConsoleInput(const TCHAR* InInput, FOutputDevic
 			{
 				if(Param2[0] == (TCHAR)'\"' && Param2[Param2.Len() - 1] == (TCHAR)'\"')
 				{
-					Param2.MidInline(1, Param2.Len() - 2, false);
+					Param2.MidInline(1, Param2.Len() - 2, EAllowShrinking::No);
 				}
 				// this is assumed to be unintended e.g. copy and paste accident from ini file
 				if(Param2.Len() > 0 && Param2[0] == (TCHAR)'=')
 				{
 					Ar.Logf(TEXT("Warning: Processing the console input parameters the leading '=' is ignored (only needed for ini files)."));
-					Param2.MidInline(1, Param2.Len() - 1, false);
+					Param2.MidInline(1, Param2.Len() - 1, EAllowShrinking::No);
 				}
 			}
 

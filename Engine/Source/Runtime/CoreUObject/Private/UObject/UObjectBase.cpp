@@ -600,10 +600,10 @@ FString UObjectBase::RemoveClassPrefix(const TCHAR* ClassName)
 {
 	static const TCHAR* DeprecatedPrefix = TEXT("DEPRECATED_");
 	FString NameWithoutPrefix(ClassName);
-	NameWithoutPrefix.MidInline(1, MAX_int32, false);
+	NameWithoutPrefix.MidInline(1, MAX_int32, EAllowShrinking::No);
 	if (NameWithoutPrefix.StartsWith(DeprecatedPrefix))
 	{
-		NameWithoutPrefix.MidInline(FCString::Strlen(DeprecatedPrefix), MAX_int32, false);
+		NameWithoutPrefix.MidInline(FCString::Strlen(DeprecatedPrefix), MAX_int32, EAllowShrinking::No);
 	}
 	return NameWithoutPrefix;
 }

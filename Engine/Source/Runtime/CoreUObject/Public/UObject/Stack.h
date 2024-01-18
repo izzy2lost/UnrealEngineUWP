@@ -188,7 +188,7 @@ public:
 		FBlueprintContextTracker& BlueprintExceptionTracker = FBlueprintContextTracker::Get();
 		if (BlueprintExceptionTracker.ScriptStack.Num())
 		{
-			BlueprintExceptionTracker.ScriptStack.Pop(false);
+			BlueprintExceptionTracker.ScriptStack.Pop(EAllowShrinking::No);
 		}
 
 		// ensure that GTopTrackingStackFrame is accurate

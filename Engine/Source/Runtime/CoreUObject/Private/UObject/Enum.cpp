@@ -111,7 +111,7 @@ FString UEnum::GetBaseEnumNameOnDuplication() const
 	check(DoubleColonPos != INDEX_NONE);
 
 	// Get actual base name.
-	BaseEnumName.LeftChopInline(BaseEnumName.Len() - DoubleColonPos, false);
+	BaseEnumName.LeftChopInline(BaseEnumName.Len() - DoubleColonPos, EAllowShrinking::No);
 
 	return BaseEnumName;
 }
@@ -443,7 +443,7 @@ FString UEnum::GenerateEnumPrefix() const
 			}
 
 			// Trim the prefix to the length of the common prefix.
-			Prefix.LeftInline(PrefixIdx, false);
+			Prefix.LeftInline(PrefixIdx, EAllowShrinking::No);
 		}
 
 		// Find the index of the rightmost underscore in the prefix.
@@ -452,7 +452,7 @@ FString UEnum::GenerateEnumPrefix() const
 		// If an underscore was found, trim the prefix so only the part before the rightmost underscore is included.
 		if (UnderscoreIdx > 0)
 		{
-			Prefix.LeftInline(UnderscoreIdx, false);
+			Prefix.LeftInline(UnderscoreIdx, EAllowShrinking::No);
 		}
 		else
 		{
@@ -877,7 +877,7 @@ FString UEnum::GetMetaData( const TCHAR* Key, int32 NameIndex/*=INDEX_NONE*/, bo
 		if (!GConfig->GetString(TEXT("EnumRemap"), *KeyString, ResultString, GEngineIni))
 		{
 			// if this fails, then use what's after the ini:
-			ResultString.MidInline(4, MAX_int32, false);
+			ResultString.MidInline(4, MAX_int32, EAllowShrinking::No);
 		}
 	}
 

@@ -99,7 +99,7 @@ struct FAsyncLoadEventQueue
 			//@todoio check(FAsyncLoadingThread::IsInAsyncLoadThread());
 			if (EventQueue.Num())
 			{
-				EventQueue.HeapPop(Event, false);
+				EventQueue.HeapPop(Event, EAllowShrinking::No);
 				bResult = true;
 			}
 		}

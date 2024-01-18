@@ -72,7 +72,7 @@ FString GetCommonRootPath(const TArray<FStringView>& Filenames)
 		}
 		if ((CommonSeparatorIndex + 1) < Root.Len())
 		{
-			Root.MidInline(0, CommonSeparatorIndex + 1, false);
+			Root.MidInline(0, CommonSeparatorIndex + 1, EAllowShrinking::No);
 		}
 	}
 	return Root;

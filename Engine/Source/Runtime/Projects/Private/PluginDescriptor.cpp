@@ -193,7 +193,7 @@ bool FPluginDescriptor::Read(const FJsonObject& Object, FText* OutFailReason /*=
 	// a category name with escaped quotes. Remove them here to make sure we can list them in the right category.
 	if (Category.Len() >= 2 && Category.StartsWith(TEXT("\""), ESearchCase::CaseSensitive) && Category.EndsWith(TEXT("\""), ESearchCase::CaseSensitive))
 	{
-		Category.MidInline(1, Category.Len() - 2, false);
+		Category.MidInline(1, Category.Len() - 2, EAllowShrinking::No);
 	}
 
 	Object.TryGetStringField(TEXT("CreatedBy"), CreatedBy);

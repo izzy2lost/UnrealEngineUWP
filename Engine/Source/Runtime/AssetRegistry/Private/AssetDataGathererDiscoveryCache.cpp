@@ -505,7 +505,7 @@ void FCachedVolumeInfo::RemoveDirs(TArray<FString>&& InPaths)
 	// Recursively remove RemoveDir directories; iterate by popping InPaths and pushing child dirs back on
 	while (!InPaths.IsEmpty())
 	{
-		FString RemoveDir = InPaths.Pop(false /* bAllowShrinking */);
+		FString RemoveDir = InPaths.Pop(EAllowShrinking::No);
 		FCachedDirScanDir DirData;
 		if (Dirs.RemoveAndCopyValue(RemoveDir, DirData))
 		{

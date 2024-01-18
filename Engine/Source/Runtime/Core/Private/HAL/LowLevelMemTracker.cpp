@@ -4962,7 +4962,7 @@ void FLLMTracker::UpdateThreads()
 
 			for (int32 i = 0; i < NumPendingThreadStatesToConsume; ++i)
 			{
-				ThreadStates.Add(PendingThreadStates.Pop(false /*bAllowShrinking*/));
+				ThreadStates.Add(PendingThreadStates.Pop(EAllowShrinking::No));
 			}
 		}
 		PendingThreadStatesGuard.Unlock();
@@ -5545,7 +5545,7 @@ void FLLMThreadState::PopTag(ELLMTagSet TagSet)
 
 	LLMCheckf(TagStack[static_cast<int32>(TagSet)].Num() > 0,
 		TEXT("Called FLLMThreadState::PopTag without a matching Push (stack was empty on pop)"));
-	TagStack[static_cast<int32>(TagSet)].Pop(false /* bAllowShrinking */);
+	TagStack[static_cast<int32>(TagSet)].Pop(EAllowShrinking::No);
 }
 
 const FTagData* FLLMThreadState::GetTopTag(ELLMTagSet TagSet)

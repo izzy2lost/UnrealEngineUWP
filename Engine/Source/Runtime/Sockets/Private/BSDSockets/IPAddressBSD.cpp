@@ -174,7 +174,7 @@ void FInternetAddrBSD::SetIp(const TCHAR* InAddr, bool& bIsValid)
 	if (AddressString.Contains("]:") || (FirstColonIndex == LastColonIndex && LastColonIndex != INDEX_NONE))
 	{
 		Port = AddressString.RightChop(LastColonIndex + 1);
-		AddressString.LeftInline(LastColonIndex, false);
+		AddressString.LeftInline(LastColonIndex, EAllowShrinking::No);
 	}
 
 	// Strip these for backwards compatibility.
@@ -469,7 +469,7 @@ FString FInternetAddrBSD::ToString(bool bAppendPort) const
 			const int32 InterfaceMarkerIndex = IPv6Str.Find("%", ESearchCase::CaseSensitive, ESearchDir::FromEnd);
 			if (InterfaceMarkerIndex != INDEX_NONE)
 			{
-				IPv6Str.LeftInline(InterfaceMarkerIndex, false);
+				IPv6Str.LeftInline(InterfaceMarkerIndex, EAllowShrinking::No);
 			}
 
 			// Using dynamic formatting strings are deprecated.

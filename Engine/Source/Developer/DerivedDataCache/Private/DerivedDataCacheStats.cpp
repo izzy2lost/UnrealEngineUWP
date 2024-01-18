@@ -95,7 +95,7 @@ void FTimeAveragedStat::Add(FMonotonicTimePoint StartTime, FMonotonicTimePoint E
 			const int32 EndIndex = Algo::LowerBoundBy(ActiveRanges, EndTime, &FRange::StartTime);
 			StartRange.EndTime = FMath::Max(EndTime, ActiveRanges[EndIndex - 1].EndTime);
 
-			ActiveRanges.RemoveAt(StartIndex + 1, EndIndex - StartIndex - 1, /*bAllowShrinking*/ false);
+			ActiveRanges.RemoveAt(StartIndex + 1, EndIndex - StartIndex - 1, EAllowShrinking::No);
 		}
 	}
 
@@ -149,7 +149,7 @@ void FTimeAveragedStat::Update(FMonotonicTimePoint Time)
 		++AccumulatedValueCount;
 		++StartCount;
 	}
-	StartValues.RemoveAt(0, StartCount, /*bAllowShrinking*/ false);
+	StartValues.RemoveAt(0, StartCount, EAllowShrinking::No);
 
 	// Remove values exiting the current period.
 	int32 EndCount = 0;
@@ -163,7 +163,7 @@ void FTimeAveragedStat::Update(FMonotonicTimePoint Time)
 		--AccumulatedValueCount;
 		++EndCount;
 	}
-	EndValues.RemoveAt(0, EndCount, /*bAllowShrinking*/ false);
+	EndValues.RemoveAt(0, EndCount, EAllowShrinking::No);
 
 	// Remove ranges before the current period.
 	int32 RangeCount = 0;
@@ -175,7 +175,7 @@ void FTimeAveragedStat::Update(FMonotonicTimePoint Time)
 		}
 		++RangeCount;
 	}
-	ActiveRanges.RemoveAt(0, RangeCount, /*bAllowShrinking*/ false);
+	ActiveRanges.RemoveAt(0, RangeCount, EAllowShrinking::No);
 
 	// Accumulate active time in the current period.
 	FMonotonicTimeSpan ActiveTime;

@@ -1251,8 +1251,8 @@ namespace LLMAlgoImpl
 					if (!bPushed)
 					{
 						LeafToRootOrder.Add(VisitData.Vertex);
-						EdgesOnStack.SetNum(VisitData.EdgeStart, false /* bAllowShrinking */);
-						Stack.Pop(false /* bAllowShrinking */);
+						EdgesOnStack.SetNum(VisitData.EdgeStart, EAllowShrinking::No);
+						Stack.Pop(EAllowShrinking::No);
 					}
 				}
 			}

@@ -1113,7 +1113,7 @@ FString ResolveIniObjectsReference(const FString& ObjectReference, const FString
 	if (i != -1)
 	{
 		Key = Section.Mid(i + 1);
-		Section.LeftInline(i, false);
+		Section.LeftInline(i, EAllowShrinking::No);
 	}
 
 	FString Output;
@@ -1254,7 +1254,7 @@ bool ResolveName(UObject*& InPackage, FString& InOutName, bool Create, bool Thro
 
 			check(InPackage);
 		}
-		InOutName.RemoveAt(0, DotIndex + 1, false);
+		InOutName.RemoveAt(0, DotIndex + 1, EAllowShrinking::No);
 	}
 }
 
@@ -3985,7 +3985,7 @@ void FObjectInitializer::PostConstructInit()
 	Class->PostInitInstance(Obj, InstanceGraph);
 
 #if !(UE_BUILD_SHIPPING || UE_BUILD_TEST)
-	if (!FUObjectThreadContext::Get().PostInitPropertiesCheck.Num() || (FUObjectThreadContext::Get().PostInitPropertiesCheck.Pop(false) != Obj))
+	if (!FUObjectThreadContext::Get().PostInitPropertiesCheck.Num() || (FUObjectThreadContext::Get().PostInitPropertiesCheck.Pop(EAllowShrinking::No) != Obj))
 	{
 		UE_LOG(LogUObjectGlobals, Fatal, TEXT("%s failed to route PostInitProperties. Call Super::PostInitProperties() in %s::PostInitProperties()."), *Obj->GetClass()->GetName(), *Obj->GetClass()->GetName());
 	}
@@ -4584,7 +4584,7 @@ void ConstructorHelpers::StripObjectClass( FString& PathName, bool bAssertOnBadP
 		PathName.FindLastChar( TCHAR('\''), NameEndIndex );
 		if(NameEndIndex > NameStartIndex)
 		{
-			PathName.MidInline( NameStartIndex+1, NameEndIndex-NameStartIndex-1, false );
+			PathName.MidInline( NameStartIndex+1, NameEndIndex-NameStartIndex-1, EAllowShrinking::No);
 		}
 		else
 		{

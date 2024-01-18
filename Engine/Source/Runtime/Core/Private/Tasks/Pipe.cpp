@@ -100,7 +100,7 @@ namespace UE::Tasks
 		static void Pop(const FPipe& Pipe)
 		{
 			check(CallStack.Last() == &Pipe);
-			CallStack.Pop(/*bAllowShrinking=*/ false);
+			CallStack.Pop(EAllowShrinking::No);
 		}
 
 		// returns true if a task from the given pipe is being being executed on the top of the stack.

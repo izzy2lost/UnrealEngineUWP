@@ -58,7 +58,7 @@ int32 FUObjectClusterContainer::AllocateCluster(int32 InRootObjectIndex)
 	int32 ClusterIndex = INDEX_NONE;
 	if (FreeClusterIndices.Num())
 	{
-		ClusterIndex = FreeClusterIndices.Pop(false);
+		ClusterIndex = FreeClusterIndices.Pop(EAllowShrinking::No);
 	}
 	else
 	{

@@ -47,7 +47,7 @@ void FJsonArchiveOutputFormatter::EnterRecord()
 
 void FJsonArchiveOutputFormatter::LeaveRecord()
 {
-	Newline.Pop(false);
+	Newline.Pop(EAllowShrinking::No);
 	if (TextStartPosStack.Pop() == Inner.Tell())
 	{
 		bNeedsNewline = false;
@@ -112,7 +112,7 @@ void FJsonArchiveOutputFormatter::EnterStream()
 
 void FJsonArchiveOutputFormatter::LeaveStream()
 {
-	Newline.Pop(false);
+	Newline.Pop(EAllowShrinking::No);
 	if (TextStartPosStack.Pop() == Inner.Tell())
 	{
 		bNeedsNewline = false;
@@ -524,7 +524,7 @@ void FJsonArchiveOutputFormatter::WriteOptionalAttributedBlockClosing()
 {
 	if (NumAttributesStack.Top() != 0)
 	{
-		Newline.Pop(false);
+		Newline.Pop(EAllowShrinking::No);
 		WriteOptionalNewline();
 		Write("}");
 		bNeedsComma                  = true;

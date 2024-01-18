@@ -154,11 +154,11 @@ void FSlowTask::Destroy()
 			FSlowTask* Task = Stack.Last();
 			if (ensureMsgf(Task == this, TEXT("Out-of-order slow task construction/destruction: destroying '%s' but '%s' is at the top of the stack"), *DefaultMessage.ToString(), *Task->DefaultMessage.ToString()))
 			{
-				Stack.Pop(false);
+				Stack.Pop(EAllowShrinking::No);
 			}
 			else
 			{
-				Stack.RemoveSingleSwap(this, false);
+				Stack.RemoveSingleSwap(this, EAllowShrinking::No);
 			}
 		}
 
