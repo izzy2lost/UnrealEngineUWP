@@ -465,12 +465,25 @@ void FLiveCodingModule::StartupModule()
 
 	LppStartup();
 
+	bool bAllowAutoStart = true;
+	bool bForceStart = false;
+
+	if (bool bCommandLineEnable; FParse::Bool(FCommandLine::Get(), TEXT("-LiveCoding="), bCommandLineEnable))
+	{
+		bAllowAutoStart &= bCommandLineEnable;
+		bForceStart = bCommandLineEnable;
+	}
+	else if (FParse::Param(FCommandLine::Get(), TEXT("LiveCoding")))
+	{
+		bForceStart = true;
+	}
+
 	bSettingsEnabledLastTick = Settings->bEnabled;
-	if (Settings->bEnabled && Settings->Startup != ELiveCodingStartupMode::Manual && !FApp::IsUnattended())
+	if (Settings->bEnabled && Settings->Startup != ELiveCodingStartupMode::Manual && !FApp::IsUnattended() && bAllowAutoStart)
 	{
 		StartLiveCodingAsync(Settings->Startup);
-	} 
-	else if (FParse::Param(FCommandLine::Get(), TEXT("LiveCoding")))
+	}
+	else if (bForceStart)
 	{
 		StartLiveCodingAsync(ELiveCodingStartupMode::Manual);
 	}
