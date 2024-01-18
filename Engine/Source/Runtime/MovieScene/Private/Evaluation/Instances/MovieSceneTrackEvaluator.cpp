@@ -43,10 +43,13 @@ struct FDelayedPreAnimatedStateRestore
 
 		UMovieSceneEntitySystemLinker* Linker = Player.GetSharedPlaybackState()->GetLinker();
 		FPreAnimatedTemplateCaptureSources* TemplateMetaData = Linker->PreAnimatedState.GetTemplateMetaData();
-		const FRootInstanceHandle RootInstanceHandle = Player.GetEvaluationTemplate().GetRootInstanceHandle();
-		for (FMovieSceneEvaluationKey Key : KeysToRestore)
+		if (TemplateMetaData)
 		{
-			TemplateMetaData->StopTrackingCaptureSource(Key, RootInstanceHandle);
+			const FRootInstanceHandle RootInstanceHandle = Player.GetEvaluationTemplate().GetRootInstanceHandle();
+			for (FMovieSceneEvaluationKey Key : KeysToRestore)
+			{
+				TemplateMetaData->StopTrackingCaptureSource(Key, RootInstanceHandle);
+			}
 		}
 		KeysToRestore.Reset();
 	}
