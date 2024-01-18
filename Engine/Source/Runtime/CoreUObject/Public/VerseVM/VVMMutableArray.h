@@ -11,6 +11,7 @@
 
 namespace Verse
 {
+struct FOpResult;
 
 struct VMutableArray : VArrayBase
 {
@@ -48,12 +49,9 @@ public:
 		return *new (Context.AllocateFastCell(sizeof(VMutableArray))) VMutableArray(Context, InNumValues, InitFunc);
 	}
 
-	static VMutableArray& New(FAllocationContext Context, VMutableArray& Other)
-	{
-		return *new (Context.AllocateFastCell(sizeof(VMutableArray))) VMutableArray(Context, Other);
-	}
-
 	static void SerializeImpl(VMutableArray*& This, FAllocationContext Context, FAbstractVisitor& Visitor);
+
+	COREUOBJECT_API FOpResult FreezeImpl(FRunningContext Context);
 
 private:
 	VMutableArray(FAllocationContext Context, uint32 InitialCapacity)
@@ -71,10 +69,6 @@ private:
 	VMutableArray(FAllocationContext Context, uint32 InNumValues, InitIndexFunc&& InitFunc)
 		: VArrayBase(Context, InNumValues, InitFunc, &GlobalTrivialEmergentType.Get(Context))
 		, Capacity(InNumValues) {}
-
-	VMutableArray(FAllocationContext Context, VMutableArray& Other)
-		: VArrayBase(Context, Other)
-		, Capacity(Other.Capacity) {}
 };
 
 } // namespace Verse

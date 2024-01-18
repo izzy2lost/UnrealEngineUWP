@@ -73,11 +73,6 @@ struct VArray : VArrayBase
 		return *new (Context.AllocateFastCell(sizeof(VArray))) VArray(Context, NumValues, InitFunc);
 	}
 
-	static VArray& New(FAllocationContext Context, VArray& Other)
-	{
-		return *new (Context.AllocateFastCell(sizeof(VArray))) VArray(Context, Other);
-	}
-
 	static void SerializeImpl(VArray*& This, FAllocationContext Context, FAbstractVisitor& Visitor);
 
 private:
@@ -91,9 +86,6 @@ private:
 	template <typename InitIndexFunc>
 	VArray(FAllocationContext Context, uint32 InNumValues, InitIndexFunc&& InitFunc)
 		: VArrayBase(Context, InNumValues, InitFunc, VEmergentTypeCreator::GetOrCreate(Context, VTypeCreator::GetOrCreate<VTypeArray>(Context, InNumValues), &StaticCppClassInfo)) {}
-
-	VArray(FAllocationContext Context, VArray& Other)
-		: VArrayBase(Context, Other) {}
 };
 
 } // namespace Verse

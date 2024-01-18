@@ -13,7 +13,7 @@ namespace Verse
 {
 
 struct VInt;
-struct VArray;
+struct FOpResult;
 
 struct VArrayBase : VHeapValue
 {
@@ -28,6 +28,7 @@ protected:
 		: VHeapValue(Context, Type)
 		, NumValues(InNumValues)
 	{
+		SetIsDeeplyMutable();
 		TAux<TWriteBarrier<VValue>> NewValues(Context.AllocateAuxCell(sizeof(TWriteBarrier<VValue>) * NumValues));
 		Values.Set(Context, NewValues);
 		for (uint32 Index = 0; Index < NumValues; ++Index)
@@ -40,6 +41,7 @@ protected:
 		: VHeapValue(Context, Type)
 		, NumValues(static_cast<uint32>(InitList.size()))
 	{
+		SetIsDeeplyMutable();
 		TAux<TWriteBarrier<VValue>> NewValues(Context.AllocateAuxCell(sizeof(TWriteBarrier<VValue>) * NumValues));
 		Values.Set(Context, NewValues);
 		uint32 Index = 0;
@@ -54,23 +56,12 @@ protected:
 		: VHeapValue(Context, Type)
 		, NumValues(InNumValues)
 	{
+		SetIsDeeplyMutable();
 		TAux<TWriteBarrier<VValue>> NewValues(Context.AllocateAuxCell(sizeof(TWriteBarrier<VValue>) * NumValues));
 		Values.Set(Context, NewValues);
 		for (uint32 Index = 0; Index < NumValues; ++Index)
 		{
 			new (&Values.Get()[Index]) TWriteBarrier<VValue>(Context, InitFunc(Index));
-		}
-	}
-
-	VArrayBase(FAllocationContext Context, VArrayBase& Other)
-		: VHeapValue(Context, Other.GetEmergentType())
-		, NumValues(Other.Num())
-	{
-		TAux<TWriteBarrier<VValue>> NewValues(Context.AllocateAuxCell(sizeof(TWriteBarrier<VValue>) * NumValues));
-		Values.Set(Context, NewValues);
-		for (uint32 Index = 0; Index < NumValues; ++Index)
-		{
-			new (&Values.Get()[Index]) TWriteBarrier<VValue>(Context, Other.GetValue(Index));
 		}
 	}
 
@@ -89,6 +80,8 @@ public:
 	static T& Concat(FAllocationContext Context, VArrayBase& Lhs, VArrayBase& Rhs);
 
 	COREUOBJECT_API bool EqualImpl(FRunningContext Context, VCell* Other, const TFunction<void(::Verse::VValue, ::Verse::VValue)>& HandlePlaceholder);
+
+	COREUOBJECT_API FOpResult MeltImpl(FRunningContext Context);
 
 	COREUOBJECT_API uint32 GetTypeHashImpl();
 

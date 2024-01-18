@@ -25,6 +25,7 @@ struct FRunningContext;
 struct VPlaceholder;
 struct VSuspension;
 struct FCellFormatter;
+struct FOpResult;
 
 struct VValue
 {
@@ -83,6 +84,11 @@ struct VValue
 	// This will return true if left and/or right are placeholders.
 	template <typename ContextType, typename HandlePlaceholderFunction>
 	static bool Equal(ContextType Context, VValue Left, VValue Right, HandlePlaceholderFunction HandlePlaceholder);
+
+	template <typename ContextType>
+	static FOpResult Melt(ContextType Context, VValue Value);
+	template <typename ContextType>
+	static FOpResult Freeze(ContextType Context, VValue Value);
 
 	static VValue Decode(uint64 EncodedBits)
 	{

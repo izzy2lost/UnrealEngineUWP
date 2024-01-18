@@ -23,6 +23,7 @@ struct FMarkStack;
 struct FMarkStackVisitor;
 struct VCppClassInfo;
 struct VEmergentType;
+struct FOpResult;
 
 struct VCell
 {
@@ -38,6 +39,8 @@ struct VCell
 	std::atomic<uint8> GCData{0};
 	// The first two bits of this are used by FExternalMutexes in VCell subclasses.
 	std::atomic<uint8> Mutex{0};
+	// The first bit of Misc2 being set indicates this cell is deeply mutable.
+	static constexpr uint8 DeeplyMutableTag = 1;
 	union
 	{
 		struct
@@ -67,6 +70,10 @@ struct VCell
 	COREUOBJECT_API void ConductCensus();
 	COREUOBJECT_API void RunDestructor();
 	COREUOBJECT_API bool Equal(FRunningContext Context, VCell* Other, const TFunction<void(::Verse::VValue, ::Verse::VValue)>& HandlePlaceholder);
+	COREUOBJECT_API FOpResult Melt(FRunningContext Context);
+	COREUOBJECT_API FOpResult Freeze(FRunningContext Context);
+	bool IsDeeplyMutable() { return Misc2 & DeeplyMutableTag; }
+	bool SetIsDeeplyMutable() { return Misc2 |= DeeplyMutableTag; }
 
 private:
 	// Use this if your cell subtype has any outgoing strong references.  It is used by both the
@@ -112,6 +119,17 @@ protected:
 	// Deep comparisons typically will require a FRunningContext anyways but it is worth checking this is
 	// the case each time this is implemented.
 	COREUOBJECT_API bool EqualImpl(FRunningContext Context, VCell* Other, const TFunction<void(::Verse::VValue, ::Verse::VValue)>& HandlePlaceholder);
+
+	// Override this if your cell requires deep copying.
+	//
+	// Note: This also acts as "Clone"  for mutable types which is defined as 'Freeze->Melt'.
+	// We can ignore the possibility that the skipped 'freeze' could error on placeholders
+	// as the mutable data we are operating on requires all values be concrete on creation
+	// or we would've suspended.
+	COREUOBJECT_API FOpResult MeltImpl(FRunningContext Context);
+
+	// Override this if your cell is a mutable representation and requires deep copying.
+	COREUOBJECT_API FOpResult FreezeImpl(FRunningContext Context);
 
 	// Override this if your cell subtype requires a deep hash.
 	COREUOBJECT_API uint32 GetTypeHashImpl();

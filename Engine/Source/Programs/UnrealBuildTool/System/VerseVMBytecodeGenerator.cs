@@ -787,6 +787,18 @@ namespace UnrealBuildTool
 				.CapturesEffectToken()
 				.Suspends();
 
+			Inst("Freeze")
+				.Arg("Dest", Role.UnifyDef)
+				.Arg("Value", Role.Use)
+				.CapturesEffectToken()
+				.Suspends();
+
+			Inst("Melt")
+				.Arg("Dest", Role.UnifyDef)
+				.Arg("Value", Role.Use)
+				.CapturesEffectToken()
+				.Suspends();
+
 			Inst("Length")
 				.Arg("Dest", Role.UnifyDef)
 				.Arg("Container", Role.Use)

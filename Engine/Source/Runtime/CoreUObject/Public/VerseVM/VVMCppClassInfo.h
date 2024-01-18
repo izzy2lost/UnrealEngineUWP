@@ -7,6 +7,7 @@
 #include "Containers/StringFwd.h"
 #include "HAL/Platform.h"
 #include "Templates/Function.h"
+#include "VerseVM/VVMOpResult.h"
 #include <type_traits>
 
 class FString;
@@ -95,6 +96,12 @@ public:                                                                         
 		[](::Verse::VCell* This) -> uint32 {                                                                                                                                    \
 			return This->StaticCast<CellType>().GetTypeHashImpl();                                                                                                              \
 		},                                                                                                                                                                      \
+		[](::Verse::FRunningContext Context, ::Verse::VCell* This) -> ::Verse::FOpResult {                                                                                      \
+			return This->StaticCast<CellType>().MeltImpl(Context);                                                                                                              \
+		},                                                                                                                                                                      \
+		[](::Verse::FRunningContext Context, ::Verse::VCell* This) -> ::Verse::FOpResult {                                                                                      \
+			return This->StaticCast<CellType>().FreezeImpl(Context);                                                                                                            \
+		},                                                                                                                                                                      \
 		::Verse::Details::GetToStringMethod<CellType>(),                                                                                                                        \
 		::Verse::Details::GetSerializeMethod<CellType>(),                                                                                                                       \
 		::Verse::Details::GetSerializeNewMethod<CellType>(),                                                                                                                    \
@@ -127,6 +134,8 @@ struct VCppClassInfo
 	void (*RunDestructor)(VCell* This);
 	bool (*Equal)(FRunningContext Context, VCell* This, VCell* Other, const TFunction<void(::Verse::VValue, ::Verse::VValue)>& HandlePlaceholder);
 	uint32 (*GetTypeHash)(VCell* This);
+	FOpResult (*Melt)(FRunningContext Context, VCell* This);
+	FOpResult (*Freeze)(FRunningContext Context, VCell* This);
 	void (*ToString)(VCell* This, FStringBuilderBase& Builder, FAllocationContext Context, const FCellFormatter& Formatter);
 	void (*Serialize)(VCell*& This, FAllocationContext Context, FAbstractVisitor& Visitor);
 	VCell& (*SerializeNew)(FAllocationContext Context);

@@ -10,6 +10,7 @@
 #include "VerseVM/Inline/VVMClassInline.h"
 #include "VerseVM/Inline/VVMEqualInline.h"
 #include "VerseVM/Inline/VVMIntInline.h"
+#include "VerseVM/Inline/VVMMapInline.h"
 #include "VerseVM/Inline/VVMMutableArrayInline.h"
 #include "VerseVM/Inline/VVMObjectInline.h"
 #include "VerseVM/Inline/VVMUClassInline.h"
@@ -32,7 +33,6 @@
 #include "VerseVM/VVMLog.h"
 #include "VerseVM/VVMMap.h"
 #include "VerseVM/VVMMutableArray.h"
-#include "VerseVM/VVMMutableMap.h"
 #include "VerseVM/VVMNativeFunction.h"
 #include "VerseVM/VVMOpResult.h"
 #include "VerseVM/VVMOption.h"
@@ -1045,6 +1045,29 @@ class FInterpreter
 		return {FOpResult::Normal};
 	}
 
+	// TODO (SOL-5813) : Optimize melt to start at the value it suspended on rather
+	// than re-doing the entire melt Op again which is what we do currently.
+	template <typename OpType>
+	FOpResult MeltImpl(OpType& Op)
+	{
+		VValue Value = GetOperand(Op.Value);
+		FOpResult Result = VValue::Melt(Context, Value);
+		if (Result.Kind == FOpResult::Normal)
+		{
+			DEF(Op.Dest, Result.Value);
+		}
+		return Result;
+	}
+
+	template <typename OpType>
+	FOpResult FreezeImpl(OpType& Op)
+	{
+		VValue Value = GetOperand(Op.Value);
+		FOpResult Result = VValue::Freeze(Context, Value);
+		DEF(Op.Dest, Result.Value);
+		return Result;
+	}
+
 	template <typename OpType>
 	FOpResult VarGetImpl(OpType& Op)
 	{
@@ -1260,7 +1283,7 @@ class FInterpreter
 		const uint32 NumKeys = Op.Keys.Num();
 		V_DIE_UNLESS(NumKeys == static_cast<uint32>(Op.Values.Num()));
 
-		VMap& NewMap = VMap::New(Context, NumKeys, [this, &Op](uint32 Index) {
+		VMapBase& NewMap = VMapBase::New<VMap>(Context, NumKeys, [this, &Op](uint32 Index) {
 			return TPair<VValue, VValue>(GetOperand(Op.Keys[Index]), GetOperand(Op.Values[Index]));
 		});
 
@@ -1730,6 +1753,9 @@ class FInterpreter
 
 				OP_IMPL(Query)
 
+				OP_IMPL_THREAD_EFFECTS(Melt)
+				OP_IMPL_THREAD_EFFECTS(Freeze)
+
 				OP_IMPL_THREAD_EFFECTS(VarGet)
 				OP_IMPL_THREAD_EFFECTS(VarSet)
 				OP_IMPL_THREAD_EFFECTS(IndexSet)
@@ -2015,6 +2041,9 @@ class FInterpreter
 						OP_IMPL(Gte)
 
 						OP_IMPL(Query)
+
+						OP_IMPL_THREAD_EFFECTS(Melt)
+						OP_IMPL_THREAD_EFFECTS(Freeze)
 
 						OP_IMPL_THREAD_EFFECTS(VarGet)
 						OP_IMPL_THREAD_EFFECTS(VarSet)

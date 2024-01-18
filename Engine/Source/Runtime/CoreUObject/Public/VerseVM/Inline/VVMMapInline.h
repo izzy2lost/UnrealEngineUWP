@@ -2,19 +2,53 @@
 
 #pragma once
 
-#if WITH_VERSE_VM || defined(__INTELLISENSE__)
+#if !(WITH_VERSE_VM || defined(__INTELLISENSE__))
+#error In order to use VerseVM, WITH_VERSE_VM must be set
+#endif
 
+#include "Async/ExternalMutex.h"
+#include "Async/UniqueLock.h"
 #include "VerseVM/Inline/VVMEqualInline.h"
-#include "VerseVM/Inline/VVMValueInline.h"
-#include "VerseVM/VVMMapBase.h"
+#include "VerseVM/VVMMap.h"
+#include "VerseVM/VVMNativeAllocationGuard.h"
+#include "VerseVM/VVMWriteBarrier.h"
 
 namespace Verse
 {
+
+inline void VMapBase::Add(FAllocationContext Context, VValue Key, VValue Value)
+{
+	UE::FExternalMutex ExternalMutex(Mutex);
+	UE::TUniqueLock Lock(ExternalMutex);
+
+	TWriteBarrier<VValue> NewKey(Context, Key);
+	TWriteBarrier<VValue> NewValue(Context, Value);
+
+	TNativeAllocationGuard NativeAllocationGuard(this);
+	InternalMap.Add(NewKey, NewValue);
+}
+
+inline VValue VMapBase::GetKey(const int32 Index)
+{
+	// Only works as long as nothing is removed from map
+	FSetElementId Id = FSetElementId::FromInteger(Index);
+	TWriteBarrier<VValue>& Result = InternalMap.Get(Id).Get<0>();
+	return Result.Follow();
+}
+
+inline VValue VMapBase::GetValue(const int32 Index)
+{
+	// Only works as long as nothing is removed from map
+	FSetElementId Id = FSetElementId::FromInteger(Index);
+	TWriteBarrier<VValue>& Result = InternalMap.Get(Id).Get<1>();
+	return Result.Follow();
+}
 
 template <typename GetEntryByIndex>
 inline VMapBase::VMapBase(FAllocationContext Context, uint32 MaxNumEntries, const GetEntryByIndex& GetEntry, VEmergentType* Type)
 	: VHeapValue(Context, Type)
 {
+	SetIsDeeplyMutable();
 	VMapBaseInternal Map;
 	Map.Reserve(MaxNumEntries);
 
@@ -109,5 +143,44 @@ inline VMapBase::VMapBase(FAllocationContext Context, uint32 MaxNumEntries, cons
 	FHeap::ReportAllocatedNativeBytes(InternalMap.GetAllocatedSize());
 }
 
+template <typename MapType>
+inline void VMapBase::Serialize(MapType*& This, FAllocationContext Context, FAbstractVisitor& Visitor)
+{
+	if (Visitor.IsLoading())
+	{
+		uint64 ScratchNumValues = 0;
+		Visitor.BeginArray(TEXT("Values"), ScratchNumValues);
+		This = &VMapBase::New<MapType>(Context, (uint32)ScratchNumValues).template StaticCast<MapType>();
+		for (uint32 Index = (uint32)ScratchNumValues; Index != 0; --Index)
+		{
+			VValue Key, Value;
+			Visitor.BeginObject();
+			Visitor.Visit(Key, TEXT("Key"));
+			Visitor.Visit(Value, TEXT("Value"));
+			Visitor.EndObject();
+			This->Add(Context, Key, Value);
+		}
+		Visitor.EndArray();
+	}
+	else
+	{
+		uint64 ScratchNumValues = This->Num();
+		Visitor.BeginMap(TEXT("Values"), ScratchNumValues);
+		for (TTuple<VValue, VValue> Kvp : *This)
+		{
+			Visitor.BeginObject();
+			Visitor.Visit(Kvp.Key, TEXT("Key"));
+			Visitor.Visit(Kvp.Value, TEXT("Value"));
+			Visitor.EndObject();
+		}
+		Visitor.EndMap();
+	}
+}
+
+template <typename MapType, typename GetEntryByIndex>
+inline VMapBase& VMapBase::New(FAllocationContext Context, uint32 MaxNumEntries, const GetEntryByIndex& GetEntry)
+{
+	return *new (Context.Allocate(Verse::FHeap::DestructorSpace, sizeof(VMapBase))) VMapBase(Context, MaxNumEntries, GetEntry, &MapType::GlobalTrivialEmergentType.Get(Context));
+}
+
 } // namespace Verse
-#endif // WITH_VERSE_VM

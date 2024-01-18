@@ -6,8 +6,11 @@
 #include "VerseVM/Inline/VVMAbstractVisitorInline.h"
 #include "VerseVM/Inline/VVMArrayBaseInline.h"
 #include "VerseVM/Inline/VVMEqualInline.h"
+#include "VerseVM/Inline/VVMValueInline.h"
 #include "VerseVM/VVMCppClassInfo.h"
 #include "VerseVM/VVMMarkStackVisitor.h"
+#include "VerseVM/VVMMutableArray.h"
+#include "VerseVM/VVMOpResult.h"
 
 namespace Verse
 {
@@ -36,6 +39,21 @@ bool VArrayBase::EqualImpl(FRunningContext Context, VCell* Other, const TFunctio
 	return true;
 }
 
+FOpResult VArrayBase::MeltImpl(FRunningContext Context)
+{
+	VMutableArray& MeltedArray = VMutableArray::New(Context, Num());
+	for (uint32 I = 0; I < Num(); ++I)
+	{
+		FOpResult ValueResult = VValue::Melt(Context, GetValue(I));
+		if (ValueResult.Kind == FOpResult::ShouldSuspend)
+		{
+			return ValueResult;
+		}
+		MeltedArray.AddValue(Context, ValueResult.Value);
+	}
+	return {FOpResult::Normal, VValue(MeltedArray)};
+}
+
 uint32 VArrayBase::GetTypeHashImpl()
 {
 	const TWriteBarrier<VValue>* Ptr = GetData();
@@ -62,7 +80,7 @@ VArrayBase::FConstIterator VArrayBase::begin() const
 
 VArrayBase::FConstIterator VArrayBase::end() const
 {
-	return GetData() + NumValues;
+	return GetData() + Num();
 }
 
 } // namespace Verse

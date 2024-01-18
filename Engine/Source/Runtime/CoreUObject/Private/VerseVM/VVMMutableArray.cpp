@@ -5,8 +5,10 @@
 #include "VerseVM/Inline/VVMAbstractVisitorInline.h"
 #include "VerseVM/Inline/VVMArrayBaseInline.h"
 #include "VerseVM/Inline/VVMCellInline.h"
+#include "VerseVM/Inline/VVMValueInline.h"
 #include "VerseVM/VVMCppClassInfo.h"
 #include "VerseVM/VVMMarkStackVisitor.h"
+#include "VerseVM/VVMOpResult.h"
 
 namespace Verse
 {
@@ -36,6 +38,17 @@ void VMutableArray::SerializeImpl(VMutableArray*& This, FAllocationContext Conte
 		Visitor.Visit(This->GetData(), This->GetData() + This->Num());
 		Visitor.EndArray();
 	}
+}
+
+FOpResult VMutableArray::FreezeImpl(FRunningContext Context)
+{
+	VArray& FrozenArray = VArray::New(Context, Num());
+	for (int I = 0; I < Num(); ++I)
+	{
+		FOpResult ValueResult = VValue::Freeze(Context, GetValue(I));
+		FrozenArray.SetValue(Context, I, ValueResult.Value);
+	}
+	return {FOpResult::Normal, VValue(FrozenArray)};
 }
 
 } // namespace Verse

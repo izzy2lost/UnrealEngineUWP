@@ -3,6 +3,7 @@
 #if WITH_VERSE_VM || defined(__INTELLISENSE__)
 #include "VerseVM/VVMIntrinsics.h"
 #include "VerseVM/Inline/VVMIntInline.h"
+#include "VerseVM/Inline/VVMMapInline.h"
 #include "VerseVM/Inline/VVMValueInline.h"
 #include "VerseVM/VVMCppClassInfo.h"
 #include "VerseVM/VVMFloat.h"
@@ -48,9 +49,9 @@ FNativeCallResult VIntrinsics::ConcatenateMapsImpl(FRunningContext Context, VVal
 	checkSlow(Arguments.Num() == 2); // The interpreter already checks this
 	V_REQUIRE_CONCRETE(Arguments[0]);
 	V_REQUIRE_CONCRETE(Arguments[1]);
-	VMapBase& Lhs = Arguments[0].StaticCast<VMapBase>();
-	VMapBase& Rhs = Arguments[1].StaticCast<VMapBase>();
-	V_RETURN(VMap::New(Context, Lhs.Num() + Rhs.Num(), [&](uint32 I) {
+	VMap& Lhs = Arguments[0].StaticCast<VMap>();
+	VMap& Rhs = Arguments[1].StaticCast<VMap>();
+	V_RETURN(VMapBase::New<VMap>(Context, Lhs.Num() + Rhs.Num(), [&](uint32 I) {
 		if (I < Lhs.Num())
 		{
 			return TPair<VValue, VValue>{Lhs.GetKey(I), Lhs.GetValue(I)};

@@ -14,7 +14,7 @@ namespace Verse
 
 inline bool VArrayBase::IsInBounds(uint32 Index) const
 {
-	return Index < NumValues;
+	return Index < Num();
 }
 
 inline bool VArrayBase::IsInBounds(const VInt& Index, const uint32 Bounds) const
@@ -66,15 +66,15 @@ inline void VArrayBase::VisitReferencesImpl(TVisitor& Visitor)
 	if constexpr (TVisitor::bIsAbstractVisitor)
 	{
 		Visitor.VisitAux(GetData(), TEXT("ValuesBuffer")); // Visit the buffer we allocated for the array as Aux memory
-		uint64 ScratchNumValues = NumValues;
+		uint64 ScratchNumValues = Num();
 		Visitor.BeginArray(TEXT("Values"), ScratchNumValues);
-		Visitor.Visit(GetData(), GetData() + NumValues); // Visit allocated elements in the buffer
+		Visitor.Visit(GetData(), GetData() + Num()); // Visit allocated elements in the buffer
 		Visitor.EndArray();
 	}
 	else
 	{
 		Visitor.VisitAux(GetData(), TEXT("ValuesBuffer")); // Visit the buffer we allocated for the array as Aux memory
-		Visitor.Visit(GetData(), GetData() + NumValues);   // Visit allocated elements in the buffer
+		Visitor.Visit(GetData(), GetData() + Num());       // Visit allocated elements in the buffer
 	}
 }
 

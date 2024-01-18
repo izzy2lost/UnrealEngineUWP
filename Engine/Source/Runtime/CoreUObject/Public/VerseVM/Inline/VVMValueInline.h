@@ -10,6 +10,7 @@
 #include "VerseVM/VVMFalse.h"
 #include "VerseVM/VVMFloat.h"
 #include "VerseVM/VVMInt.h"
+#include "VerseVM/VVMOpResult.h"
 #include "VerseVM/VVMPlaceholder.h"
 #include "VerseVM/VVMRestValue.h"
 #include "VerseVM/VVMUnreachable.h"
@@ -190,5 +191,34 @@ inline uint32 GetTypeHash(VRestValue RestValue)
 {
 	return GetTypeHash(RestValue.Value.Get());
 }
+
+template <typename ContextType>
+inline FOpResult VValue::Melt(ContextType Context, VValue Value)
+{
+	if (Value.IsPlaceholder())
+	{
+		return {FOpResult::ShouldSuspend, Value};
+	}
+	else if (Value.IsCell() && Value.AsCell().IsDeeplyMutable())
+	{
+		return Value.AsCell().Melt(FRunningContext(Context));
+	}
+	return {FOpResult::Normal, Value};
+}
+
+template <typename ContextType>
+inline FOpResult VValue::Freeze(ContextType Context, VValue Value)
+{
+	if (Value.IsPlaceholder())
+	{
+		V_DIE("Freezing does not support non-concrete values!");
+	}
+	else if (Value.IsCell() && Value.AsCell().IsDeeplyMutable())
+	{
+		return Value.AsCell().Freeze(FRunningContext(Context));
+	}
+	return {FOpResult::Normal, Value};
+}
+
 } // namespace Verse
 #endif // WITH_VERSE_VM
