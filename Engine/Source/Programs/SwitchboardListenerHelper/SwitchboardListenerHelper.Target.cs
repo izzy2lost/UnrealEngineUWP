@@ -12,6 +12,7 @@ public class SwitchboardListenerHelperTarget : TargetRules
 		Type = TargetType.Program;
 		LinkType = TargetLinkType.Monolithic;
 		LaunchModuleName = "SwitchboardListenerHelper";
+		SolutionDirectory = "Programs/Switchboard";
 
 		IncludeOrderVersion = EngineIncludeOrderVersion.Latest;
 
