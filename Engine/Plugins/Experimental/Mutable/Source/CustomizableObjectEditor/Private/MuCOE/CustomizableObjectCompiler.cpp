@@ -1018,7 +1018,10 @@ void FCustomizableObjectCompiler::CompileInternal(UCustomizableObject* Object, c
 
 		Object->ImageProperties.Empty(GenerationContext.ImageProperties.Num());
 
-		for (const FGeneratedImageProperties& ImageProp : GenerationContext.ImageProperties)
+		TArray<FGeneratedImageProperties> ImageProperties;
+		GenerationContext.ImageProperties.GenerateValueArray(ImageProperties);
+
+		for (const FGeneratedImageProperties& ImageProp : ImageProperties)
 		{
 			Object->ImageProperties.Add({ ImageProp.TextureParameterName,
 										ImageProp.Filter,

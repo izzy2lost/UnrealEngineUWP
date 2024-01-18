@@ -177,39 +177,9 @@ mu::NodeImagePtr GenerateMutableGroupProjection(const int32 NodeLOD, const int32
 
 			ImageNode->SetMesh(MeshSwitchNode);
 			ImageNode->SetProjector(ProjectorTempData.NodeProjectorParameterPtr);
+			ImageNode->SetImage(ProjectorTempData.NodeImagePtr);
 
-			mu::NodeImagePtr ImageToProject = ProjectorTempData.NodeImagePtr;
-			{
-				// Apply LODBias to the images to project
-				const UCustomizableObjectNodeMaterial* NodeMaterial = TypedNodeMat ? TypedNodeMat : ParentMaterial;
-				const int32 MaxTextureSize = GroupProjectionReferenceTexture ? GroupProjectionReferenceTexture->MaxTextureSize : 0;
-				if (const int32 LODBias = ComputeLODBias(GenerationContext, GroupProjectionReferenceTexture, MaxTextureSize, NodeMaterial, ImageIndex);
-					LODBias > 0)
-				{
-					mu::NodeImageResizePtr ResizeImage = new mu::NodeImageResize();
-					ResizeImage->SetBase(ImageToProject.get());
-					ResizeImage->SetRelative(true);
-					float factor = FMath::Pow(0.5f, LODBias);
-					ResizeImage->SetSize(factor, factor);
-					ImageToProject = ResizeImage;
-				}
-			}
-
-			ImageNode->SetImage(ImageToProject);
-
-			TextureSize = [&]
-			{
-				if (const int32 Size = ProjectorTempData.CustomizableObjectNodeGroupProjectorParameter->ProjectionTextureSize;
-					Size <= 0 || !FMath::IsPowerOfTwo(Size))
-				{
-					// \todo: closest power of 2 bigger than the set value?
-					return 512;
-				}
-				else
-				{
-					return Size;
-				}
-			}();
+			TextureSize = ProjectorTempData.TextureSize;
 			ImageNode->SetImageSize( FUintVector2(TextureSize, TextureSize) );
 
 			ImageNodes.Add(ImageNode);
@@ -224,11 +194,6 @@ mu::NodeImagePtr GenerateMutableGroupProjection(const int32 NodeLOD, const int32
 	
 	mu::NodeColourConstantPtr ZeroColorNode = new mu::NodeColourConstant();
 	ZeroColorNode->SetValue(FVector4f(0.f, 0.f, 0.f, 1.0f));
-
-	if (TextureSize <= 0 || !FMath::IsPowerOfTwo(TextureSize))
-	{
-		TextureSize = 512;
-	}
 
 	mu::NodeImagePlainColourPtr ZeroPlainColourNode = new mu::NodeImagePlainColour;
 	ZeroPlainColourNode->SetSize(TextureSize, TextureSize);
@@ -488,30 +453,36 @@ bool GenerateMutableSourceGroupProjector(const UEdGraphPin* Pin, FMutableGraphGe
 			SwitchNode->SetParameter(EnumParameterNode);
 			SwitchNode->SetOptionCount(ArrayOptionImage.Num());
 
-			bool bFoundUnlinkedPin = false; 
-
-			for (int SelectorIndex = 0; SelectorIndex < ArrayOptionImage.Num(); ++SelectorIndex)
+			const uint32 AdditionalLODBias = GenerationContext.Options.bUseLODAsBias ? GenerationContext.FirstLODAvailable : 0;
+			for (int32 SelectorIndex = 0; SelectorIndex < ArrayOptionImage.Num(); ++SelectorIndex)
 			{
-				if (ArrayOptionImage[SelectorIndex].OptionImage)
+				if (const TObjectPtr<UTexture2D>& Texture = ArrayOptionImage[SelectorIndex].OptionImage)
 				{
 					mu::Ptr<mu::Image> ImageConstant = GenerateImageConstant(ArrayOptionImage[SelectorIndex].OptionImage, GenerationContext, false);
 
 					mu::NodeImageConstantPtr ImageNode = new mu::NodeImageConstant();
 					ImageNode->SetValue(ImageConstant.get());
 
-					SwitchNode->SetOption(SelectorIndex, ImageNode);
+					const uint32 MipsToSkip = ComputeLODBiasForTexture(GenerationContext, Texture, ProjParamNode->ReferenceTexture) + AdditionalLODBias;
+					SwitchNode->SetOption(SelectorIndex, ResizeTextureByNumMips(ImageNode, MipsToSkip));
 				}
 				else
 				{
-					bFoundUnlinkedPin = true;
+					FString msg = FString::Printf(TEXT("The group projection node must have a texture for all the options. Please set a texture for all the options."));
+					GenerationContext.Compiler->CompilerLog(FText::FromString(msg), ProjParamNode);
 				}
 			}
 
-			if (bFoundUnlinkedPin)
+			int32 TextureSize = ProjParamNode->ProjectionTextureSize > 0 ? ProjParamNode->ProjectionTextureSize : 512;
+
+			// If TextureSize is not power of two, round up to the next power of two 
+			if (!FMath::IsPowerOfTwo(TextureSize))
 			{
-				FString msg = FString::Printf(TEXT("The group projection node must have a texture for all the options. Please set a texture for all the options."));
-				GenerationContext.Compiler->CompilerLog(FText::FromString(msg), ProjParamNode);
+				TextureSize = FMath::RoundUpToPowerOfTwo(TextureSize);
 			}
+
+			// Apply additional LODBias if necessary
+			GroupProjectorTempData.TextureSize = FMath::Max(TextureSize >> AdditionalLODBias, 1);
 
 			GroupProjectorTempData.NodeImagePtr = SwitchNode;
 

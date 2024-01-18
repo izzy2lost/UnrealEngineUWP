@@ -29,6 +29,7 @@ class UCustomizableObjectNodeTable;
 struct FCustomizableObjectClothingAssetData;
 
 class FCustomizableObjectCompiler;
+class UTextureLODSettings;
 class UAnimInstance;
 class UCompositeDataTable;
 class UCustomizableObjectNodeMaterial;
@@ -69,6 +70,9 @@ struct FGeneratedImageProperties
 	TEnumAsByte<TextureAddress> AddressY = TA_Clamp;
 
 	bool bIsPassThrough = false;
+
+	// ReferenceTexture source size.
+	int32 TextureSize = 0;
 };
 
 
@@ -159,6 +163,25 @@ struct FGeneratedImageKey
 	const UEdGraphPin* Pin;
 };
 
+
+struct FGeneratedImagePropertiesKey
+{
+	FGeneratedImagePropertiesKey(const UCustomizableObjectNodeMaterial* InMaterial, uint32 InImageIndex)
+	{
+		MaterialReferenceId = (PTRINT)InMaterial;
+		ImageIndex = InImageIndex;
+	}
+
+	bool operator==(const FGeneratedImagePropertiesKey& Other) const
+	{
+		return MaterialReferenceId == Other.MaterialReferenceId && ImageIndex == Other.ImageIndex;
+	}
+
+
+	PTRINT MaterialReferenceId = 0;
+	uint32 ImageIndex = 0;
+};
+
 /** Structure used to store the results of the recursive GenerateMutableSourceSurface calls. */
 struct FMutableGraphSurfaceGenerationData
 {
@@ -238,6 +261,13 @@ inline uint32 GetTypeHash(const FGeneratedImageKey& Key)
 }
 
 
+inline uint32 GetTypeHash(const FGeneratedImagePropertiesKey& Key)
+{
+	uint32 GuidHash = HashCombineFast(GetTypeHash(Key.MaterialReferenceId), Key.ImageIndex);
+
+	return GuidHash;
+}
+
 struct FPoseBoneData
 {
 	TArray<FName> ArrayBoneName;
@@ -257,6 +287,8 @@ struct FGroupProjectorTempData
 	TArray<FPoseBoneData> PoseBoneDataArray;
 
 	bool bAlternateResStateNameWarningDisplayed = false; // Used to display this warning only once
+
+	int32 TextureSize = 512;
 };
 
 
@@ -643,7 +675,7 @@ struct FMutableGraphGenerationContext
 	
 	TArray<UMaterialInterface*> ReferencedMaterials;
 	TArray<FName> ReferencedMaterialSlotNames;
-	TArray<FGeneratedImageProperties> ImageProperties;
+	TMap<FGeneratedImagePropertiesKey, FGeneratedImageProperties> ImageProperties;
 	TMap<FString, TArray<const UObject*>> ParameterNamesMap;
 	TArray<const UCustomizableObjectNode*> NoNameNodeObjectArray;
 	TMap<FString, FCustomizableObjectIdPair> GroupNodeMap;
@@ -697,7 +729,6 @@ struct FMutableGraphGenerationContext
 	int32 NumLODsInRoot = 0;
 	int32 CurrentMeshComponent = 0;
 	int32 NumMeshComponentsInRoot = 0;
-	int32 CurrentTextureLODBias = 0;
 
 	int32 FirstLODAvailable = MAX_MESH_LOD_COUNT;
 	int32 NumMaxLODsToStream = MAX_MESH_LOD_COUNT;
@@ -833,15 +864,17 @@ FString GenerateAnimationInstanceTag(const FString& AnimInstance, const FName& S
 
 FString GenerateGameplayTag(const FString& GameplayTag);
 
-FString GenerateAssetUserDataTag(const FString& AssetUserData);
+uint32 GetBaseTextureSize(const FMutableGraphGenerationContext& GenerationContext, const UCustomizableObjectNodeMaterial* Material, uint32 ImageIndex);
 
 // Computes the LOD bias for a texture given the current mesh LOD and automatic LOD settings, the reference texture settings
 // and whether it's being built for a server or not
-int32 ComputeLODBias(const FMutableGraphGenerationContext& GenerationContext, const UTexture2D* ReferenceTexture, int32 MaxTextureSize,
-	const UCustomizableObjectNodeMaterial* MaterialNode, const int32 ImageIndex);
+uint32 ComputeLODBiasForTexture(const FMutableGraphGenerationContext& GenerationContext, const UTexture2D* Texture,const UTexture2D* ReferenceTexture = nullptr, int32 MaxTextureSizeInGame = 0);
 
+// Max texture size to set on the ImageProperties
+int32 GetMaxTextureSize(const UTexture2D& ReferenceTexture, const UTextureLODSettings& LODSettings);
 
-int32 GetMaxTextureSize(const UTexture2D* ReferenceTexture, const FMutableGraphGenerationContext& GenerationContext);
+// Max texture size of the texture with per platform MaxTextureSize and LODBias applied.
+int32 GetTextureSizeInGame(const UTexture2D& Texture, const UTextureLODSettings& LODSettings, int32 SurfaceLODBias = 0);
 
 mu::Ptr<mu::Image> GenerateImageConstant( UTexture*, FMutableGraphGenerationContext&, bool bIsReference);
 

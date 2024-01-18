@@ -1626,75 +1626,121 @@ void PopulateReferenceSkeletalMeshesData(FMutableGraphGenerationContext& Generat
 }
 
 
-int32 ComputeLODBias(const FMutableGraphGenerationContext& GenerationContext, const UTexture2D* ReferenceTexture, int32 MaxTextureSize,
-	const UCustomizableObjectNodeMaterial* MaterialNode, const int32 ImageIndex)
+uint32 GetBaseTextureSize(const FMutableGraphGenerationContext& GenerationContext, const UCustomizableObjectNodeMaterial* Material, uint32 ImageIndex)
+{
+	const FGeneratedImageProperties* ImageProperties = GenerationContext.ImageProperties.Find({ Material, ImageIndex });
+	return ImageProperties ? ImageProperties->TextureSize : 0;
+}
+
+
+// Find the LODBias to apply to stay within the MaxTextureSize limit of the TargetPlatform
+int32 GetPlatformLODBias(int32 TextureSize, int32 NumMips, int32 MaxPlatformSize)
+{
+	if (MaxPlatformSize > 0 && MaxPlatformSize < TextureSize)
+	{
+		const int32 MaxMipsAllowed = FMath::CeilLogTwo(MaxPlatformSize) + 1;
+		return NumMips - MaxMipsAllowed;
+	}
+
+	return 0;
+}
+
+
+uint32 ComputeLODBiasForTexture(const FMutableGraphGenerationContext& GenerationContext, const UTexture2D* Texture, const UTexture2D* ReferenceTexture, int32 BaseTextureSize)
 {
 	constexpr int32 MaxAllowedLODBias = 6;
 
+	// Force a large LODBias for debug
 	if (GenerationContext.Options.bForceLargeLODBias)
 	{
 		return FMath::Min(GenerationContext.Options.DebugBias, MaxAllowedLODBias);
 	}
-	
-	int32 LODBias = 0;
 
-	// This is not 100% correct because it makes assumptions about the final texture size
-	// that may not be correct, but if the reference texture is really representative of the average 
-	// case, then it is as good as we can do.
-	if (ReferenceTexture)
+	// Max size and number of mips from Texture. 
+	const int32 SourceSize = (int32)FMath::Max3(Texture->Source.GetSizeX(),Texture->Source.GetSizeY(),(int64)1);
+	const int32 NumMipsSource = FMath::CeilLogTwo(SourceSize) + 1;
+
+	// When the BaseTextureSize is known, skip mips until the texture is equal or smaller.
+	if (BaseTextureSize > 0)
 	{
-		const UTextureLODSettings& LODSettings = GenerationContext.Options.TargetPlatform->GetTextureLODSettings();
-
-		LODBias = LODSettings.CalculateLODBias(ReferenceTexture->Source.GetSizeX(), ReferenceTexture->Source.GetSizeY(), MaxTextureSize,
-			ReferenceTexture->LODGroup, ReferenceTexture->LODBias, false, ReferenceTexture->MipGenSettings, ReferenceTexture->IsCurrentlyVirtualTextured());
-	}
-
-	// Increment the LOD bias per each LOD if we are using automatic LODs
-	if (GenerationContext.CurrentLOD > 0 &&
-		GenerationContext.CurrentAutoLODStrategy == ECustomizableObjectAutomaticLODStrategy::AutomaticFromMesh &&
-		GenerationContext.Options.bUseLODAsBias)
-	{
-		// Only if the texture actually uses a layout. Otherwise it could be a special texture we shouldn't scale.
-		if (MaterialNode && MaterialNode->GetImageUVLayout(ImageIndex) >= 0)
+		if (BaseTextureSize < SourceSize)
 		{
-			// \todo: make it an object property to be tweaked
-			int MipsToSkipPerLOD = 1;
-			LODBias += MipsToSkipPerLOD * GenerationContext.CurrentLOD;
+			const int32 MaxNumMipsInGame = FMath::CeilLogTwo(BaseTextureSize) + 1;
+			return FMath::Max(NumMipsSource - MaxNumMipsInGame, 0);
 		}
+
+		return 0;
 	}
+
+	const UTextureLODSettings& LODSettings = GenerationContext.Options.TargetPlatform->GetTextureLODSettings();
+
+	// Get the MaxTextureSize for the TargetPlatform.
+	const int32 MaxTextureSize = GetMaxTextureSize(ReferenceTexture ? *ReferenceTexture : *Texture, LODSettings);
 
 	if (ReferenceTexture)
 	{
-		UE_LOG(LogMutable, Verbose, TEXT("Compiling texture with reference [%s] will have LOD Bias %d."), *ReferenceTexture->GetName(), LODBias);
-	}
-	else
-	{
-		UE_LOG(LogMutable, Verbose, TEXT("Compiling texture without reference will have LOD Bias %d."), LODBias);
+		// Max size and number of mips from ReferenceTexture. 
+		const int32 MaxRefSourceSize = (uint32)FMath::Max3(ReferenceTexture->Source.GetSizeX(), ReferenceTexture->Source.GetSizeY(), (int64)1);
+		const int32 NumMipsRefSource = FMath::CeilLogTwo(MaxRefSourceSize) + 1;
+
+		// Find the LODBias to apply to stay within the MaxTextureSize limit of the TargetPlatform
+		const int32 PlatformLODBias = GetPlatformLODBias(MaxRefSourceSize, NumMipsRefSource, MaxTextureSize);
+
+		// TextureSize in-game without any additional LOD bias.
+		const int64 ReferenceTextureSize = MaxRefSourceSize >> PlatformLODBias;
+
+		// Additional LODBias of the Texture
+		const int32 ReferenceTextureLODBias = LODSettings.CalculateLODBias(ReferenceTextureSize, ReferenceTextureSize, 0,	ReferenceTexture->LODGroup,
+			ReferenceTexture->LODBias, 0, ReferenceTexture->MipGenSettings, ReferenceTexture->IsCurrentlyVirtualTextured());
+
+		return FMath::Max(NumMipsSource - NumMipsRefSource + PlatformLODBias + ReferenceTextureLODBias, 0);
 	}
 
-	return FMath::Min(LODBias, MaxAllowedLODBias);
+	// Find the LODBias to apply to stay within the MaxTextureSize limit of the TargetPlatform
+	const int32 PlatformLODBias = GetPlatformLODBias(SourceSize, NumMipsSource, MaxTextureSize);
+
+	// TextureSize in-game without any additional LOD bias.
+	const int64 TextureSize = SourceSize >> PlatformLODBias;
+
+	// Additional LODBias of the Texture
+	const int32 TextureLODBias = LODSettings.CalculateLODBias(TextureSize, TextureSize, 0, Texture->LODGroup, Texture->LODBias, 0, Texture->MipGenSettings, Texture->IsCurrentlyVirtualTextured());
+
+	return FMath::Max(PlatformLODBias + TextureLODBias, 0);
 }
 
 
-int32 GetMaxTextureSize(const UTexture2D* ReferenceTexture, const FMutableGraphGenerationContext& GenerationContext)
+int32 GetMaxTextureSize(const UTexture2D& ReferenceTexture, const UTextureLODSettings& LODSettings)
 {
-	if (ReferenceTexture)
-	{
-		// Setting the maximum texture size
-		const UTextureLODSettings& LODSettings = GenerationContext.Options.TargetPlatform->GetTextureLODSettings();
-		FTextureLODGroup TextureGroupSettings = LODSettings.GetTextureLODGroup(ReferenceTexture->LODGroup);
+	// Setting the maximum texture size
+	FTextureLODGroup TextureGroupSettings = LODSettings.GetTextureLODGroup(ReferenceTexture.LODGroup);
 
-		if (TextureGroupSettings.MaxLODSize > 0)
-		{
-			return ReferenceTexture->MaxTextureSize == 0 ? TextureGroupSettings.MaxLODSize : FMath::Min(TextureGroupSettings.MaxLODSize, ReferenceTexture->MaxTextureSize);
-		}
-		else
-		{
-			return ReferenceTexture->MaxTextureSize;
-		}
+	if (TextureGroupSettings.MaxLODSize > 0)
+	{
+		return ReferenceTexture.MaxTextureSize == 0 ? TextureGroupSettings.MaxLODSize : FMath::Min(TextureGroupSettings.MaxLODSize, ReferenceTexture.MaxTextureSize);
 	}
 
-	return 0;
+	return ReferenceTexture.MaxTextureSize;
+}
+
+
+int32 GetTextureSizeInGame(const UTexture2D& Texture, const UTextureLODSettings& LODSettings, int32 SurfaceLODBias)
+{
+	const int32 SourceSize = (uint32)FMath::Max3(Texture.Source.GetSizeX(), Texture.Source.GetSizeY(), (int64)1);
+	const int32 NumMipsSource = FMath::CeilLogTwo(SourceSize) + 1;
+
+	// Max size allowed on the TargetPlatform
+	const int32 MaxTextureSize = GetMaxTextureSize(Texture, LODSettings);
+
+	// Find the LODBias to apply to stay within the MaxTextureSize limit of the TargetPlatform
+	const int32 PlatformLODBias = GetPlatformLODBias(SourceSize, NumMipsSource, MaxTextureSize);
+	
+	// MaxTextureSize in-game without any additional LOD bias.
+	const int32 MaxTextureSizeAllowed = SourceSize >> PlatformLODBias;
+
+	// Calculate the LODBias specific for this texture 
+	const int32 TextureLODBias = LODSettings.CalculateLODBias(MaxTextureSizeAllowed, MaxTextureSizeAllowed, 0, Texture.LODGroup, Texture.LODBias, 0, Texture.MipGenSettings, Texture.IsCurrentlyVirtualTextured());
+
+	return MaxTextureSizeAllowed >> (TextureLODBias + SurfaceLODBias);
 }
 
 

@@ -454,9 +454,10 @@ mu::NodeSurfacePtr GenerateMutableSourceSurface(const UEdGraphPin * Pin, FMutabl
 
 					// We don't need a reference texture or props here, but we do need the parameter name.
 					FGeneratedImageProperties Props;
+					FGeneratedImagePropertiesKey PropsKey(TypedNodeMat,(uint32)ImageIndex);
 					Props.TextureParameterName = ImageName;
 					Props.bIsPassThrough = true;
-					GenerationContext.ImageProperties.Add(Props);
+					GenerationContext.ImageProperties.Add(PropsKey, Props);
 					SurfaceData.ImageProperties = Props;
 				}
 			}
@@ -520,6 +521,7 @@ mu::NodeSurfacePtr GenerateMutableSourceSurface(const UEdGraphPin * Pin, FMutabl
 						}
 
 						FGeneratedImageProperties Props;
+						FGeneratedImagePropertiesKey PropsKey(TypedNodeMat, ImageIndex);
 						if (ReferenceTexture)
 						{
 							GenerationContext.AddParticipatingObject(*ReferenceTexture);
@@ -531,11 +533,19 @@ mu::NodeSurfacePtr GenerateMutableSourceSurface(const UEdGraphPin * Pin, FMutabl
 							Props.SRGB = ReferenceTexture->SRGB;
 							Props.LODBias = 0;
 							Props.MipGenSettings = ReferenceTexture->MipGenSettings;
-							Props.MaxTextureSize = GetMaxTextureSize(ReferenceTexture, GenerationContext);
 							Props.LODGroup = ReferenceTexture->LODGroup;
 							Props.AddressX = ReferenceTexture->AddressX;
 							Props.AddressY = ReferenceTexture->AddressY;
 							Props.bFlipGreenChannel = ReferenceTexture->bFlipGreenChannel;
+
+
+							// MaxTextureSize setting. Based on the ReferenceTexture and Platform settings.
+							const UTextureLODSettings& TextureLODSettings = GenerationContext.Options.TargetPlatform->GetTextureLODSettings();
+							Props.MaxTextureSize = GetMaxTextureSize(*ReferenceTexture, TextureLODSettings);
+							
+							// ReferenceTexture source size. Textures contributing to this Image should be equal to or smaller than TextureSize. 
+							// The LOD Bias applied to the root node will be applied on top of it.
+							Props.TextureSize = (int32)FMath::Max3(ReferenceTexture->Source.GetSizeX(), ReferenceTexture->Source.GetSizeY(), 1LL);
 
 							// TODO: MTBL-1081
 							// TextureGroup::TEXTUREGROUP_UI does not support streaming. If we generate a texture that requires streaming and set this group, it will crash when initializing the resource. 
@@ -556,13 +566,8 @@ mu::NodeSurfacePtr GenerateMutableSourceSurface(const UEdGraphPin * Pin, FMutabl
 							GenerationContext.Compiler->CompilerLog(FText::FromString(msg), Node);
 						}
 
-						GenerationContext.ImageProperties.Add(Props);
+						GenerationContext.ImageProperties.Add(PropsKey, Props);
 						SurfaceData.ImageProperties = Props;
-
-						// Calculate the LODBias for this texture
-						int32 LODBias = ComputeLODBias(GenerationContext, ReferenceTexture, ReferenceTexture ? ReferenceTexture->MaxTextureSize : 0, TypedNodeMat, ImageIndex);
-
-						GenerationContext.CurrentTextureLODBias = LODBias;
 
 						// Generate the texture nodes
 						mu::NodeImagePtr ImageNode = [&]()
@@ -573,7 +578,7 @@ mu::NodeSurfacePtr GenerateMutableSourceSurface(const UEdGraphPin * Pin, FMutabl
 								{
 									if (const UEdGraphPin* ConnectedPin = FollowInputPin(*ImagePin))
 									{
-										return GenerateMutableSourceImage(ConnectedPin, GenerationContext, Props.MaxTextureSize);
+										return GenerateMutableSourceImage(ConnectedPin, GenerationContext, Props.TextureSize);
 									}
 								}
 
@@ -581,7 +586,7 @@ mu::NodeSurfacePtr GenerateMutableSourceSurface(const UEdGraphPin * Pin, FMutabl
 								{
 									if (const UEdGraphPin* ConnectedPin = FollowInputPin(*TypedNodeMat->GetMaterialAssetPin()))
 									{
-										return GenerateMutableSourceImage(ConnectedPin, GenerationContext, Props.MaxTextureSize);
+										return GenerateMutableSourceImage(ConnectedPin, GenerationContext, Props.TextureSize);
 									}
 								}
 
@@ -593,7 +598,8 @@ mu::NodeSurfacePtr GenerateMutableSourceSurface(const UEdGraphPin * Pin, FMutabl
 									mu::Ptr<mu::Image> ImageConstant = GenerateImageConstant(Texture2D, GenerationContext, false);
 									ConstImageNode->SetValue(ImageConstant.get());
 
-									return ResizeToMaxTextureSize(Props.MaxTextureSize, Texture2D, ConstImageNode);
+									const uint32 MipsToSkip = ComputeLODBiasForTexture(GenerationContext, Texture2D, nullptr, Props.TextureSize);
+									return ResizeTextureByNumMips(ConstImageNode, MipsToSkip);
 								}
 							}
 							else
@@ -607,23 +613,12 @@ mu::NodeSurfacePtr GenerateMutableSourceSurface(const UEdGraphPin * Pin, FMutabl
 							ImageNode = GroupProjectionImg;
 						}
 
-						if (GenerationContext.Options.TargetPlatform && ReferenceTexture)
+						if (ReferenceTexture)
 						{
-							int LayerIndex = 0;
-
-							mu::NodeImagePtr LastImage = ImageNode;
-
-							// To apply LOD bias						
-							if (LODBias > 0)
-							{
-								mu::NodeImageResizePtr ResizeImage = new mu::NodeImageResize();
-								ResizeImage->SetBase(LastImage.get());
-								ResizeImage->SetRelative(true);
-								float factor = FMath::Pow(0.5f, LODBias);
-								ResizeImage->SetSize(factor, factor);
-								ResizeImage->SetMessageContext(Node);
-								LastImage = ResizeImage;
-							}
+							// Apply base LODBias. It will be propagated to most images.
+							const uint32 FirstLODAvailable = GenerationContext.Options.bUseLODAsBias ? GenerationContext.FirstLODAvailable : 0;
+							const uint32 BaseLODBias = ComputeLODBiasForTexture(GenerationContext, ReferenceTexture) + FirstLODAvailable;
+							mu::NodeImagePtr LastImage = ResizeTextureByNumMips(ImageNode, BaseLODBias);
 
 							mu::NodeImageMipmapPtr MipmapImage = new mu::NodeImageMipmap();
 							MipmapImage->SetSource(LastImage.get());
@@ -666,7 +661,8 @@ mu::NodeSurfacePtr GenerateMutableSourceSurface(const UEdGraphPin * Pin, FMutabl
 									CompositeNormalImage->SetValue(ImageConstant.get());
 
 									mu::NodeImageMipmapPtr NormalCompositeMipmapImage = new mu::NodeImageMipmap();
-									NormalCompositeMipmapImage->SetSource(CompositeNormalImage);
+									const uint32 MipsToSkip = ComputeLODBiasForTexture(GenerationContext, ReferenceCompositeNormalTexture, ReferenceTexture);
+									NormalCompositeMipmapImage->SetSource(ResizeTextureByNumMips(CompositeNormalImage, MipsToSkip));
 									NormalCompositeMipmapImage->SetMipmapGenerationSettings(mu::EMipmapFilterType::MFT_SimpleAverage, mu::EAddressMode::None, 1.0f, true);
 
 									CompositedImage->SetNormal(NormalCompositeMipmapImage);
@@ -1154,25 +1150,12 @@ mu::NodeSurfacePtr GenerateMutableSourceSurface(const UEdGraphPin * Pin, FMutabl
 					{
 						check(ParentMaterialNode->IsImageMutableMode(ImageIndex)); // Ensured at graph time. If it fails, something is wrong.
 						
-						float MaxTextureSize = 0.f;
-
-						// The static_cast is correct because we now it's a material node due to the ParentMaterialNodeCast
-						if (const mu::NodeSurfaceNewPtr ParentNode2 = static_cast<mu::NodeSurfaceNew*>(ParentNode.get()))
-						{
-							FString Aux(ParentNode2->GetImageName(ImageIndex));
-
-							if (!Aux.IsEmpty())
-							{
-								check(Aux.IsNumeric());
-								const int32 ImagePropertiesIndex = FCString::Atoi(*Aux);
-								check(GenerationContext.ImageProperties.IsValidIndex(ImagePropertiesIndex));
-								MaxTextureSize = GenerationContext.ImageProperties[ImagePropertiesIndex].MaxTextureSize;
-							}
-						}
-
 						if (const UEdGraphPin* ConnectedPin = FollowInputPin(*TypedNodeExt->GetUsedImagePin(ImageId)))
 						{
-							ImageNode = GenerateMutableSourceImage(ConnectedPin, GenerationContext, DummySurfaceData.ImageProperties.MaxTextureSize);
+							// ReferenceTextureSize is used to limit the size of textures contributing to the final image.
+							const int32 ReferenceTextureSize = GetBaseTextureSize(GenerationContext, ParentMaterialNode, ImageIndex);
+
+							ImageNode = GenerateMutableSourceImage(ConnectedPin, GenerationContext, ReferenceTextureSize);
 						}
 					}
 				}
@@ -1350,19 +1333,10 @@ mu::NodeSurfacePtr GenerateMutableSourceSurface(const UEdGraphPin * Pin, FMutabl
 					ImagePatchNode->SetBlendType(mu::EBlendType::BT_BLEND);
 					ImagePatchNode->SetApplyToAlphaChannel(true);
 
-					// Calculate the LODBias for this texture
-					UTexture2D* ReferenceTexture = ParentMaterialNode->GetImageReferenceTexture(ImageIndex);
+					// ReferenceTextureSize is used to limit the size of textures contributing to the final image.
+					const int32 ReferenceTextureSize = GetBaseTextureSize(GenerationContext, ParentMaterialNode, ImageIndex);
 
-					if (ReferenceTexture)
-					{
-						GenerationContext.AddParticipatingObject(*ReferenceTexture);
-					}
-					
-					int32 LODBias = ComputeLODBias(GenerationContext, ReferenceTexture, ReferenceTexture ? ReferenceTexture->MaxTextureSize : 0, ParentMaterialNode, ImageIndex);
-
-					GenerationContext.CurrentTextureLODBias = LODBias;
-
-					mu::NodeImagePtr ImageNode = GenerateMutableSourceImage(ConnectedImagePin, GenerationContext, 0.f);
+					mu::NodeImagePtr ImageNode = GenerateMutableSourceImage(ConnectedImagePin, GenerationContext, ReferenceTextureSize);
 					ImagePatchNode->SetImage(ImageNode);
 
 					const UEdGraphPin* ImageMaskPin = TypedNodeEdit->GetUsedImageMaskPin(ImageId);
@@ -1370,7 +1344,7 @@ mu::NodeSurfacePtr GenerateMutableSourceSurface(const UEdGraphPin * Pin, FMutabl
 					
 					if (const UEdGraphPin* ConnectedMaskPin = FollowInputPin(*ImageMaskPin))
 					{
-						mu::NodeImagePtr MaskNode = GenerateMutableSourceImage(ConnectedMaskPin, GenerationContext, 0.f);
+						mu::NodeImagePtr MaskNode = GenerateMutableSourceImage(ConnectedMaskPin, GenerationContext, ReferenceTextureSize);
 						ImagePatchNode->SetMask(MaskNode);
 					}
 
