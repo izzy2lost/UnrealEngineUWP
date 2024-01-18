@@ -361,7 +361,7 @@ void UDisplayClusterGameEngine::Tick(float DeltaSeconds, bool bIdleMode)
 
 		// Perform UGameEngine::Tick() calls for scene actors
 		UE_LOG(LogDisplayClusterEngine, Verbose, TEXT("Perform UGameEngine::Tick()"));
-		Super::Tick(DeltaSeconds, bIdleMode);
+		Super::Tick(DeltaSeconds, bIdleMode || bForcedTickIdleMode);
 
 		// Perform PostTick for DisplayCluster module
 		UE_LOG(LogDisplayClusterEngine, Verbose, TEXT("Perform PostTick()"));
@@ -520,6 +520,19 @@ EBrowseReturnVal::Type UDisplayClusterGameEngine::BrowseLoadMap(FWorldContext& W
 			WorldContext.PendingNetGame = NewObject<UPendingNetGame>();
 			WorldContext.PendingNetGame->Initialize(URL); //-V595
 			WorldContext.PendingNetGame->InitNetDriver(); //-V595
+
+			UNetDriver* PendingNetDriver = WorldContext.PendingNetGame->GetNetDriver();
+
+			if (IsDisplayCluster && PendingNetDriver)
+			{
+				const bool bIsDisplayClusterNetDriver = PendingNetDriver->GetClass()->GetName().Equals(TEXT("DisplayClusterNetDriver"));
+				
+				if (bIsDisplayClusterNetDriver)
+				{
+					// Force tick idle mode for multiplayer connections
+					bForcedTickIdleMode = true;
+				}
+			}
 
 			if (!WorldContext.PendingNetGame)
 			{

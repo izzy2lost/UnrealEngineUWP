@@ -4615,7 +4615,7 @@ int32 UNetDriver::ServerReplicateActors_PrepConnections( const float DeltaSecond
 
 	// by default only throttle update for listen servers unless specified on the commandline
 	static bool bForceClientTickingThrottle = FParse::Param( FCommandLine::Get(), TEXT( "limitclientticks" ) );
-	if ( bForceClientTickingThrottle || GetNetMode() == NM_ListenServer )
+	if ( (bForceClientTickingThrottle || GetNetMode() == NM_ListenServer) && bTickingThrottleEnabled )
 	{
 		// determine how many clients to tick this frame based on GEngine->NetTickRate (always tick at least one client), double for lan play
 		// FIXME: DeltaTimeOverflow is a static, and will conflict with other running net drivers, we investigate storing it on the driver itself!

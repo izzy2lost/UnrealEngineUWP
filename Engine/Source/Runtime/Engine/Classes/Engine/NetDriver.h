@@ -2148,6 +2148,8 @@ protected:
 	/** Creates a trace event that updates the name and properties of the associated Game Instance */
 	void NotifyGameInstanceUpdated();
 
+	/** Indicates whether ticking throttle is enabled for this instance of NetDriver */
+	bool bTickingThrottleEnabled = true;
 private:
 	// Only for ForwardRemoteFunction
 	friend FObjectReplicator;

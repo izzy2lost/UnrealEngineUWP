@@ -43,6 +43,14 @@ public:
 		return OperationMode;
 	}
 
+	/** Resets forced idle mode flag
+	 * Used by DisplayClusterNetDriver when all nodes are connected
+	 */
+	void ResetForcedIdleMode()
+	{
+		bForcedTickIdleMode = false;
+	}
+
 protected:
 	virtual void UpdateTimeAndHandleMaxTickRate() override;
 
@@ -80,4 +88,10 @@ private:
 	EDisplayClusterRunningMode   RunningMode = EDisplayClusterRunningMode::Startup;
 
 	TMap<FString, TSet<FString>> SyncMap;
+
+	// Flag used to force nodes to skip frame rendering
+	// This is needed when multiplayer connections being established in the cluster,
+	// system have to wait for all nodes to be connected before proceeding with rendering otherwise cluster will deadlock itself between GT/RT barriers
+	// Enforced automatically into true on BrowseLoadMap for multiplayer connections
+	bool bForcedTickIdleMode = false;
 };
