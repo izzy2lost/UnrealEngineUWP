@@ -1188,39 +1188,19 @@ void FPythonScriptPlugin::RunPipInstaller()
 	const FString ParsedReqsFile = FPaths::ConvertRelativePathToFull(FPipInstall::GetPipInstallPath() / FPipInstall::ParsedRequirementsFilename);
 
 	TArray<FString> ParsedReqLines;
-	if (!FPaths::FileExists(ParsedReqsFile) || !FFileHelper::LoadFileToStringArray(ParsedReqLines, *ParsedReqsFile) || !FPipInstall::HasInstallLines(ParsedReqLines))
+	if (!FPaths::FileExists(ParsedReqsFile) || !FFileHelper::LoadFileToStringArray(ParsedReqLines, *ParsedReqsFile) || (FPipInstall::CountInstallLines(ParsedReqLines) == 0))
 	{
 		return;
 	}
 
 	FFeedbackContext* Context = GWarn;
-	FScopedSlowTask PipInstallTask(0, LOCTEXT("PipInstall.RunInstall", "Installing Python Dependencies..."), true, *Context);
-	//PipInstallTask.MakeDialog(true);
 
 	// Run install of all python dependencies for enabled plugins
-	if (!RunUBTPipAction("InstallNoRegen", LOCTEXT("PipInstall.UBTInstall", "Pip Installing Plugin Dependencies..."), Context))
+	if (!FPipInstall::RunPipInstall(Context))
 	{
 		UE_LOG(LogPython, Warning, TEXT("Unable to install plugin python dependencies"));
 		return;
 	}
-}
-
-bool FPythonScriptPlugin::RunUBTPipAction(const FString& Action, const FText& Description, FFeedbackContext* Context)
-{
-	TRACE_CPUPROFILER_EVENT_SCOPE(FPythonScriptPlugin::RunUBTPipAction);
-
-	// TODO: Convert error codes to specific error messages for pip installer
-	int32 ExitCode;
-	const FString ProjectFileName = IFileManager::Get().ConvertToAbsolutePathForExternalAppForWrite(*FPaths::GetProjectFilePath());
-	const FString Args = FString::Printf(TEXT("%s %s %s -Project=\"%s\" -Mode=PipInstall -PythonInterpreter=\"%s\" -PipAction=%s -Progress")
-		, FPlatformMisc::GetUBTTargetName()
-		, FPlatformMisc::GetUBTPlatform()
-		, FModuleManager::Get().GetUBTConfiguration()
-		, *ProjectFileName
-		, *PyUtil::GetInterpreterExecutablePath()
-		, *Action);
-
-	return FDesktopPlatformModule::Get()->RunUnrealBuildTool(Description, FPaths::RootDir(), Args, Context, ExitCode);
 }
 
 FString FPythonScriptPlugin::GetPipSitePackagesPath()

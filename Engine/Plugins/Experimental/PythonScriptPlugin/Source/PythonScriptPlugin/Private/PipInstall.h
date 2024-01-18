@@ -11,6 +11,8 @@
 class FJsonObject;
 class FFeedbackContext;
 
+class IProgressParser;
+
 class FPipInstall
 {
 public:
@@ -30,16 +32,17 @@ public:
 
 	static void SetupPipEnv(FFeedbackContext* Context, bool bForceRebuild = false);
 	static FString ParsePluginDependencies(const FString& MergedInRequirementsFile, FFeedbackContext* Context);
+	static bool RunPipInstall(FFeedbackContext* Context, bool bOfflineOnly = false, const FString& ForceIndexUrl = TEXT(""));
 
-	static bool HasInstallLines(const TArray<FString>& RequirementLines);
+	static int CountInstallLines(const TArray<FString>& RequirementLines);
 
 	static FString GetPipInstallPath();
 
 private:
 	static void SetupPipInstallUtils(const FString& VenvInterp, FFeedbackContext* Context);
 	static bool CheckPipInstallUtils(const FString& VenvInterp, FFeedbackContext* Context);
-	static int32 RunPythonCmd(const FText& Description, const FString& VenvInterp, const FString& Cmd, FFeedbackContext* Context);
-	static bool RunLoggedSubprocess(const FText& Description, const FString& URL, const FString& Params, FFeedbackContext* Context, int32* OutExitCode);\
+	static int32 RunPythonCmd(const FText& Description, const FString& PythonInterp, const FString& Cmd, FFeedbackContext* Context, TSharedPtr<IProgressParser> CmdParser = nullptr);
+	static bool RunLoggedSubprocess(int32* OutExitCode, const FText& Description, const FString& URL, const FString& Params, FFeedbackContext* Context, TSharedPtr<IProgressParser> CmdParser);
 
 	static FString GetPythonScriptPluginPath();
 	static FString ParseVenvVersion(const FString& InstallPath);
