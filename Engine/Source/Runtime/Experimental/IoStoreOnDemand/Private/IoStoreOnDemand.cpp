@@ -48,6 +48,8 @@ DEFINE_LOG_CATEGORY(LogIas);
 namespace UE::IO::IAS
 {
 
+FString GIasOnDemandTocExt = TEXT(".uondemandtoc");
+
 bool GIasSuspendSystem = false;
 static FAutoConsoleVariableRef CVar_SuspendSystemEnabled(
 	TEXT("ias.SuspendSystem"),
@@ -63,6 +65,9 @@ static FAutoConsoleVariableRef CVar_DistributedEndpointFallbackUrl(
 	GDistributedEndpointFallbackUrl,
 	TEXT("CDN url to be used if a distributed endpoint cannot be reached (overrides IoStoreOnDemand.ini)")
 );
+
+// When eanbled we will write out a toc (using extension GIasOnDemandTocExt) per container, currently disabled for testing
+static bool GIasWriteOnDemandTocs = false;
 
 ////////////////////////////////////////////////////////////////////////////////
 static int64 ParseSizeParam(FStringView Value)
@@ -767,7 +772,7 @@ class FS3UploadQueue
 {
 public:
 	FS3UploadQueue(FS3Client& Client, const FString& Bucket, int32 ThreadCount);
-	bool Enqueue(const FString& Key, FIoBuffer Payload);
+	bool Enqueue(FStringView Key, FIoBuffer Payload);
 	bool Flush();
 
 private:
@@ -806,7 +811,7 @@ FS3UploadQueue::FS3UploadQueue(FS3Client& InClient, const FString& InBucket, int
 	}
 }
 
-bool FS3UploadQueue::Enqueue(const FString& Key, FIoBuffer Payload)
+bool FS3UploadQueue::Enqueue(FStringView Key, FIoBuffer Payload)
 {
 	if (ActiveThreadCount == 0)
 	{
@@ -820,7 +825,7 @@ bool FS3UploadQueue::Enqueue(const FString& Key, FIoBuffer Payload)
 			FScopeLock _(&CriticalSection);
 			if (ConcurrentUploads < Threads.Num())
 			{
-				bEnqueued = Queue.Enqueue(FQueueEntry {Key, Payload});
+				bEnqueued = Queue.Enqueue(FQueueEntry {FString(Key), Payload});
 			}
 		}
 
@@ -864,7 +869,7 @@ void FS3UploadQueue::ThreadEntry()
 
 		if (Response.IsOk())
 		{
-			UE_LOG(LogIas, Display, TEXT("Uploaded chunk '%s/%s/%s'"), *Client.GetConfig().ServiceUrl, *Bucket, *Entry.Key);
+			UE_LOG(LogIas, Log, TEXT("Uploaded chunk '%s/%s/%s'"), *Client.GetConfig().ServiceUrl, *Bucket, *Entry.Key);
 		}
 		else
 		{
@@ -897,6 +902,125 @@ bool FS3UploadQueue::Flush()
 }
 
 ////////////////////////////////////////////////////////////////////////////////
+
+struct FResolvedPaths
+{
+	FString ServiceUrl;
+	FString TocPath;
+	FString ChunkPrefix;
+};
+
+[[nodiscard]] static FResolvedPaths ResolvePaths(const FIoStoreUploadParams& UploadParams, FStringView TocFilename)
+{
+	FResolvedPaths Result;
+	if (!UploadParams.BucketPrefix.IsEmpty())
+	{
+		Result.ServiceUrl = UploadParams.ServiceUrl;
+		Result.TocPath = TocFilename;
+		Result.ChunkPrefix = UploadParams.BucketPrefix;
+	}
+	else
+	{
+		// The configuration file should specify a service URL without any trailing
+		// host path, i.e. http://{host:port}/{host-path}. Add the trailing path
+		// to the TOC path to form the complete path the TOC from the host, i.e
+		// TocPath={host-path}/{bucket}/{bucket-prefix}/{toc-hash}.uchunktoc
+
+		FStringView ServiceUrl = UploadParams.ServiceUrl;
+		FStringView TocPrefx;
+		{
+			// Find the first '//' then find the first '/' after that
+			int32 Sep = INDEX_NONE;
+
+			const int32 DoubleSlash = ServiceUrl.Find(TEXT("//"));
+			if (DoubleSlash != INDEX_NONE)
+			{
+				Sep = ServiceUrl.Find(TEXT("/"), DoubleSlash + 2);
+			}
+
+			if (Sep != INDEX_NONE)
+			{
+				TocPrefx = ServiceUrl.RightChop(Sep + 1);
+				ServiceUrl.LeftInline(Sep);
+			}
+		}
+
+		Result.ServiceUrl = ServiceUrl;
+
+		TStringBuilder<256> Prefix;
+		FPathViews::Append(Prefix, TocPrefx, UploadParams.Bucket);
+
+		Result.ChunkPrefix = Prefix;
+		
+		if (!TocFilename.IsEmpty())
+		{
+			TStringBuilder<256> TocPath;
+			FPathViews::Append(TocPath, Prefix, TocFilename);
+
+			Result.TocPath = TocPath;
+		}
+	}
+
+	return Result;
+}
+
+[[nodiscard]] static FString ResolveChunksDirectory(const FIoStoreUploadParams& UploadParams)
+{
+	FResolvedPaths Paths = ResolvePaths(UploadParams, FStringView());
+	return Paths.ChunkPrefix;
+}
+
+static FIoStatus WriteContainerFiles(FOnDemandToc& OnDemandToc, const TMap<FIoHash, FString>& UTocPaths)
+{
+	UE_LOG(LogIas, Display, TEXT("Attempting to write out %d '%s' files"), OnDemandToc.Containers.Num(), *GIasOnDemandTocExt);
+
+	for (FOnDemandTocContainerEntry& Container : OnDemandToc.Containers)
+	{
+		const FString* UTocPath = UTocPaths.Find(Container.UTocHash);
+		if (UTocPath == nullptr)
+		{
+			return FIoStatus(EIoErrorCode::Unknown, FString::Printf(TEXT("Could not find the original path for ondemand container '%s'"), *Container.ContainerName));
+		}
+
+		// Create a new FOnDemandToc to be written out and give it ownership of the FOnDemandTocContainerEntry that we want
+		// associated with it.This way we don't need to write any specialized serialization code to split up the input FOnDemandToc
+		// into one per container.
+		FOnDemandToc ContainerToc;
+		ContainerToc.Header = OnDemandToc.Header;
+		ContainerToc.Meta = OnDemandToc.Meta;
+		ContainerToc.Containers.Emplace(MoveTemp(Container));
+
+		const FString OutputPath = FPathViews::ChangeExtension(*UTocPath, GIasOnDemandTocExt);
+
+		TUniquePtr<FArchive> Ar(IFileManager::Get().CreateFileWriter(*OutputPath));
+
+		if (!Ar.IsValid())
+		{
+			return FIoStatus(EIoErrorCode::FileOpenFailed, FString::Printf(TEXT("Failed to open '%s' for write"), *OutputPath));
+		}
+
+		// TODO: We should consider adding a hash of the FOnDemandToc that can be computed at runtime on the loaded structure
+		// (to avoid running over the file twice) to verify that nothing was corrupted.
+
+		(*Ar) << ContainerToc;
+
+		if (Ar->IsError() || Ar->IsCriticalError())
+		{
+			return FIoStatus(EIoErrorCode::WriteError, FString::Printf(TEXT("Failed to write to '%s'"), *OutputPath));
+		}
+
+		// TODO: Should write an end of file sentinel here for a simple/easy file corruption check
+
+		UE_LOG(LogIas, Display, TEXT("Wrote ondemand container file '%s' to disk"), *OutputPath);
+
+		// Move the container entry back to OnDemandToc in case we want to use the data structure
+		// beyond this point in the future.
+		Container = MoveTemp(ContainerToc.Containers[0]);
+	}
+
+	return FIoStatus::Ok;
+}
+
 TIoStatusOr<FIoStoreUploadParams> FIoStoreUploadParams::Parse(const TCHAR* CommandLine)
 {
 	FIoStoreUploadParams Params;
@@ -1011,7 +1135,7 @@ TIoStatusOr<FIoStoreUploadResult> UploadContainerFiles(
 		TStringBuilder<256> TocsKey;
 		TocsKey << UploadParams.BucketPrefix << "/";
 
-		UE_LOG(LogIas, Display, TEXT("Fetching existing TOC's from '%s/%s/%s'"), *Client.GetConfig().ServiceUrl, *UploadParams.Bucket, TocsKey.ToString());
+		UE_LOG(LogIas, Display, TEXT("	 '%s/%s/%s'"), *Client.GetConfig().ServiceUrl, *UploadParams.Bucket, TocsKey.ToString());
 		FS3ListObjectResponse Response = Client.ListObjects(FS3ListObjectsRequest
 		{
 			UploadParams.Bucket,
@@ -1077,7 +1201,14 @@ TIoStatusOr<FIoStoreUploadResult> UploadContainerFiles(
 	uint64 TotalUploadedBytes = 0;
 
 	FOnDemandToc OnDemandToc;
-	OnDemandToc.Header.ChunksDirectory = TEXT("Chunks");
+	OnDemandToc.Header.ChunksDirectory = ResolveChunksDirectory(UploadParams);
+
+	OnDemandToc.Containers.Reserve(ContainerFiles.Num());
+
+	// Map of the .utoc paths that we have created ondemand containers for, indexed by their hash so that the paths can
+	// be looked up later. We do not rely on the filename as we cannot be sure that there won't be duplicate file names
+	// stored in different directories.
+	TMap<FIoHash, FString> UTocPaths;
 
 	TArray<FString> FilesToDelete;
 	for (const FString& Path : ContainerFiles)
@@ -1094,11 +1225,9 @@ TIoStatusOr<FIoStoreUploadResult> UploadContainerFiles(
 
 		if (EnumHasAnyFlags(ContainerFileReader.GetContainerFlags(), EIoContainerFlags::OnDemand) == false)
 		{
-			UE_LOG(LogIas, Display, TEXT("Skipping non ondemand container '%s'"), *Path);
 			continue;
 		}
-		
-		UE_LOG(LogIas, Display, TEXT("Uploading container '%s'"), *Path);
+		UE_LOG(LogIas, Display, TEXT("Uploading ondemand container '%s'"), *Path);
 
 		const uint32 BlockSize = ContainerFileReader.GetCompressionBlockSize();
 		if (OnDemandToc.Header.BlockSize == 0)
@@ -1122,6 +1251,8 @@ TIoStatusOr<FIoStoreUploadResult> UploadContainerFiles(
 		}
 		FContainerStats& ContainerStats = ContainerSummary.FindOrAdd(ContainerEntry.ContainerName);
 		
+		ContainerEntry.Entries.Reserve(ChunkInfos.Num());
+
 		for (const FIoStoreTocChunkInfo& ChunkInfo : ChunkInfos)
 		{
 			const bool bDecrypt = false;
@@ -1185,7 +1316,7 @@ TIoStatusOr<FIoStoreUploadResult> UploadContainerFiles(
 					<< TEXT("/") << HashString
 					<< TEXT(".iochunk");
 
-				if (UploadQueue.Enqueue(Key.ToString(), ReadResult.IoBuffer) == false)
+				if (UploadQueue.Enqueue(Key, ReadResult.IoBuffer) == false)
 				{
 					return FIoStatus(EIoErrorCode::WriteError, TEXT("Failed to upload chunk"));
 				}
@@ -1216,22 +1347,23 @@ TIoStatusOr<FIoStoreUploadResult> UploadContainerFiles(
 			const FS3PutObjectResponse Response = Client.TryPutObject(
 				FS3PutObjectRequest{UploadParams.Bucket, Key.ToString(), MakeMemoryView(Buffer.GetData(), Buffer.Num())});
 
-			if (Response.IsOk())
-			{
-				UE_LOG(LogIas, Display, TEXT("Uploaded '%s'"), *UTocFilePath);
-			}
-			else
+			if (!Response.IsOk())
 			{
 				return FIoStatus(EIoErrorCode::WriteError, FString::Printf(TEXT("Failed to upload '%s', StatusCode: %u"), *UTocFilePath, Response.StatusCode));
 			}
+			
+			UTocPaths.Add(ContainerEntry.UTocHash, UTocFilePath);
+
+			UE_LOG(LogIas, Display, TEXT("Uploaded '%s'"), *UTocFilePath);	
 		}
-		
+
 		if (UploadParams.bDeleteContainerFiles)
 		{
 			FilesToDelete.Add(Path);
 			ContainerFileReader.GetContainerFilePaths(FilesToDelete);
 
-			if (UploadParams.bDeletePakFiles)
+			// We need the pak files in order to mount OnDemand toc files!
+			if (UploadParams.bDeletePakFiles && !GIasWriteOnDemandTocs)
 			{
 				FilesToDelete.Add(FPaths::ChangeExtension(Path, TEXT(".pak")));
 				FilesToDelete.Add(FPaths::ChangeExtension(Path, TEXT(".sig")));
@@ -1249,24 +1381,28 @@ TIoStatusOr<FIoStoreUploadResult> UploadContainerFiles(
 		return FIoStatus(EIoErrorCode::WriteError, TEXT("Failed to upload chunk(s)"));
 	}
 
+	OnDemandToc.Meta.EpochTimestamp = FDateTime::Now().ToUnixTimestamp();
+	OnDemandToc.Meta.BuildVersion = UploadParams.BuildVersion;
+	OnDemandToc.Meta.TargetPlatform = UploadParams.TargetPlatform;
+
 	FIoStoreUploadResult UploadResult;
 	{
-		OnDemandToc.Meta.EpochTimestamp = FDateTime::Now().ToUnixTimestamp();
-		OnDemandToc.Meta.BuildVersion = UploadParams.BuildVersion;
-		OnDemandToc.Meta.TargetPlatform = UploadParams.TargetPlatform;
-
 		FLargeMemoryWriter Ar;
 		Ar << OnDemandToc;
 
 		UploadResult.TocHash = FIoHash::HashBuffer(Ar.GetView());
 		TStringBuilder<256> Key;
-		if (UploadParams.BucketPrefix.IsEmpty() == false)
+		if (!UploadParams.BucketPrefix.IsEmpty())
 		{
 			Key << UploadParams.BucketPrefix.ToLower() << TEXT("/");
 		}
 		Key << LexToString(UploadResult.TocHash) << TEXT(".iochunktoc");
+		
+		FResolvedPaths ResolvedPaths = ResolvePaths(UploadParams, Key);
 
-		UploadResult.TocPath = Key.ToString();
+		UploadResult.ServiceUrl = MoveTemp(ResolvedPaths.ServiceUrl);
+		UploadResult.TocPath = MoveTemp(ResolvedPaths.TocPath);
+
 		UploadResult.TocSize = Ar.TotalSize();
 
 		const FS3PutObjectResponse Response = Client.TryPutObject(FS3PutObjectRequest{UploadParams.Bucket, Key.ToString(), Ar.GetView()});
@@ -1282,6 +1418,7 @@ TIoStatusOr<FIoStoreUploadResult> UploadContainerFiles(
 
 		if (UploadParams.bWriteTocToDisk)
 		{
+			// Write a single .iochunktoc containing all on demand data for the current build
 			TStringBuilder<512> OnDemandTocFilePath;
 			FPathViews::Append(OnDemandTocFilePath, UploadParams.TocOutputDir, UploadResult.TocHash);
 			OnDemandTocFilePath << TEXT(".iochunktoc");
@@ -1290,6 +1427,16 @@ TIoStatusOr<FIoStoreUploadResult> UploadContainerFiles(
 			{
 				UE_LOG(LogIoStore, Error, TEXT("Failed to save on demand toc file '%s'"), OnDemandTocFilePath.ToString());
 			}
+		}
+	}
+
+	if (GIasWriteOnDemandTocs)
+	{
+		// Write out separate .uondemandtoc files, one per.utoc containing ondemand data.
+		FIoStatus Result = WriteContainerFiles(OnDemandToc, UTocPaths);
+		if (!Result.IsOk())
+		{
+			return Result;
 		}
 	}
 
@@ -1664,7 +1811,7 @@ TIoStatusOr<FIoStoreListTocsParams> FIoStoreListTocsParams::Parse(const TCHAR* C
 {
 	FIoStoreListTocsParams Params;
 
-	// Convenience argument to specifiy both bucket and bucket prefix
+	// Convenience argument to specify both bucket and bucket prefix
 	// -BucketPath="mybucket/some/data/path" is equal to -Bucket="bucket" -BucketPrefix="some/data/path
 	FString BucketPath;
 	if (FParse::Value(CommandLine, TEXT("-BucketPath="), BucketPath))

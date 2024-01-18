@@ -2,6 +2,7 @@
 
 #include "OnDemandIoDispatcherBackend.h"
 
+#include "Algo/Transform.h"
 #include "AnalyticsEventAttribute.h"
 #include "Containers/BitArray.h"
 #include "Containers/StringView.h"
@@ -26,9 +27,11 @@
 #include "IO/IoStore.h"
 #include "IO/IoStoreOnDemand.h"
 #include "IasCache.h"
+#include "Logging/StructuredLog.h"
 #include "Math/NumericLimits.h"
 #include "Misc/CommandLine.h"
 #include "Misc/ConfigCacheIni.h"
+#include "Misc/CoreDelegatesInternal.h"
 #include "Misc/EncryptionKeyManager.h"
 #include "Misc/EnumClassFlags.h"
 #include "Misc/PathViews.h"
@@ -45,25 +48,19 @@
 
 #include <atomic>
 
-#if UE_IAS_LINKPAKFILE
-#include "IPlatformFilePak.h"
-#endif //UE_IAS_LINKPAKFILE
-
 #if !UE_BUILD_SHIPPING
 #include "Modules/ModuleManager.h"
 #endif 
-
-/** 
- * When enabledOnDemandToc files generated from disk will be compared to the downloaded version
- * and checked for compatibility issues. These checks will assert if a problem is found.
- */
-#define UE_VALIDATE_GENERATED_TOC (0 && !UE_BUILD_SHIPPING)
 
 /** When enabled the IAS system can add additional debug console commands for development use */
 #define UE_IAS_DEBUG_CONSOLE_CMDS (1 && !NO_CVARS && !UE_BUILD_SHIPPING)
 
 namespace UE::IO::IAS
 {
+
+///////////////////////////////////////////////////////////////////////////////
+
+extern FString GIasOnDemandTocExt;
 
 ///////////////////////////////////////////////////////////////////////////////
 int32 GIasHttpPrimaryEndpoint = 0;
@@ -187,31 +184,17 @@ bool GIasReportAnalyticsEnabled = true;
 static FAutoConsoleVariableRef CVar_IoReportAnalytics(
 	TEXT("ias.ReportAnalytics"),
 	GIasReportAnalyticsEnabled,
-	TEXT("Enables reporting statics to the analytics system"));
-
-bool GIasGenerateOnDemandToc = true;
-static FAutoConsoleVariableRef CVar_IasGenerateOnDemandToc(
-	TEXT("s.IasGenerateOnDemandToc"),
-	GIasGenerateOnDemandToc,
-	TEXT("Enables generating the FOnDemandToc from utoc files on disk rather than downloading them"),
-	ECVF_ReadOnly
+	TEXT("Enables reporting statics to the analytics system")
 );
 
-// A temp fallback path allowing us to attempt to load the OnDemand toc from disk rather than
-// trying to generate it.
-bool GIasLoadOnDemandToc = true;
-static FAutoConsoleVariableRef CVar_IasLoadOnDemandToc(
-	TEXT("ias.LoadOnDemandToc"),
-	GIasLoadOnDemandToc,
-	TEXT("Attempts to load the OnDemand toc from disk rather than generating it (TEMP)"),
-	ECVF_ReadOnly
-);
-
-bool GIasAsyncTocGenerationEnabled = true;
-static FAutoConsoleVariableRef CVar_IasAsyncTocGeneration(
-	TEXT("s.IasEnableThreadedTocGeneration"),
-	GIasAsyncTocGenerationEnabled,
-	TEXT("Enables pushing the work FOnDemandToc generation work to the task system"),
+int32 GIasTocMode = 0;
+static FAutoConsoleVariableRef CVar_IasTocMode(
+	TEXT("ias.TocMode"),
+	GIasTocMode,
+	TEXT("How should the IAS system load it's toc (see ETocMode).\n")
+	TEXT("0 = Load a single .iochunktoc\n")
+	TEXT("1 = Try to find a .uondemandtoc each time a pak file is mounted\n")
+	TEXT("2 = Download the toc from the target CDN"),
 	ECVF_ReadOnly
 );
 
@@ -259,6 +242,30 @@ static void LatencyTest(FStringView Url, FStringView Path)
 		Url.GetData(), Results[0], Results[1], Results[2], Results[3]);
 }
 #endif // !UE_BUILD_SHIPPING
+
+///////////////////////////////////////////////////////////////////////////////
+enum class ETocMode : int32
+{
+	LoadTocFromDisk = 0,	// <- Current Default
+	LoadTocFromMountedPaks,
+	LoadTocFromNetwork
+};
+
+static void ForceTocMode(ETocMode Mode)
+{
+	GIasTocMode = static_cast<int32>(Mode);
+}
+
+static ETocMode GetTocMode()
+{
+	if (GIasTocMode < 0 || GIasTocMode > static_cast<int32>(ETocMode::LoadTocFromNetwork))
+	{
+		UE_LOG(LogIas, Log, TEXT("ias.TocMode set to invalid value, defaulting to ETocMode::LoadTocFromDisk"));
+		return ETocMode::LoadTocFromDisk;
+	}
+
+	return static_cast<ETocMode>(GIasTocMode);
+}
 ///////////////////////////////////////////////////////////////////////////////
 static int32 LatencyTest(TConstArrayView<FString> Urls, FStringView Path, std::atomic_bool& bCancel)
 {
@@ -377,7 +384,9 @@ public:
 	FOnDemandIoStore();
 	~FOnDemandIoStore();
 
-	void AddToc(const FString& TocPath, FOnDemandToc&& Toc);
+	void AddToc(FStringView TocPath, FOnDemandToc&& Toc);
+	void RemoveToc(FStringView TocPath);
+
 	TIoStatusOr<uint64> GetChunkSize(const FIoChunkId& ChunkId);
 	FChunkInfo GetChunkInfo(const FIoChunkId& ChunkId);
 	FString GetFirstTocPath() const;
@@ -404,26 +413,37 @@ FOnDemandIoStore::~FOnDemandIoStore()
 	FEncryptionKeyManager::Get().OnKeyAdded().RemoveAll(this);
 }
 
-void FOnDemandIoStore::AddToc(const FString& TocPath, FOnDemandToc&& Toc)
+void FOnDemandIoStore::AddToc(FStringView TocPath, FOnDemandToc&& Toc)
 {
-	UE_LOG(LogIas, Log, TEXT("Adding TOC '%s'"), *TocPath);
+	UE_LOGFMT(LogIas, Log, "Adding TOC '{FileName}'", TocPath);
 
 	TRACE_CPUPROFILER_EVENT_SCOPE(IasBackend::AddToc);
 
-	FString Prefix;
+	TStringBuilder<128> ChunksDirectory;
+
 	{
+		// First attempt to parse the prefix from the given path (legacy)
 		int32 Idx = INDEX_NONE;
-		if (TocPath.FindLastChar(TCHAR('/'), Idx))
+		if (TocPath.FindLastChar(TEXT('/'), Idx))
 		{
-			Prefix = TocPath.Left(Idx);
+			Algo::Transform(TocPath.Left(Idx), AppendChars(ChunksDirectory), FChar::ToLower);
 		}
+
+		// If there was no prefix in the path we should just use the ChunksDirectory from the toc itself
+		if (ChunksDirectory.Len() == 0)
+		{
+			Algo::Transform(Toc.Header.ChunksDirectory, AppendChars(ChunksDirectory), FChar::ToLower);
+			
+		}
+
+		FPathViews::Append(ChunksDirectory, TEXT("chunks"));
 	}
 
 	{
 		FWriteScopeLock _(Lock);
 
 		const FOnDemandTocHeader& Header = Toc.Header;
-		FToc* NewToc = new(Tocs) FToc{TocPath};
+		FToc* NewToc = new(Tocs) FToc{FString(TocPath)};
 		NewToc->Containers.SetNum(Toc.Containers.Num()); // List of containers can never change
 
 		const FName CompressionFormat(Header.CompressionFormat);
@@ -434,7 +454,7 @@ void FOnDemandIoStore::AddToc(const FString& TocPath, FOnDemandToc&& Toc)
 			FContainer* NewContainer = &NewToc->Containers[ContainerIndex++];
 			NewContainer->Toc = NewToc;
 			NewContainer->Name = MoveTemp(Container.ContainerName);
-			NewContainer->ChunksDirectory = (Prefix.IsEmpty() ? Header.ChunksDirectory : Prefix / Header.ChunksDirectory).ToLower();
+			NewContainer->ChunksDirectory = ChunksDirectory;
 			NewContainer->CompressionFormat = CompressionFormat;
 			NewContainer->BlockSize = Header.BlockSize;
 			NewContainer->EncryptionKeyGuid = Container.EncryptionKeyGuid;
@@ -462,6 +482,12 @@ void FOnDemandIoStore::AddToc(const FString& TocPath, FOnDemandToc&& Toc)
 	}
 
 	AddDeferredContainers();
+}
+
+void FOnDemandIoStore::RemoveToc(FStringView TocPath)
+{
+	// TODO: Need to test this with content bundles!
+	checkNoEntry();
 }
 
 TIoStatusOr<uint64> FOnDemandIoStore::GetChunkSize(const FIoChunkId& ChunkId)
@@ -542,7 +568,7 @@ void FOnDemandIoStore::AddDeferredContainers()
 			}
 			else
 			{
-				UE_LOG(LogIas, Log, TEXT("Defeering container '%s', encryption key '%s' not available"), *Container->Name, *Container->EncryptionKeyGuid);
+				UE_LOG(LogIas, Log, TEXT("Deferring container '%s', encryption key '%s' not available"), *Container->Name, *Container->EncryptionKeyGuid);
 			}
 		}
 	}
@@ -925,57 +951,6 @@ static void LogIoResult(
 		PrioToString(Priority));
 };
 
-/** Utility for finding all available on demand utoc files currently in valid pak directories */
-static TArray<FString> FindOnDemandUtocFilesOnDisk()
-{
-#if UE_IAS_LINKPAKFILE
-	// TODO: This line is all over the engine, should make it look a bit nicer
-	FPakPlatformFile* PakPlatformFile = static_cast<FPakPlatformFile*>(FPlatformFileManager::Get().FindPlatformFile(TEXT("PakFile")));
-	if (!PakPlatformFile)
-	{
-		return TArray<FString>();
-	}
-
-	TArray<FString> PakFolders;
-	PakPlatformFile->GetPakFolders(FCommandLine::Get(), PakFolders);
-
-	IPlatformFile* SearchFile = PakPlatformFile->GetLowerLevel();
-#else
-	TStringBuilder<260> PakPath;
-	FPathViews::Append(PakPath, FPaths::ProjectContentDir(), TEXT("Paks"));
-
-	TArray<FString> PakFolders;
-	PakFolders.Add(PakPath.ToString());
-
-	IPlatformFile* SearchFile = &FPlatformFileManager::Get().GetPlatformFile();
-#endif // UE_IAS_LINKPAKFILE
-
-	TArray<FString> FoundFiles;
-	for (const FString& Directory : PakFolders)
-	{
-		//PakPlatformFile
-		SearchFile->IterateDirectoryRecursively(*Directory, [&FoundFiles/*, PakPlatformFile*/](const TCHAR* Path, bool bIsDirectory) -> bool
-			{
-				if (!bIsDirectory)
-				{
-					FString Filename(Path);
-					if (Filename.EndsWith(TEXT(".utoc")) && Filename.Contains(TEXT("ondemand")))
-					{
-						// TODO: Cannot call IsPakFileInstalled at this point
-						//if (PakPlatformFile->IsPakFileInstalled(Filename))
-						{
-							FoundFiles.Emplace(MoveTemp(Filename));
-						}
-					}
-				}
-
-				return true;
-			});
-	}
-
-	return FoundFiles;
-}
-
 /**
  * Utility to create a FArchive capable of reading from disk using the exact same pathing
  * rules as FPlatformMisc::LoadTextFileFromPlatformPackage but without forcing the entire
@@ -1004,19 +979,16 @@ static TUniquePtr<FArchive> CreateReaderFromPlatformPackage(const FString& RelPa
 	}	
 }
 
-/** Generate a FOnDemandToc based on utoc files on disk which support the OnDemand feature */
-static TIoStatusOr<FOnDemandToc> GenerateOnDemandTocFromDisk(FStringView TocHash)
+/** Loads a single .iochunktoc (containing all of our container tocs) from disk */
+static TIoStatusOr<FOnDemandToc> LoadOnDemandTocFromDisk(FStringView TocHash)
 {
-	TRACE_CPUPROFILER_EVENT_SCOPE(IasBackend::GenerateOnDemandTocFromDisk);
+	TRACE_CPUPROFILER_EVENT_SCOPE(IasBackend::LoadOnDemandTocFromDisk);
 
 	FOnDemandToc OutToc;
 
-	if (GIasLoadOnDemandToc)
+	const ETocMode TocMode = GetTocMode();
+	if (TocMode == ETocMode::LoadTocFromDisk)
 	{
-		TRACE_CPUPROFILER_EVENT_SCOPE(IasBackend::LoadTocFromDisk);
-
-		UE_LOG(LogIas, Log, TEXT("Serializing .iochunktoc from disk"));
-
 		FString TocFileName = FString(TocHash);
 		TocFileName .Append(TEXT(".iochunktoc"));
 
@@ -1049,145 +1021,13 @@ static TIoStatusOr<FOnDemandToc> GenerateOnDemandTocFromDisk(FStringView TocHash
 			return FIoStatus(EIoErrorCode::NotFound, WriteToString<256>(TEXT("Unable to find '"), TocPath, TEXT("' on disk")));
 		}
 	}
-
-	UE_LOG(LogIas, Log, TEXT("Generating .iochunktoc via utoc files from disk"));
-
-	TArray<FString> UtocFilePaths = FindOnDemandUtocFilesOnDisk();
-	const TMap<FGuid, FAES::FAESKey> EncryptionKeys = FEncryptionKeyManager::Get().GetAllKeys();
-
-	for (const FString& UtocFilePath : UtocFilePaths)
+	else
 	{
-		FIoStoreReader Reader;
-		FIoStatus Status = Reader.Initialize(FPathViews::GetBaseFilenameWithPath(UtocFilePath), EncryptionKeys);
-		if (Status.IsOk() && EnumHasAnyFlags(Reader.GetContainerFlags(), EIoContainerFlags::OnDemand))
-		{
-			FOnDemandTocContainerEntry Container;
-
-			Container.ContainerName = FPathViews::GetBaseFilename(UtocFilePath);
-
-			const uint32 BlockSize = Reader.GetCompressionBlockSize();
-			if (OutToc.Header.BlockSize == 0)
-			{
-				OutToc.Header.BlockSize = Reader.GetCompressionBlockSize();
-			}
-			check(OutToc.Header.BlockSize == Reader.GetCompressionBlockSize());
-
-			TArray<FIoStoreTocChunkInfo> ChunkInfos;
-			Reader.EnumerateChunks([&ChunkInfos](FIoStoreTocChunkInfo&& Info)
-				{
-					ChunkInfos.Emplace(MoveTemp(Info));
-					return true;
-				});
-
-			// We can't actually hit this until we solve the FASEKey Initialize issue above
-			if (EnumHasAnyFlags(Reader.GetContainerFlags(), EIoContainerFlags::Encrypted))
-			{
-				Container.EncryptionKeyGuid = LexToString(Reader.GetEncryptionKeyGuid());
-			}
-
-			for (const FIoStoreTocChunkInfo& ChunkInfo : ChunkInfos)
-			{
-				TIoStatusOr<FIoStoreCompressedChunkInfo> InfoStatus = Reader.GetChunkCompressedInfo(ChunkInfo.Id);
-				if (!InfoStatus.IsOk())
-				{
-					return InfoStatus.Status();
-				}
-				FIoStoreCompressedChunkInfo CompressedChunkInfo = InfoStatus.ConsumeValueOrDie();
-
-				const uint32 BlockOffset = Container.BlockSizes.Num();
-				const uint32 BlockCount = CompressedChunkInfo.Blocks.Num();
-
-				uint64 RawChunkSize = 0;
-				uint64 EncodedChunkSize = 0;
-				for (const FIoStoreCompressedBlockInfo& BlockInfo : CompressedChunkInfo.Blocks)
-				{
-					check(Align(BlockInfo.CompressedSize, FAES::AESBlockSize) == BlockInfo.AlignedSize);
-					const uint64 EncodedBlockSize = BlockInfo.AlignedSize;
-					Container.BlockSizes.Add(uint32(BlockInfo.CompressedSize));
-
-					FIoBlockHash BlockHash;
-					FMemory::Memcpy(&BlockHash, &BlockInfo.DiskHash, sizeof(FIoBlockHash));
-					Container.BlockHashes.Add(BlockHash);
-
-					EncodedChunkSize += EncodedBlockSize;
-					RawChunkSize += BlockInfo.UncompressedSize;
-
-					if (OutToc.Header.CompressionFormat.IsEmpty() && BlockInfo.CompressionMethod != NAME_None)
-					{
-						OutToc.Header.CompressionFormat = BlockInfo.CompressionMethod.ToString();
-					}
-				}
-
-				FOnDemandTocEntry& TocEntry = Container.Entries.AddDefaulted_GetRef();
-				TocEntry.ChunkId = ChunkInfo.Id;
-				TocEntry.Hash = CompressedChunkInfo.DiskHash;
-				TocEntry.RawSize = RawChunkSize;
-				TocEntry.EncodedSize = EncodedChunkSize;
-				TocEntry.BlockOffset = BlockOffset;
-				TocEntry.BlockCount = BlockCount;
-			}
-
-			OutToc.Containers.Emplace(MoveTemp(Container));
-		}
-	}
-
-	if (!OutToc.Containers.IsEmpty())
-	{
-		OutToc.Header.ChunksDirectory = TEXT("chunks");
+		checkNoEntry();
 	}
 
 	return OutToc;
 }
-
-/** Validation code used during development to ensure that the results are correct */
-#if UE_VALIDATE_GENERATED_TOC
-
-static TArray<const FOnDemandTocContainerEntry*> SortContainers(const TArray<FOnDemandTocContainerEntry>& Containers)
-{
-	TArray<const FOnDemandTocContainerEntry*> SortedContainers;
-	for (const FOnDemandTocContainerEntry& Container : Containers)
-	{
-		SortedContainers.Add(&Container);
-	}
-
-	Algo::Sort(SortedContainers, [](const FOnDemandTocContainerEntry* LHS, const FOnDemandTocContainerEntry* RHS)->bool
-		{
-			return LHS->ContainerName < RHS->ContainerName;
-		});
-
-	return SortedContainers;
-}
-
-static bool operator == (const FOnDemandTocEntry& LHS, const FOnDemandTocEntry& RHS)
-{
-	return FMemory::Memcmp(&LHS, &RHS, sizeof(FOnDemandTocEntry)) == 0;
-}
-
-static void ValidateToc(const FOnDemandToc& RefToc, const FOnDemandToc& NewToc)
-{
-	check(RefToc.Header.BlockSize == NewToc.Header.BlockSize);
-	check(RefToc.Header.CompressionFormat == NewToc.Header.CompressionFormat);
-	check(RefToc.Header.ChunksDirectory == NewToc.Header.ChunksDirectory);
-
-	TArray<const FOnDemandTocContainerEntry*> RefContainers = SortContainers(RefToc.Containers);
-	TArray<const FOnDemandTocContainerEntry*> NewContainers = SortContainers(NewToc.Containers);
-
-	check(RefContainers.Num() == NewContainers.Num());
-
-	for (int32 Index = 0; Index < RefContainers.Num(); ++Index)
-	{
-		const FOnDemandTocContainerEntry* RefContainer = RefContainers[Index];
-		const FOnDemandTocContainerEntry* NewContainer = NewContainers[Index];
-
-		check(RefContainer->ContainerName == NewContainer->ContainerName);
-
-		check(RefContainer->Entries == NewContainer->Entries);
-		check(RefContainer->BlockSizes == NewContainer->BlockSizes);
-		check(RefContainer->BlockHashes == NewContainer->BlockHashes);
-	}
-}
-
-#endif //UE_VALIDATE_GENERATED_TOC
 
 ///////////////////////////////////////////////////////////////////////////////
 struct FBackendStatus
@@ -1554,12 +1394,15 @@ public:
 
 private:
 
+	void MountContainer(FStringView ContainerPath);
+	void UnmountContainer(FStringView ContainerPath);
+
 	FString GetEndpointTestPath() const;
 	void ConditionallyStartBackendThread();
 	void CompleteRequest(FChunkRequest* ChunkRequest);
 	void CompleteMaterialize(FChunkRequest* ChunkRequest);
 
-	FIoStatus ApplyGeneratedOnDemandToc(const FString& CdnUrl, const FString& TocPath);
+	FIoStatus ApplyLoadedOnDemandToc(const FString& TocPath);
 	FIoStatus DownloadoadOnDemandToc(const FString& CdnUrl, const FString& TocPath);
 
 	bool ResolveDistributedEndpoint(const FDistributedEndpointUrl& Url);
@@ -1606,12 +1449,16 @@ private:
 	FDistributedEndpointUrl DistributionUrl;
 	FEventRef DistributedEndpointEvent;
 
+	FString EndpointTestPath;
+
+	FDelegateHandle PakDelegateHandle;
+
 	mutable FRWLock Lock;
 	std::atomic_uint32_t InflightCacheRequestCount{0};
 	std::atomic_bool bStopRequested{false};
 
 	bool bGeneratedOnDemandToc = false;
-	UE::Tasks::TTask<TIoStatusOr<FOnDemandToc>> OnDemandTocTask;
+	UE::Tasks::TTask<TIoStatusOr<FOnDemandToc>> LoadingOnDemandTocTask;
 
 #if UE_IAS_DEBUG_CONSOLE_CMDS
 	TArray<IConsoleCommand*> DynamicConsoleCommands;
@@ -1645,6 +1492,11 @@ FOnDemandIoBackend::FOnDemandIoBackend(TUniquePtr<IIasCache>&& InCache)
 
 FOnDemandIoBackend::~FOnDemandIoBackend()
 {
+	if (PakDelegateHandle.IsValid())
+	{
+		FCoreInternalDelegates::GetOnPakMountOperation().Remove(PakDelegateHandle);
+	}
+
 #if UE_IAS_DEBUG_CONSOLE_CMDS
 	for (IConsoleCommand* Cmd : DynamicConsoleCommands)
 	{
@@ -1690,8 +1542,56 @@ void FOnDemandIoBackend::Shutdown()
 	BackendContext.Reset();
 }
 
+void FOnDemandIoBackend::MountContainer(FStringView ContainerPath)
+{
+	// TODO: For now we just log an error if a container cannot be mounted, but for production
+	// we will need to make sure that the user is informed so that they can verify their installation.
+	IPlatformFile& PlatformFile = IPlatformFile::GetPlatformPhysical();
+
+	const FString TocPath = FPathViews::ChangeExtension(ContainerPath, GIasOnDemandTocExt);
+
+	if (PlatformFile.FileExists(*TocPath))
+	{
+		UE_LOG(LogIas, Log, TEXT("Mounting '%s'"), *TocPath);
+
+		TUniquePtr<FArchive> Ar(IFileManager::Get().CreateFileReader(*TocPath));
+
+		if (!Ar.IsValid())
+		{
+			UE_LOG(LogIas, Error, TEXT("Failed to open '%s' for reading"), *TocPath);
+			return;
+		}
+
+		FOnDemandToc ContainerToc;
+		(*Ar) << ContainerToc;
+
+		if (Ar->IsError() || Ar->IsCriticalError())
+		{
+			UE_LOG(LogIas, Error, TEXT("Failed to serialize '%s'"), *TocPath);
+			return;
+		}
+
+		const FStringView FileName = FPathViews::GetCleanFilename(TocPath);
+		IoStore->AddToc(FileName, MoveTemp(ContainerToc));
+	}
+}
+
+void FOnDemandIoBackend::UnmountContainer(FStringView ContainerPath)
+{
+	const FString TocPath = FPathViews::ChangeExtension(ContainerPath, GIasOnDemandTocExt);
+	const FStringView FileName = FPathViews::GetCleanFilename(TocPath);
+
+	IoStore->RemoveToc(FileName);
+}
+
 FString FOnDemandIoBackend::GetEndpointTestPath() const
 {
+	if (!EndpointTestPath.IsEmpty())
+	{
+		return EndpointTestPath;
+	}
+
+	// Older fallback path, it probably shouldn't be possible to get this far and can be removed later.
 	FString TestPath = IoStore.IsValid() ? IoStore->GetFirstTocPath() : FString();
 	if (TestPath.IsEmpty())
 	{
@@ -1999,12 +1899,10 @@ TIoStatusOr<FIoMappedRegion> FOnDemandIoBackend::OpenMapped(const FIoChunkId& Ch
 	return FIoStatus::Unknown;
 }
 
-FIoStatus FOnDemandIoBackend::ApplyGeneratedOnDemandToc(const FString& CdnUrl, const FString& TocPath)
+FIoStatus FOnDemandIoBackend::ApplyLoadedOnDemandToc(const FString& TocPath)
 {
-	TRACE_CPUPROFILER_EVENT_SCOPE(IasBackend::ApplyGeneratedOnDemandToc);
+	TRACE_CPUPROFILER_EVENT_SCOPE(IasBackend::ApplyLoadedOnDemandToc);
 
-	// TODO: Assumes we only ever want to generate/load a .iochunktoc once, a safe assumption
-	// now but probably not in the future.
 	if (bGeneratedOnDemandToc)
 	{
 		return FIoStatus::Ok;
@@ -2012,13 +1910,13 @@ FIoStatus FOnDemandIoBackend::ApplyGeneratedOnDemandToc(const FString& CdnUrl, c
 
 	TIoStatusOr<FOnDemandToc> GeneratedTocResult;
 
-	if (OnDemandTocTask.IsValid())
+	if (LoadingOnDemandTocTask.IsValid())
 	{
-		GeneratedTocResult = MoveTemp(OnDemandTocTask.GetResult());
+		GeneratedTocResult = MoveTemp(LoadingOnDemandTocTask.GetResult());
 	}
 	else
 	{
-		GeneratedTocResult = GenerateOnDemandTocFromDisk(FPathViews::GetBaseFilename(TocPath));
+		GeneratedTocResult = LoadOnDemandTocFromDisk(FPathViews::GetBaseFilename(TocPath));
 	}
 	
 	if (!GeneratedTocResult.IsOk())
@@ -2026,16 +1924,7 @@ FIoStatus FOnDemandIoBackend::ApplyGeneratedOnDemandToc(const FString& CdnUrl, c
 		return GeneratedTocResult.Status();
 	}
 
-#if UE_VALIDATE_GENERATED_TOC == 0
 	IoStore->AddToc(TocPath, GeneratedTocResult.ConsumeValueOrDie());
-#else
-	FOnDemandToc UrlToc = LoadTocFromUrl(CdnUrl, TocPath, 1).ConsumeValueOrDie();
-	FOnDemandToc GeneratedToc = GeneratedTocResult.ConsumeValueOrDie();
-
-	UE::IO::IAS::ValidateToc(UrlToc, GeneratedToc);
-
-	IoStore->AddToc(TocPath, MoveTemp(GeneratedToc));
-#endif // UE_VALIDATE_GENERATED_TOC
 
 	bGeneratedOnDemandToc = true;
 
@@ -2156,16 +2045,15 @@ void FOnDemandIoBackend::FlushDeferredTocs(EFlushMode FlushMode)
 		Tocs = MoveTemp(DeferredTocs);
 	}
 
+	const ETocMode TocMode = GetTocMode();
+
 	for (FTocParams& TocParams : Tocs)
 	{
-		if (GIasGenerateOnDemandToc && !TocParams.bForceDownload)
+		if (TocMode == ETocMode::LoadTocFromDisk && !TocParams.bForceDownload)
 		{
 			if (EnumHasAnyFlags(FlushMode, EFlushMode::Disk))
 			{
-				// TODO: This value if only used if UE_VALIDATE_GENERATED_TOC is enabled. The validation
-				// should be moved elsewhere so we don't need to do this work when it won't be used.
-				const FString CdnUrl = AvailableEps.HasCurrent() ? AvailableEps.GetCurrent() : FString();
-				FIoStatus Result = ApplyGeneratedOnDemandToc(CdnUrl, TocParams.Path);
+				FIoStatus Result = ApplyLoadedOnDemandToc(TocParams.Path);
 				if (!Result.IsOk())
 				{
 					UE_LOG(LogIas, Error, TEXT("Failed to add generated toc', reason '%s'"), *Result.ToString());
@@ -2207,19 +2095,52 @@ void FOnDemandIoBackend::Mount(const FOnDemandEndpoint& Endpoint)
 		return;
 	}
 
+	EndpointTestPath = Endpoint.TocPath;
+
 	// TODO: Should pass this info around via DeferredTocs
 	if (Endpoint.bForceTocDownload)
 	{
-		GIasGenerateOnDemandToc = false;
+		ForceTocMode(ETocMode::LoadTocFromNetwork);
 	}
 
-	if (GIasGenerateOnDemandToc && GIasAsyncTocGenerationEnabled)
+	if (GetTocMode() == ETocMode::LoadTocFromDisk)
 	{
 		FString TocHash = FPaths::GetBaseFilename(Endpoint.TocPath);
-		OnDemandTocTask = UE::Tasks::Launch(UE_SOURCE_LOCATION, [TocHash = MoveTemp(TocHash)]() -> TIoStatusOr<FOnDemandToc>
+		LoadingOnDemandTocTask = UE::Tasks::Launch(UE_SOURCE_LOCATION, [TocHash = MoveTemp(TocHash)]() -> TIoStatusOr<FOnDemandToc>
 			{
-				return GenerateOnDemandTocFromDisk(TocHash);
+				return LoadOnDemandTocFromDisk(TocHash);
 			});
+	}
+	else if (GetTocMode() == ETocMode::LoadTocFromMountedPaks)
+	{
+		// First make sure that we receive notifications of any new pakfiles being mounted so that we can react to them
+		PakDelegateHandle = FCoreInternalDelegates::GetOnPakMountOperation().AddLambda(
+			[this](EMountOperation Operation, const TCHAR* ContainerPath, int32 Order) -> void
+			{
+				switch (Operation)
+				{
+					case EMountOperation::Mount:
+						this->MountContainer(ContainerPath);
+						break;
+					case EMountOperation::Unmount:
+						this->UnmountContainer(ContainerPath);
+						break;
+					default:
+						checkNoEntry();
+				}
+			}
+		);
+
+		FCurrentlyMountedPaksDelegate& Delegate = FCoreInternalDelegates::GetCurrentlyMountedPaksDelegate();
+		if (Delegate.IsBound())
+		{
+			TArray<FMountedPakInfo> PreExistingMountedPaks = Delegate.Execute();
+			for (const FMountedPakInfo& Info : PreExistingMountedPaks)
+			{
+				check(Info.PakFile != nullptr);
+				MountContainer(Info.PakFile->PakGetPakFilename());
+			}
+		}
 	}
 
 	{
@@ -2232,7 +2153,12 @@ void FOnDemandIoBackend::Mount(const FOnDemandEndpoint& Endpoint)
 				{
 					DistributionUrl = { Endpoint.DistributionUrl, Endpoint.FallbackUrl };
 				}
-				DeferredTocs.Add(FTocParams{ Endpoint.TocPath, Endpoint.bForceTocDownload });
+
+				if (GetTocMode() != ETocMode::LoadTocFromMountedPaks)
+				{
+					DeferredTocs.Add(FTocParams{ Endpoint.TocPath, Endpoint.bForceTocDownload });
+				}
+
 				return;
 			}
 		}
@@ -2248,15 +2174,7 @@ void FOnDemandIoBackend::Mount(const FOnDemandEndpoint& Endpoint)
 
 	check(AvailableEps.HasCurrent());
 
-	if (GIasGenerateOnDemandToc && !Endpoint.bForceTocDownload)
-	{
-		FIoStatus GeneratedResult = ApplyGeneratedOnDemandToc(AvailableEps.GetCurrent(), Endpoint.TocPath);
-		if (!GeneratedResult.IsOk())
-		{
-			UE_LOG(LogIas, Error, TEXT("Failed to add generated toc', reason '%s'"), *GeneratedResult.ToString());
-		}
-	}
-	else
+	if (GetTocMode() == ETocMode::LoadTocFromNetwork)
 	{
 		FIoStatus Result = DownloadoadOnDemandToc(AvailableEps.GetCurrent(), Endpoint.TocPath);
 		if (!Result.IsOk())
@@ -2267,16 +2185,36 @@ void FOnDemandIoBackend::Mount(const FOnDemandEndpoint& Endpoint)
 			DeferredTocs.Add(FTocParams{ Endpoint.TocPath, Endpoint.bForceTocDownload });
 		}
 	}
+	else if (GetTocMode() == ETocMode::LoadTocFromDisk)
+	{
+		FIoStatus GeneratedResult = ApplyLoadedOnDemandToc(Endpoint.TocPath);
+		if (!GeneratedResult.IsOk())
+		{
+			UE_LOG(LogIas, Error, TEXT("Failed to add generated toc', reason '%s'"), *GeneratedResult.ToString());
+		}	
+	}
 }
 
 void FOnDemandIoBackend::SetBulkOptionalEnabled(bool bEnabled)
 {
-	BackendStatus.SetHttpOptionalBulkEnabled(bEnabled);
+	// Ignore enable/disable messages if we are mounted from the pak file system
+	// TODO: Remove SetBulkOptionalEnabled entirely once LoadTocFromMountedPaks is
+	// the only valid mode
+	if (GetTocMode() != ETocMode::LoadTocFromMountedPaks)
+	{
+		BackendStatus.SetHttpOptionalBulkEnabled(bEnabled);
+	}
 }
 
 void FOnDemandIoBackend::SetEnabled(bool bEnabled)
 {
-	BackendStatus.SetHttpEnabled(bEnabled);
+	// Ignore enable/disable messages if we are mounted from the pak file system
+	// TODO: Remove SetEnabled entirely once LoadTocFromMountedPaks is the only
+	// valid mode
+	if (GetTocMode() != ETocMode::LoadTocFromMountedPaks)
+	{
+		BackendStatus.SetHttpEnabled(bEnabled);
+	}
 }
 
 bool FOnDemandIoBackend::IsEnabled() const
@@ -2597,4 +2535,3 @@ TSharedPtr<IOnDemandIoDispatcherBackend> MakeOnDemandIoDispatcherBackend(TUnique
 } // namespace UE::IO::IAS
 
 #undef UE_IAS_DEBUG_CONSOLE_CMDS
-#undef UE_VALIDATE_GENERATED_TOC

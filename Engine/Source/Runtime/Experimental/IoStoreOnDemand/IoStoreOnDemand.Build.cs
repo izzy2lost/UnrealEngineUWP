@@ -24,17 +24,5 @@ public class IoStoreOnDemand : ModuleRules
 		{
 			PrivateDependencyModuleNames.AddRange(new string[] { "S3Client", "RSA" });
 		}
-
-		bool bFindUcasViaPakFileModule = false;
-
-		if (bFindUcasViaPakFileModule)
-		{
-			PrivateDependencyModuleNames.Add("PakFile");
-			PublicDefinitions.Add("UE_IAS_LINKPAKFILE=1");
-		}
-		else
-		{
-			PublicDefinitions.Add("UE_IAS_LINKPAKFILE=0");
-		}
 	}
 }

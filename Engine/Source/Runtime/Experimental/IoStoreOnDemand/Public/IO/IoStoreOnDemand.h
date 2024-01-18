@@ -117,6 +117,8 @@ struct FOnDemandTocContainerEntry
 	TArray<FOnDemandTocEntry> Entries;
 	TArray<uint32> BlockSizes;
 	TArray<FIoBlockHash> BlockHashes;
+
+	/** Hash of the .utoc file (on disk) used to generate this data */
 	FIoHash UTocHash;
 
 	UE_API friend FArchive& operator<<(FArchive& Ar, FOnDemandTocContainerEntry& ContainerEntry);
@@ -176,14 +178,22 @@ struct FIoStoreUploadParams
 	bool bWriteTocToDisk = false;
 	/** Where the .iochunktoc file should be written out. */
 	FString TocOutputDir;
-	
+
 	UE_API static TIoStatusOr<FIoStoreUploadParams> Parse(const TCHAR* CommandLine);
 };
 
+/** Results from uploading a FOnDemandToc */
 struct FIoStoreUploadResult
 {
+	/** Hash of the toc when written as a binary blob */
 	FIoHash TocHash;
+	
+	/** Url of the service that the toc was uploaded too */
+	FString ServiceUrl;
+	/** Path of the toc on the service */
 	FString TocPath;
+
+	/** Size (in bytes) of the toc when written as a binary blob */
 	uint64 TocSize = 0;
 };
 
