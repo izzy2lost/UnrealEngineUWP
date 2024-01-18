@@ -17,6 +17,10 @@
 #define HZB_TRACE_USE_BILINEAR_SAMPLED_DEPTH 0
 #endif
 
+#if HZB_TRACE_USE_BILINEAR_SAMPLED_DEPTH && !HZB_TRACE_INCLUDE_FULL_RES_DEPTH
+#	error "HZB_TRACE_USE_BILINEAR_SAMPLED_DEPTH is only compatible with HZB_TRACE_INCLUDE_FULL_RES_DEPTH"
+#endif
+
 #ifndef TERMINATE_ON_LOW_OCCUPANCY
 #define TERMINATE_ON_LOW_OCCUPANCY 0
 #endif
@@ -157,13 +161,16 @@ void InternalTraceScreen(
 
 		float3 PlaneIntersectionTimes = (BoundaryPlanes - RayStartScreenUV) / RayDirectionScreenUV;
 		PlaneIntersectionTimes.z = RayDirectionScreenUV.z < 0 ? PlaneIntersectionTimes.z : 1.0f;
-		float IntersectionTime = min3(PlaneIntersectionTimes.x, PlaneIntersectionTimes.y, PlaneIntersectionTimes.z);
+		float IntersectionTime = min(PlaneIntersectionTimes.x, PlaneIntersectionTimes.y);
 
 		bool bAboveSurface = RayScreenUV.z > TileZ;
 		bool bSkippedTile = bAboveSurface;
 
+#if HZB_TRACE_USE_BILINEAR_SAMPLED_DEPTH
 		if (MipLevel > BaseMipLevel) // don't intersect with Z-plane when using BaseMipLevel since it causes incorrect self shadowing
+#endif
 		{
+			IntersectionTime = min(IntersectionTime, PlaneIntersectionTimes.z);
 			bSkippedTile &= IntersectionTime != PlaneIntersectionTimes.z;
 		}
 
