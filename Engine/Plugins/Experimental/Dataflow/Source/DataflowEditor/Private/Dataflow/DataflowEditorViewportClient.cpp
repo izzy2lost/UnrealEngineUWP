@@ -129,5 +129,6 @@ Dataflow::EDataflowPatternVertexType FDataflowEditorViewportClient::GetConstruct
 void FDataflowEditorViewportClient::AddReferencedObjects(FReferenceCollector& Collector)
 {
 	Super::AddReferencedObjects(Collector);
+	Collector.AddReferencedObject(BehaviorSet);
 }
 

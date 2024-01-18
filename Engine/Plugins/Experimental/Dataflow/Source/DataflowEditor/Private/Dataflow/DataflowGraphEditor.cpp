@@ -529,4 +529,11 @@ bool SDataflowGraphEditor::GetPinVisibility(SGraphEditor::EPinVisibility PinVisi
 	return false;
 }
 
+void SDataflowGraphEditor::AddReferencedObjects(FReferenceCollector& Collector)
+{
+	Collector.AddReferencedObject(DataflowAsset);
+	Collector.AddReferencedObject(AssetOwner);
+}
+
+
 #undef LOCTEXT_NAMESPACE

@@ -56,9 +56,11 @@ protected:
 	TUniquePtr<FMeshDescription> DataflowMeshDescription;
 
 	// Internal dataflow pointer
+	UPROPERTY()
 	TObjectPtr<UDataflow> Dataflow = nullptr;
 
 	// Internal asset pointer
+	UPROPERTY()
 	TObjectPtr<UObject> Asset = nullptr;
 
 	/**  Engine context to be used for dataflow evaluation */

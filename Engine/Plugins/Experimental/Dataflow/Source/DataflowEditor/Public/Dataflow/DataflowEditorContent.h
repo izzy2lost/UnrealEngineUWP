@@ -55,8 +55,10 @@ public:
 
 protected:
 
-	TSharedPtr<FManagedArrayCollection> PrimaryRenderCollection = nullptr;
+	UPROPERTY()
 	TObjectPtr<UDataflowEdNode> PrimarySelectedNode = nullptr;
+
+	TSharedPtr<FManagedArrayCollection> PrimaryRenderCollection = nullptr;
 	TWeakPtr<SDataflowGraphEditor> DataflowGraphEditor;
 	Dataflow::EDataflowPatternVertexType ConstructionViewMode = Dataflow::EDataflowPatternVertexType::Sim3D;
 };
@@ -122,21 +124,26 @@ public:
 
 private:
 	/** Data flow object owner */
+	UPROPERTY()
 	TObjectPtr<UObject> DataflowOwner = nullptr;
 
 	/** Data flow asset that we will edit */
+	UPROPERTY()
 	TObjectPtr<UDataflow> DataflowAsset = nullptr;
 
 	/** Data flow skeletal mesh*/
+	UPROPERTY()
 	TObjectPtr<USkeletalMesh> SkeletalMesh = nullptr;
 
 	/** Data flow skeleton*/
+	UPROPERTY()
 	TObjectPtr<USkeleton> Skeleton = nullptr;
 
 	/** Data flow terminal path for evaluation */
 	FString DataflowTerminal = "";
 
 	/** Animation asset to be used to preview simulation */
+	UPROPERTY()
 	TObjectPtr<UAnimationAsset> AnimationAsset = nullptr;
 
 	/**  Engine context to be used for dataflow evaluation */

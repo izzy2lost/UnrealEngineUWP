@@ -159,9 +159,11 @@ private:
     FDelegateHandle OnFinishedChangingAssetPropertiesDelegateHandle;
 
 	// The currently selected set of dataflow nodes. 
+	UPROPERTY()
 	TSet<UObject*> SelectedDataflowNodes;
 
-	// The most recently selected dataflow node. (Top
+	// The most recently selected dataflow node.
+	UPROPERTY()
 	TObjectPtr<UDataflowEdNode> PrimarySelection;
 
 	/** Scene in which the 3D sim space preview meshes live. Ownership shared with AdvancedPreviewSettingsWidget*/

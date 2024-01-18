@@ -31,7 +31,7 @@ namespace Dataflow {
  * 
  * see(SDataprepGraphEditor for reference)
  */
-class DATAFLOWEDITOR_API SDataflowGraphEditor : public SGraphEditor
+class DATAFLOWEDITOR_API SDataflowGraphEditor : public SGraphEditor, public FGCObject
 {
 public:
 
@@ -121,6 +121,10 @@ public:
 	void ZoomToFitGraph();
 
 	SGraphEditor* GetGraphEditor() { return (SGraphEditor*)this; }
+
+	/** FGCObject interface */
+	virtual void AddReferencedObjects(FReferenceCollector& Collector) override;
+	virtual FString GetReferencerName() const override { return TEXT("SDataflowGraphEditor"); }
 
 private:
 	/** Add an additional option pin to all selected Dataflow nodes for those that overrides the AddPin function. */

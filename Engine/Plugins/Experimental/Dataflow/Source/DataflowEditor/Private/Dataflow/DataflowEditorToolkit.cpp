@@ -503,6 +503,7 @@ void FDataflowEditorToolkit::OnNodeSelectionChanged(const TSet<UObject*>& InNewS
 			// The selection is empty. 
 			ResetListeners();
 			SelectedDataflowNodes = TSet<UObject*>();
+			if (PrimarySelection) bPrimarySelectionChanged = true;
 			PrimarySelection = nullptr;
 		}
 		else

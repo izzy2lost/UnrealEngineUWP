@@ -52,6 +52,7 @@ private :
 	// is the one holding the dynamic mesh components to be rendered in the viewport
 	// It is why the data flow asset/owner/skelmesh have been added here. Could be added
 	// in the subsystem if necessary
+	UPROPERTY()
 	TObjectPtr<UDataflowEditorContent> Content;
 };
 

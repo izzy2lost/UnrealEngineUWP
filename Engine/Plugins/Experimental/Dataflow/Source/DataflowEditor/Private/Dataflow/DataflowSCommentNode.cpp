@@ -119,4 +119,11 @@ UEdGraphNode* FAssetSchemaAction_Dataflow_DuplicateCommentNode_DataflowEdNode::P
 	return CommentTemplate;
 }
 
+
+void FAssetSchemaAction_Dataflow_DuplicateCommentNode_DataflowEdNode::AddReferencedObjects(FReferenceCollector& Collector)
+{
+	Collector.AddReferencedObject(CommentNodeToDuplicate);
+}
+
+
 #undef LOCTEXT_NAMESPACE

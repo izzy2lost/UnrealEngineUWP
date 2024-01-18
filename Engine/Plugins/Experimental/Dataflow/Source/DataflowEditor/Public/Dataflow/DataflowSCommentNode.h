@@ -50,7 +50,7 @@ public:
 // Action to duplicate a comment node in the graph
 //
 USTRUCT()
-struct DATAFLOWEDITOR_API FAssetSchemaAction_Dataflow_DuplicateCommentNode_DataflowEdNode : public FEdGraphSchemaAction
+struct DATAFLOWEDITOR_API FAssetSchemaAction_Dataflow_DuplicateCommentNode_DataflowEdNode : public FEdGraphSchemaAction, public FGCObject
 {
 	GENERATED_USTRUCT_BODY();
 
@@ -65,6 +65,11 @@ public:
 
 	virtual UEdGraphNode* PerformAction(class UEdGraph* ParentGraph, UEdGraphPin* FromPin, const FVector2D Location, bool bSelectNewNode = true) override;
 
+	/** FGCObject interface */
+	virtual void AddReferencedObjects(FReferenceCollector& Collector) override;
+	virtual FString GetReferencerName() const override { return TEXT("FDataflowConnectionDrawingPolicy"); }
+
 	TSharedPtr<SGraphEditor> GraphEditor;
-	UEdGraphNode_Comment* CommentNodeToDuplicate;
+
+	TObjectPtr<UEdGraphNode_Comment> CommentNodeToDuplicate;
 };

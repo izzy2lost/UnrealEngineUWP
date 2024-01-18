@@ -156,6 +156,7 @@ void SDataflowEdNode::AddReferencedObjects(FReferenceCollector& Collector)
 {
 	if (DataflowGraphNode)
 	{
+		Collector.AddReferencedObject(DataflowGraphNode);
 		if (TSharedPtr<FDataflowNode> DataflowNode = DataflowGraphNode->GetDataflowNode())
 		{
 			Collector.AddPropertyReferences(DataflowNode->TypedScriptStruct(), DataflowNode.Get());

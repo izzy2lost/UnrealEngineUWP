@@ -304,5 +304,11 @@ void FDataflowConnectionDrawingPolicy::DetermineWiringStyle(UEdGraphPin* OutputP
 	}
 }
 
+void FDataflowConnectionDrawingPolicy::AddReferencedObjects(FReferenceCollector& Collector)
+{
+	Collector.AddReferencedObject(Schema);
+}
+
+
 #undef LOCTEXT_NAMESPACE
 

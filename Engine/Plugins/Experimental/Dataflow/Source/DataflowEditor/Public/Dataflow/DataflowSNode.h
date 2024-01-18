@@ -47,7 +47,7 @@ public:
 	//~ End FGCObject interface
 
 private:
-	UDataflowEdNode* DataflowGraphNode = nullptr;	
+	TObjectPtr<UDataflowEdNode> DataflowGraphNode = nullptr;	
 
 	FCheckBoxStyle CheckBoxStyle;
 	TSharedPtr<SCheckBox> RenderCheckBoxWidget;
