@@ -959,8 +959,8 @@ namespace Gauntlet
 				AppConfig.CommandLine += " -RemoveInvalidKeys";
 			}
 
-			// use -log on servers so we get a window..
-			if (AppConfig.ProcessType.IsServer())
+			// use -log on user machine so we get a window..
+			if (!AutomationTool.Automation.IsBuildMachine)
 			{
 				AppConfig.CommandLine += " -log";
 			}

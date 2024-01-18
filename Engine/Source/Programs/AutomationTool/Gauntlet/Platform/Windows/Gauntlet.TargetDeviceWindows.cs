@@ -4,7 +4,6 @@ using System;
 using System.IO;
 using AutomationTool;
 using UnrealBuildTool;
-using System.Text.RegularExpressions;
 using EpicGames.Core;
 using static AutomationTool.ProcessResult;
 
@@ -58,7 +57,6 @@ namespace Gauntlet
 			}
 
 			IProcessResult Result = null;
-			string ProcessLogFile = null;
 
 			lock (Globals.MainLock)
 			{
@@ -70,63 +68,15 @@ namespace Gauntlet
 				Log.Info("Launching {0} on {1}", App.Name, ToString());
 
 				string CmdLine = WinApp.CommandArguments;
-
-				if (WinApp.CanAlterCommandArgs)
-				{
-					// Look in app parameters if abslog is specified, if so use it
-					Regex CLRegex = new Regex(@"(--?[a-zA-Z]+)[:\s=]?([A-Z]:(?:\\[\w\s-]+)+\\?(?=\s-)|\""[^\""]*\""|[^-][^\s]*)?");
-					foreach (Match M in CLRegex.Matches(CmdLine))
-					{
-						if (M.Groups.Count == 3 && M.Groups[1].Value == "-abslog")
-						{
-							ProcessLogFile = M.Groups[2].Value;
-						}
-					}
-				}
-
-				// Explicitly set log file when not already defined if not build machine
-				// -abslog makes sure Unreal dymanicaly update the log window when using -log
-				if (WinApp.CanAlterCommandArgs && !AutomationTool.Automation.IsBuildMachine && string.IsNullOrEmpty(ProcessLogFile))
-				{
-					string LogFolder = string.Format(@"{0}\Logs", WinApp.ArtifactPath);
-
-					if (!Directory.Exists(LogFolder))
-					{
-						Directory.CreateDirectory(LogFolder);
-					}
-
-					ProcessLogFile = string.Format("{0}\\{1}.log", LogFolder, WinApp.ProjectName);
-					CmdLine = string.Format("{0} -abslog=\"{1}\"", CmdLine, ProcessLogFile);
-				}
-
-				// cleanup any existing log file
-				try
-				{
-					if (ProcessLogFile != null && File.Exists(ProcessLogFile))
-					{
-						EpicGames.Core.FileUtils.ForceDeleteFile(ProcessLogFile);
-					}
-				}
-				catch (Exception Ex)
-				{
-					//throw new AutomationException("Unable to delete existing log file {0} {1}", ProcessLogFile, Ex.Message);
-					Log.Warning(KnownLogEvents.Gauntlet_DeviceEvent, "Unable to delete existing log file {File}. {Exception}", ProcessLogFile, Ex.Message);
-				}
+				CommandUtils.ERunOptions FinalRunOptions = WinApp.RunOptions;
+				bool bAllowSpew = WinApp.RunOptions.HasFlag(CommandUtils.ERunOptions.AllowSpew);
 
 				Log.Verbose("\t{0}", CmdLine);
-
-				CommandUtils.ERunOptions FinalRunOptions = WinApp.RunOptions;
-				if (!WinApp.CanAlterCommandArgs)
-				{
-					CmdLine = WinApp.CommandArguments;
-				}
-
-				FinalRunOptions = WinApp.RunOptions | (ProcessLogFile != null ? CommandUtils.ERunOptions.NoStdOutRedirect : 0);
 
 				Result = CommandUtils.Run(WinApp.ExecutablePath,
 					CmdLine,
 					Options: FinalRunOptions,
-					SpewFilterCallback: new SpewFilterCallbackType(M => { return ProcessLogFile == null ? M : null; }) /* make sure stderr does not spew in the stdout */,
+					SpewFilterCallback: new SpewFilterCallbackType(delegate (string M) { return bAllowSpew ? M : null; }) /* make sure stderr does not spew in the stdout */,
 					WorkingDir: WinApp.WorkingDirectory);
 
 				if (Result.HasExited && Result.ExitCode != 0)
@@ -137,26 +87,15 @@ namespace Gauntlet
 				Environment.CurrentDirectory = OldWD;
 			}
 
-			return new WindowsAppInstance(WinApp, Result, ProcessLogFile);
+			return new WindowsAppInstance(WinApp, Result, WinApp.LogFile);
 		}
 
 		protected override IAppInstall InstallNativeStagedBuild(UnrealAppConfig AppConfig, NativeStagedBuild InBuild)
 		{
 			WindowsAppInstall WinApp = new WindowsAppInstall(AppConfig.Name, AppConfig.ProjectName, this);
-			WinApp.CanAlterCommandArgs = AppConfig.CanAlterCommandArgs;
-
-			WinApp.RunOptions = RunOptions;
-			if (Log.IsVeryVerbose)
-			{
-				WinApp.RunOptions |= CommandUtils.ERunOptions.AllowSpew;
-			}
-
 			WinApp.WorkingDirectory = InBuild.BuildPath;
+			WinApp.SetDefaultCommandLineArguments(AppConfig, RunOptions, InBuild.BuildPath);
 			WinApp.ExecutablePath = Path.Combine(InBuild.BuildPath, InBuild.ExecutablePath);
-			WinApp.CommandArguments = AppConfig.CommandLine;
-
-			WinApp.ArtifactPath = Path.Combine(InBuild.BuildPath, AppConfig.ProjectName, @"Saved");
-			WinApp.CleanDeviceArtifacts();
 
 			CopyAdditionalFiles(AppConfig.FilesToCopy);
 
@@ -186,27 +125,7 @@ namespace Gauntlet
 			}
 
 			WindowsAppInstall WinApp = new WindowsAppInstall(AppConfig.Name, AppConfig.ProjectName, this);
-			WinApp.RunOptions = RunOptions;
-			WinApp.CanAlterCommandArgs = AppConfig.CanAlterCommandArgs;
-
-			// Set commandline replace any InstallPath arguments with the path we use
-			WinApp.CommandArguments = Regex.Replace(AppConfig.CommandLine, @"\$\(InstallPath\)", BuildDir, RegexOptions.IgnoreCase);
-
-			if (string.IsNullOrEmpty(UserDir) == false)
-			{
-				WinApp.CommandArguments += string.Format(" -userdir=\"{0}\"", UserDir);
-				WinApp.ArtifactPath = Path.Combine(UserDir, "Saved");
-
-				Utils.SystemHelpers.MarkDirectoryForCleanup(UserDir);
-			}
-			else
-			{
-				// e.g d:\Unreal\GameName\Saved
-				WinApp.ArtifactPath = Path.Combine(BuildDir, AppConfig.ProjectName, "Saved");
-			}
-
-			// clear artifact path
-			WinApp.CleanDeviceArtifacts();
+			WinApp.SetDefaultCommandLineArguments(AppConfig, RunOptions, BuildDir);
 
 			if (LocalDirectoryMappings.Count == 0)
 			{
@@ -255,11 +174,7 @@ namespace Gauntlet
 			WindowsAppInstall WinApp = new WindowsAppInstall(AppConfig.Name, AppConfig.ProjectName, this);
 
 			WinApp.WorkingDirectory = Path.GetDirectoryName(Build.ExecutablePath);
-			WinApp.RunOptions = RunOptions;
-
-			// Force this to stop logs and other artifacts going to different places
-			WinApp.CommandArguments = AppConfig.CommandLine + string.Format(" -userdir=\"{0}\"", UserDir);
-			WinApp.ArtifactPath = Path.Combine(UserDir, @"Saved");
+			WinApp.SetDefaultCommandLineArguments(AppConfig, RunOptions, WinApp.WorkingDirectory);
 			WinApp.ExecutablePath = Build.ExecutablePath;
 
 			if (LocalDirectoryMappings.Count == 0)
@@ -275,23 +190,7 @@ namespace Gauntlet
 		protected IAppInstall InstallSelfInstallingBuild(UnrealAppConfig AppConfig, IWindowsSelfInstallingBuild Build)
 		{
 			WindowsAppInstall WinApp = Build.Install(this, AppConfig, out string BasePath);
-
-			if (Log.IsVeryVerbose)
-			{
-				WinApp.RunOptions |= CommandUtils.ERunOptions.AllowSpew;
-			}
-
-			if (string.IsNullOrEmpty(UserDir) == false)
-			{
-				WinApp.CommandArguments += string.Format(" -userdir=\"{0}\"", UserDir);
-				WinApp.ArtifactPath = Path.Combine(UserDir, @"Saved");
-				Utils.SystemHelpers.MarkDirectoryForCleanup(UserDir);
-			}
-			else
-			{
-				WinApp.ArtifactPath = Path.Combine(BasePath, AppConfig.ProjectName, @"Saved");
-			}
-			WinApp.CleanDeviceArtifacts();
+			WinApp.SetDefaultCommandLineArguments(AppConfig, RunOptions, BasePath);
 
 			if (LocalDirectoryMappings.Count == 0)
 			{
@@ -305,45 +204,18 @@ namespace Gauntlet
 
 	public class WindowsAppInstall : DesktopCommonAppInstall<TargetDeviceWindows>, IAppInstall.IDynamicCommandLine
 	{
-		public bool CanAlterCommandArgs;
-
 		[Obsolete("Will be removed in a future release. Use 'DesktopDevice' instead.")]
 		public TargetDeviceWindows WinDevice => DesktopDevice;
 
-		public override string CommandArguments
-		{
-			get { return CommandArgumentsPrivate; }
-			set
-			{
-				if (CanAlterCommandArgs || string.IsNullOrEmpty(CommandArgumentsPrivate))
-				{
-					CommandArgumentsPrivate = value;
-				}
-				else
-				{
-					Log.Info("Skipped setting command AppInstall line when CanAlterCommandArgs = false");
-				}
-			}
-		}
-
-		private string CommandArgumentsPrivate;
-
 		public WindowsAppInstall(string InName, string InProjectName, TargetDeviceWindows InDevice)
 			: base(InName, InProjectName, InDevice)
-		{
-			CanAlterCommandArgs = true;
-		}
-
-		public void AppendCommandline(string AdditionalCommandline)
-		{
-			CommandArguments += AdditionalCommandline;
-		}
+		{ }
 	}
 
 	public class WindowsAppInstance : DesktopCommonAppInstance<WindowsAppInstall, TargetDeviceWindows>
 	{
-		public WindowsAppInstance(WindowsAppInstall InInstall, IProcessResult InProcess, string ProcessLogFile = null)
-			: base(InInstall, InProcess, ProcessLogFile)
+		public WindowsAppInstance(WindowsAppInstall InInstall, IProcessResult InProcess, string InProcessLogFile = null)
+			: base(InInstall, InProcess, InProcessLogFile)
 		{ }
 	}
 

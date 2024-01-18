@@ -244,16 +244,16 @@ namespace UE
 
 				if (ConfigRole.RoleType.IsClient())
 				{
-					// Have the client list the tests it knows about. Useful for troubleshooting discrepencies
+					// Have the client list the tests it knows about. Useful for troubleshooting discrepancies
 					string ClientAutomationTestArgument = "List;";
 
-					// Make sure the stereo test setting propogates to the client
+					// Make sure the stereo test setting propagates to the client
 					if (EnableStereoTestVariants)
 					{
 						ClientAutomationTestArgument += "EnableStereoTests;";
 					}
 
-					AppConfig.CommandLine += string.Format(" -sessionid={0} -messaging -log -TcpMessagingConnect={1}:6666 -ExecCmds=\"Automation {2}\"", SessionID, HostIP, ClientAutomationTestArgument);
+					AppConfig.CommandLine += string.Format(" -sessionid={0} -messaging -TcpMessagingConnect={1}:6666 -ExecCmds=\"Automation {2}\"", SessionID, HostIP, ClientAutomationTestArgument);
 				}
 				else if (ConfigRole.RoleType.IsEditor())
 				{
@@ -368,7 +368,7 @@ namespace UE
 
 			// Tests in the editor only require a single role
 			UnrealTestRole EditorRole = Config.RequireRole(Config.CookedEditor ? UnrealTargetRole.CookedEditor : UnrealTargetRole.Editor);
-			EditorRole.CommandLineParams.AddRawCommandline("-NoWatchdog -stdout -FORCELOGFLUSH -CrashForUAT -log");
+			EditorRole.CommandLineParams.AddRawCommandline("-NoWatchdog -stdout -FORCELOGFLUSH -CrashForUAT");
 
 			return Config;
 		}
@@ -400,7 +400,7 @@ namespace UE
 
 			// Target tests require an editor which hosts the process
 			UnrealTestRole EditorRole = Config.RequireRole(UnrealTargetRole.Editor);
-			EditorRole.CommandLineParams.AddRawCommandline("-NoWatchdog -stdout -FORCELOGFLUSH -CrashForUAT -log");
+			EditorRole.CommandLineParams.AddRawCommandline("-NoWatchdog -stdout -FORCELOGFLUSH -CrashForUAT");
 
 			if (Config.Attended == false)
 			{

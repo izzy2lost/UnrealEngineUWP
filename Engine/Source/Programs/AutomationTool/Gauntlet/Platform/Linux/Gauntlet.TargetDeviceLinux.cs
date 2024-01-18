@@ -90,7 +90,7 @@ namespace Gauntlet
 				Environment.CurrentDirectory = OldWD;
 			}
 
-			return new LinuxAppInstance(LinuxApp, Result);
+			return new LinuxAppInstance(LinuxApp, Result, LinuxApp.LogFile);
 		}
 
 		protected override IAppInstall InstallNativeStagedBuild(UnrealAppConfig AppConfig, NativeStagedBuild InBuild)
@@ -104,17 +104,7 @@ namespace Gauntlet
 			{
 				LinuxApp = new LinuxAppInstall(AppConfig.Name, AppConfig.ProjectName, this);
 			}
-
-			LinuxApp.RunOptions = RunOptions;
-			if (Log.IsVeryVerbose)
-			{
-				LinuxApp.RunOptions |= CommandUtils.ERunOptions.AllowSpew;
-			}
-
-			LinuxApp.CommandArguments = AppConfig.CommandLine;
-
-			LinuxApp.ArtifactPath = Path.Combine(InBuild.BuildPath, AppConfig.ProjectName, @"Saved");
-			LinuxApp.CleanDeviceArtifacts();
+			LinuxApp.SetDefaultCommandLineArguments(AppConfig, RunOptions, InBuild.BuildPath);
 
 			CopyAdditionalFiles(AppConfig.FilesToCopy);
 
@@ -147,27 +137,7 @@ namespace Gauntlet
 			}
 
 			LinuxAppInstall LinuxApp = new LinuxAppInstall(AppConfig.Name, AppConfig.ProjectName, this);
-			LinuxApp.RunOptions = RunOptions;
-
-			// Set commandline replace any InstallPath arguments with the path we use
-			LinuxApp.CommandArguments = Regex.Replace(AppConfig.CommandLine, @"\$\(InstallPath\)", BuildDir, RegexOptions.IgnoreCase);
-
-			if (string.IsNullOrEmpty(UserDir) == false)
-			{
-				LinuxApp.CommandArguments += string.Format(" -userdir=\"{0}\"", UserDir);
-				LinuxApp.ArtifactPath = Path.Combine(UserDir, "Saved");
-
-				Utils.SystemHelpers.MarkDirectoryForCleanup(UserDir);
-			}
-			else
-			{
-				// e.g d:\Unreal\GameName\Saved
-				LinuxApp.ArtifactPath = Path.Combine(BuildDir, AppConfig.ProjectName, "Saved");
-
-			}
-
-			// clear artifact path
-			LinuxApp.CleanDeviceArtifacts();
+			LinuxApp.SetDefaultCommandLineArguments(AppConfig, RunOptions, BuildDir);
 
 			if (LocalDirectoryMappings.Count == 0)
 			{
@@ -216,11 +186,7 @@ namespace Gauntlet
 			LinuxAppInstall LinuxApp = new LinuxAppInstall(AppConfig.Name, AppConfig.ProjectName, this);
 
 			LinuxApp.WorkingDirectory = Path.GetDirectoryName(Build.ExecutablePath);
-			LinuxApp.RunOptions = RunOptions;
-
-			// Force this to stop logs and other artifacts going to different places
-			LinuxApp.CommandArguments = AppConfig.CommandLine + string.Format(" -userdir=\"{0}\"", UserDir);
-			LinuxApp.ArtifactPath = Path.Combine(UserDir, @"Saved");
+			LinuxApp.SetDefaultCommandLineArguments(AppConfig, RunOptions, LinuxApp.WorkingDirectory);
 			LinuxApp.ExecutablePath = Build.ExecutablePath;
 
 			if (LocalDirectoryMappings.Count == 0)
@@ -257,8 +223,8 @@ namespace Gauntlet
 
 	public class LinuxAppInstance : DesktopCommonAppInstance<LinuxAppInstall, TargetDeviceLinux>
 	{
-		public LinuxAppInstance(LinuxAppInstall InInstall, IProcessResult InProcess, string ProcessLogFile = null)
-			: base(InInstall, InProcess, ProcessLogFile)
+		public LinuxAppInstance(LinuxAppInstall InInstall, IProcessResult InProcess, string InProcessLogFile = null)
+			: base(InInstall, InProcess, InProcessLogFile)
 		{ }
 	}
 

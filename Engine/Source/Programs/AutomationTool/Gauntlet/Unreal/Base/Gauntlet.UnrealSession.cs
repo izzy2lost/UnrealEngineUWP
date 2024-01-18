@@ -546,13 +546,12 @@ namespace Gauntlet
 		/// <param name="InAppInstance"></param>
 		/// <param name="InArtifactPath"></param>
 		/// <param name="InLogSummary"></param>
-		public UnrealRoleArtifacts(UnrealSessionRole InSessionRole, IAppInstance InAppInstance, string InArtifactPath, string InLogPath, UnrealLogParser InLog)
+		public UnrealRoleArtifacts(UnrealSessionRole InSessionRole, IAppInstance InAppInstance, string InArtifactPath, string InLogPath)
 		{
 			SessionRole = InSessionRole;
 			AppInstance = InAppInstance;
 			ArtifactPath = InArtifactPath;
 			LogPath = InLogPath;
-			//LogParser = InLog;
 		}
 	}
 
@@ -1196,12 +1195,12 @@ namespace Gauntlet
 						Writer.WriteLine(string.Format("Role: {0}\r\n", InRunningRole.Role));
 						Writer.WriteLine(string.Format("Automation Command: {0}\r\n", Environment.CommandLine));
 						Writer.WriteLine("---------------------------");
-						Writer.Write(InRunningRole.AppInstance.StdOut);
+						Writer.Write(UnrealLogParser.SanitizeLogText(InRunningRole.AppInstance.StdOut));
 					}
 					Log.Info($"Wrote {RoleName} Log to {ArtifactLogFilePath}");
 
-					// On build machines, copy all role logs to Horde.
-					if (IsBuildMachine)
+					// On build machines, copy all role logs to Horde. Except for test that already generate a dedicated report for it.
+					if (IsBuildMachine && !InContext.TestParams.ParseParam("WriteTestResultsForHorde"))
 					{
 						string HordeLogFilePath = Path.Combine(CommandUtils.CmdEnv.LogFolder, RoleName + "Output.log");
 						File.Copy(ArtifactLogFilePath, HordeLogFilePath, true);
@@ -1262,7 +1261,7 @@ namespace Gauntlet
 							{
 								Log.Info("Downsizing and gifying session images at {0}", ScreenshotSubdirectory.FullName);
 
-								// Downsize first so gif-step is quicker and takes less resoruces.
+								// Downsize first so gif-step is quicker and takes less resources.
 								Utils.Image.ConvertImages(ScreenshotSubdirectory.FullName, ScreenshotSubdirectory.FullName, "jpg", true);
 
 								string GifPath = GenerateNotTakenFilePath(Path.Combine(DestinationDirectory.FullName, RoleName + "Test.gif"));
@@ -1285,8 +1284,7 @@ namespace Gauntlet
 			// END REMOVEME
 
 			// Save the Artifact filepath
-			UnrealLogParser LogParser = new UnrealLogParser(InRunningRole.AppInstance.StdOut);
-			return new UnrealRoleArtifacts(InRunningRole.Role, InRunningRole.AppInstance, DestinationDirectory.FullName, ArtifactLogFilePath, LogParser);
+			return new UnrealRoleArtifacts(InRunningRole.Role, InRunningRole.AppInstance, DestinationDirectory.FullName, ArtifactLogFilePath);
 		}
 
 		/// <summary>

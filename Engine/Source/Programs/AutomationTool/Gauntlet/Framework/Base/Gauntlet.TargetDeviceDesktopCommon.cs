@@ -5,9 +5,12 @@ using EpicGames.Core;
 using System;
 using System.Collections.Generic;
 using System.IO;
+using System.Text;
 using System.Threading;
 using System.Linq;
 using UnrealBuildTool;
+using System.Text.RegularExpressions;
+using static AutomationTool.ProcessResult;
 
 namespace Gauntlet
 {
@@ -197,7 +200,32 @@ namespace Gauntlet
 
 		public string WorkingDirectory;
 
-		public virtual string CommandArguments { get; set; }
+		public string LogFile;
+
+		public bool CanAlterCommandArgs;
+
+		public string CommandArguments
+		{
+			get { return CommandArgumentsPrivate; }
+			set
+			{
+				if (CanAlterCommandArgs || string.IsNullOrEmpty(CommandArgumentsPrivate))
+				{
+					CommandArgumentsPrivate = value;
+				}
+				else
+				{
+					Log.Info("Skipped setting command AppInstall line when CanAlterCommandArgs = false");
+				}
+			}
+		}
+
+		private string CommandArgumentsPrivate;
+
+		public void AppendCommandline(string AdditionalCommandline)
+		{
+			CommandArguments += AdditionalCommandline;
+		}
 
 		public CommandUtils.ERunOptions RunOptions { get; set; }
 
@@ -208,6 +236,7 @@ namespace Gauntlet
 			DesktopDevice = InDevice;
 			CommandArguments = string.Empty;
 			RunOptions = CommandUtils.ERunOptions.NoWaitForExit;
+			CanAlterCommandArgs = true;
 		}
 
 		public virtual IAppInstance Run()
@@ -217,6 +246,19 @@ namespace Gauntlet
 
 		public virtual void CleanDeviceArtifacts()
 		{
+			// log file
+			try
+			{
+				if (LogFile != null && File.Exists(LogFile))
+				{
+					EpicGames.Core.FileUtils.ForceDeleteFile(LogFile);
+				}
+			}
+			catch (Exception Ex)
+			{
+				Log.Warning(KnownLogEvents.Gauntlet_DeviceEvent, "Unable to delete existing log file {File}. {Exception}", LogFile, Ex.Message);
+			}
+			// all other artifacts
 			if (!string.IsNullOrEmpty(ArtifactPath) && Directory.Exists(ArtifactPath))
 			{
 				try
@@ -255,6 +297,69 @@ namespace Gauntlet
 			}
 			return true;
 		}
+
+		public virtual void SetDefaultCommandLineArguments(UnrealAppConfig AppConfig, CommandUtils.ERunOptions InRunOptions, string BuildDir)
+		{
+			RunOptions = InRunOptions;
+			if (Log.IsVeryVerbose)
+			{
+				RunOptions |= CommandUtils.ERunOptions.AllowSpew;
+			}
+
+			string UserDir = DesktopDevice.UserDir;
+			// Set commandline replace any InstallPath arguments with the path we use
+			CommandArguments = Regex.Replace(AppConfig.CommandLine, @"\$\(InstallPath\)", BuildDir, RegexOptions.IgnoreCase);
+			CanAlterCommandArgs = AppConfig.CanAlterCommandArgs;
+
+			if (CanAlterCommandArgs)
+			{
+				// Unreal userdir
+				if (string.IsNullOrEmpty(UserDir) == false)
+				{
+					CommandArguments += $" -userdir=\"{UserDir}\"";
+					ArtifactPath = Path.Combine(UserDir, "Saved");
+
+					Utils.SystemHelpers.MarkDirectoryForCleanup(UserDir);
+				}
+				else
+				{
+					// e.g d:\Unreal\GameName\Saved
+					ArtifactPath = Path.Combine(BuildDir, ProjectName, "Saved");
+				}
+
+				// Unreal abslog
+				// Look in app parameters if abslog is specified, if so use it
+				Regex LogRegex = new Regex(@"-abslog[:\s=](?:""([^""]*)""|([^-][^\s]*))?");
+				Match M = LogRegex.Match(CommandArguments);
+				if (M.Success)
+				{
+					LogFile = M.Groups[2].Value;
+				}
+
+				// Explicitly set log file when not already defined if not build machine
+				// -abslog makes sure Unreal dynamically update the log window when using -log
+				if (!CommandUtils.IsBuildMachine && (!string.IsNullOrEmpty(LogFile) || AppConfig.CommandLine.Contains("-log")))
+				{
+					string LogFolder = string.IsNullOrEmpty(LogFile) ? Path.Combine(ArtifactPath, "Logs") : Path.GetDirectoryName(LogFile);
+
+					if (!Directory.Exists(LogFolder))
+					{
+						Directory.CreateDirectory(LogFolder);
+					}
+
+					if (string.IsNullOrEmpty(LogFile))
+					{
+						LogFile = Path.Combine(LogFolder, $"{ProjectName}.log");
+						CommandArguments += string.Format(" -abslog=\"{0}\"", LogFile);
+					}
+
+					RunOptions |= CommandUtils.ERunOptions.NoStdOutRedirect;
+				}
+
+				// clear artifact path
+				CleanDeviceArtifacts();
+			}
+		}
 	}
 
 	public abstract class DesktopCommonAppInstance<DesktopAppInstall, DesktopTargetDevice> : LocalAppProcess
@@ -267,8 +372,8 @@ namespace Gauntlet
 
 		protected DesktopAppInstall Install;
 
-		public DesktopCommonAppInstance(DesktopAppInstall InInstall, IProcessResult InProcess, string ProcessLogFile = null)
-			: base(InProcess, InInstall.CommandArguments, ProcessLogFile)
+		public DesktopCommonAppInstance(DesktopAppInstall InInstall, IProcessResult InProcess, string InProcessLogFile = null)
+			: base(InProcess, InInstall.CommandArguments, InProcessLogFile)
 		{
 			Install = InInstall;
 		}

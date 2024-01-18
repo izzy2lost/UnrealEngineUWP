@@ -72,50 +72,35 @@ namespace Gauntlet
 				Environment.CurrentDirectory = OldWD;
 			}
 
-			return new MacAppInstance(MacInstall, Result);
+			return new MacAppInstance(MacInstall, Result, MacInstall.LogFile);
 		}
 
 		protected override IAppInstall InstallNativeStagedBuild(UnrealAppConfig AppConfig, NativeStagedBuild InBuild)
 		{
-			MacAppInstall MacApp = new MacAppInstall(AppConfig.Name, this);
-
-			MacApp.RunOptions = RunOptions;
-			if (Log.IsVeryVerbose)
-			{
-				MacApp.RunOptions |= CommandUtils.ERunOptions.AllowSpew;
-			}
-
+			MacAppInstall MacApp = new MacAppInstall(AppConfig.Name, AppConfig.ProjectName, this);
+			MacApp.SetDefaultCommandLineArguments(AppConfig, RunOptions, InBuild.BuildPath);
 			MacApp.WorkingDirectory = InBuild.BuildPath;
 			MacApp.ExecutablePath = Path.Combine(InBuild.BuildPath, InBuild.ExecutablePath);
-			MacApp.CommandArguments = AppConfig.CommandLine;
 
-			MacApp.ArtifactPath = Path.Combine(InBuild.BuildPath, AppConfig.ProjectName, @"Saved");
-			MacApp.CleanDeviceArtifacts();
+			CopyAdditionalFiles(AppConfig.FilesToCopy);
 
 			return MacApp;
 		}
 
 		protected override IAppInstall InstallEditorBuild(UnrealAppConfig AppConfig, EditorBuild Build)
 		{
-			MacAppInstall MacApp = new MacAppInstall(AppConfig.Name, this);
-
+			MacAppInstall MacApp = new MacAppInstall(AppConfig.Name, AppConfig.ProjectName, this);
+			MacApp.SetDefaultCommandLineArguments(AppConfig, RunOptions, Build.ExecutablePath);
 			MacApp.WorkingDirectory = Path.GetFullPath(Build.ExecutablePath);
-			MacApp.CommandArguments = AppConfig.CommandLine;
-			MacApp.RunOptions = RunOptions;
-
-			// Mac always forces this to stop logs and other artifacts going to different places
-			MacApp.CommandArguments += string.Format(" -userdir=\"{0}\"", UserDir);
-			MacApp.ArtifactPath = Path.Combine(UserDir, @"Saved");
-
-			// now turn the Foo.app into Foo/Content/MacOS/Foo
-			string AppPath = Path.GetDirectoryName(Build.ExecutablePath);
-
 			MacApp.ExecutablePath = GetExecutableIfBundle(Build.ExecutablePath);
 
 			if (LocalDirectoryMappings.Count == 0)
 			{
-				PopulateDirectoryMappings(AppPath);
+				PopulateDirectoryMappings(AppConfig.ProjectFile.Directory.FullName);
 			}
+
+			CopyAdditionalFiles(AppConfig.FilesToCopy);
+
 			return MacApp;
 		}
 
@@ -134,25 +119,14 @@ namespace Gauntlet
 
 		protected IAppInstall InstallBuild(UnrealAppConfig AppConfig, string BuildPath, string BundlePath)
 		{
-			MacAppInstall MacApp = new MacAppInstall(AppConfig.Name, this);
-
+			MacAppInstall MacApp = new MacAppInstall(AppConfig.Name, AppConfig.ProjectName, this);
+			MacApp.SetDefaultCommandLineArguments(AppConfig, RunOptions, BuildPath);
 			MacApp.WorkingDirectory = BuildPath;
-			MacApp.RunOptions = RunOptions;
-
 			MacApp.ExecutablePath = GetExecutableIfBundle(BundlePath);
-
-			// Set commandline replace any InstallPath arguments with the path we use
-			MacApp.CommandArguments = Regex.Replace(AppConfig.CommandLine, @"\$\(InstallPath\)", BuildPath, RegexOptions.IgnoreCase);
-
-			// Mac always forces this to stop logs and other artifacts going to different places
-			// Mac always forces this to stop logs and other artifacts going to different places
-			MacApp.CommandArguments += string.Format(" -userdir=\"{0}\"", UserDir);
-			MacApp.ArtifactPath = Path.Combine(UserDir, @"Saved");
 
 			PopulateDirectoryMappings(BuildPath);
 
-			// clear artifact path
-			MacApp.CleanDeviceArtifacts();
+			CopyAdditionalFiles(AppConfig.FilesToCopy);
 
 			// check for a local newer executable
 			if (Globals.Params.ParseParam("dev")
@@ -266,8 +240,8 @@ namespace Gauntlet
 			set { } // intentional nop
 		}
 
-		public MacAppInstall(string InName, TargetDeviceMac InDevice)
-			: base(InName, string.Empty, InDevice)
+		public MacAppInstall(string InName, string InProjectName, TargetDeviceMac InDevice)
+			: base(InName, InProjectName, InDevice)
 		{ }
 	}
 

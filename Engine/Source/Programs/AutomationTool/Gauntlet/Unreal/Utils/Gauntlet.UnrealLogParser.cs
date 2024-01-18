@@ -275,7 +275,7 @@ namespace Gauntlet
 			LogEntries = ParsedEntries;
 		}
 
-		static string SanitizeLogText(string InContent)
+		public static string SanitizeLogText(string InContent)
 		{
 			StringBuilder ContentBuilder = new StringBuilder();
 
