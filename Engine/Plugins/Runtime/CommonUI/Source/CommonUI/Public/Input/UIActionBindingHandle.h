@@ -13,8 +13,11 @@ struct FScriptContainerElement;
 class UWidget;
 enum class ECommonInputMode : uint8;
 
+USTRUCT(BlueprintType, DisplayName = "UI Action Binding Handle")
 struct COMMONUI_API FUIActionBindingHandle
 {
+	GENERATED_BODY()
+
 public:
 	bool IsValid() const;
 	void Unregister();
