@@ -486,7 +486,7 @@ UTexture2D* FindReferenceImage(const UEdGraphPin* Pin, FMutableGraphGenerationCo
 
 	else if (const UCustomizableObjectNodePassThroughTexture* TypedNodePassThroughTex = Cast<UCustomizableObjectNodePassThroughTexture>(Node))
 	{
-		Result = TypedNodePassThroughTex->Texture;
+		Result = Cast<UTexture2D>(TypedNodePassThroughTex->PassThroughTexture);
 	}
 
 	else if (const UCustomizableObjectNodeTextureParameter* ParamNodeTex = Cast<UCustomizableObjectNodeTextureParameter>(Node))

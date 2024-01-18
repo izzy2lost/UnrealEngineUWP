@@ -110,6 +110,8 @@ struct CUSTOMIZABLEOBJECT_API FCustomizableObjectCustomVersion
 
 		AddedColumnIdDataToTableNodePins,
 
+		AddedAnyTextureTypeToPassThroughTextures,
+
 		// -----<new versions can be added above this line>-------------------------------------------------
 		VersionPlusOne,
 		LatestVersion = VersionPlusOne - 1

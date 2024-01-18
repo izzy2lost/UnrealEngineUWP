@@ -101,8 +101,10 @@ public:
 	bool IsDefaultImageMode() { return bIsDefault; }
 	void SetDefaultImageMode(bool bValue) { bIsDefault = bValue; }
 
-	bool IsArrayTexture() { return bIsArrayTexture; }
-	void SetIsArrayTexture(bool bValue) { bIsArrayTexture = bValue; }
+	bool IsNotTexture2D() { return bIsNotTexture2D; }
+	void SetIsNotTexture2D(bool bValue) { bIsNotTexture2D = bValue; }
+
+	void ConvertArrayTextureToAnyTextureFixup();
 
 	// Pin Type
 	UPROPERTY()
@@ -113,9 +115,12 @@ private:
 	UPROPERTY()
 	bool bIsDefault = true;
 
+	// Replaced by the more general bIsNot2DTexture
 	UPROPERTY()
-	bool bIsArrayTexture = false;
+	bool bIsArrayTexture_DEPRECATED = false;
 
+	UPROPERTY()
+	bool bIsNotTexture2D = false;
 };
 
 
@@ -362,8 +367,8 @@ public:
 	// Returns true if the pin is in the default mode (same as node)
 	bool IsImagePinDefault(const UEdGraphPin* Pin) const;
 
-	// Returns true if the pin is a texture array pin
-	bool IsImageArrayPin(const UEdGraphPin* Pin) const;
+	// Returns true if the pin is not a UTexture2D but a different kind of UTexture
+	bool IsNotTexture2DPin(const UEdGraphPin* Pin) const;
 
 	// Returns the image mode of the column
 	ETableTextureType GetColumnImageMode(const FString& ColumnName) const;

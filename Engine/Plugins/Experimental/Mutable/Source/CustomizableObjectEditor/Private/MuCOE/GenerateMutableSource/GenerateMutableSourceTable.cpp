@@ -392,17 +392,14 @@ bool FillTableColumn(const UCustomizableObjectNodeTable* TableNode,	mu::TablePtr
 
 		else if (SoftObjectProperty->PropertyClass->IsChildOf(UTexture::StaticClass()))
 		{
-			// Two supported texture types
-			UTexture2D* Texture2D = Cast<UTexture2D>(Object);
-			UTexture2DArray* TextureArray = Cast<UTexture2DArray>(Object);
+			UTexture* Texture = Cast<UTexture>(Object);
 
 			// Removing encoding part
 			const FString PinName = ColumnName.Replace(TEXT("--PassThrough"), TEXT(""), ESearchCase::CaseSensitive);
 
-			if (!Texture2D && !TextureArray)
+			if (!Texture)
 			{
-				Texture2D = TableNode->GetColumnDefaultAssetByType<UTexture2D>(PinName);
-				TextureArray = TableNode->GetColumnDefaultAssetByType<UTexture2DArray>(PinName);
+				Texture = TableNode->GetColumnDefaultAssetByType<UTexture>(PinName);
 
 				FString Message = Cast<UObject>(Object) ? "not a suported Texture" : "null";
 				FString WarningMessage = FString::Printf(TEXT("Texture from column [%s] row [%s] is %s. The default texture will be used instead."), *PinName, *RowName, *Message);
@@ -410,8 +407,7 @@ bool FillTableColumn(const UCustomizableObjectNodeTable* TableNode,	mu::TablePtr
 			}
 
 			// There will be always one of the two options
-			check(Texture2D || TextureArray);
-			UTexture* Texture = Texture2D ? Cast<UTexture>(Texture2D) : Cast<UTexture>(TextureArray);
+			check(Texture);
 
 			// Getting column index from column name
 			CurrentColumn = MutableTable->FindColumn(ColumnName);

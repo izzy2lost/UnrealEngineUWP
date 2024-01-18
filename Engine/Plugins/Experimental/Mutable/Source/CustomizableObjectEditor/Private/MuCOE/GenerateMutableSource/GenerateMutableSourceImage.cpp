@@ -869,7 +869,7 @@ mu::NodeImagePtr GenerateMutableSourceImage(const UEdGraphPin* Pin, FMutableGrap
 
 	else if (const UCustomizableObjectNodePassThroughTexture* TypedNodePassThroughTex = Cast<UCustomizableObjectNodePassThroughTexture>(Node))
 	{
-		UTexture2D* BaseTexture = TypedNodePassThroughTex->Texture;
+		UTexture* BaseTexture = TypedNodePassThroughTex->PassThroughTexture;
 		if (BaseTexture)
 		{
 			mu::NodeImageConstantPtr ImageNode = new mu::NodeImageConstant();
@@ -1002,10 +1002,9 @@ mu::NodeImagePtr GenerateMutableSourceImage(const UEdGraphPin* Pin, FMutableGrap
 					bSuccess = false;
 				}
 
-				UTexture2D* DefaultTexture2D = TypedNodeTable->GetColumnDefaultAssetByType<UTexture2D>(Pin);
-				UTexture2DArray* DefaultTextureArray = TypedNodeTable->GetColumnDefaultAssetByType<UTexture2DArray>(Pin);
+				UTexture* DefaultTexture = TypedNodeTable->GetColumnDefaultAssetByType<UTexture>(Pin);
 
-				if (bSuccess && Pin->PinType.PinCategory != Schema->PC_MaterialAsset && !DefaultTexture2D && !DefaultTextureArray)
+				if (bSuccess && Pin->PinType.PinCategory != Schema->PC_MaterialAsset && !DefaultTexture)
 				{
 					FString Msg = FString::Printf(TEXT("Couldn't find a default value in the data table's struct for the column [%s]. The default value is null or not a supported Texture"), *ColumnName);
 					GenerationContext.Compiler->CompilerLog(FText::FromString(Msg), Node);
@@ -1080,7 +1079,7 @@ mu::NodeImagePtr GenerateMutableSourceImage(const UEdGraphPin* Pin, FMutableGrap
 							ImageTableNode->SetParameterName(TypedNodeTable->ParameterName);
 							ImageTableNode->SetNoneOption(TypedNodeTable->bAddNoneOption);
 
-							if (DefaultTexture2D)
+							if (UTexture2D* DefaultTexture2D = Cast<UTexture2D>(DefaultTexture))
 							{
 								mu::FImageDesc ImageDesc = GenerateImageDescriptor(DefaultTexture2D);
 

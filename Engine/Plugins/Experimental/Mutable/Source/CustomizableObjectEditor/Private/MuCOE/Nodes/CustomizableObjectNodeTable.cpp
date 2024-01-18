@@ -164,6 +164,19 @@ void UCustomizableObjectNodeTable::BackwardsCompatibleFixup()
 			}
 		}
 	}
+
+	if (CustomizableObjectCustomVersion < FCustomizableObjectCustomVersion::AddedAnyTextureTypeToPassThroughTextures)
+	{
+		for (UEdGraphPin* Pin : Pins)
+		{
+			UCustomizableObjectNodePinData* PinData = GetPinData(*Pin);
+
+			if (UCustomizableObjectNodeTableImagePinData* ImagePinData = Cast<UCustomizableObjectNodeTableImagePinData>(PinData))
+			{
+				ImagePinData->ConvertArrayTextureToAnyTextureFixup();
+			}
+		}
+	}
 }
 
 
@@ -250,7 +263,7 @@ void UCustomizableObjectNodeTable::PinConnectionListChanged(UEdGraphPin* Pin)
 	{
 		if (UCustomizableObjectNodeTableImagePinData* ImagePinData = Cast<UCustomizableObjectNodeTableImagePinData>(GetPinData(*(Pin))))
 		{
-			if (!ImagePinData->IsArrayTexture() && ImagePinData->IsDefaultImageMode() && ImagePinData->ImageMode != DefaultImageMode)
+			if (!ImagePinData->IsNotTexture2D() && ImagePinData->IsDefaultImageMode() && ImagePinData->ImageMode != DefaultImageMode)
 			{
 				ImagePinData->ImageMode = DefaultImageMode;
 				ReconstructNode();
@@ -280,7 +293,7 @@ void UCustomizableObjectNodeTable::PostEditChangeProperty(FPropertyChangedEvent&
 			{
 				if (UCustomizableObjectNodeTableImagePinData* TexturePinData = Cast<UCustomizableObjectNodeTableImagePinData>(GetPinData(*(Pin))))
 				{
-					if (!Pin->LinkedTo.Num() && !TexturePinData->IsArrayTexture() && TexturePinData->IsDefaultImageMode())
+					if (!Pin->LinkedTo.Num() && !TexturePinData->IsNotTexture2D() && TexturePinData->IsDefaultImageMode())
 					{
 						ETableTextureType Mode = TexturePinData->ImageMode == ETableTextureType::PASSTHROUGH_TEXTURE ? ETableTextureType::MUTABLE_TEXTURE : ETableTextureType::PASSTHROUGH_TEXTURE;
 						TexturePinData->ImageMode = Mode;
@@ -383,7 +396,7 @@ void UCustomizableObjectNodeTable::AllocateDefaultPins(UCustomizableObjectNodeRe
 					UCustomizableObjectNodeTableImagePinData* PinData = NewObject<UCustomizableObjectNodeTableImagePinData>(this);
 					PinData->ColumnName = ColumnName;
 					PinData->StructColumnId = ColumnPropertyId;
-					PinData->SetIsArrayTexture(false);
+					PinData->SetIsNotTexture2D(false);
 
 					FName PinCategory = DefaultImageMode == ETableTextureType::PASSTHROUGH_TEXTURE ? Schema->PC_PassThroughImage : Schema->PC_Image;
 
@@ -403,13 +416,13 @@ void UCustomizableObjectNodeTable::AllocateDefaultPins(UCustomizableObjectNodeRe
 					OutPin = CustomCreatePin(EGPD_Output, PinCategory, FName(*PinName), PinData);
 				}
 
-				else if (Object->IsA(UTexture2DArray::StaticClass()))
+				else if (Object->IsA(UTexture::StaticClass()))
 				{
 					UCustomizableObjectNodeTableImagePinData* PinData = NewObject<UCustomizableObjectNodeTableImagePinData>(this);
 					PinData->ColumnName = ColumnName;
 					PinData->StructColumnId = ColumnPropertyId;
 					PinData->ImageMode = ETableTextureType::PASSTHROUGH_TEXTURE;
-					PinData->SetIsArrayTexture(true);
+					PinData->SetIsNotTexture2D(true);
 
 					OutPin = CustomCreatePin(EGPD_Output, Schema->PC_PassThroughImage, FName(*PinName), PinData);
 				}
@@ -806,7 +819,7 @@ void UCustomizableObjectNodeTable::RemapPinsData(const TMap<UEdGraphPin*, UEdGra
 			{
 				PinDataNewPin->ImageMode = PinDataOldPin->ImageMode;
 				PinDataNewPin->SetDefaultImageMode(PinDataOldPin->IsDefaultImageMode());
-				PinDataNewPin->SetIsArrayTexture(PinDataOldPin->IsArrayTexture());
+				PinDataNewPin->SetIsNotTexture2D(PinDataOldPin->IsNotTexture2D());
 			}
 		}
 	}
@@ -1191,11 +1204,21 @@ TArray<FName> UCustomizableObjectNodeTable::GetRowNames(const UDataTable* DataTa
 }
 
 
+void UCustomizableObjectNodeTableImagePinData::ConvertArrayTextureToAnyTextureFixup()
+{
+	if (bIsArrayTexture_DEPRECATED)
+	{
+		bIsNotTexture2D = true;
+		bIsArrayTexture_DEPRECATED = false;
+	}
+}
+
+
 void UCustomizableObjectNodeTable::ChangeImagePinMode(UEdGraphPin* Pin, bool bSetDefault)
 {
 	if (UCustomizableObjectNodeTableImagePinData* PinData = Cast<UCustomizableObjectNodeTableImagePinData>(GetPinData(*(Pin))))
 	{
-		if (PinData->IsArrayTexture())
+		if (PinData->IsNotTexture2D())
 		{
 			return;
 		}
@@ -1244,17 +1267,6 @@ bool UCustomizableObjectNodeTable::IsImagePinDefault(const UEdGraphPin* Pin) con
 }
 
 
-bool UCustomizableObjectNodeTable::IsImageArrayPin(const UEdGraphPin* Pin) const
-{
-	if (UCustomizableObjectNodeTableImagePinData* PinData = Cast<UCustomizableObjectNodeTableImagePinData>(GetPinData(*(Pin))))
-	{
-		return PinData->IsArrayTexture();
-	}
-
-	return false;
-}
-
-
 ETableTextureType UCustomizableObjectNodeTable::GetColumnImageMode(const FString& ColumnName) const
 {
 	for (const UEdGraphPin* Pin : Pins)
@@ -1269,6 +1281,17 @@ ETableTextureType UCustomizableObjectNodeTable::GetColumnImageMode(const FString
 	}
 
 	return DefaultImageMode;
+}
+
+
+bool UCustomizableObjectNodeTable::IsNotTexture2DPin(const UEdGraphPin* Pin) const
+{
+	if (UCustomizableObjectNodeTableImagePinData* PinData = Cast<UCustomizableObjectNodeTableImagePinData>(GetPinData(*(Pin))))
+	{
+		return PinData->IsNotTexture2D();
+	}
+
+	return false;
 }
 
 
