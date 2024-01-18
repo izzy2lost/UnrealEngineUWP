@@ -142,13 +142,15 @@ class NNE_API INNERuntimeRDG
 
 public:
 
+	using ECanCreateModelRDGStatus = UE::NNE::EResultStatus;
+
 	/**
 	 * Check if the runtime is able to create a model given some ModelData.
 	 *
 	 * @param ModelData The model data for which to create a model.
 	 * @return True if the runtime is able to create the model, false otherwise.
 	 */
-	virtual bool CanCreateModelRDG(const TObjectPtr<UNNEModelData> ModelData) const = 0;
+	virtual ECanCreateModelRDGStatus CanCreateModelRDG(const TObjectPtr<UNNEModelData> ModelData) const = 0;
 	
 	/**
 	 * Create a model given some ModelData.

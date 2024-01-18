@@ -85,17 +85,17 @@ bool UNNERuntimeRDGHlslImpl::Init()
 	return true;
 }
 
-bool UNNERuntimeRDGHlslImpl::CanCreateModelData(const FString& FileType, TConstArrayView<uint8> FileData, const TMap<FString, TConstArrayView<uint8>>& AdditionalFileData, const FGuid& FileId, const ITargetPlatform* TargetPlatform) const
+UNNERuntimeRDGHlslImpl::ECanCreateModelDataStatus UNNERuntimeRDGHlslImpl::CanCreateModelData(const FString& FileType, TConstArrayView<uint8> FileData, const TMap<FString, TConstArrayView<uint8>>& AdditionalFileData, const FGuid& FileId, const ITargetPlatform* TargetPlatform) const
 {
 #ifdef NNE_UTILITIES_AVAILABLE
-	return FileType.Compare("onnx", ESearchCase::IgnoreCase) == 0;
+	return FileType.Compare("onnx", ESearchCase::IgnoreCase) == 0 ? ECanCreateModelDataStatus::Ok : ECanCreateModelDataStatus::Fail;
 #else
 	UE_LOG(LogNNE, Display, TEXT("NNEUtilities is not available on this platform"));
-	return false;
+	return ECanCreateModelDataStatus::Fail;
 #endif
 }
 
-bool UNNERuntimeRDGHlslImpl::CanCreateModelRDG(const TObjectPtr<UNNEModelData> ModelData) const
+UNNERuntimeRDGHlslImpl::ECanCreateModelRDGStatus UNNERuntimeRDGHlslImpl::CanCreateModelRDG(const TObjectPtr<UNNEModelData> ModelData) const
 {
 	int32 GuidSize = sizeof(GUID);
 	int32 VersionSize = sizeof(Version);
@@ -103,23 +103,24 @@ bool UNNERuntimeRDGHlslImpl::CanCreateModelRDG(const TObjectPtr<UNNEModelData> M
 
 	if (!SharedData.IsValid())
 	{
-		return false;
+		return ECanCreateModelRDGStatus::Fail;
 	}
 
 	TConstArrayView<uint8> Data = SharedData->GetView();
 
 	if (Data.Num() <= GuidSize + VersionSize)
 	{
-		return false;
+		return ECanCreateModelRDGStatus::Fail;
 	}
 	bool bResult = FGenericPlatformMemory::Memcmp(&(Data[0]), &(GUID), GuidSize) == 0;
 	bResult &= FGenericPlatformMemory::Memcmp(&(Data[GuidSize]), &(Version), VersionSize) == 0;
-	return bResult;
+
+	return bResult ? ECanCreateModelRDGStatus::Ok : ECanCreateModelRDGStatus::Fail;
 };
 
 TSharedPtr<UE::NNE::FSharedModelData> UNNERuntimeRDGHlslImpl::CreateModelData(const FString& FileType, TConstArrayView<uint8> FileData, const TMap<FString, TConstArrayView<uint8>>& AdditionalFileData, const FGuid& FileId, const ITargetPlatform* TargetPlatform)
 {
-	if (!CanCreateModelData(FileType, FileData, AdditionalFileData, FileId, TargetPlatform))
+	if (CanCreateModelData(FileType, FileData, AdditionalFileData, FileId, TargetPlatform) != ECanCreateModelDataStatus::Ok)
 	{
 		return {};
 	}
@@ -158,7 +159,7 @@ FString UNNERuntimeRDGHlslImpl::GetModelDataIdentifier(const FString& FileType, 
 
 TSharedPtr<UE::NNE::IModelRDG> UNNERuntimeRDGHlslImpl::CreateModelRDG(const TObjectPtr<UNNEModelData> ModelData)
 {
-	if (!CanCreateModelRDG(ModelData))
+	if (CanCreateModelRDG(ModelData) != ECanCreateModelRDGStatus::Ok)
 	{
 		return TSharedPtr<UE::NNE::IModelRDG>();
 	}

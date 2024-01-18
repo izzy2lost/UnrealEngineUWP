@@ -141,13 +141,15 @@ class NNE_API INNERuntimeGPU
 	
 public:
 
+	using ECanCreateModelGPUStatus = UE::NNE::EResultStatus;
+
 	/**
 	 * Check if the runtime is able to create a model given some ModelData.
 	 *
 	 * @param ModelData The model data for which to create a model.
 	 * @return True if the runtime is able to create the model, false otherwise.
 	 */
-	virtual bool CanCreateModelGPU(const TObjectPtr<UNNEModelData> ModelData) const = 0;
+	virtual ECanCreateModelGPUStatus CanCreateModelGPU(const TObjectPtr<UNNEModelData> ModelData) const = 0;
 	
 	/**
 	 * Create a model given some ModelData.

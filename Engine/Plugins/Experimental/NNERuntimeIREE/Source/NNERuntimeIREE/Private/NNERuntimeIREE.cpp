@@ -105,12 +105,12 @@ FString UNNERuntimeIREECpu::GetRuntimeName() const
 	return TEXT("NNERuntimeIREECpu");
 }
 
-bool UNNERuntimeIREECpu::CanCreateModelData(const FString& FileType, TConstArrayView<uint8> FileData, const TMap<FString, TConstArrayView<uint8>>& AdditionalFileData, const FGuid& FileId, const ITargetPlatform* TargetPlatform) const
+UNNERuntimeIREECpu::ECanCreateModelDataStatus UNNERuntimeIREECpu::CanCreateModelData(const FString& FileType, TConstArrayView<uint8> FileData, const TMap<FString, TConstArrayView<uint8>>& AdditionalFileData, const FGuid& FileId, const ITargetPlatform* TargetPlatform) const
 {
 #if WITH_EDITOR
-	return 	FileType.Compare(TEXT("mlir"), ESearchCase::IgnoreCase) == 0;
+	return FileType.Compare(TEXT("mlir"), ESearchCase::IgnoreCase) == 0 ? ECanCreateModelDataStatus::Ok : ECanCreateModelDataStatus::Fail;
 #else
-	return false;
+	return ECanCreateModelDataStatus::Fail;
 #endif // WITH_EDITOR
 }
 
@@ -120,7 +120,7 @@ TSharedPtr<UE::NNE::FSharedModelData> UNNERuntimeIREECpu::CreateModelData(const 
 	using namespace UE::NNERuntimeIREE::CPU::Private;
 
 	FString TargetPlatformName = TargetPlatform ? TargetPlatform->IniPlatformName() : UGameplayStatics::GetPlatformName();
-	if (!CanCreateModelData(FileType, FileData, AdditionalFileData, FileId, TargetPlatform))
+	if (CanCreateModelData(FileType, FileData, AdditionalFileData, FileId, TargetPlatform) != ECanCreateModelDataStatus::Ok)
 	{
 		UE_LOG(LogTemp, Warning, TEXT("UNNERuntimeIREECpu cannot create the model data with id %s (Filetype: %s) for platform %s"), *FileId.ToString(EGuidFormats::Digits).ToLower(), *FileType, *TargetPlatformName);
 		return TSharedPtr<UE::NNE::FSharedModelData>();
@@ -222,14 +222,14 @@ FString UNNERuntimeIREECpu::GetModelDataIdentifier(const FString& FileType, TCon
 	return UE::NNERuntimeIREE::CPU::Private::GetModelDataIdentifier(GetRuntimeName(), UNNERuntimeIREECpu::GUID, FileId.ToString(EGuidFormats::Digits), PlatformName, "");
 }
 
-bool UNNERuntimeIREECpu::CanCreateModelCPU(const TObjectPtr<UNNEModelData> ModelData) const
+UNNERuntimeIREECpu::ECanCreateModelCPUStatus UNNERuntimeIREECpu::CanCreateModelCPU(const TObjectPtr<UNNEModelData> ModelData) const
 {
 	check(ModelData != nullptr);
 
 	TSharedPtr<UE::NNE::FSharedModelData> SharedData = ModelData->GetModelData(GetRuntimeName());
 	if (!SharedData.IsValid())
 	{
-		return false;
+		return ECanCreateModelCPUStatus::Fail;
 	}
 
 	TConstArrayView<uint8> SharedDataView = SharedData->GetView();
@@ -237,12 +237,13 @@ bool UNNERuntimeIREECpu::CanCreateModelCPU(const TObjectPtr<UNNEModelData> Model
 	int32 VersionSize = sizeof(UNNERuntimeIREECpu::Version);
 	if (SharedDataView.Num() <= GuidSize + VersionSize)
 	{
-		return false;
+		return ECanCreateModelCPUStatus::Fail;
 	}
 
 	bool bResult = FGenericPlatformMemory::Memcmp(&(SharedDataView[0]), &(UNNERuntimeIREECpu::GUID), GuidSize) == 0;
 	bResult &= FGenericPlatformMemory::Memcmp(&(SharedDataView[GuidSize]), &(UNNERuntimeIREECpu::Version), VersionSize) == 0;
-	return bResult;
+
+	return bResult ? ECanCreateModelCPUStatus::Ok : ECanCreateModelCPUStatus::Fail;
 }
 
 TSharedPtr<UE::NNE::IModelCPU> UNNERuntimeIREECpu::CreateModelCPU(const TObjectPtr<UNNEModelData> ModelData)
@@ -251,7 +252,7 @@ TSharedPtr<UE::NNE::IModelCPU> UNNERuntimeIREECpu::CreateModelCPU(const TObjectP
 
 	using namespace UE::NNERuntimeIREE::CPU::Private;
 
-	if (!CanCreateModelCPU(ModelData))
+	if (CanCreateModelCPU(ModelData) != ECanCreateModelCPUStatus::Ok)
 	{
 		UE_LOG(LogTemp, Warning, TEXT("UNNERuntimeIREECpu cannot create a model from the model data with id %s"), *ModelData->GetFileId().ToString(EGuidFormats::Digits));
 		return TSharedPtr<UE::NNE::IModelCPU>();
@@ -414,12 +415,12 @@ FString UNNERuntimeIREEGpu::GetRuntimeName() const
 	return TEXT("");
 }
 
-bool UNNERuntimeIREEGpu::CanCreateModelData(const FString& FileType, TConstArrayView<uint8> FileData, const TMap<FString, TConstArrayView<uint8>>& AdditionalFileData, const FGuid& FileId, const ITargetPlatform* TargetPlatform) const
+UNNERuntimeIREEGpu::ECanCreateModelDataStatus UNNERuntimeIREEGpu::CanCreateModelData(const FString& FileType, TConstArrayView<uint8> FileData, const TMap<FString, TConstArrayView<uint8>>& AdditionalFileData, const FGuid& FileId, const ITargetPlatform* TargetPlatform) const
 {
 #if WITH_EDITOR
-	return	FileType.Compare(TEXT("mlir"), ESearchCase::IgnoreCase) == 0;
+	return FileType.Compare(TEXT("mlir"), ESearchCase::IgnoreCase) == 0 ? ECanCreateModelDataStatus::Ok : ECanCreateModelDataStatus::Fail;
 #else
-	return false;
+	return ECanCreateModelDataStatus::Fail;
 #endif // WITH_EDITOR
 }
 
@@ -434,14 +435,14 @@ FString UNNERuntimeIREEGpu::GetModelDataIdentifier(const FString& FileType, TCon
 	return UE::NNERuntimeIREE::CPU::Private::GetModelDataIdentifier(GetRuntimeName(), GetGUID(), FileId.ToString(EGuidFormats::Digits), PlatformName, "");
 }
 
-bool UNNERuntimeIREEGpu::CanCreateModelGPU(const TObjectPtr<UNNEModelData> ModelData) const
+UNNERuntimeIREEGpu::ECanCreateModelGPUStatus UNNERuntimeIREEGpu::CanCreateModelGPU(const TObjectPtr<UNNEModelData> ModelData) const
 {
 	check(ModelData != nullptr);
 
 	TSharedPtr<UE::NNE::FSharedModelData> SharedData = ModelData->GetModelData(GetRuntimeName());
 	if (!SharedData.IsValid())
 	{
-		return false;
+		return ECanCreateModelGPUStatus::Fail;
 	}
 
 	TConstArrayView<uint8> SharedDataView = SharedData->GetView();
@@ -451,19 +452,20 @@ bool UNNERuntimeIREEGpu::CanCreateModelGPU(const TObjectPtr<UNNEModelData> Model
 	int32 VersionSize = sizeof(Version);
 	if (SharedDataView.Num() <= GuidSize + VersionSize)
 	{
-		return false;
+		return ECanCreateModelGPUStatus::Fail;
 	}
 
 	bool bResult = FGenericPlatformMemory::Memcmp(&(SharedDataView[0]), &(Guid), GuidSize) == 0;
 	bResult &= FGenericPlatformMemory::Memcmp(&(SharedDataView[GuidSize]), &(Version), VersionSize) == 0;
-	return bResult;
+
+	return bResult ? ECanCreateModelGPUStatus::Ok : ECanCreateModelGPUStatus::Fail;
 }
 
 TSharedPtr<UE::NNE::IModelGPU> UNNERuntimeIREEGpu::CreateModelGPU(const TObjectPtr<UNNEModelData> ModelData)
 {
 	check(ModelData != nullptr);
 
-	if (!CanCreateModelGPU(ModelData))
+	if (CanCreateModelGPU(ModelData) != ECanCreateModelGPUStatus::Ok)
 	{
 		return TSharedPtr<UE::NNE::IModelGPU>();
 	}
@@ -555,12 +557,12 @@ FString UNNERuntimeIREERdg::GetRuntimeName() const
 	return TEXT("NNERuntimeIREERdg");
 }
 
-bool UNNERuntimeIREERdg::CanCreateModelData(const FString& FileType, TConstArrayView<uint8> FileData, const TMap<FString, TConstArrayView<uint8>>& AdditionalFileData, const FGuid& FileId, const ITargetPlatform* TargetPlatform) const
+UNNERuntimeIREERdg::ECanCreateModelDataStatus UNNERuntimeIREERdg::CanCreateModelData(const FString& FileType, TConstArrayView<uint8> FileData, const TMap<FString, TConstArrayView<uint8>>& AdditionalFileData, const FGuid& FileId, const ITargetPlatform* TargetPlatform) const
 {
 #if WITH_EDITOR
-	return	FileType.Compare(TEXT("mlir"), ESearchCase::IgnoreCase) == 0;
+	return	FileType.Compare(TEXT("mlir"), ESearchCase::IgnoreCase) == 0 ? ECanCreateModelDataStatus::Ok : ECanCreateModelDataStatus::Fail;
 #else
-	return false;
+	return ECanCreateModelDataStatus::Fail;
 #endif // WITH_EDITOR
 }
 
@@ -575,14 +577,14 @@ FString UNNERuntimeIREERdg::GetModelDataIdentifier(const FString& FileType, TCon
 	return UE::NNERuntimeIREE::CPU::Private::GetModelDataIdentifier(GetRuntimeName(), UNNERuntimeIREERdg::GUID, FileId.ToString(EGuidFormats::Digits), PlatformName, "");
 }
 
-bool UNNERuntimeIREERdg::CanCreateModelRDG(const TObjectPtr<UNNEModelData> ModelData) const
+UNNERuntimeIREERdg::ECanCreateModelRDGStatus UNNERuntimeIREERdg::CanCreateModelRDG(const TObjectPtr<UNNEModelData> ModelData) const
 {
 	check(ModelData != nullptr);
 
 	TSharedPtr<UE::NNE::FSharedModelData> SharedData = ModelData->GetModelData(GetRuntimeName());
 	if (!SharedData.IsValid())
 	{
-		return false;
+		return ECanCreateModelRDGStatus::Fail;
 	}
 
 	TConstArrayView<uint8> SharedDataView = SharedData->GetView();
@@ -590,19 +592,20 @@ bool UNNERuntimeIREERdg::CanCreateModelRDG(const TObjectPtr<UNNEModelData> Model
 	int32 VersionSize = sizeof(UNNERuntimeIREERdg::Version);
 	if (SharedDataView.Num() <= GuidSize + VersionSize)
 	{
-		return false;
+		return ECanCreateModelRDGStatus::Fail;
 	}
 
 	bool bResult = FGenericPlatformMemory::Memcmp(&(SharedDataView[0]), &(UNNERuntimeIREERdg::GUID), GuidSize) == 0;
 	bResult &= FGenericPlatformMemory::Memcmp(&(SharedDataView[GuidSize]), &(UNNERuntimeIREERdg::Version), VersionSize) == 0;
-	return bResult;
+
+	return bResult ? ECanCreateModelRDGStatus::Ok : ECanCreateModelRDGStatus::Fail;
 }
 
 TSharedPtr<UE::NNE::IModelRDG> UNNERuntimeIREERdg::CreateModelRDG(const TObjectPtr<UNNEModelData> ModelData)
 {
 	check(ModelData != nullptr);
 
-	if (!CanCreateModelRDG(ModelData))
+	if (CanCreateModelRDG(ModelData) != ECanCreateModelRDGStatus::Ok)
 	{
 		return TSharedPtr<UE::NNE::IModelRDG>();
 	}

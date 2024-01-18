@@ -4,6 +4,7 @@
 
 #include "Containers/ContainersFwd.h"
 #include "Containers/UnrealString.h"
+#include "NNEStatus.h"
 #include "UObject/Interface.h"
 
 #include "NNERuntime.generated.h"
@@ -34,6 +35,8 @@ class NNE_API INNERuntime
 
 public:
 
+	using ECanCreateModelDataStatus = UE::NNE::EResultStatus;
+
 	/**
 	 * Get the name of the runtime.
 	 *
@@ -51,7 +54,7 @@ public:
 	 * @param TargetPlatform The Interface identifying the target platform for which the data needs to be created. A null pointer indicates the currently compiled/running platform.
 	 * @return True if the runtime is able to create model data, false otherwise.
 	 */
-	virtual bool CanCreateModelData(const FString& FileType, TConstArrayView<uint8> FileData, const TMap<FString, TConstArrayView<uint8>>& AdditionalFileData, const FGuid& FileId, const ITargetPlatform* TargetPlatform) const = 0;
+	virtual ECanCreateModelDataStatus CanCreateModelData(const FString& FileType, TConstArrayView<uint8> FileData, const TMap<FString, TConstArrayView<uint8>>& AdditionalFileData, const FGuid& FileId, const ITargetPlatform* TargetPlatform) const = 0;
 
 	/**
 	 * Create model data given some raw file data.

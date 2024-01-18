@@ -9,39 +9,39 @@
 // various bits of data.
 const uint32 UNNERuntimeBasicCpuImpl::Alignment = 64;
 
-bool UNNERuntimeBasicCpuImpl::CanCreateModelData(const FString& FileType, TConstArrayView<uint8> FileData, const TMap<FString, TConstArrayView<uint8>>& AdditionalFileData, const FGuid& FileId, const ITargetPlatform* TargetPlatform) const
+UNNERuntimeBasicCpuImpl::ECanCreateModelDataStatus UNNERuntimeBasicCpuImpl::CanCreateModelData(const FString& FileType, TConstArrayView<uint8> FileData, const TMap<FString, TConstArrayView<uint8>>& AdditionalFileData, const FGuid& FileId, const ITargetPlatform* TargetPlatform) const
 {
 	if (FileType.Compare("ubnne", ESearchCase::IgnoreCase) != 0)
 	{
-		return false;
+		return ECanCreateModelDataStatus::Fail;
 	}
 
 	// We require at least a magic number and version number
 	if (FileData.Num() < 2 * sizeof(uint32))
 	{
-		return false;
+		return ECanCreateModelDataStatus::Fail;
 	}
 
 	// Check magic number valid
 	const uint32* FileMagicNumber = (const uint32*)&FileData[0 * sizeof(uint32)];
 	if (*FileMagicNumber != UE::NNE::RuntimeBasic::FModelCPU::ModelMagicNumber)
 	{
-		return false;
+		return ECanCreateModelDataStatus::Fail;
 	}
 
 	// Check version number valid
 	const uint32* FileVersionNumber = (const uint32*)&FileData[1 * sizeof(uint32)];
 	if (*FileVersionNumber != UE::NNE::RuntimeBasic::FModelCPU::ModelVersionNumber)
 	{
-		return false;
+		return ECanCreateModelDataStatus::Fail;
 	}
 
-	return true;
+	return ECanCreateModelDataStatus::Ok;
 }
 
 TSharedPtr<UE::NNE::FSharedModelData> UNNERuntimeBasicCpuImpl::CreateModelData(const FString& FileType, TConstArrayView<uint8> FileData, const TMap<FString, TConstArrayView<uint8>>& AdditionalFileData, const FGuid& FileId, const ITargetPlatform* TargetPlatform)
 {
-	if (!CanCreateModelData(FileType, FileData, AdditionalFileData, FileId, TargetPlatform))
+	if (CanCreateModelData(FileType, FileData, AdditionalFileData, FileId, TargetPlatform) != ECanCreateModelDataStatus::Ok)
 	{
 		return nullptr;
 	}
@@ -61,7 +61,7 @@ FString UNNERuntimeBasicCpuImpl::GetModelDataIdentifier(const FString& FileType,
 	return FileId.ToString(EGuidFormats::Digits) + "-" + FString::FromInt(UE::NNE::RuntimeBasic::FModelCPU::ModelMagicNumber);
 }
 
-bool UNNERuntimeBasicCpuImpl::CanCreateModelCPU(const TObjectPtr<UNNEModelData> ModelData) const
+UNNERuntimeBasicCpuImpl::ECanCreateModelCPUStatus UNNERuntimeBasicCpuImpl::CanCreateModelCPU(const TObjectPtr<UNNEModelData> ModelData) const
 {
 	check(ModelData != nullptr);
 
@@ -69,7 +69,7 @@ bool UNNERuntimeBasicCpuImpl::CanCreateModelCPU(const TObjectPtr<UNNEModelData> 
 
 	if (!SharedData.IsValid())
 	{
-		return false;
+		return ECanCreateModelCPUStatus::Fail;
 	}
 
 	TConstArrayView<uint8> Data = SharedData->GetView();
@@ -77,31 +77,31 @@ bool UNNERuntimeBasicCpuImpl::CanCreateModelCPU(const TObjectPtr<UNNEModelData> 
 	// We require at least a magic number and version number
 	if (Data.Num() < 2 * sizeof(uint32))
 	{
-		return false;
+		return ECanCreateModelCPUStatus::Fail;
 	}
 
 	// Check magic number valid
 	const uint32* FileMagicNumber = (const uint32*)&Data[0 * sizeof(uint32)];
 	if (*FileMagicNumber != UE::NNE::RuntimeBasic::FModelCPU::ModelMagicNumber)
 	{
-		return false;
+		return ECanCreateModelCPUStatus::Fail;
 	}
 
 	// Check version number valid
 	const uint32* FileVersionNumber = (const uint32*)&Data[1 * sizeof(uint32)];
 	if (*FileVersionNumber != UE::NNE::RuntimeBasic::FModelCPU::ModelVersionNumber)
 	{
-		return false;
+		return ECanCreateModelCPUStatus::Fail;
 	}
 
-	return true;
+	return ECanCreateModelCPUStatus::Ok;
 }
 
 TSharedPtr<UE::NNE::IModelCPU> UNNERuntimeBasicCpuImpl::CreateModelCPU(const TObjectPtr<UNNEModelData> ModelData)
 {
 	check(ModelData != nullptr);
 
-	if (!CanCreateModelCPU(ModelData))
+	if (CanCreateModelCPU(ModelData) != ECanCreateModelCPUStatus::Ok)
 	{
 		return nullptr;
 	}
