@@ -449,7 +449,7 @@ void FVirtualShadowMapArray::Initialize(
 	UniformParameters.PageRectBounds = GraphBuilder.CreateSRV(GSystemTextures.GetDefaultStructuredBuffer(GraphBuilder, sizeof(FIntVector4)));
 	UniformParameters.LightGridData = GraphBuilder.CreateSRV(GSystemTextures.GetDefaultStructuredBuffer(GraphBuilder, sizeof(uint32)));
 	UniformParameters.NumCulledLightsGrid = GraphBuilder.CreateSRV(GSystemTextures.GetDefaultStructuredBuffer(GraphBuilder, sizeof(uint32)));
-	UniformParameters.CacheInstanceAsStatic = GraphBuilder.CreateSRV(GSystemTextures.GetDefaultStructuredBuffer(GraphBuilder, sizeof(uint32)));
+	UniformParameters.CachePrimitiveAsDynamic = GraphBuilder.CreateSRV(GSystemTextures.GetDefaultStructuredBuffer(GraphBuilder, sizeof(uint32)));
 
 	if (bEnabled)
 	{
@@ -518,9 +518,7 @@ void FVirtualShadowMapArray::Initialize(
 		PhysicalPageMetaDataRDG = GraphBuilder.RegisterExternalBuffer(CacheManager->GetPhysicalPageMetaData());
 		UniformParameters.PhysicalPagePool = PhysicalPagePoolRDG;
 
-		CacheInstanceAsStaticRDG = GraphBuilder.RegisterExternalBuffer(CacheManager->GetCacheInstanceAsStatic());
-		LastInstanceInvalidatedFrameRDG = GraphBuilder.RegisterExternalBuffer(CacheManager->GetLastInstanceInvalidatedFrame());
-		UniformParameters.CacheInstanceAsStatic = GraphBuilder.CreateSRV(CacheInstanceAsStaticRDG);
+		UniformParameters.CachePrimitiveAsDynamic = GraphBuilder.CreateSRV(CacheManager->UploadCachePrimitiveAsDynamic(GraphBuilder));
 	}
 	else
 	{

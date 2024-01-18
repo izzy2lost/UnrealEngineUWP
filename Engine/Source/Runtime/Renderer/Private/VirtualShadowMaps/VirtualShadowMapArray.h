@@ -155,7 +155,7 @@ BEGIN_GLOBAL_SHADER_PARAMETER_STRUCT(FVirtualShadowMapUniformParameters, )
 	SHADER_PARAMETER_RDG_BUFFER_SRV(StructuredBuffer<uint4>, PageRectBounds)
 	SHADER_PARAMETER_RDG_TEXTURE(Texture2DArray<uint>, PhysicalPagePool)
 
-	SHADER_PARAMETER_RDG_BUFFER_SRV(StructuredBuffer<uint>, CacheInstanceAsStatic)
+	SHADER_PARAMETER_RDG_BUFFER_SRV(StructuredBuffer<uint>, CachePrimitiveAsDynamic)
 
 	// Light grid with only the lights that have VSMs present
 	// Still references the original indices from the global light grid
@@ -373,9 +373,6 @@ public:
 	TRefCountPtr<IPooledRenderTarget> HZBPhysical = nullptr;
 	FRDGTextureRef HZBPhysicalRDG = nullptr;
 	FRDGBufferRef PhysicalPageMetaDataRDG = nullptr;
-
-	FRDGBufferRef CacheInstanceAsStaticRDG = nullptr;
-	FRDGBufferRef LastInstanceInvalidatedFrameRDG = nullptr;
 
 	// Buffer that serves as the page table for all virtual shadow maps
 	FRDGBufferRef PageTableRDG = nullptr;

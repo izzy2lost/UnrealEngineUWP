@@ -5537,7 +5537,6 @@ void FScene::UpdateAllPrimitiveSceneInfos(FRDGBuilder& GraphBuilder, EUpdateAllP
 		FVirtualShadowMapArrayCacheManager* CacheManager = GetVirtualShadowMapCache();
 
 		FVirtualShadowMapArrayCacheManager::FInvalidatingPrimitiveCollector InvalidatingPrimitiveCollector(CacheManager);
-		InvalidatingPrimitiveCollector.AddDynamicAndGPUPrimitives();
 
 		// Primitives that are tracked as always invalidating shadows, pipe through as transform updates
 		for (FPrimitiveSceneInfo* PrimitiveSceneInfo : ShadowScene->GetAlwaysInvalidatingPrimitives())
@@ -5565,8 +5564,6 @@ void FScene::UpdateAllPrimitiveSceneInfos(FRDGBuilder& GraphBuilder, EUpdateAllP
 		{
 			InvalidatingPrimitiveCollector.UpdatedTransform(CullDistance.Key->GetPrimitiveSceneInfo());
 		}
-		
-		InvalidatingPrimitiveCollector.Finalize();
 
 		CacheManager->ProcessInvalidations(GraphBuilder, SceneUB, InvalidatingPrimitiveCollector);
 	}

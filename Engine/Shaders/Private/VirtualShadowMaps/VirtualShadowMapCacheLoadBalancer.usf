@@ -7,6 +7,20 @@
 #include "../WaveOpUtil.ush"
 #include "../InstanceCulling/InstanceCullingLoadBalancer.ush"
 
+struct FInstanceInvalidationPayload
+{
+	int VirtualShadowMapId;
+	uint Flags;
+};
+
+FInstanceInvalidationPayload DecodeInstanceInvalidationPayload(uint Payload)
+{
+	FInstanceInvalidationPayload Result;
+	Result.VirtualShadowMapId = Payload >> VSM_INVALIDATION_PAYLOAD_FLAG_BITS;
+	Result.Flags = Payload & ((1U<<VSM_INVALIDATION_PAYLOAD_FLAG_BITS)-1U);
+	return Result;
+}
+
 [numthreads(CS_1D_GROUP_SIZE_X, 1, 1)]
 void InvalidateInstancePagesLoadBalancerCS(
 	uint3 GroupId : SV_GroupID,
@@ -29,15 +43,8 @@ void InvalidateInstancePagesLoadBalancerCS(
 	checkSlow(ShadowMapIndex < VirtualShadowMap.NumFullShadowMaps);
 	const int VirtualShadowMapId = VSM_MAX_SINGLE_PAGE_SHADOW_MAPS + ShadowMapIndex;
 
-	if (ShadowMapIndex == 0)
-	{
-		// Mark the instance as having caused an invalidation for future consideration of dynamic/static caching
-		// We want to do this even if it doesn't invalidate any pages this frame, as this is an indicator of an
-		// instance that is "doing things that may cause invalidations", and thus we want it in the dynamic pool.
-		VirtualShadowMapMarkInstanceAsInvalidated(InstanceId);
+	FInstanceInvalidationPayload Payload = DecodeInstanceInvalidationPayload(WorkSetup.Item.Payload);
+	bool bForceStatic = (Payload.Flags & VSM_INVALIDATION_PAYLOAD_FLAG_FORCE_STATIC) != 0;
 
-		// TODO: If we want to change static->dynamic, we should probably just swap it right here
-	}
-
-	InvalidateInstancePages(VirtualShadowMapId, InstanceId, false);
+	InvalidateInstancePages(Payload.VirtualShadowMapId, InstanceId, bForceStatic);
 }

@@ -8,17 +8,6 @@ VirtualShadowMapPageCacheCommon.ush:
 #include "../Nanite/NaniteDataDecode.ush"
 #include "VirtualShadowMapProjectionStructs.ush"
 
-#define VSM_CACHE_AS_STATIC 1
-#define VSM_CACHE_AS_DYNAMIC 0
-
-RWStructuredBuffer<uint> OutVirtualShadowMapLastInstanceInvalidatedFrame;
-
-void VirtualShadowMapMarkInstanceAsInvalidated(uint InstanceId)
-{
-	checkStructuredBufferAccessSlow(OutVirtualShadowMapLastInstanceInvalidatedFrame, InstanceId);
-	OutVirtualShadowMapLastInstanceInvalidatedFrame[InstanceId] = GetGPUSceneFrameNumber();
-}
-
 bool ShouldMaterialInvalidateShadowCache(FPrimitiveSceneData PrimitiveData, bool bEnableWPO)
 {
 	// Determine if this instance will cause page invalidations.
@@ -54,6 +43,13 @@ bool VirtualShadowMapIsWPOAllowed(FPrimitiveSceneData PrimitiveData, int Virtual
 	return bEvaluateWPO;
 }
 
+bool GetCachePrimitiveAsDynamic(uint PersistentPrimitiveIndex)
+{
+	uint PrimitiveIdWordOffset = PersistentPrimitiveIndex / 32U;
+	uint PrimitiveIdWordMask = 1U << (PersistentPrimitiveIndex % 32U);
+	return (VirtualShadowMap.CachePrimitiveAsDynamic[PrimitiveIdWordOffset] & PrimitiveIdWordMask) != 0;
+}
+
 bool ShouldCacheInstanceAsStatic(uint InstanceId, bool bViewUncached, bool bAllowWPO)
 {
 	if (bViewUncached || bAllowWPO)
@@ -61,6 +57,7 @@ bool ShouldCacheInstanceAsStatic(uint InstanceId, bool bViewUncached, bool bAllo
 		return false;
 	}
 
-	uint CacheFlag = VirtualShadowMap.CacheInstanceAsStatic[InstanceId];
-	return (CacheFlag == VSM_CACHE_AS_STATIC);
+	FInstanceSceneData InstanceData = GetInstanceSceneData(InstanceId, false);
+	FPrimitiveSceneData PrimitiveData = GetPrimitiveData(InstanceData.PrimitiveId);
+	return !GetCachePrimitiveAsDynamic(PrimitiveData.PersistentPrimitiveIndex);
 }

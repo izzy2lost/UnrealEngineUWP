@@ -28,6 +28,11 @@ VirtualShadowMapDefinitions.h: used in virtual shadow map shaders and C++ code t
 // Hard limit for max distant lights supported 8k for now - we may revise later. We need to keep them in a fixed range for now to make allocation easy and minimize overhead for indexing.
 #define VSM_MAX_SINGLE_PAGE_SHADOW_MAPS (1024U * 8U)
 
+#define VSM_INVALIDATION_PAYLOAD_FLAG_NONE                      0
+#define VSM_INVALIDATION_PAYLOAD_FLAG_FORCE_STATIC              (1 << 0)
+// 8 bit flags, 24 bit VSM ID
+#define VSM_INVALIDATION_PAYLOAD_FLAG_BITS                      8
+
 #ifdef __cplusplus
 #include "HLSLTypeAliases.h"
 

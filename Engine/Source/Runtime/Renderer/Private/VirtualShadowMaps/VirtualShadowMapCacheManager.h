@@ -21,6 +21,7 @@ struct FVirtualShadowMapInstanceRange
 {
 	int32 InstanceSceneDataOffset;
 	int32 NumInstanceSceneDataEntries;
+	bool bForceInvalidateStatic;
 };
 
 #define VSM_LOG_INVALIDATIONS 0
@@ -220,8 +221,6 @@ public:
 	void FreePhysicalPool(FRDGBuilder& GraphBuilder);
 	TRefCountPtr<IPooledRenderTarget> GetPhysicalPagePool() const { return PhysicalPagePool; }
 	TRefCountPtr<FRDGPooledBuffer> GetPhysicalPageMetaData() const { return PhysicalPageMetaData; }
-	TRefCountPtr<FRDGPooledBuffer> GetCacheInstanceAsStatic() const { return CacheInstanceAsStatic; }
-	TRefCountPtr<FRDGPooledBuffer> GetLastInstanceInvalidatedFrame() const { return LastInstanceInvalidatedFrame; }
 
 	// Called by VirtualShadowMapArray to potentially resize the HZB physical pool
 	TRefCountPtr<IPooledRenderTarget> SetHZBPhysicalPoolSize(FRDGBuilder& GraphBuilder, FIntPoint RequestedSize, const EPixelFormat Format);
@@ -271,7 +270,7 @@ public:
 	public:
 		FInvalidatingPrimitiveCollector(FVirtualShadowMapArrayCacheManager* InVirtualShadowMapArrayCacheManager);
 
-		void AddDynamicAndGPUPrimitives();
+		void AddPrimitivesToInvalidate();
 
 		/**
 		 * All of these functions filters redundant primitive adds, and thus expects valid IDs (so can't be called for primitives that have not yet been added)
@@ -296,9 +295,9 @@ public:
 			AddInvalidation(PrimitiveSceneInfo, false);
 		}
 
-		void Finalize();
-
 		FInstanceGPULoadBalancer Instances;
+		TBitArray<> InvalidatedPrimitives;
+		TBitArray<> RemovedPrimitives;
 
 	private:
 		void AddInvalidation(FPrimitiveSceneInfo* PrimitiveSceneInfo, bool bRemovedPrimitive);
@@ -311,7 +310,7 @@ public:
 	void ProcessInvalidations(
 		FRDGBuilder& GraphBuilder,
 		FSceneUniformBuffer &SceneUniformBuffer,
-		const FInvalidatingPrimitiveCollector& InvalidatingPrimitiveCollector);
+		FInvalidatingPrimitiveCollector& InvalidatingPrimitiveCollector);
 
 	/**
 	 * Allow the cache manager to track scene changes, in particular track resizing of primitive tracking data.
@@ -346,7 +345,7 @@ public:
 	}
 
 	UE::Renderer::Private::IShadowInvalidatingInstances *GetInvalidatingInstancesInterface() { return &ShadowInvalidatingInstancesImplementation; }
-
+	FRDGBufferRef UploadCachePrimitiveAsDynamic(FRDGBuilder& GraphBuilder) const;
 private:
 
 	/** 
@@ -379,10 +378,10 @@ private:
 		const FInvalidationPassCommon& InvalidationPassCommon,
 		FInvalidatePagesParameters* PassParameters) const;
 
+	void UpdateCachePrimitiveAsDynamic(FInvalidatingPrimitiveCollector& InvalidatingPrimitiveCollector);
+
 	// Invalidate instances based on CPU instance ranges. This is used for CPU-based updates like object transform changes, etc.
 	void ProcessInvalidations(FRDGBuilder& GraphBuilder, const FInvalidationPassCommon& InvalidationPassCommon, const FInstanceGPULoadBalancer& Instances) const;
-		// Invalidate instances based on a GPU instance list. This is currently used for static<->dynamic cache mode transitions only.
-	void ProcessInvalidations(FRDGBuilder& GraphBuilder, const FInvalidationPassCommon& InvalidationPassCommon, FRDGBufferRef InstanceInvalidationList, uint32 MaxInstanceInvalidations) const;
 	
 	void ExtractStats(FRDGBuilder& GraphBuilder, FVirtualShadowMapArray &VirtualShadowMapArray);
 
@@ -400,12 +399,15 @@ private:
 	ETextureCreateFlags PhysicalPagePoolCreateFlags = TexCreate_None;
 	TRefCountPtr<FRDGPooledBuffer> PhysicalPageMetaData;
 	uint32 MaxPhysicalPages = 0;
-	// For now these only grow
-	TRefCountPtr<FRDGPooledBuffer> CacheInstanceAsStatic;
-	TRefCountPtr<FRDGPooledBuffer> LastInstanceInvalidatedFrame;
 
 	// Index the Cache entries by the light ID
 	FEntryMap CacheEntries;
+
+	// Store the last time a primitive caused an invalidation for dynamic/static caching purposes
+	// NOTE: Set bits as dynamic since the container makes it easier to iterate those
+	TBitArray<> CachePrimitiveAsDynamic;
+	// Indexed by PersistentPrimitiveIndex
+	TArray<uint32> LastPrimitiveInvalidatedFrame;
 
 	// Stores stats over frames when activated.
 	TRefCountPtr<FRDGPooledBuffer> AccumulatedStatsBuffer;
