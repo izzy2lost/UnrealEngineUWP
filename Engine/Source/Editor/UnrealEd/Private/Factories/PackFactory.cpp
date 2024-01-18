@@ -13,6 +13,7 @@
 #include "Misc/Paths.h"
 #include "Serialization/MemoryWriter.h"
 #include "Serialization/MemoryReader.h"
+#include "Misc/Compression.h"
 #include "Misc/ConfigCacheIni.h"
 #include "Misc/ConfigContext.h"
 #include "Misc/FeedbackContext.h"

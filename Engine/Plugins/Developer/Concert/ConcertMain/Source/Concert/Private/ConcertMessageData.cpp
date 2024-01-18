@@ -6,6 +6,7 @@
 #include "IdentifierTable/ConcertTransportArchives.h"
 
 #include "Misc/App.h"
+#include "Misc/Compression.h"
 #include "UObject/StructOnScope.h"
 
 #include "StructSerializer.h"

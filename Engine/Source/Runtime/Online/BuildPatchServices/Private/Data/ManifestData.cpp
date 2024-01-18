@@ -1,6 +1,7 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 #include "Data/ManifestData.h"
+#include "Misc/Compression.h"
 #include "Misc/EnumClassFlags.h"
 #include "Serialization/Archive.h"
 #include "Serialization/MemoryWriter.h"

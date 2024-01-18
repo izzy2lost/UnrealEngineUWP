@@ -1,10 +1,13 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
+#if UE_ENABLE_INCLUDE_ORDER_DEPRECATED_IN_5_4
 #include "CoreMinimal.h"
+#endif
 #include "HAL/PlatformFileManager.h"
 #include "MetalShaderFormat.h"
 #include "MetalShaderResources.h"
 #include "Misc/ConfigCacheIni.h"
+#include "Misc/Compression.h"
 #include "Misc/EngineVersion.h"
 #include "Misc/FileHelper.h"
 #include "Misc/Paths.h"

@@ -22,6 +22,7 @@
 #include "PixelShaderUtils.h"
 #include "RenderCore.h"
 #include "MobileBasePassRendering.h"
+#include "Misc/Compression.h"
 
 
 /*-----------------------------------------------------------------------------

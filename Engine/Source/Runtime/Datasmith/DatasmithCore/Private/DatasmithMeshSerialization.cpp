@@ -5,6 +5,7 @@
 
 #include "Compression/OodleDataCompression.h"
 #include "HAL/FileManager.h"
+#include "Misc/Compression.h"
 #include "Serialization/MemoryReader.h"
 #include "Serialization/MemoryWriter.h"
 #include "StaticMeshAttributes.h"

@@ -3,6 +3,7 @@
 #include "ShaderCompilerCommon.h"
 #include "ShaderParameterParser.h"
 #include "Misc/Base64.h"
+#include "Misc/Compression.h"
 #include "Misc/FileHelper.h"
 #include "Misc/Paths.h"
 #include "Misc/PathViews.h"

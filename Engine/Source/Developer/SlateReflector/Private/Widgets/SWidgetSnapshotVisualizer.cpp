@@ -16,6 +16,7 @@
 #include "Framework/Layout/ScrollyZoomy.h"
 #include "Framework/MultiBox/MultiBoxBuilder.h"
 #include "Misc/Base64.h"
+#include "Misc/Compression.h"
 
 #include "SlateNavigationEventSimulator.h"
 #include "SlateReflectorModule.h"

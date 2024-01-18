@@ -4,6 +4,7 @@
 #include <IImageWrapperModule.h>
 #include <IImageWrapper.h>
 #include "Helper/Util.h"
+#include "Misc/Compression.h"
 #include "Misc/Paths.h"
 #include "Modules/ModuleManager.h"
 #include "Async/ParallelFor.h"

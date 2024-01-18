@@ -7,6 +7,7 @@
 #include "EnvironmentQuery/EnvQueryTest.h"
 #include "VisualLoggerExtension.h"
 #include "EnvironmentQuery/EQSRenderingComponent.h"
+#include "Misc/Compression.h"
 
 #include UE_INLINE_GENERATED_CPP_BY_NAME(EnvQueryDebugHelpers)
 

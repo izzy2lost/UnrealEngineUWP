@@ -3,6 +3,7 @@
 #include "CrashUpload.h"
 #include "CrashReportCoreModule.h"
 #include "HAL/FileManager.h"
+#include "Misc/Compression.h"
 #include "Misc/FileHelper.h"
 #include "Internationalization/Internationalization.h"
 #include "Misc/Guid.h"

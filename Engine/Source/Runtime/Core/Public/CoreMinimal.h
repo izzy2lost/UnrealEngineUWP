@@ -53,7 +53,9 @@
 #include "Containers/ContainerAllocationPolicies.h"
 #include "Templates/IsEnumClass.h"
 #include "HAL/PlatformProperties.h"
+#if UE_ENABLE_INCLUDE_ORDER_DEPRECATED_IN_5_4
 #include "Misc/Compression.h"
+#endif
 #include "Misc/EngineVersionBase.h"
 #include "Internationalization/TextNamespaceFwd.h"
 #include "Serialization/Archive.h"

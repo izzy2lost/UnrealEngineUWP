@@ -1,6 +1,7 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 #include "Storage/Bundles/BundleCompression.h"
+#include "Misc/Compression.h"
 #include "../../HordePlatform.h"
 
 size_t FBundleCompression::GetMaxSize(EBundleCompressionFormat Format, const FMemoryView& Input)

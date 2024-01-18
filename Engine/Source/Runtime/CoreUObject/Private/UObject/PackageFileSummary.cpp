@@ -1,6 +1,7 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 #include "UObject/PackageFileSummary.h"
+#include "Misc/Compression.h"
 #include "UObject/Linker.h"
 #include "Serialization/StructuredArchive.h"
 #include "UObject/UObjectGlobals.h"

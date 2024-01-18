@@ -4,7 +4,10 @@
 // ShaderCompileWorker.cpp : Defines the entry point for the console application.
 //
 
+#if UE_ENABLE_INCLUDE_ORDER_DEPRECATED_IN_5_4
 #include "CoreMinimal.h"
+#endif
+#include "Misc/Compression.h"
 #include "RequiredProgramMainCPPInclude.h"
 #include "ShaderCompilerCore.h"
 #include "ShaderCompilerCommon.h"
