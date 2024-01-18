@@ -235,6 +235,7 @@ UAssetRegistryHelpers::FTemporaryCachingModeScope::~FTemporaryCachingModeScope()
 void UAssetRegistryHelpers::FixupRedirectedAssetPath(FSoftObjectPath& InOutSoftObjectPath)
 {
 	FSoftObjectPath FoundRedirection;
+	InOutSoftObjectPath.FixupCoreRedirects();
 
 #if WITH_EDITOR
 	FoundRedirection = GRedirectCollector.GetAssetPathRedirection(InOutSoftObjectPath);

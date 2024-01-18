@@ -77,10 +77,15 @@ TUniquePtr<FWorldPartitionActorDesc> FWorldPartitionActorDescUtils::GetActorDesc
 {
 	if (IsValidActorDescriptorFromAssetData(InAssetData))
 	{
+		// Fixing here for now until following jira tasks are closed to unblock users that are renaming plugins:
+		// @todo_ow: remove once https://jira.it.epicgames.com/browse/UE-168245 & https://jira.it.epicgames.com/browse/UE-144431 are closed
+		FSoftObjectPath ActorPath = InAssetData.GetSoftObjectPath();
+		ActorPath.FixupCoreRedirects();
+
 		FWorldPartitionActorDescInitData ActorDescInitData = FWorldPartitionActorDescInitData()
 			.SetNativeClass(GetActorNativeClassFromAssetData(InAssetData))
 			.SetPackageName(InAssetData.PackageName)
-			.SetActorPath(InAssetData.GetSoftObjectPath());
+			.SetActorPath(ActorPath);
 
 		FString ActorMetaDataStr;
 		verify(InAssetData.GetTagValue(NAME_ActorMetaData, ActorMetaDataStr));
