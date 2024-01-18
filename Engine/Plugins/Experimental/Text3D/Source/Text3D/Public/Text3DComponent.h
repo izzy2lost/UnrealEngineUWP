@@ -14,6 +14,7 @@ class FTextLayout;
 class ITextLayoutMarshaller;
 class UFont;
 class UMaterialInterface;
+struct FTypefaceEntry;
 
 UENUM()
 enum class EText3DVerticalTextAlignment : uint8
@@ -39,7 +40,7 @@ enum class EText3DModifyFlags : uint8
 	Layout = 1 << 0,
 	Geometry = 1 << 1,
 	Unfreeze = 1 << 2,
-    
+
 	All = Layout | Geometry | Unfreeze
 };
 ENUM_CLASS_FLAGS(EText3DModifyFlags)
@@ -269,10 +270,17 @@ public:
 	/** Gets all the glyph meshes */
 	UFUNCTION(BlueprintCallable, Category = "Rendering|Components|Text3D")
 	const TArray<UStaticMeshComponent*>& GetGlyphMeshComponents();
-	
+
 	/** Gets the scale of actual text geometry, taking into account MaxWidth and MaxHeight constraints. This function will NOT return the component scale*/
 	UFUNCTION(BlueprintCallable, Category = "Rendering|Components|Text3D")
 	FVector GetTextScale();
+
+
+	/** Get the typeface */
+	FName GetTypeface() const { return  Typeface; }
+
+	/** Set the typeface */
+	void SetTypeface(const FName InTypeface);
 
 	/** Manually update the geometry, ignoring RefreshOnChange (but still accounting for the Freeze flag) */
 	void Rebuild();
@@ -330,6 +338,9 @@ protected:
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Getter, Setter, Category = "Text", meta = (AllowPrivateAccess = "true"))
 	TObjectPtr<UFont> Font;
 
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Getter, Setter, Category = "Text", meta = (AllowPrivateAccess = "true", GetOptions="GetTypefaceNames"))
+	FName Typeface;
+
 	/** Horizontal text alignment */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Getter, Setter, Category = "Layout", meta = (AllowPrivateAccess = "true"))
 	EText3DHorizontalTextAlignment HorizontalAlignment;
@@ -371,7 +382,7 @@ protected:
 	bool bScaleProportionally;
 
 	// Lighting flags
-	
+
 	/** Controls whether the text glyphs should cast a shadow or not. */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Getter = "CastsShadow", Setter = "SetCastShadow", Category = "Lighting", meta = (AllowPrivateAccess = "true"))
 	bool bCastShadow = true;
@@ -382,8 +393,11 @@ protected:
 	 */
 	UFUNCTION(BlueprintCallable, Category = "Text3D")
 	FText GetFormattedText() const;
-	
+
 protected:
+	UFUNCTION()
+	TArray<FName> GetTypefaceNames() const;
+
 	/** Intercept and propagate a change on this component to all children. */
 	virtual void OnVisibilityChanged() override;
 
@@ -474,4 +488,9 @@ private:
 	void MarkForGeometryUpdate();
 	void MarkForLayoutUpdate();
 	void ClearUpdateFlags();
+
+	uint32 GetTypeFaceIndex() const;
+	bool IsTypefaceAvailable(FName InTypeface) const;
+	TArray<FTypefaceEntry> GetAvailableTypefaces() const;
+	void RefreshTypeface();
 };
