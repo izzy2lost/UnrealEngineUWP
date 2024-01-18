@@ -172,6 +172,11 @@ void UCommonActivatableWidget::InternalProcessDeactivation()
 	NativeOnDeactivated();
 }
 
+TWeakPtr<FActivatableTreeNode> UCommonActivatableWidget::GetInputTreeNode() const
+{
+	return InputTreeNode;
+}
+
 void UCommonActivatableWidget::RegisterInputTreeNode(const TSharedPtr<FActivatableTreeNode>& OwnerNode)
 {
 	InputTreeNode = OwnerNode;
