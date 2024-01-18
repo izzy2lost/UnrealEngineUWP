@@ -209,6 +209,18 @@ void FTextureSourceData::Init(UTexture& InTexture, TextureMipGenSettings InMipGe
 {
 	check( bValid == false ); // we set to true at the end, acts as our return value
 
+	// Copy the channel min/max if we have it to avoid redoing it.
+	if (InTexture.Source.GetLayerColorInfo().Num())
+	{
+		LayerChannelMinMax.Reset();
+		for (const FTextureSourceLayerColorInfo& LayerColorInfo : InTexture.Source.GetLayerColorInfo())
+		{
+			TPair<FLinearColor, FLinearColor>& MinMax = LayerChannelMinMax.AddDefaulted_GetRef();
+			MinMax.Key = LayerColorInfo.ColorMin;
+			MinMax.Value = LayerColorInfo.ColorMax;
+		}
+	}
+
 	const int32 NumBlocks = InTexture.Source.GetNumBlocks();
 	const int32 NumLayers = InTexture.Source.GetNumLayers();
 	if (NumBlocks < 1 || NumLayers < 1)
@@ -303,7 +315,26 @@ void FTextureSourceData::GetSourceMips(FTextureSource& Source, IImageWrapperModu
 			return;
 		}
 
-		const FTextureSource::FMipData ScopedMipData = Source.GetMipData(InImageWrapper);
+		// This locks the entire source - not just mip 0, so we can freely lock other mips without copies.
+		FTextureSource::FMipLock LockedTextureSource(FTextureSource::ELockState::ReadOnly, &Source, 0);
+		if (LockedTextureSource.IsValid() == false)
+		{
+			UE_LOG(LogTexture, Warning, TEXT("Cannot lock texture source data for %s"), *TextureFullName);
+			ReleaseMemory();
+			bValid = false;
+			return;
+		}
+
+		// If we didn't get this from the texture source
+		if (LayerChannelMinMax.Num() != Layers.Num())
+		{
+			LayerChannelMinMax.Reset();
+			for (int32 LayerIndex = 0; LayerIndex < Layers.Num(); ++LayerIndex)
+			{
+				TPair<FLinearColor, FLinearColor>& LayerInfo = LayerChannelMinMax.AddDefaulted_GetRef();
+				Source.ComputeChannelLinearMinMax(LayerIndex, LayerInfo.Key, LayerInfo.Value);
+			}
+		}
 
 		{
 			TRACE_CPUPROFILER_EVENT_SCOPE(FTextureSourceData::GetSourceMips_CopyMips);
@@ -329,13 +360,16 @@ void FTextureSourceData::GetSourceMips(FTextureSource& Source, IImageWrapperModu
 								LayerData.SourceGammaSpace
 							);
 
-							if (!ScopedMipData.GetMipData(SourceMip.RawData, BlockIndex, LayerIndex, MipIndex))
-							{
-								UE_LOG(LogTexture, Warning, TEXT("Cannot retrieve source data for mip %d of %s"), MipIndex, *TextureFullName);
-								ReleaseMemory();
-								bValid = false;
-								break;
-							}
+							// This gets a view into the decompressed data so we need to copy out the mip we care about.
+							FTextureSource::FMipLock LockedMipData(FTextureSource::ELockState::ReadOnly, &Source, BlockIndex, LayerIndex, MipIndex);
+
+							check(MipSizeX == LockedMipData.Image.SizeX);
+							check(MipSizeY == LockedMipData.Image.SizeY);
+							check(MipSizeZ == LockedMipData.Image.NumSlices);
+							check(SourceMip.RawData.Num() == LockedMipData.GetDataSize());
+
+							SourceMip.RawData.Reset(LockedMipData.GetDataSize());
+							SourceMip.RawData.Append((const uint8*)LockedMipData.GetRawData(), LockedMipData.GetDataSize());
 
 							MipSizeX = FMath::Max(MipSizeX / 2, 1);
 							MipSizeY = FMath::Max(MipSizeY / 2, 1);
@@ -2015,6 +2049,18 @@ void FTextureCacheDerivedDataWorker::DoWork()
 	{
 		if (DDC1_LoadAndValidateTextureData(Texture, TextureData, CompositeTextureData, ImageWrapper, bAllowAsyncLoading))
 		{
+			for (int32 LayerIndex = 0; LayerIndex < BuildSettingsPerLayerFetchOrBuild.Num(); LayerIndex++)
+			{
+				if (LayerIndex < TextureData.LayerChannelMinMax.Num())
+				{
+					BuildSettingsPerLayerFetchOrBuild[LayerIndex].bKnowAlphaTransparency = Compressor->DetermineAlphaChannelTransparency(
+						BuildSettingsPerLayerFetchOrBuild[LayerIndex], 
+						TextureData.LayerChannelMinMax[LayerIndex].Key,
+						TextureData.LayerChannelMinMax[LayerIndex].Value,
+						BuildSettingsPerLayerFetchOrBuild[LayerIndex].bHasTransparentAlpha);
+				}
+			}
+
 			// Replace any existing DDC data, if corrupt compression was detected
 			const bool bReplaceExistingDDC = bInvalidVirtualTextureCompression;
 

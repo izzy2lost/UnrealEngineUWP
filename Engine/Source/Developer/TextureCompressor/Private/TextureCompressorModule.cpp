@@ -26,6 +26,13 @@
 #include "Windows/WindowsHWrapper.h"
 #endif
 
+static TAutoConsoleVariable<int32> CVarDetailedMipAlphaLogging(
+	TEXT("r.DetailedMipAlphaLogging"),
+	0,
+	TEXT("Prints extra log messages for tracking when alpha gets removed/introduced during texture")
+	TEXT("image processing.")
+);
+
 DEFINE_LOG_CATEGORY_STATIC(LogTextureCompressor, Log, All);
 
 /*------------------------------------------------------------------------------
@@ -1689,7 +1696,7 @@ static void LinearizeToWorkingColorSpace(const FImage& SrcImage, FImage& DstImag
 		SrcImageView.GammaSpace = DstImage.GammaSpace; // EGammaSpace::Linear
 	}
 
-        // CopyImage to get pixels in RGAB32F , then OCIO will act on those in-place in DstImage
+	// CopyImage to get pixels in RGAB32F , then OCIO will act on those in-place in DstImage
 	FImageCore::CopyImage(SrcImageView, DstImage);
 
 	// Decode and/or color transform to the working color space when needed
@@ -2959,6 +2966,89 @@ void ITextureCompressorModule::AdjustImageColors(FImage& Image, const FTextureBu
 	}
 }
 
+bool ITextureCompressorModule::DetermineAlphaChannelTransparency(const FTextureBuildSettings& InBuildSettings, const FLinearColor& InChannelMin, const FLinearColor& InChannelMax, bool& bOutAlphaIsTransparent)
+{
+	// Settings that affect alpha:
+	// 1. ColorTransforms - if they have a color transform we assume it's not affecting alpha (this is the UE
+	//		integration assumption separate from this) this only gets dicey if we have ReplicateRed. Probably
+	//		the best thing to do is just assume the transform doesn't affects opaqueness and let them use the
+	//		force overrides if it's wrong.
+	// 2. ForceAlphaChannel - Note ForceNoAlpha forces BC1 before us so we don't see it.
+	// 3. AdjustMinAlpha, AdjustMaxAlpha
+	// 4. ReplicateRed.. which means we need to track all operations on the red channel. Can probably just call
+	//		AdjustImageColors directly on our boundaries and see where they go?
+	// 5. ChromaKey! I think if they have this on we assume it matches SOMEWHERE and we need alpha.
+
+	// ForceNo gets applied first because it happens at the texture format selection phase, so it effectively
+	// overrides everything as AutoDXT gets cleared.
+	if (InBuildSettings.bForceNoAlphaChannel)
+	{
+		bOutAlphaIsTransparent = false; // note we don't see this with autodxt as it gets forced to BC1 early.
+		return true;
+	}
+
+	if (InBuildSettings.bForceAlphaChannel ||
+		InBuildSettings.bChromaKeyTexture // If they have a chroma key they are expecting transparency!
+		)
+	{
+		bOutAlphaIsTransparent = true;
+		return true;
+	}
+
+	// No forces - try and predict how the color transforms will affect the colors.
+	if (InBuildSettings.bHasColorSpaceDefinition)
+	{
+		// We assert that color spaces don't affect alpha per our integration with OCIO. So, the only way 
+		// this affects us is if RepliateRed is set. 
+		// 
+		// We assume the color space doesn't change the opaquenss of the red channel so we can pass through to
+		// the normal replicate red behavior. This could definitely fail, but we don't really expect anyone
+		// to combine a color space remap _and_ replicate red, so if they hit this they can get what they want
+		// with Force/ForceNoAlpha.
+		if (InBuildSettings.bReplicateRed)
+		{
+			return false;
+		}
+	}
+
+	if (InBuildSettings.bComputeBokehAlpha)
+	{
+		// Bokeh stores information in the alpha channel during processing - so we need an alpha channel
+		bOutAlphaIsTransparent = true;
+		return true;
+	}
+
+	FLinearColor ChannelMinMax[2] = {InChannelMin, InChannelMax};
+
+	// If there's an image adjustment, run it on the colors so we see what happens.
+	// This also handles AdjustMinAlpha/MaxAlpha.
+	if (NeedAdjustImageColors(InBuildSettings))
+	{
+		if (InBuildSettings.bUseNewMipFilter)
+		{
+			AdjustColorsNew(ChannelMinMax, 2, InBuildSettings);
+		}
+		else
+		{
+			AdjustColorsOld(ChannelMinMax, 2, InBuildSettings);
+		}
+	}
+
+	if (InBuildSettings.bReplicateRed)
+	{
+		ChannelMinMax[0].A = ChannelMinMax[0].R;
+		ChannelMinMax[1].A = ChannelMinMax[1].R;
+	}
+
+	bOutAlphaIsTransparent = false;
+	if (ChannelMinMax[0].A < 1 ||
+		ChannelMinMax[1].A < 1)
+	{
+		bOutAlphaIsTransparent = true;
+	}
+	return true;
+}
+
 /**
  * Compute the alpha channel how BokehDOF needs it setup
  *
@@ -3771,6 +3861,8 @@ public:
 
 			return false;
 		}
+
+		const bool bDoDetailedAlphaLogging = CVarDetailedMipAlphaLogging.GetValueOnAnyThread() != 0;
 		
 		// @todo Oodle: option to dump the Source image here
 		//		we have dump in TextureFormatOodle for the after-processing (before encoding) image
@@ -3779,9 +3871,14 @@ public:
 		TArray<FImage> IntermediateMipChain;
 
 		bool bSourceMipsAlphaDetected = false;
-		if (OutMetadata)
+		if (OutMetadata || bDoDetailedAlphaLogging)
 		{
 			bSourceMipsAlphaDetected = FImageCore::DetectAlphaChannel(SourceMips[0]);
+			
+			if (bDoDetailedAlphaLogging)
+			{
+				UE_LOG(LogTextureCompressor, Display, TEXT("[alpha] Source Mips: %d - %.*s"), bSourceMipsAlphaDetected, DebugTexturePathName.Len(), DebugTexturePathName.GetData());
+			}
 		}
 
 		// allow to leave texture in sRGB in case compressor accepts other than non-F32 input source
@@ -3832,17 +3929,61 @@ public:
 
 			if (!ApplyCompositeTextureToMips(IntermediateMipChain, IntermediateAssociatedNormalSourceMipChain, BuildSettings.CompositeTextureMode, BuildSettings.CompositePower, BuildSettings.LODBias))
 			{
-				UE_LOG(LogTextureCompressor, Warning, TEXT("ApplyCompositeTextureToMips failed [%.*s]"),
+				UE_LOG(LogTextureCompressor, Display, TEXT("ApplyCompositeTextureToMips failed [%.*s]"),
 					DebugTexturePathName.Len(),DebugTexturePathName.GetData());
 
 				return false;
 			}
+
+			if (bDoDetailedAlphaLogging)
+			{
+				UE_LOG(LogTextureCompressor, Display, TEXT("[alpha] Associated Normal Mips: %d - %.*s"), FImageCore::DetectAlphaChannel(IntermediateMipChain[0]),
+					DebugTexturePathName.Len(), DebugTexturePathName.GetData());
+			}
 		}
 
-		
+
+		bool bIntermediateMipsAlphaDetected = FImageCore::DetectAlphaChannel(IntermediateMipChain[0]);
+		if (bDoDetailedAlphaLogging)
+		{
+			UE_LOG(LogTextureCompressor, Display, TEXT("[alpha] Intermediate Mips: %d - %.*s"), bIntermediateMipsAlphaDetected,
+				DebugTexturePathName.Len(), DebugTexturePathName.GetData());
+
+			if (bIntermediateMipsAlphaDetected != bSourceMipsAlphaDetected)
+			{
+				UE_LOG(LogTextureCompressor, Display, TEXT("[alpha] Source / Intermediate diff (force %d force no %d) - %.*s"),
+					BuildSettings.bForceAlphaChannel, 
+					BuildSettings.bForceNoAlphaChannel, 
+					DebugTexturePathName.Len(),
+					DebugTexturePathName.GetData());
+			}
+		}
+
 		// DetectAlphaChannel on the top mip of the generated mip chain. SoonTM this will use the source mip chain. Testing has
 		// shown this to be 99.9% the same, and allows us to get the pixel format earlier.
-		const bool bImageHasAlphaChannel = BuildSettings.GetTextureExpectsAlphaInPixelFormat(FImageCore::DetectAlphaChannel(IntermediateMipChain[0]));
+		const bool bImageHasAlphaChannel = BuildSettings.GetTextureExpectsAlphaInPixelFormat(bIntermediateMipsAlphaDetected);
+
+		// If we know what our transparency is make sure it matches what we expect.
+		if (BuildSettings.bKnowAlphaTransparency)
+		{
+			if (BuildSettings.bHasTransparentAlpha != bImageHasAlphaChannel)
+			{
+				// We don't actually use this yet but we DO need to know when they aren't matching to hunt
+				// down bugs so we do a warning. The actual build is still good and this doesn't affect the output.
+
+				// We only actually care if it affects the output format.
+				FName ActualTextureFormat = UE::TextureBuildUtilities::TextureFormatRemovePrefixFromName(BuildSettings.TextureFormatName);
+				if (ActualTextureFormat == "AutoDXT")
+				{
+					UE_LOG(LogTextureCompressor, Warning, TEXT("Expected texture alpha didn't match reality: Expected: %s Reality: %s Texture: %.*s"),
+						BuildSettings.bHasTransparentAlpha ? TEXT("true") : TEXT("false"),
+						bImageHasAlphaChannel ? TEXT("true") : TEXT("false"),
+						DebugTexturePathName.Len(),
+						DebugTexturePathName.GetData());
+				}
+			}
+		}
+
 		
 		UE::Tasks::TTask<uint64> HashingTask;
 		TArray<FImageInfo> SaveImageInfos;
@@ -3947,6 +4088,8 @@ private:
 				return false;
 			}
 		}
+
+		const bool bDoDetailedAlphaLogging = CVarDetailedMipAlphaLogging.GetValueOnAnyThread() != 0;
 
 		// handling of bLongLatCubemap seems overly complicated
 		//	what it should do is convert it right at the start here
@@ -4253,6 +4396,11 @@ private:
 		{
 			const FImage& Image = (*pSourceMips)[MipIndex];
 
+			if (bDoDetailedAlphaLogging)
+			{
+				UE_LOG(LogTextureCompressor, Display, TEXT("[alpha] Pre Process: %d - %.*s"), FImageCore::DetectAlphaChannel(Image), DebugTexturePathName.Len(), DebugTexturePathName.GetData());
+			}
+			
 			// copy mips over + processing
 			// this is a code dupe of the processing done in GenerateMipChain
 
@@ -4263,7 +4411,6 @@ private:
 			{
 				// Generate the base mip from the long-lat source image.
 				GenerateBaseCubeMipFromLongitudeLatitude2D(&Mip, Image, BuildSettings);
-	
 				check( CopyCount == 1 );
 			}
 			else
@@ -4279,6 +4426,11 @@ private:
 					}
 
 					GenerateTopMip(Temp, Mip, BuildSettings);
+
+					if (bDoDetailedAlphaLogging)
+					{
+						UE_LOG(LogTextureCompressor, Display, TEXT("[alpha] ApplyKernel: %d - %.*s"), FImageCore::DetectAlphaChannel(Mip), DebugTexturePathName.Len(), DebugTexturePathName.GetData());
+					}
 				}
 				else
 				{
@@ -4288,6 +4440,11 @@ private:
 						if (BuildSettings.bRenormalizeTopMip)
 						{
 							NormalizeMip(Mip);
+						}
+
+						if (bDoDetailedAlphaLogging)
+						{
+							UE_LOG(LogTextureCompressor, Display, TEXT("[alpha] Linearize: %d - %.*s"), FImageCore::DetectAlphaChannel(Mip), DebugTexturePathName.Len(), DebugTexturePathName.GetData());
 						}
 					}
 					else
@@ -4302,7 +4459,11 @@ private:
 							DestGammaSpace = EGammaSpace::Linear;
 						}
 						Image.CopyTo(Mip, DestFormat, DestGammaSpace);
-
+						
+						if (bDoDetailedAlphaLogging)
+						{
+							UE_LOG(LogTextureCompressor, Display, TEXT("[alpha] Copy: %d - %.*s"), FImageCore::DetectAlphaChannel(Mip), DebugTexturePathName.Len(), DebugTexturePathName.GetData());
+						}
 						//@@CB todo : when Mip format == Image format, we can Move instead of Copy
 						//	have to make sure that's okay with SourceMips/TextureData
 					}
@@ -4314,15 +4475,30 @@ private:
 			if (BuildSettings.Downscale > 1.f)
 			{		
 				DownscaleImage(Mip, Mip, FTextureDownscaleSettings(BuildSettings));
+
+				if (bDoDetailedAlphaLogging)
+				{
+					UE_LOG(LogTextureCompressor, Display, TEXT("[alpha] Downscale: %d - %.*s"), FImageCore::DetectAlphaChannel(Mip), DebugTexturePathName.Len(), DebugTexturePathName.GetData());
+				}
 			}
 
 			// Apply color adjustments
 			AdjustImageColors(Mip, BuildSettings);
 
+			if (bDoDetailedAlphaLogging)
+			{
+				UE_LOG(LogTextureCompressor, Display, TEXT("[alpha] ColorAdjust: %d - %.*s"), FImageCore::DetectAlphaChannel(Mip), DebugTexturePathName.Len(), DebugTexturePathName.GetData());
+			}
+
 			if (BuildSettings.bComputeBokehAlpha)
 			{
 				// To get the occlusion in the BokehDOF shader working for all Bokeh textures.
 				ComputeBokehAlpha(Mip);
+
+				if (bDoDetailedAlphaLogging)
+				{
+					UE_LOG(LogTextureCompressor, Display, TEXT("[alpha] Bokeh: %d - %.*s"), FImageCore::DetectAlphaChannel(Mip), DebugTexturePathName.Len(), DebugTexturePathName.GetData());
+				}
 			}
 			if (BuildSettings.bFlipGreenChannel)
 			{
@@ -4379,6 +4555,12 @@ private:
 				NumOutputMips, OutMipChain[0].SizeX, OutMipChain[0].SizeY, OutMipChain[0].NumSlices);
 		}
 
+		if (bDoDetailedAlphaLogging)
+		{
+			UE_LOG(LogTextureCompressor, Display, TEXT("[alpha] BeginPost: %d - %.*s"), FImageCore::DetectAlphaChannel(OutMipChain[0]), DebugTexturePathName.Len(), DebugTexturePathName.GetData());
+		}
+
+
 		// Apply post-mip generation adjustments.
 		if ( BuildSettings.bNormalizeNormals )
 		{
@@ -4414,6 +4596,11 @@ private:
 		{
 			check( !BuildSettings.bReplicateAlpha ); // cannot both be set 
 			ReplicateRedChannel(OutMipChain);
+
+			if (bDoDetailedAlphaLogging)
+			{
+				UE_LOG(LogTextureCompressor, Display, TEXT("[alpha] ReplicateRed: %d - %.*s"), FImageCore::DetectAlphaChannel(OutMipChain[0]), DebugTexturePathName.Len(), DebugTexturePathName.GetData());
+			}
 		}
 		else if (BuildSettings.bReplicateAlpha)
 		{
@@ -4423,6 +4610,11 @@ private:
 		if (BuildSettings.bApplyYCoCgBlockScale)
 		{
 			ApplyYCoCgBlockScale(OutMipChain);
+		}
+
+		if (bDoDetailedAlphaLogging)
+		{
+			UE_LOG(LogTextureCompressor, Display, TEXT("[alpha] End: %d - %.*s"), FImageCore::DetectAlphaChannel(OutMipChain[0]), DebugTexturePathName.Len(), DebugTexturePathName.GetData());
 		}
 
 		return true;
