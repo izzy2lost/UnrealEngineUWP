@@ -9,6 +9,7 @@
 #include "Misc/ConfigCacheIni.h"
 #include "AbilitySystemGlobals.h"
 #include "AbilitySystemComponent.h"
+#include "Engine/NetConnection.h"
 #include "Engine/PackageMapClient.h"
 
 #if WITH_EDITOR
@@ -1363,28 +1364,12 @@ bool FMinimalReplicationTagCountMap::NetSerialize(FArchive& Ar, class UPackageMa
 			TagMap.FindOrAdd(Tag) = 1;
 		}
 
+		UPackageMapClient* PackageMap = CastChecked<UPackageMapClient>(Map);
+		LastConnection = PackageMap ? PackageMap->GetConnection() : nullptr;
+
 		if (Owner)
 		{
-			bool bUpdateOwnerTagMap = true;
-			if (bRequireNonOwningNetConnection)
-			{
-				if (AActor* OwningActor = Owner->GetOwner())
-				{
-					// Note we deliberately only want to do this if the NetConnection is not null
-					if (UNetConnection* OwnerNetConnection = OwningActor->GetNetConnection())
-					{
-						if (OwnerNetConnection == CastChecked<UPackageMapClient>(Map)->GetConnection())
-						{
-							bUpdateOwnerTagMap = false;
-						}
-					}
-				}
-			}
-
-			if (bUpdateOwnerTagMap)
-			{
-				UpdateOwnerTagMap();
-			}
+			UpdateOwnerTagMap();
 		}
 	}
 
@@ -1418,6 +1403,30 @@ void FMinimalReplicationTagCountMap::RemoveAllTags()
 
 void FMinimalReplicationTagCountMap::UpdateOwnerTagMap()
 {
+	bool bUpdateOwnerTagMap = true;
+	if (bRequireNonOwningNetConnection)
+	{
+		if (Owner)
+		{
+			if (AActor* OwningActor = Owner->GetOwner())
+			{
+				// Note we deliberately only want to do this if the NetConnection is not null
+				if (UNetConnection* OwnerNetConnection = OwningActor->GetNetConnection())
+				{
+					if (OwnerNetConnection == LastConnection.Get())
+					{
+						bUpdateOwnerTagMap = false;
+					}
+				}
+			}
+		}
+	}
+
+	if (!bUpdateOwnerTagMap)
+	{
+		return;
+	}
+
 	if (Owner)
 	{
 		for (auto It = TagMap.CreateIterator(); It; ++It)

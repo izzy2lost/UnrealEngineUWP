@@ -27,6 +27,7 @@
 class Error;
 class UAbilitySystemComponent;
 class UGameplayAbility;
+class UNetConnection;
 struct FActiveGameplayEffect;
 struct FGameplayEffectModCallbackData;
 struct FGameplayEffectSpec;
@@ -1603,6 +1604,8 @@ private:
 	friend UE::Net::FMinimalReplicationTagCountMapReplicationFragment;
 
 	bool bRequireNonOwningNetConnection = false;
+	TWeakObjectPtr<UNetConnection> LastConnection;
+
 	void UpdateOwnerTagMap();
 };
 
