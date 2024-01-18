@@ -39,7 +39,6 @@ public class GameActivityForMakeAAR extends com.epicgames.unreal.GameActivity
 	
 
 	String _OBBFilename = null;
-	boolean _enablePropagateAlpha = false;
 
 	public static com.epicgames.unreal.Logger Log = new Logger("UE_ASIS", "MakeAARBaseForGameActivity");
 	
@@ -63,9 +62,9 @@ public class GameActivityForMakeAAR extends com.epicgames.unreal.GameActivity
 		else
 		{
 			GameActivityForMakeAAR newInstance = new GameActivityForMakeAAR();
+			
 			Log.debug("GameActivityForMakeAAR::Instance() constructor called with prev _gameActivityInstance=" + _gameActivityInstance + ", newInstance.activityContext=" + newInstance.activityContext + ", newInstance=" + newInstance + ", newInstance.isStandalone=" + newInstance.isStandalone);
 			_gameActivityInstance = newInstance;
-			
 		}
 
 		assert( _gameActivityInstance instanceof GameActivityForMakeAAR);
@@ -95,6 +94,8 @@ public class GameActivityForMakeAAR extends com.epicgames.unreal.GameActivity
 	}
 
 	@Override
+
+
 	protected void RestartApplication(String RestartExtra)
 	{
 		super.RestartApplication(RestartExtra);
@@ -234,7 +235,6 @@ public class GameActivityForMakeAAR extends com.epicgames.unreal.GameActivity
 		nativeSetAndroidStartupState(bDebuggerAttached);
 
 		_OBBFilename = OBBFilename;
-		_enablePropagateAlpha = enablePropagateAlpha;
 
 		GameActivity.setOBBInAPK(OBBFilename.equals(""));
 		Log.debug("APK path: " + activityContext.getPackageResourcePath());
@@ -401,9 +401,8 @@ public class GameActivityForMakeAAR extends com.epicgames.unreal.GameActivity
 		nativeSetAndroidStartupState(bDebuggerAttached);
 
 		_OBBFilename = gameActivitySetupInfo._OBBFilename;
-		int PropagateAlpha = gameActivitySetupInfo.PropagateAlpha;
 
-		_enablePropagateAlpha = gameActivitySetupInfo.PropagateAlpha == 0 ? false : true;
+		PropagateAlpha = gameActivitySetupInfo.PropagateAlpha;
 
 		GameActivity.setOBBInAPK(_OBBFilename.equals(""));
 
@@ -547,7 +546,7 @@ public class GameActivityForMakeAAR extends com.epicgames.unreal.GameActivity
 
 		//Activity _activity = null;
 		_OBBFilename = gameActivitySetupInfo._OBBFilename;
-		_enablePropagateAlpha = gameActivitySetupInfo.PropagateAlpha == 1;
+		PropagateAlpha = gameActivitySetupInfo.PropagateAlpha;
 		_bundle = gameActivitySetupInfo._bundle;
 		_extrasBundle = gameActivitySetupInfo._extrasBundle;
 		PackageDataInsideApkValue = gameActivitySetupInfo.packageDataInsideApkValue ? 1 : 0;

@@ -371,24 +371,12 @@ void FPlatformMisc::UnlockAndroidWindow()
 	check(FTaskGraphInterface::IsRunning());
 
 	DEVELOPER_LOG_COMMANDCB_CASE(UnlockAndroidWindow);
-	UE_LOG(LogAndroid, Log, TEXT("Unlocking android HW window during preinit."));
-	
-	bReadyToProcessEvents = true;
+	UE_LOG(LogAndroid, Log, TEXT("Unlocking android HW window during preinit. bAppIsActive_EventThread=%d"), bAppIsActive_EventThread);
 	GAndroidWindowLock_Unlock("UnlockAndroidWindow");
 	
-}
-
-void LockAndroidWindow(FString calledBy)
-{
-	check(IsInGameThread());
-	check(FTaskGraphInterface::IsRunning());
+	bReadyToProcessEvents = true;
+	//bAppIsActive_EventThread = true;
 	
-	DEVELOPER_LOG_COMMANDCB_CASE(LockAndroidWindow);
-	UE_LOG(LogAndroid, Log, TEXT("Locking android HW window during preinit. bAppIsActive_EventThread=%d"), bAppIsActive_EventThread);
-	
-	GAndroidWindowLock_Lock(*(calledBy + "->LockAndroidWindow"));
-	bReadyToProcessEvents = false;
-	//bAppIsActive_EventThread = false;
 }
 
 JNI_METHOD void Java_com_epicgames_unreal_GameActivity_nativeResumeMainInit(JNIEnv* jenv, jobject thiz)
@@ -854,7 +842,7 @@ int32 AndroidMain(struct android_app* state)
 		FAppEventManager::GetInstance()->Tick();
 		if (!FAppEventManager::GetInstance()->IsGamePaused()
 #if USE_ANDROID_STANDALONE
-			&& FAppEventManager::GetInstance()->IsGameInFocus()
+		//	&& FAppEventManager::GetInstance()->IsGameInFocus()
 #endif
 			)
 		{
@@ -1045,10 +1033,20 @@ static void* AndroidEventThreadWorker( void* param )
 
 	TheChoreographer.SetupChoreographer();
 
+	
+
 	// window is initially invalid/locked.
-	UE_LOG(LogAndroid, Log, TEXT("event thread, Initial HW window lock."));
+	extern void* GAndroidWindowOverride;
+	UE_LOG(LogAndroid, Log, TEXT("AndroidEventThreadWorker, Initial HW window lock. GAndroidWindowOverride=%p"), GAndroidWindowOverride);
+#if USE_ANDROID_STANDALONE
+	if (GAndroidWindowOverride != nullptr)
+#endif
+	{
+		GAndroidWindowLock_Lock("AndroidEventThreadWorker");
+	}
+
 	DEVELOPER_LOG_COMMANDCB_CASE(AndroidEventThreadWorker_BeforeWhile);
-	GAndroidWindowLock_Lock("AndroidEventThreadWorker");
+
 
 	//continue to process events until the engine is shutting down
 	while (!IsEngineExitRequested())
@@ -1062,6 +1060,9 @@ static void* AndroidEventThreadWorker( void* param )
 	DEVELOPER_LOG_COMMANDCB_CASE(AndroidEventThreadWorker_AfterWhile);
 
 	GAndroidWindowLock_Unlock("AndroidEventThreadWorker");
+#if USE_ANDROID_STANDALONE
+	bReadyToProcessEvents = true;
+#endif
 
 	UE_LOG(LogAndroid, Log, TEXT("AndroidEventThreadWorker->Exiting"));
 	STANDALONE_DEBUG_LOGf(LogAndroid, TEXT("Exiting AndroidEventThreadWorker"));
@@ -1574,12 +1575,17 @@ static void ActivateApp_EventThread()
 	{
 		// Seems this can occur.
 		STANDALONE_DEBUG_LOGf(LogAndroid, TEXT("WARNING -- event thread, activate app, ALREADY have HW window lock according to bAppIsActive_EventThread. bReadyToProcessEvents=%d, bAppIsActive_EventThread=%d"), bReadyToProcessEvents, bAppIsActive_EventThread);
+#if !USE_ANDROID_STANDALONE
 		return;
+#endif
 	}
 
 	// Unlock window when we're ready.
 	UE_LOG(LogAndroid, Log, TEXT("event thread, activate app, unlocking HW window"));
 	GAndroidWindowLock_Unlock("ActivateApp_EventThread");
+#if USE_ANDROID_STANDALONE
+	bReadyToProcessEvents = true;
+#endif
 	// wake the GT up.
 	FAppEventManager::GetInstance()->EnqueueAppEvent(APP_EVENT_STATE_APP_ACTIVATED);
 
@@ -1617,7 +1623,9 @@ static void SuspendApp_EventThread()
 	if (!bAppIsActive_EventThread)
 	{
 		STANDALONE_DEBUG_LOGf(LogAndroid, TEXT("event thread, SuspendApp_EventThread called but aborted, GAndroidWindowLockRefCount=%d, bReadyToProcessEvents=%d, bAppIsActive_EventThread=%d, IsInGameThread=%d"), GAndroidWindowLockRefCount, bReadyToProcessEvents, bAppIsActive_EventThread, IsInGameThread());
+#if !USE_ANDROID_STANDALONE
 		return;
+#endif
 	}
 	bAppIsActive_EventThread = false;
 	// Lock the window, this prevents event thread from removing the window whilst the RHI initializes.
@@ -1682,12 +1690,20 @@ static void SuspendApp_EventThread()
 //Called from the event process thread
 static void OnAppCommandCB(struct android_app* app, int32_t cmd)
 {
+#if !USE_ANDROID_STANDALONE
 	check(IsInAndroidEventThread());
+#endif
 
 
 	// Set event thread's view of the window dimensions:
 	{
 		ANativeWindow* DimensionWindow = app->pendingWindow ? app->pendingWindow : app->window;
+#if USE_ANDROID_STANDALONE
+		if (GAndroidWindowOverride != NULL)
+		{
+			DimensionWindow = (ANativeWindow*)GAndroidWindowOverride;
+		}
+#endif
 		if (DimensionWindow)
 		{
 			FAndroidWindow::SetWindowDimensions_EventThread(DimensionWindow);
@@ -1941,6 +1957,7 @@ static void OnAppCommandCB(struct android_app* app, int32_t cmd)
 		DEVELOPER_LOG_COMMANDCB_CASE(APP_CMD_STOP);
 		UE_LOG(LogAndroid, Log, TEXT("Case APP_CMD_STOP"));
 		FAppEventManager::GetInstance()->EnqueueAppEvent(APP_EVENT_STATE_ON_STOP);
+		bShouldRestartFromInterrupt = true;
 		break;
 	case APP_CMD_DESTROY:
 		/**
@@ -2259,7 +2276,6 @@ JNI_METHOD void Java_com_epicgames_makeaar_GameActivityForMakeAAR_nativeMain(JNI
 	pthread_attr_setdetachstate(&otherAttr, PTHREAD_CREATE_DETACHED);
 	pthread_create(&G_AndroidMainThread, &otherAttr, android_main, &dummy_state);
 
-
 	STANDALONE_DEBUG_LOGf(LogAndroid, TEXT("Created main thread"));
 }
 
@@ -2380,14 +2396,28 @@ JNI_METHOD void Java_com_epicgames_makeaar_GameActivityForMakeAAR_nativeAppComma
 {
 	dummy_state.window = (ANativeWindow*)GAndroidWindowOverride;
 	dummy_state.pendingWindow = (ANativeWindow*)GAndroidWindowOverride;
+	int useGameThreadValue = CVarUseGameThreadForCommands.GetValueOnAnyThread();
+	bool bForceCommandToGameThread = useGameThreadValue != 0;
+	STANDALONE_DEBUG_LOGf(LogAndroid, TEXT("nativeAppCommand -> useGameThreadValue=%d, FTaskGraphInterface::IsRunning()=%d, cmd: [%u],"), useGameThreadValue, FTaskGraphInterface::IsRunning(), cmd);
 
-	bool bForceCommandToGameThread = CVarUseGameThreadForCommands.GetValueOnAnyThread() != 0;
+	if (EventThreadID == 0)
+	{
+		STANDALONE_DEBUG_LOGf(LogAndroid, TEXT("waiting for EventThreadID != 0"));
+		while (EventThreadID == 0)
+		{
+			FPlatformProcess::Sleep(0.001f);
+			FPlatformMisc::MemoryBarrier();
+		};
+	}
 
-	if (bForceCommandToGameThread && FTaskGraphInterface::IsRunning())
+	if (useGameThreadValue == 0)
+	{
+		STANDALONE_DEBUG_LOGf(LogAndroid, TEXT("OnAppCommandCB(default) cmd: %u, tid = %d, FTaskGraphInterface::IsRunning()=%d"), cmd, gettid(), FTaskGraphInterface::IsRunning());
+		OnAppCommandCB(&dummy_state, cmd);
+	}
+	else if (bForceCommandToGameThread && FTaskGraphInterface::IsRunning())
 	{
 		STANDALONE_DEBUG_LOGf(LogAndroid, TEXT("OnAppCommandCB(Queue on GameThread) cmd: %u, tid = %d, FTaskGraphInterface::IsRunning()=%d"), cmd, gettid(), FTaskGraphInterface::IsRunning());
-
-
 		FGraphEventRef nativeAppCommandCalled = FFunctionGraphTask::CreateAndDispatchWhenReady([&]()
 			{
 				OnAppCommandCB(&dummy_state, cmd);
@@ -2396,7 +2426,6 @@ JNI_METHOD void Java_com_epicgames_makeaar_GameActivityForMakeAAR_nativeAppComma
 	else
 	{
 		STANDALONE_DEBUG_LOGf(LogAndroid, TEXT("OnAppCommandCB(immediate) cmd: %d, tid = %d, FTaskGraphInterface::IsRunning()=%d"), (int)cmd, gettid(), FTaskGraphInterface::IsRunning());
-
 	    if (GEngine != NULL)
 	    {
 		    // Run on game thread to avoid race condition

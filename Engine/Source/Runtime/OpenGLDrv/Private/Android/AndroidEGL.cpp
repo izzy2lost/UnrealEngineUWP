@@ -1317,7 +1317,9 @@ void SetSharedContextGameCommand(TSharedPtr<FEvent, ESPMode::ThreadSafe> GTBlock
 extern bool IsInAndroidEventThread();
 void BlockRendering()
 {
+#if !USE_ANDROID_STANDALONE
 	check(IsInAndroidEventThread());
+#endif
 	check(GIsRHIInitialized);
 
 	UE_LOG(LogAndroid, Log, TEXT("Blocking renderer on invalid window."));

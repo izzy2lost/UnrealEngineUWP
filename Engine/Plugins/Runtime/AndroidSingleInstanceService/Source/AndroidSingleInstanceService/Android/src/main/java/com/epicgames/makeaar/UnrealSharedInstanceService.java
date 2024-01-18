@@ -25,6 +25,7 @@ import com.epicgames.makeaar.EngineFactory;
 import com.epicgames.makeaar.GameActivityForMakeAAR;
 import com.epicgames.makeaar.GameActivitySetupInfo;
 import com.epicgames.unreal.SimpleContextWrapper;
+import com.epicgames.unreal.GameActivity;
 
 import com.epicgames.makeaar.UnrealMessageType;
 
@@ -61,7 +62,7 @@ public class UnrealSharedInstanceService extends Service {
 		static private Engine engineInstance;
 
 
-		public static String defaultProjectModuleName = "AndroidPackagingTest";
+		public static String defaultProjectModuleName = "UNDEFINED_PackageName";
 //		public static String defaultProjectModuleName = "Alpha_POC";
 		public static String defaultOBBFileLocation = "";//"Gallery3D"; //"Alpha_POC";
 		//	public final static String defaultProjectModuleName = "";
@@ -260,7 +261,7 @@ public class UnrealSharedInstanceService extends Service {
 							final int PropagateAlpha = enablePropagateAlpha ? 1 : 0;
 							boolean bPortrait = applicationContext.getResources().getConfiguration().orientation == Configuration.ORIENTATION_PORTRAIT;
 
-							GameActivityForMakeAAR.Get().nativeSetWindowInfo(bPortrait, DepthBufferPreference, PropagateAlpha);
+							GameActivity.Get().nativeSetWindowInfo(bPortrait, DepthBufferPreference, PropagateAlpha);
 						}
 
 						bDoResume &= engineInstance.AttachExternalRenderSurface(taskId, externalSurface, viewPos, viewSize);
@@ -316,12 +317,12 @@ public class UnrealSharedInstanceService extends Service {
 
 					//if (bDoPause)
 					{
-						engineInstance.QueuePause("UnrealMessageType.DetachExternalSurface, taskId=" + taskId);
+						engineInstance.onPause(engineInstance.getCurrentContextID(), "UnrealMessageType.DetachExternalSurface, taskId=" + taskId);
 					}
 
 					//if (bDoStop)
 					{
-						//engineInstance.QueueStop("UnrealMessageType.DetachExternalSurface, taskId=" + taskId);
+						engineInstance.onStop(engineInstance.getCurrentContextID(), "UnrealMessageType.DetachExternalSurface, taskId=" + taskId);
 					}
 
 					//engineInstance.sendConsoleCommand("t.maxfps 0.001");
@@ -376,7 +377,7 @@ public class UnrealSharedInstanceService extends Service {
 				else {
 
 					if (bCMDMainInit)
-						GameActivityForMakeAAR.Get().nativeResumeMainInit();
+						GameActivity.Get().nativeResumeMainInit();
 				}
 
 			}
@@ -447,7 +448,7 @@ public class UnrealSharedInstanceService extends Service {
 
 		if (mMessenger != null) {
 			try {
-				mMessenger.send(Message.obtain(null, UnrealMessageType.StopService.ordinal()));
+				mMessenger.send(Message.obtain(null, UnrealMessageType.DetachExternalSurface.ordinal()));
 			} catch (RemoteException e) {
 				e.printStackTrace();
 			}

@@ -426,7 +426,7 @@ public class GameActivity extends $${gameActivitySuperClass}$$ implements Surfac
 	int DepthBufferPreference = 0;
 	
 	// PropagatetAlpha from the manifest
-	int PropagateAlpha = 0;
+	protected int PropagateAlpha = 0;
 
 	/** AssetManger reference - populated on start up and used when the OBB is packed into the APK */
 	protected AssetManager			AssetManagerReference;

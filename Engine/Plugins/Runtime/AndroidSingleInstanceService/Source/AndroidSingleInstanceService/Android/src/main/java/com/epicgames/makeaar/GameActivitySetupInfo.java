@@ -13,13 +13,12 @@ import android.view.Surface;
 import android.content.pm.PackageManager;
 import android.os.Parcel;
 import android.os.Parcelable;
-import android.util.Log;
 
 import java.io.File;
 import java.util.Map;
 import java.util.HashMap;
 
-//import com.epicgames.unreal.Logger;
+import com.epicgames.unreal.Logger;
 
 import static android.content.Context.CLIPBOARD_SERVICE;
 import static android.content.Context.WINDOW_SERVICE;
@@ -30,8 +29,7 @@ import com.epicgames.unreal.SimpleContextWrapper;
 
 public class GameActivitySetupInfo implements Parcelable {
 
-	//public static Logger Log = new Logger("UES", "GameActivitySetupInfo");
-	final static String TAG = "UE_ASIS_GameActivitySetupInfo";
+	public static Logger Log = new Logger("UES", "GameActivitySetupInfo");
 
 	public static final int MSG_ATTACH_EXTERNAL_SURFACE = 2;
 		
@@ -97,7 +95,7 @@ public class GameActivitySetupInfo implements Parcelable {
 							if (index >= 0)
 							{
 								ref.VulkanLevel = Integer.parseInt(dump.substring(0, index));
-								Log.d(TAG, "Vulkan level: " + ref.VulkanLevel);
+								Log.debug("Vulkan level: " + ref.VulkanLevel);
 							}
 						}
 					}
@@ -118,7 +116,7 @@ public class GameActivitySetupInfo implements Parcelable {
 								int VersionMinor = (ref.VulkanVersion >> 12) & 0x03ff;
 								int VersionPatch = ref.VulkanVersion & 0x0fff;
 								ref.VulkanVersionString = VersionMajor + "." + VersionMinor + "." + VersionPatch;
-								Log.d(TAG,"GetVulkanInfoFromPackage: Vulkan version: " + VersionMajor + "." + VersionMinor + "." + VersionPatch);
+								Log.debug("GetVulkanInfoFromPackage: Vulkan version: " + VersionMajor + "." + VersionMinor + "." + VersionPatch);
 							}
 						}
 					}
@@ -148,11 +146,7 @@ public class GameActivitySetupInfo implements Parcelable {
 
 		this.renderSurface = externalSurface;
 
-		if (inActivity != null)
-		{
-			Activity _AndroidActivity = inActivity.mAppActivityContext != null && inActivity.mAppActivityContext instanceof Activity ? ((Activity)inActivity.mAppActivityContext) : null;
-			this._extrasBundle = _AndroidActivity != null ? _AndroidActivity.getIntent().getExtras() : null;
-		}
+		this._extrasBundle = inActivity.mAppActivityContext != null && inActivity.mAppActivityContext instanceof Activity ? ((Activity)inActivity.mAppActivityContext).getIntent().getExtras() : null;
 
 		if (this._extrasBundle == null)
 		{
@@ -161,11 +155,11 @@ public class GameActivitySetupInfo implements Parcelable {
 		}
 		if (this.renderSurface != null) {
 			this._extrasBundle.putParcelable("renderSurface", this.renderSurface);
-			Log.d(TAG, "====> GameActivitySetupInfo(PUT) is storing renderSurface = " + this.renderSurface);
+			Log.debug("====> GameActivitySetupInfo(PUT) is storing renderSurface = " + this.renderSurface);
 		}
 
 		this.appPackageName = inActivity.getApplicationContext().getPackageName(); //inActivity.getApplicationContext().getPackageName()
-		Log.w(TAG, "====> GameActivitySetupInfo() check OBBFilename = " + OBBFilename);
+		Log.warn("====> GameActivitySetupInfo() check OBBFilename = " + OBBFilename);
 
 		this.ProjectName = this.appPackageName.substring(this.appPackageName.lastIndexOf('.') + 1);
 
@@ -183,16 +177,16 @@ public class GameActivitySetupInfo implements Parcelable {
 		}
 		catch (PackageManager.NameNotFoundException e)
 		{
-			Log.d(TAG, "Failed to load meta-data: NameNotFound: " + e.getMessage());
+			Log.debug( "Failed to load meta-data: NameNotFound: " + e.getMessage());
 		}
 		catch (NullPointerException e)
 		{
-			Log.d(TAG, "Failed to load meta-data: NullPointer: " + e.getMessage());
+			Log.debug( "Failed to load meta-data: NullPointer: " + e.getMessage());
 		}
 
 		setOBBFilename(OBBFilename);
 
-		Log.v(TAG,"====> GameActivitySetupInfo(constructor) with ProjectName = " + this.ProjectName
+		Log.verbose("====> GameActivitySetupInfo(constructor) with ProjectName = " + this.ProjectName
 				+ ", appPackageName = " + this.appPackageName
 				+ ", _OBBFilename = " + this._OBBFilename
 				+ ", packageDataInsideApkValue = " + this.packageDataInsideApkValue
@@ -241,12 +235,12 @@ public class GameActivitySetupInfo implements Parcelable {
 
 	public void DoNativeUpdates(GameActivityForMakeAAR gameActivity)
 	{
-		Log.d(TAG,"DoNativeUpdates() ExternalFilesDir path: " + this.ExternalFilesDir);
+		Log.debug("DoNativeUpdates() ExternalFilesDir path: " + this.ExternalFilesDir);
 
 		gameActivity.nativeSetGlobalActivity(this.UseExternalFilesDir, this.PublicLogFiles, this.InternalFilesDir, this.ExternalFilesDir, this.packageDataInsideApkValue, this.packageResourcePath);
 		if (this.packageDataInsideApkValue)
 		{
-			Log.d(TAG,"OBB override: " + this._OBBFilename);
+			Log.debug("OBB override: " + this._OBBFilename);
 			gameActivity.nativeSetObbFilePaths(this._OBBFilename, "", "", "");
 		}
 
@@ -270,18 +264,18 @@ public class GameActivitySetupInfo implements Parcelable {
 		}
 		catch (Exception e)
 		{
-			Log.d(TAG,"Error accessing packageInfo: " + e.getMessage());
+			Log.debug("Error accessing packageInfo: " + e.getMessage());
 		}
 
 		String productName = gameActivity.getProductName();
-		Log.d(TAG, "Android version is " + android.os.Build.VERSION.RELEASE );
-		Log.d(TAG, "Android manufacturer is " + android.os.Build.MANUFACTURER );
-		Log.d(TAG, "Android model is " + android.os.Build.MODEL );
-		Log.d(TAG, "Android build number is " + android.os.Build.DISPLAY );
-		Log.d(TAG, "OS language is set to " + Language);
-		Log.d(TAG, "Product name is " + (productName.isEmpty() ? "[not set]" : productName));
-		Log.d(TAG, "Debugger attached is " + bDebuggerAttached );
-		Log.d(TAG, "Android targetSdkVersion version is " + gameActivity.targetSdkVersion );
+		Log.debug( "Android version is " + android.os.Build.VERSION.RELEASE );
+		Log.debug( "Android manufacturer is " + android.os.Build.MANUFACTURER );
+		Log.debug( "Android model is " + android.os.Build.MODEL );
+		Log.debug( "Android build number is " + android.os.Build.DISPLAY );
+		Log.debug( "OS language is set to " + Language);
+		Log.debug( "Product name is " + (productName.isEmpty() ? "[not set]" : productName));
+		Log.debug( "Debugger attached is " + bDebuggerAttached );
+		Log.debug( "Android targetSdkVersion version is " + gameActivity.targetSdkVersion );
 		
 		gameActivity.nativeSetAndroidVersionInformation(android.os.Build.VERSION.RELEASE, gameActivity.targetSdkVersion, android.os.Build.MANUFACTURER, android.os.Build.MODEL, android.os.Build.DISPLAY, Language, productName );
 
@@ -294,7 +288,7 @@ public class GameActivitySetupInfo implements Parcelable {
 		catch (Exception e)
 		{
 			// if the above failed, then, we can't use obbs
-			Log.d(TAG,"==================================> PackageInfo failure getting .obb info: " + e.getMessage());
+			Log.debug("==================================> PackageInfo failure getting .obb info: " + e.getMessage());
 		}
 
 		// tell Android that we want volume controls to change the media volume, aka music
@@ -334,12 +328,12 @@ public class GameActivitySetupInfo implements Parcelable {
 		this._extrasBundle = in.readBundle(getClass().getClassLoader());
 		if (this._extrasBundle == null)
 		{
-			Log.e(TAG,"=====> PackageInfo _extrasBundle so no renderSurface is passed!" );
+			Log.error("=====> PackageInfo _extrasBundle so no renderSurface is passed!" );
 		}
 		this.renderSurface = this._extrasBundle == null ? null : this._extrasBundle.<Surface>getParcelable("renderSurface");
-		Log.d(TAG, "====> GameActivitySetupInfo(GET) is storing renderSurface = " + this.renderSurface);
+		Log.debug( "====> GameActivitySetupInfo(GET) is storing renderSurface = " + this.renderSurface);
 
-		Log.e(TAG,"PackageInfo from _extrasBundle =====>  renderSurface = " + this.renderSurface );
+		Log.error("PackageInfo from _extrasBundle =====>  renderSurface = " + this.renderSurface );
 
 		this._bundle = in.readBundle(getClass().getClassLoader());
 		this.appPackageName = in.readString();
