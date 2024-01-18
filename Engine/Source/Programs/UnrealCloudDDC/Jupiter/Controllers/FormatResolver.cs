@@ -20,6 +20,7 @@ namespace Jupiter.Controllers
 			MediaTypeNames.Application.Json, 
 			CustomMediaTypeNames.UnrealCompactBinary, 
 			CustomMediaTypeNames.JupiterInlinedPayload,
+			CustomMediaTypeNames.UnrealCompressedBuffer,
 			CustomMediaTypeNames.UnrealCompactBinaryPackage
 		};
 

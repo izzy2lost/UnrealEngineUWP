@@ -75,6 +75,12 @@
     <None Update="Objects\Payloads\lyra.cb">
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
     </None>
+    <None Update="Symbols\Payloads\EpicGames.OIDC.pdb">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </None>
+    <None Update="Symbols\Payloads\EpicGames.Serialization.pdb">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </None>
   </ItemGroup>
 
 </Project>
