@@ -1228,7 +1228,7 @@ namespace UnrealBuildTool
 				// No module has confessed its guilt, so this is an error.
 				if (String.IsNullOrEmpty(GuiltyModule))
 				{
-					string CycleChain = String.Join(" -> ", ReferenceStack);
+					string CycleChain = String.Join(" -> ", ReferenceStack.SkipWhile(x => x != this));
 					Logger.LogError("Circular dependency on {Name} detected:\n" +
 						"\tFull Route: {FullRoute}\n" +
 						"\tCycled Route: is {CycleRoute}\n" +
