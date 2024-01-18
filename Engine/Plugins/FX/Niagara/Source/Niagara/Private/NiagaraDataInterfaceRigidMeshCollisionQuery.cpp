@@ -796,6 +796,8 @@ void FNDIRigidMeshCollisionData::Init(int32 MaxNumPrimitives)
 		ReleaseBuffers();
 	}
 
+	MeshBodyCounts.Empty();
+
 	bRequiresFullUpdate = true;
 }
 
