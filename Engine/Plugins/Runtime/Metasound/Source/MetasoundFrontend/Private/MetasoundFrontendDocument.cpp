@@ -50,6 +50,21 @@ namespace Metasound
 			static const FString VariableMutator = TEXT("Variable (Mutator)");
 			static const FString Template = TEXT("Template");
 			static const FString Invalid = TEXT("Invalid");
+
+			static const TSortedMap<FString, EMetasoundFrontendClassType, TInlineAllocator<32>> ClassTypeCStringToEnum = 
+			{
+				{External, EMetasoundFrontendClassType::External},
+				{Graph, EMetasoundFrontendClassType::Graph},
+				{Input, EMetasoundFrontendClassType::Input},
+				{Output, EMetasoundFrontendClassType::Output},
+				{Literal, EMetasoundFrontendClassType::Literal},
+				{Variable, EMetasoundFrontendClassType::Variable},
+				{VariableDeferredAccessor, EMetasoundFrontendClassType::VariableDeferredAccessor},
+				{VariableAccessor, EMetasoundFrontendClassType::VariableAccessor},
+				{VariableMutator, EMetasoundFrontendClassType::VariableMutator},
+				{Template, EMetasoundFrontendClassType::Template},
+				{Invalid, EMetasoundFrontendClassType::Invalid}
+			};
 		}
 	} // namespace Frontend
 
@@ -921,62 +936,16 @@ namespace Metasound::Frontend
 {
 	bool StringToClassType(const FString& InString, EMetasoundFrontendClassType& OutClassType)
 	{
-		if (InString == ClassTypePrivate::External)
+		if (const EMetasoundFrontendClassType* FoundClassType = ClassTypePrivate::ClassTypeCStringToEnum.Find(*InString))
 		{
-			OutClassType = EMetasoundFrontendClassType::External;
-			return true;
+			OutClassType = *FoundClassType;
 		}
-
-		if (InString == ClassTypePrivate::Graph)
-		{
-			OutClassType = EMetasoundFrontendClassType::Graph;
-			return true;
-		}
-
-		if (InString == ClassTypePrivate::Input)
-		{
-			OutClassType = EMetasoundFrontendClassType::Input;
-			return true;
-		}
-
-		if (InString == ClassTypePrivate::Invalid)
+		else
 		{
 			OutClassType = EMetasoundFrontendClassType::Invalid;
-			return true;
 		}
-
-		if (InString == ClassTypePrivate::Literal)
-		{
-			OutClassType = EMetasoundFrontendClassType::Literal;
-			return true;
-		}
-
-		if (InString == ClassTypePrivate::Output)
-		{
-			OutClassType = EMetasoundFrontendClassType::Output;
-			return true;
-		}
-
-		if (InString == ClassTypePrivate::Template)
-		{
-			OutClassType = EMetasoundFrontendClassType::Template;
-			return true;
-		}
-
-		if (InString == ClassTypePrivate::Variable)
-		{
-			OutClassType = EMetasoundFrontendClassType::Variable;
-			return true;
-		}
-
-		if (InString == ClassTypePrivate::VariableDeferredAccessor)
-		{
-			OutClassType = EMetasoundFrontendClassType::VariableDeferredAccessor;
-			return true;
-		}
-
-		OutClassType = EMetasoundFrontendClassType::Invalid;
-		return false;
+		
+		return OutClassType != EMetasoundFrontendClassType::Invalid;
 	}
 
 	void ForEachLiteral(const FMetasoundFrontendDocument& InDoc, FForEachLiteralFunctionRef OnLiteral)

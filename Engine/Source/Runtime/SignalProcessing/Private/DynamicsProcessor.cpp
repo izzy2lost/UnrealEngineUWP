@@ -77,7 +77,7 @@ namespace Audio
 	
 	void FDynamicsProcessor::SetLookaheadMsec(const float InLookAheadMsec)
 	{
-		LookaheadDelayMsec = InLookAheadMsec;
+		LookaheadDelayMsec = FMath::Min(InLookAheadMsec, MaxLookaheadMsec);
 		const int32 NumDelayFrames = GetNumDelayFrames();
 		for (int32 Channel = 0; Channel < LookaheadDelay.Num(); ++Channel)
 		{
@@ -699,6 +699,7 @@ namespace Audio
 
 	int32 FDynamicsProcessor::GetNumDelayFrames() const
 	{
+		checkf(LookaheadDelayMsec <= MaxLookaheadMsec, TEXT("An lookahead delay of %fms exceeds maximum lookahead delay of %fms"), LookaheadDelayMsec, MaxLookaheadMsec)
 		return FMath::Max(0, FMath::CeilToInt(LookaheadDelayMsec * SampleRate / 1000.0f));
 	}
 

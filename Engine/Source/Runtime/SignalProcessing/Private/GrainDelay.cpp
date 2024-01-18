@@ -14,7 +14,14 @@ namespace Audio
 		FGrainDelay::FGrainDelay(const float InSampleRate)
 			: SampleRate(InSampleRate)
 		{
-			GrainDelayLine.Init(SampleRate, MaxDelaySeconds);
+			// DelayLine must accommodate the delay of the grain and the pitch shifter.
+			// The pitch shifter has a maximum delay and requires an extra millisecond 
+			// for phase offsets. An additional sample is added to account for floating 
+			// point rounding.
+			const float RoundingErrorBufferInSeconds = 1.f / InSampleRate;
+			const float MaxTapDelayInSeconds = (FTapDelayPitchShifter::MaxDelayLength + 1.f) / 1000.f;
+			const float DelayLineSizeInSeconds = MaxDelaySeconds + MaxTapDelayInSeconds + RoundingErrorBufferInSeconds;
+			GrainDelayLine.Init(SampleRate, DelayLineSizeInSeconds);
 			
 			// Generate the grain data
 			GenerateEnvelopeData(GrainEnvelope, GrainEnvelopeSampleCount, GrainEnvelopeType);
