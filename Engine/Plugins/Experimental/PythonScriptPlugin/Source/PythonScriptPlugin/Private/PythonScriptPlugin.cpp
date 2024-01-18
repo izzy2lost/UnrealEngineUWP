@@ -1134,6 +1134,7 @@ void FPythonScriptPlugin::InitPipInstaller()
 	FFeedbackContext* Context = GWarn;
 	FScopedSlowTask PipInstallTask(0, LOCTEXT("PipInstall.RunInit", "Running Pip Init Tasks..."), true, *Context);
 
+	FPipInstall::CheckInvalidPipEnv();
 	const FString PipSitePackagePath = FPaths::ConvertRelativePathToFull(GetPipSitePackagesPath());
 
 	// Generate the input listing files of plugins with python dependencies and the listing of all requirements (installed or not)

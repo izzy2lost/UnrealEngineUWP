@@ -23,6 +23,8 @@ public:
 
 	static bool EnabledOnStartup();
 
+	static void CheckInvalidPipEnv();
+
 	static FString WritePluginsListing(TArray<TSharedRef<IPlugin>>& OutPythonPlugins);
 	static FString WritePluginDependencies(const TArray<TSharedRef<IPlugin>>& PythonPlugins, TArray<FString>& OutRequirements, TArray<FString>& OutExtraUrls);
 
@@ -37,9 +39,10 @@ private:
 	static void SetupPipInstallUtils(const FString& VenvInterp, FFeedbackContext* Context);
 	static bool CheckPipInstallUtils(const FString& VenvInterp, FFeedbackContext* Context);
 	static int32 RunPythonCmd(const FText& Description, const FString& VenvInterp, const FString& Cmd, FFeedbackContext* Context);
-	static bool RunLoggedSubprocess(const FText& Description, const FString& URL, const FString& Params, FFeedbackContext* Context, int32* OutExitCode);
+	static bool RunLoggedSubprocess(const FText& Description, const FString& URL, const FString& Params, FFeedbackContext* Context, int32* OutExitCode);\
 
 	static FString GetPythonScriptPluginPath();
+	static FString ParseVenvVersion(const FString& InstallPath);
 	static FString GetVenvInterpreter(const FString& InstallPath);
 	static bool CheckCompatiblePlatform(const TSharedPtr<FJsonObject>& JsonObject, const FString& PlatformName);
 };

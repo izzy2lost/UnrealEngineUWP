@@ -135,6 +135,28 @@ FString FPipInstall::WritePluginDependencies(const TArray<TSharedRef<IPlugin>>& 
 	return MergedReqsFile;
 }
 
+void FPipInstall::CheckInvalidPipEnv()
+{
+	TRACE_CPUPROFILER_EVENT_SCOPE(FPipInstall::CheckInvalidPipEnv);
+
+	const FString PipInstallPath = GetPipInstallPath();
+	if (!FPaths::DirectoryExists(PipInstallPath))
+	{
+		return;
+	}
+
+	const FString VenvVersion = ParseVenvVersion(PipInstallPath);
+	if (VenvVersion == TEXT(PY_VERSION))
+	{
+		return;
+	}
+
+	UE_LOG(LogPython, Display, TEXT("Engine python version (%s) incompatible with venv (%s), recreating..."), TEXT(PY_VERSION), *VenvVersion);
+
+	IPlatformFile& PlatformFile = FPlatformFileManager::Get().GetPlatformFile();
+	PlatformFile.DeleteDirectoryRecursively(*PipInstallPath);
+}
+
 void FPipInstall::SetupPipEnv(FFeedbackContext* Context, bool bForceRebuild /* = false */)
 {
 	TRACE_CPUPROFILER_EVENT_SCOPE(FPipInstall::SetupPipEnv);
@@ -303,6 +325,35 @@ FString FPipInstall::GetPythonScriptPluginPath()
 	}
 
 	return PythonPlugin->GetBaseDir();
+}
+
+FString FPipInstall::ParseVenvVersion(const FString& InstallPath)
+{
+	FString VenvConfig = InstallPath / TEXT("pyvenv.cfg");
+	if (!FPaths::FileExists(VenvConfig))
+	{
+		return TEXT("");
+	}
+
+	TArray<FString> ConfigLines;
+	if (!FFileHelper::LoadFileToStringArray(ConfigLines, *VenvConfig))
+	{
+		return TEXT("");
+	}
+
+	for (FStringView Line : ConfigLines)
+	{
+		FStringView ChkLine = Line.TrimStartAndEnd();
+		if (!ChkLine.StartsWith(TEXT("version =")))
+		{
+			continue;
+		}
+
+		FStringView Version = ChkLine.RightChop(9).TrimStart();
+		return FString(Version);
+	}
+
+	return TEXT("");
 }
 
 FString FPipInstall::GetVenvInterpreter(const FString& InstallPath)

@@ -10,6 +10,7 @@ using Microsoft.Extensions.Logging;
 using EpicGames.Core;
 using UnrealBuildBase;
 using System.IO;
+using System.Text.RegularExpressions;
 
 namespace UnrealBuildTool.Modes
 {
@@ -114,6 +115,9 @@ namespace UnrealBuildTool.Modes
 			PipEnv Pip = new(InstallDir, Platform, Logger, ProgressWriter.bWriteMarkup);
 			if ((Action & (PipAction)ActionBits.GenReqs) != 0)
 			{
+				// Make sure the virtual environment used for installs is compatible with python interpreter version
+				Pip.RemoveInvalidVenv(PythonInterpreter);
+
 				Pip.WritePluginsListing(Target, Logger);
 				if (!Pip.WritePluginDependencies())
 				{
@@ -180,7 +184,8 @@ namespace UnrealBuildTool.Modes
 
 		private UnrealTargetPlatform TargetPlatform;
 		private DirectoryReference InstallDir;
-		private FileReference PythonVenv;
+		private FileReference PythonVenvExe;
+		private string? PythonVenvVer;
 
 		private ILogger Logger;
 		private IBaseProgressLogFactory LoggerFactory;
@@ -193,12 +198,35 @@ namespace UnrealBuildTool.Modes
 
 			LoggerFactory = (UseProgressWriter) ? new PipProgressLogCreator(Logger) : new SimpleCmdLogCreator(Logger);
 
-			if (!DirectoryReference.Exists(InstallDir))
+			PythonVenvExe = GetVenvInterpreter(InstallDir, TargetPlatform);
+			PythonVenvVer = ParseVenvVersion(InstallDir);
+		}
+
+		public void RemoveInvalidVenv(FileReference? EnginePython)
+		{
+			// Always delete directory if can't find valid venv config
+			if ( PythonVenvVer == null )
 			{
-				DirectoryReference.CreateDirectory(InstallDir);
+				CleanVenvDir();
+				return;
 			}
 
-			PythonVenv = GetVenvInterpreter(InstallDir, TargetPlatform);
+			FileReference EnginePythonInterp = GetEnginePythonInterpreter(EnginePython);
+			if (!FileReference.Exists(EnginePythonInterp))
+			{
+				Logger.LogError("PipInstall: Invalid path to UE python interpreter: {Interp}", EnginePythonInterp.ToString());
+				return;
+			}
+
+			using (IBaseCmdProgressLogger SimpleLogger =new SimpleCmdLogger(Logger))
+			{
+				const string PyInterpVerCheckCmd = "import sys; exit(0) if f'{sys.version_info[0]}.{sys.version_info[1]}.{sys.version_info[2]}' == sys.argv[1] else exit(1)";
+				if (RunPythonCmd(EnginePythonInterp, $"-c \"{PyInterpVerCheckCmd}\" \"{PythonVenvVer}\"", SimpleLogger) != 0)
+				{
+					Logger.LogWarning("PipInstall: Found Incompatible virtual environment ({VenvVer}), removing...", PythonVenvVer);
+					CleanVenvDir();
+				}
+			}
 		}
 
 		public void WritePluginsListing(UEBuildTarget Target, ILogger Logger)
@@ -277,7 +305,7 @@ namespace UnrealBuildTool.Modes
 		{
 			using (IBaseCmdProgressLogger CmdLogger = LoggerFactory.Create("Creating pip installer virtual environment", 5))
 			{
-				if (!ForceRebuild && FileReference.Exists(PythonVenv))
+				if (!ForceRebuild && FileReference.Exists(PythonVenvExe))
 				{
 					return SetupPipInstallUtils(CmdLogger);
 				}
@@ -295,7 +323,7 @@ namespace UnrealBuildTool.Modes
 				}
 
 				int result = RunPythonCmd(EnginePythonInterp, $"-m venv \"{InstallDir}\"", CmdLogger);
-				if (result != 0 || !FileReference.Exists(PythonVenv))
+				if (result != 0 || !FileReference.Exists(PythonVenvExe))
 				{
 					return false;
 				}
@@ -372,6 +400,44 @@ namespace UnrealBuildTool.Modes
 			return (PlatformField == null)
 				|| string.Equals(PlatformField, Platform.ToString(), StringComparison.InvariantCultureIgnoreCase)
 				|| string.Equals(PlatformField, "All", StringComparison.InvariantCultureIgnoreCase);
+		}
+
+		private string? ParseVenvVersion(DirectoryReference VenvDir)
+		{
+			FileReference VenvConfig = FileReference.Combine(VenvDir, "pyvenv.cfg");
+			if ( !FileReference.Exists(VenvConfig) )
+			{
+				Logger.LogWarning("PipInstall: Unable to find venv config: {VenvFile}", VenvConfig);
+				return null;
+			}
+
+			string ConfigInfo = FileReference.ReadAllText(VenvConfig);
+			Match m = Regex.Match(ConfigInfo, @"version\s*=\s*(\d+\.\d+\.\d+)", RegexOptions.IgnoreCase);
+			if ( !m.Success )
+			{
+				Logger.LogWarning("PipInstall: Unable to match venv version config: {VenvFile}", ConfigInfo);
+				return null;
+			}
+
+			return m.Groups[1].Value;
+		}
+
+		private void CleanVenvDir()
+		{
+			if (!DirectoryReference.Exists(InstallDir))
+			{
+				DirectoryReference.CreateDirectory(InstallDir);
+				return;
+			}
+
+			// HACK: On windows these script files are set read-only and can't be deleted
+			foreach (FileReference File in DirectoryReference.EnumerateFiles(DirectoryReference.Combine(InstallDir,"Scripts")))
+			{
+				FileReference.SetAttributes(File, FileAttributes.Normal);
+			}
+
+			DirectoryReference.Delete(InstallDir, true);
+			DirectoryReference.CreateDirectory(InstallDir);
 		}
 
 		private bool PipInstall(FileReference RequirementsFile, string[]? ExtraUrls, bool OfflineOnly, string? ForceIndexUrl)
@@ -502,7 +568,7 @@ namespace UnrealBuildTool.Modes
 
 		private int RunPythonVenv(string Args, IBaseCmdProgressLogger InCmdLogger)
 		{
-			return RunPythonCmd(PythonVenv, Args, InCmdLogger);
+			return RunPythonCmd(PythonVenvExe, Args, InCmdLogger);
 		}
 
 		private int RunPythonCmd(FileReference PythonBin, string Args, IBaseCmdProgressLogger InCmdLogger)
