@@ -564,7 +564,7 @@ void ResetPointPosition_{ParameterName}(out bool ReportStatus)
 		const int PointBegin = Curve.PointIndex;
 		const int PointCount = Curve.PointCount;
 
-		const float3 PositionOffsetDelta = {ParameterName}_RestPositionOffset - {ParameterName}_DeformedPositionOffset[0].xyz;
+		const float3 PositionOffsetDelta = {ParameterName}_RestPositionOffset.xyz - {ParameterName}_DeformedPositionOffset[0].xyz;
 
 		ReportStatus = true;
 		for (int PointIndex = 0; PointIndex < PointCount; ++PointIndex)

@@ -77,7 +77,7 @@ struct FHairStrandsPositionFormat
 	static const uint32 ComponentCount = 1;
 	static const uint32 SizeInByte = sizeof(Type);
 	static const EVertexElementType VertexElementType = VET_UShort4;
-	static const EPixelFormat Format = PF_R32G32_UINT;
+	static const EPixelFormat Format = PF_Unknown;
 };
 
 struct FHairStrandsPositionOffsetFormat
