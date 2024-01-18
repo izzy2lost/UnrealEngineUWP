@@ -14,7 +14,8 @@ FOverridesComboButtonBuilder::FOverridesComboButtonBuilder(
 	FPropertyUpdatedWidgetBuilder(),
 	DisplayManager(InDetailsDisplayManager),
 	bIsCategoryOverridesComboButton(bInIsCategoryOverridesComboButton),
-    Object(InObject)
+    Object(InObject),
+    EditPropertyChain(nullptr)
 {
 }
 
@@ -27,34 +28,33 @@ FOverridesComboButtonBuilder& FOverridesComboButtonBuilder::Set_OnGetContent(FOn
 
 TSharedPtr<SWidget> FOverridesComboButtonBuilder::GenerateWidget()
 {
-    const FDetailsViewStyle* DetailsViewStyle = DisplayManager->GetDetailsViewStyle();
+	const TArray< TSharedRef< const FOverridesWidgetStyleKey >> OverridesWidgetKeys = FOverridesWidgetStyleKeys::GetKeys();
+	
+	if ( !Object.IsValid() || OverridesWidgetKeys.IsEmpty() )
+	{
+		return SNullWidget::NullWidget;
+	}
 
-	return	SNew(SHorizontalBox)
-				.Visibility(IsVisible)
-				+SHorizontalBox::Slot()
-					
-				.HAlign(HAlign_Right)
-				.VAlign(VAlign_Center)
-				.AutoWidth()
-				[
-					SNew( SComboButton )
-					.ComboButtonStyle( &DetailsViewStyle->GetOverridesComboButtonStyle(
-										&FOverridesWidgetStyleKeys::Here(), bIsCategoryOverridesComboButton ) )
-					.Visibility(this, &FOverridesComboButtonBuilder::GetFullyOverridenVisibility)
+	TSharedRef<SHorizontalBox> Box =	SNew(SHorizontalBox).Visibility(IsVisible);
+	
+	for (const TSharedRef< const FOverridesWidgetStyleKey >& Key : OverridesWidgetKeys )
+	{
+		if ( Key->bCanBeVisible )
+		{
+			Box->AddSlot()
+			   .HAlign(HAlign_Right)
+			   .VAlign(VAlign_Center)
+			   .AutoWidth()
+			[
+				SNew( SComboButton )
+					.ComboButtonStyle( &Key->GetComboButtonStyle(  bIsCategoryOverridesComboButton )  )
+					.Visibility( Key->GetVisibilityAttribute(EditPropertyChain, Object ))
 					.HasDownArrow(true)
-				]
-				+SHorizontalBox::Slot()
-				.HAlign(HAlign_Right)
-				.VAlign(VAlign_Center)
-				.AutoWidth()
-				[
-					SNew( SComboButton )
-					.ComboButtonStyle( &DetailsViewStyle->GetOverridesComboButtonStyle(
-					                                    &FOverridesWidgetStyleKeys::Inside()
-                										, bIsCategoryOverridesComboButton ) )
-				                    .Visibility(this, &FOverridesComboButtonBuilder::GetOverridenInsideVisibility)
-                					.HasDownArrow(true)
-				];
+			];
+		}
+	}
+
+	return Box.ToSharedPtr();
 }
 
 TSharedRef<SWidget> FOverridesComboButtonBuilder::operator*()
@@ -67,31 +67,8 @@ FOverridesComboButtonBuilder::~FOverridesComboButtonBuilder()
 	OnGetContent.Unbind();
 }
 
-EVisibility FOverridesComboButtonBuilder::GetOverridenInsideVisibility() const
+void FOverridesComboButtonBuilder:: SetEditPropertyChain(TSharedRef<FEditPropertyChain>& InEditPropertyChain)
 {
-	static FOverridableManager& Manager = FOverridableManager::Get();
-	
-	if ( UObject* OverridableComponent = Object.Get() )
-	{
-		const EOverriddenState State = Manager.GetOverriddenState(*OverridableComponent);
-		if (State != EOverriddenState::NoOverrides && State != EOverriddenState::AllOverridden)
-		{
-			return EVisibility::Visible;
-		}		
-	}
-	return EVisibility::Collapsed;
-}
-
-EVisibility FOverridesComboButtonBuilder::GetFullyOverridenVisibility() const
-{
-	if ( UObject* OverridableObject = Object.Get() )
-	{
-		static FOverridableManager& Manager = FOverridableManager::Get();
-		const EOverriddenState State = Manager.GetOverriddenState(*OverridableObject);
-		if (State == EOverriddenState::AllOverridden)
-		{
-			return EVisibility::Visible;
-		}
-	}
-	return EVisibility::Collapsed;
+	EditPropertyChain = InEditPropertyChain;	
+	bIsCategory = false;
 }

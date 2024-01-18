@@ -7,18 +7,20 @@
 #include "Styling/StyleColors.h"
 #include "Styling/StarshipCoreStyle.h"
 #include "Brushes/SlateRoundedBoxBrush.h"
+#include "UObject/OverridableManager.h"
+#include "Layout/Visibility.h"
+
+TArray< TSharedRef< const FOverridesWidgetStyleKey >> FOverridesWidgetStyleKeys::OverridesWidgetStyleKeys;
 
 const FSlateBrush& FOverridesWidgetStyleKey::GetConstStyleBrush() const
 {
 	return ImageBrush;
 }
 
-const FComboButtonStyle& FDetailsViewStyle::GetOverridesComboButtonStyle(
-										const FOverridesWidgetStyleKey* OverridesWidgetStyleKey,
-										const bool bIsOverridesWidgetForOuterCategory) const
+const FComboButtonStyle& FOverridesWidgetStyleKey::GetComboButtonStyle( const bool bIsOverridesWidgetForOuterCategory ) const
 {
 	static TMap<const FOverridesWidgetStyleKey*, const FComboButtonStyle> OverridesKeyToComboButtonStyleMap;
-	const FComboButtonStyle* ComboButtonStylePtr = OverridesKeyToComboButtonStyleMap.Find(OverridesWidgetStyleKey);
+	const FComboButtonStyle* ComboButtonStylePtr = OverridesKeyToComboButtonStyleMap.Find( this );
 
 	if ( ComboButtonStylePtr )
 	{
@@ -39,19 +41,29 @@ const FComboButtonStyle& FDetailsViewStyle::GetOverridesComboButtonStyle(
 	                                     .SetPressedPadding(FMargin(2.f, 0.f, 0.f, 0.f));
 			
 
-	OverridesKeyToComboButtonStyleMap.Add(OverridesWidgetStyleKey, FComboButtonStyle(FStarshipCoreStyle::GetCoreStyle().GetWidgetStyle<FComboButtonStyle>("ComboButton"))
+	OverridesKeyToComboButtonStyleMap.Add( this, FComboButtonStyle(FStarshipCoreStyle::GetCoreStyle().GetWidgetStyle<FComboButtonStyle>("ComboButton"))
 												   .SetButtonStyle(OverridesButton)
-												   .SetDownArrowImage(OverridesWidgetStyleKey->GetConstStyleBrush())
+												   .SetDownArrowImage(GetConstStyleBrush())
 												   .SetDownArrowPadding(FMargin(2.f, 5.f, 3.f, 5.f)));
 
 		
-	return *OverridesKeyToComboButtonStyleMap.Find(OverridesWidgetStyleKey);
+	return *OverridesKeyToComboButtonStyleMap.Find( this );
 }
 
 const FOverridesWidgetStyleKey& FOverridesWidgetStyleKeys::Here()
 {
-	static const FOverridesWidgetStyleKey Here{"OverrideHere"};
+	static const FOverridesWidgetStyleKey Here{"OverrideHere", EOverriddenPropertyOperation::Replace, EOverriddenState::AllOverridden };
 	return Here;
+}
+
+void FOverridesWidgetStyleKeys::Initialize()
+{
+	OverridesWidgetStyleKeys.Add( MakeShared<FOverridesWidgetStyleKey>(Here()));
+	OverridesWidgetStyleKeys.Add( MakeShared<FOverridesWidgetStyleKey>(Inside()));
+	OverridesWidgetStyleKeys.Add( MakeShared<FOverridesWidgetStyleKey>(HereInside()));
+	OverridesWidgetStyleKeys.Add( MakeShared<FOverridesWidgetStyleKey>(Added()));
+	OverridesWidgetStyleKeys.Add( MakeShared<FOverridesWidgetStyleKey>(Removed()));
+	OverridesWidgetStyleKeys.Add( MakeShared<FOverridesWidgetStyleKey>(Options()));	
 }
 
 const FOverridesWidgetStyleKey& FOverridesWidgetStyleKeys::Added()
@@ -74,17 +86,22 @@ const FOverridesWidgetStyleKey& FOverridesWidgetStyleKeys::Removed()
 
 const FOverridesWidgetStyleKey& FOverridesWidgetStyleKeys::Inside()
 {
-	static const FOverridesWidgetStyleKey Inside{"OverrideInside"};
+	static const FOverridesWidgetStyleKey Inside{"OverrideInside", EOverriddenPropertyOperation::Modified, EOverriddenState::HasOverrides };
 	return Inside;
 }
 
 const FOverridesWidgetStyleKey& FOverridesWidgetStyleKeys::HereInside()
 {
-	static const FOverridesWidgetStyleKey HereInside{"OverrideHereInside"};
+	static const FOverridesWidgetStyleKey HereInside{"OverrideHereInside" };
 	return HereInside;
 }
 
-FOverridesWidgetStyleKey::FOverridesWidgetStyleKey(FName InName) : Name{InName}
+TArray< TSharedRef< const FOverridesWidgetStyleKey >> FOverridesWidgetStyleKeys::GetKeys()
+{
+	return OverridesWidgetStyleKeys;
+}
+
+void FOverridesWidgetStyleKey::Construct()
 {
 	static const FVector2D Icon16x16{16.0f, 16.0f};
 	static const FString Path = FPaths::ConvertRelativePathToFull(FPaths::Combine(FPaths::EngineContentDir(), TEXT("Slate/Starship/Common/")));
@@ -92,6 +109,50 @@ FOverridesWidgetStyleKey::FOverridesWidgetStyleKey(FName InName) : Name{InName}
 	const FSlateVectorImageBrush Brush{Path + Name.ToString() + ".svg", Icon16x16};
 	const FSlateBrush* SlateBrushPtr = &Brush;
 	ImageBrush = *SlateBrushPtr;
+}
+
+
+TAttribute<EVisibility> FOverridesWidgetStyleKey::GetVisibilityAttribute(const TSharedPtr<FEditPropertyChain>& PropertyChain, TWeakObjectPtr<UObject>& OverriddenObjectWeakPtr) const
+{
+	static FOverridableManager& Manager = FOverridableManager::Get();
+	
+	return TAttribute<EVisibility>::CreateLambda( [ this, PropertyChain,  OverriddenObjectWeakPtr ] ()
+	{
+		const bool bIsProperty = PropertyChain.IsValid();
+		
+	    if ( OverriddenObjectWeakPtr.IsValid() )
+	    {
+	    	UObject& OverriddenObject = *OverriddenObjectWeakPtr.Get();
+
+	    	const bool bIsPropertyVisible = bIsProperty &&
+												VisibleOverriddenPropertyOperation == Manager.GetOverriddenPropertyOperation(OverriddenObject, *PropertyChain.Get());
+
+			const bool bIsComponentVisible = !bIsProperty && VisibleOverriddenState == Manager.GetOverriddenState(OverriddenObject);
+
+			if ( bIsComponentVisible || bIsPropertyVisible )
+			{
+				return EVisibility::Visible;
+			}
+	    }
+
+		return EVisibility::Collapsed;
+	});
+}
+
+FOverridesWidgetStyleKey::FOverridesWidgetStyleKey(FName InName) : Name{InName}
+{
+     Construct();
+}
+
+FOverridesWidgetStyleKey::FOverridesWidgetStyleKey(FName InName,
+																				EOverriddenPropertyOperation InOverriddenPropertyOperation,
+																				EOverriddenState InOverriddenState) :
+   Name(InName),
+   VisibleOverriddenPropertyOperation(InOverriddenPropertyOperation),
+   VisibleOverriddenState(InOverriddenState),
+   bCanBeVisible(true)
+{
+	Construct();
 }
 
 FDetailsViewStyle::FDetailsViewStyle()
@@ -229,6 +290,8 @@ void FDetailsViewStyle::InitializeDetailsViewStyles()
 	
 	static FDetailsViewStyle ClassicStyle{FDetailsViewStyleKeys::Classic(), 0.0f };
 	StyleKeyToStyleTemplateMap.Add(FDetailsViewStyleKeys::Classic().GetName(), &ClassicStyle);
+
+	FOverridesWidgetStyleKeys::Initialize();
 }
 
 const FSlateBrush* FDetailsViewStyle::GetBackgroundImageForScrollBarWell(

@@ -634,11 +634,12 @@ void SDetailSingleItemRow::Construct( const FArguments& InArgs, FDetailLayoutCus
 				DetailsView &&
 				DetailsView->GetDisplayManager().IsValid())
 			{
-					
-				Property = GetPropertyNode()->GetProperty();
+				TSharedPtr<FPropertyNode>  PropertyNode = GetPropertyNode(); 	
+				Property = PropertyNode->GetProperty();
 				DisplayManager = DetailsView->GetDisplayManager();
+				TSharedRef<FEditPropertyChain> EditPropertyChain = PropertyNode->BuildPropertyChain( Property ); 
 				PropertyUpdatedWidgetBuilder = DisplayManager->GetPropertyUpdatedWidget(
-					FExecuteAction::CreateSP(this, &SDetailSingleItemRow::OnResetToDefaultClicked));
+					FExecuteAction::CreateSP(this, &SDetailSingleItemRow::OnResetToDefaultClicked), EditPropertyChain, Category->GetObjectName());
 
 				if (PropertyUpdatedWidgetBuilder.IsValid())
 				{
@@ -660,20 +661,8 @@ void SDetailSingleItemRow::Construct( const FArguments& InArgs, FDetailLayoutCus
 				.Padding(0.0f)
 				[
 					PropertyUpdatedWidgetBuilder.IsValid() ?
-					PropertyUpdatedWidgetBuilder
-						->Bind_IsVisible(
-							TAttribute<EVisibility>::CreateLambda([this, Category, Property ]
-							{
-								const bool bIsResetVisible = IsResetToDefaultVisible();
-								const EVisibility Visibility = bIsResetVisible ? EVisibility::Visible : EVisibility::Collapsed;
-								if (DisplayManager.IsValid() && Category.IsValid() && Property)
-								{
-									DisplayManager->UpdatePropertyForCategory(Category->GetObjectName(), Property, bIsResetVisible);
-								}
-								return Visibility;
-							}))
-						.GenerateWidget().ToSharedRef()  :
-					ToolbarBuilder.MakeWidget()
+					         PropertyUpdatedWidgetBuilder->GenerateWidget().ToSharedRef()  :
+					         ToolbarBuilder.MakeWidget()
 				]
 			];
 		}

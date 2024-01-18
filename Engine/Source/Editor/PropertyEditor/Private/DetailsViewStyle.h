@@ -10,26 +10,72 @@
 #include "Misc/Paths.h"
 #include "Styling/SlateWidgetStyle.h"
 
+enum class EOverriddenState : uint8;
+struct EVisibility;
+
 /**
  * A class which provides a key with the information to create the Overrides widget style (including the Icom)
  */
-class FOverridesWidgetStyleKey
+class FOverridesWidgetStyleKey : public TSharedFromThis< FOverridesWidgetStyleKey >
 {
 public:
 
 	/**
-	 * The constructor for the style key.
+	 * The default constructor for the style key.
 	 *
 	 * @param InName the FName which is the name of the key
 	 */
 	PROPERTYEDITOR_API FOverridesWidgetStyleKey(FName InName);
 
+	/**
+ * The constructor for the style key that initializes the Overridden state members
+ *
+ * @param InName the FName which is the name of the key
+ * @param InOverriddenPropertyOperation the overridden property operation for which this style is visible
+ * @param InOverriddenState the overridden state for components for which this style is visible
+ */
+	PROPERTYEDITOR_API FOverridesWidgetStyleKey(FName InName,
+																			EOverriddenPropertyOperation InOverriddenPropertyOperation,
+																			EOverriddenState InOverriddenState
+																			);
+
+	/**
+	 * returns the const FSlateBrush& that creates the icon for this widget style
+	 */
 	const FSlateBrush& GetConstStyleBrush() const;
+
+	/**
+	 * Creates a TAttribute<EVisibility> which indicates the EVisibility for this widget style
+	 * 
+	 * @param PropertyChain points to the FEditPropertyChain for the Property, if this style is for a Property, else it is nullptr
+	 * @param OverriddenObject the UObject associated with this widget style
+	 * @return 
+	 */
+	TAttribute<EVisibility> GetVisibilityAttribute(const TSharedPtr<FEditPropertyChain>& PropertyChain, TWeakObjectPtr<UObject>& OverriddenObjectWeakPtr) const;
+	
+	/**
+	 * returns the const FComboButtonStyle& for this OverridesWidgetStyleKey
+	 *
+	 * @param bIsForOuterCategory true if this style is for an outer Category
+	 */
+	PROPERTYEDITOR_API const FComboButtonStyle& GetComboButtonStyle(const bool bIsForOuterCategory = false) const;
 
 	/**
 	 * the name of the key
 	 */
 	const FName Name;
+
+	/**
+	 * The EOverriddenPropertyOperation for which this style is visible for a property
+	 */
+	const TOptional<EOverriddenPropertyOperation> VisibleOverriddenPropertyOperation;
+
+	/**
+	 * The EOverriddenState for which this style is visible for a UObject
+	 */
+	const TOptional<EOverriddenState> VisibleOverriddenState;
+
+	const bool bCanBeVisible = false;
 
 private:
 
@@ -37,9 +83,14 @@ private:
 	 * The image brush specified by this style key
 	 */
 	FSlateBrush ImageBrush;
+
+	/**
+	 * Construct the style key
+	 */
+	void Construct();
 };
 
-/**
+/**s
  * The FOverridesWidgetStyleKeys class provides style keys which can
  * create the needed styles for overrides widgets
  */
@@ -77,6 +128,12 @@ public:
 
 	static const FOverridesWidgetStyleKey& HereInside();
 
+	static TArray< TSharedRef< const FOverridesWidgetStyleKey >> GetKeys();
+	
+	static void Initialize(); 
+
+private:
+	static TArray< TSharedRef< const FOverridesWidgetStyleKey >> OverridesWidgetStyleKeys;
 };
 
 /**
@@ -85,13 +142,6 @@ public:
 class FDetailsViewStyle : public FSlateWidgetStyle
 {
 public:
-
-	/**
-	 * returns the const FComboButtonStyle& for the key const FOverridesWidgetStyleKey* OverridesWidgetStyleKey
-	 *
-	 * @param OverridesWidgetStyleKey the FOverridesWidgetStyleKey for the overrides combobutton style
-	 */
-	PROPERTYEDITOR_API const FComboButtonStyle& GetOverridesComboButtonStyle(const FOverridesWidgetStyleKey* OverridesWidgetStyleKey, const bool bIsForOuterCategory = false) const;
 
 	/**
 	 * The default constructor of this @code FDetailsViewStyle @endcode.

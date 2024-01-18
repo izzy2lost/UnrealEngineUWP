@@ -7,6 +7,7 @@
 #include "Widgets/Input/SComboButton.h"
 #include "Templates/SharedPointer.h"
 
+enum class EOverriddenState : uint8;
 class FDetailsDisplayManager;
 
 
@@ -43,6 +44,11 @@ public:
 	PROPERTYEDITOR_API FOverridesComboButtonBuilder& Set_OnGetContent(FOnGetContent InOnGetContent);
 
 	/**
+	 * Sets the FEditPropertyChain for this FOverridesComboButtonBuilder
+	 */
+	PROPERTYEDITOR_API void SetEditPropertyChain(TSharedRef<FEditPropertyChain>& InEditPropertyChain);
+
+	/**
 	 * Implements the generation of the Category Menu button SWidget
 	 */
 	virtual TSharedPtr<SWidget> GenerateWidget() override;
@@ -58,15 +64,6 @@ public:
 	TSharedRef<SWidget> operator*();
 
 private:
-	/**
-	 * Returns the visibility of the image that denotes that a Component is fully overridden
-	 */
-	EVisibility GetFullyOverridenVisibility() const;
-
-	/**
-	 * Returns the visibility of the image that denotes a Component is overridden only inside
-	 */
-	EVisibility GetOverridenInsideVisibility() const;
 
 	/**
 	 * The @code DetailsDisplayManager @endcode which provides an API to manage some of the characteristics of the
@@ -83,4 +80,17 @@ private:
 	 * The UObject that will be queried for its override state
 	 */
 	TWeakObjectPtr<UObject> Object;
+	
+	/**
+    * If this is a ComboButton builder for a Property, this will point to the FEditPropertyChain for that Property, else it will be nullptr
+    * 
+    */
+	TSharedPtr<FEditPropertyChain> EditPropertyChain;
+
+	/**
+	 * if true this is a builder for an Overrides combo button for a Category, else it is a builder
+	 * for Properties within a Category 
+	 */
+	bool bIsCategory = true;
+
 };

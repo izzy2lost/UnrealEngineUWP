@@ -107,7 +107,23 @@ public:
 	 */	
 	PROPERTYEDITOR_API virtual bool AddEmptyCategoryToDetailLayoutIfNeeded(TSharedRef<FComplexPropertyNode> Node, TSharedRef<FDetailLayoutBuilderImpl> DetailLayoutBuilder);
 
+	/**
+	* Returns a widget which will show in place of the reset to default button, or a nullptr if the default reset button should be used
+	*
+	* @param ResetToDefault the delegate which should be called to reset the row to default
+	* @param bIsCategoryUpdateWidget if true this widget builder is for a Category instead of a property within
+	* @param InCategoryObjectName  the name of the UObject associated with the Category for the widget builder, if one exists, else it is NAME_NONE
+	*/
 	virtual TSharedPtr<FPropertyUpdatedWidgetBuilder> GetPropertyUpdatedWidget(FResetToDefault ResetToDefault, bool bIsCategoryUpdateWidget = false, FName InCategoryObjectName = NAME_None);
+
+	/**
+	* Returns a widget which will show in place of the reset to default button, or a nullptr if the default reset button should be used
+	*
+	* @param ResetToDefault the delegate which should be called to reset the row to default
+	* @param InEditorPropertyChain the FEditorPropertyChain for the FPropertyNode whose state is visualized by this  property updated widget 
+	* @param InCategoryObjectName the name of the UObject for which the Category is displayed, if one is associated with the Category
+	*/
+	virtual TSharedPtr<FPropertyUpdatedWidgetBuilder> GetPropertyUpdatedWidget(FResetToDefault ResetToDefault, TSharedRef<FEditPropertyChain> InEditorPropertyChain, FName InCategoryObjectName);
 
 	void UpdatePropertyForCategory(FName InCategoryObjectName, FProperty* Property, bool bAddProperty);
 
