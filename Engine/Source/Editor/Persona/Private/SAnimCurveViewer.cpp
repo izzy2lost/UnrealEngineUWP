@@ -99,6 +99,45 @@ private:
 	bool bIsActive = false;
 };
 
+bool FDisplayedAnimCurveInfo::GetActiveFlag(const TSharedPtr<SAnimCurveViewer>& InAnimCurveViewer, bool bInMorphTarget) const
+{
+	if(const UAnimInstance* AnimInstance = InAnimCurveViewer->GetAnimInstance())
+	{
+		// Find if we want to use a pose watch
+		if(UPoseWatchPoseElement* PoseWatchPoseElement = InAnimCurveViewer->PoseWatch.Get())
+		{
+			if(UAnimBlueprintGeneratedClass* AnimClass = Cast<UAnimBlueprintGeneratedClass>(AnimInstance->GetClass()))
+			{
+				// We have to grab our pose watches from the root class as no pose watches can be set on child anim BPs
+				if(const UAnimBlueprintGeneratedClass* RootClass = Cast<UAnimBlueprintGeneratedClass>(AnimClass->GetRootClass()))
+				{
+					const FAnimBlueprintDebugData& DebugData = RootClass->AnimBlueprintDebugData;
+					for(const FAnimNodePoseWatch& AnimNodePoseWatch : DebugData.AnimNodePoseWatch)
+					{
+						if(AnimNodePoseWatch.PoseWatchPoseElement == PoseWatchPoseElement)
+						{
+							UE::Anim::ECurveElementFlags Flags = AnimNodePoseWatch.GetCurves().GetFlags(CurveName);
+							return EnumHasAnyFlags(Flags, bInMorphTarget ? UE::Anim::ECurveElementFlags::MorphTarget : UE::Anim::ECurveElementFlags::Material);
+						}
+					}
+				}
+			}
+		}
+		else
+		{
+			// See if curve is in active set, attribute curve should have everything
+			const TMap<FName, float>& CurveList = AnimInstance->GetAnimationCurveList(bInMorphTarget ? EAnimCurveType::MorphTargetCurve : EAnimCurveType::MaterialCurve);
+			const float* CurrentValue = CurveList.Find(CurveName);
+			if (CurrentValue)
+			{
+				return true;
+			}
+		}
+	}
+
+	return false;
+}
+
 void SAnimCurveListRow::Construct( const FArguments& InArgs, const TSharedRef<STableViewBase>& InOwnerTableView, const TSharedRef<IPersonaPreviewScene>& InPreviewScene)
 {
 	Item = InArgs._Item;
@@ -202,15 +241,20 @@ TSharedRef< SWidget > SAnimCurveListRow::GetCurveTypeWidget()
 		.VAlign(VAlign_Center)
 		.HAlign(HAlign_Center)
 		[
-			SNew(SCheckBox)
-			.IsChecked(this, &SAnimCurveListRow::IsAnimCurveTypeBoxChangedChecked, true)
-			.CheckedImage(FAppStyle::GetBrush("AnimCurveViewer.MorphTargetOn"))
-			.CheckedPressedImage(FAppStyle::GetBrush("AnimCurveViewer.MorphTargetOn"))
-			.UncheckedImage(FAppStyle::GetBrush("AnimCurveViewer.MorphTargetOff"))
-			.CheckedHoveredImage(FAppStyle::GetBrush("AnimCurveViewer.MorphTargetOn"))
-			.UncheckedHoveredImage(FAppStyle::GetBrush("AnimCurveViewer.MorphTargetOff"))
+			SNew(SImage)
 			.ToolTipText(LOCTEXT("CurveTypeMorphTarget_Tooltip", "MorphTarget"))
-			.ForegroundColor(FAppStyle::GetSlateColor("DefaultForeground"))
+			.Image_Lambda([this]()
+			{
+				bool bHasCurveType = GetActiveFlag(true);
+				if(bHasCurveType)
+				{
+					return FAppStyle::GetBrush("AnimCurveViewer.MorphTargetOn");
+				}
+				else
+				{
+					return FAppStyle::GetBrush("AnimCurveViewer.MorphTargetOff");
+				}
+			})
 		]
 
 		+SHorizontalBox::Slot()
@@ -219,15 +263,20 @@ TSharedRef< SWidget > SAnimCurveListRow::GetCurveTypeWidget()
 		.VAlign(VAlign_Center)
 		.HAlign(HAlign_Center)
 		[
-			SNew(SCheckBox)
-			.IsChecked(this, &SAnimCurveListRow::IsAnimCurveTypeBoxChangedChecked, false)
-			.CheckedImage(FAppStyle::GetBrush("AnimCurveViewer.MaterialOn"))
-			.CheckedPressedImage(FAppStyle::GetBrush("AnimCurveViewer.MaterialOn"))
-			.UncheckedImage(FAppStyle::GetBrush("AnimCurveViewer.MaterialOff"))
-			.CheckedHoveredImage(FAppStyle::GetBrush("AnimCurveViewer.MaterialOn"))
-			.UncheckedHoveredImage(FAppStyle::GetBrush("AnimCurveViewer.MaterialOff"))
+			SNew(SImage)
 			.ToolTipText(LOCTEXT("CurveTypeMaterial_Tooltip", "Material"))
-			.ForegroundColor(FAppStyle::GetSlateColor("DefaultForeground"))
+			.Image_Lambda([this]()
+			{
+				bool bHasCurveType = GetActiveFlag(false);
+				if(bHasCurveType)
+				{
+					return FAppStyle::GetBrush("AnimCurveViewer.MaterialOn");
+				}
+				else
+				{
+					return FAppStyle::GetBrush("AnimCurveViewer.MaterialOff");
+				}
+			})
 		];
 
 }
@@ -238,39 +287,7 @@ bool SAnimCurveListRow::GetActiveFlag(bool bMorphTarget) const
 	TSharedPtr<SAnimCurveViewer> AnimCurveViewer = AnimCurveViewerPtr.Pin();
 	if (AnimCurveViewer.IsValid())
 	{
-		if(const UAnimInstance* AnimInstance = AnimCurveViewer->GetAnimInstance())
-		{
-			// Find if we want to use a pose watch
-			if(UPoseWatchPoseElement* PoseWatchPoseElement = AnimCurveViewer->PoseWatch.Get())
-			{
-				if(UAnimBlueprintGeneratedClass* AnimClass = Cast<UAnimBlueprintGeneratedClass>(AnimInstance->GetClass()))
-				{
-					// We have to grab our pose watches from the root class as no pose watches can be set on child anim BPs
-					if(const UAnimBlueprintGeneratedClass* RootClass = Cast<UAnimBlueprintGeneratedClass>(AnimClass->GetRootClass()))
-					{
-						const FAnimBlueprintDebugData& DebugData = RootClass->AnimBlueprintDebugData;
-						for(const FAnimNodePoseWatch& AnimNodePoseWatch : DebugData.AnimNodePoseWatch)
-						{
-							if(AnimNodePoseWatch.PoseWatchPoseElement == PoseWatchPoseElement)
-							{
-								UE::Anim::ECurveElementFlags Flags = AnimNodePoseWatch.GetCurves().GetFlags(Item->CurveName);
-								return EnumHasAnyFlags(Flags, bMorphTarget ? UE::Anim::ECurveElementFlags::MorphTarget : UE::Anim::ECurveElementFlags::Material);
-							}
-						}
-					}
-				}
-			}
-			else
-			{
-				// See if curve is in active set, attribute curve should have everything
-				const TMap<FName, float>& CurveList = AnimInstance->GetAnimationCurveList(bMorphTarget ? EAnimCurveType::MorphTargetCurve : EAnimCurveType::MaterialCurve);
-				const float* CurrentValue = CurveList.Find(Item->CurveName);
-				if (CurrentValue)
-				{
-					return true;
-				}
-			}
-		}
+		return Item->GetActiveFlag(AnimCurveViewer, bMorphTarget);
 	}
 
 	return false;
@@ -480,6 +497,7 @@ void SAnimCurveViewer::Construct(const FArguments& InArgs,  const TSharedRef<IPe
 
 	// Register and bind all our menu commands
 	FCurveViewerCommands::Register();
+	BindCommands();
 
 	CurrentCurveFlag = EAnimCurveViewerFilterFlags::Active;
 
@@ -514,6 +532,7 @@ void SAnimCurveViewer::Construct(const FArguments& InArgs,  const TSharedRef<IPe
 	
 	TSharedRef<SBasicFilterBar<EAnimCurveViewerFilterFlags>> FilterBar = SNew(SBasicFilterBar<EAnimCurveViewerFilterFlags>)
 	.CustomFilters(Filters)
+	.bPinAllFrontendFilters(true)
 	.UseSectionsForCategories(true)
 	.OnFilterChanged_Lambda([this]()
 	{
@@ -528,11 +547,11 @@ void SAnimCurveViewer::Construct(const FArguments& InArgs,  const TSharedRef<IPe
 			}
 		}
 
-		RefreshCurveList(false);
+		RefreshCurveList(true);
 	});
 
-	FilterBar->SetFilterCheckState(Filters[0], ECheckBoxState::Checked);
-	
+	Filters[0]->SetActive(true);
+
 	ChildSlot
 	[
 		SNew( SVerticalBox )
@@ -541,25 +560,34 @@ void SAnimCurveViewer::Construct(const FArguments& InArgs,  const TSharedRef<IPe
 		.AutoHeight()
 		.HAlign(HAlign_Left)
 		[
-			SNew(SSimpleButton)
-			.Text(LOCTEXT("FindReplaceCurvesButton", "Find/Replace Curves..."))
-			.ToolTipText(LOCTEXT("FindReplaceCurvesButtonTooltip", "Find and replace curves across multiple assets"))
-			.Icon(FAppStyle::GetBrush("Kismet.Tabs.FindResults"))
-			.OnClicked_Lambda([this]()
-			{
-				if(TSharedPtr<SDockTab> ActiveTab = FGlobalTabmanager::Get()->GetActiveTab())
+			SNew(SHorizontalBox)
+			+SHorizontalBox::Slot()
+			.AutoWidth()
+			[
+				SNew(SSimpleButton)
+				.Text(LOCTEXT("RefreshButton", "Refresh"))
+				.ToolTipText(LOCTEXT("RefreshButtonTooltip", "Refresh the displayed curves, clearing out any curves that are not currently active"))
+				.Icon(FAppStyle::GetBrush("Icons.Refresh"))
+				.OnClicked_Lambda([this]()
 				{
-					if(TSharedPtr<FTabManager> TabManager = ActiveTab->GetTabManagerPtr())
-					{
-						if(TSharedPtr<SDockTab> Tab = TabManager->TryInvokeTab(FPersonaTabs::FindReplaceID))
-						{
-							TSharedRef<IAnimAssetFindReplace> FindReplaceWidget = StaticCastSharedRef<IAnimAssetFindReplace>(Tab->GetContent());
-							FindReplaceWidget->SetCurrentProcessor(UAnimAssetFindReplaceCurves::StaticClass());
-						}
-					}
-				}
-				return FReply::Handled();
-			})
+					AllSeenAnimCurvesMap.Reset();
+					RefreshCurveList(true);
+					return FReply::Handled();
+				})
+			]
+			+SHorizontalBox::Slot()
+			.AutoWidth()
+			[
+				SNew(SSimpleButton)
+				.Text(LOCTEXT("FindReplaceCurvesButton", "Find/Replace Curves..."))
+				.ToolTipText(LOCTEXT("FindReplaceCurvesButtonTooltip", "Find and replace curves across multiple assets"))
+				.Icon(FAppStyle::GetBrush("Kismet.Tabs.FindResults"))
+				.OnClicked_Lambda([this]()
+				{
+					FindReplaceCurves();
+					return FReply::Handled();
+				})
+			]
 		]
 		+SVerticalBox::Slot()
 		.AutoHeight()
@@ -601,6 +629,7 @@ void SAnimCurveViewer::Construct(const FArguments& InArgs,  const TSharedRef<IPe
 		.FillHeight(1.0f)
 		[
 			SAssignNew(AnimCurveListView, SAnimCurveListType)
+			.OnContextMenuOpening( this, &SAnimCurveViewer::OnGetContextMenuContent )
 			.ListItemsSource( &AnimCurveList )
 			.OnGenerateRow( this, &SAnimCurveViewer::GenerateAnimCurveRow )
 			.ItemHeight( 18.0f )
@@ -682,6 +711,15 @@ void SAnimCurveViewer::Tick(const FGeometry& AllottedGeometry, const double InCu
 	}
 }
 
+FReply SAnimCurveViewer::OnKeyDown(const FGeometry& MyGeometry, const FKeyEvent& InKeyEvent)
+{
+	if (UICommandList.IsValid() && UICommandList->ProcessCommandBindings(InKeyEvent))
+	{
+		return FReply::Handled();
+	}
+	return FReply::Unhandled();
+}
+
 UAnimInstance* SAnimCurveViewer::GetAnimInstance() const
 {
 	UDebugSkelMeshComponent* MeshComponent = PreviewScenePtr.Pin()->GetPreviewMeshComponent();
@@ -712,11 +750,6 @@ void SAnimCurveViewer::CreateAnimCurveList( const FString& SearchText, bool bInF
 	bool bDirty = bInFullRefresh;
 
 	AnimCurveList.Reset();
-
-	if(bInFullRefresh)
-	{
-		AllSeenAnimCurvesMap.Reset();
-	}
 
 	auto AddCurve = [this](FName InCurveName, UE::Anim::ECurveElementFlags InFlags)
 	{
@@ -1150,6 +1183,86 @@ void SAnimCurveViewer::HandleCurveMetaDataChange()
 	AnimCurveList.Empty();
 	RefreshCurveList(true);
 }
+
+void SAnimCurveViewer::BindCommands()
+{
+	// This should not be called twice on the same instance
+	check(!UICommandList.IsValid());
+
+	UICommandList = MakeShared<FUICommandList>();
+
+	FUICommandList& CommandList = *UICommandList;
+
+	// Grab the list of menu commands to bind...
+	const FCurveViewerCommands& MenuActions = FCurveViewerCommands::Get();
+
+	// ...and bind them all
+	CommandList.MapAction(
+		MenuActions.FindCurveUses,
+		FExecuteAction::CreateSP(this, &SAnimCurveViewer::OnFindCurveUsesClicked),
+		FCanExecuteAction::CreateSP(this, &SAnimCurveViewer::CanFindCurveUses));
+}
+
+TSharedPtr<SWidget> SAnimCurveViewer::OnGetContextMenuContent() const
+{
+	const bool bShouldCloseWindowAfterMenuSelection = true;
+	FMenuBuilder MenuBuilder( bShouldCloseWindowAfterMenuSelection, UICommandList);
+
+	const FCurveViewerCommands& Actions = FCurveViewerCommands::Get();
+
+	MenuBuilder.BeginSection("AnimCurveAction", LOCTEXT( "CurveAction", "Curve Actions" ) );
+	MenuBuilder.AddMenuEntry(Actions.FindCurveUses);
+	MenuBuilder.EndSection();
+
+	return MenuBuilder.MakeWidget();
+}
+
+void SAnimCurveViewer::OnFindCurveUsesClicked()
+{
+	FindReplaceCurves();
+}
+
+bool SAnimCurveViewer::CanFindCurveUses()
+{
+	return AnimCurveListView->GetNumItemsSelected() == 1;
+}
+
+void SAnimCurveViewer::FindReplaceCurves()
+{
+	FName CurveName = NAME_None;
+	bool bMorphTarget = false;
+	bool bMaterial = false;
+	TArray<TSharedPtr<FDisplayedAnimCurveInfo>> SelectedItems = AnimCurveListView->GetSelectedItems();
+	if(SelectedItems.Num() > 0)
+	{
+		CurveName = SelectedItems[0]->CurveName;
+		bMorphTarget = SelectedItems[0]->GetActiveFlag(SharedThis(this), true);
+		bMaterial = SelectedItems[0]->GetActiveFlag(SharedThis(this), false);
+	}
+
+	if(TSharedPtr<SDockTab> ActiveTab = FGlobalTabmanager::Get()->GetActiveTab())
+	{
+		if(TSharedPtr<FTabManager> TabManager = ActiveTab->GetTabManagerPtr())
+		{
+			if(TSharedPtr<SDockTab> Tab = TabManager->TryInvokeTab(FPersonaTabs::FindReplaceID))
+			{
+				TSharedRef<IAnimAssetFindReplace> FindReplaceWidget = StaticCastSharedRef<IAnimAssetFindReplace>(Tab->GetContent());
+				FindReplaceWidget->SetCurrentProcessor(UAnimAssetFindReplaceCurves::StaticClass());
+				if(CurveName != NAME_None)
+				{
+					if(UAnimAssetFindReplaceCurves* Processor = FindReplaceWidget->GetProcessor<UAnimAssetFindReplaceCurves>())
+					{
+						Processor->SetFindString(CurveName.ToString());
+						Processor->SetFindWholeWord(true);
+						Processor->SetSearchMaterials(bMaterial);
+						Processor->SetSearchMorphTargets(bMorphTarget);
+					}
+				}
+			}
+		}
+	}
+}
+
 
 #undef LOCTEXT_NAMESPACE
 

@@ -20,6 +20,7 @@
 #include "AssetRegistry/AssetRegistryModule.h"
 #include "Misc/ScopedSlowTask.h"
 #include "ScopedTransaction.h"
+#include "SkeletalMeshCompiler.h"
 #include "Widgets/Views/SListView.h"
 #include "UObject/AssetRegistryTagsContext.h"
 #include "UObject/AnimPhysObjectVersion.h"
@@ -227,7 +228,7 @@ void SAnimAssetFindReplace::Construct(const FArguments& InArgs)
 			{
 				if(TSharedPtr<SAnimAssetFindReplace> Widget = AnimAssetFindReplacePrivate::GetWidgetFromContext(InContext))
 				{
-					Widget->RequestRefreshSearchResults();
+					Widget->RequestRefreshUI();
 				}
 			});
 
@@ -319,7 +320,10 @@ void SAnimAssetFindReplace::Construct(const FArguments& InArgs)
 						}
 					}
 
-					RequestRefreshSearchResults();
+					// Ensure all meshes are compiled after the load, as asset registry data isnt available correctly until they are
+					FSkinnedAssetCompilingManager::Get().FinishAllCompilation();
+
+					RequestRefreshCachedData();
 				})
 			]
 			+SHorizontalBox::Slot()
@@ -386,7 +390,7 @@ void SAnimAssetFindReplace::Construct(const FArguments& InArgs)
 		]
 	];
 
-	RequestRefresh();
+	RequestRefreshUI();
 
 	RegisterActiveTimer(0.0f, FWidgetActiveTimerDelegate::CreateLambda([this](double InCurrentTime, float InDeltaTime)
 	{
@@ -396,11 +400,17 @@ void SAnimAssetFindReplace::Construct(const FArguments& InArgs)
 	
 	RegisterActiveTimer(1.0f / 60.0f, FWidgetActiveTimerDelegate::CreateLambda([this](double InCurrentTime, float InDeltaTime)
 	{
-		if(bRefreshRequested)
+		if(bRefreshUIRequested)
 		{
-			bRefreshRequested = false;
+			bRefreshUIRequested = false;
 			ToolbarContainer->SetContent(UToolMenus::Get()->GenerateWidget("AnimAssetFindReplaceToolbar", FToolMenuContext(ToolbarContext)));
 			FindReplaceWidgetContainer->SetContent(CurrentProcessor->MakeFindReplaceWidget());
+			bRefreshCachedDataRequested = true;
+		}
+
+		if(bRefreshCachedDataRequested)
+		{
+			bRefreshCachedDataRequested = false;
 			CurrentProcessor->RefreshCachedData();
 			bRefreshSearchResultsRequested = true;
 		}
@@ -423,7 +433,7 @@ void SAnimAssetFindReplace::SetCurrentProcessor(TSubclassOf<UAnimAssetFindReplac
 		CurrentProcessor = *FoundProcessor;
 	}
 
-	RequestRefresh();
+	RequestRefreshUI();
 }
 
 UAnimAssetFindReplaceProcessor* SAnimAssetFindReplace::GetProcessor(TSubclassOf<UAnimAssetFindReplaceProcessor> InProcessorClass) const
@@ -535,7 +545,7 @@ void SAnimAssetFindReplace::ReplaceInAssets(const TArray<FAssetData>& InAssetDat
 		}
 	}
 
-	RequestRefreshSearchResults();
+	RequestRefreshCachedData();
 }
 
 void SAnimAssetFindReplace::ReplaceInAsset(const FAssetData& InAssetData) const
@@ -597,7 +607,7 @@ void SAnimAssetFindReplace::RemoveInAssets(const TArray<FAssetData>& InAssetData
 		}
 	}
 
-	RequestRefreshSearchResults();
+	RequestRefreshCachedData();
 }
 
 void SAnimAssetFindReplace::RemoveInAsset(const FAssetData& InAssetData) const

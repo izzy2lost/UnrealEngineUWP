@@ -393,6 +393,11 @@ void USkeleton::PostLoad()
 			}
 		}
 	}
+	else
+	{
+		// Ensure we have curve metadata, even if empty, so we can correctly pick up older objects in the asset registry
+		GetOrCreateCurveMetaDataObject();
+	}
 #endif
 
 	// refresh linked bone indices

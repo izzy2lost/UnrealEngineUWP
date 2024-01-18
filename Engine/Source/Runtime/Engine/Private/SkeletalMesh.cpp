@@ -93,6 +93,7 @@
 #endif
 #include "Animation/SkinWeightProfileManager.h"
 #include "BoneWeights.h"
+#include "Logging/StructuredLog.h"
 
 #define LOCTEXT_NAMESPACE "SkeltalMesh"
 
@@ -140,6 +141,14 @@ static FAutoConsoleVariableRef CVarSkeletalMeshMinLodQualityLevel(
 	TEXT("The quality level for the Min stripping LOD. \n"),
 	FConsoleVariableDelegate::CreateStatic(&USkeletalMesh::OnLodStrippingQualityLevelChanged),
 	ECVF_Scalability);
+
+#if WITH_EDITOR
+const FName USkeletalMesh::MorphNamesTag("MorphTargetNames");
+const FString USkeletalMesh::MorphNamesTagDelimiter(TEXT(";"));
+
+const FName USkeletalMesh::MaterialParamNamesTag("MaterialParamNames");
+const FString USkeletalMesh::MaterialParamNamesTagDelimiter(TEXT(";"));
+#endif
 
 /*-----------------------------------------------------------------------------
 FGPUSkinVertexBase
@@ -3573,6 +3582,45 @@ void USkeletalMesh::GetAssetRegistryTags(FAssetRegistryTagsContext Context) cons
 	// tags are available.
 	Context.AddTag(FAssetRegistryTag("MaxBoneInfluences", MaxBoneInfluencesString, FAssetRegistryTag::TT_Numerical));
 
+	// Expose morph target names to the asset registry
+	{
+		TStringBuilder<256> MorphNamesBuilder;
+		MorphNamesBuilder.Append(MorphNamesTagDelimiter);
+
+		for(UMorphTarget* MorphTarget : GetMorphTargets())
+		{
+			MorphTarget->GetFName().AppendString(MorphNamesBuilder);
+			MorphNamesBuilder.Append(MorphNamesTagDelimiter);
+		}
+
+		Context.AddTag(FAssetRegistryTag(MorphNamesTag, MorphNamesBuilder.ToString(), FAssetRegistryTag::TT_Hidden));
+	}
+
+	// Expose material scalar params (these can be driven by curves)
+	{
+		TStringBuilder<256> MaterialParamNamesBuilder;
+		MaterialParamNamesBuilder.Append(MaterialParamNamesTagDelimiter);
+
+		for (const FSkeletalMaterial& SkeletalMaterial : GetMaterials())
+		{
+			UMaterial* Material = (SkeletalMaterial.MaterialInterface != nullptr) ? SkeletalMaterial.MaterialInterface->GetMaterial() : nullptr;
+			if (Material)
+			{
+				TArray<FMaterialParameterInfo> OutParameterInfo;
+				TArray<FGuid> OutParameterIds;
+				SkeletalMaterial.MaterialInterface->GetAllScalarParameterInfo(OutParameterInfo, OutParameterIds);
+
+				for (const FMaterialParameterInfo& MaterialParameterInfo : OutParameterInfo)
+				{
+					MaterialParameterInfo.Name.AppendString(MaterialParamNamesBuilder);
+					MaterialParamNamesBuilder.Append(MorphNamesTagDelimiter);
+				}
+			}
+		}
+
+		Context.AddTag(FAssetRegistryTag(MaterialParamNamesTag, MaterialParamNamesBuilder.ToString(), FAssetRegistryTag::TT_Hidden));
+	}
+
 	// Allow asset user data to output tags
 	for(UAssetUserData* AssetUserDataItem : *GetAssetUserDataArray())
 	{
@@ -3690,7 +3738,7 @@ void USkeletalMesh::UnregisterAllMorphTarget()
 	InitMorphTargetsAndRebuildRenderData();
 }
 
-void USkeletalMesh::UnregisterMorphTarget(UMorphTarget* MorphTarget)
+void USkeletalMesh::UnregisterMorphTarget(UMorphTarget* MorphTarget, bool bInvalidateRenderData)
 {
 	if ( MorphTarget )
 	{
@@ -3702,7 +3750,10 @@ void USkeletalMesh::UnregisterMorphTarget(UMorphTarget* MorphTarget)
 			{
 				GetMorphTargets().RemoveAt(I);
 				--I;
-				InitMorphTargetsAndRebuildRenderData();
+				if(bInvalidateRenderData)
+				{
+					InitMorphTargetsAndRebuildRenderData();
+				}
 				return;
 			}
 		}
@@ -3759,6 +3810,126 @@ UMorphTarget* USkeletalMesh::FindMorphTargetAndIndex(FName MorphTargetName, int3
 
 	return nullptr;
 }
+
+#if WITH_EDITOR
+bool USkeletalMesh::RemoveMorphTargets(TConstArrayView<FName> InMorphTargetNames)
+{
+	if(InMorphTargetNames.Num() == 0)
+	{
+		return false;
+	}
+
+	FScopedTransaction Transaction(LOCTEXT("DeleteMorphTargets", "Delete Morph Targets"));
+
+	bool bRemoved = false;
+	for(FName MorphTargetName : InMorphTargetNames)
+	{
+		UMorphTarget* MorphTarget = FindMorphTarget(MorphTargetName);
+		if(MorphTarget)
+		{
+			MorphTarget->RemoveFromRoot();
+			MorphTarget->ClearFlags(RF_Standalone);
+
+			Modify();
+			MorphTarget->Modify();
+
+			if (!IsLODImportedDataEmpty(0) && IsLODImportedDataBuildAvailable(0))
+			{
+				//Remove the morph target from the raw import data
+				FSkeletalMeshImportData SkelMeshImportData;
+				LoadLODImportedData(0, SkelMeshImportData);
+				int32 ToDeleteIndex = INDEX_NONE;
+				for (int32 MorphTargetIndex = 0; MorphTargetIndex < SkelMeshImportData.MorphTargetNames.Num(); ++MorphTargetIndex)
+				{
+					if (SkelMeshImportData.MorphTargetNames[MorphTargetIndex].Equals(MorphTargetName.ToString()))
+					{
+						ToDeleteIndex = MorphTargetIndex;
+						break;
+					}
+				}
+
+				if (ToDeleteIndex != INDEX_NONE)
+				{
+					SkelMeshImportData.MorphTargetNames.RemoveAt(ToDeleteIndex);
+					SkelMeshImportData.MorphTargetModifiedPoints.RemoveAt(ToDeleteIndex);
+					SkelMeshImportData.MorphTargets.RemoveAt(ToDeleteIndex);
+					SaveLODImportedData(0, SkelMeshImportData);
+				}
+			}
+			else
+			{
+				//If we deal with an old asset (pre 4.24) and we do not have some valid import data, we need to dirty the ddc key so it wont take the ddc with the old morph target we just delete
+				InvalidateDeriveDataCacheGUID();
+			}
+
+			UnregisterMorphTarget(MorphTarget);
+
+			bRemoved = true;
+		}
+	}
+
+	return bRemoved;
+}
+
+bool USkeletalMesh::RenameMorphTarget(FName InOldName, FName InNewName)
+{
+	FText Reason;
+	if(!InOldName.IsValidObjectName(Reason) || !InNewName.IsValidObjectName(Reason))
+	{
+		UE_LOGFMT(LogAnimation, Warning, "Could not rename morph target from {0} to {1}. {2}", InOldName, InNewName, Reason.ToString());
+		return false;
+	}
+
+	if(FindObject<UObject>(this, *InNewName.ToString()))
+	{
+		UE_LOGFMT(LogAnimation, Warning, "Could not rename morph target from {0} to {1}. Destination object already exists.", InOldName, InNewName);
+		return false;
+	}
+	
+	UMorphTarget* MorphTarget = FindMorphTarget(InOldName);
+	if(MorphTarget == nullptr)
+	{
+		UE_LOGFMT(LogAnimation, Warning, "Could not rename morph target from {0} to {1}. Could not find morph target.", InOldName, InNewName);
+		return false;
+	}
+
+	FScopedTransaction Transaction(LOCTEXT("RenameMorphTarget", "Rename Morph Target"));
+
+	// Unregister the morph target (but dont invalidate renderdata yet, we will recreate it below in RegisterMorphTarget)
+	UnregisterMorphTarget(MorphTarget, false);
+
+	Modify();
+	MorphTarget->Modify();
+
+	if (!IsLODImportedDataEmpty(0) && IsLODImportedDataBuildAvailable(0))
+	{
+		// Rename the morph target in the raw import data
+		FSkeletalMeshImportData SkelMeshImportData;
+		LoadLODImportedData(0, SkelMeshImportData);
+		for (int32 MorphTargetIndex = 0; MorphTargetIndex < SkelMeshImportData.MorphTargetNames.Num(); ++MorphTargetIndex)
+		{
+			if (SkelMeshImportData.MorphTargetNames[MorphTargetIndex].Equals(InOldName.ToString()))
+			{
+				SkelMeshImportData.MorphTargetNames[MorphTargetIndex] = InNewName.ToString();
+				SaveLODImportedData(0, SkelMeshImportData);
+				break;
+			}
+		}
+	}
+	else
+	{
+		InvalidateDeriveDataCacheGUID();
+	}
+
+	// Rename the morph target itself
+	MorphTarget->Rename(*InNewName.ToString(), nullptr, REN_ForceNoResetLoaders | REN_DontCreateRedirectors);
+
+	// Re-register the morph target
+	RegisterMorphTarget(MorphTarget);
+
+	return true;
+}
+#endif
 
 USkeletalMeshSocket* USkeletalMesh::FindSocket(FName InSocketName) const
 {

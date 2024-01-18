@@ -87,8 +87,14 @@ public:
 	virtual void RefreshCachedData() {}
 
 protected:
+	UE_DEPRECATED(5.4, "Please use RequestRefreshUI.")
+	void RequestUIRefresh() { RequestRefreshUI(); }
+
 	/** Requests the entire find UI to be refreshed */
-	void RequestUIRefresh();
+	void RequestRefreshUI();
+
+	/** Requests cached data and search results */
+	void RequestRefreshCachedData();
 
 	/** Requests search results to be refreshed */
 	void RequestRefreshSearchResults();
@@ -148,7 +154,7 @@ public:
 	/** Optional override point for derived classes to supply auto complete names to display in the UI */
 	virtual void GetAutoCompleteNames(TArrayView<FAssetData> InAssetDatas, TSet<FString>& OutUniqueNames) const {}
 
-private:
+protected:
 	/** UAnimAssetFindReplaceProcessor interface */
 	virtual bool SupportsMode(EAnimAssetFindReplaceMode InMode) const override { return true; }
 	virtual void ExtendToolbar(FToolMenuSection& InSection) override;

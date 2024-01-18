@@ -2436,6 +2436,16 @@ public:
 
 	ENGINE_API void CalculateInvRefMatrices();
 
+#if WITH_EDITORONLY_DATA
+	// Asset registry information for morph target names
+	ENGINE_API static const FName MorphNamesTag;
+	ENGINE_API static const FString MorphNamesTagDelimiter;
+
+	// Asset registry information for scalar material param names
+	ENGINE_API static const FName MaterialParamNamesTag;
+	ENGINE_API static const FString MaterialParamNamesTagDelimiter;
+#endif
+
 #if WITH_EDITOR
 	/** Calculate the required bones for a Skeletal Mesh LOD, including possible extra influences */
 	static ENGINE_API void CalculateRequiredBones(FSkeletalMeshLODModel& LODModel, const struct FReferenceSkeleton& RefSkeleton, const TMap<FBoneIndexType, FBoneIndexType> * BonesToRemove);
@@ -2561,12 +2571,20 @@ public:
 	/** if name conflicts, it will overwrite the reference */
 	ENGINE_API bool RegisterMorphTarget(UMorphTarget* MorphTarget, bool bInvalidateRenderData = true);
 
-	ENGINE_API void UnregisterMorphTarget(UMorphTarget* MorphTarget);
+	ENGINE_API void UnregisterMorphTarget(UMorphTarget* MorphTarget, bool bInvalidateRenderData = true);
 
 	ENGINE_API void UnregisterAllMorphTarget();
 
 	/** Initialize MorphSets look up table : MorphTargetIndexMap */
 	ENGINE_API void InitMorphTargets();
+
+#if WITH_EDITOR
+	/** Remove the morph targets with the specified names */
+	ENGINE_API bool RemoveMorphTargets(TConstArrayView<FName> InMorphTargetNames);
+
+	/** Rename the morph target named InOldName to InNewName */
+	ENGINE_API bool RenameMorphTarget(FName InOldName, FName InNewName);
+#endif
 
 	/** 
 	 * Checks whether the provided section is using APEX cloth. if bCheckCorrespondingSections is true

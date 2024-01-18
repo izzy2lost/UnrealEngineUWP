@@ -517,54 +517,21 @@ bool SMorphTargetViewer::CanPerformDelete() const
 void SMorphTargetViewer::OnDeleteMorphTargets()
 {
 	TArray< TSharedPtr< FDisplayedMorphTargetInfo > > SelectedRows = MorphTargetListView->GetSelectedItems();
-	
-	for (int RowIndex = 0; RowIndex < SelectedRows.Num(); ++RowIndex)
+
+	// Clean up override usage
+	TArray<FName> MorphTargetNames;
+	for (int32 RowIndex = 0; RowIndex < SelectedRows.Num(); ++RowIndex)
 	{
 		UMorphTarget* MorphTarget = SkeletalMesh->FindMorphTarget(SelectedRows[RowIndex]->Name);
 		if(MorphTarget)
 		{
-			MorphTarget->RemoveFromRoot();
-			MorphTarget->ClearFlags(RF_Standalone);
-
-			FScopedTransaction Transaction(LOCTEXT("DeleteMorphTarget", "Delete Morph Target"));
-			SkeletalMesh->Modify();
-			MorphTarget->Modify();
-
-			//Clean up override usage
 			AddMorphTargetOverride(SelectedRows[RowIndex]->Name, 0.0f, true);
-
-			if (!SkeletalMesh->IsLODImportedDataEmpty(0) && SkeletalMesh->IsLODImportedDataBuildAvailable(0))
-			{
-				//Remove the morph target from the raw import data
-				FSkeletalMeshImportData SkelMeshImportData;
-				SkeletalMesh->LoadLODImportedData(0, SkelMeshImportData);
-				int32 ToDeleteIndex = INDEX_NONE;
-				for (int32 MoprhTargetIndex = 0; MoprhTargetIndex < SkelMeshImportData.MorphTargetNames.Num(); ++MoprhTargetIndex)
-				{
-					if (SkelMeshImportData.MorphTargetNames[MoprhTargetIndex].Equals(SelectedRows[RowIndex]->Name.ToString()))
-					{
-						ToDeleteIndex = MoprhTargetIndex;
-						break;
-					}
-				}
-
-				if (ToDeleteIndex != INDEX_NONE)
-				{
-					SkelMeshImportData.MorphTargetNames.RemoveAt(ToDeleteIndex);
-					SkelMeshImportData.MorphTargetModifiedPoints.RemoveAt(ToDeleteIndex);
-					SkelMeshImportData.MorphTargets.RemoveAt(ToDeleteIndex);
-					SkeletalMesh->SaveLODImportedData(0, SkelMeshImportData);
-				}
-			}
-			else
-			{
-				//If we deal with an old asset (pre 4.24) and we do not have some valid import data, we need to dirty the ddc key so it wont take the ddc with the old morph target we just delete
-				SkeletalMesh->InvalidateDeriveDataCacheGUID();
-			}
-
-			SkeletalMesh->UnregisterMorphTarget(MorphTarget);
+			MorphTargetNames.Add(SelectedRows[RowIndex]->Name);
 		}
 	}
+
+	// Remove from mesh
+	SkeletalMesh->RemoveMorphTargets(MorphTargetNames);
 
 	CreateMorphTargetList( NameFilterBox->GetText().ToString() );
 }
