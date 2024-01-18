@@ -2,7 +2,9 @@
 
 #pragma once
 
+#if UE_ENABLE_INCLUDE_ORDER_DEPRECATED_IN_5_4
 #include "CoreMinimal.h"
+#endif
 #include "AI/NavigationSystemHelpers.h"
 #include "AI/Navigation/NavigationTypes.h"
 #include "NavCollisionBase.generated.h"

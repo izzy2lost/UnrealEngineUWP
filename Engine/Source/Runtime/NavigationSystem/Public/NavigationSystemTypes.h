@@ -2,13 +2,15 @@
 
 #pragma once
 
-#include "CoreMinimal.h"
 #if UE_ENABLE_INCLUDE_ORDER_DEPRECATED_IN_5_4
+#include "CoreMinimal.h"
 #include "NavFilters/NavigationQueryFilter.h"
-#endif
+#endif // UE_ENABLE_INCLUDE_ORDER_DEPRECATED_IN_5_4
 #include "AI/NavigationSystemConfig.h"
 #include "AI/Navigation/NavLinkDefinition.h"
+#if UE_ENABLE_INCLUDE_ORDER_DEPRECATED_IN_5_4
 #include "Math/GenericOctreePublic.h"
+#endif
 #include "AI/NavigationModifier.h"
 #include "UObject/WeakInterfacePtr.h"
 
