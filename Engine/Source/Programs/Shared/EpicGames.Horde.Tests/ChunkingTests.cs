@@ -11,6 +11,8 @@ using System.Threading;
 using EpicGames.Horde.Storage;
 using EpicGames.Horde.Storage.Clients;
 using Microsoft.Extensions.Caching.Memory;
+using System.Text;
+using Microsoft.Extensions.Logging.Abstractions;
 
 namespace EpicGames.Horde.Tests
 {
@@ -160,6 +162,47 @@ namespace EpicGames.Horde.Tests
 					ChunkedDataNode childNode = await interiorNode.Children[idx].ReadBlobAsync();
 					await CheckSizesAsync(childNode, options, idx == childCount - 1);
 				}
+			}
+		}
+
+		[TestMethod]
+		public async Task ChunkingCompatV2()
+		{
+			ChunkingOptions chunkingOptions = new ChunkingOptions();
+			chunkingOptions.LeafOptions = new LeafChunkedDataNodeOptions(2, 2, 2);
+			chunkingOptions.InteriorOptions = new InteriorChunkedDataNodeOptions(2, 2, 2);
+
+			BlobSerializerOptions serializerOptions = new BlobSerializerOptions();
+			serializerOptions.Converters.Add(new InteriorChunkedDataNodeConverter(2)); // Does not include length fields in interior nodes
+
+			using KeyValueStorageClient store = KeyValueStorageClient.CreateInMemory();
+
+			byte[] data = Encoding.UTF8.GetBytes("hello world");
+
+			IBlobHandle<DirectoryNode> handle;
+			await using (IBlobWriter writer = store.CreateBlobWriter())
+			{
+				using ChunkedDataWriter chunkedWriter = new ChunkedDataWriter(writer, chunkingOptions, serializerOptions);
+				await chunkedWriter.AppendAsync(data, CancellationToken.None);
+				ChunkedData chunkedData = await chunkedWriter.FlushAsync(CancellationToken.None);
+
+				DirectoryNode directoryNode = new DirectoryNode();
+				directoryNode.AddFile("test", FileEntryFlags.None, data.Length, chunkedData);
+				handle = await writer.WriteBlobAsync(directoryNode);
+			}
+
+			DirectoryInfo tempDir = new DirectoryInfo(Path.Combine(Path.GetTempPath(), Guid.NewGuid().ToString()));
+			try
+			{
+				DirectoryNode expandedNode = await handle.ReadBlobAsync();
+				await expandedNode.CopyToDirectoryAsync(tempDir, null, NullLogger.Instance, CancellationToken.None);
+
+				byte[] outputData = await File.ReadAllBytesAsync(Path.Combine(tempDir.FullName, "test"));
+				Assert.IsTrue(outputData.SequenceEqual(data));
+			}
+			finally
+			{
+				tempDir.Delete(true);
 			}
 		}
 	}

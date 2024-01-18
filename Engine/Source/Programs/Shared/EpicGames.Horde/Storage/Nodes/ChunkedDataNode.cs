@@ -600,7 +600,7 @@ namespace EpicGames.Horde.Storage.Nodes
 					type = (ChunkedDataNodeType)reader.ReadUnsignedVarInt();
 				}
 
-				long length = 0;
+				long length = -1;
 				if (reader.Version >= 3)
 				{
 					length = (long)reader.ReadUnsignedVarInt();

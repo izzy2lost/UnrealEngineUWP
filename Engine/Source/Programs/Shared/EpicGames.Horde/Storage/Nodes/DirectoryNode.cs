@@ -801,10 +801,7 @@ namespace EpicGames.Horde.Storage.Nodes
 
 				// Process as many chunks as we can for this file
 				using MemoryMappedFile memoryMappedFile = MemoryMappedFile.CreateFromFile(stream, null, file.FileEntry.Length, MemoryMappedFileAccess.ReadWrite, HandleInheritability.None, false);
-				using MemoryMappedViewAccessor memoryMappedViewAccessor = memoryMappedFile.CreateViewAccessor(0, file.FileEntry.Length);
-				using MemoryMappedView memoryMappedView = new MemoryMappedView(memoryMappedViewAccessor);
-
-//				using MemoryMappedView memoryMappedView = new MemoryMappedView(memoryMappedFile, 0, file.FileEntry.Length);
+				using MemoryMappedView memoryMappedView = new MemoryMappedView(memoryMappedFile, 0, file.FileEntry.Length);
 
 				while (chunk != null && chunk.File == file)
 				{
@@ -867,11 +864,18 @@ namespace EpicGames.Horde.Storage.Nodes
 			}
 		}
 
-		static async Task FindOutputChunksAsync(OutputFile outputFile, long offset, ChunkedDataNodeRef dataRef, ChannelWriter<OutputChunk> chunks, CancellationToken cancellationToken)
+		static async Task<long> FindOutputChunksAsync(OutputFile outputFile, long offset, ChunkedDataNodeRef dataRef, ChannelWriter<OutputChunk> chunks, CancellationToken cancellationToken)
 		{
 			if (dataRef.Type == ChunkedDataNodeType.Leaf)
 			{
 				await chunks.WriteAsync(new OutputChunk(outputFile, offset, dataRef.Length, dataRef.Handle), cancellationToken);
+				if (dataRef.Length < 0)
+				{
+					// Backwards compatibility hack for v2 format
+					using BlobData data = await dataRef.Handle.ReadBlobDataAsync(cancellationToken);
+					return data.Data.Length;
+				}
+				return dataRef.Length;
 			}
 			else
 			{
@@ -879,15 +883,19 @@ namespace EpicGames.Horde.Storage.Nodes
 				if (data.Type.Guid == LeafChunkedDataNodeConverter.BlobType.Guid)
 				{
 					await chunks.WriteAsync(new OutputChunk(outputFile, offset, dataRef.Length, dataRef.Handle), cancellationToken);
+					return data.Data.Length;
 				}
 				else
 				{
+					long length = 0;
+
 					InteriorChunkedDataNode interiorNode = BlobSerializer.Deserialize<InteriorChunkedDataNode>(data);
 					foreach (ChunkedDataNodeRef childRef in interiorNode.Children)
 					{
-						await FindOutputChunksAsync(outputFile, offset, childRef, chunks, cancellationToken);
-						offset += childRef.Length;
+						length += await FindOutputChunksAsync(outputFile, offset + length, childRef, chunks, cancellationToken);
 					}
+
+					return length;
 				}
 			}
 		}
