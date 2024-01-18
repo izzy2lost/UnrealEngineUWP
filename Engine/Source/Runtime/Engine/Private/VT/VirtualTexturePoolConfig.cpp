@@ -4,6 +4,7 @@
 
 #include "Async/TaskGraphInterfaces.h"
 #include "HAL/IConsoleManager.h"
+#include "RenderingThread.h"
 #include "VT/VirtualTextureRecreate.h"
 
 #if WITH_EDITOR
@@ -15,8 +16,6 @@
 #include UE_INLINE_GENERATED_CPP_BY_NAME(VirtualTexturePoolConfig)
 
 #define LOCTEXT_NAMESPACE "VirtualTexturePool"
-
-void OnVirtualTexturePoolConfigUpdate();
 
 static TAutoConsoleVariable<float> CVarVTPoolSizeScale(
 	TEXT("r.VT.PoolSizeScale"),
@@ -63,6 +62,28 @@ void OnVirtualTexturePoolConfigUpdate()
 }
 
 FAutoConsoleVariableSink GVirtualTexturePoolConfigCVarSink(FConsoleCommandDelegate::CreateStatic(&OnVirtualTexturePoolConfigUpdate));
+
+/** Version number used to help track configuration changes. */
+struct FVirtualTexturePoolVersion
+{
+	uint32 Version_GameThread = 0;
+	uint32 Version_RenderThread = 0;
+
+	uint32 Get() const
+	{
+		return IsInRenderingThread() ? Version_RenderThread : Version_GameThread;
+	}
+
+	void Increment_GameThread()
+	{
+		uint32 Version = ++Version_GameThread;
+		ENQUEUE_RENDER_COMMAND(IncrementVersion)([this, Version](FRHICommandListImmediate& RHICmdList)
+		{
+			Version_RenderThread = Version;
+		});
+	}
+};
+FVirtualTexturePoolVersion GVirtualTexturePoolVersion;
 
 
 UVirtualTexturePoolConfig::UVirtualTexturePoolConfig(const FObjectInitializer& ObjectInitializer)
@@ -147,7 +168,7 @@ bool UVirtualTexturePoolConfig::AddOrModifyTransientPoolConfig(FVirtualTextureSp
 			if (Config.SizeInMegabyte != InConfig.SizeInMegabyte)
 			{
 				Config.SizeInMegabyte = InConfig.SizeInMegabyte;
-				Version++;
+				GVirtualTexturePoolVersion.Increment_GameThread();
 				return true;
 			}
 
@@ -156,7 +177,7 @@ bool UVirtualTexturePoolConfig::AddOrModifyTransientPoolConfig(FVirtualTextureSp
 		}
 	}
 
-	Version++;
+	GVirtualTexturePoolVersion.Increment_GameThread();
 	TransientPools.Add(InConfig);
 	return true;
 }
@@ -166,7 +187,7 @@ bool UVirtualTexturePoolConfig::AddOrModifyTransientPoolConfig(FVirtualTextureSp
 void UVirtualTexturePoolConfig::PostEditChangeProperty(struct FPropertyChangedEvent& PropertyChangedEvent)
 {
 	Super::PostEditChangeProperty(PropertyChangedEvent);
-	Version++;
+	GVirtualTexturePoolVersion.Increment_GameThread();
 	VirtualTexture::Recreate();
 }
 
@@ -282,9 +303,7 @@ uint32 VirtualTexturePool::GetConfigHash()
 	uint32 Hash = GetTypeHash(GetPoolSizeScale());
 	Hash = HashCombine(Hash, GetTypeHash(GetPoolAutoGrow()));
 	Hash = HashCombine(Hash, GetTypeHash(GetSplitPhysicalPoolSize()));
-
-	UVirtualTexturePoolConfig const* PoolConfig = GetDefault<UVirtualTexturePoolConfig>();
-	Hash = HashCombine(Hash, GetTypeHash(PoolConfig->Version));
+	Hash = HashCombine(Hash, GetTypeHash(GVirtualTexturePoolVersion.Get()));
 
 	return Hash;
 }

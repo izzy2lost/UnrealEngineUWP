@@ -82,10 +82,6 @@ class UVirtualTexturePoolConfig : public UDeveloperSettings
 	UPROPERTY(Transient, EditAnywhere, Category = PoolConfig, meta = (TitleProperty = "Formats"))
 	TArray<FVirtualTextureSpacePoolConfig> TransientPools;
 
-	/** Version number used to help track configuration changes. */
-	UPROPERTY(Transient)
-	uint32 Version = 0;
-
 	/** Find a matching config by first searching the TransientPools and then the Pools. */
 	void FindPoolConfig(TEnumAsByte<EPixelFormat> const* InFormats, int32 InNumLayers, int32 InTileSize, FVirtualTextureSpacePoolConfig& OutConfig) const;
 
