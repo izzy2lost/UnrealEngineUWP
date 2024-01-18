@@ -10,7 +10,6 @@ using Horde.Server.Storage;
 using System.Threading;
 using Horde.Server.Server;
 using Microsoft.Extensions.DependencyInjection;
-using EpicGames.Core;
 
 namespace Horde.Server.Tests
 {
