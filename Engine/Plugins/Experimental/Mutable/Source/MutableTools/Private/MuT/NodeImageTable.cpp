@@ -16,8 +16,8 @@ namespace mu
 	//---------------------------------------------------------------------------------------------
 	// Static initialisation
 	//---------------------------------------------------------------------------------------------
-	NODE_TYPE NodeImageTable::Private::s_type =
-			NODE_TYPE( "TableImage", NodeImage::GetStaticType() );
+	FNodeType NodeImageTable::Private::s_type =
+			FNodeType( "TableImage", NodeImage::GetStaticType() );
 
 
 	//---------------------------------------------------------------------------------------------

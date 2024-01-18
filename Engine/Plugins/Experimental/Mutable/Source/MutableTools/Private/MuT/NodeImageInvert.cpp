@@ -14,8 +14,8 @@ namespace mu
 	//---------------------------------------------------------------------------------------------
 	// Static initialisation
 	//---------------------------------------------------------------------------------------------
-	NODE_TYPE NodeImageInvert::Private::s_type =
-		NODE_TYPE("ImageInvert", NodeImage::GetStaticType());
+	FNodeType NodeImageInvert::Private::s_type =
+		FNodeType("ImageInvert", NodeImage::GetStaticType());
 
 	//---------------------------------------------------------------------------------------------
 

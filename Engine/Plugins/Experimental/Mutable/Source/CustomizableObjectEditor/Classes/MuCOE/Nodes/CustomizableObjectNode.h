@@ -319,17 +319,17 @@ private:
  * 
  * Return nullptr if not found.
  */
-template<class NODE_TYPE>
-NODE_TYPE* GetCustomizableObjectExternalNode(UCustomizableObject* Object, const FGuid& NodeGuid)
+template<class FNodeType>
+FNodeType* GetCustomizableObjectExternalNode(UCustomizableObject* Object, const FGuid& NodeGuid)
 {
-	NODE_TYPE* Result = nullptr;
+	FNodeType* Result = nullptr;
 
 	if (Object && Object->Source && NodeGuid.IsValid())
 	{
-		TArray<NODE_TYPE*> GroupNodes;
-		Object->Source->GetNodesOfClass<NODE_TYPE>(GroupNodes);
+		TArray<FNodeType*> GroupNodes;
+		Object->Source->GetNodesOfClass<FNodeType>(GroupNodes);
 
-		for (NODE_TYPE* GroupNode : GroupNodes)
+		for (FNodeType* GroupNode : GroupNodes)
 		{
 			if (NodeGuid == GroupNode->NodeGuid)
 			{

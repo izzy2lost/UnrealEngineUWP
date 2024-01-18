@@ -17,7 +17,7 @@ namespace mu
 	{
 	public:
 
-		static NODE_TYPE s_type;
+		static FNodeType s_type;
 
 		/** Image with the regions to remove. It will be interpreted as a bitmap. */
 		Ptr<NodeImage> ClipMask;

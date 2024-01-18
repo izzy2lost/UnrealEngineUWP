@@ -18,8 +18,8 @@ namespace mu
 	//---------------------------------------------------------------------------------------------
 	// Static initialisation
 	//---------------------------------------------------------------------------------------------
-    NODE_TYPE NodeMeshTransform::Private::s_type =
-            NODE_TYPE( "MeshTransform", NodeMesh::GetStaticType() );
+    FNodeType NodeMeshTransform::Private::s_type =
+            FNodeType( "MeshTransform", NodeMesh::GetStaticType() );
 
 
 	//---------------------------------------------------------------------------------------------
@@ -66,9 +66,7 @@ namespace mu
 
 		if ( m_pSource )
 		{
-			NodeMesh::Private* pPrivate =
-					dynamic_cast<NodeMesh::Private*>( m_pSource->GetBasePrivate() );
-
+			NodeMesh::Private* pPrivate = static_cast<NodeMesh::Private*>( m_pSource->GetBasePrivate() );
 			pResult = pPrivate->GetLayout( index );
 		}
 

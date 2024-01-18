@@ -13,9 +13,6 @@
 #include "map"
 #include "set"
 
-#include <memory>
-#include <utility>
-
 
 namespace mu
 {
@@ -38,16 +35,8 @@ namespace mu
         const CompilerOptions::Private *m_pCompilerOptions = nullptr;
 
 
-        struct CONDITION_CONTEXT
-        {
-            Ptr<ASTOp> surfaceCondition;
-            FirstPassGenerator::StateCondition stateCondition;
-        };
-        vector< CONDITION_CONTEXT > m_currentCondition;
-
-
         //!
-        ErrorLogPtr m_pErrorLog;
+        Ptr<ErrorLog> m_pErrorLog;
 
         //!
         struct CONDITION_GENERATION_KEY

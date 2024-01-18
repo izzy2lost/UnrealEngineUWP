@@ -873,11 +873,11 @@ namespace mu
 
                 // See if we need to add additional buffers from the second mesh (like vertex colours or additional UV Channels)
                 // This is a bit ad-hoc: we only add buffers containing all new channels
-                for ( const auto& buf : pSecond->GetVertexBuffers().m_buffers )
+                for ( const MESH_BUFFER& buf : pSecond->GetVertexBuffers().m_buffers )
                 {
                     bool someChannel = false;
                     bool allNewChannels = true;
-					for (const auto& chan : buf.m_channels)
+					for (const MESH_BUFFER_CHANNEL& chan : buf.m_channels)
 					{
 						// Skip system buffers
 						if (chan.m_semantic == MBS_VERTEXINDEX

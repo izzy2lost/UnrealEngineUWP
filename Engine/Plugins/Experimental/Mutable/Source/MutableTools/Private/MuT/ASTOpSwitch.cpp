@@ -39,8 +39,9 @@ namespace mu
 	//-------------------------------------------------------------------------------------------------
 	bool ASTOpSwitch::IsEqual(const ASTOp& otherUntyped) const
 	{
-		if (auto other = dynamic_cast<const ASTOpSwitch*>(&otherUntyped))
+		if (GetOpType()==otherUntyped.GetOpType())
 		{
+			const ASTOpSwitch* other = static_cast<const ASTOpSwitch*>(&otherUntyped);
 			return type == other->type && variable == other->variable &&
 				cases == other->cases && def == other->def;
 		}
@@ -419,7 +420,7 @@ namespace mu
 		{
 			Ptr<ASTOp> Branch = def.child();
 
-			auto typedCondition = dynamic_cast<const ASTOpFixed*>(variable.child().get());
+			auto typedCondition = static_cast<const ASTOpFixed*>(variable.child().get());
 			for (int32 o = 0; o < cases.Num(); ++o)
 			{
 				if (cases[o].branch &&
@@ -438,7 +439,7 @@ namespace mu
 		else if (variable->GetOpType() == OP_TYPE::NU_PARAMETER)
 		{
 			// If all the branches for the possible values are the same op remove the instruction
-			const ASTOpParameter* ParamOp = dynamic_cast<const ASTOpParameter*>(variable.child().get());
+			const ASTOpParameter* ParamOp = static_cast<const ASTOpParameter*>(variable.child().get());
 			check(ParamOp);
 			check(!ParamOp->parameter.m_possibleValues.IsEmpty());
 
@@ -518,7 +519,7 @@ namespace mu
 					// TODO: Probably it could be a any switch, it doesn't need to be of the same type.
 					if (Parent->GetOpType() == GetOpType())
 					{
-						const ASTOpSwitch* ParentSwitch = dynamic_cast<const ASTOpSwitch*>(Parent);
+						const ASTOpSwitch* ParentSwitch = static_cast<const ASTOpSwitch*>(Parent);
 						check(ParentSwitch);
 
 						// To be compatible the switch must be on the same variable

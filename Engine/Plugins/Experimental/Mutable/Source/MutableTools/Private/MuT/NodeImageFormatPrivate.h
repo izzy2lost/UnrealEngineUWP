@@ -16,7 +16,7 @@ namespace mu
 	{
 	public:
 
-		static NODE_TYPE s_type;
+		static FNodeType s_type;
 
 		EImageFormat m_format = EImageFormat::IF_NONE;
 		EImageFormat m_formatIfAlpha = EImageFormat::IF_NONE;

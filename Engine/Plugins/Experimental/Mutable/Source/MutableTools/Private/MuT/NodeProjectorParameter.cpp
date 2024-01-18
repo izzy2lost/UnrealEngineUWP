@@ -19,8 +19,8 @@ namespace mu
 	//---------------------------------------------------------------------------------------------
 	// Static initialisation
 	//---------------------------------------------------------------------------------------------
-	NODE_TYPE NodeProjectorParameter::Private::s_type =
-			NODE_TYPE( "ProjectorParameter", NodeProjector::GetStaticType() );
+	FNodeType NodeProjectorParameter::Private::s_type =
+			FNodeType( "ProjectorParameter", NodeProjector::GetStaticType() );
 
 
 	//---------------------------------------------------------------------------------------------

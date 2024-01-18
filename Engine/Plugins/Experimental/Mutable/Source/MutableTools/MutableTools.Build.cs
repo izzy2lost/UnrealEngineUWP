@@ -14,10 +14,6 @@ namespace UnrealBuildTool.Rules
 			IWYUSupport = IWYUSupport.KeepAsIsForNow;
 			//bUseUnity = false;
 
-			// 
-			bUseRTTI = true;
-			bEnableExceptions = true;
-
 			PrivateIncludePaths.AddRange(new string[] {
 				System.IO.Path.Combine(GetModuleDirectory("MutableRuntime"), "Private"),
 			});

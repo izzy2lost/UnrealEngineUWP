@@ -16,8 +16,8 @@ namespace mu
 	//---------------------------------------------------------------------------------------------
 	// Static initialisation
 	//---------------------------------------------------------------------------------------------
-	NODE_TYPE NodeColourParameter::Private::s_type =
-			NODE_TYPE( "ColourParameter", NodeColour::GetStaticType() );
+	FNodeType NodeColourParameter::Private::s_type =
+			FNodeType( "ColourParameter", NodeColour::GetStaticType() );
 
 
 	//---------------------------------------------------------------------------------------------

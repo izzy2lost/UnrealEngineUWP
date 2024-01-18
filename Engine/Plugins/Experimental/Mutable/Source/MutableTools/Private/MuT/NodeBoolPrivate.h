@@ -23,7 +23,7 @@ namespace mu
 	{
 	public:
 
-		static NODE_TYPE s_type;
+		static FNodeType s_type;
 
 		bool m_value;
 
@@ -52,7 +52,7 @@ namespace mu
 	{
 	public:
 
-		static NODE_TYPE s_type;
+		static FNodeType s_type;
 
 		bool m_defaultValue;
 		FString m_name;
@@ -103,7 +103,7 @@ namespace mu
 	{
 	public:
 
-		static NODE_TYPE s_type;
+		static FNodeType s_type;
 
 		Ptr<NodeBool> m_pSource;
 
@@ -132,7 +132,7 @@ namespace mu
 	{
 	public:
 
-		static NODE_TYPE s_type;
+		static FNodeType s_type;
 
 		Ptr<NodeBool> m_pA;
 		Ptr<NodeBool> m_pB;

@@ -30,7 +30,7 @@ namespace mu
 			m_pLayout = new Layout();
 		}
 
-		static NODE_TYPE s_type;
+		static FNodeType s_type;
 
 		LayoutPtr m_pLayout;
 

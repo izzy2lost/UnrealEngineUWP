@@ -47,8 +47,9 @@ namespace mu
 
 	bool ASTOpLayoutFromMesh::IsEqual(const ASTOp& otherUntyped) const
 	{
-		if (const ASTOpLayoutFromMesh* other = dynamic_cast<const ASTOpLayoutFromMesh*>(&otherUntyped))
+		if (otherUntyped.GetOpType()==GetOpType())
 		{
+			const ASTOpLayoutFromMesh* other = static_cast<const ASTOpLayoutFromMesh*>(&otherUntyped);
 			return Mesh == other->Mesh && LayoutIndex == other->LayoutIndex;
 		}
 		return false;
@@ -159,8 +160,7 @@ namespace mu
 				case OP_TYPE::ME_MORPH:
 				{
 					// Sink, ignoring the op
-					const ASTOpMeshMorph* Typed = dynamic_cast<const ASTOpMeshMorph*>(at.get());
-					check(Typed);
+					const ASTOpMeshMorph* Typed = static_cast<const ASTOpMeshMorph*>(at.get());
 					newAt = Visit(Typed->Base.child(), CurrentSinkingOp);
 					break;
 				}
@@ -168,8 +168,7 @@ namespace mu
 				case OP_TYPE::ME_FORMAT:
 				{
 					// Sink, ignoring the op
-					const ASTOpMeshFormat* Typed = dynamic_cast<const ASTOpMeshFormat*>(at.get());
-					check(Typed);
+					const ASTOpMeshFormat* Typed = static_cast<const ASTOpMeshFormat*>(at.get());
 					newAt = Visit(Typed->Source.child(), CurrentSinkingOp);
 					break;
 				}
@@ -177,8 +176,7 @@ namespace mu
 				case OP_TYPE::ME_APPLYSHAPE:
 				{
 					// Sink, ignoring the op
-					const ASTOpMeshApplyShape* Typed = dynamic_cast<const ASTOpMeshApplyShape*>(at.get());
-					check(Typed);
+					const ASTOpMeshApplyShape* Typed = static_cast<const ASTOpMeshApplyShape*>(at.get());
 					newAt = Visit(Typed->Mesh.child(), CurrentSinkingOp);
 					break;
 				}
@@ -186,8 +184,7 @@ namespace mu
 				case OP_TYPE::ME_BINDSHAPE:
 				{
 					// Sink, ignoring the op
-					const ASTOpMeshBindShape* Typed = dynamic_cast<const ASTOpMeshBindShape*>(at.get());
-					check(Typed);
+					const ASTOpMeshBindShape* Typed = static_cast<const ASTOpMeshBindShape*>(at.get());
 					newAt = Visit(Typed->Mesh.child(), CurrentSinkingOp);
 					break;
 				}
@@ -195,8 +192,7 @@ namespace mu
 				case OP_TYPE::ME_ADDTAGS:
 				{
 					// Sink, ignoring the op
-					const ASTOpMeshAddTags* Typed = dynamic_cast<const ASTOpMeshAddTags*>(at.get());
-					check(Typed);
+					const ASTOpMeshAddTags* Typed = static_cast<const ASTOpMeshAddTags*>(at.get());
 					newAt = Visit(Typed->Source.child(), CurrentSinkingOp);
 					break;
 				}
@@ -204,8 +200,7 @@ namespace mu
 				case OP_TYPE::ME_INTERPOLATE:
 				{
 					// Sink, ignoring the op
-					const ASTOpFixed* Typed = dynamic_cast<const ASTOpFixed*>(at.get());
-					check(Typed);
+					const ASTOpFixed* Typed = static_cast<const ASTOpFixed*>(at.get());
 					newAt = Visit(Typed->children[Typed->op.args.MeshInterpolate.base].child(), CurrentSinkingOp);
 					break;
 				}
@@ -235,8 +230,7 @@ namespace mu
 
 				case OP_TYPE::ME_MERGE:
 				{
-					const ASTOpFixed* Typed = dynamic_cast<const ASTOpFixed*>(at.get());
-					check(Typed);
+					const ASTOpFixed* Typed = static_cast<const ASTOpFixed*>(at.get());
 
 					Ptr<ASTOpLayoutMerge> NewMerge = new ASTOpLayoutMerge;
 					NewMerge->Base = Visit(Typed->children[Typed->op.args.MeshMerge.base].child(), CurrentSinkingOp);

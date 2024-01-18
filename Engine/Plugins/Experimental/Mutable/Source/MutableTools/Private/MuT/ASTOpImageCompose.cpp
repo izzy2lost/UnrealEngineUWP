@@ -44,9 +44,10 @@ ASTOpImageCompose::~ASTOpImageCompose()
 //-------------------------------------------------------------------------------------------------
 bool ASTOpImageCompose::IsEqual(const ASTOp& otherUntyped) const
 {
-    if ( const ASTOpImageCompose* other = dynamic_cast<const ASTOpImageCompose*>(&otherUntyped) )
+	if (otherUntyped.GetOpType() == GetOpType())
     {
-        return Layout ==other->Layout &&
+		const ASTOpImageCompose* other = static_cast<const ASTOpImageCompose*>(&otherUntyped);
+		return Layout == other->Layout &&
 			Base ==other->Base &&
 			BlockImage == other->BlockImage &&
 			Mask == other->Mask &&
@@ -234,7 +235,7 @@ mu::Ptr<ASTOp> ASTOpImageCompose::OptimiseSemantic(const FModelOptimizationOptio
 		&&
 		blockAt)
 	{
-		auto typedLayout = dynamic_cast<const ASTOpConstantResource*>(layoutAt.get());
+		const ASTOpConstantResource* typedLayout = static_cast<const ASTOpConstantResource*>(layoutAt.get());
 		mu::Ptr<const mu::Layout> pLayout = static_cast<const mu::Layout*>(typedLayout->GetValue().get());
 
 		// Constant single-block full layout?

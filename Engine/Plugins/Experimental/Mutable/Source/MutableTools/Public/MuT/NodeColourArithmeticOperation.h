@@ -39,8 +39,8 @@ namespace mu
 		// Node Interface
 		//-----------------------------------------------------------------------------------------
 
-		virtual const NODE_TYPE* GetType() const override;
-		static const NODE_TYPE* GetStaticType();
+		virtual const FNodeType* GetType() const override;
+		static const FNodeType* GetStaticType();
 
 		//-----------------------------------------------------------------------------------------
 		// Own Interface

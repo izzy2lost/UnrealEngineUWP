@@ -37,8 +37,9 @@ namespace mu
 	//-------------------------------------------------------------------------------------------------
 	bool ASTOpImageMultiLayer::IsEqual(const ASTOp& InOtherUntyped) const
 	{
-		if (const ASTOpImageMultiLayer* Other = dynamic_cast<const ASTOpImageMultiLayer*>(&InOtherUntyped))
+		if (InOtherUntyped.GetOpType()==GetOpType())
 		{
+			const ASTOpImageMultiLayer* Other = static_cast<const ASTOpImageMultiLayer*>(&InOtherUntyped);
 			return base == Other->base &&
 				blend == Other->blend &&
 				mask == Other->mask &&

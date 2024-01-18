@@ -15,8 +15,8 @@ namespace mu
 	//---------------------------------------------------------------------------------------------
 	// Static initialisation
 	//---------------------------------------------------------------------------------------------
-	NODE_TYPE NodeImageInterpolate::Private::s_type =
-			NODE_TYPE( "ImageInterpolate", NodeImage::GetStaticType() );
+	FNodeType NodeImageInterpolate::Private::s_type =
+			FNodeType( "ImageInterpolate", NodeImage::GetStaticType() );
 
 
 	//---------------------------------------------------------------------------------------------

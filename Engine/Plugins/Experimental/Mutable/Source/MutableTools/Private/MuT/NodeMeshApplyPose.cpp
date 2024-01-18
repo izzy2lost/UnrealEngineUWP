@@ -1,6 +1,5 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
-
 #include "MuT/NodeMeshApplyPose.h"
 
 #include "Misc/AssertionMacros.h"
@@ -10,15 +9,14 @@
 #include "MuT/NodePrivate.h"
 
 
-
 namespace mu
 {
 
 	//---------------------------------------------------------------------------------------------
 	// Static initialisation
 	//---------------------------------------------------------------------------------------------
-    NODE_TYPE NodeMeshApplyPose::Private::s_type =
-            NODE_TYPE( "MeshApplyPose", NodeMesh::GetStaticType() );
+    FNodeType NodeMeshApplyPose::Private::s_type =
+            FNodeType( "MeshApplyPose", NodeMesh::GetStaticType() );
 
 
 	//---------------------------------------------------------------------------------------------
@@ -65,8 +63,7 @@ namespace mu
 
 		if ( m_pBase )
 		{
-			NodeMesh::Private* pPrivate =
-					dynamic_cast<NodeMesh::Private*>( m_pBase->GetBasePrivate() );
+			NodeMesh::Private* pPrivate = static_cast<NodeMesh::Private*>( m_pBase->GetBasePrivate() );
 
 			pResult = pPrivate->GetLayout( index );
 		}

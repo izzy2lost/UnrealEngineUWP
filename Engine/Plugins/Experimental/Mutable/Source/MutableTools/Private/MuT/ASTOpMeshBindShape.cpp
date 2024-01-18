@@ -41,8 +41,10 @@ namespace mu
 
 	bool ASTOpMeshBindShape::IsEqual(const ASTOp& OtherUntyped) const
 	{
-		if (const ASTOpMeshBindShape* Other = dynamic_cast<const ASTOpMeshBindShape*>(&OtherUntyped))
+		if (OtherUntyped.GetOpType()==GetOpType())
 		{
+			const ASTOpMeshBindShape* Other = static_cast<const ASTOpMeshBindShape*>(&OtherUntyped);
+
 			const bool bSameFlags =
 				bReshapeSkeleton == Other->bReshapeSkeleton	&&
 				bReshapePhysicsVolumes == Other->bReshapePhysicsVolumes &&
@@ -451,7 +453,7 @@ namespace mu
 			{
 				// Ignore the tags in the shape
 				Ptr<ASTOpMeshBindShape> NewBind = mu::Clone<ASTOpMeshBindShape>(this);
-				const ASTOpMeshAddTags* New = dynamic_cast<const ASTOpMeshAddTags*>(ShapeAt.get());
+				const ASTOpMeshAddTags* New = static_cast<const ASTOpMeshAddTags*>(ShapeAt.get());
 				NewBind->Shape = New->Source.child();
 				NewOp = NewBind;
 				break;

@@ -168,29 +168,34 @@ namespace mu
 		}
 
         // Type-specific generation
-		if (const NodeScalar* ScalarNode = dynamic_cast<const NodeScalar*>(pNode.get()))
+		if (pNode->GetType()->IsA(NodeScalar::GetStaticType()))
 		{
+			const NodeScalar* ScalarNode = static_cast<const NodeScalar*>(pNode.get());
 			FScalarGenerationResult ScalarResult;
 			GenerateScalar(ScalarResult, Options, ScalarNode);
 			return ScalarResult.op;
 		}
 
-		else if (const NodeColour* ColorNode = dynamic_cast<const NodeColour*>(pNode.get()))
+		else if (pNode->GetType()->IsA(NodeColour::GetStaticType()))
 		{
+			const NodeColour* ColorNode = static_cast<const NodeColour*>(pNode.get());
 			FColorGenerationResult Result;
 			GenerateColor(Result, Options, ColorNode);
 			return Result.op;
 		}
 
-		else if (const NodeProjector* projNode = dynamic_cast<const NodeProjector*>(pNode.get()))
+		else if (pNode->GetType()->IsA(NodeProjector::GetStaticType()))
 		{
+			const NodeProjector* projNode = static_cast<const NodeProjector*>(pNode.get());
 			FProjectorGenerationResult ProjResult;
 			GenerateProjector(ProjResult, Options, projNode);
 			return ProjResult.op;
 		}
 
-		else if (const NodeSurfaceNew* surfNode = dynamic_cast<const NodeSurfaceNew*>(pNode.get()))
+		else if (pNode->GetType()->IsA(NodeSurfaceNew::GetStaticType()))
 		{
+			const NodeSurfaceNew* surfNode = static_cast<const NodeSurfaceNew*>(pNode.get());
+
 			// This happens only if we generate a node graph that has a NodeSurfaceNew at the root.
 			FSurfaceGenerationResult surfResult;
 			const TArray<FirstPassGenerator::FSurface::FEdit> edits;
@@ -198,25 +203,25 @@ namespace mu
 			return surfResult.surfaceOp;
 		}
 
-		else if (dynamic_cast<const NodeSurfaceVariation*>(pNode.get()))
+		else if (pNode->GetType()->IsA(NodeSurfaceVariation::GetStaticType()))
 		{
 			// This happens only if we generate a node graph that has a NodeSurfaceVariation at the root.
 			return nullptr;
 		}
 
-		else if (dynamic_cast<const NodeSurfaceSwitch*>(pNode.get()))
+		else if (pNode->GetType()->IsA(NodeSurfaceSwitch::GetStaticType()))
 		{
 			// This happens only if we generate a node graph that has a NodeSurfaceSwitch at the root.
 			return nullptr;
 		}
 
-		else if (dynamic_cast<const NodeSurfaceEdit*>(pNode.get()))
+		else if (pNode->GetType()->IsA(NodeSurfaceEdit::GetStaticType()))
 		{
 			// This happens only if we generate a node graph that has a NodeSurfaceEdit at the root.
 			return nullptr;
 		}
 
-		else if (dynamic_cast<const NodeModifier*>(pNode.get()))
+		else if (pNode->GetType()->IsA(NodeModifier::GetStaticType()))
 		{
 			// This happens only if we generate a node graph that has a modifier at the root.
 			return nullptr;
@@ -296,10 +301,11 @@ namespace mu
 			return;
 		}
 
-
 		// Generate for each different type of node
-		if (const NodeRangeFromScalar* FromScalar = dynamic_cast<const NodeRangeFromScalar*>(Untyped.get()))
+		if (Untyped->GetType()==NodeRangeFromScalar::GetStaticType())
 		{
+			const NodeRangeFromScalar* FromScalar = static_cast<const NodeRangeFromScalar*>(Untyped.get());
+
 			Result = FRangeGenerationResult();
 			Result.rangeName = FromScalar->GetName();
 
@@ -495,103 +501,6 @@ namespace mu
 	}
 
 
-	const NodeMeshConstant* FindSourceMesh(const Node* pNode)
-	{
-		const NodeMeshConstant* pResult = nullptr;
-
-		if (!pNode)
-		{
-			return pResult;
-		}
-
-		if (const NodeSurfaceNew* pTypedSN = dynamic_cast<const NodeSurfaceNew*>(pNode))
-        {
-            // TODO: 0...
-            pResult = FindSourceMesh( pTypedSN->GetMesh(0).get() );
-        }
- 		else if (const NodeSurfaceEdit* pTypedSE = dynamic_cast<const NodeSurfaceEdit*>(pNode))
-		{
-			NodePatchMesh* pPatch = pTypedSE->GetMesh();
-			if (pPatch)
-			{
-				pResult = FindSourceMesh(pPatch->GetAdd());
-			}
-		}
-		else if (const NodeSurfaceVariation* pTypedSV = dynamic_cast<const NodeSurfaceVariation*>(pNode))
-		{
-			if (pTypedSV->GetPrivate()->m_defaultSurfaces.Num())
-			{
-				pResult = FindSourceMesh(pTypedSV->GetPrivate()->m_defaultSurfaces[0].get());
-			}
-		}
-		else if (const NodeSurfaceSwitch* pTypedSS = dynamic_cast<const NodeSurfaceSwitch*>(pNode))
-		{
-			for (int32 i=0; i<pTypedSS->GetPrivate()->Options.Num(); ++i)
-			{
-				if (pTypedSS->GetPrivate()->Options[i])
-				{
-					pResult = FindSourceMesh(pTypedSS->GetPrivate()->Options[i].get());
-					if (pResult)
-					{
-						break;
-					}
-				}
-			}
-		}
-		else if (const NodeMeshInterpolate* pTypedMI = dynamic_cast<const NodeMeshInterpolate*>(pNode))
-        {
-            if ( pTypedMI->GetTargetCount()>0 )
-            {
-                pResult = FindSourceMesh( pTypedMI->GetTarget(0).get() );
-            }
-        }
-		else if (const NodeMeshMorph* pTypedMM = dynamic_cast<const NodeMeshMorph*>(pNode))
-        {
-            pResult = FindSourceMesh( pTypedMM->GetBase().get() );
-        }
-		else if (const NodeMeshGeometryOperation* pTypedGO = dynamic_cast<const NodeMeshGeometryOperation*>(pNode))
-		{
-			pResult = FindSourceMesh(pTypedGO->GetMeshA().get());
-		}
-		else if (const NodeMeshReshape* pTypedR = dynamic_cast<const NodeMeshReshape*>(pNode))
-		{
-			pResult = FindSourceMesh(pTypedR->GetBaseMesh().get());
-		}
-		else if (const NodeMeshFormat* pTypedMF = dynamic_cast<const NodeMeshFormat*>(pNode))
-        {
-            if ( pTypedMF->GetSource() )
-            {
-                pResult = FindSourceMesh( pTypedMF->GetSource().get() );
-            }
-        }
- 		else if (const NodeMeshFragment* pTypedMFrag = dynamic_cast<const NodeMeshFragment*>(pNode))
-        {
-            if ( pTypedMFrag->GetMesh() )
-            {
-                pResult = FindSourceMesh( pTypedMFrag->GetMesh().get() );
-            }
-        }
-		else if (const NodeMeshConstant* pCasted = dynamic_cast<const NodeMeshConstant*>(pNode))
-        {
-            pResult = pCasted;
-        }
- 		else if (const NodeMeshClipMorphPlane* pTypedCMP = dynamic_cast<const NodeMeshClipMorphPlane*>(pNode))
-		{
-			pResult = FindSourceMesh(pTypedCMP->GetSource().get());
-		}
-		else if (const NodeMeshClipWithMesh* pTypedCWM = dynamic_cast<const NodeMeshClipWithMesh*>(pNode))
-		{
-			pResult = FindSourceMesh(pTypedCWM->GetSource().get());
-		}
-		else
-		{
-			check(false);
-		}
-
-		return pResult;
-	}
-
-
 	void CodeGenerator::Generate_LOD(const FGenericGenerationOptions& Options, FGenericGenerationResult& Result, const NodeLOD* InNode)
 	{
 		const NodeLOD::Private& node = *InNode->GetPrivate();
@@ -613,7 +522,7 @@ namespace mu
 				{
 					check(componentOp->GetOpType() == OP_TYPE::IN_ADDCOMPONENT);
 
-					ASTOpInstanceAdd* typedOp = dynamic_cast<ASTOpInstanceAdd*>(componentOp.get());
+					ASTOpInstanceAdd* typedOp = static_cast<ASTOpInstanceAdd*>(componentOp.get());
 
 					// Complete the instruction adding the base
 					typedOp->instance = lastCompOp;
@@ -637,13 +546,13 @@ namespace mu
 
                 // First find the last op in the chain of IN_ADDCOMPONENT operations
                 check( cop->GetOpType() == OP_TYPE::IN_ADDCOMPONENT );
-				ASTOpInstanceAdd* typedOp = dynamic_cast<ASTOpInstanceAdd*>(cop.get());
+				ASTOpInstanceAdd* typedOp = static_cast<ASTOpInstanceAdd*>(cop.get());
 				ASTOpInstanceAdd* bottomOp = typedOp;
 				while (bottomOp->instance)
 				{
 					// Step down
 					check(bottomOp->instance->GetOpType() == OP_TYPE::IN_ADDCOMPONENT);
-					bottomOp = dynamic_cast<ASTOpInstanceAdd*>(bottomOp->instance.child().get());
+					bottomOp = static_cast<ASTOpInstanceAdd*>(bottomOp->instance.child().get());
 				}
 
 				// Chain
@@ -1196,24 +1105,27 @@ namespace mu
 				if (NodeImagePtr pImageNode = node.m_images[t].m_pImage)
 				{
 					// Any image-specific format or mipmapping needs to be applied at the end
-					NodeImageMipmapPtr mipmapNode;
-					NodeImageFormatPtr formatNode;
-					NodeImageSwizzlePtr swizzleNode;
+					Ptr<NodeImageMipmap> mipmapNode;
+					Ptr<NodeImageFormat> formatNode;
+					Ptr<NodeImageSwizzle> swizzleNode;
 					bool found = false;
 					while (!found)
 					{
-						if (NodeImageMipmap* tm = dynamic_cast<NodeImageMipmap*>(pImageNode.get()))
+						if (pImageNode->GetType()==NodeImageMipmap::GetStaticType())
 						{
+							NodeImageMipmap* tm = static_cast<NodeImageMipmap*>(pImageNode.get());
 							if (!mipmapNode) mipmapNode = tm;
 							pImageNode = tm->GetSource();
 						}
-						else if (NodeImageFormat* tf = dynamic_cast<NodeImageFormat*>(pImageNode.get()))
+						else if (pImageNode->GetType() == NodeImageFormat::GetStaticType())
 						{
+							NodeImageFormat* tf = static_cast<NodeImageFormat*>(pImageNode.get());
 							if (!formatNode) formatNode = tf;
 							pImageNode = tf->GetSource();
 						}
-						else if (NodeImageSwizzle* ts = dynamic_cast<NodeImageSwizzle*>(pImageNode.get()))
+						else if (pImageNode->GetType() == NodeImageSwizzle::GetStaticType())
 						{
+							NodeImageSwizzle* ts = static_cast<NodeImageSwizzle*>(pImageNode.get());
 							NodeImage* Source = ts->GetSource(0).get();
 							if (!swizzleNode && Source ==ts->GetSource(1) && Source==ts->GetSource(2) && Source==ts->GetSource(3))
 							{
@@ -2201,8 +2113,9 @@ namespace mu
 		Ptr<ASTOpMeshRemoveMask> removeOp;
 		for (const FirstPassGenerator::FModifier& m : modifiers)
 		{
-			if (const NodeModifierMeshClipWithMesh::Private* TypedClipNode = dynamic_cast<const NodeModifierMeshClipWithMesh::Private*>(m.node))
+			if (m.node->m_pNode->GetType()== NodeModifierMeshClipWithMesh::GetStaticType())
 			{
+				const NodeModifierMeshClipWithMesh::Private* TypedClipNode = static_cast<const NodeModifierMeshClipWithMesh::Private*>(m.node);
 				Ptr<ASTOpMeshMaskClipMesh> op = new ASTOpMeshMaskClipMesh();
 				op->source = preModifiersMesh;
 
@@ -2244,8 +2157,9 @@ namespace mu
 		// Process clip-with-mask modifiers
 		for (const FirstPassGenerator::FModifier& m : modifiers)
 		{
-			if (const NodeModifierMeshClipWithUVMask::Private* TypedClipNode = dynamic_cast<const NodeModifierMeshClipWithUVMask::Private*>(m.node))
+			if (m.node->m_pNode->GetType() == NodeModifierMeshClipWithUVMask::GetStaticType())
 			{
+				const NodeModifierMeshClipWithUVMask::Private* TypedClipNode = static_cast<const NodeModifierMeshClipWithUVMask::Private*>(m.node);
 				Ptr<ASTOpMeshMaskClipUVMask> op = new ASTOpMeshMaskClipUVMask();
 				op->Source = preModifiersMesh;
 				op->LayoutIndex = TypedClipNode->LayoutIndex;
@@ -2292,8 +2206,9 @@ namespace mu
 		{
 			Ptr<ASTOp> modifiedMeshOp;
 
-			if (const NodeModifierMeshClipMorphPlane::Private* TypedNode = dynamic_cast<const NodeModifierMeshClipMorphPlane::Private*>(m.node))
+			if (m.node->m_pNode->GetType() == NodeModifierMeshClipMorphPlane::GetStaticType())
 			{
+				const NodeModifierMeshClipMorphPlane::Private* TypedNode = static_cast<const NodeModifierMeshClipMorphPlane::Private*>(m.node);
 				Ptr<ASTOpMeshClipMorphPlane> op = new ASTOpMeshClipMorphPlane();
 				op->source = lastMeshOp;
 
@@ -2372,9 +2287,9 @@ namespace mu
 		{
 			Ptr<ASTOp> ModifiedMeshOp;
 
-			using ModifierType = NodeModifierMeshClipDeform::Private;
-			if ( const ModifierType* TypedClipNode = dynamic_cast<const ModifierType*>(M.node))
+			if (M.node->m_pNode->GetType()==NodeModifierMeshClipDeform::GetStaticType())
 			{
+				const NodeModifierMeshClipDeform::Private* TypedClipNode = static_cast<const NodeModifierMeshClipDeform::Private*>(M.node);
 				Ptr<ASTOpMeshBindShape>  BindOp = new ASTOpMeshBindShape();
 				Ptr<ASTOpMeshClipDeform> ClipOp = new ASTOpMeshClipDeform();
 

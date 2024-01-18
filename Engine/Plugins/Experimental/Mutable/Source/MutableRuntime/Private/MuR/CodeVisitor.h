@@ -74,7 +74,7 @@ namespace mu
         //! For manual recursion that changes the state for a specific path.
         void RecurseWithState(OP::ADDRESS at, const STATE& newState)
         {
-            auto it = m_states.Find(newState);
+			int32 it = m_states.Find(newState);
             if (it==INDEX_NONE)
             {
                 m_states.Add(newState);
@@ -93,7 +93,7 @@ namespace mu
         //! Can be called from visit to set the state to visit all children ops
         void SetCurrentState(const STATE& newState)
         {
-            auto it = m_states.Find(newState);
+            int32 it = m_states.Find(newState);
             if (it==INDEX_NONE)
             {
                 m_states.Add(newState);
@@ -114,7 +114,7 @@ namespace mu
         void FullTraverse( FProgram& program )
         {
             // Visit all the state roots
-            for ( std::size_t p=0; p<program.m_states.Num(); ++p )
+            for ( int32 p=0; p<program.m_states.Num(); ++p )
             {
                 m_pending.Add(PENDING(program.m_states[p].m_root,0) );
                 Recurse( program );
@@ -245,18 +245,16 @@ namespace mu
         }
 
         //! For manual recursion that changes the state for a specific path.
-        void RecurseWithState(OP::ADDRESS at, const STATE& newState)
+        void RecurseWithState(OP::ADDRESS At, const STATE& NewState)
         {
-            auto it = std::find(m_states.begin(),m_states.end(),newState);
-            if (it==m_states.end())
+            int32 StateIndex = m_states.Find(NewState);
+            if (StateIndex ==INDEX_NONE)
             {
-                m_states.Add(newState);
-                it = m_states.end() - 1;
+				StateIndex = m_states.Add(NewState);
             }
-            int stateIndex = (int)(it - m_states.begin());
 
             //check(at<1000000);
-            m_pending.Add( PENDING(at,stateIndex) );
+            m_pending.Add( PENDING(At,StateIndex) );
         }
 
         //! For manual recursion that doesn't change the state for a specific path.
@@ -267,34 +265,34 @@ namespace mu
         }
 
         //! Can be called from visit to set the state to visit all children ops
-        void SetCurrentState(const STATE& newState)
+        void SetCurrentState(const STATE& NewState)
         {
-            auto it = std::find(m_states.begin(),m_states.end(),newState);
-            if (it==m_states.end())
-            {
-                m_states.Add(newState);
-                it = m_states.end() - 1;
-            }
-            m_currentState = (int)(it - m_states.begin());
+			int32 StateIndex = m_states.Find(NewState);
+			if (StateIndex == INDEX_NONE)
+			{
+				StateIndex = m_states.Add(NewState);
+			}
+
+			m_currentState = StateIndex;
         }
 
 
-        void Traverse( OP::ADDRESS root, FProgram& program )
+        void Traverse( OP::ADDRESS Root, FProgram& Program )
         {
-            m_pending.reserve( program.m_opAddress.Num() );
+            m_pending.reserve(Program.m_opAddress.Num() );
 
             // Visit the given root
-            m_pending.Add( PENDING(root,0) );
-            Recurse( program );
+            m_pending.Add( PENDING(Root,0) );
+            Recurse(Program);
         }
 
-        void FullTraverse( FProgram& program )
+        void FullTraverse( FProgram& Program)
         {
             // Visit all the state roots
-            for ( std::size_t p=0; p<program.m_states.Num(); ++p )
+            for ( int32 p=0; p<Program.m_states.Num(); ++p )
             {
-                m_pending.Add(PENDING(program.m_states[p].m_root,0) );
-                Recurse( program );
+                m_pending.Add(PENDING(Program.m_states[p].m_root,0) );
+                Recurse(Program);
             }
         }
 
@@ -353,7 +351,7 @@ namespace mu
                 {
                     if (m_skipResources && VisitorIsAddResource(program.GetOpType(at)))
                     {
-                        auto args = program.GetOpArgs<OP::InstanceAddArgs>(at);
+						OP::InstanceAddArgs args = program.GetOpArgs<OP::InstanceAddArgs>(at);
 
                         // Recurse only the base
                         OP::ADDRESS base = args.instance;
@@ -449,7 +447,7 @@ namespace mu
             case OP_TYPE::IN_CONDITIONAL:
 			case OP_TYPE::ED_CONDITIONAL:
             {
-                auto args = program.GetOpArgs<OP::ConditionalArgs>(at);
+				OP::ConditionalArgs args = program.GetOpArgs<OP::ConditionalArgs>(at);
 
                 recurse = false;
 
@@ -485,7 +483,7 @@ namespace mu
             {
                 recurse = false;
 
-				const uint8_t* data = program.GetOpArgsPointer(at);
+				const uint8* data = program.GetOpArgsPointer(at);
 				
 				OP::ADDRESS VarAddress;
 				FMemory::Memcpy( &VarAddress, data, sizeof(OP::ADDRESS));
@@ -497,20 +495,20 @@ namespace mu
 					FMemory::Memcpy( &DefAddress, data, sizeof(OP::ADDRESS));
 					data += sizeof(OP::ADDRESS);
 
-					uint32_t CaseCount;
-					FMemory::Memcpy( &CaseCount, data, sizeof(uint32_t));
-					data += sizeof(uint32_t);
+					uint32 CaseCount;
+					FMemory::Memcpy( &CaseCount, data, sizeof(uint32));
+					data += sizeof(uint32);
 
                     PARENT::RecurseWithCurrentState( VarAddress );
 
                     int var = m_pSystem->BuildInt( m_pModel, m_pParams, VarAddress );
 
 					OP::ADDRESS valueAt = DefAddress;
-					for (uint32_t C = 0; C < CaseCount; ++C)
+					for (uint32 C = 0; C < CaseCount; ++C)
 					{
-						int32_t Condition;
-						FMemory::Memcpy( &Condition, data, sizeof(int32_t));		
-						data += sizeof(int32_t);
+						int32 Condition;
+						FMemory::Memcpy( &Condition, data, sizeof(int32));		
+						data += sizeof(int32);
 
 						OP::ADDRESS At;
 						FMemory::Memcpy( &At, data, sizeof(OP::ADDRESS));
@@ -532,12 +530,12 @@ namespace mu
 
             case OP_TYPE::IN_ADDLOD:
             {
-                auto args = program.GetOpArgs<OP::InstanceAddLODArgs>(at);
+				OP::InstanceAddLODArgs args = program.GetOpArgs<OP::InstanceAddLODArgs>(at);
 
                 recurse = false;
 
                 STATE newState = PARENT::GetCurrentState();
-                for (int t=0;t<MUTABLE_OP_MAX_ADD_COUNT;++t)
+                for (int32 t=0;t<MUTABLE_OP_MAX_ADD_COUNT;++t)
                 {
                     OP::ADDRESS lodAt = args.lod[t];
                     if (lodAt)
@@ -555,7 +553,7 @@ namespace mu
 
             case OP_TYPE::IN_ADDMESH:
             {
-                auto args = program.GetOpArgs<OP::InstanceAddArgs>(at);
+				OP::InstanceAddArgs args = program.GetOpArgs<OP::InstanceAddArgs>(at);
 
                 recurse = false;
 
@@ -575,7 +573,7 @@ namespace mu
 
             case OP_TYPE::IN_ADDIMAGE:
             {
-                auto args = program.GetOpArgs<OP::InstanceAddArgs>(at);
+				OP::InstanceAddArgs args = program.GetOpArgs<OP::InstanceAddArgs>(at);
 
                 recurse = false;
 
@@ -626,20 +624,18 @@ namespace mu
             COVERED_STATE
             >
     {
-        using PARENT=DiscreteCoveredCodeVisitorBase<
-        UniqueConstCodeVisitorIterative<COVERED_STATE>,
-        COVERED_STATE
-        >;
+        using PARENT=DiscreteCoveredCodeVisitorBase<UniqueConstCodeVisitorIterative<COVERED_STATE>, COVERED_STATE>;
+
     public:
 
         UniqueDiscreteCoveredCodeVisitor
             (
-                System::Private* pSystem,
-				const TSharedPtr<const Model>& pModel,
-                const ParametersPtrConst& pParams,
-                unsigned lodMask
+                System::Private* InSystem,
+				const TSharedPtr<const Model>& InModel,
+                const ParametersPtrConst& InParams,
+                uint32 InLodMask
             )
-            : PARENT( pSystem, pModel, pParams, lodMask )
+            : PARENT(InSystem, InModel, InParams, InLodMask )
         {
         }
 
@@ -655,19 +651,19 @@ namespace mu
     {
     public:
 
-        void Run( OP::ADDRESS root, FProgram& program );
+        void Run( OP::ADDRESS Root, const FProgram& );
 
         //! After Run, list of relevant parameters.
-		TArray<int> m_params;
+		TArray<int32> RelevantParams;
 
     private:
 
-		TArray<int> m_currentParams;
-		TArray<uint8_t> m_visited;
-		TArray<OP::ADDRESS> m_pending;
+		TArray<int32> CurrentParams;
+		TArray<uint8> Visited;
+		TArray<OP::ADDRESS> Pending;
 
         // Result cache
-        TMap< OP::ADDRESS, TArray<int> > m_resultCache;
+        TMap< OP::ADDRESS, TArray<int32> > ResultCache;
     };
 
 

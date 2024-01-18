@@ -52,8 +52,9 @@ namespace mu
 	//-------------------------------------------------------------------------------------------------
 	bool ASTOpImageRasterMesh::IsEqual(const ASTOp& InOtherUntyped) const
 	{
-		if (const ASTOpImageRasterMesh* Other = dynamic_cast<const ASTOpImageRasterMesh*>(&InOtherUntyped))
+		if (InOtherUntyped.GetOpType()==GetOpType())
 		{
+			const ASTOpImageRasterMesh* Other = static_cast<const ASTOpImageRasterMesh*>(&InOtherUntyped);
 			return mesh == Other->mesh &&
 				image == Other->image &&
 				angleFadeProperties == Other->angleFadeProperties &&
@@ -252,7 +253,7 @@ namespace mu
 			if (!imageAt)
 			{
 				// We remove the project from the raster children
-				const ASTOpFixed* MeshProjectOp = dynamic_cast<const ASTOpFixed*>(sourceAt.get());
+				const ASTOpFixed* MeshProjectOp = static_cast<const ASTOpFixed*>(sourceAt.get());
 				Ptr<ASTOpImageRasterMesh> nop = mu::Clone<ASTOpImageRasterMesh>(this);
 				nop->mesh = MeshProjectOp->children[MeshProjectOp->op.args.MeshProject.mesh].child();
 				at = nop;
@@ -263,7 +264,7 @@ namespace mu
 		case OP_TYPE::ME_INTERPOLATE:
 		{
 			// TODO: should be sink only if no imageAt?
-			auto typedSource = dynamic_cast<const ASTOpFixed*>(sourceAt.get());
+			auto typedSource = static_cast<const ASTOpFixed*>(sourceAt.get());
 			Ptr<ASTOpImageRasterMesh> rasterOp = mu::Clone<ASTOpImageRasterMesh>(this);
 			rasterOp->mesh = typedSource->children[typedSource->op.args.MeshInterpolate.base].child();
 			at = rasterOp;
@@ -273,7 +274,7 @@ namespace mu
 		case OP_TYPE::ME_MORPH:
 		{
 			// TODO: should be sink only if no imageAt?
-			const ASTOpMeshMorph* typedSource = dynamic_cast<const ASTOpMeshMorph*>(sourceAt.get());
+			const ASTOpMeshMorph* typedSource = static_cast<const ASTOpMeshMorph*>(sourceAt.get());
 			Ptr<ASTOpImageRasterMesh> rasterOp = mu::Clone<ASTOpImageRasterMesh>(this);
 			rasterOp->mesh = typedSource->Base.child();
 			at = rasterOp;
@@ -283,7 +284,7 @@ namespace mu
 		case OP_TYPE::ME_ADDTAGS:
 		{
 			// Ignore tags
-			const ASTOpMeshAddTags* typedSource = dynamic_cast<const ASTOpMeshAddTags*>(sourceAt.get());
+			const ASTOpMeshAddTags* typedSource = static_cast<const ASTOpMeshAddTags*>(sourceAt.get());
 			Ptr<ASTOpImageRasterMesh> rasterOp = mu::Clone<ASTOpImageRasterMesh>(this);
 			rasterOp->mesh = typedSource->Source.child();
 			at = rasterOp;

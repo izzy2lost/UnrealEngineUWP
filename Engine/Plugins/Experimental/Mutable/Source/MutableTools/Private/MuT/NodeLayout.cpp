@@ -1,6 +1,5 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
-
 #include "MuT/NodeLayout.h"
 
 #include "Math/IntPoint.h"
@@ -24,18 +23,19 @@ namespace mu
 	//---------------------------------------------------------------------------------------------
 	// Static initialisation
 	//---------------------------------------------------------------------------------------------
-	static NODE_TYPE s_nodeLayoutType = NODE_TYPE( "NodeLayout", Node::GetStaticType() );
+	static FNodeType s_nodeLayoutType = FNodeType( "NodeLayout", Node::GetStaticType() );
 
 
 	//---------------------------------------------------------------------------------------------
 	void NodeLayout::Serialise( const NodeLayout* p, OutputArchive& arch )
 	{
-        uint32_t ver = 0;
+        uint32 ver = 0;
 		arch << ver;
 
 	#define SERIALISE_CHILDREN( C, ID ) \
-		( const C* pTyped = dynamic_cast<const C*>(p) )			\
+		( p->GetType()==C::GetStaticType() )					\
 		{ 														\
+			const C* pTyped = static_cast<const C*>(p);			\
             arch << (uint32_t)ID;								\
 			C::Serialise( pTyped, arch );						\
 		}														\
@@ -50,11 +50,11 @@ namespace mu
 	//---------------------------------------------------------------------------------------------
 	NodeLayoutPtr NodeLayout::StaticUnserialise( InputArchive& arch )
 	{
-        uint32_t ver;
+        uint32 ver;
 		arch >> ver;
 		check( ver == 0 );
 
-        uint32_t id;
+        uint32 id;
 		arch >> id;
 
 		switch (id)
@@ -68,14 +68,14 @@ namespace mu
 
 
 	//---------------------------------------------------------------------------------------------
-	const NODE_TYPE* NodeLayout::GetType() const
+	const FNodeType* NodeLayout::GetType() const
 	{
 		return GetStaticType();
 	}
 
 
 	//---------------------------------------------------------------------------------------------
-	const NODE_TYPE* NodeLayout::GetStaticType()
+	const FNodeType* NodeLayout::GetStaticType()
 	{
 		return &s_nodeLayoutType;
 	}
@@ -87,8 +87,8 @@ namespace mu
 	//---------------------------------------------------------------------------------------------
 	// Static initialisation
 	//---------------------------------------------------------------------------------------------
-	NODE_TYPE NodeLayoutBlocks::Private::s_type =
-			NODE_TYPE( "LayoutBlocks", NodeLayout::GetStaticType() );
+	FNodeType NodeLayoutBlocks::Private::s_type =
+			FNodeType( "LayoutBlocks", NodeLayout::GetStaticType() );
 
 
 	//---------------------------------------------------------------------------------------------

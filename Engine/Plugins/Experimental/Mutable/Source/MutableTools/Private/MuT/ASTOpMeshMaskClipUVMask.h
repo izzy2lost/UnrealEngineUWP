@@ -16,7 +16,7 @@ struct FProgram;
 	//---------------------------------------------------------------------------------------------
 	//!
 	//---------------------------------------------------------------------------------------------
-	class ASTOpMeshMaskClipUVMask : public ASTOp
+	class ASTOpMeshMaskClipUVMask final : public ASTOp
 	{
 	public:
 

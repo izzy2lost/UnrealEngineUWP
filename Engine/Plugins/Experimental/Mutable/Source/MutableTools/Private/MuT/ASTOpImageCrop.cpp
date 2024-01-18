@@ -34,8 +34,9 @@ namespace mu
 
 	bool ASTOpImageCrop::IsEqual(const ASTOp& InOther) const
 	{
-		if (const ASTOpImageCrop* other = dynamic_cast<const ASTOpImageCrop*>(&InOther))
+		if (InOther.GetOpType()==GetOpType())
 		{
+			const ASTOpImageCrop* other = static_cast<const ASTOpImageCrop*>(&InOther);
 			return Source == other->Source &&
 				Min == other->Min &&
 				Size == other->Size;
@@ -283,7 +284,7 @@ namespace mu
 
 		case OP_TYPE::IM_PATCH:
 		{
-			const ASTOpImagePatch* typedPatch = dynamic_cast<const ASTOpImagePatch*>(at.get());
+			const ASTOpImagePatch* typedPatch = static_cast<const ASTOpImagePatch*>(at.get());
 
 			Ptr<ASTOp> rectOp = typedPatch->patch.child();
 			ASTOp::FGetImageDescContext context;
@@ -333,7 +334,7 @@ namespace mu
 		case OP_TYPE::IM_CROP:
 		{
 			// We can combine the two crops into a possibly smaller crop
-			const ASTOpImageCrop* childCrop = dynamic_cast<const ASTOpImageCrop*>(at.get());
+			const ASTOpImageCrop* childCrop = static_cast<const ASTOpImageCrop*>(at.get());
 
 			box<vec2<int16>> childCropBox;
 			childCropBox.min[0] = childCrop->Min[0];

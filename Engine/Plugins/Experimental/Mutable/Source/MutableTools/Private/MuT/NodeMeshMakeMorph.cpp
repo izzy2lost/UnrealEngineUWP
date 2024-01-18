@@ -16,8 +16,8 @@ namespace mu
 	//---------------------------------------------------------------------------------------------
 	// Static initialisation
 	//---------------------------------------------------------------------------------------------
-    NODE_TYPE NodeMeshMakeMorph::Private::s_type =
-			NODE_TYPE( "MeshMakeMorph", NodeMesh::GetStaticType() );
+    FNodeType NodeMeshMakeMorph::Private::s_type =
+			FNodeType( "MeshMakeMorph", NodeMesh::GetStaticType() );
 
 
 	//---------------------------------------------------------------------------------------------
@@ -77,9 +77,7 @@ namespace mu
 		// TODO: Substract layouts too? Usually they are ignored.
 		if ( m_pBase )
 		{
-			NodeMesh::Private* pPrivate =
-					dynamic_cast<NodeMesh::Private*>( m_pBase->GetBasePrivate() );
-
+			NodeMesh::Private* pPrivate = static_cast<NodeMesh::Private*>( m_pBase->GetBasePrivate() );
 			pResult = pPrivate->GetLayout( index );
 		}
 

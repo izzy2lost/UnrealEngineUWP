@@ -14,8 +14,8 @@ namespace mu
 	//---------------------------------------------------------------------------------------------
 	// Static initialisation
 	//---------------------------------------------------------------------------------------------
-	NODE_TYPE NodeExtensionDataConstant::Private::s_type =
-			NODE_TYPE("ExtensionDataConstant", NodeExtensionData::GetStaticType());
+	FNodeType NodeExtensionDataConstant::Private::s_type =
+			FNodeType("ExtensionDataConstant", NodeExtensionData::GetStaticType());
 
 
 	//---------------------------------------------------------------------------------------------

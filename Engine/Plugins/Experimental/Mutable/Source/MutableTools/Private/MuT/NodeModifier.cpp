@@ -17,21 +17,20 @@
 namespace mu
 {
 	// Static initialisation
-	static NODE_TYPE s_nodeModifierType =
-			NODE_TYPE( "NodeModifier", Node::GetStaticType() );
+	static FNodeType s_nodeModifierType = FNodeType( "NodeModifier", Node::GetStaticType() );
 
 	MUTABLE_IMPLEMENT_ENUM_SERIALISABLE(EMutableMultipleTagPolicy);
 
-	const NODE_TYPE* NodeModifier::GetType() const
+	const FNodeType* NodeModifier::GetType() const
 	{
 		return GetStaticType();
 	}
 
 
-	const NODE_TYPE* NodeModifier::GetStaticType()
+	const FNodeType* NodeModifier::GetStaticType()
 	{
-          return &s_nodeModifierType;
-        }
+		return &s_nodeModifierType;
+    }
 
 
 	void NodeModifier::Serialise( const NodeModifier* p, OutputArchive& arch )
@@ -39,12 +38,13 @@ namespace mu
         uint32 ver = 0;
 		arch << ver;
 
-#define SERIALISE_CHILDREN( C, ID ) \
-        ( const C* pTyped##ID = dynamic_cast<const C*>(p) )			\
-        {                                                           \
+	#define SERIALISE_CHILDREN( C, ID ) \
+		( p->GetType()==C::GetStaticType() )					\
+		{ 														\
+			const C* pTyped = static_cast<const C*>(p);			\
             arch << (uint32)ID;									\
-            C::Serialise( pTyped##ID, arch );						\
-		}
+			C::Serialise( pTyped, arch );						\
+		}														\
 
 		if SERIALISE_CHILDREN(NodeModifierMeshClipMorphPlane, 			0 )
 		else if SERIALISE_CHILDREN(NodeModifierMeshClipWithMesh, 		1 )
@@ -79,27 +79,21 @@ namespace mu
 
 	void NodeModifier::AddTag(const FString& Value)
 	{
-		NodeModifier::Private* pD = dynamic_cast<NodeModifier::Private*>(GetBasePrivate());
-		check(pD);
-
+		NodeModifier::Private* pD = static_cast<NodeModifier::Private*>(GetBasePrivate());
 		pD->RequiredTags.Add(Value);
 	}
 
 
 	void NodeModifier::SetMultipleTagPolicy(EMutableMultipleTagPolicy Value)
 	{
-		NodeModifier::Private* pD = dynamic_cast<NodeModifier::Private*>(GetBasePrivate());
-		check(pD);
-
+		NodeModifier::Private* pD = static_cast<NodeModifier::Private*>(GetBasePrivate());
 		pD->MultipleTagsPolicy = Value;
 	}
 
 
 	void NodeModifier::SetStage(bool bBeforeNormalOperation)
 	{
-		NodeModifier::Private* pD = dynamic_cast<NodeModifier::Private*>(GetBasePrivate());
-		check(pD);
-
+		NodeModifier::Private* pD = static_cast<NodeModifier::Private*>(GetBasePrivate());
 		pD->bApplyBeforeNormalOperations = bBeforeNormalOperation; 
 	}
 

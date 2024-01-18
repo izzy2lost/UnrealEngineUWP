@@ -16,7 +16,7 @@ class NodeExtensionDataConstant::Private : public Node::Private
 {
 public:
 
-	static NODE_TYPE s_type;
+	static FNodeType s_type;
 
 	ExtensionDataPtrConst Value;
 	

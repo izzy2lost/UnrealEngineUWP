@@ -39,17 +39,17 @@ namespace mu
     void FProgram::LogHistogram() const
     {
 #if 0
-        uint64 countPerType[(int)OP_TYPE::COUNT];
+        uint64 countPerType[(int32)OP_TYPE::COUNT];
         mutable_memset(countPerType,0,sizeof(countPerType));
 
-        for ( const auto& o: m_opAddress )
+        for ( const uint32& o: m_opAddress )
         {
-            auto type = GetOpType(o);
-            countPerType[(int)type]++;
+            OP_TYPE type = GetOpType(o);
+            countPerType[(int32)type]++;
         }
 
-		TArray< TPair<uint64,OP_TYPE> > sorted((int)OP_TYPE::COUNT);
-        for (int i=0; i<(int)OP_TYPE::COUNT; ++i)
+		TArray< TPair<uint64,OP_TYPE> > sorted((int32)OP_TYPE::COUNT);
+        for (int32 i=0; i<(int32)OP_TYPE::COUNT; ++i)
         {
             sorted[i].second = (OP_TYPE)i;
             sorted[i].first = countPerType[i];
@@ -61,10 +61,10 @@ namespace mu
         });
 
         UE_LOG(LogMutableCore,Log, TEXT("Op histogram (%llu ops):"), m_opAddress.Num());
-        for(int i=0; i<8; ++i)
+        for(int32 i=0; i<8; ++i)
         {
             float p = sorted[i].first/float(m_opAddress.Num())*100.0f;
-            UE_LOG(LogMutableCore,Log, TEXT("  %3.2f%% : %d"), p, (int)sorted[i].second );
+            UE_LOG(LogMutableCore,Log, TEXT("  %3.2f%% : %d"), p, (int32)sorted[i].second );
         }
 #endif
     }

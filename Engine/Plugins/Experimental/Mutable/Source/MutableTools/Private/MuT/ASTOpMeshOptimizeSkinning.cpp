@@ -35,8 +35,9 @@ namespace mu
 	//-------------------------------------------------------------------------------------------------
 	bool ASTOpMeshOptimizeSkinning::IsEqual(const ASTOp& otherUntyped) const
 	{
-		if (auto other = dynamic_cast<const ASTOpMeshOptimizeSkinning*>(&otherUntyped))
+		if (otherUntyped.GetOpType() == GetOpType())
 		{
+			const ASTOpMeshOptimizeSkinning* other = static_cast<const ASTOpMeshOptimizeSkinning*>(&otherUntyped);
 			return source == other->source;
 		}
 		return false;

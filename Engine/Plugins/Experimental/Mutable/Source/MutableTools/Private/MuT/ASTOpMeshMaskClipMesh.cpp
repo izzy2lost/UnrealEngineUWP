@@ -38,8 +38,9 @@ namespace mu
 	//-------------------------------------------------------------------------------------------------
 	bool ASTOpMeshMaskClipMesh::IsEqual(const ASTOp& otherUntyped) const
 	{
-		if (const ASTOpMeshMaskClipMesh* other = dynamic_cast<const ASTOpMeshMaskClipMesh*>(&otherUntyped))
+		if (otherUntyped.GetOpType() == GetOpType())
 		{
+			const ASTOpMeshMaskClipMesh* other = static_cast<const ASTOpMeshMaskClipMesh*>(&otherUntyped);
 			return source == other->source && clip == other->clip;
 		}
 		return false;
@@ -165,7 +166,7 @@ namespace mu
 					// faces removed by the ignored removemask, but it is ok
 
 					// TODO: Swap instead of ignore, and implement removemask on a mask?
-					const ASTOpMeshRemoveMask* typedAt = dynamic_cast<const ASTOpMeshRemoveMask*>(at.get());
+					const ASTOpMeshRemoveMask* typedAt = static_cast<const ASTOpMeshRemoveMask*>(at.get());
 					newAt = Visit(typedAt->source.child());
 					break;
 				}
@@ -316,7 +317,7 @@ namespace mu
 				case OP_TYPE::ME_ADDTAGS:
 				{
 					// Ignore tags in the clip mesh branch
-					const ASTOpMeshAddTags* AddOp = dynamic_cast<const ASTOpMeshAddTags*>(at.get());
+					const ASTOpMeshAddTags* AddOp = static_cast<const ASTOpMeshAddTags*>(at.get());
 					newAt = Visit(AddOp->Source.child());
 					break;
 				}

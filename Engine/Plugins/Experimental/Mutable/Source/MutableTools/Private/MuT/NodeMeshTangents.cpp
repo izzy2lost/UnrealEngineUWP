@@ -16,8 +16,8 @@ namespace mu
 	//---------------------------------------------------------------------------------------------
 	// Static initialisation
 	//---------------------------------------------------------------------------------------------
-	NODE_TYPE NodeMeshTangents::Private::s_type =
-			NODE_TYPE( "MeshTangents", NodeMesh::GetStaticType() );
+	FNodeType NodeMeshTangents::Private::s_type =
+			FNodeType( "MeshTangents", NodeMesh::GetStaticType() );
 
 
 	//---------------------------------------------------------------------------------------------
@@ -50,9 +50,7 @@ namespace mu
 
 		if ( m_pSource )
 		{
-			NodeMesh::Private* pPrivate =
-					dynamic_cast<NodeMesh::Private*>( m_pSource->GetBasePrivate() );
-
+			NodeMesh::Private* pPrivate = static_cast<NodeMesh::Private*>( m_pSource->GetBasePrivate() );
 			pResult = pPrivate->GetLayout( index );
 		}
 

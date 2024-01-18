@@ -69,12 +69,12 @@ namespace mu
         return m_pD;										\
     }														\
                                                             \
-    const NODE_TYPE* N::GetType() const						\
+    const FNodeType* N::GetType() const						\
     {														\
         return GetStaticType();								\
     }														\
                                                             \
-    const NODE_TYPE* N::GetStaticType()						\
+    const FNodeType* N::GetStaticType()						\
     {														\
         return &Private::s_type;							\
     }

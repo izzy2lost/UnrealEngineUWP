@@ -18,7 +18,7 @@ namespace mu
 	{
 	public:
 
-		static NODE_TYPE s_type;
+		static FNodeType s_type;
 
 		Ptr<NodeProjector> m_pProjector;
 		Ptr<NodeMesh> m_pMesh;

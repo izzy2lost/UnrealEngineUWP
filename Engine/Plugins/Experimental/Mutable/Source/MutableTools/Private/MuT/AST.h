@@ -318,7 +318,7 @@ namespace mu
 	{
 	public:
 
-		Ptr<ASTOp> Apply(const ASTOp* root);
+		Ptr<ASTOp> Apply(const class ASTOpImagePixelFormat* root);
 
 	protected:
 
@@ -338,7 +338,7 @@ namespace mu
 	public:
 
 		// \TODO This is recursive and may cause stack overflows in big models.
-		Ptr<ASTOp> Apply(const ASTOp* Root);
+		Ptr<ASTOp> Apply(const class ASTOpMeshFormat* Root);
 
 	protected:
 
@@ -490,6 +490,10 @@ namespace mu
 		using MapChildFunc = TFunction<Ptr<ASTOp>(const Ptr<ASTOp>&)>;
 		using MapChildFuncRef = TFunctionRef<Ptr<ASTOp>(const Ptr<ASTOp>&)>;
 		virtual Ptr<ASTOp> Clone(MapChildFuncRef mapChild) const = 0;
+
+		//
+		virtual bool IsConditional() const { return false; }
+		virtual bool IsSwitch() const { return false; }
 
     protected:
 
@@ -798,8 +802,7 @@ namespace mu
     {
 		ASTOp::MapChildFunc Identity = [](const Ptr<ASTOp>& o) {return o; };
 		Ptr<ASTOp> c = s->Clone(Identity);
-		Ptr<DERIVED> t = dynamic_cast<DERIVED*>(c.get());
-        check(t);
+		Ptr<DERIVED> t = static_cast<DERIVED*>(c.get());
         return t;
     }
 
@@ -808,9 +811,8 @@ namespace mu
     {
 		ASTOp::MapChildFunc Identity = [](const Ptr<ASTOp>& o) {return o; };
 		Ptr<ASTOp> c = s->Clone(Identity);
-        Ptr<DERIVED> t = dynamic_cast<DERIVED*>(c.get());
-        check(t);
-        return t;
+        Ptr<DERIVED> t = static_cast<DERIVED*>(c.get());
+		return t;
     }
 
     //---------------------------------------------------------------------------------------------

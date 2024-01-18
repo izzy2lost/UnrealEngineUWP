@@ -19,7 +19,7 @@ namespace mu
 	{
 	public:
 
-		static NODE_TYPE s_type;
+		static FNodeType s_type;
 
 		FString m_name;
 		FString m_uid;

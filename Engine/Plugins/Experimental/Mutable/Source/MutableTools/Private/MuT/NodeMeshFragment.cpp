@@ -16,8 +16,8 @@ namespace mu
 	//---------------------------------------------------------------------------------------------
 	// Static initialisation
 	//---------------------------------------------------------------------------------------------
-	NODE_TYPE NodeMeshFragment::Private::s_type =
-			NODE_TYPE( "MeshFragment", NodeMesh::GetStaticType() );
+	FNodeType NodeMeshFragment::Private::s_type =
+			FNodeType( "MeshFragment", NodeMesh::GetStaticType() );
 
 
 	//---------------------------------------------------------------------------------------------
@@ -102,10 +102,7 @@ namespace mu
 		if ( m_pMesh )
 		{
 			// TODO: Cut a fragment out of the layout.
-
-			NodeMesh::Private* pPrivate =
-					dynamic_cast<NodeMesh::Private*>( m_pMesh->GetBasePrivate() );
-
+			NodeMesh::Private* pPrivate = static_cast<NodeMesh::Private*>( m_pMesh->GetBasePrivate() );
 			pResult = pPrivate->GetLayout( index );
 		}
 

@@ -15,7 +15,7 @@ struct FProgram;
 	//---------------------------------------------------------------------------------------------
 	//!
 	//---------------------------------------------------------------------------------------------
-	class ASTOpMeshApplyShape : public ASTOp
+	class ASTOpMeshApplyShape final : public ASTOp
 	{
 	public:
 

@@ -17,8 +17,8 @@ namespace mu
 	//---------------------------------------------------------------------------------------------
 	// Static initialisation
 	//---------------------------------------------------------------------------------------------
-	NODE_TYPE NodeMeshTable::Private::s_type =
-			NODE_TYPE( "TableMesh", NodeMesh::GetStaticType() );
+	FNodeType NodeMeshTable::Private::s_type =
+			FNodeType( "TableMesh", NodeMesh::GetStaticType() );
 
 
 	//---------------------------------------------------------------------------------------------

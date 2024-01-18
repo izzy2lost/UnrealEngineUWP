@@ -19,7 +19,7 @@ namespace mu
 	//---------------------------------------------------------------------------------------------
 	//! A constant mesh, image, volume or layout
 	//---------------------------------------------------------------------------------------------
-	class ASTOpConstantResource : public ASTOp
+	class ASTOpConstantResource final : public ASTOp
 	{
 	private:
 

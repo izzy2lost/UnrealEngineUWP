@@ -143,7 +143,7 @@ namespace mu
                     case OP_TYPE::PR_PARAMETER:
                     case OP_TYPE::IM_PARAMETER:
                     {
-						const ASTOpParameter* typed = dynamic_cast<const ASTOpParameter*>(at.get());
+						const ASTOpParameter* typed = static_cast<const ASTOpParameter*>(at.get());
                         const TArray<FString>& params = m_pState->nodeState.m_runtimeParams;
                         if ( params.Find( typed->parameter.m_name)
                              !=
@@ -157,7 +157,7 @@ namespace mu
 
                     case OP_TYPE::ME_INTERPOLATE:
                     {
-						const ASTOpFixed* typed = dynamic_cast<const ASTOpFixed*>(at.get());
+						const ASTOpFixed* typed = static_cast<const ASTOpFixed*>(at.get());
                         PENDING_ITEM childItem;
                         childItem.itemType = 0;
                         childItem.onlyLayoutsRelevant = item.onlyLayoutsRelevant;
@@ -383,7 +383,7 @@ namespace mu
         //-------------------------------------------------------------------------------------
         case OP_TYPE::IM_CONDITIONAL:
         {
-			const ASTOpConditional* typedAt = dynamic_cast<const ASTOpConditional*>(at.get());
+			const ASTOpConditional* typedAt = static_cast<const ASTOpConditional*>(at.get());
 
             // If the condition is not runtime, but the branches are, try to move the
             // conditional down
@@ -403,8 +403,8 @@ namespace mu
                     {
                         case OP_TYPE::IM_COMPOSE:
                         {
-						const ASTOpImageCompose* typedYes = dynamic_cast<const ASTOpImageCompose*>(typedAt->yes.child().get());
-						const ASTOpImageCompose* typedNo = dynamic_cast<const ASTOpImageCompose*>(typedAt->no.child().get());
+						const ASTOpImageCompose* typedYes = static_cast<const ASTOpImageCompose*>(typedAt->yes.child().get());
+						const ASTOpImageCompose* typedNo = static_cast<const ASTOpImageCompose*>(typedAt->no.child().get());
                         if ( typedYes->BlockIndex
                              ==
                              typedNo->BlockIndex
@@ -464,7 +464,7 @@ namespace mu
                         {
                             optimised = true;
 
-							const ASTOpImageLayerColor* typedYes = dynamic_cast<const ASTOpImageLayerColor*>(typedAt->yes.child().get());
+							const ASTOpImageLayerColor* typedYes = static_cast<const ASTOpImageLayerColor*>(typedAt->yes.child().get());
 
                             Ptr<ASTOpFixed> blackOp = new ASTOpFixed;
                             blackOp->op.type = OP_TYPE::CO_CONSTANT;
@@ -571,7 +571,7 @@ namespace mu
                         {
                             optimised = true;
 
-                            const ASTOpImageLayerColor* typedNo = dynamic_cast<const ASTOpImageLayerColor*>(typedAt->no.child().get());
+                            const ASTOpImageLayerColor* typedNo = static_cast<const ASTOpImageLayerColor*>(typedAt->no.child().get());
 
                             Ptr<ASTOpFixed> blackOp = new ASTOpFixed;
                             blackOp->op.type = OP_TYPE::CO_CONSTANT;
@@ -857,7 +857,7 @@ namespace mu
         //-----------------------------------------------------------------------------------------
         case OP_TYPE::IM_COMPOSE:
         {
-			const ASTOpImageCompose* typedAt = dynamic_cast<const ASTOpImageCompose*>(at.get());
+			const ASTOpImageCompose* typedAt = static_cast<const ASTOpImageCompose*>(at.get());
 
             Ptr<ASTOp> blockAt = typedAt->BlockImage.child();
 			Ptr<ASTOp> baseAt = typedAt->Base.child();
@@ -889,8 +889,8 @@ namespace mu
                     {
                         optimised = true;
 
-						const ASTOpImageLayerColor* typedBaseAt = dynamic_cast<const ASTOpImageLayerColor*>(baseAt.get());
-						const ASTOpImageLayerColor* typedBlockAt = dynamic_cast<const ASTOpImageLayerColor*>(blockAt.get());
+						const ASTOpImageLayerColor* typedBaseAt = static_cast<const ASTOpImageLayerColor*>(baseAt.get());
+						const ASTOpImageLayerColor* typedBlockAt = static_cast<const ASTOpImageLayerColor*>(blockAt.get());
 
                         // The mask is a compose of the block mask on the base mask, but if none has
                         // a mask we don't need to make one.
@@ -931,8 +931,8 @@ namespace mu
                     {
                         optimised = true;
 
-						const ASTOpImageLayer* typedBaseAt = dynamic_cast<const ASTOpImageLayer*>(baseAt.get());
-						const ASTOpImageLayer* typedBlockAt = dynamic_cast<const ASTOpImageLayer*>(blockAt.get());
+						const ASTOpImageLayer* typedBaseAt = static_cast<const ASTOpImageLayer*>(baseAt.get());
+						const ASTOpImageLayer* typedBlockAt = static_cast<const ASTOpImageLayer*>(blockAt.get());
 
                         // The mask is a compose of the block mask on the base mask, but if none has
                         // a mask we don't need to make one.
@@ -989,7 +989,7 @@ namespace mu
                  &&
                  baseType == OP_TYPE::IM_COMPOSE )
             {
-				const ASTOpImageCompose* typedBaseAt = dynamic_cast<const ASTOpImageCompose*>(baseAt.get());
+				const ASTOpImageCompose* typedBaseAt = static_cast<const ASTOpImageCompose*>(baseAt.get());
 
 				Ptr<ASTOp> baseBlockAt = typedBaseAt->BlockImage.child();
                 bool baseBlockHasAny = m_hasRuntimeParamVisitor.HasAny( baseBlockAt );
@@ -1026,7 +1026,7 @@ namespace mu
                 {
                     optimised = true;
 
-					const ASTOpImageLayerColor* typedBlockAt = dynamic_cast<const ASTOpImageLayerColor*>(blockAt.get());
+					const ASTOpImageLayerColor* typedBlockAt = static_cast<const ASTOpImageLayerColor*>(blockAt.get());
 
 					Ptr<ASTOp> blockImage = typedBlockAt->base.child();
 					Ptr<ASTOp> blockMask = typedBlockAt->mask.child();
@@ -1081,7 +1081,7 @@ namespace mu
                 {
                     optimised = true;
 
-                    const ASTOpImageLayer* typedBlockAt = dynamic_cast<const ASTOpImageLayer*>(blockAt.get());
+                    const ASTOpImageLayer* typedBlockAt = static_cast<const ASTOpImageLayer*>(blockAt.get());
 
 					Ptr<ASTOp> blockImage = typedBlockAt->base.child();
 					Ptr<ASTOp> blockBlended = typedBlockAt->blend.child();
@@ -1207,7 +1207,7 @@ namespace mu
                 {
                     optimised = true;
 
-                    const ASTOpImageLayerColor* typedBaseAt = dynamic_cast<const ASTOpImageLayerColor*>(baseAt.get());
+                    const ASTOpImageLayerColor* typedBaseAt = static_cast<const ASTOpImageLayerColor*>(baseAt.get());
 
 					Ptr<ASTOpImageCompose> maskOp = mu::Clone<ASTOpImageCompose>(at);
                     {
@@ -1254,7 +1254,7 @@ namespace mu
                 {
                     optimised = true;
 
-                    const ASTOpImageLayer* typedBaseAt = dynamic_cast<const ASTOpImageLayer*>(baseAt.get());
+                    const ASTOpImageLayer* typedBaseAt = static_cast<const ASTOpImageLayer*>(baseAt.get());
 
 					Ptr<ASTOpImageCompose> maskOp = mu::Clone<ASTOpImageCompose>(at);
                     {
@@ -1428,7 +1428,7 @@ namespace mu
         // Sink the mipmap if worth it.
         case OP_TYPE::IM_MIPMAP:
         {
-			const ASTOpImageMipmap* typedAt = dynamic_cast<const ASTOpImageMipmap*>(at.get());
+			const ASTOpImageMipmap* typedAt = static_cast<const ASTOpImageMipmap*>(at.get());
 
 			Ptr<ASTOp> sourceOp = typedAt->Source.child();
 
@@ -1436,7 +1436,7 @@ namespace mu
             {
             case OP_TYPE::IM_LAYERCOLOUR:
             {
-                const ASTOpImageLayerColor* typedSource = dynamic_cast<const ASTOpImageLayerColor*>(sourceOp.get());
+                const ASTOpImageLayerColor* typedSource = static_cast<const ASTOpImageLayerColor*>(sourceOp.get());
 
                 bool colourHasRuntime = m_hasRuntimeParamVisitor.HasAny( typedSource->color.child() );
 
@@ -1529,7 +1529,7 @@ namespace mu
             // TODO: Code shared with the constant data format optimisation visitor
             case OP_TYPE::IM_LAYERCOLOUR:
             {
-                const ASTOpImageLayerColor* typedAt = dynamic_cast<const ASTOpImageLayerColor*>(at.get());
+                const ASTOpImageLayerColor* typedAt = static_cast<const ASTOpImageLayerColor*>(at.get());
 
                 RecurseWithCurrentState( typedAt->base.child() );
                 RecurseWithCurrentState( typedAt->color.child() );
@@ -1548,7 +1548,7 @@ namespace mu
 
             case OP_TYPE::IM_LAYER:
             {
-                const ASTOpImageLayer* typedAt = dynamic_cast<const ASTOpImageLayer*>(at.get());
+                const ASTOpImageLayer* typedAt = static_cast<const ASTOpImageLayer*>(at.get());
 
                 RecurseWithCurrentState( typedAt->base.child() );
                 RecurseWithCurrentState( typedAt->blend.child() );
@@ -1568,7 +1568,7 @@ namespace mu
 
             case OP_TYPE::IM_DISPLACE:
             {
-				const ASTOpFixed* typedAt = dynamic_cast<const ASTOpFixed*>(at.get());
+				const ASTOpFixed* typedAt = static_cast<const ASTOpFixed*>(at.get());
 
                 RecurseWithCurrentState( typedAt->children[typedAt->op.args.ImageDisplace.source].child() );
 
@@ -1649,7 +1649,7 @@ namespace mu
                 case OP_TYPE::PR_PARAMETER:
                 case OP_TYPE::IM_PARAMETER:
                 {
-					const ASTOpParameter* typedAt = dynamic_cast<const ASTOpParameter*>(at.get());
+					const ASTOpParameter* typedAt = static_cast<const ASTOpParameter*>(at.get());
                     m_params.Add(typedAt->parameter.m_name);
 
                     // Not interested in the parameters from the parameters decorators.
@@ -1661,7 +1661,7 @@ namespace mu
 				case OP_TYPE::LA_FROMMESH:
 				{
 					// Manually choose how to recurse this op
-					const ASTOpLayoutFromMesh* pTyped = dynamic_cast<const ASTOpLayoutFromMesh*>(at.get());
+					const ASTOpLayoutFromMesh* pTyped = static_cast<const ASTOpLayoutFromMesh*>(at.get());
 
 					// For that mesh we only want to know about the layouts
 					if (const ASTChild& Mesh = pTyped->Mesh)
@@ -1675,7 +1675,7 @@ namespace mu
                 case OP_TYPE::ME_MORPH:
                 {
                     // Manually choose how to recurse this op
-					const ASTOpMeshMorph* pTyped = dynamic_cast<const ASTOpMeshMorph*>( at.get() );
+					const ASTOpMeshMorph* pTyped = static_cast<const ASTOpMeshMorph*>( at.get() );
 
                     if ( pTyped->Base )
                     {
@@ -1802,7 +1802,7 @@ namespace mu
                 case OP_TYPE::IN_ADDSCALAR:
                 case OP_TYPE::IN_ADDSTRING:
                 {
-					const ASTOpInstanceAdd* typedAt = dynamic_cast<const ASTOpInstanceAdd*>(at.get());
+					const ASTOpInstanceAdd* typedAt = static_cast<const ASTOpInstanceAdd*>(at.get());
 
                     TPair<bool,bool> newState;
                     newState.Key = false; //resource root
@@ -1929,7 +1929,7 @@ namespace mu
         // textures? We don't want them uncompressed.
         if( type==OP_TYPE::IN_ADDIMAGE )
         {
-			ASTOpInstanceAdd* typedAt = dynamic_cast<ASTOpInstanceAdd*>(at.get());
+			ASTOpInstanceAdd* typedAt = static_cast<ASTOpInstanceAdd*>(at.get());
 			Ptr<ASTOp> imageAt = typedAt->value.child();
 
             // Does it have a runtime parameter in its subtree?
@@ -1980,7 +1980,7 @@ namespace mu
 
         if( at->GetOpType()==OP_TYPE::IN_ADDLOD )
         {
-			ASTOpAddLOD* typedAt = dynamic_cast<ASTOpAddLOD*>(at.get());
+			ASTOpAddLOD* typedAt = static_cast<ASTOpAddLOD*>(at.get());
 
             if (typedAt->lods.Num()>(size_t)m_lodCount)
             {

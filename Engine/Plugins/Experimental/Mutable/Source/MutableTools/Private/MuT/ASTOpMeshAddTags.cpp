@@ -28,8 +28,9 @@ namespace mu
 
 	bool ASTOpMeshAddTags::IsEqual(const ASTOp& otherUntyped) const
 	{
-		if (const ASTOpMeshAddTags* other = dynamic_cast<const ASTOpMeshAddTags*>(&otherUntyped))
+		if (otherUntyped.GetOpType()==GetOpType())
 		{
+			const ASTOpMeshAddTags* other = static_cast<const ASTOpMeshAddTags*>(&otherUntyped);
 			return Source == other->Source && Tags == other->Tags;
 		}
 		return false;

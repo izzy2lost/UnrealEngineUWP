@@ -36,8 +36,10 @@ namespace mu
 
 	bool ASTOpMeshApplyShape::IsEqual(const ASTOp& OtherUntyped) const
 	{
-		if (const ASTOpMeshApplyShape* Other = dynamic_cast<const ASTOpMeshApplyShape*>(&OtherUntyped))
+		if (OtherUntyped.GetOpType()==GetOpType())
 		{
+			const ASTOpMeshApplyShape* Other = static_cast<const ASTOpMeshApplyShape*>(&OtherUntyped);
+
 			const bool bSameFlags =
 				bReshapePhysicsVolumes == Other->bReshapePhysicsVolumes &&
 				bReshapeSkeleton == Other->bReshapeSkeleton &&

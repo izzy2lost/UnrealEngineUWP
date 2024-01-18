@@ -16,8 +16,8 @@ namespace mu
 	//---------------------------------------------------------------------------------------------
 	// Static initialisation
 	//---------------------------------------------------------------------------------------------
-	NODE_TYPE NodeComponentNew::Private::s_type =
-			NODE_TYPE( "NewComponent", NodeComponent::GetStaticType() );
+	FNodeType NodeComponentNew::Private::s_type =
+			FNodeType( "NewComponent", NodeComponent::GetStaticType() );
 
 
 	//---------------------------------------------------------------------------------------------

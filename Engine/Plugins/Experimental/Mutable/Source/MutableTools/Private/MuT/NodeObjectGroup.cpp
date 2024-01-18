@@ -1,6 +1,5 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
-
 #include "MuT/NodeObjectGroup.h"
 
 #include "HAL/PlatformCrt.h"
@@ -9,9 +8,6 @@
 #include "MuT/NodeObjectGroupPrivate.h"
 #include "MuT/NodeObjectPrivate.h"
 #include "MuT/NodePrivate.h"
-
-#include <memory>
-#include <utility>
 
 
 namespace mu
@@ -22,8 +18,7 @@ namespace mu
 	//---------------------------------------------------------------------------------------------
 	// Static initialisation
 	//---------------------------------------------------------------------------------------------
-	NODE_TYPE NodeObjectGroup::Private::s_type =
-            NODE_TYPE( "ObjectGroup", NodeObjectGroup::GetStaticType() );
+	FNodeType NodeObjectGroup::Private::s_type = FNodeType( "ObjectGroup", NodeObject::GetStaticType() );
 
 
 	//---------------------------------------------------------------------------------------------
@@ -118,9 +113,7 @@ namespace mu
 		{
 			if (m_children[i])
 			{
-				NodeObject::Private* pPrivate =
-						dynamic_cast<NodeObject::Private*>( m_children[i]->GetBasePrivate() );
-
+				NodeObject::Private* pPrivate = static_cast<NodeObject::Private*>( m_children[i]->GetBasePrivate() );
                 pLayout = pPrivate->GetLayout( lod, component, surface, texture );
 			}
 		}

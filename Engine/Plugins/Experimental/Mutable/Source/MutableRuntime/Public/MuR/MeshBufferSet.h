@@ -179,7 +179,7 @@ namespace mu
 		}
 
 		//!
-		TArray<mu::MESH_BUFFER_CHANNEL> m_channels;
+		TArray<MESH_BUFFER_CHANNEL> m_channels;
 
 		//!
 		TMemoryTrackedArray<uint8> m_data;

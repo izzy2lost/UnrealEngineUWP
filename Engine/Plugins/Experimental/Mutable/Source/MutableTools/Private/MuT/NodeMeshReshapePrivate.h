@@ -15,7 +15,7 @@ namespace mu
 	{
 	public:
 
-		static NODE_TYPE s_type;
+		static FNodeType s_type;
 
 		Ptr<NodeMesh> BaseMesh;
 		Ptr<NodeMesh> BaseShape;

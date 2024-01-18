@@ -158,7 +158,7 @@ namespace mu
 
         const uint8* pSourceData = pSource->GetData();
 
-        auto mapFormat = pMap->GetFormat();
+		EImageFormat mapFormat = pMap->GetFormat();
         bool isUncompressed = ( mapFormat == EImageFormat::IF_L_UBYTE );
 
         if ( isUncompressed )

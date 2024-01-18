@@ -14,8 +14,8 @@ namespace mu
 	//---------------------------------------------------------------------------------------------
 	// Static initialisation
 	//---------------------------------------------------------------------------------------------
-	NODE_TYPE NodeBoolNot::Private::s_type =
-			NODE_TYPE( "BoolParameter", NodeBool::GetStaticType() );
+	FNodeType NodeBoolNot::Private::s_type =
+			FNodeType( "BoolParameter", NodeBool::GetStaticType() );
 
 
 	//---------------------------------------------------------------------------------------------

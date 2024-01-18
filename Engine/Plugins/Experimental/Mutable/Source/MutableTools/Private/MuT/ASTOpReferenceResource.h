@@ -19,7 +19,7 @@ namespace mu
 	//---------------------------------------------------------------------------------------------
 	//! A reference to an engine image (or other resources in the future)
 	//---------------------------------------------------------------------------------------------
-	class ASTOpReferenceResource : public ASTOp
+	class ASTOpReferenceResource final : public ASTOp
 	{
 	public:
 

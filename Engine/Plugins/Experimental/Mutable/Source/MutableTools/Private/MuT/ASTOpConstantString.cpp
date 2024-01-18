@@ -7,8 +7,6 @@
 #include "MuR/RefCounted.h"
 #include "MuR/Types.h"
 
-#include <string>
-
 
 namespace mu
 {
@@ -31,8 +29,9 @@ namespace mu
 
 	bool ASTOpConstantString::IsEqual(const ASTOp& otherUntyped) const
 	{
-		if (auto other = dynamic_cast<const ASTOpConstantString*>(&otherUntyped))
+		if (otherUntyped.GetOpType() == GetOpType())
 		{
+			const ASTOpConstantString* other = static_cast<const ASTOpConstantString*>(&otherUntyped);
 			return value == other->value;
 		}
 		return false;

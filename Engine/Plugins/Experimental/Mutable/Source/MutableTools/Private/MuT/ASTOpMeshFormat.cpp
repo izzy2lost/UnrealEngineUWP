@@ -46,8 +46,9 @@ ASTOpMeshFormat::~ASTOpMeshFormat()
 
 bool ASTOpMeshFormat::IsEqual(const ASTOp& otherUntyped) const
 {
-    if (const ASTOpMeshFormat* other = dynamic_cast<const ASTOpMeshFormat*>(&otherUntyped) )
-    {
+	if (otherUntyped.GetOpType() == GetOpType())
+	{
+		const ASTOpMeshFormat* other = static_cast<const ASTOpMeshFormat*>(&otherUntyped);
         return Source==other->Source && Format==other->Format && Buffers==other->Buffers;
     }
     return false;
@@ -111,10 +112,9 @@ mu::Ptr<ASTOp> ASTOpMeshFormat::OptimiseSink(const FModelOptimizationOptions& op
 //---------------------------------------------------------------------------------------------
 //---------------------------------------------------------------------------------------------
 //---------------------------------------------------------------------------------------------
-mu::Ptr<ASTOp> Sink_MeshFormatAST::Apply(const ASTOp* root)
+mu::Ptr<ASTOp> Sink_MeshFormatAST::Apply(const ASTOpMeshFormat* root)
 {
-	m_root = dynamic_cast<const ASTOpMeshFormat*>(root);
-	check(m_root);
+	m_root = root;
 
 	OldToNew.Empty();
 
@@ -141,7 +141,7 @@ namespace
 		{
 		case OP_TYPE::ME_CONSTANT:
 		{
-			const ASTOpConstantResource* typed = dynamic_cast<const ASTOpConstantResource*>(at.get());
+			const ASTOpConstantResource* typed = static_cast<const ASTOpConstantResource*>(at.get());
 			res = static_cast<const Mesh*>(typed->GetValue().get());
 			break;
 		}

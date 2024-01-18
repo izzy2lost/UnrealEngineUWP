@@ -15,8 +15,8 @@ namespace mu
 	//---------------------------------------------------------------------------------------------
 	// Static initialisation
 	//---------------------------------------------------------------------------------------------
-	NODE_TYPE NodeImageTransform::Private::s_type =
-			NODE_TYPE( "ImageTransform", NodeImage::GetStaticType() );
+	FNodeType NodeImageTransform::Private::s_type =
+			FNodeType( "ImageTransform", NodeImage::GetStaticType() );
 
 	//---------------------------------------------------------------------------------------------
 

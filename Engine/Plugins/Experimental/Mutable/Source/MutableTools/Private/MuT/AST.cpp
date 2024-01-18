@@ -91,7 +91,7 @@ ASTChild& ASTChild::operator=( ASTChild&& rhs )
 //-------------------------------------------------------------------------------------------------
 void ASTOp::ForEachParent(const TFunctionRef<void(ASTOp*)> f) const
 {
-	for (auto& p : m_parents)
+	for (ASTOp* p : m_parents)
 	{
 		if (p)
 		{
@@ -224,7 +224,7 @@ mu::Ptr<ASTOp> ASTOp::DeepClone( const Ptr<ASTOp>& root )
     MapChildFunc m = [&](const Ptr<ASTOp>&n)
     {
         if (!n) return Ptr<ASTOp>();
-        auto it = visited.find(n);
+		std::unordered_map<Ptr<const ASTOp>, Ptr<ASTOp>>::const_iterator it = visited.find(n);
         check(it!=visited.end());
         return it->second;
     };
@@ -236,7 +236,7 @@ mu::Ptr<ASTOp> ASTOp::DeepClone( const Ptr<ASTOp>& root )
         visited[n] = cloned;
     });
 
-    auto it = visited.find(r);
+	std::unordered_map<Ptr<const ASTOp>, Ptr<ASTOp>>::const_iterator it = visited.find(r);
     check(it!=visited.end());
     return it->second;
 }
@@ -310,9 +310,9 @@ void ASTOp::LogHistogram( ASTOpList& roots )
 	//	{
 	//		if (n->GetOpType() == OP_TYPE::IM_MULTILAYER)
 	//		{
-	//			Ptr<const ASTOpImageMultiLayer> Typed = dynamic_cast<const ASTOpImageMultiLayer*>(n.get());
+	//			Ptr<const ASTOpImageMultiLayer> Typed = static_cast<const ASTOpImageMultiLayer*>(n.get());
 	//			Ptr<const ASTOp> Base = Typed->base.child();
-	//			Ptr<const ASTOpConstantResource> Constant = dynamic_cast<const ASTOpConstantResource*>(Base.get());
+	//			Ptr<const ASTOpConstantResource> Constant = static_cast<const ASTOpConstantResource*>(Base.get());
 
 	//			// Log the op
 	//			UE_LOG(LogMutableCore, Log, TEXT("Multilayer at %x:"), n.get());
@@ -340,7 +340,7 @@ void ASTOp::Traverse_TopDown_Unique( const TArray<Ptr<ASTOp>>& roots,
                                      TFunctionRef<bool(Ptr<ASTOp>&)> f )
 {
     TQueue<Ptr<ASTOp>> pending;
-	for (auto& r : roots)
+	for (const Ptr<ASTOp>& r : roots)
 	{
 		pending.Enqueue(r);
 	}
@@ -348,7 +348,7 @@ void ASTOp::Traverse_TopDown_Unique( const TArray<Ptr<ASTOp>>& roots,
     TSet<Ptr<const ASTOp>> traversed;
 
     // We record the parents of all roots as traversed
-    for ( const auto& r: roots )
+    for (const Ptr<ASTOp>& r: roots)
     {
         r->ForEachParent( [&]( const ASTOp* parent )
         {
@@ -415,7 +415,7 @@ void ASTOp::Traverse_TopDown_Unique_Imprecise( const TArray<Ptr<ASTOp>>& roots,
                                      TFunctionRef<bool(Ptr<ASTOp>&)> f )
 {
     TQueue<Ptr<ASTOp>> pending;
-	for (auto& r : roots)
+	for (const Ptr<ASTOp>& r : roots)
 	{
 		pending.Enqueue(r);
 	}
@@ -459,7 +459,7 @@ void ASTOp::Traverse_TopRandom_Unique_NonReentrant( const TArray<Ptr<ASTOp>>& ro
 
     uint32 traverseIndex = s_lastTraverseIndex++;
 
-    for (auto& r:roots)
+    for (const Ptr<ASTOp>& r:roots)
     {
         if (r && r->m_traverseIndex!=traverseIndex )
         {
@@ -467,7 +467,7 @@ void ASTOp::Traverse_TopRandom_Unique_NonReentrant( const TArray<Ptr<ASTOp>>& ro
             pending.Add( r );
         }
     }
-    for( auto& p : pending)
+    for(const Ptr<ASTOp>& p : pending)
     {
         p->m_traverseIndex = traverseIndex-1;
     }
@@ -532,13 +532,13 @@ void Visitor_TopDown_Unique_Cloning::Process()
 		if (item.Key)
         {
             // Item indicating we finished with all the children of this instruction
-			auto cop = at->Clone(Identity);
+			Ptr<ASTOp> cop = at->Clone(Identity);
 
             // Fix the references to the children
             bool childChanged = false;
             cop->ForEachChild( [&](ASTChild& ref)
             {
-                auto it = m_oldToNew.find(ref.m_child);
+				std::unordered_map<Ptr<ASTOp>, Ptr<ASTOp>>::iterator it = m_oldToNew.find(ref.m_child);
                 if ( ref && it!=m_oldToNew.end() && it->second.get()!=nullptr )
                 {
                     auto oldRef = ref.m_child;
@@ -559,21 +559,21 @@ void Visitor_TopDown_Unique_Cloning::Process()
         }
         else
         {
-            auto it = m_oldToNew.find(at);
+			std::unordered_map<Ptr<ASTOp>, Ptr<ASTOp>>::iterator it = m_oldToNew.find(at);
             if (it==m_oldToNew.end())
             {
-                auto initialAt = at;
+				Ptr<ASTOp> initialAt = at;
 
                 // Fix the references to the children, possibly adding a new instruction
                 {
-                    auto cop = at->Clone(Identity);
+					Ptr<ASTOp> cop = at->Clone(Identity);
                     bool childChanged = false;
                     cop->ForEachChild( [&](ASTChild& ref)
                     {
-                        auto ito = m_oldToNew.find(ref.m_child);
+						std::unordered_map<Ptr<ASTOp>, Ptr<ASTOp>>::iterator ito = m_oldToNew.find(ref.m_child);
                         if ( ref && ito!=m_oldToNew.end() && ito->second.get()!=nullptr )
                         {
-                            auto oldRef = ref.m_child;
+							Ptr<ASTOp> oldRef = ref.m_child;
                             ref=GetOldToNew(ref.m_child);
                             if (ref.m_child!=oldRef)
                             {
@@ -590,11 +590,11 @@ void Visitor_TopDown_Unique_Cloning::Process()
                     }
                 }
 
-                //auto test1 = at->Clone();
+                //Ptr<ASTOp> test1 = at->Clone();
                 //check(*test1==*at);
 
                 bool processChildren = true;
-                auto newAt = Visit( at, processChildren );
+				Ptr<ASTOp> newAt = Visit( at, processChildren );
                 m_oldToNew[initialAt]=newAt;
 
                 //check(*test1==*at);
@@ -663,8 +663,8 @@ void ASTOp::Traverse_BottomUp_Unique_NonReentrant
 {
     uint32 traverseIndex = s_lastTraverseIndex++;
 
-    TArray< std::pair<Ptr<ASTOp>,int> > pending;
-    for (auto& r:roots)
+    TArray< std::pair<Ptr<ASTOp>,int32> > pending;
+    for (Ptr<ASTOp>& r:roots)
     {
         if (r && r->m_traverseIndex!=traverseIndex )
         {
@@ -672,14 +672,14 @@ void ASTOp::Traverse_BottomUp_Unique_NonReentrant
             pending.Add( std::make_pair<>(r,0) );
         }
     }
-    for(auto& p : pending)
+    for(std::pair<Ptr<ASTOp>, int32>& p : pending)
     {
         p.first->m_traverseIndex = traverseIndex-1;
     }
 
     while (pending.Num())
     {
-        int phase = pending.Last().second;
+        int32 phase = pending.Last().second;
         Ptr<ASTOp> pCurrent = pending.Last().first;
         pending.Pop();
 
@@ -696,7 +696,7 @@ void ASTOp::Traverse_BottomUp_Unique_NonReentrant
                 {
                     if (c && c.m_child->m_traverseIndex!=traverseIndex )
                     {
-                        auto e = std::make_pair<>(c.m_child,0);
+						std::pair<Ptr<ASTOp>, int32> e = std::make_pair<>(c.m_child,0);
                         pending.Add( e );
                     }
                 });
@@ -725,8 +725,8 @@ void ASTOp::Traverse_BottomUp_Unique_NonReentrant
 {
     uint32 traverseIndex = s_lastTraverseIndex++;
 
-    TArray< std::pair<Ptr<ASTOp>,int> > pending;
-    for (auto& r:roots)
+    TArray< std::pair<Ptr<ASTOp>,int32> > pending;
+    for (Ptr<ASTOp>& r:roots)
     {
         if (r && r->m_traverseIndex!=traverseIndex)
         {
@@ -734,14 +734,14 @@ void ASTOp::Traverse_BottomUp_Unique_NonReentrant
             pending.Add( std::make_pair<>(r,0) );
         }
     }
-    for(auto& p : pending)
+    for(std::pair<Ptr<ASTOp>, int32>& p : pending)
     {
         p.first->m_traverseIndex = traverseIndex-1;
     }
 
     while (pending.Num())
     {
-        int phase = pending.Last().second;
+        int32 phase = pending.Last().second;
         Ptr<ASTOp> pCurrent = pending.Last().first;
         pending.Pop();
 
@@ -785,12 +785,12 @@ void ASTOp::Traverse_BottomUp_Unique
 )
 {
     TSet<Ptr<ASTOp>> Traversed;
-    TArray< std::pair<Ptr<ASTOp>,int> > Pending;
-    for (auto& r:roots)
+    TArray< std::pair<Ptr<ASTOp>,int32> > Pending;
+    for (Ptr<ASTOp>& r:roots)
     {
         if (r)
         {
-			auto It = Pending.FindByPredicate([&](const std::pair<Ptr<ASTOp>, int>& p)
+			std::pair<Ptr<ASTOp>, int32>* It = Pending.FindByPredicate([&](const std::pair<Ptr<ASTOp>, int>& p)
 				{
 					return r == p.first;
 				});
@@ -877,9 +877,9 @@ void ASTOp::Replace( const Ptr<ASTOp>& node, const Ptr<ASTOp>& other )
         return;
     }
 
-    auto parentsCopy = node->m_parents;
+	TArray<ASTOp*, TInlineAllocator<4> > parentsCopy = node->m_parents;
 
-    for(auto& p:parentsCopy)
+    for(ASTOp* p:parentsCopy)
     {
         if(p)
         {
@@ -976,7 +976,7 @@ void ASTOp::LinkRange(FProgram& program,
 				||
 				range.rangeSize->GetOpType() == OP_TYPE::NU_PARAMETER )
 			{
-				const ASTOpParameter* ParamOp = dynamic_cast<const ASTOpParameter*>(range.rangeSize.child().get());
+				const ASTOpParameter* ParamOp = static_cast<const ASTOpParameter*>(range.rangeSize.child().get());
 
 				EstimatedSizeParameter = ParamOp->LinkedParameterIndex;
 			}
@@ -1064,8 +1064,9 @@ void ASTOpFixed::Link( FProgram& program, FLinkerOptions* )
 
 bool ASTOpFixed::IsEqual(const ASTOp& otherUntyped) const
 {
-    if ( auto other = dynamic_cast<const ASTOpFixed*>(&otherUntyped) )
+    if (otherUntyped.GetOpType()==GetOpType())
     {
+		const ASTOpFixed* other = static_cast<const ASTOpFixed*>(&otherUntyped);
         return op==other->op && children==other->children;
     }
     return false;
@@ -1089,7 +1090,7 @@ mu::Ptr<ASTOp> ASTOpFixed::Clone( MapChildFuncRef mapChild ) const
 uint64 ASTOpFixed::Hash() const
 {
 	uint64 res = std::hash<uint64>()(uint64(op.type));
-    for (const auto& c: children)
+    for (const ASTChild& c: children)
     {
         hash_combine( res, c.child().get() );
     }
@@ -1285,7 +1286,7 @@ ASTOp::FBoolEvalResult ASTOpFixed::EvaluateBool( ASTOpList& facts, FEvaluateBool
     else
     {
         // Is this in the cache?
-        auto it = cache->find(this);
+		FEvaluateBoolCache::iterator it = cache->find(this);
         if (it!=cache->end())
         {
             return it->second;
@@ -1314,8 +1315,8 @@ ASTOp::FBoolEvalResult ASTOpFixed::EvaluateBool( ASTOpList& facts, FEvaluateBool
 
     case OP_TYPE::BO_EQUAL_INT_CONST:
     {
-        int intValue = op.args.BoolEqualScalarConst.constant;
-        const auto& intExp = children[op.args.BoolEqualScalarConst.value].child();
+        int32 intValue = op.args.BoolEqualScalarConst.constant;
+        const Ptr<ASTOp>& intExp = children[op.args.BoolEqualScalarConst.value].child();
         bool intUnknown = true;
         int intResult = intExp->EvaluateInt( facts, intUnknown );
         if (intUnknown)
@@ -1335,8 +1336,8 @@ ASTOp::FBoolEvalResult ASTOpFixed::EvaluateBool( ASTOpList& facts, FEvaluateBool
 
     case OP_TYPE::BO_AND:
     {
-        const auto& a = children[op.args.BoolBinary.a].child();
-        const auto& b = children[op.args.BoolBinary.b].child();
+        const Ptr<ASTOp>& a = children[op.args.BoolBinary.a].child();
+        const Ptr<ASTOp>& b = children[op.args.BoolBinary.b].child();
         FBoolEvalResult resultA = BET_UNKNOWN;
         FBoolEvalResult resultB = BET_UNKNOWN;
         for ( size_t f=0; f<facts.Num(); ++f )
@@ -1377,8 +1378,8 @@ ASTOp::FBoolEvalResult ASTOpFixed::EvaluateBool( ASTOpList& facts, FEvaluateBool
 
     case OP_TYPE::BO_OR:
     {
-        const auto& a = children[op.args.BoolBinary.a].child();
-        const auto& b = children[op.args.BoolBinary.b].child();
+        const Ptr<ASTOp>& a = children[op.args.BoolBinary.a].child();
+        const Ptr<ASTOp>& b = children[op.args.BoolBinary.b].child();
         FBoolEvalResult resultA = BET_UNKNOWN;
         FBoolEvalResult resultB = BET_UNKNOWN;
         for ( size_t f=0; f<facts.Num(); ++f )

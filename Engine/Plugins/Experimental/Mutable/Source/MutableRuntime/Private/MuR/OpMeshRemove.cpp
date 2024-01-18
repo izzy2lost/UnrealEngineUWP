@@ -62,9 +62,9 @@ namespace mu
 
     int FindPositionInIntervals( const TArray<ID_INTERVAL>& intervals, int32 id )
     {
-        for( const auto& interval: intervals )
+        for( const ID_INTERVAL& interval: intervals )
         {
-            int deltaId = id - interval.idStart;
+            int32 deltaId = id - interval.idStart;
             if (deltaId>=0 && deltaId<interval.size)
             {
                 return interval.idPosition+deltaId;

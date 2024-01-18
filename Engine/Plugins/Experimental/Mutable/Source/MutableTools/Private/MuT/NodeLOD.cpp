@@ -1,6 +1,5 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
-
 #include "MuT/NodeLOD.h"
 
 #include "Misc/AssertionMacros.h"
@@ -18,15 +17,14 @@ namespace mu
 	//---------------------------------------------------------------------------------------------
 	// Static initialisation
 	//---------------------------------------------------------------------------------------------
-	NODE_TYPE NodeLOD::Private::s_type =
-			NODE_TYPE( "LOD", NodeLOD::GetStaticType() );
+	FNodeType NodeLOD::Private::s_type = FNodeType( "LOD", Node::GetStaticType() );
 
 
 	//---------------------------------------------------------------------------------------------
 	//!
 	//---------------------------------------------------------------------------------------------
 
-	MUTABLE_IMPLEMENT_NODE( NodeLOD, EType::LOD, Node, Node::EType::LOD);
+	MUTABLE_IMPLEMENT_NODE( NodeLOD, EType::LOD, Node, Node::EType::None);
 
 
 	//---------------------------------------------------------------------------------------------

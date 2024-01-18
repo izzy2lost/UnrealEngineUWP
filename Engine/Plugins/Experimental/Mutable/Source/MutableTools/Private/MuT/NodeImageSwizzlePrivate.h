@@ -15,7 +15,7 @@ namespace mu
 	{
 	public:
 
-		static NODE_TYPE s_type;
+		static FNodeType s_type;
 
 		EImageFormat m_format;
 		TArray<NodeImagePtr> m_sources;

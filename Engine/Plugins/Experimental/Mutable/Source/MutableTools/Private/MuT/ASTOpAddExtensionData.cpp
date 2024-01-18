@@ -7,7 +7,6 @@
 #include "MuR/RefCounted.h"
 #include "MuT/StreamsPrivate.h"
 
-#include <utility>
 
 namespace mu
 {
@@ -31,8 +30,9 @@ ASTOpAddExtensionData::~ASTOpAddExtensionData()
 
 bool ASTOpAddExtensionData::IsEqual(const ASTOp& OtherUntyped) const
 {
-	if (const ASTOpAddExtensionData* Other = dynamic_cast<const ASTOpAddExtensionData*>(&OtherUntyped))
+	if (OtherUntyped.GetOpType() == GetOpType())
 	{
+		const ASTOpAddExtensionData* Other = static_cast<const ASTOpAddExtensionData*>(&OtherUntyped);
 		return Instance == Other->Instance
 			&& ExtensionData == Other->ExtensionData
 			&& ExtensionDataName == Other->ExtensionDataName;

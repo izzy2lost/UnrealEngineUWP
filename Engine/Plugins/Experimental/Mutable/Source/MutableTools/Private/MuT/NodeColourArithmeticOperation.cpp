@@ -15,8 +15,8 @@ namespace mu
 	//---------------------------------------------------------------------------------------------
 	// Static initialisation
 	//---------------------------------------------------------------------------------------------
-	NODE_TYPE NodeColourArithmeticOperation::Private::s_type =
-			NODE_TYPE( "ColourArithmenticOperation", NodeColour::GetStaticType() );
+	FNodeType NodeColourArithmeticOperation::Private::s_type =
+			FNodeType( "ColourArithmenticOperation", NodeColour::GetStaticType() );
 
 	//---------------------------------------------------------------------------------------------
 	//!

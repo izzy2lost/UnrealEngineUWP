@@ -1,15 +1,11 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
-
 #include "MuT/NodePatchImage.h"
 
 #include "Misc/AssertionMacros.h"
 #include "MuT/NodeImage.h"
 #include "MuT/NodePatchImagePrivate.h"
 #include "MuT/NodePrivate.h"
-
-#include <memory>
-#include <utility>
 
 
 namespace mu
@@ -19,15 +15,14 @@ namespace mu
     //---------------------------------------------------------------------------------------------
     // Static initialisation
     //---------------------------------------------------------------------------------------------
-    NODE_TYPE NodePatchImage::Private::s_type =
-            NODE_TYPE( "PatchTexture", NodePatchImage::GetStaticType() );
+    FNodeType NodePatchImage::Private::s_type = FNodeType( "PatchTexture", Node::GetStaticType() );
 
 
     //---------------------------------------------------------------------------------------------
     //!
     //---------------------------------------------------------------------------------------------
 
-    MUTABLE_IMPLEMENT_NODE( NodePatchImage, EType::PatchImage, Node, Node::EType::PatchImage);
+    MUTABLE_IMPLEMENT_NODE( NodePatchImage, EType::PatchImage, Node, Node::EType::None)
 
 
     //---------------------------------------------------------------------------------------------

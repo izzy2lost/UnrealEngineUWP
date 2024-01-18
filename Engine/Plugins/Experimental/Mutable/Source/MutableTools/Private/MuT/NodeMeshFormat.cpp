@@ -17,8 +17,8 @@ class FMeshBufferSet;
 	//---------------------------------------------------------------------------------------------
 	// Static initialisation
 	//---------------------------------------------------------------------------------------------
-	NODE_TYPE NodeMeshFormat::Private::s_type =
-			NODE_TYPE( "MeshFormat", NodeMesh::GetStaticType() );
+	FNodeType NodeMeshFormat::Private::s_type =
+			FNodeType( "MeshFormat", NodeMesh::GetStaticType() );
 
 
 	//---------------------------------------------------------------------------------------------
@@ -72,9 +72,7 @@ class FMeshBufferSet;
 
 		if ( m_pSource )
 		{
-			NodeMesh::Private* pPrivate =
-					dynamic_cast<NodeMesh::Private*>( m_pSource->GetBasePrivate() );
-
+			NodeMesh::Private* pPrivate = static_cast<NodeMesh::Private*>( m_pSource->GetBasePrivate() );
 			pResult = pPrivate->GetLayout( index );
 		}
 

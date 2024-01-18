@@ -31,8 +31,9 @@ namespace mu
 
 	bool ASTOpMeshGeometryOperation::IsEqual(const ASTOp& otherUntyped) const
 	{
-		if (auto other = dynamic_cast<const ASTOpMeshGeometryOperation*>(&otherUntyped))
+		if (otherUntyped.GetOpType() == GetOpType())
 		{
+			const ASTOpMeshGeometryOperation* other = static_cast<const ASTOpMeshGeometryOperation*>(&otherUntyped);
 			return meshA == other->meshA && meshB == other->meshB &&
 				scalarA == other->scalarA && scalarB == other->scalarB;
 		}

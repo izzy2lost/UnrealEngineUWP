@@ -35,8 +35,9 @@ namespace mu
 	//-------------------------------------------------------------------------------------------------
 	bool ASTOpImageLayerColor::IsEqual(const ASTOp& InOtherUntyped) const
 	{
-		if (const ASTOpImageLayerColor* Other = dynamic_cast<const ASTOpImageLayerColor*>(&InOtherUntyped))
+		if (InOtherUntyped.GetOpType()==GetOpType())
 		{
+			const ASTOpImageLayerColor* Other = static_cast<const ASTOpImageLayerColor*>(&InOtherUntyped);
 			return base == Other->base &&
 				color == Other->color &&
 				mask == Other->mask &&
@@ -209,7 +210,7 @@ namespace mu
 			{
 				if (color)
 				{
-					const ASTOpFixed* TypedColor = dynamic_cast<const ASTOpFixed*>(color.child().get());
+					const ASTOpFixed* TypedColor = static_cast<const ASTOpFixed*>(color.child().get());
 					const float* Value = TypedColor->op.args.ColourConstant.value;
 					ColorConst.Set(Value[0], Value[1], Value[2], Value[3]);
 				}
@@ -279,7 +280,7 @@ namespace mu
 			// Is the base a swizzle getting expanding alpha from the same texture?
 			if (base.child()->GetOpType() == OP_TYPE::IM_SWIZZLE)
 			{
-				const ASTOpImageSwizzle* TypedBase = dynamic_cast<const ASTOpImageSwizzle*>(base.child().get());
+				const ASTOpImageSwizzle* TypedBase = static_cast<const ASTOpImageSwizzle*>(base.child().get());
 				bool bAreAllSameAlpha = true;
 				Ptr<ASTOp> Source = nullptr;
 				for (int32 c = 0; c < MUTABLE_OP_MAX_SWIZZLE_CHANNELS; ++c)
@@ -358,7 +359,7 @@ namespace mu
 			// all switch branches become unique constants
 
 			// See if the blended has an identical switch, to optimise it too
-			const ASTOpSwitch* baseSwitch = dynamic_cast<const ASTOpSwitch*>(baseAt.get());
+			const ASTOpSwitch* baseSwitch = static_cast<const ASTOpSwitch*>(baseAt.get());
 
 			// Mask not supported yet
 			if (maskAt)

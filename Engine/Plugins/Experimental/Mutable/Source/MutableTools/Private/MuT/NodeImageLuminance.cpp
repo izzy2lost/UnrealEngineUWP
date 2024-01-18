@@ -14,8 +14,8 @@ namespace mu
 	//---------------------------------------------------------------------------------------------
 	// Static initialisation
 	//---------------------------------------------------------------------------------------------
-	NODE_TYPE NodeImageLuminance::Private::s_type =
-			NODE_TYPE( "ImageLuminance", NodeImage::GetStaticType() );
+	FNodeType NodeImageLuminance::Private::s_type =
+			FNodeType( "ImageLuminance", NodeImage::GetStaticType() );
 
 
 	//---------------------------------------------------------------------------------------------

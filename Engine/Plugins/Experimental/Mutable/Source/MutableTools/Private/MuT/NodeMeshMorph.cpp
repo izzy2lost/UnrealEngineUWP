@@ -1,6 +1,5 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
-
 #include "MuT/NodeMeshMorph.h"
 
 #include "Containers/Array.h"
@@ -19,7 +18,7 @@ namespace mu
 	//---------------------------------------------------------------------------------------------
 	// Static initialisation
 	//---------------------------------------------------------------------------------------------
-	NODE_TYPE NodeMeshMorph::Private::s_type = NODE_TYPE( "MeshMorph", NodeMesh::GetStaticType() );
+	FNodeType NodeMeshMorph::Private::s_type = FNodeType( "MeshMorph", NodeMesh::GetStaticType() );
 
 
 	//---------------------------------------------------------------------------------------------
@@ -102,9 +101,7 @@ namespace mu
 
 		if ( Base )
 		{
-			NodeMesh::Private* pPrivate =
-					dynamic_cast<NodeMesh::Private*>( Base->GetBasePrivate() );
-
+			NodeMesh::Private* pPrivate = static_cast<NodeMesh::Private*>( Base->GetBasePrivate() );
 			pResult = pPrivate->GetLayout( index );
 		}
 

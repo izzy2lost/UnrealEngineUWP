@@ -16,7 +16,7 @@ namespace mu
 	{
 	public:
 
-		static NODE_TYPE s_type;
+		static FNodeType s_type;
 
         NodeScalarPtr m_pSize;
         FString m_name;

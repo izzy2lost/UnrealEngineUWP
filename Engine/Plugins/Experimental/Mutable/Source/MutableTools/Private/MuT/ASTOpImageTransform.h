@@ -17,7 +17,7 @@ struct FProgram;
 	//---------------------------------------------------------------------------------------------
 	//!
 	//---------------------------------------------------------------------------------------------
-	class ASTOpImageTransform : public ASTOp
+	class ASTOpImageTransform final : public ASTOp
 	{
 	public:
 

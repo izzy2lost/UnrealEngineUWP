@@ -18,7 +18,7 @@ namespace mu
 	{
 	public:
 
-		static NODE_TYPE s_type;
+		static FNodeType s_type;
 
 		float m_defaultValue = 0.0f;
 		FString m_name;

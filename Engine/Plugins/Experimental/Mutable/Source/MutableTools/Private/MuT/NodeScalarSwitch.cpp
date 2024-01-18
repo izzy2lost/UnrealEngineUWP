@@ -18,8 +18,8 @@ namespace mu
 	//---------------------------------------------------------------------------------------------
 	// Static initialisation
 	//---------------------------------------------------------------------------------------------
-    NODE_TYPE NodeScalarSwitch::Private::s_type =
-            NODE_TYPE( "ScalarSwitch", NodeScalar::GetStaticType() );
+    FNodeType NodeScalarSwitch::Private::s_type =
+            FNodeType( "ScalarSwitch", NodeScalar::GetStaticType() );
 
 
 	//---------------------------------------------------------------------------------------------

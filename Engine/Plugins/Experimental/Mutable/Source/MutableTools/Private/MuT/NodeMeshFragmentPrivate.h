@@ -21,7 +21,7 @@ namespace mu
             m_layoutOrGroup = -1;
 		}
 
-		static NODE_TYPE s_type;
+		static FNodeType s_type;
 
 		NodeMeshPtr m_pMesh;
         int m_layoutOrGroup;

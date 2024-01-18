@@ -101,7 +101,7 @@ namespace mu
         {
             if (packedFlag[b])
             {
-                auto i = scratch.sorted[b].index;
+				int32 i = scratch.sorted[b].index;
                 if ( x>=scratch.positions[i][0] &&
                      x<scratch.positions[i][0]+scratch.sorted[b].size[0] &&
                      y>=scratch.positions[i][1] &&

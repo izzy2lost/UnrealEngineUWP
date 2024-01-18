@@ -110,37 +110,22 @@ namespace mu
 
 				case OP_TYPE::ME_CONSTANT:
 				{
-					auto typedNode = dynamic_cast<ASTOpConstantResource*>(n.get());
-					check(typedNode);
-
-					if (typedNode)
-					{
-						AllMeshOps.Add(typedNode);
-					}
+					ASTOpConstantResource* typedNode = static_cast<ASTOpConstantResource*>(n.get());
+					AllMeshOps.Add(typedNode);
 					break;
 				}
 
 				case OP_TYPE::IM_CONSTANT:
 				{
-					auto typedNode = dynamic_cast<ASTOpConstantResource*>(n.get());
-					check(typedNode);
-
-					if (typedNode)
-					{
-						AllImageOps.Add(typedNode);
-					}
+					ASTOpConstantResource* typedNode = static_cast<ASTOpConstantResource*>(n.get());
+					AllImageOps.Add(typedNode);
 					break;
 				}
 
 				case OP_TYPE::LA_CONSTANT:
 				{
-					auto typedNode = dynamic_cast<ASTOpConstantResource*>(n.get());
-					check(typedNode);
-
-					if (typedNode)
-					{
-						AllLayoutOps.Add(typedNode);
-					}
+					ASTOpConstantResource* typedNode = static_cast<ASTOpConstantResource*>(n.get());
+					AllLayoutOps.Add(typedNode);
 					break;
 				}
 
@@ -736,9 +721,9 @@ namespace mu
 	//                }
 
 	//                else
-					if (n->GetOpType()==OP_TYPE::IM_RASTERMESH)
+				if (n->GetOpType()==OP_TYPE::IM_RASTERMESH)
 				{
-					const ASTOpImageRasterMesh* Raster = dynamic_cast<const ASTOpImageRasterMesh*>(n.get());
+					const ASTOpImageRasterMesh* Raster = static_cast<const ASTOpImageRasterMesh*>(n.get());
 					if ( !Raster->image )
 					{
 						specialCase = true;
@@ -954,8 +939,7 @@ namespace mu
 
 			case OP_TYPE::ME_CONSTANT:
 			{
-				mu::Ptr<ASTOpConstantResource> typedOp = dynamic_cast<ASTOpConstantResource*>(node.get());
-				check(typedOp);
+				mu::Ptr<ASTOpConstantResource> typedOp = static_cast<ASTOpConstantResource*>(node.get());
 
 				if (currentProtected)
 				{
@@ -972,17 +956,12 @@ namespace mu
 
 			case OP_TYPE::ME_CLIPMORPHPLANE:
 			{
-				auto typedOp = dynamic_cast<ASTOpMeshClipMorphPlane*>(node.get());
-				if (typedOp)
+				ASTOpMeshClipMorphPlane* typedOp = static_cast<ASTOpMeshClipMorphPlane*>(node.get());
+				if (typedOp->vertexSelectionType == OP::MeshClipMorphPlaneArgs::VS_BONE_HIERARCHY)
 				{
-					if (typedOp->vertexSelectionType
-							==
-							OP::MeshClipMorphPlaneArgs::VS_BONE_HIERARCHY)
-					{
-						// We need the skeleton for the source mesh
-						RecurseWithState( typedOp->source.child(), true );
-						return false;
-					}
+					// We need the skeleton for the source mesh
+					RecurseWithState( typedOp->source.child(), true );
+					return false;
 				}
 
 				return true;
@@ -990,26 +969,20 @@ namespace mu
 
 			case OP_TYPE::ME_APPLYPOSE:
 			{
-				auto typedOp = dynamic_cast<ASTOpMeshApplyPose*>(node.get());
-				check(typedOp);
+				ASTOpMeshApplyPose* typedOp = static_cast<ASTOpMeshApplyPose*>(node.get());
 
-				if (typedOp)
-				{
-					// We need the skeleton for both meshes
-					RecurseWithState(typedOp->base.child(), true);
-					RecurseWithState(typedOp->pose.child(), true);
-					return false;
-				}
+				// We need the skeleton for both meshes
+				RecurseWithState(typedOp->base.child(), true);
+				RecurseWithState(typedOp->pose.child(), true);
+				return false;
 
 				break;
 			}
 
 			case OP_TYPE::ME_BINDSHAPE:
 			{
-				auto typedOp = dynamic_cast<ASTOpMeshBindShape*>(node.get());
-				check(typedOp);
-
-				if (typedOp && typedOp->bReshapeSkeleton)
+				ASTOpMeshBindShape* typedOp = static_cast<ASTOpMeshBindShape*>(node.get());
+				if (typedOp->bReshapeSkeleton)
 				{
 					RecurseWithState(typedOp->Mesh.child(), true);
 					return false;
@@ -1020,10 +993,8 @@ namespace mu
 
 			case OP_TYPE::ME_APPLYSHAPE:
 			{
-				auto typedOp = dynamic_cast<ASTOpMeshApplyShape*>(node.get());
-				check(typedOp);
-
-				if (typedOp && typedOp->bReshapeSkeleton)
+				ASTOpMeshApplyShape* typedOp = static_cast<ASTOpMeshApplyShape*>(node.get());
+				if (typedOp->bReshapeSkeleton)
 				{
 					RecurseWithState(typedOp->Mesh.child(), true);
 					return false;
@@ -1045,13 +1016,13 @@ namespace mu
 	//---------------------------------------------------------------------------------------------
 	// This stores an ADD_MESH op with the child meshes collected and the final skeleton to use
 	// for this op.
-	struct ADDMESH_SKELETON
+	struct FAddMeshSkeleton
 	{
 		mu::Ptr<ASTOp> m_pAddMeshOp;
 		TArray<mu::Ptr<ASTOpConstantResource>> m_contributingMeshes;
 		mu::Ptr<Skeleton> m_pFinalSkeleton;
 
-		ADDMESH_SKELETON( const mu::Ptr<ASTOp>& pAddMeshOp,
+		FAddMeshSkeleton( const mu::Ptr<ASTOp>& pAddMeshOp,
 						  TArray<mu::Ptr<ASTOpConstantResource>>& contributingMeshes,
 						  const mu::Ptr<Skeleton>& pFinalSkeleton )
 		{
@@ -1069,7 +1040,7 @@ namespace mu
 		// that require it.
 		CollectAllMeshesForSkeletonVisitorAST requireSkeletonCollector( roots );
 
-		TArray<ADDMESH_SKELETON> replacementsFound;
+		TArray<FAddMeshSkeleton> replacementsFound;
 
 		ASTOp::Traverse_TopDown_Unique_Imprecise( roots, [&](mu::Ptr<ASTOp>& at )
 		{
@@ -1078,7 +1049,7 @@ namespace mu
 
 			if ( at->GetOpType() == OP_TYPE::IN_ADDMESH )
 			{
-				auto typedNode = dynamic_cast<ASTOpInstanceAdd*>(at.get());
+				ASTOpInstanceAdd* typedNode = static_cast<ASTOpInstanceAdd*>(at.get());
 				mu::Ptr<ASTOp> meshRoot = typedNode->value.child();
 
 				if (meshRoot)
@@ -1092,9 +1063,7 @@ namespace mu
 						// \todo: refine to avoid instruction branches with irrelevant skeletons.
 						if ( lat->GetOpType() == OP_TYPE::ME_CONSTANT )
 						{
-							mu::Ptr<ASTOpConstantResource> typedOp = dynamic_cast<ASTOpConstantResource*>(lat.get());
-							check(typedOp);
-
+							mu::Ptr<ASTOpConstantResource> typedOp = static_cast<ASTOpConstantResource*>(lat.get());
 							if ( subtreeMeshes.Find(typedOp)
 								 ==
 								 INDEX_NONE )
@@ -1130,14 +1099,9 @@ namespace mu
 		{
 			if (at->GetOpType()==OP_TYPE::ME_CONSTANT)
 			{
-				auto typedOp = dynamic_cast<ASTOpConstantResource*>(at.get());
-				check(typedOp);
-				if (!typedOp)
-				{
-					return true;
-				}
+				ASTOpConstantResource* typedOp = static_cast<ASTOpConstantResource*>(at.get());
 
-				for(ADDMESH_SKELETON& Rep: replacementsFound) 
+				for(FAddMeshSkeleton& Rep: replacementsFound)
 				{
 					if (Rep.m_contributingMeshes.Contains(at))
 					{
@@ -1294,7 +1258,7 @@ namespace mu
 			{
 				if (n->GetOpType()==OP_TYPE::ME_CONSTANT)
 				{
-					auto typed = dynamic_cast<ASTOpConstantResource*>(n.get());
+					ASTOpConstantResource* typed = static_cast<ASTOpConstantResource*>(n.get());
 					auto pMesh = static_cast<const Mesh*>(typed->GetValue().get());
 					pMesh->ResetStaticFormatFlags();
 					typed->SetValue( pMesh,

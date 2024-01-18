@@ -259,7 +259,7 @@ namespace mu
 		template<>															\
         void DLLEXPORT operator<< <T>( OutputArchive& arch, const T& t )	\
 		{																	\
-            auto v = (uint32)t;                                         	\
+            uint32 v = (uint32)t;                                         	\
             arch.GetPrivate()->m_pStream->Write( &v, sizeof(uint32) );  	\
 		}																	\
 																			\

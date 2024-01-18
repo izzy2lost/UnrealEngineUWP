@@ -18,7 +18,7 @@ namespace mu
 	{
 	public:
 
-		static NODE_TYPE s_type;
+		static FNodeType s_type;
 
 		NodeScalarPtr m_pFactor;
 		TArray<NodeMeshPtr> m_targets;

@@ -950,7 +950,7 @@ namespace mu
 			{
 			case MBF_NUINT8:
 			{
-				auto pTypedSource = reinterpret_cast<const uint8*>(pSource);
+				const uint8* pTypedSource = reinterpret_cast<const uint8*>(pSource);
 				pTypedResult[channel] = pTypedSource[channel];
 				break;
 			}
@@ -1015,7 +1015,7 @@ namespace mu
 			{
 			case MBF_NUINT16:
 			{
-				auto pTypedSource = reinterpret_cast<const uint16*>(pSource);
+				const uint16* pTypedSource = reinterpret_cast<const uint16*>(pSource);
 				pTypedResult[channel] = pTypedSource[channel];
 				break;
 			}

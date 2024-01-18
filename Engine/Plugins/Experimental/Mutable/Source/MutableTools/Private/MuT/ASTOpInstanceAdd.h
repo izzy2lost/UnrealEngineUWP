@@ -16,7 +16,7 @@ struct FProgram;
 	//---------------------------------------------------------------------------------------------
 	//! Operations to add elements to an instance
 	//---------------------------------------------------------------------------------------------
-	class ASTOpInstanceAdd : public ASTOp
+	class ASTOpInstanceAdd final : public ASTOp
 	{
 	public:
 

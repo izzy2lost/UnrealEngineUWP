@@ -17,8 +17,7 @@ namespace mu
 	//---------------------------------------------------------------------------------------------
 	// Static initialisation
 	//---------------------------------------------------------------------------------------------
-    NODE_TYPE NodeScalarCurve::Private::s_type =
-            NODE_TYPE( "Curve", NodeScalarCurve::GetStaticType() );
+    FNodeType NodeScalarCurve::Private::s_type = FNodeType( "Curve", NodeScalar::GetStaticType() );
 
 
 	//---------------------------------------------------------------------------------------------

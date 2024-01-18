@@ -16,7 +16,7 @@ namespace mu
 	//---------------------------------------------------------------------------------------------
 	//! Variable sized mesh block extract operation.
 	//---------------------------------------------------------------------------------------------
-	class ASTOpMeshExtractLayoutBlocks : public ASTOp
+	class ASTOpMeshExtractLayoutBlocks final : public ASTOp
 	{
 	public:
 

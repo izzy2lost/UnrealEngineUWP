@@ -16,9 +16,6 @@
 #include "MuR/Types.h"
 #include "MuT/StreamsPrivate.h"
 
-#include <memory>
-#include <utility>
-
 
 namespace mu
 {
@@ -34,8 +31,9 @@ namespace mu
 	//-------------------------------------------------------------------------------------------------
 	bool ASTOpConstantResource::IsEqual(const ASTOp& otherUntyped) const
 	{
-		if (const ASTOpConstantResource* other = dynamic_cast<const ASTOpConstantResource*>(&otherUntyped))
+		if (otherUntyped.GetOpType()==GetOpType())
 		{
+			const ASTOpConstantResource* other = static_cast<const ASTOpConstantResource*>(&otherUntyped);
 			return type == other->type && hash == other->hash &&
 				loadedValue == other->loadedValue && proxy == other->proxy;
 		}
@@ -435,7 +433,7 @@ namespace mu
 
 			case OP_TYPE::IM_CONSTANT:
 			{
-				Ptr<ResourceProxy<Image>> typedProxy = dynamic_cast<ResourceProxy<Image>*>(proxy.get());
+				Ptr<ResourceProxy<Image>> typedProxy = static_cast<ResourceProxy<Image>*>(proxy.get());
 				Ptr<const Image> r = typedProxy->Get();
 				return r;
 			}

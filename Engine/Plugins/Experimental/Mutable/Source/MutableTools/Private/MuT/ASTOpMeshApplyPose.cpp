@@ -33,8 +33,9 @@ namespace mu
 
 	bool ASTOpMeshApplyPose::IsEqual(const ASTOp& otherUntyped) const
 	{
-		if (auto other = dynamic_cast<const ASTOpMeshApplyPose*>(&otherUntyped))
+		if (otherUntyped.GetOpType()==GetOpType())
 		{
+			const ASTOpMeshApplyPose* other = static_cast<const ASTOpMeshApplyPose*>(&otherUntyped);
 			return base == other->base &&
 				pose == other->pose;
 		}

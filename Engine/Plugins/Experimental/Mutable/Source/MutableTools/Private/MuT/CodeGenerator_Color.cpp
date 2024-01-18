@@ -48,9 +48,6 @@
 #include "MuT/Table.h"
 #include "MuT/TablePrivate.h"
 
-#include <memory>
-#include <utility>
-
 
 namespace mu
 {
@@ -77,36 +74,44 @@ namespace mu
 		}
 
 		// Generate for each different type of node
-		if (auto Constant = dynamic_cast<const NodeColourConstant*>(Untyped.get()))
+		if (Untyped->GetType()==NodeColourConstant::GetStaticType())
 		{
+			const NodeColourConstant* Constant = static_cast<const NodeColourConstant*>(Untyped.get());
 			GenerateColor_Constant(Result, Options, Constant);
 		}
-		else if (auto Param = dynamic_cast<const NodeColourParameter*>(Untyped.get()))
+		else if (Untyped->GetType() == NodeColourParameter::GetStaticType())
 		{
+			const NodeColourParameter* Param = static_cast<const NodeColourParameter*>(Untyped.get());
 			GenerateColor_Parameter(Result, Options, Param);
 		}
-		else if (auto Switch = dynamic_cast<const NodeColourSwitch*>(Untyped.get()))
+		else if (Untyped->GetType() == NodeColourSwitch::GetStaticType())
 		{
+			const NodeColourSwitch* Switch = static_cast<const NodeColourSwitch*>(Untyped.get());
 			GenerateColor_Switch(Result, Options, Switch);
 		}
-		else if (auto Sample = dynamic_cast<const NodeColourSampleImage*>(Untyped.get()))
+		else if (Untyped->GetType() == NodeColourSampleImage::GetStaticType())
 		{
+			const NodeColourSampleImage* Sample = static_cast<const NodeColourSampleImage*>(Untyped.get());
 			GenerateColor_SampleImage(Result, Options, Sample);
 		}
-		else if (auto From = dynamic_cast<const NodeColourFromScalars*>(Untyped.get()))
+		else if (Untyped->GetType() == NodeColourFromScalars::GetStaticType())
 		{
+			const NodeColourFromScalars* From = static_cast<const NodeColourFromScalars*>(Untyped.get());
 			GenerateColor_FromScalars(Result, Options, From);
 		}
-		else if (auto Arithmetic = dynamic_cast<const NodeColourArithmeticOperation*>(Untyped.get()))
+		else if (Untyped->GetType() == NodeColourArithmeticOperation::GetStaticType())
 		{
+			const NodeColourArithmeticOperation* Arithmetic = static_cast<const NodeColourArithmeticOperation*>(Untyped.get());
 			GenerateColor_Arithmetic(Result, Options, Arithmetic);
 		}
-		else if (auto Variation = dynamic_cast<const NodeColourVariation*>(Untyped.get()))
+		else if (Untyped->GetType() == NodeColourVariation::GetStaticType())
 		{
+			const NodeColourVariation* Variation = static_cast<const NodeColourVariation*>(Untyped.get());
 			GenerateColor_Variation(Result, Options, Variation);
 		}
-		else if (auto Table = dynamic_cast<const NodeColourTable*>(Untyped.get()))
+		else if (Untyped->GetType() == NodeColourTable::GetStaticType())
 		{
+			const NodeColourTable* Table = static_cast<const NodeColourTable*>(Untyped.get());
 			GenerateColor_Table(Result, Options, Table);
 		}
 		else

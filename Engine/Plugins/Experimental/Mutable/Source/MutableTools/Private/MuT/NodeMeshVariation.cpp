@@ -13,8 +13,8 @@ namespace mu
     //---------------------------------------------------------------------------------------------
     // Static initialisation
     //---------------------------------------------------------------------------------------------
-    NODE_TYPE NodeMeshVariation::Private::s_type =
-        NODE_TYPE( "MeshVariation", NodeMesh::GetStaticType() );
+    FNodeType NodeMeshVariation::Private::s_type =
+        FNodeType( "MeshVariation", NodeMesh::GetStaticType() );
 
 
     //---------------------------------------------------------------------------------------------

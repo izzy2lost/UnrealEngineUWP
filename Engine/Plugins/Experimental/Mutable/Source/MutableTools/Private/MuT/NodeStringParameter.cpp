@@ -16,8 +16,8 @@ namespace mu
 	//---------------------------------------------------------------------------------------------
 	// Static initialisation
 	//---------------------------------------------------------------------------------------------
-	NODE_TYPE NodeStringParameter::Private::s_type =
-			NODE_TYPE( "StringParameter", NodeString::GetStaticType() );
+	FNodeType NodeStringParameter::Private::s_type =
+			FNodeType( "StringParameter", NodeString::GetStaticType() );
 
 
 	//---------------------------------------------------------------------------------------------

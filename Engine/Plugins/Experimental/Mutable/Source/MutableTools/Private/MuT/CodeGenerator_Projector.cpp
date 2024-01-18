@@ -20,9 +20,6 @@
 #include "MuT/NodeRange.h"
 #include "map"
 
-#include <memory>
-#include <utility>
-
 
 namespace mu
 {

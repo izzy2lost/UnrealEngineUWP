@@ -15,8 +15,8 @@ namespace mu
 	//---------------------------------------------------------------------------------------------
 	// Static initialisation
 	//---------------------------------------------------------------------------------------------
-    NODE_TYPE NodeModifierMeshClipWithUVMask::Private::s_type =
-            NODE_TYPE( "NodeModifierMeshClipWithUVMask", NodeModifier::GetStaticType() );
+    FNodeType NodeModifierMeshClipWithUVMask::Private::s_type =
+            FNodeType( "NodeModifierMeshClipWithUVMask", NodeModifier::GetStaticType() );
 
 
 	//---------------------------------------------------------------------------------------------

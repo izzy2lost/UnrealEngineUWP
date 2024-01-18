@@ -15,8 +15,8 @@ namespace mu
 	//---------------------------------------------------------------------------------------------
 	// Static initialisation
 	//---------------------------------------------------------------------------------------------
-    NODE_TYPE NodeImageMipmap::Private::s_type =
-            NODE_TYPE( "ImageMipmap", NodeImage::GetStaticType() );
+    FNodeType NodeImageMipmap::Private::s_type =
+            FNodeType( "ImageMipmap", NodeImage::GetStaticType() );
 
 
 	//---------------------------------------------------------------------------------------------

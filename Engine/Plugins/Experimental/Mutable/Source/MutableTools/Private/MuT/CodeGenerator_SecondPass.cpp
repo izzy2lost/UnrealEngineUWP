@@ -23,10 +23,6 @@ namespace mu
 		check(options);
 		m_pFirstPass = firstPass;
 		m_pCompilerOptions = options;
-
-		// Default conditions when there is no restriction accumulated.
-		CONDITION_CONTEXT noCondition;
-		m_currentCondition.push_back(noCondition);
 	}
 
 
@@ -102,8 +98,9 @@ namespace mu
 				negTag);
 
 			// If the surface is a constant false, we can skip adding it
-			if (auto* constOp = dynamic_cast<const ASTOpConstantBool*>(surfCondition.get()))
+			if (surfCondition && surfCondition->GetOpType()==OP_TYPE::BO_CONSTANT)
 			{
+				const ASTOpConstantBool* constOp = static_cast<const ASTOpConstantBool*>(surfCondition.get());
 				if (constOp->value == false)
 				{
 					continue;
@@ -279,13 +276,14 @@ namespace mu
 			// If the tag is a constant ...
 			bool isConstant = false;
 			bool constantValue = false;
-			if (auto* constOp = dynamic_cast<const ASTOpConstantBool*>(tagCondition.get()))
+			if (tagCondition->GetOpType()==OP_TYPE::BO_CONSTANT)
 			{
+				const ASTOpConstantBool* constOp = static_cast<const ASTOpConstantBool*>(tagCondition.get());
 				isConstant = true;
 				constantValue = constOp->value;
 			}
 
-			if (tagCondition && !isConstant)
+			if (!isConstant)
 			{
 				if (!c)
 				{
@@ -343,8 +341,9 @@ namespace mu
 			// If the tag is a constant ...
 			bool isConstant = false;
 			bool constantValue = false;
-			if (auto* constOp = dynamic_cast<const ASTOpConstantBool*>(tagCondition.get()))
+			if (tagCondition && tagCondition->GetOpType()== OP_TYPE::BO_CONSTANT)
 			{
+				const ASTOpConstantBool* constOp = static_cast<const ASTOpConstantBool*>(tagCondition.get());
 				isConstant = true;
 				constantValue = constOp->value;
 			}
@@ -416,8 +415,9 @@ namespace mu
 			// If the tag is a constant ...
 			bool isConstant = false;
 			bool constantValue = false;
-			if (auto* constOp = dynamic_cast<const ASTOpConstantBool*>(tagCondition.get()))
+			if (tagCondition && tagCondition->GetOpType() == OP_TYPE::BO_CONSTANT)
 			{
+				const ASTOpConstantBool* constOp = static_cast<const ASTOpConstantBool*>(tagCondition.get());
 				isConstant = true;
 				constantValue = constOp->value;
 			}
@@ -474,8 +474,9 @@ namespace mu
 				// If the tag is a constant ...
 				bool isConstant = false;
 				bool constantValue = false;
-				if (auto* constOp = dynamic_cast<const ASTOpConstantBool*>(tagCondition.get()))
+				if (tagCondition && tagCondition->GetOpType() == OP_TYPE::BO_CONSTANT)
 				{
+					const ASTOpConstantBool* constOp = static_cast<const ASTOpConstantBool*>(tagCondition.get());
 					isConstant = true;
 					constantValue = constOp->value;
 				}

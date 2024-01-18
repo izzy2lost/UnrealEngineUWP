@@ -21,8 +21,9 @@ namespace mu
 	//-------------------------------------------------------------------------------------------------
 	bool ASTOpReferenceResource::IsEqual(const ASTOp& otherUntyped) const
 	{
-		if (const ASTOpReferenceResource* other = dynamic_cast<const ASTOpReferenceResource*>(&otherUntyped))
+		if (otherUntyped.GetOpType() == GetOpType())
 		{
+			const ASTOpReferenceResource* other = static_cast<const ASTOpReferenceResource*>(&otherUntyped);
 			return type == other->type && ID == other->ID && bForceLoad == other->bForceLoad && ImageDesc == other->ImageDesc;
 		}
 		return false;

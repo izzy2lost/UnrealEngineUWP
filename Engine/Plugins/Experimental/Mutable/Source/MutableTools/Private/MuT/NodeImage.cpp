@@ -1,6 +1,5 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
-
 #include "MuT/NodeImage.h"
 
 #include "Misc/AssertionMacros.h"
@@ -38,7 +37,7 @@ namespace mu
 	//---------------------------------------------------------------------------------------------
 	// Static initialisation
 	//---------------------------------------------------------------------------------------------
-	static NODE_TYPE s_nodeImageType = 	NODE_TYPE( "NodeImage", Node::GetStaticType() );
+	static FNodeType s_nodeImageType = 	FNodeType( "NodeImage", Node::GetStaticType() );
 
 
 	//---------------------------------------------------------------------------------------------
@@ -103,14 +102,14 @@ namespace mu
 
 
 	//---------------------------------------------------------------------------------------------
-	const NODE_TYPE* NodeImage::GetType() const
+	const FNodeType* NodeImage::GetType() const
 	{
 		return GetStaticType();
 	}
 
 
 	//---------------------------------------------------------------------------------------------
-	const NODE_TYPE* NodeImage::GetStaticType()
+	const FNodeType* NodeImage::GetStaticType()
 	{
 		return &s_nodeImageType;
 	}

@@ -14,8 +14,8 @@ namespace mu
 	//---------------------------------------------------------------------------------------------
 	// Static initialisation
 	//---------------------------------------------------------------------------------------------
-	NODE_TYPE NodeScalarConstant::Private::s_type =
-			NODE_TYPE( "ScalarConstant", NodeScalar::GetStaticType() );
+	FNodeType NodeScalarConstant::Private::s_type =
+			FNodeType( "ScalarConstant", NodeScalar::GetStaticType() );
 
 
 	//---------------------------------------------------------------------------------------------

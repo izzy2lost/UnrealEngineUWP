@@ -39,8 +39,9 @@ namespace mu
 	//-------------------------------------------------------------------------------------------------
 	bool ASTOpImageTransform::IsEqual(const ASTOp& OtherUntyped) const
 	{
-		if (auto Other = dynamic_cast<const ASTOpImageTransform*>(&OtherUntyped))
+		if (OtherUntyped.GetOpType()==GetOpType())
 		{
+			auto Other = static_cast<const ASTOpImageTransform*>(&OtherUntyped);
 			return 
 				Base 	 == Other->Base &&
 				OffsetX  == Other->OffsetX &&

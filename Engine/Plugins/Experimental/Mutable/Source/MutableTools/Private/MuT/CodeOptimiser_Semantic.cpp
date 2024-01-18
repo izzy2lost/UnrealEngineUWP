@@ -102,7 +102,7 @@ namespace mu
             }
             else if ( aAt->GetOpType() == OP_TYPE::BO_CONSTANT )
             {
-                if ( dynamic_cast<const ASTOpConstantBool*>(aAt.get())->value )
+                if (static_cast<const ASTOpConstantBool*>(aAt.get())->value)
                 {
                     at = bAt;
                     changed = true;
@@ -115,7 +115,7 @@ namespace mu
             }
             else if ( bAt->GetOpType() == OP_TYPE::BO_CONSTANT )
             {
-                if ( dynamic_cast<const ASTOpConstantBool*>(bAt.get())->value )
+                if (static_cast<const ASTOpConstantBool*>(bAt.get())->value)
                 {
                     at = aAt;
                     changed = true;
@@ -130,7 +130,7 @@ namespace mu
             // Common cases of repeated branch in children
             else if ( aAt->GetOpType() == type )
             {
-                auto typedA = dynamic_cast<const ASTOpFixed*>(aAt.get());
+				const ASTOpFixed* typedA = static_cast<const ASTOpFixed*>(aAt.get());
                 if ( typedA->children[typedA->op.args.BoolBinary.a].child()==bAt
                      ||
                      typedA->children[typedA->op.args.BoolBinary.b].child()==bAt )
@@ -141,7 +141,7 @@ namespace mu
             }
             else if ( bAt->GetOpType() == type )
             {
-                auto typedB = dynamic_cast<const ASTOpFixed*>(bAt.get());
+				const ASTOpFixed* typedB = static_cast<const ASTOpFixed*>(bAt.get());
                 if ( typedB->children[typedB->op.args.BoolBinary.b].child()==aAt
                      ||
                      typedB->children[typedB->op.args.BoolBinary.b].child()==bAt )
@@ -184,7 +184,7 @@ namespace mu
             }
             else if ( aAt->GetOpType() == OP_TYPE::BO_CONSTANT )
             {
-                if ( dynamic_cast<const ASTOpConstantBool*>(aAt.get())->value )
+                if (static_cast<const ASTOpConstantBool*>(aAt.get())->value)
                 {
                     at = aAt;
                     changed = true;
@@ -197,7 +197,7 @@ namespace mu
             }
             else if ( bAt->GetOpType() == OP_TYPE::BO_CONSTANT )
             {
-                if ( dynamic_cast<const ASTOpConstantBool*>(bAt.get())->value )
+                if (static_cast<const ASTOpConstantBool*>(bAt.get())->value)
                 {
                     at = bAt;
                     changed = true;
@@ -212,7 +212,7 @@ namespace mu
             // Common cases of repeated branch in children
             else if ( aAt->GetOpType() == type )
             {
-                auto typedA = dynamic_cast<const ASTOpFixed*>(aAt.get());
+				const ASTOpFixed* typedA = static_cast<const ASTOpFixed*>(aAt.get());
                 if ( typedA->children[typedA->op.args.BoolBinary.a].child()==bAt
                      ||
                      typedA->children[typedA->op.args.BoolBinary.b].child()==bAt )
@@ -223,7 +223,7 @@ namespace mu
             }
             else if ( bAt->GetOpType() == type )
             {
-                auto typedB = dynamic_cast<const ASTOpFixed*>(bAt.get());
+				const ASTOpFixed* typedB = static_cast<const ASTOpFixed*>(bAt.get());
                 if ( typedB->children[typedB->op.args.BoolBinary.b].child()==aAt
                      ||
                      typedB->children[typedB->op.args.BoolBinary.b].child()==bAt )
@@ -274,7 +274,7 @@ namespace mu
 						{
 							NewAt = mu::Clone<ASTOpFixed>(this);
 						}
-						const ASTOpFixed* TypedCandidate = dynamic_cast<const ASTOpFixed*>(Candidate.get());
+						const ASTOpFixed* TypedCandidate = static_cast<const ASTOpFixed*>(Candidate.get());
 						int32 CandidateChannel = op.args.ColourSwizzle.sourceChannels[ChannelIndex];
 
 						NewAt->SetChild(NewAt->op.args.ColourSwizzle.sources[ChannelIndex], TypedCandidate->children[TypedCandidate->op.args.ColourSwizzle.sources[CandidateChannel]]);
@@ -329,9 +329,10 @@ namespace mu
 
 						for (int32 ChannelIndex = 0; ChannelIndex < MUTABLE_OP_MAX_SWIZZLE_CHANNELS; ++ChannelIndex)
 						{
-							const ASTOpFixed* SelectedSource = dynamic_cast<const ASTOpFixed*>(children[op.args.ColourSwizzle.sources[ChannelIndex]].child().get());
-							if (SelectedSource)
+							const ASTOp* SelectedSourceGeneric = children[op.args.ColourSwizzle.sources[ChannelIndex]].child().get();
+							if (SelectedSourceGeneric)
 							{
+								const ASTOpFixed* SelectedSource = static_cast<const ASTOpFixed*>(SelectedSourceGeneric);
 								int32 SelectedChannel = op.args.ColourSwizzle.sourceChannels[ChannelIndex];
 								Ptr<ASTOp> SelectedFloatInput = SelectedSource->children[SelectedSource->op.args.ColourFromScalars.v[SelectedChannel]].child();
 								NewAt->SetChild(NewAt->op.args.ColourFromScalars.v[ChannelIndex], SelectedFloatInput);
@@ -364,10 +365,8 @@ namespace mu
 			case OP_TYPE::IM_RESIZE:
 			{
 				Ptr<ASTOpFixed> NewOp = mu::Clone<ASTOpFixed>(sourceAt.get());
-				NewOp->op.args.ImageResize.size[0] =
-					int16_t(NewOp->op.args.ImageResize.size[0] * op.args.ImageResizeRel.factor[0]);
-				NewOp->op.args.ImageResize.size[1] =
-					int16_t(NewOp->op.args.ImageResize.size[1] * op.args.ImageResizeRel.factor[1]);
+				NewOp->op.args.ImageResize.size[0] = int16(NewOp->op.args.ImageResize.size[0] * op.args.ImageResizeRel.factor[0]);
+				NewOp->op.args.ImageResize.size[1] = int16(NewOp->op.args.ImageResize.size[1] * op.args.ImageResizeRel.factor[1]);
 
 				at = NewOp;
 				break;
@@ -401,7 +400,7 @@ namespace mu
 			case OP_TYPE::ME_ADDTAGS:
 			{
 				// Tags in the fragment can be ignored.
-				const ASTOpMeshAddTags* Add = dynamic_cast<const ASTOpMeshAddTags*>(Fragment.get());
+				const ASTOpMeshAddTags* Add = static_cast<const ASTOpMeshAddTags*>(Fragment.get());
 
 				Ptr<ASTOpFixed> NewAt = mu::Clone<ASTOpFixed>(this);
 				NewAt->SetChild(NewAt->op.args.MeshMaskDiff.fragment, Add->Source);
@@ -611,8 +610,8 @@ namespace mu
             {
                 if (displaceMapAt->GetOpType()==OP_TYPE::IM_CONDITIONAL)
                 {
-                    auto typedSource = dynamic_cast<const ASTOpConditional*>(sourceAt.get());
-                    auto typedDisplacementMap = dynamic_cast<const ASTOpConditional*>(displaceMapAt.get());
+					const ASTOpConditional* typedSource = static_cast<const ASTOpConditional*>(sourceAt.get());
+					const ASTOpConditional* typedDisplacementMap = static_cast<const ASTOpConditional*>(displaceMapAt.get());
 
                     if (typedSource->condition==typedDisplacementMap->condition)
                     {
@@ -638,8 +637,8 @@ namespace mu
             {
                 if (displaceMapAt->GetOpType()==OP_TYPE::IM_SWITCH)
                 {
-                    auto typedSource = dynamic_cast<const ASTOpSwitch*>(sourceAt.get());
-                    auto typedDisplacementMap = dynamic_cast<const ASTOpSwitch*>(displaceMapAt.get());
+					const ASTOpSwitch* typedSource = static_cast<const ASTOpSwitch*>(sourceAt.get());
+					const ASTOpSwitch* typedDisplacementMap = static_cast<const ASTOpSwitch*>(displaceMapAt.get());
 
                     if (typedSource->IsCompatibleWith(typedDisplacementMap))
                     {
@@ -753,7 +752,7 @@ namespace mu
 
             check(root->GetOpType()==OP_TYPE::IM_RESIZEREL);
 
-            auto typedRoot = dynamic_cast<const ASTOpFixed*>(root);
+			const ASTOpFixed* typedRoot = static_cast<const ASTOpFixed*>(root);
             m_initialSource = typedRoot->children[typedRoot->op.args.ImageResizeRel.source].child();
             Ptr<ASTOp> newSource = Visit( m_initialSource, typedRoot );
 
@@ -844,7 +843,7 @@ namespace mu
 				// still an integer after relative scale
 				bool acceptable = false;
 				{
-					const ASTOpImageCompose* typedAt = dynamic_cast<const ASTOpImageCompose*>(at.get());
+					const ASTOpImageCompose* typedAt = static_cast<const ASTOpImageCompose*>(at.get());
 					Ptr<ASTOp> originalBaseOp = typedAt->Base.child();
 
 					// \todo: recursion-proof cache?
@@ -1014,7 +1013,7 @@ namespace mu
 			case OP_TYPE::IM_TRANSFORM:
 			{
 				// It can only sink in the transform if it doesn't have it's own size.
-				const ASTOpImageTransform* TypedAt = dynamic_cast<const ASTOpImageTransform*>(at.get());
+				const ASTOpImageTransform* TypedAt = static_cast<const ASTOpImageTransform*>(at.get());
 				if (TypedAt->SizeX == 0 && TypedAt->SizeY == 0)
 				{
 					Ptr<ASTOpImageTransform> NewOp = mu::Clone<ASTOpImageTransform>(at);
@@ -1087,7 +1086,7 @@ namespace mu
             case OP_TYPE::IM_RESIZE:
             {
                 // Keep top resize
-                Ptr<const ASTOpFixed> sourceOp = dynamic_cast<const ASTOpFixed*>(sourceAt.get());
+                Ptr<const ASTOpFixed> sourceOp = static_cast<const ASTOpFixed*>(sourceAt.get());
 
                 Ptr<ASTOpFixed> newOp = mu::Clone<ASTOpFixed>(this);
                 newOp->SetChild( newOp->op.args.ImageResize.source, sourceOp->children[sourceOp->op.args.ImageResize.source]);
@@ -1270,7 +1269,7 @@ namespace mu
 				// \todo: only if shrinking?
 				
 				// Only sink the resize if we know that the pixelformat source image is uncompressed.
-				Ptr<ASTOpImagePixelFormat> SourceTyped = dynamic_cast<ASTOpImagePixelFormat*>(sourceAt.get());
+				Ptr<ASTOpImagePixelFormat> SourceTyped = static_cast<ASTOpImagePixelFormat*>(sourceAt.get());
 				FImageDesc PixelFormatSourceDesc = SourceTyped ->Source->GetImageDesc();
 				if (PixelFormatSourceDesc.m_format!=EImageFormat::IF_NONE
 					&&
@@ -1338,8 +1337,7 @@ namespace mu
 				// In the size optimization phase we can optimize the resize with the displace
 				// because the constants have not been collapsed yet.
 				// We will still check it and sink the size directly below the IM_MAKEGROWMAP op
-				Ptr<ASTOpFixed> SourceTyped = dynamic_cast<ASTOpFixed*>(sourceAt.get());
-				check(SourceTyped);
+				Ptr<ASTOpFixed> SourceTyped = static_cast<ASTOpFixed*>(sourceAt.get());
 				Ptr<ASTOp> OriginalDisplacementMapOp = SourceTyped->children[SourceTyped->op.args.ImageDisplace.displacementMap].m_child;
 				if (OriginalDisplacementMapOp->GetOpType() == OP_TYPE::IM_MAKEGROWMAP)
 				{
@@ -1412,7 +1410,7 @@ namespace mu
 			case OP_TYPE::IM_TRANSFORM:
 			{
 				// We can only optimize here if we know the transform result size, otherwise, we will sink the op in the sinker.
-				const ASTOpImageTransform* typedAt = dynamic_cast<const ASTOpImageTransform*>(sourceAt.get());
+				const ASTOpImageTransform* typedAt = static_cast<const ASTOpImageTransform*>(sourceAt.get());
 				if (typedAt->SizeX != 0 && typedAt->SizeY != 0)
 				{
 					// Set the size in the children and remove resize

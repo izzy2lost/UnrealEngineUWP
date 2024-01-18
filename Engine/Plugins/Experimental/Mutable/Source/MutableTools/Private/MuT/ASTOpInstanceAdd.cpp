@@ -38,8 +38,9 @@ namespace mu
 	//-------------------------------------------------------------------------------------------------
 	bool ASTOpInstanceAdd::IsEqual(const ASTOp& otherUntyped) const
 	{
-		if (auto other = dynamic_cast<const ASTOpInstanceAdd*>(&otherUntyped))
+		if (otherUntyped.GetOpType()==GetOpType())
 		{
+			const ASTOpInstanceAdd* other = static_cast<const ASTOpInstanceAdd*>(&otherUntyped);
 			return type == other->type &&
 				instance == other->instance &&
 				value == other->value &&

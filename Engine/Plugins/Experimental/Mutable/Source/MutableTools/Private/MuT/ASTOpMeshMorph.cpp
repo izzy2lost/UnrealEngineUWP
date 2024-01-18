@@ -31,8 +31,9 @@ namespace mu
 	//---------------------------------------------------------------------------------------------
 	bool ASTOpMeshMorph::IsEqual(const ASTOp& otherUntyped) const
 	{
-		if (const ASTOpMeshMorph* other = dynamic_cast<const ASTOpMeshMorph*>(&otherUntyped))
+		if (otherUntyped.GetOpType() == GetOpType())
 		{
+			const ASTOpMeshMorph* other = static_cast<const ASTOpMeshMorph*>(&otherUntyped);
 			return Factor == other->Factor && Base == other->Base && Target == other->Target;
 		}
 		return false;
@@ -139,7 +140,7 @@ namespace mu
 			case OP_TYPE::ME_ADDTAGS:
 			{
 				// Ignore the morph target tags
-				const ASTOpMeshAddTags* AddTags = dynamic_cast<const ASTOpMeshAddTags*>(Target.child().get());
+				const ASTOpMeshAddTags* AddTags = static_cast<const ASTOpMeshAddTags*>(Target.child().get());
 
 				Ptr<ASTOpMeshMorph> New = mu::Clone<ASTOpMeshMorph>(this);
 				New->Target = AddTags->Source.child();

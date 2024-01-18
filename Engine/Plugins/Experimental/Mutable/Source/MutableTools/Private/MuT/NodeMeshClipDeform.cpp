@@ -16,8 +16,8 @@ namespace mu
 	//---------------------------------------------------------------------------------------------
 	// Static initialisation
 	//---------------------------------------------------------------------------------------------
-	NODE_TYPE NodeMeshClipDeform::Private::s_type =
-			NODE_TYPE( "MeshClipDeform", NodeMesh::GetStaticType() );
+	FNodeType NodeMeshClipDeform::Private::s_type =
+			FNodeType( "MeshClipDeform", NodeMesh::GetStaticType() );
 
 
 	//---------------------------------------------------------------------------------------------
@@ -64,9 +64,7 @@ namespace mu
 
 		if (m_pBaseMesh)
 		{
-			NodeMesh::Private* pPrivate =
-					dynamic_cast<NodeMesh::Private*>(m_pBaseMesh->GetBasePrivate() );
-
+			NodeMesh::Private* pPrivate = static_cast<NodeMesh::Private*>(m_pBaseMesh->GetBasePrivate() );
 			pResult = pPrivate->GetLayout( index );
 		}
 

@@ -22,7 +22,7 @@ namespace mu
 	{
 	public:
 
-		static NODE_TYPE s_type;
+		static FNodeType s_type;
 
         PROJECTOR_TYPE m_type = PROJECTOR_TYPE::PLANAR;
 		vec3<float> m_position;
@@ -67,7 +67,7 @@ namespace mu
 	{
 	public:
 
-		static NODE_TYPE s_type;
+		static FNodeType s_type;
 
 		FString m_name;
 		FString m_uid;

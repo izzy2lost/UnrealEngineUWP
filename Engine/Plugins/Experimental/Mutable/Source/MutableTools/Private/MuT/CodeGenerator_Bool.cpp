@@ -40,20 +40,24 @@ namespace mu
 		}
 
 		// Generate for each different type of node
-		if (auto Constant = dynamic_cast<const NodeBoolConstant*>(Untyped.get()))
+		if (Untyped->GetType()==NodeBoolConstant::GetStaticType())
 		{
+			const NodeBoolConstant* Constant = static_cast<const NodeBoolConstant*>(Untyped.get());
 			GenerateBool_Constant(Result, Options, Constant);
 		}
-		else if (auto Param = dynamic_cast<const NodeBoolParameter*>(Untyped.get()))
+		else if (Untyped->GetType() == NodeBoolParameter::GetStaticType())
 		{
+			const NodeBoolParameter* Param = static_cast<const NodeBoolParameter*>(Untyped.get());
 			GenerateBool_Parameter(Result, Options, Param);
 		}
-		else if (auto Sample = dynamic_cast<const NodeBoolNot*>(Untyped.get()))
+		else if (Untyped->GetType() == NodeBoolNot::GetStaticType())
 		{
+			const NodeBoolNot* Sample = static_cast<const NodeBoolNot*>(Untyped.get());
 			GenerateBool_Not(Result, Options, Sample);
 		}
-		else if (auto From = dynamic_cast<const NodeBoolAnd*>(Untyped.get()))
+		else if (Untyped->GetType() == NodeBoolAnd::GetStaticType())
 		{
+			const NodeBoolAnd* From = static_cast<const NodeBoolAnd*>(Untyped.get());
 			GenerateBool_And(Result, Options, From);
 		}
 		else

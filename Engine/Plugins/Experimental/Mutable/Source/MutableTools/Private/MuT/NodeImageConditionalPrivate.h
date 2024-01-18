@@ -17,7 +17,7 @@ namespace mu
 	{
 	public:
 
-		static NODE_TYPE s_type;
+		static FNodeType s_type;
 
         Ptr<NodeBool> m_parameter;
         NodeImagePtr m_true;

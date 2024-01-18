@@ -40,8 +40,8 @@ namespace mu
 		// Node Interface
 		//-----------------------------------------------------------------------------------------
 
-        const NODE_TYPE* GetType() const override;
-		static const NODE_TYPE* GetStaticType();
+        const FNodeType* GetType() const override;
+		static const FNodeType* GetStaticType();
 
 		//-----------------------------------------------------------------------------------------
 		// Own Interface
@@ -58,7 +58,7 @@ namespace mu
 		int GetVariationCount() const;
 
         //!
-        enum class VariationType : uint8_t
+        enum class VariationType : uint8
         {
             //! The variation selection is controlled by tags defined in other surfaces.
             //! Default value.
@@ -86,7 +86,7 @@ namespace mu
 		//-----------------------------------------------------------------------------------------
 		class Private;
 		Private* GetPrivate() const;
-                Node::Private* GetBasePrivate() const override;
+        Node::Private* GetBasePrivate() const override;
 
 	protected:
 

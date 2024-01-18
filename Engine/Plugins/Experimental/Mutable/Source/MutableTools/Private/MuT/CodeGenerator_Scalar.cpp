@@ -67,38 +67,45 @@ namespace mu
 			return;
 		}
 
-
 		// Generate for each different type of node
-		if (auto Constant = dynamic_cast<const NodeScalarConstant*>(Untyped.get()))
+		if (Untyped->GetType() == NodeScalarConstant::GetStaticType())
 		{
+			const NodeScalarConstant* Constant = static_cast<const NodeScalarConstant*>(Untyped.get());
 			GenerateScalar_Constant(result, Options, Constant);
 		}
-		else if (auto Param = dynamic_cast<const NodeScalarParameter*>(Untyped.get()))
+		else if (Untyped->GetType() == NodeScalarParameter::GetStaticType())
 		{
+			const NodeScalarParameter* Param = static_cast<const NodeScalarParameter*>(Untyped.get());
 			GenerateScalar_Parameter(result, Options, Param);
 		}
-		else if (auto Switch = dynamic_cast<const NodeScalarSwitch*>(Untyped.get()))
+		else if (Untyped->GetType() == NodeScalarSwitch::GetStaticType())
 		{
+			const NodeScalarSwitch* Switch = static_cast<const NodeScalarSwitch*>(Untyped.get());
 			GenerateScalar_Switch(result, Options, Switch);
 		}
-		else if (auto EnumParam = dynamic_cast<const NodeScalarEnumParameter*>(Untyped.get()))
+		else if (Untyped->GetType() == NodeScalarEnumParameter::GetStaticType())
 		{
+			const NodeScalarEnumParameter* EnumParam = static_cast<const NodeScalarEnumParameter*>(Untyped.get());
 			GenerateScalar_EnumParameter(result, Options, EnumParam);
 		}
-		else if (auto Curve = dynamic_cast<const NodeScalarCurve*>(Untyped.get()))
+		else if (Untyped->GetType() == NodeScalarCurve::GetStaticType())
 		{
+			const NodeScalarCurve* Curve = static_cast<const NodeScalarCurve*>(Untyped.get());
 			GenerateScalar_Curve(result, Options, Curve);
 		}
-		else if (auto Arithmetic = dynamic_cast<const NodeScalarArithmeticOperation*>(Untyped.get()))
+		else if (Untyped->GetType() == NodeScalarArithmeticOperation::GetStaticType())
 		{
+			const NodeScalarArithmeticOperation* Arithmetic = static_cast<const NodeScalarArithmeticOperation*>(Untyped.get());
 			GenerateScalar_Arithmetic(result, Options, Arithmetic);
 		}
-		else if (auto Variation = dynamic_cast<const NodeScalarVariation*>(Untyped.get()))
+		else if (Untyped->GetType() == NodeScalarVariation::GetStaticType())
 		{
+			const NodeScalarVariation* Variation = static_cast<const NodeScalarVariation*>(Untyped.get());
 			GenerateScalar_Variation(result, Options, Variation);
 		}
-		else if (auto Table = dynamic_cast<const NodeScalarTable*>(Untyped.get()))
+		else if (Untyped->GetType() == NodeScalarTable::GetStaticType())
 		{
+			const NodeScalarTable* Table = static_cast<const NodeScalarTable*>(Untyped.get());
 			GenerateScalar_Table(result, Options, Table);
 		}
 		else

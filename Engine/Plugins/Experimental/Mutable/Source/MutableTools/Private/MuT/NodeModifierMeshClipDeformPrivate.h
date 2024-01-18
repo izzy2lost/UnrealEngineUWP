@@ -19,7 +19,7 @@ namespace mu
 		{
 		}
 
-		static NODE_TYPE s_type;
+		static FNodeType s_type;
 
 		//! 
 		NodeMeshPtr ClipMesh;

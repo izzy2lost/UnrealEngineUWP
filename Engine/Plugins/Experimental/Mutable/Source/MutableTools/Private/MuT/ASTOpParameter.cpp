@@ -36,8 +36,9 @@ namespace mu
 
 	bool ASTOpParameter::IsEqual(const ASTOp& otherUntyped) const
 	{
-		if (auto other = dynamic_cast<const ASTOpParameter*>(&otherUntyped))
+		if (otherUntyped.GetOpType() == GetOpType())
 		{
+			const ASTOpParameter* other = static_cast<const ASTOpParameter*>(&otherUntyped);
 			return type == other->type &&
 				parameter == other->parameter &&
 				ranges == other->ranges;
@@ -113,7 +114,7 @@ namespace mu
 		{
 			if (f->GetOpType() == OP_TYPE::BO_EQUAL_INT_CONST)
 			{
-				const auto typedFact = dynamic_cast<const ASTOpFixed*>(f.get());
+				const auto typedFact = static_cast<const ASTOpFixed*>(f.get());
 				auto value = typedFact->children[typedFact->op.args.BoolEqualScalarConst.value].child();
 				if (value.get() == this)
 				{

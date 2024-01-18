@@ -32,8 +32,10 @@ namespace mu
 
 	bool ASTOpMeshClipMorphPlane::IsEqual(const ASTOp& otherUntyped) const
 	{
-		if (auto other = dynamic_cast<const ASTOpMeshClipMorphPlane*>(&otherUntyped))
+		if (otherUntyped.GetOpType()==GetOpType())
 		{
+			const ASTOpMeshClipMorphPlane* other = static_cast<const ASTOpMeshClipMorphPlane*>(&otherUntyped);
+
 			return source == other->source &&
 				morphShape == other->morphShape &&
 				selectionShape == other->selectionShape &&

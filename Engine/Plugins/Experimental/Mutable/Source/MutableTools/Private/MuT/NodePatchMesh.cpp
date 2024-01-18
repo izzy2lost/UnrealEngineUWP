@@ -15,15 +15,15 @@ namespace mu
 	//---------------------------------------------------------------------------------------------
 	// Static initialisation
 	//---------------------------------------------------------------------------------------------
-	NODE_TYPE NodePatchMesh::Private::s_type =
-			NODE_TYPE( "MeshPatch", Node::GetStaticType() );
+	FNodeType NodePatchMesh::Private::s_type =
+			FNodeType( "MeshPatch", Node::GetStaticType() );
 
 
 	//---------------------------------------------------------------------------------------------
 	//!
 	//---------------------------------------------------------------------------------------------
 
-	MUTABLE_IMPLEMENT_NODE( NodePatchMesh, EType::PatchMesh, Node, Node::EType::PatchMesh);
+	MUTABLE_IMPLEMENT_NODE( NodePatchMesh, EType::PatchMesh, Node, Node::EType::None);
 
 
 	//---------------------------------------------------------------------------------------------

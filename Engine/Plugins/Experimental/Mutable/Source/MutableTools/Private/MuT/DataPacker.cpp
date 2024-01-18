@@ -149,7 +149,7 @@ namespace mu
             m_allParams.SetNumZeroed( program.m_parameters.Num() );
             FullTraverse( program );
 
-            for (size_t i=0; i<m_allParams.Num(); ++i )
+            for (int32 i=0; i<m_allParams.Num(); ++i )
             {
                 if ( m_allParams[i] )
                 {
@@ -186,10 +186,10 @@ namespace mu
                     {
                         m_conditionVisitor.Run( args.condition, program );
 
-                        TArray<int> currentParams = GetCurrentState();
-                        for (size_t p=0; p<m_conditionVisitor.m_params.Num(); ++p )
+                        TArray<int32> currentParams = GetCurrentState();
+                        for (int32 p=0; p<m_conditionVisitor.RelevantParams.Num(); ++p )
                         {
-                            currentParams[ m_conditionVisitor.m_params[p] ]++;
+                            currentParams[ m_conditionVisitor.RelevantParams[p] ]++;
                         }
 
                         // Set state for child recursion
@@ -207,17 +207,17 @@ namespace mu
                 case OP_TYPE::LA_SWITCH:
 				case OP_TYPE::ED_SWITCH:
                 {
-					const uint8_t* data = program.GetOpArgsPointer(at);
+					const uint8* data = program.GetOpArgsPointer(at);
 					
 					OP::ADDRESS VarAddress;
 					FMemory::Memcpy( &VarAddress, data, sizeof(OP::ADDRESS) );
 
                     m_conditionVisitor.Run( VarAddress, program );
 
-					TArray<int> currentParams = GetCurrentState();
-                    for (size_t p=0; p<m_conditionVisitor.m_params.Num(); ++p )
+					TArray<int32> currentParams = GetCurrentState();
+                    for (int32 p=0; p<m_conditionVisitor.RelevantParams.Num(); ++p )
                     {
-                        currentParams[ m_conditionVisitor.m_params[p] ]++;
+                        currentParams[ m_conditionVisitor.RelevantParams[p] ]++;
                     }
 
                     // Set state for child recursion
@@ -238,7 +238,7 @@ namespace mu
                         {
                             // Accumulate the currently relevant parameters
                             const TArray<int>& currentParams = GetCurrentState();
-                            for (size_t i=0; i<currentParams.Num(); ++i )
+                            for (int32 i=0; i<currentParams.Num(); ++i )
                             {
                                 m_allParams[i] += currentParams[i];
                             }
@@ -251,7 +251,7 @@ namespace mu
                         {
                             // Accumulate the currently relevant parameters
                             const TArray<int>& currentParams = GetCurrentState();
-                            for (size_t i=0; i<currentParams.Num(); ++i )
+                            for (int32 i=0; i<currentParams.Num(); ++i )
                             {
                                 m_allParams[i] += currentParams[i];
                             }
@@ -302,7 +302,7 @@ namespace mu
             //std::fill( m_supportedFormats.begin(), m_supportedFormats.end(), initial );
 
 			TArray<bool> defaultState;
-			defaultState.SetNumZeroed(size_t(EImageFormat::IF_COUNT));
+			defaultState.SetNumZeroed(int32(EImageFormat::IF_COUNT));
 
             Traverse( roots, defaultState );
         }
@@ -315,7 +315,7 @@ namespace mu
             const TArray<bool>& currentFormats = GetCurrentState();
 
 			TArray<bool> defaultState;
-			defaultState.SetNumZeroed(size_t(EImageFormat::IF_COUNT));
+			defaultState.SetNumZeroed(int32(EImageFormat::IF_COUNT));
 			bool allFalse = currentFormats == defaultState;
 
             // Can we use the cache?
@@ -334,11 +334,11 @@ namespace mu
             case OP_TYPE::IM_CONSTANT:
             {
                 // Remove unsupported formats
-				const ASTOpConstantResource* op = dynamic_cast<const ASTOpConstantResource*>(node.get());
+				const ASTOpConstantResource* op = static_cast<const ASTOpConstantResource*>(node.get());
                 if (!m_supportedFormats.count(op))
                 {
 					TArray<bool> initial;
-					initial.Init( true, size_t(EImageFormat::IF_COUNT) );
+					initial.Init( true, int32(EImageFormat::IF_COUNT) );
                     m_supportedFormats.insert( std::make_pair(op, std::move(initial)) );
                 }
 
@@ -361,17 +361,17 @@ namespace mu
             case OP_TYPE::IM_COMPOSE:
             {
                 recurse = false;
-				const ASTOpImageCompose* op = dynamic_cast<const ASTOpImageCompose*>(node.get());
+				const ASTOpImageCompose* op = static_cast<const ASTOpImageCompose*>(node.get());
 
 				TArray<bool> newState;
-				newState.Init(false, size_t(EImageFormat::IF_COUNT));
+				newState.Init(false, int32(EImageFormat::IF_COUNT));
                 RecurseWithState( op->Layout.child(), newState );
                 RecurseWithState( op->Base.child(), newState );
                 RecurseWithState( op->BlockImage.child(), newState );
 
                 if ( op->Mask )
                 {
-                    newState[(size_t)EImageFormat::IF_L_UBIT_RLE] = true;
+                    newState[(int32)EImageFormat::IF_L_UBIT_RLE] = true;
                     RecurseWithState( op->Mask.child(), newState );
                 }
                 break;
@@ -380,16 +380,16 @@ namespace mu
             case OP_TYPE::IM_LAYERCOLOUR:
             {
                 recurse = false;
-				const ASTOpImageLayerColor* op = dynamic_cast<const ASTOpImageLayerColor*>(node.get());
+				const ASTOpImageLayerColor* op = static_cast<const ASTOpImageLayerColor*>(node.get());
 				TArray<bool> newState;
-				newState.Init(false, size_t(EImageFormat::IF_COUNT));
+				newState.Init(false, int32(EImageFormat::IF_COUNT));
 				RecurseWithState( op->base.child(), newState );
                 RecurseWithState( op->color.child(), newState );
 
                 if ( op->mask )
                 {
-                    newState[(size_t)EImageFormat::IF_L_UBYTE] = true;
-                    newState[(size_t)EImageFormat::IF_L_UBYTE_RLE] = true;
+                    newState[(int32)EImageFormat::IF_L_UBYTE] = true;
+                    newState[(int32)EImageFormat::IF_L_UBYTE_RLE] = true;
 
                     RecurseWithState( op->mask.child(), newState );
                 }
@@ -399,16 +399,16 @@ namespace mu
             case OP_TYPE::IM_LAYER:
             {
                 recurse = false;
-				const ASTOpImageLayer* op = dynamic_cast<const ASTOpImageLayer*>(node.get());
+				const ASTOpImageLayer* op = static_cast<const ASTOpImageLayer*>(node.get());
 				TArray<bool> newState;
-				newState.Init(false, size_t(EImageFormat::IF_COUNT));
+				newState.Init(false, int32(EImageFormat::IF_COUNT));
 				RecurseWithState( op->base.child(), newState );
                 RecurseWithState( op->blend.child(), newState );
 
                 if (op->mask)
                 {
-                    newState[(size_t)EImageFormat::IF_L_UBYTE] = true;
-                    newState[(size_t)EImageFormat::IF_L_UBYTE_RLE] = true;
+                    newState[(int32)EImageFormat::IF_L_UBYTE] = true;
+                    newState[(int32)EImageFormat::IF_L_UBYTE_RLE] = true;
 
                     RecurseWithState( op->mask.child(), newState );
                 }
@@ -418,9 +418,9 @@ namespace mu
             case OP_TYPE::IM_MULTILAYER:
             {
                 recurse = false;
-				const ASTOpImageMultiLayer* op = dynamic_cast<const ASTOpImageMultiLayer*>(node.get());
+				const ASTOpImageMultiLayer* op = static_cast<const ASTOpImageMultiLayer*>(node.get());
 				TArray<bool> newState;
-				newState.Init(false, size_t(EImageFormat::IF_COUNT));
+				newState.Init(false, int32(EImageFormat::IF_COUNT));
 				RecurseWithState( op->base.child(), newState );
                 RecurseWithState( op->blend.child(), newState );
 
@@ -437,13 +437,13 @@ namespace mu
             case OP_TYPE::IM_DISPLACE:
             {
                 recurse = false;
-				const ASTOpFixed* op = dynamic_cast<const ASTOpFixed*>(node.get());
+				const ASTOpFixed* op = static_cast<const ASTOpFixed*>(node.get());
 				TArray<bool> newState;
-				newState.Init(false, size_t(EImageFormat::IF_COUNT));
+				newState.Init(false, int32(EImageFormat::IF_COUNT));
 				RecurseWithState( op->children[op->op.args.ImageDisplace.source].child(), newState );
 
-                newState[(size_t)EImageFormat::IF_L_UBYTE ] = true;
-                newState[(size_t)EImageFormat::IF_L_UBYTE_RLE ] = true;
+                newState[(int32)EImageFormat::IF_L_UBYTE ] = true;
+                newState[(int32)EImageFormat::IF_L_UBYTE_RLE ] = true;
 
                 RecurseWithState( op->children[op->op.args.ImageDisplace.displacementMap].child(), newState );
                 break;
@@ -456,7 +456,7 @@ namespace mu
                 //m_currentFormats.pop_back();
 
 				TArray<bool> newState;
-				newState.Init(false, size_t(EImageFormat::IF_COUNT));
+				newState.Init(false, int32(EImageFormat::IF_COUNT));
 				if (currentFormats != newState)
                 {
                     RecurseWithState(node, newState);
@@ -502,10 +502,10 @@ namespace mu
             MUTABLE_CPUPROFILER_SCOPE(AccumulateMeshChannelUsageAST);
 
             // Sanity check in case we add more semantics
-            static_assert(MBS_COUNT<sizeof(uint64_t)*8, "Too many mesh buffer semantics." );
+            static_assert(MBS_COUNT<sizeof(uint64)*8, "Too many mesh buffer semantics." );
 
             // Default state: we need everything except internal semantics
-            uint64_t defaultState = 0xffffffffffffffff;
+            uint64 defaultState = 0xffffffffffffffff;
             defaultState ^= (UINT64_C(1)<<MBS_LAYOUTBLOCK);
             defaultState ^= (UINT64_C(1)<<MBS_VERTEXINDEX);
 
@@ -517,7 +517,7 @@ namespace mu
         {
             bool recurse = true;
 
-            uint64_t currentSemantics = GetCurrentState();
+            uint64 currentSemantics = GetCurrentState();
 
             switch ( node->GetOpType() )
             {
@@ -525,8 +525,8 @@ namespace mu
             case OP_TYPE::ME_CONSTANT:
             {
                 // Accumulate necessary semantics
-				const ASTOpConstantResource* op = dynamic_cast<const ASTOpConstantResource*>(node.get());
-                uint64_t currentFlags = 0;
+				const ASTOpConstantResource* op = static_cast<const ASTOpConstantResource*>(node.get());
+                uint64 currentFlags = 0;
                 if (m_requiredSemantics.count(op))
                 {
                     currentFlags = m_requiredSemantics[op];
@@ -549,9 +549,9 @@ namespace mu
             {
                 recurse = false;
 
-				const ASTOpMeshDifference* op = dynamic_cast<const ASTOpMeshDifference*>(node.get());
+				const ASTOpMeshDifference* op = static_cast<const ASTOpMeshDifference*>(node.get());
 
-                uint64_t newState = currentSemantics;
+                uint64 newState = currentSemantics;
                 newState |= (UINT64_C(1)<<MBS_VERTEXINDEX);
                 RecurseWithState( op->Base.child(), newState );
 
@@ -563,9 +563,9 @@ namespace mu
             {
                 recurse = false;
 
-				const ASTOpMeshRemoveMask* op = dynamic_cast<const ASTOpMeshRemoveMask*>(node.get());
+				const ASTOpMeshRemoveMask* op = static_cast<const ASTOpMeshRemoveMask*>(node.get());
 
-                uint64_t newState = currentSemantics;
+                uint64 newState = currentSemantics;
                 newState |= (UINT64_C(1)<<MBS_VERTEXINDEX);
                 RecurseWithState( op->source.child(), newState );
                 for( const TPair<ASTChild, ASTChild>& r: op->removes )
@@ -579,9 +579,9 @@ namespace mu
             {
                 recurse = false;
 
-				const ASTOpMeshMorph* op = dynamic_cast<const ASTOpMeshMorph*>(node.get());
+				const ASTOpMeshMorph* op = static_cast<const ASTOpMeshMorph*>(node.get());
 
-                uint64_t newState = currentSemantics;
+                uint64 newState = currentSemantics;
                 newState |= (UINT64_C(1)<<MBS_VERTEXINDEX);
                 RecurseWithState( op->Base.child(), newState );
                 RecurseWithState( op->Target.child(), newState );
@@ -593,9 +593,9 @@ namespace mu
             {
                 recurse = false;
 
-				const ASTOpFixed* op = dynamic_cast<const ASTOpFixed*>(node.get());
+				const ASTOpFixed* op = static_cast<const ASTOpFixed*>(node.get());
 
-                uint64_t newState = currentSemantics;
+                uint64 newState = currentSemantics;
                 newState |= (UINT64_C(1)<<MBS_LAYOUTBLOCK);
                 RecurseWithState( op->children[op->op.args.MeshApplyLayout.mesh].child(), newState );
 
@@ -607,10 +607,10 @@ namespace mu
             {
                 recurse = false;
 
-				const ASTOpMeshExtractLayoutBlocks* op = dynamic_cast<const ASTOpMeshExtractLayoutBlocks*>(node.get());
+				const ASTOpMeshExtractLayoutBlocks* op = static_cast<const ASTOpMeshExtractLayoutBlocks*>(node.get());
 
                 // todo: check if we really need all of them
-                uint64_t newState = currentSemantics;
+                uint64 newState = currentSemantics;
                 newState |= (UINT64_C(1)<<MBS_LAYOUTBLOCK);
                 newState |= (UINT64_C(1)<<MBS_VERTEXINDEX);
 
@@ -622,9 +622,9 @@ namespace mu
 			{
 				recurse = false;
 
-				const ASTOpLayoutFromMesh* op = dynamic_cast<const ASTOpLayoutFromMesh*>(node.get());
+				const ASTOpLayoutFromMesh* op = static_cast<const ASTOpLayoutFromMesh*>(node.get());
 
-				uint64_t newState = currentSemantics;
+				uint64 newState = currentSemantics;
 				newState |= (UINT64_C(1) << MBS_LAYOUTBLOCK);
 
 				RecurseWithState(op->Mesh.child(), newState);
@@ -635,18 +635,18 @@ namespace mu
             {
                 recurse = false;
 
-				const ASTOpInstanceAdd* op = dynamic_cast<const ASTOpInstanceAdd*>(node.get());
+				const ASTOpInstanceAdd* op = static_cast<const ASTOpInstanceAdd*>(node.get());
 
                 RecurseWithState( op->instance.child(), currentSemantics );
 
-                uint64_t newState = GetDefaultState();
+                uint64 newState = GetDefaultState();
                 RecurseWithState( op->value.child(), newState );
                 break;
             }
 
             default:
                 // Unhandled op, we may need everything? Recurse with current state?
-                //uint64_t newState = 0xffffffffffffffff;
+                //uint64 newState = 0xffffffffffffffff;
                 break;
 
             }
@@ -658,7 +658,7 @@ namespace mu
 
         //! Result of this visitor:
         //! Used mesh channel semantics for each constant mesh
-        std::unordered_map< Ptr<const ASTOpConstantResource>, uint64_t > m_requiredSemantics;
+        std::unordered_map< Ptr<const ASTOpConstantResource>, uint64 > m_requiredSemantics;
 
     };
 
@@ -668,7 +668,7 @@ namespace mu
     //---------------------------------------------------------------------------------------------
 
     // Todo: move to its own file
-    inline void MeshRemoveUnusedBufferSemantics( Mesh* pMesh, uint64_t usedSemantics )
+    inline void MeshRemoveUnusedBufferSemantics( Mesh* pMesh, uint64 usedSemantics )
     {
         // right now we only remove entire buffers if no channel is used
         // TODO: remove from inside the buffer?
@@ -696,7 +696,7 @@ namespace mu
 
         // TODO: hack, if we don't need layouts, remove them.
         {
-            uint64_t layoutSemantics = 0;
+            uint64 layoutSemantics = 0;
             layoutSemantics |= (UINT64_C(1)<<MBS_LAYOUTBLOCK);
 
             if ( (usedSemantics&layoutSemantics) == 0)
@@ -722,7 +722,7 @@ namespace mu
         {
             if (n->GetOpType()==OP_TYPE::IM_CONSTANT)
             {
-				ASTOpConstantResource* typed = dynamic_cast<ASTOpConstantResource*>(n.get());
+				ASTOpConstantResource* typed = static_cast<ASTOpConstantResource*>(n.get());
                 Ptr<const Image> pOld = static_cast<const Image*>(typed->GetValue().get());
 
 				FImageOperator ImOp = FImageOperator::GetDefault( Options->GetPrivate()->ImageFormatFunc );
@@ -752,25 +752,25 @@ namespace mu
 					ASTOp::Replace(n, NewPlain);
 
 				}
-				else if ( accFormat.m_supportedFormats[typed][(size_t)EImageFormat::IF_L_UBIT_RLE] )
+				else if ( accFormat.m_supportedFormats[typed][(int32)EImageFormat::IF_L_UBIT_RLE] )
                 {
                     ImagePtr pNew = ImOp.ImagePixelFormat( ImageCompressionQuality, pOld.get(), EImageFormat::IF_L_UBIT_RLE );
 
                     // Only replace if the compression was worth!
-                    size_t oldSize = pOld->GetDataSize();
-                    size_t newSize = pNew->GetDataSize();
+                    int32 oldSize = pOld->GetDataSize();
+					int32 newSize = pNew->GetDataSize();
                     if (float(oldSize) > float(newSize) * OptimizeOptions.MinRLECompressionGain)
                     {
                         typed->SetValue(pNew, OptimizeOptions.bUseDiskCache);
                     }
                 }
-                else if ( accFormat.m_supportedFormats[typed][(size_t)EImageFormat::IF_L_UBYTE_RLE] )
+                else if ( accFormat.m_supportedFormats[typed][(int32)EImageFormat::IF_L_UBYTE_RLE] )
                 {
                     ImagePtr pNew = ImOp.ImagePixelFormat( ImageCompressionQuality, pOld.get(), EImageFormat::IF_L_UBYTE_RLE );
 
                     // Only replace if the compression was worth!
-                    size_t oldSize = pOld->GetDataSize();
-                    size_t newSize = pNew->GetDataSize();
+					int32 oldSize = pOld->GetDataSize();
+					int32 newSize = pNew->GetDataSize();
                     if (float(oldSize) > float(newSize) * OptimizeOptions.MinRLECompressionGain)
                     {
                         typed->SetValue(pNew, OptimizeOptions.bUseDiskCache);
@@ -789,7 +789,7 @@ namespace mu
         {
             if (n->GetOpType()==OP_TYPE::ME_CONSTANT)
             {
-				ASTOpConstantResource* typed = dynamic_cast<ASTOpConstantResource*>(n.get());
+				ASTOpConstantResource* typed = static_cast<ASTOpConstantResource*>(n.get());
                 Ptr<Mesh> pMesh = static_cast<const Mesh*>(typed->GetValue().get())->Clone();
                 MeshRemoveUnusedBufferSemantics( pMesh.get(), meshSemanticsVisitor.m_requiredSemantics[typed]);
                 typed->SetValue(pMesh, OptimizeOptions.bUseDiskCache);

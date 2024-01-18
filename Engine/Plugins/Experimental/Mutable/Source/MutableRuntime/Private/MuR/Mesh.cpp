@@ -1764,20 +1764,20 @@ namespace
         (void)out;
         (void)bufset;
 
-        size_t elemCount = bufset.m_elementCount;
+		uint32 elemCount = bufset.m_elementCount;
         out += "  Set with "
                 + FString::Printf(TEXT("%d"), bufset.m_buffers.Num())
                 + " buffers and "
                 + FString::Printf(TEXT("%d"), elemCount)
                 + " elements.\n";
 
-        for( const auto& buf : bufset.m_buffers )
+        for( const MESH_BUFFER& buf : bufset.m_buffers )
         {
-            const uint8_t* pData = buf.m_data.GetData();
+            const uint8* pData = buf.m_data.GetData();
 
             out += "    Buffer with "+ FString::Printf(TEXT("%d"), buf.m_channels.Num())
                     + " channels and "+ FString::Printf(TEXT("%d"), buf.m_elementSize)+" elementsize\n";
-            for( const auto& chan : buf.m_channels )
+            for( const MESH_BUFFER_CHANNEL& chan : buf.m_channels )
             {
                 out += "      Channel with format: "+ FString::Printf(TEXT("%d"), chan.m_format)
                         + " semantic: "+ FString::Printf(TEXT("%d"), chan.m_semantic)
@@ -1786,8 +1786,8 @@ namespace
                         + " offset: " + FString::Printf(TEXT("%d"), chan.m_offset)+"\n";
                 for( size_t e=0; e<elemCount && e<BufferElementLimit; ++e )
                 {
-                    const uint8_t* pElementData = pData+buf.m_elementSize*e;
-                    const uint8_t* pChanData = pElementData+chan.m_offset;
+                    const uint8* pElementData = pData+buf.m_elementSize*e;
+                    const uint8* pChanData = pElementData+chan.m_offset;
                     out += "        ";
                     for (int c=0; c<chan.m_componentCount; ++c)
                     {

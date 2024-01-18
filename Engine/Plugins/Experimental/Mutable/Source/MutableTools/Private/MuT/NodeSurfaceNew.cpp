@@ -22,8 +22,8 @@ namespace mu
 	//---------------------------------------------------------------------------------------------
 	// Static initialisation
 	//---------------------------------------------------------------------------------------------
-    NODE_TYPE NodeSurfaceNew::Private::s_type =
-            NODE_TYPE( "NewSurface", NodeSurface::GetStaticType() );
+    FNodeType NodeSurfaceNew::Private::s_type =
+            FNodeType( "NewSurface", NodeSurface::GetStaticType() );
 
 
 	//---------------------------------------------------------------------------------------------
@@ -50,7 +50,7 @@ namespace mu
 
 
     //---------------------------------------------------------------------------------------------
-    void NodeSurfaceNew::SetCustomID( uint32_t id )
+    void NodeSurfaceNew::SetCustomID( uint32 id )
     {
         m_pD->ExternalId = id;
     }

@@ -14,7 +14,7 @@ namespace mu
 {
 struct FProgram;
 
-	class ASTOpImageCrop : public ASTOp
+	class ASTOpImageCrop final : public ASTOp
 	{
 	public:
 

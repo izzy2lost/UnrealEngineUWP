@@ -36,8 +36,10 @@ namespace mu
 	//---------------------------------------------------------------------------------------------
 	bool ASTOpMeshDifference::IsEqual(const ASTOp& otherUntyped) const
 	{
-		if (const ASTOpMeshDifference* Other = dynamic_cast<const ASTOpMeshDifference*>(&otherUntyped))
+		if (otherUntyped.GetOpType() == GetOpType())
 		{
+			const ASTOpMeshDifference* Other = static_cast<const ASTOpMeshDifference*>(&otherUntyped);
+
 			return Base == Other->Base && Target == Other->Target
 				&& bIgnoreTextureCoords == Other->bIgnoreTextureCoords
 				&& Channels == Other->Channels;
@@ -344,7 +346,7 @@ namespace mu
 			case OP_TYPE::ME_ADDTAGS:
 			{
 				// Ignore tags in this branch
-				const ASTOpMeshAddTags* Add = dynamic_cast<const ASTOpMeshAddTags*>(TargetAt.get());
+				const ASTOpMeshAddTags* Add = static_cast<const ASTOpMeshAddTags*>(TargetAt.get());
 
 				Ptr<ASTOpMeshDifference> NewDiff = mu::Clone<ASTOpMeshDifference>(this);
 				NewDiff->Target = Add->Source.child();

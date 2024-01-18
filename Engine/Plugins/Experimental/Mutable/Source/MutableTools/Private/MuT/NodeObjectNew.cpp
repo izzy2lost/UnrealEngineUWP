@@ -1,6 +1,5 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
-
 #include "MuT/NodeObjectNew.h"
 
 #include "HAL/PlatformString.h"
@@ -18,9 +17,6 @@
 #include "MuT/NodeSurface.h"
 #include "MuT/NodeSurfaceNew.h"
 
-#include <memory>
-#include <utility>
-
 
 namespace mu
 {
@@ -29,8 +25,7 @@ namespace mu
 	//---------------------------------------------------------------------------------------------
 	// Static initialisation
 	//---------------------------------------------------------------------------------------------
-	NODE_TYPE NodeObjectNew::Private::s_type =
-			NODE_TYPE( "Object", NodeObjectNew::GetStaticType() );
+	FNodeType NodeObjectNew::Private::s_type = FNodeType( "Object", NodeObject::GetStaticType() );
 
 
 	//---------------------------------------------------------------------------------------------
@@ -146,28 +141,24 @@ namespace mu
 
 		NodeLayoutPtr pLayout;
 
-		const NodeComponentNew* pComp =
-			dynamic_cast<const NodeComponentNew*> ( m_lods[lod]->GetComponent( component ).get() );
+		const NodeComponent* pCompGeneric = m_lods[lod]->GetComponent( component ).get();
 
-        if (pComp)
+        if (pCompGeneric->GetType()==NodeComponentNew::GetStaticType())
         {
-            const NodeSurfaceNew* pSurface =
-                    dynamic_cast<const NodeSurfaceNew*> ( pComp->GetSurface( surface ) );
-
-            if ( pSurface )
+			const NodeComponentNew* pComp = static_cast<const NodeComponentNew*> (pCompGeneric);
+			const NodeSurface* pSurfaceGeneric = pComp->GetSurface( surface );
+            if (pSurfaceGeneric->GetType()==NodeSurfaceNew::GetStaticType())
             {
-                // TODO: Look for the layout index of the given texture
+				const NodeSurfaceNew* pSurface = static_cast<const NodeSurfaceNew*> (pSurfaceGeneric);
+				
+				// TODO: Look for the layout index of the given texture
                 // TODO: Multiple meshes
                 if ( pSurface->GetMeshCount()>0 )
                 {
-                     const NodeMesh* pMesh =
-                             dynamic_cast<const NodeMesh*> ( pSurface->GetMesh( 0 ).get() );
-
+                    const NodeMesh* pMesh = pSurface->GetMesh( 0 ).get();
                     if ( pMesh )
                     {
-                        NodeMesh::Private* pPrivate =
-                                dynamic_cast<NodeMesh::Private*>( pMesh->GetBasePrivate() );
-
+                        NodeMesh::Private* pPrivate = static_cast<NodeMesh::Private*>( pMesh->GetBasePrivate() );
                         pLayout = pPrivate->GetLayout( 0 );
                     }
                 }

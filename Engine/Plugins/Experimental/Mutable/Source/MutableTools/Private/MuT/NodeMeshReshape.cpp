@@ -17,8 +17,8 @@ namespace mu
 	//---------------------------------------------------------------------------------------------
 	// Static initialisation
 	//---------------------------------------------------------------------------------------------
-	NODE_TYPE NodeMeshReshape::Private::s_type =
-			NODE_TYPE("MeshReshape", NodeMesh::GetStaticType());
+	FNodeType NodeMeshReshape::Private::s_type =
+			FNodeType("MeshReshape", NodeMesh::GetStaticType());
 
 
 	//---------------------------------------------------------------------------------------------
@@ -124,9 +124,7 @@ namespace mu
 
 		if (BaseMesh)
 		{
-			NodeMesh::Private* pPrivate =
-					dynamic_cast<NodeMesh::Private*>(BaseMesh->GetBasePrivate() );
-
+			NodeMesh::Private* pPrivate = static_cast<NodeMesh::Private*>(BaseMesh->GetBasePrivate() );
 			pResult = pPrivate->GetLayout(Index);
 		}
 

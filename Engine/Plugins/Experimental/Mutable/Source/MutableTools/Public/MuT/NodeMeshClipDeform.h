@@ -11,8 +11,7 @@
 namespace mu
 {
 
-	//! Node that morphs a base mesh with one or two weighted targets from a sequence.
-	//! \ingroup model
+	//! 
 	class MUTABLETOOLS_API NodeMeshClipDeform : public NodeMesh
 	{
 	public:
@@ -32,8 +31,8 @@ namespace mu
 		// Node Interface
 		//-----------------------------------------------------------------------------------------
 
-		const NODE_TYPE* GetType() const override;
-		static const NODE_TYPE* GetStaticType();
+		const FNodeType* GetType() const override;
+		static const FNodeType* GetStaticType();
 
 		//-----------------------------------------------------------------------------------------
 		// Own Interface

@@ -18,7 +18,7 @@ namespace mu
 	{
 	public:
 
-		static NODE_TYPE s_type;
+		static FNodeType s_type;
 
         TArray<NodeSurfacePtr> m_defaultSurfaces;
 		TArray<NodeModifierPtr> m_defaultModifiers;

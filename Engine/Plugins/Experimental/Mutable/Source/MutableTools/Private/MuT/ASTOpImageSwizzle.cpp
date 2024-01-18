@@ -44,8 +44,9 @@ namespace mu
 
 	bool ASTOpImageSwizzle::IsEqual(const ASTOp& otherUntyped) const
 	{
-		if (const ASTOpImageSwizzle* Other = dynamic_cast<const ASTOpImageSwizzle*>(&otherUntyped))
+		if (otherUntyped.GetOpType()==GetOpType())
 		{
+			const ASTOpImageSwizzle* Other = static_cast<const ASTOpImageSwizzle*>(&otherUntyped);
 			for (int32 i = 0; i<MUTABLE_OP_MAX_SWIZZLE_CHANNELS; ++i)
 			{
 				if (!(Sources[i] == Other->Sources[i] && SourceChannels[i] == Other->SourceChannels[i]))
@@ -140,7 +141,7 @@ namespace mu
 				{
 					sat = mu::Clone<ASTOpImageSwizzle>(this);
 				}
-				const ASTOpImageSwizzle* typedCandidate = dynamic_cast<const ASTOpImageSwizzle*>(candidate.get());
+				const ASTOpImageSwizzle* typedCandidate = static_cast<const ASTOpImageSwizzle*>(candidate.get());
 				int candidateChannel = SourceChannels[c];
 
 				sat->Sources[c] = typedCandidate->Sources[candidateChannel].child();
@@ -153,7 +154,7 @@ namespace mu
 			case OP_TYPE::IM_PIXELFORMAT:
 			{
 				// We can remove the format if its source is already an uncompressed format
-				ASTOpImagePixelFormat* typedCandidate = dynamic_cast<ASTOpImagePixelFormat*>(candidate.get());
+				ASTOpImagePixelFormat* typedCandidate = static_cast<ASTOpImagePixelFormat*>(candidate.get());
 				Ptr<ASTOp> formatSource = typedCandidate->Source.child();
 
 				if (formatSource)
@@ -489,9 +490,9 @@ namespace mu
 				SourceChannels[0] == 0 && SourceChannels[1] == 1 && SourceChannels[2] == 2 && SourceChannels[3] == 0
 				)
 			{
-				const ASTOpImageMultiLayer* ColorMultiLayer = dynamic_cast<const ASTOpImageMultiLayer*>(Sources[0].child().get());
+				const ASTOpImageMultiLayer* ColorMultiLayer = static_cast<const ASTOpImageMultiLayer*>(Sources[0].child().get());
 				check(ColorMultiLayer);
-				const ASTOpImageMultiLayer* AlphaMultiLayer = dynamic_cast<const ASTOpImageMultiLayer*>(Sources[3].child().get());
+				const ASTOpImageMultiLayer* AlphaMultiLayer = static_cast<const ASTOpImageMultiLayer*>(Sources[3].child().get());
 				check(AlphaMultiLayer);
 
 				bool bIsSpecialMultiLayer = !AlphaMultiLayer->mask
@@ -548,9 +549,9 @@ namespace mu
 				SourceChannels[0] == 0 && SourceChannels[1] == 1 && (SourceChannels[2] == 2 || !Sources[2] ) && SourceChannels[3] == 0
 				)
 			{
-				const ASTOpImageLayer* ColorLayer = dynamic_cast<const ASTOpImageLayer*>(Sources[0].child().get());
+				const ASTOpImageLayer* ColorLayer = static_cast<const ASTOpImageLayer*>(Sources[0].child().get());
 				check(ColorLayer);
-				const ASTOpImageLayer* AlphaLayer = dynamic_cast<const ASTOpImageLayer*>(Sources[3].child().get());
+				const ASTOpImageLayer* AlphaLayer = static_cast<const ASTOpImageLayer*>(Sources[3].child().get());
 				check(AlphaLayer);
 
 				bool bIsSpecialMultiLayer = !AlphaLayer->mask && !ColorLayer->Flags && !AlphaLayer->Flags;
@@ -595,7 +596,7 @@ namespace mu
 			// If the channels are compatible switches, we can still sink the swizzle.
 			if (!at && sourceType == OP_TYPE::IM_SWITCH)
 			{
-				const ASTOpSwitch* FirstSwitch = dynamic_cast<const ASTOpSwitch*>(Sources[0].child().get());
+				const ASTOpSwitch* FirstSwitch = static_cast<const ASTOpSwitch*>(Sources[0].child().get());
 				check(FirstSwitch);
 
 				bool bAreAllSwitchesCompatible = true;
@@ -603,7 +604,7 @@ namespace mu
 				{
 					if (Sources[c])
 					{
-						const ASTOpSwitch* Typed = dynamic_cast<const ASTOpSwitch*>(Sources[c].child().get());
+						const ASTOpSwitch* Typed = static_cast<const ASTOpSwitch*>(Sources[c].child().get());
 						check(Typed);
 						if (!Typed->IsCompatibleWith(FirstSwitch))
 						{
@@ -623,7 +624,7 @@ namespace mu
 						Ptr<ASTOpImageSwizzle> defOp = mu::Clone<ASTOpImageSwizzle>(this);
 						for (int c = 0; c < MUTABLE_OP_MAX_SWIZZLE_CHANNELS; ++c)
 						{
-							const ASTOpSwitch* ChannelSwitch = dynamic_cast<const ASTOpSwitch*>(Sources[c].child().get());
+							const ASTOpSwitch* ChannelSwitch = static_cast<const ASTOpSwitch*>(Sources[c].child().get());
 							if (ChannelSwitch)
 							{
 								defOp->Sources[c] = ChannelSwitch->def.child();
@@ -639,7 +640,7 @@ namespace mu
 							Ptr<ASTOpImageSwizzle> branchOp = mu::Clone<ASTOpImageSwizzle>(this);
 							for (int c = 0; c < MUTABLE_OP_MAX_SWIZZLE_CHANNELS; ++c)
 							{
-								const ASTOpSwitch* ChannelSwitch = dynamic_cast<const ASTOpSwitch*>(Sources[c].child().get());
+								const ASTOpSwitch* ChannelSwitch = static_cast<const ASTOpSwitch*>(Sources[c].child().get());
 								if (ChannelSwitch)
 								{
 									branchOp->Sources[c] = ChannelSwitch->cases[v].branch.child();
@@ -656,7 +657,7 @@ namespace mu
 			// Swizzle down compatible displaces.
 			if (!at && sourceType == OP_TYPE::IM_DISPLACE)
 			{
-				const ASTOpFixed* FirstDisplace = dynamic_cast<const ASTOpFixed*>(Sources[0].child().get());
+				const ASTOpFixed* FirstDisplace = static_cast<const ASTOpFixed*>(Sources[0].child().get());
 				check(FirstDisplace);
 
 				bool bAreAllDisplacesCompatible = true;
@@ -664,7 +665,7 @@ namespace mu
 				{
 					if (Sources[c])
 					{
-						const ASTOpFixed* Typed = dynamic_cast<const ASTOpFixed*>(Sources[c].child().get());
+						const ASTOpFixed* Typed = static_cast<const ASTOpFixed*>(Sources[c].child().get());
 						check(Typed);
 						if (FirstDisplace->op.args.ImageDisplace.displacementMap != Typed->op.args.ImageDisplace.displacementMap)
 						{
@@ -682,7 +683,7 @@ namespace mu
 					Ptr<ASTOpImageSwizzle> SourceOp = mu::Clone<ASTOpImageSwizzle>(this);
 					for (int c = 0; c < MUTABLE_OP_MAX_SWIZZLE_CHANNELS; ++c)
 					{
-						const ASTOpFixed* ChannelDisplace = dynamic_cast<const ASTOpFixed*>(Sources[c].child().get());
+						const ASTOpFixed* ChannelDisplace = static_cast<const ASTOpFixed*>(Sources[c].child().get());
 						if (ChannelDisplace)
 						{
 							SourceOp->Sources[c] = ChannelDisplace->children[ChannelDisplace->op.args.ImageDisplace.source].child();
@@ -699,7 +700,7 @@ namespace mu
 			// Swizzle down compatible raster meshes.
 			if (!at && sourceType == OP_TYPE::IM_RASTERMESH)
 			{
-				const ASTOpImageRasterMesh* FirstRasterMesh = dynamic_cast<const ASTOpImageRasterMesh*>(Sources[0].child().get());
+				const ASTOpImageRasterMesh* FirstRasterMesh = static_cast<const ASTOpImageRasterMesh*>(Sources[0].child().get());
 				check(FirstRasterMesh);
 
 				bool bAreAllRasterMeshesCompatible = true;
@@ -707,7 +708,7 @@ namespace mu
 				{
 					if (Sources[c])
 					{
-						const ASTOpImageRasterMesh* Typed = dynamic_cast<const ASTOpImageRasterMesh*>(Sources[c].child().get());
+						const ASTOpImageRasterMesh* Typed = static_cast<const ASTOpImageRasterMesh*>(Sources[c].child().get());
 						check(Typed);
 
 						// Compare all args but the source image
@@ -742,7 +743,7 @@ namespace mu
 					Ptr<ASTOpImageSwizzle> NewSwizzle = mu::Clone<ASTOpImageSwizzle>(this);
 					for (int c = 0; c < MUTABLE_OP_MAX_SWIZZLE_CHANNELS; ++c)
 					{
-						const ASTOpImageRasterMesh* ChannelRaster = dynamic_cast<const ASTOpImageRasterMesh*>(Sources[c].child().get());
+						const ASTOpImageRasterMesh* ChannelRaster = static_cast<const ASTOpImageRasterMesh*>(Sources[c].child().get());
 						if (ChannelRaster)
 						{
 							NewSwizzle->Sources[c] = ChannelRaster->image.child();
@@ -773,7 +774,7 @@ namespace mu
 			// Swizzle down compatible image transforms.
 			if (!at && sourceType == OP_TYPE::IM_TRANSFORM)
 			{
-				const ASTOpImageTransform* FirstTransform = dynamic_cast<const ASTOpImageTransform*>(Sources[0].child().get());
+				const ASTOpImageTransform* FirstTransform = static_cast<const ASTOpImageTransform*>(Sources[0].child().get());
 				check(FirstTransform);
 
 				bool bAreAllTransformsCompatible = true;
@@ -781,7 +782,7 @@ namespace mu
 				{
 					if (Sources[c])
 					{
-						const ASTOpImageTransform* Typed = dynamic_cast<const ASTOpImageTransform*>(Sources[c].child().get());
+						const ASTOpImageTransform* Typed = static_cast<const ASTOpImageTransform*>(Sources[c].child().get());
 						check(Typed);
 
 						// Compare all args but the source image
@@ -812,7 +813,7 @@ namespace mu
 					Ptr<ASTOpImageSwizzle> NewSwizzle = mu::Clone<ASTOpImageSwizzle>(this);
 					for (int c = 0; c < MUTABLE_OP_MAX_SWIZZLE_CHANNELS; ++c)
 					{
-						const ASTOpImageTransform* ChannelTransform = dynamic_cast<const ASTOpImageTransform*>(Sources[c].child().get());
+						const ASTOpImageTransform* ChannelTransform = static_cast<const ASTOpImageTransform*>(Sources[c].child().get());
 						if (ChannelTransform)
 						{
 							NewSwizzle->Sources[c] = ChannelTransform->Base.child();
@@ -828,7 +829,7 @@ namespace mu
 			// Swizzle down compatible resizes.
 			//if (!at && sourceType == OP_TYPE::IM_RESIZE)
 			//{
-			//	const ASTOpFixed* FirstResize = dynamic_cast<const ASTOpFixed*>(Sources[0].child().get());
+			//	const ASTOpFixed* FirstResize = static_cast<const ASTOpFixed*>(Sources[0].child().get());
 			//	check(FirstResize);
 
 			//	bool bAreAllResizesCompatible = true;
@@ -836,7 +837,7 @@ namespace mu
 			//	{
 			//		if (Sources[c])
 			//		{
-			//			const ASTOpFixed* Typed = dynamic_cast<const ASTOpFixed*>(Sources[c].child().get());
+			//			const ASTOpFixed* Typed = static_cast<const ASTOpFixed*>(Sources[c].child().get());
 			//			check(Typed);
 			//			// Compare all args but the source image
 			//			OP::ImageResizeArgs ArgCopy = FirstResize->op.args.ImageResize;
@@ -858,7 +859,7 @@ namespace mu
 			//		Ptr<ASTOpImageSwizzle> NewSwizzle = mu::Clone<ASTOpImageSwizzle>(this);
 			//		for (int c = 0; c < MUTABLE_OP_MAX_SWIZZLE_CHANNELS; ++c)
 			//		{
-			//			const ASTOpFixed* ChannelResize = dynamic_cast<const ASTOpFixed*>(Sources[c].child().get());
+			//			const ASTOpFixed* ChannelResize = static_cast<const ASTOpFixed*>(Sources[c].child().get());
 			//			if (ChannelResize)
 			//			{
 			//				NewSwizzle->Sources[c] = ChannelResize->children[ChannelResize->op.args.ImageResize.source].child();
@@ -875,7 +876,7 @@ namespace mu
 			// Swizzle down compatible pixelformats.
 			if (!at && sourceType == OP_TYPE::IM_PIXELFORMAT && bSameChannelOrder)
 			{
-				const ASTOpImagePixelFormat* FirstFormat = dynamic_cast<const ASTOpImagePixelFormat*>(Sources[0].child().get());
+				const ASTOpImagePixelFormat* FirstFormat = static_cast<const ASTOpImagePixelFormat*>(Sources[0].child().get());
 				check(FirstFormat);
 
 				bool bAreAllFormatsCompatible = true;
@@ -883,7 +884,7 @@ namespace mu
 				{
 					if (Sources[c])
 					{
-						const ASTOpImagePixelFormat* Typed = dynamic_cast<const ASTOpImagePixelFormat*>(Sources[c].child().get());
+						const ASTOpImagePixelFormat* Typed = static_cast<const ASTOpImagePixelFormat*>(Sources[c].child().get());
 						check(Typed);
 
 						if (Typed->Source.child() != FirstFormat->Source.child())
@@ -913,7 +914,7 @@ namespace mu
 				{
 					if (Sources[c])
 					{
-						const ASTOpFixed* TypedPlain = dynamic_cast<const ASTOpFixed*>(Sources[c].child().get());
+						const ASTOpFixed* TypedPlain = static_cast<const ASTOpFixed*>(Sources[c].child().get());
 
 						NewSwizzle->SetChild(NewSwizzle->op.args.ColourSwizzle.sources[c], TypedPlain->children[TypedPlain->op.args.ImagePlainColour.colour]);
 					}
@@ -1020,7 +1021,7 @@ namespace mu
 						NewSwizzle = mu::Clone<ASTOpImageSwizzle>(this);
 					}
 
-					const ASTOpFixed* OldSaturate = dynamic_cast<const ASTOpFixed*>(Sources[Channel].child().get());
+					const ASTOpFixed* OldSaturate = static_cast<const ASTOpFixed*>(Sources[Channel].child().get());
 					Ptr<ASTOp> OldSaturateBase = OldSaturate->children[OldSaturate->op.args.ImageSaturate.base].child();
 
 					NewSwizzle->Sources[Channel] = OldSaturateBase;
@@ -1091,7 +1092,7 @@ namespace mu
 			Sources[3] && Sources[3]->GetOpType() == OP_TYPE::IM_LAYER
 			)
 		{
-			const ASTOpImageLayer* OldLayer = dynamic_cast<const ASTOpImageLayer*>(Sources[3].child().get());
+			const ASTOpImageLayer* OldLayer = static_cast<const ASTOpImageLayer*>(Sources[3].child().get());
 
 			Ptr<ASTOp> SwizzleRGBOp = Sources[0].child();
 			Ptr<ASTOp> OldLayerBlendOp = OldLayer->blend.child();
@@ -1106,7 +1107,7 @@ namespace mu
 						{
 						case OP_TYPE::IM_PIXELFORMAT:
 						{
-							const ASTOpImagePixelFormat* Typed = dynamic_cast<const ASTOpImagePixelFormat*>(Op.get());
+							const ASTOpImagePixelFormat* Typed = static_cast<const ASTOpImagePixelFormat*>(Op.get());
 							Op = Typed->Source.child();
 							bUpdated = true;
 							break;
@@ -1163,7 +1164,7 @@ namespace mu
 			Sources[3] && Sources[3]->GetOpType() == OP_TYPE::IM_LAYER
 			)
 		{
-			ASTOpImageLayer* OldLayer = dynamic_cast<ASTOpImageLayer*>(Sources[3].child().get());
+			ASTOpImageLayer* OldLayer = static_cast<ASTOpImageLayer*>(Sources[3].child().get());
 
 			// For now just check the case that we are observing in the working data: 
 			if (OldLayer->Flags == 0
@@ -1172,7 +1173,7 @@ namespace mu
 				&&
 				OldLayer->blend->GetOpType()==OP_TYPE::IM_PIXELFORMAT )
 			{
-				const ASTOpImagePixelFormat* OldFormat = dynamic_cast<const ASTOpImagePixelFormat*>(OldLayer->blend.child().get());
+				const ASTOpImagePixelFormat* OldFormat = static_cast<const ASTOpImagePixelFormat*>(OldLayer->blend.child().get());
 				if (OldFormat->Source->GetOpType() == OP_TYPE::IM_SWIZZLE
 					&&
 					(
@@ -1182,7 +1183,7 @@ namespace mu
 						) 
 					)
 				{
-					const ASTOpImageSwizzle* OldChildSwizzle = dynamic_cast<const ASTOpImageSwizzle*>(OldFormat->Source.child().get());
+					const ASTOpImageSwizzle* OldChildSwizzle = static_cast<const ASTOpImageSwizzle*>(OldFormat->Source.child().get());
 					if (OldChildSwizzle->Format == EImageFormat::IF_L_UBYTE)
 					{
 						Ptr<ASTOpImageSwizzle> NewBaseSwizzle = new ASTOpImageSwizzle;

@@ -55,27 +55,27 @@ namespace mu
 	{
 	public:
 		//! Set or add a value to the index
-		void SetFromModelRangeIndex(uint16 rangeIndex, int rangeValue)
+		void SetFromModelRangeIndex(uint16 RangeIndex, int32 RangeValue)
 		{
-			auto Index = IndexOfByPredicate([=](const ElementType& v) { return v.Key >= rangeIndex; });
-			if (Index != INDEX_NONE && (*this)[Index].Key == rangeIndex)
+			SizeType Index = IndexOfByPredicate([=](const ElementType& v) { return v.Key >= RangeIndex; });
+			if (Index != INDEX_NONE && (*this)[Index].Key == RangeIndex)
 			{
 				// Update
-				(*this)[Index].Value = rangeValue;
+				(*this)[Index].Value = RangeValue;
 			}
 			else
 			{
 				// Add new
-				Push(ElementType(rangeIndex, rangeValue));
+				Push(ElementType(RangeIndex, RangeValue));
 			}
 		}
 
 		//! Get the value of the index from the range index in the model.
-		int GetFromModelRangeIndex(int modelRangeIndex) const
+		int32 GetFromModelRangeIndex(int32 ModelRangeIndex) const
 		{
-			for (const auto& e : *this)
+			for (const TPair<int32, int32>& e : *this)
 			{
-				if (e.Key == modelRangeIndex)
+				if (e.Key == ModelRangeIndex)
 				{
 					return e.Value;
 				}
@@ -506,7 +506,7 @@ namespace mu
 		}
 
 		//!
-		inline uint32_t GetRangeIndexIndex(const ExecutionIndex& rangeIndex)
+		inline uint32 GetRangeIndexIndex(const ExecutionIndex& rangeIndex)
 		{
 			if (rangeIndex.IsEmpty())
 			{
@@ -520,7 +520,7 @@ namespace mu
 			}
 
 			// Look for or add the new element.
-			auto ElemIndex = m_usedRangeIndices.Find(rangeIndex);
+			int32 ElemIndex = m_usedRangeIndices.Find(rangeIndex);
 			if (ElemIndex != INDEX_NONE)
 			{
 				return ElemIndex;

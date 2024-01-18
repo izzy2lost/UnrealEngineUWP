@@ -15,8 +15,8 @@ namespace mu
 	//---------------------------------------------------------------------------------------------
 	// Static initialisation
 	//---------------------------------------------------------------------------------------------
-	NODE_TYPE NodeMeshConstant::Private::s_type =
-			NODE_TYPE( "MeshConstant", NodeMesh::GetStaticType() );
+	FNodeType NodeMeshConstant::Private::s_type =
+			FNodeType( "MeshConstant", NodeMesh::GetStaticType() );
 
 
 	//---------------------------------------------------------------------------------------------

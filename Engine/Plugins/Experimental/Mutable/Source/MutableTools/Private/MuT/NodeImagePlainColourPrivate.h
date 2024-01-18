@@ -22,7 +22,7 @@ namespace mu
             m_sizeY = 4;
 		}
 
-		static NODE_TYPE s_type;
+		static FNodeType s_type;
 
 		Ptr<NodeColour> m_pColour;
 		int32 m_sizeX, m_sizeY;

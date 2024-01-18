@@ -15,8 +15,8 @@ namespace mu
 	//---------------------------------------------------------------------------------------------
 	// Static initialisation
 	//---------------------------------------------------------------------------------------------
-	NODE_TYPE NodeImageBinarise::Private::s_type =
-			NODE_TYPE( "ImageMultiply", NodeImage::GetStaticType() );
+	FNodeType NodeImageBinarise::Private::s_type =
+			FNodeType( "ImageMultiply", NodeImage::GetStaticType() );
 
 	//---------------------------------------------------------------------------------------------
 

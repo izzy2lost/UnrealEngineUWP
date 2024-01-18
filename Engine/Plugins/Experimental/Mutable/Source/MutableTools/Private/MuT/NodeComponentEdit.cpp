@@ -17,8 +17,8 @@ namespace mu
 	//---------------------------------------------------------------------------------------------
 	// Static initialisation
 	//---------------------------------------------------------------------------------------------
-	NODE_TYPE NodeComponentEdit::Private::s_type =
-			NODE_TYPE( "EditComponent", NodeComponent::GetStaticType() );
+	FNodeType NodeComponentEdit::Private::s_type =
+			FNodeType( "EditComponent", NodeComponent::GetStaticType() );
 
 
 	//---------------------------------------------------------------------------------------------
@@ -83,7 +83,7 @@ namespace mu
 		const NodeComponentNew::Private* parent = nullptr;
 		if (m_pParent)
 		{
-			NodeComponent::Private* ParentPrivate = dynamic_cast<NodeComponent::Private*>(m_pParent->GetBasePrivate());
+			NodeComponent::Private* ParentPrivate = static_cast<NodeComponent::Private*>(m_pParent->GetBasePrivate());
 			parent = ParentPrivate->GetParentComponentNew();
 		}
 

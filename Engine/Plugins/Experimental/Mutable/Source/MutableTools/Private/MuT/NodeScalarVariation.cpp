@@ -14,8 +14,8 @@ namespace mu
     //---------------------------------------------------------------------------------------------
     // Static initialisation
     //---------------------------------------------------------------------------------------------
-    NODE_TYPE NodeScalarVariation::Private::s_type =
-        NODE_TYPE( "ScalarVariation", NodeScalar::GetStaticType() );
+    FNodeType NodeScalarVariation::Private::s_type =
+        FNodeType( "ScalarVariation", NodeScalar::GetStaticType() );
 
 
     //---------------------------------------------------------------------------------------------

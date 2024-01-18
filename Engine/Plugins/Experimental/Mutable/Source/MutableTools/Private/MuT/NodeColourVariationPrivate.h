@@ -17,7 +17,7 @@ namespace mu
     public:
         Private() {}
 
-        static NODE_TYPE s_type;
+        static FNodeType s_type;
 
         NodeColourPtr m_defaultColour;
 

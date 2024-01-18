@@ -15,8 +15,8 @@ namespace mu
 	//---------------------------------------------------------------------------------------------
 	// Static initialisation
 	//---------------------------------------------------------------------------------------------
-    NODE_TYPE NodeImageConditional::Private::s_type =
-            NODE_TYPE( "ImageConditional", NodeImage::GetStaticType() );
+    FNodeType NodeImageConditional::Private::s_type =
+            FNodeType( "ImageConditional", NodeImage::GetStaticType() );
 
 
 	//---------------------------------------------------------------------------------------------

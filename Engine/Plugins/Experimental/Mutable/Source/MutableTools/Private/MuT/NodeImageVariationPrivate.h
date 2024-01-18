@@ -17,7 +17,7 @@ namespace mu
     public:
         Private() {}
 
-        static NODE_TYPE s_type;
+        static FNodeType s_type;
 
         NodeImagePtr m_defaultImage;
 

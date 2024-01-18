@@ -14,8 +14,8 @@ namespace mu
 	//---------------------------------------------------------------------------------------------
 	// Static initialisation
 	//---------------------------------------------------------------------------------------------
-    NODE_TYPE NodeImageMultiLayer::Private::s_type =
-            NODE_TYPE( "ImageMultiLayer", NodeImage::GetStaticType() );
+    FNodeType NodeImageMultiLayer::Private::s_type =
+            FNodeType( "ImageMultiLayer", NodeImage::GetStaticType() );
 
 
 	//---------------------------------------------------------------------------------------------

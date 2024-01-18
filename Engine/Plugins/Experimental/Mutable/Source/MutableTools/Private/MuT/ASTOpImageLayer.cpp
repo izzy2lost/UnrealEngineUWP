@@ -40,8 +40,9 @@ namespace mu
 	//-------------------------------------------------------------------------------------------------
 	bool ASTOpImageLayer::IsEqual(const ASTOp& InOtherUntyped) const
 	{
-		if (const ASTOpImageLayer* Other = dynamic_cast<const ASTOpImageLayer*>(&InOtherUntyped))
+		if (InOtherUntyped.GetOpType() == GetOpType())
 		{
+			const ASTOpImageLayer* Other = static_cast<const ASTOpImageLayer*>(&InOtherUntyped);
 			return base == Other->base &&
 				blend == Other->blend &&
 				mask == Other->mask &&
@@ -191,7 +192,7 @@ namespace mu
 			// TODO: May some flags be supported?
 			if (Flags == 0)
 			{
-				const ASTOpFixed* BlendPlainColor = dynamic_cast<const ASTOpFixed*>(blendAt.get());
+				const ASTOpFixed* BlendPlainColor = static_cast<const ASTOpFixed*>(blendAt.get());
 
 				Ptr<ASTOpImageLayerColor> NewLayerColor = new ASTOpImageLayerColor;
 				NewLayerColor->base = baseAt;
@@ -257,7 +258,7 @@ namespace mu
 					{
 					case OP_TYPE::IM_LAYERCOLOUR:
 					{
-						const ASTOpImageLayerColor* BlendLayer = dynamic_cast<const ASTOpImageLayerColor*>(CurrentBlend.get());
+						const ASTOpImageLayerColor* BlendLayer = static_cast<const ASTOpImageLayerColor*>(CurrentBlend.get());
 						if (BlendLayer->blendTypeAlpha == EBlendType::BT_NONE)
 						{
 							CurrentBlend = BlendLayer->base.child();
@@ -268,7 +269,7 @@ namespace mu
 
 					case OP_TYPE::IM_LAYER:
 					{
-						const ASTOpImageLayer* BlendLayer = dynamic_cast<const ASTOpImageLayer*>(CurrentBlend.get());
+						const ASTOpImageLayer* BlendLayer = static_cast<const ASTOpImageLayer*>(CurrentBlend.get());
 						if (BlendLayer->blendTypeAlpha == EBlendType::BT_NONE)
 						{
 							CurrentBlend = BlendLayer->base.child();
@@ -293,8 +294,8 @@ namespace mu
 
 				case OP_TYPE::IM_DISPLACE:
 				{
-					const ASTOpFixed* MaskDisplace = dynamic_cast<const ASTOpFixed*>(CurrentMask.get());
-					const ASTOpFixed* BlendDisplace = dynamic_cast<const ASTOpFixed*>(CurrentBlend.get());
+					const ASTOpFixed* MaskDisplace = static_cast<const ASTOpFixed*>(CurrentMask.get());
+					const ASTOpFixed* BlendDisplace = static_cast<const ASTOpFixed*>(CurrentBlend.get());
 					if (MaskDisplace && BlendDisplace 
 						&&
 						MaskDisplace->children[MaskDisplace->op.args.ImageDisplace.displacementMap].child()
@@ -310,8 +311,8 @@ namespace mu
 
 				case OP_TYPE::IM_RASTERMESH:
 				{
-					const ASTOpImageRasterMesh* MaskRaster = dynamic_cast<const ASTOpImageRasterMesh*>(CurrentMask.get());
-					const ASTOpImageRasterMesh* BlendRaster = dynamic_cast<const ASTOpImageRasterMesh*>(CurrentBlend.get());
+					const ASTOpImageRasterMesh* MaskRaster = static_cast<const ASTOpImageRasterMesh*>(CurrentMask.get());
+					const ASTOpImageRasterMesh* BlendRaster = static_cast<const ASTOpImageRasterMesh*>(CurrentBlend.get());
 					if (MaskRaster && BlendRaster
 						&&
 						MaskRaster->mesh.child() == BlendRaster->mesh.child()
@@ -336,8 +337,8 @@ namespace mu
 
 				case OP_TYPE::IM_RESIZE:
 				{
-					const ASTOpFixed* MaskResize = dynamic_cast<const ASTOpFixed*>(CurrentMask.get());
-					const ASTOpFixed* BlendResize = dynamic_cast<const ASTOpFixed*>(CurrentBlend.get());
+					const ASTOpFixed* MaskResize = static_cast<const ASTOpFixed*>(CurrentMask.get());
+					const ASTOpFixed* BlendResize = static_cast<const ASTOpFixed*>(CurrentBlend.get());
 					if (MaskResize && BlendResize 
 						&&
 						MaskResize->op.args.ImageResize.size[0] == BlendResize->op.args.ImageResize.size[0]
@@ -360,7 +361,7 @@ namespace mu
 			if (CurrentMask && CurrentMask->GetOpType() == OP_TYPE::IM_SWIZZLE)
 			{
 				// End of the possible mask expression chain match should have a swizzle selecting the alpha.
-				const ASTOpImageSwizzle* MaskSwizzle = dynamic_cast<const ASTOpImageSwizzle*>(CurrentMask.get());
+				const ASTOpImageSwizzle* MaskSwizzle = static_cast<const ASTOpImageSwizzle*>(CurrentMask.get());
 				if (MaskSwizzle->SourceChannels[0] == 3
 					&&
 					!MaskSwizzle->SourceChannels[1]
@@ -387,7 +388,7 @@ namespace mu
 			// Is the base a swizzle expanding alpha from a texture?
 			if (baseAt->GetOpType() == OP_TYPE::IM_SWIZZLE)
 			{
-				const ASTOpImageSwizzle* TypedBase = dynamic_cast<const ASTOpImageSwizzle*>(baseAt.get());
+				const ASTOpImageSwizzle* TypedBase = static_cast<const ASTOpImageSwizzle*>(baseAt.get());
 				bool bAreAllAlpha = true;
 				for (int32 c=0; c<MUTABLE_OP_MAX_SWIZZLE_CHANNELS; ++c)
 				{
@@ -407,7 +408,7 @@ namespace mu
 			// Is the mask a swizzle expanding alpha from a texture?
 			if (!at && maskAt && maskAt->GetOpType() == OP_TYPE::IM_SWIZZLE)
 			{
-				const ASTOpImageSwizzle* TypedBase = dynamic_cast<const ASTOpImageSwizzle*>(maskAt.get());
+				const ASTOpImageSwizzle* TypedBase = static_cast<const ASTOpImageSwizzle*>(maskAt.get());
 				bool bAreAllAlpha = true;
 				for (int32 c = 0; c < MUTABLE_OP_MAX_SWIZZLE_CHANNELS; ++c)
 				{
@@ -427,7 +428,7 @@ namespace mu
 			// Is the blend a swizzle selecting alpha?
 			if (Pass>0 && !at && blendAt && blendAt->GetOpType() == OP_TYPE::IM_SWIZZLE && Flags==0)
 			{
-				const ASTOpImageSwizzle* TypedBlend = dynamic_cast<const ASTOpImageSwizzle*>(blendAt.get());
+				const ASTOpImageSwizzle* TypedBlend = static_cast<const ASTOpImageSwizzle*>(blendAt.get());
 				if (TypedBlend->Format==EImageFormat::IF_L_UBYTE
 					&&
 					TypedBlend->SourceChannels[0]==3)
@@ -654,7 +655,7 @@ namespace mu
 
 			case OP_TYPE::IM_SWITCH:
 			{
-				const ASTOpSwitch* BlendSwitch = dynamic_cast<const ASTOpSwitch*>(blendAt.get());
+				const ASTOpSwitch* BlendSwitch = static_cast<const ASTOpSwitch*>(blendAt.get());
 
 				// If at least a switch option is a plain colour, sink the layer into the switch
 				bool bWorthSinking = false;
@@ -674,9 +675,10 @@ namespace mu
 				if (bWorthSinking)
 				{
 					bool bMaskIsCompatibleSwitch = false;
-					const ASTOpSwitch* MaskSwitch = dynamic_cast<const ASTOpSwitch*>(maskAt.get());
+					const ASTOpSwitch* MaskSwitch = nullptr;
 					if (maskAt && maskAt->GetOpType()== OP_TYPE::IM_SWITCH)
 					{
+						MaskSwitch = static_cast<const ASTOpSwitch*>(maskAt.get());
 						bMaskIsCompatibleSwitch = MaskSwitch->IsCompatibleWith(BlendSwitch);
 					}
 
@@ -728,7 +730,7 @@ namespace mu
 
 			case OP_TYPE::IM_SWITCH:
 			{
-				const ASTOpSwitch* MaskSwitch = dynamic_cast<const ASTOpSwitch*>(maskAt.get());
+				const ASTOpSwitch* MaskSwitch = static_cast<const ASTOpSwitch*>(maskAt.get());
 
 				// If at least a switch option is a plain colour, sink the layer into the switch
 				bool bWorthSinking = false;

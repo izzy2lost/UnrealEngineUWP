@@ -24,7 +24,7 @@ namespace mu
 	//---------------------------------------------------------------------------------------------
 	// Static initialisation
 	//---------------------------------------------------------------------------------------------
-	static NODE_TYPE s_nodeColourType = NODE_TYPE( "NodeColour", Node::GetStaticType() );
+	static FNodeType s_nodeColourType = FNodeType( "NodeColour", Node::GetStaticType() );
 
 
 	//---------------------------------------------------------------------------------------------
@@ -73,14 +73,14 @@ namespace mu
 
 
 	//---------------------------------------------------------------------------------------------
-	const NODE_TYPE* NodeColour::GetType() const
+	const FNodeType* NodeColour::GetType() const
 	{
 		return GetStaticType();
 	}
 
 
 	//---------------------------------------------------------------------------------------------
-	const NODE_TYPE* NodeColour::GetStaticType()
+	const FNodeType* NodeColour::GetStaticType()
 	{
 		return &s_nodeColourType;
 	}

@@ -17,8 +17,8 @@ namespace mu
 	//---------------------------------------------------------------------------------------------
 	// Static initialisation
 	//---------------------------------------------------------------------------------------------
-	NODE_TYPE NodeMeshInterpolate::Private::s_type =
-			NODE_TYPE( "MeshInterpolate", NodeMesh::GetStaticType() );
+	FNodeType NodeMeshInterpolate::Private::s_type =
+			FNodeType( "MeshInterpolate", NodeMesh::GetStaticType() );
 
 
 	//---------------------------------------------------------------------------------------------
@@ -105,9 +105,7 @@ namespace mu
 		// TODO: Substract layouts too? Usually they are ignored.
 		if ( m_targets.Num()>0 && m_targets[0] )
 		{
-			NodeMesh::Private* pPrivate =
-					dynamic_cast<NodeMesh::Private*>( m_targets[0]->GetBasePrivate() );
-
+			NodeMesh::Private* pPrivate = static_cast<NodeMesh::Private*>( m_targets[0]->GetBasePrivate() );
 			pResult = pPrivate->GetLayout( index );
 		}
 

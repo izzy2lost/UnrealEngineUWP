@@ -13,7 +13,7 @@ namespace mu
 	struct FProgram;
 
 	/** Add tags to a mesh. */
-	class ASTOpMeshAddTags : public ASTOp
+	class ASTOpMeshAddTags final : public ASTOp
 	{
 	public:
 

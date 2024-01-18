@@ -30,8 +30,9 @@ namespace mu
 
 	bool ASTOpMeshTransform::IsEqual(const ASTOp& otherUntyped) const
 	{
-		if (auto other = dynamic_cast<const ASTOpMeshTransform*>(&otherUntyped))
+		if (otherUntyped.GetOpType() == GetOpType())
 		{
+			const ASTOpMeshTransform* other = static_cast<const ASTOpMeshTransform*>(&otherUntyped);
 			return source == other->source &&
 				matrix == other->matrix;
 		}

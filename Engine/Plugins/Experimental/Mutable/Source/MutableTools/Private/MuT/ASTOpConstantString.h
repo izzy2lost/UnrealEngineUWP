@@ -16,7 +16,7 @@ struct FProgram;
 	//---------------------------------------------------------------------------------------------
 	//!
 	//---------------------------------------------------------------------------------------------
-	class ASTOpConstantString : public ASTOp
+	class ASTOpConstantString final : public ASTOp
 	{
 	public:
 		//!

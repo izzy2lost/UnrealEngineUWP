@@ -1860,6 +1860,13 @@ bool UCustomizableInstancePrivate::UpdateSkeletalMesh_PostBeginUpdate0(UCustomiz
 			}
 		}
 
+		if (!ComponentsData.IsValidIndex(Component.Id))
+		{
+			bSuccess = false;
+			ensure(false);
+			continue;
+		}
+
 		// Reset last mesh IDs.
 		ComponentsData[Component.Id].LastMeshIdPerLOD.Init(MAX_uint64, MAX_MESH_LOD_COUNT);
 

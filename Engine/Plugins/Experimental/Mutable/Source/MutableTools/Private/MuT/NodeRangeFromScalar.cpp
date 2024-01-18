@@ -16,8 +16,8 @@ namespace mu
 	//---------------------------------------------------------------------------------------------
 	// Static initialisation
 	//---------------------------------------------------------------------------------------------
-    NODE_TYPE NodeRangeFromScalar::Private::s_type =
-            NODE_TYPE( "RangeFromScalar", NodeRange::GetStaticType() );
+    FNodeType NodeRangeFromScalar::Private::s_type =
+            FNodeType( "RangeFromScalar", NodeRange::GetStaticType() );
 
 
 	//---------------------------------------------------------------------------------------------

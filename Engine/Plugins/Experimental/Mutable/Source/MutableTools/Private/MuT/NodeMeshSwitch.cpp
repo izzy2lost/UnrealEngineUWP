@@ -1,6 +1,5 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
-
 #include "MuT/NodeMeshSwitch.h"
 
 #include "Misc/AssertionMacros.h"
@@ -17,8 +16,8 @@ namespace mu
 	//---------------------------------------------------------------------------------------------
 	// Static initialisation
 	//---------------------------------------------------------------------------------------------
-	NODE_TYPE NodeMeshSwitch::Private::s_type =
-			NODE_TYPE( "MeshSwitch", NodeMesh::GetStaticType() );
+	FNodeType NodeMeshSwitch::Private::s_type =
+			FNodeType( "MeshSwitch", NodeMesh::GetStaticType() );
 
 
 	//---------------------------------------------------------------------------------------------
@@ -74,7 +73,7 @@ namespace mu
 		{
 			if (m_options[i])
 			{
-				NodeMesh::Private* pPrivate = dynamic_cast<NodeMesh::Private*>(m_options[i]->GetBasePrivate());
+				NodeMesh::Private* pPrivate = static_cast<NodeMesh::Private*>(m_options[i]->GetBasePrivate());
 				NodeLayoutPtr pResult = pPrivate->GetLayout(index);
 				return pResult;
 			}

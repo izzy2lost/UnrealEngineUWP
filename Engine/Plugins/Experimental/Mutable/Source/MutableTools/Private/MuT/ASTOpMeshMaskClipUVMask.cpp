@@ -38,8 +38,9 @@ namespace mu
 	//-------------------------------------------------------------------------------------------------
 	bool ASTOpMeshMaskClipUVMask::IsEqual(const ASTOp& otherUntyped) const
 	{
-		if (const ASTOpMeshMaskClipUVMask* other = dynamic_cast<const ASTOpMeshMaskClipUVMask*>(&otherUntyped))
+		if (otherUntyped.GetOpType() == GetOpType())
 		{
+			const ASTOpMeshMaskClipUVMask* other = static_cast<const ASTOpMeshMaskClipUVMask*>(&otherUntyped);
 			return Source == other->Source && Mask == other->Mask && LayoutIndex==other->LayoutIndex;
 		}
 		return false;
@@ -166,7 +167,7 @@ namespace mu
 					// faces removed by the ignored removemask, but it is ok
 
 					// TODO: Swap instead of ignore, and implement removemask on a mask?
-					const ASTOpMeshRemoveMask* typedAt = dynamic_cast<const ASTOpMeshRemoveMask*>(at.get());
+					const ASTOpMeshRemoveMask* typedAt = static_cast<const ASTOpMeshRemoveMask*>(at.get());
 					newAt = Visit(typedAt->source.child());
 					break;
 				}

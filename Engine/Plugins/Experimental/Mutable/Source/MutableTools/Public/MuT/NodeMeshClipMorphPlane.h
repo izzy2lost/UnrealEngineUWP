@@ -37,8 +37,8 @@ namespace mu
 		// Node Interface
 		//-----------------------------------------------------------------------------------------
 
-		virtual const NODE_TYPE* GetType() const;
-		static const NODE_TYPE* GetStaticType();
+		virtual const FNodeType* GetType() const;
+		static const FNodeType* GetStaticType();
 
 		//-----------------------------------------------------------------------------------------
 		// Own Interface

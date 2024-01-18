@@ -40,8 +40,9 @@ namespace mu
 	//---------------------------------------------------------------------------------------------
 	bool ASTOpMeshRemoveMask::IsEqual(const ASTOp& otherUntyped) const
 	{
-		if (const ASTOpMeshRemoveMask* other = dynamic_cast<const ASTOpMeshRemoveMask*>(&otherUntyped))
+		if (otherUntyped.GetOpType() == GetOpType())
 		{
+			const ASTOpMeshRemoveMask* other = static_cast<const ASTOpMeshRemoveMask*>(&otherUntyped);
 			return source == other->source && removes == other->removes;
 		}
 		return false;
@@ -256,7 +257,7 @@ namespace mu
 						NewOp = mu::Clone<ASTOpMeshRemoveMask>(this);
 					}
 
-					const ASTOpMeshAddTags* Add = dynamic_cast<const ASTOpMeshAddTags*>(removes[RemoveIndex].Value.child().get());
+					const ASTOpMeshAddTags* Add = static_cast<const ASTOpMeshAddTags*>(removes[RemoveIndex].Value.child().get());
 					NewOp->removes[RemoveIndex].Value = Add->Source.child();
 
 					break;

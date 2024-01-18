@@ -16,7 +16,7 @@ struct FProgram;
 	//---------------------------------------------------------------------------------------------
 	//!
 	//---------------------------------------------------------------------------------------------
-	class ASTOpMeshClipMorphPlane : public ASTOp
+	class ASTOpMeshClipMorphPlane final : public ASTOp
 	{
 	public:
 
