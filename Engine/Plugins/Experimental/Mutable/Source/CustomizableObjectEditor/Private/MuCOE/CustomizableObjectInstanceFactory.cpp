@@ -58,7 +58,7 @@ void UCustomizableObjectInstanceFactory::PostSpawnActor(UObject* Asset, AActor* 
 					CustomSkeletalComp->UnregisterComponent();
 					CustomSkeletalComp->CustomizableObjectInstance = COInstance;
 					CustomSkeletalComp->ComponentIndex = ComponentIndex;
-					CustomSkeletalComp->SetSkeletalMesh(SkeletalMesh, false);
+					CustomSkeletalComp->SetSkeletalMesh(SkeletalMesh);
 					CustomSkeletalComp->UpdateSkeletalMeshAsync();
 					CustomSkeletalComp->RegisterComponent();
 				}

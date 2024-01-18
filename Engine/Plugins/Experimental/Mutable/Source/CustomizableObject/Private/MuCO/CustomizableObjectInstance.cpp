@@ -1827,8 +1827,6 @@ bool UCustomizableInstancePrivate::UpdateSkeletalMesh_PostBeginUpdate0(UCustomiz
 		return true;
 	}
 
-	SetCOInstanceFlags(CreatingSkeletalMesh);
-
 	TextureReuseCache.Empty(); // Sections may have changed, so invalidate the texture reuse cache because it's indexed by section
 
 	TArray<TObjectPtr<USkeletalMesh>> OldSkeletalMeshes = SkeletalMeshes;
@@ -2124,8 +2122,6 @@ bool UCustomizableInstancePrivate::UpdateSkeletalMesh_PostBeginUpdate0(UCustomiz
 			}
 		}
 	}
-
-	ClearCOInstanceFlags(CreatingSkeletalMesh); // TODO MTBL-391: Review
 
 	if (!bSuccess)
 	{
@@ -5382,11 +5378,6 @@ void UCustomizableInstancePrivate::ReuseTexture(UTexture2D* Texture, TSharedRef<
 	}
 }
 
-static bool bReuseMaterialInstances = true;
-FAutoConsoleVariableRef CVarMutableReuseMaterialInstances(
-	TEXT("Mutable.ReuseMaterialInstances"),
-	bReuseMaterialInstances,
-	TEXT("If true, allow reuse of MaterialInstances between updates."));
 
 void UCustomizableInstancePrivate::BuildMaterials(const TSharedRef<FUpdateContextPrivate>& OperationData, UCustomizableObjectInstance* Public)
 {
@@ -5402,10 +5393,7 @@ void UCustomizableInstancePrivate::BuildMaterials(const TSharedRef<FUpdateContex
 
 	// Temp copy to allow reuse of MaterialInstances
 	TArray<FGeneratedMaterial> OldGeneratedMaterials;
-	if (bReuseMaterialInstances)
-	{
-		Exchange(OldGeneratedMaterials, GeneratedMaterials);
-	}
+	Exchange(OldGeneratedMaterials, GeneratedMaterials);
 	
 	GeneratedMaterials.Reset();
 
@@ -5880,7 +5868,7 @@ void UCustomizableInstancePrivate::BuildMaterials(const TSharedRef<FUpdateContex
 
 					UMaterialInstanceDynamic* MaterialInstance = nullptr;
 					
-					if (const int32 OldMaterialIndex = OldGeneratedMaterials.Find(Material); bReuseMaterialInstances && OldMaterialIndex != INDEX_NONE)
+					if (const int32 OldMaterialIndex = OldGeneratedMaterials.Find(Material); OldMaterialIndex != INDEX_NONE)
 					{
 						const FGeneratedMaterial& OldMaterial = OldGeneratedMaterials[OldMaterialIndex];
 						MaterialInstance = Cast<UMaterialInstanceDynamic>(OldMaterial.MaterialInterface);

@@ -52,11 +52,11 @@ USkeletalMesh* UCustomizableSkeletalComponent::GetSkeletalMesh() const
 }
 
 
-void UCustomizableSkeletalComponent::SetSkeletalMesh(USkeletalMesh* SkeletalMesh, bool bReinitPose, bool bForceClothReset)
+void UCustomizableSkeletalComponent::SetSkeletalMesh(USkeletalMesh* SkeletalMesh)
 {
 	if (CustomizableObjectInstanceUsage)
 	{
-		CustomizableObjectInstanceUsage->SetSkeletalMesh(SkeletalMesh, bReinitPose, bForceClothReset);
+		CustomizableObjectInstanceUsage->SetSkeletalMesh(SkeletalMesh);
 	}
 }
 

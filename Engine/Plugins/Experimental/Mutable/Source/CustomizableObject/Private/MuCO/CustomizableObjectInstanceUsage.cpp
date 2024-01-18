@@ -195,55 +195,13 @@ USkeletalMesh* UCustomizableObjectInstanceUsage::GetSkeletalMesh() const
 }
 
 
-void UCustomizableObjectInstanceUsage::SetSkeletalMesh(USkeletalMesh* SkeletalMesh, bool bReinitPose, bool bForceClothReset)
+void UCustomizableObjectInstanceUsage::SetSkeletalMesh(USkeletalMesh* SkeletalMesh)
 {
 	USkeletalMeshComponent* Parent = Cast<USkeletalMeshComponent>(GetAttachParent());
 
-	// LINUX_PLATFORM needs a more aggressive workaround so morph and cloth glitches
-	// are not visible. 
-	// TODO: Try to find a better way of setting BP Morphs and clothing and remove
-	// the workaround.  
 	if (Parent)
 	{
-#if PLATFORM_LINUX
-		const bool bDisableClothSimulation = Parent->bDisableClothSimulation;
-		if (bForceClothReset)
-		{
-			Parent->bDisableClothSimulation = true;
-		}
-#endif
-
-		if(UE_MUTABLE_GETSKINNEDASSET(Parent) == SkeletalMesh)
-		{
-			Parent->RecreateRenderState_Concurrent();
-		}
-		
-		TMap<FName, float> MorphTargetCurves = Parent->GetMorphTargetCurves();
-		Parent->SetSkeletalMesh(SkeletalMesh, bReinitPose);
-		
-		// USkeletalMeshCompoent MorphTargetCurves are reset when SetSkeletalMesh is called.
-		// Re-enable them if not bReinitPose.
-		if (!bReinitPose && MorphTargetCurves.Num() > 0)
-		{
-			for (const TPair<FName, float>& MorphTarget : MorphTargetCurves)
-			{
-				Parent->SetMorphTarget(MorphTarget.Key, MorphTarget.Value);
-			}
-
-#if PLATFORM_LINUX
-			FRenderStateRecreator RenderStateRecreator(Parent);
-			FAnimationRuntime::AppendActiveMorphTargets(SkeletalMesh, Parent->GetMorphTargetCurves(), Parent->ActiveMorphTargets, Parent->MorphTargetWeights);		
-#endif
-		}
-
-		if (bForceClothReset)
-		{
-			Parent->ForceClothNextUpdateTeleportAndReset();
-
-#if PLATFORM_LINUX
-			Parent->bDisableClothSimulation = bDisableClothSimulation;
-#endif
-		}
+		Parent->SetSkeletalMesh(SkeletalMesh, true);
 
 		const UCustomizableObjectInstance* Instance = GetCustomizableObjectInstance();
 		const UCustomizableObject* CustomizableObject = Instance ? Instance->GetCustomizableObject() : nullptr;
@@ -263,7 +221,7 @@ void UCustomizableObjectInstanceUsage::SetSkeletalMesh(USkeletalMesh* SkeletalMe
 				for (int32 Index = 0; Index < ComponentData->OverrideMaterials.Num(); ++Index)
 				{
 					Parent->SetMaterial(Index, ComponentData->OverrideMaterials[Index]);
-				}	
+				}
 			}
 		}	
 	}
@@ -348,17 +306,15 @@ void UCustomizableObjectInstanceUsage::UpdateDistFromComponentToLevelEditorCamer
 		}
 
 		USkeletalMesh* AttachedSkeletalMesh = GetAttachedSkeletalMesh();
-		int32 ComponentIndex = GetComponentIndex();
-		USkeletalMesh* GeneratedSKeletalMesh = CustomizableObjectInstance->GetSkeletalMesh(ComponentIndex);
-		if (!AttachedSkeletalMesh && !CustomizableObjectInstance->GetPrivate()->HasCOInstanceFlags(CreatingSkeletalMesh))
+		const int32 ComponentIndex = GetComponentIndex();
+
+		const bool bInstanceGenerated = CustomizableObjectInstance->GetPrivate()->SkeletalMeshStatus != ESkeletalMeshStatus::NotGenerated;
+		USkeletalMesh* GeneratedSkeletalMesh = bInstanceGenerated ? CustomizableObjectInstance->GetSkeletalMesh(ComponentIndex) :
+			CustomizableObjectInstance->GetCustomizableObject()->GetRefSkeletalMesh(ComponentIndex);
+
+		if (AttachedSkeletalMesh != GeneratedSkeletalMesh)
 		{
-			UCustomizableObject* Object = CustomizableObjectInstance->GetCustomizableObject(); 
-			USkeletalMesh* RefMesh = Object ? Object->GetRefSkeletalMesh(ComponentIndex) : nullptr;
-			SetSkeletalMesh(GeneratedSKeletalMesh ? GeneratedSKeletalMesh : RefMesh);
-		}
-		else if (GeneratedSKeletalMesh && AttachedSkeletalMesh != GeneratedSKeletalMesh)
-		{
-			SetSkeletalMesh(GeneratedSKeletalMesh);
+			SetSkeletalMesh(GeneratedSkeletalMesh);
 		}
 	}
 }
@@ -378,15 +334,15 @@ void UCustomizableObjectInstanceUsage::EditorUpdateComponent()
 		if (ParentActor)
 		{
 			USkeletalMesh* AttachedSkeletalMesh = GetAttachedSkeletalMesh();
-			int32 ComponentIndex = GetComponentIndex();
-			USkeletalMesh* GeneratedSKeletalMesh = CustomizableObjectInstance->GetSkeletalMesh(ComponentIndex);
-			if (!AttachedSkeletalMesh && !CustomizableObjectInstance->GetPrivate()->HasCOInstanceFlags(CreatingSkeletalMesh))
+			const int32 ComponentIndex = GetComponentIndex();
+
+			const bool bInstanceGenerated = CustomizableObjectInstance->GetPrivate()->SkeletalMeshStatus != ESkeletalMeshStatus::NotGenerated;
+			USkeletalMesh* GeneratedSkeletalMesh = bInstanceGenerated ? CustomizableObjectInstance->GetSkeletalMesh(ComponentIndex) :
+				CustomizableObjectInstance->GetCustomizableObject()->GetRefSkeletalMesh(ComponentIndex);
+
+			if (AttachedSkeletalMesh != GeneratedSkeletalMesh)
 			{
-				SetSkeletalMesh(GeneratedSKeletalMesh ? GeneratedSKeletalMesh : CustomizableObjectInstance->GetCustomizableObject()->GetRefSkeletalMesh(ComponentIndex));
-			}
-			else if (GeneratedSKeletalMesh && AttachedSkeletalMesh != GeneratedSKeletalMesh)
-			{
-				SetSkeletalMesh(GeneratedSKeletalMesh);
+				SetSkeletalMesh(GeneratedSkeletalMesh);
 			}
 		}
 	}
@@ -490,7 +446,7 @@ void UCustomizableObjectInstanceUsage::UpdateDistFromComponentToPlayer(const AAc
 
 		int32 ComponentIndex = GetComponentIndex();
 
-		if (ParentActor && GetAttachedSkeletalMesh() == nullptr && CustomizableObjectInstance->GetSkeletalMesh(ComponentIndex) && !CustomizableObjectInstance->GetPrivate()->HasCOInstanceFlags(CreatingSkeletalMesh))
+		if (ParentActor && GetAttachedSkeletalMesh() == nullptr && CustomizableObjectInstance->GetSkeletalMesh(ComponentIndex))
 		{
 			SetSkeletalMesh(CustomizableObjectInstance->GetSkeletalMesh(ComponentIndex));
 		}
