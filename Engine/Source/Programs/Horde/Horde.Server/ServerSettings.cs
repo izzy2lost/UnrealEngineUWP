@@ -398,6 +398,11 @@ namespace Horde.Server
 	/// </summary>
 	public class ServerSettings : IAclScope
 	{
+		/// <summary>
+		/// Name of the section containing these settings
+		/// </summary>
+		public const string SectionName = "Horde";
+
 		/// <inheritdoc/>
 		[JsonIgnore]
 		public IAclScope? ParentScope => null;
@@ -417,19 +422,19 @@ namespace Horde.Server
 		public string? DataDir { get; set; } = null;
 
 		/// <summary>
-		/// Main port for serving HTTP. Uses the default Kestrel port (5000) if not specified.
+		/// Main port for serving HTTP.
 		/// </summary>
-		public int? HttpPort { get; set; }
+		public int HttpPort { get; set; } = 5000;
 
 		/// <summary>
 		/// Port for serving HTTP with TLS enabled. Disabled by default.
 		/// </summary>
-		public int? HttpsPort { get; set; }
+		public int HttpsPort { get; set; } = 0;
 
 		/// <summary>
-		/// Dedicated port for serving only HTTP/2. Uses port 5002 by default.
+		/// Dedicated port for serving only HTTP/2.
 		/// </summary>
-		public int? Http2Port { get; set; }
+		public int Http2Port { get; set; } = 5002;
 
 		/// <summary>
 		/// Port to listen on for tunneling compute sockets to agents

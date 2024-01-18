@@ -166,7 +166,7 @@ namespace EpicGames.Horde.Tests
 		}
 
 		[TestMethod]
-		public async Task ChunkingCompatV2()
+		public async Task ChunkingCompatV2Async()
 		{
 			ChunkingOptions chunkingOptions = new ChunkingOptions();
 			chunkingOptions.LeafOptions = new LeafChunkedDataNodeOptions(2, 2, 2);
