@@ -13,7 +13,7 @@
  * This class represent a python pipeline. It is use by the TSoftClassPtr of the PythonPipeline asset.
  *
  */
-UCLASS(BlueprintType, Abstract, Experimental, MinimalAPI)
+UCLASS(BlueprintType, Abstract, MinimalAPI)
 class UInterchangePythonPipelineBase : public UInterchangePipelineBase
 {
 	GENERATED_BODY()
@@ -43,7 +43,7 @@ struct FPropertyData
  * This restriction exist because python class are transient, so any assets create from a python class cannot be save.
  * 
  */
-UCLASS(BlueprintType, Experimental, MinimalAPI)
+UCLASS(BlueprintType, MinimalAPI)
 class UInterchangePythonPipelineAsset : public UObject
 {
 	GENERATED_BODY()
