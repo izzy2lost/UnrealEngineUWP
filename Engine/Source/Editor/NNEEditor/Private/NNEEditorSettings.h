@@ -24,10 +24,4 @@ public:
 		ConsoleVariable = "nne.Editor.UseDDC", DisplayName = "Use DDC for Neural Network optimizations",
 		ToolTip = "True if NNE should use the DDC cache to fetch previously optimized Neural Network."))
 	bool bUseDDCCache;
-
-	UPROPERTY(config, EditAnywhere, BlueprintReadWrite, Category = Editor, meta = (
-		EditCondition = "bUseDDCCache",
-		ConsoleVariable = "nne.Editor.UseDDCForCooking", DisplayName = "Use DDC for Neural Network optimizations while cooking",
-		ToolTip = "True if NNE should use the DDC cache to fetch previously optimized Neural Network while cooking."))
-	bool bUseDDCCacheForCooking;
 };

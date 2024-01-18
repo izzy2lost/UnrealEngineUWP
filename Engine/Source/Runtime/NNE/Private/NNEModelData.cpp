@@ -184,13 +184,13 @@ namespace UE::NNE
 		static TAutoConsoleVariable<bool> CVarNNEEditorUseDDC(
 			TEXT("nne.Editor.UseDDC"),
 			true,
-			TEXT("Indicates whether NNE wether NNE should use the DDC cache to speed up SharedModelData creation in the editor, see also nne.Editor.UseDDCForCooking."),
+			TEXT("Indicates whether NNE should use the DDC cache to speed up SharedModelData creation in the editor, see also nne.Editor.UseDDCForCooking."),
 			ECVF_Default);
 
-		static TAutoConsoleVariable<bool> CVarNNEEditorUseDDCForCooking(
-			TEXT("nne.Editor.UseDDCForCooking"),
+		static TAutoConsoleVariable<bool> CVarNNEEditorUseDDCForCookingDeprecated(
+			TEXT("nne.Editor.UseDDCForCooking_Deprecated"),
 			false,
-			TEXT("Indicates whether NNE wether NNE should use the DDC cache to speed up SharedModelData creation while cooking, if nne.Editor.UseDDC is false cooking won't use the DDC even if nne.Editor.UseDDCForCooking is true."),
+			TEXT("DEPRECATED. Indicates whether NNE should use the DDC cache to speed up SharedModelData creation while cooking, if nne.Editor.UseDDC is false cooking won't use the DDC even if nne.Editor.UseDDCForCooking is true."),
 			ECVF_Default);
 	} // ConsoleVariables
 #endif //WITH_EDITOR
@@ -267,7 +267,7 @@ void UNNEModelData::Serialize(FArchive& Ar)
 						if (ModelDataIdentifier.Len() > 0)
 						{
 							if (UE::NNE::ConsoleVariables::CVarNNEEditorUseDDC.GetValueOnGameThread() &&
-								UE::NNE::ConsoleVariables::CVarNNEEditorUseDDCForCooking.GetValueOnGameThread())
+								UE::NNE::ConsoleVariables::CVarNNEEditorUseDDCForCookingDeprecated.GetValueOnGameThread())
 							{
 								SharedModelData = UE::NNE::ModelData::GetFromDDC(FileId, RuntimeName, ModelDataIdentifier);
 							}
