@@ -18,6 +18,7 @@ namespace uba
 		UBA_TEST(TestLogLines) \
 		UBA_TEST(TestLocalSchedule) \
 		UBA_TEST(TestLocalScheduleReuse) \
+		UBA_TEST(TestDetouredTouch) \
 		UBA_TEST(TestRemoteScheduleReuse) \
 
 #endif 
@@ -34,7 +35,6 @@ namespace uba
 		UBA_TEST(TestStorage) \
 		UBA_TEST(TestDetouredTestApp) \
 		UBA_TEST(TestDetouredClang) \
-		UBA_TEST(TestDetouredTouch) \
 		UBA_TEST(TestRemoteDetouredTestApp) \
 		UBA_TEST(TestCustomService) \
 		UBA_EXTRA_TESTS
