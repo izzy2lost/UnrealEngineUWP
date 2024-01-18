@@ -407,7 +407,8 @@ public class BlobService : IBlobService
 			throw new Exception("blobContents is null");
 		}
 
-		if (numStoreMisses >= 1)
+		// if we had a miss populate the earlier stores unless we are using a redirect uri, at which point we do not have the contents available to us
+		if (numStoreMisses >= 1 && blobContents.RedirectUri == null)
 		{
 			using TelemetrySpan _ = _tracer.StartActiveSpan("HierarchicalStore.Populate").SetAttribute("operation.name", "HierarchicalStore.Populate");
 			using ServerTimingMetricScoped? serverTimingScope = serverTiming?.CreateServerTimingMetricScope($"blob.populate", "Populating caches with blob contents");
