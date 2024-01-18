@@ -650,6 +650,8 @@ private:
 
 void SNiagaraOverviewStack::Construct(const FArguments& InArgs, UNiagaraStackViewModel& InStackViewModel, UNiagaraSystemSelectionViewModel& InOverviewSelectionViewModel)
 {
+	AllowedClasses = InArgs._AllowedClasses;
+	
 	StackCommandContext = MakeShared<FNiagaraStackCommandContext>();
 
 	bUpdatingOverviewSelectionFromStackSelection = false;
@@ -847,19 +849,16 @@ void SNiagaraOverviewStack::RefreshEntryList()
 	{
 		FlattenedEntryList.Empty();
 		EntryObjectKeyToParentChain.Empty();
-		TArray<UClass*> AcceptableClasses;
-		AcceptableClasses.Add(UNiagaraStackItemGroup::StaticClass());
-		AcceptableClasses.Add(UNiagaraStackItem::StaticClass());
 
 		UNiagaraStackEntry* RootEntry = StackViewModel->GetRootEntry();
 		checkf(RootEntry != nullptr, TEXT("Root entry was null."));
-		TArray<UNiagaraStackEntry*> RootChildren;
+		TArray<UNiagaraStackEntry*> RootChildren;		
 		RootEntry->GetFilteredChildren(RootChildren);
 		for (UNiagaraStackEntry* RootChild : RootChildren)
 		{
 			checkf(RootEntry != nullptr, TEXT("Root entry child was null."));
 			TArray<UNiagaraStackEntry*> ParentChain;
-			AddEntriesRecursive(*RootChild, FlattenedEntryList, AcceptableClasses, ParentChain);
+			AddEntriesRecursive(*RootChild, FlattenedEntryList, AllowedClasses, ParentChain);
 		}
 
 		bRefreshEntryListPending = false;

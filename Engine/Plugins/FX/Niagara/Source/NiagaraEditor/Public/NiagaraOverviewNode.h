@@ -16,7 +16,7 @@ public:
 	NIAGARAEDITOR_API void Initialize(UNiagaraSystem* InOwningSystem);
 	NIAGARAEDITOR_API void Initialize(UNiagaraSystem* InOwningSystem, FGuid InEmitterHandleGuid);
 	NIAGARAEDITOR_API const FGuid GetEmitterHandleGuid() const;
-	NIAGARAEDITOR_API struct FNiagaraEmitterHandle* TryGetEmitterHandle();
+	NIAGARAEDITOR_API struct FNiagaraEmitterHandle* TryGetEmitterHandle() const;
 	
 	//~ Begin UEdGraphNode Interface
 	/** Gets the name of this node, shown in title bar */
@@ -39,7 +39,7 @@ public:
 	NIAGARAEDITOR_API virtual bool CanCreateUnderSpecifiedSchema(const UEdGraphSchema* Schema) const override;
 	//~ End UEdGraphNode Interface
 
-	NIAGARAEDITOR_API UNiagaraSystem* GetOwningSystem();
+	NIAGARAEDITOR_API UNiagaraSystem* GetOwningSystem() const;
 
 	void RequestRename() { bRenamePending = true; }
 	void RenameStarted() { bRenamePending = false; }

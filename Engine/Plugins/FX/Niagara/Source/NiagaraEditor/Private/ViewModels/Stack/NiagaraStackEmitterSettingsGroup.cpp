@@ -294,13 +294,11 @@ void UNiagaraStackEmitterSummaryItem::Initialize(FRequiredEntryData InRequiredEn
 
 FText UNiagaraStackEmitterSummaryItem::GetDisplayName() const
 {
-
 	return LOCTEXT("EmitterSummaryName", "Emitter Summary");
 }
 
 FText UNiagaraStackEmitterSummaryItem::GetTooltipText() const
 {
-
 	return LOCTEXT("EmitterSummaryTooltip", "Subset of parameters from the stack, summarized here for easier access.");
 }
 
@@ -353,15 +351,6 @@ TSharedPtr<IDetailTreeNode> GetSummarySectionsPropertyNode(const TArray<TSharedR
 	return GetSummarySectionsPropertyNode(ChildrenToCheck);
 }
 
-void UNiagaraStackEmitterSummaryItem::SelectSummaryNodesFromEmitterEditorDataRootNodes(TArray<TSharedRef<IDetailTreeNode>> Source, TArray<TSharedRef<IDetailTreeNode>>* Selected)
-{
-	TSharedPtr<IDetailTreeNode> SummarySectionsNode = GetSummarySectionsPropertyNode(Source);
-	if (SummarySectionsNode.IsValid())
-	{
-		Selected->Add(SummarySectionsNode.ToSharedRef());
-	}
-}
-
 void UNiagaraStackEmitterSummaryItem::OnEditButtonClicked()
 {
 	if (GetEmitterViewModel().IsValid())
@@ -378,16 +367,6 @@ TOptional<FText> UNiagaraStackEmitterSummaryItem::GetEditModeButtonText() const
 TOptional<FText> UNiagaraStackEmitterSummaryItem::GetEditModeButtonTooltip() const
 {
 	return LOCTEXT("EditSummaryViewButtonTooltip", "Summons the Summary Editor that lets you define what inputs, renderers and properties (and more) should be displayed when looking at the Emitter Summary.");
-}
-
-EVisibility UNiagaraStackEmitterSummaryItem::IsEditButtonVisible() const
-{
-	if(GetEmitterViewModel().IsValid())
-	{
-		return GetEmitterViewModel()->GetEditorData().ShouldShowSummaryView() ? EVisibility::Collapsed : EVisibility::Visible;
-	}
-
-	return EVisibility::Collapsed;
 }
 
 UNiagaraStackEmitterSummaryGroup::UNiagaraStackEmitterSummaryGroup()
@@ -411,43 +390,6 @@ FText UNiagaraStackEmitterSummaryGroup::GetIconText() const
 {
 	return FText::FromString(FString(TEXT("\xf0ca")/* fa-list-ul */));
 }
-
-void UNiagaraStackSummaryViewCollapseButton::Initialize(FRequiredEntryData InRequiredEntryData)
-{
-	Super::Initialize(InRequiredEntryData, TEXT("ShowAdvanced"));
-}
-
-FText UNiagaraStackSummaryViewCollapseButton::GetDisplayName() const
-{
-	return LOCTEXT("SummaryCollapseButtonDisplayName", "Show Advanced");
-}
-
-UNiagaraStackEntry::EStackRowStyle UNiagaraStackSummaryViewCollapseButton::GetStackRowStyle() const
-{
-	return EStackRowStyle::GroupHeader;
-}
-
-FText UNiagaraStackSummaryViewCollapseButton::GetTooltipText() const 
-{
-	return LOCTEXT("SummaryCollapseButtonTooltip", "Expand/Collapse detailed view.");
-}
-
-bool UNiagaraStackSummaryViewCollapseButton::GetIsEnabled() const
-{
-	return true;
-}
-
-void UNiagaraStackSummaryViewCollapseButton::RefreshChildrenInternal(const TArray<UNiagaraStackEntry*>& CurrentChildren, TArray<UNiagaraStackEntry*>& NewChildren, TArray<FStackIssue>& NewIssues)
-{
-	
-}
-
-
-
-
-
-
-
 
 #undef LOCTEXT_NAMESPACE
 

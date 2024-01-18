@@ -203,8 +203,10 @@ private:
 	void OnViewModelRequestFocusTab(FName TabName, bool bDrawAttention = false);
 	
 	const FName GetNiagaraSystemMessageLogName(UNiagaraSystem* InSystem) const;
-	void OnSaveThumbnailImage();
-	void OnThumbnailCaptured(UTexture2D* Thumbnail);
+
+	void CaptureAssetThumbnail() const;
+	void CaptureEmitterThumbnail(FGuid EmitterGuid);
+	void OnThumbnailCaptured(UTexture2D* Thumbnail, TOptional<FGuid> EmitterGuid);
 
 	void ManageVersions();
 	TSharedPtr<FNiagaraEmitterViewModel> GetEditedEmitterViewModel() const;
@@ -236,7 +238,7 @@ private:
 	ESystemToolkitWorkflowMode ActiveWorkflowMode;
 	
 	TSharedPtr<SNiagaraSystemViewport> Viewport;
-
+	
 	/* The view model for the System being edited */
 	TSharedPtr<FNiagaraSystemViewModel> SystemViewModel;
 	

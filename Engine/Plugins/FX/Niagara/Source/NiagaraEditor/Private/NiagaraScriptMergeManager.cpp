@@ -2463,6 +2463,8 @@ void FNiagaraScriptMergeManager::DiffEmitterSummary(const UNiagaraEmitterEditorD
 	{
 		return;
 	}
+
+	DiffResults.NewShouldShowSummaryViewValue = OtherEditorData->ShouldShowSummaryView();
 	
 	TArray<UNiagaraHierarchyItemBase*> AddedItemsInOther;
 	TArray<UNiagaraHierarchyItemBase*> RemovedItemsInBase;

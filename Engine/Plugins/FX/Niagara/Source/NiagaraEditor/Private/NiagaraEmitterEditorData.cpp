@@ -9,6 +9,7 @@
 #include "NiagaraStackEditorData.h"
 #include "ScopedTransaction.h"
 #include "NiagaraNodeAssignment.h"
+#include "Rendering/Texture2DResource.h"
 #include "ViewModels/HierarchyEditor/NiagaraSummaryViewViewModel.h"
 
 #include UE_INLINE_GENERATED_CPP_BY_NAME(NiagaraEmitterEditorData)
@@ -367,6 +368,16 @@ void UNiagaraEmitterEditorData::PostLoad_TransferSummaryDataToNewFormat()
 	}
 }
 
+void UNiagaraEmitterEditorData::PostLoad_TransferEmitterThumbnailImage(UObject* Owner)
+{
+	UNiagaraEmitter* Emitter = Cast<UNiagaraEmitter>(Owner);
+	
+	if(Emitter->ThumbnailImage != nullptr && EmitterThumbnail == nullptr)
+	{
+		SetThumbnail(Emitter->ThumbnailImage);
+	}
+}
+
 void UNiagaraEmitterEditorData::PostLoad_TransferModuleStackNotesToNewFormat(UObject* Owner)
 {
 	// since we lack graph context during post load, we do this workaround to find the emitter graph
@@ -422,6 +433,7 @@ void UNiagaraEmitterEditorData::PostLoad()
 void UNiagaraEmitterEditorData::PostLoadFromOwner(UObject* InOwner)
 {
 	PostLoad_TransferSummaryDataToNewFormat();
+	PostLoad_TransferEmitterThumbnailImage(InOwner);
 	PostLoad_TransferModuleStackNotesToNewFormat(InOwner);
 }
 

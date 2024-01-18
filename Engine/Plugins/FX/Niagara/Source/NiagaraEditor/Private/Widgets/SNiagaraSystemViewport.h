@@ -27,7 +27,7 @@ class UNiagaraEffectType;
 class SNiagaraSystemViewport : public SEditorViewport, public FGCObject, public ICommonEditorViewportToolbarInfoProvider
 {
 public:
-	DECLARE_DELEGATE_OneParam(FOnThumbnailCaptured, UTexture2D*);
+	DECLARE_DELEGATE_TwoParams(FOnThumbnailCaptured, UTexture2D*, TOptional<FGuid> /** An optional emitter handle guid */);
 
 public:
 	SLATE_BEGIN_ARGS( SNiagaraSystemViewport ){}
@@ -88,7 +88,8 @@ public:
 
 	bool GetDrawElement(EDrawElements Element) const;
 	void ToggleDrawElement(EDrawElements Element);
-	void CreateThumbnail(UObject* InScreenShotOwner);
+	/** By specifying an emitter guid, we can record thumbnails for individual emitters within a system.*/
+	void CreateThumbnail(UObject* InScreenShotOwner, TOptional<FGuid> EmitterToCaptureThumbnailFor);
 
 	bool IsToggleOrbitChecked() const;
 	void ToggleOrbit();
@@ -128,7 +129,9 @@ private:
 	TSharedPtr<class FAdvancedPreviewScene> AdvancedPreviewScene;
 
 	TSharedPtr<STextBlock> CompileText;
-	
+
+	TOptional<FGuid> EmitterToCaptureThumbnailFor;
+
 	/** Pointer back to the material editor tool that owns us */
 	//TWeakPtr<INiagaraSystemEditor> SystemEditorPtr;
 	
@@ -139,7 +142,7 @@ private:
 
 	uint32 DrawFlags = 0;
 
-	FOnThumbnailCaptured OnThumbnailCaptured;
+	FOnThumbnailCaptured OnThumbnailCapturedDelegate;
 
 	/** Used on tick to determine if a view transition was active so we can restore view settings at the end of it */
 	bool bIsViewTransitioning = false;

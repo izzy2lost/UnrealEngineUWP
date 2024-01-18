@@ -197,6 +197,20 @@ const FSlateBrush* UNiagaraStackEmitterPropertiesGroup::GetIconBrush() const
 	return FAppStyle::Get().GetBrush("Icons.Details");
 }
 
+bool UNiagaraStackEmitterPropertiesGroup::SupportsSecondaryIcon() const
+{
+	if(IsFinalized() == false && GetEmitterViewModel().IsValid())
+	{
+		// we don't want to display the CPU/GPU icons in collapsed mode as we have a separate toggle for it
+		if(GetEmitterViewModel()->GetEditorData().ShouldShowSummaryView() == true)
+		{
+			return false;
+		}
+	}
+
+	return true;
+}
+
 const FSlateBrush* UNiagaraStackEmitterPropertiesGroup::GetSecondaryIconBrush() const
 {
 	if (IsFinalized() == false && GetEmitterViewModel().IsValid())

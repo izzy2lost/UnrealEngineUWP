@@ -511,6 +511,11 @@ FNiagaraSystemViewModel::FOnChangeWorkflowMode& FNiagaraSystemViewModel::OnChang
 	return OnChangeWorkflowModeDelegate;
 }
 
+FNiagaraSystemViewModel::FOnEmitterThumbnailRequested& FNiagaraSystemViewModel::OnEmitterThumbnailRequested()
+{
+	return OnEmitterThumbnailRequestedDelegate;
+}
+
 TSharedPtr<FNiagaraEmitterHandleViewModel> FNiagaraSystemViewModel::AddEmitterFromAssetData(const FAssetData& AssetData)
 {
 	UNiagaraEmitter* Emitter = Cast<UNiagaraEmitter>(AssetData.GetAsset());
@@ -1974,6 +1979,24 @@ void FNiagaraSystemViewModel::IsolateEmitters(TArray<FGuid> EmitterHandlesIdsToI
 	}
 
 	GetSystem().SetIsolateEnabled(bAnyEmitterIsolated);
+}
+
+void FNiagaraSystemViewModel::CacheIsolatedEmitterState()
+{
+	CachedEmitterIsolationState.Empty();
+	for (TSharedRef<FNiagaraEmitterHandleViewModel> EmitterHandle : EmitterHandleViewModels)
+	{
+		if(EmitterHandle->GetEmitterHandle()->IsIsolated())
+		{
+			CachedEmitterIsolationState.Add(EmitterHandle->GetEmitterHandle()->GetId());
+		}
+	}
+}
+
+void FNiagaraSystemViewModel::RestoreIsolatedEmitterState()
+{
+	IsolateEmitters(CachedEmitterIsolationState);
+	CachedEmitterIsolationState.Empty();
 }
 
 void FNiagaraSystemViewModel::DisableEmitters(TArray<FGuid> EmitterHandlesIdsToDisable)

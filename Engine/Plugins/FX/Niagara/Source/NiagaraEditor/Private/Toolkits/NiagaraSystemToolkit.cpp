@@ -291,6 +291,7 @@ void FNiagaraSystemToolkit::InitializeInternal(const EToolkitMode::Type Mode, co
 	SystemViewModel->OnRequestFocusTab().AddSP(this, &FNiagaraSystemToolkit::OnViewModelRequestFocusTab);
 	SystemViewModel->OnGetWorkflowMode().BindSP(this, &FNiagaraSystemToolkit::GetCurrentMode);
 	SystemViewModel->OnChangeWorkflowMode().BindSP(this, &FNiagaraSystemToolkit::SetCurrentMode);
+	SystemViewModel->OnEmitterThumbnailRequested().BindSP(this, &FNiagaraSystemToolkit::CaptureEmitterThumbnail);
 	SystemViewModel->GetDocumentViewModel()->InitializePreTabManager(SharedThis(this));
 	
 	constexpr bool bCreateDefaultStandaloneMenu = true;
@@ -469,7 +470,7 @@ void FNiagaraSystemToolkit::SetupCommands()
 
 	GetToolkitCommands()->MapAction(
 		FNiagaraEditorCommands::Get().SaveThumbnailImage,
-		FExecuteAction::CreateSP(this, &FNiagaraSystemToolkit::OnSaveThumbnailImage));
+		FExecuteAction::CreateSP(this, &FNiagaraSystemToolkit::CaptureAssetThumbnail));
 
 	GetToolkitCommands()->MapAction(
 		FNiagaraEditorCommands::Get().Apply,
@@ -567,20 +568,52 @@ TSharedPtr<FNiagaraEmitterViewModel> FNiagaraSystemToolkit::GetEditedEmitterView
 	return HasEmitter() ? SystemViewModel->GetEmitterHandleViewModels()[0]->GetEmitterViewModel() : TSharedPtr<FNiagaraEmitterViewModel>(); 
 }
 
-void FNiagaraSystemToolkit::OnSaveThumbnailImage()
+void FNiagaraSystemToolkit::CaptureAssetThumbnail() const
 {
 	if (Viewport.IsValid())
-	{
-		Viewport->CreateThumbnail(SystemToolkitMode == ESystemToolkitMode::System ? static_cast<UObject*>(System) : Emitter);
+	{		
+		Viewport->CreateThumbnail(SystemToolkitMode == ESystemToolkitMode::System ? static_cast<UObject*>(System) : Emitter, {});
 	}
 }
 
-void FNiagaraSystemToolkit::OnThumbnailCaptured(UTexture2D* Thumbnail)
+void FNiagaraSystemToolkit::CaptureEmitterThumbnail(FGuid EmitterGuid)
+{
+	TSharedPtr<FNiagaraEmitterHandleViewModel> EditableEmitterHandleViewModel = SystemViewModel->GetEmitterHandleViewModelById(EmitterGuid);
+	if(EditableEmitterHandleViewModel)
+	{
+		if(Viewport.IsValid())
+		{
+			Viewport->CreateThumbnail(EditableEmitterHandleViewModel->GetEmitterViewModel()->GetEmitter().Emitter, EmitterGuid);
+		}
+	}
+}
+
+void FNiagaraSystemToolkit::OnThumbnailCaptured(UTexture2D* Thumbnail, TOptional<FGuid> EmitterGuid)
 {
 	if (SystemToolkitMode == ESystemToolkitMode::System)
 	{
 		System->MarkPackageDirty();
-		System->ThumbnailImage = Thumbnail;
+		// in a system, we can either capture thumbnails for individual emitters, or for the system itself
+		if(EmitterGuid.IsSet())
+		{
+			if(TSharedPtr<FNiagaraEmitterHandleViewModel> EmitterHandleViewModel = GetSystemViewModel()->GetEmitterHandleViewModelById(EmitterGuid.GetValue()))
+			{
+				EmitterHandleViewModel->GetEmitterViewModel()->GetEditorData().SetThumbnail(Thumbnail);
+			}
+			
+			// since we cached the isolation state to capture only individual emitters, we restore the state here
+			GetSystemViewModel()->RestoreIsolatedEmitterState();
+
+			// we force a refresh to the render state which wouldn't occur if taking a thumbnail while paused
+			if(Viewport.IsValid())
+			{
+				Viewport->GetPreviewComponent()->MarkRenderStateDirty();
+			}
+		}
+		else
+		{
+			System->ThumbnailImage = Thumbnail;
+		}
 		// Broadcast an object property changed event to update the content browser
 		FPropertyChangedEvent EmptyPropertyChangedEvent(nullptr);
 		FCoreUObjectDelegates::OnObjectPropertyChanged.Broadcast(System, EmptyPropertyChangedEvent);
@@ -590,6 +623,7 @@ void FNiagaraSystemToolkit::OnThumbnailCaptured(UTexture2D* Thumbnail)
 		TSharedPtr<FNiagaraEmitterViewModel> EditableEmitterViewModel = SystemViewModel->GetEmitterHandleViewModels()[0]->GetEmitterViewModel();
 		UNiagaraEmitter* EditableEmitter = EditableEmitterViewModel->GetEmitter().Emitter;
 		EditableEmitter->ThumbnailImage = Thumbnail;
+		EditableEmitterViewModel->GetEditorData().SetThumbnail(Thumbnail);
 		bEmitterThumbnailUpdated = true;
 		// Broadcast an object property changed event to update the content browser
 		FPropertyChangedEvent EmptyPropertyChangedEvent(nullptr);

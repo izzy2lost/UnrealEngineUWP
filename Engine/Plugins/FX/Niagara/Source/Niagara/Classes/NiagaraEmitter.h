@@ -713,7 +713,7 @@ public:
 	UPROPERTY(AssetRegistrySearchable, EditAnywhere, Category = Script)
 	FText Category;
 
-	///** Internal: The thumbnail image.*/
+	///** The thumbnail image used for the asset. This is always the latest recorded thumbnail. This can be different from the thumbnails that are saved per emitter version in collapsed view. */
 	UPROPERTY()
 	TObjectPtr<UTexture2D> ThumbnailImage;
 	

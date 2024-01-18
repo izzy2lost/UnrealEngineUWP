@@ -67,7 +67,7 @@ static FNiagaraEmitterHandle* FindEmitterHandleByID(UNiagaraSystem* System, cons
 	return nullptr;
 }
 
-FNiagaraEmitterHandle* UNiagaraOverviewNode::TryGetEmitterHandle()
+FNiagaraEmitterHandle* UNiagaraOverviewNode::TryGetEmitterHandle() const
 {
 	return FindEmitterHandleByID(GetOwningSystem(), GetEmitterHandleGuid());
 }
@@ -326,7 +326,7 @@ bool UNiagaraOverviewNode::CanCreateUnderSpecifiedSchema(const UEdGraphSchema* S
 	return Schema->IsA<UEdGraphSchema_NiagaraSystemOverview>();
 }
 
-UNiagaraSystem* UNiagaraOverviewNode::GetOwningSystem()
+UNiagaraSystem* UNiagaraOverviewNode::GetOwningSystem() const
 {
 	return OwningSystem;
 }

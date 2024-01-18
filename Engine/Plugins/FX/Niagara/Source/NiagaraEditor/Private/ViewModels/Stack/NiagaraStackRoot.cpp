@@ -14,6 +14,9 @@
 #include "NiagaraSystem.h"
 #include "NiagaraSystemEditorData.h"
 #include "NiagaraEmitterEditorData.h"
+#include "NiagaraObjectSelection.h"
+#include "ViewModels/NiagaraOverviewGraphViewModel.h"
+#include "ViewModels/NiagaraSystemSelectionViewModel.h"
 #include "ViewModels/Stack/NiagaraStackSystemSettingsGroup.h"
 
 #include UE_INLINE_GENERATED_CPP_BY_NAME(NiagaraStackRoot)
@@ -22,7 +25,6 @@
 
 UNiagaraStackRoot::UNiagaraStackRoot()
 	: SystemPropertiesGroup(nullptr)
-	, SystemUserParametersGroup(nullptr)
 	, EmitterPropertiesGroup(nullptr)
 	, EmitterSummaryGroup(nullptr)
 	, EmitterSpawnGroup(nullptr)
@@ -39,7 +41,6 @@ void UNiagaraStackRoot::Initialize(FRequiredEntryData InRequiredEntryData, bool 
 	bIncludeSystemInformation = bInIncludeSystemInformation;
 	bIncludeEmitterInformation = bInIncludeEmitterInformation;
 	SystemPropertiesGroup = nullptr;
-	SystemUserParametersGroup = nullptr;
 	EmitterPropertiesGroup = nullptr;
 	EmitterSummaryGroup = nullptr;
 	EmitterSpawnGroup = nullptr;
@@ -51,6 +52,15 @@ void UNiagaraStackRoot::Initialize(FRequiredEntryData InRequiredEntryData, bool 
 	if (bInIncludeEmitterInformation && GetEmitterViewModel())
 	{
 		GetEmitterViewModel()->GetEditorData().OnSummaryViewStateChanged().AddUObject(this, &UNiagaraStackRoot::OnSummaryViewStateChanged);
+
+		if(GetEmitterViewModel()->GetEditorData().ShouldShowSummaryView())
+		{
+			AddSummaryViewFilter();
+		}
+		else
+		{
+			AddDefaultViewFilter();
+		}
 	}
 }
 
@@ -85,15 +95,6 @@ void UNiagaraStackRoot::RefreshChildrenInternal(const TArray<UNiagaraStackEntry*
 		SystemPropertiesGroup->Initialize(RequiredEntryData);
 	}
 
-	if (bIncludeSystemInformation && SystemUserParametersGroup == nullptr)
-	{
-		SystemUserParametersGroup = NewObject<UNiagaraStackSystemUserParametersGroup>(this);
-		FRequiredEntryData RequiredEntryData(GetSystemViewModel(), GetEmitterViewModel(),
-			FExecutionCategoryNames::System, FExecutionSubcategoryNames::Settings,
-			GetSystemViewModel()->GetEditorData().GetStackEditorData());
-		SystemUserParametersGroup->Initialize(RequiredEntryData, &GetSystemViewModel()->GetSystem(), &GetSystemViewModel()->GetSystem().GetExposedParameters());
-	}
-
 	if (bIncludeSystemInformation && SystemSpawnGroup == nullptr)
 	{
 		SystemSpawnGroup = NewObject<UNiagaraStackScriptItemGroup>(this);
@@ -126,105 +127,86 @@ void UNiagaraStackRoot::RefreshChildrenInternal(const TArray<UNiagaraStackEntry*
 		CommentCollection->Initialize(RequiredEntryData);
 	}
 	
-	bool bShouldShowSummaryView = GetEmitterViewModel()? GetEmitterViewModel()->GetEditorData().ShouldShowSummaryView() : false;
+	if (bIncludeEmitterInformation)
+	{
+		if(EmitterPropertiesGroup == nullptr)
+		{
+			EmitterPropertiesGroup = NewObject<UNiagaraStackEmitterPropertiesGroup>(this);
+			FRequiredEntryData RequiredEntryData(GetSystemViewModel(), GetEmitterViewModel(),
+				FExecutionCategoryNames::Emitter, FExecutionSubcategoryNames::Settings,
+				GetEmitterViewModel()->GetEditorData().GetStackEditorData());
+			EmitterPropertiesGroup->Initialize(RequiredEntryData);
+		}
 
-	// we clear references to entries we don't want to display in summary view.
-	// Since they also won't get added to the NewChildren array, they will get finalized and eventually GC'd
-	if(bShouldShowSummaryView)
-	{
-		EmitterSpawnGroup = nullptr;
-		EmitterUpdateGroup = nullptr;
-		ParticleSpawnGroup = nullptr;
-		ParticleUpdateGroup = nullptr;
-	}
-	
-	if (bIncludeEmitterInformation && EmitterPropertiesGroup == nullptr)
-	{
-		EmitterPropertiesGroup = NewObject<UNiagaraStackEmitterPropertiesGroup>(this);
-		FRequiredEntryData RequiredEntryData(GetSystemViewModel(), GetEmitterViewModel(),
-			FExecutionCategoryNames::Emitter, FExecutionSubcategoryNames::Settings,
-			GetEmitterViewModel()->GetEditorData().GetStackEditorData());
-		EmitterPropertiesGroup->Initialize(RequiredEntryData);
-	}
+		if(EmitterSummaryGroup == nullptr)
+		{
+			EmitterSummaryGroup = NewObject<UNiagaraStackEmitterSummaryGroup>(this);
+			FRequiredEntryData RequiredEntryData(GetSystemViewModel(), GetEmitterViewModel(),
+				FExecutionCategoryNames::Emitter, FExecutionSubcategoryNames::Settings,
+				GetEmitterViewModel()->GetEditorData().GetStackEditorData());
+			FText DisplayName = LOCTEXT("EmitterSummaryGroupName", "Emitter Summary");
+			FText Tooltip = LOCTEXT("EmitterSummaryTooltip", "Summary of parameters for this Emitter.");
+			EmitterSummaryGroup->Initialize(RequiredEntryData, DisplayName, Tooltip, nullptr);
+		}
 
-	if (bIncludeEmitterInformation && EmitterSummaryGroup == nullptr)
-	{
-		EmitterSummaryGroup = NewObject<UNiagaraStackEmitterSummaryGroup>(this);
-		FRequiredEntryData RequiredEntryData(GetSystemViewModel(), GetEmitterViewModel(),
-			FExecutionCategoryNames::Emitter, FExecutionSubcategoryNames::Settings,
-			GetEmitterViewModel()->GetEditorData().GetStackEditorData());
-		FText DisplayName = LOCTEXT("EmitterSummaryGroupName", "Emitter Summary");
-		FText Tooltip = LOCTEXT("EmitterSummaryTooltip", "Summary of parameters for this Emitter.");
-		EmitterSummaryGroup->Initialize(RequiredEntryData, DisplayName, Tooltip, nullptr);
-	}
+		if(RenderGroup == nullptr)
+		{
+			RenderGroup = NewObject<UNiagaraStackRenderItemGroup>(this);
+			FRequiredEntryData RequiredEntryData(GetSystemViewModel(), GetEmitterViewModel(),
+				FExecutionCategoryNames::Render, FExecutionSubcategoryNames::Render,
+				GetEmitterViewModel()->GetEditorData().GetStackEditorData());
+			RenderGroup->Initialize(RequiredEntryData);
+		}
+		
+		if(EmitterSpawnGroup == nullptr)
+		{
+			EmitterSpawnGroup = NewObject<UNiagaraStackScriptItemGroup>(this);
+			FRequiredEntryData RequiredEntryData(GetSystemViewModel(), GetEmitterViewModel(),
+				FExecutionCategoryNames::Emitter, FExecutionSubcategoryNames::Spawn,
+				GetEmitterViewModel()->GetEditorData().GetStackEditorData());
+			FText DisplayName = LOCTEXT("EmitterSpawnGroupName", "Emitter Spawn");
+			FText ToolTip = LOCTEXT("EmitterSpawnGroupTooltip", "Occurs once at Emitter creation on the CPU. Modules in this stage should initialize defaults and/or do initial setup.\r\nModules are executed in order from top to bottom of the stack.");
+			EmitterSpawnGroup->Initialize(RequiredEntryData, DisplayName, ToolTip, GetEmitterViewModel()->GetSharedScriptViewModel(), ENiagaraScriptUsage::EmitterSpawnScript);
+		}
 
-	if (bIncludeEmitterInformation && !bShouldShowSummaryView && EmitterSpawnGroup == nullptr)
-	{
-		EmitterSpawnGroup = NewObject<UNiagaraStackScriptItemGroup>(this);
-		FRequiredEntryData RequiredEntryData(GetSystemViewModel(), GetEmitterViewModel(),
-			FExecutionCategoryNames::Emitter, FExecutionSubcategoryNames::Spawn,
-			GetEmitterViewModel()->GetEditorData().GetStackEditorData());
-		FText DisplayName = LOCTEXT("EmitterSpawnGroupName", "Emitter Spawn");
-		FText ToolTip = LOCTEXT("EmitterSpawnGroupTooltip", "Occurs once at Emitter creation on the CPU. Modules in this stage should initialize defaults and/or do initial setup.\r\nModules are executed in order from top to bottom of the stack.");
-		EmitterSpawnGroup->Initialize(RequiredEntryData, DisplayName, ToolTip, GetEmitterViewModel()->GetSharedScriptViewModel(), ENiagaraScriptUsage::EmitterSpawnScript);
-	}
+		if(EmitterUpdateGroup == nullptr)
+		{
+			EmitterUpdateGroup = NewObject<UNiagaraStackScriptItemGroup>(this);
+			FRequiredEntryData RequiredEntryData(GetSystemViewModel(), GetEmitterViewModel(),
+				FExecutionCategoryNames::Emitter, FExecutionSubcategoryNames::Update,
+				GetEmitterViewModel()->GetEditorData().GetStackEditorData());
+			FText DisplayName = LOCTEXT("EmitterUpdateGroupName", "Emitter Update");
+			FText ToolTip = LOCTEXT("EmitterUpdateGroupTooltip", "Occurs every Emitter tick on the CPU. Modules in this stage should compute values for parameters for Particle Update or Spawning this frame.\r\nModules are executed in order from top to bottom of the stack.");
+			EmitterUpdateGroup->Initialize(RequiredEntryData, DisplayName, ToolTip, GetEmitterViewModel()->GetSharedScriptViewModel(), ENiagaraScriptUsage::EmitterUpdateScript);
+		}
 
-	if (bIncludeEmitterInformation && !bShouldShowSummaryView && EmitterUpdateGroup == nullptr)
-	{
-		EmitterUpdateGroup = NewObject<UNiagaraStackScriptItemGroup>(this);
-		FRequiredEntryData RequiredEntryData(GetSystemViewModel(), GetEmitterViewModel(),
-			FExecutionCategoryNames::Emitter, FExecutionSubcategoryNames::Update,
-			GetEmitterViewModel()->GetEditorData().GetStackEditorData());
-		FText DisplayName = LOCTEXT("EmitterUpdateGroupName", "Emitter Update");
-		FText ToolTip = LOCTEXT("EmitterUpdateGroupTooltip", "Occurs every Emitter tick on the CPU. Modules in this stage should compute values for parameters for Particle Update or Spawning this frame.\r\nModules are executed in order from top to bottom of the stack.");
-		EmitterUpdateGroup->Initialize(RequiredEntryData, DisplayName, ToolTip, GetEmitterViewModel()->GetSharedScriptViewModel(), ENiagaraScriptUsage::EmitterUpdateScript);
-	}
+		if(ParticleSpawnGroup == nullptr)
+		{
+			ParticleSpawnGroup = NewObject<UNiagaraStackScriptItemGroup>(this);
+			FRequiredEntryData RequiredEntryData(GetSystemViewModel(), GetEmitterViewModel(),
+				FExecutionCategoryNames::Particle, FExecutionSubcategoryNames::Spawn,
+				GetEmitterViewModel()->GetEditorData().GetStackEditorData());
+			FText DisplayName = LOCTEXT("ParticleSpawnGroupName", "Particle Spawn");
+			FText ToolTip = LOCTEXT("ParticleSpawnGroupTooltip", "Called once per created particle. Modules in this stage should set up initial values for each particle.\r\nIf \"Use Interpolated Spawning\" is set, we will also run the Particle Update stage after the Particle Spawn stage.\r\nModules are executed in order from top to bottom of the stack.");
+			ParticleSpawnGroup->Initialize(RequiredEntryData, DisplayName, ToolTip, GetEmitterViewModel()->GetSharedScriptViewModel(), ENiagaraScriptUsage::ParticleSpawnScript);
+		}
 
-	if (bIncludeEmitterInformation && !bShouldShowSummaryView && ParticleSpawnGroup == nullptr)
-	{
-		ParticleSpawnGroup = NewObject<UNiagaraStackScriptItemGroup>(this);
-		FRequiredEntryData RequiredEntryData(GetSystemViewModel(), GetEmitterViewModel(),
-			FExecutionCategoryNames::Particle, FExecutionSubcategoryNames::Spawn,
-			GetEmitterViewModel()->GetEditorData().GetStackEditorData());
-		FText DisplayName = LOCTEXT("ParticleSpawnGroupName", "Particle Spawn");
-		FText ToolTip = LOCTEXT("ParticleSpawnGroupTooltip", "Called once per created particle. Modules in this stage should set up initial values for each particle.\r\nIf \"Use Interpolated Spawning\" is set, we will also run the Particle Update stage after the Particle Spawn stage.\r\nModules are executed in order from top to bottom of the stack.");
-		ParticleSpawnGroup->Initialize(RequiredEntryData, DisplayName, ToolTip, GetEmitterViewModel()->GetSharedScriptViewModel(), ENiagaraScriptUsage::ParticleSpawnScript);
-	}
-
-	if (bIncludeEmitterInformation && !bShouldShowSummaryView && ParticleUpdateGroup == nullptr)
-	{
-		ParticleUpdateGroup = NewObject<UNiagaraStackScriptItemGroup>(this);
-		FRequiredEntryData RequiredEntryData(GetSystemViewModel(), GetEmitterViewModel(),
-			FExecutionCategoryNames::Particle, FExecutionSubcategoryNames::Update,
-			GetEmitterViewModel()->GetEditorData().GetStackEditorData());
-		FText DisplayName = LOCTEXT("ParticleUpdateGroupName", "Particle Update");
-		FText ToolTip = LOCTEXT("ParticleUpdateGroupTooltip", "Called every frame per particle. Modules in this stage should update new values for this frame.\r\nModules are executed in order from top to bottom of the stack.");
-		ParticleUpdateGroup->Initialize(RequiredEntryData, DisplayName, ToolTip, GetEmitterViewModel()->GetSharedScriptViewModel(), ENiagaraScriptUsage::ParticleUpdateScript);
-	}
-
-	if (bIncludeEmitterInformation && RenderGroup == nullptr)
-	{
-		RenderGroup = NewObject<UNiagaraStackRenderItemGroup>(this);
-		FRequiredEntryData RequiredEntryData(GetSystemViewModel(), GetEmitterViewModel(),
-			FExecutionCategoryNames::Render, FExecutionSubcategoryNames::Render,
-			GetEmitterViewModel()->GetEditorData().GetStackEditorData());
-		RenderGroup->Initialize(RequiredEntryData);
-	}
-
-	if (bIncludeEmitterInformation && SummaryCollapseButton == nullptr)
-	{
-		SummaryCollapseButton = NewObject<UNiagaraStackSummaryViewCollapseButton>(this);
-		FRequiredEntryData RequiredEntryData(GetSystemViewModel(), GetEmitterViewModel(),
-			FExecutionCategoryNames::Emitter, FExecutionSubcategoryNames::Settings,
-			GetEmitterViewModel()->GetEditorData().GetStackEditorData());
-		SummaryCollapseButton->Initialize(RequiredEntryData);
+		if(ParticleUpdateGroup == nullptr)
+		{
+			ParticleUpdateGroup = NewObject<UNiagaraStackScriptItemGroup>(this);
+			FRequiredEntryData RequiredEntryData(GetSystemViewModel(), GetEmitterViewModel(),
+				FExecutionCategoryNames::Particle, FExecutionSubcategoryNames::Update,
+				GetEmitterViewModel()->GetEditorData().GetStackEditorData());
+			FText DisplayName = LOCTEXT("ParticleUpdateGroupName", "Particle Update");
+			FText ToolTip = LOCTEXT("ParticleUpdateGroupTooltip", "Called every frame per particle. Modules in this stage should update new values for this frame.\r\nModules are executed in order from top to bottom of the stack.");
+			ParticleUpdateGroup->Initialize(RequiredEntryData, DisplayName, ToolTip, GetEmitterViewModel()->GetSharedScriptViewModel(), ENiagaraScriptUsage::ParticleUpdateScript);
+		}
 	}
 
 	// Populate new children
 	if (bIncludeSystemInformation)
 	{
 		NewChildren.Add(SystemPropertiesGroup);
-		NewChildren.Add(SystemUserParametersGroup);
 		NewChildren.Add(SystemSpawnGroup);
 		NewChildren.Add(SystemUpdateGroup);
 		NewChildren.Add(CommentCollection);
@@ -232,56 +214,53 @@ void UNiagaraStackRoot::RefreshChildrenInternal(const TArray<UNiagaraStackEntry*
 
 	if (bIncludeEmitterInformation)
 	{
-		NewChildren.Add(EmitterPropertiesGroup);	
 		NewChildren.Add(EmitterSummaryGroup);
+		
+		NewChildren.Add(EmitterPropertiesGroup);
+		
+		NewChildren.Add(EmitterSpawnGroup);
+		NewChildren.Add(EmitterUpdateGroup);
 
-		if (!bShouldShowSummaryView)
+		NewChildren.Add(ParticleSpawnGroup);
+		NewChildren.Add(ParticleUpdateGroup);
+		
+		for (const FNiagaraEventScriptProperties& EventScriptProperties : GetEmitterViewModel()->GetEmitter().GetEmitterData()->GetEventHandlers())
 		{
-			NewChildren.Add(EmitterSpawnGroup);
-			NewChildren.Add(EmitterUpdateGroup);
+			UNiagaraStackEventScriptItemGroup* EventHandlerGroup = FindCurrentChildOfTypeByPredicate<UNiagaraStackEventScriptItemGroup>(CurrentChildren,
+				[&](UNiagaraStackEventScriptItemGroup* CurrentEventHandlerGroup) { return CurrentEventHandlerGroup->GetScriptUsageId() == EventScriptProperties.Script->GetUsageId(); });
 
-			NewChildren.Add(ParticleSpawnGroup);
-			NewChildren.Add(ParticleUpdateGroup);
-
-			for (const FNiagaraEventScriptProperties& EventScriptProperties : GetEmitterViewModel()->GetEmitter().GetEmitterData()->GetEventHandlers())
+			if (EventHandlerGroup == nullptr)
 			{
-				UNiagaraStackEventScriptItemGroup* EventHandlerGroup = FindCurrentChildOfTypeByPredicate<UNiagaraStackEventScriptItemGroup>(CurrentChildren,
-					[&](UNiagaraStackEventScriptItemGroup* CurrentEventHandlerGroup) { return CurrentEventHandlerGroup->GetScriptUsageId() == EventScriptProperties.Script->GetUsageId(); });
-
-				if (EventHandlerGroup == nullptr)
-				{
-					EventHandlerGroup = NewObject<UNiagaraStackEventScriptItemGroup>(this);
-					FRequiredEntryData RequiredEntryData(GetSystemViewModel(), GetEmitterViewModel(),
-						FExecutionCategoryNames::Particle, FExecutionSubcategoryNames::Event,
-						GetEmitterViewModel()->GetEditorData().GetStackEditorData());
-					EventHandlerGroup->Initialize(RequiredEntryData, GetEmitterViewModel()->GetSharedScriptViewModel(), ENiagaraScriptUsage::ParticleEventScript, EventScriptProperties.Script->GetUsageId(), EventScriptProperties.SourceEmitterID);
-					EventHandlerGroup->SetOnModifiedEventHandlers(UNiagaraStackEventScriptItemGroup::FOnModifiedEventHandlers::CreateUObject(this, &UNiagaraStackRoot::EmitterArraysChanged));
-				}
-
-				NewChildren.Add(EventHandlerGroup);
+				EventHandlerGroup = NewObject<UNiagaraStackEventScriptItemGroup>(this);
+				FRequiredEntryData RequiredEntryData(GetSystemViewModel(), GetEmitterViewModel(),
+					FExecutionCategoryNames::Particle, FExecutionSubcategoryNames::Event,
+					GetEmitterViewModel()->GetEditorData().GetStackEditorData());
+				EventHandlerGroup->Initialize(RequiredEntryData, GetEmitterViewModel()->GetSharedScriptViewModel(), ENiagaraScriptUsage::ParticleEventScript, EventScriptProperties.Script->GetUsageId(), EventScriptProperties.SourceEmitterID);
+				EventHandlerGroup->SetOnModifiedEventHandlers(UNiagaraStackEventScriptItemGroup::FOnModifiedEventHandlers::CreateUObject(this, &UNiagaraStackRoot::EmitterArraysChanged));
 			}
 
-			for (UNiagaraSimulationStageBase* SimulationStage : GetEmitterViewModel()->GetEmitter().GetEmitterData()->GetSimulationStages())
-			{
-				UNiagaraStackSimulationStageGroup* SimulationStageGroup = FindCurrentChildOfTypeByPredicate<UNiagaraStackSimulationStageGroup>(CurrentChildren,
-					[SimulationStage](UNiagaraStackSimulationStageGroup* CurrentSimulationStageGroup) { return CurrentSimulationStageGroup->GetSimulationStage() == SimulationStage; });
-
-				if (SimulationStageGroup == nullptr)
-				{
-					SimulationStageGroup = NewObject<UNiagaraStackSimulationStageGroup>(this);
-					FRequiredEntryData RequiredEntryData(GetSystemViewModel(), GetEmitterViewModel(),
-						FExecutionCategoryNames::Particle, FExecutionSubcategoryNames::SimulationStage,
-						GetEmitterViewModel()->GetEditorData().GetStackEditorData());
-					SimulationStageGroup->Initialize(RequiredEntryData, GetEmitterViewModel()->GetSharedScriptViewModel(), SimulationStage);
-					SimulationStageGroup->SetOnModifiedSimulationStages(UNiagaraStackSimulationStageGroup::FOnModifiedSimulationStages::CreateUObject(this, &UNiagaraStackRoot::EmitterArraysChanged));
-				}
-
-				NewChildren.Add(SimulationStageGroup);
-			}
+			NewChildren.Add(EventHandlerGroup);
 		}
 
+		for (UNiagaraSimulationStageBase* SimulationStage : GetEmitterViewModel()->GetEmitter().GetEmitterData()->GetSimulationStages())
+		{
+			UNiagaraStackSimulationStageGroup* SimulationStageGroup = FindCurrentChildOfTypeByPredicate<UNiagaraStackSimulationStageGroup>(CurrentChildren,
+				[SimulationStage](UNiagaraStackSimulationStageGroup* CurrentSimulationStageGroup) { return CurrentSimulationStageGroup->GetSimulationStage() == SimulationStage; });
+
+			if (SimulationStageGroup == nullptr)
+			{
+				SimulationStageGroup = NewObject<UNiagaraStackSimulationStageGroup>(this);
+				FRequiredEntryData RequiredEntryData(GetSystemViewModel(), GetEmitterViewModel(),
+					FExecutionCategoryNames::Particle, FExecutionSubcategoryNames::SimulationStage,
+					GetEmitterViewModel()->GetEditorData().GetStackEditorData());
+				SimulationStageGroup->Initialize(RequiredEntryData, GetEmitterViewModel()->GetSharedScriptViewModel(), SimulationStage);
+				SimulationStageGroup->SetOnModifiedSimulationStages(UNiagaraStackSimulationStageGroup::FOnModifiedSimulationStages::CreateUObject(this, &UNiagaraStackRoot::EmitterArraysChanged));
+			}
+
+			NewChildren.Add(SimulationStageGroup);
+		}
+		
 		NewChildren.Add(RenderGroup);
-		NewChildren.Add(SummaryCollapseButton);
 	}
 }
 
@@ -294,8 +273,81 @@ void UNiagaraStackRoot::OnSummaryViewStateChanged()
 {
 	if (!IsFinalized())
 	{
+		if(GetEmitterViewModel().IsValid())
+		{
+			if(GetEmitterViewModel()->GetEditorData().ShouldShowSummaryView())
+			{
+				AddSummaryViewFilter();
+				RemoveDefaultViewFilter();
+			}
+			else
+			{
+				AddDefaultViewFilter();
+				RemoveSummaryViewFilter();
+			}
+		}
+
 		RefreshChildren();
+		GetSystemViewModel()->GetSelectionViewModel()->Refresh();
 	}
+}
+
+void UNiagaraStackRoot::AddDefaultViewFilter()
+{
+	if(DefaultViewFilterHandle.IsValid())
+	{
+		RemoveDefaultViewFilter();
+	}
+	
+	DefaultViewFilterHandle = AddChildFilter(FOnFilterChild::CreateUObject(this, &UNiagaraStackRoot::FilterForDefaultView));
+}
+
+void UNiagaraStackRoot::RemoveDefaultViewFilter()
+{
+	if(DefaultViewFilterHandle.IsValid())
+	{
+		RemoveChildFilter(DefaultViewFilterHandle);
+		DefaultViewFilterHandle.Reset();
+	}
+}
+
+void UNiagaraStackRoot::AddSummaryViewFilter()
+{
+	if(SummaryViewFilterHandle.IsValid())
+	{
+		RemoveSummaryViewFilter();
+	}
+	
+	SummaryViewFilterHandle = AddChildFilter(FOnFilterChild::CreateUObject(this, &UNiagaraStackRoot::FilterForSummaryView));
+}
+
+void UNiagaraStackRoot::RemoveSummaryViewFilter()
+{
+	if(SummaryViewFilterHandle.IsValid())
+	{
+		RemoveChildFilter(SummaryViewFilterHandle);
+		SummaryViewFilterHandle.Reset();
+	}
+}
+
+bool UNiagaraStackRoot::FilterForDefaultView(const UNiagaraStackEntry& NiagaraStackEntry) const
+{
+	if(NiagaraStackEntry.IsA<UNiagaraStackEmitterSummaryGroup>())
+	{
+		return false;
+	}
+
+	return true;
+}
+
+bool UNiagaraStackRoot::FilterForSummaryView(const UNiagaraStackEntry& NiagaraStackEntry) const
+{
+	if(NiagaraStackEntry.IsA<UNiagaraStackEmitterSummaryGroup>())
+	{
+		return true;
+	}
+	
+	return false;
 }
 
 #undef LOCTEXT_NAMESPACE

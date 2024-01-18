@@ -23,7 +23,7 @@ class UNiagaraStackRoot : public UNiagaraStackEntry
 public:
 	NIAGARAEDITOR_API UNiagaraStackRoot();
 	
-	NIAGARAEDITOR_API void Initialize(FRequiredEntryData InRequiredEntryData, bool bInIncludeSystemInformation, bool bInIncludeEmitterInformation);
+	void Initialize(FRequiredEntryData InRequiredEntryData, bool bInIncludeSystemInformation, bool bInIncludeEmitterInformation);
 	NIAGARAEDITOR_API virtual void FinalizeInternal() override;
 
 	NIAGARAEDITOR_API virtual bool GetCanExpand() const override;
@@ -37,6 +37,11 @@ public:
 	{
 		return CommentCollection;
 	}
+
+	UNiagaraStackEmitterSummaryGroup* GetEmitterSummaryGroup() const
+	{
+		return EmitterSummaryGroup;
+	}
 	
 protected:
 	NIAGARAEDITOR_API virtual void RefreshChildrenInternal(const TArray<UNiagaraStackEntry*>& CurrentChildren, TArray<UNiagaraStackEntry*>& NewChildren, TArray<FStackIssue>& NewIssues) override;
@@ -45,12 +50,18 @@ private:
 	NIAGARAEDITOR_API void EmitterArraysChanged();
 	NIAGARAEDITOR_API void OnSummaryViewStateChanged();
 
+	void AddDefaultViewFilter();
+	void RemoveDefaultViewFilter();
+	
+	void AddSummaryViewFilter();
+	void RemoveSummaryViewFilter();
+
+	NIAGARAEDITOR_API bool FilterForDefaultView(const UNiagaraStackEntry& NiagaraStackEntry) const;
+	NIAGARAEDITOR_API bool FilterForSummaryView(const UNiagaraStackEntry& NiagaraStackEntry) const;
+
 private:
 	UPROPERTY()
 	TObjectPtr<UNiagaraStackSystemPropertiesGroup> SystemPropertiesGroup;
-
-	UPROPERTY()
-	TObjectPtr<UNiagaraStackSystemUserParametersGroup> SystemUserParametersGroup;
 
 	UPROPERTY()
 	TObjectPtr<UNiagaraStackScriptItemGroup> SystemSpawnGroup;
@@ -81,10 +92,10 @@ private:
 
 	UPROPERTY()
 	TObjectPtr<UNiagaraStackCommentCollection> CommentCollection;
-	
-	UPROPERTY()
-	TObjectPtr<UNiagaraStackSummaryViewCollapseButton> SummaryCollapseButton;
 
 	bool bIncludeSystemInformation;
 	bool bIncludeEmitterInformation;
+
+	FDelegateHandle DefaultViewFilterHandle;
+	FDelegateHandle SummaryViewFilterHandle;
 };

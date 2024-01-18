@@ -83,6 +83,16 @@ void UNiagaraStackSummaryViewCollection::RefreshForAdvancedToggle()
 	}
 }
 
+bool UNiagaraStackSummaryViewCollection::GetShouldShowInStack() const
+{
+	// if(GetEmitterViewModel().IsValid())
+	// {
+	// 	return GetEmitterViewModel()->GetEditorData().ShouldShowSummaryView();
+	// }
+
+	return false;
+}
+
 void UNiagaraStackSummaryViewCollection::RefreshChildrenInternal(const TArray<UNiagaraStackEntry*>& CurrentChildren, TArray<UNiagaraStackEntry*>& NewChildren, TArray<FStackIssue>& NewIssues)
 {	
 	TSharedPtr<FNiagaraEmitterViewModel> ViewModel = GetEmitterViewModel();
@@ -547,6 +557,9 @@ void UNiagaraStackSummaryViewCollection::RefreshChildrenInternal(const TArray<UN
 			EmtpySummaryMessage = NewObject<UNiagaraStackItemTextContent>(this);
 			EmtpySummaryMessage->Initialize(CreateDefaultChildRequiredData(), EmptyAssignmentNodeMessageText, GetStackEditorDataKey());
 		}
+		
+		//EmtpySummaryMessage->SetIsHidden(!GetShouldShowInStack());
+		
 		NewChildren.Add(EmtpySummaryMessage);	
 	}
 }

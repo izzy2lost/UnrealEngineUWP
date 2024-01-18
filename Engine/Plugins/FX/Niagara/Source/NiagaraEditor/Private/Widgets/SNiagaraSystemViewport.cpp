@@ -238,7 +238,6 @@ void FNiagaraSystemViewportClient::Draw(FViewport* InViewport, FCanvas* Canvas)
 
 	if (bCaptureScreenShot && ScreenShotOwner.IsValid() && OnScreenShotCaptured.IsBound())
 	{
-
 		int32 SrcWidth = InViewport->GetSizeXY().X;
 		int32 SrcHeight = InViewport->GetSizeXY().Y;
 		// Read the contents of the viewport into an array.
@@ -260,6 +259,7 @@ void FNiagaraSystemViewportClient::Draw(FViewport* InViewport, FCanvas* Canvas)
 			UTexture2D* ThumbnailImage = FImageUtils::CreateTexture2D(ScaledWidth, ScaledHeight, ScaledBitmap, ScreenShotOwner.Get(), TEXT("ThumbnailTexture"), RF_NoFlags, Params);
 
 			OnScreenShotCaptured.Execute(ThumbnailImage);
+			NiagaraViewport->GetPreviewComponent()->MarkRenderStateDirty();
 		}
 
 		bCaptureScreenShot = false;
@@ -695,7 +695,7 @@ void SNiagaraSystemViewport::Construct(const FArguments& InArgs, TSharedRef<FNia
 	float Roll = 0.0;
 	AdvancedPreviewScene->SetLightDirection(FRotator(Pitch, Yaw, Roll));
 
-	OnThumbnailCaptured = InArgs._OnThumbnailCaptured;
+	OnThumbnailCapturedDelegate = InArgs._OnThumbnailCaptured;
 	Sequencer = InArgs._Sequencer;
 	
 	SEditorViewport::Construct( SEditorViewport::FArguments() );
@@ -733,10 +733,23 @@ SNiagaraSystemViewport::~SNiagaraSystemViewport()
 	}
 }
 
-void SNiagaraSystemViewport::CreateThumbnail(UObject* InScreenShotOwner)
+void SNiagaraSystemViewport::CreateThumbnail(UObject* InScreenShotOwner, TOptional<FGuid> InEmitterToCaptureThumbnailFor)
 {
 	if (SystemViewportClient.IsValid() && PreviewComponent != nullptr)
 	{
+		PreviewComponent->MarkRenderStateDirty();
+
+		// If we want to capture the thumbnail for a specific emitter in a system, we make sure isolation state is correctly handled
+		if(InEmitterToCaptureThumbnailFor.IsSet() && SystemViewModel.IsValid() && SystemViewModel.Pin()->GetEditMode() == ENiagaraSystemViewModelEditMode::SystemAsset)
+		{
+			if(TSharedPtr<FNiagaraEmitterHandleViewModel> EditableEmitterHandleViewModel = SystemViewModel.Pin()->GetEmitterHandleViewModelById(InEmitterToCaptureThumbnailFor.GetValue()))
+			{
+				SystemViewModel.Pin()->CacheIsolatedEmitterState();
+				EditableEmitterHandleViewModel->SetIsIsolated(true);
+			}
+		}
+		
+		EmitterToCaptureThumbnailFor = InEmitterToCaptureThumbnailFor;
 		SystemViewportClient->bCaptureScreenShot = true;
 		SystemViewportClient->ScreenShotOwner = InScreenShotOwner;
 	}
@@ -877,7 +890,8 @@ bool SNiagaraSystemViewport::IsVisible() const
 
 void SNiagaraSystemViewport::OnScreenShotCaptured(UTexture2D* ScreenShot)
 {
-	OnThumbnailCaptured.ExecuteIfBound(ScreenShot);
+	OnThumbnailCapturedDelegate.ExecuteIfBound(ScreenShot, EmitterToCaptureThumbnailFor);
+	EmitterToCaptureThumbnailFor.Reset();
 }
 
 void SNiagaraSystemViewport::BindCommands()

@@ -88,6 +88,7 @@ bool FNiagaraEmitterViewModel::Initialize(const FVersionedNiagaraEmitter& InEmit
 	SummaryViewHierarchyViewModel->Initialize(AsShared());
 	SummaryViewHierarchyViewModel->OnHierarchyChanged().AddSP(this, &FNiagaraEmitterViewModel::OnSummaryViewHierarchyChanged);
 	SummaryViewHierarchyViewModel->OnHierarchyPropertiesChanged().AddSP(this, &FNiagaraEmitterViewModel::OnSummaryViewHierarchyChanged);
+	GetEditorData().OnSummaryViewStateChanged().AddSP(this, &FNiagaraEmitterViewModel::UpdateSelectionOnSummaryViewStateChanged);
 	return true;
 }
 
@@ -538,6 +539,11 @@ FNiagaraEmitterViewModel::FOnScriptParameterStoreChanged& FNiagaraEmitterViewMod
 	return OnScriptParameterStoreChangedDelegate;
 }
 
+FNiagaraEmitterViewModel::FOnEmitterSelectionRequested& FNiagaraEmitterViewModel::OnEmitterSelectionRequested()
+{
+	return OnEmitterSelectionRequestedDelegate;
+}
+
 void FNiagaraEmitterViewModel::AddScriptEventHandlers()
 {
 	if (FVersionedNiagaraEmitterData* EmitterData = EmitterWeakPtr.GetEmitterData())
@@ -622,6 +628,14 @@ void FNiagaraEmitterViewModel::OnEmitterPropertiesChanged()
 void FNiagaraEmitterViewModel::OnSummaryViewHierarchyChanged()
 {
 	GetEditorData().OnPersistentDataChanged().Broadcast();
+}
+
+void FNiagaraEmitterViewModel::UpdateSelectionOnSummaryViewStateChanged() const
+{
+	if(GetEditorData().ShouldShowSummaryView())
+	{
+		OnEmitterSelectionRequestedDelegate.ExecuteIfBound(false);
+	}
 }
 
 FString FNiagaraEmitterViewModel::GetReferencerName() const

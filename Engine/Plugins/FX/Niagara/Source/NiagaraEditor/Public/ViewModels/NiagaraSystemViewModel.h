@@ -135,6 +135,7 @@ public:
 	DECLARE_MULTICAST_DELEGATE_TwoParams(FOnExternalRemoveParameter, const FNiagaraVariableBase&,  UNiagaraEmitter*);
 
 	DECLARE_DELEGATE_OneParam(FOnChangeWorkflowMode, FName /* WorkflowMode */)
+	DECLARE_DELEGATE_OneParam(FOnEmitterThumbnailRequested, FGuid EmitterGuid)
 public:
 	struct FEmitterHandleToDuplicate
 	{
@@ -230,6 +231,9 @@ public:
 	
 	/** Gets the delegate that is bound to the owning toolkit's SetCurrentMode function. */
 	NIAGARAEDITOR_API FOnChangeWorkflowMode& OnChangeWorkflowMode();
+
+	/** Gets the delegate that is bound to the owning toolkit's CreateThumbnail function. */
+	FOnEmitterThumbnailRequested& OnEmitterThumbnailRequested();
 	
 	/** Adds a new emitter to the System from an emitter asset data. */
 	NIAGARAEDITOR_API TSharedPtr<FNiagaraEmitterHandleViewModel> AddEmitterFromAssetData(const FAssetData& AssetData);
@@ -332,6 +336,9 @@ public:
 	/** Isolates the supplied emitters.  This will remove all other emitters from isolation. */
 	NIAGARAEDITOR_API void IsolateEmitters(TArray<FGuid> EmitterHandlesIdsToIsolate);
 
+	void CacheIsolatedEmitterState();
+	void RestoreIsolatedEmitterState();
+	
 	/** Disable the supplied emitters. */
 	NIAGARAEDITOR_API void DisableEmitters(TArray<FGuid> EmitterHandlesIdsToDisable);
 
@@ -658,6 +665,9 @@ private:
 
 	/** A delegate that calls the toolkit's set current mode function */
 	FOnChangeWorkflowMode OnChangeWorkflowModeDelegate;
+
+	/** A delegate that calls the toolkit's Create Thumbnail function */
+	FOnEmitterThumbnailRequested OnEmitterThumbnailRequestedDelegate;
 	
 	/** A delegate which is used to generate the content for the add menu in sequencer. */
 	FOnGetAddMenuContent OnGetSequencerAddMenuContent;
@@ -719,6 +729,8 @@ private:
 	/** A flag indicating that a reset has been request on the next tick */
 	bool bResetRequestPending;
 
+	TArray<FGuid> CachedEmitterIsolationState;
+	
 	/** The system toolkit commands. */
 	TWeakPtr<class FUICommandList> ToolkitCommands;
 

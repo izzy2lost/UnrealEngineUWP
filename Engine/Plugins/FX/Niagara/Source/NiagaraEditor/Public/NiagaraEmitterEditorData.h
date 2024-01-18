@@ -46,6 +46,9 @@ public:
 	
 	UNiagaraHierarchyRoot* GetSummaryRoot() const { return SummaryViewRoot; }
 	const TArray<UNiagaraHierarchySection*>& GetSummarySections() const;
+
+	UTexture2D* GetThumbnail() const { return EmitterThumbnail; }
+	void SetThumbnail(UTexture2D* InThumbnail) { EmitterThumbnail = InThumbnail; OnPersistentDataChanged().Broadcast(); }
 private:
 	UPROPERTY(Instanced)
 	TObjectPtr<UNiagaraStackEditorData> StackEditorData;
@@ -69,11 +72,15 @@ private:
 	UPROPERTY()
 	TObjectPtr<UNiagaraHierarchyRoot> SummaryViewRoot = nullptr;
 
+	UPROPERTY()
+	TObjectPtr<UTexture2D> EmitterThumbnail = nullptr;
+	
 	FSimpleMulticastDelegate OnSummaryViewStateChangedDelegate;
 	
 	void StackEditorDataChanged();
 
 	void PostLoad_TransferSummaryDataToNewFormat();
+	void PostLoad_TransferEmitterThumbnailImage(UObject* Owner);
 	void PostLoad_TransferModuleStackNotesToNewFormat(UObject* Owner);
 };
 
