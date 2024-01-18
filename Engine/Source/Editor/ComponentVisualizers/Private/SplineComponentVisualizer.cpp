@@ -1672,9 +1672,11 @@ bool FSplineComponentVisualizer::HandleFrustumSelect(const FConvexVolume& InFrus
 			SelectionState->ClearSelectedSegmentIndex();
 			SelectionState->ClearSelectedTangentHandle();
 		}
+
+		return true;
 	}
 
-	return true;
+	return false;
 }
 
 bool FSplineComponentVisualizer::HasFocusOnSelectionBoundingBox(FBox& OutBoundingBox)
