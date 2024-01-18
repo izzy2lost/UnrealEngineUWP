@@ -131,6 +131,8 @@ struct FSdfGlyphFontAtlasData
 	uint8 TextureIndex = 0;
 	/** True if the glyph is available in the face but sdf generation was not possible/successfull */
 	bool bSupportsSdf = false;
+	/** True if the SDF is a placeholder and the task for its final version hasn't been spawned yet (due to too many running tasks) */
+	bool bPendingRespawn = false;
 	/** True if this entry is valid, false otherwise. */
 	bool Valid = false;
 };

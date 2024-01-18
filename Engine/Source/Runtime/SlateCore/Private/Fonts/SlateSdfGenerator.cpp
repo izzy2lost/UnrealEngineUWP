@@ -24,18 +24,13 @@ CSV_DECLARE_CATEGORY_MODULE_EXTERN(SLATECORE_API, Slate);
 
 #define MAX_GLYPH_SDF_SIDE 4096
 
-namespace
-{
+static TAutoConsoleVariable<int32> CVarSlateSdfTextGeneratorPoolSize(TEXT("SlateSdfText.GeneratorPoolSize"), 1, TEXT("Sets the maximum number of concurrent tasks when generating multi-channel distance fields for Slate text glyphs"));
 
 // Corners with an angle greater than 3 radians (~171 degrees) won't be treated as corners.
-constexpr double SDF_CORNER_ANGLE_THRESHOLD = 3.0;
+static constexpr double SDF_CORNER_ANGLE_THRESHOLD = 3.0;
 
 // When a corner's angle tends towards zero, the size of its miter tends toward infinity. The miter limit filters extreme cases from being included in bounds.
-constexpr double SDF_BOUNDS_MITER_LIMIT = 1.0;
-
-constexpr uint32 SDF_TASK_POOL_SIZE = 64;
-
-} // namespace
+static constexpr double SDF_BOUNDS_MITER_LIMIT = 1.0;
 
 namespace SdfUtils
 {
@@ -102,6 +97,15 @@ public:
 		return SdfBounds.Max.Y;
 	}
 
+	float GetMsdfgenOuterRange() const
+	{
+		return MsdfgenOuterRange;
+	}
+	float GetMsdfgenInnerRange() const
+	{
+		return MsdfgenInnerRange;
+	}
+
 	FORCEINLINE uint8 EncodeDistance(const float InMsdfgenUnitDistance) const
 	{
 		return msdfgen::pixelFloatToByte(DistanceFactor*InMsdfgenUnitDistance+DistanceBias);
@@ -110,8 +114,10 @@ public:
 private:
 	msdfgen::Projection MsdfgenProjection;
 	FIntRect SdfBounds;
-	float DistanceFactor;
-	float DistanceBias;
+	float MsdfgenOuterRange = 1.f;
+	float MsdfgenInnerRange = 1.f;
+	float DistanceFactor = 1.f;
+	float DistanceBias = 0.f;
 
 	void Wrap(const msdfgen::Shape* MsdfgenShape,
 		msdfgen::Shape::Bounds MsdfgenBounds,
@@ -185,10 +191,11 @@ void FGlyphSdfMapping::SetSpread(
 	const float InEmOuterSpread,
 	const float InEmInnerSpread)
 {
-	DistanceFactor = 1.f/(GetMsdfgenUnitsPerEm(InUnitsPerEm)*(InEmOuterSpread+InEmInnerSpread));
-	DistanceBias = (
-		InEmOuterSpread/(InEmOuterSpread+InEmInnerSpread)
-		- 0.5f*DistanceFactor); // this part makes sure subtracts 0.5 at the very beginning, which is implicitly added by MSDFgen
+	const float MsdfgenUnitsPerEm = GetMsdfgenUnitsPerEm(InUnitsPerEm);
+	MsdfgenOuterRange = MsdfgenUnitsPerEm*InEmOuterSpread;
+	MsdfgenInnerRange = MsdfgenUnitsPerEm*InEmInnerSpread;
+	DistanceFactor = 1.f/(MsdfgenOuterRange+MsdfgenInnerRange);
+	DistanceBias = (MsdfgenOuterRange-0.5f)*DistanceFactor; // 0.5 is subtracted because MSDFgen automatically places zero distance at 50% luminance
 }
 
 /*
@@ -254,7 +261,8 @@ bool FFreeTypeShapeBuilder::Build(TSharedPtr<FFreeTypeFace> InFace,
 		return false;
 	}
 
-	msdfgen::edgeColoringInkTrap(OutMsdfgenShape, SDF_CORNER_ANGLE_THRESHOLD);
+	// MSDFgen uses bottom-up Y coordinates but UE uses top-down.
+	OutMsdfgenShape.inverseYAxis = !OutMsdfgenShape.inverseYAxis;
 
 	// Find shape's geometry tight bounding box
 	msdfgen::Shape::Bounds Bounds = OutMsdfgenShape.getBounds();
@@ -320,21 +328,21 @@ public:
 	void BeginCsvTrace(TSharedPtr<FFreeTypeFace> InFace, uint32 InGlyphIndex);
 	void EndCsvTrace();
 
-	bool Begin(const FSlateSdfGenerator::FRequestDescriptor& InDescriptor, FSlateSdfGenerator::FRequestOutputInfo& OutOutputInfo);
+	FSlateSdfGenerator::ERequestResponse Prepare(const FSlateSdfGenerator::FRequestDescriptor& InDescriptor, FSlateSdfGenerator::FRequestOutputInfo& OutOutputInfo, bool bCsvTrace);
 	void End(const FSlateSdfGenerator::FForEachRequestDoneCallback& Callback);
 	void Reset();
 
+	void MakePlaceholder(TArray<uint8>& OutRawPixels) const;
+
 };
 
-bool FSdfGeneratorTask::Begin(const FSlateSdfGenerator::FRequestDescriptor& InDescriptor, 
-	FSlateSdfGenerator::FRequestOutputInfo& OutOutputInfo)
+FSlateSdfGenerator::ERequestResponse FSdfGeneratorTask::Prepare(const FSlateSdfGenerator::FRequestDescriptor& InDescriptor, FSlateSdfGenerator::FRequestOutputInfo& OutOutputInfo, bool bCsvTrace)
 {
-	OutOutputInfo.bGlyphUnavailable = true;
 	#if WITH_FREETYPE
 	TSharedPtr<FFreeTypeFace> FontFace = InDescriptor.FontFace.Pin();
 	if (FontFace && FontFace->IsFaceLoading())
 	{
-		return false; // try again later
+		return FSlateSdfGenerator::ERequestResponse::BUSY;
 	}
 	if (FontFace && FontFace->IsFaceValid())
 	{
@@ -352,13 +360,16 @@ bool FSdfGeneratorTask::Begin(const FSlateSdfGenerator::FRequestDescriptor& InDe
 			OutOutputInfo.ImageHeight = GlyphSdfMapping.GetSdfHeight();
 			OutOutputInfo.BearingX = GlyphSdfMapping.GetBearingX();
 			OutOutputInfo.BearingY = GlyphSdfMapping.GetBearingY();
-			OutOutputInfo.bGlyphUnavailable = false;
 
-			BeginCsvTrace(FontFace, InDescriptor.GlyphIndex);
+			if (bCsvTrace)
+			{
+				BeginCsvTrace(FontFace, InDescriptor.GlyphIndex);
+			}
+			return FSlateSdfGenerator::ERequestResponse::SUCCESS;
 		}
 	}
 	#endif
-	return true;
+	return FSlateSdfGenerator::ERequestResponse::SDF_UNAVAILABLE;
 }
 
 void FSdfGeneratorTask::End(const FSlateSdfGenerator::FForEachRequestDoneCallback& Callback)
@@ -436,6 +447,8 @@ void FSdfGeneratorTask::DoOutlineDecomposition()
 	TArray<uint8> ECBuffer;
 	ECBuffer.SetNumUninitialized (TargetWidth * TargetHeight);
 
+	msdfgen::edgeColoringInkTrap(MsdfgenShape, SDF_CORNER_ANGLE_THRESHOLD);
+
 	msdfgen::BitmapRef<float, 4> FloatBitmap(FloatPixels.GetData(), TargetWidth, TargetHeight);
 	msdfgen::generateMTSDF(
 		FloatBitmap,
@@ -454,16 +467,34 @@ void FSdfGeneratorTask::DoOutlineDecomposition()
 		)
 	);
 
-	for (int32 y = 0; y < TargetHeight; ++y)
+	const float* Src = FloatPixels.GetData();
+	for (uint8* Dst = OutputPixels.GetData(), * End = Dst+4*TargetWidth*TargetHeight; Dst < End; ++Dst, ++Src)
 	{
-		for (int32 x = 0; x < TargetWidth; ++x)
-		{
-			uint8 *const OutputPixel = OutputPixels.GetData() + (4 * ((TargetHeight - y - 1) * TargetWidth + x));
-			OutputPixel[0] = GlyphSdfMapping.EncodeDistance(FloatBitmap(x, y)[0]);
-			OutputPixel[1] = GlyphSdfMapping.EncodeDistance(FloatBitmap(x, y)[1]);
-			OutputPixel[2] = GlyphSdfMapping.EncodeDistance(FloatBitmap(x, y)[2]);
-			OutputPixel[3] = GlyphSdfMapping.EncodeDistance(FloatBitmap(x, y)[3]);
-		}
+		*Dst = GlyphSdfMapping.EncodeDistance(*Src);
+	}
+}
+
+void FSdfGeneratorTask::MakePlaceholder(TArray<uint8>& OutRawPixels) const
+{
+	const int32 TargetWidth = GlyphSdfMapping.GetSdfWidth();
+	const int32 TargetHeight = GlyphSdfMapping.GetSdfHeight();
+	const int32 TargetArea = TargetWidth * TargetHeight;
+	const int32 TotalSubpixels = 4 * TargetArea;
+	TArray<float> FloatPixels;
+	FloatPixels.SetNumUninitialized(TargetArea);
+	OutRawPixels.SetNumUninitialized(TotalSubpixels);
+	const msdfgen::BitmapRef<float, 1> FloatBitmap(FloatPixels.GetData(), TargetWidth, TargetHeight);
+	msdfgen::approximateSDF(
+		FloatBitmap,
+		MsdfgenShape,
+		GlyphSdfMapping.GetMsdfgenProjection(),
+		GlyphSdfMapping.GetMsdfgenOuterRange(),
+		GlyphSdfMapping.GetMsdfgenInnerRange()
+	);
+	const float* Src = FloatPixels.GetData();
+	for (uint8* Dst = OutRawPixels.GetData(), * End = Dst + TotalSubpixels; Dst < End; Dst += 4, ++Src)
+	{
+		Dst[3] = Dst[2] = Dst[1] = Dst[0] = msdfgen::pixelFloatToByte(*Src);
 	}
 }
 
@@ -479,28 +510,30 @@ public:
 	FSlateSdfGeneratorImpl();
 	~FSlateSdfGeneratorImpl();
 
-	virtual bool Spawn(const FRequestDescriptor& InRequest, FRequestOutputInfo& OutCharInfo) override;
+	virtual ERequestResponse Spawn(const FRequestDescriptor& InRequest, FRequestOutputInfo& OutCharInfo) override;
+	virtual ERequestResponse SpawnWithPlaceholder(const FRequestDescriptor& InRequest, FRequestOutputInfo& OutCharInfo, TArray<uint8>& OutRawPixels) override;
+	virtual ERequestResponse Respawn(const FRequestDescriptor& InRequest, const FRequestOutputInfo& InCharInfo) override;
 	virtual void Update(const FForEachRequestDoneCallback& InEnumerator) override;
 	virtual void Flush() override;
 private:
-	TArray<FAsyncTask<SdfUtils::FSdfGeneratorTask>*, TFixedAllocator<SDF_TASK_POOL_SIZE>> FreeTasks;
-	TArray<FAsyncTask<SdfUtils::FSdfGeneratorTask>*, TFixedAllocator<SDF_TASK_POOL_SIZE>> StartedTasks;
-	TArray<FAsyncTask<SdfUtils::FSdfGeneratorTask>, TAlignedHeapAllocator<PLATFORM_CACHE_LINE_SIZE>> TasksPool;
+	TArray<FAsyncTask<SdfUtils::FSdfGeneratorTask>*> FreeTasks;
+	TArray<FAsyncTask<SdfUtils::FSdfGeneratorTask>*> StartedTasks;
+	TArray<TUniquePtr<FAsyncTask<SdfUtils::FSdfGeneratorTask>>> TasksPool;
+	FAutoConsoleVariableSink PoolSizeChangeSink;
+
+	/** Enlarges the pool size according to the new value of the SlateSdfText.GeneratorPoolSize CVar. The pool cannot be shrinked and if the new value is lower, this will have no effect and false will be returned. */
+	bool UpdatePoolSize();
 };
 
 
-FSlateSdfGeneratorImpl::FSlateSdfGeneratorImpl()
+FSlateSdfGeneratorImpl::FSlateSdfGeneratorImpl() :
+	PoolSizeChangeSink(FConsoleCommandDelegate::CreateLambda([this]()
+		{
+			UpdatePoolSize();
+		}
+	))
 {
-	FreeTasks.Reserve(SDF_TASK_POOL_SIZE);
-	StartedTasks.Reserve(SDF_TASK_POOL_SIZE);
-	TasksPool.Reserve(SDF_TASK_POOL_SIZE);
-	TasksPool.AddDefaulted(SDF_TASK_POOL_SIZE);
-	int32 Count = 0;
-	while (Count < TasksPool.Num())
-	{
-		FreeTasks.Push(&TasksPool[Count]);
-		++Count;
-	}
+	UpdatePoolSize();
 }
 
 FSlateSdfGeneratorImpl::~FSlateSdfGeneratorImpl()
@@ -510,15 +543,47 @@ FSlateSdfGeneratorImpl::~FSlateSdfGeneratorImpl()
 	TasksPool.Empty();
 }
 
-bool FSlateSdfGeneratorImpl::Spawn(const FRequestDescriptor& InRequest, FRequestOutputInfo& OutCharInfo)
+bool FSlateSdfGeneratorImpl::UpdatePoolSize()
 {
-	if (FreeTasks.IsEmpty())
+	check(IsInGameThread());
+	int32 PoolSize = 0;
+	if (IsSlateSdfTextFeatureEnabled())
+	{
+		PoolSize = CVarSlateSdfTextGeneratorPoolSize.GetValueOnGameThread();
+		if (PoolSize <= 0)
+		{
+			PoolSize = FGenericPlatformMisc::NumberOfWorkerThreadsToSpawn();
+		}
+	}
+	int32 OldPoolSize = TasksPool.Num();
+	if (PoolSize < OldPoolSize)
 	{
 		return false;
 	}
+	if (PoolSize > OldPoolSize)
+	{
+		FreeTasks.Reserve(PoolSize);
+		StartedTasks.Reserve(PoolSize);
+		TasksPool.Reserve(PoolSize);
+		for (int32 Index = OldPoolSize; Index < PoolSize; ++Index)
+		{
+			int32 AddedIndex = TasksPool.Add(MakeUnique<FAsyncTask<SdfUtils::FSdfGeneratorTask>>());
+			check(AddedIndex == Index);
+			FreeTasks.Push(TasksPool[AddedIndex].Get());
+		}
+	}
+	return true;
+}
+
+FSlateSdfGenerator::ERequestResponse FSlateSdfGeneratorImpl::Spawn(const FRequestDescriptor& InRequest, FRequestOutputInfo& OutCharInfo)
+{
+	if (FreeTasks.IsEmpty())
+	{
+		return ERequestResponse::BUSY;
+	}
 	FAsyncTask<SdfUtils::FSdfGeneratorTask>* Task = FreeTasks.Pop(false);
-	const bool bOutputInfoValid = Task->GetTask().Begin(InRequest, OutCharInfo);
-	if (bOutputInfoValid && !OutCharInfo.bGlyphUnavailable)
+	const ERequestResponse Result = Task->GetTask().Prepare(InRequest, OutCharInfo, true);
+	if (Result == ERequestResponse::SUCCESS)
 	{
 		StartedTasks.Push(Task);
 		Task->StartBackgroundTask();
@@ -527,7 +592,68 @@ bool FSlateSdfGeneratorImpl::Spawn(const FRequestDescriptor& InRequest, FRequest
 	{
 		FreeTasks.Push(Task);
 	}
-	return bOutputInfoValid;
+	return Result;
+}
+
+FSlateSdfGenerator::ERequestResponse FSlateSdfGeneratorImpl::SpawnWithPlaceholder(const FRequestDescriptor& InRequest, FRequestOutputInfo& OutCharInfo, TArray<uint8>& OutRawPixels)
+{
+	if (FreeTasks.IsEmpty())
+	{
+		SdfUtils::FSdfGeneratorTask PlaceholderTask;
+		const ERequestResponse Result = PlaceholderTask.Prepare(InRequest, OutCharInfo, false);
+		if (Result == ERequestResponse::SUCCESS)
+		{
+			PlaceholderTask.MakePlaceholder(OutRawPixels);
+			return ERequestResponse::PLACEHOLDER_ONLY;
+		}
+		return Result;
+	}
+	FAsyncTask<SdfUtils::FSdfGeneratorTask>* Task = FreeTasks.Pop(false);
+	const ERequestResponse Result = Task->GetTask().Prepare(InRequest, OutCharInfo, true);
+	if (Result == ERequestResponse::SUCCESS)
+	{
+		Task->GetTask().MakePlaceholder(OutRawPixels);
+		StartedTasks.Push(Task);
+		Task->StartBackgroundTask();
+	}
+	else
+	{
+		FreeTasks.Push(Task);
+	}
+	return Result;
+}
+
+FSlateSdfGenerator::ERequestResponse FSlateSdfGeneratorImpl::Respawn(const FRequestDescriptor& InRequest, const FRequestOutputInfo& InCharInfo)
+{
+	if (FreeTasks.IsEmpty())
+	{
+		return ERequestResponse::BUSY;
+	}
+	FRequestOutputInfo OutCharInfo = {};
+	FAsyncTask<SdfUtils::FSdfGeneratorTask>* Task = FreeTasks.Pop(false);
+	ERequestResponse Result = Task->GetTask().Prepare(InRequest, OutCharInfo, true);
+	if (Result == ERequestResponse::SUCCESS)
+	{
+		if (
+			OutCharInfo.ImageWidth == InCharInfo.ImageWidth &&
+			OutCharInfo.ImageHeight == InCharInfo.ImageHeight &&
+			OutCharInfo.BearingX == InCharInfo.BearingX &&
+			OutCharInfo.BearingY == InCharInfo.BearingY
+		)
+		{
+			StartedTasks.Push(Task);
+			Task->StartBackgroundTask();
+			return ERequestResponse::SUCCESS;
+		}
+		else // Task spawn retried but output metrics differ, this shouldn't happen
+		{
+			checkNoEntry();
+			Task->GetTask().Reset();
+			Result = ERequestResponse::BAD_REQUEST;
+		}
+	}
+	FreeTasks.Push(Task);
+	return Result;
 }
 
 void FSlateSdfGeneratorImpl::Update(const FForEachRequestDoneCallback& InEnumerator)
@@ -560,8 +686,8 @@ void FSlateSdfGeneratorImpl::Flush()
 		(*It)->GetTask().Reset();
 		FreeTasks.Push(*It);
 	}
-	StartedTasks.Empty(SDF_TASK_POOL_SIZE);
-	check(FreeTasks.Num() == SDF_TASK_POOL_SIZE);
+	StartedTasks.Empty(TasksPool.Num());
+	check(FreeTasks.Num() == TasksPool.Num());
 }
 
 FSlateSdfGenerator::FSlateSdfGenerator()

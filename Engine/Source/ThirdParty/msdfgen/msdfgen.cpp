@@ -43,7 +43,7 @@
 
 #ifdef _MSC_VER
 #pragma warning(push)
-#pragma warning(disable : 4456 4457 4458)
+#pragma warning(disable : 4456 4457 4458 6246)
 #elif defined(__GNUC__)
 #pragma GCC diagnostic push
 #pragma GCC diagnostic ignored "-Wshadow"
@@ -54,6 +54,10 @@
 #endif
 
 #define _USE_MATH_DEFINES
+
+#ifndef MSDFGEN_CUBE_ROOT
+#define MSDFGEN_CUBE_ROOT(x) pow((x), 1/3.)
+#endif
 
 namespace msdfgen {
 
@@ -100,7 +104,7 @@ static int solveCubicNormed(double x[3], double a, double b, double c) {
         x[2] = q*cos(1/3.*(t-2*M_PI))-a;
         return 3;
     } else {
-        double u = (r < 0 ? 1 : -1)*pow(fabs(r)+sqrt(r2-q3), 1/3.);
+        double u = (r < 0 ? 1 : -1)*MSDFGEN_CUBE_ROOT(fabs(r)+sqrt(r2-q3));
         double v = u == 0 ? 0 : q/u;
         x[0] = (u+v)-a;
         if (u == v || fabs(u-v) < 1e-12*fabs(u+v)) {
@@ -118,146 +122,6 @@ int solveCubic(double x[3], double a, double b, double c, double d) {
             return solveCubicNormed(x, bn, c/a, d/a);
     }
     return solveQuadratic(x, b, c, d);
-}
-
-Vector2::Vector2(double val) : x(val), y(val) { }
-
-Vector2::Vector2(double x, double y) : x(x), y(y) { }
-
-void Vector2::reset() {
-    x = 0, y = 0;
-}
-
-void Vector2::set(double a_x, double a_y) {
-    x = a_x, y = a_y;
-}
-
-double Vector2::length() const {
-    return sqrt(x*x+y*y);
-}
-
-double Vector2::direction() const {
-    return atan2(y, x);
-}
-
-Vector2 Vector2::normalize(bool allowZero) const {
-    double len = length();
-    if (len == 0)
-        return Vector2(0, !allowZero);
-    return Vector2(x/len, y/len);
-}
-
-Vector2 Vector2::getOrthogonal(bool polarity) const {
-    return polarity ? Vector2(-y, x) : Vector2(y, -x);
-}
-
-Vector2 Vector2::getOrthonormal(bool polarity, bool allowZero) const {
-    double len = length();
-    if (len == 0)
-        return polarity ? Vector2(0, !allowZero) : Vector2(0, -!allowZero);
-    return polarity ? Vector2(-y/len, x/len) : Vector2(y/len, -x/len);
-}
-
-Vector2 Vector2::project(const Vector2 &vector, bool positive) const {
-    Vector2 n = normalize(true);
-    double t = dotProduct(vector, n);
-    if (positive && t <= 0)
-        return Vector2();
-    return t*n;
-}
-
-Vector2::operator const void*() const {
-    return x || y ? this : NULL;
-}
-
-bool Vector2::operator!() const {
-    return !x && !y;
-}
-
-bool Vector2::operator==(const Vector2 &other) const {
-    return x == other.x && y == other.y;
-}
-
-bool Vector2::operator!=(const Vector2 &other) const {
-    return x != other.x || y != other.y;
-}
-
-Vector2 Vector2::operator+() const {
-    return *this;
-}
-
-Vector2 Vector2::operator-() const {
-    return Vector2(-x, -y);
-}
-
-Vector2 Vector2::operator+(const Vector2 &other) const {
-    return Vector2(x+other.x, y+other.y);
-}
-
-Vector2 Vector2::operator-(const Vector2 &other) const {
-    return Vector2(x-other.x, y-other.y);
-}
-
-Vector2 Vector2::operator*(const Vector2 &other) const {
-    return Vector2(x*other.x, y*other.y);
-}
-
-Vector2 Vector2::operator/(const Vector2 &other) const {
-    return Vector2(x/other.x, y/other.y);
-}
-
-Vector2 Vector2::operator*(double value) const {
-    return Vector2(x*value, y*value);
-}
-
-Vector2 Vector2::operator/(double value) const {
-    return Vector2(x/value, y/value);
-}
-
-Vector2 & Vector2::operator+=(const Vector2 &other) {
-    x += other.x, y += other.y;
-    return *this;
-}
-
-Vector2 & Vector2::operator-=(const Vector2 &other) {
-    x -= other.x, y -= other.y;
-    return *this;
-}
-
-Vector2 & Vector2::operator*=(const Vector2 &other) {
-    x *= other.x, y *= other.y;
-    return *this;
-}
-
-Vector2 & Vector2::operator/=(const Vector2 &other) {
-    x /= other.x, y /= other.y;
-    return *this;
-}
-
-Vector2 & Vector2::operator*=(double value) {
-    x *= value, y *= value;
-    return *this;
-}
-
-Vector2 & Vector2::operator/=(double value) {
-    x /= value, y /= value;
-    return *this;
-}
-
-double dotProduct(const Vector2 &a, const Vector2 &b) {
-    return a.x*b.x+a.y*b.y;
-}
-
-double crossProduct(const Vector2 &a, const Vector2 &b) {
-    return a.x*b.y-a.y*b.x;
-}
-
-Vector2 operator*(double value, const Vector2 &vector) {
-    return Vector2(value*vector.x, value*vector.y);
-}
-
-Vector2 operator/(double value, const Vector2 &vector) {
-    return Vector2(value/vector.x, value/vector.y);
 }
 
 Projection::Projection() : scale(1), translate(0) { }
@@ -294,26 +158,6 @@ double Projection::unprojectX(double x) const {
 
 double Projection::unprojectY(double y) const {
     return y/scale.y-translate.y;
-}
-
-SignedDistance::SignedDistance() : distance(-DBL_MAX), dot(1) { }
-
-SignedDistance::SignedDistance(double dist, double d) : distance(dist), dot(d) { }
-
-bool operator<(SignedDistance a, SignedDistance b) {
-    return fabs(a.distance) < fabs(b.distance) || (fabs(a.distance) == fabs(b.distance) && a.dot < b.dot);
-}
-
-bool operator>(SignedDistance a, SignedDistance b) {
-    return fabs(a.distance) > fabs(b.distance) || (fabs(a.distance) == fabs(b.distance) && a.dot > b.dot);
-}
-
-bool operator<=(SignedDistance a, SignedDistance b) {
-    return fabs(a.distance) < fabs(b.distance) || (fabs(a.distance) == fabs(b.distance) && a.dot <= b.dot);
-}
-
-bool operator>=(SignedDistance a, SignedDistance b) {
-    return fabs(a.distance) > fabs(b.distance) || (fabs(a.distance) == fabs(b.distance) && a.dot >= b.dot);
 }
 
 static int compareIntersections(const void *a, const void *b) {
@@ -385,14 +229,14 @@ void Scanline::preprocess() {
     }
 }
 
-void Scanline::setIntersections(const std::vector<Intersection> &a_intersections) {
-	this->intersections = a_intersections;
+void Scanline::setIntersections(const std::vector<Intersection> &intersections) {
+    this->intersections = intersections;
     preprocess();
 }
 
 #ifdef MSDFGEN_USE_CPP11
-void Scanline::setIntersections(std::vector<Intersection> &&a_intersections) {
-	this->intersections = (std::vector<Intersection> &&) a_intersections;
+void Scanline::setIntersections(std::vector<Intersection> &&intersections) {
+    this->intersections = (std::vector<Intersection> &&) intersections;
     preprocess();
 }
 #endif
@@ -432,6 +276,31 @@ bool Scanline::filled(double x, FillRule fillRule) const {
     return interpretFillRule(sumIntersections(x), fillRule);
 }
 
+}
+
+#define MSDFGEN_USE_BEZIER_SOLVER
+
+namespace msdfgen {
+
+EdgeSegment *EdgeSegment::create(Point2 p0, Point2 p1, EdgeColor edgeColor) {
+    return new LinearSegment(p0, p1, edgeColor);
+}
+
+EdgeSegment *EdgeSegment::create(Point2 p0, Point2 p1, Point2 p2, EdgeColor edgeColor) {
+    if (!crossProduct(p1-p0, p2-p1))
+        return new LinearSegment(p0, p2, edgeColor);
+    return new QuadraticSegment(p0, p1, p2, edgeColor);
+}
+
+EdgeSegment *EdgeSegment::create(Point2 p0, Point2 p1, Point2 p2, Point2 p3, EdgeColor edgeColor) {
+    Vector2 p12 = p2-p1;
+    if (!crossProduct(p1-p0, p12) && !crossProduct(p12, p3-p2))
+        return new LinearSegment(p0, p3, edgeColor);
+    if ((p12 = 1.5*p1-.5*p0) == 1.5*p2-.5*p3)
+        return new QuadraticSegment(p0, p12, p3, edgeColor);
+    return new CubicSegment(p0, p1, p2, p3, edgeColor);
+}
+
 void EdgeSegment::distanceToPseudoDistance(SignedDistance &distance, Point2 origin, double param) const {
     if (param < 0) {
         Vector2 dir = direction(0).normalize();
@@ -464,33 +333,27 @@ LinearSegment::LinearSegment(Point2 p0, Point2 p1, EdgeColor edgeColor) : EdgeSe
 }
 
 QuadraticSegment::QuadraticSegment(Point2 p0, Point2 p1, Point2 p2, EdgeColor edgeColor) : EdgeSegment(edgeColor) {
-    if (p1 == p0 || p1 == p2)
-        p1 = 0.5*(p0+p2);
     p[0] = p0;
     p[1] = p1;
     p[2] = p2;
 }
 
 CubicSegment::CubicSegment(Point2 p0, Point2 p1, Point2 p2, Point2 p3, EdgeColor edgeColor) : EdgeSegment(edgeColor) {
-    if ((p1 == p0 || p1 == p3) && (p2 == p0 || p2 == p3)) {
-        p1 = mix(p0, p3, 1/3.);
-        p2 = mix(p0, p3, 2/3.);
-    }
     p[0] = p0;
     p[1] = p1;
     p[2] = p2;
     p[3] = p3;
 }
 
-LinearSegment * LinearSegment::clone() const {
+LinearSegment *LinearSegment::clone() const {
     return new LinearSegment(p[0], p[1], color);
 }
 
-QuadraticSegment * QuadraticSegment::clone() const {
+QuadraticSegment *QuadraticSegment::clone() const {
     return new QuadraticSegment(p[0], p[1], p[2], color);
 }
 
-CubicSegment * CubicSegment::clone() const {
+CubicSegment *CubicSegment::clone() const {
     return new CubicSegment(p[0], p[1], p[2], p[3], color);
 }
 
@@ -506,15 +369,15 @@ int CubicSegment::type() const {
     return (int) EDGE_TYPE;
 }
 
-const Point2 * LinearSegment::controlPoints() const {
+const Point2 *LinearSegment::controlPoints() const {
     return p;
 }
 
-const Point2 * QuadraticSegment::controlPoints() const {
+const Point2 *QuadraticSegment::controlPoints() const {
     return p;
 }
 
-const Point2 * CubicSegment::controlPoints() const {
+const Point2 *CubicSegment::controlPoints() const {
     return p;
 }
 
@@ -596,6 +459,68 @@ SignedDistance LinearSegment::signedDistance(Point2 origin, double &param) const
     }
     return SignedDistance(nonZeroSign(crossProduct(aq, ab))*endpointDistance, fabs(dotProduct(ab.normalize(), eq.normalize())));
 }
+
+#ifdef MSDFGEN_USE_BEZIER_SOLVER
+
+SignedDistance QuadraticSegment::signedDistance(Point2 origin, double &param) const {
+    Vector2 ap = origin-p[0];
+    Vector2 bp = origin-p[2];
+    Vector2 q = 2*(p[1]-p[0]);
+    Vector2 r = p[2]-2*p[1]+p[0];
+    double aSqD = ap.squaredLength();
+    double bSqD = bp.squaredLength();
+    double t = quadraticNearPoint(ap, q, r);
+    if (t > 0 && t < 1) {
+        Vector2 tp = ap-(q+r*t)*t;
+        double tSqD = tp.squaredLength();
+        if (tSqD < aSqD && tSqD < bSqD) {
+            param = t;
+            return SignedDistance(nonZeroSign(crossProduct(tp, q+2*r*t))*sqrt(tSqD), 0);
+        }
+    }
+    if (bSqD < aSqD) {
+        Vector2 d = q+r+r;
+        if (!d)
+            d = p[2]-p[0];
+        param = dotProduct(bp, d)/d.squaredLength()+1;
+        return SignedDistance(nonZeroSign(crossProduct(bp, d))*sqrt(bSqD), dotProduct(bp.normalize(), d.normalize()));
+    }
+    if (!q)
+        q = p[2]-p[0];
+    param = dotProduct(ap, q)/q.squaredLength();
+    return SignedDistance(nonZeroSign(crossProduct(ap, q))*sqrt(aSqD), -dotProduct(ap.normalize(), q.normalize()));
+}
+
+SignedDistance CubicSegment::signedDistance(Point2 origin, double &param) const {
+    Vector2 ap = origin-p[0];
+    Vector2 bp = origin-p[3];
+    Vector2 q = 3*(p[1]-p[0]);
+    Vector2 r = 3*(p[2]-p[1])-q;
+    Vector2 s = p[3]-3*(p[2]-p[1])-p[0];
+    double aSqD = ap.squaredLength();
+    double bSqD = bp.squaredLength();
+    double tSqD;
+    double t = cubicNearPoint(ap, q, r, s, tSqD);
+    if (t > 0 && t < 1) {
+        if (tSqD < aSqD && tSqD < bSqD) {
+            param = t;
+            return SignedDistance(nonZeroSign(crossProduct(ap-(q+(r+s*t)*t)*t, q+(r+r+3*s*t)*t))*sqrt(tSqD), 0);
+        }
+    }
+    if (bSqD < aSqD) {
+        Vector2 d = q+r+r+3*s;
+        if (!d)
+            d = p[3]-p[1];
+        param = dotProduct(bp, d)/d.squaredLength()+1;
+        return SignedDistance(nonZeroSign(crossProduct(bp, d))*sqrt(bSqD), dotProduct(bp.normalize(), d.normalize()));
+    }
+    if (!q)
+        q = p[2]-p[0];
+    param = dotProduct(ap, q)/q.squaredLength();
+    return SignedDistance(nonZeroSign(crossProduct(ap, q))*sqrt(aSqD), -dotProduct(ap.normalize(), q.normalize()));
+}
+
+#else
 
 SignedDistance QuadraticSegment::signedDistance(Point2 origin, double &param) const {
     Vector2 qa = p[0]-origin;
@@ -683,7 +608,21 @@ SignedDistance CubicSegment::signedDistance(Point2 origin, double &param) const 
         return SignedDistance(minDistance, fabs(dotProduct(direction(1).normalize(), (p[3]-origin).normalize())));
 }
 
+#endif
+
 int LinearSegment::scanlineIntersections(double x[3], int dy[3], double y) const {
+    return horizontalScanlineIntersections(x, dy, y);
+}
+
+int QuadraticSegment::scanlineIntersections(double x[3], int dy[3], double y) const {
+    return horizontalScanlineIntersections(x, dy, y);
+}
+
+int CubicSegment::scanlineIntersections(double x[3], int dy[3], double y) const {
+    return horizontalScanlineIntersections(x, dy, y);
+}
+
+int LinearSegment::horizontalScanlineIntersections(double x[3], int dy[3], double y) const {
     if ((y >= p[0].y && y < p[1].y) || (y >= p[1].y && y < p[0].y)) {
         double param = (y-p[0].y)/(p[1].y-p[0].y);
         x[0] = mix(p[0].x, p[1].x, param);
@@ -693,7 +632,17 @@ int LinearSegment::scanlineIntersections(double x[3], int dy[3], double y) const
     return 0;
 }
 
-int QuadraticSegment::scanlineIntersections(double x[3], int dy[3], double y) const {
+int LinearSegment::verticalScanlineIntersections(double y[3], int dx[3], double x) const {
+    if ((x >= p[0].x && x < p[1].x) || (x >= p[1].x && x < p[0].x)) {
+        double param = (x-p[0].x)/(p[1].x-p[0].x);
+        y[0] = mix(p[0].y, p[1].y, param);
+        dx[0] = sign(p[1].x-p[0].x);
+        return 1;
+    }
+    return 0;
+}
+
+int QuadraticSegment::horizontalScanlineIntersections(double x[3], int dy[3], double y) const {
     int total = 0;
     int nextDY = y > p[0].y ? 1 : -1;
     x[total] = p[0].x;
@@ -747,7 +696,61 @@ int QuadraticSegment::scanlineIntersections(double x[3], int dy[3], double y) co
     return total;
 }
 
-int CubicSegment::scanlineIntersections(double x[3], int dy[3], double y) const {
+int QuadraticSegment::verticalScanlineIntersections(double y[3], int dx[3], double x) const {
+    int total = 0;
+    int nextDX = x > p[0].x ? 1 : -1;
+    y[total] = p[0].y;
+    if (p[0].x == x) {
+        if (p[0].x < p[1].x || (p[0].x == p[1].x && p[0].x < p[2].x))
+            dx[total++] = 1;
+        else
+            nextDX = 1;
+    }
+    {
+        Vector2 ab = p[1]-p[0];
+        Vector2 br = p[2]-p[1]-ab;
+        double t[2];
+        int solutions = solveQuadratic(t, br.x, 2*ab.x, p[0].x-x);
+        // Sort solutions
+        double tmp;
+        if (solutions >= 2 && t[0] > t[1])
+            tmp = t[0], t[0] = t[1], t[1] = tmp;
+        for (int i = 0; i < solutions && total < 2; ++i) {
+            if (t[i] >= 0 && t[i] <= 1) {
+                y[total] = p[0].y+2*t[i]*ab.y+t[i]*t[i]*br.y;
+                if (nextDX*(ab.x+t[i]*br.x) >= 0) {
+                    dx[total++] = nextDX;
+                    nextDX = -nextDX;
+                }
+            }
+        }
+    }
+    if (p[2].x == x) {
+        if (nextDX > 0 && total > 0) {
+            --total;
+            nextDX = -1;
+        }
+        if ((p[2].x < p[1].x || (p[2].x == p[1].x && p[2].x < p[0].x)) && total < 2) {
+            y[total] = p[2].y;
+            if (nextDX < 0) {
+                dx[total++] = -1;
+                nextDX = 1;
+            }
+        }
+    }
+    if (nextDX != (x >= p[2].x ? 1 : -1)) {
+        if (total > 0)
+            --total;
+        else {
+            if (fabs(p[2].x-x) < fabs(p[0].x-x))
+                y[total] = p[2].y;
+            dx[total++] = nextDX;
+        }
+    }
+    return total;
+}
+
+int CubicSegment::horizontalScanlineIntersections(double x[3], int dy[3], double y) const {
     int total = 0;
     int nextDY = y > p[0].y ? 1 : -1;
     x[total] = p[0].x;
@@ -804,6 +807,68 @@ int CubicSegment::scanlineIntersections(double x[3], int dy[3], double y) const 
             if (fabs(p[3].y-y) < fabs(p[0].y-y))
                 x[total] = p[3].x;
             dy[total++] = nextDY;
+        }
+    }
+    return total;
+}
+
+int CubicSegment::verticalScanlineIntersections(double y[3], int dx[3], double x) const {
+    int total = 0;
+    int nextDX = x > p[0].x ? 1 : -1;
+    y[total] = p[0].y;
+    if (p[0].x == x) {
+        if (p[0].x < p[1].x || (p[0].x == p[1].x && (p[0].x < p[2].x || (p[0].x == p[2].x && p[0].x < p[3].x))))
+            dx[total++] = 1;
+        else
+            nextDX = 1;
+    }
+    {
+        Vector2 ab = p[1]-p[0];
+        Vector2 br = p[2]-p[1]-ab;
+        Vector2 as = (p[3]-p[2])-(p[2]-p[1])-br;
+        double t[3];
+        int solutions = solveCubic(t, as.x, 3*br.x, 3*ab.x, p[0].x-x);
+        // Sort solutions
+        double tmp;
+        if (solutions >= 2) {
+            if (t[0] > t[1])
+                tmp = t[0], t[0] = t[1], t[1] = tmp;
+            if (solutions >= 3 && t[1] > t[2]) {
+                tmp = t[1], t[1] = t[2], t[2] = tmp;
+                if (t[0] > t[1])
+                    tmp = t[0], t[0] = t[1], t[1] = tmp;
+            }
+        }
+        for (int i = 0; i < solutions && total < 3; ++i) {
+            if (t[i] >= 0 && t[i] <= 1) {
+                y[total] = p[0].y+3*t[i]*ab.y+3*t[i]*t[i]*br.y+t[i]*t[i]*t[i]*as.y;
+                if (nextDX*(ab.x+2*t[i]*br.x+t[i]*t[i]*as.x) >= 0) {
+                    dx[total++] = nextDX;
+                    nextDX = -nextDX;
+                }
+            }
+        }
+    }
+    if (p[3].x == x) {
+        if (nextDX > 0 && total > 0) {
+            --total;
+            nextDX = -1;
+        }
+        if ((p[3].x < p[2].x || (p[3].x == p[2].x && (p[3].x < p[1].x || (p[3].x == p[1].x && p[3].x < p[0].x)))) && total < 3) {
+            y[total] = p[3].y;
+            if (nextDX < 0) {
+                dx[total++] = -1;
+                nextDX = 1;
+            }
+        }
+    }
+    if (nextDX != (x >= p[3].x ? 1 : -1)) {
+        if (total > 0)
+            --total;
+        else {
+            if (fabs(p[3].x-x) < fabs(p[0].x-x))
+                y[total] = p[3].y;
+            dx[total++] = nextDX;
         }
     }
     return total;
@@ -912,28 +977,28 @@ void CubicSegment::moveEndPoint(Point2 to) {
     p[3] = to;
 }
 
-void LinearSegment::splitInThirds(EdgeSegment *&part1, EdgeSegment *&part2, EdgeSegment *&part3) const {
-    part1 = new LinearSegment(p[0], point(1/3.), color);
-    part2 = new LinearSegment(point(1/3.), point(2/3.), color);
-    part3 = new LinearSegment(point(2/3.), p[1], color);
+void LinearSegment::splitInThirds(EdgeSegment *&part0, EdgeSegment *&part1, EdgeSegment *&part2) const {
+    part0 = new LinearSegment(p[0], point(1/3.), color);
+    part1 = new LinearSegment(point(1/3.), point(2/3.), color);
+    part2 = new LinearSegment(point(2/3.), p[1], color);
 }
 
-void QuadraticSegment::splitInThirds(EdgeSegment *&part1, EdgeSegment *&part2, EdgeSegment *&part3) const {
-    part1 = new QuadraticSegment(p[0], mix(p[0], p[1], 1/3.), point(1/3.), color);
-    part2 = new QuadraticSegment(point(1/3.), mix(mix(p[0], p[1], 5/9.), mix(p[1], p[2], 4/9.), .5), point(2/3.), color);
-    part3 = new QuadraticSegment(point(2/3.), mix(p[1], p[2], 2/3.), p[2], color);
+void QuadraticSegment::splitInThirds(EdgeSegment *&part0, EdgeSegment *&part1, EdgeSegment *&part2) const {
+    part0 = new QuadraticSegment(p[0], mix(p[0], p[1], 1/3.), point(1/3.), color);
+    part1 = new QuadraticSegment(point(1/3.), mix(mix(p[0], p[1], 5/9.), mix(p[1], p[2], 4/9.), .5), point(2/3.), color);
+    part2 = new QuadraticSegment(point(2/3.), mix(p[1], p[2], 2/3.), p[2], color);
 }
 
-void CubicSegment::splitInThirds(EdgeSegment *&part1, EdgeSegment *&part2, EdgeSegment *&part3) const {
-    part1 = new CubicSegment(p[0], p[0] == p[1] ? p[0] : mix(p[0], p[1], 1/3.), mix(mix(p[0], p[1], 1/3.), mix(p[1], p[2], 1/3.), 1/3.), point(1/3.), color);
-    part2 = new CubicSegment(point(1/3.),
+void CubicSegment::splitInThirds(EdgeSegment *&part0, EdgeSegment *&part1, EdgeSegment *&part2) const {
+    part0 = new CubicSegment(p[0], p[0] == p[1] ? p[0] : mix(p[0], p[1], 1/3.), mix(mix(p[0], p[1], 1/3.), mix(p[1], p[2], 1/3.), 1/3.), point(1/3.), color);
+    part1 = new CubicSegment(point(1/3.),
         mix(mix(mix(p[0], p[1], 1/3.), mix(p[1], p[2], 1/3.), 1/3.), mix(mix(p[1], p[2], 1/3.), mix(p[2], p[3], 1/3.), 1/3.), 2/3.),
         mix(mix(mix(p[0], p[1], 2/3.), mix(p[1], p[2], 2/3.), 2/3.), mix(mix(p[1], p[2], 2/3.), mix(p[2], p[3], 2/3.), 2/3.), 1/3.),
         point(2/3.), color);
-    part3 = new CubicSegment(point(2/3.), mix(mix(p[1], p[2], 2/3.), mix(p[2], p[3], 2/3.), 2/3.), p[2] == p[3] ? p[3] : mix(p[2], p[3], 2/3.), p[3], color);
+    part2 = new CubicSegment(point(2/3.), mix(mix(p[1], p[2], 2/3.), mix(p[2], p[3], 2/3.), 2/3.), p[2] == p[3] ? p[3] : mix(p[2], p[3], 2/3.), p[3], color);
 }
 
-EdgeSegment * QuadraticSegment::convertToCubic() const {
+EdgeSegment *QuadraticSegment::convertToCubic() const {
     return new CubicSegment(p[0], mix(p[0], p[1], 2/3.), mix(p[1], p[2], 1/3.), p[2], color);
 }
 
@@ -957,16 +1022,6 @@ void EdgeHolder::swap(EdgeHolder &a, EdgeHolder &b) {
     b.edgeSegment = tmp;
 }
 
-EdgeHolder::EdgeHolder() : edgeSegment(NULL) { }
-
-EdgeHolder::EdgeHolder(EdgeSegment *segment) : edgeSegment(segment) { }
-
-EdgeHolder::EdgeHolder(Point2 p0, Point2 p1, EdgeColor edgeColor) : edgeSegment(new LinearSegment(p0, p1, edgeColor)) { }
-
-EdgeHolder::EdgeHolder(Point2 p0, Point2 p1, Point2 p2, EdgeColor edgeColor) : edgeSegment(new QuadraticSegment(p0, p1, p2, edgeColor)) { }
-
-EdgeHolder::EdgeHolder(Point2 p0, Point2 p1, Point2 p2, Point2 p3, EdgeColor edgeColor) : edgeSegment(new CubicSegment(p0, p1, p2, p3, edgeColor)) { }
-
 EdgeHolder::EdgeHolder(const EdgeHolder &orig) : edgeSegment(orig.edgeSegment ? orig.edgeSegment->clone() : NULL) { }
 
 #ifdef MSDFGEN_USE_CPP11
@@ -979,7 +1034,7 @@ EdgeHolder::~EdgeHolder() {
     delete edgeSegment;
 }
 
-EdgeHolder & EdgeHolder::operator=(const EdgeHolder &orig) {
+EdgeHolder &EdgeHolder::operator=(const EdgeHolder &orig) {
     if (this != &orig) {
         delete edgeSegment;
         edgeSegment = orig.edgeSegment ? orig.edgeSegment->clone() : NULL;
@@ -988,7 +1043,7 @@ EdgeHolder & EdgeHolder::operator=(const EdgeHolder &orig) {
 }
 
 #ifdef MSDFGEN_USE_CPP11
-EdgeHolder & EdgeHolder::operator=(EdgeHolder &&orig) {
+EdgeHolder &EdgeHolder::operator=(EdgeHolder &&orig) {
     if (this != &orig) {
         delete edgeSegment;
         edgeSegment = orig.edgeSegment;
@@ -998,19 +1053,19 @@ EdgeHolder & EdgeHolder::operator=(EdgeHolder &&orig) {
 }
 #endif
 
-EdgeSegment & EdgeHolder::operator*() {
+EdgeSegment &EdgeHolder::operator*() {
     return *edgeSegment;
 }
 
-const EdgeSegment & EdgeHolder::operator*() const {
+const EdgeSegment &EdgeHolder::operator*() const {
     return *edgeSegment;
 }
 
-EdgeSegment * EdgeHolder::operator->() {
+EdgeSegment *EdgeHolder::operator->() {
     return edgeSegment;
 }
 
-const EdgeSegment * EdgeHolder::operator->() const {
+const EdgeSegment *EdgeHolder::operator->() const {
     return edgeSegment;
 }
 
@@ -1036,7 +1091,7 @@ void Contour::addEdge(EdgeHolder &&edge) {
 }
 #endif
 
-EdgeHolder & Contour::addEdge() {
+EdgeHolder &Contour::addEdge() {
     edges.resize(edges.size()+1);
     return edges.back();
 }
@@ -1116,7 +1171,7 @@ void Shape::addContour(Contour &&contour) {
 }
 #endif
 
-Contour & Shape::addContour() {
+Contour &Shape::addContour() {
     contours.resize(contours.size()+1);
     return contours.back();
 }
@@ -1511,7 +1566,7 @@ static double edgeToEdgeDistance(const EdgeSegment &a, const EdgeSegment &b, int
     return minDistance;
 }
 
-static double splineToSplineDistance(EdgeSegment * const *edgeSegments, int aStart, int aEnd, int bStart, int bEnd, int precision) {
+static double splineToSplineDistance(EdgeSegment *const *edgeSegments, int aStart, int aEnd, int bStart, int bEnd, int precision) {
     double minDistance = DBL_MAX;
     for (int ai = aStart; ai < aEnd; ++ai)
         for (int bi = bStart; bi < bEnd && minDistance; ++bi) {
@@ -1521,7 +1576,7 @@ static double splineToSplineDistance(EdgeSegment * const *edgeSegments, int aSta
     return minDistance;
 }
 
-static void colorSecondDegreeGraph(int *coloring, const int * const *edgeMatrix, int vertexCount, unsigned long long seed) {
+static void colorSecondDegreeGraph(int *coloring, const int *const *edgeMatrix, int vertexCount, unsigned long long seed) {
     for (int i = 0; i < vertexCount; ++i) {
         int possibleColors = 7;
         for (int j = 0; j < i; ++j) {
@@ -1568,7 +1623,7 @@ static int vertexPossibleColors(const int *coloring, const int *edgeVector, int 
     return 7&~usedColors;
 }
 
-static void uncolorSameNeighbors(std::queue<int> &uncolored, int *coloring, const int * const *edgeMatrix, int vertex, int vertexCount) {
+static void uncolorSameNeighbors(std::queue<int> &uncolored, int *coloring, const int *const *edgeMatrix, int vertex, int vertexCount) {
     for (int i = vertex+1; i < vertexCount; ++i) {
         if (edgeMatrix[vertex][i] && coloring[i] == coloring[vertex]) {
             coloring[i] = -1;
@@ -1583,18 +1638,18 @@ static void uncolorSameNeighbors(std::queue<int> &uncolored, int *coloring, cons
     }
 }
 
-static bool tryAddEdge(int *a_coloring, int * const *edgeMatrix, int vertexCount, int vertexA, int vertexB, int *coloringBuffer) {
+static bool tryAddEdge(int *coloring, int *const *edgeMatrix, int vertexCount, int vertexA, int vertexB, int *coloringBuffer) {
     static const int FIRST_POSSIBLE_COLOR[8] = { -1, 0, 1, 0, 2, 2, 1, 0 };
     edgeMatrix[vertexA][vertexB] = 1;
     edgeMatrix[vertexB][vertexA] = 1;
-	if (a_coloring[vertexA] != a_coloring[vertexB])
+    if (coloring[vertexA] != coloring[vertexB])
         return true;
-	int bPossibleColors = vertexPossibleColors(a_coloring, edgeMatrix[vertexB], vertexCount);
+    int bPossibleColors = vertexPossibleColors(coloring, edgeMatrix[vertexB], vertexCount);
     if (bPossibleColors) {
-		a_coloring[vertexB] = FIRST_POSSIBLE_COLOR[bPossibleColors];
+        coloring[vertexB] = FIRST_POSSIBLE_COLOR[bPossibleColors];
         return true;
     }
-	memcpy(coloringBuffer, a_coloring, sizeof(int)*vertexCount);
+    memcpy(coloringBuffer, coloring, sizeof(int)*vertexCount);
     std::queue<int> uncolored;
     {
         int *coloring = coloringBuffer;
@@ -1620,12 +1675,12 @@ static bool tryAddEdge(int *a_coloring, int * const *edgeMatrix, int vertexCount
         edgeMatrix[vertexB][vertexA] = 0;
         return false;
     }
-	memcpy(a_coloring, coloringBuffer, sizeof(int)*vertexCount);
+    memcpy(coloring, coloringBuffer, sizeof(int)*vertexCount);
     return true;
 }
 
 static int cmpDoublePtr(const void *a, const void *b) {
-    return sign(**reinterpret_cast<const double * const *>(a)-**reinterpret_cast<const double * const *>(b));
+    return sign(**reinterpret_cast<const double *const *>(a)-**reinterpret_cast<const double *const *>(b));
 }
 
 void edgeColoringByDistance(Shape &shape, double angleThreshold, unsigned long long seed) {
@@ -1640,14 +1695,12 @@ void edgeColoringByDistance(Shape &shape, double angleThreshold, unsigned long l
             // Identify corners
             corners.clear();
             Vector2 prevDirection = contour->edges.back()->direction(1);
-			{
-				int index = 0;
-				for (std::vector<EdgeHolder>::const_iterator edge = contour->edges.begin(); edge != contour->edges.end(); ++edge, ++index) {
-					if (isCorner(prevDirection.normalize(), (*edge)->direction(0).normalize(), crossThreshold))
-						corners.push_back(index);
-					prevDirection = (*edge)->direction(1);
-				}
-			}
+            int index = 0;
+            for (std::vector<EdgeHolder>::const_iterator edge = contour->edges.begin(); edge != contour->edges.end(); ++edge, ++index) {
+                if (isCorner(prevDirection.normalize(), (*edge)->direction(0).normalize(), crossThreshold))
+                    corners.push_back(index);
+                prevDirection = (*edge)->direction(1);
+            }
 
             splineStarts.push_back((int) edgeSegments.size());
             // Smooth contour
@@ -1770,10 +1823,10 @@ void edgeColoringByDistance(Shape &shape, double angleThreshold, unsigned long l
 
 TrueDistanceSelector::EdgeCache::EdgeCache() : absDistance(0) { }
 
-void TrueDistanceSelector::reset(const Point2 &a_p) {
-	double delta = DISTANCE_DELTA_FACTOR*(a_p-this->p).length();
+void TrueDistanceSelector::reset(const Point2 &p) {
+    double delta = DISTANCE_DELTA_FACTOR*(p-this->p).length();
     minDistance.distance += nonZeroSign(minDistance.distance)*delta;
-	this->p = a_p;
+    this->p = p;
 }
 
 void TrueDistanceSelector::addEdge(EdgeCache &cache, const EdgeSegment *prevEdge, const EdgeSegment *edge, const EdgeSegment *nextEdge) {
@@ -1880,10 +1933,10 @@ SignedDistance PseudoDistanceSelectorBase::trueDistance() const {
     return minTrueDistance;
 }
 
-void PseudoDistanceSelector::reset(const Point2 &a_p) {
-	double delta = DISTANCE_DELTA_FACTOR*(a_p-this->p).length();
+void PseudoDistanceSelector::reset(const Point2 &p) {
+    double delta = DISTANCE_DELTA_FACTOR*(p-this->p).length();
     PseudoDistanceSelectorBase::reset(delta);
-	this->p = a_p;
+    this->p = p;
 }
 
 void PseudoDistanceSelector::addEdge(EdgeCache &cache, const EdgeSegment *prevEdge, const EdgeSegment *edge, const EdgeSegment *nextEdge) {
@@ -1923,12 +1976,12 @@ PseudoDistanceSelector::DistanceType PseudoDistanceSelector::distance() const {
     return computeDistance(p);
 }
 
-void MultiDistanceSelector::reset(const Point2 &a_p) {
-	double delta = DISTANCE_DELTA_FACTOR*(a_p-this->p).length();
+void MultiDistanceSelector::reset(const Point2 &p) {
+    double delta = DISTANCE_DELTA_FACTOR*(p-this->p).length();
     r.reset(delta);
     g.reset(delta);
     b.reset(delta);
-	this->p = a_p;
+    this->p = p;
 }
 
 void MultiDistanceSelector::addEdge(EdgeCache &cache, const EdgeSegment *prevEdge, const EdgeSegment *edge, const EdgeSegment *nextEdge) {
@@ -2046,7 +2099,7 @@ void SimpleContourCombiner<EdgeSelector>::reset(const Point2 &p) {
 }
 
 template <class EdgeSelector>
-EdgeSelector & SimpleContourCombiner<EdgeSelector>::edgeSelector(int) {
+EdgeSelector &SimpleContourCombiner<EdgeSelector>::edgeSelector(int) {
     return shapeEdgeSelector;
 }
 
@@ -2069,14 +2122,14 @@ OverlappingContourCombiner<EdgeSelector>::OverlappingContourCombiner(const Shape
 }
 
 template <class EdgeSelector>
-void OverlappingContourCombiner<EdgeSelector>::reset(const Point2 &a_p) {
-	this->p = a_p;
+void OverlappingContourCombiner<EdgeSelector>::reset(const Point2 &p) {
+    this->p = p;
     for (typename std::vector<EdgeSelector>::iterator contourEdgeSelector = edgeSelectors.begin(); contourEdgeSelector != edgeSelectors.end(); ++contourEdgeSelector)
-		contourEdgeSelector->reset(a_p);
+        contourEdgeSelector->reset(p);
 }
 
 template <class EdgeSelector>
-EdgeSelector & OverlappingContourCombiner<EdgeSelector>::edgeSelector(int i) {
+EdgeSelector &OverlappingContourCombiner<EdgeSelector>::edgeSelector(int i) {
     return edgeSelectors[i];
 }
 
@@ -2143,6 +2196,221 @@ template class OverlappingContourCombiner<TrueDistanceSelector>;
 template class OverlappingContourCombiner<PseudoDistanceSelector>;
 template class OverlappingContourCombiner<MultiDistanceSelector>;
 template class OverlappingContourCombiner<MultiAndTrueDistanceSelector>;
+
+}
+
+#define ESTSDF_MAX_DIST 1e24f // Cannot be FLT_MAX because it might be divided by range, which could be < 1
+
+namespace msdfgen {
+
+void approximateSDF(const BitmapRef<float, 1> &output, const Shape &shape, const Projection &projection, double outerRange, double innerRange) {
+    struct Entry {
+        float absDist;
+        int bitmapX, bitmapY;
+        Point2 nearPoint;
+
+        bool operator<(const Entry &other) const {
+            return absDist > other.absDist;
+        }
+    } entry;
+
+    float *firstRow = output.pixels;
+    ptrdiff_t stride = output.width;
+    if (shape.inverseYAxis) {
+        firstRow += (output.height-1)*stride;
+        stride = -stride;
+    }
+    #define ESTSDF_PIXEL_AT(x, y) ((firstRow+(y)*stride)[x])
+
+    for (float *p = output.pixels, *end = output.pixels+output.width*output.height; p < end; ++p)
+        *p = -ESTSDF_MAX_DIST;
+
+    Vector2 invScale = projection.unprojectVector(Vector2(1));
+    float dLimit = float(max(outerRange, innerRange));
+    std::priority_queue<Entry> queue;
+    double x[3], y[3];
+    int dx[3], dy[3];
+
+    // Horizontal scanlines
+    for (int bitmapY = 0; bitmapY < output.height; ++bitmapY) {
+        float *row = firstRow+bitmapY*stride;
+        double y = projection.unprojectY(bitmapY+.5);
+        entry.bitmapY = bitmapY;
+        for (std::vector<Contour>::const_iterator contour = shape.contours.begin(); contour != shape.contours.end(); ++contour) {
+            for (std::vector<EdgeHolder>::const_iterator edge = contour->edges.begin(); edge != contour->edges.end(); ++edge) {
+                int n = (*edge)->horizontalScanlineIntersections(x, dy, y);
+                for (int i = 0; i < n; ++i) {
+                    double bitmapX = projection.projectX(x[i]);
+                    double bitmapX0 = floor(bitmapX-.5)+.5;
+                    double bitmapX1 = bitmapX0+1;
+                    if (bitmapX1 > 0 && bitmapX0 < output.width) {
+                        float sd0 = float(dy[i]*invScale.x*(bitmapX0-bitmapX));
+                        float sd1 = float(dy[i]*invScale.x*(bitmapX1-bitmapX));
+                        if (sd0 == 0.f) {
+                            if (sd1 == 0.f)
+                                continue;
+                            sd0 = -.000001f*float(sign(sd1));
+                        }
+                        if (sd1 == 0.f)
+                            sd1 = -.000001f*float(sign(sd0));
+                        if (bitmapX0 > 0) {
+                            entry.absDist = fabsf(sd0);
+                            entry.bitmapX = int(bitmapX0);
+                            float &sd = row[entry.bitmapX];
+                            if (entry.absDist < fabsf(sd)) {
+                                sd = sd0;
+                                entry.nearPoint = Point2(x[i], y);
+                                queue.push(entry);
+                            } else if (sd == -sd0)
+                                sd = -ESTSDF_MAX_DIST;
+                        }
+                        if (bitmapX1 < output.width) {
+                            entry.absDist = fabsf(sd1);
+                            entry.bitmapX = int(bitmapX1);
+                            float &sd = row[entry.bitmapX];
+                            if (entry.absDist < fabsf(sd)) {
+                                sd = sd1;
+                                entry.nearPoint = Point2(x[i], y);
+                                queue.push(entry);
+                            } else if (sd == -sd1)
+                                sd = -ESTSDF_MAX_DIST;
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    // Bake in distance signs
+    for (int y = 0; y < output.height; ++y) {
+        float *row = firstRow+y*stride;
+        int x = 0;
+        for (; x < output.width && row[x] == -ESTSDF_MAX_DIST; ++x);
+        if (x < output.width) {
+            bool flip = row[x] > 0;
+            if (flip) {
+                for (int i = 0; i < x; ++i)
+                    row[i] = ESTSDF_MAX_DIST;
+            }
+            for (; x < output.width; ++x) {
+                if (row[x] != -ESTSDF_MAX_DIST)
+                    flip = row[x] > 0;
+                else if (flip)
+                    row[x] = ESTSDF_MAX_DIST;
+            }
+        }
+    }
+
+    // Vertical scanlines
+    for (int bitmapX = 0; bitmapX < output.width; ++bitmapX) {
+        double x = projection.unprojectX(bitmapX+.5);
+        entry.bitmapX = bitmapX;
+        for (std::vector<Contour>::const_iterator contour = shape.contours.begin(); contour != shape.contours.end(); ++contour) {
+            for (std::vector<EdgeHolder>::const_iterator edge = contour->edges.begin(); edge != contour->edges.end(); ++edge) {
+                int n = (*edge)->verticalScanlineIntersections(y, dx, x);
+                for (int i = 0; i < n; ++i) {
+                    double bitmapY = projection.projectY(y[i]);
+                    double bitmapY0 = floor(bitmapY-.5)+.5;
+                    double bitmapY1 = bitmapY0+1;
+                    if (bitmapY0 > 0 && bitmapY1 < output.height) {
+                        float sd0 = float(dx[i]*invScale.y*(bitmapY-bitmapY0));
+                        float sd1 = float(dx[i]*invScale.y*(bitmapY-bitmapY1));
+                        if (sd0 == 0.f) {
+                            if (sd1 == 0.f)
+                                continue;
+                            sd0 = -.000001f*float(sign(sd1));
+                        }
+                        if (sd1 == 0.f)
+                            sd1 = -.000001f*float(sign(sd0));
+                        if (bitmapY0 > 0) {
+                            entry.absDist = fabsf(sd0);
+                            entry.bitmapY = int(bitmapY0);
+                            float &sd = ESTSDF_PIXEL_AT(bitmapX, entry.bitmapY);
+                            if (entry.absDist < fabsf(sd)) {
+                                sd = sd0;
+                                entry.nearPoint = Point2(x, y[i]);
+                                queue.push(entry);
+                            }
+                        }
+                        if (bitmapY1 < output.height) {
+                            entry.absDist = fabsf(sd1);
+                            entry.bitmapY = int(bitmapY1);
+                            float &sd = ESTSDF_PIXEL_AT(bitmapX, entry.bitmapY);
+                            if (entry.absDist < fabsf(sd)) {
+                                sd = sd1;
+                                entry.nearPoint = Point2(x, y[i]);
+                                queue.push(entry);
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    if (queue.empty())
+        return;
+
+    while (!queue.empty()) {
+        Entry entry = queue.top();
+        queue.pop();
+        Entry newEntry = entry;
+        newEntry.bitmapX = entry.bitmapX-1;
+        if (newEntry.bitmapX >= 0) {
+            float &sd = ESTSDF_PIXEL_AT(newEntry.bitmapX, newEntry.bitmapY);
+            if (fabsf(sd) == ESTSDF_MAX_DIST) {
+                Point2 shapeCoord = projection.unproject(Point2(newEntry.bitmapX+.5, newEntry.bitmapY+.5));
+                newEntry.absDist = float((shapeCoord-entry.nearPoint).length());
+                sd = float(sign(sd))*newEntry.absDist;
+                if (newEntry.absDist < dLimit)
+                    queue.push(newEntry);
+            }
+        }
+        newEntry.bitmapX = entry.bitmapX+1;
+        if (newEntry.bitmapX < output.width) {
+            float &sd = ESTSDF_PIXEL_AT(newEntry.bitmapX, newEntry.bitmapY);
+            if (fabsf(sd) == ESTSDF_MAX_DIST) {
+                Point2 shapeCoord = projection.unproject(Point2(newEntry.bitmapX+.5, newEntry.bitmapY+.5));
+                newEntry.absDist = float((shapeCoord-entry.nearPoint).length());
+                sd = float(sign(sd))*newEntry.absDist;
+                if (newEntry.absDist < dLimit)
+                    queue.push(newEntry);
+            }
+        }
+        newEntry.bitmapX = entry.bitmapX;
+        newEntry.bitmapY = entry.bitmapY-1;
+        if (newEntry.bitmapY >= 0) {
+            float &sd = ESTSDF_PIXEL_AT(newEntry.bitmapX, newEntry.bitmapY);
+            if (fabsf(sd) == ESTSDF_MAX_DIST) {
+                Point2 shapeCoord = projection.unproject(Point2(newEntry.bitmapX+.5, newEntry.bitmapY+.5));
+                newEntry.absDist = float((shapeCoord-entry.nearPoint).length());
+                sd = float(sign(sd))*newEntry.absDist;
+                if (newEntry.absDist < dLimit)
+                    queue.push(newEntry);
+            }
+        }
+        newEntry.bitmapY = entry.bitmapY+1;
+        if (newEntry.bitmapY < output.height) {
+            float &sd = ESTSDF_PIXEL_AT(newEntry.bitmapX, newEntry.bitmapY);
+            if (fabsf(sd) == ESTSDF_MAX_DIST) {
+                Point2 shapeCoord = projection.unproject(Point2(newEntry.bitmapX+.5, newEntry.bitmapY+.5));
+                newEntry.absDist = float((shapeCoord-entry.nearPoint).length());
+                sd = float(sign(sd))*newEntry.absDist;
+                if (newEntry.absDist < dLimit)
+                    queue.push(newEntry);
+            }
+        }
+    }
+
+    float rangeFactor = 1.f/float(outerRange+innerRange);
+    float zeroBias = rangeFactor*float(outerRange);
+    for (float *p = output.pixels, *end = output.pixels+output.width*output.height; p < end; ++p)
+        *p = rangeFactor**p+zeroBias;
+}
+
+void approximateSDF(const BitmapRef<float, 1> &output, const Shape &shape, const Projection &projection, double range) {
+    approximateSDF(output, shape, projection, .5*range, .5*range);
+}
 
 template <int N>
 static void msdfErrorCorrectionInner(const BitmapRef<float, N> &sdf, const Shape &shape, const Projection &projection, double range, const MSDFGeneratorConfig &config) {
@@ -2335,7 +2603,8 @@ public:
                 Vector2 tVector = t*direction;
                 float oldMSD[N], newMSD[3];
                 // Compute the color that would be currently interpolated at the artifact candidate's position.
-				interpolate(oldMSD, parent->sdf, parent->sdfCoord+tVector);
+                Point2 sdfCoord = parent->sdfCoord+tVector;
+                interpolate(oldMSD, parent->sdf, sdfCoord);
                 // Compute the color that would be interpolated at the artifact candidate's position if error correction was applied on the current texel.
                 double aWeight = (1-fabs(tVector.x))*(1-fabs(tVector.y));
                 float aPSD = median(parent->msd[0], parent->msd[1], parent->msd[2]);
@@ -2381,12 +2650,12 @@ MSDFErrorCorrection::MSDFErrorCorrection(const BitmapRef<byte, 1> &stencil, cons
     memset(stencil.pixels, 0, sizeof(byte)*stencil.width*stencil.height);
 }
 
-void MSDFErrorCorrection::setMinDeviationRatio(double a_minDeviationRatio) {
-	this->minDeviationRatio = a_minDeviationRatio;
+void MSDFErrorCorrection::setMinDeviationRatio(double minDeviationRatio) {
+    this->minDeviationRatio = minDeviationRatio;
 }
 
-void MSDFErrorCorrection::setMinImproveRatio(double a_minImproveRatio) {
-	this->minImproveRatio = a_minImproveRatio;
+void MSDFErrorCorrection::setMinImproveRatio(double minImproveRatio) {
+    this->minImproveRatio = minImproveRatio;
 }
 
 void MSDFErrorCorrection::protectCorners(const Shape &shape) {
@@ -2588,7 +2857,7 @@ static bool hasDiagonalArtifactInner(const ArtifactClassifier &artifactClassifie
                 em[0] = am, em[1] = dm;
                 tEnd[tEx0 > t[i]] = tEx0;
                 em[tEx0 > t[i]] = interpolatedMedian(a, l, q, tEx0);
-                rangeFlags |= artifactClassifier.rangeTest(tEnd[0], tEnd[1], t[i], am, dm, xm);
+                rangeFlags |= artifactClassifier.rangeTest(tEnd[0], tEnd[1], t[i], em[0], em[1], xm);
             }
             // tEx1
             if (tEx1 > 0 && tEx1 < 1) {
@@ -2596,7 +2865,7 @@ static bool hasDiagonalArtifactInner(const ArtifactClassifier &artifactClassifie
                 em[0] = am, em[1] = dm;
                 tEnd[tEx1 > t[i]] = tEx1;
                 em[tEx1 > t[i]] = interpolatedMedian(a, l, q, tEx1);
-                rangeFlags |= artifactClassifier.rangeTest(tEnd[0], tEnd[1], t[i], am, dm, xm);
+                rangeFlags |= artifactClassifier.rangeTest(tEnd[0], tEnd[1], t[i], em[0], em[1], xm);
             }
             if (artifactClassifier.evaluate(t[i], xm, rangeFlags))
                 return true;
@@ -3054,10 +3323,10 @@ namespace msdfgen {
 #define DOUBLE_TO_F16DOT16(x) FT_Fixed(65536.*x)
 
 class FreetypeHandle {
-    friend FreetypeHandle * initializeFreetype();
+    friend FreetypeHandle *initializeFreetype();
     friend void deinitializeFreetype(FreetypeHandle *library);
-    friend FontHandle * loadFont(FreetypeHandle *library, const char *filename);
-    friend FontHandle * loadFontData(FreetypeHandle *library, const byte *data, int length);
+    friend FontHandle *loadFont(FreetypeHandle *library, const char *filename);
+    friend FontHandle *loadFontData(FreetypeHandle *library, const byte *data, int length);
 #ifndef MSDFGEN_DISABLE_VARIABLE_FONTS
     friend bool setFontVariationAxis(FreetypeHandle *library, FontHandle *font, const char *name, double coordinate);
     friend bool listFontVariationAxes(std::vector<FontVariationAxis> &axes, FreetypeHandle *library, FontHandle *font);
@@ -3068,9 +3337,9 @@ class FreetypeHandle {
 };
 
 class FontHandle {
-    friend FontHandle * adoptFreetypeFont(FT_Face ftFace);
-    friend FontHandle * loadFont(FreetypeHandle *library, const char *filename);
-    friend FontHandle * loadFontData(FreetypeHandle *library, const byte *data, int length);
+    friend FontHandle *adoptFreetypeFont(FT_Face ftFace);
+    friend FontHandle *loadFont(FreetypeHandle *library, const char *filename);
+    friend FontHandle *loadFontData(FreetypeHandle *library, const byte *data, int length);
     friend void destroyFont(FontHandle *font);
     friend bool getFontMetrics(FontMetrics &metrics, FontHandle *font);
     friend bool getFontWhitespaceWidth(double &spaceAdvance, double &tabAdvance, FontHandle *font);
@@ -3111,7 +3380,7 @@ static int ftLineTo(const FT_Vector *to, void *user) {
     FtContext *context = reinterpret_cast<FtContext *>(user);
     Point2 endpoint = ftPoint2(*to);
     if (endpoint != context->position) {
-        context->contour->addEdge(new LinearSegment(context->position, endpoint));
+        context->contour->addEdge(EdgeHolder(context->position, endpoint));
         context->position = endpoint;
     }
     return 0;
@@ -3119,15 +3388,21 @@ static int ftLineTo(const FT_Vector *to, void *user) {
 
 static int ftConicTo(const FT_Vector *control, const FT_Vector *to, void *user) {
     FtContext *context = reinterpret_cast<FtContext *>(user);
-    context->contour->addEdge(new QuadraticSegment(context->position, ftPoint2(*control), ftPoint2(*to)));
-    context->position = ftPoint2(*to);
+    Point2 endpoint = ftPoint2(*to);
+    if (endpoint != context->position) {
+        context->contour->addEdge(EdgeHolder(context->position, ftPoint2(*control), endpoint));
+        context->position = endpoint;
+    }
     return 0;
 }
 
 static int ftCubicTo(const FT_Vector *control1, const FT_Vector *control2, const FT_Vector *to, void *user) {
     FtContext *context = reinterpret_cast<FtContext *>(user);
-    context->contour->addEdge(new CubicSegment(context->position, ftPoint2(*control1), ftPoint2(*control2), ftPoint2(*to)));
-    context->position = ftPoint2(*to);
+    Point2 endpoint = ftPoint2(*to);
+    if (endpoint != context->position || crossProduct(ftPoint2(*control1)-endpoint, ftPoint2(*control2)-endpoint)) {
+        context->contour->addEdge(EdgeHolder(context->position, ftPoint2(*control1), ftPoint2(*control2), endpoint));
+        context->position = endpoint;
+    }
     return 0;
 }
 
@@ -3137,7 +3412,7 @@ unsigned GlyphIndex::getIndex() const {
     return index;
 }
 
-FreetypeHandle * initializeFreetype() {
+FreetypeHandle *initializeFreetype() {
     FreetypeHandle *handle = new FreetypeHandle;
     FT_Error error = FT_Init_FreeType(&handle->library);
     if (error) {
@@ -3152,7 +3427,7 @@ void deinitializeFreetype(FreetypeHandle *library) {
     delete library;
 }
 
-FontHandle * adoptFreetypeFont(FT_Face ftFace) {
+FontHandle *adoptFreetypeFont(FT_Face ftFace) {
     FontHandle *handle = new FontHandle;
     handle->face = ftFace;
     handle->ownership = false;
@@ -3177,7 +3452,7 @@ FT_Error readFreetypeOutline(Shape &output, FT_Outline *outline) {
     return error;
 }
 
-FontHandle * loadFont(FreetypeHandle *library, const char *filename) {
+FontHandle *loadFont(FreetypeHandle *library, const char *filename) {
     if (!library)
         return NULL;
     FontHandle *handle = new FontHandle;
@@ -3190,7 +3465,7 @@ FontHandle * loadFont(FreetypeHandle *library, const char *filename) {
     return handle;
 }
 
-FontHandle * loadFontData(FreetypeHandle *library, const byte *data, int length) {
+FontHandle *loadFontData(FreetypeHandle *library, const byte *data, int length) {
     if (!library)
         return NULL;
     FontHandle *handle = new FontHandle;
@@ -3363,20 +3638,20 @@ void shapeFromSkiaPath(Shape &shape, const SkPath &skPath) {
                     contour = &shape.addContour();
                 break;
             case SkPath::kLine_Verb:
-                contour->addEdge(new LinearSegment(pointFromSkiaPoint(edgePoints[0]), pointFromSkiaPoint(edgePoints[1])));
+                contour->addEdge(EdgeHolder(pointFromSkiaPoint(edgePoints[0]), pointFromSkiaPoint(edgePoints[1])));
                 break;
             case SkPath::kQuad_Verb:
-                contour->addEdge(new QuadraticSegment(pointFromSkiaPoint(edgePoints[0]), pointFromSkiaPoint(edgePoints[1]), pointFromSkiaPoint(edgePoints[2])));
+                contour->addEdge(EdgeHolder(pointFromSkiaPoint(edgePoints[0]), pointFromSkiaPoint(edgePoints[1]), pointFromSkiaPoint(edgePoints[2])));
                 break;
             case SkPath::kCubic_Verb:
-                contour->addEdge(new CubicSegment(pointFromSkiaPoint(edgePoints[0]), pointFromSkiaPoint(edgePoints[1]), pointFromSkiaPoint(edgePoints[2]), pointFromSkiaPoint(edgePoints[3])));
+                contour->addEdge(EdgeHolder(pointFromSkiaPoint(edgePoints[0]), pointFromSkiaPoint(edgePoints[1]), pointFromSkiaPoint(edgePoints[2]), pointFromSkiaPoint(edgePoints[3])));
                 break;
             case SkPath::kConic_Verb:
                 {
                     SkPoint quadPoints[5];
                     SkPath::ConvertConicToQuads(edgePoints[0], edgePoints[1], edgePoints[2], pathIterator.conicWeight(), quadPoints, 1);
-                    contour->addEdge(new QuadraticSegment(pointFromSkiaPoint(quadPoints[0]), pointFromSkiaPoint(quadPoints[1]), pointFromSkiaPoint(quadPoints[2])));
-                    contour->addEdge(new QuadraticSegment(pointFromSkiaPoint(quadPoints[2]), pointFromSkiaPoint(quadPoints[3]), pointFromSkiaPoint(quadPoints[4])));
+                    contour->addEdge(EdgeHolder(pointFromSkiaPoint(quadPoints[0]), pointFromSkiaPoint(quadPoints[1]), pointFromSkiaPoint(quadPoints[2])));
+                    contour->addEdge(EdgeHolder(pointFromSkiaPoint(quadPoints[2]), pointFromSkiaPoint(quadPoints[3]), pointFromSkiaPoint(quadPoints[4])));
                 }
                 break;
             case SkPath::kClose_Verb:

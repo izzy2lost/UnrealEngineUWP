@@ -1224,6 +1224,25 @@ FSdfGlyphFontAtlasData FSlateFontCache::GetSdfGlyphFontAtlasData(const FShapedGl
 	float EmInnerSpread = FMath::Clamp(2.f/TargetPpem, 0.05f, 8.f);
 	float EmOuterSpread = FMath::Min(EmInnerSpread + EmOutlineSize, 8.f);
 
+	auto TryRespawn = [&](const FSdfGlyphFontAtlasData& GlyphAtlasData) -> bool {
+		const FSdfGlyphEntryKey GlyphKey(InShapedGlyph.FontFaceData->FontFace, InShapedGlyph.GlyphIndex, InSdfSettings.GetClampedPpem(), GlyphAtlasData.EmOuterSpread, GlyphAtlasData.EmInnerSpread);
+		FSlateSdfGenerator::FRequestDescriptor SdfRequestDescriptor = { 
+			GlyphKey.FontFace,
+			GlyphKey.GlyphIndex,
+			GlyphAtlasData.EmOuterSpread,
+			GlyphAtlasData.EmInnerSpread,
+			GlyphKey.Ppem
+		};
+		FSlateSdfGenerator::FRequestOutputInfo SdfRequestInfo = {};
+		SdfRequestInfo.ImageWidth = GlyphAtlasData.USize;
+		SdfRequestInfo.ImageHeight = GlyphAtlasData.VSize;
+		SdfRequestInfo.BearingX = GlyphAtlasData.HorizontalOffset;
+		SdfRequestInfo.BearingY = GlyphAtlasData.VerticalOffset;
+		const FSlateSdfGenerator::ERequestResponse RespawnStatus = SdfGenerator->Respawn(SdfRequestDescriptor, SdfRequestInfo);
+		check(RespawnStatus != FSlateSdfGenerator::ERequestResponse::BAD_REQUEST);
+		return RespawnStatus == FSlateSdfGenerator::ERequestResponse::SUCCESS;
+	};
+
 	// Has the atlas data already been cached on the glyph?
 	{
 		TSharedPtr<FSdfGlyphFontAtlasData> CachedAtlasDataPin = InShapedGlyph.CachedSdfFontAtlasData[CachedAtlasDataThreadIndex].Pin();
@@ -1238,6 +1257,10 @@ FSdfGlyphFontAtlasData FSlateFontCache::GetSdfGlyphFontAtlasData(const FShapedGl
 			// Does the cached glyph have the minimum required outer and inner spread?
 			if (CachedAtlasDataPin->EmOuterSpread >= EmOuterSpread && CachedAtlasDataPin->EmInnerSpread >= EmInnerSpread)
 			{
+				if (CachedAtlasDataPin->bPendingRespawn)
+				{
+					CachedAtlasDataPin->bPendingRespawn = !TryRespawn(*CachedAtlasDataPin);
+				}
 				Output.Metrics = InShapedGlyph.CachedSdfMetrics[CachedAtlasDataThreadIndex];
 				return Output;
 			}
@@ -1276,32 +1299,49 @@ FSdfGlyphFontAtlasData FSlateFontCache::GetSdfGlyphFontAtlasData(const FShapedGl
 		const TSharedRef<FSdfGlyphFontAtlasData>* FoundAtlasData = SdfGlyphToAtlasData.Find(GlyphKey);
 		if (FoundAtlasData && (*FoundAtlasData)->EmOuterSpread >= EmOuterSpread && (*FoundAtlasData)->EmInnerSpread >= EmInnerSpread)
 		{
+			if ((*FoundAtlasData)->bPendingRespawn)
+			{
+				(*FoundAtlasData)->bPendingRespawn = !TryRespawn(**FoundAtlasData);
+			}
 			return FinalizeEntry(*FoundAtlasData);
 		}
 	}
 
 	// Not cached at all... create a new entry
 	FSlateSdfGenerator::FRequestDescriptor SdfRequestDescriptor = { 
-		GlyphKey.FontFace, 
-		GlyphKey.GlyphIndex, 
-		EmOuterSpread, 
-		EmInnerSpread, 
+		GlyphKey.FontFace,
+		GlyphKey.GlyphIndex,
+		EmOuterSpread,
+		EmInnerSpread,
 		GlyphKey.Ppem
 	};
 	FSlateSdfGenerator::FRequestOutputInfo SdfRequestOutputInfo = {};
-	if (!SdfGenerator->Spawn(SdfRequestDescriptor, SdfRequestOutputInfo))
+	FCharacterRenderData PlaceholderRenderData;
+	const FSlateSdfGenerator::ERequestResponse SpawnStatus = SdfGenerator->SpawnWithPlaceholder(SdfRequestDescriptor, SdfRequestOutputInfo, PlaceholderRenderData.RawPixels);
+	TSharedRef<FSdfGlyphFontAtlasData> NewAtlasData = MakeShareable(new FSdfGlyphFontAtlasData());
+
+	switch (SpawnStatus)
 	{
-		return { /*GeneratorBusyTryAgainLater*/ };
+		case FSlateSdfGenerator::ERequestResponse::SUCCESS:
+			break;
+		case FSlateSdfGenerator::ERequestResponse::SDF_UNAVAILABLE:
+			NewAtlasData->bSupportsSdf = false;
+			NewAtlasData->Valid = true;
+			SdfGlyphToAtlasData.Add(GlyphKey, NewAtlasData);
+			return FinalizeEntry(NewAtlasData);
+		case FSlateSdfGenerator::ERequestResponse::BUSY:
+			// This can happen if font is still loading
+			return { };
+		case FSlateSdfGenerator::ERequestResponse::PLACEHOLDER_ONLY:
+			NewAtlasData->bPendingRespawn = true;
+			break;
+		case FSlateSdfGenerator::ERequestResponse::BAD_REQUEST:
+		default:
+			checkNoEntry();
+			return { };
 	}
 
-	TSharedRef<FSdfGlyphFontAtlasData> NewAtlasData = MakeShareable(new FSdfGlyphFontAtlasData());
-	NewAtlasData->Valid = true;
-	NewAtlasData->bSupportsSdf = !SdfRequestOutputInfo.bGlyphUnavailable;
-	if (!NewAtlasData->bSupportsSdf)
-	{
-		SdfGlyphToAtlasData.Add(GlyphKey, NewAtlasData);
-		return FinalizeEntry(NewAtlasData);
-	}
+	NewAtlasData->bSupportsSdf = true;
 	NewAtlasData->HorizontalOffset = SdfRequestOutputInfo.BearingX;
 	NewAtlasData->VerticalOffset = SdfRequestOutputInfo.BearingY;
 	NewAtlasData->EmOuterSpread = EmOuterSpread;
@@ -1310,20 +1350,60 @@ FSdfGlyphFontAtlasData FSlateFontCache::GetSdfGlyphFontAtlasData(const FShapedGl
 	NewAtlasData->Metrics.BearingY = SdfRequestOutputInfo.BearingY;
 	NewAtlasData->Metrics.Width = SdfRequestOutputInfo.ImageWidth;
 	NewAtlasData->Metrics.Height = SdfRequestOutputInfo.ImageHeight;
-	FDeferredCharacterRenderData RenderData;
+	NewAtlasData->Valid = true;
+
+	check(SdfRequestOutputInfo.ImageWidth*SdfRequestOutputInfo.ImageHeight > 0);
+	const bool bPlaceholderAvailable = PlaceholderRenderData.RawPixels.GetAllocatedSize() >= SdfRequestOutputInfo.ImageWidth*SdfRequestOutputInfo.ImageHeight;
+	check(bPlaceholderAvailable);
+	if (bPlaceholderAvailable)
+	{
+		PlaceholderRenderData.SizeX = SdfRequestOutputInfo.ImageWidth;
+		PlaceholderRenderData.SizeY = SdfRequestOutputInfo.ImageHeight;
+		PlaceholderRenderData.HorizontalOffset = SdfRequestOutputInfo.BearingX;
+		PlaceholderRenderData.VerticalOffset = SdfRequestOutputInfo.BearingY;
+		PlaceholderRenderData.ContentType = ESlateFontAtlasContentType::Msdf;
+		PlaceholderRenderData.bSupportsOutline = true;
+	}
+
+	auto TryAddToAtlas = [&](FSlateFontAtlas& FontAtlas, uint8 FontAtlasIndex) -> bool
+	{
+		if (bPlaceholderAvailable)
+		{
+			if (const FAtlasedTextureSlot* NewSlot = FontAtlas.AddCharacter(PlaceholderRenderData))
+			{
+				NewAtlasData->TextureIndex = FontAtlasIndex;
+				NewAtlasData->StartU = NewSlot->X + NewSlot->Padding;
+				NewAtlasData->StartV = NewSlot->Y + NewSlot->Padding;
+				NewAtlasData->USize = NewSlot->Width - 2 * NewSlot->Padding;
+				NewAtlasData->VSize = NewSlot->Height - 2 * NewSlot->Padding;
+				return true;
+			}
+		}
+		else
+		{
+			// Deferred add character begins by reserving the character box/slot in the texture
+			FDeferredCharacterRenderData RenderData;
+			if (FontAtlas.BeginDeferredAddCharacter(SdfRequestOutputInfo.ImageWidth, SdfRequestOutputInfo.ImageHeight, RenderData))
+			{
+				NewAtlasData->TextureIndex = FontAtlasIndex;
+				NewAtlasData->StartU = RenderData.StartU;
+				NewAtlasData->StartV = RenderData.StartV;
+				NewAtlasData->USize = RenderData.USize;
+				NewAtlasData->VSize = RenderData.VSize;
+				check(RenderData.USize == SdfRequestOutputInfo.ImageWidth && RenderData.VSize == SdfRequestOutputInfo.ImageHeight);
+				return true;
+			}
+		}
+		return false;
+	};
+
 	for (const uint8 FontAtlasIndex : MsdfFontAtlasIndices)
 	{
 		FSlateFontAtlas& FontAtlas = static_cast<FSlateFontAtlas&>(AllFontTextures[FontAtlasIndex].Get());
-		// Deferred add character begins by reserving the character box/slot in the texture
-		if (FontAtlas.BeginDeferredAddCharacter(SdfRequestOutputInfo.ImageWidth, SdfRequestOutputInfo.ImageHeight, RenderData))
-		{				
-			NewAtlasData->TextureIndex = FontAtlasIndex;
-			NewAtlasData->StartU = RenderData.StartU;
-			NewAtlasData->StartV = RenderData.StartV;
-			NewAtlasData->USize = RenderData.USize;
-			NewAtlasData->VSize = RenderData.VSize;
-			SdfGlyphToAtlasData.Add(GlyphKey, NewAtlasData);
+		if (TryAddToAtlas(FontAtlas, FontAtlasIndex))
+		{
 			SdfTaskToAtlasData.Add(FSdfGlyphTaskKey(GlyphKey, EmOuterSpread, EmInnerSpread), NewAtlasData);
+			SdfGlyphToAtlasData.Add(GlyphKey, NewAtlasData);
 			return FinalizeEntry(NewAtlasData);
 		}
 	}
@@ -1335,26 +1415,20 @@ FSdfGlyphFontAtlasData FSlateFontCache::GetSdfGlyphFontAtlasData(const FShapedGl
 	}
 
 	TSharedRef<FSlateFontAtlas> FontAtlas = FontAtlasFactory->CreateFontAtlas(ESlateFontAtlasContentType::Msdf);
-	NewAtlasData->TextureIndex = (uint8)AllFontTextures.Add(FontAtlas);
-	MsdfFontAtlasIndices.Add(NewAtlasData->TextureIndex);
+	const uint8 TextureIndex = (uint8)AllFontTextures.Add(FontAtlas);
+	MsdfFontAtlasIndices.Add(TextureIndex);
 
 	INC_DWORD_STAT_BY(STAT_SlateNumFontAtlases, 1);
 
-
-	// Deferred add character begins by reserving the character box/slot in the texture
-	if (!FontAtlas->BeginDeferredAddCharacter(SdfRequestOutputInfo.ImageWidth, SdfRequestOutputInfo.ImageHeight, RenderData))
+	if (TryAddToAtlas(*FontAtlas, TextureIndex))
+	{
+		SdfTaskToAtlasData.Add(FSdfGlyphTaskKey(GlyphKey, EmOuterSpread, EmInnerSpread), NewAtlasData);
+	}
+	else
 	{
 		// if the data wont fit in a fresh texture then it wont fit in any texture, so just consider the glyph as unavailable
 		NewAtlasData->bSupportsSdf = false;
 		UE_LOG(LogSlate, Warning, TEXT("SlateFontCache - Requested SDF cannot fit font atlas."));
-	}
-	else
-	{
-		NewAtlasData->StartU = RenderData.StartU;
-		NewAtlasData->StartV = RenderData.StartV;
-		NewAtlasData->USize = RenderData.USize;
-		NewAtlasData->VSize = RenderData.VSize;
-		SdfTaskToAtlasData.Add(FSdfGlyphTaskKey(GlyphKey, EmOuterSpread, EmInnerSpread), NewAtlasData);
 	}
 	SdfGlyphToAtlasData.Add(GlyphKey, NewAtlasData);
 

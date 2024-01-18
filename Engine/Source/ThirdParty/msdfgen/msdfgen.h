@@ -18,8 +18,10 @@
 #pragma once
 
 #define MSDFGEN_USE_CPP11
+#ifndef MSDFGEN_NO_FREETYPE
 #define MSDFGEN_USE_FREETYPE
 #define MSDFGEN_DISABLE_VARIABLE_FONTS
+#endif
 
 #include <cstddef>
 #include <cstdlib>
@@ -27,7 +29,14 @@
 #include <cmath>
 #include <vector>
 
+// This file needs to be included first for all MSDFgen sources
+
+#ifndef MSDFGEN_PUBLIC
+#endif
+
 namespace msdfgen {
+
+typedef unsigned char byte;
 
 /// Returns the smaller of the arguments.
 template <typename T>
@@ -90,63 +99,162 @@ int solveQuadratic(double x[2], double a, double b, double c);
 int solveCubic(double x[3], double a, double b, double c, double d);
 
 /**
-* A 2-dimensional euclidean vector with double precision.
-* Implementation based on the Vector2 template from Artery Engine.
-* @author Viktor Chlumsky
-*/
+ * A 2-dimensional euclidean floating-point vector.
+ * @author Viktor Chlumsky
+ */
 struct Vector2 {
 
     double x, y;
 
-    Vector2(double val = 0);
-    Vector2(double x, double y);
+    inline Vector2(double val = 0) : x(val), y(val) { }
+
+    inline Vector2(double x, double y) : x(x), y(y) { }
+
     /// Sets the vector to zero.
-    void reset();
+    inline void reset() {
+        x = 0, y = 0;
+    }
+
     /// Sets individual elements of the vector.
-    void set(double x, double y);
+    inline void set(double newX, double newY) {
+		x = newX, y = newY;
+    }
+
+    /// Returns the vector's squared length.
+    inline double squaredLength() const {
+        return x*x+y*y;
+    }
+
     /// Returns the vector's length.
-    double length() const;
-    /// Returns the angle of the vector in radians (atan2).
-    double direction() const;
+    inline double length() const {
+        return sqrt(x*x+y*y);
+    }
+
     /// Returns the normalized vector - one that has the same direction but unit length.
-    Vector2 normalize(bool allowZero = false) const;
+    inline Vector2 normalize(bool allowZero = false) const {
+        if (double len = length())
+            return Vector2(x/len, y/len);
+        return Vector2(0, !allowZero);
+    }
+
     /// Returns a vector with the same length that is orthogonal to this one.
-    Vector2 getOrthogonal(bool polarity = true) const;
+    inline Vector2 getOrthogonal(bool polarity = true) const {
+        return polarity ? Vector2(-y, x) : Vector2(y, -x);
+    }
+
     /// Returns a vector with unit length that is orthogonal to this one.
-    Vector2 getOrthonormal(bool polarity = true, bool allowZero = false) const;
-    /// Returns a vector projected along this one.
-    Vector2 project(const Vector2 &vector, bool positive = false) const;
-    operator const void *() const;
-    bool operator!() const;
-    bool operator==(const Vector2 &other) const;
-    bool operator!=(const Vector2 &other) const;
-    Vector2 operator+() const;
-    Vector2 operator-() const;
-    Vector2 operator+(const Vector2 &other) const;
-    Vector2 operator-(const Vector2 &other) const;
-    Vector2 operator*(const Vector2 &other) const;
-    Vector2 operator/(const Vector2 &other) const;
-    Vector2 operator*(double value) const;
-    Vector2 operator/(double value) const;
-    Vector2 & operator+=(const Vector2 &other);
-    Vector2 & operator-=(const Vector2 &other);
-    Vector2 & operator*=(const Vector2 &other);
-    Vector2 & operator/=(const Vector2 &other);
-    Vector2 & operator*=(double value);
-    Vector2 & operator/=(double value);
-    /// Dot product of two vectors.
-    friend double dotProduct(const Vector2 &a, const Vector2 &b);
-    /// A special version of the cross product for 2D vectors (returns scalar value).
-    friend double crossProduct(const Vector2 &a, const Vector2 &b);
-    friend Vector2 operator*(double value, const Vector2 &vector);
-    friend Vector2 operator/(double value, const Vector2 &vector);
+    inline Vector2 getOrthonormal(bool polarity = true, bool allowZero = false) const {
+        if (double len = length())
+            return polarity ? Vector2(-y/len, x/len) : Vector2(y/len, -x/len);
+        return polarity ? Vector2(0, !allowZero) : Vector2(0, -!allowZero);
+    }
+
+#ifdef MSDFGEN_USE_CPP11
+    inline explicit operator bool() const {
+        return x || y;
+    }
+#else
+    inline operator const void *() const {
+        return x || y ? this : NULL;
+    }
+#endif
+
+    inline Vector2 &operator+=(const Vector2 other) {
+        x += other.x, y += other.y;
+        return *this;
+    }
+
+    inline Vector2 &operator-=(const Vector2 other) {
+        x -= other.x, y -= other.y;
+        return *this;
+    }
+
+    inline Vector2 &operator*=(const Vector2 other) {
+        x *= other.x, y *= other.y;
+        return *this;
+    }
+
+    inline Vector2 &operator/=(const Vector2 other) {
+        x /= other.x, y /= other.y;
+        return *this;
+    }
+
+    inline Vector2 &operator*=(double value) {
+        x *= value, y *= value;
+        return *this;
+    }
+
+    inline Vector2 &operator/=(double value) {
+        x /= value, y /= value;
+        return *this;
+    }
 
 };
 
 /// A vector may also represent a point, which shall be differentiated semantically using the alias Point2.
 typedef Vector2 Point2;
 
-typedef unsigned char byte;
+/// Dot product of two vectors.
+inline double dotProduct(const Vector2 a, const Vector2 b) {
+    return a.x*b.x+a.y*b.y;
+}
+
+/// A special version of the cross product for 2D vectors (returns scalar value).
+inline double crossProduct(const Vector2 a, const Vector2 b) {
+    return a.x*b.y-a.y*b.x;
+}
+
+inline bool operator==(const Vector2 a, const Vector2 b) {
+    return a.x == b.x && a.y == b.y;
+}
+
+inline bool operator!=(const Vector2 a, const Vector2 b) {
+    return a.x != b.x || a.y != b.y;
+}
+
+inline Vector2 operator+(const Vector2 v) {
+    return v;
+}
+
+inline Vector2 operator-(const Vector2 v) {
+    return Vector2(-v.x, -v.y);
+}
+
+inline bool operator!(const Vector2 v) {
+    return !v.x && !v.y;
+}
+
+inline Vector2 operator+(const Vector2 a, const Vector2 b) {
+    return Vector2(a.x+b.x, a.y+b.y);
+}
+
+inline Vector2 operator-(const Vector2 a, const Vector2 b) {
+    return Vector2(a.x-b.x, a.y-b.y);
+}
+
+inline Vector2 operator*(const Vector2 a, const Vector2 b) {
+    return Vector2(a.x*b.x, a.y*b.y);
+}
+
+inline Vector2 operator/(const Vector2 a, const Vector2 b) {
+    return Vector2(a.x/b.x, a.y/b.y);
+}
+
+inline Vector2 operator*(double a, const Vector2 b) {
+    return Vector2(a*b.x, a*b.y);
+}
+
+inline Vector2 operator/(double a, const Vector2 b) {
+    return Vector2(a/b.x, a/b.y);
+}
+
+inline Vector2 operator*(const Vector2 a, double b) {
+    return Vector2(a.x*b, a.y*b);
+}
+
+inline Vector2 operator/(const Vector2 a, double b) {
+    return Vector2(a.x/b, a.y/b);
+}
 
 inline byte pixelFloatToByte(float x) {
     return byte(clamp(256.f*x, 255.f));
@@ -155,8 +263,6 @@ inline byte pixelFloatToByte(float x) {
 inline float pixelByteToFloat(byte x) {
     return 1.f/255.f*float(x);
 }
-
-typedef unsigned char byte;
 
 /// Reference to a 2D image bitmap or a buffer acting as one. Pixel storage not owned or managed by the object.
 template <typename T, int N = 1>
@@ -168,7 +274,7 @@ struct BitmapRef {
     inline BitmapRef() : pixels(NULL), width(0), height(0) { }
     inline BitmapRef(T *pixels, int width, int height) : pixels(pixels), width(width), height(height) { }
 
-    inline T * operator()(int x, int y) const {
+    inline T *operator()(int x, int y) const {
         return pixels+N*(width*y+x);
     }
 
@@ -185,7 +291,7 @@ struct BitmapConstRef {
     inline BitmapConstRef(const T *pixels, int width, int height) : pixels(pixels), width(width), height(height) { }
     inline BitmapConstRef(const BitmapRef<T, N> &orig) : pixels(orig.pixels), width(orig.width), height(orig.height) { }
 
-    inline const T * operator()(int x, int y) const {
+    inline const T *operator()(int x, int y) const {
         return pixels+N*(width*y+x);
     }
 
@@ -204,17 +310,17 @@ public:
     Bitmap(Bitmap<T, N> &&orig);
 #endif
     ~Bitmap();
-    Bitmap<T, N> & operator=(const BitmapConstRef<T, N> &orig);
-    Bitmap<T, N> & operator=(const Bitmap<T, N> &orig);
+    Bitmap<T, N> &operator=(const BitmapConstRef<T, N> &orig);
+    Bitmap<T, N> &operator=(const Bitmap<T, N> &orig);
 #ifdef MSDFGEN_USE_CPP11
-    Bitmap<T, N> & operator=(Bitmap<T, N> &&orig);
+    Bitmap<T, N> &operator=(Bitmap<T, N> &&orig);
 #endif
     /// Bitmap width in pixels.
     int width() const;
     /// Bitmap height in pixels.
     int height() const;
-    T * operator()(int x, int y);
-    const T * operator()(int x, int y) const;
+    T *operator()(int x, int y);
+    const T *operator()(int x, int y) const;
 #ifdef MSDFGEN_USE_CPP11
     explicit operator T *();
     explicit operator const T *() const;
@@ -265,7 +371,7 @@ Bitmap<T, N>::~Bitmap() {
 }
 
 template <typename T, int N>
-Bitmap<T, N> & Bitmap<T, N>::operator=(const BitmapConstRef<T, N> &orig) {
+Bitmap<T, N> &Bitmap<T, N>::operator=(const BitmapConstRef<T, N> &orig) {
     if (pixels != orig.pixels) {
         delete [] pixels;
         w = orig.width, h = orig.height;
@@ -276,7 +382,7 @@ Bitmap<T, N> & Bitmap<T, N>::operator=(const BitmapConstRef<T, N> &orig) {
 }
 
 template <typename T, int N>
-Bitmap<T, N> & Bitmap<T, N>::operator=(const Bitmap<T, N> &orig) {
+Bitmap<T, N> &Bitmap<T, N>::operator=(const Bitmap<T, N> &orig) {
     if (this != &orig) {
         delete [] pixels;
         w = orig.w, h = orig.h;
@@ -288,7 +394,7 @@ Bitmap<T, N> & Bitmap<T, N>::operator=(const Bitmap<T, N> &orig) {
 
 #ifdef MSDFGEN_USE_CPP11
 template <typename T, int N>
-Bitmap<T, N> & Bitmap<T, N>::operator=(Bitmap<T, N> &&orig) {
+Bitmap<T, N> &Bitmap<T, N>::operator=(Bitmap<T, N> &&orig) {
     if (this != &orig) {
         delete [] pixels;
         pixels = orig.pixels;
@@ -310,12 +416,12 @@ int Bitmap<T, N>::height() const {
 }
 
 template <typename T, int N>
-T * Bitmap<T, N>::operator()(int x, int y) {
+T *Bitmap<T, N>::operator()(int x, int y) {
     return pixels+N*(w*y+x);
 }
 
 template <typename T, int N>
-const T * Bitmap<T, N>::operator()(int x, int y) const {
+const T *Bitmap<T, N>::operator()(int x, int y) const {
     return pixels+N*(w*y+x);
 }
 
@@ -375,15 +481,26 @@ public:
     double distance;
     double dot;
 
-    SignedDistance();
-    SignedDistance(double dist, double d);
-
-    friend bool operator<(SignedDistance a, SignedDistance b);
-    friend bool operator>(SignedDistance a, SignedDistance b);
-    friend bool operator<=(SignedDistance a, SignedDistance b);
-    friend bool operator>=(SignedDistance a, SignedDistance b);
+    inline SignedDistance() : distance(-DBL_MAX), dot(0) { }
+    inline SignedDistance(double dist, double d) : distance(dist), dot(d) { }
 
 };
+
+inline bool operator<(const SignedDistance a, const SignedDistance b) {
+    return fabs(a.distance) < fabs(b.distance) || (fabs(a.distance) == fabs(b.distance) && a.dot < b.dot);
+}
+
+inline bool operator>(const SignedDistance a, const SignedDistance b) {
+    return fabs(a.distance) > fabs(b.distance) || (fabs(a.distance) == fabs(b.distance) && a.dot > b.dot);
+}
+
+inline bool operator<=(const SignedDistance a, const SignedDistance b) {
+    return fabs(a.distance) < fabs(b.distance) || (fabs(a.distance) == fabs(b.distance) && a.dot <= b.dot);
+}
+
+inline bool operator>=(const SignedDistance a, const SignedDistance b) {
+    return fabs(a.distance) > fabs(b.distance) || (fabs(a.distance) == fabs(b.distance) && a.dot >= b.dot);
+}
 
 /// Fill rule dictates how intersection total is interpreted during rasterization.
 enum FillRule {
@@ -444,9 +561,94 @@ enum EdgeColor {
     WHITE = 7
 };
 
+}
+
 // Parameters for iterative search of closest point on a cubic Bezier curve. Increase for higher precision.
 #define MSDFGEN_CUBIC_SEARCH_STARTS 4
 #define MSDFGEN_CUBIC_SEARCH_STEPS 4
+
+#define MSDFGEN_QUADRATIC_RATIO_LIMIT 1e8
+
+#ifndef MSDFGEN_CUBE_ROOT
+#define MSDFGEN_CUBE_ROOT(x) pow((x), 1/3.)
+#endif
+
+namespace msdfgen {
+
+/**
+ * Returns the parameter for the quadratic Bezier curve (P0, P1, P2) for the point closest to point P. May be outside the (0, 1) range.
+ * p = P-P0
+ * q = 2*P1-2*P0
+ * r = P2-2*P1+P0
+ */
+inline double quadraticNearPoint(const Vector2 p, const Vector2 q, const Vector2 r) {
+    double qq = q.squaredLength();
+    double rr = r.squaredLength();
+    if (qq >= MSDFGEN_QUADRATIC_RATIO_LIMIT*rr)
+        return dotProduct(p, q)/qq;
+    double norm = .5/rr;
+    double a = 3*norm*dotProduct(q, r);
+    double b = norm*(qq-2*dotProduct(p, r));
+    double c = norm*dotProduct(p, q);
+    double aa = a*a;
+    double g = 1/9.*(aa-3*b);
+    double h = 1/54.*(a*(aa+aa-9*b)-27*c);
+    double hh = h*h;
+    double ggg = g*g*g;
+    a *= 1/3.;
+    if (hh < ggg) {
+        double u = 1/3.*acos(h/sqrt(ggg));
+        g = -2*sqrt(g);
+        if (h >= 0) {
+            double t = g*cos(u)-a;
+            if (t >= 0)
+                return t;
+            return g*cos(u+2.0943951023931954923)-a; // 2.094 = PI*2/3
+        } else {
+            double t = g*cos(u+2.0943951023931954923)-a;
+            if (t <= 1)
+                return t;
+            return g*cos(u)-a;
+        }
+    }
+    double s = (h < 0 ? 1. : -1.)*MSDFGEN_CUBE_ROOT(fabs(h)+sqrt(hh-ggg));
+    return s+g/s-a;
+}
+
+/**
+ * Returns the parameter for the cubic Bezier curve (P0, P1, P2, P3) for the point closest to point P. Squared distance is provided as optional output parameter.
+ * p = P-P0
+ * q = 3*P1-3*P0
+ * r = 3*P2-6*P1+3*P0
+ * s = P3-3*P2+3*P1-P0
+ */
+inline double cubicNearPoint(const Vector2 p, const Vector2 q, const Vector2 r, const Vector2 s, double &squaredDistance) {
+    squaredDistance = p.squaredLength();
+    double bestT = 0;
+    for (int i = 0; i <= MSDFGEN_CUBIC_SEARCH_STARTS; ++i) {
+        double t = 1./MSDFGEN_CUBIC_SEARCH_STARTS*i;
+        Vector2 curP = p-(q+(r+s*t)*t)*t;
+        for (int step = 0; step < MSDFGEN_CUBIC_SEARCH_STEPS; ++step) {
+            Vector2 d0 = q+(r+r+3*s*t)*t;
+            Vector2 d1 = r+r+6*s*t;
+            t += dotProduct(curP, d0)/(d0.squaredLength()-dotProduct(curP, d1));
+            if (t <= 0 || t >= 1)
+                break;
+            curP = p-(q+(r+s*t)*t)*t;
+            double curSquaredDistance = curP.squaredLength();
+            if (curSquaredDistance < squaredDistance) {
+                squaredDistance = curSquaredDistance;
+                bestT = t;
+            }
+        }
+    }
+    return bestT;
+}
+
+inline double cubicNearPoint(const Vector2 p, const Vector2 q, const Vector2 r, const Vector2 s) {
+    double squaredDistance;
+    return cubicNearPoint(p, q, r, s, squaredDistance);
+}
 
 /// An abstract edge segment.
 class EdgeSegment {
@@ -454,14 +656,18 @@ class EdgeSegment {
 public:
     EdgeColor color;
 
+    static EdgeSegment *create(Point2 p0, Point2 p1, EdgeColor edgeColor = WHITE);
+    static EdgeSegment *create(Point2 p0, Point2 p1, Point2 p2, EdgeColor edgeColor = WHITE);
+    static EdgeSegment *create(Point2 p0, Point2 p1, Point2 p2, Point2 p3, EdgeColor edgeColor = WHITE);
+
     EdgeSegment(EdgeColor edgeColor = WHITE) : color(edgeColor) { }
     virtual ~EdgeSegment() { }
     /// Creates a copy of the edge segment.
-    virtual EdgeSegment * clone() const = 0;
+    virtual EdgeSegment *clone() const = 0;
     /// Returns the numeric code of the edge segment's type.
     virtual int type() const = 0;
     /// Returns the array of control points.
-    virtual const Point2 * controlPoints() const = 0;
+    virtual const Point2 *controlPoints() const = 0;
     /// Returns the point on the edge specified by the parameter (between 0 and 1).
     virtual Point2 point(double param) const = 0;
     /// Returns the direction the edge has at the point specified by the parameter.
@@ -474,6 +680,9 @@ public:
     virtual void distanceToPseudoDistance(SignedDistance &distance, Point2 origin, double param) const;
     /// Outputs a list of (at most three) intersections (their X coordinates) with an infinite horizontal scanline at y and returns how many there are.
     virtual int scanlineIntersections(double x[3], int dy[3], double y) const = 0;
+    virtual int horizontalScanlineIntersections(double x[3], int dy[3], double y) const = 0;
+    /// Outputs a list of (at most three) intersections (their Y coordinates) with an infinite vertical scanline at x and returns how many there are.
+    virtual int verticalScanlineIntersections(double y[3], int dx[3], double x) const = 0;
     /// Adjusts the bounding box to fit the edge segment.
     virtual void bound(double &l, double &b, double &r, double &t) const = 0;
 
@@ -484,7 +693,7 @@ public:
     /// Moves the end point of the edge segment.
     virtual void moveEndPoint(Point2 to) = 0;
     /// Splits the edge segments into thirds which together represent the original edge.
-    virtual void splitInThirds(EdgeSegment *&part1, EdgeSegment *&part2, EdgeSegment *&part3) const = 0;
+    virtual void splitInThirds(EdgeSegment *&part0, EdgeSegment *&part1, EdgeSegment *&part2) const = 0;
 
 };
 
@@ -499,21 +708,23 @@ public:
     Point2 p[2];
 
     LinearSegment(Point2 p0, Point2 p1, EdgeColor edgeColor = WHITE);
-    LinearSegment * clone() const;
+    LinearSegment *clone() const;
     int type() const;
-    const Point2 * controlPoints() const;
+    const Point2 *controlPoints() const;
     Point2 point(double param) const;
     Vector2 direction(double param) const;
     Vector2 directionChange(double param) const;
     double length() const;
     SignedDistance signedDistance(Point2 origin, double &param) const;
     int scanlineIntersections(double x[3], int dy[3], double y) const;
+    int horizontalScanlineIntersections(double x[3], int dy[3], double y) const;
+    int verticalScanlineIntersections(double y[3], int dx[3], double x) const;
     void bound(double &l, double &b, double &r, double &t) const;
 
     void reverse();
     void moveStartPoint(Point2 to);
     void moveEndPoint(Point2 to);
-    void splitInThirds(EdgeSegment *&part1, EdgeSegment *&part2, EdgeSegment *&part3) const;
+    void splitInThirds(EdgeSegment *&part0, EdgeSegment *&part1, EdgeSegment *&part2) const;
 
 };
 
@@ -528,23 +739,25 @@ public:
     Point2 p[3];
 
     QuadraticSegment(Point2 p0, Point2 p1, Point2 p2, EdgeColor edgeColor = WHITE);
-    QuadraticSegment * clone() const;
+    QuadraticSegment *clone() const;
     int type() const;
-    const Point2 * controlPoints() const;
+    const Point2 *controlPoints() const;
     Point2 point(double param) const;
     Vector2 direction(double param) const;
     Vector2 directionChange(double param) const;
     double length() const;
     SignedDistance signedDistance(Point2 origin, double &param) const;
     int scanlineIntersections(double x[3], int dy[3], double y) const;
+    int horizontalScanlineIntersections(double x[3], int dy[3], double y) const;
+    int verticalScanlineIntersections(double y[3], int dx[3], double x) const;
     void bound(double &l, double &b, double &r, double &t) const;
 
     void reverse();
     void moveStartPoint(Point2 to);
     void moveEndPoint(Point2 to);
-    void splitInThirds(EdgeSegment *&part1, EdgeSegment *&part2, EdgeSegment *&part3) const;
+    void splitInThirds(EdgeSegment *&part0, EdgeSegment *&part1, EdgeSegment *&part2) const;
 
-    EdgeSegment * convertToCubic() const;
+    EdgeSegment *convertToCubic() const;
 
 };
 
@@ -559,20 +772,22 @@ public:
     Point2 p[4];
 
     CubicSegment(Point2 p0, Point2 p1, Point2 p2, Point2 p3, EdgeColor edgeColor = WHITE);
-    CubicSegment * clone() const;
+    CubicSegment *clone() const;
     int type() const;
-    const Point2 * controlPoints() const;
+    const Point2 *controlPoints() const;
     Point2 point(double param) const;
     Vector2 direction(double param) const;
     Vector2 directionChange(double param) const;
     SignedDistance signedDistance(Point2 origin, double &param) const;
     int scanlineIntersections(double x[3], int dy[3], double y) const;
+    int horizontalScanlineIntersections(double x[3], int dy[3], double y) const;
+    int verticalScanlineIntersections(double y[3], int dx[3], double x) const;
     void bound(double &l, double &b, double &r, double &t) const;
 
     void reverse();
     void moveStartPoint(Point2 to);
     void moveEndPoint(Point2 to);
-    void splitInThirds(EdgeSegment *&part1, EdgeSegment *&part2, EdgeSegment *&part3) const;
+    void splitInThirds(EdgeSegment *&part0, EdgeSegment *&part1, EdgeSegment *&part2) const;
 
     void deconverge(int param, double amount);
 
@@ -585,24 +800,24 @@ public:
     /// Swaps the edges held by a and b.
     static void swap(EdgeHolder &a, EdgeHolder &b);
 
-    EdgeHolder();
-    EdgeHolder(EdgeSegment *segment);
-    EdgeHolder(Point2 p0, Point2 p1, EdgeColor edgeColor = WHITE);
-    EdgeHolder(Point2 p0, Point2 p1, Point2 p2, EdgeColor edgeColor = WHITE);
-    EdgeHolder(Point2 p0, Point2 p1, Point2 p2, Point2 p3, EdgeColor edgeColor = WHITE);
+    inline EdgeHolder() : edgeSegment() { }
+    inline EdgeHolder(EdgeSegment *segment) : edgeSegment(segment) { }
+    inline EdgeHolder(Point2 p0, Point2 p1, EdgeColor edgeColor = WHITE) : edgeSegment(EdgeSegment::create(p0, p1, edgeColor)) { }
+    inline EdgeHolder(Point2 p0, Point2 p1, Point2 p2, EdgeColor edgeColor = WHITE) : edgeSegment(EdgeSegment::create(p0, p1, p2, edgeColor)) { }
+    inline EdgeHolder(Point2 p0, Point2 p1, Point2 p2, Point2 p3, EdgeColor edgeColor = WHITE) : edgeSegment(EdgeSegment::create(p0, p1, p2, p3, edgeColor)) { }
     EdgeHolder(const EdgeHolder &orig);
 #ifdef MSDFGEN_USE_CPP11
     EdgeHolder(EdgeHolder &&orig);
 #endif
     ~EdgeHolder();
-    EdgeHolder & operator=(const EdgeHolder &orig);
+    EdgeHolder &operator=(const EdgeHolder &orig);
 #ifdef MSDFGEN_USE_CPP11
-    EdgeHolder & operator=(EdgeHolder &&orig);
+    EdgeHolder &operator=(EdgeHolder &&orig);
 #endif
-    EdgeSegment & operator*();
-    const EdgeSegment & operator*() const;
-    EdgeSegment * operator->();
-    const EdgeSegment * operator->() const;
+    EdgeSegment &operator*();
+    const EdgeSegment &operator*() const;
+    EdgeSegment *operator->();
+    const EdgeSegment *operator->() const;
     operator EdgeSegment *();
     operator const EdgeSegment *() const;
 
@@ -624,7 +839,7 @@ public:
     void addEdge(EdgeHolder &&edge);
 #endif
     /// Creates a new edge in the contour and returns its reference.
-    EdgeHolder & addEdge();
+    EdgeHolder &addEdge();
     /// Adjusts the bounding box to fit the contour.
     void bound(double &l, double &b, double &r, double &t) const;
     /// Adjusts the bounding box to fit the contour border's mitered corners.
@@ -661,7 +876,7 @@ public:
     void addContour(Contour &&contour);
 #endif
     /// Adds a blank contour and returns its reference.
-    Contour & addContour();
+    Contour &addContour();
     /// Normalizes the shape geometry for distance field generation.
     void normalize();
     /// Performs basic checks to determine if the object represents a valid shape.
@@ -838,7 +1053,7 @@ public:
 
     explicit SimpleContourCombiner(const Shape &shape);
     void reset(const Point2 &p);
-    EdgeSelector & edgeSelector(int i);
+    EdgeSelector &edgeSelector(int i);
     DistanceType distance() const;
 
 private:
@@ -856,7 +1071,7 @@ public:
 
     explicit OverlappingContourCombiner(const Shape &shape);
     void reset(const Point2 &p);
-    EdgeSelector & edgeSelector(int i);
+    EdgeSelector &edgeSelector(int i);
     DistanceType distance() const;
 
 private:
@@ -943,6 +1158,10 @@ typename ShapeDistanceFinder<ContourCombiner>::DistanceType ShapeDistanceFinder<
 
     return contourCombiner.distance();
 }
+
+// Fast SDF approximation (out of range values not computed)
+void approximateSDF(const BitmapRef<float, 1> &output, const Shape &shape, const Projection &projection, double outerRange, double innerRange);
+void approximateSDF(const BitmapRef<float, 1> &output, const Shape &shape, const Projection &projection, double range);
 
 }
 
@@ -1074,7 +1293,6 @@ private:
 
 namespace msdfgen {
 
-typedef unsigned char byte;
 typedef unsigned unicode_t;
 
 class FreetypeHandle;
@@ -1116,21 +1334,21 @@ struct FontVariationAxis {
 };
 
 /// Initializes the FreeType library.
-FreetypeHandle * initializeFreetype();
+FreetypeHandle *initializeFreetype();
 /// Deinitializes the FreeType library.
 void deinitializeFreetype(FreetypeHandle *library);
 
 #ifdef FT_LOAD_DEFAULT // FreeType included
 /// Creates a FontHandle from FT_Face that was loaded by the user. destroyFont must still be called but will not affect the FT_Face.
-FontHandle * adoptFreetypeFont(FT_Face ftFace);
+FontHandle *adoptFreetypeFont(FT_Face ftFace);
 /// Converts the geometry of FreeType's FT_Outline to a Shape object.
 FT_Error readFreetypeOutline(Shape &output, FT_Outline *outline);
 #endif
 
 /// Loads a font file and returns its handle.
-FontHandle * loadFont(FreetypeHandle *library, const char *filename);
+FontHandle *loadFont(FreetypeHandle *library, const char *filename);
 /// Loads a font from binary data and returns its handle.
-FontHandle * loadFontData(FreetypeHandle *library, const byte *data, int length);
+FontHandle *loadFontData(FreetypeHandle *library, const byte *data, int length);
 /// Unloads a font file.
 void destroyFont(FontHandle *font);
 /// Outputs the metrics of a font file.

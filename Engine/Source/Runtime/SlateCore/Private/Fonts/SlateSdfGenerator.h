@@ -11,6 +11,20 @@ public:
 	/** A unique pointer to a FSlateSdfGenerator object. */
 	using Ptr = TUniquePtr<FSlateSdfGenerator>;
 
+	enum class ERequestResponse
+	{
+		/** Task spawned successfully (and placeholder generated if requested) */
+		SUCCESS = 0,
+		/** Glyph is available in the face but the SDF generation was not possible/successful */
+		SDF_UNAVAILABLE,
+		/** Task not spawned due to task pool being full (try again later) */
+		BUSY,
+		/** Task not spawned but placeholder and output info generated (respawn later) */
+		PLACEHOLDER_ONLY,
+		/** Task not spawned because the request data was not valid */
+		BAD_REQUEST
+	};
+
 	/** Glyph metrics made available immediately after spawning a new task. */
 	struct FRequestOutputInfo
 	{
@@ -22,8 +36,6 @@ public:
 		int16 BearingX;
 		/** Position of top edge of image relative to glyph origin */
 		int16 BearingY;
-		/** True if the glyph is available in the face but the sdf generation was not possible/successfull */
-		bool bGlyphUnavailable = true;
 	};
 
 	/** Specifies the requested glyph and properties of the output distance field. */
@@ -48,7 +60,11 @@ public:
 	virtual ~FSlateSdfGenerator();
 
 	/** Starts generating a distance field for the requested glyph. */
-	virtual bool Spawn(const FRequestDescriptor& InRequest, FRequestOutputInfo& OutCharInfo) = 0;
+	virtual ERequestResponse Spawn(const FRequestDescriptor& InRequest, FRequestOutputInfo& OutCharInfo) = 0;
+	/** Starts generating a distance field and immediately provides an approximate distance field placeholder. */
+	virtual ERequestResponse SpawnWithPlaceholder(const FRequestDescriptor& InRequest, FRequestOutputInfo& OutCharInfo, TArray<uint8>& OutRawPixels) = 0;
+	/** Attempts to start generating again if previous attempt failed but produced a placeholder, whose FRequestOutputInfo must match. */
+	virtual ERequestResponse Respawn(const FRequestDescriptor& InRequest, const FRequestOutputInfo& InCharInfo) = 0;
 	/** Checks for finished tasks and processes each of them by calling InEnumerator. */
 	virtual void Update(const FForEachRequestDoneCallback& InEnumerator) = 0;
 	/** Flushes all started tasks. */
