@@ -10,6 +10,7 @@
 #include "HAL/IConsoleManager.h"
 #include "HAL/LowLevelMemTracker.h"
 #include "Misc/CoreDelegates.h"
+#include "Misc/CoreDelegatesInternal.h"
 #include "Misc/App.h"
 #include "Modules/ModuleManager.h"
 #include "Misc/ConfigCacheIni.h"
@@ -8283,6 +8284,21 @@ bool FPakPlatformFile::Initialize(IPlatformFile* Inner, const TCHAR* CmdLine)
 	FCoreDelegates::MountPak.BindRaw(this, &FPakPlatformFile::HandleMountPakDelegate);
 	FCoreDelegates::OnUnmountPak.BindRaw(this, &FPakPlatformFile::HandleUnmountPakDelegate);
 	FCoreDelegates::OnOptimizeMemoryUsageForMountedPaks.BindRaw(this, &FPakPlatformFile::OptimizeMemoryUsageForMountedPaks);
+	FCoreInternalDelegates::GetCurrentlyMountedPaksDelegate().BindLambda([this]()
+		{
+			TArray<FPakListEntry> Paks;
+			GetMountedPaks(Paks);
+
+			TArray<FMountedPakInfo> PakInfo;
+			PakInfo.Reserve(Paks.Num());
+			
+			for (const FPakListEntry& Entry : Paks)
+			{
+				PakInfo.Emplace(FMountedPakInfo(Entry.PakFile, Entry.ReadOrder));
+			}
+
+			return PakInfo;
+		});
 
 	FCoreDelegates::OnFEngineLoopInitComplete.AddRaw(this, &FPakPlatformFile::OptimizeMemoryUsageForMountedPaks);
 
@@ -8573,6 +8589,11 @@ bool FPakPlatformFile::Mount(const TCHAR* InPakFilename, uint32 PakOrder, const 
 				bIoStoreSuccess = false;
 				UE_LOG(LogPakFile, Warning, TEXT("IoStore container \"%s\" not found"), *UtocPath);
 			}
+		}
+
+		if (bPakSuccess && FCoreInternalDelegates::GetOnPakMountOperation().IsBound())
+		{
+			FCoreInternalDelegates::GetOnPakMountOperation().Broadcast(EMountOperation::Mount, InPakFilename, PakOrder);
 		}
 
 		if (bPakSuccess)

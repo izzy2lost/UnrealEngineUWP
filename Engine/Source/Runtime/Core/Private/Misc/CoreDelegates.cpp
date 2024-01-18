@@ -1,10 +1,10 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
-// Core includes.
 #include "Misc/CoreDelegates.h"
-#include "Math/Vector.h"
-#include "Misc/Fork.h"
 
+#include "Misc/CoreDelegatesInternal.h"
+#include "Misc/Fork.h"
+#include "Math/Vector.h"
 
 //////////////////////////////////////////////////////////////////////////
 // FCoreDelegates
@@ -54,6 +54,23 @@ TTSMulticastDelegate<void(const TCHAR*, const TCHAR*)>& FCoreDelegates::GetOnFil
 	static TTSMulticastDelegate<void(const TCHAR*, const TCHAR*)> Singleton;
 	return Singleton;
 }
+
+//namespace UE::Core
+//{
+
+FMountOperationPak& FCoreInternalDelegates::GetOnPakMountOperation()
+{
+	static FMountOperationPak Delegate;
+	return Delegate;
+}
+
+FCurrentlyMountedPaksDelegate& FCoreInternalDelegates::GetCurrentlyMountedPaksDelegate()
+{
+	static FCurrentlyMountedPaksDelegate Delegate;
+	return Delegate;
+}
+
+//} // namespace UE::Core
 
 TMulticastDelegate<void(bool, int32, int32)> FCoreDelegates::OnUserLoginChangedEvent;
 PRAGMA_DISABLE_DEPRECATION_WARNINGS
