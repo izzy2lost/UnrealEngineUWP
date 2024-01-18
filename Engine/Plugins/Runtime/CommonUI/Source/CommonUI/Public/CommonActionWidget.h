@@ -81,8 +81,8 @@ public:
 	virtual const FText GetPaletteCategory() override;
 #endif
 
-	void OnActionProgress(float HeldPercent);
-	void OnActionComplete();
+	virtual void OnActionProgress(float HeldPercent);
+	virtual void OnActionComplete();
 	void SetProgressMaterial(const FSlateBrush& InProgressMaterialBrush, const FName& InProgressMaterialParam);
 	void SetHidden(bool bAlwaysHidden);
 
@@ -115,7 +115,9 @@ protected:
 	UCommonInputSubsystem* GetInputSubsystem() const;
 	const FCommonInputActionDataBase* GetInputActionData() const;
 
-	void UpdateActionWidget();
+	virtual void UpdateActionWidget();
+
+	virtual bool ShouldUpdateActionWidgetIcon() const;
 
 	virtual void OnWidgetRebuilt() override;
 	

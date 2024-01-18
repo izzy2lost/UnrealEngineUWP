@@ -300,59 +300,63 @@ void UCommonActionWidget::UpdateActionWidget()
 		const UCommonInputSubsystem* CommonInputSubsystem = GetInputSubsystem();
 		if (IsDesignTime() || (GetGameInstance() && ensure(CommonInputSubsystem) && CommonInputSubsystem->ShouldShowInputKeys()))
 		{
-			const FCommonInputActionDataBase* InputActionData = GetInputActionData();
-			const bool bIsEnhancedInputAction = EnhancedInputAction && CommonUI::IsEnhancedInputSupportEnabled();
-
-#if WITH_EDITORONLY_DATA
-			const bool bIsDesignPreview = IsDesignTime() && DesignTimeKey.IsValid();
-#else
-			const bool bIsDesignPreview = false;
-#endif
-			if (InputActionData || bIsEnhancedInputAction || bIsDesignPreview)
+			if (ShouldUpdateActionWidgetIcon())
 			{
-				if (bAlwaysHideOverride)
+				Icon = GetIcon();
+
+				if (Icon.DrawAs == ESlateBrushDrawType::NoDrawType)
 				{
 					SetVisibility(ESlateVisibility::Collapsed);
 				}
-				else
+				else if (MyIcon.IsValid())
 				{
-					Icon = GetIcon();
+					MyIcon->SetImage(&Icon);
 
-					if (Icon.DrawAs == ESlateBrushDrawType::NoDrawType)
+					if (GetVisibility() != ESlateVisibility::Collapsed)
 					{
-						SetVisibility(ESlateVisibility::Collapsed);
+						// The object being passed into SetImage is the same each time so layout is never invalidated
+						// Manually invalidate it here as the dimensions may have changed
+						MyIcon->Invalidate(EInvalidateWidgetReason::Layout);
 					}
-					else if (MyIcon.IsValid())
+
+					if (IsHeldAction())
 					{
-						MyIcon->SetImage(&Icon);
-
-						if (GetVisibility() != ESlateVisibility::Collapsed)
-						{
-							// The object being passed into SetImage is the same each time so layout is never invalidated
-							// Manually invalidate it here as the dimensions may have changed
-							MyIcon->Invalidate(EInvalidateWidgetReason::Layout);
-						}
-
-						if (IsHeldAction())
-						{
-							MyProgressImage->SetVisibility(EVisibility::SelfHitTestInvisible);
-						}
-						else
-						{
-							MyProgressImage->SetVisibility(EVisibility::Collapsed);
-						}
-
-						MyKeyBox->Invalidate(EInvalidateWidget::LayoutAndVolatility);
-						SetVisibility(IsDesignTime() ? ESlateVisibility::Visible : ESlateVisibility::SelfHitTestInvisible);
-
-						return;
+						MyProgressImage->SetVisibility(EVisibility::SelfHitTestInvisible);
 					}
+					else
+					{
+						MyProgressImage->SetVisibility(EVisibility::Collapsed);
+					}
+
+					MyKeyBox->Invalidate(EInvalidateWidget::LayoutAndVolatility);
+					SetVisibility(IsDesignTime() ? ESlateVisibility::Visible : ESlateVisibility::SelfHitTestInvisible);
+
+					return;
 				}
 			}
 		}
 
 		SetVisibility(ESlateVisibility::Collapsed);
 	}
+}
+
+bool UCommonActionWidget::ShouldUpdateActionWidgetIcon() const
+{
+	if (bAlwaysHideOverride)
+	{
+		return false;
+	}
+
+	const FCommonInputActionDataBase* InputActionData = GetInputActionData();
+	const bool bIsEnhancedInputAction = EnhancedInputAction && CommonUI::IsEnhancedInputSupportEnabled();
+
+#if WITH_EDITORONLY_DATA
+	const bool bIsDesignPreview = IsDesignTime() && DesignTimeKey.IsValid();
+#else
+	const bool bIsDesignPreview = false;
+#endif
+
+	return InputActionData || bIsEnhancedInputAction || bIsDesignPreview;
 }
 
 void UCommonActionWidget::ListenToInputMethodChanged(bool bListen)
