@@ -21,7 +21,7 @@
 void UTextureGraph::Construct(FString InName)
 {
 	// On the first new texture script we set the engine in run mode
-	MixerEngine::SetRunEngine();
+	TextureGraphEngine::SetRunEngine();
 
 	Settings = NewObject<UMixSettings>(this);
 	bInvalidateTextures = false;
@@ -54,7 +54,7 @@ void UTextureGraph::Serialize(FArchive& Ar)
 void UTextureGraph::PostLoad()
 {
 	// On the first script load we set the engine in run mode as well
-	MixerEngine::SetRunEngine();
+	TextureGraphEngine::SetRunEngine();
 
 	Super::PostLoad();
 	bInvalidateTextures = false;
@@ -146,7 +146,7 @@ void UTextureGraph::TriggerUpdate(bool Tweaking)
 	InvalidateInfo.Details.bTweaking = Tweaking;
 	InvalidateInfo.Details.Mix = this;
 
-	MixerEngine::GetMixManager()->InvalidateMix(this, InvalidateInfo.Details);
+	TextureGraphEngine::GetMixManager()->InvalidateMix(this, InvalidateInfo.Details);
 }
 
 void UTextureGraph::InvalidateAll()
@@ -154,9 +154,9 @@ void UTextureGraph::InvalidateAll()
 	FInvalidationDetails Details = FInvalidationDetails().All();
 	Details.Mix = this;
 
-	InvalidationFrameId = MixerEngine::GetFrameId();
+	InvalidationFrameId = TextureGraphEngine::GetFrameId();
 
-	MixerEngine::GetMixManager()->InvalidateMix(this, Details);
+	TextureGraphEngine::GetMixManager()->InvalidateMix(this, Details);
 }
 
 void UTextureGraph::Log() const

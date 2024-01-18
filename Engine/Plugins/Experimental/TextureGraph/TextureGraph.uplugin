@@ -15,7 +15,7 @@
 	"EnabledByDefault": false,
 	"Modules": [
 		{
-			"Name": "MixerEngine",
+			"Name": "TextureGraphEngine",
 			"Type": "Runtime",
 			"LoadingPhase": "PostConfigInit",
 			"PlatformAllowList": [

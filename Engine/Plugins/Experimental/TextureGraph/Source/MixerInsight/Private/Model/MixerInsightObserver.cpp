@@ -50,7 +50,7 @@ void MixerInsightSchedulerObserver::Start()
 
 void MixerInsightSchedulerObserver::UpdateIdle()
 {
-	if (MixerEngine::IsTestMode())
+	if (TextureGraphEngine::IsTestMode())
 		return;
 
 	MixerInsight::Instance()->GetSession()->UpdateIdle();
@@ -63,7 +63,7 @@ void MixerInsightSchedulerObserver::Stop()
 
 void MixerInsightSchedulerObserver::BatchAdded(JobBatchPtr Batch)
 {
-	if (MixerEngine::IsTestMode())
+	if (TextureGraphEngine::IsTestMode())
 		return;
 
 	MixerInsight::Instance()->GetSession()->BatchAdded(Batch);
@@ -71,7 +71,7 @@ void MixerInsightSchedulerObserver::BatchAdded(JobBatchPtr Batch)
 
 void MixerInsightSchedulerObserver::BatchDone(JobBatchPtr Batch)
 {
-	if (MixerEngine::IsTestMode())
+	if (TextureGraphEngine::IsTestMode())
 		return;
 
 	MixerInsight::Instance()->GetSession()->BatchDone(Batch);
@@ -79,7 +79,7 @@ void MixerInsightSchedulerObserver::BatchDone(JobBatchPtr Batch)
 
 void MixerInsightSchedulerObserver::BatchJobsDone(JobBatchPtr Batch)
 {
-	if (MixerEngine::IsTestMode())
+	if (TextureGraphEngine::IsTestMode())
 		return;
 
 	MixerInsight::Instance()->GetSession()->BatchJobsDone(Batch);
@@ -104,22 +104,22 @@ MixerInsightEngineObserver::~MixerInsightEngineObserver()
 
 void MixerInsightEngineObserver::Created()
 {
-	if (MixerEngine::IsTestMode())
+	if (TextureGraphEngine::IsTestMode())
 		return;
 
 	UE_LOG(LogMixerInsight, Log, TEXT("MixerInsightEngineObserver::Created"));
 
 	/// Engine is created when notified, this should be true
-	if (MixerEngine::GetInstance())
+	if (TextureGraphEngine::GetInstance())
 	{
 		for (int i = 0; i < (uint32)DeviceType::Count; ++i)
 		{
-			auto Dev = MixerEngine::GetInstance()->GetDeviceManager()->GetDevice(i);
+			auto Dev = TextureGraphEngine::GetInstance()->GetDeviceManager()->GetDevice(i);
 			if (Dev)
 				Dev->RegisterObserverSource(_deviceObservers[i]);
 		}
-		MixerEngine::GetInstance()->GetBlobber()->RegisterObserverSource(BlobberObserver);
-		MixerEngine::GetInstance()->GetScheduler()->RegisterObserverSource(SchedulerObserver);
+		TextureGraphEngine::GetInstance()->GetBlobber()->RegisterObserverSource(BlobberObserver);
+		TextureGraphEngine::GetInstance()->GetScheduler()->RegisterObserverSource(SchedulerObserver);
 	}
 
 	/// This is a brand new session engine
@@ -129,22 +129,22 @@ void MixerInsightEngineObserver::Created()
 
 void MixerInsightEngineObserver::Destroyed()
 {
-	if (MixerEngine::IsTestMode())
+	if (TextureGraphEngine::IsTestMode())
 		return;
 
 	UE_LOG(LogMixerInsight, Log, TEXT("MixerInsightEngineObserver::Destroyed"));
 
 	/// Engine is already destroyed when notified
-	if (MixerEngine::GetInstance())
+	if (TextureGraphEngine::GetInstance())
 	{
 		for (int i = 0; i < (uint32)DeviceType::Count; ++i)
 		{
-			auto Dev = MixerEngine::GetInstance()->GetDeviceManager()->GetDevice(i);
+			auto Dev = TextureGraphEngine::GetInstance()->GetDeviceManager()->GetDevice(i);
 			if (Dev)
 				Dev->RegisterObserverSource(nullptr);
 		}
-		MixerEngine::GetInstance()->GetBlobber()->RegisterObserverSource(nullptr); /// remove blobber observer from the engine
-		MixerEngine::GetInstance()->GetScheduler()->RegisterObserverSource(nullptr); /// remove scheduler observer from the engine
+		TextureGraphEngine::GetInstance()->GetBlobber()->RegisterObserverSource(nullptr); /// remove blobber observer from the engine
+		TextureGraphEngine::GetInstance()->GetScheduler()->RegisterObserverSource(nullptr); /// remove scheduler observer from the engine
 	}
 
 	MixerInsight::Instance()->GetSession()->EngineDestroyed();

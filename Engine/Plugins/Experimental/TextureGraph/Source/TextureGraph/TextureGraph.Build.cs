@@ -27,7 +27,7 @@ public class TextureGraph : ModuleRules
 			{
 				"Core",
 				"ImageCore",
-				"MixerEngine",
+				"TextureGraphEngine",
 				"Renderer",
 				"RenderCore",
 				"RHI",

@@ -6,7 +6,7 @@
 
 #include "Device/DeviceManager.h"
 #include "Data/Blobber.h"
-#include "MixerEngine.h"
+#include "TextureGraphEngine.h"
 #include <Widgets/Views/ITableRow.h>
 #include <Widgets/Views/STableViewBase.h>
 #include <Widgets/Text/STextBlock.h>
@@ -189,14 +189,14 @@ public:
 	{
 		if (_recordID.IsDevice())
 		{
-			if (!MixerEngine::GetInstance())
+			if (!TextureGraphEngine::GetInstance())
 			{
 				SetColorAndOpacity(FLinearColor(0.3, 0.3, 0.3));
 			}
 			else
 			{
 				auto item = _item.Pin();
-				auto device = MixerEngine::GetInstance()->GetDeviceManager()->GetDevice(_recordID.Buffer_DeviceType());
+				auto device = TextureGraphEngine::GetInstance()->GetDeviceManager()->GetDevice(_recordID.Buffer_DeviceType());
 				if (!device)
 				{
 					SetColorAndOpacity(FLinearColor(0.2, 0.2, 0.2));
@@ -560,7 +560,7 @@ void SMixerInsightDeviceView::Construct(const FArguments& Args)
 
 void SMixerInsightDeviceView::Refresh()
 {
-	auto device = MixerEngine::GetInstance()->GetDeviceManager()->GetDevice(_deviceType);
+	auto device = TextureGraphEngine::GetInstance()->GetDeviceManager()->GetDevice(_deviceType);
 	_threadCount->SetText(FText::FromString(FString::FromInt(device->GetMaxThreads())));
 
 	auto memMax = device->GetMaxMemory();
@@ -607,7 +607,7 @@ void SMixerInsightDeviceManagerView::Reset()
 		SAssignNew(vbox, SVerticalBox)
 	]; 
 
-	if (MixerEngine::GetInstance())
+	if (TextureGraphEngine::GetInstance())
 	{
 		for (int i = 0; i < (int)DeviceType::Count; ++i)
 		{
@@ -615,7 +615,7 @@ void SMixerInsightDeviceManagerView::Reset()
 			//	continue;
 
 			auto deviceType = (DeviceType)i;
-			auto device = MixerEngine::GetInstance()->GetDeviceManager()->GetDevice(deviceType);
+			auto device = TextureGraphEngine::GetInstance()->GetDeviceManager()->GetDevice(deviceType);
 			if (device)
 			{
 				TSharedPtr< SMixerInsightDeviceView> deviceView;

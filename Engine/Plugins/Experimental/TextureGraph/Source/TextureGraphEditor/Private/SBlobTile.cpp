@@ -1,7 +1,7 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 #include "SBlobTile.h"
 
-#include "MixerEngine.h"
+#include "TextureGraphEngine.h"
 #include "Device/DeviceManager.h"
 #include "Device/FX/DeviceBuffer_FX.h"
 

@@ -50,7 +50,7 @@ public class MixerInsightEditor : ModuleRules
 				// ... add private dependencies that you statically link with here ...	
 				"Continuable",
 				"DeveloperSettings",
-                "MixerEngine",
+                "TextureGraphEngine",
                 "MixerInsight",
             }
 			);

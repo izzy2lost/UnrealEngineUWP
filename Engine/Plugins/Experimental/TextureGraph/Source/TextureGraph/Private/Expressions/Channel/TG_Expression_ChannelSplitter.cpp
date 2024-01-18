@@ -10,7 +10,7 @@
 template <typename FSH_PixelShaderType>
 static void GenericEvaluate(FTG_EvaluationContext* InContext, FString ChannelName, FTG_Texture& Input, FTG_Texture& Output)
 {
-	const RenderMaterial_FXPtr RenderMaterial = MixerEngine::GetMaterialManager()->CreateMaterial_FX<VSH_Simple, FSH_PixelShaderType>(TEXT("T_ChannelSplitter_") + ChannelName);
+	const RenderMaterial_FXPtr RenderMaterial = TextureGraphEngine::GetMaterialManager()->CreateMaterial_FX<VSH_Simple, FSH_PixelShaderType>(TEXT("T_ChannelSplitter_") + ChannelName);
 
 	check(RenderMaterial);
 

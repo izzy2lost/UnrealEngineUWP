@@ -27,7 +27,7 @@ public class MixerInsight : ModuleRules
 
 		PrivateDependencyModuleNames.AddRange(new string[]
 		{
-			"MixerEngine",
+			"TextureGraphEngine",
 			"FreeImage",
 			"Function2",
 			"Continuable",

@@ -21,7 +21,7 @@ public class TextureGraphEditor : ModuleRules
 				"Core",
 				"Engine",
 				"TextureGraph",
-				"MixerEngine",
+				"TextureGraphEngine",
 				"Renderer",
 				"RenderCore",
 				"RHI",

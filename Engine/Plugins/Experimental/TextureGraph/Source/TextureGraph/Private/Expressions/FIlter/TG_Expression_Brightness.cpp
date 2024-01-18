@@ -9,7 +9,7 @@ void UTG_Expression_Brightness::Evaluate(FTG_EvaluationContext* InContext)
 {
 	Super::Evaluate(InContext);
 
-	const RenderMaterial_FXPtr RenderMaterial = MixerEngine::GetMaterialManager()->CreateMaterial_FX<VSH_Simple, FSH_Brightness>(TEXT("T_Brightness"));
+	const RenderMaterial_FXPtr RenderMaterial = TextureGraphEngine::GetMaterialManager()->CreateMaterial_FX<VSH_Simple, FSH_Brightness>(TEXT("T_Brightness"));
 
 	check(RenderMaterial);
 

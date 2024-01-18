@@ -12,7 +12,7 @@ void UTG_Expression_Noise::Evaluate(FTG_EvaluationContext* InContext)
 	FSH_NoiseMask::FPermutationDomain PermutationVector;
 	PermutationVector.Set<FVar_NoiseType>(NoiseType);
 
-	const RenderMaterial_FXPtr RenderMaterial = MixerEngine::GetMaterialManager()->CreateMaterial_FX<VSH_Simple, FSH_NoiseMask>(TEXT("T_NoiseMask"), PermutationVector);
+	const RenderMaterial_FXPtr RenderMaterial = TextureGraphEngine::GetMaterialManager()->CreateMaterial_FX<VSH_Simple, FSH_NoiseMask>(TEXT("T_NoiseMask"), PermutationVector);
 	check(RenderMaterial);
 
 	JobUPtr RenderJob = std::make_unique<Job>(InContext->Cycle->GetMix(), InContext->TargetId, std::static_pointer_cast<BlobTransform>(RenderMaterial));

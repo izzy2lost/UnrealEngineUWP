@@ -6,7 +6,7 @@
 
 #include "Device/DeviceManager.h"
 #include "Data/Blobber.h"
-#include "MixerEngine.h"
+#include "TextureGraphEngine.h"
 #include "Widgets/Text/STextBlock.h"
 #include "Widgets/Views/STableRow.h"
 #include "Widgets/SBoxPanel.h"

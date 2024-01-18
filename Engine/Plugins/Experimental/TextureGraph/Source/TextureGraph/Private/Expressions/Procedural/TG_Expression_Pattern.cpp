@@ -13,7 +13,7 @@ void UTG_Expression_Pattern::Evaluate(FTG_EvaluationContext* InContext)
 	FSH_PatternMask::FPermutationDomain PermutationVector;
 	PermutationVector.Set<FVar_PatternType>(PatternType);
 
-	const RenderMaterial_FXPtr RenderMaterial = MixerEngine::GetMaterialManager()->CreateMaterial_FX<VSH_Simple, FSH_PatternMask>(TEXT("T_PatternMask"), PermutationVector);
+	const RenderMaterial_FXPtr RenderMaterial = TextureGraphEngine::GetMaterialManager()->CreateMaterial_FX<VSH_Simple, FSH_PatternMask>(TEXT("T_PatternMask"), PermutationVector);
 	check(RenderMaterial);
 
 	JobUPtr RenderJob = std::make_unique<Job>(InContext->Cycle->GetMix(), InContext->TargetId, std::static_pointer_cast<BlobTransform>(RenderMaterial));

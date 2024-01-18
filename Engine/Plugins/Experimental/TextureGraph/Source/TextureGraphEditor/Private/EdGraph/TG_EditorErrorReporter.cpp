@@ -7,14 +7,14 @@
 #include "EdGraph/TG_EdGraph.h"
 #include "EdGraph/TG_EdGraphNode.h"
 
-FMixerErrorReport FTG_EditorErrorReporter::ReportLog(int32 ErrorId, const FString& ErrorMsg, UObject* ReferenceObj /*= nullptr*/)
+FTextureGraphErrorReport FTG_EditorErrorReporter::ReportLog(int32 ErrorId, const FString& ErrorMsg, UObject* ReferenceObj /*= nullptr*/)
 {
 	return {ErrorId, ErrorMsg, ReferenceObj};
 }
 
-FMixerErrorReport FTG_EditorErrorReporter::Report(int32 ErrorId, const FString& ErrorMsg, UObject* ReferenceObj, EMessageSeverity::Type ErrorType)
+FTextureGraphErrorReport FTG_EditorErrorReporter::Report(int32 ErrorId, const FString& ErrorMsg, UObject* ReferenceObj, EMessageSeverity::Type ErrorType)
 {
-	FMixerErrorReport Report {ErrorId, ErrorMsg, ReferenceObj};
+	FTextureGraphErrorReport Report {ErrorId, ErrorMsg, ReferenceObj};
 	
 	// If the reference object is a TG_Node
 	if (UTG_Node* NodeObj = Cast<UTG_Node>(ReferenceObj))
@@ -33,10 +33,10 @@ FMixerErrorReport FTG_EditorErrorReporter::Report(int32 ErrorId, const FString& 
 			}
 		}
 	}
-	TArray<FMixerErrorReport>& ErrorEntry = CompilationErrors.FindOrAdd(ErrorId);
+	TArray<FTextureGraphErrorReport>& ErrorEntry = CompilationErrors.FindOrAdd(ErrorId);
 
 	// check to see if this error on this object is already reported
-	const bool ReportAlreadyExists = ErrorEntry.ContainsByPredicate([&](const FMixerErrorReport& InReport) -> bool
+	const bool ReportAlreadyExists = ErrorEntry.ContainsByPredicate([&](const FTextureGraphErrorReport& InReport) -> bool
 	{
 		return InReport.ReferenceObj == ReferenceObj;
 	});
@@ -48,12 +48,12 @@ FMixerErrorReport FTG_EditorErrorReporter::Report(int32 ErrorId, const FString& 
 	return Report;
 }
 
-FMixerErrorReport FTG_EditorErrorReporter::ReportWarning(int32 ErrorId, const FString& ErrorMsg, UObject* ReferenceObj /*= nullptr*/)
+FTextureGraphErrorReport FTG_EditorErrorReporter::ReportWarning(int32 ErrorId, const FString& ErrorMsg, UObject* ReferenceObj /*= nullptr*/)
 {
 	return Report(ErrorId, ErrorMsg, ReferenceObj, EMessageSeverity::Warning);
 }
 
-FMixerErrorReport FTG_EditorErrorReporter::ReportError(int32 ErrorId, const FString& ErrorMsg, UObject* ReferenceObj /*= nullptr*/)
+FTextureGraphErrorReport FTG_EditorErrorReporter::ReportError(int32 ErrorId, const FString& ErrorMsg, UObject* ReferenceObj /*= nullptr*/)
 {
 	return Report(ErrorId, ErrorMsg, ReferenceObj, EMessageSeverity::Error);
 }
@@ -62,7 +62,7 @@ void FTG_EditorErrorReporter::Clear()
 {
 	for(auto ErrorEntries : CompilationErrors)
 	{
-		for(const FMixerErrorReport& Error : ErrorEntries.Value)
+		for(const FTextureGraphErrorReport& Error : ErrorEntries.Value)
 		{
 			// Expect the reference object to be a TG_Node
 			const UTG_Node* NodeObj = Cast<UTG_Node>(Error.ReferenceObj);
@@ -81,6 +81,6 @@ void FTG_EditorErrorReporter::Clear()
 		}
 	}
 	
-	FMixerErrorReporter::Clear();
+	FTextureGraphErrorReporter::Clear();
 }
 

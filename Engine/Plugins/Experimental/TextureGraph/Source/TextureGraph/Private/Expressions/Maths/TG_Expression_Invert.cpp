@@ -15,7 +15,7 @@ void UTG_Expression_Invert::Evaluate(FTG_EvaluationContext* InContext)
 		return;
 	}
 
-	const RenderMaterial_FXPtr RenderMaterial = MixerEngine::GetMaterialManager()->CreateMaterial_FX<VSH_Simple, FSH_Invert>(TEXT("T_Invert"));
+	const RenderMaterial_FXPtr RenderMaterial = TextureGraphEngine::GetMaterialManager()->CreateMaterial_FX<VSH_Simple, FSH_Invert>(TEXT("T_Invert"));
 	check(RenderMaterial);
 
 	Output = T_Invert::Create(InContext->Cycle, Output.GetBufferDescriptor(), Input, MaxValue, InContext->TargetId);

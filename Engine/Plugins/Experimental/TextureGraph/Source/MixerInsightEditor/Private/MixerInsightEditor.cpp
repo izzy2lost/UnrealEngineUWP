@@ -4,7 +4,7 @@
 #include "Framework/Application/SlateApplication.h"
 #include "Layout/WidgetPath.h"
 #include "LevelEditor.h"
-#include "MixerEngine.h"
+#include "TextureGraphEngine.h"
 #include "MixerInsight.h"
 #include "MixerInsightEditorCommands.h"
 #include "MixerInsightEditorStyle.h"

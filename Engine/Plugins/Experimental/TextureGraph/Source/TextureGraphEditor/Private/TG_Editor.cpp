@@ -185,7 +185,7 @@ void FTG_Editor::InitEditor(const EToolkitMode::Type Mode, const TSharedPtr< cla
 	ViewportSettings.OnViewportMaterialChangeEvent.AddSP(this, &FTG_Editor::OnViewportSettingsChanged);
 	ViewportSettings.OnMaterialMappingChangedEvent.AddSP(this, &FTG_Editor::OnMaterialMappingChanged);
 
-	MixerEngine::RegisterErrorReporter(EditedTextureGraph, std::make_shared<FTG_EditorErrorReporter>(this));
+	TextureGraphEngine::RegisterErrorReporter(EditedTextureGraph, std::make_shared<FTG_EditorErrorReporter>(this));
 
 	TG_EdGraph = NewObject<UTG_EdGraph>(EditedTextureGraph, UTG_EdGraph::StaticClass(), NAME_None, RF_Transactional);
 	TG_EdGraph->Schema = UTG_EdGraphSchema::StaticClass();
@@ -1492,19 +1492,19 @@ void FTG_Editor::RefreshErrors()
 {
 	TArray< TSharedRef<class FTokenizedMessage> > Messages;
 
-	FMixerErrorReporter* ErrorReporter = MixerEngine::GetErrorReporter(EditedTextureGraph);
+	FTextureGraphErrorReporter* ErrorReporter = TextureGraphEngine::GetErrorReporter(EditedTextureGraph);
 
 	if (ErrorReporter)
 	{
 		// loop through array of messages/nodeRef and highlight them
-		const auto CompileErrors = MixerEngine::GetErrorReporter(EditedTextureGraph)->GetCompilationErrors();
+		const auto CompileErrors = TextureGraphEngine::GetErrorReporter(EditedTextureGraph)->GetCompilationErrors();
 
 		// compute error crc
 		FString NewErrorHash;
 
 		for (auto ErrorEntry : CompileErrors)
 		{
-			for (const FMixerErrorReport& Error : ErrorEntry.Value)
+			for (const FTextureGraphErrorReport& Error : ErrorEntry.Value)
 			{
 				NewErrorHash += FMD5::HashAnsiString(*Error.ErrorMsg);
 			}
@@ -1516,7 +1516,7 @@ void FTG_Editor::RefreshErrors()
 			for (auto ErrorEntry : CompileErrors)
 			{
 				// report all errors for this type
-				for (FMixerErrorReport& Error : ErrorEntry.Value)
+				for (FTextureGraphErrorReport& Error : ErrorEntry.Value)
 				{
 					FString ErrorString = Error.GetFormattedMessage();
 					TSharedRef<FTokenizedMessage> Line = FTokenizedMessage::Create(EMessageSeverity::Error);

@@ -4,7 +4,7 @@
 #include "Job/Job.h"
 #include "Data/Blob.h"
 
-#include "MixerEngine.h"
+#include "TextureGraphEngine.h"
 #include "Data/Blobber.h"
 #include "Device/DeviceManager.h"
 #include "Device/Device.h"
@@ -38,7 +38,7 @@ BlobPtr MixerInsightSession::LiveCache::GetBlob(RecordID RecId) const
 	if (RecId.IsBlob() && RecId.Blob() < Blobs.size())
 	{
 		const auto& blobEntry = Blobs[RecId.Blob()];
-		return MixerEngine::GetInstance()->GetBlobber()->Find<Blob>(blobEntry).get();
+		return TextureGraphEngine::GetInstance()->GetBlobber()->Find<Blob>(blobEntry).get();
 	}
 	return nullptr;
 }
@@ -93,7 +93,7 @@ DeviceBufferPtr MixerInsightSession::LiveCache::GetDeviceBuffer(RecordID RecId) 
 			Hash = SourceBlobPtr->Hash()->Value();
 
 		// Try to find the buffer in the device under the  first hash
-		auto Dev = MixerEngine::GetInstance()->GetDeviceManager()->GetDevice(RecId.Buffer_DeviceType());
+		auto Dev = TextureGraphEngine::GetInstance()->GetDeviceManager()->GetDevice(RecId.Buffer_DeviceType());
 		auto Buffer = Dev->Find(Hash, false);
 
 		// Couldn't find with what we think is final hash, try with prev hash if exists ?
@@ -106,7 +106,7 @@ DeviceBufferPtr MixerInsightSession::LiveCache::GetDeviceBuffer(RecordID RecId) 
 
 		for (int32 i = RecId.Buffer_DeviceType() + 1; i < (int32) DeviceType::Count; i++)
 		{
-			Dev = MixerEngine::GetInstance()->GetDeviceManager()->GetDevice(i);
+			Dev = TextureGraphEngine::GetInstance()->GetDeviceManager()->GetDevice(i);
 			if (Dev && !Buffer) {
 				Buffer = Dev->Find(Hash, false);
 				if (Buffer)
@@ -117,7 +117,7 @@ DeviceBufferPtr MixerInsightSession::LiveCache::GetDeviceBuffer(RecordID RecId) 
 		// Couldn't find in the device cache... then look up in the blobber
 		if (!Buffer) 
 		{
-			auto BlobPtr = MixerEngine::GetInstance()->GetBlobber()->Find(BufferRecord.HashValue);
+			auto BlobPtr = TextureGraphEngine::GetInstance()->GetBlobber()->Find(BufferRecord.HashValue);
 			if (BlobPtr) {
 				Buffer = BlobPtr->GetBufferRef();
 			}
@@ -130,7 +130,7 @@ DeviceBufferPtr MixerInsightSession::LiveCache::GetDeviceBuffer(RecordID RecId) 
 		if (!Buffer) {
 			if (BufferRecord.PrevHashValue != 0)
 			{
-				auto blobPtr = MixerEngine::GetInstance()->GetBlobber()->Find(BufferRecord.PrevHashValue);
+				auto blobPtr = TextureGraphEngine::GetInstance()->GetBlobber()->Find(BufferRecord.PrevHashValue);
 				if (blobPtr) {
 					Buffer = blobPtr->GetBufferRef();
 				}
@@ -152,7 +152,7 @@ DeviceBufferPtr MixerInsightSession::LiveCache::GetDeviceBuffer(RecordID RecId) 
 
 void MixerInsightSession::EngineCreated()
 {
-	if (MixerEngine::IsTestMode())
+	if (TextureGraphEngine::IsTestMode())
 		return;
 
 	UE_LOG(LogMixerInsight, Log, TEXT("MixerInsightActionManagerObserver::EngineCreated"));
@@ -167,7 +167,7 @@ void MixerInsightSession::EngineCreated()
 
 void MixerInsightSession::EngineDestroyed()
 {
-	if (MixerEngine::IsTestMode())
+	if (TextureGraphEngine::IsTestMode())
 		return;
 
 	UE_LOG(LogMixerInsight, Log, TEXT("MixerInsightActionManagerObserver::EngineDestroyed"));
@@ -202,7 +202,7 @@ uint32 MixerInsightSession::ParseDeviceBuffersCache(DeviceType DevType, RecordID
 	uint32 NumNewBuffers = 0;
 
 	auto DevIndex = (int32) DevType;
-	auto Dev = MixerEngine::GetInstance()->GetDeviceManager()->GetDevice(DevType);
+	auto Dev = TextureGraphEngine::GetInstance()->GetDeviceManager()->GetDevice(DevType);
 	if (Dev)
 	{
 		auto Version = Dev->GetObserverSource()->GetVersion();
@@ -663,7 +663,7 @@ RecordID MixerInsightSession::FindOrCreateBlobRecordFromHash(HashType hash)
 	auto RecId = GetRecord().FindBlobRecord(hash);
 	if (!RecId.IsValid())
 	{
-		auto BlobObj = MixerEngine::GetInstance()->GetBlobber()->Find(hash);
+		auto BlobObj = TextureGraphEngine::GetInstance()->GetBlobber()->Find(hash);
 		if (BlobObj)
 		{
 			return FindOrCreateBlobRecord(BlobObj.get());
@@ -823,8 +823,8 @@ bool MixerInsightSession::ReplayBatch(RecordID batchRecordID, bool captureRender
 		batchPtr->ResetForReplay();
 		batchPtr->SetCaptureRenderDoc(false);
 		if (captureRenderDoc)
-			MixerEngine::GetInstance()->GetScheduler()->SetCaptureRenderDocNextBatch(true);
-		MixerEngine::GetInstance()->GetScheduler()->AddBatch(batchPtr);
+			TextureGraphEngine::GetInstance()->GetScheduler()->SetCaptureRenderDocNextBatch(true);
+		TextureGraphEngine::GetInstance()->GetScheduler()->AddBatch(batchPtr);
 		return true;
 	}
 	return false;
@@ -841,8 +841,8 @@ bool MixerInsightSession::ReplayJob(RecordID jobRecordID, bool captureRenderDoc)
 		batchPtr->ResetForReplay(jobRecordID.Job());
 		batchPtr->SetCaptureRenderDoc(false);
 		if(captureRenderDoc)
-			MixerEngine::GetInstance()->GetScheduler()->SetCaptureRenderDocNextBatch(true);
-		MixerEngine::GetInstance()->GetScheduler()->AddBatch(batchPtr);
+			TextureGraphEngine::GetInstance()->GetScheduler()->SetCaptureRenderDocNextBatch(true);
+		TextureGraphEngine::GetInstance()->GetScheduler()->AddBatch(batchPtr);
 
 		return true;
 	}

@@ -1,7 +1,7 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 #include "MixerInsight.h"
 #include "Modules/ModuleManager.h"
-#include "MixerEngine.h"
+#include "TextureGraphEngine.h"
 
 #include "Model/MixerInsightObserver.h"
 #include "Model/MixerInsightSession.h"
@@ -45,7 +45,7 @@ bool MixerInsight::Create()
 
 		/// Need the engine observer to watch what is happening
 		auto EngineObserver = std::make_shared<MixerInsightEngineObserver>();
-		MixerEngine::RegisterObserverSource(EngineObserver); // will also install other observers
+		TextureGraphEngine::RegisterObserverSource(EngineObserver); // will also install other observers
 
 		return true;
 	}
@@ -58,7 +58,7 @@ bool MixerInsight::Destroy()
 	if (GInstance)
 	{
 		/// Remove Engine observer
-		MixerEngine::RegisterObserverSource(nullptr);
+		TextureGraphEngine::RegisterObserverSource(nullptr);
 
 		delete GInstance;
 		GInstance = nullptr;

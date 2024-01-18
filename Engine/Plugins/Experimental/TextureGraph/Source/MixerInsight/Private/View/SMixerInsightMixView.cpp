@@ -6,7 +6,7 @@
 
 #include "Device/DeviceManager.h"
 #include "Data/Blobber.h"
-#include "MixerEngine.h"
+#include "TextureGraphEngine.h"
 
 
 class SMixerInsightMixListViewRow : public SMultiColumnTableRow<SMixerInsightMixListView::FItem>

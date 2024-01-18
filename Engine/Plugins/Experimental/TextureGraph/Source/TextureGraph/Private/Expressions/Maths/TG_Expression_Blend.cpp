@@ -10,7 +10,7 @@ void UTG_Expression_Blend::Evaluate(FTG_EvaluationContext* InContext)
 	if (!Mask)
 	{
 		/// Temporary, since our Grayscale texture saving (for test framework) isn't working correctly
-		if (MixerEngine::IsTestMode())
+		if (TextureGraphEngine::IsTestMode())
 		{
 			Mask = FTG_Texture::GetWhite();
 		}

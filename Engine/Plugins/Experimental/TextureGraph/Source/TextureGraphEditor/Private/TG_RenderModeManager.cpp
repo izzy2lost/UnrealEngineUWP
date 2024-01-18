@@ -2,7 +2,7 @@
 #include "TG_RenderModeManager.h"
 #include "FxMat/MaterialManager.h"
 #include "FxMat/RenderMaterial_BP.h"
-#include "MixerEngine.h"
+#include "TextureGraphEngine.h"
 #include "TextureGraph.h"
 #include "Model/Mix/Mix.h"
 #include "Device/FX/Device_FX.h"
@@ -105,11 +105,11 @@ void TG_RenderModeManager::InitializeDefaultMaterials(int totalTargets)
 	for (int targetId = 0; targetId < totalTargets; targetId++)
 	{
 		TMap<FName, RenderMaterial_BPPtr> TargetMaterialsMap;
-		TargetMaterialsMap.Add(ViewportMaterial.GetFName(), MixerEngine::GetMaterialManager()->CreateMaterial_BP(ViewportMaterial.GetName(), ViewportMaterial));
+		TargetMaterialsMap.Add(ViewportMaterial.GetFName(), TextureGraphEngine::GetMaterialManager()->CreateMaterial_BP(ViewportMaterial.GetName(), ViewportMaterial));
 
 		for(const FMaterialMappingInfo& MaterialMappingInfo : MaterialMappingInfos)
 		{
-			TargetMaterialsMap.Add(MaterialMappingInfo.MaterialInput, MixerEngine::GetMaterialManager()->CreateMaterial_BP(MaterialMappingInfo.MaterialInput.ToString(), TEXT("Scene/RendermodeSource")));
+			TargetMaterialsMap.Add(MaterialMappingInfo.MaterialInput, TextureGraphEngine::GetMaterialManager()->CreateMaterial_BP(MaterialMappingInfo.MaterialInput.ToString(), TEXT("Scene/RendermodeSource")));
 		}
 		
 		_renderModeMaterials.Add(targetId, TargetMaterialsMap);

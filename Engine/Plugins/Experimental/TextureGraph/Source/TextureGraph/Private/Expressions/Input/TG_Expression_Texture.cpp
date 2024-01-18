@@ -63,12 +63,12 @@ bool UTG_Expression_Texture::Validate(MixUpdateCyclePtr Cycle)
 	//Check here if Source is VT
 	if (Source && !CanHandleAsset(Source))
 	{
-		auto ErrorType = static_cast<int32>(EMixerErrorType::UNSUPPORTED_TYPE);
+		auto ErrorType = static_cast<int32>(ETextureGraphErrorType::UNSUPPORTED_TYPE);
 
 		UClass* Type = Source->GetClass();
 		FString TypeName = Source->VirtualTextureStreaming ? "Virtual Texture" : Type->GetName();
 
-		MixerEngine::GetErrorReporter(ParentMix)->ReportError(ErrorType, FString::Printf(TEXT("%s not supported at the moment"), *TypeName), GetParentNode());
+		TextureGraphEngine::GetErrorReporter(ParentMix)->ReportError(ErrorType, FString::Printf(TEXT("%s not supported at the moment"), *TypeName), GetParentNode());
 		return false;
 	}
 	

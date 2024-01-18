@@ -38,7 +38,7 @@ void UTG_Expression_Output::Evaluate(FTG_EvaluationContext* InContext)
 			/// If the descriptors are not the same
 			if (OutputDesc != InputDesc)
 			{
-				RenderMaterial_FXPtr RenderMaterial = MixerEngine::GetMaterialManager()->CreateMaterialOfType_FX<Fx_FullScreenCopy>(TEXT("Tex::FullScreenCopy"));
+				RenderMaterial_FXPtr RenderMaterial = TextureGraphEngine::GetMaterialManager()->CreateMaterialOfType_FX<Fx_FullScreenCopy>(TEXT("Tex::FullScreenCopy"));
 
 				check(RenderMaterial);
 

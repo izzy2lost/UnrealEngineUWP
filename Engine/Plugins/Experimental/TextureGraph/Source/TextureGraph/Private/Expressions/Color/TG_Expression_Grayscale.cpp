@@ -9,7 +9,7 @@ void UTG_Expression_Grayscale::Evaluate(FTG_EvaluationContext* InContext)
 {
 	Super::Evaluate(InContext);
 
-	const RenderMaterial_FXPtr RenderMaterial = MixerEngine::GetMaterialManager()->CreateMaterial_FX<VSH_Simple, FSH_Grayscale>(TEXT("T_Grayscale"));
+	const RenderMaterial_FXPtr RenderMaterial = TextureGraphEngine::GetMaterialManager()->CreateMaterial_FX<VSH_Simple, FSH_Grayscale>(TEXT("T_Grayscale"));
 
 	check(RenderMaterial);
 

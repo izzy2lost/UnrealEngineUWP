@@ -7,7 +7,7 @@
 #include "TextureGraph.generated.h"
 
 class UTG_Graph;
-using ErrorReportMap = TMap<int32, TArray<FMixerErrorReport>>;
+using ErrorReportMap = TMap<int32, TArray<FTextureGraphErrorReport>>;
 
 UCLASS(BlueprintType)
 class TEXTUREGRAPH_API UTextureGraph : public UMixInterface

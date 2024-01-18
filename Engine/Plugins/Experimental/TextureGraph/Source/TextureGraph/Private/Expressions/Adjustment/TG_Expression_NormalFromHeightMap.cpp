@@ -29,9 +29,9 @@ bool UTG_Expression_NormalFromHeightMap::Validate(MixUpdateCyclePtr Cycle)
 	if(Output.Descriptor.TextureFormat != ETG_TextureFormat::Auto && TextureHelper::GetNumChannelsFromTGTextureFormat(Output.Descriptor.TextureFormat) < 3)
 	{
 		UMixInterface* ParentMix = Cast<UMixInterface>(GetOutermostObject());
-		auto ErrorType = static_cast<int32>(EMixerErrorType::NODE_WARNING);
+		auto ErrorType = static_cast<int32>(ETextureGraphErrorType::NODE_WARNING);
 
-		MixerEngine::GetErrorReporter(ParentMix)->ReportWarning(ErrorType, FString::Printf(TEXT("Output requires minimum 3 channels to display normal correctly")), GetParentNode());
+		TextureGraphEngine::GetErrorReporter(ParentMix)->ReportWarning(ErrorType, FString::Printf(TEXT("Output requires minimum 3 channels to display normal correctly")), GetParentNode());
 	}
 	return Super::Validate(Cycle);
 }

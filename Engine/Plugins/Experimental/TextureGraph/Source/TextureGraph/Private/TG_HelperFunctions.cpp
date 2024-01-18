@@ -142,13 +142,13 @@ AsyncBool FTG_HelperFunctions::ExportAsync(UTextureGraph* InTextureGraph, FStrin
 				//Log Error to Error System
 				if (!HasOutputs)
 				{
-					auto ErrorType = static_cast<int32>(EMixerErrorType::UNSUPPORTED_TYPE);
-					MixerEngine::GetErrorReporter(InTextureGraph)->ReportError(ErrorType, FString::Format(TEXT("Texture Export Error : No valid output found for OutputSetting {0}"), { OutputSetting.OutputName.ToString() }), nullptr);
+					auto ErrorType = static_cast<int32>(ETextureGraphErrorType::UNSUPPORTED_TYPE);
+					TextureGraphEngine::GetErrorReporter(InTextureGraph)->ReportError(ErrorType, FString::Format(TEXT("Texture Export Error : No valid output found for OutputSetting {0}"), { OutputSetting.OutputName.ToString() }), nullptr);
 				}
 				if (!IsNameValid)
 				{
-					auto ErrorType = static_cast<int32>(EMixerErrorType::UNSUPPORTED_TYPE);
-					MixerEngine::GetErrorReporter(InTextureGraph)->ReportError(ErrorType, FString::Format(TEXT("Texture Export Error : Invalid path set for OutputSetting {0}"), { OutputSetting.OutputName.ToString() }), nullptr);
+					auto ErrorType = static_cast<int32>(ETextureGraphErrorType::UNSUPPORTED_TYPE);
+					TextureGraphEngine::GetErrorReporter(InTextureGraph)->ReportError(ErrorType, FString::Format(TEXT("Texture Export Error : Invalid path set for OutputSetting {0}"), { OutputSetting.OutputName.ToString() }), nullptr);
 				}
 			}
 		}
@@ -162,7 +162,7 @@ AsyncBool FTG_HelperFunctions::ExportAsync(UTextureGraph* InTextureGraph, FStrin
 
 void FTG_HelperFunctions::InitTargets(UTextureGraph* InTextureGraph)
 {
-	MixerEngine::RegisterErrorReporter(InTextureGraph, std::make_shared<FMixerErrorReporter>());
+	TextureGraphEngine::RegisterErrorReporter(InTextureGraph, std::make_shared<FTextureGraphErrorReporter>());
 	/// Now run the update Cycle
 
 	int num = 1;
@@ -227,27 +227,27 @@ AsyncBool FTG_HelperFunctions::RenderAsync(UTextureGraph* InTextureGraph, JobBat
 			std::unique_lock<std::mutex> lock(*mutex);
 
 			/// Lock the engine
-			if (MixerEngine::IsTestMode())
-				MixerEngine::Lock();
+			if (TextureGraphEngine::IsTestMode())
+				TextureGraphEngine::Lock();
 
 			/// We must get out of the loop if the engine is being destroyed. This can happen
 			/// when an test has offended the time limit for the test. Can result in tests exiting
-			/// and calling MixerEngine::Destroy even though this loop might still be running. 
+			/// and calling TextureGraphEngine::Destroy even though this loop might still be running. 
 			/// We need a safe passage out of this.
-			while (!*IsMixRendered && !MixerEngine::IsDestroying())
+			while (!*IsMixRendered && !TextureGraphEngine::IsDestroying())
 			{
 				Util::OnGameThread([]()
 				{
-					if (!MixerEngine::IsDestroying())
-						MixerEngine::Update(0);
+					if (!TextureGraphEngine::IsDestroying())
+						TextureGraphEngine::Update(0);
 				});
 
 				std::this_thread::sleep_for(std::chrono::milliseconds(10));
 			}
 
 			/// Unlock it
-			if (MixerEngine::IsTestMode())
-				MixerEngine::Unlock();
+			if (TextureGraphEngine::IsTestMode())
+				TextureGraphEngine::Unlock();
 		}
 	});
 
@@ -256,11 +256,11 @@ AsyncBool FTG_HelperFunctions::RenderAsync(UTextureGraph* InTextureGraph, JobBat
 		Batch->OnDone([=, FWD_PROMISE(promise)](JobBatch*) mutable
 		{
 			/// We need to do this on the background thread because we can potentially have a deadlock
-			/// where this thread blocks on the mutex wait and the MixerEngine::Update above is waiting
+			/// where this thread blocks on the mutex wait and the TextureGraphEngine::Update above is waiting
 			/// for Util::OnGameThread update. This situation cannot be allowed to happen
 			Util::OnBackgroundThread([=, FWD_PROMISE(promise)]() mutable
 			{
-				/// Set the atomic so that the loop above with MixerEngine::Update can exit
+				/// Set the atomic so that the loop above with TextureGraphEngine::Update can exit
 				/// and release the mutex that we're going to acquire below
 				*IsMixRendered = true;
 
@@ -285,7 +285,7 @@ AsyncBool FTG_HelperFunctions::RenderAsync(UTextureGraph* InTextureGraph, JobBat
 		{
 			Util::OnGameThread([=]()
 				{
-					MixerEngine::GetScheduler()->AddBatch(Batch);
+					TextureGraphEngine::GetScheduler()->AddBatch(Batch);
 				});
 		}
 	}); 

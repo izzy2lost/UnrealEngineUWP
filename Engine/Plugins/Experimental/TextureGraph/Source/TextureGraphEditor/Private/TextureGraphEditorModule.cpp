@@ -5,7 +5,7 @@
 #include "AssetToolsModule.h"
 #include "EdGraph/TG_EditorGraphNodeFactory.h"
 #include "EdGraph/TG_EditorGraphPanelPinFactory.h"
-#include "MixerEngine.h"
+#include "TextureGraphEngine.h"
 #include "TG_AssetTypeActions.h"
 #include "TG_Editor.h"
 #include "TG_EditorCommands.h"
@@ -49,7 +49,7 @@ void FTextureGraphEditorModule::StartupModule()
 	GraphPanelPinFactory = MakeShared<FTG_EditorGraphPanelPinFactory>();
 	FEdGraphUtilities::RegisterVisualPinFactory(GraphPanelPinFactory);
 	
-	StartMixerEngine();
+	StartTextureGraphEngine();
 }
 
 void FTextureGraphEditorModule::ShutdownModule()
@@ -74,33 +74,33 @@ void FTextureGraphEditorModule::ShutdownModule()
 	// Unregister slate style overrides
 	FTG_Style::Unregister();
 	
-	ShutdownMixerEngine();
+	ShutdownTextureGraphEngine();
 }
-void FTextureGraphEditorModule::StartMixerEngine()
+void FTextureGraphEditorModule::StartTextureGraphEngine()
 {
-	if (!MixerEngine::GetInstance())
+	if (!TextureGraphEngine::GetInstance())
 	{
-		// In case of editor, this is the place where we create a new mixer engine.
+		// In case of editor, this is the place where we create a new Texture Graph engine.
 		// This is done only once and will get destroyed when we shutdown unreal.
-		MixerEngine::Create(false);
-		check(MixerEngine::GetInstance());
+		TextureGraphEngine::Create(false);
+		check(TextureGraphEngine::GetInstance());
 	}
 	TickDelegate = FTickerDelegate::CreateRaw(this, &FTextureGraphEditorModule::Tick);
 	TickDelegateHandle = FTSTicker::GetCoreTicker().AddTicker(TickDelegate);
 }
-void FTextureGraphEditorModule::ShutdownMixerEngine()
+void FTextureGraphEditorModule::ShutdownTextureGraphEngine()
 {
-	if (MixerEngine::GetInstance())
+	if (TextureGraphEngine::GetInstance())
 	{
-		MixerEngine::Destroy();
-		check(!MixerEngine::GetInstance());
+		TextureGraphEngine::Destroy();
+		check(!TextureGraphEngine::GetInstance());
 		FTSTicker::GetCoreTicker().RemoveTicker(TickDelegateHandle);
 	}
 }
 bool FTextureGraphEditorModule::Tick(float deltaTime)
 {
-	if (MixerEngine::GetInstance())
-		MixerEngine::Update(deltaTime);
+	if (TextureGraphEngine::GetInstance())
+		TextureGraphEngine::Update(deltaTime);
 	return true;
 }
 void FTextureGraphEditorModule::RegisterAssetTypeAction(IAssetTools& AssetTools, TSharedRef<IAssetTypeActions> Action)

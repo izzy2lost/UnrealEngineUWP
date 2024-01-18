@@ -11,7 +11,7 @@ DECLARE_LOG_CATEGORY_EXTERN(LogTextureGraph, Log, All);
 using FTG_Index = int32;
 using FTG_Indices = TArray<FTG_Index>;
 
-using ErrorReportMap = TMap<int32, TArray<struct FMixerErrorReport>>;
+using ErrorReportMap = TMap<int32, TArray<struct FTextureGraphErrorReport>>;
 USTRUCT()
 struct TEXTUREGRAPH_API FTG_Id
 {

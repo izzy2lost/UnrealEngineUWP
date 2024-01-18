@@ -1,7 +1,7 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 #pragma once
 
-#include "MixerEngine.h"
+#include "TextureGraphEngine.h"
 #include "Device/Device.h"
 #include "Device/DeviceObserverSource.h"
 #include "Data/Blobber.h"

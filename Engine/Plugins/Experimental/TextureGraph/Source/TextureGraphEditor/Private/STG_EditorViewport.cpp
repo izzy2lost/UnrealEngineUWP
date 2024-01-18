@@ -123,7 +123,6 @@ void FTG_EditorViewportClient::Tick(float DeltaSeconds)
 void FTG_EditorViewportClient::Draw(FViewport* InViewport, FCanvas* Canvas)
 {
 	FEditorViewportClient::Draw(InViewport, Canvas);
-	//_mixerAssetEditorPtr.Pin()->DrawMessages(InViewport, Canvas);
 }
 
 bool FTG_EditorViewportClient::ShouldOrbitCamera() const

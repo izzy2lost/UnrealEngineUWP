@@ -5,7 +5,7 @@
 #include "MixerInsight.h"
 #include "Model/MixerInsightSession.h"
 
-#include "MixerEngine.h"
+#include "TextureGraphEngine.h"
 #include "Device/DeviceManager.h"
 #include "Device/FX/DeviceBuffer_FX.h"
 

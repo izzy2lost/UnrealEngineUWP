@@ -29,7 +29,7 @@ private:
 
 	MixerInsightSessionPtr					Session;
 public:
-	static bool								Create();  /// Create the Insight Instance ONLY if no other currently created AND if a MixerEngine is already created
+	static bool								Create();  /// Create the Insight Instance ONLY if no other currently created AND if a TextureGraphEngine is already created
 
 	/// Destroy the current instance
 	static bool								Destroy(); /// Destroy the instance of Insight if it exists.

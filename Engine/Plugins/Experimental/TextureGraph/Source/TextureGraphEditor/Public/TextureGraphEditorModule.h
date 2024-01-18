@@ -18,9 +18,9 @@ class TEXTUREGRAPHEDITOR_API FTextureGraphEditorModule : public IModuleInterface
 private:
 	/** All created asset type actions.  Cached here so that we can unregister them during shutdown. */
 	AssetTypeActionsArray			CreatedAssetTypeActions;
-	/** Delegate to run the Tick method in charge of running MixerEngine update*/
+	/** Delegate to run the Tick method in charge of running TextureGraphEngine update*/
 	FTickerDelegate					TickDelegate;
-	/** Handle of the delegate to run the Tick method in charge of running MixerEngine update*/
+	/** Handle of the delegate to run the Tick method in charge of running TextureGraphEngine update*/
 	FTSTicker::FDelegateHandle		TickDelegateHandle;
 	
 
@@ -31,8 +31,8 @@ public:
 	/** IModuleInterface implementation */
 	virtual void					StartupModule() override;
 	virtual void					ShutdownModule() override;
-	virtual void					StartMixerEngine();
-	virtual void					ShutdownMixerEngine();
+	virtual void					StartTextureGraphEngine();
+	virtual void					ShutdownTextureGraphEngine();
 	bool							Tick(float deltaTime);
 	void							RegisterAssetTypeAction(IAssetTools& AssetTools, TSharedRef<IAssetTypeActions> Action);
 	void							UnRegisterAllAssetTypeActions();

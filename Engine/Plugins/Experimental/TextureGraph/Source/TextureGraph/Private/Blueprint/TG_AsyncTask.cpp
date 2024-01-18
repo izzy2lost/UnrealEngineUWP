@@ -2,7 +2,7 @@
 
 #include "Blueprint/TG_AsyncTask.h"
 
-#include "MixerEngine.h"
+#include "TextureGraphEngine.h"
 #include "Blueprint/TG_AsyncTaskManager.h"
 
 
@@ -24,5 +24,5 @@ void UTG_AsyncTask::SetReadyToDestroy()
 
 void UTG_AsyncTask::Activate()
 {
-	MixerEngine::SetRunEngine();
+	TextureGraphEngine::SetRunEngine();
 }

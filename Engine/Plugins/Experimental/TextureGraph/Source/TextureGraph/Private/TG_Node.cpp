@@ -16,8 +16,8 @@ bool UTG_Node::Validate(MixUpdateCyclePtr Cycle)
 		UMixInterface* ParentMix = Cast<UMixInterface>(GetOutermostObject());
 		for (auto Warning : WarningStack)
 		{
-			auto ErrorType = static_cast<int32>(EMixerErrorType::NODE_WARNING);
-			FMixerErrorReport Report = MixerEngine::GetErrorReporter(ParentMix)->ReportWarning(ErrorType, Warning.ToString(), this);
+			auto ErrorType = static_cast<int32>(ETextureGraphErrorType::NODE_WARNING);
+			FTextureGraphErrorReport Report = TextureGraphEngine::GetErrorReporter(ParentMix)->ReportWarning(ErrorType, Warning.ToString(), this);
 		}
 	}
 

@@ -71,7 +71,7 @@ void UTG_Expression_MaterialBase::Initialize()
 
 TiledBlobPtr UTG_Expression_MaterialBase::CreateRenderMaterialJob(FTG_EvaluationContext* InContext, const FString& InName, const FString& InMaterialPath, const BufferDescriptor& InDescriptor, EDrawMaterialAttributeTarget InDrawMaterialAttributeTarget)
 {
-	const RenderMaterial_BPPtr RenderMaterial = MixerEngine::GetMaterialManager()->CreateMaterial_BP(InName, InMaterialPath);
+	const RenderMaterial_BPPtr RenderMaterial = TextureGraphEngine::GetMaterialManager()->CreateMaterial_BP(InName, InMaterialPath);
 	return CreateRenderMaterialJob(InContext, RenderMaterial, InDescriptor, InDrawMaterialAttributeTarget);
 }
 

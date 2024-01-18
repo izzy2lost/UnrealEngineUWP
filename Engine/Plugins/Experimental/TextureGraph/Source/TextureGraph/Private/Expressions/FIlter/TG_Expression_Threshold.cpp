@@ -10,7 +10,7 @@ void UTG_Expression_Threshold::Evaluate(FTG_EvaluationContext* InContext)
 {
 	Super::Evaluate(InContext);
 
-	const RenderMaterial_FXPtr RenderMaterial = MixerEngine::GetMaterialManager()->CreateMaterial_FX<VSH_Simple, FSH_Threshold>(TEXT("T_Threshold"));
+	const RenderMaterial_FXPtr RenderMaterial = TextureGraphEngine::GetMaterialManager()->CreateMaterial_FX<VSH_Simple, FSH_Threshold>(TEXT("T_Threshold"));
 
 	check(RenderMaterial);
 

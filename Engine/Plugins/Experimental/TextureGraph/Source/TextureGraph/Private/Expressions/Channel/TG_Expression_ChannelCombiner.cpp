@@ -9,7 +9,7 @@ void UTG_Expression_ChannelCombiner::Evaluate(FTG_EvaluationContext* InContext)
 {
 	Super::Evaluate(InContext);
 
-	const RenderMaterial_FXPtr RenderMaterial = MixerEngine::GetMaterialManager()->CreateMaterial_FX<VSH_Simple, FSH_ChannelCombiner>(TEXT("T_ChannelCombiner"));
+	const RenderMaterial_FXPtr RenderMaterial = TextureGraphEngine::GetMaterialManager()->CreateMaterial_FX<VSH_Simple, FSH_ChannelCombiner>(TEXT("T_ChannelCombiner"));
 
 	check(RenderMaterial);
 	TiledBlobPtr Source = nullptr;

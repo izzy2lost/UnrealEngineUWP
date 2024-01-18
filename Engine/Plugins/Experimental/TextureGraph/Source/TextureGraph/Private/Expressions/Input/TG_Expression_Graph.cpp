@@ -63,9 +63,9 @@ void UTG_Expression_Graph::Evaluate(FTG_EvaluationContext* InContext)
 		}
 		else
 		{
-			auto ErrorType = static_cast<int32>(EMixerErrorType::SUBGRAPH_INTERNAL_ERROR);
+			auto ErrorType = static_cast<int32>(ETextureGraphErrorType::SUBGRAPH_INTERNAL_ERROR);
 			const FString ErrorMsg = FString::Format(TEXT("Internal error in {0} node."), {GetTitleName().ToString()} );
-			MixerEngine::GetErrorReporter(InContext->Cycle->GetMix())->ReportError(ErrorType, ErrorMsg, GetParentNode());
+			TextureGraphEngine::GetErrorReporter(InContext->Cycle->GetMix())->ReportError(ErrorType, ErrorMsg, GetParentNode());
 		}
 		
 		InContext->GraphDepth--;	
@@ -176,10 +176,10 @@ bool UTG_Expression_TextureGraph::Validate(MixUpdateCyclePtr Cycle)
 	// if TextureGraph is already in execution list then
 	if(TextureGraph && Cycle->ContainsMix(TextureGraph))
 	{
-		auto ErrorType = static_cast<int32>(EMixerErrorType::RECURSIVE_CALL);
+		auto ErrorType = static_cast<int32>(ETextureGraphErrorType::RECURSIVE_CALL);
 
 		const FString ErrorMsg = FString::Format(TEXT("Recursive Texture Graph call found in '{0}' asset."), {Cycle->TopMix()->GetName()} );
-		MixerEngine::GetErrorReporter(Cycle->GetMix())->ReportError(ErrorType, ErrorMsg, GetParentNode());
+		TextureGraphEngine::GetErrorReporter(Cycle->GetMix())->ReportError(ErrorType, ErrorMsg, GetParentNode());
 		return false;
 	}
 
