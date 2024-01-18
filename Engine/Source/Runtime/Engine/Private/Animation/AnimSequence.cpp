@@ -1151,7 +1151,7 @@ void UAnimSequence::PostEditChangeProperty(FPropertyChangedEvent& PropertyChange
 
 	// @Todo fix me: This is temporary fix to make sure they always have compressed data
 	ValidateModel();
-	if (IsDataModelValid() && DataModelInterface->GetNumBoneTracks() && bNeedPostProcess)
+	if (IsDataModelValid() && bNeedPostProcess)
 	{		
 		ClearAllCachedCookedPlatformData();
 		BeginCacheDerivedDataForCurrentPlatform();
