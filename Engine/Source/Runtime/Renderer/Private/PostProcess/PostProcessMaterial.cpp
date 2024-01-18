@@ -460,12 +460,12 @@ FPostProcessMaterialParameters* GetPostProcessMaterialParameters(
 
 	for (uint32 InputIndex = 0; InputIndex < kPostProcessMaterialInputCountMax; ++InputIndex)
 	{
-		FScreenPassTexture Input = Inputs.GetInput((EPostProcessMaterialInput)InputIndex);
+		FScreenPassTextureSlice Input = Inputs.GetInput((EPostProcessMaterialInput)InputIndex);
 
 		// Need to provide valid textures for when shader compilation doesn't cull unused parameters.
-		if (!Input.Texture || !MaterialShaderMap->UsesSceneTexture(PPI_PostProcessInput0 + InputIndex))
+		if (!Input.IsValid() || !MaterialShaderMap->UsesSceneTexture(PPI_PostProcessInput0 + InputIndex))
 		{
-			Input = BlackDummy;
+			Input = FScreenPassTextureSlice::CreateFromScreenPassTexture(GraphBuilder, BlackDummy);
 		}
 
 		PostProcessMaterialParameters->PostProcessInput[InputIndex] = GetScreenPassTextureInput(Input, PointClampSampler);
@@ -530,7 +530,7 @@ void AddNeuralPostProcessPass(
 {
 	Inputs.Validate();
 
-	const FScreenPassTexture SceneColor = Inputs.GetInput(EPostProcessMaterialInput::SceneColor);
+	const FScreenPassTexture SceneColor = FScreenPassTexture::CopyFromSlice(GraphBuilder, Inputs.GetInput(EPostProcessMaterialInput::SceneColor));
 
 	const ERHIFeatureLevel::Type FeatureLevel = View.GetFeatureLevel();
 
@@ -691,7 +691,7 @@ FScreenPassTexture AddPostProcessMaterialPass(
 	GetMaterialInfo(MaterialInterface, FeatureLevel, Inputs, Material, MaterialRenderProxy, MaterialShaderMap, VertexShader, PixelShader);
 
 	EBlendableLocation BlendableLocation = EBlendableLocation(Material->GetBlendableLocation());
-	const FScreenPassTexture SceneColor = Inputs.GetInput(BlendableLocation == BL_TranslucencyAfterDOF ? EPostProcessMaterialInput::SeparateTranslucency : EPostProcessMaterialInput::SceneColor);
+	const FScreenPassTexture SceneColor = FScreenPassTexture::CopyFromSlice(GraphBuilder, Inputs.GetInput(BlendableLocation == BL_TranslucencyAfterDOF ? EPostProcessMaterialInput::SeparateTranslucency : EPostProcessMaterialInput::SceneColor));
 
 	check(VertexShader.IsValid());
 	check(PixelShader.IsValid());
@@ -902,7 +902,7 @@ FScreenPassTexture AddPostProcessMaterialPass(
 {
 	if (!ensureMsgf(View.bIsViewInfo, TEXT("AddPostProcessMaterialPass requires that its View parameter is an FViewInfo.")))
 	{
-		return Inputs.GetInput(EPostProcessMaterialInput::SceneColor);
+		return FScreenPassTexture::CopyFromSlice(GraphBuilder, Inputs.GetInput(EPostProcessMaterialInput::SceneColor));
 	}
 
 	return AddPostProcessMaterialPass(GraphBuilder, static_cast<const FViewInfo&>(View), Inputs, MaterialInterface);
@@ -988,13 +988,14 @@ FScreenPassTexture AddPostProcessMaterialChain(
 	const FPostProcessMaterialChain& Materials,
 	EPostProcessMaterialInput MaterialInput)
 {
-	FScreenPassTexture Outputs = InputsTemplate.GetInput(MaterialInput);
+	FScreenPassTextureSlice CurrentInput = InputsTemplate.GetInput(MaterialInput);
+	FScreenPassTexture Outputs;
 
 	bool bFirstMaterialInChain = true;
 	for (const UMaterialInterface* MaterialInterface : Materials)
 	{
 		FPostProcessMaterialInputs Inputs = InputsTemplate;
-		Inputs.SetInput(MaterialInput, Outputs);
+		Inputs.SetInput(MaterialInput, CurrentInput);
 		
 		// Only the first material in the chain needs to decode the input color
 		Inputs.bMetalMSAAHDRDecode = Inputs.bMetalMSAAHDRDecode && bFirstMaterialInChain;
@@ -1007,6 +1008,12 @@ FScreenPassTexture AddPostProcessMaterialChain(
 		}
 
 		Outputs = AddPostProcessMaterialPass(GraphBuilder, View, Inputs, MaterialInterface);
+		CurrentInput = FScreenPassTextureSlice::CreateFromScreenPassTexture(GraphBuilder, Outputs);
+	}
+
+	if (!Outputs.IsValid())
+	{
+		Outputs = FScreenPassTexture::CopyFromSlice(GraphBuilder, CurrentInput);
 	}
 
 	return Outputs;
@@ -1114,7 +1121,7 @@ FScreenPassTexture AddHighResolutionScreenshotMaskPass(
 	{
 		FPostProcessMaterialInputs PassInputs;
 		PassSequence.AcceptOverrideIfLastPass(EPass::Material, PassInputs.OverrideOutput);
-		PassInputs.SetInput(EPostProcessMaterialInput::SceneColor, Output);
+		PassInputs.SetInput(GraphBuilder, EPostProcessMaterialInput::SceneColor, Output);
 		PassInputs.SceneTextures = Inputs.SceneTextures;
 
 		Output = AddPostProcessMaterialPass(GraphBuilder, View, PassInputs, Inputs.Material);
@@ -1125,7 +1132,7 @@ FScreenPassTexture AddHighResolutionScreenshotMaskPass(
 		PassSequence.AcceptPass(EPass::MaskMaterial);
 
 		FPostProcessMaterialInputs PassInputs;
-		PassInputs.SetInput(EPostProcessMaterialInput::SceneColor, Output);
+		PassInputs.SetInput(GraphBuilder, EPostProcessMaterialInput::SceneColor, Output);
 		PassInputs.SceneTextures = Inputs.SceneTextures;
 
 		// Explicitly allocate the render target to match the FSceneView extents and rect, so the output pixel arrangement matches
@@ -1159,7 +1166,7 @@ FScreenPassTexture AddHighResolutionScreenshotMaskPass(
 	{
 		FPostProcessMaterialInputs PassInputs;
 		PassSequence.AcceptOverrideIfLastPass(EPass::CaptureRegionMaterial, PassInputs.OverrideOutput);
-		PassInputs.SetInput(EPostProcessMaterialInput::SceneColor, Output);
+		PassInputs.SetInput(GraphBuilder, EPostProcessMaterialInput::SceneColor, Output);
 		PassInputs.SceneTextures = Inputs.SceneTextures;
 
 		Output = AddPostProcessMaterialPass(GraphBuilder, View, PassInputs, Inputs.CaptureRegionMaterial);
