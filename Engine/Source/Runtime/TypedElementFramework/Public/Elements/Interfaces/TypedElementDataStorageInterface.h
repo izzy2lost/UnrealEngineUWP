@@ -22,6 +22,7 @@
 class UClass;
 class USubsystem;
 class UScriptStruct;
+class UTypedElementDataStorageFactory;
 
 struct ColumnDataResult
 {
@@ -87,6 +88,20 @@ class ITypedElementDataStorageInterface
 	GENERATED_BODY()
 
 public:
+	/**
+	 * @section Factories
+	 *
+	 * @description
+	 * Factories are an automated way to register tables, queries and other information with TEDS.
+	 */
+
+	/** Finds a factory instance registered with TEDS */
+	virtual const UTypedElementDataStorageFactory* FindFactory(const UClass* FactoryType) const = 0;
+
+	/** Convenience function for FindFactory */
+	template<typename FactoryT>
+	const FactoryT* FindFactory() const;
+	
 	/**
 	 * @section Table management
 	 * 
@@ -364,6 +379,12 @@ public:
 
 
 // Implementations
+
+template <typename FactoryT>
+const FactoryT* ITypedElementDataStorageInterface::FindFactory() const
+{
+	return GetFactory(FactoryT::StaticClass());
+}
 
 template<typename Column>
 bool ITypedElementDataStorageInterface::AddColumn(TypedElementRowHandle Row)

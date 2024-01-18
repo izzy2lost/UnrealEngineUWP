@@ -66,7 +66,7 @@ public:
 	FactoryConstIterator CreateFactoryIterator() const;
 
 	/** Returns factory instance given the type of factory */
-	const UTypedElementDataStorageFactory* FindFactory(const UClass* FactoryType) const;
+	const UTypedElementDataStorageFactory* FindFactory(const UClass* FactoryType) const override;
 	/** Helper for FindFactory(const UClass*) */
 	template<typename FactoryTypeT>
 	const FactoryTypeT* FindFactory() const;
