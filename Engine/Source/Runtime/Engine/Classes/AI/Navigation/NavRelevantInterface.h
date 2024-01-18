@@ -10,7 +10,7 @@
 #include "AI/Navigation/NavigationTypes.h"	//ENavDataGatheringMode
 #if UE_ENABLE_INCLUDE_ORDER_DEPRECATED_IN_5_4
 #include "AI/NavigationModifier.h"
-#include "AI/NavigationRelevantData.h"
+#include "AI/Navigation/NavigationRelevantData.h"
 #endif
 #include "NavRelevantInterface.generated.h"
 
