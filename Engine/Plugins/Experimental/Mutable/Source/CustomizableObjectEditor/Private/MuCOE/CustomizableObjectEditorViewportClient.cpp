@@ -2,6 +2,7 @@
 
 #include "MuCOE/CustomizableObjectEditorViewportClient.h"
 
+#include "MuCOE/CustomizableObjectInstanceBakingUtils.h"
 #include "Animation/DebugSkelMeshComponent.h"
 #include "Animation/PoseAsset.h"
 #include "Animation/AnimSingleNodeInstance.h"
@@ -12,6 +13,7 @@
 #include "Components/SpotLightComponent.h"
 #include "Components/StaticMeshComponent.h"
 #include "ContentBrowserModule.h"
+#include "CustomizableObjectEditor.h"
 #include "DynamicMeshBuilder.h"
 #include "Editor/EditorPerProjectUserSettings.h"
 #include "Editor/UnrealEdTypes.h"
@@ -19,13 +21,12 @@
 #include "FileHelpers.h"
 #include "IContentBrowserSingleton.h"
 #include "InputKeyEventArgs.h"
+#include "ObjectTools.h"
 #include "Materials/MaterialInstanceDynamic.h"
 #include "Misc/MessageDialog.h"
 #include "Misc/PackageName.h"
 #include "MuCO/CustomizableObjectInstance.h"
 #include "MuCO/CustomizableObjectSystem.h"
-#include "MuCO/CustomizableObjectMipDataProvider.h"
-#include "MuCOE/UnrealBakeHelpers.h"
 #include "MuCOE/CustomizableObjectPreviewScene.h"
 #include "MuCOE/ICustomizableObjectInstanceEditor.h"
 #include "MuCOE/Nodes/CustomizableObjectNodeMeshClipMorph.h"
@@ -34,17 +35,19 @@
 #include "MuCOE/Nodes/CustomizableObjectNodeProjectorParameter.h"
 #include "MuCOE/UnrealEditorPortabilityHelpers.h"
 #include "MuT/UnrealPixelFormatOverride.h"
-#include "ObjectTools.h"
 #include "Preferences/PersonaOptions.h"
 #include "ScopedTransaction.h"
 #include "SkeletalDebugRendering.h"
 #include "UnrealWidget.h"
+#include "Materials/MaterialInstanceConstant.h"
+#include "MuCO/CustomizableObjectMipDataProvider.h"
+#include "MuCOE/CustomizableObjectEditorLogger.h"
+#include "MuCOE/UnrealBakeHelpers.h"
 #include "MuCO/CustomizableObjectPrivate.h"
 #include "Widgets/Input/SButton.h"
 #include "Widgets/Input/SEditableTextBox.h"
 #include "Widgets/Layout/SUniformGridPanel.h"
 #include "Widgets/Notifications/SNotificationList.h"
-#include "Materials/MaterialInstanceConstant.h"
 
 class FMaterialRenderProxy;
 class UFont;
@@ -58,7 +61,6 @@ FCustomizableObjectEditorViewportClient::FCustomizableObjectEditorViewportClient
 	: FEditorViewportClient(&GLevelEditorModeTools(), InPreviewScene, EditorViewportWidget)
 	, CustomizableObjectEditorPtr(InCustomizableObjectEditor)
 	, CustomizableObject(nullptr)
-	, BakingOverwritePermission(false)
 {
 	// load config
 	ConfigOption = UPersonaOptions::StaticClass()->GetDefaultObject<UPersonaOptions>();
@@ -1580,8 +1582,8 @@ public:
 	/** FileName getter */
 	FString GetFileName();
 
-	bool GetExportAllResources();
-	bool GetGenerateConstantMaterialInstances();
+	bool GetExportAllResources() const;
+	bool GetGenerateConstantMaterialInstances() const;
 
 protected:
 	void OnPathChange(const FString& NewPath);
@@ -1600,664 +1602,765 @@ protected:
 
 //-------------------------------------------------------------------------------------------------
 
-void RemoveRestrictedChars(FString& String)
+// TODO: Move to CustomizableObjectInstanceBakingUtils.cpp after review to be able to enable testing commandlet
+namespace 
 {
-	// Remove restricted chars, according to FPaths::ValidatePath, RestrictedChars = "/?:&\\*\"<>|%#@^ ";
-
-	String = String.Replace(TEXT("/"), TEXT(""));
-	String = String.Replace(TEXT("?"), TEXT(""));
-	String = String.Replace(TEXT(":"), TEXT(""));
-	String = String.Replace(TEXT("&"), TEXT(""));
-	String = String.Replace(TEXT("\\"), TEXT(""));
-	String = String.Replace(TEXT("*"), TEXT(""));
-	String = String.Replace(TEXT("\""), TEXT(""));
-	String = String.Replace(TEXT("<"), TEXT(""));
-	String = String.Replace(TEXT(">"), TEXT(""));
-	String = String.Replace(TEXT("|"), TEXT(""));
-	String = String.Replace(TEXT("%"), TEXT(""));
-	String = String.Replace(TEXT("#"), TEXT(""));
-	String = String.Replace(TEXT("@"), TEXT(""));
-	String = String.Replace(TEXT("^"), TEXT(""));
-	String = String.Replace(TEXT(" "), TEXT(""));
-}
-
-
-//-------------------------------------------------------------------------------------------------
-void FCustomizableObjectEditorViewportClient::BakeInstance()
-{
-	BakeInstance(nullptr);
-}
-
-
-//-------------------------------------------------------------------------------------------------
-void FCustomizableObjectEditorViewportClient::BakeInstance(UCustomizableObjectInstance* InInstance)
-{
-	if (CustomizableObject->GetPrivate()->Status.Get() == FCustomizableObjectStatus::EState::Loading)
+	/**
+	 * Simple wrapper to be able to invoke the generation of a popup or log message depending on the execution context in which this code is being ran
+	 * @param InMessage The message to display
+	 * @param InTitle The title to be used for the popup or the log generated
+	 */
+	void ShowErrorNotification(const FText& InMessage,  const FText* InTitle = nullptr)
 	{
-		FNotificationInfo Info(NSLOCTEXT("CustomizableObjectEditor", "CustomizableObjectCompileTryLater_BakeInstance", "Please wait unitl Customizable Object is loaded"));
-		Info.bFireAndForget = true;
-		Info.bUseThrobber = true;
-		Info.FadeOutDuration = 1.0f;
-		Info.ExpireDuration = 2.0f;
-		FSlateNotificationManager::Get().AddNotification(Info);
-		return;
-	}
-
-	UCustomizableObjectInstance* Instance = InInstance ? InInstance : CustomizableObjectEditorPtr.Pin()->GetPreviewInstance();
-
-	UCustomizableObject* CustomizableObjectFromInstance = Instance ? Instance->GetCustomizableObject() : nullptr;
-
-	if (!CustomizableObjectFromInstance || CustomizableObjectFromInstance->IsLocked())
-	{
-		FNotificationInfo Info(NSLOCTEXT("CustomizableObjectEditor", "CustomizableObjectCompilingTryLater", "Please wait until the Customizable Object is compiled"));
-		Info.bFireAndForget = true;
-		Info.bUseThrobber = true;
-		Info.FadeOutDuration = 1.0f;
-		Info.ExpireDuration = 2.0f;
-		FSlateNotificationManager::Get().AddNotification(Info);
-		return;
-	}
-
-	if (!Instance->HasAnySkeletalMesh())
-	{
-		return;
-	}
-
-	UCustomizableObjectSystem* System = UCustomizableObjectSystem::GetInstance();
-	check(System);
-
-	if (!InInstance)
-	{
-		// The instance in the editor viewport does not have high quality mips in the platform data because streaming is enabled.
-		// Disable streaming and retry with a newly generated temp instance.
-		System->SetProgressiveMipStreamingEnabled(false);
-		// Disable requested LOD generation as it will prevent the new instance from having all the LODs
-		System->SetOnlyGenerateRequestedLODsEnabled(false);
-		// Force high quality texture compression for this instance
-		PrepareUnrealCompression();
-		System->SetImagePixelFormatOverride(UnrealPixelFormatFunc);
-
-		BakeTempInstance = Instance->Clone();
-		BakeTempInstance->UpdatedNativeDelegate.AddSP(this, &FCustomizableObjectEditorViewportClient::BakeInstance);
-		BakeTempInstance->UpdateSkeletalMeshAsync(true, true);
-
-		return;
-	}
-
-	// Warn if the CO looks like it wasn't compiled with high-quality texture compression.
-	// \TODO: This is a weak test, we should store the setting with the compiled data and check that instead.
-	UCustomizableObject* CO = Instance->GetCustomizableObject();
-	if (!CO)
-	{
-		// Something is very wrong
-		return;
-	}
-
-	if (CO->CompileOptions.TextureCompression!=ECustomizableObjectTextureCompression::HighQuality)
-	{
-		FNotificationInfo Info(NSLOCTEXT("CustomizableObjectEditor", "CustomizableObjectBakeLowQuality", "The Customizable Object wasn't compiled with high quality textures. For the best baking results, change the Texture Compression setting and recompile it."));
-		Info.bFireAndForget = true;
-		Info.bUseThrobber = true;
-		Info.FadeOutDuration = 1.0f;
-		Info.ExpireDuration = 6.0f;
-		FSlateNotificationManager::Get().AddNotification(Info);
-	}
-
-	FString ObjectName = CO->GetName();
-	FText DefaultFileName = FText::Format(LOCTEXT("DefaultFileNameForBakeInstance", "{0}"), FText::AsCultureInvariant(ObjectName));
-	bool bExportAllResources = false;
-	bool bGenerateConstantMaterialInstances = false;
-
-	TSharedRef<SMutableSelectFolderDlg> FolderDlg =
-		SNew(SMutableSelectFolderDlg)
-		.DefaultAssetPath(FText())
-		.DefaultFileName(DefaultFileName);
-
-	if (FolderDlg->ShowModal() != EAppReturnType::Cancel)
-	{
-		// Make sure we can create the asset without conflicts
-		//IAssetTools& AssetTools = FModuleManager::GetModuleChecked<FAssetToolsModule>("AssetTools").Get();
-		//if (!AssetTools.CanCreateAsset(ObjName, PkgName, LOCTEXT("BakeMutableInstance", "Baking a Mutable instance")))
-		//{
-		//	return;
-		//}
-
-		FString FileName = FolderDlg->GetFileName();
-		ObjectName = FileName;
-
-		TCHAR InvalidCharacter = '0';
-		FString InvalidCharacters = FPaths::GetInvalidFileSystemChars();
-
-		for (int32 i = 0; i < InvalidCharacters.Len(); ++i)
+		if (!FApp::IsUnattended())
 		{
-			TCHAR Char = InvalidCharacters[i];
-			FString SearchedChar = FString::Chr(Char);
-			if (ObjectName.Contains(SearchedChar))
-			{
-				InvalidCharacter = InvalidCharacters[i];
-				break;
-			}
-		}
-
-		bExportAllResources = FolderDlg->GetExportAllResources();
-		bGenerateConstantMaterialInstances = FolderDlg->GetGenerateConstantMaterialInstances();
-
-		BakingOverwritePermission = false;
-		FString CustomObjectPath = CO->GetPathName();
-		FString AssetPath = FolderDlg->GetAssetPath();
-		FString FullAssetPath = AssetPath + FString("/") + ObjectName + FString(".") + ObjectName;
-
-		if (InvalidCharacter != '0')
-		{
-			FText ErrorString = FText::FromString(FString::Chr(InvalidCharacter));
-			FMessageDialog::Open(EAppMsgType::Ok, FText::Format(LOCTEXT("FCustomizableObjectEditorViewportClient_BakeInstance_InvalidCharacter", "The selected contains an invalid character ({0})."), ErrorString));
-		}
-		else if (CustomObjectPath == FullAssetPath)
-		{
-			FMessageDialog::Open(EAppMsgType::Ok, LOCTEXT("FCustomizableObjectEditorViewportClient_BakeInstance_OverwriteCO", "The selected path would overwrite the instance's parent Customizable Object."));
+			FMessageDialog::Open(EAppMsgType::Ok, InMessage, *InTitle);
 		}
 		else
 		{
-			TArray<UPackage*> PackagesToSave;
-
-			const int32 NumComponents = Instance->GetNumComponents();
-			for (int32 ComponentIndex = 0; ComponentIndex < NumComponents; ++ComponentIndex)
+			if (InTitle)
 			{
-				USkeletalMesh* Mesh = Instance->GetSkeletalMesh(ComponentIndex);
-
-				if (!Mesh)
-				{
-					continue;
-				}
-
-				if (NumComponents > 1)
-				{
-					ObjectName = FileName + "_Component_" + FString::FromInt(ComponentIndex);
-				}
-
-				TMap<UObject*, UObject*> ReplacementMap;
-				TArray<FString> ArrayCachedElement;
-				TArray<UObject*> ArrayCachedObject;
-
-				if (bExportAllResources)
-				{
-					UMaterialInstance* Inst;
-					UMaterial* Material;
-					UTexture* Texture;
-					FString MaterialName;
-					FString ResourceName;
-					FString PackageName;
-					UObject* DuplicatedObject;
-					TArray<TMap<int, UTexture*>> TextureReplacementMaps;
-
-					// Duplicate Mutable generated textures
-					for (int32 m = 0; m < Mesh->GetMaterials().Num(); ++m)
-					{
-						UMaterialInterface* Interface = Mesh->GetMaterials()[m].MaterialInterface;
-						Material = Interface->GetMaterial();
-						MaterialName = Material ? Material->GetName() : "Material";
-						Inst = Cast<UMaterialInstance>(Mesh->GetMaterials()[m].MaterialInterface);
-
-						TMap<int, UTexture*> ReplacementTextures;
-						TextureReplacementMaps.Add(ReplacementTextures);
-
-						// The material will only have Mutable generated textures if it's actually a UMaterialInstance
-						if (Material != nullptr && Inst != nullptr)
-						{
-							TArray<FName> ParameterNames = FUnrealBakeHelpers::GetTextureParameterNames(Material);
-
-							for (int32 i = 0; i < ParameterNames.Num(); i++)
-							{
-								if (Inst->GetTextureParameterValue(ParameterNames[i], Texture))
-								{
-									UTexture2D* SrcTex = Cast<UTexture2D>(Texture);
-									if (!SrcTex) continue;
-
-									bool bIsMutableTexture = false;
-
-									for (UAssetUserData* UserData : *SrcTex->GetAssetUserDataArray())
-									{
-										UTextureMipDataProviderFactory* CustomMipDataProviderFactory = Cast<UMutableTextureMipDataProviderFactory>(UserData);
-										if (CustomMipDataProviderFactory)
-										{
-											bIsMutableTexture = true;
-										}
-									}
-
-									if ((SrcTex->GetPlatformData() != nullptr) &&
-										(SrcTex->GetPlatformData()->Mips.Num() > 0) &&
-										bIsMutableTexture)
-									{
-										FString ParameterSanitized = ParameterNames[i].GetPlainNameString();
-										RemoveRestrictedChars(ParameterSanitized);
-										ResourceName = ObjectName + "_" + MaterialName + "_" + ParameterSanitized;
-
-										if (!GetUniqueResourceName(SrcTex, ResourceName, ArrayCachedObject, ArrayCachedElement))
-										{
-											continue;
-										}
-
-										if (!ManageBakingAction(AssetPath, ResourceName))
-										{
-											return;
-										}
-
-										// Recover original name of the texture parameter value, now substituted by the generated Mutable texture
-										UTexture* OriginalTexture = nullptr;
-										UMaterialInstanceDynamic* InstDynamic = Cast<UMaterialInstanceDynamic>(Mesh->GetMaterials()[m].MaterialInterface);
-										if (InstDynamic != nullptr)
-										{
-											InstDynamic->Parent->GetTextureParameterValue(FName(*ParameterNames[i].GetPlainNameString()), OriginalTexture);
-										}
-										else
-										{
-											UMaterialInstanceConstant* InstConstant = Cast<UMaterialInstanceConstant>(Mesh->GetMaterials()[m].MaterialInterface);
-
-											if (InstConstant != nullptr)
-											{
-												InstConstant->Parent->GetTextureParameterValue(FName(*ParameterNames[i].GetPlainNameString()), OriginalTexture);
-											}
-										}
-
-										PackageName = FolderDlg->GetAssetPath() + FString("/") + ResourceName;
-										TMap<UObject*, UObject*> FakeReplacementMap;
-										UTexture2D* DupTex = FUnrealBakeHelpers::BakeHelper_CreateAssetTexture(SrcTex, ResourceName, PackageName, OriginalTexture, true, FakeReplacementMap, BakingOverwritePermission);
-										ArrayCachedElement.Add(ResourceName);
-										ArrayCachedObject.Add(DupTex);
-										PackagesToSave.Add(DupTex->GetPackage());
-
-										if (OriginalTexture != nullptr)
-										{
-											TextureReplacementMaps[m].Add(i, DupTex);
-										}
-									}
-								}
-							}
-						}
-					}
-
-					// Duplicate non-Mutable material textures
-					for (int32 m = 0; m < Mesh->GetMaterials().Num(); ++m)
-					{
-						UMaterialInterface* Interface = Mesh->GetMaterials()[m].MaterialInterface;
-						Material = Interface->GetMaterial();
-						MaterialName = Material ? Material->GetName() : "Material";
-
-						if (Material != nullptr)
-						{
-							TArray<FName> ParameterNames = FUnrealBakeHelpers::GetTextureParameterNames(Material);
-
-							for (int32 i = 0; i < ParameterNames.Num(); i++)
-							{
-								TArray<FMaterialParameterInfo> InfoArray;
-								TArray<FGuid> GuidArray;
-								Material->GetAllTextureParameterInfo(InfoArray, GuidArray);
-								
-								if (Material->GetTextureParameterValue(InfoArray[i], Texture))
-								{
-									FString ParameterSanitized = ParameterNames[i].GetPlainNameString();
-									RemoveRestrictedChars(ParameterSanitized);
-									ResourceName = ObjectName + "_" + MaterialName + "_" + ParameterSanitized;
-
-									if (ArrayCachedElement.Find(ResourceName) == INDEX_NONE)
-									{
-										if (!ManageBakingAction(AssetPath, ResourceName))
-										{
-											return;
-										}
-
-										PackageName = FolderDlg->GetAssetPath() + FString("/") + ResourceName;
-										TMap<UObject*, UObject*> FakeReplacementMap;
-										DuplicatedObject = FUnrealBakeHelpers::BakeHelper_DuplicateAsset(Texture, ResourceName, PackageName, true, FakeReplacementMap, BakingOverwritePermission, false);
-										ArrayCachedElement.Add(ResourceName);
-										ArrayCachedObject.Add(DuplicatedObject);
-										PackagesToSave.Add(DuplicatedObject->GetPackage());
-
-										UTexture* DupTexture = Cast<UTexture>(DuplicatedObject);
-										TextureReplacementMaps[m].Add(i, DupTexture);
-									}
-								}
-							}
-						}
-					}
-
-
-					// Duplicate the materials used by each material instance so that the replacement map has proper information 
-					// when duplicating the material instances
-					for (int32 m = 0; m < Mesh->GetMaterials().Num(); ++m)
-					{
-						UMaterialInterface* Interface = Mesh->GetMaterials()[m].MaterialInterface;
-						Material = Interface ? Interface->GetMaterial() : nullptr;
-
-						if (Material)
-						{
-							ResourceName = ObjectName + "_Material_" + Material->GetName();
-
-							if (!GetUniqueResourceName(Material, ResourceName, ArrayCachedObject, ArrayCachedElement))
-							{
-								continue;
-							}
-
-							if (!ManageBakingAction(AssetPath, ResourceName))
-							{
-								return;
-							}
-
-							PackageName = FolderDlg->GetAssetPath() + FString("/") + ResourceName;
-							TMap<UObject*, UObject*> FakeReplacementMap;
-							DuplicatedObject = FUnrealBakeHelpers::BakeHelper_DuplicateAsset(Material, ResourceName, PackageName, 
-								false, FakeReplacementMap, BakingOverwritePermission, bGenerateConstantMaterialInstances);
-							ArrayCachedElement.Add(ResourceName);
-							ArrayCachedObject.Add(DuplicatedObject);
-							ReplacementMap.Add(Interface, DuplicatedObject);
-							PackagesToSave.Add(DuplicatedObject->GetPackage());
-
-							FUnrealBakeHelpers::CopyAllMaterialParameters(DuplicatedObject, Interface, TextureReplacementMaps[m]);
-						}
-					}
-				}
-				else
-				{
-					// Duplicate the material instances
-					for (int32 MaterialIndex = 0; MaterialIndex < Mesh->GetMaterials().Num(); ++MaterialIndex)
-					{
-						UMaterialInterface* Interface = Mesh->GetMaterials()[MaterialIndex].MaterialInterface;
-						UMaterial* ParentMaterial = Interface->GetMaterial();
-						FString MaterialName = ParentMaterial ? ParentMaterial->GetName() : "Material";
-
-						// Material
-						FString MatObjName = ObjectName + "_" + MaterialName;
-
-						if (!GetUniqueResourceName(Interface, MatObjName, ArrayCachedObject, ArrayCachedElement))
-						{
-							continue;
-						}
-
-						if (!ManageBakingAction(AssetPath, MatObjName))
-						{
-							return;
-						}
-
-						FString MatPkgName = FolderDlg->GetAssetPath() + FString("/") + MatObjName;
-						UObject* DupMat = FUnrealBakeHelpers::BakeHelper_DuplicateAsset(Interface, MatObjName, 
-							MatPkgName, false, ReplacementMap, BakingOverwritePermission, bGenerateConstantMaterialInstances);
-						ArrayCachedObject.Add(DupMat);
-						ArrayCachedElement.Add(MatObjName);
-						PackagesToSave.Add(DupMat->GetPackage());
-
-						UMaterialInstance* Inst = Cast<UMaterialInstance>(Interface);
-
-						// Only need to duplicate the generate textures if the original material is a dynamic instance
-						// If the material has Mutable textures, then it will be a dynamic material instance for sure
-						if (Inst)
-						{
-							// Duplicate generated textures
-							UMaterialInstanceDynamic* InstDynamic = Cast<UMaterialInstanceDynamic>(DupMat);
-							UMaterialInstanceConstant* InstConstant = Cast<UMaterialInstanceConstant>(DupMat);
-
-							if (InstDynamic || InstConstant)
-							{
-								for (int32 TextureIndex = 0; TextureIndex < Inst->TextureParameterValues.Num(); ++TextureIndex)
-								{
-									if (Inst->TextureParameterValues[TextureIndex].ParameterValue)
-									{
-										if (Inst->TextureParameterValues[TextureIndex].ParameterValue->HasAnyFlags(RF_Transient))
-										{
-											UTexture2D* SrcTex = Cast<UTexture2D>(Inst->TextureParameterValues[TextureIndex].ParameterValue);
-
-											if (SrcTex)
-											{
-												FString ParameterSanitized = Inst->TextureParameterValues[TextureIndex].ParameterInfo.Name.ToString();
-												RemoveRestrictedChars(ParameterSanitized);
-
-												FString TexObjName = ObjectName + "_" + MaterialName + "_" + ParameterSanitized;
-
-												if (!GetUniqueResourceName(SrcTex, TexObjName, ArrayCachedObject, ArrayCachedElement))
-												{
-													UTexture* PrevTexture = Cast<UTexture>(ArrayCachedObject[ArrayCachedElement.Find(TexObjName)]);
-
-													if (InstDynamic)
-													{
-														InstDynamic->SetTextureParameterValue(Inst->TextureParameterValues[TextureIndex].ParameterInfo.Name, PrevTexture);
-													}
-													else if (InstConstant)
-													{
-														InstConstant->SetTextureParameterValueEditorOnly(Inst->TextureParameterValues[TextureIndex].ParameterInfo.Name, PrevTexture);
-													}
-													
-													continue;
-												}
-
-												if (!ManageBakingAction(AssetPath, TexObjName))
-												{
-													return;
-												}
-
-												FString TexPkgName = FolderDlg->GetAssetPath() + FString("/") + TexObjName;
-												TMap<UObject*, UObject*> FakeReplacementMap;
-												UTexture2D* DupTex = FUnrealBakeHelpers::BakeHelper_CreateAssetTexture(SrcTex, TexObjName, TexPkgName, nullptr, false, FakeReplacementMap, BakingOverwritePermission);
-												ArrayCachedObject.Add(DupTex);
-												ArrayCachedElement.Add(TexObjName);
-												PackagesToSave.Add(DupTex->GetPackage());
-
-												if (InstDynamic)
-												{
-													InstDynamic->SetTextureParameterValue(Inst->TextureParameterValues[TextureIndex].ParameterInfo.Name, DupTex);
-												}
-												else if(InstConstant)
-												{
-													InstConstant->SetTextureParameterValueEditorOnly(Inst->TextureParameterValues[TextureIndex].ParameterInfo.Name, DupTex);
-												}
-											}
-											else
-											{
-												UE_LOG(LogMutable, Error, TEXT("A Mutable texture that is not a Texture2D has been found while baking a CustomizableObjectInstance."));
-											}
-										}
-										else
-										{
-											// If it's not transient it's not a mutable texture, it's a pass-through texture
-											// Just set the original texture
-											if (InstDynamic)
-											{
-												InstDynamic->SetTextureParameterValue(Inst->TextureParameterValues[TextureIndex].ParameterInfo.Name, Inst->TextureParameterValues[TextureIndex].ParameterValue);
-											}
-											else if (InstConstant)
-											{
-												InstConstant->SetTextureParameterValueEditorOnly(Inst->TextureParameterValues[TextureIndex].ParameterInfo.Name, Inst->TextureParameterValues[TextureIndex].ParameterValue);
-											}
-										}
-									}
-								}
-							}
-						}
-					}
-				}
-				
-				// Skeletal Mesh's Skeleton
-				if (Mesh->GetSkeleton())
-				{
-					const bool bTransient = Mesh->GetSkeleton()->GetPackage() == GetTransientPackage();
-
-					// Don't duplicate if not transient or export all assets.
-					if (bTransient || bExportAllResources)
-					{
-						FString SkeletonName = ObjectName + "_Skeleton";
-						if (!ManageBakingAction(AssetPath, SkeletonName))
-						{
-							return;
-						}
-
-						FString SkeletonPkgName = FolderDlg->GetAssetPath() + FString("/") + SkeletonName;
-						UObject* DuplicatedSkeleton = FUnrealBakeHelpers::BakeHelper_DuplicateAsset(Mesh->GetSkeleton(), SkeletonName, 
-							SkeletonPkgName, false, ReplacementMap, BakingOverwritePermission, false);
-
-						ArrayCachedObject.Add(DuplicatedSkeleton);
-						PackagesToSave.Add(DuplicatedSkeleton->GetPackage());
-						ReplacementMap.Add(Mesh->GetSkeleton(), DuplicatedSkeleton);
-					}
-				}
-
-				// Skeletal Mesh
-				if (!ManageBakingAction(AssetPath, ObjectName))
-				{
-					return;
-				}
-
-				FString PkgName = FolderDlg->GetAssetPath() + FString("/") + ObjectName;
-				UObject* DupObject = FUnrealBakeHelpers::BakeHelper_DuplicateAsset(Mesh, ObjectName, PkgName, 
-					false, ReplacementMap, BakingOverwritePermission, false);
-				ArrayCachedObject.Add(DupObject);
-				PackagesToSave.Add(DupObject->GetPackage());
-
-				Mesh->Build();
-
-				USkeletalMesh* SkeletalMesh = Cast<USkeletalMesh>(DupObject);
-				if (SkeletalMesh)
-				{
-					SkeletalMesh->GetLODInfoArray() = Mesh->GetLODInfoArray();
-
-					SkeletalMesh->GetImportedModel()->SkeletalMeshModelGUID = FGuid::NewGuid();
-
-					// Duplicate AssetUserData
-					{
-						const TArray<UAssetUserData*>* AssetUserDataArray = Mesh->GetAssetUserDataArray();
-						for (const UAssetUserData* AssetUserData : *AssetUserDataArray)
-						{
-							if (AssetUserData)
-							{
-								// Duplicate to change ownership
-								UAssetUserData* NewAssetUserData = Cast<UAssetUserData>(StaticDuplicateObject(AssetUserData, SkeletalMesh));
-								SkeletalMesh->AddAssetUserData(NewAssetUserData);
-							}
-						}
-					}
-
-					// Generate render data
-					SkeletalMesh->Build();
-				}
-
-				// Remove duplicated UObjects from Root (previously added to avoid objects from beeing GC in the middle of the bake process)
-				for (UObject* Obj : ArrayCachedObject)
-				{
-					Obj->RemoveFromRoot();
-				}
+				UE_LOG(LogMutable, Error, TEXT("%s - %s"), *InTitle->ToString(), *InMessage.ToString());
 			}
-
-			if (PackagesToSave.Num())
+			else
 			{
-				FEditorFileUtils::PromptForCheckoutAndSave(PackagesToSave, false, true);
+				UE_LOG(LogMutable, Error, TEXT("%s"), *InMessage.ToString());
 			}
 		}
 	}
 
-	if (InInstance)
-	{
-		// Reenable Mutable texture streaming and requested LOD generation as they had been disabled to bake the textures
-		System->SetProgressiveMipStreamingEnabled(true);
-		System->SetOnlyGenerateRequestedLODsEnabled(true);
-		System->SetImagePixelFormatOverride(nullptr);
-		BakeTempInstance = nullptr;
-	}
-}
+	/**
+	 * Utility functions for the baking operation.
+	 */
 
-
-bool FCustomizableObjectEditorViewportClient::GetUniqueResourceName(UObject* Resource, FString& ResourceName, TArray<UObject*>& InCachedResources, TArray<FString>& InCachedResourceNames)
-{
-	int32 FindResult = InCachedResourceNames.Find(ResourceName);
-	if (FindResult != INDEX_NONE)
+	/**
+	 * Validates the filename chosen for the baking data
+	 * @param FileName The filename chosen by the user
+	 * @return True if validation was successful, false otherwise
+	 */
+	bool ValidateProvidedFileName(const FString& FileName)
 	{
-		if (Resource == InCachedResources[FindResult])
+		if (FileName.IsEmpty())
 		{
+			UE_LOG(LogMutable, Error, TEXT("Invalid baking configuration : FileName string is empty.."));
 			return false;
 		}
 
-		uint32 Count = 0;
-		while (FindResult != INDEX_NONE)
+		// Check for invalid characters in the name of the object to be serialized
 		{
-			FindResult = InCachedResourceNames.Find(ResourceName + "_" + FString::FromInt(Count));
-			Count++;
-		}
-
-		ResourceName += "_" + FString::FromInt(--Count);
-	}
-
-	return true;
-}
-
-
-bool FCustomizableObjectEditorViewportClient::ManageBakingAction(const FString& Path, const FString& ObjName)
-{
-	FString PackagePath = Path + "/" + ObjName;
-	UPackage* ExistingPackage = FindPackage(NULL, *PackagePath);
-
-	if (!ExistingPackage)
-	{
-		FString PackageFilePath = PackagePath + "." + ObjName;
-
-		FString PackageFileName;
-		if (FPackageName::DoesPackageExist(PackageFilePath, &PackageFileName))
-		{
-			ExistingPackage = LoadPackage(nullptr, *PackageFileName, LOAD_EditorOnly);
-		}
-		else
-		{
-			// if package does not exists
-			BakingOverwritePermission = false;
-			return true;
-		}
-	}
-
-	if (ExistingPackage)
-	{
-		// Checking if the asset is open in an editor
-		TArray<IAssetEditorInstance*> ObjectEditors = GEditor->GetEditorSubsystem<UAssetEditorSubsystem>()->FindEditorsForAssetAndSubObjects(ExistingPackage);
-		if (ObjectEditors.Num())
-		{
-			for (IAssetEditorInstance* ObjectEditorInstance : ObjectEditors)
+			TCHAR InvalidCharacter = '0';
 			{
-				// Close the editors that contains this asset
-				if (!ObjectEditorInstance->CloseWindow(EAssetEditorCloseReason::AssetEditorHostClosed))
+				FString InvalidCharacters = FPaths::GetInvalidFileSystemChars();
+				for (int32 i = 0; i < InvalidCharacters.Len(); ++i)
 				{
-					FText Caption = LOCTEXT("OpenExisitngFile", "Open File");
-					FText Message = FText::Format(LOCTEXT("CantCloseAsset", "This Obejct \"{0}\" is open in an editor and can't be closed automatically. Please close the editor and try to bake it again"), FText::FromString(ObjName));
-
-					FMessageDialog::Open(EAppMsgType::Ok, Message, Caption);
-
-					return false;
+					TCHAR Char = InvalidCharacters[i];
+					FString SearchedChar = FString::Chr(Char);
+					if (FileName.Contains(SearchedChar))
+					{
+						InvalidCharacter = InvalidCharacters[i];
+						break;
+					}
 				}
+			}
+
+			if (InvalidCharacter != '0')
+			{
+				const FText InvalidCharacterText = FText::FromString(FString::Chr(InvalidCharacter));
+				const FText ErrorText = FText::Format(LOCTEXT("FCustomizableObjectEditorViewportClient_BakeInstance_InvalidCharacter", "The selected contains an invalid character ({0})."), InvalidCharacterText);
+
+				ShowErrorNotification(ErrorText);
+			
+				return false;
 			}
 		}
 
-		if (!BakingOverwritePermission)
+		return true;
+	}
+
+
+	/**
+	 * Validates the AssetPath chosen for the baking data
+	 * @param FileName The filename chosen by the user
+	 * @param AssetPath The AssetPath chosen by the user
+	 * @param InstanceCO The CustomizableObject from the provided COI
+	 * @return True if validation was successful, false otherwise
+	 */
+	bool ValidateProvidedAssetPath(const FString& FileName, const FString& AssetPath, const UCustomizableObject* InstanceCO)
+	{
+		if (AssetPath.IsEmpty())
 		{
-			FText Caption = LOCTEXT("Already existing baked files", "Already existing baked files");
-			FText Message = FText::Format(LOCTEXT("OverwriteBakedInstance", "Instance baked files already exist in selected destination \"{0}\", this action will overwrite them."), FText::AsCultureInvariant(Path));
+			UE_LOG(LogMutable, Error, TEXT("The AssetPath can not be empty!"));
+			return false;
+		}
+
+		// Ensure we are not overriding the parent CO
+		const FString FullAssetPath = AssetPath + FString("/") + FileName + FString(".") + FileName;		// Full asset path to the new asset we want to create
+		const bool bWouldOverrideParentCO = InstanceCO->GetPathName() == FullAssetPath;
+		if (bWouldOverrideParentCO)
+		{
+			const FText ErrorText = LOCTEXT("FCustomizableObjectEditorViewportClient_BakeInstance_OverwriteCO", "The selected path would overwrite the instance's parent Customizable Object.");
+
+			ShowErrorNotification(ErrorText);
 			
-			if (FMessageDialog::Open(EAppMsgType::OkCancel, Message, Caption) == EAppReturnType::Cancel)
+			return false;
+		}
+
+		return true;
+	}
+
+
+	/**
+	 * Outputs a string that we know it is unique.
+	 * @param InResource The resource we are working with
+	 * @param ResourceName The name of the resource we have provided. This should have the name of the current resource and will have the unique name for the resource once the method exits
+	 * @param InCachedResources Collection with all the already processed resources.
+	 * @param InCachedResourceNames Collection with all the already processed resources name's
+	 * @return True if the generation of the unique resource name was successful, false otherwise.
+	 */
+	bool GetUniqueResourceName(const UObject* InResource, FString& ResourceName, TArray<UObject*>& InCachedResources, const TArray<FString>& InCachedResourceNames)
+	{
+		check(InResource);
+
+		int32 FindResult = InCachedResourceNames.Find(ResourceName);
+		if (FindResult != INDEX_NONE)
+		{
+			if (InResource == InCachedResources[FindResult])
 			{
 				return false;
 			}
 
-			BakingOverwritePermission = true;
+			uint32 Count = 0;
+			while (FindResult != INDEX_NONE)
+			{
+				FindResult = InCachedResourceNames.Find(ResourceName + "_" + FString::FromInt(Count));
+				Count++;
+			}
+
+			ResourceName += "_" + FString::FromInt(--Count);
 		}
 
-		UObject* ExistingObject = StaticFindObject(UObject::StaticClass(), ExistingPackage, *ObjName);
-		if (ExistingObject)
+		return true;
+	}
+
+
+	/**
+	 * Ensures the resource we want to save is ready to be saved. It handles closing it's editor and warning the user about possible overriding of resources.
+	 * @param InAssetSavePath The directory path where to save the baked object
+	 * @param InObjName The name of the object to be baked
+	 * @param bUsedGrantedOverridingRights Control flag that determines if the user has given or not permission to override resources already in disk
+	 * @return True if the operation was successful, false otherwise
+	 */
+	bool ManageBakingAction(const FString& InAssetSavePath, const FString& InObjName, bool& bUsedGrantedOverridingRights)
+	{
+		FString PackagePath = InAssetSavePath + "/" + InObjName;
+		UPackage* ExistingPackage = FindPackage(NULL, *PackagePath);
+
+		if (!ExistingPackage)
 		{
-			ExistingPackage->FullyLoad();
+			FString PackageFilePath = PackagePath + "." + InObjName;
 
-			TArray<UObject*> ObjectsToDelete;
-			ObjectsToDelete.Add(ExistingObject);
+			FString PackageFileName;
+			if (FPackageName::DoesPackageExist(PackageFilePath, &PackageFileName))
+			{
+				ExistingPackage = LoadPackage(nullptr, *PackageFileName, LOAD_EditorOnly);
+			}
+			else
+			{
+				// if package does not exists
+				bUsedGrantedOverridingRights = false;
+				return true;
+			}
+		}
 
-			// Delete objects in the package with the same name as the one we want to create
-			const uint32 NumObjectsDeleted = ObjectTools::ForceDeleteObjects(ObjectsToDelete, false);
+		if (ExistingPackage)
+		{
+			// Checking if the asset is open in an editor
+			TArray<IAssetEditorInstance*> ObjectEditors = GEditor->GetEditorSubsystem<UAssetEditorSubsystem>()->FindEditorsForAssetAndSubObjects(ExistingPackage);
+			if (ObjectEditors.Num())
+			{
+				for (IAssetEditorInstance* ObjectEditorInstance : ObjectEditors)
+				{
+					// Close the editors that contains this asset
+					if (!ObjectEditorInstance->CloseWindow(EAssetEditorCloseReason::AssetEditorHostClosed))
+					{
+						const FText Caption = LOCTEXT("OpenExisitngFile", "Open File");
+						const FText Message = FText::Format(LOCTEXT("CantCloseAsset", "This Obejct \"{0}\" is open in an editor and can't be closed automatically. Please close the editor and try to bake it again"), FText::FromString(InObjName));
 
-			return NumObjectsDeleted == ObjectsToDelete.Num();
+						ShowErrorNotification(Message, &Caption);
+						
+						return false;
+					}
+				}
+			}
+
+			if (!bUsedGrantedOverridingRights)
+			{
+				const FText Caption = LOCTEXT("Already existing baked files", "Already existing baked files");
+				const FText Message = FText::Format(LOCTEXT("OverwriteBakedInstance", "Instance baked files already exist in selected destination \"{0}\", this action will overwrite them."), FText::AsCultureInvariant(InAssetSavePath));
+
+				// We need to guard this case since it may crash the editor if we are running an unattended commandlet and we try to generate this dialog
+				if (!FApp::IsUnattended())
+				{
+					if (FMessageDialog::Open(EAppMsgType::OkCancel, Message, Caption) == EAppReturnType::Cancel)
+					{
+						return false;
+					}
+				}
+				else
+				{
+					UE_LOG(LogMutable, Error, TEXT("%s - %s"), *Caption.ToString(), *Message.ToString());
+				}
+
+
+				bUsedGrantedOverridingRights = true;
+			}
+
+			UObject* ExistingObject = StaticFindObject(UObject::StaticClass(), ExistingPackage, *InObjName);
+			if (ExistingObject)
+			{
+				ExistingPackage->FullyLoad();
+
+				TArray<UObject*> ObjectsToDelete;
+				ObjectsToDelete.Add(ExistingObject);
+
+				// Delete objects in the package with the same name as the one we want to create
+				const uint32 NumObjectsDeleted = ObjectTools::ForceDeleteObjects(ObjectsToDelete, false);
+
+				return NumObjectsDeleted == ObjectsToDelete.Num();
+			}
+		}
+
+		return true;
+	}
+}
+
+
+
+void FCustomizableObjectEditorViewportClient::BakeInstance()
+{
+	// Early exit if no instance is set in the editor 
+	UCustomizableObjectInstance* Instance = CustomizableObjectEditorPtr.Pin()->GetPreviewInstance();
+	if (!Instance)
+	{
+		UE_LOG(LogMutable, Error, TEXT("No Mutable Customizable Object Instnace was found in the current editor."));
+		return;
+	}
+	BakeTempInstance = Instance->Clone();
+
+	// Call the instance update async method
+	FInstanceUpdateNativeDelegate UpdateDelegate;
+	UpdateDelegate.AddRaw(this, &FCustomizableObjectEditorViewportClient::OnInstanceForBakingUpdate);
+	UpdateInstanceForBaking(*BakeTempInstance, UpdateDelegate);
+}
+
+
+void BakeCustomizableObjectInstance(
+	UCustomizableObjectInstance& InInstance,
+	const FString& FileName,
+	const FString& AssetPath,
+	const bool bExportAllResources,
+	const bool bGenerateConstantMaterialInstances)
+{
+	// Ensure that the state of the COI provided is valid --------------------------------------------------------------------------------------------
+	UCustomizableObject* InstanceCO = InInstance.GetCustomizableObject();
+	check (InstanceCO);
+	
+	if (InstanceCO->GetPrivate()->Status.Get() == FCustomizableObjectStatus::EState::Loading)
+	{
+		FCustomizableObjectEditorLogger::CreateLog(
+			LOCTEXT("CustomizableObjectCompileTryLater_BakeInstance","Please wait unitl Customizable Object is loaded"))
+		.Category(ELoggerCategory::COInstanceBaking)
+		.CustomNotification()
+		.Notification(true)
+		.Log();
+
+		return;
+	}
+	
+	if (!ValidateProvidedFileName(FileName))
+	{
+		UE_LOG(LogMutable, Error, TEXT("The FileName for the instance baking is not valid."));
+		return;
+	}
+
+	if (!ValidateProvidedAssetPath(FileName,AssetPath,InstanceCO))
+	{
+		UE_LOG(LogMutable, Error, TEXT("The AssetPath for the instance baking is not valid."));
+		return;
+	}
+	
+	// Ensure the CO of the COI is accessible 
+	if (!InstanceCO || InstanceCO->IsLocked())
+	{
+		FCustomizableObjectEditorLogger::CreateLog(
+		LOCTEXT("CustomizableObjectCompilingTryLater_Baking", "Please wait until the Customizable Object is compiled"))
+		.Category(ELoggerCategory::COInstanceBaking)
+		.CustomNotification()
+		.Notification(true)
+		.Log();
+
+		return;
+	}
+	
+	// Exit early if the provided instance does not have a skeletal mesh
+	if (!InInstance.HasAnySkeletalMesh())
+	{
+		return;
+	}
+
+	// COI Validation completed : Proceed with the baking operation ----------------------------------------------------------------------------------
+	
+	// Notify of better configuration -> Continue operation normally
+	if (InstanceCO->CompileOptions.TextureCompression != ECustomizableObjectTextureCompression::HighQuality)
+	{
+		FCustomizableObjectEditorLogger::CreateLog(
+		LOCTEXT("CustomizableObjectBakeLowQuality", "The Customizable Object wasn't compiled with high quality textures. For the best baking results, change the Texture Compression setting and recompile it."))
+		.Category(ELoggerCategory::COInstanceBaking)
+		.CustomNotification()
+		.Notification(true)
+		.Log();
+	}
+	
+	
+	// Set the overriding flag to false wo we ask the user at least once about if he is willing to override old baked data
+	bool bUsedGrantedOverridingRights = false;
+
+	TArray<UPackage*> PackagesToSave;
+
+	const int32 NumComponents = InInstance.GetNumComponents();
+	for (int32 ComponentIndex = 0; ComponentIndex < NumComponents; ++ComponentIndex)
+	{
+		USkeletalMesh* Mesh = InInstance.GetSkeletalMesh(ComponentIndex);
+
+		if (!Mesh)
+		{
+			continue;
+		}
+
+		FString ObjectName = FileName;
+		if (NumComponents > 1)
+		{
+			ObjectName = FileName + "_Component_" + FString::FromInt(ComponentIndex);
+		}
+
+		TMap<UObject*, UObject*> ReplacementMap;
+		TArray<FString> ArrayCachedElement;
+		TArray<UObject*> ArrayCachedObject;
+
+		if (bExportAllResources)
+		{
+			UMaterialInstance* Inst;
+			UMaterial* Material;
+			UTexture* Texture;
+			FString MaterialName;
+			FString ResourceName;
+			FString PackageName;
+			UObject* DuplicatedObject;
+			TArray<TMap<int, UTexture*>> TextureReplacementMaps;
+
+			// Duplicate Mutable generated textures
+			for (int32 m = 0; m < Mesh->GetMaterials().Num(); ++m)
+			{
+				UMaterialInterface* Interface = Mesh->GetMaterials()[m].MaterialInterface;
+				Material = Interface->GetMaterial();
+				MaterialName = Material ? Material->GetName() : "Material";
+				Inst = Cast<UMaterialInstance>(Mesh->GetMaterials()[m].MaterialInterface);
+
+				TMap<int, UTexture*> ReplacementTextures;
+				TextureReplacementMaps.Add(ReplacementTextures);
+
+				// The material will only have Mutable generated textures if it's actually a UMaterialInstance
+				if (Material != nullptr && Inst != nullptr)
+				{
+					TArray<FName> ParameterNames = FUnrealBakeHelpers::GetTextureParameterNames(Material);
+
+					for (int32 i = 0; i < ParameterNames.Num(); i++)
+					{
+						if (Inst->GetTextureParameterValue(ParameterNames[i], Texture))
+						{
+							UTexture2D* SrcTex = Cast<UTexture2D>(Texture);
+							if (!SrcTex) continue;
+
+							bool bIsMutableTexture = false;
+
+							for (UAssetUserData* UserData : *SrcTex->GetAssetUserDataArray())
+							{
+								UTextureMipDataProviderFactory* CustomMipDataProviderFactory = Cast<UMutableTextureMipDataProviderFactory>(UserData);
+								if (CustomMipDataProviderFactory)
+								{
+									bIsMutableTexture = true;
+								}
+							}
+
+							if ((SrcTex->GetPlatformData() != nullptr) &&
+								(SrcTex->GetPlatformData()->Mips.Num() > 0) &&
+								bIsMutableTexture)
+							{
+								FString ParameterSanitized = ParameterNames[i].GetPlainNameString();
+								RemoveRestrictedChars(ParameterSanitized);
+								ResourceName = ObjectName + "_" + MaterialName + "_" + ParameterSanitized;
+
+								if (!GetUniqueResourceName(SrcTex, ResourceName, ArrayCachedObject, ArrayCachedElement))
+								{
+									continue;
+								}
+
+								if (!ManageBakingAction(AssetPath, ResourceName, bUsedGrantedOverridingRights))
+								{
+									return;
+								}
+
+								// Recover original name of the texture parameter value, now substituted by the generated Mutable texture
+								UTexture* OriginalTexture = nullptr;
+								UMaterialInstanceDynamic* InstDynamic = Cast<UMaterialInstanceDynamic>(Mesh->GetMaterials()[m].MaterialInterface);
+								if (InstDynamic != nullptr)
+								{
+									InstDynamic->Parent->GetTextureParameterValue(FName(*ParameterNames[i].GetPlainNameString()), OriginalTexture);
+								}
+								else
+								{
+									UMaterialInstanceConstant* InstConstant = Cast<UMaterialInstanceConstant>(Mesh->GetMaterials()[m].MaterialInterface);
+
+									if (InstConstant != nullptr)
+									{
+										InstConstant->Parent->GetTextureParameterValue(FName(*ParameterNames[i].GetPlainNameString()), OriginalTexture);
+									}
+								}
+
+								PackageName = AssetPath + FString("/") + ResourceName;
+								TMap<UObject*, UObject*> FakeReplacementMap;
+								UTexture2D* DupTex = FUnrealBakeHelpers::BakeHelper_CreateAssetTexture(SrcTex, ResourceName, PackageName, OriginalTexture, true, FakeReplacementMap, bUsedGrantedOverridingRights);
+								ArrayCachedElement.Add(ResourceName);
+								ArrayCachedObject.Add(DupTex);
+								PackagesToSave.Add(DupTex->GetPackage());
+
+								if (OriginalTexture != nullptr)
+								{
+									TextureReplacementMaps[m].Add(i, DupTex);
+								}
+							}
+						}
+					}
+				}
+			}
+
+			// Duplicate non-Mutable material textures
+			for (int32 m = 0; m < Mesh->GetMaterials().Num(); ++m)
+			{
+				UMaterialInterface* Interface = Mesh->GetMaterials()[m].MaterialInterface;
+				Material = Interface->GetMaterial();
+				MaterialName = Material ? Material->GetName() : "Material";
+
+				if (Material != nullptr)
+				{
+					TArray<FName> ParameterNames = FUnrealBakeHelpers::GetTextureParameterNames(Material);
+
+					for (int32 i = 0; i < ParameterNames.Num(); i++)
+					{
+						TArray<FMaterialParameterInfo> InfoArray;
+						TArray<FGuid> GuidArray;
+						Material->GetAllTextureParameterInfo(InfoArray, GuidArray);
+						
+						if (Material->GetTextureParameterValue(InfoArray[i], Texture))
+						{
+							FString ParameterSanitized = ParameterNames[i].GetPlainNameString();
+							RemoveRestrictedChars(ParameterSanitized);
+							ResourceName = ObjectName + "_" + MaterialName + "_" + ParameterSanitized;
+
+							if (ArrayCachedElement.Find(ResourceName) == INDEX_NONE)
+							{
+								if (!ManageBakingAction(AssetPath, ResourceName, bUsedGrantedOverridingRights))
+								{
+									return;
+								}
+
+								PackageName = AssetPath + FString("/") + ResourceName;
+								TMap<UObject*, UObject*> FakeReplacementMap;
+								DuplicatedObject = FUnrealBakeHelpers::BakeHelper_DuplicateAsset(Texture, ResourceName, PackageName, true, FakeReplacementMap, bUsedGrantedOverridingRights, false);
+								ArrayCachedElement.Add(ResourceName);
+								ArrayCachedObject.Add(DuplicatedObject);
+								PackagesToSave.Add(DuplicatedObject->GetPackage());
+
+								UTexture* DupTexture = Cast<UTexture>(DuplicatedObject);
+								TextureReplacementMaps[m].Add(i, DupTexture);
+							}
+						}
+					}
+				}
+			}
+
+
+			// Duplicate the materials used by each material instance so that the replacement map has proper information 
+			// when duplicating the material instances
+			for (int32 m = 0; m < Mesh->GetMaterials().Num(); ++m)
+			{
+				UMaterialInterface* Interface = Mesh->GetMaterials()[m].MaterialInterface;
+				Material = Interface ? Interface->GetMaterial() : nullptr;
+
+				if (Material)
+				{
+					ResourceName = ObjectName + "_Material_" + Material->GetName();
+
+					if (!GetUniqueResourceName(Material, ResourceName, ArrayCachedObject, ArrayCachedElement))
+					{
+						continue;
+					}
+
+					if (!ManageBakingAction(AssetPath, ResourceName, bUsedGrantedOverridingRights))
+					{
+						return;
+					}
+
+					PackageName = AssetPath + FString("/") + ResourceName;
+					TMap<UObject*, UObject*> FakeReplacementMap;
+					DuplicatedObject = FUnrealBakeHelpers::BakeHelper_DuplicateAsset(Material, ResourceName, PackageName, 
+						false, FakeReplacementMap, bUsedGrantedOverridingRights, bGenerateConstantMaterialInstances);
+					ArrayCachedElement.Add(ResourceName);
+					ArrayCachedObject.Add(DuplicatedObject);
+					ReplacementMap.Add(Interface, DuplicatedObject);
+					PackagesToSave.Add(DuplicatedObject->GetPackage());
+
+					FUnrealBakeHelpers::CopyAllMaterialParameters(DuplicatedObject, Interface, TextureReplacementMaps[m]);
+				}
+			}
+		}
+		else
+		{
+			// Duplicate the material instances
+			for (int32 MaterialIndex = 0; MaterialIndex < Mesh->GetMaterials().Num(); ++MaterialIndex)
+			{
+				UMaterialInterface* Interface = Mesh->GetMaterials()[MaterialIndex].MaterialInterface;
+				UMaterial* ParentMaterial = Interface->GetMaterial();
+				FString MaterialName = ParentMaterial ? ParentMaterial->GetName() : "Material";
+
+				// Material
+				FString MatObjName = ObjectName + "_" + MaterialName;
+
+				if (!GetUniqueResourceName(Interface, MatObjName, ArrayCachedObject, ArrayCachedElement))
+				{
+					continue;
+				}
+
+				if (!ManageBakingAction(AssetPath, MatObjName, bUsedGrantedOverridingRights))
+				{
+					return;
+				}
+
+				FString MatPkgName = AssetPath + FString("/") + MatObjName;
+				UObject* DupMat = FUnrealBakeHelpers::BakeHelper_DuplicateAsset(Interface, MatObjName, 
+					MatPkgName, false, ReplacementMap, bUsedGrantedOverridingRights, bGenerateConstantMaterialInstances);
+				ArrayCachedObject.Add(DupMat);
+				ArrayCachedElement.Add(MatObjName);
+				PackagesToSave.Add(DupMat->GetPackage());
+
+				UMaterialInstance* Inst = Cast<UMaterialInstance>(Interface);
+
+				// Only need to duplicate the generate textures if the original material is a dynamic instance
+				// If the material has Mutable textures, then it will be a dynamic material instance for sure
+				if (Inst)
+				{
+					// Duplicate generated textures
+					UMaterialInstanceDynamic* InstDynamic = Cast<UMaterialInstanceDynamic>(DupMat);
+					UMaterialInstanceConstant* InstConstant = Cast<UMaterialInstanceConstant>(DupMat);
+
+					if (InstDynamic || InstConstant)
+					{
+						for (int32 TextureIndex = 0; TextureIndex < Inst->TextureParameterValues.Num(); ++TextureIndex)
+						{
+							if (Inst->TextureParameterValues[TextureIndex].ParameterValue)
+							{
+								if (Inst->TextureParameterValues[TextureIndex].ParameterValue->HasAnyFlags(RF_Transient))
+								{
+									UTexture2D* SrcTex = Cast<UTexture2D>(Inst->TextureParameterValues[TextureIndex].ParameterValue);
+
+									if (SrcTex)
+									{
+										FString ParameterSanitized = Inst->TextureParameterValues[TextureIndex].ParameterInfo.Name.ToString();
+										RemoveRestrictedChars(ParameterSanitized);
+
+										FString TexObjName = ObjectName + "_" + MaterialName + "_" + ParameterSanitized;
+
+										if (!GetUniqueResourceName(SrcTex, TexObjName, ArrayCachedObject, ArrayCachedElement))
+										{
+											UTexture* PrevTexture = Cast<UTexture>(ArrayCachedObject[ArrayCachedElement.Find(TexObjName)]);
+
+											if (InstDynamic)
+											{
+												InstDynamic->SetTextureParameterValue(Inst->TextureParameterValues[TextureIndex].ParameterInfo.Name, PrevTexture);
+											}
+											else if (InstConstant)
+											{
+												InstConstant->SetTextureParameterValueEditorOnly(Inst->TextureParameterValues[TextureIndex].ParameterInfo.Name, PrevTexture);
+											}
+											
+											continue;
+										}
+
+										if (!ManageBakingAction(AssetPath, TexObjName, bUsedGrantedOverridingRights))
+										{
+											return;
+										}
+
+										FString TexPkgName = AssetPath + FString("/") + TexObjName;
+										TMap<UObject*, UObject*> FakeReplacementMap;
+										UTexture2D* DupTex = FUnrealBakeHelpers::BakeHelper_CreateAssetTexture(SrcTex, TexObjName, TexPkgName, nullptr, false, FakeReplacementMap, bUsedGrantedOverridingRights);
+										ArrayCachedObject.Add(DupTex);
+										ArrayCachedElement.Add(TexObjName);
+										PackagesToSave.Add(DupTex->GetPackage());
+
+										if (InstDynamic)
+										{
+											InstDynamic->SetTextureParameterValue(Inst->TextureParameterValues[TextureIndex].ParameterInfo.Name, DupTex);
+										}
+										else if(InstConstant)
+										{
+											InstConstant->SetTextureParameterValueEditorOnly(Inst->TextureParameterValues[TextureIndex].ParameterInfo.Name, DupTex);
+										}
+									}
+									else
+									{
+										UE_LOG(LogMutable, Error, TEXT("A Mutable texture that is not a Texture2D has been found while baking a CustomizableObjectInstance."));
+									}
+								}
+								else
+								{
+									// If it's not transient it's not a mutable texture, it's a pass-through texture
+									// Just set the original texture
+									if (InstDynamic)
+									{
+										InstDynamic->SetTextureParameterValue(Inst->TextureParameterValues[TextureIndex].ParameterInfo.Name, Inst->TextureParameterValues[TextureIndex].ParameterValue);
+									}
+									else if (InstConstant)
+									{
+										InstConstant->SetTextureParameterValueEditorOnly(Inst->TextureParameterValues[TextureIndex].ParameterInfo.Name, Inst->TextureParameterValues[TextureIndex].ParameterValue);
+									}
+								}
+							}
+						}
+					}
+				}
+			}
+		}
+		
+		// Skeletal Mesh's Skeleton
+		if (Mesh->GetSkeleton())
+		{
+			const bool bTransient = Mesh->GetSkeleton()->GetPackage() == GetTransientPackage();
+
+			// Don't duplicate if not transient or export all assets.
+			if (bTransient || bExportAllResources)
+			{
+				FString SkeletonName = ObjectName + "_Skeleton";
+				if (!ManageBakingAction(AssetPath, SkeletonName, bUsedGrantedOverridingRights))
+				{
+					return;
+				}
+
+				FString SkeletonPkgName = AssetPath + FString("/") + SkeletonName;
+				UObject* DuplicatedSkeleton = FUnrealBakeHelpers::BakeHelper_DuplicateAsset(Mesh->GetSkeleton(), SkeletonName, 
+					SkeletonPkgName, false, ReplacementMap, bUsedGrantedOverridingRights, false);
+
+				ArrayCachedObject.Add(DuplicatedSkeleton);
+				PackagesToSave.Add(DuplicatedSkeleton->GetPackage());
+				ReplacementMap.Add(Mesh->GetSkeleton(), DuplicatedSkeleton);
+			}
+		}
+
+		// Skeletal Mesh
+		if (!ManageBakingAction(AssetPath, ObjectName, bUsedGrantedOverridingRights))
+		{
+			return;
+		}
+
+		FString PkgName = AssetPath + FString("/") + ObjectName;
+		UObject* DupObject = FUnrealBakeHelpers::BakeHelper_DuplicateAsset(Mesh, ObjectName, PkgName, 
+			false, ReplacementMap, bUsedGrantedOverridingRights, false);
+		ArrayCachedObject.Add(DupObject);
+		PackagesToSave.Add(DupObject->GetPackage());
+
+		Mesh->Build();
+
+		USkeletalMesh* SkeletalMesh = Cast<USkeletalMesh>(DupObject);
+		if (SkeletalMesh)
+		{
+			SkeletalMesh->GetLODInfoArray() = Mesh->GetLODInfoArray();
+
+			SkeletalMesh->GetImportedModel()->SkeletalMeshModelGUID = FGuid::NewGuid();
+
+			// Duplicate AssetUserData
+			{
+				const TArray<UAssetUserData*>* AssetUserDataArray = Mesh->GetAssetUserDataArray();
+				for (const UAssetUserData* AssetUserData : *AssetUserDataArray)
+				{
+					if (AssetUserData)
+					{
+						// Duplicate to change ownership
+						UAssetUserData* NewAssetUserData = Cast<UAssetUserData>(StaticDuplicateObject(AssetUserData, SkeletalMesh));
+						SkeletalMesh->AddAssetUserData(NewAssetUserData);
+					}
+				}
+			}
+
+			// Generate render data
+			SkeletalMesh->Build();
+		}
+
+		// Remove duplicated UObjects from Root (previously added to avoid objects from being GC in the middle of the bake process)
+		for (UObject* Obj : ArrayCachedObject)
+		{
+			Obj->RemoveFromRoot();
 		}
 	}
 
-	return true;
+	// Save the packages generated during the baking operation  --------------------------------------------------------------------------------------
+	
+	// Complete the baking by saving the packages we have cached during the baking operation
+	if (PackagesToSave.Num())
+	{
+		FEditorFileUtils::PromptForCheckoutAndSave(PackagesToSave, false, !FApp::IsUnattended());
+	}
+}
+
+
+void FCustomizableObjectEditorViewportClient::OnInstanceForBakingUpdate(const FUpdateContext& Result)
+{
+	// Early exit if no instance was provided
+	if (!BakeTempInstance)
+	{
+		UE_LOG(LogMutable, Error, TEXT("No Mutable Customizable Object Instnace was provided for the baking."));
+		return;
+	}
+
+	// Early exit if update result is not success
+	if (Result.UpdateResult != EUpdateResult::Success)
+	{
+		UE_LOG(LogMutable, Warning ,TEXT("Instance finished update with an error state : %s. Skipping instance baking"), *UEnum::GetValueAsString(Result.UpdateResult));
+		BakeTempInstance = nullptr;
+		return;
+	}
+	
+	const UCustomizableObject* CO = BakeTempInstance->GetCustomizableObject();
+	check (CO);
+	
+	// Let the user set some configurations at the editor level
+	const FText DefaultFileName = FText::Format(LOCTEXT("DefaultFileNameForBakeInstance", "{0}"), FText::AsCultureInvariant(CO->GetName()));
+	
+	TSharedRef<SMutableSelectFolderDlg> FolderDlg =
+		SNew(SMutableSelectFolderDlg)
+		.DefaultAssetPath(FText())
+		.DefaultFileName(DefaultFileName);
+	
+	if (FolderDlg->ShowModal() != EAppReturnType::Cancel)
+	{
+		BakeCustomizableObjectInstance(
+			*BakeTempInstance,
+			FolderDlg->GetFileName(),
+			FolderDlg->GetAssetPath(),
+			FolderDlg->GetExportAllResources(),
+			FolderDlg->GetGenerateConstantMaterialInstances());
+	}
+	
+	BakeTempInstance = nullptr;
 }
 
 
@@ -2819,13 +2922,13 @@ FString SMutableSelectFolderDlg::GetFileName()
 }
 
 
-bool SMutableSelectFolderDlg::GetExportAllResources()
+bool SMutableSelectFolderDlg::GetExportAllResources() const
 {
 	return bExportAllResources;
 }
 
 
-bool SMutableSelectFolderDlg::GetGenerateConstantMaterialInstances()
+bool SMutableSelectFolderDlg::GetGenerateConstantMaterialInstances() const
 {
 	return bGenerateConstantMaterialInstances;
 }

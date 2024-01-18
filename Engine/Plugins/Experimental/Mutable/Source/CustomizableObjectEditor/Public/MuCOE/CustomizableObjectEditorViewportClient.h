@@ -3,6 +3,7 @@
 #pragma once
 
 #include "EditorViewportClient.h"
+#include "MuCO/CustomizableObjectInstance.h"
 #include "MuCO/CustomizableObjectParameterTypeDefinitions.h"
 
 namespace EAnimationMode { enum Type : int; }
@@ -51,7 +52,6 @@ DECLARE_DELEGATE_RetVal(FColor, FWidgetColorDelegate);
 DECLARE_DELEGATE(FWidgetTrackingStartedDelegate);
 
 
-extern void RemoveRestrictedChars(FString& String);
 
 
 enum class EWidgetType : uint8
@@ -114,16 +114,21 @@ public:
 	 */
 	void DrawUVs(FViewport* InViewport, FCanvas* InCanvas, int32 InTextYPos, const FString& MaterialName);
 
-	// Callback for baking the current instance. If nullptr is passed, the instance in the editor will be taken.
+	/**
+	 * Bake the instance currently present in the editor. Internally will schedule the update of the instance before baking it's resources
+	 * Note : It updates the UCustomizableObjectSystem so it is in the desired config for baking
+	 */
 	void BakeInstance();
-	void BakeInstance(class UCustomizableObjectInstance* Instance);
 	
-	// Returns false if the resource has already been duplicated, otherwise, returns true and an unique ResourceName.
-	bool GetUniqueResourceName(UObject* InResource, FString& InOutResourceName, TArray<UObject*>& InCachedObjects, TArray<FString>& InCachedObjectNames);
+private:
 	
-	// If baking files that already exist, ask the user for permission to overwirte them
-	bool ManageBakingAction(const FString& Path, const FString& Name);
-
+	/**
+	 * Callback executed after the instance in the editor gets updated for baking its contents.
+	 * Note : It updates the UCustomizableObjectSystem so it resets it to the state it had prior to the invocation of BakeEditorInstance
+	 */
+	void OnInstanceForBakingUpdate(const FUpdateContext& Result);
+	
+public:
 	// Callback to show / hide instance geometry data
 	void StateChangeShowGeometryData();
 
@@ -335,9 +340,6 @@ private:
 	/** Flag to control whether to show / hide the instance geometry information data */
 	bool StateChangeShowGeometryDataFlag;
 
-	/** To know if the user has given permission to overwrite files when baking if already present */
-	bool BakingOverwritePermission;
-
 	/** To know if the orbital camera is being used or not */
 	bool bActivateOrbitalCamera;
 
@@ -354,6 +356,10 @@ private:
 	// instance does not have the high quality mips in the texture's platform data
 	TObjectPtr<UCustomizableObjectInstance> BakeTempInstance = nullptr;
 
+	// Cache System configuration cached before performing the mandatory instance update for baking so we can restore it after the bake operation
+	bool bIsProgressiveMipStreamingEnabled = false;
+	bool bIsOnlyGenerateRequestedLODsEnabled = false;
+	
 	// The following delegates currently are only used by the EWidgetType::Projector
 	FWidgetLocationDelegate WidgetLocationDelegate;
 	FOnWidgetLocationChangedDelegate OnWidgetLocationChangedDelegate;

@@ -2,6 +2,7 @@
 
 #include "MuCOE/CustomizableObjectCustomSettings.h"
 
+#include "CustomizableObjectEditor.h"
 #include "AssetRegistry/AssetRegistryModule.h"
 #include "Components/SpotLightComponent.h"
 #include "Framework/Views/TableViewMetadata.h"

@@ -839,6 +839,18 @@ void UCustomizableObjectInstance::UpdateSkeletalMeshAsyncResult(FInstanceUpdateD
 }
 
 
+void UCustomizableObjectInstance::UpdateSkeletalMeshAsyncResult(FInstanceUpdateNativeDelegate Callback, bool bIgnoreCloseDist, bool bForceHighPriority)
+{
+	UCustomizableObjectSystemPrivate* SystemPrivate = UCustomizableObjectSystem::GetInstance()->GetPrivate();
+
+	const TSharedRef<FUpdateContextPrivate> Context = MakeShared<FUpdateContextPrivate>(*this);
+	Context->bIgnoreCloseDist = bIgnoreCloseDist;
+	Context->bForceHighPriority = bForceHighPriority;
+	Context->UpdateNativeCallback = Callback;
+	
+	SystemPrivate->EnqueueUpdateSkeletalMesh(Context);
+}
+
 void UCustomizableInstancePrivate::TickUpdateCloseCustomizableObjects(UCustomizableObjectInstance& Public, FMutableInstanceUpdateMap& InOutRequestedUpdates)
 {
 	if (!Public.CanUpdateInstance())

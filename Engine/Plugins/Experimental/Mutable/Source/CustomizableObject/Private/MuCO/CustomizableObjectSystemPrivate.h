@@ -426,6 +426,7 @@ public:
 	EQueuePriorityType PriorityType = EQueuePriorityType::Low;
 	
 	FInstanceUpdateDelegate UpdateCallback;
+	FInstanceUpdateNativeDelegate UpdateNativeCallback;
 
 	/** Weak reference to the instance we are operating on.
 	 *It is weak because we don't want to lock it in case it becomes irrelevant in the game while operations are pending and it needs to be destroyed. */

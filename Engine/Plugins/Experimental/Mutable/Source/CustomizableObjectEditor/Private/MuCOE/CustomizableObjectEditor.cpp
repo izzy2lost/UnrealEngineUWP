@@ -2722,6 +2722,27 @@ void FCustomizableObjectEditor::CreatePreviewComponents()
 	}
 }
 
+void RemoveRestrictedChars(FString& String)
+{
+	// Remove restricted chars, according to FPaths::ValidatePath, RestrictedChars = "/?:&\\*\"<>|%#@^ ";
+
+	String = String.Replace(TEXT("/"), TEXT(""));
+	String = String.Replace(TEXT("?"), TEXT(""));
+	String = String.Replace(TEXT(":"), TEXT(""));
+	String = String.Replace(TEXT("&"), TEXT(""));
+	String = String.Replace(TEXT("\\"), TEXT(""));
+	String = String.Replace(TEXT("*"), TEXT(""));
+	String = String.Replace(TEXT("\""), TEXT(""));
+	String = String.Replace(TEXT("<"), TEXT(""));
+	String = String.Replace(TEXT(">"), TEXT(""));
+	String = String.Replace(TEXT("|"), TEXT(""));
+	String = String.Replace(TEXT("%"), TEXT(""));
+	String = String.Replace(TEXT("#"), TEXT(""));
+	String = String.Replace(TEXT("@"), TEXT(""));
+	String = String.Replace(TEXT("^"), TEXT(""));
+	String = String.Replace(TEXT(" "), TEXT(""));
+}
+
 
 void FCustomizableObjectEditor::OnCustomizableObjectStatusChanged(FCustomizableObjectStatus::EState, const FCustomizableObjectStatus::EState CurrentState)
 {

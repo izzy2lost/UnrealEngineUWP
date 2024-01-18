@@ -816,6 +816,8 @@ void FinishUpdateGlobal(const TSharedRef<FUpdateContextPrivate>& Context)
 	ContextPublic.UpdateResult = Context->UpdateResult;
 		
 	Context->UpdateCallback.ExecuteIfBound(ContextPublic);
+	Context->UpdateNativeCallback.Broadcast(ContextPublic);
+
 
 	if (SystemPrivate)
 	{

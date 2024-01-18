@@ -48,6 +48,7 @@ template <typename FuncType> class TFunction;
 
 DECLARE_DELEGATE(FCreatePreviewInstanceFlagDelegate);
 
+extern void RemoveRestrictedChars(FString& String);
 
 /**
 * Wrapper UObject class for the UCustomizableObjectInstance::FObjectInstanceUpdatedDelegate dynamic multicast delegate

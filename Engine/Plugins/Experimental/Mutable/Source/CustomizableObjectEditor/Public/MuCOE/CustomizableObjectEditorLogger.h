@@ -15,7 +15,8 @@ enum class ELoggerCategory
 {
 	General,
 	GraphSearch,
-	Compilation
+	Compilation,
+	COInstanceBaking
 };
 
 
