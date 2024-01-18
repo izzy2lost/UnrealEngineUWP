@@ -31,6 +31,8 @@ static bool RunTests_RenderThread(FRHICommandListImmediate& RHICmdList)
 	// Drawing
 	// ------------------------------------------------
 	{
+		RUN_TEST(FRHIDrawTests::Test_DrawBaseVertexAndInstanceDirect(RHICmdList));
+		RUN_TEST(FRHIDrawTests::Test_DrawBaseVertexAndInstanceIndirect(RHICmdList));
 		RUN_TEST(FRHIDrawTests::Test_MultiDrawIndirect(RHICmdList));
 	}
 

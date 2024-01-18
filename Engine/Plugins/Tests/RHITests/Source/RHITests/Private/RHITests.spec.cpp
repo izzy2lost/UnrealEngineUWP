@@ -118,6 +118,16 @@ void FAutomationRHITest::Define()
 
 	Describe("Test RHI Draw", [this]()
 	{
+		It("RHI DrawBaseVertexAndInstanceDirect", [this]()
+		{
+			bool bResult = RunOnRenderThreadSynchronous(FRHIDrawTests::Test_DrawBaseVertexAndInstanceDirect);
+			TestEqual("RHI DrawBaseVertexAndInstanceDirect", bResult, 1);
+		});
+		It("RHI DrawBaseVertexAndInstanceIndirect", [this]()
+		{
+			bool bResult = RunOnRenderThreadSynchronous(FRHIDrawTests::Test_DrawBaseVertexAndInstanceIndirect);
+			TestEqual("RHI DrawBaseVertexAndInstanceIndirect", bResult, 1);
+		});
 		It("RHI MultiDrawIndirect", [this]()
 		{
 			bool bResult = RunOnRenderThreadSynchronous(FRHIDrawTests::Test_MultiDrawIndirect);
