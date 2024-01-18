@@ -1,17 +1,17 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 #include "Input/CommonBoundActionBar.h"
+
 #include "CommonInputSubsystem.h"
 #include "CommonInputTypeEnum.h"
-#include "Editor/WidgetCompilerLog.h"
 #include "CommonUITypes.h"
+#include "Editor/WidgetCompilerLog.h"
 #include "Engine/GameInstance.h"
 #include "Engine/GameViewportClient.h"
+#include "InputAction.h"
 #include "Input/CommonBoundActionButtonInterface.h"
 #include "Input/CommonUIActionRouterBase.h"
 #include "Input/UIActionBinding.h"
-#include "InputAction.h"
-#include "TimerManager.h"
 
 #include UE_INLINE_GENERATED_CPP_BY_NAME(CommonBoundActionBar)
 
@@ -129,6 +129,8 @@ void UCommonBoundActionBar::HandleBoundActionsUpdated(bool bFromOwningPlayer)
 
 void UCommonBoundActionBar::HandleDeferredDisplayUpdate()
 {
+	ActionBarUpdateBegin();
+	
 	bIsRefreshQueued = false;
 
 	ResetInternal();
@@ -315,7 +317,7 @@ void UCommonBoundActionBar::HandleDeferredDisplayUpdate()
 
 					for (FUIActionBindingHandle BindingHandle : FilteredBindings)
 					{
-						ICommonBoundActionButtonInterface* ActionButton = Cast<ICommonBoundActionButtonInterface>(CreateEntryInternal(ActionButtonClass));
+						ICommonBoundActionButtonInterface* ActionButton = Cast<ICommonBoundActionButtonInterface>(CreateActionButton(BindingHandle));
 						if (ensure(ActionButton))
 						{
 							ActionButton->SetRepresentedAction(BindingHandle);
@@ -328,6 +330,12 @@ void UCommonBoundActionBar::HandleDeferredDisplayUpdate()
 	}
 
 	OnActionBarUpdated.Broadcast();
+	ActionBarUpdateEnd();
+}
+
+UUserWidget* UCommonBoundActionBar::CreateActionButton(const FUIActionBindingHandle& BindingHandle)
+{
+	return CreateEntryInternal(ActionButtonClass);
 }
 
 void UCommonBoundActionBar::HandlePlayerAdded(int32 PlayerIdx)
@@ -343,6 +351,16 @@ void UCommonBoundActionBar::MonitorPlayerActions(const ULocalPlayer* NewPlayer)
 	{
 		ActionRouter->OnBoundActionsUpdated().AddUObject(this, &UCommonBoundActionBar::HandleBoundActionsUpdated, NewPlayer == GetOwningLocalPlayer());
 	}
+}
+
+void UCommonBoundActionBar::ActionBarUpdateBegin()
+{
+	ActionBarUpdateBeginImpl();
+}
+
+void UCommonBoundActionBar::ActionBarUpdateEnd()
+{
+	ActionBarUpdateEndImpl();
 }
 
 #undef LOCTEXT_NAMESPACE

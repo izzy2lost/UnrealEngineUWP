@@ -41,6 +41,13 @@ protected:
 
 	virtual void NativeOnActionButtonCreated(ICommonBoundActionButtonInterface* ActionButton, const FUIActionBindingHandle& RepresentedAction) { }
 
+	virtual void ActionBarUpdateBeginImpl() {}
+	virtual void ActionBarUpdateEndImpl() {}
+	
+	virtual UUserWidget* CreateActionButton(const FUIActionBindingHandle& BindingHandle);
+
+	TSubclassOf<UCommonButtonBase> GetActionButtonClass() { return ActionButtonClass; }
+
 #if WITH_EDITOR
 	void ValidateCompiledDefaults(IWidgetCompilerLog& CompileLog) const override;
 #endif
@@ -51,6 +58,9 @@ private:
 	void HandlePlayerAdded(int32 PlayerIdx);
 	
 	void MonitorPlayerActions(const ULocalPlayer* NewPlayer);
+
+	void ActionBarUpdateBegin();
+	void ActionBarUpdateEnd();
 
 	UPROPERTY(EditAnywhere, Category = EntryLayout, meta=(MustImplement = "/Script/CommonUI.CommonBoundActionButtonInterface"))
 	TSubclassOf<UCommonButtonBase> ActionButtonClass;
