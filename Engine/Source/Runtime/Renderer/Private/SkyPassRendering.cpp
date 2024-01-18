@@ -133,7 +133,7 @@ bool FSkyPassMeshProcessor::Process(
 			false, CF_Always, SO_Keep, SO_Keep, SO_Keep,
 			0x00, STENCIL_MOBILE_SKY_MASK>::GetRHI());
 		
-		PassDrawRenderState.SetStencilRef(1); 
+		PassDrawRenderState.SetStencilRef(STENCIL_MOBILE_SKY_MASK); 
 		
 		TMobileBasePassShaderElementData<LightMapPolicyType> ShaderElementData(nullptr, false);
 		ShaderElementData.InitializeMeshMaterialData(ViewIfDynamicMeshCommand, PrimitiveSceneProxy, MeshBatch, StaticMeshId, false);

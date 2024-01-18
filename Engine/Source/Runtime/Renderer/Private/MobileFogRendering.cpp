@@ -172,7 +172,7 @@ void FMobileSceneRenderer::RenderFog(FRHICommandList& RHICmdList, const FViewInf
 	{
 		GraphicsPSOInit.DepthStencilState = TStaticDepthStencilState<
 			false, CF_DepthNearOrEqual,
-			true, CF_Equal, SO_Keep, SO_Keep, SO_Keep,
+			true, CF_NotEqual, SO_Keep, SO_Keep, SO_Keep,
 			false, CF_Always, SO_Keep, SO_Keep, SO_Keep,
 			STENCIL_MOBILE_SKY_MASK, 0x00>::GetRHI();
 	}
@@ -218,7 +218,14 @@ void FMobileSceneRenderer::RenderFog(FRHICommandList& RHICmdList, const FViewInf
 	GraphicsPSOInit.BoundShaderState.VertexShaderRHI = VertexShader.GetVertexShader();
 	GraphicsPSOInit.BoundShaderState.PixelShaderRHI = PixelShader.GetPixelShader();
 	
-	SetGraphicsPipelineState(RHICmdList, GraphicsPSOInit, 0);
+	if (bUseDepthTest)
+	{
+		SetGraphicsPipelineState(RHICmdList, GraphicsPSOInit, STENCIL_MOBILE_SKY_MASK);
+	}
+	else
+	{
+		SetGraphicsPipelineState(RHICmdList, GraphicsPSOInit, 0);
+	}
 	
 	// Use height fog start distance by default and fallback to AP distance
 	float FogStartDistance = GetFogDefaultStartDistance();
