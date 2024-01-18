@@ -20,6 +20,10 @@ namespace UE::NNERuntimeRDG::Private::Hlsl
 	template< UE::NNEHlslShaders::Internal::EPoolOperatorType PoolOperatorType >
 	class FPoolOperator : public FOperatorHlsl
 	{
+		static constexpr int32 SpatialInfoStrideIndex = 0;
+		static constexpr int32 SpatialInfoKernelIndex = 1;
+		static constexpr int32 SpatialInfoPadStartIndex = 2;
+		static constexpr int32 SpatialInfoDilationIndex = 3;
 	public:
 
 		FPoolOperator() {}
@@ -29,7 +33,9 @@ namespace UE::NNERuntimeRDG::Private::Hlsl
 		NNEHlslShaders::Internal::EConvAutoPad AutoPad = NNEHlslShaders::Internal::EConvAutoPad::NOTSET;
 		TArray<int32> Pads;
 		TArray<int32> Strides;
+		TArray<int32> Dilations;
 		TArray<int32> KernelShape;
+		int32 CeilMode = 0; // 0 is floor, 1 is ceil
 		int32 KernelVolume = 0;
 
 	public:
@@ -45,6 +51,7 @@ namespace UE::NNERuntimeRDG::Private::Hlsl
 
 			check(Pads.Num() == 2*NumSpatialDimensions);
 			check(Strides.Num() == NumSpatialDimensions);
+			check(Dilations.Num() == NumSpatialDimensions);
 			check(KernelShape.Num() == NumSpatialDimensions);
 
 			OutputShape.SetNumUninitialized(InputShape.Num());
@@ -58,12 +65,18 @@ namespace UE::NNERuntimeRDG::Private::Hlsl
 					case NNEHlslShaders::Internal::EConvAutoPad::NOTSET:
 					{
 						uint32 PadShape = Pads[i] + Pads[i+NumSpatialDimensions];
-						OutputShape[i + 2] = (uint32)FMath::FloorToFloat((float)(InputShape[i + 2] + PadShape - KernelShape[i]) / (float)Strides[i] + 1.0f);
+						float(*const RoundingFunction)(float) = 
+							CeilMode == 0 ?
+								(float(*)(float)) &FMath::FloorToFloat
+							:
+								(float(*)(float)) &FMath::CeilToFloat
+							;
+						OutputShape[i + 2] = (uint32)RoundingFunction((float)(InputShape[i + 2] + PadShape - ((KernelShape[i] - 1) * Dilations[i] + 1)) / (float)Strides[i] + 1.0f);
 						break;
 					}
 					case NNEHlslShaders::Internal::EConvAutoPad::VALID:
 					{
-						OutputShape[i + 2] = (uint32)FMath::CeilToFloat((float)(InputShape[i + 2] - KernelShape[i] + 1) / (float)Strides[i]);
+						OutputShape[i + 2] = (uint32)FMath::CeilToFloat((float)(InputShape[i + 2] - ((KernelShape[i] - 1) * Dilations[i] + 1) + 1) / (float)Strides[i]);
 						break;
 					}
 					case NNEHlslShaders::Internal::EConvAutoPad::SAME_UPPER:
@@ -109,13 +122,18 @@ namespace UE::NNERuntimeRDG::Private::Hlsl
 
 			TArray<int32> StridesDefault;
 			TArray<int32> PadsDefault;
+			TArray<int32> DilationsDefault;
 			StridesDefault.Init(1, NumSpatialDimensions);
 			PadsDefault.Init(0, 2 * NumSpatialDimensions);
+			DilationsDefault.Init(1, NumSpatialDimensions);
 
 			NNEHlslShaders::Internal::FConvCS::LexFromString(AutoPad, *Attributes.GetValueOrDefault<FString>(TEXT("auto_pad"), TEXT("NOTSET")));
 			Pads = Attributes.GetValueOrDefault<TArray<int32>>(TEXT("pads"), PadsDefault);
 			Strides = Attributes.GetValueOrDefault<TArray<int32>>(TEXT("strides"), StridesDefault);
+			Dilations = Attributes.GetValueOrDefault<TArray<int32>>(TEXT("dilations"), DilationsDefault);
 			KernelShape = Attributes.GetValue<TArray<int32>>(TEXT("kernel_shape"));
+
+			CeilMode = Attributes.GetValueOrDefault<int32>(TEXT("ceil_mode"), CeilMode);
 
 			if (KernelShape.Num() != NumSpatialDimensions)
 			{
@@ -125,6 +143,11 @@ namespace UE::NNERuntimeRDG::Private::Hlsl
 			if (Strides.Num() != NumSpatialDimensions)
 			{
 				UE_LOG(LogNNE, Warning, TEXT("%s Strides should have as many elements as the spatial dimensions of the input, got %d while input have %d."), GetOperatorName(), Strides.Num(), NumSpatialDimensions);
+				return false;
+			}
+			if (Dilations.Num() != NumSpatialDimensions)
+			{
+				UE_LOG(LogNNE, Warning, TEXT("%s Dilations should have as many elements as the spatial dimensions of the input, got %d while input have %d."), GetOperatorName(), Dilations.Num(), NumSpatialDimensions);
 				return false;
 			}
 			if (Pads.Num() != 2*NumSpatialDimensions)
@@ -177,18 +200,19 @@ namespace UE::NNERuntimeRDG::Private::Hlsl
 			FillTensorSizeShaderParameters(Input, Params->TensorInfo, 2);
 			for (int32 i = 0; i < NumSpatialDimensions; ++i)
 			{
-				Params->SpatialInfo[i][0] = Strides[i];
-				Params->SpatialInfo[i][1] = KernelShape[i];
+				Params->SpatialInfo[i][SpatialInfoStrideIndex] = Strides[i];
+				Params->SpatialInfo[i][SpatialInfoKernelIndex] = KernelShape[i];
 				if (AutoPad == NNEHlslShaders::Internal::EConvAutoPad::SAME_LOWER)
 				{
 					// see https://github.com/onnx/onnx/blob/main/docs/Changelog.md#MaxPool-8
 					// only needed for SAME_LOWER as SAME_UPPER is handled by index clamping in the HLSL kernel
-					Params->SpatialInfo[i][2] = (Output.GetShape().GetData()[i + 2] - 1) * Strides[i] + KernelShape[i] - Input.GetShape().GetData()[i + 2];
+					Params->SpatialInfo[i][SpatialInfoPadStartIndex] = (Output.GetShape().GetData()[i + 2] - 1) * Strides[i] + ((KernelShape[i] - 1) * Dilations[i] + 1) - Input.GetShape().GetData()[i + 2];
 				}
 				else
 				{
-					Params->SpatialInfo[i][2] = Pads[i];
+					Params->SpatialInfo[i][SpatialInfoPadStartIndex] = Pads[i];
 				}
+				Params->SpatialInfo[i][SpatialInfoDilationIndex] = Dilations[i];
 			}
 
 			FPoolCS::FPermutationDomain PermutationVector;
@@ -247,8 +271,10 @@ namespace UE::NNERuntimeRDG::Private::Hlsl
 		AttributeValidator.AddOptional(TEXT("auto_pad"), ENNEAttributeDataType::String);
 		AttributeValidator.AddRequired(TEXT("kernel_shape"), ENNEAttributeDataType::Int32Array);
 		AttributeValidator.AddOptional(TEXT("pads"), ENNEAttributeDataType::Int32Array);
+		AttributeValidator.AddOptional(TEXT("ceil_mode"), ENNEAttributeDataType::Int32);
 		if constexpr (PoolOperatorType == UE::NNEHlslShaders::Internal::EPoolOperatorType::MAX_POOL)
 		{
+			AttributeValidator.AddOptional(TEXT("dilations"), ENNEAttributeDataType::Int32Array);
 			AttributeValidator.AddOptional(TEXT("storage_order"), ENNEAttributeDataType::Int32);//Unused, only needed for 2nd output itself not supported, see https://github.com/onnx/onnx/issues/1370
 		}
 		else
@@ -281,7 +307,13 @@ namespace UE::NNERuntimeRDG::Private::Hlsl
 	{
 		// Note: support of a particular version is partial with respect to tensor data types (only the most typical ones are usually supported).
 		Registry.OpAdd({{TEXT("MaxPool"), TEXT("Onnx")}, 8}, CreateMaxPoolOperator, ValidatePoolOperator<UE::NNEHlslShaders::Internal::EPoolOperatorType::MAX_POOL>);
+		Registry.OpAdd({{TEXT("MaxPool"), TEXT("Onnx")}, 10}, CreateMaxPoolOperator, ValidatePoolOperator<UE::NNEHlslShaders::Internal::EPoolOperatorType::MAX_POOL>);
+		Registry.OpAdd({{TEXT("MaxPool"), TEXT("Onnx")}, 11}, CreateMaxPoolOperator, ValidatePoolOperator<UE::NNEHlslShaders::Internal::EPoolOperatorType::MAX_POOL>);
+		Registry.OpAdd({{TEXT("MaxPool"), TEXT("Onnx")}, 12}, CreateMaxPoolOperator, ValidatePoolOperator<UE::NNEHlslShaders::Internal::EPoolOperatorType::MAX_POOL>);
 		Registry.OpAdd({ {TEXT("AveragePool"), TEXT("Onnx")}, 7}, CreateAveragePoolOperator, ValidatePoolOperator<UE::NNEHlslShaders::Internal::EPoolOperatorType::AVERAGE_POOL>);
+		Registry.OpAdd({ {TEXT("AveragePool"), TEXT("Onnx")}, 10}, CreateAveragePoolOperator, ValidatePoolOperator<UE::NNEHlslShaders::Internal::EPoolOperatorType::AVERAGE_POOL>);
+		Registry.OpAdd({ {TEXT("AveragePool"), TEXT("Onnx")}, 11}, CreateAveragePoolOperator, ValidatePoolOperator<UE::NNEHlslShaders::Internal::EPoolOperatorType::AVERAGE_POOL>);
+		Registry.OpAdd({ {TEXT("AveragePool"), TEXT("Onnx")}, 19}, CreateAveragePoolOperator, ValidatePoolOperator<UE::NNEHlslShaders::Internal::EPoolOperatorType::AVERAGE_POOL>);
 		return true;
 	}
 } // UE::NNERuntimeRDG::Private::Hlsl

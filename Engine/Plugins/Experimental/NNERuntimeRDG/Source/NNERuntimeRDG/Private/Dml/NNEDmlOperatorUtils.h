@@ -260,6 +260,11 @@ public:
 		return OutputShape;
 	}
 
+	bool GetCeilMode() const
+	{
+		return bCeilMode;
+	}
+
 private:
 
 	FPaddingsHelper			Paddings;
@@ -278,6 +283,7 @@ protected:
 	bool					bIsGlobalKernel;
 	bool					bIsTransposed;
 	bool					bHasOutputShape;
+	bool					bCeilMode;
 
 protected:
 
@@ -368,6 +374,8 @@ protected:
 			{
 				return false;
 			}
+
+			bCeilMode = (bool) Attributes.GetValueOrDefault<int32>(TEXT("ceil_mode"), 0);
 		}
 
 		return true;
@@ -411,9 +419,15 @@ public:
 				checkf(Strides[Dim] != 0, TEXT("Strides must be != 0"));
 
 				uint32 StridableOutLen = PaddedLen - KernelLen;
-				uint32 OutLen = 1 + (StridableOutLen / Strides[Dim]);
+				float OutLen = 1.0f + ((float) StridableOutLen / (float) Strides[Dim]);
 
-				OutputShape[Dim + DimOffset] = OutLen;
+				float(*const RoundingFunction)(float) = 
+							bCeilMode?
+								(float(*)(float)) &FMath::CeilToFloat
+							:
+								(float(*)(float)) &FMath::FloorToFloat
+							;
+				OutputShape[Dim + DimOffset] = (uint32) RoundingFunction(OutLen);
 			}
 		}
 		else

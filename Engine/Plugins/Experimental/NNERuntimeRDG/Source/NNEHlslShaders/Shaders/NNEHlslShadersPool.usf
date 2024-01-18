@@ -20,6 +20,7 @@ uint KernelVolume;
 #define SPATIAL_STRIDE 0
 #define SPATIAL_KERNEL 1
 #define SPATIAL_PAD_START 2
+#define SPATIAL_DILATION 3
 
 #define MAX_POOL 0
 #define AVERAGE_POOL 1
@@ -28,6 +29,7 @@ uint KernelVolume;
 void Pool(in const uint3 DispatchThreadID : SV_DispatchThreadID)
 {
 	const uint Index = DispatchThreadID.y * ThreadCountX + DispatchThreadID.x;
+	const uint SpatialDimOffset = 2;
 	
 	if (Index < Num)
 	{
@@ -46,9 +48,9 @@ void Pool(in const uint3 DispatchThreadID : SV_DispatchThreadID)
 		uint SpatialDimEnds[NUM_SPATIAL_DIMENSIONS];
 		for (uint spatialDim = 0; spatialDim < NUM_SPATIAL_DIMENSIONS; ++spatialDim)
 		{
-			const uint Dim = spatialDim+2;
+			const uint Dim = SpatialDimOffset + spatialDim;
 			const int SpatialDimStart = ((int)OutputIndices[Dim] * (int)SpatialInfo[spatialDim][SPATIAL_STRIDE]) - (int)SpatialInfo[spatialDim][SPATIAL_PAD_START];
-			const int SpatialDimEnd = SpatialDimStart + (int)SpatialInfo[spatialDim][SPATIAL_KERNEL];
+			const int SpatialDimEnd = SpatialDimStart + (int)SpatialInfo[spatialDim][SPATIAL_KERNEL] * (int)SpatialInfo[spatialDim][SPATIAL_DILATION];
 
 			SpatialDimStarts[spatialDim] = (uint)max(SpatialDimStart, (int)0);
 			SpatialDimEnds[spatialDim] = (uint)min(SpatialDimEnd, (int)TensorInfo[Dim][INPUT_SIZE]);
@@ -61,26 +63,26 @@ void Pool(in const uint3 DispatchThreadID : SV_DispatchThreadID)
 		float PooledValue = 0;
 		int Count = 0;
 		
-		for (SpatialDimIterator[0] = SpatialDimStarts[0]; SpatialDimIterator[0] < SpatialDimEnds[0]; ++SpatialDimIterator[0])
+		for (SpatialDimIterator[0] = SpatialDimStarts[0]; SpatialDimIterator[0] < SpatialDimEnds[0]; SpatialDimIterator[0] += SpatialInfo[0][SPATIAL_DILATION])
 		{
 		#if (NUM_SPATIAL_DIMENSIONS > 1)
-		for (SpatialDimIterator[1] = SpatialDimStarts[1]; SpatialDimIterator[1] < SpatialDimEnds[1]; ++SpatialDimIterator[1])
+		for (SpatialDimIterator[1] = SpatialDimStarts[1]; SpatialDimIterator[1] < SpatialDimEnds[1]; SpatialDimIterator[1] += SpatialInfo[1][SPATIAL_DILATION])
 		{
 		#endif
 		#if (NUM_SPATIAL_DIMENSIONS > 2)
-		for (SpatialDimIterator[2] = SpatialDimStarts[2]; SpatialDimIterator[2] < SpatialDimEnds[2]; ++SpatialDimIterator[2])
+		for (SpatialDimIterator[2] = SpatialDimStarts[2]; SpatialDimIterator[2] < SpatialDimEnds[2]; SpatialDimIterator[2] += SpatialInfo[2][SPATIAL_DILATION])
 		{
 		#endif
 		#if (NUM_SPATIAL_DIMENSIONS > 3)
-		for (SpatialDimIterator[3] = SpatialDimStarts[3]; SpatialDimIterator[3] < SpatialDimEnds[3]; ++SpatialDimIterator[3])
+		for (SpatialDimIterator[3] = SpatialDimStarts[3]; SpatialDimIterator[3] < SpatialDimEnds[3]; SpatialDimIterator[3] += SpatialInfo[3][SPATIAL_DILATION])
 		{
 		#endif
 		#if (NUM_SPATIAL_DIMENSIONS > 4)
-		for (SpatialDimIterator[4] = SpatialDimStarts[4]; SpatialDimIterator[4] < SpatialDimEnds[4]; ++SpatialDimIterator[4])
+		for (SpatialDimIterator[4] = SpatialDimStarts[4]; SpatialDimIterator[4] < SpatialDimEnds[4]; SpatialDimIterator[4] += SpatialInfo[4][SPATIAL_DILATION])
 		{
 		#endif
 		#if (NUM_SPATIAL_DIMENSIONS > 5)
-		for (SpatialDimIterator[5] = SpatialDimStarts[1]; SpatialDimIterator[5] < SpatialDimEnds[5]; ++SpatialDimIterator[5])
+		for (SpatialDimIterator[5] = SpatialDimStarts[5]; SpatialDimIterator[5] < SpatialDimEnds[5]; SpatialDimIterator[5] += SpatialInfo[5][SPATIAL_DILATION])
 		{
 		#endif
 

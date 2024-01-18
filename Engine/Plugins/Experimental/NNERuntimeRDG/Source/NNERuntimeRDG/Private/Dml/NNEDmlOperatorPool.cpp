@@ -190,13 +190,20 @@ public:
 			TConstArrayView<uint32> StartPadding = Args.GetStartPadding();
 			TConstArrayView<uint32> EndPadding = Args.GetEndPadding();
 			TConstArrayView<uint32> Strides = Args.GetStrides();
+			TConstArrayView<uint32> Dilations = Args.GetDilations();
 			TConstArrayView<uint32> WindowSize = Args.GetWindowSize();
 			TConstArrayView<uint32> OutputShape = OutputTensors[Idx]->GetShape().GetData();
 
 			for (uint32 Dim = 0; Dim < Args.GetNumDimensions(); ++Dim)
 			{
 				const uint32 PaddedSize = InputShape[Dim + NonspatialDimensionCount] + StartPadding[Dim] + EndPadding[Dim];
-				check(OutputShape[Dim + NonspatialDimensionCount] == (PaddedSize - WindowSize[Dim]) / Strides[Dim] + 1);
+				float(*const RoundingFunction)(float) = 
+							Args.GetCeilMode() ?
+								(float(*)(float)) &FMath::CeilToFloat
+							:
+								(float(*)(float)) &FMath::FloorToFloat
+							;
+				check(OutputShape[Dim + NonspatialDimensionCount] == (uint32) RoundingFunction((float)(PaddedSize - ((WindowSize[Dim] - 1) * Dilations[Dim] + 1 )) / (float) Strides[Dim] + 1.0f));
 			}
 		}
 
@@ -313,6 +320,7 @@ static FDmlOperator##OpName##Version##Registrator RegisterDmlOperator##OpName##V
 // Register pooling operator on Module startup
 NNE_DML_REGISTER_POOLING_OP(MaxPool, MAX, false, 1)
 NNE_DML_REGISTER_POOLING_OP(MaxPool, MAX, false, 8)
+NNE_DML_REGISTER_POOLING_OP(MaxPool, MAX, false, 10)
 NNE_DML_REGISTER_POOLING_OP(MaxPool, MAX, false, 11)
 NNE_DML_REGISTER_POOLING_OP(MaxPool, MAX, false, 12)
 NNE_DML_REGISTER_POOLING_OP(GlobalMaxPool, MAX, true, 1)
