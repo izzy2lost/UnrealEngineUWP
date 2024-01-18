@@ -92,7 +92,7 @@ namespace AutomationCommon
 	}
 
 	/** Gets a path used for automation testing (PNG sent to the AutomationTest folder) */
-	FString GetScreenshotName(const FString& TestName)
+	FString GetScreenshotPath(const FString& TestName)
 	{
 		FString PathName = TestName / FPlatformProperties::IniPlatformName();
 		PathName = PathName + TEXT("/") + GetRenderDetailsString();
@@ -151,7 +151,7 @@ namespace AutomationCommon
 		// Device's native resolution (we want to use a hardware dump of the frontbuffer at the native resolution so we compare what we actually output rather than what we think we rendered)
 
 		const FString MapAndTest = MapOrContext + TEXT("/") + Data.ScreenShotName;
-		Data.ScreenshotName = GetScreenshotName(MapAndTest);
+		Data.ScreenshotPath = GetScreenshotPath(MapAndTest);
 
 		return Data;
 	}
@@ -165,8 +165,8 @@ namespace AutomationCommon
 			&& FModuleManager::Get().IsModuleLoaded("RenderDocPlugin"))
 		{
 			const FString MapAndTest = MapOrContext / FPaths::MakeValidFileName(TestName, TEXT('_'));
-			FString ScreenshotName = GetScreenshotName(MapAndTest);
-			FString TempCaptureFilePath = FPaths::ChangeExtension(FPaths::ConvertRelativePathToFull(FPaths::AutomationDir() / TEXT("Incoming/") / ScreenshotName), TEXT(".rdc"));
+			FString ScreenshotPath = GetScreenshotPath(MapAndTest);
+			FString TempCaptureFilePath = FPaths::ChangeExtension(FPaths::ConvertRelativePathToFull(FPaths::AutomationDir() / TEXT("Incoming/") / ScreenshotPath), TEXT(".rdc"));
 
 			UE_LOG(LogEngineAutomationTests, Log, TEXT("Taking Frame Trace: %s"), *TempCaptureFilePath);
 
@@ -242,19 +242,25 @@ namespace AutomationCommon
 			: ImageData(InImageData), Initiate(false), TaskCompleted(false)
 		{
 			FString Context = InContext;
-			if (Context.IsEmpty())
+			FString TestName = TEXT("");
+			
+			if (FAutomationTestBase* CurrentTest = FAutomationTestFramework::Get().GetCurrentTest())
 			{
-				if (FAutomationTestBase* CurrentTest = FAutomationTestFramework::Get().GetCurrentTest())
+				TestName = CurrentTest->GetTestFullName();
+				if (Context.IsEmpty()) 
 				{
-					Context = CurrentTest->GetTestContext();
-					if (Context.IsEmpty())
+					if (!CurrentTest->GetTestContext().IsEmpty()) 
+					{
+						Context = CurrentTest->GetTestContext();
+					}
+					else
 					{
 						Context = CurrentTest->GetTestFullName();
 					}
 				}
 			}
 
-			ComparisonParameters = BuildScreenshotData(Context, TEXT(""), InImageName, InWidth, InHeight);
+			ComparisonParameters = BuildScreenshotData(Context, TestName, InImageName, InWidth, InHeight);
 
 			// Copy the relevant data into the metadata for the screenshot.
 			ComparisonParameters.bHasComparisonRules = true;
@@ -301,7 +307,7 @@ namespace AutomationCommon
 			{
 				FAutomationTestFramework::Get().OnScreenshotCaptured().ExecuteIfBound(ImageData, ComparisonParameters);
 
-				UE_LOG(LogEditorAutomationTests, Log, TEXT("Requesting image %s to be compared."), *ComparisonParameters.ScreenshotName);
+				UE_LOG(LogEditorAutomationTests, Log, TEXT("Requesting image %s to be compared."), *ComparisonParameters.ScreenshotPath);
 
 				FAutomationTestFramework::Get().OnScreenshotCompared.AddRaw(this, &FAutomationImageComparisonRequest::OnComparisonComplete);
 				Initiate = true;
@@ -328,7 +334,7 @@ namespace AutomationCommon
 			FAutomationScreenshotData Data;
 			Data.Width = OutImageSize.X;
 			Data.Height = OutImageSize.Y;
-			Data.ScreenshotName = ScreenshotName;
+			Data.ScreenshotPath = ScreenshotName;
 			FAutomationTestFramework::Get().OnScreenshotCaptured().ExecuteIfBound(OutImageData, Data);
 		}
 	}

@@ -753,7 +753,7 @@ public:
 	FAutomationWorkerImageComparisonResults(
 		FGuid InInstanceId,
 		FGuid InUniqueId,
-		const FString& InName,
+		const FString& InScreenshotPath,
 		bool InIsNew,
 		bool InAreSimilar,
 		double InMaxLocalDifference,
@@ -766,7 +766,7 @@ public:
 	)
 		: FAutomationWorkerMessageBase{ InInstanceId }
 		, UniqueId(InUniqueId)
-		, ScreenshotName(InName)
+		, ScreenshotPath(InScreenshotPath)
 		, bNew(InIsNew)
 		, bSimilar(InAreSimilar)
 		, MaxLocalDifference(InMaxLocalDifference)
@@ -783,9 +783,9 @@ public:
 	UPROPERTY(EditAnywhere, Category="Message")
 	FGuid UniqueId;
 
-	/** The name of the screenshot. */
+	/** The path of the screenshot. */
 	UPROPERTY(EditAnywhere, Category = "Message")
-	FString ScreenshotName;
+	FString ScreenshotPath;
 
 	/** Was this a new image we've never seen before and have no ground truth for? */
 	UPROPERTY(EditAnywhere, Category="Message")

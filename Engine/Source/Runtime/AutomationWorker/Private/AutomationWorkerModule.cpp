@@ -416,7 +416,7 @@ void FAutomationWorkerModule::HandleScreenShotCompared(const FAutomationWorkerIm
 	// Image comparison finished.
 	FAutomationScreenshotCompareResults CompareResults;
 	CompareResults.UniqueId = Message.UniqueId;
-	CompareResults.ScreenshotName = Message.ScreenshotName;
+	CompareResults.ScreenshotPath = Message.ScreenshotPath;
 	CompareResults.bWasNew = Message.bNew;
 	CompareResults.bWasSimilar = Message.bSimilar;
 	CompareResults.MaxLocalDifference = Message.MaxLocalDifference;
@@ -445,7 +445,7 @@ void FAutomationWorkerModule::HandleScreenShotComparisonReport(const FAutomation
 {
 	FAutomationWorkerImageComparisonResults* Message = FMessageEndpoint::MakeMessage<FAutomationWorkerImageComparisonResults>();
 
-	Message->ScreenshotName = Results.ScreenshotName;
+	Message->ScreenshotPath = Results.ScreenshotPath;
 	Message->UniqueId = Results.UniqueId;
 	Message->bNew = Results.bWasNew;
 	Message->bSimilar = Results.bWasSimilar;
@@ -482,7 +482,7 @@ void FAutomationWorkerModule::HandleScreenShotAndTraceCapturedWithName(const TAr
 	{
 		FAutomationWorkerScreenImage* Message = FMessageEndpoint::MakeMessage<FAutomationWorkerScreenImage>();
 
-		Message->ScreenShotName = Data.ScreenshotName;
+		Message->ScreenShotName = Data.ScreenshotPath;
 		Message->ScreenImage = CompressedBitmap;
 		Message->FrameTrace = CapturedFrameTrace;
 		Message->Metadata = Metadata;
@@ -496,11 +496,11 @@ void FAutomationWorkerModule::HandleScreenShotAndTraceCapturedWithName(const TAr
 		//Save locally
 		const bool bTree = true;
 
-		FString LocalFile = AutomationCommon::GetLocalPathForScreenshot(Data.ScreenshotName);
+		FString LocalFile = AutomationCommon::GetLocalPathForScreenshot(Data.ScreenshotPath);
 		FString LocalTraceFile = FPaths::ChangeExtension(LocalFile, TEXT(".rdc"));
 		FString DirectoryPath = FPaths::GetPath(LocalFile);
 
-		UE_LOG(LogAutomationWorker, Log, TEXT("Saving screenshot %s as %s"),*Data.ScreenshotName, *LocalFile);
+		UE_LOG(LogAutomationWorker, Log, TEXT("Saving screenshot %s as %s"),*Data.ScreenshotPath, *LocalFile);
 
 		if (!IFileManager::Get().MakeDirectory(*DirectoryPath, bTree))
 		{

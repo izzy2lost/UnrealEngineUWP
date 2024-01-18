@@ -947,7 +947,7 @@ void FAutomationTestFramework::DumpAutomationTestExecutionInfo( const TMap<FStri
 void FAutomationTestFramework::InternalStartTest( const FString& InTestToRun, const FString& InFullTestPath)
 {
 	Parameters.Empty();
-	FullTestPath.Empty();
+	CurrentTestFullPath.Empty();
 
 	FString TestName;
 	if (!InTestToRun.Split(TEXT(" "), &TestName, &Parameters, ESearchCase::CaseSensitive))
@@ -970,7 +970,7 @@ void FAutomationTestFramework::InternalStartTest( const FString& InTestToRun, co
 		StartTime = FPlatformTime::Seconds();
 
 		CurrentTest->SetTestContext(Parameters);
-		FullTestPath = InFullTestPath;
+		CurrentTestFullPath = InFullTestPath;
 
 		// If not a smoke test, log the test has started.
 		uint32 NonSmokeTestFlags = (EAutomationTestFlags::FilterMask & (~EAutomationTestFlags::SmokeFilter));
@@ -978,7 +978,7 @@ void FAutomationTestFramework::InternalStartTest( const FString& InTestToRun, co
 		{
 			if (AutomationTest::bLogTestStateTrace)
 			{
-				UE_LOG(LogAutomationTestStateTrace, Log, TEXT("Test is about to start. Name={%s}"), *FullTestPath);
+				UE_LOG(LogAutomationTestStateTrace, Log, TEXT("Test is about to start. Name={%s}"), *CurrentTestFullPath);
 			}
 			UE_LOG(LogAutomationTest, Log, TEXT("%s %s is starting at %f"), *CurrentTest->GetBeautifiedTestName(), *Parameters, StartTime);
 		}
@@ -1022,7 +1022,7 @@ bool FAutomationTestFramework::InternalStopTest(FAutomationTestExecutionInfo& Ou
 		UE_LOG(LogAutomationTest, Log, TEXT("%s %s ran in %f"), *CurrentTest->GetBeautifiedTestName(), *Parameters, TimeForTest);
 		if (AutomationTest::bLogTestStateTrace)
 		{
-			UE_LOG(LogAutomationTestStateTrace, Log, TEXT("Test has stopped execution. Name={%s}"), *FullTestPath);
+			UE_LOG(LogAutomationTestStateTrace, Log, TEXT("Test has stopped execution. Name={%s}"), *CurrentTestFullPath);
 		}
 	}
 
@@ -1288,11 +1288,14 @@ void FAutomationTestExecutionInfo::AddError(const FString& ErrorMessage)
 FAutomationEvent FAutomationScreenshotCompareResults::ToAutomationEvent() const
 {
 	FAutomationEvent Event(EAutomationEventType::Info, TEXT(""));
+	FString OutputScreenshotName = ScreenshotPath;
+	FPaths::NormalizeDirectoryName(OutputScreenshotName);
+	OutputScreenshotName.ReplaceInline(TEXT("/"), TEXT("."));
 
 	if (bWasNew)
 	{
 		Event.Type = EAutomationEventType::Warning;
-		Event.Message = FString::Printf(TEXT("New Screenshot '%s' was discovered!  Please add a ground truth version of it."), *ScreenshotName);
+		Event.Message = FString::Printf(TEXT("New Screenshot '%s' was discovered!  Please add a ground truth version of it."), *OutputScreenshotName);
 	}
 	else
 	{
@@ -1300,7 +1303,7 @@ FAutomationEvent FAutomationScreenshotCompareResults::ToAutomationEvent() const
 		{
 			Event.Type = EAutomationEventType::Info;
 			Event.Message = FString::Printf(TEXT("Screenshot '%s' was similar!  Global Difference = %f, Max Local Difference = %f"),
-				*ScreenshotName, GlobalDifference, MaxLocalDifference);
+				*OutputScreenshotName, GlobalDifference, MaxLocalDifference);
 		}
 		else
 		{
@@ -1309,11 +1312,11 @@ FAutomationEvent FAutomationScreenshotCompareResults::ToAutomationEvent() const
 			if (ErrorMessage.IsEmpty())
 			{
 				Event.Message = FString::Printf(TEXT("Screenshot '%s' test failed, Screenshots were different!  Global Difference = %f, Max Local Difference = %f"),
-					*ScreenshotName, GlobalDifference, MaxLocalDifference);
+					*OutputScreenshotName, GlobalDifference, MaxLocalDifference);
 			}
 			else
 			{
-				Event.Message = FString::Printf(TEXT("Screenshot '%s' test failed; Error = %s"), *ScreenshotName, *ErrorMessage);
+				Event.Message = FString::Printf(TEXT("Screenshot '%s' test failed; Error = %s"), *OutputScreenshotName, *ErrorMessage);
 			}
 		}
 	}

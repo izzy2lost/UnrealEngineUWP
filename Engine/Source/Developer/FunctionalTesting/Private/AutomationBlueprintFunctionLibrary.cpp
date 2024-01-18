@@ -465,7 +465,7 @@ public:
 
 			bool bAttemptToCompareShot = FAutomationTestFramework::Get().OnScreenshotCaptured().ExecuteIfBound(InImageData, Data);
 
-			UE_LOG(AutomationFunctionLibrary, Log, TEXT("Screenshot captured as %s"), *Data.ScreenshotName);
+			UE_LOG(AutomationFunctionLibrary, Log, TEXT("Screenshot captured as %s"), *Data.ScreenshotPath);
 
 			if (GIsAutomationTesting)
 			{
@@ -573,7 +573,7 @@ public:
 
 		bool bAttemptToCompareShot = FAutomationTestFramework::Get().OnScreenshotCaptured().ExecuteIfBound(InImageData, Data);
 
-		UE_LOG(AutomationFunctionLibrary, Log, TEXT("Screenshot captured as %s"), *Data.ScreenshotName);
+		UE_LOG(AutomationFunctionLibrary, Log, TEXT("Screenshot captured as %s"), *Data.ScreenshotPath);
 
 		FAutomationTestFramework::Get().OnScreenshotCompared.AddRaw(this, &FAutomationHighResScreenshotGrabber::OnComparisonComplete);
 	}
@@ -780,9 +780,9 @@ FIntPoint UAutomationBlueprintFunctionLibrary::GetAutomationScreenshotSize(const
 FAutomationScreenshotData UAutomationBlueprintFunctionLibrary::BuildScreenshotData(const FString& MapOrContext, const FString& ScreenShotName, int32 Width, int32 Height)
 {
 	FString TestName = TEXT("");
-	if (FFunctionalTestBase::IsFunctionalTestRunning())
+	if (FAutomationTestFramework::Get().GetCurrentTest()) 
 	{
-		TestName = FFunctionalTestBase::GetRunningTestName();
+		TestName = FAutomationTestFramework::Get().GetCurrentTest()->GetTestFullName();
 	}
 
 #if WITH_AUTOMATION_TESTS
@@ -810,10 +810,16 @@ bool UAutomationBlueprintFunctionLibrary::TakeAutomationScreenshotInternal(UObje
 	return true; //-V773
 }
 
-void UAutomationBlueprintFunctionLibrary::TakeAutomationScreenshot(UObject* WorldContextObject, FLatentActionInfo LatentInfo, const FString& ScreenShotName, const FString& Notes, const FAutomationScreenshotOptions& Options)
+void UAutomationBlueprintFunctionLibrary::TakeAutomationScreenshot(UObject* WorldContextObject, FLatentActionInfo LatentInfo, const FString& InScreenShotName, const FString& Notes, const FAutomationScreenshotOptions& Options)
 {
 	if ( GIsAutomationTesting )
 	{
+		FString ScreenShotName = InScreenShotName;
+		if ( ScreenShotName.IsEmpty() )
+		{
+			ScreenShotName = TEXT("Undefined");
+			UE_LOG(AutomationFunctionLibrary, Warning, TEXT("Screenshot name is empty. Default name will be used."));
+		}
 		if ( UWorld* World = GEngine->GetWorldFromContextObject(WorldContextObject, EGetWorldErrorMode::LogAndReturnNull) )
 		{
 			FLatentActionManager& LatentActionManager = World->GetLatentActionManager();

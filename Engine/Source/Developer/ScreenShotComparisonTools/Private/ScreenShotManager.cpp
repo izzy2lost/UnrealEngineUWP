@@ -389,7 +389,7 @@ FImageComparisonResult FScreenShotManager::CompareScreenshot(const FString& InUn
 	ComparisonResult.SourceRHI = IncomingMetaData.Rhi;
 	ComparisonResult.IdealApprovedFolderPath = IdealApprovedFolderPath;
 	// We use the subfolder path to the screenshot as name (before any environment specialization - platform, RHI - are appended).
-	ComparisonResult.ScreenshotName = ResultsSubFolder;
+	ComparisonResult.ScreenshotPath = ResultsSubFolder;
 
 	// Do not save passing variant test screenshots
 	// Disabled for now until more variants are added, since variants now run without baseline tests in lightweight mode and we need to save at least one screenshot
@@ -674,7 +674,7 @@ TSharedPtr<FImageComparisonResult> FScreenShotManager::CompareImageSequence(cons
 			ComparisonResult.SourcePlatform = Metadata.Platform;
 			ComparisonResult.SourceRHI = Metadata.Rhi;
 			ComparisonResult.IdealApprovedFolderPath = GetIdealApprovedFolderForImage(Metadata);;
-			ComparisonResult.ScreenshotName = GetPathComponentForTestImages(Metadata, true);
+			ComparisonResult.ScreenshotPath = GetPathComponentForTestImages(Metadata, true);
 			FString ReportPathOnDisk = FPaths::Combine(ScreenshotResultsFolder, GetPathComponentForTestImages(Metadata, true), Metadata.Platform, GetPathComponentForRHI(Metadata), TEXT("/"));
 
 			ComparisonResult.ReportApprovedFilePath = FPaths::Combine(ReportPathOnDisk, TEXT("Approved.png"));
@@ -750,7 +750,7 @@ void FScreenShotManager::NotifyAutomationTestFrameworkOfImageComparison(const FI
 		ComparisonResult.ReportComparisonFilePath,
 		ComparisonResult.ReportApprovedFilePath,
 		ComparisonResult.ReportIncomingFilePath,
-		ComparisonResult.ScreenshotName
+		ComparisonResult.ScreenshotPath
 	);
 	FAutomationTestFramework::Get().NotifyScreenshotComparisonReport(Results);
 	if (FAutomationTestBase* CurrentTest = FAutomationTestFramework::Get().GetCurrentTest())

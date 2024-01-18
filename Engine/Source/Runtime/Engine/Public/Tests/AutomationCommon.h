@@ -35,7 +35,7 @@ namespace AutomationCommon
 		TestName/PlatformName/DeviceName.png. It's important to understand that a screenshot
 		generated on a device will likely have a different absolute path than the editor so this
 		name should be used with	*/
-	ENGINE_API FString GetScreenshotName(const FString& TestName);
+	ENGINE_API FString GetScreenshotPath(const FString& TestName);
 
 	/** 
 	This function takes the result of GetScreenshotName and will return the complete path to where a

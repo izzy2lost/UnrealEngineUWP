@@ -748,8 +748,8 @@ struct FAutomationScreenshotData
 	bool bIgnoreAntiAliasing;
 	bool bIgnoreColors;
 
-	// Name of the screenshot generated from AutomationCommon::GetScreenShotName()
-	FString ScreenshotName;
+	// Path of the screenshot generated from AutomationCommon::GetScreenShotPath()
+	FString ScreenshotPath;
 
 	FAutomationScreenshotData()
 		: Id()
@@ -795,7 +795,7 @@ struct FAutomationScreenshotCompareResults
 	FString ReportComparisonFilePath;
 	FString ReportApprovedFilePath;
 	FString ReportIncomingFilePath;
-	FString ScreenshotName;
+	FString ScreenshotPath;
 
 	FAutomationScreenshotCompareResults()
 		: UniqueId()
@@ -816,7 +816,7 @@ struct FAutomationScreenshotCompareResults
 		FString InReportComparisonFilePath,
 		FString InReportApprovedFilePath,
 		FString InReportIncomingFilePath,
-		FString InScreenshotName
+		FString InScreenshotPath
 	)
 		: UniqueId(InUniqueId)
 		, ErrorMessage(InErrorMessage)
@@ -828,7 +828,7 @@ struct FAutomationScreenshotCompareResults
 		, ReportComparisonFilePath(InReportComparisonFilePath)
 		, ReportApprovedFilePath(InReportApprovedFilePath)
 		, ReportIncomingFilePath(InReportIncomingFilePath)
-		, ScreenshotName(InScreenshotName)
+		, ScreenshotPath(InScreenshotPath)
 	{ }
 
 	CORE_API FAutomationEvent ToAutomationEvent() const;
@@ -1150,6 +1150,14 @@ public:
 	}
 
 	/**
+	 * Returns the actively executing test full path
+	 */
+	FString GetCurrentTestFullPath() const
+	{
+		return CurrentTestFullPath;
+	}
+
+	/**
 	 * Whether to skip stack walk while iterating for listing the tests
 	 */
 	static CORE_API bool NeedSkipStackWalk();
@@ -1381,7 +1389,7 @@ private:
 	FString Parameters;
 
 	/** Full test path as given by the automation controller of the active test */
-	FString FullTestPath;
+	FString CurrentTestFullPath;
 
 	/** Whether we want to run automation tests on content within the Developer Directories */
 	bool bDeveloperDirectoryIncluded;
@@ -1452,6 +1460,10 @@ public:
 	 * Returns the beautified test name with test context. Should return what is displayed in the Test Automation UI. See GenerateTestNames()
 	 */
 	virtual FString GetTestFullName() const {
+		if (FAutomationTestFramework::Get().GetCurrentTest() == this)
+		{
+			return FAutomationTestFramework::Get().GetCurrentTestFullPath();
+		}
 		if (GetTestContext().IsEmpty()) { return GetBeautifiedTestName(); }
 		return FString::Printf(TEXT("%s.%s"), *GetBeautifiedTestName(), *GetTestContext());
 	}

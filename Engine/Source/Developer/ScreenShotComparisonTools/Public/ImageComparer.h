@@ -303,10 +303,10 @@ public:
 	FText ErrorMessage;
 
 	/*
-		Name of the screenshot (includes variant if applicable)
+		Path of the screenshot (includes variant if applicable)
 	*/
 	UPROPERTY()
-	FString ScreenshotName;
+	FString ScreenshotPath;
 
 	/*
 		Whether to skip saving and attaching images to the report for this test

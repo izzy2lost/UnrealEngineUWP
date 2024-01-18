@@ -486,7 +486,7 @@ void FAutomationControllerManager::ReportImageComparisonResult(const FAutomation
 			}
 		}
 
-		Report->AddArtifact(ClusterIndex, CurrentTestPass, FAutomationArtifact(Result.UniqueId, Result.ScreenshotName, EAutomationArtifactType::Comparison, LocalFiles));
+		Report->AddArtifact(ClusterIndex, CurrentTestPass, FAutomationArtifact(Result.UniqueId, Result.ScreenshotPath, EAutomationArtifactType::Comparison, LocalFiles));
 	}
 	else
 	{
@@ -508,7 +508,7 @@ void FAutomationControllerManager::ProcessComparisonQueue()
 			FAutomationWorkerImageComparisonResults ResultMessage(
 				Entry->InstanceId,
 				Result.bSkipAttachingImages ? FGuid() : FGuid::NewGuid(),
-				Result.ScreenshotName,
+				Result.ScreenshotPath,
 				Result.IsNew(),
 				Result.AreSimilar(),
 				Result.MaxLocalDifference,
