@@ -56,3 +56,20 @@ bool FDisplayClusterDisplayDeviceProxy_OpenColorIO::AddFinalPass_RenderThread(FR
 
 	return true;
 }
+
+/**
+* A helper function that extracts the right scene color texture, untouched, to be used further in post processing.
+*/
+FScreenPassTexture IDisplayClusterDisplayDeviceProxy::ReturnUntouchedSceneColorForPostProcessing(const FPostProcessMaterialInputs& InOutInputs)
+{
+	if (InOutInputs.OverrideOutput.IsValid())
+	{
+		return InOutInputs.OverrideOutput;
+	}
+	else
+	{
+		/** We don't want to modify scene texture in any way. We just want it to be passed back onto the next stage. */
+		FScreenPassTexture SceneTexture = const_cast<FScreenPassTexture&>(InOutInputs.Textures[(uint32)EPostProcessMaterialInput::SceneColor]);
+		return SceneTexture;
+	}
+}

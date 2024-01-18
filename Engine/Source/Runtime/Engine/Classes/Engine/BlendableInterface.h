@@ -15,7 +15,6 @@ enum EBlendableLocation : int
 {
 	/** Post process material location to modify the scene color, between translucency distortion and DOF.
 	 * Always run at rendering resolution.
-	 * Inputs and output always in linear color space.
 	 *
 	 * Input0:former pass scene color, excluding AfterDOF translucency
 	 * Input1:AfterDOF translucency.
@@ -24,7 +23,6 @@ enum EBlendableLocation : int
 
 	/** Post process material location to modify the scene color, between DOF and AfterDOF translucency.
 	 * Always run at rendering resolution.
-	 * Inputs and output always in linear color space.
 	 *
 	 * Input0:former pass scene color, excluding AfterDOF translucency
 	 * Input1:AfterDOF translucency.
@@ -33,7 +31,6 @@ enum EBlendableLocation : int
 
 	/** Post process material location to modify the AfterDOF translucency, before composition into the scene color.
 	 * Always run at rendering resolution.
-	 * Inputs and output always in linear color space.
 	 *
 	 * Input0:scene color without translucency, after DOF,
 	 * Input1:AfterDOF translucency.
@@ -42,23 +39,13 @@ enum EBlendableLocation : int
 
 	/** Post process material location to compose a backplate into SSR, between TSR/TAA and next frame's SSR.
 	 * Runs at display resolution with TSR or TAAU, rendering resolution otherwise.
-	 * Inputs and output always in linear color space.
 	 *
 	 * Input0:TAA/TSR output,
 	 */
 	BL_SSRInput = 4 UMETA(DisplayName = "SSR Input"),
 
-	/** Post process material location to modify the scene color, before bloom.
-	 * Runs at display resolution with TSR or TAAU, rendering resolution otherwise.
-	 * Inputs and output always in linear color space.
-	 *
-	 * Input0:former pass scene color,
-	 */
-	BL_SceneColorBeforeBloom = 6 UMETA(DisplayName = "Scene Color Before Bloom"),
-
 	/** Post process material replacing the tone mapper, to modify the scene color.
 	 * Runs at display resolution with TSR or TAAU, rendering resolution otherwise.
-	 * Inputs are always linear color space.
 	 *
 	 * Input0:former pass scene color,
 	 * Input1:AfterDOF translucency.
@@ -67,14 +54,13 @@ enum EBlendableLocation : int
 
 	/** Post process material location to modify the scene color, after tone mapper.
 	 * Runs at display resolution with TSR or TAAU, rendering resolution otherwise.
-	 * Inputs and output in different color spaces, based rendering settings for instance (sRGB/Rec709, HDR or even Linear Color).
 	 *
 	 * Input0:former pass scene color,
 	 * Input1:AfterDOF translucency.
 	 */
 	BL_SceneColorAfterTonemapping = 0 UMETA(DisplayName = "Scene Color After Tonemapping"),
 
-	BL_MAX = 7 UMETA(Hidden),
+	BL_MAX = 6 UMETA(Hidden),
 
 	// Olds names that needs to be kept forever to ensure asset serialization to work correctly when UENUM() switched from serializing int to names.
 	BL_BeforeTranslucency UE_DEPRECATED(5.4, "Renamed to BL_SceneColorBeforeDOF")        = BL_SceneColorBeforeDOF UMETA(Hidden),
