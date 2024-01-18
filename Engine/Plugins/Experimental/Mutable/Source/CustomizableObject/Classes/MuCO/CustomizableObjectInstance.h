@@ -681,6 +681,12 @@ public:
 #endif 
 
 private:
+
+#if WITH_EDITOR
+	void BindPostCompileDelegate(UCustomizableObject* CustomizableObject);
+#endif
+
+private:
 	UPROPERTY()
 	FCustomizableObjectInstanceDescriptor Descriptor;
 

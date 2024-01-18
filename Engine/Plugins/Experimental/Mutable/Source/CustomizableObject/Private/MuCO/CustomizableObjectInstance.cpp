@@ -265,7 +265,7 @@ void UCustomizableObjectInstance::SetDescriptor(const FCustomizableObjectInstanc
 
 #if WITH_EDITOR
 	// Bind a lambda to the PostCompileDelegate and unbind from the previous object if any.
-	PrivateData->BindObjectDelegates(GetCustomizableObject(), InCustomizableObject);
+	BindPostCompileDelegate(InCustomizableObject);
 #endif
 
 	Descriptor = InDescriptor;
@@ -327,34 +327,19 @@ void UCustomizableInstancePrivate::OnPostCompile()
 }
 
 
-void UCustomizableInstancePrivate::OnObjectStatusChanged(FCustomizableObjectStatus::EState Previous, FCustomizableObjectStatus::EState Next)
+void UCustomizableObjectInstance::BindPostCompileDelegate(UCustomizableObject* InCustomizableObject)
 {
-	if (Previous != Next && Next == FCustomizableObjectStatus::EState::ModelLoaded)
-	{
-		OnPostCompile();
-	}
-}
-
-
-void UCustomizableInstancePrivate::BindObjectDelegates(UCustomizableObject*  CurrentCustomizableObject, UCustomizableObject* NewCustomizableObject)
-{
-	if (CurrentCustomizableObject == NewCustomizableObject)
-	{
-		return;
-	}
-
 	// Unbind callback from the previous CO
-	if (CurrentCustomizableObject)
+	if (UCustomizableObject* CurrentObject = GetCustomizableObject())
 	{
-		CurrentCustomizableObject->PostCompileDelegate.RemoveAll(this);
-		CurrentCustomizableObject->GetPrivate()->Status.GetOnStateChangedDelegate().RemoveAll(this);
+		CurrentObject->PostCompileDelegate.RemoveAll(GetPrivate());
 	}
 
 	// Bind callback to the new CO
-	if (NewCustomizableObject)
+	if (InCustomizableObject &&
+		!InCustomizableObject->PostCompileDelegate.IsBoundToObject(GetPrivate()))
 	{
-		NewCustomizableObject->PostCompileDelegate.AddUObject(this, &UCustomizableInstancePrivate::OnPostCompile);
-		NewCustomizableObject->GetPrivate()->Status.GetOnStateChangedDelegate().AddUObject(this, &UCustomizableInstancePrivate::OnObjectStatusChanged);
+		InCustomizableObject->PostCompileDelegate.AddUObject(GetPrivate(), &UCustomizableInstancePrivate::OnPostCompile);
 	}
 }
 
@@ -408,6 +393,11 @@ bool UCustomizableObjectInstance::IsEditorOnly() const
 
 void UCustomizableObjectInstance::BeginDestroy()
 {
+#if WITH_EDITOR
+	// Unbind PostCompileDelegate
+	BindPostCompileDelegate(nullptr);
+#endif
+
 	BeginDestroyDelegate.Broadcast(this);
 	BeginDestroyNativeDelegate.Broadcast(this);
 
@@ -416,11 +406,6 @@ void UCustomizableObjectInstance::BeginDestroy()
 
 	if (PrivateData)
 	{
-#if WITH_EDITOR
-		// Unbind Object delegates
-		PrivateData->BindObjectDelegates(GetCustomizableObject(), nullptr);
-#endif
-
 		if (PrivateData->StreamingHandle.IsValid() && PrivateData->StreamingHandle->IsActive())
 		{
 			PrivateData->StreamingHandle->CancelHandle();
@@ -574,7 +559,7 @@ void UCustomizableObjectInstance::PostLoad()
 	Super::PostLoad();
 
 #if WITH_EDITOR
-	PrivateData->BindObjectDelegates(nullptr, GetCustomizableObject());
+	BindPostCompileDelegate(GetCustomizableObject());
 #endif
 
 	// Skip the cost of ReloadParameters in the cook commandlet; it will be reloaded during PreSave. For cooked runtime
@@ -699,7 +684,7 @@ void UCustomizableObjectInstance::SetObject(UCustomizableObject* InObject)
 {
 #if WITH_EDITOR
 	// Bind a lambda to the PostCompileDelegate and unbind from the previous object if any.
-	PrivateData->BindObjectDelegates(GetCustomizableObject(), InObject);
+	BindPostCompileDelegate(InObject);
 #endif
 
 	Descriptor.SetCustomizableObject(*InObject);
