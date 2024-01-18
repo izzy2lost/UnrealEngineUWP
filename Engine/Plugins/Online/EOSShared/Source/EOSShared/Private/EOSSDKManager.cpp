@@ -468,7 +468,7 @@ void FEOSSDKManager::ApplyIntegratedPlatformOptions(EOS_HIntegratedPlatformOptio
 			PlatformOptions.ApiVersion = 1;
 			UE_EOS_CHECK_API_MISMATCH(EOS_INTEGRATEDPLATFORM_OPTIONS_API_LATEST, 1);
 			PlatformOptions.Type = GetIntegratedPlatformType();
-			PlatformOptions.Flags = EOS_EIntegratedPlatformManagementFlags::EOS_IPMF_LibraryManagedByApplication | EOS_EIntegratedPlatformManagementFlags::EOS_IPMF_DisableSDKManagedSessions;
+			PlatformOptions.Flags = EOS_EIntegratedPlatformManagementFlags::EOS_IPMF_LibraryManagedByApplication | EOS_EIntegratedPlatformManagementFlags::EOS_IPMF_ApplicationManagedIdentityLogin | EOS_EIntegratedPlatformManagementFlags::EOS_IPMF_DisableSDKManagedSessions;
 			PlatformOptions.InitOptions = GetIntegratedPlatformOptions();
 
 			EOS_IntegratedPlatformOptionsContainer_AddOptions AddOptions = {};
