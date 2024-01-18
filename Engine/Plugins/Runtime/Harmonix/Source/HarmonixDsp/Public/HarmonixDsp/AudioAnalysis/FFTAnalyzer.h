@@ -58,6 +58,12 @@ namespace Harmonix::Dsp::AudioAnalysis
 		static_assert(FMath::IsPowerOfTwo(MaxFFTSize), "Max FFT size should be a power of two.");
 		inline static constexpr int32 MaxBins = MaxFFTSize / 2;
 
+		inline static constexpr float MinFrequency = 20.0f;
+		inline static constexpr float MaxFrequency = 20000.0f;
+
+		inline static constexpr float MinSmoothingTime = 0.0f;
+		inline static constexpr float MaxSmoothingTime = 10000.0f;
+
 		explicit FFFTAnalyzer(float InSampleRate);
 
 		/**
