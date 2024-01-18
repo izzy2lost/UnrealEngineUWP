@@ -1415,6 +1415,7 @@ void UTexture2D::UpdateTextureRegions(int32 MipIndex, uint32 NumRegions, const F
 #if WITH_EDITOR
 void UTexture2D::TemporarilyDisableStreaming()
 {
+	BlockOnAnyAsyncBuild();
 	if( !bTemporarilyDisableStreaming )
 	{
 		bTemporarilyDisableStreaming = true;

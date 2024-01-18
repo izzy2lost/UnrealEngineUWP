@@ -5664,8 +5664,8 @@ FLandscapeTextureDataInfo::FLandscapeTextureDataInfo(UTexture2D* InTexture, bool
 {
 	MipInfo.AddZeroed(Texture->Source.GetNumMips());
 	Texture->SetFlags(RF_Transactional);
+	Texture->TemporarilyDisableStreaming();
 	Texture->Modify(bShouldDirtyPackage);
-	Texture->TemporarilyDisableStreaming();	
 }
 
 bool FLandscapeTextureDataInfo::UpdateTextureData()
