@@ -243,7 +243,7 @@ bool FCommonAnalogCursor::HandleKeyDownEvent(FSlateApplication& SlateApp, const 
 		{
 			return true;
 		}
-		else
+		else if (!bIsVirtualAccept || ShouldVirtualAcceptSimulateMouseButton(InKeyEvent, IE_Pressed))
 		{
 			// There is no awareness on a mouse event of whether it's real or not, so mark that here.
 			UCommonInputSubsystem& InputSubsytem = ActionRouter.GetInputSubsystem();
@@ -275,7 +275,7 @@ bool FCommonAnalogCursor::HandleKeyUpEvent(FSlateApplication& SlateApp, const FK
 		{
 			return true;
 		}
-		else
+		else if (!bIsVirtualAccept || ShouldVirtualAcceptSimulateMouseButton(InKeyEvent, IE_Released))
 		{
 			return FAnalogCursor::HandleKeyUpEvent(SlateApp, InKeyEvent);
 		}
