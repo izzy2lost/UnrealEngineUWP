@@ -1,23 +1,37 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 #include "XRCreativeToolset.h"
-/*#include "XRCreativeSettings.h"
+
+#include "InputMappingContext.h"
+#include "XRCreativeLog.h"
 #include "Logging/LogMacros.h"
+
+#if WITH_EDITOR
+#	include "XRCreativeSettings.h"
+#endif
 
 DEFINE_LOG_CATEGORY(LogXRCreativeToolset);
 
-UXRCreativeToolset::UXRCreativeToolset()
+UInputMappingContext* UXRCreativeBlueprintableTool::GetToolInputMappingContext()
 {
-	UXRCreativeSettings* Settings = UXRCreativeSettings::GetXRCreativeSettings();
-	if (Settings->Handedness == EXRCreativeHandedness::Left && !LeftInputMappingContext)
-	{
-		UE_LOG(LogXRCreativeToolset, Warning, TEXT("Handedness is Left but no Left Input Mapping Context found in Toolset."));
-	}
-}
-
-UXRCreativeToolset::~UXRCreativeToolset()
-{
+	UInputMappingContext* InputMappingContext = DefaultToolInputMappingContext;
 	
-}*/
+	#if WITH_EDITOR
+		UXRCreativeEditorSettings* Settings = UXRCreativeEditorSettings::GetXRCreativeEditorSettings();
+
+		if (Settings->Handedness == EXRCreativeHandedness::Left && LeftToolInputMappingContext)
+		{
+			InputMappingContext = LeftToolInputMappingContext;
+		}
+		else if (Settings->Handedness == EXRCreativeHandedness::Left && !LeftToolInputMappingContext)
+		{
+			InputMappingContext = DefaultToolInputMappingContext;
+			UE_LOG(LogXRCreativeToolset, Warning, TEXT("Handedness is Left but no Left Input Mapping Context found in Toolset - Using Default."));
+		}
+	
+	#endif
+	
+	return InputMappingContext; 
+}
 
 

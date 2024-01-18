@@ -224,7 +224,7 @@ void UXRCreativeVREditorMode::EnableStereo()
 	{
 		if (UXRCreativeBlueprintableTool* BPTool = Cast<UXRCreativeBlueprintableTool>(Tool))
 		{
-			if (UInputMappingContext* ToolIMC = BPTool->GetInputMappingContext())
+			if (UInputMappingContext* ToolIMC = BPTool->GetToolInputMappingContext())
 			{
 				Contexts.Add(ToolIMC);
 			}

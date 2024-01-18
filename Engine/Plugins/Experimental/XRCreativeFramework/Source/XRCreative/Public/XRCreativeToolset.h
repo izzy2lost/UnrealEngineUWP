@@ -72,7 +72,8 @@ public:
 	virtual FText GetDisplayName() const override { return DisplayName; }
 	virtual TSubclassOf<UXRCreativePaletteToolTab> GetPaletteTabClass() const override { return PaletteTabClass; }
 
-	UInputMappingContext* GetInputMappingContext() { return ToolInputMappingContext; }
+	UFUNCTION(BlueprintPure, Category="XR Creative")
+	UInputMappingContext* GetToolInputMappingContext();
 
 protected:
 	UPROPERTY(BlueprintReadOnly, EditDefaultsOnly, Category="XR Creative")
@@ -91,8 +92,10 @@ protected:
 	TSubclassOf<AXRCreativeToolActor> ToolActor;
 
 	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category="XR Creative")
-	TObjectPtr<UInputMappingContext> ToolInputMappingContext;
+	TObjectPtr<UInputMappingContext> DefaultToolInputMappingContext;
 
+	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category="XR Creative")
+	TObjectPtr<UInputMappingContext> LeftToolInputMappingContext;
 
 	
 };
