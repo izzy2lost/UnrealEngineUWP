@@ -96,7 +96,6 @@ namespace PerfReportTool
 			title = element.GetRequiredAttribute<string>(vars, "title");
 			budget = new Optional<double>(element, "budget", vars);
 			inSummary = element.GetSafeAttribute<bool>(vars, "inSummary", false);
-			isExternal = element.GetSafeAttribute<bool>(vars, "external", false);
 			isInline = element.GetSafeAttribute<bool>(vars, "inline", false);
 			parent = element.GetSafeAttribute<string>(vars, "parent");
 			minFilterStatValue = new Optional<double>(element, "minFilterStatValue", vars);
@@ -115,7 +114,6 @@ namespace PerfReportTool
 		public string title;
 		public Optional<double> budget;
 		public bool inSummary;
-		public bool isExternal;
 		public Optional<double> minFilterStatValue;
 		public GraphSettings settings;
 

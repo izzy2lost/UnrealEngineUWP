@@ -124,6 +124,9 @@ namespace CSVStats
 						i++;
 					}
 
+					// Decode negative values. This is necessary otherwise negative values are interpreted as separate args.
+					val = val.Replace("&minus;", "-");
+
 					string argKey = arg.Substring(1).ToLower();
 					if (CommandLineArgs.ContainsKey(argKey))
 					{

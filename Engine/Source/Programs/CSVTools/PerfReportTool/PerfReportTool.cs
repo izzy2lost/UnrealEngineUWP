@@ -23,7 +23,7 @@ namespace PerfReportTool
     class Version
     {
 		// Format: Major.Minor.Bugfix
-        private static string VersionString = "4.227.1";
+        private static string VersionString = "4.228.0";
 
         public static string Get() { return VersionString; }
     };
@@ -933,6 +933,42 @@ namespace PerfReportTool
 			return csvStats;
 		}
 
+		// Represents how a graph should be written to the file.
+		private class CsvSvgInfo
+		{
+			public enum GraphFormat
+			{
+				// The full graph html/script is written directly into the report file.
+				Inline,
+				// A script to fetch the graph dynamically on page load is inserted into the report file.
+				Url
+			}
+
+			public ReportGraph Graph { get; private set; }
+			public GraphFormat Format { get; private set; }
+			public string SvgFilename { get; private set; } = null;
+
+			public static CsvSvgInfo CreateInlineGraphInfo(ReportGraph graph, string svgFilename)
+			{
+				return new CsvSvgInfo()
+				{
+					Graph = graph,
+					Format = GraphFormat.Inline,
+					SvgFilename = svgFilename
+				};
+			}
+
+			public static CsvSvgInfo CreateEmbeddedUrlGraphInfo(ReportGraph graph)
+			{
+				return new CsvSvgInfo()
+				{
+					Graph = graph,
+					Format = GraphFormat.Url,
+					SvgFilename = null
+				};
+			}
+		}
+
 		void GenerateReport(CachedCsvFile csvFile, string outputDir, bool bBulkMode, SummaryTableRowData rowData, bool bBatchedGraphs, bool writeDetailedReport, bool bReadCsvStats, ReportTypeInfo reportTypeInfo, string csvDir)
 		{
 			PerfLog perfLog = new PerfLog(GetBoolArg("perfLog"));
@@ -983,7 +1019,7 @@ namespace PerfReportTool
 
 			float thickness = 1.0f;
 			List<string> csvToSvgCommandlines = new List<string>();
-			List<string> svgFilenames = new List<string>();
+			List<CsvSvgInfo> csvSvgInfoList = new List<CsvSvgInfo>();
 			string responseFilename = null;
 			List<Process> csvToSvgProcesses = new List<Process>();
 			List<Task> csvToSvgTasks = new List<Task>();
@@ -995,20 +1031,16 @@ namespace PerfReportTool
 					graphGenerator = new GraphGenerator(csvFile.GetFinalCsv(), csvFile.filename);
 				}
 
+				bool useEmbeddedGraphUrl = GetBoolArg("useEmbeddedGraphUrl");
+
 				// Generate all the graphs asyncronously
 				foreach (ReportGraph graph in reportTypeInfo.graphs)
 				{
-					string svgFilename = String.Empty;
-					if (graph.isExternal && !GetBoolArg("externalGraphs"))
-					{
-						svgFilenames.Add(svgFilename);
-						continue;
-					}
-
 					if (graph.settings.statString.isSet == false)
 					{
 						throw new Exception("Graph " + graph.title + " has no <statString> element");
 					}
+
 					bool bFoundStat = false;
 					foreach (string statString in graph.settings.statString.value.Split(','))
 					{
@@ -1019,36 +1051,45 @@ namespace PerfReportTool
 							break;
 						}
 					}
+
 					if (bFoundStat)
 					{
-						svgFilename = GetTempFilename(csvFile.filename) + ".svg";
-						if (graphGenerator != null)
+						if (useEmbeddedGraphUrl)
 						{
-							GraphParams graphParams = GetCsvToSvgGraphParams(csvFile.filename, graph, thickness, minX, maxX, false, svgFilenames.Count);
-							if (bCsvToSvgMultiThreaded)
-							{
-								csvToSvgTasks.Add(graphGenerator.MakeGraphAsync(graphParams, svgFilename, true, false));
-							}
-							else
-							{
-								graphGenerator.MakeGraph(graphParams, svgFilename, true, false);
-							}
+							csvSvgInfoList.Add(CsvSvgInfo.CreateEmbeddedUrlGraphInfo(graph));
 						}
 						else
 						{
-							string args = GetCsvToSvgArgs(csvFile.filename, svgFilename, graph, thickness, minX, maxX, false, svgFilenames.Count);
-							if (bBatchedGraphs)
+							string svgFilename = GetTempFilename(csvFile.filename) + ".svg";
+							if (graphGenerator != null)
 							{
-								csvToSvgCommandlines.Add(args);
+								GraphParams graphParams = GetCsvToSvgGraphParams(graph, thickness, minX, maxX, false, csvSvgInfoList.Count);
+								if (bCsvToSvgMultiThreaded)
+								{
+									csvToSvgTasks.Add(graphGenerator.MakeGraphAsync(graphParams, svgFilename, true, false));
+								}
+								else
+								{
+									graphGenerator.MakeGraph(graphParams, svgFilename, true, false);
+								}
 							}
 							else
 							{
-								Process csvToSvgProcess = LaunchCsvToSvgAsync(args);
-								csvToSvgProcesses.Add(csvToSvgProcess);
+								string args = GetCsvToSvgArgs(csvFile.filename, svgFilename, graph, thickness, minX, maxX, false, csvSvgInfoList.Count, CsvToSvgArgFormat.CommandLine);
+								if (bBatchedGraphs)
+								{
+									csvToSvgCommandlines.Add(args);
+								}
+								else
+								{
+									Process csvToSvgProcess = LaunchCsvToSvgAsync(args);
+									csvToSvgProcesses.Add(csvToSvgProcess);
+								}
 							}
+
+							csvSvgInfoList.Add(CsvSvgInfo.CreateInlineGraphInfo(graph, svgFilename));
 						}
 					}
-					svgFilenames.Add(svgFilename);
 				}
 
 				if (bCsvToSvgProcesses && bBatchedGraphs)
@@ -1195,15 +1236,15 @@ namespace PerfReportTool
 			}
 
 			// Write the report
-			WriteReport(htmlFilename, title, svgFilenames, reportTypeInfo, csvStats, csvStatsUnstripped, numFramesStripped, minX, maxX, bBulkMode, rowData);
+			WriteReport(htmlFilename, title, csvSvgInfoList, reportTypeInfo, csvStats, csvStatsUnstripped, numFramesStripped, minX, maxX, bBulkMode, rowData);
 			perfLog.LogTiming("    WriteReport");
 
 			// Delete the temp files
-			foreach (string svgFilename in svgFilenames)
+			foreach (CsvSvgInfo csvSvgInfo in csvSvgInfoList)
 			{
-				if (svgFilename != String.Empty && File.Exists(svgFilename))
+				if (csvSvgInfo.SvgFilename != null && File.Exists(csvSvgInfo.SvgFilename))
 				{
-					File.Delete(svgFilename);
+					File.Delete(csvSvgInfo.SvgFilename);
 				}
 			}
 			if (responseFilename != null && File.Exists(responseFilename))
@@ -1299,10 +1340,8 @@ namespace PerfReportTool
 
 
 
-		void WriteReport(string htmlFilename, string title, List<string> svgFilenames, ReportTypeInfo reportTypeInfo, CsvStats csvStats, CsvStats csvStatsUnstripped, int numFramesStripped, int minX, int maxX, bool bBulkMode, SummaryTableRowData summaryRowData)
+		void WriteReport(string htmlFilename, string title, List<CsvSvgInfo> csvSvgInfoList, ReportTypeInfo reportTypeInfo, CsvStats csvStats, CsvStats csvStatsUnstripped, int numFramesStripped, int minX, int maxX, bool bBulkMode, SummaryTableRowData summaryRowData)
 		{
-
-			ReportGraph[] graphs = reportTypeInfo.graphs.ToArray();
 			string titleStr = reportTypeInfo.title + " : " + title;
 			System.IO.StreamWriter htmlFile = null;
 
@@ -1423,18 +1462,12 @@ namespace PerfReportTool
 			}
 
 			// If the reporttype has summary info, then write out the summary]
-			PeakSummary peakSummary = null;
 			foreach (Summary summary in summaries)
 			{
 				HtmlSection htmlSection = summary.WriteSummaryData(htmlFile != null, summary.useUnstrippedCsvStats ? csvStatsUnstripped : csvStats, csvStatsUnstripped, bWriteSummaryCsv, summaryRowData, htmlFilename);
 				if (htmlSection != null)
 				{
 					htmlSection.WriteToFile(htmlFile);
-				}
-					
-				if (summary.GetType() == typeof(PeakSummary))
-				{
-					peakSummary = (PeakSummary)summary;
 				}
 			}
 
@@ -1460,52 +1493,80 @@ namespace PerfReportTool
 					{
 						htmlFile.WriteLine("<h4>" + currentCategory + " Graphs</h4>");
 					}
-					for (int i = 0; i < svgFilenames.Count(); i++)
+					
+					foreach (CsvSvgInfo csvSvgInfo in csvSvgInfoList)
 					{
-						string svgFilename = svgFilenames[i];
-						if (string.IsNullOrEmpty(svgFilename))
-						{
-							continue;
-						}
-
-						ReportGraph graph = graphs[i];
-						string svgTitle = graph.title;
-						//if (reportTypeInfo.summary.stats[i].ToLower().StartsWith(currentCategory))
-						{
-							htmlFile.WriteLine("<li><a href='#" + StripSpaces(svgTitle) + "'>" + svgTitle + "</a></li>");
-						}
+						string svgTitle = csvSvgInfo.Graph.title;
+						// TODO: Check if this graph belongs in this section.
+						htmlFile.WriteLine("<li><a href='#" + StripSpaces(svgTitle) + "'>" + svgTitle + "</a></li>");
 					}
+
 					htmlFile.WriteLine("</ul>");
 				}
 
 
 				// Output the Graphs
-				for (int svgFileIndex = 0; svgFileIndex < svgFilenames.Count; svgFileIndex++)
+				for (int svgFileIndex = 0; svgFileIndex < csvSvgInfoList.Count; svgFileIndex++)
 				{
-					string svgFilename = svgFilenames[svgFileIndex];
-					if (String.IsNullOrEmpty(svgFilename))
-					{
-						continue;
-					}
-					ReportGraph graph = graphs[svgFileIndex];
+					CsvSvgInfo csvSvgInfo = csvSvgInfoList[svgFileIndex];
+					ReportGraph graph = csvSvgInfo.Graph;
 
 					string svgTitle = graph.title;
 					HtmlSection htmlSection = new HtmlSection(svgTitle, false, StripSpaces(svgTitle));
-					if (graph.isExternal)
+
+					if (csvSvgInfo.Format == CsvSvgInfo.GraphFormat.Inline)
 					{
-						string outFilename = htmlFilename.Replace(".html", "_" + svgTitle.Replace(" ", "_") + ".svg");
-						File.Copy(svgFilename, outFilename, true);
-						htmlSection.WriteLine("<a href='" + outFilename + "'>" + svgTitle + " (external)</a>");
-					}
-					else
-					{
-						string[] svgLines = ReadLinesFromFile(svgFilename);
+						string[] svgLines = ReadLinesFromFile(csvSvgInfo.SvgFilename);
 						foreach (string line in svgLines)
 						{
 							string modLine = line.Replace("__MAKEUNIQUE__", "U_" + svgFileIndex.ToString());
 							htmlSection.WriteLine(modLine);
 						}
 					}
+					else if (csvSvgInfo.Format == CsvSvgInfo.GraphFormat.Url)
+					{
+						string graphArgs = GetCsvToSvgArgs(null, null, graph, 1.0, minX, maxX, false, svgFileIndex, CsvToSvgArgFormat.Url);
+						string csvId = csvStats.metaData?.GetValue("csvid", null);
+						if (csvId == null)
+						{
+							throw new Exception("Failed to generate embeddedGraphUrl since no valid csvId was found.");
+						}
+
+						string graphUrlRoot = GetArg("embeddedGraphUrlRoot", mandatory: true);
+						string graphUrl = $"{graphUrlRoot}?csvs={csvId}&{graphArgs}";
+						string script = $"<div id=\"graph_{svgFileIndex}\"></div>\n";
+						script += $"<script>" +
+							// On page load, fetch the graph from the end point
+							$"fetch('{graphUrl}')\n" +
+							".then(response => response.text())\n" +
+							".then(html => {\n" +
+								// Insert the html into the div
+								$"const graphDiv = document.getElementById('graph_{svgFileIndex}');\n" +
+								"graphDiv.innerHTML = html;\n" +
+								// Find all the nested scripts and make them executable.
+								"graphDiv.querySelectorAll('script').forEach((script) => { \n" +
+									// We need to copy the script into a new node to make it executable as scripts
+									// assigned via innerHTML cannot be run. For some reason the text/innerHTML of scripts nested in an svg tag
+									// cannot be read/assigned to a new node directly, so we must serialize the node to xml, then parse that into
+									// a local dom tree. From there we can grab the script node and read its text data.
+									"const scriptNodeText = new XMLSerializer().serializeToString(script);\n" +
+									"const parsedScriptDom = new DOMParser().parseFromString(scriptNodeText, \"text/xml\");\n" +
+									"const scriptText = parsedScriptDom.querySelector('script').firstChild.data;" +
+
+									"const clonedScriptNode = document.createElement('script');\n" +
+									"clonedScriptNode.text = scriptText;\n" +
+									"script.parentNode.replaceChild(clonedScriptNode, script);\n" +
+								"});\n" +
+							"})\n" +
+							".catch(err => console.log(err));" +
+							"</script>";
+						htmlSection.WriteLine(script);
+					}
+					else
+					{
+						throw new Exception("Unsupported graph output format.");
+					}
+					
 					htmlSection.WriteToFile(htmlFile);
 				}
 
@@ -1523,13 +1584,13 @@ namespace PerfReportTool
 				string ForEmail = GetArg("foremail", false);
 				if (ForEmail != "")
 				{
-					WriteEmail(htmlFilename, title, svgFilenames, reportTypeInfo, csvStats, csvStatsUnstripped, minX, maxX, bBulkMode);
+					WriteEmail(htmlFilename, title, csvSvgInfoList, reportTypeInfo, csvStats, csvStatsUnstripped, minX, maxX, bBulkMode);
 				}
 			}
 		}
 
 
-		void WriteEmail(string htmlFilename, string title, List<string> svgFilenames, ReportTypeInfo reportTypeInfo, CsvStats csvStats, CsvStats csvStatsUnstripped, int minX, int maxX, bool bBulkMode)
+		void WriteEmail(string htmlFilename, string title, List<CsvSvgInfo> csvSvgInfoList, ReportTypeInfo reportTypeInfo, CsvStats csvStats, CsvStats csvStatsUnstripped, int minX, int maxX, bool bBulkMode)
 		{
 			if (htmlFilename == null)
 			{
@@ -1577,7 +1638,6 @@ namespace PerfReportTool
 			bool bWriteSummaryCsv = GetBoolArg("writeSummaryCsv") && !bBulkMode;
 
 			// If the reporttype has summary info, then write out the summary]
-			PeakSummary peakSummary = null;
 			foreach (Summary summary in reportTypeInfo.summaries)
 			{
 				HtmlSection htmlSection = summary.WriteSummaryData(htmlFile != null, csvStats, csvStatsUnstripped, bWriteSummaryCsv, null, htmlFilename);
@@ -1585,12 +1645,6 @@ namespace PerfReportTool
 				{
 					htmlSection.WriteToFile(htmlFile);
 				}
-
-				if (summary.GetType() == typeof(PeakSummary))
-				{
-					peakSummary = (PeakSummary)summary;
-				}
-
 			}
 
 			htmlFile.WriteLine("  </font></body>");
@@ -1608,15 +1662,19 @@ namespace PerfReportTool
 			string shortFileName = MakeShortFilename(csvFilename).Replace(" ", "_");
 			return Path.Combine(Path.GetTempPath(), shortFileName + "_" + Guid.NewGuid().ToString().Substring(26));
 		}
-		string GetCsvToSvgArgs(string csvFilename, string svgFilename, ReportGraph graph, double thicknessMultiplier, int minx, int maxx, bool multipleCSVs, int graphIndex, float scaleby = 1.0f)
+
+		enum CsvToSvgArgFormat
+		{ 
+			CommandLine,
+			Url
+		}
+
+		string GetCsvToSvgArgs(string csvFilename, string svgFilename, ReportGraph graph, double thicknessMultiplier, int minx, int maxx, bool multipleCSVs, int graphIndex, CsvToSvgArgFormat argFormat, float scaleby = 1.0f)
 		{
 			string title = graph.title;
 
 			GraphSettings graphSettings = graph.settings;
-			string[] statStringTokens = graphSettings.statString.value.Split(',');
-			IEnumerable<string> quoteWrappedStatStrings = statStringTokens.Select(token => '"' + token + '"');
-			string statString = String.Join(" ", quoteWrappedStatStrings);
-			double thickness = graphSettings.thickness.value * thicknessMultiplier;
+
 			float maxy = GetFloatArg("maxy", (float)graphSettings.maxy.value);
 			bool smooth = graphSettings.smooth.value && !GetBoolArg("nosmooth");
 			double smoothKernelPercent = graphSettings.smoothKernelPercent.value;
@@ -1624,7 +1682,6 @@ namespace PerfReportTool
 			double compression = graphSettings.compression.value;
 			int width = graphSettings.width.value;
 			int height = graphSettings.height.value;
-			string additionalArgs = "";
 			bool stacked = graphSettings.stacked.value;
 			bool showAverages = graphSettings.showAverages.value;
 			bool filterOutZeros = graphSettings.filterOutZeros.value;
@@ -1646,19 +1703,6 @@ namespace PerfReportTool
 				hideEventNames = true;
 			}
 			bool interactive = true;
-			string smoothParams = "";
-			if (smooth)
-			{
-				smoothParams = " -smooth";
-				if (smoothKernelPercent >= 0.0f)
-				{
-					smoothParams += " -smoothKernelPercent " + smoothKernelPercent.ToString();
-				}
-				if (smoothKernelSize >= 0.0f)
-				{
-					smoothParams += " -smoothKernelSize " + smoothKernelSize.ToString();
-				}
-			}
 
 			string highlightEventRegions = "";
 			if (!GetBoolArg("noStripEvents"))
@@ -1683,50 +1727,121 @@ namespace PerfReportTool
 
 			Optional<double> minFilterStatValueSetting = graph.minFilterStatValue.isSet ? graph.minFilterStatValue : graphSettings.minFilterStatValue;
 
-			string args =
-				" -csvs \"" + csvFilename + "\"" +
-				" -title \"" + title + "\"" +
-				" -o \"" + svgFilename + "\"" +
-				" -stats " + statString +
-				" -width " + (width * scaleby).ToString() +
-				" -height " + (height * scaleby).ToString() +
-				OptionalHelper.GetDoubleSetting(graph.budget, " -budget ") +
-				" -maxy " + maxy.ToString() +
-				" -uniqueID Graph_" + graphIndex.ToString() +
-				" -lineDecimalPlaces " + lineDecimalPlaces.ToString() +
-				( GetBoolArg("embedGraphCommandline") ? "" : " -nocommandlineEmbed") +
-				((statMultiplier != 1.0) ? " -statMultiplier " + statMultiplier.ToString("0.0000000000000000000000") : "") +
-				(hideEventNames ? " -hideeventNames 1" : "") +
-				((minx > 0) ? (" -minx " + minx.ToString()) : "") +
-				((maxx != Int32.MaxValue) ? (" -maxx " + maxx.ToString()) : "") +
-				OptionalHelper.GetDoubleSetting(graphSettings.miny, " -miny ") +
-				OptionalHelper.GetDoubleSetting(graphSettings.maxAutoMaxY, " -maxAutoMaxY ") +
-				OptionalHelper.GetDoubleSetting(graphSettings.threshold, " -threshold ") +
-				OptionalHelper.GetDoubleSetting(graphSettings.averageThreshold, " -averageThreshold ") +
-				OptionalHelper.GetDoubleSetting(minFilterStatValueSetting, " -minFilterStatValue ") +
-				OptionalHelper.GetStringSetting(graphSettings.minFilterStatName, " -minFilterStatName ") +
-				(compression > 0.0 ? " -compression " + compression.ToString() : "") +
-				(thickness > 0.0 ? " -thickness " + thickness.ToString() : "") +
-				smoothParams +
-				(interactive ? " -interactive" : "") +
-				(stacked ? " -stacked -forceLegendSort" : "") +
-				(showAverages ? " -showAverages" : "") +
-				(snapToPeaks ? "" : " -nosnap") +
-				(filterOutZeros ? " -filterOutZeros" : "") +
-				(maxHierarchyDepth >= 0 ? " -maxHierarchyDepth " + maxHierarchyDepth.ToString() : "") +
-				(hideStatPrefix.Length > 0 ? " -hideStatPrefix " + hideStatPrefix : "") +
-				(graphSettings.mainStat.isSet ? " -stacktotalstat " + graphSettings.mainStat.value : "") +
-				(showEvents.Length > 0 ? " -showevents " + showEvents : "") +
-				(highlightEventRegions.Length > 0 ? " -highlightEventRegions " + highlightEventRegions : "") +
-				(graphSettings.legendAverageThreshold.isSet ? " -legendAverageThreshold " + graphSettings.legendAverageThreshold.value : "") +
+			string Quote(string s)
+			{
+				return "\"" + s + "\"";
+			}
 
-				(graphSettings.ignoreStats.isSet ? " -ignoreStats " + graphSettings.ignoreStats.value : "") +
-				" " + additionalArgs;
-			return args;
+			Dictionary<string, string> args = new();
+
+			void AddOptionalArg<T>(string name, Optional<T> value)
+			{
+				if (value.isSet)
+				{
+					args[name] = value.value.ToString();
+				}
+			}
+
+			void AddConditionalArg<T>(string name, bool condition, T value)
+			{
+				if (condition)
+				{
+					args[name] = value.ToString();
+				}
+			}
+
+			void AddConditionalFlag(string name, bool condition)
+			{
+				if (condition)
+				{
+					args[name] = "";
+				}
+			}
+
+			args["title"] = Quote(title);
+			AddConditionalArg("width", width > 0, (width * scaleby));
+			AddConditionalArg("height", height > 0, (height * scaleby));
+			AddOptionalArg("budget", graph.budget);
+			AddConditionalArg("maxy", maxy > 0, maxy);
+			args["uniqueID"] = "Graph_" + graphIndex.ToString();
+			args["lineDecimalPlaces"] = lineDecimalPlaces.ToString();
+			AddConditionalFlag("nocommandlineEmbed", GetBoolArg("embedGraphCommandline"));
+			AddConditionalArg("statMultiplier", statMultiplier != 1.0, statMultiplier.ToString("0.0000000000000000000000"));
+			AddConditionalArg("hideeventNames", hideEventNames, 1);
+			AddConditionalArg("minx", minx > 0, minx);
+			AddConditionalArg("maxx", maxx != Int32.MaxValue, maxx);
+			AddOptionalArg("miny", graphSettings.miny);
+			AddOptionalArg("maxAutoMaxY", graphSettings.maxAutoMaxY);
+			AddOptionalArg("threshold", graphSettings.threshold);
+			AddOptionalArg("averageThreshold", graphSettings.averageThreshold);
+			AddOptionalArg("minFilterStatValue", minFilterStatValueSetting);
+			AddConditionalArg("minFilterStatName", graphSettings.minFilterStatName.isSet, graphSettings.minFilterStatName.value);
+			AddConditionalArg("compression", compression > 0.0, compression);
+			AddConditionalArg("thickness", graphSettings.thickness.isSet, graphSettings.thickness.value * thicknessMultiplier);
+			// Smoothing
+			AddConditionalFlag("smooth", smooth);
+			AddConditionalArg("smoothKernelPercent", smooth && smoothKernelPercent >= 0.0f, smoothKernelPercent);
+			AddConditionalArg("smoothKernelSize", smooth && smoothKernelSize >= 0.0f, smoothKernelSize);
+
+			AddConditionalFlag("interactive", interactive);
+			AddConditionalFlag("stacked", stacked);
+			AddConditionalFlag("forceLegendSort", stacked); // based on the stacked flag
+			AddConditionalFlag("showAverages", showAverages);
+			AddConditionalFlag("nosnap", !snapToPeaks);
+			AddConditionalFlag("filterOutZeros", filterOutZeros);
+			AddConditionalArg("maxHierarchyDepth", maxHierarchyDepth > 0, maxHierarchyDepth);
+			AddConditionalArg("hideStatPrefix", hideStatPrefix.Length > 0, hideStatPrefix);
+			AddConditionalArg("stacktotalstat", graphSettings.mainStat.isSet, graphSettings.mainStat.value);
+			AddOptionalArg("legendAverageThreshold", graphSettings.legendAverageThreshold);
+			AddConditionalArg("ignoreStats", graphSettings.ignoreStats.isSet, graphSettings.ignoreStats.value);
+
+			string argString = string.Empty;
+			if (argFormat == CsvToSvgArgFormat.Url)
+			{
+				string FormatStringList(string inStringList, string splitStr)
+				{
+					string[] tokens = inStringList
+						.Split(splitStr)
+						.Select(token => token.Trim())
+						.ToArray();
+					return String.Join(";", tokens);
+				}
+				// Exclude csvs from the args as that is a separate argument that the caller must setup.
+				// Any multi-value args need to be delimited with a semi-colon.
+				args["stats"] = FormatStringList(graphSettings.statString.value, ",");
+				AddConditionalArg("showevents", showEvents.Length > 0, FormatStringList(showEvents, " "));
+				AddConditionalArg("highlightEventRegions", highlightEventRegions.Length > 0, FormatStringList(highlightEventRegions, ","));
+
+				List<string> argList = args.Select(a =>
+					string.IsNullOrEmpty(a.Value) // Empty value means it's a flag
+					? $"{a.Key}=true"
+					: $"{a.Key}={a.Value.Replace("\"", "")}") // Strip quotes
+					.ToList();
+				argString = string.Join("&", argList);
+			}
+			else
+			{
+				args["csvs"] = Quote(csvFilename);
+				args["o"] = Quote(svgFilename);
+				AddConditionalArg("showevents", showEvents.Length > 0, showEvents);
+				AddConditionalArg("highlightEventRegions", highlightEventRegions.Length > 0, highlightEventRegions);
+
+				string[] statStringTokens = graphSettings.statString.value.Split(',');
+				IEnumerable<string> quoteWrappedStatStrings = statStringTokens.Select(token => '"' + token + '"');
+				args["stats"] = String.Join(" ", quoteWrappedStatStrings);
+
+				List<string> argList = args.Select(a =>
+					string.IsNullOrEmpty(a.Value)
+					? $"-{a.Key}"
+					: $"-{a.Key} {a.Value}")
+					.ToList();
+				argString = string.Join(" ", argList);
+			}
+			return argString;
 		}
 
 
-		GraphParams GetCsvToSvgGraphParams(string csvFilename, ReportGraph graph, double thicknessMultiplier, int minx, int maxx, bool multipleCSVs, int graphIndex, float scaleby = 1.0f)
+		GraphParams GetCsvToSvgGraphParams(ReportGraph graph, double thicknessMultiplier, int minx, int maxx, bool multipleCSVs, int graphIndex, float scaleby = 1.0f)
 		{
 			GraphParams graphParams = new GraphParams();
 			graphParams.title = graph.title;
