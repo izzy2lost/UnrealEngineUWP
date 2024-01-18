@@ -222,27 +222,42 @@ bool HasDecalData(FDecalShaderPayload DecalPayload)
 	return min3(DecalPayload.GetBaseColor().a, DecalPayload.GetWorldNormal().a, DecalPayload.GetMetallicSpecularRoughness().a) < 1.0;
 }
 
-bool ApplyDecal(FDecalShaderPayload DecalPayload, inout FPathTracingPayload HitPayload)
+void ApplyDecal(FDecalShaderPayload DecalPayload, inout FPackedPathTracingPayload PackedPayload, float3 RayDirection, float PathRoughness)
 {
-#if PATHTRACING_SUBSTRATE_PAYLOAD
-	float Roughness = HitPayload.RoughnessData.x;
-	float Metallic = F0RGBToMetallic(HitPayload.SpecularColor);
-	float Specular = F0RGBToDielectricSpecular(HitPayload.SpecularColor);
-	float3 BaseColor = lerp(HitPayload.DiffuseColor, HitPayload.SpecularColor, Metallic);
-#else
-	float3 BaseColor = HitPayload.BaseColor;
-	float Metallic = HitPayload.Metallic;
-	float Specular = HitPayload.Specular;
-	float Roughness = HitPayload.Roughness;
-#endif // PATHTRACING_SUBSTRATE_PAYLOAD
+	{
+		float3 Radiance = PackedPayload.UnpackRadiance();
+		Radiance += DecalPayload.GetEmissive();
+		PackedPayload.PackRadiance(Radiance);
+	}
 
 	float4 DecalBaseColor = DecalPayload.GetBaseColor();
 	float4 DecalWorldNormal = DecalPayload.GetWorldNormal();
 	float4 DecalMetallicSpecularRoughness = DecalPayload.GetMetallicSpecularRoughness();
 
-	bool bHasColorResponse = HitPayload.HasDecalResponseColor() && DecalBaseColor.a < 1.0;
-	bool bHasNormalResponse = HitPayload.HasDecalResponseNormal() && DecalWorldNormal.a < 1.0;
-	bool bHasRoughnessResponse = HitPayload.HasDecalResponseRoughness() && DecalMetallicSpecularRoughness.a < 1.0;
+	bool bHasColorResponse = PackedPayload.HasDecalResponseColor() && DecalBaseColor.a < 1.0;
+	bool bHasNormalResponse = PackedPayload.HasDecalResponseNormal() && DecalWorldNormal.a < 1.0;
+	bool bHasRoughnessResponse = PackedPayload.HasDecalResponseRoughness() && DecalMetallicSpecularRoughness.a < 1.0;
+
+	if (!bHasColorResponse && !bHasNormalResponse && !bHasRoughnessResponse)
+	{
+		// nothing to do
+		return;
+	}
+
+#if PATHTRACING_SUBSTRATE_PAYLOAD
+	float4 RoughnessData = PackedPayload.UnpackRoughnessAniso();
+	float Roughness = RoughnessData.x;
+	float3 DiffuseColor = PackedPayload.UnpackDiffuseColor();
+	float3 SpecularColor = PackedPayload.UnpackSpecularColor();
+	float Metallic = F0RGBToMetallic(SpecularColor);
+	float Specular = F0RGBToDielectricSpecular(SpecularColor);
+	float3 BaseColor = lerp(DiffuseColor, SpecularColor, Metallic);
+#else
+	float3 BaseColor = PackedPayload.UnpackBaseColor();
+	float Metallic = PackedPayload.UnpackMetallic();
+	float Specular = PackedPayload.UnpackSpecular();
+	float Roughness = PackedPayload.UnpackRoughness();
+#endif // PATHTRACING_SUBSTRATE_PAYLOAD
 
 	if (bHasColorResponse)
 	{
@@ -252,7 +267,12 @@ bool ApplyDecal(FDecalShaderPayload DecalPayload, inout FPathTracingPayload HitP
 	if (bHasNormalResponse)
 	{
 		// We normalize the normal to get smoother visual result (it helps to avoid having D_GGX explodes toward infinity, and matches ApplyDBufferData(...))
-		HitPayload.WorldNormal = normalize(HitPayload.WorldNormal * DecalWorldNormal.a + DecalWorldNormal.rgb);
+		float3 WorldNormal = PackedPayload.UnpackWorldNormal();
+		WorldNormal = normalize(WorldNormal * DecalWorldNormal.a + DecalWorldNormal.rgb);
+		// re-apply this (normally happens as part of shading, but since decal changed the normal, apply it again)
+		WorldNormal = AdjustShadingNormal(WorldNormal, PackedPayload.UnpackWorldGeoNormal(), RayDirection);
+
+		PackedPayload.PackWorldNormal(WorldNormal);
 	}
 
 	if (bHasRoughnessResponse)
@@ -260,26 +280,32 @@ bool ApplyDecal(FDecalShaderPayload DecalPayload, inout FPathTracingPayload HitP
 		Metallic  = Metallic  * DecalMetallicSpecularRoughness.a + DecalMetallicSpecularRoughness.x;
 		Specular  = Specular  * DecalMetallicSpecularRoughness.a + DecalMetallicSpecularRoughness.y;
 		Roughness = Roughness * DecalMetallicSpecularRoughness.a + DecalMetallicSpecularRoughness.z;
-	}
 
-	HitPayload.Radiance += DecalPayload.GetEmissive();
+		if (ApproximateCaustics)
+		{
+			Roughness = max(Roughness, PathRoughness);
+		}
+	}
 
 #if PATHTRACING_SUBSTRATE_PAYLOAD
 	if (bHasColorResponse || bHasRoughnessResponse)
 	{
 		// the encode-decode is potentially lossy, so only do it if we actually need to
-		HitPayload.DiffuseColor = BaseColor - BaseColor * Metallic;
-		HitPayload.SpecularColor = lerp(DielectricSpecularToF0(Specular), BaseColor, Metallic);
-		HitPayload.RoughnessData.x = Roughness;
+		PackedPayload.PackDiffuseColor(BaseColor - BaseColor * Metallic);
+		PackedPayload.PackSpecularColor(lerp(DielectricSpecularToF0(Specular), BaseColor, Metallic));
+		PackedPayload.PackRoughnessAniso(float4(Roughness, RoughnessData.yzw));
 	}
 #else
-	// no need for an encode-decode here, so safe to overwrite even if nothing changes
-	HitPayload.BaseColor = BaseColor;
-	HitPayload.Metallic = Metallic;
-	HitPayload.Specular = Specular;
-	HitPayload.Roughness = Roughness;
+	if (bHasColorResponse)
+	{
+		PackedPayload.PackBaseColor(BaseColor);
+	}
+	if (bHasRoughnessResponse)
+	{
+		PackedPayload.PackMetallicSpecular(Metallic, Specular);
+		PackedPayload.PackRoughnessAniso(Roughness, PackedPayload.UnpackAnisotropy());
+	}
 #endif
-	return bHasColorResponse || bHasNormalResponse || bHasRoughnessResponse;
 }
 
 void EvaluateDecals(FPathState PathState, uint InstanceInclusionMask, float HitT, inout FDecalShaderPayload DecalPayload)
@@ -336,7 +362,7 @@ void EvaluateDecals(FPathState PathState, uint InstanceInclusionMask, float HitT
 #endif
 }
 
-FPathTracingPayload TraceTransparentRay(inout FPathState PathState, int Bounce, inout FVolumeSegment VolumeSegment)
+FPackedPathTracingPayload TraceTransparentRay(inout FPathState PathState, int Bounce, inout FVolumeSegment VolumeSegment)
 {
 	const bool bIsCameraRay = Bounce == 0;
 	const bool bLastBounce = Bounce == MaxBounces;
@@ -355,7 +381,7 @@ FPathTracingPayload TraceTransparentRay(inout FPathState PathState, int Bounce, 
 	FRISContext VolSample = InitRISContext(RISRandSample.y);
 
 	float3 PayloadThroughput = PathState.PathThroughput;
-	FPathTracingPayload Payload;
+	FPackedPathTracingPayload Payload;
 	if (bLastBounce && !PathState.ShouldAccumulateEmissive())
 	{
 		Payload.SetMiss();
@@ -499,7 +525,7 @@ FPathTracingPayload TraceTransparentRay(inout FPathState PathState, int Bounce, 
 							if (HitSample.Accept(SelectionWeight))
 							{
 								// stash this hit for next time
-								Payload = CreateMediumHitPayload(Interval.VolumeTMin, TranslatedWorldPos, Result);
+								Payload = PackPathTracingPayload(CreateMediumHitPayload(Interval.VolumeTMin, TranslatedWorldPos, Result));
 								PayloadThroughput = Contrib / SelectionWeight;
 							}
 						}
@@ -583,58 +609,43 @@ FPathTracingPayload TraceTransparentRay(inout FPathState PathState, int Bounce, 
 #endif
 		}
 
-		// Unpack the payload
-		FPathTracingPayload HitPayload = UnpackPathTracingPayload(PackedPayload, PathState.Ray);
-		if (ApplyDecal(DecalPayload, HitPayload))
-		{
-			// if we ran any decal logic, update the payload
-			if (ApproximateCaustics)
-			{
-#if PATHTRACING_SUBSTRATE_PAYLOAD
-				HitPayload.RoughnessData.x = max(HitPayload.RoughnessData.x, PathState.PathRoughness);
-#else
-				HitPayload.Roughness = max(HitPayload.Roughness, PathState.PathRoughness);
-#endif
-			}
-			HitPayload.WorldNormal = AdjustShadingNormal(HitPayload.WorldNormal, HitPayload.WorldGeoNormal, PathState.Ray.Direction);
-#if !PATHTRACING_SUBSTRATE_PAYLOAD
-			HitPayload.DiffuseColor = HitPayload.BaseColor - HitPayload.BaseColor * HitPayload.Metallic;
-			HitPayload.SpecularColor = ComputeF0(HitPayload.Specular, HitPayload.BaseColor, HitPayload.Metallic);
-#endif
-		}
-		AdjustPayloadAfterUnpack(HitPayload, bIsCameraRay && ApplyDiffuseSpecularOverrides);
-
+		// Now that we know the real decal data, apply it
+		ApplyDecal(DecalPayload, PackedPayload, PathState.Ray.Direction, PathState.PathRoughness);
 
 		// account for Beer's law through the currently active medium
 		// TODO: merge this with the volume raymarching?
 		// NOTE: select statement is to avoid corner case of 0.0*inf that can occur with directly visible skydomes
-		PathState.PathThroughput *= select(PathState.SigmaT > 0.0, exp(-PathState.SigmaT * (HitPayload.HitT - PathState.Ray.TMin)), 1.0);
+		PathState.PathThroughput *= select(PathState.SigmaT > 0.0, exp(-PathState.SigmaT * (PackedPayload.HitT - PathState.Ray.TMin)), 1.0);
 
-		if (!HitPayload.IsHoldout() && bIsCameraRay)
+		if (!PackedPayload.IsHoldout() && bIsCameraRay)
 		{
-			PathState.Alpha += Luminance(PathState.PathThroughput * (1.0 - HitPayload.TransparencyColor));
+			PathState.Alpha += Luminance(PathState.PathThroughput * (1.0 - PackedPayload.UnpackTransparencyColor()));
 		}
 
 		// add in surface emission
 		if (PathState.ShouldAccumulateEmissive())
 		{
-			AccumulateRadiance(PathState.Radiance, PathState.PathThroughput * HitPayload.Radiance, bIsCameraRay);
+			AccumulateRadiance(PathState.Radiance, PathState.PathThroughput * PackedPayload.UnpackRadiance(), bIsCameraRay);
 		}
 
-		if (HitPayload.HitT == POSITIVE_INFINITY)
+		if (PackedPayload.HitT == POSITIVE_INFINITY)
 		{
 			// if our hit was against an infinite light, exit now
 			break;
 		}
 
-		if (bIsCameraRay && HitPayload.ShouldOutputDepth() && PathState.DepthZ == 0.0)
+		if (bIsCameraRay && PackedPayload.ShouldOutputDepth() && PathState.DepthZ == 0.0)
 		{
 			const float3 ViewZ = View.ViewToTranslatedWorld[2].xyz;
-			PathState.DepthZ = dot(HitPayload.TranslatedWorldPos, ViewZ);
+			const float3 TranslatedWorldPos = PathState.Ray.Origin + PackedPayload.HitT * PathState.Ray.Direction;
+			PathState.DepthZ = dot(TranslatedWorldPos, ViewZ);
 		}
 
 		if (!bLastBounce)
 		{
+			FPathTracingPayload HitPayload = UnpackPathTracingPayload(PackedPayload, PathState.Ray);
+			AdjustPayloadAfterUnpack(HitPayload, bIsCameraRay && ApplyDiffuseSpecularOverrides);
+
 			float3 Contrib = PathState.PathThroughput * EstimateMaterialAlbedo(HitPayload);
 
 			// accumulate what the denoiser wants into albedo/normal (as long as the current path is rough enough)
@@ -644,17 +655,17 @@ FPathTracingPayload TraceTransparentRay(inout FPathState PathState, int Bounce, 
 			if (HitSample.Accept(SelectionWeight))
 			{
 				// stash this hit for next time
-				Payload = HitPayload;
+				Payload = PackedPayload;
 				PayloadThroughput = PathState.PathThroughput / SelectionWeight;
 			}
 		}
 
 		// account for local transparency change
-		PathState.PathThroughput *= HitPayload.TransparencyColor;
+		PathState.PathThroughput *= PackedPayload.UnpackTransparencyColor();
 
 		// prepare next step around the loop
 		// retrace the exact same ray with TMin one ulp past the hit we just found
-		PathState.Ray.TMin = asfloat(asuint(HitPayload.HitT) + 1);
+		PathState.Ray.TMin = asfloat(asuint(PackedPayload.HitT) + 1);
 
 		if (all(PathState.PathThroughput == 0))
 		{
@@ -1314,7 +1325,7 @@ bool PathTracingKernel(inout FPathState PathState, int Bounce)
 	const bool bIsCameraRay = Bounce == 0;
 
 	FVolumeSegment VolumeSegment = CreateEmptyVolumeSegment();
-	FPathTracingPayload Payload = TraceTransparentRay(
+	FPackedPathTracingPayload PackedPayload = TraceTransparentRay(
 		PathState,
 		Bounce,
 		VolumeSegment);
@@ -1437,11 +1448,14 @@ bool PathTracingKernel(inout FPathState PathState, int Bounce)
 		}
 	}
 
-	if (Payload.IsMiss())
+	if (PackedPayload.IsMiss())
 	{
 		// we didn't hit anything selectable for further shading, we are done
 		return false;
 	}
+
+	FPathTracingPayload Payload = UnpackPathTracingPayload(PackedPayload, PathState.Ray);
+	AdjustPayloadAfterUnpack(Payload, bIsCameraRay && ApplyDiffuseSpecularOverrides);
 
 #if 0
 	PathState.Radiance = 0.5 * Payload.WorldGeoNormal + 0.5;
