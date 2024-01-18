@@ -17,6 +17,7 @@
 
 struct FMassEntityManager;
 struct FMassProcessingPhaseManager;
+class UTypedElementDataStorageFactory;
 class FOutputDevice;
 class UWorld;
 
@@ -28,9 +29,48 @@ class TYPEDELEMENTSDATASTORAGE_API UTypedElementDatabase
 	GENERATED_BODY()
 
 public:
+	template<typename FactoryType, typename DatabaseType>
+	class TFactoryIterator
+	{
+	public:
+		using ThisType = TFactoryIterator<FactoryType, DatabaseType>;
+		using FactoryPtr = FactoryType*;
+		using DatabasePtr = DatabaseType*;
+
+		TFactoryIterator() = default;
+		explicit TFactoryIterator(DatabasePtr InDatabase);
+
+		FactoryPtr operator*() const;
+		ThisType& operator++();
+		operator bool() const;
+
+	private:
+		DatabasePtr Database = nullptr;
+		int32 Index = 0;
+	};
+
+	using FactoryIterator = TFactoryIterator<UTypedElementDataStorageFactory, UTypedElementDatabase>;
+	using FactoryConstIterator = TFactoryIterator<const UTypedElementDataStorageFactory, const UTypedElementDatabase>;
+
+public:
 	~UTypedElementDatabase() override = default;
 	
 	void Initialize();
+	
+	void SetFactories(TConstArrayView<UClass*> InFactories);
+	void ResetFactories();
+
+	/** An iterator which allows traversal of factory instances. Ordered lowest->highest of GetOrder() */
+	FactoryIterator CreateFactoryIterator();
+	/** An iterator which allows traversal of factory instances. Ordered lowest->highest of GetOrder() */
+	FactoryConstIterator CreateFactoryIterator() const;
+
+	/** Returns factory instance given the type of factory */
+	const UTypedElementDataStorageFactory* FindFactory(const UClass* FactoryType) const;
+	/** Helper for FindFactory(const UClass*) */
+	template<typename FactoryTypeT>
+	const FactoryTypeT* FindFactory() const;
+	
 	void Deinitialize();
 
 	/** Triggered at the start of the underlying Mass' tick cycle. */
@@ -100,15 +140,28 @@ public:
 
 	void DebugPrintQueryCallbacks(FOutputDevice& Output);
 
+	static void AddReferencedObjects(UObject* InThis, FReferenceCollector& Collector);
+
 private:
 	void PreparePhase(EQueryTickPhase Phase, float DeltaTime);
 	void FinalizePhase(EQueryTickPhase Phase, float DeltaTime);
 	void Reset();
 	
+	struct FFactoryTypePair
+	{
+		// Used to find the factory by type without needing to dereference each one
+		TObjectPtr<UClass> Type;
+		
+		TObjectPtr<UTypedElementDataStorageFactory> Instance;
+	};
+	
 	static const FName TickGroupName_SyncWidget;
 	
 	TArray<FMassArchetypeHandle> Tables;
 	TMap<FName, TypedElementTableHandle> TableNameLookup;
+
+	// Ordered array of factories by the return value of GetOrder()
+	TArray<FFactoryTypePair> Factories;
 
 	TUniquePtr<FTypedElementDatabaseEnvironment> Environment;
 	FTypedElementExtendedQueryStore Queries;
@@ -122,3 +175,35 @@ private:
 	TSharedPtr<FMassEntityManager> ActiveEditorEntityManager;
 	TSharedPtr<FMassProcessingPhaseManager> ActiveEditorPhaseManager;
 };
+
+template <typename FactoryType, typename DatabaseType>
+UTypedElementDatabase::TFactoryIterator<FactoryType, DatabaseType>::TFactoryIterator(DatabasePtr InDatabase): Database(InDatabase)
+{}
+
+template <typename FactoryType, typename DatabaseType>
+typename UTypedElementDatabase::TFactoryIterator<FactoryType, DatabaseType>::FactoryPtr UTypedElementDatabase::TFactoryIterator<FactoryType, DatabaseType>::operator*() const
+{
+	return Database->Factories[Index].Instance;
+}
+
+template <typename FactoryType, typename DatabaseType>
+typename UTypedElementDatabase::TFactoryIterator<FactoryType, DatabaseType>::ThisType& UTypedElementDatabase::TFactoryIterator<FactoryType, DatabaseType>::operator++()
+{
+	if (Database != nullptr && Index < Database->Factories.Num())
+	{
+		++Index;
+	}
+	return *this;
+}
+
+template <typename FactoryType, typename DatabaseType>
+UTypedElementDatabase::TFactoryIterator<FactoryType, DatabaseType>::operator bool() const
+{
+	return Database != nullptr && Index < Database->Factories.Num();
+}
+
+template <typename FactoryTypeT>
+const FactoryTypeT* UTypedElementDatabase::FindFactory() const
+{
+	return static_cast<const FactoryTypeT*>(FindFactory(FactoryTypeT::StaticClass()));
+}

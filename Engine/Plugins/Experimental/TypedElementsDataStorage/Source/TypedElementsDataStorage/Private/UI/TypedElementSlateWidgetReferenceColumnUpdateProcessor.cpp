@@ -5,7 +5,7 @@
 #include "Elements/Columns/TypedElementSlateWidgetColumns.h"
 #include "Elements/Framework/TypedElementQueryBuilder.h"
 
-void UTypedElementSlateWidgetReferenceColumnUpdateFactory::RegisterQueries(ITypedElementDataStorageInterface& DataStorage) const
+void UTypedElementSlateWidgetReferenceColumnUpdateFactory::RegisterQueries(ITypedElementDataStorageInterface& DataStorage)
 {
 	RegisterDeleteRowOnWidgetDeleteQuery(DataStorage);
 	RegisterDeleteColumnOnWidgetDeleteQuery(DataStorage);

@@ -323,7 +323,7 @@ public:
 //
 // UTypedElementSceneOutlinerFactory
 // 
-void UTypedElementSceneOutlinerFactory::RegisterTables(ITypedElementDataStorageInterface& DataStorage) const
+void UTypedElementSceneOutlinerFactory::RegisterTables(ITypedElementDataStorageInterface& DataStorage)
 {
 	TypedElementTableHandle BaseWidgetTable = DataStorage.FindTable(FName(TEXT("Editor_WidgetTable")));
 	if (BaseWidgetTable != TypedElementInvalidTableHandle)

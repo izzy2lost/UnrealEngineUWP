@@ -89,7 +89,7 @@ class UTypedElementSceneOutlinerFactory : public UTypedElementDataStorageFactory
 public:
 	~UTypedElementSceneOutlinerFactory() override = default;
 
-	void RegisterTables(ITypedElementDataStorageInterface& DataStorage) const override;
+	void RegisterTables(ITypedElementDataStorageInterface& DataStorage) override;
 	
 	void RegisterWidgetPurposes(ITypedElementDataStorageUiInterface& DataStorageUi) const override;
 };

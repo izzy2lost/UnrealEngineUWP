@@ -76,7 +76,7 @@ FAutoConsoleCommandWithArgsAndOutputDevice SetSelectionSCCStateConsoleCommand(
 		}
 	));
 
-void UTypedElementRevisionControlFactory::RegisterTables(ITypedElementDataStorageInterface& DataStorage) const
+void UTypedElementRevisionControlFactory::RegisterTables(ITypedElementDataStorageInterface& DataStorage)
 {
 	DataStorage.RegisterTable(
 		TTypedElementColumnTypeList<
@@ -85,7 +85,7 @@ void UTypedElementRevisionControlFactory::RegisterTables(ITypedElementDataStorag
 		FName("Editor_RevisionControlTable"));
 }
 
-void UTypedElementRevisionControlFactory::RegisterQueries(ITypedElementDataStorageInterface& DataStorage) const
+void UTypedElementRevisionControlFactory::RegisterQueries(ITypedElementDataStorageInterface& DataStorage)
 {
 	using namespace TypedElementQueryBuilder;
 	using DSI = ITypedElementDataStorageInterface;

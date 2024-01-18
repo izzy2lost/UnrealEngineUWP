@@ -7,7 +7,7 @@
 #include "Elements/Framework/TypedElementQueryBuilder.h"
 #include "MassActorSubsystem.h"
 
-void UTypedElementActorTransformFactory::RegisterQueries(ITypedElementDataStorageInterface& DataStorage) const
+void UTypedElementActorTransformFactory::RegisterQueries(ITypedElementDataStorageInterface& DataStorage)
 {
 	RegisterActorAddTransformColumn(DataStorage);
 	RegisterActorLocalTransformToColumn(DataStorage);

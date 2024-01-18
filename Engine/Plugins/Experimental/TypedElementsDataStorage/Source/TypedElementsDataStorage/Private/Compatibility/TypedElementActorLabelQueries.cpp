@@ -76,7 +76,7 @@ FAutoConsoleCommandWithOutputDevice PrintActorLabelsConsoleCommand(
 			}
 		}));
 
-void UTypedElementActorLabelFactory::RegisterQueries(ITypedElementDataStorageInterface& DataStorage) const
+void UTypedElementActorLabelFactory::RegisterQueries(ITypedElementDataStorageInterface& DataStorage)
 {
 	RegisterActorLabelToColumnQuery(DataStorage);
 	RegisterLabelColumnToActorQuery(DataStorage);

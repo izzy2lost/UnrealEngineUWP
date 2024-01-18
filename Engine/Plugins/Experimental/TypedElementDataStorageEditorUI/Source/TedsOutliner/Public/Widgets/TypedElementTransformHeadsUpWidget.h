@@ -24,7 +24,7 @@ class UTypedElementTransformHeadsUpWidgetFactory : public UTypedElementDataStora
 public:
 	~UTypedElementTransformHeadsUpWidgetFactory() override = default;
 
-	void RegisterQueries(ITypedElementDataStorageInterface& DataStorage) const override;
+	void RegisterQueries(ITypedElementDataStorageInterface& DataStorage) override;
 	void RegisterWidgetConstructors(ITypedElementDataStorageInterface& DataStorage,
 		ITypedElementDataStorageUiInterface& DataStorageUi) const override;
 };

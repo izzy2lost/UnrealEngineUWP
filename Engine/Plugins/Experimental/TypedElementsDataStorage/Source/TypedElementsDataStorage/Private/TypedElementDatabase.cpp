@@ -3,6 +3,7 @@
 #include "TypedElementDatabase.h"
 
 #include "Editor.h"
+#include "Elements/Interfaces/TypedElementDataStorageFactory.h"
 #include "Elements/Framework/TypedElementRegistry.h"
 #include "Engine/World.h"
 #include "MassCommonTypes.h"
@@ -136,8 +137,78 @@ void UTypedElementDatabase::Initialize()
 	}
 }
 
+void UTypedElementDatabase::SetFactories(TConstArrayView<UClass*> FactoryClasses)
+{
+	Factories.Reserve(FactoryClasses.Num());
+
+	UClass* BaseFactoryType = UTypedElementDataStorageFactory::StaticClass();
+
+	for (UClass* FactoryClass : FactoryClasses)
+	{
+		if (FactoryClass->HasAnyClassFlags(CLASS_Abstract))
+		{
+			continue;
+		}
+		if (!FactoryClass->IsChildOf(BaseFactoryType))
+		{
+			continue;
+		}
+		UTypedElementDataStorageFactory* Factory = NewObject<UTypedElementDataStorageFactory>(this, FactoryClass, NAME_None, EObjectFlags::RF_Transient);
+		Factories.Add(FFactoryTypePair
+			{
+				.Type = FactoryClass,
+				.Instance = Factory
+			});
+	}
+
+	Factories.StableSort(
+	[](const FFactoryTypePair& Lhs, const FFactoryTypePair& Rhs)
+	{
+		return Lhs.Instance->GetOrder() < Rhs.Instance->GetOrder();
+	});
+	
+	for (FFactoryTypePair& Factory : Factories)
+	{
+		Factory.Instance->PreRegister(*this);
+	}
+}
+
+void UTypedElementDatabase::ResetFactories()
+{
+	for (int32 Index = Factories.Num() - 1; Index >= 0; --Index)
+	{
+		const FFactoryTypePair& Factory = Factories[Index];
+		Factory.Instance->PreShutdown(*this);
+	}
+	Factories.Empty();
+}
+
+UTypedElementDatabase::FactoryIterator UTypedElementDatabase::CreateFactoryIterator()
+{
+	return UTypedElementDatabase::FactoryIterator(this);
+}
+
+UTypedElementDatabase::FactoryConstIterator UTypedElementDatabase::CreateFactoryIterator() const
+{
+	return UTypedElementDatabase::FactoryConstIterator(this);
+}
+
+const UTypedElementDataStorageFactory* UTypedElementDatabase::FindFactory(const UClass* FactoryType) const
+{
+	for (const FFactoryTypePair& Factory : Factories)
+	{
+		if (Factory.Type == FactoryType)
+		{
+			return Factory.Instance;
+		}
+	}
+	return nullptr;
+}
+
 void UTypedElementDatabase::Deinitialize()
 {
+	checkf(Factories.IsEmpty(), TEXT("ResetFactories should have been called before deinitialized"));
+	
 	Reset();
 }
 
@@ -815,4 +886,15 @@ void UTypedElementDatabase::Reset()
 void UTypedElementDatabase::DebugPrintQueryCallbacks(FOutputDevice& Output)
 {
 	Queries.DebugPrintQueryCallbacks(Output);
+}
+
+void UTypedElementDatabase::AddReferencedObjects(UObject* InThis, FReferenceCollector& Collector)
+{
+	UTypedElementDatabase* Database = static_cast<UTypedElementDatabase*>(InThis);
+
+	for (auto& FactoryPair : Database->Factories)
+	{
+		Collector.AddReferencedObject(FactoryPair.Instance);
+		Collector.AddReferencedObject(FactoryPair.Type);
+	}
 }

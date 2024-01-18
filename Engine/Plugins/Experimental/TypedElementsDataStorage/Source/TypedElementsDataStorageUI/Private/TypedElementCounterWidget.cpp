@@ -43,7 +43,7 @@ UTypedElementCounterWidgetFactory::UTypedElementCounterWidgetFactory()
 	}
 }
 
-void UTypedElementCounterWidgetFactory::RegisterQueries(ITypedElementDataStorageInterface& DataStorage) const
+void UTypedElementCounterWidgetFactory::RegisterQueries(ITypedElementDataStorageInterface& DataStorage)
 {
 	using namespace TypedElementQueryBuilder;
 	using DSI = ITypedElementDataStorageInterface;

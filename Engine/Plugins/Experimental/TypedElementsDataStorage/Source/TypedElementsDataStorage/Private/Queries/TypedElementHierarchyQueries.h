@@ -18,5 +18,5 @@ class UTypedElementHiearchyQueriesFactory : public UTypedElementDataStorageFacto
 public:
 	~UTypedElementHiearchyQueriesFactory() override = default;
 
-	void RegisterQueries(ITypedElementDataStorageInterface& DataStorage) const override;
+	void RegisterQueries(ITypedElementDataStorageInterface& DataStorage) override;
 };

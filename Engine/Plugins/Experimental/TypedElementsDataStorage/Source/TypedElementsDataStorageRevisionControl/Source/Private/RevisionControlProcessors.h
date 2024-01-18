@@ -16,8 +16,8 @@ class UTypedElementRevisionControlFactory : public UTypedElementDataStorageFacto
 public:
 	~UTypedElementRevisionControlFactory() override = default;
 
-	void RegisterTables(ITypedElementDataStorageInterface& DataStorage) const override;
-	void RegisterQueries(ITypedElementDataStorageInterface& DataStorage) const override;
+	void RegisterTables(ITypedElementDataStorageInterface& DataStorage) override;
+	void RegisterQueries(ITypedElementDataStorageInterface& DataStorage) override;
 
 private:
 	void RegisterFetchUpdates(ITypedElementDataStorageInterface& DataStorage) const;

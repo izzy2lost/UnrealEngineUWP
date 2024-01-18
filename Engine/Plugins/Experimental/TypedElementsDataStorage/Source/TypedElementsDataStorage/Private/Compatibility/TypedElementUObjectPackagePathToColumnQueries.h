@@ -16,9 +16,9 @@ class UTypedElementUObjectPackagePathFactory : public UTypedElementDataStorageFa
 public:
 	~UTypedElementUObjectPackagePathFactory() override = default;
 
-	void RegisterQueries(ITypedElementDataStorageInterface& DataStorage) const override;
+	void RegisterQueries(ITypedElementDataStorageInterface& DataStorage) override;
 
 private:
-	void RegisterTryAddPackageRef(ITypedElementDataStorageInterface& DataStorage) const;
-	mutable TypedElementDataStorage::QueryHandle TryAddPackageRef = TypedElementDataStorage::InvalidQueryHandle;
+	void RegisterTryAddPackageRef(ITypedElementDataStorageInterface& DataStorage);
+	TypedElementDataStorage::QueryHandle TryAddPackageRef = TypedElementDataStorage::InvalidQueryHandle;
 };

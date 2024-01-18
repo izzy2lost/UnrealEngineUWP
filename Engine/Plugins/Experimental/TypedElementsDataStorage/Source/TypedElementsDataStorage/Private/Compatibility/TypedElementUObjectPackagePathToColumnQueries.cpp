@@ -34,7 +34,7 @@ static void ResolvePackageReference(ITypedElementDataStorageInterface::IQueryCon
 	Context.AddColumn(PackageRow, MoveTemp(LoadedPathColumn));
 };
 
-void UTypedElementUObjectPackagePathFactory::RegisterQueries(ITypedElementDataStorageInterface& DataStorage) const
+void UTypedElementUObjectPackagePathFactory::RegisterQueries(ITypedElementDataStorageInterface& DataStorage)
 {
 	using namespace TypedElementQueryBuilder;
 	using DSI = ITypedElementDataStorageInterface;
@@ -84,7 +84,7 @@ void UTypedElementUObjectPackagePathFactory::RegisterQueries(ITypedElementDataSt
 	}
 }
 
-void UTypedElementUObjectPackagePathFactory::RegisterTryAddPackageRef(ITypedElementDataStorageInterface& DataStorage) const
+void UTypedElementUObjectPackagePathFactory::RegisterTryAddPackageRef(ITypedElementDataStorageInterface& DataStorage)
 {
 	using namespace TypedElementQueryBuilder;
 	using DSI = ITypedElementDataStorageInterface;

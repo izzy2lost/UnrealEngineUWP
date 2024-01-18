@@ -18,7 +18,7 @@ class UTypedElementLabelWidgetFactory : public UTypedElementDataStorageFactory
 public:
 	~UTypedElementLabelWidgetFactory() override = default;
 
-	TYPEDELEMENTSDATASTORAGEUI_API void RegisterQueries(ITypedElementDataStorageInterface& DataStorage) const override;
+	TYPEDELEMENTSDATASTORAGEUI_API void RegisterQueries(ITypedElementDataStorageInterface& DataStorage) override;
 	TYPEDELEMENTSDATASTORAGEUI_API void RegisterWidgetConstructors(ITypedElementDataStorageInterface& DataStorage,
 		ITypedElementDataStorageUiInterface& DataStorageUi) const override;
 };

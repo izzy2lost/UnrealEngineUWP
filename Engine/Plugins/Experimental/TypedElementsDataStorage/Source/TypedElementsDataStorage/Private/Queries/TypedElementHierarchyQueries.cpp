@@ -5,7 +5,7 @@
 #include "Elements/Columns/TypedElementHiearchyColumns.h"
 #include "Elements/Framework/TypedElementQueryBuilder.h"
 
-void UTypedElementHiearchyQueriesFactory::RegisterQueries(ITypedElementDataStorageInterface& DataStorage) const
+void UTypedElementHiearchyQueriesFactory::RegisterQueries(ITypedElementDataStorageInterface& DataStorage)
 {
 	using namespace TypedElementDataStorage;
 	using namespace TypedElementQueryBuilder;

@@ -67,6 +67,11 @@ void FTypedElementsDataStorageModule::StartupModule()
 	}
 
 	UE_LOG(LogTypedElementDataStorage, Log, TEXT("Enabled by TEDS.Enable CVar"));
+
+	
+	// Load the dependent TypedElementFramework module (holding TypedElementRegistry) here so that it is guaranteed to be available in Shutdown
+	// and it is shutdown AFTER FTypedElementsDataStorageModule
+	FModuleManager::Get().LoadModule(TEXT("TypedElementFramework"));
 	
 	ImpersonateMassTagsAndFragments();
 
@@ -103,26 +108,16 @@ void FTypedElementsDataStorageModule::StartupModule()
 				// Allow any factories to register their content.
 				TArray<UClass*> FactoryClasses;
 				GetDerivedClasses(UTypedElementDataStorageFactory::StaticClass(), FactoryClasses);
-				
+
+				Database->SetFactories(FactoryClasses);
 				TArray<UTypedElementDataStorageFactory*> Factories;
 				Factories.Reserve(FactoryClasses.Num());
-				for (UClass* Factory : FactoryClasses)
-				{
-					if (Factory->HasAnyClassFlags(CLASS_Abstract))
-					{
-						continue;
-					}
-					Factories.Add(GetMutableDefault<UTypedElementDataStorageFactory>(Factory));
-				}
-				Factories.StableSort(
-					[](const UTypedElementDataStorageFactory& Lhs, const UTypedElementDataStorageFactory& Rhs)
-					{
-						return Lhs.GetOrder() < Rhs.GetOrder();
-					});
 
 				// First pass to call all registration without dependencies.
-				for (UTypedElementDataStorageFactory* Factory : Factories)
+				for (UTypedElementDatabase::FactoryIterator Iterator = Database->CreateFactoryIterator(); Iterator; ++Iterator)
 				{
+					UTypedElementDataStorageFactory* Factory = *Iterator;
+					
 					Factory->RegisterTables(*Database);
 					Factory->RegisterTables(*Database, *DatabaseCompatibility);
 					Factory->RegisterTickGroups(*Database);
@@ -130,9 +125,12 @@ void FTypedElementsDataStorageModule::StartupModule()
 					Factory->RegisterDealiaser(*DatabaseCompatibility);
 					Factory->RegisterWidgetPurposes(*DatabaseUi);
 				}
+
 				// Second pass to call all registration that would benefit or need the registration in the previous pass.
-				for (UTypedElementDataStorageFactory* Factory : Factories)
+				for (UTypedElementDatabase::FactoryIterator Iterator = Database->CreateFactoryIterator(); Iterator; ++Iterator)
 				{
+					UTypedElementDataStorageFactory* Factory = *Iterator;
+					
 					Factory->RegisterQueries(*Database);
 					Factory->RegisterWidgetConstructors(*Database, *DatabaseUi);
 				}
@@ -143,7 +141,6 @@ void FTypedElementsDataStorageModule::StartupModule()
 			}
 		});
 	FCoreDelegates::OnExit.AddRaw(this, &FTypedElementsDataStorageModule::ShutdownModule);
-
 }
 
 void FTypedElementsDataStorageModule::ShutdownModule()
@@ -151,7 +148,9 @@ void FTypedElementsDataStorageModule::ShutdownModule()
 	if (bInitialized)
 	{
 		UE_LOG(LogTypedElementDataStorage, Log, TEXT("Deinitializing"));
-		
+
+		Database->ResetFactories();
+
 		UTypedElementRegistry* Registry = UTypedElementRegistry::GetInstance();
 		if (Registry) // If the registry has already been destroyed there's no point in clearing the reference.
 		{

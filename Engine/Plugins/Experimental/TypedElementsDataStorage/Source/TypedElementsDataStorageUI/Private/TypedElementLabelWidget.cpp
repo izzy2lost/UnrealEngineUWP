@@ -72,7 +72,7 @@ static void SyncColumnsToWidget(
 	}
 }
 
-void UTypedElementLabelWidgetFactory::RegisterQueries(ITypedElementDataStorageInterface& DataStorage) const
+void UTypedElementLabelWidgetFactory::RegisterQueries(ITypedElementDataStorageInterface& DataStorage)
 {
 	using namespace TypedElementQueryBuilder;
 	using DSI = ITypedElementDataStorageInterface;
