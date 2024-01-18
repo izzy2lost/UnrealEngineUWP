@@ -2535,7 +2535,7 @@ void UNavigationSystemV1::RequestRegistrationDeferred(ANavigationData& NavData)
 	}
 	else
 	{
-		UE_LOG(LogNavigation, Error, TEXT("Navigation System: registration queue full!"));
+		UE_LOG(LogNavigation, Warning, TEXT("Navigation System: registration queue full! System:%s NavData:%s"), *GetPathNameSafe(this), *GetPathNameSafe(&NavData));
 	}
 }
 
