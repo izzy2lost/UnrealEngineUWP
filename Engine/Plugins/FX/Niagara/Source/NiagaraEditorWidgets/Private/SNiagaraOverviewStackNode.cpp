@@ -819,7 +819,7 @@ TSharedRef<SWidget> SNiagaraOverviewStackNode::CreateTopContentBar_Summary()
 	
 	TopContentBar->AddSlot()
 	.AutoWidth()
-	.Padding(2.f, 5.f)
+	.Padding(2.f, 5.f, 4.f, 5.f)
 	.HAlign(HAlign_Right)
 	.VAlign(VAlign_Center)
 	[
