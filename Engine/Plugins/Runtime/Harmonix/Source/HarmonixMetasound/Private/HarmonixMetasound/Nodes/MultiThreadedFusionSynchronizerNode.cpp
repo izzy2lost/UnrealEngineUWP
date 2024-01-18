@@ -239,12 +239,12 @@ namespace HarmonixMetasound
 				InVertexData.BindReadVertex(FusionSyncNode::Names[InstanceIndex].SyncIn.Name, IO[InstanceIndex].Sync);
 				if constexpr (NUM_CHANNELS == 1)
 				{
-					InVertexData.BindReadVertex(FusionSyncNode::Names[InstanceIndex].AudioInLeft.Name, IO[InstanceIndex].AudioInput[0]);
+					InVertexData.BindReadVertex(FusionSyncNode::Names[InstanceIndex].AudioInMono.Name, IO[InstanceIndex].AudioInput[0]);
 				}
 				else
 				{
 					InVertexData.BindReadVertex(FusionSyncNode::Names[InstanceIndex].AudioInLeft.Name, IO[InstanceIndex].AudioInput[0]);
-					InVertexData.BindReadVertex(FusionSyncNode::Names[InstanceIndex].AudioInLeft.Name, IO[InstanceIndex].AudioInput[1]);
+					InVertexData.BindReadVertex(FusionSyncNode::Names[InstanceIndex].AudioInRight.Name, IO[InstanceIndex].AudioInput[1]);
 				}
 			}
 
