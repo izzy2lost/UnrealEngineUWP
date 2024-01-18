@@ -56,9 +56,9 @@ struct FStructuredArchiveVisitor : FAbstractVisitor
 	virtual void EndObject() override;
 	virtual void VisitNonNull(VCell*& InCell, const TCHAR* ElementName) override;
 	virtual void VisitEmergentType(const VCell* InEmergentType) override;
-	virtual void VisitNonNull(UObject* InObject, const TCHAR* ElementName) override;
+	virtual void VisitNonNull(UObject*& InObject, const TCHAR* ElementName) override;
 	virtual void Visit(VCell*& InCell, const TCHAR* ElementName) override;
-	virtual void Visit(UObject* InObject, const TCHAR* ElementName) override;
+	virtual void Visit(UObject*& InObject, const TCHAR* ElementName) override;
 	virtual void Visit(VValue& Value, const TCHAR* ElementName) override;
 	virtual void Visit(VRestValue& Value, const TCHAR* ElementName) override;
 	virtual void Visit(bool& bValue, const TCHAR* ElementName) override;

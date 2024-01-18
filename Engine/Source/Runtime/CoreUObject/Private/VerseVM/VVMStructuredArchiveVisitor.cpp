@@ -632,7 +632,7 @@ void FStructuredArchiveVisitor::VisitEmergentType(const VCell* InEmergentType)
 	// Any emergent type formatting has already been done
 }
 
-void FStructuredArchiveVisitor::VisitNonNull(UObject* InObject, const TCHAR* ElementName)
+void FStructuredArchiveVisitor::VisitNonNull(UObject*& InObject, const TCHAR* ElementName)
 {
 }
 
@@ -641,7 +641,7 @@ void FStructuredArchiveVisitor::Visit(VCell*& InCell, const TCHAR* ElementName)
 	VisitCellBody(ScopedRecord(*this, ElementName).Record, InCell);
 }
 
-void FStructuredArchiveVisitor::Visit(UObject* InObject, const TCHAR* ElementName)
+void FStructuredArchiveVisitor::Visit(UObject*& InObject, const TCHAR* ElementName)
 {
 }
 
@@ -778,7 +778,7 @@ struct FVCellSerializeContextVistor : Verse::FAbstractVisitor
 {
 	virtual void VisitNonNull(Verse::VCell*& InCell, const TCHAR* ElementName) override;
 
-	virtual void VisitNonNull(UObject* InObject, const TCHAR* ElementName) override
+	virtual void VisitNonNull(UObject*& InObject, const TCHAR* ElementName) override
 	{
 	}
 

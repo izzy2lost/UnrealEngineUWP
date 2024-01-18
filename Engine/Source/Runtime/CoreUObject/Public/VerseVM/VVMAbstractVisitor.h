@@ -73,7 +73,7 @@ struct FAbstractVisitor
 	// Override the following methods to constomize how different values will be processed.  For visitors that just need
 	// to enumerate VCell and UObject references, these are the only methods that need to be overridden
 	virtual void VisitNonNull(VCell*& InCell, const TCHAR* ElementName);
-	virtual void VisitNonNull(UObject* InObject, const TCHAR* ElementName);
+	virtual void VisitNonNull(UObject*& InObject, const TCHAR* ElementName);
 	virtual void VisitAuxNonNull(void* InAux, const TCHAR* ElementName);
 
 	// This method is only invoked by VCell to visit the emergent type of the cell.  It should not be
@@ -101,7 +101,7 @@ struct FAbstractVisitor
 
 	// The default implementation of the following methods just check for null values and then forward to the non-null variants
 	virtual void Visit(VCell*& InCell, const TCHAR* ElementName);
-	virtual void Visit(UObject* InObject, const TCHAR* ElementName);
+	virtual void Visit(UObject*& InObject, const TCHAR* ElementName);
 	virtual void VisitAux(void* InAux, const TCHAR* ElementName);
 
 	// The default implementation looks for either a VCell or UObject pointer and invokes the proper Visit method if found

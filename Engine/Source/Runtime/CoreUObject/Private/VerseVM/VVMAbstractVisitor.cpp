@@ -10,7 +10,7 @@ void FAbstractVisitor::VisitNonNull(VCell*& InCell, const TCHAR* ElementName)
 {
 }
 
-void FAbstractVisitor::VisitNonNull(UObject* InObject, const TCHAR* ElementName)
+void FAbstractVisitor::VisitNonNull(UObject*& InObject, const TCHAR* ElementName)
 {
 }
 
@@ -80,7 +80,7 @@ void FAbstractVisitor::Visit(VCell*& InCell, const TCHAR* ElementName)
 	}
 }
 
-void FAbstractVisitor::Visit(UObject* InObject, const TCHAR* ElementName)
+void FAbstractVisitor::Visit(UObject*& InObject, const TCHAR* ElementName)
 {
 	if (InObject != nullptr)
 	{
@@ -104,7 +104,8 @@ void FAbstractVisitor::Visit(VValue& Value, const TCHAR* ElementName)
 	}
 	else if (Value.IsUObject())
 	{
-		Visit(Value.AsUObject(), ElementName);
+		UObject* Object = Value.AsUObject();
+		Visit(Object, ElementName);
 	}
 }
 

@@ -3313,7 +3313,7 @@ struct TVerseDebugReachabilityVisitor : public Verse::FAbstractVisitor
 		}
 	}
 
-	virtual void VisitNonNull(UObject* InObject, const TCHAR* ElementName) override
+	virtual void VisitNonNull(UObject*& InObject, const TCHAR* ElementName) override
 	{
 		UE::GC::GStats.IncreaseObjectRefStats(InObject);
 		Verse::FAbstractVisitor::FReferrerContext* VisitorContext = GetContext();

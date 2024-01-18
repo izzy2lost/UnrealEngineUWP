@@ -126,7 +126,7 @@ struct FDefaultCellFormmatterVisitor : FAbstractVisitor
 		// Any emergent type formatting has already been done
 	}
 
-	virtual void VisitNonNull(UObject* InObject, const TCHAR* ElementName) override
+	virtual void VisitNonNull(UObject*& InObject, const TCHAR* ElementName) override
 	{
 		BeginElement(ElementName);
 		Builder.Append(TEXT("\"UObject\""));
@@ -143,7 +143,7 @@ struct FDefaultCellFormmatterVisitor : FAbstractVisitor
 		Builder.Append(TEXT("nullptr"));
 	}
 
-	virtual void Visit(UObject* InObject, const TCHAR* ElementName) override
+	virtual void Visit(UObject*& InObject, const TCHAR* ElementName) override
 	{
 		if (InObject != nullptr)
 		{
