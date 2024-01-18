@@ -5,6 +5,7 @@
 #include "Stats/Stats.h"
 #include "AI/Navigation/NavigationTypes.h"
 #include "AI/Navigation/NavigationInvokerPriority.h"
+#include "AI/Navigation/NavigationRelevantData.h"
 #include "EngineDefines.h"
 #include "AI/NavigationModifier.h"
 #include "NavigationOctree.h"
@@ -31,7 +32,6 @@ class FNavMeshBuildContext;
 class FRecastNavMeshGenerator;
 struct FTileRasterizationContext;
 struct BuildContext;
-struct FNavigationRelevantData;
 struct dtTileCacheLayer;
 struct FKAggregateGeom;
 struct FTileCacheCompressor;

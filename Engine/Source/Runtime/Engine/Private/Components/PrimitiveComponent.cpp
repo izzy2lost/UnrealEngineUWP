@@ -18,6 +18,7 @@
 #include "HLOD/HLODBatchingPolicy.h"
 #include "PSOPrecache.h"
 #include "AI/NavigationSystemBase.h"
+#include "AI/Navigation/NavigationRelevantData.h"
 #include "GameFramework/PlayerController.h"
 #include "GameFramework/PhysicsVolume.h"
 #include "GameFramework/WorldSettings.h"

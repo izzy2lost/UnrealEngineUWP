@@ -10,6 +10,7 @@
 #include "EngineStats.h"
 #include "AI/NavigationModifier.h"
 #include "AI/Navigation/NavRelevantInterface.h"
+#include "AI/Navigation/NavigationRelevantData.h"
 #include "Math/GenericOctree.h"
 #include "HAL/LowLevelMemTracker.h"
 

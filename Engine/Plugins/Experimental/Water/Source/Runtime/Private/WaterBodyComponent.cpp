@@ -8,6 +8,7 @@
 #include "LandscapeProxy.h"
 #include "Materials/MaterialInstanceDynamic.h"
 #include "AI/NavigationSystemBase.h"
+#include "AI/Navigation/NavigationRelevantData.h"
 #include "Spatial/MeshAABBTree3.h"
 #include "WaterModule.h"
 #include "WaterBodyActor.h"

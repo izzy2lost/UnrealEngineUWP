@@ -11,6 +11,7 @@
 
 struct FNavigationRelevantData;
 class UBodySetup;
+enum class ENavigationDataResolution : uint8;
 
 UCLASS(ClassGroup = (Navigation), meta = (BlueprintSpawnableComponent), hidecategories = (Activation), config = Engine, defaultconfig, MinimalAPI)
 class UNavModifierComponent : public UNavRelevantComponent

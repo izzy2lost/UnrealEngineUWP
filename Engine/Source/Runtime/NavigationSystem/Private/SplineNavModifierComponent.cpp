@@ -3,6 +3,7 @@
 #include "SplineNavModifierComponent.h"
 
 #include "AI/NavigationSystemBase.h"
+#include "AI/Navigation/NavigationRelevantData.h"
 #include "Components/SplineComponent.h"
 #include "VisualLogger/VisualLogger.h"
 

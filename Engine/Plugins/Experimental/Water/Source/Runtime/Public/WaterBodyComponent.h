@@ -42,6 +42,7 @@ class AWaterZone;
 class ALandscapeProxy;
 class UMaterialInstanceDynamic;
 class FTokenizedMessage;
+class UNavAreaBase;
 namespace UE::Geometry { class FDynamicMesh3; }
 struct FMeshDescription;
 

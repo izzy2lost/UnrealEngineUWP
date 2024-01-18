@@ -16,6 +16,7 @@
 #include "UnrealEngine.h"
 #include "AI/NavigationSystemHelpers.h"
 #include "AI/Navigation/NavCollisionBase.h"
+#include "AI/Navigation/NavigationRelevantData.h"
 #include "MeshDrawShaderBindings.h"
 #include "Misc/UObjectToken.h"
 #include "Misc/DelayedAutoRegister.h"

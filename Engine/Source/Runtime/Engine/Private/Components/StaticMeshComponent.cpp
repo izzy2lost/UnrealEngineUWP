@@ -40,6 +40,7 @@
 #include "AI/Navigation/NavCollisionBase.h"
 #include "Engine/StaticMeshSocket.h"
 #include "AI/NavigationSystemBase.h"
+#include "AI/Navigation/NavigationRelevantData.h"
 #include "PhysicsEngine/BodySetup.h"
 #include "ComponentRecreateRenderStateContext.h"
 #include "Engine/StaticMesh.h"

@@ -11,6 +11,8 @@
 #include "GameFramework/Volume.h"
 #include "NavModifierVolume.generated.h"
 
+enum class ENavigationDataResolution : uint8;
+
 struct FNavigationRelevantData;
 
 /** 

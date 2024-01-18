@@ -3,6 +3,7 @@
 #include "AI/Navigation/NavigationTypes.h"
 #include "AI/NavigationSystemBase.h"
 #include "AI/Navigation/NavQueryFilter.h"
+#include "AI/Navigation/NavigationRelevantData.h"
 #include "Engine/Level.h"
 #include "EngineStats.h"
 #include "Components/ShapeComponent.h"
