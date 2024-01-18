@@ -1,6 +1,6 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
-import { ComboBox, DefaultButton, Dropdown, FontIcon, IComboBox, IComboBoxOption, IComboBoxStyles, IContextualMenuItem, IContextualMenuProps, IDropdownOption, Label, PrimaryButton, SelectableOptionMenuItemType, Spinner, SpinnerSize, Stack, Text } from '@fluentui/react';
+import { Checkbox, ComboBox, DefaultButton, Dropdown, FontIcon, IComboBox, IComboBoxOption, IComboBoxStyles, IContextualMenuItem, IContextualMenuProps, IDropdownOption, Label, PrimaryButton, SelectableOptionMenuItemType, Spinner, SpinnerSize, Stack, Text } from '@fluentui/react';
 import * as d3 from "d3";
 import { observer } from 'mobx-react-lite';
 import moment from 'moment';
@@ -374,6 +374,27 @@ const VariationChooser: React.FC<{ handler: TestDataHandler }> = observer(({ han
 
 });
 
+const AutoExpandChooser: React.FC<{ handler: TestDataHandler }> = observer(({ handler }) => {
+
+   // subscribe
+   if (handler.updated) { }
+
+   
+
+   return <Stack style={{ paddingTop: 12, paddingBottom: 4 }}>
+      <Stack style={{ paddingTop: 0, paddingBottom: 4 }}>
+         <Label>Results</Label>
+      </Stack>
+      <Stack tokens={{ childrenGap: 6 }} style={{ paddingLeft: 12 }}>
+         <DefaultButton text={handler.state.autoExpand ? "Expanded" : "Collapsed"} onClick={() => {
+            handler.setAutoExpand(!handler.state.autoExpand);
+         }} />
+      </Stack>
+   </Stack>
+
+});
+
+
 const AutomationSidebarLeft: React.FC<{ handler: TestDataHandler }> = ({ handler }) => {
 
    const { hordeClasses } = getHordeStyling();
@@ -411,6 +432,9 @@ const AutomationSidebarLeft: React.FC<{ handler: TestDataHandler }> = ({ handler
          </Stack>
          <Stack>
             <VariationChooser handler={handler} />
+         </Stack>
+         <Stack>
+            <AutoExpandChooser handler={handler} />
          </Stack>
       </Stack>
    </Stack>

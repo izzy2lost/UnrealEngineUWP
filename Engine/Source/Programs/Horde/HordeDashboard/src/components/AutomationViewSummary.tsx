@@ -30,7 +30,7 @@ const TestSummaryModal: React.FC<{ test: GetTestResponse, handler: TestDataHandl
                />
             </Stack>
          </Stack>
-         <Stack style={{paddingRight: 12}}>
+         <Stack style={{ paddingRight: 12 }}>
             <div style={{ marginTop: 8, height: 'calc(100vh - 258px)', position: 'relative' }} data-is-scrollable={true}>
                <ScrollablePane scrollbarVisibility={ScrollbarVisibility.always} onScroll={() => { }}>
                   <Stack tokens={{ childrenGap: 40 }} styles={{ root: { padding: 12 } }}>
@@ -45,6 +45,10 @@ const TestSummaryModal: React.FC<{ test: GetTestResponse, handler: TestDataHandl
 }
 
 const TestSummaryButton: React.FC<{ test: GetTestResponse, handler: TestDataHandler }> = ({ test, handler }) => {
+
+   const search = new URLSearchParams(window.location.search);
+
+   const [autoExpand, setAutoExpanded] = useState(search.get("autoexpand") === "true");
 
    const [showReport, setShowReport] = useState(false);
    const [expanded, setExpanded] = useState(false);
@@ -63,15 +67,24 @@ const TestSummaryButton: React.FC<{ test: GetTestResponse, handler: TestDataHand
          }
       }
    });
-   
+
    const colorA = dashboard.darktheme ? "#181A1B" : "#e8e8e8";
    const colorB = dashboard.darktheme ? "#242729" : "#f8f8f8";
-   
 
    const status = handler.getStatus(test.id);
 
    if (!status) {
       return <div />;
+   }
+
+   if (autoExpand) {
+
+      const streamExpand = new Map<string, boolean>();
+      Array.from(status.keys()).forEach(s => streamExpand.set(s, true));
+      setStreamExpanded(streamExpand);
+      setExpanded(true);      
+      setAutoExpanded(false);
+      return null;
    }
 
    const streamElements: JSX.Element[] = [];
@@ -156,6 +169,10 @@ const TestSummaryButton: React.FC<{ test: GetTestResponse, handler: TestDataHand
                const sA = testMeta.get(a)!;
                const sB = testMeta.get(b)!;
 
+               if (sA.refs[0].buildChangeList !== sB.refs[0].buildChangeList) {
+                  return sB.refs[0].buildChangeList - sA.refs[0].buildChangeList;
+               }
+
                const errorA = sA.error ? 1 : 0;
                const errorB = sB.error ? 1 : 0;
 
@@ -165,6 +182,12 @@ const TestSummaryButton: React.FC<{ test: GetTestResponse, handler: TestDataHand
 
                return handler.metaNames.get(a)!.localeCompare(handler.metaNames.get(b)!);
             });
+
+            let latestCL = 0;
+            for (let metaId of metaIds) {
+               latestCL = Math.max(latestCL, testMeta.get(metaId)!.refs[0].buildChangeList);
+            }
+
 
             for (let metaId of metaIds) {
 
@@ -209,6 +232,11 @@ const TestSummaryButton: React.FC<{ test: GetTestResponse, handler: TestDataHand
                   dateString = getShortNiceTime(date, false, false)
                }
 
+               let fontWeight: number | undefined;
+               if (last.buildChangeList === latestCL) {
+                  fontWeight = 600
+               }
+
                metaElements.push(
                   <Stack className="horde-no-darktheme">
                      <Stack className={styles.metaitem} horizontal verticalAlign="center" style={{ cursor: "pointer", backgroundColor: metaElements.length % 2 ? colorA : colorB, paddingTop: 2, paddingBottom: 2 }} onClick={(ev) => {
@@ -225,13 +253,14 @@ const TestSummaryButton: React.FC<{ test: GetTestResponse, handler: TestDataHand
                         </Stack>
                         <Stack horizontal>
                            <Stack style={{ width: 124 }}>
-                              <Text variant="xSmall">{metaName}</Text>
+                              <Text variant="xSmall" style={{ fontWeight: fontWeight }}>{metaName}</Text>
                            </Stack>
-                           <Stack style={{ width: 84 }}>
-                              <Text variant="xSmall">CL {last.buildChangeList}</Text>
+                           <Stack horizontal style={{ width: 84 }} verticalFill verticalAlign="center" tokens={{childrenGap: 4}}>
+                              <Text variant="xSmall" style={{ fontWeight: fontWeight }}>CL {last.buildChangeList}</Text>
+                              {last.buildChangeList === latestCL && <FontIcon style={{ fontSize: 11, color: color }} iconName="Star" />}
                            </Stack>
                            <Stack style={{ width: 60 }} horizontalAlign="end">
-                              <Text variant="xSmall">{dateString}</Text>
+                              <Text variant="xSmall" style={{ fontWeight: fontWeight }}>{dateString}</Text>
                            </Stack>
                         </Stack>
                      </Stack>
@@ -432,10 +461,10 @@ const SuiteSummaryButton: React.FC<{ suite: GetTestSuiteResponse, handler: TestD
          }
       }
    });
-   
+
    const colorA = dashboard.darktheme ? "#181A1B" : "#e8e8e8";
    const colorB = dashboard.darktheme ? "#242729" : "#f8f8f8";
-   
+
 
    const status = handler.getStatus(suite.id);
 
