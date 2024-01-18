@@ -8,6 +8,7 @@
 #include "EngineUtils.h"
 #include "ScreenRendering.h"
 #include "ScreenPass.h"
+#include "PostProcess/PostProcessMaterialInputs.h"
 
 class FDisplayClusterViewport_Context;
 class FRDGBuilder;
@@ -21,8 +22,6 @@ struct FScreenPassTexture;
  */
 class DISPLAYCLUSTER_API IDisplayClusterDisplayDeviceProxy
 {
-	static FScreenPassTexture ReturnUntouchedSceneColorForPostProcessing(const FPostProcessMaterialInputs& Inputs);
-
 public:
 	virtual ~IDisplayClusterDisplayDeviceProxy() = default;
 
@@ -63,7 +62,7 @@ public:
 	 * @return - Screen pass texture
 	 */
 	virtual FScreenPassTexture OnPostProcessPassAfterFXAA_RenderThread(FRDGBuilder& GraphBuilder, const FSceneView& View, const FPostProcessMaterialInputs& Inputs, const uint32 ContextNum)
-	{ return ReturnUntouchedSceneColorForPostProcessing(Inputs); }
+	{ return Inputs.ReturnUntouchedSceneColorForPostProcessing(GraphBuilder); }
 
 	/** Allow callback OnPostProcessPassAfterSSRInput. */
 	virtual bool ShouldUsePostProcessPassAfterSSRInput() const
@@ -79,7 +78,7 @@ public:
 	 * @return - Screen pass texture
 	 */
 	virtual FScreenPassTexture OnPostProcessPassAfterSSRInput_RenderThread(FRDGBuilder& GraphBuilder, const FSceneView& View, const FPostProcessMaterialInputs& Inputs, const uint32 ContextNum)
-	{ return ReturnUntouchedSceneColorForPostProcessing(Inputs); }
+	{ return Inputs.ReturnUntouchedSceneColorForPostProcessing(GraphBuilder); }
 
 	/** Allow callback OnPostProcessPassAfterTonemap. */
 	virtual bool ShouldUsePostProcessPassTonemap() const
@@ -95,5 +94,5 @@ public:
 	 * @return - Screen pass texture
 	 */
 	virtual FScreenPassTexture OnPostProcessPassAfterTonemap_RenderThread(FRDGBuilder& GraphBuilder, const FSceneView& View, const FPostProcessMaterialInputs& Inputs, const uint32 ContextNum)
-	{ return ReturnUntouchedSceneColorForPostProcessing(Inputs); }
+	{ return Inputs.ReturnUntouchedSceneColorForPostProcessing(GraphBuilder); }
 };

@@ -44,14 +44,6 @@ public:
 	virtual void PostRenderViewFamily_RenderThread(FRDGBuilder& GraphBuilder, FSceneViewFamily& InViewFamily) override;
 	//~End ISceneVIewExtension interface
 
-	/** PP Helper: Get output PP texture from inputs (OverrideOutput or SceneColor).
-	 *
-	 * @param InOutInputs - PP material inputs
-	 *
-	 * @return - Screen pass texture
-	 */
-	static FScreenPassTexture ReturnUntouchedSceneColorForPostProcessing(const FPostProcessMaterialInputs& InOutInputs);
-
 	/** Release from render thread.*/
 	void Release_RenderThread();
 

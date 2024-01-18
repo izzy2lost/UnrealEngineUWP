@@ -347,11 +347,11 @@ FScreenPassTexture AddVisualizeGBufferOverviewPass(
 		RDG_EVENT_SCOPE(GraphBuilder, "%s", *MaterialName);
 
 		FPostProcessMaterialInputs PostProcessMaterialInputs;
-		PostProcessMaterialInputs.SetInput(EPostProcessMaterialInput::SceneColor, Inputs.SceneColor);
-		PostProcessMaterialInputs.SetInput(EPostProcessMaterialInput::SeparateTranslucency, Inputs.SeparateTranslucency);
-		PostProcessMaterialInputs.SetInput(EPostProcessMaterialInput::PreTonemapHDRColor, Inputs.SceneColorBeforeTonemap);
-		PostProcessMaterialInputs.SetInput(EPostProcessMaterialInput::PostTonemapHDRColor, Inputs.SceneColorAfterTonemap);
-		PostProcessMaterialInputs.SetInput(EPostProcessMaterialInput::Velocity, Inputs.Velocity);
+		PostProcessMaterialInputs.SetInput(GraphBuilder, EPostProcessMaterialInput::SceneColor, Inputs.SceneColor);
+		PostProcessMaterialInputs.SetInput(GraphBuilder, EPostProcessMaterialInput::SeparateTranslucency, Inputs.SeparateTranslucency);
+		PostProcessMaterialInputs.SetInput(GraphBuilder, EPostProcessMaterialInput::PreTonemapHDRColor, Inputs.SceneColorBeforeTonemap);
+		PostProcessMaterialInputs.SetInput(GraphBuilder, EPostProcessMaterialInput::PostTonemapHDRColor, Inputs.SceneColorAfterTonemap);
+		PostProcessMaterialInputs.SetInput(GraphBuilder, EPostProcessMaterialInput::Velocity, Inputs.Velocity);
 
 		if (View.Family->EngineShowFlags.PathTracing && Inputs.PathTracingResources->bPostProcessEnabled)
 		{
