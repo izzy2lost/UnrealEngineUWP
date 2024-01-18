@@ -202,8 +202,6 @@ namespace Metasound
 			/** Creates analyzers */
 			void CreateAnalyzers();
 
-			void BuildTransport(FToolBarBuilder& InToolBarBuilder);
-
 			/** Destroys analyzers */
 			void DestroyAnalyzers();
 
@@ -354,7 +352,7 @@ namespace Metasound
 			void CreateInternalWidgets();
 
 			/** Builds the toolbar widget for the Metasound editor */
-			void ExtendToolbar();
+			void ExtendToolbarInternal();
 
 			/** Binds new graph commands to delegates */
 			void BindGraphCommands();

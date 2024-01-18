@@ -134,6 +134,11 @@ const FString UMetaSoundEditorSubsystem::GetDefaultAuthor()
 	return Author;
 }
 
+const TArray<TSharedRef<FExtender>>& UMetaSoundEditorSubsystem::GetToolbarExtenders() const
+{
+	return EditorToolbarExtenders;
+}
+
 void UMetaSoundEditorSubsystem::InitAsset(UObject& InNewMetaSound, UObject* InReferencedMetaSound)
 {
 	using namespace Metasound;
@@ -201,6 +206,17 @@ void UMetaSoundEditorSubsystem::InitEdGraph(UObject& InMetaSound)
 void UMetaSoundEditorSubsystem::RegisterGraphWithFrontend(UObject& InMetaSound, bool bInForceViewSynchronization)
 {
 	Metasound::Editor::FGraphBuilder::RegisterGraphWithFrontend(InMetaSound, bInForceViewSynchronization);
+}
+
+void UMetaSoundEditorSubsystem::RegisterToolbarExtender(TSharedRef<FExtender> InExtender)
+{
+	EditorToolbarExtenders.AddUnique(InExtender);
+}
+
+bool UMetaSoundEditorSubsystem::UnregisterToolbarExtender(TSharedRef<FExtender> InExtender)
+{
+	const int32 NumRemoved = EditorToolbarExtenders.RemoveAllSwap([&InExtender](const TSharedRef<FExtender>& Extender) { return Extender == InExtender; });
+	return NumRemoved > 0;
 }
 
 void UMetaSoundEditorSubsystem::SetNodeLocation(

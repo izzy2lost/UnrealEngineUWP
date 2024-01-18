@@ -44,6 +44,7 @@
 #include "MetasoundEditorGraphValidation.h"
 #include "MetasoundEditorModule.h"
 #include "MetasoundEditorSettings.h"
+#include "MetasoundEditorSubsystem.h"
 #include "MetasoundEditorTabFactory.h"
 #include "MetasoundFrontend.h"
 #include "MetasoundFrontendDocument.h"
@@ -891,7 +892,7 @@ namespace Metasound
 			constexpr bool bUseSmallToolbarIcons = true;
 			FAssetEditorToolkit::InitAssetEditor(Mode, InitToolkitHost, TEXT("MetasoundEditorApp"), StandaloneDefaultLayout, bCreateDefaultStandaloneMenu, bCreateDefaultToolbar, ObjectToEdit, bToolbarFocusable, bUseSmallToolbarIcons);
 
-			ExtendToolbar();
+			ExtendToolbarInternal();
 			RegenerateMenusAndToolbars();
 
 			NotifyDocumentVersioned();
@@ -1268,7 +1269,7 @@ namespace Metasound
 			OutputSpectrumAnalyzer.Reset();
 		}
 
-		void FEditor::ExtendToolbar()
+		void FEditor::ExtendToolbarInternal()
 		{
 			TSharedPtr<FExtender> ToolbarExtender = MakeShared<FExtender>();
 			ToolbarExtender->AddToolBarExtension
@@ -1375,6 +1376,17 @@ namespace Metasound
 			);
 
 			AddToolbarExtender(ToolbarExtender);
+
+			if (GEditor)
+			{
+				if (UMetaSoundEditorSubsystem* Subsystem = GEditor->GetEditorSubsystem<UMetaSoundEditorSubsystem>())
+				{
+					for (const TSharedRef<FExtender>& Extender : Subsystem->GetToolbarExtenders())
+					{
+						AddToolbarExtender(Extender);
+					}
+				}
+			}
 		}
 
 		FSlateIcon FEditor::GetImportStatusImage() const
