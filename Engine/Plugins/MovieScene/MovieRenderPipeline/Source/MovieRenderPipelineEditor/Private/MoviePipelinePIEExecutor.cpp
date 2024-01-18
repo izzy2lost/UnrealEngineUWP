@@ -134,10 +134,10 @@ void UMoviePipelinePIEExecutor::Start(const UMoviePipelineExecutorJob* InJob)
 		.ClientSize(WindowSize)
 		.AutoCenter(EAutoCenter::PrimaryWorkArea)
 		.UseOSWindowBorder(true)
-		.FocusWhenFirstShown(false)
+		.FocusWhenFirstShown(true)
 		.ActivationPolicy(EWindowActivationPolicy::Never)
 		.HasCloseButton(true)
-		.SupportsMaximize(false)
+		.SupportsMaximize(true)
 		.SupportsMinimize(true)
 		.SizingRule(ESizingRule::UserSized);
 
