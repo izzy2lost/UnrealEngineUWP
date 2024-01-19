@@ -106,6 +106,12 @@ struct FModularRigSingleConnection
 {
 	GENERATED_BODY()
 
+	FModularRigSingleConnection()
+		: Connector(FRigElementKey()), Target(FRigElementKey()) {}
+	
+	FModularRigSingleConnection(const FRigElementKey& InConnector, const FRigElementKey& InTarget)
+		: Connector(InConnector), Target(InTarget) {}
+
 	UPROPERTY()
 	FRigElementKey Connector;
 
