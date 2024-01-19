@@ -5310,6 +5310,8 @@ void STimingView::PopulateTimerNameSuggestionList(const FString& Text, TArray<FS
 
 void STimingView::EnumerateFilteredTracks(TSharedPtr<Insights::FFilterConfigurator> InFilterConfigurator, TSharedPtr<const FBaseTimingTrack> PriorityTrack, EnumerateFilteredTracksCallback Callback)
 {
+	using namespace Insights;
+
 	Insights::FFilterContext FilterContext;
 	FilterContext.AddFilterData(static_cast<int32>(EFilterField::TrackName), FString());
 

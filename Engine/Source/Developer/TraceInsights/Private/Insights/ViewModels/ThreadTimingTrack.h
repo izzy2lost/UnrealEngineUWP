@@ -124,21 +124,6 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 
-enum class EFilterField : int32
-{
-	StartTime = 0,
-	EndTime = 1,
-	Duration = 2,
-	TrackName = 3,
-	TimerId = 4,
-	TimerName = 5,
-	CoreEventName = 6,
-	RegionName = 7,
-	Metadata = 8,
-};
-
-////////////////////////////////////////////////////////////////////////////////////////////////////
-
 class FThreadTimingTrack : public FTimingEventsTrack
 {
 	INSIGHTS_DECLARE_RTTI(FThreadTimingTrack, FTimingEventsTrack)
@@ -190,7 +175,7 @@ public:
 
 	int32 GetDepthAt(double Time) const;
 
-	virtual void SetFilterConfigurator(TSharedPtr<Insights::FFilterConfigurator> InFilterConfigurator);
+	virtual void SetFilterConfigurator(TSharedPtr<Insights::FFilterConfigurator> InFilterConfigurator) override;
 
 	TSharedPtr<const ITimingEvent> FindMaxEventInstance(uint32 TimerId, double StartTime, double EndTime) const;
 	TSharedPtr<const ITimingEvent> FindMinEventInstance(uint32 TimerId, double StartTime, double EndTime) const;
