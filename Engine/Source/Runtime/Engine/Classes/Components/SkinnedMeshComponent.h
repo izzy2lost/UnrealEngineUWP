@@ -297,7 +297,8 @@ public:
 	ENGINE_API void ForceMotionVector();
 
 private:
-	ENGINE_API EPreviousBoneTransformUpdateMode UpdateBoneTransformRevisionNumber();
+	ENGINE_API void UpdateBoneTransformRevisionNumber();
+	ENGINE_API EPreviousBoneTransformUpdateMode GetPreviousBoneTransformUpdateMode();
 
 	enum class EBoneTransformUpdateMethod
 	{
@@ -328,6 +329,9 @@ protected:
 
 	/** The index for the ComponentSpaceTransforms buffer we can currently read from */
 	int32 CurrentReadComponentTransforms;
+
+	/** Cache previous bone transform revision number to help compute CurrentBoneTransformRevisionNumber */
+	uint32 PreviousBoneTransformRevisionNumber;
 
 	/** current bone transform revision number */
 	uint32 CurrentBoneTransformRevisionNumber;
