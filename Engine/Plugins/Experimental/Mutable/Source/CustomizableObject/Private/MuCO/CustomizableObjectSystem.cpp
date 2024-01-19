@@ -108,12 +108,6 @@ TAutoConsoleVariable<bool> CVarEnableMeshCache(
 	TEXT("Enables or disables the reuse of meshes."),
 	ECVF_Scalability);
 
-TAutoConsoleVariable<bool> CVarRollbackFixModelDiskStreamerDataRace(
-	TEXT("mutable.Rollback.FixModelDiskStreamerDataRace"),
-	true,
-	TEXT("When true, use the new code path that fixes a data race in UnrealMutableModelDiskStreamer."));
-
-
 int32 UCustomizableObjectSystemPrivate::SkeletalMeshMinLodQualityLevel = -1;
 
 static void CVarMutableSinkFunction()
@@ -546,27 +540,16 @@ void UCustomizableObjectSystem::BeginDestroy()
 		Private->PendingTasks.Empty();
 
 		// Complete pending taskgraph tasks
-		if (CVarRollbackFixModelDiskStreamerDataRace.GetValueOnAnyThread())
-		{
-			Private->MutableTaskGraph.AllowLaunchingMutableTaskLowPriority(false, false);
-			check(Private->Streamer);
-			Private->MutableTaskGraph.AddMutableThreadTask(TEXT("EndStream"), [Streamer = Private->Streamer]()
+		Private->MutableTaskGraph.AllowLaunchingMutableTaskLowPriority(false, false);
+		check(Private->Streamer);
+		Private->MutableTaskGraph.AddMutableThreadTask(TEXT("EndStream"), [Streamer = Private->Streamer]()
 			{
 				Streamer->EndStreaming();
 			});
-		}
 		Private->MutableTaskGraph.WaitForMutableTasks();
 
 		// Clear the ongoing operation
 		Private->CurrentMutableOperation = nullptr;
-
-		if (!CVarRollbackFixModelDiskStreamerDataRace.GetValueOnAnyThread())
-		{
-			// Deallocate streaming
-			check(Private->Streamer != nullptr);
-			Private->Streamer->EndStreaming();
-		}
-
 		Private->CurrentInstanceBeingUpdated = nullptr;
 
 		UCustomizableObjectSystemPrivate::SSystem = nullptr;
@@ -1349,7 +1332,11 @@ bool UCustomizableObjectSystem::LockObject(const class UCustomizableObject* InOb
 		check(GetPrivate() != nullptr);
 		if (GetPrivate()->Streamer)
 		{
-			GetPrivate()->Streamer->CancelStreamingForObject(InObject);
+			FMutableTaskGraph::TaskType Task = Private->MutableTaskGraph.AddMutableThreadTask(TEXT("EndStream"), [InObject, Streamer = GetPrivate()->Streamer]()
+				{
+					Streamer->CancelStreamingForObject(InObject);
+				});
+			Task.Wait();
 		}
 
 		// Clear the cache for the instance, since we will remake it
@@ -1571,12 +1558,9 @@ namespace impl
 		Operation->UpdateStartBytes = mu::FGlobalMemoryCounter::GetCounter();
 		mu::FGlobalMemoryCounter::Zero();
 
-		if (CVarRollbackFixModelDiskStreamerDataRace.GetValueOnAnyThread())
-		{
-			// Prepare streaming for the current customizable object
-			check(SystemPrivate->Streamer != nullptr);
-			SystemPrivate->Streamer->PrepareStreamingForObject(Operation->Instance->GetCustomizableObject());			
-		}
+		// Prepare streaming for the current customizable object
+		check(SystemPrivate->Streamer != nullptr);
+		SystemPrivate->Streamer->PrepareStreamingForObject(Operation->Instance->GetCustomizableObject());			
 
 		const mu::Ptr<mu::System> MutableSystem = SystemPrivate->MutableSystem;
 
@@ -2704,13 +2688,6 @@ namespace impl
 		UCustomizableObjectSystemPrivate* SystemPrivateData = System->GetPrivateChecked();
 
 		SystemPrivateData->CurrentInstanceBeingUpdated = CandidateInstance;
-
-		if (!CVarRollbackFixModelDiskStreamerDataRace.GetValueOnAnyThread())
-		{
-			// Prepare streaming for the current customizable object
-			check(SystemPrivateData->Streamer != nullptr);
-			SystemPrivateData->Streamer->PrepareStreamingForObject(CustomizableObject);
-		}
 
 		check(SystemPrivateData->ExtensionDataStreamer != nullptr);
 		SystemPrivateData->ExtensionDataStreamer->SetActiveObject(CustomizableObject);

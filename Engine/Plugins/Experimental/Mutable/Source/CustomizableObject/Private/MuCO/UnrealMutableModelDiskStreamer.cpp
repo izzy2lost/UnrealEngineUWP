@@ -49,10 +49,6 @@ void UnrealMutableInputStream::Read(void* pData, uint64 size)
 //-------------------------------------------------------------------------------------------------
 FUnrealMutableModelBulkReader::~FUnrealMutableModelBulkReader()
 {
-	if (!CVarRollbackFixModelDiskStreamerDataRace.GetValueOnAnyThread())
-	{
-		EndStreaming();
-	}
 }
 
 
@@ -67,14 +63,8 @@ bool FUnrealMutableModelBulkReader::PrepareStreamingForObject(UCustomizableObjec
 	// See if we can free previuously allocated resources
 	for (int32 ObjectIndex = 0; ObjectIndex < Objects.Num(); )
 	{
-		if (!Objects[ObjectIndex].Model.Pin())
+		if (!Objects[ObjectIndex].Model.Pin() && Objects[ObjectIndex].CurrentReadRequests.IsEmpty())
 		{
-			// The CustomizableObject is gone, so we won't be streaming for it anymore.
-			for (TPair<OPERATION_ID, FReadRequest>& it : Objects[ObjectIndex].CurrentReadRequests)
-			{
-				it.Value.ReadRequest->WaitCompletion();
-			}
-
 			Objects.RemoveAtSwap(ObjectIndex);
 		}
 		else
@@ -148,9 +138,6 @@ bool FUnrealMutableModelBulkReader::PrepareStreamingForObject(UCustomizableObjec
 #if WITH_EDITOR
 void FUnrealMutableModelBulkReader::CancelStreamingForObject(const UCustomizableObject* CustomizableObject)
 {
-	// This happens in the game thread
-	check(IsInGameThread());
-
 	if (!CustomizableObject)
 	{
 		check(false);
@@ -161,10 +148,7 @@ void FUnrealMutableModelBulkReader::CancelStreamingForObject(const UCustomizable
 	{
 		if (Objects[ObjectIndex].Model.Pin() == CustomizableObject->GetModel())
 		{
-			for (TPair<OPERATION_ID, FReadRequest>& it : Objects[ObjectIndex].CurrentReadRequests)
-			{
-				it.Value.ReadRequest->WaitCompletion();
-			}
+			check(Objects[ObjectIndex].CurrentReadRequests.IsEmpty());
 
 			Objects.RemoveAtSwap(ObjectIndex);
 			break;
