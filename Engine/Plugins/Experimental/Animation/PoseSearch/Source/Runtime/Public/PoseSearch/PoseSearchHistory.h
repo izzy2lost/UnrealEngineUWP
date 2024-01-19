@@ -110,11 +110,6 @@ struct FPoseHistory : public IPoseHistory
 
 	void Initialize_AnyThread(int32 InNumPoses, float InSamplingInterval);
 	void CacheBones_AnyThread(const TArray<FBoneIndexType>& RequiredBones);
-
-	// if bGenerateTrajectory is true, this method will generate trajectory
-	// NoTe: InTrajectory.Samples[i].AccumulatedSeconds == 0 is the sample of the previous frame of simulation (since MM works by matching the previous character pose)
-	void Update_AnyThread(float DeltaTime, const FPoseSearchQueryTrajectory& InTrajectory, float InTrajectorySpeedMultiplier);
-
 	void EvaluateComponentSpace_AnyThread(float DeltaTime, FCSPose<FCompactPose>& ComponentSpacePose, bool bStoreScales);
 
 	// IPoseHistory interface
@@ -124,6 +119,7 @@ struct FPoseHistory : public IPoseHistory
 	virtual bool IsEmpty() const override;
 	virtual const FBoneToTransformMap& GetBoneToTransformMap() const override;
 	
+	void SetTrajectory(const FPoseSearchQueryTrajectory& InTrajectory, float InTrajectorySpeedMultiplier = 1.f);
 	virtual int32 GetNumEntries() const override;
 	virtual const FPoseHistoryEntry& GetEntry(int32 EntryIndex) const override;
 

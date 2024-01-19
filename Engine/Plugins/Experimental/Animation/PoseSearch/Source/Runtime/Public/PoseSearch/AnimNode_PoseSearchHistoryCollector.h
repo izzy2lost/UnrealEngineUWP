@@ -82,7 +82,8 @@ public:
 	virtual void PreUpdate(const UAnimInstance* InAnimInstance) override;
 	// End of FAnimNode_Base interface
 
-	const UE::PoseSearch::IPoseHistory& GetPoseHistory() const { return PoseHistory; }
+	const UE::PoseSearch::FPoseHistory& GetPoseHistory() const { return PoseHistory; }
+	UE::PoseSearch::FPoseHistory& GetPoseHistory() { return PoseHistory; }
 
 protected:
 	UE::PoseSearch::FPoseHistory PoseHistory;

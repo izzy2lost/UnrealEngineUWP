@@ -91,7 +91,7 @@ void FAnimNode_PoseSearchHistoryCollector_Base::Update_AnyThread(const FAnimatio
 {
 	GetEvaluateGraphExposedInputs().Execute(Context);
 
-	PoseHistory.Update_AnyThread(Context.GetDeltaTime(), bGenerateTrajectory ? FPoseSearchQueryTrajectory() : Trajectory, TrajectorySpeedMultiplier);
+	PoseHistory.SetTrajectory(bGenerateTrajectory ? FPoseSearchQueryTrajectory() : Trajectory, TrajectorySpeedMultiplier);
 
 	UpdateCounter.SynchronizeWith(Context.AnimInstanceProxy->GetUpdateCounter());
 }

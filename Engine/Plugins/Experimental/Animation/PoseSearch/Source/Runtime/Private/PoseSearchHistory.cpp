@@ -557,7 +557,7 @@ void FPoseHistory::PreUpdate(const UAnimInstance* AnimInstance, float DeltaTime,
 	ReadData = WriteData;
 }
 
-void FPoseHistory::Update_AnyThread(float DeltaTime, const FPoseSearchQueryTrajectory& InTrajectory, float InTrajectorySpeedMultiplier)
+void FPoseHistory::SetTrajectory(const FPoseSearchQueryTrajectory& InTrajectory, float InTrajectorySpeedMultiplier)
 {
 	if (!InTrajectory.Samples.IsEmpty())
 	{

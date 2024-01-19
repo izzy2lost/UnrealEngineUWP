@@ -4,6 +4,7 @@
 
 #include "Curves/CurveFloat.h"
 #include "PoseSearch/PoseSearchTrajectoryTypes.h"
+#include "Kismet/KismetSystemLibrary.h"
 #include "PoseSearchTrajectoryLibrary.generated.h"
 
 class UAnimInstance;
@@ -35,7 +36,7 @@ public:
 		FQuat Facing = FQuat::Identity;
 		FQuat MeshCompRelativeRotation = FQuat::Identity;
 		bool bOrientRotationToMovement = false;
-		bool bIsFalling = false;
+		bool bStepGroundPrediction = true;
 	};
 
 	struct FSampling
@@ -50,7 +51,6 @@ public:
 	void UpdateData(float DeltaTime, const FAnimInstanceProxy& AnimInstanceProxy, FDerived& TrajectoryDataDerived, FState& TrajectoryDataState) const;
 	void UpdateData(float DeltaTime, const UAnimInstance* AnimInstance, FDerived& TrajectoryDataDerived, FState& TrajectoryDataState) const;
 	FVector StepCharacterMovementGroundPrediction(float DeltaTime, const FVector& InVelocity, const FVector& InAcceleration, const FDerived& TrajectoryDataDerived) const;
-	FVector StepCharacterFallingPrediction(float DeltaTime, const FVector& InitialVelocity, const FDerived& TrajectoryDataDerived) const;
 	
 	// If the character is forward facing (i.e. bOrientRotationToMovement is true), this controls how quickly the trajectory will rotate
 	// to face acceleration. It's common for this to differ from the rotation rate of the character, because animations are often authored 
@@ -84,7 +84,7 @@ public:
 /**
  * Set of functions to help populate a FPoseSearchQueryTrajectory for motion matching.
  */
-UCLASS()
+UCLASS(Experimental)
 class POSESEARCH_API UPoseSearchTrajectoryLibrary : public UBlueprintFunctionLibrary
 {
 	GENERATED_BODY()
@@ -98,25 +98,22 @@ public:
 	static void UpdateHistory_TransformHistory(FPoseSearchQueryTrajectory& Trajectory, const FPoseSearchTrajectoryData& TrajectoryData, const FPoseSearchTrajectoryData::FDerived& TrajectoryDataDerived, const FPoseSearchTrajectoryData::FSampling& TrajectoryDataSampling, float DeltaTime);
 
 	// Update prediction by simulating the movement math for ground locomotion from UCharacterMovementComponent.
-	static void UpdatePrediction_SimulateCharacterMovement(FPoseSearchQueryTrajectory& Trajectory, const FPoseSearchTrajectoryData& TrajectoryData, const FPoseSearchTrajectoryData::FDerived& TrajectoryDataDerived, const FPoseSearchTrajectoryData::FSampling& TrajectoryDataSampling);
+	static void UpdatePrediction_SimulateCharacterMovement(FPoseSearchQueryTrajectory& Trajectory, const FPoseSearchTrajectoryData& TrajectoryData, const FPoseSearchTrajectoryData::FDerived& TrajectoryDataDerived, const FPoseSearchTrajectoryData::FSampling& TrajectoryDataSampling, bool bAlwaysApplyGravity = false);
 
-	// Update prediction by simulating the movement math for locomotion from UCharacterMovementComponent.
-	static void UpdatePrediction_SimulateCharacterMovementAdvanced(FPoseSearchQueryTrajectory& Trajectory, const FPoseSearchTrajectoryData& TrajectoryData, const FPoseSearchTrajectoryData::FDerived& TrajectoryDataDerived, const FPoseSearchTrajectoryData::FSampling& TrajectoryDataSampling);
-	
 	/** Get a Pose History node context from an anim node context (pure) */
-	UFUNCTION(BlueprintPure, Category = "Animation|PoseSearch", meta = (BlueprintThreadSafe, DisplayName = "Pose Search Generate Trajectory"))
-	static void PoseSearchGenerateTrajectory(
-		const UAnimInstance* InAnimInstance, UPARAM(ref) const FPoseSearchTrajectoryData& InTrajectoryData, float InDeltaTime,
+	UFUNCTION(BlueprintCallable, Category = "Animation|PoseSearch", meta = (BlueprintThreadSafe, DisplayName = "Pose Search Generate Trajectory"))
+	static void PoseSearchGenerateTrajectory(const UAnimInstance* InAnimInstance, UPARAM(ref) const FPoseSearchTrajectoryData& InTrajectoryData, float InDeltaTime,
 		UPARAM(ref) FPoseSearchQueryTrajectory& InOutTrajectory, UPARAM(ref) float& InOutDesiredControllerYawLastUpdate, FPoseSearchQueryTrajectory& OutTrajectory,
-		float InHistorySamplingInterval = 0.04f, int32 InTrajectoryHistoryCount = 10, float InPredictionSamplingInterval = 0.4f, int32 InTrajectoryPredictionCount = 8);
+		float InHistorySamplingInterval = 0.04f, int32 InTrajectoryHistoryCount = 10, float InPredictionSamplingInterval = 0.2f, int32 InTrajectoryPredictionCount = 8,
+		bool bAlwaysApplyGravity = false);
 
-	/** Generate trajectory to be used by a Pose History node. Supports more than on ground movement prediction (i.e. jumping, collisions etc). */
-	UFUNCTION(BlueprintPure, Category = "Animation|PoseSearch", meta = (BlueprintThreadSage, DisplayName = "Pose Search Generate Trajectory Advanced"))
-	static void PoseSearchGenerateTrajectoryAdvanced(
-		const UAnimInstance* InAnimInstance, UPARAM(ref) const FPoseSearchTrajectoryData& InTrajectoryData, float InDeltaTime,
-		UPARAM(ref) FPoseSearchQueryTrajectory& InOutTrajectory, UPARAM(ref) float& InOutDesiredControllerYawLastUpdate, FPoseSearchQueryTrajectory& OutTrajectory,
-		float InHistorySamplingInterval = 0.04f, int32 InTrajectoryHistoryCount = 10, float InPredictionSamplingInterval = 0.4f, int32 InTrajectoryPredictionCount = 8);
-	
+	UFUNCTION(BlueprintCallable, Category="Animation|PoseSearch", meta=(bIgnoreSelf="true", WorldContext="WorldContextObject", AutoCreateRefTerm="ActorsToIgnore", AdvancedDisplay="TraceColor,TraceHitColor,DrawTime"))
+	static void HandleTrajectoryWorldCollisions(const UObject* WorldContextObject, UPARAM(ref) const FPoseSearchQueryTrajectory& InTrajectory, FPoseSearchQueryTrajectory& OutTrajectory,
+		ETraceTypeQuery TraceChannel, bool bTraceComplex, const TArray<AActor*>& ActorsToIgnore, EDrawDebugTrace::Type DrawDebugType, bool bIgnoreSelf, FLinearColor TraceColor = FLinearColor::Red, FLinearColor TraceHitColor = FLinearColor::Green, float DrawTime = 5.0f);
+
+	UFUNCTION(BlueprintPure, Category="Animation|PoseSearch")
+	static void GetTrajectorySampleAtTime(UPARAM(ref) const FPoseSearchQueryTrajectory& InTrajectory, float Time, FPoseSearchQueryTrajectorySample& OutTrajectorySample, bool bExtrapolate = true);
+
 private:
 	static FVector RemapVectorMagnitudeWithCurve(const FVector& Vector, bool bUseCurve, const FRuntimeFloatCurve& Curve);
 };
