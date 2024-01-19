@@ -323,6 +323,15 @@ void FInterchangePipelineBaseDetailsCustomization::CustomizeDetails(IDetailLayou
 				}
 			}
 			
+			const bool PipelineInternalEditionData = PropertyHandle->GetBoolMetaData(FName("PipelineInternalEditionData"));
+
+			//Hide property that are not suppose to show in the import dialog
+			if (!bAllowPropertyStatesEdition && PipelineInternalEditionData)
+			{
+				CachedDetailBuilder->HideProperty(PropertyHandle);
+				continue;
+			}
+
 			FName PropertyPath = FName(PropertyPtr->GetPathName());
 			CachedDetailBuilder->HideProperty(PropertyHandle);
 
@@ -440,6 +449,7 @@ void FInterchangePipelineBaseDetailsCustomization::CustomizeDetails(IDetailLayou
 					.Padding(3.0f, 1.0f)
 					[
 						SNew(SCheckBox)
+						.Visibility(PipelineInternalEditionData ? EVisibility::Collapsed : EVisibility::All)
 						.CheckedImage(FAppStyle::Get().GetBrush("Icons.Lock"))
 						.CheckedHoveredImage(FAppStyle::Get().GetBrush("Icons.Lock"))
 						.CheckedPressedImage(FAppStyle::Get().GetBrush("Icons.Lock"))
@@ -489,6 +499,7 @@ void FInterchangePipelineBaseDetailsCustomization::CustomizeDetails(IDetailLayou
 					.VAlign(VAlign_Center)
 					[
 						SNew(STextBlock)
+						.Visibility(PipelineInternalEditionData ? EVisibility::Collapsed : EVisibility::All)
 						.Font(IDetailLayoutBuilder::GetDetailFont())
 						.Text(NSLOCTEXT("InterchangePipelineBaseDetails::CustomizeDetails", "ShowWhenBasicLayoutText", "Basic Layout"))
 					]
@@ -497,6 +508,7 @@ void FInterchangePipelineBaseDetailsCustomization::CustomizeDetails(IDetailLayou
 					.Padding(3.0f, 1.0f)
 					[
 						SNew(SCheckBox)
+						.Visibility(PipelineInternalEditionData ? EVisibility::Collapsed : EVisibility::All)
 						.CheckedImage(FAppStyle::Get().GetBrush("Icons.Hidden"))
 						.CheckedHoveredImage(FAppStyle::Get().GetBrush("Icons.Hidden"))
 						.CheckedPressedImage(FAppStyle::Get().GetBrush("Icons.Hidden"))
@@ -534,6 +546,7 @@ void FInterchangePipelineBaseDetailsCustomization::CustomizeDetails(IDetailLayou
 					.VAlign(VAlign_Center)
 					[
 						SNew(STextBlock)
+						.Visibility(PipelineInternalEditionData ? EVisibility::Collapsed : EVisibility::All)
 						.Font(IDetailLayoutBuilder::GetDetailFont())
 						.Text(NSLOCTEXT("InterchangePipelineBaseDetails::CustomizeDetails", "HiddenAtImportText", "Import"))
 					]
@@ -542,6 +555,7 @@ void FInterchangePipelineBaseDetailsCustomization::CustomizeDetails(IDetailLayou
 					.Padding(3.0f, 1.0f)
 					[
 						SNew(SCheckBox)
+						.Visibility(PipelineInternalEditionData ? EVisibility::Collapsed : EVisibility::All)
 						.CheckedImage(FAppStyle::Get().GetBrush("Icons.Hidden"))
 						.CheckedHoveredImage(FAppStyle::Get().GetBrush("Icons.Hidden"))
 						.CheckedPressedImage(FAppStyle::Get().GetBrush("Icons.Hidden"))
@@ -581,6 +595,7 @@ void FInterchangePipelineBaseDetailsCustomization::CustomizeDetails(IDetailLayou
 					.VAlign(VAlign_Center)
 					[
 						SNew(STextBlock)
+						.Visibility(PipelineInternalEditionData ? EVisibility::Collapsed : EVisibility::All)
 						.Font(IDetailLayoutBuilder::GetDetailFont())
 						.Text(NSLOCTEXT("InterchangePipelineBaseDetails::CustomizeDetails", "HiddenAtReimportText", "Reimport"))
 					]
@@ -589,6 +604,7 @@ void FInterchangePipelineBaseDetailsCustomization::CustomizeDetails(IDetailLayou
 					.Padding(3.0f, 1.0f)
 					[
 						SNew(SCheckBox)
+						.Visibility(PipelineInternalEditionData ? EVisibility::Collapsed : EVisibility::All)
 						.CheckedImage(FAppStyle::Get().GetBrush("Icons.Hidden"))
 						.CheckedHoveredImage(FAppStyle::Get().GetBrush("Icons.Hidden"))
 						.CheckedPressedImage(FAppStyle::Get().GetBrush("Icons.Hidden"))

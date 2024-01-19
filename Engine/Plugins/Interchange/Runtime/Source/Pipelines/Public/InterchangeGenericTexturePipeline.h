@@ -19,6 +19,10 @@ class INTERCHANGEPIPELINES_API UInterchangeGenericTexturePipeline : public UInte
 	GENERATED_BODY()
 
 public:
+	/** The name of the pipeline that will be display in the import dialog. */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Textures", meta = (StandAlonePipelineProperty = "True", PipelineInternalEditionData = "True"))
+	FString PipelineDisplayName;
+
 	/** If enabled, imports the texture assets found in the sources. */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Textures")
 	bool bImportTextures = true;

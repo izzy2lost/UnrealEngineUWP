@@ -307,6 +307,35 @@ UInterchangePipelineBase* UInterchangePipelineBase::GetMostPipelineOuter() const
 	return Top;
 }
 
+FString UInterchangePipelineBase::GetPipelineDisplayName() const
+{
+	int32 PortFlags = 0;
+	UClass* Class = this->GetClass();
+	for (FProperty* Property = Class->PropertyLink; Property; Property = Property->PropertyLinkNext)
+	{
+		FStrProperty* StringProperty = CastField<FStrProperty>(Property);
+		if (!StringProperty)
+		{
+			continue;
+		}
+		const FName PropertyName = Property->GetFName();
+		if (PropertyName != FName("PipelineDisplayName"))
+		{
+			continue;
+		}
+		//We found the property
+		FString Value = StringProperty->GetPropertyValue_InContainer(this, 0);
+		if (!Value.IsEmpty())
+		{
+			return Value;
+		}
+		//Stop field iteration
+		break;
+	}
+	//Did not found a valid DisplayName property, return the name of the object
+	return GetName();
+}
+
 #if WITH_EDITOR
 
 void UInterchangePipelineBase::InternalToggleVisibilityPropertiesOfMetaDataValue(UInterchangePipelineBase* OuterMostPipeline, UInterchangePipelineBase* Pipeline, bool bDoTransientSubPipeline, const FString& MetaDataKey, const FString& MetaDataValue, const bool VisibilityState)

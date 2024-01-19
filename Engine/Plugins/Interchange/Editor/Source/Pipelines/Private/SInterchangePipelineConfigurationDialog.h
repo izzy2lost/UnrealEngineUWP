@@ -26,6 +26,7 @@ public:
 	UObject* ReimportObject = nullptr;
 	UInterchangeBaseNodeContainer* Container = nullptr;
 	UInterchangeSourceData* SourceData = nullptr;
+	bool bBasicLayout = false;
 	TArray<FInterchangeConflictInfo> ConflictInfos;
 };
 

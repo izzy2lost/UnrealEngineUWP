@@ -56,7 +56,11 @@ void SInterchangePipelineItem::Construct(
 	ConflictsComboEntry = MakeShared<FString>(ConflictsComboEntryText.ToString());
 	if (PipelineElementPtr.Get())
 	{
-		FString PipelineNameString = FString::Printf(TEXT("%s (%s)"), *PipelineElement->DisplayName, *PipelineElementPtr->GetClass()->GetName());
+		FString PipelineNameString = PipelineElement->DisplayName;
+		if (!PipelineElement->bBasicLayout)
+		{
+			PipelineNameString += FString::Printf(TEXT(" (%s)"), *PipelineElementPtr->GetClass()->GetName());
+		}
 		PipelineName = FText::FromString(PipelineNameString);
 		PipelineElement->ConflictInfos = PipelineElementPtr->GetConflictInfos(PipelineElement->ReimportObject, PipelineElement->Container, PipelineElement->SourceData);
 		if (PipelineElement->ConflictInfos.Num() > 0)
@@ -197,7 +201,11 @@ FString SInterchangePipelineConfigurationDialog::GetPipelineDisplayName(const UI
 {
 	static int32 RightChopIndex = ReimportPipelinePrefix.Len();
 
-	FString PipelineDisplayName = Pipeline->GetName();
+	FString PipelineDisplayName = Pipeline->ScriptedGetPipelineDisplayName();
+	if(PipelineDisplayName.IsEmpty())
+	{
+		PipelineDisplayName = Pipeline->GetName();
+	}
 	if (PipelineDisplayName.StartsWith(ReimportPipelinePrefix))
 	{
 		PipelineDisplayName = PipelineDisplayName.RightChop(RightChopIndex);
@@ -350,7 +358,7 @@ TSharedRef<SBox> SInterchangePipelineConfigurationDialog::SpawnPipelineConfigura
 					{
 						GeneratedPipeline->FilterPropertiesFromTranslatedData(BaseNodeContainer.Get());
 					}
-					PipelineListViewItems.Add(MakeShareable(new FInterchangePipelineItemType{ GetPipelineDisplayName(DefaultPipeline), GeneratedPipeline, ReimportObject.Get(), BaseNodeContainer.Get(), SourceData.Get()}));
+					PipelineListViewItems.Add(MakeShareable(new FInterchangePipelineItemType{ GetPipelineDisplayName(DefaultPipeline), GeneratedPipeline, ReimportObject.Get(), BaseNodeContainer.Get(), SourceData.Get(), bBasicLayout }));
 				}
 			}
 			SelectedStack = StackNamePtr;
@@ -1014,7 +1022,7 @@ void SInterchangePipelineConfigurationDialog::RefreshStack(bool bStackSelectionC
 				{
 					GeneratedPipeline->FilterPropertiesFromTranslatedData(BaseNodeContainer.Get());
 				}
-				PipelineListViewItems.Add(MakeShareable(new FInterchangePipelineItemType{ GetPipelineDisplayName(DefaultPipeline), GeneratedPipeline, ReimportObject.Get(), BaseNodeContainer.Get(), SourceData.Get() }));
+				PipelineListViewItems.Add(MakeShareable(new FInterchangePipelineItemType{ GetPipelineDisplayName(DefaultPipeline), GeneratedPipeline, ReimportObject.Get(), BaseNodeContainer.Get(), SourceData.Get(), bBasicLayout }));
 			}
 		}
 	}

@@ -168,6 +168,29 @@ class UInterchangePipelineBase : public UObject
 public:
 
 	/**
+	 * This function is call when we want to list pipeline in the import dialog. If not override the default behavior of this function will search if
+	 * the pipeline have a FString UPROPERTY named "PipelineDisplayName" and return the property value. If there is no FString UPROPERTY call "PipelineDisplayName" it will
+	 * return the name of the pipeline asset (UObject::GetName).
+	 * 
+	 * When creating a pipeline (c++, python or blueprint) you can simply add a UPROPERTY name "PipelineDisplayName" to your pipeline, you do not need to override the function.
+	 * Use the same category has your other options and put it on the top.
+	 * The meta tag StandAlonePipelineProperty will hide your PROPERTY if your pipeline is a sub object of another pipeline when showing the import dialog.
+	 * The meta tag PipelineInternalEditionData make sure the property will be show only when we edit the pipeline object (hidden when showing the import dialog).
+	 * 
+	 *
+	 * UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Textures", meta = (StandAlonePipelineProperty = "True", PipelineInternalEditionData = "True"))
+	 * FString PipelineDisplayName;
+	 */
+	UFUNCTION(BlueprintNativeEvent, BlueprintCallable, Category = "Interchange | Pipeline")
+	INTERCHANGECORE_API FString ScriptedGetPipelineDisplayName() const;
+	/** The default implementation (call if the blueprint do not have any implementation) will call the virtual ExecutePipeline */
+	FString ScriptedGetPipelineDisplayName_Implementation() const
+	{
+		//By default we call the virtual GetPipelineDisplayName
+		return GetPipelineDisplayName();
+	}
+
+	/**
 	 * ScriptedExecutePipeline, is call after the translation and before we parse the graph to call the factory.
 	 * This is where factory node should be created by the pipeline.
 	 * Each factory node represent an unreal asset create that will be create by an interchange factory.
@@ -440,6 +463,8 @@ public:
 	FString DestinationName;
 
 protected:
+
+	INTERCHANGECORE_API virtual FString GetPipelineDisplayName() const;
 
 	virtual void ExecutePipeline(UInterchangeBaseNodeContainer* BaseNodeContainer, const TArray<UInterchangeSourceData*>& SourceDatas, const FString& ContentBasePath)
 	{
