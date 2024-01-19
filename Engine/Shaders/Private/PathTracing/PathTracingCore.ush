@@ -573,9 +573,9 @@ FPackedPathTracingPayload TraceTransparentRay(inout FPathState PathState, int Bo
 			break;
 		}
 
-		FDecalShaderPayload DecalPayload = InitDecalShaderPayload(PathState.Ray.Origin + PackedPayload.HitT * PathState.Ray.Direction);
 		if (PackedPayload.IsDecalReceiver())
 		{
+			FDecalShaderPayload DecalPayload = InitDecalShaderPayload(PathState.Ray.Origin + PackedPayload.HitT * PathState.Ray.Direction);
 			EvaluateDecals(PathState, InstanceInclusionMask, PackedPayload.HitT, DecalPayload);
 #if USE_DBUFFER
 			if (PackedPayload.UsesDBufferLookup() && HasDecalData(DecalPayload))
@@ -607,10 +607,9 @@ FPackedPathTracingPayload TraceTransparentRay(inout FPathState PathState, int Bo
 				}
 			}
 #endif
+			// Now that we know the real decal data, apply it
+			ApplyDecal(DecalPayload, PackedPayload, PathState.Ray.Direction, PathState.PathRoughness);
 		}
-
-		// Now that we know the real decal data, apply it
-		ApplyDecal(DecalPayload, PackedPayload, PathState.Ray.Direction, PathState.PathRoughness);
 
 		// account for Beer's law through the currently active medium
 		// TODO: merge this with the volume raymarching?
