@@ -854,6 +854,13 @@ void FUdpMessageProcessor::ProcessPongSegment(FInboundSegment& Segment, FNodeInf
 void FUdpMessageProcessor::ProcessRetransmitSegment(FInboundSegment& Segment, FNodeInfo& NodeInfo)
 {
 	FUdpMessageSegment::FRetransmitChunk RetransmitChunk;
+	int32 TargetMessageId = RetransmitChunk.GetMessageId(*Segment.Data);
+	if (NodeInfo.Segmenters.IsEmpty() || !NodeInfo.Segmenters.Contains(TargetMessageId))
+	{
+		// Ignore this message because we have no segmenters to retransmit.
+		return;
+	}
+
 	RetransmitChunk.Serialize(*Segment.Data, NodeInfo.ProtocolVersion);
 
 	TSharedPtr<FUdpMessageSegmenter> Segmenter = NodeInfo.Segmenters.FindRef(RetransmitChunk.MessageId);
@@ -873,6 +880,11 @@ void FUdpMessageProcessor::ProcessRetransmitSegment(FInboundSegment& Segment, FN
 
 void FUdpMessageProcessor::ProcessTimeoutSegment(FInboundSegment& Segment, FNodeInfo& NodeInfo)
 {
+	if (NodeInfo.Segmenters.IsEmpty())
+	{
+		// Ignore this message because we have no segmenters to retransmit.
+		return;
+	}
 	FUdpMessageSegment::FTimeoutChunk TimeoutChunk;
 	TimeoutChunk.Serialize(*Segment.Data, NodeInfo.ProtocolVersion);
 

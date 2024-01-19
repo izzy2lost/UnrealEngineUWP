@@ -266,8 +266,12 @@ bool FUdpMessageTransport::StartTransport(IMessageTransportHandler& Handler)
 	if (UnicastSocket == nullptr)
 	{
 		UE_LOG(LogUdpMessaging, Error, TEXT("StartTransport failed to create unicast socket on %s"), *UnicastEndpoint.ToString());
-
 		return false;
+	}
+	else
+	{
+		int32 PortNo = UnicastSocket->GetPortNo();
+		UE_LOG(LogUdpMessaging, Display, TEXT("Unicast socket bound to '%s:%d'."), *UnicastEndpoint.Address.ToString(), PortNo);
 	}
 #endif
 
