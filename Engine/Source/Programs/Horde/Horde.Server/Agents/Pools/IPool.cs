@@ -113,21 +113,6 @@ namespace Horde.Server.Agents.Pools
 		public IReadOnlyList<AgentWorkspace> Workspaces { get; }
 
 		/// <summary>
-		/// AutoSDK view for this pool
-		/// </summary>
-		public AutoSdkConfig? AutoSdkConfig { get; }
-
-		/// <summary>
-		/// Cooldown time between scale-out events
-		/// </summary>
-		public TimeSpan? ScaleOutCooldown { get; }
-
-		/// <summary>
-		/// Cooldown time between scale-in events
-		/// </summary>
-		public TimeSpan? ScaleInCooldown { get; }
-
-		/// <summary>
 		/// Last time the pool was (auto) scaled up
 		/// </summary>
 		public DateTime? LastScaleUpTime { get; }

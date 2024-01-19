@@ -40,6 +40,21 @@ namespace Horde.Server.Agents.Pools
 		public bool EnableAutoscaling { get; }
 
 		/// <summary>
+		/// AutoSDK view for this pool
+		/// </summary>
+		public AutoSdkConfig? AutoSdkConfig { get; }
+
+		/// <summary>
+		/// Cooldown time between scale-out events
+		/// </summary>
+		public TimeSpan? ScaleOutCooldown { get; }
+
+		/// <summary>
+		/// Cooldown time between scale-in events
+		/// </summary>
+		public TimeSpan? ScaleInCooldown { get; }
+
+		/// <summary>
 		/// The minimum number of agents to keep in the pool
 		/// </summary>
 		public int? MinAgents { get; }
@@ -61,7 +76,7 @@ namespace Horde.Server.Agents.Pools
 
 		/// <inheritdoc/>
 		[Obsolete("Use SizeStrategies instead")]
-		public PoolSizeStrategy? SizeStrategy { get; set; }
+		public PoolSizeStrategy? SizeStrategy { get; }
 
 		/// <summary>
 		/// List of pool sizing strategies for this pool. The first strategy with a matching condition will be picked.
@@ -121,6 +136,11 @@ namespace Horde.Server.Agents.Pools
 
 		/// <inheritdoc/>
 		bool IPoolConfig.EnableAutoscaling => EnableAutoscaling ?? true;
+
+		/// <summary>
+		/// AutoSDK view for this pool
+		/// </summary>
+		public AutoSdkConfig? AutoSdkConfig { get; }
 
 		/// <inheritdoc/>
 		public int? MinAgents { get; set; }
