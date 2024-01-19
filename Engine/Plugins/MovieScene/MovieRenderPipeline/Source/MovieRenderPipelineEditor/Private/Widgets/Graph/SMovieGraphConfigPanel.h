@@ -64,7 +64,7 @@ private:
 	void OnConfigUpdatedForJobToPreset(TWeakObjectPtr<UMoviePipelineExecutorJob> InJob, TWeakObjectPtr<UMoviePipelineExecutorShot> InShot, UMoviePipelineConfigBase* InConfig);
 	void OnConfigWindowClosed();
 
-	void OnSelectionChanged(const TArray<UMoviePipelineExecutorJob*>& InSelectedJobs, const TArray<UMoviePipelineExecutorShot*>& InSelectedShots);
+	void OnSelectionChanged(const TArray<UMoviePipelineExecutorJob*>& InSelectedJobs);
 	TArray<UMovieGraphNode*> GetSelectedModelNodes() const;
 
 	TSharedRef<SWidget> OnGenerateSavedQueuesMenu();

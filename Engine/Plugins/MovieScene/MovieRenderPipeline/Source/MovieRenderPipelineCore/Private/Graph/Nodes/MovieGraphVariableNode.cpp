@@ -34,10 +34,9 @@ FString UMovieGraphVariableNode::GetResolvedValueForOutputPin(const FName& InPin
 {
 	if (GraphVariable && (GraphVariable->GetMemberName() == InPinName))
 	{
-		TObjectPtr<UMovieJobVariableAssignmentContainer> VariableAssignment;
-		if (ContextHasEnabledAssignmentForVariable(InContext, VariableAssignment))
+		if (ContextHasEnabledAssignmentForVariable(InContext))
 		{
-			return VariableAssignment->GetValueSerializedString(GraphVariable);
+			return InContext->Job->VariableAssignments->GetValueSerializedString(GraphVariable);
 		}
 
 		// No valid variable assignment: just get the value from the variable
@@ -51,10 +50,9 @@ bool UMovieGraphVariableNode::GetResolvedValueForOutputPin(const FName& InPinNam
 {
 	if (GraphVariable && (GraphVariable->GetMemberName() == InPinName))
 	{
-		TObjectPtr<UMovieJobVariableAssignmentContainer> VariableAssignment;
-		if (ContextHasEnabledAssignmentForVariable(InContext, VariableAssignment))
+		if (ContextHasEnabledAssignmentForVariable(InContext))
 		{
-			return VariableAssignment->GetValueContainer(GraphVariable, OutValueContainer);
+			return InContext->Job->VariableAssignments->GetValueContainer(GraphVariable, OutValueContainer);
 		}
 
 		// No valid variable assignment: just get the value from the variable
@@ -130,61 +128,17 @@ void UMovieGraphVariableNode::UpdateOutputPin(UMovieGraphMember* ChangedVariable
 	OnNodeChangedDelegate.Broadcast(this);
 }
 
-bool UMovieGraphVariableNode::ContextHasEnabledAssignmentForVariable(const FMovieGraphTraversalContext* InContext, TObjectPtr<UMovieJobVariableAssignmentContainer>& OutVariableAssignment) const
+bool UMovieGraphVariableNode::ContextHasEnabledAssignmentForVariable(const FMovieGraphTraversalContext* InContext) const
 {
-	if (!InContext)
+	if (InContext && InContext->Job)
 	{
-		return false;
-	}
-
-	TObjectPtr<UMovieJobVariableAssignmentContainer> ShotVariableAssignments = nullptr;
-	TObjectPtr<UMovieJobVariableAssignmentContainer> ShotVariableAssignments_PrimaryOverrides = nullptr;
-	TObjectPtr<UMovieJobVariableAssignmentContainer> JobVariableAssignments = nullptr;
-	
-	if (InContext->Job->ShotInfo.IsValidIndex(InContext->ShotIndex))
-	{
-		const TObjectPtr<UMoviePipelineExecutorShot> ShotJob = InContext->Job->ShotInfo[InContext->ShotIndex];
-		
-		ShotVariableAssignments = ShotJob->GetOrCreateJobVariableAssignmentsForGraph(ShotJob->GetGraphPreset());
-
-		// The shot can also override variables on the primary job's graph
-		constexpr bool bIsForPrimaryOverrides = true;
-		ShotVariableAssignments_PrimaryOverrides = ShotJob->GetOrCreateJobVariableAssignmentsForGraph(InContext->Job->GetGraphPreset(), bIsForPrimaryOverrides);
-	}
-
-	if (InContext->Job)
-	{
-		JobVariableAssignments = InContext->Job->GetOrCreateJobVariableAssignmentsForGraph(InContext->Job->GetGraphPreset());
-	}
-	
-	// Check the shot job first for an enabled job variable assignment for this variable. Shot jobs take precedence over primary jobs.
-	bool bIsEnabled = false;
-	if (ShotVariableAssignments && ShotVariableAssignments->GetVariableAssignmentEnableState(GraphVariable, bIsEnabled))
-	{
-		if (bIsEnabled)
+		bool bIsEnabled = false;
+		if (InContext->Job->VariableAssignments->GetVariableAssignmentEnableState(GraphVariable, bIsEnabled))
 		{
-			OutVariableAssignment = ShotVariableAssignments;
-			return true;
-		}
-	}
-
-	// Next check for shot-level overrides to the primary graph variables.
-	if (ShotVariableAssignments_PrimaryOverrides && ShotVariableAssignments_PrimaryOverrides->GetVariableAssignmentEnableState(GraphVariable, bIsEnabled))
-	{
-		if (bIsEnabled)
-		{
-			OutVariableAssignment = ShotVariableAssignments_PrimaryOverrides;
-			return true;
-		}
-	}
-
-	// Check the primary job last.
-	if (JobVariableAssignments && JobVariableAssignments->GetVariableAssignmentEnableState(GraphVariable, bIsEnabled))
-	{
-		if (bIsEnabled)
-		{
-			OutVariableAssignment = JobVariableAssignments;
-			return true;
+			if (bIsEnabled)
+			{
+				return true;
+			}
 		}
 	}
 

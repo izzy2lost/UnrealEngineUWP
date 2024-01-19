@@ -7,8 +7,6 @@
 
 #include "MovieGraphVariableNode.generated.h"
 
-class UMovieJobVariableAssignmentContainer;
-
 /** A node which gets the value of a variable which has been defined on the graph. */
 UCLASS()
 class MOVIERENDERPIPELINECORE_API UMovieGraphVariableNode : public UMovieGraphNode
@@ -46,8 +44,8 @@ private:
 	/** Updates the output pin on the node to match the provided variable. */
 	void UpdateOutputPin(UMovieGraphMember* ChangedVariable) const;
 
-	/** Determines if the job in the given context has a valid, enabled variable assignment for the variable this node represents. Sets OutVariableAssignment if it does. */
-	bool ContextHasEnabledAssignmentForVariable(const FMovieGraphTraversalContext* InContext, TObjectPtr<UMovieJobVariableAssignmentContainer>& OutVariableAssignment) const;
+	/** Determines if the job in the given context has a valid, enabled variable assignment for the variable this node represents. */
+	bool ContextHasEnabledAssignmentForVariable(const FMovieGraphTraversalContext* InContext) const;
 
 private:
 	/** The underlying graph variable this node represents. */

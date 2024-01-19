@@ -25,7 +25,7 @@ class UMovieSceneCinematicShotSection;
 struct FMoviePipelineQueueJobTreeItem;
 
 DECLARE_DELEGATE_TwoParams(FOnMoviePipelineEditConfig, TWeakObjectPtr<UMoviePipelineExecutorJob>, TWeakObjectPtr<UMoviePipelineExecutorShot>)
-DECLARE_DELEGATE_TwoParams(FOnMoviePipelineJobSelection, const TArray<UMoviePipelineExecutorJob*>&, const TArray<UMoviePipelineExecutorShot*>&)
+DECLARE_DELEGATE_OneParam(FOnMoviePipelineJobSelection, const TArray<UMoviePipelineExecutorJob*>&)
 
 /**
  * Widget used to edit a Movie Pipeline Queue

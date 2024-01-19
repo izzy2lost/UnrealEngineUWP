@@ -38,8 +38,6 @@ public:
 	FString Name;
 };
 
-DECLARE_MULTICAST_DELEGATE_TwoParams(FOnMoviePipelineShotGraphPresetChanged, UMoviePipelineExecutorShot*, UMovieGraphConfig*);
-
 /**
 * This class represents a segment of work within the Executor Job. This should be owned
 * by the UMoviePipelineExecutorJob and can be created before the movie pipeline starts to
@@ -55,6 +53,7 @@ public:
 		: bEnabled(true)
 	{
 		Progress = 0.f;
+		VariableAssignments = CreateDefaultSubobject<UMovieJobVariableAssignmentContainer>("VariableAssignments");
 	}
 
 public:
@@ -155,10 +154,15 @@ public:
 	 * graph-style configuration if it is not already using it.
 	 */
 	UFUNCTION(BlueprintCallable, Category = "Movie Render Pipeline")
-	void SetGraphPreset(const UMovieGraphConfig* InGraphPreset);
+	void SetGraphPreset(const UMovieGraphConfig* InGraphPreset)
+	{
+		GraphPreset = InGraphPreset;
+		VariableAssignments->SetGraphConfig(GraphPreset);
 
-	/** Gets the job variable assignments for a specific graph. Creates a new variable assignments container if one was not found for the given graph. */
-	TObjectPtr<UMovieJobVariableAssignmentContainer> GetOrCreateJobVariableAssignmentsForGraph(const UMovieGraphConfig* InGraph, const bool bIsForPrimaryOverrides = false);
+#if WITH_EDITOR
+		VariableAssignments->UpdateGraphVariableOverrides();
+#endif
+	}
 
 	/** Returns whether this should should be rendered */
 	UFUNCTION(BlueprintPure, Category = "Movie Render Pipeline")
@@ -180,11 +184,7 @@ public:
 	// UObject Interface
 	virtual void PreSave(FObjectPreSaveContext ObjectSaveContext) override;
 	virtual void PostLoad() override;
-	virtual void BeginDestroy() override;
 	// ~UObject Interface
-
-	/** Refreshes the variable assignments associated with this shot, both for the shot's own graph preset and the associated primary graph. */
-	void RefreshAllVariableAssignments();
 	
 protected:
 	// UMoviePipipelineExecutorShot Interface
@@ -193,42 +193,28 @@ protected:
 	virtual FString GetStatusMessage_Implementation() const { return StatusMessage; }
 	virtual float GetStatusProgress_Implementation() const { return Progress; }
 	// ~UMoviePipipelineExecutorShot Interface
-	
-	void OnGraphPreSave(UObject* InObject, FObjectPreSaveContext InObjectPreSaveContext);
 
 public:
 
 	/** Does the user want to render this shot? */
-	UPROPERTY(BlueprintReadWrite, Category = "Movie Render Pipeline")
+	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = "Movie Render Pipeline")
 	bool bEnabled;
 
 	/** The name of the shot section that contains this shot. Can be empty. */
-	UPROPERTY(BlueprintReadWrite, Category = "Movie Render Pipeline")
+	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = "Movie Render Pipeline")
 	FString OuterName;
 
 	/** The name of the camera cut section that this shot represents. Can be empty. */
-	UPROPERTY(BlueprintReadWrite, Category = "Movie Render Pipeline")
+	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = "Movie Render Pipeline")
 	FString InnerName;
 
 	/** List of cameras to render for this shot. Only used if the setting flag is set in the Camera setting. */
-	UPROPERTY(BlueprintReadWrite, Category = "Movie Render Pipeline")
+	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = "Movie Render Pipeline")
 	TArray<FMoviePipelineSidecarCamera> SidecarCameras;
 
-	/**
-	 * Overrides on the variables in graph presets associated with this job. A job can have multiple graphs associated with it if the job's assigned
-	 * graph contains subgraphs. The job's graph and each subgraph will have an entry in this array.
-	 */
-	UPROPERTY(BlueprintReadWrite, EditAnywhere, Instanced, Category = "Variable Assignments")
-	TArray<TObjectPtr<UMovieJobVariableAssignmentContainer>> VariableAssignments;
-	
-	/**
-	 * Overrides on the variables in the primary graph (and its subgraphs) associated with this job.
-	 */
-	UPROPERTY(BlueprintReadWrite, EditAnywhere, Instanced, Category = "Variable Assignments")
-	TArray<TObjectPtr<UMovieJobVariableAssignmentContainer>> PrimaryGraphVariableAssignments;
-
-	/** Called when the graph preset assigned to the shot changes. */
-	FOnMoviePipelineShotGraphPresetChanged OnShotGraphPresetChanged;
+	/** Overrides on the variables in graph preset associated with this job. */
+	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = "Variable Assignments")
+	TObjectPtr<UMovieJobVariableAssignmentContainer> VariableAssignments;
 
 public:
 	/** Transient information used by the active Movie Pipeline working on this shot. */
@@ -252,8 +238,6 @@ private:
 	TSoftObjectPtr<UMovieGraphConfig> GraphPreset;
 };
 
-DECLARE_MULTICAST_DELEGATE_TwoParams(FOnMoviePipelineJobGraphPresetChanged, UMoviePipelineExecutorJob*, UMovieGraphConfig*);
-
 /**
 * A particular job within the Queue
 */
@@ -268,6 +252,7 @@ public:
 		StatusProgress = 0.f;
 		bIsConsumed = false;
 		Configuration = CreateDefaultSubobject<UMoviePipelinePrimaryConfig>("DefaultConfig");
+		VariableAssignments = CreateDefaultSubobject<UMovieJobVariableAssignmentContainer>("VariableAssignments");
 	}
 
 public:	
@@ -452,13 +437,18 @@ public:
 	 * graph-style configuration if it is not already using it.
 	 */
 	UFUNCTION(BlueprintCallable, Category = "Movie Render Pipeline")
-	void SetGraphPreset(const UMovieGraphConfig* InGraphPreset);
+	void SetGraphPreset(const UMovieGraphConfig* InGraphPreset)
+	{
+		GraphPreset = InGraphPreset;
+		VariableAssignments->SetGraphConfig(InGraphPreset);
+
+#if WITH_EDITOR
+		VariableAssignments->UpdateGraphVariableOverrides();
+#endif
+	}
 
 	UFUNCTION(BlueprintSetter, Category = "Movie Render Pipeline")
 	void SetSequence(FSoftObjectPath InSequence);
-
-	/** Gets the job variable assignments for a specific graph. Creates a new variable assignments container if one was not found for the given graph. */
-	TObjectPtr<UMovieJobVariableAssignmentContainer> GetOrCreateJobVariableAssignmentsForGraph(const UMovieGraphConfig* InGraph);
 
 public:
 	// UObject Interface
@@ -467,11 +457,7 @@ public:
 #endif
 	virtual void PreSave(FObjectPreSaveContext ObjectSaveContext) override;
 	virtual void PostLoad() override;
-	virtual void BeginDestroy() override;
 	// ~UObject Interface
-
-	/** Refreshes the variable assignments associated with this job, both for the jobs's own graph preset and the associated shot graphs. */
-	void RefreshAllVariableAssignments();
 
 protected:
 	// UMoviePipelineExecutorJob Interface
@@ -492,8 +478,6 @@ protected:
 	virtual bool IsEnabled_Implementation() const { return bEnabled; }
 	// ~UMoviePipelineExecutorJob Interface
 
-	void OnGraphPreSave(UObject* InObject, FObjectPreSaveContext InObjectPreSaveContext);
-	
 public:
 	/** (Optional) Name of the job. Shown on the default burn-in. */
 	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = "Movie Render Pipeline")
@@ -527,15 +511,9 @@ public:
 	UPROPERTY(BlueprintReadWrite, Category = "Movie Render Pipeline")
 	FString UserData;
 
-	/**
-	 * Overrides on the variables in graph presets associated with this job. A job can have multiple graphs associated with it if the job's assigned
-	 * graph contains subgraphs. The job's graph and each subgraph will have an entry in this array.
-	 */
+	/** Overrides on the variables in graph preset associated with this job. */
 	UPROPERTY(BlueprintReadWrite, EditAnywhere, Instanced, Category = "Variable Assignments")
-	TArray<TObjectPtr<UMovieJobVariableAssignmentContainer>> VariableAssignments;
-
-	/** Called when the graph preset assigned to the job changes. */
-	FOnMoviePipelineJobGraphPresetChanged OnJobGraphPresetChanged;
+	TObjectPtr<UMovieJobVariableAssignmentContainer> VariableAssignments;
 
 private:
 	UPROPERTY(Transient)

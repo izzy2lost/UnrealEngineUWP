@@ -906,7 +906,7 @@ void SMoviePipelineGraphPanel::OnConfigUpdatedForJobToPreset(TWeakObjectPtr<UMov
 	OnConfigWindowClosed();
 }
 
-void SMoviePipelineGraphPanel::OnSelectionChanged(const TArray<UMoviePipelineExecutorJob*>& InSelectedJobs, const TArray<UMoviePipelineExecutorShot*>& InSelectedShots)
+void SMoviePipelineGraphPanel::OnSelectionChanged(const TArray<UMoviePipelineExecutorJob*>& InSelectedJobs)
 {
 	TArray<UObject*> Jobs;
 	for (UMoviePipelineExecutorJob* Job : InSelectedJobs)

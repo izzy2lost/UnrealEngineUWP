@@ -31,9 +31,6 @@ public:
 	UFUNCTION(BlueprintCallable, Category="Experimental")
 	void SetGraphConfig(const TSoftObjectPtr<UMovieGraphConfig>& InGraphConfig);
 
-	/** Gets the graph that is associated with this container. */
-	TSoftObjectPtr<UMovieGraphConfig> GetGraphConfig() const;
-
 	/** Gets the number of variable assignments present in this container. Assignments that are disabled are counted. */
 	uint32 GetNumAssignments() const;
 
@@ -224,13 +221,13 @@ public:
 	UFUNCTION(BlueprintCallable, Category = "Experimental")
 	bool GetVariableAssignmentEnableState(const UMovieGraphVariable* InGraphVariable, bool& bOutIsEnabled);
 
-#if WITH_EDITOR
 	/**
 	 * Updates the stored variable overrides to reflect the graph preset. Existing overrides will be updated to match
 	 * the graph variable name, value type, object type, and container type. Additionally, stale overrides that have no
 	 * corresponding graph variable will be removed, and overrides will be created for graph variables which do not have
 	 * existing overrides.
 	 */
+#if WITH_EDITOR
 	UFUNCTION(BlueprintCallable, Category = "Experimental")
 	void UpdateGraphVariableOverrides();
 #endif
@@ -255,7 +252,6 @@ protected:
 
 	/** Given a graph variable, retrieve the hidden internal name used by our actual property bag. */
 	FName ConvertVariableToInternalName(const UMovieGraphVariable* InGraphVariable) const;
-
 private:
 	/** The properties managed by this object. */
 	UPROPERTY(EditAnywhere, meta=(ShowOnlyInnerProperties, FixedLayout), Category = "Value")
