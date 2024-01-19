@@ -28,7 +28,9 @@ namespace UnrealBuildTool.Rules
 					"UnrealEd",
 					
 					"DataValidation",
-					"CustomizableObject"
+					"CustomizableObject", 
+					"CustomizableObjectEditor", 
+					"MutableTools",
 				}
 			);
 		}

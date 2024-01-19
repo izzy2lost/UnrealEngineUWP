@@ -20,233 +20,233 @@
 #define LOCTEXT_NAMESPACE "CustomizableObjectEditor" 
 
 
-// /**
-//  * Simple wrapper to be able to invoke the generation of a popup or log message depending on the execution context in which this code is being ran
-//  * @param InMessage The message to display
-//  * @param InTitle The title to be used for the popup or the log generated
-//  */
-// void ShowErrorNotification(const FText& InMessage,  const FText* InTitle = nullptr)
-// {
-// 	if (!FApp::IsUnattended())
-// 	{
-// 		FMessageDialog::Open(EAppMsgType::Ok, InMessage, *InTitle);
-// 	}
-// 	else
-// 	{
-// 		if (InTitle)
-// 		{
-// 			UE_LOG(LogMutable, Error, TEXT("%s - %s"), *InTitle->ToString(), *InMessage.ToString());
-// 		}
-// 		else
-// 		{
-// 			UE_LOG(LogMutable, Error, TEXT("%s"), *InMessage.ToString());
-// 		}
-// 	}
-// }
-//
-// /**
-//  * Utility functions for the baking operation.
-//  */
-//
-// /**
-//  * Validates the filename chosen for the baking data
-//  * @param FileName The filename chosen by the user
-//  * @return True if validation was successful, false otherwise
-//  */
-// bool ValidateProvidedFileName(const FString& FileName)
-// {
-// 	if (FileName.IsEmpty())
-// 	{
-// 		UE_LOG(LogMutable, Error, TEXT("Invalid baking configuration : FileName string is empty.."));
-// 		return false;
-// 	}
-//
-// 	// Check for invalid characters in the name of the object to be serialized
-// 	{
-// 		TCHAR InvalidCharacter = '0';
-// 		{
-// 			FString InvalidCharacters = FPaths::GetInvalidFileSystemChars();
-// 			for (int32 i = 0; i < InvalidCharacters.Len(); ++i)
-// 			{
-// 				TCHAR Char = InvalidCharacters[i];
-// 				FString SearchedChar = FString::Chr(Char);
-// 				if (FileName.Contains(SearchedChar))
-// 				{
-// 					InvalidCharacter = InvalidCharacters[i];
-// 					break;
-// 				}
-// 			}
-// 		}
-//
-// 		if (InvalidCharacter != '0')
-// 		{
-// 			const FText InvalidCharacterText = FText::FromString(FString::Chr(InvalidCharacter));
-// 			const FText ErrorText = FText::Format(LOCTEXT("FCustomizableObjectEditorViewportClient_BakeInstance_InvalidCharacter", "The selected contains an invalid character ({0})."), InvalidCharacterText);
-//
-// 			ShowErrorNotification(ErrorText);
-// 		
-// 			return false;
-// 		}
-// 	}
-//
-// 	return true;
-// }
-//
-//
-// /**
-//  * Validates the AssetPath chosen for the baking data
-//  * @param FileName The filename chosen by the user
-//  * @param AssetPath The AssetPath chosen by the user
-//  * @param InstanceCO The CustomizableObject from the provided COI
-//  * @return True if validation was successful, false otherwise
-//  */
-// bool ValidateProvidedAssetPath(const FString& FileName, const FString& AssetPath, const UCustomizableObject* InstanceCO)
-// {
-// 	if (AssetPath.IsEmpty())
-// 	{
-// 		UE_LOG(LogMutable, Error, TEXT("The AssetPath can not be empty!"));
-// 		return false;
-// 	}
-//
-// 	// Ensure we are not overriding the parent CO
-// 	const FString FullAssetPath = AssetPath + FString("/") + FileName + FString(".") + FileName;		// Full asset path to the new asset we want to create
-// 	const bool bWouldOverrideParentCO = InstanceCO->GetPathName() == FullAssetPath;
-// 	if (bWouldOverrideParentCO)
-// 	{
-// 		const FText ErrorText = LOCTEXT("FCustomizableObjectEditorViewportClient_BakeInstance_OverwriteCO", "The selected path would overwrite the instance's parent Customizable Object.");
-//
-// 		ShowErrorNotification(ErrorText);
-// 		
-// 		return false;
-// 	}
-//
-// 	return true;
-// }
-//
-//
-// /**
-//  * Outputs a string that we know it is unique.
-//  * @param InResource The resource we are working with
-//  * @param ResourceName The name of the resource we have provided. This should have the name of the current resource and will have the unique name for the resource once the method exits
-//  * @param InCachedResources Collection with all the already processed resources.
-//  * @param InCachedResourceNames Collection with all the already processed resources name's
-//  * @return True if the generation of the unique resource name was successful, false otherwise.
-//  */
-// bool GetUniqueResourceName(const UObject* InResource, FString& ResourceName, TArray<UObject*>& InCachedResources, const TArray<FString>& InCachedResourceNames)
-// {
-// 	check(InResource);
-//
-// 	int32 FindResult = InCachedResourceNames.Find(ResourceName);
-// 	if (FindResult != INDEX_NONE)
-// 	{
-// 		if (InResource == InCachedResources[FindResult])
-// 		{
-// 			return false;
-// 		}
-//
-// 		uint32 Count = 0;
-// 		while (FindResult != INDEX_NONE)
-// 		{
-// 			FindResult = InCachedResourceNames.Find(ResourceName + "_" + FString::FromInt(Count));
-// 			Count++;
-// 		}
-//
-// 		ResourceName += "_" + FString::FromInt(--Count);
-// 	}
-//
-// 	return true;
-// }
-//
-//
-// /**
-//  * Ensures the resource we want to save is ready to be saved. It handles closing it's editor and warning the user about possible overriding of resources.
-//  * @param InAssetSavePath The directory path where to save the baked object
-//  * @param InObjName The name of the object to be baked
-//  * @param bUsedGrantedOverridingRights Control flag that determines if the user has given or not permission to override resources already in disk
-//  * @return True if the operation was successful, false otherwise
-//  */
-// bool ManageBakingAction(const FString& InAssetSavePath, const FString& InObjName, bool& bUsedGrantedOverridingRights)
-// {
-// 	FString PackagePath = InAssetSavePath + "/" + InObjName;
-// 	UPackage* ExistingPackage = FindPackage(NULL, *PackagePath);
-//
-// 	if (!ExistingPackage)
-// 	{
-// 		FString PackageFilePath = PackagePath + "." + InObjName;
-//
-// 		FString PackageFileName;
-// 		if (FPackageName::DoesPackageExist(PackageFilePath, &PackageFileName))
-// 		{
-// 			ExistingPackage = LoadPackage(nullptr, *PackageFileName, LOAD_EditorOnly);
-// 		}
-// 		else
-// 		{
-// 			// if package does not exists
-// 			bUsedGrantedOverridingRights = false;
-// 			return true;
-// 		}
-// 	}
-//
-// 	if (ExistingPackage)
-// 	{
-// 		// Checking if the asset is open in an editor
-// 		TArray<IAssetEditorInstance*> ObjectEditors = GEditor->GetEditorSubsystem<UAssetEditorSubsystem>()->FindEditorsForAssetAndSubObjects(ExistingPackage);
-// 		if (ObjectEditors.Num())
-// 		{
-// 			for (IAssetEditorInstance* ObjectEditorInstance : ObjectEditors)
-// 			{
-// 				// Close the editors that contains this asset
-// 				if (!ObjectEditorInstance->CloseWindow(EAssetEditorCloseReason::AssetEditorHostClosed))
-// 				{
-// 					const FText Caption = LOCTEXT("OpenExisitngFile", "Open File");
-// 					const FText Message = FText::Format(LOCTEXT("CantCloseAsset", "This Obejct \"{0}\" is open in an editor and can't be closed automatically. Please close the editor and try to bake it again"), FText::FromString(InObjName));
-//
-// 					ShowErrorNotification(Message, &Caption);
-// 					
-// 					return false;
-// 				}
-// 			}
-// 		}
-//
-// 		if (!bUsedGrantedOverridingRights)
-// 		{
-// 			const FText Caption = LOCTEXT("Already existing baked files", "Already existing baked files");
-// 			const FText Message = FText::Format(LOCTEXT("OverwriteBakedInstance", "Instance baked files already exist in selected destination \"{0}\", this action will overwrite them."), FText::AsCultureInvariant(InAssetSavePath));
-//
-// 			// We need to guard this case since it may crash the editor if we are running an unattended commandlet and we try to generate this dialog
-// 			if (!FApp::IsUnattended())
-// 			{
-// 				if (FMessageDialog::Open(EAppMsgType::OkCancel, Message, Caption) == EAppReturnType::Cancel)
-// 				{
-// 					return false;
-// 				}
-// 			}
-// 			else
-// 			{
-// 				UE_LOG(LogMutable, Error, TEXT("%s - %s"), *Caption.ToString(), *Message.ToString());
-// 			}
-//
-//
-// 			bUsedGrantedOverridingRights = true;
-// 		}
-//
-// 		UObject* ExistingObject = StaticFindObject(UObject::StaticClass(), ExistingPackage, *InObjName);
-// 		if (ExistingObject)
-// 		{
-// 			ExistingPackage->FullyLoad();
-//
-// 			TArray<UObject*> ObjectsToDelete;
-// 			ObjectsToDelete.Add(ExistingObject);
-//
-// 			// Delete objects in the package with the same name as the one we want to create
-// 			const uint32 NumObjectsDeleted = ObjectTools::ForceDeleteObjects(ObjectsToDelete, false);
-//
-// 			return NumObjectsDeleted == ObjectsToDelete.Num();
-// 		}
-// 	}
-//
-// 	return true;
-// }
+/**
+ * Simple wrapper to be able to invoke the generation of a popup or log message depending on the execution context in which this code is being ran
+ * @param InMessage The message to display
+ * @param InTitle The title to be used for the popup or the log generated
+ */
+void ShowErrorNotification(const FText& InMessage,  const FText* InTitle = nullptr)
+{
+	if (!FApp::IsUnattended())
+	{
+		FMessageDialog::Open(EAppMsgType::Ok, InMessage, *InTitle);
+	}
+	else
+	{
+		if (InTitle)
+		{
+			UE_LOG(LogMutable, Error, TEXT("%s - %s"), *InTitle->ToString(), *InMessage.ToString());
+		}
+		else
+		{
+			UE_LOG(LogMutable, Error, TEXT("%s"), *InMessage.ToString());
+		}
+	}
+}
+
+/**
+ * Utility functions for the baking operation.
+ */
+
+/**
+ * Validates the filename chosen for the baking data
+ * @param FileName The filename chosen by the user
+ * @return True if validation was successful, false otherwise
+ */
+bool ValidateProvidedFileName(const FString& FileName)
+{
+	if (FileName.IsEmpty())
+	{
+		UE_LOG(LogMutable, Error, TEXT("Invalid baking configuration : FileName string is empty.."));
+		return false;
+	}
+
+	// Check for invalid characters in the name of the object to be serialized
+	{
+		TCHAR InvalidCharacter = '0';
+		{
+			FString InvalidCharacters = FPaths::GetInvalidFileSystemChars();
+			for (int32 i = 0; i < InvalidCharacters.Len(); ++i)
+			{
+				TCHAR Char = InvalidCharacters[i];
+				FString SearchedChar = FString::Chr(Char);
+				if (FileName.Contains(SearchedChar))
+				{
+					InvalidCharacter = InvalidCharacters[i];
+					break;
+				}
+			}
+		}
+
+		if (InvalidCharacter != '0')
+		{
+			const FText InvalidCharacterText = FText::FromString(FString::Chr(InvalidCharacter));
+			const FText ErrorText = FText::Format(LOCTEXT("FCustomizableObjectEditorViewportClient_BakeInstance_InvalidCharacter", "The selected contains an invalid character ({0})."), InvalidCharacterText);
+
+			ShowErrorNotification(ErrorText);
+		
+			return false;
+		}
+	}
+
+	return true;
+}
+
+
+/**
+ * Validates the AssetPath chosen for the baking data
+ * @param FileName The filename chosen by the user
+ * @param AssetPath The AssetPath chosen by the user
+ * @param InstanceCO The CustomizableObject from the provided COI
+ * @return True if validation was successful, false otherwise
+ */
+bool ValidateProvidedAssetPath(const FString& FileName, const FString& AssetPath, const UCustomizableObject* InstanceCO)
+{
+	if (AssetPath.IsEmpty())
+	{
+		UE_LOG(LogMutable, Error, TEXT("The AssetPath can not be empty!"));
+		return false;
+	}
+
+	// Ensure we are not overriding the parent CO
+	const FString FullAssetPath = AssetPath + FString("/") + FileName + FString(".") + FileName;		// Full asset path to the new asset we want to create
+	const bool bWouldOverrideParentCO = InstanceCO->GetPathName() == FullAssetPath;
+	if (bWouldOverrideParentCO)
+	{
+		const FText ErrorText = LOCTEXT("FCustomizableObjectEditorViewportClient_BakeInstance_OverwriteCO", "The selected path would overwrite the instance's parent Customizable Object.");
+
+		ShowErrorNotification(ErrorText);
+		
+		return false;
+	}
+
+	return true;
+}
+
+
+/**
+ * Outputs a string that we know it is unique.
+ * @param InResource The resource we are working with
+ * @param ResourceName The name of the resource we have provided. This should have the name of the current resource and will have the unique name for the resource once the method exits
+ * @param InCachedResources Collection with all the already processed resources.
+ * @param InCachedResourceNames Collection with all the already processed resources name's
+ * @return True if the generation of the unique resource name was successful, false otherwise.
+ */
+bool GetUniqueResourceName(const UObject* InResource, FString& ResourceName, TArray<UObject*>& InCachedResources, const TArray<FString>& InCachedResourceNames)
+{
+	check(InResource);
+
+	int32 FindResult = InCachedResourceNames.Find(ResourceName);
+	if (FindResult != INDEX_NONE)
+	{
+		if (InResource == InCachedResources[FindResult])
+		{
+			return false;
+		}
+
+		uint32 Count = 0;
+		while (FindResult != INDEX_NONE)
+		{
+			FindResult = InCachedResourceNames.Find(ResourceName + "_" + FString::FromInt(Count));
+			Count++;
+		}
+
+		ResourceName += "_" + FString::FromInt(--Count);
+	}
+
+	return true;
+}
+
+
+/**
+ * Ensures the resource we want to save is ready to be saved. It handles closing it's editor and warning the user about possible overriding of resources.
+ * @param InAssetSavePath The directory path where to save the baked object
+ * @param InObjName The name of the object to be baked
+ * @param bUsedGrantedOverridingRights Control flag that determines if the user has given or not permission to override resources already in disk
+ * @return True if the operation was successful, false otherwise
+ */
+bool ManageBakingAction(const FString& InAssetSavePath, const FString& InObjName, bool& bUsedGrantedOverridingRights)
+{
+	FString PackagePath = InAssetSavePath + "/" + InObjName;
+	UPackage* ExistingPackage = FindPackage(NULL, *PackagePath);
+
+	if (!ExistingPackage)
+	{
+		FString PackageFilePath = PackagePath + "." + InObjName;
+
+		FString PackageFileName;
+		if (FPackageName::DoesPackageExist(PackageFilePath, &PackageFileName))
+		{
+			ExistingPackage = LoadPackage(nullptr, *PackageFileName, LOAD_EditorOnly);
+		}
+		else
+		{
+			// if package does not exists
+			bUsedGrantedOverridingRights = false;
+			return true;
+		}
+	}
+
+	if (ExistingPackage)
+	{
+		// Checking if the asset is open in an editor
+		TArray<IAssetEditorInstance*> ObjectEditors = GEditor->GetEditorSubsystem<UAssetEditorSubsystem>()->FindEditorsForAssetAndSubObjects(ExistingPackage);
+		if (ObjectEditors.Num())
+		{
+			for (IAssetEditorInstance* ObjectEditorInstance : ObjectEditors)
+			{
+				// Close the editors that contains this asset
+				if (!ObjectEditorInstance->CloseWindow(EAssetEditorCloseReason::AssetEditorHostClosed))
+				{
+					const FText Caption = LOCTEXT("OpenExisitngFile", "Open File");
+					const FText Message = FText::Format(LOCTEXT("CantCloseAsset", "This Obejct \"{0}\" is open in an editor and can't be closed automatically. Please close the editor and try to bake it again"), FText::FromString(InObjName));
+
+					ShowErrorNotification(Message, &Caption);
+					
+					return false;
+				}
+			}
+		}
+
+		if (!bUsedGrantedOverridingRights)
+		{
+			const FText Caption = LOCTEXT("Already existing baked files", "Already existing baked files");
+			const FText Message = FText::Format(LOCTEXT("OverwriteBakedInstance", "Instance baked files already exist in selected destination \"{0}\", this action will overwrite them."), FText::AsCultureInvariant(InAssetSavePath));
+
+			// We need to guard this case since it may crash the editor if we are running an unattended commandlet and we try to generate this dialog
+			if (!FApp::IsUnattended())
+			{
+				if (FMessageDialog::Open(EAppMsgType::OkCancel, Message, Caption) == EAppReturnType::Cancel)
+				{
+					return false;
+				}
+			}
+			else
+			{
+				UE_LOG(LogMutable, Error, TEXT("%s - %s"), *Caption.ToString(), *Message.ToString());
+			}
+
+
+			bUsedGrantedOverridingRights = true;
+		}
+
+		UObject* ExistingObject = StaticFindObject(UObject::StaticClass(), ExistingPackage, *InObjName);
+		if (ExistingObject)
+		{
+			ExistingPackage->FullyLoad();
+
+			TArray<UObject*> ObjectsToDelete;
+			ObjectsToDelete.Add(ExistingObject);
+
+			// Delete objects in the package with the same name as the one we want to create
+			const uint32 NumObjectsDeleted = ObjectTools::ForceDeleteObjects(ObjectsToDelete, false);
+
+			return NumObjectsDeleted == ObjectsToDelete.Num();
+		}
+	}
+
+	return true;
+}
 
 
 namespace PreBakeSystemSettings
@@ -296,22 +296,35 @@ void UpdateInstanceForBaking(UCustomizableObjectInstance& InInstance, FInstanceU
 	InInstance.UpdateSkeletalMeshAsyncResult(InInstanceUpdateDelegate,true,true);
 }
 
-/// TODO: it will be enabled in a future CL. Moved back to CustomizableObjectEditorViewportClient to ease review process
-/*
+
 void BakeCustomizableObjectInstance(
 	UCustomizableObjectInstance& InInstance,
 	const FString& FileName,
 	const FString& AssetPath,
 	const bool bExportAllResources,
-	const bool bGenerateConstantMaterialInstances, 
-	const bool bIsAssetRegistryLoaded)
+	const bool bGenerateConstantMaterialInstances)
 {
 	// Ensure that the state of the COI provided is valid --------------------------------------------------------------------------------------------
-	
-	if (!bIsAssetRegistryLoaded)
+	UCustomizableObject* InstanceCO = InInstance.GetCustomizableObject();
+	check (InstanceCO);
+
+	// Ensure the CO of the COI is accessible 
+	if (!InstanceCO || InstanceCO->IsLocked())
 	{
 		FCustomizableObjectEditorLogger::CreateLog(
-			LOCTEXT("CustomizableObjectCompileTryLater","Please wait until asset registry loads all assets"))
+		LOCTEXT("CustomizableObjectCompilingTryLater_Baking", "Please wait until the Customizable Object is compiled"))
+		.Category(ELoggerCategory::COInstanceBaking)
+		.CustomNotification()
+		.Notification(true)
+		.Log();
+
+		return;
+	}
+	
+	if (InstanceCO->GetPrivate()->Status.Get() == FCustomizableObjectStatus::EState::Loading)
+	{
+		FCustomizableObjectEditorLogger::CreateLog(
+			LOCTEXT("CustomizableObjectCompileTryLater_BakeInstance","Please wait unitl Customizable Object is loaded"))
 		.Category(ELoggerCategory::COInstanceBaking)
 		.CustomNotification()
 		.Notification(true)
@@ -325,9 +338,6 @@ void BakeCustomizableObjectInstance(
 		UE_LOG(LogMutable, Error, TEXT("The FileName for the instance baking is not valid."));
 		return;
 	}
-	
-	UCustomizableObject* InstanceCO = InInstance.GetCustomizableObject();
-	check (InstanceCO);
 
 	if (!ValidateProvidedAssetPath(FileName,AssetPath,InstanceCO))
 	{
@@ -335,36 +345,10 @@ void BakeCustomizableObjectInstance(
 		return;
 	}
 	
-	// Ensure the CO of the COI is accessible 
-	if (!InstanceCO || InstanceCO->IsLocked())
-	{
-		FCustomizableObjectEditorLogger::CreateLog(
-		LOCTEXT("CustomizableObjectCompilingTryLater", "Please wait until the Customizable Object is compiled"))
-		.Category(ELoggerCategory::COInstanceBaking)
-		.CustomNotification()
-		.Notification(true)
-		.Log();
-
-		return;
-	}
-	
 	// Exit early if the provided instance does not have a skeletal mesh
+	if (!InInstance.HasAnySkeletalMesh())
 	{
-		bool bHasSkeletalMesh = false;
-		
-		for (int32 ComponentIndex = 0; ComponentIndex < InInstance.SkeletalMeshes.Num(); ++ComponentIndex)
-		{
-			if (InInstance.SkeletalMeshes.IsValidIndex(ComponentIndex) && InInstance.SkeletalMeshes[ComponentIndex])
-			{
-				bHasSkeletalMesh = true;
-			}
-		}
-		
-		if (!bHasSkeletalMesh)
-		{
-			UE_LOG(LogMutable, Error, TEXT("The provided Customizable Object Instance has no skeletal meshes."));
-			return;
-		}
+		return;
 	}
 
 	// COI Validation completed : Proceed with the baking operation ----------------------------------------------------------------------------------
@@ -380,17 +364,17 @@ void BakeCustomizableObjectInstance(
 		.Log();
 	}
 	
-	TArray<UPackage*> PackagesToSave;
 	
 	// Set the overriding flag to false wo we ask the user at least once about if he is willing to override old baked data
 	bool bUsedGrantedOverridingRights = false;
 
-	const int32 NumComponents = InInstance.SkeletalMeshes.Num();
+	TArray<UPackage*> PackagesToSave;
+
+	const int32 NumComponents = InInstance.GetNumComponents();
 	for (int32 ComponentIndex = 0; ComponentIndex < NumComponents; ++ComponentIndex)
 	{
-		USkeletalMesh* Mesh = InInstance.SkeletalMeshes.IsValidIndex(ComponentIndex) && InInstance.SkeletalMeshes[ComponentIndex] ?
-			Cast<USkeletalMesh>(InInstance.SkeletalMeshes[ComponentIndex]) : nullptr;
-		
+		USkeletalMesh* Mesh = InInstance.GetSkeletalMesh(ComponentIndex);
+
 		if (!Mesh)
 		{
 			continue;
@@ -400,10 +384,6 @@ void BakeCustomizableObjectInstance(
 		if (NumComponents > 1)
 		{
 			ObjectName = FileName + "_Component_" + FString::FromInt(ComponentIndex);
-		}
-		else
-		{
-			ObjectName = FileName;
 		}
 
 		TMap<UObject*, UObject*> ReplacementMap;
@@ -468,7 +448,7 @@ void BakeCustomizableObjectInstance(
 									continue;
 								}
 
-								if (!ManageBakingAction(AssetPath, ResourceName,bUsedGrantedOverridingRights))
+								if (!ManageBakingAction(AssetPath, ResourceName, bUsedGrantedOverridingRights))
 								{
 									return;
 								}
@@ -483,6 +463,7 @@ void BakeCustomizableObjectInstance(
 								else
 								{
 									UMaterialInstanceConstant* InstConstant = Cast<UMaterialInstanceConstant>(Mesh->GetMaterials()[m].MaterialInterface);
+
 									if (InstConstant != nullptr)
 									{
 										InstConstant->Parent->GetTextureParameterValue(FName(*ParameterNames[i].GetPlainNameString()), OriginalTexture);
@@ -531,7 +512,7 @@ void BakeCustomizableObjectInstance(
 
 							if (ArrayCachedElement.Find(ResourceName) == INDEX_NONE)
 							{
-								if (!ManageBakingAction(AssetPath, ResourceName,bUsedGrantedOverridingRights))
+								if (!ManageBakingAction(AssetPath, ResourceName, bUsedGrantedOverridingRights))
 								{
 									return;
 								}
@@ -568,7 +549,7 @@ void BakeCustomizableObjectInstance(
 						continue;
 					}
 
-					if (!ManageBakingAction(AssetPath, ResourceName,bUsedGrantedOverridingRights))
+					if (!ManageBakingAction(AssetPath, ResourceName, bUsedGrantedOverridingRights))
 					{
 						return;
 					}
@@ -603,7 +584,7 @@ void BakeCustomizableObjectInstance(
 					continue;
 				}
 
-				if (!ManageBakingAction(AssetPath, MatObjName,bUsedGrantedOverridingRights))
+				if (!ManageBakingAction(AssetPath, MatObjName, bUsedGrantedOverridingRights))
 				{
 					return;
 				}
@@ -615,11 +596,11 @@ void BakeCustomizableObjectInstance(
 				ArrayCachedElement.Add(MatObjName);
 				PackagesToSave.Add(DupMat->GetPackage());
 
-				UMaterialInstance* MaterialInstance = Cast<UMaterialInstance>(Interface);
+				UMaterialInstance* Inst = Cast<UMaterialInstance>(Interface);
 
 				// Only need to duplicate the generate textures if the original material is a dynamic instance
 				// If the material has Mutable textures, then it will be a dynamic material instance for sure
-				if (MaterialInstance)
+				if (Inst)
 				{
 					// Duplicate generated textures
 					UMaterialInstanceDynamic* InstDynamic = Cast<UMaterialInstanceDynamic>(DupMat);
@@ -627,17 +608,17 @@ void BakeCustomizableObjectInstance(
 
 					if (InstDynamic || InstConstant)
 					{
-						for (int32 TextureIndex = 0; TextureIndex < MaterialInstance->TextureParameterValues.Num(); ++TextureIndex)
+						for (int32 TextureIndex = 0; TextureIndex < Inst->TextureParameterValues.Num(); ++TextureIndex)
 						{
-							if (MaterialInstance->TextureParameterValues[TextureIndex].ParameterValue)
+							if (Inst->TextureParameterValues[TextureIndex].ParameterValue)
 							{
-								if (MaterialInstance->TextureParameterValues[TextureIndex].ParameterValue->HasAnyFlags(RF_Transient))
+								if (Inst->TextureParameterValues[TextureIndex].ParameterValue->HasAnyFlags(RF_Transient))
 								{
-									UTexture2D* SrcTex = Cast<UTexture2D>(MaterialInstance->TextureParameterValues[TextureIndex].ParameterValue);
+									UTexture2D* SrcTex = Cast<UTexture2D>(Inst->TextureParameterValues[TextureIndex].ParameterValue);
 
 									if (SrcTex)
 									{
-										FString ParameterSanitized = MaterialInstance->TextureParameterValues[TextureIndex].ParameterInfo.Name.ToString();
+										FString ParameterSanitized = Inst->TextureParameterValues[TextureIndex].ParameterInfo.Name.ToString();
 										RemoveRestrictedChars(ParameterSanitized);
 
 										FString TexObjName = ObjectName + "_" + MaterialName + "_" + ParameterSanitized;
@@ -648,17 +629,17 @@ void BakeCustomizableObjectInstance(
 
 											if (InstDynamic)
 											{
-												InstDynamic->SetTextureParameterValue(MaterialInstance->TextureParameterValues[TextureIndex].ParameterInfo.Name, PrevTexture);
+												InstDynamic->SetTextureParameterValue(Inst->TextureParameterValues[TextureIndex].ParameterInfo.Name, PrevTexture);
 											}
 											else if (InstConstant)
 											{
-												InstConstant->SetTextureParameterValueEditorOnly(MaterialInstance->TextureParameterValues[TextureIndex].ParameterInfo.Name, PrevTexture);
+												InstConstant->SetTextureParameterValueEditorOnly(Inst->TextureParameterValues[TextureIndex].ParameterInfo.Name, PrevTexture);
 											}
 											
 											continue;
 										}
 
-										if (!ManageBakingAction(AssetPath, TexObjName,bUsedGrantedOverridingRights))
+										if (!ManageBakingAction(AssetPath, TexObjName, bUsedGrantedOverridingRights))
 										{
 											return;
 										}
@@ -672,11 +653,11 @@ void BakeCustomizableObjectInstance(
 
 										if (InstDynamic)
 										{
-											InstDynamic->SetTextureParameterValue(MaterialInstance->TextureParameterValues[TextureIndex].ParameterInfo.Name, DupTex);
+											InstDynamic->SetTextureParameterValue(Inst->TextureParameterValues[TextureIndex].ParameterInfo.Name, DupTex);
 										}
 										else if(InstConstant)
 										{
-											InstConstant->SetTextureParameterValueEditorOnly(MaterialInstance->TextureParameterValues[TextureIndex].ParameterInfo.Name, DupTex);
+											InstConstant->SetTextureParameterValueEditorOnly(Inst->TextureParameterValues[TextureIndex].ParameterInfo.Name, DupTex);
 										}
 									}
 									else
@@ -690,11 +671,11 @@ void BakeCustomizableObjectInstance(
 									// Just set the original texture
 									if (InstDynamic)
 									{
-										InstDynamic->SetTextureParameterValue(MaterialInstance->TextureParameterValues[TextureIndex].ParameterInfo.Name, MaterialInstance->TextureParameterValues[TextureIndex].ParameterValue);
+										InstDynamic->SetTextureParameterValue(Inst->TextureParameterValues[TextureIndex].ParameterInfo.Name, Inst->TextureParameterValues[TextureIndex].ParameterValue);
 									}
 									else if (InstConstant)
 									{
-										InstConstant->SetTextureParameterValueEditorOnly(MaterialInstance->TextureParameterValues[TextureIndex].ParameterInfo.Name, MaterialInstance->TextureParameterValues[TextureIndex].ParameterValue);
+										InstConstant->SetTextureParameterValueEditorOnly(Inst->TextureParameterValues[TextureIndex].ParameterInfo.Name, Inst->TextureParameterValues[TextureIndex].ParameterValue);
 									}
 								}
 							}
@@ -713,7 +694,7 @@ void BakeCustomizableObjectInstance(
 			if (bTransient || bExportAllResources)
 			{
 				FString SkeletonName = ObjectName + "_Skeleton";
-				if (!ManageBakingAction(AssetPath, SkeletonName,bUsedGrantedOverridingRights))
+				if (!ManageBakingAction(AssetPath, SkeletonName, bUsedGrantedOverridingRights))
 				{
 					return;
 				}
@@ -729,7 +710,7 @@ void BakeCustomizableObjectInstance(
 		}
 
 		// Skeletal Mesh
-		if (!ManageBakingAction(AssetPath, ObjectName,bUsedGrantedOverridingRights))
+		if (!ManageBakingAction(AssetPath, ObjectName, bUsedGrantedOverridingRights))
 		{
 			return;
 		}
@@ -767,7 +748,7 @@ void BakeCustomizableObjectInstance(
 			SkeletalMesh->Build();
 		}
 
-		// Remove duplicated UObjects from Root (previously added to avoid objects from beeing GC in the middle of the bake process)
+		// Remove duplicated UObjects from Root (previously added to avoid objects from being GC in the middle of the bake process)
 		for (UObject* Obj : ArrayCachedObject)
 		{
 			Obj->RemoveFromRoot();
@@ -782,6 +763,5 @@ void BakeCustomizableObjectInstance(
 		FEditorFileUtils::PromptForCheckoutAndSave(PackagesToSave, false, !FApp::IsUnattended());
 	}
 }
-*/
 
 #undef LOCTEXT_NAMESPACE 

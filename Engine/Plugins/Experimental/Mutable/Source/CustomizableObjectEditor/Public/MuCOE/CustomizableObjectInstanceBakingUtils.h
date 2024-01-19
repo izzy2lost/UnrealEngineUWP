@@ -13,7 +13,7 @@
 CUSTOMIZABLEOBJECTEDITOR_API
 void UpdateInstanceForBaking(UCustomizableObjectInstance& InInstance, FInstanceUpdateNativeDelegate& InInstanceUpdateDelegate);
 
-// TODO: enable after review -> Required for MTBL-1674
+
 /**
  * Serializes onto disk the resources used by the targeted Customizable Object Instance. The operation can be configured in the FInstanceBakingSettings settings object.
  * @param InInstance The mutable COI instance whose resources we want to bake onto disk
@@ -21,10 +21,7 @@ void UpdateInstanceForBaking(UCustomizableObjectInstance& InInstance, FInstanceU
  * @param AssetPath The path where to save the assets
  * @param bExportAllResources Determines if we want a full or partial export
  * @param bGenerateConstantMaterialInstances Determines if we want to generate constant material instances or not
- * @param bIsAssetRegistryLoaded Status of the Asset Registry
  */
-/*
 CUSTOMIZABLEOBJECTEDITOR_API
 void BakeCustomizableObjectInstance (UCustomizableObjectInstance& InInstance, const FString& FileName, const FString& AssetPath,
-	const bool bExportAllResources, const bool bGenerateConstantMaterialInstances, const bool bIsAssetRegistryLoaded);
-*/
+	const bool bExportAllResources, const bool bGenerateConstantMaterialInstances);
