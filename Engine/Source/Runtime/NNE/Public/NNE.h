@@ -80,7 +80,7 @@ namespace UE::NNE
 		TArray<FString> Result = GetAllRuntimeNames();
 		Result.SetNum(Algo::RemoveIf(Result, [] (const FString &RuntimeName)
 		{
-			return GetRuntime<T>(RuntimeName).IsValid();
+			return !GetRuntime<T>(RuntimeName).IsValid();
 		}));
 
 		return Result;
