@@ -383,17 +383,15 @@ void AddDeformSimHairStrandsPass(
 			const bool bSupportDynamicMesh = 
 				RootCount > 0 && 
 				MeshLODIndex >= 0 && 
-				MeshLODIndex < uint32(SimRestRootResources->LODs.Num()) &&
-				MeshLODIndex < uint32(SimDeformedRootResources->LODs.Num()) &&
-				SimRestRootResources->LODs[MeshLODIndex].IsValid() &&
-				SimDeformedRootResources->LODs[MeshLODIndex].IsValid() &&
+				SimRestRootResources->IsValid(MeshLODIndex) &&
+				SimDeformedRootResources->IsValid(MeshLODIndex) &&
 				bIsPointToCurveBuffersValid;
 			
 			bool bSupportGlobalInterpolation = false;
 			if (bSupportDynamicMesh)
 			{
-				FHairStrandsRestRootResource::FLOD& RestLODDatas = SimRestRootResources->LODs[MeshLODIndex];
-				FHairStrandsDeformedRootResource::FLOD& DeformedLODDatas = SimDeformedRootResources->LODs[MeshLODIndex];
+				FHairStrandsLODRestRootResource& RestLODDatas = *SimRestRootResources->GetLOD(MeshLODIndex);
+				FHairStrandsLODDeformedRootResource& DeformedLODDatas = *SimDeformedRootResources->GetLOD(MeshLODIndex);
 
 				bSupportGlobalInterpolation = bHasGlobalInterpolation && (RestLODDatas.SampleCount > 0);
 				if (!bSupportGlobalInterpolation) 
@@ -401,13 +399,13 @@ void AddDeformSimHairStrandsPass(
 					InternalDeformationType = InternalDeformationType_Skinned;
 					Parameters->SimRootToUniqueTriangleIndexBuffer = RegisterAsSRV(GraphBuilder, RestLODDatas.RootToUniqueTriangleIndexBuffer);
 					Parameters->SimRestPositionBuffer = RegisterAsSRV(GraphBuilder, RestLODDatas.RestUniqueTrianglePositionBuffer);
-					Parameters->SimDeformedPositionBuffer = RegisterAsSRV(GraphBuilder, DeformedLODDatas.GetDeformedUniqueTrianglePositionBuffer(FHairStrandsDeformedRootResource::FLOD::Current));
+					Parameters->SimDeformedPositionBuffer = RegisterAsSRV(GraphBuilder, DeformedLODDatas.GetDeformedUniqueTrianglePositionBuffer(FHairStrandsLODDeformedRootResource::Current));
 					Parameters->SimRootBarycentricBuffer = RegisterAsSRV(GraphBuilder, RestLODDatas.RootBarycentricBuffer);
 				}
 				else
 				{
 					InternalDeformationType = InternalDeformationType_RBF;
-					Parameters->MeshSampleWeightsBuffer = RegisterAsSRV(GraphBuilder, DeformedLODDatas.GetMeshSampleWeightsBuffer(FHairStrandsDeformedRootResource::FLOD::Current));
+					Parameters->MeshSampleWeightsBuffer = RegisterAsSRV(GraphBuilder, DeformedLODDatas.GetMeshSampleWeightsBuffer(FHairStrandsLODDeformedRootResource::Current));
 					Parameters->RestSamplePositionsBuffer = RegisterAsSRV(GraphBuilder, RestLODDatas.RestSamplePositionsBuffer);
 					Parameters->SampleCount = RestLODDatas.SampleCount;
 				}
@@ -558,7 +556,7 @@ void AddHairStrandsInterpolationPass(
 	const FRDGBufferSRVRef& SimDeformedPositionBuffer,
 	const FRDGBufferSRVRef& RenDeformerPositionBuffer,
 	FRDGBufferUAVRef& OutRenPositionBuffer,
-	const FHairStrandsDeformedRootResource::FLOD::EFrameType DeformedFrame)
+	const FHairStrandsLODDeformedRootResource::EFrameType DeformedFrame)
 {
 	FHairInterpolationCS::FParameters* Parameters = GraphBuilder.AllocParameters<FHairInterpolationCS::FParameters>();
 	Parameters->RenRestPosePositionBuffer = RenRestPosePositionBuffer;
@@ -591,17 +589,15 @@ void AddHairStrandsInterpolationPass(
 		RenRestRootResources &&
 		RenRestRootResources->GetRootCount() > 0 && 
 		MeshLODIndex >= 0 && 
-		MeshLODIndex < RenRestRootResources->LODs.Num() &&
-		MeshLODIndex < RenDeformedRootResources->LODs.Num() &&
-		RenRestRootResources->LODs[MeshLODIndex].IsValid() &&
-		RenDeformedRootResources->LODs[MeshLODIndex].IsValid();
+		RenRestRootResources->IsValid(MeshLODIndex) &&
+		RenDeformedRootResources->IsValid(MeshLODIndex);
 
 	// Guides
 	bool bSupportGlobalInterpolation = false;
 	if (bSupportDynamicMesh && (Instance->Guides.bIsSimulationEnable || Instance->Guides.bHasGlobalInterpolation || Instance->Guides.bIsDeformationEnable)) // No need for Instance->Guides.bHasSimulationCache since it is incompatible with binding
 	{
-		const FHairStrandsRestRootResource::FLOD& Sim_RestLODDatas = SimRestRootResources->LODs[MeshLODIndex];
-		const FHairStrandsDeformedRootResource::FLOD& Sim_DeformedLODDatas = SimDeformedRootResources->LODs[MeshLODIndex];
+		const FHairStrandsLODRestRootResource& Sim_RestLODDatas = *SimRestRootResources->GetLOD(MeshLODIndex);
+		const FHairStrandsLODDeformedRootResource& Sim_DeformedLODDatas = *SimDeformedRootResources->GetLOD(MeshLODIndex);
 		bSupportGlobalInterpolation = Instance->Guides.bHasGlobalInterpolation && (Sim_RestLODDatas.SampleCount > 0);
 		{
 			Parameters->SimRootRestPositionBuffer = RegisterAsSRV(GraphBuilder, Sim_RestLODDatas.RestUniqueTrianglePositionBuffer);
@@ -616,8 +612,8 @@ void AddHairStrandsInterpolationPass(
 	// Strands
 	if (bSupportDynamicMesh)
 	{
-		const FHairStrandsRestRootResource::FLOD& Ren_RestLODDatas = RenRestRootResources->LODs[MeshLODIndex];
-		const FHairStrandsDeformedRootResource::FLOD& Ren_DeformedLODDatas = RenDeformedRootResources->LODs[MeshLODIndex];
+		const FHairStrandsLODRestRootResource& Ren_RestLODDatas = *RenRestRootResources->GetLOD(MeshLODIndex);
+		const FHairStrandsLODDeformedRootResource& Ren_DeformedLODDatas = *RenDeformedRootResources->GetLOD(MeshLODIndex);
 		{
 			Parameters->RenRootRestPositionBuffer = RegisterAsSRV(GraphBuilder, Ren_RestLODDatas.RestUniqueTrianglePositionBuffer);
 			Parameters->RenRootBarycentricBuffer = RegisterAsSRV(GraphBuilder, Ren_RestLODDatas.RootBarycentricBuffer);
@@ -927,9 +923,9 @@ void AddHairCardsDeformationPass(
 	const ERHIFeatureLevel::Type FeatureLevel,
 	const FShaderPrintData* ShaderPrintData,
 	FHairGroupInstance* Instance,
+	const int32 HairLODIndex,
 	const int32 MeshLODIndex)
 {
-	const int32 HairLODIndex = Instance->HairGroupPublicData->GetIntLODIndex();
 	if (!Instance->Cards.IsValid(HairLODIndex))
 		return;
 
@@ -978,20 +974,18 @@ void AddHairCardsDeformationPass(
 		RestRootResources &&
 		RestRootResources->GetRootCount() > 0 &&
 		MeshLODIndex >= 0 &&
-		MeshLODIndex < RestRootResources->LODs.Num() &&
-		MeshLODIndex < DeformedRootResources->LODs.Num() &&
-		RestRootResources->LODs[MeshLODIndex].IsValid() &&
-		DeformedRootResources->LODs[MeshLODIndex].IsValid();
+		RestRootResources->IsValid(MeshLODIndex) &&
+		DeformedRootResources->IsValid(MeshLODIndex);
 	if (bSupportDynamicMesh)
 	{
 		Parameters->GuideVertexToRootIndexBuffer = RegisterAsSRV(GraphBuilder, RestResources->PointToCurveBuffer);
-		const FHairStrandsRestRootResource::FLOD& RestLODDatas = RestRootResources->LODs[MeshLODIndex];
-		const FHairStrandsDeformedRootResource::FLOD& DeformedLODDatas = DeformedRootResources->LODs[MeshLODIndex];
+		const FHairStrandsLODRestRootResource& RestLODDatas = *RestRootResources->GetLOD(MeshLODIndex);
+		const FHairStrandsLODDeformedRootResource& DeformedLODDatas = *DeformedRootResources->GetLOD(MeshLODIndex);
 
 		Parameters->GuideRootBarycentricBuffer = RegisterAsSRV(GraphBuilder, RestLODDatas.RootBarycentricBuffer);
 		Parameters->GuideRootToUniqueTriangleIndexBuffer = RegisterAsSRV(GraphBuilder, RestLODDatas.RootToUniqueTriangleIndexBuffer);
 		Parameters->TriangleRestPositionBuffer = RegisterAsSRV(GraphBuilder, RestLODDatas.RestUniqueTrianglePositionBuffer);
-		Parameters->TriangleDeformedPositionBuffer = RegisterAsSRV(GraphBuilder, DeformedLODDatas.GetDeformedUniqueTrianglePositionBuffer(FHairStrandsDeformedRootResource::FLOD::Current));
+		Parameters->TriangleDeformedPositionBuffer = RegisterAsSRV(GraphBuilder, DeformedLODDatas.GetDeformedUniqueTrianglePositionBuffer(FHairStrandsLODDeformedRootResource::Current));
 	}
 
 	if (ShaderPrintData)

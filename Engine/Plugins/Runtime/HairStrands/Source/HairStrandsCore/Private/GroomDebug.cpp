@@ -158,13 +158,13 @@ static void AddDebugProjectionHairPass(
 	// Force ShaderPrint on.
 	ShaderPrint::SetEnabled(true);
 
-	if (MeshLODIndex < 0 || MeshLODIndex >= RestRootResources->LODs.Num() || MeshLODIndex >= DeformedRootResources->LODs.Num())
+	if (!RestRootResources->IsValid(MeshLODIndex) || !DeformedRootResources->IsValid(MeshLODIndex))
 	{
 		return;
 	}
 	
 	const EPrimitiveType PrimitiveType = GeometryType == EDebugProjectionHairType::HairFrame ? PT_LineList : GeometryType == EDebugProjectionHairType::HairTriangle ? PT_TriangleList : PT_LineList;
-	const uint32 RootCount = EDebugProjectionHairType::HairSamples == GeometryType ? 3 * RestRootResources->LODs[MeshLODIndex].SampleCount : RestRootResources->GetRootCount();
+	const uint32 RootCount = EDebugProjectionHairType::HairSamples == GeometryType ? 3 * RestRootResources->GetLOD(MeshLODIndex)->SampleCount : RestRootResources->GetRootCount();
 	const uint32 PrimitiveCount = RootCount;
 
 	if (PrimitiveCount == 0)
@@ -181,19 +181,19 @@ static void AddDebugProjectionHairPass(
 	ShaderPrint::RequestSpaceForTriangles(PrimitiveCount * 3);
 
 	if (EDebugProjectionHairType::HairFrame == GeometryType &&
-		!RestRootResources->LODs[MeshLODIndex].RootBarycentricBuffer.Buffer)
+		!RestRootResources->GetLOD(MeshLODIndex)->RootBarycentricBuffer.Buffer)
 	{
 		return;
 	}
 
 	if (EDebugProjectionHairType::HairSamples == GeometryType &&
-		!RestRootResources->LODs[MeshLODIndex].RestSamplePositionsBuffer.Buffer)
+		!RestRootResources->GetLOD(MeshLODIndex)->RestSamplePositionsBuffer.Buffer)
 	{
 			return;
 	}
 
-	const FHairStrandsRestRootResource::FLOD& RestLODDatas = RestRootResources->LODs[MeshLODIndex];
-	const FHairStrandsDeformedRootResource::FLOD& DeformedLODDatas = DeformedRootResources->LODs[MeshLODIndex];
+	const FHairStrandsLODRestRootResource& RestLODDatas = *RestRootResources->GetLOD(MeshLODIndex);
+	const FHairStrandsLODDeformedRootResource& DeformedLODDatas = *DeformedRootResources->GetLOD(MeshLODIndex);
 
 	if (!RestLODDatas.RestUniqueTrianglePositionBuffer.Buffer || !DeformedLODDatas.DeformedUniqueTrianglePositionBuffer[0].Buffer)
 	{
@@ -236,10 +236,10 @@ static void AddDebugProjectionHairPass(
 	Parameters->RootToUniqueTriangleIndexBuffer = RegisterAsSRV(GraphBuilder, RestLODDatas.RootToUniqueTriangleIndexBuffer);
 
 	Parameters->RestPositionBuffer = RegisterAsSRV(GraphBuilder, RestLODDatas.RestUniqueTrianglePositionBuffer);
-	Parameters->DeformedPositionBuffer = RegisterAsSRV(GraphBuilder, DeformedLODDatas.GetDeformedUniqueTrianglePositionBuffer(FHairStrandsDeformedRootResource::FLOD::Current));
+	Parameters->DeformedPositionBuffer = RegisterAsSRV(GraphBuilder, DeformedLODDatas.GetDeformedUniqueTrianglePositionBuffer(FHairStrandsLODDeformedRootResource::Current));
 
 	Parameters->RestSamplePositionsBuffer = RegisterAsSRV(GraphBuilder, RestLODDatas.RestSamplePositionsBuffer);
-	Parameters->DeformedSamplePositionsBuffer = RegisterAsSRV(GraphBuilder, DeformedLODDatas.GetDeformedSamplePositionsBuffer(FHairStrandsDeformedRootResource::FLOD::Current));
+	Parameters->DeformedSamplePositionsBuffer = RegisterAsSRV(GraphBuilder, DeformedLODDatas.GetDeformedSamplePositionsBuffer(FHairStrandsLODDeformedRootResource::Current));
 
 	Parameters->ViewUniformBuffer = ViewUniformBuffer;
 	ShaderPrint::SetParameters(GraphBuilder, *ShaderPrintData, Parameters->ShaderPrintUniformBuffer);
@@ -823,12 +823,12 @@ static void AddHairDebugPrintInstancePass(
 				D.Data0.Z = Instance->Strands.GetData().GetNumCurves(); // Change this later on for having dynamic value
 				D.Data0.W = Instance->Strands.GetData().GetNumPoints(); // Change this later on for having dynamic value
 				const int32 MeshLODIndex = Instance->HairGroupPublicData->MeshLODIndex;
-				if (MeshLODIndex>=0 && Instance->Strands.RestRootResource)
+				if (MeshLODIndex>=0 && Instance->Strands.RestRootResource->IsValid(MeshLODIndex))
 				{
-					D.Data1.X = Instance->Strands.RestRootResource->BulkData.Header.LODs[MeshLODIndex].UniqueSectionIndices.Num();
-					D.Data1.Y = Instance->Strands.RestRootResource->BulkData.Header.LODs[MeshLODIndex].UniqueTriangleCount;
-					D.Data1.Z = Instance->Strands.RestRootResource->BulkData.Header.RootCount;
-					D.Data1.W = Instance->Strands.RestRootResource->BulkData.Header.PointCount;
+					D.Data1.X = Instance->Strands.RestRootResource->GetLOD(MeshLODIndex)->BulkData.Header.UniqueSectionIndices.Num();
+					D.Data1.Y = Instance->Strands.RestRootResource->GetLOD(MeshLODIndex)->BulkData.Header.UniqueTriangleCount;
+					D.Data1.Z = Instance->Strands.RestRootResource->GetLOD(MeshLODIndex)->BulkData.Header.RootCount;
+					D.Data1.W = Instance->Strands.RestRootResource->GetLOD(MeshLODIndex)->BulkData.Header.PointCount;
 				}
 
 				{
@@ -1147,7 +1147,7 @@ static void AddHairDebugPrintMemoryPass(
 					FInfos& D = BindingBuffer.AddDefaulted_GetRef();
 					D.Data0.X = GroupIt;
 					D.Data0.Y = GroupCount;
-					D.Data0.Z = Resource.RenRootResources ? Resource.RenRootResources->MaxAvailableCurveCount : 0;
+					D.Data0.Z = Resource.RenRootResources ? 0u : 0u; // TODO: need a mesh index: we could take also the max amoung all mesh LODs. Resource.RenRootResources->MaxAvailableCurveCount : 0;
 					D.Data0.W = Resource.RenRootResources ? Resource.RenRootResources->GetRootCount() : 0;
 			
 					D.Data1.X = MemoryStats.CPU.Guides;

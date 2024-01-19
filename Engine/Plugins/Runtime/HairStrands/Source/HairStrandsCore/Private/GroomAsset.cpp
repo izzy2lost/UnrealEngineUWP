@@ -276,8 +276,8 @@ void DumpLoadedGroomAssets(IConsoleVariable* InCVarPakTesterEnabled)
 FGroomBindingAssetMemoryStats FGroomBindingAssetMemoryStats::Get(const UGroomBindingAsset::FHairGroupPlatformData& InCPU, const UGroomBindingAsset::FHairGroupResource& InGPU)
 {
 	FGroomBindingAssetMemoryStats Out;
-	Out.CPU.Guides  = InCPU.SimRootBulkData.GetDataSize();
-	Out.CPU.Strands = InCPU.RenRootBulkData.GetDataSize();
+	for (const FHairStrandsRootBulkData& In : InCPU.SimRootBulkDatas) { Out.CPU.Guides += In.GetDataSize(); }
+	for (const FHairStrandsRootBulkData& In : InCPU.RenRootBulkDatas) { Out.CPU.Strands+= In.GetDataSize(); }
 
 	if (const FHairStrandsRestRootResource* R = InGPU.SimRootResources)
 	{
@@ -288,10 +288,10 @@ FGroomBindingAssetMemoryStats FGroomBindingAssetMemoryStats::Get(const UGroomBin
 		Out.GPU.Strands += R->GetResourcesSize();
 	}
 
-	const uint32 CardCount = InCPU.CardsRootBulkData.Num();
+	const uint32 CardCount = InCPU.CardsRootBulkDatas.Num();
 	for (uint32 CardIt = 0; CardIt < CardCount; ++CardIt)
 	{
-		Out.CPU.Cards += InCPU.CardsRootBulkData[CardIt].GetDataSize();
+		for (const FHairStrandsRootBulkData& In : InCPU.CardsRootBulkDatas[CardIt]) { Out.CPU.Cards += In.GetDataSize(); }
 		if (const FHairStrandsRestRootResource* R = InGPU.CardsRootResources[CardIt])
 		{
 			Out.GPU.Cards += R->GetResourcesSize();
@@ -354,7 +354,7 @@ void DumpLoadedGroomBindingAssets(IConsoleVariable* InCVarPakTesterEnabled)
 				const FGroomBindingAssetMemoryStats Group = FGroomBindingAssetMemoryStats::Get(AssetIt->GetHairGroupsPlatformData()[GroupIt], AssetIt->GetHairGroupResources()[GroupIt]);
 				Total.Accumulate(Group);
 
-				const uint32 SkelLODCount = AssetIt->GetHairGroupsPlatformData()[GroupIt].RenRootBulkData.GetLODCount();
+				const uint32 SkelLODCount = AssetIt->GetHairGroupsPlatformData()[GroupIt].RenRootBulkDatas.Num();
 				if (bDetails)
 				{
 //					UE_LOG(LogHairStrands, Log, TEXT("--  No.  - LOD -    CPU Total (     Guides|    Strands|      Cards) -    GPU Total (     Guides|    Strands|      Cards) - Asset Name "));
@@ -1780,9 +1780,9 @@ static void InternalSerializeStrand(FArchive& Ar, UObject* Owner, FHairGroupPlat
 	const bool bFillInBulkDataForCooking = Ar.IsCooking() && Ar.IsSaving();
 	if (bFillInBulkDataForCooking)
 	{
-		{ FHairStreamingRequest R; R.Request(HAIR_MAX_NUM_CURVE_PER_GROUP, HAIR_MAX_NUM_POINT_PER_GROUP, -1/*LODIndex*/, StrandData.BulkData,               true /*bWait*/, true /*bFillBulkdata*/, true /*bWarmCache*/, Owner->GetFName()); }
-		{ FHairStreamingRequest R; R.Request(HAIR_MAX_NUM_CURVE_PER_GROUP, HAIR_MAX_NUM_POINT_PER_GROUP, -1/*LODIndex*/, StrandData.InterpolationBulkData,  true /*bWait*/, true /*bFillBulkdata*/, true /*bWarmCache*/, Owner->GetFName()); }
-		{ FHairStreamingRequest R; R.Request(HAIR_MAX_NUM_CURVE_PER_GROUP, HAIR_MAX_NUM_POINT_PER_GROUP, -1/*LODIndex*/, StrandData.ClusterBulkData,        true /*bWait*/, true /*bFillBulkdata*/, true /*bWarmCache*/, Owner->GetFName()); }
+		{ FHairStreamingRequest R; R.Request(HAIR_MAX_NUM_CURVE_PER_GROUP, HAIR_MAX_NUM_POINT_PER_GROUP, StrandData.BulkData,               true /*bWait*/, true /*bFillBulkdata*/, true /*bWarmCache*/, Owner->GetFName()); }
+		{ FHairStreamingRequest R; R.Request(HAIR_MAX_NUM_CURVE_PER_GROUP, HAIR_MAX_NUM_POINT_PER_GROUP, StrandData.InterpolationBulkData,  true /*bWait*/, true /*bFillBulkdata*/, true /*bWarmCache*/, Owner->GetFName()); }
+		{ FHairStreamingRequest R; R.Request(HAIR_MAX_NUM_CURVE_PER_GROUP, HAIR_MAX_NUM_POINT_PER_GROUP, StrandData.ClusterBulkData,        true /*bWait*/, true /*bFillBulkdata*/, true /*bWarmCache*/, Owner->GetFName()); }
 	}
 
 	if (!Ar.IsCooking() || !StrandData.bIsCookedOut)
@@ -1803,9 +1803,9 @@ static void InternalSerializeStrand(FArchive& Ar, UObject* Owner, FHairGroupPlat
 		if (bPreWarmCache)
 		{
 			bool bHasDataInCache = true;
-			{ FHairStreamingRequest R; bHasDataInCache &= R.WarmCache(HAIR_MAX_NUM_CURVE_PER_GROUP, HAIR_MAX_NUM_POINT_PER_GROUP, -1/*LODIndex*/, StrandData.BulkData); }
-			{ FHairStreamingRequest R; bHasDataInCache &= R.WarmCache(HAIR_MAX_NUM_CURVE_PER_GROUP, HAIR_MAX_NUM_POINT_PER_GROUP, -1/*LODIndex*/, StrandData.InterpolationBulkData); }
-			{ FHairStreamingRequest R; bHasDataInCache &= R.WarmCache(HAIR_MAX_NUM_CURVE_PER_GROUP, HAIR_MAX_NUM_POINT_PER_GROUP, -1/*LODIndex*/, StrandData.ClusterBulkData); }
+			{ FHairStreamingRequest R; bHasDataInCache &= R.WarmCache(HAIR_MAX_NUM_CURVE_PER_GROUP, HAIR_MAX_NUM_POINT_PER_GROUP, StrandData.BulkData); }
+			{ FHairStreamingRequest R; bHasDataInCache &= R.WarmCache(HAIR_MAX_NUM_CURVE_PER_GROUP, HAIR_MAX_NUM_POINT_PER_GROUP, StrandData.InterpolationBulkData); }
+			{ FHairStreamingRequest R; bHasDataInCache &= R.WarmCache(HAIR_MAX_NUM_CURVE_PER_GROUP, HAIR_MAX_NUM_POINT_PER_GROUP, StrandData.ClusterBulkData); }
 
 			if (bOutHasDataInCache) { *bOutHasDataInCache = bHasDataInCache; }
 		}

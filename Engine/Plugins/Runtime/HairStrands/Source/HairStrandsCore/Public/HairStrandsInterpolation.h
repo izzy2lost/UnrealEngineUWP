@@ -145,7 +145,7 @@ void AddHairStrandsInterpolationPass(
 
 	const FRDGBufferSRVRef& RenDeformerPositionBuffer,
 	FRDGBufferUAVRef& OutRenPositionBuffer,
-	const FHairStrandsDeformedRootResource::FLOD::EFrameType DeformedFrame);
+	const FHairStrandsLODDeformedRootResource::EFrameType DeformedFrame);
 
 
 void AddHairTangentPass(
@@ -232,4 +232,5 @@ void AddHairCardsDeformationPass(
 	const ERHIFeatureLevel::Type FeatureLevel,
 	const FShaderPrintData* ShaderPrintData,
 	FHairGroupInstance* Instance,
+	const int32 HairLODIndex,
 	const int32 MeshLODIndex);

@@ -183,7 +183,7 @@ void DeformStrands(
 
 // Compute the triangle positions for each curve's roots
 void ExtractUniqueTrianglePositions(
-	const FHairStrandsRootData::FMeshProjectionLOD& RestLODData,
+	const FHairStrandsRootData& RestLODData,
 	const uint32 MeshLODIndex,
 	const FSkeletalMeshRenderData* InMeshRenderData, 
 	TArray<FHairStrandsMeshTrianglePositionFormat::Type>& OutDeformUniqueTrianglePositionBuffer)
@@ -226,7 +226,7 @@ TArray<FVector3f> GetDeformedHairStrandsPositions(
 	const uint32 MeshLODIndex,
 	const FSkeletalMeshRenderData* InMeshRenderData,
 	const TArray<FHairStrandsIndexFormat::Type>& PointToCurveBuffer,
-	const FHairStrandsRootData::FMeshProjectionLOD& RestLODData)
+	const FHairStrandsRootData& RestLODData)
 {
 	// Init the mesh samples with the target mesh vertices
 	const int32 MaxVertexCount = MeshVertexPositionsBuffer_Target.Num();
@@ -550,7 +550,7 @@ static void ExtractSkeletalVertexPosition(
 void DeformStaticMeshPositions(
 	UStaticMesh* OutMesh,
 	const TArray<FVector3f>& MeshVertexPositionsBuffer_Target,
-	const FHairStrandsRootData::FMeshProjectionLOD& RestLODData)
+	const FHairStrandsRootData& RestLODData)
 {
 	// Init the mesh samples with the target mesh vertices
 	const int32 MaxVertexCount = MeshVertexPositionsBuffer_Target.Num();
@@ -718,6 +718,10 @@ void FGroomRBFDeformer::GetRBFDeformedGroomAsset(const UGroomAsset* InGroomAsset
 			BuildPointToCurveMapping(GuidesData, SimRootDataPointToCurveBuffer);
 			BuildPointToCurveMapping(StrandsData, RenRootDataPointToCurveBuffer);
 
+			// Sanity check
+			check(BindingAsset->GetHairGroupsPlatformData()[GroupIndex].SimRootBulkDatas.IsValidIndex(MeshLODIndex));
+			check(BindingAsset->GetHairGroupsPlatformData()[GroupIndex].RenRootBulkDatas.IsValidIndex(MeshLODIndex));
+
 			// Get deformed guides
 			// If the groom override the value, we output dummy value for the guides, since they won't be used
 			if (InGroomAsset->GetHairGroupsInterpolation()[GroupIndex].InterpolationSettings.GuideType != EGroomGuideType::Imported)
@@ -728,7 +732,7 @@ void FGroomRBFDeformer::GetRBFDeformedGroomAsset(const UGroomAsset* InGroomAsset
 			else
 			{
 				FHairStrandsRootData SimRootData;
-				FGroomBindingBuilder::GetRootData(SimRootData, BindingAsset->GetHairGroupsPlatformData()[GroupIndex].SimRootBulkData);
+				FGroomBindingBuilder::GetRootData(SimRootData, BindingAsset->GetHairGroupsPlatformData()[GroupIndex].SimRootBulkDatas[MeshLODIndex]);
 
 				DeformedPositions[GroupIndex].GuideStrands = GetDeformedHairStrandsPositions(
 					MeshVertexPositionsBuffer_Target,
@@ -736,22 +740,23 @@ void FGroomRBFDeformer::GetRBFDeformedGroomAsset(const UGroomAsset* InGroomAsset
 					MeshLODIndex,
 					SkeletalMeshData_Target,
 					SimRootDataPointToCurveBuffer,
-					SimRootData.MeshProjectionLODs[MeshLODIndex]);
+					SimRootData);
 			}
 
 			// Get deformed render strands
 			{
 				FHairStrandsRootData RenRootData;
-				FGroomBindingBuilder::GetRootData(RenRootData, BindingAsset->GetHairGroupsPlatformData()[GroupIndex].RenRootBulkData);
+				FGroomBindingBuilder::GetRootData(RenRootData, BindingAsset->GetHairGroupsPlatformData()[GroupIndex].RenRootBulkDatas[MeshLODIndex]);
 
 				// Transfer RBF weights from SimRootData to RenRootData, as RenRootData does not hold RBF sample data
 				// This is transient data.
 				{
-					FHairStrandsRootData SimRootData;
-					FGroomBindingBuilder::GetRootData(SimRootData, BindingAsset->GetHairGroupsPlatformData()[GroupIndex].SimRootBulkData);
 
-					FHairStrandsRootData::FMeshProjectionLOD& SimLODData = SimRootData.MeshProjectionLODs[MeshLODIndex];
-					FHairStrandsRootData::FMeshProjectionLOD& RenLODData = RenRootData.MeshProjectionLODs[MeshLODIndex];
+					FHairStrandsRootData SimRootData;
+					FGroomBindingBuilder::GetRootData(SimRootData, BindingAsset->GetHairGroupsPlatformData()[GroupIndex].SimRootBulkDatas[MeshLODIndex]);
+
+					FHairStrandsRootData& SimLODData = SimRootData;
+					FHairStrandsRootData& RenLODData = RenRootData;
 					RenLODData.SampleCount 						= SimLODData.SampleCount;
 					RenLODData.MeshInterpolationWeightsBuffer 	= SimLODData.MeshInterpolationWeightsBuffer;
 					RenLODData.MeshSampleIndicesBuffer 			= SimLODData.MeshSampleIndicesBuffer;
@@ -764,7 +769,7 @@ void FGroomRBFDeformer::GetRBFDeformedGroomAsset(const UGroomAsset* InGroomAsset
 					MeshLODIndex,
 					SkeletalMeshData_Target,
 					RenRootDataPointToCurveBuffer,
-					RenRootData.MeshProjectionLODs[MeshLODIndex]);
+					RenRootData);
 			}
 
 			// Trim strands based on mask texture
@@ -862,11 +867,13 @@ void FGroomRBFDeformer::GetRBFDeformedGroomAsset(const UGroomAsset* InGroomAsset
 				{
 					Mesh->ConditionalPostLoad();
 	
+					check(BindingAsset->GetHairGroupsPlatformData()[Desc.GroupIndex].SimRootBulkDatas.IsValidIndex(MeshLODIndex));
+
 					// Load Sim root data, as they contains RBF weights
 					FHairStrandsRootData SimRootData;
-					FGroomBindingBuilder::GetRootData(SimRootData, BindingAsset->GetHairGroupsPlatformData()[Desc.GroupIndex].SimRootBulkData);
+					FGroomBindingBuilder::GetRootData(SimRootData, BindingAsset->GetHairGroupsPlatformData()[Desc.GroupIndex].SimRootBulkDatas[MeshLODIndex]);
 	
-					DeformStaticMeshPositions(Mesh, MeshVertexPositionsBuffer_Target, SimRootData.MeshProjectionLODs[MeshLODIndex]);
+					DeformStaticMeshPositions(Mesh, MeshVertexPositionsBuffer_Target, SimRootData);
 				}
 			}
 		} 
@@ -883,11 +890,13 @@ void FGroomRBFDeformer::GetRBFDeformedGroomAsset(const UGroomAsset* InGroomAsset
 
 				Mesh->ConditionalPostLoad();
 
+				check(BindingAsset->GetHairGroupsPlatformData()[Desc.GroupIndex].SimRootBulkDatas.IsValidIndex(MeshLODIndex));
+
 				// Load Sim root data, as they contains RBF weights
 				FHairStrandsRootData SimRootData;
-				FGroomBindingBuilder::GetRootData(SimRootData, BindingAsset->GetHairGroupsPlatformData()[Desc.GroupIndex].SimRootBulkData);
+				FGroomBindingBuilder::GetRootData(SimRootData, BindingAsset->GetHairGroupsPlatformData()[Desc.GroupIndex].SimRootBulkDatas[MeshLODIndex]);
 
-				DeformStaticMeshPositions(Mesh, MeshVertexPositionsBuffer_Target, SimRootData.MeshProjectionLODs[MeshLODIndex]);
+				DeformStaticMeshPositions(Mesh, MeshVertexPositionsBuffer_Target, SimRootData);
 			}
 		}
 

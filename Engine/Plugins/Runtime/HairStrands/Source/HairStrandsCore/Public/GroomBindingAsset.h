@@ -179,9 +179,9 @@ public:
 	/** Binding bulk data */
 	struct FHairGroupPlatformData
 	{
-		FHairStrandsRootBulkData		SimRootBulkData;
-		FHairStrandsRootBulkData		RenRootBulkData;
-		TArray<FHairStrandsRootBulkData>CardsRootBulkData;
+		TArray<FHairStrandsRootBulkData>		 SimRootBulkDatas;
+		TArray<FHairStrandsRootBulkData>		 RenRootBulkDatas;
+		TArray<TArray<FHairStrandsRootBulkData>> CardsRootBulkDatas;
 	};
 
 private:

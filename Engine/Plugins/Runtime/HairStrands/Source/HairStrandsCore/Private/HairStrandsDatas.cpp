@@ -130,7 +130,7 @@ namespace HairStrands
 #endif
 }
 
-void FHairStrandsBulkCommon::Write_DDC(UObject* Owner, TArray<UE::DerivedData::FCachePutValueRequest>& Out, int32 InLODIndex)
+void FHairStrandsBulkCommon::Write_DDC(UObject* Owner, TArray<UE::DerivedData::FCachePutValueRequest>& Out)
 {
 #if WITH_EDITORONLY_DATA
 	FHairStrandsBulkCommon::FQuery Q;
@@ -138,7 +138,6 @@ void FHairStrandsBulkCommon::Write_DDC(UObject* Owner, TArray<UE::DerivedData::F
 	Q.OutWriteDDC = &Out;
 	Q.DerivedDataKey = &DerivedDataKey;
 	Q.Owner = Owner;
-	Q.LODIndex = InLODIndex;
 	GetResources(Q);
 #endif
 }
@@ -168,7 +167,7 @@ void FHairStrandsBulkCommon::Read_IO(FHairStreamingRequest* In, FBulkDataBatchRe
 	GetResources(Q);
 	Q.OutReadIO->Issue(Out);
 }
-void FHairStrandsBulkCommon::Write_IO(UObject* Owner, FArchive& Out, int32 InLODIndex)
+void FHairStrandsBulkCommon::Write_IO(UObject* Owner, FArchive& Out)
 {
 	GetResourceVersion(Out);
 
@@ -176,7 +175,6 @@ void FHairStrandsBulkCommon::Write_IO(UObject* Owner, FArchive& Out, int32 InLOD
 	Q.Type = FHairStrandsBulkCommon::FQuery::ReadWriteIO;
 	Q.OutWriteIO = &Out;
 	Q.Owner = Owner;
-	Q.LODIndex = InLODIndex;
 	GetResources(Q);
 }
 void FHairStrandsBulkCommon::Unload(FHairStreamingRequest* In)
@@ -191,12 +189,12 @@ void FHairStrandsBulkCommon::Unload(FHairStreamingRequest* In)
 void FHairStrandsBulkCommon::Serialize(FArchive& Ar, UObject* Owner)
 {
 	SerializeHeader(Ar, Owner);
-	SerializeData(Ar, Owner, -1 /*InLODIndex*/);
+	SerializeData(Ar, Owner);
 }
 
-void FHairStrandsBulkCommon::SerializeData(FArchive& Ar, UObject* Owner, int32 InLODIndex)
+void FHairStrandsBulkCommon::SerializeData(FArchive& Ar, UObject* Owner)
 {
-	Write_IO(Owner, Ar, InLODIndex);
+	Write_IO(Owner, Ar);
 }
 
 void FHairStrandsBulkCommon::FQuery::Add(FHairBulkContainer& In, const TCHAR* InSuffix, uint32& InOffset, uint32 InSize) 
@@ -211,13 +209,10 @@ void FHairStrandsBulkCommon::FQuery::Add(FHairBulkContainer& In, const TCHAR* In
 		FMemory::Memcpy(WriteData.GetData(), In.Data.Lock(LOCK_READ_ONLY), DataSizeInByte);
 		In.Data.Unlock();
 
-		// Optional LOD suffix
-		const FString InLODSuffix = GetLODIndex() >= 0 ? FString(TEXT("_LOD")) + FString::FromInt(GetLODIndex()) : FString();
-
 		using namespace UE::DerivedData;
 		FCachePutValueRequest& Out = OutWriteDDC->AddDefaulted_GetRef();
 		if (Owner) { Out.Name = Owner->GetPathName(); }
-		Out.Key 	= ConvertLegacyCacheKey(*DerivedDataKey + InSuffix + InLODSuffix);
+		Out.Key 	= ConvertLegacyCacheKey(*DerivedDataKey + InSuffix);
 		Out.Value 	= FValue::Compress(MakeSharedBufferFromArray(MoveTemp(WriteData)));
 		Out.Policy 	= ECachePolicy::Default;
 		Out.UserData= 0;
@@ -238,15 +233,12 @@ void FHairStrandsBulkCommon::FQuery::Add(FHairBulkContainer& In, const TCHAR* In
 		Chunk.TotalSize = InSize;
 		In.ChunkRequest = &Chunk;
 
-		// Optional LOD suffix
-		const FString InLODSuffix = GetLODIndex() >= 0 ? FString(TEXT("_LOD")) + FString::FromInt(GetLODIndex()) : FString();
-
 		// 2. Fill in actual DDC request
 		check(OutReadDDC);
 		using namespace UE::DerivedData;
 		FCacheGetChunkRequest& Out = OutReadDDC->AddDefaulted_GetRef();
 		Out.Id			= FValueId::Null; 	// HairStrands::HairStrandsValueId : This is only needed for cache record, not cache value.
-		Out.Key			= ConvertLegacyCacheKey(*DerivedDataKey + InSuffix + InLODSuffix);
+		Out.Key			= ConvertLegacyCacheKey(*DerivedDataKey + InSuffix);
 		Out.RawOffset	= InOffset;
 		Out.RawSize		= InSize != 0 ? InSize-InOffset : MAX_uint64;
 		Out.RawHash		= FIoHash();
@@ -378,18 +370,16 @@ static bool RequestWarmCache(UE::DerivedData::FRequestOwner* RequestOwner, const
 	return bHasDataInCache;
 }
 
-bool FHairStreamingRequest::WarmCache(uint32 InRequestedCurveCount, uint32 InRequestedPointCount, int32 InLODIndex, FHairStrandsBulkCommon& In)
+bool FHairStreamingRequest::WarmCache(uint32 InRequestedCurveCount, uint32 InRequestedPointCount, FHairStrandsBulkCommon& In)
 {
 	if (In.GetResourceCount() == 0 || InRequestedCurveCount == 0)
 	{
 		CurveCount = 0;
 		PointCount = 0;
-		LODIndex = -1;
 		return true;
 	}
 	CurveCount = InRequestedCurveCount;
 	PointCount = InRequestedPointCount;
-	LODIndex = InLODIndex;
 	bSupportOffsetLoad = false; // Whole resource loading/caching
 
 	using namespace UE::DerivedData;
@@ -405,7 +395,7 @@ bool FHairStreamingRequest::WarmCache(uint32 InRequestedCurveCount, uint32 InReq
 // Request fullfil 2 use cases:
 // * Load IO/DDC data and upload them to GPU
 // * Load DDC data and store them into bulkdata for serialization
-void FHairStreamingRequest::Request(uint32 InRequestedCurveCount, uint32 InRequestedPointCount, int32 InLODIndex, FHairStrandsBulkCommon& In,
+void FHairStreamingRequest::Request(uint32 InRequestedCurveCount, uint32 InRequestedPointCount, FHairStrandsBulkCommon& In,
 	bool bWait, bool bFillBulkdata, bool bWarmCache, const FName& InOwnerName, bool* bWaitResult)
 {
 	bool bLogErrors = bWaitResult == nullptr;
@@ -422,12 +412,10 @@ void FHairStreamingRequest::Request(uint32 InRequestedCurveCount, uint32 InReque
 	{
 		CurveCount = 0;
 		PointCount = 0;
-		LODIndex = -1;
 		return;
 	}
 	CurveCount = InRequestedCurveCount;
 	PointCount = InRequestedPointCount;
-	LODIndex = InLODIndex;
 
 #if !WITH_EDITORONLY_DATA
 	{ 
@@ -853,28 +841,15 @@ uint32 FHairStrandsClusterBulkData::GetCurveCount(float InLODIndex) const
 
 bool FHairStrandsRootData::HasProjectionData() const
 {
-	bool bIsValid = MeshProjectionLODs.Num() > 0;
-	for (const FMeshProjectionLOD& LOD : MeshProjectionLODs)
-	{
-		const bool bHasValidCPUData = LOD.RootBarycentricBuffer.Num() > 0;
-		if (bHasValidCPUData)
-		{
-			bIsValid = bIsValid && LOD.RootBarycentricBuffer.Num() > 0;
-			bIsValid = bIsValid && LOD.RootToUniqueTriangleIndexBuffer.Num() > 0;
-			bIsValid = bIsValid && LOD.UniqueTriangleIndexBuffer.Num() > 0;
-			bIsValid = bIsValid && LOD.RestUniqueTrianglePositionBuffer.Num() > 0;
-
-			if (!bIsValid) break;
-		}
-	}
-
-	return bIsValid;
+	return RootBarycentricBuffer.Num() > 0
+	&& RootToUniqueTriangleIndexBuffer.Num() > 0
+	&& UniqueTriangleIndexBuffer.Num() > 0
+	&& RestUniqueTrianglePositionBuffer.Num() > 0;
 }
 
 void FHairStrandsRootData::Reset()
 {
-	RootCount = 0;
-	MeshProjectionLODs.Empty();
+	*this = FHairStrandsRootData();
 }
 
 /////////////////////////////////////////////////////////////////////////////////////////
@@ -882,8 +857,16 @@ void FHairStrandsRootData::Reset()
 
 void FHairStrandsRootBulkData::SerializeHeader(FArchive& Ar, UObject* Owner)
 {
-	Ar << Header.RootCount;
-	Ar << Header.PointCount;
+	// Header
+	{
+		Ar << Header.RootCount;
+		Ar << Header.PointCount;
+		Ar << Header.LODIndex;
+		Ar << Header.UniqueTriangleCount;
+		Ar << Header.SampleCount;
+		Ar << Header.UniqueSectionIndices;
+		Ar << Header.MeshSectionCount;
+	}
 
 	// Strides
 	{
@@ -896,33 +879,11 @@ void FHairStrandsRootBulkData::SerializeHeader(FArchive& Ar, UObject* Owner)
 		Ar << Header.Strides.MeshSampleIndicesAndSectionsBufferStride;
 		Ar << Header.Strides.RestSamplePositionsBufferStride;
 	}
-
-	// LODS
-	uint32 LODCount = Header.LODs.Num();
-	Ar << LODCount;
-	if (Ar.IsLoading())
-	{
-		Header.LODs.SetNum(LODCount);
-		Data.LODs.SetNum(LODCount);
-	}
-	for (uint32 LODIt = 0; LODIt < LODCount; ++LODIt)
-	{
-		if (Ar.IsLoading())
-		{
-			Header.LODs[LODIt].LODIndex = LODIt;
-		}
-
-		Ar << Header.LODs[LODIt].UniqueTriangleCount;
-		Ar << Header.LODs[LODIt].SampleCount;
-		Ar << Header.LODs[LODIt].UniqueSectionIndices;
-		Ar << Header.LODs[LODIt].MeshSectionCount;
-	}
 }
 
-const TArray<uint32>& FHairStrandsRootBulkData::GetValidSectionIndices(int32 LODIndex) const
+const TArray<uint32>& FHairStrandsRootBulkData::GetValidSectionIndices() const
 {
-	check(LODIndex >= 0 && LODIndex < Header.LODs.Num());
-	return Header.LODs[LODIndex].UniqueSectionIndices;
+	return Header.UniqueSectionIndices;
 }
 
 uint32 FHairStrandsRootBulkData::GetResourceCount() const
@@ -932,14 +893,6 @@ uint32 FHairStrandsRootBulkData::GetResourceCount() const
 
 void FHairStrandsRootBulkData::GetResources(FQuery& Out)
 {
-	const int32 LODIndex = Out.GetLODIndex();
-	check(LODIndex >= 0);
-	check(Header.LODs.Num() == Data.LODs.Num());
-	check(LODIndex < Data.LODs.Num());
-
-	const FHeader::FLOD& HeaderLOD = Header.LODs[LODIndex];
-	FData::FLOD& DataLOD = Data.LODs[LODIndex];
-
 	// Translate requested curve count into chunk/offset/size to be read
 	// * RBF points are loaded all at once
 	// * Unique triangle data are loaded all at one
@@ -950,85 +903,83 @@ void FHairStrandsRootBulkData::GetResources(FQuery& Out)
 		RootCount = FMath::Min(Header.RootCount, Out.GetCurveCount());
 	}
 
-	Out.Add(DataLOD.RootToUniqueTriangleIndexBuffer, 	TEXT("_RootToUniqueTriangleIndexBuffer"), 		DataLOD.RootToUniqueTriangleIndexBuffer.LoadedSize, 	RootCount * Header.Strides.RootToUniqueTriangleIndexBufferStride);
-	Out.Add(DataLOD.RootBarycentricBuffer, 				TEXT("_RootBarycentricBuffer"), 				DataLOD.RootBarycentricBuffer.LoadedSize, 				RootCount * Header.Strides.RootBarycentricBufferStride);
-	Out.Add(DataLOD.UniqueTriangleIndexBuffer, 			TEXT("_UniqueTriangleIndexBuffer"), 			DataLOD.UniqueTriangleIndexBuffer.LoadedSize, 			HeaderLOD.UniqueTriangleCount * Header.Strides.UniqueTriangleIndexBufferStride);		 // Load all data
-	Out.Add(DataLOD.RestUniqueTrianglePositionBuffer, 	TEXT("_RestUniqueTrianglePositionBuffer"), 		DataLOD.RestUniqueTrianglePositionBuffer.LoadedSize, 	HeaderLOD.UniqueTriangleCount * Header.Strides.RestUniqueTrianglePositionBufferStride);	 // Load all data
+	Out.Add(Data.RootToUniqueTriangleIndexBuffer, 	TEXT("_RootToUniqueTriangleIndexBuffer"), 		Data.RootToUniqueTriangleIndexBuffer.LoadedSize, 	RootCount * Header.Strides.RootToUniqueTriangleIndexBufferStride);
+	Out.Add(Data.RootBarycentricBuffer, 			TEXT("_RootBarycentricBuffer"), 				Data.RootBarycentricBuffer.LoadedSize, 				RootCount * Header.Strides.RootBarycentricBufferStride);
+	Out.Add(Data.UniqueTriangleIndexBuffer, 		TEXT("_UniqueTriangleIndexBuffer"), 			Data.UniqueTriangleIndexBuffer.LoadedSize, 			Header.UniqueTriangleCount * Header.Strides.UniqueTriangleIndexBufferStride);		 // Load all data
+	Out.Add(Data.RestUniqueTrianglePositionBuffer, 	TEXT("_RestUniqueTrianglePositionBuffer"), 		Data.RestUniqueTrianglePositionBuffer.LoadedSize, 	Header.UniqueTriangleCount * Header.Strides.RestUniqueTrianglePositionBufferStride); // Load all data
 
-	if (HeaderLOD.SampleCount > 0)
+	if (Header.SampleCount > 0)
 	{
-		const uint32 RBFWeightCount = FGroomRBFDeformer::GetWeightCount(HeaderLOD.SampleCount); 
+		const uint32 RBFWeightCount = FGroomRBFDeformer::GetWeightCount(Header.SampleCount); 
 
-		Out.Add(DataLOD.MeshInterpolationWeightsBuffer, 	TEXT("_MeshInterpolationWeightsBuffer"), 	DataLOD.MeshInterpolationWeightsBuffer.LoadedSize, 		RBFWeightCount * Header.Strides.MeshInterpolationWeightsBufferStride); 				// Load all data
-		Out.Add(DataLOD.MeshSampleIndicesAndSectionsBuffer, TEXT("_MeshSampleIndicesAndSectionsBuffer"),DataLOD.MeshSampleIndicesAndSectionsBuffer.LoadedSize, 	HeaderLOD.SampleCount * Header.Strides.MeshSampleIndicesAndSectionsBufferStride); 	// Load all data
-		Out.Add(DataLOD.RestSamplePositionsBuffer, 			TEXT("_RestSamplePositionsBuffer"), 		DataLOD.RestSamplePositionsBuffer.LoadedSize, 			HeaderLOD.SampleCount * Header.Strides.RestSamplePositionsBufferStride);			// Load all data
+		Out.Add(Data.MeshInterpolationWeightsBuffer, 	TEXT("_MeshInterpolationWeightsBuffer"), 	Data.MeshInterpolationWeightsBuffer.LoadedSize, 		RBFWeightCount * Header.Strides.MeshInterpolationWeightsBufferStride); 			// Load all data
+		Out.Add(Data.MeshSampleIndicesAndSectionsBuffer,TEXT("_MeshSampleIndicesAndSectionsBuffer"),Data.MeshSampleIndicesAndSectionsBuffer.LoadedSize, 	Header.SampleCount * Header.Strides.MeshSampleIndicesAndSectionsBufferStride); 	// Load all data
+		Out.Add(Data.RestSamplePositionsBuffer, 		TEXT("_RestSamplePositionsBuffer"), 		Data.RestSamplePositionsBuffer.LoadedSize, 				Header.SampleCount * Header.Strides.RestSamplePositionsBufferStride);			// Load all data
 	}
 }
 
-uint32 FHairStrandsRootBulkData::GetSize() const
+uint32 FHairStrandsRootBulkData::GetDataSize() const
 {
 	uint32 Out = 0;
-	for (const auto& LOD : Data.LODs)
-	{
-		Out += LOD.RootToUniqueTriangleIndexBuffer.GetBulkDataSize();
-		Out += LOD.RootBarycentricBuffer.GetBulkDataSize();
-		Out += LOD.UniqueTriangleIndexBuffer.GetBulkDataSize();
-		Out += LOD.RestUniqueTrianglePositionBuffer.GetBulkDataSize();
+	Out += Data.RootToUniqueTriangleIndexBuffer.GetBulkDataSize();
+	Out += Data.RootBarycentricBuffer.GetBulkDataSize();
+	Out += Data.UniqueTriangleIndexBuffer.GetBulkDataSize();
+	Out += Data.RestUniqueTrianglePositionBuffer.GetBulkDataSize();
 
-		Out += LOD.MeshInterpolationWeightsBuffer.GetBulkDataSize();
-		Out += LOD.MeshSampleIndicesAndSectionsBuffer.GetBulkDataSize();
-		Out += LOD.RestSamplePositionsBuffer.GetBulkDataSize();
-	}
+	Out += Data.MeshInterpolationWeightsBuffer.GetBulkDataSize();
+	Out += Data.MeshSampleIndicesAndSectionsBuffer.GetBulkDataSize();
+	Out += Data.RestSamplePositionsBuffer.GetBulkDataSize();
 	return Out;
 }
 
 void FHairStrandsRootBulkData::Reset()
 {
 	// Header
-	Header.RootCount = 0;
-	Header.PointCount = 0;
-	Header.LODs.Empty();
+	{
+		Header.LODIndex = -1;
+		Header.RootCount = 0;
+		Header.PointCount = 0;
+		Header.SampleCount = 0;
+		Header.MeshSectionCount = 0;
+		Header.UniqueTriangleCount = 0;
+		Header.UniqueSectionIndices.Empty();
+	}
 
 	// Data
-	for (FData::FLOD& LOD : Data.LODs)
 	{
 		// Binding
-		LOD.RootBarycentricBuffer.RemoveBulkData();
-		LOD.RootToUniqueTriangleIndexBuffer.RemoveBulkData();
-		LOD.UniqueTriangleIndexBuffer.RemoveBulkData();
-		LOD.RestUniqueTrianglePositionBuffer.RemoveBulkData();
+		Data.RootBarycentricBuffer.RemoveBulkData();
+		Data.RootToUniqueTriangleIndexBuffer.RemoveBulkData();
+		Data.UniqueTriangleIndexBuffer.RemoveBulkData();
+		Data.RestUniqueTrianglePositionBuffer.RemoveBulkData();
 
 		// Reset the bulk byte buffer to ensure the (serialize) data size is reset to 0
-		LOD.RootBarycentricBuffer 			 = FHairBulkContainer();
-		LOD.RootToUniqueTriangleIndexBuffer  = FHairBulkContainer();
-		LOD.UniqueTriangleIndexBuffer		 = FHairBulkContainer();
-		LOD.RestUniqueTrianglePositionBuffer = FHairBulkContainer();
+		Data.RootBarycentricBuffer 			  = FHairBulkContainer();
+		Data.RootToUniqueTriangleIndexBuffer  = FHairBulkContainer();
+		Data.UniqueTriangleIndexBuffer		  = FHairBulkContainer();
+		Data.RestUniqueTrianglePositionBuffer = FHairBulkContainer();
 
 		// RBF
-		LOD.MeshInterpolationWeightsBuffer.RemoveBulkData();
-		LOD.MeshSampleIndicesAndSectionsBuffer.RemoveBulkData();
-		LOD.RestSamplePositionsBuffer.RemoveBulkData();
+		Data.MeshInterpolationWeightsBuffer.RemoveBulkData();
+		Data.MeshSampleIndicesAndSectionsBuffer.RemoveBulkData();
+		Data.RestSamplePositionsBuffer.RemoveBulkData();
 
-		LOD.MeshInterpolationWeightsBuffer 		 = FHairBulkContainer();
-		LOD.MeshSampleIndicesAndSectionsBuffer 	 = FHairBulkContainer();
-		LOD.RestSamplePositionsBuffer 			 = FHairBulkContainer();
+		Data.MeshInterpolationWeightsBuffer 	 = FHairBulkContainer();
+		Data.MeshSampleIndicesAndSectionsBuffer  = FHairBulkContainer();
+		Data.RestSamplePositionsBuffer 			 = FHairBulkContainer();
 	}
-	Data.LODs.Empty();
 }
 
 void FHairStrandsRootBulkData::ResetLoadedSize()
 {
-	for (FData::FLOD& LOD : Data.LODs)
-	{
-		// Binding
-		LOD.RootBarycentricBuffer.LoadedSize 			= 0;
-		LOD.RootToUniqueTriangleIndexBuffer.LoadedSize 	= 0;
-		LOD.UniqueTriangleIndexBuffer.LoadedSize 		= 0;
-		LOD.RestUniqueTrianglePositionBuffer.LoadedSize = 0;
-		      
-		// RBF
-		LOD.MeshInterpolationWeightsBuffer.LoadedSize	 = 0;
-		LOD.MeshSampleIndicesAndSectionsBuffer.LoadedSize= 0;
-		LOD.RestSamplePositionsBuffer.LoadedSize 		 = 0;
-	}
+	// Binding
+	Data.RootBarycentricBuffer.LoadedSize 			= 0;
+	Data.RootToUniqueTriangleIndexBuffer.LoadedSize = 0;
+	Data.UniqueTriangleIndexBuffer.LoadedSize 		= 0;
+	Data.RestUniqueTrianglePositionBuffer.LoadedSize= 0;
+		
+	// RBF
+	Data.MeshInterpolationWeightsBuffer.LoadedSize	  = 0;
+	Data.MeshSampleIndicesAndSectionsBuffer.LoadedSize= 0;
+	Data.RestSamplePositionsBuffer.LoadedSize 		  = 0;
 }

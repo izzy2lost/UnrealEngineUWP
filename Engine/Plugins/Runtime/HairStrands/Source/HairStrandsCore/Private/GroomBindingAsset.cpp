@@ -35,47 +35,62 @@ uint32 GetAssetNameHash(const FString& In);
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
-static void InternalSerializeGuides(FArchive& Ar, UObject* Owner, FHairStrandsRootBulkData& Data)
+static void InternalSerializeGuides(FArchive& Ar, UObject* Owner, TArray<FHairStrandsRootBulkData>& Datas)
 {
-	Data.SerializeHeader(Ar, Owner);
-	for (int32 LODIndex = 0, LODCount = Data.GetLODCount(); LODIndex < LODCount; ++LODIndex)
+	uint32 MeshLODCount = Datas.Num();
+	Ar << MeshLODCount;
+	if (Ar.IsLoading())
 	{
-		Data.SerializeData(Ar, Owner, LODIndex);
+		Datas.SetNum(MeshLODCount);
+	}
+	for (FHairStrandsRootBulkData& Data : Datas)
+	{
+		Data.SerializeHeader(Ar, Owner);
+		Data.SerializeData(Ar, Owner);
 	}
 }
 
-static void InternalSerializeStrands(FArchive& Ar, UObject* Owner, FHairStrandsRootBulkData& Data, uint32 Flags, bool bHeader, bool bData)
+static void InternalSerializeStrands(FArchive& Ar, UObject* Owner, TArray<FHairStrandsRootBulkData>& Datas, uint32 Flags, bool bHeader, bool bData)
 {
 	Ar.UsingCustomVersion(FAnimObjectVersion::GUID);
 
 	const bool bStripped = (Flags & UGroomAsset::CDSF_StrandsStripped);
 	if (!bStripped)
 	{
-		if (bHeader){ Data.SerializeHeader(Ar, Owner); }
-		if (bData)
+		uint32 MeshLODCount = Datas.Num();
+		Ar << MeshLODCount;
+		if (Ar.IsLoading())
 		{
-			for (int32 LODIndex = 0, LODCount = Data.GetLODCount(); LODIndex < LODCount; ++LODIndex)
-			{
-				Data.SerializeData(Ar, Owner, LODIndex);
-			}
+			Datas.SetNum(MeshLODCount);
+		}
+		for (FHairStrandsRootBulkData& Data : Datas)
+		{
+			if (bHeader){ Data.SerializeHeader(Ar, Owner); }
+			if (bData)	{ Data.SerializeData(Ar, Owner); }
 		}
 	}
 }
 
-static void InternalSerializeCards(FArchive& Ar, UObject* Owner, TArray<FHairStrandsRootBulkData>& Datas)
+static void InternalSerializeCards(FArchive& Ar, UObject* Owner, TArray<TArray<FHairStrandsRootBulkData>>& Datass)
 {
-	uint32 CardLODCount = Datas.Num();
+	uint32 CardLODCount = Datass.Num();
 	Ar << CardLODCount;
 	if (Ar.IsLoading())
 	{
-		Datas.SetNum(CardLODCount);
+		Datass.SetNum(CardLODCount);
 	}
-	for (FHairStrandsRootBulkData& Data : Datas)
+	for (TArray<FHairStrandsRootBulkData>& Datas : Datass)
 	{
-		Data.SerializeHeader(Ar, Owner);
-		for (int32 LODIndex = 0, LODCount = Data.GetLODCount(); LODIndex < LODCount; ++LODIndex)
+		uint32 MeshLODCount = Datas.Num();
+		Ar << MeshLODCount;
+		if (Ar.IsLoading())
 		{
-			Data.SerializeData(Ar, Owner, LODIndex);
+			Datas.SetNum(MeshLODCount);
+		}
+		for (FHairStrandsRootBulkData& Data : Datas)
+		{	
+			Data.SerializeHeader(Ar, Owner);
+			Data.SerializeData(Ar, Owner);
 		}
 	}
 }
@@ -85,13 +100,13 @@ static void InternalSerializePlatformData(FArchive& Ar, UObject* Owner, UGroomBi
 	Ar.UsingCustomVersion(FAnimObjectVersion::GUID);
 
 	// Guides
-	InternalSerializeGuides(Ar, Owner, GroupData.SimRootBulkData);
+	InternalSerializeGuides(Ar, Owner, GroupData.SimRootBulkDatas);
 
 	// Strands
-	InternalSerializeStrands(Ar, Owner, GroupData.RenRootBulkData, Flags, bHeader, bData);
+	InternalSerializeStrands(Ar, Owner, GroupData.RenRootBulkDatas, Flags, bHeader, bData);
 
 	// Cards
-	InternalSerializeCards(Ar, Owner, GroupData.CardsRootBulkData);
+	InternalSerializeCards(Ar, Owner, GroupData.CardsRootBulkDatas);
 }
 
 static void InternalSerializePlatformDatas(FArchive& Ar, UObject* Owner, TArray<UGroomBindingAsset::FHairGroupPlatformData>& GroupDatas, uint32 Flags)
@@ -167,32 +182,32 @@ void UGroomBindingAsset::InitResource()
 
 		// Guides
 		Resource.SimRootResources = nullptr;
-		if (BulkData.SimRootBulkData.IsValid())
+		if (BulkData.SimRootBulkDatas.Num() > 0)
 		{
-			Resource.SimRootResources = new FHairStrandsRestRootResource(BulkData.SimRootBulkData, EHairStrandsResourcesType::Guides, ResourceName, OwnerName);
-			BeginInitResource(Resource.SimRootResources);
+			Resource.SimRootResources = new FHairStrandsRestRootResource(BulkData.SimRootBulkDatas, EHairStrandsResourcesType::Guides, ResourceName, OwnerName);
+			Resource.SimRootResources->BeginInitResource();
 		}
 
 		// Strands
 		Resource.RenRootResources = nullptr;
-		if (IsHairStrandsEnabled(EHairStrandsShaderType::Strands) && BulkData.RenRootBulkData.IsValid())
+		if (IsHairStrandsEnabled(EHairStrandsShaderType::Strands) && BulkData.RenRootBulkDatas.Num() > 0)
 		{
-			Resource.RenRootResources = new FHairStrandsRestRootResource(BulkData.RenRootBulkData, EHairStrandsResourcesType::Strands, ResourceName, OwnerName);
-			BeginInitResource(Resource.RenRootResources);
+			Resource.RenRootResources = new FHairStrandsRestRootResource(BulkData.RenRootBulkDatas, EHairStrandsResourcesType::Strands, ResourceName, OwnerName);
+			Resource.RenRootResources->BeginInitResource();
 		}
 
 		// Cards
 		if (IsHairStrandsEnabled(EHairStrandsShaderType::Cards))
 		{
-			const uint32 CardsLODCount = BulkData.CardsRootBulkData.Num();
+			const uint32 CardsLODCount = BulkData.CardsRootBulkDatas.Num();
 			Resource.CardsRootResources.SetNum(CardsLODCount);
 			for (uint32 CardsLODIt=0; CardsLODIt<CardsLODCount; ++CardsLODIt)
 			{
 				Resource.CardsRootResources[CardsLODIt] = nullptr;
-				if (BulkData.CardsRootBulkData[CardsLODIt].IsValid())
+				if (BulkData.CardsRootBulkDatas[CardsLODIt].Num() > 0)
 				{
-					Resource.CardsRootResources[CardsLODIt] = new FHairStrandsRestRootResource(BulkData.CardsRootBulkData[CardsLODIt], EHairStrandsResourcesType::Cards, FHairResourceName(GetFName(), GroupIndex, CardsLODIt), GetAssetPathName(CardsLODIt));
-					BeginInitResource(Resource.CardsRootResources[CardsLODIt]);
+					Resource.CardsRootResources[CardsLODIt] = new FHairStrandsRestRootResource(BulkData.CardsRootBulkDatas[CardsLODIt], EHairStrandsResourcesType::Cards, FHairResourceName(GetFName(), GroupIndex, CardsLODIt), GetAssetPathName(CardsLODIt));
+					Resource.CardsRootResources[CardsLODIt]->BeginInitResource();
 				}
 			}
 		}
@@ -205,19 +220,19 @@ void UGroomBindingAsset::UpdateResource()
 	{
 		if (Resource.SimRootResources)
 		{
-			BeginUpdateResourceRHI(Resource.SimRootResources);
+			Resource.SimRootResources->BeginUpdateResourceRHI();
 		}
 
 		if (Resource.RenRootResources)
 		{
-			BeginUpdateResourceRHI(Resource.RenRootResources);
+			Resource.RenRootResources->BeginUpdateResourceRHI();
 		}
 
 		for (FHairStrandsRestRootResource* CardsRootResource : Resource.CardsRootResources)
 		{
 			if (CardsRootResource)
 			{
-				BeginUpdateResourceRHI(CardsRootResource);
+				CardsRootResource->BeginUpdateResourceRHI();
 			}
 		}
 	}
@@ -296,12 +311,12 @@ void UGroomBindingAsset::Reset()
 	ReleaseResource();
 	for (UGroomBindingAsset::FHairGroupPlatformData& Data : GetHairGroupsPlatformData())
 	{
-		Data.SimRootBulkData.Reset();
-		Data.RenRootBulkData.Reset();
+		Data.SimRootBulkDatas.Empty();
+		Data.RenRootBulkDatas.Empty();
 
-		for (FHairStrandsRootBulkData& CardsRootBulkData : Data.CardsRootBulkData)
+		for (TArray<FHairStrandsRootBulkData>& CardsRootBulkData : Data.CardsRootBulkDatas)
 		{
-			CardsRootBulkData.Reset();
+			CardsRootBulkData.Empty();
 		}
 	}
 
@@ -735,11 +750,11 @@ void UpdateGroomBindingAssetInfos(UGroomBindingAsset* In)
 		{
 			FGoomBindingGroupInfo& Info = In->GetGroupInfos()[GroupIt];
 			const UGroomBindingAsset::FHairGroupPlatformData& BulkData = In->GetHairGroupsPlatformData()[GroupIt];
-			Info.SimRootCount = BulkData.SimRootBulkData.GetRootCount();
-			Info.SimLODCount  = BulkData.SimRootBulkData.GetLODCount();
+			Info.SimRootCount = BulkData.SimRootBulkDatas.Num() > 0 ? BulkData.SimRootBulkDatas[0].GetRootCount() : 0u;
+			Info.SimLODCount  = BulkData.SimRootBulkDatas.Num();
 
-			Info.RenRootCount = BulkData.RenRootBulkData.GetRootCount();
-			Info.RenLODCount  = BulkData.RenRootBulkData.GetLODCount();
+			Info.RenRootCount = BulkData.RenRootBulkDatas.Num() > 0 ? BulkData.RenRootBulkDatas[0].GetRootCount() : 0u;
+			Info.RenLODCount  = BulkData.RenRootBulkDatas.Num();
 		}
 	}
 }
@@ -916,7 +931,10 @@ static void CacheDerivedDatas(UGroomBindingAsset* In, const uint32 InGroupIndex,
 		// Populate key/name for streaming data request
 		auto FillDrivedDataKey = [&DerivedDataKey, &Name](UGroomBindingAsset::FHairGroupPlatformData& In)
 		{
-			In.RenRootBulkData.DerivedDataKey = DerivedDataKey + FString(TEXT("_Data"));
+			for (uint32 MeshLODIndex = 0, MeshLODCount=In.RenRootBulkDatas.Num(); MeshLODIndex < MeshLODCount; ++MeshLODIndex)
+			{
+				In.RenRootBulkDatas[MeshLODIndex].DerivedDataKey = DerivedDataKey + FString::Printf(TEXT("_RenRootData_MeshLOD%d"), MeshLODIndex);
+			}
 		};
 
 		bool bHasDataInCache = false;
@@ -933,9 +951,9 @@ static void CacheDerivedDatas(UGroomBindingAsset* In, const uint32 InGroupIndex,
 
 			// Verify that all strands data are correctly cached into the DDC
 			{
-				for (int32 LODIndex = 0, LODCount = OutPlatformData.RenRootBulkData.GetLODCount(); LODIndex < LODCount; ++LODIndex)
+				for (int32 MeshLODIndex = 0, MeshLODCount = OutPlatformData.RenRootBulkDatas.Num(); MeshLODIndex < MeshLODCount; ++MeshLODIndex)
 				{
-					FHairStreamingRequest R; bHasDataInCache &= R.WarmCache(HAIR_MAX_NUM_CURVE_PER_GROUP, HAIR_MAX_NUM_POINT_PER_GROUP, LODIndex, OutPlatformData.RenRootBulkData);
+					FHairStreamingRequest R; bHasDataInCache &= R.WarmCache(HAIR_MAX_NUM_CURVE_PER_GROUP, HAIR_MAX_NUM_POINT_PER_GROUP, OutPlatformData.RenRootBulkDatas[MeshLODIndex]);
 				}
 			}
 
@@ -975,10 +993,10 @@ static void CacheDerivedDatas(UGroomBindingAsset* In, const uint32 InGroupIndex,
 				}
 	
 				// Data
-				for (uint32 LODIt=0, LODCount = OutPlatformData.RenRootBulkData.GetLODCount(); LODIt<LODCount;++LODIt)
+				for (uint32 MeshLODIndex=0, MeshLODCount = OutPlatformData.RenRootBulkDatas.Num(); MeshLODIndex<MeshLODCount;++MeshLODIndex)
 				{
 					TArray<FCachePutValueRequest> Out;
-					OutPlatformData.RenRootBulkData.Write_DDC(In, Out, LODIt);
+					OutPlatformData.RenRootBulkDatas[MeshLODIndex].Write_DDC(In, Out);
 
 					FRequestOwner AsyncOwner(EPriority::Normal);
 					GetCache().PutValue(Out, AsyncOwner);
@@ -1053,10 +1071,10 @@ void UGroomBindingAsset::BeginCacheForCookedPlatformData(const ITargetPlatform* 
 		// from the 'start' (i.e., without offset)
 		for (uint32 GroupIndex = 0; GroupIndex < GroupCount; ++GroupIndex)
 		{
-			FHairStrandsRootBulkData& RenRootBulkData = TargetPlatformData->GroupPlatformDatas[GroupIndex].RenRootBulkData;
-			for (int32 LODIndex = 0, LODCount = RenRootBulkData.GetLODCount(); LODIndex < LODCount; ++LODIndex)
+			TArray<FHairStrandsRootBulkData>& RenRootBulkDatas = TargetPlatformData->GroupPlatformDatas[GroupIndex].RenRootBulkDatas;
+			for (int32 MeshLODIndex = 0, MeshLODCount = RenRootBulkDatas.Num(); MeshLODIndex < MeshLODCount; ++MeshLODIndex)
 			{
-				FHairStreamingRequest R; R.Request(HAIR_MAX_NUM_CURVE_PER_GROUP, HAIR_MAX_NUM_POINT_PER_GROUP, LODIndex, RenRootBulkData, true /*bWait*/, true /*bFillBulkdata*/, true /*bWarmCache*/, GetFName());
+				FHairStreamingRequest R; R.Request(HAIR_MAX_NUM_CURVE_PER_GROUP, HAIR_MAX_NUM_POINT_PER_GROUP, RenRootBulkDatas[MeshLODIndex], true /*bWait*/, true /*bFillBulkdata*/, true /*bWarmCache*/, GetFName());
 			}
 		}
 
