@@ -1421,8 +1421,8 @@ namespace PerfReportTool
 				htmlFile.WriteLine("      p {  font-family: 'Verdana', Times, serif; font-size: 12px }");
 				htmlFile.WriteLine("      ul {  font-family: 'Verdana', Times, serif; font-size: 14px }");
 				htmlFile.WriteLine("      h1 {  font-family: 'Verdana', Times, serif; font-size: 20px; padding-top:10px }");
-				htmlFile.WriteLine("      h2 {  font-family: 'Verdana', Times, serif; font-size: 18px; padding-top:5px; padding-bottom:0px; margin-block-end: 0.4em }");
-				htmlFile.WriteLine("      h3 {  font-family: 'Verdana', Times, serif; font-size: 16px; padding-top:5px }");
+				htmlFile.WriteLine("      h2 {  font-family: 'Verdana', Times, serif; font-size: 18px; padding-top:5px; padding-bottom:0px; margin-block-start: 0.4em; margin-block-end: 0.4em }");
+				htmlFile.WriteLine("      h3 {  font-family: 'Verdana', Times, serif; font-size: 16px; padding-top:5px; margin-block-start: 0.3em; margin-block-end: 0.3em }");
 				htmlFile.WriteLine("      hr {  margin-top:15px }");
 				htmlFile.WriteLine("      a {  font-family: 'Verdana', Times, serif; font-size: 12px }");
 
@@ -1557,7 +1557,7 @@ namespace PerfReportTool
 					ReportGraph graph = csvSvgInfo.Graph;
 
 					string svgTitle = graph.title;
-					HtmlSection htmlSection = new HtmlSection(svgTitle, false, StripSpaces(svgTitle));
+					HtmlSection htmlSection = new HtmlSection(svgTitle, false, StripSpaces(svgTitle), 3);
 
 					if (csvSvgInfo.Format == CsvSvgInfo.GraphFormat.Inline)
 					{

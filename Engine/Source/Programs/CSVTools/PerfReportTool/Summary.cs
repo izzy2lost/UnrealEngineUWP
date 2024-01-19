@@ -248,11 +248,12 @@ namespace PerfSummaries
 
 	class HtmlSection
 	{
-		public HtmlSection(string titleIn, bool bStartCollapsedIn, string elementIdIn = null)
+		public HtmlSection(string titleIn, bool bStartCollapsedIn, string elementIdIn = null, int headingLevel=2)
 		{
 			title = titleIn;
 			bStartCollapsed = bStartCollapsedIn;
-			elementId = elementIdIn; 
+			elementId = elementIdIn;
+			headingType = "h" + headingLevel.ToString();
 		}
 
 		public void WriteLine(string text) 
@@ -304,7 +305,7 @@ namespace PerfSummaries
 					htmlFile.WriteLine("<a name='" + elementId + "'></a>");
 					extraHeadingAttributes = "id='" + elementId + "'";
 				}
-				htmlFile.WriteLine("<h2 class='" + headingClass + "' "+ extraHeadingAttributes + ">" + title + "</h2>");
+				htmlFile.WriteLine("<"+ headingType + " class='" + headingClass + "' "+ extraHeadingAttributes + ">" + title + "</"+ headingType + ">");
 				htmlFile.WriteLine("<div class='" + divClass + "'>");
 				htmlFile.WriteLine("<div class='collapsibleSectionInner'>");
 			}
@@ -314,6 +315,7 @@ namespace PerfSummaries
 		{
 			if (htmlFile != null)
 			{
+				htmlFile.WriteLine("<br>");
 				htmlFile.WriteLine("</div>");
 				htmlFile.WriteLine("</div>");
 			}
@@ -325,6 +327,7 @@ namespace PerfSummaries
 		List<string> lines = new List<string>();
 		bool bStartCollapsed;
 		string elementId;
+		string headingType;
 	};
 
 
