@@ -32,6 +32,7 @@ public class HarmonixDspEditor : ModuleRules
 				"Json",
 				"AssetDefinition",
 				"PropertyEditor",
+				"DetailCustomizations",
 				"Slate",
 				"SlateCore",
 				"Settings",
