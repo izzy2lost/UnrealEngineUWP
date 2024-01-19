@@ -1,5 +1,8 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
+#define SPLIT_WORK_QUEUE 1 							// TODO: Remove once shader rewriter has been fixed (UE-202409)
+#define OCCLUDED_PATCHES_QUEUE (CULLING_PASS == 1)	// TODO: Remove once shader rewriter has been fixed (UE-202409)
+
 #include "../Common.ush"
 #include "../SceneData.ush"
 #include "NaniteAttributeDecode.ush"

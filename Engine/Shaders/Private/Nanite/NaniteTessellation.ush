@@ -304,6 +304,7 @@ FSplitPatch WaveReadLaneAt(FSplitPatch In, uint SrcIndex)
 #define THREADGROUP_SIZE	32
 #include "../WorkDistribution.ush"
 
+#if SPLIT_WORK_QUEUE	// TODO: Remove once shader rewriter has been fixed (UE-202409)
 #ifdef COHERENT_QUEUE
 RWCoherentByteAddressBuffer						SplitWorkQueue_DataBuffer;
 RWCoherentStructuredBuffer( FWorkQueueState )	SplitWorkQueue_StateBuffer;
@@ -317,12 +318,15 @@ uint									SplitWorkQueue_Size;
 
 static const FOutputQueue SplitWorkQueue = { SplitWorkQueue_DataBuffer, SplitWorkQueue_StateBuffer, 0, SplitWorkQueue_Size };
 #endif
+#endif
 
 RWByteAddressBuffer						OccludedPatches_DataBuffer;
 RWStructuredBuffer< FWorkQueueState >	OccludedPatches_StateBuffer;
 uint									OccludedPatches_Size;
 
+#if OCCLUDED_PATCHES_QUEUE	// TODO: Remove once shader rewriter has been fixed (UE-202409)
 static const FOutputQueue OccludedPatches = { OccludedPatches_DataBuffer, OccludedPatches_StateBuffer, 0, OccludedPatches_Size };
+#endif
 
 ByteAddressBuffer	VisiblePatches;
 Buffer< uint >		VisiblePatchesArgs;

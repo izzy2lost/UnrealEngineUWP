@@ -5,6 +5,8 @@
 #include "../WaveOpUtil.ush"
 #include "../ComputeShaderUtils.ush"
 
+#define SPLIT_WORK_QUEUE (PATCHES) // TODO: Remove once shader rewriter has been fixed (UE-202409)
+
 #ifndef NANITE_TESSELLATION
 #define NANITE_TESSELLATION PATCHES
 #endif

@@ -3,6 +3,8 @@
 // This must be defined before including Common.ush (see GetShadowReplaceState)
 #define SHADOW_DEPTH_SHADER DEPTH_ONLY
 
+#define SPLIT_WORK_QUEUE NANITE_TESSELLATION	// TODO: Remove once shader rewriter has been fixed (UE-202409)
+
 #include "NaniteRasterizationCommon.ush"
 #include "../VirtualShadowMaps/VirtualShadowMapPageAccessCommon.ush"
 #include "../VirtualShadowMaps/VirtualShadowMapPageOverlap.ush"
