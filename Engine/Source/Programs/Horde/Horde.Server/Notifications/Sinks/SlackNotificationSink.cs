@@ -1600,20 +1600,25 @@ namespace Horde.Server.Notifications.Sinks
 			IUser? user = await _userCollection.GetUserAsync(userId);
 			if (user == null)
 			{
-				if (userId == IIssue.ResolvedByUnknownId)
-				{
-					return "Horde (Unknown)";
-				}
-				else if (userId == IIssue.ResolvedByTimeoutId)
-				{
-					return "Horde (Timeout)";
-				}
-				else
-				{
-					return $"User {userId}";
-				}
+				return GetDefaultUserName(userId);
 			}
 			return user.Name;
+		}
+
+		static string GetDefaultUserName(UserId userId)
+		{
+			if (userId == IIssue.ResolvedByUnknownId)
+			{
+				return "Horde (Unknown)";
+			}
+			else if (userId == IIssue.ResolvedByTimeoutId)
+			{
+				return "Horde (Timeout)";
+			}
+			else
+			{
+				return $"User {userId}";
+			}
 		}
 
 		string FormatChange(int change)
@@ -1660,7 +1665,7 @@ namespace Horde.Server.Notifications.Sinks
 			IUser? user = await _userCollection.GetUserAsync(userId);
 			if (user == null)
 			{
-				return $"User {userId}";
+				return GetDefaultUserName(userId);
 			}
 
 			string? slackUserId = await GetSlackUserIdAsync(user);
@@ -2655,6 +2660,11 @@ namespace Horde.Server.Notifications.Sinks
 
 			List<IIssueSpan> spans = await _issueService.Collection.FindSpansAsync(issueId);
 			if (spans.Count == 0)
+			{
+				return null;
+			}
+
+			if (issue.ResolvedById != null)
 			{
 				return null;
 			}
