@@ -759,6 +759,7 @@ void PatchRasterize( uint GroupID, uint GroupThreadIndex )
 		}
 	#endif
 
+		const float4 UVDensities = GetMaterialUVDensities( Cluster, InstanceData.PrimitiveId, SplitPatch.TriIndex );
 		for( uint VertIndex = GroupThreadIndex; VertIndex < NumVerts; VertIndex += ThreadGroupSize )
 		{
 			FBarycentrics Barycentrics;
@@ -768,7 +769,7 @@ void PatchRasterize( uint GroupID, uint GroupThreadIndex )
 	
 			Barycentrics = SplitPatch.TransformBarycentrics( Barycentrics );
 
-			GroupVerts[ VertIndex ] = CalculateSubpixelCoordinates( Raster, MaterialShader.EvaluateDomain( SplitPatch.TriIndex, Barycentrics ) ).xyz;
+			GroupVerts[ VertIndex ] = CalculateSubpixelCoordinates( Raster, MaterialShader.EvaluateDomain( UVDensities, Barycentrics ) ).xyz;
 		}
 	
 		GroupMemoryBarrierWithGroupSync();

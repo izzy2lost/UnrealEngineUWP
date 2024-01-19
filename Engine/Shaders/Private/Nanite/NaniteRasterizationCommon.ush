@@ -381,7 +381,7 @@ struct FMaterialShader
 	}
 
 #if NANITE_TESSELLATION && (NANITE_VERTEX_PROGRAMMABLE || NANITE_PIXEL_PROGRAMMABLE)
-	float4 EvaluateDomain( uint TriIndex, FBarycentrics Barycentrics )
+	float4 EvaluateDomain( float4 UVDensities, FBarycentrics Barycentrics )
 	{
 		float3 PointPostDeform = Lerp( 
 			TransformedTri.Verts[0].PointPostDeform,
@@ -408,7 +408,6 @@ struct FMaterialShader
 
 		// Now we want to override UV derivatives to be based on uniform UV density so that there are no cracks
 	#if NUM_TEX_COORD_INTERPOLATORS > 0
-		const float4 UVDensities = GetMaterialUVDensities( Cluster, InstanceData.PrimitiveId, TriIndex );
 		for (uint TexCoordIndex = 0; TexCoordIndex < NUM_TEX_COORD_INTERPOLATORS; ++TexCoordIndex)
 		{
 			float2 Deriv = CalculateUVDerivativeForDomainPoint(
@@ -468,6 +467,12 @@ struct FMaterialShader
 	#endif
 
 		return PointClip;
+	}
+
+	float4 EvaluateDomain( uint TriIndex, FBarycentrics Barycentrics )
+	{
+		const float4 UVDensities = GetMaterialUVDensities( Cluster, InstanceData.PrimitiveId, TriIndex );
+		return EvaluateDomain( UVDensities, Barycentrics );
 	}
 #endif
 
