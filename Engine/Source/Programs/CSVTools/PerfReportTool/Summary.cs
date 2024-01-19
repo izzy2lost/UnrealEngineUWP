@@ -248,11 +248,11 @@ namespace PerfSummaries
 
 	class HtmlSection
 	{
-		public HtmlSection(string titleIn, bool bStartCollapsedIn, string anchorNameIn = null)
+		public HtmlSection(string titleIn, bool bStartCollapsedIn, string elementIdIn = null)
 		{
 			title = titleIn;
 			bStartCollapsed = bStartCollapsedIn;
-			anchorName = anchorNameIn; 
+			elementId = elementIdIn; 
 		}
 
 		public void WriteLine(string text) 
@@ -298,12 +298,13 @@ namespace PerfSummaries
 					divClass += " expanded";
 				}
 
-				if (anchorName != null)
+				string extraHeadingAttributes = "";
+				if (elementId != null)
 				{
-					htmlFile.WriteLine("<a name='" + anchorName + "'></a>");
-				}				
-
-				htmlFile.WriteLine("<h2 class='" + headingClass + "'>" + title + "</h2>");
+					htmlFile.WriteLine("<a name='" + elementId + "'></a>");
+					extraHeadingAttributes = "id='" + elementId + "'";
+				}
+				htmlFile.WriteLine("<h2 class='" + headingClass + "' "+ extraHeadingAttributes + ">" + title + "</h2>");
 				htmlFile.WriteLine("<div class='" + divClass + "'>");
 				htmlFile.WriteLine("<div class='collapsibleSectionInner'>");
 			}
@@ -323,7 +324,7 @@ namespace PerfSummaries
 		StringBuilder pendingLine = new StringBuilder();
 		List<string> lines = new List<string>();
 		bool bStartCollapsed;
-		string anchorName;
+		string elementId;
 	};
 
 
