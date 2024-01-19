@@ -58,11 +58,16 @@ public:
 		return Dimensions;
 	}
 
-	void Resize(int DimX, int DimY, int DimZ, bool bAllowShrinking = true)
+	void Resize(int DimX, int DimY, int DimZ, EAllowShrinking AllowShrinking = EAllowShrinking::Yes)
 	{
 		check((int64)DimX * (int64)DimY * (int64)DimZ < INT_MAX);
-		Buffer.SetNumUninitialized(DimX * DimY * DimZ, bAllowShrinking);
+		Buffer.SetNumUninitialized(DimX * DimY * DimZ, AllowShrinking);
 		Dimensions = FVector3i(DimX, DimY, DimZ);
+	}
+	UE_ALLOWSHRINKING_BOOL_DEPRECATED("Resize")
+	FORCEINLINE void Resize(int DimX, int DimY, int DimZ, bool bAllowShrinking)
+	{
+		Resize(DimX, DimY, DimZ, bAllowShrinking ? EAllowShrinking::Yes : EAllowShrinking::No);
 	}
 
 	void Assign(ElemType Value)

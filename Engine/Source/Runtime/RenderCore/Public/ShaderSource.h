@@ -23,9 +23,9 @@
 class FShaderSource
 {
 private:
-	inline void SetLen(int32 Num, bool bShrink = true)
+	inline void SetLen(int32 Num, EAllowShrinking AllowShrinking = EAllowShrinking::Yes)
 	{
-		Source.SetNumUninitialized(Num + ShaderSourceSimdPadding, bShrink);
+		Source.SetNumUninitialized(Num + ShaderSourceSimdPadding, AllowShrinking);
 		FMemory::Memzero(Source.GetData() + Num, sizeof(CharType) * ShaderSourceSimdPadding);
 	}
 
@@ -83,12 +83,17 @@ public:
 
 	/* Reduces the set size of the stored string length, optionally shrinking the allocation.
 	 * @param Num the desired allocation size (padding bytes will be added on top of this)
-	 * @param bRealloc whether to reallocate or keep the existing larger size allocation
+	 * @param AllowShrinking whether to reallocate or keep the existing larger size allocation
 	 */
-	inline void ShrinkToLen(int32 Num, bool bShrink = true)
+	inline void ShrinkToLen(int32 Num, EAllowShrinking AllowShrinking = EAllowShrinking::Yes)
 	{
 		checkf(Num <= Len(), TEXT("Trying to shrink to %d characters but existing allocation is smaller (%d characters)"), Num, Len());
-		SetLen(Num, bShrink);
+		SetLen(Num, AllowShrinking);
+	}
+	UE_ALLOWSHRINKING_BOOL_DEPRECATED("ShrinkToLen")
+	FORCEINLINE void ShrinkToLen(int32 Num, bool bShrink)
+	{
+		ShrinkToLen(Num, bShrink ? EAllowShrinking::Yes : EAllowShrinking::No);
 	}
 
 	/* String view accessor.

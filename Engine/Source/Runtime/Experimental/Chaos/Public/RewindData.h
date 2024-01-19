@@ -1242,12 +1242,12 @@ public:
 		return nullptr;
 	}
 
-	void Remove(const TKey Key, const bool bAllowShrinking)
+	void Remove(const TKey Key, const EAllowShrinking AllowShrinking)
 	{
 		if (const int32* Idx = KeyToIdx.Find(Key))
 		{
 			constexpr int32 Count = 1;
-			DenseVals.RemoveAtSwap(*Idx, Count, bAllowShrinking);
+			DenseVals.RemoveAtSwap(*Idx, Count, AllowShrinking);
 
 			if(*Idx < DenseVals.Num())
 			{
@@ -1257,6 +1257,11 @@ public:
 
 			KeyToIdx.Remove(Key);
 		}
+	}
+	UE_ALLOWSHRINKING_BOOL_DEPRECATED("Remove")
+	FORCEINLINE void Remove(const TKey Key, const bool bAllowShrinking)
+	{
+		Remove(Key, bAllowShrinking ? EAllowShrinking::Yes : EAllowShrinking::No);
 	}
 
 	void Shrink()
@@ -1325,14 +1330,24 @@ public:
 		return Managers[Frame].DeltaTime;
 	}
 
-	void RemoveObject(const FGeometryParticleHandle* Particle, const bool bAllowShrinking=true)
+	void RemoveObject(const FGeometryParticleHandle* Particle, const EAllowShrinking AllowShrinking=EAllowShrinking::Yes)
 	{
-		DirtyParticles.Remove(Particle, bAllowShrinking);
+		DirtyParticles.Remove(Particle, AllowShrinking);
+	}
+	UE_ALLOWSHRINKING_BOOL_DEPRECATED("RemoveObject")
+	FORCEINLINE void RemoveObject(const FGeometryParticleHandle* Particle, const bool bAllowShrinking)
+	{
+		RemoveObject(Particle, bAllowShrinking ? EAllowShrinking::Yes : EAllowShrinking::No);
 	}
 
-	void RemoveObject(const FPBDJointConstraintHandle* Joint, const bool bAllowShrinking = true)
+	void RemoveObject(const FPBDJointConstraintHandle* Joint, const EAllowShrinking AllowShrinking = EAllowShrinking::Yes)
 	{
-		DirtyJoints.Remove(Joint, bAllowShrinking);
+		DirtyJoints.Remove(Joint, AllowShrinking);
+	}
+	UE_ALLOWSHRINKING_BOOL_DEPRECATED("RemoveObject")
+	FORCEINLINE void RemoveObject(const FPBDJointConstraintHandle* Joint, const bool bAllowShrinking)
+	{
+		RemoveObject(Joint, bAllowShrinking ? EAllowShrinking::Yes : EAllowShrinking::No);
 	}
 
 	int32 GetEarliestFrame_Internal() const { return CurFrame - FramesSaved; }
