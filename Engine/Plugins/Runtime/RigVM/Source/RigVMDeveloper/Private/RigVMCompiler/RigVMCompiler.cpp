@@ -497,16 +497,18 @@ bool URigVMCompiler::Compile(const FRigVMCompileSettings& InSettings, TArray<URi
 						{
 							for (const TPair<FRigVMGraphFunctionIdentifier, uint32>& Pair : FunctionData->Header.Dependencies)
 							{
+								bool bDirty = true;
 								if (IRigVMGraphFunctionHost* HostObj = Cast<IRigVMGraphFunctionHost>(Pair.Key.HostObject.ResolveObject()))
 								{
 									if (FRigVMGraphFunctionData* DependencyData = HostObj->GetRigVMGraphFunctionStore()->FindFunction(Pair.Key))
 									{
-										if (DependencyData->CompilationData.Hash == 0 || Pair.Value != DependencyData->CompilationData.Hash)
-										{
-											FunctionData->ClearCompilationData();
-											break;
-										}
+										bDirty = DependencyData->CompilationData.Hash != Pair.Value || Pair.Value == 0;
 									}
+								}
+								if (bDirty)
+								{
+									FunctionData->ClearCompilationData();
+									break;
 								}
 							}
 						}

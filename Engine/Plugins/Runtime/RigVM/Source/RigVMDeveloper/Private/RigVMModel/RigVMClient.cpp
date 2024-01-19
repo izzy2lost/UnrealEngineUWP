@@ -1153,6 +1153,7 @@ void FRigVMClient::HandleGraphModifiedEvent(ERigVMGraphNotifType InNotifType, UR
 								}
 							}
 
+							UpdateFunctionReferences(Data->Header, true, false);
 							UpdateGraphFunctionData(CollapseNode);
 						}
 					}
