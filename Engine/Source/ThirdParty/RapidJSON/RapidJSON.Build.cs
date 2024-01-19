@@ -9,7 +9,6 @@ public class RapidJSON : ModuleRules
 	{
 		Type = ModuleType.External;
 
-		string LibRapidJSONPath = Target.UEThirdPartySourceDirectory + "RapidJSON/1.1.0/";
-		PublicSystemIncludePaths.Add(Path.Combine(LibRapidJSONPath, "include"));
+		PublicSystemIncludePaths.Add(Path.Combine(Target.UEThirdPartySourceDirectory, "RapidJSON", "1.1.0"));
 	}
 }
