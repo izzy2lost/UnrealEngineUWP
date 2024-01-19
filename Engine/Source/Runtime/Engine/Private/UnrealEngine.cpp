@@ -13793,7 +13793,7 @@ namespace UE::Private
 
 #if WITH_EDITOR
 			// In PIE let's make sure the clients follow what the server's game net driver is using
-			if (Context.WorldType == EWorldType::PIE && !Context.RunAsDedicated && InNetDriverName == NAME_GameNetDriver)
+			if (Context.WorldType == EWorldType::PIE && !Context.RunAsDedicated && InNetDriverDefinition == NAME_GameNetDriver)
 			{
 				if (FWorldContext* ServerPIEContext = GEngine->GetWorldContextFromPIEInstance(0))
 				{
