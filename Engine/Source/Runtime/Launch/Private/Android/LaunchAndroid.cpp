@@ -47,7 +47,7 @@
 
 #if USE_ANDROID_STANDALONE
 #include "HAL/FileManager.h"
-#include "HAL/PlatformFilemanager.h"
+#include "HAL/PlatformFileManager.h"
 #include "IPlatformFilePak.h"
 #endif
 
