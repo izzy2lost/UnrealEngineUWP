@@ -70,6 +70,12 @@ namespace UE::MultiUserClient
 		 */
 		virtual TSharedRef<IClientChangeOperation> EnqueueChanges(const FGuid& ClientId, TAttribute<FChangeClientReplicationRequest> SubmissionParams) = 0;
 
+		DECLARE_MULTICAST_DELEGATE_OneParam(FOnServerStateChanged, const FGuid& /*EndpointId*/);
+		/** @return Delegate that triggers when the given client's known server state has changed. */
+		virtual FOnServerStateChanged& OnStreamServerStateChanged() = 0;
+		/** @return Delegate that triggers when the given client's known server state has changed. */
+		virtual FOnServerStateChanged& OnAuthorityServerStateChanged() = 0;
+
 		virtual ~IMultiUserReplication() = default;
 	};
 }

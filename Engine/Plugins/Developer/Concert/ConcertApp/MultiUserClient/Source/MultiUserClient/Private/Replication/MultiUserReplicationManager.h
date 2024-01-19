@@ -27,6 +27,8 @@ namespace UE::ConcertSharedSlate
 
 namespace UE::MultiUserClient
 {
+	class FReplicationClient;
+	
 	enum class EMultiUserReplicationConnectionState : uint8
 	{
 		Connecting,
@@ -75,6 +77,8 @@ namespace UE::MultiUserClient
 		virtual void RegisterReplicationDiscoverer(TSharedRef<IReplicationDiscoverer> Discoverer) override;
 		virtual void RemoveReplicationDiscoverer(const TSharedRef<IReplicationDiscoverer>& Discoverer) override;
 		virtual TSharedRef<IClientChangeOperation> EnqueueChanges(const FGuid& ClientId, TAttribute<FChangeClientReplicationRequest> SubmissionParams) override;
+		virtual FOnServerStateChanged& OnStreamServerStateChanged() override { return OnStreamServerStateChangedDelegate; }
+		virtual FOnServerStateChanged& OnAuthorityServerStateChanged() override { return OnAuthorityServerStateChangedDelegate; }
 		//~ End IMultiUserReplication Interface
 
 	private:
@@ -108,6 +112,11 @@ namespace UE::MultiUserClient
 
 		/** Called when ConnectionState changes. */
 		FOnReplicationConnectionStateChanged OnReplicationConnectionStateChangedDelegate;
+		
+		/** Triggers when a client's known server state has changed. */
+		FOnServerStateChanged OnStreamServerStateChangedDelegate;
+		/** Triggers when a client's known server state has changed. */
+		FOnServerStateChanged OnAuthorityServerStateChangedDelegate;
 
 		/** Callback into Concert for when client connection has changed. */
 		void OnSessionConnectionChanged(IConcertClientSession& ConcertClientSession, EConcertConnectionStatus ConcertConnectionStatus);
@@ -116,8 +125,15 @@ namespace UE::MultiUserClient
 
 		/** Handles server response for joining replication session */
 		void HandleReplicationSessionJoined(const ConcertSyncClient::Replication::FJoinReplicatedSessionResult& JoinSessionResult);
-		
+		/** Sets the current connection state and triggers OnReplicationConnectionStateChangedDelegate. */
 		void SetConnectionStateAndBroadcast(EMultiUserReplicationConnectionState NewState);
+
+		/** Sets up delegates for implementing the broadcasting of OnStreamServerStateChangedDelegate and OnAuthorityServerStateChangedDelegate. */
+		void SetupClientConnectionEvents();
+		void OnClientStreamServerStateChanged(const FGuid EndpointId) const;
+		void OnClientAuthorityServerStateChanged(const FGuid EndpointId) const;
+		void OnReplicationClientConnected(FRemoteReplicationClient& RemoteClient) const { SetupClientDelegates(RemoteClient); }
+		void SetupClientDelegates(FReplicationClient& InClient) const;
 	};
 }
 

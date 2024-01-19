@@ -134,6 +134,9 @@ void UMultiUserReplicationSubsystem::Initialize(FSubsystemCollectionBase& Collec
 	{
 		UObjectAdapter = MakeShared<UE::MultiUserClientLibrary::FUObjectAdapterReplicationDiscoverer>();
 		ReplicationInterface->RegisterReplicationDiscoverer(UObjectAdapter.ToSharedRef());
+
+		ReplicationInterface->OnStreamServerStateChanged().AddUObject(this, &UMultiUserReplicationSubsystem::OnClientStreamsChanged);
+		ReplicationInterface->OnAuthorityServerStateChanged().AddUObject(this, &UMultiUserReplicationSubsystem::OnClientStreamsChanged);
 	}
 #endif
 }
@@ -150,6 +153,9 @@ void UMultiUserReplicationSubsystem::Deinitialize()
 		{
 			ReplicationInterface->RemoveReplicationDiscoverer(UObjectAdapter.ToSharedRef());
 			UObjectAdapter.Reset();
+			
+			ReplicationInterface->OnStreamServerStateChanged().RemoveAll(this);
+			ReplicationInterface->OnAuthorityServerStateChanged().RemoveAll(this);
 		}
 	}
 #endif

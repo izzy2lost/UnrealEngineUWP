@@ -86,6 +86,7 @@ namespace UE::MultiUserClient
 		if (bSuccess)
 		{
 			ConnectedState.Emplace(Client, DiscoveryContainer);
+			SetupClientConnectionEvents();
 			SetConnectionStateAndBroadcast(EMultiUserReplicationConnectionState::Connected);
 		}
 		else
@@ -98,6 +99,29 @@ namespace UE::MultiUserClient
 	{
 		ConnectionState = NewState;
 		OnReplicationConnectionStateChangedDelegate.Broadcast(ConnectionState);
+	}
+
+	void FMultiUserReplicationManager::SetupClientConnectionEvents()
+	{
+		FReplicationClientManager& ClientManager = ConnectedState->ClientManager;
+		SetupClientDelegates(ClientManager.GetLocalClient());
+		ClientManager.OnPostRemoteClientAdded().AddRaw(this, &FMultiUserReplicationManager::OnReplicationClientConnected);
+	}
+
+	void FMultiUserReplicationManager::OnClientStreamServerStateChanged(const FGuid EndpointId) const
+	{
+		OnStreamServerStateChangedDelegate.Broadcast(EndpointId);
+	}
+
+	void FMultiUserReplicationManager::OnClientAuthorityServerStateChanged(const FGuid EndpointId) const
+	{
+		OnAuthorityServerStateChangedDelegate.Broadcast(EndpointId);
+	}
+
+	void FMultiUserReplicationManager::SetupClientDelegates(FReplicationClient& InClient) const
+	{
+		InClient.GetStreamSynchronizer().OnServerStateChanged().AddRaw(this, &FMultiUserReplicationManager::OnClientStreamServerStateChanged, InClient.GetEndpointId());
+		InClient.GetStreamSynchronizer().OnServerStateChanged().AddRaw(this, &FMultiUserReplicationManager::OnClientStreamServerStateChanged, InClient.GetEndpointId());
 	}
 
 	const FConcertObjectReplicationMap* FMultiUserReplicationManager::FindReplicationMapForClient(const FGuid& ClientId) const

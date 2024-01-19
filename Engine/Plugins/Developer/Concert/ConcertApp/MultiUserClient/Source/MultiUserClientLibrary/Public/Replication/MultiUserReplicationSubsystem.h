@@ -19,6 +19,8 @@ public:
 	
 	// This would be the right place to expose additional MU specific replication functions in the future
 	
+	DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FOnServerStateChanged, const FGuid&, EndpointId);
+	
 	/**
 	 * @return Whether the client is replicating the object.
 	 * @note An object can be registered but not replicated.
@@ -78,6 +80,18 @@ public:
 	//~ End USubsystem Interface
 
 private:
+	
+	/**
+	 * Event triggered when the following changes about a client:
+	 * - The registered object to properties bindings
+	 * - The registered replication frequency setting of an object
+	 */
+	UPROPERTY(BlueprintAssignable, Category = "Multi-user")
+	FOnServerStateChanged OnClientStreamServerStateChanged;
+	
+	/** Event triggered a client changes the objects it is replicating. */
+	UPROPERTY(BlueprintAssignable, Category = "Multi-user")
+	FOnServerStateChanged OnClientAuthorityServerStateChanged;
 
 	/**
 	 * This is used only for when the adds an object through the Add button in the UI.
@@ -88,4 +102,7 @@ private:
 	 * Registered when this subsystem is initialized.
 	 */
 	TSharedPtr<UE::MultiUserClientLibrary::FUObjectAdapterReplicationDiscoverer> UObjectAdapter;
+
+	void OnClientStreamsChanged(const FGuid& EndpointId) const { OnClientStreamServerStateChanged.Broadcast(EndpointId); }
+	void OnClientAuthorityChanged(const FGuid& EndpointId) const { OnClientAuthorityServerStateChanged.Broadcast(EndpointId); }
 };
