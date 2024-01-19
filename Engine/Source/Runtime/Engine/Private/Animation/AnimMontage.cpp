@@ -2563,6 +2563,11 @@ void FAnimMontageInstance::Advance(float DeltaTime, struct FRootMotionMovementPa
 						else
 						{
 							// If there is no next section and we've reached the end of this one, exit
+
+							// Stop playing to prevent playing animation data past the end of the current section
+							// We already called Stop above if needed, like if bEnableAutoBlendOut is true
+							bPlaying = false;
+
 							break;
 						}
 					}
