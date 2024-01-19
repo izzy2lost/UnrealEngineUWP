@@ -256,7 +256,7 @@ namespace Horde.Server.Notifications
 		}
 		
 		/// <inheritdoc/>
-		public void NotifyJobScheduled(IPool pool, bool poolHasAgentsOnline, IJob job, IGraph graph, JobStepBatchId batchId)
+		public void NotifyJobScheduled(IPoolConfig pool, bool poolHasAgentsOnline, IJob job, IGraph graph, JobStepBatchId batchId)
 		{
 			if (pool.EnableAutoscaling && !poolHasAgentsOnline)
 			{

@@ -30,7 +30,7 @@ namespace Horde.Server.Agents.Pools
 		/// <summary>
 		/// Cached set of pools, along with the timestamp that it was obtained
 		/// </summary>
-		Tuple<DateTime, Dictionary<PoolId, IPool>>? _cachedPoolLookup;
+		Tuple<DateTime, Dictionary<PoolId, IPoolConfig>>? _cachedPoolLookup;
 
 		/// <summary>
 		/// Constructor
@@ -49,9 +49,10 @@ namespace Horde.Server.Agents.Pools
 		/// <param name="name">Name of the new pool</param>
 		/// <param name="options">Options for the new pool</param>
 		/// <returns>The new pool document</returns>
-		public Task<IPool> CreatePoolAsync(string name, AddPoolOptions options)
+		[Obsolete]
+		public Task CreatePoolAsync(string name, CreatePoolConfigOptions options)
 		{
-			return _pools.AddAsync(new PoolId(StringId.Sanitize(name)), name, options);
+			return _pools.CreateConfigAsync(new PoolId(StringId.Sanitize(name)), name, options);
 		}
 
 		/// <summary>
@@ -59,37 +60,31 @@ namespace Horde.Server.Agents.Pools
 		/// </summary>
 		/// <param name="poolId">Unique id of the pool</param>
 		/// <returns>Async task object</returns>
+		[Obsolete]
 		public Task<bool> DeletePoolAsync(PoolId poolId)
 		{
-			return _pools.DeleteAsync(poolId);
+			return _pools.DeleteConfigAsync(poolId);
 		}
 
 		/// <summary>
 		/// Updates an existing pool
 		/// </summary>
-		/// <param name="pool">The pool to update</param>
+		/// <param name="poolId">The pool to update</param>
 		/// <param name="options">Options for the update</param>
 		/// <returns>Async task object</returns>
-		public async Task<IPool?> UpdatePoolAsync(IPool? pool, UpdatePoolOptions options)
+		[Obsolete]
+		public Task UpdateConfigAsync(PoolId poolId, UpdatePoolConfigOptions options)
 		{
-			for (; pool != null; pool = await _pools.GetAsync(pool.Id))
-			{
-				IPool? newPool = await _pools.TryUpdateAsync(pool, options);
-				if (newPool != null)
-				{
-					return newPool;
-				}
-			}
-			return pool;
+			return _pools.UpdateConfigAsync(poolId, options);
 		}
 
 		/// <summary>
 		/// Gets all the available pools
 		/// </summary>
 		/// <returns>List of pool documents</returns>
-		public Task<List<IPool>> GetPoolsAsync()
+		public Task<List<IPoolConfig>> GetPoolsAsync()
 		{
-			return _pools.GetAsync();
+			return _pools.GetConfigsAsync();
 		}
 
 		/// <summary>
@@ -108,10 +103,10 @@ namespace Horde.Server.Agents.Pools
 		/// <param name="poolId"></param>
 		/// <param name="validAtTime"></param>
 		/// <returns></returns>
-		public async Task<IPool?> GetPoolAsync(PoolId poolId, DateTime validAtTime)
+		public async Task<IPoolConfig?> GetPoolAsync(PoolId poolId, DateTime validAtTime)
 		{
-			Dictionary<PoolId, IPool> poolMapping = await GetPoolLookupAsync(validAtTime);
-			poolMapping.TryGetValue(poolId, out IPool? pool);
+			Dictionary<PoolId, IPoolConfig> poolMapping = await GetPoolLookupAsync(validAtTime);
+			poolMapping.TryGetValue(poolId, out IPoolConfig? pool);
 			return pool;
 		}
 
@@ -121,14 +116,14 @@ namespace Horde.Server.Agents.Pools
 		/// <param name="agent"></param>
 		/// <param name="validAtTime"></param>
 		/// <returns></returns>
-		public async Task<List<IPool>> GetPoolsAsync(IAgent agent, DateTime validAtTime)
+		public async Task<List<IPoolConfig>> GetPoolsAsync(IAgent agent, DateTime validAtTime)
 		{
-			Dictionary<PoolId, IPool> poolMapping = await GetPoolLookupAsync(validAtTime);
+			Dictionary<PoolId, IPoolConfig> poolMapping = await GetPoolLookupAsync(validAtTime);
 
-			List<IPool> pools = new List<IPool>();
+			List<IPoolConfig> pools = new List<IPoolConfig>();
 			foreach(PoolId poolId in agent.GetPools())
 			{
-				if(poolMapping.TryGetValue(poolId, out IPool? pool))
+				if(poolMapping.TryGetValue(poolId, out IPoolConfig? pool))
 				{
 					pools.Add(pool);
 				}
@@ -146,7 +141,7 @@ namespace Horde.Server.Agents.Pools
 		/// <returns>List of workspaces</returns>
 		public async Task<HashSet<AgentWorkspace>> GetWorkspacesAsync(IAgent agent, DateTime validAtTime, GlobalConfig globalConfig)
 		{
-			List<IPool> pools = await GetPoolsAsync(agent, validAtTime);
+			List<IPoolConfig> pools = await GetPoolsAsync(agent, validAtTime);
 
 			HashSet<AgentWorkspace> workspaces = new HashSet<AgentWorkspace>();
 			foreach (IPool pool in pools)
@@ -174,10 +169,10 @@ namespace Horde.Server.Agents.Pools
 			return workspaces;
 		}
 
-		static AutoSdkConfig? GetAutoSdkConfig(IEnumerable<IPool> pools)
+		static AutoSdkConfig? GetAutoSdkConfig(IEnumerable<IPoolConfig> pools)
 		{
 			AutoSdkConfig? autoSdkConfig = null;
-			foreach(IPool pool in pools)
+			foreach(IPoolConfig pool in pools)
 			{
 				autoSdkConfig = AutoSdkConfig.Merge(autoSdkConfig, pool.AutoSdkConfig);
 			}
@@ -192,7 +187,7 @@ namespace Horde.Server.Agents.Pools
 		/// <returns></returns>
 		public async Task<AgentWorkspace?> GetAutoSdkWorkspaceAsync(IAgent agent, PerforceCluster cluster)
 		{
-			List<IPool> pools = await GetPoolsAsync(agent, DateTime.UtcNow - TimeSpan.FromSeconds(10.0));
+			List<IPoolConfig> pools = await GetPoolsAsync(agent, DateTime.UtcNow - TimeSpan.FromSeconds(10.0));
 
 			AutoSdkConfig? autoSdkConfig = GetAutoSdkConfig(pools);
 			if (autoSdkConfig == null)
@@ -214,10 +209,10 @@ namespace Horde.Server.Agents.Pools
 		{
 			AutoSdkConfig? autoSdkConfig = null;
 
-			Dictionary<PoolId, IPool> poolMapping = await GetPoolLookupAsync(validAtTime);
+			Dictionary<PoolId, IPoolConfig> poolMapping = await GetPoolLookupAsync(validAtTime);
 			foreach (PoolId poolId in agent.GetPools())
 			{
-				IPool? pool;
+				IPoolConfig? pool;
 				if (poolMapping.TryGetValue(poolId, out pool))
 				{
 					autoSdkConfig = AutoSdkConfig.Merge(autoSdkConfig, pool.AutoSdkConfig);
@@ -239,20 +234,20 @@ namespace Horde.Server.Agents.Pools
 		/// </summary>
 		/// <param name="validAtTime">Absolute time at which we expect the results to be valid. Values may be cached as long as they are after this time.</param>
 		/// <returns>Map of pool ids to pool documents</returns>
-		private async Task<Dictionary<PoolId, IPool>> GetPoolLookupAsync(DateTime validAtTime)
+		private async Task<Dictionary<PoolId, IPoolConfig>> GetPoolLookupAsync(DateTime validAtTime)
 		{
-			Tuple<DateTime, Dictionary<PoolId, IPool>>? cachedPoolLookupCopy = _cachedPoolLookup;
+			Tuple<DateTime, Dictionary<PoolId, IPoolConfig>>? cachedPoolLookupCopy = _cachedPoolLookup;
 			if (cachedPoolLookupCopy == null || cachedPoolLookupCopy.Item1 < validAtTime)
 			{
 				// Get a new list of cached pools
 				DateTime newCacheTime = _clock.UtcNow;
-				List<IPool> newPools = await _pools.GetAsync();
-				Tuple<DateTime, Dictionary<PoolId, IPool>> newCachedPoolLookup = Tuple.Create(newCacheTime, newPools.ToDictionary(x => x.Id, x => x));
+				List<IPoolConfig> newPools = await _pools.GetConfigsAsync();
+				Tuple<DateTime, Dictionary<PoolId, IPoolConfig>> newCachedPoolLookup = Tuple.Create(newCacheTime, newPools.ToDictionary(x => x.Id, x => x));
 
 				// Try to swap it with the current version
 				while (cachedPoolLookupCopy == null || cachedPoolLookupCopy.Item1 < newCacheTime)
 				{
-					Tuple<DateTime, Dictionary<PoolId, IPool>>? originalValue = Interlocked.CompareExchange(ref _cachedPoolLookup, newCachedPoolLookup, cachedPoolLookupCopy);
+					Tuple<DateTime, Dictionary<PoolId, IPoolConfig>>? originalValue = Interlocked.CompareExchange(ref _cachedPoolLookup, newCachedPoolLookup, cachedPoolLookupCopy);
 					if (originalValue == cachedPoolLookupCopy)
 					{
 						cachedPoolLookupCopy = newCachedPoolLookup;

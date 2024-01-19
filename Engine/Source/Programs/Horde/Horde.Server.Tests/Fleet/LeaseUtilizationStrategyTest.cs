@@ -15,6 +15,8 @@ using HordeCommon.Rpc.Tasks;
 using Microsoft.VisualStudio.TestTools.UnitTesting;
 using EpicGames.Horde.Streams;
 using EpicGames.Horde.Agents.Leases;
+using EpicGames.Horde.Agents.Pools;
+using EpicGames.Horde;
 
 namespace Horde.Server.Tests.Fleet
 {
@@ -39,7 +41,7 @@ namespace Horde.Server.Tests.Fleet
 		[TestMethod]
 		public async Task UtilizationFullAsync()
 		{
-			IPool pool = await PoolService.CreatePoolAsync("AutoscalePool1", new AddPoolOptions { EnableAutoscaling = true, MinAgents = 0, NumReserveAgents = 0 });
+			IPool pool = await CreatePoolAsync("AutoscalePool1", new CreatePoolConfigOptions { EnableAutoscaling = true, MinAgents = 0, NumReserveAgents = 0 });
 			CreateAgents(pool);
 			
 			await AddPlaceholderLeaseAsync(_agent1, pool, Clock.UtcNow - TimeSpan.FromMinutes(120), TimeSpan.FromMinutes(120));
@@ -52,7 +54,7 @@ namespace Horde.Server.Tests.Fleet
 		[TestMethod]
 		public async Task UtilizationHalfAsync()
 		{
-			IPool pool = await PoolService.CreatePoolAsync("AutoscalePool1", new AddPoolOptions { EnableAutoscaling = true, MinAgents = 0, NumReserveAgents = 0 });
+			IPool pool = await CreatePoolAsync("AutoscalePool1", new CreatePoolConfigOptions { EnableAutoscaling = true, MinAgents = 0, NumReserveAgents = 0 });
 			CreateAgents(pool);
 			
 			await AddPlaceholderLeaseAsync(_agent1, pool, Clock.UtcNow - TimeSpan.FromMinutes(120), TimeSpan.FromMinutes(120));
@@ -63,7 +65,7 @@ namespace Horde.Server.Tests.Fleet
 		[TestMethod]
 		public async Task UtilizationZeroAsync()
 		{
-			IPool pool = await PoolService.CreatePoolAsync("AutoscalePool1", new AddPoolOptions { EnableAutoscaling = true, MinAgents = 0, NumReserveAgents = 0 });
+			IPool pool = await CreatePoolAsync("AutoscalePool1", new CreatePoolConfigOptions { EnableAutoscaling = true, MinAgents = 0, NumReserveAgents = 0 });
 			CreateAgents(pool);
 
 			await AssertPoolSizeAsync(pool, 0);
@@ -72,7 +74,7 @@ namespace Horde.Server.Tests.Fleet
 		[TestMethod]
 		public async Task ReserveAgentsAsync()
 		{
-			IPool pool = await PoolService.CreatePoolAsync("AutoscalePool1", new AddPoolOptions { EnableAutoscaling = true, MinAgents = 0, NumReserveAgents = 5 });
+			IPool pool = await CreatePoolAsync("AutoscalePool1", new CreatePoolConfigOptions { EnableAutoscaling = true, MinAgents = 0, NumReserveAgents = 5 });
 			CreateAgents(pool);
 			
 			await AddPlaceholderLeaseAsync(_agent1, pool, Clock.UtcNow - TimeSpan.FromMinutes(120), TimeSpan.FromMinutes(120));
@@ -87,7 +89,7 @@ namespace Horde.Server.Tests.Fleet
 		[TestMethod]
 		public async Task MinAgentsAsync()
 		{
-			IPool pool = await PoolService.CreatePoolAsync("AutoscalePool1", new AddPoolOptions { EnableAutoscaling = true, MinAgents = 2, NumReserveAgents = 0 });
+			IPool pool = await CreatePoolAsync("AutoscalePool1", new CreatePoolConfigOptions { EnableAutoscaling = true, MinAgents = 2, NumReserveAgents = 0 });
 			CreateAgents(pool);
 			
 			// Even with no utilization, expect at least the min number of agents

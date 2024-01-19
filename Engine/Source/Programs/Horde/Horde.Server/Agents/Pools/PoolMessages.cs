@@ -527,7 +527,7 @@ namespace Horde.Server.Agents.Pools
 		/// Constructor
 		/// </summary>
 		/// <param name="pool">The pool to construct from</param>
-		public GetPoolResponse(IPool pool)
+		public GetPoolResponse(IPoolConfig pool)
 		{
 			Id = pool.Id.ToString();
 			Name = pool.Name;

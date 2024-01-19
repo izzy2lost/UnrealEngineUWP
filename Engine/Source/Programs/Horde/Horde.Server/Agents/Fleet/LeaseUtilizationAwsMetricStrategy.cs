@@ -87,7 +87,7 @@ public class LeaseUtilizationAwsMetricStrategy : IPoolSizeStrategy
 	public string Name { get; } = "LeaseUtilizationAwsMetric";
 
 	/// <inheritdoc/>
-	public async Task<PoolSizeResult> CalculatePoolSizeAsync(IPool pool, List<IAgent> agents)
+	public async Task<PoolSizeResult> CalculatePoolSizeAsync(IPoolConfig pool, List<IAgent> agents)
 	{
 		using TelemetrySpan span = OpenTelemetryTracers.Horde.StartActiveSpan($"{nameof(LeaseUtilizationAwsMetricStrategy)}.{nameof(CalculatePoolSizeAsync)}");
 		span.SetAttribute(OpenTelemetryTracers.DatadogResourceAttribute, pool.Id.ToString());

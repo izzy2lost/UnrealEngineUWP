@@ -107,7 +107,7 @@ namespace Horde.Server.Agents.Fleet
 		/// <param name="pool">Pool to calculate size for</param>
 		/// <param name="agents">Available agents</param>
 		/// <returns>A result containing the desired agent count</returns>
-		Task<PoolSizeResult> CalculatePoolSizeAsync(IPool pool, List<IAgent> agents);
+		Task<PoolSizeResult> CalculatePoolSizeAsync(IPoolConfig pool, List<IAgent> agents);
 		
 		/// <summary>
 		/// Name of the strategy
@@ -122,7 +122,7 @@ namespace Horde.Server.Agents.Fleet
 	public class NoOpPoolSizeStrategy : IPoolSizeStrategy
 	{
 		/// <inheritdoc/>
-		public Task<PoolSizeResult> CalculatePoolSizeAsync(IPool pool, List<IAgent> agents)
+		public Task<PoolSizeResult> CalculatePoolSizeAsync(IPoolConfig pool, List<IAgent> agents)
 		{
 			return Task.FromResult(new PoolSizeResult(agents.Count, agents.Count));
 		}
@@ -152,7 +152,7 @@ namespace Horde.Server.Agents.Fleet
 		}
 
 		/// <inheritdoc/>
-		public async Task<PoolSizeResult> CalculatePoolSizeAsync(IPool pool, List<IAgent> agents)
+		public async Task<PoolSizeResult> CalculatePoolSizeAsync(IPoolConfig pool, List<IAgent> agents)
 		{
 			PoolSizeResult result = await _backingStrategy.CalculatePoolSizeAsync(pool, agents);
 			return new PoolSizeResult(result.CurrentAgentCount, result.DesiredAgentCount + _extraAgentCount, result.Status);

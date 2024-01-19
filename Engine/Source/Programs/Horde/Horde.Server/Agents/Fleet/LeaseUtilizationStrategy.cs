@@ -103,11 +103,11 @@ namespace Horde.Server.Agents.Fleet
 
 		class PoolData
 		{
-			public IPool Pool { get; }
+			public IPoolConfig Pool { get; }
 			public List<IAgent> Agents { get; } = new ();
 			public UtilizationSample[] Samples { get; }
 
-			public PoolData(IPool pool, int numSamples)
+			public PoolData(IPoolConfig pool, int numSamples)
 			{
 				Pool = pool;
 				Samples = new UtilizationSample[numSamples];
@@ -207,7 +207,7 @@ namespace Horde.Server.Agents.Fleet
 			Dictionary<AgentId, AgentData> agentIdToData = await GetAgentDataAsync();
 			
 			// Get all the pools
-			List<IPool> pools = await _poolCollection.GetAsync();
+			List<IPoolConfig> pools = await _poolCollection.GetConfigsAsync();
 			Dictionary<PoolId, PoolData> poolToData = pools.ToDictionary(x => x.Id, x => new PoolData(x, Settings.NumSamples));
 
 			// Find pool utilization over the query period
@@ -231,7 +231,7 @@ namespace Horde.Server.Agents.Fleet
 		public string Name { get; } = "LeaseUtilization";
 
 		/// <inheritdoc/>
-		public async Task<PoolSizeResult> CalculatePoolSizeAsync(IPool pool, List<IAgent> agents)
+		public async Task<PoolSizeResult> CalculatePoolSizeAsync(IPoolConfig pool, List<IAgent> agents)
 		{
 			using TelemetrySpan span = OpenTelemetryTracers.Horde.StartActiveSpan($"{nameof(LeaseUtilizationStrategy)}.{nameof(CalculatePoolSizeAsync)}");
 			span.SetAttribute(OpenTelemetryTracers.DatadogResourceAttribute, pool.Id.ToString());

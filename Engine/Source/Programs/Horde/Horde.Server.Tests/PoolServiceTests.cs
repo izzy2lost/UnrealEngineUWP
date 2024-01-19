@@ -3,6 +3,7 @@
 using System;
 using System.Collections.Generic;
 using System.Threading.Tasks;
+using EpicGames.Horde;
 using EpicGames.Horde.Agents.Pools;
 using Horde.Server.Agents.Pools;
 using Microsoft.VisualStudio.TestTools.UnitTesting;
@@ -20,11 +21,12 @@ namespace Horde.Server.Tests
 
         public PoolServiceTests()
         {
+			UpdateConfig(x => x.Pools.Clear());
         }
 
         private async Task<IPool> CreatePoolFixtureAsync(string name)
         {
-            return await PoolService.CreatePoolAsync(name, new AddPoolOptions { Properties = _fixtureProps });
+            return await CreatePoolAsync(name, new CreatePoolConfigOptions { Properties = _fixtureProps });
         }
 
         [TestMethod]
@@ -47,7 +49,7 @@ namespace Horde.Server.Tests
         {
             await GetMongoServiceSingleton().Database.DropCollectionAsync("Pools");
             
-            List<IPool> pools = await PoolService.GetPoolsAsync();
+            List<IPoolConfig> pools = await PoolCollection.GetConfigsAsync();
             Assert.AreEqual(pools.Count, 0);
 
 			IPool pool0 = await CreatePoolFixtureAsync("multiple-pools-0");
@@ -61,12 +63,14 @@ namespace Horde.Server.Tests
         [TestMethod]
         public async Task DeletePoolTestAsync()
         {
-            Assert.IsFalse(await PoolService.DeletePoolAsync(new PoolId("this-does-not-exist")));
-            IPool pool = await CreatePoolFixtureAsync("pool-to-be-deleted");
-            Assert.IsTrue(await PoolService.DeletePoolAsync(pool.Id));
-        }
-        
-        [TestMethod]
+#pragma warning disable CS0612 // Type or member is obsolete
+			Assert.IsFalse(await PoolCollection.DeleteConfigAsync(new PoolId("this-does-not-exist")));
+			IPool pool = await CreatePoolFixtureAsync("pool-to-be-deleted");
+            Assert.IsTrue(await PoolCollection.DeleteConfigAsync(pool.Id));
+#pragma warning restore CS0612 // Type or member is obsolete
+		}
+
+		[TestMethod]
         public async Task UpdatePoolTestAsync()
         {
 			string uniqueSuffix = Guid.NewGuid().ToString("N");
@@ -78,7 +82,11 @@ namespace Horde.Server.Tests
                 {"cookies", "yumyum"},
             };
 
-            IPool? updatedPool = await PoolService.UpdatePoolAsync(pool, new UpdatePoolOptions { Name = $"update-pool-new-name-{uniqueSuffix}", Properties = updatedProps });
+#pragma warning disable CS0612 // Type or member is obsolete
+			await PoolCollection.UpdateConfigAsync(pool.Id, new UpdatePoolConfigOptions { Name = $"update-pool-new-name-{uniqueSuffix}", Properties = updatedProps });
+#pragma warning restore CS0612 // Type or member is obsolete
+
+			IPool? updatedPool = await PoolCollection.GetAsync(pool.Id);
 			Assert.IsNotNull(updatedPool);
             Assert.AreEqual(pool.Id, updatedPool!.Id);
             Assert.AreEqual($"update-pool-new-name-{uniqueSuffix}", updatedPool.Name);
@@ -91,7 +99,7 @@ namespace Horde.Server.Tests
         public async Task UpdatePoolCollectionTestAsync()
         {
 	        IPool pool = await CreatePoolFixtureAsync("update-pool-2");
-	        await PoolCollection.TryUpdateAsync(pool, new UpdatePoolOptions { LastScaleUpTime = DateTime.UtcNow });
+	        await pool.TryUpdateAsync(new UpdatePoolOptions { LastScaleUpTime = DateTime.UtcNow });
         }
     }
 }

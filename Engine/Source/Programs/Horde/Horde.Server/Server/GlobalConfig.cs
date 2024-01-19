@@ -10,6 +10,7 @@ using System.Net;
 using System.Security.Claims;
 using System.Text.Json.Serialization;
 using EpicGames.Core;
+using EpicGames.Horde.Agents.Pools;
 using EpicGames.Horde.Artifacts;
 using EpicGames.Horde.Common;
 using EpicGames.Horde.Compute;
@@ -23,6 +24,7 @@ using EpicGames.Horde.Users;
 using EpicGames.Perforce;
 using EpicGames.Serialization;
 using Horde.Server.Acls;
+using Horde.Server.Agents;
 using Horde.Server.Agents.Pools;
 using Horde.Server.Configuration;
 using Horde.Server.Devices;
@@ -259,6 +261,7 @@ namespace Horde.Server.Server
 		private readonly Dictionary<AclScopeName, IAclScope> _aclScopeLookup = new Dictionary<AclScopeName, IAclScope>();
 		private readonly Dictionary<ArtifactType, ArtifactTypeConfig> _artifactTypeLookup = new Dictionary<ArtifactType, ArtifactTypeConfig>();
 		private readonly Dictionary<SecretId, SecretConfig> _secretLookup = new Dictionary<SecretId, SecretConfig>();
+		private readonly Dictionary<PoolId, PoolConfig> _poolLookup = new Dictionary<PoolId, PoolConfig>();
 
 		/// <summary>
 		/// Called after the config file has been read
@@ -324,9 +327,76 @@ namespace Horde.Server.Server
 				secret.PostLoad(this);
 			}
 
+			_poolLookup.Clear();
+			foreach (PoolConfig pool in Pools)
+			{
+				_poolLookup.Add(pool.Id, pool);
+			}
+
 			ConfigType.MergeDefaults<string, PoolConfig>(Pools.Select(x => (x.Id.ToString(), x.Base?.ToString(), x)));
 
 			Storage.PostLoad(this);
+		}
+
+		void FixupPools()
+		{
+			// Lookup table of pool id to workspaces
+			Dictionary<PoolId, AutoSdkConfig> poolToAutoSdkView = new Dictionary<PoolId, AutoSdkConfig>();
+			Dictionary<PoolId, List<AgentWorkspace>> poolToAgentWorkspaces = new Dictionary<PoolId, List<AgentWorkspace>>();
+
+			// Populate the workspace list from the current stream
+			foreach (StreamConfig streamConfig in Streams)
+			{
+				foreach (KeyValuePair<string, AgentConfig> agentTypePair in streamConfig.AgentTypes)
+				{
+					// Create the new agent workspace
+					if (streamConfig.TryGetAgentWorkspace(agentTypePair.Value, out AgentWorkspace? agentWorkspace, out AutoSdkConfig? autoSdkConfig))
+					{
+						AgentConfig agentType = agentTypePair.Value;
+
+						// Find or add a list of workspaces for this pool
+						List<AgentWorkspace>? agentWorkspaces;
+						if (!poolToAgentWorkspaces.TryGetValue(agentType.Pool, out agentWorkspaces))
+						{
+							agentWorkspaces = new List<AgentWorkspace>();
+							poolToAgentWorkspaces.Add(agentType.Pool, agentWorkspaces);
+						}
+
+						// Add it to the list
+						if (!agentWorkspaces.Contains(agentWorkspace))
+						{
+							agentWorkspaces.Add(agentWorkspace);
+						}
+						if (autoSdkConfig != null)
+						{
+							AutoSdkConfig? existingAutoSdkConfig;
+							poolToAutoSdkView.TryGetValue(agentType.Pool, out existingAutoSdkConfig);
+							poolToAutoSdkView[agentType.Pool] = AutoSdkConfig.Merge(autoSdkConfig, existingAutoSdkConfig);
+						}
+					}
+				}
+			}
+
+			// Update the list of workspaces for each pool
+			foreach (PoolConfig pool in Pools)
+			{
+				// Get the new list of workspaces for this pool
+				List<AgentWorkspace>? newWorkspaces;
+				if (!poolToAgentWorkspaces.TryGetValue(pool.Id, out newWorkspaces))
+				{
+					newWorkspaces = new List<AgentWorkspace>();
+				}
+
+				// Get the autosdk view
+				AutoSdkConfig? newAutoSdkConfig;
+				if (!poolToAutoSdkView.TryGetValue(pool.Id, out newAutoSdkConfig))
+				{
+					newAutoSdkConfig = AutoSdkConfig.None;
+				}
+
+				pool.Workspaces = newWorkspaces;
+				pool.AutoSdkConfig = newAutoSdkConfig;
+			}
 		}
 
 		/// <summary>
@@ -375,8 +445,16 @@ namespace Horde.Server.Server
 		/// </summary>
 		/// <param name="toolId">The tool identifier</param>
 		/// <param name="config">Configuration for the stream</param>
-		/// <returns>True if the stream configuration was found</returns>
+		/// <returns>True if the tool configuration was found</returns>
 		public bool TryGetTool(ToolId toolId, [NotNullWhen(true)] out ToolConfig? config) => _toolLookup.TryGetValue(toolId, out config);
+
+		/// <summary>
+		/// Attempts to get configuration for a pool from this object
+		/// </summary>
+		/// <param name="poolId">The pool identifier</param>
+		/// <param name="config">Configuration for the stream</param>
+		/// <returns>True if the pool configuration was found</returns>
+		public bool TryGetPool(PoolId poolId, [NotNullWhen(true)] out PoolConfig? config) => _poolLookup.TryGetValue(poolId, out config);
 
 		/// <summary>
 		/// Attempt to resolve an IP address to a network config

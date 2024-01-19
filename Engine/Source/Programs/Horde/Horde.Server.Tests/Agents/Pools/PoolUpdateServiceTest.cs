@@ -7,6 +7,7 @@ using System.Threading;
 using Horde.Server.Agents;
 using Horde.Server.Agents.Pools;
 using Microsoft.Extensions.Logging.Abstractions;
+using EpicGames.Horde.Agents.Pools;
 
 namespace Horde.Server.Tests.Agents.Pools
 {
@@ -21,13 +22,14 @@ namespace Horde.Server.Tests.Agents.Pools
 		
 		public PoolUpdateServiceTest()
 		{
+			UpdateConfig(x => x.Pools.Clear());
 			_pus = new (AgentCollection, PoolCollection, Clock, GlobalConfig, Tracer, new NullLogger<PoolUpdateService>());
 		}
 
 		[TestInitialize]
 		public async Task SetupAsync()
 		{
-			_pool = await PoolService.CreatePoolAsync("testPool", new AddPoolOptions { EnableAutoscaling = true });
+			_pool = await CreatePoolAsync("testPool", new CreatePoolConfigOptions { EnableAutoscaling = true });
 			_enabledAgent = await CreateAgentAsync(_pool, true);
 			_disabledAgent = await CreateAgentAsync(_pool, false);
 			_disabledAgentBeyondGracePeriod = await CreateAgentAsync(_pool, enabled: false, adjustClockBy: -TimeSpan.FromHours(9));
@@ -66,8 +68,10 @@ namespace Horde.Server.Tests.Agents.Pools
 		{
 			// Arrange
 			// Explicitly set the grace period for the pool to be longer than the default of 8 hours
-			await PoolCollection.TryUpdateAsync(_pool, new UpdatePoolOptions { ShutdownIfDisabledGracePeriod = TimeSpan.FromHours(24) });
-			
+#pragma warning disable CS0612 // Type or member is obsolete
+			await PoolCollection.UpdateConfigAsync(_pool.Id, new UpdatePoolConfigOptions { ShutdownIfDisabledGracePeriod = TimeSpan.FromHours(24) });
+#pragma warning restore CS0612 // Type or member is obsolete
+
 			// Act
 			await _pus.ShutdownDisabledAgentsAsync(CancellationToken.None);
 			await RefreshAgentsAsync();
@@ -82,8 +86,10 @@ namespace Horde.Server.Tests.Agents.Pools
 		public async Task ShutdownDisabledAgents_WithAutoScalingOff_DoesNotRequestShutdownAsync()
 		{
 			// Arrange
-			await PoolCollection.TryUpdateAsync(_pool, new UpdatePoolOptions { EnableAutoscaling = false });
-			
+#pragma warning disable CS0612 // Type or member is obsolete
+			await PoolCollection.UpdateConfigAsync(_pool.Id, new UpdatePoolConfigOptions { EnableAutoscaling = false });
+#pragma warning restore CS0612 // Type or member is obsolete
+
 			// Act
 			await _pus.ShutdownDisabledAgentsAsync(CancellationToken.None);
 			await RefreshAgentsAsync();

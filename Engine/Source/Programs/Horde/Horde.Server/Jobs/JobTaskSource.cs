@@ -223,7 +223,7 @@ namespace Horde.Server.Jobs
 		/// <summary>
 		/// Delegate for job schedule events
 		/// </summary>
-		public delegate void JobScheduleEvent(IPool pool, bool hasAgentsOnline, IJob job, IGraph graph, JobStepBatchId batchId);
+		public delegate void JobScheduleEvent(IPoolConfig pool, bool hasAgentsOnline, IJob job, IGraph graph, JobStepBatchId batchId);
 		
 		/// <summary>
 		/// Event triggered when a job is scheduled
@@ -311,13 +311,13 @@ namespace Horde.Server.Jobs
 
 		internal class PoolStatus
 		{
-			public readonly IPool Pool;
+			public readonly IPoolConfig Pool;
 			public readonly bool HasAgents;
 			public readonly bool HasEnabledAgents;
 			public readonly bool HasOnlineAgents;
 			public bool IsAutoScaled => Pool.EnableAutoscaling;
 
-			public PoolStatus(IPool pool, bool hasAgents, bool hasEnabledAgents, bool hasOnlineAgents)
+			public PoolStatus(IPoolConfig pool, bool hasAgents, bool hasEnabledAgents, bool hasOnlineAgents)
 			{
 				Pool = pool;
 				HasAgents = hasAgents;
@@ -333,11 +333,11 @@ namespace Horde.Server.Jobs
 		/// <param name="pools">List of all available pools</param>
 		/// <param name="agents">List of all available agents</param>
 		/// <returns></returns>
-		internal static Dictionary<PoolId, PoolStatus> GetPoolStatus(DateTime utcNow, List<IPool> pools, List<IAgent> agents)
+		internal static Dictionary<PoolId, PoolStatus> GetPoolStatus(DateTime utcNow, List<IPoolConfig> pools, List<IAgent> agents)
 		{
 			Dictionary<PoolId, PoolStatus> poolStatus = new ();
 
-			foreach (IPool pool in pools)
+			foreach (IPoolConfig pool in pools)
 			{
 				Condition poolCondition = pool.Condition ?? Condition.Parse("false");
 				List<IAgent> poolAgents = agents.Where(x => x.ExplicitPools.Contains(pool.Id) || x.SatisfiesCondition(poolCondition)).ToList();
@@ -372,7 +372,7 @@ namespace Horde.Server.Jobs
 
 			// Find all the pools which are valid (ie. have at least one online agent)
 			List<IAgent> agents = await _agentsCollection.FindAsync();
-			List<IPool> pools = await _poolCollection.GetAsync();
+			List<IPoolConfig> pools = await _poolCollection.GetConfigsAsync();
 			Dictionary<PoolId, PoolStatus> poolStatus = GetPoolStatus(_clock.UtcNow, pools, agents);
 
 			// New list of queue items
@@ -474,7 +474,7 @@ namespace Horde.Server.Jobs
 							newQueue.Add(newQueueItem);
 							newBatchIdToQueueItem[(newJob.Id, batch.Id)] = newQueueItem;
 
-							IPool? newJobPool = pools.Find(p => p.Id == agentType.Pool);
+							IPoolConfig? newJobPool = pools.Find(p => p.Id == agentType.Pool);
 							if (newJobPool != null)
 							{
 								OnJobScheduled?.Invoke(newJobPool, poolStatus[agentType.Pool].HasOnlineAgents, newJob, graph, batch.Id);

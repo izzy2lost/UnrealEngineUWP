@@ -4,6 +4,7 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Threading.Tasks;
+using EpicGames.Horde;
 using EpicGames.Horde.Agents.Pools;
 using Horde.Server.Acls;
 using Horde.Server.Agents.Fleet;
@@ -23,15 +24,15 @@ namespace Horde.Server.Agents.Pools
 	[Route("[controller]")]
 	public class PoolsController : HordeControllerBase
 	{
-		private readonly PoolService _poolService;
-		private readonly IOptionsSnapshot<GlobalConfig> _globalConfig;
+		readonly IPoolCollection _poolCollection;
+		readonly IOptionsSnapshot<GlobalConfig> _globalConfig;
 
 		/// <summary>
 		/// Constructor
 		/// </summary>
-		public PoolsController(PoolService poolService, IOptionsSnapshot<GlobalConfig> globalConfig)
+		public PoolsController(IPoolCollection poolCollection, IOptionsSnapshot<GlobalConfig> globalConfig)
 		{
-			_poolService = poolService;
+			_poolCollection = poolCollection;
 			_globalConfig = globalConfig;
 		}
 
@@ -41,6 +42,7 @@ namespace Horde.Server.Agents.Pools
 		/// <param name="create">Parameters for the new pool.</param>
 		/// <returns>Http result code</returns>
 		[HttpPost]
+		[Obsolete]
 		[Route("/api/v1/pools")]
 		public async Task<ActionResult<CreatePoolResponse>> CreatePoolAsync([FromBody] CreatePoolRequest create)
 		{
@@ -59,7 +61,7 @@ namespace Horde.Server.Agents.Pools
 			TimeSpan? scaleOutCooldown = create.ScaleOutCooldown == null ? null : TimeSpan.FromSeconds(create.ScaleOutCooldown.Value);
 			TimeSpan? scaleInCooldown = create.ScaleInCooldown == null ? null : TimeSpan.FromSeconds(create.ScaleInCooldown.Value);
 
-			AddPoolOptions options = new AddPoolOptions();
+			CreatePoolConfigOptions options = new CreatePoolConfigOptions();
 			options.Condition = create.Condition;
 			options.EnableAutoscaling = create.EnableAutoscaling;
 			options.MinAgents = create.MinAgents;
@@ -75,8 +77,10 @@ namespace Horde.Server.Agents.Pools
 			options.ComputeQueueAwsMetricSettings = cqamSettings;
 			options.Properties = create.Properties;
 
-			IPool newPool = await _poolService.CreatePoolAsync(create.Name, options);
-			return new CreatePoolResponse(newPool.Id.ToString());
+			PoolId poolId = new PoolId(StringId.Sanitize(create.Name));
+			await _poolCollection.CreateConfigAsync(poolId, create.Name, options);
+
+			return new CreatePoolResponse(poolId.ToString());
 		}
 
 		/// <summary>
@@ -94,12 +98,12 @@ namespace Horde.Server.Agents.Pools
 				return Forbid(PoolAclAction.ListPools);
 			}
 
-			List<IPool> pools = await _poolService.GetPoolsAsync();
+			List<IPoolConfig> poolConfigs = await _poolCollection.GetConfigsAsync();
 
 			List<object> responses = new List<object>();
-			foreach (IPool pool in pools)
+			foreach (IPoolConfig poolConfig in poolConfigs)
 			{
-				responses.Add(new GetPoolResponse(pool).ApplyFilter(filter));
+				responses.Add(new GetPoolResponse(poolConfig).ApplyFilter(filter));
 			}
 			return responses;
 		}
@@ -122,7 +126,7 @@ namespace Horde.Server.Agents.Pools
 
 			PoolId poolIdValue = new PoolId(poolId);
 
-			IPool? pool = await _poolService.GetPoolAsync(poolIdValue);
+			IPool? pool = await _poolCollection.GetAsync(poolIdValue);
 			if (pool == null)
 			{
 				return NotFound(poolIdValue);
@@ -138,6 +142,7 @@ namespace Horde.Server.Agents.Pools
 		/// <param name="update">Items on the pool to update</param>
 		/// <returns>Http result code</returns>
 		[HttpPut]
+		[Obsolete]
 		[Route("/api/v1/pools/{poolId}")]
 		public async Task<ActionResult> UpdatePoolAsync(string poolId, [FromBody] UpdatePoolRequest update)
 		{
@@ -148,19 +153,13 @@ namespace Horde.Server.Agents.Pools
 
 			PoolId poolIdValue = new PoolId(poolId);
 			
-			IPool? pool = await _poolService.GetPoolAsync(poolIdValue);
-			if(pool == null)
-			{
-				return NotFound(poolIdValue);
-			}
-
 			List<PoolSizeStrategyInfo>? newSizeStrategies = update.SizeStrategies?.Select(x => x.Convert()).ToList();
 			List<FleetManagerInfo>? newFleetManagers = update.FleetManagers?.Select(x => x.Convert()).ToList();
 			TimeSpan? conformInterval = update.ConformInterval == null ? null : TimeSpan.FromHours(update.ConformInterval.Value);
 			TimeSpan? scaleOutCooldown = update.ScaleOutCooldown == null ? null : TimeSpan.FromSeconds(update.ScaleOutCooldown.Value);
 			TimeSpan? scaleInCooldown = update.ScaleInCooldown == null ? null : TimeSpan.FromSeconds(update.ScaleInCooldown.Value);
 
-			UpdatePoolOptions options = new UpdatePoolOptions();
+			UpdatePoolConfigOptions options = new UpdatePoolConfigOptions();
 			options.Name = update.Name;
 			options.Condition = update.Condition;
 			options.EnableAutoscaling = update.EnableAutoscaling;
@@ -178,7 +177,7 @@ namespace Horde.Server.Agents.Pools
 			options.ComputeQueueAwsMetricSettings = update.ComputeQueueAwsMetricSettings?.Convert();
 			options.UseDefaultStrategy = update.UseDefaultStrategy;
 
-			await _poolService.UpdatePoolAsync(pool, options);
+			await _poolCollection.UpdateConfigAsync(poolIdValue, options);
 			return new OkResult();
 		}
 
@@ -188,6 +187,7 @@ namespace Horde.Server.Agents.Pools
 		/// <param name="poolId">Id of the pool to delete</param>
 		/// <returns>Http result code</returns>
 		[HttpDelete]
+		[Obsolete]
 		[Route("/api/v1/pools/{poolId}")]
 		public async Task<ActionResult> DeletePoolAsync(string poolId)
 		{
@@ -197,7 +197,7 @@ namespace Horde.Server.Agents.Pools
 			}
 
 			PoolId poolIdValue = new PoolId(poolId);
-			if(!await _poolService.DeletePoolAsync(poolIdValue))
+			if(!await _poolCollection.DeleteConfigAsync(poolIdValue))
 			{
 				return NotFound(poolIdValue);
 			}
@@ -210,6 +210,7 @@ namespace Horde.Server.Agents.Pools
 		/// <param name="batchUpdates">List of pools to update</param>
 		/// <returns>Http result code</returns>
 		[HttpPut]
+		[Obsolete]
 		[Route("/api/v1/pools")]
 		public async Task<ActionResult> UpdatePoolAsync([FromBody] List<BatchUpdatePoolRequest> batchUpdates)
 		{
@@ -221,14 +222,10 @@ namespace Horde.Server.Agents.Pools
 			foreach (BatchUpdatePoolRequest update in batchUpdates)
 			{
 				PoolId poolIdValue = new PoolId(update.Id);
-
-				IPool? pool = await _poolService.GetPoolAsync(poolIdValue);
-				if (pool == null)
+				if (!await _poolCollection.UpdateConfigAsync(poolIdValue, new UpdatePoolConfigOptions { Name = update.Name, Properties = update.Properties }))
 				{
 					return NotFound(poolIdValue);
 				}
-
-				await _poolService.UpdatePoolAsync(pool, new UpdatePoolOptions { Name = update.Name, Properties = update.Properties });
 			}
 			return Ok();
 		}

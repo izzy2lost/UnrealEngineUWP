@@ -89,7 +89,7 @@ namespace Horde.Server.Agents
 		readonly AsyncCachedValue<AgentRateTable?> _agentRateTable;
 
 		// Lazily updated list of current pools
-		readonly AsyncCachedValue<List<IPool>> _poolsList;
+		readonly AsyncCachedValue<List<IPoolConfig>> _poolsList;
 
 		// All the agents currently performing a long poll for work on this server
 		readonly Dictionary<AgentId, CancellationTokenSource> _waitingAgents = new Dictionary<AgentId, CancellationTokenSource>();
@@ -110,7 +110,7 @@ namespace Horde.Server.Agents
 			_aclService = aclService;
 			_downtimeService = downtimeService;
 			_agentRateTable = new AsyncCachedValue<AgentRateTable?>(() => redisService.GetDatabase().StringGetAsync(_agentRateTableData), TimeSpan.FromSeconds(2.0));//.FromMinutes(5.0));
-			_poolsList = new AsyncCachedValue<List<IPool>>(() => poolCollection.GetAsync(), TimeSpan.FromSeconds(30.0));
+			_poolsList = new AsyncCachedValue<List<IPoolConfig>>(() => poolCollection.GetConfigsAsync(), TimeSpan.FromSeconds(30.0));
 			_taskSources = taskSources.ToArray();
 			_applicationLifetime = applicationLifetime;
 			_redisService = redisService;
@@ -271,8 +271,8 @@ namespace Horde.Server.Agents
 		{
 			List<PoolId> newDynamicPools = new List<PoolId>();
 
-			List<IPool> pools = await _poolsList.GetAsync();
-			foreach (IPool pool in pools)
+			List<IPoolConfig> pools = await _poolsList.GetAsync();
+			foreach (IPoolConfig pool in pools)
 			{
 				if (pool.Condition != null && agent.SatisfiesCondition(pool.Condition))
 				{

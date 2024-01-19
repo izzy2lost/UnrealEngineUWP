@@ -34,7 +34,7 @@ namespace Horde.Server.Agents.Fleet
 		/// <summary>
 		/// Pool being resized
 		/// </summary>
-		public IPool Pool { get; }
+		public IPoolConfig Pool { get; }
 		
 		/// <summary>
 		/// All agents currently associated with the pool
@@ -46,7 +46,7 @@ namespace Horde.Server.Agents.Fleet
 		/// </summary>
 		/// <param name="pool"></param>
 		/// <param name="agents"></param>
-		public PoolWithAgents(IPool pool, List<IAgent> agents)
+		public PoolWithAgents(IPoolConfig pool, List<IAgent> agents)
 		{
 			Pool = pool;
 			Agents = agents;
@@ -192,7 +192,7 @@ namespace Horde.Server.Agents.Fleet
 			}
 		}
 
-		internal async Task CalculateSizeAndScaleAsync(IPool pool, List<IAgent> agents, CancellationToken cancellationToken)
+		internal async Task CalculateSizeAndScaleAsync(IPoolConfig pool, List<IAgent> agents, CancellationToken cancellationToken)
 		{
 			IPoolSizeStrategy sizeStrategy = CreatePoolSizeStrategy(pool);
 			PoolSizeResult result = await sizeStrategy.CalculatePoolSizeAsync(pool, agents);
@@ -203,16 +203,22 @@ namespace Horde.Server.Agents.Fleet
 		{
 			List<IAgent> agents = (await _agentCollection.FindAsync(status: AgentStatus.Ok, enabled: true)).Where(x => !x.RequestShutdown).ToList();
 			List<IAgent> GetAgentsInPool(PoolId poolId) => agents.FindAll(a => a.GetPools().Any(p => p == poolId));
-			List<IPool> pools = await _poolCollection.GetAsync();
+			List<IPoolConfig> pools = await _poolCollection.GetConfigsAsync();
 
 			return pools.Select(pool => new PoolWithAgents(pool, GetAgentsInPool(pool.Id))).ToList();
 		}
 
-		internal async Task<ScaleResult> ScalePoolAsync(IPool pool, List<IAgent> agents, PoolSizeResult poolSizeResult, CancellationToken cancellationToken)
+		internal async Task<ScaleResult> ScalePoolAsync(IPoolConfig poolConfig, List<IAgent> agents, PoolSizeResult poolSizeResult, CancellationToken cancellationToken)
 		{
-			if (!pool.EnableAutoscaling)
+			if (!poolConfig.EnableAutoscaling)
 			{
 				return new ScaleResult(FleetManagerOutcome.NoOp, 0, 0, "Auto-scaling disabled");
+			}
+
+			IPool? pool = await _poolCollection.GetAsync(poolConfig.Id, cancellationToken);
+			if (pool == null)
+			{
+				return new ScaleResult(FleetManagerOutcome.NoOp, 0, 0, "Pool state not found");
 			}
 
 			int currentAgentCount = poolSizeResult.CurrentAgentCount;
@@ -311,8 +317,7 @@ namespace Horde.Server.Agents.Fleet
 			span.SetAttribute("resultAgentsRemoved", result.AgentsRemovedCount);
 			span.SetAttribute("resultOutcome", result.Message);
 
-			await _poolCollection.TryUpdateAsync(
-				pool,
+			await pool.TryUpdateAsync(
 				new UpdatePoolOptions
 				{
 					LastScaleUpTime = scaleOutTime,
@@ -373,7 +378,7 @@ namespace Horde.Server.Agents.Fleet
 		/// <param name="pool">Pool to use</param>
 		/// <returns>A pool sizing strategy with parameters set</returns>
 		/// <exception cref="ArgumentException"></exception>
-		public IPoolSizeStrategy CreatePoolSizeStrategy(IPool pool)
+		public IPoolSizeStrategy CreatePoolSizeStrategy(IPoolConfig pool)
 		{
 			if (pool.SizeStrategies != null && pool.SizeStrategies.Count > 0)
 			{

@@ -348,10 +348,10 @@ namespace Horde.Server.Tasks
 				}
 
 				// Get the current pools for the agent
-				List<IPool> pools = await _poolService.GetPoolsAsync(agent, DateTime.UtcNow - TimeSpan.FromMinutes(2.0));
+				List<IPoolConfig> pools = await _poolService.GetPoolsAsync(agent, DateTime.UtcNow - TimeSpan.FromMinutes(2.0));
 
 				TimeSpan? conformInterval = null;
-				foreach(IPool pool in pools)
+				foreach(IPoolConfig pool in pools)
 				{
 					TimeSpan interval = pool.ConformInterval ?? TimeSpan.FromDays(1.0);
 					if (interval > TimeSpan.Zero && (conformInterval == null || interval < conformInterval.Value))
