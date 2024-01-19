@@ -2363,6 +2363,32 @@ namespace UnrealBuildTool
 				SafeDeleteFile(StylesPath);
 			}
 
+			if (bPackageForMetaQuest)
+			{
+				string LandscapeFilename = UnrealBuildPath + "/res/drawable/" + "splashscreen_landscape.png";
+				string OculusSplashTargetPath = UnrealBuildPath + "/assets/vr_splash.png";
+
+				if (bShowLaunchImage)
+				{
+					if (!File.Exists(LandscapeFilename))
+					{
+						Logger.LogWarning("Warning: Landscape splash screen source image {0} not available, Oculus splash screen will not function properly!", LandscapeFilename);
+					}
+					else if (FilesAreDifferent(LandscapeFilename, OculusSplashTargetPath))
+					{
+						SafeDeleteFile(OculusSplashTargetPath);
+						MakeDirectoryIfRequired(OculusSplashTargetPath);
+						File.Copy(LandscapeFilename, OculusSplashTargetPath, true);
+						Logger.LogInformation("Copying {0} to {1} for Oculus splash", LandscapeFilename, OculusSplashTargetPath);
+					}
+				}
+				else
+				{
+					// Remove unused image
+					SafeDeleteFile(OculusSplashTargetPath);
+				}
+			}
+
 			// Loop through each of the resolutions (only /res/drawable/ is required, others are optional)
 			string[] Resolutions = new string[] { "/res/drawable/", "/res/drawable-ldpi/", "/res/drawable-mdpi/", "/res/drawable-hdpi/", "/res/drawable-xhdpi/" };
 			foreach (string ResolutionPath in Resolutions)

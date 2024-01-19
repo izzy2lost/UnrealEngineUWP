@@ -14,6 +14,7 @@
 		<setBoolFromPropertyContains result="bPackageForOculusQuest2" ini="Engine" section="/Script/AndroidRuntimeSettings.AndroidRuntimeSettings" property="PackageForOculusMobile" contains="Quest2"/>
         <setBoolOr result="bPackageForMetaQuest" arg1="$B(bPackageForMetaQuest)" arg2="$B(bPackageForOculusQuest)"/>
 		<setBoolOr result="bPackageForMetaQuest" arg1="$B(bPackageForMetaQuest)" arg2="$B(bPackageForOculusQuest2)"/>
+		<setBoolFromProperty result="bShowLaunchImage" ini="Engine" section="/Script/AndroidRuntimeSettings.AndroidRuntimeSettings" property="bShowLaunchImage" default="false"/>
 
 		<if condition="bCpuArchSupported">
 			<false>
@@ -41,7 +42,17 @@
 						</true>
 					</if>
 				</loopElements>
-				
+
+				<!-- Add Oculus Splash Screen -->
+				<if condition="bShowLaunchImage">
+					<true>
+						<setElement result="showOculusSplash" value="meta-data"/>
+						<addAttribute tag="$showOculusSplash" name="android:name" value="com.oculus.ossplash"/>
+						<addAttribute tag="$showOculusSplash" name="android:value" value="true"/>
+						<addElement tag="application" name="showOculusSplash"/>
+					</true>
+				</if>
+
 				<!-- Add Activity Specific Flags -->
 				<loopElements tag="activity">
 					<setStringFromAttribute result="activityName" tag="$" name="android:name"/>
