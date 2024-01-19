@@ -274,6 +274,8 @@ private:
 	void RegisterPasteAction(FInteractiveToolActionSet& InOutActionSet, const int32 InActionId);
 	void RegisterDuplicateAction(FInteractiveToolActionSet& InOutActionSet, const int32 InActionId);
 	void RegisterSelectComponentsAction(FInteractiveToolActionSet& InOutActionSet, const int32 InActionId);
+	void RegisterSelectionFilterCyclingAction(FInteractiveToolActionSet& InOutActionSet, const int32 InActionId);
+	void RegisterSnapAction(FInteractiveToolActionSet& InOutActionSet, const int32 InActionId);
 
 	TArray<int32> GetSelectedComponents() const;
 

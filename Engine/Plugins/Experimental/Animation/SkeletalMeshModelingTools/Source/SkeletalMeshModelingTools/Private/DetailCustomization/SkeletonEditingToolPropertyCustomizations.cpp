@@ -818,89 +818,95 @@ void FSkeletonEditingToolDetailCustomization::CustomizeDetails(IDetailLayoutBuil
 	IDetailCategoryBuilder& ActionCategory = DetailBuilder.EditCategory("Action", FText::GetEmpty(), ECategoryPriority::Important);
 	ActionCategory.AddCustomRow(LOCTEXT("ActionCategory", "Action"), false)
 	[
-		SNew(SHorizontalBox)
-		+SHorizontalBox::Slot()
-		.Padding(2.f, 4.f)
+		SNew(SBorder)
+		.BorderImage(&SegmentedControlStyle.BackgroundBrush)
+		.Padding(FMargin(0,0,SegmentedControlStyle.UniformPadding.Right,0))
 		[
-			SNew(SCheckBox)
-			.Style(&SegmentedControlStyle.FirstControlStyle)
-			.ToolTipText(LOCTEXT("AddModeTooltip", "Create new bones. (N)"))
-			.OnCheckStateChanged_Lambda([this](ECheckBoxState InCheckState)
-			{
-				if (InCheckState == ECheckBoxState::Checked)
-				{
-					Tool->SetOperation(EEditingOperation::Create);
-				}
-			})
-			.IsChecked_Lambda([IsCreateEnabled]()
-			{
-				return IsCreateEnabled() ? ECheckBoxState::Checked : ECheckBoxState::Unchecked;
-			})
+			SNew(SHorizontalBox)
+			+SHorizontalBox::Slot()
 			[
-				SNew(SOverlay)
-				+ SOverlay::Slot()
-				.VAlign(VAlign_Center)
-				.HAlign(HAlign_Center)
+				SNew(SCheckBox)
+				.Clipping(EWidgetClipping::ClipToBounds)
+				.Style(&SegmentedControlStyle.FirstControlStyle)
+				.ToolTipText(LOCTEXT("AddModeTooltip", "Create new bones. (N)"))
+				.OnCheckStateChanged_Lambda([this](ECheckBoxState InCheckState)
+				{
+					if (InCheckState == ECheckBoxState::Checked)
+					{
+						Tool->SetOperation(EEditingOperation::Create);
+					}
+				})
+				.IsChecked_Lambda([IsCreateEnabled]()
+				{
+					return IsCreateEnabled() ? ECheckBoxState::Checked : ECheckBoxState::Unchecked;
+				})
 				[
-					SNew(STextBlock)
-					.Text(LOCTEXT("AddMode", "Add"))
-					.TextStyle(&FAppStyle::Get().GetWidgetStyle<FTextBlockStyle>("ButtonText"))
-					.ColorAndOpacity(FLinearColor::White)
+					SNew(SOverlay)
+					+ SOverlay::Slot()
+					.VAlign(VAlign_Center)
+					.HAlign(HAlign_Center)
+					[
+						SNew(STextBlock)
+						.Text(LOCTEXT("AddMode", "Add"))
+						.TextStyle(&FAppStyle::Get().GetWidgetStyle<FTextBlockStyle>("ButtonText"))
+						.ColorAndOpacity(FLinearColor::White)
+					]
 				]
 			]
-		]
-		+SHorizontalBox::Slot()
-		.Padding(2.f, 4.f)
-		[
-			SNew(SCheckBox)
-			.Style(&SegmentedControlStyle.LastControlStyle)
-			.ToolTipText(LOCTEXT("EditModeTooltip", "Edit current bone(s) selection. (Esc)"))
-			.OnCheckStateChanged_Lambda([this](ECheckBoxState InCheckState)
-			{
-				if (InCheckState == ECheckBoxState::Checked)
-				{
-					Tool->SetOperation(EEditingOperation::Select);
-				}
-			})
-			.IsChecked_Lambda([IsCreateEnabled]()
-			{
-				return IsCreateEnabled() ? ECheckBoxState::Unchecked : ECheckBoxState::Checked;
-			})
+			+SHorizontalBox::Slot()
 			[
-				SNew(SOverlay)
-					
-				+ SOverlay::Slot()
-				.VAlign(VAlign_Center)
-				.HAlign(HAlign_Center)
+				SNew(SCheckBox)
+				.Clipping(EWidgetClipping::ClipToBounds)
+				.Style(&SegmentedControlStyle.LastControlStyle)
+				.ToolTipText(LOCTEXT("EditModeTooltip", "Edit current bone(s) selection. (Esc)"))
+				.OnCheckStateChanged_Lambda([this](ECheckBoxState InCheckState)
+				{
+					if (InCheckState == ECheckBoxState::Checked)
+					{
+						Tool->SetOperation(EEditingOperation::Select);
+					}
+				})
+				.IsChecked_Lambda([IsCreateEnabled]()
+				{
+					return IsCreateEnabled() ? ECheckBoxState::Unchecked : ECheckBoxState::Checked;
+				})
 				[
-					SNew(STextBlock)
-					.Text(LOCTEXT("EditMode", "Edit"))
-					.TextStyle(&FAppStyle::Get().GetWidgetStyle<FTextBlockStyle>("ButtonText"))
-					.ColorAndOpacity(FLinearColor::White)
+					SNew(SOverlay)
+						
+					+ SOverlay::Slot()
+					.VAlign(VAlign_Center)
+					.HAlign(HAlign_Center)
+					[
+						SNew(STextBlock)
+						.Text(LOCTEXT("EditMode", "Edit"))
+						.TextStyle(&FAppStyle::Get().GetWidgetStyle<FTextBlockStyle>("ButtonText"))
+						.ColorAndOpacity(FLinearColor::White)
+					]
 				]
 			]
-		]
 
-		+ SHorizontalBox::Slot()
-		.Padding(8.f, 4.f)
-		.AutoWidth()
-		.HAlign(HAlign_Center)
-		.VAlign(VAlign_Center)
-		[
-			SNew(SCheckBox)
-			.Style(FAppStyle::Get(), "ToggleButtonCheckbox")
-			.ToolTipText(LOCTEXT("ComponentModeTooltip", "Select vertices, edges, and triangles to place bone. (T)"))
-			.OnCheckStateChanged_Lambda([this](ECheckBoxState)
-			{
-				Tool->Properties->bEnableComponentSelection = !Tool->Properties->bEnableComponentSelection;
-			})
-			.IsChecked_Lambda([this]()
-			{
-				return Tool->Properties->bEnableComponentSelection ? ECheckBoxState::Checked : ECheckBoxState::Unchecked;
-			})
+			+ SHorizontalBox::Slot()
+			.Padding(FMargin(4.f, 0.f, 0.f, 0.f))
+			.AutoWidth()
+			.HAlign(HAlign_Center)
+			.VAlign(VAlign_Center)
 			[
-				SNew(SImage)
-					.Image(FModelingToolsEditorModeStyle::Get()->GetBrush("ModelingToolsManagerCommands.BeginMeshSelectionTool"))
+				SNew(SCheckBox)
+				.Clipping(EWidgetClipping::ClipToBounds)
+				.Style(FAppStyle::Get(), "ToggleButtonCheckbox")
+				.ToolTipText(LOCTEXT("ComponentModeTooltip", "Select vertices, edges, and triangles to place bone. (T)"))
+				.OnCheckStateChanged_Lambda([this](ECheckBoxState)
+				{
+					Tool->Properties->bEnableComponentSelection = !Tool->Properties->bEnableComponentSelection;
+				})
+				.IsChecked_Lambda([this]()
+				{
+					return Tool->Properties->bEnableComponentSelection ? ECheckBoxState::Checked : ECheckBoxState::Unchecked;
+				})
+				[
+					SNew(SImage)
+						.Image(FModelingToolsEditorModeStyle::Get()->GetBrush("ModelingToolsManagerCommands.BeginMeshSelectionTool"))
+				]
 			]
 		]
 	];

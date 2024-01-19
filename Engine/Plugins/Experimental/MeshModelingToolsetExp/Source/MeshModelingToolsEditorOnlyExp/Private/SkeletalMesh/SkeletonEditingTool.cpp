@@ -292,8 +292,6 @@ void USkeletonEditingTool::SetupComponentsSelection()
 	// the property is disabled and managed thru customization
 	SetToolPropertySourceEnabled(SelectionMechanic->Properties, false);
 	SelectionMechanic->SetMarqueeSelectionUpdateType(EMarqueeSelectionUpdateType::OnRelease);
-	SelectionMechanic->Properties->bMarqueeIgnoreOcclusion = false;
-	SelectionMechanic->Properties->bHitBackFaces = false;
 	SelectionMechanic->Properties->bDisplayPolygroupReliantControls = false;
 
 	SelectionMechanic->Properties->bSelectVertices = true;
@@ -329,7 +327,9 @@ void USkeletonEditingTool::SetupComponentsSelection()
 	// triangles rendering
 	PreviewMesh->EnableSecondaryTriangleBuffers([this](const FDynamicMesh3* Mesh, int32 TriangleID)
 	{
-		return SelectionMechanic->GetActiveSelection().IsSelectedTriangle(Mesh, Topology.Get(), TriangleID);
+		return	Properties->bEnableComponentSelection &&
+				SelectionMechanic->Properties->bSelectFaces &&
+				SelectionMechanic->GetActiveSelection().IsSelectedTriangle(Mesh, Topology.Get(), TriangleID);
 	});
 	SelectionMechanic->OnSelectionChanged.AddWeakLambda(this, [this]()
 	{
@@ -469,6 +469,8 @@ void USkeletonEditingTool::RegisterActions(FInteractiveToolActionSet& InOutActio
 	RegisterPasteAction(InOutActionSet, GetActionId());
 	RegisterDuplicateAction(InOutActionSet, GetActionId());
 	RegisterSelectComponentsAction(InOutActionSet, GetActionId());
+	RegisterSelectionFilterCyclingAction(InOutActionSet, GetActionId());
+	RegisterSnapAction(InOutActionSet, GetActionId());
 }
 
 void USkeletonEditingTool::RegisterCreateAction(FInteractiveToolActionSet& InOutActionSet, const int32 InActionId)
@@ -644,8 +646,68 @@ void USkeletonEditingTool::RegisterSelectComponentsAction(FInteractiveToolAction
 		EModifierKey::None, EKeys::T,
 		[this]()
 		{
-			Properties->bEnableComponentSelection = !Properties->bEnableComponentSelection; 
+			Properties->bEnableComponentSelection = !Properties->bEnableComponentSelection;
+			PreviewMesh->FastNotifySecondaryTrianglesChanged();
 			UpdateGizmo();
+		});
+}
+
+void USkeletonEditingTool::RegisterSelectionFilterCyclingAction(FInteractiveToolActionSet& InOutActionSet, const int32 InActionId)
+{
+	auto UpdateSelect = [this](bool bSelectVertices, bool bSelectEdges, bool bSelectFaces)
+	{
+		const bool bChangingFace = SelectionMechanic->Properties->bSelectFaces != bSelectFaces;
+
+		SelectionMechanic->Properties->bSelectVertices = bSelectVertices;
+		SelectionMechanic->Properties->bSelectEdges = bSelectEdges;
+		SelectionMechanic->Properties->bSelectFaces = bSelectFaces;
+		SelectionMechanic->SetShowSelectableCorners(bSelectVertices);
+
+		if (bChangingFace)
+		{
+			PreviewMesh->FastNotifySecondaryTrianglesChanged();
+		}
+	};
+	
+	InOutActionSet.RegisterAction(this, InActionId,
+		TEXT("ComponentCycling"),
+		LOCTEXT("ComponentCycling", "Cycle Selection Filter"),
+		LOCTEXT("ComponentCyclingDesc", "Cycle between vertex, edge, face selection"),
+		EModifierKey::None, EKeys::Y,
+		[this, UpdateSelect]()
+		{
+			if (SelectionMechanic->Properties->bSelectVertices)
+			{
+				return UpdateSelect(false, true, false);
+			}
+			
+			if (SelectionMechanic->Properties->bSelectEdges)
+			{
+				return UpdateSelect(false, false, true);
+			}
+
+			if (SelectionMechanic->Properties->bSelectFaces)
+			{
+				return UpdateSelect(true, false, false);
+			}
+			
+			UpdateSelect(true, false, false);
+		});
+}
+
+void USkeletonEditingTool::RegisterSnapAction(FInteractiveToolActionSet& InOutActionSet, const int32 InActionId)
+{
+	InOutActionSet.RegisterAction(this, InActionId, TEXT("SnapBone"),
+		LOCTEXT("SnapBone", "Snap Bone"),
+		LOCTEXT("SnapBoneBonesDesc", "Snap Bone"),
+		EModifierKey::None, EKeys::V,
+		[this]()
+		{
+			if (Properties->bEnableComponentSelection)
+			{
+				SnapBoneToComponentSelection(Operation == EEditingOperation::Create);
+				UpdateGizmo();
+			}
 		});
 }
 
@@ -1612,7 +1674,7 @@ void USkeletonEditingTool::DrawHUD(FCanvas* Canvas, IToolsContextRenderAPI* Rend
 {
 	Super::DrawHUD(Canvas, RenderAPI);
 
-	if (SelectionMechanic)
+	if (SelectionMechanic && Properties->bEnableComponentSelection)
 	{
 		SelectionMechanic->DrawHUD(Canvas, RenderAPI);
 	}
@@ -1708,6 +1770,7 @@ void USkeletonEditingTool::OnPropertyModified(UObject* PropertySet, FProperty* P
 			}
 		}
 		SelectionMechanic->SetShowSelectableCorners(SelectionMechanic->Properties->bSelectVertices);
+		PreviewMesh->FastNotifySecondaryTrianglesChanged();
 	}
 	Super::OnPropertyModified(PropertySet, Property);
 }
