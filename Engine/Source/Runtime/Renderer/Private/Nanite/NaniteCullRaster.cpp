@@ -1220,6 +1220,7 @@ class ClearSplitQueueCS : public FNaniteGlobalShader
 
 	BEGIN_SHADER_PARAMETER_STRUCT(FParameters, )
 		SHADER_PARAMETER_STRUCT(FGlobalWorkQueueParameters, SplitWorkQueue)
+		RDG_BUFFER_ACCESS(IndirectArgs, ERHIAccess::IndirectArgs)
 	END_SHADER_PARAMETER_STRUCT()
 
 	static bool ShouldCompilePermutation(const FGlobalShaderPermutationParameters& Parameters)
@@ -2580,6 +2581,7 @@ private:
 	void		AddPass_InstanceHierarchyAndClusterCull( const FPackedViewArray& ViewArray, uint32 CullingPass );
 	
 	FBinningData	AddPass_Binning(
+		const FDispatchContext& DispatchContext,
 		const ERasterHardwarePath HardwarePath,
 		FRDGBufferRef ClusterOffsetSWHW,
 		FRDGBufferRef VisiblePatches,
@@ -2601,6 +2603,7 @@ private:
 		bool bMainPass );
 
 	void			AddPass_PatchSplit(
+		const FDispatchContext& DispatchContext,
 		const FPackedViewArray& ViewArray,
 		const FGlobalWorkQueueParameters& SplitWorkQueue,
 		const FGlobalWorkQueueParameters& OccludedPatches,
@@ -2609,7 +2612,10 @@ private:
 		uint32 CullingPass,
 		ERDGPassFlags PassFlags);
 
-	void			AddPass_ClearSplitQueue(const FGlobalWorkQueueParameters& SplitWorkQueue, ERDGPassFlags PassFlags);
+	void			AddPass_ClearSplitQueue(
+		const FDispatchContext& DispatchContext,
+		const FGlobalWorkQueueParameters& SplitWorkQueue,
+		ERDGPassFlags PassFlags);
 
 	void			DrawGeometryMultiPass(
 		FNaniteRasterPipelines& RasterPipelines,
@@ -3321,7 +3327,7 @@ void FRenderer::AddPass_InstanceHierarchyAndClusterCull( const FPackedViewArray&
 					InstanceCullingPass == CULLING_PASS_EXPLICIT_LIST ? RDG_EVENT_NAME("InstanceCull - Explicit List") : RDG_EVENT_NAME("InstanceCull"),
 					ComputeShader,
 					PassParameters,
-				FComputeShaderUtils::GetGroupCountWrapped(NumInstancesPreCull, 64)
+					FComputeShaderUtils::GetGroupCountWrapped(NumInstancesPreCull, 64)
 				);
 			}
 		};
@@ -3387,6 +3393,7 @@ void FRenderer::AddPass_InstanceHierarchyAndClusterCull( const FPackedViewArray&
 }
 
 FBinningData FRenderer::AddPass_Binning(
+	const FDispatchContext& DispatchContext,
 	const ERasterHardwarePath HardwarePath,
 	FRDGBufferRef ClusterOffsetSWHW,
 	FRDGBufferRef VisiblePatches,
@@ -3457,15 +3464,25 @@ FBinningData FRenderer::AddPass_Binning(
 			PermutationVector.Set<FRasterBinBuild_CS::FBuildPassDim>(NANITE_RASTER_BIN_COUNT);
 
 			auto ComputeShader = SharedContext.ShaderMap->GetShader<FRasterBinBuild_CS>(PermutationVector);
+			ClearUnusedGraphResources(ComputeShader, PassParameters);
 
-			FComputeShaderUtils::AddPass(
-				GraphBuilder,
+			GraphBuilder.AddPass(
 				RDG_EVENT_NAME("RasterBinCount"),
-				PassFlags,
-				ComputeShader,
 				PassParameters,
-				PassParameters->IndirectArgs,
-				0
+				PassFlags,
+				[PassParameters, &DispatchContext, VisiblePatches, ComputeShader](FRHIComputeCommandList& RHICmdList)
+				{
+					if (VisiblePatches == nullptr || DispatchContext.HasTessellated())
+					{
+						FComputeShaderUtils::DispatchIndirect(
+							RHICmdList,
+							ComputeShader,
+							*PassParameters,
+							PassParameters->IndirectArgs->GetIndirectRHICallBuffer(),
+							0
+						);
+					}
+				}
 			);
 		}
 
@@ -3482,13 +3499,24 @@ FBinningData FRenderer::AddPass_Binning(
 			ReservePassParameters->RenderFlags = RenderFlags;
 
 			auto ComputeShader = SharedContext.ShaderMap->GetShader<FRasterBinReserve_CS>();
-			FComputeShaderUtils::AddPass(
-				GraphBuilder,
+			ClearUnusedGraphResources(ComputeShader, ReservePassParameters);
+
+			GraphBuilder.AddPass(
 				RDG_EVENT_NAME("RasterBinReserve"),
-				PassFlags,
-				ComputeShader,
 				ReservePassParameters,
-				FComputeShaderUtils::GetGroupCountWrapped(BinningData.BinCount, 64)
+				PassFlags,
+				[ReservePassParameters, &DispatchContext, VisiblePatches, ComputeShader, BinCount = BinningData.BinCount](FRHIComputeCommandList& RHICmdList)
+				{
+					if (VisiblePatches == nullptr || DispatchContext.HasTessellated())
+					{
+						FComputeShaderUtils::Dispatch(
+							RHICmdList,
+							ComputeShader,
+							*ReservePassParameters,
+							FComputeShaderUtils::GetGroupCountWrapped(BinCount, 64)
+						);
+					}
+				}
 			);
 		}
 
@@ -3506,15 +3534,25 @@ FBinningData FRenderer::AddPass_Binning(
 			PermutationVector.Set<FRasterBinBuild_CS::FBuildPassDim>(NANITE_RASTER_BIN_SCATTER);
 
 			auto ComputeShader = SharedContext.ShaderMap->GetShader<FRasterBinBuild_CS>(PermutationVector);
+			ClearUnusedGraphResources(ComputeShader, PassParameters);
 
-			FComputeShaderUtils::AddPass(
-				GraphBuilder,
+			GraphBuilder.AddPass(
 				RDG_EVENT_NAME("RasterBinScatter"),
-				PassFlags,
-				ComputeShader,
 				PassParameters,
-				PassParameters->IndirectArgs,
-				0
+				PassFlags,
+				[PassParameters, &DispatchContext, VisiblePatches, ComputeShader](FRHIComputeCommandList& RHICmdList)
+				{
+					if (VisiblePatches == nullptr || DispatchContext.HasTessellated())
+					{
+						FComputeShaderUtils::DispatchIndirect(
+							RHICmdList,
+							ComputeShader,
+							*PassParameters,
+							PassParameters->IndirectArgs->GetIndirectRHICallBuffer(),
+							0
+						);
+					}
+				}
 			);
 		}
 
@@ -3527,13 +3565,24 @@ FBinningData FRenderer::AddPass_Binning(
 			FinalizePassParameters->RenderFlags = RenderFlags;
 
 			auto ComputeShader = SharedContext.ShaderMap->GetShader<FRasterBinFinalize_CS>();
-			FComputeShaderUtils::AddPass(
-				GraphBuilder,
+			ClearUnusedGraphResources(ComputeShader, FinalizePassParameters);
+
+			GraphBuilder.AddPass(
 				RDG_EVENT_NAME("RasterBinFinalize"),
-				PassFlags,
-				ComputeShader,
 				FinalizePassParameters,
-				FComputeShaderUtils::GetGroupCountWrapped(BinningData.BinCount, 64)
+				PassFlags,
+				[FinalizePassParameters, &DispatchContext, VisiblePatches, ComputeShader, BinCount = BinningData.BinCount](FRHIComputeCommandList& RHICmdList)
+				{
+					if (VisiblePatches == nullptr || DispatchContext.HasTessellated())
+					{
+						FComputeShaderUtils::Dispatch(
+							RHICmdList,
+							ComputeShader,
+							*FinalizePassParameters,
+							FComputeShaderUtils::GetGroupCountWrapped(BinCount, 64)
+						);
+					}
+				}
 			);
 		}
 	}
@@ -4025,6 +4074,9 @@ FBinningData FRenderer::AddPass_Rasterize(
 	const ERHIFeatureLevel::Type FeatureLevel = Scene.GetFeatureLevel();
 	const ERasterHardwarePath HardwarePath = GetRasterHardwarePath(Scene.GetShaderPlatform(), SharedContext.Pipeline);
 
+	// Assume an arbitrary large workload when programmable raster is enabled.
+	const int32 PassWorkload = (RenderFlags & NANITE_RENDER_FLAG_DISABLE_PROGRAMMABLE) != 0u ? 1 : 256;
+
 	FRDGBufferRef ClusterOffsetSWHW = MainRasterizeArgsSWHW;
 	if (bMainPass)
 	{
@@ -4038,7 +4090,7 @@ FBinningData FRenderer::AddPass_Rasterize(
 	}
 
 	const ERasterScheduling Scheduling = RasterContext.RasterScheduling;
-	const bool bTessellationEnabled = VisiblePatchesArgs != nullptr && DispatchContext.HasTessellated() && (Scheduling != ERasterScheduling::HardwareOnly);
+	const bool bTessellationEnabled = VisiblePatchesArgs != nullptr && (Scheduling != ERasterScheduling::HardwareOnly);
 
 	const auto CreateSkipBarrierUAV = [&](auto& InOutUAV)
 	{
@@ -4123,6 +4175,7 @@ FBinningData FRenderer::AddPass_Rasterize(
 
 	// Rasterizer Cluster Binning
 	FBinningData ClusterBinning = AddPass_Binning(
+		DispatchContext,
 		HardwarePath,
 		ClusterOffsetSWHW,
 		nullptr,
@@ -4154,18 +4207,21 @@ FBinningData FRenderer::AddPass_Rasterize(
 			ERDGPassFlags::Compute,
 			[ClusterPassParameters, &DispatchContext, &SceneView = SceneView, RenderFlags = RenderFlags, PSOCollectorIndex](FRHIComputeCommandList& RHICmdList)
 			{
-				DispatchContext.DispatchSW(
-					RHICmdList,
-					DispatchContext.Dispatches_SW_Tessellated,
-					SceneView,
-					PSOCollectorIndex,
-					*ClusterPassParameters,
-					false /* Patches */
-				);
+				if (DispatchContext.HasTessellated())
+				{
+					DispatchContext.DispatchSW(
+						RHICmdList,
+						DispatchContext.Dispatches_SW_Tessellated,
+						SceneView,
+						PSOCollectorIndex,
+						*ClusterPassParameters,
+						false /* Patches */
+					);
+				}
 			}
 		);
 
-		GraphBuilder.SetPassWorkload(SWTessellatedPass, FMath::Max(DispatchContext.Dispatches_SW_Tessellated.Indirections.Num(), 1));
+		GraphBuilder.SetPassWorkload(SWTessellatedPass, PassWorkload);
 	}
 
 	FRDGPass* HWTrianglesPass = GraphBuilder.AddPass(
@@ -4186,7 +4242,7 @@ FBinningData FRenderer::AddPass_Rasterize(
 		}
 	);
 
-	GraphBuilder.SetPassWorkload(HWTrianglesPass, FMath::Max(DispatchContext.Dispatches_HW_Triangles.Indirections.Num(), 1));
+	GraphBuilder.SetPassWorkload(HWTrianglesPass, PassWorkload);
 
 	if (Scheduling != ERasterScheduling::HardwareOnly)
 	{
@@ -4207,7 +4263,7 @@ FBinningData FRenderer::AddPass_Rasterize(
 			}
 		);
 
-		GraphBuilder.SetPassWorkload(SWTrianglesPass, FMath::Max(DispatchContext.Dispatches_SW_Triangles.Indirections.Num(), 1));
+		GraphBuilder.SetPassWorkload(SWTrianglesPass, PassWorkload);
 	}
 
 	if (bTessellationEnabled)
@@ -4216,6 +4272,7 @@ FBinningData FRenderer::AddPass_Rasterize(
 		const ERDGPassFlags PatchPassFlags = ERDGPassFlags::Compute;
 
 		AddPass_PatchSplit(
+			DispatchContext,
 			ViewArray,
 			SplitWorkQueue,
 			OccludedPatches,
@@ -4226,6 +4283,7 @@ FBinningData FRenderer::AddPass_Rasterize(
 		);
 
 		FBinningData PatchBinning = AddPass_Binning(
+			DispatchContext,
 			HardwarePath,
 			ClusterOffsetSWHW,
 			VisiblePatches,
@@ -4265,17 +4323,22 @@ FBinningData FRenderer::AddPass_Rasterize(
 			}
 		);
 
-		GraphBuilder.SetPassWorkload(SWPatchesPass, FMath::Max(DispatchContext.Dispatches_SW_Tessellated.Indirections.Num(), 1));
+		GraphBuilder.SetPassWorkload(SWPatchesPass, PassWorkload);
 
 	#if NANITE_SEPARATE_SPLIT_QUEUE_CLEAR
-		AddPass_ClearSplitQueue(SplitWorkQueue, PatchPassFlags);
+		AddPass_ClearSplitQueue(DispatchContext, SplitWorkQueue, PatchPassFlags);
 	#endif
 	}
 
 	return ClusterBinning;
 }
 
+BEGIN_SHADER_PARAMETER_STRUCT(FClearVisiblePatchesUAVParameters, )
+	SHADER_PARAMETER_RDG_BUFFER_UAV(RWBuffer<uint>, VisiblePatchesArgsUAV)
+END_SHADER_PARAMETER_STRUCT()
+
 void FRenderer::AddPass_PatchSplit(
+	const FDispatchContext& DispatchContext,
 	const FPackedViewArray& ViewArray,
 	const FGlobalWorkQueueParameters& SplitWorkQueue,
 	const FGlobalWorkQueueParameters& OccludedPatches,
@@ -4290,7 +4353,27 @@ void FRenderer::AddPass_PatchSplit(
 		return;
 	}
 
-	AddClearUAVPass( GraphBuilder, GraphBuilder.CreateUAV( VisiblePatchesArgs ), 0 );
+	// Clear visible patches args
+	{
+		FRDGBufferUAVRef VisiblePatchesArgsUAV = GraphBuilder.CreateUAV(VisiblePatchesArgs);
+
+		FClearVisiblePatchesUAVParameters* Parameters = GraphBuilder.AllocParameters<FClearVisiblePatchesUAVParameters>();
+		Parameters->VisiblePatchesArgsUAV = VisiblePatchesArgsUAV;
+
+		GraphBuilder.AddPass(
+			RDG_EVENT_NAME("ClearVisiblePatchesArgs"),
+			Parameters,
+			PassFlags,
+			[Parameters, &DispatchContext, VisiblePatchesArgsUAV](FRHIComputeCommandList& RHICmdList)
+			{
+				if (DispatchContext.HasTessellated())
+				{
+					RHICmdList.ClearUAVUint(VisiblePatchesArgsUAV->GetRHI(), FUintVector4(0u, 0u, 0u, 0u));
+					VisiblePatchesArgsUAV->MarkResourceAsUsed();
+				}
+			}
+		);
+	}
 
 	{
 		FPatchSplitCS::FParameters* PassParameters = GraphBuilder.AllocParameters< FPatchSplitCS::FParameters >();
@@ -4315,8 +4398,10 @@ void FRenderer::AddPass_PatchSplit(
 
 		PassParameters->OutStatsBuffer				= GNaniteShowStats != 0u ? GraphBuilder.CreateUAV(StatsBuffer) : nullptr;
 
-		if( VirtualShadowMapArray )
-			PassParameters->VirtualShadowMap = VirtualTargetParameters;
+		if (VirtualShadowMapArray)
+		{
+			PassParameters->VirtualShadowMap		= VirtualTargetParameters;
+		}
 
 		FPatchSplitCS::FPermutationDomain PermutationVector;
 		PermutationVector.Set< FPatchSplitCS::FCullingPassDim >( CullingPass );
@@ -4326,14 +4411,19 @@ void FRenderer::AddPass_PatchSplit(
 		PermutationVector.Set< FPatchSplitCS::FWriteStatsDim >(GNaniteShowStats != 0u);
 		
 		auto ComputeShader = SharedContext.ShaderMap->GetShader< FPatchSplitCS >( PermutationVector );
+		ClearUnusedGraphResources(ComputeShader, PassParameters);
 
-		FComputeShaderUtils::AddPass(
-			GraphBuilder,
-			RDG_EVENT_NAME( "PatchSplit" ),
-			PassFlags,
-			ComputeShader,
+		GraphBuilder.AddPass(
+			RDG_EVENT_NAME("PatchSplit"),
 			PassParameters,
-			FIntVector( GRHIPersistentThreadGroupCount, 1, 1 )
+			PassFlags,
+			[PassParameters, &DispatchContext, ComputeShader](FRHIComputeCommandList& RHICmdList)
+			{
+				if (DispatchContext.HasTessellated())
+				{
+					FComputeShaderUtils::Dispatch(RHICmdList, ComputeShader, *PassParameters, FIntVector(GRHIPersistentThreadGroupCount, 1, 1));
+				}
+			}
 		);
 	}
 
@@ -4343,19 +4433,27 @@ void FRenderer::AddPass_PatchSplit(
 		PassParameters->RWVisiblePatchesArgs = GraphBuilder.CreateUAV( VisiblePatchesArgs );
 		
 		auto ComputeShader = SharedContext.ShaderMap->GetShader< FInitVisiblePatchesArgsCS >();
+		ClearUnusedGraphResources(ComputeShader, PassParameters);
 
-		FComputeShaderUtils::AddPass(
-			GraphBuilder,
-			RDG_EVENT_NAME( "InitVisiblePatchesArgs" ),
-			PassFlags,
-			ComputeShader,
+		GraphBuilder.AddPass(
+			RDG_EVENT_NAME("InitVisiblePatchesArgs"),
 			PassParameters,
-			FIntVector( 1, 1, 1 )
+			PassFlags,
+			[PassParameters, &DispatchContext, ComputeShader](FRHIComputeCommandList& RHICmdList)
+			{
+				if (DispatchContext.HasTessellated())
+				{
+					FComputeShaderUtils::Dispatch(RHICmdList, ComputeShader, *PassParameters, FIntVector(1, 1, 1));
+				}
+			}
 		);
 	}
 }
 
-void FRenderer::AddPass_ClearSplitQueue(const FGlobalWorkQueueParameters& SplitWorkQueue, ERDGPassFlags PassFlags)
+void FRenderer::AddPass_ClearSplitQueue(
+	const FDispatchContext& DispatchContext,
+	const FGlobalWorkQueueParameters& SplitWorkQueue,
+	ERDGPassFlags PassFlags)
 {
 	if (!UseNaniteTessellation())
 	{
@@ -4369,29 +4467,47 @@ void FRenderer::AddPass_ClearSplitQueue(const FGlobalWorkQueueParameters& SplitW
 		PassParameters->OutClearQueueArgs	= GraphBuilder.CreateUAV( IndirectArgs );
 
 		auto ComputeShader = SharedContext.ShaderMap->GetShader< InitClearSplitQueueArgsCS >();
-		FComputeShaderUtils::AddPass(
-			GraphBuilder,
-			RDG_EVENT_NAME( "InitClearQueueArgs" ),
-			PassFlags,
-			ComputeShader,
+		ClearUnusedGraphResources(ComputeShader, PassParameters);
+
+		GraphBuilder.AddPass(
+			RDG_EVENT_NAME("InitClearQueueArgs"),
 			PassParameters,
-			FIntVector( 1, 1, 1 )
+			PassFlags,
+			[PassParameters, &DispatchContext, ComputeShader](FRHIComputeCommandList& RHICmdList)
+			{
+				if (DispatchContext.HasTessellated())
+				{
+					FComputeShaderUtils::Dispatch(RHICmdList, ComputeShader, *PassParameters, FIntVector(1, 1, 1));
+				}
+			}
 		);
 	}
 
 	{
 		ClearSplitQueueCS::FParameters* PassParameters = GraphBuilder.AllocParameters< ClearSplitQueueCS::FParameters >();
 		PassParameters->SplitWorkQueue = SplitWorkQueue;
+		PassParameters->IndirectArgs = IndirectArgs;
 
 		auto ComputeShader = SharedContext.ShaderMap->GetShader< ClearSplitQueueCS >();
-		FComputeShaderUtils::AddPass(
-			GraphBuilder,
+		ClearUnusedGraphResources(ComputeShader, PassParameters);
+
+		GraphBuilder.AddPass(
 			RDG_EVENT_NAME("ClearSplitQueue"),
-			PassFlags,
-			ComputeShader,
 			PassParameters,
-			IndirectArgs,
-			0
+			PassFlags,
+			[PassParameters, &DispatchContext, ComputeShader](FRHIComputeCommandList& RHICmdList)
+			{
+				if (DispatchContext.HasTessellated())
+				{
+					FComputeShaderUtils::DispatchIndirect(
+						RHICmdList,
+						ComputeShader,
+						*PassParameters,
+						PassParameters->IndirectArgs->GetIndirectRHICallBuffer(),
+						0
+					);
+				}
+			}
 		);
 	}
 }
