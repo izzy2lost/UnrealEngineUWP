@@ -48,9 +48,11 @@ FDistributionEndpoints::EResult FDistributionEndpoints::ResolveEndpoints(const F
 	HttpRequest->SetVerb(TEXT("GET"));
 	HttpRequest->SetHeader(TEXT("Accept"), TEXT("application/json"));
 	HttpRequest->OnProcessRequestComplete().BindLambda(
-		[this, &bHasResponse, &Event, &Result, &OutServiceUrls](FHttpRequestPtr, FHttpResponsePtr Response, bool bOk)
+		[this, &bHasResponse, &Event, &Result, &OutServiceUrls](FHttpRequestPtr Request, FHttpResponsePtr Response, bool bOk)
 		{
 			LLM_SCOPE_BYTAG(Ias);
+			/* Work around a code generation issue in MSVC: forced usage of the request so it is not optimized away */
+			UE_LOG(LogIas, VeryVerbose, TEXT("HTTP [%s] request completed"), *Request->GetVerb());
 			
 			bHasResponse = true;
 			Result = ParseResponse(Response, OutServiceUrls);
