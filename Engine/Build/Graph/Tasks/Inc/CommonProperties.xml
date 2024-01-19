@@ -21,4 +21,6 @@
 	<Property Name="BuildNamePath" Value="$(ProjectName)-$(CL-String)"/>
 	<Property Name="BuildVersion" Value="$(ProjectName)-CL-$(Change)"/>
 
+	<Include Script="SharedProperties.xml" />
+
 </BuildGraph>

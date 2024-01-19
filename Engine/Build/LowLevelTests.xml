@@ -84,7 +84,6 @@
 		<Property Name="TestsAllSupportedPlatforms" Value="false" If="$(TestPlatform$(Platform))"/>
 	</ForEach>
 	
-	<Property Name="GauntletDeviceService" Value="https://horde.devtools.epicgames.com" />
 	<Option Name="TestArgs" DefaultValue="" Description="Extra test arguments."/>
 
 	<Option Name="GauntletDevicePool" DefaultValue="UE4" Description="Gauntlet Device Pool to use to run target platform tests"/>
@@ -94,6 +93,9 @@
 	<Option Name="Configuration" DefaultValue="Development" Description="Configuration type: development, debug, test, shipping etc."/>
 	<Option Name="AttachToDebugger" DefaultValue="false" Description="Wait for debugger to attach."/>
 	<Option Name="EnableDeviceLoginVerification" DefaultValue="$(IsBuildMachine)" Description="Verify a user is logged in on Devices that supports it, try to sign in if not."/>
+
+	<!-- Get shared properties -->
+	<Include Script="Graph/Tasks/Inc/SharedProperties.xml" />
 
 	<Property Name="TestNodes" Value=""/>
 	<Property Name="AfterTestNodes" Value=""/>
@@ -134,7 +136,8 @@
 		<Property Name="PlatformStageDirName" Value="Windows" If="'$(Platform)' == 'Win64'"/>
 		<Property Name="DevicePool" Value="$(GauntletDevicePool)" />
 		<Property Name="DevicePool" Value="$(AlternateGauntletDevicePool)" If="ContainsItem('$(AlternateDevicePoolPlatforms)', '$(Platform)', ';')" />
-		<Property Name="TestArgsExt" Value="$(TestArgs) -deviceurl=$(GauntletDeviceService) -devicepool=$(DevicePool)"/>
+		<Property Name="TestArgsExt" Value="$(TestArgs)"/>
+		<Property Name="TestArgsExt" Value="$(TestArgsExt) -deviceurl=$(GauntletDeviceService) -devicepool=$(DevicePool)" If="'$(GauntletDeviceService)' != ''"/>
 		<Property Name="TestModeSuffix" Value=""/>
 		<Property Name="TestTags" Value=""/>
 		<Property Name="TestTags" Value="$($(Platform)$(TestName)Tags)" If="'$($(Platform)$(TestName)Tags)' != ''"/>

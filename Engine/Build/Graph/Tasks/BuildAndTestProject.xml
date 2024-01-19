@@ -114,7 +114,7 @@
 	<Option Name="AnnotationsPlatforms" DefaultValue="" Description="List of platforms that require annotations"/>
 	<Option Name="AnnotationsTests" DefaultValue="" Description="List of tests that require annotations"/>
 
-	<!-- Some common properties -->
+	<!-- Default common properties -->
 	<Include Script="Inc/CommonProperties.xml" />
 
 	<!-- Common settings but can be overidden -->
