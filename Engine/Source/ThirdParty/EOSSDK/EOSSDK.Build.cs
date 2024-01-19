@@ -247,7 +247,7 @@ public class EOSSDK : ModuleRules
 		// Don't link against the SDK if this is a monolithic build and a project binary is being provided.
 		bool bEnableLink = !(bIsMonolithic && HasProjectBinary);
 
-		// Don't stage if this is a unique build environment and a project binary is being provided
+		// Don't stage SDK binaries if we're not linking against the SDK, or if this is a unique build environment and a project binary is being provided
 		bool bEnableStage = bEnableLink && !(bIsUniqueBuildEnv && HasProjectBinary);
 
 		if (bEnableLink && Target.Platform == UnrealTargetPlatform.LinuxArm64)
