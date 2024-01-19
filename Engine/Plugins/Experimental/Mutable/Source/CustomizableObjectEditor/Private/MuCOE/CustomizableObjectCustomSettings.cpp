@@ -626,9 +626,9 @@ FReply SCustomizableObjectCustomSettings::OnPointLightAdded() const
 		return FReply::Handled();	
 	}
 
-	UPointLightComponent* Component = NewObject<UPointLightComponent>();
+	UPointLightComponent* Component = NewObject<UPointLightComponent>(GetTransientPackage(), NAME_None, RF_Transactional);
 	Viewport->GetViewportClient()->AddLightToScene(Component);
-	Editor->ShowGizmoLight(*Component);			
+	Editor->ShowGizmoLight(*Component);
 	
 	return FReply::Handled();
 }
