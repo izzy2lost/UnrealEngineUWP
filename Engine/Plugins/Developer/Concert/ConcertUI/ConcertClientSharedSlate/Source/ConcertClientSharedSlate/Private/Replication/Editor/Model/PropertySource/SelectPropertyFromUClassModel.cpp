@@ -1,19 +1,19 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
-#include "Replication/Editor/Model/Property/SelectPropertyFromUClassModel.h"
+#include "Replication/Editor/Model/PropertySource/SelectPropertyFromUClassModel.h"
 
 #include "ConcertLogGlobal.h"
-#include "Replication/Editor/Model/Property/ConcertSyncCoreReplicatedPropertySource.h"
+#include "Replication/Editor/Model/PropertySource/ConcertSyncCoreReplicatedPropertySource.h"
 
 #define LOCTEXT_NAMESPACE "FSelectPropertyFromUClassModel"
 
-namespace UE::ConcertSharedSlate
+namespace UE::ConcertClientSharedSlate
 {
 	FSelectPropertyFromUClassModel::FSelectPropertyFromUClassModel()
 		: UClassIteratorSource(MakeShared<FConcertSyncCoreReplicatedPropertySource>())
 	{}
 
-	TSharedRef<IPropertySourceModel> FSelectPropertyFromUClassModel::GetPropertySource(const FSoftClassPath& Class) const
+	TSharedRef<ConcertSharedSlate::IPropertySourceModel> FSelectPropertyFromUClassModel::GetPropertySource(const FSoftClassPath& Class) const
 	{
 		UClass* LoadedClass = Class.TryLoadClass<UObject>();
 		if (LoadedClass)

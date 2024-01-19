@@ -4,7 +4,7 @@
 
 #include "Replication/ClientReplicationWidgetFactories.h"
 #include "Replication/Client/ReplicationClient.h"
-#include "Replication/Editor/Model/Property/SelectPropertyFromUClassModel.h"
+#include "Replication/Editor/Model/PropertySource/SelectPropertyFromUClassModel.h"
 #include "Replication/Editor/View/IReplicationStreamEditor.h"
 #include "Replication/Editor/Model/ObjectSource/ActorSelectionSourceModel.h"
 #include "Replication/ReplicationWidgetFactories.h"
@@ -73,7 +73,7 @@ namespace UE::MultiUserClient
 		{
 			.DataModel = InReplicationClient.GetClientEditModel(),
 			.ObjectSource = MakeShared<ConcertClientSharedSlate::FActorSelectionSourceModel>(),
-			.PropertySource = MakeShared<FSelectPropertyFromUClassModel>(),
+			.PropertySource = MakeShared<ConcertClientSharedSlate::FSelectPropertyFromUClassModel>(),
 			.IsEditingEnabled = TAttribute<bool>::CreateLambda([&SubmissionWorkflow](){ return CanEverSubmit(SubmissionWorkflow.GetUploadability()); }),
 			.EditingDisabledToolTipText = LOCTEXT("Editing.NotImplemented", "Editing remote clients is not implemented. You can only edit the local client."),
 			.ViewerParams =

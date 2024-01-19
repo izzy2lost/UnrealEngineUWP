@@ -8,7 +8,7 @@
 #include "Replication/ReplicationWidgetFactories.h"
 #include "Replication/Client/ReplicationClient.h"
 #include "Replication/Client/ReplicationClientManager.h"
-#include "Replication/Editor/Model/Property/SelectPropertyFromUClassModel.h"
+#include "Replication/Editor/Model/PropertySource/SelectPropertyFromUClassModel.h"
 #include "Replication/Editor/View/IMultiReplicationStreamEditor.h"
 #include "Replication/Editor/View/IReplicationStreamEditor.h"
 #include "Replication/Editor/Model/ObjectSource/ActorSelectionSourceModel.h"
@@ -88,7 +88,7 @@ namespace UE::MultiUserClient
 			.MultiStreamModel = StreamModel.ToSharedRef(),
 			.ConsolidatedObjectModel = ConcertClientSharedSlate::CreateTransactionalStreamModel(),
 			.ObjectSource = MakeShared<ConcertClientSharedSlate::FActorSelectionSourceModel>(),
-			.PropertySource = MakeShared<FSelectPropertyFromUClassModel>(),
+			.PropertySource = MakeShared<ConcertClientSharedSlate::FSelectPropertyFromUClassModel>(),
 			.GetAutoAssignToStreamDelegate = MoveTemp(GetAutoAssignTargetDelegate),
 			.ViewerParams 
 			{

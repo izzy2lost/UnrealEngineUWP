@@ -1,14 +1,14 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
-#include "Replication/Editor/Model/Property/ConcertSyncCoreReplicatedPropertySource.h"
+#include "Replication/Editor/Model/PropertySource/ConcertSyncCoreReplicatedPropertySource.h"
 
 #include "ConcertLogGlobal.h"
 #include "Replication/PropertyChainUtils.h"
 #include "UObject/UnrealType.h"
 
-#define LOCTEXT_NAMESPACE "FSimplePropertyIterationSource"
+#define LOCTEXT_NAMESPACE "FConcertSyncCoreReplicatedPropertySource"
 
-namespace UE::ConcertSharedSlate
+namespace UE::ConcertClientSharedSlate
 {
 	void FConcertSyncCoreReplicatedPropertySource::SetClass(UClass* InClass)
 	{
@@ -38,7 +38,7 @@ namespace UE::ConcertSharedSlate
 		};
 	}
 
-	void FConcertSyncCoreReplicatedPropertySource::EnumerateSelectableItems(TFunctionRef<EBreakBehavior(const FSelectablePropertyInfo& SelectableOption)> Delegate) const
+	void FConcertSyncCoreReplicatedPropertySource::EnumerateSelectableItems(TFunctionRef<EBreakBehavior(const ConcertSharedSlate::FSelectablePropertyInfo& SelectableOption)> Delegate) const
 	{
 		if (!Class.IsValid())
 		{
