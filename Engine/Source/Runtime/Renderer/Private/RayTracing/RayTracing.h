@@ -11,11 +11,14 @@
 #include "RenderGraphDefinitions.h"
 
 class FRayTracingScene;
+class FViewFamilyInfo;
 class FGlobalDynamicReadBuffer;
 
 namespace RayTracing
 {
 	struct FRelevantPrimitiveList;
+
+	void OnRenderBegin(FScene& Scene, TArray<FViewInfo>& Views, const FViewFamilyInfo& ViewFamily);
 
 	FRelevantPrimitiveList* CreateRelevantPrimitiveList(FSceneRenderingBulkObjectAllocator& InAllocator);
 

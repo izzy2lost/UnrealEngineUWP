@@ -69,6 +69,7 @@
 #if WITH_EDITOR
 #include "Rendering/StaticLightingSystemInterface.h"
 #endif
+#include "RayTracing/RayTracing.h"
 #include "RayTracing/RayTracingScene.h"
 #include "Rendering/RayTracingGeometryManager.h"
 #include "FXSystem.h"
@@ -3463,6 +3464,10 @@ IVisibilityTaskData* FSceneRenderer::OnRenderBegin(FRDGBuilder& GraphBuilder)
 	}
 
 	Scene->UpdateAllPrimitiveSceneInfos(GraphBuilder, AsyncOps);
+
+#if RHI_RAYTRACING
+	RayTracing::OnRenderBegin(*Scene, Views, ViewFamily);
+#endif
 
 	if (!ViewFamily.ViewExtensions.IsEmpty())
 	{
