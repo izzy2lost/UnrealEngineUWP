@@ -2384,24 +2384,23 @@ FZenServiceInstance::GetCacheStats(FZenCacheStats& Stats)
 #endif
 		// We've not got any requests in flight and we've met a given time requirement for requests
 	CacheStatsRequest = Async(ThreadPool, [Request]
-		{
+	{
 		check(Request != nullptr);
 		Request->Reset();
 
-			TArray64<uint8> GetBuffer;
+		TArray64<uint8> GetBuffer;
 		FZenHttpRequest::Result Result = Request->PerformBlockingDownload(TEXTVIEW("/stats/z$"), &GetBuffer, Zen::EContentType::CbObject);
 
-			FZenCacheStats Stats;
+		FZenCacheStats Stats;
 
 		if (Result == Zen::FZenHttpRequest::Result::Success && Request->GetResponseCode() == 200)
-			{
-			UE_LOG(LogZenServiceInstance, Display, TEXT("FZenServiceInstance::GetCacheStats (updating stats from response)"));
-				FCbFieldView RootView(GetBuffer.GetData());
-				Stats.bIsValid = LoadFromCompactBinary(RootView, Stats);
-			}
+		{
+			FCbFieldView RootView(GetBuffer.GetData());
+			Stats.bIsValid = LoadFromCompactBinary(RootView, Stats);
+		}
 
-			return Stats;
-		});
+		return Stats;
+	});
 
 	return Stats.bIsValid;
 }
