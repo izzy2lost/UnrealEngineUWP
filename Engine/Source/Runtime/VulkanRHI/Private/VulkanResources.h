@@ -632,7 +632,8 @@ public:
 		VkImageFormatListCreateInfoKHR ImageFormatListCreateInfo;
 		//used when TexCreate_External is given
 		VkExternalMemoryImageCreateInfoKHR ExternalMemImageCreateInfo;
-		VkFormat FormatsUsed[2];
+		// Array of formats used for mutable formats
+		TArray<VkFormat, TInlineAllocator<2>> FormatsUsed;
 	};
 
 	// Seperate method for creating VkImageCreateInfo

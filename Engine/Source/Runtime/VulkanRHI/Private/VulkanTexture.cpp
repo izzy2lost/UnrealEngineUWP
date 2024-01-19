@@ -270,19 +270,32 @@ void FVulkanTexture::GenerateImageCreateInfo(
 
 	ImageCreateInfo.flags = (ResourceType == VK_IMAGE_VIEW_TYPE_CUBE || ResourceType == VK_IMAGE_VIEW_TYPE_CUBE_ARRAY) ? VK_IMAGE_CREATE_CUBE_COMPATIBLE_BIT : 0;
 
-
-	if (EnumHasAllFlags(UEFlags, TexCreate_SRGB))
+	const bool bNeedsMutableFormat = (EnumHasAllFlags(UEFlags, TexCreate_SRGB) || (InDesc.Format == PF_R64_UINT));
+	if (bNeedsMutableFormat)
 	{
-		if(InDevice.GetOptionalExtensions().HasKHRImageFormatList)
+		if (InDevice.GetOptionalExtensions().HasKHRImageFormatList)
 		{
 			VkImageFormatListCreateInfoKHR& ImageFormatListCreateInfo = OutImageCreateInfo.ImageFormatListCreateInfo;
 			ZeroVulkanStruct(ImageFormatListCreateInfo, VK_STRUCTURE_TYPE_IMAGE_FORMAT_LIST_CREATE_INFO_KHR);
 			ImageFormatListCreateInfo.pNext = ImageCreateInfo.pNext;
 			ImageCreateInfo.pNext = &ImageFormatListCreateInfo;
-			ImageFormatListCreateInfo.viewFormatCount = 2;
-			ImageFormatListCreateInfo.pViewFormats = OutImageCreateInfo.FormatsUsed;
-			OutImageCreateInfo.FormatsUsed[0] = nonSrgbFormat;
-			OutImageCreateInfo.FormatsUsed[1] = srgbFormat;
+
+			// Allow non-SRGB views to be created for SRGB textures
+			if (EnumHasAllFlags(UEFlags, TexCreate_SRGB))
+			{
+				OutImageCreateInfo.FormatsUsed.Add(nonSrgbFormat);
+				OutImageCreateInfo.FormatsUsed.Add(srgbFormat);
+			}
+
+			// Make it possible to create R32G32 views of R64 images for utilities like clears
+			if (InDesc.Format == PF_R64_UINT)
+			{
+				OutImageCreateInfo.FormatsUsed.Add(nonSrgbFormat);
+				OutImageCreateInfo.FormatsUsed.Add(UEToVkTextureFormat(PF_R32G32_UINT, false));
+			}
+
+			ImageFormatListCreateInfo.pViewFormats = OutImageCreateInfo.FormatsUsed.GetData();
+			ImageFormatListCreateInfo.viewFormatCount = OutImageCreateInfo.FormatsUsed.Num();
 		}
 
 		ImageCreateInfo.flags |= VK_IMAGE_CREATE_MUTABLE_FORMAT_BIT;

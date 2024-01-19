@@ -579,6 +579,15 @@ void AddClearUAVPass(FRDGBuilder& GraphBuilder, ERHIFeatureLevel::Type FeatureLe
 
 	check(TextureUAV && RectCoordBufferSRV);
 
+	const FRDGTextureRef Texture = TextureUAV->GetParent();
+	const FIntPoint TextureSize = Texture->Desc.Extent;
+
+	// Create a R32G32 view of the R64 instead of adding a permutation to the clear shader
+	if (Texture->Desc.Format == PF_R64_UINT)
+	{
+		TextureUAV = GraphBuilder.CreateUAV(Texture, ERDGUnorderedAccessViewFlags::None, PF_R32G32_UINT);
+	}
+
 	FClearUAVRectsParameters* PassParameters = GraphBuilder.AllocParameters<FClearUAVRectsParameters>();
 
 	PassParameters->PS.ClearValue.X = ClearValues[0];
@@ -589,9 +598,6 @@ void AddClearUAVPass(FRDGBuilder& GraphBuilder, ERHIFeatureLevel::Type FeatureLe
 
 	auto* ShaderMap = GetGlobalShaderMap(FeatureLevel);
 	auto PixelShader = ShaderMap->GetShader<FClearUAVRectsPS>();
-
-	const FRDGTextureRef Texture = TextureUAV->GetParent();
-	const FIntPoint TextureSize = Texture->Desc.Extent;
 
 	FPixelShaderUtils::AddRasterizeToRectsPass<FClearUAVRectsPS>(GraphBuilder,
 		ShaderMap,
