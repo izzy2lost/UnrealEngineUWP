@@ -1536,7 +1536,7 @@ void FRHIRenderPassInfo::ConvertToRenderTargetsInfo(FRHISetRenderTargetsInfo& Ou
 
 		OutRTInfo.bClearColor |= (LoadAction == ERenderTargetLoadAction::EClear);
 
-		ensure(!OutRTInfo.bHasResolveAttachments || ColorRenderTargets[Index].ResolveTarget);
+		ensure(!OutRTInfo.bHasResolveAttachments || ColorRenderTargets[Index].RenderTarget->GetNumSamples() == 1);
 		if (ColorRenderTargets[Index].ResolveTarget)
 		{
 			OutRTInfo.bHasResolveAttachments = true;
@@ -1583,7 +1583,8 @@ void FRHIRenderPassInfo::Validate() const
 			}
 			else
 			{
-				ensureMsgf(Entry.RenderTarget->GetNumSamples() == NumSamples, TEXT("RenderTarget have inconsistent NumSamples: first %d, then %d"), NumSamples, Entry.RenderTarget->GetNumSamples());
+				// CustomResolveSubpass can have targets with a different NumSamples
+				ensureMsgf(Entry.RenderTarget->GetNumSamples() == NumSamples || SubpassHint == ESubpassHint::CustomResolveSubpass, TEXT("RenderTarget have inconsistent NumSamples: first %d, then %d"), NumSamples, Entry.RenderTarget->GetNumSamples());
 			}
 
 			ERenderTargetStoreAction Store = GetStoreAction(Entry.Action);
@@ -1650,7 +1651,7 @@ void FRHIRenderPassInfo::Validate() const
 			//ensure(StencilStore == ERenderTargetStoreAction::EStore);
 		}
 		
-		if (SubpassHint == ESubpassHint::DepthReadSubpass)
+		if (SubpassHint == ESubpassHint::DepthReadSubpass || SubpassHint == ESubpassHint::CustomResolveSubpass)
 		{
 			// for depth read sub-pass
 			// 1. render pass must have depth target
@@ -1663,6 +1664,7 @@ void FRHIRenderPassInfo::Validate() const
 		ensure(DepthStencilRenderTarget.Action == EDepthStencilTargetActions::DontLoad_DontStore);
 		ensure(DepthStencilRenderTarget.ExclusiveDepthStencil == FExclusiveDepthStencil::DepthNop_StencilNop);
 		ensure(SubpassHint != ESubpassHint::DepthReadSubpass);
+		ensure(SubpassHint != ESubpassHint::CustomResolveSubpass);
 	}
 }
 #endif

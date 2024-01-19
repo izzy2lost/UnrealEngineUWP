@@ -123,6 +123,7 @@ struct FSceneTexturesConfig
 		: bRequireMultiView{}
 		, bIsUsingGBuffers{}
 		, bKeepDepthContent{ 1 }
+		, bRequiresDepthAux{}
 		, bPreciseDepthAux{}
 		, bSamplesCustomStencil{}
 		, bMemorylessMSAA{}
@@ -190,6 +191,9 @@ struct FSceneTexturesConfig
 	// (Mobile) True if the platform should write depth content back to memory.
 	uint32 bKeepDepthContent : 1;
 
+	// (Mobile) True if platform requires SceneDepthAux target
+	uint32 bRequiresDepthAux : 1;
+	
 	// (Mobile) True if SceneDepthAux should use a precise pixel format
 	uint32 bPreciseDepthAux : 1;
 

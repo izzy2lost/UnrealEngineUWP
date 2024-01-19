@@ -1035,3 +1035,127 @@ FScreenPassTexture AddTonemapPass(FRDGBuilder& GraphBuilder, const FViewInfo& Vi
 	return MoveTemp(Output);
 }
 
+
+// MSAA custom resolve shader that does tonemapping 
+class FMobileCustomResolvePS : public FGlobalShader
+{
+	DECLARE_GLOBAL_SHADER(FMobileCustomResolvePS);
+
+	SHADER_USE_PARAMETER_STRUCT(FMobileCustomResolvePS, FGlobalShader);
+	BEGIN_SHADER_PARAMETER_STRUCT(FParameters, )
+		SHADER_PARAMETER_STRUCT_INCLUDE(FViewShaderParameters, View)
+		SHADER_PARAMETER_RDG_TEXTURE(Texture2D, ColorTexture)
+		SHADER_PARAMETER_SAMPLER(SamplerState, ColorSampler)
+		SHADER_PARAMETER(FVector4f, ColorScale0)
+		SHADER_PARAMETER_TEXTURE(Texture2D, ColorGradingLUT)
+		SHADER_PARAMETER_SAMPLER(SamplerState, ColorGradingLUTSampler)
+		SHADER_PARAMETER(float, LUTSize)
+		SHADER_PARAMETER(float, InvLUTSize)
+		SHADER_PARAMETER(float, LUTScale)
+		SHADER_PARAMETER(float, LUTOffset)
+	END_SHADER_PARAMETER_STRUCT()
+
+	class FTonemapperSubpassMsaaDim : SHADER_PERMUTATION_SPARSE_INT("SUBPASS_MSAA_SAMPLES", 0, 1, 2, 4, 8);
+	using FPermutationDomain = TShaderPermutationDomain<FTonemapperSubpassMsaaDim>;
+
+	static bool ShouldCompilePermutation(const FGlobalShaderPermutationParameters& Parameters)
+	{
+		return IsMobilePlatform(Parameters.Platform);
+	}
+
+	static void ModifyCompilationEnvironment(const FGlobalShaderPermutationParameters& Parameters, FShaderCompilerEnvironment& OutEnvironment)
+	{
+		const int UseVolumeLut = PipelineVolumeTextureLUTSupportGuaranteedAtRuntime(Parameters.Platform) ? 1 : 0;
+		OutEnvironment.SetDefine(TEXT("USE_VOLUME_LUT"), UseVolumeLut);
+	}
+};
+
+IMPLEMENT_GLOBAL_SHADER(FMobileCustomResolvePS, "/Engine/Private/PostProcessTonemap.usf", "MobileCustomResolve_MainPS", SF_Pixel);
+
+void RenderMobileCustomResolve(FRHICommandList& RHICmdList, const FViewInfo& View, const int32 SubpassMSAASamples, FSceneTextures& SceneTextures)
+{
+	// Part of scene rendering pass
+	check(RHICmdList.IsInsideRenderPass());
+	SCOPED_DRAW_EVENT(RHICmdList, MobileTonemapSubpass);
+
+	IPooledRenderTarget* ColorGradingLUT = View.GetTonemappingLUT();
+	const FIntPoint TargetSize = SceneTextures.Color.Target->Desc.Extent;
+	const float LUTSize = ColorGradingLUT ? (float)ColorGradingLUT->GetDesc().GetSize().Y : /* unused (default): */ 32.0f;
+	const FPostProcessSettings& Settings = View.FinalPostProcessSettings;
+	
+	TShaderMapRef<FScreenVS> VertexShader(View.ShaderMap);
+	
+	FMobileCustomResolvePS::FPermutationDomain PermutationVector;
+	PermutationVector.Set<FMobileCustomResolvePS::FTonemapperSubpassMsaaDim>(SubpassMSAASamples);
+	TShaderMapRef<FMobileCustomResolvePS> PixelShader(View.ShaderMap, PermutationVector);
+
+	FMobileCustomResolvePS::FParameters PSShaderParameters;
+	PSShaderParameters.View = View.GetShaderParameters();
+	PSShaderParameters.ColorScale0 = FVector4f(Settings.SceneColorTint.R, Settings.SceneColorTint.G, Settings.SceneColorTint.B, 0);
+	PSShaderParameters.ColorGradingLUT = ColorGradingLUT ? ColorGradingLUT->GetRHI() : GBlackTexture->TextureRHI.GetReference();
+	PSShaderParameters.ColorGradingLUTSampler = TStaticSamplerState<SF_Bilinear, AM_Clamp, AM_Clamp, AM_Clamp>::GetRHI();
+	PSShaderParameters.LUTSize = LUTSize;
+	PSShaderParameters.InvLUTSize = 1.0f / LUTSize;
+	PSShaderParameters.LUTScale = (LUTSize - 1.0f) / LUTSize;
+	PSShaderParameters.LUTOffset = 0.5f / LUTSize;
+	if (SubpassMSAASamples == 0u)
+	{
+		PSShaderParameters.ColorTexture = SceneTextures.Color.Resolve;
+		PSShaderParameters.ColorSampler = TStaticSamplerState<SF_Point, AM_Clamp, AM_Clamp, AM_Clamp>::GetRHI();
+	}
+
+	FGraphicsPipelineStateInitializer GraphicsPSOInit;
+	RHICmdList.ApplyCachedRenderTargets(GraphicsPSOInit);
+
+	GraphicsPSOInit.BlendState = TStaticBlendState<>::GetRHI();
+	GraphicsPSOInit.RasterizerState = TStaticRasterizerState<>::GetRHI();
+	GraphicsPSOInit.DepthStencilState = TStaticDepthStencilState<false, CF_Always>::GetRHI();
+
+	GraphicsPSOInit.BoundShaderState.VertexDeclarationRHI = GFilterVertexDeclaration.VertexDeclarationRHI;
+	GraphicsPSOInit.BoundShaderState.VertexShaderRHI = VertexShader.GetVertexShader();
+	GraphicsPSOInit.BoundShaderState.PixelShaderRHI = PixelShader.GetPixelShader();
+	GraphicsPSOInit.PrimitiveType = PT_TriangleList;
+
+	SetGraphicsPipelineState(RHICmdList, GraphicsPSOInit, 0);
+	SetShaderParameters(RHICmdList, PixelShader, PixelShader.GetPixelShader(), PSShaderParameters);
+	RHICmdList.SetViewport(0, 0, 0.0f, TargetSize.X, TargetSize.Y, 1.0f);
+
+	DrawRectangle(
+		RHICmdList,
+		0, 0,
+		TargetSize.X, TargetSize.Y,
+		0, 0,
+		TargetSize.X, TargetSize.Y,
+		TargetSize,
+		TargetSize,
+		VertexShader,
+		EDRF_UseTriangleOptimization);
+}
+
+BEGIN_SHADER_PARAMETER_STRUCT(FMobileCustomResolveParameters, )
+	SHADER_PARAMETER_STRUCT_INCLUDE(FViewShaderParameters, View)
+	SHADER_PARAMETER_RDG_TEXTURE(Texture2D, ColorTexture)
+	RDG_TEXTURE_ACCESS(ColorGradingLUT, ERHIAccess::SRVGraphics)
+	RENDER_TARGET_BINDING_SLOTS()
+END_SHADER_PARAMETER_STRUCT()
+
+void AddMobileCustomResolvePass(FRDGBuilder& GraphBuilder, const FViewInfo& View, FSceneTextures& SceneTextures, FRDGTextureRef ViewFamilyTexture)
+{
+	FRDGTextureRef ColorGradingLUT = AddCombineLUTPass(GraphBuilder, View);
+
+	FMobileCustomResolveParameters* PassParameters = GraphBuilder.AllocParameters<FMobileCustomResolveParameters>();
+	PassParameters->View = View.GetShaderParameters();
+	PassParameters->ColorTexture = SceneTextures.Color.Resolve;
+	PassParameters->ColorGradingLUT = ColorGradingLUT;
+	PassParameters->RenderTargets[0] = FRenderTargetBinding(ViewFamilyTexture, ERenderTargetLoadAction::EClear);
+
+	GraphBuilder.AddPass(
+		RDG_EVENT_NAME("MobileCustomResolvePass"),
+		PassParameters,
+		ERDGPassFlags::Raster,
+		[&View, &SceneTextures](FRHICommandListImmediate& RHICmdList)
+		{
+			const uint32 SubpassMSAASamples = 0u; // not using subpass resolve
+			RenderMobileCustomResolve(RHICmdList, View, SubpassMSAASamples, SceneTextures);
+		});
+}

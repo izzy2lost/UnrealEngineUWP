@@ -549,8 +549,6 @@ void FVulkanPendingGfxState::UpdateInputAttachments(FVulkanFramebuffer* Framebuf
 		switch (AttachmentData.Type)
 		{
 		case FVulkanShaderHeader::EAttachmentType::Color0:
-			CurrentState->SetInputAttachment(AttachmentData.DescriptorSet, AttachmentData.BindingIndex, Framebuffer->AttachmentTextureViews[0]->GetTextureView(), VK_IMAGE_LAYOUT_GENERAL);
-			break;
 		case FVulkanShaderHeader::EAttachmentType::Color1:
 		case FVulkanShaderHeader::EAttachmentType::Color2:
 		case FVulkanShaderHeader::EAttachmentType::Color3:

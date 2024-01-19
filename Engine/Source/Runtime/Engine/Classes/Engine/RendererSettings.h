@@ -965,7 +965,6 @@ class URendererSettings : public UDeveloperSettings
 	uint32 bMobilePostProcessing:1;
 
 	UPROPERTY(config, EditAnywhere, Category = VR, meta = (
-		EditCondition = "!bMobilePostProcessing",
 		ConsoleVariable = "vr.MobileMultiView", DisplayName = "Mobile Multi-View",
 		ToolTip = "Enable single-pass stereoscopic rendering on mobile platforms.",
 		ConfigRestartRequired = true))

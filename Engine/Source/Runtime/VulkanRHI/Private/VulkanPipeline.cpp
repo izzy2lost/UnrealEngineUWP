@@ -1822,6 +1822,16 @@ void FVulkanPipelineStateCacheManager::CreateGfxEntry(const FGraphicsPipelineSta
 		NumRenderTargets = 1;
 	}
 
+	if (PSOInitializer.SubpassHint == ESubpassHint::CustomResolveSubpass)
+	{
+		NumRenderTargets = 1; // This applies to base and depth passes as well. One render target for base and depth, another one for custom resolve.
+		if (PSOInitializer.SubpassIndex >= 2)
+		{ 
+			// the resolve subpass renders to a non MSAA surface
+			OutGfxEntry->RasterizationSamples = 1;
+		}
+	}
+
 	OutGfxEntry->ColorAttachmentStates.AddUninitialized(NumRenderTargets);
 	for (int32 Index = 0; Index < OutGfxEntry->ColorAttachmentStates.Num(); ++Index)
 	{

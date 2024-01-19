@@ -3680,6 +3680,9 @@ enum class ESubpassHint : uint8
 
 	// Mobile defferred shading subpass
 	DeferredShadingSubpass,
+
+	// Mobile MSAA custom resolve subpass. Includes DepthReadSubpass.
+	CustomResolveSubpass,
 };
 
 enum class EConservativeRasterization : uint8

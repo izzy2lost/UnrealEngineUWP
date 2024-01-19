@@ -624,3 +624,50 @@ void MainCS(uint2 DispatchThreadId : SV_DispatchThreadID)
 }
 #endif
 
+#ifdef SUBPASS_MSAA_SAMPLES
+	#if VULKAN_PROFILE
+		#include "/Engine/Public/Platform/Vulkan/VulkanSubpassSupport.ush"
+	#endif
+#endif
+
+half4 FetchAndResolveSceneColor(float2 UV)
+{
+	half4 SceneColor = half4(1.0, 1.0, 1.0, 1.0);
+
+#if VULKAN_PROFILE && SUBPASS_MSAA_SAMPLES > 0	
+	#if SUBPASS_MSAA_SAMPLES == 8
+		SceneColor = half4(VulkanSubpassFetch0(0) + VulkanSubpassFetch0(1) + VulkanSubpassFetch0(2) + VulkanSubpassFetch0(3) +
+			VulkanSubpassFetch0(4) + VulkanSubpassFetch0(5) + VulkanSubpassFetch0(6) + VulkanSubpassFetch0(7)) * 0.125;
+	#elif SUBPASS_MSAA_SAMPLES == 4
+		SceneColor = half4(VulkanSubpassFetch0(0) + VulkanSubpassFetch0(1) + VulkanSubpassFetch0(2) + VulkanSubpassFetch0(3)) * 0.25;
+	#elif SUBPASS_MSAA_SAMPLES == 2
+		SceneColor = half4(VulkanSubpassFetch0(0) + VulkanSubpassFetch0(1)) * 0.5;
+	#elif SUBPASS_MSAA_SAMPLES == 1
+		SceneColor = half4(VulkanSubpassFetch0());
+	#endif
+#else
+	SceneColor = Texture2DSample(ColorTexture, ColorSampler, UV);
+#endif
+	return SceneColor;
+}
+
+void MobileCustomResolve_MainPS(
+	in noperspective float2 UV						: TEXCOORD0,
+	in				 float4 SvPosition				: SV_POSITION,		// after all interpolators
+	out				 float4 OutColor				: SV_Target0
+)
+{
+	ResolvedView = ResolveView();
+	const float OneOverPreExposure = ResolvedView.OneOverPreExposure;
+
+	half4 SceneColor = FetchAndResolveSceneColor(UV);
+	SceneColor.a = 1.0;
+
+	half3 LinearColor = SceneColor.rgb * OneOverPreExposure;
+	LinearColor *= ColorScale0.rgb; // SceneColorTint
+	half3 DeviceColor = ColorLookupTable(LinearColor);
+
+	OutColor.rgb = DeviceColor;
+	OutColor.a = 1.0;
+}
+

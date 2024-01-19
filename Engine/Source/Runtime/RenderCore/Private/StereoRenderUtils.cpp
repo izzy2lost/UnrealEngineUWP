@@ -78,7 +78,7 @@ RENDERCORE_API FStereoShaderAspects::FStereoShaderAspects(EShaderPlatform Platfo
 	UE_DEBUG_SSA_LOG_BOOL(bInstancedStereoNative);
 	UE_DEBUG_SSA_LOG(Log, TEXT("---"));
 
-	const bool bMobileMultiViewCoreSupport = bMobilePlatform && bMobileMultiView && !bMobilePostprocessing;
+	const bool bMobileMultiViewCoreSupport = bMobilePlatform && bMobileMultiView; 
 	if (bMobileMultiViewCoreSupport)
 	{
 		UE_DEBUG_SSA_LOG(Log, TEXT("RHISupportsMobileMultiView(%s) = %d."), *LexToString(Platform), RHISupportsMobileMultiView(Platform));

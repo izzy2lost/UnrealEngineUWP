@@ -639,6 +639,9 @@ struct FRHIGlobals
 
 	/** True if HDR requires vendor specific extensions */
 	bool HDRNeedsVendorExtensions = false;
+
+	/** True if RHI supports MSAA resolve with a custom shader */
+	bool SupportsMSAAShaderResolve = false;
 };
 
 extern RHI_API FRHIGlobals GRHIGlobals;
@@ -806,6 +809,7 @@ extern RHI_API FRHIGlobals GRHIGlobals;
 #define GShaderPlatformForFeatureLevel                         GRHIGlobals.ShaderPlatformForFeatureLevel
 #define GRHIIsDebugLayerEnabled                                GRHIGlobals.IsDebugLayerEnabled
 #define GRHIHDRNeedsVendorExtensions						   GRHIGlobals.HDRNeedsVendorExtensions
+#define GRHISupportsMSAAShaderResolve						   GRHIGlobals.SupportsMSAAShaderResolve
 
 // Utility Getters
 
