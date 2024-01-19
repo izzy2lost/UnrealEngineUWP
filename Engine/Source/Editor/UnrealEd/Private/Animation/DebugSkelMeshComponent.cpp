@@ -532,35 +532,38 @@ void UDebugSkelMeshComponent::InitAnim(bool bForceReinit)
 
 	Super::InitAnim(bForceReinit);
 
-	// if PreviewInstance is nullptr, create here once
-	if (PreviewInstance == nullptr)
+	if(GetSkeletalMeshAsset() != nullptr)
 	{
-		PreviewInstance = CreatePreviewInstance();
-		check(PreviewInstance);
+		// if PreviewInstance is nullptr, create here once
+		if (PreviewInstance == nullptr)
+		{
+			PreviewInstance = CreatePreviewInstance();
+			check(PreviewInstance);
 
-		//Set transactional flag in order to restore slider position when undo operation is performed
-		PreviewInstance->SetFlags(RF_Transactional);
-	}
+			//Set transactional flag in order to restore slider position when undo operation is performed
+			PreviewInstance->SetFlags(RF_Transactional);
+		}
 
-	// if anim script instance is null because it's not playing a blueprint, set to PreviewInstnace by default
-	// that way if user would like to modify bones or do extra stuff, it will work
-	if (AnimScriptInstance == nullptr)
-	{
-		AnimScriptInstance = PreviewInstance;
-		AnimScriptInstance->InitializeAnimation();
-	}
-	else
-	{
-		// Make sure we initialize the preview instance here, as we want the required bones to be up to date
-		// even if we arent using the instance right now.
-		PreviewInstance->InitializeAnimation();
-	}
+		// if anim script instance is null because it's not playing a blueprint, set to PreviewInstnace by default
+		// that way if user would like to modify bones or do extra stuff, it will work
+		if (AnimScriptInstance == nullptr)
+		{
+			AnimScriptInstance = PreviewInstance;
+			AnimScriptInstance->InitializeAnimation();
+		}
+		else
+		{
+			// Make sure we initialize the preview instance here, as we want the required bones to be up to date
+			// even if we arent using the instance right now.
+			PreviewInstance->InitializeAnimation();
+		}
 
-	if(PostProcessAnimInstance)
-	{
-		// Add the same settings as the preview instance in this case.
-		PostProcessAnimInstance->RootMotionMode = ERootMotionMode::RootMotionFromEverything;
-		PostProcessAnimInstance->bUseMultiThreadedAnimationUpdate = false;
+		if(PostProcessAnimInstance)
+		{
+			// Add the same settings as the preview instance in this case.
+			PostProcessAnimInstance->RootMotionMode = ERootMotionMode::RootMotionFromEverything;
+			PostProcessAnimInstance->bUseMultiThreadedAnimationUpdate = false;
+		}
 	}
 }
 

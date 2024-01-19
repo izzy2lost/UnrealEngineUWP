@@ -1223,6 +1223,8 @@ void UPoseAsset::PostProcessData()
 	}
 
 	UpdateTrackBoneIndices();
+
+	PoseContainer.RebuildCurveIndexTable();
 }
 
 void UPoseAsset::BreakAnimationSequenceGUIDComparison()
