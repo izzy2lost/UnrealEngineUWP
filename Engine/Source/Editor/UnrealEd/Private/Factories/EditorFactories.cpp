@@ -6589,10 +6589,10 @@ EReimportResult::Type UReimportFbxSkeletalMeshFactory::Reimport( UObject* Obj, i
 	ReimportUI->SkeletalMeshImportData = ImportData;
 	const FSkeletalMeshModel* SkeletalMeshModel = SkeletalMesh->GetImportedModel();
 
-	bool bIsBuildAvailable = SkeletalMesh->IsLODImportedDataBuildAvailable(0);
+	const bool bUserDefinedGeometryExists = SkeletalMesh->HasMeshDescription(0);
 	
 	//Manage the content type from the source file index
-	ReimportUI->bAllowContentTypeImport = SkeletalMeshModel && SkeletalMeshModel->LODModels.Num() > 0 && !SkeletalMesh->IsLODImportedDataEmpty(0);
+	ReimportUI->bAllowContentTypeImport = SkeletalMeshModel && SkeletalMeshModel->LODModels.Num() > 0 && bUserDefinedGeometryExists;
 	if (!ReimportUI->bAllowContentTypeImport)
 	{
 		//No content type allow reimport All (legacy)
@@ -6693,7 +6693,7 @@ EReimportResult::Type UReimportFbxSkeletalMeshFactory::Reimport( UObject* Obj, i
 		{
 			const FSkeletalMeshLODModel& LODModel = SkeletalMesh->GetImportedModel()->LODModels[0];
 			
-			if (bIsBuildAvailable)
+			if (bUserDefinedGeometryExists)
 			{
 				//Set the build settings
 				LODInfo->BuildSettings.bComputeWeightedNormals = SKImportData->bComputeWeightedNormals;

@@ -222,7 +222,7 @@ bool SkeletalMeshImportUtils::ProcessImportMeshSkeleton(const USkeleton* Skeleto
 */
 void SkeletalMeshImportUtils::ProcessImportMeshInfluences(FSkeletalMeshImportData& ImportData, const FString& SkeletalMeshName)
 {
-	FLODUtilities::ProcessImportMeshInfluences(ImportData.Wedges.Num(), ImportData.Influences, SkeletalMeshName);
+	FLODUtilities::ProcessImportMeshInfluences(ImportData.Points.Num(), ImportData.Influences, SkeletalMeshName);
 }
 
 void SkeletalMesUtilsImpl::SaveSkeletalMeshLODModelSections(USkeletalMesh* SourceSkeletalMesh, TSharedPtr<FExistingSkelMeshData>& ExistingMeshDataPtr, int32 LodIndex, bool bSaveNonReducedMeshData)
@@ -350,9 +350,6 @@ TSharedPtr<FExistingSkelMeshData> SkeletalMeshImportUtils::SaveExistingSkelMeshD
 	{
 		ExistingMeshDataPtr->ExistingMaterials = SourceMaterials;
 	}
-	PRAGMA_DISABLE_DEPRECATION_WARNINGS
-	ExistingMeshDataPtr->ExistingRetargetBasePose = SourceSkeletalMesh->GetRetargetBasePose();
-	PRAGMA_ENABLE_DEPRECATION_WARNINGS
 
 	ExistingMeshDataPtr->ExistingInlineReductionCacheDatas = SourceMeshModel->InlineReductionCacheDatas;
 
@@ -369,9 +366,10 @@ TSharedPtr<FExistingSkelMeshData> SkeletalMeshImportUtils::SaveExistingSkelMeshD
 			const FSkeletalMeshLODModel& LODModel = SourceMeshModel->LODModels[LODIndex];
 			ExistingMeshDataPtr->ExistingLODModels.Add(FSkeletalMeshLODModel::CreateCopy(&LODModel));
 			//Store the import data for every LODs
-			FSkeletalMeshLodImportDataBackup& LodMeshImportData = ExistingMeshDataPtr->ExistingLODImportDatas.AddDefaulted_GetRef();
-			SourceSkeletalMesh->LoadLODImportedData(LODIndex, LodMeshImportData.MeshImportData);
-			SourceSkeletalMesh->GetLODImportedDataVersions(LODIndex, LodMeshImportData.MeshGeoImportVersion, LodMeshImportData.MeshSkinningImportVersion);
+			FSkeletalMeshImportData& LodMeshImportData = ExistingMeshDataPtr->ExistingLODImportDatas.AddDefaulted_GetRef();
+			PRAGMA_DISABLE_DEPRECATION_WARNINGS
+			SourceSkeletalMesh->LoadLODImportedData(LODIndex, LodMeshImportData);
+			PRAGMA_ENABLE_DEPRECATION_WARNINGS
 		}
 		check(ExistingMeshDataPtr->ExistingLODModels.Num() == SourceMeshModel->LODModels.Num());
 
@@ -710,15 +708,6 @@ void SkeletalMeshImportUtils::RestoreExistingSkelMeshData(const TSharedPtr<const
 	//Do everything we need for base LOD re-import
 	if (SafeReimportLODIndex == 0)
 	{
-		PRAGMA_DISABLE_DEPRECATION_WARNINGS
-		// this is not ideal. Ideally we'll have to save only diff with indicating which joints, 
-		// but for now, we allow them to keep the previous pose IF the element count is same
-		if (MeshData->ExistingRetargetBasePose.Num() == SkeletalMesh->GetRefSkeleton().GetRawBoneNum())
-		{
-			SkeletalMesh->SetRetargetBasePose(MeshData->ExistingRetargetBasePose);
-		}
-		PRAGMA_ENABLE_DEPRECATION_WARNINGS
-
 		// Assign sockets from old version of this SkeletalMesh.
 		// Only copy ones for bones that exist in the new mesh.
 		for (int32 i = 0; i < MeshData->ExistingSockets.Num(); i++)
@@ -846,10 +835,11 @@ void SkeletalMeshImportUtils::RestoreExistingSkelMeshData(const TSharedPtr<const
 						SkeletalMeshImportedModel->LODModels.Add(LODModelCopy);
 						SkeletalMesh->AddLODInfo(LODInfo);
 						//Restore custom LOD import data
-						FSkeletalMeshLodImportDataBackup* LodMeshImportData = const_cast<FSkeletalMeshLodImportDataBackup*>(&(MeshData->ExistingLODImportDatas[LODIndex]));
+						const FSkeletalMeshImportData& LodMeshImportData = MeshData->ExistingLODImportDatas[LODIndex];
 						//SaveLODImportdData cannot take a const structure because it use serialization(which cannot be const because same function read and write)
-						SkeletalMesh->SaveLODImportedData(LODIndex, LodMeshImportData->MeshImportData);
-						SkeletalMesh->SetLODImportedDataVersions(LODIndex, LodMeshImportData->MeshGeoImportVersion, LodMeshImportData->MeshSkinningImportVersion);
+						PRAGMA_DISABLE_DEPRECATION_WARNINGS
+						SkeletalMesh->SaveLODImportedData(LODIndex, LodMeshImportData);
+						PRAGMA_ENABLE_DEPRECATION_WARNINGS
 
 						auto FillInlineReductionData = [&MeshData, &SkeletalMeshImportedModel, LODIndex]()
 						{
@@ -887,7 +877,7 @@ void SkeletalMeshImportUtils::RestoreExistingSkelMeshData(const TSharedPtr<const
 			
 			
 			//Old asset cannot use the new build system, we need to regenerate dependent LODs
-			if (SkeletalMesh->IsLODImportedDataBuildAvailable(SafeReimportLODIndex) == false)
+			if (!SkeletalMesh->HasMeshDescription(SafeReimportLODIndex))
 			{
 				FLODUtilities::RegenerateDependentLODs(SkeletalMesh, SafeReimportLODIndex, GetTargetPlatformManagerRef().GetRunningTargetPlatform());
 			}

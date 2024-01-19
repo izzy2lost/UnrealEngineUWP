@@ -30,11 +30,10 @@ namespace UE::Chaos::ClothAsset::Private
 {
 	/** Convert the USkeletalMesh to DynamicMesh. */
 	static void SkeletalMeshToDynamicMesh(USkeletalMesh* FromSkeletalMeshAsset, int32 LodIndex, FDynamicMesh3& ToDynamicMesh)
-	{	
-		FMeshDescription SourceMesh;
-		FromSkeletalMeshAsset->GetMeshDescription(LodIndex, SourceMesh);
+	{
+		const FMeshDescription* SourceMesh = FromSkeletalMeshAsset->GetMeshDescription(LodIndex);
 		FMeshDescriptionToDynamicMesh Converter;
-		Converter.Convert(&SourceMesh, ToDynamicMesh);
+		Converter.Convert(SourceMesh, ToDynamicMesh);
 	}
 
 	/** Convert the ClothCollection to DynamicMesh. */

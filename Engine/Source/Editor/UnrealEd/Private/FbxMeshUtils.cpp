@@ -645,7 +645,7 @@ namespace FbxMeshUtils
 			TArray<FbxNode*>* MeshObject = NULL;
 
 			//Set the build options if the BuildDat is not available so it is the same option we use to import the LOD
-			if (ImportedResource && ImportedResource->LODModels.IsValidIndex(LODLevel) && !SelectedSkelMesh->IsLODImportedDataBuildAvailable(LODLevel))
+			if (ImportedResource && ImportedResource->LODModels.IsValidIndex(LODLevel) && !SelectedSkelMesh->HasMeshDescription(LODLevel))
 			{
 				FSkeletalMeshLODInfo* LODInfo = SelectedSkelMesh->GetLODInfo(LODLevel);
 				if (LODInfo)

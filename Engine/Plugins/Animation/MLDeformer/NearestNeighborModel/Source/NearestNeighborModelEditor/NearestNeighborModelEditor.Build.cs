@@ -37,7 +37,8 @@ namespace UnrealBuildTool.Rules
 					"ToolWidgets",
 					"ComputeFramework",
 					"RenderCore",
-					"RHI"
+					"RHI",
+					"SkeletalMeshDescription",
 				}
 			);
 

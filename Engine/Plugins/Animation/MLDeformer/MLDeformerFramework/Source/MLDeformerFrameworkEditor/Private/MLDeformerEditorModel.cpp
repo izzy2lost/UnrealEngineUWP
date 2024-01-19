@@ -47,6 +47,7 @@
 #include "SMLDeformerDebugSelectionWidget.h"
 #include "EditorViewportClient.h"
 #include "DrawDebugHelpers.h"
+#include "SkeletalMeshAttributes.h"
 #include "Slate/SceneViewport.h"
 #include "Rendering/SkeletalMeshLODModel.h"
 #include "Async/ParallelFor.h"
@@ -1366,21 +1367,22 @@ namespace UE::MLDeformer
 
 	FText FMLDeformerEditorModel::GetSkeletalMeshNeedsReimportErrorText() const
 	{
-		FText Result;
-
 		if (Model->GetSkeletalMesh())
 		{
-			FSkeletalMeshModel* ImportedModel = Model->GetSkeletalMesh()->GetImportedModel();
-			check(ImportedModel);
-
-			const TArray<FSkelMeshImportedMeshInfo>& SkelMeshInfos = ImportedModel->LODModels[0].ImportedMeshInfos;
-			if (SkelMeshInfos.IsEmpty())
+			constexpr int32 LODIndex = 0;
+			const FMeshDescription* MeshDescription = Model->GetSkeletalMesh()->GetMeshDescription(LODIndex);
+			if (!ensure(MeshDescription))
 			{
-				Result = LOCTEXT("SkelMeshNeedsReimport", "Skeletal Mesh asset needs to be reimported.");
+				return LOCTEXT("SkelMeshIsEmpty", "Skeletal Mesh asset is empty.");
+			}
+			const FSkeletalMeshConstAttributes MeshAttributes(*MeshDescription);
+			if (MeshAttributes.GetNumSourceGeometryParts() == 0)
+			{
+				return LOCTEXT("SkelMeshNeedsReimport", "Skeletal Mesh asset needs to be reimported.");
 			}
 		}
 
-		return Result;
+		return {};
 	}
 
 	FText FMLDeformerEditorModel::GetInputsErrorText() const

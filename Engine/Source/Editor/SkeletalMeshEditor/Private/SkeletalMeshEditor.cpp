@@ -126,7 +126,7 @@ bool IsReductionParentBaseLODUseSkeletalMeshBuildWorkflow(USkeletalMesh* Skeleta
 	{
 		return false;
 	}
-	if (SkeletalMesh->IsLODImportedDataBuildAvailable(TestLODIndex))
+	if (SkeletalMesh->HasMeshDescription(TestLODIndex))
 	{
 		return true;
 	}

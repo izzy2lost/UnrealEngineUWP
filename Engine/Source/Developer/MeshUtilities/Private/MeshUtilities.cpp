@@ -5931,22 +5931,23 @@ void FMeshUtilities::GenerateRuntimeSkinWeightData(
 	}
 }
 
-void FMeshUtilities::CreateImportDataFromLODModel(USkeletalMesh* SkeletalMesh) const
+void FMeshUtilities::CreateImportDataFromLODModel(USkeletalMesh* SkeletalMesh, bool bInResetReductionAsNeeded) const
 {
 	check(IsInGameThread());
 
 	for (int32 LodIndex = 0; LodIndex < SkeletalMesh->GetLODNum(); LodIndex++)
 	{
-		const FSkeletalMeshLODInfo* ThisLODInfo = SkeletalMesh->GetLODInfo(LodIndex);
+		FSkeletalMeshLODInfo* ThisLODInfo = SkeletalMesh->GetLODInfo(LodIndex);
 
 		check(ThisLODInfo);
-		const bool bRawDataEmpty = SkeletalMesh->IsLODImportedDataEmpty(LodIndex);
-		const bool bRawBuildDataAvailable = SkeletalMesh->IsLODImportedDataBuildAvailable(LodIndex);
-		if (!bRawDataEmpty && bRawBuildDataAvailable)
+		if (SkeletalMesh->HasMeshDescription(LodIndex))
 		{
 			//No need to create import data if we already have some
 			continue;
 		}
+
+		// If the mesh was not pulled out of the reduction data, we need to reset the LOD settings
+		// so that the mesh doesn't get reduced again if it gets regenerated.
 		const bool bReductionActive = SkeletalMesh->IsReductionActive(LodIndex);
 		const bool bInlineReduction = (ThisLODInfo->ReductionSettings.BaseLOD == LodIndex);
 		if (bReductionActive && !bInlineReduction)
@@ -6004,6 +6005,10 @@ void FMeshUtilities::CreateImportDataFromLODModel(USkeletalMesh* SkeletalMesh) c
 					ExistingMorphTarget->PopulateDeltas(MorphTargetDeltas, LodIndex, ToUpdateLODModel.Sections, ThisLODInfo->BuildSettings.bRecomputeNormals, false, ThisLODInfo->BuildSettings.MorphThresholdPosition);
 				}
 			}
+			
+			// The model got pulled out of the reduction storage, don't reset the LOD reduction settings,
+			// since we may want to regenerate the mesh to those settings.
+			bInResetReductionAsNeeded = false;
 		}
 
 		FSkeletalMeshLODModel* LODModel = &(SkeletalMesh->GetImportedModel()->LODModels[LodIndex]);
@@ -6222,9 +6227,24 @@ void FMeshUtilities::CreateImportDataFromLODModel(USkeletalMesh* SkeletalMesh) c
 			}
 		}
 
+		PRAGMA_DISABLE_DEPRECATION_WARNINGS
 		SkeletalMesh->SaveLODImportedData(LodIndex, ImportData);
-		SkeletalMesh->SetLODImportedDataVersions(LodIndex, ESkeletalMeshGeoImportVersions::LatestVersion, ESkeletalMeshSkinningImportVersions::LatestVersion);
-		UE_ASSET_LOG(LogSkeletalMesh, Display, SkeletalMesh, TEXT("FMeshUtilities::CreateImportDataFromLODModel: ImportData created for LOD %d"), LodIndex);
+		PRAGMA_ENABLE_DEPRECATION_WARNINGS
+		
+		if (bInResetReductionAsNeeded)
+		{
+			FSkeletalMeshOptimizationSettings& ReductionSettings = ThisLODInfo->ReductionSettings;
+			
+			//Remove the reduction settings
+			ReductionSettings.NumOfTrianglesPercentage = 1.0f;
+			ReductionSettings.NumOfVertPercentage = 1.0f;
+			ReductionSettings.MaxNumOfTrianglesPercentage = MAX_uint32;
+			ReductionSettings.MaxNumOfVertsPercentage = MAX_uint32;
+			ReductionSettings.TerminationCriterion = SMTC_NumOfTriangles;
+			ThisLODInfo->bHasBeenSimplified = false;
+		}
+		
+		UE_ASSET_LOG(LogSkeletalMesh, Display, SkeletalMesh, TEXT("Import data converted for LOD %d"), LodIndex);
 	}
 }
 

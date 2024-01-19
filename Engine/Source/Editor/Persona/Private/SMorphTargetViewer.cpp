@@ -16,6 +16,7 @@
 #include "GPUSkinCache.h"
 #include "Engine/RendererSettings.h"
 #include "IPersonaPreviewScene.h"
+#include "SkeletalMeshAttributes.h"
 #include "Rendering/SkeletalMeshLODImporterData.h"
 
 #define LOCTEXT_NAMESPACE "SMorphTargetViewer"

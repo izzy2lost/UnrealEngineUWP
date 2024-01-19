@@ -52,7 +52,8 @@ namespace UnrealBuildTool.Rules
 					"TimeManagement",
 					"RenderCore",
 					"RHI",
-					"AssetDefinition"
+					"AssetDefinition",
+					"SkeletalMeshDescription",
 				}
 			);
 

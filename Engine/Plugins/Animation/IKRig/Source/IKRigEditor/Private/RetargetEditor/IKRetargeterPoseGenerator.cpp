@@ -454,16 +454,15 @@ void FRetargetAutoPoseGenerator::GetRefPoseVerticesAndWeights(
 	const FRetargetSkeleton& Skeleton = Processor->GetSkeleton(SourceOrTarget);
 	USkeletalMesh* Mesh = Skeleton.SkeletalMesh;
 	constexpr int32 LODIndex = 0;
-	FMeshDescription MeshDescription;
-	Mesh->GetMeshDescription(LODIndex, MeshDescription);
-	if (MeshDescription.IsEmpty())
+	const FMeshDescription *MeshDescription = Mesh->GetMeshDescription(LODIndex);
+	if (!MeshDescription || MeshDescription->IsEmpty())
 	{
 		return;
 	}
 	
-	const FSkeletalMeshConstAttributes MeshAttribs(MeshDescription);
+	const FSkeletalMeshConstAttributes MeshAttribs(*MeshDescription);
 	const FSkinWeightsVertexAttributesConstRef VertexSkinWeights = MeshAttribs.GetVertexSkinWeights();
-	const int32 NumVertices = MeshDescription.Vertices().Num();
+	const int32 NumVertices = MeshDescription->Vertices().Num();
 	OutWeights.SetNum(NumVertices);
 	OutPositions.SetNum(NumVertices);
 	const FReferenceSkeleton& RefSkeleton = Mesh->GetRefSkeleton();
@@ -483,7 +482,7 @@ void FRetargetAutoPoseGenerator::GetRefPoseVerticesAndWeights(
 		}
 
 		// get position of vertex
-		const FVector Position = static_cast<FVector>(MeshDescription.GetVertexPosition(VertexID));
+		const FVector Position = static_cast<FVector>(MeshDescription->GetVertexPosition(VertexID));
 		OutPositions[VertexIndex] = Position;
 	});
 }

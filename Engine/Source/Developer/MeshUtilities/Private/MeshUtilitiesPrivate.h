@@ -156,7 +156,7 @@ private:
 
 	virtual void GenerateRuntimeSkinWeightData(const FSkeletalMeshLODModel* ImportedModel, const TArray<FRawSkinWeight>& InRawSkinWeights, bool bInUseHighPrecisionWeights, FRuntimeSkinWeightProfileData& InOutSkinWeightOverrideData) const override;
 
-	virtual void CreateImportDataFromLODModel(USkeletalMesh* SkeletalMesh) const override;
+	virtual void CreateImportDataFromLODModel(USkeletalMesh* SkeletalMesh, bool bInResetReductionAsNeeded) const override;
 
 	void RegisterMenus();
 

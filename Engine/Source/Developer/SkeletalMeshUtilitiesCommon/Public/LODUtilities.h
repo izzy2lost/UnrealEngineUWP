@@ -52,11 +52,11 @@ public:
 	/**
 	* Process and update the vertex Influences using the predefined wedges
 	* 
-	* @param WedgeCount - The number of wedges in the corresponding mesh.
+	* @param VertexCount - The number of wedges in the corresponding mesh.
 	* @param Influences - BoneWeights and Ids for the corresponding vertices. 
 	* @param MeshName	- Name of mesh, used for warning messages
 	*/
-	static void ProcessImportMeshInfluences(const int32 WedgeCount, TArray<SkeletalMeshImportData::FRawBoneInfluence>& Influences, const FString& MeshName);
+	static void ProcessImportMeshInfluences(const int32 VertexCount, TArray<SkeletalMeshImportData::FRawBoneInfluence>& Influences, const FString& MeshName);
 
 	/** Regenerate LODs of the mesh
 	*

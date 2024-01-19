@@ -260,37 +260,28 @@ void FSkeletalMeshRenderData::Cache(const ITargetPlatform* TargetPlatform, USkin
 			//Helper structure to change the morph targets
 			TUniquePtr<FFinishBuildMorphTargetData> FinishBuildMorphTargetData;
 
-			//With skeletal mesh build refactor we serialize the LODModel data into the DDC
-			//We need to store those so we do not have to rerun the reduction to make them up to date
-			//with the serialize renderdata. This allow to use DDC when changing the reduction settings.
-			//The old workflow has to reduce the LODModel before getting the render data DDC.
-			if (!Owner->GetUseLegacyMeshDerivedDataKey())
+			FSkeletalMeshModel* SkelMeshModel = Owner->GetImportedModel();
+			check(SkelMeshModel);
+
+			//Get the morph target data, we put it in the compilation context to apply them in the game thread before the InitResources
+			if (Owner->GetMorphTargets().Num() > 0)
 			{
-				FSkeletalMeshModel* SkelMeshModel = Owner->GetImportedModel();
-				check(SkelMeshModel);
+				FinishBuildMorphTargetData = Owner->GetMorphTargets()[0]->CreateFinishBuildMorphTargetData();
+			}
+			else
+			{
+				// Create and initialize the FinishBuildInternalData, use the class default object to call the virtual function
+				FinishBuildMorphTargetData = UMorphTarget::StaticClass()->GetDefaultObject<UMorphTarget>()->CreateFinishBuildMorphTargetData();
+			}
+			check(FinishBuildMorphTargetData);
+			FinishBuildMorphTargetData->LoadFromMemoryArchive(Ar);
 
-				//Get the morph target data, we put it in the compilation context to apply them in the game thread before the InitResources
-				{
-					if (Owner->GetMorphTargets().Num() > 0)
-					{
-						FinishBuildMorphTargetData = Owner->GetMorphTargets()[0]->CreateFinishBuildMorphTargetData();
-					}
-					else
-					{
-						// Create and initialize the FinishBuildInternalData, use the class default object to call the virtual function
-						FinishBuildMorphTargetData = UMorphTarget::StaticClass()->GetDefaultObject<UMorphTarget>()->CreateFinishBuildMorphTargetData();
-					}
-					check(FinishBuildMorphTargetData);
-					FinishBuildMorphTargetData->LoadFromMemoryArchive(Ar);
-				}
-
-				//Serialize the LODModel sections since they are dependent on the reduction
-				for (int32 LODIndex = 0; LODIndex < SkelMeshModel->LODModels.Num(); LODIndex++)
-				{
-					FSkeletalMeshLODModel* LODModel = &(SkelMeshModel->LODModels[LODIndex]);
-					SerializeLodModelDdcData(LODModel, Ar);
-					LODModel->SyncronizeUserSectionsDataArray();
-				}
+			//Serialize the LODModel sections since they are dependent on the reduction
+			for (int32 LODIndex = 0; LODIndex < SkelMeshModel->LODModels.Num(); LODIndex++)
+			{
+				FSkeletalMeshLODModel* LODModel = &(SkelMeshModel->LODModels[LODIndex]);
+				SerializeLodModelDdcData(LODModel, Ar);
+				LODModel->SyncronizeUserSectionsDataArray();
 			}
 
 			Serialize(Ar, Owner);
@@ -368,24 +359,19 @@ void FSkeletalMeshRenderData::Cache(const ITargetPlatform* TargetPlatform, USkin
 
 			FLargeMemoryWriter Ar(0, /*bIsPersistent=*/ true);
 
-			//If we load an old asset we want to be sure the serialize ddc will be the same has before the skeletalmesh build refactor
-			//So we do not serialize the LODModel sections.
-			if (!Owner->GetUseLegacyMeshDerivedDataKey())
+			int32 MorphTargetNumber = Owner->GetMorphTargets().Num();
+			Ar << MorphTargetNumber;
+			for (int32 MorphTargetIndex = 0; MorphTargetIndex < MorphTargetNumber; ++MorphTargetIndex)
 			{
-				int32 MorphTargetNumber = Owner->GetMorphTargets().Num();
-				Ar << MorphTargetNumber;
-				for (int32 MorphTargetIndex = 0; MorphTargetIndex < MorphTargetNumber; ++MorphTargetIndex)
-				{
-					Owner->GetMorphTargets()[MorphTargetIndex]->SerializeMemoryArchive(Ar);
-				}
-				//No need to serialize the morph target mapping since we will rebuild the mapping when loading a ddc
+				Owner->GetMorphTargets()[MorphTargetIndex]->SerializeMemoryArchive(Ar);
+			}
+			//No need to serialize the morph target mapping since we will rebuild the mapping when loading a ddc
 
-				//Serialize the LODModel sections since they are dependent on the reduction
-				for (int32 LODIndex = 0; LODIndex < SkelMeshModel->LODModels.Num(); LODIndex++)
-				{
-					FSkeletalMeshLODModel* LODModel = &(SkelMeshModel->LODModels[LODIndex]);
-					SerializeLodModelDdcData(LODModel, Ar);
-				}
+			//Serialize the LODModel sections since they are dependent on the reduction
+			for (int32 LODIndex = 0; LODIndex < SkelMeshModel->LODModels.Num(); LODIndex++)
+			{
+				FSkeletalMeshLODModel* LODModel = &(SkelMeshModel->LODModels[LODIndex]);
+				SerializeLodModelDdcData(LODModel, Ar);
 			}
 
 			IMeshBuilderModule& MeshBuilderModule = IMeshBuilderModule::GetForPlatform(TargetPlatform);

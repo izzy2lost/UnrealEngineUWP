@@ -20,6 +20,7 @@
 #include "GeometryCache.h"
 #include "GeometryCacheMeshData.h"
 #include "GeometryCacheTrack.h"
+#include "SkeletalMeshAttributes.h"
 #include "Async/ParallelFor.h"
 
 namespace UE::MLDeformer
@@ -69,23 +70,26 @@ namespace UE::MLDeformer
 		// Call this first to update bone and curve values.
 		// This will also calculate the skinned positions if the delta space is set to PostSkinning.
 		FMLDeformerSampler::Sample(InAnimFrameIndex);
-
 		USkeletalMesh* SkeletalMesh = SkeletalMeshComponent.Get() ? SkeletalMeshComponent->GetSkeletalMeshAsset() : nullptr;
 		UGeometryCache* GeometryCache = GeometryCacheComponent->GetGeometryCache();
 		if (SkeletalMeshComponent && SkeletalMesh && GeometryCacheComponent && GeometryCache)
 		{
 			const float DeltaCutoffLength = Model->GetDeltaCutoffLength();
 			const FTransform& AlignmentTransform = Model->GetAlignmentTransform();
-			FSkeletalMeshModel* ImportedModel = SkeletalMesh->GetImportedModel();
 
 			// For all mesh mappings we found.
-			const int32 LODIndex = 0;
-			const FSkeletalMeshLODModel& LODModel = ImportedModel->LODModels[LODIndex];
-			const TArray<FSkelMeshImportedMeshInfo>& SkelMeshInfos = LODModel.ImportedMeshInfos;
+			constexpr int32 LODIndex = 0;
+			const FMeshDescription* MeshDescription = SkeletalMesh->GetMeshDescription(LODIndex);
+			const FSkeletalMeshConstAttributes MeshAttributes(*MeshDescription);
+			const FSkeletalMeshAttributes::FSourceGeometryPartVertexOffsetAndCountConstRef GeoPartOffsetAndCounts = MeshAttributes.GetSourceGeometryPartVertexOffsetAndCounts();
+			
 			for (int32 MeshMappingIndex = 0; MeshMappingIndex < MeshMappings.Num(); ++MeshMappingIndex)
 			{
 				const UE::MLDeformer::FMLDeformerGeomCacheMeshMapping& MeshMapping = MeshMappings[MeshMappingIndex];
-				const FSkelMeshImportedMeshInfo& MeshInfo = SkelMeshInfos[MeshMapping.MeshIndex];
+				TArrayView<const int32> GeoPartInfo = GeoPartOffsetAndCounts.Get(MeshMapping.MeshIndex);
+				const int32 StartImportedVertex = GeoPartInfo[0];
+				const int32 NumVertices = GeoPartInfo[1];
+				
 				UGeometryCacheTrack* Track = GeometryCache->Tracks[MeshMapping.TrackIndex];
 
 				// Sample the mesh data of the geom cache.
@@ -100,19 +104,19 @@ namespace UE::MLDeformer
 				const FSkinWeightVertexBuffer& SkinWeightBuffer = *SkeletalMeshComponent->GetSkinWeightBuffer(LODIndex);
 
 				const int32 BatchSize = 500;
-				const int32 NumBatches = (MeshInfo.NumVertices / BatchSize) + 1;
+				const int32 NumBatches = (NumVertices / BatchSize) + 1;
 				ParallelFor(NumBatches, [&](int32 BatchIndex)
 				{
 					const int32 StartVertex = BatchIndex * BatchSize;
-					if (StartVertex >= MeshInfo.NumVertices || VertexDeltas.IsEmpty())
+					if (StartVertex >= NumVertices || VertexDeltas.IsEmpty())
 					{
 						return;
 					}
 
-					const int32 NumVertsInBatch = (StartVertex + BatchSize) < MeshInfo.NumVertices ? BatchSize : FMath::Max(MeshInfo.NumVertices - StartVertex, 0);
+					const int32 NumVertsInBatch = (StartVertex + BatchSize) < NumVertices ? BatchSize : FMath::Max(NumVertices - StartVertex, 0);
 					for (int32 VertexIndex = StartVertex; VertexIndex < StartVertex + NumVertsInBatch; ++VertexIndex)
 					{
-						const int32 SkinnedVertexIndex = MeshInfo.StartImportedVertex + VertexIndex;
+						const int32 SkinnedVertexIndex = StartImportedVertex + VertexIndex;
 						const int32 GeomCacheVertexIndex = MeshMapping.SkelMeshToTrackVertexMap[VertexIndex];
 						if (GeomCacheVertexIndex != INDEX_NONE && GeomCacheMeshData.Positions.IsValidIndex(GeomCacheVertexIndex))
 						{

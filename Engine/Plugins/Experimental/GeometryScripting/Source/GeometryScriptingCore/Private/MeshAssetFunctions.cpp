@@ -627,30 +627,22 @@ UDynamicMesh* UGeometryScriptLibrary_StaticMeshFunctions::CopyMeshFromSkeletalMe
 #if WITH_EDITOR
 	const int32 UseLODIndex = FMath::Clamp(RequestedLOD.LODIndex, 0, FromSkeletalMeshAsset->GetLODNum() - 1);;
 	
-	FMeshDescription SourceMesh;
+	const FMeshDescription* SourceMesh = nullptr;
 
 	// Check first if we have bulk data available and non-empty.
-	if (FromSkeletalMeshAsset->IsLODImportedDataBuildAvailable(UseLODIndex) && !FromSkeletalMeshAsset->IsLODImportedDataEmpty(UseLODIndex))
+	if (FromSkeletalMeshAsset->HasMeshDescription(UseLODIndex))
 	{
-		FSkeletalMeshImportData SkeletalMeshImportData;
-		FromSkeletalMeshAsset->LoadLODImportedData(UseLODIndex, SkeletalMeshImportData);
-		SkeletalMeshImportData.GetMeshDescription(SourceMesh);
+		SourceMesh = FromSkeletalMeshAsset->GetMeshDescription(UseLODIndex); 
 	}
-	else
+	if (SourceMesh == nullptr)
 	{
-		// Fall back on the LOD model directly if no bulk data exists. When we commit
-		// the mesh description, we override using the bulk data. This can happen for older
-		// skeletal meshes, from UE 4.24 and earlier.
-		const FSkeletalMeshModel* SkeletalMeshModel = FromSkeletalMeshAsset->GetImportedModel();
-		if (SkeletalMeshModel && SkeletalMeshModel->LODModels.IsValidIndex(UseLODIndex))
-		{
-			SkeletalMeshModel->LODModels[UseLODIndex].GetMeshDescription(SourceMesh, FromSkeletalMeshAsset);
-		}			
+		UE::Geometry::AppendError(Debug, EGeometryScriptErrorType::InvalidInputs, LOCTEXT("CopyMeshFromSkeletalMesh_LODNotAvailable", "CopyMeshFromSkeletalMesh: Requested LOD is not available"));
+		return ToDynamicMesh;
 	}
 
 	FDynamicMesh3 NewMesh;
 	FMeshDescriptionToDynamicMesh Converter;
-	Converter.Convert(&SourceMesh, NewMesh, AssetOptions.bRequestTangents);
+	Converter.Convert(SourceMesh, NewMesh, AssetOptions.bRequestTangents);
 	
 	ToDynamicMesh->SetMesh(MoveTemp(NewMesh));
 	
@@ -761,15 +753,22 @@ UDynamicMesh* UGeometryScriptLibrary_StaticMeshFunctions::CopyMeshToSkeletalMesh
 
 	verify(ToSkeletalMeshAsset->Modify());
 
-	FMeshDescription MeshDescription;
-	FSkeletalMeshAttributes MeshAttributes(MeshDescription);
+	FMeshDescription* MeshDescription = ToSkeletalMeshAsset->GetMeshDescription(TargetLOD.LODIndex);
+	if (MeshDescription == nullptr)
+	{
+		MeshDescription = ToSkeletalMeshAsset->CreateMeshDescription(TargetLOD.LODIndex);
+	}
+	
+	FSkeletalMeshAttributes MeshAttributes(*MeshDescription);
 	MeshAttributes.Register();
+
+	ToSkeletalMeshAsset->ModifyMeshDescription(TargetLOD.LODIndex);
 	
 	FConversionToMeshDescriptionOptions ConversionOptions;
 	FDynamicMeshToMeshDescription Converter(ConversionOptions);
 	FromDynamicMesh->ProcessMesh([&](const FDynamicMesh3& ReadMesh)
 	{
-		Converter.Convert(&ReadMesh, MeshDescription, !Options.bEnableRecomputeTangents);
+		Converter.Convert(&ReadMesh, *MeshDescription, !Options.bEnableRecomputeTangents);
 	});
 
 	// Ensure we have enough LODInfos to cover up to the requested LOD.
@@ -792,15 +791,12 @@ UDynamicMesh* UGeometryScriptLibrary_StaticMeshFunctions::CopyMeshToSkeletalMesh
 	SkeletalLODInfo->ReductionSettings.MaxNumOfVerts = MAX_int32; 
 	SkeletalLODInfo->ReductionSettings.BaseLOD = TargetLOD.LODIndex;
 
-	FSkeletalMeshImportData SkeletalMeshImportData = 
-		FSkeletalMeshImportData::CreateFromMeshDescription(MeshDescription);
-
-	// if we are replacing materials, construct a FSkeletalMaterial list with unique slot names
-	TArray<FSkeletalMaterial> NewMaterials;
+	// update materials on the Asset
 	if (Options.bReplaceMaterials)
 	{
 		bool bHaveSlotNames = (Options.NewMaterialSlotNames.Num() == Options.NewMaterials.Num());
 
+		TArray<FSkeletalMaterial> NewMaterials;
 		for (int32 k = 0; k < Options.NewMaterials.Num(); ++k)
 		{
 			FSkeletalMaterial NewMaterial;
@@ -813,36 +809,29 @@ UDynamicMesh* UGeometryScriptLibrary_StaticMeshFunctions::CopyMeshToSkeletalMesh
 			NewMaterial.UVChannelData = FMeshUVChannelInfo(1.f);		// this avoids an ensure in  UStaticMesh::GetUVChannelData
 			NewMaterials.Add(NewMaterial);
 		}
-
-		// copy the material set to the SkeletalMeshImportData
-		SkeletalMeshImportData.Materials.SetNum(NewMaterials.Num());
-		for (int32 k = 0; k < NewMaterials.Num(); ++k)
-		{
-			SkeletalMeshImportData.Materials[k].Material = NewMaterials[k].MaterialInterface;
-			SkeletalMeshImportData.Materials[k].MaterialImportName = NewMaterials[k].MaterialSlotName.ToString();
-		}
-	}
-
-
-	ToSkeletalMeshAsset->SaveLODImportedData(TargetLOD.LODIndex, SkeletalMeshImportData);
-
-	// configure vertex color setup in the Asset
-    ToSkeletalMeshAsset->SetHasVertexColors(SkeletalMeshImportData.bHasVertexColors);
-#if WITH_EDITORONLY_DATA
-    ToSkeletalMeshAsset->SetVertexColorGuid(SkeletalMeshImportData.bHasVertexColors ? FGuid::NewGuid() : FGuid() );
-#endif
-
-	// update materials on the Asset
-	if (Options.bReplaceMaterials)
-	{
+		
 		ToSkeletalMeshAsset->SetMaterials(NewMaterials);
 	}
 
-	// Make sure the mesh builder knows it's the latest variety, so that the render data gets
-	// properly rebuilt.
-	ToSkeletalMeshAsset->SetLODImportedDataVersions(TargetLOD.LODIndex, ESkeletalMeshGeoImportVersions::LatestVersion, ESkeletalMeshSkinningImportVersions::LatestVersion);
-	ToSkeletalMeshAsset->SetUseLegacyMeshDerivedDataKey(false);
+	ToSkeletalMeshAsset->CommitMeshDescription(TargetLOD.LODIndex);
 
+	bool bHasVertexColors = false;
+	TVertexInstanceAttributesConstRef<FVector4f> VertexColors = MeshAttributes.GetVertexInstanceColors();
+	for (const FVertexInstanceID VertexInstanceID: MeshDescription->VertexInstances().GetElementIDs())
+	{
+		if (!VertexColors.Get(VertexInstanceID).Equals(FVector4f::One()))
+		{
+			bHasVertexColors = true;
+			break;
+		}
+	}
+		
+	// configure vertex color setup in the Asset
+	ToSkeletalMeshAsset->SetHasVertexColors(bHasVertexColors);
+#if WITH_EDITORONLY_DATA
+	ToSkeletalMeshAsset->SetVertexColorGuid(bHasVertexColors ? FGuid::NewGuid() : FGuid() );
+#endif
+	
 	if (Options.bDeferMeshPostEditChange == false)
 	{
 		ToSkeletalMeshAsset->PostEditChange();

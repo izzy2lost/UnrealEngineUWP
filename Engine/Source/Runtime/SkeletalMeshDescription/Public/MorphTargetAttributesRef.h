@@ -6,6 +6,9 @@
 
 class FMorphTargetVertexAttributesRef
 {
+	friend class FSkeletalMeshAttributes;
+	friend class FMorphTargetVertexAttributesConstRef;
+
 public:
 	FMorphTargetVertexAttributesRef() = default;
 	FMorphTargetVertexAttributesRef(const FMorphTargetVertexAttributesRef&) = default;
@@ -17,6 +20,8 @@ public:
 	{
 		return AttributesRef.IsValid();
 	}
+
+	void Copy(const FMorphTargetVertexAttributesConstRef& InSourceAttribute);
 
 	FVector3f GetPositionDelta(const FVertexID InVertexIndex) const
 	{
@@ -54,14 +59,11 @@ public:
 	}
 
 protected:
-	friend class FSkeletalMeshAttributes;
-
 	FMorphTargetVertexAttributesRef(TVertexAttributesRef<TArrayView<FVector3f>> InAttributesRef)
 		: AttributesRef(InAttributesRef)
 	{}
 
 private:
-	friend class FMorphTargetVertexAttributesConstRef;
 	TVertexAttributesRef<TArrayView<FVector3f>> AttributesRef;
 };
 
@@ -76,11 +78,11 @@ public:
 	FMorphTargetVertexAttributesConstRef& operator=(FMorphTargetVertexAttributesConstRef&&) = default;
 
 	// Converting constructors from the non-const variant
-	explicit FMorphTargetVertexAttributesConstRef(const FMorphTargetVertexAttributesRef &InAttributesRef) :
+	explicit FMorphTargetVertexAttributesConstRef(const FMorphTargetVertexAttributesRef& InAttributesRef) :
 		AttributesConstRef(InAttributesRef.AttributesRef)
 	{}
 	
-	FMorphTargetVertexAttributesConstRef& operator=(const FMorphTargetVertexAttributesRef &InAttributesRef)
+	FMorphTargetVertexAttributesConstRef& operator=(const FMorphTargetVertexAttributesRef& InAttributesRef)
 	{
 		AttributesConstRef = InAttributesRef.AttributesRef;
 		return *this;
@@ -102,6 +104,7 @@ public:
 	}
 
 protected:
+	friend class FMorphTargetVertexAttributesRef;
 	friend class FSkeletalMeshAttributes;
 	friend class FSkeletalMeshAttributesShared;
 
@@ -116,3 +119,9 @@ protected:
 private:
 	TVertexAttributesConstRef<TArrayView<FVector3f>> AttributesConstRef;
 };
+
+
+inline void FMorphTargetVertexAttributesRef::Copy(const FMorphTargetVertexAttributesConstRef& InSourceAttribute)
+{
+	AttributesRef.Copy(InSourceAttribute.AttributesConstRef);
+}

@@ -38,14 +38,15 @@ public class NearestNeighborModel : ModuleRules
 				"CoreUObject",
 				"Engine",
 				"GeometryCache",
-				"OptimusCore",
-				"Projects",
-				"RenderCore",
-				"RHI",
 				"MLDeformerFramework",
 				"MeshDescription",
 				"NNE",
 				"NNERuntimeBasicCpu",
+				"OptimusCore",
+				"Projects",
+				"RHI",
+				"RenderCore",
+				"SkeletalMeshDescription",
 			}
 			);
 		

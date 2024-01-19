@@ -411,6 +411,9 @@ struct FFortniteMainBranchObjectVersion
 		// Added settings to Landscape HLODs
 		LandscapeAddedHLODSettings,
 
+		// Skeletal Mesh uses Mesh Description to store mesh bulk data.
+		MeshDescriptionForSkeletalMesh,
+		
 		// -----<new versions can be added above this line>-------------------------------------------------
 		VersionPlusOne,
 		LatestVersion = VersionPlusOne - 1

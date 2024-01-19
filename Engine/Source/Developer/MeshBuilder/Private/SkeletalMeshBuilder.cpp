@@ -92,7 +92,9 @@ bool FSkeletalMeshBuilder::Build(const FSkeletalMeshBuildParameters& SkeletalMes
 		FSkeletalMeshLODModel& BuildLODModel = SkeletalMesh->GetImportedModel()->LODModels[LODIndex];
 
 		//Load the imported data
+		PRAGMA_DISABLE_DEPRECATION_WARNINGS
 		SkeletalMesh->LoadLODImportedData(LODIndex, SkeletalMeshImportData);
+		PRAGMA_ENABLE_DEPRECATION_WARNINGS
 
 		TArray<FVector3f> LODPoints;
 		TArray<SkeletalMeshImportData::FMeshWedge> LODWedges;
@@ -173,7 +175,7 @@ bool FSkeletalMeshBuilder::Build(const FSkeletalMeshBuildParameters& SkeletalMes
 		{
 			SlowTask.EnterProgressFrame(1.0f, NSLOCTEXT("SkeltalMeshBuilder", "RegenerateLOD", "Regenerate LOD..."));
 			//Update the original reduction data since we just build a new LODModel.
-			if (LODInfo->ReductionSettings.BaseLOD == LODIndex && SkeletalMesh->IsLODImportedDataBuildAvailable(LODIndex))
+			if (LODInfo->ReductionSettings.BaseLOD == LODIndex && SkeletalMesh->HasMeshDescription(LODIndex))
 			{
 				if (LODIndex == 0)
 				{

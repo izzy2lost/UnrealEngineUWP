@@ -9,6 +9,7 @@
 #include "MLDeformerEditorStyle.h"
 #include "NearestNeighborModel.h"
 #include "NearestNeighborEditorModel.h"
+#include "SkeletalMeshAttributes.h"
 #include "Rendering/SkeletalMeshLODImporterData.h" 
 #include "Rendering/SkeletalMeshModel.h"
 #include "SMLDeformerBonePickerDialog.h"
@@ -49,15 +50,28 @@ namespace UE::NearestNeighborModel
 
 		void CreateVertexAttributes(USkeletalMesh& SkeletalMesh, const FString& AttributeName, const TArray<int32>& VertexMap, const TArray<float>& VertexWeights)
 		{
-			FSkeletalMeshImportData ImportData; 
 			constexpr int32 LODIndex = 0;
-			SkeletalMesh.LoadLODImportedData(LODIndex, ImportData);
-			using SkeletalMeshImportData::FVertexAttribute;
-			constexpr int32 NumComponents = 1;
-			FVertexAttribute VertexAttribute(GetVertexAttributeValues(VertexMap, VertexWeights, SkeletalMesh.GetNumImportedVertices()), NumComponents);
-			ImportData.VertexAttributeNames.Add(AttributeName);
-			ImportData.VertexAttributes.Add(VertexAttribute);
-			SkeletalMesh.SaveLODImportedData(LODIndex, ImportData);
+
+			FMeshDescription* MeshDescription = SkeletalMesh.GetMeshDescription(LODIndex);
+			if (!MeshDescription)
+			{
+				return;
+			}
+
+			FSkeletalMeshAttributes MeshAttributes(*MeshDescription);
+
+			if (!MeshDescription->VertexAttributes().HasAttribute(*AttributeName))
+			{
+				MeshDescription->VertexAttributes().RegisterAttribute<float>(*AttributeName, 1, 0.0f);
+			}
+			TVertexAttributesRef<float> AttributeRef = MeshDescription->VertexAttributes().GetAttributesRef<float>(*AttributeName);
+
+			for (const int32 VertexIndex: VertexMap)
+			{
+				AttributeRef.Set(VertexIndex, VertexWeights[VertexIndex]);
+			}
+			
+			SkeletalMesh.CommitMeshDescription(LODIndex);
 		}
 
 

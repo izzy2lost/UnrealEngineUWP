@@ -47,8 +47,8 @@ namespace SkeletalMeshImportData
 	struct FMeshInfo
 	{
 		FName Name;	// The name of the mesh.
-		int32 NumVertices;	// The number of imported (dcc) vertices that are part of this mesh. This is a value of 8 for a cube. So NOT the number of render vertices.
-		int32 StartImportedVertex;	// The first index of imported (dcc) vertices in the mesh. So this NOT an index into the render vertex buffer. In range of 0..7 for a cube.
+		int32 NumVertices = 0;	// The number of imported (dcc) vertices that are part of this mesh. This is a value of 8 for a cube. So NOT the number of render vertices.
+		int32 StartImportedVertex = 0;	// The first index of imported (dcc) vertices in the mesh. So this NOT an index into the render vertex buffer. In range of 0..7 for a cube.
 	};
 
 	struct FMeshWedge
@@ -418,20 +418,27 @@ public:
 	 */
 	ENGINE_API void ComputeSmoothGroupFromNormals();
 
-	/**
-	 * Returns a mesh description from the import data
+	/*
+	 * Add morph target data from UMorphTarget in case there was none on the mesh itself.
 	 */
-	ENGINE_API bool GetMeshDescription(FMeshDescription& OutMeshDescription) const;
+	ENGINE_API void SetMorphTargets(const TArray<TObjectPtr<UMorphTarget>>& InMorphTargets, int32 InLODIndex, const TArray<int32>& InVertexMap);
+
+	/**
+	 * Returns a mesh description from the import data. If logging on failures is required, pass in a pointer 
+	 * to the owning skeletal mesh. Otherwise leave as a \c nullptr. 
+	 */
+	ENGINE_API bool GetMeshDescription(const USkeletalMesh* InSkeletalMesh, FMeshDescription& OutMeshDescription) const;
 
 	/**
 	 * @note MeshDescription always contains color, normal and tangent data by default. Therefore, while iterating
-	 * over the vertices, we check if at least one normal/tangent vector is not a zero vector and the color is
-	 * not white, then we set the corresponding bHasNormals/bHasTangent/bHasVertexColors flags to true.
+	 * over the vertices, we check if at least one normal/tangent vector is not a zero vector and the vertex color is
+	 * not pure white, then we set the corresponding bHasNormals/bHasTangent/bHasVertexColors flags to true.
 	 */
 	static ENGINE_API FSkeletalMeshImportData CreateFromMeshDescription(const FMeshDescription& InMeshDescription);
 
 private:
 	void CopySkinWeightsToMeshDescription(
+		const USkeletalMesh* InSkeletalMesh,
 		const FName InSkinWeightName,
 		const FSkeletalMeshImportData& InSkinWeightMesh,
 		const TArray<FVertexID>& InVertexIDMap,

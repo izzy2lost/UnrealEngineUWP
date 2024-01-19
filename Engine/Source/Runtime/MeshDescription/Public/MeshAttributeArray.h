@@ -70,6 +70,7 @@ template <typename... Ts> struct TVariantFromTuple<TTuple<Ts...>> { using Type =
  */
 template <typename T> struct TIsBulkSerializable { static const bool Value = true; };
 template <> struct TIsBulkSerializable<FName> { static const bool Value = false; };
+template <> struct TIsBulkSerializable<FTransform> { static const bool Value = false; };
 
 
 /**
@@ -1279,7 +1280,7 @@ void TMeshAttributesRef<ElementIDType, TArrayView<AttributeType>>::Copy(TMeshAtt
 	check(Extent > 0);
 	check(Src.IsValid());
 	check(Src.Extent == Extent);
-	const TMeshAttributeArrayBase<AttributeType>& SrcArray = static_cast<const BoundedArrayType*>(Src->ArrayPtr)->GetArrayForChannel(SrcChannel);
+	const TMeshAttributeArrayBase<AttributeType>& SrcArray = static_cast<const BoundedArrayType*>(Src.ArrayPtr)->GetArrayForChannel(SrcChannel);
 	TMeshAttributeArrayBase<AttributeType>& DestArray = static_cast<BoundedArrayType*>(ArrayPtr)->GetArrayForChannel(DestChannel);
 	const int32 Num = FMath::Min(SrcArray.Num(), DestArray.Num());
 	for (int32 Index = 0; Index < Num; Index++)

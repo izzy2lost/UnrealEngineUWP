@@ -56,12 +56,6 @@ public:
 	/** Gets the DNA asset embedded in the mesh */
 	static UDNAAsset* GetMeshDNA(USkeletalMesh* InSkelMesh);
 
-// BEGIN: MHC MODIFICATION
-	/** Recreates source skeleton data for the purpose of character cooking and export.  */
-	static void RecreateSourceData(USkeletalMesh* InSkelMesh);
-	/** Updates ImportData structs for SkeletalMesh in non destructive way to preserve the original mesh */
-	static void UpdateSourceData(USkeletalMesh* InSkelMesh);
-// END: MHC MODIFICATION
 #endif // WITH_EDITORONLY_DATA
 	/** Converts DNA vertex coordinates to UE4 coordinate system **/
 	inline static FVector ConvertDNAVertexToUE4CoordSystem(FVector InVertexPositionInDNA)

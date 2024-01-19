@@ -27,7 +27,6 @@ void UClothAssetBuilderEditor::BuildLod(FSkeletalMeshLODModel& LODModel, const U
 	LODModel.Empty();
 
 	// Clear the mesh infos, none are stored on this asset
-	LODModel.ImportedMeshInfos.Empty();
 	LODModel.MaxImportVertex = 0;
 
 	// Set 1 texture coordinate

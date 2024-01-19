@@ -603,26 +603,24 @@ void FMeshDescription::RebuildIndexers()
 
 void FMeshDescription::Empty()
 {
-	VertexElements->Reset();
-	VertexInstanceElements->Reset();
-	UVElements->Reset();
-	EdgeElements->Reset();
-	TriangleElements->Reset();
-	PolygonElements->Reset();
-	PolygonGroupElements->Reset();
+	for (TPair<FName, FMeshElementTypeWrapper>& ElementsItem: Elements)
+	{
+		ElementsItem.Value.Get()->Reset();
+	}
 	ResetIndexers();
 }
 
 
 bool FMeshDescription::IsEmpty() const
 {
-	return VertexElements->IsEmpty() &&
-		   VertexInstanceElements->IsEmpty() &&
-		   UVElements->IsEmpty() &&
-		   EdgeElements->IsEmpty() &&
-		   TriangleElements->IsEmpty() &&
-		   PolygonElements->IsEmpty() &&
-		   PolygonGroupElements->IsEmpty();
+	for (const TPair<FName, FMeshElementTypeWrapper>& ElementsItem: Elements)
+	{
+		if (!ElementsItem.Value.Get()->IsEmpty())
+		{
+			return false;
+		}
+	}
+	return true;
 }
 
 bool FMeshDescription::NeedsCompact() const

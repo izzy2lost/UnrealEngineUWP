@@ -2970,7 +2970,7 @@ void FPersonaMeshDetails::AddLODLevelCategories(IDetailLayoutBuilder& DetailLayo
 				//Display the LODInfo settings
 				CustomizeLODInfoSetingsDetails(DetailLayout, LODInfoUILayout, LODInfoProperty, LODCategory);
 				
-				bool bIsbuildAvailable = SkelMesh->IsLODImportedDataBuildAvailable(LODIndex);
+				bool bIsbuildAvailable = SkelMesh->HasMeshDescription(LODIndex);
 
 				
 				//Avoid offering re-generate if the LOD is reduced on itself and does not have the original data. The user in this case has to re-import the asset to generate the data 
@@ -3965,7 +3965,7 @@ void FPersonaMeshDetails::RestoreNonReducedLOD(int32 LODIndex)
 
 	FSkeletalMeshLODInfo* CurrentLODInfo = SkelMesh->GetLODInfo(LODIndex);
 	const bool bIsReductionActive = SkelMesh->IsReductionActive(LODIndex);
-	const bool bIsLODModelbuildDataAvailable = SkelMesh->IsLODImportedDataBuildAvailable(LODIndex);
+	const bool bIsLODModelbuildDataAvailable = SkelMesh->HasMeshDescription(LODIndex);
 
 	if (CurrentLODInfo->bHasBeenSimplified
 		&& !bIsReductionActive
@@ -4003,7 +4003,7 @@ FReply FPersonaMeshDetails::ApplyLODChanges(int32 LODIndex)
 		{
 			SourceLODIndex = LODInfo->ReductionSettings.BaseLOD;
 		}
-		bool bSrcBuildDataAvailable = SkelMesh->IsLODImportedDataBuildAvailable(SourceLODIndex);
+		bool bSrcBuildDataAvailable = SkelMesh->HasMeshDescription(SourceLODIndex);
 		if (!bSrcBuildDataAvailable)
 		{
 			SkelMesh->InvalidateDeriveDataCacheGUID();
@@ -4062,7 +4062,7 @@ void FPersonaMeshDetails::RegenerateOneLOD(int32 LODIndex)
 		FScopedSkeletalMeshPostEditChange ScopedPostEditChange(SkelMesh);
 		FSkeletalMeshLODInfo& CurrentLODInfo = *(SkelMesh->GetLODInfo(LODIndex));
 		
-		bool bIsLODModelbuildDataAvailable = SkelMesh->GetImportedModel()->LODModels.IsValidIndex(LODIndex) && SkelMesh->IsLODImportedDataBuildAvailable(LODIndex);
+		bool bIsLODModelbuildDataAvailable = SkelMesh->GetImportedModel()->LODModels.IsValidIndex(LODIndex) && SkelMesh->HasMeshDescription(LODIndex);
 		if (LODIndex == CurrentLODInfo.ReductionSettings.BaseLOD
 			&& CurrentLODInfo.bHasBeenSimplified
 			&& !SkelMesh->IsReductionActive(LODIndex)
@@ -4153,7 +4153,7 @@ FReply FPersonaMeshDetails::RegenerateLOD(int32 LODIndex)
 			}
 		}
 
-		if (bIsReductionActive && !SkelMesh->IsLODImportedDataBuildAvailable(LODIndex))
+		if (bIsReductionActive && !SkelMesh->HasMeshDescription(LODIndex))
 		{
 			if (const FSkeletalMeshLODInfo* LodInfoPtr = SkelMesh->GetLODInfo(LODIndex))
 			{
@@ -4624,7 +4624,7 @@ FReply FPersonaMeshDetails::OnReimportLodClicked(EReimportButtonType InReimportT
 			//Avoid changing the settings if the skeletal mesh is using a LODSettings asset valid for this LOD
 			bool bUseLODSettingAsset = SkelMesh->GetLODSettings() != nullptr && SkelMesh->GetLODSettings()->GetNumberOfSettings() > InLODIndex;
 			//Make the reduction settings change according to the context
-			if (!bUseLODSettingAsset && SkelMesh->IsReductionActive(InLODIndex) && LODInfo->bHasBeenSimplified && SkelMesh->IsLODImportedDataEmpty(InLODIndex))
+			if (!bUseLODSettingAsset && SkelMesh->IsReductionActive(InLODIndex) && LODInfo->bHasBeenSimplified && !SkelMesh->HasMeshDescription(InLODIndex))
 			{
 				FSkeletalMeshOptimizationSettings& ReductionSettings = LODInfo->ReductionSettings;
 				//Backup the reduction settings

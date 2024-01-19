@@ -8,6 +8,7 @@ namespace MeshAttribute
 	namespace Vertex
 	{
 		const FName SkinWeights("SkinWeights");
+		const FName ImportPointIndex("ImportPointIndex");
 	}
 	
 	namespace Bone
@@ -17,12 +18,19 @@ namespace MeshAttribute
 		const FName Pose("Pose");
 		const FName Color("Color");
 	}
+
+	namespace SourceGeometryPart
+	{
+		const FName Name("Name");
+		const FName VertexOffsetAndCount("VertexOffsetAndCount");
+	}
 }
 
 
 FName FSkeletalMeshAttributesShared::DefaultSkinWeightProfileName("Default");
 
 FName FSkeletalMeshAttributesShared::BonesElementName("BonesElementName");
+FName FSkeletalMeshAttributesShared::SourceGeometryPartElementName("SourceGeometryPartElementName");
 
 static FString MorphTargetAttributeNamePrefix("Morph-");
 
@@ -37,14 +45,17 @@ static FString SkinWeightAttributeNamePrefix()
 // FSkeletalMeshAttributes
 //
 
-FSkeletalMeshAttributes::FSkeletalMeshAttributes(FMeshDescription& InMeshDescription)
-:
-FStaticMeshAttributes(InMeshDescription),
-FSkeletalMeshAttributesShared(InMeshDescription)
+FSkeletalMeshAttributes::FSkeletalMeshAttributes(FMeshDescription& InMeshDescription) :
+	FStaticMeshAttributes(InMeshDescription),
+	FSkeletalMeshAttributesShared(InMeshDescription)
 {
 	if (MeshDescription.GetElements().Contains(BonesElementName))
 	{
 		BoneElements = MeshDescription.GetElements()[BonesElementName].Get();
+	}
+	if (MeshDescription.GetElements().Contains(SourceGeometryPartElementName))
+	{
+		SourceGeometryPartElements = MeshDescription.GetElements()[SourceGeometryPartElementName].Get();
 	}
 }
 
@@ -57,7 +68,7 @@ void FSkeletalMeshAttributes::Register(bool bKeepExistingAttribute)
 
 	if (MeshDescription.GetElements().Contains(BonesElementName) == false)
 	{
-		BoneElements = MeshDescription.GetElements().Emplace(BonesElementName).Get();
+		BoneElementsShared = BoneElements = MeshDescription.GetElements().Emplace(BonesElementName).Get();
 	}
 
 	BoneAttributes().RegisterAttribute<FName>(MeshAttribute::Bone::Name, 1, NAME_None, EMeshAttributeFlags::Mandatory);
@@ -74,6 +85,18 @@ void FSkeletalMeshAttributes::RegisterColorAttribute()
 {
 	checkSlow(MeshDescription.GetElements().Contains(BonesElementName));
 	BoneAttributes().RegisterAttribute<FVector4f>(MeshAttribute::Bone::Color, 1, FVector4f(1.0f, 1.0f, 1.0f, 1.0f), EMeshAttributeFlags::Mandatory);
+}
+
+
+bool FSkeletalMeshAttributes::RegisterImportPointIndexAttribute()
+{
+	return MeshDescription.VertexAttributes().RegisterAttribute<int32>(MeshAttribute::Vertex::ImportPointIndex, 1, INDEX_NONE).IsValid();	
+}
+
+
+void FSkeletalMeshAttributes::UnregisterImportPointIndexAttribute()
+{
+	return MeshDescription.VertexAttributes().UnregisterAttribute(MeshAttribute::Vertex::ImportPointIndex);	
 }
 
 
@@ -138,6 +161,29 @@ bool FSkeletalMeshAttributes::RegisterMorphTargetAttribute(const FName InMorphTa
 	}
 
 	return MeshDescription.VertexAttributes().RegisterAttribute<FVector3f[2]>(AttributeName, 1, FVector3f::ZeroVector, EMeshAttributeFlags::None).IsValid();
+}
+
+bool FSkeletalMeshAttributes::UnregisterMorphTargetAttribute(const FName InMorphTargetName)
+{
+	if (InMorphTargetName.IsNone())
+	{
+		return false;
+	}
+
+	const FName AttributeName = CreateMorphTargetAttributeName(InMorphTargetName);
+	if (!ensure(AttributeName.IsValid()))
+	{
+		return false;
+	}
+
+	// Attribute not there?
+	if (!MeshDescription.VertexAttributes().HasAttribute(AttributeName))
+	{
+		return false;
+	}
+
+	MeshDescription.VertexAttributes().UnregisterAttribute(AttributeName);
+	return true;
 }
 
 FMorphTargetVertexAttributesRef FSkeletalMeshAttributes::GetVertexMorphTarget(const FName InMorphTargetName)
@@ -205,19 +251,88 @@ FSkeletalMeshAttributes::FBoneColorAttributesRef FSkeletalMeshAttributes::GetBon
 	return BoneAttributes().GetAttributesRef<FVector4f>(MeshAttribute::Bone::Color);
 }
 
+void FSkeletalMeshAttributes::RegisterSourceGeometryPartsAttributes()
+{
+	if (MeshDescription.GetElements().Contains(SourceGeometryPartElementName) == false)
+	{
+		SourceGeometryPartElementsShared = SourceGeometryPartElements = MeshDescription.GetElements().Emplace(SourceGeometryPartElementName).Get();
+	}
+
+	SourceGeometryPartAttributes().RegisterAttribute<FName>(MeshAttribute::SourceGeometryPart::Name, 1, NAME_None, EMeshAttributeFlags::Mandatory);	
+	SourceGeometryPartAttributes().RegisterAttribute<int32[2]>(MeshAttribute::SourceGeometryPart::VertexOffsetAndCount, 1, {0}, EMeshAttributeFlags::Mandatory);	
+}
+
+FSkeletalMeshAttributesShared::FSourceGeometryPartArray& FSkeletalMeshAttributes::SourceGeometryParts()
+{
+	if (!ensure(HasSourceGeometryParts()))
+	{
+		static FSourceGeometryPartArray Empty;
+		return Empty;
+	}
+	return static_cast<FSourceGeometryPartArray&>(SourceGeometryPartElements->Get());
+}
+
+TAttributesSet<FSourceGeometryPartID>& FSkeletalMeshAttributes::SourceGeometryPartAttributes()
+{
+	if (!ensure(HasSourceGeometryParts()))
+	{
+		static TAttributesSet<FSourceGeometryPartID> Empty;
+		return Empty;
+	}
+	return SourceGeometryParts().GetAttributes();
+}
+
+FSourceGeometryPartID FSkeletalMeshAttributes::CreateSourceGeometryPart()
+{
+	if (!ensure(HasSourceGeometryParts()))
+	{
+		return {};
+	}
+	
+	return SourceGeometryParts().Add();
+}
+
+void FSkeletalMeshAttributes::DeleteSourceGeometryPart(FSourceGeometryPartID InSourceGeometryPartID)
+{
+	if (ensure(HasSourceGeometryParts()))
+	{
+		return SourceGeometryParts().Remove(InSourceGeometryPartID);
+	}
+}
+
+FSkeletalMeshAttributesShared::FSourceGeometryPartNameRef FSkeletalMeshAttributes::GetSourceGeometryPartNames()
+{
+	if (!ensure(HasSourceGeometryParts()))
+	{
+		return FSourceGeometryPartNameRef{};
+	}
+	return SourceGeometryPartAttributes().GetAttributesRef<FName>(MeshAttribute::SourceGeometryPart::Name);
+}
+
+FSkeletalMeshAttributesShared::FSourceGeometryPartVertexOffsetAndCountRef FSkeletalMeshAttributes::GetSourceGeometryPartVertexOffsetAndCounts()
+{
+	if (!ensure(HasSourceGeometryParts()))
+	{
+		return FSourceGeometryPartVertexOffsetAndCountRef{};
+	}
+	return SourceGeometryPartAttributes().GetAttributesRef<TArrayView<int32>>(MeshAttribute::SourceGeometryPart::VertexOffsetAndCount);
+}
 
 
 //
 // FSkeletalMeshAttributesShared
 //
 
-FSkeletalMeshAttributesShared::FSkeletalMeshAttributesShared(const FMeshDescription& InMeshDescription) 
-:
-MeshDescriptionShared(InMeshDescription)
+FSkeletalMeshAttributesShared::FSkeletalMeshAttributesShared(const FMeshDescription& InMeshDescription) :
+	MeshDescriptionShared(InMeshDescription)
 {
 	if (MeshDescriptionShared.GetElements().Contains(BonesElementName))
 	{
 		BoneElementsShared = MeshDescriptionShared.GetElements()[BonesElementName].Get();
+	}
+	if (MeshDescriptionShared.GetElements().Contains(SourceGeometryPartElementName))
+	{
+		SourceGeometryPartElementsShared = MeshDescriptionShared.GetElements()[SourceGeometryPartElementName].Get();
 	}
 }
 
@@ -232,10 +347,8 @@ FSkinWeightsVertexAttributesConstRef FSkeletalMeshAttributesShared::GetVertexSki
 	{
 		return MeshDescriptionShared.VertexAttributes().GetAttributesRef<TArrayAttribute<int32>>(InAttributeName);
 	}
-	else
-	{
-		return {};
-	}
+	
+	return {};
 }
 
 TArray<FName> FSkeletalMeshAttributesShared::GetSkinWeightProfileNames() const
@@ -421,4 +534,56 @@ FSkeletalMeshAttributesShared::FBonePoseAttributesConstRef FSkeletalMeshAttribut
 FSkeletalMeshAttributesShared::FBoneColorAttributesConstRef FSkeletalMeshAttributesShared::GetBoneColors() const
 {
 	return BoneAttributes().GetAttributesRef<FVector4f>(MeshAttribute::Bone::Color);
+}
+
+const FSkeletalMeshAttributesShared::FSourceGeometryPartArray& FSkeletalMeshAttributesShared::SourceGeometryParts() const
+{
+	if (!ensure(HasSourceGeometryParts()))
+	{
+		static FSourceGeometryPartArray Empty;
+		return Empty;
+	}
+	return static_cast<const FSourceGeometryPartArray&>(SourceGeometryPartElementsShared->Get());
+}
+
+const TAttributesSet<FSourceGeometryPartID>& FSkeletalMeshAttributesShared::SourceGeometryPartAttributes() const
+{
+	if (!ensure(HasSourceGeometryParts()))
+	{
+		static TAttributesSet<FSourceGeometryPartID> Empty;
+		return Empty;
+	}
+	return SourceGeometryParts().GetAttributes();
+}
+
+int32 FSkeletalMeshAttributesShared::GetNumSourceGeometryParts() const
+{
+	return HasSourceGeometryParts() ? SourceGeometryPartElementsShared->Get().Num() : 0;
+}
+
+bool FSkeletalMeshAttributesShared::IsSourceGeometryPartValid(const FSourceGeometryPartID InSourceGeometryPartID) const
+{
+	if (!ensure(HasSourceGeometryParts()))
+	{
+		return false;
+	}
+	return SourceGeometryParts().IsValid(InSourceGeometryPartID);
+}
+
+FSkeletalMeshAttributesShared::FSourceGeometryPartNameConstRef FSkeletalMeshAttributesShared::GetSourceGeometryPartNames() const
+{
+	if (!ensure(HasSourceGeometryParts()))
+	{
+		return FSourceGeometryPartNameConstRef{};
+	}
+	return SourceGeometryPartAttributes().GetAttributesRef<FName>(MeshAttribute::SourceGeometryPart::Name);
+}
+
+FSkeletalMeshAttributesShared::FSourceGeometryPartVertexOffsetAndCountConstRef FSkeletalMeshAttributesShared::GetSourceGeometryPartVertexOffsetAndCounts() const
+{
+	if (!ensure(HasSourceGeometryParts()))
+	{
+		return FSourceGeometryPartVertexOffsetAndCountConstRef{};
+	}
+	return SourceGeometryPartAttributes().GetAttributesRef<TArrayView<int32>>(MeshAttribute::SourceGeometryPart::VertexOffsetAndCount);
 }

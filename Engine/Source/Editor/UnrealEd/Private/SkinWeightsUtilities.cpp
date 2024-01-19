@@ -359,7 +359,9 @@ bool FSkinWeightsUtilities::RemoveSkinnedWeightProfileData(USkeletalMesh* Skelet
 	LODModelDest.SkinWeightProfiles.Remove(ProfileName);
 
 	FSkeletalMeshImportData ImportDataDest;
+	PRAGMA_DISABLE_DEPRECATION_WARNINGS
 	SkeletalMesh->LoadLODImportedData(LODIndex, ImportDataDest);
+	PRAGMA_ENABLE_DEPRECATION_WARNINGS
 
 	//Rechunk the skeletal mesh since we remove it, we rebuild the skeletal mesh to achieve rechunking
 	UFbxSkeletalMeshImportData* OriginalSkeletalMeshImportData = UFbxSkeletalMeshImportData::GetImportDataForSkeletalMesh(SkeletalMesh, nullptr);

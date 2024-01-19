@@ -18,16 +18,6 @@
 #include "SkeletalMeshAttributes.h"
 #include "ReferenceSkeleton.h"
 
-/*-----------------------------------------------------------------------------
-FSkelMeshImportedMeshInfo
------------------------------------------------------------------------------*/
-FArchive& operator<<(FArchive& Ar, FSkelMeshImportedMeshInfo& MeshInfo)
-{
-	Ar << MeshInfo.Name;
-	Ar << MeshInfo.NumVertices;
-	Ar << MeshInfo.StartImportedVertex;
-	return Ar;
-}
 
 /*-----------------------------------------------------------------------------
 FSoftSkinVertex
@@ -991,18 +981,6 @@ void FSkeletalMeshLODModel::DeclareCustomVersions(FArchive& Ar)
 	FSkelMeshSection::DeclareCustomVersions(Ar);
 }
 
-int32 FSkeletalMeshLODModel::FindMeshInfoIndex(FName Name) const
-{
-	for (int32 Index = 0; Index < ImportedMeshInfos.Num(); ++Index)
-	{
-		if (ImportedMeshInfos[Index].Name == Name)
-		{
-			return Index;
-		}
-	}
-	return INDEX_NONE;
-}
-
 void FSkeletalMeshLODModel::GetSectionFromVertexIndex(int32 InVertIndex, int32& OutSectionIndex, int32& OutVertIndex) const
 {
 	OutSectionIndex = 0;
@@ -1366,7 +1344,7 @@ void FSkeletalMeshLODModel::GetMeshDescription(FMeshDescription& MeshDescription
 
 	MeshDescription.Empty();
 	
-	FSkeletalMeshAttributes MeshAttributes(MeshDescription);			
+	FSkeletalMeshAttributes MeshAttributes(MeshDescription);	
 	
 	// Register extra attributes for us.
 	MeshAttributes.Register();
@@ -1468,7 +1446,7 @@ void FSkeletalMeshLODModel::GetMeshDescription(FMeshDescription& MeshDescription
 				VertexInstanceBinormalSigns.Set(VertexInstanceID, FMatrix44f(
 					SourceVertex.TangentX.GetSafeNormal(),
 					SourceVertex.TangentY.GetSafeNormal(),
-					(FVector3f)(SourceVertex.TangentZ.GetSafeNormal()),
+					FVector3f(SourceVertex.TangentZ.GetSafeNormal()),
 					FVector3f::ZeroVector).Determinant() < 0.0f ? -1.0f : +1.0f);
 
 				for (int32 UVIndex = 0; UVIndex < static_cast<int32>(NumTexCoords); UVIndex++)

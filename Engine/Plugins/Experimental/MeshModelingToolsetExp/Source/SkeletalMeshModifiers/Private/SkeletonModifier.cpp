@@ -214,7 +214,8 @@ bool USkeletonModifier::SetSkeletalMesh(USkeletalMesh* InSkeletalMesh)
 
 	// store mesh description to edit
 	MeshDescription = MakeUnique<FMeshDescription>();
-	SkeletalMesh->GetMeshDescription(USkeletonModifierLocals::LODIndex, *MeshDescription);
+	SkeletalMesh->CloneMeshDescription(USkeletonModifierLocals::LODIndex, *MeshDescription);
+	
 	if (MeshDescription->IsEmpty())
 	{
 		UE_LOG(LogAnimation, Error, TEXT("Skeleton Modifier: mesh description is emtpy."));
@@ -374,7 +375,9 @@ bool USkeletonModifier::CommitSkeletonToSkeletalMesh()
 	SkeletalMesh->CalculateInvRefMatrices();
 	
 	// update skeletal mesh LOD (cf. USkeletalMesh::CommitMeshDescription)
-	SkeletalMesh->CommitMeshDescription(USkeletonModifierLocals::LODIndex, *MeshDescription);
+	SkeletalMesh->ModifyMeshDescription(USkeletonModifierLocals::LODIndex);
+	SkeletalMesh->CreateMeshDescription(USkeletonModifierLocals::LODIndex, MoveTemp(*MeshDescription));
+	SkeletalMesh->CommitMeshDescription(USkeletonModifierLocals::LODIndex);
 
 	// update skeleton
 	if (Skeleton->RecreateBoneTree(SkeletalMesh.Get()))

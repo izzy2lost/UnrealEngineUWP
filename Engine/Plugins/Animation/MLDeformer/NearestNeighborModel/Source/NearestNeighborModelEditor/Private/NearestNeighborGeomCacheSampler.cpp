@@ -12,6 +12,7 @@
 #include "GeometryCacheMeshData.h"
 #include "GeometryCacheTrack.h"
 #include "NearestNeighborModel.h"
+#include "SkeletalMeshAttributes.h"
 #include "Rendering/SkeletalMeshModel.h"
 #include "Rendering/SkeletalMeshRenderData.h"
 
@@ -121,14 +122,12 @@ namespace UE::NearestNeighborModel
 			return;
 		}
 		const FTransform& AlignmentTransform = Model->GetAlignmentTransform();
-		const FSkeletalMeshModel* ImportedModel = SkeletalMesh->GetImportedModel();
 		constexpr int32 LODIndex = 0;
-		if (!ImportedModel || !ImportedModel->LODModels.IsValidIndex(LODIndex))
+		if (!SkeletalMesh->HasMeshDescription(LODIndex))
 		{
 			VertexDeltas.Reset(0);
 			return;
 		}
-		const FSkeletalMeshLODModel& LODModel = ImportedModel->LODModels[LODIndex];
 		const FSkeletalMeshRenderData* RenderData = SkeletalMesh->GetResourceForRendering();
 		const FSkinWeightVertexBuffer* SkinWeightBuffer = SkeletalMeshComponent->GetSkinWeightBuffer(LODIndex);
 		if (!RenderData || !RenderData->LODRenderData.IsValidIndex(LODIndex) || !SkinWeightBuffer)
@@ -137,7 +136,10 @@ namespace UE::NearestNeighborModel
 			return;
 		}
 		const FSkeletalMeshLODRenderData& LODRenderData = RenderData->LODRenderData[LODIndex];
-		const TArray<FSkelMeshImportedMeshInfo>& SkelMeshInfos = LODModel.ImportedMeshInfos;
+		const FMeshDescription* MeshDescription = SkeletalMesh->GetMeshDescription(LODIndex);
+		const FSkeletalMeshConstAttributes MeshAttributes(*MeshDescription);
+		const FSkeletalMeshAttributesShared::FSourceGeometryPartVertexOffsetAndCountConstRef PartOffsetAndCountRef = MeshAttributes.GetSourceGeometryPartVertexOffsetAndCounts();
+		
 		if (GeomCacheMeshDatas.Num() != MeshMappings.Num())
 		{
 			GeomCacheMeshDatas.SetNum(MeshMappings.Num());
@@ -147,7 +149,6 @@ namespace UE::NearestNeighborModel
 		for (int32 MeshMappingIndex = 0; MeshMappingIndex < MeshMappings.Num(); ++MeshMappingIndex)
 		{
 			const UE::MLDeformer::FMLDeformerGeomCacheMeshMapping& MeshMapping = MeshMappings[MeshMappingIndex];
-			const FSkelMeshImportedMeshInfo& MeshInfo = SkelMeshInfos[MeshMapping.MeshIndex];
 			UGeometryCacheTrack* const Track = GeometryCache->Tracks[MeshMapping.TrackIndex];
 		
 			// Sample the mesh data of the geom cache.
@@ -156,11 +157,15 @@ namespace UE::NearestNeighborModel
 			{
 				continue;
 			}
-		
+
+			TArrayView<const int32> OffsetAndCount = PartOffsetAndCountRef.Get(MeshMapping.MeshIndex);
+			const int32 VertexOffset = OffsetAndCount[0];
+			const int32 VertexCount = OffsetAndCount[1];
+			
 			// Calculate the vertex deltas.
-			for (int32 VertexIndex = 0; VertexIndex < MeshInfo.NumVertices; ++VertexIndex)
+			for (int32 VertexIndex = 0; VertexIndex < VertexCount; ++VertexIndex)
 			{
-				const int32 SkinnedVertexIndex = MeshInfo.StartImportedVertex + VertexIndex;
+				const int32 SkinnedVertexIndex = VertexOffset + VertexIndex;
 				const int32 GeomCacheVertexIndex = MeshMapping.SkelMeshToTrackVertexMap[VertexIndex];
 				if (GeomCacheMeshData.Positions.IsValidIndex(GeomCacheVertexIndex))
 				{

@@ -22,6 +22,7 @@
 #include "NearestNeighborTrainingModel.h"
 #include "Rendering/SkeletalMeshModel.h"
 #include "SceneManagement.h"
+#include "SkeletalMeshAttributes.h"
 
 #define LOCTEXT_NAMESPACE "NearestNeighborEditorModel"
 
@@ -772,36 +773,35 @@ namespace UE::NearestNeighborModel
 
 	void FVertexMapSelector::Update(const USkeletalMesh* SkelMesh)
 	{
-		if (!SkelMesh)
-		{
-			Reset();
-			return;
-		}
-		const FSkeletalMeshModel* ImportedModel = SkelMesh->GetImportedModel();
-		if (!ImportedModel)
-		{
-			Reset();
-			return;
-		}
 		constexpr int32 LODIndex = 0;
-		if (!ImportedModel->LODModels.IsValidIndex(LODIndex))
+		if (!SkelMesh || !SkelMesh->HasMeshDescription(LODIndex))
 		{
 			Reset();
 			return;
 		}
-		const FSkeletalMeshLODModel& LODModel = ImportedModel->LODModels[LODIndex];
-		const TArray<FSkelMeshImportedMeshInfo>& SkelMeshInfos = LODModel.ImportedMeshInfos;
-		Options.Reserve(SkelMeshInfos.Num() + 1);
-		VertexMapStrings.Reserve(SkelMeshInfos.Num() + 1);
-		for (const FSkelMeshImportedMeshInfo& Info: SkelMeshInfos)
+
+		const FMeshDescription* MeshDescription = SkelMesh->GetMeshDescription(LODIndex);
+		const FSkeletalMeshConstAttributes MeshAttributes(*MeshDescription);
+		
+		const FSkeletalMeshAttributesShared::FSourceGeometryPartNameConstRef NameRef = MeshAttributes.GetSourceGeometryPartNames();
+		const FSkeletalMeshAttributesShared::FSourceGeometryPartVertexOffsetAndCountConstRef PartOffsetAndCountRef = MeshAttributes.GetSourceGeometryPartVertexOffsetAndCounts();
+		
+		Options.Reserve(MeshAttributes.GetNumSourceGeometryParts() + 1);
+		VertexMapStrings.Reserve(MeshAttributes.GetNumSourceGeometryParts() + 1);
+
+		for (const FSourceGeometryPartID GeometryPartID: MeshAttributes.SourceGeometryParts().GetElementIDs())
 		{
-			TSharedPtr<FString> Option = MakeShared<FString>(Info.Name.ToString());
+			FName Name = NameRef.Get(GeometryPartID);
+			TArrayView<const int32> OffsetAndCount = PartOffsetAndCountRef.Get(GeometryPartID);
+
+			TSharedPtr<FString> Option = MakeShared<FString>(Name.ToString());
+			FString VertexMapString = FString::Printf(TEXT("%d-%d"), OffsetAndCount[0], OffsetAndCount[0] + OffsetAndCount[1] - 1);
 			Options.Add(Option);
-			FString VertexMapString = FString::Printf(TEXT("%d-%d"), Info.StartImportedVertex, Info.StartImportedVertex + Info.NumVertices - 1);
 			VertexMapStrings.Add(Option, MoveTemp(VertexMapString));
 		}
+		
 		Options.Add(CustomString);
-		VertexMapStrings.Add(CustomString, FString::Printf(TEXT("0-%d"), LODModel.MaxImportVertex));
+		VertexMapStrings.Add(CustomString, FString::Printf(TEXT("0-%d"), MeshDescription->Vertices().Num() - 1));
 	}
 
 	TArray<TSharedPtr<FString>>* FVertexMapSelector::GetOptions()

@@ -2890,7 +2890,9 @@ USkeletalMesh* UsdToUnreal::GetSkeletalMeshFromImportData(
 
 		// This is important because it will fill in the LODModel's RawSkeletalMeshBulkDataID,
 		// which is the part of the skeletal mesh's DDC key that is affected by the actual mesh data
+		PRAGMA_DISABLE_DEPRECATION_WARNINGS
 		SkeletalMesh->SaveLODImportedData(LODIndex, LODImportData);
+		PRAGMA_ENABLE_DEPRECATION_WARNINGS
 #endif	  // WITH_EDITOR
 	}
 

@@ -79,6 +79,7 @@ public class Persona : ModuleRules
 				"ToolWidgets",
 				"InteractiveToolsFramework",
 				"ContentBrowser",
+	            "SkeletalMeshDescription",
             }
         );
 

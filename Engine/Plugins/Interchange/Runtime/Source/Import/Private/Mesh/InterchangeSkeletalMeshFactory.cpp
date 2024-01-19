@@ -995,8 +995,6 @@ UInterchangeFactoryBase::FImportAssetResult UInterchangeSkeletalMeshFactory::Beg
 	}
 	
 	SkeletalMesh->PreEditChange(nullptr);
-	//Allocate the LODImport data in the main thread
-	SkeletalMesh->ReserveLODImportData(SkeletalMeshFactoryNode->GetLodDataCount());
 
 	//Lock the skeletalmesh properties if the skeletal mesh already exist (re-import)
 	if (ExistingAsset)
@@ -1304,12 +1302,6 @@ UInterchangeFactoryBase::FImportAssetResult UInterchangeSkeletalMeshFactory::Imp
 
 
 		TRACE_CPUPROFILER_EVENT_SCOPE(UInterchangeSkeletalMeshFactory::CreateAsset_LOD)
-		ESkeletalMeshGeoImportVersions GeoImportVersion = ESkeletalMeshGeoImportVersions::LatestVersion;
-		ESkeletalMeshSkinningImportVersions SkinningImportVersion = ESkeletalMeshSkinningImportVersions::LatestVersion;
-		if (ImportAssetObjectData.bIsReImport && SkeletalMesh->GetImportedModel() && SkeletalMesh->GetImportedModel()->LODModels.IsValidIndex(CurrentLodIndex))
-		{
-			SkeletalMesh->GetLODImportedDataVersions(CurrentLodIndex, GeoImportVersion, SkinningImportVersion);
-		}
 
 		FString LodUniqueId = LodDataUniqueIds[LodIndex];
 		const UInterchangeSkeletalMeshLodDataNode* LodDataNode = Cast<UInterchangeSkeletalMeshLodDataNode>(Arguments.NodeContainer->GetNode(LodUniqueId));
@@ -1519,61 +1511,6 @@ UInterchangeFactoryBase::FImportAssetResult UInterchangeSkeletalMeshFactory::Imp
 			ensure(ImportedResource->LODModels.Add(new FSkeletalMeshLODModel()) == CurrentLodIndex);
 		}
 
-		FSkeletalMeshLODModel& LODModel = ImportedResource->LODModels[CurrentLodIndex];
-
-		UE::Interchange::Private::ProcessImportMeshInfluences(SkeletalMeshImportData.Wedges.Num(), SkeletalMeshImportData.Influences);
-
-		if (ContentInfo.bApplyGeometryOnly)
-		{
-			FSkeletalMeshImportData::ReplaceSkeletalMeshRigImportData(SkeletalMesh, &SkeletalMeshImportData, CurrentLodIndex);
-		}
-		else if(ContentInfo.bApplySkinningOnly)
-		{
-			FSkeletalMeshImportData::ReplaceSkeletalMeshGeometryImportData(SkeletalMesh, &SkeletalMeshImportData, CurrentLodIndex);
-		}
-
-		//Store the existing material import data before updating it so we can remap properly the material  and section data
-		TArray<FName> ExistingOriginalPerSectionMaterialImportName;
-		if (ImportAssetObjectData.bIsReImport)
-		{
-			if (CurrentLodIndex != 0)
-			{
-				if (!SkeletalMesh->IsLODImportedDataEmpty(CurrentLodIndex))
-				{
-					FSkeletalMeshImportData LODImportData;
-					SkeletalMesh->LoadLODImportedData(CurrentLodIndex, LODImportData);
-					for (int32 SectionIndex = 0; SectionIndex < LODImportData.Materials.Num(); ++SectionIndex)
-					{
-						ExistingOriginalPerSectionMaterialImportName.Add(FName(*LODImportData.Materials[SectionIndex].MaterialImportName));
-					}
-				}
-			}
-			else
-			{
-				//LOD 0 import data is reorder to the material array before when building the LOD 0
-				for (int32 MaterialIndex = 0; MaterialIndex < Materials.Num(); ++MaterialIndex)
-				{
-					ExistingOriginalPerSectionMaterialImportName.Add(Materials[MaterialIndex].ImportedMaterialSlotName);
-				}
-			}
-		}
-		//Store the original fbx import data the SkelMeshImportDataPtr should not be modified after this
-		SkeletalMesh->SaveLODImportedData(CurrentLodIndex, SkeletalMeshImportData);
-
-		if (ContentInfo.bApplySkinningOnly)
-		{
-			SkeletalMesh->SetLODImportedDataVersions(CurrentLodIndex, GeoImportVersion, ESkeletalMeshSkinningImportVersions::LatestVersion);
-		}
-		else if (ContentInfo.bApplyGeometryOnly)
-		{
-			SkeletalMesh->SetLODImportedDataVersions(CurrentLodIndex, ESkeletalMeshGeoImportVersions::LatestVersion, SkinningImportVersion);
-		}
-		else
-		{
-			//We reimport both
-			SkeletalMesh->SetLODImportedDataVersions(CurrentLodIndex, ESkeletalMeshGeoImportVersions::LatestVersion, ESkeletalMeshSkinningImportVersions::LatestVersion);
-		}
-
 		auto AddLodInfo = [&SkeletalMesh]()
 		{
 			FSkeletalMeshLODInfo& NewLODInfo = SkeletalMesh->AddLODInfo();
@@ -1595,6 +1532,51 @@ UInterchangeFactoryBase::FImportAssetResult UInterchangeSkeletalMeshFactory::Imp
 		{
 			AddLodInfo();
 		}
+		
+		FSkeletalMeshLODModel& LODModel = ImportedResource->LODModels[CurrentLodIndex];
+
+		UE::Interchange::Private::ProcessImportMeshInfluences(SkeletalMeshImportData.Wedges.Num(), SkeletalMeshImportData.Influences);
+
+		if (ContentInfo.bApplyGeometryOnly)
+		{
+			FSkeletalMeshImportData::ReplaceSkeletalMeshRigImportData(SkeletalMesh, &SkeletalMeshImportData, CurrentLodIndex);
+		}
+		else if(ContentInfo.bApplySkinningOnly)
+		{
+			FSkeletalMeshImportData::ReplaceSkeletalMeshGeometryImportData(SkeletalMesh, &SkeletalMeshImportData, CurrentLodIndex);
+		}
+
+		//Store the existing material import data before updating it so we can remap properly the material  and section data
+		TArray<FName> ExistingOriginalPerSectionMaterialImportName;
+		if (ImportAssetObjectData.bIsReImport)
+		{
+			if (CurrentLodIndex != 0)
+			{
+				if (SkeletalMesh->HasMeshDescription(CurrentLodIndex))
+				{
+					FSkeletalMeshImportData LODImportData;
+					PRAGMA_DISABLE_DEPRECATION_WARNINGS
+					SkeletalMesh->LoadLODImportedData(CurrentLodIndex, LODImportData);
+					PRAGMA_ENABLE_DEPRECATION_WARNINGS
+					for (int32 SectionIndex = 0; SectionIndex < LODImportData.Materials.Num(); ++SectionIndex)
+					{
+						ExistingOriginalPerSectionMaterialImportName.Add(FName(*LODImportData.Materials[SectionIndex].MaterialImportName));
+					}
+				}
+			}
+			else
+			{
+				//LOD 0 import data is reorder to the material array before when building the LOD 0
+				for (int32 MaterialIndex = 0; MaterialIndex < Materials.Num(); ++MaterialIndex)
+				{
+					ExistingOriginalPerSectionMaterialImportName.Add(Materials[MaterialIndex].ImportedMaterialSlotName);
+				}
+			}
+		}
+		//Store the original fbx import data the SkelMeshImportDataPtr should not be modified after this
+		PRAGMA_DISABLE_DEPRECATION_WARNINGS
+		SkeletalMesh->SaveLODImportedData(CurrentLodIndex, SkeletalMeshImportData);
+		PRAGMA_ENABLE_DEPRECATION_WARNINGS
 
 		//Update the bounding box if we are importing the LOD 0
 		if(CurrentLodIndex == 0)

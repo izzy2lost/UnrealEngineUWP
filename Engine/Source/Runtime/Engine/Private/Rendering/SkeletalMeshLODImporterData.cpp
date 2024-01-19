@@ -2,8 +2,11 @@
 
 #include "Rendering/SkeletalMeshLODImporterData.h"
 
+#include "UObject/Package.h"
+
 #if WITH_EDITOR
 
+#include "Algo/AnyOf.h"
 #include "Engine/SkeletalMesh.h"
 #include "Engine/SkinnedAssetCommon.h"
 #include "ImportUtils/SkeletalMeshImportUtils.h"
@@ -147,7 +150,10 @@ bool FSkeletalMeshImportData::ReplaceSkeletalMeshGeometryImportData(const USkele
 
 	//Load the original skeletal mesh import data
 	FSkeletalMeshImportData OriginalSkeletalMeshImportData;
+	
+	PRAGMA_DISABLE_DEPRECATION_WARNINGS
 	SkeletalMesh->LoadLODImportedData(LodIndex, OriginalSkeletalMeshImportData);
+	PRAGMA_ENABLE_DEPRECATION_WARNINGS
 
 	//Backup the new geometry and rig to be able to apply the rig to the old geometry
 	FSkeletalMeshImportData NewGeometryAndRigData = *ImportData;
@@ -209,7 +215,9 @@ bool FSkeletalMeshImportData::ReplaceSkeletalMeshRigImportData(const USkeletalMe
 
 	//Load the original skeletal mesh import data
 	FSkeletalMeshImportData OriginalSkeletalMeshImportData;
+PRAGMA_DISABLE_DEPRECATION_WARNINGS
 	SkeletalMesh->LoadLODImportedData(LodIndex, OriginalSkeletalMeshImportData);
+PRAGMA_ENABLE_DEPRECATION_WARNINGS
 
 	ImportData->RefBonesBinary.Reset();
 	ImportData->RefBonesBinary += OriginalSkeletalMeshImportData.RefBonesBinary;
@@ -1422,6 +1430,45 @@ void FSkeletalMeshImportData::ComputeSmoothGroupFromNormals()
 	}
 }
 
+void FSkeletalMeshImportData::SetMorphTargets(
+	const TArray<TObjectPtr<UMorphTarget>>& InMorphTargets,
+	int32 InLODIndex,
+	const TArray<int32>& InVertexMap
+	)
+{
+	MorphTargets.Reset();
+	MorphTargetNames.Reset();
+	MorphTargetModifiedPoints.Reset();
+
+	for (UMorphTarget* MorphTargetSrc: InMorphTargets)
+	{
+		if (!MorphTargetSrc->HasDataForLOD(InLODIndex))
+		{
+			continue;
+		}
+
+		const FMorphTargetLODModel& MorphTargetModel = MorphTargetSrc->GetMorphLODModels()[InLODIndex];
+
+		MorphTargetNames.Add(MorphTargetSrc->GetName());
+
+		FSkeletalMeshImportData& MorphTargetDst = MorphTargets.AddDefaulted_GetRef();
+		TSet<uint32>& ModifiedPoints = MorphTargetModifiedPoints.AddDefaulted_GetRef();
+
+		for (const FMorphTargetDelta& Delta: MorphTargetModel.Vertices)
+		{
+			if (InVertexMap.IsValidIndex(Delta.SourceIdx))
+			{
+				const int32 MappedIndex = InVertexMap[Delta.SourceIdx];
+				if (Points.IsValidIndex(MappedIndex))
+				{
+					ModifiedPoints.Add(MappedIndex);
+					MorphTargetDst.Points.Add(Delta.PositionDelta + Points[MappedIndex]);
+				}
+			}
+		}
+	}
+}
+
 void FSkeletalMeshImportData::CleanUpUnusedMaterials()
 {
 	if (Materials.Num() <= 0)
@@ -1736,6 +1783,8 @@ void FSkeletalMeshImportData::SplitVerticesBySmoothingGroups()
 }
 
 static void CopySkinWeightsToAttribute(
+	const USkeletalMesh *InSkeletalMesh,
+	const FName InProfileName,
 	const TArray<SkeletalMeshImportData::FRawBoneInfluence>& InInfluences,
 	const TArray<FVertexID>& InVertexIDMap,
 	const TMap<int32, int32>* InBoneIndexMap,
@@ -1753,11 +1802,29 @@ static void CopySkinWeightsToAttribute(
 		return A.VertexIndex < B.VertexIndex;
 	});
 
-	// Do the base skin weights first. We do the alternative skin weights later, since they may require geometric remapping. 
+	// Do the base skin weights first. We do the alternate skin weights later, since they may require geometric remapping. 
 	TArray<FBoneWeight> BoneWeights;
 	for(int32 StartStride = 0, EndStride = 0; EndStride != SortedInfluences.Num(); StartStride = EndStride)
 	{
 		const int32 VertexIndex = SortedInfluences[StartStride].VertexIndex;
+
+		// There exist meshes where the influence map got auto-filled with 100% weight on root in by using the wedge count of the raw mesh,
+		// due to missing weights (e.g. static mesh imported as a skeletal mesh), and so may refer to vertices that don't exist.
+		// We just stop when we get to the broken set and ignore the rest.
+		if (VertexIndex >= InVertexIDMap.Num())
+		{
+			if (InSkeletalMesh)
+			{
+				FString ProfileDetail;
+				if (!InProfileName.IsNone())
+				{
+					ProfileDetail = FString::Printf(TEXT(" on profile '%s'"), *InProfileName.ToString());
+				}
+				UE_ASSET_LOG(LogSkeletalMeshLODImporterData, Warning, InSkeletalMesh, TEXT("Influences%s refer to non-existent vertices. Please re-import to fix."),
+					*ProfileDetail);
+			}
+			break;
+		}
 		
 		EndStride = StartStride + 1;
 		while (EndStride < SortedInfluences.Num() && VertexIndex == SortedInfluences[EndStride].VertexIndex)
@@ -1784,7 +1851,7 @@ static void CopySkinWeightsToAttribute(
 	}
 }
 
-bool FSkeletalMeshImportData::GetMeshDescription(FMeshDescription& OutMeshDescription) const
+bool FSkeletalMeshImportData::GetMeshDescription(const USkeletalMesh* InSkeletalMesh, FMeshDescription& OutMeshDescription) const
 {
 	using namespace UE::AnimationCore;
 	
@@ -1799,8 +1866,22 @@ bool FSkeletalMeshImportData::GetMeshDescription(FMeshDescription& OutMeshDescri
 		return false;
 	}
 
+	MeshAttributes.RegisterImportPointIndexAttribute(); 
+	
+	if (!MeshInfos.IsEmpty())
+	{
+		MeshAttributes.RegisterSourceGeometryPartsAttributes();
+	}
+	
 	TVertexAttributesRef<FVector3f> VertexPositions = MeshAttributes.GetVertexPositions();
 	FSkinWeightsVertexAttributesRef VertexSkinWeights = MeshAttributes.GetVertexSkinWeights();
+	
+	TVertexAttributesRef<int32> ImportPointIndex;
+	if (!PointToRawMap.IsEmpty())
+	{
+		ImportPointIndex = OutMeshDescription.VertexAttributes().GetAttributesRef<int32>(MeshAttribute::Vertex::ImportPointIndex); 
+	}
+	
 	TVertexInstanceAttributesRef<FVector3f> VertexInstanceNormals = MeshAttributes.GetVertexInstanceNormals();
 	TVertexInstanceAttributesRef<FVector3f> VertexInstanceTangents = MeshAttributes.GetVertexInstanceTangents();
 	TVertexInstanceAttributesRef<float> VertexInstanceBinormalSigns = MeshAttributes.GetVertexInstanceBinormalSigns();
@@ -1813,35 +1894,60 @@ bool FSkeletalMeshImportData::GetMeshDescription(FMeshDescription& OutMeshDescri
 	FSkeletalMeshAttributes::FBoneParentIndexAttributesRef BoneParentIndices = MeshAttributes.GetBoneParentIndices();
 	FSkeletalMeshAttributes::FBonePoseAttributesRef BonePoses = MeshAttributes.GetBonePoses();
 
-	// Register morph targets.
-	TSet<FString> ValidMorphTargets;
-	if (ensure(MorphTargetNames.Num() == MorphTargets.Num() && MorphTargetModifiedPoints.Num() == MorphTargets.Num()))
+	// Register morph targets, rename as needed, in case there are invalid names provided (e.g. empty strings, duplicates)
+	TMap<int32, FString> ValidMorphTargets;
+	if (ensure(MorphTargetNames.Num() == MorphTargets.Num()) &&
+		ensure(MorphTargets.Num() == MorphTargetModifiedPoints.Num()))
 	{
-		for (int32 MorphIndex = 0; MorphIndex < MorphTargets.Num(); MorphIndex++)
+		TSet<FString> CheckDuplicateSet;
+		
+		for (int32 MorphTargetIndex = 0; MorphTargetIndex < MorphTargets.Num(); MorphTargetIndex++)
 		{
-			const FSkeletalMeshImportData& MorphTargetMesh = MorphTargets[MorphIndex];
-			const TSet<uint32>& ModifiedPoints = MorphTargetModifiedPoints[MorphIndex];
-
-			// ensure they both have the same number of points
-			if (!ensure(MorphTargetMesh.Points.Num() == ModifiedPoints.Num()))
+			const FString MorphTargetName(MorphTargetNames[MorphTargetIndex]);
+			FString MorphTargetNameUsed(MorphTargetName);
+			const TArray<FVector3f>& MorphPoints = MorphTargets[MorphTargetIndex].Points;
+			const TSet<uint32>& ModifiedPoints = MorphTargetModifiedPoints[MorphTargetIndex];
+			
+			if (MorphPoints.Num() != ModifiedPoints.Num())
 			{
+				if (InSkeletalMesh)
+				{
+					UE_ASSET_LOG(LogSkeletalMeshLODImporterData, Warning, InSkeletalMesh, TEXT("Morph target '%s' has mismatched compressed and modified points. Morph target will be dropped. Re-import to fix."),
+						*MorphTargetName);  
+				}
 				continue;
 			}
 
-			// ensure modified points indices are valid
-			const uint32* InvalidIndex = Algo::FindByPredicate(ModifiedPoints, [this](uint32 PointIndex)
+			// Ensure modified points indices are valid
+			if (Algo::AnyOf(ModifiedPoints, [this](uint32 PointIndex) { return !Points.IsValidIndex(PointIndex); }))
 			{
-				return !Points.IsValidIndex(PointIndex);
-			});
-			if (!ensure(InvalidIndex == nullptr))
-			{
+				UE_ASSET_LOG(LogSkeletalMeshLODImporterData, Warning, InSkeletalMesh, TEXT("Morph target '%s' has modified points that don't exist on the base mesh. Morph target will be dropped. Re-import to fix."),
+					*MorphTargetName);  
 				continue;
 			}
 
-			const FString MorphTargetName(MorphTargetNames[MorphIndex]);
-			if (ensure(MeshAttributes.RegisterMorphTargetAttribute(*MorphTargetName)))
+			if (MorphTargetNameUsed.IsEmpty())
 			{
-				ValidMorphTargets.Add(MorphTargetName);
+				MorphTargetNameUsed = TEXT("Unnamed");
+				UE_ASSET_LOG(LogSkeletalMeshLODImporterData, Warning, InSkeletalMesh, TEXT("Morph target found with no name. Renamed to 'Unnamed'."));  
+			}
+
+			// Has this name been used already?
+			FString MorphTargetNameBase(MorphTargetNameUsed);
+			for(int32 Suffix = 1; CheckDuplicateSet.Contains(MorphTargetNameUsed); Suffix++)
+			{
+				MorphTargetNameUsed = FString::Printf(TEXT("%s_%d"), *MorphTargetNameBase, Suffix);
+			}
+			if (MorphTargetNameUsed != MorphTargetNameBase)
+			{
+				UE_ASSET_LOG(LogSkeletalMeshLODImporterData, Warning, InSkeletalMesh, TEXT("Duplicate morph target '%s' found, renamed to '%s'."),
+					*MorphTargetNameBase, *MorphTargetNameUsed);  
+			}
+			
+			if (ensure(MeshAttributes.RegisterMorphTargetAttribute(*MorphTargetNameUsed)))
+			{
+				ValidMorphTargets.Add(MorphTargetIndex, MorphTargetNameUsed);
+				CheckDuplicateSet.Add(MorphTargetNameUsed);
 			}
 		}
 	}
@@ -1850,37 +1956,68 @@ bool FSkeletalMeshImportData::GetMeshDescription(FMeshDescription& OutMeshDescri
 	TSet<FString> ValidSkinWeights;
 	if (ensure(AlternateInfluenceProfileNames.Num() == AlternateInfluences.Num()))
 	{
-		for (int32 AlternativeInfluenceIndex = 0; AlternativeInfluenceIndex < AlternateInfluences.Num(); AlternativeInfluenceIndex++)
+		for (int32 AlternateInfluenceIndex = 0; AlternateInfluenceIndex < AlternateInfluences.Num(); AlternateInfluenceIndex++)
 		{
-			const FSkeletalMeshImportData& AlternativeInfluenceMesh = AlternateInfluences[AlternativeInfluenceIndex];
+			const FString AlternateInfluenceProfileName(AlternateInfluenceProfileNames[AlternateInfluenceIndex]);
+			const FSkeletalMeshImportData& AlternateInfluenceMesh = AlternateInfluences[AlternateInfluenceIndex];
 			
 			// We minimally need the same point count.
 			// Q: Should we match on topology as well?
-			if (!ensure(AlternativeInfluenceMesh.Points.Num() == Points.Num()))
+			if (AlternateInfluenceMesh.Points.Num() != Points.Num())
 			{
+				if (InSkeletalMesh)
+				{
+					UE_ASSET_LOG(LogSkeletalMeshLODImporterData, Warning, InSkeletalMesh, TEXT("Alternate influence profile '%s' point count is different from base mesh. Profile will be dropped since it cannot be matched to the base mesh."),
+						*AlternateInfluenceProfileName);  
+				}
 				continue;
 			}
 
-			// The set of bones on the alternative influence mesh must be a fully included in the set of the bones on the
-			// base mesh. Otherwise we cannot map an influence across.
-			TSet<FString> BaseBones, AltBones;
+			// The set of bound bones must completely include the bones in the base mesh. Otherwise we cannot map the influences over to
+			// the base skeleton.
+			TSet<FString> BaseBones;
+			TSet<int32> MissingBoneIndices;
 			for (int32 BoneIndex = 0; BoneIndex < RefBonesBinary.Num(); BoneIndex++)
 			{
 				BaseBones.Add(RefBonesBinary[BoneIndex].Name);
 			}
-			for (int32 BoneIndex = 0; BoneIndex < AlternativeInfluenceMesh.RefBonesBinary.Num(); BoneIndex++)
+			for (int32 BoneIndex = 0; BoneIndex < AlternateInfluenceMesh.RefBonesBinary.Num(); BoneIndex++)
 			{
-				AltBones.Add(AlternativeInfluenceMesh.RefBonesBinary[BoneIndex].Name);
+				if (!BaseBones.Contains(AlternateInfluenceMesh.RefBonesBinary[BoneIndex].Name))
+				{
+					MissingBoneIndices.Add(BoneIndex);
+				}
 			}
 
-			if (!ensure(BaseBones.Includes(AltBones)))
+			TSet<int32> InfluencesBoundToMissingBones; 
+			for (const SkeletalMeshImportData::FRawBoneInfluence& Influence: AlternateInfluenceMesh.Influences)
 			{
+				if (MissingBoneIndices.Contains(Influence.BoneIndex))
+				{
+					InfluencesBoundToMissingBones.Add(Influence.BoneIndex);
+				}
+			}
+
+			if (!InfluencesBoundToMissingBones.IsEmpty())
+			{
+				TArray<FString> MissingBoneNames;
+				for (const int32 BoneIndex: InfluencesBoundToMissingBones)
+				{
+					MissingBoneNames.Add(FString::Printf(TEXT("'%s'"), *AlternateInfluenceMesh.RefBonesBinary[BoneIndex].Name));
+				}
+				MissingBoneNames.Sort();
+				
+				if (InSkeletalMesh)
+				{
+					UE_ASSET_LOG(LogSkeletalMeshLODImporterData, Warning, InSkeletalMesh, TEXT("Alternate influence profile '%s' binds to one or more bones (%s) that do not exist on base mesh's skeleton. Profile will be dropped since it may otherwise introduce visual errors."),
+						*AlternateInfluenceProfileName, *FString::Join(MissingBoneNames, TEXT(", ")));  
+				}
 				continue;
 			}
 
-			if (ensure(MeshAttributes.RegisterSkinWeightAttribute(*AlternateInfluenceProfileNames[AlternativeInfluenceIndex])))
+			if (ensure(MeshAttributes.RegisterSkinWeightAttribute(*AlternateInfluenceProfileName)))
 			{
-				ValidSkinWeights.Add(AlternateInfluenceProfileNames[AlternativeInfluenceIndex]);
+				ValidSkinWeights.Add(AlternateInfluenceProfileNames[AlternateInfluenceIndex]);
 			}
 
 		}
@@ -1952,9 +2089,14 @@ bool FSkeletalMeshImportData::GetMeshDescription(FMeshDescription& OutMeshDescri
 		const FVertexID VertexID = OutMeshDescription.CreateVertex();
 		VertexIDMap.Add(VertexID);
 		VertexPositions.Set(VertexID, Points[Idx]);
+
+		if (ImportPointIndex.IsValid())
+		{
+			ImportPointIndex.Set(VertexID, PointToRawMap[Idx]);
+		}
 	}
 
-	CopySkinWeightsToAttribute(Influences, VertexIDMap, nullptr, VertexSkinWeights);
+	CopySkinWeightsToAttribute(InSkeletalMesh, NAME_None, Influences, VertexIDMap, nullptr, VertexSkinWeights);
 
 	// Set Bone Attributes
 	for (int Idx = 0; Idx < RefBonesBinary.Num(); ++Idx)
@@ -2075,20 +2217,23 @@ bool FSkeletalMeshImportData::GetMeshDescription(FMeshDescription& OutMeshDescri
 	// Convert morph targets
 	for (int32 MorphTargetIndex = 0; MorphTargetIndex < MorphTargets.Num(); MorphTargetIndex++)
 	{
-		FString MorphTargetName(MorphTargetNames[MorphTargetIndex]);
-		if (!ValidMorphTargets.Contains(MorphTargetName))
+		if (!ValidMorphTargets.Contains(MorphTargetIndex))
 		{
 			continue;
 		}
 
+		FString MorphTargetName(ValidMorphTargets[MorphTargetIndex]);
 		const TArray<FVector3f>& MorphPoints = MorphTargets[MorphTargetIndex].Points;
-		const TSet<uint32>& ModifiedPoints = MorphTargetModifiedPoints[MorphTargetIndex]; 
+		const TSet<uint32>& ModifiedPoints = MorphTargetModifiedPoints[MorphTargetIndex];
+
 		FMorphTargetVertexAttributesRef MorphTargetRef = MeshAttributes.GetVertexMorphTarget(*MorphTargetName);
 
 		int32 ModifiedPointIndex = 0;
+		// This relies on the dubious assumptions that TSet values are retained in insertion order.
 		for (uint32 PointIndex: ModifiedPoints)
 		{
 			const FVertexID VertexID = VertexIDMap[PointIndex];
+			
 			MorphTargetRef.SetPositionDelta(VertexID, MorphPoints[ModifiedPointIndex] - Points[PointIndex]);
 			ModifiedPointIndex++;
 		}
@@ -2103,7 +2248,7 @@ bool FSkeletalMeshImportData::GetMeshDescription(FMeshDescription& OutMeshDescri
 			continue;
 		}
 
-		CopySkinWeightsToMeshDescription(FName(AlternateInfluenceProfileName), AlternateInfluences[AlternateInfluenceIndex], VertexIDMap, OutMeshDescription);
+		CopySkinWeightsToMeshDescription(InSkeletalMesh, FName(AlternateInfluenceProfileName), AlternateInfluences[AlternateInfluenceIndex], VertexIDMap, OutMeshDescription);
 	}
 	
 
@@ -2168,12 +2313,30 @@ bool FSkeletalMeshImportData::GetMeshDescription(FMeshDescription& OutMeshDescri
 	}
 
 	FSkeletalMeshOperations::ConvertSmoothGroupToHardEdges(FaceSmoothingMasks, OutMeshDescription);
+
+	// Convert the MeshInfo data.
+	if (!MeshInfos.IsEmpty())
+	{
+		FSkeletalMeshAttributes::FSourceGeometryPartNameRef NameAttribute = MeshAttributes.GetSourceGeometryPartNames();
+		FSkeletalMeshAttributes::FSourceGeometryPartVertexOffsetAndCountRef VertexAndCountAttribute = MeshAttributes.GetSourceGeometryPartVertexOffsetAndCounts();
+
+		MeshAttributes.SourceGeometryParts().Reserve(MeshInfos.Num());
+		
+		for (const SkeletalMeshImportData::FMeshInfo& Info: MeshInfos)
+		{
+			FSourceGeometryPartID PartID = MeshAttributes.CreateSourceGeometryPart();
+
+			NameAttribute.Set(PartID, Info.Name);
+			VertexAndCountAttribute.Set(PartID, {Info.StartImportedVertex, Info.NumVertices});
+		}
+	}
 	
 	return true;
 }
 
 
 void FSkeletalMeshImportData::CopySkinWeightsToMeshDescription(
+	const USkeletalMesh* InSkeletalMesh,
 	const FName InSkinWeightName, 
 	const FSkeletalMeshImportData& InSkinWeightMesh,
 	const TArray<FVertexID>& InVertexIDMap,
@@ -2199,8 +2362,12 @@ void FSkeletalMeshImportData::CopySkinWeightsToMeshDescription(
 	TMap<int32, int32> AltMeshBoneToBaseBoneMap;
 	for (int32 BoneIndex = 0; BoneIndex < InSkinWeightMesh.RefBonesBinary.Num(); BoneIndex++)
 	{
-		const int32 BaseBoneIndex = BaseBoneToIndexMap[InSkinWeightMesh.RefBonesBinary[BoneIndex].Name];
-		AltMeshBoneToBaseBoneMap.Add(BoneIndex, BaseBoneIndex);
+		// It's ok if a matching bone isn't in the ref map, as long as it's not bound to the skin. This would have been checked
+		// in GetMeshDescription already.
+		if (const int32* BaseBoneIndex = BaseBoneToIndexMap.Find(InSkinWeightMesh.RefBonesBinary[BoneIndex].Name))
+		{
+			AltMeshBoneToBaseBoneMap.Add(BoneIndex, *BaseBoneIndex);
+		}
 	}
 	
 	bool bTopologySame = true;
@@ -2240,13 +2407,13 @@ void FSkeletalMeshImportData::CopySkinWeightsToMeshDescription(
 
 	if (bTopologySame)
 	{
-		CopySkinWeightsToAttribute(InSkinWeightMesh.Influences, InVertexIDMap, &AltMeshBoneToBaseBoneMap, VertexSkinWeights);
+		CopySkinWeightsToAttribute(InSkeletalMesh, InSkinWeightName, InSkinWeightMesh.Influences, InVertexIDMap, &AltMeshBoneToBaseBoneMap, VertexSkinWeights);
 		return;
 	}
 
 	// The topologies don't match, proceed as above.
 	FMeshDescription AlternateInfluenceMesh;
-	InSkinWeightMesh.GetMeshDescription(AlternateInfluenceMesh);
+	InSkinWeightMesh.GetMeshDescription(nullptr, AlternateInfluenceMesh);
 	
 	FSkeletalMeshOperations::CopySkinWeightAttributeFromMesh(
 	AlternateInfluenceMesh, OutMeshDescription, NAME_None, InSkinWeightName, &AltMeshBoneToBaseBoneMap);   
@@ -2355,17 +2522,19 @@ FSkeletalMeshImportData FSkeletalMeshImportData::CreateFromMeshDescription(const
 {
 	FSkeletalMeshImportData SkelMeshImportData;
 	
-	FSkeletalMeshConstAttributes Attributes(InMeshDescription);
-	TVertexAttributesConstRef<FVector3f> VertexPositions = Attributes.GetVertexPositions();
-	FSkinWeightsVertexAttributesConstRef VertexSkinWeights = Attributes.GetVertexSkinWeights();
+	FSkeletalMeshConstAttributes MeshAttributes(InMeshDescription);
+	TVertexAttributesConstRef<FVector3f> VertexPositions = MeshAttributes.GetVertexPositions();
+	FSkinWeightsVertexAttributesConstRef VertexSkinWeights = MeshAttributes.GetVertexSkinWeights();
 
-	TVertexInstanceAttributesConstRef<FVector2f> VertexInstanceUVs = Attributes.GetVertexInstanceUVs();
-	TVertexInstanceAttributesConstRef<FVector3f> VertexInstanceNormals = Attributes.GetVertexInstanceNormals();
-	TVertexInstanceAttributesConstRef<FVector3f> VertexInstanceTangents = Attributes.GetVertexInstanceTangents();
-	TVertexInstanceAttributesConstRef<float> VertexInstanceBiNormalSigns = Attributes.GetVertexInstanceBinormalSigns();
-	TVertexInstanceAttributesConstRef<FVector4f> VertexInstanceColors = Attributes.GetVertexInstanceColors();
+	TVertexAttributesConstRef<int32> ImportPointIndex = InMeshDescription.VertexAttributes().GetAttributesRef<int32>(MeshAttribute::Vertex::ImportPointIndex); 
+		
+	TVertexInstanceAttributesConstRef<FVector2f> VertexInstanceUVs = MeshAttributes.GetVertexInstanceUVs();
+	TVertexInstanceAttributesConstRef<FVector3f> VertexInstanceNormals = MeshAttributes.GetVertexInstanceNormals();
+	TVertexInstanceAttributesConstRef<FVector3f> VertexInstanceTangents = MeshAttributes.GetVertexInstanceTangents();
+	TVertexInstanceAttributesConstRef<float> VertexInstanceBiNormalSigns = MeshAttributes.GetVertexInstanceBinormalSigns();
+	TVertexInstanceAttributesConstRef<FVector4f> VertexInstanceColors = MeshAttributes.GetVertexInstanceColors();
 
-	TPolygonGroupAttributesConstRef<FName> PolygonGroupMaterialSlotNames = Attributes.GetPolygonGroupMaterialSlotNames();
+	TPolygonGroupAttributesConstRef<FName> PolygonGroupMaterialSlotNames = MeshAttributes.GetPolygonGroupMaterialSlotNames();
 
 	//Get the per face smoothing
 	TArray<uint32> FaceSmoothingMasks;
@@ -2388,12 +2557,13 @@ FSkeletalMeshImportData FSkeletalMeshImportData::CreateFromMeshDescription(const
 	//Copy the vertex positions and the influences
 
 	//Reserve the point and influences
-	SkelMeshImportData.Points.AddZeroed(InMeshDescription.Vertices().Num());
+	SkelMeshImportData.Points.SetNumUninitialized(InMeshDescription.Vertices().Num());
 	SkelMeshImportData.Influences.Reserve(InMeshDescription.Vertices().Num() * 4);
+	SkelMeshImportData.PointToRawMap.SetNumUninitialized(InMeshDescription.Vertices().Num());
 	
 	for (FVertexID VertexID : InMeshDescription.Vertices().GetElementIDs())
 	{
-		//We can use GetValue because the Meshdescription was compacted before the copy
+		// We can use GetValue here because the mesh description was compacted before the copy
 		SkelMeshImportData.Points[VertexID.GetValue()] = VertexPositions[VertexID];
 		if (VertexSkinWeights.IsValid())
 		{
@@ -2409,6 +2579,15 @@ FSkeletalMeshImportData FSkeletalMeshImportData::CreateFromMeshDescription(const
 				BoneInfluence.BoneIndex = BoneWeights[InfluenceIndex].GetBoneIndex();
 				BoneInfluence.Weight = BoneWeights[InfluenceIndex].GetWeight();
 			}
+		}
+
+		if (ImportPointIndex.IsValid())
+		{
+			SkelMeshImportData.PointToRawMap[VertexID.GetValue()] = ImportPointIndex[VertexID] == INDEX_NONE ? VertexID.GetValue() : ImportPointIndex[VertexID];
+		}
+		else
+		{
+			SkelMeshImportData.PointToRawMap[VertexID.GetValue()] = VertexID.GetValue();
 		}
 	}
 
@@ -2470,12 +2649,12 @@ FSkeletalMeshImportData FSkeletalMeshImportData::CreateFromMeshDescription(const
 	}
 
 	// Update Bones data
-	const FSkeletalMeshAttributes::FBoneArray& Bones = Attributes.Bones();
+	const FSkeletalMeshAttributes::FBoneArray& Bones = MeshAttributes.Bones();
 	SkelMeshImportData.RefBonesBinary.Reserve(Bones.Num());
 	
-	FSkeletalMeshAttributes::FBoneNameAttributesConstRef BoneNames = Attributes.GetBoneNames();
-	FSkeletalMeshAttributes::FBoneParentIndexAttributesConstRef BoneParentIndices = Attributes.GetBoneParentIndices();
-	FSkeletalMeshAttributes::FBonePoseAttributesConstRef BonePoses = Attributes.GetBonePoses();
+	FSkeletalMeshAttributes::FBoneNameAttributesConstRef BoneNames = MeshAttributes.GetBoneNames();
+	FSkeletalMeshAttributes::FBoneParentIndexAttributesConstRef BoneParentIndices = MeshAttributes.GetBoneParentIndices();
+	FSkeletalMeshAttributes::FBonePoseAttributesConstRef BonePoses = MeshAttributes.GetBonePoses();
 	if (BoneNames.IsValid() && BoneParentIndices.IsValid() && BonePoses.IsValid())
 	{
 		auto GetNumChildren = [&](const int32 ParentIndex)
@@ -2505,28 +2684,27 @@ FSkeletalMeshImportData FSkeletalMeshImportData::CreateFromMeshDescription(const
 	}
 
 	// Copy morph targets.
-	for (const FName MorphTargetName: Attributes.GetMorphTargetNames())
+	for (const FName MorphTargetName: MeshAttributes.GetMorphTargetNames())
 	{
-		FMorphTargetVertexAttributesConstRef MorphTargetAttribute = Attributes.GetVertexMorphTarget(MorphTargetName);
+		FMorphTargetVertexAttributesConstRef MorphTargetAttribute = MeshAttributes.GetVertexMorphTarget(MorphTargetName);
 
 		SkelMeshImportData.MorphTargetNames.Add(MorphTargetName.ToString());
 		FSkeletalMeshImportData& MorphTarget = SkelMeshImportData.MorphTargets.AddDefaulted_GetRef();
-		TSet<uint32> MorphTargetModifiedPoints = SkelMeshImportData.MorphTargetModifiedPoints.AddDefaulted_GetRef();
+		TSet<uint32>& MorphTargetModifiedPoints = SkelMeshImportData.MorphTargetModifiedPoints.AddDefaulted_GetRef();
 
-		MorphTarget.Points.SetNumZeroed(SkelMeshImportData.Points.Num());
 		for (FVertexID VertexID : InMeshDescription.Vertices().GetElementIDs())
 		{
 			FVector3f PositionDelta = MorphTargetAttribute.GetPositionDelta(VertexID);
 			if (!PositionDelta.IsNearlyZero())
 			{
-				MorphTarget.Points[VertexID.GetValue()] = MorphTargetAttribute.GetPositionDelta(VertexID) + SkelMeshImportData.Points[VertexID.GetValue()];
+				MorphTarget.Points.Add(PositionDelta + SkelMeshImportData.Points[VertexID.GetValue()]);
 				MorphTargetModifiedPoints.Add(VertexID.GetValue());
 			}
 		}
 	}
 
 	// Copy alternate influences.
-	for (const FName SkinWeightProfileName: Attributes.GetSkinWeightProfileNames())
+	for (const FName SkinWeightProfileName: MeshAttributes.GetSkinWeightProfileNames())
 	{
 		// The default profile was already handled above.
 		if (SkinWeightProfileName == FSkeletalMeshAttributes::DefaultSkinWeightProfileName)
@@ -2534,7 +2712,7 @@ FSkeletalMeshImportData FSkeletalMeshImportData::CreateFromMeshDescription(const
 			continue;
 		}
 		
-		FSkinWeightsVertexAttributesConstRef SkinWeightsAttribute = Attributes.GetVertexSkinWeights(SkinWeightProfileName);
+		FSkinWeightsVertexAttributesConstRef SkinWeightsAttribute = MeshAttributes.GetVertexSkinWeights(SkinWeightProfileName);
 
 		SkelMeshImportData.AlternateInfluenceProfileNames.Add(SkinWeightProfileName.ToString());
 		FSkeletalMeshImportData& AlternateInfluenceMesh = SkelMeshImportData.AlternateInfluences.AddDefaulted_GetRef();
@@ -2562,15 +2740,61 @@ FSkeletalMeshImportData FSkeletalMeshImportData::CreateFromMeshDescription(const
 		}
 	}
 	
-
 	SkelMeshImportData.CleanUpUnusedMaterials();
-	SkelMeshImportData.SplitVerticesBySmoothingGroups();
 	
 	// Copy any non-reserved float vertex attributes.
 	InMeshDescription.VertexAttributes().ForEachByType<float>(FCreateAndCopyAttributeValues<float>(SkelMeshImportData, InMeshDescription.Vertices()));
 	InMeshDescription.VertexAttributes().ForEachByType<FVector2f>(FCreateAndCopyAttributeValues<FVector2f>(SkelMeshImportData, InMeshDescription.Vertices()));
 	InMeshDescription.VertexAttributes().ForEachByType<FVector3f>(FCreateAndCopyAttributeValues<FVector3f>(SkelMeshImportData, InMeshDescription.Vertices()));
 	InMeshDescription.VertexAttributes().ForEachByType<FVector4f>(FCreateAndCopyAttributeValues<FVector4f>(SkelMeshImportData, InMeshDescription.Vertices()));
+
+	// Copy MeshInfos back in, if any, and only if they're valid.
+	if (MeshAttributes.HasSourceGeometryParts())
+	{
+		FSkeletalMeshAttributes::FSourceGeometryPartNameConstRef NameAttribute = MeshAttributes.GetSourceGeometryPartNames();
+		FSkeletalMeshAttributes::FSourceGeometryPartVertexOffsetAndCountConstRef VertexAndCountAttribute = MeshAttributes.GetSourceGeometryPartVertexOffsetAndCounts();
+
+		// Ensure that the counts + offsets add up to exactly the vertices we have.
+		TArray<SkeletalMeshImportData::FMeshInfo> MeshInfos;
+		for (FSourceGeometryPartID SourceGeometryPartID: MeshAttributes.SourceGeometryParts().GetElementIDs())
+		{
+			SkeletalMeshImportData::FMeshInfo Info;
+			Info.Name = NameAttribute.Get(SourceGeometryPartID);
+			Info.NumVertices = VertexAndCountAttribute.Get(SourceGeometryPartID)[1];
+			Info.StartImportedVertex = VertexAndCountAttribute.Get(SourceGeometryPartID)[0]; 
+			MeshInfos.Add(Info);
+		}
+
+		if (!MeshInfos.IsEmpty())
+		{
+			MeshInfos.Sort([](const SkeletalMeshImportData::FMeshInfo& A, const SkeletalMeshImportData::FMeshInfo& B)
+			{
+				return A.StartImportedVertex < B.StartImportedVertex;
+			});
+
+			bool bValid = true;
+			int32 VertexIndex = 0;
+			for (int32 Index = 0; Index < MeshInfos.Num(); Index++)
+			{
+				if (VertexIndex != MeshInfos[Index].StartImportedVertex)
+				{
+					bValid = false;
+					break;
+				}
+
+				VertexIndex += MeshInfos[Index].NumVertices;
+			}
+			if (VertexIndex != SkelMeshImportData.Points.Num())
+			{
+				bValid = false;
+			}
+
+			if (bValid)
+			{
+				SkelMeshImportData.MeshInfos = MoveTemp(MeshInfos);
+			}
+		}
+	}
 
 	return SkelMeshImportData;
 }
