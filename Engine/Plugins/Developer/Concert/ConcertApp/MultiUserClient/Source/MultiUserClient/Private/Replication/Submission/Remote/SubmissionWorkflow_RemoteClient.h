@@ -63,6 +63,9 @@ namespace UE::MultiUserClient
 		
 		/** Handles timeout of submission response. */
 		void TimeoutAndClean();
+		void TimeoutStreamChangeIfUnset();
+		void TimeoutAuthorityChangeIfUnset();
+		
 		/** Handles a response from the client that indicates failure. */
 		void HandleFailureResponse(EMultiUserChangeRemoteRequestError ErrorFlags);
 		/** Cleans up side effects from last submission process */
@@ -70,6 +73,9 @@ namespace UE::MultiUserClient
 
 		FSingleClientSubmissionOperation& GetOperation() { return *InProgressOperation->ExposedOperation; }
 
+		/** Checks which data is not being changed by Params and completes the corresponding promises on OperationResult. */
+		void EarlyCompletePromisesForUnchangedData(const FSubmissionParams& Params, const TSharedRef<FSingleClientSubmissionOperation>& OperationResult) const;
+		
 		/** Called by remote client to update us about progress. */
 		void OnStreamRemoteChangeEvent(const FConcertSessionContext& Context, const FMultiUser_ChangeRemote_StreamUpdatedEvent& EventData);
 		void OnAuthorityRemoteChangeEvent(const FConcertSessionContext& Context, const FMultiUser_ChangeRemote_AuthorityUpdatedEvent& EventData);

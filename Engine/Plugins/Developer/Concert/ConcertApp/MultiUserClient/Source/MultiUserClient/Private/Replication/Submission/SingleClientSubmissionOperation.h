@@ -2,8 +2,8 @@
 
 #pragma once
 
+#include "ConcertLogGlobal.h"
 #include "ISubmissionOperation.h"
-#include "Replication/Stream/IClientStreamSynchronizer.h"
 
 #include "Templates/UnrealTemplate.h"
 
@@ -44,21 +44,43 @@ namespace UE::MultiUserClient
 		{
 			bStreamPromiseWasSet = true;
 			StreamChangesPromise.EmplaceValue(MoveTemp(Result));
+			
+			UE_LOG(LogConcert, Log, TEXT("Submission operation: Completed stream request stage."));
 		}
 		void EmplaceAuthorityRequestPromise(FSubmitAuthorityChangesRequest Result)
 		{
 			bAuthorityRequestPromiseWasSet = true;
 			AuthorityChangeRequestPromise.EmplaceValue(MoveTemp(Result));
+			
+			UE_LOG(LogConcert, Log, TEXT("Submission operation: Complete authority request stage."));
 		}
 		void EmplaceAuthorityResponsePromise(FSubmitAuthorityChangesResponse Result)
 		{
 			bAuthorityResponsePromiseWasSet = true;
 			AuthorityChangeResponsePromise.EmplaceValue(MoveTemp(Result));
+			
+			UE_LOG(LogConcert, Log, TEXT("Submission operation: Completed authority response stage."));
 		}
 		void EmplaceCompleteOperationPromise(ESubmissionOperationCompletedCode Result)
 		{
+			// The following enforces the API contract that CompleteOperationPromise finishes as last future.
+			if (!ensureMsgf(bStreamPromiseWasSet, TEXT("All other stages should be explicitly completed before calling EmplaceCompleteOperationPromise. Check implementation logic.")))
+			{
+				EmplaceStreamPromise(FSubmitStreamChangesResponse{ EStreamSubmissionErrorCode::Cancelled });
+			}
+			if (!ensureMsgf(bAuthorityRequestPromiseWasSet, TEXT("All other stages should be explicitly completed before calling EmplaceCompleteOperationPromise. Check implementation logic.")))
+			{
+				EmplaceAuthorityRequestPromise(FSubmitAuthorityChangesRequest{ EAuthoritySubmissionRequestErrorCode::Cancelled });
+			}
+			if (!ensureMsgf(bAuthorityResponsePromiseWasSet, TEXT("All other stages should be explicitly completed before calling EmplaceCompleteOperationPromise. Check implementation logic.")))
+			{
+				EmplaceAuthorityResponsePromise(FSubmitAuthorityChangesResponse{ EAuthoritySubmissionResponseErrorCode::Cancelled });
+			}
+			
 			bCompleteOperationPromiseWasSet = true;
 			CompleteOperationPromise.EmplaceValue(Result);
+			
+			UE_LOG(LogConcert, Log, TEXT("Submission operation: Completed operation."));
 		}
 
 		bool HasSetStreamPromise() const { return bStreamPromiseWasSet; }

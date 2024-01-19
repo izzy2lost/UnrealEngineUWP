@@ -27,7 +27,7 @@ namespace UE::MultiUserClient
 	{
 		ConcertSession->UnregisterCustomEventHandler<FMultiUser_ChangeRemote_StreamUpdatedEvent>(this);
 		ConcertSession->UnregisterCustomEventHandler<FMultiUser_ChangeRemote_AuthorityUpdatedEvent>(this);
-		CleanUpSubmissionProcess();
+		// InProgressOperation destructor chain execute any pending promises
 	}
 
 	TSharedPtr<ISubmissionOperation> FSubmissionWorkflow_RemoteClient::SubmitChanges(FSubmissionParams Params)
@@ -40,16 +40,8 @@ namespace UE::MultiUserClient
 		const bool bIsModifyingStream = !Params.IsStreamChangeEmpty();
 		const TSharedRef<FSingleClientSubmissionOperation> OperationResult = MakeShared<FSingleClientSubmissionOperation>(bIsModifyingStream);
 
-		// Since SendCustomRequest can return immediately, emplace relevant promises before 
-		if (Params.IsStreamChangeEmpty())
-		{
-			const FSubmitStreamChangesResponse StreamResponse { EStreamSubmissionErrorCode::NoChange };
-			OperationResult->EmplaceStreamPromise(StreamResponse);
-			StreamRequestCompletedDelegate.Broadcast(StreamResponse);
-		}
-		// Opposed to the local case, sending authority request is sent instantly in the remote case, so emplace the promise now.
-		OperationResult->EmplaceAuthorityRequestPromise({ EAuthoritySubmissionRequestErrorCode::Success, Params.AuthorityRequest });
-		
+		// Since SendCustomRequest can return immediately, emplace relevant promises before
+		EarlyCompletePromisesForUnchangedData(Params, OperationResult);
 		const FMultiUser_ChangeRemote_Request Request
 		{
 			Params.StreamRequest ? *Params.StreamRequest : FConcertReplication_ChangeStream_Request{},
@@ -91,7 +83,6 @@ namespace UE::MultiUserClient
 			HandleFailureResponse(Response.Error);
 		}
 
-		//
 		UE_LOG(LogConcert, Log, TEXT("Remote client %s accepted change request"), *GetRemoteClientName());
 	}
 	
@@ -99,27 +90,37 @@ namespace UE::MultiUserClient
 	{
 		UE_LOG(LogConcert, Warning, TEXT("Change request to client %s timed out"), *GetRemoteClientName());
 		
-		// SubmitChanges sets the
+		TimeoutStreamChangeIfUnset();
+		TimeoutAuthorityChangeIfUnset();
+		CleanUpSubmissionProcess();
+	}
+
+	void FSubmissionWorkflow_RemoteClient::TimeoutStreamChangeIfUnset()
+	{
 		if (!InProgressOperation->Parameters.IsStreamChangeEmpty())
 		{
 			const FSubmitStreamChangesResponse StreamResponse { EStreamSubmissionErrorCode::Timeout };
 			GetOperation().EmplaceStreamPromise(StreamResponse);
 			StreamRequestCompletedDelegate.Broadcast(StreamResponse);
 		}
+	}
 
-		// Sending authority request was successful.
-		const FSubmitAuthorityChangesRequest AuthorityRequest { EAuthoritySubmissionRequestErrorCode::Success, InProgressOperation->Parameters.AuthorityRequest };
-		const FSubmitAuthorityChangesResponse AuthorityResponse { EAuthoritySubmissionResponseErrorCode::Timeout };
-		GetOperation().EmplaceAuthorityResponsePromise(AuthorityResponse);
-		AuthorityRequestCompletedDelegate.Broadcast(AuthorityRequest, AuthorityResponse);
-			
-		CleanUpSubmissionProcess();
+	void FSubmissionWorkflow_RemoteClient::TimeoutAuthorityChangeIfUnset()
+	{
+		if (!InProgressOperation->ExposedOperation->HasSetAuthorityResponsePromise())
+		{
+			// Sending authority request was technically successful.
+			const FSubmitAuthorityChangesRequest AuthorityRequest { EAuthoritySubmissionRequestErrorCode::Success, InProgressOperation->Parameters.AuthorityRequest };
+			const FSubmitAuthorityChangesResponse AuthorityResponse { EAuthoritySubmissionResponseErrorCode::Timeout };
+			GetOperation().EmplaceAuthorityResponsePromise(AuthorityResponse);
+			AuthorityRequestCompletedDelegate.Broadcast(AuthorityRequest, AuthorityResponse);
+		}
 	}
 
 	void FSubmissionWorkflow_RemoteClient::HandleFailureResponse(EMultiUserChangeRemoteRequestError ErrorFlags)
 	{
 		UE_LOG(LogConcert, Warning, TEXT("Change request to client %s failed (error flags: %d)"), *GetRemoteClientName(), static_cast<int32>(ErrorFlags));
-
+		
 		switch (ErrorFlags)
 		{
 		case EMultiUserChangeRemoteRequestError::PredictedConflict:
@@ -127,6 +128,8 @@ namespace UE::MultiUserClient
 		case EMultiUserChangeRemoteRequestError::OtherInProgress:
 			// TODO DP UE-200924: Retry when client is busy serving another request
 		case EMultiUserChangeRemoteRequestError::RejectedChange:
+			TimeoutStreamChangeIfUnset();
+			TimeoutAuthorityChangeIfUnset();
 			CleanUpSubmissionProcess();
 			break;
 			
@@ -145,6 +148,32 @@ namespace UE::MultiUserClient
 		
 			ExposedOperation->EmplaceCompleteOperationPromise(ESubmissionOperationCompletedCode::Processed);
 			OnSubmitOperationCompletedDelegate.Broadcast();
+		}
+	}
+	
+	void FSubmissionWorkflow_RemoteClient::EarlyCompletePromisesForUnchangedData(const FSubmissionParams& Params, const TSharedRef<FSingleClientSubmissionOperation>& OperationResult) const
+	{
+		// Complete stream event if nothing is being changed
+		if (Params.IsStreamChangeEmpty())
+		{
+			const FSubmitStreamChangesResponse StreamResponse { EStreamSubmissionErrorCode::NoChange };
+			OperationResult->EmplaceStreamPromise(StreamResponse);
+			StreamRequestCompletedDelegate.Broadcast(StreamResponse);
+		}
+
+		// Complete the authority promise if nothing is being changed
+		if (Params.IsAuthorityChangeEmpty())
+		{
+			FSubmitAuthorityChangesRequest RequestEvent { EAuthoritySubmissionRequestErrorCode::NoChange, Params.AuthorityRequest };
+			FSubmitAuthorityChangesResponse ResponseEvent { EAuthoritySubmissionResponseErrorCode::NoChange };
+			OperationResult->EmplaceAuthorityRequestPromise(RequestEvent);
+			OperationResult->EmplaceAuthorityResponsePromise(ResponseEvent);
+			AuthorityRequestCompletedDelegate.Broadcast(RequestEvent, ResponseEvent);
+		}
+		else
+		{
+			// Opposed to the local case, sending authority request is sent instantly in the remote case, so emplace the promise now.
+			OperationResult->EmplaceAuthorityRequestPromise({ EAuthoritySubmissionRequestErrorCode::Success, Params.AuthorityRequest });
 		}
 	}
 

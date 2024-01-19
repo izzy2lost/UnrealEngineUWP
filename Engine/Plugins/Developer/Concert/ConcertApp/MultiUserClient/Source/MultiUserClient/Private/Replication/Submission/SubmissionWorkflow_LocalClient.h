@@ -58,7 +58,8 @@ namespace UE::MultiUserClient
 			TOptional<FConcertReplication_ChangeAuthority_Request> AuthorityChangeRequest
 			);
 		void HandlePendingAuthorityChangeRequest(TOptional<FConcertReplication_ChangeAuthority_Request> AuthorityChangeRequest);
-
+		
+		void SkipAuthorityStage(EAuthoritySubmissionRequestErrorCode RequestCode, EAuthoritySubmissionResponseErrorCode ResponseCode);
 		void CleanUpSubmissionOperation();
 	};
 }

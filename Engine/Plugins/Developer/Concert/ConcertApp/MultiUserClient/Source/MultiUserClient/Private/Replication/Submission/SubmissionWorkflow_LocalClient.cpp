@@ -90,13 +90,7 @@ namespace UE::MultiUserClient
 		}
 		else
 		{
-			const FSubmitAuthorityChangesRequest Request{ EAuthoritySubmissionRequestErrorCode::CancelledDueToStreamUpdate };
-			const FSubmitAuthorityChangesResponse Response{ EAuthoritySubmissionResponseErrorCode::CancelledDueToStreamUpdate };
-			
-			Operation->EmplaceAuthorityRequestPromise(Request);
-			Operation->EmplaceAuthorityResponsePromise(Response);
-			AuthorityRequestCompletedDelegate.Broadcast(Request, Response);
-			
+			SkipAuthorityStage(EAuthoritySubmissionRequestErrorCode::CancelledDueToStreamUpdate, EAuthoritySubmissionResponseErrorCode::CancelledDueToStreamUpdate);
 			CleanUpSubmissionOperation();
 		}
 	}
@@ -107,8 +101,8 @@ namespace UE::MultiUserClient
 		IConcertClientReplicationManager* ReplicationManager = Client->GetReplicationManager();
 		if (!ensure(ReplicationManager))
 		{
-			AuthorityRequestCompletedDelegate.Broadcast({ EAuthoritySubmissionRequestErrorCode::Cancelled }, { EAuthoritySubmissionResponseErrorCode::Cancelled });
-			CleanUpSubmissionOperation(); // Automatically cancels the pending promises
+			SkipAuthorityStage(EAuthoritySubmissionRequestErrorCode::Cancelled, EAuthoritySubmissionResponseErrorCode::Cancelled);
+			CleanUpSubmissionOperation();
 			return;
 		}
 
@@ -116,12 +110,7 @@ namespace UE::MultiUserClient
 		const bool bHasNoChanges = !AuthorityChangeRequest || AuthorityChangeRequest->IsEmpty();
 		if (bHasNoChanges)
 		{
-			const FSubmitAuthorityChangesRequest Request{ EAuthoritySubmissionRequestErrorCode::NoChange };
-			const FSubmitAuthorityChangesResponse Response{ EAuthoritySubmissionResponseErrorCode::NoChange };
-			
-			Operation->EmplaceAuthorityRequestPromise(Request);
-			Operation->EmplaceAuthorityResponsePromise(Response);
-			AuthorityRequestCompletedDelegate.Broadcast(Request, Response);
+			SkipAuthorityStage(EAuthoritySubmissionRequestErrorCode::NoChange, EAuthoritySubmissionResponseErrorCode::NoChange);
 			CleanUpSubmissionOperation();
 			return;
 		}
@@ -143,6 +132,17 @@ namespace UE::MultiUserClient
 					CleanUpSubmissionOperation();
 				}
 			});
+	}
+	
+	void FSubmissionWorkflow_LocalClient::SkipAuthorityStage(EAuthoritySubmissionRequestErrorCode RequestCode, EAuthoritySubmissionResponseErrorCode ResponseCode)
+	{
+		const TSharedRef<FSingleClientSubmissionOperation>& Operation = InProgressOperation->Operation;
+		const FSubmitAuthorityChangesRequest Request{ RequestCode };
+		const FSubmitAuthorityChangesResponse Response{ ResponseCode };
+			
+		Operation->EmplaceAuthorityRequestPromise(Request);
+		Operation->EmplaceAuthorityResponsePromise(Response);
+		AuthorityRequestCompletedDelegate.Broadcast(Request, Response);
 	}
 
 	void FSubmissionWorkflow_LocalClient::CleanUpSubmissionOperation()
