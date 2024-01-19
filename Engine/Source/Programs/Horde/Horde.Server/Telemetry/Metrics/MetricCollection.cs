@@ -98,7 +98,7 @@ namespace Horde.Server.Telemetry.Metrics
 			JsonArray array = new JsonArray { node };
 
 			GlobalConfig globalConfig = _globalConfig.CurrentValue;
-			foreach (MetricConfig metric in globalConfig.Metrics)
+			foreach (MetricConfig metric in globalConfig.Metrics.Metrics)
 			{
 				AddEvent(metric, node, array);
 			}
@@ -253,7 +253,7 @@ namespace Horde.Server.Telemetry.Metrics
 			{
 				foreach ((SampleKey sampleKey, List<double> sampleValues) in samples)
 				{
-					MetricConfig? metricConfig = _globalConfig.CurrentValue.Metrics.FirstOrDefault(x => x.Id == sampleKey.Metric);
+					MetricConfig? metricConfig = _globalConfig.CurrentValue.Metrics.Metrics.FirstOrDefault(x => x.Id == sampleKey.Metric);
 					if (metricConfig != null)
 					{
 						await CombineValuesAsync(metricConfig, sampleKey.Group, sampleKey.Time, sampleValues, cancellationToken);

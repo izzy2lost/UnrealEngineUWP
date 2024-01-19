@@ -6,6 +6,8 @@ using System.Linq;
 using System.Text.Json.Serialization;
 using EpicGames.Core;
 using EpicGames.Horde.Telemetry.Metrics;
+using Horde.Server.Configuration;
+using Horde.Server.Server;
 using Horde.Server.Utilities;
 using Json.Path;
 
@@ -115,5 +117,25 @@ namespace Horde.Server.Telemetry.Metrics
 		/// </summary>
 		[JsonConverter(typeof(IntervalJsonConverter))]
 		public TimeSpan Interval { get; set; } = TimeSpan.FromHours(1.0);
+	}
+
+	/// <summary>
+	/// Config for metrics
+	/// </summary>
+	[JsonSchema("https://unrealengine.com/horde/metrics")]
+	[JsonSchemaCatalog("Horde Metrics", "Horde metric configuration file", new[] { "*.metrics.json", "Metrics/*.json" })]
+	[ConfigIncludeRoot]
+	public class MetricsConfig
+	{
+		/// <summary>
+		/// Metrics to aggregate on the Horde server
+		/// </summary>
+		public List<MetricConfig> Metrics { get; set; } = new List<MetricConfig>();
+
+		/// <summary>
+		/// Includes for other configuration files
+		/// </summary>
+		public List<ConfigInclude> Include { get; set; } = new List<ConfigInclude>();
+
 	}
 }
