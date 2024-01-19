@@ -59,8 +59,7 @@ class BLUEPRINTGRAPH_API UK2Node_CallFunction : public UK2Node
 	UPROPERTY()
 	uint32 bIsFinalFunction:1;
 
-	/** Indicates that this is a 'bead' function with no fixed location; it is drawn between the nodes that it is wired to */
-	UPROPERTY()
+	UE_DEPRECATED(5.4, "bIsBeadFunction is deprecated")
 	uint32 bIsBeadFunction:1;
 
 	/** The function to call */
@@ -125,7 +124,8 @@ public:
 	virtual bool IsNodePure() const override { return bIsPureFunc; }
 	virtual void PostReconstructNode() override;
 	virtual bool ShouldDrawCompact() const override;
-	virtual bool ShouldDrawAsBead() const override;
+	UE_DEPRECATED(5.4, "ShouldDrawAsBead is deprecated")
+	virtual bool ShouldDrawAsBead() const override { return false; }
 	virtual FText GetCompactNodeTitle() const override;
 	virtual void PostPasteNode() override;
 	virtual bool CanSplitPin(const UEdGraphPin* Pin) const override;
@@ -165,7 +165,7 @@ public:
 	 * @return	Pointer to the pin that was created
 	 */
 	virtual UEdGraphPin* CreateSelfPin(const UFunction* Function);
-	
+
 	/**
 	 * Creates all of the pins required to call a particular UFunction.
 	 *

@@ -440,14 +440,6 @@ void SGraphNodeK2Base::UpdateGraphNode()
 	}
 }
 
-bool SGraphNodeK2Base::RequiresSecondPassLayout() const
-{
-	UK2Node* K2Node = CastChecked<UK2Node>(GraphNode);
-	const bool bBeadMode = K2Node->ShouldDrawAsBead();
-
-	return bBeadMode;
-}
-
 FText SGraphNodeK2Base::GetNodeCompactTitle() const
 {
 	UK2Node* K2Node = CastChecked<UK2Node>(GraphNode);

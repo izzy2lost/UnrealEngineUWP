@@ -1341,15 +1341,6 @@ void UK2Node_CallFunction::NotifyPinConnectionListChanged(UEdGraphPin* Pin)
 		GetGraph()->NotifyGraphChanged();
 	}
 
-	if (bIsBeadFunction)
-	{
-		if (Pin->LinkedTo.Num() == 0)
-		{
-			// Commit suicide; bead functions must always have an input and output connection
-			DestroyNode();
-		}
-	}
-
 	InvalidatePinTooltips();
 	if(!Pin->IsPendingKill())
 	{
@@ -1998,11 +1989,6 @@ bool UK2Node_CallFunction::ShouldDrawCompact() const
 	UFunction* Function = GetTargetFunction();
 
 	return ShouldDrawCompact(Function);
-}
-
-bool UK2Node_CallFunction::ShouldDrawAsBead() const
-{
-	return bIsBeadFunction;
 }
 
 bool UK2Node_CallFunction::ShouldShowNodeProperties() const

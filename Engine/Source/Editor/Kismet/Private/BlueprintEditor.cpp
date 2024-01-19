@@ -4738,7 +4738,7 @@ void FBlueprintEditor::DoPromoteToVariable( UBlueprint* InBlueprint, UEdGraphPin
 			// Ignore names from compact nodes that don't usually display the pin names
 			if (const UK2Node* K2Node = Cast<UK2Node>(InTargetPin->GetOwningNode()))
 			{
-				if (K2Node->ShouldDrawCompact() || K2Node->ShouldDrawAsBead())
+				if (K2Node->ShouldDrawCompact())
 				{
 					IdealVarName.Empty();
 				}

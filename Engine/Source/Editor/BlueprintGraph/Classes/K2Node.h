@@ -266,7 +266,7 @@ public:
 	 */
 	virtual bool IsActionFilteredOut(class FBlueprintActionFilter const& Filter) { return false; }
 
-	/** Should draw as a bead with no location of it's own */
+	UE_DEPRECATED(5.4, "ShouldDrawAsBead is deprecated")
 	virtual bool ShouldDrawAsBead() const { return false; }
 
 	/** Return whether the node's properties display in the blueprint details panel */
