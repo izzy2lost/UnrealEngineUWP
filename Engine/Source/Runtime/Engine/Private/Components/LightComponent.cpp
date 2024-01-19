@@ -353,7 +353,7 @@ void FLightRenderParameters::MakeShaderParameters(const FViewMatrices& ViewMatri
 	OutShaderParameters.LightFunctionAtlasLightIndex = LightFunctionAtlasLightIndex;
 }
 
-// match logic in EyeAdaptationInverseLookup(...)
+// match logic in InverseExposureLerp(...)
 float FLightRenderParameters::GetLightExposureScale(float Exposure, float InverseExposureBlend)
 {
 	if (Exposure <= 0.0f)

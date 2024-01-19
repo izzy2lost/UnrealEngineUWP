@@ -366,6 +366,7 @@ class FBuildLightTilesCS : public FGlobalShader
 		SHADER_PARAMETER(uint32, NumViews)
 		SHADER_PARAMETER_ARRAY(FMatrix44f, WorldToClip, [LUMEN_MAX_VIEWS])
 		SHADER_PARAMETER_ARRAY(FVector4f, PreViewTranslation, [LUMEN_MAX_VIEWS])
+		SHADER_PARAMETER(FVector2f, ViewExposure)
 	END_SHADER_PARAMETER_STRUCT()
 
 	class FMaxLightSamples : SHADER_PERMUTATION_SPARSE_INT("MAX_LIGHT_SAMPLES", 1, 2, 4, 8, 16, 32);
@@ -562,6 +563,7 @@ class FLumenCardBatchDirectLightingCS : public FGlobalShader
 		SHADER_PARAMETER_RDG_BUFFER_SRV(StructuredBuffer<uint2>, LightTilesPerCardTile)
 		SHADER_PARAMETER_RDG_TEXTURE_UAV(RWTexture2D<float3>, RWDirectLightingAtlas)
 		SHADER_PARAMETER_ARRAY(FVector4f, PreViewTranslation, [LUMEN_MAX_VIEWS])
+		SHADER_PARAMETER(FVector2f, ViewExposure)
 	END_SHADER_PARAMETER_STRUCT()
 
 	class FMultiView : SHADER_PERMUTATION_BOOL("HAS_MULTIPLE_VIEWS");
@@ -1003,6 +1005,7 @@ static void RenderDirectLightIntoLumenCardsBatched(
 	for (int32 ViewIndex = 0; ViewIndex < Views.Num(); ++ViewIndex)
 	{
 		PassParameters->PreViewTranslation[ViewIndex] = FVector4f((FVector3f)Views[ViewIndex].ViewMatrices.GetPreViewTranslation(), 0.0f);
+		PassParameters->ViewExposure[ViewIndex] = Views[ViewIndex].GetLastEyeAdaptationExposure();
 	}
 
 	FLumenCardBatchDirectLightingCS::FPermutationDomain PermutationVector;
@@ -1439,9 +1442,9 @@ struct FLumenPackedLight
 	FVector2f RectLightAtlasUVOffset;
 
 	uint32 LightingChannelMask;
-	uint32 bHasShadowMask;
+	uint32 LightFunctionAtlasIndex_bHasShadowMask;
 	float IESAtlasIndex;
-	uint32 LightFunctionAtlasIndex;
+	float InverseExposureBlend;
 };
 
 struct FLightTileCullContext
@@ -1518,6 +1521,7 @@ static void CullDirectLightingTiles(
 		{
 			PassParameters->WorldToClip[ViewIndex] = FMatrix44f(Views[ViewIndex].ViewMatrices.GetViewProjectionMatrix());
 			PassParameters->PreViewTranslation[ViewIndex] = FVector4f((FVector3f)Views[ViewIndex].ViewMatrices.GetPreViewTranslation(), 0.0f);
+			PassParameters->ViewExposure[ViewIndex] = Views[ViewIndex].GetLastEyeAdaptationExposure();
 		}
 
 		FBuildLightTilesCS::FPermutationDomain PermutationVector;
@@ -1716,8 +1720,6 @@ void FDeferredShadingSceneRenderer::BeginGatherLumenLights(FLumenDirectLightingT
 			}
 		}
 
-		const float Exposure = Views[0].GetLastEyeAdaptationExposure();
-
 		TaskData->PackedLightData.SetNum(FMath::RoundUpToPowerOfTwo(FMath::Max(TaskData->GatheredLights.Num(), 16)));
 
 		TaskData->ViewBatchedLightParameters.SetNum(Views.Num());
@@ -1743,7 +1745,7 @@ void FDeferredShadingSceneRenderer::BeginGatherLumenLights(FLumenDirectLightingT
 				ShaderParameters.FalloffExponent = 0;
 			}
 			ShaderParameters.Color *= LightSceneInfo->Proxy->GetIndirectLightingScale();
-			ShaderParameters.Color *= ShaderParameters.GetLightExposureScale(Exposure);
+			// InverseExposureBlend applied in shader since it's view dependent
 
 			FLumenPackedLight& LightData = TaskData->PackedLightData[LightIndex];
 			LightData.WorldPosition = FVector3f(ShaderParameters.WorldPosition);
@@ -1785,9 +1787,9 @@ void FDeferredShadingSceneRenderer::BeginGatherLumenLights(FLumenDirectLightingT
 			}
 			LightData.RectLightAtlasUVOffset = ShaderParameters.RectLightAtlasUVOffset;
 			LightData.IESAtlasIndex = ShaderParameters.IESAtlasIndex;
-			LightData.LightFunctionAtlasIndex = ShaderParameters.LightFunctionAtlasLightIndex;
+			LightData.LightFunctionAtlasIndex_bHasShadowMask = ShaderParameters.LightFunctionAtlasLightIndex | (LumenLight.NeedsShadowMask() ? (1 << 31) : 0);
 			LightData.LightingChannelMask = LightSceneInfo->Proxy->GetLightingChannelMask();
-			LightData.bHasShadowMask = LumenLight.NeedsShadowMask() ? 1 : 0;
+			LightData.InverseExposureBlend = ShaderParameters.InverseExposureBlend;
 
 			if (bUseBatchedShadows && LumenLight.NeedsShadowMask() && LumenLight.CanUseBatchedShadows())
 			{

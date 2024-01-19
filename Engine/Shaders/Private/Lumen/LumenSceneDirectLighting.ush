@@ -3,6 +3,7 @@
 #pragma once
 
 #include "LumenSceneLighting.ush"
+#include "../EyeAdaptationCommon.ush"
 #include "/Engine/Shared/LightDefinitions.h"
 
 RWStructuredBuffer<uint> RWShadowMaskTiles;
@@ -93,7 +94,7 @@ void WriteShadowMaskRay(FShadowMaskRay Ray, uint CardTileIndex, uint2 CoordInCar
 // Must match FLumenPackedLight in LumenSceneDirectLighting.cpp
 struct FLumenPackedLight
 {
-	float3 WorldPosition;
+	float3 WorldPosition; // LUMEN_LWC_TODO
 	float InvRadius;
 
 	float3 Color;
@@ -126,9 +127,9 @@ struct FLumenPackedLight
 	float2 RectLightAtlasUVOffset;
 
 	uint LightingChannelMask;
-	uint bHasShadowMask;
+	uint LightFunctionAtlasIndex_bHasShadowMask;
 	float IESAtlasIndex;
-	uint LightFunctionAtlasIndex;
+	float InverseExposureBlend;
 };
 
 struct FLumenLight
@@ -150,14 +151,14 @@ struct FLumenLight
 
 StructuredBuffer<FLumenPackedLight> LumenPackedLights;
 
-FLumenLight LoadLumenLight(uint LightIndex, float3 PreViewTranslation)
+FLumenLight LoadLumenLight(uint LightIndex, float3 PreViewTranslation, float Exposure)
 {
 	FLumenPackedLight PackedLight = LumenPackedLights[LightIndex];
 
 	FDeferredLightData DeferredLightData = (FDeferredLightData)0;
 	DeferredLightData.TranslatedWorldPosition = PackedLight.WorldPosition + PreViewTranslation;
 	DeferredLightData.InvRadius = PackedLight.InvRadius;
-	DeferredLightData.Color = PackedLight.Color;
+	DeferredLightData.Color = PackedLight.Color * InverseExposureLerp(Exposure, PackedLight.InverseExposureBlend);
 	DeferredLightData.FalloffExponent = PackedLight.FalloffExponent;
 	DeferredLightData.Direction = PackedLight.Direction;
 	DeferredLightData.Tangent = PackedLight.Tangent;
@@ -181,7 +182,7 @@ FLumenLight LoadLumenLight(uint LightIndex, float3 PreViewTranslation)
 	DeferredLightData.bSpotLight = PackedLight.LightType == LIGHT_TYPE_SPOT;
 	DeferredLightData.bRectLight = PackedLight.LightType == LIGHT_TYPE_RECT;
 	DeferredLightData.IESAtlasIndex = PackedLight.IESAtlasIndex;
-	DeferredLightData.LightFunctionAtlasLightIndex = PackedLight.LightFunctionAtlasIndex;
+	DeferredLightData.LightFunctionAtlasLightIndex = PackedLight.LightFunctionAtlasIndex_bHasShadowMask & 0x7FFFFFFF;
 
 	FLumenLight LumenLight = (FLumenLight)0;
 	LumenLight.DeferredLightData = DeferredLightData;
@@ -192,7 +193,7 @@ FLumenLight LoadLumenLight(uint LightIndex, float3 PreViewTranslation)
 	LumenLight.CosConeAngle = PackedLight.SinCosConeAngleOrRectLightAtlasUVScale.y;
 	LumenLight.SinConeAngle = PackedLight.SinCosConeAngleOrRectLightAtlasUVScale.x;
 	LumenLight.VirtualShadowMapId = PackedLight.VirtualShadowMapId;
-	LumenLight.bHasShadowMask = PackedLight.bHasShadowMask;
+	LumenLight.bHasShadowMask = PackedLight.LightFunctionAtlasIndex_bHasShadowMask >> 31;
 	LumenLight.LightingChannelMask = PackedLight.LightingChannelMask;
 	LumenLight.Type = PackedLight.LightType;
 	return LumenLight;
