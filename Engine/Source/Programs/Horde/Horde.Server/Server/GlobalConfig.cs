@@ -239,7 +239,7 @@ namespace Horde.Server.Server
 		/// <summary>
 		/// Metrics to aggregate on the Horde server
 		/// </summary>
-		public List<MetricConfig> Metrics { get; set; } = new List<MetricConfig>();
+		public MetricsConfig Metrics { get; set; } = new MetricsConfig();
 
 		/// <summary>
 		/// Access control list
