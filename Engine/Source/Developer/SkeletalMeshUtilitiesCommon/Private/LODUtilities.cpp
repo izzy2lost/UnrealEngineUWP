@@ -2978,7 +2978,7 @@ bool FLODUtilities::UpdateLODInfoVertexAttributes(
 	bool bInCopyAttributeValues
 	)
 {
-	if (!ensure(InSkeletalMesh->HasMeshDescription(InSourceLODIndex)))
+	if (!InSkeletalMesh->HasMeshDescription(InSourceLODIndex))
 	{
 		return false;
 	}
