@@ -1820,7 +1820,7 @@ static void CopySkinWeightsToAttribute(
 				{
 					ProfileDetail = FString::Printf(TEXT(" on profile '%s'"), *InProfileName.ToString());
 				}
-				UE_ASSET_LOG(LogSkeletalMeshLODImporterData, Warning, InSkeletalMesh, TEXT("Influences%s refer to non-existent vertices. Please re-import to fix."),
+				UE_ASSET_LOG(LogSkeletalMeshLODImporterData, Display, InSkeletalMesh, TEXT("Influences%s refer to non-existent vertices. Please re-import to fix."),
 					*ProfileDetail);
 			}
 			break;
@@ -1929,7 +1929,7 @@ bool FSkeletalMeshImportData::GetMeshDescription(const USkeletalMesh* InSkeletal
 			if (MorphTargetNameUsed.IsEmpty())
 			{
 				MorphTargetNameUsed = TEXT("Unnamed");
-				UE_ASSET_LOG(LogSkeletalMeshLODImporterData, Warning, InSkeletalMesh, TEXT("Morph target found with no name. Renamed to 'Unnamed'."));  
+				UE_ASSET_LOG(LogSkeletalMeshLODImporterData, Display, InSkeletalMesh, TEXT("Morph target found with no name. Renamed to 'Unnamed'."));  
 			}
 
 			// Has this name been used already?
@@ -1967,7 +1967,7 @@ bool FSkeletalMeshImportData::GetMeshDescription(const USkeletalMesh* InSkeletal
 			{
 				if (InSkeletalMesh)
 				{
-					UE_ASSET_LOG(LogSkeletalMeshLODImporterData, Warning, InSkeletalMesh, TEXT("Alternate influence profile '%s' point count is different from base mesh. Profile will be dropped since it cannot be matched to the base mesh."),
+					UE_ASSET_LOG(LogSkeletalMeshLODImporterData, Display, InSkeletalMesh, TEXT("Alternate influence profile '%s' point count is different from base mesh. Profile will be dropped since it cannot be matched to the base mesh."),
 						*AlternateInfluenceProfileName);  
 				}
 				continue;
@@ -2009,7 +2009,7 @@ bool FSkeletalMeshImportData::GetMeshDescription(const USkeletalMesh* InSkeletal
 				
 				if (InSkeletalMesh)
 				{
-					UE_ASSET_LOG(LogSkeletalMeshLODImporterData, Warning, InSkeletalMesh, TEXT("Alternate influence profile '%s' binds to one or more bones (%s) that do not exist on base mesh's skeleton. Profile will be dropped since it may otherwise introduce visual errors."),
+					UE_ASSET_LOG(LogSkeletalMeshLODImporterData, Display, InSkeletalMesh, TEXT("Alternate influence profile '%s' binds to one or more bones (%s) that do not exist on base mesh's skeleton. Profile will be dropped since it may otherwise introduce visual errors."),
 						*AlternateInfluenceProfileName, *FString::Join(MissingBoneNames, TEXT(", ")));  
 				}
 				continue;
