@@ -31,13 +31,13 @@ void URCPropertyIdAction::Execute() const
 		return;
 	}
 
-	for (const TPair<FName, TObjectPtr<URCVirtualPropertySelfContainer>>& PropertyContainer : PropertySelfContainer)
+	for (const TPair<FPropertyIdContainerKey, TObjectPtr<URCVirtualPropertySelfContainer>>& PropertyContainer : PropertySelfContainer)
 	{
 		if (FProperty* Property = PropertyContainer.Value->GetProperty())
 		{
 			FRemoteControlPropertyIdArgs PropertyIdArgs;
 			PropertyIdArgs.VirtualProperty = PropertyContainer.Value;
-			PropertyIdArgs.PropertyId = PropertyId;
+			PropertyIdArgs.PropertyId = PropertyContainer.Key.PropertyId;
 			PropertyIdArgs.SuperType = Property->GetClass()->GetFName();
 
 			TSharedPtr<IPropertyIdHandler> PropertyIdHandler = IRemoteControlModule::Get().GetPropertyIdHandlerFor(Property);
@@ -81,7 +81,14 @@ void URCPropertyIdAction::Execute() const
 			{
 				if (const FStructProperty* StructProperty = CastField<FStructProperty>(Property))
 				{
-					PropertyIdArgs.SubType = StructProperty->Struct->GetFName();
+					if (StructProperty->Struct->GetFName() == NAME_LinearColor)
+					{
+						PropertyIdArgs.SubType = NAME_Color;
+					}
+					else
+					{
+						PropertyIdArgs.SubType = StructProperty->Struct->GetFName();
+					}
 				}
 			}
 			PresetWeakPtr->PerformChainReaction(PropertyIdArgs);
@@ -92,14 +99,14 @@ void URCPropertyIdAction::Execute() const
 
 void URCPropertyIdAction::UpdateEntityIds(const TMap<FGuid, FGuid>& InEntityIdMap)
 {
-	for (const TPair<FName, TObjectPtr<URCVirtualPropertySelfContainer>>& PropertyContainerEntry : PropertySelfContainer)
+	for (const TPair<FPropertyIdContainerKey, TObjectPtr<URCVirtualPropertySelfContainer>>& PropertyContainerEntry : PropertySelfContainer)
 	{
 		if (PropertyContainerEntry.Value)
 		{
 			PropertyContainerEntry.Value->UpdateEntityIds(InEntityIdMap);
 		}
 	}
-	for (const TPair<FName, TObjectPtr<URCVirtualPropertySelfContainer>>& PropertyContainerEntry : CachedPropertySelfContainer)
+	for (const TPair<FPropertyIdContainerKey, TObjectPtr<URCVirtualPropertySelfContainer>>& PropertyContainerEntry : CachedPropertySelfContainer)
 	{
 		if (PropertyContainerEntry.Value)
 		{
@@ -132,15 +139,16 @@ void URCPropertyIdAction::PostEditChangeChainProperty(FPropertyChangedChainEvent
 
 void URCPropertyIdAction::UpdatePropertyId()
 {
-	DefaultObject = nullptr;
 	if (URemoteControlPreset* Preset = PresetWeakPtr.Get())
 	{
 		PropertySelfContainer.Empty();
-		for (const FGuid& TargetProperty : Preset->GetPropertyIdRegistry().Get()->GetEntityIdsList())
+		const TObjectPtr<URemoteControlPropertyIdRegistry> PropertyIdRegistry = Preset->GetPropertyIdRegistry();
+
+		for (const FGuid& TargetProperty : PropertyIdRegistry->GetEntityIdsList())
 		{
 			if (const TSharedPtr<FRemoteControlProperty> TargetRCProperty = Preset->GetExposedEntity<FRemoteControlProperty>(TargetProperty).Pin())
 			{
-				if (TargetRCProperty->PropertyId == PropertyId)
+				if (PropertyIdRegistry->Contains(TargetRCProperty->PropertyId, PropertyId))
 				{
 					if (FProperty* Property = TargetRCProperty->GetProperty())
 					{
@@ -149,51 +157,56 @@ void URCPropertyIdAction::UpdatePropertyId()
 						{
 							continue;
 						}
-						FName PropertyClassName = PropertyIdHandler->GetPropertyTypeName(Property);
-						const FName& NewPropertyIdName = *(PropertyId.ToString() + TEXT(".") + PropertyClassName.ToString());
-						if (PropertyIdHandler->GetPropertyType(Property) == EPropertyBagPropertyType::Object)
+
+						FString PrefixPropertyClassName = TargetRCProperty->PropertyId.ToString() + TEXT(".");
+						FName PropertyClassName = FName(PrefixPropertyClassName + PropertyIdHandler->GetPropertyTypeName(Property).ToString());
+						const FName& NewPropertyIdName = *(TargetRCProperty->PropertyId.ToString() + TEXT(".") + PropertyClassName.ToString());
+						const FProperty* PropToDuplicate = PropertyIdHandler->GetPropertyInsideContainer(Property);
+						FPropertyIdContainerKey CurrentKey = { TargetRCProperty->PropertyId, PropertyClassName };
+
+						if (CachedPropertySelfContainer.Contains(CurrentKey))
 						{
-							const FName PropertyNameToSearchFor = GET_MEMBER_NAME_CHECKED(URCPropertyIdAction, DefaultObject);
-							DefaultObject = PropertyIdHandler->GetObjectPropertyDefaultValue(Property, Preset->GetPropertyIdRegistry().Get()->GetClassByEntityId(TargetProperty));
-							if (DefaultObject && !PropertyNameToSearchFor.IsNone())
-							{
-								for (TFieldIterator<FObjectProperty> FieldIt(GetClass()); FieldIt; ++FieldIt)
-								{
-									if (FieldIt->GetFName() == PropertyNameToSearchFor)
-									{
-										FieldIt->PropertyClass = DefaultObject->GetClass();
-										if (CachedPropertySelfContainer.Contains(PropertyClassName))
-										{
-											PropertySelfContainer.Add(PropertyClassName, CachedPropertySelfContainer[PropertyClassName]);
-										}
-										else
-										{
-											CachedPropertySelfContainer.Add(PropertyClassName, NewObject<URCVirtualPropertySelfContainer>(this));
-											CachedPropertySelfContainer[PropertyClassName]->DuplicateProperty(NewPropertyIdName, *FieldIt);
-											CachedPropertySelfContainer[PropertyClassName]->PresetWeakPtr = PresetWeakPtr;
-											PropertySelfContainer.Add(PropertyClassName, CachedPropertySelfContainer[PropertyClassName]);
-										}
-										break;
-									}
-								}
-							}
+							PropertySelfContainer.Add(CurrentKey, CachedPropertySelfContainer[CurrentKey]);
 						}
 						else
 						{
-							if (CachedPropertySelfContainer.Contains(PropertyClassName))
+							CachedPropertySelfContainer.Add(CurrentKey, NewObject<URCVirtualPropertySelfContainer>(this));
+
+							// Special case for LinearColor, since we want to base the copy on Color struct here we add the property instead of duplicating it
+							bool bColorAdded = false;
+
+							if (const FStructProperty* StructProp = CastField<FStructProperty>(PropToDuplicate))
 							{
-								PropertySelfContainer.Add(PropertyClassName, CachedPropertySelfContainer[PropertyClassName]);
+								if (StructProp->Struct)
+								{
+									if (StructProp->Struct->GetFName() == NAME_LinearColor ||
+										StructProp->Struct->GetFName() == NAME_Color)
+									{
+										CachedPropertySelfContainer[CurrentKey]->AddProperty(NewPropertyIdName,
+										PropertyIdHandler->GetPropertyType(Property),
+										PropertyIdHandler->GetPropertyTypeObject(Property));
+
+#if WITH_EDITORONLY_DATA
+										FProperty* BagProperty = CachedPropertySelfContainer[CurrentKey]->GetProperty();
+										FStructProperty* StructProperty = CastField<FStructProperty>(BagProperty);
+										if (StructProperty && StructProperty->Struct &&
+											!StructProperty->HasMetaData("OnlyUpdateOnInteractionEnd"))
+										{
+											StructProperty->AppendMetaData({{FName("OnlyUpdateOnInteractionEnd"), TEXT("true")}});
+										}
+#endif
+										bColorAdded = true;
+									}
+								}
 							}
-							else
+
+							if (!bColorAdded)
 							{
-								CachedPropertySelfContainer.Add(PropertyClassName, NewObject<URCVirtualPropertySelfContainer>(this));
-								CachedPropertySelfContainer[PropertyClassName]->AddProperty(NewPropertyIdName,
-									PropertyIdHandler->GetPropertyType(Property),
-									PropertyIdHandler->GetPropertyTypeObject(Property));
-								CachedPropertySelfContainer[PropertyClassName]->PresetWeakPtr = PresetWeakPtr;
-								
-								PropertySelfContainer.Add(PropertyClassName, CachedPropertySelfContainer[PropertyClassName]);
+								CachedPropertySelfContainer[CurrentKey]->DuplicateProperty(NewPropertyIdName, PropToDuplicate);
 							}
+
+							CachedPropertySelfContainer[CurrentKey]->PresetWeakPtr = PresetWeakPtr;
+							PropertySelfContainer.Add(CurrentKey, CachedPropertySelfContainer[CurrentKey]);
 						}
 					}
 				}

@@ -192,19 +192,19 @@ protected:
 	TSharedPtr<IPropertyRowGenerator> PropertyIdNameRowGenerator;
 	
 	/** The cache of the row generator used to not recreate it */
-	TMap<FName, TSharedPtr<IPropertyRowGenerator>> PropertyIdValueRowGenerator;
+	TMap<FPropertyIdContainerKey, TSharedPtr<IPropertyRowGenerator>> PropertyIdValueRowGenerator;
 
 	/** The row generator used to represent value of this widget as a row, when used with SListView */
-	TMap<FName, TSharedPtr<IPropertyRowGenerator>> CachedPropertyIdValueRowGenerator;
+	TMap<FPropertyIdContainerKey, TSharedPtr<IPropertyRowGenerator>> CachedPropertyIdValueRowGenerator;
 
 	/** Used to create a generic Field Id Widget for the property row widget */
 	TWeakPtr<IDetailTreeNode> FieldIdTreeNodeWeakPtr;
 	
 	/** Used to create a generic Value Widget for the property row widget */
-	TMap<FName, TWeakPtr<IDetailTreeNode>> ValueTreeNodeWeakPtr;
+	TMap<FPropertyIdContainerKey, TWeakPtr<IDetailTreeNode>> ValueTreeNodeWeakPtr;
 
 	/** Used to cache a generic Value Widget for the property row widget to not recreate it */
-	TMap<FName, TWeakPtr<IDetailTreeNode>> CachedValueTreeNodeWeakPtr;
+	TMap<FPropertyIdContainerKey, TWeakPtr<IDetailTreeNode>> CachedValueTreeNodeWeakPtr;
 };
 
 /*

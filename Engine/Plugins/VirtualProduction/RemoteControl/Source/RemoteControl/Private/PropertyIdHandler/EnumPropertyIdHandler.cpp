@@ -6,7 +6,7 @@ bool FEnumPropertyIdHandler::IsPropertySupported(const FProperty* InProperty) co
 {
 	if (InProperty)
 	{
-		const FProperty* Property = TryGetPropertyInContainerOrSelf(InProperty);
+		const FProperty* Property = GetPropertyInsideContainer(InProperty);
 		return Property->GetClass()->IsChildOf(FEnumProperty::StaticClass());
 	}
 	return false;
@@ -21,7 +21,7 @@ FName FEnumPropertyIdHandler::GetPropertyTypeName(const FProperty* InProperty) c
 {
 	if (InProperty)
 	{
-		const FProperty* Property = TryGetPropertyInContainerOrSelf(InProperty);
+		const FProperty* Property = GetPropertyInsideContainer(InProperty);
 		if (const FEnumProperty* EnumProperty = CastField<FEnumProperty>(Property))
 		{
 			return EnumProperty->GetEnum()->GetFName();
@@ -34,7 +34,7 @@ UObject* FEnumPropertyIdHandler::GetPropertyTypeObject(const FProperty* InProper
 {
 	if (InProperty)
 	{
-		const FProperty* Property = TryGetPropertyInContainerOrSelf(InProperty);
+		const FProperty* Property = GetPropertyInsideContainer(InProperty);
 		if (const FEnumProperty* EnumProperty = CastField<FEnumProperty>(Property))
 		{
 			return EnumProperty->GetEnum();

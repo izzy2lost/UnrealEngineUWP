@@ -6,7 +6,7 @@ bool FBasePropertyIdHandler::IsPropertySupported(const FProperty* InProperty) co
 {
 	if (InProperty)
 	{
-		const FProperty* Property = TryGetPropertyInContainerOrSelf(InProperty);
+		const FProperty* Property = GetPropertyInsideContainer(InProperty);
 		return !(Property->GetClass()->IsChildOf(FStructProperty::StaticClass()) ||
 				 Property->GetClass()->IsChildOf(FObjectProperty::StaticClass()) ||
 				 Property->GetClass()->IsChildOf(FEnumProperty::StaticClass())	  );
@@ -19,7 +19,7 @@ EPropertyBagPropertyType FBasePropertyIdHandler::GetPropertyType(const FProperty
 	EPropertyBagPropertyType PropertyType = EPropertyBagPropertyType::None;
 	if (InProperty)
 	{
-		const FProperty* Property = TryGetPropertyInContainerOrSelf(InProperty);
+		const FProperty* Property = GetPropertyInsideContainer(InProperty);
 		const FName PropertyName = Property->GetClass()->GetFName();
 		if (PropertyName == NAME_BoolProperty)
 		{
@@ -71,7 +71,7 @@ FName FBasePropertyIdHandler::GetPropertyTypeName(const FProperty* InProperty) c
 {
 	if (InProperty)
 	{
-		const FProperty* Property = TryGetPropertyInContainerOrSelf(InProperty);
+		const FProperty* Property = GetPropertyInsideContainer(InProperty);
 		if (const FByteProperty* ByteProperty = CastField<FByteProperty>(Property))
 		{
 			if (ByteProperty->Enum)
@@ -88,7 +88,7 @@ UObject* FBasePropertyIdHandler::GetPropertyTypeObject(const FProperty* InProper
 {
 	if (InProperty)
 	{
-		const FProperty* Property = TryGetPropertyInContainerOrSelf(InProperty);
+		const FProperty* Property = GetPropertyInsideContainer(InProperty);
 		if (const FByteProperty* ByteProperty = CastField<FByteProperty>(Property))
 		{
 			if (ByteProperty->Enum)

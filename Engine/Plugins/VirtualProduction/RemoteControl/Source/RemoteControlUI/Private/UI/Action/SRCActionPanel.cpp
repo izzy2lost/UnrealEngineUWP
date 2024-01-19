@@ -275,8 +275,8 @@ TSharedRef<SWidget> SRCActionPanel::GetActionMenuContentWidget()
 			{
 				if (Preset->GetPropertyIdRegistry())
 				{
-					TSet<FName> IdList = Preset->GetPropertyIdRegistry().Get()->GetFieldIdsNameList();
-					if (IdList.Num())
+					TSet<FName> IdList = Preset->GetPropertyIdRegistry().Get()->GetFullPropertyIdsNamePossibilitiesList();
+					if (!IdList.IsEmpty())
 					{
 						MenuBuilder.AddSubMenu(
 						LOCTEXT("AddActionSubMenu", "Add specific ID action"),

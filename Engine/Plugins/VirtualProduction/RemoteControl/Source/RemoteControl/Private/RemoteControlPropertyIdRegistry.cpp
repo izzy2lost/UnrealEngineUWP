@@ -577,7 +577,7 @@ const UClass* URemoteControlPropertyIdRegistry::GetClassByEntityId(const FGuid& 
 	return nullptr;
 }
 
-TSet<FName> URemoteControlPropertyIdRegistry::GetFieldIdsNameList()
+TSet<FName> URemoteControlPropertyIdRegistry::GetFieldIdsNameList() const
 {
 	TSet<FName> OutIds;
 	for (FRCPropertyIdWrapper Field : IdentifiedFields)
@@ -587,6 +587,20 @@ TSet<FName> URemoteControlPropertyIdRegistry::GetFieldIdsNameList()
 			OutIds.Add(Field.GetPropertyId());
 		}
 	}
+	return OutIds;
+}
+
+TSet<FName> URemoteControlPropertyIdRegistry::GetFullPropertyIdsNamePossibilitiesList() const
+{
+	TSet<FName> InitialIdsList = GetFieldIdsNameList();
+	TSet<FName> OutIds;
+
+	for (const FName& Id : InitialIdsList)
+	{
+		OutIds.Append(GetPossiblePropertyIds(Id));
+	}
+
+	OutIds.Sort(FNameLexicalLess());
 	return OutIds;
 }
 
@@ -618,6 +632,40 @@ TSet<FGuid> URemoteControlPropertyIdRegistry::GetEntityIdsList()
 		}
 	}
 	return OutIds;
+}
+
+bool URemoteControlPropertyIdRegistry::Contains(FName InContainerPropertyId, FName InTargetPropertyId) const
+{
+	if (InContainerPropertyId == InTargetPropertyId)
+	{
+		return true;
+	}
+
+	const TSet<FName> PossibilitiesSecond = GetPossiblePropertyIds(InContainerPropertyId);
+	return PossibilitiesSecond.Contains(InTargetPropertyId);
+}
+
+TSet<FName> URemoteControlPropertyIdRegistry::GetPossiblePropertyIds(FName InPropId) const
+{
+	TSet<FName> OutPossibleIds;
+
+	// Add the given PropId
+	OutPossibleIds.Add(InPropId);
+	const FString FullPropId = InPropId.ToString();
+
+	// Get all the substring that are before a "."
+	FString PossibleId;
+	TArray<FString> PossibleSubIds;
+	FullPropId.ParseIntoArray(PossibleSubIds, TEXT("."));
+
+	for (const FString& SubId : PossibleSubIds)
+	{
+		PossibleId.Append(SubId);
+		OutPossibleIds.Add(FName(PossibleId));
+		PossibleId.AppendChar('.');
+	}
+
+	return OutPossibleIds;
 }
 
 void URemoteControlPropertyIdRegistry::UpdateEntityIds(const TMap<FGuid, FGuid>& InEntityIdMap)

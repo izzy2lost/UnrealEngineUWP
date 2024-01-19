@@ -6,7 +6,7 @@ bool FStructPropertyIdHandler::IsPropertySupported(const FProperty* InProperty) 
 {
 	if (InProperty)
 	{
-		const FProperty* Property = TryGetPropertyInContainerOrSelf(InProperty);
+		const FProperty* Property = GetPropertyInsideContainer(InProperty);
 		return Property->GetClass()->IsChildOf(FStructProperty::StaticClass());
 	}
 	return false;
@@ -21,7 +21,7 @@ FName FStructPropertyIdHandler::GetPropertyTypeName(const FProperty* InProperty)
 {
 	if (InProperty)
 	{
-		const FProperty* Property = TryGetPropertyInContainerOrSelf(InProperty);
+		const FProperty* Property = GetPropertyInsideContainer(InProperty);
 		if (const FStructProperty* StructProperty = CastField<FStructProperty>(Property))
 		{
 			if (StructProperty->Struct->GetFName() == NAME_LinearColor)
@@ -38,7 +38,7 @@ UObject* FStructPropertyIdHandler::GetPropertyTypeObject(const FProperty* InProp
 {
 	if (InProperty)
 	{
-		const FProperty* Property = TryGetPropertyInContainerOrSelf(InProperty);
+		const FProperty* Property = GetPropertyInsideContainer(InProperty);
 		if (const FStructProperty* StructProperty = CastField<FStructProperty>(Property))
 		{
 			if (StructProperty->Struct->GetFName() == NAME_LinearColor)

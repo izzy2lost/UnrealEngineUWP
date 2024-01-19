@@ -31,9 +31,8 @@ public:
 	/** Get the Property default value (Used for UObject to create a new one for the ValueWidget) */
 	virtual TObjectPtr<UObject> GetObjectPropertyDefaultValue(const FProperty* InProperty, const UClass* InClassToCreate) const = 0;
 
-protected:
 	/** Get the property inside the container if not inside any container return the property passed */
-	const FProperty* TryGetPropertyInContainerOrSelf(const FProperty* InProperty) const
+	const FProperty* GetPropertyInsideContainer(const FProperty* InProperty) const
 	{
 		if (const FArrayProperty* ArrayProperty = CastField<FArrayProperty>(InProperty))
 		{
@@ -44,9 +43,9 @@ protected:
 			return MapProperty->ValueProp;
 		}
 		if (const FSetProperty* SetProperty = CastField<FSetProperty>(InProperty))
-        {
-        	return SetProperty->ElementProp;
-        }
+		{
+			return SetProperty->ElementProp;
+		}
 		return InProperty;
 	}
 };

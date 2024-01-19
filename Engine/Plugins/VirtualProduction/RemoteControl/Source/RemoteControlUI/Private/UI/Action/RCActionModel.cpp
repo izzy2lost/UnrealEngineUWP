@@ -2,6 +2,7 @@
 
 #include "RCActionModel.h"
 
+#include "Algo/Count.h"
 #include "Commands/RemoteControlCommands.h"
 #include "Controller/RCController.h"
 #include "IDetailTreeNode.h"
@@ -119,7 +120,7 @@ TSharedRef<SWidget> FRCActionModel::GetTypeColorTagWidget() const
 		[
 			SNew(SBorder)
 			.Visibility(EVisibility::HitTestInvisible)
-			.BorderImage(FAppStyle::Get().GetBrush("NumericEntrySpinBox.NarrowDecorator"))
+			.BorderImage(FAppStyle::Get().GetBrush("NumericEntrySpinBox.Decorator"))
 			.BorderBackgroundColor(TypeColor)
 			.Padding(FMargin(5.0f, 0.0f, 0.0f, 0.f))
 		];
@@ -351,7 +352,7 @@ FRCPropertyIdActionType::~FRCPropertyIdActionType()
 	}
 #endif
 
-	for (const TPair<FName, TSharedPtr<IPropertyRowGenerator>>& CachedGenerator : CachedPropertyIdValueRowGenerator)
+	for (const TPair<FPropertyIdContainerKey, TSharedPtr<IPropertyRowGenerator>>& CachedGenerator : CachedPropertyIdValueRowGenerator)
 	{
 		if (CachedGenerator.Value.IsValid())
 		{
@@ -359,7 +360,6 @@ FRCPropertyIdActionType::~FRCPropertyIdActionType()
 		}
 	}
 	PropertyIdValueRowGenerator.Reset();
-	CachedPropertyIdValueRowGenerator.Reset();
 }
 
 FLinearColor FRCPropertyIdActionType::GetPropertyIdTypeColor() const
@@ -374,17 +374,20 @@ TSharedRef<SWidget> FRCPropertyIdActionType::GetPropertyIdNameWidget() const
 	{
 		return SNullWidget::NullWidget;
 	}
+
 	const FNodeWidgets FieldIdNodeWidgets = FieldIdTreeNodeWeakPtr.Pin()->CreateNodeWidgets();
 	const TSharedRef<SHorizontalBox> NameWidget = SNew(SHorizontalBox);
+
 	if (FieldIdNodeWidgets.ValueWidget)
 	{
 		NameWidget->AddSlot()
-			.Padding(3.f, 2.f)
+			.Padding(10.f, 2.f)
 			.VAlign(VAlign_Center)
 			[
 				FieldIdNodeWidgets.ValueWidget.ToSharedRef()
 			];
 	}
+
 	return NameWidget;
 }
 
@@ -392,15 +395,71 @@ TSharedRef<SWidget> FRCPropertyIdActionType::GetPropertyIdValueWidget() const
 {
 	TSharedRef<SVerticalBox> VerticalBox = SNew(SVerticalBox);
 
-	for (TPair<FName, TWeakPtr<IDetailTreeNode>> ValueTreeNode : ValueTreeNodeWeakPtr)
+	TArray<FPropertyIdContainerKey> SortedTreeNodesKeys;
+	ValueTreeNodeWeakPtr.GetKeys(SortedTreeNodesKeys);
+	SortedTreeNodesKeys.Sort();
+
+	FName LastPropId = NAME_None;
+	FMargin TitlePadding = FMargin(0.f);
+	FMargin ValuePadding = FMargin(0.f);
+	int32 OriginalPropIdLength = 0;
+	int32 OriginalDotCount = 0;
+
+	if (const URCPropertyIdAction* PropIdAction = PropertyIdActionWeakPtr.Get())
 	{
-		// store it and just remove the unusued to not reset the value widget
-		VerticalBox->AddSlot()
-			.AutoHeight()
-			[
-				UE::RCUIHelpers::GetGenericFieldWidget(ValueTreeNode.Value.Pin())
-			];
+		const FString PropIdAsString = PropIdAction->PropertyId.ToString();
+		OriginalDotCount = Algo::Count(PropIdAsString, '.');
+		OriginalPropIdLength = PropIdAction->PropertyId.GetStringLength();
 	}
+
+	for (const FPropertyIdContainerKey& TreeNodeKey : SortedTreeNodesKeys)
+	{
+		FString PropIdAsString = TEXT("");
+
+		if (LastPropId != TreeNodeKey.PropertyId)
+		{
+			constexpr float Offset = 5.f;
+
+			if (LastPropId != NAME_None)
+			{
+				TitlePadding.Top = Offset;
+			}
+
+			LastPropId = TreeNodeKey.PropertyId;
+			PropIdAsString = LastPropId.ToString();
+			if (PropIdAsString.Len() != OriginalPropIdLength)
+			{
+				FString LabelToUse = PropIdAsString.RightChop(OriginalPropIdLength);
+				const int32 CurrentDotCount = Algo::Count(LabelToUse, '.');
+				TitlePadding.Left = Offset * (CurrentDotCount - OriginalDotCount);
+				ValuePadding.Left = TitlePadding.Left + 2.f;
+
+				VerticalBox->AddSlot()
+					.AutoHeight()
+					.Padding(TitlePadding)
+					[
+						SNew(STextBlock)
+						.Text(FText::FromString(LabelToUse))
+					];
+			}
+		}
+
+		if (const TWeakPtr<IDetailTreeNode>* Node = ValueTreeNodeWeakPtr.Find(TreeNodeKey))
+		{
+			VerticalBox->AddSlot()
+				.Padding(ValuePadding)
+				.AutoHeight()
+				[
+					SNew(SHorizontalBox)
+					+ SHorizontalBox::Slot()
+					.AutoWidth()
+					[
+						UE::RCUIHelpers::GetGenericFieldWidget(Node->Pin())
+					]
+				];
+		}
+	}
+
 	return VerticalBox;
 }
 
@@ -464,7 +523,13 @@ void FRCPropertyIdActionType::RefreshValueWidget()
 		// Generate UI widget for Action input
 		PropertyIdValueRowGenerator.Reset();
 		ValueTreeNodeWeakPtr.Reset();
-		for (const TPair<FName, TObjectPtr<URCVirtualPropertySelfContainer>>& PropertyContainer : PropertyIdAction->PropertySelfContainer)
+		PropertyIdAction->PropertySelfContainer.KeySort([] (const FPropertyIdContainerKey& InFirst, const FPropertyIdContainerKey& InSecond)
+		{
+			return InSecond < InFirst;
+		});
+
+
+		for (const TPair<FPropertyIdContainerKey, TObjectPtr<URCVirtualPropertySelfContainer>>& PropertyContainer : PropertyIdAction->PropertySelfContainer)
 		{
 			if (IsValid(PropertyContainer.Value))
 			{
@@ -485,6 +550,7 @@ void FRCPropertyIdActionType::RefreshValueWidget()
 
 						PropertyIdValueRowGenerator.Add(PropertyContainer.Key, CachedPropertyIdValueRowGenerator[PropertyContainer.Key]);
 					}
+
 					for (const TSharedRef<IDetailTreeNode>& CategoryNode : PropertyIdValueRowGenerator[PropertyContainer.Key]->GetRootTreeNodes())
 					{
 						TArray<TSharedRef<IDetailTreeNode>> Children;

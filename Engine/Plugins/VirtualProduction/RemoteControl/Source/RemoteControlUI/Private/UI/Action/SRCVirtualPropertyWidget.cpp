@@ -39,6 +39,7 @@ void SRCVirtualPropertyWidget::Construct(const FArguments& InArgs, URCVirtualPro
 			.OnMouseDoubleClick(this, &SRCVirtualPropertyWidget::OnMouseDoubleClick)
 			[
 				SAssignNew(VirtualPropertyWidgetBox, SBox)
+				.VAlign(VAlign_Center)
 				.Padding(FMargin(6.f))
 				[
 					VirtualPropertyDisplayWidget

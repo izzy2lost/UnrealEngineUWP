@@ -11,7 +11,7 @@ bool FObjectPropertyIdHandler::IsPropertySupported(const FProperty* InProperty) 
 {
 	if (InProperty)
 	{
-		const FProperty* Property = TryGetPropertyInContainerOrSelf(InProperty);
+		const FProperty* Property = GetPropertyInsideContainer(InProperty);
 		return Property->GetClass()->IsChildOf(FObjectProperty::StaticClass());
 	}
 	return false;
@@ -26,7 +26,7 @@ FName FObjectPropertyIdHandler::GetPropertyTypeName(const FProperty* InProperty)
 {
 	if (InProperty)
 	{
-		const FProperty* Property = TryGetPropertyInContainerOrSelf(InProperty);
+		const FProperty* Property = GetPropertyInsideContainer(InProperty);
 		if (const FObjectProperty* ObjectProperty = CastField<FObjectProperty>(Property))
 		{
 			return ObjectProperty->PropertyClass->GetFName();
@@ -44,15 +44,15 @@ TObjectPtr<UObject> FObjectPropertyIdHandler::GetObjectPropertyDefaultValue(cons
 {
 	if (InClassToCreate)
 	{
+		if (InClassToCreate->IsChildOf(UMaterialInterface::StaticClass()))
+    	{
+    		return UMaterial::GetDefaultMaterial(MD_Surface);
+    	}
+
 		if (InClassToCreate->HasAnyClassFlags(CLASS_Abstract))
 		{
 			// for now skip any AbstractClass
 			return nullptr;
-		}
-
-		if (InClassToCreate->IsChildOf(UMaterialInterface::StaticClass()))
-		{
-			return UMaterial::GetDefaultMaterial(MD_Surface);
 		}
 
 		return NewObject<UObject>(GetTransientPackage(), InClassToCreate);

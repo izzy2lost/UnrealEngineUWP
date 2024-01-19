@@ -508,7 +508,6 @@ TSharedRef<SWidget> SRCPanelExposedEntity::CreateEntityWidget(TSharedPtr<SWidget
 	Args.PropertyIdWidget = SNew(SBox)
 		[
 			SNew(SEditableTextBox)
-			.Justification(ETextJustify::Center)
 			.MinDesiredWidth(50.f)
 			.SelectAllTextWhenFocused(true)
 			.RevertTextOnEscape(true)

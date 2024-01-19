@@ -171,7 +171,14 @@ public:
 	 * Get the list of existing Property Ids.
 	 * @return The list of existing Property Ids that has a valid FieldId.
 	 */
-	TSet<FName> GetFieldIdsNameList();
+	TSet<FName> GetFieldIdsNameList() const;
+
+	/**
+	 * Returns all the possible Ids that can be used.
+	 *
+	 * @return A Set with the possible Ids to use.
+	 */
+	TSet<FName> GetFullPropertyIdsNamePossibilitiesList() const;
 
 	/**
 	 * Return all EntityIds that has the given PropertyId.
@@ -185,6 +192,25 @@ public:
 	 * @return The list of existing Property Ids that has a valid FieldId.
 	 */
 	TSet<FGuid> GetEntityIdsList();
+
+	/**
+	 * Returns whether the 2 Ids are equal or if the Target one is contained in the Container one.\n
+	 * ex: 100.A and 100 will return true but not the other way around.
+	 *
+	 * @param InContainerPropertyId Container PropertyId, will create sub-string from this to later check if the target one is equal to one of them.
+	 * @param InTargetPropertyId Target Id to check if it is part of the container one.
+	 * @return True if the PropertyIds are equal or if the Target one is contained in at least 1 sub-string of the Container one.
+	 */
+	bool Contains(FName InContainerPropertyId, FName InTargetPropertyId) const;
+
+	/**
+	 * Returns the possible Ids based on given one.\n
+	 * ex: 100.A.B will return 100 and 100.A and 100.A.B
+	 *
+	 * @param InPropId Property Id used to generate all the other Ids that can be used with this one.
+	 * @return A Set with the possible Ids to use.
+	 */
+	TSet<FName> GetPossiblePropertyIds(FName InPropId) const;
 
 	DECLARE_MULTICAST_DELEGATE(FOnPropertyIdUpdated)
 	FOnPropertyIdUpdated& OnPropertyIdUpdated() { return OnPropertyIdUpdatedDelegate; }

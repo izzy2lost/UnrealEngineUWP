@@ -9,6 +9,40 @@
 class URCVirtualPropertySelfContainer;
 
 /**
+ * Key for the PropertyContainer of the PropertyId Action
+ */
+USTRUCT()
+struct FPropertyIdContainerKey
+{
+	GENERATED_BODY()
+
+	/** PropertyId */
+	UPROPERTY()
+	FName PropertyId;
+
+	/** Name of the container */
+	UPROPERTY()
+	FName ContainerName;
+
+	/** Return hash value for this object, used when using this object as a key inside hashing containers. */
+	friend uint32 GetTypeHash(const FPropertyIdContainerKey& InKey)
+	{
+		return HashCombine(GetTypeHash(InKey.PropertyId), GetTypeHash(InKey.ContainerName));
+	}
+
+	/** Comparison operator, used by hashing containers. */
+	bool operator==(const FPropertyIdContainerKey& InOtherKey) const
+	{
+		return PropertyId == InOtherKey.PropertyId && ContainerName == InOtherKey.ContainerName;
+	}
+
+	bool operator<(const FPropertyIdContainerKey& InOtherKey) const
+	{
+		return PropertyId.Compare(InOtherKey.PropertyId) < 0;
+	}
+};
+
+/**
  * Action for PropertyId
  */
 UCLASS()
@@ -43,14 +77,9 @@ public:
 
 	/** Virtual Property Container */
 	UPROPERTY()
-	TMap<FName, TObjectPtr<URCVirtualPropertySelfContainer>> PropertySelfContainer;
+	TMap<FPropertyIdContainerKey, TObjectPtr<URCVirtualPropertySelfContainer>> PropertySelfContainer;
 
 	/** Cached Virtual Property Container */
 	UPROPERTY()
-	TMap<FName, TObjectPtr<URCVirtualPropertySelfContainer>> CachedPropertySelfContainer;
-
-private:
-	/** Holds the default Object. */
-	UPROPERTY(Transient)
-	TObjectPtr<UObject> DefaultObject = nullptr;
+	TMap<FPropertyIdContainerKey, TObjectPtr<URCVirtualPropertySelfContainer>> CachedPropertySelfContainer;
 };
