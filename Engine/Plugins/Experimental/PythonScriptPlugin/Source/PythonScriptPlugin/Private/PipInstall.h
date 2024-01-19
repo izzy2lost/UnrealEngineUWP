@@ -25,12 +25,14 @@ public:
 
 	static bool EnabledOnStartup();
 
+	static void CheckRemoveOrphanedPackages(const FString& SitePackagesPath);
 	static void CheckInvalidPipEnv();
 
 	static FString WritePluginsListing(TArray<TSharedRef<IPlugin>>& OutPythonPlugins);
 	static FString WritePluginDependencies(const TArray<TSharedRef<IPlugin>>& PythonPlugins, TArray<FString>& OutRequirements, TArray<FString>& OutExtraUrls);
 
 	static void SetupPipEnv(FFeedbackContext* Context, bool bForceRebuild = false);
+	static void RemoveParsedDependencyFiles();
 	static FString ParsePluginDependencies(const FString& MergedInRequirementsFile, FFeedbackContext* Context);
 	static bool RunPipInstall(FFeedbackContext* Context, bool bOfflineOnly = false, const FString& ForceIndexUrl = TEXT(""));
 

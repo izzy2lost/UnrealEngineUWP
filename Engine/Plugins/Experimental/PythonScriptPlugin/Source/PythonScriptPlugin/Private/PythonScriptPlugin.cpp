@@ -1141,6 +1141,14 @@ void FPythonScriptPlugin::InitPipInstaller()
 	TArray<TSharedRef<IPlugin>> PythonPlugins;
 	FPipInstall::WritePluginsListing(PythonPlugins);
 
+	for (const TSharedRef<IPlugin>& PyPlugin : PythonPlugins)
+	{
+		// Remove leftover __pycache__ folders from plugins that use pip, but previously used packaged dependencies
+		const FString LibDir = PyPlugin->GetContentDir() / TEXT("Python") / TEXT("Lib");
+		FPipInstall::CheckRemoveOrphanedPackages(LibDir / TEXT("site-packages"));
+		FPipInstall::CheckRemoveOrphanedPackages(LibDir / FPlatformMisc::GetUBTPlatform() / TEXT("site-packages"));
+	}
+
 	TArray<FString> ReqInLines;
 	TArray<FString> ExtraUrls;
 	const FString ReqsInFile = FPipInstall::WritePluginDependencies(PythonPlugins, ReqInLines, ExtraUrls);
@@ -1149,6 +1157,7 @@ void FPythonScriptPlugin::InitPipInstaller()
 	if (ReqInLines.IsEmpty())
 	{
 		UE_CLOG(EnabledOnStart, LogPython, Display, TEXT("No enabled plugins with python dependencies found, skipping"));
+		FPipInstall::RemoveParsedDependencyFiles();
 		return;
 	}
 

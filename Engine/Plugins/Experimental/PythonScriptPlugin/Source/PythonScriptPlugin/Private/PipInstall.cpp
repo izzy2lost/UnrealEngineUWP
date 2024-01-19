@@ -216,6 +216,94 @@ FString FPipInstall::WritePluginDependencies(const TArray<TSharedRef<IPlugin>>& 
 	return MergedReqsFile;
 }
 
+class FCheckOrphanDirVisitor : public IPlatformFile::FDirectoryVisitor
+{
+public:
+	FCheckOrphanDirVisitor()
+	: IPlatformFile::FDirectoryVisitor()
+	, bOrphan(true)
+	{}
+
+	virtual bool Visit(const TCHAR* FilenameOrDirectory, bool bIsDir) override
+	{
+		if (!bIsDir)
+		{
+			bOrphan = false;
+			return true;
+		}
+
+		//// Short circuit recursion if we don't allow deleting sub-hierarchies and this traversal level is already non-orphan
+		//if (!bAllowDeleteSubdirs && !bOrphan)
+		//{
+		//	return true;
+		//}
+
+		// Always treat __pycache__ dir as orphan but don't directly delete them unless full parent is also orphan (nothing but empty or __pycache__ dirs)
+		const FString DirPath(FilenameOrDirectory);
+		if (DirPath.EndsWith(TEXT("__pycache__")))
+		{
+			return true;
+		}
+
+		FCheckOrphanDirVisitor SubDirVisit;
+		IPlatformFile& PlatformFile = FPlatformFileManager::Get().GetPlatformFile();
+		bool res = PlatformFile.IterateDirectory(FilenameOrDirectory, SubDirVisit);
+
+		bOrphan = bOrphan && SubDirVisit.bOrphan;
+		if (SubDirVisit.bOrphan)
+		{
+			Orphans.Add(FilenameOrDirectory);
+		}
+		//else if (bAllowDeleteSubdirs)
+		//{
+		//	Orphans.Append(SubDirVisit.Orphans);
+		//}
+
+		return res;
+	}
+
+public:
+	bool bOrphan;
+	TArray<FString> Orphans;
+};
+
+// Remove orphan path hierarchies (hierarchies with only __pycache__ or empty dirs)
+// Only runs for <PluginDir>/Content/Python/Lib/* subdirectories for plugins with
+// Pip PythonRequirements uplugin section
+void FPipInstall::CheckRemoveOrphanedPackages(const FString& SitePackagesPath)
+{
+	TRACE_CPUPROFILER_EVENT_SCOPE(FPipInstall::CheckRemoveOrphanedPackages);
+
+	if (!FPaths::DirectoryExists(SitePackagesPath))
+	{
+		return;
+	}
+	
+	// NOTE: FCheckOrphanDirVisitor should only return top-level orphan hierarchies for removal (all or nothing)
+	FCheckOrphanDirVisitor DirVisit;
+	IPlatformFile& PlatformFile = FPlatformFileManager::Get().GetPlatformFile();
+	if (!PlatformFile.IterateDirectory(*SitePackagesPath, DirVisit))
+	{
+		return;
+	}
+
+	if (DirVisit.bOrphan)
+	{
+		// Remove the entire site-packages dir if everything beneath is orphaned
+		UE_LOG(LogPython, Log, TEXT("PipInstall found orphan plugin site-package directory: %s (removing)"), *SitePackagesPath);
+		PlatformFile.DeleteDirectoryRecursively(*SitePackagesPath);
+	}
+	else
+	{
+		// Only remove specifically orphaned subdirs if there are some valid hierarchies in site-packages
+		for (const FString& OrphanDir : DirVisit.Orphans)
+		{
+			UE_LOG(LogPython, Log, TEXT("PipInstall found orphan plugin site-package directory: %s (removing)"), *OrphanDir);
+			PlatformFile.DeleteDirectoryRecursively(*OrphanDir);
+		}
+	}
+}
+
 void FPipInstall::CheckInvalidPipEnv()
 {
 	TRACE_CPUPROFILER_EVENT_SCOPE(FPipInstall::CheckInvalidPipEnv);
@@ -268,6 +356,20 @@ void FPipInstall::SetupPipEnv(FFeedbackContext* Context, bool bForceRebuild /* =
 	}
 
 	SetupPipInstallUtils(VenvInterp, Context);
+}
+
+void FPipInstall::RemoveParsedDependencyFiles()
+{
+	TRACE_CPUPROFILER_EVENT_SCOPE(FPipInstall::ParsePluginDependencies);
+
+	const FString PipInstallPath = GetPipInstallPath();
+	const FString ParsedReqsFile = PipInstallPath / ParsedRequirementsFilename;
+
+	if (FPaths::FileExists(ParsedReqsFile))
+	{
+		IPlatformFile& PlatformFile = FPlatformFileManager::Get().GetPlatformFile();
+		PlatformFile.DeleteFile(*ParsedReqsFile);
+	}
 }
 
 FString FPipInstall::ParsePluginDependencies(const FString& MergedInRequirementsFile, FFeedbackContext* Context)
