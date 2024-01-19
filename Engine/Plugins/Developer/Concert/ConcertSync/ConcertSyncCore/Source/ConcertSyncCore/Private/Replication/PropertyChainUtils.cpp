@@ -55,44 +55,53 @@ namespace UE::ConcertSyncCore::PropertyChain
 			
 			if (FStructProperty* StructProperty = CastField<FStructProperty>(&Property))
 			{
-				// Handle FConcertPropertyChain::InternalContainerPropertyValueName case
-				// If the struct defines a custom serialize function, it does not make sense to list any uproperties we find.
-				// The serialize function can (and often will) skip certain properties so exposing them to a user for selection makes no sense.
-				// If this struct property is supposed to be replicated, then it is all the Serialize function serializes or nothing.
-				return IsNativeStructProperty(*StructProperty)
-					? EBreakBehavior::Continue
-					: VisitStructPropertyRecursive(Chain, *StructProperty, ProcessProperty);
+				/*
+				 * THIS BLOCK OF TEXT CONCERNS NATIVE STRUCTS THAT DEFINE A SERIALIZE() FUNCTION.
+				 * SEE TL;DR.
+				 * 
+				 * Note: If the struct defines a custom serialize function, it *might* not make sense to list any uproperties we find.
+				 * The serialize function can skip certain properties. In those cases  exposing them to a user for selection makes no sense.
+				 * When replicated, effectively the Serialize function decides what is serialized.
+				 * 
+				 * However: Some structs have a Serialize function just return false, which causes standard UPROPERTY serialization.
+				 * Example (in 5.4): FPostProcessSettings.
+				 * 
+				 * The way we'll handle this is by exposing all properties anyway. 
+				 * When replicating the native struct, the struct's Serialize function will then either
+				 * 1. Do its custom logic, which ignores our selection set, or
+				 * 2. Ask the FArchive::ShouldSerializeProperty, which will check the property select set built using this VisitPropertyRecursive function.
+				 * 
+				 * TL;DR: Effectively we'll expose properties (which will be displayed in UI to users) that sometimes cannot be replicated.
+				 * The advantage is that at structs that implement Serialize functions can be correctly replicated. Fair trade-off.
+				 */
+				return VisitStructPropertyRecursive(Chain, *StructProperty, ProcessProperty);
 			}
 
-			auto HandleContainer = [&Chain, &Property, &ProcessProperty](FProperty& Inner)
+			auto HandleContainer = [&Chain, &ProcessProperty](FProperty& Inner)
 			{
-				// Handle FConcertPropertyChain::InternalContainerPropertyValueName case
-				if (IsPrimitiveProperty(Inner)
-					|| IsNativeStructProperty(Inner))
+				// Inner properties are never listed in the path. So we only need to continue if there are more struct sub-properties.
+				FStructProperty* InnerStructProperty = CastField<FStructProperty>(&Inner);
+				if (!InnerStructProperty)
 				{
-					Chain.PushProperty(&Property, Property.IsEditorOnlyProperty());
-					ON_SCOPE_EXIT{ Chain.PopProperty(&Property, Property.IsEditorOnlyProperty()); };
-					return ProcessProperty(Chain, Inner);
+					return EBreakBehavior::Continue;
 				}
 				
-				FStructProperty* InnerStructProperty = CastField<FStructProperty>(&Inner);
 				return InnerStructProperty && IsReplicatableProperty(Inner)
 					? VisitStructPropertyRecursive(Chain, *InnerStructProperty, ProcessProperty)
 					: EBreakBehavior::Continue;
 			};
 
-			if (FArrayProperty* ArrayProperty = CastField<FArrayProperty>(&Property))
+			if (const FArrayProperty* ArrayProperty = CastField<FArrayProperty>(&Property))
 			{
 				return HandleContainer(*ArrayProperty->Inner);
 			}
 
-			if (FSetProperty* SetProperty = CastField<FSetProperty>(&Property))
+			if (const FSetProperty* SetProperty = CastField<FSetProperty>(&Property))
 			{
-				
 				return HandleContainer(*SetProperty->ElementProp);
 			}
 
-			if (FMapProperty* MapProperty = CastField<FMapProperty>(&Property))
+			if (const FMapProperty* MapProperty = CastField<FMapProperty>(&Property))
 			{
 				return IsReplicatableProperty(*MapProperty->KeyProp)
 					? HandleContainer(*MapProperty->ValueProp)

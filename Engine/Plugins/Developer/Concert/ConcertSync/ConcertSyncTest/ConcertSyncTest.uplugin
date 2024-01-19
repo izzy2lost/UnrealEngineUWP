@@ -26,6 +26,10 @@
 	],
 	"Plugins": [
 		{
+			"Name": "ConcertClientSharedSlate",
+			"Enabled": true
+		},
+		{
 			"Name": "ConcertSyncClient",
 			"Enabled": true
 		},

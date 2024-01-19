@@ -20,8 +20,14 @@ namespace UE::ConcertSyncCore
 
 	bool FReplicationPropertyFilter::ShouldSerializeProperty(const FArchiveSerializedPropertyChain* Chain, const FProperty& Property) const
 	{
-		// This would mean Property is 1. in a container and 1.1 primitive or 1.2 a native serialized struct 
-		if (PropertyChain::IsPropertyEligibleForMarkingAsInternal(Property))
+		// If Property is in a container then the either it is
+		//  1. primitive, in which case the property is just serialized, or 
+		//  2. a struct that either has
+		//		2.1 No native Serialize function: in this case we'll get recursive ShouldSerializeProperty calls.
+		//		2.2 A native serialize function: In this case we may get 0 or more ShouldSerializeProperty calls.
+		//		The Serialize function will just write whatever it wants. If it returns false, normal UPROPERTY serialization occurs,
+		//		which means we'll end up in case 2.1 
+		if (PropertyChain::IsInnerContainerProperty(Property))
 		{
 			if (ensureMsgf(Chain && Chain->GetNumProperties() >= 1, TEXT("Assumption broken that Property is in a container (array, set, map). Check IsPropertyEligibleForMarkingAsInternal implementation!")))
 			{

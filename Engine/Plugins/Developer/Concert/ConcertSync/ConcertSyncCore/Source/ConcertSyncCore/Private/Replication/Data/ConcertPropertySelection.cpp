@@ -8,8 +8,6 @@
 #include "Algo/AllOf.h"
 #include "Serialization/ArchiveSerializedPropertyChain.h"
 
-const FName FConcertPropertyChain::InternalContainerPropertyValueName(TEXT("Value"));
-
 TOptional<FConcertPropertyChain> FConcertPropertyChain::CreateFromPath(const UStruct& Class, const TArray<FName>& NamePath)
 {
 	TOptional<FConcertPropertyChain> Result;
@@ -31,6 +29,11 @@ FConcertPropertyChain::FConcertPropertyChain(const FArchiveSerializedPropertyCha
 {
 	using namespace UE::ConcertSyncCore::PropertyChain;
 	
+	if (!ensureMsgf(!IsInnerContainerProperty(LeafProperty), TEXT("Concert property chains never contain inner properties so you cannot construct one to point at it!")))
+	{
+		return;
+	}
+	
 	if (OptionalChain)
 	{
 		PathToProperty.Reserve(OptionalChain->GetNumProperties() + 1);
@@ -45,16 +48,11 @@ FConcertPropertyChain::FConcertPropertyChain(const FArchiveSerializedPropertyCha
 				// The input was invalid but we've constructed FConcertPropertyChain with valid state: it ends at the TMap property.
 				return;
 			}
-			
+
+			// Inner properties do not show up in the path but are expected to be contained in OptionalChain since it's needed for the search.
 			if (!IsInnerContainerProperty(*CurrentProperty))
 			{
 				PathToProperty.Add(OptionalChain->GetPropertyFromRoot(i)->GetFName());
-			}
-
-			if (!ensureMsgf(!IsNativeStructProperty(*CurrentProperty), TEXT("Child properties of structs implementing a custom Serialize function never appear in a path. See documentation of PathToProperty!")))
-			{
-				// The input was invalid but we've constructed FConcertPropertyChain with valid state: it ends at the native struct property.
-				return;
 			}
 		}
 	}
@@ -63,21 +61,8 @@ FConcertPropertyChain::FConcertPropertyChain(const FArchiveSerializedPropertyCha
 		// The input was invalid but we've constructed FConcertPropertyChain with valid state: no property.
 		return;
 	}
-
-	// LeafProperty is allowed to be an inner property of FArrayProperty, FSetProperty, FMapProperty::ValueProp but only if it is primitive or a native structs
-	// In that case the property display label is InternalContainerPropertyValueName, which is "Value"
-	if (IsInnerContainerProperty(LeafProperty))
-	{
-		if (ensureMsgf(IsPrimitiveProperty(LeafProperty) || IsNativeStructProperty(LeafProperty), TEXT("The chain only contains inner properties of primitives or native structs!")))
-		{
-			PathToProperty.Add(InternalContainerPropertyValueName);
-		}
-	}
-	else
-	{
-		PathToProperty.Add(LeafProperty.GetFName());
-	}
-
+	
+	PathToProperty.Add(LeafProperty.GetFName());
 	UE_CLOG(!IsReplicatableProperty(LeafProperty), LogConcert, Warning, TEXT("Instantiated property chain with non replicatable property: %s"), *ToString());
 }
 
@@ -123,11 +108,7 @@ bool FConcertPropertyChain::MatchesExactly(const FArchiveSerializedPropertyChain
 	}
 	
 	const int32 OptionalChainLength = OptionalChain ? OptionalChain->GetNumProperties() : 0;
-	const bool bLeafPropertiesMatch = IsInnerContainerProperty(LeafProperty)
-		// The only place FConcertPropertyChain contains inner container properties is at the end; it is named InternalContainerPropertyValueName.
-		// In that case the "real" leaf property is the owning container property.
-		? (OptionalChainLength >= 1 && PathToProperty.Num() > 1) && OptionalChain->GetPropertyFromStack(0)->GetFName() == PathToProperty[PathToProperty.Num() - 2]
-		: LeafProperty.GetFName() == PathToProperty[PathToProperty.Num() - 1];
+	const bool bLeafPropertiesMatch = LeafProperty.GetFName() == PathToProperty[PathToProperty.Num() - 1];
 	// No point continuing matching properties if leaf properties do not match.
 	if (!bLeafPropertiesMatch)
 	{
@@ -154,9 +135,8 @@ bool FConcertPropertyChain::MatchesExactly(const FArchiveSerializedPropertyChain
 	 *	UCLASS() class UFoo : public UObject { UPROPERTY() TArray<FInner> Nested; }
 	 *	
 	 * Supposing PathToProperty = { "Nested", "Value" }, this is what the input to Matches would be:
-	 *  - OptionalChain = { "Nested", "Nested" }
+	 *  - OptionalChain = { "Nested", "Nested" } ==> 1st Nested is the FArrayProperty, 2nd the FArrayProperty::Inner
 	 *  - LeafProperty = "Value"
-	 * The 1st "Nested" is FArrayProperty and the 2nd "Nested" is the FArrayProperty::Inner property, which is always named the same way.
 	 */	
 	bool bArePathsEqual = true;
 

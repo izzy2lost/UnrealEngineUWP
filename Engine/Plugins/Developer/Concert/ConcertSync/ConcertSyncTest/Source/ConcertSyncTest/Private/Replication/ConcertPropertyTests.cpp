@@ -31,26 +31,23 @@ namespace UE::ConcertSyncTest::Replication::PropertyChain
 		FProperty* ValueProp = TestReplicationStruct->FindPropertyByName(GET_MEMBER_NAME_CHECKED(FTestReplicationStruct, Value));
 		FProperty* VectorProp = TestReplicationStruct->FindPropertyByName(GET_MEMBER_NAME_CHECKED(FTestReplicationStruct, Vector));
 		FProperty* VectorXProp = CastField<FStructProperty>(VectorProp)->Struct->FindPropertyByName(GET_MEMBER_NAME_CHECKED(FVector, X));
+		FProperty* NativeStructProp = TestReplicationStruct->FindPropertyByName(GET_MEMBER_NAME_CHECKED(FTestReplicationStruct, NativeStruct));
+		FProperty* NativeStructSubProp = CastField<FStructProperty>(NativeStructProp)->Struct->FindPropertyByName(GET_MEMBER_NAME_CHECKED(FNativeStruct, Float));
 	
 		FProperty* FloatArrayProp = TestReplicationStruct->FindPropertyByName(GET_MEMBER_NAME_CHECKED(FTestReplicationStruct, FloatArray));
-		FProperty* FloatArrayInnerProp = CastField<FArrayProperty>(FloatArrayProp)->Inner;
 		FProperty* StringArrayProp = TestReplicationStruct->FindPropertyByName(GET_MEMBER_NAME_CHECKED(FTestReplicationStruct, StringArray));
 		FProperty* NativeStructArrayProp = TestReplicationStruct->FindPropertyByName(GET_MEMBER_NAME_CHECKED(FTestReplicationStruct, NativeStructArray));
-		FProperty* NativeStructArrayInnerProp = CastField<FArrayProperty>(NativeStructArrayProp)->Inner;
 	
 		FProperty* FloatSetProp = TestReplicationStruct->FindPropertyByName(GET_MEMBER_NAME_CHECKED(FTestReplicationStruct, FloatSet));
-		FProperty* FloatSetInnerProp = CastField<FSetProperty>(FloatSetProp)->ElementProp;
 		FProperty* StringSetProp = TestReplicationStruct->FindPropertyByName(GET_MEMBER_NAME_CHECKED(FTestReplicationStruct, StringSet));
 		FProperty* NativeStructSetProp = TestReplicationStruct->FindPropertyByName(GET_MEMBER_NAME_CHECKED(FTestReplicationStruct, NativeStructSet));
-		FProperty* NativeStructSetInnerProp = CastField<FSetProperty>(NativeStructSetProp)->ElementProp;
 	
 		FProperty* StringToFloatProp = TestReplicationStruct->FindPropertyByName(GET_MEMBER_NAME_CHECKED(FTestReplicationStruct, StringToFloat));
-		FProperty* StringToFloatInnerProp = CastField<FMapProperty>(StringToFloatProp)->ValueProp;
 		FProperty* StringToVectorProp = TestReplicationStruct->FindPropertyByName(GET_MEMBER_NAME_CHECKED(FTestReplicationStruct, StringToVector));
 		FProperty* StringToNativeStructProp = TestReplicationStruct->FindPropertyByName(GET_MEMBER_NAME_CHECKED(FTestReplicationStruct, StringToNativeStruct));
-		FProperty* StringToNativeStructInnerProp = CastField<FMapProperty>(StringToNativeStructProp)->ValueProp;
 
 		FArchiveSerializedPropertyChain VectorXChain;
+		FArchiveSerializedPropertyChain NativeStructChain;
 		FArchiveSerializedPropertyChain FloatArrayChain;
 		FArchiveSerializedPropertyChain FloatSetArrayChain;
 		FArchiveSerializedPropertyChain StringToFloatChain;
@@ -58,6 +55,7 @@ namespace UE::ConcertSyncTest::Replication::PropertyChain
 		FArchiveSerializedPropertyChain NativeStructSetChain;
 		FArchiveSerializedPropertyChain StringToNativeStructChain;
 		VectorXChain.PushProperty(VectorProp, false);
+		NativeStructChain.PushProperty(NativeStructProp, false);
 		FloatArrayChain.PushProperty(FloatArrayProp, false);
 		FloatSetArrayChain.PushProperty(FloatSetProp, false);
 		StringToFloatChain.PushProperty(StringToFloatProp, false);
@@ -71,24 +69,23 @@ namespace UE::ConcertSyncTest::Replication::PropertyChain
 		const FConcertPropertyChain Value(nullptr, *ValueProp);
 		const FConcertPropertyChain Vector(nullptr, *VectorProp);
 		const FConcertPropertyChain VectorX(&VectorXChain, *VectorXProp);
+		const FConcertPropertyChain NativeStruct(nullptr, *NativeStructProp);
+		const FConcertPropertyChain NativeStructSubProperty(&NativeStructChain, *NativeStructSubProp);
 	
 		const FConcertPropertyChain FloatArray(nullptr, *FloatArrayProp);
-		const FConcertPropertyChain FloatArrayInner(&FloatArrayChain, *FloatArrayInnerProp);
 		const FConcertPropertyChain StringArray(nullptr, *StringArrayProp);
 		const FConcertPropertyChain NativeStructArray(nullptr, *NativeStructArrayProp);
-		const FConcertPropertyChain NativeStructArrayInner(&NativeStructArrayChain, *NativeStructArrayInnerProp);
+		const FConcertPropertyChain NativeStructArraySubProperty(&NativeStructArrayChain, *NativeStructSubProp);
 	
 		const FConcertPropertyChain FloatSet(nullptr, *FloatSetProp);
-		const FConcertPropertyChain FloatSetInner(&FloatSetArrayChain, *FloatSetInnerProp);
 		const FConcertPropertyChain StringSet(nullptr, *StringSetProp);
 		const FConcertPropertyChain NativeStructSet(nullptr, *NativeStructSetProp);
-		const FConcertPropertyChain NativeStructSetInner(&NativeStructSetChain, *NativeStructSetInnerProp);
+		const FConcertPropertyChain NativeStructSetSubProperty(&NativeStructSetChain, *NativeStructSubProp);
 	
 		const FConcertPropertyChain StringToFloat(nullptr, *StringToFloatProp);
-		const FConcertPropertyChain StringToFloatInner(&StringToFloatChain, *StringToFloatInnerProp);
 		const FConcertPropertyChain StringToVector(nullptr, *StringToVectorProp);
 		const FConcertPropertyChain StringToNativeStruct(nullptr, *StringToNativeStructProp);
-		const FConcertPropertyChain StringToNativeStructInner(&StringToNativeStructChain, *StringToNativeStructInnerProp);
+		const FConcertPropertyChain StringToNativeStructSubProperty(&StringToNativeStructChain, *NativeStructSubProp);
 
 
 	
@@ -96,24 +93,23 @@ namespace UE::ConcertSyncTest::Replication::PropertyChain
 		TestTrue(TEXT("Value"), Value == TArray<FName>{ TEXT("Value") });
 		TestTrue(TEXT("Vector"), Vector == TArray<FName>{ TEXT("Vector") });
 		TestTrue(TEXT("Vector.X"), VectorX == TArray<FName>{ FName(TEXT("Vector")), FName(TEXT("X")) });
+		TestTrue(TEXT("NativeStruct"), NativeStruct == TArray<FName>{ FName(TEXT("NativeStruct")) });
+		TestTrue(TEXT("NativeStruct.Float"), NativeStructSubProperty == TArray<FName>{ FName(TEXT("NativeStruct")), FName(TEXT("Float")) });
 	
 		TestTrue(TEXT("FloatArray"), FloatArray == TArray<FName>{ TEXT("FloatArray") });
-		TestTrue(TEXT("FloatArrayInner"), FloatArrayInner == TArray<FName>{ FName(TEXT("FloatArray")), FConcertPropertyChain::InternalContainerPropertyValueName });
 		TestTrue(TEXT("StringArray"), StringArray == TArray<FName>{ TEXT("StringArray") });
 		TestTrue(TEXT("NativeStructArray"), NativeStructArray == TArray<FName>{ TEXT("NativeStructArray") });
-		TestTrue(TEXT("NativeStructArrayInner"), NativeStructArrayInner == TArray<FName>{ FName(TEXT("NativeStructArray")), FConcertPropertyChain::InternalContainerPropertyValueName });
+		TestTrue(TEXT("NativeStructArray.Float"), NativeStructArraySubProperty == TArray<FName>{ TEXT("NativeStructArray"), TEXT("Float") });
 	
 		TestTrue(TEXT("FloatSet"), FloatSet == TArray<FName>{ TEXT("FloatSet") });
-		TestTrue(TEXT("FloatSetInner"), FloatSetInner == TArray<FName>{ FName(TEXT("FloatSet")), FConcertPropertyChain::InternalContainerPropertyValueName });
 		TestTrue(TEXT("StringSet"), StringSet == TArray<FName>{ TEXT("StringSet") });
 		TestTrue(TEXT("NativeStructSet"), NativeStructSet == TArray<FName>{ TEXT("NativeStructSet") });
-		TestTrue(TEXT("NativeStructSetInner"), NativeStructSetInner == TArray<FName>{ FName(TEXT("NativeStructSet")), FConcertPropertyChain::InternalContainerPropertyValueName });
+		TestTrue(TEXT("NativeStructSet.Float"), NativeStructSetSubProperty == TArray<FName>{ TEXT("NativeStructSet"), TEXT("Float") });
 	
 		TestTrue(TEXT("StringToFloat"), StringToFloat == TArray<FName>{ TEXT("StringToFloat") });
-		TestTrue(TEXT("StringToFloatInner"), StringToFloatInner == TArray<FName>{ FName(TEXT("StringToFloat")), FConcertPropertyChain::InternalContainerPropertyValueName });
 		TestTrue(TEXT("StringToVector"), StringToVector == TArray<FName>{ TEXT("StringToVector") });
 		TestTrue(TEXT("StringToNativeStruct"), StringToNativeStruct == TArray<FName>{ TEXT("StringToNativeStruct") });
-		TestTrue(TEXT("StringToNativeStructInner"), StringToNativeStructInner == TArray<FName>{ FName(TEXT("StringToNativeStruct")), FConcertPropertyChain::InternalContainerPropertyValueName });
+		TestTrue(TEXT("StringToNativeStruct.Float"), StringToNativeStructSubProperty == TArray<FName>{ TEXT("StringToNativeStruct"), TEXT("Float") });
 	
 		return true;
 	}
@@ -147,24 +143,22 @@ namespace UE::ConcertSyncTest::Replication::PropertyChain
 			{ TEXT("TestStruct"), TEXT("Nested"), TEXT("Vector"), TEXT("Y")  },
 			{ TEXT("TestStruct"), TEXT("Nested"), TEXT("Vector"), TEXT("Z")  },
 			{ TEXT("TestStruct"), TEXT("Nested"), TEXT("NativeStruct") },
+			{ TEXT("TestStruct"), TEXT("Nested"), TEXT("NativeStruct"), TEXT("Float") },
 			{ TEXT("TestStruct"), TEXT("Nested"), TEXT("FloatArray") },
-			{ TEXT("TestStruct"), TEXT("Nested"), TEXT("FloatArray"), FConcertPropertyChain::InternalContainerPropertyValueName },
 			{ TEXT("TestStruct"), TEXT("Nested"), TEXT("StringArray") },
 			{ TEXT("TestStruct"), TEXT("Nested"), TEXT("NativeStructArray") },
-			{ TEXT("TestStruct"), TEXT("Nested"), TEXT("NativeStructArray"), FConcertPropertyChain::InternalContainerPropertyValueName },
+			{ TEXT("TestStruct"), TEXT("Nested"), TEXT("NativeStructArray"), TEXT("Float") },
 			{ TEXT("TestStruct"), TEXT("Nested"), TEXT("FloatSet") },
-			{ TEXT("TestStruct"), TEXT("Nested"), TEXT("FloatSet"), FConcertPropertyChain::InternalContainerPropertyValueName },
 			{ TEXT("TestStruct"), TEXT("Nested"), TEXT("StringSet") },
 			{ TEXT("TestStruct"), TEXT("Nested"), TEXT("NativeStructSet") },
-			{ TEXT("TestStruct"), TEXT("Nested"), TEXT("NativeStructSet"), FConcertPropertyChain::InternalContainerPropertyValueName },
+			{ TEXT("TestStruct"), TEXT("Nested"), TEXT("NativeStructSet"), TEXT("Float") },
 			{ TEXT("TestStruct"), TEXT("Nested"), TEXT("StringToFloat") },
-			{ TEXT("TestStruct"), TEXT("Nested"), TEXT("StringToFloat"), FConcertPropertyChain::InternalContainerPropertyValueName},
 			{ TEXT("TestStruct"), TEXT("Nested"), TEXT("StringToVector") },
 			{ TEXT("TestStruct"), TEXT("Nested"), TEXT("StringToVector"), TEXT("X") },
 			{ TEXT("TestStruct"), TEXT("Nested"), TEXT("StringToVector"), TEXT("Y") },
 			{ TEXT("TestStruct"), TEXT("Nested"), TEXT("StringToVector"), TEXT("Z") },
 			{ TEXT("TestStruct"), TEXT("Nested"), TEXT("StringToNativeStruct") },
-			{ TEXT("TestStruct"), TEXT("Nested"), TEXT("StringToNativeStruct"), FConcertPropertyChain::InternalContainerPropertyValueName },
+			{ TEXT("TestStruct"), TEXT("Nested"), TEXT("StringToNativeStruct"), TEXT("Float") },
 			// The same again for NestedArray as for Nested just above 
 			{ TEXT("TestStruct"), TEXT("NestedArray") },
 			{ TEXT("TestStruct"), TEXT("NestedArray"), TEXT("Value") },
@@ -173,24 +167,22 @@ namespace UE::ConcertSyncTest::Replication::PropertyChain
 			{ TEXT("TestStruct"), TEXT("NestedArray"), TEXT("Vector"), TEXT("Y")  },
 			{ TEXT("TestStruct"), TEXT("NestedArray"), TEXT("Vector"), TEXT("Z")  },
 			{ TEXT("TestStruct"), TEXT("NestedArray"), TEXT("NativeStruct") },
+			{ TEXT("TestStruct"), TEXT("NestedArray"), TEXT("NativeStruct"), TEXT("Float") },
 			{ TEXT("TestStruct"), TEXT("NestedArray"), TEXT("FloatArray") },
-			{ TEXT("TestStruct"), TEXT("NestedArray"), TEXT("FloatArray"), FConcertPropertyChain::InternalContainerPropertyValueName },
 			{ TEXT("TestStruct"), TEXT("NestedArray"), TEXT("StringArray") },
 			{ TEXT("TestStruct"), TEXT("NestedArray"), TEXT("NativeStructArray") },
-			{ TEXT("TestStruct"), TEXT("NestedArray"), TEXT("NativeStructArray"), FConcertPropertyChain::InternalContainerPropertyValueName },
+			{ TEXT("TestStruct"), TEXT("NestedArray"), TEXT("NativeStructArray"), TEXT("Float") },
 			{ TEXT("TestStruct"), TEXT("NestedArray"), TEXT("FloatSet") },
-			{ TEXT("TestStruct"), TEXT("NestedArray"), TEXT("FloatSet"), FConcertPropertyChain::InternalContainerPropertyValueName },
 			{ TEXT("TestStruct"), TEXT("NestedArray"), TEXT("StringSet") },
 			{ TEXT("TestStruct"), TEXT("NestedArray"), TEXT("NativeStructSet") },
-			{ TEXT("TestStruct"), TEXT("NestedArray"), TEXT("NativeStructSet"), FConcertPropertyChain::InternalContainerPropertyValueName },
+			{ TEXT("TestStruct"), TEXT("NestedArray"), TEXT("NativeStructSet"), TEXT("Float") },
 			{ TEXT("TestStruct"), TEXT("NestedArray"), TEXT("StringToFloat") },
-			{ TEXT("TestStruct"), TEXT("NestedArray"), TEXT("StringToFloat"), FConcertPropertyChain::InternalContainerPropertyValueName},
 			{ TEXT("TestStruct"), TEXT("NestedArray"), TEXT("StringToVector") },
 			{ TEXT("TestStruct"), TEXT("NestedArray"), TEXT("StringToVector"), TEXT("X") },
 			{ TEXT("TestStruct"), TEXT("NestedArray"), TEXT("StringToVector"), TEXT("Y") },
 			{ TEXT("TestStruct"), TEXT("NestedArray"), TEXT("StringToVector"), TEXT("Z") },
 			{ TEXT("TestStruct"), TEXT("NestedArray"), TEXT("StringToNativeStruct") },
-			{ TEXT("TestStruct"), TEXT("NestedArray"), TEXT("StringToNativeStruct"), FConcertPropertyChain::InternalContainerPropertyValueName }
+			{ TEXT("TestStruct"), TEXT("NestedArray"), TEXT("StringToNativeStruct"), TEXT("Float") },
 		};
 
 		for (const FExpectedPropertyPath& Expected : ExpectedProperties)
@@ -198,13 +190,18 @@ namespace UE::ConcertSyncTest::Replication::PropertyChain
 			// This structure is easier for setting breakpoints than using TestTrue
 			if (!Properties.Contains(Expected))
 			{
-				AddError(FString::JoinBy(Expected, TEXT("."), [](FName Name){ return Name.ToString(); }));
+				AddError(
+					FString::Printf(
+						TEXT("Expected chain %s"),
+						*FString::JoinBy(Expected, TEXT("."), [](FName Name){ return Name.ToString(); })
+					)
+				);
 			}
 		}
 	
 		if (Properties.Num() != ExpectedProperties.Num())
 		{
-			AddError(TEXT("More properties found than expected"));
+			AddError(TEXT("Different number of properties found than expected"));
 			for (const FConcertPropertyChain& Chain : Properties)
 			{
 				if (!ExpectedProperties.Contains(Chain))
@@ -229,11 +226,8 @@ namespace UE::ConcertSyncTest::Replication::PropertyChain
 		FProperty* TestStructProperty = Class->FindPropertyByName(GET_MEMBER_NAME_CHECKED(UTestReflectionObject, TestStruct));
 		FProperty* NestedArrayProperty = FTestNestedReplicationStruct::StaticStruct()->FindPropertyByName(GET_MEMBER_NAME_CHECKED(FTestNestedReplicationStruct, NestedArray));
 		FProperty* InternalNestedArrayProperty = CastField<FArrayProperty>(NestedArrayProperty)->Inner;
-		FProperty* ValueProperty = FTestReplicationStruct::StaticStruct()->FindPropertyByName(GET_MEMBER_NAME_CHECKED(FTestReplicationStruct, Value));
 		FProperty* FloatArrayProperty = FTestReplicationStruct::StaticStruct()->FindPropertyByName(GET_MEMBER_NAME_CHECKED(FTestReplicationStruct, FloatArray));
-		FProperty* InternalFloatArrayProperty = CastField<FArrayProperty>(FloatArrayProperty)->Inner;
 		FProperty* StringToFloatProperty = FTestReplicationStruct::StaticStruct()->FindPropertyByName(GET_MEMBER_NAME_CHECKED(FTestReplicationStruct, StringToFloat));
-		FProperty* StringToFloatValueProperty = CastField<FMapProperty>(StringToFloatProperty)->ValueProp;
 	
 		FArchiveSerializedPropertyChain ChainToNestedArrayProperty;
 		ChainToNestedArrayProperty.PushProperty(TestStructProperty, false);
@@ -252,22 +246,16 @@ namespace UE::ConcertSyncTest::Replication::PropertyChain
 	
 		const FConcertPropertyChain ConcertChain_Simple_FloatProperty(nullptr, *FloatProperty);
 		const FConcertPropertyChain ConcertChain_Nested_ArrayProperty(&ChainToNestedArrayProperty, *NestedArrayProperty);
-		const FConcertPropertyChain ConcertChain_Nested_ValueProperty(&ChainToNestedProperty, *ValueProperty);
 		const FConcertPropertyChain ConcertChain_Nested_FloatArrayProperty(&ChainToFloatArrayProperty, *FloatArrayProperty);
-		const FConcertPropertyChain ConcertChain_Nested_FloatArrayInnerProperty(&ChainToInternalFloatArrayProperty, *InternalFloatArrayProperty);
 		const FConcertPropertyChain ConcertChain_Nested_StringToFloatProperty(&ChainToStringToFloatProperty, *StringToFloatProperty);
-		const FConcertPropertyChain ConcertChain_Nested_StringToFloatValueProperty(&ChainToStringToFloatValueProperty, *StringToFloatValueProperty);
 	
 
 
 		// 2. Run
 		const bool bMatches_Simple_FloatProperty = ConcertChain_Simple_FloatProperty.MatchesExactly(nullptr, *FloatProperty);
 		const bool bMatches_Nested_ArrayProperty = ConcertChain_Nested_ArrayProperty.MatchesExactly(&ChainToNestedArrayProperty, *NestedArrayProperty);
-		const bool bMatches_Nested_Property = ConcertChain_Nested_ValueProperty.MatchesExactly(&ChainToNestedProperty, *ValueProperty);
 		const bool bMatches_Nested_FloatArrayProperty = ConcertChain_Nested_FloatArrayProperty.MatchesExactly(&ChainToFloatArrayProperty, *FloatArrayProperty);
-		const bool bMatches_Nested_FloatArrayInnerProperty = ConcertChain_Nested_FloatArrayInnerProperty.MatchesExactly(&ChainToInternalFloatArrayProperty, *InternalFloatArrayProperty);
 		const bool bMatches_Nested_StringToFloatProperty = ConcertChain_Nested_StringToFloatProperty.MatchesExactly(&ChainToStringToFloatProperty, *StringToFloatProperty);
-		const bool bMatches_Nested_StringToFloatValueProperty = ConcertChain_Nested_StringToFloatValueProperty.MatchesExactly(&ChainToStringToFloatValueProperty, *StringToFloatValueProperty);
 
 
 
@@ -275,16 +263,8 @@ namespace UE::ConcertSyncTest::Replication::PropertyChain
 		// 3. Test
 		TestTrue(TEXT("Float"), bMatches_Simple_FloatProperty);
 		TestTrue(TEXT("NestedArray"), bMatches_Nested_ArrayProperty);
-		// This case is interesting because e.g. ChainToNestedProperty = { NestedArray, NestedArray } but ConcertChain_NestedProperty = { NestedArray, Value } (set a breakpoint to convince yourself)
-		TestTrue(TEXT("NestedArray.NestedArray.Value"), bMatches_Nested_Property);
-		// This would restore the size of the array only...
-		TestTrue(TEXT("NestedArray.NestedArray.FloatArray"), bMatches_Nested_FloatArrayProperty);
-		// ... and this includes the float values. This one is interesting because it ends with FConcertPropertyChain::InternalContainerPropertyValueName
-		TestTrue(TEXT("NestedArray.NestedArray.FloatArray.Value (ends with FConcertPropertyChain::InternalContainerPropertyValueName)"), bMatches_Nested_FloatArrayInnerProperty);
-		// This would restore the keys and the size of the map only...
-		TestTrue(TEXT("NestedArray.NestedArray.StringToFloat"), bMatches_Nested_StringToFloatProperty);
-		// ... and this includes the float values. This one is interesting because it ends with FConcertPropertyChain::InternalContainerPropertyValueName
-		TestTrue(TEXT("NestedArray.NestedArray.StringToFloat.Value (ends with FConcertPropertyChain::InternalContainerPropertyValueName)"), bMatches_Nested_StringToFloatValueProperty);
+		TestTrue(TEXT("NestedArray.FloatArray"), bMatches_Nested_FloatArrayProperty);
+		TestTrue(TEXT("NestedArray.StringToFloat"), bMatches_Nested_StringToFloatProperty);
 
 		return true;
 	}
@@ -356,8 +336,8 @@ namespace UE::ConcertSyncTest::Replication::PropertyChain
 			FConcertPropertyChain::CreateFromPath(*UTestReflectionObject::StaticClass(), { TEXT("TestStruct"), TEXT("Nested") }).Get({}),
 			FConcertPropertyChain::CreateFromPath(*UTestReflectionObject::StaticClass(), { TEXT("TestStruct"), TEXT("Nested"), TEXT("Value") }).Get({}),
 			FConcertPropertyChain::CreateFromPath(*UTestReflectionObject::StaticClass(), { TEXT("TestStruct"), TEXT("Nested"), TEXT("NativeStruct") }).Get({}),
+			FConcertPropertyChain::CreateFromPath(*UTestReflectionObject::StaticClass(), { TEXT("TestStruct"), TEXT("Nested"), TEXT("NativeStruct") }).Get({}),
 			FConcertPropertyChain::CreateFromPath(*UTestReflectionObject::StaticClass(), { TEXT("TestStruct"), TEXT("Nested"), TEXT("FloatArray") }).Get({}),
-			FConcertPropertyChain::CreateFromPath(*UTestReflectionObject::StaticClass(), { TEXT("TestStruct"), TEXT("Nested"), TEXT("FloatArray"), FConcertPropertyChain::InternalContainerPropertyValueName }).Get({}),
 			FConcertPropertyChain::CreateFromPath(*UTestReflectionObject::StaticClass(), { TEXT("TestStruct"), TEXT("NestedArray") }).Get({}),
 			FConcertPropertyChain::CreateFromPath(*UTestReflectionObject::StaticClass(), { TEXT("TestStruct"), TEXT("NestedArray"), TEXT("Value") }).Get({}),
 			FConcertPropertyChain::CreateFromPath(*UTestReflectionObject::StaticClass(), { TEXT("TestStruct"), TEXT("NestedArray"), TEXT("Vector") }).Get({}),
@@ -366,7 +346,6 @@ namespace UE::ConcertSyncTest::Replication::PropertyChain
 			FConcertPropertyChain::CreateFromPath(*UTestReflectionObject::StaticClass(), { TEXT("TestStruct"), TEXT("NestedArray"), TEXT("Vector"), TEXT("Z") }).Get({}),
 			FConcertPropertyChain::CreateFromPath(*UTestReflectionObject::StaticClass(), { TEXT("TestStruct"), TEXT("NestedArray"), TEXT("NativeStruct") }).Get({}),
 			FConcertPropertyChain::CreateFromPath(*UTestReflectionObject::StaticClass(), { TEXT("TestStruct"), TEXT("NestedArray"), TEXT("FloatArray") }).Get({}),
-			FConcertPropertyChain::CreateFromPath(*UTestReflectionObject::StaticClass(), { TEXT("TestStruct"), TEXT("NestedArray"), TEXT("FloatArray"), FConcertPropertyChain::InternalContainerPropertyValueName }).Get({})
 		};
 		if (AllowedProperties.Contains(FConcertPropertyChain{}))
 		{

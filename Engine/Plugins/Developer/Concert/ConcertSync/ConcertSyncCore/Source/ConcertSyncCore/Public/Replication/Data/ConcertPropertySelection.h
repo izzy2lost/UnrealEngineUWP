@@ -10,32 +10,12 @@ struct FArchiveSerializedPropertyChain;
 
 /**
  * Describes the path to a FProperty replicated by Concert.
- * 
- * See Concert.Replication.Data.ForEachReplicatableConcertProperty for path examples (just CTRL+SHIFT+F or go to ConcertSyncTest/Replication/ConcertPropertyTests.cpp).
+ * @see FConcertPropertyChain::PathToProperty.
  */
 USTRUCT()
 struct CONCERTSYNCCORE_API FConcertPropertyChain
 {
 	GENERATED_BODY()
-
-	/**
-	 * The name of inner properties of containers (array, set, map), which are either primitive or native serialized structs.
-	 * 
-	 * Inner properties are included if they are at the end of the path (and only for primitive or native serialized structs!).
-	 * Cases:
-	 * - ArrayOfStructs.ArrayOfFloats.Value
-	 *	There is an array property called ArrayOfStructs containing structs. The contained struct has an array of floats property
-	 *	called ArrayOfFloats. Value corresponds to FArrayProperty::Inner and is called InternalContainerPropertyValueName.
-	 * - ArrayOfStructs.ArrayOfFloats
-	 *  Similar situation but only the size of the array will be replicated. The elements are default initialized.
-	 * - ArrayOfStructs.Value
-	 *  There is an array property called ArrayOfStructs and the struct has a native Serialize() function.
-	 *  
-	 * - BUT not ArrayOfStructs.Value.ArrayOfFloats.Value.
-	 *	This path would imply a different situation in which ArrayOfStructs contains a struct with a struct property called Value;
-	 *	Value's owning struct property would contain an array of floats called ArrayOfFloats.
-	 */
-	static const FName InternalContainerPropertyValueName;
 
 	/** Constructs a FConcertPropertyChain from a path if it is valid. If you need to create many paths in one go, use PropertyUtils::BulkConstructConcertChainsFromPaths instead. */
 	static TOptional<FConcertPropertyChain> CreateFromPath(const UStruct& Class, const TArray<FName>& NamePath);
@@ -61,7 +41,12 @@ struct CONCERTSYNCCORE_API FConcertPropertyChain
 	/** @return Whether the leaf property is a direct child of the given property chain. */
 	bool IsDirectChildOf(const FConcertPropertyChain& ParentToCheck) const;
 
-	/** @return Whether OptionalChain and LeafProperty correspond to this path. */
+	/**
+	 * Utility for checking whether this path corresponds to OptionalChain leading to LeafProperty.
+	 * 
+	 * @param OptionalChain Contains all properties leading up to the LeafProperty. You can skip inner container properties.
+	 * @param LeafProperty The last property
+	 * @return Whether OptionalChain and LeafProperty correspond to this path. */
 	bool MatchesExactly(const FArchiveSerializedPropertyChain* OptionalChain, const FProperty& LeafProperty) const;
 
 	/** @return Attempts to resolve this property given the class */
@@ -108,11 +93,22 @@ private:
 	
 	/**
 	 * Path from root of UObject to leaf property. Includes the leaf property.
-	 * This property is kept private to force the use of the exposed constructors.
+	 * Inner container properties, i.e. FArrayProperty::Inner, FSetProperty::ElementProp, FMapProperty::KeyProp, and FMapProperty::ValueProp, are
+	 * never listed in the property path.
 	 *
+	 * Listing some paths (see example code below):
+	 *  - { "Struct", "Foo" }
+	 *  - { "ArrayOfStructs", "Foo" }
+	 *  - { "MapOfStructs" }
+	 *  - { "MapOfStructs", "Foo" } 
 	 * See Concert.Replication.Data.ForEachReplicatableConcertProperty for path examples (just CTRL+SHIFT+F or go to ConcertSyncTest/Replication/ConcertPropertyTests.cpp).
 	 *
-	 * Suppose:
+	 * FConcertPropertyChains do NOT cross the UObject border. In the above example, there would be no such thing as { "UnsupportedInstanced", ... }.
+	 * You'd start a new FConcertPropertyChain for properties for objects of type UFooSubobject.
+	 * 
+	 * This property is kept private to force the use of the exposed constructors.
+	 *
+	 * Code for example:
 	 * class AFooActor
 	 * {
 	 *		UPROPERTY()
@@ -139,35 +135,6 @@ private:
 	 *		UPROPERTY()
 	 *		int32 Bar;
 	 * };
-	 *
-	 * Listing some paths:
-	 *  - { "Struct", "Foo" }
-	 *  - { "ArrayOfStructs", "Foo" }
-	 *  - { "MapOfStructs" } > Replicate all keys but not the struct values
-	 *  - { "MapOfStructs", "Foo" } > Replicate all keys and the Foo struct value.
-	 *	- { "MapIntToFloat" } > Replicate all keys but not the values
-	 *	- { "MapIntToFloat", "Value" } > Replicate all the keys and the values. Special non-ustruct exception where the inner property is listed! 
-	 *  
-	 * The inner properties of containers, e.g. FArrayProperty::Inner, FMapProperty::KeyProp, etc., generally do not appear in the path
-	 * but there is one special case for TMap where it does.
-	 * More details:
-	 *	- TArray, TSet: The inner properties are "obvious" so we can shorten the path.
-	 *	- TMap:
-	 *	  - Key: The key is required. We assume reasonably that all properties of the key property must be replicated. Hence, there is no point in listing
-	 *	  the key inner property nor any of its subproperties. Example: If key is FSoftObjectPath, we do not list FSoftObjectPath::AssetPath, etc.
-	 *	  - Value:
-	 *	    - If the inner value property is is ustruct, then it is not listed. The child properties of the inner property are listed.
-	 *	    - If the inner value property is not a ustruct (meaning a primitive float, int, etc.), then the child property is listed and called "Value" (see InternalContainerPropertyValueName).
-	 *	      This is needed to differentiate between the cases "serializes only the keys" and "serializes the keys and the values".
-	 *	  - Final word about FConcertPropertySelection:
-	 *		- { "MapOfStructs", "Foo" } means all keys and the Foo property is serialized (nothing is said about Bar - it is replicated if it is also in the property selection).
-	 *		- { "MapOfStructs" } means only the keys are serialized and the values are skipped (Foo and Bar will be value-initialized)
-	 *
-	 * Paths do not include the child properties of uStructs implementing a custom Serialize function with struct ops. In that case, the user can only specify
-	 * include the struct or skip it.
-	 *
-	 * FConcertPropertyChains do NOT cross the UObject border. For example, there would be no thing as [1] "UnsupportedInstanced" [x] ...
-	 * You'd start a new FConcertPropertyChain for properties for objects of type UFooSubobject.
 	 */
 	UPROPERTY()
 	TArray<FName> PathToProperty;

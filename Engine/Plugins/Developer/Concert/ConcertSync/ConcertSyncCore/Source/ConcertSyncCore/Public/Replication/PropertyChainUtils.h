@@ -72,9 +72,6 @@ namespace UE::ConcertSyncCore::PropertyChain
 	/** Util for determining whether this property is the inner property of a container. */
 	CONCERTSYNCCORE_API bool IsInnerContainerProperty(const FProperty& Property);
 
-	/** Checks whether this property would be marked as FConcertPropertyChain::InternalContainerPropertyValueName. */
-	CONCERTSYNCCORE_API bool IsPropertyEligibleForMarkingAsInternal(const FProperty& Property);
-
 	/**
 	 * Util for determining whether this property is considered primitive (numeric, bool, enum).
 	 * Primitive properties in containers are indicated as FConcertPropertyChain::InternalContainerPropertyValueName, which is "Value".
