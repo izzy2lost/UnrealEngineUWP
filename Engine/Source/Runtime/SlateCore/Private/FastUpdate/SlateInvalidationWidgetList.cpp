@@ -1279,7 +1279,7 @@ void FSlateInvalidationWidgetList::Internal_RemoveRangeFromSameParent(const FInd
 			}
 
 			const IndexType RemoveArrayAt = Range.GetInclusiveMinWidgetIndex().ElementIndex;
-			RemoveElementList.RemoveAt(RemoveArrayAt, RemoveElementList.Num() - RemoveArrayAt, true);
+			RemoveElementList.RemoveAt(RemoveArrayAt, RemoveElementList.Num() - RemoveArrayAt, EAllowShrinking::Yes);
 			if (!RemoveDataNodeIfNeeded(Range.GetInclusiveMinWidgetIndex().ArrayIndex))
 			{
 				ArrayNode.RemoveElementIndexBiggerOrEqualThan(RemoveArrayAt);
@@ -1309,7 +1309,7 @@ FSlateInvalidationWidgetList::FCutResult FSlateInvalidationWidgetList::CutArray(
 	{
 		FArrayNode& ArrayNode = Data[WhereToCut.ArrayIndex];
 		ElementListType& RemoveElementList = Data[WhereToCut.ArrayIndex].ElementList;
-		RemoveElementList.RemoveAt(CutResult.OldElementIndexStart, RemoveElementList.Num() - CutResult.OldElementIndexStart, true);
+		RemoveElementList.RemoveAt(CutResult.OldElementIndexStart, RemoveElementList.Num() - CutResult.OldElementIndexStart, EAllowShrinking::Yes);
 		if (RemoveElementList.Num() == 0)
 		{
 			RemoveDataNode(WhereToCut.ArrayIndex);

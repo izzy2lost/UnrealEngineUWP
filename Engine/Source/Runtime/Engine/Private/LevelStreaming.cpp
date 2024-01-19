@@ -2553,7 +2553,7 @@ ULevelStreamingDynamic* ULevelStreamingDynamic::LoadLevelInstance_Internal(const
 
 	if (ShortPackageName.StartsWith(Params.World->StreamingLevelsPrefix))
 	{
-		ShortPackageName.RightChopInline(Params.World->StreamingLevelsPrefix.Len(), false);
+		ShortPackageName.RightChopInline(Params.World->StreamingLevelsPrefix.Len(), EAllowShrinking::No);
 	}
 
 	// Remove PIE prefix if it's there before we actually load the level
@@ -2650,7 +2650,7 @@ FString ULevelStreamingDynamic::GetLevelInstancePackageName(const FLoadLevelInst
 
 	if (ShortPackageName.StartsWith(Params.World->StreamingLevelsPrefix))
 	{
-		ShortPackageName.RightChopInline(Params.World->StreamingLevelsPrefix.Len(), false);
+		ShortPackageName.RightChopInline(Params.World->StreamingLevelsPrefix.Len(), EAllowShrinking::No);
 	}
 
 	// Remove PIE prefix if it's there before we actually load the level

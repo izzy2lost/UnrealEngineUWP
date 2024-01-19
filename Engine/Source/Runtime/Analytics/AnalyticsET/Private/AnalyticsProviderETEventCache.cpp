@@ -111,12 +111,12 @@ namespace EventCacheStatic
 			// Give some padding. ensure we add at least one char.
 			const int32 StrLen = Len + (int32)FMath::Max(1.f, (float)Len * SizeMultiplier);
 			// make space for the string
-			UTF8Stream.SetNumUninitialized(OldLen + StrLen, false);
+			UTF8Stream.SetNumUninitialized(OldLen + StrLen, EAllowShrinking::No);
 			// convert it to UTF8
 			if (UTF8CHAR* NewEnd = FPlatformString::Convert((UTF8CHAR*)&UTF8Stream[OldLen], StrLen, Str, Len))
 			{
 				// truncate to that length.
-				UTF8Stream.SetNum(OldLen + (int32)(NewEnd - (UTF8CHAR*)&UTF8Stream[OldLen]), false);
+				UTF8Stream.SetNum(OldLen + (int32)(NewEnd - (UTF8CHAR*)&UTF8Stream[OldLen]), EAllowShrinking::No);
 				bWroteFullString = true;
 			}
 			else
@@ -127,7 +127,7 @@ namespace EventCacheStatic
 				if (SizeMultiplier >= 2.0f)
 				{
 					const int32 ActualCharsNeeded = FPlatformString::ConvertedLength<UTF8CHAR>(Str, Len);
-					UTF8Stream.SetNumUninitialized(OldLen + ActualCharsNeeded, false);
+					UTF8Stream.SetNumUninitialized(OldLen + ActualCharsNeeded, EAllowShrinking::No);
 					// convert it to UTF8 using the known number of charts
 					FPlatformString::Convert((UTF8CHAR*)&UTF8Stream[OldLen], ActualCharsNeeded, Str, Len);
 					bWroteFullString = true;
@@ -237,7 +237,7 @@ void FAnalyticsProviderETEventCache::AddToCache(FString EventName, const TArray<
 	EventCacheStatic::FJsonStringBuilder EscapedJsonBuffer;
 
 	// strip the payload tail off
-	CachedEventUTF8Stream.SetNum(CachedEventUTF8Stream.Num() - EventCacheStatic::PayloadTrailerLength, false);
+	CachedEventUTF8Stream.SetNum(CachedEventUTF8Stream.Num() - EventCacheStatic::PayloadTrailerLength, EAllowShrinking::No);
 	if (CachedEventEntries.Num() > 0)
 	{
 		// If we already have an event in there, start with a comma.
@@ -339,7 +339,7 @@ TArray<uint8> FAnalyticsProviderETEventCache::FlushCacheUTF8()
 	{
 		// pull out the first element without copying the array or shrinking the queue size
 		TArray<uint8> Payload = MoveTemp(FlushQueue[0]);
-		FlushQueue.RemoveAt(0, 1, false);
+		FlushQueue.RemoveAt(0, 1, EAllowShrinking::No);
 		return Payload;
 	}
 

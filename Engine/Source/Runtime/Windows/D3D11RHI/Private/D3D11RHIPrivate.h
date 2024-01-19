@@ -1306,7 +1306,7 @@ private:
 
 		if(ElementsToRemove)
 		{
-			Entries.RemoveAt(StartIndex + 1, ElementsToRemove, false);
+			Entries.RemoveAt(StartIndex + 1, ElementsToRemove, EAllowShrinking::No);
 			Entries[StartIndex].ExtendUnoccupied(SizeGained);
 		}
 	}

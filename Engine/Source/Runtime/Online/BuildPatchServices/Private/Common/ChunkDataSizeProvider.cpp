@@ -102,7 +102,7 @@ namespace BuildPatchServices
 			int32 Index = Manifests.Find(Manifest);
 			if (Index != INDEX_NONE)
 			{
-				Manifests.RemoveAt(Index, 1, false);
+				Manifests.RemoveAt(Index, 1, EAllowShrinking::No);
 			}
 
 			Manifests.Add(MoveTemp(Manifest));  // Last manifest added always goes on the end

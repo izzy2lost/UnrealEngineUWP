@@ -218,7 +218,7 @@ namespace BuildPatchServices
 			TFuture<void> Future;
 			while (DirectoryFutures.Dequeue(Future)) { Future.Wait(); }
 			while (FoundFilesQueue.Dequeue(Results.AddDefaulted_GetRef())) {}
-			Results.Pop(false);
+			Results.Pop(EAllowShrinking::No);
 			Results.Sort();
 		}
 

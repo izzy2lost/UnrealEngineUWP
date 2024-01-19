@@ -59,7 +59,7 @@ FMassArchetypeEntityCollection::FMassArchetypeEntityCollection(const FMassArchet
 		}
 	}
 
-	TrueIndices.SetNum(NumValidEntities, /*bAllowShrinking=*/false);
+	TrueIndices.SetNum(NumValidEntities, EAllowShrinking::No);
 	TrueIndices.Sort();
 
 #if DO_GUARD_SLOW
@@ -92,7 +92,7 @@ FMassArchetypeEntityCollection::FMassArchetypeEntityCollection(const FMassArchet
 				int Skip = 0;
 				while ((j + ++Skip) < Num && TrueIndices[j + Skip] == PrevIndex);
 				
-				TrueIndices.RemoveAt(j, Skip, /*bAllowShrinking=*/false);
+				TrueIndices.RemoveAt(j, Skip, EAllowShrinking::No);
 				--j;
 				continue;
 			}
@@ -331,7 +331,7 @@ void FMassArchetypeEntityCollectionWithPayload::CreateEntityRangesWithPayload(co
 
 			const int32 NumDuplicates = DuplicateIndex - EntryIndex;
 
-			EntityData.RemoveAt(EntryIndex + 1, NumDuplicates, /*bAllowShrinking=*/false);
+			EntityData.RemoveAt(EntryIndex + 1, NumDuplicates, EAllowShrinking::No);
 			Payload.SwapElementsToEnd(EntryIndex + 1, NumDuplicates);
 			// even though we don't remove the elements from payload we later limit the number of elements used with
 			// ArchetypeInfo.Count, so we need to update that

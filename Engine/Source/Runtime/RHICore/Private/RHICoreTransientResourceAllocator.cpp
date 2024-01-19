@@ -142,7 +142,7 @@ void FRHITransientResourceOverlapTracker::Track(FRHITransientResource* Transient
 		// Complete overlap.
 		if (ResourceRangeOld.PageOffsetMin >= ResourceRangeNew.PageOffsetMin && ResourceRangeOld.PageOffsetMax <= ResourceRangeNew.PageOffsetMax)
 		{
-			ResourceRanges.RemoveAt(Index, 1, false);
+			ResourceRanges.RemoveAt(Index, 1, EAllowShrinking::No);
 			Index--;
 		}
 		// Partial overlap, can manifest as three cases:
@@ -1603,7 +1603,7 @@ void FRHITransientResourcePageAllocator::Flush(FRHICommandListImmediate& RHICmdL
 	{
 		const int32 FirstForfeitIndex = Algo::Partition(PagePools.GetData(), PagePools.Num(), [](const FRHITransientPagePool* PagePool) { return !PagePool->IsEmpty(); });
 		PagePoolCache.Forfeit(MakeArrayView(PagePools.GetData() + FirstForfeitIndex, PagePools.Num() - FirstForfeitIndex));
-		PagePools.SetNum(FirstForfeitIndex, false);
+		PagePools.SetNum(FirstForfeitIndex, EAllowShrinking::No);
 	}
 
 	RHICmdList.EnqueueLambda([&PagePoolCache = PagePoolCache, Stats = Stats](FRHICommandListImmediate&)

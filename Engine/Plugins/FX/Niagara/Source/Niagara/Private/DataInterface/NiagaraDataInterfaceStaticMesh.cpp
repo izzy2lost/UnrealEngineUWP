@@ -5447,7 +5447,7 @@ void FNDI_StaticMesh_GeneratedData::Tick(ETickingGroup TickGroup, float DeltaSec
 
 		while (MappingsToRemove.Num())
 		{
-			CachedUvMapping.RemoveAtSwap(MappingsToRemove.Pop(false));
+			CachedUvMapping.RemoveAtSwap(MappingsToRemove.Pop(EAllowShrinking::No));
 		}
 	}
 }

@@ -409,7 +409,7 @@ public:
 				{
 					FString Val = ValueStr.Mid(0, CommaIndex);
 					CVarValues.Add(FCString::Atof(*Val));
-					ValueStr.MidInline(CommaIndex + 1, MAX_int32, false);
+					ValueStr.MidInline(CommaIndex + 1, MAX_int32, EAllowShrinking::No);
 					continue;
 				}
 			}
@@ -426,7 +426,7 @@ public:
 				{
 					FString Val = ValueStr.Mid(0, SemiColonIndex);
 					CVarValues.Add(FCString::Atof(*Val));
-					ValueStr.MidInline(SemiColonIndex, MAX_int32, false);
+					ValueStr.MidInline(SemiColonIndex, MAX_int32, EAllowShrinking::No);
 					continue;
 				}
 			}
@@ -2320,7 +2320,7 @@ void FCsvStreamWriter::PushValue(FCsvStatSeries* Series, int64 FrameNumber, cons
 	// Ensure the row is large enough to hold every series
 	if (Row.Values.Num() < AllSeries.Num())
 	{
-		Row.Values.SetNumZeroed(AllSeries.Num(), false);
+		Row.Values.SetNumZeroed(AllSeries.Num(), EAllowShrinking::No);
 	}
 
 	Row.Values[Series->ColumnIndex] = Value;
@@ -2638,7 +2638,7 @@ void FCsvProfilerThreadDataProcessor::Process(FCsvProcessThreadDataStats& OutSta
 				{
 					if (ExclusiveMarkerStack.Num() > 0)
 					{
-						ExclusiveMarkerStack.Pop(false);
+						ExclusiveMarkerStack.Pop(EAllowShrinking::No);
 						if (ExclusiveMarkerStack.Num() > 0)
 						{
 							// Insert an artificial begin marker to resume the marker on the stack at the same timestamp
@@ -2686,7 +2686,7 @@ void FCsvProfilerThreadDataProcessor::Process(FCsvProcessThreadDataStats& OutSta
 						if (MarkerStack[j].RawStatID == Marker.RawStatID) // Note: only works with scopes!
 						{
 							StartMarker = MarkerStack[j];
-							MarkerStack.RemoveAt(j, 1, false);
+							MarkerStack.RemoveAt(j, 1, EAllowShrinking::No);
 							bFoundStart = true;
 							break;
 						}

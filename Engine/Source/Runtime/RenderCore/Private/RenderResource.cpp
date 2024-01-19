@@ -51,7 +51,7 @@ public:
 		}
 		else
 		{
-			Index = FreeIndexList.Pop(false);
+			Index = FreeIndexList.Pop(EAllowShrinking::No);
 			ResourceList[Index] = Resource;
 		}
 		Mutex.Unlock();

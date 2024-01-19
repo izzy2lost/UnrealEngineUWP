@@ -87,7 +87,7 @@ FGlobalDirtyNetObjectTracker::FPollHandle FGlobalDirtyNetObjectTracker::CreatePo
 		Instance->AssignedHandleIndices.SetBit(HandleIndex);
 		++Instance->PollerCount;
 
-		Instance->PollerStatuses.SetNum(Instance->PollerCount, false);
+		Instance->PollerStatuses.SetNum(Instance->PollerCount, EAllowShrinking::No);
 		Instance->PollerStatuses[HandleIndex].bIsActive = true;
 
 		return FPollHandle(HandleIndex);

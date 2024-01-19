@@ -671,8 +671,7 @@ namespace BuildPatchServices
 						CompressionFlags);
 					if (bDataIsCompressed)
 					{
-						const bool bAllowShrinking = false;
-						TempCompressed.SetNum(Header.DataSizeCompressed, bAllowShrinking);
+						TempCompressed.SetNum(Header.DataSizeCompressed, EAllowShrinking::No);
 						ManifestRawData = MoveTemp(TempCompressed);
 						Header.StoredAs = EManifestStorageFlags::Compressed;
 					}

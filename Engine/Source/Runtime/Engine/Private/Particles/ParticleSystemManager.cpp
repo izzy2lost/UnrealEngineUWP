@@ -409,7 +409,7 @@ void FParticleSystemWorldManager::UnregisterComponent(UParticleSystemComponent* 
 				PSC->SetManagerHandle(INDEX_NONE);
 			}
 
-			PendingRegisterPSCs.RemoveAtSwap(Handle, 1, false);
+			PendingRegisterPSCs.RemoveAtSwap(Handle, 1, EAllowShrinking::No);
 
 			//Update handle for moved PCS.
 			if (PendingRegisterPSCs.IsValidIndex(Handle))
@@ -500,8 +500,8 @@ void FParticleSystemWorldManager::RemovePSC(int32 PSCIndex)
 
 	TickList.Remove(PSCIndex);
 
-	ManagedPSCs.RemoveAtSwap(PSCIndex, 1, false);
-	PSCTickData.RemoveAtSwap(PSCIndex, 1, false);
+	ManagedPSCs.RemoveAtSwap(PSCIndex, 1, EAllowShrinking::No);
+	PSCTickData.RemoveAtSwap(PSCIndex, 1, EAllowShrinking::No);
 
 	if (ManagedPSCs.IsValidIndex(PSCIndex))
 	{
@@ -517,8 +517,8 @@ void FParticleSystemWorldManager::RemovePSC(int32 PSCIndex)
 	}
 #else
 
-	ManagedPSCs.RemoveAtSwap(PSCIndex, 1, false);
-	PSCTickData.RemoveAtSwap(PSCIndex, 1, false);
+	ManagedPSCs.RemoveAtSwap(PSCIndex, 1, EAllowShrinking::No);
+	PSCTickData.RemoveAtSwap(PSCIndex, 1, EAllowShrinking::No);
 
 	if (ManagedPSCs.IsValidIndex(PSCIndex))
 	{
@@ -902,7 +902,7 @@ void FParticleSystemWorldManager::FTickList::Remove(int32 Handle)
 	FPSCTickData& TickData = Owner->GetTickData(Handle);
 	check(TickList.IsValidIndex(TickData.TickListHandle));
 
-	TickList.RemoveAtSwap(TickData.TickListHandle, 1, false);
+	TickList.RemoveAtSwap(TickData.TickListHandle, 1, EAllowShrinking::No);
 
 	if (TickList.IsValidIndex(TickData.TickListHandle))
 	{

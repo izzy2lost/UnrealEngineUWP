@@ -294,7 +294,7 @@ void UMassLODSubsystem::SynchronizeViewers()
 				}
 				else
 				{
-					RegisteredActorViewers.RemoveAtSwap(ActorViewerIndex, 1, /*bAllowShrinking=*/false);
+					RegisteredActorViewers.RemoveAtSwap(ActorViewerIndex, 1, EAllowShrinking::No);
 				}
 			}
 		}
@@ -332,7 +332,7 @@ void UMassLODSubsystem::SynchronizeViewers()
 		// Check to shrink the array of viewers if possible
 		while (Viewers.Num() > 0 && ViewerFreeIndices.Num() > 0 && ViewerFreeIndices.Remove(Viewers.Num() - 1))
 		{
-			Viewers.Pop(false);
+			Viewers.Pop(EAllowShrinking::No);
 		}
 	}
 
@@ -620,7 +620,7 @@ void UMassLODSubsystem::RegisterActorViewer(AActor& ActorViewer)
 
 void UMassLODSubsystem::UnregisterActorViewer(AActor& ActorViewer)
 {
-	if (RegisteredActorViewers.RemoveSingleSwap(&ActorViewer, /*bAllowShrinking=*/false))
+	if (RegisteredActorViewers.RemoveSingleSwap(&ActorViewer, EAllowShrinking::No))
 	{
 		const FMassViewerHandle ViewerHandle = GetViewerHandleFromActor(ActorViewer);
 		if (ensure(ViewerHandle.IsValid()))

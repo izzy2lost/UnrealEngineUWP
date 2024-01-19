@@ -434,7 +434,7 @@ EConvertQueryResult ConvertTraceResults(bool& OutHasValidBlockingHit, const UWor
 			else
 			{
 				// Reject invalid result (this should be rare). Remove from the results.
-				OutHits.Pop(/*bAllowShrinking=*/ false);
+				OutHits.Pop(EAllowShrinking::No);
 				ConvertResult = EConvertQueryResult::Invalid;
 			}
 			

@@ -934,8 +934,7 @@ inline void FNetBitArray::SetNumBits(uint32 InBitCount)
 	BitCount = InBitCount;
 
 	const uint32 WordCount = (InBitCount + WordBitCount - 1U)/WordBitCount;
-	constexpr bool bAllowShrinking = false;
-	Storage.SetNumZeroed(WordCount, bAllowShrinking);
+	Storage.SetNumZeroed(WordCount, EAllowShrinking::No);
 	ClearPaddingBits();
 }
 

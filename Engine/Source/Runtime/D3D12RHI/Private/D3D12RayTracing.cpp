@@ -821,7 +821,7 @@ void FD3D12RayTracingCompactionRequestHandler::Update(FD3D12CommandContext& Cont
 	if (ActiveRequests.Num() > 0)
 	{
 		// clear out all of the pending requests, don't allow the array to shrink
-		PendingRequests.RemoveAt(0, ActiveRequests.Num(), false);
+		PendingRequests.RemoveAt(0, ActiveRequests.Num(), EAllowShrinking::No);
 
 		D3D12_RAYTRACING_ACCELERATION_STRUCTURE_POSTBUILD_INFO_DESC PostBuildInfoDesc = {};
 		PostBuildInfoDesc.DestBuffer = PostBuildInfoBuffer->ResourceLocation.GetGPUVirtualAddress();

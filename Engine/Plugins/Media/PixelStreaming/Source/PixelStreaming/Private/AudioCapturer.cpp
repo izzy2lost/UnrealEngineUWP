@@ -102,7 +102,7 @@ namespace UE::PixelStreaming
 				}
 			}
 
-			RecordingBuffer.RemoveAt(0, BytesPer10Ms, false);
+			RecordingBuffer.RemoveAt(0, BytesPer10Ms, EAllowShrinking::No);
 		}
 	}
 

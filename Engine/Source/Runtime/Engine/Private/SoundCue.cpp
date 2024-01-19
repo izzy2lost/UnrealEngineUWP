@@ -530,7 +530,7 @@ void USoundCue::AudioQualityChanged()
 
 	while (NodesToClearReferences.Num() > 0)
 	{
-		if (USoundNode* SoundNode = NodesToClearReferences.Pop(false))
+		if (USoundNode* SoundNode = NodesToClearReferences.Pop(EAllowShrinking::No))
 		{
 			if (USoundNodeAssetReferencer* AssetReferencerNode = Cast<USoundNodeAssetReferencer>(SoundNode))
 			{

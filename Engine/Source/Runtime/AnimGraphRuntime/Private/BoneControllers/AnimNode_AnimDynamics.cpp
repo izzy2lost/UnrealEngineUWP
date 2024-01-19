@@ -287,7 +287,7 @@ void FAnimNode_AnimDynamics::EvaluateSkeletalControl_AnyThread(FComponentSpacePo
 		const FBoneContainer& RequiredBones = Output.Pose.GetPose().GetBoneContainer();
 		while(BodiesToReset.Num() > 0)
 		{
-			FAnimPhysLinkedBody* BodyToReset = BodiesToReset.Pop(false);
+			FAnimPhysLinkedBody* BodyToReset = BodiesToReset.Pop(EAllowShrinking::No);
 			if(BodyToReset && BodyToReset->RigidBody.BoundBone.IsValidToEvaluate(RequiredBones))
 			{
 				FTransform BoneTransform = GetBoneTransformInSimSpace(Output, BodyToReset->RigidBody.BoundBone.GetCompactPoseIndex(RequiredBones));

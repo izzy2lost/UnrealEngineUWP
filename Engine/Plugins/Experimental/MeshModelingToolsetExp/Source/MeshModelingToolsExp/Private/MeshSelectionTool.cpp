@@ -1376,7 +1376,7 @@ void UMeshSelectionTool::ExpandToConnected()
 
 	while (Queue.Num() > 0)
 	{
-		int32 CurTri = Queue.Pop(false);
+		int32 CurTri = Queue.Pop(EAllowShrinking::No);
 		FIndex3i NbrTris = Mesh->GetTriNeighbourTris(CurTri);
 
 		for (int j = 0; j < 3; ++j)
@@ -1486,7 +1486,7 @@ void UMeshSelectionTool::OptimizeSelection()
 		int32 TID = Selection->Faces[FaceSelIdx];
 		if (!FaceSelection.IsSelected(TID))
 		{
-			Selection->Faces.RemoveAtSwap(FaceSelIdx, 1, false);
+			Selection->Faces.RemoveAtSwap(FaceSelIdx, 1, EAllowShrinking::No);
 			ActiveSelectionChange->Add(TID);
 		}
 	}

@@ -975,7 +975,7 @@ void FNDI_Landscape_GeneratedData::Tick(ETickingGroup TickGroup, float DeltaSeco
 
 		while (LandscapeToRemove.Num())
 		{
-			const int32 LandscapeIt = LandscapeToRemove.Pop(false);
+			const int32 LandscapeIt = LandscapeToRemove.Pop(EAllowShrinking::No);
 
 			TSharedPtr<FNDI_Landscape_SharedResource> Landscape = LandscapeData[LandscapeIt];
 			LandscapeData.RemoveAtSwap(LandscapeIt);

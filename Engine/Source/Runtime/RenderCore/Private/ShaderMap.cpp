@@ -401,9 +401,9 @@ void FShaderMapContent::RemoveShaderTypePermutaion(const FHashedName& TypeName, 
 			DeleteObjectFromLayout(Shader);
 
 			// Replace the shader we're removing with the last shader in the list
-			Shaders.RemoveAtSwap(Index, 1, false);
-			ShaderTypes.RemoveAtSwap(Index, 1, false);
-			ShaderPermutations.RemoveAtSwap(Index, 1, false);
+			Shaders.RemoveAtSwap(Index, 1, EAllowShrinking::No);
+			ShaderTypes.RemoveAtSwap(Index, 1, EAllowShrinking::No);
+			ShaderPermutations.RemoveAtSwap(Index, 1, EAllowShrinking::No);
 			check(ShaderTypes.Num() == Shaders.Num());
 			check(ShaderPermutations.Num() == Shaders.Num());
 			ShaderHash.Remove(Hash, Index);
@@ -431,7 +431,7 @@ void FShaderMapContent::RemoveShaderPipelineType(const FShaderPipelineType* Shad
 	{
 		FShaderPipeline* Pipeline = ShaderPipelines[Index];
 		delete Pipeline;
-		ShaderPipelines.RemoveAt(Index, 1, false);
+		ShaderPipelines.RemoveAt(Index, 1, EAllowShrinking::No);
 	}
 }
 

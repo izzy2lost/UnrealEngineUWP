@@ -738,7 +738,7 @@ void FGameplayTagBlueprintPropertyMap::Initialize(UObject* Owner, UAbilitySystem
 		ABILITY_LOG(Error, TEXT("FGameplayTagBlueprintPropertyMap: Removing invalid GameplayTagBlueprintPropertyMapping [Index: %d, Tag:%s, Property:%s] for [%s]."),
 			MappingIndex, *Mapping.TagToMap.ToString(), *Mapping.PropertyName.ToString(), *GetNameSafe(Owner));
 
-		PropertyMappings.RemoveAtSwap(MappingIndex, 1, false);
+		PropertyMappings.RemoveAtSwap(MappingIndex, 1, EAllowShrinking::No);
 	}
 }
 

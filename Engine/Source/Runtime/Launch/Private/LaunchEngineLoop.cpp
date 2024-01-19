@@ -903,7 +903,7 @@ bool LaunchSetGameName(const TCHAR *InCmdLine, FString& OutGameProjectFilePathUn
 			int32 FirstCharToRemove = INDEX_NONE;
 			if (LocalGameName.FindChar(TCHAR('-'), FirstCharToRemove))
 			{
-				LocalGameName.LeftInline(FirstCharToRemove, false);
+				LocalGameName.LeftInline(FirstCharToRemove, EAllowShrinking::No);
 			}
 			FApp::SetProjectName(*LocalGameName);
 

@@ -180,7 +180,7 @@ FInstanceGroups::FInstanceGroupId FGeometryCollectionISM::AddInstanceGroup(int32
 	const FInstanceGroups::FInstanceGroupRange& NewInstanceGroup = InstanceGroups.GroupRanges[InstanceGroupIndex];
 
 	// Ensure that remapping arrays are big enough to hold any new items.
-	InstanceIds.SetNum(InstanceGroups.GetMaxInstanceIndex(), false);
+	InstanceIds.SetNum(InstanceGroups.GetMaxInstanceIndex(), EAllowShrinking::No);
 
 	FTransform ZeroScaleTransform;
 	ZeroScaleTransform.SetIdentityZeroScale();
@@ -560,7 +560,7 @@ void FGeometryCollectionISMPool::Tick(UGeometryCollectionISMPoolComponent* Ownin
 		const int32 FreeListTargetSize = bRemovedReycle ? 0 : FMath::Max(FMath::Max(FreeListISM.Num() - RemoveCountPerTick, GComponentFreeListTargetSize), 0);
 		while (FreeListISM.Num() > FreeListTargetSize)
 		{
-			const int32 ISMIndex = FreeListISM.Pop(false);
+			const int32 ISMIndex = FreeListISM.Pop(EAllowShrinking::No);
 			RemoveISM(ISMIndex, false, false);
 		}
 	}

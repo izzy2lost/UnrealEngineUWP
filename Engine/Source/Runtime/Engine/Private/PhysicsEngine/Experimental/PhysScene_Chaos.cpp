@@ -1408,7 +1408,7 @@ void FPhysScene_Chaos::RemoveFromComponentMaps(IPhysicsProxyBase* InObject)
 		TArray<IPhysicsProxyBase*>* ProxyArray = ComponentToPhysicsProxyMap.Find(*Component);
 		if (ProxyArray)
 		{
-			ProxyArray->RemoveSingleSwap(InObject, false);
+			ProxyArray->RemoveSingleSwap(InObject, EAllowShrinking::No);
 			if (ProxyArray->Num() == 0)
 			{
 				ComponentToPhysicsProxyMap.Remove(*Component);

@@ -827,7 +827,7 @@ void FGPUScene::UpdateInternal(FRDGBuilder& GraphBuilder, FSceneUniformBuffer& S
 		const FPersistentPrimitiveIndex PersistentPrimitiveIndex = PrimitivesToUpdate[Index];
 		if (!PrimitiveDirtyState.IsValidIndex(PersistentPrimitiveIndex.Index))
 		{
-			PrimitivesToUpdate.RemoveAtSwap(Index, 1, false);
+			PrimitivesToUpdate.RemoveAtSwap(Index, 1, EAllowShrinking::No);
 		}
 		else
 		{
@@ -835,7 +835,7 @@ void FGPUScene::UpdateInternal(FRDGBuilder& GraphBuilder, FSceneUniformBuffer& S
 			if (EnumHasAnyFlags(PrimitiveDirtyState[PersistentPrimitiveIndex.Index], EPrimitiveDirtyState::Removed) 
 				&& !EnumHasAnyFlags(PrimitiveDirtyState[PersistentPrimitiveIndex.Index], EPrimitiveDirtyState::Added))
 			{
-				PrimitivesToUpdate.RemoveAtSwap(Index, 1, false);
+				PrimitivesToUpdate.RemoveAtSwap(Index, 1, EAllowShrinking::No);
 			}
 			else
 			{

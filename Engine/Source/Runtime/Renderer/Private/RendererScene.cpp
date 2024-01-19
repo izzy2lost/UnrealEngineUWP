@@ -2329,7 +2329,7 @@ void FScene::UpdatePrimitiveAttachment(UPrimitiveComponent* Primitive)
 	// Walk down the tree updating, because the scene's attachment data structures must be updated if the root of the attachment tree changes
 	while (ProcessStack.Num() > 0)
 	{
-		USceneComponent* Current = ProcessStack.Pop(/*bAllowShrinking=*/ false);
+		USceneComponent* Current = ProcessStack.Pop(EAllowShrinking::No);
 		if (Current)
 		{
 			UPrimitiveComponent* CurrentPrimitive = Cast<UPrimitiveComponent>(Current);
@@ -5709,18 +5709,18 @@ void FScene::UpdateAllPrimitiveSceneInfos(FRDGBuilder& GraphBuilder, EUpdateAllP
 			int RemoveCount = RemovedLocalPrimitiveSceneInfos.Num() - StartIndex;
 			int SourceIndex = Primitives.Num() - RemoveCount;
 
-			Primitives.RemoveAt(SourceIndex, RemoveCount, false);
-			PrimitiveTransforms.Remove(RemoveCount, false);
-			PrimitiveSceneProxies.RemoveAt(SourceIndex, RemoveCount, false);
-			PrimitiveBounds.Remove(RemoveCount, false);
-			PrimitiveFlagsCompact.RemoveAt(SourceIndex, RemoveCount, false);
-			PrimitiveVisibilityIds.RemoveAt(SourceIndex, RemoveCount, false);
-			PrimitiveOctreeIndex.RemoveAt(SourceIndex, RemoveCount, false);
-			PrimitiveOcclusionFlags.RemoveAt(SourceIndex, RemoveCount, false);
-			PrimitiveComponentIds.RemoveAt(SourceIndex, RemoveCount, false);
-			PrimitiveVirtualTextureFlags.RemoveAt(SourceIndex, RemoveCount, false);
-			PrimitiveVirtualTextureLod.RemoveAt(SourceIndex, RemoveCount, false);
-			PrimitiveOcclusionBounds.Remove(RemoveCount, false);
+			Primitives.RemoveAt(SourceIndex, RemoveCount, EAllowShrinking::No);
+			PrimitiveTransforms.Remove(RemoveCount, EAllowShrinking::No);
+			PrimitiveSceneProxies.RemoveAt(SourceIndex, RemoveCount, EAllowShrinking::No);
+			PrimitiveBounds.Remove(RemoveCount, EAllowShrinking::No);
+			PrimitiveFlagsCompact.RemoveAt(SourceIndex, RemoveCount, EAllowShrinking::No);
+			PrimitiveVisibilityIds.RemoveAt(SourceIndex, RemoveCount, EAllowShrinking::No);
+			PrimitiveOctreeIndex.RemoveAt(SourceIndex, RemoveCount, EAllowShrinking::No);
+			PrimitiveOcclusionFlags.RemoveAt(SourceIndex, RemoveCount, EAllowShrinking::No);
+			PrimitiveComponentIds.RemoveAt(SourceIndex, RemoveCount, EAllowShrinking::No);
+			PrimitiveVirtualTextureFlags.RemoveAt(SourceIndex, RemoveCount, EAllowShrinking::No);
+			PrimitiveVirtualTextureLod.RemoveAt(SourceIndex, RemoveCount, EAllowShrinking::No);
+			PrimitiveOcclusionBounds.Remove(RemoveCount, EAllowShrinking::No);
 
 			#if WITH_EDITOR
 			PrimitivesSelected.RemoveAt(SourceIndex, RemoveCount);
@@ -5785,7 +5785,7 @@ void FScene::UpdateAllPrimitiveSceneInfos(FRDGBuilder& GraphBuilder, EUpdateAllP
 				PersistentPrimitiveIdToIndexMap[PersistentIndex] = INDEX_NONE;
 			}
 
-			RemovedLocalPrimitiveSceneInfos.RemoveAt(StartIndex, RemovedLocalPrimitiveSceneInfos.Num() - StartIndex, false);
+			RemovedLocalPrimitiveSceneInfos.RemoveAt(StartIndex, RemovedLocalPrimitiveSceneInfos.Num() - StartIndex, EAllowShrinking::No);
 		}
 	
 	}
@@ -6097,7 +6097,7 @@ void FScene::UpdateAllPrimitiveSceneInfos(FRDGBuilder& GraphBuilder, EUpdateAllP
 
 				bNeedPathTracedInvalidation = bNeedPathTracedInvalidation || IsPrimitiveRelevantToPathTracing(PrimitiveSceneInfo);
 			}
-			AddedLocalPrimitiveSceneInfos.RemoveAt(StartIndex, AddedLocalPrimitiveSceneInfos.Num() - StartIndex, false);
+			AddedLocalPrimitiveSceneInfos.RemoveAt(StartIndex, AddedLocalPrimitiveSceneInfos.Num() - StartIndex, EAllowShrinking::No);
 		}
 	}
 	{

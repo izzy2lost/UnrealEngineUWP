@@ -78,9 +78,9 @@ namespace Chaos
 			PrevObjectType = ObjectType;
 			PrevPositionType = PositionType;
 
-			ExecutionDatas.SamplePositions.SetNum(FilteredHandles.Num(),false);
-			ExecutionDatas.SampleIndices.SetNum(FilteredHandles.Num(),false);
-			InsideHandles.SetNum(FilteredHandles.Num(),false);
+			ExecutionDatas.SamplePositions.SetNum(FilteredHandles.Num(), EAllowShrinking::No);
+			ExecutionDatas.SampleIndices.SetNum(FilteredHandles.Num(), EAllowShrinking::No);
+			InsideHandles.SetNum(FilteredHandles.Num(), EAllowShrinking::No);
 
 			auto FillExecutionDatas = [&ExecutionDatas,&FieldCommand,&InsideHandles](FVec3 SamplePosition, Chaos::FGeometryParticleHandle* ParticleHandle, int32& HandleIndex)
 			{
@@ -136,9 +136,9 @@ namespace Chaos
 					}
 				}
 			}
-			ExecutionDatas.SamplePositions.SetNum(HandleIndex,false);
-			ExecutionDatas.SampleIndices.SetNum(HandleIndex,false);
-			InsideHandles.SetNum(HandleIndex,false);
+			ExecutionDatas.SamplePositions.SetNum(HandleIndex, EAllowShrinking::No);
+			ExecutionDatas.SampleIndices.SetNum(HandleIndex, EAllowShrinking::No);
+			InsideHandles.SetNum(HandleIndex, EAllowShrinking::No);
 		}
 		return InsideHandles.Num() > 0;
 	}

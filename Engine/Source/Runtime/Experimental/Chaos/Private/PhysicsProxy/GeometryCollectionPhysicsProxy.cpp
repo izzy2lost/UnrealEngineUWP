@@ -2162,7 +2162,7 @@ void FGeometryCollectionPhysicsProxy::GetFilteredParticleHandles(
 	const EFieldFilterType FilterType,
 	const EFieldObjectType ObjectType)
 {
-	Handles.SetNum(0, false);
+	Handles.SetNum(0, EAllowShrinking::No);
 	if ((ObjectType == EFieldObjectType::Field_Object_All) || (ObjectType == EFieldObjectType::Field_Object_Destruction) || (ObjectType == EFieldObjectType::Field_Object_Max))
 	{
 		// only the local handles
@@ -2236,7 +2236,7 @@ void FGeometryCollectionPhysicsProxy::GetRelevantParticleHandles(
 	const Chaos::FPBDRigidsSolver* RigidSolver, 
 	EFieldResolutionType ResolutionType)
 {
-	Handles.SetNum(0, false);
+	Handles.SetNum(0, EAllowShrinking::No);
 
 	// only the local handles
 	Handles.Reserve(SolverParticleHandles.Num());

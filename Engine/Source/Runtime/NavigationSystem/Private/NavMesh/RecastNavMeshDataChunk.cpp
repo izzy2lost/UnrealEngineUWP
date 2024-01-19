@@ -463,7 +463,7 @@ TArray<FNavTileRef> URecastNavMeshDataChunk::DetachTiles(ARecastNavMesh& NavMesh
 					const int32 MaxTiles = DetourNavMesh->getTileCountAt(TileData.X, TileData.Y);
 					if (MaxTiles > 0)
 					{
-						ExtraMeshTiles.SetNumZeroed(MaxTiles, false);
+						ExtraMeshTiles.SetNumZeroed(MaxTiles, EAllowShrinking::No);
 						const int32 MeshTilesCount = DetourNavMesh->getTilesAt(TileData.X, TileData.Y, ExtraMeshTiles.GetData(), MaxTiles);
 						for (int32 i = 0; i < MeshTilesCount; ++i)
 						{

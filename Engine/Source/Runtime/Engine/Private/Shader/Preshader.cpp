@@ -157,13 +157,13 @@ FValueComponent* FPreshaderStack::PushEmptyValue(EValueType InType, int32 NumCom
 FPreshaderValue FPreshaderStack::PopValue()
 {
 	FPreshaderValue Value;
-	Value.Type = Values.Pop(false);
+	Value.Type = Values.Pop(EAllowShrinking::No);
 
 	const int32 NumComponents = Value.Type.GetNumComponents();
 	const int32 ComponentIndex = Components.Num() - NumComponents;
 
 	Value.Component = MakeArrayView(Components.GetData() + ComponentIndex, NumComponents);
-	Components.RemoveAt(ComponentIndex, NumComponents, false);
+	Components.RemoveAt(ComponentIndex, NumComponents, EAllowShrinking::No);
 
 	return Value;
 }

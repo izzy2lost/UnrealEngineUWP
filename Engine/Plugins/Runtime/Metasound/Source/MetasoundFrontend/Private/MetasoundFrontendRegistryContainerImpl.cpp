@@ -541,8 +541,7 @@ namespace Metasound::Frontend
 				return bIsAssetPath && bIsTransactionType;
 			};
 
-			constexpr bool bAllowShrinking = false;
-			NumRemoved = TaskInfos->RemoveAllSwap(MatchesEntryInTask, bAllowShrinking);
+			NumRemoved = TaskInfos->RemoveAllSwap(MatchesEntryInTask, EAllowShrinking::No);
 			if (TaskInfos->IsEmpty())
 			{
 				ActiveRegistrationTasks.Remove(InKey.NodeKey);

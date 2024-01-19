@@ -487,7 +487,7 @@ public:
 		if (bCompressed)
 		{
 			// shrink buffer
-			GlslCode.SetNum(CompressedSize, true);
+			GlslCode.SetNum(CompressedSize, EAllowShrinking::Yes);
 		}
 		else
 		{

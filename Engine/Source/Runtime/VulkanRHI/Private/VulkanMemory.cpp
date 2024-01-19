@@ -1488,7 +1488,7 @@ namespace VulkanRHI
 		else
 		{
 			// Remove this free entry.
-			Ranges.RemoveAt(Index, 1, false);
+			Ranges.RemoveAt(Index, 1, EAllowShrinking::No);
 #if UE_VK_MEMORY_KEEP_FREELIST_SORTED_CATCHBUGS
 			SanityCheck(Ranges);
 #endif
@@ -1648,7 +1648,7 @@ namespace VulkanRHI
 		{
 			if (UsedDedicatedImagePages.Find(InPage, Index))
 			{
-				UsedDedicatedImagePages.RemoveAtSwap(Index, 1, false);
+				UsedDedicatedImagePages.RemoveAtSwap(Index, 1, EAllowShrinking::No);
 			}
 			else
 			{
@@ -1662,7 +1662,7 @@ namespace VulkanRHI
 			TArray<FVulkanSubresourceAllocator*>& Pages = ActivePages[BucketId];
 			if (Pages.Find(InPage, Index))
 			{
-				Pages.RemoveAtSwap(Index, 1, false);
+				Pages.RemoveAtSwap(Index, 1, EAllowShrinking::No);
 			}
 			else
 			{
@@ -2238,7 +2238,7 @@ namespace VulkanRHI
 					if (bImmediately || BufferAllocation->FrameFreed + NUM_FRAMES_TO_WAIT_BEFORE_RELEASING_TO_OS < GFrameNumberRenderThread)
 					{
 						BufferAllocationsToRelease.Add(BufferAllocation);
-						FreeAllocations.RemoveAtSwap(Index, 1, false);
+						FreeAllocations.RemoveAtSwap(Index, 1, EAllowShrinking::No);
 					}
 				}
 			}
@@ -2762,7 +2762,7 @@ namespace VulkanRHI
 				if(SubresourceAllocator->TryAllocate2(OutAllocation, AllocationOwner, Size, Alignment, MetaType, File, Line))
 				{
 					IncMetaStats(MetaType, OutAllocation.Size);
-					FreeBufferAllocations[PoolSize].RemoveAtSwap(Index, 1, false);
+					FreeBufferAllocations[PoolSize].RemoveAtSwap(Index, 1, EAllowShrinking::No);
 					UsedBufferAllocations[PoolSize].Add(SubresourceAllocator);
 					return true;
 				}
@@ -2882,7 +2882,7 @@ namespace VulkanRHI
 		{
 			if (SubresourceAllocator->Type == EVulkanAllocationPooledBuffer)
 			{
-				UsedBufferAllocations[SubresourceAllocator->PoolSizeIndex].RemoveSingleSwap(SubresourceAllocator, false);
+				UsedBufferAllocations[SubresourceAllocator->PoolSizeIndex].RemoveSingleSwap(SubresourceAllocator, EAllowShrinking::No);
 				SubresourceAllocator->FrameFreed = GFrameNumberRenderThread;
 				FreeBufferAllocations[SubresourceAllocator->PoolSizeIndex].Add(SubresourceAllocator);
 			}
@@ -3726,7 +3726,7 @@ namespace VulkanRHI
 					}
 				}
 			}
-			UBAllocations.PendingFree.SetNum(NumAlloc - Index, false);
+			UBAllocations.PendingFree.SetNum(NumAlloc - Index, EAllowShrinking::No);
 		}
 	}
 
@@ -4343,7 +4343,7 @@ namespace VulkanRHI
 				if (FreeBuffer.StagingBuffer->GetSize() == Size && FreeBuffer.StagingBuffer->MemoryReadFlags == InMemoryReadFlags)
 				{
 					FStagingBuffer* Buffer = FreeBuffer.StagingBuffer;
-					FreeStagingBuffers.RemoveAtSwap(Index, 1, false);
+					FreeStagingBuffers.RemoveAtSwap(Index, 1, EAllowShrinking::No);
 					UsedStagingBuffers.Add(Buffer);
 					VULKAN_FILL_TRACK_INFO(Buffer->Track, __FILE__, __LINE__);
 					return Buffer;
@@ -4422,7 +4422,7 @@ namespace VulkanRHI
 #endif
 
 		FScopeLock Lock(&StagingLock);
-		UsedStagingBuffers.RemoveSingleSwap(StagingBuffer, false);
+		UsedStagingBuffers.RemoveSingleSwap(StagingBuffer, EAllowShrinking::No);
 
 		if (CmdBuffer)
 		{
@@ -4527,13 +4527,13 @@ namespace VulkanRHI
 						FreeStagingBuffers.Add({PendingItems.Resources[ResourceIndex], GFrameNumberRenderThread});
 					}
 
-					EntriesPerCmdBuffer.PendingItems.RemoveAtSwap(FenceIndex, 1, false);
+					EntriesPerCmdBuffer.PendingItems.RemoveAtSwap(FenceIndex, 1, EAllowShrinking::No);
 				}
 			}
 
 			if (EntriesPerCmdBuffer.PendingItems.Num() == 0)
 			{
-				PendingFreeStagingBuffers.RemoveAtSwap(Index, 1, false);
+				PendingFreeStagingBuffers.RemoveAtSwap(Index, 1, EAllowShrinking::No);
 			}
 		}
 
@@ -4548,7 +4548,7 @@ namespace VulkanRHI
 					UsedMemory -= Entry.StagingBuffer->GetSize();
 					Entry.StagingBuffer->Destroy();
 					delete Entry.StagingBuffer;
-					FreeStagingBuffers.RemoveAtSwap(Index, 1, false);
+					FreeStagingBuffers.RemoveAtSwap(Index, 1, EAllowShrinking::No);
 				}
 			}
 		}
@@ -4614,7 +4614,7 @@ namespace VulkanRHI
 		if (FreeFences.Num() != 0)
 		{
 			FFence* Fence = FreeFences[0];
-			FreeFences.RemoveAtSwap(0, 1, false);
+			FreeFences.RemoveAtSwap(0, 1, EAllowShrinking::No);
 			UsedFences.Add(Fence);
 
 			if (bCreateSignaled)
@@ -4634,7 +4634,7 @@ namespace VulkanRHI
 	{
 		FScopeLock Lock(&FenceLock);
 		ResetFence(Fence);
-		UsedFences.RemoveSingleSwap(Fence, false);
+		UsedFences.RemoveSingleSwap(Fence, EAllowShrinking::No);
 #if VULKAN_REUSE_FENCES
 		FreeFences.Add(Fence);
 #else
@@ -4652,7 +4652,7 @@ namespace VulkanRHI
 		}
 
 		ResetFence(Fence);
-		UsedFences.RemoveSingleSwap(Fence, false);
+		UsedFences.RemoveSingleSwap(Fence, EAllowShrinking::No);
 		FreeFences.Add(Fence);
 		Fence = nullptr;
 	}
@@ -4879,7 +4879,7 @@ namespace VulkanRHI
 					check(0);
 					break;
 				}
-				Entries.RemoveAtSwap(Index, 1, false);
+				Entries.RemoveAtSwap(Index, 1, EAllowShrinking::No);
 			}
 		}
 	}

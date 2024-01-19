@@ -3019,7 +3019,7 @@ int32 FHostGroup::Wait(const FTickState& State)
 		check(Group != nullptr);
 		Group->Unwait();
 
-		Waiters.RemoveAtSwap(i, 1, false);
+		Waiters.RemoveAtSwap(i, 1, EAllowShrinking::No);
 		--n, --i, ++Count;
 	}
 	check(Count == Result);
@@ -3325,7 +3325,7 @@ uint32 FEventLoop::FImpl::Tick(int32 PollTimeoutMs)
 			continue;
 		}
 
-		Groups.RemoveAtSwap(i, 1, false);
+		Groups.RemoveAtSwap(i, 1, EAllowShrinking::No);
 		--n, --i;
 	}
 

@@ -377,7 +377,7 @@ void FNiagaraRendererGeometryCache::PostSystemTick_GameThread(const UNiagaraRend
 				}
 				else if (FreeList.Num())
 				{
-					PoolIndex = FreeList.Pop(false);
+					PoolIndex = FreeList.Pop(EAllowShrinking::No);
 				}
 			}
 
@@ -468,7 +468,7 @@ void FNiagaraRendererGeometryCache::PostSystemTick_GameThread(const UNiagaraRend
 					}
 
 					// destroy the component pool slot
-					ComponentPool.RemoveAtSwap(PoolIndex, 1, false);
+					ComponentPool.RemoveAtSwap(PoolIndex, 1, EAllowShrinking::No);
 					--PoolIndex;
 					continue;
 				}
@@ -550,7 +550,7 @@ void FNiagaraRendererGeometryCache::ResetComponentPool(bool bResetOwner)
 			PoolEntry.Component->DestroyComponent();
 		}
 	}
-	ComponentPool.SetNum(0, false);
+	ComponentPool.SetNum(0, EAllowShrinking::No);
 
 	if (bResetOwner)
 	{

@@ -559,7 +559,7 @@ void UMeshVertexSculptTool::UpdateROI(const FVector3d& BrushPos)
 	// vertices are inside, clear the triangle ID from the range query buffer.
 	// This can be done in parallel and it's cheaper to do repeated distance computations
 	// than to try to do it inside the ROI building below (todo: profile this some more?)
-	TriangleROIInBuf.SetNum(RangeQueryTriBuffer.Num(), false);
+	TriangleROIInBuf.SetNum(RangeQueryTriBuffer.Num(), EAllowShrinking::No);
 	{
 		TRACE_CPUPROFILER_EVENT_SCOPE(DynamicMeshSculptTool_UpdateROI_TriVerts);
 		ParallelFor(RangeQueryTriBuffer.Num(), [&](int k)
@@ -687,8 +687,8 @@ void UMeshVertexSculptTool::UpdateROI(const FVector3d& BrushPos)
 		// set up and populate position buffers for Vertex ROI
 		TRACE_CPUPROFILER_EVENT_SCOPE(DynamicMeshSculptTool_UpdateROI_4ROI);
 		int32 ROISize = VertexROI.Num();
-		ROIPositionBuffer.SetNum(ROISize, false);
-		ROIPrevPositionBuffer.SetNum(ROISize, false);
+		ROIPositionBuffer.SetNum(ROISize, EAllowShrinking::No);
+		ROIPrevPositionBuffer.SetNum(ROISize, EAllowShrinking::No);
 		ParallelFor(ROISize, [&](int i)
 		{
 			ROIPrevPositionBuffer[i] = Mesh->GetVertexRef(VertexROI[i]);
@@ -696,8 +696,8 @@ void UMeshVertexSculptTool::UpdateROI(const FVector3d& BrushPos)
 		// do the same for the Symmetric Vertex ROI
 		if (bApplySymmetry)
 		{
-			SymmetricROIPositionBuffer.SetNum(ROISize, false);
-			SymmetricROIPrevPositionBuffer.SetNum(ROISize, false);
+			SymmetricROIPositionBuffer.SetNum(ROISize, EAllowShrinking::No);
+			SymmetricROIPrevPositionBuffer.SetNum(ROISize, EAllowShrinking::No);
 			ParallelFor(ROISize, [&](int i)
 			{
 				if ( Mesh->IsVertex(SymmetricVertexROI[i]) )

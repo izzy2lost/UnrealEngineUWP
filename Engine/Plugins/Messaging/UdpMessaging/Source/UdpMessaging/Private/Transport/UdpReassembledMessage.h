@@ -216,7 +216,7 @@ public:
 		else
 		{
 			Temp.Append(PendingAcknowledgments.GetData(), MaxAckNum);
-			PendingAcknowledgments.RemoveAt(0, MaxAckNum, false);
+			PendingAcknowledgments.RemoveAt(0, MaxAckNum, EAllowShrinking::No);
 		}
 		return Temp;
 	}

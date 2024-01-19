@@ -281,7 +281,7 @@ void UGeometryCacheComponent::CreateTrackSection(int32 TrackIndex)
 	// Ensure sections array is long enough
 	if (TrackSections.Num() <= TrackIndex)
 	{
-		TrackSections.SetNum(TrackIndex + 1, false);
+		TrackSections.SetNum(TrackIndex + 1, EAllowShrinking::No);
 	}
 
 	UpdateTrackSection(TrackIndex, GetAnimationTime());

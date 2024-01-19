@@ -173,7 +173,7 @@ namespace BuildPatchServices
 		const int32 StartIdx = Records.Num();
 		do { Records.AddUninitialized(); }
 		while (RecordsQueue.Dequeue(Records.Last()));
-		Records.Pop(false);
+		Records.Pop(EAllowShrinking::No);
 		const int32 EndIdx = Records.Num() - 1;
 		// If we pulled more data.
 		if (EndIdx >= StartIdx)

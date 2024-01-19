@@ -250,7 +250,7 @@ namespace InstallBundleUtil
 			if (Task->IsDone())
 			{
 				FinishedTasks.Add(MoveTemp(Task));
-				Tasks.RemoveAtSwap(i, 1, false);
+				Tasks.RemoveAtSwap(i, 1, EAllowShrinking::No);
 			}
 			else
 			{

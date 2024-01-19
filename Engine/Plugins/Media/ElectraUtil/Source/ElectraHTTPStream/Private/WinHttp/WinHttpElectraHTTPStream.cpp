@@ -694,7 +694,7 @@ bool FElectraHTTPStreamRequestWinHttp::ParseHeaders(bool bNotify)
 	if (RequiredHeaderSize)
 	{
 		TArray<wchar_t> AllHeadersBuffer;
-		AllHeadersBuffer.SetNumUninitialized(RequiredHeaderSize / sizeof(wchar_t), false);
+		AllHeadersBuffer.SetNumUninitialized(RequiredHeaderSize / sizeof(wchar_t), EAllowShrinking::No);
 
 		// Repeat the header query, this time with the buffer to read the headers into.
 		if (!WinHttpQueryHeaders(RequestHandle, WINHTTP_QUERY_RAW_HEADERS, WINHTTP_HEADER_NAME_BY_INDEX, AllHeadersBuffer.GetData(), &RequiredHeaderSize, WINHTTP_NO_HEADER_INDEX))
@@ -773,7 +773,7 @@ bool FElectraHTTPStreamRequestWinHttp::ParseHeaders(bool bNotify)
 		if (!WinHttpQueryOption(RequestHandle, WINHTTP_OPTION_URL, NULL, &RequiredBufferSize))
 		{
 			TArray<wchar_t> UrlBuffer;
-			UrlBuffer.SetNumUninitialized(RequiredBufferSize / sizeof(wchar_t), false);
+			UrlBuffer.SetNumUninitialized(RequiredBufferSize / sizeof(wchar_t), EAllowShrinking::No);
 			if (!WinHttpQueryOption(RequestHandle, WINHTTP_OPTION_URL, UrlBuffer.GetData(), &RequiredBufferSize))
 			{
 				Response->SetErrorMessage(ElectraHTTPStreamWinHttp::GetErrorLogMessage(TEXT("WinHttpQueryOption(WINHTTP_OPTION_URL)"), GetLastError()));

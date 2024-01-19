@@ -158,7 +158,7 @@ namespace UE::PixelStreaming
 			SetVolume(OutMicLevel);
 
 			// Remove 10ms of samples from the recording buffer now it is submitted
-			RecordingBuffer.RemoveAt(0, SamplesPer10Ms, false);
+			RecordingBuffer.RemoveAt(0, SamplesPer10Ms, EAllowShrinking::No);
 		}
 	}
 

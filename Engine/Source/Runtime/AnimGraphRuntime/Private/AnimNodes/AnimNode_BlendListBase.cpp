@@ -303,9 +303,9 @@ void FAnimNode_BlendListBase::Evaluate_AnyThread(FPoseContext& Output)
 			TArray<FBlendedCurve, TInlineAllocator<8>> FilteredCurve;
 			TArray<UE::Anim::FStackAttributeContainer, TInlineAllocator<8>> FilteredAttributes;
 
-			FilteredPoses.SetNum(NumPoses, false);
-			FilteredCurve.SetNum(NumPoses, false);
-			FilteredAttributes.SetNum(NumPoses, false);
+			FilteredPoses.SetNum(NumPoses, EAllowShrinking::No);
+			FilteredCurve.SetNum(NumPoses, EAllowShrinking::No);
+			FilteredAttributes.SetNum(NumPoses, EAllowShrinking::No);
 
 			int32 NumActivePoses = 0;
 			for (int32 i = 0; i < PosesToEvaluate.Num(); ++i)

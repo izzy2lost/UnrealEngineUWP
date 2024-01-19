@@ -1400,7 +1400,7 @@ FGeometryCollectionDynamicData* FGeometryCollectionDynamicDataPool::Allocate()
 	FGeometryCollectionDynamicData* NewEntry = nullptr;
 	if (FreeList.Num() > 0)
 	{
-		NewEntry = FreeList.Pop(false /* no shrinking */);
+		NewEntry = FreeList.Pop(EAllowShrinking::No);
 	}
 
 	if (NewEntry == nullptr)
@@ -1421,7 +1421,7 @@ void FGeometryCollectionDynamicDataPool::Release(FGeometryCollectionDynamicData*
 	int32 UsedIndex = UsedList.Find(DynamicData);
 	if (ensure(UsedIndex != INDEX_NONE))
 	{
-		UsedList.RemoveAt(UsedIndex, 1, false /* no shrinking */);
+		UsedList.RemoveAt(UsedIndex, 1, EAllowShrinking::No);
 		FreeList.Push(DynamicData);
 	}
 }

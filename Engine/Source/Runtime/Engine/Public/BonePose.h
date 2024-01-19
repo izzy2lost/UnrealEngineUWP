@@ -644,7 +644,7 @@ void FCSPose<PoseType>::CalculateComponentSpaceTransform(BoneIndexType BoneIndex
 		check(!Pose[BoneIndex].ContainsNaN());
 		ComponentSpaceFlags[BoneIndex] = 1;
 
-		BoneIndex = BoneIndexStack.Pop(false);
+		BoneIndex = BoneIndexStack.Pop(EAllowShrinking::No);
 	} while (BoneIndexStack.Num());
 }
 

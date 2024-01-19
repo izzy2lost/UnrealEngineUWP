@@ -163,8 +163,8 @@ public:
 		{
 			if (Radius[Idx] < MinRadius)
 			{
-				Radius.RemoveAtSwap(Idx, 1, false);
-				Position.RemoveAtSwap(Idx, 1, false);
+				Radius.RemoveAtSwap(Idx, 1, EAllowShrinking::No);
+				Position.RemoveAtSwap(Idx, 1, EAllowShrinking::No);
 				--Idx;
 			}
 		}

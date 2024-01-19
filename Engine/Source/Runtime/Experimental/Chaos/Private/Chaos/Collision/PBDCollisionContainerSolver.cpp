@@ -393,7 +393,7 @@ namespace Chaos
 		bCollisionConstraintPerIterationCollisionDetection.Reset(CollisionBufferNum);
 
 		// Just set the array size for these right away - all data will be initialized later
-		bCollisionConstraintPerIterationCollisionDetection.SetNumUninitialized(MaxCollisions, false);
+		bCollisionConstraintPerIterationCollisionDetection.SetNumUninitialized(MaxCollisions, EAllowShrinking::No);
 
 		// Reset the solver buffers. We could manifold points as constraints are added,
 		// and re-allocate and assign the scratch buffers after

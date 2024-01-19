@@ -3020,7 +3020,7 @@ void FOpenXRHMD::LocateViews(FPipelinedFrameState& PipelineState, bool ResizeVie
 	XR_ENSURE(xrLocateViews(Session, &ViewInfo, &PipelineState.ViewState, 0, &ViewCount, nullptr));
 	if (ResizeViewsArray)
 	{
-		PipelineState.Views.SetNum(ViewCount, false);
+		PipelineState.Views.SetNum(ViewCount, EAllowShrinking::No);
 	}
 	else
 	{

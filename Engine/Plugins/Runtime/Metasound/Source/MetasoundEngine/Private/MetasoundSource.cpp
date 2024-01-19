@@ -1100,8 +1100,7 @@ void UMetaSoundSource::InitParametersInternal(const Metasound::TSortedVertexName
 
 		if (!bIsParameterValid)
 		{
-			constexpr bool bAllowShrinking = false;
-			ParametersToInit.RemoveAtSwap(i, 1, bAllowShrinking);
+			ParametersToInit.RemoveAtSwap(i, 1, EAllowShrinking::No);
 
 #if !NO_LOGGING
 			if (::Metasound::MetaSoundParameterEnableWarningOnIgnoredParameterCVar)

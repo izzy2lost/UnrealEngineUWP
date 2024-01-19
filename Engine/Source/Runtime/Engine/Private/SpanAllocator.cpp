@@ -112,7 +112,7 @@ void FSpanAllocator::Consolidate()
 	if (!FreeSpansTmp.IsEmpty() && FreeSpansTmp.Last().StartOffset + FreeSpansTmp.Last().Num == CurrentMaxSize)
 	{
 		CurrentMaxSize -= FreeSpansTmp.Last().Num;
-		FreeSpansTmp.Pop(false);
+		FreeSpansTmp.Pop(EAllowShrinking::No);
 	}
 
 	// 3. Store new free list

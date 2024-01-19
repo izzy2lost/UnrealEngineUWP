@@ -758,7 +758,7 @@ void FCapturedFrames::StartUnArchiving()
 			// Only remove the archived frame indices once we have fully processed them (so that FCapturedFrames::Add knows when to archive frames)
 			{
 				FScopeLock Lock(&ArchiveFrameMutex);
-				ArchivedFrames.RemoveAt(0, MaxNumToProcess, false);
+				ArchivedFrames.RemoveAt(0, MaxNumToProcess, EAllowShrinking::No);
 			}
 
 			FrameReady->Trigger();

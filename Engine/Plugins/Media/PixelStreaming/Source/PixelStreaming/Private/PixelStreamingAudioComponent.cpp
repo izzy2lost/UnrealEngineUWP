@@ -256,7 +256,7 @@ int32 FWebRTCSoundGenerator::OnGenerateAudio(float* OutAudio, int32 NumSamples)
 		Audio::ArrayPcm16ToFloat(MakeArrayView(Buffer.GetData(), NumSamplesToCopy), MakeArrayView(OutAudio, NumSamplesToCopy));
 
 		// Remove front NumSamples from the local buffer
-		Buffer.RemoveAt(0, NumSamplesToCopy, false);
+		Buffer.RemoveAt(0, NumSamplesToCopy, EAllowShrinking::No);
 	}
 
 	if (NumSamplesToCopy < NumSamples)

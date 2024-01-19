@@ -171,8 +171,8 @@ void FSubmixEffectTapDelay::RemoveTap(int32 TapId)
 	{
 		if (TargetTaps[TapIndex].TapId == TapId)
 		{
-			TargetTaps.RemoveAtSwap(TapIndex, 1, true);
-			CurrentTaps.RemoveAtSwap(TapIndex, 1, true);
+			TargetTaps.RemoveAtSwap(TapIndex, 1, EAllowShrinking::Yes);
+			CurrentTaps.RemoveAtSwap(TapIndex, 1, EAllowShrinking::Yes);
 			bSettingsModified = true;
 		}
 	}

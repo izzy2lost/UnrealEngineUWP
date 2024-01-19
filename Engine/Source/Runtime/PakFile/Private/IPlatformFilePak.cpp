@@ -2454,7 +2454,7 @@ private: // below here we assume CachedFilesScopeLock until we get to the next s
 							}
 							);
 						}
-						OffsetAndPakIndexOfSavedBlocked[CacheIndex].RemoveAt(0, NumToRemove, false);
+						OffsetAndPakIndexOfSavedBlocked[CacheIndex].RemoveAt(0, NumToRemove, EAllowShrinking::No);
 						AlreadyRemovedBlocksBecauseOfMemoryOverage = true;
 					}
 				}
@@ -2524,7 +2524,7 @@ private: // below here we assume CachedFilesScopeLock until we get to the next s
 						}
 						if (NumToRemove)
 						{
-							OffsetAndPakIndexOfSavedBlocked[CacheIndex].RemoveAt(0, NumToRemove, false);
+							OffsetAndPakIndexOfSavedBlocked[CacheIndex].RemoveAt(0, NumToRemove, EAllowShrinking::No);
 						}
 					}
 				}
@@ -2592,7 +2592,7 @@ private: // below here we assume CachedFilesScopeLock until we get to the next s
 						}
 						);
 					}
-					OffsetAndPakIndexOfSavedBlocked[CacheIndex].RemoveAt(0, NumToRemove, false);
+					OffsetAndPakIndexOfSavedBlocked[CacheIndex].RemoveAt(0, NumToRemove, EAllowShrinking::No);
 				}
 			}
 		}

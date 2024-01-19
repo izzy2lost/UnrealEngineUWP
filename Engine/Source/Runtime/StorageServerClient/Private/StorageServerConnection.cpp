@@ -722,7 +722,7 @@ FSocket* FStorageServerConnection::AcquireSocketFromPool()
 	FScopeLock Lock(&SocketPoolCritical);
 	if (!SocketPool.IsEmpty())
 	{
-		return SocketPool.Pop(false);
+		return SocketPool.Pop(EAllowShrinking::No);
 	}
 	return nullptr;
 }

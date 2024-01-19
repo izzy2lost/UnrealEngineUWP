@@ -969,7 +969,7 @@ bool FOpenXRHMDModule::TryCreateInstance(XrInstanceCreateInfo& Info)
 						--Bitfield; // We do this first because we already tried with all enabled.
 
 						// Enable some of the problematic extensions
-						LocalEnabledExtensions.SetNum(StartIndex, false); // Shrink off problematic ones from previous iterations
+						LocalEnabledExtensions.SetNum(StartIndex, EAllowShrinking::No); // Shrink off problematic ones from previous iterations
 						for (int i = 0; i < NumProblematicExtensions; ++i)
 						{
 							if (((Bitfield >> i) & 1) == 1)

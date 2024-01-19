@@ -229,7 +229,7 @@ static void RemoveDistanceFieldInstance(int32 RemoveIndex, FDistanceFieldSceneDa
 		PrimitiveAndInstanceBeingMoved.Primitive->DistanceFieldInstanceIndices[PrimitiveAndInstanceBeingMoved.InstanceIndex] = RemoveIndex;
 	}
 
-	DistanceFieldSceneData.PrimitiveInstanceMapping.RemoveAtSwap(RemoveIndex, 1, false);
+	DistanceFieldSceneData.PrimitiveInstanceMapping.RemoveAtSwap(RemoveIndex, 1, EAllowShrinking::No);
 
 	if(!DistanceFieldSceneData.IndicesToUpdateInObjectBuffersSet.Contains(RemoveIndex))
 	{
@@ -719,8 +719,7 @@ void FDistanceFieldSceneData::UpdateDistanceFieldObjectBuffers(
 				{
 					// this is not expected to happen frequently since we can perform up to MAX_NUM_DISTANCE_FIELD_OBJECT_UPLOADS per frame
 					// RemoveAtSwap would be more efficient but could potentially result in starvation
-					const bool bAllowShrinking = true; // allow array to shrink since getting into this code path means array is very large
-					IndicesToUpdateInObjectBuffers.RemoveAt(0, NumDFObjectUploads, bAllowShrinking);
+					IndicesToUpdateInObjectBuffers.RemoveAt(0, NumDFObjectUploads, EAllowShrinking::Yes); // allow array to shrink since getting into this code path means array is very large
 
 					for (int32 Index : IndicesToUpdateInObjectBuffers)
 					{

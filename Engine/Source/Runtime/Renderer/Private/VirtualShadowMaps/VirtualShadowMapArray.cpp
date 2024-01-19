@@ -2047,7 +2047,7 @@ void FVirtualShadowMapArray::CreateMipViews( TArray<Nanite::FPackedView, SceneRe
 
 	// Remove unused mip views
 	check(Views.IsEmpty() || MaxMips > 0);
-	Views.SetNum(MaxMips * NumPrimaryViews, false);
+	Views.SetNum(MaxMips * NumPrimaryViews, EAllowShrinking::No);
 }
 
 

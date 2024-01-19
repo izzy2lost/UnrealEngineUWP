@@ -584,7 +584,7 @@ bool TSceneCastCommonImpWithRetryRequest(const UWorld* World, typename Traits::T
 							for (int32 Index = ClusterUnionIndices.Num() - 1; Index >= 0; --Index)
 							{
 								// No shrinking since we're going to be adding more elements shortly.
-								OutHits.RemoveAtSwap(ClusterUnionIndices[Index], 1, false);
+								OutHits.RemoveAtSwap(ClusterUnionIndices[Index], 1, EAllowShrinking::No);
 							}
 	
 							if (Params.bReplaceHitWithSubComponents)
@@ -1015,7 +1015,7 @@ bool GeomOverlapMultiImp(const UWorld* World, const FPhysicsGeometry& Geom, cons
 							for (int32 Index = ClusterUnionIndices.Num() - 1; Index >= 0; --Index)
 							{
 								// No shrinking since we're going to be adding more elements shortly.
-								OutOverlaps.RemoveAtSwap(ClusterUnionIndices[Index], 1, false);
+								OutOverlaps.RemoveAtSwap(ClusterUnionIndices[Index], 1, EAllowShrinking::No);
 							}
 
 							if (Params.bReplaceHitWithSubComponents)

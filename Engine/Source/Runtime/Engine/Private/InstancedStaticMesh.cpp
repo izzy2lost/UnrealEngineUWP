@@ -3435,8 +3435,8 @@ bool UInstancedStaticMeshComponent::RemoveInstanceInternal(int32 InstanceIndex, 
 
 		if (bUseRemoveAtSwap)
 		{
-			PerInstanceSMData.RemoveAtSwap(InstanceIndex, 1, false);
-			PerInstanceSMCustomData.RemoveAtSwap(InstanceIndex * NumCustomDataFloats, NumCustomDataFloats, false);
+			PerInstanceSMData.RemoveAtSwap(InstanceIndex, 1, EAllowShrinking::No);
+			PerInstanceSMCustomData.RemoveAtSwap(InstanceIndex * NumCustomDataFloats, NumCustomDataFloats, EAllowShrinking::No);
 		}
 		else
 		{
@@ -3982,17 +3982,17 @@ bool UInstancedStaticMeshComponent::UpdateInstances(
 		{
 			// TODO: Move this to common helper function such that all data remove goes through one place in the code.
 			PrimitiveInstanceDataManager.RemoveAtSwap(InstanceIndex);
-			PerInstanceSMData.RemoveAtSwap(InstanceIndex, 1, false);
-			PerInstancePrevTransform.RemoveAtSwap(InstanceIndex, 1, false);
-			PerInstanceIds.RemoveAtSwap(InstanceIndex, 1, false);
+			PerInstanceSMData.RemoveAtSwap(InstanceIndex, 1, EAllowShrinking::No);
+			PerInstancePrevTransform.RemoveAtSwap(InstanceIndex, 1, EAllowShrinking::No);
+			PerInstanceIds.RemoveAtSwap(InstanceIndex, 1, EAllowShrinking::No);
 
 			// Only remove the custom float data from this instance if it previously had it.
 			if (bHasCustomFloatData)
 			{
-				PerInstanceSMCustomData.RemoveAtSwap((InstanceIndex * NumCustomDataFloats), NumCustomDataFloats, false);
+				PerInstanceSMCustomData.RemoveAtSwap((InstanceIndex * NumCustomDataFloats), NumCustomDataFloats, EAllowShrinking::No);
 			}
 
-			OldInstanceIds.RemoveAtSwap(InstanceIndex, 1, false);
+			OldInstanceIds.RemoveAtSwap(InstanceIndex, 1, EAllowShrinking::No);
 		}
 		else
 		{

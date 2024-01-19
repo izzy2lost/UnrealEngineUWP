@@ -1016,13 +1016,12 @@ bool UPrimitiveComponent::IsSimulatingPhysics(FName BoneName) const
 
 		FLockedReadPhysicsObjectExternalInterface Interface = FPhysicsObjectExternalInterface::LockRead(PhysicsObjects);
 
-		constexpr bool bAllowShrinking = false;
 		PhysicsObjects.RemoveAllSwap(
 			[&Interface](Chaos::FPhysicsObjectHandle Object)
 			{
 				return Interface->AreAllDisabled({ &Object, 1 });
 			},
-			bAllowShrinking);
+			EAllowShrinking::No);
 
 		return Interface->AreAllDynamicOrSleeping(PhysicsObjects);
 	}

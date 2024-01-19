@@ -230,7 +230,7 @@ bool UMassReplicationSubsystem::SynchronizeClients(const TArray<FViewerInfo>& Vi
 	// resize the ViewerToClientHandleArray array to match the viewer handles array (for consistency)
 	if (ViewerToClientHandleArray.Num() > Viewers.Num())
 	{
-		ViewerToClientHandleArray.RemoveAt(Viewers.Num(), ViewerToClientHandleArray.Num() - Viewers.Num(), /* bAllowShrinking */ false);
+		ViewerToClientHandleArray.RemoveAt(Viewers.Num(), ViewerToClientHandleArray.Num() - Viewers.Num(), EAllowShrinking::No);
 	}
 
 	for (FClientAddData& ClientAdd : ClientsToAdd)
@@ -294,7 +294,7 @@ void UMassReplicationSubsystem::SynchronizeClientViewers(const TArray<FViewerInf
 					}
 					else //remove invalid ClientViewer, but dont increment the ViewerIdx
 					{
-						ClientReplicationInfo.Handles.RemoveAt(ViewerIdx, 1, /* bAllowShrinking */ false);
+						ClientReplicationInfo.Handles.RemoveAt(ViewerIdx, 1, EAllowShrinking::No);
 					}
 				}
 			}
@@ -379,12 +379,12 @@ void UMassReplicationSubsystem::SynchronizeClientsAndViewers()
 	{
 		const int32 NumItems = ClientHandleManager.ShrinkHandles();
 		 
-		ClientsReplicationInfo.RemoveAt(NumItems, ClientsReplicationInfo.Num() - NumItems, /* bAllowShrinking */ false);
-		ClientToViewerHandleArray.RemoveAt(NumItems, ClientToViewerHandleArray.Num() - NumItems, /* bAllowShrinking */ false);
+		ClientsReplicationInfo.RemoveAt(NumItems, ClientsReplicationInfo.Num() - NumItems, EAllowShrinking::No);
+		ClientToViewerHandleArray.RemoveAt(NumItems, ClientToViewerHandleArray.Num() - NumItems, EAllowShrinking::No);
 
 		for (FMassClientBubbleInfoData& InfoData : BubbleInfoArray)
 		{
-			InfoData.Bubbles.RemoveAt(NumItems, InfoData.Bubbles.Num() - NumItems, /* bAllowShrinking */ false);
+			InfoData.Bubbles.RemoveAt(NumItems, InfoData.Bubbles.Num() - NumItems, EAllowShrinking::No);
 		}
 	}
 }

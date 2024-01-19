@@ -471,7 +471,7 @@ void FDistanceFieldBlockAllocator::Allocate(int32 NumBlocks, TArray<int32, TInli
 			OutBlocks[i] = FreeBlocks[FreeBlocks.Num() - i - 1];
 		}
 
-		FreeBlocks.RemoveAt(FreeBlocks.Num() - NumFree, NumFree, false);
+		FreeBlocks.RemoveAt(FreeBlocks.Num() - NumFree, NumFree, EAllowShrinking::No);
 	}
 		
 	const int32 NumRemaining = NumBlocks - NumFree;

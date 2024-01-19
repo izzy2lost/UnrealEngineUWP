@@ -39,8 +39,7 @@ public:
 
 			constexpr int32 Index = 0;
 			constexpr int32 Count = 1;
-			constexpr bool bAllowShrinking = false;
-			Super::Chunks.RemoveAt(Index, Count, bAllowShrinking);
+			Super::Chunks.RemoveAt(Index, Count, EAllowShrinking::No);
 		}
 	}
 
@@ -299,18 +298,18 @@ void FReplicationPrioritization::Init(FReplicationPrioritizationInitParams& Para
 
 	MaxObjectCount = Params.MaxObjectCount;
 
-	constexpr bool bAllowShrinking = false;
+	constexpr EAllowShrinking AllowShrinking = EAllowShrinking::No;
 
 	// $IRIS TODO: This can be quite wasteful in terms of memory assuming many objects will use a static priority. Need object pool!
-	NetObjectPrioritizationInfos.SetNumUninitialized(Params.MaxObjectCount, bAllowShrinking);
+	NetObjectPrioritizationInfos.SetNumUninitialized(Params.MaxObjectCount, AllowShrinking);
 
 	{
-		ObjectIndexToPrioritizer.SetNumUninitialized(Params.MaxObjectCount, bAllowShrinking);
+		ObjectIndexToPrioritizer.SetNumUninitialized(Params.MaxObjectCount, AllowShrinking);
 		FMemory::Memset(ObjectIndexToPrioritizer.GetData(), FReplicationPrioritization_InvalidNetObjectPrioritizerIndex, Params.MaxObjectCount*sizeof(decltype(ObjectIndexToPrioritizer)::ElementType));
 	}
 	
 	{
-		DefaultPriorities.SetNumUninitialized(Params.MaxObjectCount, bAllowShrinking);
+		DefaultPriorities.SetNumUninitialized(Params.MaxObjectCount, AllowShrinking);
 		float* Priorities = DefaultPriorities.GetData();
 		for (SIZE_T PrioIt = 0, PrioEndIt = Params.MaxObjectCount; PrioIt != PrioEndIt; ++PrioIt)
 		{
@@ -558,7 +557,7 @@ void FReplicationPrioritization::AddConnection(uint32 ConnectionId)
 {
 	if (ConnectionId >= (uint32)ConnectionInfos.Num())
 	{
-		ConnectionInfos.SetNum(ConnectionId + 1U, false);
+		ConnectionInfos.SetNum(ConnectionId + 1U, EAllowShrinking::No);
 	}
 
 	++ConnectionCount;

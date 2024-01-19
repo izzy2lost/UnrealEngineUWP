@@ -109,7 +109,7 @@ FText UEnvQueryTypes::GetShortTypeName(const UObject* Ob)
 	const int32 ShortNameIdx = TypeDesc.Find(TEXT("_"), ESearchCase::CaseSensitive);
 	if (ShortNameIdx != INDEX_NONE)
 	{
-		TypeDesc.MidInline(ShortNameIdx + 1, MAX_int32, false);
+		TypeDesc.MidInline(ShortNameIdx + 1, MAX_int32, EAllowShrinking::No);
 	}
 
 	return FText::FromString(TypeDesc);

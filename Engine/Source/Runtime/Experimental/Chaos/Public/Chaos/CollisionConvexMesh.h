@@ -210,7 +210,7 @@ namespace Chaos
 			{
 				if(HalfEdgesFreeIndices.Num())
 				{
-					const uint32 Idx = HalfEdgesFreeIndices.Pop(/*bAllowShrinking=*/false);
+					const uint32 Idx = HalfEdgesFreeIndices.Pop(EAllowShrinking::No);
 					FHalfEdge* FreeHalfEdge = &HalfEdges[Idx];
 					FreeHalfEdge->Reset(InVertex);
 					ensure(FreeHalfEdge->PoolIdx == Idx);
@@ -227,7 +227,7 @@ namespace Chaos
 			{
 				if(FacesFreeIndices.Num())
 				{
-					const uint32 Idx = FacesFreeIndices.Pop(/*bAllowShrinking=*/false);
+					const uint32 Idx = FacesFreeIndices.Pop(EAllowShrinking::No);
 					FConvexFace* FreeFace = &Faces[Idx];
 					FreeFace->Reset(FacePlane);
 					ensure(FreeFace->PoolIdx == Idx);
@@ -557,8 +557,8 @@ namespace Chaos
 							}
 
 							// Erase the second plane
-							InOutPlanes.RemoveAtSwap(PlaneIndex1, 1, false);
-							InOutFaceVertexIndices.RemoveAtSwap(PlaneIndex1, 1, false);
+							InOutPlanes.RemoveAtSwap(PlaneIndex1, 1, EAllowShrinking::No);
+							InOutFaceVertexIndices.RemoveAtSwap(PlaneIndex1, 1, EAllowShrinking::No);
 							--PlaneIndex1;
 						}
 					}
@@ -1156,7 +1156,7 @@ namespace Chaos
 				UE_LOG(LogChaos, VeryVerbose, TEXT("%s"), *QueueString);
 #endif 
 
-				FHalfEdge* Edge = Queue.Pop(/*bAllowShrinking=*/false);
+				FHalfEdge* Edge = Queue.Pop(EAllowShrinking::No);
 				Processed.Add(Edge->Face);
 				FHalfEdge* Twin = Edge->Twin;
 				FConvexFace* NextFace = Twin->Face;

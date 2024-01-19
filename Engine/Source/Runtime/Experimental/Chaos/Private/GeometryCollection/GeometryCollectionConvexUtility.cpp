@@ -751,7 +751,7 @@ void CreateNonoverlappingConvexHulls(
 		ToExpand.Add(Bone);
 		while (ToExpand.Num() > 0)
 		{
-			int32 ToProcess = ToExpand.Pop(false);
+			int32 ToProcess = ToExpand.Pop(EAllowShrinking::No);
 			if (SimulationType[ToProcess] == LeafType)
 			{
 				Leaves.Add(ToProcess);
@@ -769,7 +769,7 @@ void CreateNonoverlappingConvexHulls(
 		TArray<int32> ToExpand = Children[Bone];
 		while (ToExpand.Num() > 0)
 		{
-			int32 ToProcess = ToExpand.Pop(false);
+			int32 ToProcess = ToExpand.Pop(EAllowShrinking::No);
 			if (TransformToConvexIndices[ToProcess].Num() > 0)
 			{
 				OutChildren.Add(ToProcess);
@@ -968,7 +968,7 @@ void CreateNonoverlappingConvexHulls(
 						TraverseBones.Append(Children[ParentBone]);
 						while (TraverseBones.Num() > 0)
 						{
-							int32 ToProc = TraverseBones.Pop(false);
+							int32 ToProc = TraverseBones.Pop(EAllowShrinking::No);
 							if (IsBoneColliding(OtherBone, ToProc))
 							{
 								ClusterProximity[OtherBone].Add(ToProc);
@@ -3001,8 +3001,8 @@ namespace
 				NewPolygons.Reset(PackedPolygons.Num());
 				NewVertices.Reset();
 				OpenEdgeVertMap.Reset();
-				SignedDist.SetNum(Vertices.Num(), false);
-				VertexRemap.SetNum(Vertices.Num(), false);
+				SignedDist.SetNum(Vertices.Num(), EAllowShrinking::No);
+				VertexRemap.SetNum(Vertices.Num(), EAllowShrinking::No);
 				int32 OpenEdgeStart = -1;
 
 				// Possible optimization: if many vertices, check plane vs AABB corners first?
@@ -3206,7 +3206,7 @@ namespace
 					{
 						// failsafe if we didn't find a closed loop covering all edges:
 						// add a triangle fan closing off the edges that we did find
-						NewPolygons.SetNum(OrigEnd, false);
+						NewPolygons.SetNum(OrigEnd, EAllowShrinking::No);
 						Chaos::FVec3f Center(0, 0, 0);
 						float CenterWt = 0;
 						int32 CenterIdx = Vertices.Num();
@@ -3247,7 +3247,7 @@ namespace
 						Vertices[NumKept + AddedIdx] = Vertices[OldIdx];
 					}
 					int32 NumNew = Vertices.Num() - OldVertCount;
-					Vertices.SetNum(NumKept + NumNew, false);
+					Vertices.SetNum(NumKept + NumNew, EAllowShrinking::No);
 				}
 				// Update the polygons w/ the compressed vertex indices
 				for (int32& VIdx : PackedPolygons)

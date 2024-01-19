@@ -546,7 +546,7 @@ void FGetConvexHullVolumeDataflowNode::Evaluate(Dataflow::FContext& Context, con
 		{
 			while (!SelectionToSum.IsEmpty())
 			{
-				int32 TransformIdx = SelectionToSum.Pop(false);
+				int32 TransformIdx = SelectionToSum.Pop(EAllowShrinking::No);
 				if (!bSumChildrenForClustersWithoutHulls || !TransformToConvexIndices[TransformIdx].IsEmpty())
 				{
 					ProcessFn(TransformIdx);

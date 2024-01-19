@@ -773,7 +773,7 @@ namespace RHIValidation
 
 		inline void Reset()
 		{
-			Operations.SetNum(0, false);
+			Operations.SetNum(0, EAllowShrinking::No);
 			OperationPos = 0;
 		}
 
@@ -835,7 +835,7 @@ namespace RHIValidation
 
 			inline void Reset()
 			{
-				UAVs.SetNum(0, false);
+				UAVs.SetNum(0, EAllowShrinking::No);
 			}
 
 			void DrawOrDispatch(FTracker* BarrierTracker, const FState& RequiredState);

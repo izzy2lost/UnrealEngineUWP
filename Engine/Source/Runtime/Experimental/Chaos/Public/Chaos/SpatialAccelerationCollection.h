@@ -129,7 +129,7 @@ struct TSpatialCollectionBucket
 	{
 		if (Objects.Num() == Idx + 1)
 		{
-			Objects.Pop(false);
+			Objects.Pop(EAllowShrinking::No);
 		}
 		else
 		{

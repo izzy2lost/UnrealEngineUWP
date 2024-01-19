@@ -272,14 +272,13 @@ namespace Metasound
 	{
 		bool bSuccess = true;
 
-		const bool bAllowShrinking = false;
 		for (int32 ParamIndex = InParameters.Num() - 1; ParamIndex >= 0; --ParamIndex)
 		{
 			FAudioParameter& Param = InParameters[ParamIndex];
 			const FName ParamName = Param.ParamName;
 			if (!SetParameterWithLiteral(ParamName, Frontend::ConvertParameterToLiteral(Param)))
 			{
-				InParameters.RemoveAtSwap(ParamIndex, 1, bAllowShrinking);
+				InParameters.RemoveAtSwap(ParamIndex, 1, EAllowShrinking::No);
 				bSuccess = false;
 			}
 		}

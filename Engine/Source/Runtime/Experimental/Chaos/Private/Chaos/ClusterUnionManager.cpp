@@ -407,7 +407,7 @@ namespace Chaos
 		}
 		else
 		{
-			return ReusableIndices.Pop(false);
+			return ReusableIndices.Pop(EAllowShrinking::No);
 		}
 	}
 

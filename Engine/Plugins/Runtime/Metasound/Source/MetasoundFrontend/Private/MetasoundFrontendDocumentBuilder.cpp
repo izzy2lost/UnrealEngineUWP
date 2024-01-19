@@ -205,8 +205,8 @@ namespace Metasound::Frontend
 					if (INDEX_NONE != RemoveIndex)
 					{
 						PairedInputs.Add(FVertexPair { InputsToRemove[RemoveIndex], InputsToAdd[AddIndex].Key });
-						InputsToRemove.RemoveAtSwap(RemoveIndex, 1, false);
-						InputsToAdd.RemoveAtSwap(AddIndex, 1, false);
+						InputsToRemove.RemoveAtSwap(RemoveIndex, 1, EAllowShrinking::No);
+						InputsToAdd.RemoveAtSwap(AddIndex, 1, EAllowShrinking::No);
 					}
 				}
 
@@ -2122,14 +2122,13 @@ bool FMetaSoundFrontendDocumentBuilder::TransformTemplateNodes()
 	}
 
 	// 3. Remove template classes from dependency list
-	constexpr bool bAllowShrinking = false;
 	for (int32 i = Dependencies.Num() - 1; i >= 0; --i)
 	{
 		const FMetasoundFrontendClass& Class = Dependencies[i];
 		if (TemplateParams.Contains(Class.ID))
 		{
 			DocumentDelegates->OnRemoveSwappingDependency.Broadcast(i, Dependencies.Num() - 1);
-			Dependencies.RemoveAtSwap(i, 1, bAllowShrinking);
+			Dependencies.RemoveAtSwap(i, 1, EAllowShrinking::No);
 		}
 	}
 	Dependencies.Shrink();
@@ -2183,7 +2182,7 @@ bool FMetaSoundFrontendDocumentBuilder::RemoveDependency(const FGuid& InClassID)
 
 		const int32 LastIndex = Dependencies.Num() - 1;
 		DocumentDelegates->OnRemoveSwappingDependency.Broadcast(Index, LastIndex);
-		Dependencies.RemoveAtSwap(Index, 1, false);
+		Dependencies.RemoveAtSwap(Index, 1, EAllowShrinking::No);
 	}
 
 	return true;
@@ -2213,7 +2212,7 @@ bool FMetaSoundFrontendDocumentBuilder::RemoveDependency(EMetasoundFrontendClass
 
 		const int32 LastIndex = Dependencies.Num() - 1;
 		DocumentDelegates->OnRemoveSwappingDependency.Broadcast(Index, LastIndex);
-		Dependencies.RemoveAtSwap(Index, 1, false);
+		Dependencies.RemoveAtSwap(Index, 1, EAllowShrinking::No);
 	}
 
 	return true;
@@ -2232,7 +2231,7 @@ bool FMetaSoundFrontendDocumentBuilder::RemoveEdge(const FMetasoundFrontendEdge&
 		const int32 Index = *IndexPtr;
 		const int32 LastIndex = Edges.Num() - 1;
 		DocumentDelegates->EdgeDelegates.OnRemoveSwappingEdge.Broadcast(Index, LastIndex);
-		Edges.RemoveAtSwap(Index, 1, false);
+		Edges.RemoveAtSwap(Index, 1, EAllowShrinking::No);
 	}
 
 	return false;
@@ -2319,8 +2318,7 @@ bool FMetaSoundFrontendDocumentBuilder::RemoveNodeInputDefault(const FGuid& InNo
 					OnRemovingNodeInputLiteral.Broadcast(*NodeIndex, VertexIndex, LiteralIndex);
 				}
 
-				constexpr bool bAllowShrinking = false;
-				Node.InputLiterals.RemoveAtSwap(LiteralIndex, 1, bAllowShrinking);
+				Node.InputLiterals.RemoveAtSwap(LiteralIndex, 1, EAllowShrinking::No);
 				if (LiteralIndex != LastIndex)
 				{
 					const FOnMetaSoundFrontendDocumentMutateNodeInputLiteralArray& OnNodeInputLiteralSet = DocumentDelegates->NodeDelegates.OnNodeInputLiteralSet;
@@ -2372,8 +2370,7 @@ bool FMetaSoundFrontendDocumentBuilder::RemoveEdgesFromNodeOutput(const FGuid& I
 		{
 			const int32 LastIndex = Graph.Edges.Num() - 1;
 			DocumentDelegates->EdgeDelegates.OnRemoveSwappingEdge.Broadcast(Index, LastIndex);
-			constexpr bool bAllowShrinking = false;
-			Graph.Edges.RemoveAtSwap(Index, 1, bAllowShrinking);
+			Graph.Edges.RemoveAtSwap(Index, 1, EAllowShrinking::No);
 		}
 
 		return true;
@@ -2394,7 +2391,7 @@ bool FMetaSoundFrontendDocumentBuilder::RemoveEdgeToNodeInput(const FGuid& InNod
 		const int32 Index = *IndexPtr; // Copy off indices as the pointer may be modified when notifying the cache below
 		const int32 LastIndex = Graph.Edges.Num() - 1;
 		DocumentDelegates->EdgeDelegates.OnRemoveSwappingEdge.Broadcast(Index, LastIndex);
-		Graph.Edges.RemoveAtSwap(Index, 1, false);
+		Graph.Edges.RemoveAtSwap(Index, 1, EAllowShrinking::No);
 
 		return true;
 	}
@@ -2421,8 +2418,7 @@ bool FMetaSoundFrontendDocumentBuilder::RemoveGraphInput(FName InInputName)
 				{
 					DocumentDelegates->InterfaceDelegates.OnRemovingInput.Broadcast(LastIndex);
 				}
-				constexpr bool bAllowShrinking = false;
-				Inputs.RemoveAtSwap(Index, 1, bAllowShrinking);
+				Inputs.RemoveAtSwap(Index, 1, EAllowShrinking::No);
 				if (Index != LastIndex)
 				{
 					DocumentDelegates->InterfaceDelegates.OnInputAdded.Broadcast(Index);
@@ -2465,8 +2461,7 @@ bool FMetaSoundFrontendDocumentBuilder::RemoveGraphOutput(FName InOutputName)
 				{
 					DocumentDelegates->InterfaceDelegates.OnRemovingOutput.Broadcast(LastIndex);
 				}
-				constexpr bool bAllowShrinking = false;
-				Outputs.RemoveAtSwap(Index, 1, bAllowShrinking);
+				Outputs.RemoveAtSwap(Index, 1, EAllowShrinking::No);
 				if (Index != LastIndex)
 				{
 					DocumentDelegates->InterfaceDelegates.OnOutputAdded.Broadcast(Index);
@@ -2553,7 +2548,7 @@ bool FMetaSoundFrontendDocumentBuilder::RemoveNode(const FGuid& InNodeID)
 
 		const int32 LastIndex = Nodes.Num() - 1;
 		DocumentDelegates->NodeDelegates.OnRemoveSwappingNode.Broadcast(Index, LastIndex);
-		Nodes.RemoveAtSwap(Index, 1, false);
+		Nodes.RemoveAtSwap(Index, 1, EAllowShrinking::No);
 
 #if WITH_EDITORONLY_DATA
 		Document.Metadata.ModifyContext.AddNodeIDModified(InNodeID);

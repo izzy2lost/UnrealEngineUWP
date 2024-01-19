@@ -543,7 +543,7 @@ namespace Chaos::Private
 	{
 		if (ConstraintContainers.Num() < Container.GetContainerId() + 1)
 		{
-			ConstraintContainers.SetNumZeroed(Container.GetContainerId() + 1, false);
+			ConstraintContainers.SetNumZeroed(Container.GetContainerId() + 1, EAllowShrinking::No);
 		}
 		ConstraintContainers[Container.GetContainerId()] = &Container;
 	}
@@ -1155,7 +1155,7 @@ namespace Chaos::Private
 				check(Node->Edges[ArrayIndex] == Edge);
 
 				// Remove the edge from the node
-				Node->Edges.RemoveAtSwap(ArrayIndex, 1, false);
+				Node->Edges.RemoveAtSwap(ArrayIndex, 1, EAllowShrinking::No);
 				Edge->Nodes[NodeIndex] = nullptr;
 				Edge->NodeArrayIndices[NodeIndex] = INDEX_NONE;
 
@@ -1355,7 +1355,7 @@ namespace Chaos::Private
 			const int32 ArrayIndex = Node->IslandArrayIndex;
 			check(Island->Nodes[ArrayIndex] == Node);
 
-			Island->Nodes.RemoveAtSwap(ArrayIndex, 1, false);
+			Island->Nodes.RemoveAtSwap(ArrayIndex, 1, EAllowShrinking::No);
 			if (ArrayIndex < Island->Nodes.Num())
 			{
 				Island->Nodes[ArrayIndex]->IslandArrayIndex = ArrayIndex;
@@ -1417,7 +1417,7 @@ namespace Chaos::Private
 			const int32 EdgeIndex = Edge->IslandArrayIndex;
 			check(Island->ContainerEdges[ContainerIndex][EdgeIndex] == Edge);
 
-			Island->ContainerEdges[ContainerIndex].RemoveAtSwap(EdgeIndex, 1, false);
+			Island->ContainerEdges[ContainerIndex].RemoveAtSwap(EdgeIndex, 1, EAllowShrinking::No);
 			if (EdgeIndex < Island->ContainerEdges[ContainerIndex].Num())
 			{
 				Island->ContainerEdges[ContainerIndex][EdgeIndex]->IslandArrayIndex = EdgeIndex;
@@ -1583,7 +1583,7 @@ namespace Chaos::Private
 
 			// Remove from the list of islands to merge
 			const int32 IslandIndex = Island->MergeSetIslandIndex;
-			MergeSet->Islands.RemoveAtSwap(IslandIndex, 1, false);
+			MergeSet->Islands.RemoveAtSwap(IslandIndex, 1, EAllowShrinking::No);
 			if (IslandIndex < MergeSet->Islands.Num())
 			{
 				MergeSet->Islands[IslandIndex]->MergeSetIslandIndex = IslandIndex;
@@ -1842,7 +1842,7 @@ namespace Chaos::Private
 				// Populate the island with all connected nodes and edges
 				while (!NodeQueue.IsEmpty())
 				{
-					FPBDIslandParticle* NextNode = NodeQueue.Pop(false);
+					FPBDIslandParticle* NextNode = NodeQueue.Pop(EAllowShrinking::No);
 
 					// Visit all the edges connected to the current node
 					for (FPBDIslandConstraint* Edge : NextNode->Edges)

@@ -611,7 +611,7 @@ void UPlayerInput::InvertAxis(const FName AxisName)
 			{
 				if (InvertedAxis[InvertIndex] == AxisName)
 				{
-					InvertedAxis.RemoveAtSwap(InvertIndex, 1, false);
+					InvertedAxis.RemoveAtSwap(InvertIndex, 1, EAllowShrinking::No);
 				}
 			}
 		}
@@ -624,7 +624,7 @@ void UPlayerInput::InvertAxis(const FName AxisName)
 			if (InvertedAxis[InvertIndex] == AxisName)
 			{
 				bFound = true;
-				InvertedAxis.RemoveAtSwap(InvertIndex, 1, false);
+				InvertedAxis.RemoveAtSwap(InvertIndex, 1, EAllowShrinking::No);
 			}
 		}
 		if (!bFound)
@@ -688,7 +688,7 @@ void UPlayerInput::RemoveActionMapping(const FInputActionKeyMapping& KeyMapping)
 	{
 		if (ActionMappings[ActionIndex] == KeyMapping)
 		{
-			ActionMappings.RemoveAtSwap(ActionIndex, 1, false);
+			ActionMappings.RemoveAtSwap(ActionIndex, 1, EAllowShrinking::No);
 			ActionKeyMap.Reset();
 			bKeyMapsBuilt = false;
 			// we don't break because the mapping may have been in the array twice
@@ -711,7 +711,7 @@ void UPlayerInput::RemoveAxisMapping(const FInputAxisKeyMapping& InKeyMapping)
 		if (KeyMapping.AxisName == InKeyMapping.AxisName
 			&& KeyMapping.Key == InKeyMapping.Key)
 		{
-			AxisMappings.RemoveAtSwap(AxisIndex, 1, false);
+			AxisMappings.RemoveAtSwap(AxisIndex, 1, EAllowShrinking::No);
 			AxisKeyMap.Reset();
 			bKeyMapsBuilt = false;
 			// we don't break because the mapping may have been in the array twice
@@ -872,7 +872,7 @@ void UPlayerInput::GetChordsForKeyMapping(const FInputActionKeyMapping& KeyMappi
 			if (ChordRelationship == FInputChord::ERelationshipType::Masks)
 			{
 				// If we mask the found one, then remove it from the list
-				FoundChords.RemoveAtSwap(ChordIndex, 1, false);
+				FoundChords.RemoveAtSwap(ChordIndex, 1, EAllowShrinking::No);
 			}
 			else if (ChordRelationship == FInputChord::ERelationshipType::Masked)
 			{
@@ -991,7 +991,7 @@ void UPlayerInput::GetChordForKey(const FInputKeyBinding& KeyBinding, const bool
 					if (ChordRelationship == FInputChord::ERelationshipType::Masks)
 					{
 						// If we mask the found one, then remove it from the list
-						FoundChords.RemoveAtSwap(ChordIndex, 1, false);
+						FoundChords.RemoveAtSwap(ChordIndex, 1, EAllowShrinking::No);
 					}
 					else if (ChordRelationship == FInputChord::ERelationshipType::Masked)
 					{
@@ -2298,7 +2298,7 @@ void UPlayerInput::SetBind(FName BindName, const FString& Command)
 		FString CommandMod = Command;
 		if ( CommandMod.Left(1) == TEXT("\"") && CommandMod.Right(1) == ("\"") )
 		{
-			CommandMod.MidInline(1, CommandMod.Len() - 2, false);
+			CommandMod.MidInline(1, CommandMod.Len() - 2, EAllowShrinking::No);
 		}
 
 		for(int32 BindIndex = DebugExecBindings.Num()-1;BindIndex >= 0;BindIndex--)

@@ -142,7 +142,7 @@ void FD3D12ExplicitDescriptorHeapCache::ReleaseStaleEntries(uint32 MaxAge, uint6
 			It.Heap->Release();
 
 			Entries[EntryIndex] = Entries.Last();
-			Entries.Pop(false);
+			Entries.Pop(EAllowShrinking::No);
 		}
 		else
 		{

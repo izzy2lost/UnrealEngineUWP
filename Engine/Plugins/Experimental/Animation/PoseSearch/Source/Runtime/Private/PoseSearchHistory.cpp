@@ -349,7 +349,7 @@ void FArchivedPoseHistory::DebugDraw(const UWorld* World, FColor Color) const
 			const int32 PrevGlobalTransformsNum = PrevGlobalTransforms.Num();
 			const int32 Max = FMath::Max(PrevGlobalTransformsNum, Entry.Num());
 
-			PrevGlobalTransforms.SetNum(Max, false);
+			PrevGlobalTransforms.SetNum(Max, EAllowShrinking::No);
 
 			for (int32 i = 0; i < Entry.Num(); ++i)
 			{
@@ -637,7 +637,7 @@ void FPoseHistory::DebugDraw(FAnimInstanceProxy& AnimInstanceProxy, FColor Color
 			const int32 PrevGlobalTransformsNum = PrevGlobalTransforms.Num();
 			const int32 Max = FMath::Max(PrevGlobalTransformsNum, Entry.Num());
 
-			PrevGlobalTransforms.SetNum(Max, false);
+			PrevGlobalTransforms.SetNum(Max, EAllowShrinking::No);
 
 			for (int32 i = 0; i < Entry.Num(); ++i)
 			{
@@ -762,7 +762,7 @@ void FMemStackPoseHistory::DebugDraw(FAnimInstanceProxy& AnimInstanceProxy, FCol
 			const int32 PrevGlobalTransformsNum = PrevGlobalTransforms.Num();
 			const int32 Max = FMath::Max(PrevGlobalTransformsNum, Entry.Num());
 
-			PrevGlobalTransforms.SetNum(Max, false);
+			PrevGlobalTransforms.SetNum(Max, EAllowShrinking::No);
 
 			for (int32 i = 0; i < Entry.Num(); ++i)
 			{

@@ -695,7 +695,7 @@ void FTimerManager::PauseTimer(FTimerHandle InHandle)
 			{
 				int32 IndexIndex = ActiveTimerHeap.Find(InHandle);
 				check(IndexIndex != INDEX_NONE);
-				ActiveTimerHeap.HeapRemoveAt(IndexIndex, FTimerHeapOrder(Timers), /*bAllowShrinking=*/ false);
+				ActiveTimerHeap.HeapRemoveAt(IndexIndex, FTimerHeapOrder(Timers), EAllowShrinking::No);
 			}
 			break;
 
@@ -879,7 +879,7 @@ void FTimerManager::Tick(float DeltaTime)
 
 		if (Top->Status == ETimerStatus::ActivePendingRemoval)
 		{
-			ActiveTimerHeap.HeapPop(TopHandle, FTimerHeapOrder(Timers), /*bAllowShrinking=*/ false);
+			ActiveTimerHeap.HeapPop(TopHandle, FTimerHeapOrder(Timers), EAllowShrinking::No);
 			RemoveTimer(TopHandle);
 			continue;
 		}
@@ -903,7 +903,7 @@ void FTimerManager::Tick(float DeltaTime)
 			FScopedLevelCollectionContextSwitch LevelContext(LevelCollectionIndex, LevelCollectionWorld);
 
 			// Remove it from the heap and store it while we're executing
-			ActiveTimerHeap.HeapPop(CurrentlyExecutingTimer, FTimerHeapOrder(Timers), /*bAllowShrinking=*/ false);
+			ActiveTimerHeap.HeapPop(CurrentlyExecutingTimer, FTimerHeapOrder(Timers), EAllowShrinking::No);
 			Top->Status = ETimerStatus::Executing;
 
 			// Determine how many times the timer may have elapsed (e.g. for large DeltaTime on a short looping timer)

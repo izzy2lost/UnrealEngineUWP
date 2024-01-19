@@ -370,7 +370,7 @@ FRHIRenderQuery* FFrameBasedOcclusionQueryPool::AllocateQuery()
 			FFrameOcclusionQueries& OtherFrame = FrameQueries[Index];
 			while (OtherFrame.FirstFreeIndex < OtherFrame.Queries.Num())
 			{
-				CurrentFrame.Queries.Add(OtherFrame.Queries.Pop(false));
+				CurrentFrame.Queries.Add(OtherFrame.Queries.Pop(EAllowShrinking::No));
 			}
 
 			if (CurrentFrame.FirstFreeIndex < CurrentFrame.Queries.Num())

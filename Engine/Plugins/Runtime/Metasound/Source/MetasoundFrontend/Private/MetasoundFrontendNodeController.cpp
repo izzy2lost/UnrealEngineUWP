@@ -172,7 +172,7 @@ namespace Metasound
 					return InVertexID == VertexLiteral.VertexID;
 				};
 
-				return Node->InputLiterals.RemoveAllSwap(IsInputVertex, false) > 0;
+				return Node->InputLiterals.RemoveAllSwap(IsInputVertex, EAllowShrinking::No) > 0;
 			}
 
 			return false;
@@ -981,7 +981,7 @@ namespace Metasound
 				}
 				else
 				{
-					OutInterfaceUpdates.AddedInputs.RemoveAtSwap(Index, 1, false /* bAllowShrinking */);
+					OutInterfaceUpdates.AddedInputs.RemoveAtSwap(Index, 1, EAllowShrinking::No);
 				}
 			}
 
@@ -1000,7 +1000,7 @@ namespace Metasound
 				}
 				else
 				{
-					OutInterfaceUpdates.AddedOutputs.RemoveAtSwap(Index, 1, false /* bAllowShrinking */);
+					OutInterfaceUpdates.AddedOutputs.RemoveAtSwap(Index, 1, EAllowShrinking::No);
 				}
 			}
 

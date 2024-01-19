@@ -751,7 +751,7 @@ bool FAsyncLoadingTraceAnalyzer::OnEvent(uint16 RouteId, EStyle Style, const FOn
 
 		if (ThreadState.RequestGroupStack.Num())
 		{
-			ThreadState.RequestGroupStack.Pop(false);
+			ThreadState.RequestGroupStack.Pop(EAllowShrinking::No);
 		}
 		else
 		{

@@ -460,13 +460,13 @@ void FNetworkVehicleStates::InterpolateDatas(const FNetworkVehicleStates& MinDat
 
 	int32 NumWheels = FMath::Min(MinDatas.WheelsOmega.Num(), MaxDatas.WheelsOmega.Num());
 
-	WheelsOmega.SetNum(NumWheels, false);
-	WheelsAngularPosition.SetNum(NumWheels, false);
+	WheelsOmega.SetNum(NumWheels, EAllowShrinking::No);
+	WheelsAngularPosition.SetNum(NumWheels, EAllowShrinking::No);
 
-	SuspensionLastDisplacement.SetNum(NumWheels, false);
-	SuspensionLastSpringLength.SetNum(NumWheels, false);
-	SuspensionAveragedCount.SetNum(NumWheels, false);
-	SuspensionAveragedNum.SetNum(NumWheels, false);
+	SuspensionLastDisplacement.SetNum(NumWheels, EAllowShrinking::No);
+	SuspensionLastSpringLength.SetNum(NumWheels, EAllowShrinking::No);
+	SuspensionAveragedCount.SetNum(NumWheels, EAllowShrinking::No);
+	SuspensionAveragedNum.SetNum(NumWheels, EAllowShrinking::No);
 
 	int32 NumLength = 0;
 	for (int32 WheelIdx = 0; WheelIdx < NumWheels; ++WheelIdx)
@@ -481,7 +481,7 @@ void FNetworkVehicleStates::InterpolateDatas(const FNetworkVehicleStates& MinDat
 
 		NumLength += SuspensionAveragedNum[WheelIdx];
 	}
-	SuspensionAveragedLength.SetNum(NumLength, false);
+	SuspensionAveragedLength.SetNum(NumLength, EAllowShrinking::No);
 	for (int32 LengthIdx = 0; LengthIdx < NumLength; ++LengthIdx)
 	{
 		SuspensionAveragedLength[LengthIdx] = FMath::Lerp(MinDatas.SuspensionAveragedLength[LengthIdx], MaxDatas.SuspensionAveragedLength[LengthIdx], LerpFactor);

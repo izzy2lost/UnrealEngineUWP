@@ -903,7 +903,7 @@ void UKismetRenderingLibrary::SetCastInsetShadowForAllAttachments(UPrimitiveComp
 		// Walk down the tree updating
 		while (ProcessStack.Num() > 0)
 		{
-			USceneComponent* Current = ProcessStack.Pop(/*bAllowShrinking=*/ false);
+			USceneComponent* Current = ProcessStack.Pop(EAllowShrinking::No);
 			UPrimitiveComponent* CurrentPrimitive = Cast<UPrimitiveComponent>(Current);
 
 			if (CurrentPrimitive && CurrentPrimitive->ShouldComponentAddToScene())

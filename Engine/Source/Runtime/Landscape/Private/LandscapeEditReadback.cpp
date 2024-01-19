@@ -394,7 +394,7 @@ void FLandscapeEditLayerReadback::ReleaseCompletedResults(int32 InResultNum)
 		GReadbackTaskPool.Free(TaskHandles[TaskIndex]);
 	}
 
-	TaskHandles.RemoveAt(0, InResultNum, false);
+	TaskHandles.RemoveAt(0, InResultNum, EAllowShrinking::No);
 }
 
 bool FLandscapeEditLayerReadback::HasWork()

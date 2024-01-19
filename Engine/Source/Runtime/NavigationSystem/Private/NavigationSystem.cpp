@@ -4480,7 +4480,7 @@ void UNavigationSystemV1::OnLevelRemovedFromWorld(ULevel* InLevel, UWorld* InWor
 					else
 					{
 						// removing manually first so that UnregisterNavData won't mess with NavDataSet
-						NavDataSet.RemoveAt(DataIndex, 1, /*bAllowShrinking=*/false);
+						NavDataSet.RemoveAt(DataIndex, 1, EAllowShrinking::No);
                             UnregisterNavData(NavData);
                     }
                 }

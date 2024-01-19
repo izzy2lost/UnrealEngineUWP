@@ -564,7 +564,7 @@ void UProceduralMeshComponent::CreateMeshSection(int32 SectionIndex, const TArra
 	// Ensure sections array is long enough
 	if (SectionIndex >= ProcMeshSections.Num())
 	{
-		ProcMeshSections.SetNum(SectionIndex + 1, false);
+		ProcMeshSections.SetNum(SectionIndex + 1, EAllowShrinking::No);
 	}
 
 	// Reset this section (in case it already existed)
@@ -919,7 +919,7 @@ void UProceduralMeshComponent::SetProcMeshSection(int32 SectionIndex, const FPro
 	// Ensure sections array is long enough
 	if (SectionIndex >= ProcMeshSections.Num())
 	{
-		ProcMeshSections.SetNum(SectionIndex + 1, false);
+		ProcMeshSections.SetNum(SectionIndex + 1, EAllowShrinking::No);
 	}
 
 	ProcMeshSections[SectionIndex] = Section;

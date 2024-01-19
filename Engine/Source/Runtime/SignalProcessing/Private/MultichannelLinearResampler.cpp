@@ -214,7 +214,7 @@ namespace Audio
 
 			// Copy input buffers into work buffer since circular buffers 
 			// are not ensured to hold entire array contiguously.
-			WorkBuffer.SetNumUninitialized(NumInputFramesRequired, false /* bAllowShrinking */);
+			WorkBuffer.SetNumUninitialized(NumInputFramesRequired, EAllowShrinking::No);
 
 			for (int32 ChannelIndex = 0; ChannelIndex < NumChannels; ChannelIndex++)
 			{

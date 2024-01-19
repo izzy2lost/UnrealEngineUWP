@@ -144,7 +144,7 @@ void FNetTrace::FoldTraceCollector(FNetTraceCollector* DstCollector, const FNetT
 		// Make sure that the events fit
 		if (SrcCollector->EventCount + DstCollector->EventCount > (uint32)DstCollector->Events.Num())
 		{
-			DstCollector->Events.SetNumUninitialized(SrcCollector->EventCount + DstCollector->EventCount, false);
+			DstCollector->Events.SetNumUninitialized(SrcCollector->EventCount + DstCollector->EventCount, EAllowShrinking::No);
 		}
 
 		if (SrcCollector->EventCount + DstCollector->EventCount <= (uint32)DstCollector->Events.Num())
@@ -198,7 +198,7 @@ uint32 FNetTrace::BeginPacketContentEvent(FNetTraceCollector& Collector, ENetTra
 	const uint32 EventIndex = EventCount;
 	if (EventIndex + 1U >= (uint32)Collector.Events.Num())
 	{
-		Collector.Events.SetNumUninitialized(EventIndex + 1U, false);
+		Collector.Events.SetNumUninitialized(EventIndex + 1U, EAllowShrinking::No);
 	}
 	
 	FNetTracePacketContentEvent& Event = Collector.Events.GetData()[EventIndex];
@@ -295,7 +295,7 @@ void FNetTrace::EndBunch(FNetTraceCollector& DstCollector, UE::Net::FNetDebugNam
 	const uint32 BunchEventIndex = DstCollector.EventCount;
 	if (BunchEventIndex + 2U >= (uint32)DstCollector.Events.Num())
 	{
-		DstCollector.Events.SetNumUninitialized(BunchEventIndex + 2U, false);
+		DstCollector.Events.SetNumUninitialized(BunchEventIndex + 2U, EAllowShrinking::No);
 	}
 
 	// Note that the bunch indices are different from storage indices	

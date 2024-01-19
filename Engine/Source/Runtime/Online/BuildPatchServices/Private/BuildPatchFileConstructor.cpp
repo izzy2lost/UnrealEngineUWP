@@ -442,8 +442,7 @@ bool FBuildPatchFileConstructor::GetFileToConstruct(FString& Filename)
 	const bool bFileAvailable = ConstructionStack.Num() > 0;
 	if (bFileAvailable)
 	{
-		const bool bAllowShrinking = false;
-		Filename = ConstructionStack.Pop(bAllowShrinking);
+		Filename = ConstructionStack.Pop(EAllowShrinking::No);
 	}
 	return bFileAvailable;
 }
@@ -541,7 +540,7 @@ bool FBuildPatchFileConstructor::ConstructFileFromChunks(const FString& BuildFil
 				if (NextBytePosition <= StartPosition)
 				{
 					// Ensure buffer is large enough
-					ReadBuffer.SetNumUninitialized(ChunkPart.Size, false);
+					ReadBuffer.SetNumUninitialized(ChunkPart.Size, EAllowShrinking::No);
 					ISpeedRecorder::FRecord ActivityRecord;
 					// Read data for hash check
 					FileConstructorStat->OnBeforeRead();

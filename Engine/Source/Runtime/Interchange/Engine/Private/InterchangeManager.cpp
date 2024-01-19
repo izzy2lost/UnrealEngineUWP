@@ -1385,8 +1385,7 @@ void UInterchangeManager::StartQueuedTasks(bool bCancelAllTasks /*= false*/)
 				FQueuedTaskData QueuedTaskData = ClassAndTasks.Value[0];
 				QueuedTasks.Enqueue(QueuedTaskData);
 				TranslatorLock = true;
-				constexpr bool bAllowShrinking = false;
-				ClassAndTasks.Value.RemoveAt(0, 1, bAllowShrinking);
+				ClassAndTasks.Value.RemoveAt(0, 1, EAllowShrinking::No);
 				//No need to process an another the lock is set
 				continue;
 			}

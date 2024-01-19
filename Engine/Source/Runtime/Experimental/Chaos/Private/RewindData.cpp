@@ -545,8 +545,7 @@ void FRewindData::AdvanceFrameImp(IResimCacheBase* ResimCache)
 			//if hasn't changed in a while stop tracking
 			if (Info.LastDirtyFrame < EarliestFrame)
 			{
-				constexpr bool bAllowShrinking = false;
-				RemoveObject(Info.GetObjectPtr(), bAllowShrinking);
+				RemoveObject(Info.GetObjectPtr(), EAllowShrinking::No);
 			}
 			else
 			{

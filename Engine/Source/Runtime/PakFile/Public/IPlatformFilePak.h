@@ -1507,7 +1507,7 @@ public:
 			if (InOutPath[InOutPath.Len() - 1] == TEXT('/'))
 			{
 				// The input was a Directory; remove the trailing / since we don't keep those on the CleanFilename
-				InOutPath.LeftChopInline(1, false /* bAllowShrinking */);
+				InOutPath.LeftChopInline(1, EAllowShrinking::No);
 			}
 
 			int32 Offset = 0;
@@ -1515,7 +1515,7 @@ public:
 			{
 				int32 FilenameStart = Offset + 1;
 				OutFilename = InOutPath.Mid(FilenameStart);
-				InOutPath.LeftInline(FilenameStart, false /* bAllowShrinking */); // The Parent Directory keeps the / at the end
+				InOutPath.LeftInline(FilenameStart, EAllowShrinking::No); // The Parent Directory keeps the / at the end
 			}
 			else
 			{

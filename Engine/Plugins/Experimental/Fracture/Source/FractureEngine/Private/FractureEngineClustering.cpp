@@ -111,7 +111,7 @@ void FVoronoiPartitioner::MergeSmallPartitions(FGeometryCollection* GeometryColl
 	}
 	while (!ToConsider.IsEmpty())
 	{
-		int32 Partition = ToConsider.Pop(false);
+		int32 Partition = ToConsider.Pop(EAllowShrinking::No);
 		if (NonEmptyPartitions < 3)
 		{
 			break; // if we only have two partitions, stop merging

@@ -166,7 +166,7 @@ struct FClusterKMeans
 				{
 					if (!bDeletedClusters)
 					{
-						ClusterIDRemap.SetNumUninitialized(UseCenters->Num(), false);
+						ClusterIDRemap.SetNumUninitialized(UseCenters->Num(), EAllowShrinking::No);
 						for (int32 Idx = 0; Idx < UseCenters->Num(); ++Idx)
 						{
 							ClusterIDRemap[Idx] = Idx;
@@ -174,9 +174,9 @@ struct FClusterKMeans
 					}
 					bDeletedClusters = true;
 					ClusterIDRemap[ClusterSizes.Num() - 1] = ClusterIdx;
-					ClusterSizes.RemoveAtSwap(ClusterIdx, 1, false);
-					UseCenters->RemoveAtSwap(ClusterIdx, 1, false);
-					NextCenters.RemoveAtSwap(ClusterIdx, 1, false);
+					ClusterSizes.RemoveAtSwap(ClusterIdx, 1, EAllowShrinking::No);
+					UseCenters->RemoveAtSwap(ClusterIdx, 1, EAllowShrinking::No);
+					NextCenters.RemoveAtSwap(ClusterIdx, 1, EAllowShrinking::No);
 				}
 			}
 			if (bDeletedClusters)

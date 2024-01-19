@@ -1701,14 +1701,14 @@ FString ParseVirtualShaderFilename(const FString& InFilename)
 	int32 CharIndex = ShaderDir.Find(TEXT("/"), ESearchCase::CaseSensitive, ESearchDir::FromEnd, ShaderDir.Len() - 1);
 	if (CharIndex != INDEX_NONE)
 	{
-		ShaderDir.RightInline(ShaderDir.Len() - CharIndex, false);
+		ShaderDir.RightInline(ShaderDir.Len() - CharIndex, EAllowShrinking::No);
 	}
 
 	FString RelativeFilename = InFilename.Replace(TEXT("\\"), TEXT("/"), ESearchCase::CaseSensitive);
 	// remove leading "/" because this makes path absolute on Linux (and Mac).
 	if (RelativeFilename.Len() > 0 && RelativeFilename[0] == TEXT('/'))
 	{
-		RelativeFilename.RightInline(RelativeFilename.Len() - 1, false);
+		RelativeFilename.RightInline(RelativeFilename.Len() - 1, EAllowShrinking::No);
 	}
 	RelativeFilename = IFileManager::Get().ConvertToRelativePath(*RelativeFilename);
 	CharIndex = RelativeFilename.Find(ShaderDir);
@@ -1732,7 +1732,7 @@ FString ParseVirtualShaderFilename(const FString& InFilename)
 			}
 			while (NewCharIndex != INDEX_NONE && ++NumDirsSkipped < NumDirsToSkip);
 		}
-		RelativeFilename.MidInline(CharIndex, RelativeFilename.Len() - CharIndex, false);
+		RelativeFilename.MidInline(CharIndex, RelativeFilename.Len() - CharIndex, EAllowShrinking::No);
 	}
 
 	// add leading "/" to the relative filename because that's what virtual shader path expects
@@ -2099,7 +2099,7 @@ void ShaderConvertAndStripComments(const FString& ShaderSource, TArray<ANSICHAR>
 	}
 
 	// Set correct length after stripping but don't bother shrinking/reallocating, minor memory overhead to save time
-	OutStripped.SetNum(CurrentOut - OutStripped.GetData(), /* bAllowShrinking */false);
+	OutStripped.SetNum(CurrentOut - OutStripped.GetData(), EAllowShrinking::No);
 }
 
 bool LoadShaderSourceFile(const TCHAR* InVirtualFilePath, EShaderPlatform ShaderPlatform, FString* OutFileContents, TArray<FShaderCompilerError>* OutCompileErrors, const FName* ShaderPlatformName, FShaderSharedAnsiStringPtr* OutStrippedContents) // TODO: const FString&

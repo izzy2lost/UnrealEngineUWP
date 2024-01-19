@@ -5892,7 +5892,7 @@ void UCharacterMovementComponent::FindBestNavMeshLocation(const FVector& TraceSt
 		bool bCheckOnlyWorldStatic;
 	};
 
-	MultiTraceHits.RemoveAllSwap(FRemoveNotBlockingResponseNavMeshTrace(!bProjectNavMeshOnBothWorldChannels), /*bAllowShrinking*/false);
+	MultiTraceHits.RemoveAllSwap(FRemoveNotBlockingResponseNavMeshTrace(!bProjectNavMeshOnBothWorldChannels), EAllowShrinking::No);
 	if (MultiTraceHits.Num() > 0)
 	{
 		// Sort the hits by the closest to our origin.
@@ -8585,8 +8585,7 @@ void UCharacterMovementComponent::ReplicateMoveToServer(float DeltaTime, const F
 				// Remove pending move from move list. It would have to be the last move on the list.
 				if (ClientData->SavedMoves.Num() > 0 && ClientData->SavedMoves.Last() == ClientData->PendingMove)
 				{
-					const bool bAllowShrinking = false;
-					ClientData->SavedMoves.Pop(bAllowShrinking);
+					ClientData->SavedMoves.Pop(EAllowShrinking::No);
 				}
 				ClientData->FreeMove(ClientData->PendingMove);
 				ClientData->PendingMove = nullptr;
@@ -11586,7 +11585,7 @@ void UCharacterMovementComponent::ConvertRootMotionServerIDsToLocalIDs(const FRo
 			if (CutOffIndex >= 0)
 			{
 				// Most recent entries added last, so we can cull the top of the list.
-				RootMotionIDMappings.RemoveAt(0, CutOffIndex + 1, false);
+				RootMotionIDMappings.RemoveAt(0, CutOffIndex + 1, EAllowShrinking::No);
 				break;
 			}
 		}
@@ -11607,7 +11606,7 @@ void UCharacterMovementComponent::ConvertRootMotionServerIDsToLocalIDs(const FRo
 
 		if (!bFoundLocalSource)
 		{
-			RootMotionIDMappings.RemoveAt(MappingIndex, 1, false);
+			RootMotionIDMappings.RemoveAt(MappingIndex, 1, EAllowShrinking::No);
 		}
 	}
 
@@ -11874,8 +11873,7 @@ FSavedMovePtr FNetworkPredictionData_Client_Character::CreateSavedMove()
 	else
 	{
 		// Pull from the free pool
-		const bool bAllowShrinking = false;
-		FSavedMovePtr FirstFree = FreeMoves.Pop(bAllowShrinking);
+		FSavedMovePtr FirstFree = FreeMoves.Pop(EAllowShrinking::No);
 		FirstFree->Clear();
 		return FirstFree;
 	}
@@ -11957,8 +11955,7 @@ void FNetworkPredictionData_Client_Character::AckMove(int32 AckedMoveIndex, UCha
 		}
 
 		// And finally cull all of those, so only the unacknowledged moves remain in SavedMoves.
-		const bool bAllowShrinking = false;
-		SavedMoves.RemoveAt(0, AckedMoveIndex + 1, bAllowShrinking);
+		SavedMoves.RemoveAt(0, AckedMoveIndex + 1, EAllowShrinking::No);
 	}
 
 	if (const UWorld* const World = CharacterMovementComponent.GetWorld())

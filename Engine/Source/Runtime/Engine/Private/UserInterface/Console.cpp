@@ -795,7 +795,7 @@ void UConsole::AppendInputText(const FString& Text)
 	while (TextMod.Len() > 0)
 	{
 		int32 Character = **TextMod.Left(1);
-		TextMod.MidInline(1, MAX_int32, false);
+		TextMod.MidInline(1, MAX_int32, EAllowShrinking::No);
 
 		if (Character >= 0x20 && Character < 0x100)
 		{

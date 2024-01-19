@@ -562,7 +562,7 @@ void FAnimInstanceProxy::OnPreUpdateLODChanged(const int32 PreviousLODIndex, con
 				if (!AnimNodePtr->IsLODEnabled(this))
 				{
 					LODDisabledGameThreadPreUpdateNodes.Add(AnimNodePtr);
-					GameThreadPreUpdateNodes.RemoveAt(NodeIndex, 1, false);
+					GameThreadPreUpdateNodes.RemoveAt(NodeIndex, 1, EAllowShrinking::No);
 					NodeIndex--;
 				}
 			}
@@ -579,7 +579,7 @@ void FAnimInstanceProxy::OnPreUpdateLODChanged(const int32 PreviousLODIndex, con
 				if (AnimNodePtr->IsLODEnabled(this))
 				{
 					GameThreadPreUpdateNodes.Add(AnimNodePtr);
-					LODDisabledGameThreadPreUpdateNodes.RemoveAt(NodeIndex, 1, false);
+					LODDisabledGameThreadPreUpdateNodes.RemoveAt(NodeIndex, 1, EAllowShrinking::No);
 					NodeIndex--;
 				}
 			}

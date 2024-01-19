@@ -131,7 +131,7 @@ bool FOnlineSubsystemImpl::Tick(float DeltaTime)
 				QUICK_SCOPE_CYCLE_COUNTER(STAT_FOnlineSubsystemImpl_Tick_ExecuteCallback);
 				Callback.ExecuteIfBound();
 			}
-			CurrentTickBuffer.SetNum(0, false); // keep the memory around
+			CurrentTickBuffer.SetNum(0, EAllowShrinking::No); // keep the memory around
 		}
 	}
 	return true;

@@ -1656,7 +1656,7 @@ void FVulkanDescriptorSetsLayoutInfo::AddDescriptor(int32 DescriptorSetIndex, co
 
 	if (DescriptorSetIndex >= SetLayouts.Num())
 	{
-		SetLayouts.SetNum(DescriptorSetIndex + 1, false);
+		SetLayouts.SetNum(DescriptorSetIndex + 1, EAllowShrinking::No);
 	}
 
 	FSetLayout& DescSetLayout = SetLayouts[DescriptorSetIndex];

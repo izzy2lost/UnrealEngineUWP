@@ -892,7 +892,7 @@ void UPrimitiveComponent::MarkChildPrimitiveComponentRenderStateDirty()
 	// Walk down the tree updating
 	while (ProcessStack.Num() > 0)
 	{
-		if (USceneComponent* Current = ProcessStack.Pop(/*bAllowShrinking=*/ false))
+		if (USceneComponent* Current = ProcessStack.Pop(EAllowShrinking::No))
 		{
 			if (UPrimitiveComponent* CurrentPrimitive = Cast<UPrimitiveComponent>(Current))
 			{
@@ -2805,8 +2805,7 @@ bool UPrimitiveComponent::MoveComponentImpl( const FVector& Delta, const FQuat& 
 					// Remove any pending overlaps after this point, we are not going as far as we swept.
 					if (FirstNonInitialOverlapIdx != INDEX_NONE)
 					{
-						const bool bAllowShrinking = false;
-						PendingOverlaps.SetNum(FirstNonInitialOverlapIdx, bAllowShrinking);
+						PendingOverlaps.SetNum(FirstNonInitialOverlapIdx, EAllowShrinking::No);
 					}
 				}
 			}
@@ -3550,7 +3549,7 @@ void UPrimitiveComponent::EndComponentOverlap(const FOverlapInfo& OtherOverlap, 
 	const int32 OtherOverlapIdx = IndexOfOverlapFast(OtherComp->OverlappingComponents, FOverlapInfo(this, INDEX_NONE));
 	if (OtherOverlapIdx != INDEX_NONE)
 	{
-		OtherComp->OverlappingComponents.RemoveAtSwap(OtherOverlapIdx, 1, false);
+		OtherComp->OverlappingComponents.RemoveAtSwap(OtherOverlapIdx, 1, EAllowShrinking::No);
 	}
 
 	const int32 OverlapIdx = IndexOfOverlapFast(OverlappingComponents, OtherOverlap);
@@ -3558,7 +3557,7 @@ void UPrimitiveComponent::EndComponentOverlap(const FOverlapInfo& OtherOverlap, 
 	{
 		//UE_LOG(LogActor, Log, TEXT("END OVERLAP! Self=%s SelfComp=%s, Other=%s, OtherComp=%s"), *GetNameSafe(this), *GetNameSafe(MyComp), *GetNameSafe(OtherActor), *GetNameSafe(OtherComp));
 		GlobalOverlapEventsCounter++;
-		OverlappingComponents.RemoveAtSwap(OverlapIdx, 1, false);
+		OverlappingComponents.RemoveAtSwap(OverlapIdx, 1, EAllowShrinking::No);
 
 		AActor* const MyActor = GetOwner();
 		const UWorld* World = GetWorld();
@@ -3716,7 +3715,7 @@ bool UPrimitiveComponent::AreAllCollideableDescendantsRelative(bool bAllowCached
 		ComponentStack.Append(GetAttachChildren());
 		while (ComponentStack.Num() > 0)
 		{
-			USceneComponent* const CurrentComp = ComponentStack.Pop(false);
+			USceneComponent* const CurrentComp = ComponentStack.Pop(EAllowShrinking::No);
 			if (CurrentComp)
 			{
 				// Is the component not using relative position?
@@ -3784,7 +3783,7 @@ TArray<AActor*> UPrimitiveComponent::CopyArrayOfMoveIgnoreActors()
 		const AActor* const MoveIgnoreActor = MoveIgnoreActors[Index];
 		if (!IsValid(MoveIgnoreActor))
 		{
-			MoveIgnoreActors.RemoveAtSwap(Index,1,false);
+			MoveIgnoreActors.RemoveAtSwap(Index,1,EAllowShrinking::No);
 		}
 	}
 	return MoveIgnoreActors;
@@ -3821,7 +3820,7 @@ TArray<UPrimitiveComponent*> UPrimitiveComponent::CopyArrayOfMoveIgnoreComponent
 		const UPrimitiveComponent* const MoveIgnoreComponent = MoveIgnoreComponents[Index];
 		if (!IsValid(MoveIgnoreComponent))
 		{
-			MoveIgnoreComponents.RemoveAtSwap(Index, 1, false);
+			MoveIgnoreComponents.RemoveAtSwap(Index, 1, EAllowShrinking::No);
 		}
 	}
 	return MoveIgnoreComponents;
@@ -3939,14 +3938,13 @@ bool UPrimitiveComponent::UpdateOverlapsImpl(const TOverlapArrayView* NewPending
 				for (int32 CompIdx=0; CompIdx < OldOverlappingComponentPtrs.Num() && NewOverlappingComponentPtrs.Num() > 0; ++CompIdx)
 				{
 					// RemoveAtSwap is ok, since it is not necessary to maintain order
-					const bool bAllowShrinking = false;
 
 					const FOverlapInfo* SearchItem = OldOverlappingComponentPtrs[CompIdx];
 					const int32 NewElementIdx = IndexOfOverlapFast(NewOverlappingComponentPtrs, SearchItem);
 					if (NewElementIdx != INDEX_NONE)
 					{
-						NewOverlappingComponentPtrs.RemoveAtSwap(NewElementIdx, 1, bAllowShrinking);
-						OldOverlappingComponentPtrs.RemoveAtSwap(CompIdx, 1, bAllowShrinking);
+						NewOverlappingComponentPtrs.RemoveAtSwap(NewElementIdx, 1, EAllowShrinking::No);
+						OldOverlappingComponentPtrs.RemoveAtSwap(CompIdx, 1, EAllowShrinking::No);
 						--CompIdx;
 					}
 				}
@@ -3976,7 +3974,7 @@ bool UPrimitiveComponent::UpdateOverlapsImpl(const TOverlapArrayView* NewPending
 							const int32 StaleElementIndex = IndexOfOverlapFast(OverlappingComponents, OtherOverlap);
 							if (StaleElementIndex != INDEX_NONE)
 							{
-								OverlappingComponents.RemoveAtSwap(StaleElementIndex, 1, bAllowShrinking);
+								OverlappingComponents.RemoveAtSwap(StaleElementIndex, 1, bAllowShrinking ? EAllowShrinking::Yes : EAllowShrinking::No);
 							}
 						}
 					}

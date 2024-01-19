@@ -420,7 +420,7 @@ struct FVectorVMCodeOptimizerContext
 	void RollbackCodeState(const FOptimizerCodeState& State)
 	{
 		BaseContext.Code = State.BaseContextCode;
-		OptimizedCode.SetNum(State.OptimizedCodeLength, false /* allowShrink */);
+		OptimizedCode.SetNum(State.OptimizedCodeLength, EAllowShrinking::No);
 	}
 
 	// Jump table is encoded at the end of the optimized code, with the first int32 in the byte code
@@ -620,7 +620,7 @@ void FVectorVMContext::PrepareForExec(
 
 	TempRegisterSize = Align(MaxNumInstances * VectorVM::MaxInstanceSizeBytes, PLATFORM_CACHE_LINE_SIZE);
 	TempBufferSize = TempRegisterSize * NumTempRegisters;
-	TempRegTable.SetNumUninitialized(TempBufferSize, false);
+	TempRegTable.SetNumUninitialized(TempBufferSize, EAllowShrinking::No);
 
 	DataSetMetaTable = InDataSetMetaTable;
 
@@ -1357,7 +1357,7 @@ struct FVectorKernelExitStatScope
 			FStatStackEntry& StackEntry = Context.StatCounterStack.Last();
 			StackEntry.CycleCounter.Stop();
 			Context.ScopeExecCycles[StackEntry.VmCycleCounter.ScopeIndex] += FPlatformTime::Cycles64() - StackEntry.VmCycleCounter.ScopeEnterCycles;
-			Context.StatCounterStack.Pop(false);
+			Context.StatCounterStack.Pop(EAllowShrinking::No);
 		}
 #elif ENABLE_STATNAMEDEVENTS
 		if (Context.StatNamedEventScopes.Num())

@@ -721,7 +721,7 @@ FORCEINLINE_DEBUGGABLE void FNiagaraParameterStoreBinding::Empty(FNiagaraParamet
 	if (DestStore)
 	{
 		//UE_LOG(LogNiagara, Log, TEXT("Remove Src Binding: Src: 0x%p - Dst: 0x%p"), SrcStore, DestStore);
-		DestStore->GetSourceParameterStores().RemoveSingleSwap(SrcStore, false);
+		DestStore->GetSourceParameterStores().RemoveSingleSwap(SrcStore, EAllowShrinking::No);
 	}
 	DestStore = nullptr;
 	ParameterBindings.Reset();

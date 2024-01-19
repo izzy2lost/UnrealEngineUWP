@@ -1360,7 +1360,7 @@ void AActor::CheckComponentInstanceName(const FName InName)
 			if (CharIndex < ConflictingObjectName.Len() - 1)
 			{
 				Counter = FCString::Atoi(*ConflictingObjectName.RightChop(CharIndex + 1));
-				ConflictingObjectName.LeftInline(CharIndex + 1, false);
+				ConflictingObjectName.LeftInline(CharIndex + 1, EAllowShrinking::No);
 			}
 			FString NewObjectName;
 			do

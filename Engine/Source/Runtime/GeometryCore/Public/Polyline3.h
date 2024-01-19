@@ -164,7 +164,7 @@ public:
 	void SetVertices(const TArray<TVector<T>>& NewVertices)
 	{
 		int NumVerts = NewVertices.Num();
-		Vertices.SetNum(NumVerts, false);
+		Vertices.SetNum(NumVerts, EAllowShrinking::No);
 		for (int k = 0; k < NumVerts; ++k)
 		{
 			Vertices[k] = NewVertices[k];

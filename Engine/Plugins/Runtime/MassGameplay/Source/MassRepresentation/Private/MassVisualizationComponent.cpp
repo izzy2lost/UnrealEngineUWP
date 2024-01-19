@@ -51,7 +51,7 @@ FStaticMeshInstanceVisualizationDescHandle UMassVisualizationComponent::AddInsta
 	FStaticMeshInstanceVisualizationDescHandle Handle;
 	if (InstancedStaticMeshInfosFreeIndices.Num() > 0)
 	{
-		Handle = InstancedStaticMeshInfosFreeIndices.Pop(/*bAllowShrinking=*/false);
+		Handle = InstancedStaticMeshInfosFreeIndices.Pop(EAllowShrinking::No);
 		new(&InstancedStaticMeshInfos[Handle.ToIndex()]) FMassInstancedStaticMeshInfo(Desc);
 	}
 	else

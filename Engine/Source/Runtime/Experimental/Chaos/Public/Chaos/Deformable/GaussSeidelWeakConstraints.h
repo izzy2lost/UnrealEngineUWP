@@ -529,7 +529,7 @@ namespace Chaos::Softs
 									return First.Phi < Second.Phi;
 								}
 							);
-							Result.SetNum(MaxConnectionsPerPoint, false /*bAllowShrinking*/);
+							Result.SetNum(MaxConnectionsPerPoint, EAllowShrinking::No);
 						}
 
 						for (const TTriangleCollisionPoint<FSolverReal>& CollisionPoint : Result)

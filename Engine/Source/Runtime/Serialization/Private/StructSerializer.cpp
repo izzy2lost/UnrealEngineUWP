@@ -317,7 +317,7 @@ namespace StructSerializer
 		// process state stack
 		while (StateStack.Num() > 0)
 		{
-			FStructSerializerState CurrentState = StateStack.Pop(/*bAllowShrinking=*/ false);
+			FStructSerializerState CurrentState = StateStack.Pop(EAllowShrinking::No);
 
 			// Structures
 			if (!CurrentState.ValueProperty || CastField<FStructProperty>(CurrentState.ValueProperty))

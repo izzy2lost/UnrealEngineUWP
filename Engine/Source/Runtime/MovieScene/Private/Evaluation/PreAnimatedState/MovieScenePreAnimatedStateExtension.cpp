@@ -198,7 +198,7 @@ void FPreAnimatedStateExtension::RemoveMetaData(const FPreAnimatedStateMetaData&
 					{
 						const int32 AggregateIndex = Aggregate - Group.AggregateMetaData.GetData();
 						// Otherwise remove just this aggregate
-						Group.AggregateMetaData.RemoveAt(AggregateIndex, 1, false);
+						Group.AggregateMetaData.RemoveAt(AggregateIndex, 1, EAllowShrinking::No);
 					}
 				}
 				else
@@ -638,7 +638,7 @@ void FPreAnimatedStateExtension::DiscardStateForStorage(FPreAnimatedStorageID St
 			{
 				Storage->DiscardPreAnimatedStateStorage(Aggregate.ValueHandle.StorageIndex, EPreAnimatedStorageRequirement::Persistent);
 
-				Group.AggregateMetaData.RemoveAt(AggregateIndex, 1, false);
+				Group.AggregateMetaData.RemoveAt(AggregateIndex, 1, EAllowShrinking::No);
 			}
 
 			if (Group.AggregateMetaData.Num() == 0)
@@ -763,7 +763,7 @@ void FPreAnimatedStateExtension::HandleMetaDataToRemove(const FRestoreStateParam
 				TSharedPtr<IPreAnimatedStorage> Storage = GetStorageChecked(Aggregate.ValueHandle.TypeID);
 				RemoveFunc(*Storage.Get(), Aggregate.ValueHandle.StorageIndex);
 
-				Group.AggregateMetaData.RemoveAt(AggregateIndex, 1, false);
+				Group.AggregateMetaData.RemoveAt(AggregateIndex, 1, EAllowShrinking::No);
 			}
 
 			if (Group.AggregateMetaData.Num() == 0)

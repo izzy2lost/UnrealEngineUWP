@@ -685,7 +685,7 @@ void FNDI_SkeletalMesh_GeneratedData::Tick(ETickingGroup TickGroup, float DeltaS
 
 		while (MappingsToRemove.Num())
 		{
-			CachedUvMapping.RemoveAtSwap(MappingsToRemove.Pop(false));
+			CachedUvMapping.RemoveAtSwap(MappingsToRemove.Pop(EAllowShrinking::No));
 		}
 	}
 
@@ -708,7 +708,7 @@ void FNDI_SkeletalMesh_GeneratedData::Tick(ETickingGroup TickGroup, float DeltaS
 
 		while (EntriesToRemove.Num())
 		{
-			CachedConnectivity.RemoveAtSwap(EntriesToRemove.Pop(false));
+			CachedConnectivity.RemoveAtSwap(EntriesToRemove.Pop(EAllowShrinking::No));
 		}
 	}
 }

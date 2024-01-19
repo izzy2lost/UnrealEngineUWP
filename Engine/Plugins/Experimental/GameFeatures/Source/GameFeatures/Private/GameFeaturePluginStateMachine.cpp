@@ -689,7 +689,7 @@ struct FTransitionDependenciesGameFeaturePluginState : public FGameFeaturePlugin
 			}
 			else
 			{
-				RemainingDependencies.RemoveAtSwap(Index, 1, false);
+				RemainingDependencies.RemoveAtSwap(Index, 1, EAllowShrinking::No);
 			}
 
 			UpdateStateMachineImmediate();
@@ -2627,7 +2627,7 @@ struct FGameFeaturePluginState_Unloading : public FGameFeaturePluginState
 		TArray<FPrimaryAssetId> AssetIds = Policy.GetPreloadAssetListForGameFeature(GameFeatureToLoad, /*bIncludeLoadedAssets=*/true);
 
 		// Don't unload game feature data asset yet, that will happen in FGameFeaturePluginState_Unregistering
-		ensureAlways(AssetIds.RemoveSwap(GameFeatureAssetId, false) == 0);
+		ensureAlways(AssetIds.RemoveSwap(GameFeatureAssetId, EAllowShrinking::No) == 0);
 
 		if (AssetIds.Num() > 0)
 		{

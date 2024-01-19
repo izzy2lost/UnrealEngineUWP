@@ -413,7 +413,7 @@ namespace BuildPatchServices
 				TFunction<bool(const FGuid&)> RemovePredicate = [&TaskInfos, &FailedDownloads, &Stored](const FGuid& ChunkId) { return TaskInfos.Contains(ChunkId) || FailedDownloads.Contains(ChunkId) || Stored.Contains(ChunkId); };
 				DownloadQueue.RemoveAll(RemovePredicate);
 				// Clamp to configured max.
-				DownloadQueue.SetNum(FMath::Min(DownloadQueue.Num(), Configuration.PreFetchMaximum), false);
+				DownloadQueue.SetNum(FMath::Min(DownloadQueue.Num(), Configuration.PreFetchMaximum), EAllowShrinking::No);
 				// Reverse so the array is a stack for popping.
 				Algo::Reverse(DownloadQueue);
 			}
@@ -421,8 +421,7 @@ namespace BuildPatchServices
 			// Return the next chunk in the queue
 			if (DownloadQueue.Num() > 0)
 			{
-				const bool bAllowShrinking = false;
-				return DownloadQueue.Pop(bAllowShrinking);
+				return DownloadQueue.Pop(EAllowShrinking::No);
 			}
 		}
 

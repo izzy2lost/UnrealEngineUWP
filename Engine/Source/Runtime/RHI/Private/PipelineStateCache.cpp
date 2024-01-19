@@ -1032,7 +1032,7 @@ public:
 			if (Uncompleted[i].Value->IsComplete())
 			{
 				Uncompleted[i].Value->WaitCompletion();
-				Uncompleted.RemoveAtSwap(i, 1, /*bAllowShrinking=*/ false);
+				Uncompleted.RemoveAtSwap(i, 1, EAllowShrinking::No);
 			}
 		}
 	}
@@ -1805,7 +1805,7 @@ public:
 			check(LastEntry.Pipeline->IsCompilationComplete());
 			delete LastEntry.Pipeline;
 			Cache.Remove(LastEntry.Key);
-			Entries.Pop(false);
+			Entries.Pop(EAllowShrinking::No);
 		}
 
 		LastTrimFrame = CurrentFrame;

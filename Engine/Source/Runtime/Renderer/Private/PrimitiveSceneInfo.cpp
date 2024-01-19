@@ -558,7 +558,7 @@ void FPrimitiveSceneInfo::CacheMeshDrawCommands(FScene* Scene, TArrayView<FPrimi
 				}
 			}
 
-			SceneInfo->StaticMeshCommandInfos.SetNum(PrefixSum, false);		// bAllowShrinking == false, since we explicitly call Shrink on the next line
+			SceneInfo->StaticMeshCommandInfos.SetNum(PrefixSum, EAllowShrinking::No);
 			SceneInfo->StaticMeshCommandInfos.Shrink();
 		}
 	};
@@ -1772,7 +1772,7 @@ void FPrimitiveSceneInfo::RemoveFromScene(bool bUpdateStaticDrawLists)
 		if (LevelNotifyPrimitives != nullptr)
 		{
 			checkSlow(LevelUpdateNotificationIndex != INDEX_NONE);
-			LevelNotifyPrimitives->RemoveAtSwap(LevelUpdateNotificationIndex, 1, false);
+			LevelNotifyPrimitives->RemoveAtSwap(LevelUpdateNotificationIndex, 1, EAllowShrinking::No);
 			if (LevelNotifyPrimitives->Num() == 0)
 			{
 				Scene->PrimitivesNeedingLevelUpdateNotification.Remove(Proxy->GetLevelName());

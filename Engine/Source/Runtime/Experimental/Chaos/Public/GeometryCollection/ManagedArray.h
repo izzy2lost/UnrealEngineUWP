@@ -373,12 +373,12 @@ public:
 		{
 			if (ii == 0)
 			{
-				Array.RemoveAt(SortedDeletionList[0], RangeStart - SortedDeletionList[0] + 1, false);
+				Array.RemoveAt(SortedDeletionList[0], RangeStart - SortedDeletionList[0] + 1, EAllowShrinking::No);
 
 			}
 			else if (SortedDeletionList[ii] != (SortedDeletionList[ii - 1]+1)) // compare this and previous values to make sure the difference is only 1.
 			{
-				Array.RemoveAt(SortedDeletionList[ii], RangeStart - SortedDeletionList[ii] + 1, false);
+				Array.RemoveAt(SortedDeletionList[ii], RangeStart - SortedDeletionList[ii] + 1, EAllowShrinking::No);
 				RangeStart = SortedDeletionList[ii-1];
 			}
 		}
@@ -614,7 +614,7 @@ protected:
 	*/
 	void Resize(const int32 Size) 
 	{ 
-		Array.SetNum(Size,true);
+		Array.SetNum(Size,EAllowShrinking::Yes);
 	}
 
 	/**

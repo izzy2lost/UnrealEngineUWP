@@ -1599,7 +1599,7 @@ UStaticMeshComponent* UPatternTool::GetPreviewStaticMesh(const FPatternElement& 
 
 	if (FoundPool->Components.Num() > 0)
 	{
-		UStaticMeshComponent* FoundComponent = Cast<UStaticMeshComponent>(FoundPool->Components.Pop(false));
+		UStaticMeshComponent* FoundComponent = Cast<UStaticMeshComponent>(FoundPool->Components.Pop(EAllowShrinking::No));
 		check(FoundComponent != nullptr);
 		return FoundComponent;
 	}
@@ -1655,7 +1655,7 @@ UDynamicMeshComponent* UPatternTool::GetPreviewDynamicMesh(const FPatternElement
 
 	if (FoundPool->Components.Num() > 0)
 	{
-		UDynamicMeshComponent* FoundComponent = Cast<UDynamicMeshComponent>(FoundPool->Components.Pop(false));
+		UDynamicMeshComponent* FoundComponent = Cast<UDynamicMeshComponent>(FoundPool->Components.Pop(EAllowShrinking::No));
 		check(FoundComponent != nullptr);
 		return FoundComponent;
 	}

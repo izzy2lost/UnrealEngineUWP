@@ -331,7 +331,7 @@ void FBehaviorTreeInstance::RemoveParallelTaskAt(int32 TaskIndex)
 		TEXT("Removing from the list of parallel tasks from ExecuteOnEachParallelTask is only supported for the current task. Otherwise the iteration is broken."));
 #endif // DO_ENSURE
 
-	MEM_STAT_UPDATE_WRAPPER(ParallelTasks.RemoveAt(TaskIndex, /*Count=*/1, /*bAllowShrinking=*/false));
+	MEM_STAT_UPDATE_WRAPPER(ParallelTasks.RemoveAt(TaskIndex, /*Count=*/1, EAllowShrinking::No));
 }
 
 void FBehaviorTreeInstance::MarkParallelTaskAsAbortingAt(int32 TaskIndex)
@@ -423,7 +423,7 @@ void FBehaviorTreeInstance::DeactivateNodes(FBehaviorTreeSearchData& SearchData,
 				*UBehaviorTreeTypes::DescribeNodeUpdateMode(EBTNodeUpdateMode::Remove),
 				*UBehaviorTreeTypes::DescribeNodeHelper(UpdateInfo.AuxNode ? (UBTNode*)UpdateInfo.AuxNode : (UBTNode*)UpdateInfo.TaskNode));
 
-			SearchData.PendingUpdates.RemoveAt(Idx, 1, false);
+			SearchData.PendingUpdates.RemoveAt(Idx, 1, EAllowShrinking::No);
 		}
 	}
 
@@ -492,7 +492,7 @@ void FBehaviorTreeSearchData::AddUniqueUpdate(const FBehaviorTreeSearchUpdate& U
 			bSkipAdding = (Info.Mode == EBTNodeUpdateMode::Remove) || (UpdateInfo.Mode == EBTNodeUpdateMode::Remove);
 			UE_CVLOG(bSkipAdding, OwnerComp.GetOwner(), LogBehaviorTree, Verbose, TEXT(">> skipped: paired add/remove"));
 
-			PendingUpdates.RemoveAt(UpdateIndex, 1, false);
+			PendingUpdates.RemoveAt(UpdateIndex, 1, EAllowShrinking::No);
 		}
 	}
 	
@@ -720,7 +720,7 @@ FString UBehaviorTreeTypes::GetShortTypeName(const UObject* Ob)
 	const int32 ShortNameIdx = TypeDesc.Find(TEXT("_"), ESearchCase::CaseSensitive);
 	if (ShortNameIdx != INDEX_NONE)
 	{
-		TypeDesc.MidInline(ShortNameIdx + 1, MAX_int32, false);
+		TypeDesc.MidInline(ShortNameIdx + 1, MAX_int32, EAllowShrinking::No);
 	}
 
 	return TypeDesc;

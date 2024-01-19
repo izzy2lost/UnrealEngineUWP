@@ -272,7 +272,7 @@ int32 UNiagaraDataChannelHandler_Islands::ActivateNewIsland(FVector Location)
 	FNDCIsland* NewIsland = nullptr;
 	if (FreeIslands.Num() > 0)
 	{
-		NewIndex = FreeIslands.Pop(false);
+		NewIndex = FreeIslands.Pop(EAllowShrinking::No);
 		NewIsland = &IslandPool[NewIndex];
 	}
 

@@ -633,7 +633,7 @@ void UToolMenus::AssembleMenuSection(UToolMenu* GeneratedMenu, const UToolMenu* 
 					ConstructedSection.Context = ConstructedEntries->Context;
 					GeneratedEntry.Construct.Execute(ConstructedSection);
 				}
-				GeneratedEntries.RemoveAt(0, 1, false);
+				GeneratedEntries.RemoveAt(0, 1, EAllowShrinking::No);
 
 				// Combine all user's choice of selections here into the current section target
 				// If the user wants to add items to different sections they will need to create dynamic section instead (for now)
@@ -661,7 +661,7 @@ void UToolMenus::AssembleMenuSection(UToolMenu* GeneratedMenu, const UToolMenu* 
 				{
 					BlocksToAddLast.Add(GeneratedEntry);
 				}
-				GeneratedEntries.RemoveAt(0, 1, false);
+				GeneratedEntries.RemoveAt(0, 1, EAllowShrinking::No);
 			}
 		}
 	}
@@ -764,13 +764,13 @@ void UToolMenus::AssembleMenu(UToolMenu* GeneratedMenu, const UToolMenu* Other)
 					}
 				}
 				
-				GeneratedSections.RemoveAt(0, 1, false);				
+				GeneratedSections.RemoveAt(0, 1, EAllowShrinking::No);
 				GeneratedSections.Insert(ConstructedSections->Sections, 0);
 			}
 			else
 			{
 				RemainingSections.Add(GeneratedSections[0]);
-				GeneratedSections.RemoveAt(0, 1, false);
+				GeneratedSections.RemoveAt(0, 1, EAllowShrinking::No);
 			}
 		}
 	}
@@ -862,7 +862,7 @@ void UToolMenus::RemoveCustomization(const FName InName)
 	int32 FoundIndex = FindMenuCustomizationIndex(InName);
 	if (FoundIndex != INDEX_NONE)
 	{
-		CustomizedMenus.RemoveAt(FoundIndex, 1, false);
+		CustomizedMenus.RemoveAt(FoundIndex, 1, EAllowShrinking::No);
 	}
 }
 
@@ -2524,7 +2524,7 @@ void UToolMenus::UnregisterOwnerInternal(FToolMenuOwner InOwner)
 
 				if (Section.Blocks.Num() == 0)
 				{
-					Menu->Sections.RemoveAt(SectionIndex, 1, false);
+					Menu->Sections.RemoveAt(SectionIndex, 1, EAllowShrinking::No);
 					bNeedsRefresh = true;
 				}
 			}
@@ -2618,7 +2618,7 @@ void UToolMenus::PushOwner(const FToolMenuOwner InOwner)
 
 void UToolMenus::PopOwner(const FToolMenuOwner InOwner)
 {
-	FToolMenuOwner PoppedOwner = OwnerStack.Pop(false);
+	FToolMenuOwner PoppedOwner = OwnerStack.Pop(EAllowShrinking::No);
 	check(PoppedOwner == InOwner);
 }
 

@@ -885,7 +885,7 @@ int32 FSparseDynamicPointOctree3::FindNearestHitPoint(const FRay3d& Ray,
 	int32 HitPointID = -1;
 	while (Queue.Num() > 0)
 	{
-		const FSparsePointOctreeCell* CurCell = Queue.Pop(false);
+		const FSparsePointOctreeCell* CurCell = Queue.Pop(EAllowShrinking::No);
 		
 		// process elements
 		CellPointLists.Enumerate(CurCell->CellID, [&](int32 PointID)
@@ -945,7 +945,7 @@ void FSparseDynamicPointOctree3::RangeQuery(
 
 	while (Queue.Num() > 0)
 	{
-		const FSparsePointOctreeCell* CurCell = Queue.Pop(false);
+		const FSparsePointOctreeCell* CurCell = Queue.Pop(EAllowShrinking::No);
 
 		// process elements
 		CellPointLists.Enumerate(CurCell->CellID, [&](int32 PointID)
@@ -1007,7 +1007,7 @@ void FSparseDynamicPointOctree3::ParallelRangeQuery(
 
 		while (Queue.Num() > 0)
 		{
-			const FSparsePointOctreeCell* CurCell = Queue.Pop(false);
+			const FSparsePointOctreeCell* CurCell = Queue.Pop(EAllowShrinking::No);
 
 			// process elements
 			CellPointLists.Enumerate(CurCell->CellID, [&](int PointID)

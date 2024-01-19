@@ -204,7 +204,7 @@ public:
 			if (CacheItem.Hash == Hash)
 			{
 				TransientResourceType* Resource = CacheItem.Resource;
-				Cache.RemoveAtSwap(Index, 1, false);
+				Cache.RemoveAtSwap(Index, 1, EAllowShrinking::No);
 				Allocated.Emplace(Resource);
 				HitCount++;
 				return Resource;
@@ -228,7 +228,7 @@ public:
 			Cache.Emplace(Resource, Resource->GetHash(), CurrentFrameIndex);
 		}
 
-		Allocated.SetNum(FirstForfeitIndex, false);
+		Allocated.SetNum(FirstForfeitIndex, EAllowShrinking::No);
 
 		Algo::Sort(Cache, [](const FCacheItem& LHS, const FCacheItem& RHS)
 		{

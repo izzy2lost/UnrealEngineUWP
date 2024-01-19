@@ -554,7 +554,7 @@ UDynamicMesh* UDynamicMeshPool::RequestMesh()
 {
 	if (CachedMeshes.Num() > 0)
 	{
-		return CachedMeshes.Pop(false);
+		return CachedMeshes.Pop(EAllowShrinking::No);
 	}
 	UDynamicMesh* NewMesh = NewObject<UDynamicMesh>();
 

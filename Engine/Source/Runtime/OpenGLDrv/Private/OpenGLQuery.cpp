@@ -108,14 +108,14 @@ struct FGLQueryBatcher
 				if (Item.BeginSequence < Query->TotalBegins.GetValue())
 				{
 					// stale entry, was never checked, but was reused
-					Batch->BatchContents.RemoveAtSwap(IndexInner--, 1, false);
+					Batch->BatchContents.RemoveAtSwap(IndexInner--, 1, EAllowShrinking::No);
 					continue;
 				}
 			
 				RHI.GetRenderQueryResult_OnThisThread(Query, false);
 				if (Query->TotalResults.GetValue() == Query->TotalBegins.GetValue())
 				{
-					Batch->BatchContents.RemoveAtSwap(IndexInner--, 1, false);
+					Batch->BatchContents.RemoveAtSwap(IndexInner--, 1, EAllowShrinking::No);
 				}
 				else
 				{
@@ -165,14 +165,14 @@ struct FGLQueryBatcher
 				if (Item.BeginSequence < Query->TotalBegins.GetValue())
 				{
 					// stale entry, was never checked, but was reused
-					Batch->BatchContents.RemoveAtSwap(IndexInner--, 1, false);
+					Batch->BatchContents.RemoveAtSwap(IndexInner--, 1, EAllowShrinking::No);
 					continue;
 				}
 
 				RHI.GetRenderQueryResult_OnThisThread(Query, false);
 				if (Query->TotalResults.GetValue() == Query->TotalBegins.GetValue())
 				{
-					Batch->BatchContents.RemoveAtSwap(IndexInner--, 1, false);
+					Batch->BatchContents.RemoveAtSwap(IndexInner--, 1, EAllowShrinking::No);
 				}
 			}
 			if (Batch->BatchContents.Num() == 0)

@@ -1189,7 +1189,7 @@ static bool FitAlignedSlot(FAtlasLayout& Layout, FAtlasSlot& Slot)
 							{
 								while (H.Line.Origin.Y >= VisibilityStack.Last().Y)
 								{
-									VisibilityStack.Pop(false);
+									VisibilityStack.Pop(EAllowShrinking::No);
 								}
 
 								// Sanity 
@@ -1214,7 +1214,7 @@ static bool FitAlignedSlot(FAtlasLayout& Layout, FAtlasSlot& Slot)
 							{
 								while (H.Line.Origin.Y >= VisibilityStack.Last().Y)
 								{
-									VisibilityStack.Pop(false);
+									VisibilityStack.Pop(EAllowShrinking::No);
 								}
 
 								// Sanity 
@@ -1341,8 +1341,8 @@ static void PackAtlas(
 	if (bNeedRefit)
 	{
 		CopySlots.Reserve(ValidSlots.Num());
-		CopySlots.SetNum(0, false);
-		NewSlots.SetNum(0, false);
+		CopySlots.SetNum(0, EAllowShrinking::No);
+		NewSlots.SetNum(0, EAllowShrinking::No);
 		
 		FIntPoint CurrentAtlasResolution = Layout.AtlasResolution;
 		int32 CurrentSourceTextureMIPBias = 0; // When a refit is done, restart with a MIP bias of 0, to ensure we use the full potential space of the atlas
@@ -1402,8 +1402,8 @@ static void PackAtlas(
 					}
 				}
 
-				CopySlots.SetNum(0, false);
-				NewSlots.SetNum(0, false);
+				CopySlots.SetNum(0, EAllowShrinking::No);
+				NewSlots.SetNum(0, EAllowShrinking::No);
 			}
 			else
 			{

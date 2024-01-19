@@ -2096,7 +2096,7 @@ const FReplayHelper::EReadPacketState FReplayHelper::ReadPacket(FArchive& Archiv
 	}
 	else
 	{
-		OutBuffer.SetNumUninitialized(BufferSize, false);
+		OutBuffer.SetNumUninitialized(BufferSize, EAllowShrinking::No);
 		Archive.Serialize(OutBuffer.GetData(), BufferSize);
 	}
 

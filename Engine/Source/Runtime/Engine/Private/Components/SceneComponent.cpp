@@ -1005,7 +1005,7 @@ void USceneComponent::EndScopedMovementUpdate(class FScopedMovementUpdate& Compl
 	}
 
 	// Process top of the stack
-	FScopedMovementUpdate* CurrentScopedUpdate = ScopedMovementStack.Pop(false);
+	FScopedMovementUpdate* CurrentScopedUpdate = ScopedMovementStack.Pop(EAllowShrinking::No);
 	checkSlow(CurrentScopedUpdate == &CompletedScope);
 	{
 		checkSlow(CurrentScopedUpdate->IsDeferringUpdates());
@@ -1277,7 +1277,7 @@ void USceneComponent::OnComponentDestroyed(bool bDestroyingHierarchy)
 								// so instead of crashing, output an error and gracefully handle
 								UE_LOG(LogSceneComponent, Error, TEXT("Component '%s' has '%s' in its AttachChildren array, however, '%s' believes it is attached to '%s'"), *GetFullName(), *Child->GetFullName(), *Child->GetFullName(), *Child->GetAttachParent()->GetFullName());
 							}
-							AttachChildren.Pop(false);
+							AttachChildren.Pop(EAllowShrinking::No);
 						}
 					}
 					else 
@@ -1289,13 +1289,13 @@ void USceneComponent::OnComponentDestroyed(bool bDestroyingHierarchy)
 						{
 							UE_LOG(LogSceneComponent, Error, TEXT("Component '%s' has '%s' in its AttachChildren array, however, '%s' believes it is not attached to anything"), *GetFullName(), *Child->GetFullName(), *Child->GetFullName());
 						}
-						AttachChildren.Pop(false);
+						AttachChildren.Pop(EAllowShrinking::No);
 					}
 					checkf(ChildCount > AttachChildren.Num(), TEXT("AttachChildren count increased while detaching '%s', likely caused by OnAttachmentChanged introducing new children, which could lead to an infinite loop."), *Child->GetName());
 				}
 				else
 				{
-					AttachChildren.Pop(false);
+					AttachChildren.Pop(EAllowShrinking::No);
 					if (Child)
 					{
 						CachedChildren.Add(Child);
@@ -1359,7 +1359,7 @@ void USceneComponent::OnComponentDestroyed(bool bDestroyingHierarchy)
 								// so instead of crashing, output an error and gracefully handle
 								UE_LOG(LogSceneComponent, Error, TEXT("Component '%s' has '%s' in its AttachChildren array, however, '%s' believes it is attached to '%s'"), *GetFullName(), *Child->GetFullName(), *Child->GetFullName(), *Child->GetAttachParent()->GetFullName());
 							}
-							AttachChildren.Pop(false);
+							AttachChildren.Pop(EAllowShrinking::No);
 						}
 					}
 					else 
@@ -1371,12 +1371,12 @@ void USceneComponent::OnComponentDestroyed(bool bDestroyingHierarchy)
 						{
 							UE_LOG(LogSceneComponent, Error, TEXT("Component '%s' has '%s' in its AttachChildren array, however, '%s' believes it is not attached to anything"), *GetFullName(), *Child->GetFullName(), *Child->GetFullName());
 						}
-						AttachChildren.Pop(false);
+						AttachChildren.Pop(EAllowShrinking::No);
 					}
 				}
 				else
 				{
-					AttachChildren.Pop(false);
+					AttachChildren.Pop(EAllowShrinking::No);
 				}
 				ChildCount = AttachChildren.Num();
 			}
@@ -3281,7 +3281,7 @@ void USceneComponent::SetVisibility(const bool bNewVisibility, const USceneCompo
 
 		while (ComponentStack.Num() > 0)
 		{
-			USceneComponent* const CurrentComp = ComponentStack.Pop(/*bAllowShrinking=*/ false);
+			USceneComponent* const CurrentComp = ComponentStack.Pop(EAllowShrinking::No);
 			if (CurrentComp)
 			{
 				ComponentStack.Append(CurrentComp->GetAttachChildren());
@@ -3327,7 +3327,7 @@ void USceneComponent::SetHiddenInGame(const bool bNewHiddenGame, const USceneCom
 
 		while (ComponentStack.Num() > 0)
 		{
-			USceneComponent* const CurrentComp = ComponentStack.Pop(/*bAllowShrinking=*/ false);
+			USceneComponent* const CurrentComp = ComponentStack.Pop(EAllowShrinking::No);
 			if (CurrentComp)
 			{
 				ComponentStack.Append(CurrentComp->GetAttachChildren());
@@ -3436,7 +3436,7 @@ void USceneComponent::OnRep_AttachChildren()
 			{
 				if (PossibleDuplicate == AttachChildren[DuplicateCheckIndex])
 				{
-					AttachChildren.RemoveAt(SearchIndex, 1, false);
+					AttachChildren.RemoveAt(SearchIndex, 1, EAllowShrinking::No);
 					break;
 				}
 			}

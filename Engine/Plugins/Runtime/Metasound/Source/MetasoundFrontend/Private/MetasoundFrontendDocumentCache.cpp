@@ -43,15 +43,13 @@ namespace Metasound::Frontend
 			TMapArrayType& OutMap
 		)
 		{
-			constexpr bool bAllowShrinking = false;
-
 			// Remove swap item
 			{
 				TArray<int32>& Indices = OutMap.FindChecked(InSwapKey);
 				Indices.RemoveAllSwap([&SwapIndex](const int32& Index)
 				{
 					return Index == SwapIndex;
-				}, bAllowShrinking);
+				}, EAllowShrinking::No);
 				if (Indices.IsEmpty())
 				{
 					OutMap.Remove(InSwapKey);

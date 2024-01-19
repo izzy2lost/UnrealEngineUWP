@@ -228,7 +228,7 @@ struct FHullConnectivity
 					int32 PointIdx = Indices[SubIdx];
 					if (PointIdx == SourcePointIdx)
 					{
-						Indices.RemoveAtSwap(SubIdx, 1, false);
+						Indices.RemoveAtSwap(SubIdx, 1, EAllowShrinking::No);
 						SubIdx--;
 					}
 					else
@@ -244,7 +244,7 @@ struct FHullConnectivity
 			}
 			else
 			{
-				Indices.RemoveSingleSwap(SourcePointIdx, false);
+				Indices.RemoveSingleSwap(SourcePointIdx, EAllowShrinking::No);
 			}
 		}
 
@@ -497,9 +497,9 @@ struct FHullConnectivity
 			{
 				TrisWithPoints.Remove(TriIdx);
 			}
-			Triangles.SetNum(LastIdx, false);
-			TriNeighbors.SetNum(LastIdx, false);
-			VisiblePoints.SetNum(LastIdx, false);
+			Triangles.SetNum(LastIdx, EAllowShrinking::No);
+			TriNeighbors.SetNum(LastIdx, EAllowShrinking::No);
+			VisiblePoints.SetNum(LastIdx, EAllowShrinking::No);
 		}
 	}
 
@@ -701,7 +701,7 @@ struct FHullConnectivity
 				int32 UnclaimedIdx = NewlyUnclaimed[Idx];
 				if (PointMemberships[UnclaimedIdx] == MembershipNumber)
 				{
-					NewlyUnclaimed.RemoveAtSwap(Idx, 1, false);
+					NewlyUnclaimed.RemoveAtSwap(Idx, 1, EAllowShrinking::No);
 				}
 				else
 				{
@@ -734,7 +734,7 @@ struct FHullConnectivity
 					if (PlaneDist > VisibleDistanceThreshold && IsVisible(TriPts, UnPt))
 					{
 						Visible.AddPtByValue(UnPtIdx, PlaneDist);
-						NewlyUnclaimed.RemoveAtSwap(UnclaimedIdx, 1, false);
+						NewlyUnclaimed.RemoveAtSwap(UnclaimedIdx, 1, EAllowShrinking::No);
 						UnclaimedIdx--;
 						continue;
 					}
@@ -749,7 +749,7 @@ struct FHullConnectivity
 					if (IsVisible(TriPts, UnPt))
 					{
 						Visible.AddPt(UnPtIdx, UnPt);
-						NewlyUnclaimed.RemoveAtSwap(UnclaimedIdx, 1, false);
+						NewlyUnclaimed.RemoveAtSwap(UnclaimedIdx, 1, EAllowShrinking::No);
 						UnclaimedIdx--;
 						continue;
 					}
@@ -898,7 +898,7 @@ void TConvexHull3<RealType>::GetFaces(TFunctionRef<void(TArray<int32>&, TVector<
 		ToProcess.Add(NbrInds[2]);
 		while (ToProcess.Num() > 0)
 		{
-			int32 NbrTriIdx = ToProcess.Pop(false);
+			int32 NbrTriIdx = ToProcess.Pop(EAllowShrinking::No);
 			if (GroupIDs[NbrTriIdx] >= 0 || GroupIDs[NbrTriIdx] < -CurGroupID - 1)
 			{
 				continue;
@@ -1273,7 +1273,7 @@ void TConvexHull3<RealType>::GetSimplifiedFaces(TArray<FPolygonFace>& OutPolygon
 			continue;
 		}
 
-		CurFaceVertIDs.SetNum(NumKept, false);
+		CurFaceVertIDs.SetNum(NumKept, EAllowShrinking::No);
 
 		FPolygonFace& Face = OutPolygons.Emplace_GetRef();
 		Face.Append(CurFaceVertIDs);
@@ -1329,14 +1329,14 @@ void TConvexHull3<RealType>::GetSimplifiedFaces(TArray<FPolygonFace>& OutPolygon
 				}
 				else
 				{
-					OutPolygons.RemoveAtSwap(PolyIdx, 1, false);
+					OutPolygons.RemoveAtSwap(PolyIdx, 1, EAllowShrinking::No);
 					if (OutPolygonNormals)
 					{
-						OutPolygonNormals->RemoveAtSwap(PolyIdx, 1, false);
+						OutPolygonNormals->RemoveAtSwap(PolyIdx, 1, EAllowShrinking::No);
 					}
 					else
 					{
-						PolygonToGroup.RemoveAtSwap(PolyIdx, 1, false);
+						PolygonToGroup.RemoveAtSwap(PolyIdx, 1, EAllowShrinking::No);
 					}
 					bHasDeletedFaces = true;
 					PolyIdx--;
@@ -1467,7 +1467,7 @@ void TConvexHull3<RealType>::WalkBorder(const TArray<FIndex3i>& Triangles, const
 
 	while (VisitStack.Num())
 	{
-		FVisit Visit = VisitStack.Pop(false);
+		FVisit Visit = VisitStack.Pop(EAllowShrinking::No);
 		if (!InGroupFunc(Visit.Tri))
 		{
 			OutBorderVertexIndices.Add(Triangles[Visit.Tri][Visit.Edge]);

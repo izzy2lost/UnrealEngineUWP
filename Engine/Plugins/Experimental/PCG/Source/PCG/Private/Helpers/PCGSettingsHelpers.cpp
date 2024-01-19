@@ -442,7 +442,7 @@ namespace PCGSettingsHelpers
 #endif // WITH_EDITOR
 				}
 
-				InAlreadySeenProperties.Pop(/*bAllowShrinking=*/false);
+				InAlreadySeenProperties.Pop(EAllowShrinking::No);
 			};
 
 			const FProperty* PropertyToCheck = Property;

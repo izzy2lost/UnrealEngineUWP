@@ -703,7 +703,7 @@ bool UDynamicMeshSculptTool::ApplySmoothBrush(const FRay& WorldRay)
 
 	FDynamicMesh3* Mesh = DynamicMeshComponent->GetMesh();
 	int NumV = VertexROI.Num();
-	ROIPositionBuffer.SetNum(NumV, false);
+	ROIPositionBuffer.SetNum(NumV, EAllowShrinking::No);
 
 	ParallelFor(NumV, [this, Mesh, NewBrushPosLocal](int k)
 	{
@@ -741,7 +741,7 @@ bool UDynamicMeshSculptTool::ApplyMoveBrush(const FRay& WorldRay)
 
 	FDynamicMesh3* Mesh = DynamicMeshComponent->GetMesh();
 	int NumV = VertexROI.Num();
-	ROIPositionBuffer.SetNum(NumV, false);
+	ROIPositionBuffer.SetNum(NumV, EAllowShrinking::No);
 
 	ParallelFor(NumV, [this, Mesh, NewBrushPosLocal, MoveVec](int k)
 	{
@@ -780,7 +780,7 @@ bool UDynamicMeshSculptTool::ApplyOffsetBrush(const FRay& WorldRay, bool bUseVie
 
 	FDynamicMesh3* Mesh = DynamicMeshComponent->GetMesh();
 	int NumV = VertexROI.Num();
-	ROIPositionBuffer.SetNum(NumV, false);
+	ROIPositionBuffer.SetNum(NumV, EAllowShrinking::No);
 
 	ParallelFor(NumV, [&](int k)
 	{
@@ -823,7 +823,7 @@ bool UDynamicMeshSculptTool::ApplySculptMaxBrush(const FRay& WorldRay)
 
 	FDynamicMesh3* Mesh = DynamicMeshComponent->GetMesh();
 	int NumV = VertexROI.Num();
-	ROIPositionBuffer.SetNum(NumV, false);
+	ROIPositionBuffer.SetNum(NumV, EAllowShrinking::No);
 
 	ParallelFor(NumV, [this, Mesh, NewBrushPosLocal, UseSpeed, MaxOffset](int k)
 	{
@@ -877,7 +877,7 @@ bool UDynamicMeshSculptTool::ApplyPinchBrush(const FRay& WorldRay)
 
 	FDynamicMesh3* Mesh = DynamicMeshComponent->GetMesh();
 	int NumV = VertexROI.Num();
-	ROIPositionBuffer.SetNum(NumV, false);
+	ROIPositionBuffer.SetNum(NumV, EAllowShrinking::No);
 
 	ParallelFor(NumV, [this, Mesh, NewBrushPosLocal, OffsetBrushPosLocal, bHaveMotion, MotionVec, UseSpeed](int k)
 	{
@@ -958,7 +958,7 @@ bool UDynamicMeshSculptTool::ApplyPlaneBrush(const FRay& WorldRay)
 
 	FDynamicMesh3* Mesh = DynamicMeshComponent->GetMesh();
 	int NumV = VertexROI.Num();
-	ROIPositionBuffer.SetNum(NumV, false);
+	ROIPositionBuffer.SetNum(NumV, EAllowShrinking::No);
 
 	ParallelFor(NumV, [&](int k)
 	{
@@ -1003,7 +1003,7 @@ bool UDynamicMeshSculptTool::ApplyFixedPlaneBrush(const FRay& WorldRay)
 
 	FDynamicMesh3* Mesh = DynamicMeshComponent->GetMesh();
 	int NumV = VertexROI.Num();
-	ROIPositionBuffer.SetNum(NumV, false);
+	ROIPositionBuffer.SetNum(NumV, EAllowShrinking::No);
 
 	ParallelFor(NumV, [&](int k)
 	{
@@ -1049,7 +1049,7 @@ bool UDynamicMeshSculptTool::ApplyFlattenBrush(const FRay& WorldRay)
 
 	FDynamicMesh3* Mesh = DynamicMeshComponent->GetMesh();
 	int NumV = VertexROI.Num();
-	ROIPositionBuffer.SetNum(NumV, false);
+	ROIPositionBuffer.SetNum(NumV, EAllowShrinking::No);
 
 	ParallelFor(NumV, [&](int k)
 	{
@@ -1092,7 +1092,7 @@ bool UDynamicMeshSculptTool::ApplyInflateBrush(const FRay& WorldRay)
 
 	FDynamicMesh3* Mesh = DynamicMeshComponent->GetMesh();
 	int NumV = VertexROI.Num();
-	ROIPositionBuffer.SetNum(NumV, false);
+	ROIPositionBuffer.SetNum(NumV, EAllowShrinking::No);
 
 	// calculate vertex normals
 	ParallelFor(VertexROI.Num(), [this, Mesh](int Index) {
@@ -1132,7 +1132,7 @@ bool UDynamicMeshSculptTool::ApplyResampleBrush(const FRay& WorldRay)
 
 	FDynamicMesh3* Mesh = DynamicMeshComponent->GetMesh();
 	int NumV = VertexROI.Num();
-	ROIPositionBuffer.SetNum(NumV, false);
+	ROIPositionBuffer.SetNum(NumV, EAllowShrinking::No);
 	ParallelFor(NumV, [&](int k)
 	{
 		ROIPositionBuffer[k] = Mesh->GetVertex(VertexROI[k]);

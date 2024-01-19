@@ -716,7 +716,7 @@ void FGameplayDebuggerCanvasContext::MeasureString(const FString& String, float&
 			{
 				if (BracketEnd > BracketStart)
 				{
-					StringWithoutFormatting.RemoveAt(BracketStart, BracketEnd - BracketStart + 1, false);
+					StringWithoutFormatting.RemoveAt(BracketStart, BracketEnd - BracketStart + 1, EAllowShrinking::No);
 				}
 			}
 		}

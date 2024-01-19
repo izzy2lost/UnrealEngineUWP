@@ -739,7 +739,7 @@ void FAccumulatedParticlePerfStats::AddMax(TArray<uint64, TInlineAllocator<ACCUM
 	InsertIndex = MaxArray.IndexOfByPredicate([&](uint32 v) {return NewValue > v; });
 	if (InsertIndex != INDEX_NONE)
 	{
-		MaxArray.Pop(false);
+		MaxArray.Pop(EAllowShrinking::No);
 		MaxArray.Insert(NewValue, InsertIndex);
 	}
 };

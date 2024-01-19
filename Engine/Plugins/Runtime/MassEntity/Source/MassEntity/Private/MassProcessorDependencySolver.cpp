@@ -324,7 +324,7 @@ bool FMassProcessorDependencySolver::PerformSolverStep(FResourceUsage& ResourceU
 
 		for (const int32 RemainingNodeIndex : InOutIndicesRemaining)
 		{
-			AllNodes[RemainingNodeIndex].TransientDependencies.RemoveSingleSwap(NodeIndex, /*bAllowShrinking=*/false);
+			AllNodes[RemainingNodeIndex].TransientDependencies.RemoveSingleSwap(NodeIndex, EAllowShrinking::No);
 		}
 		
 		return true;
@@ -1029,7 +1029,7 @@ void FMassProcessorDependencySolver::Solve(TArray<FMassProcessorOrderInfo>& OutR
 
 			// remove first dependency
 			// note that if we're in a cycle handling scenario every node does have some dependencies left
-			const int32 DependencyNodeIndex = AllNodes[IndicesRemaining[0]].TransientDependencies.Pop(/*bAllowShrinking=*/false);
+			const int32 DependencyNodeIndex = AllNodes[IndicesRemaining[0]].TransientDependencies.Pop(EAllowShrinking::No);
 			// we need to remove this dependency from original dependencies as well, otherwise we'll still have the cycle
 			// in the data being produces as a result of the whole algorithm
 			AllNodes[IndicesRemaining[0]].OriginalDependencies.Remove(DependencyNodeIndex);

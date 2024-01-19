@@ -637,7 +637,7 @@ private:
 		int32 JobIndex = INDEX_NONE;
 		if (Stripe.FreeIndices.Num() > 0)
 		{
-			JobIndex = Stripe.FreeIndices.Pop(false);
+			JobIndex = Stripe.FreeIndices.Pop(EAllowShrinking::No);
 			check(!Stripe.Jobs[JobIndex].IsValid());
 			Stripe.Jobs[JobIndex] = InJob;
 		}
@@ -2728,7 +2728,7 @@ bool DoWriteTasksInner(const TArray<FShaderCommonCompileJobPtr>& QueuedJobs, FAr
 		int32 ActualCompressedSize = CompressedSizeBound;
 		bool bSucceeded = FCompression::CompressMemory(CompressionFormatToUse, CompressedBuffer.GetData(), ActualCompressedSize, UncompressedArray.GetData(), UncompressedDataSize, COMPRESS_BiasSpeed);
 		checkf(ActualCompressedSize <= CompressedSizeBound, TEXT("Compressed size was larger than the bound - we stomped the memory."));
-		CompressedBuffer.SetNum(ActualCompressedSize, false);
+		CompressedBuffer.SetNum(ActualCompressedSize, EAllowShrinking::No);
 
 		InTransferFile << CompressedBuffer;
 		UE_LOG(LogShaderCompilers, Verbose, TEXT("Compressed the task file from %d bytes to %d bytes (%.2f%% savings)"), UncompressedDataSize, ActualCompressedSize,

@@ -497,7 +497,7 @@ void FRHIMemoryPool::RemoveFromFreeBlocks(FRHIPoolAllocationData* InFreeBlock)
 	{
 		if (FreeBlocks[FreeBlockIndex] == InFreeBlock)
 		{
-			FreeBlocks.RemoveAt(FreeBlockIndex, 1, false);
+			FreeBlocks.RemoveAt(FreeBlockIndex, 1, EAllowShrinking::No);
 			break;
 		}
 	}	
@@ -557,7 +557,7 @@ FRHIPoolAllocationData* FRHIMemoryPool::AddToFreeBlocks(FRHIPoolAllocationData* 
 
 FRHIPoolAllocationData* FRHIMemoryPool::GetNewAllocationData()
 {
-	return (AllocationDataPool.Num() > 0) ? AllocationDataPool.Pop(false) : new FRHIPoolAllocationData();
+	return (AllocationDataPool.Num() > 0) ? AllocationDataPool.Pop(EAllowShrinking::No) : new FRHIPoolAllocationData();
 }
 
 

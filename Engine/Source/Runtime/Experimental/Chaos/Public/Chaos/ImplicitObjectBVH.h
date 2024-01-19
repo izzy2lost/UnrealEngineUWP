@@ -271,7 +271,7 @@ namespace Chaos
 						break;
 					}
 
-					NodeIndex = NodeStack.Pop(false);
+					NodeIndex = NodeStack.Pop(EAllowShrinking::No);
 				}
 			}
 
@@ -314,7 +314,7 @@ namespace Chaos
 
 					NodeIndex = NodeStack.Top().Key;
 					NodeDepth = NodeStack.Top().Value;
-					NodeStack.Pop(false);
+					NodeStack.Pop(EAllowShrinking::No);
 				}
 			}
 
@@ -381,7 +381,7 @@ namespace Chaos
 					}
 					NodeIndexA = NodePairStack.Top()[0];
 					NodeIndexB = NodePairStack.Top()[1];
-					NodePairStack.Pop(false);
+					NodePairStack.Pop(EAllowShrinking::No);
 				}
 			}
 
@@ -418,7 +418,7 @@ namespace Chaos
 					{
 						break;
 					}
-					NodeIndex = NodeStack.Pop(false);
+					NodeIndex = NodeStack.Pop(EAllowShrinking::No);
 				}
 
 				return false;

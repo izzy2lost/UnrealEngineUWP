@@ -607,7 +607,7 @@ PRAGMA_ENABLE_DEPRECATION_WARNINGS
 		if (NumSamplesWritten > 0)
 		{
 			NumSamplesRemaining -= NumSamplesWritten;
-			OverflowBuffer.RemoveAtSwap(0 /* Index */, NumSamplesWritten /* Count */, false /* bAllowShrinking */);
+			OverflowBuffer.RemoveAtSwap(0 /* Index */, NumSamplesWritten /* Count */, EAllowShrinking::No);
 		}
 
 		while (NumSamplesRemaining > 0)

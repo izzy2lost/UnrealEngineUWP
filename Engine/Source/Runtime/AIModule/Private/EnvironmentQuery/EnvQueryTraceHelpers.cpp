@@ -18,7 +18,7 @@ void FEQSHelpers::FBatchTrace::DoSingleSourceMultiDestinations<EEnvTraceShape::L
 		}
 		else if (TraceMode == ETraceMode::Discard)
 		{
-			Points.RemoveAt(Idx, 1, false);
+			Points.RemoveAt(Idx, 1, EAllowShrinking::No);
 		}
 	}
 }
@@ -36,7 +36,7 @@ void FEQSHelpers::FBatchTrace::DoSingleSourceMultiDestinations<EEnvTraceShape::B
 		}
 		else if (TraceMode == ETraceMode::Discard)
 		{
-			Points.RemoveAt(Idx, 1, false);
+			Points.RemoveAt(Idx, 1, EAllowShrinking::No);
 		}
 	}
 }
@@ -54,7 +54,7 @@ void FEQSHelpers::FBatchTrace::DoSingleSourceMultiDestinations<EEnvTraceShape::S
 		}
 		else if (TraceMode == ETraceMode::Discard)
 		{
-			Points.RemoveAt(Idx, 1, false);
+			Points.RemoveAt(Idx, 1, EAllowShrinking::No);
 		}
 	}
 }
@@ -72,7 +72,7 @@ void FEQSHelpers::FBatchTrace::DoSingleSourceMultiDestinations<EEnvTraceShape::C
 		}
 		else if (TraceMode == ETraceMode::Discard)
 		{
-			Points.RemoveAt(Idx, 1, false);
+			Points.RemoveAt(Idx, 1, EAllowShrinking::No);
 		}
 	}
 }
@@ -167,7 +167,7 @@ void FEQSHelpers::FBatchTrace::DoProject<EEnvTraceShape::Line>(TArray<FNavLocati
 		}
 		else if (TraceMode == ETraceMode::Discard)
 		{
-			Points.RemoveAt(Idx, 1, false);
+			Points.RemoveAt(Idx, 1, EAllowShrinking::No);
 		}
 
 		if (TraceHits.IsValidIndex(Idx))
@@ -190,7 +190,7 @@ void FEQSHelpers::FBatchTrace::DoProject<EEnvTraceShape::Box>(TArray<FNavLocatio
 		}
 		else if (TraceMode == ETraceMode::Discard)
 		{
-			Points.RemoveAt(Idx, 1, false);
+			Points.RemoveAt(Idx, 1, EAllowShrinking::No);
 		}
 
 		if (TraceHits.IsValidIndex(Idx))
@@ -213,7 +213,7 @@ void FEQSHelpers::FBatchTrace::DoProject<EEnvTraceShape::Sphere>(TArray<FNavLoca
 		}
 		else if (TraceMode == ETraceMode::Discard)
 		{
-			Points.RemoveAt(Idx, 1, false);
+			Points.RemoveAt(Idx, 1, EAllowShrinking::No);
 		}
 
 		if (TraceHits.IsValidIndex(Idx))
@@ -236,7 +236,7 @@ void FEQSHelpers::FBatchTrace::DoProject<EEnvTraceShape::Capsule>(TArray<FNavLoc
 		}
 		else if (TraceMode == ETraceMode::Discard)
 		{
-			Points.RemoveAt(Idx, 1, false);
+			Points.RemoveAt(Idx, 1, EAllowShrinking::No);
 		}
 
 		if (TraceHits.IsValidIndex(Idx))
@@ -344,7 +344,7 @@ void FEQSHelpers::RunNavRaycasts(const ANavigationData& NavData, const UObject& 
 		{
 			if (!RaycastWorkload[Idx].bDidHit)
 			{
-				Points.RemoveAt(Idx, 1, false);
+				Points.RemoveAt(Idx, 1, EAllowShrinking::No);
 			}
 		}
 	}
@@ -391,8 +391,7 @@ void FEQSHelpers::RunNavProjection(const ANavigationData& NavData, const UObject
 		{
 			return !Workload[IntCastChecked<int32>(&Point - PointsBegin)].bResult;
 		});
-		const bool bAllowShrinking = false;
-		Points.SetNum(NewNum, bAllowShrinking);
+		Points.SetNum(NewNum, EAllowShrinking::No);
 	}
 }
 

@@ -2187,7 +2187,7 @@ void USoundWave::BeginDestroy()
 			if (SoundWaveClientPtr && SoundWaveClientPtr->OnBeginDestroy(this))
 			{
 				// if OnBeginDestroy returned true, we are unsubscribing the SoundWaveClient...
-				SourcesPlaying.RemoveAtSwap(i, 1, false);
+				SourcesPlaying.RemoveAtSwap(i, 1, EAllowShrinking::No);
 			}
 		}
 	}
@@ -3172,7 +3172,7 @@ void USoundWave::FinishDestroy()
 		if (SoundWaveClientPtr)
 		{
 			SoundWaveClientPtr->OnFinishDestroy(this);
-			SourcesPlaying.RemoveAtSwap(i, 1, false);
+			SourcesPlaying.RemoveAtSwap(i, 1, EAllowShrinking::No);
 		}
 	}
 

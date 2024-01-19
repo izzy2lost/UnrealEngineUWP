@@ -408,7 +408,7 @@ int32 ALightWeightInstanceManager::AddNewInstance(FLWIData* InitData)
 	}
 
 	// use one of the free indices if any are available; otherwise grow the size of the array
-	const int32 DataIdx = FreeIndices.Num() > 0 ? FreeIndices.Pop(false) : ValidIndices.Num();
+	const int32 DataIdx = FreeIndices.Num() > 0 ? FreeIndices.Pop(EAllowShrinking::No) : ValidIndices.Num();
 	
 	// Update the rest of our per instance data
 	AddNewInstanceAt(InitData, DataIdx);

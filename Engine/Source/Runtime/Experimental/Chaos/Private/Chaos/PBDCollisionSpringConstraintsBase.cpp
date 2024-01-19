@@ -161,7 +161,7 @@ void FPBDCollisionSpringConstraintsBase::Init(const SolverParticlesOrRange& Part
 								return First.Phi < Second.Phi;
 							}
 						);
-						Result.SetNum(MaxConnectionsPerPoint, false /*bAllowShrinking*/);
+						Result.SetNum(MaxConnectionsPerPoint, EAllowShrinking::No);
 					}
 
 					for (const TTriangleCollisionPoint<FSolverReal>& CollisionPoint : Result)
@@ -207,9 +207,9 @@ void FPBDCollisionSpringConstraintsBase::Init(const SolverParticlesOrRange& Part
 
 		// Shrink the arrays to the actual number of found constraints.
 		const int32 ConstraintNum = ConstraintIndex.load();
-		Constraints.SetNum(ConstraintNum, /*bAllowShrinking*/ false);
-		Barys.SetNum(ConstraintNum, /*bAllowShrinking*/ false);
-		FlipNormal.SetNum(ConstraintNum, /*bAllowShrinking*/ false);
+		Constraints.SetNum(ConstraintNum, EAllowShrinking::No);
+		Barys.SetNum(ConstraintNum, EAllowShrinking::No);
+		FlipNormal.SetNum(ConstraintNum, EAllowShrinking::No);
 	}
 }
 template void CHAOS_API FPBDCollisionSpringConstraintsBase::Init<FTriangleMesh::TBVHType<FSolverReal>>(const FSolverParticles& Particles, const FTriangleMesh::TBVHType<FSolverReal>& Spatial, 

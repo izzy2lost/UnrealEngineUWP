@@ -2510,7 +2510,7 @@ FString FManifestDASHInternal::FRepresentation::ApplyTemplateStrings(FString Tem
 			if (token2Pos != INDEX_NONE)
 			{
 				FString token(TemplateURL.Mid(tokenPos+1, token2Pos-tokenPos-1));
-				TemplateURL.RightChopInline(token2Pos+1, false);
+				TemplateURL.RightChopInline(token2Pos+1, EAllowShrinking::No);
 				// An empty token results from "$$" used to insert a single '$'.
 				if (token.IsEmpty())
 				{

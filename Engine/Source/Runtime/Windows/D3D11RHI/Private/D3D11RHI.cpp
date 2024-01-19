@@ -558,7 +558,7 @@ void FD3DGPUProfiler::PopEvent()
 #if NV_AFTERMATH
 	if (GDX11NVAfterMathEnabled && bTrackingGPUCrashData && GDX11NVAfterMathMarkers)
 	{
-		PushPopStack.Pop(false);
+		PushPopStack.Pop(EAllowShrinking::No);
 	}
 #endif
 

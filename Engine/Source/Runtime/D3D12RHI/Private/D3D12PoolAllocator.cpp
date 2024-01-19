@@ -517,7 +517,7 @@ void FD3D12PoolAllocator::DeallocateResource(FD3D12ResourceLocation& ResourceLoc
 	}
 
 	int16 PoolIndex = AllocationData.GetPoolIndex();
-	FRHIPoolAllocationData* ReleasedAllocationData = (AllocationDataPool.Num() > 0) ? AllocationDataPool.Pop(false) : new FRHIPoolAllocationData();
+	FRHIPoolAllocationData* ReleasedAllocationData = (AllocationDataPool.Num() > 0) ? AllocationDataPool.Pop(EAllowShrinking::No) : new FRHIPoolAllocationData();
 	bool bLocked = true;
 	ReleasedAllocationData->MoveFrom(AllocationData, bLocked);
 
@@ -682,7 +682,7 @@ void FD3D12PoolAllocator::CleanUpAllocations(uint64 InFrameLag, bool bForceFree)
 	if (PopCount)
 	{
 		// clear out all of the released blocks, don't allow the array to shrink
-		FrameFencedOperations.RemoveAt(0, PopCount, false);
+		FrameFencedOperations.RemoveAt(0, PopCount, EAllowShrinking::No);
 	}
 
 	// Trim empty allocators if not used in last n frames

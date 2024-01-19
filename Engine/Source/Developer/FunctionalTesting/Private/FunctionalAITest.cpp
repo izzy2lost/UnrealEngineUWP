@@ -501,7 +501,7 @@ void AFunctionalAITest::RemoveSpawnSetIfPredicate(TFunctionRef<bool(FAITestSpawn
 	{
 		if (Predicate(SpawnSets[Index]))
 		{
-			SpawnSets.RemoveAt(Index, 1, false);
+			SpawnSets.RemoveAt(Index, 1, EAllowShrinking::No);
 			bRemovedEntry = true;
 		}
 	}

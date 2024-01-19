@@ -1833,7 +1833,7 @@ namespace Audio
 				{
 					if (SourceInfo.SubmixSends[i].Submix == InSubmixSend.Submix)
 					{
-						SourceInfo.SubmixSends.RemoveAtSwap(i, 1, false);
+						SourceInfo.SubmixSends.RemoveAtSwap(i, 1, EAllowShrinking::No);
 					}
 				}
 
@@ -3584,7 +3584,7 @@ namespace Audio
 
 			if (bDeleteSourceBuffer)
 			{
-				PendingSourceBuffers.RemoveAtSwap(i, 1, false);
+				PendingSourceBuffers.RemoveAtSwap(i, 1, EAllowShrinking::No);
 			}
 		}
 	}

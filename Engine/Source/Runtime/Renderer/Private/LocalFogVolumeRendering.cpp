@@ -453,7 +453,7 @@ void GetLocalFogVolumeSortingData(const FScene* Scene, FRDGBuilder& GraphBuilder
 		Out.LocalFogVolumeInstanceCountFinal++;
 	}
 	// Shrink the array to only what is needed in order for the sort to correctly work on only what is needed.
-	Out.LocalFogVolumeSortKeys.SetNum(Out.LocalFogVolumeInstanceCountFinal, false/*bAllowShrinking*/);
+	Out.LocalFogVolumeSortKeys.SetNum(Out.LocalFogVolumeInstanceCountFinal, EAllowShrinking::No);
 }
 
 void CreateViewLocalFogVolumeBufferSRV(const FScene* Scene, FViewInfo& View, FRDGBuilder& GraphBuilder, FLocalFogVolumeSortingData& SortingData, bool bShouldRenderLocalFogVolumeInVolumetricFog, bool bUseHalfResLocalFogVolume)

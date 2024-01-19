@@ -44,7 +44,7 @@ void UEnvQueryDebugHelpers::DebugDataToBlobArray(EQSDebug::FQueryData& EQSLocalD
 
 		FCompression::CompressMemory(NAME_Zlib, (void*)DestBuffer, CompressedSize, (void*)UncompressedBuffer.GetData(), UncompressedSize, COMPRESS_BiasMemory);
 
-		BlobArray.SetNum(CompressedSize + HeaderSize, false);
+		BlobArray.SetNum(CompressedSize + HeaderSize, EAllowShrinking::No);
 	}
 }
 

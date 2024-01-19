@@ -278,7 +278,7 @@ int32 FSparseDynamicOctree3::FindNearestHitObject(const FRay3d& Ray,
 	// test cells until the queue is empty
 	while (Queue.Num() > 0)
 	{
-		const FSparseOctreeCell* CurCell = Queue.Pop(false);
+		const FSparseOctreeCell* CurCell = Queue.Pop(EAllowShrinking::No);
 		
 		// process elements
 		CellObjectLists.Enumerate(CurCell->CellID, [&](int32 ObjectID)
@@ -327,7 +327,7 @@ void FSparseDynamicOctree3::ContainmentQuery(
 
 	while (Queue.Num() > 0)
 	{
-		const FSparseOctreeCell* CurCell = Queue.Pop(false);
+		const FSparseOctreeCell* CurCell = Queue.Pop(EAllowShrinking::No);
 
 		// process elements
 		CellObjectLists.Enumerate(CurCell->CellID, [&](int32 ObjectID)
@@ -370,7 +370,7 @@ bool FSparseDynamicOctree3::ContainmentQueryCancellable(
 
 	while (Queue.Num() > 0)
 	{
-		const FSparseOctreeCell* CurCell = Queue.Pop(false);
+		const FSparseOctreeCell* CurCell = Queue.Pop(EAllowShrinking::No);
 
 		// process elements
 		bool bContinue = true;
@@ -419,7 +419,7 @@ void FSparseDynamicOctree3::RangeQuery(
 
 	while (Queue.Num() > 0)
 	{
-		const FSparseOctreeCell* CurCell = Queue.Pop(false);
+		const FSparseOctreeCell* CurCell = Queue.Pop(EAllowShrinking::No);
 
 		// process elements
 		CellObjectLists.Enumerate(CurCell->CellID, [&](int32 ObjectID)
@@ -461,7 +461,7 @@ void FSparseDynamicOctree3::RangeQuery(
 
 	while (Queue.Num() > 0)
 	{
-		const FSparseOctreeCell* CurCell = Queue.Pop(false);
+		const FSparseOctreeCell* CurCell = Queue.Pop(EAllowShrinking::No);
 
 		// process elements
 		CellObjectLists.Enumerate(CurCell->CellID, [&](int32 ObjectID)
@@ -563,7 +563,7 @@ void FSparseDynamicOctree3::BranchRangeQuery(
 
 	while (Queue.Num() > 0)
 	{
-		const FSparseOctreeCell* CurCell = Queue.Pop(false);
+		const FSparseOctreeCell* CurCell = Queue.Pop(EAllowShrinking::No);
 
 		// process elements
 		CellObjectLists.Enumerate(CurCell->CellID, [&](int32 ObjectID)
@@ -595,7 +595,7 @@ int FSparseDynamicOctree3::BranchCustomOverlapAnyQuery(
 
 	while (Queue.Num() > 0)
 	{
-		const FSparseOctreeCell* CurCell = Queue.Pop(false);
+		const FSparseOctreeCell* CurCell = Queue.Pop(EAllowShrinking::No);
 
 		// process elements
 		int32 FoundID = INDEX_NONE;

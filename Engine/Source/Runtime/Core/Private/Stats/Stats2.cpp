@@ -853,7 +853,7 @@ FString FStatNameAndInfo::GetDescriptionFrom(FName InLongName)
 	const int32 IndexStart = Input.Find(TEXT("///"), ESearchCase::CaseSensitive);
 	if (IndexStart != INDEX_NONE)
 	{
-		Input.RightChopInline(IndexStart + 3, false);
+		Input.RightChopInline(IndexStart + 3, EAllowShrinking::No);
 		const int32 IndexEnd = Input.Find(TEXT("///"), ESearchCase::CaseSensitive);
 		if (IndexEnd != INDEX_NONE)
 		{
@@ -870,7 +870,7 @@ FName FStatNameAndInfo::GetGroupCategoryFrom(FName InLongName)
 	const int32 IndexStart = Input.Find(TEXT("####"), ESearchCase::CaseSensitive);
 	if (IndexStart != INDEX_NONE)
 	{
-		Input.RightChopInline(IndexStart + 4, false);
+		Input.RightChopInline(IndexStart + 4, EAllowShrinking::No);
 		const int32 IndexEnd = Input.Find(TEXT("####"), ESearchCase::CaseSensitive);
 		if (IndexEnd != INDEX_NONE)
 		{
@@ -888,7 +888,7 @@ bool FStatNameAndInfo::GetSortByNameFrom(FName InLongName)
 	const int32 IndexStart = Input.Find(TEXT("/#/#"), ESearchCase::CaseSensitive);
 	if (IndexStart != INDEX_NONE)
 	{
-		Input.RightChopInline(IndexStart + 4, false);
+		Input.RightChopInline(IndexStart + 4, EAllowShrinking::No);
 		const int32 IndexEnd = Input.Find(TEXT("/#/#"), ESearchCase::CaseSensitive);
 		if (IndexEnd != INDEX_NONE)
 		{
@@ -1276,7 +1276,7 @@ void FThreadStats::CheckForCollectingStartupStats()
 		{
 			break;
 		}
-		CmdLine.MidInline(Index + StatCmds.Len(), MAX_int32, false);
+		CmdLine.MidInline(Index + StatCmds.Len(), MAX_int32, EAllowShrinking::No);
 	}
 
 	if (FParse::Param( FCommandLine::Get(), TEXT( "LoadTimeStats" ) ))

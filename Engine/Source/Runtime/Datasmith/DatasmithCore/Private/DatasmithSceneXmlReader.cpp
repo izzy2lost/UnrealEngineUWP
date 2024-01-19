@@ -361,8 +361,7 @@ void FDatasmithSceneXmlReader::ParsePropertyCapture( FXmlNode* InNode, const TSh
 	if ( NumRead != NumBytes )
 	{
 		UE_LOG( LogDatasmith, Warning, TEXT( "Invalid recorded data '%s' for captured property with path '%s' and category '%d'" ), *RecordedDataHex, *PropertyPath, int(Category) );
-		bool bAllowShrinking = false;
-		RecordedBytes.SetNum( 0, bAllowShrinking );
+		RecordedBytes.SetNum( 0, EAllowShrinking::No );
 		RecordedBytes.SetNumZeroed( NumBytes );
 	}
 

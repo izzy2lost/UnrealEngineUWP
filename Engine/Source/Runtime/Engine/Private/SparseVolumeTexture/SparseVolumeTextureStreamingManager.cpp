@@ -1691,7 +1691,7 @@ void FStreamingManager::SelectHighestPriorityRequestsAndUpdateLRU(int32 MaxSelec
 		while (SelectedRequests.Num() < MaxSelectedRequests && PrioritizedRequestsHeap.Num() > 0)
 		{
 			FStreamingRequest SelectedRequest;
-			PrioritizedRequestsHeap.HeapPop(SelectedRequest, PriorityPredicate, false /*bAllowShrinking*/);
+			PrioritizedRequestsHeap.HeapPop(SelectedRequest, PriorityPredicate, EAllowShrinking::No);
 
 			FStreamingInfo* SVTInfo = FindStreamingInfo(SelectedRequest.Key.SVT);
 			if (SVTInfo)

@@ -48,7 +48,7 @@ void FMeshRepairOrientation::OrientComponents()
 		C.Triangles.Add(Start);
 		Stack.Add(Start);
 		while (Stack.Num() > 0) {
-			int Cur = Stack.Pop(false);
+			int Cur = Stack.Pop(EAllowShrinking::No);
 			FIndex3i tcur = Mesh->GetTriangle(Cur);
 	
 			FIndex3i nbrs = Mesh->GetTriNeighbourTris(Cur);

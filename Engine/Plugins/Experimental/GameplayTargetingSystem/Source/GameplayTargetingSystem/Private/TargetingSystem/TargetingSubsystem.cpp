@@ -235,8 +235,7 @@ void UTargetingSubsystem::Tick(float DeltaTime)
 			{
 				if (RequestData->bComplete)
 				{
-					const bool bAllowShrinking = false;
-					AsyncTargetingRequests.RemoveAt(RequestIterator, 1, bAllowShrinking);
+					AsyncTargetingRequests.RemoveAt(RequestIterator, 1, EAllowShrinking::No);
 
 					bool bForceRequeueOnCompletion = false;
 #if ENABLE_DRAW_DEBUG

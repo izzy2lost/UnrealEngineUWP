@@ -200,7 +200,7 @@ namespace Chaos
 					const int32 MaxSlack = 1000;
 					const int32 Slack = ParticlePairMidPhases.Max() - ParticlePairMidPhases.Num();
 					const bool bAllowShrink = (Slack > MaxSlack);
-					ParticlePairMidPhases.RemoveAtSwap(Index, 1, bAllowShrink);
+					ParticlePairMidPhases.RemoveAtSwap(Index, 1, bAllowShrink ? EAllowShrinking::Yes : EAllowShrinking::No);
 				}
 			}
 		}

@@ -441,7 +441,7 @@ void UMassActorSpawnerSubsystem::ProcessPendingDestruction(const double MaxTimeS
 		while ((DeactivatedActorsToDestroy.Num() || ActorsToDestroy.Num()) && 
 			   (HasToDestroyAllActorsOnServerSide || FPlatformTime::Seconds() <= TimeSliceEnd))
 		{
-			AActor* ActorToDestroy = DeactivatedActorsToDestroy.Num() ? DeactivatedActorsToDestroy.Pop(/*bAllowShrinking*/false) : ActorsToDestroy.Pop(/*bAllowShrinking*/false);
+			AActor* ActorToDestroy = DeactivatedActorsToDestroy.Num() ? DeactivatedActorsToDestroy.Pop(EAllowShrinking::No) : ActorsToDestroy.Pop(EAllowShrinking::No);
 			if (ActorToDestroy && !ReleaseActorToPool(ActorToDestroy))
 			{
 				// Couldn't release actor back to pool, so destroy it

@@ -248,8 +248,7 @@ void FLiveLinkTimedDataInput::UpdateSmoothEngineTimeOffset(const FLiveLinkBaseFr
 	if (FrameTimes.Num() >= FrameTimeBufferSize)
 	{
 		constexpr int32 Count = 1;
-		constexpr bool bAllowShrinking = false;
-		FrameTimes.RemoveAt(0, Count, bAllowShrinking);
+		FrameTimes.RemoveAt(0, Count, EAllowShrinking::No);
 	}
 
 	//Add the newest frame time to the buffer
@@ -276,7 +275,7 @@ void FLiveLinkTimedDataInput::UpdateSmoothEngineTimeOffset(const FLiveLinkBaseFr
 			// Early-out if a very large amount of time has passed since the last frame was received (indicating that the device was previously idle)
 			if (LatestFrameInterval > VeryLargeFrameIntervalThreshold)
 			{
-				FrameTimes.RemoveAt(0, NumFramesInBuffer - 1, false);
+				FrameTimes.RemoveAt(0, NumFramesInBuffer - 1, EAllowShrinking::No);
 				Settings->BufferSettings.SmoothEngineTimeOffset = 0.0;
 				NumFramesToConsiderForAverage = 1;
 				return;

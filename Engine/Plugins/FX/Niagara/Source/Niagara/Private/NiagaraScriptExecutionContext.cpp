@@ -463,7 +463,7 @@ bool FNiagaraScriptExecutionContext::Tick(FNiagaraSystemInstance* ParentSystemIn
 			//Fill the instance data table.
 			if (ParentSystemInstance)
 			{
-				UserPtrTable.SetNumZeroed(ScriptExecutableData.NumUserPtrs, false);
+				UserPtrTable.SetNumZeroed(ScriptExecutableData.NumUserPtrs, EAllowShrinking::No);
 				for (int32 i = 0; i < DataInterfaces.Num(); i++)
 				{
 					UNiagaraDataInterface* Interface = DataInterfaces[i];
@@ -731,7 +731,7 @@ bool FNiagaraSystemScriptExecutionContext::Tick(class FNiagaraSystemInstance* In
 				}
 
 				//TODO: Remove use of userptr table here and just embed the instance data in the function lambda.
-				UserPtrTable.SetNumZeroed(ScriptExecutableData.NumUserPtrs, false);
+				UserPtrTable.SetNumZeroed(ScriptExecutableData.NumUserPtrs, EAllowShrinking::No);
 
 				//Next check DI functions.
 				for (int32 i = 0; i < ScriptExecutableData.DataInterfaceInfo.Num(); i++)

@@ -573,7 +573,7 @@ void FD3D12BuddyAllocator::CleanUpAllocations()
 	if (PopCount)
 	{
 		// clear out all of the released blocks, don't allow the array to shrink
-		DeferredDeletionQueue.RemoveAt(0, PopCount, false);
+		DeferredDeletionQueue.RemoveAt(0, PopCount, EAllowShrinking::No);
 	}
 }
 

@@ -926,7 +926,7 @@ bool ParseResolution(const TCHAR* InResolution, uint32& OutX, uint32& OutY, int3
 					StringTripLen = 1;
 				}
 
-				YString.LeftInline(YString.Len() - StringTripLen, false);
+				YString.LeftInline(YString.Len() - StringTripLen, EAllowShrinking::No);
 				YString.TrimStartAndEndInline();
 			}
 
@@ -8168,7 +8168,7 @@ bool UEngine::HandleMergeMeshCommand( const TCHAR* Cmd, FOutputDevice& Ar, UWorl
 		const TCHAR* LocalCmd = *CmdCopy;
 		FString Token = FParse::Token( LocalCmd, true );
 		Tokens.Add( Token );
-		CmdCopy.RightInline( CmdCopy.Len() - Token.Len() - 1, false);
+		CmdCopy.RightInline( CmdCopy.Len() - Token.Len() - 1, EAllowShrinking::No);
 	}
 
 	// array of source meshes that will be merged
@@ -12066,7 +12066,7 @@ static void DrawProperty(UCanvas* CanvasObject, UObject* Obj, const FDebugDispla
 		if( CommaIdx >= 0 )
 		{
 			Str = ValueText.Left(CommaIdx);
-			ValueText.MidInline( CommaIdx+1, MAX_int32, false );
+			ValueText.MidInline( CommaIdx+1, MAX_int32, EAllowShrinking::No );
 		}
 
 		int32 XL, YL;
@@ -16334,7 +16334,7 @@ void UEngine::CheckAndHandleStaleWorldObjectReferences(FWorldContext* WorldConte
 
 						if (LeakedObjects.Contains(World->PersistentLevel->OwningWorld))
 						{
-							LeakedObjects.RemoveAt(i, 1, false);
+							LeakedObjects.RemoveAt(i, 1, EAllowShrinking::No);
 						}
 					}
 				}

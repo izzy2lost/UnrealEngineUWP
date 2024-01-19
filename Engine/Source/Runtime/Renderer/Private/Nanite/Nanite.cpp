@@ -274,7 +274,7 @@ FString GetFilterNameForLight(const FLightSceneProxy* LightProxy)
 
 		if (LastSlashIndex != INDEX_NONE)
 		{
-			FullLevelName.MidInline(LastSlashIndex + 1, FullLevelName.Len() - (LastSlashIndex + 1), false);
+			FullLevelName.MidInline(LastSlashIndex + 1, FullLevelName.Len() - (LastSlashIndex + 1), EAllowShrinking::No);
 		}
 
 		LightFilterName = FullLevelName + TEXT(".") + LightProxy->GetOwnerNameOrLabel();

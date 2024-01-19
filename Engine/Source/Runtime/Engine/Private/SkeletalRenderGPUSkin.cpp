@@ -2542,7 +2542,7 @@ void FDynamicSkelMeshObjectDataGPUSkin::InitDynamicSkelMeshObjectDataGPUSkin(
 	if (ExternalMorphWeightData.HasActiveMorphs())
 	{
 		const FSkeletalMeshLODRenderData& LOD = InSkeletalMeshRenderData->LODRenderData[LODIndex];
-		SectionIdsUseByActiveMorphTargets.SetNumUninitialized(LOD.RenderSections.Num(), false);
+		SectionIdsUseByActiveMorphTargets.SetNumUninitialized(LOD.RenderSections.Num(), EAllowShrinking::No);
 		for (int32 Index = 0; Index < LOD.RenderSections.Num(); ++Index)
 		{
 			SectionIdsUseByActiveMorphTargets[Index] = Index;

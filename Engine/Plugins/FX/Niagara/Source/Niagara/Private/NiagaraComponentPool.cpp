@@ -89,7 +89,7 @@ UNiagaraComponent* FNCPool::Acquire(UWorld* World, UNiagaraSystem* Template, ENC
 	FNCPoolElement RetElem;
 	while (FreeElements.Num() && !bForceNew)//Loop until we pop a valid free element or we're empty.
 	{
-		RetElem = FreeElements.Pop(false);
+		RetElem = FreeElements.Pop(EAllowShrinking::No);
 		if (!RetElem.Component || !IsValidChecked(RetElem.Component))
 		{			
 			// Possible someone still has a reference to our NC and destroyed it while it was sat in the pool. Or possibly a teardown edgecase path that is GCing components from the pool be
@@ -176,7 +176,7 @@ bool FNCPool::RemoveComponent(UNiagaraComponent* Component)
 	{
 		if (FreeElements[i].Component == Component)
 		{
-			FreeElements.RemoveAtSwap(i, 1, false);
+			FreeElements.RemoveAtSwap(i, 1, EAllowShrinking::No);
 			return true;
 		}
 		++i;
@@ -202,7 +202,7 @@ void FNCPool::KillUnusedComponents(double KillTime, UNiagaraSystem* Template)
 				Component->DestroyComponent();
 			}
 
-			FreeElements.RemoveAtSwap(i, 1, false);
+			FreeElements.RemoveAtSwap(i, 1, EAllowShrinking::No);
 		}
 		else
 		{

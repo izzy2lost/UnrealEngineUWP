@@ -137,8 +137,8 @@ void UMassReplicationProcessor::PrepareExecution(FMassEntityManager& EntityManag
 		{
 			const int32 NumRemove = RepSharedFragment.CachedClientHandles.Num() - CurrentClientHandles.Num();
 
-			RepSharedFragment.CachedClientHandles.RemoveAt(CurrentClientHandles.Num(), NumRemove, /* bAllowShrinking */ false);
-			RepSharedFragment.BubbleInfos.RemoveAt(CurrentClientHandles.Num(), NumRemove, /* bAllowShrinking */ false);
+			RepSharedFragment.CachedClientHandles.RemoveAt(CurrentClientHandles.Num(), NumRemove, EAllowShrinking::No);
+			RepSharedFragment.BubbleInfos.RemoveAt(CurrentClientHandles.Num(), NumRemove, EAllowShrinking::No);
 		}
 
 		//check to see if any cached client handles have changed, if they have set the BubbleInfo[] appropriately

@@ -1085,8 +1085,7 @@ void UMetaSoundSourceBuilder::Audition(UObject* Parent, UAudioComponent* AudioCo
 
 void UMetaSoundSourceBuilder::OnLiveComponentFinished(UAudioComponent* AudioComponent)
 {
-	constexpr bool bAllowShrinking = false;
-	LiveComponentIDs.RemoveSwap(AudioComponent->GetAudioComponentID(), bAllowShrinking);
+	LiveComponentIDs.RemoveSwap(AudioComponent->GetAudioComponentID(), EAllowShrinking::No);
 	if (LiveComponentIDs.IsEmpty())
 	{
 		AudioComponent->OnAudioFinishedNative.Remove(LiveComponentHandle);

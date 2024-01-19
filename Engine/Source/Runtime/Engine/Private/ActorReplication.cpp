@@ -1130,8 +1130,7 @@ void AActor::UpdateOwningNetConnection()
 
 	do 
 	{
-		constexpr bool bNoShrinking = false;
-		if (AActor* Actor = EveryChildren.Pop(bNoShrinking))
+		if (AActor* Actor = EveryChildren.Pop(EAllowShrinking::No))
 		{
 			EveryChildren.Append(Actor->Children);
 

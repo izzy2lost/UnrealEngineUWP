@@ -711,7 +711,7 @@ void FAdaptiveVirtualTexture::UpdateAllocations(FVirtualTextureSystem* InSystem,
 			int32 RequestIndex = FMath::Rand() % RequestsToMap.Num();
 			uint32 PackedRequest = RequestsToMap[RequestIndex];
 			Allocate(RHICmdList, InSystem, PackedRequest, InFrame);
-			RequestsToMap.RemoveAtSwap(RequestIndex, 1, false);
+			RequestsToMap.RemoveAtSwap(RequestIndex, 1, EAllowShrinking::No);
 		}
 	}
 

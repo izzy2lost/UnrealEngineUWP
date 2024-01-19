@@ -702,7 +702,7 @@ IQueuedWork* FImgMediaLoader::GetWork()
 		return nullptr;
 	}
 
-	int32 FrameNumber = PendingFrameNumbers.Pop(false);
+	int32 FrameNumber = PendingFrameNumbers.Pop(EAllowShrinking::No);
 
 	TMap<int32, FImgMediaTileSelection> DesiredMipsAndTiles;
 	GetDesiredMipTiles(FrameNumber, DesiredMipsAndTiles);

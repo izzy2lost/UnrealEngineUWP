@@ -509,7 +509,7 @@ TArray<TArray<int32>> Chaos::FGraphColoring::ComputeGraphColoringParticlesOrRang
 			const int32 NodeIndex = NodesToProcess.Last();
 			FGraphNode& GraphNode = Nodes[NodeIndex];
 
-			NodesToProcess.SetNum(NodesToProcess.Num() - 1, /*bAllowShrinking=*/false);
+			NodesToProcess.SetNum(NodesToProcess.Num() - 1, EAllowShrinking::No);
 			ProcessedNodes.Add(NodeIndex);
 
 			for (const int32 EdgeIndex : GraphNode.Edges)
@@ -647,7 +647,7 @@ TArray<TArray<int32>> Chaos::FGraphColoring::ComputeGraphColoringParticlesOrRang
 			const int32 NodeIndex = NodesToProcess.Last();
 			FGraphNode& GraphNode = Nodes[NodeIndex];
 
-			NodesToProcess.SetNum(NodesToProcess.Num() - 1, /*bAllowShrinking=*/false);
+			NodesToProcess.SetNum(NodesToProcess.Num() - 1, EAllowShrinking::No);
 			ProcessedNodes.Add(NodeIndex);
 
 			for (const int32 EdgeIndex : GraphNode.Edges)
@@ -839,7 +839,7 @@ TArray<TArray<int32>> Chaos::FGraphColoring::ComputeGraphColoringParticlesOrRang
 			const int32 NodeIndex = NodesToProcess.Last();
 			FGraphNode& GraphNode = Nodes[NodeIndex];
 
-			NodesToProcess.SetNum(NodesToProcess.Num() - 1, /*bAllowShrinking=*/false);
+			NodesToProcess.SetNum(NodesToProcess.Num() - 1, EAllowShrinking::No);
 			ProcessedNodes.Add(NodeIndex);
 
 			for (const int32 EdgeIndex : GraphNode.Edges)
@@ -1102,7 +1102,7 @@ TArray<TArray<int32>> Chaos::FGraphColoring::ComputeGraphColoringAllDynamicParti
 			const int32 NodeIndex = NodesToProcess.Last();
 			FGraphNode& GraphNode = Nodes[NodeIndex];
 
-			NodesToProcess.SetNum(NodesToProcess.Num() - 1, /*bAllowShrinking=*/false);
+			NodesToProcess.SetNum(NodesToProcess.Num() - 1, EAllowShrinking::No);
 			ProcessedNodes.Add(NodeIndex);
 
 			for (const int32 EdgeIndex : GraphNode.Edges)

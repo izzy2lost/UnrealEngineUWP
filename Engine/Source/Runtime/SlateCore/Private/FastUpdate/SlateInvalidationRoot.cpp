@@ -500,7 +500,7 @@ namespace UE::Slate::Private
 
 		void HeapPopDiscard()
 		{
-			Heap.HeapPopDiscard(FWidgetOrderGreater(), false);
+			Heap.HeapPopDiscard(FWidgetOrderGreater(), EAllowShrinking::No);
 		}
 
 		[[nodiscard]] bool IsEmpty() const
@@ -641,8 +641,7 @@ void FSlateInvalidationRoot::PaintFastPath_FixupLayerId(UE::Slate::Private::FSla
 bool FSlateInvalidationRoot::PaintFastPath_UpdateNextWidget(const FSlateInvalidationContext& Context, UE::Slate::Private::FSlateInvalidationPaintFastPathContext& FastPaintContext)
 {
 	bool bNeedsPaint = false;
-	const bool bAllowShrinking = false;
-	const FSlateInvalidationWidgetIndex MyIndex = FinalUpdateList.Pop(bAllowShrinking).GetWidgetIndex();
+	const FSlateInvalidationWidgetIndex MyIndex = FinalUpdateList.Pop(EAllowShrinking::No).GetWidgetIndex();
 
 	FSlateInvalidationWidgetList::InvalidationWidgetType& InvalidationWidget = (*FastWidgetPathList)[MyIndex];
 	SWidget* WidgetPtr = InvalidationWidget.GetWidget();
@@ -678,7 +677,7 @@ bool FSlateInvalidationRoot::PaintFastPath_UpdateNextWidget(const FSlateInvalida
 					}
 
 					// It's already been processed by the previous draw
-					FinalUpdateList.RemoveAt(LastIndex, 1, bAllowShrinking);
+					FinalUpdateList.RemoveAt(LastIndex, 1, EAllowShrinking::No);
 				}
 			}
 

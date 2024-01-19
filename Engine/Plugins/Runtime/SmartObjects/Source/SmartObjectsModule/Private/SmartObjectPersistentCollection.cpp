@@ -184,7 +184,7 @@ int32 FSmartObjectContainer::Remove(const FSmartObjectContainer& Other)
 			}
 
 			// not using *Swap flavor to maintain the order of appended entries in case we remove whole batches 
-			CollectionEntries.RemoveAt(LocalIndex, NumMatchingSequentialEntries, false);
+			CollectionEntries.RemoveAt(LocalIndex, NumMatchingSequentialEntries, EAllowShrinking::No);
 			EntriesRemovedCount += NumMatchingSequentialEntries;
 			InputIndex += NumMatchingSequentialEntries;
 		}

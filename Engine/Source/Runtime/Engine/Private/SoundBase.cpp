@@ -318,7 +318,7 @@ void USoundBase::InitParameters(TArray<FAudioParameter>& ParametersToInit, FName
 	{
 		if (!IsParameterValid(ParametersToInit[i]))
 		{
-			ParametersToInit.RemoveAtSwap(i, 1, false /* bAllowShrinking */);
+			ParametersToInit.RemoveAtSwap(i, 1, EAllowShrinking::No);
 		}
 	}
 }

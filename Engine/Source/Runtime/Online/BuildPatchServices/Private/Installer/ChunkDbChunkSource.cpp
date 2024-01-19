@@ -329,7 +329,7 @@ namespace BuildPatchServices
 				TFunction<bool(const FGuid&)> RemovePredicate = [this](const FGuid& ChunkId) { return PlacedInStore.Contains(ChunkId); };
 				BatchLoadChunks.RemoveAll(RemovePredicate);
 				// Clamp to configured max.
-				BatchLoadChunks.SetNum(FMath::Min(BatchLoadChunks.Num(), Configuration.PreFetchMaximum), false);
+				BatchLoadChunks.SetNum(FMath::Min(BatchLoadChunks.Num(), Configuration.PreFetchMaximum), EAllowShrinking::No);
 				// Load this batch.
 				ChunkDbChunkSourceStat->OnBatchStarted(BatchLoadChunks);
 				for (int32 ChunkIdx = 0; ChunkIdx < BatchLoadChunks.Num() && !bShouldAbort; ++ChunkIdx)

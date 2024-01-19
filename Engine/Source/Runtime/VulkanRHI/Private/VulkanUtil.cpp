@@ -753,7 +753,7 @@ void FVulkanGPUProfiler::PopMarkerForCrash(VkCommandBuffer CmdBuffer, VkBuffer D
 	{
 		if (Device->GetOptionalExtensions().HasGPUCrashDumpExtensions())
 		{
-			PushPopStack.Pop(false);
+			PushPopStack.Pop(EAllowShrinking::No);
 			FVulkanPlatform::WriteCrashMarker(Device->GetOptionalExtensions(), CmdBuffer, DestBuffer, TArrayView<uint32>(PushPopStack), false);
 		}
 		else if (GGPUCrashDebuggingEnabled)

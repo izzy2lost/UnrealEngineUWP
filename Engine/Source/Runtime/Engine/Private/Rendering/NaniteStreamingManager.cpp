@@ -2538,7 +2538,7 @@ void FStreamingManager::SelectHighestPriorityPagesAndUpdateLRU(uint32 MaxSelecte
 		while ((uint32)SelectedPages.Num() < MaxSelectedPages && PrioritizedRequestsHeap.Num() > 0)
 		{
 			FStreamingRequest SelectedRequest;
-			PrioritizedRequestsHeap.HeapPop(SelectedRequest, StreamingRequestPriorityPredicate, false);
+			PrioritizedRequestsHeap.HeapPop(SelectedRequest, StreamingRequestPriorityPredicate, EAllowShrinking::No);
 
 			FResources* Resources = GetResources(SelectedRequest.Key.RuntimeResourceID);
 			if (Resources)

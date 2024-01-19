@@ -106,7 +106,7 @@ public:
 
 		if (UnusedIndicies[PayloadIndex].Num() != 0)
 		{
-			uint32 Index = UnusedIndicies[PayloadIndex].Pop(false);
+			uint32 Index = UnusedIndicies[PayloadIndex].Pop(EAllowShrinking::No);
 			checkSlow(Shaders[PayloadIndex][Index] == nullptr);
 			Shaders[PayloadIndex][Index] = Shader;
 			return Index;

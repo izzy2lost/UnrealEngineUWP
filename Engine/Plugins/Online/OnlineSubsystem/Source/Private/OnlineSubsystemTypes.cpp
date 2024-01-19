@@ -541,11 +541,11 @@ void ParseOnlineSubsystemConfigPairs(TArrayView<const FString> InEntries, TArray
 
 		if (TrimmedConfigEntry.Left(1) == TEXT("("))
 		{
-			TrimmedConfigEntry.RightChopInline(1, false);
+			TrimmedConfigEntry.RightChopInline(1, EAllowShrinking::No);
 		}
 		if (TrimmedConfigEntry.Right(1) == TEXT(")"))
 		{
-			TrimmedConfigEntry.LeftChopInline(1, false);
+			TrimmedConfigEntry.LeftChopInline(1, EAllowShrinking::No);
 		}
 		if (TrimmedConfigEntry.Split(TEXT("="), &KeyString, &ValueString, ESearchCase::CaseSensitive))
 		{

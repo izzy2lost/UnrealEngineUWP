@@ -299,12 +299,12 @@ bool FSourceControlFileStatusMonitor::Tick(float DeltaTime)
 		if (NewFiles.Num() > 0)
 		{
 			RequestedStatusFiles.Emplace(NewFiles.Last()->Key);
-			NewFiles.Pop(/*bAllowShrinking*/false);
+			NewFiles.Pop(EAllowShrinking::No);
 		}
 		else if (RefreshedFiles.Num())
 		{
 			RequestedStatusFiles.Emplace(RefreshedFiles.Last()->Key);
-			RefreshedFiles.Pop(/*bAllowShrinking*/false);
+			RefreshedFiles.Pop(EAllowShrinking::No);
 		}
 		else
 		{

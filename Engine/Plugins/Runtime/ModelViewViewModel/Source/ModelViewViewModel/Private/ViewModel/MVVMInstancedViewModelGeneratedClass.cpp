@@ -38,7 +38,7 @@ void UMVVMInstancedViewModelGeneratedClass::Link(FArchive& Ar, bool bRelinkExist
 {
 	Super::Link(Ar, bRelinkExistingProperties);
 
-	OnRepFunctionToLink.RemoveAllSwap([](UFunction* Other){ return Other == nullptr; }, true);
+	OnRepFunctionToLink.RemoveAllSwap([](UFunction* Other){ return Other == nullptr; }, EAllowShrinking::Yes);
 
 	for (UFunction* OnRep : OnRepFunctionToLink)
 	{

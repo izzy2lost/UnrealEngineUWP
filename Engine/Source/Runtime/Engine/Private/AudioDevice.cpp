@@ -2664,7 +2664,7 @@ void FAudioDevice::UpdateConcurrency(TArray<FWaveInstance*>& WaveInstances, TArr
 	{
 		if (WaveInstances[i]->ShouldStopDueToMaxConcurrency())
 		{
-			WaveInstances.RemoveAtSwap(i, 1, false);
+			WaveInstances.RemoveAtSwap(i, 1, EAllowShrinking::No);
 		}
 	}
 
@@ -4573,7 +4573,7 @@ void FAudioDevice::UpdateReferencedSoundWaves()
 
 		if (bRemove)
 		{
-			ReferencedSoundWaves.RemoveAtSwap(i, 1, false);
+			ReferencedSoundWaves.RemoveAtSwap(i, 1, EAllowShrinking::No);
 		}
 	}
 }
@@ -4618,7 +4618,7 @@ void FAudioDevice::Update(bool bGameTicking)
 		USoundWave* Wave = PrecachingSoundWaves[i];
 		if (Wave->CleanupDecompressor())
 		{
-			PrecachingSoundWaves.RemoveAtSwap(i, 1, false);
+			PrecachingSoundWaves.RemoveAtSwap(i, 1, EAllowShrinking::No);
 		}
 	}
 
@@ -5337,7 +5337,7 @@ void FAudioDevice::AddVirtualLoop(const FAudioVirtualLoop& InVirtualLoop)
 						ActiveSound.Sound ? *ActiveSound.Sound->GetName() : TEXT("N/A"),
 						ExistingSound->Sound ? *ExistingSound->Sound->GetName() : TEXT("N/A")
 					);
-					ExistingSounds->RemoveAtSwap(i, 1, false /* bAllowShrinking */);
+					ExistingSounds->RemoveAtSwap(i, 1, EAllowShrinking::No);
 				}
 			}
 			ExistingSounds->AddUnique(&ActiveSound);
@@ -5444,7 +5444,7 @@ void FAudioDevice::ProcessingPendingActiveSoundStops(bool bForceDelete)
 					ModulationInterface->OnAuditionEnd();
 				}
 				ActiveSound->bAsyncOcclusionPending = false;
-				PendingSoundsToDelete.RemoveAtSwap(i, 1, false);
+				PendingSoundsToDelete.RemoveAtSwap(i, 1, EAllowShrinking::No);
 
 				if (Audio::IParameterTransmitter* Transmitter = ActiveSound->GetTransmitter())
 				{
@@ -6113,7 +6113,7 @@ void FAudioDevice::UnlinkActiveSoundFromComponent(const FActiveSound& InActiveSo
 				{
 					if (ActiveSound->GetInstanceID() == InActiveSound.GetInstanceID())
 					{
-						ActiveSoundsInComponent->RemoveAtSwap(i, 1, false);
+						ActiveSoundsInComponent->RemoveAtSwap(i, 1, EAllowShrinking::No);
 						break;
 					}
 				}
@@ -6450,7 +6450,7 @@ void FAudioDevice::Flush(UWorld* WorldToFlush, bool bClearActivatedReverb)
 		USoundWave* Wave = PrecachingSoundWaves[i];
 		if (Wave->CleanupDecompressor(true))
 		{
-			PrecachingSoundWaves.RemoveAtSwap(i, 1, false);
+			PrecachingSoundWaves.RemoveAtSwap(i, 1, EAllowShrinking::No);
 		}
 	}
 

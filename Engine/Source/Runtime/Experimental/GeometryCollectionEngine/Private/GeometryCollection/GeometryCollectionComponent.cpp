@@ -303,7 +303,7 @@ bool FGeometryCollectionRepStateData::SetBroken(int32 TransformIndex, int32 NumT
 			[&TransformIndex](const FReleasedData& Data) -> bool { return (Data.TransformIndex == TransformIndex); });
 		if (FoundDataIndex != INDEX_NONE)
 		{
-			ReleasedData.RemoveAtSwap(FoundDataIndex, 1, false /* bAllowShrinking */);
+			ReleasedData.RemoveAtSwap(FoundDataIndex, 1, EAllowShrinking::No);
 		}
 		// this does not have to be reported as a state change to save bandwidth
 		return false;
@@ -388,7 +388,7 @@ bool FGeometryCollectionRepDynamicData::RemoveOutOfDateClusterData()
 		{
 			return (Data.LastUpdatedVersion <= Version);
 		},
-		false /* bAllowShrinking */);
+		EAllowShrinking::No);
 
 	return (NumRemoved > 0);
 }

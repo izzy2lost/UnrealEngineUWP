@@ -452,7 +452,7 @@ void UPoseAsset::GetBaseAnimationPose(FAnimationPoseData& OutAnimationPoseData) 
 		FPoseAssetEvalData& EvalData = FPoseAssetEvalData::Get();
 		TArray<FBoneIndices>& BoneIndices = EvalData.BoneIndices;
         const int32 TrackNum = PoseContainer.Tracks.Num();
-		BoneIndices.SetNumUninitialized(TrackNum, false);
+		BoneIndices.SetNumUninitialized(TrackNum, EAllowShrinking::No);
 
 		const FSkeletonRemapping& SkeletonRemapping = UE::Anim::FSkeletonRemappingRegistry::Get().GetRemapping(GetSkeleton(), RequiredBones.GetSkeletonAsset());
 		for(int32 TrackIndex = 0; TrackIndex < TrackNum; ++TrackIndex)
@@ -523,7 +523,7 @@ void UPoseAsset::GetAnimationCurveOnly(TArray<FName>& InCurveNames, TArray<float
 		const int32 NumPoses = PoseContainer.Poses.Num();
 		TArray<float>& PoseWeights = EvalData.PoseWeights;		
 		PoseWeights.Reset();
-		PoseWeights.SetNumZeroed(NumPoses, false);
+		PoseWeights.SetNumZeroed(NumPoses, EAllowShrinking::No);
 
 		TArray<int32>& WeightedPoseIndices = EvalData.PoseWeightedIndices;	
 		WeightedPoseIndices.Reset();
@@ -702,7 +702,7 @@ bool UPoseAsset::GetAnimationPose(struct FAnimationPoseData& OutAnimationPoseDat
 
 			// this contains compact bone pose list that this pose cares
 			TArray<FBoneIndices>& BoneIndices = EvalData.BoneIndices;
-			BoneIndices.SetNumUninitialized(TrackNum, false);
+			BoneIndices.SetNumUninitialized(TrackNum, EAllowShrinking::No);
 
 			for(int32 TrackIndex = 0; TrackIndex < TrackNum; ++TrackIndex)
 			{
@@ -720,14 +720,14 @@ bool UPoseAsset::GetAnimationPose(struct FAnimationPoseData& OutAnimationPoseDat
 			const int32 NumPoses = PoseContainer.Poses.Num();
 			TArray<float>& PoseWeights = EvalData.PoseWeights;
 			PoseWeights.Reset();
-			PoseWeights.SetNumZeroed(NumPoses, false);
+			PoseWeights.SetNumZeroed(NumPoses, EAllowShrinking::No);
 
 			TArray<int32>& WeightedPoseIndices = EvalData.PoseWeightedIndices;
 			WeightedPoseIndices.Reset();
 
 			TArray<bool>& WeightedPoses = EvalData.WeightedPoses;
 			WeightedPoses.Reset();
-			WeightedPoses.SetNumZeroed(NumPoses, false);
+			WeightedPoses.SetNumZeroed(NumPoses, EAllowShrinking::No);
 
 			float TotalWeight = 0.f;
 			// we iterate through to see if we have that corresponding pose

@@ -538,7 +538,7 @@ namespace UE
 							delete ShutdownReadCompileTasks[i].ReadRequests;
 							ShutdownReadCompileTasks[i].ReadRequests = nullptr;
 
-							ShutdownReadCompileTasks.RemoveAtSwap(i, 1, false);
+							ShutdownReadCompileTasks.RemoveAtSwap(i, 1, EAllowShrinking::No);
 							++RemovedTaskCount;
 						}
 						else

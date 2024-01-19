@@ -488,7 +488,7 @@ AGameplayCueNotify_Actor* UGameplayCueManager::FindRecycledCue(const TSubclassOf
 
 	while (PreallocatedList->Actors.Num() > 0)
 	{
-		AGameplayCueNotify_Actor* RecycledCue = PreallocatedList->Actors.Pop(false);
+		AGameplayCueNotify_Actor* RecycledCue = PreallocatedList->Actors.Pop(EAllowShrinking::No);
 
 		// Normal check: if cue was destroyed or is pending kill, then don't use it.
 		if (IsValid(RecycledCue))
@@ -1572,7 +1572,7 @@ void UGameplayCueManager::UpdatePreallocation(UWorld* World)
 
 			if (PreallocatedList.Actors.Num() >= CDO->NumPreallocatedInstances)
 			{
-				Info.ClassesNeedingPreallocation.Pop(false);
+				Info.ClassesNeedingPreallocation.Pop(EAllowShrinking::No);
 			}
 		}
 	}
@@ -1616,7 +1616,7 @@ void UGameplayCueManager::OnPostWorldCleanup(UWorld* World, bool bSessionEnded, 
 		DumpPreallocationStats(PreallocationInfo, bWarnOnActiveActors);
 
 		// Actually remove the entry which can contain hard references
-		PreallocationInfoList_Internal.RemoveAtSwap(idx, 1, false);
+		PreallocationInfoList_Internal.RemoveAtSwap(idx, 1, EAllowShrinking::No);
 		idx--;
 	}
 

@@ -247,12 +247,12 @@ PRAGMA_ENABLE_DEPRECATION_WARNINGS
 
 	void RemoveUpdatedInstanceIdsAtSwap(const int32 InstanceIDIndex)
 	{
-		UpdateInstanceIds.RemoveAtSwap(InstanceIDIndex, 1, /*bAllowShrinking=*/false);
-		StaticMeshInstanceTransforms.RemoveAtSwap(InstanceIDIndex, 1, /*bAllowShrinking=*/false);
-		StaticMeshInstancePrevTransforms.RemoveAtSwap(InstanceIDIndex, 1, /*bAllowShrinking=*/false);
+		UpdateInstanceIds.RemoveAtSwap(InstanceIDIndex, 1, EAllowShrinking::No);
+		StaticMeshInstanceTransforms.RemoveAtSwap(InstanceIDIndex, 1, EAllowShrinking::No);
+		StaticMeshInstancePrevTransforms.RemoveAtSwap(InstanceIDIndex, 1, EAllowShrinking::No);
 		if (StaticMeshInstanceCustomFloats.Num())
 		{
-			StaticMeshInstanceCustomFloats.RemoveAtSwap(InstanceIDIndex, 1, /*bAllowShrinking=*/false);
+			StaticMeshInstanceCustomFloats.RemoveAtSwap(InstanceIDIndex, 1, EAllowShrinking::No);
 		}
 	}
 

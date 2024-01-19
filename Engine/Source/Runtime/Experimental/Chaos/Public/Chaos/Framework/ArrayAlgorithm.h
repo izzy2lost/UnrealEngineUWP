@@ -56,7 +56,7 @@ namespace Chaos
 
 		MoveArrayItemsDown(Items, IndexToRemove0 + 1, Items.Num(), DestShift);
 
-		Items.SetNum(Items.Num() - DestShift, false);
+		Items.SetNum(Items.Num() - DestShift, EAllowShrinking::No);
 	}
 
 }

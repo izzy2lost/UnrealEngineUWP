@@ -88,7 +88,7 @@ void FWmfRingBuffer::Cleanup()
 	check(bFound);
 
 	// remove key-frame period
-	Samples.RemoveAt(0, i, false);
+	Samples.RemoveAt(0, i, EAllowShrinking::No);
 	check(Samples[0].IsVideoKeyFrame());
 
 	UE_LOG(WmfRingBuffer, VeryVerbose, TEXT("%d samples, %.3f s, %.3f - %.3f:%.3f"),

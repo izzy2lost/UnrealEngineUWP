@@ -336,7 +336,7 @@ namespace Chaos::Softs
 						InitializeGaussSeidelConstraintVariables();
 					}
 				}
-				UninitializedProxys_Internal.SetNum(0, true);
+				UninitializedProxys_Internal.SetNum(0, EAllowShrinking::Yes);
 			}
 		}
 	}

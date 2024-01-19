@@ -1653,7 +1653,7 @@ void FInstanceCullingContext::SetupDrawCommands(
 	NewPassVisibleMeshDrawCommandsNum = NumDrawCommandsOut;
 
 	// Resize array post-compaction of dynamic instances
-	VisibleMeshDrawCommandsInOut.SetNum(NumDrawCommandsOut, false);
+	VisibleMeshDrawCommandsInOut.SetNum(NumDrawCommandsOut, EAllowShrinking::No);
 }
 
 void FInstanceCullingContext::SubmitDrawCommands(

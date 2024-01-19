@@ -381,7 +381,7 @@ void FNaniteVisibility::FinishVisibilityQuery(FNaniteVisibilityQuery* Query, FNa
 			
 			{
 				UE::TUniqueLock Lock(Mutex);
-				ActiveEvents.RemoveSingleSwap(Query->CompletedEvent, false);
+				ActiveEvents.RemoveSingleSwap(Query->CompletedEvent, EAllowShrinking::No);
 			}
 		}
 		else

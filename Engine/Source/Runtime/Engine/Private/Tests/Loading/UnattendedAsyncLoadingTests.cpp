@@ -35,7 +35,7 @@ namespace UnattendedLoadTestImpl
 				return false;
 			}
 
-			OutName = Array.Pop(false /* bAllowShrinking */);
+			OutName = Array.Pop(EAllowShrinking::No);
 			return true;
 		}
 

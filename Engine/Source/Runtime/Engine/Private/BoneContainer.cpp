@@ -304,7 +304,7 @@ void FBoneContainer::CacheRequiredAnimCurves(const UE::Anim::FCurveFilterSetting
 				if(Index != INDEX_NONE)
 				{
 					FilterFlags |= UE::Anim::ECurveFilterFlags::Filtered;
-					FilterCurves.RemoveAtSwap(Index, 1, false);
+					FilterCurves.RemoveAtSwap(Index, 1, EAllowShrinking::No);
 				}
 				
 				if (InMetaData.MaxLOD < InCurveFilterSettings.LODIndex)

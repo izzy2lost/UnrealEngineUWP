@@ -782,7 +782,7 @@ void FAutomationWorkerModule::SendAnalyticsEvents(TArray<FString>& InAnalyticsIt
 		if( EventString.EndsWith( TEXT( ",PERF" ) ) )
 		{
 			// Chop the ",PERF" off the end
-			EventString.LeftInline( EventString.Len() - 5, false );
+			EventString.LeftInline( EventString.Len() - 5, EAllowShrinking::No);
 
 			FAutomationPerformanceSnapshot PerfSnapshot;
 			PerfSnapshot.FromCommaDelimitedString( EventString );

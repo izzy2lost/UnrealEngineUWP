@@ -1801,8 +1801,8 @@ void FClothingSimulationSolver::UpdateSolverField()
 			const uint32 NumParticles = Evolution->GetParticles().Size();
 			const uint32 NumActiveParticles = Evolution->NumActiveParticles();
 
-			SamplePositions.SetNum(NumParticles, false);
-			SampleIndices.SetNum(NumActiveParticles, false);
+			SamplePositions.SetNum(NumParticles, EAllowShrinking::No);
+			SampleIndices.SetNum(NumActiveParticles, EAllowShrinking::No);
 
 			int32 SampleIndex = 0;
 			for (const uint32 GroupId : Evolution->GetActiveGroups())
@@ -1825,8 +1825,8 @@ void FClothingSimulationSolver::UpdateSolverField()
 			const uint32 NumParticles = PBDEvolution->Particles().Size();
 			const uint32 NumActiveParticles = PBDEvolution->ParticlesActiveView().GetActiveSize();
 
-			SamplePositions.SetNum(NumParticles, false);
-			SampleIndices.SetNum(NumActiveParticles, false);
+			SamplePositions.SetNum(NumParticles, EAllowShrinking::No);
+			SampleIndices.SetNum(NumActiveParticles, EAllowShrinking::No);
 
 			int32 SampleIndex = 0;
 			PBDEvolution->ParticlesActiveView().SequentialFor(

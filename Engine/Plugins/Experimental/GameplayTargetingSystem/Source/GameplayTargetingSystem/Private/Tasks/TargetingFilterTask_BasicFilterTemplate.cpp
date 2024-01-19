@@ -39,8 +39,7 @@ void UTargetingFilterTask_BasicFilterTemplate::Execute(const FTargetingRequestHa
 					AddFilteredTarget(TargetingHandle, TargetResult);
 #endif // ENABLE_DRAW_DEBUG
 
-					const bool bAllowShrinking = false;
-					ResultData->TargetResults.RemoveAtSwap(TargetIterator, 1, bAllowShrinking);
+					ResultData->TargetResults.RemoveAtSwap(TargetIterator, 1, EAllowShrinking::No);
 				}
 			}
 		}

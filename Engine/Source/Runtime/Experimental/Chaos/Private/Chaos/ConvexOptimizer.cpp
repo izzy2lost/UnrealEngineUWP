@@ -407,7 +407,7 @@ void FConvexOptimizer::MergeConnectedShapes(const Chaos::FImplicitObjectUnionPtr
 
 				while (!NodeQueue.IsEmpty())
 				{
-					const FImplicitObject* NextNode = NodeQueue.Pop(false);
+					const FImplicitObject* NextNode = NodeQueue.Pop(EAllowShrinking::No);
 
 					for (auto& ValidEdge : RootTriboxes.Find(NextNode)->bValidEdges)
 					{

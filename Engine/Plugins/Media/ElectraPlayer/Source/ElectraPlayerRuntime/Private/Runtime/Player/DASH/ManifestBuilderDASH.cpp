@@ -443,7 +443,7 @@ namespace DASHUrlHelpers
 					if (token2Pos != INDEX_NONE)
 					{
 						FString token(queryTemplate.Mid(tokenPos+1, token2Pos-tokenPos-1));
-						queryTemplate.RightChopInline(token2Pos+1, false);
+						queryTemplate.RightChopInline(token2Pos+1, EAllowShrinking::No);
 						// An empty token results from "$$" used to insert a single '$'.
 						if (token.IsEmpty())
 						{
@@ -468,7 +468,7 @@ namespace DASHUrlHelpers
 						// $query:<param>$ ?
 						else if (token.StartsWith(TEXT("query:"), ESearchCase::CaseSensitive))
 						{
-							token.RightChopInline(6, false);
+							token.RightChopInline(6, EAllowShrinking::No);
 							int32 Index = QueryParamList.IndexOfByPredicate([token](const FURL_RFC3986::FQueryParam& qp){ return qp.Name.Equals(token); });
 							if (Index != INDEX_NONE)
 							{
@@ -484,7 +484,7 @@ namespace DASHUrlHelpers
 						// $header:<header-name>$ ?
 						else if (token.StartsWith(TEXT("header:"), ESearchCase::CaseSensitive))
 						{
-							token.RightChopInline(7, false);
+							token.RightChopInline(7, EAllowShrinking::No);
 							int32 Index = QueryParamList.IndexOfByPredicate([token](const FURL_RFC3986::FQueryParam& qp){ return qp.Name.Equals(token); });
 							if (Index != INDEX_NONE)
 							{
@@ -665,7 +665,7 @@ namespace DASHUrlHelpers
 				if (token2Pos != INDEX_NONE)
 				{
 					FString token(byteRange.Mid(tokenPos+1, token2Pos-tokenPos-1));
-					byteRange.RightChopInline(token2Pos+1, false);
+					byteRange.RightChopInline(token2Pos+1, EAllowShrinking::No);
 					// An empty token results from "$$" used to insert a single '$'.
 					if (token.IsEmpty())
 					{
@@ -685,12 +685,12 @@ namespace DASHUrlHelpers
 							// Remove preceeding separator character (which we assume it to be meant to be the ampersand)
 							if (NewURL.Len() && NewURL[NewURL.Len() - 1] == TCHAR('&'))
 							{
-								NewURL.LeftChopInline(1, false);
+								NewURL.LeftChopInline(1, EAllowShrinking::No);
 							}
 							// If the next char in the template is a separator character it is to be removed.
 							if (byteRange.Len() && byteRange[0] == TCHAR('&'))
 							{
-								byteRange.RightChopInline(1, false);
+								byteRange.RightChopInline(1, EAllowShrinking::No);
 							}
 						}
 						else

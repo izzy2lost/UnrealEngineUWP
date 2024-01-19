@@ -324,8 +324,8 @@ namespace Chaos::Private
 		}
 
 		// Clip the array to the enabled set
-		Contacts.SetNum(DestContactIndex, false);
-		ContactDatas.SetNum(DestContactIndex, false);
+		Contacts.SetNum(DestContactIndex, EAllowShrinking::No);
+		ContactDatas.SetNum(DestContactIndex, EAllowShrinking::No);
 	}
 
 	void FMeshContactGenerator::FinalizeContacts(const FRigidTransform3& MeshToConvexTransform)

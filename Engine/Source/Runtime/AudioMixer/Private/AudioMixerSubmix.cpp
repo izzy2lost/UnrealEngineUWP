@@ -1398,7 +1398,7 @@ namespace Audio
 						// only remove effect chain if it's not the base effect chain
 						if (!FadeInfo.bIsBaseEffect)
 						{
-							EffectChains.RemoveAtSwap(EffectChainIndex, 1, true);
+							EffectChains.RemoveAtSwap(EffectChainIndex, 1, EAllowShrinking::Yes);
 						}
 						continue;
 					}

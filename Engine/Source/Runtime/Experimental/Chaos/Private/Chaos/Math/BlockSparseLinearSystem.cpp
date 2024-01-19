@@ -107,8 +107,7 @@ FAutoConsoleVariableRef CVarChaosLinearSystemPreconditioner(TEXT("p.Chaos.Linear
 
 		void BuildMatrix()
 		{
-			constexpr bool bAllowShrinking = false;
-			MatrixBuilderTriplets.SetNum(TripletBuilderNum.load(), bAllowShrinking);
+			MatrixBuilderTriplets.SetNum(TripletBuilderNum.load(), EAllowShrinking::No);
 			TRACE_CPUPROFILER_EVENT_SCOPE(ChaosBlockSparseLinearSystem_BuildMatrix);
 			AMatrix.setFromTriplets(MatrixBuilderTriplets.GetData(), MatrixBuilderTriplets.GetData() + MatrixBuilderTriplets.Num());
 		}

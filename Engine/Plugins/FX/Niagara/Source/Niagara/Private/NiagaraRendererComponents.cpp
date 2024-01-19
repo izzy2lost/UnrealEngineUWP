@@ -545,7 +545,7 @@ void FNiagaraRendererComponents::PostSystemTick_GameThread(const UNiagaraRendere
 			}
 			else if (FreeList.Num())
 			{
-				PoolIndex = FreeList.Pop(false);
+				PoolIndex = FreeList.Pop(EAllowShrinking::No);
 			}
 			bNewlyAcquiredComponent = true;
 		}
@@ -673,7 +673,7 @@ void FNiagaraRendererComponents::PostSystemTick_GameThread(const UNiagaraRendere
 				}
 
 				// destroy the component pool slot
-				ComponentPool.RemoveAtSwap(PoolIndex, 1, false);
+				ComponentPool.RemoveAtSwap(PoolIndex, 1, EAllowShrinking::No);
 				--PoolIndex;
 				continue;
 			}
@@ -884,7 +884,7 @@ void FNiagaraRendererComponents::ResetComponentPool(bool bResetOwner)
 			PoolEntry.Component->DestroyComponent();
 		}
 	}
-	ComponentPool.SetNum(0, false);
+	ComponentPool.SetNum(0, EAllowShrinking::No);
 
 	if (bResetOwner)
 	{

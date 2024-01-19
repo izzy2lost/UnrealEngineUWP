@@ -323,7 +323,7 @@ void FNiagaraGPUInstanceCountManager::FlushIndirectArgsPool(FRHICommandListBase&
 		FIndirectArgsPoolEntryPtr& PoolEntry = DrawIndirectPool[0];
 		PoolEntry->Buffer.Release();
 
-		DrawIndirectPool.RemoveAt(0, 1, false);
+		DrawIndirectPool.RemoveAt(0, 1, EAllowShrinking::No);
 	}
 
 	// If shrinking is allowed and we've been under the low water mark

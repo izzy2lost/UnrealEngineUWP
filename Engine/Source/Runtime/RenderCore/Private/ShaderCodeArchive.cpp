@@ -434,7 +434,7 @@ bool ShaderCodeArchive::CompressShaderWithOodle(uint8* OutCompressedShader, int6
 void FSerializedShaderArchive::DecompressShader(int32 Index, const TArray<TArray<uint8>>& ShaderCode, TArray<uint8>& OutDecompressedShader) const
 {
 	const FShaderCodeEntry& Entry = ShaderEntries[Index];
-	OutDecompressedShader.SetNum(Entry.UncompressedSize, false);
+	OutDecompressedShader.SetNum(Entry.UncompressedSize, EAllowShrinking::No);
 	if (Entry.Size == Entry.UncompressedSize)
 	{
 		FMemory::Memcpy(OutDecompressedShader.GetData(), ShaderCode[Index].GetData(), Entry.UncompressedSize);

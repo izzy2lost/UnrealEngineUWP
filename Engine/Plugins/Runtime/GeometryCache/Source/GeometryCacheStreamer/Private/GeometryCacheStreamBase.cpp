@@ -131,7 +131,7 @@ bool FGeometryCacheStreamBase::RequestFrameData()
 		PrepareRead();
 
 		// Get any ReadIndex available
-		const int32 ReadIndex = ReadIndices.Pop(false);
+		const int32 ReadIndex = ReadIndices.Pop(EAllowShrinking::No);
 
 		// Take the ReadRequest from the pool at ReadIndex and initialize it
 		FGeometryCacheStreamReadRequest*& ReadRequest = ReadRequestsPool[ReadIndex];

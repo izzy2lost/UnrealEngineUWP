@@ -590,14 +590,14 @@ void UEnvQueryManager::Tick(float DeltaTime)
 					TSharedPtr<FEnvQueryInstance>& QueryInstance = RunningQueries[Index];
 					if (!QueryInstance.IsValid())
 					{
-						RunningQueries.RemoveAt(Index, 1, /*bAllowShrinking=*/false);
+						RunningQueries.RemoveAt(Index, 1, EAllowShrinking::No);
 						continue;
 					}
 
 					if (QueryInstance->IsFinished())
 					{
 						FinishedQueriesTotalTime += (FPlatformTime::Seconds() - QueryInstance->StartTime);
-						RunningQueries.RemoveAt(Index, 1, /*bAllowShrinking=*/false);
+						RunningQueries.RemoveAt(Index, 1, EAllowShrinking::No);
 						--FinishedQueriesCounter;
 					}
 				}
@@ -612,7 +612,7 @@ void UEnvQueryManager::Tick(float DeltaTime)
 					FinishedQueriesTotalTime += (FPlatformTime::Seconds() - QueryInstance->StartTime);
 				}
 
-				RunningQueries.RemoveAt(0, NumQueriesFinished, /*bAllowShrinking=*/false);
+				RunningQueries.RemoveAt(0, NumQueriesFinished, EAllowShrinking::No);
 			}
 		}
 
@@ -836,7 +836,7 @@ TSharedPtr<FEnvQueryInstance> UEnvQueryManager::CreateQueryInstance(const UEnvQu
 						*GetNameSafe(LocalTemplate), OptionIndex);
 				}
 
-				LocalTemplate->Options.RemoveAt(OptionIndex, 1, false);
+				LocalTemplate->Options.RemoveAt(OptionIndex, 1, EAllowShrinking::No);
 				--OptionIndex; // See note at top of for loop.  We cannot iterate backwards here.
 				continue;
 			}
@@ -880,7 +880,7 @@ TSharedPtr<FEnvQueryInstance> UEnvQueryManager::CreateQueryInstance(const UEnvQu
 					UE_VLOG_ALWAYS_UELOG(this, LogEQS, Warning, TEXT("Query [%s] can't use test [%s] in option %d [%s], removing it"),
 						*GetNameSafe(LocalTemplate), *GetNameSafe(TestOb), OptionIndex, *MyOption->Generator->OptionName);
 
-					SortedTests.RemoveAt(TestIndex, 1, false);
+					SortedTests.RemoveAt(TestIndex, 1, EAllowShrinking::No);
 				}
 				else if (bOptionSingleResultSearch
 					&& TestOb->TestPurpose == EEnvTestPurpose::Filter
@@ -1069,7 +1069,7 @@ void UEnvQueryManager::RegisterActiveWrapper(UEnvQueryInstanceBlueprintWrapper& 
 
 void UEnvQueryManager::UnregisterActiveWrapper(UEnvQueryInstanceBlueprintWrapper& Wrapper)
 {
-	GCShieldedWrappers.RemoveSingleSwap(&Wrapper, /*bAllowShrinking=*/false);
+	GCShieldedWrappers.RemoveSingleSwap(&Wrapper, EAllowShrinking::No);
 }
 
 TSharedPtr<FEnvQueryInstance> UEnvQueryManager::FindQueryInstance(const int32 QueryID)

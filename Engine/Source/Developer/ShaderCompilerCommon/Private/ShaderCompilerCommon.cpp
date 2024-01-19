@@ -1383,7 +1383,7 @@ void CleanupUniformBufferCode(const FShaderCompilerEnvironment& Environment, FSh
 		memmove(SourceStart + DestOffset, SourceStart + SourceOffset, MoveCount * sizeof(FShaderSource::CharType));
 		DestOffset += MoveCount;
 	}
-	PreprocessedShaderSource.ShrinkToLen(DestOffset, false);
+	PreprocessedShaderSource.ShrinkToLen(DestOffset, EAllowShrinking::No);
 }
 
 ///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////

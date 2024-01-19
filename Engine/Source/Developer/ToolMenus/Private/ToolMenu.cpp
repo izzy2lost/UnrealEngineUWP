@@ -205,7 +205,7 @@ FToolMenuSection& UToolMenu::AddSection(const FName SectionName, const TAttribut
 					FToolMenuSection RemovedSection;
 					Swap(Sections[InsertIndex], RemovedSection);
 					Sections.Insert(MoveTempIfPossible(RemovedSection), i);
-					Sections.RemoveAt(InsertIndex + 1, 1, false);
+					Sections.RemoveAt(InsertIndex + 1, 1, EAllowShrinking::No);
 					InsertIndex = i;
 				}
 			}

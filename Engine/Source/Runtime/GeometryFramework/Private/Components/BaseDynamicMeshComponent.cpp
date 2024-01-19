@@ -213,7 +213,7 @@ void UBaseDynamicMeshComponent::SetMaterial(int32 ElementIndex, UMaterialInterfa
 	check(ElementIndex >= 0);
 	if (ElementIndex >= BaseMaterials.Num())
 	{
-		BaseMaterials.SetNum(ElementIndex + 1, false);
+		BaseMaterials.SetNum(ElementIndex + 1, EAllowShrinking::No);
 	}
 	BaseMaterials[ElementIndex] = Material;
 }

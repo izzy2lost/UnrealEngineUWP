@@ -292,7 +292,7 @@ public:
 	{
 		while (Handles.Num() > 0 && FreeHandleIndices.Num() > 0 && FreeHandleIndices.Remove(Handles.Num() - 1))
 		{
-			Handles.Pop(false);
+			Handles.Pop(EAllowShrinking::No);
 		}
 
 		return Handles.Num();

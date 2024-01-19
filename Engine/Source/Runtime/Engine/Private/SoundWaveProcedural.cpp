@@ -87,7 +87,7 @@ int32 USoundWaveProcedural::GeneratePCMData(uint8* PCMData, const int32 SamplesN
 			ensureAlwaysMsgf(BytesGenerated <= AudioBuffer.Num(), TEXT("Soundwave Procedural generated more bytes than expected (%d generated, %d expected)"), BytesGenerated, AudioBuffer.Num());
 			if (BytesGenerated < AudioBuffer.Num())
 			{
-				AudioBuffer.SetNum(BytesGenerated, false);
+				AudioBuffer.SetNum(BytesGenerated, EAllowShrinking::No);
 			}
 			bPumpQueuedAudio = false;
 		}
@@ -113,7 +113,7 @@ int32 USoundWaveProcedural::GeneratePCMData(uint8* PCMData, const int32 SamplesN
 		const int32 BytesToCopy = SamplesToCopy * SampleByteSize;
 
 		FMemory::Memcpy((void*)PCMData, &AudioBuffer[0], BytesToCopy);
-		AudioBuffer.RemoveAt(0, BytesToCopy, false);
+		AudioBuffer.RemoveAt(0, BytesToCopy, EAllowShrinking::No);
 
 		// Decrease the available by count
 		if (bPumpQueuedAudio)

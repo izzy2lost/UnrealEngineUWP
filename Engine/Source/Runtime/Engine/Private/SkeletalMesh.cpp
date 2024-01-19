@@ -6864,7 +6864,7 @@ void FSkeletalMeshSceneProxy::GetShadowShapes(FVector PreViewTranslation, TArray
 	const FMatrix& ProxyLocalToWorld = GetLocalToWorld();
 
 	int32 CapsuleIndex = OutCapsuleShapes.Num();
-	OutCapsuleShapes.SetNum(OutCapsuleShapes.Num() + ShadowCapsuleData.Num(), false);
+	OutCapsuleShapes.SetNum(OutCapsuleShapes.Num() + ShadowCapsuleData.Num(), EAllowShrinking::No);
 
 	for(const TPair<int32, FCapsuleShape>& CapsuleData : ShadowCapsuleData)
 	{

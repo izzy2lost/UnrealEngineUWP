@@ -2411,7 +2411,7 @@ public:
 		int32 NodeIndex = INDEX_NONE;
 		while (NodeStack.Num())
 		{
-			NodeIndex = NodeStack.Pop(false);
+			NodeIndex = NodeStack.Pop(EAllowShrinking::No);
 			const FNode& Node = Nodes[NodeIndex];
 			
 			// If a leaf directly test the bounds
@@ -2549,8 +2549,8 @@ public:
 	{
 		if(!bDynamicTree || (bDynamicTree && RootNode == INDEX_NONE)) return;
 		
-		OverlappingOffsets.SetNum(Leaves.Num()+1, false);
-		OverlappingCounts.SetNum(Leaves.Num(), false);
+		OverlappingOffsets.SetNum(Leaves.Num()+1, EAllowShrinking::No);
+		OverlappingCounts.SetNum(Leaves.Num(), EAllowShrinking::No);
 		OverlappingPairs.Reset();
 		
 		if(bDirtyFilter)
@@ -2575,7 +2575,7 @@ public:
 			OverlappingOffsets[LeafIndex+1] = OverlappingOffsets[LeafIndex] + OverlappingCounts[LeafIndex];
 			OverlappingCounts[LeafIndex] = OverlappingOffsets[LeafIndex];
 		}
-		OverlappingLeaves.SetNum(OverlappingOffsets.Last(), false);
+		OverlappingLeaves.SetNum(OverlappingOffsets.Last(), EAllowShrinking::No);
 		for(auto& OverlappingPair : OverlappingPairs)
 		{
 			if(OverlappingPair[0] != OverlappingPair[1])
@@ -2604,7 +2604,7 @@ public:
 	/** Sequential loop over the leaves to fill the overlapping pairs */
 	void ComputeOverlappingCacheFromLeaf()
 	{
-		OverlappingOffsets.SetNum(Leaves.Num()+1, false);
+		OverlappingOffsets.SetNum(Leaves.Num()+1, EAllowShrinking::No);
 		OverlappingLeaves.Reset();
 		
 		if(!bDynamicTree || (bDynamicTree && RootNode == INDEX_NONE)) return;
@@ -3038,7 +3038,7 @@ private:
 //				CSV_CUSTOM_STAT(ChaosPhysicsTimers, AABBCheckCount, 1, ECsvCustomStatOp::Accumulate);
 //			}
 //#endif
-			const FNodeQueueEntry NodeEntry = NodeStack.Pop(false);
+			const FNodeQueueEntry NodeEntry = NodeStack.Pop(EAllowShrinking::No);
 			if constexpr (Query != EAABBQueryType::Overlap)
 			{
 				if (NodeEntry.TOI > CurData.CurrentLength)
@@ -3500,7 +3500,7 @@ private:
 			if (WorkPool[CurIdx].TimeslicePhase == eTimeSlicePhase::ProcessingChildren)
 			{
 				//If we got to this it must be that my children are done, so I'm done as well
-				WorkStack.Pop(/*bResize=*/false);
+				WorkStack.Pop(EAllowShrinking::No);
 				FreeWorkSnapshot(CurIdx);
 				continue;
 			}
@@ -3543,7 +3543,7 @@ private:
 			{
 
 				MakeLeaf();
-				WorkStack.Pop(/*bResize=*/false);	//finished with this node
+				WorkStack.Pop(EAllowShrinking::No);	//finished with this node
 				FreeWorkSnapshot(CurIdx);
 				continue;
 			}
@@ -3648,7 +3648,7 @@ private:
 			{
 				//couldn't split so just make a leaf - THIS COULD CONTAIN MORE THAN MaxChildrenInLeaf!!!
 				MakeLeaf();
-				WorkStack.Pop(/*bResize=*/false);	//we are done with this node
+				WorkStack.Pop(EAllowShrinking::No);	//we are done with this node
 				FreeWorkSnapshot(CurIdx);
 			}
 		}

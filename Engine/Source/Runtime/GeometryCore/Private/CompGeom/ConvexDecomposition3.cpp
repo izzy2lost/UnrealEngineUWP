@@ -2257,7 +2257,7 @@ int32 FConvexDecomposition3::MergeBest(int32 InTargetNumParts, double MaxErrorTo
 
 				// Swap-Remove the proximity links
 				int32 LastProxIdx = Proximities.Num() - 1;
-				Proximities.RemoveAtSwap(ProxIdx, 1, false);
+				Proximities.RemoveAtSwap(ProxIdx, 1, EAllowShrinking::No);
 
 				// Update the proximity that was swapped back to this position (if any)
 				if (ProxIdx < LastProxIdx)
@@ -2304,7 +2304,7 @@ int32 FConvexDecomposition3::MergeBest(int32 InTargetNumParts, double MaxErrorTo
 				}
 			}(LastIdx, DecoToRm);
 		}
-		Decomposition.RemoveAtSwap(DecoToRm, 1, false);
+		Decomposition.RemoveAtSwap(DecoToRm, 1, EAllowShrinking::No);
 
 		// Add new proximities for all new links to the merged part
 		for (int32 ToLink : NewLinks)
@@ -2346,7 +2346,7 @@ void FConvexDecomposition3::DeleteProximity(int32 ProxIdx, bool bDeleteMapRefere
 
 	if (ProxIdx == Proximities.Num() - 1)
 	{
-		Proximities.RemoveAt(ProxIdx, 1, false);
+		Proximities.RemoveAt(ProxIdx, 1, EAllowShrinking::No);
 		return;
 	}
 	else
@@ -2354,7 +2354,7 @@ void FConvexDecomposition3::DeleteProximity(int32 ProxIdx, bool bDeleteMapRefere
 		// Remove by swapping the last element to the new slot, and removing the last element
 		// Then update links for that swapped-in proximity
 		int32 LastProxIdx = Proximities.Num() - 1;
-		Proximities.RemoveAtSwap(ProxIdx, 1, false);
+		Proximities.RemoveAtSwap(ProxIdx, 1, EAllowShrinking::No);
 		const FProximity& NewProx = Proximities[ProxIdx];
 		DecompositionToProximity.RemoveSingle(NewProx.Link.A, LastProxIdx);
 		DecompositionToProximity.RemoveSingle(NewProx.Link.B, LastProxIdx);

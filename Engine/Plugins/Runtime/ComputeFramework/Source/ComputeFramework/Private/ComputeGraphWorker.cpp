@@ -155,7 +155,7 @@ void FComputeGraphTaskWorker::SubmitWork(FRDGBuilder& GraphBuilder, FName InExec
 				if (bSupportsUnifiedDispatch)
 				{
 					SubmitDesc.bIsUnified = true;
-					Shaders.SetNum(SubmitDesc.ShaderIndex + 1, /*bAllowShrinking*/false);
+					Shaders.SetNum(SubmitDesc.ShaderIndex + 1, EAllowShrinking::No);
 				}
 			}
 
@@ -166,8 +166,8 @@ void FComputeGraphTaskWorker::SubmitWork(FRDGBuilder& GraphBuilder, FName InExec
 		// If we can't run the graph for any reason, back out now and apply fallback logic.
 		if (!bIsValid)
 		{
-			SubmitDescs.SetNum(BaseSubmitDescIndex, /*bAllowShrinking*/false);
-			Shaders.SetNum(BaseShaderIndex, /*bAllowShrinking*/false);
+			SubmitDescs.SetNum(BaseSubmitDescIndex, EAllowShrinking::No);
+			Shaders.SetNum(BaseShaderIndex, EAllowShrinking::No);
 			GraphInvocation.FallbackDelegate.ExecuteIfBound();
 			continue;
 		}

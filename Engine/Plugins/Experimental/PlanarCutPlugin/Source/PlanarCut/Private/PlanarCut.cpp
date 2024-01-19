@@ -318,7 +318,7 @@ FPlanarCells::FPlanarCells(const TArrayView<const FBox> Boxes, bool bResolveAdja
 				}
 				// else overlap was too close to 'last', so we skip it
 			}
-			Overlaps[Dim].SetNum(FillIdx, false);
+			Overlaps[Dim].SetNum(FillIdx, EAllowShrinking::No);
 			if (Overlaps[Dim].Num() == 1)
 			{
 				Overlaps[Dim].Add(Box.Max[Dim]);
@@ -622,7 +622,7 @@ FPlanarCells::FPlanarCells(const FBox &Region, const TArrayView<const FColor> Im
 					int32 Last;
 					while (PerCellBoundaryEdgeArrays[Cell].Contains(Last = Chain.Last()))
 					{
-						Chain.Pop(false);
+						Chain.Pop(EAllowShrinking::No);
 						Chain.Append(PerCellBoundaryEdgeArrays[Cell][Last]);
 						PerCellBoundaryEdgeArrays[Cell].Remove(Last);
 					}
@@ -758,9 +758,9 @@ void FPlanarCells::DiscardCells(TFunctionRef<bool(int32)> KeepFunc, bool bKeepNe
 		Cells.Value = Cells.Value > -1 ? OldToNew[Cells.Value] : -1;
 		if (Cells.Key == Cells.Value && Cells.Key == -1)
 		{
-			PlaneCells.RemoveAtSwap(PlaneIdx, 1, false);
-			Planes.RemoveAtSwap(PlaneIdx, 1, false);
-			PlaneBoundaries.RemoveAtSwap(PlaneIdx, 1, false);
+			PlaneCells.RemoveAtSwap(PlaneIdx, 1, EAllowShrinking::No);
+			Planes.RemoveAtSwap(PlaneIdx, 1, EAllowShrinking::No);
+			PlaneBoundaries.RemoveAtSwap(PlaneIdx, 1, EAllowShrinking::No);
 			PlaneIdx--; // consider the swapped-in value in the next iteration
 		}
 		else

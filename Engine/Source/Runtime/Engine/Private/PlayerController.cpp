@@ -3388,7 +3388,7 @@ void APlayerController::DisplayDebug(class UCanvas* Canvas, const FDebugDisplayI
 		{
 			if (CurrentTime > ForceFeedbackEffectHistoryEntries[i].TimeShown + 5.0f)
 			{
-				ForceFeedbackEffectHistoryEntries.RemoveAtSwap(i, 1, /*bAllowShrinking=*/ false);
+				ForceFeedbackEffectHistoryEntries.RemoveAtSwap(i, 1, EAllowShrinking::No);
 			}
 			else
 			{

@@ -107,8 +107,7 @@ void FRenderAssetInstanceState::AddElement(const UPrimitiveComponent* InComponen
 	int32 ElementIndex = INDEX_NONE;
 	if (FreeElementIndices.Num())
 	{
-		const bool bAllowShrinking = false;
-		ElementIndex = FreeElementIndices.Pop(bAllowShrinking);
+		ElementIndex = FreeElementIndices.Pop(EAllowShrinking::No);
 		check(ElementIndex < Elements.Num());
 	}
 	else
@@ -188,7 +187,7 @@ void FRenderAssetInstanceState::RemoveElement(int32 ElementIndex, int32& NextCom
 	// Removed compiled elements. This happens when a static component is not registered after the level became visible.
 	if (HasCompiledElements())
 	{
-		CompiledRenderAssetMap.FindChecked(Element.RenderAsset).RemoveSingleSwap(FCompiledElement(Element), false);
+		CompiledRenderAssetMap.FindChecked(Element.RenderAsset).RemoveSingleSwap(FCompiledElement(Element), EAllowShrinking::No);
 
 		if (Element.TexelFactor < 0.f
 			&& Element.RenderAsset
@@ -838,8 +837,8 @@ void FRenderAssetInstanceState::TrimBounds()
 
 			if (bDefragRangeIsFree)
 			{
-				Bounds4.RemoveAt(Bounds4.Num() - DefragThreshold / 4, DefragThreshold / 4, false);
-				Bounds4Components.RemoveAt(Bounds4Components.Num() - DefragThreshold, DefragThreshold, false);
+				Bounds4.RemoveAt(Bounds4.Num() - DefragThreshold / 4, DefragThreshold / 4, EAllowShrinking::No);
+				Bounds4Components.RemoveAt(Bounds4Components.Num() - DefragThreshold, DefragThreshold, EAllowShrinking::No);
 				bUpdateFreeBoundIndices = true;
 			}
 		}

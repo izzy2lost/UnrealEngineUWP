@@ -1497,8 +1497,8 @@ void UAnimInstance::TriggerAnimNotifies(float DeltaSeconds)
 				if (ActiveAnimNotifyState.Find(*AnimNotifyEvent, ExistingItemIndex))
 				{
 					check(ActiveAnimNotifyState.Num() == ActiveAnimNotifyEventReference.Num());
-					ActiveAnimNotifyState.RemoveAtSwap(ExistingItemIndex, 1, false); 
-					ActiveAnimNotifyEventReference.RemoveAtSwap(ExistingItemIndex, 1, false);
+					ActiveAnimNotifyState.RemoveAtSwap(ExistingItemIndex, 1, EAllowShrinking::No);
+					ActiveAnimNotifyEventReference.RemoveAtSwap(ExistingItemIndex, 1, EAllowShrinking::No);
 				}
 				else
 				{

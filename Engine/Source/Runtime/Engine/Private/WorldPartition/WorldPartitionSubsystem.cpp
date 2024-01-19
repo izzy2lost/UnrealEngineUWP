@@ -1282,7 +1282,7 @@ void UWorldPartitionSubsystem::Draw(UCanvas* Canvas, class APlayerController* PC
 		const FVector2D PartitionCanvasSize = FVector2D(CanvasMaxScreenSize.X, CanvasMaxScreenSize.Y);
 
 		FBox2D WorldRegion(ForceInit);
-		WorldPartitionsDraw2DContext.SetNum(RegisteredWorldPartitions.Num(), false);
+		WorldPartitionsDraw2DContext.SetNum(RegisteredWorldPartitions.Num(), EAllowShrinking::No);
 		Algo::ForEach(WorldPartitionsDraw2DContext, [&](FWorldPartitionDraw2DContext& Context) { if (const FBox2D& Bounds = Context.GetDesiredWorldBounds(); Bounds.bIsValid) { WorldRegion += Bounds; } });
 		if (!WorldRegion.bIsValid)
 		{

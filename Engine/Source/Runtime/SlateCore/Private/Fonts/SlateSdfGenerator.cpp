@@ -581,7 +581,7 @@ FSlateSdfGenerator::ERequestResponse FSlateSdfGeneratorImpl::Spawn(const FReques
 	{
 		return ERequestResponse::BUSY;
 	}
-	FAsyncTask<SdfUtils::FSdfGeneratorTask>* Task = FreeTasks.Pop(false);
+	FAsyncTask<SdfUtils::FSdfGeneratorTask>* Task = FreeTasks.Pop(EAllowShrinking::No);
 	const ERequestResponse Result = Task->GetTask().Prepare(InRequest, OutCharInfo, true);
 	if (Result == ERequestResponse::SUCCESS)
 	{
@@ -608,7 +608,7 @@ FSlateSdfGenerator::ERequestResponse FSlateSdfGeneratorImpl::SpawnWithPlaceholde
 		}
 		return Result;
 	}
-	FAsyncTask<SdfUtils::FSdfGeneratorTask>* Task = FreeTasks.Pop(false);
+	FAsyncTask<SdfUtils::FSdfGeneratorTask>* Task = FreeTasks.Pop(EAllowShrinking::No);
 	const ERequestResponse Result = Task->GetTask().Prepare(InRequest, OutCharInfo, true);
 	if (Result == ERequestResponse::SUCCESS)
 	{
@@ -630,7 +630,7 @@ FSlateSdfGenerator::ERequestResponse FSlateSdfGeneratorImpl::Respawn(const FRequ
 		return ERequestResponse::BUSY;
 	}
 	FRequestOutputInfo OutCharInfo = {};
-	FAsyncTask<SdfUtils::FSdfGeneratorTask>* Task = FreeTasks.Pop(false);
+	FAsyncTask<SdfUtils::FSdfGeneratorTask>* Task = FreeTasks.Pop(EAllowShrinking::No);
 	ERequestResponse Result = Task->GetTask().Prepare(InRequest, OutCharInfo, true);
 	if (Result == ERequestResponse::SUCCESS)
 	{

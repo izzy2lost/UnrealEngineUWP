@@ -519,7 +519,7 @@ struct FPropertyAccessSystem
 					UObject* CalleeObject = static_cast<UObject*>(Address);
 
 					// Allocate buffer + alignment slack for the return value
-					ArrayBuffer.SetNumUninitialized(Indirection.ReturnBufferSize + Indirection.ReturnBufferAlignment, false);
+					ArrayBuffer.SetNumUninitialized(Indirection.ReturnBufferSize + Indirection.ReturnBufferAlignment, EAllowShrinking::No);
 					Address = Align(ArrayBuffer.GetData(), Indirection.ReturnBufferAlignment);
 
 					// Init value

@@ -562,7 +562,7 @@ void FTTMLParser::PopLastElement(const FString& ElementName)
 {
 	check(ParseStack.Num());
 	check(ElectraSubtitleUtils::StringEquals(*ElementName, *ParseStack.Last().Element->GetName()));
-	ParseStack.Pop(false);
+	ParseStack.Pop(EAllowShrinking::No);
 }
 
 void FTTMLParser::ExpatStartElementHandler(const XML_Char* InName, const XML_Char** InAtts)

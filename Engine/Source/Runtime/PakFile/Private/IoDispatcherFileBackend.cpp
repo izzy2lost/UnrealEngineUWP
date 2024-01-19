@@ -319,7 +319,7 @@ TArray<FFileIoStoreReadRequest*> FFileIoStoreOffsetSortedRequestQueue::RemoveMis
 		{
 			RequestsToReturn.Add(Requests[i]);
 			RequestsBySequence.Remove(Requests[i]);
-			Requests.RemoveAt(i, 1, false);
+			Requests.RemoveAt(i, 1, EAllowShrinking::No);
 		}
 	}
 
@@ -521,7 +521,7 @@ FFileIoStoreReadRequest* FFileIoStoreRequestQueue::Pop()
 		{
 			return nullptr;
 		}
-		Heap.HeapPop(Result, QueueSortFunc, false);
+		Heap.HeapPop(Result, QueueSortFunc, EAllowShrinking::No);
 	}
 	
 	check(Result->QueueStatus == FFileIoStoreReadRequest::QueueStatus_InQueue);

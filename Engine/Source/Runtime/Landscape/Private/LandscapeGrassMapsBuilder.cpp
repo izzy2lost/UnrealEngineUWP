@@ -641,7 +641,7 @@ void FLandscapeGrassMapsBuilder::StartPrioritizedGrassMapGeneration(const TArray
 			}
 		}
 
-		PendingComponentsHeap.HeapPopDiscard(false);
+		PendingComponentsHeap.HeapPopDiscard(EAllowShrinking::No);
 		if (StartGrassMapGeneration(*State, false))
 		{
 			MaxComponentsToStart--;

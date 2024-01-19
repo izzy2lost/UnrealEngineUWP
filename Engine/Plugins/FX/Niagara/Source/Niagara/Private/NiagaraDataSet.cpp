@@ -741,9 +741,9 @@ void FNiagaraDataBuffer::Allocate(uint32 InNumInstances, bool bMaintainExisting)
 			}
 			else
 			{
-				FloatData.SetNum(NewFloatNum, bShrinkFloatData);
-				Int32Data.SetNum(NewInt32Num, bShrinkIntData);
-				HalfData.SetNum(NewHalfNum, bShrinkHalfData);
+				FloatData.SetNum(NewFloatNum, bShrinkFloatData ? EAllowShrinking::Yes : EAllowShrinking::No);
+				Int32Data.SetNum(NewInt32Num, bShrinkIntData ? EAllowShrinking::Yes : EAllowShrinking::No);
+				HalfData.SetNum(NewHalfNum, bShrinkHalfData ? EAllowShrinking::Yes : EAllowShrinking::No);
 			}
 			INC_MEMORY_STAT_BY(STAT_NiagaraParticleMemory, FloatData.GetAllocatedSize() + Int32Data.GetAllocatedSize() + HalfData.GetAllocatedSize());
 #if NIAGARA_MEMORY_TRACKING

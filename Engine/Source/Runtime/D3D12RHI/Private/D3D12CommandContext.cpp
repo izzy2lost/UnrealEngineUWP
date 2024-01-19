@@ -175,7 +175,7 @@ void FD3D12CommandContext::RHIPopEvent()
 		// need to look for unbalanced push/pop
 		if (GPUEventStack.Num() > 0)
 		{
-			GPUEventStack.Pop(false);
+			GPUEventStack.Pop(EAllowShrinking::No);
 		}
 	}
 

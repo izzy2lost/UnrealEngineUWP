@@ -61,7 +61,7 @@ public:
 	{
 		check(Heap.Num() > 0);
 		FSlateInvalidationWidgetIndex Result = Heap.HeapTop().GetWidgetIndex();
-		Heap.HeapPopDiscard(SortPredicate(), false);
+		Heap.HeapPopDiscard(SortPredicate(), EAllowShrinking::No);
 		OwnerList[Result].bContainedByWidgetPreHeap = false;
 		return Result;
 	}
@@ -71,7 +71,7 @@ public:
 	{
 		check(Heap.Num() > 0);
 		FSlateInvalidationWidgetIndex Result = Heap.HeapTop().GetWidgetIndex();
-		Heap.HeapPopDiscard(SortPredicate(), false);
+		Heap.HeapPopDiscard(SortPredicate(), EAllowShrinking::No);
 		OwnerList[Result].bContainedByWidgetPreHeap = false;
 	}
 	
@@ -244,7 +244,7 @@ public:
 	{
 		check(bIsHeap == true);
 		FElement Result = Heap.HeapTop();
-		Heap.HeapPopDiscard(SortPredicate(), false);
+		Heap.HeapPopDiscard(SortPredicate(), EAllowShrinking::No);
 		OwnerList[Result.GetWidgetIndex()].bContainedByWidgetPostHeap = false;
 		return Result;
 	}
@@ -435,7 +435,7 @@ public:
 	{
 		check(bIsHeap == true);
 		FElement Result = Heap.HeapTop();
-		Heap.HeapPopDiscard(SortPredicate(), false);
+		Heap.HeapPopDiscard(SortPredicate(), EAllowShrinking::No);
 		OwnerList[Result.GetWidgetIndex()].bContainedByWidgetPrepassList = false;
 		return Result;
 	}

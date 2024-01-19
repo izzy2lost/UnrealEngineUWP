@@ -757,7 +757,7 @@ struct TDynamicBufferPool : public FRenderResource
 
 				if (SizeInBytes <= Buffer->BufferSize && Buffer->Stride == Stride)
 				{
-					FreeList.RemoveAt(Index, 1, false);
+					FreeList.RemoveAt(Index, 1, EAllowShrinking::No);
 					FoundBuffer = Buffer;
 					break;
 				}
@@ -818,7 +818,7 @@ struct TDynamicBufferPool : public FRenderResource
 			{
 				TotalAllocatedMemory -= Buffer->BufferSize;
 				Buffer->ReleaseResource();
-				LiveList.RemoveAt(Index, 1, false);
+				LiveList.RemoveAt(Index, 1, EAllowShrinking::No);
 				FreeList.Remove(Buffer);
 				delete Buffer;
 			}

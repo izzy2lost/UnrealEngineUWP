@@ -238,7 +238,7 @@ namespace Chaos
 			NodeIndexStack.Push(0);
 			while (NodeIndexStack.Num())
 			{
-				const int32 NodeIndex = NodeIndexStack.Pop(false);
+				const int32 NodeIndex = NodeIndexStack.Pop(EAllowShrinking::No);
 				check(Nodes.IsValidIndex(NodeIndex));
 				const FNode& Node = Nodes[NodeIndex];
 

@@ -116,7 +116,7 @@ bool FStructDeserializer::Deserialize( void* OutStruct, UStruct& TypeInfo, IStru
 					return false;
 				}
 
-				CurrentState = StateStack.Pop(/*bAllowShrinking*/ false);
+				CurrentState = StateStack.Pop(EAllowShrinking::No);
 			}
 			break;
 
@@ -309,7 +309,7 @@ bool FStructDeserializer::Deserialize( void* OutStruct, UStruct& TypeInfo, IStru
 					return true;
 				}
 
-				CurrentState = StateStack.Pop(/*bAllowShrinking*/ false);
+				CurrentState = StateStack.Pop(EAllowShrinking::No);
 			}
 			break;
 
@@ -496,7 +496,7 @@ bool FStructDeserializer::DeserializeElement(void* OutAddress, UStruct& OwnerInf
 				return false;
 			}
 
-			CurrentState = StateStack.Pop(/*bAllowShrinking*/ false);
+			CurrentState = StateStack.Pop(EAllowShrinking::No);
 		}
 		break;
 
@@ -817,7 +817,7 @@ bool FStructDeserializer::DeserializeElement(void* OutAddress, UStruct& OwnerInf
 				return true;
 			}
 
-			CurrentState = StateStack.Pop(/*bAllowShrinking*/ false);
+			CurrentState = StateStack.Pop(EAllowShrinking::No);
 		}
 		break;
 

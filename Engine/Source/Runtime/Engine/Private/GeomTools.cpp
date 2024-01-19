@@ -1540,7 +1540,7 @@ void FGeomTools2D::RemoveRedundantTriangles(TArray<FVector2D>& OutTriangles, con
 	{
 		TArray<FVector2D> PolygonVertices;
 
-		const FLocalTriangle InitialTriangle = Triangles.Pop(/*bAllowShrinking=*/ false);
+		const FLocalTriangle InitialTriangle = Triangles.Pop(EAllowShrinking::No);
 		PolygonVertices.Add(InTriangleVertices[InitialTriangle.VertexA]);
 		PolygonVertices.Add(InTriangleVertices[InitialTriangle.VertexB]);
 		PolygonVertices.Add(InTriangleVertices[InitialTriangle.VertexC]);
@@ -1588,7 +1588,7 @@ void FGeomTools2D::GenerateConvexPolygonsFromTriangles(TArray<TArray<FVector2D>>
 	{
 		TArray<FVector2D> PolygonVertices;
 
-		const FLocalTriangle InitialTriangle = Triangles.Pop(/*bAllowShrinking=*/ false);
+		const FLocalTriangle InitialTriangle = Triangles.Pop(EAllowShrinking::No);
 		PolygonVertices.Add(InTriangleVertices[InitialTriangle.VertexA]);
 		PolygonVertices.Add(InTriangleVertices[InitialTriangle.VertexB]);
 		PolygonVertices.Add(InTriangleVertices[InitialTriangle.VertexC]);

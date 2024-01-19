@@ -97,7 +97,7 @@ static void FindEdgeFaceIntersections(const FTriangleMesh& TriangleMesh, const S
 
 	// Set Intersections Num to actual number found.
 	const int32 IntersectionNum = IntersectionIndex.load();
-	Intersections.SetNum(IntersectionNum, false /*bAllowShrinking*/);
+	Intersections.SetNum(IntersectionNum, EAllowShrinking::No);
 
 	// Append any ExtraIntersections
 	Intersections.Append(ExtraIntersections);
@@ -387,7 +387,7 @@ namespace GIA
 							check(FaceSection->CrossingEdgeLocalIndex[0] != INDEX_NONE);
 							FirstFaceSection.CrossingEdgeLocalIndex[0] = FaceSection->CrossingEdgeLocalIndex[0];
 							check(FaceSection == &FaceContour->Contour.Last());
-							FaceContour->Contour.RemoveAt(FaceContour->Contour.Num() - 1, 1, false);
+							FaceContour->Contour.RemoveAt(FaceContour->Contour.Num() - 1, 1, EAllowShrinking::No);
 						}
 
 						ContourPair.ClosedStatus = FIntersectionContourPair::EClosedStatus::SimpleClosed;
@@ -417,7 +417,7 @@ namespace GIA
 						FirstFaceSection.CrossingEdgeLocalIndex[0] = EdgeFaceSection->CrossingEdgeLocalIndex[0];
 
 						check(EdgeFaceSection == &EdgeContour->Contour.Last());
-						EdgeContour->Contour.RemoveAt(EdgeContour->Contour.Num() - 1, 1, false);
+						EdgeContour->Contour.RemoveAt(EdgeContour->Contour.Num() - 1, 1, EAllowShrinking::No);
 
 						ContourPair.ClosedStatus = FIntersectionContourPair::EClosedStatus::SimpleClosed;
 
@@ -725,7 +725,7 @@ namespace GIA
 			static bool OneFloodFillStep(const TMap<int32 /*TriangleIndex*/, FIntersectionContourTriangleSection>& ContourSegments, const TArray<TVec3<int32>>& Elements, const TConstArrayView<TArray<int32>>& PointToTriangleMap, TArray<int32>& Queue, int32& RegionSize, TArrayView<EFloodFillRegion>& VertexRegions,
 				const EFloodFillRegion RegionColor, const EFloodFillRegion OtherRegionColor)
 			{
-				const int32 CurrVertex = Queue.Pop(false);
+				const int32 CurrVertex = Queue.Pop(EAllowShrinking::No);
 				for (int32 NeighborTri : PointToTriangleMap[CurrVertex])
 				{
 					if (const FIntersectionContourTriangleSection* TriSection = ContourSegments.Find(NeighborTri))

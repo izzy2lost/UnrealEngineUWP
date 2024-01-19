@@ -2102,7 +2102,7 @@ FString FStatsUtils::FromEscapedString(const TCHAR* Escaped)
 				break;
 			}
 			Result += Input.Left(Index);
-			Input.RightChopInline(Index + 1, false);
+			Input.RightChopInline(Index + 1, EAllowShrinking::No);
 
 		}
 		{
@@ -2114,7 +2114,7 @@ FString FStatsUtils::FromEscapedString(const TCHAR* Escaped)
 				break;
 			}
 			FString Number = Input.Left(IndexEnd);
-			Input.RightChopInline(IndexEnd + 1, false);
+			Input.RightChopInline(IndexEnd + 1, EAllowShrinking::No);
 			Result.AppendChar(TCHAR(uint32(FCString::Atoi64(*Number))));
 		}
 	}

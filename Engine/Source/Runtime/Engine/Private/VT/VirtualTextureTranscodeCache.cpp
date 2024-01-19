@@ -167,7 +167,7 @@ struct FTranscodeTask
 					bDecodeResult = bDecodeResult && ensure(TileHeightInBlocks * StagingBufferForLayer.Stride <= StagingBufferForLayer.MemorySize);
 					if (bDecodeResult)
 					{
-						TempBuffer.SetNumUninitialized(PackedOutputSize, false);
+						TempBuffer.SetNumUninitialized(PackedOutputSize, EAllowShrinking::No);
 						Params.Data->CopyTo(TempBuffer.GetData(), DataOffset, TileLayerSize);
 						for (uint32 y = 0; y < TileHeightInBlocks; ++y)
 						{
@@ -194,7 +194,7 @@ struct FTranscodeTask
 					bDecodeResult = bDecodeResult && ensure(PackedStride <= StagingBufferForLayer.Stride);
 					if (bDecodeResult)
 					{
-						TempBuffer.SetNumUninitialized(PackedOutputSize, false);
+						TempBuffer.SetNumUninitialized(PackedOutputSize, EAllowShrinking::No);
 						bDecodeResult = FCompression::UncompressMemoryStream(NAME_Zlib, TempBuffer.GetData(), PackedOutputSize, Params.Data, DataOffset, TileLayerSize);
 						if (bDecodeResult)
 						{

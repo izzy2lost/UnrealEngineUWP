@@ -965,8 +965,7 @@ void FLiveLinkSubject::RemoveFrames(int32 InCount)
 		if (FrameToRemoveIndex != INDEX_NONE)
 		{
 			const int32 Count = 1;
-			const bool bAllowShrinking = false;
-			FrameData.RemoveAt(FrameToRemoveIndex, Count, bAllowShrinking);
+			FrameData.RemoveAt(FrameToRemoveIndex, Count, EAllowShrinking::No);
 		}
 		else
 		{

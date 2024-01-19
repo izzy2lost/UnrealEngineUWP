@@ -5486,8 +5486,7 @@ FRigBaseMetadata* URigHierarchy::GetMetadataForElement(FRigBaseElement* InElemen
 		// Do we have entries in the freelist we can recycle?
 		if (!ElementMetadataFreeList.IsEmpty())
 		{
-			constexpr bool bAllowShrinking = false;
-			InElement->MetadataStorageIndex = ElementMetadataFreeList.Pop(bAllowShrinking);
+			InElement->MetadataStorageIndex = ElementMetadataFreeList.Pop(EAllowShrinking::No);
 		}
 		else
 		{

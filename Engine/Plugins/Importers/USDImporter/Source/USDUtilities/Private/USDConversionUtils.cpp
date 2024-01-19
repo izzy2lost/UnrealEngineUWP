@@ -2229,8 +2229,7 @@ bool UsdUtils::RemoveNumberedSuffix(FString& Prefix)
 	FString LastChar = Prefix.Right(1);
 	while ((LastChar.IsNumeric() || LastChar == TEXT("_")) && Prefix.Len() > 1)
 	{
-		const bool bAllowShrinking = false;
-		Prefix.LeftChopInline(1, bAllowShrinking);
+		Prefix.LeftChopInline(1, EAllowShrinking::No);
 		LastChar = Prefix.Right(1);
 
 		bRemoved = true;

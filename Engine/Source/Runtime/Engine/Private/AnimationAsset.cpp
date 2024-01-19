@@ -180,7 +180,7 @@ void FAnimGroupInstance::Prepare(const FAnimGroupInstance* PreviousGroup)
 						
 						if (!PlayerMarkerNames->Contains(MarkerName))
 						{
-							ValidMarkers.RemoveAtSwap(ValidMarkerIndex, 1, false);
+							ValidMarkers.RemoveAtSwap(ValidMarkerIndex, 1, EAllowShrinking::No);
 						}
 					}
 				}

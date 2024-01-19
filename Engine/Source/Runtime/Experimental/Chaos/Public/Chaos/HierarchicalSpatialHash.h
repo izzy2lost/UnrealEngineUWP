@@ -182,8 +182,7 @@ private:
 
 		void ShrinkElementsAfterConcurrentAdd()
 		{
-			constexpr bool bAllowShrinking = false;
-			Elements.SetNum(ConcurrentElementAddIdx.load(), bAllowShrinking);
+			Elements.SetNum(ConcurrentElementAddIdx.load(), EAllowShrinking::No);
 		}
 
 		int32 First(const FHashIndex& Key) const
@@ -683,7 +682,7 @@ public:
 
 		// Shrink Result array to actual number of found proximities
 		const int32 ResultNum = ConcurrentResults.ResultIndex.load();
-		ConcurrentResults.Result.SetNum(ResultNum, /*bAllowShrinking*/ true);
+		ConcurrentResults.Result.SetNum(ResultNum, EAllowShrinking::Yes);
 		return ConcurrentResults.Result;
 	}
 private:

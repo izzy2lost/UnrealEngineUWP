@@ -209,7 +209,7 @@ const FCollisionQueryParams::IgnoreComponentsArrayType& FCollisionQueryParams::G
 				}
 				D += 1;
 			}
-			IgnoreComponents.SetNum(U - IgnoreComponents.GetData() + 1, /*bAllowShrinking=*/ false);
+			IgnoreComponents.SetNum(U - IgnoreComponents.GetData() + 1, EAllowShrinking::No);
 		}
 	}
 
@@ -223,7 +223,7 @@ void FCollisionQueryParams::SetNumIgnoredComponents(int32 NewNum)
 		// We can only make it smaller (and uniqueness does not change).
 		if (NewNum < IgnoreComponents.Num())
 		{
-			IgnoreComponents.SetNum(NewNum, /*bAllowShrinking=*/ false);
+			IgnoreComponents.SetNum(NewNum, EAllowShrinking::No);
 		}
 	}
 	else

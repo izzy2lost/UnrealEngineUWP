@@ -110,7 +110,7 @@ bool FStreamingAnimationData::UpdateStreamingStatus()
 			FreeLoadedChunk(LoadedChunk);
 			
 			FScopeLock LoadedChunksLock(&LoadedChunksCritcalSection);
-			LoadedChunks.RemoveAtSwap(LoadedChunkIndex, 1, false);
+			LoadedChunks.RemoveAtSwap(LoadedChunkIndex, 1, EAllowShrinking::No);
 		}
 	}
 
@@ -189,7 +189,7 @@ void FStreamingAnimationData::BeginPendingRequests(const TArray<uint32>& Indices
 					FreeLoadedChunk(LoadedChunks[ChunkIndex]);
 
 					FScopeLock LoadedChunksLock(&LoadedChunksCritcalSection);
-					LoadedChunks.RemoveAtSwap(ChunkIndex,1,false);
+					LoadedChunks.RemoveAtSwap(ChunkIndex,1,EAllowShrinking::No);
 					break;
 				}
 			}

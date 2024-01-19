@@ -1781,8 +1781,7 @@ bool UInterchangeStaticMeshFactory::ImportSockets(const FImportAssetObjectParams
 			FString NodeDisplayName = SceneNode->GetDisplayLabel();
 			if (NodeDisplayName.StartsWith(TEXT("SOCKET_")))
 			{
-				constexpr bool bAllowShrinking = false;
-				NodeDisplayName.RightChopInline(sizeof("SOCKET_") - 1, bAllowShrinking);
+				NodeDisplayName.RightChopInline(sizeof("SOCKET_") - 1, EAllowShrinking::No);
 			}
 			FName SocketName = FName(NodeDisplayName);
 			ImportedSocketNames.Add(SocketName);

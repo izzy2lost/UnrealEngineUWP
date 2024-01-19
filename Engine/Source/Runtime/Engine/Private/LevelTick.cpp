@@ -1806,14 +1806,14 @@ void UWorld::CleanupActors()
 				}
 				else if (NumActorsToRemove > 0)
 				{
-					Level->Actors.RemoveAt(ActorIndex+1, NumActorsToRemove, false);
+					Level->Actors.RemoveAt(ActorIndex+1, NumActorsToRemove, EAllowShrinking::No);
 					NumActorsToRemove = 0;
 				}
 			}
 			if (NumActorsToRemove > 0)
 			{
 				// If our FirstDynamicIndex (and any immediately following it) were null it won't get caught in the loop, so do a cleanup pass here
-				Level->Actors.RemoveAt(FirstDynamicIndex, NumActorsToRemove, false);
+				Level->Actors.RemoveAt(FirstDynamicIndex, NumActorsToRemove, EAllowShrinking::No);
 			}
 		}
 	}

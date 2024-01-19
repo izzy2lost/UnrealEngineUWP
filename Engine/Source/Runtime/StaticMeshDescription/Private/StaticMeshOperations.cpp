@@ -482,8 +482,8 @@ void FStaticMeshOperations::ConvertHardEdgesToSmoothGroup(const FMeshDescription
 		while (ConnectedPolygons.Num() > 0)
 		{
 			check(LastConnectedPolygons.Num() == ConnectedPolygons.Num());
-			FPolygonID LastPolygonID = LastConnectedPolygons.Pop(false);
-			FPolygonID CurrentPolygonID = ConnectedPolygons.Pop(false);
+			FPolygonID LastPolygonID = LastConnectedPolygons.Pop(EAllowShrinking::No);
+			FPolygonID CurrentPolygonID = ConnectedPolygons.Pop(EAllowShrinking::No);
 			if (ConsumedPolygons[CurrentPolygonID.GetValue()])
 			{
 				continue;
@@ -598,7 +598,7 @@ void FStaticMeshOperations::ConvertSmoothGroupToHardEdges(const TArray<uint32>& 
 		ConnectedPolygons.Add(PolygonID);
 		while (ConnectedPolygons.Num() > 0)
 		{
-			FPolygonID CurrentPolygonID = ConnectedPolygons.Pop(false);
+			FPolygonID CurrentPolygonID = ConnectedPolygons.Pop(EAllowShrinking::No);
 			int32 CurrentPolygonIDValue = CurrentPolygonID.GetValue();
 			check(FaceSmoothingMasks.IsValidIndex(CurrentPolygonIDValue));
 			const uint32 ReferenceSmoothGroup = FaceSmoothingMasks[CurrentPolygonIDValue];
@@ -1542,7 +1542,7 @@ void FStaticMeshOperations::ComputeTangentsAndNormals(FMeshDescription& MeshDesc
 					PolygonQueue.Add(Kvp.Key); //Use a queue to avoid recursive function
 					while (PolygonQueue.Num() > 0)
 					{
-						FTriangleID CurrentPolygonID = PolygonQueue.Pop(false);
+						FTriangleID CurrentPolygonID = PolygonQueue.Pop(EAllowShrinking::No);
 						FVertexInfo& CurrentVertexInfo = VertexInfoMap.FindOrAdd(CurrentPolygonID);
 						CurrentGroup.AddUnique(CurrentVertexInfo.TriangleID);
 						ConsumedTriangle.AddUnique(CurrentVertexInfo.TriangleID);

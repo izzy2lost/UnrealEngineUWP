@@ -405,7 +405,7 @@ ITable<FPackagesTableRow>* FLoadTimeProfilerProvider::CreatePackageDetailsTable(
 			}
 			else
 			{
-				Stack.Pop(false);
+				Stack.Pop(EAllowShrinking::No);
 			}
 			return EEventEnumerate::Continue;
 		});
@@ -492,7 +492,7 @@ ITable<FExportsTableRow>* FLoadTimeProfilerProvider::CreateExportDetailsTable(do
 			}
 			else
 			{
-				Stack.Pop(false);
+				Stack.Pop(EAllowShrinking::No);
 			}
 			return EEventEnumerate::Continue;
 		});

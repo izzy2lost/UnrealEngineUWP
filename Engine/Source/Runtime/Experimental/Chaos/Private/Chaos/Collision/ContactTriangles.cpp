@@ -16,8 +16,8 @@ namespace Chaos
 
 	void FContactTriangleCollector::SetNumContacts(const int32 NumContacts)
 	{
-		TriangleContactPoints.SetNum(NumContacts, false);
-		TriangleContactPointDatas.SetNum(NumContacts, false);
+		TriangleContactPoints.SetNum(NumContacts, EAllowShrinking::No);
+		TriangleContactPointDatas.SetNum(NumContacts, EAllowShrinking::No);
 	}
 
 	void FContactTriangleCollector::DisableContact(const int32 ContactIndex)
@@ -71,8 +71,8 @@ namespace Chaos
 		}
 
 		// Clip the array to the enabled set
-		TriangleContactPointDatas.SetNum(DestContactIndex, false);
-		TriangleContactPoints.SetNum(DestContactIndex, false);
+		TriangleContactPointDatas.SetNum(DestContactIndex, EAllowShrinking::No);
+		TriangleContactPoints.SetNum(DestContactIndex, EAllowShrinking::No);
 		NumDisabledTriangleContactPoints = 0;
 	}
 

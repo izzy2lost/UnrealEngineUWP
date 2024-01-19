@@ -177,7 +177,7 @@ void USplineComponent::Serialize(FArchive& Ar)
 
 		if (bHasExtraEndpoint)
 		{
-			SplineCurves.Position.Points.RemoveAt(NumPoints - 1, 1, false);
+			SplineCurves.Position.Points.RemoveAt(NumPoints - 1, 1, EAllowShrinking::No);
 			NumPoints--;
 		}
 
@@ -824,9 +824,9 @@ void USplineComponent::RemoveSplinePoint(int32 Index, bool bUpdateSpline)
 
 	if (Index >= 0 && Index < NumPoints)
 	{
-		SplineCurves.Position.Points.RemoveAt(Index, 1, false);
-		SplineCurves.Rotation.Points.RemoveAt(Index, 1, false);
-		SplineCurves.Scale.Points.RemoveAt(Index, 1, false);
+		SplineCurves.Position.Points.RemoveAt(Index, 1, EAllowShrinking::No);
+		SplineCurves.Rotation.Points.RemoveAt(Index, 1, EAllowShrinking::No);
+		SplineCurves.Scale.Points.RemoveAt(Index, 1, EAllowShrinking::No);
 		USplineMetadata* Metadata = GetSplinePointsMetadata();
 		if (Metadata)
 		{
@@ -1820,8 +1820,8 @@ bool USplineComponent::ConvertSplineToPolyline_InDistanceRange(ESplineCoordinate
 		{
 			if (bHasAdded && ensure(OutPoints.Num()))
 			{
-				OutPoints.RemoveAt(OutPoints.Num() - 1, 1, false);
-				OutDistancesAlongSpline.RemoveAt(OutDistancesAlongSpline.Num() - 1, 1, false);
+				OutPoints.RemoveAt(OutPoints.Num() - 1, 1, EAllowShrinking::No);
+				OutDistancesAlongSpline.RemoveAt(OutDistancesAlongSpline.Num() - 1, 1, EAllowShrinking::No);
 			}
 			float EndLoc = LoopIdx == EndLoopIdx ? WrappedEnd : SplineLength;
 

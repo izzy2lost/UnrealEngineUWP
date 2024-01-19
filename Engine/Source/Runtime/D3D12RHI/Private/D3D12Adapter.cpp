@@ -1648,7 +1648,7 @@ void FD3D12Adapter::EndFrame()
 	}
 	if (ReleaseCount > 0)
 	{
-		ReleasedAllocationData.RemoveAt(0, ReleaseCount, false);
+		ReleasedAllocationData.RemoveAt(0, ReleaseCount, EAllowShrinking::No);
 	}
 #endif
 }

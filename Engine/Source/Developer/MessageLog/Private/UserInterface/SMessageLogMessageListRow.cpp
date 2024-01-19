@@ -290,11 +290,11 @@ void SMessageLogMessageListRow::CreateMessage(const TSharedRef<SHorizontalBox>& 
 				// Remove the hyperlink from the message, since we're splitting it into its own string.
 				if (TextToken->IsSourceLinkOnLeft())
 				{
-					MessageString.RightChopInline(FileAndLineRegexMatcher.GetMatchEnding(), false);
+					MessageString.RightChopInline(FileAndLineRegexMatcher.GetMatchEnding(), EAllowShrinking::No);
 				}
 				else
 				{
-					MessageString.LeftChopInline(FileAndLineRegexMatcher.GetCaptureGroup(0).Len(), false);
+					MessageString.LeftChopInline(FileAndLineRegexMatcher.GetCaptureGroup(0).Len(), EAllowShrinking::No);
 				}
 
 				SourceLink = SNew(SHyperlink)

@@ -1645,7 +1645,7 @@ bool UE::Geometry::MakeSelectAllConnectedSelection(
 			TArray<int32> NbrCornerIDs;
 			while (Queue.Num() > 0)
 			{
-				FGeoSelectionID CurCornerSelectionID = FGeoSelectionID(Queue.Pop(false));
+				FGeoSelectionID CurCornerSelectionID = FGeoSelectionID(Queue.Pop(EAllowShrinking::No));
 				const FGroupTopology::FCorner& Corner = GroupTopology->Corners[CurCornerSelectionID.TopologyID];
 				NbrCornerIDs.Reset();
 				GroupTopology->FindCornerNbrCorners(CurCornerSelectionID.TopologyID, NbrCornerIDs);
@@ -1667,7 +1667,7 @@ bool UE::Geometry::MakeSelectAllConnectedSelection(
 			TArray<int32> NbrEdgeIDs;
 			while (Queue.Num() > 0)
 			{
-				FGeoSelectionID CurEdgeSelectionID = FGeoSelectionID(Queue.Pop(false));
+				FGeoSelectionID CurEdgeSelectionID = FGeoSelectionID(Queue.Pop(EAllowShrinking::No));
 				const FGroupTopology::FGroupEdge& Edge = GroupTopology->Edges[CurEdgeSelectionID.TopologyID];
 				NbrEdgeIDs.Reset();
 				GroupTopology->FindEdgeNbrEdges(CurEdgeSelectionID.TopologyID, NbrEdgeIDs);
@@ -1690,7 +1690,7 @@ bool UE::Geometry::MakeSelectAllConnectedSelection(
 			TArray<int32> NbrGroupIDs;
 			while (Queue.Num() > 0)
 			{
-				FGeoSelectionID CurGroupSelectionID = FGeoSelectionID(Queue.Pop(false));
+				FGeoSelectionID CurGroupSelectionID = FGeoSelectionID(Queue.Pop(EAllowShrinking::No));
 				NbrGroupIDs.Reset();
 				for ( int32 NbrGroupID : GroupTopology->GetGroupNbrGroups(CurGroupSelectionID.TopologyID) )
 				{

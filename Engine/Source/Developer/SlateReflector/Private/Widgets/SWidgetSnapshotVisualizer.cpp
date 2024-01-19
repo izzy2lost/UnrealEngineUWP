@@ -514,7 +514,7 @@ TSharedRef<FJsonObject> FWidgetSnapshotData::SaveSnapshotAsJson() const
 					TextureDataJsonObject->SetNumberField(TEXT("UncompressedSize"), UncompressedDataSizeBytes);
 
 					// FCompression::CompressMemory updates CompressedDataSize with the actual size - we may have to shrink our buffer count now
-					CompressedDataBuffer.SetNum(CompressedDataSize, false);
+					CompressedDataBuffer.SetNum(CompressedDataSize, EAllowShrinking::No);
 
 					const FString EncodedTextureData = FBase64::Encode(CompressedDataBuffer);
 					TextureDataJsonObject->SetStringField(TEXT("TextureData"), EncodedTextureData);

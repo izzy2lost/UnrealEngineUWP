@@ -324,7 +324,7 @@ public:
 	private:
 		void Pop(FPoseCandidate& OutItem)
 		{
-			PoseCandidateHeap.HeapPop(OutItem, false);
+			PoseCandidateHeap.HeapPop(OutItem, EAllowShrinking::No);
 			OutItem.PoseCandidateFlags = PoseIdxToFlags.FindAndRemoveChecked(OutItem.PoseIdx);
 		}
 

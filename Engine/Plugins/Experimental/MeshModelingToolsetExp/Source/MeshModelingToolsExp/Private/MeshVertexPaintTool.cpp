@@ -712,12 +712,12 @@ void UMeshVertexPaintTool::UpdateROI(const FSculptBrushStamp& BrushStamp)
 		FIndex3i Tri = Mesh->GetTriangle(tid);
 		TempVertexSet.Add(Tri.A);  TempVertexSet.Add(Tri.B);  TempVertexSet.Add(Tri.C);
 	}
-	VertexROI.SetNum(0, false);
+	VertexROI.SetNum(0, EAllowShrinking::No);
 	BufferUtil::AppendElements(VertexROI, TempVertexSet);
 
 	// construct ROI triangle and group buffers
 	ROITriangleBuffer.Reserve(TriangleROI.Num());
-	ROITriangleBuffer.SetNum(0, false);
+	ROITriangleBuffer.SetNum(0, EAllowShrinking::No);
 	for (int32 tid : TriangleROI)
 	{
 		ROITriangleBuffer.Add(tid);
@@ -1027,7 +1027,7 @@ bool UMeshVertexPaintTool::HaveVisibilityFilter() const
 
 void UMeshVertexPaintTool::ApplyVisibilityFilter(TSet<int32>& Triangles, TArray<int32>& ROIBuffer, TArray<int32>& OutputBuffer)
 {
-	ROIBuffer.SetNum(0, false);
+	ROIBuffer.SetNum(0, EAllowShrinking::No);
 	ROIBuffer.Reserve(Triangles.Num());
 	for (int32 tid : Triangles)
 	{
@@ -1060,7 +1060,7 @@ void UMeshVertexPaintTool::ApplyVisibilityFilter(const TArray<int32>& Triangles,
 
 	int32 NumTriangles = Triangles.Num();
 
-	VisibilityFilterBuffer.SetNum(NumTriangles, false);
+	VisibilityFilterBuffer.SetNum(NumTriangles, EAllowShrinking::No);
 	ParallelFor(NumTriangles, [&](int32 idx)
 	{
 		VisibilityFilterBuffer[idx] = true;

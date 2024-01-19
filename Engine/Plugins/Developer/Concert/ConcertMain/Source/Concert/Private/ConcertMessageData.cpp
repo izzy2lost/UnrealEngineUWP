@@ -236,7 +236,7 @@ bool TryCompressImpl(const UScriptStruct* InEventType, const void* InEventData, 
 		SCOPED_CONCERT_TRACE(SerializePayload_CompressMemory);
 		if (FCompression::CompressMemory(NamedCompressionAlgo, OutCompressedData.GetData(), CompressedSize, InBytes.GetData(), InBytes.Num(), CompressFlags))
 		{
-			OutCompressedData.SetNum(CompressedSize, false);
+			OutCompressedData.SetNum(CompressedSize, EAllowShrinking::No);
 			InOutPayload.PayloadBytes.Bytes = MoveTemp(OutCompressedData);
 			InOutPayload.PayloadCompressionDetails = UE::Concert::Compression::GetCompressionFromNamedType(NamedCompressionAlgo, CompressFlags);
 		}

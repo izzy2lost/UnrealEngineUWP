@@ -2081,7 +2081,7 @@ void UNetConnection::ReinjectDelayedPackets()
 		}
 
 		// Delete processed packets
-		DelayedIncomingPackets.RemoveAt(0, NbReinjected, false);
+		DelayedIncomingPackets.RemoveAt(0, NbReinjected, EAllowShrinking::No);
 	}
 }
 #endif //#if DO_ENABLE_NET_TEST
@@ -4325,7 +4325,7 @@ void UNetConnection::Tick(float DeltaSeconds)
 				}
 			}
 
-			Delayed.RemoveAt(0, NbPacketsSent, false);
+			Delayed.RemoveAt(0, NbPacketsSent, EAllowShrinking::No);
 		}
 	}
 #endif
@@ -4555,7 +4555,7 @@ void UNetConnection::Tick(float DeltaSeconds)
 				// Remove the actor channel from the array
 				if ( bRemoveChannel )
 				{
-					ActorChannelArray.RemoveAt( ActorChannelIdx, 1, false );
+					ActorChannelArray.RemoveAt( ActorChannelIdx, 1, EAllowShrinking::No);
 					--ActorChannelIdx;
 				}
 			}

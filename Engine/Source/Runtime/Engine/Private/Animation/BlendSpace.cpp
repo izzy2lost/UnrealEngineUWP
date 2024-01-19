@@ -1182,7 +1182,7 @@ bool UBlendSpace::GetSamplesFromBlendInput(
 					}
 
 					// as for time or previous time will be the master one(Index1)
-					OutSampleDataList.RemoveAtSwap(Index2, 1, false);
+					OutSampleDataList.RemoveAtSwap(Index2, 1, EAllowShrinking::No);
 					--Index2;
 				}
 			}
@@ -1199,7 +1199,7 @@ bool UBlendSpace::GetSamplesFromBlendInput(
 		if (OutSampleDataList[I].TotalWeight < ZERO_ANIMWEIGHT_THRESH)
 		{
 			// cut anything in front of this 
-			OutSampleDataList.RemoveAt(I, TotalSample - I, false); // we won't shrink here, that might screw up alloc optimization at a higher level, if not this is temp anyway
+			OutSampleDataList.RemoveAt(I, TotalSample - I, EAllowShrinking::No); // we won't shrink here, that might screw up alloc optimization at a higher level, if not this is temp anyway
 			break;
 		}
 

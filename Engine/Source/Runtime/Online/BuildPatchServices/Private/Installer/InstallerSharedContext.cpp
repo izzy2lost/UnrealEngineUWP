@@ -178,7 +178,7 @@ namespace BuildPatchServices
 		IBuildInstallerThread* Thread = nullptr;
 		{
 			FScopeLock Lock(&ThreadFreeListCS);
-			Thread = ThreadFreeList.IsEmpty() ? nullptr : ThreadFreeList.Pop(false);
+			Thread = ThreadFreeList.IsEmpty() ? nullptr : ThreadFreeList.Pop(EAllowShrinking::No);
 		}
 
 		if (!Thread)

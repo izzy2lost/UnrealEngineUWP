@@ -5484,7 +5484,7 @@ EEventLoadNodeExecutionResult FAsyncPackage2::ProcessLinkerLoadPackageSummary(FA
 			TStringBuilder<256> FullPath;
 			while (!PathComponents.IsEmpty())
 			{
-				NameLen = LinkerLoadState->Linker->ImportMap[PathComponents.Pop(false)].ObjectName.ToString(NameStr);
+				NameLen = LinkerLoadState->Linker->ImportMap[PathComponents.Pop(EAllowShrinking::No)].ObjectName.ToString(NameStr);
 				FPathViews::Append(FullPath, FStringView(NameStr, NameLen));
 				LinkerLoadState->LinkerLoadHeaderData.ImportMap[ImportIndex] = FPackageObjectIndex::FromScriptPath(FullPath);
 			}
@@ -5510,12 +5510,12 @@ EEventLoadNodeExecutionResult FAsyncPackage2::ProcessLinkerLoadPackageSummary(FA
 			{
 				if (!bImportHasPackageName)
 				{
-					PathComponents.Pop(false);
+					PathComponents.Pop(EAllowShrinking::No);
 				}
 				TStringBuilder<256> PackageRelativeExportPath;
 				while (!PathComponents.IsEmpty())
 				{
-					NameLen = LinkerLoadState->Linker->ImportMap[PathComponents.Pop(false)].ObjectName.ToString(NameStr);
+					NameLen = LinkerLoadState->Linker->ImportMap[PathComponents.Pop(EAllowShrinking::No)].ObjectName.ToString(NameStr);
 					for (uint32 I = 0; I < NameLen; ++I)
 					{
 						NameStr[I] = TChar<TCHAR>::ToLower(NameStr[I]);
@@ -5553,7 +5553,7 @@ EEventLoadNodeExecutionResult FAsyncPackage2::ProcessLinkerLoadPackageSummary(FA
 			while (!FullPath.IsEmpty())
 			{
 				TCHAR NameStr[FName::StringBufferSize];
-				uint32 NameLen = LinkerLoadState->Linker->ExportMap[FullPath.Pop(false)].ObjectName.ToString(NameStr);
+				uint32 NameLen = LinkerLoadState->Linker->ExportMap[FullPath.Pop(EAllowShrinking::No)].ObjectName.ToString(NameStr);
 				for (uint32 I = 0; I < NameLen; ++I)
 				{
 					NameStr[I] = TChar<TCHAR>::ToLower(NameStr[I]);

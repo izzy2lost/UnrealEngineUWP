@@ -2263,7 +2263,7 @@ void FAnalysisBridge::DispatchLeaveScope()
 		return;
 	}
 
-	int64 ScopeValue = int64(ThreadInfo->ScopeRoutes.Pop(false));
+	int64 ScopeValue = int64(ThreadInfo->ScopeRoutes.Pop(EAllowShrinking::No));
 	if (ScopeValue < 0)
 	{
 		// enter/leave pair without an event inbetween.
@@ -4099,7 +4099,7 @@ int32 FProtocol5Stage::DispatchEvents(
 			EventDescHeap.Add(Next);
 		}
 
-		EventDescHeap.HeapPopDiscard(FSerialDistancePredicate{NextSerial}, false);
+		EventDescHeap.HeapPopDiscard(FSerialDistancePredicate{NextSerial}, EAllowShrinking::No);
 	};
 
 	int32 NumDispatchedEvents = 0;
@@ -4568,7 +4568,7 @@ void FProtocol5Stage::ForEachSerialGap(
 			auto& Out = HeapCopy.Add_GetRef({Stream.ThreadId, Stream.TransportIndex});
 			Out.EventDescs = EventDesc;
 		}
-		HeapCopy.HeapPopDiscard(FSerialDistancePredicate{NextSerial}, false);
+		HeapCopy.HeapPopDiscard(FSerialDistancePredicate{NextSerial}, EAllowShrinking::No);
 	}
 	while (!HeapCopy.IsEmpty());
 }

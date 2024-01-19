@@ -1106,7 +1106,7 @@ void FGPUSkinCache::DispatchUpdateSkinTangents(FRHICommandList& RHICmdList, FGPU
 				{
 					StagingBuffers[Index].Release();
 				}
-				StagingBuffers.SetNum(GNumTangentIntermediateBuffers, false);
+				StagingBuffers.SetNum(GNumTangentIntermediateBuffers, EAllowShrinking::No);
 			}
 
 			// no need to clear the staging buffer because we create it cleared and clear it after each usage in the per vertex pass
@@ -2178,7 +2178,7 @@ void FGPUSkinCache::ReleaseSkinCacheEntry(FGPUSkinCacheEntry* SkinCacheEntry)
 		SkinCacheEntry->PositionAllocation = nullptr;
 	}
 
-	SkinCache->Entries.RemoveSingleSwap(SkinCacheEntry, false);
+	SkinCache->Entries.RemoveSingleSwap(SkinCacheEntry, EAllowShrinking::No);
 	delete SkinCacheEntry;
 }
 
@@ -2203,7 +2203,7 @@ void FGPUSkinCache::InvalidateAllEntries()
 	{
 		StagingBuffers[Index].Release();
 	}
-	StagingBuffers.SetNum(0, false);
+	StagingBuffers.SetNum(0, EAllowShrinking::No);
 	SET_MEMORY_STAT(STAT_GPUSkinCache_TangentsIntermediateMemUsed, 0);
 }
 

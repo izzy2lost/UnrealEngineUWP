@@ -359,7 +359,7 @@ private:
 				check(EventInclusiveTime >= 0.0);
 				double EventExclusiveTime = StackEntry.ExclusiveTime;
 				check(EventExclusiveTime >= 0.0 && EventExclusiveTime <= EventInclusiveTime);
-				Stack.Pop(false);
+				Stack.Pop(EAllowShrinking::No);
 				double EventNonRecursiveInclusiveTime = EventInclusiveTime;
 				for (const FStackEntry& AncestorStackEntry : Stack)
 				{
@@ -411,7 +411,7 @@ private:
 				check(EventInclusiveTime >= 0.0);
 				double EventExclusiveTime = StackEntry.ExclusiveTime;
 				check(EventExclusiveTime >= 0.0 && EventExclusiveTime <= EventInclusiveTime);
-				Stack.Pop(false);
+				Stack.Pop(EAllowShrinking::No);
 				double EventNonRecursiveInclusiveTime = EventInclusiveTime;
 				for (const FStackEntry& AncestorStackEntry : Stack)
 				{

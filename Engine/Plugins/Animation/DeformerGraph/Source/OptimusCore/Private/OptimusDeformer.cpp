@@ -1499,8 +1499,7 @@ TArray<UOptimusNode*> UOptimusDeformer::GetAllNodesOfClass(UClass* InNodeClass) 
 	
 	while(!GraphsToSearch.IsEmpty())
 	{
-		constexpr bool bAllowShrinking = false;
-		const UOptimusNodeGraph* CurrentGraph = GraphsToSearch.Pop(bAllowShrinking);
+		const UOptimusNodeGraph* CurrentGraph = GraphsToSearch.Pop(EAllowShrinking::No);
 
 		for (UOptimusNode* Node: CurrentGraph->GetAllNodes())
 		{

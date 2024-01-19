@@ -1478,7 +1478,7 @@ namespace
 					B[SubIdx].setZero();
 				}
 				DiagonalWts.Reset(NumToSolve);
-				DiagonalWts.SetNumZeroed(NumToSolve, false);
+				DiagonalWts.SetNumZeroed(NumToSolve, EAllowShrinking::No);
 
 				// Build the sparse matrix and rhs for the component
 				for (const FLink& Link : Links)
@@ -3235,8 +3235,8 @@ bool FDynamicMeshCollection::SplitIslands(FDynamicMesh3& Source, TArray<FDynamic
 		{
 			if (!KeepMeshes[Idx])
 			{
-				SeparatedMeshes.RemoveAtSwap(Idx, 1, false);
-				KeepMeshes.RemoveAtSwap(Idx, 1, false);
+				SeparatedMeshes.RemoveAtSwap(Idx, 1, EAllowShrinking::No);
+				KeepMeshes.RemoveAtSwap(Idx, 1, EAllowShrinking::No);
 				Idx--;
 			}
 		}

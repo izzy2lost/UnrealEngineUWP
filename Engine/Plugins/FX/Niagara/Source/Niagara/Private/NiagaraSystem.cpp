@@ -1822,7 +1822,7 @@ void UNiagaraSystem::ComputeEmittersExecutionOrder()
 			continue;
 		}
 
-		EmitterDependencies.SetNum(0, false);
+		EmitterDependencies.SetNum(0, EAllowShrinking::No);
 
 		if (EmitterData->SimTarget == ENiagaraSimTarget::GPUComputeSim && EmitterData->GetGPUComputeScript())
 		{

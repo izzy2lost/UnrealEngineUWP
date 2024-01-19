@@ -203,7 +203,7 @@ namespace
 		{
 			if (IDs.Num())
 			{
-				IDOut = IDs.Pop(false);
+				IDOut = IDs.Pop(EAllowShrinking::No);
 				IsEnqueued[IDOut] = false;
 				return true;
 			}

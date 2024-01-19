@@ -679,7 +679,7 @@ struct FNamedValueArrayUtils
 				// Elements match so check filter flags to see if it should be removed from InOutValueArray0
 				if(InPredicate(*Element0, *Element1))
 				{
-					InOutValueArray0.Elements.RemoveAt(ElementIndex0, 1, false);
+					InOutValueArray0.Elements.RemoveAt(ElementIndex0, 1, EAllowShrinking::No);
 					++ElementIndex1;
 				}
 				else

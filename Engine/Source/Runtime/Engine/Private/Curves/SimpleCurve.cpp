@@ -584,7 +584,7 @@ void FSimpleCurve::RemoveRedundantKeysInternal(float Tolerance, int32 InStartKee
 				{
 					break;
 				}
-				KeepIndices.Pop(false /* bAllowShrink */);
+				KeepIndices.Pop(EAllowShrinking::No);
 				check(KeepIndices.Num() >= 1); // ActualStartKeepKey is in the list
 				bRemovedKeys = true;
 			}

@@ -3347,14 +3347,14 @@ bool UGameplayStatics::GrabOption( FString& Options, FString& Result )
 		const int32 QMIdx = Result.Find(QuestionMark, ESearchCase::CaseSensitive);
 		if (QMIdx != INDEX_NONE)
 		{
-			Result.LeftInline(QMIdx, false);
+			Result.LeftInline(QMIdx, EAllowShrinking::No);
 		}
 
 		// Update options.
-		Options.MidInline(1, MAX_int32, false);
+		Options.MidInline(1, MAX_int32, EAllowShrinking::No);
 		if (Options.Contains(QuestionMark, ESearchCase::CaseSensitive))
 		{
-			Options.MidInline(Options.Find(QuestionMark, ESearchCase::CaseSensitive), MAX_int32, false);
+			Options.MidInline(Options.Find(QuestionMark, ESearchCase::CaseSensitive), MAX_int32, EAllowShrinking::No);
 		}
 		else
 		{

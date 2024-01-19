@@ -1281,7 +1281,7 @@ public:
 			
 			// Ensure enough space for the new cells
 			int32 NewMinSize = FMath::Max(StartIndex + CellBlockSize, SceneCulling.CellHeaders.Num());
-			SceneCulling.CellHeaders.SetNumUninitialized(NewMinSize, false);
+			SceneCulling.CellHeaders.SetNumUninitialized(NewMinSize, EAllowShrinking::No);
 			// TODO: store the validity state in bit mask instead of with each item?
 			for (int32 Index = 0; Index < CellBlockSize; ++Index)
 			{
@@ -2006,7 +2006,7 @@ public:
 			// Maintain the total accross all entries
 			SceneCulling.TotalCellIndexCacheItems -= CellIndexCacheEntry.Items.Num();
 			// Resize the cache entry to fit new IDs or trim excess ones.
-			CellIndexCacheEntry.Items.SetNumZeroed(NumInstances, false);
+			CellIndexCacheEntry.Items.SetNumZeroed(NumInstances, EAllowShrinking::No);
 			SceneCulling.TotalCellIndexCacheItems += CellIndexCacheEntry.Items.Num();
 			if (InstanceDataFlags.bHasPerInstanceLocalBounds)
 			{
@@ -2194,7 +2194,7 @@ public:
 
 		BUILDER_LOG_SCOPE("ProcessPostSceneUpdate: %d/%d", ScenePostUpdateData.UpdatedPrimitiveIds.Num(), ScenePostUpdateData.AddedPrimitiveIds.Num());
 
-		SceneCulling.PrimitiveStates.SetNum(SceneCulling.Scene.GetMaxPersistentPrimitiveIndex(), false);
+		SceneCulling.PrimitiveStates.SetNum(SceneCulling.Scene.GetMaxPersistentPrimitiveIndex(), EAllowShrinking::No);
 
 		{
 			SCOPED_NAMED_EVENT(SceneCulling_Post_UpdateInstances, FColor::Emerald);
@@ -2603,12 +2603,12 @@ uint32 FSceneCulling::AllocateChunk()
 {
 	if (!FreeChunks.IsEmpty())
 	{
-		return FreeChunks.Pop(false);
+		return FreeChunks.Pop(EAllowShrinking::No);
 	}
 
 	check(!bPackedCellDataLocked);
 	uint32 NewChunkId = PackedCellData.Num() / uint32(INSTANCE_HIERARCHY_MAX_CHUNK_SIZE);
-	PackedCellData.SetNumUninitialized(PackedCellData.Num() + int32(INSTANCE_HIERARCHY_MAX_CHUNK_SIZE), false);
+	PackedCellData.SetNumUninitialized(PackedCellData.Num() + int32(INSTANCE_HIERARCHY_MAX_CHUNK_SIZE), EAllowShrinking::No);
 	return NewChunkId;
 }
 

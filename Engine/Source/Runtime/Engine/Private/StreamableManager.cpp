@@ -1083,7 +1083,7 @@ struct FStreamable
 		// Cancel active handles, this list includes the loading handles
 		while (ActiveHandles.Num() > 0)
 		{
-			FStreamableHandle* ActiveHandle = ActiveHandles.Pop(/* shrink */ false);
+			FStreamableHandle* ActiveHandle = ActiveHandles.Pop(EAllowShrinking::No);
 			if (!ActiveHandle->bCanceled)
 			{
 				// Full cancel isn't safe any more
@@ -1125,7 +1125,7 @@ void RemoveActiveHandle(FStreamable& Streamable, FStreamableHandle& Handle)
 	{
 		if (ActiveHandles[Idx] == &Handle)
 		{
-			ActiveHandles.RemoveAtSwap(Idx, 1, /* shrink */ false);
+			ActiveHandles.RemoveAtSwap(Idx, 1, EAllowShrinking::No);
 		}
 	}
 }
@@ -1350,7 +1350,7 @@ FStreamable* FStreamableManager::StreamInternal(const FSoftObjectPath& InTargetN
 			int32 FirstDot = Package.Find(TEXT("."), ESearchCase::CaseSensitive);
 			if (FirstDot != INDEX_NONE)
 			{
-				Package.LeftInline(FirstDot,false);
+				Package.LeftInline(FirstDot,EAllowShrinking::No);
 			}
 
 			FPackagePath PackagePath;
@@ -1774,7 +1774,7 @@ void FStreamableManager::RemoveReferencedAsset(const FSoftObjectPath& Target, TS
 	// This should always be in the active handles list
 	if (ensureMsgf(Existing, TEXT("Failed to find existing streamable for %s"), *Target.ToString()))
 	{
-		ensureMsgf(Existing->ActiveHandles.RemoveSwap(&Handle.Get(), /* shrink */ false) > 0, TEXT("Failed to remove active handle for %s"), *Target.ToString());
+		ensureMsgf(Existing->ActiveHandles.RemoveSwap(&Handle.Get(), EAllowShrinking::No) > 0, TEXT("Failed to remove active handle for %s"), *Target.ToString());
 
 		// Try removing from loading list if it's still there, this won't call the callback as it's being called from cancel
 		// This may remove more than one copy if streamables were merged

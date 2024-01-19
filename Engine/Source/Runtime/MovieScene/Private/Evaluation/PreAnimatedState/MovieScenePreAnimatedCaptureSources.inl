@@ -51,7 +51,7 @@ void TPreAnimatedCaptureSources<KeyType>::StopTrackingCaptureSource(const KeyTyp
 			if (MetaData.Entry.ValueHandle.TypeID == InStorageID)
 			{
 				Owner->RemoveMetaData(MetaData);
-				Array->RemoveAt(Index, 1, false);
+				Array->RemoveAt(Index, 1, EAllowShrinking::No);
 			}
 		}
 
@@ -104,7 +104,7 @@ void TPreAnimatedCaptureSources<KeyType>::GatherAndRemoveExpiredMetaData(const F
 			if (MetaData.RootInstanceHandle == InstanceHandle)
 			{
 				OutExpiredMetaData.Add(MetaData);
-				Array.RemoveAt(Index, 1, false);
+				Array.RemoveAt(Index, 1, EAllowShrinking::No);
 			}
 		}
 
@@ -127,7 +127,7 @@ void TPreAnimatedCaptureSources<KeyType>::GatherAndRemoveMetaDataForGroup(FPreAn
 			if (MetaData.Entry.GroupHandle == Group)
 			{
 				OutExpiredMetaData.Add(MetaData);
-				Array.RemoveAt(Index, 1, false);
+				Array.RemoveAt(Index, 1, EAllowShrinking::No);
 			}
 		}
 
@@ -151,7 +151,7 @@ void TPreAnimatedCaptureSources<KeyType>::GatherAndRemoveMetaDataForStorage(FPre
 					(!StorageIndex.IsValid() || MetaData.Entry.ValueHandle.StorageIndex == StorageIndex))
 			{
 				OutExpiredMetaData.Add(MetaData);
-				Array.RemoveAt(Index, 1, false);
+				Array.RemoveAt(Index, 1, EAllowShrinking::No);
 			}
 		}
 
@@ -174,7 +174,7 @@ void TPreAnimatedCaptureSources<KeyType>::GatherAndRemoveMetaDataForRootInstance
 			if (MetaData.RootInstanceHandle == InstanceHandle)
 			{
 				OutExpiredMetaData.Add(MetaData);
-				Array.RemoveAt(Index, 1, false);
+				Array.RemoveAt(Index, 1, EAllowShrinking::No);
 			}
 		}
 

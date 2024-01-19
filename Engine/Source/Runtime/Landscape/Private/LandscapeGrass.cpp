@@ -1671,7 +1671,7 @@ void FLandscapeComponentGrassData::ConditionalDiscardDataOnLoad()
 		{
 			TMap<ULandscapeGrassType*, int32> PreviousOffsets(ObjectPtrDecay(MoveTemp(WeightOffsets)));
 			TArray<uint8> PreviousHeightWeightData(MoveTemp(HeightWeightData));
-			HeightWeightData.SetNumUninitialized(NumElements * sizeof(uint16) + NumElements * PreviousOffsets.Num() * sizeof(uint8), /*bAllowShrinking*/ true);
+			HeightWeightData.SetNumUninitialized(NumElements * sizeof(uint16) + NumElements * PreviousOffsets.Num() * sizeof(uint8), EAllowShrinking::Yes);
 
 			uint8* CopyDest = HeightWeightData.GetData();
 			uint8* CopySrc = PreviousHeightWeightData.GetData();

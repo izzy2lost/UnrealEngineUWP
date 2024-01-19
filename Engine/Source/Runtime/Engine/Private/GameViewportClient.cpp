@@ -2055,7 +2055,7 @@ bool ProcessScreenshotData(TArray<FColorType>& Bitmap, FIntVector Size, TChannel
 					FMemory::Memmove(Data + Row * NewWidth, Data + (Row + CaptureMinY) * OldWidth + CaptureMinX, NewWidth * sizeof(*Data));
 				}
 
-				Bitmap.RemoveAt(NewWidth * NewHeight, OldWidth * OldHeight - NewWidth * NewHeight, false);
+				Bitmap.RemoveAt(NewWidth * NewHeight, OldWidth * OldHeight - NewWidth * NewHeight, EAllowShrinking::No);
 				Size = FIntVector(NewWidth, NewHeight, 0);
 			}
 		}

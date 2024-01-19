@@ -278,7 +278,7 @@ bool FMeshRegionGraph::OptimizeBorders(int32 MaxRounds)
 			int32 CheckNbrIndex = GetSwapNbrRegionIndex(tid);
 			if (CheckNbrIndex == SwapToNbrIndex)
 			{
-				Regions[Index].Triangles.RemoveSwap(tid, false);
+				Regions[Index].Triangles.RemoveSwap(tid, EAllowShrinking::No);
 				Regions[SwapToNbrIndex].Triangles.Add(tid);
 				TriangleToRegionMap[tid] = SwapToNbrIndex;
 				bModified = true;

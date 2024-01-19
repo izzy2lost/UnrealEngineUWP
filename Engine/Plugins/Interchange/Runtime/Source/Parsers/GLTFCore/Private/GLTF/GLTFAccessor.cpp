@@ -386,7 +386,7 @@ namespace GLTF
 		{
 			TArray<uint32> ValueBuffer;
 
-			ValueBuffer.SetNumUninitialized(Count, false);
+			ValueBuffer.SetNumUninitialized(Count, EAllowShrinking::No);
 
 			FillUnsignedIntArray(BufferView, ByteOffset, ComponentType, Count, ValueBuffer.GetData());
 
@@ -829,7 +829,7 @@ namespace GLTF
 			TArray<uint32> IndicesData = AcquireUnsignedIntArray(Sparse.Count, Sparse.Indices.BufferView, Sparse.Indices.ByteOffset, Sparse.Indices.ComponentType);
 
 			TArray<float> ValueBuffer;
-			ValueBuffer.SetNumUninitialized(Sparse.Count, false);
+			ValueBuffer.SetNumUninitialized(Sparse.Count, EAllowShrinking::No);
 
 			if (FillFloatArray(bNormalized, Sparse.Values.BufferView, Sparse.Values.ByteOffset, ComponentType, ByteStride, Sparse.Count, ValueBuffer.GetData()))
 			{
@@ -853,7 +853,7 @@ namespace GLTF
 			TArray<uint32> IndicesData = AcquireUnsignedIntArray(Sparse.Count, Sparse.Indices.BufferView, Sparse.Indices.ByteOffset, Sparse.Indices.ComponentType);
 
 			TArray<uint32> ValueBuffer;
-			ValueBuffer.SetNumUninitialized(Sparse.Count, false);
+			ValueBuffer.SetNumUninitialized(Sparse.Count, EAllowShrinking::No);
 
 			if (FillUnsignedIntArray(Sparse.Values.BufferView, Sparse.Values.ByteOffset, ComponentType, Count, ValueBuffer.GetData()))
 			{
@@ -879,7 +879,7 @@ namespace GLTF
 			TArray<uint32> IndicesData = AcquireUnsignedIntArray(Sparse.Count, Sparse.Indices.BufferView, Sparse.Indices.ByteOffset, Sparse.Indices.ComponentType);
 
 			TArray<ItemType> ValueBuffer;
-			ValueBuffer.SetNumUninitialized(Sparse.Count, false);
+			ValueBuffer.SetNumUninitialized(Sparse.Count, EAllowShrinking::No);
 
 			CopyWithoutConversion<ItemType, ItemElementCount>(ByteStride, ComponentType, bNormalized, Sparse.Count, Sparse.Values.BufferView, Sparse.Values.ByteOffset, ValueBuffer.GetData());
 
@@ -1233,56 +1233,56 @@ namespace GLTF
 	void FAccessor::GetUnsignedIntArray(TArray<uint32>& Buffer) const
 	{
 		if (IsValid())
-			Buffer.SetNumUninitialized(Count, false);
+			Buffer.SetNumUninitialized(Count, EAllowShrinking::No);
 		GetUnsignedIntArray(Buffer.GetData());
 	}
 
 	void FAccessor::GetFloatArray(TArray<float>& Buffer) const
 	{
 		if (IsValid())
-			Buffer.SetNumUninitialized(Count, false);
+			Buffer.SetNumUninitialized(Count, EAllowShrinking::No);
 		GetFloatArray(Buffer.GetData());
 	}
 
 	void FAccessor::GetVec2Array(TArray<FVector2f>& Buffer) const
 	{
 		if (IsValid())
-			Buffer.SetNumUninitialized(Count, false);
+			Buffer.SetNumUninitialized(Count, EAllowShrinking::No);
 		GetVec2Array(Buffer.GetData());
 	}
 
 	void FAccessor::GetVec3Array(TArray<FVector3f>& Buffer) const
 	{
 		if (IsValid())
-			Buffer.SetNumUninitialized(Count, false);
+			Buffer.SetNumUninitialized(Count, EAllowShrinking::No);
 		GetVec3Array(Buffer.GetData());
 	}
 
 	void FAccessor::GetCoordArray(TArray<FVector3f>& Buffer) const
 	{
 		if (IsValid())
-			Buffer.SetNumUninitialized(Count, false);
+			Buffer.SetNumUninitialized(Count, EAllowShrinking::No);
 		GetCoordArray(Buffer.GetData());
 	}
 
 	void FAccessor::GetVec4Array(TArray<FVector4f>& Buffer) const
 	{
 		if (IsValid())
-			Buffer.SetNumUninitialized(Count, false);
+			Buffer.SetNumUninitialized(Count, EAllowShrinking::No);
 		GetVec4Array(Buffer.GetData());
 	}
 
 	void FAccessor::GetQuatArray(TArray<FVector4f>& Buffer) const
 	{
 		if (IsValid())
-			Buffer.SetNumUninitialized(Count, false);
+			Buffer.SetNumUninitialized(Count, EAllowShrinking::No);
 		GetQuatArray(Buffer.GetData());
 	}
 
 	void FAccessor::GetMat4Array(TArray<FMatrix44f>& Buffer) const
 	{
 		if (IsValid())
-			Buffer.SetNumUninitialized(Count, false);
+			Buffer.SetNumUninitialized(Count, EAllowShrinking::No);
 		GetMat4Array(Buffer.GetData());
 	}
 }  // namespace GLTF

@@ -77,7 +77,7 @@ void UMassSpawnLocationProcessor::Execute(FMassEntityManager& EntityManager, FMa
 				{
 					const int32 AuxIndex = RandomStream.RandRange(0, Transforms.Num() - 1);
 					LocationList[i].GetMutableTransform() = Transforms[AuxIndex];
-					Transforms.RemoveAtSwap(AuxIndex, 1, /*bAllowShrinking=*/false);
+					Transforms.RemoveAtSwap(AuxIndex, 1, EAllowShrinking::No);
 				}
 			});
 	}

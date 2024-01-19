@@ -123,8 +123,7 @@ public:
 		const int32 TotalFilters = DynamicFilters.Num();
 
 		// We create PerFilterInfo for every dynamic filters, but allocate the memory buffers only for active filters
-		constexpr bool bDontShrink = false;
-		PerFilterInfos.SetNum(TotalFilters, bDontShrink);
+		PerFilterInfos.SetNum(TotalFilters, EAllowShrinking::No);
 
 		ObjectIndicesStorage.SetNumUninitialized(NumActiveFilters * MaxObjectCountPerBatch);
 		

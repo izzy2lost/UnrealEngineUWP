@@ -634,7 +634,7 @@ bool FPolygroupsGenerator::FindPolygroupsFromFaceNormals(
 			Stack.Add(TriID);
 			while (Stack.Num() > 0)
 			{
-				int CurTri = Stack.Pop(false);
+				int CurTri = Stack.Pop(EAllowShrinking::No);
 				FIndex3i NbrTris = Mesh->GetTriNeighbourTris(CurTri);
 				FIndex3i NbrEdges = Mesh->GetTriEdges(CurTri);
 				for (int j = 0; j < 3; ++j)

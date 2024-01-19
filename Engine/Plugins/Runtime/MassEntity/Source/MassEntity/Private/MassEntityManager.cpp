@@ -421,7 +421,7 @@ FMassEntityHandle FMassEntityManager::ReserveEntity()
 {
 	// @todo: Need to add thread safety to the reservation of an entity
 	FMassEntityHandle Result;
-	Result.Index = (EntityFreeIndexList.Num() > 0) ? EntityFreeIndexList.Pop(/*bAllowShrinking=*/ false) : Entities.Add();
+	Result.Index = (EntityFreeIndexList.Num() > 0) ? EntityFreeIndexList.Pop(EAllowShrinking::No) : Entities.Add();
 	Result.SerialNumber = SerialNumberGenerator.fetch_add(1);
 	Entities[Result.Index].SerialNumber = Result.SerialNumber;
 

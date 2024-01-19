@@ -4244,8 +4244,7 @@ bool UActorChannel::ValidateReplicatedSubObjects()
 	{
 		const DataChannelInternal::FSubObjectReplicatedInfo& Info = DataChannelInternal::LegacySubObjectsCollected[i];
 
-		constexpr bool bNoShrinking = false;
-		const bool bWasFound = DataChannelInternal::ReplicatedSubObjectsTracker.RemoveSingleSwap(Info, bNoShrinking) != 0;
+		const bool bWasFound = DataChannelInternal::ReplicatedSubObjectsTracker.RemoveSingleSwap(Info, EAllowShrinking::No) != 0;
 
 		ensureMsgf(bWasFound, TEXT("%s was not replicated by the subobject list in %s. Only by the legacy ReplicateSubObjects method."),
 			*Info.Describe(Actor), *Connection->GetDriver()->NetDriverName.ToString());

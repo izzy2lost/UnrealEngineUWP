@@ -808,7 +808,7 @@ const FSegmentMesh& FTriangleMesh::GetSegmentMesh() const
 			if (currNum <= EdgeIdx)
 			{
 				// Add and initialize new entries
-				MEdgeToFaces.SetNum(EdgeIdx + 1, false);
+				MEdgeToFaces.SetNum(EdgeIdx + 1, EAllowShrinking::No);
 				for (int32 k = currNum; k < EdgeIdx + 1; k++)
 				{
 					MEdgeToFaces[k] = TVec2<int32>(-1, -1);

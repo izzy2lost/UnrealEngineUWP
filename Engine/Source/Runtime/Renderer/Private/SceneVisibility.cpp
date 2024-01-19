@@ -4116,7 +4116,7 @@ void FVisibilityTaskData::GatherDynamicMeshElements(FDynamicPrimitiveIndexList&&
 				if (!PrimitiveSceneProxies[PrimitiveIndex.Index]->SupportsParallelGDME())
 				{
 					RenderThreadPrimitives.Emplace(PrimitiveIndex);
-					Primitives.RemoveAtSwap(Index, 1, false);
+					Primitives.RemoveAtSwap(Index, 1, EAllowShrinking::No);
 				}
 				else
 				{

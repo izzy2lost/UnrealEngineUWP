@@ -3215,7 +3215,7 @@ void FPImplRecastNavMesh::GetNavMeshTilesIn(const TArray<FBox>& InclusionBounds,
 			int32 MaxTiles = DetourNavMesh->getTileCountAt(TileCoord.X, TileCoord.Y);
 			if (MaxTiles > 0)
 			{
-				MeshTiles.SetNumZeroed(MaxTiles, false);
+				MeshTiles.SetNumZeroed(MaxTiles, EAllowShrinking::No);
 				
 				const int32 MeshTilesCount = DetourNavMesh->getTilesAt(TileCoord.X, TileCoord.Y, MeshTiles.GetData(), MaxTiles);
 				for (int32 i = 0; i < MeshTilesCount; ++i)

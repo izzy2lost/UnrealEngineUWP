@@ -82,7 +82,7 @@ namespace Audio
 
 					TSampleBuffer<> SampleBuffer(RawPCMData, NumSamples, SoundWave->NumChannels, SoundWave->GetSampleRateForCurrentPlatform());
 					LoadingSoundWaveInfo.OnLoaded(SoundWave, SampleBuffer);
-					LoadingSoundWaves.RemoveAtSwap(i, 1, false);
+					LoadingSoundWaves.RemoveAtSwap(i, 1, EAllowShrinking::No);
 				}
 			}
 		}

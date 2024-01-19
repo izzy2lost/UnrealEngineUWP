@@ -1958,7 +1958,7 @@ ETimeSliceWorkResult FRecastTileGenerator::GatherGeometryFromSourcesTimeSliced()
 
 	while(NavigationRelevantData.Num())
 	{
-		TSharedRef<FNavigationRelevantData, ESPMode::ThreadSafe> ElementData = NavigationRelevantData.Pop(false/*bAllowShrinking*/);
+		TSharedRef<FNavigationRelevantData, ESPMode::ThreadSafe> ElementData = NavigationRelevantData.Pop(EAllowShrinking::No);
 		if (ElementData->GetOwner() == nullptr)
 		{
 			UE_LOG(LogNavigation, Warning, TEXT("%s: skipping an element with no longer valid Owner"), ANSI_TO_TCHAR(__FUNCTION__));
@@ -2785,7 +2785,7 @@ void FRecastTileGenerator::RasterizeGeometryTransformCoords(const TArray<FVector
 {
 	QUICK_SCOPE_CYCLE_COUNTER(STAT_Navigation_RasterizeGeometryTransformCoords);
 
-	RasterizeGeometryWorldRecastCoords.SetNumUninitialized(Coords.Num(), false);
+	RasterizeGeometryWorldRecastCoords.SetNumUninitialized(Coords.Num(), EAllowShrinking::No);
 
 	FMatrix LocalToRecastWorld = LocalToWorld.ToMatrixWithScale()*Unreal2RecastMatrix();
 
@@ -6450,7 +6450,7 @@ TArray<FNavTileRef> FRecastNavMeshGenerator::ProcessTileTasksAsyncAndGetUpdatedT
 			}
 
 			// Remove submitted element from pending list
-			PendingDirtyTiles.RemoveAt(ElementIdx, 1, /*bAllowShrinking=*/false);
+			PendingDirtyTiles.RemoveAt(ElementIdx, 1, EAllowShrinking::No);
 			NumProcessedTasks++;
 		}
 	}
@@ -6495,7 +6495,7 @@ TArray<FNavTileRef> FRecastNavMeshGenerator::ProcessTileTasksAsyncAndGetUpdatedT
 				delete Element.AsyncTask;
 				Element.AsyncTask = nullptr;
 				// Remove completed tile element from a list of running tasks
-				RunningDirtyTiles.RemoveAtSwap(Idx, 1, false);
+				RunningDirtyTiles.RemoveAtSwap(Idx, 1, EAllowShrinking::No);
 			}
 		}
 	}
@@ -7240,7 +7240,7 @@ void FRecastNavMeshGenerator::GrabDebugSnapshot(struct FVisualLogEntry* Snapshot
 					FRecastGeometryCache CachedGeometry(Element.Data->CollisionData.GetData());
 					
 					const uint32 NumIndices = CachedGeometry.Header.NumFaces * 3;
-					Indices.SetNum(NumIndices, false);
+					Indices.SetNum(NumIndices, EAllowShrinking::No);
 					for (uint32 IndicesIdx = 0; IndicesIdx < NumIndices; ++IndicesIdx)
 					{
 						Indices[IndicesIdx] = CachedGeometry.Indices[IndicesIdx];

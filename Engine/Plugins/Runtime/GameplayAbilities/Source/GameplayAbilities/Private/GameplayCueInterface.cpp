@@ -395,8 +395,8 @@ void FMinimalGameplayCueReplicationProxy::PreReplication(const FActiveGameplayCu
 	if (LastSourceArrayReplicationKey != SourceContainer.ArrayReplicationKey)
 	{
 		LastSourceArrayReplicationKey = SourceContainer.ArrayReplicationKey;
-		ReplicatedTags.SetNum(SourceContainer.GameplayCues.Num(), false);
-		ReplicatedLocations.SetNum(SourceContainer.GameplayCues.Num(), false);
+		ReplicatedTags.SetNum(SourceContainer.GameplayCues.Num(), EAllowShrinking::No);
+		ReplicatedLocations.SetNum(SourceContainer.GameplayCues.Num(), EAllowShrinking::No);
 		for (int32 idx=0; idx < SourceContainer.GameplayCues.Num(); ++idx)
 		{
 			ReplicatedTags[idx] = SourceContainer.GameplayCues[idx].GameplayCueTag;
@@ -478,8 +478,8 @@ bool FMinimalGameplayCueReplicationProxy::NetSerialize(FArchive& Ar, class UPack
 		LocalTags = MoveTemp(ReplicatedTags);
 		LocalBitMask.Init(true, LocalTags.Num());
 		
-		ReplicatedTags.SetNumUninitialized(NumElements, false);
-		ReplicatedLocations.SetNum(NumElements, false);
+		ReplicatedTags.SetNumUninitialized(NumElements, EAllowShrinking::No);
+		ReplicatedLocations.SetNum(NumElements, EAllowShrinking::No);
 
 		// This struct does not serialize GC parameters but will synthesize them on the receiving side.
 		FGameplayCueParameters Parameters;

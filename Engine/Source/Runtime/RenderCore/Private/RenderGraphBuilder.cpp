@@ -828,7 +828,7 @@ void FRDGBuilder::UseInternalAccessMode(FRDGViewableResource* Resource)
 	{
 		int32 Index = AccessModeQueue.IndexOfByKey(Resource);
 		check(Index < AccessModeQueue.Num());
-		AccessModeQueue.RemoveAtSwap(Index, 1, false);
+		AccessModeQueue.RemoveAtSwap(Index, 1, EAllowShrinking::No);
 		AccessModeState.bQueued = 0;
 	}
 	else

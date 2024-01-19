@@ -1774,7 +1774,7 @@ void FVulkanRayTracingCompactionRequestHandler::Update(FVulkanCommandListContext
 	if (ActiveRequests.Num() > 0)
 	{
 		// clear out all of the pending requests, don't allow the array to shrink
-		PendingRequests.RemoveAt(0, ActiveRequests.Num(), false);
+		PendingRequests.RemoveAt(0, ActiveRequests.Num(), EAllowShrinking::No);
 
 		FVulkanCommandBufferManager& CommandBufferManager = *InCommandContext.GetCommandBufferManager();
 		FVulkanCmdBuffer* const CmdBuffer = CommandBufferManager.GetActiveCmdBuffer();

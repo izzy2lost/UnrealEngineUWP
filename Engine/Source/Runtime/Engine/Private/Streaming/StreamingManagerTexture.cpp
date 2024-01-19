@@ -509,7 +509,7 @@ void FRenderAssetStreamingManager::ProcessRemovedRenderAssets()
 		// This handles the case where the last element was also removed.
 		while (StreamingRenderAssets.IsValidIndex(AssetIndex) && !StreamingRenderAssets[AssetIndex].RenderAsset)
 		{
-			StreamingRenderAssets.RemoveAtSwap(AssetIndex, 1, false);
+			StreamingRenderAssets.RemoveAtSwap(AssetIndex, 1, EAllowShrinking::No);
 		}
 
 		if (StreamingRenderAssets.IsValidIndex(AssetIndex))

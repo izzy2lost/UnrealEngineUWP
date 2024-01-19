@@ -101,7 +101,7 @@ class TMediaObjectPool
 
 				if (Pool.Num() > 0)
 				{
-					Result = Pool.Pop(false);
+					Result = Pool.Pop(EAllowShrinking::No);
 				}
 				else
 				{
@@ -165,7 +165,7 @@ class TMediaObjectPool
 
 			while (NumObjects < (uint32)Pool.Num())
 			{
-				delete Pool.Pop(false);
+				delete Pool.Pop(EAllowShrinking::No);
 			}
 
 			while (NumObjects > (uint32)Pool.Num())

@@ -28,7 +28,7 @@ void UMassCrowdRepresentationActorManagement::SetActorEnabled(const EMassActorEn
 			ComponentStack.Append(AttachedChildren);
 			while (ComponentStack.Num() > 0)
 			{
-				USceneComponent* const CurrentComp = ComponentStack.Pop(/*bAllowShrinking=*/false);
+				USceneComponent* const CurrentComp = ComponentStack.Pop(EAllowShrinking::No);
 				if (CurrentComp)
 				{
 					ComponentStack.Append(CurrentComp->GetAttachChildren());

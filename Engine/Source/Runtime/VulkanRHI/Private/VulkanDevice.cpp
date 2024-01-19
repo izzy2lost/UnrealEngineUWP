@@ -1401,12 +1401,12 @@ void FVulkanDevice::Destroy()
 	{
 		delete Pool;
 	}
-	UsedOcclusionQueryPools.SetNum(0, false);
+	UsedOcclusionQueryPools.SetNum(0, EAllowShrinking::No);
 	for (FVulkanOcclusionQueryPool* Pool : FreeOcclusionQueryPools)
 	{
 		delete Pool;
 	}
-	FreeOcclusionQueryPools.SetNum(0, false);
+	FreeOcclusionQueryPools.SetNum(0, EAllowShrinking::No);
 
 	delete PipelineStateCache;
 	PipelineStateCache = nullptr;
@@ -1550,7 +1550,7 @@ FVulkanCommandListContext* FVulkanDevice::AcquireDeferredContext()
 	{
 		return new FVulkanCommandListContext(GVulkanRHI, this, GfxQueue, ImmediateContext);
 	}
-	return CommandContexts.Pop(false);
+	return CommandContexts.Pop(EAllowShrinking::No);
 }
 
 void FVulkanDevice::ReleaseDeferredContext(FVulkanCommandListContext* InContext)

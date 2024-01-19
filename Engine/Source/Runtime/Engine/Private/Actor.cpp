@@ -743,7 +743,7 @@ void AActor::BeginDestroy()
 	ULevel* Level = GetLevel();
 	if (Level && !Level->IsUnreachable())
 	{
-		Level->Actors.RemoveSingleSwap(this, false);
+		Level->Actors.RemoveSingleSwap(this, EAllowShrinking::No);
 	}
 
 #if (CSV_PROFILER && !UE_BUILD_SHIPPING)
@@ -2358,8 +2358,7 @@ void AActor::ForEachAttachedActors(TFunctionRef<bool(class AActor*)> Functor) co
 		while (CompsToCheck.Num() > 0)
 		{
 			// Get the next off the queue
-			const bool bAllowShrinking = false;
-			USceneComponent* SceneComp = CompsToCheck.Pop(bAllowShrinking);
+			USceneComponent* SceneComp = CompsToCheck.Pop(EAllowShrinking::No);
 
 			// Add it to the 'checked' set, should not already be there!
 			CheckedComps.Add(SceneComp);

@@ -1324,7 +1324,7 @@ void FNiagaraSystemSimulation::UpdateTickGroups_GameThread()
 	//-OPT: This can be done async
 	while (PendingTickGroupPromotions.Num() > 0)
 	{
-		FNiagaraSystemInstance* Instance = PendingTickGroupPromotions.Pop(false);
+		FNiagaraSystemInstance* Instance = PendingTickGroupPromotions.Pop(EAllowShrinking::No);
 
 		const ETickingGroup TickGroup = Instance->CalculateTickGroup();
 		if (TickGroup != SystemTickGroup)

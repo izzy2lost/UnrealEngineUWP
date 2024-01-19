@@ -627,7 +627,7 @@ namespace Metasound
 				return false;
 			};
 
-			const bool bRemoved = InputVertices.RemoveAllSwap(RemoveAndBuildParams, false /* bAllowShrinking */) > 0;
+			const bool bRemoved = InputVertices.RemoveAllSwap(RemoveAndBuildParams, EAllowShrinking::No) > 0;
 			if (ensure(bRemoved))
 			{
 				if (bRequiresDefault)

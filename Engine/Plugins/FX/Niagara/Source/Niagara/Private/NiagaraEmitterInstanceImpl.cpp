@@ -1617,7 +1617,7 @@ void FNiagaraEmitterInstanceImpl::Tick(float DeltaSeconds)
 
 	Data.NumSpawnedIDs = 0;
 #if VECTORVM_SUPPORTS_LEGACY
-	Data.GetSpawnedIDsTable().SetNum(0, false);
+	Data.GetSpawnedIDsTable().SetNum(0, EAllowShrinking::No);
 #endif
 	int32 SpawnCountRemaining = AllocationSize - OrigNumParticles;
 

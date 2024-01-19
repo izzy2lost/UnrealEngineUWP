@@ -56,7 +56,7 @@ namespace Chaos::Private
 			// Allocate from free list or pool
 			if (!FreeItems.IsEmpty())
 			{
-				Item = FreeItems.Pop(false);
+				Item = FreeItems.Pop(EAllowShrinking::No);
 				FItemAdapter::ReuseItem(*Item, Forward<TArgs>(Args)...);
 			}
 			else
@@ -78,7 +78,7 @@ namespace Chaos::Private
 				// Remove item from the array using the index we set in Alloc
 				const int32 Index = FItemAdapter::GetArrayIndex(*Item);
 				check(Items[Index] == Item);
-				Items.RemoveAtSwap(Index, 1, false);
+				Items.RemoveAtSwap(Index, 1, EAllowShrinking::No);
 				FItemAdapter::SetArrayIndex(*Item, INDEX_NONE);
 
 				// Update the index of the item we swapped in

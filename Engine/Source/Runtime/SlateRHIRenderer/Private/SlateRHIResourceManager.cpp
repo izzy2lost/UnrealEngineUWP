@@ -719,7 +719,7 @@ TSharedPtr<FSlateDynamicTextureResource> FSlateRHIResourceManager::MakeDynamicTe
 	// Get a resource from the free list if possible
 	if(DynamicTextureFreeList.Num() > 0)
 	{
-		TextureResource = DynamicTextureFreeList.Pop(/*bAllowShrinking=*/ false);
+		TextureResource = DynamicTextureFreeList.Pop(EAllowShrinking::No);
 	}
 	else
 	{
@@ -786,7 +786,7 @@ TSharedPtr<FSlateUTextureResource> FSlateRHIResourceManager::MakeDynamicUTexture
 		// Get a resource from the free list if possible
 		if (UTextureFreeList.Num() > 0)
 		{
-			TextureResource = UTextureFreeList.Pop(/*bAllowShrinking=*/ false);
+			TextureResource = UTextureFreeList.Pop(EAllowShrinking::No);
 			TextureResource->UpdateTexture(InTextureObject);
 		}
 		else

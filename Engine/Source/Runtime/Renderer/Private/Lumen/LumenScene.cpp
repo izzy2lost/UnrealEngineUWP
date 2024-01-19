@@ -766,7 +766,7 @@ void UpdateLumenScenePrimitives(FRHIGPUMask GPUMask, FScene* Scene)
 				{
 					if (PrimitiveGroup.Primitives[PrimitiveIndex] == RemoveInfo.Primitive)
 					{
-						PrimitiveGroup.Primitives.RemoveAtSwap(PrimitiveIndex, 1, false);
+						PrimitiveGroup.Primitives.RemoveAtSwap(PrimitiveIndex, 1, EAllowShrinking::No);
 						break;
 					}
 				}

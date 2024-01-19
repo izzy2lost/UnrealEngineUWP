@@ -475,7 +475,7 @@ public:
 
 	void PopEventOverride()
 	{
-		EventStack.Pop(false);
+		EventStack.Pop(EAllowShrinking::No);
 	}
 
 	FRealtimeGPUProfilerQuery PushEvent(FRHIGPUMask GPUMask, const FName& Name, const FName& StatName, const TCHAR* Description)
@@ -519,7 +519,7 @@ public:
 			return {};
 		}
 
-		const int32 EventIdx = EventStack.Pop(false);
+		const int32 EventIdx = EventStack.Pop(EAllowShrinking::No);
 
 		return GpuProfilerEvents[EventIdx].End();
 	}

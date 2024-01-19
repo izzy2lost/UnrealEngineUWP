@@ -364,7 +364,7 @@ namespace GeometryCollectionAlgo
 
 		while (!ToProcess.IsEmpty())
 		{
-			const int32 ProcessIndex = ToProcess.Pop(false);
+			const int32 ProcessIndex = ToProcess.Pop(EAllowShrinking::No);
 			const int32 ParentIndex = DynamicCollection.GetParent(ProcessIndex);
 			TransformType Result = TransformType(DynamicCollection.GetTransform(ProcessIndex));
 			if (ParentIndex != FGeometryCollection::Invalid)
@@ -402,7 +402,7 @@ namespace GeometryCollectionAlgo
 
 		while (!ToProcess.IsEmpty())
 		{
-			const int32 ProcessIndex = ToProcess.Pop(false);
+			const int32 ProcessIndex = ToProcess.Pop(EAllowShrinking::No);
 			const int32 ParentIndex = Parents[ProcessIndex];
 			TransformTypeOut Result = TransformTypeOut(Transform[ProcessIndex]);
 			if (ParentIndex != FGeometryCollection::Invalid)
@@ -439,7 +439,7 @@ namespace GeometryCollectionAlgo
 
 		while (!ToProcess.IsEmpty())
 		{
-			const int32 ProcessIndex = ToProcess.Pop(false);
+			const int32 ProcessIndex = ToProcess.Pop(EAllowShrinking::No);
 			const int32 ParentIndex = Parents[ProcessIndex];
 			FMatrix Result = FTransform(Transform[ProcessIndex]).ToMatrixWithScale();
 			if (ParentIndex != FGeometryCollection::Invalid)
@@ -475,7 +475,7 @@ namespace GeometryCollectionAlgo
 
 		while (!ToProcess.IsEmpty())
 		{
-			const int32 ProcessIndex = ToProcess.Pop(false);
+			const int32 ProcessIndex = ToProcess.Pop(EAllowShrinking::No);
 			const int32 ParentIndex = DynamicCollection.GetParent(ProcessIndex);
 			FTransform Result = FTransform(DynamicCollection.GetTransform(ProcessIndex));
 			if (ParentIndex != FGeometryCollection::Invalid)
@@ -514,7 +514,7 @@ namespace GeometryCollectionAlgo
 
 		while (!ToProcess.IsEmpty())
 		{
-			const int32 ProcessIndex = ToProcess.Pop(false);
+			const int32 ProcessIndex = ToProcess.Pop(EAllowShrinking::No);
 			const int32 ParentIndex = Parents[ProcessIndex];
 			TransnformType Result = Transform[ProcessIndex];
 			if (ParentIndex != FGeometryCollection::Invalid)
@@ -619,9 +619,9 @@ namespace GeometryCollectionAlgo
 			IsTransformComputed.AddDefaulted(NumTransform);
 
 			TArray<FTransform> TransformCache;
-			TransformCache.SetNumUninitialized(NumTransform, false);
+			TransformCache.SetNumUninitialized(NumTransform, EAllowShrinking::No);
 
-			OutGlobalTransforms.SetNumUninitialized(Indices.Num(), false);
+			OutGlobalTransforms.SetNumUninitialized(Indices.Num(), EAllowShrinking::No);
 			for (int Idx = 0; Idx < Indices.Num(); Idx++)
 			{
 				OutGlobalTransforms[Idx] = GlobalMatricesHelperForIndicesDynCol(Indices[Idx], DynamicCollection, IsTransformComputed, nullptr, TransformCache);
@@ -636,9 +636,9 @@ namespace GeometryCollectionAlgo
 		IsTransformComputed.AddDefaulted(RelativeTransforms.Num());
 
 		TArray<FTransform> TransformCache;
-		TransformCache.SetNumUninitialized(RelativeTransforms.Num(), false);
+		TransformCache.SetNumUninitialized(RelativeTransforms.Num(), EAllowShrinking::No);
 
-		OutGlobalTransforms.SetNumUninitialized(Indices.Num(), false);
+		OutGlobalTransforms.SetNumUninitialized(Indices.Num(), EAllowShrinking::No);
 		for (int Idx = 0; Idx < Indices.Num(); Idx++)
 		{
 			OutGlobalTransforms[Idx] = GlobalMatricesHelperForIndices<TransformType>(Indices[Idx], Parents, RelativeTransforms, IsTransformComputed, nullptr, TransformCache);
@@ -676,7 +676,7 @@ namespace GeometryCollectionAlgo
 		TArray<bool> IsTransformComputed;
 		IsTransformComputed.AddDefaulted(NumTransforms);
 
-		OutGlobalTransforms.SetNumUninitialized(NumTransforms, false);
+		OutGlobalTransforms.SetNumUninitialized(NumTransforms, EAllowShrinking::No);
 
 		for (int BoneIdx = 0; BoneIdx < NumTransforms; ++BoneIdx)
 		{
@@ -693,7 +693,7 @@ namespace GeometryCollectionAlgo
 			TArray<bool> IsTransformComputed;
 			IsTransformComputed.AddDefaulted(NumTransforms);
 
-			OutGlobalTransforms.SetNumUninitialized(NumTransforms, false);
+			OutGlobalTransforms.SetNumUninitialized(NumTransforms, EAllowShrinking::No);
 
 			for (int BoneIdx = 0; BoneIdx < NumTransforms; ++BoneIdx)
 			{
@@ -708,7 +708,7 @@ namespace GeometryCollectionAlgo
 			TArray<bool> IsTransformComputed;
 			IsTransformComputed.AddDefaulted(NumTransforms);
 
-			OutGlobalTransforms.SetNumUninitialized(NumTransforms, false);
+			OutGlobalTransforms.SetNumUninitialized(NumTransforms, EAllowShrinking::No);
 
 			for (int BoneIdx = 0; BoneIdx < NumTransforms; ++BoneIdx)
 			{
@@ -725,7 +725,7 @@ namespace GeometryCollectionAlgo
 		TArray<bool> IsTransformComputed;
 		IsTransformComputed.AddDefaulted(NumTransforms);
 
-		OutGlobalTransforms.SetNumUninitialized(NumTransforms, false);
+		OutGlobalTransforms.SetNumUninitialized(NumTransforms, EAllowShrinking::No);
 
 		for (int BoneIdx = 0; BoneIdx < NumTransforms; ++BoneIdx)
 		{

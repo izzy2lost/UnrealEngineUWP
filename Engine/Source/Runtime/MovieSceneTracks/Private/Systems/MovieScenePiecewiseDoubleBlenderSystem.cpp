@@ -108,8 +108,7 @@ private:
 
 				if (!OutBlendResults.IsValidIndex(BlendID.ChannelID))
 				{
-					const bool bShrinkArray = false;
-					OutBlendResults.SetNum(BlendID.ChannelID + 1, bShrinkArray);
+					OutBlendResults.SetNum(BlendID.ChannelID + 1, EAllowShrinking::No);
 				}
 
 				FBlendResult& Result = OutBlendResults[BlendID.ChannelID];
@@ -129,8 +128,7 @@ private:
 
 				if (!OutBlendResults.IsValidIndex(BlendID.ChannelID))
 				{
-					const bool bShrinkArray = false;
-					OutBlendResults.SetNum(BlendID.ChannelID + 1, bShrinkArray);
+					OutBlendResults.SetNum(BlendID.ChannelID + 1, EAllowShrinking::No);
 				}
 
 				FBlendResult& Result = OutBlendResults[BlendID.ChannelID];
