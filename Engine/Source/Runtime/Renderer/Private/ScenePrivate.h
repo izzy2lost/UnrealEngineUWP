@@ -849,12 +849,6 @@ public:
 	FMatrix44f	PrevViewMatrixForOcclusionQuery;
 	FVector		PrevViewOriginForOcclusionQuery;
 
-#if RHI_RAYTRACING
-	/** Number of consecutive frames the camera is static */
-	uint32 NumCameraStaticFrames;
-	int32 RayTracingNumIterations;
-#endif
-
 	// A counter incremented once each time this view is rendered.
 	uint32 OcclusionFrameCounter;
 

@@ -4937,20 +4937,6 @@ void FSceneRenderer::PrepareViewStateForVisibility(const FSceneTexturesConfig& S
 
 			ViewState->PrevViewMatrixForOcclusionQuery = FMatrix44f(View.ViewMatrices.GetViewMatrix());	// LWC_TODO: Precision loss
 			ViewState->PrevViewOriginForOcclusionQuery = View.ViewMatrices.GetViewOrigin();
-				
-			// store old view matrix and detect conditions where we should reset motion blur 
-#if RHI_RAYTRACING
-			{
-				if (bResetCamera || IsLargeCameraMovement(View, ViewState->PrevFrameViewInfo.ViewMatrices.GetViewMatrix(), ViewState->PrevFrameViewInfo.ViewMatrices.GetViewOrigin(), 0.1f, 0.1f))
-				{
-					ViewState->RayTracingNumIterations = 1;
-				}
-				else
-				{
-					ViewState->RayTracingNumIterations++;
-				}
-			}
-#endif // RHI_RAYTRACING
 
 			// we don't use DeltaTime as it can be 0 (in editor) and is computed by subtracting floats (loses precision over time)
 			// Clamp DeltaWorldTime to reasonable values for the purposes of motion blur, things like TimeDilation can make it very small
