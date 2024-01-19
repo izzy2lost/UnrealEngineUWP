@@ -97,6 +97,9 @@ public:
 	/** Set end playback range */
 	TSharedPtr< FUICommandInfo > SetEndPlaybackRange;
 
+	/** Focus the view range on the current playback time without changing zoom level */
+	TSharedPtr< FUICommandInfo > FocusPlaybackTime;
+
 	/** Reset the view range to the playback range */
 	TSharedPtr< FUICommandInfo > ResetViewRange;
 

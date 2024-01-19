@@ -2916,6 +2916,20 @@ void FSequencer::TogglePlaybackRangeLocked()
 	}
 }
 
+void FSequencer::FocusPlaybackTime()
+{
+	const double CurrentTime = GetLocalTime().AsSeconds();
+
+	TRange<double> NewViewRange = GetViewRange();
+
+	double MidRange = (NewViewRange.GetUpperBoundValue() - NewViewRange.GetLowerBoundValue()) / 2.0 + NewViewRange.GetLowerBoundValue();
+
+	NewViewRange.SetLowerBoundValue(NewViewRange.GetLowerBoundValue() - (MidRange - CurrentTime));
+	NewViewRange.SetUpperBoundValue(NewViewRange.GetUpperBoundValue() - (MidRange - CurrentTime));
+
+	SetViewRange(NewViewRange, EViewRangeInterpolation::Animated);
+}
+
 void FSequencer::ResetViewRange()
 {
 	TRange<double> PlayRangeSeconds = GetPlaybackRange() / GetFocusedTickResolution();
@@ -11334,6 +11348,10 @@ void FSequencer::BindCommands()
 	SequencerCommandBindings->MapAction(
 		Commands.SetStartPlaybackRange,
 		FExecuteAction::CreateLambda([this] { SetPlaybackStart(); }) );
+
+	SequencerCommandBindings->MapAction(
+		Commands.FocusPlaybackTime,
+		FExecuteAction::CreateSP(this, &FSequencer::FocusPlaybackTime));
 
 	SequencerCommandBindings->MapAction(
 		Commands.ResetViewRange,

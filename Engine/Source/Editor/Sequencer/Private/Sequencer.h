@@ -230,6 +230,7 @@ public:
 
 	bool IsPlaybackRangeLocked() const;
 	void TogglePlaybackRangeLocked();
+	void FocusPlaybackTime();
 	void ResetViewRange();
 	void ZoomViewRange(float InZoomDelta);
 	void ZoomInViewRange();
