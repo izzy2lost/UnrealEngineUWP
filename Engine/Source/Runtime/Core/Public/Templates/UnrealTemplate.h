@@ -11,6 +11,7 @@
 #include "Templates/TypeCompatibleBytes.h"
 #include "Templates/Identity.h"
 #include "Traits/IsContiguousContainer.h"
+#include "Traits/UseBitwiseSwap.h"
 #include <type_traits>
 
 /*-----------------------------------------------------------------------------
@@ -593,17 +594,6 @@ UE_INTRINSIC_CAST FORCEINLINE T&& Forward(std::remove_reference_t<T>&& Obj)
 {
 	return (T&&)Obj;
 }
-
-/**
- * A traits class which specifies whether a Swap of a given type should swap the bits or use a traditional value-based swap.
- */
-template <typename T>
-struct TUseBitwiseSwap
-{
-	// We don't use bitwise swapping for 'register' types because this will force them into memory and be slower.
-	enum { Value = !(std::is_enum_v<T> || std::is_pointer_v<T> || std::is_arithmetic_v<T>) };
-};
-
 
 /**
  * Swap two values.  Assumes the types are trivially relocatable.
