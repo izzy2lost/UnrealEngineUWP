@@ -8,7 +8,7 @@
 * A render node which uses the Deferred Renderer.
 */
 UCLASS()
-class MOVIERENDERPIPELINECORE_API UMovieGraphDeferredRenderPassNode : public UMovieGraphImagePassBaseNode 
+class MOVIERENDERPIPELINERENDERPASSES_API UMovieGraphDeferredRenderPassNode : public UMovieGraphImagePassBaseNode 
 {
 	GENERATED_BODY()
 

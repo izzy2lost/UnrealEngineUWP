@@ -20,7 +20,7 @@ struct FMovieGraphTimeStepData;
 * for constructing the required matrices and settings for viewport-like renders.
 */
 UCLASS(Abstract)
-class MOVIERENDERPIPELINECORE_API UMovieGraphImagePassBaseNode : public UMovieGraphRenderPassNode
+class MOVIERENDERPIPELINERENDERPASSES_API UMovieGraphImagePassBaseNode : public UMovieGraphRenderPassNode
 {
 	GENERATED_BODY()
 public:

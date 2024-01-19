@@ -1,7 +1,7 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 #pragma once
 
-#include "Graph/Renderers/MovieGraphDeferredPass.h"
+#include "MovieGraphDeferredPass.h"
 
 namespace UE::MovieGraph::Rendering
 {

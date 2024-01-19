@@ -8,7 +8,7 @@
 
 /** A render node which uses the path tracer. */
 UCLASS()
-class MOVIERENDERPIPELINECORE_API UMovieGraphPathTracedRenderPassNode : public UMovieGraphImagePassBaseNode
+class MOVIERENDERPIPELINERENDERPASSES_API UMovieGraphPathTracedRenderPassNode : public UMovieGraphImagePassBaseNode
 {
 	GENERATED_BODY()
 

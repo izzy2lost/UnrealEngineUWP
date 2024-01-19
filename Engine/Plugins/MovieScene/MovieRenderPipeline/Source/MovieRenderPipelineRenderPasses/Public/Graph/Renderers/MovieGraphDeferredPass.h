@@ -1,7 +1,7 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 #pragma once
 
-#include "Graph/Renderers/MovieGraphImagePassBase.h"
+#include "MovieGraphImagePassBase.h"
 
 namespace UE::MovieGraph::Rendering
 {
