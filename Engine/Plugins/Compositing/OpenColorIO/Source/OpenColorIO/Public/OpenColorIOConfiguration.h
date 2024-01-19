@@ -125,6 +125,9 @@ private:
 	/** Load the config file to initialize the configuration wrapper object. Automatically called internally. */
 	void LoadConfiguration();
 
+	/** Obtain the hash of the config and additional dependent state such as library version, working color space and context. */
+	bool GetHash(FString& OutHash) const;
+
 #if WITH_EDITOR
 	/** This method resets the status of Notification dialog and reacts depending on user's choice. */
 	void OnToastCallback(bool bInReloadColorspaces);
