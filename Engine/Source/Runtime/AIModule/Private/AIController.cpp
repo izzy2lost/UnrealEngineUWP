@@ -627,8 +627,6 @@ FPathFollowingRequestResult AAIController::MoveTo(const FAIMoveRequest& MoveRequ
 		return ResultData;
 	}
 
-	ensure(MoveRequest.GetNavigationFilter() || !DefaultNavigationFilterClass);
-
 	bool bCanRequestMove = true;
 	bool bAlreadyAtGoal = false;
 	

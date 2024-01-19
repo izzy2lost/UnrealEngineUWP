@@ -440,6 +440,9 @@ protected:
 	/** requested path */
 	FNavPathSharedPtr Path;
 
+	/** Navigation query filter of the current move request */
+	FSharedConstNavQueryFilter NavigationFilter;
+
 	/** value based on navigation agent's properties that's used for AcceptanceRadius when DefaultAcceptanceRadius is requested */
 	float MyDefaultAcceptanceRadius;
 
@@ -508,6 +511,11 @@ protected:
 
 	/** if set, target location will be constantly updated to match goal actor while following last segment of full path */
 	uint8 bMoveToGoalOnLastSegment : 1;
+
+	/** Whether to clamp the goal location to reachable navigation data when trying to track the goal actor (Only used when bMoveToGoalOnLastSegment is true)
+	 *  False: (default) while following the last segment, the path is allowed to adjust through obstacles and off navigation data without checks.
+	 *  True: the last segment's destination will be clamped at the furthest reachable location towards the goal actor. */
+	uint8 bMoveToGoalClampedToNavigation : 1;
 
 	/** if set, movement block detection will be used */
 	uint8 bUseBlockDetection : 1;
