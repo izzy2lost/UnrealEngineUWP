@@ -2,7 +2,9 @@
 
 #pragma once 
 
+#if UE_ENABLE_INCLUDE_ORDER_DEPRECATED_IN_5_4
 #include "CollisionShape.h"
+#endif
 #include "Templates/SubclassOf.h"
 #include "UObject/WeakObjectPtrTemplates.h"
 #include "AI/Navigation/NavLinkDefinition.h"
@@ -265,6 +267,8 @@ struct FCustomLinkNavModifier : public FNavigationModifier
 protected:
 	TWeakObjectPtr<UClass> LinkDefinitionClassOb;
 };
+
+struct FCollisionShape;
 
 struct FCompositeNavModifier : public FNavigationModifier
 {

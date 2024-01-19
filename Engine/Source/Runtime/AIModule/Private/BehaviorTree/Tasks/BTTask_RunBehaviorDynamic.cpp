@@ -1,6 +1,7 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 #include "BehaviorTree/Tasks/BTTask_RunBehaviorDynamic.h"
+#include "GameFramework/Actor.h"
 #include "VisualLogger/VisualLogger.h"
 #include "BehaviorTree/BehaviorTree.h"
 #include "Internationalization/Regex.h"

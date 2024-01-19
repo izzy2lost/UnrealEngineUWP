@@ -3,6 +3,7 @@
 #include "BehaviorTree/BTAuxiliaryNode.h"
 #include "BehaviorTree/BTCompositeNode.h"
 #include "VisualLogger/VisualLogger.h"
+#include "GameFramework/Actor.h"
 
 #include UE_INLINE_GENERATED_CPP_BY_NAME(BTAuxiliaryNode)
 

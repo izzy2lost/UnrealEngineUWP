@@ -112,6 +112,8 @@ struct FNavigationInvokerRaw
 	FNavigationInvokerRaw(const FVector& InLocation, float Min, float Max, const FNavAgentSelector& InSupportedAgents, ENavigationInvokerPriority InPriority);
 };
 
+class AActor;
+
 struct FNavigationInvoker
 {
 	/** The Invoker source should be either an Actor or an Object. Thus only 1 of those member should be set. We'll use IsExplicitlyNull to know which one to use */

@@ -11,7 +11,9 @@
 #endif
 #include "AI/Navigation/NavigationTypes.h"
 #include "NavigationSystemTypes.h"
+#if UE_ENABLE_INCLUDE_ORDER_DEPRECATED_IN_5_4
 #include "GameFramework/Actor.h"
+#endif
 #include "AITypes.generated.h"
 
 class AActor;
@@ -527,7 +529,7 @@ struct FAIMoveRequest
 	FVector GetGoalLocation() const { return GoalLocation; }
 	/** retrieves request's requested destination location, GoalActor's location 
 	 *	or GoalLocation, depending on the request itself */
-	FVector GetDestination() const { return bMoveToActor ? (GoalActor.IsValid() ? GoalActor->GetActorLocation() : FAISystem::InvalidLocation) : GoalLocation; }
+	AIMODULE_API FVector GetDestination() const;
 
 	bool IsUsingPathfinding() const { return bUsePathfinding; }
 	bool IsUsingPartialPaths() const { return bAllowPartialPath; }
