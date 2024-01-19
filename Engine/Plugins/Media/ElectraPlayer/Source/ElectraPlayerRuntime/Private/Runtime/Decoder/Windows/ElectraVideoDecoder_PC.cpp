@@ -113,7 +113,7 @@ void FElectraPlayerVideoDecoderOutputPC::InitializeWithBuffer(TSharedPtr<TArray<
 	Stride = InStride;
 }
 
-void FElectraPlayerVideoDecoderOutputPC::InitializeWithResource(const TRefCountPtr<ID3D12Device>& InD3D12Device, const TRefCountPtr<ID3D12Resource> InResource, uint32 ResourcePitch, const FElectraDecoderOutputSync& OutputSync, const FIntPoint& InOutputDim, TSharedPtr<Electra::FParamDict, ESPMode::ThreadSafe> InParamDict, Electra::IVideoDecoderResourceDelegate* InResourceDelegate,
+void FElectraPlayerVideoDecoderOutputPC::InitializeWithResource(const TRefCountPtr<ID3D12Device>& InD3D12Device, const TRefCountPtr<ID3D12Resource> InResource, uint32 ResourcePitch, const FElectraDecoderOutputSync& OutputSync, const FIntPoint& InOutputDim, TSharedPtr<Electra::FParamDict, ESPMode::ThreadSafe> InParamDict, TWeakPtr<Electra::IVideoDecoderResourceDelegate, ESPMode::ThreadSafe> InResourceDelegate,
 																uint32 MaxWidth, uint32 MaxHeight, uint32 MaxOutputBuffers)
 {
 	// General initialization
@@ -363,16 +363,22 @@ void FElectraPlayerVideoDecoderOutputPC::InitializeWithResource(const TRefCountP
 		auto ElectraDecoderResourceDelegate = Electra::FElectraDecoderResourceManagerWindows::GetDelegate();
 
 		// Note: we capture "this" as we ensure that this instance only dies once the copy triggered here is actually done, hence ensuring any reference to "this" is done
-		bTriggerOk = ElectraDecoderResourceDelegate->RunCodeAsync([this, DecoderSync, ResourceFence, OutputSync, InResourceDelegate]()
+		bTriggerOk = ElectraDecoderResourceDelegate->RunCodeAsync([WeakThis=AsWeak(), DecoderSync, ResourceFence, OutputSync, InResourceDelegate]()
 			{
-				TriggerDataCopy(DecoderSync, ResourceFence, OutputSync, InResourceDelegate);
+				if (auto This = StaticCastSharedPtr<FElectraPlayerVideoDecoderOutputPC, IDecoderOutputPoolable, ESPMode::ThreadSafe>(WeakThis.Pin()))
+				{
+					if (auto ResourceDelegate = InResourceDelegate.Pin())
+					{
+						This->TriggerDataCopy(DecoderSync, ResourceFence, OutputSync, ResourceDelegate.Get());
+					}
+				}
 			}, OutputSync.TaskSync.Get());
 	}
 
 	if (!bTriggerOk)
 	{
 		// We could not run the trigger async. Schedule the copy right away. Any needed synchronization will be done in the copy-queue by the GPU
-		TriggerDataCopy(DecoderSync, ResourceFence, OutputSync, InResourceDelegate);
+		TriggerDataCopy(DecoderSync, ResourceFence, OutputSync, InResourceDelegate.Pin().Get());
 	}
 }
 
