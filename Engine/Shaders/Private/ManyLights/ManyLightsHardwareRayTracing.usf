@@ -4,8 +4,8 @@
 #include "../BlueNoise.ush"
 #include "../RayTracing/RayTracingCommon.ush"
 #include "../SceneTexturesCommon.ush"
-#include "StochasticDirectLighting.ush"
-#include "StochasticDirectLightingTracing.ush"
+#include "ManyLights.ush"
+#include "ManyLightsRayTracing.ush"
 #include "../Lumen/LumenHardwareRayTracingPayloadCommon.ush"
 #if HAIR_VOXEL_TRACES
 	#include "../HairStrands/HairStrandsRaytracing.ush"
@@ -77,7 +77,7 @@ RAY_TRACING_ENTRY_RAYGEN_OR_INLINE(HardwareRayTraceLightSamples)
 
 		FLumenMinimalPayload Payload = (FLumenMinimalPayload)0;
 
-		// #sdl_todo: Share it with LumenHardwareRayTracingCommon.ush
+		// #ml_todo: Share it with LumenHardwareRayTracingCommon.ush
 		#if LUMEN_HARDWARE_INLINE_RAYTRACING
 		{
 			FTraceRayInlineContext TraceRayInlineContext = CreateTraceRayInlineContext();
@@ -123,9 +123,9 @@ RAY_TRACING_ENTRY_RAYGEN_OR_INLINE(HardwareRayTraceLightSamples)
 
 		#if HAIR_VOXEL_TRACES
 		{
-			// #sdl_todo: replace with spatiotemporal blue noise
+			// #ml_todo: replace with spatiotemporal blue noise
 			RandomSequence RandSequence;
-			RandomSequence_Initialize(RandSequence, SampleCoord, 0, StochasticDirectLightingStateFrameIndex, 1);
+			RandomSequence_Initialize(RandSequence, SampleCoord, 0, ManyLightsStateFrameIndex, 1);
 			Payload.HitT = TraverseHair(ScreenCoord, RandSequence, Ray.Origin, Ray.Direction, Payload.HitT, VirtualVoxel.Raytracing_ShadowOcclusionThreshold);
 		}
 		#endif

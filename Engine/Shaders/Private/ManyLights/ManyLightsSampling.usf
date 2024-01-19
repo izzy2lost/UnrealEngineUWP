@@ -10,8 +10,8 @@
 
 #include "../Common.ush"
 #include "../BlueNoise.ush"
-#include "StochasticDirectLighting.ush"
-#include "StochasticDirectLightingTracing.ush"
+#include "ManyLights.ush"
+#include "ManyLightsRayTracing.ush"
 
 struct FLightTargetPDF
 {
@@ -41,7 +41,7 @@ FLightTargetPDF GetLocalLightTargetPDF(FDeferredLightData LightData, float3 Tran
 	float SurfaceShadow = 1.0f;
 	float AmbientOcclusion = 1.0f;
 
-	// #sdl_todo: Move more shading models to TILE_MODE_SIMPLE_SHADING
+	// #ml_todo: Move more shading models to TILE_MODE_SIMPLE_SHADING
 	#if TILE_TYPE == TILE_MODE_SIMPLE_SHADING
 	{
 		GBuffer.ShadingModelID = SHADINGMODELID_DEFAULT_LIT;
@@ -57,7 +57,7 @@ FLightTargetPDF GetLocalLightTargetPDF(FDeferredLightData LightData, float3 Tran
 	LightTargetPDF.Diffuse = SplitLighting.DiffuseLighting.xyz * View.PreExposure;
 	LightTargetPDF.Specular = SplitLighting.SpecularLighting.xyz * View.PreExposure;
 
-	// #sdl_todo: move light profile to GetDynamicLightingSplit for better handling
+	// #ml_todo: move light profile to GetDynamicLightingSplit for better handling
 	if (LightData.IESAtlasIndex >= 0 && Luminance(LightTargetPDF.Diffuse + LightTargetPDF.Specular) > 0.01f)
 	{
 		const float LightProfileMult = ComputeLightProfileMultiplier(TranslatedWorldPosition, LightData.TranslatedWorldPosition, -LightData.Direction, LightData.Tangent, LightData.IESAtlasIndex);
@@ -155,7 +155,7 @@ void GenerateLightSamplesCS(
 				const uint LocalLightIndex = GetCulledLightDataGrid(CulledLightGridData.DataStartIndex + GridLightIndex);
 				const FLocalLightData LocalLightData = GetLocalLightDataNonStereo(LocalLightIndex);
 
-				if (LocalLightData.bStochasticDirectLightingSupported && LocalLightIndex < MAX_LOCAL_LIGHT_INDEX)
+				if (LocalLightData.bManyLightsSupported && LocalLightIndex < MAX_LOCAL_LIGHT_INDEX)
 				{
 					uint DWORDIndex = LocalLightIndex / 32;
 					uint BitMask = 1u << (LocalLightIndex % 32);
@@ -220,7 +220,7 @@ void GenerateLightSamplesCS(
 				float LightIndexRandom[NUM_SAMPLES_PER_PIXEL_1D];
 				{
 					float GoldenRatioConjugate = 0.6180339887f;
-					float RandomScalar = BlueNoiseScalar(DownsampledScreenCoord, StochasticDirectLightingStateFrameIndex);
+					float RandomScalar = BlueNoiseScalar(DownsampledScreenCoord, ManyLightsStateFrameIndex);
 
 					for (uint LightSampleIndex = 0; LightSampleIndex < NUM_SAMPLES_PER_PIXEL_1D; ++LightSampleIndex)
 					{
@@ -395,7 +395,7 @@ void GenerateLightSamplesCS(
 		GroupMemoryBarrierWithGroupSync();
 
 		// Write out allocated shadow mask tiles
-		// #sdl_todo: process part of the list per tread
+		// #ml_todo: process part of the list per tread
 		if (LinearThreadIndex < SHARED_LIGHT_MASK_SIZE)
 		{
 			const uint LightIndex = LinearThreadIndex;
@@ -412,7 +412,7 @@ void GenerateLightSamplesCS(
 
 				const uint LocalLightIndex = LinearThreadIndex + NextBitIndex * SHARED_LIGHT_MASK_SIZE;
 
-				// #sdl_todo: merge allocations through groupshared and do only one atomic per group, or just replace entire thing with a scalar loop over SelectedSamples?
+				// #ml_todo: merge allocations through groupshared and do only one atomic per group, or just replace entire thing with a scalar loop over SelectedSamples?
 				uint CompositeTileIndex = 0;
 				InterlockedAdd(RWCompositeTileAllocator[0], 1, CompositeTileIndex);
 

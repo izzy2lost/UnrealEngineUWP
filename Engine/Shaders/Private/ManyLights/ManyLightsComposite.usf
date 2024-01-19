@@ -1,6 +1,6 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
-#include "StochasticDirectLighting.ush"
+#include "ManyLights.ush"
 
 RWStructuredBuffer<uint> RWShadingTiles;
 RWStructuredBuffer<uint> RWShadingTileAllocator;
@@ -100,7 +100,7 @@ void CompositeLightSamplesCS(
 
 						if (and(all(SharedCoord >= ShadingTileMin), all(SharedCoord <= ShadingTileMax)))
 						{
-							// #sdl_todo: don't write to the spot from so many threads
+							// #ml_todo: don't write to the spot from so many threads
 							SharedShadingTileMask[ShadingTileOffset.x][ShadingTileOffset.y] = 1;
 						}
 					}

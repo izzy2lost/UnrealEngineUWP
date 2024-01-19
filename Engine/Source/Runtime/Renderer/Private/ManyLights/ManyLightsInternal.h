@@ -6,7 +6,7 @@
 #include "RendererPrivate.h"
 #include "BlueNoise.h"
 
-BEGIN_SHADER_PARAMETER_STRUCT(FStochasticDirectLightingParameters, )
+BEGIN_SHADER_PARAMETER_STRUCT(FManyLightsParameters, )
 	SHADER_PARAMETER_STRUCT_REF(FViewUniformShaderParameters, ViewUniformBuffer)
 	SHADER_PARAMETER_STRUCT_INCLUDE(ShaderPrint::FShaderParameters, ShaderPrintUniformBuffer)
 	SHADER_PARAMETER_STRUCT_INCLUDE(FSceneTextureParameters, SceneTextures)
@@ -22,7 +22,7 @@ BEGIN_SHADER_PARAMETER_STRUCT(FStochasticDirectLightingParameters, )
 	SHADER_PARAMETER(FIntPoint, DownsampledViewSize)
 	SHADER_PARAMETER(FIntPoint, NumSamplesPerPixel)
 	SHADER_PARAMETER(FIntPoint, NumSamplesPerPixelDivideShift)
-	SHADER_PARAMETER(uint32, StochasticDirectLightingStateFrameIndex)
+	SHADER_PARAMETER(uint32, ManyLightsStateFrameIndex)
 	SHADER_PARAMETER(uint32, MaxCompositeTiles)
 	SHADER_PARAMETER(uint32, MaxShadingTiles)
 	SHADER_PARAMETER(uint32, MaxShadingTilesPerGridCell)
@@ -40,8 +40,8 @@ BEGIN_SHADER_PARAMETER_STRUCT(FStochasticDirectLightingParameters, )
 	SHADER_PARAMETER_RDG_TEXTURE(Texture2D<UNORM float3>, DownsampledSceneWorldNormal)
 END_SHADER_PARAMETER_STRUCT()
 
-// Internal functions, don't use outside of the StochasticDirectLighting
-namespace StochasticDirectLighting
+// Internal functions, don't use outside of the ManyLights
+namespace ManyLights
 {
 	void RayTraceLightSamples(
 		const FViewInfo& View,
@@ -50,7 +50,7 @@ namespace StochasticDirectLighting
 		const FIntPoint SampleBufferSize,
 		FRDGTextureRef LightSamples,
 		FRDGTextureRef LightSampleRayDistance,
-		const FStochasticDirectLightingParameters& StochasticDirectLightingParameters
+		const FManyLightsParameters& ManyLightsParameters
 	);
 
 	bool ShouldCompileShaders(const FGlobalShaderPermutationParameters& Parameters);

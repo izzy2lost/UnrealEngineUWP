@@ -9,8 +9,8 @@ namespace ECastRayTracedShadow
 	enum Type : int;
 };
 
-// Public StochasticDirectLighting interface
-namespace StochasticDirectLighting
+// Public ManyLights interface
+namespace ManyLights
 {
 	bool IsEnabled();
 

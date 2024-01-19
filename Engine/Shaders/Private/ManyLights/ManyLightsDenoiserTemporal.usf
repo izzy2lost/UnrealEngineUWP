@@ -1,13 +1,13 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 #include "../Common.ush"
-#include "StochasticDirectLighting.ush"
+#include "ManyLights.ush"
 
 Texture2D<float4> CompositeUpsampleWeights;
 Texture2D<float2> SampleLuminanceSumTexture;
 Texture2D ResolvedDiffuseLighting;
 Texture2D ResolvedSpecularLighting;
-Texture2D StochasticDirectLightingDepthHistory;
+Texture2D ManyLightsDepthHistory;
 Texture2D DiffuseLightingAndSecondMomentHistoryTexture;
 Texture2D SpecularLightingAndSecondMomentHistoryTexture;
 Texture2D<UNORM float> NumFramesAccumulatedHistoryTexture;
@@ -40,7 +40,7 @@ FNeighborhood GetNeighborhood(
 	float3 SampleSum = CenterSample;
 	float3 SampleSqSum = Pow2(CenterSample);
 
-	// #sdl_todo: optimize using groupshared and cross-lane ops
+	// #ml_todo: optimize using groupshared and cross-lane ops
 	const int KernelSize = 2;
 	for (int NeigborOffsetY = -KernelSize; NeigborOffsetY <= KernelSize; ++NeigborOffsetY)
 	{
@@ -89,7 +89,7 @@ float3 ClampLuminance(float3 Lighting, float LuminanceClamp)
 }
 
 [numthreads(THREADGROUP_SIZE, THREADGROUP_SIZE, 1)]
-void SDLTemporalAccumulationCS(
+void DenoiserTemporalCS(
 	uint3 GroupId : SV_GroupID,
 	uint3 GroupThreadId : SV_GroupThreadID,
 	uint3 DispatchThreadId : SV_DispatchThreadID)
@@ -147,9 +147,9 @@ void SDLTemporalAccumulationCS(
 					float2 HistoryBilinearWeights = frac(HistoryScreenUV * View.BufferSizeAndInvSize.xy - 0.5f);
 					float2 HistoryGatherUV = (HistoryScreenCoord + 1.0f) * View.BufferSizeAndInvSize.zw;
 
-					float4 HistorySampleSceneDepth4 = StochasticDirectLightingDepthHistory.GatherRed(GlobalPointClampedSampler, HistoryGatherUV).wzxy;
+					float4 HistorySampleSceneDepth4 = ManyLightsDepthHistory.GatherRed(GlobalPointClampedSampler, HistoryGatherUV).wzxy;
 
-					// #sdl_todo: plane weighting
+					// #ml_todo: plane weighting
 					float ReprojectedSceneDepth = ConvertFromDeviceZ(HistoryScreenPosition.z);
 					float DisocclusionDistanceThreshold = 0.03f;
 					const float4 DistanceToHistoryValue = abs(HistorySampleSceneDepth4 - ReprojectedSceneDepth);

@@ -1,22 +1,22 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
-#include "StochasticDirectLighting.h"
-#include "StochasticDirectLightingInternal.h"
+#include "ManyLights.h"
+#include "ManyLightsInternal.h"
 #include "RendererPrivate.h"
 #include "PixelShaderUtils.h"
 #include "BasePassRendering.h"
 
-static TAutoConsoleVariable<int32> CVarStochasticDirectLighting(
-	TEXT("r.StochasticDirectLighting"),
+static TAutoConsoleVariable<int32> CVarManyLights(
+	TEXT("r.ManyLights"),
 	0,
-	TEXT("Whether to enable Stochastic Direct Lighting. Experimental feature stochastically sampling analytical light in a single pass by leveraging ray tracing.\n")
+	TEXT("Whether to enable Many Lights. Experimental feature leveraging ray tracing to stochastically importance sample lights.\n")
 	TEXT("1 - all lights using ray tracing shadows will be stochastically sampled\n")
 	TEXT("2 - all lights will be stochastically sampled"),
 	ECVF_Scalability | ECVF_RenderThreadSafe
 );
 
-static TAutoConsoleVariable<int32> CVarStochasticDirectLightingNumSamplesPerPixel(
-	TEXT("r.StochasticDirectLighting.NumSamplesPerPixel"),
+static TAutoConsoleVariable<int32> CVarManyLightsNumSamplesPerPixel(
+	TEXT("r.ManyLights.NumSamplesPerPixel"),
 	4,
 	TEXT("Number of samples (shadow rays) per half-res pixel.\n")
 	TEXT("1 - 0.25 trace per pixel\n")
@@ -25,64 +25,64 @@ static TAutoConsoleVariable<int32> CVarStochasticDirectLightingNumSamplesPerPixe
 	ECVF_Scalability | ECVF_RenderThreadSafe
 );
 
-static TAutoConsoleVariable<int32> CVarStochasticDirectLightingMaxShadingTilesPerGridCell(
-	TEXT("r.StochasticDirectLighting.MaxShadingTilesPerGridCell"),
+static TAutoConsoleVariable<int32> CVarManyLightsMaxShadingTilesPerGridCell(
+	TEXT("r.ManyLights.MaxShadingTilesPerGridCell"),
 	32,
 	TEXT("Maximum number of shading tiles per grid cell."),
 	ECVF_Scalability | ECVF_RenderThreadSafe
 );
 
-static TAutoConsoleVariable<float> CVarStochasticDirectLightingSamplingMinWeight(
-	TEXT("r.StochasticDirectLighting.Sampling.MinWeight"),
+static TAutoConsoleVariable<float> CVarManyLightsSamplingMinWeight(
+	TEXT("r.ManyLights.Sampling.MinWeight"),
 	0.001f,
 	TEXT("Determines minimal sample influence on final pixels. Used to skip samples which would have minimal impact to the final image even if light is fully visible."),
 	ECVF_Scalability | ECVF_RenderThreadSafe
 );
 
-static TAutoConsoleVariable<int32> CVarStochasticDirectLightingTemporal(
-	TEXT("r.StochasticDirectLighting.Temporal"),
+static TAutoConsoleVariable<int32> CVarManyLightsTemporal(
+	TEXT("r.ManyLights.Temporal"),
 	1,
 	TEXT("Whether to use temporal accumulation for shadow mask."),
 	ECVF_Scalability | ECVF_RenderThreadSafe
 );
 
-static TAutoConsoleVariable<int32> CVarStochasticDirectLightingTemporalMaxFramesAccumulated(
-	TEXT("r.StochasticDirectLighting.Temporal.MaxFramesAccumulated"),
+static TAutoConsoleVariable<int32> CVarManyLightsTemporalMaxFramesAccumulated(
+	TEXT("r.ManyLights.Temporal.MaxFramesAccumulated"),
 	8,
 	TEXT("Max history length when accumulating frames. Lower values have less ghosting, but more noise."),
 	ECVF_Scalability | ECVF_RenderThreadSafe
 );
 
-static TAutoConsoleVariable<float> CVarStochasticDirectLightingTemporalNeighborhoodClampScale(
-	TEXT("r.StochasticDirectLighting.Temporal.NeighborhoodClampScale"),
+static TAutoConsoleVariable<float> CVarManyLightsTemporalNeighborhoodClampScale(
+	TEXT("r.ManyLights.Temporal.NeighborhoodClampScale"),
 	2.0f,
 	TEXT("Scales how permissive is neighborhood clamp. Higher values cause more ghosting, but allow smoother temporal accumulation."),
 	ECVF_Scalability | ECVF_RenderThreadSafe
 );
 
-static TAutoConsoleVariable<int32> CVarStochasticDirectLightingSpatial(
-	TEXT("r.StochasticDirectLighting.Spatial"),
+static TAutoConsoleVariable<int32> CVarManyLightsSpatial(
+	TEXT("r.ManyLights.Spatial"),
 	1,
 	TEXT("Whether denoiser should run spatial filter."),
 	ECVF_Scalability | ECVF_RenderThreadSafe
 );
 
-static TAutoConsoleVariable<float> CVarStochasticDirectLightingSpatialDepthWeightScale(
-	TEXT("r.StochasticDirectLighting.Spatial.DepthWeightScale"),
+static TAutoConsoleVariable<float> CVarManyLightsSpatialDepthWeightScale(
+	TEXT("r.ManyLights.Spatial.DepthWeightScale"),
 	10000.0f,
 	TEXT("Scales the depth weight of the spatial filter. Smaller values allow for more sample reuse, but also introduce more bluriness between unrelated surfaces."),
 	ECVF_Scalability | ECVF_RenderThreadSafe
 );
 
-static TAutoConsoleVariable<int32> CVarStochasticDirectLightingWaveOps(
-	TEXT("r.StochasticDirectLighting.WaveOps"),
+static TAutoConsoleVariable<int32> CVarManyLightsWaveOps(
+	TEXT("r.ManyLights.WaveOps"),
 	1,
 	TEXT("Whether to use wave ops. Useful for debugging."),
 	ECVF_Scalability | ECVF_RenderThreadSafe
 );
 
-static TAutoConsoleVariable<int32> CVarStochasticDirectLightingDebug(
-	TEXT("r.StochasticDirectLighting.Debug"),
+static TAutoConsoleVariable<int32> CVarManyLightsDebug(
+	TEXT("r.ManyLights.Debug"),
 	0,
 	TEXT("Whether to enabled debug mode, which prints various extra debug information from shaders.")
 	TEXT("0 - Disable\n")
@@ -91,60 +91,60 @@ static TAutoConsoleVariable<int32> CVarStochasticDirectLightingDebug(
 	ECVF_RenderThreadSafe
 );
 
-static TAutoConsoleVariable<int32> CVarStochasticDirectLightingDebugLightId(
-	TEXT("r.StochasticDirectLighting.Debug.LightId"),
+static TAutoConsoleVariable<int32> CVarManyLightsDebugLightId(
+	TEXT("r.ManyLights.Debug.LightId"),
 	-1,
 	TEXT("Which light to show debug info for. When set to -1, uses the currently selected light in editor."),
 	ECVF_RenderThreadSafe
 );
 
-int32 GStochasticDirectLightingReset = 0;
-FAutoConsoleVariableRef CVarStochasticDirectLightingReset(
-	TEXT("r.StochasticDirectLighting.Reset"),
-	GStochasticDirectLightingReset,
+int32 GManyLightsReset = 0;
+FAutoConsoleVariableRef CVarManyLightsReset(
+	TEXT("r.ManyLights.Reset"),
+	GManyLightsReset,
 	TEXT("Reset history for debugging."),
 	ECVF_RenderThreadSafe
 );
 
-int32 GStochasticDirectLightingResetEveryNthFrame = 0;
-	FAutoConsoleVariableRef CVarStochasticDirectLightingResetEveryNthFrame(
-	TEXT("r.StochasticDirectLighting.ResetEveryNthFrame"),
-		GStochasticDirectLightingResetEveryNthFrame,
+int32 GManyLightsResetEveryNthFrame = 0;
+	FAutoConsoleVariableRef CVarManyLightsResetEveryNthFrame(
+	TEXT("r.ManyLights.ResetEveryNthFrame"),
+		GManyLightsResetEveryNthFrame,
 	TEXT("Reset history every Nth frame for debugging."),
 	ECVF_RenderThreadSafe
 );
 
-static TAutoConsoleVariable<int> CVarStochasticDirectLightingFixedStateFrameIndex(
-	TEXT("r.StochasticDirectLighting.FixedStateFrameIndex"),
+static TAutoConsoleVariable<int> CVarManyLightsFixedStateFrameIndex(
+	TEXT("r.ManyLights.FixedStateFrameIndex"),
 	-1,
 	TEXT("Whether to override View.StateFrameIndex for debugging."),
 	ECVF_RenderThreadSafe
 );
 
-static TAutoConsoleVariable<int> CVarStochasticDirectLightingTexturedRectLights(
-	TEXT("r.StochasticDirectLighting.TexturedRectLights"),
+static TAutoConsoleVariable<int> CVarManyLightsTexturedRectLights(
+	TEXT("r.ManyLights.TexturedRectLights"),
 	0,
 	TEXT("Whether to support textured rect lights."),
 	ECVF_Scalability | ECVF_RenderThreadSafe
 );
 
-static TAutoConsoleVariable<int> CVarStochasticDirectLightingLightFunctions(
-	TEXT("r.StochasticDirectLighting.LightFunctions"),
+static TAutoConsoleVariable<int> CVarManyLightsLightFunctions(
+	TEXT("r.ManyLights.LightFunctions"),
 	0,
 	TEXT("Whether to support light functions."),
 	ECVF_Scalability | ECVF_RenderThreadSafe
 );
 
-static TAutoConsoleVariable<int> CVarStochasticDirectLightingIESProfiles(
-	TEXT("r.StochasticDirectLighting.IESProfiles"),
+static TAutoConsoleVariable<int> CVarManyLightsIESProfiles(
+	TEXT("r.ManyLights.IESProfiles"),
 	1,
 	TEXT("Whether to support IES profiles on lights."),
 	ECVF_Scalability | ECVF_RenderThreadSafe
 );
 
-namespace StochasticDirectLighting
+namespace ManyLights
 {
-	// must match values in StochasticDirectLighting.ush
+	// must match values in ManyLights.ush
 	constexpr int32 TileSize = 8;
 	constexpr int32 MaxLocalLightIndexXY = 16; // 16 * 16 = 256
 	constexpr uint32 ShadingTileIndexUnshadowed = 0xFFFFF; // limited by PackShadingTile()
@@ -152,20 +152,20 @@ namespace StochasticDirectLighting
 
 	bool IsEnabled()
 	{
-		return CVarStochasticDirectLighting.GetValueOnRenderThread() != 0;
+		return CVarManyLights.GetValueOnRenderThread() != 0;
 	}
 
 	bool IsUsingLightFunctions()
 	{
-		return IsEnabled() && CVarStochasticDirectLightingLightFunctions.GetValueOnRenderThread() != 0;
+		return IsEnabled() && CVarManyLightsLightFunctions.GetValueOnRenderThread() != 0;
 	}
 
 	bool IsLightSupported(uint8 LightType, ECastRayTracedShadow::Type CastRayTracedShadow)
 	{
-		if (StochasticDirectLighting::IsEnabled() && LightType != LightType_Directional)
+		if (ManyLights::IsEnabled() && LightType != LightType_Directional)
 		{
 			const bool bRayTracedShadows = (CastRayTracedShadow == ECastRayTracedShadow::Enabled || (ShouldRenderRayTracingShadows() && CastRayTracedShadow == ECastRayTracedShadow::UseProjectSetting));
-			return CVarStochasticDirectLighting.GetValueOnRenderThread() == 2 || bRayTracedShadows;
+			return CVarManyLights.GetValueOnRenderThread() == 2 || bRayTracedShadows;
 		}
 
 		return false;
@@ -186,9 +186,9 @@ namespace StochasticDirectLighting
 	{
 		uint32 StateFrameIndex = ViewState ? ViewState->GetFrameIndex() : 0;
 
-		if (CVarStochasticDirectLightingFixedStateFrameIndex.GetValueOnRenderThread() >= 0)
+		if (CVarManyLightsFixedStateFrameIndex.GetValueOnRenderThread() >= 0)
 		{
-			StateFrameIndex = CVarStochasticDirectLightingFixedStateFrameIndex.GetValueOnRenderThread();
+			StateFrameIndex = CVarManyLightsFixedStateFrameIndex.GetValueOnRenderThread();
 		}
 
 		return StateFrameIndex;
@@ -196,18 +196,18 @@ namespace StochasticDirectLighting
 
 	FIntPoint GetNumSamplesPerPixel2d()
 	{
-		const uint32 NumSamplesPerPixel1d = FMath::RoundUpToPowerOfTwo(FMath::Clamp(CVarStochasticDirectLightingNumSamplesPerPixel.GetValueOnRenderThread(), 1, 4));
+		const uint32 NumSamplesPerPixel1d = FMath::RoundUpToPowerOfTwo(FMath::Clamp(CVarManyLightsNumSamplesPerPixel.GetValueOnRenderThread(), 1, 4));
 		return NumSamplesPerPixel1d == 4 ? FIntPoint(2, 2) : (NumSamplesPerPixel1d == 2 ? FIntPoint(2, 1) : FIntPoint(1, 1));
 	}
 
 	int32 GetDebugMode()
 	{
-		return CVarStochasticDirectLightingDebug.GetValueOnRenderThread();
+		return CVarManyLightsDebug.GetValueOnRenderThread();
 	}
 
 	bool UseWaveOps(EShaderPlatform ShaderPlatform)
 	{
-		return CVarStochasticDirectLightingWaveOps.GetValueOnRenderThread() != 0
+		return CVarManyLightsWaveOps.GetValueOnRenderThread() != 0
 			&& GRHISupportsWaveOperations
 			&& RHISupportsWaveOperations(ShaderPlatform);
 	}
@@ -236,7 +236,7 @@ class FTileClassificationCS : public FGlobalShader
 	SHADER_USE_PARAMETER_STRUCT(FTileClassificationCS, FGlobalShader)
 
 	BEGIN_SHADER_PARAMETER_STRUCT(FParameters, )
-		SHADER_PARAMETER_STRUCT_INCLUDE(FStochasticDirectLightingParameters, StochasticDirectLightingParameters)
+		SHADER_PARAMETER_STRUCT_INCLUDE(FManyLightsParameters, ManyLightsParameters)
 		SHADER_PARAMETER_RDG_BUFFER_UAV(RWStructuredBuffer<uint>, RWTileAllocator)
 		SHADER_PARAMETER_RDG_BUFFER_UAV(RWStructuredBuffer<uint>, RWTileData)
 	END_SHADER_PARAMETER_STRUCT()
@@ -251,7 +251,7 @@ class FTileClassificationCS : public FGlobalShader
 
 	static bool ShouldCompilePermutation(const FGlobalShaderPermutationParameters& Parameters)
 	{
-		return StochasticDirectLighting::ShouldCompileShaders(Parameters);
+		return ManyLights::ShouldCompileShaders(Parameters);
 	}
 
 	static void ModifyCompilationEnvironment(const FGlobalShaderPermutationParameters& Parameters, FShaderCompilerEnvironment& OutEnvironment)
@@ -261,7 +261,7 @@ class FTileClassificationCS : public FGlobalShader
 	}
 };
 
-IMPLEMENT_GLOBAL_SHADER(FTileClassificationCS, "/Engine/Private/StochasticDirectLighting/StochasticDirectLighting.usf", "TileClassificationCS", SF_Compute);
+IMPLEMENT_GLOBAL_SHADER(FTileClassificationCS, "/Engine/Private/ManyLights/ManyLights.usf", "TileClassificationCS", SF_Compute);
 
 class FInitTileIndirectArgsCS : public FGlobalShader
 {
@@ -269,7 +269,7 @@ class FInitTileIndirectArgsCS : public FGlobalShader
 	SHADER_USE_PARAMETER_STRUCT(FInitTileIndirectArgsCS, FGlobalShader);
 
 	BEGIN_SHADER_PARAMETER_STRUCT(FParameters, )
-		SHADER_PARAMETER_STRUCT_INCLUDE(FStochasticDirectLightingParameters, StochasticDirectLightingParameters)
+		SHADER_PARAMETER_STRUCT_INCLUDE(FManyLightsParameters, ManyLightsParameters)
 		SHADER_PARAMETER_RDG_BUFFER_UAV(RWBuffer<uint>, RWTileIndirectArgs)
 		SHADER_PARAMETER_RDG_BUFFER_UAV(RWBuffer<uint>, RWDownsampledTileIndirectArgs)
 		SHADER_PARAMETER_RDG_BUFFER_SRV(StructuredBuffer<uint>, TileAllocator)
@@ -278,7 +278,7 @@ class FInitTileIndirectArgsCS : public FGlobalShader
 
 	static bool ShouldCompilePermutation(const FGlobalShaderPermutationParameters& Parameters)
 	{
-		return StochasticDirectLighting::ShouldCompileShaders(Parameters);
+		return ManyLights::ShouldCompileShaders(Parameters);
 	}
 
 	static void ModifyCompilationEnvironment(const FGlobalShaderPermutationParameters& Parameters, FShaderCompilerEnvironment& OutEnvironment)
@@ -293,7 +293,7 @@ class FInitTileIndirectArgsCS : public FGlobalShader
 	}
 };
 
-IMPLEMENT_GLOBAL_SHADER(FInitTileIndirectArgsCS, "/Engine/Private/StochasticDirectLighting/StochasticDirectLighting.usf", "InitTileIndirectArgsCS", SF_Compute);
+IMPLEMENT_GLOBAL_SHADER(FInitTileIndirectArgsCS, "/Engine/Private/ManyLights/ManyLights.usf", "InitTileIndirectArgsCS", SF_Compute);
 
 class FInitCompositeIndirectArgsCS : public FGlobalShader
 {
@@ -301,14 +301,14 @@ class FInitCompositeIndirectArgsCS : public FGlobalShader
 	SHADER_USE_PARAMETER_STRUCT(FInitCompositeIndirectArgsCS, FGlobalShader);
 
 	BEGIN_SHADER_PARAMETER_STRUCT(FParameters, )
-		SHADER_PARAMETER_STRUCT_INCLUDE(FStochasticDirectLightingParameters, StochasticDirectLightingParameters)
+		SHADER_PARAMETER_STRUCT_INCLUDE(FManyLightsParameters, ManyLightsParameters)
 		SHADER_PARAMETER_RDG_BUFFER_UAV(RWBuffer<uint>, RWIndirectArgs)
 		SHADER_PARAMETER_RDG_BUFFER_SRV(StructuredBuffer<uint>, CompositeTileAllocator)
 	END_SHADER_PARAMETER_STRUCT()
 
 	static bool ShouldCompilePermutation(const FGlobalShaderPermutationParameters& Parameters)
 	{
-		return StochasticDirectLighting::ShouldCompileShaders(Parameters);
+		return ManyLights::ShouldCompileShaders(Parameters);
 	}
 
 	static void ModifyCompilationEnvironment(const FGlobalShaderPermutationParameters& Parameters, FShaderCompilerEnvironment& OutEnvironment)
@@ -323,7 +323,7 @@ class FInitCompositeIndirectArgsCS : public FGlobalShader
 	}
 };
 
-IMPLEMENT_GLOBAL_SHADER(FInitCompositeIndirectArgsCS, "/Engine/Private/StochasticDirectLighting/StochasticDirectLighting.usf", "InitCompositeIndirectArgsCS", SF_Compute);
+IMPLEMENT_GLOBAL_SHADER(FInitCompositeIndirectArgsCS, "/Engine/Private/ManyLights/ManyLights.usf", "InitCompositeIndirectArgsCS", SF_Compute);
 
 class FGenerateLightSamplesCS : public FGlobalShader
 {
@@ -332,7 +332,7 @@ class FGenerateLightSamplesCS : public FGlobalShader
 
 	BEGIN_SHADER_PARAMETER_STRUCT(FParameters, )
 		RDG_BUFFER_ACCESS(IndirectArgs, ERHIAccess::IndirectArgs)
-		SHADER_PARAMETER_STRUCT_INCLUDE(FStochasticDirectLightingParameters, StochasticDirectLightingParameters)
+		SHADER_PARAMETER_STRUCT_INCLUDE(FManyLightsParameters, ManyLightsParameters)
 		SHADER_PARAMETER_RDG_TEXTURE_UAV(RWTexture2D<float2>, RWSampleLuminanceSum)
 		SHADER_PARAMETER_RDG_TEXTURE_UAV(RWTexture2D<float>, RWDownsampledSceneDepth)
 		SHADER_PARAMETER_RDG_TEXTURE_UAV(RWTexture2D<UNORM float3>, RWDownsampledSceneWorldNormal)
@@ -345,7 +345,7 @@ class FGenerateLightSamplesCS : public FGlobalShader
 		SHADER_PARAMETER(FVector4f, HistoryScreenPositionScaleBias)
 	END_SHADER_PARAMETER_STRUCT()
 
-	class FTileType : SHADER_PERMUTATION_INT("TILE_TYPE", (int32)StochasticDirectLighting::ETileType::SHADING_MAX);
+	class FTileType : SHADER_PERMUTATION_INT("TILE_TYPE", (int32)ManyLights::ETileType::SHADING_MAX);
 	class FIESProfile : SHADER_PERMUTATION_BOOL("USE_IES_PROFILE");
 	class FLightFunctionAtlas : SHADER_PERMUTATION_BOOL("USE_LIGHT_FUNCTION_ATLAS");
 	class FTexturedRectLights : SHADER_PERMUTATION_BOOL("USE_SOURCE_TEXTURE");
@@ -361,19 +361,19 @@ class FGenerateLightSamplesCS : public FGlobalShader
 
 	static bool ShouldCompilePermutation(const FGlobalShaderPermutationParameters& Parameters)
 	{
-		return StochasticDirectLighting::ShouldCompileShaders(Parameters);
+		return ManyLights::ShouldCompileShaders(Parameters);
 	}
 
 	static void ModifyCompilationEnvironment(const FGlobalShaderPermutationParameters& Parameters, FShaderCompilerEnvironment& OutEnvironment)
 	{
 		FGlobalShader::ModifyCompilationEnvironment(Parameters, OutEnvironment);
-		StochasticDirectLighting::ModifyCompilationEnvironment(Parameters.Platform, OutEnvironment);
+		ManyLights::ModifyCompilationEnvironment(Parameters.Platform, OutEnvironment);
 		OutEnvironment.SetDefine(TEXT("THREADGROUP_SIZE"), GetGroupSize());
 		OutEnvironment.CompilerFlags.Add(CFLAG_WaveOperations);
 	}
 };
 
-IMPLEMENT_GLOBAL_SHADER(FGenerateLightSamplesCS, "/Engine/Private/StochasticDirectLighting/StochasticDirectLightingSampling.usf", "GenerateLightSamplesCS", SF_Compute);
+IMPLEMENT_GLOBAL_SHADER(FGenerateLightSamplesCS, "/Engine/Private/ManyLights/ManyLightsSampling.usf", "GenerateLightSamplesCS", SF_Compute);
 
 class FClearLightSamplesCS : public FGlobalShader
 {
@@ -382,7 +382,7 @@ class FClearLightSamplesCS : public FGlobalShader
 
 	BEGIN_SHADER_PARAMETER_STRUCT(FParameters, )
 		RDG_BUFFER_ACCESS(IndirectArgs, ERHIAccess::IndirectArgs)
-		SHADER_PARAMETER_STRUCT_INCLUDE(FStochasticDirectLightingParameters, StochasticDirectLightingParameters)
+		SHADER_PARAMETER_STRUCT_INCLUDE(FManyLightsParameters, ManyLightsParameters)
 		SHADER_PARAMETER_RDG_TEXTURE_UAV(RWTexture2D<float>, RWDownsampledSceneDepth)
 		SHADER_PARAMETER_RDG_TEXTURE_UAV(RWTexture2D<UNORM float3>, RWDownsampledSceneWorldNormal)
 		SHADER_PARAMETER_RDG_TEXTURE_UAV(RWTexture2D<uint>, RWLightSamples)
@@ -400,18 +400,18 @@ class FClearLightSamplesCS : public FGlobalShader
 
 	static bool ShouldCompilePermutation(const FGlobalShaderPermutationParameters& Parameters)
 	{
-		return StochasticDirectLighting::ShouldCompileShaders(Parameters);
+		return ManyLights::ShouldCompileShaders(Parameters);
 	}
 
 	static void ModifyCompilationEnvironment(const FGlobalShaderPermutationParameters& Parameters, FShaderCompilerEnvironment& OutEnvironment)
 	{
 		FGlobalShader::ModifyCompilationEnvironment(Parameters, OutEnvironment);
-		StochasticDirectLighting::ModifyCompilationEnvironment(Parameters.Platform, OutEnvironment);
+		ManyLights::ModifyCompilationEnvironment(Parameters.Platform, OutEnvironment);
 		OutEnvironment.SetDefine(TEXT("THREADGROUP_SIZE"), GetGroupSize());
 	}
 };
 
-IMPLEMENT_GLOBAL_SHADER(FClearLightSamplesCS, "/Engine/Private/StochasticDirectLighting/StochasticDirectLightingSampling.usf", "ClearLightSamplesCS", SF_Compute);
+IMPLEMENT_GLOBAL_SHADER(FClearLightSamplesCS, "/Engine/Private/ManyLights/ManyLightsSampling.usf", "ClearLightSamplesCS", SF_Compute);
 
 class FInitCompositeUpsampleWeightsCS : public FGlobalShader
 {
@@ -419,7 +419,7 @@ class FInitCompositeUpsampleWeightsCS : public FGlobalShader
 	SHADER_USE_PARAMETER_STRUCT(FInitCompositeUpsampleWeightsCS, FGlobalShader)
 
 	BEGIN_SHADER_PARAMETER_STRUCT(FParameters, )
-		SHADER_PARAMETER_STRUCT_INCLUDE(FStochasticDirectLightingParameters, StochasticDirectLightingParameters)
+		SHADER_PARAMETER_STRUCT_INCLUDE(FManyLightsParameters, ManyLightsParameters)
 		SHADER_PARAMETER_RDG_TEXTURE_UAV(RWTexture2D<float4>, RWCompositeUpsampleWeights)
 	END_SHADER_PARAMETER_STRUCT()
 
@@ -430,7 +430,7 @@ class FInitCompositeUpsampleWeightsCS : public FGlobalShader
 
 	static bool ShouldCompilePermutation(const FGlobalShaderPermutationParameters& Parameters)
 	{
-		return StochasticDirectLighting::ShouldCompileShaders(Parameters);
+		return ManyLights::ShouldCompileShaders(Parameters);
 	}
 
 	static void ModifyCompilationEnvironment(const FGlobalShaderPermutationParameters& Parameters, FShaderCompilerEnvironment& OutEnvironment)
@@ -440,7 +440,7 @@ class FInitCompositeUpsampleWeightsCS : public FGlobalShader
 	}
 };
 
-IMPLEMENT_GLOBAL_SHADER(FInitCompositeUpsampleWeightsCS, "/Engine/Private/StochasticDirectLighting/StochasticDirectLighting.usf", "InitCompositeUpsampleWeightsCS", SF_Compute);
+IMPLEMENT_GLOBAL_SHADER(FInitCompositeUpsampleWeightsCS, "/Engine/Private/ManyLights/ManyLights.usf", "InitCompositeUpsampleWeightsCS", SF_Compute);
 
 class FCompositeLightSamplesCS : public FGlobalShader
 {
@@ -448,7 +448,7 @@ class FCompositeLightSamplesCS : public FGlobalShader
 	SHADER_USE_PARAMETER_STRUCT(FCompositeLightSamplesCS, FGlobalShader)
 
 	BEGIN_SHADER_PARAMETER_STRUCT(FParameters, )
-		SHADER_PARAMETER_STRUCT_INCLUDE(FStochasticDirectLightingParameters, StochasticDirectLightingParameters)
+		SHADER_PARAMETER_STRUCT_INCLUDE(FManyLightsParameters, ManyLightsParameters)
 		RDG_BUFFER_ACCESS(IndirectArgs, ERHIAccess::IndirectArgs)
 		SHADER_PARAMETER_RDG_BUFFER_UAV(RWStructuredBuffer<uint>, RWShadingTileAllocator)
 		SHADER_PARAMETER_RDG_TEXTURE_UAV(RWTexture2D<uint>, RWShadingTileGridAllocator)
@@ -469,18 +469,18 @@ class FCompositeLightSamplesCS : public FGlobalShader
 
 	static bool ShouldCompilePermutation(const FGlobalShaderPermutationParameters& Parameters)
 	{
-		return StochasticDirectLighting::ShouldCompileShaders(Parameters);
+		return ManyLights::ShouldCompileShaders(Parameters);
 	}
 
 	static void ModifyCompilationEnvironment(const FGlobalShaderPermutationParameters& Parameters, FShaderCompilerEnvironment& OutEnvironment)
 	{
 		FGlobalShader::ModifyCompilationEnvironment(Parameters, OutEnvironment);
-		StochasticDirectLighting::ModifyCompilationEnvironment(Parameters.Platform, OutEnvironment);
+		ManyLights::ModifyCompilationEnvironment(Parameters.Platform, OutEnvironment);
 		OutEnvironment.SetDefine(TEXT("THREADGROUP_SIZE"), GetGroupSize());
 	}
 };
 
-IMPLEMENT_GLOBAL_SHADER(FCompositeLightSamplesCS, "/Engine/Private/StochasticDirectLighting/StochasticDirectLightingComposite.usf", "CompositeLightSamplesCS", SF_Compute);
+IMPLEMENT_GLOBAL_SHADER(FCompositeLightSamplesCS, "/Engine/Private/ManyLights/ManyLightsComposite.usf", "CompositeLightSamplesCS", SF_Compute);
 
 class FShadeLightSamplesCS : public FGlobalShader
 {
@@ -489,7 +489,7 @@ class FShadeLightSamplesCS : public FGlobalShader
 
 	BEGIN_SHADER_PARAMETER_STRUCT(FParameters, )
 		RDG_BUFFER_ACCESS(IndirectArgs, ERHIAccess::IndirectArgs)
-		SHADER_PARAMETER_STRUCT_INCLUDE(FStochasticDirectLightingParameters, StochasticDirectLightingParameters)
+		SHADER_PARAMETER_STRUCT_INCLUDE(FManyLightsParameters, ManyLightsParameters)
 		SHADER_PARAMETER_RDG_TEXTURE_UAV(RWTexture2D<float3>, RWResolvedDiffuseLighting)
 		SHADER_PARAMETER_RDG_TEXTURE_UAV(RWTexture2D<float3>, RWResolvedSpecularLighting)
 		SHADER_PARAMETER_RDG_BUFFER_SRV(StructuredBuffer<uint>, TileAllocator)
@@ -507,7 +507,7 @@ class FShadeLightSamplesCS : public FGlobalShader
 		return 8;
 	}
 
-	class FTileType : SHADER_PERMUTATION_INT("TILE_TYPE", (int32)StochasticDirectLighting::ETileType::SHADING_MAX);
+	class FTileType : SHADER_PERMUTATION_INT("TILE_TYPE", (int32)ManyLights::ETileType::SHADING_MAX);
 	class FIESProfile : SHADER_PERMUTATION_BOOL("USE_IES_PROFILE");
 	class FLightFunctionAtlas : SHADER_PERMUTATION_BOOL("USE_LIGHT_FUNCTION_ATLAS");
 	class FTexturedRectLights : SHADER_PERMUTATION_BOOL("USE_SOURCE_TEXTURE");
@@ -516,26 +516,26 @@ class FShadeLightSamplesCS : public FGlobalShader
 
 	static bool ShouldCompilePermutation(const FGlobalShaderPermutationParameters& Parameters)
 	{
-		return StochasticDirectLighting::ShouldCompileShaders(Parameters);
+		return ManyLights::ShouldCompileShaders(Parameters);
 	}
 
 	static void ModifyCompilationEnvironment(const FGlobalShaderPermutationParameters& Parameters, FShaderCompilerEnvironment& OutEnvironment)
 	{
 		FGlobalShader::ModifyCompilationEnvironment(Parameters, OutEnvironment);
-		StochasticDirectLighting::ModifyCompilationEnvironment(Parameters.Platform, OutEnvironment);
+		ManyLights::ModifyCompilationEnvironment(Parameters.Platform, OutEnvironment);
 		OutEnvironment.SetDefine(TEXT("THREADGROUP_SIZE"), GetGroupSize());
 	}
 };
 
-IMPLEMENT_GLOBAL_SHADER(FShadeLightSamplesCS, "/Engine/Private/StochasticDirectLighting/StochasticDirectLightingShading.usf", "ShadeLightSamplesCS", SF_Compute);
+IMPLEMENT_GLOBAL_SHADER(FShadeLightSamplesCS, "/Engine/Private/ManyLights/ManyLightsShading.usf", "ShadeLightSamplesCS", SF_Compute);
 
-class FSDLTemporalAccumulationCS : public FGlobalShader
+class FDenoiserTemporalCS : public FGlobalShader
 {
-	DECLARE_GLOBAL_SHADER(FSDLTemporalAccumulationCS)
-	SHADER_USE_PARAMETER_STRUCT(FSDLTemporalAccumulationCS, FGlobalShader)
+	DECLARE_GLOBAL_SHADER(FDenoiserTemporalCS)
+	SHADER_USE_PARAMETER_STRUCT(FDenoiserTemporalCS, FGlobalShader)
 
 	BEGIN_SHADER_PARAMETER_STRUCT(FParameters, )
-		SHADER_PARAMETER_STRUCT_INCLUDE(FStochasticDirectLightingParameters, StochasticDirectLightingParameters)
+		SHADER_PARAMETER_STRUCT_INCLUDE(FManyLightsParameters, ManyLightsParameters)
 		SHADER_PARAMETER_RDG_TEXTURE(Texture2D<float4>, CompositeUpsampleWeights)
 		SHADER_PARAMETER_RDG_TEXTURE(Texture2D<float2>, SampleLuminanceSumTexture)
 		SHADER_PARAMETER_RDG_TEXTURE(Texture2D<float4>, ResolvedDiffuseLighting)
@@ -543,7 +543,7 @@ class FSDLTemporalAccumulationCS : public FGlobalShader
 		SHADER_PARAMETER_RDG_TEXTURE(Texture2D<float4>, DiffuseLightingAndSecondMomentHistoryTexture)
 		SHADER_PARAMETER_RDG_TEXTURE(Texture2D<float4>, SpecularLightingAndSecondMomentHistoryTexture)
 		SHADER_PARAMETER_RDG_TEXTURE(Texture2D<UNORM float>, NumFramesAccumulatedHistoryTexture)
-		SHADER_PARAMETER_RDG_TEXTURE(Texture2D<float>, StochasticDirectLightingDepthHistory)
+		SHADER_PARAMETER_RDG_TEXTURE(Texture2D<float>, ManyLightsDepthHistory)
 		SHADER_PARAMETER(FVector4f, HistoryUVMinMax)
 		SHADER_PARAMETER(FVector4f, HistoryScreenPositionScaleBias)
 		SHADER_PARAMETER(float, PrevSceneColorPreExposureCorrection)
@@ -565,7 +565,7 @@ class FSDLTemporalAccumulationCS : public FGlobalShader
 
 	static bool ShouldCompilePermutation(const FGlobalShaderPermutationParameters& Parameters)
 	{
-		return StochasticDirectLighting::ShouldCompileShaders(Parameters);
+		return ManyLights::ShouldCompileShaders(Parameters);
 	}
 
 	static void ModifyCompilationEnvironment(const FGlobalShaderPermutationParameters& Parameters, FShaderCompilerEnvironment& OutEnvironment)
@@ -575,15 +575,15 @@ class FSDLTemporalAccumulationCS : public FGlobalShader
 	}
 };
 
-IMPLEMENT_GLOBAL_SHADER(FSDLTemporalAccumulationCS, "/Engine/Private/StochasticDirectLighting/StochasticDirectLightingTemporal.usf", "SDLTemporalAccumulationCS", SF_Compute);
+IMPLEMENT_GLOBAL_SHADER(FDenoiserTemporalCS, "/Engine/Private/ManyLights/ManyLightsDenoiserTemporal.usf", "DenoiserTemporalCS", SF_Compute);
 
-class FSDLSpatialFilterCS : public FGlobalShader
+class FDenoiserSpatialCS : public FGlobalShader
 {
-	DECLARE_GLOBAL_SHADER(FSDLSpatialFilterCS)
-	SHADER_USE_PARAMETER_STRUCT(FSDLSpatialFilterCS, FGlobalShader)
+	DECLARE_GLOBAL_SHADER(FDenoiserSpatialCS)
+	SHADER_USE_PARAMETER_STRUCT(FDenoiserSpatialCS, FGlobalShader)
 
 	BEGIN_SHADER_PARAMETER_STRUCT(FParameters, )
-		SHADER_PARAMETER_STRUCT_INCLUDE(FStochasticDirectLightingParameters, StochasticDirectLightingParameters)
+		SHADER_PARAMETER_STRUCT_INCLUDE(FManyLightsParameters, ManyLightsParameters)
 		SHADER_PARAMETER_RDG_TEXTURE_UAV(RWTexture2D<float4>, RWSceneColor)
 		SHADER_PARAMETER_RDG_TEXTURE(Texture2D<float3>, DiffuseLightingAndSecondMomentTexture)
 		SHADER_PARAMETER_RDG_TEXTURE(Texture2D<float3>, SpecularLightingAndSecondMomentTexture)
@@ -601,7 +601,7 @@ class FSDLSpatialFilterCS : public FGlobalShader
 
 	static bool ShouldCompilePermutation(const FGlobalShaderPermutationParameters& Parameters)
 	{
-		return StochasticDirectLighting::ShouldCompileShaders(Parameters);
+		return ManyLights::ShouldCompileShaders(Parameters);
 	}
 
 	static void ModifyCompilationEnvironment(const FGlobalShaderPermutationParameters& Parameters, FShaderCompilerEnvironment& OutEnvironment)
@@ -611,47 +611,47 @@ class FSDLSpatialFilterCS : public FGlobalShader
 	}
 };
 
-IMPLEMENT_GLOBAL_SHADER(FSDLSpatialFilterCS, "/Engine/Private/StochasticDirectLighting/StochasticDirectLightingSpatial.usf", "SDLSpatialFilterCS", SF_Compute);
+IMPLEMENT_GLOBAL_SHADER(FDenoiserSpatialCS, "/Engine/Private/ManyLights/ManyLightsDenoiserSpatial.usf", "DenoiserSpatialCS", SF_Compute);
 
 /**
  * Single pass batched light rendering using ray tracing (distance field or triangle) for shadowing.
  */
-void FDeferredShadingSceneRenderer::RenderStochasticDirectLighting(FRDGBuilder& GraphBuilder, const FSceneTextures& SceneTextures)
+void FDeferredShadingSceneRenderer::RenderManyLights(FRDGBuilder& GraphBuilder, const FSceneTextures& SceneTextures)
 {
-	if (!StochasticDirectLighting::IsEnabled())
+	if (!ManyLights::IsEnabled())
 	{
 		return;
 	}
 
 	check(AreLightsInLightGrid());
 
-	RDG_EVENT_SCOPE(GraphBuilder, "StochasticDirectLighting");
+	RDG_EVENT_SCOPE(GraphBuilder, "ManyLights");
 
 	const uint32 ViewIndex = 0;
 	const FViewInfo& View = Views[ViewIndex];
 	FBlueNoise BlueNoise = GetBlueNoiseGlobalParameters();
 	TUniformBufferRef<FBlueNoise> BlueNoiseUniformBuffer = CreateUniformBufferImmediate(BlueNoise, EUniformBufferUsage::UniformBuffer_SingleDraw);
 
-	const bool bDebug = StochasticDirectLighting::GetDebugMode() != 0;
-	const bool bWaveOps = StochasticDirectLighting::UseWaveOps(View.GetShaderPlatform())
+	const bool bDebug = ManyLights::GetDebugMode() != 0;
+	const bool bWaveOps = ManyLights::UseWaveOps(View.GetShaderPlatform())
 		&& GRHIMinimumWaveSize <= 32
 		&& GRHIMaximumWaveSize >= 32;
 
 	// History reset for debugging purposes
 	bool bResetHistory = false;
 
-	if (GStochasticDirectLightingResetEveryNthFrame > 0 && (ViewFamily.FrameNumber % (uint32)GStochasticDirectLightingResetEveryNthFrame) == 0)
+	if (GManyLightsResetEveryNthFrame > 0 && (ViewFamily.FrameNumber % (uint32)GManyLightsResetEveryNthFrame) == 0)
 	{
 		bResetHistory = true;
 	}
 
-	if (GStochasticDirectLightingReset != 0)
+	if (GManyLightsReset != 0)
 	{
-		GStochasticDirectLightingReset = 0;
+		GManyLightsReset = 0;
 		bResetHistory = true;
 	}
 
-	const FIntPoint NumSamplesPerPixel2d = StochasticDirectLighting::GetNumSamplesPerPixel2d();
+	const FIntPoint NumSamplesPerPixel2d = ManyLights::GetNumSamplesPerPixel2d();
 
 	const uint32 DownsampleFactor = 2;
 	const FIntPoint DownsampledViewSize = FIntPoint::DivideAndRoundUp(View.ViewRect.Size(), DownsampleFactor);
@@ -660,33 +660,33 @@ void FDeferredShadingSceneRenderer::RenderStochasticDirectLighting(FRDGBuilder& 
 	const FIntPoint SampleBufferSize = DownsampledBufferSize * NumSamplesPerPixel2d;
 	const FIntPoint DonwnsampledSampleBufferSize = DownsampledBufferSize * NumSamplesPerPixel2d;
 
-	// #sdl_todo: make atlas size based on the resolution
-	const FIntPoint ShadingTileGridSize = FIntPoint::DivideAndRoundUp(SceneTextures.Config.Extent, StochasticDirectLighting::TileSize);
-	const FIntPoint ShadingTileAtlasSize = StochasticDirectLighting::TileSize * StochasticDirectLighting::ShadingAtlasSizeInTiles;
-	const int32 MaxShadingTiles = StochasticDirectLighting::ShadingAtlasSizeInTiles * StochasticDirectLighting::ShadingAtlasSizeInTiles;
-	check(MaxShadingTiles == (ShadingTileAtlasSize.X * ShadingTileAtlasSize.Y) / (StochasticDirectLighting::TileSize * StochasticDirectLighting::TileSize));
-	check(MaxShadingTiles < StochasticDirectLighting::ShadingTileIndexUnshadowed);
+	// #ml_todo: make atlas size based on the resolution
+	const FIntPoint ShadingTileGridSize = FIntPoint::DivideAndRoundUp(SceneTextures.Config.Extent, ManyLights::TileSize);
+	const FIntPoint ShadingTileAtlasSize = ManyLights::TileSize * ManyLights::ShadingAtlasSizeInTiles;
+	const int32 MaxShadingTiles = ManyLights::ShadingAtlasSizeInTiles * ManyLights::ShadingAtlasSizeInTiles;
+	check(MaxShadingTiles == (ShadingTileAtlasSize.X * ShadingTileAtlasSize.Y) / (ManyLights::TileSize * ManyLights::TileSize));
+	check(MaxShadingTiles < ManyLights::ShadingTileIndexUnshadowed);
 	const int32 MaxCompositeTiles = MaxShadingTiles;
 
-	const int32 MaxShadingTilesPerGridCell = FMath::Max(CVarStochasticDirectLightingMaxShadingTilesPerGridCell.GetValueOnRenderThread(), 0);
+	const int32 MaxShadingTilesPerGridCell = FMath::Max(CVarManyLightsMaxShadingTilesPerGridCell.GetValueOnRenderThread(), 0);
 
 	FRDGTextureRef DownsampledSceneDepth = GraphBuilder.CreateTexture(
 		FRDGTextureDesc::Create2D(DownsampledBufferSize, PF_R32_FLOAT, FClearValueBinding::Black, TexCreate_ShaderResource | TexCreate_UAV),
-		TEXT("StochasticDirectLighting.DownsampledSceneDepth"));
+		TEXT("ManyLights.DownsampledSceneDepth"));
 
 	FRDGTextureRef DownsampledSceneWorldNormal = GraphBuilder.CreateTexture(
 		FRDGTextureDesc::Create2D(DownsampledBufferSize, PF_A2B10G10R10, FClearValueBinding::Black, TexCreate_ShaderResource | TexCreate_UAV),
-		TEXT("StochasticDirectLighting.DownsampledSceneWorldNormal"));
+		TEXT("ManyLights.DownsampledSceneWorldNormal"));
 
 	FRDGTextureRef LightSamples = GraphBuilder.CreateTexture(
 		FRDGTextureDesc::Create2D(DonwnsampledSampleBufferSize, PF_R32_UINT, FClearValueBinding::Black, TexCreate_ShaderResource | TexCreate_UAV),
-		TEXT("StochasticDirectLighting.LightSamples"));
+		TEXT("ManyLights.LightSamples"));
 
 	FRDGTextureRef LightSampleRayDistance = GraphBuilder.CreateTexture(
 		FRDGTextureDesc::Create2D(DonwnsampledSampleBufferSize, PF_R16F, FClearValueBinding::Black, TexCreate_ShaderResource | TexCreate_UAV),
-		TEXT("StochasticDirectLighting.LightSampleRayDistance"));
+		TEXT("ManyLights.LightSampleRayDistance"));
 	
-	bool bTemporal = CVarStochasticDirectLightingTemporal.GetValueOnRenderThread() != 0;
+	bool bTemporal = CVarManyLightsTemporal.GetValueOnRenderThread() != 0;
 	FVector4f HistoryScreenPositionScaleBias = FVector4f(0.0f, 0.0f, 0.0f, 0.0f);
 	FVector4f HistoryUVMinMax = FVector4f(0.0f, 0.0f, 0.0f, 0.0f);
 	FRDGTextureRef DiffuseLightingAndSecondMomentHistory = nullptr;
@@ -696,7 +696,7 @@ void FDeferredShadingSceneRenderer::RenderStochasticDirectLighting(FRDGBuilder& 
 
 	if (View.ViewState)
 	{
-		const FStochasticDirectLightingViewState& LightingViewState = View.ViewState->StochasticDirectLighting;
+		const FManyLightsViewState& LightingViewState = View.ViewState->ManyLights;
 
 		if (!View.bCameraCut && !bResetHistory && bTemporal)
 		{
@@ -720,61 +720,61 @@ void FDeferredShadingSceneRenderer::RenderStochasticDirectLighting(FRDGBuilder& 
 	}
 
 	// Setup the light function atlas
-	const bool bUseLightFunctionAtlas = LightFunctionAtlas::IsEnabled(View, LightFunctionAtlas::ELightFunctionAtlasSystem::StochasticDirectLighting);
+	const bool bUseLightFunctionAtlas = LightFunctionAtlas::IsEnabled(View, LightFunctionAtlas::ELightFunctionAtlasSystem::ManyLights);
 
-	const FIntPoint ViewSizeInTiles = FIntPoint::DivideAndRoundUp(View.ViewRect.Size(), StochasticDirectLighting::TileSize);
+	const FIntPoint ViewSizeInTiles = FIntPoint::DivideAndRoundUp(View.ViewRect.Size(), ManyLights::TileSize);
 	const int32 TileDataStride = ViewSizeInTiles.X * ViewSizeInTiles.Y;
 
-	const FIntPoint DownsampledViewSizeInTiles = FIntPoint::DivideAndRoundUp(DownsampledViewSize, StochasticDirectLighting::TileSize);
+	const FIntPoint DownsampledViewSizeInTiles = FIntPoint::DivideAndRoundUp(DownsampledViewSize, ManyLights::TileSize);
 	const int32 DownsampledTileDataStride = DownsampledViewSizeInTiles.X * DownsampledViewSizeInTiles.Y;
 
 	FRDGTextureRef DownsampledTileMask = GraphBuilder.CreateTexture(
-		FRDGTextureDesc::Create2D(FMath::DivideAndRoundUp<FIntPoint>(DownsampledBufferSize, StochasticDirectLighting::TileSize), PF_R8_UINT, FClearValueBinding::Black, TexCreate_ShaderResource | TexCreate_UAV),
-		TEXT("StochasticDirectLighting.DownsampledTileMask"));
+		FRDGTextureDesc::Create2D(FMath::DivideAndRoundUp<FIntPoint>(DownsampledBufferSize, ManyLights::TileSize), PF_R8_UINT, FClearValueBinding::Black, TexCreate_ShaderResource | TexCreate_UAV),
+		TEXT("ManyLights.DownsampledTileMask"));
 
-	FStochasticDirectLightingParameters StochasticDirectLightingParameters;
+	FManyLightsParameters ManyLightsParameters;
 	{
-		StochasticDirectLightingParameters.ViewUniformBuffer = View.ViewUniformBuffer;
-		StochasticDirectLightingParameters.Scene = View.GetSceneUniforms().GetBuffer(GraphBuilder);
-		StochasticDirectLightingParameters.SceneTextures = GetSceneTextureParameters(GraphBuilder, SceneTextures.UniformBuffer);
-		StochasticDirectLightingParameters.SceneTexturesStruct = SceneTextures.UniformBuffer;
-		StochasticDirectLightingParameters.Substrate = Substrate::BindSubstrateGlobalUniformParameters(View);
-		StochasticDirectLightingParameters.ForwardLightData = View.ForwardLightingResources.ForwardLightUniformBuffer;
-		StochasticDirectLightingParameters.LightFunctionAtlas = LightFunctionAtlas::BindGlobalParameters(GraphBuilder, View);
-		StochasticDirectLightingParameters.BlueNoise = BlueNoiseUniformBuffer;
-		StochasticDirectLightingParameters.PreIntegratedGF = GSystemTextures.PreintegratedGF->GetRHI();
-		StochasticDirectLightingParameters.PreIntegratedGFSampler = TStaticSamplerState<SF_Bilinear, AM_Clamp, AM_Clamp, AM_Clamp>::GetRHI();
-		StochasticDirectLightingParameters.DownsampledViewSize = DownsampledViewSize;
-		StochasticDirectLightingParameters.SampleViewSize = SampleViewSize;
-		StochasticDirectLightingParameters.NumSamplesPerPixel = NumSamplesPerPixel2d;
-		StochasticDirectLightingParameters.NumSamplesPerPixelDivideShift.X = FMath::FloorLog2(NumSamplesPerPixel2d.X);
-		StochasticDirectLightingParameters.NumSamplesPerPixelDivideShift.Y = FMath::FloorLog2(NumSamplesPerPixel2d.Y);
-		StochasticDirectLightingParameters.StochasticDirectLightingStateFrameIndex = StochasticDirectLighting::GetStateFrameIndex(View.ViewState);
-		StochasticDirectLightingParameters.DownsampledTileMask = DownsampledTileMask;
-		StochasticDirectLightingParameters.DownsampledSceneDepth = DownsampledSceneDepth;
-		StochasticDirectLightingParameters.DownsampledSceneWorldNormal = DownsampledSceneWorldNormal;
-		StochasticDirectLightingParameters.MaxCompositeTiles = MaxCompositeTiles;
-		StochasticDirectLightingParameters.MaxShadingTiles = MaxShadingTiles;
-		StochasticDirectLightingParameters.MaxShadingTilesPerGridCell = MaxShadingTilesPerGridCell;
-		StochasticDirectLightingParameters.ShadingTileGridSize = ShadingTileGridSize;
-		StochasticDirectLightingParameters.DownsampledBufferInvSize = FVector2f(1.0f) / DownsampledBufferSize;
-		StochasticDirectLightingParameters.SamplingMinWeight = FMath::Max(CVarStochasticDirectLightingSamplingMinWeight.GetValueOnRenderThread(), 0.0f);
-		StochasticDirectLightingParameters.TileDataStride = TileDataStride;
-		StochasticDirectLightingParameters.DownsampledTileDataStride = DownsampledTileDataStride;
-		StochasticDirectLightingParameters.TemporalMaxFramesAccumulated = FMath::Max(CVarStochasticDirectLightingTemporalMaxFramesAccumulated.GetValueOnRenderThread(), 0.0f);
-		StochasticDirectLightingParameters.TemporalNeighborhoodClampScale = CVarStochasticDirectLightingTemporalNeighborhoodClampScale.GetValueOnRenderThread();
-		StochasticDirectLightingParameters.DebugMode = StochasticDirectLighting::GetDebugMode();
-		StochasticDirectLightingParameters.DebugLightId = INDEX_NONE;
+		ManyLightsParameters.ViewUniformBuffer = View.ViewUniformBuffer;
+		ManyLightsParameters.Scene = View.GetSceneUniforms().GetBuffer(GraphBuilder);
+		ManyLightsParameters.SceneTextures = GetSceneTextureParameters(GraphBuilder, SceneTextures.UniformBuffer);
+		ManyLightsParameters.SceneTexturesStruct = SceneTextures.UniformBuffer;
+		ManyLightsParameters.Substrate = Substrate::BindSubstrateGlobalUniformParameters(View);
+		ManyLightsParameters.ForwardLightData = View.ForwardLightingResources.ForwardLightUniformBuffer;
+		ManyLightsParameters.LightFunctionAtlas = LightFunctionAtlas::BindGlobalParameters(GraphBuilder, View);
+		ManyLightsParameters.BlueNoise = BlueNoiseUniformBuffer;
+		ManyLightsParameters.PreIntegratedGF = GSystemTextures.PreintegratedGF->GetRHI();
+		ManyLightsParameters.PreIntegratedGFSampler = TStaticSamplerState<SF_Bilinear, AM_Clamp, AM_Clamp, AM_Clamp>::GetRHI();
+		ManyLightsParameters.DownsampledViewSize = DownsampledViewSize;
+		ManyLightsParameters.SampleViewSize = SampleViewSize;
+		ManyLightsParameters.NumSamplesPerPixel = NumSamplesPerPixel2d;
+		ManyLightsParameters.NumSamplesPerPixelDivideShift.X = FMath::FloorLog2(NumSamplesPerPixel2d.X);
+		ManyLightsParameters.NumSamplesPerPixelDivideShift.Y = FMath::FloorLog2(NumSamplesPerPixel2d.Y);
+		ManyLightsParameters.ManyLightsStateFrameIndex = ManyLights::GetStateFrameIndex(View.ViewState);
+		ManyLightsParameters.DownsampledTileMask = DownsampledTileMask;
+		ManyLightsParameters.DownsampledSceneDepth = DownsampledSceneDepth;
+		ManyLightsParameters.DownsampledSceneWorldNormal = DownsampledSceneWorldNormal;
+		ManyLightsParameters.MaxCompositeTiles = MaxCompositeTiles;
+		ManyLightsParameters.MaxShadingTiles = MaxShadingTiles;
+		ManyLightsParameters.MaxShadingTilesPerGridCell = MaxShadingTilesPerGridCell;
+		ManyLightsParameters.ShadingTileGridSize = ShadingTileGridSize;
+		ManyLightsParameters.DownsampledBufferInvSize = FVector2f(1.0f) / DownsampledBufferSize;
+		ManyLightsParameters.SamplingMinWeight = FMath::Max(CVarManyLightsSamplingMinWeight.GetValueOnRenderThread(), 0.0f);
+		ManyLightsParameters.TileDataStride = TileDataStride;
+		ManyLightsParameters.DownsampledTileDataStride = DownsampledTileDataStride;
+		ManyLightsParameters.TemporalMaxFramesAccumulated = FMath::Max(CVarManyLightsTemporalMaxFramesAccumulated.GetValueOnRenderThread(), 0.0f);
+		ManyLightsParameters.TemporalNeighborhoodClampScale = CVarManyLightsTemporalNeighborhoodClampScale.GetValueOnRenderThread();
+		ManyLightsParameters.DebugMode = ManyLights::GetDebugMode();
+		ManyLightsParameters.DebugLightId = INDEX_NONE;
 
 		if (bDebug)
 		{
 			ShaderPrint::SetEnabled(true);
 			ShaderPrint::RequestSpaceForLines(1024);
-			ShaderPrint::SetParameters(GraphBuilder, View.ShaderPrintData, StochasticDirectLightingParameters.ShaderPrintUniformBuffer);
+			ShaderPrint::SetParameters(GraphBuilder, View.ShaderPrintData, ManyLightsParameters.ShaderPrintUniformBuffer);
 
-			StochasticDirectLightingParameters.DebugLightId = CVarStochasticDirectLightingDebugLightId.GetValueOnRenderThread();
+			ManyLightsParameters.DebugLightId = CVarManyLightsDebugLightId.GetValueOnRenderThread();
 
-			if (StochasticDirectLightingParameters.DebugLightId < 0)
+			if (ManyLightsParameters.DebugLightId < 0)
 			{
 				for (auto LightIt = Scene->Lights.CreateConstIterator(); LightIt; ++LightIt)
 				{
@@ -783,7 +783,7 @@ void FDeferredShadingSceneRenderer::RenderStochasticDirectLighting(FRDGBuilder& 
 
 					if (LightSceneInfo->Proxy->IsSelected())
 					{
-						StochasticDirectLightingParameters.DebugLightId = LightSceneInfo->Id;
+						ManyLightsParameters.DebugLightId = LightSceneInfo->Id;
 						break;
 					}
 				}
@@ -791,20 +791,20 @@ void FDeferredShadingSceneRenderer::RenderStochasticDirectLighting(FRDGBuilder& 
 		}
 	}
 
-	FRDGBufferRef TileAllocator = GraphBuilder.CreateBuffer(FRDGBufferDesc::CreateStructuredDesc(sizeof(uint32), (int32)StochasticDirectLighting::ETileType::MAX), TEXT("StochasticDirectLighting.TileAllocator"));
-	FRDGBufferRef TileData = GraphBuilder.CreateBuffer(FRDGBufferDesc::CreateStructuredDesc(sizeof(uint32), TileDataStride * (int32)StochasticDirectLighting::ETileType::MAX), TEXT("StochasticDirectLighting.TileData"));
+	FRDGBufferRef TileAllocator = GraphBuilder.CreateBuffer(FRDGBufferDesc::CreateStructuredDesc(sizeof(uint32), (int32)ManyLights::ETileType::MAX), TEXT("ManyLights.TileAllocator"));
+	FRDGBufferRef TileData = GraphBuilder.CreateBuffer(FRDGBufferDesc::CreateStructuredDesc(sizeof(uint32), TileDataStride * (int32)ManyLights::ETileType::MAX), TEXT("ManyLights.TileData"));
 	AddClearUAVPass(GraphBuilder, GraphBuilder.CreateUAV(TileAllocator), 0);
 
-	FRDGBufferRef DownsampledTileAllocator = GraphBuilder.CreateBuffer(FRDGBufferDesc::CreateStructuredDesc(sizeof(uint32), (int32)StochasticDirectLighting::ETileType::MAX), TEXT("StochasticDirectLighting.DownsampledTileAllocator"));
-	FRDGBufferRef DownsampledTileData = GraphBuilder.CreateBuffer(FRDGBufferDesc::CreateStructuredDesc(sizeof(uint32), DownsampledTileDataStride * (int32)StochasticDirectLighting::ETileType::MAX), TEXT("StochasticDirectLighting.DownsampledTileData"));
+	FRDGBufferRef DownsampledTileAllocator = GraphBuilder.CreateBuffer(FRDGBufferDesc::CreateStructuredDesc(sizeof(uint32), (int32)ManyLights::ETileType::MAX), TEXT("ManyLights.DownsampledTileAllocator"));
+	FRDGBufferRef DownsampledTileData = GraphBuilder.CreateBuffer(FRDGBufferDesc::CreateStructuredDesc(sizeof(uint32), DownsampledTileDataStride * (int32)ManyLights::ETileType::MAX), TEXT("ManyLights.DownsampledTileData"));
 	AddClearUAVPass(GraphBuilder, GraphBuilder.CreateUAV(DownsampledTileAllocator), 0);
 
-	// #sdl_todo: merge classification passes or reuse downsampled one to create full res tiles
+	// #ml_todo: merge classification passes or reuse downsampled one to create full res tiles
 	// Run tile classification to generate tiles for the subsequent passes
 	{
 		{
 			FTileClassificationCS::FParameters* PassParameters = GraphBuilder.AllocParameters<FTileClassificationCS::FParameters>();
-			PassParameters->StochasticDirectLightingParameters = StochasticDirectLightingParameters;
+			PassParameters->ManyLightsParameters = ManyLightsParameters;
 			PassParameters->RWTileAllocator = GraphBuilder.CreateUAV(TileAllocator);
 			PassParameters->RWTileData = GraphBuilder.CreateUAV(TileData);
 
@@ -824,7 +824,7 @@ void FDeferredShadingSceneRenderer::RenderStochasticDirectLighting(FRDGBuilder& 
 
 		{
 			FTileClassificationCS::FParameters* PassParameters = GraphBuilder.AllocParameters<FTileClassificationCS::FParameters>();
-			PassParameters->StochasticDirectLightingParameters = StochasticDirectLightingParameters;
+			PassParameters->ManyLightsParameters = ManyLightsParameters;
 			PassParameters->RWTileAllocator = GraphBuilder.CreateUAV(DownsampledTileAllocator);
 			PassParameters->RWTileData = GraphBuilder.CreateUAV(DownsampledTileData);
 
@@ -843,13 +843,13 @@ void FDeferredShadingSceneRenderer::RenderStochasticDirectLighting(FRDGBuilder& 
 		}
 	}
 
-	FRDGBufferRef TileIndirectArgs = GraphBuilder.CreateBuffer(FRDGBufferDesc::CreateIndirectDesc<FRHIDispatchIndirectParameters>((int32)StochasticDirectLighting::ETileType::MAX), TEXT("StochasticDirectLighting.TileIndirectArgs"));
-	FRDGBufferRef DownsampledTileIndirectArgs = GraphBuilder.CreateBuffer(FRDGBufferDesc::CreateIndirectDesc<FRHIDispatchIndirectParameters>((int32)StochasticDirectLighting::ETileType::MAX), TEXT("StochasticDirectLighting.DownsampledTileIndirectArgs"));
+	FRDGBufferRef TileIndirectArgs = GraphBuilder.CreateBuffer(FRDGBufferDesc::CreateIndirectDesc<FRHIDispatchIndirectParameters>((int32)ManyLights::ETileType::MAX), TEXT("ManyLights.TileIndirectArgs"));
+	FRDGBufferRef DownsampledTileIndirectArgs = GraphBuilder.CreateBuffer(FRDGBufferDesc::CreateIndirectDesc<FRHIDispatchIndirectParameters>((int32)ManyLights::ETileType::MAX), TEXT("ManyLights.DownsampledTileIndirectArgs"));
 
 	// Setup indirect args for classified tiles
 	{
 		FInitTileIndirectArgsCS::FParameters* PassParameters = GraphBuilder.AllocParameters<FInitTileIndirectArgsCS::FParameters>();
-		PassParameters->StochasticDirectLightingParameters = StochasticDirectLightingParameters;
+		PassParameters->ManyLightsParameters = ManyLightsParameters;
 		PassParameters->RWTileIndirectArgs = GraphBuilder.CreateUAV(TileIndirectArgs);
 		PassParameters->RWDownsampledTileIndirectArgs = GraphBuilder.CreateUAV(DownsampledTileIndirectArgs);
 		PassParameters->TileAllocator = GraphBuilder.CreateSRV(TileAllocator);
@@ -865,14 +865,14 @@ void FDeferredShadingSceneRenderer::RenderStochasticDirectLighting(FRDGBuilder& 
 			FIntVector(1, 1, 1));
 	}
 
-	FRDGBufferRef CompositeTileAllocator = GraphBuilder.CreateBuffer(FRDGBufferDesc::CreateStructuredDesc(sizeof(uint32), 1), TEXT("StochasticDirectLighting.CompositeTileAllocator"));
-	FRDGBufferRef CompositeTileData = GraphBuilder.CreateBuffer(FRDGBufferDesc::CreateStructuredDesc(2 * sizeof(uint32), MaxCompositeTiles), TEXT("StochasticDirectLighting.CompositeTileData"));
+	FRDGBufferRef CompositeTileAllocator = GraphBuilder.CreateBuffer(FRDGBufferDesc::CreateStructuredDesc(sizeof(uint32), 1), TEXT("ManyLights.CompositeTileAllocator"));
+	FRDGBufferRef CompositeTileData = GraphBuilder.CreateBuffer(FRDGBufferDesc::CreateStructuredDesc(2 * sizeof(uint32), MaxCompositeTiles), TEXT("ManyLights.CompositeTileData"));
 	AddClearUAVPass(GraphBuilder, GraphBuilder.CreateUAV(CompositeTileAllocator), 0);
 
 
 	FRDGTextureRef SampleLuminanceSum = GraphBuilder.CreateTexture(
 		FRDGTextureDesc::Create2D(DownsampledBufferSize, PF_G16R16F, FClearValueBinding::Black, TexCreate_ShaderResource | TexCreate_UAV),
-		TEXT("StochasticDirectLighting.SampleLuminanceSum"));
+		TEXT("ManyLights.SampleLuminanceSum"));
 	
 	// Generate new candidate light samples
 	{
@@ -887,7 +887,7 @@ void FDeferredShadingSceneRenderer::RenderStochasticDirectLighting(FRDGBuilder& 
 		{
 			FClearLightSamplesCS::FParameters* PassParameters = GraphBuilder.AllocParameters<FClearLightSamplesCS::FParameters>();
 			PassParameters->IndirectArgs = DownsampledTileIndirectArgs;
-			PassParameters->StochasticDirectLightingParameters = StochasticDirectLightingParameters;
+			PassParameters->ManyLightsParameters = ManyLightsParameters;
 			PassParameters->RWDownsampledSceneDepth = DownsampledSceneDepthUAV;
 			PassParameters->RWDownsampledSceneWorldNormal = DownsampledSceneWorldNormalUAV;
 			PassParameters->RWLightSamples = LightSamplesUAV;
@@ -904,14 +904,14 @@ void FDeferredShadingSceneRenderer::RenderStochasticDirectLighting(FRDGBuilder& 
 				ComputeShader,
 				PassParameters,
 				DownsampledTileIndirectArgs,
-				(int32)StochasticDirectLighting::ETileType::Empty * sizeof(FRHIDispatchIndirectParameters));
+				(int32)ManyLights::ETileType::Empty * sizeof(FRHIDispatchIndirectParameters));
 		}
 
-		for (int32 TileType = 0; TileType < (int32)StochasticDirectLighting::ETileType::SHADING_MAX; ++TileType)
+		for (int32 TileType = 0; TileType < (int32)ManyLights::ETileType::SHADING_MAX; ++TileType)
 		{
 			FGenerateLightSamplesCS::FParameters* PassParameters = GraphBuilder.AllocParameters<FGenerateLightSamplesCS::FParameters>();
 			PassParameters->IndirectArgs = DownsampledTileIndirectArgs;
-			PassParameters->StochasticDirectLightingParameters = StochasticDirectLightingParameters;
+			PassParameters->ManyLightsParameters = ManyLightsParameters;
 			PassParameters->RWSampleLuminanceSum = SampleLuminanceSumUAV;
 			PassParameters->RWDownsampledSceneDepth = DownsampledSceneDepthUAV;
 			PassParameters->RWDownsampledSceneWorldNormal = DownsampledSceneWorldNormalUAV;
@@ -925,9 +925,9 @@ void FDeferredShadingSceneRenderer::RenderStochasticDirectLighting(FRDGBuilder& 
 
 			FGenerateLightSamplesCS::FPermutationDomain PermutationVector;
 			PermutationVector.Set<FGenerateLightSamplesCS::FTileType>(TileType);
-			PermutationVector.Set<FGenerateLightSamplesCS::FIESProfile>(CVarStochasticDirectLightingIESProfiles.GetValueOnRenderThread() != 0);
+			PermutationVector.Set<FGenerateLightSamplesCS::FIESProfile>(CVarManyLightsIESProfiles.GetValueOnRenderThread() != 0);
 			PermutationVector.Set<FGenerateLightSamplesCS::FLightFunctionAtlas>(bUseLightFunctionAtlas);
-			PermutationVector.Set<FGenerateLightSamplesCS::FTexturedRectLights>(CVarStochasticDirectLightingTexturedRectLights.GetValueOnRenderThread() != 0);
+			PermutationVector.Set<FGenerateLightSamplesCS::FTexturedRectLights>(CVarManyLightsTexturedRectLights.GetValueOnRenderThread() != 0);
 			PermutationVector.Set<FGenerateLightSamplesCS::FNumSamplesPerPixel1d>(NumSamplesPerPixel2d.X * NumSamplesPerPixel2d.Y);
 			PermutationVector.Set<FGenerateLightSamplesCS::FDebugMode>(bDebug);
 			auto ComputeShader = View.ShaderMap->GetShader<FGenerateLightSamplesCS>(PermutationVector);
@@ -942,12 +942,12 @@ void FDeferredShadingSceneRenderer::RenderStochasticDirectLighting(FRDGBuilder& 
 		}
 	}
 
-	FRDGBufferRef CompositeTileIndirectArgs = GraphBuilder.CreateBuffer(FRDGBufferDesc::CreateIndirectDesc<FRHIDispatchIndirectParameters>(1), TEXT("StochasticDirectLighting.CompositeTileIndirectArgs"));
+	FRDGBufferRef CompositeTileIndirectArgs = GraphBuilder.CreateBuffer(FRDGBufferDesc::CreateIndirectDesc<FRHIDispatchIndirectParameters>(1), TEXT("ManyLights.CompositeTileIndirectArgs"));
 
 	// Setup indirect args for shadow mask tile updates
 	{
 		FInitCompositeIndirectArgsCS::FParameters* PassParameters = GraphBuilder.AllocParameters<FInitCompositeIndirectArgsCS::FParameters>();
-		PassParameters->StochasticDirectLightingParameters = StochasticDirectLightingParameters;
+		PassParameters->ManyLightsParameters = ManyLightsParameters;
 		PassParameters->RWIndirectArgs = GraphBuilder.CreateUAV(CompositeTileIndirectArgs);
 		PassParameters->CompositeTileAllocator = GraphBuilder.CreateSRV(CompositeTileAllocator);
 
@@ -961,24 +961,24 @@ void FDeferredShadingSceneRenderer::RenderStochasticDirectLighting(FRDGBuilder& 
 			FIntVector(1, 1, 1));
 	}
 
-	StochasticDirectLighting::RayTraceLightSamples(
+	ManyLights::RayTraceLightSamples(
 		View,
 		GraphBuilder, 
 		SceneTextures,
 		SampleBufferSize,
 		LightSamples,
 		LightSampleRayDistance,
-		StochasticDirectLightingParameters
+		ManyLightsParameters
 	);
 
 	FRDGTextureRef CompositeUpsampleWeights = GraphBuilder.CreateTexture(
 		FRDGTextureDesc::Create2D(SceneTextures.Config.Extent, PF_FloatRGBA, FClearValueBinding::Black, TexCreate_ShaderResource | TexCreate_UAV),
-		TEXT("StochasticDirectLighting.CompositeUpsampleWeights"));
+		TEXT("ManyLights.CompositeUpsampleWeights"));
 
 	// Init composite upsample weights
 	{
 		FInitCompositeUpsampleWeightsCS::FParameters* PassParameters = GraphBuilder.AllocParameters<FInitCompositeUpsampleWeightsCS::FParameters>();
-		PassParameters->StochasticDirectLightingParameters = StochasticDirectLightingParameters;
+		PassParameters->ManyLightsParameters = ManyLightsParameters;
 		PassParameters->RWCompositeUpsampleWeights = GraphBuilder.CreateUAV(CompositeUpsampleWeights);
 
 		auto ComputeShader = View.ShaderMap->GetShader<FInitCompositeUpsampleWeightsCS>();
@@ -995,19 +995,19 @@ void FDeferredShadingSceneRenderer::RenderStochasticDirectLighting(FRDGBuilder& 
 
 	FRDGBufferRef ShadingTileAllocator = GraphBuilder.CreateBuffer(
 		FRDGBufferDesc::CreateStructuredDesc(sizeof(uint32), 1),
-		TEXT("StochasticDirectLightingParameters.ShadingTileAllocator"));
+		TEXT("ManyLightsParameters.ShadingTileAllocator"));
 
 	FRDGTextureRef ShadingTileGridAllocator = GraphBuilder.CreateTexture(
 		FRDGTextureDesc::Create2D(ShadingTileGridSize, PF_R32_UINT, FClearValueBinding::Black, TexCreate_ShaderResource | TexCreate_UAV),
-		TEXT("StochasticDirectLighting.ShadingTileGridAllocator"));
+		TEXT("ManyLights.ShadingTileGridAllocator"));
 
 	FRDGBufferRef ShadingTileGrid = GraphBuilder.CreateBuffer(
 		FRDGBufferDesc::CreateStructuredDesc(sizeof(uint32), ShadingTileGridSize.X * ShadingTileGridSize.Y * MaxShadingTilesPerGridCell),
-		TEXT("StochasticDirectLightingParameters.ShadingTileGrid"));
+		TEXT("ManyLightsParameters.ShadingTileGrid"));
 
 	FRDGTextureRef ShadingTileAtlas = GraphBuilder.CreateTexture(
 		FRDGTextureDesc::Create2D(ShadingTileAtlasSize, PF_R16F, FClearValueBinding::Black, TexCreate_ShaderResource | TexCreate_UAV),
-		TEXT("StochasticDirectLighting	.ShadingTileAtlas"));
+		TEXT("ManyLights	.ShadingTileAtlas"));
 
 	AddClearUAVPass(GraphBuilder, GraphBuilder.CreateUAV(ShadingTileAllocator), 0u);
 	AddClearUAVPass(GraphBuilder, GraphBuilder.CreateUAV(ShadingTileGridAllocator), 0u);
@@ -1015,7 +1015,7 @@ void FDeferredShadingSceneRenderer::RenderStochasticDirectLighting(FRDGBuilder& 
 	// Composite shadow masks traces
 	{
 		FCompositeLightSamplesCS::FParameters* PassParameters = GraphBuilder.AllocParameters<FCompositeLightSamplesCS::FParameters>();
-		PassParameters->StochasticDirectLightingParameters = StochasticDirectLightingParameters;
+		PassParameters->ManyLightsParameters = ManyLightsParameters;
 		PassParameters->IndirectArgs = CompositeTileIndirectArgs;
 		PassParameters->RWShadingTileAllocator = GraphBuilder.CreateUAV(ShadingTileAllocator);
 		PassParameters->RWShadingTileGridAllocator = GraphBuilder.CreateUAV(ShadingTileGridAllocator);
@@ -1040,24 +1040,24 @@ void FDeferredShadingSceneRenderer::RenderStochasticDirectLighting(FRDGBuilder& 
 
 	FRDGTextureRef ResolvedDiffuseLighting = GraphBuilder.CreateTexture(
 		FRDGTextureDesc::Create2D(View.GetSceneTexturesConfig().Extent, PF_FloatRGB, FClearValueBinding::Black, TexCreate_ShaderResource | TexCreate_UAV),
-		TEXT("StochasticDirectLighting.ResolvedDiffuseLighting"));
+		TEXT("ManyLights.ResolvedDiffuseLighting"));
 
 	FRDGTextureRef ResolvedSpecularLighting = GraphBuilder.CreateTexture(
 		FRDGTextureDesc::Create2D(View.GetSceneTexturesConfig().Extent, PF_FloatRGB, FClearValueBinding::Black, TexCreate_ShaderResource | TexCreate_UAV),
-		TEXT("StochasticDirectLighting.ResolvedSpecularLighting"));
+		TEXT("ManyLights.ResolvedSpecularLighting"));
 
 	// Shade light samples
 	{
 		FRDGTextureUAVRef ResolvedDiffuseLightingUAV = GraphBuilder.CreateUAV(ResolvedDiffuseLighting, ERDGUnorderedAccessViewFlags::SkipBarrier);
 		FRDGTextureUAVRef ResolvedSpecularLightingUAV = GraphBuilder.CreateUAV(ResolvedSpecularLighting, ERDGUnorderedAccessViewFlags::SkipBarrier);
 
-		for (int32 TileType = 0; TileType < (int32)StochasticDirectLighting::ETileType::SHADING_MAX; ++TileType)
+		for (int32 TileType = 0; TileType < (int32)ManyLights::ETileType::SHADING_MAX; ++TileType)
 		{
 			FShadeLightSamplesCS::FParameters* PassParameters = GraphBuilder.AllocParameters<FShadeLightSamplesCS::FParameters>();
 			PassParameters->RWResolvedDiffuseLighting = ResolvedDiffuseLightingUAV;
 			PassParameters->RWResolvedSpecularLighting = ResolvedSpecularLightingUAV;
 			PassParameters->IndirectArgs = TileIndirectArgs;
-			PassParameters->StochasticDirectLightingParameters = StochasticDirectLightingParameters;
+			PassParameters->ManyLightsParameters = ManyLightsParameters;
 			PassParameters->CompositeTileAllocator = GraphBuilder.CreateSRV(CompositeTileAllocator);
 			PassParameters->TileAllocator = GraphBuilder.CreateSRV(TileAllocator);
 			PassParameters->TileData = GraphBuilder.CreateSRV(TileData);
@@ -1068,9 +1068,9 @@ void FDeferredShadingSceneRenderer::RenderStochasticDirectLighting(FRDGBuilder& 
 
 			FShadeLightSamplesCS::FPermutationDomain PermutationVector;
 			PermutationVector.Set<FShadeLightSamplesCS::FTileType>(TileType);
-			PermutationVector.Set<FShadeLightSamplesCS::FIESProfile>(CVarStochasticDirectLightingIESProfiles.GetValueOnRenderThread() != 0);
+			PermutationVector.Set<FShadeLightSamplesCS::FIESProfile>(CVarManyLightsIESProfiles.GetValueOnRenderThread() != 0);
 			PermutationVector.Set<FShadeLightSamplesCS::FLightFunctionAtlas>(bUseLightFunctionAtlas);
-			PermutationVector.Set<FShadeLightSamplesCS::FTexturedRectLights>(CVarStochasticDirectLightingTexturedRectLights.GetValueOnRenderThread() != 0);
+			PermutationVector.Set<FShadeLightSamplesCS::FTexturedRectLights>(CVarManyLightsTexturedRectLights.GetValueOnRenderThread() != 0);
 			PermutationVector.Set<FShadeLightSamplesCS::FDebugMode>(bDebug);
 			auto ComputeShader = View.ShaderMap->GetShader<FShadeLightSamplesCS>(PermutationVector);
 
@@ -1088,24 +1088,24 @@ void FDeferredShadingSceneRenderer::RenderStochasticDirectLighting(FRDGBuilder& 
 	// This will be passed to the next frame
 	FRDGTextureRef DiffuseLightingAndSecondMoment = GraphBuilder.CreateTexture(
 		FRDGTextureDesc::Create2D(View.GetSceneTexturesConfig().Extent, PF_FloatRGBA, FClearValueBinding::Black, TexCreate_ShaderResource | TexCreate_UAV),
-		TEXT("StochasticDirectLighting.DiffuseLightingAndSecondMoment"));
+		TEXT("ManyLights.DiffuseLightingAndSecondMoment"));
 
 	FRDGTextureRef SpecularLightingAndSecondMoment = GraphBuilder.CreateTexture(
 		FRDGTextureDesc::Create2D(View.GetSceneTexturesConfig().Extent, PF_FloatRGBA, FClearValueBinding::Black, TexCreate_ShaderResource | TexCreate_UAV),
-		TEXT("StochasticDirectLighting.SpecularLightingAndSecondMoment"));
+		TEXT("ManyLights.SpecularLightingAndSecondMoment"));
 
 	FRDGTextureRef SceneDepthCopy = GraphBuilder.CreateTexture(
 		FRDGTextureDesc::Create2D(SceneTextures.Depth.Resolve->Desc.Extent, PF_R32_FLOAT, FClearValueBinding::Black, TexCreate_ShaderResource | TexCreate_UAV),
-		TEXT("StochasticDirectLighting.DepthHistory"));
+		TEXT("ManyLights.DepthHistory"));
 
 	FRDGTextureRef NumFramesAccumulated = GraphBuilder.CreateTexture(
 		FRDGTextureDesc::Create2D(View.GetSceneTexturesConfig().Extent, PF_G8, FClearValueBinding::Black, TexCreate_ShaderResource | TexCreate_UAV),
-		TEXT("StochasticDirectLighting.NumFramesAccumulated"));
+		TEXT("ManyLights.NumFramesAccumulated"));
 
 	// Temporal accumulation
 	{
-		FSDLTemporalAccumulationCS::FParameters* PassParameters = GraphBuilder.AllocParameters<FSDLTemporalAccumulationCS::FParameters>();
-		PassParameters->StochasticDirectLightingParameters = StochasticDirectLightingParameters;
+		FDenoiserTemporalCS::FParameters* PassParameters = GraphBuilder.AllocParameters<FDenoiserTemporalCS::FParameters>();
+		PassParameters->ManyLightsParameters = ManyLightsParameters;
 		PassParameters->CompositeUpsampleWeights = CompositeUpsampleWeights;
 		PassParameters->SampleLuminanceSumTexture = SampleLuminanceSum;
 		PassParameters->ResolvedDiffuseLighting = ResolvedDiffuseLighting;
@@ -1113,7 +1113,7 @@ void FDeferredShadingSceneRenderer::RenderStochasticDirectLighting(FRDGBuilder& 
 		PassParameters->DiffuseLightingAndSecondMomentHistoryTexture = DiffuseLightingAndSecondMomentHistory;
 		PassParameters->SpecularLightingAndSecondMomentHistoryTexture = SpecularLightingAndSecondMomentHistory;
 		PassParameters->NumFramesAccumulatedHistoryTexture = NumFramesAccumulatedHistory;
-		PassParameters->StochasticDirectLightingDepthHistory = SceneDepthHistory;
+		PassParameters->ManyLightsDepthHistory = SceneDepthHistory;
 		PassParameters->PrevSceneColorPreExposureCorrection = View.PreExposure / View.PrevViewInfo.SceneColorPreExposure;
 		PassParameters->HistoryScreenPositionScaleBias = HistoryScreenPositionScaleBias;
 		PassParameters->HistoryUVMinMax = HistoryUVMinMax;
@@ -1123,12 +1123,12 @@ void FDeferredShadingSceneRenderer::RenderStochasticDirectLighting(FRDGBuilder& 
 		PassParameters->RWSceneDepth = GraphBuilder.CreateUAV(SceneDepthCopy);
 		PassParameters->RWSceneColor = GraphBuilder.CreateUAV(SceneTextures.Color.Target);
 
-		FSDLTemporalAccumulationCS::FPermutationDomain PermutationVector;
-		PermutationVector.Set<FSDLTemporalAccumulationCS::FValidHistory>(DiffuseLightingAndSecondMomentHistory != nullptr && bTemporal);
-		PermutationVector.Set<FSDLTemporalAccumulationCS::FDebugMode>(bDebug);
-		auto ComputeShader = View.ShaderMap->GetShader<FSDLTemporalAccumulationCS>(PermutationVector);
+		FDenoiserTemporalCS::FPermutationDomain PermutationVector;
+		PermutationVector.Set<FDenoiserTemporalCS::FValidHistory>(DiffuseLightingAndSecondMomentHistory != nullptr && bTemporal);
+		PermutationVector.Set<FDenoiserTemporalCS::FDebugMode>(bDebug);
+		auto ComputeShader = View.ShaderMap->GetShader<FDenoiserTemporalCS>(PermutationVector);
 
-		const FIntVector GroupCount = FComputeShaderUtils::GetGroupCount(View.ViewRect.Size(), FSDLTemporalAccumulationCS::GetGroupSize());
+		const FIntVector GroupCount = FComputeShaderUtils::GetGroupCount(View.ViewRect.Size(), FDenoiserTemporalCS::GetGroupSize());
 
 		FComputeShaderUtils::AddPass(
 			GraphBuilder,
@@ -1140,19 +1140,19 @@ void FDeferredShadingSceneRenderer::RenderStochasticDirectLighting(FRDGBuilder& 
 
 	// Spatial filter
 	{
-		FSDLSpatialFilterCS::FParameters* PassParameters = GraphBuilder.AllocParameters<FSDLSpatialFilterCS::FParameters>();
-		PassParameters->StochasticDirectLightingParameters = StochasticDirectLightingParameters;
+		FDenoiserSpatialCS::FParameters* PassParameters = GraphBuilder.AllocParameters<FDenoiserSpatialCS::FParameters>();
+		PassParameters->ManyLightsParameters = ManyLightsParameters;
 		PassParameters->RWSceneColor = GraphBuilder.CreateUAV(SceneTextures.Color.Target);
 		PassParameters->DiffuseLightingAndSecondMomentTexture = DiffuseLightingAndSecondMoment;
 		PassParameters->SpecularLightingAndSecondMomentTexture = SpecularLightingAndSecondMoment;
-		PassParameters->SpatialFilterDepthWeightScale = CVarStochasticDirectLightingSpatialDepthWeightScale.GetValueOnRenderThread();
+		PassParameters->SpatialFilterDepthWeightScale = CVarManyLightsSpatialDepthWeightScale.GetValueOnRenderThread();
 
-		FSDLSpatialFilterCS::FPermutationDomain PermutationVector;
-		PermutationVector.Set<FSDLSpatialFilterCS::FSpatialFilter>(CVarStochasticDirectLightingSpatial.GetValueOnRenderThread() != 0);
-		PermutationVector.Set<FSDLSpatialFilterCS::FDebugMode>(bDebug);
-		auto ComputeShader = View.ShaderMap->GetShader<FSDLSpatialFilterCS>(PermutationVector);
+		FDenoiserSpatialCS::FPermutationDomain PermutationVector;
+		PermutationVector.Set<FDenoiserSpatialCS::FSpatialFilter>(CVarManyLightsSpatial.GetValueOnRenderThread() != 0);
+		PermutationVector.Set<FDenoiserSpatialCS::FDebugMode>(bDebug);
+		auto ComputeShader = View.ShaderMap->GetShader<FDenoiserSpatialCS>(PermutationVector);
 
-		const FIntVector GroupCount = FComputeShaderUtils::GetGroupCount(View.ViewRect.Size(), FSDLSpatialFilterCS::GetGroupSize());
+		const FIntVector GroupCount = FComputeShaderUtils::GetGroupCount(View.ViewRect.Size(), FDenoiserSpatialCS::GetGroupSize());
 
 		FComputeShaderUtils::AddPass(
 			GraphBuilder,
@@ -1164,7 +1164,7 @@ void FDeferredShadingSceneRenderer::RenderStochasticDirectLighting(FRDGBuilder& 
 
 	if (View.ViewState && !View.bStatePrevViewInfoIsReadOnly)
 	{
-		FStochasticDirectLightingViewState& LightingViewState = View.ViewState->StochasticDirectLighting;
+		FManyLightsViewState& LightingViewState = View.ViewState->ManyLights;
 
 		LightingViewState.HistoryScreenPositionScaleBias = View.GetScreenPositionScaleBias(View.GetSceneTexturesConfig().Extent, View.ViewRect);
 

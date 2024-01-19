@@ -5,7 +5,7 @@
 #include "Math/Vector4.h"
 #include "RendererInterface.h"
 
-class FStochasticDirectLightingViewState
+class FManyLightsViewState
 {
 public:
 	TRefCountPtr<IPooledRenderTarget> DiffuseLightingAndSecondMomentHistory;

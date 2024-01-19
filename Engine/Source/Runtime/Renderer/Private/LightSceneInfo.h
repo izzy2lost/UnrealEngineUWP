@@ -97,8 +97,8 @@ struct FSortedLightSceneInfo
 			 * Super-set of lights supporting tiled, so the tiled lights will end up in the first part of this range.
 			 */
 			uint32 bClusteredDeferredNotSupported : 1;
-			/** Whether the light should be handled by Stochastic Direct Lighting, these will be sorted to the end so they can be skipped */
-			uint32 bHandledByStochasticDirectLighting : 1;
+			/** Whether the light should be handled by Many Lights, these will be sorted to the end so they can be skipped */
+			uint32 bHandledByManyLights : 1;
 		} Fields;
 		/** Sort key bits packed into an integer. */
 		int32 Packed;
@@ -139,8 +139,8 @@ struct FSortedLightSetSceneInfo
 	/** First light with shadow map or */
 	int32 UnbatchedLightStart;
 
-	// First light handled by Stochastic Direct Lighting
-	int32 StochasticDirectLightingLightStart;
+	// First light handled by Many Lights
+	int32 ManyLightsLightStart;
 
 	bool bHasRectLights = false;
 	bool bHasLightFunctions = false;

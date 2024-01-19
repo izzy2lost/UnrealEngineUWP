@@ -1,7 +1,7 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 #include "../Common.ush"
-#include "StochasticDirectLighting.ush"
+#include "ManyLights.ush"
 
 groupshared uint SharedTileMode[THREADGROUP_SIZE * THREADGROUP_SIZE];
 
@@ -110,21 +110,21 @@ void TileClassificationCS(
 
 		if (SharedTileMode[0] & 0x4)
 		{
-			uint StochasticDirectLightingTileIndex = 0;
-			InterlockedAdd(RWTileAllocator[TILE_MODE_COMPLEX_SHADING], 1, StochasticDirectLightingTileIndex);
-			RWTileData[DataStride * TILE_MODE_COMPLEX_SHADING + StochasticDirectLightingTileIndex] = PackTile(TileCoord);
+			uint ManyLightsTileIndex = 0;
+			InterlockedAdd(RWTileAllocator[TILE_MODE_COMPLEX_SHADING], 1, ManyLightsTileIndex);
+			RWTileData[DataStride * TILE_MODE_COMPLEX_SHADING + ManyLightsTileIndex] = PackTile(TileCoord);
 		}
 		else if (SharedTileMode[0] & 0x2)
 		{
-			uint StochasticDirectLightingTileIndex = 0;
-			InterlockedAdd(RWTileAllocator[TILE_MODE_SIMPLE_SHADING], 1, StochasticDirectLightingTileIndex);
-			RWTileData[DataStride * TILE_MODE_SIMPLE_SHADING + StochasticDirectLightingTileIndex] = PackTile(TileCoord);
+			uint ManyLightsTileIndex = 0;
+			InterlockedAdd(RWTileAllocator[TILE_MODE_SIMPLE_SHADING], 1, ManyLightsTileIndex);
+			RWTileData[DataStride * TILE_MODE_SIMPLE_SHADING + ManyLightsTileIndex] = PackTile(TileCoord);
 		}
 		else if (SharedTileMode[0] == 0x1)
 		{
-			uint StochasticDirectLightingTileIndex = 0;
-			InterlockedAdd(RWTileAllocator[TILE_MODE_EMPTY], 1, StochasticDirectLightingTileIndex);
-			RWTileData[DataStride * TILE_MODE_EMPTY + StochasticDirectLightingTileIndex] = PackTile(TileCoord);
+			uint ManyLightsTileIndex = 0;
+			InterlockedAdd(RWTileAllocator[TILE_MODE_EMPTY], 1, ManyLightsTileIndex);
+			RWTileData[DataStride * TILE_MODE_EMPTY + ManyLightsTileIndex] = PackTile(TileCoord);
 		}
 	}
 }

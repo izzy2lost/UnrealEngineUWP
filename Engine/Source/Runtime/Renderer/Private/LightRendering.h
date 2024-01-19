@@ -338,7 +338,7 @@ enum class FLightOcclusionType : uint8
 {
 	Shadowmap,
 	Raytraced,
-	StochasticDirectLighting,
+	ManyLights,
 };
 FLightOcclusionType GetLightOcclusionType(const FLightSceneProxy& Proxy);
 FLightOcclusionType GetLightOcclusionType(const FLightSceneInfoCompact& LightInfo);

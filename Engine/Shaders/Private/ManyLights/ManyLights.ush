@@ -2,10 +2,10 @@
 
 #pragma once
 
-// Change this to force recompilation of all Stochastic Direct Lighting shaders
-#pragma message("UESHADERMETADATA_VERSION 1A63AC4B-2335-2AD1-2CAB-82295C72CAFC")
+// Change this to force recompilation of all Many Lights shaders
+#pragma message("UESHADERMETADATA_VERSION DE81D00C-08D2-4DA6-956F-B7566B5AF5A8")
 
-#define STOCHASTIC_DIRECT_LIGHTING 1
+#define MANY_LIGHTS 1
 #include "../LightGridCommon.ush"
 
 #define SUPPORT_CONTACT_SHADOWS 0
@@ -23,7 +23,7 @@
 #define DEBUG_MODE_VISUALIZE_SAMPLING 1
 #define DEBUG_MODE_VISUALIZE_TRACING  2
 
-// Keep in sync with StochasticDirectLighting.cpp
+// Keep in sync with ManyLights.cpp
 #define SHADING_ATLAS_SIZE_IN_TILES 512
 #define DOWNSAMPLE_FACTOR			2
 #define TILE_SIZE					8
@@ -31,7 +31,7 @@
 #define MAX_LOCAL_LIGHT_INDEX		1024
 #define SHARED_LIGHT_MASK_SIZE		(MAX_LOCAL_LIGHT_INDEX / 32)
 
-// Keep in sync with StochasticDirectLighting::ETileType
+// Keep in sync with ManyLights::ETileType
 #define TILE_MODE_SIMPLE_SHADING	0
 #define TILE_MODE_COMPLEX_SHADING	1
 #define TILE_MODE_EMPTY				2
@@ -92,14 +92,14 @@ FLightSample UnpackLightSample(uint PackedLightSample)
 	return LightSample;
 }
 
-uint StochasticDirectLightingStateFrameIndex;
+uint ManyLightsStateFrameIndex;
 
 /** 
  * Returns sample jitter offset in the range [0, DOWNSAMPLE_FACTOR - 1]
  */
 uint2 GetSampleScreenCoordJitter()
 {
-	return Hammersley16(StochasticDirectLightingStateFrameIndex, 8, 0) * DOWNSAMPLE_FACTOR;
+	return Hammersley16(ManyLightsStateFrameIndex, 8, 0) * DOWNSAMPLE_FACTOR;
 }
 
 /** 
@@ -107,7 +107,7 @@ uint2 GetSampleScreenCoordJitter()
  */
 uint2 GetHistorySampleScreenCoordJitter()
 {
-	return Hammersley16(StochasticDirectLightingStateFrameIndex + 7, 8, 0) * DOWNSAMPLE_FACTOR;
+	return Hammersley16(ManyLightsStateFrameIndex + 7, 8, 0) * DOWNSAMPLE_FACTOR;
 }
 
 uint2 DownsampledScreenCoordToScreenCoord(uint2 DownsampledScreenCoord)
@@ -178,7 +178,7 @@ void DemodulateLighting(FGBufferData GBuffer, float3 TranslatedWorldPosition, in
 	const float NoV = saturate(dot(N, V));
 	const float3 SpecularEnv = EnvBRDF(GBuffer.SpecularColor, GBuffer.Roughness, NoV);
 
-	// #sdl_todo: demodulate earlier during BRDF evaluation
+	// #ml_todo: demodulate earlier during BRDF evaluation
 	DiffuseLighting = DiffuseLighting / max(GBuffer.DiffuseColor, 0.001f);
 	SpecularLighting = SpecularLighting / max(SpecularEnv, 0.001f);	
 }

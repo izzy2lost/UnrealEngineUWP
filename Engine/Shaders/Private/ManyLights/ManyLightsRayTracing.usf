@@ -9,8 +9,8 @@
  #define HZB_TRACE_USE_BILINEAR_SAMPLED_DEPTH 1
 #include "../Lumen/LumenScreenTracing.ush"
 #include "../SceneTexturesCommon.ush"
-#include "StochasticDirectLighting.ush"
-#include "StochasticDirectLightingTracing.ush"
+#include "ManyLights.ush"
+#include "ManyLightsRayTracing.ush"
 #if HAIR_VOXEL_TRACES
 	#include "../HairStrands/HairStrandsRaytracing.ush"
 #endif
@@ -96,7 +96,7 @@ void CompactLightSampleTracesCS(
 	uint2 LocalTileMaskCoord = SampleCoordToDownsampledScreenCoord(SampleCoord - GroupId.xy * THREADGROUP_SIZE) / TILE_SIZE;
 	if (all(SampleCoord < SampleViewSize))
 	{
-		// #sdl_todo: try to preserve z-order here for improved tracing coherency
+		// #ml_todo: try to preserve z-order here for improved tracing coherency
 		FLightSample LightSample = UnpackLightSample(LightSamples[SampleCoord]);
 
 		if (LightSample.LocalLightIndex != MAX_LOCAL_LIGHT_INDEX && !LightSample.bCompleted)
@@ -230,7 +230,7 @@ void ScreenSpaceRayTraceLightSamplesCS(
 			float2 CornerScreenPosition = (CornerScreenUV - View.ScreenPositionScaleBias.wz) / View.ScreenPositionScaleBias.xy;
 			float3 CornerTranslatedWorldPosition = mul(float4(GetScreenPositionForProjectionType(CornerScreenPosition, SceneDepth), SceneDepth, 1), View.ScreenToTranslatedWorld).xyz;
 
-			// #sdl_todo: fixup bias and incorporate it into Lumen
+			// #ml_todo: fixup bias and incorporate it into Lumen
 			// Project texel corner onto normal
 			float NormalBias = abs(dot(CornerTranslatedWorldPosition - TranslatedWorldPosition, SceneWorldNormal)) * 2.0f;
 			TranslatedWorldPosition += NormalBias * SceneWorldNormal + 0.05f * SceneWorldNormal;
@@ -332,7 +332,7 @@ void SoftwareRayTraceLightSamplesCS(
 
 		FGlobalSDFTraceInput TraceInput = SetupGlobalSDFTraceInput(TranslatedWorldPosition, LightSampleTrace.Direction, LightSampleRayMinT, LightSampleTrace.Distance, 1.0f, 1.0f);
 
-		// #sdl_todo: setup bias
+		// #ml_todo: setup bias
 		TraceInput.VoxelSizeRelativeBias = 0.5f;
 		TraceInput.VoxelSizeRelativeRayEndBias = 0.5f;
 		TraceInput.DitherScreenCoord = SampleCoord;
@@ -341,9 +341,9 @@ void SoftwareRayTraceLightSamplesCS(
 
 		#if HAIR_VOXEL_TRACES
 		{
-			// #sdl_todo: replace with spatiotemporal blue noise
+			// #ml_todo: replace with spatiotemporal blue noise
 			RandomSequence RandSequence;
-			RandomSequence_Initialize(RandSequence, SampleCoord, 0, StochasticDirectLightingStateFrameIndex, 1);
+			RandomSequence_Initialize(RandSequence, SampleCoord, 0, ManyLightsStateFrameIndex, 1);
 			SDFResult.HitTime = TraverseHair(ScreenCoord, RandSequence, TraceInput.TranslatedWorldRayStart, TraceInput.WorldRayDirection, SDFResult.HitTime, VirtualVoxel.Raytracing_ShadowOcclusionThreshold);
 		}
 		#endif

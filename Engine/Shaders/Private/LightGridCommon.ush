@@ -227,14 +227,14 @@ FDirectionalLightData GetDirectionalLightData(uint EyeIndex)
 FLocalLightData GetLocalLightData_Internal(
 	uint LocalLightIndex,
 	uint ClusteredDeferredSupportedEndIndex,
-	uint StochasticDirectLightingSupportedStartIndex,
+	uint ManyLightsSupportedStartIndex,
 	uint SimpleLightsEndIndex,
 	float4 InData0, float4 InData1, float4 InData2, float4 InData3, float4 InData4, float4 InData5)
 {
 	FLocalLightData Out = (FLocalLightData)0;
 
 	Out.bClusteredDeferredSupported				= LocalLightIndex <  ClusteredDeferredSupportedEndIndex;
-	Out.bStochasticDirectLightingSupported		= LocalLightIndex >= StochasticDirectLightingSupportedStartIndex;
+	Out.bManyLightsSupported					= LocalLightIndex >= ManyLightsSupportedStartIndex;
 	Out.bIsSimpleLight							= LocalLightIndex <  SimpleLightsEndIndex;
 	Out.LightPositionAndInvRadius				= InData0;
 	Out.LightColorAndIdAndFalloffExponent		= InData1;
@@ -242,7 +242,7 @@ FLocalLightData GetLocalLightData_Internal(
 	Out.SpotAnglesAndSourceRadiusPacked			= InData3;
 	Out.LightTangentAndIESDataAndSpecularScale	= InData4;
 	Out.RectData								= InData5.xyz;
-#if STOCHASTIC_DIRECT_LIGHTING
+#if MANY_LIGHTS
 	Out.VirtualShadowMapId						= -1;
 	Out.PrevLocalLightIndex						= int(InData5.w);
 #else
@@ -262,7 +262,7 @@ FLocalLightData GetLocalLightDataNonStereo(uint LocalLightIndex)
 	Out = GetLocalLightData_Internal(
 		LocalLightIndex,
 		ForwardLightData.ClusteredDeferredSupportedEndIndex,
-		ForwardLightData.StochasticDirectLightingSupportedStartIndex,
+		ForwardLightData.ManyLightsSupportedStartIndex,
 		ForwardLightData.SimpleLightsEndIndex,
 		ForwardLightData.ForwardLocalLightBuffer[LocalLightBaseIndex + 0],
 		ForwardLightData.ForwardLocalLightBuffer[LocalLightBaseIndex + 1],
@@ -288,7 +288,7 @@ FLocalLightData GetLocalLightData(uint GridIndex, uint EyeIndex)
 		Out = GetLocalLightData_Internal(
 			LocalLightIndex, 
 			ForwardLightData.ClusteredDeferredSupportedEndIndex,
-			ForwardLightData.StochasticDirectLightingSupportedStartIndex,
+			ForwardLightData.ManyLightsSupportedStartIndex,
 			ForwardLightData.SimpleLightsEndIndex,
 			ForwardLightData.ForwardLocalLightBuffer[LocalLightBaseIndex + 0],
 			ForwardLightData.ForwardLocalLightBuffer[LocalLightBaseIndex + 1],
@@ -306,7 +306,7 @@ FLocalLightData GetLocalLightData(uint GridIndex, uint EyeIndex)
 		Out = GetLocalLightData_Internal(
 			LocalLightIndex,
 			ForwardLightDataISR.ClusteredDeferredSupportedEndIndex,
-			ForwardLightDataISR.StochasticDirectLightingSupportedStartIndex,
+			ForwardLightDataISR.ManyLightsSupportedStartIndex,
 			ForwardLightDataISR.SimpleLightsEndIndex,
 			ForwardLightDataISR.ForwardLocalLightBuffer[LocalLightBaseIndex + 0],
 			ForwardLightDataISR.ForwardLocalLightBuffer[LocalLightBaseIndex + 1],

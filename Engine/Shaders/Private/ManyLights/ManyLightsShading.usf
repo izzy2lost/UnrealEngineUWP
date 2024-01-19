@@ -2,7 +2,7 @@
 
 #include "../Common.ush"
 #include "../BlueNoise.ush"
-#include "StochasticDirectLighting.ush"
+#include "ManyLights.ush"
 
 RWTexture2D<float3> RWResolvedDiffuseLighting;
 RWTexture2D<float3> RWResolvedSpecularLighting;
@@ -45,7 +45,7 @@ void ShadeLightSamplesCS(
 			float2 ScreenUV = (ScreenCoord + 0.5f) * View.BufferSizeAndInvSize.zw;
 			FGBufferData GBuffer = GetGBufferData(ScreenUV);
 
-			// #sdl_todo: handle this path when shadows are disabled
+			// #ml_todo: handle this path when shadows are disabled
 			float ScreenSpaceAO = 1.0f;//Texture2DSampleLevel(SceneTexturesStruct.ScreenSpaceAOTexture, SceneTexturesStruct_ScreenSpaceAOTextureSampler, ScreenUV, 0).x;
 
 			float3 DiffuseLighting = 0.0f;
@@ -100,7 +100,7 @@ void ShadeLightSamplesCS(
 
 					if (SampleWeight > 0.01f && LightData.IESAtlasIndex >= 0)
 					{
-						// #sdl_todo: evaluate moving this to CompositeLightSamplesCS
+						// #ml_todo: evaluate moving this to CompositeLightSamplesCS
 						SampleWeight *= ComputeLightProfileMultiplier(TranslatedWorldPosition, LightData.TranslatedWorldPosition, -LightData.Direction, LightData.Tangent, LightData.IESAtlasIndex);
 					}
 
@@ -122,7 +122,7 @@ void ShadeLightSamplesCS(
 						float SurfaceShadow = 1;
 						float AmbientOcclusion = ScreenSpaceAO;
 
-						// #sdl_todo: Move more shading models to TILE_MODE_SIMPLE_SHADING
+						// #ml_todo: Move more shading models to TILE_MODE_SIMPLE_SHADING
 						#if TILE_TYPE == TILE_MODE_SIMPLE_SHADING
 						{
 							GBuffer.ShadingModelID = SHADINGMODELID_DEFAULT_LIT;

@@ -1,7 +1,7 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 #include "../Common.ush"
-#include "StochasticDirectLighting.ush"
+#include "ManyLights.ush"
 
 Texture2D<float4> DiffuseLightingAndSecondMomentTexture;
 Texture2D<float4> SpecularLightingAndSecondMomentTexture;
@@ -13,7 +13,7 @@ float SpatialFilterDepthWeightScale;
  * Run a spatial filter in order to filter out noise based on the temporal variance.
  */
 [numthreads(THREADGROUP_SIZE, THREADGROUP_SIZE, 1)]
-void SDLSpatialFilterCS(
+void DenoiserSpatialCS(
 	uint3 GroupId : SV_GroupID,
 	uint3 GroupThreadId : SV_GroupThreadID,
 	uint3 DispatchThreadId : SV_DispatchThreadID)
@@ -52,7 +52,7 @@ void SDLSpatialFilterCS(
 			uint NumSamples = 4;
 
 			float GuassianNormalize = 2.0f / (KernelRadiusInPixels * KernelRadiusInPixels);
-			uint2 RandomSeed = Rand3DPCG16(int3(ScreenCoord, StochasticDirectLightingStateFrameIndex)).xy;
+			uint2 RandomSeed = Rand3DPCG16(int3(ScreenCoord, ManyLightsStateFrameIndex)).xy;
 
 			float3 TranslatedWorldPosition = GetTranslatedWorldPositionFromScreenUV(ScreenUV, GBuffer.Depth);
 			float4 ScenePlane = float4(GBuffer.WorldNormal, dot(TranslatedWorldPosition, GBuffer.WorldNormal));
