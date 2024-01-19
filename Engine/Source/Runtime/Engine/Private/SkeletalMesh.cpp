@@ -95,8 +95,6 @@
 #include "SkeletalMeshAttributes.h"
 #include "Logging/StructuredLog.h"
 
-UE_DISABLE_OPTIMIZATION
-
 #define LOCTEXT_NAMESPACE "SkeltalMesh"
 
 DEFINE_LOG_CATEGORY(LogSkeletalMesh);
@@ -7305,7 +7303,5 @@ void GetSkeletalMeshRefTangentBasis(const USkeletalMesh* Mesh, const FSkeletalMe
 	const FSkelMeshRenderSection& Section = LODData.RenderSections[SectionIndex];
 	GetRefTangentBasisTyped(Mesh, Section, LODData.StaticVertexBuffers.StaticMeshVertexBuffer, SkinWeightVertexBuffer, VertIndexInChunk, OutTangentX, OutTangentY, OutTangentZ);
 }
-
-UE_ENABLE_OPTIMIZATION
 
 #undef LOCTEXT_NAMESPACE

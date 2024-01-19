@@ -4,6 +4,8 @@
 
 #include "MeshDescription.h"
 
+class FMorphTargetVertexAttributesConstRef;
+
 class FMorphTargetVertexAttributesRef
 {
 	friend class FSkeletalMeshAttributes;
