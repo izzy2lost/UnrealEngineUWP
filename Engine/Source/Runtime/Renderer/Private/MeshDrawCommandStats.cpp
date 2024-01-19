@@ -146,6 +146,9 @@ FMeshDrawCommandStatsManager::FMeshDrawCommandStatsManager()
 	// Is it fine to keep the screen message delegate always registered even if we are not showing anything?
 	ScreenMessageDelegate = FRendererOnScreenNotification::Get().AddLambda([this](TMultiMap<FCoreDelegates::EOnScreenMessageSeverity, FText >& OutMessages)
 		{	
+			int32 TotalPrimitivesTracked = 0;
+			int32 TotalPrimitivesUntracked = 0;
+
 			const bool bShowStats = CVarMeshDrawCommandStats->GetInt() != (int)MeshDrawStatsCollection::None;
 			if (bShowStats)
 			{
@@ -170,6 +173,8 @@ FMeshDrawCommandStatsManager::FMeshDrawCommandStatsManager()
 									*(CategoryBudget.CategoryName.ToString()),
 									*PassFriendlyNames
 							)));
+
+							TotalPrimitivesTracked += *PrimitiveCount;
 						}
 					}
 				}
@@ -184,14 +189,22 @@ FMeshDrawCommandStatsManager::FMeshDrawCommandStatsManager()
 					{
 						OutMessages.Add(FCoreDelegates::EOnScreenMessageSeverity::Info, FText::FromString(FString::Printf(TEXT("\t%5dK - %s"), PrimitiveCount / 1000, *(Name.ToString()))));
 					}
+
+					TotalPrimitivesUntracked += PrimitiveCount;
 				}
 
 				// Show total budget.
-				const int32 TotalBudget = Settings != 0 ? Settings->TotalPrimitiveBudget : 0;
-				if (TotalBudget > 0)
+				FStatCollection* StatCollection = StatCollections.Find(Collection);
+				const int32 PrimitiveBudget = StatCollection != nullptr ? StatCollection->PrimitiveBudget : 0;
+				if (PrimitiveBudget > 0)
 				{
-					FCoreDelegates::EOnScreenMessageSeverity Severity = TotalBudget < Stats.TotalPrimitives ? FCoreDelegates::EOnScreenMessageSeverity::Warning : FCoreDelegates::EOnScreenMessageSeverity::Info;
-					OutMessages.Add(Severity, FText::FromString(FString::Printf(TEXT("%5dK / %5dK - TOTAL (All Passes)"), Stats.TotalPrimitives / 1000, TotalBudget / 1000)));
+					FCoreDelegates::EOnScreenMessageSeverity Severity = PrimitiveBudget < Stats.TotalPrimitives ? FCoreDelegates::EOnScreenMessageSeverity::Warning : FCoreDelegates::EOnScreenMessageSeverity::Info;
+					OutMessages.Add(Severity, FText::FromString(FString::Printf(TEXT("%5dK / %5dK - Total Budgeted"), TotalPrimitivesTracked / 1000, PrimitiveBudget / 1000)));
+					
+					if (TotalPrimitivesUntracked)
+					{
+						OutMessages.Add(Severity, FText::FromString(FString::Printf(TEXT("%5dK - Total Untracked"), TotalPrimitivesUntracked)));
+					}
 				}
 				else
 				{
@@ -450,6 +463,15 @@ void FMeshDrawCommandStatsManager::Update()
 				for (FName Name : CategoryBudget.LinkedStatNames)
 				{
 					Category.LinkedNames.Add(Name);
+				}
+			}
+			
+			for (const FMeshDrawCommandStatsBudgetTotals& BudgetTotal : Settings->BudgetTotals)
+			{
+				FStatCollection* Collection = StatCollections.Find(BudgetTotal.Collection);
+				if (Collection)
+				{
+					Collection->PrimitiveBudget = BudgetTotal.PrimitiveBudget;
 				}
 			}
 			

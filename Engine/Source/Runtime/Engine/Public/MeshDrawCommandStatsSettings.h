@@ -30,6 +30,20 @@ struct FMeshDrawCommandStatsBudget
 	TArray<FName> Passes;
 };
 
+/** Budget totals for each MeshDrawCommandStats collection. */
+USTRUCT()
+struct FMeshDrawCommandStatsBudgetTotals
+{
+	GENERATED_BODY()
+
+	/** The total amount of primitives budgeted for this collection. */
+	UPROPERTY(config, EditAnywhere, Category = Engine)
+	int32 PrimitiveBudget = 0;
+	/** The collection this applies to. */
+	UPROPERTY(config, EditAnywhere, Category = Engine)
+	int32 Collection = 0;
+};
+
 /** User settings used by the MeshDrawCommandStats system. */
 UCLASS(Config=Engine, defaultconfig, perplatformconfig, meta = (DisplayName = "Mesh Stats"))
 class ENGINE_API UMeshDrawCommandStatsSettings : public UDeveloperSettings
@@ -40,9 +54,9 @@ public:
 	/** Budgets used by r.MeshDrawCommands.Stats */
 	UPROPERTY(config, EditAnywhere, Category = Engine)
 	TArray<FMeshDrawCommandStatsBudget> Budgets;
-	/** The total primitive budget. This is the maximimum triangles expected, post-culling, summed across all passes. */
+	/** The total primitive budget for a collection. */
 	UPROPERTY(config, EditAnywhere, Category = Engine)
-	int32 TotalPrimitiveBudget = 0;
+	TArray<FMeshDrawCommandStatsBudgetTotals> BudgetTotals;
 	/** Which collection to export to CSV */
 	UPROPERTY(config, EditAnywhere, Category = Engine)
 	int32 CollectionForCsvProfiler = 1;

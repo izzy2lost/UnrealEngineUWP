@@ -194,6 +194,7 @@ private:
 		TArray<FCollectionCategory> Categories;
 		TMap<FName, TArray<int>> StatToCategoryIndices;
 		TMap<FName, FString> CategoryPassFriendlyNames; //< Pipe delimited passes tracked by this category, used for on screen display
+		int32 PrimitiveBudget;
 	};
 
 	using FStatCollectionMap = TMap<int32, FStatCollection>;
