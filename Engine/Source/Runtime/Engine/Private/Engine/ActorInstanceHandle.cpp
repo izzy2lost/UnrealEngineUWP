@@ -222,12 +222,19 @@ USceneComponent* FActorInstanceHandle::GetRootComponent() const
 
 AActor* FActorInstanceHandle::FetchActor() const
 {
-	if (IsActorValid())
+	AActor* FetchedActor = GetCachedActor();
+	if (FetchedActor != nullptr)
 	{
-		return Actor.Get();
+		return FetchedActor;
 	}
 
-	return ManagerInterface.IsValid() ? ManagerInterface->FindOrCreateActor(*this) : nullptr;
+	if (ManagerInterface.IsValid())
+	{
+		FetchedActor = ManagerInterface->FindOrCreateActor(*this);
+		SetCachedActor(FetchedActor);
+	}
+
+	return FetchedActor;
 }
 
 UObject* FActorInstanceHandle::GetActorAsUObject()
