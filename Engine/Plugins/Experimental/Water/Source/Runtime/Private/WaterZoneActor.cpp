@@ -111,14 +111,14 @@ FBox AWaterZone::GetZoneBounds() const
 void AWaterZone::SetRenderTargetResolution(FIntPoint NewResolution)
 {
 	RenderTargetResolution = NewResolution;
-	MarkForRebuild(EWaterZoneRebuildFlags::UpdateWaterInfoTexture);
+	MarkForRebuild(EWaterZoneRebuildFlags::UpdateWaterInfoTexture, this);
 }
 
 void AWaterZone::BeginPlay()
 {
 	Super::BeginPlay();
 
-	MarkForRebuild(EWaterZoneRebuildFlags::All);
+	MarkForRebuild(EWaterZoneRebuildFlags::All, this);
 
 	FWorldDelegates::LevelAddedToWorld.AddUObject(this, &AWaterZone::OnLevelAddedToWorld);
 	FWorldDelegates::LevelRemovedFromWorld.AddUObject(this, &AWaterZone::OnLevelRemovedFromWorld);
@@ -189,7 +189,7 @@ void AWaterZone::DeclareConstructClasses(TArray<FTopLevelAssetPath>& OutConstruc
 }
 #endif
 
-void AWaterZone::MarkForRebuild(EWaterZoneRebuildFlags Flags, const FBox2D& UpdateRegion)
+void AWaterZone::MarkForRebuild(EWaterZoneRebuildFlags Flags, const FBox2D& UpdateRegion, const UObject* DebugRequestingObject)
 {
 	if (EnumHasAnyFlags(Flags, EWaterZoneRebuildFlags::UpdateWaterMesh))
 	{
@@ -197,7 +197,7 @@ void AWaterZone::MarkForRebuild(EWaterZoneRebuildFlags Flags, const FBox2D& Upda
 		// Suppress water mesh updates which occur outside the bounds of the water quad tree.
 		if ((!UpdateRegion.bIsValid) || UpdateRegion.Intersect(WaterQuadTreeBounds))
 		{
-			UE_LOG(LogWater, Verbose, TEXT("AWaterZone::MarkForRebuild (UpdateWaterMesh)"));
+			UE_LOG(LogWater, Verbose, TEXT("AWaterZone::MarkForRebuild (UpdateWaterMesh) in region {%s} (triggered by %s)"), *UpdateRegion.ToString(), *GetNameSafe(DebugRequestingObject));
 			WaterMesh->MarkWaterMeshGridDirty();
 			WaterMesh->MarkRenderStateDirty();
 		}
@@ -208,10 +208,15 @@ void AWaterZone::MarkForRebuild(EWaterZoneRebuildFlags Flags, const FBox2D& Upda
 		const FBox2D WaterInfoBounds2D(FVector2D(WaterInfoBounds.Min), FVector2D(WaterInfoBounds.Max));
 		if ((!UpdateRegion.bIsValid) || UpdateRegion.Intersect(WaterInfoBounds2D))
 		{
-			UE_LOG(LogWater, Verbose, TEXT("AWaterZone::MarkForRebuild (UpdateWaterInfoTexture)"));
+			UE_LOG(LogWater, Verbose, TEXT("AWaterZone::MarkForRebuild (UpdateWaterInfoTexture) in region {%s} (triggered by %s)"), *UpdateRegion.ToString(), *GetNameSafe(DebugRequestingObject));
 			bNeedsWaterInfoRebuild = true;
 		}
 	}
+}
+
+void AWaterZone::MarkForRebuild(EWaterZoneRebuildFlags Flags, const UObject* DebugRequestingObject)
+{
+	MarkForRebuild(Flags, FBox2D(ForceInitToZero), DebugRequestingObject);
 }
 
 void AWaterZone::ForEachWaterBodyComponent(TFunctionRef<bool(UWaterBodyComponent*)> Predicate) const
@@ -242,7 +247,7 @@ void AWaterZone::AddWaterBodyComponent(UWaterBodyComponent* WaterBodyComponent)
 		}
 
 		const FBox WaterBodyBounds = WaterBodyComponent->Bounds.GetBox();
-		MarkForRebuild(RebuildFlags, FBox2D(FVector2D(WaterBodyBounds.Min), FVector2D(WaterBodyBounds.Max)));
+		MarkForRebuild(RebuildFlags, FBox2D(FVector2D(WaterBodyBounds.Min), FVector2D(WaterBodyBounds.Max)), /* DebugRequestingObject = */ WaterBodyComponent->GetOwner());
 	}
 }
 
@@ -264,7 +269,7 @@ void AWaterZone::RemoveWaterBodyComponent(UWaterBodyComponent* WaterBodyComponen
 		}
 		
 		const FBox WaterBodyBounds = WaterBodyComponent->Bounds.GetBox();
-		MarkForRebuild(RebuildFlags, FBox2D(FVector2D(WaterBodyBounds.Min), FVector2D(WaterBodyBounds.Max)));
+		MarkForRebuild(RebuildFlags, FBox2D(FVector2D(WaterBodyBounds.Min), FVector2D(WaterBodyBounds.Max)), /* DebugRequestingObject = */ WaterBodyComponent->GetOwner());
 	}
 }
 
@@ -305,7 +310,7 @@ void AWaterZone::PostEditMove(bool bFinished)
 
 	UpdateOverlappingWaterBodies();
 
-	MarkForRebuild(RebuildFlags);
+	MarkForRebuild(RebuildFlags, /* DebugRequestingObject = */ this);
 }
 
 void AWaterZone::PostEditUndo()
@@ -313,7 +318,7 @@ void AWaterZone::PostEditUndo()
 	Super::PostEditUndo();
 
 	UpdateOverlappingWaterBodies();
-	MarkForRebuild(EWaterZoneRebuildFlags::All);
+	MarkForRebuild(EWaterZoneRebuildFlags::All, /* DebugRequestingObject = */ this);
 }
 
 void AWaterZone::PostEditImport()
@@ -321,7 +326,7 @@ void AWaterZone::PostEditImport()
 	Super::PostEditImport();
 
 	UpdateOverlappingWaterBodies();
-	MarkForRebuild(EWaterZoneRebuildFlags::All);
+	MarkForRebuild(EWaterZoneRebuildFlags::All, /* DebugRequestingObject = */ this);
 }
 
 void AWaterZone::PostEditChangeProperty(FPropertyChangedEvent& PropertyChangedEvent)
@@ -339,27 +344,27 @@ void AWaterZone::PostEditChangeProperty(FPropertyChangedEvent& PropertyChangedEv
 	}
 	else if (PropertyName == GET_MEMBER_NAME_CHECKED(AWaterZone, RenderTargetResolution))
 	{
-		MarkForRebuild(EWaterZoneRebuildFlags::UpdateWaterInfoTexture);
+		MarkForRebuild(EWaterZoneRebuildFlags::UpdateWaterInfoTexture, /* DebugRequestingObject = */ this);
 	}
 	else if (PropertyName == GET_MEMBER_NAME_CHECKED(AWaterZone, bHalfPrecisionTexture))
 	{
-		MarkForRebuild(EWaterZoneRebuildFlags::UpdateWaterInfoTexture);
+		MarkForRebuild(EWaterZoneRebuildFlags::UpdateWaterInfoTexture, /* DebugRequestingObject = */ this);
 	}
 	else if (PropertyName == GET_MEMBER_NAME_CHECKED(AWaterZone, VelocityBlurRadius))
 	{
-		MarkForRebuild(EWaterZoneRebuildFlags::UpdateWaterInfoTexture);
+		MarkForRebuild(EWaterZoneRebuildFlags::UpdateWaterInfoTexture, /* DebugRequestingObject = */ this);
 	}
 	else if (PropertyName == GET_MEMBER_NAME_CHECKED(AWaterZone, LocalTessellationExtent))
 	{
-		MarkForRebuild(EWaterZoneRebuildFlags::All);
+		MarkForRebuild(EWaterZoneRebuildFlags::All, /* DebugRequestingObject = */ this);
 	}
 	else if (PropertyName == GET_MEMBER_NAME_CHECKED(AWaterZone, bEnableLocalOnlyTessellation))
 	{
-		MarkForRebuild(EWaterZoneRebuildFlags::All);
+		MarkForRebuild(EWaterZoneRebuildFlags::All, /* DebugRequestingObject = */ this);
 	}
 	else if (PropertyName == USceneComponent::GetRelativeScale3DPropertyName())
 	{
-		MarkForRebuild(EWaterZoneRebuildFlags::All);
+		MarkForRebuild(EWaterZoneRebuildFlags::All, /* DebugRequestingObject = */ this);
 	}
 }
 
@@ -396,7 +401,7 @@ void AWaterZone::SetFarMeshMaterial(UMaterialInterface* InFarDistanceMaterial)
 	if (WaterMesh && InFarDistanceMaterial != WaterMesh->FarDistanceMaterial)
 	{
 		WaterMesh->FarDistanceMaterial = InFarDistanceMaterial;
-		MarkForRebuild(EWaterZoneRebuildFlags::UpdateWaterMesh);
+		MarkForRebuild(EWaterZoneRebuildFlags::UpdateWaterMesh, /* DebugRequestingObject = */ this);
 	}
 }
 
@@ -409,7 +414,7 @@ void AWaterZone::OnExtentChanged()
 
 	UpdateOverlappingWaterBodies();
 
-	MarkForRebuild(EWaterZoneRebuildFlags::All);
+	MarkForRebuild(EWaterZoneRebuildFlags::All, /* DebugRequestingObject = */ this);
 }
 
 bool AWaterZone::UpdateOverlappingWaterBodies()
@@ -671,7 +676,7 @@ void AWaterZone::OnLevelChanged(ULevel* InLevel, UWorld* InWorld)
 
 	if (bContainsActorsAffectingWaterZone)
 	{
-		MarkForRebuild(EWaterZoneRebuildFlags::UpdateWaterInfoTexture);
+		MarkForRebuild(EWaterZoneRebuildFlags::UpdateWaterInfoTexture, /* DebugRequestingObject = */ InLevel);
 	}
 }
 

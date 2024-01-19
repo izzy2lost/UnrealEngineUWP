@@ -372,7 +372,7 @@ void UWaterSubsystem::ApplyRuntimeSettings(const UWaterRuntimeSettings* Settings
 void UWaterSubsystem::OnHeightmapStreamed(const FOnHeightmapStreamedContext& InContext)
 {
 	UE_LOG(LogWater, Verbose, TEXT("UWaterSubsystem::OnHeightmapStreamed() -- Rebuilding Water Info Texture..."));
-	MarkWaterZonesInRegionForRebuild(InContext.GetUpdateRegion(), EWaterZoneRebuildFlags::UpdateWaterInfoTexture);
+	MarkWaterZonesInRegionForRebuild(InContext.GetUpdateRegion(), EWaterZoneRebuildFlags::UpdateWaterInfoTexture, /* DebugRequestingObject = */ this);
 }
 #endif // WITH_EDITOR
 
@@ -483,7 +483,7 @@ void UWaterSubsystem::SetOceanFloodHeight(float InFloodHeight)
 		if (FloodHeight != ClampedFloodHeight)
 		{
 			FloodHeight = ClampedFloodHeight;
-			MarkAllWaterZonesForRebuild();
+			MarkAllWaterZonesForRebuild(EWaterZoneRebuildFlags::All, /* DebugRequestingObject = */ this);
 
 			// the ocean body is dynamic and needs to be readjusted when the flood height changes : 
 			if (OceanBodyComponent.IsValid())
@@ -510,18 +510,18 @@ float UWaterSubsystem::GetOceanBaseHeight() const
 	return TNumericLimits<float>::Lowest();
 }
 
-void UWaterSubsystem::MarkAllWaterZonesForRebuild(EWaterZoneRebuildFlags RebuildFlags)
+void UWaterSubsystem::MarkAllWaterZonesForRebuild(EWaterZoneRebuildFlags RebuildFlags, const UObject* DebugRequestingObject)
 {
 	if (UWorld* World = GetWorld())
 	{
 		for (AWaterZone* WaterZone : TActorRange<AWaterZone>(World))
 		{
-			WaterZone->MarkForRebuild(RebuildFlags);
+			WaterZone->MarkForRebuild(RebuildFlags, DebugRequestingObject);
 		}
 	}
 }
 
-void UWaterSubsystem::MarkWaterZonesInRegionForRebuild(const FBox2D& InUpdateRegion, EWaterZoneRebuildFlags InRebuildFlags)
+void UWaterSubsystem::MarkWaterZonesInRegionForRebuild(const FBox2D& InUpdateRegion, EWaterZoneRebuildFlags InRebuildFlags, const UObject* DebugRequestingObject)
 {
 	if (UWorld* World = GetWorld())
 	{
@@ -531,7 +531,7 @@ void UWaterSubsystem::MarkWaterZonesInRegionForRebuild(const FBox2D& InUpdateReg
 
 			if (WaterZoneBounds.Intersect(InUpdateRegion))
 			{
-				WaterZone->MarkForRebuild(InRebuildFlags, InUpdateRegion);
+				WaterZone->MarkForRebuild(InRebuildFlags, InUpdateRegion, DebugRequestingObject);
 			}
 		}
 	}

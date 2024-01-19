@@ -435,11 +435,11 @@ void UWaterBodyComponent::MarkOwningWaterZoneForRebuild(EWaterZoneRebuildFlags I
 		if (bInOnlyWithinWaterBodyBounds)
 		{
 			const FBox WaterBodyBounds = Bounds.GetBox();
-			WaterZone->MarkForRebuild(InRebuildFlags, FBox2D(FVector2D(WaterBodyBounds.Min), FVector2D(WaterBodyBounds.Max)));
+			WaterZone->MarkForRebuild(InRebuildFlags, FBox2D(FVector2D(WaterBodyBounds.Min), FVector2D(WaterBodyBounds.Max)), /* DebugRequestingObject = */ GetOwner());
 		}
 		else
 		{
-			WaterZone->MarkForRebuild(InRebuildFlags);
+			WaterZone->MarkForRebuild(InRebuildFlags, /* DebugRequestingObject = */ GetOwner());
 		}
 	}
 }

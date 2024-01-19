@@ -35,7 +35,11 @@ public:
 	UWaterMeshComponent* GetWaterMeshComponent() { return WaterMesh; }
 	const UWaterMeshComponent* GetWaterMeshComponent() const { return WaterMesh; }
 
-	void MarkForRebuild(EWaterZoneRebuildFlags Flags, const FBox2D& RebuildRegion = FBox2D(EForceInit::ForceInitToZero));
+	/** Mark aspects of the water zone for rebuild based on the Flags parameter within a given region. Optionally the caller can pass in a UObject to identify who requested the update. */
+	void MarkForRebuild(EWaterZoneRebuildFlags Flags, const FBox2D& RebuildRegion, const UObject* DebugRequestingObject = nullptr);
+	/** Mark aspects of the water zone for rebuild based on the Flags parameter. Optionally the caller can pass in a UObject to identify who requested the update. */
+	void MarkForRebuild(EWaterZoneRebuildFlags Flags, const UObject* DebugRequestingObject = nullptr);
+
 	void Update();
 		
 	/** Execute a predicate function on each valid water body within the water zone. Predicate should return false for early exit. */
