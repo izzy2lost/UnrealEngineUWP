@@ -68,6 +68,9 @@ public:
 		return FilterSettings;
 	}
 
+	UPROPERTY(Transient)
+	TMap<FGuid, TWeakObjectPtr<UObject>> TemporaryViewModelInstances;
+
 private:
 	UPROPERTY(Instanced)
 	TObjectPtr<UMVVMBlueprintView> BlueprintView;

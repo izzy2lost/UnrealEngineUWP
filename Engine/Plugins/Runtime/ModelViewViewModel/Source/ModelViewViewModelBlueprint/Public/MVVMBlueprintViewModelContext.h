@@ -156,6 +156,10 @@ public:
 	UPROPERTY(EditAnywhere, Category = "Viewmodel", AdvancedDisplay)
 	bool bOptional = false;
 
+	/** Expose the viewmodel instance on every instance of the user widget for modification in editor. */
+	UPROPERTY(EditAnywhere, Category = "Viewmodel", AdvancedDisplay)
+	bool bExposeInstanceInEditor = false;
+
 	/** Can change the name in the editor. */
 	UPROPERTY()
 	bool bCanRename = true;

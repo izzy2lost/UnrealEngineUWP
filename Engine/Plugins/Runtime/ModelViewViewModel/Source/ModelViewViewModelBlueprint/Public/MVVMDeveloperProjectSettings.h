@@ -144,6 +144,13 @@ public:
 	UPROPERTY(EditAnywhere, config, Category = "Viewmodel")
 	bool bCanCreateViewModelInView = false;
 
+	/** 
+	 * When a viewmodel is set to Create Instance, allow modifying the viewmodel instance in the editor on all instances of the owning widget.
+	 * The per-viewmodel setting "Expose Instance In Editor" overrides this.
+	 */
+	UPROPERTY(EditAnywhere, config, Category = "Viewmodel")
+	bool bExposeViewModelInstanceInEditor = false;
+
 	/** Permission list for filtering which execution mode is allowed. */
 	UPROPERTY(EditAnywhere, config, Category = "Viewmodel")
 	EMVVMDeveloperConversionFunctionFilterType ConversionFunctionFilter = EMVVMDeveloperConversionFunctionFilterType::BlueprintActionRegistry;

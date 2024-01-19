@@ -318,6 +318,46 @@ void FMVVMViewBlueprintCompiler::CleanOldData(UWidgetBlueprintGeneratedClass* Cl
 		{
 			RenameObjectToTransientPackage(Child);
 		}
+
+		// Clean up the stale viewmodel instances.
+		TMap<FGuid, TWeakObjectPtr<UObject>>& SavedViewModelInstances = BlueprintView->GetOuterUMVVMWidgetBlueprintExtension_View()->TemporaryViewModelInstances;
+		TArray<FGuid> DeleteViewModelInstances;
+
+		for (auto It = SavedViewModelInstances.CreateIterator(); It; ++It)
+		{
+			uint32 ViewModelIndex = ViewModelCreatorContexts.IndexOfByPredicate([It](const FCompilerViewModelCreatorContext& SourceCreatorContext)
+				{
+					return SourceCreatorContext.ViewModelContext.GetViewModelId() == It->Key;
+				});
+			
+			TWeakObjectPtr<UObject> StaticViewModelInstance = nullptr;
+			if (ViewModelIndex != INDEX_NONE)
+			{
+				const FMVVMBlueprintViewModelContext& ViewModelContext = ViewModelCreatorContexts[ViewModelIndex].ViewModelContext;
+				if (It->Value.IsValid())
+				{
+					if (ViewModelContext.CreationType == EMVVMBlueprintViewModelContextCreationType::CreateInstance
+						&& ViewModelContext.bExposeInstanceInEditor)
+					{
+						StaticViewModelInstance = It->Value;
+					}
+					else
+					{
+						RenameObjectToTransientPackage(It->Value.Get());
+					}
+				}
+			}
+			if (!StaticViewModelInstance.IsValid())
+			{
+				DeleteViewModelInstances.Add(It->Key);
+				SavedViewModelInstances[It->Key] = nullptr;
+			}
+		}
+
+		for (FGuid Guid : DeleteViewModelInstances)
+		{
+			SavedViewModelInstances.Remove(Guid);
+		}
 	}
 }
 
@@ -349,12 +389,36 @@ void FMVVMViewBlueprintCompiler::CreateVariables(const FWidgetBlueprintCompilerC
 		FProperty* NewProperty = Context.CreateVariable(UserWidgetProperty.Name, NewPropertyPinType);
 		if (NewProperty != nullptr)
 		{
-			NewProperty->SetPropertyFlags(CPF_BlueprintVisible | CPF_RepSkip | CPF_Transient | CPF_DuplicateTransient);
+			NewProperty->SetPropertyFlags(CPF_BlueprintVisible | CPF_RepSkip);
+
+			const bool bIsInstanceExposed = UserWidgetProperty.bInstanced && UserWidgetProperty.bInstanceExposed;
+			if (bIsInstanceExposed)
+			{
+				NewProperty->SetPropertyFlags(CPF_Edit | CPF_ExportObject | CPF_PersistentInstance | CPF_InstancedReference | CPF_NonNullable | CPF_NoClear);
+
+				if (UserWidgetProperty.AuthoritativeClass->HasAnyClassFlags(CLASS_HasInstancedReference))
+				{
+					NewProperty->SetPropertyFlags(CPF_ContainsInstancedReference);
+				}
+			}
+			else
+			{
+				NewProperty->SetPropertyFlags(CPF_Transient | CPF_DuplicateTransient);
+			}
+
+			if (UserWidgetProperty.bExposeOnSpawn)
+			{
+				NewProperty->SetPropertyFlags(CPF_ExposeOnSpawn);
+			}
+			else if (!bIsInstanceExposed)
+			{
+				NewProperty->SetPropertyFlags(CPF_DisableEditOnInstance);
+			}
+
 			if (UserWidgetProperty.bReadOnly)
 			{
 				NewProperty->SetPropertyFlags(CPF_BlueprintReadOnly);
 			}
-			NewProperty->SetPropertyFlags(UserWidgetProperty.bExposeOnSpawn ? CPF_ExposeOnSpawn : CPF_DisableEditOnInstance);
 
 #if WITH_EDITOR
 			if (!UserWidgetProperty.BlueprintSetter.IsEmpty())
@@ -376,6 +440,10 @@ void FMVVMViewBlueprintCompiler::CreateVariables(const FWidgetBlueprintCompilerC
 			if (UserWidgetProperty.bPrivate)
 			{
 				NewProperty->SetMetaData(FBlueprintMetadata::MD_Private, TEXT("true"));
+			}
+			if (bIsInstanceExposed)
+			{
+				NewProperty->SetMetaData(FName("EditInline"), TEXT("true"));
 			}
 #endif
 		}
@@ -701,6 +769,8 @@ void FMVVMViewBlueprintCompiler::CreateRequiredProperties(const FWidgetBlueprint
 			SourceVariable.bExposeOnSpawn = bCreateSetterFunction;
 			SourceVariable.bPrivate = !bIsPublicReadable;
 			SourceVariable.bReadOnly = !bCreateSetterFunction;
+			SourceVariable.bInstanced = ViewModelContext.CreationType == EMVVMBlueprintViewModelContextCreationType::CreateInstance;
+			SourceVariable.bInstanceExposed = ViewModelContext.bExposeInstanceInEditor;
 		}
 
 		{
@@ -787,6 +857,8 @@ void FMVVMViewBlueprintCompiler::CreateRequiredProperties(const FWidgetBlueprint
 					//SourceVariable.bPrivate = true; Remove until the data is fix properly
 					SourceVariable.bPrivate = false;
 					SourceVariable.bReadOnly = true;
+					SourceVariable.bInstanced = false;
+					SourceVariable.bInstanceExposed = false;
 
 					WidgetUserPropertyCreated.Add(Widget->GetFName());
 				}
@@ -1737,6 +1809,41 @@ void FMVVMViewBlueprintCompiler::PreCompileViewModelCreatorContexts(UWidgetBluep
 				bIsPreCompileStepValid = false;
 				continue;
 			}
+
+			UObject* CDOInstance = Class->GetDefaultObject(true);
+
+			// If requested, create an instance of the viewmodel to be edited through the details panel
+			if (ViewModelContext.bExposeInstanceInEditor)
+			{
+				FObjectPropertyBase* ViewModelProperty = FindFProperty<FObjectPropertyBase>(Class, ViewModelContext.GetViewModelName());
+				if (!ViewModelProperty->GetObjectPropertyValue_InContainer(CDOInstance))
+				{
+					UObject* StaticInstance = NewObject<UObject>(CDOInstance, ViewModelContext.GetViewModelClass(), NAME_None, RF_Transactional | RF_Public);
+					BlueprintView->GetOuterUMVVMWidgetBlueprintExtension_View()->TemporaryViewModelInstances.Add(ViewModelContext.GetViewModelId(), StaticInstance);
+					if (ensure(StaticInstance->GetClass()->IsChildOf(ViewModelProperty->PropertyClass)))
+					{
+						ViewModelProperty->SetObjectPropertyValue_InContainer(CDOInstance, StaticInstance);
+					}
+				}
+
+				TValueOrError<FCompiledBindingLibraryCompiler::FFieldPathHandle, FText> ReadFieldPathResult = AddObjectFieldPath(BindingLibraryCompiler, Class, ViewModelContext.GetViewModelName().ToString(), ViewModelContext.GetViewModelClass());
+				if (ReadFieldPathResult.HasError())
+				{
+					AddMessageForViewModel(ViewModelContext
+						, ReadFieldPathResult.GetError()
+						, EMessageType::Error
+					);
+					bIsPreCompileStepValid = false;
+					continue;
+				}
+
+				SourceCreatorContext.ReadPropertyPathHandle = ReadFieldPathResult.StealValue();
+			}
+			else
+			{
+				FObjectPropertyBase* ViewModelProperty = FindFProperty<FObjectPropertyBase>(Class, ViewModelContext.GetViewModelName());
+				ViewModelProperty->SetObjectPropertyValue_InContainer(CDOInstance, nullptr);
+			}
 		}
 		else if (ViewModelContext.CreationType == EMVVMBlueprintViewModelContextCreationType::PropertyPath)
 		{
@@ -1882,6 +1989,23 @@ void FMVVMViewBlueprintCompiler::CompileSources(const FCompiledBindingLibraryCom
 		else if (ViewModelContext.CreationType == EMVVMBlueprintViewModelContextCreationType::CreateInstance)
 		{
 			bCreateInstance = true;
+
+			if (ViewModelContext.bExposeInstanceInEditor)
+			{
+				const FMVVMVCompiledFieldPath* CompiledFieldPath = CompileResult.FieldPaths.Find(SourceCreatorContext.ReadPropertyPathHandle);
+				if (CompiledFieldPath == nullptr)
+				{
+					AddMessageForViewModel(ViewModelContext
+						, LOCTEXT("ViewModelInvalidInstanceNotFound", "The path for the created viewmodel instance was not found.")
+						, EMessageType::Error
+					);
+					bIsCompileStepValid = false;
+					continue;
+				}
+
+				CompiledSourceCreator.FieldPath = *CompiledFieldPath;
+			}
+			ensure(bIsOptional == false);
 		}
 		else if (ViewModelContext.CreationType == EMVVMBlueprintViewModelContextCreationType::PropertyPath)
 		{
@@ -1969,6 +2093,7 @@ void FMVVMViewBlueprintCompiler::CompileSources(const FCompiledBindingLibraryCom
 		CompiledSourceCreator.Flags |= bCanBeSet ? (uint16)FMVVMViewClass_Source::EFlags::CanBeSet : 0;
 		CompiledSourceCreator.Flags |= bCanBeEvaluated ? (uint16)FMVVMViewClass_Source::EFlags::CanBeEvaluated : 0;
 		CompiledSourceCreator.Flags |= (uint16)FMVVMViewClass_Source::EFlags::IsViewModel;
+		CompiledSourceCreator.Flags |= ViewModelContext.bExposeInstanceInEditor ? (uint16)FMVVMViewClass_Source::EFlags::IsViewModelInstanceExposed : 0;
 
 		FSortData SortData;
 		SortData.SourceName = CompiledSourceCreator.GetName();

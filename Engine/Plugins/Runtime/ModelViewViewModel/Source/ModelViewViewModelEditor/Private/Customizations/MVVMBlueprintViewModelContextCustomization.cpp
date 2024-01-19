@@ -349,6 +349,18 @@ void FBlueprintViewModelContextDetailCustomization::CustomizeChildren(TSharedRef
 				.IsEnabled(bCanEdit);
 		}
 
+		TSharedPtr<IPropertyHandle> ExposeInstanceInEditorHandle = PropertyHandle->GetChildHandle(GET_MEMBER_NAME_CHECKED(FMVVMBlueprintViewModelContext, bExposeInstanceInEditor), false);
+		if (ensure(ExposeInstanceInEditorHandle))
+		{
+			ChildBuilder.AddProperty(ExposeInstanceInEditorHandle.ToSharedRef())
+				.IsEnabled(bCanEdit)
+				.Visibility(MakeAttributeLambda([ContextPtr]()
+					{
+						bool bResult = ContextPtr->CreationType == EMVVMBlueprintViewModelContextCreationType::CreateInstance;
+						return bResult ? EVisibility::Visible : EVisibility::Collapsed;
+					}));
+		}
+
 		TSharedPtr<IPropertyHandle> OptionalHandle = PropertyHandle->GetChildHandle(GET_MEMBER_NAME_CHECKED(FMVVMBlueprintViewModelContext, bOptional), false);
 		if (ensure(OptionalHandle))
 		{

@@ -397,6 +397,7 @@ private:
 		SelfReference = 1 << 7,
 		HasTickBindings = 1 << 8,
 		IsViewModel = 1 << 9,
+		IsViewModelInstanceExposed = 1 << 10,
 	};
 
 	UPROPERTY(VisibleAnywhere, Category = "View")
