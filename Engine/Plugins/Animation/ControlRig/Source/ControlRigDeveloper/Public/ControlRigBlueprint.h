@@ -173,6 +173,8 @@ protected:
 
 	bool ResolveConnector(const FRigElementKey& DraggedKey, const FRigElementKey& TargetKey, bool bSetupUndoRedo = true);
 
+	void UpdateConnectionMapFromModel();
+
 	/** Asset searchable information about exposed public functions on this rig */
 	UPROPERTY(AssetRegistrySearchable)
 	TArray<FRigVMOldPublicFunctionData> PublicFunctions_DEPRECATED;

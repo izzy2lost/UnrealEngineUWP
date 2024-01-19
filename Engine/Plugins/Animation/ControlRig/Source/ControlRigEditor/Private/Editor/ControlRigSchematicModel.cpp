@@ -578,12 +578,13 @@ void FControlRigSchematicModel::HandleModularRigModified(EModularRigNotification
 								if(!LocalName.Contains(UModularRig::NamespaceSeparator))
 								{
 									const FRigElementKey LocalKey(*LocalName, ConnectorKey.Type);
-									if(const FRigElementKey* ResolvedKey = InModule->Connections.Find(LocalKey))
+									const FRigElementKey ResolvedKey = ControlRigBlueprint->ModularRigModel.Connections.FindTargetFromConnector(ConnectorKey);
+									if(ResolvedKey.IsValid())
 									{
-										const FControlRigSchematicRigElementKeyNode* ResolvedNode = FindElementKeyNode(*ResolvedKey);
+										const FControlRigSchematicRigElementKeyNode* ResolvedNode = FindElementKeyNode(ResolvedKey);
 										if(ResolvedNode == nullptr)
 										{
-											ResolvedNode = AddElementKeyNode(*ResolvedKey);
+											ResolvedNode = AddElementKeyNode(ResolvedKey);
 										}
 										(void)SetParentNode(ConnectorNode, ResolvedNode);
 										const_cast<FControlRigSchematicRigElementKeyNode*>(ResolvedNode)->OnMouseLeave();

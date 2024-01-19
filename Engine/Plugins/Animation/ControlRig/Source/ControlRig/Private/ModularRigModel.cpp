@@ -29,6 +29,44 @@ FString FRigModuleReference::GetNamespace() const
 	return GetPath() + UModularRig::NamespaceSeparator;
 }
 
+TMap<FRigElementKey, FRigElementKey> FModularRigConnections::GetModuleConnectionMap(const FString& InModulePath) const
+{
+	TMap<FRigElementKey, FRigElementKey> Result;
+	for (const FModularRigSingleConnection& Connection : ConnectionList)
+	{
+		FString Path, Name;
+		Connection.Connector.Name.ToString().Split(UModularRig::NamespaceSeparator, &Path, &Name, ESearchCase::CaseSensitive, ESearchDir::FromEnd);
+
+		// Exactly the same path (do not return connectors from child modules)
+		if (Path == InModulePath)
+		{
+			Result.Add(FRigElementKey(*Name, ERigElementType::Connector), Connection.Target);
+		}
+	}
+	return Result;
+}
+
+bool FModularRigModel::PatchModelsOnLoad()
+{
+	bool bPatched = false;
+	if (Connections.ConnectionList.IsEmpty())
+	{
+		ForEachModule([this, &bPatched](const FRigModuleReference* Module) -> bool
+		{
+			FString ModuleNamespace = Module->GetNamespace();
+			for (const TTuple<FRigElementKey, FRigElementKey>& Connection : Module->Connections_DEPRECATED)
+			{
+				const FString ConnectorPath = FString::Printf(TEXT("%s%s"), *ModuleNamespace, *Connection.Key.Name.ToString());
+				FRigElementKey ConnectorKey(*ConnectorPath, ERigElementType::Connector);
+				Connections.AddConnection(ConnectorKey, Connection.Value);
+			}
+			return true;
+		});
+		bPatched = !Connections.ConnectionList.IsEmpty();
+	}
+	return bPatched;
+}
+
 UModularRigController* FModularRigModel::GetController(bool bCreateIfNeeded)
 {
 	if (bCreateIfNeeded && Controller == nullptr)

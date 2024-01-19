@@ -612,6 +612,15 @@ bool SModularRigModel::HandleVerifyNameChanged(const FString& InOldPath, const F
 	{
 		return false;
 	}
+
+	FString ParentPath;
+	FString OldName = InOldPath;
+	InOldPath.Split(UModularRig::NamespaceSeparator, &ParentPath, &OldName, ESearchCase::CaseSensitive, ESearchDir::FromEnd);
+
+	if (InNewName == OldName)
+	{
+		return true;
+	}
 	
 	if (ControlRigBlueprint.IsValid())
 	{

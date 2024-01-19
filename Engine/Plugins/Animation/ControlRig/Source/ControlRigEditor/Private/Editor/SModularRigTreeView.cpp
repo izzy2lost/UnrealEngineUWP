@@ -132,29 +132,30 @@ void SModularRigModelItem::Construct(const FArguments& InArgs, const TSharedRef<
 	TSharedPtr< SHorizontalBox > HorizontalBox;
 	TSharedPtr<SVerticalBox> ComboButtonBox;
 
+	FModularRigResolveResult ConnectorMatches;
+	if (const UModularRig* ModularRig = Delegates.GetModularRig())
+	{
+		if (const FRigModuleInstance* Module = ModularRig->FindModule(ModulePath))
+		{
+			if (URigHierarchy* Hierarchy = ModularRig->GetHierarchy())
+			{
+				if (FRigConnectorElement* ConnectorElement = Cast<FRigConnectorElement>(Hierarchy->Find(ConnectorKey)))
+				{
+					const UModularRigRuleManager* RuleManager = ModularRig->GetHierarchy()->GetRuleManager();
+					ConnectorMatches = RuleManager->FindMatches(ConnectorElement, Module, ModularRig->GetElementKeyRedirector());
+				}
+			}
+		}
+	}
+
 	FRigTreeDelegates TreeDelegates;
 	TreeDelegates.OnGetHierarchy = FOnGetRigTreeHierarchy::CreateLambda([this]()
 	{
 		return Delegates.GetModularRig()->GetHierarchy();
 	});
-	TreeDelegates.OnRigTreeIsItemVisible = FOnRigTreeIsItemVisible::CreateLambda([this, ConnectorKey, ModulePath](const FRigElementKey& InTarget)
+	TreeDelegates.OnRigTreeIsItemVisible = FOnRigTreeIsItemVisible::CreateLambda([ConnectorMatches](const FRigElementKey& InTarget)
 	{
-		if (const UModularRig* ModularRig = Delegates.GetModularRig())
-		{
-			if (const FRigModuleInstance* Module = ModularRig->FindModule(ModulePath))
-			{
-				if (URigHierarchy* Hierarchy = ModularRig->GetHierarchy())
-				{
-					if (FRigConnectorElement* ConnectorElement = Cast<FRigConnectorElement>(Hierarchy->Find(ConnectorKey)))
-					{
-						const UModularRigRuleManager* RuleManager = ModularRig->GetHierarchy()->GetRuleManager();
-						const FModularRigResolveResult Result = RuleManager->FindMatches(ConnectorElement, Module, ModularRig->GetElementKeyRedirector());
-						return Result.ContainsMatch(InTarget);
-					}
-				}
-			}
-		}
-		return false;
+		return ConnectorMatches.ContainsMatch(InTarget);
 	});
 	TreeDelegates.OnGetSelection.BindLambda([this, ConnectorKey]() -> TArray<FRigElementKey>
 	{
@@ -220,6 +221,7 @@ void SModularRigModelItem::Construct(const FArguments& InArgs, const TSharedRef<
 					.OnTextCommitted(this, &SModularRigModelItem::OnNameCommitted)
 					.ToolTipText(this, &SModularRigModelItem::GetItemTooltip)
 					.MultiLine(false)
+					.Font(IDetailLayoutBuilder::GetDetailFont())
 					.ColorAndOpacity_Lambda([this]()
 					{
 						if(WeakRigTreeElement.IsValid())
@@ -362,9 +364,10 @@ void SModularRigModelItem::Construct(const FArguments& InArgs, const TSharedRef<
 						{
 							if (const UModularRig* ModularRig = Delegates.GetModularRig())
 							{
-								if (const FRigElementKey* TargetKey = ModularRig->GetElementKeyRedirector().FindExternalKey(ConnectorKey))
+								const FRigElementKeyRedirector& Redirector = ModularRig->GetElementKeyRedirector();
+								if (const FRigElementKey* TargetKey = Redirector.FindExternalKey(ConnectorKey))
 								{
-									ModularRig->GetHierarchy()->GetController()->SelectElement(*TargetKey);
+									ModularRig->GetHierarchy()->GetController()->SelectElement(*TargetKey, true, true);
 								}
 							}
 							return FReply::Handled();
@@ -387,12 +390,14 @@ void SModularRigModelItem::Construct(const FArguments& InArgs, const TSharedRef<
 		], OwnerTable);
 
 	InRigTreeElement->OnRenameRequested.BindSP(InlineWidget.Get(), &SInlineEditableTextBlock::EnterEditingMode);
+	const UModularRig* ModularRig = Delegates.GetModularRig();
+	const FRigElementKeyRedirector& Redirector = ModularRig->GetElementKeyRedirector();
 	FRigElementKey CurrentTargetKey;
-	if (const FRigElementKey* Key = Delegates.GetModularRig()->GetElementKeyRedirector().FindExternalKey(ConnectorKey))
+	if (const FRigElementKey* Key = Redirector.FindExternalKey(ConnectorKey))
 	{
 		CurrentTargetKey = *Key;
 	}
-	TPair<const FSlateBrush*, FSlateColor> IconAndColor = SRigHierarchyItem::GetBrushForElementType(Delegates.GetModularRig()->GetHierarchy(), CurrentTargetKey);
+	TPair<const FSlateBrush*, FSlateColor> IconAndColor = SRigHierarchyItem::GetBrushForElementType(ModularRig->GetHierarchy(), CurrentTargetKey);
 	PopulateConnectorCurrentTarget(ComboButtonBox, ConnectorKey, CurrentTargetKey, IconAndColor.Key, IconAndColor.Value, FText::FromName(CurrentTargetKey.Name));
 }
 
@@ -962,20 +967,13 @@ TPair<const FSlateBrush*, FSlateColor> FModularRigTreeElement::GetBrushAndColor(
 
 	if (const FRigModuleInstance* ConnectorModule = InModularRig->FindModule(ModulePath))
 	{
-		bool bIsConnected = false;
-		if (const FRigModuleReference* Reference = ConnectorModule->GetModuleReference())
+		const FModularRigModel& Model = InModularRig->GetModularRigModel();
+		const FString ConnectorPath = FString::Printf(TEXT("%s:%s"), *ModulePath, *ConnectorName);
+		bool bIsConnected = Model.Connections.HasConnection(FRigElementKey(*ConnectorPath, ERigElementType::Connector));
+		
+		if (!bIsConnected)
 		{
-			FRigElementKey ConnectorKey(*ConnectorName, ERigElementType::Connector);
-			const FRigElementKey* Target = Reference->Connections.Find(ConnectorKey);
-
-			if (!Target || !Target->IsValid())
-			{
-				Color = FStyleColors::AccentYellow;
-			}
-			else
-			{
-				bIsConnected = true;
-			}
+			Color = FStyleColors::AccentYellow;
 		}
 		
 		if (const UControlRig* ModuleRig = ConnectorModule->GetRig())

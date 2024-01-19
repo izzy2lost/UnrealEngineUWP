@@ -64,8 +64,8 @@ struct CONTROLRIG_API FRigModuleReference
 	UPROPERTY()
 	TSoftClassPtr<UControlRig> Class;
 
-	UPROPERTY()
-	TMap<FRigElementKey, FRigElementKey> Connections; // Connectors to Connection element
+	UPROPERTY(meta = (DeprecatedProperty))
+	TMap<FRigElementKey, FRigElementKey> Connections_DEPRECATED; // Connectors to Connection element
 
 	UPROPERTY()
 	TMap<FName, FString> ConfigValues;
@@ -101,6 +101,97 @@ struct CONTROLRIG_API FRigModuleReference
 	friend class UModularRigController;
 };
 
+USTRUCT(BlueprintType)
+struct FModularRigSingleConnection
+{
+	GENERATED_BODY()
+
+	UPROPERTY()
+	FRigElementKey Connector;
+
+	UPROPERTY()
+	FRigElementKey Target;
+};
+
+USTRUCT(BlueprintType)
+struct CONTROLRIG_API FModularRigConnections
+{
+	GENERATED_BODY()
+
+	/** Connections sorted by creation order */
+	UPROPERTY()
+	TArray<FModularRigSingleConnection> ConnectionList;
+
+	/** Target key to connector array */
+	TMap<FRigElementKey, TArray<FRigElementKey>> ReverseConnectionMap;
+
+	void UpdateFromConnectionList()
+	{
+		ReverseConnectionMap.Reset();
+		for (const FModularRigSingleConnection& Connection : ConnectionList)
+		{
+			TArray<FRigElementKey>& Connectors = ReverseConnectionMap.FindOrAdd(Connection.Target);
+			Connectors.AddUnique(Connection.Connector);
+		}
+	}
+
+	void AddConnection(const FRigElementKey& Connector, const FRigElementKey& Target)
+	{
+		// Remove any existing connection
+		RemoveConnection(Connector);
+
+		ConnectionList.Add(FModularRigSingleConnection(Connector, Target));
+		ReverseConnectionMap.FindOrAdd(Target).AddUnique(Connector);
+	}
+
+	void RemoveConnection(const FRigElementKey& Connector)
+	{
+		int32 ExistingIndex = FindConnectionIndex(Connector);
+		if (ConnectionList.IsValidIndex(ExistingIndex))
+		{
+			if (TArray<FRigElementKey>* Connectors = ReverseConnectionMap.Find(ConnectionList[ExistingIndex].Target))
+			{
+				*Connectors = Connectors->FilterByPredicate([Connector](const FRigElementKey& TargetConnector)
+				{
+					return TargetConnector != Connector;
+				});
+				if (Connectors->IsEmpty())
+				{
+					ReverseConnectionMap.Remove(ConnectionList[ExistingIndex].Target);
+				}
+			}
+			ConnectionList.RemoveAt(ExistingIndex);
+		}
+	}
+
+	int32 FindConnectionIndex(const FRigElementKey& InConnectorKey) const
+	{
+		return ConnectionList.IndexOfByPredicate([InConnectorKey](const FModularRigSingleConnection& Connection)
+		{
+			return InConnectorKey == Connection.Connector;
+		});
+	}
+
+	FRigElementKey FindTargetFromConnector(const FRigElementKey& InConnectorKey) const
+	{
+		int32 Index = FindConnectionIndex(InConnectorKey);
+		if (ConnectionList.IsValidIndex(Index))
+		{
+			return ConnectionList[Index].Target;
+		}
+		static const FRigElementKey EmptyKey;
+		return EmptyKey;
+	}
+
+	bool HasConnection(const FRigElementKey& InConnectorKey) const
+	{
+		return ConnectionList.IsValidIndex(FindConnectionIndex(InConnectorKey));
+	}
+
+	/** Gets the connection map for a single module, where the connectors are identified without its namespace*/
+	TMap<FRigElementKey, FRigElementKey> GetModuleConnectionMap(const FString& InModulePath) const;
+};
+
 // A management struct containing all modules in the rig
 USTRUCT(BlueprintType)
 struct CONTROLRIG_API FModularRigModel
@@ -113,12 +204,14 @@ public:
 	FModularRigModel(const FModularRigModel& Other)
 	{
 		Modules = Other.Modules;
+		Connections = Other.Connections;
 		UpdateCachedChildren();
 	}
 	
 	FModularRigModel& operator=(const FModularRigModel& Other)
 	{
 		Modules = Other.Modules;
+		Connections = Other.Connections;
 		UpdateCachedChildren();
 		return *this;
 	}
@@ -130,8 +223,13 @@ public:
 	TArray<FRigModuleReference*> RootModules;
 	TArray<FRigModuleReference> DeletedModules;
 
+	UPROPERTY()
+	FModularRigConnections Connections;
+
 	UPROPERTY(transient)
 	TObjectPtr<UObject> Controller;
+
+	bool PatchModelsOnLoad();
 
 	UModularRigController* GetController(bool bCreateIfNeeded = true);
 

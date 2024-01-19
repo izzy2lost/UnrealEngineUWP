@@ -988,15 +988,33 @@ bool UControlRigBlueprint::ResolveConnector(const FRigElementKey& DraggedKey, co
 		}
 		ExistingTargetKey = TargetKey;
 
-		// Add connection to the model
-		if (UModularRigController* Controller = GetModularRigController())
+		if (IsModularRig())
 		{
-			Controller->ConnectConnectorToElement(DraggedKey, TargetKey, bSetupUndoRedo, ModularRigSettings.bAutoResolve);
+			// Add connection to the model
+			if (UModularRigController* Controller = GetModularRigController())
+			{
+				Controller->ConnectConnectorToElement(DraggedKey, TargetKey, bSetupUndoRedo, ModularRigSettings.bAutoResolve);
+			}
+		}
+		else
+		{
+			ConnectionMap.FindOrAdd(DraggedKey) = TargetKey;
 		}
 	}
 	else
 	{
-		ConnectionMap.Remove(DraggedKey);
+		if (IsModularRig())
+		{
+			// Add connection to the model
+			if (UModularRigController* Controller = GetModularRigController())
+			{
+				Controller->DisconnectConnector(DraggedKey, bSetupUndoRedo);
+			}
+		}
+		else
+		{
+			ConnectionMap.Remove(DraggedKey);
+		}
 	}
 
 	RecompileModularRig();
@@ -1017,6 +1035,19 @@ bool UControlRigBlueprint::ResolveConnector(const FRigElementKey& DraggedKey, co
 	}
 
 	return true;
+}
+
+void UControlRigBlueprint::UpdateConnectionMapFromModel()
+{
+	if (IsModularRig())
+	{
+		ConnectionMap.Reset();
+
+		for (const FModularRigSingleConnection& Connection : ModularRigModel.Connections.ConnectionList)
+		{
+			ConnectionMap.Add(Connection.Connector, Connection.Target);
+		}
+	}
 }
 
 void UControlRigBlueprint::PostLoad()
@@ -1134,6 +1165,7 @@ void UControlRigBlueprint::PostLoad()
 		}
 	}
 
+	ModularRigModel.PatchModelsOnLoad();
 	UpdateModularDependencyDelegates();
 }
 
@@ -2470,6 +2502,7 @@ void UControlRigBlueprint::HandleHierarchyModified(ERigHierarchyNotification InN
 
 void UControlRigBlueprint::HandleRigModulesModified(EModularRigNotification InNotification, const FRigModuleReference* InModule)
 {
+	bool bRecompile = true;
 	switch (InNotification)
 	{
 		case EModularRigNotification::ModuleAdded:
@@ -2552,12 +2585,7 @@ void UControlRigBlueprint::HandleRigModulesModified(EModularRigNotification InNo
 							}
 						}
 
-						// Resolve Connectors
-						for (TPair<FRigElementKey, ConnectionInfo>& Pair : RenamedConnectors)
-						{
-							ResolveConnector(FRigElementKey(*Pair.Value.NewPath, ERigElementType::Connector), Pair.Value.TargetConnection);
-						}
-
+						UpdateConnectionMapFromModel();
 						PropagateHierarchyFromBPToInstances();
 					}
 				}
@@ -2569,6 +2597,7 @@ void UControlRigBlueprint::HandleRigModulesModified(EModularRigNotification InNo
 			if (InModule)
 			{
 				RefreshModuleConnectors(InModule);
+				UpdateConnectionMapFromModel();
 				UpdateModularDependencyDelegates();
 			}
 			break;
@@ -2577,36 +2606,21 @@ void UControlRigBlueprint::HandleRigModulesModified(EModularRigNotification InNo
 		{
 			Hierarchy->Modify();
 			
-			const FString Namespace = InModule->GetNamespace();
-
-			TArray<FRigElementKey> ConnectionsToRemove;
-			for (TPair<FRigElementKey, FRigElementKey> ExistingConnection : ConnectionMap)
-			{
-				if(ExistingConnection.Key.Name.ToString().StartsWith(Namespace, ESearchCase::CaseSensitive))
-				{
-					if(!InModule->Connections.Contains(ExistingConnection.Key))
-					{
-						ConnectionsToRemove.Add(ExistingConnection.Key);
-					}
-				}
-			}
-				
-			for(const FRigElementKey& ConnectionToRemove : ConnectionsToRemove)
-			{
-				ConnectionMap.Remove(ConnectionToRemove);
-			}
-				
-			for (TPair<FRigElementKey, FRigElementKey> Connection : InModule->Connections)
-			{
-				const FString NamespacedName = FString::Printf(TEXT("%s%s"), *Namespace, *Connection.Key.Name.ToString());
-				ConnectionMap.FindOrAdd(FRigElementKey(*NamespacedName, ERigElementType::Connector)) = Connection.Value;
-			}
-				
+			UpdateConnectionMapFromModel();
 			HierarchyModifiedEvent.Broadcast(ERigHierarchyNotification::HierarchyReset, Hierarchy, nullptr);
 			break;
 		}
+		case EModularRigNotification::ModuleShortNameChanged:
+		{
+			bRecompile = false;
+			break;
+		}
 	}
-	RecompileModularRig();
+
+	if (bRecompile)
+	{
+		RecompileModularRig();
+	}
 }
 
 UControlRigBlueprint::FControlValueScope::FControlValueScope(UControlRigBlueprint* InBlueprint)

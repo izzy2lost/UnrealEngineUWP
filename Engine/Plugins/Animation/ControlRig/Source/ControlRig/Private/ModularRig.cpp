@@ -212,7 +212,7 @@ void UModularRig::UpdateModuleHierarchyFromCDO()
 		// for each module (data only) reference in the model.
 		// Note: The CDO does not contain any UObject module instances itself.
 		const FModularRigModel& Model = GetModularRigModel();
-		Model.ForEachModule([this](const FRigModuleReference* InModuleReference) -> bool
+		Model.ForEachModule([this, Model](const FRigModuleReference* InModuleReference) -> bool
 		{
 			check(InModuleReference);
 			if (!InModuleReference->Class.IsValid())
@@ -225,7 +225,7 @@ void UModularRig::UpdateModuleHierarchyFromCDO()
 					InModuleReference->Name,
 					InModuleReference->Class.Get(),
 					FindModule(InModuleReference->ParentPath),
-					InModuleReference->Connections,
+					Model.Connections.GetModuleConnectionMap(InModuleReference->GetPath()),
 					InModuleReference->ConfigValues);
 			}
 

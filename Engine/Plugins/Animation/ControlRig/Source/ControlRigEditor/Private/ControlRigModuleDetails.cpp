@@ -250,30 +250,31 @@ void FRigModuleInstanceDetails::CustomizeDetails(IDetailLayoutBuilder& DetailBui
 			FString ConnectorPath = FString::Printf(TEXT("%s:%s"), *PerModuleInfos[0].Path, *Connector.Name);
 			FRigElementKey ConnectorKey(*ConnectorPath, ERigElementType::Connector);
 
+			FModularRigResolveResult ConnectorMatches;
+			FPerModuleInfo Info = PerModuleInfos[0];
+			if (const FRigModuleInstance* Module = Info.GetModule())
+			{
+				if (UModularRig* ModularRig = Info.GetModularRig())
+				{
+					if (URigHierarchy* Hierarchy = ModularRig->GetHierarchy())
+					{
+						if (FRigConnectorElement* ConnectorElement = Cast<FRigConnectorElement>(Hierarchy->Find(ConnectorKey)))
+						{
+							const UModularRigRuleManager* RuleManager = ModularRig->GetHierarchy()->GetRuleManager();
+							ConnectorMatches = RuleManager->FindMatches(ConnectorElement, Module, ModularRig->GetElementKeyRedirector());
+						}
+					}
+				}
+			}
+
 			FRigTreeDelegates TreeDelegates;
 			TreeDelegates.OnGetHierarchy = FOnGetRigTreeHierarchy::CreateLambda([this]()
 			{
 				return PerModuleInfos[0].GetModularRig()->GetHierarchy();
 			});
-			TreeDelegates.OnRigTreeIsItemVisible = FOnRigTreeIsItemVisible::CreateLambda([this, ConnectorKey](const FRigElementKey& InTarget)
+			TreeDelegates.OnRigTreeIsItemVisible = FOnRigTreeIsItemVisible::CreateLambda([ConnectorMatches](const FRigElementKey& InTarget)
 			{
-				FPerModuleInfo Info = PerModuleInfos[0];
-				if (const FRigModuleInstance* Module = Info.GetModule())
-				{
-					if (UModularRig* ModularRig = Info.GetModularRig())
-					{
-						if (URigHierarchy* Hierarchy = ModularRig->GetHierarchy())
-						{
-							if (FRigConnectorElement* ConnectorElement = Cast<FRigConnectorElement>(Hierarchy->Find(ConnectorKey)))
-							{
-								const UModularRigRuleManager* RuleManager = ModularRig->GetHierarchy()->GetRuleManager();
-								const FModularRigResolveResult Result = RuleManager->FindMatches(ConnectorElement, Module, ModularRig->GetElementKeyRedirector());
-								return Result.ContainsMatch(InTarget);
-							}
-						}
-					}
-				}
-				return false;
+				return ConnectorMatches.ContainsMatch(InTarget);
 			});
 			TreeDelegates.OnGetSelection.BindLambda([this, ConnectorKey]() -> TArray<FRigElementKey>
 			{
@@ -436,7 +437,7 @@ void FRigModuleInstanceDetails::CustomizeDetails(IDetailLayoutBuilder& DetailBui
 									{
 										if (const FRigElementKey* TargetKey = ModularRig->GetElementKeyRedirector().FindExternalKey(ConnectorKey))
 										{
-											ModularRig->GetHierarchy()->GetController()->SelectElement(*TargetKey);
+											ModularRig->GetHierarchy()->GetController()->SelectElement(*TargetKey, true, true);
 										}
 									}
 									return FReply::Handled();
