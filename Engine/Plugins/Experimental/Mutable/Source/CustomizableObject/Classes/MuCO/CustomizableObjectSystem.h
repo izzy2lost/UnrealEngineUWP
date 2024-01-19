@@ -407,6 +407,17 @@ private:
 	void StartNextRecompile();
 	void TickRecompileCustomizableObjects();
 
+public:
+	/** Set Mutable's working memory limit (bytes). Mutable will flush internal caches to try to keep its memory consumption below the WorkingMemory (i.e., it is not a hard limit).
+	 * The working memory limit will especially reduce the memory required to perform Instance Updates and Texture Streaming.
+ 	 * Notice that Mutable does not track all its memory (e.g., UObjects memory is no tracked).
+	 * This value can also be set using "mutable.WorkingMemory" CVar. */
+	void SetWorkingMemory(int32 Bytes);
+
+	/** Get Mutable's working memory limit (bytes). See SetWorkingMemory(int32). */
+	int32 GetWorkingMemory() const;
+	
+private:
 	FCustomizableObjectCompilerBase* RecompileCustomizableObjectsCompiler = nullptr;
 	
 	TArray<FAssetData> ObjectsToRecompile;
