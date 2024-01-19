@@ -79,7 +79,7 @@ struct PHYSICSCONTROL_API FAnimNode_RigidBodyWithControl : public FAnimNode_Skel
 public:
 	/** Physics asset to use. If empty use the skeletal mesh's default physics asset */
 	UPROPERTY(EditAnywhere, Category = Settings)
-	TWeakObjectPtr<UPhysicsAsset> OverridePhysicsAsset;
+	TObjectPtr<UPhysicsAsset> OverridePhysicsAsset;
 
 	/** 
 	 * Use the skeletal mesh physics asset as default in case set to True. The Override Physics Asset 

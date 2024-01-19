@@ -962,9 +962,9 @@ void ComputeBodyInsertionOrderWithControl(TArray<FBoneIndexType>& InsertionOrder
 
 UPhysicsAsset* FAnimNode_RigidBodyWithControl::GetPhysicsAssetToBeUsed(const UAnimInstance* InAnimInstance) const
 {
-	if (OverridePhysicsAsset.IsValid())
+	if (OverridePhysicsAsset)
 	{
-		return OverridePhysicsAsset.Get();
+		return ToRawPtr(OverridePhysicsAsset);
 	}
 
 	if (bDefaultToSkeletalMeshPhysicsAsset && ensure(InAnimInstance))
