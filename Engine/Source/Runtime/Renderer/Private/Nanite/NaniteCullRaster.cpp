@@ -1112,7 +1112,8 @@ class FPatchSplitCS : public FNaniteGlobalShader
 	class FMultiViewDim : SHADER_PERMUTATION_BOOL("NANITE_MULTI_VIEW");
 	class FVirtualTextureTargetDim : SHADER_PERMUTATION_BOOL("VIRTUAL_TEXTURE_TARGET");
 	class FSplineDeformDim : SHADER_PERMUTATION_BOOL("USE_SPLINEDEFORM");
-	using FPermutationDomain = TShaderPermutationDomain< FCullingPassDim, FMultiViewDim, FVirtualTextureTargetDim, FSplineDeformDim >;
+	class FWriteStatsDim : SHADER_PERMUTATION_BOOL("WRITE_STATS");
+	using FPermutationDomain = TShaderPermutationDomain< FCullingPassDim, FMultiViewDim, FVirtualTextureTargetDim, FSplineDeformDim, FWriteStatsDim >;
 
 	BEGIN_SHADER_PARAMETER_STRUCT( FParameters, )
 		SHADER_PARAMETER_RDG_UNIFORM_BUFFER( FSceneUniformParameters, Scene )
@@ -1134,6 +1135,8 @@ class FPatchSplitCS : public FNaniteGlobalShader
 		SHADER_PARAMETER_RDG_BUFFER_SRV( ByteAddressBuffer,		VisibleClustersSWHW )
 
 		SHADER_PARAMETER_RDG_BUFFER_SRV( Buffer< uint >,		InClusterOffsetSWHW )
+
+		SHADER_PARAMETER_RDG_BUFFER_UAV(RWStructuredBuffer<FNaniteStats>, OutStatsBuffer)
 
 		SHADER_PARAMETER_RDG_BUFFER_UAV( RWByteAddressBuffer,	RWVisiblePatches )
 		SHADER_PARAMETER_RDG_BUFFER_UAV( RWBuffer< uint >,		RWVisiblePatchesArgs )
@@ -1274,6 +1277,8 @@ BEGIN_SHADER_PARAMETER_STRUCT( FRasterizePassParameters, )
 	SHADER_PARAMETER_RDG_BUFFER_SRV( Buffer< uint >,	VisiblePatchesArgs )
 	
 	SHADER_PARAMETER_STRUCT( FGlobalWorkQueueParameters, SplitWorkQueue )
+
+	SHADER_PARAMETER_RDG_BUFFER_UAV(RWStructuredBuffer<FNaniteStats>, OutStatsBuffer)
 
 	RDG_BUFFER_ACCESS(IndirectArgs, ERHIAccess::IndirectArgs)
 
@@ -2624,6 +2629,11 @@ private:
 	void			ExtractResults( FRasterResults& RasterResults );
 	
 	inline bool IsUsingVirtualShadowMap() const { return VirtualShadowMapArray != nullptr; }
+
+	inline bool IsDebuggingEnabled() const
+	{
+		return DebugFlags != 0 || (RenderFlags & NANITE_RENDER_FLAG_WRITE_STATS) != 0u;
+	}
 };
 
 TUniquePtr< IRenderer > IRenderer::Create(
@@ -2711,6 +2721,7 @@ FRenderer::FRenderer(
 #if WITH_EDITOR
 	RenderFlags |= Configuration.bEditorShowFlag		? NANITE_RENDER_FLAG_EDITOR_SHOW_FLAG_ENABLED : 0u;
 #endif
+	RenderFlags |= GNaniteShowStats != 0				? NANITE_RENDER_FLAG_WRITE_STATS : 0u;
 
 	if (UseMeshShader(ShaderPlatform, SharedContext.Pipeline))
 	{
@@ -2751,11 +2762,6 @@ FRenderer::FRenderer(
 		if (CVarNaniteCullingWPODisableDistance.GetValueOnRenderThread() == 0)
 		{
 			DebugFlags |= NANITE_DEBUG_FLAG_DISABLE_WPO_DISABLE_DISTANCE;
-		}
-
-		if (GNaniteShowStats != 0)
-		{
-			DebugFlags |= NANITE_DEBUG_FLAG_WRITE_STATS;
 		}
 
 		if (Configuration.bDrawOnlyRootGeometry)
@@ -3017,7 +3023,7 @@ void FRenderer::AddPass_NodeAndClusterCull(
 	PermutationVector.Set<FNodeAndClusterCull_CS::FMultiViewDim>(bMultiView);
 	PermutationVector.Set<FNodeAndClusterCull_CS::FVirtualTextureTargetDim>(IsUsingVirtualShadowMap());
 	PermutationVector.Set<FNodeAndClusterCull_CS::FSplineDeformDim>(NaniteSplineMeshesSupported());
-	PermutationVector.Set<FNodeAndClusterCull_CS::FDebugFlagsDim>(DebugFlags != 0);
+	PermutationVector.Set<FNodeAndClusterCull_CS::FDebugFlagsDim>(IsDebuggingEnabled());
 	PermutationVector.Set<FNodeAndClusterCull_CS::FCullingTypeDim>(CullingType);
 	auto ComputeShader = SharedContext.ShaderMap->GetShader<FNodeAndClusterCull_CS>(PermutationVector);
 
@@ -3211,7 +3217,7 @@ void FRenderer::AddPass_InstanceHierarchyAndClusterCull( const FPackedViewArray&
 
 		FInstanceCullVSM_CS::FPermutationDomain PermutationVector;
 		PermutationVector.Set<FInstanceCullVSM_CS::FPrimitiveFilterDim>(PrimitiveFilterBuffer != nullptr);
-		PermutationVector.Set<FInstanceCullVSM_CS::FDebugFlagsDim>(DebugFlags != 0);
+		PermutationVector.Set<FInstanceCullVSM_CS::FDebugFlagsDim>(IsDebuggingEnabled());
 		PermutationVector.Set<FInstanceCullVSM_CS::FCullingPassDim>(CullingPass);
 
 		auto ComputeShader = SharedContext.ShaderMap->GetShader<FInstanceCullVSM_CS>(PermutationVector);
@@ -3282,7 +3288,7 @@ void FRenderer::AddPass_InstanceHierarchyAndClusterCull( const FPackedViewArray&
 			PermutationVector.Set<FInstanceCull_CS::FCullingPassDim>(InstanceCullingPass);
 			PermutationVector.Set<FInstanceCull_CS::FMultiViewDim>(bMultiView);
 			PermutationVector.Set<FInstanceCull_CS::FPrimitiveFilterDim>(PrimitiveFilterBuffer != nullptr);
-			PermutationVector.Set<FInstanceCull_CS::FDebugFlagsDim>(DebugFlags != 0);
+			PermutationVector.Set<FInstanceCull_CS::FDebugFlagsDim>(IsDebuggingEnabled());
 			PermutationVector.Set<FInstanceCull_CS::FDepthOnlyDim>(RasterContext.RasterMode == EOutputBufferMode::DepthOnly);
 			// Make sure these permutations are orthogonally enabled WRT CULLING_PASS_EXPLICIT_LIST as they can never co-exist
 			check(!(IsUsingVirtualShadowMap() && bUseExpplicitListCullingPass));
@@ -4100,6 +4106,8 @@ FBinningData FRenderer::AddPass_Rasterize(
 		RasterPassParameters->MeshPass					= Configuration.bIsLumenCapture ? ENaniteMeshPass::LumenCardCapture : ENaniteMeshPass::BasePass;
 		RasterPassParameters->VirtualShadowMap			= VirtualTargetParameters;
 
+		RasterPassParameters->OutStatsBuffer			= GraphBuilder.CreateUAV(StatsBuffer);
+
 		if (bPatches)
 		{
 			RasterPassParameters->VisiblePatches		= GraphBuilder.CreateSRV(VisiblePatches);
@@ -4287,23 +4295,25 @@ void FRenderer::AddPass_PatchSplit(
 	{
 		FPatchSplitCS::FParameters* PassParameters = GraphBuilder.AllocParameters< FPatchSplitCS::FParameters >();
 
-		PassParameters->View				= SceneView.ViewUniformBuffer;
-		PassParameters->ClusterPageData		= GStreamingManager.GetClusterPageDataSRV(GraphBuilder);
-		PassParameters->Scene				= SceneUniformBuffer;
-		PassParameters->CullingParameters	= CullingParameters;
-		PassParameters->SplitWorkQueue		= SplitWorkQueue;
-		PassParameters->OccludedPatches		= OccludedPatches;
+		PassParameters->View						= SceneView.ViewUniformBuffer;
+		PassParameters->ClusterPageData				= GStreamingManager.GetClusterPageDataSRV(GraphBuilder);
+		PassParameters->Scene						= SceneUniformBuffer;
+		PassParameters->CullingParameters			= CullingParameters;
+		PassParameters->SplitWorkQueue				= SplitWorkQueue;
+		PassParameters->OccludedPatches				= OccludedPatches;
 
-		PassParameters->VisibleClustersSWHW = GraphBuilder.CreateSRV( VisibleClustersSWHW );
+		PassParameters->VisibleClustersSWHW			= GraphBuilder.CreateSRV( VisibleClustersSWHW );
 
 		PassParameters->TessellationTable_Offsets	= GTessellationTable.Offsets.SRV;
 		PassParameters->TessellationTable_Verts		= GTessellationTable.Verts.SRV;
 		PassParameters->TessellationTable_Indexes	= GTessellationTable.Indexes.SRV;
 		PassParameters->InvDiceRate					= CVarNaniteMaxPixelsPerEdge.GetValueOnRenderThread() / CVarNaniteDicingRate.GetValueOnRenderThread();
 
-		PassParameters->RWVisiblePatches		= GraphBuilder.CreateUAV( VisiblePatches );
-		PassParameters->RWVisiblePatchesArgs	= GraphBuilder.CreateUAV( VisiblePatchesArgs );
-		PassParameters->VisiblePatchesSize		= VisiblePatches->GetSize() / 16;
+		PassParameters->RWVisiblePatches			= GraphBuilder.CreateUAV( VisiblePatches );
+		PassParameters->RWVisiblePatchesArgs		= GraphBuilder.CreateUAV( VisiblePatchesArgs );
+		PassParameters->VisiblePatchesSize			= VisiblePatches->GetSize() / 16;
+
+		PassParameters->OutStatsBuffer				= GNaniteShowStats != 0u ? GraphBuilder.CreateUAV(StatsBuffer) : nullptr;
 
 		if( VirtualShadowMapArray )
 			PassParameters->VirtualShadowMap = VirtualTargetParameters;
@@ -4313,6 +4323,7 @@ void FRenderer::AddPass_PatchSplit(
 		PermutationVector.Set< FPatchSplitCS::FMultiViewDim >( ViewArray.NumViews > 1 || VirtualShadowMapArray != nullptr );
 		PermutationVector.Set< FPatchSplitCS::FVirtualTextureTargetDim >( VirtualShadowMapArray != nullptr );
 		PermutationVector.Set< FPatchSplitCS::FSplineDeformDim >( NaniteSplineMeshesSupported() );
+		PermutationVector.Set< FPatchSplitCS::FWriteStatsDim >(GNaniteShowStats != 0u);
 		
 		auto ComputeShader = SharedContext.ShaderMap->GetShader< FPatchSplitCS >( PermutationVector );
 
@@ -4760,12 +4771,11 @@ void FRenderer::DrawGeometry(
 
 	InstanceHierarchyDriver.Init(GraphBuilder, CVarNaniteCullInstanceHierarchy.GetValueOnRenderThread() != 0, Configuration.bTwoPassOcclusion, SharedContext.ShaderMap, SceneInstanceCullingQuery);
 
-	if (DebugFlags != 0)
 	{
 		FNaniteStats Stats;
 		FMemory::Memzero(Stats);
 		// The main pass instances are produced on the GPU if the hierarchy is active.
-		if (!InstanceHierarchyDriver.bIsEnabled)
+		if (IsDebuggingEnabled() && !InstanceHierarchyDriver.bIsEnabled)
 		{
 			Stats.NumMainInstancesPreCull =  NumInstancesPreCull;
 		}
@@ -5163,7 +5173,7 @@ void FRenderer::ExtractStats( const FBinningData& MainPassBinning, const FBinnin
 {
 	LLM_SCOPE_BYTAG(Nanite);
 
-	if (DebugFlags != 0 && GNaniteShowStats != 0 && StatsBuffer != nullptr)
+	if ((RenderFlags & NANITE_RENDER_FLAG_WRITE_STATS) != 0u && StatsBuffer != nullptr)
 	{
 		FRDGBufferRef ClusterStatsArgs = GraphBuilder.CreateBuffer(FRDGBufferDesc::CreateIndirectDesc(4), TEXT("Nanite.ClusterStatsArgs"));
 
@@ -5413,7 +5423,7 @@ FInstanceWorkGroupParameters FInstanceHierarchyDriver::DispatchCullingPass(FRDGB
 
 		FInstanceHierarchyCull_CS::FPermutationDomain PermutationVector;
 		PermutationVector.Set<FInstanceHierarchyCull_CS::FCullingPassDim>(CullingPass);
-		PermutationVector.Set<FInstanceHierarchyCull_CS::FDebugFlagsDim>(Renderer.DebugFlags != 0);
+		PermutationVector.Set<FInstanceHierarchyCull_CS::FDebugFlagsDim>(Renderer.IsDebuggingEnabled());
 		PermutationVector.Set<FInstanceHierarchyCull_CS::FVirtualTextureTargetDim>(Renderer.IsUsingVirtualShadowMap());
 
 		auto ComputeShader = Renderer.SharedContext.ShaderMap->GetShader<FInstanceHierarchyCull_CS>(PermutationVector);
@@ -5490,7 +5500,7 @@ FInstanceWorkGroupParameters FInstanceHierarchyDriver::DispatchCullingPass(FRDGB
 		}
 
 		FInstanceHierarchyAppendUncullable_CS::FPermutationDomain PermutationVector;
-		PermutationVector.Set<FInstanceHierarchyAppendUncullable_CS::FDebugFlagsDim>(Renderer.DebugFlags != 0);
+		PermutationVector.Set<FInstanceHierarchyAppendUncullable_CS::FDebugFlagsDim>(Renderer.IsDebuggingEnabled());
 
 		auto ComputeShader = Renderer.SharedContext.ShaderMap->GetShader<FInstanceHierarchyAppendUncullable_CS>(PermutationVector);
 

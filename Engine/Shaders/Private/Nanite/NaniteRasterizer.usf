@@ -50,6 +50,8 @@ HOIST_DESCRIPTORS
 
 uint ActiveRasterBin;
 
+RWStructuredBuffer<FNaniteStats> OutStatsBuffer;
+
 StructuredBuffer<FNaniteRasterBinMeta> RasterBinMeta;
 
 StructuredBuffer<uint2> RasterBinData;
@@ -381,6 +383,13 @@ void ClusterRasterize( uint VisibleIndex, uint GroupThreadIndex )
 
 		//DiceTask.FirstVert = WavePrefixSum( NumVerts );
 		//DiceTask.NumCached = 0;
+
+		BRANCH
+		if ((RenderFlags & NANITE_RENDER_FLAG_WRITE_STATS) != 0u)
+		{
+			WaveInterlockedAdd(OutStatsBuffer[0].NumDicedTrianglesClusters, NumTris);
+			WaveInterlockedAddScalar(OutStatsBuffer[0].NumImmediatePatches, 1);
+		}
 
 		DistributeWork( DiceTask, GroupThreadIndex, NumTris );
 	}

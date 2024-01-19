@@ -109,7 +109,7 @@ void AppendInstanceCullingWorkGroups(uint ItemChunksOffset, uint NumItemChunks, 
 
 	// TODO: stats?
 #if 0// DEBUG_FLAGS
-	if ((DebugFlags & NANITE_DEBUG_FLAG_WRITE_STATS) != 0u)
+	if ((RenderFlags & NANITE_RENDER_FLAG_WRITE_STATS) != 0u)
 	{
 #if CULLING_PASS == CULLING_PASS_OCCLUSION_POST
 		WaveInterlockedAddScalar( OutStatsBuffer[0].NumPostCellsPostCull, 1 );
@@ -156,7 +156,7 @@ void HierarchyCellInstanceCull(uint3 GroupId : SV_GroupID, uint GroupIndex : SV_
 #endif
 
 #if DEBUG_FLAGS
-	if ((DebugFlags & NANITE_DEBUG_FLAG_WRITE_STATS) != 0u && DispatchIndex == 0)
+	if ((RenderFlags & NANITE_RENDER_FLAG_WRITE_STATS) != 0u && DispatchIndex == 0)
 	{
 #if CULLING_PASS == CULLING_PASS_OCCLUSION_POST
 		OutStatsBuffer[0].NumPostHierarchyCellsPreCull = NumCellDrawsLocal;

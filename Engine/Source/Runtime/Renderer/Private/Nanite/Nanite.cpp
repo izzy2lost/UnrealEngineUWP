@@ -12,7 +12,7 @@
 #include "NaniteShading.h"
 #include "VirtualShadowMaps/VirtualShadowMapCacheManager.h"
 
-#define NUM_PRINT_STATS_PASSES 4
+#define NUM_PRINT_STATS_PASSES 5
 
 int32 GNaniteShowStats = 0;
 FAutoConsoleVariableRef CVarNaniteShowStats(

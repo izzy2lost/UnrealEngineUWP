@@ -2659,7 +2659,7 @@ void FVirtualShadowMapArray::RenderVirtualShadowMapsNanite(FRDGBuilder& GraphBui
 
 		if (bCsvLogEnabled)
 		{
-			//CullingContext.DebugFlags |= NANITE_DEBUG_FLAG_WRITE_STATS;	FIXME
+			//CullingContext.RenderFlags |= NANITE_RENDER_FLAG_WRITE_STATS;	FIXME
 		}
 
 		NaniteRenderer->DrawGeometry(

@@ -261,7 +261,7 @@ void InstanceCull(
 	//uint NumInstanceWorkGroups = InNumInstanceWorkGroups[0];
 
 #if DEBUG_FLAGS && CULLING_PASS == CULLING_PASS_OCCLUSION_POST
-	if ((DebugFlags & NANITE_DEBUG_FLAG_WRITE_STATS) != 0u && DispatchIndex == 0)
+	if ((RenderFlags & NANITE_RENDER_FLAG_WRITE_STATS) != 0u && DispatchIndex == 0)
 	{
 		InterlockedAdd(OutStatsBuffer[0].NumPostInstancesPreCull, InInstanceWorkArgs[0]);
 	}
@@ -273,7 +273,7 @@ void InstanceCull(
 	uint GroupNumInstances =  UnpackChunkInstanceCount(GroupWorkItem.PackedItemChunkDesc, bIsRLEPackedChunk);
 
 #if DEBUG_FLAGS 
-	if ((DebugFlags & NANITE_DEBUG_FLAG_WRITE_STATS) != 0u && GroupThreadIndex == 0)
+	if ((RenderFlags & NANITE_RENDER_FLAG_WRITE_STATS) != 0u && GroupThreadIndex == 0)
 	{
 #if CULLING_PASS == CULLING_PASS_OCCLUSION_POST
 		// Add the occluded instances to the count
@@ -302,7 +302,7 @@ void InstanceCull(
 	uint NumInstancesLocal = InOccludedInstancesArgs[3];
 
 #if DEBUG_FLAGS
-	if ((DebugFlags & NANITE_DEBUG_FLAG_WRITE_STATS) != 0u && DispatchIndex == 0)
+	if ((RenderFlags & NANITE_RENDER_FLAG_WRITE_STATS) != 0u && DispatchIndex == 0)
 	{
 		InterlockedAdd(OutStatsBuffer[0].NumPostInstancesPreCull, NumInstancesLocal);
 	}
@@ -446,7 +446,7 @@ void InstanceCull(
 				WaveInterlockedAddScalar(  OutQueueState[ 0 ].PassState[ QueueStateIndex ].NodeCount, 1 );
 
 #if DEBUG_FLAGS
-				if (DebugFlags & NANITE_DEBUG_FLAG_WRITE_STATS)
+				if ((RenderFlags & NANITE_RENDER_FLAG_WRITE_STATS) != 0u)
 				{
 				#if CULLING_PASS == CULLING_PASS_OCCLUSION_POST
 					WaveInterlockedAddScalar( OutStatsBuffer[0].NumPostInstancesPostCull, 1 );
@@ -662,7 +662,7 @@ void ProcessPrimaryView(const bool bIsOrtho, FPrimitiveSceneData PrimitiveData, 
 			WaveInterlockedAdd_( OutQueueState[0].PassState[0].NodeWriteOffset, 1U, NodeOffset );
 			WaveInterlockedAdd(  OutQueueState[0].PassState[0].NodeCount, 1U );
 #if DEBUG_FLAGS
-			if ((DebugFlags & NANITE_DEBUG_FLAG_WRITE_STATS) != 0u)
+			if ((RenderFlags & NANITE_RENDER_FLAG_WRITE_STATS) != 0u)
 			{
 				WaveInterlockedAdd(OutStatsBuffer[0].NumMainInstancesPostCull, 1U);
 			}
@@ -705,7 +705,7 @@ void InstanceCullVSM(uint3 GroupId : SV_GroupID, uint GroupIndex : SV_GroupIndex
 
 	// View compaction stats
 #if DEBUG_FLAGS
-	if ((DebugFlags & NANITE_DEBUG_FLAG_WRITE_STATS) != 0u && DispatchIndex == 0)
+	if ((RenderFlags & NANITE_RENDER_FLAG_WRITE_STATS) != 0u && DispatchIndex == 0)
 	{
 		OutStatsBuffer[0].NumMainInstancesPreCull = NumInstances * CompactedViewsAllocation[1];
 		OutStatsBuffer[0].NumPrimaryViews = CompactedViewsAllocation[0];

@@ -220,6 +220,49 @@ void PrintStats()
 #endif // PRINT_PASS == 2
 
 #if PRINT_PASS == 3
+	// Tessellation
+
+	Context.Pos.x = HeadlineX;
+	Print(Context, TEXT("Immediate"), FontOrange);
+	Newline(Context);
+
+	Context.Pos.x = ItemX;
+	Print(Context, TEXT("   Patches"), FontYellow);
+	PrintLeftAlign(Context, InStatsBuffer[0].NumImmediatePatches);
+	Newline(Context);
+
+	Context.Pos.x = HeadlineX;
+	Print(Context, TEXT("Diced Tris"), FontOrange);
+	Newline(Context);
+
+	Context.Pos.x = ItemX;
+	Print(Context, TEXT("  Clusters"), FontYellow);
+	PrintLeftAlign(Context, InStatsBuffer[0].NumDicedTrianglesClusters);
+	Newline(Context);
+
+	Context.Pos.x = ItemX;
+	Print(Context, TEXT("   Patches"), FontYellow);
+	PrintLeftAlign(Context, InStatsBuffer[0].NumDicedTrianglesPatches);
+	Newline(Context);
+
+	Context.Pos.x = HeadlineX;
+	Print(Context, TEXT("Split Patches"), FontOrange);
+	Newline(Context);
+
+	Context.Pos.x = ItemX;
+	Print(Context, TEXT(" Candidate"), FontYellow);
+	PrintLeftAlign(Context, InStatsBuffer[0].NumCandidateSplitPatches);
+	Newline(Context);
+
+	Context.Pos.x = ItemX;
+	Print(Context, TEXT("   Visible"), FontYellow);
+	PrintLeftAlign(Context, InStatsBuffer[0].NumVisibleSplitPatches);
+	Newline(Context);
+#else
+	Context.Pos.y += 9 * ShaderPrintData.FontSpacing.y;
+#endif // PRINT_PASS == 3
+
+#if PRINT_PASS == 4
 	// Materials: Raster Bins
 	Context.Pos.x = HeadlineX;
 	Print(Context, TEXT("Raster Bins"), FontOrange);
@@ -298,7 +341,7 @@ void PrintStats()
 	Context.Pos.x = ItemX;
 	Print(Context, TEXT("  Helper %"), FontYellow);
 	PrintLeftAlign(Context, uint(round(HelperPct * 100.0f)));
-#endif // PRINT_PASS == 3
+#endif // PRINT_PASS == 4
 }
 
 #endif // SHADER_PRINT_STATS

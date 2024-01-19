@@ -37,6 +37,10 @@ void DisplaceBounds( float3 ConeCenter, float ConeCos, float DisplacementMin, fl
 uint RegularMaterialRasterSlotCount;
 StructuredBuffer<FNaniteRasterBinMeta> RasterBinMeta;
 
+#if WRITE_STATS
+RWStructuredBuffer<FNaniteStats> OutStatsBuffer;
+#endif
+
 struct FSplitTask
 {
 	FTessellatedPatch	TessellatedPatch;
@@ -104,6 +108,10 @@ void FSplitTask::Clear( QueueType WorkQueue, uint Offset )
 
 uint FSplitTask::Run()
 {
+#if WRITE_STATS
+	WaveInterlockedAddScalar(OutStatsBuffer[0].NumCandidateSplitPatches, 1u);
+#endif
+
 	FSplitPatch Patch;
 	Patch.Decode( Encoded );
 
@@ -229,18 +237,29 @@ uint FSplitTask::Run()
 		{
 			if( Cull.bNeedsClipping )
 				return 0;
+
+		#if WRITE_STATS
+			WaveInterlockedAddScalar(OutStatsBuffer[0].NumVisibleSplitPatches, 1u);
+		#endif
 	
 			uint WriteOffset;
 			WaveInterlockedAddScalar_( RWVisiblePatchesArgs[3], 1, WriteOffset );
 			if( WriteOffset < VisiblePatchesSize )
 			{
-			#if NANITE_TESSELLATION_PATCH_REFS
+			#if NANITE_TESSELLATION_PATCH_REFS || WRITE_STATS
 				TessellatedPatch.Init( TessFactors, Encoded.yzw );
+			#endif
+
+			#if NANITE_TESSELLATION_PATCH_REFS || WRITE_STATS
 				RWVisiblePatches.Store2( WriteOffset * 8, uint2( QueueOffset, TessellatedPatch.Pattern ) );
 				SplitWorkQueue.DataBuffer.Store4( QueueOffset * 16, Encoded );
 				QueueOffset = ~0u;
 			#else
 				RWVisiblePatches.Store4( WriteOffset * 16, Encoded );
+			#endif
+
+			#if WRITE_STATS
+				WaveInterlockedAddScalar(OutStatsBuffer[0].NumDicedTrianglesPatches, TessellatedPatch.GetNumTris());
 			#endif
 			}
 		}
