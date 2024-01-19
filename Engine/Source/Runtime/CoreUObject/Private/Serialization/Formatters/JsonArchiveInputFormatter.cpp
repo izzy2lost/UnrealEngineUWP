@@ -45,11 +45,7 @@ FArchive& FJsonArchiveInputFormatter::GetUnderlyingArchive()
 
 FStructuredArchiveFormatter* FJsonArchiveInputFormatter::CreateSubtreeReader()
 {
-	FJsonArchiveInputFormatter* Cloned = new FJsonArchiveInputFormatter(*this);
-	Cloned->ObjectStack.Empty();
-	Cloned->ValueStack.Empty();
-	Cloned->MapIteratorStack.Empty();
-	Cloned->ArrayValuesRemainingStack.Empty();
+	FJsonArchiveInputFormatter* Cloned = new FJsonArchiveInputFormatter(this->Inner, this->ResolveObject);
 	Cloned->ValueStack.Push(ValueStack.Top());
 
 	return Cloned;
