@@ -13,6 +13,11 @@ void UMovieJobVariableAssignmentContainer::SetGraphConfig(const TSoftObjectPtr<U
 	GraphPreset = InGraphConfig;
 }
 
+TSoftObjectPtr<UMovieGraphConfig> UMovieJobVariableAssignmentContainer::GetGraphConfig() const
+{
+	return GraphPreset;
+}
+
 uint32 UMovieJobVariableAssignmentContainer::GetNumAssignments() const
 {
 	uint32 NumAssignments = 0;
