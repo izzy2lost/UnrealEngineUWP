@@ -2522,14 +2522,9 @@ void UCustomizableObjectInstance::SetRandomValues()
 	Descriptor.SetRandomValues();
 }
 
-void UCustomizableObjectInstance::SetRandomValuesFromStream(const FRandomStream& Stream)
+void UCustomizableObjectInstance::SetRandomValuesFromStream(const FRandomStream& InStream)
 {
-	Descriptor.SetRandomValuesFromStream(Stream);
-}
-
-void UCustomizableObjectInstance::SetRandomValues(const int32 InRandomizationSeed)
-{
-	Descriptor.SetRandomValues(InRandomizationSeed);
+	Descriptor.SetRandomValuesFromStream(InStream);
 }
 
 

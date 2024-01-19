@@ -122,7 +122,7 @@ int32 UCustomizableObjectValidationCommandlet::Main(const FString& Params)
 
 		// CO embedded data size ------ //
 		{
-			TArray<uint8> EmbeddedDataBytes;
+			TArray<uint8> EmbeddedDataBytes{};
 			FMemoryWriter SerializationTarget{EmbeddedDataBytes, false};
 			
 			ToTestCustomizableObject->SaveEmbeddedData(SerializationTarget);
@@ -135,6 +135,9 @@ int32 UCustomizableObjectValidationCommandlet::Main(const FString& Params)
 		bool bWasInstancesCreationSuccessful = true;
 		{
 			UE_LOG(LogMutable,Display,TEXT("Generating %i random instances..."), InstancesToGenerate);	
+
+			// Create randomization stream for the parameters of the instance
+			FRandomStream RandomizationStream = FRandomStream(0);
 			
 			// Generate a series of instances to later update
 			for (uint32 CustomizableObjectInstanceIndex = 0; CustomizableObjectInstanceIndex < InstancesToGenerate; CustomizableObjectInstanceIndex++)
@@ -142,8 +145,13 @@ int32 UCustomizableObjectValidationCommandlet::Main(const FString& Params)
 				UCustomizableObjectInstance* GeneratedInstance = ToTestCustomizableObject->CreateInstance();
 				if (GeneratedInstance)
 				{
+					// Force generation of all LODS
+					TArray<uint16> RequestedLodLevels{};
+					RequestedLodLevels.Init(MAX_uint8, GeneratedInstance->GetNumComponents());
+					GeneratedInstance->GetDescriptor().SetRequestedLODLevels(RequestedLodLevels);
+					
 					// Randomize instance values
-					GeneratedInstance->SetRandomValues(0);
+					GeneratedInstance->SetRandomValuesFromStream(RandomizationStream);
 					InstancesToProcess.Push(GeneratedInstance);
 				}
 				else

@@ -255,10 +255,7 @@ public:
 
 	/**  Set random values to the parameters using a stream. */
 	UFUNCTION(BlueprintCallable, Category = CustomizableObjectInstance)
-	void SetRandomValuesFromStream(const FRandomStream& Stream);
-
-	/**  Set random values to the parameters using a seed. */
-	void SetRandomValues(const int32 InRandomizationSeed);
+	void SetRandomValuesFromStream(const FRandomStream& InStream);
 
 	/** Returns the AssetUserData that was gathered from all the constituent mesh parts during the last update. 
 	 *  It requires that the CustomizableObject had the bEnableAssetUserDataMerge set to true during compilation. 

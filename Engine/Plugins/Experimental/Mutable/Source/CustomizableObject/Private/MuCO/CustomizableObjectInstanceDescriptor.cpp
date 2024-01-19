@@ -2318,31 +2318,36 @@ void FCustomizableObjectInstanceDescriptor::SetCurrentState(const FString& State
 
 void FCustomizableObjectInstanceDescriptor::SetRandomValues()
 {
-	SetRandomValues(FMath::SRand() * TNumericLimits<int32>::Max());
+	const int32 RandomSeed = FMath::SRand() * TNumericLimits<int32>::Max();
+	FRandomStream RandomStream{RandomSeed};
+	SetRandomValuesFromStream(RandomSeed);
 }
 
 
-void FCustomizableObjectInstanceDescriptor::SetRandomValues(const int32 InRandomizationSeed)
+void FCustomizableObjectInstanceDescriptor::SetRandomValuesFromStream(const FRandomStream& InStream)
 {
 	check(CustomizableObject);
-	RETURN_ON_UNCOMPILED_CO(CustomizableObject, TEXT("Error: Cannot set random values"))
 
-	// Set seed for deterministic behaviour
-	const FRandomStream Random(InRandomizationSeed);
-		
+	if (!CustomizableObject)
+	{
+		return;
+	}
+	
+	RETURN_ON_UNCOMPILED_CO(CustomizableObject, TEXT("Error: Cannot set random values"))
+	
 	for (FCustomizableObjectFloatParameterValue& FloatParameter : FloatParameters)
 	{
-		FloatParameter.ParameterValue = Random.GetFraction();
+		FloatParameter.ParameterValue = InStream.GetFraction();
 
 		for (float& RangeValue : FloatParameter.ParameterRangeValues)
 		{
-			RangeValue = Random.GetFraction();
+			RangeValue = InStream.GetFraction();
 		}
 	}
 
 	for (FCustomizableObjectBoolParameterValue& BoolParameter : BoolParameters)
 	{
-		BoolParameter.ParameterValue = static_cast<bool>(Random.RandRange(0, 1));
+		BoolParameter.ParameterValue = static_cast<bool>(InStream.RandRange(0, 1));
 	}
 	
 	for (FCustomizableObjectIntParameterValue& IntParameter : IntParameters)
@@ -2352,21 +2357,21 @@ void FCustomizableObjectInstanceDescriptor::SetRandomValues(const int32 InRandom
 
 		if (NumValues)
 		{
-			IntParameter.ParameterValueName = CustomizableObject->GetIntParameterAvailableOption(ParamIndex, NumValues * Random.GetFraction());
+			IntParameter.ParameterValueName = CustomizableObject->GetIntParameterAvailableOption(ParamIndex, NumValues * InStream.GetFraction());
 
 			for (FString& RangeValue : IntParameter.ParameterRangeValueNames)
 			{
-				RangeValue = CustomizableObject->GetIntParameterAvailableOption(ParamIndex, NumValues * Random.GetFraction());
+				RangeValue = CustomizableObject->GetIntParameterAvailableOption(ParamIndex, NumValues * InStream.GetFraction());
 			}
 		}		
 	}
 
 	for (FCustomizableObjectVectorParameterValue& VectorParameter : VectorParameters)
 	{
-		VectorParameter.ParameterValue.R = Random.GetFraction();
-		VectorParameter.ParameterValue.G = Random.GetFraction();
-		VectorParameter.ParameterValue.B = Random.GetFraction();
-		VectorParameter.ParameterValue.A = Random.GetFraction();
+		VectorParameter.ParameterValue.R = InStream.GetFraction();
+		VectorParameter.ParameterValue.G = InStream.GetFraction();
+		VectorParameter.ParameterValue.B = InStream.GetFraction();
+		VectorParameter.ParameterValue.A = InStream.GetFraction();
 	}
 
 	const UCustomizableObjectSystemPrivate* SystemPrivate = UCustomizableObjectSystem::GetInstance()->GetPrivate();
@@ -2390,51 +2395,16 @@ void FCustomizableObjectInstanceDescriptor::SetRandomValues(const int32 InRandom
 	{
 		for (FCustomizableObjectTextureParameterValue& TextureParameter : TextureParameters)
 		{
-			TextureParameter.ParameterValue = PossibleValues[NumPossibleValues * Random.GetFraction()];
+			TextureParameter.ParameterValue = PossibleValues[NumPossibleValues * InStream.GetFraction()];
 		
 			for (FName& RangeValue : TextureParameter.ParameterRangeValues)
 			{
-				RangeValue = PossibleValues[NumPossibleValues * Random.GetFraction()];
+				RangeValue = PossibleValues[NumPossibleValues * InStream.GetFraction()];
 			}				
 		}		
 	}
 	
 	// Currently we are not randomizing the projectors since we do not know the valid range of values.
-}
-
-
-void FCustomizableObjectInstanceDescriptor::SetRandomValuesFromStream(const FRandomStream& Stream)
-{
-	check(CustomizableObject);
-	RETURN_ON_UNCOMPILED_CO(CustomizableObject, TEXT("Error: Cannot set random values"))
-		
-	if (!CustomizableObject) return;
-
-	for (int32 i = 0; i < FloatParameters.Num(); ++i)
-	{
-		FloatParameters[i].ParameterValue = Stream.FRand();
-	}
-
-	for (int32 i = 0; i < BoolParameters.Num(); ++i)
-	{
-		BoolParameters[i].ParameterValue = Stream.GetUnsignedInt() % 2 == 0;
-	}
-
-	for (int32 i = 0; i < IntParameters.Num(); ++i)
-	{
-		int32 ParameterIndexInCO = CustomizableObject->FindParameter(IntParameters[i].ParameterName);
-
-		if (ParameterIndexInCO >= 0)
-		{
-			int32 NumValues = CustomizableObject->GetIntParameterNumOptions(ParameterIndexInCO);
-			if (NumValues > 0)
-			{
-				int32 Index = Stream.GetUnsignedInt() % NumValues;
-				FString Option = CustomizableObject->GetIntParameterAvailableOption(ParameterIndexInCO, Index);
-				SetIntParameterSelectedOption(i, Option);
-			}
-		}
-	}
 }
 
 

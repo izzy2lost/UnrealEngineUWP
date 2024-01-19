@@ -294,9 +294,7 @@ struct CUSTOMIZABLEOBJECT_API FCustomizableObjectInstanceDescriptor
 
 	void SetRandomValues();
 	
-	void SetRandomValues(int32 InRandomizationSeed);
-
-	void SetRandomValuesFromStream(const FRandomStream& Stream);
+	void SetRandomValuesFromStream(const FRandomStream& InStream);
 
 	// ------------------------------------------------------------
 	// Multilayer Projectors
