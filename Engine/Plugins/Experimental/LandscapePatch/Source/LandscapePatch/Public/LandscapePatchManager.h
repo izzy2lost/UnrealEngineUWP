@@ -36,6 +36,7 @@ public:
 
 	// Adds the brush to the given landscape, removing it from any previous one. This differs from SetOwningLandscape
 	// in that SetOwningLandscape is called by the landscape itself from AddBrushToLayer to update the manager.
+	UFUNCTION(BlueprintCallable, Category = LandscapeManager)
 	virtual void SetTargetLandscape(ALandscape* InOwningLandscape);
 
 	// For use by the owned patch objects.
@@ -46,23 +47,28 @@ public:
 	 */
 	virtual FTransform GetHeightmapCoordsToWorld() { return HeightmapCoordsToWorld; }
 
-	bool ContainsPatch(TObjectPtr<ULandscapePatchComponent> Patch) const;
+	UFUNCTION(BlueprintCallable, Category = LandscapePatch)
+	bool ContainsPatch(ULandscapePatchComponent* Patch) const;
 
-	void AddPatch(TObjectPtr<ULandscapePatchComponent> Patch);
+	UFUNCTION(BlueprintCallable, Category = LandscapePatch)
+	void AddPatch(ULandscapePatchComponent* Patch);
 
-	bool RemovePatch(TObjectPtr<ULandscapePatchComponent> Patch);
+	UFUNCTION(BlueprintCallable, Category = LandscapePatch)
+	bool RemovePatch(ULandscapePatchComponent* Patch);
 
 	/** 
 	 * Gets the index of a particular patch in the manager's stack of patches (later indices get applied after
 	 * earlier ones.
 	 */
-	int32 GetIndexOfPatch(TObjectPtr<const ULandscapePatchComponent> Patch) const;
+	UFUNCTION(BlueprintCallable, Category = LandscapePatch)
+	int32 GetIndexOfPatch(const ULandscapePatchComponent* Patch) const;
 
 	/**
 	 * Moves patch to given index in the list of patches held by the manager (so that it is applied at 
 	 * a particular time relative to the others).
 	 */
-	void MovePatchToIndex(TObjectPtr<ULandscapePatchComponent> Patch, int32 Index);
+	UFUNCTION(BlueprintCallable, Category = LandscapePatch)
+	void MovePatchToIndex(ULandscapePatchComponent* Patch, int32 Index);
 	
 #if WITH_EDITOR
 	// ALandscapeBlueprintBrushBase

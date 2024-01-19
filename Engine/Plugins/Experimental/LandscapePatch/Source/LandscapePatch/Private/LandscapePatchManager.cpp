@@ -180,17 +180,17 @@ void ALandscapePatchManager::SetTargetLandscape(ALandscape* InTargetLandscape)
 #endif
 }
 
-bool ALandscapePatchManager::ContainsPatch(TObjectPtr<ULandscapePatchComponent> Patch) const
+bool ALandscapePatchManager::ContainsPatch(ULandscapePatchComponent* Patch) const
 {
 	return PatchComponents.Contains(Patch);
 }
 
-void ALandscapePatchManager::AddPatch(TObjectPtr<ULandscapePatchComponent> Patch)
+void ALandscapePatchManager::AddPatch(ULandscapePatchComponent* Patch)
 {
 	if (Patch)
 	{
 		Modify();
-		PatchComponents.AddUnique(TSoftObjectPtr<ULandscapePatchComponent>(Patch.Get()));
+		PatchComponents.AddUnique(TSoftObjectPtr<ULandscapePatchComponent>(Patch));
 
 		// No need to update if the patch is disabled. Important to avoid needlessly updating while dragging a blueprint with
 		// a disabled patch (since construction scripts constantly add and remove).
@@ -201,14 +201,14 @@ void ALandscapePatchManager::AddPatch(TObjectPtr<ULandscapePatchComponent> Patch
 	}
 }
 
-bool ALandscapePatchManager::RemovePatch(TObjectPtr<ULandscapePatchComponent> Patch)
+bool ALandscapePatchManager::RemovePatch(ULandscapePatchComponent* Patch)
 {
 	bool bRemoved = false;
 
 	if (Patch)
 	{
 		Modify();
-		bRemoved = PatchComponents.Remove(TSoftObjectPtr<ULandscapePatchComponent>(Patch.Get())) > 0;
+		bRemoved = PatchComponents.Remove(TSoftObjectPtr<ULandscapePatchComponent>(Patch)) > 0;
 
 		// No need to update if the patch was already disabled.Important to avoid needlessly updating while dragging 
 		// a blueprint with a disabled patch (since construction scripts constantly add and remove).
@@ -221,12 +221,12 @@ bool ALandscapePatchManager::RemovePatch(TObjectPtr<ULandscapePatchComponent> Pa
 	return bRemoved;
 }
 
-int32 ALandscapePatchManager::GetIndexOfPatch(TObjectPtr<const ULandscapePatchComponent> Patch) const
+int32 ALandscapePatchManager::GetIndexOfPatch(const ULandscapePatchComponent* Patch) const
 {
 	return PatchComponents.IndexOfByKey(Patch);
 }
 
-void ALandscapePatchManager::MovePatchToIndex(TObjectPtr<ULandscapePatchComponent> Patch, int32 Index)
+void ALandscapePatchManager::MovePatchToIndex(ULandscapePatchComponent* Patch, int32 Index)
 {
 	if (!Patch || Index < 0 || GetIndexOfPatch(Patch) == Index)
 	{
@@ -239,7 +239,7 @@ void ALandscapePatchManager::MovePatchToIndex(TObjectPtr<ULandscapePatchComponen
 	RemovePatch(Patch);
 
 	Index = FMath::Clamp(Index, 0, PatchComponents.Num());
-	PatchComponents.Insert(TSoftObjectPtr<ULandscapePatchComponent>(Patch.Get()), Index);
+	PatchComponents.Insert(TSoftObjectPtr<ULandscapePatchComponent>(Patch), Index);
 
 	if (Patch->IsEnabled())
 	{
