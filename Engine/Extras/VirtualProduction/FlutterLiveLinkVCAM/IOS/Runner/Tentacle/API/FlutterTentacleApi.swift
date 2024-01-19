@@ -1,6 +1,5 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
-import ARKit
 import Foundation
 import Tentacle
 
@@ -23,7 +22,7 @@ class FlutterTentacleApi: FlutterPluginApi<TentacleFlutterApi> {
   }
   
   deinit {
-    if (FlutterArSessionApi.instance === self) {
+    if (FlutterTentacleApi.instance === self) {
       FlutterTentacleApi.instance = nil
     }
   }

@@ -11,6 +11,7 @@ import WebRTC
   var videoViewControllerApi: FlutterRtcVideoViewControllerApi?
   var arSessionApi: FlutterArSessionApi?
   var tentacleApi: FlutterTentacleApi?
+  var gamepadApi: FlutterGamepadApi?
   
   override func application(
     _ application: UIApplication,
@@ -41,6 +42,7 @@ import WebRTC
     videoViewControllerApi = FlutterRtcVideoViewControllerApi(binaryMessenger: binaryMessenger)
     arSessionApi = FlutterArSessionApi(binaryMessenger: binaryMessenger)
     tentacleApi = FlutterTentacleApi(binaryMessenger: binaryMessenger)
+    gamepadApi = FlutterGamepadApi(binaryMessenger: binaryMessenger)
   
     return super.application(application, didFinishLaunchingWithOptions: launchOptions)
   }
