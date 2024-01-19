@@ -5,6 +5,7 @@
 #include "Animation/AnimNodeFunctionRef.h"
 #include "Animation/AnimRootMotionProvider.h"
 #include "HAL/IConsoleManager.h"
+#include "VisualLogger/VisualLogger.h"
 
 #include UE_INLINE_GENERATED_CPP_BY_NAME(AnimNode_OffsetRootBone)
 
@@ -245,6 +246,39 @@ void FAnimNode_OffsetRootBone::EvaluateSkeletalControl_AnyThread(FComponentSpace
 	{
 		OutBoneTransforms.Add(FBoneTransform(TargetBoneIndex, TargetBoneTransform));
 	}
+
+#if ENABLE_VISUAL_LOG
+	if (FVisualLogger::IsRecording())
+	{
+		static const TCHAR* LogName = TEXT("OffsetRootBone");
+		const float InnerCircleRadius = 40.0f;
+		const float CircleThickness = 3.0f;
+		const FVector CircleOffset(0,0,1);
+		const float ConeThickness = 0.3f;
+
+		const FTransform TargetBoneInitialTransformWorld = InputBoneTransform * ComponentTransform;
+		const FTransform TargetBoneTransformWorld = TargetBoneTransform * ComponentTransform;
+		UObject* LogOwner = AnimInstanceProxy->GetAnimInstanceObject();
+
+		if (GetMaxTranslationError() >= 0.0f)
+		{
+			const float OuterCircleRadius = GetMaxTranslationError() + InnerCircleRadius;
+			UE_VLOG_CIRCLE_THICK(AnimInstanceProxy->GetAnimInstanceObject(), TEXT("OffsetRootBone"), Display, ComponentTransform.GetLocation() + CircleOffset, FVector::UpVector, OuterCircleRadius, FColor::Red, CircleThickness, TEXT(""));
+		}
+
+		UE_VLOG_CIRCLE_THICK(LogOwner, LogName, Display, ComponentTransform.GetLocation() + CircleOffset, FVector::UpVector, InnerCircleRadius, FColor::Blue, CircleThickness, TEXT(""));
+		UE_VLOG_SEGMENT_THICK(LogOwner, LogName, Display,
+			ComponentTransform.GetLocation() + CircleOffset,
+			ComponentTransform.GetLocation() + InnerCircleRadius * ComponentTransform.GetRotation().GetRightVector() + CircleOffset,
+			FColor::Blue, CircleThickness, TEXT(""));
+		
+		UE_VLOG_CIRCLE_THICK(LogOwner, LogName, Display, TargetBoneTransformWorld.GetLocation() + CircleOffset, FVector::UpVector, InnerCircleRadius, FColor::Green, CircleThickness, TEXT(""));
+		UE_VLOG_SEGMENT_THICK(LogOwner, LogName, Display,
+		 	TargetBoneTransformWorld.GetLocation(),
+		 	TargetBoneTransformWorld.GetLocation() + InnerCircleRadius * TargetBoneTransformWorld.GetRotation().GetRightVector() + CircleOffset,
+			FColor::Green, CircleThickness, TEXT(""));
+	}
+#endif
 
 #if ENABLE_ANIM_DEBUG
 	bool bDebugging = CVarAnimNodeOffsetRootBoneDebug.GetValueOnAnyThread() == 1;

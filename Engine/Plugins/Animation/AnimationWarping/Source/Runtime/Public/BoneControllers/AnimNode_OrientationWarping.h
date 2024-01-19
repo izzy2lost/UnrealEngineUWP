@@ -28,6 +28,11 @@ struct ANIMATIONWARPINGRUNTIME_API FAnimNode_OrientationWarping : public FAnimNo
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category=Evaluation, meta=(PinShownByDefault))
 	float LocomotionAngle = 0.f;
 
+	// The character movement direction vector in world space
+	// This will be used to compute LocomotionAngle automatically
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category=Evaluation, meta=(PinShownByDefault))
+	FVector LocomotionDirection = { 0.f, 0.f, 0.f };
+	
 	// Minimum root motion speed required to apply orientation warping
 	// This is useful to prevent unnatural re-orientation when the animation has a portion with no root motion (i.e starts/stops/idles)
 	// When this value is greater than 0, it's recommended to enable interpolation with RotationInterpSpeed > 0

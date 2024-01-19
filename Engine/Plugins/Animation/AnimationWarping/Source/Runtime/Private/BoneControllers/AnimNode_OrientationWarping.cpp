@@ -6,6 +6,8 @@
 #include "Animation/AnimRootMotionProvider.h"
 #include "HAL/IConsoleManager.h"
 #include "Animation/AnimTrace.h"
+#include "Logging/LogVerbosity.h"
+#include "VisualLogger/VisualLogger.h"
 
 #include UE_INLINE_GENERATED_CPP_BY_NAME(AnimNode_OrientationWarping)
 
@@ -176,14 +178,25 @@ void FAnimNode_OrientationWarping::EvaluateSkeletalControl_AnyThread(FComponentS
 			// 2. Actor Velocity
 			// 3. Skeletal Mesh Relative Rotation
 
-			LocomotionAngle = FRotator::NormalizeAxis(LocomotionAngle);
-			// UE-184297 Avoid storing LocomotionAngle in radians in case haven't updated the pinned input, to avoid a DegToRad(RadianValue)
-			const float LocomotionAngleRadians = FMath::DegreesToRadians(LocomotionAngle);
-			const FQuat LocomotionRotation = FQuat(RotationAxisVector, LocomotionAngleRadians);
-
-			const FTransform SkeletalMeshRelativeTransform = Output.AnimInstanceProxy->GetComponentRelativeTransform();
-			const FQuat SkeletalMeshRelativeRotation = SkeletalMeshRelativeTransform.GetRotation();
-			LocomotionForward = SkeletalMeshRelativeRotation.UnrotateVector(LocomotionRotation.GetForwardVector()).GetSafeNormal();
+			
+			if (LocomotionDirection.SquaredLength() > UE_SMALL_NUMBER)
+			{
+				// if we have a LocomotionDirection vector, transform into root bone local space
+				const FCompactPoseBoneIndex RootBoneIndex(0);
+				FTransform RootBoneWorldTransform(Output.Pose.GetComponentSpaceTransform(RootBoneIndex) * Output.AnimInstanceProxy->GetComponentTransform());
+				LocomotionForward = RootBoneWorldTransform.InverseTransformVector(LocomotionDirection);
+				LocomotionForward.Normalize();
+			}
+			else
+			{
+				LocomotionAngle = FRotator::NormalizeAxis(LocomotionAngle);
+				// UE-184297 Avoid storing LocomotionAngle in radians in case haven't updated the pinned input, to avoid a DegToRad(RadianValue)
+				const float LocomotionAngleRadians = FMath::DegreesToRadians(LocomotionAngle);
+				const FQuat LocomotionRotation = FQuat(RotationAxisVector, LocomotionAngleRadians);
+				const FTransform SkeletalMeshRelativeTransform = Output.AnimInstanceProxy->GetComponentRelativeTransform();
+            	const FQuat SkeletalMeshRelativeRotation = SkeletalMeshRelativeTransform.GetRotation();
+				LocomotionForward = SkeletalMeshRelativeRotation.UnrotateVector(LocomotionRotation.GetForwardVector()).GetSafeNormal();
+			}
 
 			// @todo: Graph mode using a "manual value" makes no sense. Restructure logic to address this in the future.
 			if (bUseManualRootMotionVelocity)
@@ -192,7 +205,7 @@ void FAnimNode_OrientationWarping::EvaluateSkeletalControl_AnyThread(FComponentS
 			}
 
 			const FVector RootMotionDeltaTranslation = RootMotionTransformDelta.GetTranslation();
-
+			
 			const float RootMotionDeltaSpeed = RootMotionDeltaTranslation.Size() / DeltaSeconds;
 			if (RootMotionDeltaSpeed < MinRootMotionSpeedThreshold)
 			{
@@ -386,15 +399,59 @@ void FAnimNode_OrientationWarping::EvaluateSkeletalControl_AnyThread(FComponentS
 		}
 	}
 #endif
+	
+
+#if ENABLE_VISUAL_LOG
+	if (FVisualLogger::IsRecording())
+	{
+		const FTransform ComponentTransform = Output.AnimInstanceProxy->GetComponentTransform();
+		const FVector ActorForwardDirection = Output.AnimInstanceProxy->GetActorTransform().GetRotation().GetForwardVector();
+		FVector DebugArrowOffset = FVector::ZAxisVector * DebugDrawScale;
+
+		// Draw debug shapes
+		{
+			const FVector ForwardDirection = bGraphDrivenWarping
+				? ComponentTransform.GetRotation().RotateVector(LocomotionForward)
+				: ActorForwardDirection;
+
+			UE_VLOG_ARROW(Output.AnimInstanceProxy->GetAnimInstanceObject(), "OrientationWarping", Display,
+				ComponentTransform.GetLocation() + DebugArrowOffset,
+				ComponentTransform.GetLocation() + DebugArrowOffset + ForwardDirection * 100.f * DebugDrawScale,
+				FColor::Red, TEXT(""));
+
+			const FVector RotationDirection = bGraphDrivenWarping
+				? ComponentTransform.GetRotation().RotateVector(RootMotionDeltaDirection)
+				: ActorForwardDirection.RotateAngleAxis(OrientationAngle, RotationAxisVector);
+
+			DebugArrowOffset += FVector::ZAxisVector * DebugDrawScale;
+			UE_VLOG_ARROW(Output.AnimInstanceProxy->GetAnimInstanceObject(), "OrientationWarping", Display,
+				ComponentTransform.GetLocation() + DebugArrowOffset,
+				ComponentTransform.GetLocation() + DebugArrowOffset + RotationDirection * 100.f * DebugDrawScale,
+				FColor::Blue, TEXT(""));
+
+			const float ActualOrientationAngleDegrees = FMath::RadiansToDegrees(ActualOrientationAngleRad);
+			const FVector WarpedRotationDirection = bGraphDrivenWarping
+				? RotationDirection.RotateAngleAxis(ActualOrientationAngleDegrees, RotationAxisVector)
+				: ActorForwardDirection.RotateAngleAxis(ActualOrientationAngleDegrees, RotationAxisVector);
+
+			DebugArrowOffset += FVector::ZAxisVector * DebugDrawScale;
+
+			UE_VLOG_ARROW(Output.AnimInstanceProxy->GetAnimInstanceObject(), "OrientationWarping", Display,
+				ComponentTransform.GetLocation() + DebugArrowOffset,
+				ComponentTransform.GetLocation() + DebugArrowOffset + WarpedRotationDirection * 100.f * DebugDrawScale,
+				FColor::Green, TEXT(""));
+		}
+	}
+#endif
 
 	const float RootOffset = FMath::UnwindRadians(ActualOrientationAngleRad * DistributedBoneOrientationAlpha);
-
+	
 	// Rotate Root Bone first, as that cheaply rotates the whole pose with one transformation.
 	if (!FMath::IsNearlyZero(RootOffset, KINDA_SMALL_NUMBER))
 	{
 		const FQuat RootRotation = FQuat(RotationAxisVector, RootOffset);
 		const FCompactPoseBoneIndex RootBoneIndex(0);
-
+	
 		FTransform RootBoneTransform(Output.Pose.GetComponentSpaceTransform(RootBoneIndex));
 		RootBoneTransform.SetRotation(RootRotation * RootBoneTransform.GetRotation());
 		RootBoneTransform.NormalizeRotation();
