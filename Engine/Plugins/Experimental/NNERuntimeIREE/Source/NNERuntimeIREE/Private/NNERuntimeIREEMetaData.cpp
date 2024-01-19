@@ -4,6 +4,7 @@
 
 #include "Containers/Array.h"
 #include "Serialization/CustomVersion.h"
+#include "NNE.h"
 
 namespace UE::NNERuntimeIREE::ModuleMetaData::Private
 {
@@ -325,7 +326,7 @@ void UNNERuntimeIREEModuleMetaData::Serialize(FArchive& Ar)
 			}
 			break;
 		default:
-			UE_LOG(LogTemp, Error, TEXT("UNNERuntimeIREEModuleMetaData: Unknown asset version %d: Deserialisation failed, please reimport the original model."), Ar.CustomVer(UE::NNERuntimeIREE::ModuleMetaData::Private::GUID));
+			UE_LOG(LogNNE, Error, TEXT("UNNERuntimeIREEModuleMetaData: Unknown asset version %d: Deserialisation failed, please reimport the original model."), Ar.CustomVer(UE::NNERuntimeIREE::ModuleMetaData::Private::GUID));
 			break;
 		}
 	}

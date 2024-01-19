@@ -9,6 +9,7 @@
 #include "Interfaces/IPluginManager.h"
 #include "Kismet/GameplayStatics.h"
 #include "Misc/SecureHash.h"
+#include "NNE.h"
 #include "NNEModelData.h"
 #include "NNERuntimeFormat.h"
 #include "NNERuntimeRDGBase.h"
@@ -125,6 +126,7 @@ TSharedPtr<UE::NNE::FSharedModelData> UNNERuntimeRDGDmlImpl::CreateModelData(con
 {
 	if (CanCreateModelData(FileType, FileData, AdditionalFileData, FileId, TargetPlatform) != ECanCreateModelDataStatus::Ok)
 	{
+		UE_LOG(LogNNE, Warning, TEXT("UNNERuntimeRDGDml cannot create the model data with id %s (Filetype: %s)"), *FileId.ToString(EGuidFormats::Digits).ToLower(), *FileType);
 		return {};
 	}
 
@@ -200,6 +202,7 @@ TSharedPtr<UE::NNE::IModelRDG> UNNERuntimeRDGDmlImpl::CreateModelRDG(const TObje
 #ifdef NNE_USE_DIRECTML
 	if (CanCreateModelRDG(ModelData) != ECanCreateModelRDGStatus::Ok)
 	{
+		UE_LOG(LogNNE, Warning, TEXT("UNNERuntimeRDGDml cannot create a model from the model data with id %s"), *ModelData->GetFileId().ToString(EGuidFormats::Digits));
 		return TSharedPtr<UE::NNE::IModelRDG>();
 	}
 

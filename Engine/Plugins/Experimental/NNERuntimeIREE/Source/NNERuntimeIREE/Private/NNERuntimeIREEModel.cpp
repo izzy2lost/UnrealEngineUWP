@@ -9,6 +9,7 @@
 #include "Memory/SharedBuffer.h"
 #include "Misc/Paths.h"
 #include "Misc/ScopeLock.h"
+#include "NNE.h"
 #include "NNEModelData.h"
 #include "NNEStatus.h"
 #include "Serialization/Archive.h"
@@ -102,7 +103,7 @@ namespace UE::NNERuntimeIREE
 			void* ErrorString = FMemory::Malloc(TrueLength + 1);
 			((char*)ErrorString)[TrueLength] = (char)0;
 			iree_status_format(InStatus, TrueLength, (char*)ErrorString, &TrueLength);
-			UE_LOG(LogTemp, Error, TEXT("%s: %s"), *InMessage, *FString(StringCast<TCHAR>(static_cast<const ANSICHAR*>(ErrorString)).Get()));
+			UE_LOG(LogNNE, Error, TEXT("%s: %s"), *InMessage, *FString(StringCast<TCHAR>(static_cast<const ANSICHAR*>(ErrorString)).Get()));
 			FMemory::Free(ErrorString);
 		}
 
@@ -352,13 +353,13 @@ namespace UE::NNERuntimeIREE
 				TUniquePtr<FArchive> Reader = TUniquePtr<FArchive>(IFileManager::Get().CreateFileReader(*CombinedPath, 0));
 				if (!Reader)
 				{
-					UE_LOG(LogTemp, Error, TEXT("UE::NNERuntimeIREE::Private::FModule failed to open the vmfb data file '%s'"), *CombinedPath);
+					UE_LOG(LogNNE, Error, TEXT("UE::NNERuntimeIREE::Private::FModule failed to open the vmfb data file '%s'"), *CombinedPath);
 					return TSharedPtr<FModule>();
 				}
 				int64 DataSize = Reader->TotalSize();
 				if (DataSize < 1)
 				{
-					UE_LOG(LogTemp, Error, TEXT("UE::NNERuntimeIREE::Private::FModule's vmfb data file '%s' is empty"), *CombinedPath);
+					UE_LOG(LogNNE, Error, TEXT("UE::NNERuntimeIREE::Private::FModule's vmfb data file '%s' is empty"), *CombinedPath);
 					return TSharedPtr<FModule>();
 				}
 
@@ -437,7 +438,7 @@ namespace UE::NNERuntimeIREE
 
 				if (!bFound)
 				{
-					UE_LOG(LogTemp, Error, TEXT("UE::NNERuntimeIREE::Private::FModule failed to find the module function %s"), *InFunctionName);
+					UE_LOG(LogNNE, Error, TEXT("UE::NNERuntimeIREE::Private::FModule failed to find the module function %s"), *InFunctionName);
 					iree_status_free(Status);
 					return false;
 				}
@@ -485,7 +486,7 @@ namespace UE::NNERuntimeIREE
 					void* Library = FPlatformProcess::GetDllHandle(*CombinedPath);
 					if (!Library)
 					{
-						UE_LOG(LogTemp, Error, TEXT("UE::NNERuntimeIREE::CPU::Private::FLibrary failed to load the shared library '%s'"), *CombinedPath);
+						UE_LOG(LogNNE, Error, TEXT("UE::NNERuntimeIREE::CPU::Private::FLibrary failed to load the shared library '%s'"), *CombinedPath);
 						return TSharedPtr<FLibrary>();
 					}
 #else
@@ -494,7 +495,7 @@ namespace UE::NNERuntimeIREE
 					FPlatformProcess::PopDllDirectory(*InLibraryPath);
 					if (!Library)
 					{
-						UE_LOG(LogTemp, Error, TEXT("UE::NNERuntimeIREE::CPU::Private::FLibrary failed to load the shared library '%s' from '%s'"), *InLibraryName, *InLibraryPath);
+						UE_LOG(LogNNE, Error, TEXT("UE::NNERuntimeIREE::CPU::Private::FLibrary failed to load the shared library '%s' from '%s'"), *InLibraryName, *InLibraryPath);
 						return TSharedPtr<FLibrary>();
 					}
 #endif
@@ -512,7 +513,7 @@ namespace UE::NNERuntimeIREE
 						*OutFunctionPointer = Result;
 						return true;
 					}
-					UE_LOG(LogTemp, Error, TEXT("UE::NNERuntimeIREE::CPU::Private::FLibrary failed to get the function %s"), *InFunctionName);
+					UE_LOG(LogNNE, Error, TEXT("UE::NNERuntimeIREE::CPU::Private::FLibrary failed to get the function %s"), *InFunctionName);
 					return false;
 				}
 			};
@@ -682,7 +683,7 @@ namespace UE::NNERuntimeIREE
 					TConstArrayView<UE::NNE::FTensorDesc> OutputTensorDescs = InModule->GetFunctionMetaDataView()[0].OutputDescs;
 					if (!iree_status_is_ok(Status) || NumInputs != InputTensorDescs.Num() || NumOutputs != OutputTensorDescs.Num())
 					{
-						UE_LOG(LogTemp, Error, TEXT("UE::NNERuntimeIREE::CPU::Private::FSession has a function signature mismatch in function %s"), *MainFunctionName);
+						UE_LOG(LogNNE, Error, TEXT("UE::NNERuntimeIREE::CPU::Private::FSession has a function signature mismatch in function %s"), *MainFunctionName);
 						iree_runtime_session_release(Session);
 						iree_status_free(Status);
 						return TSharedPtr<FSession>();
@@ -831,7 +832,7 @@ namespace UE::NNERuntimeIREE
 							iree_hal_buffer_t* Buffer = iree_hal_buffer_view_buffer(BufferViews[i]);
 							if (!Buffer)
 							{
-								UE_LOG(LogTemp, Error, TEXT("UE::NNERuntimeIREE::CPU::Private::FSession failed to get the result buffer"));
+								UE_LOG(LogNNE, Error, TEXT("UE::NNERuntimeIREE::CPU::Private::FSession failed to get the result buffer"));
 								Result = ERunSyncStatus::Fail;
 								break;
 							}

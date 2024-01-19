@@ -140,6 +140,10 @@ namespace UE::NNE::ModelData
 			{
 				return NNERuntime->CreateModelData(FileType, FileData, AdditionalFileData, FileId, TargetPlatform);
 			}
+			else
+			{
+				UE_LOG(LogNNE, Warning, TEXT("Runtime %s cannot create the model data with id %s (Filetype: %s)"), *RuntimeName , *FileId.ToString(EGuidFormats::Digits).ToLower(), *FileType);
+			}
 		}
 		else
 		{
@@ -196,13 +200,6 @@ namespace UE::NNE
 #endif //WITH_EDITOR
 
 } // UE::NNE
-
-void UNNEModelData::GetAssetRegistryTags(TArray<FAssetRegistryTag>& OutTags) const
-{
-	PRAGMA_DISABLE_DEPRECATION_WARNINGS;
-	Super::GetAssetRegistryTags(OutTags);
-	PRAGMA_ENABLE_DEPRECATION_WARNINGS;
-}
 
 void UNNEModelData::GetAssetRegistryTags(FAssetRegistryTagsContext Context) const
 {
