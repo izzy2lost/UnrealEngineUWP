@@ -528,6 +528,11 @@ size_t FCurlHttpRequest::ReceiveResponseHeaderCallback(void* Ptr, size_t SizeInB
 			if (CURLE_OK == curl_easy_getinfo(EasyHandle, CURLINFO_RESPONSE_CODE, &HttpCode))
 			{
 				bRedirected = (HttpCode >= 300 && HttpCode < 400);
+
+				if (!bRedirected)
+				{
+					TriggerStatusCodeReceivedDelegate(HttpCode);
+				}
 			}
 		}
 		return HeaderSize;

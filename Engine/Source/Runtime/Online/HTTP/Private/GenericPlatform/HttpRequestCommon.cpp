@@ -176,3 +176,18 @@ float FHttpRequestCommon::GetTimeoutOrDefault() const
 {
 	return GetTimeout().Get(FHttpModule::Get().GetHttpTimeout());
 }
+
+void FHttpRequestCommon::TriggerStatusCodeReceivedDelegate(int32 StatusCode)
+{
+	if (DelegateThreadPolicy == EHttpRequestDelegateThreadPolicy::CompleteOnHttpThread)
+	{
+		OnStatusCodeReceived().ExecuteIfBound(SharedThis(this), StatusCode);
+	}
+	else if (OnStatusCodeReceived().IsBound())
+	{
+		FHttpModule::Get().GetHttpManager().AddGameThreadTask([StrongThis = AsShared(), StatusCode]()
+		{
+			StrongThis->OnStatusCodeReceived().ExecuteIfBound(StrongThis, StatusCode);
+		});
+	}
+}

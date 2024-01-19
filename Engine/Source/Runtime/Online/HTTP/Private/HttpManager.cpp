@@ -89,6 +89,7 @@ PRAGMA_DISABLE_DEPRECATION_WARNINGS
 		Request->OnRequestProgress().Unbind();
 PRAGMA_ENABLE_DEPRECATION_WARNINGS
 		Request->OnRequestProgress64().Unbind();
+		Request->OnStatusCodeReceived().Unbind();
 		Request->OnHeaderReceived().Unbind();
 
 		// Don't emit these tracking logs in commandlet runs. Build system traps warnings during cook, and these are not truly fatal, but useful for tracking down shutdown issues.

@@ -21,6 +21,11 @@ FHttpRequestProgressDelegate64& FHttpRequestImpl::OnRequestProgress64()
 	return RequestProgressDelegate64;
 }
 
+FHttpRequestStatusCodeReceivedDelegate& FHttpRequestImpl::OnStatusCodeReceived()
+{
+	return StatusCodeReceivedDelegate;
+}
+
 FHttpRequestHeaderReceivedDelegate& FHttpRequestImpl::OnHeaderReceived()
 {
 	return HeaderReceivedDelegate;

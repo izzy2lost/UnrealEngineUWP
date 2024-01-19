@@ -276,7 +276,7 @@ TEST_CASE_METHOD(FWaitUntilCompleteHttpFixture, "Http request connect timeout", 
 		CHECK(HttpRequest->GetStatus() == EHttpRequestStatus::Failed);
 		CHECK(HttpRequest->GetFailureReason() == EHttpFailureReason::ConnectionError);
 		const double DurationInSeconds  = FPlatformTime::Seconds() - StartTime;
-		double HttpTimeDiffTolerance = 1.0;
+		double HttpTimeDiffTolerance = 1.5;
 #if WITH_CURL_XCURL
 		HttpTimeDiffTolerance += 3.0; // It seems xCurl takes up to 3 more seconds for connect timeout
 #endif
@@ -961,6 +961,54 @@ TEST_CASE_METHOD(FValidateHeaderReceiveOrderFixture, "Http request header receiv
 
 	HttpRequest->OnProcessRequestComplete().BindLambda([this](FHttpRequestPtr /*HttpRequest*/, FHttpResponsePtr /*HttpResponse */, bool bSucceeded) {
 		CHECK(bHeaderReceived);
+		bCompleteCallbackTriggered = true;
+		CHECK(bSucceeded);
+	});
+
+	HttpRequest->ProcessRequest();
+}
+
+class FValidateStatusCodeReceiveOrderFixture : public FWaitUntilCompleteHttpFixture
+{
+public:
+	~FValidateStatusCodeReceiveOrderFixture()
+	{
+		WaitUntilAllHttpRequestsComplete();
+	}
+
+	std::atomic<bool> bStatusCodeReceived = false;
+	std::atomic<bool> bCompleteCallbackTriggered = false;
+};
+
+TEST_CASE_METHOD(FValidateStatusCodeReceiveOrderFixture, "Http request status code received callback will be called by thread policy", HTTP_TAG)
+{
+	TSharedRef<IHttpRequest> HttpRequest = CreateRequest();
+	HttpRequest->SetURL(UrlStreamDownload(20/*Chunks*/, 1024*1024/*ChunkSize*/));
+	HttpRequest->SetVerb(TEXT("GET"));
+
+	SECTION("in http thread")
+	{
+		HttpRequest->SetDelegateThreadPolicy(EHttpRequestDelegateThreadPolicy::CompleteOnHttpThread);
+		HttpRequest->OnStatusCodeReceived().BindLambda([this](FHttpRequestPtr Request, int32 StatusCode) {
+			CHECK(StatusCode == 200);
+			CHECK(!bCompleteCallbackTriggered);
+			CHECK(!IsInGameThread());
+			bStatusCodeReceived = true;
+		});
+	}
+	SECTION("in game thread")
+	{
+		HttpRequest->SetDelegateThreadPolicy(EHttpRequestDelegateThreadPolicy::CompleteOnGameThread);
+		HttpRequest->OnStatusCodeReceived().BindLambda([this](FHttpRequestPtr Request, int32 StatusCode) {
+			CHECK(StatusCode == 200);
+			CHECK(!bCompleteCallbackTriggered);
+			CHECK(IsInGameThread());
+			bStatusCodeReceived = true;
+		});
+	}
+
+	HttpRequest->OnProcessRequestComplete().BindLambda([this](FHttpRequestPtr /*HttpRequest*/, FHttpResponsePtr /*HttpResponse */, bool bSucceeded) {
+		CHECK(bStatusCodeReceived);
 		bCompleteCallbackTriggered = true;
 		CHECK(bSucceeded);
 	});

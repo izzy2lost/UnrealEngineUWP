@@ -46,6 +46,8 @@ protected:
 
 	HTTP_API void HandleRequestSucceed(TSharedPtr<IHttpResponse> Response);
 
+	HTTP_API void TriggerStatusCodeReceivedDelegate(int32 StatusCode);
+
 protected:
 	/** Current status of request being processed */
 	EHttpRequestStatus::Type CompletionStatus = EHttpRequestStatus::NotStarted;

@@ -36,6 +36,14 @@ typedef TSharedRef<IHttpResponse, ESPMode::ThreadSafe> FHttpResponseRef;
 using FHttpRequestCompleteDelegate = TTSDelegate<void(FHttpRequestPtr /*Request*/, FHttpResponsePtr /*Response*/, bool /*bConnectedSuccessfully*/)>;
 
 /**
+ * Delegate called when an Http request receives status code
+ *
+ * @param Request original Http request that started things
+ * @param status code
+ */
+using FHttpRequestStatusCodeReceivedDelegate = TTSDelegate<void(FHttpRequestPtr /*Request*/, int32 /*StatusCode*/)>;
+
+/**
  * Delegate called when an Http request receives a header
  *
  * @param Request original Http request that started things
@@ -298,6 +306,11 @@ public:
 	 */
 	virtual FHttpRequestHeaderReceivedDelegate& OnHeaderReceived() = 0;
 
+	/** 
+	 * Delegate called to signal the receipt of a header.  See FHttpRequestStatusCodeReceivedDelegate
+	 */
+	virtual FHttpRequestStatusCodeReceivedDelegate& OnStatusCodeReceived() = 0;
+
 	/**
 	 * Called to cancel a request that is still being processed
 	 */
@@ -326,7 +339,7 @@ public:
 
 	/**
 	 * Set thread policy about which thread to trigger the delegates, set by FHttpManager::SetRequestCompletedDelegate, 
-	 * IHttpRequest::OnHeaderReceived, IHttpRequest::OnRequestProgress64 and IHttpRequest::OnProcessRequestComplete.
+	 * IHttpRequest::OnStatusCodeReceived, IHttpRequest::OnHeaderReceived, IHttpRequest::OnRequestProgress64 and IHttpRequest::OnProcessRequestComplete.
 	 *
 	 * Note that when set it as CompleteOnHttpThread, the thread to trigger delegates could be any thread 
 	 * depends on the implementation. User code should make the delegate thread-safe and shouldn't assume 

@@ -71,6 +71,10 @@ public:
 	 */
 	virtual ~FAppleHttpRequest();
 
+	const TSharedPtr<FArchive> GetResponseBodyReceiveStream() const;
+
+	void HandleStatusCodeReceived(int32 StatusCode);
+
 private:
 	/**
 	 * Trigger the request progress delegate if progress has changed
@@ -176,7 +180,7 @@ public:
 	 *
 	 * @param InRequest - original request that created this response
 	 */
-	FAppleHttpResponse(const FAppleHttpRequest& InRequest);
+	FAppleHttpResponse(FAppleHttpRequest& InRequest);
 
 	/**
 	 * Destructor

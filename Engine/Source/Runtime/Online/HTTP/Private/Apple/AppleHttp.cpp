@@ -44,6 +44,8 @@
 @property EHttpRequestStatus::Type RequestStatus;
 /** Reason of failure */
 @property EHttpFailureReason FailureReason;
+/** Associated request. Cleared when canceled */
+@property TWeakPtr<FAppleHttpRequest> SourceRequest;
 
 /** NSURLSessionDataDelegate delegate methods. Those are called from a thread controlled by the NSURLSession */
 
@@ -65,8 +67,9 @@
 @synthesize FailureReason;
 @synthesize BytesWritten;
 @synthesize BytesReceived;
+@synthesize SourceRequest;
 
-- (FAppleHttpResponseDelegate*)initWithResponseStream:(TSharedPtr<FArchive>)ResponseStream
+- (FAppleHttpResponseDelegate*)initWithRequest:(FAppleHttpRequest&) Request
 {
 	self = [super init];
 	
@@ -74,14 +77,16 @@
 	BytesReceived = 0;
 	RequestStatus = EHttpRequestStatus::NotStarted;
 	FailureReason = EHttpFailureReason::None;
-	ResponseBodyReceiveStream = ResponseStream;
-	bInitializedWithValidStream = (ResponseStream != nullptr);
+	SourceRequest = StaticCastWeakPtr<FAppleHttpRequest>(TWeakPtr<IHttpRequest>(Request.AsShared()));
+	ResponseBodyReceiveStream = Request.GetResponseBodyReceiveStream();
+	bInitializedWithValidStream = (ResponseBodyReceiveStream != nullptr);
 	
 	return self;
 }
 
-- (void)ClearResponseStream
+- (void)CleanSharedObjects
 {
+	self.SourceRequest = {};
 	if (bInitializedWithValidStream)
 	{
 	    FScopeLock Lock(&ResponseStreamLock);
@@ -95,6 +100,14 @@
 	[super dealloc];
 }
 
+- (void) HandleStatusCodeReceived:(int32) StatusCode
+{
+	if (TSharedPtr<FAppleHttpRequest> Request = SourceRequest.Pin())
+	{
+		Request->HandleStatusCodeReceived(StatusCode);
+	}
+}
+
 - (void)URLSession:(NSURLSession *)session task:(NSURLSessionTask *)task didSendBodyData:(int64_t)bytesSent totalBytesSent:(int64_t)totalBytesSent totalBytesExpectedToSend:(int64_t)totalBytesExpectedToSend
 {
 	UE_LOG(LogHttp, Verbose, TEXT("URLSession:task:didSendBodyData:totalBytesSent:totalBytesExpectedToSend: totalBytesSent = %lld, totalBytesSent = %lld: %p"), totalBytesSent, totalBytesExpectedToSend, self);
@@ -106,6 +119,8 @@
 	UE_LOG(LogHttp, Verbose, TEXT("URLSession:dataTask:didReceiveResponse:completionHandler"));
 	
 	self.Response = (NSHTTPURLResponse*)response;
+	int32 StatusCode = [self.Response statusCode];
+	[self HandleStatusCodeReceived: StatusCode];
 	uint64 ExpectedResponseLength = response.expectedContentLength;
 	if(!bInitializedWithValidStream && ExpectedResponseLength != NSURLResponseUnknownLength)
 	{
@@ -398,6 +413,16 @@ FAppleHttpRequest::~FAppleHttpRequest()
 	CleanupRequest();
 	[Request release];
     [Session release];
+}
+
+const TSharedPtr<FArchive> FAppleHttpRequest::GetResponseBodyReceiveStream() const
+{
+	return ResponseBodyReceiveStream;
+}
+
+void FAppleHttpRequest::HandleStatusCodeReceived(int32 StatusCode)
+{
+	TriggerStatusCodeReceivedDelegate(StatusCode);
 }
 
 FString FAppleHttpRequest::GetURL() const
@@ -823,11 +848,11 @@ void FAppleHttpRequest::TickThreadedRequest(float DeltaSeconds)
  * FAppleHttpResponse implementation
  **************************************************************************/
 
-FAppleHttpResponse::FAppleHttpResponse(const FAppleHttpRequest& InRequest)
+FAppleHttpResponse::FAppleHttpResponse(FAppleHttpRequest& InRequest)
 	: FHttpResponseCommon(InRequest)
 {
 	UE_LOG(LogHttp, Verbose, TEXT("FAppleHttpResponse::FAppleHttpResponse()"));
-	ResponseDelegate = [[FAppleHttpResponseDelegate alloc] initWithResponseStream: InRequest.ResponseBodyReceiveStream];
+	ResponseDelegate = [[FAppleHttpResponseDelegate alloc] initWithRequest: InRequest];
 }
 
 FAppleHttpResponse::~FAppleHttpResponse()
@@ -845,7 +870,7 @@ void FAppleHttpResponse::SetNewAppleHttpEventDelegate(FNewAppleHttpEventDelegate
 
 void FAppleHttpResponse::CleanSharedObjects()
 {
-	[ResponseDelegate ClearResponseStream];
+	[ResponseDelegate CleanSharedObjects];
 }
 
 FString FAppleHttpResponse::GetHeader(const FString& HeaderName) const
