@@ -736,7 +736,6 @@ export abstract class FunctionalTest {
 		return getJson(DUMMY_SLACK_DOMAIN + '/posted/' + channel)
 			.then((perTargetThreads: [string, DummyThread[]][]) => {
 				for (const [target, dummyThreads] of perTargetThreads) {
-					this.info(`${targetName} : ${JSON.stringify(dummyThreads)}`)
 					if (target === targetName) {
 						return dummyThreads.filter(dt => dt.CL == cl).length == 1
 					}

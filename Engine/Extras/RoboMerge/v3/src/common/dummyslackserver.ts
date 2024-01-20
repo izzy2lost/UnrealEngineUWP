@@ -44,8 +44,6 @@ export class DummySlackApp implements AppInterface {
 			return { dataObj }
 		}
 
-		console.log(`dummy-slack POST: ${command}`)
-
 		if (command === "conversations.invite") {
 			return { ok: true }
 		}
@@ -71,12 +69,10 @@ export class DummySlackApp implements AppInterface {
 				return dataResult
 			}
 			const dataObj = dataResult.dataObj
-			console.log(`${JSON.stringify(dataObj)}`)
 
 			if (dataObj.thread_ts) {
 				let dummyThread = threads.get(dataObj.channel)?.get(dataObj.thread_ts)!
 				dummyThread.messages.push(dataObj.attachments[0].text)
-				console.log(`${JSON.stringify(posted)}`)
 				return { ok: true }
 			}
 			else {
@@ -98,7 +94,6 @@ export class DummySlackApp implements AppInterface {
 					setDefault(threads, dataObj.channel, new Map)
 						.set(dummyThread.timestamp, dummyThread)
 
-					console.log(`${JSON.stringify(posted)}`)
 					return { ok: true, ts: dummyThread.timestamp }
 				}
 				else {
@@ -115,8 +110,6 @@ export class DummySlackApp implements AppInterface {
 
 	@Handler('GET', '/posted/*')
 	channelMessages(channel: string) {
-		console.log(`/posted/${channel}`)
-		console.log(JSON.stringify(posted))
 		return [...(posted.get(channel) || [])]
 	}
 
