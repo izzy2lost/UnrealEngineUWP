@@ -491,9 +491,9 @@ namespace Horde.Server.Tests
 		protected async Task<IPool> CreatePoolAsync(string name, CreatePoolConfigOptions options)
 		{
 			PoolId poolId = new PoolId(StringId.Sanitize(name));
-#pragma warning disable CS0612 // Type or member is obsolete
+#pragma warning disable CS0618 // Type or member is obsolete
 			await PoolCollection.CreateConfigAsync(poolId, name, options);
-#pragma warning restore CS0612 // Type or member is obsolete
+#pragma warning restore CS0618 // Type or member is obsolete
 			return await PoolCollection.GetAsync(poolId) ?? throw new NotImplementedException();
 		}
 	}

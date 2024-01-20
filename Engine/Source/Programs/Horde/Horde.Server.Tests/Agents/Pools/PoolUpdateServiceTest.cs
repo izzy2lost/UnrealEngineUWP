@@ -67,9 +67,9 @@ namespace Horde.Server.Tests.Agents.Pools
 		{
 			// Arrange
 			// Explicitly set the grace period for the pool to be longer than the default of 8 hours
-#pragma warning disable CS0612 // Type or member is obsolete
+#pragma warning disable CS0618 // Type or member is obsolete
 			await PoolCollection.UpdateConfigAsync(_pool.Id, new UpdatePoolConfigOptions { ShutdownIfDisabledGracePeriod = TimeSpan.FromHours(24) });
-#pragma warning restore CS0612 // Type or member is obsolete
+#pragma warning restore CS0618 // Type or member is obsolete
 
 			// Act
 			await _pus.ShutdownDisabledAgentsAsync(CancellationToken.None);
@@ -85,9 +85,9 @@ namespace Horde.Server.Tests.Agents.Pools
 		public async Task ShutdownDisabledAgents_WithAutoScalingOff_DoesNotRequestShutdownAsync()
 		{
 			// Arrange
-#pragma warning disable CS0612 // Type or member is obsolete
+#pragma warning disable CS0618 // Type or member is obsolete
 			await PoolCollection.UpdateConfigAsync(_pool.Id, new UpdatePoolConfigOptions { EnableAutoscaling = false });
-#pragma warning restore CS0612 // Type or member is obsolete
+#pragma warning restore CS0618 // Type or member is obsolete
 
 			// Act
 			await _pus.ShutdownDisabledAgentsAsync(CancellationToken.None);

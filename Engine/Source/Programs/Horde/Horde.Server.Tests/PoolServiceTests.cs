@@ -62,11 +62,11 @@ namespace Horde.Server.Tests
         [TestMethod]
         public async Task DeletePoolTestAsync()
         {
-#pragma warning disable CS0612 // Type or member is obsolete
+#pragma warning disable CS0618 // Type or member is obsolete
 			Assert.IsFalse(await PoolCollection.DeleteConfigAsync(new PoolId("this-does-not-exist")));
 			IPool pool = await CreatePoolFixtureAsync("pool-to-be-deleted");
             Assert.IsTrue(await PoolCollection.DeleteConfigAsync(pool.Id));
-#pragma warning restore CS0612 // Type or member is obsolete
+#pragma warning restore CS0618 // Type or member is obsolete
 		}
 
 		[TestMethod]
@@ -81,9 +81,9 @@ namespace Horde.Server.Tests
                 {"cookies", "yumyum"},
             };
 
-#pragma warning disable CS0612 // Type or member is obsolete
+#pragma warning disable CS0618 // Type or member is obsolete
 			await PoolCollection.UpdateConfigAsync(pool.Id, new UpdatePoolConfigOptions { Name = $"update-pool-new-name-{uniqueSuffix}", Properties = updatedProps });
-#pragma warning restore CS0612 // Type or member is obsolete
+#pragma warning restore CS0618 // Type or member is obsolete
 
 			IPool? updatedPool = await PoolCollection.GetAsync(pool.Id);
 			Assert.IsNotNull(updatedPool);

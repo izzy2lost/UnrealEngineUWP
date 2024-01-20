@@ -15,7 +15,6 @@ using HordeCommon.Rpc.Tasks;
 using Microsoft.VisualStudio.TestTools.UnitTesting;
 using EpicGames.Horde.Streams;
 using EpicGames.Horde.Agents.Leases;
-using EpicGames.Horde;
 
 namespace Horde.Server.Tests.Fleet
 {

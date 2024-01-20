@@ -46,9 +46,9 @@ namespace Horde.Server.Tests
 				FleetManagers = new List<FleetManagerMessage> { new() { Type = FleetManagerType.AwsReuse, Condition = "dayOfWeek == 'monday'", Config = "{}" } },
 			};
 
-#pragma warning disable CS0612 // Type or member is obsolete
+#pragma warning disable CS0618 // Type or member is obsolete
 			ActionResult<CreatePoolResponse> result = await PoolsController.CreatePoolAsync(request);
-#pragma warning restore CS0612 // Type or member is obsolete
+#pragma warning restore CS0618 // Type or member is obsolete
 			CreatePoolResponse response = result.Value!;
 
 			IPool pool = (await PoolService.GetPoolAsync(new PoolId(response.Id)))!;
@@ -73,7 +73,7 @@ namespace Horde.Server.Tests
 		{
 			IPool pool1 = await CreatePoolAsync("Pool1", new CreatePoolConfigOptions { Properties = new Dictionary<string, string>() { { "foo", "bar" }, { "lorem", "ipsum" } } });
 
-#pragma warning disable CS0612 // Type or member is obsolete
+#pragma warning disable CS0618 // Type or member is obsolete
 			await PoolsController.UpdatePoolAsync(pool1.Id.ToString(), new UpdatePoolRequest
 			{
 				Name = "Pool1Modified",
@@ -88,7 +88,7 @@ namespace Horde.Server.Tests
 				SizeStrategy = PoolSizeStrategy.JobQueue,
 				JobQueueSettings = new JobQueueSettingsMessage { ScaleOutFactor = 25.0, ScaleInFactor = 0.3 }
 			});
-#pragma warning restore CS0612 // Type or member is obsolete
+#pragma warning restore CS0618 // Type or member is obsolete
 
 			ActionResult<object> getResult = await PoolsController.GetPoolAsync(pool1.Id.ToString());
 			GetPoolResponse response = (getResult.Value! as GetPoolResponse)!;

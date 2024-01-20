@@ -425,10 +425,10 @@ namespace Horde.Server.Tests.Fleet
 		private async Task<IPoolSizeStrategy> CreateStrategyAsync(params PoolSizeStrategyInfo[] infos)
 		{
 			IPool pool = await CreatePoolAsync("testPool-" + s_poolCount++, new CreatePoolConfigOptions { EnableAutoscaling = true, MinAgents = 0, NumReserveAgents = 0, SizeStrategy = PoolSizeStrategy.NoOp });
-#pragma warning disable CS0612 // Type or member is obsolete
+#pragma warning disable CS0618 // Type or member is obsolete
 			await PoolCollection.UpdateConfigAsync(pool.Id, new UpdatePoolConfigOptions { SizeStrategies = infos.ToList() });
 			pool = await PoolCollection.GetAsync(pool.Id) ?? throw new Exception();
-#pragma warning restore CS0612 // Type or member is obsolete
+#pragma warning restore CS0618 // Type or member is obsolete
 			return FleetService.CreatePoolSizeStrategy(pool);
 		}
 	}
