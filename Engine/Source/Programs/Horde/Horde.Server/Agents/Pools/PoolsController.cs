@@ -42,7 +42,7 @@ namespace Horde.Server.Agents.Pools
 		/// <param name="create">Parameters for the new pool.</param>
 		/// <returns>Http result code</returns>
 		[HttpPost]
-		[Obsolete]
+		[Obsolete("Pools should be configured through globals.json")]
 		[Route("/api/v1/pools")]
 		public async Task<ActionResult<CreatePoolResponse>> CreatePoolAsync([FromBody] CreatePoolRequest create)
 		{
@@ -142,7 +142,7 @@ namespace Horde.Server.Agents.Pools
 		/// <param name="update">Items on the pool to update</param>
 		/// <returns>Http result code</returns>
 		[HttpPut]
-		[Obsolete]
+		[Obsolete("Pools should be configured through globals.json")]
 		[Route("/api/v1/pools/{poolId}")]
 		public async Task<ActionResult> UpdatePoolAsync(string poolId, [FromBody] UpdatePoolRequest update)
 		{
@@ -187,7 +187,7 @@ namespace Horde.Server.Agents.Pools
 		/// <param name="poolId">Id of the pool to delete</param>
 		/// <returns>Http result code</returns>
 		[HttpDelete]
-		[Obsolete]
+		[Obsolete("Pools should be configured through globals.json")]
 		[Route("/api/v1/pools/{poolId}")]
 		public async Task<ActionResult> DeletePoolAsync(string poolId)
 		{
@@ -210,7 +210,7 @@ namespace Horde.Server.Agents.Pools
 		/// <param name="batchUpdates">List of pools to update</param>
 		/// <returns>Http result code</returns>
 		[HttpPut]
-		[Obsolete]
+		[Obsolete("Pools should be configured through globals.json")]
 		[Route("/api/v1/pools")]
 		public async Task<ActionResult> UpdatePoolAsync([FromBody] List<BatchUpdatePoolRequest> batchUpdates)
 		{

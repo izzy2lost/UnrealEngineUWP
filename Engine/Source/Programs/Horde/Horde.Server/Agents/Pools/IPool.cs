@@ -1,14 +1,11 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 using System;
-using System.Collections.Generic;
 using System.Text.Json;
 using System.Text.Json.Serialization;
 using System.Threading;
 using System.Threading.Tasks;
-using EpicGames.Horde.Agents.Pools;
 using EpicGames.Horde.Common;
-using EpicGames.Horde.Compute;
 using Horde.Server.Agents.Fleet;
 
 namespace Horde.Server.Agents.Pools
@@ -153,5 +150,3 @@ namespace Horde.Server.Agents.Pools
 	/// <param name="LastDesiredAgentCount"> Last calculated desired agent count</param>
 	public record UpdatePoolOptions(DateTime? LastScaleUpTime = null, DateTime? LastScaleDownTime = null, ScaleResult? LastScaleResult = null, int? LastAgentCount = null, int? LastDesiredAgentCount = null);
 }
-
-

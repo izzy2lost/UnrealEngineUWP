@@ -372,7 +372,7 @@ namespace Horde.Server.Jobs
 
 			// Find all the pools which are valid (ie. have at least one online agent)
 			List<IAgent> agents = await _agentsCollection.FindAsync();
-			List<IPoolConfig> pools = await _poolCollection.GetConfigsAsync();
+			List<IPoolConfig> pools = await _poolCollection.GetConfigsAsync(stoppingToken);
 			Dictionary<PoolId, PoolStatus> poolStatus = GetPoolStatus(_clock.UtcNow, pools, agents);
 
 			// New list of queue items

@@ -70,7 +70,7 @@ namespace Horde.Server.Agents.Telemetry
 
 			// Query all the current data
 			List<IAgent> agents = await _agentCollection.FindAsync();
-			List<IPoolConfig> pools = await _poolCollection.GetConfigsAsync();
+			List<IPoolConfig> pools = await _poolCollection.GetConfigsAsync(stoppingToken);
 			List<ILease> leases = await _leaseCollection.FindLeasesAsync(minTime: minTime);
 
 			// Remove any agents which are offline

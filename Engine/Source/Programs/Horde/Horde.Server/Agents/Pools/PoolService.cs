@@ -49,7 +49,7 @@ namespace Horde.Server.Agents.Pools
 		/// <param name="name">Name of the new pool</param>
 		/// <param name="options">Options for the new pool</param>
 		/// <returns>The new pool document</returns>
-		[Obsolete]
+		[Obsolete("Pools should be configured through globals.json")]
 		public Task CreatePoolAsync(string name, CreatePoolConfigOptions options)
 		{
 			return _pools.CreateConfigAsync(new PoolId(StringId.Sanitize(name)), name, options);
@@ -60,7 +60,7 @@ namespace Horde.Server.Agents.Pools
 		/// </summary>
 		/// <param name="poolId">Unique id of the pool</param>
 		/// <returns>Async task object</returns>
-		[Obsolete]
+		[Obsolete("Pools should be configured through globals.json")]
 		public Task<bool> DeletePoolAsync(PoolId poolId)
 		{
 			return _pools.DeleteConfigAsync(poolId);
@@ -72,7 +72,7 @@ namespace Horde.Server.Agents.Pools
 		/// <param name="poolId">The pool to update</param>
 		/// <param name="options">Options for the update</param>
 		/// <returns>Async task object</returns>
-		[Obsolete]
+		[Obsolete("Pools should be configured through globals.json")]
 		public Task UpdateConfigAsync(PoolId poolId, UpdatePoolConfigOptions options)
 		{
 			return _pools.UpdateConfigAsync(poolId, options);

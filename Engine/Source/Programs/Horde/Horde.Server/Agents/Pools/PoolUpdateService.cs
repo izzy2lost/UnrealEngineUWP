@@ -75,7 +75,7 @@ namespace Horde.Server.Agents.Pools
 		{
 			using TelemetrySpan span = _tracer.StartActiveSpan($"{nameof(PoolUpdateService)}.{nameof(ShutdownDisabledAgentsAsync)}");
 
-			List<IPoolConfig> pools = await _pools.GetConfigsAsync();
+			List<IPoolConfig> pools = await _pools.GetConfigsAsync(stoppingToken);
 			IEnumerable<IAgent> disabledAgents = await _agents.FindAsync(enabled: false);
 			disabledAgents = disabledAgents.Where(x => IsAgentAutoScaled(x, pools));
 
@@ -140,7 +140,7 @@ namespace Horde.Server.Agents.Pools
 				retryUpdate = false;
 
 				// Capture the list of pools at the start of this update
-				List<IPoolConfig> currentPools = await _pools.GetConfigsAsync();
+				List<IPoolConfig> currentPools = await _pools.GetConfigsAsync(stoppingToken);
 
 				// Lookup table of pool id to workspaces
 				Dictionary<PoolId, AutoSdkConfig> poolToAutoSdkView = new Dictionary<PoolId, AutoSdkConfig>();
@@ -209,9 +209,9 @@ namespace Horde.Server.Agents.Pools
 							_logger.LogInformation("New autosdk view for pool {Pool}:{View}", currentPool.Id, String.Join("", newAutoSdkConfig.View.Select(x => $"\n  {x}"))); 
 						}
 
-#pragma warning disable CS0612 // Type or member is obsolete
+#pragma warning disable CS0618 // Type or member is obsolete
 						await _pools.UpdateConfigAsync(currentPool.Id, new UpdatePoolConfigOptions{ Workspaces = newWorkspaces, AutoSdkConfig = newAutoSdkConfig });
-#pragma warning restore CS0612 // Type or member is obsolete
+#pragma warning restore CS0618 // Type or member is obsolete
 					}
 				}
 			}

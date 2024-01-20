@@ -332,13 +332,13 @@ namespace Horde.Server.Server
 			{
 				_poolLookup.Add(pool.Id, pool);
 			}
-
 			ConfigType.MergeDefaults<string, PoolConfig>(Pools.Select(x => (x.Id.ToString(), x.Base?.ToString(), x)));
+			UpdateWorkspacesForPools();
 
 			Storage.PostLoad(this);
 		}
 
-		void FixupPools()
+		void UpdateWorkspacesForPools()
 		{
 			// Lookup table of pool id to workspaces
 			Dictionary<PoolId, AutoSdkConfig> poolToAutoSdkView = new Dictionary<PoolId, AutoSdkConfig>();

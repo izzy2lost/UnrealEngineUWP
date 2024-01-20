@@ -325,8 +325,8 @@ namespace Horde.Server.Agents.Fleet
 					LastScaleResult = isCooldownResult ? null : result,
 					LastAgentCount = currentAgentCount,
 					LastDesiredAgentCount = desiredAgentCount 
-				}
-				);
+				}, 
+				cancellationToken);
 
 			return result;
 		}
