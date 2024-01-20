@@ -89,6 +89,10 @@ void UTextureGraph::PostLoad()
 		{
 			Settings->GetViewportSettings().InitDefaultSettings(TextureGraph->GetNode(OutputIds[0])->GetNodeName());
 		}
+		else // the TG doesn't have any output? that's weird but could happen, let's simply create the material regardless targeting a name
+		{
+			Settings->GetViewportSettings().InitDefaultSettings("Output");
+		}
 	}
 }
 
