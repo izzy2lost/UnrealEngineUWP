@@ -30,18 +30,38 @@ namespace Dataflow
 				const TManagedArray<FVector3f>& Normals = Facade.GetNormals();
 				const TManagedArray<FLinearColor>& Colors = Facade.GetVertexColor();
 
-				DynamicMesh.Clear();
 				for (int32 VertexIndex = 0; VertexIndex < NumVertices; ++VertexIndex)
 				{
 					DynamicMesh.AppendVertex(FVertexInfo(FVector3d(Positions[VertexIndex]), Normals[VertexIndex],
-											 FVector3f(Colors[VertexIndex].R, Colors[VertexIndex].G, Colors[VertexIndex].B)));
+						FVector3f(Colors[VertexIndex].R, Colors[VertexIndex].G, Colors[VertexIndex].B)));
 				}
 				for (int32 TriangleIndex = 0; TriangleIndex < NumTriangles; ++TriangleIndex)
 				{
 					DynamicMesh.AppendTriangle(FIndex3i(Indices[TriangleIndex].X, Indices[TriangleIndex].Y, Indices[TriangleIndex].Z));
 				}
-
 				FMeshNormals::QuickComputeVertexNormals(DynamicMesh);
+
+				DynamicMesh.EnableAttributes();
+				DynamicMesh.Attributes()->EnablePrimaryColors();
+				DynamicMesh.Attributes()->PrimaryColors()->CreateFromPredicate([](int ParentVID, int TriIDA, int TriIDB) {return true; }, 0.f);
+				DynamicMesh.EnableVertexColors(FVector3f::Zero());
+
+				FDynamicMeshColorOverlay* const ColorOverlay = DynamicMesh.Attributes()->PrimaryColors();
+
+				auto SetColorsFromWeights = [&](int TriangleID)
+				{
+					const FIndex3i Tri = DynamicMesh.GetTriangle(TriangleID);
+					const FIndex3i ColorElementTri = ColorOverlay->GetTriangle(TriangleID);
+					for (int TriVertIndex = 0; TriVertIndex < 3; ++TriVertIndex)
+					{
+						FVector4f Color(Colors[Tri[TriVertIndex]]); Color.W = 1.0f;
+						ColorOverlay->SetElement(ColorElementTri[TriVertIndex], Color);
+					}
+				};
+				for (const int TriangleID : DynamicMesh.TriangleIndicesItr())
+				{
+					SetColorsFromWeights(TriangleID);
+				}
 			}
 		}
 

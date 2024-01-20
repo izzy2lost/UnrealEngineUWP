@@ -48,7 +48,7 @@ public:
 		Set(*PropertyNameString, new IMAGE_BRUSH_SVG("Icons/PaintMaps", ToolbarIconSize));
 
 		DefaultMaterial = Cast<UMaterial>(StaticLoadObject(UMaterial::StaticClass(), NULL, TEXT("/Engine/BasicShapes/BasicShapeMaterial")));
-
+		VertexMaterial = Cast<UMaterial>(StaticLoadObject(UMaterial::StaticClass(), NULL, TEXT("/Engine/EditorMaterials/Dataflow/DataflowVertexMaterial")));
 		FSlateStyleRegistry::RegisterSlateStyle(*this);
 	}
 
@@ -60,6 +60,8 @@ public:
 
 	/** Default Rendering Material for Mesh surfaces */
 	UMaterial* DefaultMaterial = nullptr;
+	UMaterial* VertexMaterial = nullptr;
+
 
 public:
 

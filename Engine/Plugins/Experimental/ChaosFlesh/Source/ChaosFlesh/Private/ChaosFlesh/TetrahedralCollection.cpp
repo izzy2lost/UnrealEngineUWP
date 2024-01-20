@@ -17,7 +17,7 @@ const FName FTetrahedralCollection::IncidentElementsLocalIndexAttribute("Inciden
 const FName FTetrahedralCollection::GuidAttribute("Guid");
 
 FTetrahedralCollection::FTetrahedralCollection()
-	: Super::FGeometryCollection()
+	: Super::FGeometryCollection({ FLinearColor(0.6, 0.6, 0.6).ToRGBE() })
 {
 	Construct();
 }

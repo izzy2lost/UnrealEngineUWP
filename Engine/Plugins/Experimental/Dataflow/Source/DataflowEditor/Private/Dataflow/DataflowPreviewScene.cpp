@@ -166,15 +166,18 @@ TObjectPtr<UDynamicMeshComponent>& FDataflowPreviewScene::AddDynamicMeshComponen
 	DynamicMeshComponent->SetMesh(MoveTemp(DynamicMesh));
 
 	// @todo(Dataflow) : Material support
-	// This is just to have a material, we should transfer the materials from the assets if they have them. 
-	if (FDataflowEditorStyle::Get().DefaultMaterial)
-	{
-		DynamicMeshComponent->ConfigureMaterialSet({ FDataflowEditorStyle::Get().DefaultMaterial });
-	}
-	else
-	{
-		DynamicMeshComponent->ValidateMaterialSlots(true, false);
-	}
+	//if (FDataflowEditorStyle::Get().DefaultMaterial)
+	//{
+	//	DynamicMeshComponent->ConfigureMaterialSet({ FDataflowEditorStyle::Get().DefaultMaterial });
+	//}
+	//else
+	//{
+	//	DynamicMeshComponent->ValidateMaterialSlots(true, false);
+	//}
+	// just vertex colors atm
+	DynamicMeshComponent->SetOverrideRenderMaterial(FDataflowEditorStyle::Get().VertexMaterial);
+	DynamicMeshComponent->SetShadowsEnabled(false);
+
 
 	DynamicMeshComponent->SelectionOverrideDelegate = UPrimitiveComponent::FSelectionOverride::CreateRaw(this, &FDataflowPreviewScene::IsComponentSelected);
 	DynamicMeshComponent->RegisterComponentWithWorld(GetWorld());
