@@ -49,10 +49,11 @@ bool FGeometryCollection::AreCollisionParticlesEnabled()
 }
 
 
-FGeometryCollection::FGeometryCollection()
+FGeometryCollection::FGeometryCollection(FGeometryCollectionDefaults InDefaults)
 	: FTransformCollection()
 	, FGeometryCollectionConvexPropertiesInterface(this)
 	, FGeometryCollectionProximityPropertiesInterface(this)
+	, Defaults(InDefaults)
 {
 	Construct();
 }
@@ -170,7 +171,7 @@ void FGeometryCollection::SetDefaults(FName Group, uint32 StartSize, uint32 NumE
 	{
 		for (uint32 Idx = StartSize; Idx < StartSize + NumElements; ++Idx)
 		{
-			Color[Idx] = FLinearColor::White;
+			Color[Idx] = Defaults.DefaultVertexColor;
 		}
 	}
 }
@@ -1572,9 +1573,9 @@ bool FGeometryCollection::IsVisible(int32 Element) const
 	return false;;
 }
 
-FGeometryCollection* FGeometryCollection::NewGeometryCollection(const TArray<float>& RawVertexArray, const TArray<int32>& RawIndicesArray, bool ReverseVertexOrder)
+FGeometryCollection* FGeometryCollection::NewGeometryCollection(const TArray<float>& RawVertexArray, const TArray<int32>& RawIndicesArray, bool ReverseVertexOrder, const FGeometryCollectionDefaults RawDefaults)
 {
-	FGeometryCollection* Collection = new FGeometryCollection();
+	FGeometryCollection* Collection = new FGeometryCollection(RawDefaults);
 	FGeometryCollection::Init(Collection, RawVertexArray, RawIndicesArray, ReverseVertexOrder);
 	return Collection;
 }
@@ -1616,7 +1617,7 @@ void FGeometryCollection::Init(FGeometryCollection* Collection, const TArray<flo
 			TempVertices += Vertices[Idx];
 			(*UV0)[Idx] = FVector2f::ZeroVector;
 
-			Colors[Idx] = FLinearColor::White;
+			Colors[Idx] = Collection->Defaults.DefaultVertexColor;
 			BoneMap[Idx] = 0;
 		}
 
@@ -1903,9 +1904,10 @@ FGeometryCollection* FGeometryCollection::NewGeometryCollection(const TArray<flo
 																const TManagedArray<int32>& RawParentArray,
 																const TManagedArray<TSet<int32>>& RawChildrenArray,
 																const TManagedArray<int32>& RawSimulationTypeArray,
-															    const TManagedArray<int32>& RawStatusFlagsArray)
+															    const TManagedArray<int32>& RawStatusFlagsArray,
+																const FGeometryCollectionDefaults RawDefaults)
 {
-	FGeometryCollection* RestCollection = new FGeometryCollection();
+	FGeometryCollection* RestCollection = new FGeometryCollection(RawDefaults);
 
 	int NumNewVertices = RawVertexArray.Num() / 3;
 	int VerticesIndex = RestCollection->AddElements(NumNewVertices, FGeometryCollection::VerticesGroup);
@@ -1941,7 +1943,7 @@ FGeometryCollection* FGeometryCollection::NewGeometryCollection(const TArray<flo
 		BoneMap[Idx] = RawBoneMapArray[Idx];
 		(*UV0)[Idx] = FVector2f::ZeroVector;
 
-		Colors[Idx] = FLinearColor::White;
+		Colors[Idx] = RestCollection->Defaults.DefaultVertexColor;
 	}
 
 	// Transforms
