@@ -41,7 +41,7 @@ namespace Horde.Server.Tests
 			metricConfig.Property = JsonPath.Parse("$.Payload.foo");
 
 			GlobalConfig globalConfig = new GlobalConfig();
-			globalConfig.Metrics.Metrics.Add(metricConfig);
+			globalConfig.Telemetry.Metrics.Add(metricConfig);
 			SetConfig(globalConfig);
 
 			MetricTelemetrySink sink = ServiceProvider.GetRequiredService<MetricTelemetrySink>();
@@ -75,7 +75,7 @@ namespace Horde.Server.Tests
 			metricConfig.Property = JsonPath.Parse("$.Payload.foo");
 
 			GlobalConfig globalConfig = new GlobalConfig();
-			globalConfig.Metrics.Metrics.Add(metricConfig);
+			globalConfig.Telemetry.Metrics.Add(metricConfig);
 			SetConfig(globalConfig);
 
 			MetricTelemetrySink sink = ServiceProvider.GetRequiredService<MetricTelemetrySink>();
@@ -148,8 +148,8 @@ namespace Horde.Server.Tests
 			metricConfig2.Property = JsonPath.Parse("$.Payload.bar.baz");
 
 			GlobalConfig globalConfig = new GlobalConfig();
-			globalConfig.Metrics.Metrics.Add(metricConfig1);
-			globalConfig.Metrics.Metrics.Add(metricConfig2);
+			globalConfig.Telemetry.Metrics.Add(metricConfig1);
+			globalConfig.Telemetry.Metrics.Add(metricConfig2);
 			SetConfig(globalConfig);
 
 			MetricTelemetrySink sink = ServiceProvider.GetRequiredService<MetricTelemetrySink>();
@@ -209,7 +209,7 @@ namespace Horde.Server.Tests
 			metricConfig.Percentile = 75;
 
 			GlobalConfig globalConfig = new GlobalConfig();
-			globalConfig.Metrics.Metrics.Add(metricConfig);
+			globalConfig.Telemetry.Metrics.Add(metricConfig);
 			SetConfig(globalConfig);
 
 			MetricTelemetrySink sink = ServiceProvider.GetRequiredService<MetricTelemetrySink>();
@@ -242,7 +242,7 @@ namespace Horde.Server.Tests
 			metricConfig.GroupBy = "$.Payload.group";
 
 			GlobalConfig globalConfig = new GlobalConfig();
-			globalConfig.Metrics.Metrics.Add(metricConfig);
+			globalConfig.Telemetry.Metrics.Add(metricConfig);
 			SetConfig(globalConfig);
 
 			MetricTelemetrySink sink = ServiceProvider.GetRequiredService<MetricTelemetrySink>();
@@ -308,7 +308,7 @@ namespace Horde.Server.Tests
 			}
 
 			GlobalConfig globalConfig = new GlobalConfig();
-			globalConfig.Metrics.Metrics.Add(metricConfig);
+			globalConfig.Telemetry.Metrics.Add(metricConfig);
 			SetConfig(globalConfig);
 
 			MetricTelemetrySink sink = ServiceProvider.GetRequiredService<MetricTelemetrySink>();

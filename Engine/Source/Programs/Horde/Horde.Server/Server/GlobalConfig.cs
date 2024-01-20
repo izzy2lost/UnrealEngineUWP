@@ -241,7 +241,7 @@ namespace Horde.Server.Server
 		/// <summary>
 		/// Metrics to aggregate on the Horde server
 		/// </summary>
-		public MetricsConfig Metrics { get; set; } = new MetricsConfig();
+		public TelemetryConfig Telemetry { get; set; } = new TelemetryConfig();
 
 		/// <summary>
 		/// Access control list

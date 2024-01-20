@@ -122,10 +122,10 @@ namespace Horde.Server.Telemetry.Metrics
 	/// <summary>
 	/// Config for metrics
 	/// </summary>
-	[JsonSchema("https://unrealengine.com/horde/metrics")]
-	[JsonSchemaCatalog("Horde Metrics", "Horde metric configuration file", new[] { "*.metrics.json", "Metrics/*.json" })]
-	[ConfigIncludeRoot]
-	public class MetricsConfig
+	[JsonSchema("https://unrealengine.com/horde/telemetry")]
+	[JsonSchemaCatalog("Horde Telemetry", "Horde telemetry configuration file", new[] { "*.telemetry.json", "*.metrics.json", "Metrics/*.json" })]
+ 	[ConfigIncludeRoot]
+	public class TelemetryConfig
 	{
 		/// <summary>
 		/// Metrics to aggregate on the Horde server
