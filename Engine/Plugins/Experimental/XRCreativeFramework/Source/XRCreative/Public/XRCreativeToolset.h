@@ -24,7 +24,7 @@ class UXRCreativePaletteTab : public UCommonActivatableWidget
 
 
 UCLASS()
-class UXRCreativePalette : public UCommonUserWidget
+class UXRCreativePalette : public UCommonActivatableWidget
 {
 	GENERATED_BODY()
 
