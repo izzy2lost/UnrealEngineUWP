@@ -117,32 +117,6 @@ ViewState ResolveView(FNaniteView NaniteView)
 	return Ret;
 }
 
-uint VisualizeModeOverdraw;
-
-uint2 GetVisualizeValues()
-{
-#if VISUALIZE
-	uint VisualizeValueMax = 0; // InterlockedMax64 using depth (value associated with surviving fragment)
-	uint VisualizeValueAdd = 0; // InterlockedAdd32 (value accumulated with every evaluated fragment)
-
-	// TODO: Make 32b mask instead of data that is mutually exclusive to a particular active view mode
-#if SOFTWARE_RASTER
-	VisualizeValueMax = 2; // Software Raster
-#else
-	VisualizeValueMax = 1; // Hardware Raster
-#endif
-
-	if (VisualizeModeOverdraw)
-	{
-		VisualizeValueAdd = 1;
-	}
-
-	return uint2(VisualizeValueMax, VisualizeValueAdd);
-#else
-	return 0;
-#endif
-}
-
 // Default cull mode is CW. If this returns true, CCW culling is required
 bool ReverseWindingOrder(FNaniteView NaniteView, FPrimitiveSceneData PrimitiveData, FInstanceSceneData InstanceData)
 {
@@ -734,7 +708,6 @@ void PatchRasterize( uint GroupID, uint GroupThreadIndex )
 
 
 		uint PixelValue = (SplitPatch.VisibleClusterIndex + 1) << 7;
-		uint2 VisualizeValues = GetVisualizeValues();
 
 		uint NumVerts = TessellatedPatch.GetNumVerts();
 		uint NumTris = TessellatedPatch.GetNumTris();
@@ -794,8 +767,11 @@ void PatchRasterize( uint GroupID, uint GroupThreadIndex )
 			if( Tri.bIsValid )
 			{
 			#if VISUALIZE
-				VisualizeValues.x = TriIndex;
-				VisualizeValues.x |= Rand3DPCG32( PatchEncoded.yzw ).x & 0xff00;
+				const uint SubPatch = (Rand3DPCG32(PatchEncoded.yzw).x & 0xff0000u) >> 16u;
+				const uint MicroTri = TriIndex & 0xffu;
+				const uint2 VisualizeValues = GetVisualizeValues(1u /* AddValue */, SubPatch, MicroTri);
+			#else
+				const uint2 VisualizeValues = uint2(0, 0);
 			#endif
 
 				RasterizeDicedTri(

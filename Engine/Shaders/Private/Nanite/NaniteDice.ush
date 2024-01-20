@@ -181,7 +181,7 @@ void FDiceTask::RunChild( uint LocalItemIndex )
 	if( Tri.bIsValid )
 	{
 	#if VISUALIZE
-		VisualizeValues.x = LocalItemIndex;
+		VisualizeValues.x = GetVisualizeValues(1u /*AddValue */, 0u /* SubPatch */, LocalItemIndex);
 	#endif
 
 		RasterizeDicedTri(

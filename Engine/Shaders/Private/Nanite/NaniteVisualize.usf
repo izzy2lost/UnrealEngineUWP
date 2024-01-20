@@ -241,7 +241,30 @@ void VisualizeCS(uint3 DTID : SV_DispatchThreadID, uint3 GID : SV_GroupID)
 
 		// Note: The mode is no longer a bitmask at this point, just a single visualization mode.
 
-		if (VisualizeMode == NANITE_VISUALIZE_TRIANGLES)
+		if (VisualizeMode == NANITE_VISUALIZE_TESSELLATION)
+		{
+			const uint SubPatch = BitFieldExtractU32(DebugValueMax, 8,  8);
+			const uint MicroTri = BitFieldExtractU32(DebugValueMax, 8, 16);
+
+			const float3 PatchColor = IntToColor(TriIndex).x * 0.5 + 0.5;
+
+			float3 SubPatchColor = IntToColor(SubPatch << 8u) * 0.6 + 0.4;
+			float3 MicroTriColor = IntToColor(MicroTri) * 0.6 + 0.4;
+
+			MicroTriColor = lerp(MicroTriColor, dot(MicroTriColor, float3(0.3, 0.6, 0.1)), 0.5);
+			SubPatchColor /= max3(SubPatchColor.x, SubPatchColor.y, SubPatchColor.z);
+			Result = MicroTriColor * SubPatchColor * PatchColor;
+		}
+		else if (VisualizeMode == NANITE_VISUALIZE_TRIANGLES)
+		{
+			const uint SubPatch = BitFieldExtractU32(DebugValueMax, 8,  8);
+			const uint MicroTri = BitFieldExtractU32(DebugValueMax, 8, 16);
+			const uint TriValue = MicroTri ^ (SubPatch + 0x9e3779b9 + (SubPatch << 6) + (SubPatch >> 2));
+			Result = IntToColor(select(MicroTri != 0u, TriValue, TriIndex));
+			Result = Result * 0.8 + 0.2;
+			bDarkOutline = true;
+		}
+		else if (VisualizeMode == NANITE_VISUALIZE_PATCHES)
 		{
 			Result = IntToColor(TriIndex);
 			Result = Result * 0.8 + 0.2;
@@ -271,12 +294,25 @@ void VisualizeCS(uint3 DTID : SV_DispatchThreadID, uint3 GID : SV_GroupID)
 		}
 		else if (VisualizeMode == NANITE_VISUALIZE_RASTER_MODE)
 		{
-			float3 MicroTriColor = IntToColor( DebugValueMax & 0xff ) * 0.6 + 0.4;
-			float3 SubpatchColor = IntToColor( DebugValueMax & 0xff00 ) * 0.6 + 0.4;
-			float3 PatchColor = IntToColor(TriIndex).x * 0.5 + 0.5;
-			MicroTriColor = lerp( MicroTriColor, dot( MicroTriColor, float3(0.3, 0.6, 0.1) ), 0.5 );
-			SubpatchColor /= max3( SubpatchColor.x, SubpatchColor.y, SubpatchColor.z );
-			Result = MicroTriColor * SubpatchColor * PatchColor;
+			const uint RasterMode = BitFieldExtractU32(DebugValueMax, 8,  0);
+			uint VisValue = 0u;
+			if (RasterMode == 1u)
+			{
+				// Hardware Raster
+				VisValue = 1u;
+			}
+			else if (RasterMode == 2u)
+			{
+				// Software Raster
+				VisValue = 2u;
+			}
+			else if (RasterMode == 3u)
+			{
+				// Software Tessellation
+				VisValue = 6000u;
+			}
+
+			Result = (IntToColor(VisValue) * 0.75 + 0.25) * (IntToColor(0).x * 0.5 + 0.5);
 		}
 		else if (VisualizeMode == NANITE_VISUALIZE_RASTER_BINS)
 		{

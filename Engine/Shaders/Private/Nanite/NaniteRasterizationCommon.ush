@@ -573,3 +573,31 @@ struct FFetchPageTable
 		return true;
 	}
 };
+
+uint2 GetVisualizeValues(uint AddValue, uint SubPatch, uint MicroTri)
+{
+#if VISUALIZE
+	uint VisualizeValueMax = 0;			// InterlockedMax64 using depth (value associated with surviving fragment)
+	uint VisualizeValueAdd = AddValue;	// InterlockedAdd32 (value accumulated with every evaluated fragment)
+
+#if NANITE_TESSELLATION
+	VisualizeValueMax = 3; // Software Tessellation
+#elif SOFTWARE_RASTER
+	VisualizeValueMax = 2; // Software Raster
+#else
+	VisualizeValueMax = 1; // Hardware Raster
+#endif
+
+	VisualizeValueMax |= (SubPatch & 0xffu) << 8u;
+	VisualizeValueMax |= (MicroTri & 0xffu) << 16u;
+
+	return uint2(VisualizeValueMax, VisualizeValueAdd);
+#else
+	return 0;
+#endif
+}
+
+uint2 GetVisualizeValues()
+{
+	return GetVisualizeValues(1u /* AddValue */, 0u /* SubPatch */, 0u /* MicroTri */);
+}

@@ -1254,7 +1254,6 @@ BEGIN_SHADER_PARAMETER_STRUCT( FRasterizePassParameters, )
 	SHADER_PARAMETER( FIntVector4,	PageConstants )
 	SHADER_PARAMETER( uint32,		MaxVisibleClusters )
 	SHADER_PARAMETER( uint32,		RenderFlags )
-	SHADER_PARAMETER( uint32,		VisualizeModeOverdraw )
 	SHADER_PARAMETER( uint32,		ActiveRasterBin )
 	SHADER_PARAMETER( uint32,		MeshPass )
 
@@ -4139,7 +4138,6 @@ FBinningData FRenderer::AddPass_Rasterize(
 		RasterPassParameters->ClusterPageData			= GStreamingManager.GetClusterPageDataSRV(GraphBuilder);
 		RasterPassParameters->Scene						= SceneUniformBuffer;
 		RasterPassParameters->RasterParameters			= RasterParameters;
-		RasterPassParameters->VisualizeModeOverdraw		= RasterContext.VisualizeModeOverdraw ? 1u : 0u;
 		RasterPassParameters->PageConstants				= PageConstants;
 		RasterPassParameters->MaxVisibleClusters		= Nanite::FGlobalResources::GetMaxVisibleClusters();
 		RasterPassParameters->VisibleClustersSWHW		= GraphBuilder.CreateSRV(VisibleClustersSWHW);

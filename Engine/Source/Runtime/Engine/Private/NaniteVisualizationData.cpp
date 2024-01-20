@@ -32,6 +32,7 @@ void FNaniteVisualizationData::Initialize()
 
 		AddVisualizationMode(TEXT("Mask"), LOCTEXT("Mask", "Mask"), FModeType::Standard, NANITE_VISUALIZE_NANITE_MASK, true);
 		AddVisualizationMode(TEXT("Triangles"), LOCTEXT("Triangles", "Triangles"), FModeType::Standard, NANITE_VISUALIZE_TRIANGLES, true);
+		AddVisualizationMode(TEXT("Patches"), LOCTEXT("Patches", "Patches"), FModeType::Standard, NANITE_VISUALIZE_PATCHES, true);
 		AddVisualizationMode(TEXT("Clusters"), LOCTEXT("Clusters", "Clusters"), FModeType::Standard, NANITE_VISUALIZE_CLUSTERS, true);
 		AddVisualizationMode(TEXT("Primitives"), LOCTEXT("Primitives", "Primitives"), FModeType::Standard, NANITE_VISUALIZE_PRIMITIVES, true);
 		AddVisualizationMode(TEXT("Instances"), LOCTEXT("Instances", "Instances"), FModeType::Standard, NANITE_VISUALIZE_INSTANCES, true);
@@ -67,6 +68,7 @@ void FNaniteVisualizationData::Initialize()
 		AddVisualizationMode(TEXT("ShadingWriteMask"), LOCTEXT("ShadingWriteMask", "Shading Write Mask"), FModeType::Advanced, NANITE_VISUALIZE_SHADING_WRITE_MASK, true);
 		AddVisualizationMode(TEXT("NoDerivativeOps"), LOCTEXT("NoDerivativeOps", "No Derivative Ops"), FModeType::Advanced, NANITE_VISUALIZE_NO_DERIVATIVE_OPS, true);
 		AddVisualizationMode(TEXT("FastClearTiles"), LOCTEXT("FastClearTiles", "Fast Clear Tiles"), FModeType::Advanced, NANITE_VISUALIZE_FAST_CLEAR_TILES, true);
+		AddVisualizationMode(TEXT("Tessellation"), LOCTEXT("Tessellation", "Tessellation"), FModeType::Advanced, NANITE_VISUALIZE_TESSELLATION, true);
 
 		ConfigureConsoleCommand();
 
