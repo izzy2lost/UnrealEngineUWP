@@ -62,14 +62,31 @@ void SChaosVDMainTab::Construct(const FArguments& InArgs, TSharedPtr<FChaosVDEng
 
 	StatusBarID = FName(FChaosVDTabID::StatusBar.ToString() + InChaosVDEngine->GetInstanceGuid().ToString());
 	
-	UStatusBarSubsystem* StatusBarSubsystem = GEditor ? GEditor->GetEditorSubsystem<UStatusBarSubsystem>() : nullptr;
-	check(StatusBarSubsystem);
-	TSharedRef<SWidget> StatusBarWidget = StatusBarSubsystem->MakeStatusBarWidget(StatusBarID, TabManager->GetOwnerTab().ToSharedRef());
-
-	// Status bars come with the output log and content browser drawers by default, therefore we need to remove them otherwise they will be on the tool's window
-	StatusBarSubsystem->UnregisterDrawer(StatusBarID, "ContentBrowser");
-	StatusBarSubsystem->UnregisterDrawer(StatusBarID, "OutputLog");
+	TSharedPtr<SWidget> StatusBarWidget;
 	
+	if (UStatusBarSubsystem* StatusBarSubsystem = GEditor ? GEditor->GetEditorSubsystem<UStatusBarSubsystem>() : nullptr)
+	{
+		 StatusBarWidget = StatusBarSubsystem->MakeStatusBarWidget(StatusBarID, TabManager->GetOwnerTab().ToSharedRef());
+
+		// Status bars come with the output log and content browser drawers by default, therefore we need to remove them otherwise they will be on the tool's window
+		StatusBarSubsystem->UnregisterDrawer(StatusBarID, "ContentBrowser");
+		StatusBarSubsystem->UnregisterDrawer(StatusBarID, "OutputLog");
+	}
+	else
+	{
+		// TODO: Add a way to try to create the status bar later in case the status bar subsystem was not ready yet.
+	
+		StatusBarWidget = SNew(SVerticalBox)
+		+SVerticalBox::Slot()
+		.Padding(2.0f)
+		[
+			SNew(STextBlock)
+			.Text(LOCTEXT("MainTabStatusBarError", " There was an issue trying to get the status bar ready. The status bar will not be available"))
+		];
+
+		UE_LOG(LogChaosVDEditor, Error, TEXT("[%s] Failed to obtain the status bar subsystem - The status bar will not be available"), ANSI_TO_TCHAR(__FUNCTION__));		
+	}
+
 	GenerateMainWindowMenu();
 
 	ChildSlot
@@ -239,7 +256,7 @@ void SChaosVDMainTab::Construct(const FArguments& InArgs, TSharedPtr<FChaosVDEng
 		.Padding(0.0f, 2.0f, 0.0f, 0.0f)
 		.AutoHeight()
 		[
-			StatusBarWidget
+			StatusBarWidget.ToSharedRef()
 		]
 	];
 

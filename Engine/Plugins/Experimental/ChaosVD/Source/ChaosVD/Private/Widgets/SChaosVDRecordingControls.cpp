@@ -99,21 +99,26 @@ void SChaosVDRecordingControls::HandleRecordingStop()
 		return;
 	}
 
-	UStatusBarSubsystem* StatusBarSubsystem = GEditor ? GEditor->GetEditorSubsystem<UStatusBarSubsystem>() : nullptr;
-	check(StatusBarSubsystem);
-	StatusBarSubsystem->PopStatusBarMessage(StatusBarID, RecordingMessageHandle);
+	const bool bIsLiveSession = MainTabSharedPtr->GetChaosVDEngineInstance()->GetCurrentSessionDescriptor().bIsLiveSession;
 
-	if (MainTabSharedPtr->GetChaosVDEngineInstance()->GetCurrentSessionDescriptor().bIsLiveSession)
+	if (UStatusBarSubsystem* StatusBarSubsystem = GEditor ? GEditor->GetEditorSubsystem<UStatusBarSubsystem>() : nullptr)
 	{
-		FText LiveSessionEnded = LOCTEXT("LiveSessionEndedMessage"," Live session has ended");
-		LiveSessionEndedMessageHandle = StatusBarSubsystem->PushStatusBarMessage(StatusBarID, LiveSessionEnded);
+		StatusBarSubsystem->PopStatusBarMessage(StatusBarID, RecordingMessageHandle);
 
+		if (bIsLiveSession)
+		{
+			const FText LiveSessionEnded = LOCTEXT("LiveSessionEndedMessage"," Live session has ended");
+			LiveSessionEndedMessageHandle = StatusBarSubsystem->PushStatusBarMessage(StatusBarID, LiveSessionEnded);
+		}
+		else
+		{
+			const FText RecordingPathMessage = FText::Format(LOCTEXT("RecordingSavedPathMessage"," Recoring saved at {0} "), FText::AsCultureInvariant(FChaosVDRuntimeModule::Get().GetActiveRecordingFileName()));
+			RecordingPathMessageHandle = StatusBarSubsystem->PushStatusBarMessage(StatusBarID, RecordingPathMessage);
+		}
 	}
-	else
+	
+	if (!bIsLiveSession)
 	{
-		FText RecordingPathMessage = FText::Format(LOCTEXT("RecordingSavedPathMessage"," Recoring saved at {0} "), FText::AsCultureInvariant(FChaosVDRuntimeModule::Get().GetActiveRecordingFileName()));
-		RecordingPathMessageHandle = StatusBarSubsystem->PushStatusBarMessage(StatusBarID, RecordingPathMessage);
-		
 		if (FMessageDialog::Open(EAppMsgType::YesNo, LOCTEXT("OpenLastRecordingMessage", "Do you want to load the recorded file now? ")) == EAppReturnType::Yes)
 		{
 			MainTabSharedPtr->GetChaosVDEngineInstance()->LoadRecording(FChaosVDRuntimeModule::Get().GetActiveRecordingFileName());
@@ -124,7 +129,7 @@ void SChaosVDRecordingControls::HandleRecordingStop()
 void SChaosVDRecordingControls::HandleRecordingStart()
 {
 	UStatusBarSubsystem* StatusBarSubsystem = GEditor ? GEditor->GetEditorSubsystem<UStatusBarSubsystem>() : nullptr;
-	if (!ensure(StatusBarSubsystem))
+	if (!StatusBarSubsystem)
 	{
 		return;
 	}
