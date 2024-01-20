@@ -56,6 +56,13 @@ TAutoConsoleVariable<int32> GMaxDebugTextStringsPerActorCVar(
 	128,
 	TEXT("The maximum number of debug strings that can be attached to a given actor (<=0 : no limit)"));
 
+#if ENABLE_DRAW_DEBUG
+TAutoConsoleVariable<int32> GDrawCurrentDebugTargetBoundingBox(
+	TEXT("r.Debug.DrawCurrentDebugTargetBoundingBox"),
+	1,
+	TEXT("Draw the bounding box of the currently selected debug target (Default: 1)"));
+#endif // ENABLE_DRAW_DEBUG
+
 AHUD::AHUD(const FObjectInitializer& ObjectInitializer)
 	: Super(ObjectInitializer)
 {
@@ -440,6 +447,7 @@ void AHUD::ShowDebugInfo(float& YL, float& YPos)
 		{
 			// Draw box around Actor being debugged.
 #if ENABLE_DRAW_DEBUG
+			if (GDrawCurrentDebugTargetBoundingBox.GetValueOnGameThread() > 0)
 			{
 				FVector BoundsOrigin, BoundsExtent;
 				ShowDebugTargetActor->GetActorBounds(true, BoundsOrigin, BoundsExtent);
