@@ -13,7 +13,21 @@ class ULevel;
 
 using FActorInstanceManagerInterface = TWeakInterfacePtr<IActorInstanceManagerInterface>;
 
-// Handle to a unique object. This may specify a full weigh actor or it may only specify the actor instance that represents the same object.
+/**
+ * Handle to a unique object. This may specify a full weigh actor or it may only specify the actor instance that represents the same object.
+ * 
+ * @note The handle has game thread constraints related to UObjects and should be used carefully from other threads.
+ * 
+ *	Can only be used on the game thread
+ *	-	all constructors 
+ *	-	all getters (GetXYZ, FetchActor, IsActorValid, DoesRepresent) *	
+ *	-	comparison operators against live AActor pointer
+ *	
+ *	Can be used on any thread
+ *	-	MakeActorHandleToResolve to create a handle that will be lazily resolved on the game thread
+ *		since it only stores a weak object ptr without any access to the live object
+ *	-	handle validity and comparison operators against another handle (i.e. IsValid(), operator==|!=(const FActorInstanceHandle& Other))
+ */
 USTRUCT(BlueprintType)
 struct FActorInstanceHandle
 {
@@ -32,6 +46,12 @@ struct FActorInstanceHandle
 	 * an actor won't be spawned as a side effect of looking for the actor given Manager/Index represents
 	 */
 	static FActorInstanceHandle MakeDehydratedActorHandle(UObject& Manager, int32 InInstanceIndex);
+
+	/** 
+	 * A path dedicated to creation of handles from any threads.
+	 * This path marks the handle as need resolving once it gets accessed from the game thread.
+	 */
+	static FActorInstanceHandle MakeActorHandleToResolve(const TWeakObjectPtr<UPrimitiveComponent>& WeakComponent, int32 CollisionInstanceIndex);
 
 	ENGINE_API bool IsValid() const;
 
@@ -61,7 +81,7 @@ struct FActorInstanceHandle
 	template <typename T>
 	T* FetchActor() const;
 
-	AActor* GetCachedActor() const { return Actor.Get(); }
+	ENGINE_API AActor* GetCachedActor() const;
 	ENGINE_API void SetCachedActor(AActor* InActor) const;
 
 	/* Returns the index used internally by the manager */
@@ -96,21 +116,42 @@ private:
 	 * helper functions that let us treat the actor pointer as a UObject in templated functions
 	 * these do NOT fetch the actor so they will return nullptr if we don't have a full actor representation
 	 */
-	ENGINE_API UObject* GetActorAsUObject();
-	ENGINE_API const UObject* GetActorAsUObject() const;
+	UObject* GetActorAsUObject();
+	const UObject* GetActorAsUObject() const;
 
 	/** Returns true if Actor is not null and not pending kill */
-	ENGINE_API bool IsActorValid() const;
+	bool IsActorValid() const;
 
-	/** this is cached here for convenience */
+	void ResolveHandle() const;
+	
+	/**
+	 * Weak UObject pointer used for two purposes:
+	 *  - a resolved handle uses it to store the AActor
+	 *  - a handle to be resolved uses it to store the UPrimitiveComponent provided by MakeActorHandleToResolve 
+	 */
 	UPROPERTY()
-	mutable TWeakObjectPtr<AActor> Actor;
+	mutable TWeakObjectPtr<UObject> ReferenceObject;
 
 	/** Identifies the actor instance manager to use */
 	FActorInstanceManagerInterface ManagerInterface;
 
 	/** Identifies the instance within the manager */
 	int32 InstanceIndex = INDEX_NONE;
+
+	/**
+	 * Enum to keep track of the resolution status of the handle.
+	 * It is only possible to safely resolve the handle on the game thread so
+	 * other threads should use MakeActorHandleToResolve to safely create one. 
+	 */
+	enum class EResolutionStatus : uint8
+	{
+		Invalid,
+		Resolved, /* ManagerInterface and InstanceIndex are set or an Actor pointer is stored in ReferenceObject */
+		NeedsResolving /* Component pointer is stored in ReferenceObject and InstanceIndex might hold a CollisionInstanceIndex */
+	};
+
+	/** Indicates if the handle is resolved, needs to be resolved (extract Actor|ManagerInterface) */
+	EResolutionStatus ResolutionStatus = EResolutionStatus::Invalid;
 };
 
 template<typename T>

@@ -133,7 +133,7 @@ static void SetHitResultFromShapeAndFaceIndex(const FPhysicsShape& Shape,  const
 	CHAOS_CHECK(ShapeIndex < (int32)TNumericLimits<uint8>::Max()); // I could just write < 256, but this makes it more clear *why*
 	OutResult.ElementIndex = (uint8)ShapeIndex;
 	
-	UPrimitiveComponent* OwningComponent = nullptr;
+	TWeakObjectPtr<UPrimitiveComponent> OwningComponent;
 	if(const FBodyInstance* BodyInst = GetUserData(Actor))
 	{
 		BodyInst = FPhysicsInterface::ShapeToOriginalBodyInstance(BodyInst, &Shape);
@@ -146,7 +146,7 @@ static void SetHitResultFromShapeAndFaceIndex(const FPhysicsShape& Shape,  const
 			OutResult.BoneName = BodySetup->BoneName;
 		}
 
-		OwningComponent = BodyInst->OwnerComponent.Get();
+		OwningComponent = BodyInst->OwnerComponent;
 	}
 	else
 	{
@@ -182,10 +182,13 @@ static void SetHitResultFromShapeAndFaceIndex(const FPhysicsShape& Shape,  const
 	OutResult.PhysMaterial = nullptr;
 
 	// Grab actor/component
-	if( OwningComponent )
+	if (!OwningComponent.IsExplicitlyNull())
 	{
 		OutResult.Component = OwningComponent;
-		OutResult.HitObjectHandle = FActorInstanceHandle(OwningComponent, OutResult.Item);
+
+		// Create a handle that needs to be resolved later when accessed in game thread,
+		// since resolving FActorInstanceHandle may require to access related UObjects (e.g. owner actor), which is not safe outside game thread.
+		OutResult.HitObjectHandle = FActorInstanceHandle::MakeActorHandleToResolve(OwningComponent, OutResult.Item);
 
 		if (bReturnPhysMat)
 		{
@@ -602,7 +605,9 @@ void ConvertQueryOverlap(const FPhysicsShape& Shape, const FPhysicsActor& Actor,
         BodyInst = FPhysicsInterface::ShapeToOriginalBodyInstance(BodyInst, &Shape);
 		if (const UPrimitiveComponent* OwnerComponent = BodyInst->OwnerComponent.Get())
 		{
-			OutOverlap.OverlapObjectHandle = FActorInstanceHandle(OwnerComponent->GetOwner(), OwnerComponent, BodyInst->InstanceBodyIndex);
+			// Create a handle that needs to be resolved later when accessed in game thread,
+			// since resolving FActorInstanceHandle may require to access related UObjects (e.g. owner actor), which is not safe outside game thread.
+			OutOverlap.OverlapObjectHandle = FActorInstanceHandle::MakeActorHandleToResolve(BodyInst->OwnerComponent, BodyInst->InstanceBodyIndex);
 			OutOverlap.Component = BodyInst->OwnerComponent; // Copying weak pointer is faster than assigning raw pointer.
 			OutOverlap.ItemIndex = OwnerComponent->bMultiBodyOverlap ? BodyInst->InstanceBodyIndex : INDEX_NONE;
 		}
@@ -616,8 +621,10 @@ void ConvertQueryOverlap(const FPhysicsShape& Shape, const FPhysicsActor& Actor,
 
 		if(PossibleOwner)
 		{
+			// Create a handle that needs to be resolved later when accessed in game thread,
+			// since resolving FActorInstanceHandle may require to access related UObjects (e.g. owner actor), which is not safe outside game thread.
+			OutOverlap.OverlapObjectHandle = FActorInstanceHandle::MakeActorHandleToResolve(PossibleOwner, INDEX_NONE);
 			OutOverlap.Component = PossibleOwner;
-			OutOverlap.OverlapObjectHandle = FActorInstanceHandle(OutOverlap.Component->GetOwner());
 			OutOverlap.ItemIndex = INDEX_NONE;
 		}
 		else
