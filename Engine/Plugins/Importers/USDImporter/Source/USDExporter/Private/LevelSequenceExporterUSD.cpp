@@ -650,8 +650,7 @@ namespace UE::LevelSequenceExporterUSD::Private
 						OutSelectedSpawnableActors.Add(Actor);
 
 						const int32 Count = 1;
-						const bool bAllowShrinking = false;
-						OutSelectedNonSpawnableActors.RemoveAt(Index, Count, bAllowShrinking);
+						OutSelectedNonSpawnableActors.RemoveAt(Index, Count, EAllowShrinking::No);
 					}
 				}
 			}

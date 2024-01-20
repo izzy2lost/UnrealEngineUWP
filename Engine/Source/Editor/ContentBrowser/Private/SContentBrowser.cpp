@@ -4151,7 +4151,7 @@ FText SContentBrowser::OnAssetSearchSuggestionChosen(const FText& SearchText, co
 	ExtractAssetSearchFilterTerms(SearchText, nullptr, nullptr, &SuggestionInsertionIndex);
 
 	FString SearchString = SearchText.ToString();
-	SearchString.RemoveAt(SuggestionInsertionIndex, SearchString.Len() - SuggestionInsertionIndex, false);
+	SearchString.RemoveAt(SuggestionInsertionIndex, SearchString.Len() - SuggestionInsertionIndex, EAllowShrinking::No);
 	SearchString.Append(Suggestion);
 
 	return FText::FromString(SearchString);

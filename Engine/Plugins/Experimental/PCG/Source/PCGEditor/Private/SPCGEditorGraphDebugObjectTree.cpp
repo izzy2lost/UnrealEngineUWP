@@ -632,7 +632,7 @@ void SPCGEditorGraphDebugObjectTree::AddStacksToTree(const TArray<FPCGStack>& St
 						TArray<FPCGStackFrame>& GraphStackFrames = GraphStack.GetStackFramesMutable();
 						while (GraphStackFrames.Num() > 0)
 						{
-							GraphStackFrames.SetNum(GraphStackFrames.Num() - 1, /*bAllowShrinking=*/false);
+							GraphStackFrames.SetNum(GraphStackFrames.Num() - 1, EAllowShrinking::No);
 
 							if (FPCGEditorGraphDebugObjectItemPtr* ParentItem = InOutStackToItem.Find(GraphStack))
 							{
@@ -663,7 +663,7 @@ void SPCGEditorGraphDebugObjectTree::AddStacksToTree(const TArray<FPCGStack>& St
 							TArray<FPCGStackFrame>& LoopGraphStackFrames = LoopGraphStack.GetStackFramesMutable();
 							while (LoopGraphStackFrames.Num() > 0)
 							{
-								LoopGraphStackFrames.SetNum(LoopGraphStackFrames.Num() - 1, /*bAllowShrinking=*/false);
+								LoopGraphStackFrames.SetNum(LoopGraphStackFrames.Num() - 1, EAllowShrinking::No);
 
 								if (FPCGEditorGraphDebugObjectItemPtr* ParentItem = InOutStackToItem.Find(LoopGraphStack))
 								{
@@ -688,7 +688,7 @@ void SPCGEditorGraphDebugObjectTree::AddStacksToTree(const TArray<FPCGStack>& St
 							TArray<FPCGStackFrame>& GraphStackFrames = LoopIterationStack.GetStackFramesMutable();
 							while (GraphStackFrames.Num() > 0)
 							{
-								GraphStackFrames.SetNum(GraphStackFrames.Num() - 1, /*bAllowShrinking=*/false);
+								GraphStackFrames.SetNum(GraphStackFrames.Num() - 1, EAllowShrinking::No);
 
 								if (FPCGEditorGraphDebugObjectItemPtr* ParentItem = InOutStackToItem.Find(LoopIterationStack))
 								{

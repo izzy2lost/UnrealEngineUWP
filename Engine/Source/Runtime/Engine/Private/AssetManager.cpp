@@ -3998,7 +3998,7 @@ void UAssetManager::UpdateManagementDatabase(bool bForceRefresh)
 			}
 
 			Algo::Sort(AssetPackagesReferenced, FNameLexicalLess());
-			AssetPackagesReferenced.SetNum(Algo::Unique(AssetPackagesReferenced), false /* bAllowShrinking */);
+			AssetPackagesReferenced.SetNum(Algo::Unique(AssetPackagesReferenced), EAllowShrinking::No);
 			for (const FName& AssetPackage : AssetPackagesReferenced)
 			{
 				TMultiMap<FAssetIdentifier, FAssetIdentifier>& ManagerMap = Rules.bApplyRecursively ? PriorityManagementMap.FindOrAdd(Rules.Priority) : NoReferenceManagementMap;
@@ -4229,7 +4229,7 @@ void UAssetManager::ModifyCook(TConstArrayView<const ITargetPlatform*> TargetPla
 			}
 		}
 		Algo::Sort(AssetPackages, FNameFastLess());
-		AssetPackages.SetNum(Algo::Unique(AssetPackages), false /* bAllowShrinking */);
+		AssetPackages.SetNum(Algo::Unique(AssetPackages), EAllowShrinking::No);
 
 		for (FName PackageName : AssetPackages)
 		{

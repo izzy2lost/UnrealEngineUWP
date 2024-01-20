@@ -628,18 +628,18 @@ void UDataflowEditorWeightMapPaintTool::UpdateROI(const FSculptBrushStamp& Brush
 		ApplyVisibilityFilter(VertexSetBuffer, TempROIBuffer, ResultBuffer);
 	}
 
-	VertexROI.SetNum(0, false);
+	VertexROI.SetNum(0, EAllowShrinking::No);
 	//TODO: If we paint a 2D projection of UVs, these will need to be the 2D vertices not the 3D original mesh vertices
 	BufferUtil::AppendElements(VertexROI, VertexSetBuffer);
 
 	// construct ROI triangle and weight buffers
 	ROITriangleBuffer.Reserve(TriangleROI.Num());
-	ROITriangleBuffer.SetNum(0, false);
+	ROITriangleBuffer.SetNum(0, EAllowShrinking::No);
 	for (int32 tid : TriangleROI)
 	{
 		ROITriangleBuffer.Add(tid);
 	}
-	ROIWeightValueBuffer.SetNum(VertexROI.Num(), false);
+	ROIWeightValueBuffer.SetNum(VertexROI.Num(), EAllowShrinking::No);
 	SyncWeightBufferWithMesh(Mesh);
 }
 
@@ -994,7 +994,7 @@ void UDataflowEditorWeightMapPaintTool::ComputeGradient()
 	BeginChange();
 
 	const FDynamicMesh3* const Mesh = DynamicMeshComponent->GetMesh();
-	TempROIBuffer.SetNum(0, false);
+	TempROIBuffer.SetNum(0, EAllowShrinking::No);
 	for (int32 vid : Mesh->VertexIndicesItr())
 	{
 		TempROIBuffer.Add(vid);
@@ -1104,7 +1104,7 @@ void UDataflowEditorWeightMapPaintTool::SetVerticesToWeightMap(const TSet<int32>
 {
 	BeginChange();
 
-	TempROIBuffer.SetNum(0, false);
+	TempROIBuffer.SetNum(0, EAllowShrinking::No);
 	for (int32 vid : Vertices)
 	{
 		TempROIBuffer.Add(vid);
@@ -1161,7 +1161,7 @@ bool UDataflowEditorWeightMapPaintTool::HaveVisibilityFilter() const
 
 void UDataflowEditorWeightMapPaintTool::ApplyVisibilityFilter(TSet<int32>& Vertices, TArray<int32>& ROIBuffer, TArray<int32>& OutputBuffer)
 {
-	ROIBuffer.SetNum(0, false);
+	ROIBuffer.SetNum(0, EAllowShrinking::No);
 	ROIBuffer.Reserve(Vertices.Num());
 	for (int32 vid : Vertices)
 	{
@@ -1195,7 +1195,7 @@ void UDataflowEditorWeightMapPaintTool::ApplyVisibilityFilter(const TArray<int32
 
 	int32 NumVertices = Vertices.Num();
 
-	VisibilityFilterBuffer.SetNum(NumVertices, false);
+	VisibilityFilterBuffer.SetNum(NumVertices, EAllowShrinking::No);
 	ParallelFor(NumVertices, [&](int32 idx)
 	{
 		VisibilityFilterBuffer[idx] = true;
@@ -1534,7 +1534,7 @@ void UDataflowEditorWeightMapPaintTool::FloodFillCurrentWeightAction()
 
 	const float SetWeightValue = FilterProperties->AttributeValue;
 	const FDynamicMesh3* Mesh = DynamicMeshComponent->GetMesh();
-	TempROIBuffer.SetNum(0, false);
+	TempROIBuffer.SetNum(0, EAllowShrinking::No);
 	for (int32 vid : Mesh->VertexIndicesItr())
 	{
 		TempROIBuffer.Add(vid);
@@ -1582,7 +1582,7 @@ void UDataflowEditorWeightMapPaintTool::ClearAllWeightsAction()
 
 	float SetWeightValue = 0.0f;
 	const FDynamicMesh3* Mesh = DynamicMeshComponent->GetMesh();
-	TempROIBuffer.SetNum(0, false);
+	TempROIBuffer.SetNum(0, EAllowShrinking::No);
 	for (int32 vid : Mesh->VertexIndicesItr())
 	{
 		TempROIBuffer.Add(vid);

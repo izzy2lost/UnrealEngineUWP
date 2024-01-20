@@ -1328,7 +1328,7 @@ void UPoseAsset::AddOrUpdatePose(const FName& PoseName, const TArray<FName>& Tra
 		const int32 TotalTracks = PoseContainer.Tracks.Num();
 		PoseData->SourceLocalSpacePose.Reset(TotalTracks);
 		PoseData->SourceLocalSpacePose.AddUninitialized(TotalTracks);
-		PoseData->SourceLocalSpacePose.SetNumZeroed(TotalTracks, true);
+		PoseData->SourceLocalSpacePose.SetNumZeroed(TotalTracks, EAllowShrinking::Yes);
 
 		// just fill up skeleton pose
 		// the reason we use skeleton pose, is that retarget source can change, and 

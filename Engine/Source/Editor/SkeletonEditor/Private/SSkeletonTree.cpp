@@ -1368,8 +1368,8 @@ void SSkeletonTree::FillAttachAssetSubmenu(FMenuBuilder& MenuBuilder, const TSha
 	TArray<UClass*> FilterClasses = FComponentAssetBrokerage::GetSupportedAssets(USceneComponent::StaticClass());
 
 	//Clean up the selection so it is relevant to Persona
-	FilterClasses.RemoveSingleSwap(UBlueprint::StaticClass(), false); //Child actor components broker gives us blueprints which isn't wanted
-	FilterClasses.RemoveSingleSwap(USoundBase::StaticClass(), false); //No sounds wanted
+	FilterClasses.RemoveSingleSwap(UBlueprint::StaticClass(), EAllowShrinking::No); //Child actor components broker gives us blueprints which isn't wanted
+	FilterClasses.RemoveSingleSwap(USoundBase::StaticClass(), EAllowShrinking::No); //No sounds wanted
 
 	FAssetPickerConfig AssetPickerConfig;
 	AssetPickerConfig.Filter.bRecursiveClasses = true;

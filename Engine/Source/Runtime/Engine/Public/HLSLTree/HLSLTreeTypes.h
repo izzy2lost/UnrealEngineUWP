@@ -195,7 +195,7 @@ public:
 
 	~FScopedActiveStructField()
 	{
-		Stack.Pop(false);
+		Stack.Pop(EAllowShrinking::No);
 	}
 };
 

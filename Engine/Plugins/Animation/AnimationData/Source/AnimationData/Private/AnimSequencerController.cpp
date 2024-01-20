@@ -2673,7 +2673,7 @@ bool UAnimSequencerController::SetBoneCurveKeys(const FName& BoneName, const TAr
 						}
 						else
 						{
-							ScratchMemory.Values[ChannelIndex].SetNum(MaximumNumberOfKeys, false);
+							ScratchMemory.Values[ChannelIndex].SetNum(MaximumNumberOfKeys, EAllowShrinking::No);
 						}
 						
 						if (!AreKeysVarying[3 + ChannelIndex])
@@ -2685,7 +2685,7 @@ bool UAnimSequencerController::SetBoneCurveKeys(const FName& BoneName, const TAr
 						}
 						else
 						{
-							ScratchMemory.Values[3 + ChannelIndex].SetNum(MaximumNumberOfKeys, false);
+							ScratchMemory.Values[3 + ChannelIndex].SetNum(MaximumNumberOfKeys, EAllowShrinking::No);
 						}
 						
 						if (!AreKeysVarying[6 + ChannelIndex])
@@ -2697,7 +2697,7 @@ bool UAnimSequencerController::SetBoneCurveKeys(const FName& BoneName, const TAr
 						}
 						else
 						{
-							ScratchMemory.Values[6 + ChannelIndex].SetNum(MaximumNumberOfKeys, false);
+							ScratchMemory.Values[6 + ChannelIndex].SetNum(MaximumNumberOfKeys, EAllowShrinking::No);
 						}
 
 						// Reset all curve data

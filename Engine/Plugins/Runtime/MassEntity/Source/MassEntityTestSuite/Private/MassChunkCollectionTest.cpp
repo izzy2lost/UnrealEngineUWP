@@ -81,7 +81,7 @@ struct FEntityCollection_CreateOrderInvariant : FEntityCollectionTestBase
 	virtual bool InstantTest() override
 	{
 		TArray<FMassEntityHandle> EntitiesSubSet(&Entities[10], 30);
-		EntitiesSubSet.RemoveAt(10, 1, false);
+		EntitiesSubSet.RemoveAt(10, 1, EAllowShrinking::No);
 
 		FMassArchetypeEntityCollection CollectionFromOrdered(FloatsArchetype, EntitiesSubSet, FMassArchetypeEntityCollection::NoDuplicates);
 

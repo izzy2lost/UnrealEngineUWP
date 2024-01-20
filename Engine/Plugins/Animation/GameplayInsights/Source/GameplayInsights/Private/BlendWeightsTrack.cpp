@@ -71,7 +71,7 @@ bool FBlendWeightsTrack::UpdateInternal()
 	if(GameplayProvider && AnimationProvider)
 	{
 		TraceServices::FAnalysisSessionReadScope SessionReadScope(*AnalysisSession);
-		UniqueTrackIds.SetNum(0, false);
+		UniqueTrackIds.SetNum(0, EAllowShrinking::No);
 
 		AnimationProvider->ReadTickRecordTimeline(ObjectId, [&UniqueTrackIds,&GameplayProvider, StartTime, EndTime](const FAnimationProvider::TickRecordTimeline& InTimeline)
 		{
@@ -169,7 +169,7 @@ bool FBlendWeightTrack::UpdateInternal()
 	{
 		TRACE_CPUPROFILER_EVENT_SCOPE(FBlendWeightTrack::UpdateCurvePointsInternal);
 		auto& CurvePoints = CurveData->Points;
-		CurvePoints.SetNum(0,false);
+		CurvePoints.SetNum(0,EAllowShrinking::No);
 		
 		TraceServices::FAnalysisSessionReadScope SessionReadScope(*AnalysisSession);
 		

@@ -4402,7 +4402,7 @@ void UAssetToolsImpl::ExportAssetsInternal(const TArray<UObject*>& ObjectsToExpo
 				if (PackageName.Left(1) == TEXT("/"))
 				{
 					// Trim the leading slash so the file manager doesn't get confused
-					PackageName.MidInline(1, MAX_int32, false);
+					PackageName.MidInline(1, MAX_int32, EAllowShrinking::No);
 				}
 
 				FPaths::NormalizeFilename(PackageName);

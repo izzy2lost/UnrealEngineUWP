@@ -1327,7 +1327,7 @@ bool UAnimBlueprintExtension_Base::FEvaluationHandlerRecord::CheckForMemberOnlyA
 		PinStack.Add(DestPin);
 		while(PinStack.Num() > 0)
 		{
-			UEdGraphPin* CurrentPin = PinStack.Pop(false);
+			UEdGraphPin* CurrentPin = PinStack.Pop(EAllowShrinking::No);
 			for(auto& LinkedPin : CurrentPin->LinkedTo)
 			{
 				UEdGraphNode* LinkedNode = LinkedPin->GetOwningNode();

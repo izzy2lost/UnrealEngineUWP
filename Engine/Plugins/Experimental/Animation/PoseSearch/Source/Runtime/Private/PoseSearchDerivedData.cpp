@@ -2107,7 +2107,7 @@ void FAsyncPoseSearchDatabasesManagement::Tick(float DeltaTime)
 					Tasks[TaskIndex]->GetState() == FPoseSearchDatabaseAsyncCacheTask::EState::Failed)
 				{
 					UE_LOG(LogPoseSearch, Log, TEXT("%s - %s Removed because of InvalidateCache with WaitForTaskCompletion"), *LexToString(Tasks[TaskIndex]->GetDerivedDataKey()), *Tasks[TaskIndex]->GetDatabase()->GetName());
-					Tasks.RemoveAtSwap(TaskIndex, 1, false);
+					Tasks.RemoveAtSwap(TaskIndex, 1, EAllowShrinking::No);
 				}
 			}
 		}
@@ -2136,7 +2136,7 @@ void FAsyncPoseSearchDatabasesManagement::Tick(float DeltaTime)
 	{
 		if (!Tasks[TaskIndex]->IsValid() || Tasks[TaskIndex]->GetState() == FPoseSearchDatabaseAsyncCacheTask::EState::Cancelled)
 		{
-			Tasks.RemoveAtSwap(TaskIndex, 1, false);
+			Tasks.RemoveAtSwap(TaskIndex, 1, EAllowShrinking::No);
 		}
 		else
 		{

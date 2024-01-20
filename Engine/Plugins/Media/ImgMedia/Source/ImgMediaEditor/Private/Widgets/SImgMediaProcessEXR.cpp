@@ -632,7 +632,7 @@ void SImgMediaProcessEXR::RemoveAlphaChannel(TArray64<uint8>& Buffer)
 	}
 
 	// Don't bother shrinking as its just a waste and extra work.
-	Buffer.SetNum((BufferSize * 3) / 4, false);
+	Buffer.SetNum((BufferSize * 3) / 4, EAllowShrinking::No);
 }
 
 void SImgMediaProcessEXR::TintData(uint8* SourceData, TArray64<uint8>& DestArray,

@@ -1611,8 +1611,8 @@ public:
 			if (FuncArgNames.Num() > 0 && FuncArgDefaults.Num() > 0)
 			{
 				// Strip the zero'th 'self' argument when processing a non-static function
-				FuncArgNames.RemoveAt(0, 1, /*bAllowShrinking*/false);
-				FuncArgDefaults.RemoveAt(0, 1, /*bAllowShrinking*/false);
+				FuncArgNames.RemoveAt(0, 1, EAllowShrinking::No);
+				FuncArgDefaults.RemoveAt(0, 1, EAllowShrinking::No);
 			}
 			else
 			{

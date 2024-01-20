@@ -135,7 +135,7 @@ bool FInertializationTrack::UpdateInternal()
 	if (CurvesUpdateRequested > 10 && GameplayProvider && AnimationProvider)
 	{
 		auto& CurvePoints = CurveData->Points;
-		CurvePoints.SetNum(0,false);
+		CurvePoints.SetNum(0,EAllowShrinking::No);
 		
 		TraceServices::FAnalysisSessionReadScope SessionReadScope(*AnalysisSession);
 		

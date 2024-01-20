@@ -666,7 +666,7 @@ TArray<FPackageStorePackage::FExportGraphNode*> FPackageStoreOptimizer::SortExpo
 	while (NodesWithNoIncomingEdges.Num())
 	{
 		FPackageStorePackage::FExportGraphNode* RemovedNode;
-		NodesWithNoIncomingEdges.HeapPop(RemovedNode, NodeSorter, false);
+		NodesWithNoIncomingEdges.HeapPop(RemovedNode, NodeSorter, EAllowShrinking::No);
 		LoadOrder.Add(RemovedNode);
 		for (auto EdgeIt = Edges.CreateKeyIterator(RemovedNode); EdgeIt; ++EdgeIt)
 		{

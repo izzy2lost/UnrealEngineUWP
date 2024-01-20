@@ -1805,7 +1805,7 @@ FString PythonizeName(FStringView InName, const EPythonizeNameCase InNameCase)
 			{
 				break;
 			}
-			PythonizedName.RemoveAt(CharIndex, 1, false);
+			PythonizedName.RemoveAt(CharIndex, 1, EAllowShrinking::No);
 		}
 
 		PrevBreak = NameBreak;
@@ -2719,7 +2719,7 @@ bool GetFieldPythonNameFromMetaDataImpl(const FFieldVariant& InField, const FNam
 			int32 SemiColonIndex = INDEX_NONE;
 			if (OutFieldName.FindChar(TEXT(';'), SemiColonIndex))
 			{
-				OutFieldName.RemoveAt(SemiColonIndex, OutFieldName.Len() - SemiColonIndex, /*bAllowShrinking*/false);
+				OutFieldName.RemoveAt(SemiColonIndex, OutFieldName.Len() - SemiColonIndex, EAllowShrinking::No);
 			}
 
 			FText ValidationError;
@@ -2756,7 +2756,7 @@ bool GetDeprecatedFieldPythonNamesFromMetaDataImpl(const FFieldVariant& InField,
 			// Remove the non-deprecated entry
 			if (OutFieldNames.Num() > 0)
 			{
-				OutFieldNames.RemoveAt(0, 1, /*bAllowShrinking*/false);
+				OutFieldNames.RemoveAt(0, 1, EAllowShrinking::No);
 			}
 
 			// Trim whitespace and remove empty items
@@ -2801,7 +2801,7 @@ FString GetFieldPythonNameImpl(const FFieldVariant& InField, const FName InMetaD
 		// Strip the "E" prefix from enum names
 		if (InField.IsA<UEnum>() && FieldName.Len() >= 2 && FieldName[0] == TEXT('E') && FChar::IsUpper(FieldName[1]))
 		{
-			FieldName.RemoveAt(0, 1, /*bAllowShrinking*/false);
+			FieldName.RemoveAt(0, 1, EAllowShrinking::No);
 		}
 
 		// Classes, structs, and enums will no longer have their C++ prefix at this point
@@ -2912,7 +2912,7 @@ TArray<FString> GetDeprecatedFieldPythonNamesImpl(const FFieldVariant& InField, 
 		// Strip the "E" prefix from enum names
 		if (InField.IsA<UEnum>() && FieldName.Len() >= 2 && FieldName[0] == TEXT('E') && FChar::IsUpper(FieldName[1]))
 		{
-			FieldName.RemoveAt(0, 1, /*bAllowShrinking*/false);
+			FieldName.RemoveAt(0, 1, EAllowShrinking::No);
 		}
 
 		FieldNames.AddUnique(MoveTemp(FieldName));
@@ -2965,7 +2965,7 @@ FString GetEnumEntryPythonName(const UEnum* InEnum, const int32 InEntryIndex)
 			int32 SemiColonIndex = INDEX_NONE;
 			if (EnumEntryName.FindChar(TEXT(';'), SemiColonIndex))
 			{
-				EnumEntryName.RemoveAt(SemiColonIndex, EnumEntryName.Len() - SemiColonIndex, /*bAllowShrinking*/false);
+				EnumEntryName.RemoveAt(SemiColonIndex, EnumEntryName.Len() - SemiColonIndex, EAllowShrinking::No);
 			}
 
 			FText ValidationError;

@@ -697,7 +697,7 @@ FText FItemPropertyNode::GetDisplayName() const
 
 					if (EndIndex != -1)
 					{
-						TypeName.MidInline(0, EndIndex, false);
+						TypeName.MidInline(0, EndIndex, EAllowShrinking::No);
 					}
 				}
 

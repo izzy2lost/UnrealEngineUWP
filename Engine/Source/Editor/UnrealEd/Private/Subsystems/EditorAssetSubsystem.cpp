@@ -313,7 +313,7 @@ PRAGMA_ENABLE_DEPRECATION_WARNINGS
 			FString LongPackagePath = FPackageName::GetLongPackagePath(PackageName);
 
 			// Remove source from the object name
-			LongPackagePath.MidInline(Paths.SourceDirectoryPath.Len(), MAX_int32, false);
+			LongPackagePath.MidInline(Paths.SourceDirectoryPath.Len(), MAX_int32, EAllowShrinking::No);
 
 			// Create AssetPath /Game/MyFolder/MyAsset.MyAsset
 			FString NewAssetPackageName;

@@ -166,7 +166,7 @@ void FKeyOperation::FSectionCandidates::FilterOperations(UMovieSceneTrack* Track
 
 				const int32 ThisSectionToKeyIndex = Algo::IndexOfBy(OldOperations, ThisSectionToKey, [](const FKeySectionOperation& In) { return In.Section->GetSectionObject(); });
 				Operations.Add(MoveTemp(OldOperations[ThisSectionToKeyIndex]));
-				OldOperations.RemoveAt(ThisSectionToKeyIndex, 1, false);
+				OldOperations.RemoveAt(ThisSectionToKeyIndex, 1, EAllowShrinking::No);
 			}
 		}
 
@@ -189,7 +189,7 @@ void FKeyOperation::FSectionCandidates::FilterOperations(UMovieSceneTrack* Track
 				{
 					const int32 ThisSectionToKeyIndex = Algo::IndexOfBy(OldOperations, ThisSectionToKey, [](const FKeySectionOperation& In) { return In.Section->GetSectionObject(); });
 					Operations.Add(MoveTemp(OldOperations[ThisSectionToKeyIndex]));
-					OldOperations.RemoveAt(ThisSectionToKeyIndex, 1, false);
+					OldOperations.RemoveAt(ThisSectionToKeyIndex, 1, EAllowShrinking::No);
 				}
 			}
 		}

@@ -1425,7 +1425,7 @@ static void AssignPackagesDiskOrder(
 			int64 ClusterBytes = 0;
 			while (ProcessStack.Num())
 			{
-				FCookedPackage* PackageToProcess = ProcessStack.Pop(false);
+				FCookedPackage* PackageToProcess = ProcessStack.Pop(EAllowShrinking::No);
 				if (!AssignedPackages.Contains(PackageToProcess))
 				{
 					AssignedPackages.Add(PackageToProcess);
@@ -7241,7 +7241,7 @@ namespace DescribeUtils
 						}
 						while (ExportStack.Num() > 0)
 						{
-							Current = ExportStack.Pop(false);
+							Current = ExportStack.Pop(EAllowShrinking::No);
 							FullNameBuilder.Append(TEXT("."));
 							Current->Name.ToString(NameBuffer);
 							FullNameBuilder.Append(NameBuffer);

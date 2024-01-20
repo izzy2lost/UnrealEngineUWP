@@ -43,8 +43,7 @@ namespace Metasound
 			{
 				check(InNum >= 0);
 
-				constexpr bool bAllowShrinking = false;
-				Data.SetNumZeroed(InNum, bAllowShrinking);
+				Data.SetNumZeroed(InNum, EAllowShrinking::No);
 
 				// Initialize to back of array to avoid initial
 				// value being behind when copying to initial array.

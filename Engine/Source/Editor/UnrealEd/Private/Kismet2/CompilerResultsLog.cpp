@@ -540,7 +540,7 @@ TArray< TSharedRef<FTokenizedMessage> > FCompilerResultsLog::ParseCompilerLogDum
 		FString Line = MessageLines[i];
 		if (Line.EndsWith(TEXT("\r"), ESearchCase::CaseSensitive))
 		{
-			Line.LeftChopInline(1, false);
+			Line.LeftChopInline(1, EAllowShrinking::No);
 		}
 		Line.ConvertTabsToSpacesInline(4);
 		Line.TrimEndInline();
@@ -604,7 +604,7 @@ void FCompilerResultsLog::OnGotoError(const TSharedRef<IMessageToken>& Token)
 	FString FullPath, LineNumberString;
 	if (Token->ToText().ToString().Split(TEXT("("), &FullPath, &LineNumberString, ESearchCase::CaseSensitive))
 	{
-		LineNumberString.LeftChopInline(1, false); // remove right parenthesis
+		LineNumberString.LeftChopInline(1, EAllowShrinking::No); // remove right parenthesis
 		int32 LineNumber = FCString::Strtoi(*LineNumberString, NULL, 10);
 
 		FSourceCodeNavigation::OpenSourceFile( FullPath, LineNumber );

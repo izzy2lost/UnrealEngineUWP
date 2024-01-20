@@ -2322,13 +2322,13 @@ namespace Metasound
 
 						bEditorGraphModified |= SynchronizeNodeLocation(Node, *EditorNode);
 						AssociatedNodeData.EditorNodes.Add(EditorNode);
-						EditorNodes.RemoveAtSwap(j, 1, false /* bAllowShrinking */);
+						EditorNodes.RemoveAtSwap(j, 1, EAllowShrinking::No);
 					}
 				}
 
 				if (bFoundEditorNode)
 				{
-					FrontendNodes.RemoveAtSwap(i, 1, false /* bAllowShrinking */);
+					FrontendNodes.RemoveAtSwap(i, 1, EAllowShrinking::No);
 				}
 			}
 
@@ -2533,8 +2533,7 @@ namespace Metasound
 				{
 					if (!InputHandles.IsEmpty())
 					{
-						constexpr bool bAllowShrinking = false;
-						FConstInputHandle InputHandle = InputHandles.Pop(bAllowShrinking);
+						FConstInputHandle InputHandle = InputHandles.Pop(EAllowShrinking::No);
 						for (int32 j = i; j >= 0; --j)
 						{
 							if (IsMatchingInputHandleAndPin(InputHandle, *InEditorNode.Pins[j]))
@@ -2549,8 +2548,7 @@ namespace Metasound
 				{
 					if (!OutputHandles.IsEmpty())
 					{
-						constexpr bool bAllowShrinking = false;
-						FConstOutputHandle OutputHandle = OutputHandles.Pop(bAllowShrinking);
+						FConstOutputHandle OutputHandle = OutputHandles.Pop(EAllowShrinking::No);
 						for (int32 j = i; j >= 0; --j)
 						{
 							if (IsMatchingOutputHandleAndPin(OutputHandle, *InEditorNode.Pins[j]))

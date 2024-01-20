@@ -1333,7 +1333,7 @@ FName USimpleConstructionScript::GenerateNewComponentName(const UClass* Componen
 					FString NumericSuffix = ComponentName.RightChop(Index);
 					Counter = FCString::Atoi(*NumericSuffix);
 					NumericSuffix = FString::Printf(TEXT("%d"), Counter); // Restringify the counter to account for leading 0s that we don't want to remove
-					ComponentName.RemoveAt(ComponentName.Len() - NumericSuffix.Len(), NumericSuffix.Len(), false);
+					ComponentName.RemoveAt(ComponentName.Len() - NumericSuffix.Len(), NumericSuffix.Len(), EAllowShrinking::No);
 					++Counter;
 					NewName = BuildNewName();
 				}

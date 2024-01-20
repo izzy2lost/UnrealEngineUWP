@@ -542,14 +542,14 @@ UObject* UPackFactory::FactoryCreateBinary
 					FString DestFilename = *EntryFilename;
 					if (DestFilename.StartsWith(TEXT("Source/")))
 					{
-						DestFilename.RightChopInline(7, false);
+						DestFilename.RightChopInline(7, EAllowShrinking::No);
 					}
 					else 
 					{
 						const int32 SourceIndex = DestFilename.Find(TEXT("/Source/"));
 						if (SourceIndex != INDEX_NONE)
 						{
-							DestFilename.RightChopInline(SourceIndex + 8, false);
+							DestFilename.RightChopInline(SourceIndex + 8, EAllowShrinking::No);
 						}
 					}
 
@@ -584,14 +584,14 @@ UObject* UPackFactory::FactoryCreateBinary
 					FString DestFilename = *EntryFilename;
 					if (DestFilename.StartsWith(TEXT("Content/")))
 					{
-						DestFilename.RightChopInline(8, false);
+						DestFilename.RightChopInline(8, EAllowShrinking::No);
 					}
 					else
 					{
 						const int32 ContentIndex = DestFilename.Find(ContentFolder);
 						if (ContentIndex != INDEX_NONE)
 						{
-							DestFilename.RightChopInline(ContentIndex + 9, false);
+							DestFilename.RightChopInline(ContentIndex + 9, EAllowShrinking::No);
 						}
 					}
 					DestFilename = ContentDestinationRoot / DestFilename;
@@ -631,14 +631,14 @@ UObject* UPackFactory::FactoryCreateBinary
 					FString DestFilename = FileToCopy;
 					if (DestFilename.StartsWith(TEXT("Source/")))
 					{
-						DestFilename.RightChopInline(7, false);
+						DestFilename.RightChopInline(7, EAllowShrinking::No);
 					}
 					else 
 					{
 						const int32 SourceIndex = DestFilename.Find(TEXT("/Source/"));
 						if (SourceIndex != INDEX_NONE)
 						{
-							DestFilename.RightChopInline(SourceIndex + 8, false);
+							DestFilename.RightChopInline(SourceIndex + 8, EAllowShrinking::No);
 						}
 					}
 					DestFilename = SourceModuleInfo.ModuleSourcePath / DestFilename;
@@ -683,14 +683,14 @@ UObject* UPackFactory::FactoryCreateBinary
 					FString DestFilename = FileToCopy;
 					if (DestFilename.StartsWith(TEXT("Content/")))
 					{
-						DestFilename.RightChopInline(8, false);
+						DestFilename.RightChopInline(8, EAllowShrinking::No);
 					}
 					else
 					{
 						const int32 ContentIndex = DestFilename.Find(ContentFolder);
 						if (ContentIndex != INDEX_NONE)
 						{
-							DestFilename.RightChopInline(ContentIndex + 9, false);
+							DestFilename.RightChopInline(ContentIndex + 9, EAllowShrinking::No);
 						}
 					}
 					DestFilename = ContentDestinationRoot / DestFilename;

@@ -135,7 +135,7 @@ void FindReferencedVariables(const UNiagaraGraph* Graph, TConstArrayView<UNiagar
 
 	while (!VariablesToProcess.IsEmpty())
 	{
-		UNiagaraScriptVariable* Variable = VariablesToProcess.Pop(false);
+		UNiagaraScriptVariable* Variable = VariablesToProcess.Pop(EAllowShrinking::No);
 
 		FNiagaraTypeDefinition LinkedType = Variable->Variable.GetType();
 		FName BindingName = Variable->DefaultBinding.GetName();

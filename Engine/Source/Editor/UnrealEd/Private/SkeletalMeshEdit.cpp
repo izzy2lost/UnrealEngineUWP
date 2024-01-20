@@ -1920,7 +1920,7 @@ void UnFbx::FFbxImporter::ImportBlendShapeCurves(FAnimCurveImportSettings& AnimI
 						// Also avoid to endup with a empty name, we prefer having the Blendshapename instead of nothing
 						if (ChannelName.StartsWith(BlendShapeName) && ChannelName.Len() > BlendShapeName.Len())
 						{
-							ChannelName.RightInline(ChannelName.Len() - (BlendShapeName.Len() + 1), false);
+							ChannelName.RightInline(ChannelName.Len() - (BlendShapeName.Len() + 1), EAllowShrinking::No);
 						}
 
 						if (bMightBeBadMAXFile)

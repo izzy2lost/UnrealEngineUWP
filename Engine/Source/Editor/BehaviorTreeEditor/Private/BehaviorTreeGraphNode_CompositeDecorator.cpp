@@ -342,7 +342,7 @@ void UpdateLogicOpStack(TArray<FLogicDesc>& OpStack, FString& Description, FStri
 		if (OpStack[LastIdx].NumLeft <= 0)
 		{
 			OpStack.RemoveAt(LastIdx);
-			Indent.LeftChopInline(2, false);
+			Indent.LeftChopInline(2, EAllowShrinking::No);
 
 			UpdateLogicOpStack(OpStack, Description, Indent);
 		}

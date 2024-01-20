@@ -191,7 +191,7 @@ bool FRewindDebuggerObjectTrack::UpdateInternal()
 
 	TRange<double> Existence = GameplayProvider->GetObjectRecordingLifetime(ObjectId);
 
-	ExistenceRange->Windows.SetNum(0,false);
+	ExistenceRange->Windows.SetNum(0,EAllowShrinking::No);
 	if (Existence.HasLowerBound() && Existence.HasUpperBound())
 	{
 		ExistenceRange->Windows.Add({Existence.GetLowerBoundValue(), Existence.GetUpperBoundValue(), LOCTEXT("Object Existence","Object Existence"), LOCTEXT("Object Existence","Object Existence"), FLinearColor(0.1f,0.11f,0.1f)});

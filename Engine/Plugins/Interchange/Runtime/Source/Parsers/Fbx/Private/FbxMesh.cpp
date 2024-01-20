@@ -1840,7 +1840,7 @@ void FFbxMesh::AddAllMeshes(FbxScene* SDKScene, FbxGeometryConverter* SDKGeometr
 				// Maya adds the name of the MorphTarget and an underscore to the front of the channel name, so remove it
 				if (ChannelName.StartsWith(MorphTargetName))
 				{
-					ChannelName.RightInline(ChannelName.Len() - (MorphTargetName.Len() + 1), false);
+					ChannelName.RightInline(ChannelName.Len() - (MorphTargetName.Len() + 1), EAllowShrinking::No);
 				}
 				for (int32 ChannelMorphTargetIndex = 0; ChannelMorphTargetIndex < CurrentChannelMorphTargetCount; ++ChannelMorphTargetIndex)
 				{

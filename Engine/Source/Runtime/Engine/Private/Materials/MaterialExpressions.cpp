@@ -2014,7 +2014,7 @@ bool UMaterialExpression::MatchesSearchQuery( const TCHAR* SearchQuery )
 	if (FCString::Stristr(SearchQuery, TEXT("NAME=")) != nullptr)
 	{
 		FString SearchString(SearchQuery);
-		SearchString.RightInline(SearchString.Len() - 5, false);
+		SearchString.RightInline(SearchString.Len() - 5, EAllowShrinking::No);
 		return (GetName().Contains(SearchString) );
 	}
 	return Desc.Contains(SearchQuery);

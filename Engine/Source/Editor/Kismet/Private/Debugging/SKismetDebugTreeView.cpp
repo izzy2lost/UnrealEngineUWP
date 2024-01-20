@@ -745,7 +745,7 @@ protected:
 			}
 		}
 
-		Parents.Pop(/*bAllowShrinking =*/ false);
+		Parents.Pop(EAllowShrinking::No);
 		if (bChildMatch)
 		{
 			DebugTreeView->SetItemExpansion(SharedThis(this), true);

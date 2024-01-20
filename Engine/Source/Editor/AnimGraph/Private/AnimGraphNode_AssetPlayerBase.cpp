@@ -560,7 +560,7 @@ void UAnimGraphNode_AssetPlayerBase::PreloadRequiredAssetsHelper(UAnimationAsset
 
 		while(AssetAndDependencies.Num() != 0)
 		{
-			UAnimationAsset* Asset = AssetAndDependencies.Pop(false);
+			UAnimationAsset* Asset = AssetAndDependencies.Pop(EAllowShrinking::No);
 			if (!PreloadedAssets.Contains(Asset))
 			{
 				PreloadedAssets.Add(Asset);

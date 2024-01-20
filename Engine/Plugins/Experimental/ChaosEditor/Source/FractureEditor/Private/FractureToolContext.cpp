@@ -137,7 +137,7 @@ void FFractureToolContext::RemoveChildrenOfSelectedNodesFromSelection()
 			}
 		}
 		return false;
-	}), false);
+	}), EAllowShrinking::No);
 }
 
 void FFractureToolContext::ConvertEmbeddedSelectionToParents()
@@ -158,7 +158,7 @@ void FFractureToolContext::ConvertEmbeddedSelectionToParents()
 			}
 			else // embedded should always have a parent, but if it somehow does not, just remove from selection
 			{
-				SelectedBones.RemoveAtSwap(SelBoneIdx, 1, false);
+				SelectedBones.RemoveAtSwap(SelBoneIdx, 1, EAllowShrinking::No);
 				--SelBoneIdx; // reconsider swapped-in-element at this idx next iter
 			}
 		}

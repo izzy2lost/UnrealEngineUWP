@@ -165,7 +165,7 @@ bool SPropertyMenuActorPicker::CanPaste()
 	if( ClipboardText.Split( TEXT("'"), &Class, &PossibleObjectPath, ESearchCase::CaseSensitive) )
 	{
 		// Remove the last item
-		PossibleObjectPath.LeftChopInline( 1, false );
+		PossibleObjectPath.LeftChopInline( 1, EAllowShrinking::No );
 	}
 
 	bool bCanPaste = false;

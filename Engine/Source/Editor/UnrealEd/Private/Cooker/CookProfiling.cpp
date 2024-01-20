@@ -519,7 +519,7 @@ void ConstructObjectGraph(TConstArrayView<UObject*> AllObjects,
 		if (TargetObjects.Num())
 		{
 			Algo::Sort(TargetObjects);
-			TargetObjects.SetNum(Algo::Unique(TargetObjects), false /* bAllowShrinking */);
+			TargetObjects.SetNum(Algo::Unique(TargetObjects), EAllowShrinking::No);
 			TArray<FVertex>& TargetVertices = LooseEdges[SourceVertex];
 			TargetVertices.Reserve(TargetObjects.Num());
 			for (UObject* TargetObject : TargetObjects)
@@ -662,7 +662,7 @@ void ConstructObjectGraphProfileData(TConstArrayView<FWeakObjectPtr> InitialObje
 		Stack.Add(PotentialRoot);
 		while (!Stack.IsEmpty())
 		{
-			FVertex SourceVertex = Stack.Pop(false /* bAllowShrinking */);
+			FVertex SourceVertex = Stack.Pop(EAllowShrinking::No);
 			for (FVertex TargetVertex : OutProfileData.ObjectGraph[SourceVertex])
 			{
 				if (OutProfileData.AliveReason[TargetVertex].GetLinkType() == EObjectReferencerType::Unknown)
@@ -751,7 +751,7 @@ void DumpObjClassList(TConstArrayView<FWeakObjectPtr> InitialObjects)
 			}
 			if (MaxRoots.Num() > MaxRootCount)
 			{
-				MaxRoots.Pop(false /* bAllowShrinking */);
+				MaxRoots.Pop(EAllowShrinking::No);
 			}
 		}
 		LogAr.Logf(TEXT("\t%6d %s"), ClassInfo.Count, *ClassInfo.Class->GetPathName());

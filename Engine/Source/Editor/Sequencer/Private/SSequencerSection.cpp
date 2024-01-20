@@ -743,7 +743,7 @@ struct FSequencerSectionPainterImpl : FSequencerSectionPainter
 				{
 					if (AllDescendents.Contains(Pair.Key))
 					{
-						EmptyChildLanes.RemoveAtSwap(Index, 1, false);
+						EmptyChildLanes.RemoveAtSwap(Index, 1, EAllowShrinking::No);
 						// Move onto the next child lane
 						break;
 					}
@@ -751,7 +751,7 @@ struct FSequencerSectionPainterImpl : FSequencerSectionPainter
 			}
 			else
 			{
-				EmptyChildLanes.RemoveAtSwap(Index, 1, false);
+				EmptyChildLanes.RemoveAtSwap(Index, 1, EAllowShrinking::No);
 			}
 		}
 

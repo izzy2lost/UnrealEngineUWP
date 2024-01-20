@@ -1780,7 +1780,7 @@ bool ParseShelveDiffResults(const FString InWorkingDirectory, TArray<FString>&& 
 		EWorkspaceState ShelveStatus = ParseShelveFileStatus(Result[0]);
 		
 		// Remove outer double quotes
-		Result.MidInline(3, Result.Len() - 4, false);
+		Result.MidInline(3, Result.Len() - 4, EAllowShrinking::No);
 		if (ShelveStatus == EWorkspaceState::Moved)
 		{
 			// Search for the inner double quotes in the middle of "Content/Source.uasset" "Content/Destination.uasset" to keep only the destination filename

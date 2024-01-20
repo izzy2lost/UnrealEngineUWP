@@ -1235,7 +1235,7 @@ bool FLauncherWorker::TerminateLaunchedProcess()
 				int32 InPos = TargetDeviceId.Find("@", ESearchCase::CaseSensitive);
 				if (InPos > 0) 
 				{ 
-					TargetDeviceId.RightInline(TargetDeviceId.Len() -  InPos - 1, false);
+					TargetDeviceId.RightInline(TargetDeviceId.Len() -  InPos - 1, EAllowShrinking::No);
 
 				}
 

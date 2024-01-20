@@ -1918,7 +1918,7 @@ void UCookOnTheFlyServer::FPollable::TriggerInternal(UCookOnTheFlyServer& COTFS)
 		this->NextTimeIdleSeconds = LocalQueueKey.NextTimeSeconds;
 
 		int32 Index = UE_PTRDIFF_TO_INT32(KeyInQueue - COTFS.Pollables.GetData());
-		COTFS.Pollables.HeapRemoveAt(Index, false /* bAllowShrinking */);
+		COTFS.Pollables.HeapRemoveAt(Index, EAllowShrinking::No);
 		COTFS.Pollables.HeapPush(MoveTemp(LocalQueueKey));
 		COTFS.PollNextTimeSeconds = 0;
 		COTFS.PollNextTimeIdleSeconds = 0;
@@ -1958,7 +1958,7 @@ void UCookOnTheFlyServer::FPollable::RunNowInternal(UCookOnTheFlyServer & COTFS,
 		int32 Index = UE_PTRDIFF_TO_INT32(KeyInQueue - COTFS.Pollables.GetData());
 		COTFS.PollNextTimeSeconds = FMath::Min(LocalQueueKey.NextTimeSeconds, COTFS.PollNextTimeSeconds);
 		COTFS.PollNextTimeIdleSeconds = FMath::Min(this->NextTimeIdleSeconds, COTFS.PollNextTimeIdleSeconds);
-		COTFS.Pollables.HeapRemoveAt(Index, false /* bAllowShrinking */);
+		COTFS.Pollables.HeapRemoveAt(Index, EAllowShrinking::No);
 		COTFS.Pollables.HeapPush(MoveTemp(LocalQueueKey));
 	}
 }
@@ -1996,7 +1996,7 @@ void UCookOnTheFlyServer::PumpPollables(UE::Cook::FTickStackData& StackData, boo
 		while (!Pollables.IsEmpty() && Pollables.HeapTop().NextTimeSeconds <= CurrentTime)
 		{
 			FPollableQueueKey QueueKey;
-			Pollables.HeapPop(QueueKey, false /* bAllowShrinking */);
+			Pollables.HeapPop(QueueKey, EAllowShrinking::No);
 			QueueKey.Pollable->RunDuringPump(StackData, CurrentTime, QueueKey.NextTimeSeconds);
 			PoppedQueueKeys.Add(MoveTemp(QueueKey));
 			if (StackData.Timer.IsActionTimeUp(CurrentTime))
@@ -4676,7 +4676,7 @@ void UCookOnTheFlyServer::TickPrecacheObjectsForPlatforms(const float TimeSlice,
 	while (CachedMaterialsToCacheArray.Num() > 0)
 	{
 		UMaterial* Material = (UMaterial*)(CachedMaterialsToCacheArray[0].Get());
-		CachedMaterialsToCacheArray.RemoveAtSwap(0, 1, false);
+		CachedMaterialsToCacheArray.RemoveAtSwap(0, 1, EAllowShrinking::No);
 
 		if (Material == nullptr)
 		{
@@ -4717,7 +4717,7 @@ void UCookOnTheFlyServer::TickPrecacheObjectsForPlatforms(const float TimeSlice,
 	while (CachedTexturesToCacheArray.Num() > 0)
 	{
 		UTexture* Texture = (UTexture*)(CachedTexturesToCacheArray[0].Get());
-		CachedTexturesToCacheArray.RemoveAtSwap(0, 1, false);
+		CachedTexturesToCacheArray.RemoveAtSwap(0, 1, EAllowShrinking::No);
 
 		if (Texture == nullptr)
 		{
@@ -7892,7 +7892,7 @@ TMap<FName, FString> UCookOnTheFlyServer::CalculateCookSettingStrings() const
 				break;
 			}
 			int64 FileSize = FileHandle->Size();
-			Buffer.SetNumUninitialized(FileSize, false /* bAllowShrinking */);
+			Buffer.SetNumUninitialized(FileSize, EAllowShrinking::No);
 			if (!FileHandle->Read(Buffer.GetData(), FileSize))
 			{
 				InvalidModule = ModuleStatus.FilePath;
@@ -12364,7 +12364,7 @@ bool UCookOnTheFlyServer::GetAllPackageFilenamesFromAssetRegistry(const FString&
 		OutPackageDatas.RemoveAllSwap([](FConstructPackageData& PackageData)
 			{
 				return PackageData.NormalizedFileName.IsNone();
-			}, false /* bAllowShrinking */);
+			}, EAllowShrinking::No);
 		return true;
 	}
 

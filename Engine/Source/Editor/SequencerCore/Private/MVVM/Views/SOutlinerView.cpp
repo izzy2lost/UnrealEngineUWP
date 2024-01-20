@@ -371,7 +371,7 @@ FReply SOutlinerView::OnDragRow(const FGeometry&, const FPointerEvent&, TSharedR
 			if (!Draggable || !Draggable->CanDrag())
 			{
 				// Order is not important so we can opt for performance with RemoveAtSwap
-				WeakSelectedItems.RemoveAtSwap(Index, 1, false);
+				WeakSelectedItems.RemoveAtSwap(Index, 1, EAllowShrinking::No);
 			}
 		}
 

@@ -89,7 +89,7 @@ namespace FrontendFilterHelper
 		TArray<FAssetIdentifier> AssetDependencies;
 		while (PackageNamesToProcess.Num() > 0)
 		{
-			const FName PackageName = PackageNamesToProcess.Pop(false);
+			const FName PackageName = PackageNamesToProcess.Pop(EAllowShrinking::No);
 			AssetDependencies.Reset();
 			AssetRegistry.GetDependencies(FAssetIdentifier(PackageName), AssetDependencies);
 			for (const FAssetIdentifier& Dependency : AssetDependencies)
@@ -285,7 +285,7 @@ public:
 				int32 LastDotIndex = INDEX_NONE;
 				if (AssetFullPath.FindLastChar(TEXT('/'), LastSlashIndex) && AssetFullPath.FindLastChar(TEXT('.'), LastDotIndex) && LastDotIndex > LastSlashIndex)
 				{
-					AssetFullPath.LeftInline(LastDotIndex, /*bAllowShrinking*/false);
+					AssetFullPath.LeftInline(LastDotIndex, EAllowShrinking::No);
 				}
 			}
 			AssetFullPath.ParseIntoArray(AssetSplitPath, TEXT("/"));

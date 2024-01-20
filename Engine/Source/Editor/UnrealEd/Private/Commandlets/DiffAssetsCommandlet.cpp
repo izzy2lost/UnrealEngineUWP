@@ -216,7 +216,7 @@ bool UDiffAssetsCommandlet::ExportFilesToTextAndDiff(const FString& InFilename1,
 	if (ArgsAt > 0)
 	{
 		Args = *ReplacedDiffCmd + ArgsAt + 1;
-		ReplacedDiffCmd.LeftInline(ArgsAt, false);
+		ReplacedDiffCmd.LeftInline(ArgsAt, EAllowShrinking::No);
 	}
 
 	if (!FPlatformProcess::CreateProc(*ReplacedDiffCmd, *Args, true, false, false, NULL, 0, NULL, NULL).IsValid())

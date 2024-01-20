@@ -73,7 +73,7 @@ bool FHierarchicalModelListRefresher::IsValid() const
 void FHierarchicalModelListRefresher::Reset()
 {
 	check(ListData.Num() >= 1);
-	ListData.RemoveAt(1, ListData.Num() - 1, false);
+	ListData.RemoveAt(1, ListData.Num() - 1, EAllowShrinking::No);
 
 	FListData& Last = ListData.Last();
 	Last.AttachTail = nullptr;

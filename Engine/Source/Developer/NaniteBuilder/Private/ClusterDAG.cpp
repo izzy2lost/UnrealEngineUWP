@@ -74,7 +74,7 @@ void BuildDAG( TArray< FClusterGroup >& Groups, TArray< FCluster >& Clusters, ui
 			DAGReduce( Groups, Clusters, NumClusters, Children, Groups.Num() - 1, MeshIndex );
 
 			// Correct num to atomic count
-			Clusters.SetNum( NumClusters, false );
+			Clusters.SetNum( NumClusters, EAllowShrinking::No );
 
 			continue;
 		}
@@ -288,7 +288,7 @@ void BuildDAG( TArray< FClusterGroup >& Groups, TArray< FCluster >& Clusters, ui
 			} );
 
 		// Correct num to atomic count
-		Clusters.SetNum( NumClusters, false );
+		Clusters.SetNum( NumClusters, EAllowShrinking::No );
 
 		// Force a deterministic order of the generated parent clusters
 		{

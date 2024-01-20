@@ -272,7 +272,7 @@ void FCameraDetails::OnCommitAspectRatioText(const FText& ItemFText, ETextCommit
 			FString RemainingText = ItemText.Mid(DelimIdx + 1).TrimStart();
 			if (RemainingText.FindChar(TCHAR(' '), WSIdx))
 			{
-				RemainingText.LeftInline(WSIdx, false);
+				RemainingText.LeftInline(WSIdx, EAllowShrinking::No);
 			}
 			int32 Height;
 			TTypeFromString<int32>::FromString(Height, *RemainingText);

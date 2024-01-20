@@ -89,7 +89,7 @@ FString FCallstacks::FCallstackData::ToString(const TCHAR* CallstackCutoffText) 
 			int32 CutoffIndex = StackLine.Find(TEXT(" "), ESearchCase::CaseSensitive);
 			if (CutoffIndex >= -1 && CutoffIndex < StackLine.Len() - 2)
 			{
-				StackLine.MidInline(CutoffIndex + 1, MAX_int32, false);
+				StackLine.MidInline(CutoffIndex + 1, MAX_int32, EAllowShrinking::No);
 			}
 		}
 		HumanReadableString += IndentToken;

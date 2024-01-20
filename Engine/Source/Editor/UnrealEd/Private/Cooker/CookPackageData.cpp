@@ -3347,7 +3347,7 @@ void FPackageDatas::PollPendingCookedPlatformDatas(bool bForce, double& LastCook
 				FPendingCookedPlatformData& Data = ForceList[Index];
 				if (Data.PollIsComplete())
 				{
-					ForceList.RemoveAtSwap(Index, 1, false /* bAllowShrinking */);
+					ForceList.RemoveAtSwap(Index, 1, EAllowShrinking::No);
 					--PendingCookedPlatformDataNum;
 				}
 				else

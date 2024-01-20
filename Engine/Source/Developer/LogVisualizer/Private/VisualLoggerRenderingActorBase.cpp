@@ -420,7 +420,7 @@ void AVisualLoggerRenderingActorBase::GetDebugShapes(const FVisualLogEntry& InEn
 			const FHeaderData HeaderData(ElementToDraw->Points[0]);
 
 			TArray<FVector> AreaMeshPoints = ElementToDraw->Points;
-			AreaMeshPoints.RemoveAt(0, 1, false);
+			AreaMeshPoints.RemoveAt(0, 1, EAllowShrinking::No);
 			AreaMeshPoints.Add(ElementToDraw->Points[1]);
 			TArray<FVector> Vertices;
 			TNavStatArray<FVector> Faces;

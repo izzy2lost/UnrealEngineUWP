@@ -354,7 +354,7 @@ namespace UE::StateTreeEditor::Internal
 					continue;
 
 				if (String[0] == TEXT('b'))
-					String.RightChopInline(1, false);
+					String.RightChopInline(1, EAllowShrinking::No);
 				else
 					String.InsertAt(0, TEXT('b'));
 

@@ -42,7 +42,7 @@ static FString MakeAbsoluteNormalizedDir(const FString& InPath)
 	FString Out = FPaths::ConvertRelativePathToFull(InPath);
 	if (Out.EndsWith(TEXT("/")))
 	{
-		Out.RemoveAt(Out.Len() - 1, 1, false);
+		Out.RemoveAt(Out.Len() - 1, 1, EAllowShrinking::No);
 	}
 	return Out;
 }
@@ -1230,7 +1230,7 @@ bool FNetworkFileServerClientConnection::ProcessGetFileList( FArchive& In, FArch
 				int32 GameDirOffset = ConnectedContentFolder.Find(ConnectedProjectDir, ESearchCase::IgnoreCase, ESearchDir::FromEnd);
 				if (GameDirOffset != INDEX_NONE)
 				{
-					ConnectedContentFolder.RightChopInline(GameDirOffset, false);
+					ConnectedContentFolder.RightChopInline(GameDirOffset, EAllowShrinking::No);
 				}
 			}
 

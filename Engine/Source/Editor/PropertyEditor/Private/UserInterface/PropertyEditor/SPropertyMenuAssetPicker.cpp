@@ -319,7 +319,7 @@ bool SPropertyMenuAssetPicker::CanPasteFromText(const FString& InTag, const FStr
 	if( InText.Split( TEXT("'"), &Class, &PossibleObjectPath, ESearchCase::CaseSensitive) )
 	{
 		// Remove the last item
-		PossibleObjectPath.LeftChopInline( 1, false );
+		PossibleObjectPath.LeftChopInline( 1, EAllowShrinking::No );
 	}
 
 	bool bCanPaste = false;

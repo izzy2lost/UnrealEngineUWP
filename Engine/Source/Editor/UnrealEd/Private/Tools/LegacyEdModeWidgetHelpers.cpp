@@ -271,7 +271,7 @@ struct FPropertyWidgetInfoChainElement
 					, StructProp->ContainerPtrToValuePtr<void>(InContainer)
 					, OutInfos
 					, Chain);
-				Chain.Pop(false);
+				Chain.Pop(EAllowShrinking::No);
 			}
 			else if (FArrayProperty* ArrayProp = CastField<FArrayProperty>(CurrentProp))
 			{
@@ -292,7 +292,7 @@ struct FPropertyWidgetInfoChainElement
 								, ArrayHelper.GetRawPtr(ArrayIndex)
 								, OutInfos
 								, Chain);
-							Chain.Pop(false);
+							Chain.Pop(EAllowShrinking::No);
 						}
 					}
 				}

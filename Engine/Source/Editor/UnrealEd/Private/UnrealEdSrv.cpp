@@ -1244,7 +1244,7 @@ bool UUnrealEdEngine::Exec( UWorld* InWorld, const TCHAR* Stream, FOutputDevice&
 						//Strip off the * from the end if it exists
 						if( CurrentWindowName.EndsWith(TEXT("*"), ESearchCase::CaseSensitive) )
 						{
-							CurrentWindowName.LeftChopInline(1, false);
+							CurrentWindowName.LeftChopInline(1, EAllowShrinking::No);
 						}
 
 						if( CurrentWindowName == WindowNameStr )

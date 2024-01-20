@@ -226,7 +226,7 @@ void FSkeletonTreeBuilder::AddBones(FSkeletonTreeBuilderOutput& Output)
 			{
 				SortNumber += static_cast<int32>(SortString[Index] - '0') * PlaceValue;
 			}
-			SortString.LeftInline(Index + 1, false);
+			SortString.LeftInline(Index + 1, EAllowShrinking::No);
 		}
 
 		bool operator<(const FBoneInfo& RHS)

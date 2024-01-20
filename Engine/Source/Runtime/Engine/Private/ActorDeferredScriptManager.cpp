@@ -259,9 +259,9 @@ void FActorDeferredScriptManager::ProcessAsyncTasks(bool bLimitExecutionTime)
 			}
 
 			// Reduce reallocations by only shrinking when removing last item
-			const bool bAllowShrinking = PendingConstructionScriptActors.Num() == 1;
+			const EAllowShrinking AllowShrinking = (PendingConstructionScriptActors.Num() == 1) ? EAllowShrinking::Yes : EAllowShrinking::No;
 			UE_LOG(LogActorDeferredScriptManager, VeryVerbose, TEXT("Removing index %d"), CircularIndex);
-			PendingConstructionScriptActors.RemoveAtSwap(CircularIndex, 1, bAllowShrinking);
+			PendingConstructionScriptActors.RemoveAtSwap(CircularIndex, 1, AllowShrinking);
 			CurrentIndex--;
 
 			if (PendingConstructionScriptActors.IsEmpty())

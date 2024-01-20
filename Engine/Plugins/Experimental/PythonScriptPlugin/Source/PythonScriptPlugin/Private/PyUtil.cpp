@@ -1230,7 +1230,7 @@ FString GetCleanTypename(PyTypeObject* InPyType)
 	int32 LastDotIndex = INDEX_NONE;
 	if (Typename.FindLastChar(TEXT('.'), LastDotIndex))
 	{
-		Typename.RemoveAt(0, LastDotIndex + 1, false);
+		Typename.RemoveAt(0, LastDotIndex + 1, EAllowShrinking::No);
 	}
 
 	return Typename;

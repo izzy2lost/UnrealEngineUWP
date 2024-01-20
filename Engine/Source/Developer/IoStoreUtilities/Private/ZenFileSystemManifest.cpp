@@ -194,7 +194,7 @@ int32 FZenFileSystemManifest::Generate()
 			DirectoriesToVisit.Push(LocalDirectory);
 			while (!DirectoriesToVisit.IsEmpty())
 			{
-				PlatformFile.IterateDirectory(*DirectoriesToVisit.Pop(false), VisitorFunc);
+				PlatformFile.IterateDirectory(*DirectoriesToVisit.Pop(EAllowShrinking::No), VisitorFunc);
 			}
 		};
 
@@ -306,7 +306,7 @@ int32 FZenFileSystemManifest::Generate()
 		DirectoriesToVisit.Push(DirectoryPath);
 		while (!DirectoriesToVisit.IsEmpty())
 		{
-			PlatformFile.IterateDirectory(*DirectoriesToVisit.Pop(false), VisitorFunc);
+			PlatformFile.IterateDirectory(*DirectoriesToVisit.Pop(EAllowShrinking::No), VisitorFunc);
 		}
 	};
 

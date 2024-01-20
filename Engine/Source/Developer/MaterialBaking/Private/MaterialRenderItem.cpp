@@ -83,8 +83,8 @@ void FMeshMaterialRenderItem::GenerateRenderData()
 	TRACE_CPUPROFILER_EVENT_SCOPE(FMeshMaterialRenderItem::GenerateRenderData)
 
 	// Reset array without resizing
-	Vertices.SetNum(0, false);
-	Indices.SetNum(0, false);
+	Vertices.SetNum(0, EAllowShrinking::No);
+	Indices.SetNum(0, EAllowShrinking::No);
 	if (MeshSettings->MeshDescription)
 	{
 		// Use supplied FMeshDescription data to populate render data

@@ -322,14 +322,14 @@ FString FComponentEditorUtils::GenerateValidVariableName(TSubclassOf<UActorCompo
 	FString SuffixToStrip( TEXT( "Component" ) );
 	if( ComponentTypeName.EndsWith( SuffixToStrip ) )
 	{
-		ComponentTypeName.LeftInline( ComponentTypeName.Len() - SuffixToStrip.Len(), false );
+		ComponentTypeName.LeftInline( ComponentTypeName.Len() - SuffixToStrip.Len(), EAllowShrinking::No );
 	}
 
 	// Strip off 'Actor' if the class ends with that so as not to confuse actors with components
 	SuffixToStrip = TEXT( "Actor" );
 	if( ComponentTypeName.EndsWith( SuffixToStrip ) )
 	{
-		ComponentTypeName.LeftInline( ComponentTypeName.Len() - SuffixToStrip.Len(), false );
+		ComponentTypeName.LeftInline( ComponentTypeName.Len() - SuffixToStrip.Len(), EAllowShrinking::No );
 	}
 
 	// Try to create a name without any numerical suffix first
@@ -387,7 +387,7 @@ FString FComponentEditorUtils::GenerateValidVariableNameFromAsset(UObject* Asset
 			FString NumericSuffix = AssetName.RightChop(Index);
 			Counter = FCString::Atoi(*NumericSuffix);
 			NumericSuffix = FString::Printf(TEXT("%d"), Counter); // Restringify the counter to account for leading 0s that we don't want to remove
-			AssetName.RemoveAt(AssetName.Len() - NumericSuffix.Len(), NumericSuffix.Len(), false);
+			AssetName.RemoveAt(AssetName.Len() - NumericSuffix.Len(), NumericSuffix.Len(), EAllowShrinking::No);
 			++Counter;
 			NewName = BuildNewName();
 		}

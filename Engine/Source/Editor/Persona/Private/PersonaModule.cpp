@@ -581,7 +581,7 @@ void FPersonaModule::TestSkeletonCurveMetaDataForUse(const TSharedRef<IEditableS
 				const TArray<UMorphTarget*>& MorphTargets = Mesh->GetMorphTargets();
 				for (int32 I = 0; I < MorphTargets.Num(); ++I)
 				{
-					const int32 CurveIndex = UnusedNames.RemoveSingleSwap(MorphTargets[I]->GetFName(), false);
+					const int32 CurveIndex = UnusedNames.RemoveSingleSwap(MorphTargets[I]->GetFName(), EAllowShrinking::No);
 				}
 
 				// Filter material params from curves

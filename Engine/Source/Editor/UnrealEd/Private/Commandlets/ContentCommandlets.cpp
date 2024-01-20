@@ -181,7 +181,7 @@ int32 UResavePackagesCommandlet::InitializeResaveParameters( const TArray<FStrin
 					bExplicitPackages = true;
 				}
 
-				Maps.RightInline(Maps.Len() - (PlusIdx + 1), false);
+				Maps.RightInline(Maps.Len() - (PlusIdx + 1), EAllowShrinking::No);
 			}
 			FString MapFile;
 			FPackageName::SearchForPackageOnDisk(Maps, NULL, &MapFile);
@@ -3130,7 +3130,7 @@ int32 UWrangleContentCommandlet::Main( const FString& Params )
 				check(Space);
 
 				// get everything after the space
-				ObjectPathName.RightInline(ObjectPathName.Len() - (Space + 1), false);
+				ObjectPathName.RightInline(ObjectPathName.Len() - (Space + 1), EAllowShrinking::No);
 
 				// load the referenced object
 
@@ -3256,7 +3256,7 @@ int32 UWrangleContentCommandlet::Main( const FString& Params )
 					check(Space > 0);
 
 					// get everything after the space
-					ObjectPathName.RightInline(ObjectPathName.Len() - (Space + 1), false);
+					ObjectPathName.RightInline(ObjectPathName.Len() - (Space + 1), EAllowShrinking::No);
 
 					// load the unnecessary object
 					UObject* Object = StaticLoadObject(ObjectIt.Value(), NULL, *ObjectPathName, NULL, LOAD_NoWarn, NULL);

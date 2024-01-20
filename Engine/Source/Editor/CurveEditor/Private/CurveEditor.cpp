@@ -625,7 +625,7 @@ void FCurveEditor::ZoomToFitInternal(EAxisList::Type Axes, const TMap<FCurveMode
 		else
 		{
 			// Zoom to the min/max of the specified key set
-			KeyPositionsScratch.SetNum(NumKeys, false);
+			KeyPositionsScratch.SetNum(NumKeys, EAllowShrinking::No);
 			Curve->GetKeyPositions(Pair.Value.AsArray(), KeyPositionsScratch);
 			for (const FKeyPosition& Key : KeyPositionsScratch)
 			{
@@ -1293,8 +1293,8 @@ void FCurveEditor::CopySelection() const
 					CopyableCurveKeys->LongDisplayName = Curve->GetLongDisplayName().ToString();
 					CopyableCurveKeys->LongIntentionName = Curve->GetLongIntentionName();
 					CopyableCurveKeys->IntentionName = Curve->GetIntentionName();
-					CopyableCurveKeys->KeyPositions.SetNum(NumKeys, false);
-					CopyableCurveKeys->KeyAttributes.SetNum(NumKeys, false);
+					CopyableCurveKeys->KeyPositions.SetNum(NumKeys, EAllowShrinking::No);
+					CopyableCurveKeys->KeyAttributes.SetNum(NumKeys, EAllowShrinking::No);
 
 					TArrayView<const FKeyHandle> KeyHandles = Pair.Value.AsArray();
 
@@ -1790,16 +1790,16 @@ void FCurveEditor::FlattenSelection()
 					}
 					else
 					{
-						KeyAttributesWeighted.RemoveAtSwap(Index, 1, false);
-						KeyHandlesWeighted.RemoveAtSwap(Index, 1, false);
+						KeyAttributesWeighted.RemoveAtSwap(Index, 1, EAllowShrinking::No);
+						KeyHandlesWeighted.RemoveAtSwap(Index, 1, EAllowShrinking::No);
 					}
 				}
 				else
 				{
-					AllKeyPositions.RemoveAtSwap(Index, 1, false);
-					KeyHandles.RemoveAtSwap(Index, 1, false);
-					KeyAttributesWeighted.RemoveAtSwap(Index, 1, false);
-					KeyHandlesWeighted.RemoveAtSwap(Index, 1, false);
+					AllKeyPositions.RemoveAtSwap(Index, 1, EAllowShrinking::No);
+					KeyHandles.RemoveAtSwap(Index, 1, EAllowShrinking::No);
+					KeyAttributesWeighted.RemoveAtSwap(Index, 1, EAllowShrinking::No);
+					KeyHandlesWeighted.RemoveAtSwap(Index, 1, EAllowShrinking::No);
 				}
 			}
 
@@ -1855,8 +1855,8 @@ void FCurveEditor::StraightenSelection()
 				}
 				else
 				{
-					AllKeyPositions.RemoveAtSwap(Index, 1, false);
-					KeyHandles.RemoveAtSwap(Index, 1, false);
+					AllKeyPositions.RemoveAtSwap(Index, 1, EAllowShrinking::No);
+					KeyHandles.RemoveAtSwap(Index, 1, EAllowShrinking::No);
 				}
 			}
 

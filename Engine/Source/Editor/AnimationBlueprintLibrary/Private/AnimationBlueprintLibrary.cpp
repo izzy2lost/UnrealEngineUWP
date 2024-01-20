@@ -901,7 +901,7 @@ static void ReplaceAnimNotifies_Helper(UAnimSequenceBase* AnimationSequence, UCl
 					UAnimNotifyState* OldNotifyState = NotifyEvent.NotifyStateClass;
 
 					// Remove old notify
-					AnimationSequence->Notifies.RemoveAt(NotifyIndex, 1, false);
+					AnimationSequence->Notifies.RemoveAt(NotifyIndex, 1, EAllowShrinking::No);
 
 					// Add new notify in old notifies place
 					AnimationSequence->Notifies.InsertDefaulted(NotifyIndex);

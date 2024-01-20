@@ -1291,8 +1291,8 @@ void FHierarchicalLODBuilder::MergeClustersAndBuildActors(ULevel* InLevel, const
 
 						for (AActor* RemoveActor : Cluster.Actors)
 						{
-							ValidStaticMeshActorsInLevel.RemoveSingleSwap(RemoveActor, false);
-							RejectedActorsInLevel.RemoveSingleSwap(RemoveActor, false);
+							ValidStaticMeshActorsInLevel.RemoveSingleSwap(RemoveActor, EAllowShrinking::No);
+							RejectedActorsInLevel.RemoveSingleSwap(RemoveActor, EAllowShrinking::No);
 						}
 					}
 					else

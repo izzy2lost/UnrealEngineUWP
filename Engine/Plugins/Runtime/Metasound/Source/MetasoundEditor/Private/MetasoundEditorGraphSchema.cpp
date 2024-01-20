@@ -1932,7 +1932,7 @@ void UMetasoundEditorGraphSchema::GetDataTypeOutputNodeActions(FGraphContextMenu
 			{
 				if (!Output->GetNodes().IsEmpty())
 				{
-					Outputs.RemoveAtSwap(i, 1, false /* bAllowShrinking */);
+					Outputs.RemoveAtSwap(i, 1, EAllowShrinking::No);
 				}
 			}
 		}

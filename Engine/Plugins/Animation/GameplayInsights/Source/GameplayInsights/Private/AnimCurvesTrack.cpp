@@ -67,7 +67,7 @@ bool FAnimCurvesTrack::UpdateInternal()
 	if(GameplayProvider && AnimationProvider)
 	{
 		TraceServices::FAnalysisSessionReadScope SessionReadScope(*AnalysisSession);
-		UniqueTrackIds.SetNum(0, false);
+		UniqueTrackIds.SetNum(0, EAllowShrinking::No);
 
 		AnimationProvider->ReadSkeletalMeshPoseTimeline(ObjectId, [&UniqueTrackIds,AnimationProvider, StartTime, EndTime](const FAnimationProvider::SkeletalMeshPoseTimeline& InTimeline, bool bHasCurves)
 		{
@@ -167,7 +167,7 @@ void FAnimCurveTrack::UpdateCurvePointsInternal()
 	double EndTime = TraceTimeRange.GetUpperBoundValue();
 	
 	auto& CurvePoints = CurveData->Points;
-	CurvePoints.SetNum(0,false);
+	CurvePoints.SetNum(0,EAllowShrinking::No);
 
 	TraceServices::FAnalysisSessionReadScope SessionReadScope(*AnalysisSession);
 	

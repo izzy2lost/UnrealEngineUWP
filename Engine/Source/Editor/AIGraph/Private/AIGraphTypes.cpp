@@ -65,7 +65,7 @@ FString FGraphNodeClassData::ToString() const
 		const int32 ShortNameIdx = ClassDesc.Find(TEXT("_"), ESearchCase::CaseSensitive);
 		if (ShortNameIdx != INDEX_NONE)
 		{
-			ClassDesc.MidInline(ShortNameIdx + 1, MAX_int32, false);
+			ClassDesc.MidInline(ShortNameIdx + 1, MAX_int32, EAllowShrinking::No);
 		}
 
 		return ClassDesc;

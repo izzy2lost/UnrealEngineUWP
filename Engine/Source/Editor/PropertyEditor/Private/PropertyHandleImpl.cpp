@@ -2974,7 +2974,7 @@ FPropertyAccess::Result FPropertyHandleBase::GetPerObjectValues( TArray<FString>
 		if( ReadAddresses.Num() > 0 )
 		{
 			// Copy each object's value into the value list
-			OutPerObjectValues.SetNum( ReadAddresses.Num(), /*bAllowShrinking*/false );
+			OutPerObjectValues.SetNum( ReadAddresses.Num(), EAllowShrinking::No );
 			for ( int32 AddrIndex = 0 ; AddrIndex < ReadAddresses.Num() ; ++AddrIndex )
 			{
 				uint8* Address = ReadAddresses.GetAddress(AddrIndex);

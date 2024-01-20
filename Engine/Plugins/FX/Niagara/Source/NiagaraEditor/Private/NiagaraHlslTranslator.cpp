@@ -7767,7 +7767,7 @@ void TNiagaraHlslTranslator<GraphBridge>::FunctionCall(const FFunctionCallNode* 
 				FString VarStr = Var.GetName().ToString();
 				if (VarStr.StartsWith(*ModuleAlias))
 				{
-					VarStr.MidInline(ModuleAlias->Len() + 1, MAX_int32, false);
+					VarStr.MidInline(ModuleAlias->Len() + 1, MAX_int32, EAllowShrinking::No);
 					if (FunctionNode->FindStaticSwitchInputPin(*VarStr))
 					{
 						Error(FText::Format(LOCTEXT("SwitchPinFoundForSetPin", "A switch node pin exists but is being set directly using Set node! Please use the stack UI to resolve the conflict. Output Pin: {0}"), FText::FromName(Var.GetName())), FunctionNode, nullptr);
@@ -7886,7 +7886,7 @@ void FNiagaraHlslTranslator::EnterFunctionCallNode(const TSet<FName>& UnusedInpu
 void FNiagaraHlslTranslator::ExitFunctionCallNode()
 {
 	ensure(FunctionNodeStack.Num() > 0);
-	FunctionNodeStack.Pop(false);
+	FunctionNodeStack.Pop(EAllowShrinking::No);
 }
 
 bool FNiagaraHlslTranslator::IsFunctionVariableCulledFromCompilation(const FName& InputName) const
@@ -8785,7 +8785,7 @@ void TNiagaraHlslTranslator<GraphBridge>::RegisterFunctionCall(ENiagaraScriptUsa
 
 					ChunksByMode[i].RemoveAt(ChunkStartsByMode[i], ChunksByMode[i].Num() - ChunkStartsByMode[i]);
 				}
-				CodeChunks.RemoveAt(ChunkStart, CodeChunks.Num() - ChunkStart, false);
+				CodeChunks.RemoveAt(ChunkStart, CodeChunks.Num() - ChunkStart, EAllowShrinking::No);
 
 				//Re-add the uniforms. Really this is horrible. Rework soon.
 				for (int32 FuncUniformIt = 0; FuncUniformIt < FuncUniformCount; ++FuncUniformIt)

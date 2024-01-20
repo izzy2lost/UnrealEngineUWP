@@ -1011,7 +1011,7 @@ namespace ImportExportAssetHelper
 
 				if (Extension.StartsWith(TEXT("."), ESearchCase::CaseSensitive))
 				{
-					Extension.RightChopInline(1, false);
+					Extension.RightChopInline(1, EAllowShrinking::No);
 				}
 
 				//Export the asset

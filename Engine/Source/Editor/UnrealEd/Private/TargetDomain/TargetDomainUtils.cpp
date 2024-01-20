@@ -190,11 +190,11 @@ bool TryCollectKeyAndDependencies(UPackage* Package, const ITargetPlatform* Targ
 			FPackageName::IsMemoryPackage(StringBuffer) ||
 			FPackageName::IsScriptPackage(StringBuffer);
 	};
-	SortedBuild.RemoveAllSwap(IsTransientPackageName, false /* bAllowShrinking */);
+	SortedBuild.RemoveAllSwap(IsTransientPackageName, EAllowShrinking::No);
 	SortedBuild.Sort(FNameLexicalLess());
 	TArray<FName> SortedRuntimeOnly;
 	SortedRuntimeOnly = RuntimeOnlyDependencies.Array();
-	SortedRuntimeOnly.RemoveAllSwap(IsTransientPackageName, false /* bAllowShrinking */);
+	SortedRuntimeOnly.RemoveAllSwap(IsTransientPackageName, EAllowShrinking::No);
 	SortedRuntimeOnly.Sort(FNameLexicalLess());
 
 	if (!TryCreateKey(PackageName, SortedBuild, OutHash, OutErrorMessage))

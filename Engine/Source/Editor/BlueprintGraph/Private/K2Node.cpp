@@ -1422,7 +1422,7 @@ void UK2Node::RewireOldPinsToNewPins(TArray<UEdGraphPin*>& InOldPins, TArray<UEd
 							UEdGraphPin* SubPin = OldPin->SubPins[SubPinIndex];
 							if (!SubPin->bOrphanedPin)
 							{
-								OldPin->SubPins.RemoveAt(SubPinIndex, 1, false);
+								OldPin->SubPins.RemoveAt(SubPinIndex, 1, EAllowShrinking::No);
 								SubPin->MarkAsGarbage();
 							}
 						}
@@ -1440,7 +1440,7 @@ void UK2Node::RewireOldPinsToNewPins(TArray<UEdGraphPin*>& InOldPins, TArray<UEd
 					OldPin->bOrphanedPin = true;
 					OldPin->bNotConnectable = true;
 					OrphanedOldPins.Add(OldPin);
-					InOldPins.RemoveAt(OldPinIndex, 1, false);
+					InOldPins.RemoveAt(OldPinIndex, 1, EAllowShrinking::No);
 				}
 			}
 		}
@@ -1680,7 +1680,7 @@ ERenamePinResult UK2Node::RenameUserDefinedPinImpl(const FName OldName, const FN
 
 			while (PinsToUpdate.Num() > 0)
 			{
-				UEdGraphPin* PinToRename = PinsToUpdate.Pop(/*bAllowShrinking=*/ false);
+				UEdGraphPin* PinToRename = PinsToUpdate.Pop(EAllowShrinking::No);
 				if (PinToRename->SubPins.Num() > 0)
 				{
 					PinsToUpdate.Append(PinToRename->SubPins);
@@ -2112,7 +2112,7 @@ void UK2Node::GetPinHoverText(const UEdGraphPin& Pin, FString& HoverTextOut) con
 			if (LineCounter >= MaxArrayPinTooltipLineCount)
 			{
 				// truncate WatchText so it contains a finite number of lines
-				WatchText.LeftInline(NewWatchTextLen, false);
+				WatchText.LeftInline(NewWatchTextLen, EAllowShrinking::No);
 				WatchText += "..."; // WatchText should already have a trailing newline (no need to prepend this with one)
 				break;
 			}

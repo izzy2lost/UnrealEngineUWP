@@ -3226,7 +3226,7 @@ void UBehaviorTreeComponent::StoreDebuggerExecutionStep(EBTExecutionSnap::Type S
 	UBehaviorTreeManager* ManagerCDO = (UBehaviorTreeManager*)UBehaviorTreeManager::StaticClass()->GetDefaultObject();
 	while (DebuggerSteps.Num() >= ManagerCDO->MaxDebuggerSteps)
 	{
-		DebuggerSteps.RemoveAt(0, /*Count=*/1, /*bAllowShrinking=*/false);
+		DebuggerSteps.RemoveAt(0, /*Count=*/1, EAllowShrinking::No);
 	}
 	DebuggerSteps.Add(CurrentStep);
 #endif

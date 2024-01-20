@@ -997,7 +997,7 @@ void UGatherTextFromAssetsCommandlet::LoadAndProcessUncachedPackages(TArray<FNam
 	const double LoadingStartTime = FPlatformTime::Seconds();
 	while (PackagesPendingGather.Num() > 0)
 	{
-		const FPackagePendingGather PackagePendingGather = PackagesPendingGather.Pop(/*bAllowShrinking*/false);
+		const FPackagePendingGather PackagePendingGather = PackagesPendingGather.Pop(EAllowShrinking::No);
 		const FNameBuilder PackageNameStr(PackagePendingGather.PackageName);
 
 		const int32 CurrentPackageNum = ++NumPackagesProcessed;

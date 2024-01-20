@@ -6060,7 +6060,7 @@ void ClipBitmapDataScreenshotDataEditor(bool& bWriteAlpha, TArray<FColorType>& B
 				FMemory::Memmove(Data + Row * NewWidth, Data + (Row + CaptureMinY) * OldWidth + CaptureMinX, NewWidth * sizeof(*Data));
 			}
 
-			Bitmap.RemoveAt(NewWidth * NewHeight, OldWidth * OldHeight - NewWidth * NewHeight, false);
+			Bitmap.RemoveAt(NewWidth * NewHeight, OldWidth * OldHeight - NewWidth * NewHeight, EAllowShrinking::No);
 			BitmapSize = FIntPoint(NewWidth, NewHeight);
 		}
 	}

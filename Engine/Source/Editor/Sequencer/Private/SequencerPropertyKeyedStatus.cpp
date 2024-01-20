@@ -76,13 +76,11 @@ FName FSequencerPropertyKeyedStatusHandler::FPropertyParameters::BuildSubPropert
 	int32 Index = PropertyPath.Find(TrackPropertyName);
 	if (Index != INDEX_NONE)
 	{
-		constexpr bool bAllowShrinking = false;
-
 		// Remove the Track Property name from the property path.
 		// From example above, "Euler.Location.X" should be changed to "Location.X" to obtain the sub-property path relative to the Track property
 		// If the Actual Property is the Track Property, SubPropertyPath should be left empty
 		// Additionally, remove an extra character for the dot (i.e. remove first dot in ".Location.X"). Safe to call as it gets clamped out in RightChop
-		PropertyPath.RightChopInline(Index + TrackPropertyName.Len() + 1, bAllowShrinking);
+		PropertyPath.RightChopInline(Index + TrackPropertyName.Len() + 1, EAllowShrinking::No);
 	}
 
 	return *PropertyPath;

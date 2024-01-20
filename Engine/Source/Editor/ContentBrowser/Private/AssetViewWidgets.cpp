@@ -1446,7 +1446,7 @@ void SAssetViewItem::CacheDisplayTags()
 				{
 					// Remove the class path for native classes, and also remove Engine. for engine classes
 					const int32 SizeOfPrefix = UE_ARRAY_COUNT(StringToRemove) - 1;
-					ValueString.MidInline(SizeOfPrefix, ValueString.Len() - SizeOfPrefix, false);
+					ValueString.MidInline(SizeOfPrefix, ValueString.Len() - SizeOfPrefix, EAllowShrinking::No);
 					ValueString.ReplaceInline(TEXT("Engine."), TEXT(""));
 				}
 	
@@ -1477,7 +1477,7 @@ void SAssetViewItem::CacheDisplayTags()
 									const FString EnumPrefix = TagEnum->GenerateEnumPrefix();
 									if (EnumPrefix.Len() && ValueString.StartsWith(EnumPrefix))
 									{
-										ValueString.RightChopInline(EnumPrefix.Len() + 1, false);	// +1 to skip over the underscore
+										ValueString.RightChopInline(EnumPrefix.Len() + 1, EAllowShrinking::No);	// +1 to skip over the underscore
 									}
 								}
 

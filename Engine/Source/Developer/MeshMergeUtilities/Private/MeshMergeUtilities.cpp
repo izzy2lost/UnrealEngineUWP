@@ -156,7 +156,7 @@ void FMeshMergeUtilities::BakeMaterialsForComponent(TArray<TWeakObjectPtr<UObjec
 	for (int32 LODIndex = 0; LODIndex < NumLODs; ++LODIndex)
 	{
 		// Reset section for reuse
-		Sections.SetNum(0, false);
+		Sections.SetNum(0, EAllowShrinking::No);
 
 		// Extract raw mesh data 
 		const bool bProcessedLOD = MaterialOptions->LODIndices.Contains(LODIndex);
@@ -355,7 +355,7 @@ void FMeshMergeUtilities::BakeMaterialsForComponent(TArray<TWeakObjectPtr<UObjec
 	{
 		if (Entry.bUseConstantValue && Entry.Property != MP_MAX)
 		{
-			ConstantData.SetNum(1, false);
+			ConstantData.SetNum(1, EAllowShrinking::No);
 			ConstantData[0] = FColor(Entry.ConstantValue * 255.0f, Entry.ConstantValue * 255.0f, Entry.ConstantValue * 255.0f);
 			for (FBakeOutput& Ouput : BakeOutputs)
 			{
@@ -1807,7 +1807,7 @@ void FMeshMergeUtilities::CreateProxyMesh(const TArray<UStaticMeshComponent*>& I
 			{
 				if (Entry.bUseConstantValue && Entry.Property != MP_MAX)
 				{
-					ConstantData.SetNum(1, false);
+					ConstantData.SetNum(1, EAllowShrinking::No);
 					ConstantData[0] = FColor(Entry.ConstantValue * 255.0f, Entry.ConstantValue * 255.0f, Entry.ConstantValue * 255.0f);
 					for (FBakeOutput& Output : BakeOutputs)
 					{
@@ -2058,7 +2058,7 @@ bool RetrieveRawMeshData(FMeshMergeDataTracker& DataTracker
 	Adapter.RetrieveRawMeshData(LODIndex, RawMesh, bPropagateMeshData);
 
 	// Reset section for reuse
-	Sections.SetNum(0, false);
+	Sections.SetNum(0, EAllowShrinking::No);
 
 	// Extract sections for given LOD index from the mesh 
 	Adapter.RetrieveMeshSections(LODIndex, Sections);
@@ -3009,7 +3009,7 @@ void FMeshMergeUtilities::CreateMergedMaterial(FMeshMergeDataTracker& InDataTrac
 		{
 			if (Entry.bUseConstantValue && Entry.Property != MP_MAX)
 			{
-				ConstantData.SetNum(1, false);
+				ConstantData.SetNum(1, EAllowShrinking::No);
 				ConstantData[0] = FLinearColor(Entry.ConstantValue, Entry.ConstantValue, Entry.ConstantValue).ToFColor(true);
 				for (FBakeOutput& Output : BakeOutputs)
 				{

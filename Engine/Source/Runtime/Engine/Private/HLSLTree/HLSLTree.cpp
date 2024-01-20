@@ -550,7 +550,7 @@ void FExpressionLocalPHI::EmitValuePreshader(FEmitContext& Context, FEmitScope& 
 			}
 
 			Context.EmitPreshaderScope(*LiveScopes.EmitDeclarationScope, RequestedType, MakeArrayView(PreshaderScopes, LiveScopes.NumScopes), OutResult.Preshader);
-			verify(Context.PreshaderLocalPHIScopes.Pop(false) == &LocalPHIScope);
+			verify(Context.PreshaderLocalPHIScopes.Pop(EAllowShrinking::No) == &LocalPHIScope);
 			check(Context.PreshaderStackPosition == ValueStackPosition);
 		}
 	}
@@ -1516,7 +1516,7 @@ void FTree::PushOwner(UObject* Owner)
 
 UObject* FTree::PopOwner()
 {
-	return OwnerStack.Pop(false);
+	return OwnerStack.Pop(EAllowShrinking::No);
 }
 
 UObject* FTree::GetCurrentOwner() const
@@ -1530,7 +1530,7 @@ bool FTree::Finalize()
 	// Resolving a PHI may produce additional PHIs
 	while (PHIExpressions.Num() > 0)
 	{
-		FExpressionLocalPHI* Expression = PHIExpressions.Pop(false);
+		FExpressionLocalPHI* Expression = PHIExpressions.Pop(EAllowShrinking::No);
 		for (int32 i = 0; i < Expression->NumValues; ++i)
 		{
 			const FExpression* LocalValue = AcquireLocal(*Expression->Scopes[i], Expression->LocalName);

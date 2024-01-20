@@ -39,7 +39,7 @@ void FPoseWatchCurveTrack::UpdateCurvePointsInternal()
 	double EndTime = TraceTimeRange.GetUpperBoundValue();
 	
 	auto& CurvePoints = CurveData->Points;
-	CurvePoints.SetNum(0,false);
+	CurvePoints.SetNum(0,EAllowShrinking::No);
 
 	TraceServices::FAnalysisSessionReadScope SessionReadScope(*AnalysisSession);
 
@@ -114,7 +114,7 @@ bool FPoseWatchTrack::UpdateInternal()
 
 	if(GameplayProvider && AnimationProvider && EnabledSegments.IsValid())
 	{
-		EnabledSegments->Segments.SetNum(0, false);
+		EnabledSegments->Segments.SetNum(0, EAllowShrinking::No);
 
 		struct FPoseWatchEnabledTime
 		{

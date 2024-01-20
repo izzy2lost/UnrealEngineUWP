@@ -709,7 +709,7 @@ void AActor::RerunConstructionScripts()
 							    && ComponentData.OldArchetype == ComponentToArchetypeMap[NewComponent])
 							{
 								ResolvedNewComponent = NewComponent;
-								NewUCSComponentsToConsider->RemoveAtSwap(Index, 1, false);
+								NewUCSComponentsToConsider->RemoveAtSwap(Index, 1, EAllowShrinking::No);
 								break;
 							}
 						}

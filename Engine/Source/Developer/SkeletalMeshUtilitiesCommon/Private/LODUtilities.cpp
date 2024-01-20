@@ -673,8 +673,7 @@ bool FLODUtilities::SetCustomLOD(USkeletalMesh* DestinationSkeletalMesh, USkelet
 				if (Influence.BoneIndex == INDEX_NONE)
 				{
 					const int32 DeleteCount = 1;
-					const bool AllowShrink = false;
-					LODImportData.Influences.RemoveAt(InfluenceIndex, DeleteCount, AllowShrink);
+					LODImportData.Influences.RemoveAt(InfluenceIndex, DeleteCount, EAllowShrinking::No);
 					bNeedShrinking = true;
 				}
 			}
@@ -4595,7 +4594,7 @@ bool FLODUtilities::StripLODGeometry(USkeletalMesh* SkeletalMesh, const int32 LO
 				else
 				{
 					//Remove the source model vertex if there is no build data
-					LODModel.IndexBuffer.RemoveAt(TriangleIndex - 2, 3, false);
+					LODModel.IndexBuffer.RemoveAt(TriangleIndex - 2, 3, EAllowShrinking::No);
 				}
 			}
 		}

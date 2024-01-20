@@ -1643,7 +1643,7 @@ void UContentBrowserAssetDataSource::EnumerateFoldersMatchingFilter(UContentBrow
 			PathsToScan.Add(InInternalPath);
 			while (PathsToScan.Num() > 0)
 			{
-				const FName PathToScan = PathsToScan.Pop(/*bAllowShrinking*/false);
+				const FName PathToScan = PathsToScan.Pop(EAllowShrinking::No);
 				SubPathEnumeration(PathToScan, [&DataSource, &InCallback, &AssetDataFilter, &PathsToScan, &CreateFolderItem](FName SubPath)
 				{
 					if (UContentBrowserAssetDataSource::PathPassesCompiledDataFilter(*AssetDataFilter, SubPath))
@@ -1692,7 +1692,7 @@ void UContentBrowserAssetDataSource::EnumerateFoldersMatchingFilter(UContentBrow
 			PathsToScan.Add(StartingVirtualPath);
 			while (PathsToScan.Num() > 0)
 			{
-				const FName PathToScan = PathsToScan.Pop(/*bAllowShrinking*/false);
+				const FName PathToScan = PathsToScan.Pop(EAllowShrinking::No);
 				DataSource->GetRootPathVirtualTree().EnumerateSubPaths(PathToScan, [&DataSource, &InCallback, &AssetDataFilter, &VirtualPathsPassedFilter, &PathsToScan, &HandleInternalPath, &CreateFolderItem](FName VirtualSubPath, FName InternalPath)
 				{
 					if (VirtualPathsPassedFilter.Contains(VirtualSubPath))

@@ -377,11 +377,11 @@ bool UEditorEngine::SafeExec( UWorld* InWorld, const TCHAR* InStr, FOutputDevice
 				{
 					break;
 				}
-				ObjectName.MidInline( i+1, MAX_int32, false );
+				ObjectName.MidInline( i+1, MAX_int32, EAllowShrinking::No);
 			}
 			if( ObjectName.Find(TEXT("."), ESearchCase::CaseSensitive)>=0 )
 			{
-				ObjectName.LeftInline( ObjectName.Find(TEXT("."), ESearchCase::CaseSensitive), false );
+				ObjectName.LeftInline( ObjectName.Find(TEXT("."), ESearchCase::CaseSensitive), EAllowShrinking::No);
 			}
 		}
 
@@ -5483,7 +5483,7 @@ void ListMapPackageDependencies(const TCHAR* InStr)
 					int32 PeriodIdx = ImportPackage.Find(TEXT("."), ESearchCase::CaseSensitive);
 					if (PeriodIdx != INDEX_NONE)
 					{
-						ImportPackage.LeftInline(PeriodIdx, false);
+						ImportPackage.LeftInline(PeriodIdx, EAllowShrinking::No);
 					}
 					ReferencedPackages.Add(ImportPackage, true);
 				}

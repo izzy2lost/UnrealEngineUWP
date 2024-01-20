@@ -311,7 +311,7 @@ static const TCHAR* ImportProperties(
 			}
 			if (Length != StrLine.Len())
 			{
-				StrLine.LeftInline(Length, false);
+				StrLine.LeftInline(Length, EAllowShrinking::No);
 			}
 		}
 
@@ -976,7 +976,7 @@ static const TCHAR* ImportCreateSubObjectsStep(
 			}
 			if (Length != StrLine.Len())
 			{
-				StrLine.LeftInline(Length, false);
+				StrLine.LeftInline(Length, EAllowShrinking::No);
 			}
 		}
 
@@ -1374,7 +1374,7 @@ static const TCHAR* ImportPropertiesStep(
 				}
 				if (Length != StrLine.Len())
 				{
-					StrLine.LeftInline(Length, false);
+					StrLine.LeftInline(Length, EAllowShrinking::No);
 				}
 			}
 

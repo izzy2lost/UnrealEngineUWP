@@ -734,7 +734,7 @@ double FTaskGraphProfilerManager::GetRelationsOnCriticalPathAscendingRec(const T
 					// Remove the relations from the shorter branch.
 					if (Relations.Num() > InitialRelationNum)
 					{
-						Relations.RemoveAt(InitialRelationNum, Relations.Num() - InitialRelationNum, false);
+						Relations.RemoveAt(InitialRelationNum, Relations.Num() - InitialRelationNum, EAllowShrinking::No);
 					}
 
 					Relations.Append(AscendingRelations);
@@ -788,7 +788,7 @@ double FTaskGraphProfilerManager::GetRelationsOnCriticalPathDescendingRec(const 
 					// Remove the relations from the shorter branch.
 					if (Relations.Num() > InitialRelationNum)
 					{
-						Relations.RemoveAt(InitialRelationNum, Relations.Num() - InitialRelationNum, false);
+						Relations.RemoveAt(InitialRelationNum, Relations.Num() - InitialRelationNum, EAllowShrinking::No);
 					}
 
 					Relations.Append(DescendingRelations);

@@ -1312,8 +1312,8 @@ void FSkeletalMeshImportData::ComputeSmoothGroupFromNormals()
 		while (ConnectedFaces.Num() > 0)
 		{
 			check(LastConnectedFaces.Num() == ConnectedFaces.Num());
-			int32 LastFaceIndex = LastConnectedFaces.Pop(false);
-			int32 CurrentFaceIndex = ConnectedFaces.Pop(false);
+			int32 LastFaceIndex = LastConnectedFaces.Pop(EAllowShrinking::No);
+			int32 CurrentFaceIndex = ConnectedFaces.Pop(EAllowShrinking::No);
 			if (ConsumedFaces[CurrentFaceIndex])
 			{
 				continue;

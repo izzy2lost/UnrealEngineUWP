@@ -2259,8 +2259,7 @@ void SUsdStage::FileExportAllLayers(const FString& OutputDirectory)
 		if (Layer.IsAnonymous())
 		{
 			const int32 Count = 1;
-			const bool bAllowShrinking = false;
-			LayerStack.RemoveAt(Index, Count, bAllowShrinking);
+			LayerStack.RemoveAt(Index, Count, EAllowShrinking::No);
 		}
 	}
 

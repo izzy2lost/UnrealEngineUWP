@@ -1356,7 +1356,7 @@ void FAssetRegistryGenerator::ComputePackageDifferences(const FComputeDifference
 		}
 		while (!VisitStack.IsEmpty())
 		{
-			FName ModifiedPackage = VisitStack.Pop(false /* bAllowShrinking */);
+			FName ModifiedPackage = VisitStack.Pop(EAllowShrinking::No);
 			FString ModifiedPackageLeafName;
 
 			// Read referencers from the current state. If there are referencers in the old state that are not in the

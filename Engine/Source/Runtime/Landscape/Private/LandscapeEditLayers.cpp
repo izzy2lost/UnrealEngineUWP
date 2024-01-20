@@ -4658,7 +4658,7 @@ void ALandscape::PrepareLayersHeightmapsLocalMergeRenderThreadData(const FUpdate
 
 			while (!RemainingComponentToResolveInfos.IsEmpty())
 			{
-				const FComponentResolveInfo& ComponentResolveInfo = RemainingComponentToResolveInfos.Pop(/*bAllowShrinking = */false);
+				const FComponentResolveInfo& ComponentResolveInfo = RemainingComponentToResolveInfos.Pop(EAllowShrinking::No);
 
 				int32 BestBatchIndex = INDEX_NONE;
 				int32 MinNumComponents = MAX_int32;
@@ -6951,7 +6951,7 @@ void ALandscape::PrepareLayersWeightmapsLocalMergeRenderThreadData(const FUpdate
 
 			while (!RemainingTextureToResolveInfos.IsEmpty())
 			{
-				const FTextureResolveInfo& TextureResolveInfo = RemainingTextureToResolveInfos.Pop(/*bAllowShrinking = */false);
+				const FTextureResolveInfo& TextureResolveInfo = RemainingTextureToResolveInfos.Pop(EAllowShrinking::No);
 
 				int32 BestBatchIndex = INDEX_NONE;
 				int32 MinNumComponents = MAX_int32;

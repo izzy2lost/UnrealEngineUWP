@@ -1341,7 +1341,7 @@ FContentBrowserItemPath FContentBrowserSingleton::GetInitialPathToSaveAsset(cons
 	// Remove trailing slash
 	if (AssetPath.EndsWith(TEXT("/")) || AssetPath.EndsWith(TEXT("\\")))
 	{
-		AssetPath.LeftChopInline(1, false);
+		AssetPath.LeftChopInline(1, EAllowShrinking::No);
 	}
 
 	return FContentBrowserItemPath(AssetPath, EContentBrowserPathType::Internal);

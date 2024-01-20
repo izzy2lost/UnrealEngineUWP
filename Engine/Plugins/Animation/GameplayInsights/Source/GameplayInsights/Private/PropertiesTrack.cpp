@@ -172,7 +172,7 @@ namespace RewindDebugger
 				{
 					// Get parent property
 					TConstArrayView<TSharedPtr<FPropertyTrack>> Parent = Stack.Top();
-					Stack.Pop(false);
+					Stack.Pop(EAllowShrinking::No);
 				
 					// Ensure child properties are deleted
 					for (const TSharedPtr<FPropertyTrack> & Child : Parent)

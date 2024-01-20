@@ -36,7 +36,7 @@ bool FStateTreeDebuggerInstanceTrack::UpdateInternal()
 	const int32 PrevNumPoints = EventData->Points.Num();
 	const int32 PrevNumWindows = EventData->Windows.Num();
 
-	EventData->Points.SetNum(0, false);
+	EventData->Points.SetNum(0, EAllowShrinking::No);
 	EventData->Windows.SetNum(0);
 	
 	const FStateTreeDebugger* Debugger = StateTreeDebugger.Get();

@@ -1423,7 +1423,7 @@ void UNiagaraMeshRendererProperties::RebuildMeshList()
 	{
 		// Remove the suffix for the base name and retrieve the first frame index
 		int32 SuffixLen = Matcher.GetMatchEnding() - Matcher.GetMatchBeginning();
-		BaseName.LeftChopInline(SuffixLen, false);
+		BaseName.LeftChopInline(SuffixLen, EAllowShrinking::No);
 
 		FString NumMatch = Matcher.GetCaptureGroup(1);
 		FirstFrameIdx = FCString::Atoi(*NumMatch);
@@ -1434,7 +1434,7 @@ void UNiagaraMeshRendererProperties::RebuildMeshList()
 	int32 PackageDirEnd;
 	if (BasePackageLocation.FindLastChar(TCHAR('/'), PackageDirEnd))
 	{
-		BasePackageLocation.LeftInline(PackageDirEnd, false);
+		BasePackageLocation.LeftInline(PackageDirEnd, EAllowShrinking::No);
 	}
 
 	// Now retrieve all meshes for the flipbook and add them

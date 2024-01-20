@@ -635,7 +635,7 @@ struct FEmitOwnerScope
 
 	~FEmitOwnerScope()
 	{
-		verify(Context.OwnerStack.Pop(false) == Node);
+		verify(Context.OwnerStack.Pop(EAllowShrinking::No) == Node);
 	}
 
 	FEmitContext& Context;

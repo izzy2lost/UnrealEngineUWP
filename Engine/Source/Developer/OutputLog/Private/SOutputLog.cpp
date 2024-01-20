@@ -2357,7 +2357,7 @@ void FOutputLogFilter::ToggleLogCategory(const FName& LogCategory)
 	}
 	else
 	{
-		SelectedLogCategories.RemoveAt(FoundIndex, /*Count=*/1, /*bAllowShrinking=*/false);
+		SelectedLogCategories.RemoveAt(FoundIndex, /*Count=*/1, EAllowShrinking::No);
 	}
 }
 

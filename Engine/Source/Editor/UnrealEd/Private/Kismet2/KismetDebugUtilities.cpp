@@ -1214,7 +1214,7 @@ void FKismetDebugUtilities::RemoveBreakpointsByPredicate(const UBlueprint* Bluep
 		}
 
 		// remove the breakpoints from the data
-		if(Breakpoints->RemoveAllSwap(Predicate, false))
+		if(Breakpoints->RemoveAllSwap(Predicate, EAllowShrinking::No))
 		{
 			if(Breakpoints->IsEmpty())
 			{
@@ -1631,7 +1631,7 @@ bool FKismetDebugUtilities::RemovePinWatchesByPredicate(const UBlueprint* Bluepr
 	
 	if(TArray<FBlueprintWatchedPin>* WatchedPins = GetWatchedPins(Blueprint))
 	{
-		if(WatchedPins->RemoveAllSwap(ModifiedPedicate, false))
+		if(WatchedPins->RemoveAllSwap(ModifiedPedicate, EAllowShrinking::No))
 		{
 			if(WatchedPins->IsEmpty())
 			{
@@ -1656,7 +1656,7 @@ bool FKismetDebugUtilities::RemovePinPropertyWatchesByPredicate(const UBlueprint
 
 	if (TArray<FBlueprintWatchedPin>* WatchedPins = GetWatchedPins(Blueprint))
 	{
-		if (WatchedPins->RemoveAllSwap(ModifiedPedicate, false))
+		if (WatchedPins->RemoveAllSwap(ModifiedPedicate, EAllowShrinking::No))
 		{
 			if (WatchedPins->IsEmpty())
 			{

@@ -302,8 +302,7 @@ namespace Metasound
 								if (ClassType != EMetasoundFrontendClassType::VariableAccessor
 									&& ClassType != EMetasoundFrontendClassType::VariableDeferredAccessor)
 								{
-									constexpr bool bAllowShrinking = false;
-									Nodes.RemoveAtSwap(i, 1, bAllowShrinking);
+									Nodes.RemoveAtSwap(i, 1, EAllowShrinking::No);
 								}
 							}
 							Editor->JumpToNodes(Nodes);

@@ -88,7 +88,7 @@ bool FVisualLogCategoryTrack::UpdateInternal()
 			TRACE_CPUPROFILER_EVENT_SCOPE(FVisualLogTrack::UpdateEventPointsInternal);
 			EventUpdateRequested = 0;
 			
-			EventData->Points.SetNum(0,false);
+			EventData->Points.SetNum(0,EAllowShrinking::No);
 			EventData->Windows.SetNum(0);
 
 			TraceServices::FAnalysisSessionReadScope SessionReadScope(*AnalysisSession);
@@ -119,7 +119,7 @@ bool FVisualLogCategoryTrack::UpdateInternal()
 				DetailsObject = InitializeDetailsObject();
 			}
 
-			DetailsObject->VisualLogDetails.SetNum(0,false);
+			DetailsObject->VisualLogDetails.SetNum(0,EAllowShrinking::No);
 			
 			const TraceServices::IFrameProvider& FramesProvider = TraceServices::ReadFrameProvider(*AnalysisSession);
 			TraceServices::FAnalysisSessionReadScope SessionReadScope(*AnalysisSession);

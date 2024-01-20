@@ -1613,8 +1613,7 @@ void FUsdLevelSequenceHelperImpl::AddCommonTracks(const UUsdPrimTwin& PrimTwin, 
 			if (!Attr.GetTimeSamples(TimeSamplesForAttr) || TimeSamplesForAttr.Num() == 0)
 			{
 				const int32 Count = 1;
-				const bool bAllowShrinking = false;
-				Attrs.RemoveAt(Index, Count, bAllowShrinking);
+				Attrs.RemoveAt(Index, Count, EAllowShrinking::No);
 				continue;
 			}
 

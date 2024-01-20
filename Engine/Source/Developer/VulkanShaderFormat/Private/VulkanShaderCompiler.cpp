@@ -1052,7 +1052,7 @@ static void BuildShaderOutput(
 		NumParams = FMath::Max((uint16)(OutIndex + 1), NumParams);
 		if (OriginalParameters.Contains(NewParameters[Index]))
 		{
-			NewParameters.RemoveAtSwap(Index, 1, false);
+			NewParameters.RemoveAtSwap(Index, 1, EAllowShrinking::No);
 		}
 	}
 
@@ -2210,7 +2210,7 @@ static TArray<FString> ConvertUBToBindless(FString& PreprocessedShaderSource)
 			const FString NewDecl = GenerateNewDecl(CBIndex, Members, StructName);
 
 			const int32 OldDeclLen = ClosingBraceIndex - SearchIndex + 1;
-			PreprocessedShaderSource.RemoveAt(SearchIndex, OldDeclLen, false);
+			PreprocessedShaderSource.RemoveAt(SearchIndex, OldDeclLen, EAllowShrinking::No);
 			PreprocessedShaderSource.InsertAt(SearchIndex, NewDecl);
 
 			SearchIndex = PreprocessedShaderSource.Find(UniformBufferDeclIdentifier, ESearchCase::CaseSensitive, ESearchDir::FromStart, SearchIndex + NewDecl.Len());

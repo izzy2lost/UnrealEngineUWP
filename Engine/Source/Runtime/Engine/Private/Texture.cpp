@@ -4380,7 +4380,7 @@ void FTextureSource::InitLayeredImpl(
 	check( NewNumMips <= GetFullMipCount(SizeX,SizeY,GetVolumeSizeZ()) );
 
 	Format = NewLayerFormat[0];
-	LayerFormat.SetNum(NewNumLayers, true);
+	LayerFormat.SetNum(NewNumLayers, EAllowShrinking::No);
 	for (int i = 0; i < NewNumLayers; ++i)
 	{
 		LayerFormat[i] = NewLayerFormat[i];
@@ -4421,7 +4421,7 @@ void FTextureSource::InitBlockedImpl(const ETextureSourceFormat* InLayerFormats,
 	}
 
 	// LayerFormat is of size NumLayers, and Format == LayerFormat[0]
-	LayerFormat.SetNum(InNumLayers, true);
+	LayerFormat.SetNum(InNumLayers, EAllowShrinking::Yes);
 	for (int i = 0; i < InNumLayers; ++i)
 	{
 		LayerFormat[i] = InLayerFormats[i];

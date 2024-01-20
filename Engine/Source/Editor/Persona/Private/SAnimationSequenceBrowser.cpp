@@ -1184,7 +1184,7 @@ void SAnimationSequenceBrowser::AddAssetToHistory(const FAssetData& AssetData)
 	else
 	{
 		// Clear out any history that is in front of the current location in the history list
-		AssetHistory.RemoveAt(CurrentAssetHistoryIndex + 1, AssetHistory.Num() - (CurrentAssetHistoryIndex + 1), true);
+		AssetHistory.RemoveAt(CurrentAssetHistoryIndex + 1, AssetHistory.Num() - (CurrentAssetHistoryIndex + 1), EAllowShrinking::Yes);
 	}
 
 	AssetHistory.Add(AssetData);

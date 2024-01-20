@@ -1409,7 +1409,7 @@ void FHLSLMaterialTranslator::DoTranslate()
 		// Reset shared stack data
 		while (FunctionStacks[SF_Vertex].Num() > 1)
 		{
-			FMaterialFunctionCompileState* Stack = FunctionStacks[SF_Vertex].Pop(false);
+			FMaterialFunctionCompileState* Stack = FunctionStacks[SF_Vertex].Pop(EAllowShrinking::No);
 			delete Stack;
 		}
 		FunctionStacks[SF_Vertex][0]->Reset();
@@ -4110,7 +4110,7 @@ void FHLSLMaterialTranslator::PushMaterialAttribute(const FGuid& InAttributeID)
 
 FGuid FHLSLMaterialTranslator::PopMaterialAttribute()
 {
-	return MaterialAttributesStack.Pop(false);
+	return MaterialAttributesStack.Pop(EAllowShrinking::No);
 }
 
 const FGuid FHLSLMaterialTranslator::GetMaterialAttribute()
@@ -4134,7 +4134,7 @@ void FHLSLMaterialTranslator::PushParameterOwner(const FMaterialParameterInfo& I
 
 FMaterialParameterInfo FHLSLMaterialTranslator::PopParameterOwner()
 {
-	return ParameterOwnerStack.Pop(false);
+	return ParameterOwnerStack.Pop(EAllowShrinking::No);
 }
 
 EShaderFrequency FHLSLMaterialTranslator::GetCurrentShaderFrequency() const
@@ -11386,7 +11386,7 @@ int32 FHLSLMaterialTranslator::BeginScope_For(const UMaterialExpression* Express
 
 int32 FHLSLMaterialTranslator::EndScope()
 {
-	return ScopeStack.Pop(false);
+	return ScopeStack.Pop(EAllowShrinking::No);
 }
 
 int32 FHLSLMaterialTranslator::ForLoopIndex(const UMaterialExpression* Expression)
@@ -11904,7 +11904,7 @@ bool FHLSLMaterialTranslator::FSubstrateCompilationContext::SubstrateGenerateDer
 			// Mark the deepest operator for parameter blending
 			FSubstrateSimplificationStatus::FOperatorToSimplify& OperatorToSimplify = SubstrateSimplificationStatus.OperatorSimplificationOrder.Top();
 			SubstrateMaterialExpressionRegisteredOperators[OperatorToSimplify.Data.Index].bNodeRequestParameterBlending = true;
-			SubstrateSimplificationStatus.OperatorSimplificationOrder.Pop(/*bAllowShrinking*/false);
+			SubstrateSimplificationStatus.OperatorSimplificationOrder.Pop(EAllowShrinking::No);
 
 			// Mark that this is similar to have run full simplification
 			SubstrateSimplificationStatus.bFullSimplificationStepHasBeenRun |= SubstrateSimplificationStatus.OperatorSimplificationOrder.Num() == 0;

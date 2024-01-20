@@ -318,7 +318,7 @@ private:
 
 			if (PinsToEvaluate.Num())
 			{
-				CurrentPin = PinsToEvaluate.Pop(false);
+				CurrentPin = PinsToEvaluate.Pop(EAllowShrinking::No);
 			}
 			else
 			{
@@ -522,7 +522,7 @@ void FNiagaraAttributeTrimmerHelper<GraphBridge>::ResolveDependencyChain(const F
 
 			while (PinsToResolve.Num() > 0)
 			{
-				const FModuleScopedPin PinToResolve = PinsToResolve.Pop(false);
+				const FModuleScopedPin PinToResolve = PinsToResolve.Pop(EAllowShrinking::No);
 
 				if (const FDependencyChain* Dependencies = DependencyData.Find(PinToResolve))
 				{
@@ -739,7 +739,7 @@ void FNiagaraAttributeTrimmerHelper<GraphBridge>::TrimAttributes_Aggressive(cons
 
 	while (SearchList.Num())
 	{
-		const FName AttributeName = SearchList.Pop(false);
+		const FName AttributeName = SearchList.Pop(EAllowShrinking::No);
 
 		for (const FParamMapHistory* ParamMap : LocalParamHistories)
 		{
@@ -817,7 +817,7 @@ void FNiagaraAttributeTrimmerHelper<GraphBridge>::TrimAttributes_Aggressive(cons
 		{
 			// when we have something to do with this information, we can re-enable the compile tag
 			//TranslateResults.CompileTags.Emplace(Attribute, TEXT("Trimmed"));
-			Attributes.RemoveAt(AttributeIt, 1, false);
+			Attributes.RemoveAt(AttributeIt, 1, EAllowShrinking::No);
 		}
 		else
 		{

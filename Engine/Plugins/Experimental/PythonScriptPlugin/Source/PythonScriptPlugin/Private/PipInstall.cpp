@@ -544,7 +544,7 @@ bool FPipInstall::RunLoggedSubprocess(int32* OutExitCode, const FText& Descripti
 					Context->Log(LogPython.GetCategoryName(), ELogVerbosity::Log, Line);
 				}
 
-				BufferedText.MidInline(EndOfLineIdx + 1, MAX_int32, false);
+				BufferedText.MidInline(EndOfLineIdx + 1, MAX_int32, EAllowShrinking::No);
 			}
 
 			FPlatformProcess::Sleep(0.1f);

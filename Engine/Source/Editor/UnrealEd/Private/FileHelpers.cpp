@@ -2536,7 +2536,7 @@ void FEditorFileUtils::OpenLevelPickingDialog(const FOnLevelsChosen& OnLevelsCho
 				// Remove the slash if needed
 				if ( FilesystemPath.EndsWith(TEXT("/"), ESearchCase::CaseSensitive) )
 				{
-					FilesystemPath.LeftChopInline(1, false);
+					FilesystemPath.LeftChopInline(1, EAllowShrinking::No);
 				}
 
 				FEditorDirectories::Get().SetLastDirectory(ELastDirectory::LEVEL, FilesystemPath);

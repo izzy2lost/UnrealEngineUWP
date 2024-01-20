@@ -2623,8 +2623,8 @@ bool UK2Node_MathExpression::ShouldExpandInsteadCompile() const
 	if ((TunnelNodesNum + 1) == BoundGraph->Nodes.Num())
 	{
 		TArray<UEdGraphNode*> InnerNodes = BoundGraph->Nodes;
-		InnerNodes.RemoveSingleSwap(GetEntryNode(), false);
-		InnerNodes.RemoveSingleSwap(GetExitNode(), false);
+		InnerNodes.RemoveSingleSwap(GetEntryNode(), EAllowShrinking::No);
+		InnerNodes.RemoveSingleSwap(GetExitNode(), EAllowShrinking::No);
 		const bool bTheOnlyNodeIsNotAFunctionCall = (1 == InnerNodes.Num())
 			&& (nullptr != InnerNodes[0])
 			&& !InnerNodes[0]->IsA<UK2Node_CallFunction>();

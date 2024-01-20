@@ -2627,7 +2627,7 @@ FText FPropertyNode::GetResetToDefaultLabel()
 
 		if (DefaultValue.Len() > MaxValueLen)
 		{
-			DefaultValue.LeftInline( MaxValueLen, false );
+			DefaultValue.LeftInline( MaxValueLen, EAllowShrinking::No );
 			DefaultValue += TEXT( "..." );
 		}
 

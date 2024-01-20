@@ -574,7 +574,7 @@ void UNiagaraRendererProperties::UpdateMaterialParametersMIC(const FNiagaraRende
 			if (ExistingIndex != INDEX_NONE)
 			{
 				MIC = MICPool[ExistingIndex];
-				MICPool.RemoveAtSwap(ExistingIndex, 1, false);
+				MICPool.RemoveAtSwap(ExistingIndex, 1, EAllowShrinking::No);
 			}
 			else
 			{

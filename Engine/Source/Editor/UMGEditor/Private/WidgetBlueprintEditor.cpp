@@ -2244,7 +2244,7 @@ void FWidgetBlueprintEditor::RemoveAllWidgetsFromTrack(FGuid ObjectId)
 	{
 		if (WidgetAnimation->AnimationBindings[Index].AnimationGuid == ObjectId)
 		{
-			WidgetAnimation->AnimationBindings.RemoveAt(Index, 1, false);
+			WidgetAnimation->AnimationBindings.RemoveAt(Index, 1, EAllowShrinking::No);
 		}
 	}
 
@@ -2270,7 +2270,7 @@ void FWidgetBlueprintEditor::RemoveMissingWidgetsFromTrack(FGuid ObjectId)
 		const FWidgetAnimationBinding& Binding = WidgetAnimation->AnimationBindings[Index];
 		if (Binding.AnimationGuid == ObjectId && Binding.FindRuntimeObject(*PreviewRoot->WidgetTree, *PreviewRoot) == nullptr)
 		{
-			WidgetAnimation->AnimationBindings.RemoveAt(Index, 1, false);
+			WidgetAnimation->AnimationBindings.RemoveAt(Index, 1, EAllowShrinking::No);
 		}
 	}
 
@@ -2291,7 +2291,7 @@ void FWidgetBlueprintEditor::ReplaceTrackWithWidgets(TArray<FWidgetReference> Wi
 		FGuid WidgetId = ActiveSequencer->FindObjectId(*PreviewWidget, MovieSceneSequenceID::Root);
 		if (WidgetId.IsValid() && WidgetId != ObjectId)
 		{
-			Widgets.RemoveAt(Index, 1, false);
+			Widgets.RemoveAt(Index, 1, EAllowShrinking::No);
 
 			if (ExistingBindingName.IsEmpty())
 			{

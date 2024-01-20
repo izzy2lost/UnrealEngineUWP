@@ -4436,8 +4436,7 @@ bool UnFbx::FFbxImporter::ImportSkeletalMeshLOD(USkeletalMesh* InSkeletalMesh, U
 				if (Influence.BoneIndex == INDEX_NONE)
 				{
 					const int32 DeleteCount = 1;
-					const bool AllowShrink = false;
-					LODImportData.Influences.RemoveAt(InfluenceIndex, DeleteCount, AllowShrink);
+					LODImportData.Influences.RemoveAt(InfluenceIndex, DeleteCount, EAllowShrinking::No);
 					bNeedShrinking = true;
 				}
 			}
@@ -4623,7 +4622,7 @@ void UnFbx::FFbxImporter::ImportMorphTargetsInternal( TArray<FbxNode*>& SkelMesh
 						// Maya adds the name of the blendshape and an underscore to the front of the channel name, so remove it
 						if(ChannelName.StartsWith(BlendShapeName))
 						{
-							ChannelName.RightInline(ChannelName.Len() - (BlendShapeName.Len()+1), false);
+							ChannelName.RightInline(ChannelName.Len() - (BlendShapeName.Len()+1), EAllowShrinking::No);
 						}
 
 						for(int32 ShapeIndex = 0; ShapeIndex<CurrentChannelShapeCount; ++ShapeIndex)

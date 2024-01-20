@@ -41,8 +41,7 @@ public:
 					if (!Sequencers[Index].IsValid())
 					{
 						const int32 Count = 1;
-						const bool bAllowShrinking = false;
-						Sequencers.RemoveAt(Index, Count, bAllowShrinking);
+						Sequencers.RemoveAt(Index, Count, EAllowShrinking::No);
 					}
 				}
 

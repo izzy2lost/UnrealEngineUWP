@@ -30,7 +30,7 @@ void UStaticMeshLightingInfo::UpdateNames()
 		const int32 NameIndex = LevelName.Find( TEXT("/"), ESearchCase::CaseSensitive);
 		if ( NameIndex != INDEX_NONE )
 		{
-			LevelName.RightChopInline( NameIndex + 1, false );
+			LevelName.RightChopInline( NameIndex + 1, EAllowShrinking::No );
 		}
 	}
 

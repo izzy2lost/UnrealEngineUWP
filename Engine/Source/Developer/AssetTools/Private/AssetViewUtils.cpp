@@ -1665,8 +1665,8 @@ void GetOutOfDatePackageDependencies(const TArray<FString>& InPackagesThatWillBe
 			// Dependency data may contain files that no longer exist on disk; strip those from the list now
 			if (!FPaths::FileExists(DependencyFilenames[DependencyIndex]))
 			{
-				AllDependencies.RemoveAt(DependencyIndex, 1, false);
-				DependencyFilenames.RemoveAt(DependencyIndex, 1, false);
+				AllDependencies.RemoveAt(DependencyIndex, 1, EAllowShrinking::No);
+				DependencyFilenames.RemoveAt(DependencyIndex, 1, EAllowShrinking::No);
 				--DependencyIndex;
 			}
 		}
@@ -1916,7 +1916,7 @@ static bool SyncPathsFromSourceControl(const FString& Revision, const TArray<FSt
 					if (PackagePath.Len() > 1 && PackagePath[PackagePath.Len() - 1] == TEXT('/'))
 					{
 						// The filter path can't end with a trailing slash
-						PackagePath.LeftChopInline(1, false);
+						PackagePath.LeftChopInline(1, EAllowShrinking::No);
 					}
 					Filter.PackagePaths.Emplace(*PackagePath);
 				}

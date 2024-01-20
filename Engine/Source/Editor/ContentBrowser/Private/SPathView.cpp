@@ -1665,7 +1665,7 @@ void SPathView::DefaultSort(const FTreeItem* InTreeItem, TArray<TSharedPtr<FTree
 			if (SortInfo.FolderName.StartsWith(ClassesPrefix))
 			{
 				SortInfo.bIsClassesFolder = true;
-				SortInfo.FolderName.RightChopInline(ClassesPrefix.Len(), false);
+				SortInfo.FolderName.RightChopInline(ClassesPrefix.Len(), EAllowShrinking::No);
 			}
 		}
 

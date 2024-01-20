@@ -203,7 +203,7 @@ namespace
 					TSet<UStruct*> TypesChecked;
 					while (!bForceHasScript && TypesToCheck.Num() > 0)
 					{
-						UStruct* TypeToCheck = TypesToCheck.Pop(/*bAllowShrinking*/false);
+						UStruct* TypeToCheck = TypesToCheck.Pop(EAllowShrinking::No);
 						TypesChecked.Add(TypeToCheck);
 
 						for (TFieldIterator<const FProperty> PropIt(TypeToCheck, EFieldIteratorFlags::IncludeSuper, EFieldIteratorFlags::ExcludeDeprecated, EFieldIteratorFlags::IncludeInterfaces); !bForceHasScript && PropIt; ++PropIt)

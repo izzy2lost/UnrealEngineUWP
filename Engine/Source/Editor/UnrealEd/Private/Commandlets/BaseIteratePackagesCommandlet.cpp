@@ -146,7 +146,7 @@ int32 UBaseIteratePackagesCommandlet::InitializeParameters( const TArray<FString
 					bExplicitPackages = true;
 				}
 
-				Maps.RightInline(Maps.Len() - (PlusIdx + 1), false);
+				Maps.RightInline(Maps.Len() - (PlusIdx + 1), EAllowShrinking::No);
 			}
 			FString MapFile;
 			FPackageName::SearchForPackageOnDisk(Maps, NULL, &MapFile);

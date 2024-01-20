@@ -2390,7 +2390,7 @@ void FMeshUtilities::BuildStaticMeshVertexAndIndexBuffers(
 	}
 
 	// Remove working vertex
-	OutVertices.Pop(false);
+	OutVertices.Pop(EAllowShrinking::No);
 }
 
 void FMeshUtilities::CacheOptimizeVertexAndIndexBuffer(
@@ -3474,7 +3474,7 @@ public:
 			FaceAdded[FaceIndex] = true;
 			while (TriangleQueue.Num() > 0)
 			{
-				int32 CurrentTriangleIndex = TriangleQueue.Pop(false);
+				int32 CurrentTriangleIndex = TriangleQueue.Pop(EAllowShrinking::No);
 				FaceIndexToPatchIndex[CurrentTriangleIndex] = PatchIndex;
 				AddAdjacentFace(BuildData, FaceAdded, VertexIndexToAdjacentFaces, CurrentTriangleIndex, TriangleQueue, bConnectByEdge);
 			}

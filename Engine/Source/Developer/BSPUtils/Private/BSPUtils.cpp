@@ -1049,8 +1049,7 @@ void FilterWorldThroughBrush
 				{
 					// Get rid of all the fragments we added.
 					Model->Nodes[GLastCoplanar].iPlane = INDEX_NONE;
-					const bool bAllowShrinking = false;
-					Model->Nodes.RemoveAt( GNumNodes, Model->Nodes.Num()-GNumNodes, bAllowShrinking );
+					Model->Nodes.RemoveAt( GNumNodes, Model->Nodes.Num()-GNumNodes, EAllowShrinking::No );
 				}
 				else
 				{

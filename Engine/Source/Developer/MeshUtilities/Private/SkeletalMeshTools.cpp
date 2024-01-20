@@ -345,7 +345,7 @@ namespace SkeletalMeshTools
 				FaceAdded[FaceIndex] = true;
 				while (TriangleQueue.Num() > 0)
 				{
-					int32 CurrentTriangleIndex = TriangleQueue.Pop(false);
+					int32 CurrentTriangleIndex = TriangleQueue.Pop(EAllowShrinking::No);
 					TArray<FBoneIndexType> BonesToAdd = BonesPerFace[CurrentTriangleIndex];
 					for (const FBoneIndexType BoneIndex : BonesToAdd)
 					{

@@ -509,7 +509,7 @@ bool FPythonScriptPlugin::IsPythonAvailable() const
 					const FStringView CommandletSuffix = TEXTVIEW("Commandlet");
 					if (InOutCommandletName.EndsWith(CommandletSuffix))
 					{
-						InOutCommandletName.LeftChopInline(CommandletSuffix.Len(), /*bAllowShrinking*/false);
+						InOutCommandletName.LeftChopInline(CommandletSuffix.Len(), EAllowShrinking::No);
 					}
 				};
 

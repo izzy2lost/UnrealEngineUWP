@@ -3159,7 +3159,7 @@ void ULandscapeSplineSegment::UpdateSplinePoints(bool bUpdateCollision, bool bUp
 			{
 				if (OldLocalMeshComponents.Num() > 0)
 				{
-					MeshComponent = OldLocalMeshComponents.Pop(false).Get();
+					MeshComponent = OldLocalMeshComponents.Pop(EAllowShrinking::No).Get();
 				}
 			}
 			else
@@ -3168,7 +3168,7 @@ void ULandscapeSplineSegment::UpdateSplinePoints(bool bUpdateCollision, bool bUp
 				if (ForeignMeshComponents && ForeignMeshComponents->Num() > 0)
 				{
 					MeshComponentOuterSplines->UpdateModificationKey(this);
-					MeshComponent = ForeignMeshComponents->Pop(false);
+					MeshComponent = ForeignMeshComponents->Pop(EAllowShrinking::No);
 				}
 			}
 

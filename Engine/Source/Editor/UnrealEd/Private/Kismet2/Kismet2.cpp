@@ -1733,7 +1733,7 @@ void CreateBlueprintFromActors_Internal(UBlueprint* Blueprint, const TArray<AAct
 					if (!RootActor->IsAttachedTo(PossibleCommonAttachParents[PossibleIndex]))
 					{
 						// If we're not attached to a given actor, then we can't possibly also be attached to its children, so clear all of them out
-						PossibleCommonAttachParents.RemoveAt(0, PossibleIndex + 1, false);
+						PossibleCommonAttachParents.RemoveAt(0, PossibleIndex + 1, EAllowShrinking::No);
 						break;
 					}
 				}
@@ -1756,7 +1756,7 @@ void CreateBlueprintFromActors_Internal(UBlueprint* Blueprint, const TArray<AAct
 			// Remove attached actors that are also in the set of actors being converted to blueprint
 			if (Actors.Contains(AttachedActors[Index]))
 			{
-				AttachedActors.RemoveAtSwap(Index, 1, false);
+				AttachedActors.RemoveAtSwap(Index, 1, EAllowShrinking::No);
 			}
 		}
 

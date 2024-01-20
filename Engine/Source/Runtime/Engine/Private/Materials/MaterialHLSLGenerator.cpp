@@ -585,7 +585,7 @@ const UE::HLSLTree::FExpression* FMaterialHLSLGenerator::AcquireFunctionInputExp
 	using namespace UE::HLSLTree;
 	
 	// Need to pop because we are going out of the function when processing expressions connected to the inputs
-	FFunctionCallEntry* FunctionEntry = FunctionCallStack.Pop(false);
+	FFunctionCallEntry* FunctionEntry = FunctionCallStack.Pop(EAllowShrinking::No);
 	const FExpression* InputExpression = nullptr;
 	int32 InputIndex = INDEX_NONE;
 
@@ -684,7 +684,7 @@ bool FMaterialHLSLGenerator::GenerateStatements(UE::HLSLTree::FScope& Scope, UMa
 				return Error(TEXT("Bad control flow"));
 			}
 
-			ScopeToUse = JoinedScopeStack.Pop(false);
+			ScopeToUse = JoinedScopeStack.Pop(EAllowShrinking::No);
 			for (int32 i = 0; i < Entry.NumInputs; ++i)
 			{
 				ScopeToUse->AddPreviousScope(*Entry.PreviousScope[i]);

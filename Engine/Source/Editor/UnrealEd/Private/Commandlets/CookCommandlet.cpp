@@ -312,7 +312,7 @@ bool UCookCommandlet::CookByTheBook(const TArray<ITargetPlatform*>& Platforms)
 					const FString ValueElement = ValuesList.Left(PlusIdx);
 					ValueElements.Add(ValueElement);
 
-					ValuesList.RightInline(ValuesList.Len() - (PlusIdx + 1), false);
+					ValuesList.RightInline(ValuesList.Len() - (PlusIdx + 1), EAllowShrinking::No);
 				}
 				ValueElements.Add(ValuesList);
 			}

@@ -1493,7 +1493,7 @@ UPackageTools::UPackageTools(const FObjectInitializer& ObjectInitializer)
 
 				if (SlashCount > 1)
 				{
-					SanitizedName.RemoveAt(CharIndex + 1, SlashCount - 1, false);
+					SanitizedName.RemoveAt(CharIndex + 1, SlashCount - 1, EAllowShrinking::No);
 				}
 			}
 

@@ -78,7 +78,7 @@ bool FNotifyTrack::UpdateInternal()
 		EventUpdateRequested = 0;
 		
 		auto& EventPoints = EventData->Points;
-		EventPoints.SetNum(0,false);
+		EventPoints.SetNum(0,EAllowShrinking::No);
 		EventData->Windows.SetNum(0);
 
 		TraceServices::FAnalysisSessionReadScope SessionReadScope(*AnalysisSession);

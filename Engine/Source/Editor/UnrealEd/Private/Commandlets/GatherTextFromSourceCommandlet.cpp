@@ -1175,7 +1175,7 @@ void UGatherTextFromSourceCommandlet::FSourceFileParseContext::PopMacroBlock()
 {
 	if (MacroBlockStack.Num() > 0)
 	{
-		MacroBlockStack.Pop(/*bAllowShrinking*/false);
+		MacroBlockStack.Pop(EAllowShrinking::No);
 		CachedEditorOnlyDefineState.Reset();
 	}
 }
@@ -1463,7 +1463,7 @@ void UGatherTextFromSourceCommandlet::FIfDescriptor::TryParse(const FString& Tex
 		// Handle "#if defined <defname>"
 		if (RemainingText.StartsWith(DefinedString, ESearchCase::CaseSensitive))
 		{
-			RemainingText.RightChopInline(DefinedString.Len(), false);
+			RemainingText.RightChopInline(DefinedString.Len(), EAllowShrinking::No);
 			RemainingText.TrimStartInline();
 		}
 
@@ -1500,7 +1500,7 @@ void UGatherTextFromSourceCommandlet::FElIfDescriptor::TryParse(const FString& T
 		// Handle "#elif defined <defname>"
 		if (RemainingText.StartsWith(DefinedString, ESearchCase::CaseSensitive))
 		{
-			RemainingText.RightChopInline(DefinedString.Len(), false);
+			RemainingText.RightChopInline(DefinedString.Len(), EAllowShrinking::No);
 			RemainingText.TrimStartInline();
 		}
 

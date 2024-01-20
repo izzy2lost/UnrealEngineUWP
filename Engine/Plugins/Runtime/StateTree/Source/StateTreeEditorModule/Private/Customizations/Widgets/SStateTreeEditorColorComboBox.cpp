@@ -135,7 +135,7 @@ void SStateTreeEditorColorComboBox::UpdatedSelectedColorWidget()
 		return;
 	}
 
-	SelectedColorRef = *static_cast<const FStateTreeEditorColorRef*>(RawData.Pop(/*bAllowShrinking*/false));
+	SelectedColorRef = *static_cast<const FStateTreeEditorColorRef*>(RawData.Pop(EAllowShrinking::No));
 
 	// Make "Multiple Values" content if there's at least one Color ID that differs
 	for (const void* ColorRefRaw : RawData)

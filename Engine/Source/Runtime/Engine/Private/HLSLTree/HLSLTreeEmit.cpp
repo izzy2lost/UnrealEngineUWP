@@ -105,7 +105,7 @@ void FEmitShaderStatement::EmitShaderCode(FEmitShaderScopeStack& Stack, int32 In
 		{
 			Stack.Emplace(NestedScopes[i], NestedScopeIndent, ScopeCode);
 			NestedScope->EmitShaderCode(Stack);
-			Stack.Pop(false);
+			Stack.Pop(EAllowShrinking::No);
 		}
 
 		if (bNeedToCloseScope)

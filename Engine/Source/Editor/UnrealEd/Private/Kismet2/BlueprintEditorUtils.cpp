@@ -7752,7 +7752,7 @@ FName FBlueprintEditorUtils::FindUniqueKismetName(const UBlueprint* InBlueprint,
 		// If the length of the final string will be too long, cut off the end so we can fit the number
 		if(CountLength + BaseName.Len() > NameValidator->GetMaximumNameLength())
 		{
-			BaseName.LeftInline(NameValidator->GetMaximumNameLength() - CountLength, false);
+			BaseName.LeftInline(NameValidator->GetMaximumNameLength() - CountLength, EAllowShrinking::No);
 		}
 		KismetName = FString::Printf(TEXT("%s_%d"), *BaseName, Count);
 		Count++;

@@ -220,7 +220,7 @@ namespace InternalEditorLevelLibrary
 				FString ObjectLongPackagePath = FPackageName::GetLongPackagePath(ObjectPackageName);
 
 				// Remove source from the object name
-				ObjectLongPackagePath.MidInline(OutValidatedPaths.SourceValidDirectoryPath.Len(), MAX_int32, false);
+				ObjectLongPackagePath.MidInline(OutValidatedPaths.SourceValidDirectoryPath.Len(), MAX_int32, EAllowShrinking::No);
 
 				// Create AssetPath /Game/MyFolder/MyAsset.MyAsset
 				FString NewAssetPackageName;

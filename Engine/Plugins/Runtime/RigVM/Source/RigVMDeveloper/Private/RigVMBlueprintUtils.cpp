@@ -20,11 +20,11 @@ FName FRigVMBlueprintUtils::ValidateName(UBlueprint* InBlueprint, const FString&
 	FString Name = InName;
 	if (Name.StartsWith(TEXT("RigUnit_")))
 	{
-		Name.RightChopInline(8, false);
+		Name.RightChopInline(8, EAllowShrinking::No);
 	}
 	else if (Name.StartsWith(TEXT("RigVMStruct_")))
 	{
-		Name.RightChopInline(12, false);
+		Name.RightChopInline(12, EAllowShrinking::No);
 	}
 
 	TSharedPtr<FKismetNameValidator> NameValidator;

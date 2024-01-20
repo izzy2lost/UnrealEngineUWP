@@ -643,7 +643,7 @@ void FCluster::Bound()
 	SurfaceArea = 0.0f;
 	
 	TArray< FVector3f, TInlineAllocator<128> > Positions;
-	Positions.SetNum( NumVerts, false );
+	Positions.SetNum( NumVerts, EAllowShrinking::No );
 
 	for( uint32 i = 0; i < NumVerts; i++ )
 	{

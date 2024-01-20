@@ -67,7 +67,7 @@ void FTabInfo::AddTabHistory(TSharedPtr< struct FGenericTabHistory > InHistoryNo
 		else
 		{
 			// Clear out any history that is in front of the current location in the history list
-			Tracker->History.RemoveAt(Tracker->CurrentHistoryIndex + 1, Tracker->History.Num() - (Tracker->CurrentHistoryIndex + 1), true);
+			Tracker->History.RemoveAt(Tracker->CurrentHistoryIndex + 1, Tracker->History.Num() - (Tracker->CurrentHistoryIndex + 1), EAllowShrinking::Yes);
 		}
 
 		Tracker->History.Add(InHistoryNode);
@@ -780,7 +780,7 @@ TSharedPtr<SDockTab> FDocumentTracker::OpenNewTab(TSharedPtr<FGenericTabHistory>
 			TabManager->RestoreDocumentTab( DocumentId, FTabManager::ESearchPreference::RequireClosedTab, NewTab.ToSharedRef() );
 
 			// Clear tab history before this so previous restores don't show up
-			History.RemoveAt(0, History.Num() - 1, true);
+			History.RemoveAt(0, History.Num() - 1, EAllowShrinking::Yes);
 			CurrentHistoryIndex = History.Num() - 1;
 		}
 	}
