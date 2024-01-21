@@ -60,6 +60,31 @@ namespace EpicGames.Horde.Storage
 		}
 
 		/// <summary>
+		/// Makes an object key from the given path
+		/// </summary>
+		public static ObjectKey Sanitize(Utf8String path)
+		{
+			byte[]? data = null; 
+			for (int idx = 0; idx < path.Length; idx++)
+			{
+				byte character = path[idx];
+				if (!StringId.IsValidCharacter(character) && character != '/')
+				{
+					data ??= path.Memory.ToArray();
+					if (character >= 'A' && character <= 'Z')
+					{
+						data[idx] = (byte)('a' + (character - 'A'));
+					}
+					else
+					{
+						data[idx] = (byte)'_';
+					}
+				}
+			}
+			return new ObjectKey((data == null) ? path : new Utf8String(data));
+		}
+
+		/// <summary>
 		/// Whether the blob locator is valid
 		/// </summary>
 		public bool IsValid() => !_path.IsEmpty;

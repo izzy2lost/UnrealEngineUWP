@@ -11,6 +11,8 @@ using MongoDB.Bson.Serialization.Attributes;
 using MongoDB.Driver;
 using EpicGames.Horde.Storage;
 using EpicGames.Horde.Jobs;
+using EpicGames.Horde;
+using EpicGames.Core;
 
 namespace Horde.Server.Jobs.Artifacts
 {
@@ -211,11 +213,11 @@ namespace Horde.Server.Jobs.Artifacts
 		{
 			if (stepId == null)
 			{
-				return new ObjectKey($"{jobId}/{name}");
+				return ObjectKey.Sanitize(new Utf8String($"{jobId}/{name}"));
 			}
 			else
 			{
-				return new ObjectKey($"{jobId}/{stepId.Value}/{name}");
+				return ObjectKey.Sanitize(new Utf8String($"{jobId}/{stepId.Value}/{name}"));
 			}
 		}
 
