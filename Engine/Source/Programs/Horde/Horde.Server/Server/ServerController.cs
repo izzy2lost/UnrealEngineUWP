@@ -8,6 +8,7 @@ using System.Runtime.InteropServices;
 using System.Threading;
 using System.Threading.Tasks;
 using EpicGames.Core;
+using EpicGames.Horde;
 using EpicGames.Horde.Server;
 using EpicGames.Perforce;
 using Horde.Server.Agents;
@@ -70,6 +71,7 @@ namespace Horde.Server.Server
 		public async Task<ActionResult<GetServerInfoResponse>> GetServerInfoAsync()
 		{
 			GetServerInfoResponse response = new GetServerInfoResponse();
+			response.ApiVersion = (int)HordeApiVersion.Latest;
 
 			FileVersionInfo versionInfo = FileVersionInfo.GetVersionInfo(Assembly.GetExecutingAssembly().Location);
 			response.ServerVersion = versionInfo.ProductVersion ?? String.Empty;

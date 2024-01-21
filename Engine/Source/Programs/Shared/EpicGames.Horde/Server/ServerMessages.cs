@@ -1,6 +1,7 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 using System;
+using System.Text.Json.Serialization;
 
 namespace EpicGames.Horde.Server
 {
@@ -9,6 +10,12 @@ namespace EpicGames.Horde.Server
 	/// </summary>
 	public class GetServerInfoResponse
 	{
+		/// <summary>
+		/// Current API version number of the server
+		/// </summary>
+		[JsonConverter(typeof(HordeApiVersionConverter))]
+		public HordeApiVersion ApiVersion { get; set; }
+
 		/// <summary>
 		/// Server version info
 		/// </summary>
