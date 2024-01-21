@@ -103,7 +103,7 @@ namespace Horde.Server.Agents.Fleet.Providers
 		}
 
 		/// <inheritdoc/>
-		public Task<int> GetNumStoppedInstancesAsync(IPool pool, CancellationToken cancellationToken)
+		public Task<int> GetNumStoppedInstancesAsync(IPoolConfig pool, CancellationToken cancellationToken)
 		{
 			return Task.FromResult(0);
 		}

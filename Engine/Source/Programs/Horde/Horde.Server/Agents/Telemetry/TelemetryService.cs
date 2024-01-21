@@ -88,7 +88,7 @@ namespace Horde.Server.Agents.Telemetry
 
 				NewUtilizationTelemetry telemetry = new NewUtilizationTelemetry(bucketMinTime, bucketMaxTime);
 				telemetry.NumAgents = agents.Count;
-				foreach (IPool pool in pools)
+				foreach (IPoolConfig pool in pools)
 				{
 					if (pool.EnableAutoscaling)
 					{

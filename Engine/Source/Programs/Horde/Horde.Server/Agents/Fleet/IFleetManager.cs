@@ -179,7 +179,7 @@ namespace Horde.Server.Agents.Fleet
 		/// <param name="pool">Pool to resize</param>
 		/// <param name="cancellationToken">Cancellation token for the call</param>
 		/// <returns>Async task</returns>
-		Task<int> GetNumStoppedInstancesAsync(IPool pool, CancellationToken cancellationToken = default);
+		Task<int> GetNumStoppedInstancesAsync(IPoolConfig pool, CancellationToken cancellationToken = default);
 	}
 }
 

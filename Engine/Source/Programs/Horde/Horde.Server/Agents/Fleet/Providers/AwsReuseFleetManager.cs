@@ -176,7 +176,7 @@ namespace Horde.Server.Agents.Fleet.Providers
 		} 
 
 		/// <inheritdoc/>
-		public async Task<int> GetNumStoppedInstancesAsync(IPool pool, CancellationToken cancellationToken)
+		public async Task<int> GetNumStoppedInstancesAsync(IPoolConfig pool, CancellationToken cancellationToken)
 		{
 			// Find all instances in the pool
 			DescribeInstancesRequest describeRequest = new DescribeInstancesRequest();

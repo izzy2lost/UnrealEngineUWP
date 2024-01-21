@@ -472,7 +472,7 @@ public sealed class AwsRecyclingFleetManager : IFleetManager
 	}
 
 	/// <inheritdoc/>
-	public async Task<int> GetNumStoppedInstancesAsync(IPool pool, CancellationToken cancellationToken)
+	public async Task<int> GetNumStoppedInstancesAsync(IPoolConfig pool, CancellationToken cancellationToken)
 	{
 		// Find all instances in the pool
 		DescribeInstancesRequest describeRequest = new DescribeInstancesRequest();
