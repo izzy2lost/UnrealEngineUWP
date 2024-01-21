@@ -230,11 +230,12 @@ class DeviceWidgetnDisplay(DeviceWidgetUnreal):
         super().on_name_changed(text)
 
         if self.name_line_edit.is_valid:
-            point = self.name_line_edit.parent().mapToGlobal(
-                self.name_line_edit.geometry().topRight())
-            self.help_tool_tip.showText(
-                point,
-                "WARNING: Device names must match the nDisplay configuration")
+            parent = self.name_line_edit.parent()
+            if parent:
+                point = parent.mapToGlobal(self.name_line_edit.geometry().topRight())
+                self.help_tool_tip.showText(
+                    point,
+                    "WARNING: Device names must match the nDisplay configuration")
 
     def _add_control_buttons(self):
         self._autojoin_visible = False

@@ -2091,6 +2091,7 @@ class Config(object):
 
         # MISC SETTINGS
         self.CURRENT_LEVEL = data.get('current_level', DEFAULT_MAP_TEXT)
+        self.LEVELS = data.get('levels', None)
 
         # Devices
         self._device_data_from_config = {}
@@ -2158,6 +2159,7 @@ class Config(object):
         self.init_muserver()
 
         self.CURRENT_LEVEL = DEFAULT_MAP_TEXT
+        self.LEVELS = None
 
         self._device_data_from_config = {}
         self._plugin_data_from_config = {}
@@ -2575,8 +2577,9 @@ class Config(object):
 
         self.save_muserver(data)
 
-        # Current Level
+        # Levels
         data["current_level"] = self.CURRENT_LEVEL
+        data["levels"] = self.LEVELS
 
         # Devices
         data["devices"] = {}
@@ -2745,23 +2748,49 @@ class Config(object):
                 (unreal_content_plugin,
                  unreal_content_plugin.plugin_content_path))
 
+        # Pre-filtering by .umap extension is faster than fnmatch on all files
+        # Currently there are no use cases where a different extension is of interest.
+        def get_umap_files(dirpath) -> list:
+            ''' Returns a list with all *.map files in the recursively searched dirpath
+
+            Parameters
+            ----------
+            dirpath: str
+                Directory to be recursively searched for .umap files
+
+            Returns
+            -------
+                list
+                    List of found map entries.
+            '''
+            umap_files = []
+            for entry in os.scandir(dirpath):
+                if entry.is_file() and entry.name.endswith(".umap"):
+                    umap_files.append(entry)
+                elif entry.is_dir():
+                    umap_files.extend(get_umap_files(entry.path))  # recursive
+            return umap_files
+
         maps = []
+        maps_filter = self.MAPS_FILTER.get_value()
+
         for (unreal_content_plugin, maps_path) in search_paths:
-            for dirpath, b, file_names in os.walk(maps_path):
-                for file_name in file_names:
-                    if not fnmatch.fnmatch(
-                            file_name, self.MAPS_FILTER.get_value()):
-                        continue
 
-                    map_name, _ = os.path.splitext(file_name)
-                    file_path_to_map = os.path.join(dirpath, map_name)
+            umaps = get_umap_files(maps_path)
 
-                    content_path_to_map = self.resolve_content_path(
-                        file_path_to_map,
-                        unreal_content_plugin=unreal_content_plugin)
+            for umap in umaps:
+                if not fnmatch.fnmatch(umap.name, maps_filter):
+                    continue
 
-                    if content_path_to_map not in maps:
-                        maps.append(content_path_to_map)
+                map_name, _ = os.path.splitext(umap.name)
+                file_path_to_map = os.path.join(umap.path, map_name)
+
+                content_path_to_map = self.resolve_content_path(
+                    file_path_to_map,
+                    unreal_content_plugin=unreal_content_plugin)
+
+                if content_path_to_map not in maps:
+                    maps.append(content_path_to_map)
 
         maps.sort()
         return maps
