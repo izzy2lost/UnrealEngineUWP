@@ -35,11 +35,6 @@ namespace Horde
 		}
 
 		/// <summary>
-		/// Settings for the storage cache
-		/// </summary>
-		public CmdCacheConfig Cache { get; set; } = new CmdCacheConfig();
-
-		/// <summary>
 		/// Gets the location for the config file
 		/// </summary>
 		static FileReference GetLocation()
@@ -73,31 +68,5 @@ namespace Horde
 			DirectoryReference.CreateDirectory(Location.Directory);
 			await FileReference.WriteAllBytesAsync(Location, data, cancellationToken);
 		}
-	}
-
-	/// <summary>
-	/// Settings for configuring the storage system
-	/// </summary>
-	public class CmdCacheConfig
-	{
-		/// <summary>
-		/// Directory to use for the persistent backend cache
-		/// </summary>
-		public string? CacheDir { get; set; }
-
-		/// <summary>
-		/// Size of the disk cache, in megabytes
-		/// </summary>
-		public long CacheSize { get; set; } = 1024;
-
-		/// <summary>
-		/// Size of the in-memory header cache, in megabytes 
-		/// </summary>
-		public long? HeaderCacheSize { get; set; }
-
-		/// <summary>
-		/// Size of the in-memory object cache, in megabytes
-		/// </summary>
-		public long? PacketCacheSize { get; set; }
 	}
 }

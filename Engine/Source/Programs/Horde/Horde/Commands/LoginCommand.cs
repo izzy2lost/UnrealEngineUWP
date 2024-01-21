@@ -28,13 +28,13 @@ namespace Horde.Commands
 		public bool Token { get; set; }
 
 		readonly IServiceProvider _serviceProvider;
-		readonly IHttpClientFactory _httpClientFactory;
+		readonly IHordeClient _hordeClient;
 		readonly CmdConfig _config;
 
-		public LoginCommand(IServiceProvider serviceProvider, IHttpClientFactory httpClientFactory, IOptions<CmdConfig> config)
+		public LoginCommand(IServiceProvider serviceProvider, IHordeClient hordeClient, IOptions<CmdConfig> config)
 		{
 			_serviceProvider = serviceProvider;
-			_httpClientFactory = httpClientFactory;
+			_hordeClient = hordeClient;
 			_config = config.Value;
 		}
 
@@ -47,7 +47,7 @@ namespace Horde.Commands
 				await _config.WriteAsync();
 			}
 
-			using HordeHttpClient httpClient = _httpClientFactory.CreateHordeClient();
+			using HordeHttpClient httpClient = _hordeClient.CreateHttpClient();
 
 			GetServerInfoResponse serverInfo = await httpClient.GetServerInfoAsync();
 			logger.LogInformation("Connected to server version: {Version}", serverInfo.ServerVersion);

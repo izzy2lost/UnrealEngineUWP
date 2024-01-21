@@ -23,6 +23,7 @@ using EpicGames.Horde.Streams;
 using EpicGames.Horde.Tools;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Options;
 using Polly;
 using Polly.Extensions.Http;
 using Polly.Retry;
@@ -445,7 +446,7 @@ namespace EpicGames.Horde
 		/// <summary>
 		/// Creates a <see cref="HordeHttpClient"/> instance from an http client factory
 		/// </summary>
-		public static HordeHttpClient CreateHordeClient(this IHttpClientFactory factory)
+		public static HordeHttpClient CreateHordeHttpClient(this IHttpClientFactory factory)
 		{
 			return new HordeHttpClient(factory.CreateClient(HordeHttpClient.HttpClientName));
 		}
@@ -454,10 +455,9 @@ namespace EpicGames.Horde
 		/// Registers a Horde HTTP client type, and configures it to use the default OIDC message handler.
 		/// </summary>
 		/// <param name="services">Service collection to add services to</param>
-		/// <param name="useAuthChallenge">Whether to prompt the user to authenticate if necessary</param>
-		public static IHttpClientBuilder AddHordeHttpClient(this IServiceCollection services, bool useAuthChallenge = true)
+		public static IHttpClientBuilder AddHordeHttpClient(this IServiceCollection services)
 		{
-			return services.AddHordeHttpClient((sp, client) => { }, useAuthChallenge);
+			return services.AddHordeHttpClient((sp, client) => { });
 		}
 
 		/// <summary>
@@ -465,10 +465,9 @@ namespace EpicGames.Horde
 		/// </summary>
 		/// <param name="services">Service collection to add services to</param>
 		/// <param name="configureClient">Callback to modify options for the http client</param>
-		/// <param name="useAuthChallenge">Whether to prompt the user to authenticate if necessary</param>
-		public static IHttpClientBuilder AddHordeHttpClient(this IServiceCollection services, Action<HttpClient> configureClient, bool useAuthChallenge = true)
+		public static IHttpClientBuilder AddHordeHttpClient(this IServiceCollection services, Action<HttpClient> configureClient)
 		{
-			return services.AddHordeHttpClient((sp, client) => configureClient(client), useAuthChallenge);
+			return services.AddHordeHttpClient((sp, client) => configureClient(client));
 		}
 
 		/// <summary>
@@ -476,14 +475,25 @@ namespace EpicGames.Horde
 		/// </summary>
 		/// <param name="services">Service collection to add services to</param>
 		/// <param name="configureClient">Callback to modify options for the http client</param>
-		/// <param name="useAuthChallenge">Whether to prompt the user to authenticate if necessary</param>
-		public static IHttpClientBuilder AddHordeHttpClient(this IServiceCollection services, Action<IServiceProvider, HttpClient> configureClient, bool useAuthChallenge = true)
+		public static IHttpClientBuilder AddHordeHttpClient(this IServiceCollection services, Action<IServiceProvider, HttpClient> configureClient)
 		{
 			// Sets defaults from the environment before calling the user provided configuration method
 			void ConfigureClientFromEnvironment(IServiceProvider serviceProvider, HttpClient httpClient)
 			{
+				IOptions<HordeOptions> options = serviceProvider.GetRequiredService<IOptions<HordeOptions>>();
+				if (options.Value.ServerUrl != null)
+				{
+					httpClient.BaseAddress = options.Value.ServerUrl;
+				}
+				if (options.Value.AccessToken != null)
+				{
+					httpClient.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", options.Value.AccessToken);
+				}
+
 				httpClient.Timeout = TimeSpan.FromSeconds(240); // Global timeout
 
+				// Run the user callbacks
+				options.Value.ConfigureHttpClient?.Invoke(httpClient);
 				configureClient(serviceProvider, httpClient);
 
 				// Only use the token from the environment if the configured base address is missing or matches the one configured in the environment
@@ -517,14 +527,11 @@ namespace EpicGames.Horde
 				.AddPolicyHandler((serviceProvider, request) => CreateDefaultTimeoutRetryPolicy(request, serviceProvider.GetRequiredService<ILogger<HttpStorageBackend>>()))
 				.AddPolicyHandler((serviceProvider, request) => CreateDefaultTransientErrorPolicy(request, serviceProvider.GetRequiredService<ILogger<HttpStorageBackend>>()));
 
-			if (useAuthChallenge)
-			{
-				services.AddSingleton<HordeHttpAuthHandlerState>();
-				services.AddTransient<HordeHttpAuthHandler>();
-				services.AddHttpClient(HordeHttpAuthHandlerState.HttpClientName, configureClient);
+			services.AddSingleton<HordeHttpAuthHandlerState>();
+			services.AddTransient<HordeHttpAuthHandler>();
+			services.AddHttpClient(HordeHttpAuthHandlerState.HttpClientName, configureClient);
 
-				builder = builder.AddHttpMessageHandler<HordeHttpAuthHandler>();
-			}
+			builder = builder.AddHttpMessageHandler<HordeHttpAuthHandler>();
 
 			return builder;
 		}

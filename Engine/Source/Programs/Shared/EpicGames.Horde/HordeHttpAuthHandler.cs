@@ -14,6 +14,7 @@ using EpicGames.OIDC;
 using System.Net.Http.Json;
 using System.Text.Json;
 using EpicGames.Horde.Server;
+using Microsoft.Extensions.Options;
 
 namespace EpicGames.Horde
 {
@@ -23,20 +24,27 @@ namespace EpicGames.Horde
 	public class HordeHttpAuthHandler : DelegatingHandler
 	{
 		readonly HordeHttpAuthHandlerState _authState;
+		readonly IOptions<HordeOptions> _options;
 
 		AuthenticationHeaderValue? _authHeader;
 
 		/// <summary>
 		/// Constructor
 		/// </summary>
-		public HordeHttpAuthHandler(HordeHttpAuthHandlerState authState)
+		public HordeHttpAuthHandler(HordeHttpAuthHandlerState authState, IOptions<HordeOptions> options)
 		{
 			_authState = authState;
+			_options = options;
 		}
 
 		/// <inheritdoc/>
 		protected override async Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken cancellationToken)
 		{
+			if (!_options.Value.AllowAuthPrompt)
+			{
+				return await base.SendAsync(request, cancellationToken);
+			}
+
 			// Do not try to override the auth header if the user has specified it explicitly
 			if (request.Headers.Authorization != null)
 			{

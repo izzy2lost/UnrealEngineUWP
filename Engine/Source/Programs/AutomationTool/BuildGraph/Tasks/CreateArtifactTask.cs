@@ -100,7 +100,7 @@ namespace AutomationTool.Tasks
 			// Create a DI container for building the graph
 			ServiceCollection serviceCollection = new ServiceCollection();
 			serviceCollection.AddLogging(builder => builder.AddProvider(new LoggerProviderAdapter(Log.Logger)));
-			serviceCollection.AddHorde(new HordeOptions { AllowAuthPrompt = !Automation.IsBuildMachine });
+			serviceCollection.Configure<HordeOptions>(x => x.AllowAuthPrompt = !Automation.IsBuildMachine);
 			serviceCollection.Configure<LoggerFilterOptions>(options => options.AddFilter(typeof(HttpClient).FullName, LogLevel.Warning));
 
 			await using ServiceProvider serviceProvider = serviceCollection.BuildServiceProvider();

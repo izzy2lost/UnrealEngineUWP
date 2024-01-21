@@ -23,7 +23,7 @@ namespace Horde.Commands
 			GetToolsSummaryResponse response = await _hordeHttpClient.GetToolsAsync();
 			foreach (GetToolSummaryResponse tool in response.Tools)
 			{
-				logger.LogInformation("  {ToolId,-20} {Deployment,-30} {Version,-15}", tool.Id, tool.DeploymentId, tool.Version);
+				logger.LogInformation("  {ToolId,-30} {Deployment,-30} {Version,-15}", tool.Id, tool.DeploymentId, tool.Version);
 			}
 			return 0;
 		}

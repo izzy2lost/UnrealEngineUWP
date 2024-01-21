@@ -173,7 +173,9 @@ namespace Horde.Agent
 				return builder.WaitAndRetryAsync(new[] { TimeSpan.FromSeconds(1), TimeSpan.FromSeconds(5), TimeSpan.FromSeconds(10) });
 			});
 
-			services.AddHordeHttpClient(client => client.BaseAddress = serverProfile.Url, useAuthChallenge: false)
+			services.Configure<HordeOptions>(options => options.AllowAuthPrompt = false);
+
+			services.AddHordeHttpClient(client => client.BaseAddress = serverProfile.Url)
 				.ConfigurePrimaryHttpMessageHandler(() => new SocketsHttpHandler
 				{
 					MaxConnectionsPerServer = 16,

@@ -9,11 +9,8 @@ using System.Runtime.InteropServices;
 using Serilog.Sinks.SystemConsole.Themes;
 using Serilog;
 using Serilog.Formatting.Json;
-using EpicGames.Horde.Storage;
 using Microsoft.Extensions.Options;
 using EpicGames.Horde;
-using EpicGames.Horde.Storage.Clients;
-using EpicGames.Horde.Storage.Backends;
 
 namespace Horde
 {
@@ -32,47 +29,23 @@ namespace Horde
 				.AddEnvironmentVariables()
 				.Build();
 
+			CmdConfig cmdConfig = CmdConfig.Read();
+
 			using ILoggerFactory loggerFactory = CreateLoggerFactory(configuration, arguments);
 
 			IServiceCollection services = new ServiceCollection();
+			services.Configure<HordeOptions>(options => configuration.Bind("Horde", options));
+			services.Configure<HordeOptions>(options => options.ServerUrl = cmdConfig.Server);
 			services.AddCommandsFromAssembly(Assembly.GetExecutingAssembly());
 			services.AddSingleton(loggerFactory);
 			services.AddLogging();
 			services.AddMemoryCache();
-			services.AddSingleton(sp => Options.Create(CmdConfig.Read()));
-			services.AddHordeHttpClient((sp, client) => client.BaseAddress = sp.GetRequiredService<IOptions<CmdConfig>>().Value.Server);
-			services.AddSingleton<BundleCache>(CreateStorageClientCache);
-			services.AddSingleton<StorageBackendCache>(CreateStorageBackendCache);
-			services.AddSingleton<HttpStorageBackendFactory>();
-			services.AddSingleton<HttpStorageClientFactory>();
+			services.AddSingleton(Options.Create(cmdConfig));
+			services.AddHorde();
 
 			// Execute all the commands
 			await using ServiceProvider serviceProvider = services.BuildServiceProvider();
 			return await CommandHost.RunAsync(arguments, serviceProvider, null, ToolDescription);
-		}
-
-		static BundleCache CreateStorageClientCache(IServiceProvider serviceProvider)
-		{
-			CmdConfig cmdConfig = serviceProvider.GetRequiredService<IOptions<CmdConfig>>().Value;
-
-			BundleCacheOptions options = new BundleCacheOptions();
-			if (cmdConfig.Cache.HeaderCacheSize.HasValue)
-			{
-				options.HeaderCacheSize = cmdConfig.Cache.HeaderCacheSize.Value * 1024 * 1024;
-			}
-			if (cmdConfig.Cache.PacketCacheSize.HasValue)
-			{
-				options.PacketCacheSize = cmdConfig.Cache.PacketCacheSize.Value * 1024 * 1024;
-			}
-
-			return new BundleCache(options);
-		}
-
-		static StorageBackendCache CreateStorageBackendCache(IServiceProvider serviceProvider)
-		{
-			CmdConfig cmdConfig = serviceProvider.GetRequiredService<IOptions<CmdConfig>>().Value;
-			DirectoryReference cacheDir = DirectoryReference.Combine(GetDataDir(), String.IsNullOrEmpty(cmdConfig.Cache.CacheDir)? "Cache" : cmdConfig.Cache.CacheDir);
-			return new StorageBackendCache(cacheDir, cmdConfig.Cache.CacheSize * 1024 * 1024, serviceProvider.GetRequiredService<ILogger<StorageBackendCache>>());
 		}
 
 		static DirectoryReference GetAppDir()

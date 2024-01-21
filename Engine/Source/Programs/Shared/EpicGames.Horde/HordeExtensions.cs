@@ -1,12 +1,11 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 using System;
-using System.Net.Http;
-using System.Net.Http.Headers;
 using EpicGames.Horde.Storage;
 using EpicGames.Horde.Storage.Backends;
 using EpicGames.Horde.Storage.Clients;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Options;
 
 namespace EpicGames.Horde
 {
@@ -21,47 +20,23 @@ namespace EpicGames.Horde
 		/// <param name="serviceCollection">Collection to register services with</param>
 		public static void AddHorde(this IServiceCollection serviceCollection)
 		{
-			AddHorde(serviceCollection, new HordeOptions());
-		}
-
-		/// <summary>
-		/// Adds Horde-related services with the default settings
-		/// </summary>
-		/// <param name="serviceCollection">Collection to register services with</param>
-		/// <param name="configure">Callback to configure options</param>
-		public static void AddHorde(this IServiceCollection serviceCollection, Action<HordeOptions> configure)
-		{
-			HordeOptions options = new HordeOptions();
-			configure(options);
-			AddHorde(serviceCollection, options);
-		}
-
-		/// <summary>
-		/// Adds Horde-related services with the default settings
-		/// </summary>
-		/// <param name="serviceCollection">Collection to register services with</param>
-		/// <param name="options">Options for the collection</param>
-		public static void AddHorde(this IServiceCollection serviceCollection, HordeOptions options)
-		{
-			void ConfigureHttpClient(HttpClient httpClient)
-			{
-				if (options.ServerUrl != null)
-				{
-					httpClient.BaseAddress = options.ServerUrl;
-				}
-				if (options.AccessToken != null)
-				{
-					httpClient.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", options.AccessToken);
-				}
-
-				options.ConfigureHttpClient?.Invoke(httpClient);
-			}
-
-			serviceCollection.AddHordeHttpClient(ConfigureHttpClient, options.AllowAuthPrompt);
-			serviceCollection.AddSingleton<BundleCache>(sp => new BundleCache(options.BundleCache));
+			serviceCollection.AddHordeHttpClient();
+			serviceCollection.AddSingleton<BundleCache>(sp => new BundleCache(sp.GetRequiredService<IOptions<HordeOptions>>().Value.BundleCache));
 			serviceCollection.AddSingleton<StorageBackendCache>();
 			serviceCollection.AddSingleton<HttpStorageBackendFactory>();
 			serviceCollection.AddSingleton<HttpStorageClientFactory>();
+			serviceCollection.AddSingleton<IHordeClient, HordeClient>();
+		}
+
+		/// <summary>
+		/// Adds Horde-related services
+		/// </summary>
+		/// <param name="serviceCollection">Collection to register services with</param>
+		/// <param name="configureHorde">Callback to configure options</param>
+		public static void AddHorde(this IServiceCollection serviceCollection, Action<HordeOptions> configureHorde)
+		{
+			serviceCollection.Configure(configureHorde);
+			AddHorde(serviceCollection);
 		}
 	}
 }
