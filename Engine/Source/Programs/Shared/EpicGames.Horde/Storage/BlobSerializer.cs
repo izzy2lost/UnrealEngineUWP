@@ -6,6 +6,7 @@ using System.Collections.Generic;
 using System.Reflection;
 using System.Threading;
 using System.Threading.Tasks;
+using EpicGames.Horde.Storage.Nodes;
 
 namespace EpicGames.Horde.Storage
 {
@@ -26,31 +27,6 @@ namespace EpicGames.Horde.Storage
 			BlobReader reader = new BlobReader(blobData);
 			return options.GetConverter<T>().Read(reader, options);
 		}
-		/*
-		/// <summary>
-		/// Deserialize an object
-		/// </summary>
-		/// <typeparam name="T">Return type for the deserialized object</typeparam>
-		/// <param name="handle">Handle to the blob to deserialize</param>
-		/// <param name="options">Options to control serialization</param>
-		/// <param name="cancellationToken">Cancellation token for the operation</param>
-		public static async ValueTask<T> DeserializeAsync<T>(IBlobHandle handle, BlobSerializerOptions? options = null, CancellationToken cancellationToken = default)
-		{
-			BlobData data = await handle.ReadAsync(cancellationToken);
-			return Deserialize<T>(data, options);
-		}
-
-		/// <summary>
-		/// Deserialize an object
-		/// </summary>
-		/// <typeparam name="T">Return type for the deserialized object</typeparam>
-		/// <param name="handle">Handle to the blob to deserialize</param>
-		/// <param name="options">Options to control serialization</param>
-		/// <param name="cancellationToken">Cancellation token for the operation</param>
-		public static ValueTask<T> DeserializeAsync<T>(IBlobHandle<T> handle, BlobSerializerOptions? options = null, CancellationToken cancellationToken = default)
-		{
-			return DeserializeAsync<T>((IBlobHandle)handle, options, cancellationToken);
-		}*/
 
 		/// <summary>
 		/// Serialize an object into a blob
@@ -65,21 +41,6 @@ namespace EpicGames.Horde.Storage
 			options ??= BlobSerializerOptions.Default;
 			return options.GetConverter<T>().Write(writer, value, options);
 		}
-		/*
-		/// <summary>
-		/// Deserialize an object
-		/// </summary>
-		/// <param name="writer">Writer for serialized data</param>
-		/// <param name="value">The object to serialize</param>
-		/// <param name="options">Options to control serialization</param>
-		/// <param name="cancellationToken">Cancellation token for the operation</param>
-		/// <returns>Handle to the serialized blob</returns>
-		public static async ValueTask<IBlobHandle<T>> SerializeAsync<T>(IStorageWriter writer, T value, BlobSerializerOptions? options = null, CancellationToken cancellationToken = default)
-		{
-			BlobWriter blobWriter = new BlobWriter(writer);
-			BlobType blobType = Serialize<T>(blobWriter, value, options);
-			return await writer.WriteBlobAsync<T>(blobType, blobWriter.Length, blobWriter.References, cancellationToken);
-		}*/
 	}
 
 	/// <summary>
@@ -134,6 +95,20 @@ namespace EpicGames.Horde.Storage
 				return (BlobConverter)Activator.CreateInstance(converterType)!;
 			}
 			throw new NotSupportedException($"No converter is available to handle type {type.Name}");
+		}
+
+		/// <summary>
+		/// Creates options for serializing blobs compatible with a particular server API version
+		/// </summary>
+		/// <param name="version">The server API version</param>
+		public static BlobSerializerOptions Create(HordeApiVersion version)
+		{
+			BlobSerializerOptions options = new BlobSerializerOptions();
+			if (version < HordeApiVersion.AddLengthsToInteriorNodes)
+			{
+				options.Converters.Add(new InteriorChunkedDataNodeConverter(2));
+			}
+			return options;
 		}
 	}
 

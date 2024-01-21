@@ -20,6 +20,10 @@ using EpicGames.Horde.Storage.Nodes;
 using System.Threading;
 using System.Data;
 using EpicGames.Horde.Storage.Backends;
+using Microsoft.Extensions.DependencyInjection;
+using EpicGames.Horde;
+using EpicGames.Horde.Tools;
+using EpicGames.Horde.Server;
 
 #nullable enable
 
@@ -137,77 +141,66 @@ namespace AutomationTool.Tasks
 				throw new AutomationException($"Missing 'server' key from {settingsFile}");
 			}
 
-			Uri serverUri = new Uri(settings.Server);
-
-			HttpClient CreateHttpClient()
+			ServiceCollection serviceCollection = new ServiceCollection();
+			serviceCollection.Configure<HordeOptions>(options =>
 			{
-				HttpClient httpClient = new HttpClient();
-				httpClient.BaseAddress = serverUri;
-				if (settings?.Token != null)
-				{
-					httpClient.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", settings.Token);
-				}
-				return httpClient;
-			}
+				options.ServerUrl = new Uri(settings.Server);
+				options.AccessToken = settings.Token;
+			});
+			serviceCollection.AddHttpClient();
+			serviceCollection.AddHorde();
+
+			await using ServiceProvider serviceProvider = serviceCollection.BuildServiceProvider();
+			IHordeClient hordeClient = serviceProvider.GetRequiredService<IHordeClient>();
+
+			using HordeHttpClient hordeHttpClient = hordeClient.CreateHttpClient();
+
+			GetServerInfoResponse infoResponse = await hordeHttpClient.GetServerInfoAsync();
+			Logger.LogInformation("Uploading tool to {ServerUrl} (Version: {Version}, API v{ApiVersion})...", settings.Server, infoResponse.ServerVersion, (int)infoResponse.ApiVersion);
+
+			BlobSerializerOptions serializerOptions = BlobSerializerOptions.Create(infoResponse.ApiVersion);
 
 			IBlobHandle handle;
 
-			string basePath = $"api/v1/tools/{Parameters.Id}";
-			using HttpStorageBackend httpStorageBackend = new HttpStorageBackend(basePath, CreateHttpClient, Logger);
-			using BundleStorageClient storageClient = new BundleStorageClient(httpStorageBackend, BundleCache.None, Logger);
+			ToolId toolId = new ToolId(Parameters.Id);
 
+			using IStorageClient storageClient = hordeClient.CreateStorageClient(toolId);
 			await using (IBlobWriter treeWriter = storageClient.CreateBlobWriter())
 			{
 				DirectoryNode sandbox = new DirectoryNode();
 				if (Parameters.File != null)
 				{
 					using FileStream stream = FileReference.Open(ResolveFile(Parameters.File), FileMode.Open, FileAccess.Read);
-					await sandbox.CopyFromZipStreamAsync(stream, treeWriter, new ChunkingOptions());
+					await sandbox.CopyFromZipStreamAsync(stream, treeWriter, new ChunkingOptions(), serializerOptions);
 				}
 				else if (Parameters.Directory != null)
 				{
 					DirectoryInfo directoryInfo = ResolveDirectory(Parameters.Directory).ToDirectoryInfo();
-					await sandbox.AddFilesAsync(directoryInfo, treeWriter);
+					await sandbox.AddFilesAsync(directoryInfo, treeWriter, serializerOptions: serializerOptions);
 				}
 				else
 				{
 					throw new AutomationException("Either File=... or Directory=... must be specified");
 				}
-				handle = await treeWriter.WriteBlobAsync(sandbox);
+				handle = await treeWriter.WriteBlobAsync(sandbox, serializerOptions);
 				await treeWriter.FlushAsync();
 			}
 
-			CreateDeploymentRequest request = new CreateDeploymentRequest();
-			request.Version = Parameters.Version;
+			double? duration = null;
 			if (Parameters.Duration != 0)
 			{
-				request.Duration = Parameters.Duration;
+				duration = Parameters.Duration;
 			}
+
+			bool? createPaused = null;
 			if (Parameters.Paused)
 			{
-				request.CreatePaused = true;
+				createPaused = true;
 			}
-			request.Node = handle.GetLocator().ToString();
 
-			using (HttpClient httpClient = CreateHttpClient())
-			{
-				using (HttpResponseMessage response = await httpClient.PostAsync<CreateDeploymentRequest>(new Uri(serverUri, $"api/v2/tools/{Parameters.Id}/deployments"), request, CancellationToken.None))
-				{
-					if (!response.IsSuccessStatusCode)
-					{
-						string? responseContent;
-						try
-						{
-							responseContent = await response.Content.ReadAsStringAsync();
-						}
-						catch
-						{
-							responseContent = "(No message)";
-						}
-						throw new AutomationException($"Upload failed ({response.StatusCode}): {responseContent}");
-					}
-				}
-			}
+			BlobLocator locator = handle.GetLocator();
+			ToolDeploymentId deploymentId = await hordeHttpClient.CreateToolDeploymentAsync(toolId, Parameters.Version, duration, createPaused, locator);
+			Logger.LogInformation("Created {ToolId} deployment {DeploymentId}", toolId, deploymentId);
 		}
 
 		/// <summary>

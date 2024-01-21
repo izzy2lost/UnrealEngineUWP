@@ -19,12 +19,17 @@ namespace EpicGames.Horde
 		/// <summary>
 		/// Unknown version
 		/// </summary>
-		Unknown,
+		Unknown = 0,
 
 		/// <summary>
 		/// Initial version
 		/// </summary>
-		Initial,
+		Initial = 1,
+
+		/// <summary>
+		/// Interior nodes in chunked data now include the length of chunked data to allow seeking.
+		/// </summary>
+		AddLengthsToInteriorNodes = 2,
 
 		/// <summary>
 		/// One past the latest known version number. Add new version numbers above this point.
