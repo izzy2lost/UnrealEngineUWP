@@ -71,7 +71,7 @@ namespace Horde.Server.Server
 		public async Task<ActionResult<GetServerInfoResponse>> GetServerInfoAsync()
 		{
 			GetServerInfoResponse response = new GetServerInfoResponse();
-			response.ApiVersion = (int)HordeApiVersion.Latest;
+			response.ApiVersion = HordeApiVersion.Latest;
 
 			FileVersionInfo versionInfo = FileVersionInfo.GetVersionInfo(Assembly.GetExecutingAssembly().Location);
 			response.ServerVersion = versionInfo.ProductVersion ?? String.Empty;
