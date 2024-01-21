@@ -36,6 +36,7 @@ namespace Horde.Server.Agents.Pools
 
 			public List<AgentWorkspace> Workspaces { get; set; } = new List<AgentWorkspace>();
 
+			PoolColor IPoolConfig.Color => PoolColor.Default;
 			IReadOnlyList<AgentWorkspace> IPoolConfig.Workspaces => Workspaces;
 
 			[BsonIgnoreIfNull]
@@ -187,6 +188,7 @@ namespace Horde.Server.Agents.Pools
 			public string Name => _config.Name;
 			public Condition? Condition => _config.Condition;
 			public IReadOnlyDictionary<string, string> Properties => _config.Properties;
+			public PoolColor Color => _config.Color;
 			public bool EnableAutoscaling => _config.EnableAutoscaling;
 			public IReadOnlyList<AgentWorkspace> Workspaces => _config.Workspaces;
 			public AutoSdkConfig? AutoSdkConfig => _config.AutoSdkConfig;
