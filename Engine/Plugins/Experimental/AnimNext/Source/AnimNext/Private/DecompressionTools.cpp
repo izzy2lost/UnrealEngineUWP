@@ -222,7 +222,8 @@ void FDecompressionTools::GetBonePose(const UAnimSequence* AnimSequence, const F
 				, AnimSequence->GetSkeleton()->GetRefLocalPoses()
 				, AnimSequence->CompressedData.CompressedTrackToSkeletonMapTable
 				, AnimSequence->GetSkeleton()
-				, AnimSequence->IsValidAdditive());
+				, AnimSequence->IsValidAdditive()
+				, AnimSequence->GetAdditiveAnimType());
 
 			DecompressPose(OutAnimationPoseData, AnimSequence->CompressedData, ExtractionContext, DecompContext, AnimSequence->GetRetargetTransforms(), RootMotionReset);
 		}

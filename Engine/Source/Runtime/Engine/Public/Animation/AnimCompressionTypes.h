@@ -243,6 +243,7 @@ public:
 
 	int32 GetNumberOfFrames() const { return FMath::Max(NumberOfKeys - 1, 1); }
 
+	EAdditiveAnimationType AdditiveType = AAT_None;
 	bool bIsValidAdditive;
 
 	float ErrorThresholdScale;

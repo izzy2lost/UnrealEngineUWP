@@ -767,6 +767,7 @@ FCompressibleAnimData::FCompressibleAnimData(class UAnimSequence* InSeq, const b
 	, BoneCompressionSettings(InSeq->BoneCompressionSettings)
 	, Interpolation(InSeq->Interpolation)
 	, SequenceLength(InSeq->GetDataModelInterface()->GetPlayLength())
+	, AdditiveType(InSeq->GetAdditiveAnimType())
 	, bIsValidAdditive(InSeq->IsValidAdditive())
 #if WITH_EDITORONLY_DATA
 	, ErrorThresholdScale(InSeq->CompressionErrorThresholdScale)
@@ -1009,6 +1010,7 @@ FCompressibleAnimData::FCompressibleAnimData(UAnimBoneCompressionSettings* InBon
 	, NumberOfFrames(InNumberOfKeys)
 	PRAGMA_ENABLE_DEPRECATION_WARNINGS
 	, NumberOfKeys(InNumberOfKeys)
+	, AdditiveType(AAT_None)
 	, bIsValidAdditive(false)
 	, ErrorThresholdScale(1.f)
 	, TargetPlatform(InTargetPlatform)
@@ -1029,6 +1031,7 @@ PRAGMA_DISABLE_DEPRECATION_WARNINGS
 , NumberOfFrames(0)
 PRAGMA_ENABLE_DEPRECATION_WARNINGS
 , NumberOfKeys(0)
+, AdditiveType(AAT_None)
 , bIsValidAdditive(false)
 , ErrorThresholdScale(1.f)
 , TargetPlatform(nullptr)
