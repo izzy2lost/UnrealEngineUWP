@@ -149,26 +149,26 @@ namespace Horde.Server.Dashboard
 
 			foreach (TelemetryViewConfig telemetry in _globalConfig.Value.Dashboard.Telemetry)
 			{
-				TelemetryViewResponse rview = new TelemetryViewResponse();
+				GetTelemetryViewResponse rview = new GetTelemetryViewResponse();
 				rview.Id = telemetry.Id.ToString();
 				rview.Name = telemetry.Name;
 
 				foreach (TelemetryVariableConfig variable in telemetry.Variables)
 				{
-					rview.Variables.Add(new TelemetryVariableResponse { Name = variable.Name, Group = variable.Group });
+					rview.Variables.Add(new GetTelemetryVariableResponse { Name = variable.Name, Group = variable.Group });
 				}
 
 				foreach (TelemetryCategoryConfig category in telemetry.Categories)
 				{
-					TelemetryCategoryResponse rcategory = new TelemetryCategoryResponse { Name = category.Name };
+					GetTelemetryCategoryResponse rcategory = new GetTelemetryCategoryResponse { Name = category.Name };
 
 					foreach (TelemetryChartConfig chart in category.Charts)
 					{
-						TelemetryChartResponse rchart = new TelemetryChartResponse { Name = chart.Name, Display = chart.Display.ToString(), Graph = chart.Graph.ToString(), Max = chart.Max, Metrics = new List<TelemetryChartMetricResponse>() };
+						GetTelemetryChartResponse rchart = new GetTelemetryChartResponse { Name = chart.Name, Display = chart.Display.ToString(), Graph = chart.Graph.ToString(), Max = chart.Max, Metrics = new List<GetTelemetryChartMetricResponse>() };
 
 						foreach (TelemetryChartMetricConfig metric  in chart.Metrics)
 						{
-							rchart.Metrics.Add(new TelemetryChartMetricResponse { MetricId = metric.MetricId.ToString(), Threshold = metric.Threshold, Alias = metric.Alias });
+							rchart.Metrics.Add(new GetTelemetryChartMetricResponse { MetricId = metric.MetricId.ToString(), Threshold = metric.Threshold, Alias = metric.Alias });
 						}
 
 						rcategory.Charts.Add(rchart);

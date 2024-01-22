@@ -51,7 +51,7 @@ namespace EpicGames.Horde.Dashboard
 		/// <summary>
 		/// Telemetry to display on the telemetry page
 		/// </summary>
-		public List<TelemetryViewResponse> TelemetryViews { get; set; } = new List<TelemetryViewResponse>();
+		public List<GetTelemetryViewResponse> TelemetryViews { get; set; } = new List<GetTelemetryViewResponse>();
 
 	}
 
@@ -194,7 +194,7 @@ namespace EpicGames.Horde.Dashboard
 	/// <summary>
 	/// Metric attached to a telemetry chart
 	/// </summary>
-	public class TelemetryChartMetricResponse
+	public class GetTelemetryChartMetricResponse
 	{
 		/// <summary>
 		/// Associated metric id
@@ -215,7 +215,7 @@ namespace EpicGames.Horde.Dashboard
 	/// <summary>
 	/// Telemetry chart configuraton
 	/// </summary>
-	public class TelemetryChartResponse
+	public class GetTelemetryChartResponse
 	{
 		/// <summary>
 		/// The name of the chart, will be displayed on the dashboard
@@ -235,7 +235,7 @@ namespace EpicGames.Horde.Dashboard
 		/// <summary>
 		/// List of configured metrics
 		/// </summary>
-		public List<TelemetryChartMetricResponse> Metrics { get; set; } = new List<TelemetryChartMetricResponse>();
+		public List<GetTelemetryChartMetricResponse> Metrics { get; set; } = new List<GetTelemetryChartMetricResponse>();
 
 		/// <summary>
 		/// The max unit value for clamping chart
@@ -246,7 +246,7 @@ namespace EpicGames.Horde.Dashboard
 	/// <summary>
 	/// A chart categody, will be displayed on the dashbord under an associated pivot
 	/// </summary>
-	public class TelemetryCategoryResponse
+	public class GetTelemetryCategoryResponse
 	{
 		/// <summary>
 		/// The name of the category
@@ -256,13 +256,13 @@ namespace EpicGames.Horde.Dashboard
 		/// <summary>
 		/// The charts contained within the category
 		/// </summary>
-		public List<TelemetryChartResponse> Charts { get; set; } = new List<TelemetryChartResponse> { };
+		public List<GetTelemetryChartResponse> Charts { get; set; } = new List<GetTelemetryChartResponse> { };
 	}
 
 	/// <summary>
 	/// A telemetry view variable used for filtering the charting data
 	/// </summary>
-	public class TelemetryVariableResponse
+	public class GetTelemetryVariableResponse
 	{
 		/// <summary>
 		/// The name of the variable for display purposes
@@ -278,7 +278,7 @@ namespace EpicGames.Horde.Dashboard
 	/// <summary>
 	/// A telemetry view of related metrics, divided into categofies
 	/// </summary>
-	public class TelemetryViewResponse
+	public class GetTelemetryViewResponse
 	{
 		/// <summary>
 		/// Identifier for the view
@@ -293,12 +293,12 @@ namespace EpicGames.Horde.Dashboard
 		/// <summary>
 		///  The variables used to filter the view data
 		/// </summary>
-		public List<TelemetryVariableResponse> Variables { get; set; } = new List<TelemetryVariableResponse> { };
+		public List<GetTelemetryVariableResponse> Variables { get; set; } = new List<GetTelemetryVariableResponse> { };
 
 		/// <summary>
 		/// The categories contained within the view
 		/// </summary>
-		public List<TelemetryCategoryResponse> Categories { get; set; } = new List<TelemetryCategoryResponse> { };
+		public List<GetTelemetryCategoryResponse> Categories { get; set; } = new List<GetTelemetryCategoryResponse> { };
 	}
 	#endregion
 }
