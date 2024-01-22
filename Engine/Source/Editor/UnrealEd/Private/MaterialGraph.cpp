@@ -173,6 +173,7 @@ void UMaterialGraph::UpdatePinTypes()
 	FMemStackBase Allocator;
 	const FMaterialCachedHLSLTree& CachedTree = Material->GetCachedHLSLTree();
 	FEmitContext EmitContext(Allocator, FTargetParameters(), NullErrorHandler, CachedTree.GetTypeRegistry());
+	EmitContext.MaterialInterface = Material;
 
 	Material::FEmitData& EmitMaterialData = EmitContext.AcquireData<Material::FEmitData>();
 

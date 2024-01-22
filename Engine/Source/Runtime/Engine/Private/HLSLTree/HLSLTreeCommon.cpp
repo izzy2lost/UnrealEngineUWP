@@ -9,6 +9,7 @@
 #include "MaterialShared.h"
 #include "MaterialHLSLTree.h"
 #include "MaterialCachedData.h"
+#include "Materials/MaterialInterface.h"
 #include "DataDrivenShaderPlatformInfo.h"
 
 namespace UE::HLSLTree
@@ -276,8 +277,8 @@ void FExpressionSetStructField::ComputeAnalyticDerivatives(FTree& Tree, FExpress
 		const Shader::FStructField* DerivativeField = DerivativeStructType->FindFieldByName(Field->Name);
 		check(DerivativeField);
 
-		OutResult.ExpressionDdx = Tree.NewExpression<FExpressionSetStructField>(DerivativeStructType, DerivativeField, StructDerivatives.ExpressionDdx, FieldDerivatives.ExpressionDdx);
-		OutResult.ExpressionDdy = Tree.NewExpression<FExpressionSetStructField>(DerivativeStructType, DerivativeField, StructDerivatives.ExpressionDdy, FieldDerivatives.ExpressionDdy);
+		OutResult.ExpressionDdx = Tree.NewExpression<FExpressionSetStructField>(DerivativeStructType, DerivativeField, StructDerivatives.ExpressionDdx, FieldDerivatives.ExpressionDdx, TestMaterialProperty);
+		OutResult.ExpressionDdy = Tree.NewExpression<FExpressionSetStructField>(DerivativeStructType, DerivativeField, StructDerivatives.ExpressionDdy, FieldDerivatives.ExpressionDdy, TestMaterialProperty);
 	}
 }
 
@@ -287,17 +288,30 @@ const FExpression* FExpressionSetStructField::ComputePreviousFrame(FTree& Tree, 
 	const FExpression* PrevStructExpression = Tree.GetPreviousFrame(StructExpression, RequestedStructType);
 
 	const FRequestedType RequestedFieldType = MakeRequestedFieldType(Tree.ActiveStructFieldStack, RequestedType);
+	if (RequestedFieldType.IsEmpty())
+	{
+		// Ignore the field subtree if not requested
+		return PrevStructExpression;
+	}
+
 	const FExpression* PrevFieldExpression;
 	{
 		FScopedActiveStructField ScopedActiveField(Tree.ActiveStructFieldStack, Field);
 		PrevFieldExpression = Tree.GetPreviousFrame(FieldExpression, RequestedFieldType);
 	}
 
-	return Tree.NewExpression<FExpressionSetStructField>(StructType, Field, PrevStructExpression, PrevFieldExpression);
+	return Tree.NewExpression<FExpressionSetStructField>(StructType, Field, PrevStructExpression, PrevFieldExpression, TestMaterialProperty);
 }
 
 bool FExpressionSetStructField::PrepareValue(FEmitContext& Context, FEmitScope& Scope, const FRequestedType& RequestedType, FPrepareValueResult& OutResult) const
 {
+	if (!IsStructFieldActive(Context))
+	{
+		// The struct field isn't active so don't touch it and just forward
+		const FPreparedType& PreparedType = Context.PrepareExpression(StructExpression, Scope, RequestedType);
+		return OutResult.SetType(Context, RequestedType, PreparedType);
+	}
+
 	FRequestedType RequestedStructType = MakeRequestedStructType(Context.ActiveStructFieldStack, RequestedType);
 
 	const FPreparedType StructPreparedType = Context.PrepareExpression(StructExpression, Scope, RequestedStructType);
@@ -311,7 +325,7 @@ bool FExpressionSetStructField::PrepareValue(FEmitContext& Context, FEmitScope& 
 	{
 		ResultType = StructType;
 	}
-	
+
 	const FRequestedType RequestedFieldType = MakeRequestedFieldType(Context.ActiveStructFieldStack, RequestedType);
 	if (!RequestedFieldType.IsEmpty())
 	{
@@ -332,6 +346,12 @@ bool FExpressionSetStructField::PrepareValue(FEmitContext& Context, FEmitScope& 
 
 void FExpressionSetStructField::EmitValueShader(FEmitContext& Context, FEmitScope& Scope, const FRequestedType& RequestedType, FEmitValueShaderResult& OutResult) const
 {
+	if (!IsStructFieldActive(Context))
+	{
+		StructExpression->EmitValueShader(Context, Scope, RequestedType, OutResult);
+		return;
+	}
+
 	FRequestedType RequestedStructType = MakeRequestedStructType(Context.ActiveStructFieldStack, RequestedType);
 	const EExpressionEvaluation StructEvaluation = Context.GetEvaluation(StructExpression, Scope, RequestedStructType);
 	check(StructEvaluation != EExpressionEvaluation::None);
@@ -375,6 +395,12 @@ void FExpressionSetStructField::EmitValueShader(FEmitContext& Context, FEmitScop
 
 void FExpressionSetStructField::EmitValuePreshader(FEmitContext& Context, FEmitScope& Scope, const FRequestedType& RequestedType, FEmitValuePreshaderResult& OutResult) const
 {
+	if (!IsStructFieldActive(Context))
+	{
+		StructExpression->EmitValuePreshader(Context, Scope, RequestedType, OutResult);
+		return;
+	}
+	
 	FRequestedType RequestedStructType = MakeRequestedStructType(Context.ActiveStructFieldStack, RequestedType);
 	const EExpressionEvaluation StructEvaluation = Context.GetEvaluation(StructExpression, Scope, RequestedStructType);
 
@@ -443,6 +469,27 @@ FRequestedType FExpressionSetStructField::MakeRequestedFieldType(const FActiveSt
 	}
 }
 
+bool FExpressionSetStructField::IsStructFieldActive(FEmitContext& Context) const
+{
+	if (TestMaterialProperty != MP_MAX)
+	{
+		if (Context.MaterialInterface)
+		{
+			return Context.MaterialInterface->IsPropertyActive(TestMaterialProperty);
+		}
+		else if (Context.Material && Context.Material->GetMaterialInterface())
+		{
+			return Context.Material->GetMaterialInterface()->IsPropertyActive(TestMaterialProperty);
+		}
+		else
+		{
+			checkNoEntry();
+			return false;
+		}
+	}
+	return true;
+}
+
 void FExpressionSelect::ComputeAnalyticDerivatives(FTree& Tree, FExpressionDerivatives& OutResult) const
 {
 	const FExpressionDerivatives TrueDerivatives = Tree.GetAnalyticDerivatives(TrueExpression);
@@ -465,6 +512,11 @@ const FExpression* FExpressionSelect::ComputePreviousFrame(FTree& Tree, const FR
 bool FExpressionSelect::PrepareValue(FEmitContext& Context, FEmitScope& Scope, const FRequestedType& RequestedType, FPrepareValueResult& OutResult) const
 {
 	const FPreparedType& ConditionType = Context.PrepareExpression(ConditionExpression, Scope, Shader::EValueType::Bool1);
+	if (ConditionType.IsVoid())
+	{
+		return false;
+	}
+
 	const EExpressionEvaluation ConditionEvaluation = ConditionType.GetEvaluation(Scope, Shader::EValueType::Bool1);
 	if (IsConstantEvaluation(ConditionEvaluation))
 	{

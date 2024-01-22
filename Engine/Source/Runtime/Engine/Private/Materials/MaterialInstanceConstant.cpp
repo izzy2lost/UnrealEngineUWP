@@ -281,7 +281,7 @@ void UMaterialInstanceConstant::UpdateCachedData()
 
 			check(!LocalCachedExpressionData);
 			LocalCachedExpressionData.Reset(new FMaterialCachedExpressionData());
-			LocalCachedExpressionData->UpdateForCachedHLSLTree(GetCachedHLSLTree(), &OverriddenStaticParameters);
+			LocalCachedExpressionData->UpdateForCachedHLSLTree(GetCachedHLSLTree(), &OverriddenStaticParameters, this);
 		}
 
 		CachedExpressionData = MoveTemp(LocalCachedExpressionData);

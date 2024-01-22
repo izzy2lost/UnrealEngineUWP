@@ -4,6 +4,7 @@
 #if WITH_EDITOR
 
 #include "HLSLTree/HLSLTree.h"
+#include "SceneTypes.h"
 #if UE_ENABLE_INCLUDE_ORDER_DEPRECATED_IN_5_2
 #include "RHIDefinitions.h"
 #endif
@@ -118,11 +119,12 @@ public:
 class FExpressionSetStructField : public FExpression
 {
 public:
-	FExpressionSetStructField(const Shader::FStructType* InStructType, const Shader::FStructField* InField, const FExpression* InStructExpression, const FExpression* InFieldExpression)
+	FExpressionSetStructField(const Shader::FStructType* InStructType, const Shader::FStructField* InField, const FExpression* InStructExpression, const FExpression* InFieldExpression, EMaterialProperty InTestMaterialProperty = MP_MAX)
 		: StructType(InStructType)
 		, Field(InField)
 		, StructExpression(InStructExpression)
 		, FieldExpression(InFieldExpression)
+		, TestMaterialProperty(InTestMaterialProperty)
 	{
 		check(InStructType);
 		check(InField);
@@ -132,6 +134,8 @@ public:
 	const Shader::FStructField* Field;
 	const FExpression* StructExpression;
 	const FExpression* FieldExpression;
+	// If not MP_MAX, the material property to test IsPropertyActive on a given material (instance)
+	EMaterialProperty TestMaterialProperty;
 
 	virtual void ComputeAnalyticDerivatives(FTree& Tree, FExpressionDerivatives& OutResult) const override;
 	virtual const FExpression* ComputePreviousFrame(FTree& Tree, const FRequestedType& RequestedType) const override;
@@ -142,6 +146,8 @@ public:
 private:
 	FRequestedType MakeRequestedStructType(const FActiveStructFieldStack& ActiveFieldStack, const FRequestedType& RequestedType) const;
 	FRequestedType MakeRequestedFieldType(const FActiveStructFieldStack& ActiveFieldStack, const FRequestedType& RequestedType) const;
+
+	bool IsStructFieldActive(FEmitContext& Context) const;
 };
 
 class FExpressionSelect : public FExpression

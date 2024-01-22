@@ -969,7 +969,7 @@ void PrepareHLSLTree(UE::HLSLTree::FEmitContext& EmitContext,
 
 }
 
-void FMaterialCachedExpressionData::UpdateForCachedHLSLTree(const FMaterialCachedHLSLTree& CachedTree, const FStaticParameterSet* StaticParameters)
+void FMaterialCachedExpressionData::UpdateForCachedHLSLTree(const FMaterialCachedHLSLTree& CachedTree, const FStaticParameterSet* StaticParameters, const UMaterialInterface* TargetMaterial)
 {
 	using namespace UE::HLSLTree;
 
@@ -978,6 +978,7 @@ void FMaterialCachedExpressionData::UpdateForCachedHLSLTree(const FMaterialCache
 
 	FMemStackBase Allocator;
 	FEmitContext EmitContext(Allocator, FTargetParameters(), NullErrorHandler, CachedTree.GetTypeRegistry());
+	EmitContext.MaterialInterface = TargetMaterial;
 
 	Material::FEmitData& EmitMaterialData = EmitContext.AcquireData<Material::FEmitData>();
 	EmitMaterialData.CachedExpressionData = this;

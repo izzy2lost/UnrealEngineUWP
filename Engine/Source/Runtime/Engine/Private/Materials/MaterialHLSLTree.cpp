@@ -597,6 +597,34 @@ void FExpressionParameter::ComputeAnalyticDerivatives(FTree& Tree, FExpressionDe
 	}
 }
 
+const FExpression* FExpressionParameter::GetPreviewExpression(FTree& Tree) const
+{
+	const EMaterialParameterType ParameterType = ParameterMeta.Value.Type;
+	switch (ParameterType)
+	{
+	case EMaterialParameterType::Scalar:
+	case EMaterialParameterType::Vector:
+	case EMaterialParameterType::DoubleVector:
+		return this;
+	case EMaterialParameterType::Texture:
+	{
+		const FExpression* TexCoordsExpression = Tree.NewExpression<FExpressionExternalInput>(MakeInputTexCoord(0));
+		return Tree.NewExpression<FExpressionTextureSample>(
+			this,
+			TexCoordsExpression,
+			nullptr /* InMipValueExpression */,
+			nullptr /* InAutomaticMipBiasExpression */,
+			FExpressionDerivatives(),
+			SSM_FromTextureAsset,
+			TMVM_None);
+	}
+	default:
+		// Not implemented yet
+		checkNoEntry();
+		return this;
+	}
+}
+
 bool FExpressionParameter::PrepareValue(FEmitContext& Context, FEmitScope& Scope, const FRequestedType& RequestedType, FPrepareValueResult& OutResult) const
 {
 	FEmitData& EmitData = Context.FindData<FEmitData>();
@@ -621,6 +649,14 @@ bool FExpressionParameter::PrepareValue(FEmitContext& Context, FEmitScope& Scope
 	EExpressionEvaluation Evaluation = EExpressionEvaluation::Shader;
 	if (IsStaticMaterialParameter(ParameterType))
 	{
+		if (EmitData.CachedExpressionData)
+		{
+			check(!ParameterInfo.Name.IsNone());
+			// We are preparing the tree for cached expression data update. Need to make sure
+			// static parameter values are consistent with later translations. Otherwise, some
+			// sub-trees may be evaluated without being prepared first
+			Context.SeenStaticParameterValues.FindOrAdd(ParameterInfo, ParameterMeta.Value);
+		}
 		Evaluation = EExpressionEvaluation::Constant;
 	}
 	else if (ParameterType == EMaterialParameterType::Scalar ||
@@ -656,6 +692,7 @@ void FExpressionParameter::EmitValuePreshader(FEmitContext& Context, FEmitScope&
 	if (IsStaticMaterialParameter(ParameterType))
 	{
 		Shader::FValue Value = DefaultValue;
+		bool bFoundOverride = false;
 		if (EmitMaterialData.StaticParameters)
 		{
 			switch (ParameterType)
@@ -666,6 +703,7 @@ void FExpressionParameter::EmitValuePreshader(FEmitContext& Context, FEmitScope&
 					if (Parameter.ParameterInfo == ParameterInfo)
 					{
 						Value = Parameter.Value;
+						bFoundOverride = true;
 						break;
 					}
 				}
@@ -676,6 +714,7 @@ void FExpressionParameter::EmitValuePreshader(FEmitContext& Context, FEmitScope&
 					if (Parameter.ParameterInfo == ParameterInfo)
 					{
 						Value = Shader::FValue(Parameter.R, Parameter.G, Parameter.B, Parameter.A);
+						bFoundOverride = true;
 						break;
 					}
 				}
@@ -684,6 +723,13 @@ void FExpressionParameter::EmitValuePreshader(FEmitContext& Context, FEmitScope&
 				checkNoEntry();
 				break;
 			}
+		}
+		
+		if (!bFoundOverride && EmitMaterialData.CachedExpressionData)
+		{
+			// For some reasons, users can create static switch parameter nodes with the same name
+			// but different default values. Use the first default value seen to keep things consistent
+			Value = Context.SeenStaticParameterValues.FindChecked(ParameterInfo).AsShaderValue();
 		}
 		OutResult.Preshader.WriteOpcode(Shader::EPreshaderOpcode::Constant).Write(Value);
 	}
@@ -1029,10 +1075,10 @@ Shader::EValueType GetTexCoordType(EMaterialValueType TextureType)
 	}
 }
 
-ETextureMipValueMode GetMipValueMode(FEmitContext& Context, const FExpressionTextureSample* Expression)
+ETextureMipValueMode GetMipValueMode(FEmitContext& Context, const FExpressionTextureSample* Expression, bool bDerivsPrepFailed = false)
 {
 	const ETextureMipValueMode MipValueMode = Expression->MipValueMode;
-	const bool bUseAnalyticDerivatives = Context.bUseAnalyticDerivatives && (MipValueMode != TMVM_MipLevel) && Expression->TexCoordDerivatives.IsValid();
+	const bool bUseAnalyticDerivatives = Context.bUseAnalyticDerivatives && MipValueMode != TMVM_MipLevel && !bDerivsPrepFailed && Expression->TexCoordDerivatives.IsValid();
 	if (Context.ShaderFrequency != SF_Pixel)
 	{
 		// TODO - should we allow TMVM_Derivative in non-PS?
@@ -1086,11 +1132,24 @@ bool FExpressionTextureSample::PrepareValue(FEmitContext& Context, FEmitScope& S
 		}
 	}
 
-	const ETextureMipValueMode LocalMipValueMode = Private::GetMipValueMode(Context, this);
+	bool bDerivsPrepFailed = false;
+ RecomputeMipValueMode:
+	const ETextureMipValueMode LocalMipValueMode = Private::GetMipValueMode(Context, this, bDerivsPrepFailed);
+
 	if (LocalMipValueMode == TMVM_Derivative)
 	{
-		Context.PrepareExpression(TexCoordDerivatives.ExpressionDdx, Scope, RequestedTexCoordType);
-		Context.PrepareExpression(TexCoordDerivatives.ExpressionDdy, Scope, RequestedTexCoordType);
+		const FPreparedType& DdxPreparedType = Context.PrepareExpression(TexCoordDerivatives.ExpressionDdx, Scope, RequestedTexCoordType);
+		if (DdxPreparedType.IsVoid() && !bDerivsPrepFailed)
+		{
+			bDerivsPrepFailed = true;
+			goto RecomputeMipValueMode;
+		}
+		const FPreparedType& DdyPreparedType = Context.PrepareExpression(TexCoordDerivatives.ExpressionDdy, Scope, RequestedTexCoordType);
+		if (DdyPreparedType.IsVoid() && !bDerivsPrepFailed)
+		{
+			bDerivsPrepFailed = true;
+			goto RecomputeMipValueMode;
+		}
 	}
 	else if (LocalMipValueMode == TMVM_MipLevel || LocalMipValueMode == TMVM_MipBias)
 	{
@@ -3095,6 +3154,7 @@ bool FExpressionNaniteReplaceFunction::PrepareValue(FEmitContext& Context, FEmit
 	{
 		return false;
 	}
+	Shader::FType ResultType = DefaultType.Type;
 
 	// skip preparing if platform doesn't support Nanite
 	if (Context.TargetParameters.IsGenericTarget() || FDataDrivenShaderPlatformInfo::GetSupportsNanite(Context.TargetParameters.ShaderPlatform))
@@ -3104,24 +3164,30 @@ bool FExpressionNaniteReplaceFunction::PrepareValue(FEmitContext& Context, FEmit
 		{
 			return false;
 		}
+		ResultType = Shader::CombineTypes(ResultType, NaniteType.Type);
 	}
 
-	return OutResult.SetType(Context, RequestedType, EExpressionEvaluation::Shader, RequestedType.Type);
+	if (ResultType.IsVoid())
+	{
+		return false;
+	}
+
+	return OutResult.SetType(Context, RequestedType, EExpressionEvaluation::Shader, ResultType);
 }
 
 void FExpressionNaniteReplaceFunction::EmitValueShader(FEmitContext& Context, FEmitScope& Scope, const FRequestedType& RequestedType, FEmitValueShaderResult& OutResult) const
 {
-	const Shader::FType LocalType = Context.GetResultType(this, RequestedType);
-	FEmitShaderExpression* DefaultValue = DefaultExpression->GetValueShader(Context, Scope, RequestedType, LocalType);
+	const Shader::FType ResultType = Context.GetResultType(this, RequestedType);
+	FEmitShaderExpression* DefaultValue = DefaultExpression->GetValueShader(Context, Scope, RequestedType, ResultType);
 
 	if (FDataDrivenShaderPlatformInfo::GetSupportsNanite(Context.TargetParameters.ShaderPlatform))
 	{
-		FEmitShaderExpression* NaniteValue = NaniteExpression->GetValueShader(Context, Scope, RequestedType, LocalType);
-		OutResult.Code = Context.EmitExpression(Scope, LocalType, TEXT("(GetNaniteReplaceState() ? % : %)"), NaniteValue, DefaultValue);
+		FEmitShaderExpression* NaniteValue = NaniteExpression->GetValueShader(Context, Scope, RequestedType, ResultType);
+		OutResult.Code = Context.EmitExpression(Scope, ResultType, TEXT("(GetNaniteReplaceState() ? % : %)"), NaniteValue, DefaultValue);
 	}
 	else
 	{
-		OutResult.Code = Context.EmitExpression(Scope, LocalType, TEXT("%"), DefaultValue);
+		OutResult.Code = Context.EmitExpression(Scope, ResultType, TEXT("%"), DefaultValue);
 	}
 }
 

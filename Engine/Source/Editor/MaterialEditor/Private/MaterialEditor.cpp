@@ -230,7 +230,7 @@ FMatExpressionPreview::FMatExpressionPreview(UMaterialExpression* InExpression)
 		CachedHLSLTree.Reset(LocalTree);
 
 		FMaterialCachedExpressionData* LocalCachedData = new FMaterialCachedExpressionData();
-		LocalCachedData->UpdateForCachedHLSLTree(*LocalTree, nullptr);
+		LocalCachedData->UpdateForCachedHLSLTree(*LocalTree, nullptr, BaseMaterial);
 		CachedExpressionData.Reset(LocalCachedData);
 	}
 	else

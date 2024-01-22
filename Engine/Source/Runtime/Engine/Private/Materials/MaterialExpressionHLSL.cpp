@@ -921,11 +921,8 @@ bool UMaterialExpressionStaticSwitchParameter::GenerateHLSLExpression(FMaterialH
 
 	const FExpression* ExpressionA = A.AcquireHLSLExpression(Generator, Scope);
 	const FExpression* ExpressionB = B.AcquireHLSLExpression(Generator, Scope);
-	if (!ExpressionA || !ExpressionB)
-	{
-		return false;
-	}
 
+	// FExpressionSelect can handle null inputs so not doing null check here
 	// No reason to generate a dynamic branch here, since the condition is always a static switch parameter
 	const FExpression* ExpressionSwitch = Generator.GenerateMaterialParameter(ParameterName, ParameterMeta);
 	OutExpression = Generator.GetTree().NewExpression<FExpressionSelect>(ExpressionSwitch, ExpressionA, ExpressionB);
@@ -4119,12 +4116,31 @@ UE::Shader::EValueType UMaterialExpressionBentNormalCustomOutput::GetCustomOutpu
 
 bool UMaterialExpressionVolumetricCloudEmptySpaceSkippingInput::GenerateHLSLExpression(FMaterialHLSLGenerator& Generator, UE::HLSLTree::FScope& Scope, int32 OutputIndex, UE::HLSLTree::FExpression const*& OutExpression) const
 {
-	return Generator.Error(TEXT("UMaterialExpressionVolumetricCloudEmptySpaceSkippingInput::GenerateHLSLExpression unimplemented"));
+	using namespace UE::HLSLTree;
+
+	if (OutputIndex == 0)
+	{
+		OutExpression = Generator.GetTree().NewExpression<FExpressionInlineCustomHLSL>(UE::Shader::EValueType::Float3, TEXT("MaterialExpressionCloudEmptySpaceSkippingSphereCenterWorldPosition(Parameters)"));
+		return true;
+	}
+	else if (OutputIndex == 1)
+	{
+		OutExpression = Generator.GetTree().NewExpression<FExpressionInlineCustomHLSL>(UE::Shader::EValueType::Float1, TEXT("MaterialExpressionCloudEmptySpaceSkippingSphereRadius(Parameters)"));
+		return true;
+	}
+
+	return Generator.Error(TEXT("Invalid input parameter"));
 }
 
 bool UMaterialExpressionVolumetricCloudEmptySpaceSkippingOutput::GenerateHLSLExpression(FMaterialHLSLGenerator& Generator, UE::HLSLTree::FScope& Scope, int32 OutputIndex, UE::HLSLTree::FExpression const*& OutExpression) const
 {
-	return Generator.Error(TEXT("UMaterialExpressionVolumetricCloudEmptySpaceSkippingOutput::GenerateHLSLExpression unimplemented"));
+	if (OutputIndex == 0)
+	{
+		OutExpression = ContainsMatter.AcquireHLSLExpressionOrConstant(Generator, Scope, 1.0f);
+		return true;
+	}
+
+	return Generator.Error(TEXT("Invalid output"));
 }
 
 UE::Shader::EValueType UMaterialExpressionVolumetricCloudEmptySpaceSkippingOutput::GetCustomOutputType(int32 OutputIndex) const

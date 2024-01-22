@@ -471,6 +471,9 @@ protected:
 	/** Creates a new expression representing this expression on the previous frame.  By default returns nullptr, which means the previous frame is the same as the current frame */
 	ENGINE_API virtual const FExpression* ComputePreviousFrame(FTree& Tree, const FRequestedType& RequestedType) const;
 
+	/** Non-numeric expressions need to override and return numeric preview expressions. Returns this expression itself by default */
+	ENGINE_API virtual const FExpression* GetPreviewExpression(FTree& Tree) const;
+
 	/**
 	 * Computes a FPreparedType for this expression, given a FRequestedType.  Will be called multiple times, with potentially different requested types, if the FExpression is used multiple times.
 	 * In this case, all the prepared types will be merged together if possible (or generate an error otherwise).
@@ -509,6 +512,7 @@ private:
 	friend class FExpressionPreviousFrameSwitch;
 	friend class FExpressionFunctionCall;
 	friend class FExpressionOperation;
+	friend class FExpressionSetStructField;
 };
 
 /**
@@ -626,6 +630,7 @@ public:
 
 	ENGINE_API FExpressionDerivatives GetAnalyticDerivatives(const FExpression* InExpression);
 	const FExpression* GetPreviousFrame(const FExpression* InExpression, const FRequestedType& RequestedType);
+	const FExpression* GetPreview(const FExpression* InExpression);
 
 	FScope* NewScope(FScope& Scope);
 	FScope* NewOwnedScope(FStatement& Owner);

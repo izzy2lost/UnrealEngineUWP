@@ -470,8 +470,7 @@ FPreparedType FEmitContext::PrepareExpression(const FExpression* InExpression, F
 		FXxHash64Builder Hasher;
 		Hasher.Update(&InExpression, sizeof(InExpression));
 		Hasher.Update(&bMarkLiveValues, sizeof(bMarkLiveValues));
-		const bool bRequestedStruct = RequestedType.IsStruct();
-		Hasher.Update(&bRequestedStruct, sizeof(bRequestedStruct));
+		Hasher.Update(&RequestedType.Type.StructType, sizeof(RequestedType.Type.StructType));
 		Hash = Hasher.Finalize();
 	}
 

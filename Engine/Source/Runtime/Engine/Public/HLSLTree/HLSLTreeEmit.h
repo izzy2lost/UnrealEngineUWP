@@ -596,6 +596,7 @@ public:
 	TMap<const FScope*, FEmitScope*> EmitScopeMap;
 	TMap<FXxHash64, FPrepareValueResult*> PrepareValueMap;
 	TMap<FXxHash64, FRequestedType*> RequestedTypeTracker;
+	TMap<FMaterialParameterInfo, FMaterialParameterValue> SeenStaticParameterValues;
 	TMap<const FExpression*, FEmitScope*> PrepareLocalPHIMap;
 	TMap<FXxHash64, FEmitShaderExpression*> EmitLocalPHIMap;
 	TMap<FXxHash64, FEmitShaderExpression*> EmitExpressionMap;
@@ -620,6 +621,7 @@ public:
 	 * Would also need some generic interface between the preshaders generated here, and the preshaders stored in FMaterialCompilationOutput
 	 */
 	const FMaterial* Material = nullptr;
+	const UMaterialInterface* MaterialInterface = nullptr;
 	FMaterialCompilationOutput* MaterialCompilationOutput = nullptr;
 	uint32 UniformPreshaderOffset = 0u;
 	uint32 CurrentBoolUniformOffset = ~0u;

@@ -3,6 +3,7 @@
 
 #include "HLSLTree/HLSLTree.h"
 #include "HLSLTree/HLSLTreeEmit.h"
+#include "HLSLTree/HLSLTreeCommon.h"
 #include "Misc/MemStackUtility.h"
 #include "Shader/Preshader.h"
 #include "Shader/PreshaderTypes.h"
@@ -284,7 +285,15 @@ bool FExpressionLocalPHI::PrepareValue(FEmitContext& Context, FEmitScope& Scope,
 		}
 		if (NumValidTypes < NumLiveScopes)
 		{
-			return Context.Error(TEXT("Failed to compute all types for LocalPHI"));
+			if (Chain.Last().Type == ELocalPHIChainType::Ddx || Chain.Last().Type == ELocalPHIChainType::Ddy)
+			{
+				// Don't treat failing analytic derivatives as errors. Just fall back to HW ones
+				return false;
+			}
+			else
+			{
+				return Context.Error(TEXT("Failed to compute all types for LocalPHI"));
+			}
 		}
 
 		if (CurrentType != InitialType)
@@ -1238,6 +1247,11 @@ const FExpression* FExpression::ComputePreviousFrame(FTree& Tree, const FRequest
 	return nullptr;
 }
 
+const FExpression* FExpression::GetPreviewExpression(FTree& Tree) const
+{
+	return this;
+}
+
 void FExpression::EmitValueShader(FEmitContext& Context, FEmitScope& Scope, const FRequestedType& RequestedType, FEmitValueShaderResult& OutResult) const
 {
 	check(false);
@@ -1547,12 +1561,6 @@ bool FTree::Finalize()
 				{
 					const FExpressionDerivatives Derivatives = GetAnalyticDerivatives(LocalValue);
 					LocalValue = (ChainType == ELocalPHIChainType::Ddx) ? Derivatives.ExpressionDdx : Derivatives.ExpressionDdy;
-					
-					// TODO: Revisit. Can we fallback to hardware derivatives? Handle fallback in FExpression::ComputeAnalyticDerivatives better?
-					if (!LocalValue)
-					{
-						LocalValue = NewConstant(0.f);
-					}
 				}
 				else
 				{
@@ -1744,6 +1752,12 @@ const FExpression* FTree::GetPreviousFrame(const FExpression* InExpression, cons
 		}
 	}
 	return Result;
+}
+
+const FExpression* FTree::GetPreview(const FExpression* InExpression)
+{
+	// Cache result?
+	return InExpression ? InExpression->GetPreviewExpression(*this) : nullptr;
 }
 
 FScope* FTree::NewScope(FScope& Scope)

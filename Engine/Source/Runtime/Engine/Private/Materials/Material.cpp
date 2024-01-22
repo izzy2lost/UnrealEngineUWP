@@ -2073,7 +2073,7 @@ void UMaterial::UpdateCachedExpressionData()
 
 		LocalCachedTree = new FMaterialCachedHLSLTree();
 		LocalCachedTree->GenerateTree(this, nullptr, nullptr);
-		LocalCachedExpressionData->UpdateForCachedHLSLTree(*LocalCachedTree, nullptr);
+		LocalCachedExpressionData->UpdateForCachedHLSLTree(*LocalCachedTree, nullptr, this);
 	}
 	else
 	{
