@@ -147,6 +147,37 @@ namespace Horde.Server.Dashboard
 				dashboardConfigResponse.AgentCategories.Add(new GetDashboardAgentCategoryResponse { Name = category.Name, Condition = category.Condition });
 			}
 
+			foreach (TelemetryViewConfig telemetry in _globalConfig.Value.Dashboard.Telemetry)
+			{
+				TelemetryViewResponse rview = new TelemetryViewResponse();
+				rview.Id = telemetry.Id.ToString();
+				rview.Name = telemetry.Name;
+
+				foreach (TelemetryVariableConfig variable in telemetry.Variables)
+				{
+					rview.Variables.Add(new TelemetryVariableResponse { Name = variable.Name, Group = variable.Group });
+				}
+
+				foreach (TelemetryCategoryConfig category in telemetry.Categories)
+				{
+					TelemetryCategoryResponse rcategory = new TelemetryCategoryResponse { Name = category.Name };
+
+					foreach (TelemetryChartConfig chart in category.Charts)
+					{
+						TelemetryChartResponse rchart = new TelemetryChartResponse { Name = chart.Name, Display = chart.Display.ToString(), Graph = chart.Graph.ToString(), Max = chart.Max, Metrics = new List<TelemetryChartMetricResponse>() };
+
+						foreach (TelemetryChartMetricConfig metric  in chart.Metrics)
+						{
+							rchart.Metrics.Add(new TelemetryChartMetricResponse { MetricId = metric.MetricId.ToString(), Threshold = metric.Threshold, Alias = metric.Alias });
+						}
+					}
+
+					rview.Categories.Add(rcategory);
+				}
+
+				dashboardConfigResponse.TelemetryViews.Add(rview);
+			}
+
 			return dashboardConfigResponse;
 		}
 

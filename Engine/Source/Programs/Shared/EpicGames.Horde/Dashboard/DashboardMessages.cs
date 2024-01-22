@@ -47,6 +47,12 @@ namespace EpicGames.Horde.Dashboard
 		/// Categories to display on the agents page
 		/// </summary>
 		public List<GetDashboardAgentCategoryResponse> AgentCategories { get; set; } = new List<GetDashboardAgentCategoryResponse>();
+
+		/// <summary>
+		/// Telemetry to display on the telemetry page
+		/// </summary>
+		public List<TelemetryViewResponse> TelemetryViews { get; set; } = new List<TelemetryViewResponse>();
+
 	}
 
 	/// <summary>
@@ -182,4 +188,117 @@ namespace EpicGames.Horde.Dashboard
 		/// </summary>
 		public string? TrackingLink { get; set; }
 	}
+
+	#region Telemetry
+
+	/// <summary>
+	/// Metric attached to a telemetry chart
+	/// </summary>
+	public class TelemetryChartMetricResponse
+	{
+		/// <summary>
+		/// Associated metric id
+		/// </summary>		
+		public string MetricId { get; set; } = null!;
+
+		/// <summary>
+		/// The threshold for KPI values
+		/// </summary>
+		public int? Threshold { get; set; }
+
+		/// <summary>
+		/// The metric alias for display purposes
+		/// </summary>
+		public string? Alias { get; set; }
+	}
+
+	/// <summary>
+	/// Telemetry chart configuraton
+	/// </summary>
+	public class TelemetryChartResponse
+	{
+		/// <summary>
+		/// The name of the chart, will be displayed on the dashboard
+		/// </summary>		
+		public string Name { get; set; } = null!;
+
+		/// <summary>
+		/// The unit to display
+		/// </summary>
+		public string Display { get; set; } = null!;
+
+		/// <summary>
+		/// The graph type 
+		/// </summary>
+		public string Graph { get; set; } = null!;
+
+		/// <summary>
+		/// List of configured metrics
+		/// </summary>
+		public List<TelemetryChartMetricResponse> Metrics { get; set; } = new List<TelemetryChartMetricResponse>();
+
+		/// <summary>
+		/// The max unit value for clamping chart
+		/// </summary>
+		public int? Max { get; set; }
+	}
+
+	/// <summary>
+	/// A chart categody, will be displayed on the dashbord under an associated pivot
+	/// </summary>
+	public class TelemetryCategoryResponse
+	{
+		/// <summary>
+		/// The name of the category
+		/// </summary>		
+		public string Name { get; set; } = null!;
+
+		/// <summary>
+		/// The charts contained within the category
+		/// </summary>
+		public List<TelemetryChartResponse> Charts { get; set; } = new List<TelemetryChartResponse> { };
+	}
+
+	/// <summary>
+	/// A telemetry view variable used for filtering the charting data
+	/// </summary>
+	public class TelemetryVariableResponse
+	{
+		/// <summary>
+		/// The name of the variable for display purposes
+		/// </summary>
+		public string Name { get; set; } = null!;
+
+		/// <summary>
+		/// The associated data group attached to the variable 
+		/// </summary>
+		public string Group { get; set; } = null!;
+	}
+
+	/// <summary>
+	/// A telemetry view of related metrics, divided into categofies
+	/// </summary>
+	public class TelemetryViewResponse
+	{
+		/// <summary>
+		/// Identifier for the view
+		/// </summary>
+		public string Id { get; set; } = null!;
+
+		/// <summary>
+		/// The name of the view
+		/// </summary>
+		public string Name { get; set; } = null!;
+
+		/// <summary>
+		///  The variables used to filter the view data
+		/// </summary>
+		public List<TelemetryVariableResponse> Variables { get; set; } = new List<TelemetryVariableResponse> { };
+
+		/// <summary>
+		/// The categories contained within the view
+		/// </summary>
+		public List<TelemetryCategoryResponse> Categories { get; set; } = new List<TelemetryCategoryResponse> { };
+	}
+	#endregion
 }

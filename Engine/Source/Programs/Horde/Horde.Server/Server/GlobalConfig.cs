@@ -27,6 +27,7 @@ using Horde.Server.Acls;
 using Horde.Server.Agents;
 using Horde.Server.Agents.Pools;
 using Horde.Server.Configuration;
+using Horde.Server.Dashboard;
 using Horde.Server.Devices;
 using Horde.Server.Projects;
 using Horde.Server.Secrets;
@@ -49,63 +50,6 @@ namespace Horde.Server.Server
 		/// </summary>
 		[Required, ConfigInclude, ConfigRelativePath]
 		public string Path { get; set; } = null!;
-	}
-
-	/// <summary>
-	/// Configuration for global features
-	/// </summary>
-	public class DashboardConfig
-	{
-		/// <summary>
-		/// Navigate to the landing page by default
-		/// </summary>
-		public bool ShowLandingPage { get; set; } = false;
-
-		/// <summary>
-		/// Enable CI functionality
-		/// </summary>
-		public bool ShowCI { get; set; } = true;
-
-		/// <summary>
-		/// Whether to show functionality related to agents, pools, and utilization on the dashboard.
-		/// </summary>
-		public bool ShowAgents { get; set; } = true;
-
-		/// <summary>
-		/// Show the Perforce server option on the server menu
-		/// </summary>
-		public bool ShowPerforceServers { get; set; } = true;
-
-		/// <summary>
-		/// Show the device manager on the server menu
-		/// </summary>
-		public bool ShowDeviceManager { get; set; } = true;
-
-		/// <summary>
-		/// Show automated tests on the server menu
-		/// </summary>
-		public bool ShowTests { get; set; } = true;
-
-		/// <summary>
-		/// Configuration for different agent pages
-		/// </summary>
-		public List<DashboardAgentCategoryConfig> AgentCategories { get; set; } = new List<DashboardAgentCategoryConfig>();
-	}
-
-	/// <summary>
-	/// Configuration for a category of agents
-	/// </summary>
-	public class DashboardAgentCategoryConfig
-	{
-		/// <summary>
-		/// Name of the category
-		/// </summary>
-		public string Name { get; set; } = "Unnamed";
-
-		/// <summary>
-		/// Condition string to be evaluated for this page
-		/// </summary>
-		public Condition? Condition { get; set; }
 	}
 
 	/// <summary>
