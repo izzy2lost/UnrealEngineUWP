@@ -85,10 +85,10 @@ void UNiagaraStackSummaryViewCollection::RefreshForAdvancedToggle()
 
 bool UNiagaraStackSummaryViewCollection::GetShouldShowInStack() const
 {
-	// if(GetEmitterViewModel().IsValid())
-	// {
-	// 	return GetEmitterViewModel()->GetEditorData().ShouldShowSummaryView();
-	// }
+	if(GetEmitterViewModel().IsValid())
+	{
+		return GetEmitterViewModel()->GetEditorData().ShouldShowSummaryView();
+	}
 
 	return false;
 }
@@ -558,7 +558,7 @@ void UNiagaraStackSummaryViewCollection::RefreshChildrenInternal(const TArray<UN
 			EmtpySummaryMessage->Initialize(CreateDefaultChildRequiredData(), EmptyAssignmentNodeMessageText, GetStackEditorDataKey());
 		}
 		
-		//EmtpySummaryMessage->SetIsHidden(!GetShouldShowInStack());
+		EmtpySummaryMessage->SetIsHidden(!GetShouldShowInStack());
 		
 		NewChildren.Add(EmtpySummaryMessage);	
 	}
