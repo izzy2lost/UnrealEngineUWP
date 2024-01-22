@@ -17,27 +17,70 @@
 
 DEFINE_LOG_CATEGORY_STATIC(LogAutomationTestExcludelist, Log, All);
 
-static const FString FunctionalTestsPreFix = TEXT("Project.Functional Tests.");
-
-void SortExcludelist(TMap<FString, FAutomationTestExcludelistEntry>& List)
+namespace
 {
-	// Sort in alphabetical order, shortest to longest of key property.
-	// That is to naturally gives priority to parent suite over individual test exclusion when calling GetExcludeTestEntry(TestName).
-	List.KeySort([](const FString& A, const FString& B)
-		{
-			return A < B;
-		});
-}
+	const FString FunctionalTestsPreFix = TEXT("Project.Functional Tests.");
 
-void SortExcludelist(TArray<FAutomationTestExcludelistEntry>& List)
+	void SortExcludelist(TMap<FString, FAutomationTestExcludelistEntry>& List)
+	{
+		// Sort in alphabetical order, shortest to longest of key property.
+		// That is to naturally gives priority to parent suite over individual test exclusion when calling GetExcludeTestEntry(TestName).
+		List.KeySort([](const FString& A, const FString& B)
+			{
+				return A < B;
+			});
+	}
+
+	void SortExcludelist(TArray<FAutomationTestExcludelistEntry>& List)
+	{
+		// Sort in alphabetical order, shortest to longest of FullTestName property.
+		// That is to naturally gives priority to parent suite over individual test exclusion when calling GetExcludeTestEntry(TestName).
+		List.Sort([](const FAutomationTestExcludelistEntry& A, const FAutomationTestExcludelistEntry& B)
+			{
+				return A.FullTestName < B.FullTestName;
+			});
+	}
+
+	const FString TicketTrackerURLHashtagPropertyName = TEXT("URLHashtag");
+	const FString TicketTrackerURLBasePropertyName = TEXT("URLBase");
+} // anonymous namespace
+
+#if WITH_EDITOR
+void FAutomationTestExcludeOptions::UpdateReason(const FString& BeautifiedReason, const FString& TaskTrackerTicketId)
 {
-	// Sort in alphabetical order, shortest to longest of FullTestName property.
-	// That is to naturally gives priority to parent suite over individual test exclusion when calling GetExcludeTestEntry(TestName).
-	List.Sort([](const FAutomationTestExcludelistEntry& A, const FAutomationTestExcludelistEntry& B)
+	if (TaskTrackerTicketId.IsEmpty())
+	{
+		Reason = FName(BeautifiedReason);
+	}
+	else
+	{
+		static const UAutomationTestExcludelist* Excludelist = UAutomationTestExcludelist::Get();
+		check(nullptr != Excludelist);
+
+		FString FullTicketString = Excludelist->GetTaskTrackerTicketTag() + TEXT(" ") + TaskTrackerTicketId;
+
+		if (BeautifiedReason.IsEmpty())
 		{
-			return A.FullTestName < B.FullTestName;
-		});
+			Reason = FName(FullTicketString);
+		}
+		else
+		{
+			const bool LastSymbolIsSpaceOrPunct =
+			(
+				TChar<FString::ElementType>::IsWhitespace(BeautifiedReason[BeautifiedReason.Len() - 1])
+				|| TChar<FString::ElementType>::IsPunct(BeautifiedReason[BeautifiedReason.Len() - 1])
+			);
+
+			if (!LastSymbolIsSpaceOrPunct)
+			{
+				FullTicketString = TEXT(" ") + FullTicketString;
+			}
+
+			Reason = FName(BeautifiedReason + FullTicketString);
+		}
+	}
 }
+#endif // WITH_EDITOR
 
 void FAutomationTestExcludelistEntry::Finalize()
 {
@@ -85,11 +128,15 @@ UAutomationTestExcludelist* UAutomationTestExcludelist::Get()
 void UAutomationTestExcludelist::Initialize()
 {
 	DefaultConfig = GetMutableDefault<UAutomationTestExcludelistConfig>();
+	check(nullptr != DefaultConfig);
+
 	if (PlatformConfigs.IsEmpty())
 	{
 		LoadPlatformConfigs();
 		PopulateEntries();
 	}
+
+	DefaultConfig->LoadTaskTrackerProperties();
 }
 
 void UAutomationTestExcludelist::LoadPlatformConfigs()
@@ -219,6 +266,46 @@ FString UAutomationTestExcludelist::GetConfigFilenameForEntry(const FAutomationT
 	}
 
 	return TEXT("");
+}
+
+FString UAutomationTestExcludelist::GetTaskTrackerURLBase() const
+{
+	return DefaultConfig->GetTaskTrackerURLBase();
+}
+
+FString UAutomationTestExcludelist::GetConfigTaskTrackerHashtag() const
+{
+	return DefaultConfig->GetTaskTrackerURLHashtag();
+}
+
+FString UAutomationTestExcludelist::GetBeautifiedTaskTrackerTicketTagSuffix() const
+{
+	static const FString DefaultTaskTrackerTagSuffix = TEXT("unknown");
+
+	FString TaskTrackerTicketTagSuffix = DefaultConfig->GetTaskTrackerURLHashtag();
+	TaskTrackerTicketTagSuffix.TrimStartAndEndInline();
+
+	if (TaskTrackerTicketTagSuffix.IsEmpty())
+	{
+		TaskTrackerTicketTagSuffix = DefaultTaskTrackerTagSuffix;
+	}
+
+	return TaskTrackerTicketTagSuffix;
+}
+
+FString UAutomationTestExcludelist::GetTaskTrackerName() const
+{
+	FString TaskTrackerName = GetBeautifiedTaskTrackerTicketTagSuffix();
+
+	// Capitalize the first letter
+	TaskTrackerName[0] = TChar<FString::ElementType>::ToUpper(TaskTrackerName[0]);
+
+	return TaskTrackerName;
+}
+
+FString UAutomationTestExcludelist::GetTaskTrackerTicketTag() const
+{
+	return (TEXT("#") + GetBeautifiedTaskTrackerTicketTagSuffix());
 }
 
 void UAutomationTestExcludelist::SaveToConfigs()
@@ -507,6 +594,12 @@ void UAutomationTestExcludelistConfig::SaveConfig()
 #endif
 		}
 	}
+}
+
+void UAutomationTestExcludelistConfig::LoadTaskTrackerProperties()
+{
+	GConfig->GetString(*GetSectionName(), *TicketTrackerURLHashtagPropertyName, TaskTrackerURLHashtag, GEngineIni);
+	GConfig->GetString(*GetSectionName(), *TicketTrackerURLBasePropertyName, TaskTrackerURLBase, GEngineIni);
 }
 
 

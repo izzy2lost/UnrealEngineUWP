@@ -159,6 +159,9 @@ struct FAutomationTestExcludeOptions
 		return PlatformSettings.FindOrAdd(Platform);
 	}
 
+#if WITH_EDITOR
+	AUTOMATIONTEST_API void UpdateReason(const FString& BeautifiedReason, const FString& TaskTrackerTicketId);
+#endif //WITH_EDITOR
 
 	/* Name of the target test */
 	UPROPERTY(VisibleAnywhere, Category = ExcludeTestOptions)
@@ -325,8 +328,12 @@ public:
 	void Reset();
 	void AddEntry(const FAutomationTestExcludelistEntry& Entry);
 	const TArray<FAutomationTestExcludelistEntry>& GetEntries() const;
+	FString GetTaskTrackerURLHashtag() const { return TaskTrackerURLHashtag; }
+	FString GetTaskTrackerURLBase() const { return TaskTrackerURLBase; }
 
 	void SaveConfig();
+
+	void LoadTaskTrackerProperties();
 
 protected:
 	virtual void PostInitProperties() override;
@@ -335,6 +342,12 @@ protected:
 
 private:
 	void UpdateHash(const FAutomationTestExcludelistEntry& Entry);
+
+	UPROPERTY(Transient)
+	FString TaskTrackerURLHashtag;
+
+	UPROPERTY(Transient)
+	FString TaskTrackerURLBase;
 
 	UPROPERTY(Config)
 	TArray<FAutomationTestExcludelistEntry> ExcludeTest;
@@ -449,6 +462,34 @@ public:
 	*/
 	AUTOMATIONTEST_API FString GetConfigFilenameForEntry(const FAutomationTestExcludelistEntry& Entry, const FName& Platform) const;
 
+	/**
+	 * Get URL base that is used while restoring a task tracker task's URL.
+	 *
+	 * @return Return the URL base.
+	*/
+	AUTOMATIONTEST_API FString GetTaskTrackerURLBase() const;
+
+	/**
+	 * Get non-beautified task tracker's hashtag suffix (from the loaded configs).
+	 *
+	 * @return Return the string that contains non-beautified task tracker's hashtag suffix.
+	 */
+	AUTOMATIONTEST_API FString GetConfigTaskTrackerHashtag() const;
+
+	/**
+	 * Get Task tracker's name if task tracker information is configured.
+	 *
+	 * @return Return task tracker's name if it is configured or empty string otherwise.
+	*/
+	AUTOMATIONTEST_API FString GetTaskTrackerName() const;
+
+	/**
+	 * Get hashtag that is used for referencing tasks if task tracker information is configured.
+	 *
+	 * @return Return hashtag that is used for referencing task tracker tasks if it is configured or empty string otherwise.
+	*/
+	AUTOMATIONTEST_API FString GetTaskTrackerTicketTag() const;
+
 	/** Save all the required configs */
 	AUTOMATIONTEST_API void SaveToConfigs();
 
@@ -464,6 +505,9 @@ private:
 
 	/** Populate the exclusion entries from the loaded configs */
 	void PopulateEntries();
+
+	/** Get beautified hashtag suffix (starts after leading#) that is used for referencing tasks if task tracker information is configured */
+	FString GetBeautifiedTaskTrackerTicketTagSuffix() const;
 
 	/** Exclusion entries */
 	TMap<FString, FAutomationTestExcludelistEntry> Entries;
