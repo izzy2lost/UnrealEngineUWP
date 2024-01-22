@@ -286,6 +286,7 @@ struct STATETREEMODULE_API FStateTreeDataHandle
 		// Require valid state for active instance data
 		check(Source != EStateTreeDataSourceType::ActiveInstanceData || (Source == EStateTreeDataSourceType::ActiveInstanceData && StateHandle.IsValid()));
 		check(Source != EStateTreeDataSourceType::ActiveInstanceDataObject || (Source == EStateTreeDataSourceType::ActiveInstanceDataObject && StateHandle.IsValid()));
+		check(Source == EStateTreeDataSourceType::GlobalParameterData || InIndex != InvalidIndex);
 	}
 
 	explicit FStateTreeDataHandle(const EStateTreeDataSourceType InSource, const int32 InIndex, const FStateTreeStateHandle InStateHandle = FStateTreeStateHandle::Invalid)
@@ -295,9 +296,13 @@ struct STATETREEMODULE_API FStateTreeDataHandle
 		// Require valid state for active instance data
 		check(Source != EStateTreeDataSourceType::ActiveInstanceData || (Source == EStateTreeDataSourceType::ActiveInstanceData && StateHandle.IsValid()));
 		check(Source != EStateTreeDataSourceType::ActiveInstanceDataObject || (Source == EStateTreeDataSourceType::ActiveInstanceDataObject && StateHandle.IsValid()));
-		check(InIndex == INDEX_NONE || IsValidIndex(InIndex));
+		check(Source == EStateTreeDataSourceType::GlobalParameterData || IsValidIndex(InIndex));
 		Index = static_cast<uint16>(InIndex);
 	}
+
+	explicit FStateTreeDataHandle(const EStateTreeDataSourceType InSource)
+		: FStateTreeDataHandle(InSource, FStateTreeDataHandle::InvalidIndex)
+	{}
 
 	bool IsValid() const
 	{
@@ -380,7 +385,7 @@ struct STATETREEMODULE_API FStateTreeDataHandle
 		case EStateTreeDataSourceType::ContextData:
 			return FString::Printf(TEXT("Context[%d]"), Index);
 		case EStateTreeDataSourceType::GlobalParameterData:
-			return FString::Printf(TEXT("GlobalParam[%d]"), Index);
+			return FString::Printf(TEXT("GlobalParam"));
 		case EStateTreeDataSourceType::SubtreeParameterData:
 			return FString::Printf(TEXT("SubtreeParam[%d]"), Index);
 		case EStateTreeDataSourceType::StateParameterData:

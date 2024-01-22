@@ -93,12 +93,14 @@ public:
 	virtual ~FStateTreeExecutionContext();
 
 	/** Updates data view of the parameters by using the default values defined in the StateTree asset. */
+	UE_DEPRECATED(5.4, "Not providing parameters to Start() leads to setting up default values now.")
 	void SetDefaultParameters();
 
 	/**
 	 * Updates data view of the parameters by replacing the default values defined in the StateTree asset by the provided values.
 	 * Note: caller is responsible to make sure external parameters lifetime matches the context.
 	 */
+	UE_DEPRECATED(5.4, "Provide parameters through Start() instead.")
 	void SetParameters(const FInstancedPropertyBag& Parameters);
 
 	/** Sets callback used to collect external data views during State Tree execution. */
@@ -144,8 +146,12 @@ public:
 		return nullptr;
 	}
 	
-	/** Start executing. */
-	EStateTreeRunStatus Start();
+	/**
+	 * Start executing.
+	 * @param InitialParameters Optional override of parameters initial values
+	 * @return Tree execution status after the start.
+	 */
+	EStateTreeRunStatus Start(const FInstancedPropertyBag* InitialParameters = nullptr);
 	
 	/**
 	 * Stop executing if the tree is running.
@@ -553,6 +559,12 @@ protected:
 	 */
 	FStateTreeIndex16 CollectExternalData(const UStateTree* StateTree);
 
+	/**
+	 * Stores copy of provided parameters as State Tree global parameters.
+	 * @param Parameters parameters to copy
+	 * @returns true if successfully set the parameters
+	 */
+	bool SetGlobalParameters(const FInstancedPropertyBag& Parameters);
 	
 	/** Owner of the instance data. */
 	UObject& Owner;

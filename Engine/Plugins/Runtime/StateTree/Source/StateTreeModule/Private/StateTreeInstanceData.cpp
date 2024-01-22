@@ -163,6 +163,11 @@ void FStateTreeInstanceStorage::ResetTemporaryInstances()
 }
 
 
+void FStateTreeInstanceStorage::SetGlobalParameters(const FInstancedPropertyBag& Parameters)
+{
+	GlobalParameters = Parameters;
+}
+
 //----------------------------------------------------------------//
 // FStateTreeInstanceData
 //----------------------------------------------------------------//
@@ -261,6 +266,12 @@ bool FStateTreeInstanceData::Identical(const FStateTreeInstanceData* Other, uint
 
 	const FStateTreeInstanceStorage& Storage = GetStorage();
 	const FStateTreeInstanceStorage& OtherStorage = Other->GetStorage();
+
+	// Not identical if global parameters don't match.
+	if (!Storage.GlobalParameters.Identical(&OtherStorage.GlobalParameters, PortFlags))
+	{
+		return false;
+	}
 
 	// Not identical if structs are different.
 	if (Storage.InstanceStructs.Identical(&OtherStorage.InstanceStructs, PortFlags) == false)
@@ -447,4 +458,5 @@ void FStateTreeInstanceData::Reset()
 	Storage.EventQueue.Reset();
 	Storage.ExecutionState.Reset();
 	Storage.TemporaryInstances.Reset();
+	Storage.GlobalParameters.Reset();
 }

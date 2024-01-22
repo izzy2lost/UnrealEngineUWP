@@ -47,6 +47,8 @@ struct STATETREEMODULE_API FStateTreeCustomVersion
 		OverridableParameters,
 		// Added override option for state parameters
 		OverridableStateParameters,
+		// Added storing global parameters in instance storage
+		StoringGlobalParametersInInstanceStorage,
 
 		// -----<new versions can be added above this line>-------------------------------------------------
 		VersionPlusOne,
@@ -273,9 +275,6 @@ private:
 	UPROPERTY()
 	FInstancedPropertyBag Parameters;
 
-	/** Data view index of the tree Parameters */
-	UPROPERTY()
-	FStateTreeDataHandle ParametersDataHandle = FStateTreeDataHandle::Invalid; 
 
 	/** Number of context data, include parameters and all context data. */
 	UPROPERTY()

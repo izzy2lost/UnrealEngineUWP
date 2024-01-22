@@ -75,7 +75,7 @@ bool FGameplayInteractionContext::Activate(const UGameplayInteractionSmartObject
 	}
 
 	// Start State Tree
-	StateTreeContext.Start();
+	StateTreeContext.Start(&StateTreeReference.GetParameters());
 	
 	return true;
 }
@@ -198,9 +198,6 @@ bool FGameplayInteractionContext::SetContextRequirements(FStateTreeExecutionCont
 	{
 		return false;
 	}
-	
-	const FStateTreeReference& StateTreeReference = Definition->StateTreeReference;
-	StateTreeContext.SetParameters(StateTreeReference.GetParameters());
 	
 	StateTreeContext.SetContextDataByName(UE::GameplayInteraction::Names::ContextActor, FStateTreeDataView(ContextActor));
 	StateTreeContext.SetContextDataByName(UE::GameplayInteraction::Names::SmartObjectActor, FStateTreeDataView(SmartObjectActor));

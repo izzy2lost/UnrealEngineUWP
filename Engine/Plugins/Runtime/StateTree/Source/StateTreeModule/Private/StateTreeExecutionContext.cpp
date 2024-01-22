@@ -109,9 +109,6 @@ FStateTreeExecutionContext::FStateTreeExecutionContext(UObject& InOwner, const U
 	{
 		// Initialize data views for all possible items.
 		ContextAndExternalDataViews.SetNum(RootStateTree.GetNumContextDataViews());
-		
-		// Set data views associated to the parameters using the default values
-		SetDefaultParameters();
 
 		InstanceDataStorage = &InstanceData.GetMutableStorage();
 		check(InstanceDataStorage);
@@ -131,28 +128,6 @@ FStateTreeExecutionContext::~FStateTreeExecutionContext()
 	for (FStateTreeExecutionFrame& Frame : Exec.ActiveFrames)
 	{
 		Frame.ExternalDataBaseIndex = {};
-	}
-}
-
-void FStateTreeExecutionContext::SetDefaultParameters()
-{
-	if (ContextAndExternalDataViews.IsValidIndex(RootStateTree.ParametersDataHandle.GetIndex()))
-	{
-		// @todo: Handle constness correctly.
-		const FConstStructView ConstParameters = RootStateTree.GetDefaultParameters().GetValue();
-		ContextAndExternalDataViews[RootStateTree.ParametersDataHandle.GetIndex()] = FStateTreeDataView(ConstParameters.GetScriptStruct(), const_cast<uint8*>(ConstParameters.GetMemory()));	
-	}
-}
-
-void FStateTreeExecutionContext::SetParameters(const FInstancedPropertyBag& Parameters)
-{
-	if (ensureMsgf(RootStateTree.GetDefaultParameters().GetPropertyBagStruct() == Parameters.GetPropertyBagStruct(),
-		TEXT("Parameters must be of the same struct type. Make sure to migrate the provided parameters to the same type as the StateTree default parameters."))
-		&& ContextAndExternalDataViews.IsValidIndex(RootStateTree.ParametersDataHandle.GetIndex()))
-	{
-		// @todo: Handle constness correctly.
-		const FConstStructView ConstParameters = Parameters.GetValue();
-		ContextAndExternalDataViews[RootStateTree.ParametersDataHandle.GetIndex()] = FStateTreeDataView(ConstParameters.GetScriptStruct(), const_cast<uint8*>(ConstParameters.GetMemory()));	
 	}
 }
 
@@ -198,7 +173,7 @@ bool FStateTreeExecutionContext::SetContextDataByName(const FName Name, FStateTr
 	return false;
 }
 
-EStateTreeRunStatus FStateTreeExecutionContext::Start()
+EStateTreeRunStatus FStateTreeExecutionContext::Start(const FInstancedPropertyBag* InitialParameters)
 {
 	CSV_SCOPED_TIMING_STAT_EXCLUSIVE(StateTree_Start);
 
@@ -227,6 +202,11 @@ EStateTreeRunStatus FStateTreeExecutionContext::Start()
 
 	// Initialize instance data. No active states yet, so we'll initialize the evals and global tasks.
 	InstanceData.Reset();
+
+	if (!InitialParameters || !SetGlobalParameters(*InitialParameters))
+	{
+		SetGlobalParameters(RootStateTree.GetDefaultParameters());
+	}
 
 	FStateTreeExecutionState& Exec = GetExecState();
 
@@ -749,7 +729,7 @@ void FStateTreeExecutionContext::UpdateInstanceData(TConstArrayView<FStateTreeEx
 	const UStruct* NextStateParameterDataStruct = nullptr;
 	FStateTreeDataHandle NextStateParameterDataHandle = FStateTreeDataHandle::Invalid;
 	
-	FStateTreeDataHandle CurrentGlobalParameterDataHandle = RootStateTree.ParametersDataHandle;
+	FStateTreeDataHandle CurrentGlobalParameterDataHandle = FStateTreeDataHandle(EStateTreeDataSourceType::GlobalParameterData);
 
 	bool bAreCommon = true;
 	for (int32 FrameIndex = 0; FrameIndex < NextActiveFrames.Num(); FrameIndex++)
@@ -963,12 +943,13 @@ FStateTreeDataView FStateTreeExecutionContext::GetDataView(const FStateTreeExecu
 
 	case EStateTreeDataSourceType::GlobalParameterData:
 		{
-			// Defined in parent frame or is context data
+			// Defined in parent frame or is root state tree parameters
 			if (ParentFrame)
 			{
 				return GetDataView(nullptr, *ParentFrame, CurrentFrame.GlobalParameterDataHandle);
 			}
-			return ContextAndExternalDataViews[Handle.GetIndex()];
+
+			return InstanceDataStorage->GetMutableGlobalParameters();
 		}
 
 	case EStateTreeDataSourceType::SubtreeParameterData:
@@ -1261,6 +1242,18 @@ FStateTreeIndex16 FStateTreeExecutionContext::CollectExternalData(const UStateTr
 	CollectedExternalCache.Add({ StateTree, Result });
 
 	return FStateTreeIndex16(Result);
+}
+
+bool FStateTreeExecutionContext::SetGlobalParameters(const FInstancedPropertyBag& Parameters)
+{
+	if (ensureMsgf(RootStateTree.GetDefaultParameters().GetPropertyBagStruct() == Parameters.GetPropertyBagStruct(),
+		TEXT("Parameters must be of the same struct type. Make sure to migrate the provided parameters to the same type as the StateTree default parameters.")))
+	{
+		InstanceDataStorage->SetGlobalParameters(Parameters);
+		return true;
+	}
+
+	return false;
 }
 
 EStateTreeRunStatus FStateTreeExecutionContext::EnterState(FStateTreeTransitionResult& Transition)
@@ -3373,6 +3366,16 @@ EStateTreeRunStatus FStateTreeExecutionContext::GetLastTickStatus() const
 {
 	const FStateTreeExecutionState& Exec = GetExecState();
 	return Exec.LastTickStatus;
+}
+
+void FStateTreeExecutionContext::SetDefaultParameters()
+{
+	SetGlobalParameters(RootStateTree.GetDefaultParameters());
+}
+
+void FStateTreeExecutionContext::SetParameters(const FInstancedPropertyBag& Parameters)
+{
+	SetGlobalParameters(Parameters);
 }
 
 FString FStateTreeExecutionContext::GetInstanceDescription() const

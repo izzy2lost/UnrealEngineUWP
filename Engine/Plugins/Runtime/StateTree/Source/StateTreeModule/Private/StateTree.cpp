@@ -546,7 +546,7 @@ bool UStateTree::PatchBindings()
 	}
 
 	// Update property bag structs before resolving binding.
-	if (FStateTreeBindableStructDesc* RootParamsDesc = GetSourceStructByHandle(ParametersDataHandle))
+	if (FStateTreeBindableStructDesc* RootParamsDesc = GetSourceStructByHandle(FStateTreeDataHandle(EStateTreeDataSourceType::GlobalParameterData)))
 	{
 		RootParamsDesc->Struct = Parameters.GetPropertyBagStruct();
 	}
@@ -630,7 +630,7 @@ bool UStateTree::PatchBindings()
 	TMap<FStateTreeIndex16, FStateTreeDataView> BindingBatchDataView;
 
 	// Tree parameters
-	DataViews.Add(ParametersDataHandle, Parameters.GetMutableValue());
+	DataViews.Add(FStateTreeDataHandle(EStateTreeDataSourceType::GlobalParameterData), Parameters.GetMutableValue());
 
 	// Setup data views for context data. Since the external data is passed at runtime, we can only provide the type.
 	for (const FStateTreeExternalDataDesc& DataDesc : ContextDataDescs)

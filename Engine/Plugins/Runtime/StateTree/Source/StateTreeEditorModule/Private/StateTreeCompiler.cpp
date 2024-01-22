@@ -207,26 +207,24 @@ bool FStateTreeCompiler::Compile(UStateTree& InStateTree)
 
 	// Copy parameters from EditorData	
 	StateTree->Parameters = EditorData->RootParameters.Parameters;
-
-	int32 ContextDataIndex = 0;
 	
 	// Mark parameters as binding source
 	const FStateTreeBindableStructDesc ParametersDesc = {
 			TEXT("Parameters"),
 			StateTree->Parameters.GetPropertyBagStruct(),
-			FStateTreeDataHandle(EStateTreeDataSourceType::GlobalParameterData, ContextDataIndex++),
+			FStateTreeDataHandle(EStateTreeDataSourceType::GlobalParameterData),
 			EStateTreeBindableStructSource::Parameter,
 			EditorData->RootParameters.ID
 		};
 	BindingsCompiler.AddSourceStruct(ParametersDesc);
-
-	StateTree->ParametersDataHandle = ParametersDesc.DataHandle;
 
 	if (!UE::StateTree::Compiler::ValidateNoLevelActorReferences(Log, ParametersDesc, FStateTreeDataView(), FStateTreeDataView(EditorData->RootParameters.Parameters.GetMutableValue())))
 	{
 		StateTree->ResetCompiled();
 		return false;
 	}
+
+	int32 ContextDataIndex = 0;
 
 	// Mark all named external values as binding source
 	if (StateTree->Schema)

@@ -173,6 +173,21 @@ struct STATETREEMODULE_API FStateTreeInstanceStorage
 	{
 		return TemporaryInstances;
 	}
+
+	/** Stores copy of provided parameters as State Tree global parameters. */
+	void SetGlobalParameters(const FInstancedPropertyBag& Parameters);
+
+	/** @return view to global parameters. */
+	FConstStructView GetGlobalParameters() const
+	{
+		return GlobalParameters.GetValue();
+	}
+
+	/** @return mutable view to global parameters. */
+	FStructView GetMutableGlobalParameters()
+	{
+		return GlobalParameters.GetMutableValue();
+	}
 	
 	UE_DEPRECATED(5.4, "Use Num() instead.")
 	int32 NumStructs() const { return 0; }
@@ -206,6 +221,10 @@ protected:
 	/** Requested transitions */
 	UPROPERTY()
 	TArray<FStateTreeTransitionRequest> TransitionRequests;
+
+	/** Global parameters */
+	UPROPERTY()
+	FInstancedPropertyBag GlobalParameters;
 
 	friend struct FStateTreeInstanceData;
 };
