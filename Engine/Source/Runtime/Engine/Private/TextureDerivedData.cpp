@@ -652,15 +652,6 @@ static void FinalizeBuildSettingsForLayer(
 		OutSettings.bReplicateRed = true;
 	}
 
-	// If we have channel boundary information, use that to determine whether we expect to have
-	// a non opaque alpha.
-	if (LayerIndex < Texture.Source.GetLayerColorInfo().Num())
-	{
-		const FTextureSourceLayerColorInfo& LayerChannelBounds = Texture.Source.GetLayerColorInfo()[LayerIndex];
-		OutSettings.bKnowAlphaTransparency = ITextureCompressorModule::DetermineAlphaChannelTransparency(OutSettings, 
-			LayerChannelBounds.ColorMin, LayerChannelBounds.ColorMax, OutSettings.bHasTransparentAlpha);
-	}
-
 	// this is called once per Texture with OutSettings.TextureFormatName == None
 	//	and then called again (per Layer) with OutSettings.TextureFormatName filled out
 

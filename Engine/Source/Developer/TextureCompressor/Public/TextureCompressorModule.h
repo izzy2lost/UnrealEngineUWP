@@ -251,13 +251,6 @@ struct FTextureBuildSettings
 	// to TextureFormatName.
 	FName BaseTextureFormatName;
 	
-	// Whether bHasTransparentAlpha is valid.
-	bool bKnowAlphaTransparency = false;
-
-	// Only valid if bKnowAlphaTransparency is true. This is whether the resulting texture is expected to require
-	// an alpha channel based on scanning the source mips and analyzing the build settings.
-	bool bHasTransparentAlpha = false;
-
 	static constexpr uint32 MaxTextureResolutionDefault = TNumericLimits<uint32>::Max();
 
 	/** Default settings. */
@@ -419,18 +412,6 @@ public:
 		TArray<FImage> &OutMipChain,
 		uint32 MipChainDepth
 		);
-
-	/**
-	* Given the channel min/max for the top mip of a texture's source, determine whether there will be any transparency
-	* after image processing occurs, and thus the texture will need to be BC3 for the purposes of AutoDXT format selection.
-	* 
-	* @param bOutAlphaIsTransparent		*This is undetermined if the return is false!*. If true, we expect the image after
-	*									processing to require an alpha channel.
-	* @return							Whether the alpha channel can be determined. There are plenty of edge cases where 
-	*									it's not feasible to determine the result prior to full processing, however these
-	*									are rare in practice.
-	*/
-	TEXTURECOMPRESSOR_API static bool DetermineAlphaChannelTransparency(const FTextureBuildSettings& InBuildSettings, const FLinearColor& InChannelMin, const FLinearColor& InChannelMax, bool& bOutAlphaIsTransparent);
 
 	/**
      * Adjusts the colors of the image using the specified settings
