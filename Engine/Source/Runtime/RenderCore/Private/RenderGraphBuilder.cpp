@@ -59,12 +59,15 @@ struct FParallelPassSet : public FRHICommandListImmediate::FQueuedCommandList
 inline void BeginUAVOverlap(const FRDGPass* Pass, FRHIComputeCommandList& RHICmdList)
 {
 #if ENABLE_RHI_VALIDATION
-	TArray<FRHIUnorderedAccessView*, TInlineAllocator<MaxSimultaneousUAVs, FRDGArrayAllocator>> UAVs;
-	GatherPassUAVsForOverlapValidation(Pass, UAVs);
-
-	if (UAVs.Num())
+	if (GRHIValidationEnabled)
 	{
-		RHICmdList.BeginUAVOverlap(UAVs);
+		TArray<FRHIUnorderedAccessView*, TInlineAllocator<MaxSimultaneousUAVs, FRDGArrayAllocator>> UAVs;
+		GatherPassUAVsForOverlapValidation(Pass, UAVs);
+
+		if (UAVs.Num())
+		{
+			RHICmdList.BeginUAVOverlap(UAVs);
+		}
 	}
 #endif
 }
@@ -72,12 +75,15 @@ inline void BeginUAVOverlap(const FRDGPass* Pass, FRHIComputeCommandList& RHICmd
 inline void EndUAVOverlap(const FRDGPass* Pass, FRHIComputeCommandList& RHICmdList)
 {
 #if ENABLE_RHI_VALIDATION
-	TArray<FRHIUnorderedAccessView*, TInlineAllocator<MaxSimultaneousUAVs, FRDGArrayAllocator>> UAVs;
-	GatherPassUAVsForOverlapValidation(Pass, UAVs);
-
-	if (UAVs.Num())
+	if (GRHIValidationEnabled)
 	{
-		RHICmdList.EndUAVOverlap(UAVs);
+		TArray<FRHIUnorderedAccessView*, TInlineAllocator<MaxSimultaneousUAVs, FRDGArrayAllocator>> UAVs;
+		GatherPassUAVsForOverlapValidation(Pass, UAVs);
+
+		if (UAVs.Num())
+		{
+			RHICmdList.EndUAVOverlap(UAVs);
+		}
 	}
 #endif
 }
