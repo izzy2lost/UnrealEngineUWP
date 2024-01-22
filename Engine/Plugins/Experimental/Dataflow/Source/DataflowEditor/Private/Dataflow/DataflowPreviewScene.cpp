@@ -209,9 +209,14 @@ TObjectPtr<UDynamicMeshComponent>& FDataflowConstructionScene::AddDynamicMeshCom
 	DynamicMeshComponent->SetMesh(MoveTemp(DynamicMesh));
 	
 	// @todo(Material) This is just to have a material, we should transfer the materials from the assets if they have them. 
-	if (DataflowContent && DataflowContent->DataflowAsset)
+	if (DataflowContent && DataflowContent->DataflowAsset && DataflowContent->DataflowAsset->Material)
 	{
 		DynamicMeshComponent->ConfigureMaterialSet({ DataflowContent->DataflowAsset->Material });
+	}
+	else
+	{
+		DynamicMeshComponent->SetOverrideRenderMaterial(FDataflowEditorStyle::Get().VertexMaterial);
+		DynamicMeshComponent->SetShadowsEnabled(false);
 	}
 	//else if (FDataflowEditorStyle::Get().DefaultMaterial)
 	//{
@@ -221,11 +226,7 @@ TObjectPtr<UDynamicMeshComponent>& FDataflowConstructionScene::AddDynamicMeshCom
 	//{
 	//	DynamicMeshComponent->ValidateMaterialSlots(true, false);
 	//}
-	else
-	{
-		DynamicMeshComponent->SetOverrideRenderMaterial(FDataflowEditorStyle::Get().VertexMaterial);
-		DynamicMeshComponent->SetShadowsEnabled(false);
-	}
+
 	DynamicMeshComponent->SelectionOverrideDelegate = UPrimitiveComponent::FSelectionOverride::CreateRaw(this, &FDataflowPreviewScene::IsComponentSelected);
 	DynamicMeshComponent->UpdateBounds();
 
