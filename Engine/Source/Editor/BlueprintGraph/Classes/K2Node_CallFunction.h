@@ -55,8 +55,7 @@ class BLUEPRINTGRAPH_API UK2Node_CallFunction : public UK2Node
 	UPROPERTY()
 	uint32 bIsInterfaceCall:1;
 
-	/** Indicates that this is a call to a final / superclass's function */
-	UPROPERTY()
+	UE_DEPRECATED(5.4, "bIsFinalFunction is deprecated.")
 	uint32 bIsFinalFunction:1;
 
 	UE_DEPRECATED(5.4, "bIsBeadFunction is deprecated")
