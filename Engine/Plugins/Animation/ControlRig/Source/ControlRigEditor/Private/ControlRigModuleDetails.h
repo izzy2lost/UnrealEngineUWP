@@ -50,17 +50,15 @@ public:
 	FText GetRigClassPath() const;
 	TArray<FRigModuleConnector> GetConnectors() const;
 	FRigElementKeyRedirector GetConnections() const;
-	void PopulateConnectorTargetList(const FRigElementKey InConnectorKey);
+	void PopulateConnectorTargetList(const FString InConnectorKey);
 	void PopulateConnectorCurrentTarget(
 		TSharedPtr<SVerticalBox> InListBox,
-		const FRigElementKey& InConnectorKey,
-		const FRigElementKey& InTargetKey,
 		const FSlateBrush* InBrush,
 		const FSlateColor& InColor,
 		const FText& InTitle);
 
 	void OnConfigValueChanged(const FName InVariableName);
-	void OnConnectorTargetChanged(TSharedPtr<FRigTreeElement> Selection, ESelectInfo::Type SelectInfo, const FRigElementKey InConnectorKey);
+	void OnConnectorTargetChanged(TSharedPtr<FRigTreeElement> Selection, ESelectInfo::Type SelectInfo, const FRigModuleConnector InConnector);
 	
 	struct FPerModuleInfo
 	{
@@ -146,10 +144,10 @@ protected:
 	void HandleChangeBinding(const FProperty* InProperty, const FString& InNewVariablePath) const;
 
 	TArray<FPerModuleInfo> PerModuleInfos;
-	TMap<FRigElementKey, TSharedPtr<SSearchableRigHierarchyTreeView>> ConnectionListBox;
+	TMap<FString, TSharedPtr<SSearchableRigHierarchyTreeView>> ConnectionListBox;
 
 	/** Helper buttons. */
-	TMap<FRigElementKey, TSharedPtr<SButton>> UseSelectedButton;
-	TMap<FRigElementKey, TSharedPtr<SButton>> SelectElementButton;
-	TMap<FRigElementKey, TSharedPtr<SButton>> ResetConnectorButton;
+	TMap<FString, TSharedPtr<SButton>> UseSelectedButton;
+	TMap<FString, TSharedPtr<SButton>> SelectElementButton;
+	TMap<FString, TSharedPtr<SButton>> ResetConnectorButton;
 };

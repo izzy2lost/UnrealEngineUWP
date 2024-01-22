@@ -311,7 +311,7 @@ void SModularRigModel::OnItemClicked(TSharedPtr<FModularRigTreeElement> InItem)
 
 	if (ControlRigEditor.IsValid() && InItem.IsValid())
 	{
-		ControlRigEditor.Pin()->SetDetailViewForRigModules({InItem->ModulePath});
+		ControlRigEditor.Pin()->SetDetailViewForRigModules(TreeView->GetSelectedKeys());
 	}
 }
 

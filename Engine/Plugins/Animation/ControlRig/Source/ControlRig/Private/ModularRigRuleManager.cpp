@@ -2,6 +2,8 @@
 
 #include "ModularRigRuleManager.h"
 
+#include "Units/Execution/RigUnit_PrepareForExecution.h"
+
 #include UE_INLINE_GENERATED_CPP_BY_NAME(ModularRigRuleManager)
 
 #define LOCTEXT_NAMESPACE "ModularRigRuleManager"
@@ -20,6 +22,14 @@ FModularRigResolveResult UModularRigRuleManager::FindMatches(
 		Result.Message = MissingHierarchyMessage;
 		Result.State = EModularRigResolveState::Error;
 		return Result;
+	}
+
+	if (UControlRig* ControlRig = Hierarchy->GetTypedOuter<UControlRig>())
+	{
+		if (ControlRig->IsConstructionRequired())
+		{
+			ControlRig->Execute(FRigUnit_PrepareForExecution::EventName);
+		}
 	}
 
 	// start with a full set of possible targets

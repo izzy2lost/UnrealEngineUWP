@@ -24,7 +24,11 @@ public:
 	
 	const UModularRig* GetModularRig() const
 	{
-		return ModularRig.Get();
+		if (ModularRig.IsValid())
+		{
+			return ModularRig.Get();
+		}
+		return nullptr;
 	}
 	const FString& GetPath() const { return Path; }
 

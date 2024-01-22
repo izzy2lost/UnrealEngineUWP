@@ -922,7 +922,7 @@ TArray<FString> SModularRigTreeView::GetSelectedKeys() const
 	TArray<TSharedPtr<FModularRigTreeElement>> SelectedElements = GetSelectedItems();
 	for(const TSharedPtr<FModularRigTreeElement>& SelectedElement : SelectedElements)
 	{
-		Keys.Add(SelectedElement->Key);
+		Keys.AddUnique(SelectedElement->ModulePath);
 	}
 	return Keys;
 }
