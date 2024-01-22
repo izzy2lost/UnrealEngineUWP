@@ -15,6 +15,7 @@
 #include "TG_Parameter.h"
 #include "EdGraph/TG_EdGraphNode.h"
 #include "STG_Palette.h"
+#include "GraphEditor.h"
 
 class UTextureGraph;
 class UTG_Graph;
@@ -180,6 +181,8 @@ private:
 	bool											OnVerifyNodeTextCommit(const FText& Text, UEdGraphNode* EdGraphNode, FText& OutErrorMessage);
 	/** Create new graph editor widget */
 	TSharedRef<class SGraphEditor>					CreateGraphEditorWidget();
+
+	FActionMenuContent								OnCreateGraphActionMenu(UEdGraph* InGraph, const FVector2D& InNodePosition, const TArray<UEdGraphPin*>& InDraggedPins, bool bAutoExpand, SGraphEditor::FActionMenuClosed InOnMenuClosed);
 
 	/** Create Selection view widget */
 	TSharedRef<class STG_SelectionPreview>			CreateSelectionViewWidget();

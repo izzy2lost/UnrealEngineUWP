@@ -30,17 +30,23 @@ const FLinearColor UTG_EdGraphSchema::VectorPinColor = FLinearColor::Yellow;
 const FLinearColor UTG_EdGraphSchema::ImagePinColor = FLinearColor(0.8f, 0.2f, 0.4f, 1.0f);					// salmon (light pink)
 
 // Node title colors
-const FLinearColor UTG_EdGraphSchema::InputNodesColor =		FLinearColor::FromSRGBColor(FColor::FromHex(TEXT("0F6389")));//48748F
-const FLinearColor UTG_EdGraphSchema::FunctionNodesColor =	FLinearColor::FromSRGBColor(FColor::FromHex(TEXT("3E3E3E")));
-const FLinearColor UTG_EdGraphSchema::MathsNodesColor =		FLinearColor::FromSRGBColor(FColor::FromHex(TEXT("60825B")));
-const FLinearColor UTG_EdGraphSchema::GeneratorNodesColor = FLinearColor::FromSRGBColor(FColor::FromHex(TEXT("5B8830")));
-const FLinearColor UTG_EdGraphSchema::OperatorNodesColor =	FLinearColor::FromSRGBColor(FColor::FromHex(TEXT("8E7424")));
-const FLinearColor UTG_EdGraphSchema::OutputNodesColor =	FLinearColor::FromSRGBColor(FColor::FromHex(TEXT("8D7964")));//890F0F//FLinearColor::FromSRGBColor(FColor::FromHex(TEXT("8D7964")));
-const FLinearColor UTG_EdGraphSchema::CustomNodesColor =	FLinearColor::Black;
-const FLinearColor UTG_EdGraphSchema::DevOnlyNodesColor =	FLinearColor::FromSRGBColor(FColor::Cyan);
+const FLinearColor UTG_EdGraphSchema::InputNodesColor = FLinearColor::FromSRGBColor(FColor::FromHex(TEXT("3E1950")));
+const FLinearColor UTG_EdGraphSchema::FunctionNodesColor = FLinearColor::FromSRGBColor(FColor::FromHex(TEXT("2A97704D")));
+const FLinearColor UTG_EdGraphSchema::MathsNodesColor = FLinearColor::FromSRGBColor(FColor::FromHex(TEXT("2C3B29"))); 
+const FLinearColor UTG_EdGraphSchema::ProceduralNodesColor = FLinearColor::FromSRGBColor(FColor::FromHex(TEXT("293E16")));
+const FLinearColor UTG_EdGraphSchema::OperatorNodesColor = FLinearColor::FromSRGBColor(FColor::FromHex(TEXT("383316")));
+const FLinearColor UTG_EdGraphSchema::FilterNodesColor = FLinearColor::FromSRGBColor(FColor::FromHex(TEXT("253016")));
+const FLinearColor UTG_EdGraphSchema::ChannelNodesColor = FLinearColor::FromSRGBColor(FColor::FromHex(TEXT("203328")));
+const FLinearColor UTG_EdGraphSchema::OutputNodesColor = FLinearColor::FromSRGBColor(FColor::FromHex(TEXT("4B453B")));
+const FLinearColor UTG_EdGraphSchema::CustomNodesColor = FLinearColor::Black;
+const FLinearColor UTG_EdGraphSchema::DevOnlyNodesColor = FLinearColor::FromSRGBColor(FColor::Cyan);
+const FLinearColor UTG_EdGraphSchema::UtilitiesNodesColor = FLinearColor::FromSRGBColor(FColor::FromHex(TEXT("133C33")));
 
-const FLinearColor UTG_EdGraphSchema::TGNodeColor =			FLinearColor::FromSRGBColor(FColor::FromHex(TEXT("0F6389")));
-const FLinearColor UTG_EdGraphSchema::NodeBodyColor =		FLinearColor::FromSRGBColor(FColor::FromHex(TEXT("242424")));
+const FLinearColor UTG_EdGraphSchema::TGNodeColor = FLinearColor::FromSRGBColor(FColor::FromHex(TEXT("0F6389")));
+const FLinearColor UTG_EdGraphSchema::NodeBodyColor = FLinearColor::FromSRGBColor(FColor::FromHex(TEXT("0F0F0F")));
+const FLinearColor UTG_EdGraphSchema::NodeBodyColorOutline = FLinearColor::FromSRGBColor(FColor::FromHex(TEXT("353535")));
+
+const float UTG_EdGraphSchema::NodeOutlineColorMultiplier = 2.2f;
 
 const FName UTG_EdGraphSchema::PC_Boolean(TEXT("bool"));
 const FName UTG_EdGraphSchema::PC_Byte(TEXT("byte"));
@@ -481,6 +487,54 @@ void UTG_EdGraphSchema::GetAssetsNodeHoverMessage(const TArray<FAssetData>& Asse
 void UTG_EdGraphSchema::GetPaletteActions(FGraphActionMenuBuilder& ActionMenuBuilder, const FString& CategoryName) const
 {
 	GetTG_ExpressionsActions(ActionMenuBuilder);
+}
+
+FLinearColor UTG_EdGraphSchema::GetCategoryColor(FName Category)
+{
+	if (Category == TG_Category::Output)
+	{
+		return UTG_EdGraphSchema::OutputNodesColor;
+	}
+	if (Category == TG_Category::Input)
+	{
+		return UTG_EdGraphSchema::InputNodesColor;
+	}
+	if (Category == TG_Category::Maths)
+	{
+		return UTG_EdGraphSchema::MathsNodesColor;
+	}
+	if (Category == TG_Category::Procedural)
+	{
+		return UTG_EdGraphSchema::ProceduralNodesColor;
+	}
+	if (Category == TG_Category::Adjustment)
+	{
+		return UTG_EdGraphSchema::OperatorNodesColor;
+	}
+	if (Category == TG_Category::Filter)
+	{
+		return UTG_EdGraphSchema::FilterNodesColor;
+	}
+	if (Category == TG_Category::Channel)
+	{
+		return UTG_EdGraphSchema::ChannelNodesColor;
+	}
+	if (Category == TG_Category::Utilities)
+	{
+		return UTG_EdGraphSchema::UtilitiesNodesColor;
+	}
+
+	if (Category == TG_Category::DevOnly)
+	{
+		return UTG_EdGraphSchema::DevOnlyNodesColor;
+	}
+	if (Category == TG_Category::Custom ||
+		Category == TG_Category::Default)
+	{
+		return UTG_EdGraphSchema::CustomNodesColor;
+	}
+
+	return UTG_EdGraphSchema::TGNodeColor;
 }
 
 #undef LOCTEXT_NAMESPACE

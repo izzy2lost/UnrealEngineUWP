@@ -561,44 +561,7 @@ float UTG_EdGraphNode::GetNodeAlpha() const
 FLinearColor UTG_EdGraphNode::GetTitleColor() const
 {
 	FName ExpressionCategory = GetNode()->GetExpression()->GetCategory();
-	if (ExpressionCategory == TG_Category::Output)
-	{
-		return UTG_EdGraphSchema::OutputNodesColor;
-	}
-	if (ExpressionCategory == TG_Category::Input)
-	{
-		return UTG_EdGraphSchema::InputNodesColor;
-	}
-	if (ExpressionCategory == TG_Category::Utilities)
-	{
-		return UTG_EdGraphSchema::FunctionNodesColor;
-	}
-	if (ExpressionCategory == TG_Category::Maths)
-	{
-		return UTG_EdGraphSchema::MathsNodesColor;
-	}
-	if (ExpressionCategory == TG_Category::Procedural)
-	{
-		return UTG_EdGraphSchema::GeneratorNodesColor;
-	}
-	if (ExpressionCategory == TG_Category::Adjustment ||
-		ExpressionCategory == TG_Category::Filter ||
-		ExpressionCategory == TG_Category::Channel)
-	{
-		return UTG_EdGraphSchema::OperatorNodesColor;
-	}
-
-	if (ExpressionCategory == TG_Category::DevOnly)
-	{
-		return UTG_EdGraphSchema::DevOnlyNodesColor;
-	}
-	if (ExpressionCategory == TG_Category::Custom ||
-		ExpressionCategory == TG_Category::Default)
-	{
-		return UTG_EdGraphSchema::CustomNodesColor;
-	}
-
-	return UTG_EdGraphSchema::TGNodeColor;
+	return UTG_EdGraphSchema::GetCategoryColor(ExpressionCategory);
 }
 
 FLinearColor UTG_EdGraphNode::GetNodeTitleColor() const

@@ -58,13 +58,20 @@ void STG_EditorGraphNode::Construct(const FArguments& InArgs, UTG_EdGraphNode* I
 	}
 	
 	BodyBrush = *GetNodeBodyBrush();
-	BodyBrush.OutlineSettings.Color = GetNodeTitleColor();
+	BodyBrush.OutlineSettings.Color = UTG_EdGraphSchema::NodeBodyColorOutline;
+	
+	HeaderBrush = *FTG_Style::Get().GetBrush("TG.Graph.Node.Header");
+	HeaderBrush.OutlineSettings.Color = GetNodeTitleColor().GetSpecifiedColor() * UTG_EdGraphSchema::NodeOutlineColorMultiplier;
+
 	UpdateGraphNode();
 }
 
 BEGIN_SLATE_FUNCTION_BUILD_OPTIMIZATION
 void STG_EditorGraphNode::UpdateGraphNode()
 {
+	const FMargin TitleRightWidgetPadding = FMargin(5, 0, 0, 0);
+	const FMargin TitleOuterMargin = FMargin(4);
+
 	InputPins.Empty();
 	OutputPins.Empty();
 
@@ -100,66 +107,66 @@ void STG_EditorGraphNode::UpdateGraphNode()
 		IconBrush = GraphNode->GetIconAndTint(IconColor).GetOptionalIcon();
 	}
 
-	TitleBorderMargin = FMargin(4.f, 5.f, 2.f, 4.f);
+	TitleBorderMargin = FMargin(6);
 
 	TSharedRef<SOverlay> DefaultTitleAreaWidget =
-		SNew(SOverlay)
-		+ SOverlay::Slot()
-		.HAlign(HAlign_Fill)
-		.VAlign(VAlign_Top)
-		[
-			SNew(SBorder)
-			.BorderImage(FTG_Style::Get().GetBrush("TG.Graph.Node.NoColorSpill"))//FAppStyle::GetBrush("Graph.Node.ColorSpill")
+	SNew(SOverlay)
+	+ SOverlay::Slot()
+	.HAlign(HAlign_Fill)
+	.VAlign(VAlign_Top)
+	[
+		SNew(SBorder)
+		.BorderImage(&HeaderBrush)//FAppStyle::GetBrush("Graph.Node.ColorSpill")
 		.BorderBackgroundColor(this, &STG_EditorGraphNode::GetNodeTitleColor)
-		[
-			SNew(SHorizontalBox)
-			+ SHorizontalBox::Slot()
 		.Padding(TitleBorderMargin)
-		.VAlign(VAlign_Center)
-		.HAlign(HAlign_Fill)
 		[
 			SNew(SHorizontalBox)
 			+ SHorizontalBox::Slot()
-		.VAlign(VAlign_Top)
-		.Padding(FMargin(0.f, 0.f, 4.f, 0.f))
-		.AutoWidth()
-		[
-			SNew(SImage)
-			.Image(IconBrush)
-		.ColorAndOpacity(this, &STG_EditorGraphNode::GetNodeTitleIconColor)
+			.Padding(TitleBorderMargin)
+			.VAlign(VAlign_Center)
+			.HAlign(HAlign_Fill)
+			[
+				SNew(SHorizontalBox)
+				+ SHorizontalBox::Slot()
+				.VAlign(VAlign_Top)
+				.AutoWidth()
+				[
+					SNew(SImage)
+					.Image(IconBrush)
+					.ColorAndOpacity(this, &STG_EditorGraphNode::GetNodeTitleIconColor)
+				]
+				+ SHorizontalBox::Slot()
+				[
+					SNew(SVerticalBox)
+					+ SVerticalBox::Slot()
+					.VAlign(VAlign_Top)
+					.AutoHeight()
+					[
+						CreateTitleWidget(NodeTitle)
+					]
+					+ SVerticalBox::Slot()
+					.AutoHeight()
+					.VAlign(VAlign_Top)
+					[
+						NodeTitle.ToSharedRef()
+					]
+					+ SVerticalBox::Slot()
+					.AutoHeight()
+					[
+						CreateTitleDetailsWidget()
+					]
+				]
+			]
+			+ SHorizontalBox::Slot()
+			.HAlign(HAlign_Right)
+			.VAlign(VAlign_Center)
+			.Padding(TitleRightWidgetPadding)
+			.AutoWidth()
+			[
+				CreateTitleRightWidget()
+			]
 		]
-	+ SHorizontalBox::Slot()
-		[
-			SNew(SVerticalBox)
-			+ SVerticalBox::Slot()
-		.VAlign(VAlign_Top)
-		.AutoHeight()
-		[
-			CreateTitleWidget(NodeTitle)
-		]
-	+ SVerticalBox::Slot()
-		.AutoHeight()
-		.VAlign(VAlign_Top)
-		[
-			NodeTitle.ToSharedRef()
-		]
-	+ SVerticalBox::Slot()
-		.AutoHeight()
-		[
-			CreateTitleDetailsWidget()
-		]
-		]
-		]
-	+ SHorizontalBox::Slot()
-		.HAlign(HAlign_Right)
-		.VAlign(VAlign_Center)
-		.Padding(5, 0, 0, 0)
-		.AutoWidth()
-		[
-			CreateTitleRightWidget()
-		]
-		]
-		];
+	];
 
 	SetDefaultTitleAreaWidget(DefaultTitleAreaWidget);
 
@@ -169,7 +176,7 @@ void STG_EditorGraphNode::UpdateGraphNode()
 		.LowDetail()
 		[
 			SNew(SBorder)
-			.BorderImage(FTG_Style::Get().GetBrush("TG.Graph.Node.NoColorSpill"))
+			.BorderImage(&HeaderBrush)
 			.Padding(FMargin(75.0f, 22.0f)) // Saving enough space for a 'typical' title so the transition isn't quite so abrupt
 			.BorderBackgroundColor(this, &STG_EditorGraphNode::GetNodeTitleColor)
 		]
@@ -197,7 +204,7 @@ void STG_EditorGraphNode::UpdateGraphNode()
 		.AutoHeight()
 		.HAlign(HAlign_Fill)
 		.VAlign(VAlign_Top)
-		.Padding(Settings->GetNonPinNodeBodyPadding())
+		.Padding(TitleOuterMargin)
 		[
 			TitleAreaWidget
 		]
@@ -358,7 +365,7 @@ int32 STG_EditorGraphNode::OnPaint(const FPaintArgs& Args, const FGeometry& Allo
 
 const FSlateBrush* STG_EditorGraphNode::GetShadowBrush(bool bSelected) const
 {
-	return bSelected ? FTG_Style::Get().GetBrush(TEXT("TG.Graph.Node.ShadowSelected")) : FAppStyle::GetBrush(TEXT("Graph.Node.Shadow"));
+	return bSelected ? FAppStyle::GetBrush(TEXT("Graph.Node.ShadowSelected")) : FAppStyle::GetBrush(TEXT("Graph.Node.Shadow"));
 }
 
 int STG_EditorGraphNode::GetContentAreaBorderThickness()

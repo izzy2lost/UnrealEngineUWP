@@ -7,27 +7,60 @@
 #include "Widgets/SWidget.h"
 #include "Framework/Commands/InputChord.h"
 #include "Widgets/DeclarativeSyntaxSupport.h"
+#include "Widgets/ActionMenuWidgets/STG_GraphActionMenu.h"
+#include <Widgets/Input/SCheckBox.h>
 #include "SGraphPalette.h"
 
+#include "Brushes/SlateRoundedBoxBrush.h"
+
 class FTG_Editor;
-class STG_GraphActionMenu;
-/** Widget for displaying a single item  */
+class STG_ActionMenuTileView;
+class SBox;
+class STGGraphActionMenu;
+
+/* This class is the custom Graph action menu item for Texture Graph*/
 class STG_PaletteItem : public SGraphPaletteItem
 {
 public:
-	SLATE_BEGIN_ARGS( STG_PaletteItem ) {};
+	SLATE_BEGIN_ARGS(STG_PaletteItem) {};
 	SLATE_END_ARGS()
 
-	void Construct(const FArguments& InArgs, FCreateWidgetForActionData* const InCreateData);
+		void Construct(const FArguments& InArgs, FCreateWidgetForActionData* const InCreateData);
 
-private:
+protected:
+	virtual FString GetIconBrushName();
+
+	virtual FString GetDefaultIconBrushName();
 	/* Create the hotkey display widget */
 	TSharedRef<SWidget> CreateHotkeyDisplayWidget(const TSharedPtr<const FInputChord> HotkeyChord);
 
 	const FSlateBrush* GetIconBrush();
-	const FSlateBrush* GetBorderImage() const;
 
 	virtual FText GetItemTooltip() const override;
+};
+
+/** Widget for displaying a single item  */
+class STG_PaletteTileItem : public STG_PaletteItem
+{
+public:
+	SLATE_BEGIN_ARGS( STG_PaletteTileItem ) {};
+	SLATE_END_ARGS()
+
+	void Construct(const FArguments& InArgs, FCreateWidgetForActionData* const InCreateData);
+
+	virtual void OnMouseEnter(const FGeometry& MyGeometry, const FPointerEvent& MouseEvent) override;
+
+	virtual void OnMouseLeave(const FPointerEvent& MouseEvent) override;
+
+protected:
+	virtual FString GetIconBrushName() override;
+
+	virtual FString GetDefaultIconBrushName() override;
+
+private:
+	TSharedPtr<SBox> BackgroundArea;
+	TSharedPtr<SImage> IconWidget;
+	FSlateBrush BackgroundBrush;
 };
 
 //////////////////////////////////////////////////////////////////////////
@@ -47,6 +80,16 @@ protected:
 	virtual void RefreshActionsList(bool bPreserveExpansion) override;
 	// End of SGraphPalette Interface
 
+	void CreatePaletteMenu();
+
+	TSharedRef<SWidget> CreatePaletteTileMenu();
+
+	TSharedPtr<SWidget> FindWidgetInChildren(TSharedPtr<SWidget> Parent, FName ChildType) const;
+
+	TSharedRef<SWidget> CreatePaletteListMenu();
+
+	TSharedRef<SWidget> CreateViewToggle();
+
 	/** Get the currently selected category name */
 	FString GetFilterCategoryName() const;
 
@@ -64,7 +107,16 @@ protected:
 
 	void RefreshAssetInRegistry(const FAssetData& InAddedAssetData);
 
+	EVisibility GetVisibility(bool IsTileView) const;
+
+	ECheckBoxState OnGetToggleCheckState(bool IsTileView) const;
+
 protected:
+	bool IsTileViewChecked = true;
+	bool IsListViewChecked = false;
+	FSlateBrush BackgroundBrush;
+	FSlateBrush BackgroundHoverBrush;
+	FSlateBrush CheckedBrush;
 	/** Pointer back to the material editor that owns us */
 	TWeakPtr<FTG_Editor> TGEditorPtr;
 
@@ -74,5 +126,7 @@ protected:
 	/** Combo box used to select category */
 	TSharedPtr<STextComboBox> CategoryComboBox;
 
-	TSharedPtr<STG_GraphActionMenu> TGGraphActionMenu;
+	TSharedPtr<SWidget> ToggleButtons;
+
+	TSharedPtr<STG_ActionMenuTileView> TGActionMenuTileView;
 };

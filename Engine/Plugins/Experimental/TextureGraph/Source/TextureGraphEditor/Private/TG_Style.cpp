@@ -29,7 +29,7 @@ void FTG_Style::Unregister()
 TArray<FString> FTG_Style::GetPaletteIconNames()
 {
 	FString FolderPath = FPaths::Combine(IPluginManager::Get().FindPlugin("TextureGraph")->GetBaseDir() , TEXT("Content/Style/Palette/") );
-	FString FileExtension = ".png";
+	FString FileExtension = ".svg";
 
 	IPlatformFile& PlatformFile = FPlatformFileManager::Get().GetPlatformFile();
 	TArray<FString> ImageFileNames;
@@ -96,7 +96,7 @@ FTG_Style::FTG_Style() : FSlateStyleSet("TG_Style")
 	
 	const FVector2D PinSize(20.45f, 15.0f);
 	Set(TSEditorStyleConstants::Pin_Generic_Image_C, new IMAGE_BRUSH_SVG("Style/TG_Pin_Generic_C", PinSize));
-	Set(TSEditorStyleConstants::Pin_Generic_Image_DC, new IMAGE_BRUSH_SVG("Style/TG_Pin_Generic_DC", PinSize));
+	Set(TSEditorStyleConstants::Pin_Generic_Image_DC, new IMAGE_BRUSH_SVG("Style/TG_Pin_Generic_DC", FVector2D(15,15)));
 	Set(TSEditorStyleConstants::Pin_IN_Image_C, new IMAGE_BRUSH_SVG("Style/TG_Pin_IN_Image_C", PinSize));
 	Set(TSEditorStyleConstants::Pin_IN_Image_DC, new IMAGE_BRUSH_SVG("Style/TG_Pin_IN_Image_Unplugged", PinSize));
 	Set(TSEditorStyleConstants::Pin_IN_Vector_C, new IMAGE_BRUSH_SVG("Style/TG_Pin_IN_Vector_C", PinSize));
@@ -112,24 +112,31 @@ FTG_Style::FTG_Style() : FSlateStyleSet("TG_Style")
 	Set(TSEditorStyleConstants::Pin_OUT_Scalar_C, new IMAGE_BRUSH_SVG("Style/TG_Pin_IN_Scalar_C", PinSize));
 	Set(TSEditorStyleConstants::Pin_OUT_Scalar_DC, new IMAGE_BRUSH_SVG("Style/TG_Pin_IN_Scalar_Unplugged", PinSize));
 
+	Set("TG_Editor.TileIcon", new IMAGE_BRUSH_SVG("Style/TileIcon", Icon20x20));
+	Set("TG_Editor.ListIcon", new IMAGE_BRUSH_SVG("Style/ListIcon", Icon20x20));
+
 	//Creating brush for every icon in the palatte folder
 	for (auto PlatteIconName : GetPaletteIconNames())
 	{
 		FString Path = "Style/Palette/" + PlatteIconName;
 		FString PropertyName = "TG_Editor.Palette." + PlatteIconName;
 
-		Set(FName(PropertyName), new IMAGE_BRUSH(Path, PinSize));
+		Set(FName(PropertyName), new IMAGE_BRUSH_SVG(Path, Icon16x16));
 	}
 	FLinearColor NoSpillColor(1, 1, 1, 1.0);
-	int BodyRadius = 4.0;
+	int BodyRadius = 10;
+	int NodeHeaderRadius = 7;
+	int PalleteRadius = 4;
 
 	Set("TG.Graph.Node.BodyBackground", new FSlateRoundedBoxBrush(NoSpillColor, BodyRadius));
 	Set("TG.Graph.Node.BodyBorder", new FSlateRoundedBoxBrush(NoSpillColor, BodyRadius));
 	Set("TG.Graph.Node.AssetBackground", new FSlateRoundedBoxBrush(NoSpillColor, BodyRadius));
 
 	Set("TG.Graph.Node.Body", new FSlateRoundedBoxBrush(NoSpillColor, BodyRadius, NoSpillColor, 2.0));
-	Set("TG.Graph.Node.NoColorSpill", new FSlateRoundedBoxBrush(NoSpillColor, FVector4(BodyRadius, BodyRadius, 0.0, 0.0)));
+	Set("TG.Graph.Node.Header", new FSlateRoundedBoxBrush(NoSpillColor, NodeHeaderRadius, NoSpillColor, 2.0));
 	Set("TG.Graph.Node.ShadowSelected", new BOX_BRUSH("Style/TG_shadow_selected", FMargin(18.0/64.0)));
+
+	Set("TG.Palette.Backgorund", new FSlateRoundedBoxBrush(NoSpillColor, PalleteRadius, NoSpillColor, 2.0));
 	
 	SetParentStyleName("EditorStyle");
 	FTextBlockStyle NormalText = GetParentStyle()->GetWidgetStyle<FTextBlockStyle>("NormalText");

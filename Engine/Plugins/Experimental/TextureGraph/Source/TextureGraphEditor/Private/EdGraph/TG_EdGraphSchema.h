@@ -27,13 +27,17 @@ public:
 	static const FLinearColor InputNodesColor;
 	static const FLinearColor FunctionNodesColor;
 	static const FLinearColor MathsNodesColor;
-	static const FLinearColor GeneratorNodesColor;
+	static const FLinearColor ProceduralNodesColor;
 	static const FLinearColor OperatorNodesColor;
 	static const FLinearColor OutputNodesColor;
+	static const FLinearColor FilterNodesColor;
+	static const FLinearColor ChannelNodesColor;
 	static const FLinearColor CustomNodesColor;
 	static const FLinearColor DevOnlyNodesColor;
+	static const FLinearColor UtilitiesNodesColor;
 	static const FLinearColor TGNodeColor;
 	static const FLinearColor NodeBodyColor;
+	static const FLinearColor NodeBodyColorOutline;
 
 	static const FName PC_Boolean;
 	static const FName PC_Byte;
@@ -49,6 +53,8 @@ public:
 	static const FName PC_Struct;    // SubCategoryObject is the ScriptStruct of the struct passed thru this pin, 'self' is not a valid SubCategory. DefaultObject should always be empty, the DefaultValue string may be used for supported structs.
 	static const FName PC_Array;
 	static const FName PC_Enum;    // SubCategoryObject is the UEnum object passed thru this pin
+
+	static const float NodeOutlineColorMultiplier;
 	
 	//~ Begin EdGraphSchema Interface
 	virtual void GetGraphContextActions(FGraphContextMenuBuilder& ContextMenuBuilder) const override;
@@ -73,6 +79,7 @@ public:
 	UTG_Pin* GetTGPinFromEdPin(const UEdGraphPin* InPin) const;
 
 	void GetPaletteActions(FGraphActionMenuBuilder& ActionMenuBuilder, const FString& CategoryName) const;
+	static FLinearColor GetCategoryColor(FName Category);
 
 private:
 	void GetTG_ExpressionsActions(FGraphActionMenuBuilder& ActionMenuBuilder) const;

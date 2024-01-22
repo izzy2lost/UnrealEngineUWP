@@ -88,6 +88,7 @@ private:
 	FDelegateHandle OnNodeChangedHandle;
 	FDelegateHandle OnPinSelectionChangedHandle;
 	FSlateBrush BodyBrush;
+	FSlateBrush HeaderBrush;
 	TSharedPtr<SBox> PreviewWidgetBox;
 	TMap<FTG_Id, TSharedPtr<STG_NodeThumbnail>> PinThumbWidgetMap;
 	FLinearColor GetPinThumbSelectionColor();

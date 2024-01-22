@@ -40,7 +40,7 @@
 #include "EditorViewportTabContent.h"
 #include "Framework/Application/SlateApplication.h"
 #include "Framework/Commands/GenericCommands.h"
-#include "GraphEditor.h"
+//#include "GraphEditor.h"
 #include "SGraphPanel.h"
 #include "Kismet2/BlueprintEditorUtils.h"
 #include "PropertyEditorModule.h"
@@ -71,6 +71,7 @@
 
 #include "Expressions/Input/TG_Expression_InputParam.h"
 #include "STG_OutputSelectionDlg.h"
+#include "Widgets/ActionMenuWidgets/STG_GraphActionMenu.h"
 
 DEFINE_LOG_CATEGORY(LogTextureGraphEditor);
 #define LOCTEXT_NAMESPACE "TG_Editor"
@@ -753,6 +754,7 @@ TSharedRef<class SGraphEditor> FTG_Editor::CreateGraphEditorWidget()
 	InEvents.OnNodeDoubleClicked = FSingleNodeEvent::CreateSP(this, &FTG_Editor::OnNodeDoubleClicked);
 	InEvents.OnTextCommitted = FOnNodeTextCommitted::CreateSP(this, &FTG_Editor::OnNodeTitleCommitted);
 	InEvents.OnVerifyTextCommit = FOnNodeVerifyTextCommit::CreateSP(this, &FTG_Editor::OnVerifyNodeTextCommit);
+	InEvents.OnCreateActionMenu = SGraphEditor::FOnCreateActionMenu::CreateSP(this, &FTG_Editor::OnCreateGraphActionMenu);
 	//InEvents.OnSpawnNodeByShortcut = SGraphEditor::FOnSpawnNodeByShortcut::CreateSP(this, &FTG_Editor::OnSpawnGraphNodeByShortcut, static_cast<UEdGraph*>(InGraph));
 
 	// Support the delete case
@@ -789,6 +791,20 @@ TSharedRef<class SGraphEditor> FTG_Editor::CreateGraphEditorWidget()
 		.ShowGraphStateOverlay(false)
 		.AutoExpandActionMenu(true)
 		.AssetEditorToolkit(this->AsShared());
+}
+
+FActionMenuContent FTG_Editor::OnCreateGraphActionMenu(UEdGraph* InGraph, const FVector2D& InNodePosition, const TArray<UEdGraphPin*>& InDraggedPins, bool bAutoExpand, SGraphEditor::FActionMenuClosed InOnMenuClosed)
+{
+	TSharedRef<STG_GraphActionMenu> ActionMenu =
+		SNew(STG_GraphActionMenu)
+		.GraphObj(InGraph)
+		.NewNodePosition(InNodePosition)
+		.DraggedFromPins(InDraggedPins)
+		.AutoExpandActionMenu(bAutoExpand)
+		.OnClosedCallback(InOnMenuClosed);
+		//.OnCloseReason(this, &FBlueprintEditor::OnGraphActionMenuClosed);
+
+	return FActionMenuContent(ActionMenu, ActionMenu->GetFilterTextBox());
 }
 
 TSharedRef<class STG_SelectionPreview> FTG_Editor::CreateSelectionViewWidget()
