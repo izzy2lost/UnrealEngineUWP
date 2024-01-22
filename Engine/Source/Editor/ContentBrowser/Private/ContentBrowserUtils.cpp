@@ -340,27 +340,38 @@ FString ContentBrowserUtils::GetFolderReferencesText(const TArray<FContentBrowse
 		return One.GetVirtualPath().Compare(Two.GetVirtualPath()) < 0;
 	});
 
-	FString Result;
+	TStringBuilder<2048> Result;
 	for (const FContentBrowserItem& Item : SortedItems)
 	{
 		if (ensure(Item.IsFolder()))
 		{
-			Result += Item.GetVirtualPath().ToString();
-			Result += LINE_TERMINATOR;
+			FName InternalPath = Item.GetInternalPath();
+			if (!InternalPath.IsNone())
+			{
+				Result << InternalPath << LINE_TERMINATOR;
+			}
 		}
 	}
 
-	return Result;
+	return Result.ToString();
 }
 
 void ContentBrowserUtils::CopyItemReferencesToClipboard(const TArray<FContentBrowserItem>& ItemsToCopy)
 {
-	FPlatformApplicationMisc::ClipboardCopy(*GetItemReferencesText(ItemsToCopy));
+	FString Text = GetItemReferencesText(ItemsToCopy);
+	if (!Text.IsEmpty())
+	{
+		FPlatformApplicationMisc::ClipboardCopy(*Text);
+	}
 }
 
 void ContentBrowserUtils::CopyFolderReferencesToClipboard(const TArray<FContentBrowserItem>& FoldersToCopy)
 {
-	FPlatformApplicationMisc::ClipboardCopy(*GetFolderReferencesText(FoldersToCopy));
+	FString Text = GetFolderReferencesText(FoldersToCopy);
+	if (!Text.IsEmpty())
+	{
+		FPlatformApplicationMisc::ClipboardCopy(*Text);
+	}
 }
 
 void ContentBrowserUtils::CopyFilePathsToClipboard(const TArray<FContentBrowserItem>& ItemsToCopy)

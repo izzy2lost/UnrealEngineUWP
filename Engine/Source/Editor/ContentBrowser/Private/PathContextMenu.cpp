@@ -161,6 +161,18 @@ void FPathContextMenu::MakePathViewContextMenu(UToolMenu* Menu)
 					);
 			}
 
+			// Assume paths with an on-disk representation also have an internal path to copy
+			if (!Context->bNoFolderOnDisk)
+			{
+				Section.AddMenuEntry(
+					"CopyPath",
+					LOCTEXT("CopyFolderPath", "Copy Path"),
+					LOCTEXT("CopyFolderTooltip", "Copy the paths of the selected folder(s)"),
+					FSlateIcon(FAppStyle::GetAppStyleSetName(), "GenericCommands.Copy"),
+					FExecuteAction::CreateSP(this, &FPathContextMenu::CopySelectedFolder)
+				);
+			}
+
 			if (Context->bCanBeModified)
 			{
 				Section.AddMenuEntry(FGenericCommands::Get().Rename,
@@ -499,15 +511,7 @@ void FPathContextMenu::SaveFilesWithinSelectedFolders(EContentBrowserItemSaveFla
 
 void FPathContextMenu::CopySelectedFoldersToClipoard()
 {
-	TStringBuilder<1024> StringBuilder;
-
-	for (const FContentBrowserItem& SelectedItem : SelectedFolders)
-	{
-		StringBuilder.Append(SelectedItem.GetVirtualPath().ToString());
-		StringBuilder.Append(LINE_TERMINATOR);
-	}
-
-	FPlatformApplicationMisc::ClipboardCopy(StringBuilder.ToString());
+	ContentBrowserUtils::CopyFolderReferencesToClipboard(SelectedFolders);
 }
 
 bool FPathContextMenu::CanExecuteDelete() const
