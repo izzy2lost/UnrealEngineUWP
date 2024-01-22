@@ -45,7 +45,7 @@ class UAnimCompress_PerTrackCompression : public UAnimCompress_RemoveLinearKeys
 	TArray<TEnumAsByte<enum AnimationCompressionFormat> > AllowedTranslationFormats;
 
 	/** Which encoding formats is the per-track compressor allowed to try on scale keys */
-	UPROPERTY(EditAnywhere, Category=PerTrack)
+	UPROPERTY(EditAnywhere, Category=PerTrack, meta = (InvalidEnumValues = "ACF_Fixed32NoW,ACF_Float32NoW"))
 	TArray<TEnumAsByte<enum AnimationCompressionFormat> > AllowedScaleFormats;
 
 	/** If true, resample the animation to ResampleFramerate frames per second */

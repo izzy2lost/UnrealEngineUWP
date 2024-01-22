@@ -1137,11 +1137,12 @@ namespace PropertyEditorHelpers
 		TArray<FName> ValidEnumValues;
 
 		static const FName ValidEnumValuesName("ValidEnumValues");
-		
-		if (Property->HasMetaData(ValidEnumValuesName))
+
+		const FProperty* OwnerProperty = Property->GetOwnerProperty();
+		if (OwnerProperty->HasMetaData(ValidEnumValuesName))
 		{
 			TArray<FString> ValidEnumValuesAsString;
-			Property->GetMetaData(ValidEnumValuesName).ParseIntoArray(ValidEnumValuesAsString, TEXT(","));
+			OwnerProperty->GetMetaData(ValidEnumValuesName).ParseIntoArray(ValidEnumValuesAsString, TEXT(","));
 			
 			for (FString& Value : ValidEnumValuesAsString)
 			{
@@ -1158,11 +1159,13 @@ namespace PropertyEditorHelpers
 		TArray<FName> InvalidEnumValues;
 
 		static const FName InvalidEnumValuesName("InvalidEnumValues");
-		if (Property->HasMetaData(InvalidEnumValuesName))
+
+		const FProperty* OwnerProperty = Property->GetOwnerProperty();
+		if (OwnerProperty->HasMetaData(InvalidEnumValuesName))
 		{
 			TArray<FString> InvalidEnumValuesAsString;
 
-			Property->GetMetaData(InvalidEnumValuesName).ParseIntoArray(InvalidEnumValuesAsString, TEXT(","));
+			OwnerProperty->GetMetaData(InvalidEnumValuesName).ParseIntoArray(InvalidEnumValuesAsString, TEXT(","));
 			for (FString& Value : InvalidEnumValuesAsString)
 			{
 				Value.TrimStartInline();
@@ -1179,10 +1182,11 @@ namespace PropertyEditorHelpers
 
 		static const FName GetRestrictedEnumValuesName("GetRestrictedEnumValues");
 		TArray<FString> ValidEnumValuesAsString;
-		
-		if (Property->HasMetaData(GetRestrictedEnumValuesName))
+
+		const FProperty* OwnerProperty = Property->GetOwnerProperty();
+		if (OwnerProperty->HasMetaData(GetRestrictedEnumValuesName))
 		{
-			const FString GetRestrictedEnumValuesNameFunctionName = Property->GetMetaData(GetRestrictedEnumValuesName);
+			const FString GetRestrictedEnumValuesNameFunctionName = OwnerProperty->GetMetaData(GetRestrictedEnumValuesName);
 			if (!GetRestrictedEnumValuesNameFunctionName.IsEmpty())
 			{
 				for (UObject* Object : ObjectList)
@@ -1213,7 +1217,8 @@ namespace PropertyEditorHelpers
 
 		static const FName NAME_EnumValueDisplayNameOverrides = "EnumValueDisplayNameOverrides";
 
-		const FString& DisplayNameOverridesStr = Property->GetMetaData(NAME_EnumValueDisplayNameOverrides);
+		const FProperty* OwnerProperty = Property->GetOwnerProperty();
+		const FString& DisplayNameOverridesStr = OwnerProperty->GetMetaData(NAME_EnumValueDisplayNameOverrides);
 		if (DisplayNameOverridesStr.Len() > 0)
 		{
 			TArray<FString> DisplayNameOverridePairs;
