@@ -81,6 +81,15 @@ TSharedRef<SWidget> SChaosClothAssetEditorRestSpaceViewportToolBar::GenerateClot
 			if (bIsPerspective)
 			{
 				OptionsMenuBuilder.AddWidget(GenerateFOVMenu(), LOCTEXT("FOVAngle", "Field of View (H)"));
+
+				OptionsMenuBuilder.AddSubMenu(
+					LOCTEXT("CameraSpeedSettings", "Camera Speed Settings"),
+					LOCTEXT("CameraSpeedSettingsToolTip", "Adjust camera speed settings"),
+					FNewMenuDelegate::CreateLambda([this](FMenuBuilder& MenuBuilder)
+				{
+					MenuBuilder.AddWidget(GenerateCameraSpeedSettingsMenu(), FText());
+				}
+				));
 			}
 			OptionsMenuBuilder.AddWidget(GenerateLightMenu(), LOCTEXT("LightIntensity", "Render Light Intensity"));
 

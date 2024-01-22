@@ -10,6 +10,13 @@ class CHAOSCLOTHASSETEDITOR_API SChaosClothAssetEditorViewportToolBarBase : publ
 protected:
 	TSharedRef<SWidget> GenerateClothViewportOptionsMenu() const;
 	TSharedRef<SWidget> GenerateFOVMenu() const;
+	TSharedRef<SWidget> GenerateCameraSpeedSettingsMenu() const;
 	float OnGetFOVValue() const;
+	FText GetCameraSpeedLabel() const;
+	float GetCamSpeedSliderPosition() const;
+	void OnSetCamSpeed(float NewValue) const;
+	FText GetCameraSpeedScalarLabel() const;
+	float GetCamSpeedScalarBoxValue() const;
+	void OnSetCamSpeedScalarBoxValue(float NewValue) const;
 };
 
