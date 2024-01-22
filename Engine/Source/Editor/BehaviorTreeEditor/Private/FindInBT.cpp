@@ -300,7 +300,7 @@ void SFindInBT::MatchTokensInChild(const TArray<FString>& Tokens, UBehaviorTreeG
 	}
 
 	FString ChildName = Child->GetNodeTitle(ENodeTitleType::ListView).ToString();
-	FString ChildSearchString = ChildName + Child->GetClass()->GetName() + Child->NodeComment;
+	FString ChildSearchString = ChildName + Child->GetClass()->GetName() + Child->NodeComment + GetNameSafe(Child->NodeInstance ? Child->NodeInstance->GetClass() : nullptr);
 	ChildSearchString = ChildSearchString.Replace(TEXT(" "), TEXT(""));
 	if (StringMatchesSearchTokens(Tokens, ChildSearchString))
 	{
