@@ -492,7 +492,7 @@ public:
 		check(bFinished);
 	}
 
-	void LaunchVisibilityTasks();
+	void LaunchVisibilityTasks(const UE::Tasks::FTask& BeginInitVisibilityPrerequisites);
 
 	void ProcessRenderThreadTasks() override;
 

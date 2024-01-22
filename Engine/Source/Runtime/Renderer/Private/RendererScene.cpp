@@ -4519,7 +4519,7 @@ void FScene::UpdateStaticDrawLists_RenderThread(FRHICommandListImmediate& RHICmd
 		Primitive->RemoveStaticMeshes();
 	}
 
-	FPrimitiveSceneInfo::AddStaticMeshes(this, Primitives);
+	FPrimitiveSceneInfo::AddStaticMeshes(RHICmdList, this, Primitives);
 }
 
 void FScene::UpdateStaticDrawLists()
@@ -5412,8 +5412,14 @@ struct FSceneUpdateChangeSetStorage
 	}
 };
 
-
 void FScene::UpdateAllPrimitiveSceneInfos(FRDGBuilder& GraphBuilder, EUpdateAllPrimitiveSceneInfosAsyncOps AsyncOps)
+{
+	FUpdateParameters Parameters;
+	Parameters.AsyncOps = AsyncOps;
+	Update(GraphBuilder, Parameters);
+}
+
+void FScene::Update(FRDGBuilder& GraphBuilder, const FUpdateParameters& Parameters)
 {
 	TRACE_CPUPROFILER_EVENT_SCOPE(Scene::UpdateAllPrimitiveSceneInfos);
 	SCOPED_NAMED_EVENT(FScene_UpdateAllPrimitiveSceneInfos, FColor::Orange);
@@ -5441,7 +5447,7 @@ void FScene::UpdateAllPrimitiveSceneInfos(FRDGBuilder& GraphBuilder, EUpdateAllP
 	FSceneRenderer::WaitForCleanUpTasks(GraphBuilder.RHICmdList);
 
 	UE::Tasks::FTask UpdateUniformExpressionsTask;
-	FMaterialRenderProxy::UpdateDeferredCachedUniformExpressions(GraphBuilder.RHICmdList, EnumHasAnyFlags(AsyncOps, EUpdateAllPrimitiveSceneInfosAsyncOps::CacheMaterialUniformExpressions) ? &UpdateUniformExpressionsTask : nullptr);
+	FMaterialRenderProxy::UpdateDeferredCachedUniformExpressions(GraphBuilder.RHICmdList, EnumHasAnyFlags(Parameters.AsyncOps, EUpdateAllPrimitiveSceneInfosAsyncOps::CacheMaterialUniformExpressions) ? &UpdateUniformExpressionsTask : nullptr);
 
 	RDG_EVENT_SCOPE(GraphBuilder, "UpdateAllPrimitiveSceneInfos");
 
@@ -5564,7 +5570,7 @@ void FScene::UpdateAllPrimitiveSceneInfos(FRDGBuilder& GraphBuilder, EUpdateAllP
 		{
 			InvalidatingPrimitiveCollector.UpdatedTransform(Transform.Key->GetPrimitiveSceneInfo());
 		}
-		
+
 		for (const auto& CullDistance : UpdatedInstanceCullDistance)
 		{
 			InvalidatingPrimitiveCollector.UpdatedTransform(CullDistance.Key->GetPrimitiveSceneInfo());
@@ -6348,44 +6354,53 @@ void FScene::UpdateAllPrimitiveSceneInfos(FRDGBuilder& GraphBuilder, EUpdateAllP
 
 	SceneExtensionsUpdaters.PostSceneUpdate(GraphBuilder, SceneUpdateChangeSetStorage.GetPostUpdateSet());
 
-	UpdateUniformExpressionsTask.Wait();
-
-	if (SceneInfosWithStaticDrawListUpdate.Num() > 0)
+	CreateLightPrimitiveInteractionsTask = GraphBuilder.AddSetupTask([this, &SceneInfosWithAddToScene]
 	{
-		FPrimitiveSceneInfo::AddStaticMeshes(this, SceneInfosWithStaticDrawListUpdate, false);
-	}
+		SCOPED_NAMED_EVENT(CreateLightPrimitiveInteractions, FColor::Emerald);
 
-	FPrimitiveSceneInfo::UpdateVirtualTextures(this, SceneInfosWithAddToScene);
+		for (FPrimitiveSceneInfo* SceneInfo : SceneInfosWithAddToScene)
+		{
+			CreateLightPrimitiveInteractionsForPrimitive(SceneInfo);
+		}
+
+	}, EnumHasAnyFlags(Parameters.AsyncOps, EUpdateAllPrimitiveSceneInfosAsyncOps::CreateLightPrimitiveInteractions));
+
+	const bool bAsyncCacheMeshDrawCommands = EnumHasAnyFlags(Parameters.AsyncOps, EUpdateAllPrimitiveSceneInfosAsyncOps::CacheMeshDrawCommands) && GRHISupportsMultithreadedShaderCreation;
+
+	UE::Tasks::FTask AddStaticMeshesTask = GraphBuilder.AddCommandListSetupTask(
+		[this, AddStaticMeshes = CopyTemp(SceneInfosWithStaticDrawListUpdate), SceneInfosWithFlushVirtualTexture = MoveTemp(SceneInfosWithFlushVirtualTexture), &SceneInfosWithAddToScene]
+			(FRHICommandListBase& RHICmdList) mutable
+	{
+		SCOPED_NAMED_EVENT(StaticMeshUpdate, FColor::Emerald);
+
+		if (AddStaticMeshes.Num() > 0)
+		{
+			FPrimitiveSceneInfo::AddStaticMeshes(RHICmdList, this, AddStaticMeshes, false);
+		}
+
+		FPrimitiveSceneInfo::UpdateVirtualTextures(this, SceneInfosWithAddToScene);
+
+		for (FPrimitiveSceneInfo* PrimitiveSceneInfo : SceneInfosWithFlushVirtualTexture)
+		{
+			PrimitiveSceneInfo->FlushRuntimeVirtualTexture();
+			PrimitiveSceneInfo->bPendingFlushVirtualTexture = false;
+		}
+
+	}, UpdateUniformExpressionsTask, UE::Tasks::ETaskPriority::High, bAsyncCacheMeshDrawCommands);
 
 	UpdateReflectionSceneData(this);
 
-	if (bScenesPrimitivesNeedStaticMeshElementUpdate || CachedDefaultBasePassDepthStencilAccess != DefaultBasePassDepthStencilAccess)
-	{
-		SceneInfosWithStaticDrawListUpdate.Reset();
-
-		// Mark all primitives as needing an update
-		// Note: Only visible primitives will actually update their static mesh elements
-		for (int32 PrimitiveIndex = 0; PrimitiveIndex < Primitives.Num(); PrimitiveIndex++)
-		{
-			FPrimitiveSceneInfo* PrimitiveSceneInfo = Primitives[PrimitiveIndex];
-			PrimitivesNeedingStaticMeshUpdate[PrimitiveSceneInfo->PackedIndex] = true;
-
-			// HACK: Update Nanite primitives that need re-caching in GPU Scene
-			// TODO: Should be able to remove this after the move to compute materials.
-			if (bScenesPrimitivesNeedStaticMeshElementUpdate &&
-				PrimitiveSceneInfo->Proxy &&
-				PrimitiveSceneInfo->Proxy->IsNaniteMesh())
-			{
-				GPUScene.AddPrimitiveToUpdate(PrimitiveSceneInfo->GetPersistentIndex(), EPrimitiveDirtyState::ChangedOther);
-			}
-		}
-
-		bScenesPrimitivesNeedStaticMeshElementUpdate = false;
-		CachedDefaultBasePassDepthStencilAccess = DefaultBasePassDepthStencilAccess;
-	}
-
 	{
 		SCOPED_NAMED_EVENT(UpdateStaticMeshes, FColor::Emerald);
+		
+		if (bScenesPrimitivesNeedStaticMeshElementUpdate || CachedDefaultBasePassDepthStencilAccess != DefaultBasePassDepthStencilAccess)
+		{
+			// Mark all primitives as needing an update
+			PrimitivesNeedingStaticMeshUpdate.Init(true, PrimitivesNeedingStaticMeshUpdate.Num());
+
+			bScenesPrimitivesNeedStaticMeshElementUpdate = false;
+			CachedDefaultBasePassDepthStencilAccess = DefaultBasePassDepthStencilAccess;
+		}
 
 		for (FPrimitiveSceneInfo* PrimitiveSceneInfo : SceneInfosWithStaticDrawListUpdate)
 		{
@@ -6407,6 +6422,42 @@ void FScene::UpdateAllPrimitiveSceneInfos(FRDGBuilder& GraphBuilder, EUpdateAllP
 		}
 	}
 
+	if (bScenesPrimitivesNeedStaticMeshElementUpdate)
+	{
+		for (int32 PrimitiveIndex = 0; PrimitiveIndex < Primitives.Num(); PrimitiveIndex++)
+		{
+			// HACK: Update Nanite primitives that need re-caching in GPU Scene
+			// TODO: Should be able to remove this after the move to compute materials.
+			if (PrimitiveSceneProxies[PrimitiveIndex] && PrimitiveSceneProxies[PrimitiveIndex]->IsNaniteMesh())
+			{
+				GPUScene.AddPrimitiveToUpdate(Primitives[PrimitiveIndex]->GetPersistentIndex(), EPrimitiveDirtyState::ChangedOther);
+			}
+		}
+	}
+
+	if (SceneInfosWithStaticDrawListUpdate.Num() > 0)
+	{
+		CacheMeshDrawCommandsTask = GraphBuilder.AddSetupTask([this, &SceneInfosWithStaticDrawListUpdate]
+		{
+			FPrimitiveSceneInfo::CacheMeshDrawCommands(this, SceneInfosWithStaticDrawListUpdate);
+
+		}, MakeArrayView({ AddStaticMeshesTask, IsMobilePlatform(GetShaderPlatform()) ? CreateLightPrimitiveInteractionsTask : UE::Tasks::FTask() }), UE::Tasks::ETaskPriority::Normal, bAsyncCacheMeshDrawCommands);
+
+		CacheNaniteMaterialBinsTask = GraphBuilder.AddSetupTask([this, &SceneInfosWithStaticDrawListUpdate]
+		{
+			FPrimitiveSceneInfo::CacheNaniteMaterialBins(this, SceneInfosWithStaticDrawListUpdate);
+
+		}, AddStaticMeshesTask, UE::Tasks::ETaskPriority::Normal, bAsyncCacheMeshDrawCommands);
+
+#if RHI_RAYTRACING
+		CacheRayTracingPrimitivesTask = GraphBuilder.AddSetupTask([this, &SceneInfosWithStaticDrawListUpdate]
+		{
+			FPrimitiveSceneInfo::CacheRayTracingPrimitives(this, SceneInfosWithStaticDrawListUpdate);
+
+		}, AddStaticMeshesTask, UE::Tasks::ETaskPriority::Normal, bAsyncCacheMeshDrawCommands);
+#endif
+	}
+
 	for (const auto& CustomParams : UpdatedCustomPrimitiveParams)
 	{
 		FPrimitiveSceneProxy* PrimitiveSceneProxy = CustomParams.Key;
@@ -6422,64 +6473,6 @@ void FScene::UpdateAllPrimitiveSceneInfos(FRDGBuilder& GraphBuilder, EUpdateAllP
 		PrimitiveSceneProxy->GetPrimitiveSceneInfo()->MarkGPUStateDirty(EPrimitiveDirtyState::ChangedOther);
 	}
 
-	{
-		SCOPED_NAMED_EVENT(UpdateUniformBuffers, FColor::Emerald);
-		TArray<FPrimitiveSceneProxy*, SceneRenderingAllocator> ProxiesToUpdate;
-
-		for (TConstSetBitIterator<> BitIt(PrimitivesNeedingUniformBufferUpdate); BitIt; ++BitIt)
-		{
-			const int32 Index = BitIt.GetIndex();
-			FPrimitiveSceneInfo* Primitive = Primitives[Index];
-			PrimitivesNeedingUniformBufferUpdate[Index] = false;
-			ProxiesToUpdate.Emplace(Primitive->Proxy);
-			GPUScene.AddPrimitiveToUpdate(Primitive->GetPersistentIndex(), EPrimitiveDirtyState::ChangedAll);
-		}
-
-		GraphBuilder.AddCommandListSetupTask([this, ProxiesToUpdate = MoveTemp(ProxiesToUpdate)](FRHICommandList& RHICmdList)
-		{
-			SCOPED_NAMED_EVENT(AsyncUpdateUniformBuffers, FColor::Emerald);
-
-			for (FPrimitiveSceneProxy* Proxy : ProxiesToUpdate)
-			{
-				Proxy->UpdateUniformBuffer(RHICmdList);
-			}
-		});
-	}
-	
-	CreateLightPrimitiveInteractionsTask = GraphBuilder.AddSetupTask([this, &SceneInfosWithAddToScene]
-	{
-		SCOPED_NAMED_EVENT(CreateLightPrimitiveInteractions, FColor::Emerald);
-
-		for (FPrimitiveSceneInfo* SceneInfo : SceneInfosWithAddToScene)
-		{
-			CreateLightPrimitiveInteractionsForPrimitive(SceneInfo);
-		}
-
-	}, EnumHasAnyFlags(AsyncOps, EUpdateAllPrimitiveSceneInfosAsyncOps::CreateLightPrimitiveInteractions));
-
-	if (SceneInfosWithStaticDrawListUpdate.Num() > 0)
-	{
-		const bool bLaunchAsyncTask = EnumHasAnyFlags(AsyncOps, EUpdateAllPrimitiveSceneInfosAsyncOps::CacheMeshDrawCommands) && GRHISupportsMultithreadedShaderCreation;
-
-		CacheMeshDrawCommandsTask = GraphBuilder.AddSetupTask([this, &SceneInfosWithStaticDrawListUpdate, bLaunchAsyncTask]()
-		{
-			FPrimitiveSceneInfo::CacheMeshDrawCommands(this, SceneInfosWithStaticDrawListUpdate);
-
-		}, IsMobilePlatform(GetShaderPlatform()) ? CreateLightPrimitiveInteractionsTask : UE::Tasks::FTask(), UE::Tasks::ETaskPriority::High, bLaunchAsyncTask);
-
-		CacheNaniteMaterialBinsTask = GraphBuilder.AddSetupTask([this, &SceneInfosWithStaticDrawListUpdate, bLaunchAsyncTask]()
-		{
-			FPrimitiveSceneInfo::CacheNaniteMaterialBins(this, SceneInfosWithStaticDrawListUpdate);
-		}, bLaunchAsyncTask);
-
-#if RHI_RAYTRACING
-		CacheRayTracingPrimitivesTask = GraphBuilder.AddSetupTask([this, &SceneInfosWithStaticDrawListUpdate]()
-		{
-			FPrimitiveSceneInfo::CacheRayTracingPrimitives(this, SceneInfosWithStaticDrawListUpdate);
-		}, bLaunchAsyncTask);
-#endif
-	}
-
 	if (auto NaniteMaterialsUpdater = SceneExtensionsUpdaters.GetUpdaterPtr<Nanite::FMaterialsSceneExtension::FUpdater>())
 	{
 		NaniteMaterialsUpdater->PostCacheNaniteMaterialBins(GraphBuilder, SceneInfosWithStaticDrawListUpdate);
@@ -6492,12 +6485,6 @@ void FScene::UpdateAllPrimitiveSceneInfos(FRDGBuilder& GraphBuilder, EUpdateAllP
 
 		// Update scene LOD tree
 		SceneLODHierarchy.UpdateNodeSceneInfo(PrimitiveSceneInfo->PrimitiveComponentId, PrimitiveSceneInfo);
-	}
-
-	for (FPrimitiveSceneInfo* PrimitiveSceneInfo : SceneInfosWithFlushVirtualTexture)
-	{
-		PrimitiveSceneInfo->FlushRuntimeVirtualTexture();
-		PrimitiveSceneInfo->bPendingFlushVirtualTexture = false;
 	}
 
 	for (const auto& Attachments : UpdatedAttachmentRoots)
@@ -6596,6 +6583,35 @@ void FScene::UpdateAllPrimitiveSceneInfos(FRDGBuilder& GraphBuilder, EUpdateAllP
 
 		DistanceFieldSceneData.UpdatePrimitive(SceneInfo);
 	}
+
+	if (Parameters.Callbacks.PostStaticMeshUpdate)
+	{
+		Parameters.Callbacks.PostStaticMeshUpdate(AddStaticMeshesTask);
+	}
+
+	{
+		SCOPED_NAMED_EVENT(UpdateUniformBuffers, FColor::Emerald);
+		TArray<FPrimitiveSceneProxy*, SceneRenderingAllocator> ProxiesToUpdate;
+
+		for (TConstSetBitIterator<> BitIt(PrimitivesNeedingUniformBufferUpdate); BitIt; ++BitIt)
+		{
+			const int32 Index = BitIt.GetIndex();
+			FPrimitiveSceneInfo* Primitive = Primitives[Index];
+			PrimitivesNeedingUniformBufferUpdate[Index] = false;
+			ProxiesToUpdate.Emplace(Primitive->Proxy);
+			GPUScene.AddPrimitiveToUpdate(Primitive->GetPersistentIndex(), EPrimitiveDirtyState::ChangedAll);
+		}
+
+		GraphBuilder.AddCommandListSetupTask([this, ProxiesToUpdate = MoveTemp(ProxiesToUpdate)](FRHICommandList& RHICmdList)
+		{
+			SCOPED_NAMED_EVENT(AsyncUpdateUniformBuffers, FColor::Emerald);
+
+			for (FPrimitiveSceneProxy* Proxy : ProxiesToUpdate)
+			{
+				Proxy->UpdateUniformBuffer(RHICmdList);
+			}
+		});
+	}
 	
 	{
 		RDG_CSV_STAT_EXCLUSIVE_SCOPE(GraphBuilder, UpdateGPUScene);
@@ -6603,8 +6619,7 @@ void FScene::UpdateAllPrimitiveSceneInfos(FRDGBuilder& GraphBuilder, EUpdateAllP
 
 		FRDGExternalAccessQueue ExternalAccessQueue;
 
-		// Process GPU scene prior to visibility to maximize overlap.
-		GPUScene.Update(GraphBuilder, SceneUB, ExternalAccessQueue, nullptr);
+		GPUScene.Update(GraphBuilder, SceneUB, ExternalAccessQueue, Parameters.GPUSceneUpdateTaskPrerequisites);
 	
 		ExternalAccessQueue.Submit(GraphBuilder);
 	}
@@ -6631,6 +6646,8 @@ void FScene::UpdateAllPrimitiveSceneInfos(FRDGBuilder& GraphBuilder, EUpdateAllP
 			delete PrimitiveSceneInfo;
 		}
 	});
+
+	AddStaticMeshesTask.Wait();
 
 	if (bNeedPathTracedInvalidation)
 	{

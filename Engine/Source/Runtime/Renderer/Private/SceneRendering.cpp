@@ -2934,6 +2934,7 @@ FSceneRenderer::ERendererOutput FSceneRenderer::GetRendererOutput() const
 void FSceneRenderer::PrepareViewRectsForRendering(FRHICommandListImmediate& RHICmdList)
 {
 	check(IsInRenderingThread());
+	TRACE_CPUPROFILER_EVENT_SCOPE(PrepareViewRectsForRendering);
 
 	// Read the resolution data.
 	{
@@ -3476,61 +3477,80 @@ IVisibilityTaskData* FSceneRenderer::OnRenderBegin(FRDGBuilder& GraphBuilder)
 		AsyncOps |= EUpdateAllPrimitiveSceneInfosAsyncOps::CacheMaterialUniformExpressions;
 	}
 
-	Scene->UpdateAllPrimitiveSceneInfos(GraphBuilder, AsyncOps);
+	IVisibilityTaskData* VisibilityTaskData = nullptr;
 
+	FScene::FUpdateParameters SceneUpdateParameters;
+	SceneUpdateParameters.AsyncOps = AsyncOps;
+
+	UE::Tasks::FTaskEvent GPUSceneUpdateTaskPrerequisites{ UE_SOURCE_LOCATION };
+	SceneUpdateParameters.GPUSceneUpdateTaskPrerequisites = GPUSceneUpdateTaskPrerequisites;
+
+	SceneUpdateParameters.Callbacks.PostStaticMeshUpdate = [&] (const UE::Tasks::FTask& StaticMeshUpdateTask)
+	{
 #if RHI_RAYTRACING
-	RayTracing::OnRenderBegin(*Scene, Views, ViewFamily);
+		RayTracing::OnRenderBegin(*Scene, Views, ViewFamily);
 #endif
 
-	if (!ViewFamily.ViewExtensions.IsEmpty())
-	{
+		if (!ViewFamily.ViewExtensions.IsEmpty())
 		{
-			RDG_CSV_STAT_EXCLUSIVE_SCOPE(GraphBuilder, PreRender);
-			SCOPE_CYCLE_COUNTER(STAT_FDeferredShadingSceneRenderer_ViewExtensionPreRenderView);
-
-			for (int32 ViewExt = 0; ViewExt < ViewFamily.ViewExtensions.Num(); ViewExt++)
 			{
-				ViewFamily.ViewExtensions[ViewExt]->PreRenderViewFamily_RenderThread(GraphBuilder, ViewFamily);
-				for (int32 ViewIndex = 0; ViewIndex < AllViews.Num(); ViewIndex++)
+				RDG_CSV_STAT_EXCLUSIVE_SCOPE(GraphBuilder, PreRender);
+				SCOPE_CYCLE_COUNTER(STAT_FDeferredShadingSceneRenderer_ViewExtensionPreRenderView);
+	
+				for (int32 ViewExt = 0; ViewExt < ViewFamily.ViewExtensions.Num(); ViewExt++)
 				{
-					ViewFamily.ViewExtensions[ViewExt]->PreRenderView_RenderThread(GraphBuilder, *AllViews[ViewIndex]);
+					ViewFamily.ViewExtensions[ViewExt]->PreRenderViewFamily_RenderThread(GraphBuilder, ViewFamily);
+					for (int32 ViewIndex = 0; ViewIndex < AllViews.Num(); ViewIndex++)
+					{
+						ViewFamily.ViewExtensions[ViewExt]->PreRenderView_RenderThread(GraphBuilder, *AllViews[ViewIndex]);
+					}
 				}
 			}
 		}
-	}
-
-	PrepareViewRectsForRendering(GraphBuilder.RHICmdList);
-
-	InitializeSceneTexturesConfig(ViewFamily.SceneTexturesConfig, ViewFamily);
-	FSceneTexturesConfig& SceneTexturesConfig = GetActiveSceneTexturesConfig();
-	FSceneTexturesConfig::Set(SceneTexturesConfig);
-
-	PrepareViewStateForVisibility(SceneTexturesConfig);
-
-	// Run Groom LOD selection prior to visibility for selecting appropriate LOD & geometry type
-	if (IsGroomEnabled())
-	{
-		if (Views.Num() > 0 && !ViewFamily.EngineShowFlags.HitProxies)
+	
+		PrepareViewRectsForRendering(GraphBuilder.RHICmdList);
+	
+		InitializeSceneTexturesConfig(ViewFamily.SceneTexturesConfig, ViewFamily);
+		FSceneTexturesConfig& SceneTexturesConfig = GetActiveSceneTexturesConfig();
+		FSceneTexturesConfig::Set(SceneTexturesConfig);
+	
+		PrepareViewStateForVisibility(SceneTexturesConfig);
+	
+		// Run Groom LOD selection prior to visibility for selecting appropriate LOD & geometry type
+		if (IsGroomEnabled())
 		{
-			FHairStrandsBookmarkParameters Parameters;
-			CreateHairStrandsBookmarkParameters(Scene, Views, AllFamilyViews, Parameters, false/*bComputeVisibleInstances*/);
-			if (Parameters.HasInstances())
+			if (Views.Num() > 0 && !ViewFamily.EngineShowFlags.HitProxies)
 			{
-				Scene->WaitForGPUSkinCacheTask();
-
-				// 1. Select appropriate LOD & geometry type
-				RunHairStrandsBookmark(GraphBuilder, EHairStrandsBookmark::ProcessLODSelection, Parameters);
+				FHairStrandsBookmarkParameters Parameters;
+				CreateHairStrandsBookmarkParameters(Scene, Views, AllFamilyViews, Parameters, false/*bComputeVisibleInstances*/);
+				if (Parameters.HasInstances())
+				{
+					Scene->WaitForGPUSkinCacheTask();
+	
+					// 1. Select appropriate LOD & geometry type
+					RunHairStrandsBookmark(GraphBuilder, EHairStrandsBookmark::ProcessLODSelection, Parameters);
+				}
 			}
 		}
-	}
 	
-	LightFunctionAtlas::OnRenderBegin(LightFunctionAtlas, *Scene, Views, ViewFamily);
+		LightFunctionAtlas::OnRenderBegin(LightFunctionAtlas, *Scene, Views, ViewFamily);
+	
+		FVisualizeTexturePresent::OnStartRender(Views[0]);
+	
+		GraphBuilder.RHICmdList.BeginScene();
 
-	FVisualizeTexturePresent::OnStartRender(Views[0]);
+		VisibilityTaskData = LaunchVisibilityTasks(GraphBuilder.RHICmdList, *this, StaticMeshUpdateTask);
 
-	GraphBuilder.RHICmdList.BeginScene();
+		if (GraphBuilder.IsParallelSetupEnabled())
+		{
+			GPUSceneUpdateTaskPrerequisites.AddPrerequisites(VisibilityTaskData->GetComputeRelevanceTask());
+		}
+		GPUSceneUpdateTaskPrerequisites.Trigger();
+	};
 
-	return LaunchVisibilityTasks(GraphBuilder.RHICmdList, *this);
+	Scene->Update(GraphBuilder, SceneUpdateParameters);
+
+	return VisibilityTaskData;
 }
 
 /** 

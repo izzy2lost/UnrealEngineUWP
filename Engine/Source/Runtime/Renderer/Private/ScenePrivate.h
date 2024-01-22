@@ -3224,6 +3224,20 @@ public:
 
 	using FSceneInterface::UpdateAllPrimitiveSceneInfos;
 
+	struct FUpdateParameters
+	{
+		EUpdateAllPrimitiveSceneInfosAsyncOps AsyncOps = EUpdateAllPrimitiveSceneInfosAsyncOps::None;
+		UE::Tasks::FTask GPUSceneUpdateTaskPrerequisites;
+
+		struct
+		{
+			TFunction<void(const UE::Tasks::FTask&)> PostStaticMeshUpdate;
+
+		} Callbacks;
+	};
+
+	void Update(FRDGBuilder& GraphBuilder, const FUpdateParameters& Parameters);
+
 	// FSceneInterface interface.
 	virtual void AddPrimitive(UPrimitiveComponent* Primitive) override;
 	virtual void RemovePrimitive(UPrimitiveComponent* Primitive) override;

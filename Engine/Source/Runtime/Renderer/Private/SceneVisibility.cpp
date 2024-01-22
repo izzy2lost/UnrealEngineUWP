@@ -386,10 +386,10 @@ TRACE_DECLARE_INT_COUNTER(Scene_Visibility_Relevance_NumPrimitivesProcessed, TEX
 
 ///////////////////////////////////////////////////////////////////////////////
 
-IVisibilityTaskData* LaunchVisibilityTasks(FRHICommandListImmediate& RHICmdList, FSceneRenderer& SceneRenderer)
+IVisibilityTaskData* LaunchVisibilityTasks(FRHICommandListImmediate& RHICmdList, FSceneRenderer& SceneRenderer, const UE::Tasks::FTask& BeginInitVisibilityPrerequisites)
 {
 	FVisibilityTaskData* TaskData = SceneRenderer.Allocator.Create<FVisibilityTaskData>(RHICmdList, SceneRenderer);
-	TaskData->LaunchVisibilityTasks();
+	TaskData->LaunchVisibilityTasks(BeginInitVisibilityPrerequisites);
 	return TaskData;
 }
 
@@ -3139,8 +3139,8 @@ FVisibilityTaskConfig::FVisibilityTaskConfig(const FScene& Scene, TConstArrayVie
 
 	// These values tune the task granularity based on number of primitives in the scene and the number of worker tasks available.
 	const uint32 NumFrustumCullTasksPerThread   = 2;
-	const uint32 NumOcclusionCullTasksPerThread = 1;
-	const uint32 NumRelevanceTasksPerThread     = 16;
+	const uint32 NumOcclusionCullTasksPerThread = 2;
+	const uint32 NumRelevanceTasksPerThread     = 32;
 
 	// Frustum Cull
 	{
@@ -3910,7 +3910,7 @@ FVisibilityTaskData::FVisibilityTaskData(FRHICommandListImmediate& InRHICmdList,
 	Tasks.bWaitingAllowed = TaskConfig.Schedule == EVisibilityTaskSchedule::Parallel;
 }
 
-void FVisibilityTaskData::LaunchVisibilityTasks()
+void FVisibilityTaskData::LaunchVisibilityTasks(const UE::Tasks::FTask& BeginInitVisibilityPrerequisites)
 {
 	SCOPED_NAMED_EVENT(LaunchVisibilityTasks, FColor::Magenta);
 	ViewPackets.Reserve(Views.Num());
@@ -3925,6 +3925,12 @@ void FVisibilityTaskData::LaunchVisibilityTasks()
 		Tasks.FrustumCull.AddPrerequisites(ViewPacket.Tasks.FrustumCull);
 		Tasks.OcclusionCull.AddPrerequisites(ViewPacket.Tasks.OcclusionCull);
 		Tasks.ComputeRelevance.AddPrerequisites(ViewPacket.Tasks.ComputeRelevance);
+
+		if (ViewPacket.ViewState)
+		{
+			SCOPE_CYCLE_COUNTER(STAT_DecompressPrecomputedOcclusion);
+			ViewPacket.View.PrecomputedVisibilityData = ViewPacket.ViewState->GetPrecomputedVisibilityData(ViewPacket.View, &Scene);
+		}
 	}
 
 	// Each relevance task should have this as a prerequisite, but in case there aren't any tasks we make it explicit.
@@ -4050,7 +4056,7 @@ void FVisibilityTaskData::LaunchVisibilityTasks()
 				FOptionalTaskTagScope Scope(ETaskTag::EParallelRenderingThread);
 				ViewPacket.BeginInitVisibility();
 
-			}, TaskConfig.TaskPriority));
+			}, BeginInitVisibilityPrerequisites, TaskConfig.TaskPriority));
 		}
 
 		// Static relevance is finalized for ALL views after each view completes static mesh filtering tasks.
@@ -4541,6 +4547,8 @@ void FSceneRenderer::PreVisibilityFrameSetup(FRDGBuilder& GraphBuilder)
 
 void FSceneRenderer::PrepareViewStateForVisibility(const FSceneTexturesConfig& SceneTexturesConfig)
 {
+	TRACE_CPUPROFILER_EVENT_SCOPE(PrepareViewStateForVisibility);
+
 #if UE_BUILD_SHIPPING
 	const bool bFreezeTemporalHistories = false;
 	const bool bFreezeTemporalSequences = false;
