@@ -272,7 +272,7 @@ public:
 		const FString TraceName = Trace.Name.ToString();
 		const FString NewTraceName = InText.ToString().TrimStartAndEnd();
 
-		if (NewTraceName == TraceName)
+		if (NewTraceName == TraceName || NewTraceName.IsEmpty())
 		{
 			return;
 		}
