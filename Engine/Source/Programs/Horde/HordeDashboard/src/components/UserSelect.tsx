@@ -117,7 +117,7 @@ export const UserSelect: React.FC<{ handleSelection: (userId: string | undefined
          }}
 
          onInputChange={(input) => {
-            return input;
+            return input.replaceAll(".", " ");
          }}
 
          resolveDelay={1000}
