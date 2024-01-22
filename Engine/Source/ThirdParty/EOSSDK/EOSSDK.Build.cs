@@ -317,7 +317,7 @@ public class EOSSDK : ModuleRules
 			}
 		}
 
-		if (bIncludeKITT)
+		if (bIncludeKITT && bEnableStage)
 		{
 			AddKITTRuntimeDependency("kitt", KittTargetConfiguration);
 			AddKITTRuntimeDependency("kitt_support", KittTargetConfiguration);
