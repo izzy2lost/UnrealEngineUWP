@@ -106,9 +106,9 @@ struct CHAOSMODULARVEHICLEENGINE_API FModularVehicleInputs
 };
 
 
-/** Vehicle Inputs datas that will be used in the inputs history to be applied while simulating */
+/** Vehicle input data that will be used in the input history to be applied while simulating */
 USTRUCT()
-struct CHAOSMODULARVEHICLEENGINE_API FNetworkModularVehicleInputs : public FNetworkPhysicsDatas
+struct CHAOSMODULARVEHICLEENGINE_API FNetworkModularVehicleInputs : public FNetworkPhysicsData
 {
 	GENERATED_USTRUCT_BODY()
 
@@ -116,17 +116,17 @@ struct CHAOSMODULARVEHICLEENGINE_API FNetworkModularVehicleInputs : public FNetw
 	UPROPERTY()
 	FModularVehicleInputs VehicleInputs;
 
-	/**  Apply the datas onto the network physics component */
-	virtual void ApplyDatas(UActorComponent* NetworkComponent) const override;
+	/**  Apply the data onto the network physics component */
+	virtual void ApplyData(UActorComponent* NetworkComponent) const override;
 
-	/**  Build the datas from the network physics component */
-	virtual void BuildDatas(const UActorComponent* NetworkComponent) override;
+	/**  Build the data from the network physics component */
+	virtual void BuildData(const UActorComponent* NetworkComponent) override;
 
-	/**  Serialize datas function that will be used to transfer the struct across the network */
+	/**  Serialize data function that will be used to transfer the struct across the network */
 	bool NetSerialize(FArchive& Ar, class UPackageMap* Map, bool& bOutSuccess);
 
-	/** Interpolate the datas in between two inputs datas */
-	void InterpolateDatas(const FNetworkModularVehicleInputs& MinDatas, const FNetworkModularVehicleInputs& MaxDatas);
+	/** Interpolate the data in between two input */
+	virtual void InterpolateData(const FNetworkPhysicsData& MinData, const FNetworkPhysicsData& MaxData) override;
 };
 
 template<>
@@ -138,25 +138,25 @@ struct TStructOpsTypeTraits<FNetworkModularVehicleInputs> : public TStructOpsTyp
 	};
 };
 
-/** Vehicle states datas that will be used in the states history to rewind the simulation at some point inn time */
+/** Vehicle state data that will be used in the state history to rewind the simulation */
 USTRUCT()
-struct CHAOSMODULARVEHICLEENGINE_API FNetworkModularVehicleStates : public FNetworkPhysicsDatas
+struct CHAOSMODULARVEHICLEENGINE_API FNetworkModularVehicleStates : public FNetworkPhysicsData
 {
 	GENERATED_USTRUCT_BODY()
 
 	Chaos::FModuleNetDataArray ModuleData;
 
-	/**  Apply the datas onto the network physics component */
-	virtual void ApplyDatas(UActorComponent* NetworkComponent) const override;
+	/**  Apply the data onto the network physics component */
+	virtual void ApplyData(UActorComponent* NetworkComponent) const override;
 
-	/**  Build the datas from the network physics component */
-	virtual void BuildDatas(const UActorComponent* NetworkComponent) override;
+	/**  Build the data from the network physics component */
+	virtual void BuildData(const UActorComponent* NetworkComponent) override;
 
-	/**  Serialize datas function that will be used to transfer the struct across the network */
+	/**  Serialize data function that will be used to transfer the struct across the network */
 	bool NetSerialize(FArchive& Ar, class UPackageMap* Map, bool& bOutSuccess);
 
-	/** Interpolate the datas in between two inputs datas */
-	void InterpolateDatas(const FNetworkModularVehicleStates& MinDatas, const FNetworkModularVehicleStates& MaxDatas);
+	/** Interpolate the data in between two states */
+	virtual void InterpolateData(const FNetworkPhysicsData& MinData, const FNetworkPhysicsData& MaxData) override;
 };
 
 template<>

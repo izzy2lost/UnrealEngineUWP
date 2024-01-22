@@ -192,7 +192,7 @@ void FModularVehicleAsyncInput::ProcessInputs()
 
 bool FNetworkModularVehicleInputs::NetSerialize(FArchive& Ar, class UPackageMap* Map, bool& bOutSuccess)
 {
-	FNetworkPhysicsDatas::SerializeFrames(Ar);
+	FNetworkPhysicsData::SerializeFrames(Ar);
 
 	Ar << VehicleInputs.Steering;
 	Ar << VehicleInputs.Throttle;
@@ -210,7 +210,7 @@ bool FNetworkModularVehicleInputs::NetSerialize(FArchive& Ar, class UPackageMap*
 	return bOutSuccess;
 }
 
-void FNetworkModularVehicleInputs::ApplyDatas(UActorComponent* NetworkComponent) const
+void FNetworkModularVehicleInputs::ApplyData(UActorComponent* NetworkComponent) const
 {
 	if (GSimModuleDebugParams.EnableNetworkStateData)
 	{
@@ -221,7 +221,7 @@ void FNetworkModularVehicleInputs::ApplyDatas(UActorComponent* NetworkComponent)
 	}
 }
 
-void FNetworkModularVehicleInputs::BuildDatas(const UActorComponent* NetworkComponent)
+void FNetworkModularVehicleInputs::BuildData(const UActorComponent* NetworkComponent)
 {
 	if (GSimModuleDebugParams.EnableNetworkStateData && NetworkComponent)
 	{
@@ -232,26 +232,29 @@ void FNetworkModularVehicleInputs::BuildDatas(const UActorComponent* NetworkComp
 	}
 }
 
-void FNetworkModularVehicleInputs::InterpolateDatas(const FNetworkModularVehicleInputs& MinDatas, const FNetworkModularVehicleInputs& MaxDatas)
+void FNetworkModularVehicleInputs::InterpolateData(const FNetworkPhysicsData& MinData, const FNetworkPhysicsData& MaxData)
 {
-	const float LerpFactor = (LocalFrame - MinDatas.LocalFrame) / (MaxDatas.LocalFrame - MinDatas.LocalFrame);
+	const FNetworkModularVehicleInputs& MinInput = static_cast<const FNetworkModularVehicleInputs&>(MinData);
+	const FNetworkModularVehicleInputs& MaxInput = static_cast<const FNetworkModularVehicleInputs&>(MaxData);
 
-	VehicleInputs.Steering = FMath::Lerp(MinDatas.VehicleInputs.Steering, MaxDatas.VehicleInputs.Steering, LerpFactor);
-	VehicleInputs.Throttle = FMath::Lerp(MinDatas.VehicleInputs.Throttle, MaxDatas.VehicleInputs.Throttle, LerpFactor);
-	VehicleInputs.Brake = FMath::Lerp(MinDatas.VehicleInputs.Brake, MaxDatas.VehicleInputs.Brake, LerpFactor);
-	VehicleInputs.Handbrake = FMath::Lerp(MinDatas.VehicleInputs.Handbrake, MaxDatas.VehicleInputs.Handbrake, LerpFactor);
-	VehicleInputs.Pitch = FMath::Lerp(MinDatas.VehicleInputs.Pitch, MaxDatas.VehicleInputs.Pitch, LerpFactor);
-	VehicleInputs.Roll = FMath::Lerp(MinDatas.VehicleInputs.Roll, MaxDatas.VehicleInputs.Roll, LerpFactor);
-	VehicleInputs.Yaw = FMath::Lerp(MinDatas.VehicleInputs.Yaw, MaxDatas.VehicleInputs.Yaw, LerpFactor);
-	VehicleInputs.Boost = FMath::Lerp(MinDatas.VehicleInputs.Boost, MaxDatas.VehicleInputs.Boost, LerpFactor);
-	VehicleInputs.Drift = FMath::Lerp(MinDatas.VehicleInputs.Drift, MaxDatas.VehicleInputs.Drift, LerpFactor);
-	VehicleInputs.Reverse = MinDatas.VehicleInputs.Reverse;
-	VehicleInputs.KeepAwake = MinDatas.VehicleInputs.KeepAwake;
+	const float LerpFactor = (LocalFrame - MinInput.LocalFrame) / (MaxInput.LocalFrame - MinInput.LocalFrame);
+
+	VehicleInputs.Steering = FMath::Lerp(MinInput.VehicleInputs.Steering, MaxInput.VehicleInputs.Steering, LerpFactor);
+	VehicleInputs.Throttle = FMath::Lerp(MinInput.VehicleInputs.Throttle, MaxInput.VehicleInputs.Throttle, LerpFactor);
+	VehicleInputs.Brake = FMath::Lerp(MinInput.VehicleInputs.Brake, MaxInput.VehicleInputs.Brake, LerpFactor);
+	VehicleInputs.Handbrake = FMath::Lerp(MinInput.VehicleInputs.Handbrake, MaxInput.VehicleInputs.Handbrake, LerpFactor);
+	VehicleInputs.Pitch = FMath::Lerp(MinInput.VehicleInputs.Pitch, MaxInput.VehicleInputs.Pitch, LerpFactor);
+	VehicleInputs.Roll = FMath::Lerp(MinInput.VehicleInputs.Roll, MaxInput.VehicleInputs.Roll, LerpFactor);
+	VehicleInputs.Yaw = FMath::Lerp(MinInput.VehicleInputs.Yaw, MaxInput.VehicleInputs.Yaw, LerpFactor);
+	VehicleInputs.Boost = FMath::Lerp(MinInput.VehicleInputs.Boost, MaxInput.VehicleInputs.Boost, LerpFactor);
+	VehicleInputs.Drift = FMath::Lerp(MinInput.VehicleInputs.Drift, MaxInput.VehicleInputs.Drift, LerpFactor);
+	VehicleInputs.Reverse = MinInput.VehicleInputs.Reverse;
+	VehicleInputs.KeepAwake = MinInput.VehicleInputs.KeepAwake;
 }
 
 bool FNetworkModularVehicleStates::NetSerialize(FArchive& Ar, class UPackageMap* Map, bool& bOutSuccess)
 {
-	FNetworkPhysicsDatas::SerializeFrames(Ar);
+	FNetworkPhysicsData::SerializeFrames(Ar);
 
 	int32 NumNetModules = ModuleData.Num();
 	Ar << NumNetModules;
@@ -348,7 +351,7 @@ bool FNetworkModularVehicleStates::NetSerialize(FArchive& Ar, class UPackageMap*
 	return true;
 }
 
-void FNetworkModularVehicleStates::ApplyDatas(UActorComponent* NetworkComponent) const
+void FNetworkModularVehicleStates::ApplyData(UActorComponent* NetworkComponent) const
 {
 	if (FModularVehicleSimulationCU* VehicleSimulation = Cast<UModularVehicleBaseComponent>(NetworkComponent)->VehicleSimulationPT.Get())
 	{
@@ -356,7 +359,7 @@ void FNetworkModularVehicleStates::ApplyDatas(UActorComponent* NetworkComponent)
 	}
 }
 
-void FNetworkModularVehicleStates::BuildDatas(const UActorComponent* NetworkComponent)
+void FNetworkModularVehicleStates::BuildData(const UActorComponent* NetworkComponent)
 {
 	if (NetworkComponent)
 	{
@@ -367,17 +370,20 @@ void FNetworkModularVehicleStates::BuildDatas(const UActorComponent* NetworkComp
 	}
 }
 
-void FNetworkModularVehicleStates::InterpolateDatas(const FNetworkModularVehicleStates& MinDatas, const FNetworkModularVehicleStates& MaxDatas)
+void FNetworkModularVehicleStates::InterpolateData(const FNetworkPhysicsData& MinData, const FNetworkPhysicsData& MaxData)
 {
-	const float LerpFactor = (LocalFrame - MinDatas.LocalFrame) / (MaxDatas.LocalFrame - MinDatas.LocalFrame);
+	const FNetworkModularVehicleStates& MinState = static_cast<const FNetworkModularVehicleStates&>(MinData);
+	const FNetworkModularVehicleStates& MaxState = static_cast<const FNetworkModularVehicleStates&>(MaxData);
+
+	const float LerpFactor = (LocalFrame - MinState.LocalFrame) / (MaxState.LocalFrame - MinState.LocalFrame);
 
 	for (int I = 0; I < ModuleData.Num(); I++)
 	{
 		// if these don't match then something has gone terribly wrong
-		check(ModuleData[I]->GetType() == MinDatas.ModuleData[I]->GetType());
-		check(ModuleData[I]->GetType() == MaxDatas.ModuleData[I]->GetType());
+		check(ModuleData[I]->GetType() == MinState.ModuleData[I]->GetType());
+		check(ModuleData[I]->GetType() == MaxState.ModuleData[I]->GetType());
 
-		ModuleData[I]->Lerp(LerpFactor, *MinDatas.ModuleData[I].Get(), *MaxDatas.ModuleData[I].Get());
+		ModuleData[I]->Lerp(LerpFactor, *MinState.ModuleData[I].Get(), *MaxState.ModuleData[I].Get());
 	}
 }
 

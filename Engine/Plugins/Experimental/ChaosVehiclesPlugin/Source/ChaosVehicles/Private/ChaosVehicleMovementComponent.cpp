@@ -772,7 +772,7 @@ void UChaosVehicleMovementComponent::OnCreatePhysicsState()
 			{
 				if(NetworkPhysicsComponent)
 				{
-					NetworkPhysicsComponent->CreateDatasHistory<FPhysicsVehicleTraits>(this);
+					NetworkPhysicsComponent->CreateDataHistory<FPhysicsVehicleTraits>(this);
 				}
 			}
 		}
@@ -804,7 +804,7 @@ void UChaosVehicleMovementComponent::OnDestroyPhysicsState()
 	}
 	if (bUsingNetworkPhysicsPrediction && NetworkPhysicsComponent)
 	{
-		NetworkPhysicsComponent->RemoveDatasHistory();
+		NetworkPhysicsComponent->RemoveDataHistory();
 	}
 }
 

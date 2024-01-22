@@ -135,7 +135,7 @@ void UModularVehicleBaseComponent::OnCreatePhysicsState()
 		{
 			// register interface to handle network prediction callbacks
 			// #Note: in our case we don't yet know what the replication data will be since the modules are built after this point at runtime
-			NetworkPhysicsComponent->CreateDatasHistory<FPhysicsModularVehicleTraits>(this);
+			NetworkPhysicsComponent->CreateDataHistory<FPhysicsModularVehicleTraits>(this);
 		}
 	}
 
@@ -159,7 +159,7 @@ void UModularVehicleBaseComponent::OnDestroyPhysicsState()
 
 	if (bUsingNetworkPhysicsPrediction && NetworkPhysicsComponent)
 	{
-		NetworkPhysicsComponent->RemoveDatasHistory();
+		NetworkPhysicsComponent->RemoveDataHistory();
 	}
 
 }
@@ -777,15 +777,15 @@ void UModularVehicleBaseComponent::ActionTreeUpdates(Chaos::FSimTreeUpdates* Nex
 				// Network replication data needs to be updated, this is currently studily slow
 				if (NetworkPhysicsComponent)
 				{
-					TSharedPtr<Chaos::FBaseRewindHistory>& History = NetworkPhysicsComponent->GetStatesHistory();
-					Chaos::TDatasRewindHistory<FNetworkModularVehicleStates>* StatesHistory = static_cast<Chaos::TDatasRewindHistory<FNetworkModularVehicleStates>*>(History.Get());
-					if (StatesHistory)
+					TSharedPtr<Chaos::FBaseRewindHistory>& History = NetworkPhysicsComponent->GetStateHistory();
+					Chaos::TDataRewindHistory<FNetworkModularVehicleStates>* StateHistory = static_cast<Chaos::TDataRewindHistory<FNetworkModularVehicleStates>*>(History.Get());
+					if (StateHistory)
 					{
 						// #TODO: we are rebuilding from scratch every time there is a single change, there must be a better way!
-						// not sure of it is safe to update the datas at this time?
-						for (int I = 0; I < StatesHistory->GetDatasArray().Num(); I++)
+						// not sure of it is safe to update the data at this time?
+						for (int I = 0; I < StateHistory->GetDataHistory().Num(); I++)
 						{
-							FNetworkModularVehicleStates& State = StatesHistory->GetDatasArray()[I];
+							FNetworkModularVehicleStates& State = StateHistory->GetDataHistory()[I];
 							State.ModuleData.Empty();
 
 							VehicleSimulationPT->AccessSimComponentTree()->GenerateReplicationStructure(State.ModuleData);

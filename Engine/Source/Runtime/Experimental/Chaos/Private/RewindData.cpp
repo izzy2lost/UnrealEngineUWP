@@ -165,21 +165,21 @@ bool FJointStateBase::IsInSync(const FPBDJointConstraintHandle& Handle, const FF
 
 void FRewindData::ApplyInputs(const int32 ApplyFrame, const bool bResetSolver)
 {
-	for (TWeakPtr<FBaseRewindHistory>& InputsHistory : InputsHistories)
+	for (TWeakPtr<FBaseRewindHistory>& InputHistory : InputHistories)
 	{
-		if (InputsHistory.IsValid())
+		if (InputHistory.IsValid())
 		{
-			InputsHistory.Pin().Get()->ApplyInputs(ApplyFrame, bResetSolver);
+			InputHistory.Pin().Get()->ApplyInputs(ApplyFrame, bResetSolver);
 		}
 	}
 }
 void FRewindData::RewindStates(const int32 RewindFrame, const bool bResetSolver)
 {
-	for (TWeakPtr<FBaseRewindHistory>& StatesHistory : StatesHistories)
+	for (TWeakPtr<FBaseRewindHistory>& StateHistory : StateHistories)
 	{
-		if (StatesHistory.IsValid())
+		if (StateHistory.IsValid())
 		{
-			StatesHistory.Pin().Get()->RewindStates(RewindFrame, bResetSolver);
+			StateHistory.Pin().Get()->RewindStates(RewindFrame, bResetSolver);
 		}
 	}
 }
@@ -993,9 +993,11 @@ int32 FRewindData::FindValidResimFrame(const int32 RequestedFrame)
 		
 		if (bHasTargetHistory)
 		{
-			for (auto& InputsHistory : InputsHistories)
+			for (TWeakPtr<FBaseRewindHistory>& InputHistory : InputHistories)
 			{
-				if (InputsHistory.IsValid() && !InputsHistory.Pin().Get()->HasValidDatas(ValidFrame))
+				PRAGMA_DISABLE_DEPRECATION_WARNINGS // TODO: Change to HasValidData() in UE 5.6 and remove deprecation pragma
+				if (InputHistory.IsValid() && !InputHistory.Pin().Get()->HasValidDatas(ValidFrame))
+				PRAGMA_ENABLE_DEPRECATION_WARNINGS
 				{
 					bHasTargetHistory = false;
 					break;
@@ -1005,9 +1007,12 @@ int32 FRewindData::FindValidResimFrame(const int32 RequestedFrame)
 
 		if (bHasTargetHistory)
 		{
-			for (auto& StatesHistory : StatesHistories)
+			for (TWeakPtr<FBaseRewindHistory>& StateHistory : StateHistories)
 			{
-				if (StatesHistory.IsValid() && !StatesHistory.Pin().Get()->HasValidDatas(ValidFrame))
+
+				PRAGMA_DISABLE_DEPRECATION_WARNINGS // TODO: Change to HasValidData() in UE 5.6 and remove deprecation pragma
+				if (StateHistory.IsValid() && !StateHistory.Pin().Get()->HasValidDatas(ValidFrame))
+				PRAGMA_ENABLE_DEPRECATION_WARNINGS
 				{
 					bHasTargetHistory = false;
 					break;

@@ -17,11 +17,11 @@ DECLARE_MULTICAST_DELEGATE_OneParam(FOnPreProcessInputsInternal, const int32);
 DECLARE_MULTICAST_DELEGATE_OneParam(FOnPostProcessInputsInternal, const int32);
 DECLARE_MULTICAST_DELEGATE_TwoParams(FOnInjectInputsExternal, const int32 /* PhysicsStep */, const int32 /* NumSteps */);
 
-/** Templated datas history holding a datas buffer */
-template<typename DatasType>
-struct TNetRewindHistory : public Chaos::TDatasRewindHistory<DatasType>
+/** Templated data history, holding a data buffer */
+template<typename DataType>
+struct TNetRewindHistory : public Chaos::TDataRewindHistory<DataType>
 {
-	using Super = Chaos::TDatasRewindHistory<DatasType>;
+	using Super = Chaos::TDataRewindHistory<DataType>;
 
 	FORCEINLINE TNetRewindHistory(const int32 FrameCount, const bool bIsHistoryLocal) :
 		Super(FrameCount, bIsHistoryLocal)
@@ -42,41 +42,55 @@ struct TNetRewindHistory : public Chaos::TDatasRewindHistory<DatasType>
 		return MakeUnique<TNetRewindHistory>(*this);
 	}
 
+	virtual void ValidateDataInHistory(const void* ActorComponent) override
+	{
+		const UActorComponent* NetworkComponent = static_cast<const UActorComponent*>(ActorComponent);
+		for (int32 FrameIndex = 0; FrameIndex < Super::NumFrames; ++FrameIndex)
+		{
+			DataType& FrameData = Super::DataHistory[FrameIndex];
+			FrameData.ValidateData(NetworkComponent);
+		}
+	}
+
 	virtual TUniquePtr<Chaos::FBaseRewindHistory> CopyFramesWithOffset(const uint32 StartFrame, const uint32 EndFrame, const int32 FrameOffset) override
 	{
-		uint32 FramesCount = (uint32)Super::NumValidDatas(StartFrame, EndFrame);
+		uint32 FramesCount = (uint32)Super::NumValidData(StartFrame, EndFrame);
 			
 		TUniquePtr<TNetRewindHistory> Copy = MakeUnique<TNetRewindHistory>(FramesCount, Super::bIsLocalHistory);
 
-		DatasType FrameDatas;
+		DataType FrameData;
 		for (uint32 FrameIndex = StartFrame; FrameIndex < EndFrame; ++FrameIndex)
 		{
 			const int32 LocalFrame = FrameIndex % Super::NumFrames;
-			if (FrameIndex == Super::DatasArray[LocalFrame].LocalFrame)
+			if (FrameIndex == Super::DataHistory[LocalFrame].LocalFrame)
 			{
-				FrameDatas = Super::DatasArray[LocalFrame];
-				FrameDatas.ServerFrame = FrameDatas.LocalFrame + FrameOffset;
-				Copy->RecordDatas(LocalFrame, &FrameDatas);
+				FrameData = Super::DataHistory[LocalFrame];
+				FrameData.ServerFrame = FrameData.LocalFrame + FrameOffset;
+				PRAGMA_DISABLE_DEPRECATION_WARNINGS // TODO: Change to RecordData() in UE 5.6 and remove deprecation pragma
+				Copy->RecordDatas(LocalFrame, &FrameData);
+				PRAGMA_ENABLE_DEPRECATION_WARNINGS
 			}
 		}
 
 		return Copy;
 	}
 
-	virtual void ReceiveNewDatas(Chaos::FBaseRewindHistory& NewDatas, const int32 FrameOffset) override
+	virtual void ReceiveNewData(Chaos::FBaseRewindHistory& NewData, const int32 FrameOffset) override
 	{
-		TNetRewindHistory& NetNewDatas = static_cast<TNetRewindHistory&>(NewDatas);
+		TNetRewindHistory& NetNewData = static_cast<TNetRewindHistory&>(NewData);
 
-		if (NetNewDatas.NumFrames > 0)
+		if (NetNewData.NumFrames > 0)
 		{
-			for (int32 FrameIndex = 0; FrameIndex < NetNewDatas.NumFrames; ++FrameIndex)
+			for (int32 FrameIndex = 0; FrameIndex < NetNewData.NumFrames; ++FrameIndex)
 			{
-				DatasType& FrameDatas = NetNewDatas.DatasArray[FrameIndex];
+				DataType& FrameData = NetNewData.DataHistory[FrameIndex];
 
-				FrameDatas.LocalFrame = FrameDatas.ServerFrame - FrameOffset;
-				if (FrameDatas.LocalFrame >= 0)
+				FrameData.LocalFrame = FrameData.ServerFrame - FrameOffset;
+				if (FrameData.LocalFrame >= 0)
 				{
-					Super::RecordDatas(FrameDatas.LocalFrame, &FrameDatas);
+					PRAGMA_DISABLE_DEPRECATION_WARNINGS // TODO: Change to RecordData() in UE 5.6 and remove deprecation pragma
+					Super::RecordDatas(FrameData.LocalFrame, &FrameData);
+					PRAGMA_ENABLE_DEPRECATION_WARNINGS
 				}
 			}
 		}
@@ -95,33 +109,33 @@ struct TNetRewindHistory : public Chaos::TDatasRewindHistory<DatasType>
 
 		if (Ar.IsLoading())
 		{
-			Super::DatasArray.SetNum(Super::NumFrames);
+			Super::DataHistory.SetNum(Super::NumFrames);
 		}
 
-		for (DatasType& Data : Super::DatasArray)
+		for (DataType& Data : Super::DataHistory)
 		{
-			NetSerializeDatas(Data, Ar, InPackageMap);
+			NetSerializeData(Data, Ar, InPackageMap);
 		}
 	}
 
-	/** Debug the datas from the archive */
-	FORCEINLINE virtual void DebugDatas(const Chaos::FBaseRewindHistory& NewDatas, TArray<int32>& LocalFrames, TArray<int32>& ServerFrames, TArray<int32>& InputFrames) override
+	/** Debug the data from the archive */
+	FORCEINLINE virtual void DebugData(const Chaos::FBaseRewindHistory& DebugHistory, TArray<int32>& LocalFrames, TArray<int32>& ServerFrames, TArray<int32>& InputFrames) override
 	{
-		const TNetRewindHistory& NewNetDatas = static_cast<const TNetRewindHistory&>(NewDatas);
+		const TNetRewindHistory& NetDebugHistory = static_cast<const TNetRewindHistory&>(DebugHistory);
 
-		if(NewNetDatas.NumFrames >= 0)
+		if(NetDebugHistory.NumFrames >= 0)
 		{
-			LocalFrames.SetNum(NewNetDatas.NumFrames);
-			ServerFrames.SetNum(NewNetDatas.NumFrames);
-			InputFrames.SetNum(NewNetDatas.NumFrames);
+			LocalFrames.SetNum(NetDebugHistory.NumFrames);
+			ServerFrames.SetNum(NetDebugHistory.NumFrames);
+			InputFrames.SetNum(NetDebugHistory.NumFrames);
 
-			DatasType FrameDatas;
-			for (int32 FrameIndex = 0; FrameIndex < NewNetDatas.NumFrames; ++FrameIndex)
+			DataType FrameData;
+			for (int32 FrameIndex = 0; FrameIndex < NetDebugHistory.NumFrames; ++FrameIndex)
 			{
-				FrameDatas = NewNetDatas.DatasArray[FrameIndex];
-				LocalFrames[FrameIndex] = FrameDatas.LocalFrame;
-				ServerFrames[FrameIndex] = FrameDatas.ServerFrame;
-				InputFrames[FrameIndex] = FrameDatas.InputFrame;
+				FrameData = NetDebugHistory.DataHistory[FrameIndex];
+				LocalFrames[FrameIndex] = FrameData.LocalFrame;
+				ServerFrames[FrameIndex] = FrameData.ServerFrame;
+				InputFrames[FrameIndex] = FrameData.InputFrame;
 			}
 		}
 	}
@@ -135,18 +149,18 @@ private :
 		return MaxArraySize;
 	}
 
-	/** Use net serialize path to serialize datas  */
-	FORCEINLINE bool NetSerializeDatas(DatasType& FrameDatas, FArchive& Ar, UPackageMap* PackageMap) const 
+	/** Use net serialize path to serialize data  */
+	FORCEINLINE bool NetSerializeData(DataType& FrameData, FArchive& Ar, UPackageMap* PackageMap) const 
 	{
 		bool bOutSuccess = false;
-		UScriptStruct* ScriptStruct = DatasType::StaticStruct();
+		UScriptStruct* ScriptStruct = DataType::StaticStruct();
 		if (ScriptStruct->StructFlags & STRUCT_NetSerializeNative)
 		{
-			ScriptStruct->GetCppStructOps()->NetSerialize(Ar, PackageMap, bOutSuccess, &FrameDatas);
+			ScriptStruct->GetCppStructOps()->NetSerialize(Ar, PackageMap, bOutSuccess, &FrameData);
 		}
 		else
 		{
-			UE_LOG(LogChaos, Error, TEXT("TNetRewindHistory::NetSerializeDatas called on data struct %s without a native NetSerialize"), *ScriptStruct->GetName());
+			UE_LOG(LogChaos, Error, TEXT("TNetRewindHistory::NetSerializeData called on data struct %s without a native NetSerialize"), *ScriptStruct->GetName());
 
 			// Not working for now since the packagemap could be null
 			// UNetConnection* Connection = CastChecked<UPackageMapClient>(PackageMap)->GetConnection();
@@ -156,7 +170,7 @@ private :
 			// if (RepLayout.IsValid())
 			// {
 			// 	bool bHasUnmapped = false;
-			// 	RepLayout->SerializePropertiesForStruct(ScriptStruct, Ar, PackageMap, &FrameDatas, bHasUnmapped);
+			// 	RepLayout->SerializePropertiesForStruct(ScriptStruct, Ar, PackageMap, &FrameData, bHasUnmapped);
 			//
 			// 	bOutSuccess = true;
 			// }
@@ -293,7 +307,7 @@ struct FNetworkPhysicsCallback : public Chaos::IRewindCallback
 };
 
 /**
- * Network physics manager to initialize datas required for rewind/resim
+ * Network physics manager to initialize data required for rewind/resim
  */
 UCLASS(MinimalAPI)
 class UNetworkPhysicsSystem : public UWorldSubsystem
@@ -325,28 +339,28 @@ private:
 };
 
 /**
- * Base network physics datas that will be used by physics
+ * Base network physics data that will be used by physics
  */
- USTRUCT()
-struct FNetworkPhysicsDatas
+USTRUCT()
+struct FNetworkPhysicsData
 {
 	GENERATED_USTRUCT_BODY()
 
-	virtual ~FNetworkPhysicsDatas() = default;
+	virtual ~FNetworkPhysicsData() = default;
 
-	// Server frame at which this datas has been generated
+	// Server frame at which this data has been generated
 	UPROPERTY()
 	int32 ServerFrame = INDEX_NONE;
 
-	// Local frame at which this datas has been generated
+	// Local frame at which this data has been generated
 	UPROPERTY()
 	int32 LocalFrame = INDEX_NONE;
 
-	// Input frame used to generate the network datas
+	// Input frame used to generate the network data
 	UPROPERTY()
 	int32 InputFrame = INDEX_NONE;
 
-	// Serialize the datas into/from the archive
+	// Serialize the data into/from the archive
 	void SerializeFrames(FArchive& Ar)
 	{
 		Ar << ServerFrame;
@@ -354,29 +368,76 @@ struct FNetworkPhysicsDatas
 		Ar << InputFrame;
 	}
 
-	// Apply the datas from onto the network physics component
-	virtual void ApplyDatas(UActorComponent* NetworkComponent) const {}
+	// Apply the data onto the network physics component
+	virtual void ApplyData(UActorComponent* NetworkComponent) const
+	{
+		PRAGMA_DISABLE_DEPRECATION_WARNINGS // TODO: Remove deprecation pragma and deprecated function call in UE 5.6
+		ApplyDatas(NetworkComponent);
+		PRAGMA_ENABLE_DEPRECATION_WARNINGS
+	}
 
-	// Build the datas from the network physics component
-	virtual void BuildDatas(const UActorComponent* NetworkComponent) {}
+	// Build the data from the network physics component
+	virtual void BuildData(const UActorComponent* NetworkComponent)
+	{
+		PRAGMA_DISABLE_DEPRECATION_WARNINGS // TODO: Remove deprecation pragma and deprecated function call in UE 5.6
+		BuildDatas(NetworkComponent);
+		PRAGMA_ENABLE_DEPRECATION_WARNINGS
+	}
 	
+	/** Define how to interpolate between two data points if we have a gap between known data.
+	* @param MinData is data from a previous frame.
+	* @param MaxData is data from a future frame.
+	* EXAMPLE: We have input data for frame 1 and 4 and we need to interpolate data for frame 2 and 3 based on frame 1 as MinData and frame 4 as MaxData.
+	*/
+	virtual void InterpolateData(const FNetworkPhysicsData& MinData, const FNetworkPhysicsData& MaxData) { }
+
 	/** Use to decay desired data during resimulation if data is forward predicted.
 	* @param DecayAmount = Total amount of decay as a multiplier. 10% decay = 0.1.
-	* NOTE: Decay is not accumulated, the data will be in its original state each time DecayDatas is called. DecayAmount will increase each time the input is predicted (reused).
+	* NOTE: Decay is not accumulated, the data will be in its original state each time DecayData is called. DecayAmount will increase each time the input is predicted (reused).
 	* EXAMPLE: Use to decay steering inputs to make resimulation not predict too much with a high steering value. Use DecayAmount of 0.1 to turn a steering value of 0.5 into 0.45 for example.
 	*/ 
-	virtual void DecayDatas(float DecayAmount) {}
+	virtual void DecayData(float DecayAmount) { }
 	
 	/** Define how to merge data together
 	* @param FromData is data from a previous frame that is getting merged into the current data.
 	* EXAMPLE: Simulated proxies might receive two inputs at the same time after having used the same input twice, to not miss any important inputs we need to take both inputs into account 
 	* and to not get behind in simulation we need to apply them both at the same simulation tick meaning we merge the two new inputs to one input.
 	*/
-	virtual void MergeDatas(const FNetworkPhysicsDatas* FromData) {}
+	virtual void MergeData(const FNetworkPhysicsData& FromData) { }
 
+	/** Validate data received on the server from clients
+	* EXAMPLE: Validate incoming inputs from clients and correct any invalid input commands.
+	* NOTE: Changes to the data in this callback will be sent from server to clients.
+	*/
+	virtual void ValidateData(const UActorComponent* NetworkComponent) { }
+
+	/** DEPRECATED */
+	UE_DEPRECATED(5.4, "Deprecated, use ApplyData instead")
+	virtual void ApplyDatas(UActorComponent* NetworkComponent) const { }
+	UE_DEPRECATED(5.4, "Deprecated, use BuildData instead")
+	virtual void BuildDatas(const UActorComponent* NetworkComponent) { }
+	UE_DEPRECATED(5.4, "Deprecated, use InterpolateData instead")
+	virtual void InterpolateDatas(const FNetworkPhysicsData& MinData, const FNetworkPhysicsData& MaxData) { InterpolateData(MinData, MaxData); }
 
 	friend UNetworkPhysicsComponent;
 };
+
+USTRUCT()
+struct UE_DEPRECATED(5.4, "Deprecated, use FNetworkPhysicsData instead") FNetworkPhysicsDatas : public FNetworkPhysicsData
+{
+	GENERATED_USTRUCT_BODY()
+	virtual ~FNetworkPhysicsDatas() = default;
+
+	void SerializeFrames(FArchive & Ar) { FNetworkPhysicsData::SerializeFrames(Ar); }
+	
+	UE_DEPRECATED(5.4, "FNetworkPhysicsDatas is deprecated, use FNetworkPhysicsData instead. InterpolateDatas is also changed from a Static Polymorphic function to a Dynamic Polymorphic virtual function named InterpolateData().")
+	virtual void InterpolateDatas(const FNetworkPhysicsData& MinData, const FNetworkPhysicsData& MaxData) override
+	{
+		ensureMsgf(false, TEXT("FNetworkPhysicsDatas is deprecated from UE 5.4, use FNetworkPhysicsData instead where InterpolateDatas() has changed from a Static Polymorphic function to a Dynamic Polymorphic virtual function named InterpolateData()."));
+		FNetworkPhysicsData::InterpolateData(MinData, MaxData);
+	}
+};
+
 
 /**
  * Network physics component that will be attached to any player controller
@@ -396,6 +457,10 @@ public:
 
 	// Server RPC to receive inputs from client
 	UFUNCTION(Server, unreliable)
+	ENGINE_API void ServerReceiveInputData(const FNetworkPhysicsRewindDataInputProxy& ClientInputs);
+
+	UE_DEPRECATED(5.4, "Deprecated, use SendInputData() instead")
+	UFUNCTION(Server, unreliable, meta = (DeprecatedFunction, DeprecationMessage = "ServerReceiveInputsDatas has been deprecated. Use ServerReceiveInputData instead."))
 	ENGINE_API void ServerReceiveInputsDatas(const FNetworkPhysicsRewindDataInputProxy& ClientInputs);
 
 	// Async physics tick component function per frame from the solver
@@ -404,11 +469,17 @@ public:
 	// Function to init the replicated properties
 	ENGINE_API virtual void GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& OutLifeTimeProps) const override;
 
-	// Send the inputs replicated datas
-	ENGINE_API void SendLocalInputsDatas();
+	// Replicate input data 
+	ENGINE_API void SendInputData();
 
-	// Send the states replicated datas
-	ENGINE_API void SendLocalStatesDatas();
+	UE_DEPRECATED(5.4, "Deprecated, use SendInputData() instead")
+	ENGINE_API void SendLocalInputsDatas() { SendInputData(); }
+
+	// Replicate state data
+	ENGINE_API void SendStateData();
+
+	UE_DEPRECATED(5.4, "Deprecated, use SendStateData() instead")
+	ENGINE_API void SendLocalStatesDatas() { SendStateData(); }
 
 	// Delegate linked to the physics rewind callback to send record local inputs/states
 	ENGINE_API void OnPreProcessInputsInternal(const int32 PhysicsStep);
@@ -431,22 +502,36 @@ public:
 
 	// Register and create the states/inputs history
 	template<typename PhysicsTraits>
+	void CreateDataHistory(UActorComponent* HistoryComponent);
+	
+	template<typename PhysicsTraits>
+	UE_DEPRECATED(5.4, "Deprecated, use CreateDataHistory() instead")
 	void CreateDatasHistory(UActorComponent* HistoryComponent);
+	
+	
 
-	// Remove states/inputs history from rewind datas
-	ENGINE_API void RemoveDatasHistory();
+	// Remove state/input history from rewind data
+	ENGINE_API void RemoveDataHistory();
+	UE_DEPRECATED(5.4, "Deprecated, use RemoveDataHistory() instead")
+	ENGINE_API void RemoveDatasHistory() { RemoveDataHistory(); }
 
-	// Add states/inputs history to rewind datas
-	ENGINE_API void AddDatasHistory();
+	// Add state/input history to rewind data
+	ENGINE_API void AddDataHistory();
+	UE_DEPRECATED(5.4, "Deprecated, use AddDataHistory() instead")
+	ENGINE_API void AddDatasHistory() { AddDataHistory(); }
 
 	// Enable RewindData history caching and return the history size
 	ENGINE_API int32 SetupRewindData();
 
-	// Get the datas factory that will be used for net serialization
-	TSharedPtr<Chaos::FBaseRewindHistory>& GetStatesHistory() { return StatesHistory; }
+	// Get the data factory that will be used for net serialization
+	TSharedPtr<Chaos::FBaseRewindHistory>& GetStateHistory() { return StateHistory; }
+	UE_DEPRECATED(5.4, "Deprecated, use GetStateHistory() instead")
+	TSharedPtr<Chaos::FBaseRewindHistory>& GetStatesHistory() { return GetStateHistory(); }
 
-	// Get the datas factory that will be used for net serialization
-	TSharedPtr<Chaos::FBaseRewindHistory>& GetInputsHistory() { return InputsHistory; }
+	// Get the data factory that will be used for net serialization
+	TSharedPtr<Chaos::FBaseRewindHistory>& GetInputHistory() { return InputHistory; }
+	UE_DEPRECATED(5.4, "Deprecated, use GetInputHistory() instead")
+	TSharedPtr<Chaos::FBaseRewindHistory>& GetInputsHistory() { return GetInputHistory(); }
 
 	// Check if the world is on server
 	ENGINE_API bool HasServerWorld() const;
@@ -469,7 +554,7 @@ public:
 	ENGINE_API const bool GetIsRelayingLocalInputs() const { return bIsRelayingLocalInputs; }
 
 	/** Returns the current amount of input decay during resimulation as a magnitude from 0.0 to 1.0. Returns 0 if not currently resimulating. */
-	ENGINE_API const float GetCurrentInputDecay(FNetworkPhysicsDatas* PhysicsDatas);
+	ENGINE_API const float GetCurrentInputDecay(FNetworkPhysicsData* PhysicsData);
 
 protected : 
 
@@ -499,34 +584,34 @@ private:
 	friend struct FNetworkPhysicsRewindDataStateProxy;
 
 	// States history uses to rewind simulation 
-	TSharedPtr<Chaos::FBaseRewindHistory> StatesHistory;
+	TSharedPtr<Chaos::FBaseRewindHistory> StateHistory;
 
 	// Inputs history used during simulation
-	TSharedPtr<Chaos::FBaseRewindHistory> InputsHistory;
+	TSharedPtr<Chaos::FBaseRewindHistory> InputHistory;
 
-	// Local temporary inputs datas used by pre/post process inputs functions
-	TUniquePtr<FNetworkPhysicsDatas> InputsDatas;
+	// Local temporary inputs data used by pre/post process inputs functions
+	TUniquePtr<FNetworkPhysicsData> InputData;
 
-	// Local temporary states datas used by pre/post process inputs functions
-	TUniquePtr<FNetworkPhysicsDatas> StatesDatas;
+	// Local temporary states data used by pre/post process inputs functions
+	TUniquePtr<FNetworkPhysicsData> StateData;
 
-	// Specify how much times the network will resend the inputs in case of packet loss
-	int8 InputsRedundancy = 4;
+	// Send last N number of inputs each replication call to patch up holes due to packet loss
+	int8 InputRedundancy = 4;
 
 	// Current index used in the inputs offsets
-	int8 InputsIndex = 0;
+	int8 InputIndex = 0;
 
-	// Inputs offsets defined on PT based on the newly recorded inputs datas
-	TArray<int32> InputsOffsets;
+	// Input offsets defined on PT based on the newly recorded input data
+	TArray<int32> InputOffsets;
 
-	// Specify how much times the network will resend the states in case of packet loss
-	int8 StatesRedundancy = 1;
+	// Send last N number of states each replication call to patch up holes due to packet loss
+	int8 StateRedundancy = 1;
 
 	// Current index used in the states offsets
-	int8 StatesIndex = 0;
+	int8 StateIndex = 0;
 
-	// States offsets defined on PT based on the newly recorded states datas
-	TArray<int32> StatesOffsets;
+	// State offsets defined on PT based on the newly recorded state data
+	TArray<int32> StateOffsets;
 
 	// Actor component that will be used to fill the histories
 	TObjectPtr<UActorComponent> ActorComponent;
@@ -535,19 +620,26 @@ private:
 	bool bIsRelayingLocalInputs = false;
 };
 
+/** DEPRECATED UE 5.4 */
 template<typename PhysicsTraits>
 FORCEINLINE void UNetworkPhysicsComponent::CreateDatasHistory(UActorComponent* HistoryComponent)
+{
+	CreateDataHistory<PhysicsTraits>(HistoryComponent);
+}
+
+template<typename PhysicsTraits>
+FORCEINLINE void UNetworkPhysicsComponent::CreateDataHistory(UActorComponent* HistoryComponent)
 {
 	const int32 NumFrames = SetupRewindData();
 
 	APlayerController* Controller = GetPlayerController();
 	const bool bIsLocalHistory = (Controller && Controller->IsLocalController()); // FIXME: The controller is null at this point, but bIsLocalHistory isn't currently used so doesn't create an issue.
 
-	InputsHistory = MakeShared<TNetRewindHistory<typename PhysicsTraits::InputsType>>(NumFrames, bIsLocalHistory);
-	StatesHistory = MakeShared<TNetRewindHistory<typename PhysicsTraits::StatesType>>(NumFrames, bIsLocalHistory);
+	InputHistory = MakeShared<TNetRewindHistory<typename PhysicsTraits::InputsType>>(NumFrames, bIsLocalHistory);
+	StateHistory = MakeShared<TNetRewindHistory<typename PhysicsTraits::StatesType>>(NumFrames, bIsLocalHistory);
 
-	InputsDatas = MakeUnique<typename PhysicsTraits::InputsType>();
-	StatesDatas = MakeUnique<typename PhysicsTraits::StatesType>();
+	InputData = MakeUnique<typename PhysicsTraits::InputsType>();
+	StateData = MakeUnique<typename PhysicsTraits::StatesType>();
 
 	ReplicatedInputs.History = MakeUnique<TNetRewindHistory<typename PhysicsTraits::InputsType>>(NumFrames, bIsLocalHistory);
 	ReplicatedInputs.Owner = this;
@@ -557,5 +649,5 @@ FORCEINLINE void UNetworkPhysicsComponent::CreateDatasHistory(UActorComponent* H
 	
 	ActorComponent = HistoryComponent;
 	
-	AddDatasHistory();
+	AddDataHistory();
 }
