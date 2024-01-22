@@ -232,25 +232,5 @@ TSharedRef<SWidget> SChaosClothAssetEditor3DViewportToolBar::MakeLODMenu() const
 	return MenuBuilder.MakeWidget();
 }
 
-void SChaosClothAssetEditor3DViewportToolBar::ExtendOptionsMenu(FMenuBuilder& OptionsMenuBuilder) const
-{
-	using namespace UE::Chaos::ClothAsset;
-	{
-		// Debug visualization
-		constexpr bool bOpenSubMenuOnClick = false;
-		constexpr bool bShouldCloseWindowAfterMenuSelection = false;
-		OptionsMenuBuilder.AddSubMenu(
-			LOCTEXT("SimulationVisualization", "Simulation Visualization"),
-			LOCTEXT("SimulationVisualizationToolTip", "Options to control simulation visualization"),
-			FNewMenuDelegate::CreateLambda([this](FMenuBuilder& MenuBuilder)
-		{
-			TSharedRef<FChaosClothAssetEditor3DViewportClient> ViewportClient = StaticCastSharedPtr<FChaosClothAssetEditor3DViewportClient>(ChaosClothAssetEditor3DViewportPtr.Pin()->GetViewportClient()).ToSharedRef();
-			if (FClothEditorSimulationVisualization* const Visualization = ViewportClient->GetSimulationVisualization().Pin().Get())
-			{
-				Visualization->ExtendViewportShowMenu(MenuBuilder, ViewportClient);
-			}
-		}), bOpenSubMenuOnClick, FSlateIcon(), bShouldCloseWindowAfterMenuSelection);
-	}
-}
 
 #undef LOCTEXT_NAMESPACE

@@ -62,6 +62,7 @@ private:
 	static const FName ClothPreviewTabID;
 	static const FName OutlinerTabID;
 	static const FName PreviewSceneDetailsTabID;
+	static const FName SimulationVisualizationTabID;
 
 	// FTickableEditorObject
 	virtual void Tick(float DeltaTime) override;
@@ -109,6 +110,7 @@ private:
 	TSharedRef<SDockTab> SpawnTab_PreviewSceneDetails(const FSpawnTabArgs& Args);
 	TSharedRef<SDockTab> SpawnTab_GraphCanvas(const FSpawnTabArgs& Args);
 	TSharedRef<SDockTab> SpawnTab_NodeDetails(const FSpawnTabArgs& Args);
+	TSharedRef<SDockTab> SpawnTab_SimulationVisualization(const FSpawnTabArgs& Args);
 
 	void InitDetailsViewPanel();
 	void OnFinishedChangingAssetProperties(const FPropertyChangedEvent&);
@@ -148,6 +150,8 @@ private:
 
 	TSharedPtr<SDockTab> PreviewSceneDockTab;
 	TSharedPtr<SWidget> AdvancedPreviewSettingsWidget;
+
+	TSharedPtr<SDockTab> SimulationVisualizationDockTab;
 
 	TSharedPtr<SClothCollectionOutliner> Outliner;
 

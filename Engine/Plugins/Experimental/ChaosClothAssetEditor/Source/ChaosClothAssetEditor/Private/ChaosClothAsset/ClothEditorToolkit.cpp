@@ -52,7 +52,7 @@ const FName FChaosClothAssetEditorToolkit::OutlinerTabID(TEXT("ChaosClothAssetEd
 const FName FChaosClothAssetEditorToolkit::PreviewSceneDetailsTabID(TEXT("ChaosClothAssetEditor_PreviewSceneDetailsTab"));
 const FName FChaosClothAssetEditorToolkit::GraphCanvasTabId(TEXT("ChaosClothAssetEditor_GraphCanvas"));
 const FName FChaosClothAssetEditorToolkit::NodeDetailsTabId(TEXT("ChaosClothAssetEditor_NodeDetails"));
-
+const FName FChaosClothAssetEditorToolkit::SimulationVisualizationTabID(TEXT("ChaosClothAssetEditor_SimulationVisualizationTab"));
 
 namespace Private
 {
@@ -96,7 +96,7 @@ FChaosClothAssetEditorToolkit::FChaosClothAssetEditorToolkit(UAssetEditor* InOwn
 	// Note: Changes to the layout should include a increment to the layout's ID, i.e.
 	// ChaosClothAssetEditorLayout[X] -> ChaosClothAssetEditorLayout[X+1]. Otherwise, layouts may be messed up
 	// without a full reset to layout defaults inside the editor.
-	StandaloneDefaultLayout = FTabManager::NewLayout(FName("ChaosClothAssetEditorLayout5"))
+	StandaloneDefaultLayout = FTabManager::NewLayout(FName("ChaosClothAssetEditorLayout6"))
 		->AddArea
 		(
 			FTabManager::NewPrimaryArea()->SetOrientation(Orient_Horizontal)
@@ -153,6 +153,7 @@ FChaosClothAssetEditorToolkit::FChaosClothAssetEditorToolkit(UAssetEditor* InOwn
 					->SetSizeCoefficient(0.65f)	// Relative height of (Asset Details, Preview Scene Details) vs (Dataflow Node Details)
 					->AddTab(DetailsTabID, ETabState::OpenedTab)
 					->AddTab(PreviewSceneDetailsTabID, ETabState::OpenedTab)
+					->AddTab(SimulationVisualizationTabID, ETabState::OpenedTab)
 					->SetExtensionId("DetailsArea")
 					->SetHideTabWell(true)
 					->SetForegroundTab(DetailsTabID)
@@ -605,6 +606,10 @@ void FChaosClothAssetEditorToolkit::RegisterTabSpawners(const TSharedRef<FTabMan
 		.SetGroup(AssetEditorTabsCategory.ToSharedRef())
 		.SetIcon(FSlateIcon(FAppStyle::GetAppStyleSetName(), "LevelEditor.Tabs.Details"));
 
+	InTabManager->RegisterTabSpawner(SimulationVisualizationTabID, FOnSpawnTab::CreateSP(this, &FChaosClothAssetEditorToolkit::SpawnTab_SimulationVisualization))
+		.SetDisplayName(LOCTEXT("SimulationVisualizationTabDisplayName", "Simulation Visualization"))
+		.SetGroup(AssetEditorTabsCategory.ToSharedRef());
+
 	InTabManager->RegisterTabSpawner(OutlinerTabID, FOnSpawnTab::CreateSP(this, &FChaosClothAssetEditorToolkit::SpawnTab_Outliner))
 		.SetDisplayName(LOCTEXT("Outliner", "Outliner"))
 		.SetGroup(AssetEditorTabsCategory.ToSharedRef())
@@ -634,6 +639,7 @@ void FChaosClothAssetEditorToolkit::UnregisterTabSpawners(const TSharedRef<FTabM
 	InTabManager->UnregisterTabSpawner(ClothPreviewTabID);
 	InTabManager->UnregisterTabSpawner(ViewportTabID);
 	InTabManager->UnregisterTabSpawner(DetailsTabID);
+	InTabManager->UnregisterTabSpawner(SimulationVisualizationTabID);
 	InTabManager->UnregisterTabSpawner(OutlinerTabID);
 	InTabManager->UnregisterTabSpawner(PreviewSceneDetailsTabID);
 	InTabManager->UnregisterTabSpawner(GraphCanvasTabId);
@@ -678,6 +684,21 @@ TSharedRef<SDockTab> FChaosClothAssetEditorToolkit::SpawnTab_Outliner(const FSpa
 	return DockableTab;
 }
 
+
+TSharedRef<SDockTab> FChaosClothAssetEditorToolkit::SpawnTab_SimulationVisualization(const FSpawnTabArgs& Args)
+{
+	SAssignNew(SimulationVisualizationDockTab, SDockTab)
+		.Label(LOCTEXT("SimulationVisualizationTitle", "Simulation Visualization"));
+
+	FMenuBuilder MenuBuilder(false, nullptr);
+	if (FClothEditorSimulationVisualization* const Visualization = ClothPreviewViewportClient->GetSimulationVisualization().Pin().Get())
+	{
+		Visualization->ExtendViewportShowMenu(MenuBuilder, ClothPreviewViewportClient.ToSharedRef());
+	}
+	SimulationVisualizationDockTab->SetContent(MenuBuilder.MakeWidget());
+
+	return SimulationVisualizationDockTab.ToSharedRef();
+}
 
 TSharedRef<SDockTab> FChaosClothAssetEditorToolkit::SpawnTab_PreviewSceneDetails(const FSpawnTabArgs& Args)
 {
