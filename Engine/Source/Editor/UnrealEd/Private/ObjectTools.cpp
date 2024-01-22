@@ -3350,6 +3350,8 @@ namespace ObjectTools
 
 		GWarn->BeginSlowTask( NSLOCTEXT("UnrealEd", "Deleting", "Deleting"), true );
 
+		FEditorDelegates::OnPreForceDeleteObjects.Broadcast(ShownObjectsToDelete);
+		
 		struct FSCSNodeToDelete
 		{
 			USimpleConstructionScript* SimpleConstructionScript;
