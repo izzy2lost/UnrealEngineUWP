@@ -4133,6 +4133,26 @@ FSharedBuffer FTextureSource::FMipData::GetMipData(int32 BlockIndex, int32 Layer
 	return FSharedBuffer();
 }
 
+FSharedBuffer FTextureSource::FMipData::GetMipDataWithInfo(int32 InBlockIndex, int32 InLayerIndex, int32 InMipIndex, FImageInfo& OutImageInfo) const
+{
+	// This is a subview and doesn't allocate a smaller buffer - but will also hold the full allocation!
+	FSharedBuffer MipDataView = GetMipData(InBlockIndex, InLayerIndex, InMipIndex);
+	if (MipDataView.IsNull())
+	{
+		return MipDataView;
+	}
+
+	FTextureSourceBlock Block;
+	TextureSource.GetBlock(InBlockIndex, Block);
+
+	OutImageInfo.SizeX = FMath::Max(Block.SizeX >> InMipIndex, 1);
+	OutImageInfo.SizeY = FMath::Max(Block.SizeY >> InMipIndex, 1);
+	OutImageInfo.NumSlices = TextureSource.GetMippedNumSlices(Block.NumSlices, InMipIndex);
+	OutImageInfo.Format = FImageCoreUtils::ConvertToRawImageFormat(TextureSource.GetFormat(InLayerIndex));
+	OutImageInfo.GammaSpace = TextureSource.GetGammaSpace(InLayerIndex);
+	return MipDataView;
+}
+
 #endif //WITH_EDITOR
 
 #if WITH_EDITOR

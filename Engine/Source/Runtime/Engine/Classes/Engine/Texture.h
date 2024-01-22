@@ -492,6 +492,9 @@ struct FTextureSource
 		 * destroyed.
 		 */
 		ENGINE_API FSharedBuffer GetMipData(int32 BlockIndex, int32 LayerIndex, int32 MipIndex) const;
+		ENGINE_API FSharedBuffer GetMipDataWithInfo(int32 InBlockIndex, int32 InLayerIndex, int32 InMipIndex, FImageInfo& OutMipImageInfo) const;
+
+		ENGINE_API bool IsValid() const { return !MipData.IsNull(); }
 
 	private:
 		// We only want to allow FTextureSource to create FMipData objects

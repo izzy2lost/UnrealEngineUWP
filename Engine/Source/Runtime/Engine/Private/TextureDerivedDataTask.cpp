@@ -209,6 +209,18 @@ void FTextureSourceData::Init(UTexture& InTexture, TextureMipGenSettings InMipGe
 {
 	check( bValid == false ); // we set to true at the end, acts as our return value
 
+	// Copy the channel min/max if we have it to avoid redoing it.
+	if (InTexture.Source.GetLayerColorInfo().Num())
+	{
+		LayerChannelMinMax.Reset();
+		for (const FTextureSourceLayerColorInfo& LayerColorInfo : InTexture.Source.GetLayerColorInfo())
+		{
+			TPair<FLinearColor, FLinearColor>& MinMax = LayerChannelMinMax.AddDefaulted_GetRef();
+			MinMax.Key = LayerColorInfo.ColorMin;
+			MinMax.Value = LayerColorInfo.ColorMax;
+		}
+	}
+
 	const int32 NumBlocks = InTexture.Source.GetNumBlocks();
 	const int32 NumLayers = InTexture.Source.GetNumLayers();
 	if (NumBlocks < 1 || NumLayers < 1)
@@ -288,6 +300,7 @@ void FTextureSourceData::Init(UTexture& InTexture, TextureMipGenSettings InMipGe
 	bValid = true;
 }
 
+
 void FTextureSourceData::GetSourceMips(FTextureSource& Source, IImageWrapperModule* InImageWrapper)
 {
 	if (bValid)
@@ -295,15 +308,65 @@ void FTextureSourceData::GetSourceMips(FTextureSource& Source, IImageWrapperModu
 		if (Source.HasHadBulkDataCleared())
 		{	// don't do any work we can't reload this
 			UE_LOG(LogTexture, Error, TEXT("Unable to get texture source mips because its bulk data was released. %s"), *TextureFullName);
+			ReleaseMemory();
+			bValid = false;
 			return;
 		}
 		if (!Source.HasPayloadData())
 		{	// don't do any work we can't reload this
 			UE_LOG(LogTexture, Warning, TEXT("Unable to get texture source mips because its bulk data has no payload. This may happen if it was duplicated from cooked data. %s"), *TextureFullName);
+			ReleaseMemory();
+			bValid = false;
 			return;
 		}
 
+		// Grab a copy of ALL the mip data, we'll get views in to this later.
 		const FTextureSource::FMipData ScopedMipData = Source.GetMipData(InImageWrapper);
+		if (!ScopedMipData.IsValid())
+		{
+			UE_LOG(LogTexture, Warning, TEXT("Cannot retrieve source data for mips of %s"), *TextureFullName);
+			ReleaseMemory();
+			bValid = false;
+			return;
+		}
+
+		// If we didn't get this from the texture source. As time goes on this will get hit less and less.
+		if (LayerChannelMinMax.Num() != Layers.Num())
+		{
+			TRACE_CPUPROFILER_EVENT_SCOPE(FTextureSourceData::GetSourceMips_ChannelMinMax);
+			LayerChannelMinMax.Reset();
+			for (int32 LayerIndex = 0; LayerIndex < Layers.Num(); ++LayerIndex)
+			{
+				TPair<FLinearColor, FLinearColor>& LayerInfo = LayerChannelMinMax.AddDefaulted_GetRef();
+
+				FLinearColor TotalMin(FLT_MAX, FLT_MAX, FLT_MAX, FLT_MAX);
+				FLinearColor TotalMax(-FLT_MAX, -FLT_MAX, -FLT_MAX, -FLT_MAX);
+
+				for (int32 BlockIndex = 0; BlockIndex < Blocks.Num(); BlockIndex++)
+				{
+					FImageView MipImageView;
+					FSharedBuffer MipData = ScopedMipData.GetMipDataWithInfo(BlockIndex, LayerIndex, 0, MipImageView);
+
+					MipImageView.RawData = (void*)MipData.GetData();
+
+					FLinearColor MinColor, MaxColor;
+					FImageCore::ComputeChannelLinearMinMax(MipImageView, MinColor, MaxColor);
+
+					TotalMin.R = FMath::Min(MinColor.R, TotalMin.R);
+					TotalMin.G = FMath::Min(MinColor.G, TotalMin.G);
+					TotalMin.B = FMath::Min(MinColor.B, TotalMin.B);
+					TotalMin.A = FMath::Min(MinColor.A, TotalMin.A);
+
+					TotalMax.R = FMath::Max(MaxColor.R, TotalMax.R);
+					TotalMax.G = FMath::Max(MaxColor.G, TotalMax.G);
+					TotalMax.B = FMath::Max(MaxColor.B, TotalMax.B);
+					TotalMax.A = FMath::Max(MaxColor.A, TotalMax.A);
+				}
+
+				LayerInfo.Key = TotalMin;
+				LayerInfo.Value = TotalMax;
+			}
+		}
 
 		{
 			TRACE_CPUPROFILER_EVENT_SCOPE(FTextureSourceData::GetSourceMips_CopyMips);
@@ -318,31 +381,20 @@ void FTextureSourceData::GetSourceMips(FTextureSource& Source, IImageWrapperModu
 					const FTextureSourceLayerData& LayerData = Layers[LayerIndex];
 					if (!BlockData.MipsPerLayer[LayerIndex].Num()) // If we already got valid data, nothing to do.
 					{
-						int32 MipSizeX = SourceBlock.SizeX;
-						int32 MipSizeY = SourceBlock.SizeY;
-						int32 MipSizeZ = SourceBlock.NumSlices;
 						for (int32 MipIndex = 0; MipIndex < BlockData.NumMips; ++MipIndex)
 						{
+							FImageInfo MipImageInfo;
+							FSharedBuffer MipData = ScopedMipData.GetMipDataWithInfo(BlockIndex, LayerIndex, MipIndex, MipImageInfo);
+
 							FImage& SourceMip = BlockData.MipsPerLayer[LayerIndex].Emplace_GetRef(
-								MipSizeX, MipSizeY, MipSizeZ,
-								LayerData.ImageFormat,
-								LayerData.SourceGammaSpace
-							);
+								MipImageInfo.SizeX, MipImageInfo.SizeY, MipImageInfo.NumSlices,
+								MipImageInfo.Format,
+								MipImageInfo.GammaSpace);
+							check(MipImageInfo.GammaSpace == LayerData.SourceGammaSpace);
+							check(MipImageInfo.Format == LayerData.ImageFormat);
 
-							if (!ScopedMipData.GetMipData(SourceMip.RawData, BlockIndex, LayerIndex, MipIndex))
-							{
-								UE_LOG(LogTexture, Warning, TEXT("Cannot retrieve source data for mip %d of %s"), MipIndex, *TextureFullName);
-								ReleaseMemory();
-								bValid = false;
-								break;
-							}
-
-							MipSizeX = FMath::Max(MipSizeX / 2, 1);
-							MipSizeY = FMath::Max(MipSizeY / 2, 1);
-							if ( Source.IsVolume() )
-							{
-								MipSizeZ = FMath::Max(MipSizeZ / 2, 1);
-							}
+							SourceMip.RawData.Reset(MipData.GetSize());
+							SourceMip.RawData.Append((const uint8*)MipData.GetData(), MipData.GetSize());
 						}
 					}
 				}
@@ -350,6 +402,7 @@ void FTextureSourceData::GetSourceMips(FTextureSource& Source, IImageWrapperModu
 		}
 	}
 }
+
 
 void FTextureSourceData::GetAsyncSourceMips(IImageWrapperModule* InImageWrapper)
 {
@@ -2015,6 +2068,18 @@ void FTextureCacheDerivedDataWorker::DoWork()
 	{
 		if (DDC1_LoadAndValidateTextureData(Texture, TextureData, CompositeTextureData, ImageWrapper, bAllowAsyncLoading))
 		{
+			for (int32 LayerIndex = 0; LayerIndex < BuildSettingsPerLayerFetchOrBuild.Num(); LayerIndex++)
+			{
+				if (LayerIndex < TextureData.LayerChannelMinMax.Num())
+				{
+					BuildSettingsPerLayerFetchOrBuild[LayerIndex].bKnowAlphaTransparency = Compressor->DetermineAlphaChannelTransparency(
+						BuildSettingsPerLayerFetchOrBuild[LayerIndex], 
+						TextureData.LayerChannelMinMax[LayerIndex].Key,
+						TextureData.LayerChannelMinMax[LayerIndex].Value,
+						BuildSettingsPerLayerFetchOrBuild[LayerIndex].bHasTransparentAlpha);
+				}
+			}
+
 			// Replace any existing DDC data, if corrupt compression was detected
 			const bool bReplaceExistingDDC = bInvalidVirtualTextureCompression;
 

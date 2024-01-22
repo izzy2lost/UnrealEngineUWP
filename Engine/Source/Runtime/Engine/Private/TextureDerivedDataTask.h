@@ -115,6 +115,8 @@ struct FTextureSourceData
 		bValid = false;
 	}
 
+	TArray<TPair<FLinearColor, FLinearColor>> LayerChannelMinMax;
+
 	FString TextureFullName;
 	FTextureSource AsyncSource;
 	TArray<FTextureSourceLayerData> Layers;
