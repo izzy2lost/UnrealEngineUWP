@@ -49,8 +49,12 @@ namespace TextureEngineParameters
 // Carries information out of the build that we don't want to cook or save off in the runtime
 struct TEXTUREBUILDUTILITIES_API FTextureBuildMetadata
 {
+	// Whether or not the first mip level of the source has alpha detected. This is used e.g.
+	// picking between BC1 and BC3
+	bool bSourceMipsAlphaDetected = false;
+	
 	// Digests of the data at various processing stages so we can track down determinism issues
-	// that arise. Currently just the hash from before we pass to the encoders.
+	// that arise.
 	uint64 PreEncodeMipsHash = 0;
 
 	FCbObject ToCompactBinaryWithDefaults() const;

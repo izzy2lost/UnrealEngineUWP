@@ -3871,10 +3871,14 @@ public:
 		TArray<FImage> IntermediateMipChain;
 
 		bool bSourceMipsAlphaDetected = false;
-		if (bDoDetailedAlphaLogging)
+		if (OutMetadata || bDoDetailedAlphaLogging)
 		{
 			bSourceMipsAlphaDetected = FImageCore::DetectAlphaChannel(SourceMips[0]);
-			UE_LOG(LogTextureCompressor, Display, TEXT("[alpha] Source Mips: %d - %.*s"), bSourceMipsAlphaDetected, DebugTexturePathName.Len(), DebugTexturePathName.GetData());
+			
+			if (bDoDetailedAlphaLogging)
+			{
+				UE_LOG(LogTextureCompressor, Display, TEXT("[alpha] Source Mips: %d - %.*s"), bSourceMipsAlphaDetected, DebugTexturePathName.Len(), DebugTexturePathName.GetData());
+			}
 		}
 
 		// allow to leave texture in sRGB in case compressor accepts other than non-F32 input source
@@ -3993,6 +3997,12 @@ public:
 			{
 				SaveImageInfos[i] = IntermediateMipChain[i];
 			}
+
+			// The metadata is about trying to determine bImageHasAlphaChannel _before_ we launch a task, which 
+			// means it must be on the actual source mips, not the post-processed mips. At some point enough textures
+			// will have this saved as part of the creation process and we can rely on it - but for now we route it
+			// back out so that when textures happen to get saved, it goes with it.
+			OutMetadata->bSourceMipsAlphaDetected = bSourceMipsAlphaDetected;
 
 			OutMetadata->PreEncodeMipsHash = ComputeMipChainHash(IntermediateMipChain);
 		}
