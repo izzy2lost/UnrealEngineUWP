@@ -356,6 +356,12 @@ FString UTextureRenderTarget2D::GetDesc()
 	return FString::Printf( TEXT("Render to Texture %dx%d[%s]"), SizeX, SizeY, GPixelFormats[GetFormat()].Name );
 }
 
+ETextureRenderTargetSampleCount UTextureRenderTarget2D::GetSampleCount() const
+{
+	// Note: MSAA is currently only supported in UCanvasRenderTarget2D
+	return ETextureRenderTargetSampleCount::RTSC_1;
+}
+
 UTexture2D* UTextureRenderTarget2D::ConstructTexture2D(UObject* InOuter, const FString& InNewTextureName, EObjectFlags InObjectFlags, uint32 InFlags, TArray<uint8>* InAlphaOverride)
 {
 	UTexture2D* Result = nullptr;
@@ -520,12 +526,14 @@ void FTextureRenderTarget2DResource::InitRHI(FRHICommandListBase& RHICmdList)
 
 		FString ResourceName = Owner->GetName();
 		ETextureCreateFlags TexCreateFlags = GetCreateFlags();
+		const int32 NumSamples = GetNumFromRenderTargetSampleCount(Owner->GetSampleCount());
 
 		FRHITextureCreateDesc Desc =
 			FRHITextureCreateDesc::Create2D(*ResourceName)
 			.SetExtent(Owner->SizeX, Owner->SizeY)
 			.SetFormat(Format)
 			.SetNumMips(Owner->GetNumMips())
+			.SetNumSamples(NumSamples)
 			.SetFlags(TexCreateFlags)
 			.SetInitialState(ERHIAccess::SRVMask)
 			.SetClearValue(FClearValueBinding(ClearColor))
@@ -534,7 +542,18 @@ void FTextureRenderTarget2DResource::InitRHI(FRHICommandListBase& RHICmdList)
 
 		TextureRHI = RenderTargetTextureRHI = RHICreateTexture(Desc);
 
-		if (Owner->bNeedsTwoCopies)
+		if (NumSamples > 1)
+		{
+			ETextureCreateFlags ResolveTexCreateFlags = TexCreateFlags;
+			EnumRemoveFlags(ResolveTexCreateFlags, ETextureCreateFlags::RenderTargetable);
+			EnumAddFlags(ResolveTexCreateFlags, ETextureCreateFlags::ShaderResource | ETextureCreateFlags::ResolveTargetable);
+
+			Desc.SetFlags(ResolveTexCreateFlags);
+			Desc.SetNumSamples(1);
+
+			TextureRHI = RHICreateTexture(Desc);
+		}
+		else if (Owner->bNeedsTwoCopies)
 		{
 			Desc.SetFlags(TexCreateFlags | ETextureCreateFlags::ShaderResource);
 
