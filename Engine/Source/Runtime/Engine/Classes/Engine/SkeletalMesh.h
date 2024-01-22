@@ -957,10 +957,8 @@ public:
 	{
 #if WITH_EDITORONLY_DATA
 		WaitUntilAsyncPropertyReleased(ESkeletalMeshAsyncProperties::MinLod);
-		PRAGMA_DISABLE_DEPRECATION_WARNINGS
 		MinQualityLevelLOD.PerQuality = QualityLevelProperty::ConvertQualtiyLevelData(QualityLevelMinimumLODs);
 		MinQualityLevelLOD.Default = Default >=0 ? Default : MinQualityLevelLOD.Default;
-		PRAGMA_ENABLE_DEPRECATION_WARNINGS
 #endif
 	}
 
@@ -969,32 +967,24 @@ public:
 	{
 #if WITH_EDITORONLY_DATA
 		WaitUntilAsyncPropertyReleased(ESkeletalMeshAsyncProperties::MinLod, ESkinnedAssetAsyncPropertyLockType::ReadOnly);
-		PRAGMA_DISABLE_DEPRECATION_WARNINGS
 		QualityLevelMinimumLODs = QualityLevelProperty::ConvertQualtiyLevelData(MinQualityLevelLOD.PerQuality);
 		Default = MinQualityLevelLOD.Default;
-		PRAGMA_ENABLE_DEPRECATION_WARNINGS
 #endif
 	}
 
 	static FName GetQualityLevelMinLodMemberName()
 	{
-		PRAGMA_DISABLE_DEPRECATION_WARNINGS
 		return GET_MEMBER_NAME_CHECKED(USkeletalMesh, MinQualityLevelLOD);
-		PRAGMA_ENABLE_DEPRECATION_WARNINGS
 	}
 
 	const FPerQualityLevelInt& GetQualityLevelMinLod() const
 	{
-		PRAGMA_DISABLE_DEPRECATION_WARNINGS
-			return MinQualityLevelLOD;
-		PRAGMA_ENABLE_DEPRECATION_WARNINGS
+		return MinQualityLevelLOD;
 	}
 
 	void SetQualityLevelMinLod(FPerQualityLevelInt InMinLod)
 	{
-		PRAGMA_DISABLE_DEPRECATION_WARNINGS
 			MinQualityLevelLOD = MoveTemp(InMinLod);
-		PRAGMA_ENABLE_DEPRECATION_WARNINGS
 	}
 
 	/** Check the QualitLevel property is enabled for MinLod. USkinnedAsset interface. */

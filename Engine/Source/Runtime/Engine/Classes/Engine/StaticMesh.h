@@ -733,9 +733,7 @@ public:
 
 	static FName GetQualityLevelMinLODMemberName()
 	{
-		PRAGMA_DISABLE_DEPRECATION_WARNINGS
 		return GET_MEMBER_NAME_CHECKED(UStaticMesh, MinQualityLevelLOD);
-		PRAGMA_ENABLE_DEPRECATION_WARNINGS
 	}
 
 	const FPerQualityLevelInt& GetQualityLevelMinLOD() const
@@ -777,10 +775,8 @@ public:
 	{
 #if WITH_EDITORONLY_DATA
 		WaitUntilAsyncPropertyReleased(EStaticMeshAsyncProperties::MinLOD);
-		PRAGMA_DISABLE_DEPRECATION_WARNINGS
 		MinQualityLevelLOD.PerQuality = QualityLevelProperty::ConvertQualtiyLevelData(QualityLevelMinimumLODs);
 		MinQualityLevelLOD.Default = Default >= 0 ? Default : MinQualityLevelLOD.Default;
-		PRAGMA_ENABLE_DEPRECATION_WARNINGS
 #endif
 	}
 
@@ -789,10 +785,8 @@ public:
 	{
 #if WITH_EDITORONLY_DATA
 		WaitUntilAsyncPropertyReleased(EStaticMeshAsyncProperties::MinLOD);
-		PRAGMA_DISABLE_DEPRECATION_WARNINGS
 		QualityLevelMinimumLODs = QualityLevelProperty::ConvertQualtiyLevelData(MinQualityLevelLOD.PerQuality);
 		Default = MinQualityLevelLOD.Default;
-		PRAGMA_ENABLE_DEPRECATION_WARNINGS
 #endif
 	}
 
