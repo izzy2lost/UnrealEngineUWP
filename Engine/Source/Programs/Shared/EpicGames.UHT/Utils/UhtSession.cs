@@ -777,6 +777,12 @@ namespace EpicGames.UHT.Utils
 		/// </summary>
 		public UhtScriptStruct? FInstancedStruct { get; set; } = null;
 
+		/// <summary>
+		/// After headers are parsed, returns the FStateTreePropertyRef script struct.
+		/// There is no requirement for FStateTreePropertyRef to be defined. May be null.
+		/// </summary>
+		public UhtScriptStruct? FStateTreePropertyRef { get; set; } = null;
+
 		private readonly List<UhtPackage> _packages = new();
 		private readonly List<UhtHeaderFile> _headerFiles = new();
 		private readonly List<UhtHeaderFile> _sortedHeaderFiles = new();
@@ -2046,6 +2052,7 @@ namespace EpicGames.UHT.Utils
 				AActor = (UhtClass?)FindType(null, UhtFindOptions.SourceName | UhtFindOptions.Class, "AActor");
 				INotifyFieldValueChanged = (UhtClass?)FindType(null, UhtFindOptions.SourceName | UhtFindOptions.Class, "INotifyFieldValueChanged");
 				FInstancedStruct = (UhtScriptStruct?)FindType(null, UhtFindOptions.SourceName | UhtFindOptions.ScriptStruct, "FInstancedStruct");
+				FStateTreePropertyRef = (UhtScriptStruct?)FindType(null, UhtFindOptions.SourceName | UhtFindOptions.ScriptStruct, "FStateTreePropertyRef");
 			});
 		}
 

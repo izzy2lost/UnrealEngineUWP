@@ -115,7 +115,8 @@ namespace UE::StateTree::PropertyRefHelpers
 
 			if (const FObjectProperty* ObjectProperty = CastField<FObjectProperty>(TestProperty))
 			{
-				return ObjectProperty->PropertyClass->IsChildOf(Cast<UStruct>(TargetRefField));
+				// Only referencing object of the same exact class should be allowed. Otherwise one could e.g assign UObject to AActor property through reference to UObject.
+				return ObjectProperty->PropertyClass == Cast<UStruct>(TargetRefField);
 			}
 
 			if (const FEnumProperty* EnumProperty = CastField<FEnumProperty>(TestProperty))

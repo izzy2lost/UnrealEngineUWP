@@ -592,6 +592,90 @@ namespace EpicGames.UHT.Types
 			instancedStructProperty.MetaData.Add("BaseStruct", baseScriptStruct.PathName);
 			return instancedStructProperty;
 		}
+
+		[UhtPropertyType(Keyword = "TStateTreePropertyRef")]
+		[SuppressMessage("CodeQuality", "IDE0051:Remove unused private members", Justification = "Attribute accessed method")]
+		[SuppressMessage("Style", "IDE0060:Remove unused parameter", Justification = "Attribute accessed method")]
+		private static UhtProperty? StateTreePropertyRefProperty(UhtPropertyResolvePhase resolvePhase, UhtPropertySettings propertySettings, IUhtTokenReader tokenReader, UhtToken matchedToken)
+		{
+			const string RefTypeName = "RefType";
+			const string IsRefToArrayName = "IsRefToArray";
+			UhtSession session = propertySettings.Outer.Session;
+
+			if(session.FStateTreePropertyRef == null)
+			{
+				return null;
+			}
+
+			if (propertySettings.MetaData.ContainsKey(RefTypeName))
+			{
+				tokenReader.LogError("{0} metadata is implicitly set from the TStateTreePropertyRef template argument and should not be explicitly specified.", RefTypeName);
+				return null;
+			}
+
+			if (propertySettings.MetaData.ContainsKey(IsRefToArrayName))
+			{
+				tokenReader.LogError("{0} metadata is implicitly set from the TStateTreePropertyRef template argument and should not be explicitly specified.", IsRefToArrayName);
+				return null;
+			}
+
+			if(!tokenReader.SkipExpectedType(matchedToken.Value, propertySettings.PropertyCategory == UhtPropertyCategory.Member))
+			{
+				return null;
+			}
+
+			tokenReader.Require('<');
+
+			bool isRefToArray = tokenReader.TryOptional("TArray");
+
+			if (isRefToArray)
+			{
+				tokenReader.Require('<');
+			}
+
+			UhtToken identifier = new();
+			tokenReader
+				.Optional("struct")
+				.Optional("class")
+				.RequireIdentifier((ref UhtToken token) => { identifier = token; });
+
+			session.Config!.RedirectTypeIdentifier(ref identifier);
+
+			UhtStructProperty instancedStructProperty = new UhtStructProperty(propertySettings, session.FStateTreePropertyRef);
+
+			// TStateTreePropertyRef supports UStructs, UClasses, enums and primitive types.
+			UhtType? foundType = propertySettings.Outer.FindType(UhtFindOptions.SourceName | UhtFindOptions.TypesMask, ref identifier);
+			if (foundType is UhtStruct foundStruct)
+			{
+				if (foundStruct.IsChildOf(session.UObject))
+				{
+					tokenReader.Require('*');
+				}
+
+				// It's a UStruct or UClass
+				instancedStructProperty.MetaData.Add(RefTypeName, foundStruct.PathName);
+			}
+			else if(foundType is UhtEnum foundEnum)
+			{
+				// It's an enum
+				instancedStructProperty.MetaData.Add(RefTypeName, foundEnum.PathName);
+			}
+			else
+			{
+				// It's a primitive or unknown type.
+				instancedStructProperty.MetaData.Add(RefTypeName, identifier.ToString());
+			}
+
+			if (isRefToArray)
+			{
+				tokenReader.Require(">");
+				instancedStructProperty.MetaData.Add(IsRefToArrayName, true);
+			}
+
+			tokenReader.Require(">");
+
+			return instancedStructProperty;
+		}
 		#endregion
 	}
 }

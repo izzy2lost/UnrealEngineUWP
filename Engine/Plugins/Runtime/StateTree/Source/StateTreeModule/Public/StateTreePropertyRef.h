@@ -33,7 +33,7 @@
  *	UPROPERTY(EditAnywhere, meta = (RefType = "/Script/ModuleName.TestStructBase", IsRefToArray))
  *	FStateTreePropertyRef RefToArrayOfTests;
  */
-USTRUCT(BlueprintType)
+USTRUCT()
 struct STATETREEMODULE_API FStateTreePropertyRef
 {
 	GENERATED_BODY()
@@ -61,4 +61,35 @@ private:
 	FStateTreeIndex16 RefAccessIndex;
 
 	friend FStateTreePropertyBindingCompiler;
+};
+
+/**
+ * TStateTreePropertyRef is a type-safe FStateTreePropertyRef wrapper against the given type.
+ * @note When used as a property, this automatically defines PropertyRef property meta-data.
+ * 
+ * Example:
+ *
+ *  // Reference to float
+ *	UPROPERTY(EditAnywhere)
+ *	TStateTreePropertyRef<float> RefToFloat;
+ * 
+ *  // Reference to FTestStructBase
+ *	UPROPERTY(EditAnywhere)
+ *	TStateTreePropertyRef<FTestStructBase> RefToTest;
+ *
+ *  // Reference to TArray<FTestStructBase>
+ *	UPROPERTY(EditAnywhere)
+ *	TStateTreePropertyRef<TArray<FTestStructBase>> RefToArrayOfTests;
+ */
+template<class TRef>
+struct TStateTreePropertyRef
+{
+	/** @return pointer to the property if possible, nullptr otherwise. */
+	TRef* GetMutablePtr(FStateTreeExecutionContext& Context) const
+	{
+		return PropertyRef.GetMutablePtr<TRef>(Context);
+	}
+
+private:
+	FStateTreePropertyRef PropertyRef;
 };

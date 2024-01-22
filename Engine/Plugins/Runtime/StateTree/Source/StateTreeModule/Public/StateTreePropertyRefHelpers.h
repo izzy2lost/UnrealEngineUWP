@@ -133,7 +133,7 @@ namespace UE::StateTree::PropertyRefHelpers
 		{		
 			if (const FStructProperty* StructProperty = CastField<FStructProperty>(&Property))
 			{
-				return StructProperty->Struct == TBaseStructure<T>::Get();
+				return StructProperty->Struct->IsChildOf(TBaseStructure<T>::Get());
 			}
 
 			return false;
