@@ -4,12 +4,13 @@
 
 #include "CoreMinimal.h"
 #include "EditorUndoClient.h"
-#include "DragAndDrop/GraphNodeDragDropOp.h"
 #include "Engine/SkeletalMesh.h"
 #include "Editor/SRigHierarchyTreeView.h"
 #include "Units/RigUnitContext.h"
 #include "ControlRigBlueprint.h"
 #include "Editor/RigVMEditor.h"
+#include "ControlRigSchematicModel.h"
+#include "ControlRigDragOps.h"
 #include "SRigHierarchy.generated.h"
 
 class SRigHierarchy;
@@ -22,38 +23,6 @@ struct FAssetData;
 class FMenuBuilder;
 class UToolMenu;
 struct FToolMenuContext;
-
-class FRigElementHierarchyDragDropOp : public FGraphNodeDragDropOp
-{
-public:
-	DRAG_DROP_OPERATOR_TYPE(FRigElementHierarchyDragDropOp, FGraphNodeDragDropOp)
-
-	static TSharedRef<FRigElementHierarchyDragDropOp> New(const TArray<FRigElementKey>& InElements);
-
-	virtual TSharedPtr<SWidget> GetDefaultDecorator() const override;
-
-	/** @return true if this drag operation contains property paths */
-	bool HasElements() const
-	{
-		return Elements.Num() > 0;
-	}
-
-	/** @return The property paths from this drag operation */
-	const TArray<FRigElementKey>& GetElements() const
-	{
-		return Elements;
-	}
-
-	FString GetJoinedElementNames() const;
-
-	bool IsDraggingSingleConnector() const;
-	bool IsDraggingSingleSocket() const;
-
-private:
-
-	/** Data for the property paths this item represents */
-	TArray<FRigElementKey> Elements;
-};
 
 USTRUCT()
 struct FRigHierarchyImportSettings

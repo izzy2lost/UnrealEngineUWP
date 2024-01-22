@@ -271,6 +271,7 @@ private:
 	TWeakPtr<FRigTreeElement> WeakRigTreeElement;
  	FRigTreeDelegates Delegates;
 
+	FText GetNameForUI() const;
 	FText GetName(bool bUseShortName) const;
 	FText GetItemTooltip() const;
 

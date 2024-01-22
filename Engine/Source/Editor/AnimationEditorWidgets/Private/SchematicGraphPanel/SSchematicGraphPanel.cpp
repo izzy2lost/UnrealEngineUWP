@@ -45,6 +45,16 @@ TSharedPtr<SWidget> FSchematicGraphNodeDragDropOp::GetDefaultDecorator() const
 		];
 }
 
+const TArray<const FSchematicGraphNode*> FSchematicGraphNodeDragDropOp::GetNodes() const
+{
+	TArray<const FSchematicGraphNode*> Result;
+	for(SSchematicGraphNode* Node : SchematicGraphNodes)
+	{
+		Result.Add(Node->GetNodeData());
+	}
+	return Result;
+}
+
 FString FSchematicGraphNodeDragDropOp::GetJoinedDecoratorLabels() const
 {
 	TArray<FString> DecoratorLabels;

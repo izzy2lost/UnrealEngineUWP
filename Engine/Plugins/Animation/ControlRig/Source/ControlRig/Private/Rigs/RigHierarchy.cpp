@@ -1527,22 +1527,21 @@ FText URigHierarchy::GetDisplayNameForUI(const FRigBaseElement* InElement, bool 
 	check(InElement);
 
 	const FName& DisplayName = InElement->GetDisplayName();
+	FString DisplayNameString = DisplayName.ToString();
+	(void)DisplayNameString.Split(UModularRig::NamespaceSeparator, nullptr, &DisplayNameString, ESearchCase::CaseSensitive, ESearchDir::FromEnd);
 	
 	if(bIncludeNameSpace)
 	{
 		const FName ModuleShortName = GetNameMetadata(InElement->Key, ShortModuleNameMetadataName, NAME_None);
 		if(!ModuleShortName.IsNone())
 		{
-			FString DisplayNameString = DisplayName.ToString();
-			(void)DisplayNameString.Split(UModularRig::NamespaceSeparator, nullptr, &DisplayNameString, ESearchCase::CaseSensitive, ESearchDir::FromEnd);
-			
 			const FString ModuleShortNameString = ModuleShortName.ToString();
 			const FString ModuleDisplayName = JoinNameSpace(ModuleShortNameString, DisplayNameString);
 			return FText::FromString(ModuleDisplayName);
 		}
 	}
 
-	return FText::FromName(DisplayName);
+	return FText::FromString(*DisplayNameString);
 }
 
 FText URigHierarchy::GetDisplayNameForUI(const FRigElementKey& InKey, bool bIncludeNameSpace) const

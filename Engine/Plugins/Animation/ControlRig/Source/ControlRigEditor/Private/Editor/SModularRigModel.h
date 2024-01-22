@@ -8,6 +8,7 @@
 #include "ControlRigBlueprint.h"
 #include "DragAndDrop/GraphNodeDragDropOp.h"
 #include "Editor/RigVMEditor.h"
+#include "ControlRigDragOps.h"
 
 class SModularRigModel;
 class FControlRigEditor;
@@ -19,35 +20,6 @@ struct FAssetData;
 class FMenuBuilder;
 class UToolMenu;
 struct FToolMenuContext;
-
-class FModularRigModuleDragDropOp : public FDragDropOperation
-{
-public:
-	DRAG_DROP_OPERATOR_TYPE(FModularRigModuleDragDropOp, FDragDropOperation)
-
-	static TSharedRef<FModularRigModuleDragDropOp> New(const TArray<FString>& InElements);
-
-	virtual TSharedPtr<SWidget> GetDefaultDecorator() const override;
-
-	/** @return true if this drag operation contains property paths */
-	bool HasElements() const
-	{
-		return Elements.Num() > 0;
-	}
-
-	/** @return The property paths from this drag operation */
-	const TArray<FString>& GetElements() const
-	{
-		return Elements;
-	}
-
-	FString GetJoinedElementNames() const;
-
-private:
-
-	/** Data for the property paths this item represents */
-	TArray<FString> Elements;
-};
 
 /** Widget allowing editing of a control rig's structure */
 class SModularRigModel : public SCompoundWidget, public FEditorUndoClient

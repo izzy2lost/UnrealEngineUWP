@@ -48,7 +48,7 @@ FRigTreeElement::FRigTreeElement(const FRigElementKey& InKey, TWeakPtr<SRigHiera
 	{
 		if(const URigHierarchy* Hierarchy = InTreeView.Pin()->GetRigTreeDelegates().GetHierarchy())
 		{
-			ShortName = *Hierarchy->GetDisplayNameForUI(InKey).ToString();
+			ShortName = *Hierarchy->GetDisplayNameForUI(InKey, false).ToString();
 			
 			const FRigTreeDisplaySettings& Settings = InTreeView.Pin()->GetRigTreeDelegates().GetDisplaySettings();
 			RefreshDisplaySettings(Hierarchy, Settings);
@@ -199,7 +199,7 @@ void SRigHierarchyItem::Construct(const FArguments& InArgs, const TSharedRef<STa
 			.VAlign(VAlign_Center)
 			[
 				SAssignNew(InlineWidget, SInlineEditableTextBlock)
-				.Text(this, &SRigHierarchyItem::GetName, DisplaySettings.bUseShortName)
+				.Text(this, &SRigHierarchyItem::GetNameForUI)
 				.ToolTipText(this, &SRigHierarchyItem::GetItemTooltip)
 				.OnVerifyTextChanged(this, &SRigHierarchyItem::OnVerifyNameChanged)
 				.OnTextCommitted(this, &SRigHierarchyItem::OnNameCommitted)
@@ -228,6 +228,11 @@ void SRigHierarchyItem::Construct(const FArguments& InArgs, const TSharedRef<STa
 	}
 
 	InRigTreeElement->OnRenameRequested.BindSP(InlineWidget.Get(), &SInlineEditableTextBlock::EnterEditingMode);
+}
+
+FText SRigHierarchyItem::GetNameForUI() const
+{
+	return GetName(Delegates.GetDisplaySettings().bUseShortName);
 }
 
 FText SRigHierarchyItem::GetName(bool bUseShortName) const

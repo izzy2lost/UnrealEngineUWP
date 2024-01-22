@@ -6,32 +6,13 @@
 #include "Widgets/Text/STextBlock.h"
 #include "Brushes/SlateRoundedBoxBrush.h"
 #include "DetailLayoutBuilder.h"
+#include "ControlRigDragOps.h"
 
 #define LOCTEXT_NAMESPACE "SRigHierarchyTagWidget"
 
 //////////////////////////////////////////////////////////////
 /// SRigHierarchyTagWidget
 ///////////////////////////////////////////////////////////
-
-TSharedRef<FRigHierarchyTagDragDropOp> FRigHierarchyTagDragDropOp::New(TSharedPtr<SRigHierarchyTagWidget> InTagWidget)
-{
-	TSharedRef<FRigHierarchyTagDragDropOp> Operation = MakeShared<FRigHierarchyTagDragDropOp>();
-	Operation->Text = InTagWidget->Text.Get();
-	Operation->Identifier = InTagWidget->Identifier.Get();
-	Operation->Construct();
-	return Operation;
-}
-
-TSharedPtr<SWidget> FRigHierarchyTagDragDropOp::GetDefaultDecorator() const
-{
-	return SNew(SBorder)
-		.Visibility(EVisibility::Visible)
-		.BorderImage(FAppStyle::GetBrush("Menu.Background"))
-		[
-			SNew(STextBlock)
-			.Text(Text)
-		];
-}
 
 void SRigHierarchyTagWidget::Construct(const FArguments& InArgs)
 {

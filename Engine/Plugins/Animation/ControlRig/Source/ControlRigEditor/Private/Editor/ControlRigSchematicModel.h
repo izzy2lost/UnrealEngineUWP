@@ -6,6 +6,7 @@
 #include "SchematicGraphPanel/SSchematicGraphPanel.h"
 #include "Rigs/RigHierarchyDefines.h"
 #include "ControlRigBlueprint.h"
+#include "Input/DragAndDrop.h"
 
 class FControlRigEditor;
 class UControlRig;
@@ -104,6 +105,9 @@ public:
 	virtual FLinearColor GetColorForLink(const FSchematicGraphLink* InLink) const override;
 	virtual ESchematicGraphVisibility::Type GetVisibilityForTag(const FSchematicGraphTag* InTag) const override;
 	virtual const FText GetToolTipForTag(const FSchematicGraphTag* InTag) const override;
+	virtual bool GetForwardedNodeForDrag(FGuid& InOutGuid) const override;
+
+	static TArray<FRigElementKey> GetElementKeysFromDragDropEvent(const FDragDropOperation& InDragDropOperation, const UControlRig* InControlRig);
 
 private:
 
@@ -113,7 +117,9 @@ private:
 	void HandleSchematicBeginDrag(SSchematicGraphPanel* InPanel, SSchematicGraphNode* InNode, const FDragDropOperation& InDragDropOperation);
 	void HandleSchematicEndDrag(SSchematicGraphPanel* InPanel, SSchematicGraphNode* InNode, const FDragDropOperation& InDragDropOperation);
 	void HandleSchematicDrop(SSchematicGraphPanel* InPanel, SSchematicGraphNode* InNode, const FDragDropEvent& InDragDropEvent);
+	void HandlePostConstruction(UControlRig* Subject, const FName& InEventName);
 	bool IsConnectorResolved(const FRigElementKey& InConnectorKey, FRigElementKey* OutKey = nullptr) const;
+
 
 	TWeakPtr<FControlRigEditor> ControlRigEditor;
 	TWeakObjectPtr<UControlRigBlueprint> ControlRigBlueprint;

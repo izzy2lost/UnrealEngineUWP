@@ -2550,6 +2550,14 @@ void FControlRigEditor::UpdateRigVMHost()
 			ControlRig->OnPreForwardsSolve_AnyThread().AddSP(this, &FControlRigEditor::OnPreForwardsSolve_AnyThread);
 			ControlRig->ControlModified().AddSP(this, &FControlRigEditor::HandleOnControlModified);
 		}
+
+		if(IsModularRig() && ControlRig)
+		{
+			if(SchematicModel.ControlRigBlueprint.IsValid())
+			{
+				SchematicModel.OnSetObjectBeingDebugged(ControlRig);
+			}
+		}
 	}
 }
 
@@ -5045,9 +5053,6 @@ void FControlRigEditor::OnPreConstruction_AnyThread(UControlRig* InRig, const FN
 								Element->CreatedAtInstructionIndex = InstructionIndex;
 							}
 						}
-
-						// create a default socket under the root bone
-						Controller->AddDefaultRootSocket();
 
 						// create a null to store controls under
 						static const FRigElementKey ControlParentKey(TEXT("Controls"), ERigElementType::Null);

@@ -262,6 +262,18 @@ bool UModularRigController::ConnectConnectorToElement(const FRigElementKey& InCo
 	UBlueprint* Blueprint = Cast<UBlueprint>(GetOuter());
 
 #if WITH_EDITOR
+	FName TargetModulePathName = NAME_None;
+	if (UControlRig* RigCDO = Module->Class->GetDefaultObject<UControlRig>())
+	{
+		if (UModularRig* ModularRig = Cast<UModularRig>(Blueprint->GetObjectBeingDebugged()))
+		{
+			if (URigHierarchy* Hierarchy = ModularRig->GetHierarchy())
+			{
+				TargetModulePathName = Hierarchy->GetNameMetadata(InTargetKey, URigHierarchy::ModuleMetadataName, NAME_None);
+			}
+		}
+	}
+	
 	TSharedPtr<FScopedTransaction> TransactionPtr;
 	if (bSetupUndo)
 	{
@@ -275,18 +287,18 @@ bool UModularRigController::ConnectConnectorToElement(const FRigElementKey& InCo
 	{
 		DisconnectConnector(InConnectorKey, bSetupUndo);
 	}
-
+	
 	Model->Connections.AddConnection(InConnectorKey, InTargetKey);
 	Notify(EModularRigNotification::ConnectionChanged, Module);
 
 #if WITH_EDITOR
-	if (bAutoResolveOtherConnectors)
+	if (UControlRig* RigCDO = Module->Class->GetDefaultObject<UControlRig>())
 	{
-		if (UControlRig* RigCDO = Module->Class->GetDefaultObject<UControlRig>())
+		if (UModularRig* ModularRig = Cast<UModularRig>(Blueprint->GetObjectBeingDebugged()))
 		{
-			if (UModularRig* ModularRig = Cast<UModularRig>(Blueprint->GetObjectBeingDebugged()))
+			if (URigHierarchy* Hierarchy = ModularRig->GetHierarchy())
 			{
-				if (URigHierarchy* Hierarchy = ModularRig->GetHierarchy())
+				if (bAutoResolveOtherConnectors)
 				{
 					UModularRigRuleManager* RuleManager = Hierarchy->GetRuleManager();
 					const FRigModuleInstance* ModuleInstance = ModularRig->FindModule(Module->GetPath());
@@ -318,6 +330,18 @@ bool UModularRigController::ConnectConnectorToElement(const FRigElementKey& InCo
 									}
 								}
 							}
+						}
+					}
+				}
+
+				// automatically re-parent the module in the module tree as well
+				if(const FRigConnectorElement* Connector = Hierarchy->Find<FRigConnectorElement>(InConnectorKey))
+				{
+					if(Connector->Settings.Type == EConnectorType::Primary)
+					{
+						if(!TargetModulePathName.IsNone())
+						{
+							ReparentModule(Module->GetPath(), TargetModulePathName.ToString(), bSetupUndo);
 						}
 					}
 				}
@@ -964,6 +988,14 @@ FString UModularRigController::ReparentModule(const FString& InModulePath, const
 		return FString();
 	}
 
+	const FRigModuleReference* NewParentModule = FindModule(InNewParentModulePath);
+	const FString PreviousParentPath = Module->ParentPath;
+	const FString ParentPath = (NewParentModule) ? NewParentModule->GetPath() : FString();
+	if(PreviousParentPath.Equals(ParentPath, ESearchCase::CaseSensitive))
+	{
+		return Module->GetPath();
+	}
+
 #if WITH_EDITOR
 	TSharedPtr<FScopedTransaction> TransactionPtr;
 	if (bSetupUndo)
@@ -977,7 +1009,6 @@ FString UModularRigController::ReparentModule(const FString& InModulePath, const
 #endif
 
 	// Reparent or unparent children
-	FRigModuleReference* NewParentModule = FindModule(InNewParentModulePath);
 	const FString OldPath = Module->GetPath();
 	Module->PreviousParentPath = Module->ParentPath;
 	Module->ParentPath = (NewParentModule) ? NewParentModule->GetPath() : FString();

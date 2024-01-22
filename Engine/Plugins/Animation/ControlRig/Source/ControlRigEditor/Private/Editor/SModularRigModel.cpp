@@ -57,39 +57,6 @@
 
 #define LOCTEXT_NAMESPACE "SModularRigModel"
 
-//////////////////////////////////////////////////////////////
-/// FModularRigModuleDragDropOp
-///////////////////////////////////////////////////////////
-TSharedRef<FModularRigModuleDragDropOp> FModularRigModuleDragDropOp::New(const TArray<FString>& InElements)
-{
-	TSharedRef<FModularRigModuleDragDropOp> Operation = MakeShared<FModularRigModuleDragDropOp>();
-	Operation->Elements = InElements;
-	Operation->Construct();
-	return Operation;
-}
-
-TSharedPtr<SWidget> FModularRigModuleDragDropOp::GetDefaultDecorator() const
-{
-	return SNew(SBorder)
-		.Visibility(EVisibility::Visible)
-		.BorderImage(FAppStyle::GetBrush("Menu.Background"))
-		[
-			SNew(STextBlock)
-			.Text(FText::FromString(GetJoinedElementNames()))
-			//.Font(FAppStyle::Get().GetFontStyle("FontAwesome.10"))
-		];
-}
-
-FString FModularRigModuleDragDropOp::GetJoinedElementNames() const
-{
-	TArray<FString> ElementNameStrings;
-	for (const FString& Element: Elements)
-	{
-		ElementNameStrings.Add(Element);
-	}
-	return FString::Join(ElementNameStrings, TEXT(","));
-}
-
 ///////////////////////////////////////////////////////////
 
 const FName SModularRigModel::ContextMenuName = TEXT("ControlRigEditor.ModularRigModel.ContextMenu");

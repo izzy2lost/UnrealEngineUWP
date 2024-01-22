@@ -189,6 +189,16 @@ struct CONTROLRIG_API FModularRigConnections
 		return EmptyKey;
 	}
 
+	const TArray<FRigElementKey>& FindConnectorsFromTarget(const FRigElementKey& InTargetKey) const
+	{
+		if(const TArray<FRigElementKey>* Connectors = ReverseConnectionMap.Find(InTargetKey))
+		{
+			return *Connectors;
+		}
+		static const TArray<FRigElementKey> EmptyList;
+		return EmptyList;
+	}
+
 	bool HasConnection(const FRigElementKey& InConnectorKey) const
 	{
 		return ConnectionList.IsValidIndex(FindConnectionIndex(InConnectorKey));

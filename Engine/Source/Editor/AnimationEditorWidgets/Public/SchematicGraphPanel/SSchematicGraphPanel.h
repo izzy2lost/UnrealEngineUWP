@@ -11,7 +11,7 @@
 class SSchematicGraphPanel;
 class SSchematicGraphNode;
 
-class FSchematicGraphNodeDragDropOp : public FDragDropOperation
+class ANIMATIONEDITORWIDGETS_API FSchematicGraphNodeDragDropOp : public FDragDropOperation
 {
 public:
 	DRAG_DROP_OPERATOR_TYPE(FSchematicGraphNodeDragDropOp, FDragDropOperation)
@@ -35,6 +35,9 @@ public:
 	{
 		return Elements;
 	}
+
+	/** @return The nodes being dragged */
+	const TArray<const FSchematicGraphNode*> GetNodes() const;
 
 	FString GetJoinedDecoratorLabels() const;
 

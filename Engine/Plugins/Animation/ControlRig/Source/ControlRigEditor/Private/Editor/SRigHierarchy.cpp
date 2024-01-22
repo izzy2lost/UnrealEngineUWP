@@ -53,61 +53,11 @@
 #include "DragAndDrop/AssetDragDropOp.h"
 #include "RigVMFunctions/Math/RigVMMathLibrary.h"
 #include "Preferences/PersonaOptions.h"
+#include "Editor/SModularRigModel.h"
 
 #include UE_INLINE_GENERATED_CPP_BY_NAME(SRigHierarchy)
 
 #define LOCTEXT_NAMESPACE "SRigHierarchy"
-
-//////////////////////////////////////////////////////////////
-/// FRigElementHierarchyDragDropOp
-///////////////////////////////////////////////////////////
-TSharedRef<FRigElementHierarchyDragDropOp> FRigElementHierarchyDragDropOp::New(const TArray<FRigElementKey>& InElements)
-{
-	TSharedRef<FRigElementHierarchyDragDropOp> Operation = MakeShared<FRigElementHierarchyDragDropOp>();
-	Operation->Elements = InElements;
-	Operation->Construct();
-	return Operation;
-}
-
-TSharedPtr<SWidget> FRigElementHierarchyDragDropOp::GetDefaultDecorator() const
-{
-	return SNew(SBorder)
-		.Visibility(EVisibility::Visible)
-		.BorderImage(FAppStyle::GetBrush("Menu.Background"))
-		[
-			SNew(STextBlock)
-			.Text(FText::FromString(GetJoinedElementNames()))
-			//.Font(FAppStyle::Get().GetFontStyle("FontAwesome.10"))
-		];
-}
-
-FString FRigElementHierarchyDragDropOp::GetJoinedElementNames() const
-{
-	TArray<FString> ElementNameStrings;
-	for (const FRigElementKey& Element: Elements)
-	{
-		ElementNameStrings.Add(Element.Name.ToString());
-	}
-	return FString::Join(ElementNameStrings, TEXT(","));
-}
-
-bool FRigElementHierarchyDragDropOp::IsDraggingSingleConnector() const
-{
-	if(Elements.Num() == 1)
-	{
-		return Elements[0].Type == ERigElementType::Connector;
-	}
-	return false;
-}
-
-bool FRigElementHierarchyDragDropOp::IsDraggingSingleSocket() const
-{
-	if(Elements.Num() == 1)
-	{
-		return Elements[0].Type == ERigElementType::Socket;
-	}
-	return false;
-}
 
 ///////////////////////////////////////////////////////////
 
@@ -1743,10 +1693,6 @@ void SRigHierarchy::ImportHierarchy(const FAssetData& InAssetData)
 
 		const TArray<FRigElementKey> ImportedBones = Controller->ImportBones(Mesh->GetSkeleton(), NAME_None, false, false, bSelectBones, true, true);
 		Controller->ImportCurves(Mesh->GetSkeleton(), NAME_None, false, true);
-		if(bIsModularRig && Hierarchy->GetSockets().Num() == 0)
-		{
-			(void)Controller->AddDefaultRootSocket();
-		}
 
 		ControlRigBlueprint->SourceHierarchyImport = Mesh->GetSkeleton();
 		ControlRigBlueprint->SourceCurveImport = Mesh->GetSkeleton();
@@ -2738,6 +2684,44 @@ TOptional<EItemDropZone> SRigHierarchy::OnCanAcceptDrop(const FDragDropEvent& Dr
 			}
 		}
 	}
+	
+	const TSharedPtr<FModularRigModuleDragDropOp> ModuleDropOp = DragDropEvent.GetOperationAs<FModularRigModuleDragDropOp>();
+	if (ModuleDropOp.IsValid() && TargetItem.IsValid())
+	{
+		if(DropZone != EItemDropZone::OntoItem)
+		{
+			return InvalidDropZone;
+		}
+
+		const UModularRig* ControlRig = Cast<UModularRig>(ControlRigBlueprint->GetDebuggedControlRig());
+		if (!ControlRig)
+		{
+			return InvalidDropZone;
+		}
+
+		const FRigElementKey TargetKey = TargetItem->Key;
+		const TArray<FRigElementKey> DraggedKeys = FControlRigSchematicModel::GetElementKeysFromDragDropEvent(*ModuleDropOp.Get(), ControlRig);
+		for(const FRigElementKey& DraggedKey : DraggedKeys)
+		{
+			if(DraggedKey.Type != ERigElementType::Connector)
+			{
+				continue;
+			}
+			
+			if(!DragRigResolveResults.Contains(DraggedKey))
+			{
+				UpdateConnectorMatchesOnDrag({DraggedKey});
+			}
+			
+			const FModularRigResolveResult& ResolveResult = DragRigResolveResults.FindChecked(DraggedKey);
+			if(ResolveResult.ContainsMatch(TargetKey))
+			{
+				return DropZone;
+			}
+		}
+
+		return InvalidDropZone;
+	}
 
 	TSharedPtr<FAssetDragDropOp> AssetDragDropOp = DragDropEvent.GetOperationAs<FAssetDragDropOp>();
 	if (AssetDragDropOp.IsValid())
@@ -2872,18 +2856,39 @@ FReply SRigHierarchy::OnAcceptDrop(const FDragDropEvent& DragDropEvent, EItemDro
 	const TSharedPtr<FRigHierarchyTagDragDropOp> TagDragDropOp = DragDropEvent.GetOperationAs<FRigHierarchyTagDragDropOp>();
 	if(TagDragDropOp.IsValid())
 	{
-		if (const URigHierarchy* Hierarchy = GetHierarchy())
+		FRigElementKey DraggedKey;
+		FRigElementKey::StaticStruct()->ImportText(*TagDragDropOp->GetIdentifier(), &DraggedKey, nullptr, EPropertyPortFlags::PPF_None, nullptr, FRigElementKey::StaticStruct()->GetName(), true);
+		if(TargetItem.IsValid())
 		{
-			FRigElementKey DraggedKey;
-			FRigElementKey::StaticStruct()->ImportText(*TagDragDropOp->GetIdentifier(), &DraggedKey, nullptr, EPropertyPortFlags::PPF_None, nullptr, FRigElementKey::StaticStruct()->GetName(), true);
-			if(TargetItem.IsValid())
-			{
-				return ResolveConnector(DraggedKey, TargetItem->Key);
-			}
-			return ResolveConnector(DraggedKey, FRigElementKey());
+			return ResolveConnector(DraggedKey, TargetItem->Key);
 		}
+		return ResolveConnector(DraggedKey, FRigElementKey());
 	}
 
+	const TSharedPtr<FModularRigModuleDragDropOp> ModuleDropOp = DragDropEvent.GetOperationAs<FModularRigModuleDragDropOp>();
+	if (ModuleDropOp.IsValid() && TargetItem.IsValid())
+	{
+		UModularRig* ControlRig = Cast<UModularRig>(ControlRigBlueprint->GetDebuggedControlRig());
+		if (!ControlRig)
+		{
+			return FReply::Handled();
+		}
+
+		const FRigElementKey TargetKey = TargetItem->Key;
+		const TArray<FRigElementKey> DraggedKeys = FControlRigSchematicModel::GetElementKeysFromDragDropEvent(*ModuleDropOp.Get(), ControlRig);
+
+		bool bSuccess = false;
+		for(const FRigElementKey& DraggedKey : DraggedKeys)
+		{
+			const FReply Reply = ResolveConnector(DraggedKey, TargetKey);
+			if(Reply.IsEventHandled())
+			{
+				bSuccess = true;
+			}
+		}
+		return bSuccess ? FReply::Handled() : FReply::Unhandled();
+	}
+	
 	TSharedPtr<FAssetDragDropOp> AssetDragDropOp = DragDropEvent.GetOperationAs<FAssetDragDropOp>();
 	if (AssetDragDropOp.IsValid())
 	{

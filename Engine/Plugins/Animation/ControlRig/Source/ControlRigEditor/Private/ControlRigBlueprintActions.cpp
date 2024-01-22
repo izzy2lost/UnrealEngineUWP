@@ -253,7 +253,6 @@ UControlRigBlueprint* FControlRigBlueprintActions::CreateControlRigFromSkeletalM
 	{
 		Controller->ImportBones(*RefSkeleton, NAME_None, false, false, false, false);
 		Controller->ImportCurves(Skeleton, NAME_None, false, false);
-		Controller->AddDefaultRootSocket();
 	}
 	NewControlRigBlueprint->SourceHierarchyImport = Skeleton;
 	NewControlRigBlueprint->SourceCurveImport = Skeleton;
