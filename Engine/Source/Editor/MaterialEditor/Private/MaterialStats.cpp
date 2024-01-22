@@ -641,14 +641,14 @@ void FMaterialStats::BuildShaderPlatformDB(const bool bAllowIgnoringCompilationE
 
 TSharedPtr<FShaderPlatformSettings> FMaterialStats::AddShaderPlatform(const EPlatformCategoryType PlatformType, const EShaderPlatform PlatformID, const FName PlatformName, const bool bAllowCodeView, const FString& Description, const bool bAlwaysOn)
 {
-	ITargetPlatformManagerModule& TPM = GetTargetPlatformManagerRef();
-	const IShaderFormat* ShaderFormat = TPM.FindShaderFormat(LegacyShaderPlatformToShaderFormat(PlatformID));
-	const bool bAllowPresenceInGrid = ShaderFormat ? ShaderFormat->CanCompileBinaryShaders() : false;
-
 	if (!FDataDrivenShaderPlatformInfo::IsValid(PlatformID))
 	{
 		return TSharedPtr<FShaderPlatformSettings>();
 	}
+
+	ITargetPlatformManagerModule& TPM = GetTargetPlatformManagerRef();
+	const IShaderFormat* ShaderFormat = TPM.FindShaderFormat(LegacyShaderPlatformToShaderFormat(PlatformID));
+	const bool bAllowPresenceInGrid = ShaderFormat ? ShaderFormat->CanCompileBinaryShaders() : false;
 
 	TSharedPtr<FShaderPlatformSettings> PlatformPtr = MakeShareable(new FShaderPlatformSettings(PlatformType, PlatformID, PlatformName, bAllowPresenceInGrid, bAllowCodeView, Description, bAlwaysOn));
 	ShaderPlatformStatsDB.Add(PlatformID, PlatformPtr);
