@@ -1646,7 +1646,7 @@ void FCustomizableObjectEditorViewportClient::OnInstanceForBakingUpdate(const FU
 	}
 
 	// Early exit if update result is not success
-	if (Result.UpdateResult != EUpdateResult::Success)
+	if ( !UCustomizableObjectSystem::IsUpdateResultValid(Result.UpdateResult) )
 	{
 		UE_LOG(LogMutable, Warning ,TEXT("Instance finished update with an error state : %s. Skipping instance baking"), *UEnum::GetValueAsString(Result.UpdateResult));
 		BakeTempInstance = nullptr;

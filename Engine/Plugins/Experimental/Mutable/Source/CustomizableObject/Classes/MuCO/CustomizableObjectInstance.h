@@ -50,7 +50,9 @@ enum class EUpdateRequired : uint8
 UENUM()
 enum class EUpdateResult : uint8
 {
-	Success, // There only exist one Success case. Any other new cases have to be errors.
+	Success, // Update finished without issues.
+	Warning, // Generic warning. Update finished but with warnings.
+	
 	Error, // Generic error.
 	ErrorOptimized, // The update was skipped since its result would have been the same as the current customization.
 	ErrorReplaced, // The update was replaced by a newer update request.

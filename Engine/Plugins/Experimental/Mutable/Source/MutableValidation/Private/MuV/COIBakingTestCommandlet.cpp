@@ -22,8 +22,8 @@ void OnInstanceUpdate(const FUpdateContext& Result)
 {
 	const EUpdateResult InstanceUpdateResult = Result.UpdateResult;
 
-	UE_LOG(LogMutable,Display,TEXT("Instance finished update with state : %s."), *UEnum::GetValueAsString(Result.UpdateResult));
-	bWasInstanceUpdateSuccessful = InstanceUpdateResult == EUpdateResult::Success;
+	UE_LOG(LogMutable,Display,TEXT("Instance finished update with state : %s."), *UEnum::GetValueAsString(InstanceUpdateResult));
+	bWasInstanceUpdateSuccessful = UCustomizableObjectSystem::IsUpdateResultValid(InstanceUpdateResult);
 	
 	// Clear update flag so we can exit the update while loop
 	bIsInstanceBeingUpdated = false;

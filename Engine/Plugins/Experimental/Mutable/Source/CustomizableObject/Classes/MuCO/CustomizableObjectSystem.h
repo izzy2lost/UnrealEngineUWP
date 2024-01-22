@@ -196,6 +196,12 @@ public:
 	
 	UFUNCTION(BlueprintCallable, BlueprintPure, Category = Status)
 	static UCustomizableObjectSystem* GetInstanceChecked();
+
+	/** Determines if the result of the instance update is valid or not.
+	* @return true if the result is successful or has warnings, false if the result is from the Error category
+	 */
+	UFUNCTION(BlueprintCallable, Category = Status)
+	static bool IsUpdateResultValid(const EUpdateResult UpdateResult);
 	
 	// Return true if the singleton has been created. It is different than GetInstance in that GetInstance will create it if it doesn't exist.
 	static bool IsCreated();

@@ -5032,14 +5032,16 @@ FGraphEventRef UCustomizableInstancePrivate::LoadAdditionalAssetsAsync(const TSh
 								else
 								{
 									// Two submeshes should not have the same animation slot index
-									FString ErrorMsg = FString::Printf(TEXT("Two submeshes have the same anim slot index [%s] in a Mutable Instance."), *SlotIndex.ToString());
-									UE_LOG(LogMutable, Error, TEXT("%s"), *ErrorMsg);
+									OperationData->UpdateResult = EUpdateResult::Warning;
+									
+									FString WarningMessage = FString::Printf(TEXT("Two submeshes have the same anim slot index [%s] in a Mutable Instance."), *SlotIndex.ToString());
+									UE_LOG(LogMutable, Warning, TEXT("%s"), *WarningMessage);
 #if WITH_EDITOR
 									FMessageLogModule& MessageLogModule = FModuleManager::LoadModuleChecked<FMessageLogModule>("MessageLog");
 									MessageLogModule.RegisterLogListing(FName("Mutable"), FText::FromString(FString("Mutable")));
 									FMessageLog MessageLog("Mutable");
 
-									MessageLog.Notify(FText::FromString(ErrorMsg), EMessageSeverity::Error, true);
+									MessageLog.Notify(FText::FromString(WarningMessage), EMessageSeverity::Warning, true);
 #endif
 								}
 							}

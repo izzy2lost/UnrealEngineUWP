@@ -268,7 +268,7 @@ void UCustomizableObjectValidationCommandlet::OnInstanceUpdate(const FUpdateCont
 {
 	const FString InstanceName = InstanceBeingUpdated->GetName();
 	const EUpdateResult InstanceUpdateResult = Result.UpdateResult;
-	if (InstanceUpdateResult == EUpdateResult::Success)
+	if (UCustomizableObjectSystem::IsUpdateResultValid(InstanceUpdateResult))
 	{
 		UE_LOG(LogMutable,Display,TEXT("Instance %s finished update succesfully."),*InstanceName);
 

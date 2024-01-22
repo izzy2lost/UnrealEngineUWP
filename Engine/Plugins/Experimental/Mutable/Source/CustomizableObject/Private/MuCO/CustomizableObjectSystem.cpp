@@ -330,6 +330,12 @@ UCustomizableObjectSystem* UCustomizableObjectSystem::GetInstanceChecked()
 }
 
 
+bool UCustomizableObjectSystem::IsUpdateResultValid(const EUpdateResult UpdateResult)
+{
+	return UpdateResult == EUpdateResult::Success || UpdateResult == EUpdateResult::Warning;
+}
+
+
 UCustomizableInstanceLODManagementBase* UCustomizableObjectSystem::GetInstanceLODManagement() const
 {
 	return CurrentInstanceLODManagement.Get();
@@ -749,6 +755,7 @@ void FinishUpdateGlobal(const TSharedRef<FUpdateContextPrivate>& Context)
 		switch (Context->UpdateResult)
 		{
 		case EUpdateResult::Success:
+		case EUpdateResult::Warning:
 			PrivateInstance->SkeletalMeshStatus = ESkeletalMeshStatus::Success;
 
 			PrivateInstance->DescriptorHash = Context->InstanceDescriptorHash;
@@ -777,7 +784,7 @@ void FinishUpdateGlobal(const TSharedRef<FUpdateContextPrivate>& Context)
 		}
 	}
 
-	if (Context->UpdateResult == EUpdateResult::Success)
+	if (UCustomizableObjectSystem::IsUpdateResultValid(Context->UpdateResult))
 	{
 		// Call CustomizableObjectInstanceUsages updated callbacks.
 		for (TObjectIterator<UCustomizableObjectInstanceUsage> It; It; ++It) // Since iterating objects is expensive, for now CustomizableObjectInstanceUsage does not have a FinishUpdate function.
