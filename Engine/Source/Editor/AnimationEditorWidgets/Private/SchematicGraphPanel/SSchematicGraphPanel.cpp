@@ -1114,6 +1114,11 @@ void SSchematicGraphPanel::Tick(float DeltaTime)
 	{
 		TSharedRef<SSchematicGraphNode> Widget = GetChild(i);
 
+		if(!bIsDragDropping && Widget->IsBeingDragged())
+		{
+			Widget->bIsBeingDragged = false;
+		}
+
 		// update the animation state of the node
 		Widget->EnablePositionAnimation(GraphData->GetPositionAnimationEnabledForNode(Widget->GetGuid()));
 		if(Widget->GetVisibility() != EVisibility::Visible)
@@ -1403,6 +1408,7 @@ void SSchematicGraphPanel::UpdatePerNodeCaches(bool bRemoveNodesFromAutoGroups)
 			}
 			Cache.bHasParent = Node->HasParentNode();
 			Cache.Visibility = GraphData->GetVisibilityForNode(Node);
+			Cache.Placement = GraphData->GetPlacementForNode(Node);
 			Cache.bIsAutoScaling = !Cache.bHasParent && !Widget->bIsBeingDragged && Widget->EnableAutoScale.Get();
 			Cache.Position = GetPositionForNode(Node->GetGuid());
 			const FVector2d NodeSize = GraphData->GetSizeForNode(Node->GetGuid());
@@ -1446,6 +1452,10 @@ void SSchematicGraphPanel::UpdateAutoGroupingForNodes()
 			continue;
 		}
 		if(PerNodeCaches[i].Visibility == ESchematicGraphVisibility::Hidden)
+		{
+			continue;
+		}
+		if(PerNodeCaches[i].Placement != ESchematicGraphPlacementConstraint::Free)
 		{
 			continue;
 		}

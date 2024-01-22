@@ -97,7 +97,10 @@ struct CONTROLRIG_API FRigModuleReference
 		return A.ParentPath == B.ParentPath &&
 			A.Name == B.Name;
 	}
-	
+
+	const FRigConnectorElement* FindPrimaryConnector(const URigHierarchy* InHierarchy) const;
+	TArray<const FRigConnectorElement*> FindConnectors(const URigHierarchy* InHierarchy) const;
+
 	friend class UModularRigController;
 };
 

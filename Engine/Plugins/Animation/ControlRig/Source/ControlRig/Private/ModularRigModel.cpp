@@ -29,6 +29,52 @@ FString FRigModuleReference::GetNamespace() const
 	return GetPath() + UModularRig::NamespaceSeparator;
 }
 
+const FRigConnectorElement* FRigModuleReference::FindPrimaryConnector(const URigHierarchy* InHierarchy) const
+{
+	if(InHierarchy)
+	{
+		const FString MyModulePath = GetPath();
+		const TArray<FRigConnectorElement*> AllConnectors = InHierarchy->GetConnectors();
+		for(const FRigConnectorElement* Connector : AllConnectors)
+		{
+			if(Connector->IsPrimary())
+			{
+				const FString ModulePath = InHierarchy->GetModulePath(Connector->GetKey());
+				if(!ModulePath.IsEmpty())
+				{
+					if(ModulePath.Equals(MyModulePath, ESearchCase::CaseSensitive))
+					{
+						return Connector;
+					}
+				}
+			}
+		}
+	}
+	return nullptr;
+}
+
+TArray<const FRigConnectorElement*> FRigModuleReference::FindConnectors(const URigHierarchy* InHierarchy) const
+{
+	TArray<const FRigConnectorElement*> Connectors;
+	if(InHierarchy)
+	{
+		const FString MyModulePath = GetPath();
+		const TArray<FRigConnectorElement*> AllConnectors = InHierarchy->GetConnectors();
+		for(const FRigConnectorElement* Connector : AllConnectors)
+		{
+			const FString ModulePath = InHierarchy->GetModulePath(Connector->GetKey());
+			if(!ModulePath.IsEmpty())
+			{
+				if(ModulePath.Equals(MyModulePath, ESearchCase::CaseSensitive))
+				{
+					Connectors.Add(Connector);
+				}
+			}
+		}
+	}
+	return Connectors;
+}
+
 TMap<FRigElementKey, FRigElementKey> FModularRigConnections::GetModuleConnectionMap(const FString& InModulePath) const
 {
 	TMap<FRigElementKey, FRigElementKey> Result;

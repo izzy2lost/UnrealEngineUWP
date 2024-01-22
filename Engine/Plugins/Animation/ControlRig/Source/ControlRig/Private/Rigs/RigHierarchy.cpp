@@ -1179,6 +1179,22 @@ bool URigHierarchy::RemoveAllMetadata(FRigElementKey InItem)
 	return RemoveAllMetadataForElement(Find(InItem));
 }
 
+FName URigHierarchy::GetModulePathFName(FRigElementKey InItem) const
+{
+	return GetNameMetadata(InItem, ModuleMetadataName, NAME_None);
+	
+}
+
+FString URigHierarchy::GetModulePath(FRigElementKey InItem) const
+{
+	const FName ModulePathName = GetModulePathFName(InItem);
+	if(!ModulePathName.IsNone())
+	{
+		return ModulePathName.ToString();
+	}
+	return FString();
+}
+
 TArray<const FRigBaseElement*> URigHierarchy::GetSelectedElements(ERigElementType InTypeFilter) const
 {
 	LLM_SCOPE_BYNAME(TEXT("Animation/ControlRig"));

@@ -712,7 +712,7 @@ bool SModularRigTreeView::AddElement(FString InKey, FString InParentKey)
 					const TArray<FRigModuleConnector>& Connectors = CDO->GetRigModuleSettings().ExposedConnectors;
 					for (const FRigModuleConnector& Connector : Connectors)
 					{
-						if (Connector.Settings.Type == EConnectorType::Primary)
+						if (Connector.IsPrimary())
 						{
 							continue;
 						}
@@ -984,7 +984,7 @@ TPair<const FSlateBrush*, FSlateColor> FModularRigTreeElement::GetBrushAndColor(
 			});
 			if (Connector)
 			{
-				if (Connector->Settings.Type == EConnectorType::Primary)
+				if (Connector->IsPrimary())
 				{
 					if (bIsConnected)
 					{

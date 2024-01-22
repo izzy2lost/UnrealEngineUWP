@@ -21,10 +21,13 @@
 #include "ControlRigBlueprint.h"
 #include "ControlRigBlueprintActions.h"
 #include "ControlRigEditorModule.h"
+#include "ModularRig.h"
 #include "RigVMBlueprintGeneratedClass.h"
 #include "Graph/ControlRigGraphSchema.h"
 #include "Graph/ControlRigGraph.h"
 #include "Kismet2/BlueprintEditorUtils.h"
+#include "ModularRigController.h"
+#include "Settings/ControlRigSettings.h"
 
 #include UE_INLINE_GENERATED_CPP_BY_NAME(ControlRigBlueprintFactory)
 
@@ -295,6 +298,23 @@ UObject* UControlRigBlueprintFactory::FactoryCreateNew(UClass* Class, UObject* I
 	{
 		UControlRigBlueprint* ControlRigBlueprint = CastChecked<UControlRigBlueprint>(FKismetEditorUtilities::CreateBlueprint(ParentClass, InParent, Name, BPTYPE_Normal, UControlRigBlueprint::StaticClass(), URigVMBlueprintGeneratedClass::StaticClass(), CallingContext));
 		FControlRigEditorModule::Get().CreateRootGraphIfRequired(ControlRigBlueprint);
+
+		// add the default module
+		if(ParentClass->IsChildOf(UModularRig::StaticClass()))
+		{
+			const FSoftObjectPath DefaultRootModulePath = UControlRigSettings::Get()->DefaultRootModule;
+			if(const UControlRigBlueprint* DefaultRootModule = Cast<UControlRigBlueprint>(DefaultRootModulePath.TryLoad()))
+			{
+				if(UClass* DefaultRootModuleClass = Cast<UClass>(DefaultRootModule->GetControlRigClass()))
+				{
+					if(DefaultRootModuleClass->IsChildOf(UControlRig::StaticClass()))
+					{
+						static const FName RootName = TEXT("Root");
+						ControlRigBlueprint->ModularRigModel.GetController()->AddModule(RootName, DefaultRootModuleClass, FString(), false);
+					}
+				}
+			}
+		}
 		return ControlRigBlueprint;
 	}
 }

@@ -87,6 +87,7 @@ public:
 	void UpdateElementKeyNodes();
 	void UpdateElementKeyLinks();
 	void UpdateControlRigContent();
+	void UpdateConnector(const FRigElementKey& InElementKey);
 
 	void OnSetObjectBeingDebugged(UObject* InObject);
 	void OnHierarchyModified(ERigHierarchyNotification InNotif, URigHierarchy* InHierarchy, const FRigBaseElement* InElement);
@@ -128,7 +129,6 @@ private:
 	TArray<FGuid> TemporaryNodeGuids;
 	TMap<FRigElementKey, FGuid> RigElementKeyToGuid;
 	mutable TMap<FSoftObjectPath, FSlateBrush> ModuleIcons;
-	bool bUpdateConnectorTargetsOnTick = false;
 
 	friend class FControlRigEditor;
 };

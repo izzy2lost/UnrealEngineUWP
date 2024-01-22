@@ -1140,7 +1140,7 @@ bool FRigBaseElementDetails::IsAnyConnectorPrimary() const
 	{
 		if(const FRigConnectorElement* Connector = Info.Element.Get<FRigConnectorElement>())
 		{
-			return Connector->Settings.Type == EConnectorType::Primary;
+			return Connector->IsPrimary();
 		}
 		return false;
 	});

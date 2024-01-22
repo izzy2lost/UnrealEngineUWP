@@ -84,6 +84,8 @@ public:
 	bool ContainsRig(const UControlRig* InRig) const;
 	const FRigModuleReference* GetModuleReference() const;
 	const FRigConnectorElement* FindPrimaryConnector() const;
+	TArray<const FRigConnectorElement*> FindConnectors() const;
+	bool IsRootModule() const;
 };
 
 USTRUCT(BlueprintType)
@@ -176,6 +178,8 @@ public:
 
 	const FRigModuleInstance* FindModule(const FString& InPath) const;
 	const FRigModuleInstance* FindModule(const UControlRig* InModuleInstance) const;
+	const FRigModuleInstance* FindModule(const FRigBaseElement* InElement) const;
+	const FRigModuleInstance* FindModule(const FRigElementKey& InElementKey) const;
 	FString GetParentPath(const FString& InPath) const;
 
 	void ForEachModule(TFunctionRef<bool(FRigModuleInstance*)> PerModuleFunction);

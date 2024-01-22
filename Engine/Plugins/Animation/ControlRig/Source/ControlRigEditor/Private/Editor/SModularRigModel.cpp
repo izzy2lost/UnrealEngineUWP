@@ -726,7 +726,7 @@ void SModularRigModel::OnHierarchyModified(ERigHierarchyNotification InNotif, UR
 			}
 
 			FString ModulePathOrConnectorName;
-			if(Connector->Settings.Type == EConnectorType::Primary)
+			if(Connector->IsPrimary())
 			{
 				ModulePathOrConnectorName = InHierarchy->GetNameMetadata(Connector->GetKey(), URigHierarchy::NameSpaceMetadataName, NAME_None).ToString();
 				ModulePathOrConnectorName = ModulePathOrConnectorName.LeftChop(1);

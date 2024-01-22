@@ -180,12 +180,12 @@ bool UModularRigController::CanConnectConnectorToElement(const FRigElementKey& I
 		return true; // Nothing to do
 	}
 
-	if (ModuleConnector->Settings.Type != EConnectorType::Primary)
+	if (!ModuleConnector->IsPrimary())
 	{
 		const FRigModuleConnector* PrimaryMdouleConnector = RigCDO->GetRigModuleSettings().ExposedConnectors.FindByPredicate(
 		[ConnectorName](FRigModuleConnector& Connector)
 		{
-			return Connector.Settings.Type == EConnectorType::Primary;
+			return Connector.IsPrimary();
 		});
 
 		const FString PrimaryConnectorPath = FString::Printf(TEXT("%s:%s"), *ConnectorModulePath, *PrimaryMdouleConnector->Name);
@@ -263,14 +263,11 @@ bool UModularRigController::ConnectConnectorToElement(const FRigElementKey& InCo
 
 #if WITH_EDITOR
 	FName TargetModulePathName = NAME_None;
-	if (UControlRig* RigCDO = Module->Class->GetDefaultObject<UControlRig>())
+	if (UModularRig* ModularRig = Cast<UModularRig>(Blueprint->GetObjectBeingDebugged()))
 	{
-		if (UModularRig* ModularRig = Cast<UModularRig>(Blueprint->GetObjectBeingDebugged()))
+		if (URigHierarchy* Hierarchy = ModularRig->GetHierarchy())
 		{
-			if (URigHierarchy* Hierarchy = ModularRig->GetHierarchy())
-			{
-				TargetModulePathName = Hierarchy->GetNameMetadata(InTargetKey, URigHierarchy::ModuleMetadataName, NAME_None);
-			}
+			TargetModulePathName = Hierarchy->GetModulePathFName(InTargetKey);
 		}
 	}
 	
@@ -337,7 +334,7 @@ bool UModularRigController::ConnectConnectorToElement(const FRigElementKey& InCo
 				// automatically re-parent the module in the module tree as well
 				if(const FRigConnectorElement* Connector = Hierarchy->Find<FRigConnectorElement>(InConnectorKey))
 				{
-					if(Connector->Settings.Type == EConnectorType::Primary)
+					if(Connector->IsPrimary())
 					{
 						if(!TargetModulePathName.IsNone())
 						{
@@ -416,7 +413,7 @@ bool UModularRigController::DisconnectConnector(const FRigElementKey& InConnecto
 
 	Model->Connections.RemoveConnection(InConnectorKey);
 
-	if (Connector->Settings.Type == EConnectorType::Primary)
+	if (Connector->IsPrimary())
 	{
 		// Remove connections from module and child modules
 		TArray<FRigElementKey> ConnectionsToRemove;

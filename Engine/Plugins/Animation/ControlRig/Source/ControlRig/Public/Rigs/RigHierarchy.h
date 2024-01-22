@@ -1565,6 +1565,20 @@ public:
 		return SetArrayMetadata<FRigElementKey>(InItem, ERigMetadataType::RigElementKeyArray, InMetadataName, InValue);
 	}
 
+	/**
+	 * Returns the path of the module an element belong to (or NAME_None in case the element doesn't belong to a module)
+	 * @return The path the element belongs to (or NAME_None)
+	 */
+	UFUNCTION(BlueprintPure, Category = URigHierarchy)
+	FName GetModulePathFName(FRigElementKey InItem) const;
+	
+	/**
+	 * Returns the path of the module an element belong to (or an empty string in case the element doesn't belong to a module)
+	 * @return The path the element belongs to (or empty string)
+	 */
+	UFUNCTION(BlueprintPure, Category = URigHierarchy)
+	FString GetModulePath(FRigElementKey InItem) const;
+
 	/*
 	 * Returns the tags for a given item
 	 * @param InItem The item to return the tags for

@@ -17,6 +17,7 @@
 #include "ControlRigSettings.generated.h"
 
 class UStaticMesh;
+class UControlRig;
 
 USTRUCT()
 struct FControlRigSettingsPerPinBool
@@ -40,6 +41,9 @@ public:
 #if WITH_EDITORONLY_DATA
 	UPROPERTY(EditAnywhere, config, Category = Shapes)
 	TSoftObjectPtr<UControlRigShapeLibrary> DefaultShapeLibrary;
+
+	UPROPERTY(EditAnywhere, config, Category = ModularRigging, meta=(AllowedClasses="/Script/ControlRigDeveloper.ControlRigBlueprint"))
+	FSoftObjectPath DefaultRootModule;
 #endif
 	
 	static UControlRigSettings * Get() { return GetMutableDefault<UControlRigSettings>(); }

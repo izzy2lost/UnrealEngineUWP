@@ -266,6 +266,7 @@ private:
 		FPerNodeCache()
 			: bHasParent(false)
 			, Visibility(ESchematicGraphVisibility::Visible)
+			, Placement(ESchematicGraphPlacementConstraint::Free)
 			, bIsAutoScaling(false)
 			, Position(FVector2d::ZeroVector)
 			, Radius(0.0)
@@ -273,6 +274,7 @@ private:
 
 		bool bHasParent;
 		ESchematicGraphVisibility::Type Visibility;
+		ESchematicGraphPlacementConstraint::Type Placement;
 		bool bIsAutoScaling;
 		FVector2d Position;
 		double Radius;

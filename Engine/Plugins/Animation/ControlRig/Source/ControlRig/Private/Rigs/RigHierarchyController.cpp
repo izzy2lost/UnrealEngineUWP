@@ -604,7 +604,7 @@ FRigElementKey URigHierarchyController::AddConnector(FName InName, FRigConnector
 		const TArray<FRigConnectorElement*>& Connectors = Hierarchy->GetConnectors();
 		for(const FRigConnectorElement* Connector : Connectors)
 		{
-			if(Connector->Settings.Type == EConnectorType::Primary)
+			if(Connector->IsPrimary())
 			{
 				if(Hierarchy->HasExecuteContext())
 				{

@@ -74,7 +74,7 @@ FString FRigModuleInstance::GetShortName() const
 
 FString FRigModuleInstance::GetPath() const
 {
-	if (!ParentPath.IsEmpty())
+	if (!IsRootModule())
 	{
 		return URigHierarchy::JoinNameSpace(ParentPath, Name.ToString()); 
 	}
@@ -139,17 +139,57 @@ const FRigConnectorElement* FRigModuleInstance::FindPrimaryConnector() const
 {
 	if(const UControlRig* Rig = GetRig())
 	{
-		if(const FRigModuleConnector* ExposedConnector = Rig->GetRigModuleSettings().FindPrimaryConnector())
+		if(const URigHierarchy* Hierarchy = Rig->GetHierarchy())
 		{
-			if(const URigHierarchy* Hierarchy = Rig->GetHierarchy())
+			const FString MyModulePath = GetPath();
+			const TArray<FRigConnectorElement*> AllConnectors = Hierarchy->GetConnectors();
+			for(const FRigConnectorElement* Connector : AllConnectors)
 			{
-				const FString ConnectorName = URigHierarchy::JoinNameSpace(GetNamespace(), ExposedConnector->Name); 
-				const FRigElementKey ConnectorKey(*ConnectorName, ERigElementType::Connector);
-				return Hierarchy->Find<FRigConnectorElement>(ConnectorKey);
+				if(Connector->IsPrimary())
+				{
+					const FString ModulePath = Hierarchy->GetModulePath(Connector->GetKey());
+					if(!ModulePath.IsEmpty())
+					{
+						if(ModulePath.Equals(MyModulePath, ESearchCase::CaseSensitive))
+						{
+							return Connector;
+						}
+					}
+				}
 			}
 		}
 	}
 	return nullptr;
+}
+
+TArray<const FRigConnectorElement*> FRigModuleInstance::FindConnectors() const
+{
+	TArray<const FRigConnectorElement*> Connectors;
+	if(const UControlRig* Rig = GetRig())
+	{
+		if(const URigHierarchy* Hierarchy = Rig->GetHierarchy())
+		{
+			const FString MyModulePath = GetPath();
+			const TArray<FRigConnectorElement*> AllConnectors = Hierarchy->GetConnectors();
+			for(const FRigConnectorElement* Connector : AllConnectors)
+			{
+				const FString ModulePath = Hierarchy->GetModulePath(Connector->GetKey());
+				if(!ModulePath.IsEmpty())
+				{
+					if(ModulePath.Equals(MyModulePath, ESearchCase::CaseSensitive))
+					{
+						Connectors.Add(Connector);
+					}
+				}
+			}
+		}
+	}
+	return Connectors;
+}
+
+bool FRigModuleInstance::IsRootModule() const
+{
+	return ParentPath.IsEmpty();
 }
 
 void UModularRig::Serialize(FArchive& Ar)
@@ -558,7 +598,7 @@ void UModularRig::UpdateCachedChildren()
 	RootModules.Reset();
 	for (FRigModuleInstance& Module : Modules)
 	{
-		if (Module.ParentPath.IsEmpty())
+		if (Module.IsRootModule())
 		{
 			RootModules.Add(&Module);
 		}
@@ -759,6 +799,28 @@ const FRigModuleInstance* UModularRig::FindModule(const UControlRig* InModuleIns
 	});
 
 	return FoundModule;
+}
+
+const FRigModuleInstance* UModularRig::FindModule(const FRigBaseElement* InElement) const
+{
+	if(InElement)
+	{
+		return FindModule(InElement->GetKey());
+	}
+	return nullptr;
+}
+
+const FRigModuleInstance* UModularRig::FindModule(const FRigElementKey& InElementKey) const
+{
+	if(const URigHierarchy* Hierarchy = GetHierarchy())
+	{
+		const FString ModulePath = Hierarchy->GetModulePath(InElementKey);
+		if(!ModulePath.IsEmpty())
+		{
+			return FindModule(ModulePath);
+		}
+	}
+	return nullptr;
 }
 
 FString UModularRig::GetParentPath(const FString& InPath) const

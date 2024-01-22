@@ -2748,7 +2748,7 @@ TOptional<EItemDropZone> SRigHierarchy::OnCanAcceptDrop(const FDragDropEvent& Dr
 					FRigModuleConnector* PrimaryConnector = nullptr;
 					for (FRigModuleConnector& Connector : AssetBlueprint->RigModuleSettings.ExposedConnectors)
 					{
-						if (Connector.Settings.Type == EConnectorType::Primary)
+						if (Connector.IsPrimary())
 						{
 							PrimaryConnector = &Connector;
 							break;
@@ -2913,7 +2913,7 @@ FReply SRigHierarchy::OnAcceptDrop(const FDragDropEvent& DragDropEvent, EItemDro
 						TArray<FRigConnectorElement*> Connectors = GetHierarchy()->GetElementsOfType<FRigConnectorElement>();
 						for (FRigConnectorElement* Connector : Connectors)
 						{
-							if (Connector->Settings.Type == EConnectorType::Primary)
+							if (Connector->IsPrimary())
 							{
 								FString Path, Name;
 								Connector->GetName().Split(UModularRig::NamespaceSeparator, &Path, &Name, ESearchCase::CaseSensitive, ESearchDir::FromEnd);

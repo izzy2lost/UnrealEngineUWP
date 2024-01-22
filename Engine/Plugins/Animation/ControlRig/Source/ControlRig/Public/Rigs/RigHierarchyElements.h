@@ -1727,6 +1727,10 @@ struct CONTROLRIG_API FRigConnectorElement final : public FRigBaseElement
 
 	FRigConnectorState GetConnectorState(const URigHierarchy* InHierarchy) const;
 
+	bool IsPrimary() const { return Settings.Type == EConnectorType::Primary; }
+	bool IsSecondary() const { return Settings.Type == EConnectorType::Secondary; }
+	bool IsOptional() const { return IsSecondary() && Settings.bOptional; }
+
 private:
 	explicit FRigConnectorElement(URigHierarchy* InOwner)
 		: FRigBaseElement(InOwner, ERigElementType::Connector)

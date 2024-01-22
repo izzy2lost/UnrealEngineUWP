@@ -52,6 +52,10 @@ struct CONTROLRIG_API FRigModuleConnector
 
 	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = Connector)
 	FRigConnectorSettings Settings;
+	
+	bool IsPrimary() const { return Settings.Type == EConnectorType::Primary; }
+	bool IsSecondary() const { return Settings.Type == EConnectorType::Secondary; }
+	bool IsOptional() const { return IsSecondary() && Settings.bOptional; }
 };
 
 USTRUCT(BlueprintType)
@@ -73,7 +77,7 @@ struct CONTROLRIG_API FRigModuleSettings
 	{
 		return ExposedConnectors.FindByPredicate([](const FRigModuleConnector& Connector)
 		{
-			return Connector.Settings.Type == EConnectorType::Primary;
+			return Connector.IsPrimary();
 		});
 	}
 
