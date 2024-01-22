@@ -142,7 +142,7 @@ void FStateTreeEditorDataDetails::CustomizeDetails(IDetailLayoutBuilder& DetailB
 	ParametersCategory.SetSortOrder(2);
 	{
 		// Show parameters as a category.
-		TSharedPtr<IPropertyUtilities> PropUtils = DetailBuilder.GetPropertyUtilities();
+		TSharedRef<IPropertyUtilities> PropUtils = DetailBuilder.GetPropertyUtilities();
 		TSharedPtr<IPropertyHandle> RootParametersProperty = DetailBuilder.GetProperty(TEXT("RootParameters")); // FStateTreeStateParameters
 		check(RootParametersProperty);
 		RootParametersProperty->MarkHiddenByCustomization();
@@ -150,7 +150,9 @@ void FStateTreeEditorDataDetails::CustomizeDetails(IDetailLayoutBuilder& DetailB
 		TSharedPtr<IPropertyHandle> ParametersProperty = RootParametersProperty->GetChildHandle(TEXT("Parameters")); // FInstancedPropertyBag
 		check(ParametersProperty);
 
-		TSharedRef<SHorizontalBox> HeaderContentWidget = SNew(SHorizontalBox);
+		TSharedRef<SHorizontalBox> HeaderContentWidget = SNew(SHorizontalBox)
+			.IsEnabled(PropUtils, &IPropertyUtilities::IsPropertyEditingEnabled);
+
 		HeaderContentWidget->AddSlot()
 		.HAlign(HAlign_Right)
 		.VAlign(VAlign_Center)
@@ -208,7 +210,9 @@ void FStateTreeEditorDataDetails::MakeArrayCategory(IDetailLayoutBuilder& Detail
 	IDetailCategoryBuilder& Category = DetailBuilder.EditCategory(CategoryName, DisplayName);
 	Category.SetSortOrder(SortOrder);
 
-	TSharedRef<SHorizontalBox> HeaderContentWidget = SNew(SHorizontalBox);
+	TSharedRef<SHorizontalBox> HeaderContentWidget = SNew(SHorizontalBox)
+		.IsEnabled(DetailBuilder.GetPropertyUtilities(), &IPropertyUtilities::IsPropertyEditingEnabled);
+
 	HeaderContentWidget->AddSlot()
 	.HAlign(HAlign_Right)
 	.VAlign(VAlign_Center)

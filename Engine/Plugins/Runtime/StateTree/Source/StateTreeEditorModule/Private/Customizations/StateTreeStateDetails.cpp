@@ -132,7 +132,9 @@ void FStateTreeStateDetails::MakeArrayCategory(IDetailLayoutBuilder& DetailBuild
 	IDetailCategoryBuilder& Category = DetailBuilder.EditCategory(CategoryName, DisplayName);
 	Category.SetSortOrder(SortOrder);
 
-	const TSharedRef<SHorizontalBox> HeaderContentWidget = SNew(SHorizontalBox);
+	const TSharedRef<SHorizontalBox> HeaderContentWidget = SNew(SHorizontalBox)
+		.IsEnabled(DetailBuilder.GetPropertyUtilities(), &IPropertyUtilities::IsPropertyEditingEnabled);
+
 	HeaderContentWidget->AddSlot()
 	.HAlign(HAlign_Right)
 	.VAlign(VAlign_Center)
