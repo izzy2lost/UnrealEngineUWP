@@ -34,6 +34,7 @@ class BLENDSTACKEDITOR_API UAnimGraphNode_BlendStack_Base : public UAnimGraphNod
 protected:
 	// Helper function for compilation
 	void ExpandGraphAndProcessNodes(
+		int GraphIndex,
 		UEdGraph* SourceGraph, 
 		UAnimGraphNode_Base* SourceRootNode, TArrayView<UAnimGraphNode_BlendStackInput*> SourceInputNode,
 		IAnimBlueprintCompilationContext& InCompilationContext, IAnimBlueprintGeneratedClassCompiledData& OutCompiledData,
