@@ -11,21 +11,7 @@
 #if WATER_MESH_DRAW_INDIRECT_INTERNAL
 float3 QuadTreePosition;
 uint bLODMorphingEnabled;
-
-#if INSTANCED_STEREO
-Buffer<uint> InstanceDataOffsetsBuffer;
-Buffer<uint> InstanceData0Buffer;
-Buffer<uint> InstanceData1Buffer;
-Buffer<uint> InstanceData2Buffer;
-#if WITH_WATER_SELECTION_SUPPORT_VF
-Buffer<uint> InstanceData3Buffer;
 #endif
-
-uint DrawBucketIndex;
-uint StereoPassInstanceFactor;
-#endif // INSTANCED_STEREO
-
-#endif // WATER_MESH_DRAW_INDIRECT_INTERNAL
 
 struct FVertexFactoryInterpolantsVSToPS
 {
@@ -52,16 +38,13 @@ struct FVertexFactoryInput
 	float4	Position	: ATTRIBUTE0;
 
 #if WATER_MESH_DRAW_INDIRECT_INTERNAL
-#if !INSTANCED_STEREO // ISR uses manual vertex fetching instead
 	uint InstanceData0 : ATTRIBUTE8;
 	uint InstanceData1 : ATTRIBUTE9;
 	uint InstanceData2 : ATTRIBUTE10;
 #if HIT_PROXY_SHADER || WITH_WATER_SELECTION_SUPPORT_VF
 	uint InstanceData3 : ATTRIBUTE11;
 #endif
-#endif // !INSTANCED_STEREO
-
-#else // WATER_MESH_DRAW_INDIRECT_INTERNAL
+#else
 	float4 InstanceData0 : ATTRIBUTE8;
 	float4 InstanceData1 : ATTRIBUTE9; 
 #if HIT_PROXY_SHADER || WITH_WATER_SELECTION_SUPPORT_VF
@@ -81,13 +64,10 @@ struct FPositionOnlyVertexFactoryInput
 	float4	Position	: ATTRIBUTE0;
 
 #if WATER_MESH_DRAW_INDIRECT_INTERNAL
-#if !INSTANCED_STEREO // ISR uses manual vertex fetching instead
 	uint InstanceData0 : ATTRIBUTE8;
 	uint InstanceData1 : ATTRIBUTE9;
 	uint InstanceData2 : ATTRIBUTE10;
-#endif // !INSTANCED_STEREO
-
-#else // WATER_MESH_DRAW_INDIRECT_INTERNAL
+#else
 	float4 InstanceData0 : ATTRIBUTE8;
 	float4 InstanceData1 : ATTRIBUTE9;
 #endif // WATER_MESH_DRAW_INDIRECT_INTERNAL
@@ -105,12 +85,9 @@ struct FPositionAndNormalOnlyVertexFactoryInput
 	float4	Normal		: ATTRIBUTE2;
 
 #if WATER_MESH_DRAW_INDIRECT_INTERNAL
-#if !INSTANCED_STEREO // ISR uses manual vertex fetching instead
 	uint InstanceData0 : ATTRIBUTE8;
 	uint InstanceData1 : ATTRIBUTE9;
 	uint InstanceData2 : ATTRIBUTE10;
-#endif // !INSTANCED_STEREO
-
 #else
 	float4 InstanceData0 : ATTRIBUTE8;
 	float4 InstanceData1 : ATTRIBUTE9;
@@ -357,19 +334,7 @@ FVertexFactoryIntermediates GetVertexFactoryIntermediates(FVertexFactoryInput In
 	FVertexFactoryIntermediates Intermediates;
 
 #if WATER_MESH_DRAW_INDIRECT_INTERNAL
-#if INSTANCED_STEREO
-	const uint InstanceIndex = Input.InstanceId / StereoPassInstanceFactor;
-	const uint InstanceDataIndex = InstanceDataOffsetsBuffer.Load(DrawBucketIndex) + InstanceIndex;
-	const uint InstanceData0 = InstanceData0Buffer.Load(InstanceDataIndex);
-	const uint InstanceData1 = InstanceData1Buffer.Load(InstanceDataIndex);
-	const uint InstanceData2 = InstanceData2Buffer.Load(InstanceDataIndex);
-#else
-	const uint InstanceData0 = Input.InstanceData0;
-	const uint InstanceData1 = Input.InstanceData1;
-	const uint InstanceData2 = Input.InstanceData2;
-#endif
-
-	const FWaterVertexFactoryInstanceInput InstanceInput = UnpackWaterVertexFactoryInstanceInput(Input.Position, InstanceData0, InstanceData1, InstanceData2);
+	const FWaterVertexFactoryInstanceInput InstanceInput = UnpackWaterVertexFactoryInstanceInput(Input.Position, Input.InstanceData0, Input.InstanceData1, Input.InstanceData2);
 #else
 	const FWaterVertexFactoryInstanceInput InstanceInput = UnpackWaterVertexFactoryInstanceInput(Input.Position, Input.InstanceData0, Input.InstanceData1);
 #endif
@@ -408,12 +373,8 @@ FVertexFactoryIntermediates GetVertexFactoryIntermediates(FVertexFactoryInput In
 
 #if WITH_WATER_SELECTION_SUPPORT_VF
 #if WATER_MESH_DRAW_INDIRECT_INTERNAL
-	#if INSTANCED_STEREO
-	float SelectedValue = UnpackRGBA8(InstanceData3Buffer.Load(InstanceDataIndex)).w;
-	#else
 	float SelectedValue = UnpackRGBA8(Input.InstanceData2).w;
-	#endif // INSTANCED_STEREO
-#else // WATER_MESH_DRAW_INDIRECT_INTERNAL
+#else
 	float SelectedValue = Input.InstanceData2.w;
 #endif
 	float IsVisible = WaterVF.bRenderSelected * SelectedValue + WaterVF.bRenderUnselected * (1-SelectedValue);
@@ -428,16 +389,10 @@ float4 VertexFactoryGetInstanceHitProxyId(FVertexFactoryInput Input, FVertexFact
 {
 #if WITH_WATER_SELECTION_SUPPORT_VF
 #if WATER_MESH_DRAW_INDIRECT_INTERNAL
-	#if INSTANCED_STEREO
-	const uint InstanceIndex = Input.InstanceId / StereoPassInstanceFactor;
-	const uint InstanceDataIndex = InstanceDataOffsetsBuffer.Load(DrawBucketIndex) + InstanceIndex;
-	return float4(UnpackRGBA8(InstanceData3Buffer.Load(InstanceDataIndex)).bgr, 0);
-	#else
 	return float4(UnpackRGBA8(Input.InstanceData2).bgr, 0);
-	#endif // INSTANCED_STEREO
-#else // WATER_MESH_DRAW_INDIRECT_INTERNAL
+#else
 	return float4(Input.InstanceData2.rgb, 0);
-#endif // WATER_MESH_DRAW_INDIRECT_INTERNAL
+#endif
 #else // WITH_WATER_SELECTION_SUPPORT_VF
 	return 0;
 #endif // !WITH_WATER_SELECTION_SUPPORT_VF

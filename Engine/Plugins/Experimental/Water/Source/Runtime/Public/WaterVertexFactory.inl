@@ -13,8 +13,8 @@
 
 // ----------------------------------------------------------------------------------
 
-template <bool bWithWaterSelectionSupport, EWaterVertexFactoryDrawMode DrawMode>
-TWaterVertexFactory<bWithWaterSelectionSupport, DrawMode>::TWaterVertexFactory(ERHIFeatureLevel::Type InFeatureLevel, const FVector& InQuadTreePositionWS, int32 InNumQuadsPerSide, int32 InNumQuadsLOD0, int32 InNumDensities, float InLeafSize, float InLODScale, float InCaptureDepthRange)
+template <bool bWithWaterSelectionSupport, bool bIndirectDraws>
+TWaterVertexFactory<bWithWaterSelectionSupport, bIndirectDraws>::TWaterVertexFactory(ERHIFeatureLevel::Type InFeatureLevel, const FVector& InQuadTreePositionWS, int32 InNumQuadsPerSide, int32 InNumQuadsLOD0, int32 InNumDensities, float InLeafSize, float InLODScale, float InCaptureDepthRange)
 	: FVertexFactory(InFeatureLevel)
 	, QuadTreePositionWS(InQuadTreePositionWS)
 	, NumQuadsPerSide(InNumQuadsPerSide)
@@ -28,15 +28,15 @@ TWaterVertexFactory<bWithWaterSelectionSupport, DrawMode>::TWaterVertexFactory(E
 	IndexBuffer = new FWaterMeshIndexBuffer(NumQuadsPerSide);
 }
 
-template <bool bWithWaterSelectionSupport, EWaterVertexFactoryDrawMode DrawMode>
-TWaterVertexFactory<bWithWaterSelectionSupport, DrawMode>::~TWaterVertexFactory()
+template <bool bWithWaterSelectionSupport, bool bIndirectDraws>
+TWaterVertexFactory<bWithWaterSelectionSupport, bIndirectDraws>::~TWaterVertexFactory()
 {
 	delete VertexBuffer;
 	delete IndexBuffer;
 }
 
-template <bool bWithWaterSelectionSupport, EWaterVertexFactoryDrawMode DrawMode>
-void TWaterVertexFactory<bWithWaterSelectionSupport, DrawMode>::InitRHI(FRHICommandListBase& RHICmdList)
+template <bool bWithWaterSelectionSupport, bool bIndirectDraws>
+void TWaterVertexFactory<bWithWaterSelectionSupport, bIndirectDraws>::InitRHI(FRHICommandListBase& RHICmdList)
 {
 	Super::InitRHI(RHICmdList);
 
@@ -68,23 +68,19 @@ void TWaterVertexFactory<bWithWaterSelectionSupport, DrawMode>::InitRHI(FRHIComm
 	Elements.Add(VertexPositionElement);
 
 	// Adds all streams
-	if constexpr (UsesIndirectDraws())
+	if constexpr (bIndirectDraws)
 	{
-		// Instanced stereo manually fetches instance data from buffers instead
-		if (!UsesInstancedStereo())
+		FVertexStream InstanceDataVertexStream;
+		InstanceDataVertexStream.VertexBuffer = nullptr;
+		InstanceDataVertexStream.Stride = sizeof(uint32);
+		InstanceDataVertexStream.Offset = 0;
+		InstanceDataVertexStream.VertexStreamUsage = EVertexStreamUsage::Instancing;
+
+		constexpr int NumBuffers = bWithWaterSelectionSupport ? 4 : 3;
+
+		for (int i = 0; i < NumBuffers; ++i)
 		{
-			FVertexStream InstanceDataVertexStream;
-			InstanceDataVertexStream.VertexBuffer = nullptr;
-			InstanceDataVertexStream.Stride = sizeof(uint32);
-			InstanceDataVertexStream.Offset = 0;
-			InstanceDataVertexStream.VertexStreamUsage = EVertexStreamUsage::Instancing;
-
-			constexpr int NumBuffers = bWithWaterSelectionSupport ? 4 : 3;
-
-			for (int i = 0; i < NumBuffers; ++i)
-			{
-				Elements.Add(FVertexElement(Streams.Add(InstanceDataVertexStream), 0, VET_UInt, 8 + i, InstanceDataVertexStream.Stride, true));
-			}
+			Elements.Add(FVertexElement(Streams.Add(InstanceDataVertexStream), 0, VET_UInt, 8 + i, InstanceDataVertexStream.Stride, true));
 		}
 	}
 	else if constexpr (NumAdditionalVertexStreams > 0)
@@ -120,8 +116,8 @@ void TWaterVertexFactory<bWithWaterSelectionSupport, DrawMode>::InitRHI(FRHIComm
 	InitDeclaration(Elements);
 }
 
-template <bool bWithWaterSelectionSupport, EWaterVertexFactoryDrawMode DrawMode>
-void TWaterVertexFactory<bWithWaterSelectionSupport, DrawMode>::ReleaseRHI()
+template <bool bWithWaterSelectionSupport, bool bIndirectDraws>
+void TWaterVertexFactory<bWithWaterSelectionSupport, bIndirectDraws>::ReleaseRHI()
 {
 	for (auto& UniformBuffer : UniformBuffers)
 	{
@@ -141,8 +137,8 @@ void TWaterVertexFactory<bWithWaterSelectionSupport, DrawMode>::ReleaseRHI()
 	Super::ReleaseRHI();
 }
 
-template <bool bWithWaterSelectionSupport, EWaterVertexFactoryDrawMode DrawMode>
-void TWaterVertexFactory<bWithWaterSelectionSupport, DrawMode>::SetupUniformDataForGroup(EWaterMeshRenderGroupType InRenderGroupType)
+template <bool bWithWaterSelectionSupport, bool bIndirectDraws>
+void TWaterVertexFactory<bWithWaterSelectionSupport, bIndirectDraws>::SetupUniformDataForGroup(EWaterMeshRenderGroupType InRenderGroupType)
 {
 	FWaterVertexFactoryParameters UniformParams;
 	UniformParams.NumQuadsPerTileSide = NumQuadsPerSide;
@@ -162,8 +158,8 @@ void TWaterVertexFactory<bWithWaterSelectionSupport, DrawMode>::SetupUniformData
 	UniformBuffers[(int32)InRenderGroupType] = FWaterVertexFactoryBufferRef::CreateUniformBufferImmediate(UniformParams, UniformBuffer_MultiFrame);
 }
 
-template <bool bWithWaterSelectionSupport, EWaterVertexFactoryDrawMode DrawMode>
-bool TWaterVertexFactory<bWithWaterSelectionSupport, DrawMode>::ShouldCompilePermutation(const FVertexFactoryShaderPermutationParameters& Parameters)
+template <bool bWithWaterSelectionSupport, bool bIndirectDraws>
+bool TWaterVertexFactory<bWithWaterSelectionSupport, bIndirectDraws>::ShouldCompilePermutation(const FVertexFactoryShaderPermutationParameters& Parameters)
 {
 	const bool bIsCompatibleWithWater = ((Parameters.MaterialParameters.MaterialDomain == MD_Surface) && Parameters.MaterialParameters.bIsUsedWithWater) || Parameters.MaterialParameters.bIsSpecialEngineMaterial;
 	if (bIsCompatibleWithWater)
@@ -174,8 +170,8 @@ bool TWaterVertexFactory<bWithWaterSelectionSupport, DrawMode>::ShouldCompilePer
 	return false;
 }
 
-template <bool bWithWaterSelectionSupport, EWaterVertexFactoryDrawMode DrawMode>
-void TWaterVertexFactory<bWithWaterSelectionSupport, DrawMode>::ModifyCompilationEnvironment(const FVertexFactoryShaderPermutationParameters& Parameters, FShaderCompilerEnvironment& OutEnvironment)
+template <bool bWithWaterSelectionSupport, bool bIndirectDraws>
+void TWaterVertexFactory<bWithWaterSelectionSupport, bIndirectDraws>::ModifyCompilationEnvironment(const FVertexFactoryShaderPermutationParameters& Parameters, FShaderCompilerEnvironment& OutEnvironment)
 {
 	OutEnvironment.SetDefine(TEXT("WATER_MESH_FACTORY"), 1);
 #if 0
@@ -193,17 +189,21 @@ void TWaterVertexFactory<bWithWaterSelectionSupport, DrawMode>::ModifyCompilatio
 		OutEnvironment.SetDefine(TEXT("USE_VERTEXFACTORY_HITPROXY_ID"), TEXT("1"));
 		OutEnvironment.SetDefine(TEXT("WITH_WATER_SELECTION_SUPPORT_VF"), TEXT("1"));
 	}
-	if (UsesIndirectDraws())
+	if (bIndirectDraws)
 	{
 		OutEnvironment.SetDefine(TEXT("WATER_MESH_DRAW_INDIRECT"), TEXT("1"));
-		OutEnvironment.CompilerFlags.Add(CFLAG_IndirectDraw);
 	}
 
 	OutEnvironment.SetDefine(TEXT("RAY_TRACING_DYNAMIC_MESH_IN_LOCAL_SPACE"), TEXT("1"));
+
+	if (bIndirectDraws)
+	{
+		OutEnvironment.CompilerFlags.Add(CFLAG_IndirectDraw);
+	}
 }
 
-template <bool bWithWaterSelectionSupport, EWaterVertexFactoryDrawMode DrawMode>
-void TWaterVertexFactory<bWithWaterSelectionSupport, DrawMode>::ValidateCompiledResult(const FVertexFactoryType* Type, EShaderPlatform Platform, const FShaderParameterMap& ParameterMap, TArray<FString>& OutErrors)
+template <bool bWithWaterSelectionSupport, bool bIndirectDraws>
+void TWaterVertexFactory<bWithWaterSelectionSupport, bIndirectDraws>::ValidateCompiledResult(const FVertexFactoryType* Type, EShaderPlatform Platform, const FShaderParameterMap& ParameterMap, TArray<FString>& OutErrors)
 {
 #if 0
 	if (Type->SupportsPrimitiveIdStream()
@@ -215,25 +215,21 @@ void TWaterVertexFactory<bWithWaterSelectionSupport, DrawMode>::ValidateCompiled
 #endif
 }
 
-template <bool bWithWaterSelectionSupport, EWaterVertexFactoryDrawMode DrawMode>
-void TWaterVertexFactory<bWithWaterSelectionSupport, DrawMode>::GetPSOPrecacheVertexFetchElements(EVertexInputStreamType VertexInputStreamType, FVertexDeclarationElementList& Elements)
+template <bool bWithWaterSelectionSupport, bool bIndirectDraws>
+void TWaterVertexFactory<bWithWaterSelectionSupport, bIndirectDraws>::GetPSOPrecacheVertexFetchElements(EVertexInputStreamType VertexInputStreamType, FVertexDeclarationElementList& Elements)
 {
 	// Add position stream
 	Elements.Add(FVertexElement(0, 0, VET_Float4, 0, sizeof(FVector4f), false));
 
 	// Add all the additional streams
-	if constexpr (UsesIndirectDraws())
+	if constexpr (bIndirectDraws)
 	{
-		// Instanced stereo manually fetches instance data from buffers instead
-		if (!UsesInstancedStereo())
+		Elements.Add(FVertexElement(1, 0, VET_UInt, 8, sizeof(uint32), true));
+		Elements.Add(FVertexElement(2, 0, VET_UInt, 9, sizeof(uint32), true));
+		Elements.Add(FVertexElement(3, 0, VET_UInt, 10, sizeof(uint32), true));
+		if (bWithWaterSelectionSupport)
 		{
-			Elements.Add(FVertexElement(1, 0, VET_UInt, 8, sizeof(uint32), true));
-			Elements.Add(FVertexElement(2, 0, VET_UInt, 9, sizeof(uint32), true));
-			Elements.Add(FVertexElement(3, 0, VET_UInt, 10, sizeof(uint32), true));
-			if (bWithWaterSelectionSupport)
-			{
-				Elements.Add(FVertexElement(4, 0, VET_UInt, 11, sizeof(uint32), true));
-			}
+			Elements.Add(FVertexElement(4, 0, VET_UInt, 11, sizeof(uint32), true));
 		}
 	}
 	else if constexpr (NumAdditionalVertexStreams > 0)

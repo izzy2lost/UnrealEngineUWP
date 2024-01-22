@@ -17,7 +17,6 @@
 #include "SceneInterface.h"
 #include "RenderGraphBuilder.h"
 #include "RenderGraphUtils.h"
-#include "StereoRenderUtils.h"
 
 DECLARE_STATS_GROUP(TEXT("Water Mesh"), STATGROUP_WaterMesh, STATCAT_Advanced);
 
@@ -180,10 +179,8 @@ FWaterMeshSceneProxy::FWaterMeshSceneProxy(UWaterMeshComponent* Component)
 	NumQuadsLOD0 = NumQuads;
 	NumQuadsPerIndirectDrawTile = FMath::Min((int32)FMath::RoundUpToPowerOfTwo(FMath::Clamp(CVarWaterMeshGPUQuadTreeNumQuads.GetValueOnGameThread(), 2, 128)), NumQuadsLOD0);
 
-	const bool bIsGPUQuadTree = WaterQuadTree.IsGPUQuadTree();
-
 	// Initialize Z bounds needed for GPU driven rendering
-	if (bIsGPUQuadTree)
+	if (WaterQuadTree.IsGPUQuadTree())
 	{
 		WaterQuadTreeMinHeight = DBL_MAX;
 		WaterQuadTreeMaxHeight = -DBL_MAX;
@@ -209,22 +206,9 @@ FWaterMeshSceneProxy::FWaterMeshSceneProxy(UWaterMeshComponent* Component)
 	const FVector QuadTreeCorner = FVector(WaterQuadTree.GetTileRegion().Min, WaterQuadTreeMinHeight);
 	const float WaterQuadTreeDepthRange = WaterQuadTreeMaxHeight - WaterQuadTreeMinHeight;
 	const float LeafSize = WaterQuadTree.GetLeafSize();
-	if (bIsGPUQuadTree)
-	{
-		// bIsGPUQuadTree is constant over the lifetime of this scene proxy, so we know up front if we need the indirect draw vertex factory
-		WaterVertexFactoryIndirectDraw = new FWaterVertexFactoryIndirectDrawType(GetScene().GetFeatureLevel(), QuadTreeCorner, NumQuadsPerIndirectDrawTile, NumQuadsLOD0, DensityCount, LeafSize, LODScale, WaterQuadTreeDepthRange);
-		BeginInitResource(WaterVertexFactoryIndirectDraw);
+	WaterVertexFactoryIndirectDraw = new FWaterVertexFactoryIndirectDrawType(GetScene().GetFeatureLevel(), QuadTreeCorner, NumQuadsPerIndirectDrawTile, NumQuadsLOD0, DensityCount, LeafSize, LODScale, WaterQuadTreeDepthRange);
+	BeginInitResource(WaterVertexFactoryIndirectDraw);
 
-		// Only create the ISR vertex factory if ISR is enabled in the first place
-		const UE::StereoRenderUtils::FStereoShaderAspects Aspects(GetScene().GetShaderPlatform());
-		if (Aspects.IsInstancedStereoEnabled())
-		{
-			WaterVertexFactoryIndirectDrawISR = new FWaterVertexFactoryIndirectDrawISRType(GetScene().GetFeatureLevel(), QuadTreeCorner, NumQuadsPerIndirectDrawTile, NumQuadsLOD0, DensityCount, LeafSize, LODScale, WaterQuadTreeDepthRange);
-			BeginInitResource(WaterVertexFactoryIndirectDrawISR);
-		}
-	}
-
-	// We always need the basic CPU-driven rendering vertex factory because the far mesh uses it
 	WaterVertexFactories.Reserve(WaterQuadTree.GetTreeDepth());
 	for (uint8 i = 0; i < WaterQuadTree.GetTreeDepth(); i++)
 	{
@@ -266,7 +250,7 @@ FWaterMeshSceneProxy::FWaterMeshSceneProxy(UWaterMeshComponent* Component)
 	OcclusionCullingBounds = WaterQuadTree.ComputeNodeBounds(MaxQueries, CVarWaterMeshOcclusionCullExpandBoundsAmountXY.GetValueOnGameThread(), bIncludeFarMeshOcclusionQueries, &OcclusionResultsFarMeshOffset);
 	EmptyOcclusionCullingBounds.Add(WaterQuadTree.GetBoundsIncludingFarMesh());
 	// If this is a GPU quadtree, the CPU root node will have an invalid bounding box, so derive conservative bounds now
-	if (bIsGPUQuadTree && !OcclusionCullingBounds.IsEmpty())
+	if (WaterQuadTree.IsGPUQuadTree() && !OcclusionCullingBounds.IsEmpty())
 	{
 		OcclusionCullingBounds[0] = FBox(FVector(WaterQuadTree.GetTileRegion().Min, WaterQuadTreeMinHeight), FVector(WaterQuadTree.GetTileRegion().Max, WaterQuadTreeMaxHeight));
 	}
@@ -274,7 +258,7 @@ FWaterMeshSceneProxy::FWaterMeshSceneProxy(UWaterMeshComponent* Component)
 	// When using a GPU quadtree, this scene proxy allocates pooled buffers in GetDynamicMeshElements. AllocatePooledBuffer must be called on the renderthread.
 	// The callback on GWaterMeshGPUWork seems to be invoked after all GetDynamicMeshElements tasks finish, so there should be no race condition there.
 	// There is usually only a single instance of this proxy (in certain cases there might be two), so opting out of parallel GDME shouldn't have much of an impact (?).
-	bSupportsParallelGDME = !bIsGPUQuadTree;
+	bSupportsParallelGDME = !WaterQuadTree.IsGPUQuadTree();
 }
 
 FWaterMeshSceneProxy::~FWaterMeshSceneProxy()
@@ -284,16 +268,8 @@ FWaterMeshSceneProxy::~FWaterMeshSceneProxy()
 		WaterFactory->ReleaseResource();
 		delete WaterFactory;
 	}
-	if (WaterVertexFactoryIndirectDraw)
-	{
-		WaterVertexFactoryIndirectDraw->ReleaseResource();
-		delete WaterVertexFactoryIndirectDraw;
-	}
-	if (WaterVertexFactoryIndirectDrawISR)
-	{
-		WaterVertexFactoryIndirectDrawISR->ReleaseResource();
-		delete WaterVertexFactoryIndirectDrawISR;
-	}
+	WaterVertexFactoryIndirectDraw->ReleaseResource();
+	delete WaterVertexFactoryIndirectDraw;
 
 	delete WaterInstanceDataBuffers;
 
@@ -410,11 +386,10 @@ void FWaterMeshSceneProxy::GetDynamicMeshElements(const TArray<const FSceneView*
 
 	const int32 NumWaterMaterials = WaterQuadTree.GetWaterMaterials().Num();
 	const int32 NumBuckets = NumWaterMaterials * DensityCount;
-	const int32 NumBucketsIndirect = NumWaterMaterials; // Indirect draws use a single density mesh tile
 
 	// If this is a GPU quadtree, we are using GPU driven rendering to first create a quadtree on the GPU (once) and then traverse it every frame to build a list of indirect draws
 	const bool bIsGPUQuadTree = WaterQuadTree.IsGPUQuadTree();
-	if (bIsGPUQuadTree && NumBucketsIndirect > 0)
+	if (bIsGPUQuadTree && NumBuckets > 0)
 	{
 		bool bEncounteredISRView = false;
 		int32 InstanceFactor = 1;
@@ -438,7 +413,7 @@ void FWaterMeshSceneProxy::GetDynamicMeshElements(const TArray<const FSceneView*
 		}
 
 		const int32 NumVisibleViews = VisibleViews.Num();
-		const int32 NumIndirectDrawCalls = NumBucketsIndirect * NumVisibleViews;
+		const int32 NumIndirectDrawCalls = NumBuckets * NumVisibleViews;
 		const int32 LeafCountUpperBound = WaterQuadTree.GetMaxLeafCount() * NumVisibleViews;
 		const int32 NumInstanceDataSlots = FMath::Max(1, static_cast<int32>(LeafCountUpperBound * FMath::Clamp(CVarWaterMeshGPUQuadInstanceDataAllocMult.GetValueOnRenderThread(), 0.0f, 8.0f)));
 
@@ -446,7 +421,6 @@ void FWaterMeshSceneProxy::GetDynamicMeshElements(const TArray<const FSceneView*
 		struct FIndirectDrawResources
 		{
 			TRefCountPtr<FRDGPooledBuffer> IndirectArgs;
-			TRefCountPtr<FRDGPooledBuffer> InstanceDataOffsets;
 			TRefCountPtr<FRDGPooledBuffer> InstanceData0;
 			TRefCountPtr<FRDGPooledBuffer> InstanceData1;
 			TRefCountPtr<FRDGPooledBuffer> InstanceData2;
@@ -454,7 +428,6 @@ void FWaterMeshSceneProxy::GetDynamicMeshElements(const TArray<const FSceneView*
 		};
 		FIndirectDrawResources& IndirectDrawResources = Collector.AllocateOneFrameResource<FIndirectDrawResources>();
 		IndirectDrawResources.IndirectArgs = AllocatePooledBuffer(FRDGBufferDesc::CreateIndirectDesc<FRHIDrawIndexedIndirectParameters>(FMath::Max(1, NumIndirectDrawCalls)), TEXT("WaterQuadTree.IndirectArgsBuffer"));
-		IndirectDrawResources.InstanceDataOffsets = AllocatePooledBuffer(FRDGBufferDesc::CreateBufferDesc(sizeof(uint32), FMath::Max(1, NumIndirectDrawCalls)), TEXT("WaterQuadTree.InstanceDataOffsetsBuffer"));
 		IndirectDrawResources.InstanceData0 = AllocatePooledBuffer(FRDGBufferDesc::CreateBufferDesc(sizeof(uint32), FMath::Max(1, NumInstanceDataSlots)), TEXT("WaterQuadTree.InstanceDataBuffer0"));
 		IndirectDrawResources.InstanceData1 = AllocatePooledBuffer(FRDGBufferDesc::CreateBufferDesc(sizeof(uint32), FMath::Max(1, NumInstanceDataSlots)), TEXT("WaterQuadTree.InstanceDataBuffer1"));
 		IndirectDrawResources.InstanceData2 = AllocatePooledBuffer(FRDGBufferDesc::CreateBufferDesc(sizeof(uint32), FMath::Max(1, NumInstanceDataSlots)), TEXT("WaterQuadTree.InstanceDataBuffer2"));
@@ -469,7 +442,6 @@ void FWaterMeshSceneProxy::GetDynamicMeshElements(const TArray<const FSceneView*
 		{
 			WaterQuadTreeGPUTraverseParams = {};
 			WaterQuadTreeGPUTraverseParams.OutIndirectArgsBuffer = IndirectDrawResources.IndirectArgs;
-			WaterQuadTreeGPUTraverseParams.OutInstanceDataOffsetsBuffer = IndirectDrawResources.InstanceDataOffsets;
 			WaterQuadTreeGPUTraverseParams.OutInstanceData0Buffer = IndirectDrawResources.InstanceData0;
 			WaterQuadTreeGPUTraverseParams.OutInstanceData1Buffer = IndirectDrawResources.InstanceData1;
 			WaterQuadTreeGPUTraverseParams.OutInstanceData2Buffer = IndirectDrawResources.InstanceData2;
@@ -479,6 +451,7 @@ void FWaterMeshSceneProxy::GetDynamicMeshElements(const TArray<const FSceneView*
 			WaterQuadTreeGPUTraverseParams.CullingBounds = WaterInfoBounds.ShiftBy(-WaterQuadTree.GetTileRegion().Min);
 			WaterQuadTreeGPUTraverseParams.NumDensities = DensityCount;
 			WaterQuadTreeGPUTraverseParams.NumMaterials = NumWaterMaterials;
+			WaterQuadTreeGPUTraverseParams.NumViews = NumVisibleViews;
 			WaterQuadTreeGPUTraverseParams.NumQuadsLOD0 = NumQuadsLOD0;
 			WaterQuadTreeGPUTraverseParams.NumQuadsPerTileSide = NumQuadsPerIndirectDrawTile;
 			WaterQuadTreeGPUTraverseParams.ForceCollapseDensityLevel = ForceCollapseDensityLevel;
@@ -502,11 +475,6 @@ void FWaterMeshSceneProxy::GetDynamicMeshElements(const TArray<const FSceneView*
 			UserDataWrapper.UserData.IndirectInstanceData1 = IndirectDrawResources.InstanceData1->GetRHI();
 			UserDataWrapper.UserData.IndirectInstanceData2 = IndirectDrawResources.InstanceData2->GetRHI();
 			UserDataWrapper.UserData.IndirectInstanceData3 = (WITH_WATER_SELECTION_SUPPORT != 0) ? IndirectDrawResources.InstanceData3->GetRHI() : nullptr;
-			UserDataWrapper.UserData.IndirectInstanceDataOffsetsSRV = IndirectDrawResources.InstanceDataOffsets->GetSRV(RHICmdList, FRHIBufferSRVCreateInfo(PF_R32_UINT));
-			UserDataWrapper.UserData.IndirectInstanceData0SRV = IndirectDrawResources.InstanceData0->GetSRV(RHICmdList, FRHIBufferSRVCreateInfo(PF_R32_UINT));
-			UserDataWrapper.UserData.IndirectInstanceData1SRV = IndirectDrawResources.InstanceData1->GetSRV(RHICmdList, FRHIBufferSRVCreateInfo(PF_R32_UINT));
-			UserDataWrapper.UserData.IndirectInstanceData2SRV = IndirectDrawResources.InstanceData2->GetSRV(RHICmdList, FRHIBufferSRVCreateInfo(PF_R32_UINT));
-			UserDataWrapper.UserData.IndirectInstanceData3SRV = (WITH_WATER_SELECTION_SUPPORT != 0) ? IndirectDrawResources.InstanceData3->GetSRV(RHICmdList, FRHIBufferSRVCreateInfo(PF_R32_UINT)) : nullptr;
 			
 			UserDataWrappers[(int32)RenderGroup] = &UserDataWrapper;
 		}
@@ -519,8 +487,6 @@ void FWaterMeshSceneProxy::GetDynamicMeshElements(const TArray<const FSceneView*
 			if ((VisibilityMap & (1 << ViewIndex)) && (!bEncounteredISRView || Views[ViewIndex]->IsPrimarySceneView()))
 			{
 				TRACE_CPUPROFILER_EVENT_SCOPE(BucketsPerView);
-
-				const bool bInstancedStereo = Views[ViewIndex]->bIsInstancedStereoEnabled;
 
 				for (int32 MaterialIndex = 0; MaterialIndex < NumWaterMaterials; ++MaterialIndex)
 				{
@@ -551,7 +517,7 @@ void FWaterMeshSceneProxy::GetDynamicMeshElements(const TArray<const FSceneView*
 							// Set up mesh batch
 							FMeshBatch& Mesh = Collector.AllocateMesh();
 							Mesh.bWireframe = bWireframe;
-							Mesh.VertexFactory = bInstancedStereo ? (FVertexFactory*)WaterVertexFactoryIndirectDrawISR : (FVertexFactory*)WaterVertexFactoryIndirectDraw;
+							Mesh.VertexFactory = WaterVertexFactoryIndirectDraw;
 							Mesh.MaterialRenderProxy = MaterialRenderProxy;
 							Mesh.ReverseCulling = IsLocalToWorldDeterminantNegative();
 							Mesh.Type = PT_TriangleList;
@@ -579,11 +545,11 @@ void FWaterMeshSceneProxy::GetDynamicMeshElements(const TArray<const FSceneView*
 								BatchElement.FirstIndex = 0;
 								BatchElement.NumPrimitives = 0; // Must be 0 to enable usage of IndirectArgsBuffer
 								BatchElement.IndirectArgsBuffer = IndirectDrawResources.IndirectArgs->GetRHI();
-								BatchElement.IndirectArgsOffset = (CompactViewIndex * NumBucketsIndirect + BucketIndex) * sizeof(FRHIDrawIndexedIndirectParameters);
+								BatchElement.IndirectArgsOffset = (CompactViewIndex * NumBuckets + BucketIndex) * sizeof(FRHIDrawIndexedIndirectParameters);
 								BatchElement.UserData = (void*)&UserDataWrappers[(int32)RenderGroup]->UserData;
-								BatchElement.UserIndex = CompactViewIndex * NumBucketsIndirect + BucketIndex;
+								BatchElement.UserIndex = CompactViewIndex * NumBuckets + BucketIndex;
 
-								BatchElement.IndexBuffer = bInstancedStereo ? WaterVertexFactoryIndirectDrawISR->IndexBuffer : WaterVertexFactoryIndirectDraw->IndexBuffer;
+								BatchElement.IndexBuffer = WaterVertexFactoryIndirectDraw->IndexBuffer;
 								BatchElement.PrimitiveIdMode = PrimID_ForceZero;
 
 								// We need the uniform buffer of this primitive because it stores the proper value for the bOutputVelocity flag.

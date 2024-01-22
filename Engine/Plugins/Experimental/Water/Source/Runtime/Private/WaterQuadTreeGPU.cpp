@@ -321,7 +321,6 @@ public:
 		SHADER_PARAMETER_RDG_BUFFER_SRV(ByteAddressBuffer, BucketCounts)
 		SHADER_PARAMETER(uint32, NumBuckets)
 		SHADER_PARAMETER(uint32, OutputOffset)
-		SHADER_PARAMETER(uint32, bWriteTotalSumAtBufferEnd)
 	END_SHADER_PARAMETER_STRUCT()
 
 	static void ModifyCompilationEnvironment(const FGlobalShaderPermutationParameters& Parameters, FShaderCompilerEnvironment& OutEnvironment)
@@ -367,10 +366,8 @@ public:
 		SHADER_PARAMETER(float, LeafSize)
 		SHADER_PARAMETER(float, LODScale)
 		SHADER_PARAMETER(float, CaptureDepthRange)
-		SHADER_PARAMETER(uint32, StereoPassInstanceFactor)
 		SHADER_PARAMETER(uint32, bWithWaterSelectionSupport)
 		SHADER_PARAMETER(uint32, bLODMorphingEnabled)
-		SHADER_PARAMETER(uint32, bInstancedStereoRendering)
 	END_SHADER_PARAMETER_STRUCT()
 
 	static void ModifyCompilationEnvironment(const FGlobalShaderPermutationParameters& Parameters, FShaderCompilerEnvironment& OutEnvironment)
@@ -754,15 +751,12 @@ void FWaterQuadTreeGPU::Traverse(FRDGBuilder& GraphBuilder, const FTraverseParam
 	RDG_EVENT_SCOPE(GraphBuilder, "FWaterQuadTreeGPU::Traverse");
 	RDG_GPU_STAT_SCOPE(GraphBuilder, FWaterQuadTreeGPU_Traverse);
 
-	const uint32 NumViews = Params.Views.Num();
-
 	FGlobalShaderMap* ShaderMap = GetGlobalShaderMap(GMaxRHIFeatureLevel);
 
 	FRDGTexture* QuadTreeTextureRDG = GraphBuilder.RegisterExternalTexture(CreateRenderTarget(QuadTreeTexture, TEXT("WaterQuadTree.QuadTree")));
 	FRDGTexture* WaterZBoundsTextureRDG = GraphBuilder.RegisterExternalTexture(CreateRenderTarget(WaterZBoundsTexture, TEXT("WaterQuadTree.WaterSurfaceHeight")));
 	FRDGBuffer* WaterBodyRenderDataBufferRDG = GraphBuilder.RegisterExternalBuffer(WaterBodyRenderDataBuffer);
 	FRDGBuffer* IndirectArgsBuffer = GraphBuilder.RegisterExternalBuffer(Params.OutIndirectArgsBuffer);
-	FRDGBuffer* InstanceDataOffsetsBuffer = GraphBuilder.RegisterExternalBuffer(Params.OutInstanceDataOffsetsBuffer);
 	FRDGBuffer* InstanceData0Buffer = GraphBuilder.RegisterExternalBuffer(Params.OutInstanceData0Buffer);
 	FRDGBuffer* InstanceData1Buffer = GraphBuilder.RegisterExternalBuffer(Params.OutInstanceData1Buffer);
 	FRDGBuffer* InstanceData2Buffer = GraphBuilder.RegisterExternalBuffer(Params.OutInstanceData2Buffer);
@@ -781,13 +775,15 @@ void FWaterQuadTreeGPU::Traverse(FRDGBuilder& GraphBuilder, const FTraverseParam
 	FRDGBufferUAV* OcclusionQueryIndirectArgsBufferUAV = nullptr;
 	if (bPixelPreciseOcclusionQueries)
 	{
-		OcclusionQueryIndirectArgsBuffer = GraphBuilder.CreateBuffer(FRDGBufferDesc::CreateIndirectDesc<FRHIDrawIndexedIndirectParameters>(NumViews), TEXT("WaterQuadTree.OcclusionQueryIndirectArgs"));
+		OcclusionQueryIndirectArgsBuffer = GraphBuilder.CreateBuffer(FRDGBufferDesc::CreateIndirectDesc<FRHIDrawIndexedIndirectParameters>(Params.NumViews), TEXT("WaterQuadTree.OcclusionQueryIndirectArgs"));
 		OcclusionQueryIndirectArgsBufferUAV = GraphBuilder.CreateUAV(FRDGBufferUAVDesc(OcclusionQueryIndirectArgsBuffer, PF_R32_UINT));
 	}
 
-	const uint32 NumBucketsPerView = Params.NumMaterials; // The GPU-driven water rendering path only uses a single density mesh tile to draw everything, so NumBuckets is equal to NumMaterials.
-	const uint32 NumBucketsTotal = NumBucketsPerView * NumViews;
+	const uint32 NumBucketsPerView = Params.NumDensities * Params.NumMaterials;
+	const uint32 NumBucketsTotal = NumBucketsPerView * Params.NumViews;
 	const FIntPoint QuadTreeResolution = QuadTreeTextureRDG->Desc.Extent;
+
+	FRDGBuffer* PrefixSumBuffer = GraphBuilder.CreateBuffer(FRDGBufferDesc::CreateBufferDesc(sizeof(uint32), NumBucketsTotal), TEXT("WaterQuadTree.PrefixSum"));
 
 	// Initialize indirect args
 	{
@@ -799,14 +795,14 @@ void FWaterQuadTreeGPU::Traverse(FRDGBuilder& GraphBuilder, const FTraverseParam
 		PassParameters->IndirectArgs = IndirectArgsBufferUAV;
 		PassParameters->OcclusionQueryArgs = OcclusionQueryIndirectArgsBufferUAV;
 		PassParameters->NumDrawBuckets = Params.NumMaterials;
-		PassParameters->NumViews = NumViews;
+		PassParameters->NumViews = Params.NumViews;
 		PassParameters->NumQuads = Params.NumQuadsPerTileSide;
 		
 		FComputeShaderUtils::AddPass(GraphBuilder, RDG_EVENT_NAME("WaterQuadTreeInitIndirectArgs"), ComputeShader, PassParameters, FComputeShaderUtils::GetGroupCount(NumBucketsTotal, 64));
 	}
 
 	// Iterate over all views for which to create indirect water draws
-	for (uint32 ViewIndex = 0; ViewIndex < NumViews; ++ViewIndex)
+	for (uint32 ViewIndex = 0; ViewIndex < Params.NumViews; ++ViewIndex)
 	{
 		const FSceneView* View = Params.Views[ViewIndex];
 		const FViewInfo* ViewInfo = View->bIsViewInfo ? reinterpret_cast<const FViewInfo*>(View) : nullptr;
@@ -972,11 +968,10 @@ void FWaterQuadTreeGPU::Traverse(FRDGBuilder& GraphBuilder, const FTraverseParam
 			TShaderMapRef<FWaterQuadTreeBucketPrefixSumCS> ComputeShader(ShaderMap, PermutationVector);
 
 			FWaterQuadTreeBucketPrefixSumCS::FParameters* PassParameters = GraphBuilder.AllocParameters<FWaterQuadTreeBucketPrefixSumCS::FParameters>();
-			PassParameters->BucketPrefixSums = GraphBuilder.CreateUAV(FRDGBufferUAVDesc(InstanceDataOffsetsBuffer, PF_R32_UINT));
+			PassParameters->BucketPrefixSums = GraphBuilder.CreateUAV(FRDGBufferUAVDesc(PrefixSumBuffer, PF_R32_UINT));
 			PassParameters->BucketCounts = GraphBuilder.CreateSRV(FRDGBufferSRVDesc(BucketCounts));
 			PassParameters->NumBuckets = NumBucketsPerView;
 			PassParameters->OutputOffset = ViewIndex * NumBucketsPerView;
-			PassParameters->bWriteTotalSumAtBufferEnd =  Params.Views.IsValidIndex(ViewIndex + 1); // Propagate total sum so the next iteration/view can compute correct global prefix sums/offsets.
 
 			FComputeShaderUtils::AddPass(GraphBuilder, RDG_EVENT_NAME("WaterQuadTreeDrawBucketPrefixSums(View: %i)", ViewIndex), ComputeShader, PassParameters, FIntVector3(1, 1, 1));
 		}
@@ -997,7 +992,7 @@ void FWaterQuadTreeGPU::Traverse(FRDGBuilder& GraphBuilder, const FTraverseParam
 			PassParameters->WaterZBoundsTexture = WaterZBoundsTextureRDG;
 			PassParameters->WaterBodyRenderData = WaterBodyRenderDataBufferSRV;
 			PassParameters->PackedNodes = PackedNodesSRV;
-			PassParameters->InstanceDataOffsets = GraphBuilder.CreateSRV(FRDGBufferSRVDesc(InstanceDataOffsetsBuffer, PF_R32_UINT));
+			PassParameters->InstanceDataOffsets = GraphBuilder.CreateSRV(FRDGBufferSRVDesc(PrefixSumBuffer, PF_R32_UINT));
 			PassParameters->OcclusionResults = OcclusionQueryResultsSRV;
 			PassParameters->QuadTreePosition = QuadTreePositionTranslatedWorldSpace;
 			PassParameters->ObserverPosition = ObserverPositionTranslatedWorldSpace;
@@ -1013,10 +1008,8 @@ void FWaterQuadTreeGPU::Traverse(FRDGBuilder& GraphBuilder, const FTraverseParam
 			PassParameters->LeafSize = Params.LeafSize;
 			PassParameters->LODScale = Params.LODScale;
 			PassParameters->CaptureDepthRange = CaptureDepthRange;
-			PassParameters->StereoPassInstanceFactor = View->GetStereoPassInstanceFactor();
 			PassParameters->bWithWaterSelectionSupport = Params.bWithWaterSelectionSupport;
 			PassParameters->bLODMorphingEnabled = Params.bLODMorphingEnabled;
-			PassParameters->bInstancedStereoRendering = View->bIsInstancedStereoEnabled;
 
 			FComputeShaderUtils::AddPass(GraphBuilder, RDG_EVENT_NAME("WaterQuadTreeGenerateDraws(View: %i)", ViewIndex), ComputeShader, PassParameters, FComputeShaderUtils::GetGroupCount(PassParameters->NumDispatchedThreads, 64));
 		}
@@ -1059,12 +1052,11 @@ void FWaterQuadTreeGPU::Traverse(FRDGBuilder& GraphBuilder, const FTraverseParam
 	}
 
 	GraphBuilder.UseExternalAccessMode(IndirectArgsBuffer, ERHIAccess::IndirectArgs);
-	GraphBuilder.UseExternalAccessMode(InstanceDataOffsetsBuffer, ERHIAccess::SRVMask);
-	GraphBuilder.UseExternalAccessMode(InstanceData0Buffer, ERHIAccess::SRVMask | ERHIAccess::VertexOrIndexBuffer);
-	GraphBuilder.UseExternalAccessMode(InstanceData1Buffer, ERHIAccess::SRVMask | ERHIAccess::VertexOrIndexBuffer);
-	GraphBuilder.UseExternalAccessMode(InstanceData2Buffer, ERHIAccess::SRVMask | ERHIAccess::VertexOrIndexBuffer);
+	GraphBuilder.UseExternalAccessMode(InstanceData0Buffer, ERHIAccess::VertexOrIndexBuffer);
+	GraphBuilder.UseExternalAccessMode(InstanceData1Buffer, ERHIAccess::VertexOrIndexBuffer);
+	GraphBuilder.UseExternalAccessMode(InstanceData2Buffer, ERHIAccess::VertexOrIndexBuffer);
 	if (Params.bWithWaterSelectionSupport)
 	{
-		GraphBuilder.UseExternalAccessMode(InstanceData3Buffer, ERHIAccess::SRVMask | ERHIAccess::VertexOrIndexBuffer);
+		GraphBuilder.UseExternalAccessMode(InstanceData3Buffer, ERHIAccess::VertexOrIndexBuffer);
 	}
 }

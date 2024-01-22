@@ -13,38 +13,23 @@ IMPLEMENT_GLOBAL_SHADER_PARAMETER_STRUCT(FWaterVertexFactoryRaytracingParameters
 /**
  * Shader parameters for water vertex factory.
  */
-template <bool bWithWaterSelectionSupport, EWaterVertexFactoryDrawMode DrawMode>
+template <bool bWithWaterSelectionSupport, bool bIndirectDraws>
 class TWaterVertexFactoryShaderParameters : public FVertexFactoryShaderParameters
 {
-	using WaterVertexFactoryShaderParametersType = TWaterVertexFactoryShaderParameters<bWithWaterSelectionSupport, DrawMode>;
+	using WaterVertexFactoryShaderParametersType = TWaterVertexFactoryShaderParameters<bWithWaterSelectionSupport, bIndirectDraws>;
 	DECLARE_TYPE_LAYOUT(WaterVertexFactoryShaderParametersType, NonVirtual);
 
 public:
-	using WaterVertexFactoryType = TWaterVertexFactory<bWithWaterSelectionSupport, DrawMode>;
+	using WaterVertexFactoryType = TWaterVertexFactory<bWithWaterSelectionSupport, bIndirectDraws>;
 	using WaterMeshUserDataType = TWaterMeshUserData<bWithWaterSelectionSupport>;
 	using WaterInstanceDataBuffersType = TWaterInstanceDataBuffers<bWithWaterSelectionSupport>;
 
 	void Bind(const FShaderParameterMap& ParameterMap)
 	{
-		if (DrawMode == EWaterVertexFactoryDrawMode::Indirect || DrawMode == EWaterVertexFactoryDrawMode::IndirectInstancedStereo)
+		if (bIndirectDraws)
 		{
 			QuadTreePositionParameter.Bind(ParameterMap, TEXT("QuadTreePosition"));
 			LODMorphingEnabledParameter.Bind(ParameterMap, TEXT("bLODMorphingEnabled"));
-
-			if (DrawMode == EWaterVertexFactoryDrawMode::IndirectInstancedStereo)
-			{
-				InstanceDataOffsetsBufferParameter.Bind(ParameterMap, TEXT("InstanceDataOffsetsBuffer"));
-				InstanceData0BufferParameter.Bind(ParameterMap, TEXT("InstanceData0Buffer"));
-				InstanceData1BufferParameter.Bind(ParameterMap, TEXT("InstanceData1Buffer"));
-				InstanceData2BufferParameter.Bind(ParameterMap, TEXT("InstanceData2Buffer"));
-				if (bWithWaterSelectionSupport)
-				{
-					InstanceData3BufferParameter.Bind(ParameterMap, TEXT("InstanceData3Buffer"));
-				}
-
-				DrawBucketIndexParameter.Bind(ParameterMap, TEXT("DrawBucketIndex"));
-				StereoPassInstanceFactorParameter.Bind(ParameterMap, TEXT("StereoPassInstanceFactor"));
-			}
 		}
 	}
 
@@ -74,26 +59,9 @@ public:
 		}
 #endif
 
-		if (DrawMode == EWaterVertexFactoryDrawMode::Indirect || DrawMode == EWaterVertexFactoryDrawMode::IndirectInstancedStereo)
+		if (bIndirectDraws)
 		{
-			check((DrawMode == EWaterVertexFactoryDrawMode::IndirectInstancedStereo) == View->bIsInstancedStereoEnabled);
-
-			if (View->bIsInstancedStereoEnabled)
-			{
-				const uint32 DrawBucketIndex = BatchElement.UserIndex;
-				const uint32 StereoPassInstanceFactor = View->GetStereoPassInstanceFactor();
-				ShaderBindings.Add(InstanceDataOffsetsBufferParameter, WaterMeshUserData->IndirectInstanceDataOffsetsSRV);
-				ShaderBindings.Add(InstanceData0BufferParameter, WaterMeshUserData->IndirectInstanceData0SRV);
-				ShaderBindings.Add(InstanceData1BufferParameter, WaterMeshUserData->IndirectInstanceData1SRV);
-				ShaderBindings.Add(InstanceData2BufferParameter, WaterMeshUserData->IndirectInstanceData2SRV);
-				if (bWithWaterSelectionSupport)
-				{
-					ShaderBindings.Add(InstanceData3BufferParameter, WaterMeshUserData->IndirectInstanceData3SRV);
-				}
-				ShaderBindings.Add(DrawBucketIndexParameter, DrawBucketIndex);
-				ShaderBindings.Add(StereoPassInstanceFactorParameter, StereoPassInstanceFactor);
-			}
-			else if (VertexStreams.Num() > 0)
+			if (VertexStreams.Num() > 0)
 			{
 				const int32 NumBuffers = bWithWaterSelectionSupport ? 4 : 3;
 				FRHIBuffer* InstanceVertexBuffers[] = 
@@ -144,83 +112,106 @@ public:
 private:
 	LAYOUT_FIELD(FShaderParameter, QuadTreePositionParameter);
 	LAYOUT_FIELD(FShaderParameter, LODMorphingEnabledParameter);
-	LAYOUT_FIELD(FShaderResourceParameter, InstanceDataOffsetsBufferParameter);
-	LAYOUT_FIELD(FShaderResourceParameter, InstanceData0BufferParameter);
-	LAYOUT_FIELD(FShaderResourceParameter, InstanceData1BufferParameter);
-	LAYOUT_FIELD(FShaderResourceParameter, InstanceData2BufferParameter);
-	LAYOUT_FIELD(FShaderResourceParameter, InstanceData3BufferParameter);
-	LAYOUT_FIELD(FShaderParameter, DrawBucketIndexParameter);
-	LAYOUT_FIELD(FShaderParameter, StereoPassInstanceFactorParameter);
 };
 
 // ----------------------------------------------------------------------------------
 
-#define IMPLEMENT_WATER_VERTEX_FACTORY_RAYTRACING(VertexFactoryType, ParametersType, bImplementRaytracing) IMPLEMENT_WATER_VERTEX_FACTORY_RAYTRACING_##bImplementRaytracing(VertexFactoryType, ParametersType)
-#define IMPLEMENT_WATER_VERTEX_FACTORY_RAYTRACING_false(VertexFactoryType, ParametersType)
-#define IMPLEMENT_WATER_VERTEX_FACTORY_RAYTRACING_true(VertexFactoryType, ParametersType)														\
-	IMPLEMENT_VERTEX_FACTORY_PARAMETER_TYPE(VertexFactoryType, SF_Compute, ParametersType);														\
-	IMPLEMENT_VERTEX_FACTORY_PARAMETER_TYPE(VertexFactoryType, SF_RayHitGroup, ParametersType);
-
-#define IMPLEMENT_WATER_VERTEX_FACTORY(bWidthWaterSelectionSupport, DrawMode, bImplementRaytracing, Suffix)										\
-	using FWaterVertexFactoryParameters##Suffix = TWaterVertexFactoryShaderParameters<bWidthWaterSelectionSupport, DrawMode>;					\
-	using FWaterVertexFactory##Suffix = TWaterVertexFactory<bWidthWaterSelectionSupport, DrawMode>;												\
-	IMPLEMENT_TEMPLATE_TYPE_LAYOUT(template<>, FWaterVertexFactoryParameters##Suffix);															\
-	IMPLEMENT_VERTEX_FACTORY_PARAMETER_TYPE(FWaterVertexFactory##Suffix, SF_Vertex, FWaterVertexFactoryParameters##Suffix);						\
-	IMPLEMENT_WATER_VERTEX_FACTORY_RAYTRACING(FWaterVertexFactory##Suffix, FWaterVertexFactoryParameters##Suffix, bImplementRaytracing)			\
-	IMPLEMENT_TEMPLATE_VERTEX_FACTORY_TYPE(template<>, FWaterVertexFactory##Suffix, "/Plugin/Water/Private/WaterMeshVertexFactory.ush",			\
-		EVertexFactoryFlags::UsedWithMaterials																									\
-		| EVertexFactoryFlags::SupportsDynamicLighting																							\
-		| EVertexFactoryFlags::SupportsPrecisePrevWorldPos																						\
-		| EVertexFactoryFlags::SupportsPrimitiveIdStream																						\
-		| EVertexFactoryFlags::SupportsRayTracing																								\
-		| EVertexFactoryFlags::SupportsRayTracingDynamicGeometry																				\
-		| EVertexFactoryFlags::SupportsPSOPrecaching																							\
-	);
+using FWaterVertexFactoryParametersNoSelectionNoIndirect = TWaterVertexFactoryShaderParameters</*bWithWaterSelectionSupport = */ false, /*bIndirectDraws = */ false>;
+using FWaterVertexFactoryParametersNoSelectionWithIndirect = TWaterVertexFactoryShaderParameters</*bWithWaterSelectionSupport = */ false, /*bIndirectDraws = */ true>;
+using FWaterVertexFactoryNoSelectionNoIndirect = TWaterVertexFactory</*bWithWaterSelectionSupport = */ false, /*bIndirectDraws = */ false>;
+using FWaterVertexFactoryNoSelectionWithIndirect = TWaterVertexFactory</*bWithWaterSelectionSupport = */ false, /*bIndirectDraws = */ true>;
 
 // Always implement the basic vertex factory so that it's there for both editor and non-editor builds :
+IMPLEMENT_TEMPLATE_TYPE_LAYOUT(template<>, FWaterVertexFactoryParametersNoSelectionNoIndirect);
+IMPLEMENT_TEMPLATE_TYPE_LAYOUT(template<>, FWaterVertexFactoryParametersNoSelectionWithIndirect);
+IMPLEMENT_VERTEX_FACTORY_PARAMETER_TYPE(FWaterVertexFactoryNoSelectionNoIndirect, SF_Vertex, FWaterVertexFactoryParametersNoSelectionNoIndirect);
+IMPLEMENT_VERTEX_FACTORY_PARAMETER_TYPE(FWaterVertexFactoryNoSelectionWithIndirect, SF_Vertex, FWaterVertexFactoryParametersNoSelectionWithIndirect);
 #if RHI_RAYTRACING
-IMPLEMENT_WATER_VERTEX_FACTORY(false /*bWithWaterSelectionSupport*/, EWaterVertexFactoryDrawMode::NonIndirect, true /*bImplementRaytracing*/, NoSelectionNonIndirect);
-#else
-IMPLEMENT_WATER_VERTEX_FACTORY(false /*bWithWaterSelectionSupport*/, EWaterVertexFactoryDrawMode::NonIndirect, false /*bImplementRaytracing*/, NoSelectionNonIndirect);
-#endif
-IMPLEMENT_WATER_VERTEX_FACTORY(false /*bWithWaterSelectionSupport*/, EWaterVertexFactoryDrawMode::Indirect, false /*bImplementRaytracing*/, NoSelectionWithIndirect);
-IMPLEMENT_WATER_VERTEX_FACTORY(false /*bWithWaterSelectionSupport*/, EWaterVertexFactoryDrawMode::IndirectInstancedStereo, false /*bImplementRaytracing*/, NoSelectionWithIndirectISR);
+IMPLEMENT_VERTEX_FACTORY_PARAMETER_TYPE(FWaterVertexFactoryNoSelectionNoIndirect, SF_Compute, FWaterVertexFactoryParametersNoSelectionNoIndirect);
+IMPLEMENT_VERTEX_FACTORY_PARAMETER_TYPE(FWaterVertexFactoryNoSelectionNoIndirect, SF_RayHitGroup, FWaterVertexFactoryParametersNoSelectionNoIndirect);
+#endif // RHI_RAYTRACING
+IMPLEMENT_TEMPLATE_VERTEX_FACTORY_TYPE(template<>, FWaterVertexFactoryNoSelectionNoIndirect, "/Plugin/Water/Private/WaterMeshVertexFactory.ush",
+	  EVertexFactoryFlags::UsedWithMaterials
+	| EVertexFactoryFlags::SupportsDynamicLighting
+	| EVertexFactoryFlags::SupportsPrecisePrevWorldPos
+	| EVertexFactoryFlags::SupportsPrimitiveIdStream
+	| EVertexFactoryFlags::SupportsRayTracing
+	| EVertexFactoryFlags::SupportsRayTracingDynamicGeometry
+	| EVertexFactoryFlags::SupportsPSOPrecaching
+);
+IMPLEMENT_TEMPLATE_VERTEX_FACTORY_TYPE(template<>, FWaterVertexFactoryNoSelectionWithIndirect, "/Plugin/Water/Private/WaterMeshVertexFactory.ush",
+	EVertexFactoryFlags::UsedWithMaterials
+	| EVertexFactoryFlags::SupportsDynamicLighting
+	| EVertexFactoryFlags::SupportsPrecisePrevWorldPos
+	| EVertexFactoryFlags::SupportsPrimitiveIdStream
+	| EVertexFactoryFlags::SupportsRayTracing
+	| EVertexFactoryFlags::SupportsRayTracingDynamicGeometry
+	| EVertexFactoryFlags::SupportsPSOPrecaching
+);
 
-// In editor builds, also implement the vertex factory that supports water selection:
 #if WITH_WATER_SELECTION_SUPPORT
 
-#if RHI_RAYTRACING
-IMPLEMENT_WATER_VERTEX_FACTORY(true /*bWithWaterSelectionSupport*/, EWaterVertexFactoryDrawMode::NonIndirect, true /*bImplementRaytracing*/, WithSelectionNonIndirect);
-#else
-IMPLEMENT_WATER_VERTEX_FACTORY(true /*bWithWaterSelectionSupport*/, EWaterVertexFactoryDrawMode::NonIndirect, false /*bImplementRaytracing*/, WithSelectionNonIndirect);
-#endif
+using FWaterVertexFactoryParametersWithSelectionNoIndirect = TWaterVertexFactoryShaderParameters</*bWithWaterSelectionSupport = */ true, /*bIndirectDraws = */ false>;
+using FWaterVertexFactoryParametersWithSelectionWithIndirect = TWaterVertexFactoryShaderParameters</*bWithWaterSelectionSupport = */ true, /*bIndirectDraws = */ true>;
+using FWaterVertexFactoryWithSelectionNoIndirect = TWaterVertexFactory</*bWithWaterSelectionSupport = */ true, /*bIndirectDraws = */ false>;
+using FWaterVertexFactoryWithSelectionWithIndirect = TWaterVertexFactory</*bWithWaterSelectionSupport = */ true, /*bIndirectDraws = */ true>;
 
-IMPLEMENT_WATER_VERTEX_FACTORY(true /*bWithWaterSelectionSupport*/, EWaterVertexFactoryDrawMode::Indirect, false /*bImplementRaytracing*/, WithSelectionWithIndirect);
-IMPLEMENT_WATER_VERTEX_FACTORY(true /*bWithWaterSelectionSupport*/, EWaterVertexFactoryDrawMode::IndirectInstancedStereo, false /*bImplementRaytracing*/, WithSelectionWithIndirectISR);
+// In editor builds, also implement the vertex factory that supports water selection:
+IMPLEMENT_TEMPLATE_TYPE_LAYOUT(template<>, FWaterVertexFactoryParametersWithSelectionNoIndirect);
+IMPLEMENT_TEMPLATE_TYPE_LAYOUT(template<>, FWaterVertexFactoryParametersWithSelectionWithIndirect);
+IMPLEMENT_VERTEX_FACTORY_PARAMETER_TYPE(FWaterVertexFactoryWithSelectionNoIndirect, SF_Vertex, FWaterVertexFactoryParametersWithSelectionNoIndirect);
+IMPLEMENT_VERTEX_FACTORY_PARAMETER_TYPE(FWaterVertexFactoryWithSelectionWithIndirect, SF_Vertex, FWaterVertexFactoryParametersWithSelectionWithIndirect);
+#if RHI_RAYTRACING
+IMPLEMENT_VERTEX_FACTORY_PARAMETER_TYPE(FWaterVertexFactoryWithSelectionNoIndirect, SF_Compute, FWaterVertexFactoryParametersWithSelectionNoIndirect);
+IMPLEMENT_VERTEX_FACTORY_PARAMETER_TYPE(FWaterVertexFactoryWithSelectionNoIndirect, SF_RayHitGroup, FWaterVertexFactoryParametersWithSelectionNoIndirect);
+#endif
+IMPLEMENT_TEMPLATE_VERTEX_FACTORY_TYPE(template<>, FWaterVertexFactoryWithSelectionNoIndirect, "/Plugin/Water/Private/WaterMeshVertexFactory.ush",
+	  EVertexFactoryFlags::UsedWithMaterials
+	| EVertexFactoryFlags::SupportsDynamicLighting
+	| EVertexFactoryFlags::SupportsPrecisePrevWorldPos
+	| EVertexFactoryFlags::SupportsPrimitiveIdStream
+	| EVertexFactoryFlags::SupportsRayTracing
+	| EVertexFactoryFlags::SupportsRayTracingDynamicGeometry
+	| EVertexFactoryFlags::SupportsPSOPrecaching
+);
+IMPLEMENT_TEMPLATE_VERTEX_FACTORY_TYPE(template<>, FWaterVertexFactoryWithSelectionWithIndirect, "/Plugin/Water/Private/WaterMeshVertexFactory.ush",
+	EVertexFactoryFlags::UsedWithMaterials
+	| EVertexFactoryFlags::SupportsDynamicLighting
+	| EVertexFactoryFlags::SupportsPrecisePrevWorldPos
+	| EVertexFactoryFlags::SupportsPrimitiveIdStream
+	| EVertexFactoryFlags::SupportsRayTracing
+	| EVertexFactoryFlags::SupportsRayTracingDynamicGeometry
+	| EVertexFactoryFlags::SupportsPSOPrecaching
+);
+
 #endif // WITH_WATER_SELECTION_SUPPORT
 
-const FVertexFactoryType* GetWaterVertexFactoryType(bool bWithWaterSelectionSupport, EWaterVertexFactoryDrawMode DrawMode)
+const FVertexFactoryType* GetWaterVertexFactoryType(bool bWithWaterSelectionSupport, bool bIndirectDraws)
 {
 #if WITH_WATER_SELECTION_SUPPORT
 	if (bWithWaterSelectionSupport)
 	{
-		switch (DrawMode)
+		if (bIndirectDraws)
 		{
-		case EWaterVertexFactoryDrawMode::NonIndirect: return &TWaterVertexFactory</*bWithWaterSelectionSupport = */ true, EWaterVertexFactoryDrawMode::NonIndirect>::StaticType;
-		case EWaterVertexFactoryDrawMode::Indirect: return &TWaterVertexFactory</*bWithWaterSelectionSupport = */ true, EWaterVertexFactoryDrawMode::Indirect>::StaticType;
-		case EWaterVertexFactoryDrawMode::IndirectInstancedStereo: return &TWaterVertexFactory</*bWithWaterSelectionSupport = */ true, EWaterVertexFactoryDrawMode::IndirectInstancedStereo>::StaticType;
-		default: checkNoEntry(); return nullptr;
+			return &TWaterVertexFactory</*bWithWaterSelectionSupport = */ true, /*bIndirectDraws = */ true>::StaticType;
+		}
+		else
+		{
+			return &TWaterVertexFactory</*bWithWaterSelectionSupport = */ true, /*bIndirectDraws = */ false>::StaticType;
 		}
 	}
 	else
 #endif // WITH_WATER_SELECTION_SUPPORT
 	{
-		switch (DrawMode)
+		check(!bWithWaterSelectionSupport);
+		if (bIndirectDraws)
 		{
-		case EWaterVertexFactoryDrawMode::NonIndirect: return &TWaterVertexFactory</*bWithWaterSelectionSupport = */ false, EWaterVertexFactoryDrawMode::NonIndirect>::StaticType;
-		case EWaterVertexFactoryDrawMode::Indirect: return &TWaterVertexFactory</*bWithWaterSelectionSupport = */ false, EWaterVertexFactoryDrawMode::Indirect>::StaticType;
-		case EWaterVertexFactoryDrawMode::IndirectInstancedStereo: return &TWaterVertexFactory</*bWithWaterSelectionSupport = */ false, EWaterVertexFactoryDrawMode::IndirectInstancedStereo>::StaticType;
-		default: checkNoEntry(); return nullptr;
+			return &TWaterVertexFactory</*bWithWaterSelectionSupport = */ false, /*bIndirectDraws = */ true>::StaticType;
 		}
+		else
+		{
+			return &TWaterVertexFactory</*bWithWaterSelectionSupport = */ false, /*bIndirectDraws = */ false>::StaticType;
+		}
+		
 	}
 }

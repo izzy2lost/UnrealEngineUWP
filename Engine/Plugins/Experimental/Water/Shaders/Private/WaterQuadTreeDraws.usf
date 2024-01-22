@@ -487,7 +487,6 @@ RWBuffer<uint> BucketPrefixSums;
 ByteAddressBuffer BucketCounts;
 uint NumBuckets;
 uint OutputOffset;
-uint bWriteTotalSumAtBufferEnd;
 
 #if PARALLEL_PREFIX_SUM
 
@@ -497,7 +496,6 @@ uint bWriteTotalSumAtBufferEnd;
 #define ARRAY_SIZE (GROUP_SIZE * 2)
 groupshared uint SharedData[ARRAY_SIZE];
 groupshared uint BlockPrefixSum;
-groupshared uint TotalGlobalSum;
 
 uint LoadFromBuffer(uint InIndex)
 {
@@ -535,17 +533,7 @@ void MainCS(uint3 DispatchThreadId : SV_DispatchThreadID)
 
 	if (ThreadID == 0)
 	{
-		// Apply global offset if this is not the first view. All views share the same prefix sum and instance data buffers.
-		if (OutputOffset > 0)
-		{
-			// Previous view must have written the total sum after the end of its range. This corresponds to the first element in this range.
-			BlockPrefixSum = BucketPrefixSums[OutputOffset];
-		}
-		else
-		{
-			BlockPrefixSum = 0;
-		}
-		TotalGlobalSum = BlockPrefixSum;
+		BlockPrefixSum = 0;
 	}
 
 	// Process array in blocks of fixed size, keeping track of the sum of all elements in previous blocks
@@ -562,8 +550,6 @@ void MainCS(uint3 DispatchThreadId : SV_DispatchThreadID)
 		const uint LocalSum = Value0 + Value1;
 		SharedData[2 * ThreadID + 0] = Value0;
 		SharedData[2 * ThreadID + 1] = Value1;
-
-		WaveInterlockedAdd(TotalGlobalSum, LocalSum);
 
 		// Up-sweep
 		for (uint d = ARRAY_SIZE >> 1; d > 0; d >>= 1)
@@ -617,39 +603,14 @@ void MainCS(uint3 DispatchThreadId : SV_DispatchThreadID)
 		}
 	}
 
-	// Write total of all values (including those of prior views) at element 0 of the next view.
-	// This way we can propagate the prefix sum offsets across views.
-	if (bWriteTotalSumAtBufferEnd != 0)
-	{
-		if (ThreadID == 0)
-		{
-			BucketPrefixSums[OutputOffset + NumBuckets] = TotalGlobalSum;
-		}
-	}
-
 #else
 
 	uint PrefixSum = 0;
-
-	// Apply global offset if this is not the first view. All views share the same prefix sum and instance data buffers.
-	if (OutputOffset > 0)
-	{
-		// Previous view must have written the total sum after the end of its range. This corresponds to the first element in this range.
-		PrefixSum = BucketPrefixSums[OutputOffset];
-	}
-
 	for (uint BucketIndex = 0; BucketIndex < NumBuckets; ++BucketIndex)
 	{
-		BucketPrefixSums[OutputOffset + BucketIndex] = PrefixSum;
+		BucketPrefixSums[BucketIndex + OutputOffset] = PrefixSum;
 		const uint Count = BucketCounts.Load(BucketIndex << 2);
 		PrefixSum += Count;
-	}
-
-	// Write total of all values (including those of prior views) at element 0 of the next view.
-	// This way we can propagate the prefix sum offsets across views.
-	if (bWriteTotalSumAtBufferEnd != 0)
-	{
-		BucketPrefixSums[OutputOffset + NumBuckets] = PrefixSum;
 	}
 
 #endif // PARALLEL_PREFIX_SUM
@@ -691,10 +652,8 @@ uint NumQuadsPerDraw;
 float LeafSize;
 float LODScale;
 float CaptureDepthRange;
-uint StereoPassInstanceFactor;
 uint bWithWaterSelectionSupport;
 uint bLODMorphingEnabled;
-uint bInstancedStereoRendering;
 
 [numthreads(64, 1, 1)]
 void MainCS(uint3 DispatchThreadId : SV_DispatchThreadID)
@@ -747,18 +706,14 @@ void MainCS(uint3 DispatchThreadId : SV_DispatchThreadID)
 		const uint BucketInstanceDataOffset = InstanceDataOffsets.Load(BucketIndex);
 		const uint NumTilesPerEdge = max(NumQuadsPerDraw, NumQuadsLOD0 >> DensityIndexClamped) / NumQuadsPerDraw;
 		const uint NumInstances = NumTilesPerEdge * NumTilesPerEdge;
-		const uint NumInstancesStereo = NumInstances * StereoPassInstanceFactor;
 		
 		// Increment InstanceCount
-		uint LocalInstanceDataOffsetStereo;
-		InterlockedAdd(IndirectArgs[BucketIndex * 5 + 1], NumInstancesStereo, LocalInstanceDataOffsetStereo);
-		const uint LocalInstanceDataOffset = LocalInstanceDataOffsetStereo / StereoPassInstanceFactor;
+		uint LocalInstanceDataOffset;
+		InterlockedAdd(IndirectArgs[BucketIndex * 5 + 1], NumInstances, LocalInstanceDataOffset); 
 		const uint InstanceDataBaseIndex = BucketInstanceDataOffset + LocalInstanceDataOffset;
 
-		// On the first write to this bucket, set StartInstanceLocation to offset where the per-instance vertex attributes are read from.
-		// With ISR, we use the InstanceId to manually fetch instance data buffers in the vertex factory.
-		// StartInstanceLocation affects InstanceId differently on different platforms, so when using InstanceId, StartInstanceLocation must be 0.
-		if (LocalInstanceDataOffset == 0 && bInstancedStereoRendering == 0)
+		// On the first write to this bucket, set StartInstanceLocation to offset where the per-instance vertex attributes are read from
+		if (LocalInstanceDataOffset == 0)
 		{
 			IndirectArgs[BucketIndex * 5 + 4] = BucketInstanceDataOffset;
 		}
