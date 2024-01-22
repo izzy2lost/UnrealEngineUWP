@@ -104,6 +104,15 @@ bool FModelInstance::PrepareModelRDG(FRDGBuilder& RDGBuilder)
 	return true;
 }
 
+FModelInstance::~FModelInstance()
+{
+	for (FOperatorHlsl* Operator : Operators)
+	{
+		delete Operator;
+	}
+	Operators.Empty();
+}
+
 bool FModelInstance::Init(TConstArrayView<uint8> ModelData)
 {
 	check(ModelData.Num() > 0);

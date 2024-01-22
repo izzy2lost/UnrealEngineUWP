@@ -17,7 +17,7 @@ class FModelInstance : public FModelInstanceRDG
 	
 public:
 
-	~FModelInstance() = default;
+	~FModelInstance();
 
 	bool Init(TConstArrayView<uint8> ModelData);
 
