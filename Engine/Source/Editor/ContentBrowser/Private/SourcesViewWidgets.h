@@ -108,7 +108,8 @@ private:
 		Normal,
 		Code,
 		Developer,
-		Plugin,
+		PluginSubfolder,
+		PluginRoot,
 	};
 
 	/** The data for this item */
