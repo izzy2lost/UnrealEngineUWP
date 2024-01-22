@@ -1,5 +1,6 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 #include "ChooserFunctionLibrary.h"
+#include "Blueprint/BlueprintExceptionInfo.h"
 #include "Chooser.h"
 
 #include UE_INLINE_GENERATED_CPP_BY_NAME(ChooserFunctionLibrary)

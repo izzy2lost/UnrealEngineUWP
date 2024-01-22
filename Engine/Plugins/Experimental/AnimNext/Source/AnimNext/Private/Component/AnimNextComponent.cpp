@@ -2,6 +2,7 @@
 
 #include "Component/AnimNextComponent.h"
 
+#include "Blueprint/BlueprintExceptionInfo.h"
 #include "Param/ParamUtils.h"
 #include "Scheduler/Scheduler.h"
 #include "Scheduler/ScheduleContext.h"

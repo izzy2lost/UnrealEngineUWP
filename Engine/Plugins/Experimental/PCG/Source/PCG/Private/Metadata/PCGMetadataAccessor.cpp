@@ -1,6 +1,7 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 #include "Metadata/PCGMetadataAccessor.h"
+#include "Blueprint/BlueprintExceptionInfo.h"
 #include "Metadata/PCGMetadata.h"
 #include "PCGPoint.h"
 

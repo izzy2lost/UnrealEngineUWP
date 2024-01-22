@@ -10,6 +10,7 @@
 #include "Kismet/BlueprintFunctionLibrary.h"
 #include "Engine/DataTable.h"
 #include "UObject/Class.h" // for FStructUtils
+#include "Blueprint/BlueprintExceptionInfo.h"
 #include "DataTableFunctionLibrary.generated.h"
 
 class UCurveTable;

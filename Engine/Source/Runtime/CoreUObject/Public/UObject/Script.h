@@ -7,13 +7,16 @@
 #pragma once
 
 #include "HAL/ThreadSingleton.h"
+#if UE_ENABLE_INCLUDE_ORDER_DEPRECATED_IN_5_4
 #include "Internationalization/Text.h"
+#endif
 #include "Stats/Stats.h"
 #include "Misc/EnumClassFlags.h"
 #include "Misc/CoreMisc.h"
 #include "Memory/VirtualStackAllocator.h"
 
 struct FFrame;
+struct FBlueprintExceptionInfo;
 
 // It's best to set only one of these, but strictly speaking you could set both.
 // The results will be confusing. Native time would be included only in a coarse 
@@ -335,22 +338,6 @@ enum class EBlueprintTextLiteralType : uint8
 	StringTableEntry,
 };
 
-// Kinds of Blueprint exceptions
-namespace EBlueprintExceptionType
-{
-	enum Type
-	{
-		Breakpoint,
-		Tracepoint,
-		WireTracepoint,
-		AccessViolation,
-		InfiniteLoop,
-		NonFatalError,
-		FatalError,
-		AbortExecution,
-	};
-}
-
 // Script instrumentation event types
 namespace EScriptInstrumentation
 {
@@ -375,35 +362,6 @@ namespace EScriptInstrumentation
 		Stop
 	};
 }
-
-// Information about a blueprint exception
-struct FBlueprintExceptionInfo
-{
-public:
-	FBlueprintExceptionInfo(EBlueprintExceptionType::Type InEventType)
-		: EventType(InEventType)
-	{
-	}
-
-	FBlueprintExceptionInfo(EBlueprintExceptionType::Type InEventType, const FText& InDescription)
-		: EventType(InEventType)
-		, Description(InDescription)
-	{
-	}
-
-	EBlueprintExceptionType::Type GetType() const
-	{
-		return EventType;
-	}
-
-	const FText& GetDescription() const
-	{
-		return Description;
-	}
-protected:
-	EBlueprintExceptionType::Type EventType;
-	FText Description;
-};
 
 // Information about a blueprint instrumentation signal
 struct FScriptInstrumentationSignal

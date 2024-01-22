@@ -3,6 +3,7 @@
 #include "Kismet/KismetSystemLibrary.h"
 #include "AssetRegistry/ARFilter.h"
 #include "Blueprint/BlueprintSupport.h"
+#include "Blueprint/BlueprintExceptionInfo.h"
 #include "Engine/AssetManagerTypes.h"
 #include "Engine/BlueprintGeneratedClass.h"
 #include "HAL/FileManager.h"

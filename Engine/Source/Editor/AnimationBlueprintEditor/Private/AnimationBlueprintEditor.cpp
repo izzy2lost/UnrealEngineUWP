@@ -50,6 +50,7 @@
 #include "AssetRegistry/AssetData.h"
 #include "BlendSpaceDocumentTabFactory.h"
 #include "BlendSpaceGraph.h"
+#include "Blueprint/BlueprintExceptionInfo.h"
 #include "Components/SkeletalMeshComponent.h"
 #include "Containers/EnumAsByte.h"
 #include "CoreGlobals.h"

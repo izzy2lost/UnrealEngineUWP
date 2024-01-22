@@ -44,6 +44,7 @@
 #include "UObject/UnrealType.h"
 #include "AnimationGraphSchema.h"
 #include "BlueprintEditorSettings.h"
+#include "Blueprint/BlueprintExceptionInfo.h"
 
 #define LOCTEXT_NAMESPACE "BlueprintDebugging"
 

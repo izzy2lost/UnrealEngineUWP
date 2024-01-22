@@ -2,6 +2,7 @@
 
 #include "JsonBlueprintFunctionLibrary.h"
 
+#include "Blueprint/BlueprintExceptionInfo.h"
 #include "JsonObjectConverter.h"
 #include "JsonObjectWrapper.h"
 #include "Misc/FileHelper.h"

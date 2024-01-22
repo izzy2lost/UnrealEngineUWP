@@ -1,7 +1,7 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 #include "Helpers/PCGGraphParametersHelpers.h"
-
+#include "Blueprint/BlueprintExceptionInfo.h"
 #include "PCGGraph.h"
 #include "PropertyBag.h"
 
