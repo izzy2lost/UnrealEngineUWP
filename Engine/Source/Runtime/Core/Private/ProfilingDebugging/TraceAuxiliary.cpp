@@ -28,6 +28,8 @@
 #endif
 
 #if UE_TRACE_SERVER_LAUNCH_ENABLED
+#include "HAL/PlatformProcess.h"
+#include "Misc/CommandLine.h"
 #include "Misc/Parse.h"
 #include "Misc/Paths.h"
 #endif
