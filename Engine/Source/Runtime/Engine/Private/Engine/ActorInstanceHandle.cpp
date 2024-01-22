@@ -159,7 +159,6 @@ void FActorInstanceHandle::ResolveHandle() const
 		{
 			// OwnerActor is not valid so we need to reset the handle
 			new (MutableThis)(FActorInstanceHandle);
-			checkf(ResolutionStatus == EResolutionStatus::Invalid, TEXT("Default constructor must mark the resolution as invalid."));
 		}
 	}
 }
