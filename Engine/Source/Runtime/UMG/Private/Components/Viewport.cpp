@@ -251,7 +251,7 @@ FLinearColor FUMGViewportClient::GetBackgroundColor() const
 
 float FUMGViewportClient::GetOrthoUnitsPerPixel(const FViewport* InViewport) const
 {
-	const float SizeX = InViewport->GetSizeXY().X;
+	const int32 SizeX = InViewport->GetSizeXY().X;
 
 	// 15.0f was coming from the CAMERA_ZOOM_DIV marco, seems it was chosen arbitrarily
 	return ( GetOrthoZoom() / ( SizeX * 15.f ) )/* * ComputeOrthoZoomFactor(SizeX)*/;

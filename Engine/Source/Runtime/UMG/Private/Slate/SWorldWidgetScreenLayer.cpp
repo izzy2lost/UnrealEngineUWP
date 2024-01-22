@@ -150,8 +150,8 @@ void SWorldWidgetScreenLayer::Tick(const FGeometry& AllottedGeometry, const doub
 
 					if (bProjected)
 					{
-						const float ViewportDist = FVector::Dist(ProjectionData.ViewOrigin, WorldLocation);
-						const FVector2D RoundedPosition2D(FMath::RoundToInt(ScreenPosition2D.X), FMath::RoundToInt(ScreenPosition2D.Y));
+						const double ViewportDist = FVector::Dist(ProjectionData.ViewOrigin, WorldLocation);
+						const FVector2D RoundedPosition2D(FMath::RoundToDouble(ScreenPosition2D.X), FMath::RoundToDouble(ScreenPosition2D.Y));
 
 						// If the root widget has pixel snapping disabled, then don't pixel snap the screen coordinates either otherwise
 						// it'll always jump between pixels. This saves needing an explicit flag on the widget component, and is probably 
@@ -185,7 +185,7 @@ void SWorldWidgetScreenLayer::Tick(const FGeometry& AllottedGeometry, const doub
 								
 								if (GSlateWorldWidgetZOrder != 0)
 								{
-									CanvasSlot->SetZOrder(-ViewportPosition.Z);
+									CanvasSlot->SetZOrder(static_cast<float>(- ViewportPosition.Z));
 								}
 							}
 							else
@@ -197,7 +197,7 @@ void SWorldWidgetScreenLayer::Tick(const FGeometry& AllottedGeometry, const doub
 
 								if (GSlateWorldWidgetZOrder != 0)
 								{
-									CanvasSlot->SetZOrder(-ViewportPosition.Z);
+									CanvasSlot->SetZOrder(static_cast<float>( - ViewportPosition.Z));
 								}
 							}
 						}

@@ -90,7 +90,7 @@ UTextureRenderTarget2D* FWidgetRenderer::CreateTargetFor(FVector2D DrawSize, Tex
 		RenderTarget->ClearColor = FLinearColor::Transparent;
 		RenderTarget->SRGB = bIsLinearSpace;
 		RenderTarget->TargetGamma = 1;
-		RenderTarget->InitCustomFormat(DrawSize.X, DrawSize.Y, requestedFormat, bIsLinearSpace);
+		RenderTarget->InitCustomFormat(FMath::FloorToInt32(DrawSize.X), FMath::FloorToInt32(DrawSize.Y), requestedFormat, bIsLinearSpace);
 		RenderTarget->UpdateResourceImmediate(true);
 
 		return RenderTarget;

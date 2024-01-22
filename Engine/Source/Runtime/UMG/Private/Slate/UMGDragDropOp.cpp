@@ -118,7 +118,7 @@ void FUMGDragDropOp::OnDragged( const class FDragDropEvent& DragDropEvent )
 	
 		if ( DeltaTime < AnimationTime )
 		{
-			float T = DeltaTime / AnimationTime;
+			double T = DeltaTime / AnimationTime;
 			FVector2D LerpPosition = ( Position - StartingScreenPos ) * T;
 			
 			DecoratorPosition = StartingScreenPos + LerpPosition;
