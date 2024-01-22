@@ -5,9 +5,11 @@
 
 Texture2D<float4> DiffuseLightingAndSecondMomentTexture;
 Texture2D<float4> SpecularLightingAndSecondMomentTexture;
+Texture2D<UNORM float> NumFramesAccumulatedTexture;
 RWTexture2D<float4> RWSceneColor;
 
 float SpatialFilterDepthWeightScale;
+float TemporalMaxFramesAccumulated;
 
 /**
  * Run a spatial filter in order to filter out noise based on the temporal variance.
@@ -41,6 +43,10 @@ void DenoiserSpatialCS(
 
 			float CenterDiffuseStdDev = sqrt(max(CenterDiffuseLightingAndSecondMoment.w - Pow2(Luminance(CenterDiffuseLightingAndSecondMoment.xyz)), 0.0f));
 			float CenterSpecularStdDev = sqrt(max(CenterSpecularLightingAndSecondMoment.w - Pow2(Luminance(CenterSpecularLightingAndSecondMoment.xyz)), 0.0f));
+	
+			// Run spatial filter until we accumulate enough frames to estimated temporal variance
+			float NumFramesAccumulated = NumFramesAccumulatedTexture[ScreenCoord] * TemporalMaxFramesAccumulated;
+			CenterDiffuseStdDev = lerp(1.0f, CenterDiffuseStdDev, saturate(NumFramesAccumulated / min(5.0f, TemporalMaxFramesAccumulated)));
 
 			float3 DiffuseLightingSum = CenterDiffuseLightingAndSecondMoment.xyz;
 			float3 SpecularLightingSum = CenterSpecularLightingAndSecondMoment.xyz;

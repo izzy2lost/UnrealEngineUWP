@@ -587,6 +587,7 @@ class FDenoiserSpatialCS : public FGlobalShader
 		SHADER_PARAMETER_RDG_TEXTURE_UAV(RWTexture2D<float4>, RWSceneColor)
 		SHADER_PARAMETER_RDG_TEXTURE(Texture2D<float3>, DiffuseLightingAndSecondMomentTexture)
 		SHADER_PARAMETER_RDG_TEXTURE(Texture2D<float3>, SpecularLightingAndSecondMomentTexture)
+		SHADER_PARAMETER_RDG_TEXTURE(Texture2D<UNORM float>, NumFramesAccumulatedTexture)
 		SHADER_PARAMETER(float, SpatialFilterDepthWeightScale)
 	END_SHADER_PARAMETER_STRUCT()
 
@@ -763,6 +764,7 @@ void FDeferredShadingSceneRenderer::RenderManyLights(FRDGBuilder& GraphBuilder, 
 		ManyLightsParameters.DownsampledTileDataStride = DownsampledTileDataStride;
 		ManyLightsParameters.TemporalMaxFramesAccumulated = FMath::Max(CVarManyLightsTemporalMaxFramesAccumulated.GetValueOnRenderThread(), 0.0f);
 		ManyLightsParameters.TemporalNeighborhoodClampScale = CVarManyLightsTemporalNeighborhoodClampScale.GetValueOnRenderThread();
+		ManyLightsParameters.TemporalAdvanceFrame = View.ViewState && !View.bStatePrevViewInfoIsReadOnly ? 1 : 0;
 		ManyLightsParameters.DebugMode = ManyLights::GetDebugMode();
 		ManyLightsParameters.DebugLightId = INDEX_NONE;
 
@@ -1145,6 +1147,7 @@ void FDeferredShadingSceneRenderer::RenderManyLights(FRDGBuilder& GraphBuilder, 
 		PassParameters->RWSceneColor = GraphBuilder.CreateUAV(SceneTextures.Color.Target);
 		PassParameters->DiffuseLightingAndSecondMomentTexture = DiffuseLightingAndSecondMoment;
 		PassParameters->SpecularLightingAndSecondMomentTexture = SpecularLightingAndSecondMoment;
+		PassParameters->NumFramesAccumulatedTexture = NumFramesAccumulated;
 		PassParameters->SpatialFilterDepthWeightScale = CVarManyLightsSpatialDepthWeightScale.GetValueOnRenderThread();
 
 		FDenoiserSpatialCS::FPermutationDomain PermutationVector;

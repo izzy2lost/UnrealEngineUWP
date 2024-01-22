@@ -17,6 +17,7 @@ float4 HistoryUVMinMax;
 float PrevSceneColorPreExposureCorrection;
 float TemporalMaxFramesAccumulated;
 float TemporalNeighborhoodClampScale;
+uint TemporalAdvanceFrame;
 uint2 DownsampledViewSize;
 
 RWTexture2D<float4> RWDiffuseLightingAndSecondMoment;
@@ -207,7 +208,13 @@ void DenoiserTemporalCS(
 						float NumFramesAccumulatedHistory = 0.0f;
 						NumFramesAccumulatedHistory = dot(NumFramesAccumulatedHistoryTexture.GatherRed(GlobalPointClampedSampler, HistoryGatherUV).wzxy, HistoryWeights) * TemporalMaxFramesAccumulated;
 						NumFramesAccumulatedHistory = NumFramesAccumulatedHistory / dot(HistoryWeights, 1.0f);
-						NumFramesAccumulated = min(NumFramesAccumulatedHistory + 1.0f, TemporalMaxFramesAccumulated);
+
+						// Advance the frame counter
+						if (TemporalAdvanceFrame != 0)
+						{
+							NumFramesAccumulatedHistory += 1.0f;
+						}
+						NumFramesAccumulated = min(NumFramesAccumulatedHistory, TemporalMaxFramesAccumulated);
 
 						// Clamp history to current neighborhood
 						FNeighborhood DiffuseNeighborhood = GetNeighborhood(ScreenCoord, ResolvedDiffuseLighting, DiffuseLighting);
