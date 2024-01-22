@@ -212,11 +212,11 @@ namespace Horde.Server.Jobs.Artifacts
 		{
 			if (stepId == null)
 			{
-				return new ObjectKey(new Utf8String($"{jobId}/{name}.blob"));
+				return new ObjectKey(new Utf8String($"{jobId}/{name}.blob"), ObjectKey.Validate.None);
 			}
 			else
 			{
-				return new ObjectKey(new Utf8String($"{jobId}/{stepId.Value}/{name}.blob"));
+				return new ObjectKey(new Utf8String($"{jobId}/{stepId.Value}/{name}.blob"), ObjectKey.Validate.None);
 			}
 		}
 

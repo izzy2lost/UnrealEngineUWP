@@ -11,6 +11,17 @@ namespace EpicGames.Horde.Storage
 	[JsonSchemaString]
 	public readonly struct ObjectKey : IEquatable<ObjectKey>
 	{
+		/// <summary>
+		/// Dummy enum to allow invoking the constructor which takes a sanitized full path
+		/// </summary>
+		public enum Validate
+		{
+			/// <summary>
+			/// Dummy value
+			/// </summary>
+			None
+		}
+
 		readonly Utf8String _path;
 
 		/// <summary>
@@ -61,6 +72,17 @@ namespace EpicGames.Horde.Storage
 					}
 				}
 			}
+		}
+
+		/// <summary>
+		/// Constructor
+		/// </summary>
+		/// <param name="path">Path to the blob. The meaning of this string is implementation defined.</param>
+		/// <param name="validate"></param>
+		public ObjectKey(Utf8String path, Validate validate)
+		{
+			_path = path;
+			_ = validate;
 		}
 
 		/// <summary>
