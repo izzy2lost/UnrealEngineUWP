@@ -9,7 +9,10 @@
 #include "Containers/UnrealString.h"
 #include "Misc/Parse.h"
 #include "Misc/LargeWorldCoordinatesSerializer.h"
+#if UE_ENABLE_INCLUDE_ORDER_DEPRECATED_IN_5_4
 #include "Misc/NetworkVersion.h"
+#endif
+#include "Misc/EngineNetworkCustomVersion.h"
 #include "Math/IntPoint.h"
 #include "Logging/LogMacros.h"
 
