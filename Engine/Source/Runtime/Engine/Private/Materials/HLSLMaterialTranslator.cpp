@@ -10153,8 +10153,8 @@ int32 FHLSLMaterialTranslator::TransformBase(EMaterialCommonBasis SourceCoordBas
 
 				// TODO: inconsistent with TransformLocal<TO>World with instancing
 				AddLWCFuncUsage(ELWCFunctionKind::MultiplyVectorMatrix);
-				CodeStr = LWCMultiplyMatrix(TEXT("<A>"), TEXT("Get<PREVIOUS>WorldToLocal(Parameters)"), AWComponent, true);
-				CodeDerivStr = LWCMultiplyMatrix(TEXT("<A>"), TEXT("Get<PREVIOUS>WorldToLocal(Parameters)"), 0, true);
+				CodeStr = LWCMultiplyMatrix(TEXT("<A>"), TEXT("Get<PREV>WorldToLocal(Parameters)"), AWComponent, true);
+				CodeDerivStr = LWCMultiplyMatrix(TEXT("<A>"), TEXT("Get<PREV>WorldToLocal(Parameters)"), 0, true);
 			}
 			else if (DestCoordBasis == MCB_TranslatedWorld)
 			{
