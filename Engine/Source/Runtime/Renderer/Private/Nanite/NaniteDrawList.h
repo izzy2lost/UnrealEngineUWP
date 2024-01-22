@@ -186,7 +186,7 @@ struct FNaniteMaterialPassInfo
 void BuildNaniteMaterialPassCommands(
 	const TConstArrayView<FGraphicsPipelineRenderTargetsInfo> RenderTargetsInfo,
 	const FNaniteMaterialCommands& MaterialCommands,
-	const FNaniteVisibilityResults& VisibilityResults,
+	const FNaniteVisibilityResults* VisibilityResults,
 	TArray<FNaniteMaterialPassCommand, SceneRenderingAllocator>& OutNaniteMaterialPassCommands,
 	TArrayView<FNaniteMaterialPassInfo> OutMaterialPassInfo);
 

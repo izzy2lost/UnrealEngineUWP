@@ -1059,7 +1059,7 @@ void DispatchBasePass(
 	AddClearUAVPass(GraphBuilder, GraphBuilder.CreateUAV(MultiViewRectScaleOffsets), 0);
 	AddClearUAVPass(GraphBuilder, GraphBuilder.CreateUAV(ViewsBuffer), 0);
 
-	const FNaniteVisibilityResults& VisibilityResults = RasterResults.VisibilityResults;
+	const FNaniteVisibilityQuery* VisibilityQuery = RasterResults.VisibilityQuery;
 
 	TStaticArray<FTextureRenderTargetBinding, MaxSimultaneousRenderTargets> BasePassTextures;
 
@@ -1151,7 +1151,7 @@ void DispatchBasePass(
 		FRDGParallelCommandListSet* ParallelCommandListSet,
 		const FUint32Vector4& ViewRect,
 		const uint32 ViewIndex,
-		TSharedPtr<TBitArray<SceneRenderingBitArrayAllocator>> VisibilityData,
+		const FNaniteVisibilityQuery* VisibilityQuery,
 		FNaniteShadingCommands& ShadingCommands,
 		FShaderBundleRHIRef ShaderBundle,
 		FNaniteShadingPassParameters* ShadingPassParameters,
@@ -1182,6 +1182,14 @@ void DispatchBasePass(
 			}
 			return OutputTargetRHI;
 		};
+
+		const FNaniteVisibilityResults* VisibilityResults = Nanite::GetVisibilityResults(VisibilityQuery);
+
+		TSharedPtr<TBitArray<SceneRenderingBitArrayAllocator>> VisibilityData;
+		if (VisibilityResults && VisibilityResults->IsShadingTestValid())
+		{
+			VisibilityData = MakeShared<TBitArray<SceneRenderingBitArrayAllocator>>(VisibilityResults->GetShadingBinVisibility());
+		}
 
 		OutputTargets.Add(GetOutputTargetRHI(ShadingPassParameters->OutTarget0));
 		OutputTargets.Add(GetOutputTargetRHI(ShadingPassParameters->OutTarget1));
@@ -1381,12 +1389,6 @@ void DispatchBasePass(
 		}
 	};
 
-	TSharedPtr<TBitArray<SceneRenderingBitArrayAllocator>> VisibilityData;
-	if (VisibilityResults.IsShadingTestValid())
-	{
-		VisibilityData = MakeShared<TBitArray<SceneRenderingBitArrayAllocator>>(VisibilityResults.GetShadingBinVisibility());
-	}
-
 	const bool bParallelDispatch = !bBundleShading && GRHICommandList.UseParallelAlgorithms() && CVarParallelBasePassBuild.GetValueOnRenderThread() != 0 &&
 								   FParallelMeshDrawCommandPass::IsOnDemandShaderCreationEnabled();
 	if (bParallelDispatch)
@@ -1395,7 +1397,7 @@ void DispatchBasePass(
 			RDG_EVENT_NAME("ShadeGBufferCS"),
 			ShadingPassParameters,
 			ERDGPassFlags::Compute,
-			[&ShadePassWork, ShadingPassParameters, &ShadingCommands, IndirectArgStride, DataByteOffset = Binning.DataByteOffset, VisibilityData, &View, ViewRect, ViewIndex, bSkipBarriers]
+			[&ShadePassWork, ShadingPassParameters, &ShadingCommands, IndirectArgStride, DataByteOffset = Binning.DataByteOffset, VisibilityQuery, &View, ViewRect, ViewIndex, bSkipBarriers]
 			(const FRDGPass* RDGPass, FRHICommandListImmediate& RHICmdList)
 			{
 				FParallelCommandListBindings CmdListBindings(ShadingPassParameters);
@@ -1411,7 +1413,7 @@ void DispatchBasePass(
 						(uint32)ViewRect.Max.Y
 					),
 					ViewIndex,
-					VisibilityData,
+					VisibilityQuery,
 					ShadingCommands,
 					FShaderBundleRHIRef(),
 					ShadingPassParameters,
@@ -1447,7 +1449,7 @@ void DispatchBasePass(
 			RDG_EVENT_NAME("ShadeGBufferCS"),
 			ShadingPassParameters,
 			ERDGPassFlags::Compute,
-			[&ShadePassWork, ShadingPassParameters, &ShadingCommands, ShaderBundle, IndirectArgStride, DataByteOffset = Binning.DataByteOffset, VisibilityData, &View, ViewRect, ViewIndex, bSkipBarriers, bBundleShading, bBundleEmulation]
+			[&ShadePassWork, ShadingPassParameters, &ShadingCommands, ShaderBundle, IndirectArgStride, DataByteOffset = Binning.DataByteOffset, VisibilityQuery, &View, ViewRect, ViewIndex, bSkipBarriers, bBundleShading, bBundleEmulation]
 			(const FRDGPass* RDGPass, FRHIComputeCommandList& RHICmdList)
 			{
 				if (bBundleShading)
@@ -1466,7 +1468,7 @@ void DispatchBasePass(
 						(uint32)ViewRect.Max.Y
 					),
 					ViewIndex,
-					VisibilityData,
+					VisibilityQuery,
 					ShadingCommands,
 					ShaderBundle,
 					ShadingPassParameters,

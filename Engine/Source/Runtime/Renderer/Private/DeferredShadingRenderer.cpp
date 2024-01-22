@@ -1181,34 +1181,41 @@ void FDeferredShadingSceneRenderer::RenderNanite(FRDGBuilder& GraphBuilder, cons
 	NaniteRasterResults.AddDefaulted(InViews.Num());
 	if (InNaniteBasePassVisibility.Query != nullptr)
 	{
-		InNaniteBasePassVisibility.Visibility->FinishVisibilityQuery(InNaniteBasePassVisibility.Query, NaniteRasterResults[0].VisibilityResults);
-
 		// For now we'll share the same visibility results across all views
-		for (int32 ViewIndex = 1; ViewIndex < NaniteRasterResults.Num(); ++ViewIndex)
+		for (int32 ViewIndex = 0; ViewIndex < NaniteRasterResults.Num(); ++ViewIndex)
 		{
-			NaniteRasterResults[ViewIndex].VisibilityResults = NaniteRasterResults[0].VisibilityResults;
+			NaniteRasterResults[ViewIndex].VisibilityQuery = InNaniteBasePassVisibility.Query;
 		}
 
-		uint32 TotalRasterBins = 0;
-		uint32 VisibleRasterBins = 0;
-		NaniteRasterResults[0].VisibilityResults.GetRasterBinStats(VisibleRasterBins, TotalRasterBins);
+#if STATS
+		// Launch a setup task that will process stats when the visibility task completes.
+		GraphBuilder.AddSetupTask([Query = InNaniteBasePassVisibility.Query]
+		{
+			const FNaniteVisibilityResults* VisibilityResults = Nanite::GetVisibilityResults(Query);
 
-		uint32 TotalShadingBins = 0;
-		uint32 VisibleShadingBins = 0;
-		NaniteRasterResults[0].VisibilityResults.GetShadingBinStats(VisibleShadingBins, TotalShadingBins);
+			uint32 TotalRasterBins = 0;
+			uint32 VisibleRasterBins = 0;
+			VisibilityResults->GetRasterBinStats(VisibleRasterBins, TotalRasterBins);
 
-		uint32 TotalShadingDraws = 0;
-		uint32 VisibleShadingDraws = 0;
-		NaniteRasterResults[0].VisibilityResults.GetShadingDrawStats(VisibleShadingDraws, TotalShadingDraws);
+			uint32 TotalShadingBins = 0;
+			uint32 VisibleShadingBins = 0;
+			VisibilityResults->GetShadingBinStats(VisibleShadingBins, TotalShadingBins);
 
-		SET_DWORD_STAT(STAT_NaniteBasePassTotalRasterBins, TotalRasterBins);
-		SET_DWORD_STAT(STAT_NaniteBasePassVisibleRasterBins, VisibleRasterBins);
+			uint32 TotalShadingDraws = 0;
+			uint32 VisibleShadingDraws = 0;
+			VisibilityResults->GetShadingDrawStats(VisibleShadingDraws, TotalShadingDraws);
 
-		SET_DWORD_STAT(STAT_NaniteBasePassTotalShadingBins, TotalShadingBins);
-		SET_DWORD_STAT(STAT_NaniteBasePassVisibleShadingBins, VisibleShadingBins);
+			SET_DWORD_STAT(STAT_NaniteBasePassTotalRasterBins, TotalRasterBins);
+			SET_DWORD_STAT(STAT_NaniteBasePassVisibleRasterBins, VisibleRasterBins);
 
-		SET_DWORD_STAT(STAT_NaniteBasePassTotalShadingDraws, TotalShadingDraws);
-		SET_DWORD_STAT(STAT_NaniteBasePassVisibleShadingDraws, VisibleShadingDraws);
+			SET_DWORD_STAT(STAT_NaniteBasePassTotalShadingBins, TotalShadingBins);
+			SET_DWORD_STAT(STAT_NaniteBasePassVisibleShadingBins, VisibleShadingBins);
+
+			SET_DWORD_STAT(STAT_NaniteBasePassTotalShadingDraws, TotalShadingDraws);
+			SET_DWORD_STAT(STAT_NaniteBasePassVisibleShadingDraws, VisibleShadingDraws);
+
+		}, Nanite::GetVisibilityTask(InNaniteBasePassVisibility.Query));
+#endif
 	}
 
 	const FIntPoint RasterTextureSize = SceneTextures.Depth.Target->Desc.Extent;
@@ -1383,7 +1390,7 @@ void FDeferredShadingSceneRenderer::RenderNanite(FRDGBuilder& GraphBuilder, cons
 				FSceneInstanceCullingQuery *SceneInstanceCullQuery = SceneCullingRenderer.CullInstances(GraphBuilder, View.ViewFrustum);
 				NaniteRenderer->DrawGeometry(
 					Scene->NaniteRasterPipelines[ENaniteMeshPass::BasePass],
-					RasterResults.VisibilityResults,
+					RasterResults.VisibilityQuery,
 					*NaniteViewsToRender,
 					SceneInstanceCullQuery
 				);
@@ -1532,11 +1539,13 @@ void FDeferredShadingSceneRenderer::Render(FRDGBuilder& GraphBuilder)
 
 			NaniteBasePassVisibility.Visibility = &NaniteVisibility;
 			NaniteBasePassVisibility.Query = NaniteVisibility.BeginVisibilityQuery(
+				Allocator,
 				*Scene,
 				NaniteCullingViews,
 				&NaniteRasterPipelines,
 				&NaniteShadingPipelines,
-				&NaniteMaterials
+				&NaniteMaterials,
+				InitViewTaskDatas.VisibilityTaskData->GetComputeRelevanceTask()
 			);
 		}
 	}

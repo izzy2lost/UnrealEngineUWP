@@ -2284,7 +2284,6 @@ private:
 		FDispatchList Dispatches_SW_Triangles;
 		FDispatchList Dispatches_SW_Tessellated;
 
-		TBitArray<SceneRenderingBitArrayAllocator> Visibility;
 		TArray<FRasterizerPass, SceneRenderingAllocator> RasterizerPasses;
 
 		FRasterBinMetaArray MetaBufferData;
@@ -2549,7 +2548,7 @@ private:
 		const ERasterHardwarePath HardwarePath,
 		const ERHIFeatureLevel::Type FeatureLevel,
 		const FNaniteRasterPipelines& RasterPipelines,
-		const FNaniteVisibilityResults& VisibilityResults,
+		const FNaniteVisibilityQuery* VisibilityQuery,
 		bool bCustomPass,
 		bool bLumenCapture
 	);
@@ -2618,13 +2617,13 @@ private:
 
 	void			DrawGeometryMultiPass(
 		FNaniteRasterPipelines& RasterPipelines,
-		const FNaniteVisibilityResults& VisibilityResults,
+		const FNaniteVisibilityQuery* VisibilityQuery,
 		const FPackedViewArray& ViewArray,
 		const TConstArrayView<FInstanceDraw>* OptionalInstanceDraws );
 
 	void			DrawGeometry(
 		FNaniteRasterPipelines& RasterPipelines,
-		const FNaniteVisibilityResults& VisibilityResults,
+		const FNaniteVisibilityQuery* VisibilityQuery,
 		const FPackedViewArray& ViewArray,
 		FSceneInstanceCullingQuery* SceneInstanceCullingQuery,
 		const TConstArrayView<FInstanceDraw>* OptionalInstanceDraws );
@@ -3594,7 +3593,7 @@ void FRenderer::PrepareRasterizerPasses(
 	const ERasterHardwarePath HardwarePath,
 	const ERHIFeatureLevel::Type FeatureLevel,
 	const FNaniteRasterPipelines& RasterPipelines,
-	const FNaniteVisibilityResults& VisibilityResults,
+	const FNaniteVisibilityQuery* VisibilityQuery,
 	bool bCustomPass,
 	bool bLumenCapture
 )
@@ -3609,43 +3608,6 @@ void FRenderer::PrepareRasterizerPasses(
 	const uint32 RasterBinCount = RasterPipelines.GetBinCount();
 
 	Context.MetaBufferData.SetNumZeroed(RasterBinCount);
-	Context.Visibility.Init(false, Pipelines.Num());
-
-	int32 RasterBinIndex = 0;
-	uint32 VisiblePassCount = 0;
-
-	// Resolve visibility on the render thread prior to launching the setup task
-	for (const auto& RasterBin : Pipelines)
-	{
-		const FNaniteRasterEntry& RasterEntry = RasterBin.Value;
-
-		ON_SCOPE_EXIT{ RasterBinIndex++; };
-
-		const bool bFixedFunctionBin =
-			(RasterEntry.BinIndex == NANITE_FIXED_FUNCTION_BIN) ||
-			(RasterEntry.BinIndex == NANITE_FIXED_FUNCTION_BIN_TWOSIDED) ||
-			(RasterEntry.BinIndex == NANITE_FIXED_FUNCTION_BIN_SPLINE) ||
-			(RasterEntry.BinIndex == (NANITE_FIXED_FUNCTION_BIN_TWOSIDED | NANITE_FIXED_FUNCTION_BIN_SPLINE));
-
-		// Fixed function bins are always visible
-		if (!bFixedFunctionBin)
-		{
-			if (bCustomPass && !RasterPipelines.ShouldBinRenderInCustomPass(RasterEntry.BinIndex))
-			{
-				// Predicting that this bin will be empty if we rasterize it in the Custom Pass (i.e. Custom)
-				continue;
-			}
-
-			// Test for visibility
-			if (!bLumenCapture && !VisibilityResults.IsRasterBinVisible(RasterEntry.BinIndex))
-			{
-				continue;
-			}
-		}
-
-		Context.Visibility[RasterBinIndex] = true;
-		++VisiblePassCount;
-	}
 
 	static UE::Tasks::FPipe GNaniteRasterSetupPipe(TEXT("NaniteRasterSetupPipe"));
 
@@ -3658,10 +3620,13 @@ void FRenderer::PrepareRasterizerPasses(
 	[
 		&Context,
 		&RasterPipelines,
+		VisibilityQuery,
 		RasterBinCount,
 		RenderFlags = RenderFlags,
 		FeatureLevel,
 		bUseSetupCache,
+		bCustomPass,
+		bLumenCapture,
 		RasterMode = RasterContext.RasterMode,
 		VisualizeActive = RasterContext.VisualizeActive,
 		HardwarePath,
@@ -3875,6 +3840,7 @@ void FRenderer::PrepareRasterizerPasses(
 
 		const FNaniteRasterPipelineMap& Pipelines = RasterPipelines.GetRasterPipelineMap();
 		const FNaniteRasterBinIndexTranslator BinIndexTranslator = RasterPipelines.GetBinIndexTranslator();
+		const FNaniteVisibilityResults* VisibilityResults = Nanite::GetVisibilityResults(VisibilityQuery);
 
 		Context.Reserve(RasterPipelines.GetBinCount());
 
@@ -3883,12 +3849,29 @@ void FRenderer::PrepareRasterizerPasses(
 		{
 			ON_SCOPE_EXIT{ RasterBinIndex++; };
 
-			if (!Context.Visibility[RasterBinIndex])
-			{
-				continue;
-			}
-
 			const FNaniteRasterEntry& RasterEntry = RasterBin.Value;
+	
+			const bool bFixedFunctionBin =
+				(RasterEntry.BinIndex == NANITE_FIXED_FUNCTION_BIN) ||
+				(RasterEntry.BinIndex == NANITE_FIXED_FUNCTION_BIN_TWOSIDED) ||
+				(RasterEntry.BinIndex == NANITE_FIXED_FUNCTION_BIN_SPLINE) ||
+				(RasterEntry.BinIndex == (NANITE_FIXED_FUNCTION_BIN_TWOSIDED | NANITE_FIXED_FUNCTION_BIN_SPLINE));
+	
+			// Fixed function bins are always visible
+			if (!bFixedFunctionBin)
+			{
+				if (bCustomPass && !RasterPipelines.ShouldBinRenderInCustomPass(RasterEntry.BinIndex))
+				{
+					// Predicting that this bin will be empty if we rasterize it in the Custom Pass (i.e. Custom)
+					continue;
+				}
+	
+				// Test for visibility
+				if (!bLumenCapture && VisibilityResults && !VisibilityResults->IsRasterBinVisible(RasterEntry.BinIndex))
+				{
+					continue;
+				}
+			}
 
 			FRasterizerPass& RasterizerPass = Context.RasterizerPasses.AddDefaulted_GetRef();
 			RasterizerPass.RasterBin = uint32(BinIndexTranslator.Translate(RasterEntry.BinIndex));
@@ -4050,8 +4033,7 @@ void FRenderer::PrepareRasterizerPasses(
 	},
 		bUseSetupCache ? &GNaniteRasterSetupPipe : nullptr,
 		UE::Tasks::ETaskPriority::Normal,
-		// Skip running async if disabled or the number of bins is small.
-		CVarNaniteRasterSetupTask.GetValueOnRenderThread() > 0 && VisiblePassCount >= VisiblePassAsyncThreshold
+		CVarNaniteRasterSetupTask.GetValueOnRenderThread() > 0
 	);
 }
 
@@ -4709,7 +4691,7 @@ static FRDGBufferRef CreateBufferOnce( FRDGBuilder& GraphBuilder, TRefCountPtr<F
 // Visibility buffer rendering requires that view references are uniquely decodable.
 void FRenderer::DrawGeometryMultiPass(
 	FNaniteRasterPipelines& RasterPipelines,
-	const FNaniteVisibilityResults& VisibilityResults,
+	const FNaniteVisibilityQuery* VisibilityQuery,
 	const FPackedViewArray& ViewArray,
 	const TConstArrayView<FInstanceDraw>* OptionalInstanceDraws
 )
@@ -4768,7 +4750,7 @@ void FRenderer::DrawGeometryMultiPass(
 
 		DrawGeometry(
 			RasterPipelines,
-			VisibilityResults,
+			VisibilityQuery,
 			*RangeViews,
 			nullptr,
 			OptionalInstanceDraws
@@ -4778,7 +4760,7 @@ void FRenderer::DrawGeometryMultiPass(
 
 void FRenderer::DrawGeometry(
 	FNaniteRasterPipelines& RasterPipelines,
-	const FNaniteVisibilityResults& VisibilityResults,
+	const FNaniteVisibilityQuery* VisibilityQuery,
 	const FPackedViewArray& ViewArray,
 	FSceneInstanceCullingQuery* SceneInstanceCullingQuery,
 	const TConstArrayView<FInstanceDraw>* OptionalInstanceDraws
@@ -4794,7 +4776,7 @@ void FRenderer::DrawGeometry(
 		check(RasterContext.RasterMode == EOutputBufferMode::DepthOnly);
 		DrawGeometryMultiPass(
 			RasterPipelines,
-			VisibilityResults,
+			VisibilityQuery,
 			ViewArray,
 			OptionalInstanceDraws
 		);
@@ -5084,7 +5066,7 @@ void FRenderer::DrawGeometry(
 		GetRasterHardwarePath(Scene.GetShaderPlatform(), SharedContext.Pipeline),
 		Scene.GetFeatureLevel(),
 		RasterPipelines,
-		VisibilityResults,
+		VisibilityQuery,
 		RasterContext.bCustomPass,
 		Configuration.bIsLumenCapture
 	);

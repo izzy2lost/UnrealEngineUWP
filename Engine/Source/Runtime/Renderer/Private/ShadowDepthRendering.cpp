@@ -1511,11 +1511,9 @@ static void RenderShadowDepthAtlasNanite(
 			);
 	
 			{
-				FNaniteVisibilityResults VisibilityResults; // TODO: Hook up culling for shadows
-	
 				NaniteRenderer->DrawGeometry(
 					Scene.NaniteRasterPipelines[ENaniteMeshPass::BasePass],
-					VisibilityResults,
+					nullptr,
 					*PackedViews
 				);
 			}
@@ -1853,8 +1851,6 @@ void FSceneRenderer::RenderShadowDepthMaps(FRDGBuilder& GraphBuilder, FDynamicSh
 						PrevHZB
 					);
 
-					FNaniteVisibilityResults VisibilityResults; // TODO: Hook up culling for shadows
-
 					// Setup packed view
 					Nanite::FPackedViewArray* PackedViews;
 
@@ -1877,7 +1873,7 @@ void FSceneRenderer::RenderShadowDepthMaps(FRDGBuilder& GraphBuilder, FDynamicSh
 
 					NaniteRenderer->DrawGeometry(
 						Scene->NaniteRasterPipelines[ENaniteMeshPass::BasePass],
-						VisibilityResults,
+						nullptr,
 						*PackedViews
 					);
 

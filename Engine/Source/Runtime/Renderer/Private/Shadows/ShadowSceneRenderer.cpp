@@ -328,6 +328,7 @@ void FShadowSceneRenderer::PostInitDynamicShadowsSetup()
 			if (!NaniteCullingViewsVolumes.IsEmpty())
 			{
 				NaniteVisibilityQuery = Scene.NaniteVisibility[ENaniteMeshPass::BasePass].BeginVisibilityQuery(
+					SceneRenderer.Allocator,
 					Scene,
 					NaniteCullingViewsVolumes,
 					&Scene.NaniteRasterPipelines[ENaniteMeshPass::BasePass],
@@ -344,31 +345,36 @@ void FShadowSceneRenderer::RenderVirtualShadowMaps(FRDGBuilder& GraphBuilder, bo
 	TRACE_CPUPROFILER_EVENT_SCOPE(FShadowSceneRenderer::RenderVirtualShadowMaps);
 
 	// Always process an existing query if it exists
-	FNaniteVisibilityResults VisibilityResults;
 	if (NaniteVisibilityQuery != nullptr)
 	{
-		Scene.NaniteVisibility[ENaniteMeshPass::BasePass].FinishVisibilityQuery(NaniteVisibilityQuery, VisibilityResults);
+#if STATS
+		GraphBuilder.AddSetupTask([Query = NaniteVisibilityQuery]
+		{
+			const FNaniteVisibilityResults& VisibilityResults = *Nanite::GetVisibilityResults(Query);
 
-		uint32 TotalRasterBins = 0;
-		uint32 VisibleRasterBins = 0;
-		VisibilityResults.GetRasterBinStats(VisibleRasterBins, TotalRasterBins);
+			uint32 TotalRasterBins = 0;
+			uint32 VisibleRasterBins = 0;
+			VisibilityResults.GetRasterBinStats(VisibleRasterBins, TotalRasterBins);
 
-		uint32 TotalShadingBins = 0;
-		uint32 VisibleShadingBins = 0;
-		VisibilityResults.GetShadingBinStats(VisibleShadingBins, TotalShadingBins);
+			uint32 TotalShadingBins = 0;
+			uint32 VisibleShadingBins = 0;
+			VisibilityResults.GetShadingBinStats(VisibleShadingBins, TotalShadingBins);
 
-		uint32 TotalShadingDraws = 0;
-		uint32 VisibleShadingDraws = 0;
-		VisibilityResults.GetShadingDrawStats(VisibleShadingDraws, TotalShadingDraws);
+			uint32 TotalShadingDraws = 0;
+			uint32 VisibleShadingDraws = 0;
+			VisibilityResults.GetShadingDrawStats(VisibleShadingDraws, TotalShadingDraws);
 
-		SET_DWORD_STAT(STAT_VSMNaniteBasePassTotalRasterBins, TotalRasterBins);
-		SET_DWORD_STAT(STAT_VSMNaniteBasePassVisibleRasterBins, VisibleRasterBins);
+			SET_DWORD_STAT(STAT_VSMNaniteBasePassTotalRasterBins, TotalRasterBins);
+			SET_DWORD_STAT(STAT_VSMNaniteBasePassVisibleRasterBins, VisibleRasterBins);
 
-		SET_DWORD_STAT(STAT_VSMNaniteBasePassTotalShadingBins, TotalShadingBins);
-		SET_DWORD_STAT(STAT_VSMNaniteBasePassVisibleShadingBins, VisibleShadingBins);
+			SET_DWORD_STAT(STAT_VSMNaniteBasePassTotalShadingBins, TotalShadingBins);
+			SET_DWORD_STAT(STAT_VSMNaniteBasePassVisibleShadingBins, VisibleShadingBins);
 
-		SET_DWORD_STAT(STAT_VSMNaniteBasePassTotalShadingDraws, TotalShadingDraws);
-		SET_DWORD_STAT(STAT_VSMNaniteBassPassVisibleShadingDraws, VisibleShadingDraws);
+			SET_DWORD_STAT(STAT_VSMNaniteBasePassTotalShadingDraws, TotalShadingDraws);
+			SET_DWORD_STAT(STAT_VSMNaniteBassPassVisibleShadingDraws, VisibleShadingDraws);
+
+		}, Nanite::GetVisibilityTask(NaniteVisibilityQuery));
+#endif
 	}
 
 
@@ -382,7 +388,7 @@ void FShadowSceneRenderer::RenderVirtualShadowMaps(FRDGBuilder& GraphBuilder, bo
 
 	if (bNaniteEnabled)
 	{
-		VirtualShadowMapArray.RenderVirtualShadowMapsNanite(GraphBuilder, SceneRenderer, bUpdateNaniteStreaming, VisibilityResults, VirtualShadowMapViews, SceneInstanceCullingQuery);
+		VirtualShadowMapArray.RenderVirtualShadowMapsNanite(GraphBuilder, SceneRenderer, bUpdateNaniteStreaming, NaniteVisibilityQuery, VirtualShadowMapViews, SceneInstanceCullingQuery);
 	}
 
 	if (UseNonNaniteVirtualShadowMaps(SceneRenderer.ShaderPlatform, SceneRenderer.FeatureLevel))

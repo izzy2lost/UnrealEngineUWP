@@ -10,6 +10,7 @@ struct FNaniteVisibilityQuery;
 class FNaniteVisibilityResults
 {
 	friend class FNaniteVisibility;
+	friend struct FNaniteVisibilityQuery;
 
 public:
 	FNaniteVisibilityResults() = default;
@@ -17,8 +18,6 @@ public:
 	bool IsRasterBinVisible(uint16 BinIndex) const;
 	bool IsShadingBinVisible(uint16 BinIndex) const;
 	bool IsShadingDrawVisible(uint32 DrawId) const;
-
-	void Invalidate();
 
 	FORCEINLINE bool IsRasterTestValid() const
 	{
@@ -76,8 +75,8 @@ public:
 private:
 	TBitArray<> RasterBinVisibility;
 	TBitArray<> ShadingBinVisibility;
-	TArray<uint32> ShadingDrawVisibility;
-	TSet<uint32> VisibleCustomDepthPrimitives;
+	TArray<uint32, SceneRenderingAllocator> ShadingDrawVisibility;
+	TSet<uint32, DefaultKeyFuncs<uint32>, SceneRenderingSetAllocator> VisibleCustomDepthPrimitives;
 	FNaniteRasterBinIndexTranslator BinIndexTranslator;
 	uint32 TotalRasterBins		= 0;
 	uint32 TotalShadingBins		= 0;
@@ -131,13 +130,14 @@ public:
 	 * but not with respect to BeginVisibilityFrame/FinishVisibilityFrame.
 	 **/
 	FNaniteVisibilityQuery* BeginVisibilityQuery(
+		FSceneRenderingBulkObjectAllocator& Allocator,
 		FScene& Scene,
 		const TConstArrayView<FConvexVolume>& ViewList,
 		const class FNaniteRasterPipelines* RasterPipelines,
 		const class FNaniteShadingPipelines* ShadingPipelines,
-		const class FNaniteMaterialCommands* MaterialCommands = nullptr
+		const class FNaniteMaterialCommands* MaterialCommands = nullptr,
+		const UE::Tasks::FTask& PrerequisiteTask = {}
 	);
-	void FinishVisibilityQuery(FNaniteVisibilityQuery* Query, FNaniteVisibilityResults& OutResults);
 
 	PrimitiveRasterBinType*   GetRasterBinReferences(const FPrimitiveSceneInfo* SceneInfo);
 	PrimitiveShadingBinType*  GetShadingBinReferences(const FPrimitiveSceneInfo* SceneInfo);
@@ -147,7 +147,6 @@ public:
 
 private:
 	FPrimitiveReferences* FindOrAddPrimitiveReferences(const FPrimitiveSceneInfo* SceneInfo);
-	void WaitForTasks();
 
 	// Translator should remain valid between Begin/FinishVisibilityFrame. That is, no adding or removing raster bins
 	FNaniteRasterBinIndexTranslator BinIndexTranslator;
@@ -157,6 +156,13 @@ private:
 	UE::FMutex Mutex;
 	uint8 bCalledBegin : 1;
 };
+
+namespace Nanite
+{
+	extern const FNaniteVisibilityResults* GetVisibilityResults(const FNaniteVisibilityQuery* Query);
+
+	extern UE::Tasks::FTask GetVisibilityTask(const FNaniteVisibilityQuery* Query);
+}
 
 class FNaniteScopedVisibilityFrame
 {

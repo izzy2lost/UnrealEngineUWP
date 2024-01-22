@@ -101,7 +101,7 @@ struct FRasterResults
 	FRDGBufferRef	ClearTileArgs		= nullptr;
 	FRDGBufferRef	ClearTileBuffer		= nullptr;
 
-	FNaniteVisibilityResults VisibilityResults;
+	FNaniteVisibilityQuery* VisibilityQuery = nullptr;
 
 	TArray<FVisualizeResult, TInlineAllocator<32>> Visualizations;
 };
@@ -171,7 +171,7 @@ public:
 
 	virtual void DrawGeometry(
 		FNaniteRasterPipelines& RasterPipelines,
-		const FNaniteVisibilityResults& VisibilityResults,
+		const FNaniteVisibilityQuery* VisibilityQuery,
 		const FPackedViewArray& ViewArray,
 		FSceneInstanceCullingQuery* OptionalSceneInstanceCullingQuery,
 		const TConstArrayView<FInstanceDraw>* OptionalInstanceDraws) = 0;
@@ -181,21 +181,21 @@ public:
 	 * Draw scene geometry by brute-force culling against all instances in the scene.
 	 */
 	inline void DrawGeometry(FNaniteRasterPipelines& RasterPipelines,
-		const FNaniteVisibilityResults& VisibilityResults,
+		const FNaniteVisibilityQuery* VisibilityQuery,
 		const FPackedViewArray& ViewArray)
 	{
-		DrawGeometry(RasterPipelines, VisibilityResults, ViewArray, nullptr, nullptr);
+		DrawGeometry(RasterPipelines, VisibilityQuery, ViewArray, nullptr, nullptr);
 	}
 
 	/**
 	 * Draw scene geometry driven by an explicit list FInstanceDraw (instance-id / view-id pairs).
 	 */
 	inline void DrawGeometry(FNaniteRasterPipelines& RasterPipelines,
-		const FNaniteVisibilityResults& VisibilityResults,
+		const FNaniteVisibilityQuery* VisibilityQuery,
 		const FPackedViewArray& ViewArray,
 		const TConstArrayView<FInstanceDraw> &InstanceDraws)
 	{
-		DrawGeometry(RasterPipelines, VisibilityResults, ViewArray, nullptr, &InstanceDraws);
+		DrawGeometry(RasterPipelines, VisibilityQuery, ViewArray, nullptr, &InstanceDraws);
 	}
 
 	/**
@@ -203,11 +203,11 @@ public:
 	 * otherwise falls back to brute-force culling (as above). 
 	 */
 	inline void DrawGeometry(FNaniteRasterPipelines& RasterPipelines,
-		const FNaniteVisibilityResults& VisibilityResults,
+		const FNaniteVisibilityQuery* VisibilityQuery,
 		const FPackedViewArray& ViewArray,
 		FSceneInstanceCullingQuery* OptionalSceneInstanceCullingQuery)
 	{
-		DrawGeometry(RasterPipelines, VisibilityResults, ViewArray, OptionalSceneInstanceCullingQuery, nullptr);
+		DrawGeometry(RasterPipelines, VisibilityQuery, ViewArray, OptionalSceneInstanceCullingQuery, nullptr);
 	}
 
 	virtual void ExtractResults( FRasterResults& RasterResults ) = 0;

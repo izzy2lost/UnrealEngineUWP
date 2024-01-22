@@ -127,12 +127,12 @@ static FViewShaderParameters CreateViewShaderParametersWithoutJitter(const FView
 	return Parameters;
 }
 
-static FNaniteCustomDepthDrawList BuildNaniteCustomDepthDrawList(const FViewInfo& View, uint32 ViewIndex, const FNaniteVisibilityResults& VisibilityResults)
+static FNaniteCustomDepthDrawList BuildNaniteCustomDepthDrawList(const FViewInfo& View, uint32 ViewIndex, const FNaniteVisibilityResults* VisibilityResults)
 {
 	FNaniteCustomDepthDrawList Output;
 	for (const FPrimitiveInstanceRange& InstanceRange : View.NaniteCustomDepthInstances)
 	{
-		if (VisibilityResults.ShouldRenderCustomDepthPrimitive(InstanceRange.PrimitiveIndex))
+		if (!VisibilityResults || VisibilityResults->ShouldRenderCustomDepthPrimitive(InstanceRange.PrimitiveIndex))
 		{
 			const uint32 FirstOutputIndex = Output.Num();
 			Output.AddUninitialized(InstanceRange.NumInstances);
@@ -171,11 +171,11 @@ bool FSceneRenderer::RenderCustomDepthPass(
 		{
 			if (PrimaryNaniteRasterResults.IsValidIndex(ViewIndex))
 			{
-				const FNaniteVisibilityResults& VisibilityResults = PrimaryNaniteRasterResults[ViewIndex].VisibilityResults;
+				FNaniteVisibilityQuery* VisibilityQuery = PrimaryNaniteRasterResults[ViewIndex].VisibilityQuery;
 
 				// Get the Nanite instance draw list for this view. (NOTE: Always use view index 0 for now because we're not doing
 				// multi-view yet).
-				NaniteDrawLists[ViewIndex] = BuildNaniteCustomDepthDrawList(View, 0u, VisibilityResults);
+				NaniteDrawLists[ViewIndex] = BuildNaniteCustomDepthDrawList(View, 0u, Nanite::GetVisibilityResults(VisibilityQuery));
 
 				TotalNaniteInstances += NaniteDrawLists[ViewIndex].Num();
 			}
@@ -310,7 +310,7 @@ bool FSceneRenderer::RenderCustomDepthPass(
 
 			NaniteRenderer->DrawGeometry(
 				Scene->NaniteRasterPipelines[ENaniteMeshPass::BasePass],
-				PrimaryNaniteRasterResults[ViewIndex].VisibilityResults,
+				PrimaryNaniteRasterResults[ViewIndex].VisibilityQuery,
 				*Nanite::FPackedViewArray::Create(GraphBuilder, PrimaryNaniteViews[ViewIndex]),
 				NaniteDrawLists[ViewIndex]
 			);

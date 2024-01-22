@@ -8,6 +8,7 @@
 
 struct FMinimalSceneTextures;
 struct FSortedLightSetSceneInfo;
+struct FNaniteVisibilityQuery;
 class FViewInfo;
 class FProjectedShadowInfo;
 class FVisibleLightInfo;
@@ -314,7 +315,7 @@ public:
 	/**
 	 * Draw Nanite geometry into the VSMs.
 	 */
-	void RenderVirtualShadowMapsNanite(FRDGBuilder& GraphBuilder, FSceneRenderer& SceneRenderer, bool bUpdateNaniteStreaming, const FNaniteVisibilityResults& VisibilityResults, Nanite::FPackedViewArray* VirtualShadowMapViews, FSceneInstanceCullingQuery* SceneInstanceCullingQuery);
+	void RenderVirtualShadowMapsNanite(FRDGBuilder& GraphBuilder, FSceneRenderer& SceneRenderer, bool bUpdateNaniteStreaming, const FNaniteVisibilityQuery* VisibilityQuery, Nanite::FPackedViewArray* VirtualShadowMapViews, FSceneInstanceCullingQuery* SceneInstanceCullingQuery);
 
 	/**
 	 * Draw Non-Nanite geometry into the VSMs.

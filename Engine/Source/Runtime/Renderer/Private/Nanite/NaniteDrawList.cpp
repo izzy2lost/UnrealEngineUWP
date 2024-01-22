@@ -688,7 +688,7 @@ public:
 void BuildNaniteMaterialPassCommands(
 	const TConstArrayView<FGraphicsPipelineRenderTargetsInfo> RenderTargetsInfo,
 	const FNaniteMaterialCommands& MaterialCommands,
-	const FNaniteVisibilityResults& VisibilityResults,
+	const FNaniteVisibilityResults* VisibilityResults,
 	TArray<FNaniteMaterialPassCommand, SceneRenderingAllocator>& OutNaniteMaterialPassCommands,
 	TArrayView<FNaniteMaterialPassInfo> OutMaterialPassInfo)
 {
@@ -738,7 +738,7 @@ void BuildNaniteMaterialPassCommands(
 		auto& Command = *Iter;
 		const FMeshDrawCommand& MeshDrawCommand = Command.Key;
 
-		if (!VisibilityResults.IsShadingDrawVisible(FNaniteMaterialEntryMap::ComputeHash(MeshDrawCommand).AsUInt()))
+		if (!VisibilityResults || !VisibilityResults->IsShadingDrawVisible(FNaniteMaterialEntryMap::ComputeHash(MeshDrawCommand).AsUInt()))
 		{
 			continue;
 		}

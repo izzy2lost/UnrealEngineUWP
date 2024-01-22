@@ -412,7 +412,6 @@ void DrawBasePass(
 
 	if (NumMaterialCommands > 0)
 	{
-		const FNaniteVisibilityResults& VisibilityResults = RasterResults.VisibilityResults;
 		const bool bWPOInSecondPass = !IsUsingBasePassVelocity(View.GetShaderPlatform());
 
 		FNaniteMaterialPassParameters TempParams = CreateNaniteMaterialPassParams(
@@ -480,7 +479,7 @@ void DrawBasePass(
 			PassParams.RenderTargets.ShadingRateTexture = GVRSImageManager.GetVariableRateShadingImage(GraphBuilder, View, FVariableRateShadingImageManager::EVRSPassType::NaniteEmitGBufferPass);
 		}
 
-		GraphBuilder.AddSetupTask([ParamsAndInfo, &MaterialCommands, &MaterialPassCommands, VisibilityResults = RasterResults.VisibilityResults /* Intentional copy */]
+		GraphBuilder.AddSetupTask([ParamsAndInfo, &MaterialCommands, &MaterialPassCommands, VisibilityQuery = RasterResults.VisibilityQuery]
 		{
 			TArray<FGraphicsPipelineRenderTargetsInfo, TFixedAllocator<(uint32)ENaniteMaterialPass::Max>> RTInfo;
 			for (uint32 PassIndex = 0; PassIndex < ParamsAndInfo->NumPasses; ++PassIndex)
@@ -488,8 +487,9 @@ void DrawBasePass(
 				RTInfo.Emplace(ExtractRenderTargetsInfo(ParamsAndInfo->Params[PassIndex].RenderTargets));
 			}
 			TArrayView<FNaniteMaterialPassInfo> PassInfo = MakeArrayView(ParamsAndInfo->PassInfo, ParamsAndInfo->NumPasses);
-			BuildNaniteMaterialPassCommands(RTInfo, MaterialCommands, VisibilityResults, MaterialPassCommands, PassInfo);
-		});
+			BuildNaniteMaterialPassCommands(RTInfo, MaterialCommands, Nanite::GetVisibilityResults(VisibilityQuery), MaterialPassCommands, PassInfo);
+
+		}, Nanite::GetVisibilityTask(RasterResults.VisibilityQuery));
 
 		TShaderMapRef<FNaniteIndirectMaterialVS> NaniteVertexShader(View.ShaderMap);
 		const bool bParallelDispatch = GRHICommandList.UseParallelAlgorithms() && CVarParallelBasePassBuild.GetValueOnRenderThread() != 0 && FParallelMeshDrawCommandPass::IsOnDemandShaderCreationEnabled();
