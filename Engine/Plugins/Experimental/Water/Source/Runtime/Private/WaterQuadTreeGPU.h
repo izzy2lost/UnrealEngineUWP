@@ -61,6 +61,7 @@ public:
 	struct FTraverseParams
 	{
 		FRDGPooledBuffer* OutIndirectArgsBuffer = nullptr;
+		FRDGPooledBuffer* OutInstanceDataOffsetsBuffer = nullptr;
 		FRDGPooledBuffer* OutInstanceData0Buffer = nullptr;
 		FRDGPooledBuffer* OutInstanceData1Buffer = nullptr;
 		FRDGPooledBuffer* OutInstanceData2Buffer = nullptr;
@@ -70,7 +71,6 @@ public:
 		FBox2D CullingBounds = FBox2D(ForceInit);
 		uint32 NumDensities = 0;
 		uint32 NumMaterials = 0;
-		uint32 NumViews = 0;
 		uint32 NumQuadsLOD0 = 0;
 		uint32 NumQuadsPerTileSide = 0;
 		int32 ForceCollapseDensityLevel = -1;
