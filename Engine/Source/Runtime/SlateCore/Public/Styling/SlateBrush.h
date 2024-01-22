@@ -263,7 +263,7 @@ public:
 	TEnumAsByte<enum ESlateBrushMirrorType::Type> Mirroring;
 
 	/** The type of image */
-	UPROPERTY()
+	UPROPERTY(EditAnywhere, AdvancedDisplay, Category = Brush)
 	TEnumAsByte<enum ESlateBrushImageType::Type> ImageType;
 
 	/** Size of the resource in Slate Units */
@@ -487,7 +487,7 @@ private:
 
 protected:
 	/** The name of the rendering resource to use */
-	UPROPERTY()
+	UPROPERTY(EditAnywhere, AdvancedDisplay, Category = Brush)
 	FName ResourceName;
 
 	/** 
