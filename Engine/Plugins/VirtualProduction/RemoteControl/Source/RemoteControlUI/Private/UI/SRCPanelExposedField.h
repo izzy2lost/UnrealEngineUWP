@@ -76,6 +76,10 @@ struct SRCPanelExposedField : public SRCPanelExposedEntity
 	/** Get the owner name of this field */
 	FName GetOwnerName() const;
 
+protected:
+	/** Returns populated args to display this widget. */
+	virtual FMakeNodeWidgetArgs CreateEntityWidgetInternal(TSharedPtr<SWidget> ValueWidget, TSharedPtr<SWidget> ResetWidget = SNullWidget::NullWidget, const FText& OptionalWarningMessage = FText::GetEmpty(), TSharedRef<SWidget> EditConditionWidget = SNullWidget::NullWidget) override;
+
 private:
 	/** Construct a property widget. */
 	TSharedRef<SWidget> ConstructWidget();
@@ -95,6 +99,11 @@ private:
 	TSharedRef<SWidget> ConstructCallFunctionButton(bool bIsEnabled = true);
 	/** Handles calling an exposed function.*/
 	FReply OnClickFunctionButton();
+
+	/** Return the text to be displayed in the PropertyId column */
+	FText GetPropertyIdText();
+	/** Handles committing a property id label. */
+	void OnPropertyIdTextCommitted(const FText& InText, ETextCommit::Type InCommitInfo);
 
 private:
 	/** Weak pointer to the underlying RC Field. */

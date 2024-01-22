@@ -33,7 +33,6 @@
 #include "Widgets/Input/SButton.h"
 #include "Widgets/Input/SCheckBox.h"
 #include "Widgets/Input/SComboButton.h"
-#include "Widgets/Input/SEditableTextBox.h"
 #include "Widgets/Layout/SBorder.h"
 #include "Widgets/Layout/SBox.h"
 #include "Widgets/Notifications/SPopUpErrorText.h"
@@ -177,7 +176,6 @@ void SRCPanelExposedEntity::Initialize(const FGuid& InEntityId, URemoteControlPr
 			{
 				const TSharedPtr<FRemoteControlProperty> RCProperty = StaticCastSharedPtr<FRemoteControlProperty>(RCEntity);
 				CachedFieldPath = RCProperty->FieldPathInfo.ToString();
-				PropertyIdLabel = RCProperty->PropertyId;
 			}
 
 			FName OwnerFName;
@@ -429,27 +427,6 @@ void SRCPanelExposedEntity::OnLabelCommitted(const FText& InLabel, ETextCommit::
 	}
 }
 
-void SRCPanelExposedEntity::OnPropertyIdTextCommitted(const FText& InText, ETextCommit::Type InCommitInfo)
-{
-	if (const URemoteControlPreset* RCPreset = Preset.Get())
-	{
-		if (const TSharedPtr<FRemoteControlEntity> RCEntity = GetEntity())
-		{
-			if (const TSharedPtr<FRemoteControlField> RCField = StaticCastSharedPtr<FRemoteControlField>(RCEntity))
-			{
-				const FName NewId = FName(InText.ToString());
-				if (RCField->PropertyId.Compare(NewId) != 0)
-				{
-					RCField->PropertyId = NewId;
-					PropertyIdLabel = NewId;
-					RCPreset->UpdateIdentifiedField(RCField.ToSharedRef());
-					OnPropertyIdRenamed().ExecuteIfBound(NewId);
-				}
-			}
-		}
-	}
-}
-
 void SRCPanelExposedEntity::OnActorSelected(AActor* InActor) const
 {
 	if (TSharedPtr<FRemoteControlEntity> Entity = GetEntity())
@@ -499,22 +476,19 @@ bool SRCPanelExposedEntity::IsActorSelectable(const AActor* Actor) const
 
 TSharedRef<SWidget> SRCPanelExposedEntity::CreateEntityWidget(TSharedPtr<SWidget> ValueWidget, TSharedPtr<SWidget> ResetWidget, const FText& OptionalWarningMessage, TSharedRef<SWidget> EditConditionWidget)
 {
-	FMakeNodeWidgetArgs Args;
+	const FMakeNodeWidgetArgs Args = CreateEntityWidgetInternal(ValueWidget, ResetWidget, OptionalWarningMessage, EditConditionWidget);
 
 	TSharedRef<SBorder> Widget = SNew(SBorder)
 		.Padding(0.0f)
 		.BorderImage(this, &SRCPanelExposedEntity::GetBorderImage);
-	
-	Args.PropertyIdWidget = SNew(SBox)
-		[
-			SNew(SEditableTextBox)
-			.MinDesiredWidth(50.f)
-			.SelectAllTextWhenFocused(true)
-			.RevertTextOnEscape(true)
-			.ClearKeyboardFocusOnCommit(true)
-			.Text_Lambda([this] () { return FText::FromName(PropertyIdLabel); })
-			.OnTextCommitted(this, &SRCPanelExposedEntity::OnPropertyIdTextCommitted)
-		];
+
+	Widget->SetContent(MakeNodeWidget(Args));
+	return Widget;
+}
+
+SRCPanelTreeNode::FMakeNodeWidgetArgs SRCPanelExposedEntity::CreateEntityWidgetInternal(TSharedPtr<SWidget> ValueWidget, TSharedPtr<SWidget> ResetWidget, const FText& OptionalWarningMessage, TSharedRef<SWidget> EditConditionWidget)
+{
+	FMakeNodeWidgetArgs Args;
 
 	const FSlateBrush* TrashBrush = FAppStyle::Get().GetBrush("Icons.Delete");
 
@@ -587,8 +561,7 @@ TSharedRef<SWidget> SRCPanelExposedEntity::CreateEntityWidget(TSharedPtr<SWidget
 
 	Args.ResetButton = ResetWidget;
 
-	Widget->SetContent(MakeNodeWidget(Args));
-	return Widget;
+	return Args;
 }
 
 void SRCPanelExposedEntity::OnActorSelectedForRebindAllProperties(AActor* InActor) const

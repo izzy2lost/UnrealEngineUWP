@@ -31,6 +31,7 @@
 #include "UObject/Object.h"
 #include "Widgets/Input/SButton.h"
 #include "Widgets/Input/SCheckBox.h"
+#include "Widgets/Input/SEditableTextBox.h"
 #include "Widgets/Layout/SBorder.h"
 #include "Widgets/Layout/SBox.h"
 #include "Widgets/Masks/SRCProtocolMask.h"
@@ -144,6 +145,7 @@ void SRCPanelExposedField::Construct(const FArguments& InArgs, TWeakPtr<FRemoteC
 		Initialize(FieldPtr->GetId(), InArgs._Preset.Get(), InArgs._LiveMode);
 
 		CachedLabel = FieldPtr->GetLabel();
+		PropertyIdLabel = FieldPtr->PropertyId;
 		EntityId = FieldPtr->GetId();
 
 		if (FieldPtr->FieldType == EExposedFieldType::Property)
@@ -180,6 +182,24 @@ FName SRCPanelExposedField::GetFieldLabel() const
 FName SRCPanelExposedField::GetOwnerName() const
 {
 	return CachedOwnerName;
+}
+
+SRCPanelTreeNode::FMakeNodeWidgetArgs SRCPanelExposedField::CreateEntityWidgetInternal(TSharedPtr<SWidget> ValueWidget, TSharedPtr<SWidget> ResetWidget, const FText& OptionalWarningMessage, TSharedRef<SWidget> EditConditionWidget)
+{
+	FMakeNodeWidgetArgs Args = SRCPanelExposedEntity::CreateEntityWidgetInternal(ValueWidget, ResetWidget, OptionalWarningMessage, EditConditionWidget);
+
+	Args.PropertyIdWidget = SNew(SBox)
+		[
+			SNew(SEditableTextBox)
+			.MinDesiredWidth(50.f)
+			.SelectAllTextWhenFocused(true)
+			.RevertTextOnEscape(true)
+			.ClearKeyboardFocusOnCommit(true)
+			.Text_Lambda([this] () { return GetPropertyIdText(); })
+			.OnTextCommitted(this, &SRCPanelExposedField::OnPropertyIdTextCommitted)
+		];
+
+	return Args;
 }
 
 EExposedFieldType SRCPanelExposedField::GetFieldType() const
@@ -800,6 +820,36 @@ FReply SRCPanelExposedField::OnClickFunctionButton()
 	}
 
 	return FReply::Handled();
+}
+
+FText SRCPanelExposedField::GetPropertyIdText()
+{
+	if (const TSharedPtr<FRemoteControlField> RCField = WeakField.Pin())
+	{
+		if (RCField->PropertyId != PropertyIdLabel)
+		{
+			PropertyIdLabel = RCField->PropertyId;
+		}
+	}
+	return FText::FromName(PropertyIdLabel);
+}
+
+void SRCPanelExposedField::OnPropertyIdTextCommitted(const FText& InText, ETextCommit::Type InCommitInfo)
+{
+	if (const URemoteControlPreset* RCPreset = Preset.Get())
+	{
+		if (const TSharedPtr<FRemoteControlField> RCField = WeakField.Pin())
+		{
+			const FName NewId = FName(InText.ToString());
+			if (RCField->PropertyId.Compare(NewId) != 0)
+			{
+				RCField->PropertyId = NewId;
+				PropertyIdLabel = NewId;
+				RCPreset->UpdateIdentifiedField(RCField.ToSharedRef());
+				OnPropertyIdRenamed().ExecuteIfBound(NewId);
+			}
+		}
+	}
 }
 
 void SRCPanelFieldChildNode::Construct(const FArguments& InArgs, const TSharedRef<IDetailTreeNode>& InNode, FRCColumnSizeData InColumnSizeData)

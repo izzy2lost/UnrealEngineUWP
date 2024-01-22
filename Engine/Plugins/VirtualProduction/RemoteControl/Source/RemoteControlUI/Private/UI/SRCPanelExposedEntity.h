@@ -50,6 +50,9 @@ protected:
 	/** Create an exposed entity widget with a drag handle and unexpose button. */
 	TSharedRef<SWidget> CreateEntityWidget(TSharedPtr<SWidget> ValueWidget, TSharedPtr<SWidget> ResetWidget = SNullWidget::NullWidget, const FText& OptionalWarningMessage = FText::GetEmpty(), TSharedRef<SWidget> EditConditionWidget = SNullWidget::NullWidget);
 
+	/** Returns populated args to display this widget. */
+	virtual FMakeNodeWidgetArgs CreateEntityWidgetInternal(TSharedPtr<SWidget> ValueWidget, TSharedPtr<SWidget> ResetWidget = SNullWidget::NullWidget, const FText& OptionalWarningMessage = FText::GetEmpty(), TSharedRef<SWidget> EditConditionWidget = SNullWidget::NullWidget);
+
 protected:
 	/** Id of the entity. */
 	FGuid EntityId;
@@ -102,8 +105,6 @@ private:
 	bool OnVerifyItemLabelChanged(const FText& InLabel, FText& OutErrorMessage);
 	/** Handles committing a entity label. */
 	void OnLabelCommitted(const FText& InLabel, ETextCommit::Type InCommitInfo);
-	/** Handles committing a property id label. */
-	void OnPropertyIdTextCommitted(const FText& InText, ETextCommit::Type InCommitInfo);
 	/** Returns whether or not the actor is selectable for a binding replacement. */
 	bool IsActorSelectable(const AActor* Parent) const;
 	/** Handle clicking on the unexpose button. */
