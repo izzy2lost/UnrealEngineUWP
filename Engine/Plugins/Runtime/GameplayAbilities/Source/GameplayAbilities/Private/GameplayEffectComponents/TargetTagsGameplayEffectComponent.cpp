@@ -1,6 +1,9 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 #include "GameplayEffectComponents/TargetTagsGameplayEffectComponent.h"
+#include "Misc/DataValidation.h"
+
+#define LOCTEXT_NAMESPACE "TargetTagsGameplayEffectComponent"
 
 void UTargetTagsGameplayEffectComponent::PostInitProperties()
 {
@@ -37,6 +40,21 @@ void UTargetTagsGameplayEffectComponent::PostEditChangeProperty(FPropertyChanged
 		Owner->OnGameplayEffectChanged();
 	}
 }
+
+EDataValidationResult UTargetTagsGameplayEffectComponent::IsDataValid(FDataValidationContext& Context) const
+{
+	EDataValidationResult Result = Super::IsDataValid(Context);
+
+	const bool bInstantEffect = (GetOwner()->DurationPolicy == EGameplayEffectDurationType::Instant);
+	if (bInstantEffect && !InheritableGrantedTagsContainer.CombinedTags.IsEmpty())
+	{
+		Context.AddError(FText::FormatOrdered(LOCTEXT("GEInstantAndTargetTags", "GE {0} is set to Instant so TargetTagsGameplayEffectComponent will not be able to apply its tags."), FText::FromString(GetNameSafe(GetOwner()))));
+		Result = EDataValidationResult::Invalid;
+	}
+
+	return Result;
+}
+
 #endif // WITH_EDITOR
 
 void UTargetTagsGameplayEffectComponent::SetAndApplyTargetTagChanges(const FInheritedTagContainer& TagContainerMods)
@@ -56,3 +74,5 @@ void UTargetTagsGameplayEffectComponent::ApplyTargetTagChanges() const
 	UGameplayEffect* Owner = GetOwner();
 	InheritableGrantedTagsContainer.ApplyTo(Owner->CachedGrantedTags);
 }
+
+#undef LOCTEXT_NAMESPACE

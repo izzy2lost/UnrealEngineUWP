@@ -614,7 +614,7 @@ struct GAMEPLAYABILITIES_API FInheritedTagContainer
 {
 	GENERATED_USTRUCT_BODY()
 
-	/** Tags that I inherited and tags that I added minus tags that I removed*/
+	/** Tags that I inherited and tags that I added minus tags that I removed */
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = Application)
 	FGameplayTagContainer CombinedTags;
 
@@ -631,7 +631,10 @@ struct GAMEPLAYABILITIES_API FInheritedTagContainer
 	/** Apply the Added and Removed tags to the passed-in container (does not have to be the previously configured Parent!) */
 	void ApplyTo(FGameplayTagContainer& ApplyToContainer) const;
 
+	/** Add a tag that will appear in addition to any inherited tags */
 	void AddTag(const FGameplayTag& TagToAdd);
+
+	/** Remove a tag that will be omitted from any inherited tags */
 	void RemoveTag(const FGameplayTag& TagToRemove);
 
 	bool operator==(const FInheritedTagContainer& Other) const;

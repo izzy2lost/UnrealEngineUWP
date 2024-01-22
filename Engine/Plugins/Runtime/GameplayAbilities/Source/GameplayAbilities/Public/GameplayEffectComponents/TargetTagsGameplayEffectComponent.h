@@ -29,6 +29,9 @@ public:
 	/** Needed to properly update FInheritedTagContainer properties */
 	virtual void PostEditChangeProperty(FPropertyChangedEvent& PropertyChangedEvent) override;
 
+	/** Validate incompatible configurations */
+	virtual EDataValidationResult IsDataValid(class FDataValidationContext& Context) const override;
+
 private:
 	/** Get a cached version of the FProperty Name for PostEditChangeProperty */
 	static const FName& GetInheritableGrantedTagsContainerName()

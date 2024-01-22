@@ -171,6 +171,41 @@ void UGameplayEffect::PostInitProperties()
 			SetVersion(EGameplayEffectVersion::Monolithic);
 		}
 	}
+
+	// Let's cover some easy-to-overlook issues when implementing a Gameplay Effect as a native class
+	// First, ensure we've actually caught all of the native GEComponents
+	if (!IsInBlueprint())
+	{
+		TArray<UObject*> PossibleComponents;
+		GetDefaultSubobjects(PossibleComponents);
+		for (UObject* Obj : PossibleComponents)
+		{
+			if (UGameplayEffectComponent* GEComponent = Cast<UGameplayEffectComponent>(Obj))
+			{
+				if (!ensureMsgf(GEComponents.Contains(GEComponent), TEXT("%s: %s should be added to GEComponents during the constructor or in PostInitProperties"), *GetName(), *GEComponent->GetName()))
+				{
+					GEComponents.Add(GEComponent);
+				}
+			}
+		}
+
+		// Catch any GEComponent configuration issues.  We usually want to do this late (after deserialization) for assets in PostLoad, but
+		// we've already determined this is a native class, so let's do that now (we won't get PostLoad).
+		FDataValidationContext DataValidationContext;
+		IsDataValid(DataValidationContext);
+
+		// Now spit out any of those issues in the log
+		TArray<FText> Warnings, Errors;
+		DataValidationContext.SplitIssues(Warnings, Errors);
+		for (const FText& WarningText : Warnings)
+		{
+			UE_LOG(LogGameplayEffects, Warning, TEXT("%s: %s"), *GetName(), *WarningText.ToString());
+		}
+		for (const FText& ErrorText : Errors)
+		{
+			UE_LOG(LogGameplayEffects, Error, TEXT("%s: %s"), *GetName(), *ErrorText.ToString());
+		}
+	}
 #endif
 }
 
@@ -210,7 +245,7 @@ EDataValidationResult UGameplayEffect::IsDataValid(FDataValidationContext& Conte
 
 	if (ValidationResult != EDataValidationResult::Invalid)
 	{
-		for (UGameplayEffectComponent* GEComponent : GEComponents)
+		for (const UGameplayEffectComponent* GEComponent : GEComponents)
 		{
 			if (GEComponent)
 			{
@@ -5858,11 +5893,15 @@ void FInheritedTagContainer::ApplyTo(FGameplayTagContainer& ApplyToContainer) co
 
 void FInheritedTagContainer::AddTag(const FGameplayTag& TagToAdd)
 {
+	Removed.RemoveTag(TagToAdd);
+	Added.AddTag(TagToAdd);
 	CombinedTags.AddTag(TagToAdd);
 }
 
 void FInheritedTagContainer::RemoveTag(const FGameplayTag& TagToRemove)
 {
+	Added.RemoveTag(TagToRemove);
+	Removed.AddTag(TagToRemove);
 	CombinedTags.RemoveTag(TagToRemove);
 }
 
