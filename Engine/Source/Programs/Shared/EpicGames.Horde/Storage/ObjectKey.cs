@@ -46,7 +46,11 @@ namespace EpicGames.Horde.Storage
 					byte character = path[idx];
 					if (!StringId.IsValidCharacter(character))
 					{
-						if (path[idx] == '/' && path[idx - 1] != '/')
+						if (character >= 'A' && character <= 'Z')
+						{
+							// Allow uppercase characters for now
+						}
+						else if (path[idx] == '/' && path[idx - 1] != '/')
 						{
 							// Non-consecutive path separator; allowed.
 						}
