@@ -157,7 +157,7 @@ namespace Horde.Server.Replicators
 			}
 		}
 
-		record class FileInfo(string Path, FileEntryFlags Flags, long Length, byte[] Md5, ChunkedData ChunkedData);
+		record class FileInfo(string Path, FileEntryFlags Flags, long Length, byte[] Md5, LeafChunkedData LeafChunkedData);
 
 		class FileWriter : IDisposable
 		{
@@ -165,15 +165,15 @@ namespace Horde.Server.Replicators
 			{
 				public string? _path;
 				public FileEntryFlags _flags;
-				public readonly ChunkedDataWriter FileWriter;
+				public readonly LeafChunkedDataWriter FileWriter;
 				public long _size;
 				public long _sizeWritten;
 				public readonly IncrementalHash Hash;
 
-				public Handle(IBlobWriter writer, ChunkingOptions options)
+				public Handle(IBlobWriter writer, LeafChunkedDataNodeOptions options)
 				{
 					Hash = IncrementalHash.CreateHash(HashAlgorithmName.MD5);
-					FileWriter = new ChunkedDataWriter(writer, options, BlobSerializerOptions.Default);
+					FileWriter = new LeafChunkedDataWriter(writer, options);
 				}
 
 				public void Dispose()
@@ -184,12 +184,12 @@ namespace Horde.Server.Replicators
 			}
 
 			readonly IBlobWriter _writer;
-			readonly ChunkingOptions _options;
+			readonly LeafChunkedDataNodeOptions _options;
 			readonly Stack<Handle> _freeHandles = new Stack<Handle>();
 			readonly Dictionary<int, Handle> _openHandles = new Dictionary<int, Handle>();
 			readonly ILogger _logger;
 
-			public FileWriter(IBlobWriter writer, ChunkingOptions options, ILogger logger)
+			public FileWriter(IBlobWriter writer, LeafChunkedDataNodeOptions options, ILogger logger)
 			{
 				_writer = writer;
 				_options = options;
@@ -242,7 +242,7 @@ namespace Horde.Server.Replicators
 					_logger.LogWarning("Invalid size for replicated file '{Path}'. Expected {Size}, got {SizeWritten}.", handle._path, handle._size, handle._sizeWritten);
 				}
 
-				ChunkedData chunkedData = await handle.FileWriter.CompleteAsync(cancellationToken);
+				LeafChunkedData chunkedData = await handle.FileWriter.CompleteAsync(cancellationToken);
 				byte[] hash = handle.Hash.GetHashAndReset();
 				FileInfo info = new FileInfo(handle._path!, handle._flags, handle._size, hash, chunkedData);
 
@@ -541,35 +541,15 @@ namespace Horde.Server.Replicators
 
 			// Create the tree writer
 			BundleStorageClient? bundleStore = store as BundleStorageClient;
-			await using IBlobWriter writer = (bundleStore != null)? bundleStore.CreateBlobWriter(refName.ToString(), new BundleOptions { MaxVersion = BundleVersion.LatestV2 }) : store.CreateBlobWriter(refName);
+			Func<IBlobWriter> createWriter = () => (bundleStore != null) ? bundleStore.CreateBlobWriter(refName.ToString(), new BundleOptions { MaxVersion = BundleVersion.LatestV2 }) : store.CreateBlobWriter(refName);
 
-			// Keep track of changes to make to the directory structure
-			DirectoryUpdate rootUpdate = new DirectoryUpdate();
+			await using IBlobWriter directoryWriter = createWriter();
+			await using IBlobWriter interiorChunkWriter = createWriter();
+			await using IBlobWriter leafNodeWriter = createWriter();
 
 			// Sync incrementally
 			while (directories.Count > 0)
 			{
-				// Save the incremental state
-				if (syncedSize > stateNode.CopiedSize)
-				{
-					Stopwatch flushTimer = Stopwatch.StartNew();
-
-					await root.UpdateAsync(rootUpdate, writer, blobOptions, cancellationToken);
-					stateNode.Contents = await writer.WriteBlobAsync(root, blobOptions, cancellationToken);
-					IBlobHandle<StateNode> syncNodeRef = await writer.WriteBlobAsync(stateNode, blobOptions, cancellationToken);
-					await writer.FlushAsync(cancellationToken);
-					await store.WriteRefTargetAsync(incRefName, syncNodeRef, cancellationToken: cancellationToken);
-					rootUpdate.Clear();
-
-					if (replicator.Clean || !String.IsNullOrEmpty(replicator.CurrentError))
-					{
-						UpdateReplicatorOptions cleanUpdateOptions = new UpdateReplicatorOptions { Clean = false, CurrentError = String.Empty };
-						replicator = await UpdateReplicatorAsync(replicator, cleanUpdateOptions, cancellationToken);
-					}
-
-					flushTimer.Stop();
-				}
-
 				// Find the next paths to sync
 				const long MaxBatchSize = 1L * 1024 * 1024 * 1024;
 
@@ -594,6 +574,9 @@ namespace Horde.Server.Replicators
 				UpdateReplicatorOptions progressUpdateOptions = new UpdateReplicatorOptions { CurrentSize = totalSize, CurrentCopiedSize = syncedSize };
 				replicator = await UpdateReplicatorAsync(replicator, progressUpdateOptions, cancellationToken);
 
+				// Keep track of changes to make to the directory structure
+				DirectoryUpdate rootUpdate = new DirectoryUpdate();
+
 				// Copy them to a separate list and remove any redundant paths
 				List<string> syncPaths = new List<string>();
 				for (int idx = dirIdx; idx < directories.Count; idx++)
@@ -615,7 +598,7 @@ namespace Horde.Server.Replicators
 				Stopwatch processTimer = new Stopwatch();
 				Stopwatch gcTimer = new Stopwatch();
 
-				using FileWriter fileWriter = new FileWriter(writer, options.ChunkingOptions, _logger);
+				using FileWriter fileWriter = new FileWriter(leafNodeWriter, options.ChunkingOptions.LeafOptions, _logger);
 				await foreach (PerforceResponse response in perforce.StreamCommandAsync("sync", Array.Empty<string>(), syncPaths, null, typeof(SyncRecord), true, default))
 				{
 					PerforceError? error = response.Error;
@@ -680,8 +663,7 @@ namespace Horde.Server.Replicators
 						else if (io.Command == PerforceIoCommand.Close)
 						{
 							FileInfo info = await fileWriter.CloseAsync(io.File, cancellationToken);
-							FileEntry entry = rootUpdate.AddFile(info.Path.ToString(), info.Flags, info.Length, info.ChunkedData);
-							entry.CustomData = info.Md5;
+							rootUpdate.AddFile(info.Path.ToString(), info.Flags, info.Length, info.LeafChunkedData, info.Md5);
 						}
 						else if (io.Command == PerforceIoCommand.Unlink)
 						{
@@ -731,22 +713,45 @@ namespace Horde.Server.Replicators
 					stateNode.Paths.Add(nextPath + "...");
 					directories.RemoveAt(directories.Count - 1);
 				}
+
+				// Save the incremental state
+				Stopwatch flushTimer = Stopwatch.StartNew();
+
+				await leafNodeWriter.FlushAsync(cancellationToken);
+
+				await rootUpdate.WriteInteriorNodesAsync(interiorChunkWriter, options.ChunkingOptions.InteriorOptions, blobOptions, cancellationToken);
+				await interiorChunkWriter.FlushAsync(cancellationToken);
+
+				await root.UpdateAsync(rootUpdate, directoryWriter, blobOptions, cancellationToken);
+				stateNode.Contents = await directoryWriter.WriteBlobAsync(root, blobOptions, cancellationToken);
+
+				IBlobHandle<StateNode> stateNodeRef = await directoryWriter.WriteBlobAsync(stateNode, blobOptions, cancellationToken);
+				await directoryWriter.FlushAsync(cancellationToken);
+
+				await store.WriteRefTargetAsync(incRefName, stateNodeRef, cancellationToken: cancellationToken);
+				rootUpdate.Clear();
+
+				if (replicator.Clean || !String.IsNullOrEmpty(replicator.CurrentError))
+				{
+					UpdateReplicatorOptions cleanUpdateOptions = new UpdateReplicatorOptions { Clean = false, CurrentError = String.Empty };
+					replicator = await UpdateReplicatorAsync(replicator, cleanUpdateOptions, cancellationToken);
+				}
+
+				flushTimer.Stop();
 			}
 
-			// Create the root node
-			await root.UpdateAsync(rootUpdate, writer, blobOptions, cancellationToken);
-			IBlobHandle<DirectoryNode> rootHandle = await writer.WriteBlobAsync(root, blobOptions, cancellationToken);
-			DirectoryNodeRef rootRef = new DirectoryNodeRef(root.Length, rootHandle);
-
 			// Create the commit node
+			Trace.Assert(stateNode.Contents != null);
+			DirectoryNodeRef rootRef = new DirectoryNodeRef(root.Length, stateNode.Contents!);
+
 			ChangeRecord changeRecord = await perforce.GetChangeAsync(GetChangeOptions.None, change, cancellationToken);
 			CommitNode commitNode = new CommitNode(change, stateNode.ParentHandle, changeRecord.User ?? "Unknown", null, null, null, changeRecord.Description ?? String.Empty, changeRecord.Date, rootRef, new Dictionary<Guid, IBlobHandle<object>>());
-			IBlobHandle<CommitNode> commitNodeRef = await writer.WriteBlobAsync(commitNode, blobOptions, cancellationToken);
+			IBlobHandle<CommitNode> commitNodeRef = await commitWriter.WriteBlobAsync(commitNode, blobOptions, cancellationToken);
 
 			RedirectNode<CommitNode> redirectNode = new RedirectNode<CommitNode>(commitNodeRef);
-			IBlobHandle<RedirectNode<CommitNode>> redirectNodeRef = await writer.WriteBlobAsync(redirectNode, blobOptions, cancellationToken);
+			IBlobHandle<RedirectNode<CommitNode>> redirectNodeRef = await commitWriter.WriteBlobAsync(redirectNode, blobOptions, cancellationToken);
 
-			await writer.FlushAsync(cancellationToken);
+			await commitWriter.FlushAsync(cancellationToken);
 			await store.WriteRefTargetAsync(refName, redirectNodeRef, options.RefOptions, cancellationToken: cancellationToken);
 
 			// Update the replicator state

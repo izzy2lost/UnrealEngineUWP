@@ -523,9 +523,6 @@ namespace EpicGames.Horde.Storage.Nodes
 					LeafChunkedData[] leafChunkedFiles = new LeafChunkedData[batch.Count];
 					await Parallel.ForEachAsync(partitions, cancellationToken, (filePartition, ctx) => CreateLeafChunkNodesAsync(writer, batch, leafChunkedFiles, filePartition.Start, filePartition.Count, copyStats, options, cancellationToken));
 
-					// Create interior nodes for all the leaf chunks
-					ChunkedData[] chunkedFiles = await CreateInteriorChunkNodesAsync(leafChunkedFiles, options.InteriorOptions, writer, serializerOptions, cancellationToken);
-
 					// Write all the interior nodes and generate the directory update
 					for (int idx = 0; idx < batch.Count; idx++)
 					{
@@ -549,7 +546,7 @@ namespace EpicGames.Horde.Storage.Nodes
 							}
 						}
 
-						FileEntry entry = new FileEntry(file.Name, flags, file.Length, chunkedFiles[idx]);
+						FileUpdate entry = new FileUpdate(file.Name, flags, file.Length, leafChunkedFiles[idx]);
 						update.AddFile(new FileReference(file).MakeRelativeTo(baseDir), entry);
 					}
 				}
@@ -657,7 +654,7 @@ namespace EpicGames.Horde.Storage.Nodes
 					_nameToDirectoryEntry[name] = new DirectoryEntry(name, childNode.Length, handle);
 				}
 			}
-			foreach ((string name, FileEntry? file) in update.Files)
+			foreach ((string name, FileUpdate? file) in update.Files)
 			{
 				if (file == null)
 				{
@@ -665,7 +662,8 @@ namespace EpicGames.Horde.Storage.Nodes
 				}
 				else
 				{
-					_nameToFileEntry[name] = file;
+					await file.WriteInteriorNodesAsync(writer, new ChunkingOptions().InteriorOptions, options, cancellationToken);
+					_nameToFileEntry[name] = new FileEntry(name, file.Flags, file.Length, file.StreamHash, file.Nodes[0], file.CustomData);
 				}
 			}
 		}
@@ -1011,8 +1009,40 @@ namespace EpicGames.Horde.Storage.Nodes
 	/// <param name="Path">Path to the file</param>
 	/// <param name="Length">Length of the file data</param>
 	/// <param name="Flags">Flags for the new file entry</param>
-	/// <param name="Data">Chunked data for the file</param>
-	public record class FileUpdate(string Path, FileEntryFlags Flags, long Length, ChunkedData Data);
+	/// <param name="StreamHash">Hash of the entire stream</param>
+	/// <param name="Nodes">Chunked data for the file</param>
+	/// <param name="CustomData"></param>
+	public record class FileUpdate(string Path, FileEntryFlags Flags, long Length, IoHash StreamHash, List<ChunkedDataNodeRef> Nodes, ReadOnlyMemory<byte> CustomData = default)
+	{
+		/// <summary>
+		/// Constructor
+		/// </summary>
+		public FileUpdate(string path, FileEntryFlags flags, long length, ChunkedData chunkedData, ReadOnlyMemory<byte> customData = default)
+			: this(path, flags, length, chunkedData.StreamHash, new List<ChunkedDataNodeRef> { chunkedData.Root }, customData)
+		{
+		}
+
+		/// <summary>
+		/// Constructor
+		/// </summary>
+		public FileUpdate(string path, FileEntryFlags flags, long length, LeafChunkedData chunkedData, ReadOnlyMemory<byte> customData = default)
+			: this(path, flags, length, chunkedData.Hash, chunkedData.LeafHandles, customData)
+		{
+		}
+
+		/// <summary>
+		/// Writes interior node data to the given writer
+		/// </summary>
+		public async ValueTask WriteInteriorNodesAsync(IBlobWriter writer, InteriorChunkedDataNodeOptions interiorNodeOptions, BlobSerializerOptions? serializerOptions, CancellationToken cancellationToken)
+		{
+			if (Nodes.Count > 1)
+			{
+				ChunkedDataNodeRef rootRef = await InteriorChunkedDataNode.CreateTreeAsync(Nodes, interiorNodeOptions, writer, serializerOptions, cancellationToken);
+				Nodes.Clear();
+				Nodes.Add(rootRef);
+			}
+		}
+	}
 
 	/// <summary>
 	/// Describes an update to a directory node
@@ -1022,12 +1052,12 @@ namespace EpicGames.Horde.Storage.Nodes
 		/// <summary>
 		/// Directories to be updated
 		/// </summary>
-		public Dictionary<string, DirectoryUpdate?> Directories { get; } = new Dictionary<string, DirectoryUpdate?>();
+		public SortedDictionary<string, DirectoryUpdate?> Directories { get; } = new SortedDictionary<string, DirectoryUpdate?>(StringComparer.Ordinal);
 
 		/// <summary>
 		/// Files to be updated
 		/// </summary>
-		public Dictionary<string, FileEntry?> Files { get; } = new Dictionary<string, FileEntry?>();
+		public SortedDictionary<string, FileUpdate?> Files { get; } = new SortedDictionary<string, FileUpdate?>(StringComparer.Ordinal);
 
 		/// <summary>
 		/// Reset this instance
@@ -1042,8 +1072,8 @@ namespace EpicGames.Horde.Storage.Nodes
 		/// Adds a file by path to this object
 		/// </summary>
 		/// <param name="path">Path to add to</param>
-		/// <param name="fileEntry">Content for the file</param>
-		public void AddFile(string path, FileEntry? fileEntry)
+		/// <param name="fileUpdate">Content for the file</param>
+		public void AddFile(string path, FileUpdate? fileUpdate)
 		{
 			string[] fragments = path.Split(new char[] { '/', '\\' });
 
@@ -1053,7 +1083,7 @@ namespace EpicGames.Horde.Storage.Nodes
 				DirectoryUpdate? nextDir;
 				if (!lastDir.Directories.TryGetValue(fragments[idx], out nextDir) || nextDir == null)
 				{
-					if (fileEntry == null)
+					if (fileUpdate == null)
 					{
 						return;
 					}
@@ -1064,7 +1094,7 @@ namespace EpicGames.Horde.Storage.Nodes
 				lastDir = nextDir;
 			}
 
-			lastDir.Files[fragments[^1]] = fileEntry;
+			lastDir.Files[fragments[^1]] = fileUpdate;
 		}
 
 		/// <summary>
@@ -1074,7 +1104,8 @@ namespace EpicGames.Horde.Storage.Nodes
 		/// <param name="flags">Flags for the new file entry</param>
 		/// <param name="length">Length of the file</param>
 		/// <param name="chunkedData">Chunked data instance</param>
-		public FileEntry AddFile(string path, FileEntryFlags flags, long length, ChunkedData chunkedData)
+		/// <param name="customData"></param>
+		public FileUpdate AddFile(string path, FileEntryFlags flags, long length, LeafChunkedData chunkedData, ReadOnlyMemory<byte> customData)
 		{
 			string name = path;
 			for (int idx = path.Length - 1; idx >= 0; idx--)
@@ -1086,9 +1117,9 @@ namespace EpicGames.Horde.Storage.Nodes
 				}
 			}
 
-			FileEntry entry = new FileEntry(name, flags, length, chunkedData.StreamHash, chunkedData.Root, default);
-			AddFile(path, entry);
-			return entry;
+			FileUpdate update = new FileUpdate(name, flags, length, chunkedData, customData);
+			AddFile(path, update);
+			return update;
 		}
 
 		/// <summary>
@@ -1118,7 +1149,7 @@ namespace EpicGames.Horde.Storage.Nodes
 				if (nextDirLength == -1)
 				{
 					string fileName = fileUpdate.Path.Substring(prefix.Length);
-					Files[fileName] = new FileEntry(fileName, fileUpdate.Flags, fileUpdate.Length, fileUpdate.Data);
+					Files[fileName] = fileUpdate;
 
 					if (!files.MoveNext())
 					{
@@ -1141,6 +1172,27 @@ namespace EpicGames.Horde.Storage.Nodes
 					{
 						return false;
 					}
+				}
+			}
+		}
+
+		/// <summary>
+		/// Writes interior node data to the given writer
+		/// </summary>
+		public async ValueTask WriteInteriorNodesAsync(IBlobWriter writer, InteriorChunkedDataNodeOptions interiorNodeOptions, BlobSerializerOptions? serializerOptions, CancellationToken cancellationToken)
+		{
+			foreach (DirectoryUpdate? directoryUpdate in Directories.Values)
+			{
+				if (directoryUpdate != null)
+				{
+					await directoryUpdate.WriteInteriorNodesAsync(writer, interiorNodeOptions, serializerOptions, cancellationToken);
+				}
+			}
+			foreach (FileUpdate? fileUpdate in Files.Values)
+			{
+				if (fileUpdate != null)
+				{
+					await fileUpdate.WriteInteriorNodesAsync(writer, interiorNodeOptions, serializerOptions, cancellationToken);
 				}
 			}
 		}

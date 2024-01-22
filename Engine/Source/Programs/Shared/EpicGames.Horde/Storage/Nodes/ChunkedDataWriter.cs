@@ -63,7 +63,7 @@ namespace EpicGames.Horde.Storage.Nodes
 	/// <summary>
 	/// Utility class for generating FileNode data directly into <see cref="IBlobWriter"/> instances, without constructing node representations first.
 	/// </summary>
-	public sealed class ChunkedDataWriter : IDisposable
+	public sealed class LeafChunkedDataWriter : IDisposable
 	{
 		/// <summary>
 		/// Default buffer length when calling CreateAsync/AppendAsync
@@ -71,8 +71,7 @@ namespace EpicGames.Horde.Storage.Nodes
 		public const int DefaultBufferLength = 32 * 1024;
 
 		readonly IBlobWriter _writer;
-		readonly ChunkingOptions _chunkingOptions;
-		readonly BlobSerializerOptions? _serializerOptions;
+		readonly LeafChunkedDataNodeOptions _leafChunkOptions;
 		readonly Blake3.Hasher _hasher;
 
 		// Tree state
@@ -90,14 +89,12 @@ namespace EpicGames.Horde.Storage.Nodes
 		/// <summary>
 		/// Constructor
 		/// </summary>
-		/// <param name="writer">Writer for new nodes</param>
-		/// <param name="chunkingOptions">Chunking options</param>
-		/// <param name="serializerOptions">Options for serialization</param>
-		public ChunkedDataWriter(IBlobWriter writer, ChunkingOptions chunkingOptions, BlobSerializerOptions? serializerOptions)
+		/// <param name="leafNodeWriter">Writer for new nodes</param>
+		/// <param name="leafChunkOptions">Chunking options</param>
+		public LeafChunkedDataWriter(IBlobWriter leafNodeWriter, LeafChunkedDataNodeOptions leafChunkOptions)
 		{
-			_writer = writer;
-			_chunkingOptions = chunkingOptions;
-			_serializerOptions = serializerOptions;
+			_writer = leafNodeWriter;
+			_leafChunkOptions = leafChunkOptions;
 			_hasher = Blake3.Hasher.New();
 		}
 
@@ -131,7 +128,7 @@ namespace EpicGames.Horde.Storage.Nodes
 		/// </summary>
 		/// <param name="fileInfo">File to append</param>
 		/// <param name="cancellationToken">Cancellation token for the operation</param>
-		public async Task<ChunkedData> CreateAsync(FileInfo fileInfo, CancellationToken cancellationToken)
+		public async Task<LeafChunkedData> CreateAsync(FileInfo fileInfo, CancellationToken cancellationToken)
 		{
 			return await CreateAsync(fileInfo, DefaultBufferLength, cancellationToken);
 		}
@@ -142,7 +139,7 @@ namespace EpicGames.Horde.Storage.Nodes
 		/// <param name="fileInfo">File to append</param>
 		/// <param name="bufferLength">Size of the read buffer</param>
 		/// <param name="cancellationToken">Cancellation token for the operation</param>
-		public async Task<ChunkedData> CreateAsync(FileInfo fileInfo, int bufferLength, CancellationToken cancellationToken)
+		public async Task<LeafChunkedData> CreateAsync(FileInfo fileInfo, int bufferLength, CancellationToken cancellationToken)
 		{
 			using (FileStream stream = fileInfo.OpenRead())
 			{
@@ -155,7 +152,7 @@ namespace EpicGames.Horde.Storage.Nodes
 		/// </summary>
 		/// <param name="stream">Stream to append</param>
 		/// <param name="cancellationToken">Cancellation token for the operation</param>
-		public async Task<ChunkedData> CreateAsync(Stream stream, CancellationToken cancellationToken)
+		public async Task<LeafChunkedData> CreateAsync(Stream stream, CancellationToken cancellationToken)
 		{
 			return await CreateAsync(stream, DefaultBufferLength, cancellationToken);
 		}
@@ -166,7 +163,7 @@ namespace EpicGames.Horde.Storage.Nodes
 		/// <param name="stream">Stream to append</param>
 		/// <param name="bufferLength">Size of the read buffer</param>
 		/// <param name="cancellationToken">Cancellation token for the operation</param>
-		public async Task<ChunkedData> CreateAsync(Stream stream, int bufferLength, CancellationToken cancellationToken)
+		public async Task<LeafChunkedData> CreateAsync(Stream stream, int bufferLength, CancellationToken cancellationToken)
 		{
 			Reset();
 			await AppendAsync(stream, bufferLength, cancellationToken);
@@ -178,11 +175,11 @@ namespace EpicGames.Horde.Storage.Nodes
 		/// </summary>
 		/// <param name="data">Stream to append</param>
 		/// <param name="cancellationToken">Cancellation token for the operation</param>
-		public async Task<ChunkedData> CreateAsync(ReadOnlyMemory<byte> data, CancellationToken cancellationToken)
+		public async Task<LeafChunkedData> CreateAsync(ReadOnlyMemory<byte> data, CancellationToken cancellationToken)
 		{
 			Reset();
 			await AppendAsync(data, cancellationToken);
-			return await FlushAsync(cancellationToken);
+			return await CompleteAsync(cancellationToken);
 		}
 
 		/// <summary>
@@ -215,7 +212,7 @@ namespace EpicGames.Horde.Storage.Nodes
 		{
 			for (; ; )
 			{
-				int appendLength = AppendToLeafNode(_writer.WrittenMemory.Span, data.Span, ref _leafHash, _chunkingOptions.LeafOptions);
+				int appendLength = AppendToLeafNode(_writer.WrittenMemory.Span, data.Span, ref _leafHash, _leafChunkOptions);
 				_writer.WriteFixedLengthBytes(data.Slice(0, appendLength).Span);
 
 				data = data.Slice(appendLength);
@@ -314,23 +311,16 @@ namespace EpicGames.Horde.Storage.Nodes
 		/// </summary>
 		/// <param name="cancellationToken">Cancellation token for the operation</param>
 		/// <returns>Handle to the root node</returns>
-		public async Task<ChunkedData> CompleteAsync(CancellationToken cancellationToken)
+		public async Task<LeafChunkedData> CompleteAsync(CancellationToken cancellationToken)
 		{
 			await FlushLeafNodeAsync(cancellationToken);
-			ChunkedDataNodeRef rootHandle = await InteriorChunkedDataNode.CreateTreeAsync(_leafHandles, _chunkingOptions.InteriorOptions, _writer, _serializerOptions, cancellationToken);
-			return new ChunkedData(IoHash.FromBlake3(_hasher), rootHandle);
-		}
+			LeafChunkedData leafChunkedData = new LeafChunkedData(IoHash.FromBlake3(_hasher), new List<ChunkedDataNodeRef>(_leafHandles));
 
-		/// <summary>
-		/// Flush the state of the writer
-		/// </summary>
-		/// <param name="cancellationToken">Cancellation token for the operation</param>
-		/// <returns>Handle to the root FileNode</returns>
-		public async Task<ChunkedData> FlushAsync(CancellationToken cancellationToken)
-		{
-			ChunkedData chunkedData = await CompleteAsync(cancellationToken);
-			await _writer.FlushAsync(cancellationToken);
-			return chunkedData;
+			_leafHandles.Clear();
+			_hasher.Reset();
+			_totalLength = 0;
+
+			return leafChunkedData;
 		}
 
 		/// <summary>

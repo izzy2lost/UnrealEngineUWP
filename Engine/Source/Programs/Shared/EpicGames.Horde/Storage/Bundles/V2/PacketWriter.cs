@@ -214,7 +214,7 @@ namespace EpicGames.Horde.Storage.Bundles.V2
 				Utf8StringBuilder builder = new Utf8StringBuilder();
 				if (!packetHandle.TryAppendIdentifier(builder))
 				{
-					throw new NotSupportedException();
+					throw new NotSupportedException("Referenced blob has not been flushed to storage yet");
 				}
 
 				int baseIdx = FindOrAddImportInternal(packetHandle.Bundle);
@@ -225,7 +225,7 @@ namespace EpicGames.Horde.Storage.Bundles.V2
 				BlobLocator locator;
 				if (!bundleHandle.TryGetLocator(out locator))
 				{
-					throw new NotSupportedException();
+					throw new NotSupportedException("Referenced blob has not been flushed to storage yet");
 				}
 				return AddImport(-1, locator.Path, handle);
 			}
@@ -234,13 +234,13 @@ namespace EpicGames.Horde.Storage.Bundles.V2
 				BlobLocator locator;
 				if (!blobHandle.TryGetLocator(out locator))
 				{
-					throw new NotSupportedException();
+					throw new NotSupportedException("Referenced blob has not been flushed to storage yet");
 				}
 				return AddImport(-1, locator.Path, handle);
 			}
 			else
 			{
-				throw new NotSupportedException();
+				throw new NotSupportedException("Unknown blob type");
 			}
 		}
 
