@@ -18,6 +18,7 @@ public:
 
 	//** BEGIN FMidiPlayCursor
 	virtual void Reset(bool ForceNoBroadcast = false) override;
+	virtual bool UpdateWithTrackerUnchanged() override;
 	virtual void AdvanceByTicks(bool processLoops = true, bool broadcast = true, bool isPreRoll = false) override;
 	virtual void AdvanceByMs(bool processLoops = true, bool broadcast = true, bool isPreRoll = false) override;
 	virtual void OnLoop(int loopStartTick, int loopEndTick) override;
@@ -39,6 +40,6 @@ private:
 	FMidiSongPos CurrentSongPos;
 
 	void  SetSpeed(float NewSpeed);
-	void  SyncSmoothingTimer();
+	void  SyncSmoothingTimer(bool bEnableErrorCorrection);
 	void  UpdateSongPosition();
 };

@@ -85,10 +85,10 @@ void FMidiPlayCursorMgr::DetachFromMidiResource()
 	MidiDataChangeComplete(EMidiChangePositionCorrectMode::MaintainTick);
 }
 
-FMidiSongPos FMidiPlayCursorMgr::CalculateSongPosWithOffsetMs(float DeltaMs) const
+FMidiSongPos FMidiPlayCursorMgr::CalculateSongPosWithOffsetMs(float DeltaMs, bool IsLowRes) const
 {
 	FMidiSongPos OutSongPos;
-	float Ms = GetCurrentHiResMs() + DeltaMs;
+	float Ms = (IsLowRes ? GetCurrentLowResMs() : GetCurrentHiResMs()) + DeltaMs;
 	if (DoesLoop())
 	{
 		float LoopLengthMs = LoopEndMs - LoopStartMs;
@@ -103,7 +103,7 @@ FMidiSongPos FMidiPlayCursorMgr::CalculateSongPosWithOffsetMs(float DeltaMs) con
 	// currently only use the time authority for the tempo
 	if (TSharedPtr<FMidiPlayCursorMgr> TimeAuthorityPtr = TimeAuthority.Pin())
 	{
-		FMidiSongPos AuthoritySongPos = TimeAuthorityPtr->CalculateSongPosWithOffsetMs(DeltaMs);
+		FMidiSongPos AuthoritySongPos = TimeAuthorityPtr->CalculateSongPosWithOffsetMs(DeltaMs, IsLowRes);
 
 		OutSongPos.Tempo = AuthoritySongPos.Tempo;
 	}
@@ -504,7 +504,7 @@ void FMidiPlayCursorMgr::SeekTo(int32 Tick, int32 PreRollBars, bool IsRenderThre
 
 	// The hi-res cursors can just slam to the new position.
 	// If this is resultOfDirectMappedLoop, the hi-res cursors
-	// were already advanced to the end of the loop by the parent.
+	// were already advanced to the end of the loop by the master.
 	HiResTracker.Reset(Tick, NewPosMs, PreRollStartTick, PreRollStartMs, false);
 	if (!IsRenderThread)
 	{
@@ -745,10 +745,31 @@ bool FMidiPlayCursorMgr::AdvanceLowResCursors()
 		MsDiff = HiResCurrentMs - LowResTracker.CurrentMs;
 		if (MsDiff <= 0.0f)
 		{
+			UpdateLowResCursors(LowResTracker);
 			return false;
 		}
 	}
 	return AdvanceTrackerByDeltaMs(MsDiff, LowResTracker, true, true);
+}
+
+void FMidiPlayCursorMgr::UpdateLowResCursors(FMidiPlayCursorTracker& Tracker)
+{
+	TraversingLowResCursors = true;
+	for (auto it = Tracker.Cursors.begin(); it != Tracker.Cursors.end();)
+	{
+		if (!it.GetNode()->UpdateWithTrackerUnchanged())
+		{
+			auto DeadIt = it;
+			++it;
+			Tracker.Cursors.Remove(DeadIt.GetNode());
+			DeadIt.GetNode()->SetOwner(nullptr, nullptr);
+		}
+		else
+		{
+			++it;
+		}
+	}
+	TraversingLowResCursors = false;
 }
 
 bool FMidiPlayCursorMgr::AdvanceTrackerByDeltaMs(float Ms, FMidiPlayCursorTracker& Tracker, bool IsLowRes, bool Broadcast)

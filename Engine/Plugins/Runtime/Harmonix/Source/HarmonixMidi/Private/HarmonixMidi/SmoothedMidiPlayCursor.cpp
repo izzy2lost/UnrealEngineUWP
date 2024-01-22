@@ -45,17 +45,29 @@ void FSmoothedMidiPlayCursor::Reset(bool ForceNoBroadcast)
 	CurrentSongPos.Reset();
 }
 
+bool FSmoothedMidiPlayCursor::UpdateWithTrackerUnchanged()
+{
+	if (!FMidiPlayCursor::UpdateWithTrackerUnchanged())
+	{
+		return false;
+	}
+
+	SyncSmoothingTimer(false);
+	UpdateSongPosition();
+	return true;
+}
+
 void FSmoothedMidiPlayCursor::AdvanceByTicks(bool processLoops /*= true*/, bool broadcast /*= true*/, bool isPreRoll /*= false*/)
 {
 	FMidiPlayCursor::AdvanceByTicks(processLoops, broadcast, isPreRoll);
-	SyncSmoothingTimer();
+	SyncSmoothingTimer(true);
 	UpdateSongPosition();
 }
 
 void FSmoothedMidiPlayCursor::AdvanceByMs(bool processLoops /*= true*/, bool broadcast /*= true*/, bool isPreRoll /*= false*/)
 {
 	FMidiPlayCursor::AdvanceByMs(processLoops, broadcast, isPreRoll);
-	SyncSmoothingTimer();
+	SyncSmoothingTimer(true);
 	UpdateSongPosition();
 }
 
@@ -64,7 +76,7 @@ void FSmoothedMidiPlayCursor::OnLoop(int loopStartTick, int loopEndTick)
 	LoopedThisPass = true;
 }
 
-void FSmoothedMidiPlayCursor::SyncSmoothingTimer()
+void FSmoothedMidiPlayCursor::SyncSmoothingTimer(bool bEnableErrorCorrection)
 {
 	if (!Owner)
 	{
@@ -80,48 +92,52 @@ void FSmoothedMidiPlayCursor::SyncSmoothingTimer()
 
 	float RawMs = CurrentMs;
 	float SmoothMs = SmoothingTimer.Ms();
-	float Error = (SmoothMs - RawMs) * (1.0f / (float)SmoothingTimer.GetSpeed());
-	ErrorTracker.Push(Error);
-	float MinRecentError = ErrorTracker.Min();
-	float AbsError = FMath::Abs(MinRecentError);
 
-	// if we have a massive jump just slam the thing to the current "raw" time and be done with it...
-	if (FMath::Abs(Error) > SmoothedPlayCursor::kMassiveJump)
+	if (bEnableErrorCorrection)
 	{
-		UE_LOG(LogSmoothedMidiPlayCursor, Verbose, TEXT("Smoothing: Massive Error = %fms. Slamming."), Error);
-		SmoothingTimer.SetSpeed(BaseSpeed);
-		SmoothingTimer.Reset(RawMs);
-		SmoothedMs = RawMs;
-		SmoothedMsDelta = 0.0f;
-		SmoothedTick = Owner->GetTempoMap().MsToTick(SmoothedMs);
-		ErrorTracker.Reset();
-		return;
-	}
+		float Error = (SmoothMs - RawMs) * (1.0f / (float)SmoothingTimer.GetSpeed());
+		ErrorTracker.Push(Error);
+		float MinRecentError = ErrorTracker.Min();
+		float AbsError = FMath::Abs(MinRecentError);
 
-	if (AbsError < SmoothedPlayCursor::kMinorErrorThreshold)
-	{
-		if (SmoothingTimer.GetSpeed() != BaseSpeed)
+		// if we have a massive jump just slam the thing to the current "raw" time and be done with it...
+		if (FMath::Abs(Error) > SmoothedPlayCursor::kMassiveJump)
 		{
-			UE_LOG(LogSmoothedMidiPlayCursor, Verbose, TEXT("Smoothing: Error = %fms. Running normal speed."), MinRecentError);
+			UE_LOG(LogSmoothedMidiPlayCursor, Verbose, TEXT("Smoothing: Massive Error = %fms. Slamming."), Error);
 			SmoothingTimer.SetSpeed(BaseSpeed);
+			SmoothingTimer.Reset(RawMs);
+			SmoothedMs = RawMs;
+			SmoothedMsDelta = 0.0f;
+			SmoothedTick = Owner->GetTempoMap().MsToTick(SmoothedMs);
+			ErrorTracker.Reset();
+			return;
 		}
-	}
-	else if (AbsError < SmoothedPlayCursor::kMajorErrorThreshold)
-	{
-		float NewSpeedFactor = BaseSpeed + (MinRecentError < 0.0f ? SmoothedPlayCursor::kMinorCorrectionFactor : -SmoothedPlayCursor::kMinorCorrectionFactor);
-		if (SmoothingTimer.GetSpeed() != NewSpeedFactor)
+
+		if (AbsError < SmoothedPlayCursor::kMinorErrorThreshold)
 		{
-			UE_LOG(LogSmoothedMidiPlayCursor, Verbose, TEXT("Smoothing: Small error = %f. Adjusting speedfactor to %f."), MinRecentError, NewSpeedFactor);
-			SmoothingTimer.SetSpeed(NewSpeedFactor);
+			if (SmoothingTimer.GetSpeed() != BaseSpeed)
+			{
+				UE_LOG(LogSmoothedMidiPlayCursor, Verbose, TEXT("Smoothing: Error = %fms. Running normal speed."), MinRecentError);
+				SmoothingTimer.SetSpeed(BaseSpeed);
+			}
 		}
-	}
-	else
-	{
-		float NewSpeedFactor = BaseSpeed + (MinRecentError < 0.0f ? SmoothedPlayCursor::kMajorCorrectionFactor : -SmoothedPlayCursor::kMajorCorrectionFactor);
-		if (SmoothingTimer.GetSpeed() != NewSpeedFactor)
+		else if (AbsError < SmoothedPlayCursor::kMajorErrorThreshold)
 		{
-			UE_LOG(LogSmoothedMidiPlayCursor, Verbose, TEXT("Smoothing: Significant error = %f. Adjusting speedfactor to %f."), MinRecentError, NewSpeedFactor);
-			SmoothingTimer.SetSpeed(NewSpeedFactor);
+			float NewSpeedFactor = BaseSpeed + (MinRecentError < 0.0f ? SmoothedPlayCursor::kMinorCorrectionFactor : -SmoothedPlayCursor::kMinorCorrectionFactor);
+			if (SmoothingTimer.GetSpeed() != NewSpeedFactor)
+			{
+				UE_LOG(LogSmoothedMidiPlayCursor, Verbose, TEXT("Smoothing: Small error = %f. Adjusting speedfactor to %f."), MinRecentError, NewSpeedFactor);
+				SmoothingTimer.SetSpeed(NewSpeedFactor);
+			}
+		}
+		else
+		{
+			float NewSpeedFactor = BaseSpeed + (MinRecentError < 0.0f ? SmoothedPlayCursor::kMajorCorrectionFactor : -SmoothedPlayCursor::kMajorCorrectionFactor);
+			if (SmoothingTimer.GetSpeed() != NewSpeedFactor)
+			{
+				UE_LOG(LogSmoothedMidiPlayCursor, Verbose, TEXT("Smoothing: Significant error = %f. Adjusting speedfactor to %f."), MinRecentError, NewSpeedFactor);
+				SmoothingTimer.SetSpeed(NewSpeedFactor);
+			}
 		}
 	}
 
@@ -162,5 +178,5 @@ void FSmoothedMidiPlayCursor::UpdateSongPosition()
 		return;
 	}
 
-	CurrentSongPos = Owner->CalculateSongPosWithOffsetMs(SmoothedMsDelta);
+	CurrentSongPos = Owner->CalculateLowResSongPosWithOffsetMs(SmoothedMsDelta);
 }

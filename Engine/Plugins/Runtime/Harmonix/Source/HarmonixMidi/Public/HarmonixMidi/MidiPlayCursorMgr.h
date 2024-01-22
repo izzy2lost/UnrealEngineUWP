@@ -22,7 +22,17 @@ public:
 	void AttachToMidiResource(TSharedPtr<FMidiFileData> MidiDataProxy, bool ResetTrackersToStart = true, int32 PreRollBars = 0);
 	void DetachFromMidiResource();
 
-	FMidiSongPos CalculateSongPosWithOffsetMs(float Ms) const;
+	FMidiSongPos CalculateLowResSongPosWithOffsetMs(float DeltaMs) const
+	{
+		return CalculateSongPosWithOffsetMs(DeltaMs, true);
+	}
+
+	FMidiSongPos CalculateHiResSongPosWithOffsetMs(float DeltaMs) const
+	{
+		return CalculateSongPosWithOffsetMs(DeltaMs, false);
+	}
+
+	FMidiSongPos CalculateSongPosWithOffsetMs(float Ms, bool IsLowRes) const;
 
 	//////////////////////////////////////////////////////////////////////////
 	// Play cursor management
@@ -73,6 +83,7 @@ public:
 
 	// returns whether the cursors looped
 	bool AdvanceLowResCursors();
+	void UpdateLowResCursors(FMidiPlayCursorTracker& Tracker);
 
 	void ResetTrackers(); //reset to the beginning of the song
 
