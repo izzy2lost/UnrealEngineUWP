@@ -60,6 +60,9 @@ enum class EAnimDataModelNotifyType : uint8
 	/** Indicates a curve its color has changed. Type of payload: FCurveChangedPayload */
 	CurveColorChanged,
 
+	/** Indicates a curve has been removed. Type of payload: FCurveChangedPayload */
+	CurveCommentChanged,
+
 	/** Indicates a new attribute has been added. Type of payload: FAttributeAddedPayload */
 	AttributeAdded,
 	

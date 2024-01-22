@@ -22,6 +22,7 @@
 #include "AnimTimelineClipboard.h"
 #include "Animation/AnimData/AnimDataModel.h"
 #include "AnimTimeline/SAnimOutlinerItem.h"
+#include "Fonts/FontMeasure.h"
 
 #define LOCTEXT_NAMESPACE "FAnimTimelineTrack_FloatCurve"
 
@@ -43,27 +44,65 @@ TSharedRef<SWidget> FAnimTimelineTrack_FloatCurve::MakeTimelineWidgetContainer()
 	// zoom to fit now we have a view
 	CurveEditor->ZoomToFit(EAxisList::Y);
 
-	FLinearColor CurveColor = FloatCurve->GetCurveTypeFlag(AACF_Metadata) ? FloatCurve->GetColor().Desaturate(0.25f) : FloatCurve->GetColor().Desaturate(0.75f);
-	auto ColorLambda = [this, CurveColor]()
-	{
-		if(GetModel()->IsTrackSelected(AsShared()))
-		{
-			return FAppStyle::GetSlateColor("SelectionColor").GetSpecifiedColor().CopyWithNewOpacity(0.75f);
-		}
-		else
-		{
-			return CurveColor;
-		}
-	};
-
 	return
-		SAssignNew(TimelineWidgetContainer, SBorder)
-		.Padding(0.0f)
-		.BorderImage(FloatCurve->GetCurveTypeFlag(AACF_Metadata) ? FAppStyle::GetBrush("Sequencer.Section.SelectedSectionOverlay") : FAppStyle::GetBrush("AnimTimeline.Outliner.DefaultBorder"))
-		.BorderBackgroundColor_Lambda(ColorLambda)
+		SNew(SVerticalBox)
+		+SVerticalBox::Slot()
+		.AutoHeight()
 		[
-			CurveWidget
+			SNew(SBox)
+			.HeightOverride(Height)
+			[
+				SAssignNew(TimelineWidgetContainer, SBorder)
+				.Padding(0.0f)
+				.BorderImage(FloatCurve->GetCurveTypeFlag(AACF_Metadata) ? FAppStyle::GetBrush("Sequencer.Section.SelectedSectionOverlay") : FAppStyle::GetBrush("AnimTimeline.Outliner.DefaultBorder"))
+				.BorderBackgroundColor(this, &FAnimTimelineTrack_FloatCurve::GetTrackColor, false)
+				[
+					CurveWidget
+				]
+			]
+		]
+		+SVerticalBox::Slot()
+		.AutoHeight()
+		[
+			SNew(SBox)
+			.HeightOverride(this, &FAnimTimelineTrack_FloatCurve::GetCommentSize)
+			[
+				SNew(SBorder)
+				.Padding(5.0f, 0.0f)
+				.Visibility(this, &FAnimTimelineTrack_FloatCurve::GetCommentVisibility)
+				.ToolTipText(this, &FAnimTimelineTrack_FloatCurve::GetToolTipText)
+				.BorderImage(FAppStyle::GetBrush("AnimTimeline.Outliner.DefaultBorder"))
+				.BorderBackgroundColor(this, &FAnimTimelineTrack_FloatCurve::GetTrackColor, true)
+				[
+					SAssignNew(EditableTextComment, SInlineEditableTextBlock)
+					.Text(this, &FAnimTimelineTrack_FloatCurve::GetCommentText)
+					.IsSelected(this, &FAnimTimelineTrack_FloatCurve::IsSelected)
+					.OnTextCommitted(this, &FAnimTimelineTrack_FloatCurve::OnCommitCurveComment)
+				]
+			]
 		];
+}
+
+float FAnimTimelineTrack_FloatCurve::GetCommentHeight() const
+{
+	if(FloatCurve->Comment.IsEmpty())
+	{
+		return 0.0f;
+	}
+
+	const TSharedRef<FSlateFontMeasure> FontMeasureService = FSlateApplication::Get().GetRenderer()->GetFontMeasureService();
+	UE::Slate::FDeprecateVector2DResult Result = FontMeasureService->Measure(FloatCurve->Comment, FCoreStyle::Get().GetWidgetStyle<FTextBlockStyle>( "NormalText" ).Font);
+	return Result.Y + 6.0f;
+}
+
+FOptionalSize FAnimTimelineTrack_FloatCurve::GetCommentSize() const
+{
+	return GetCommentHeight();
+}
+
+float FAnimTimelineTrack_FloatCurve::GetHeight() const
+{
+	return Height + GetCommentHeight();
 }
 
 TSharedRef<SWidget> FAnimTimelineTrack_FloatCurve::GenerateContainerWidgetForOutliner(const TSharedRef<SAnimOutlinerItem>& InRow)
@@ -71,7 +110,6 @@ TSharedRef<SWidget> FAnimTimelineTrack_FloatCurve::GenerateContainerWidgetForOut
 	TSharedPtr<SBorder> OuterBorder;
 	TSharedPtr<SHorizontalBox> InnerHorizontalBox;
 	TSharedRef<SWidget> OutlinerWidget = GenerateStandardOutlinerWidget(InRow, false, OuterBorder, InnerHorizontalBox);
-
 
 	UAnimMontage* AnimMontage = Cast<UAnimMontage>(GetModel()->GetAnimSequenceBase());
 	bool bChildAnimMontage = AnimMontage && AnimMontage->HasParentAsset();
@@ -85,7 +123,7 @@ TSharedRef<SWidget> FAnimTimelineTrack_FloatCurve::GenerateContainerWidgetForOut
 			SAssignNew(EditableTextLabel, SInlineEditableTextBlock)
 			.IsReadOnly(bChildAnimMontage)
 			.Text(this, &FAnimTimelineTrack_FloatCurve::GetLabel)
-			.IsSelected_Lambda([this](){ return GetModel()->IsTrackSelected(SharedThis(this)); })
+			.IsSelected(this, &FAnimTimelineTrack_FloatCurve::IsSelected)
 			.OnTextCommitted(this, &FAnimTimelineTrack_FloatCurve::OnCommitCurveName)
 			.HighlightText(InRow->GetHighlightText())
 		];
@@ -142,6 +180,18 @@ TSharedRef<SWidget> FAnimTimelineTrack_FloatCurve::BuildCurveTrackMenu()
 			FAnimSequenceTimelineCommands::Get().RemoveCurve->GetIcon(),
 			FUIAction(
 				FExecuteAction::CreateSP(this, &FAnimTimelineTrack_FloatCurve::RemoveCurve)
+			)
+		);
+
+		MenuBuilder.AddMenuEntry(
+			MakeAttributeLambda([this]()
+			{
+				return FloatCurve->Comment.IsEmpty() ? FAnimSequenceTimelineCommands::Get().AddComment->GetLabel() : LOCTEXT("EditComment", "Edit Comment");
+			}),
+			FAnimSequenceTimelineCommands::Get().AddComment->GetDescription(),
+			FAnimSequenceTimelineCommands::Get().AddComment->GetIcon(),
+			FUIAction(
+				FExecuteAction::CreateSP(this, &FAnimTimelineTrack_FloatCurve::HandleAddComment)
 			)
 		);
 	}
@@ -350,6 +400,60 @@ void FAnimTimelineTrack_FloatCurve::GetCurveEditInfo(int32 InCurveIndex, FName& 
 	OutName = CurveName;
 	OutType = ERawCurveTrackTypes::RCT_Float;
 	OutCurveIndex = InCurveIndex;
+}
+
+void FAnimTimelineTrack_FloatCurve::HandleAddComment()
+{
+	if(FloatCurve->Comment.IsEmpty())
+	{
+		UAnimSequenceBase* AnimSequenceBase = GetModel()->GetAnimSequenceBase();
+		AnimSequenceBase->GetController().SetCurveComment(CurveId, LOCTEXT("DefaultComment", "Comment").ToString());
+	}
+
+	ExecuteOnGameThread(UE_SOURCE_LOCATION, [WeakThis = TWeakPtr<FAnimTimelineTrack_FloatCurve>(SharedThis(this))]()
+	{
+		if(TSharedPtr<FAnimTimelineTrack_FloatCurve> This = WeakThis.Pin())
+		{
+			This->EditableTextComment->EnterEditingMode();
+		}
+	});
+}
+
+void FAnimTimelineTrack_FloatCurve::OnCommitCurveComment(const FText& InText, ETextCommit::Type CommitInfo)
+{
+	if(FloatCurve->Comment != InText.ToString())
+	{
+		UAnimSequenceBase* AnimSequenceBase = GetModel()->GetAnimSequenceBase();
+		AnimSequenceBase->GetController().SetCurveComment(CurveId, InText.ToString());
+	}
+}
+
+FText FAnimTimelineTrack_FloatCurve::GetCommentText() const
+{
+	return FText::FromString(FloatCurve->Comment);
+}
+
+EVisibility FAnimTimelineTrack_FloatCurve::GetCommentVisibility() const
+{
+	return FloatCurve->Comment.IsEmpty() ? EVisibility::Collapsed : EVisibility::Visible;
+}
+
+bool FAnimTimelineTrack_FloatCurve::IsSelected() const
+{
+	return GetModel()->IsTrackSelected(SharedThis(this));
+}
+
+FSlateColor FAnimTimelineTrack_FloatCurve::GetTrackColor(bool bForComment) const
+{
+	if(GetModel()->IsTrackSelected(AsShared()))
+	{
+		return FAppStyle::GetSlateColor("SelectionColor").GetSpecifiedColor().CopyWithNewOpacity(bForComment ? 0.5f : 0.75f);
+	}
+	else
+	{
+		FLinearColor CurveColor = FloatCurve->GetCurveTypeFlag(AACF_Metadata) ? FloatCurve->GetColor().Desaturate(0.25f) : FloatCurve->GetColor().Desaturate(0.75f);
+		return bForComment ? CurveColor.CopyWithNewOpacity(CurveColor.A * 0.5f) : CurveColor;
+	}
 }
 
 #undef LOCTEXT_NAMESPACE

@@ -4440,6 +4440,7 @@ void UAnimSequence::OnModelModified(const EAnimDataModelNotifyType& NotifyType, 
 		}
 
 		case EAnimDataModelNotifyType::CurveColorChanged:
+		case EAnimDataModelNotifyType::CurveCommentChanged:
 		{
 			break;
 		}

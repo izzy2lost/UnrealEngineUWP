@@ -1085,6 +1085,49 @@ bool UAnimSequencerController::SetCurveColor(const FAnimationCurveIdentifier& Cu
 	return false;
 }
 
+bool UAnimSequencerController::SetCurveComment(const FAnimationCurveIdentifier& CurveId, const FString& Comment, bool bShouldTransact)
+{
+	ValidateModel();
+
+	if (CurveId.IsValid())
+	{
+		if (CurveId.CurveType == ERawCurveTrackTypes::RCT_Float)
+		{
+			if (const FFloatCurve* Curve = Model->FindMutableFloatCurveById(CurveId))
+			{
+				IAnimationDataModel::FEvaluationAndModificationLock Lock(*ModelInterface);
+				FTransaction Transaction = ConditionalTransaction(LOCTEXT("ChangingCurveComment", "Changing Curve Comment"), bShouldTransact);
+
+				ConditionalAction<UE::Anim::FSetCurveCommentAction>(bShouldTransact,  CurveId, Curve->Comment);
+
+				Model->CurveIdentifierToMetaData.FindChecked(CurveId).Comment = Comment;
+
+				FCurveChangedPayload Payload;
+				Payload.Identifier = CurveId;
+				Model->GetNotifier().Notify(EAnimDataModelNotifyType::CurveCommentChanged, Payload);
+
+				return true;
+			}
+			else
+			{
+				const FString CurveTypeAsString = GetCurveTypeValueName(CurveId.CurveType);
+				ReportWarningf(LOCTEXT("UnableToFindCurveWarning", "Unable to find curve: {0} of type {1}"), FText::FromName(CurveId.CurveName), FText::FromString(CurveTypeAsString));
+			}
+		}
+		else
+		{
+			ReportWarning(LOCTEXT("NonSupportedCurveCommentSetWarning", "Changing curve comment is currently only supported for float curves"));
+		}
+	}
+	else
+	{
+		ReportWarningf(LOCTEXT("InvalidCurveIdentifier", "Invalid Curve Identifier : {0}"), FText::FromName(CurveId.CurveName));
+	}	
+
+	return false;
+}
+
+
 bool UAnimSequencerController::ScaleCurve(const FAnimationCurveIdentifier& CurveId, float Origin, float Factor, bool bShouldTransact /*= true*/)
 {
 	ValidateModel();
@@ -2208,7 +2251,7 @@ void UAnimSequencerController::UpdateWithSkeleton(USkeleton* TargetSkeleton, boo
 			RemoveUnusedControlsAndCurves();		
 
 			// Forcefully re-generate legacy data structures
-			Model->GenerateLegacyCurveData();
+			Model->RegenerateLegacyCurveData();
 		}
 		CloseBracket();
 	}	

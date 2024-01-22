@@ -106,6 +106,9 @@ struct FAnimCurveBase
 
 	UPROPERTY()
 	FLinearColor Color;
+
+	UPROPERTY()
+	FString Comment;
 #endif
 
 private:
