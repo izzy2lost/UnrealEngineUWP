@@ -173,11 +173,11 @@ void UFusionPatchAssetFactory::UpdateFusionPatchImportNotificationItem(TSharedPt
 	if (bImportSuccessful)
 	{
 		InItem->SetCompletionState(SNotificationItem::ECompletionState::CS_Success);
-		InItem->SetText(FText::Format(NSLOCTEXT("FusionPatchImporter", "FusionPatchImportProgressNotification", "Successfully imported Fusion Patch asset: {0}"), FText::FromString(InName.ToString())));
+		InItem->SetText(FText::Format(NSLOCTEXT("FusionPatchImporter", "FusionPatchImportProgressNotification_Success", "Successfully imported Fusion Patch asset: {0}"), FText::FromString(InName.ToString())));
 	}
 	else {
 		InItem->SetCompletionState(SNotificationItem::ECompletionState::CS_Fail);
-		InItem->SetText(FText::Format(NSLOCTEXT("FusionPatchImporter", "FusionPatchImportProgressNotification", "Failed to import Fusion Patch: {0}"), FText::FromString(InName.ToString())));
+		InItem->SetText(FText::Format(NSLOCTEXT("FusionPatchImporter", "FusionPatchImportProgressNotification_Failure", "Failed to import Fusion Patch: {0}"), FText::FromString(InName.ToString())));
 	}
 	InItem->SetExpireDuration(0.2f);
 	InItem->ExpireAndFadeout();
@@ -206,7 +206,7 @@ UObject* UFusionPatchAssetFactory::FactoryCreateText(UClass* InClass, UObject* I
 		const FString SourcePath = FPaths::GetPath(SourceFile);
 		
 		//create a notification that displays the import progress at the lower right corner
-		FNotificationInfo ImportNotificationInfo(NSLOCTEXT("FusionPatchImporter","FusionPatchImportProgressNotification","Importing Fusion Asset(s)..."));
+		FNotificationInfo ImportNotificationInfo(NSLOCTEXT("FusionPatchImporter","FusionPatchImportProgressNotification_InProgress","Importing Fusion Asset(s)..."));
 		ImportNotificationInfo.bFireAndForget = false;
 		TSharedPtr<SNotificationItem> ImportNotificationItem;
 		ImportNotificationItem = FSlateNotificationManager::Get().AddNotification(ImportNotificationInfo);

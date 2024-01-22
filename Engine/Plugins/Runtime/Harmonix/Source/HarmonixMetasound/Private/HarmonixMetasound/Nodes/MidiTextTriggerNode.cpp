@@ -15,7 +15,7 @@
 
 DEFINE_LOG_CATEGORY_STATIC(LogMidiTextTrigger, Log, All);
 
-#define LOCTEXT_NAMESPACE "HarmonixMetaSound"
+#define LOCTEXT_NAMESPACE "HarmonixMetaSound_MidiTextTriggerNode"
 
 namespace HarmonixMetasound
 {

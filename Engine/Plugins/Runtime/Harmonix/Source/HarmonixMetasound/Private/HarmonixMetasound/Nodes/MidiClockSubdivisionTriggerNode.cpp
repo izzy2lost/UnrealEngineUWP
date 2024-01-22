@@ -20,7 +20,7 @@
 
 DEFINE_LOG_CATEGORY_STATIC(LogMidiClockSubdivisionTrigger, Log, All);
 
-#define LOCTEXT_NAMESPACE "HarmonixMetaSound"
+#define LOCTEXT_NAMESPACE "HarmonixMetaSound_MidiClockSubdivisionTriggerNode"
 
 namespace HarmonixMetasound
 {
