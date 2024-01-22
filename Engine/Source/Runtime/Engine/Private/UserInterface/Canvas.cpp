@@ -563,6 +563,20 @@ FCanvasRenderThreadScope::~FCanvasRenderThreadScope()
 			(*RenderCommandArray)[Index](RenderContext);
 		}
 
+		// MSAA resolve as the last optional render pass
+		if (RenderTarget->GetRenderTargetTexture()->GetDesc().IsMultisample())
+		{
+			FRenderTargetParameters* PassParameters = GraphBuilder.AllocParameters<FRenderTargetParameters>();
+			FRDGTextureRef ResolveTexture = RegisterExternalTexture(GraphBuilder, RenderTarget->GetShaderResourceTexture(), TEXT("MSAAResolveCanvasTexture"));
+			PassParameters->RenderTargets[0] = FRenderTargetBinding(
+				RenderTarget->GetRenderTargetTexture(GraphBuilder),
+				ResolveTexture,
+				ERenderTargetLoadAction::ELoad
+			);
+
+			GraphBuilder.AddPass(RDG_EVENT_NAME("MSAAResolveCanvas"), PassParameters, ERDGPassFlags::Raster, [](FRHICommandList&) {});
+		}
+
 		GraphBuilder.Execute();
 		delete RenderCommandArray;
 	});

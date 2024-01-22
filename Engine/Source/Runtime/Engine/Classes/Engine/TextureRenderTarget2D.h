@@ -66,6 +66,32 @@ inline EPixelFormat GetPixelFormatFromRenderTargetFormat(ETextureRenderTargetFor
 	return PF_Unknown;
 }
 
+UENUM(BlueprintType)
+enum class ETextureRenderTargetSampleCount : uint8
+{
+	RTSC_1 UMETA(DisplayName = "MSAAx1"),
+	RTSC_2 UMETA(DisplayName = "MSAAx2"),
+	RTSC_4 UMETA(DisplayName = "MSAAx4"),
+	RTSC_8 UMETA(DisplayName = "MSAAx8"),
+
+	RTSC_MAX,
+};
+
+inline int32 GetNumFromRenderTargetSampleCount(ETextureRenderTargetSampleCount InSampleCount)
+{
+	switch (InSampleCount)
+	{
+	case ETextureRenderTargetSampleCount::RTSC_1: return 1 << 0;
+	case ETextureRenderTargetSampleCount::RTSC_2: return 1 << 1;
+	case ETextureRenderTargetSampleCount::RTSC_4: return 1 << 2;
+	case ETextureRenderTargetSampleCount::RTSC_8: return 1 << 3;
+
+	default:
+		ensureMsgf(false, TEXT("Unhandled ETextureRenderTargetSampleCount entry %u"), (uint32)InSampleCount);
+		return 1;
+	}
+}
+
 /**
  * TextureRenderTarget2D
  *
@@ -234,6 +260,8 @@ PRAGMA_ENABLE_DEPRECATION_WARNINGS
 	{
 		return NumMips;
 	}
+
+	virtual ETextureRenderTargetSampleCount GetSampleCount() const;
 
 private:
 	int32	NumMips;

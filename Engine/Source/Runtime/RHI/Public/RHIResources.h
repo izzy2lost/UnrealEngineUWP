@@ -4265,7 +4265,7 @@ struct FRHIRenderPassInfo
 	// Color, no depth, optional resolve, optional mip, optional array slice
 	explicit FRHIRenderPassInfo(FRHITexture* ColorRT, ERenderTargetActions ColorAction, FRHITexture* ResolveRT = nullptr, uint8 InMipIndex = 0, int32 InArraySlice = -1)
 	{
-		check(!ResolveRT || ResolveRT->IsMultisampled());
+		check(!(ResolveRT && ResolveRT->IsMultisampled()));
 		check(ColorRT);
 		ColorRenderTargets[0].RenderTarget = ColorRT;
 		ColorRenderTargets[0].ResolveTarget = ResolveRT;
