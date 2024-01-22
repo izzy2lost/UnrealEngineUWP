@@ -66,6 +66,7 @@ FAnimationBudgetAllocator::FAnimationBudgetAllocator(UWorld* InWorld)
 	, ReducedComponentWorkCounter(0)
 	, CurrentFrameOffset(0)
 	, bEnabled(false)
+	, bHasBegunPlay(InWorld->HasBegunPlay())
 {
 	FAnimationBudgetAllocator::bCachedEnabled = GAnimationBudgetEnabled == 1;
 	
@@ -927,57 +928,48 @@ static USkeletalMeshComponentBudgeted* FindRootPrerequisite(USkeletalMeshCompone
 
 void FAnimationBudgetAllocator::RegisterComponent(USkeletalMeshComponentBudgeted* InComponent)
 {
-	if (FAnimationBudgetAllocator::bCachedEnabled && bEnabled)
+	if (InComponent->GetAnimationBudgetHandle() == INDEX_NONE)
 	{
-		if (InComponent->GetAnimationBudgetHandle() == INDEX_NONE)
-		{
-			InComponent->bEnableUpdateRateOptimizations = false;
-			InComponent->EnableExternalTickRateControl(true);
-			InComponent->SetAnimationBudgetHandle(AllComponentData.Num());
+		InComponent->bEnableUpdateRateOptimizations = false;
+		InComponent->EnableExternalTickRateControl(true);
+		InComponent->SetAnimationBudgetHandle(AllComponentData.Num());
 
-			// Setup frame offset
-			FAnimBudgetAllocatorComponentData& ComponentData = AllComponentData.Emplace_GetRef(InComponent, Parameters.InitialEstimatedWorkUnitTimeMs, Parameters.StateChangeThrottleInFrames);
-			USkeletalMeshComponentBudgeted* RootPrerequisite = FindRootPrerequisite(InComponent);
-			ComponentData.RootPrerequisite = (RootPrerequisite != nullptr && RootPrerequisite != InComponent) ? RootPrerequisite : nullptr;
-			ComponentData.FrameOffset = CurrentFrameOffset++;
-			ComponentData.bAutoCalculateSignificance = InComponent->GetAutoCalculateSignificance();
+		// Setup frame offset
+		FAnimBudgetAllocatorComponentData& ComponentData = AllComponentData.Emplace_GetRef(InComponent, Parameters.InitialEstimatedWorkUnitTimeMs, Parameters.StateChangeThrottleInFrames);
+		USkeletalMeshComponentBudgeted* RootPrerequisite = FindRootPrerequisite(InComponent);
+		ComponentData.RootPrerequisite = (RootPrerequisite != nullptr && RootPrerequisite != InComponent) ? RootPrerequisite : nullptr;
+		ComponentData.FrameOffset = CurrentFrameOffset++;
+		ComponentData.bAutoCalculateSignificance = InComponent->GetAutoCalculateSignificance();
 
-			InComponent->SetAnimationBudgetAllocator(this);
-		}
-		else
-		{
-			UpdateComponentTickPrerequsites(InComponent);
-		}
+		InComponent->SetAnimationBudgetAllocator(this);
+	}
+	else
+	{
+		UpdateComponentTickPrerequsites(InComponent);
 	}
 }
 
 void FAnimationBudgetAllocator::UnregisterComponent(USkeletalMeshComponentBudgeted* InComponent)
 {
-	if (FAnimationBudgetAllocator::bCachedEnabled && bEnabled)
+	int32 ManagerHandle = InComponent->GetAnimationBudgetHandle();
+	if (ManagerHandle != INDEX_NONE)
 	{
-		int32 ManagerHandle = InComponent->GetAnimationBudgetHandle();
-		if (ManagerHandle != INDEX_NONE)
-		{
-			RemoveHelper(ManagerHandle, InComponent);
+		RemoveHelper(ManagerHandle, InComponent);
 
-			InComponent->bEnableUpdateRateOptimizations = true;
-			InComponent->EnableExternalTickRateControl(false);
-			InComponent->SetAnimationBudgetAllocator(nullptr);
-		}
+		InComponent->bEnableUpdateRateOptimizations = true;
+		InComponent->EnableExternalTickRateControl(false);
+		InComponent->SetAnimationBudgetAllocator(nullptr);
 	}
 }
 
 void FAnimationBudgetAllocator::UpdateComponentTickPrerequsites(USkeletalMeshComponentBudgeted* InComponent)
 {
-	if (FAnimationBudgetAllocator::bCachedEnabled && bEnabled)
+	int32 ManagerHandle = InComponent->GetAnimationBudgetHandle();
+	if(ManagerHandle != INDEX_NONE)
 	{
-		int32 ManagerHandle = InComponent->GetAnimationBudgetHandle();
-		if(ManagerHandle != INDEX_NONE)
-		{
-			FAnimBudgetAllocatorComponentData& ComponentData = AllComponentData[ManagerHandle];
-			USkeletalMeshComponentBudgeted* RootPrerequisite = FindRootPrerequisite(InComponent);
-			ComponentData.RootPrerequisite = (RootPrerequisite != nullptr && RootPrerequisite != InComponent) ? RootPrerequisite : nullptr;
-		}
+		FAnimBudgetAllocatorComponentData& ComponentData = AllComponentData[ManagerHandle];
+		USkeletalMeshComponentBudgeted* RootPrerequisite = FindRootPrerequisite(InComponent);
+		ComponentData.RootPrerequisite = (RootPrerequisite != nullptr && RootPrerequisite != InComponent) ? RootPrerequisite : nullptr;
 	}
 }
 
@@ -1106,6 +1098,8 @@ void FAnimationBudgetAllocator::HandleWorldBeginPlay()
 {
 	// This will catch worlds in (e.g.) PIE that try to set the CVar on startup
 	FAnimationBudgetAllocator::bCachedEnabled = GAnimationBudgetEnabled == 1;
+
+	bHasBegunPlay = true;
 
 	// Run thru all deferred registrations
 	for(USkeletalMeshComponentBudgeted* Component : DeferredRegistrations)
