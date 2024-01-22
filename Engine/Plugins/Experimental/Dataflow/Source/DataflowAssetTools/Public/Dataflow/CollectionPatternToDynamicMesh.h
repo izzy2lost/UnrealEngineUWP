@@ -2,7 +2,7 @@
 
 #pragma once
 
-#include "DataflowPatternVertexType.h"
+#include "Dataflow/DataflowContent.h"
 #include "Templates/SharedPointer.h"
 
 

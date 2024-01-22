@@ -60,7 +60,10 @@ namespace UnrealBuildTool.Rules
 					"TypedElementRuntime",
 					"UnrealEd",
 					"WorkspaceMenuStructure",
-					"XmlParser"
+					"XmlParser",
+					"EditorWidgets",
+					"KismetWidgets",      // SScrubControlPanel
+					"AnimGraph"           // UAnimSingleNodeInstance
 				}
 			);
 		}

@@ -11,7 +11,7 @@
 #include "Dataflow/DataflowComponentToolTarget.h"
 #include "Dataflow/DataflowCollectionAddScalarVertexPropertyNode.h"
 #include "Dataflow/DataflowEditor.h"
-#include "Dataflow/DataflowEditorContent.h"
+#include "Dataflow/DataflowContent.h"
 #include "Dataflow/DataflowEditorCommands.h"
 #include "Dataflow/DataflowEditorModeToolkit.h"
 #include "Dataflow/DataflowEditorViewportClient.h"
@@ -251,7 +251,7 @@ void UDataflowEditorMode::OnToolEnded(UInteractiveToolManager* Manager, UInterac
 	}
 	else
 	{
-		PreviewScene->ReinitializeDynamicMeshComponents();
+		PreviewScene->ResetConstructionScene();
 	}
 
 	if (TSharedPtr<SDataflowGraphEditor> GraphEditor = DataflowGraphEditor.Pin())
@@ -291,13 +291,13 @@ void UDataflowEditorMode::Exit()
 {
 	UActorComponent::MarkRenderStateDirtyEvent.RemoveAll(this);
 
-	PreviewScene->Exit();
+	PreviewScene->ResetConstructionScene();
 	PreviewScene = nullptr;
 
 	Super::Exit();
 }
 
-void UDataflowEditorMode::SetDataflowPreviewScene(FDataflowPreviewScene* InPreviewScene)
+void UDataflowEditorMode::SetDataflowConstructionScene(FDataflowConstructionScene* InPreviewScene)
 {
 	PreviewScene = InPreviewScene;
 
@@ -322,9 +322,9 @@ void UDataflowEditorMode::SetDataflowPreviewScene(FDataflowPreviewScene* InPrevi
 void UDataflowEditorMode::CreateToolTargets(const TArray<TObjectPtr<UObject>>& AssetsIn)
 {
 	ToolTargets.Reset();
-	if (TObjectPtr<UDataflowEditorContent> EditorContent = PreviewScene->GetDataflowEditorContent())
+	if (TObjectPtr<UDataflowBaseContent> EditorContent = PreviewScene->GetDataflowContent())
 	{
-		if (UToolTarget* Target = GetInteractiveToolsContext()->TargetManager->BuildTarget(EditorContent.Get(), GetToolTargetRequirements()))
+		if (UToolTarget* Target = GetInteractiveToolsContext()->TargetManager->BuildTarget(EditorContent, GetToolTargetRequirements()))
 		{
 			ToolTargets.Add(Target);
 		}
@@ -351,7 +351,7 @@ bool UDataflowEditorMode::IsComponentSelected(const UPrimitiveComponent* InCompo
 void UDataflowEditorMode::SetSelectedCollection(TSharedPtr<FManagedArrayCollection> Collection)
 {
 	SelectedCollection = Collection;
-	PreviewScene->ReinitializeDynamicMeshComponents();
+	PreviewScene->UpdateConstructionScene();
 
 	// The first time we get a valid mesh, refocus the camera on it
 	FirstTimeFocusRestSpaceViewport();
@@ -418,11 +418,6 @@ void UDataflowEditorMode::InitializeTargets(const TArray<TObjectPtr<UObject>>& O
 {
 	UBaseCharacterFXEditorMode::InitializeTargets(ObjectsToEdit);
 
-	USelection* SelectedComponents = GetModeManager()->GetSelectedComponents();
-	SelectedComponents->Modify();
-	SelectedComponents->BeginBatchSelectOperation();
-	SelectedComponents->DeselectAll();
-
 	// @todo(brice) : Consider initializing the Content here from the ObjectsToEdit
 
 	// @todo(brice) : What are the ToolTargets storing?
@@ -430,18 +425,10 @@ void UDataflowEditorMode::InitializeTargets(const TArray<TObjectPtr<UObject>>& O
 	// ... UE::ToolTarget::GetDynamicMeshCopy(Target)
 	// ... UE::ToolTarget::GetMaterialSet(Target).Materials for PreviewScene->AddDynamicMeshComponent
 	// ... }
-	PreviewScene->Update();
 
-	for (TObjectPtr<UDynamicMeshComponent>& Component : PreviewScene->GetDynamicMeshComponents())
-	{
-		if (Component)
-		{
-			SelectedComponents->Select(Component);
-		}
-	}
-	SelectedComponents->EndBatchSelectOperation();
+	// @todo(michael) : do we need to update the construction scene?
+	PreviewScene->UpdateConstructionScene();
 }
-
 
 void UDataflowEditorMode::ModeTick(float DeltaTime)
 {
@@ -473,12 +460,6 @@ void UDataflowEditorMode::ModeTick(float DeltaTime)
 
 		NodeTypeForPendingToolStart = FName();
 	}
-
-	if (PreviewScene)
-	{
-		PreviewScene->GetWorld()->Tick(ELevelTick::LEVELTICK_All, DeltaTime);
-	}
-
 }
 
 void UDataflowEditorMode::RestSpaceViewportResized(FViewport* RestspaceViewport, uint32 /*Unused*/)
@@ -499,7 +480,8 @@ FBox UDataflowEditorMode::SceneBoundingBox() const
 
 FBox UDataflowEditorMode::SelectionBoundingBox() const
 {
-	FBox Bounds = PreviewScene->SelectedComponentBounds();
+	// If the selection is on the GetBoundingBox is automatically computing the selection one
+	FBox Bounds = PreviewScene->GetBoundingBox();
 	if (Bounds.IsValid)
 	{
 		return Bounds;
@@ -529,7 +511,7 @@ void UDataflowEditorMode::SetConstructionViewMode(Dataflow::EDataflowPatternVert
 	}
 
 	ConstructionViewMode = InMode;
-	PreviewScene->ReinitializeDynamicMeshComponents();
+	PreviewScene->UpdateConstructionScene();
 
 	const TSharedPtr<FDataflowEditorViewportClient> VC = ConstructionViewportClient.Pin();
 	if (VC.IsValid())
@@ -587,7 +569,7 @@ void UDataflowEditorMode::ToggleConstructionViewWireframe()
 {
 	check(false);
 	bConstructionViewWireframe = !bConstructionViewWireframe;
-	PreviewScene->ReinitializeDynamicMeshComponents();
+	PreviewScene->UpdateConstructionScene();
 }
 
 bool UDataflowEditorMode::CanSetConstructionViewWireframeActive() const
@@ -626,29 +608,29 @@ void UDataflowEditorMode::InitializeContextObject()
 {
 	check(PreviewScene);
 
-	if (TObjectPtr<UDataflowEditorContent> DataflowEditorContent = PreviewScene->GetDataflowEditorContent())
+	if (TObjectPtr<UDataflowBaseContent> DataflowContent = PreviewScene->GetDataflowContent())
 	{
 		UEditorInteractiveToolsContext* const RestSpaceToolsContext = GetInteractiveToolsContext();
 
-		UDataflowEditorContent* EditorContextObject = RestSpaceToolsContext->ContextObjectStore->FindContext<UDataflowEditorContent>();
-		if (!EditorContextObject)
+		UDataflowContextObject* ContextObject = RestSpaceToolsContext->ContextObjectStore->FindContext<UDataflowContextObject>();
+		if (!ContextObject)
 		{
-			EditorContextObject = PreviewScene->GetDataflowEditorContent();
-			RestSpaceToolsContext->ContextObjectStore->AddContextObject(PreviewScene->GetDataflowEditorContent());
+			ContextObject = DataflowContent;
+			RestSpaceToolsContext->ContextObjectStore->AddContextObject(ContextObject);
 		}
 
-		check(EditorContextObject);
+		check(ContextObject);
 
-		EditorContextObject->SetConstructionViewMode(ConstructionViewMode);
+		ContextObject->SetConstructionViewMode(ConstructionViewMode);
 	}
 }
 
 void UDataflowEditorMode::DeleteContextObject()
 {
 	UEditorInteractiveToolsContext* const RestSpaceToolsContext = GetInteractiveToolsContext();
-	if (UDataflowEditorContent* EditorContextObject = RestSpaceToolsContext->ContextObjectStore->FindContext<UDataflowEditorContent>())
+	if (UDataflowContextObject* ContextObject = RestSpaceToolsContext->ContextObjectStore->FindContext<UDataflowContextObject>())
 	{
-		RestSpaceToolsContext->ContextObjectStore->RemoveContextObject(EditorContextObject);
+		RestSpaceToolsContext->ContextObjectStore->RemoveContextObject(ContextObject);
 	}
 }
 
@@ -676,7 +658,6 @@ void UDataflowEditorMode::StartToolForSelectedNode(const UObject* SelectedNode)
 		}
 	}
 }
-
 
 void UDataflowEditorMode::OnDataflowNodeDeleted(const TSet<UObject*>& DeletedNodes)
 {
@@ -728,7 +709,7 @@ UEdGraphNode* UDataflowEditorMode::CreateNewNode(const FName& NewNodeTypeName)
 		return nullptr;
 	}
 
-	if (TObjectPtr<UDataflowEditorContent> EditorContent = PreviewScene->GetDataflowEditorContent())
+	if (TObjectPtr<UDataflowBaseContent> EditorContent = PreviewScene->GetDataflowContent())
 	{
 		if (TObjectPtr<UDataflow> DataflowGraph = EditorContent->GetDataflowAsset())
 		{
@@ -745,7 +726,7 @@ UEdGraphNode* UDataflowEditorMode::CreateNewNode(const FName& NewNodeTypeName)
 
 UEdGraphNode* UDataflowEditorMode::CreateAndConnectNewNode(const FName& NewNodeTypeName, UEdGraphNode& UpstreamNode, const FName& ConnectionTypeName, const FName& NewNodeConnectionName)
 {
-	if (TObjectPtr<UDataflowEditorContent> EditorContent = PreviewScene->GetDataflowEditorContent())
+	if (TObjectPtr<UDataflowBaseContent> EditorContent = PreviewScene->GetDataflowContent())
 	{
 		if (TObjectPtr<UDataflow> DataflowGraph = EditorContent->GetDataflowAsset())
 		{

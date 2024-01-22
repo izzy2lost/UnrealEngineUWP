@@ -11,7 +11,7 @@
 
 class UDataflow;
 class UObject;
-class UDataflowEditorContent;
+class UDataflowBaseContent;
 class USkeletalMesh;
 class USkeleton;
 class UAnimationAsset;
@@ -19,6 +19,10 @@ class UMaterial;
 
 namespace Private
 {
+	bool HasSkeletalMesh(UObject* InObject);
+
+	bool HasDataflowAsset(UObject* InObject);
+	
 	UDataflow* GetDataflowAssetFrom(UObject* InObject);
 
 	USkeletalMesh* GetSkeletalMeshFrom(UObject* InObject);
@@ -40,5 +44,5 @@ namespace UE
 
 namespace Dataflow
 {
-	TSharedPtr<::Dataflow::FEngineContext> GetContext(UDataflowEditorContent* Content);
+	TSharedPtr<::Dataflow::FEngineContext> GetContext(TObjectPtr<UDataflowBaseContent> Content);
 }

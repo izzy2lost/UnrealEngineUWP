@@ -16,7 +16,7 @@ class UDataflowEdNode;
 struct FDataflowNode;
 class UEdGraphNode;
 class SDataflowGraphEditor;
-class UDataflowEditorContent;
+class UDataflowBaseContent;
 
 typedef TSet<class UObject*> FGraphPanelSelectionSet;
 
@@ -117,7 +117,7 @@ public:
 	*  OnPropertyValueChanged
 	*/
 	static void OnPropertyValueChanged(UDataflow* Graph, TSharedPtr<Dataflow::FEngineContext>& Context, Dataflow::FTimestamp& OutLastNodeTimestamp, const FPropertyChangedEvent& PropertyChangedEvent, const TSet<UObject*>& SelectedNodes = TSet<UObject*>());
-	static void OnAssetPropertyValueChanged(TObjectPtr<UDataflowEditorContent> Content, const FPropertyChangedEvent& PropertyChangedEvent);
+	static void OnAssetPropertyValueChanged(TObjectPtr<UDataflowBaseContent> Content, const FPropertyChangedEvent& PropertyChangedEvent);
 
 	/*
 	*  OnSelectedNodesChanged

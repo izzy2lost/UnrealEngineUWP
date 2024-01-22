@@ -3,7 +3,7 @@
 #include "Dataflow/DataflowEditorCommands.h"
 
 #include "Dataflow/DataflowEdNode.h"
-#include "Dataflow/DataflowEditorContent.h"
+#include "Dataflow/DataflowContent.h"
 #include "Dataflow/DataflowEditorStyle.h"
 #include "Dataflow/DataflowEditorUtil.h"
 #include "Dataflow/DataflowGraphEditor.h"
@@ -294,11 +294,11 @@ void FDataflowEditorCommands::OnNodeTitleCommitted(const FText& InNewText, EText
 	}
 }
 
-void FDataflowEditorCommands::OnAssetPropertyValueChanged(TObjectPtr<UDataflowEditorContent> Content, const FPropertyChangedEvent& InPropertyChangedEvent)
+void FDataflowEditorCommands::OnAssetPropertyValueChanged(TObjectPtr<UDataflowBaseContent> Content, const FPropertyChangedEvent& InPropertyChangedEvent)
 {
 	if (Content)
 	{
-		TObjectPtr<UDataflow>& DataflowAsset = Content->GetDataflowAsset();
+		const TObjectPtr<UDataflow>& DataflowAsset = Content->GetDataflowAsset();
 		if (DataflowAsset)
 		{
 			if (InPropertyChangedEvent.ChangeType == EPropertyChangeType::ValueSet ||
@@ -321,14 +321,6 @@ void FDataflowEditorCommands::OnAssetPropertyValueChanged(TObjectPtr<UDataflowEd
 							}
 						}
 					}
-				}
-				else if (InPropertyChangedEvent.GetPropertyName() == FName("SkeletalMesh"))
-				{
-					Content->SetSkeletalMesh(Private::GetSkeletalMeshFrom(Content->GetDataflowOwner()));
-				}
-				else if (InPropertyChangedEvent.GetPropertyName() == FName("Skeleton"))
-				{
-					Content->SetSkeleton(Private::GetSkeletonFrom(Content->GetDataflowOwner()));
 				}
 			}
 		}

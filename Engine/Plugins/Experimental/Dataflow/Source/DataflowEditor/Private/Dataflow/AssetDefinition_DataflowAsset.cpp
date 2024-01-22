@@ -184,7 +184,7 @@ EAssetCommandResult UAssetDefinition_DataflowAsset::OpenAssets(const FAssetOpenA
 		// Validate the asset
 		if (UDataflow* const DataflowAsset = CastChecked<UDataflow>(DataflowObjects[0]))
 		{
-			AssetEditor->Initialize({ DataflowAsset });
+			AssetEditor->InitializeContent(nullptr, DataflowAsset);
 			return EAssetCommandResult::Handled;
 		}
 	}

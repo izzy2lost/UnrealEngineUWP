@@ -5,7 +5,7 @@
 #include "EditorViewportClient.h"
 #include "Dataflow/DataflowNodeParameters.h"
 #include "Dataflow/DataflowComponentSelectionState.h"
-#include "Dataflow/DataflowPatternVertexType.h"
+#include "Dataflow/DataflowContent.h"
 #include "InputBehaviorSet.h"
 
 class FDataflowEditorToolkit;
@@ -23,7 +23,7 @@ class DATAFLOWEDITOR_API FDataflowEditorViewportClient : public FEditorViewportC
 public:
 	using Super = FEditorViewportClient;
 
-	FDataflowEditorViewportClient(FEditorModeTools* InModeTools, FPreviewScene* InPreviewScene,
+	FDataflowEditorViewportClient(FEditorModeTools* InModeTools, FPreviewScene* InPreviewScene,  const bool bCouldTickScene,
 								  const TWeakPtr<SEditorViewport> InEditorViewportWidget = nullptr);
 
 	void SetConstructionViewMode(Dataflow::EDataflowPatternVertexType InViewMode);
@@ -35,6 +35,10 @@ public:
 	/** Set the data flow toolkit used to create the client*/
 	void SetDataflowEditorToolkit(TWeakPtr<FDataflowEditorToolkit> DataflowToolkit);
 	
+	/** Get the data flow toolkit  */
+	const TWeakPtr<FDataflowEditorToolkit>& GetDataflowEditorToolkit() const { return DataflowEditorToolkitPtr; }
+
+	/** Set the tool command list */
 	void SetToolCommandList(TWeakPtr<FUICommandList> ToolCommandList);
 
 	// FGCObject Interface
@@ -43,7 +47,9 @@ public:
 
 private:
 
+	// FEditorViewportClient interface
 	virtual void Tick(float DeltaSeconds) override;
+	virtual void ProcessClick(FSceneView& View, HHitProxy* HitProxy, FKey Key, EInputEvent Event, uint32 HitX, uint32 HitY) override;
 
 	/** Toolkit used to create the viewport client */
 	TWeakPtr<FDataflowEditorToolkit> DataflowEditorToolkitPtr = nullptr;
@@ -54,8 +60,12 @@ private:
 	// @todo(brice) : Is this needed?
 	TWeakPtr<FUICommandList> ToolCommandList;
 
+	/** Construction view mode */
 	Dataflow::EDataflowPatternVertexType ConstructionViewMode = Dataflow::EDataflowPatternVertexType::Sim3D;
 
+	/** Behavior set for the behavior UI */
 	TObjectPtr<UInputBehaviorSet> BehaviorSet;
-
+	
+	/** Flag to enable scene ticking from the client */
+	bool bEnableSceneTicking = false;
 };

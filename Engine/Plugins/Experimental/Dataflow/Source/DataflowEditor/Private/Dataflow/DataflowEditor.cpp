@@ -3,7 +3,7 @@
 #include "Dataflow/DataflowEditor.h"
 
 #include "Animation/Skeleton.h"
-#include "Dataflow/DataflowEditorContent.h"
+#include "Dataflow/DataflowContent.h"
 #include "Dataflow/DataflowEditorToolkit.h"
 #include "Dataflow/DataflowEditorUtil.h"
 #include "Engine/SkeletalMesh.h"
@@ -12,12 +12,8 @@
 
 DEFINE_LOG_CATEGORY(LogDataflowEditor);
 
-
-
 UDataflowEditor::UDataflowEditor() : Super()
-{
-	Content = NewObject<UDataflowEditorContent>(this, MakeUniqueObjectName(this, UDataflowEditor::StaticClass(), "EditorData"));
-}
+{}
 
 TSharedPtr<FBaseAssetToolkit> UDataflowEditor::CreateToolkit()
 {
@@ -27,48 +23,82 @@ TSharedPtr<FBaseAssetToolkit> UDataflowEditor::CreateToolkit()
 
 void UDataflowEditor::Initialize(const TArray<TObjectPtr<UObject>>& InObjects)
 {
-	check(Content);
-
-	TArray<TObjectPtr<UObject>> ObjectsToEdit;
-	if (ensure(InObjects.Num() == 1))
+	if(!InObjects.IsEmpty())
 	{
-		TObjectPtr<UObject> RootObject = InObjects[0];
-		Content->SetDataflowAsset(Cast<UDataflow>(RootObject));
-		if(!Content->GetDataflowAsset())
+		InitializeContent(nullptr, InObjects[0]);
+	}
+}
+
+void UDataflowEditor::InitializeContent(TObjectPtr<UDataflowBaseContent> BaseContent, const TObjectPtr<UObject>& ContentOwner)
+{
+	DataflowContent = BaseContent;
+	if(!DataflowContent)
+	{
+		if(UDataflow* DataflowAsset = Cast<UDataflow>(ContentOwner))
 		{
-			Content->SetDataflowAsset(Private::GetDataflowAssetFrom(RootObject));
-			Content->SetDataflowTerminal(Private::GetDataflowTerminalFrom(RootObject));
-			Content->SetSkeletalMesh(Private::GetSkeletalMeshFrom(RootObject));
-			Content->SetSkeleton(Private::GetSkeletonFrom(RootObject));
-			Content->SetAnimationAsset(Private::GetAnimationAssetFrom(RootObject));
+			DataflowContent = NewObject<UDataflowBaseContent>();
+			
+			DataflowContent->SetDataflowAsset(DataflowAsset);
+			DataflowContent->SetDataflowTerminal(FString());
 		}
-		if(Content->GetDataflowAsset())
+		else
 		{
-			Content->SetDataflowOwner(RootObject);
-			Content->GetDataflowAsset()->Schema = UDataflowSchema::StaticClass();
-			Content->SetDataflowContext(MakeShared<Dataflow::FEngineContext>(RootObject, Content->GetDataflowAsset(), FPlatformTime::Cycles64()));
-			Content->SetLastModifiedTimestamp(Content->GetDataflowContext()->GetTimestamp());
-
-			ObjectsToEdit.Add(Content->GetDataflowOwner());
-
-			if(!Content->GetSkeletalMesh())
+			if(Private::HasDataflowAsset(ContentOwner))
 			{
-				const FName SkeletonName = MakeUniqueObjectName(Content->GetDataflowAsset(), UDataflow::StaticClass(), FName("USkeleton"));
-				const FName SkeletalMeshName = MakeUniqueObjectName(Content->GetDataflowAsset(), UDataflow::StaticClass(), FName("USkeletalMesh"));
-
-				Content->SetSkeleton(NewObject<USkeleton>(Content->GetDataflowAsset(), SkeletonName));
-				Content->SetSkeletalMesh(NewObject<USkeletalMesh>(Content->GetDataflowAsset(), SkeletalMeshName));
-				Content->GetSkeletalMesh()->SetSkeleton(Content->GetSkeleton());
-			}
-			else if(!Content->GetSkeleton())
-			{
-				Content->SetSkeleton(Content->GetSkeletalMesh()->GetSkeleton());
+				if(Private::HasSkeletalMesh(ContentOwner))
+				{
+					DataflowContent = NewObject<UDataflowSkeletalContent>();
+					const TObjectPtr<UDataflowSkeletalContent> SkeletalContent = Cast<UDataflowSkeletalContent>(DataflowContent);
+					
+					SkeletalContent->SetSkeletalMesh(Private::GetSkeletalMeshFrom(ContentOwner));
+                    SkeletalContent->SetSkeleton(Private::GetSkeletonFrom(ContentOwner));
+                    SkeletalContent->SetAnimationAsset(Private::GetAnimationAssetFrom(ContentOwner));
+				}
+				else
+				{
+					DataflowContent = NewObject<UDataflowBaseContent>();
+				}
+				DataflowContent->SetDataflowAsset(Private::GetDataflowAssetFrom(ContentOwner));
+				DataflowContent->SetDataflowTerminal(Private::GetDataflowTerminalFrom(ContentOwner));
 			}
 		}
 	}
+
+	if(const TObjectPtr<UDataflowSkeletalContent> SkeletalContent = Cast<UDataflowSkeletalContent>(DataflowContent))
+	{
+		if(!SkeletalContent->GetSkeletalMesh())
+		{
+			const FName SkeletalMeshName = MakeUniqueObjectName(SkeletalContent->GetDataflowAsset(), UDataflow::StaticClass(), FName("USkeletalMesh"));
+			USkeletalMesh* SkeletalMesh = NewObject<USkeletalMesh>(SkeletalContent->GetDataflowAsset(), SkeletalMeshName);
+
+			USkeleton* Skeleton = SkeletalContent->GetSkeleton();
+			if(!Skeleton)
+			{
+				const FName SkeletonName = MakeUniqueObjectName(SkeletalContent->GetDataflowAsset(), UDataflow::StaticClass(), FName("USkeleton"));
+                Skeleton = NewObject<USkeleton>(SkeletalContent->GetDataflowAsset(), SkeletonName);
+			}
+			SkeletalMesh->SetSkeleton(Skeleton);
+			SkeletalContent->SetSkeletalMesh(SkeletalMesh);
+		}
+		else if(!SkeletalContent->GetSkeleton())
+		{
+			SkeletalContent->SetSkeleton(SkeletalContent->GetSkeletalMesh()->GetSkeleton());
+		}
+	}
+
+	if(DataflowContent && DataflowContent->GetDataflowAsset())
+	{
+		DataflowContent->GetDataflowAsset()->Schema = UDataflowSchema::StaticClass();
+		DataflowContent->BuildBaseContent(ContentOwner);
+		
+		// the owner is either a base content derived class or the dataflow itself
+		DataflowContent->SetDataflowOwner(ContentOwner);
+	}
+	
 	// Potentially we could add additional objects to edit here (fields, meshes....)
 	// If these objects have a matching factory we would be able to use geometry tools
-	UBaseCharacterFXEditor::Initialize(ObjectsToEdit);
+	const TArray<TObjectPtr<UObject>> ArrayObjects = {ContentOwner};
+	UBaseCharacterFXEditor::Initialize(ArrayObjects);
 }
 
 

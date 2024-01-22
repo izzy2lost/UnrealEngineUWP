@@ -5,7 +5,7 @@
 #include "ConversionUtils/DynamicMeshViaMeshDescriptionUtil.h"
 #include "Dataflow/CollectionRenderingPatternUtility.h"
 #include "Dataflow/DataflowEditor.h"
-#include "Dataflow/DataflowEditorContent.h"
+#include "Dataflow/DataflowContent.h"
 #include "Dataflow/DataflowEditorToolkit.h"
 #include "Dataflow/DataflowEditorUtil.h"
 #include "Dataflow/DataflowEdNode.h"
@@ -161,30 +161,37 @@ bool UDataflowReadOnlyToolTargetFactory::CanBuildTarget(UObject* SourceObject, c
 	// If you want to make the tool target work with some subclass of UDataflow,
 	// just add another factory that allows that class specifically(but make sure that
 	// GetMeshDescription and such work properly)
-	UDataflowEditorContent* Content = CastChecked<UDataflowEditorContent>(SourceObject);
-	const UDataflow* Dataflow = Content->GetDataflowAsset();
-
-
-
-	return Dataflow &&
-		ExactCast<UDataflow>(Cast<UDataflow>(Dataflow)) &&
-		!ExactCast<UDataflow>(Cast<UDataflow>(Dataflow))->GetOutermost()->bIsCookedForEditor &&
-		Requirements.AreSatisfiedBy(UDataflowReadOnlyToolTarget::StaticClass());
+	const TObjectPtr<UDataflowBaseContent> BaseContent = CastChecked<UDataflowBaseContent>(SourceObject);
+	if(BaseContent)
+	{
+		const UDataflow* Dataflow = BaseContent->GetDataflowAsset();
+	
+		return Dataflow &&
+			ExactCast<UDataflow>(Cast<UDataflow>(Dataflow)) &&
+			!ExactCast<UDataflow>(Cast<UDataflow>(Dataflow))->GetOutermost()->bIsCookedForEditor &&
+			Requirements.AreSatisfiedBy(UDataflowReadOnlyToolTarget::StaticClass());
+	}
+	return false;
 }
 
 UToolTarget* UDataflowReadOnlyToolTargetFactory::BuildTarget(UObject* SourceObject, const FToolTargetTypeRequirements& Requirements)
 {
-	UDataflowEditorContent* Content = CastChecked<UDataflowEditorContent>(SourceObject);
+	const TObjectPtr<UDataflowBaseContent> BaseContent = CastChecked<UDataflowBaseContent>(SourceObject);
 
-	UDataflowReadOnlyToolTarget* Target = NewObject<UDataflowReadOnlyToolTarget>();
-	Target->Asset = Content->GetDataflowOwner();
-	Target->Dataflow = Content->GetDataflowAsset();
-	Target->Context = Dataflow::GetContext(Content);
+	if(BaseContent)
+	{
+		UDataflowReadOnlyToolTarget* Target = NewObject<UDataflowReadOnlyToolTarget>();
+		Target->Asset = BaseContent->GetDataflowOwner();
+		Target->Dataflow = BaseContent->GetDataflowAsset();
+		Target->Context = Dataflow::GetContext(BaseContent);
 
-	// @todo(brice) : I needed to comment this out?
-	//checkSlow(Target->Component.IsValid() && Requirements.AreSatisfiedBy(Target));
+		// @todo(brice) : I needed to comment this out?
+		//checkSlow(Target->Component.IsValid() && Requirements.AreSatisfiedBy(Target));
 
-	return Target;
+		return Target;
+	}
+
+	return nullptr;
 }
 
 bool UDataflowToolTargetFactory::CanBuildTarget(UObject* SourceObject, const FToolTargetTypeRequirements& Requirements) const
@@ -195,24 +202,34 @@ bool UDataflowToolTargetFactory::CanBuildTarget(UObject* SourceObject, const FTo
 	// If you want to make the tool target work with some subclass of UDataflow,
 	// just add another factory that allows that class specifically(but make sure that
 	// GetMeshDescription and such work properly)
-	UDataflowEditorContent* Content = CastChecked<UDataflowEditorContent>(SourceObject);
-	const UDataflow* Dataflow = Content->GetDataflowAsset();
 
-	return Dataflow &&
-		ExactCast<UDataflow>(Cast<UDataflow>(Dataflow)) &&
-		!ExactCast<UDataflow>(Cast<UDataflow>(Dataflow))->GetOutermost()->bIsCookedForEditor &&
-		Requirements.AreSatisfiedBy(UDataflowToolTarget::StaticClass());
+	const TObjectPtr<UDataflowBaseContent> BaseContent = CastChecked<UDataflowBaseContent>(SourceObject);
+	if(BaseContent)
+	{
+		const UDataflow* Dataflow = BaseContent->GetDataflowAsset();
+		
+		return Dataflow &&
+			ExactCast<UDataflow>(Cast<UDataflow>(Dataflow)) &&
+			!ExactCast<UDataflow>(Cast<UDataflow>(Dataflow))->GetOutermost()->bIsCookedForEditor &&
+			Requirements.AreSatisfiedBy(UDataflowToolTarget::StaticClass());
+	}
+	return false;
 }
 
 UToolTarget* UDataflowToolTargetFactory::BuildTarget(UObject* SourceObject, const FToolTargetTypeRequirements& Requirements)
 {
-	UDataflowEditorContent* Content = CastChecked<UDataflowEditorContent>(SourceObject);
-	UDataflowToolTarget* Target = NewObject<UDataflowToolTarget>();
-	Target->Asset = Content->GetDataflowOwner();
-	Target->Dataflow = Content->GetDataflowAsset();
-	Target->Context = Dataflow::GetContext(Content);
-	//checkSlow(Target->Component.IsValid() && Requirements.AreSatisfiedBy(Target));
+	const TObjectPtr<UDataflowBaseContent> BaseContent = CastChecked<UDataflowBaseContent>(SourceObject);
 
-	return Target;
+	if(BaseContent)
+	{
+		UDataflowToolTarget* Target = NewObject<UDataflowToolTarget>();
+		Target->Asset = BaseContent->GetDataflowOwner();
+		Target->Dataflow = BaseContent->GetDataflowAsset();
+		Target->Context = Dataflow::GetContext(BaseContent);
+		//checkSlow(Target->Component.IsValid() && Requirements.AreSatisfiedBy(Target));
+
+		return Target;
+	}
+	return nullptr;
 }
 

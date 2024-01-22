@@ -35,6 +35,8 @@ public:
 	virtual void OnFloatingButtonClicked() override;
 
 private:
+	float GetViewMinInput() const;
+	float GetViewMaxInput() const;
 
 	UDataflowEditorMode* GetEdMode() const;
 };

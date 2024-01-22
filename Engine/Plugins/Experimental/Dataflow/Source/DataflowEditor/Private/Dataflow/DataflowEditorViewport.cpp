@@ -2,13 +2,15 @@
 
 #include "Dataflow/DataflowEditorViewport.h"
 
-#include "AdvancedPreviewScene.h"
 #include "Dataflow/DataflowActor.h"
-#include "Dataflow/DataflowEditorCommands.h"
 #include "Dataflow/DataflowEditorMode.h"
 #include "Dataflow/DataflowEditorViewportClient.h"
+#include "Dataflow/DataflowEditorToolkit.h"
 #include "EditorModeManager.h"
+#include "Dataflow/DataflowContent.h"
 #include "Dataflow/DataflowEditorViewportToolbar.h"
+#include "Dataflow/DataflowPreviewScene.h"
+#include "Dataflow/DataflowSimulationPanel.h"
 
 #define LOCTEXT_NAMESPACE "SDataflowEditorViewport"
 
@@ -23,6 +25,33 @@ void SDataflowEditorViewport::Construct(const FArguments& InArgs, const FAssetEd
 	ParentArgs._EditorViewportClient = InArgs._ViewportClient;
 	SAssetEditorViewport::Construct(ParentArgs, InViewportConstructionArgs);
 	Client->VisibilityDelegate.BindSP(this, &SDataflowEditorViewport::IsVisible);
+
+	if(static_cast<FDataflowPreviewScene*>(Client->GetPreviewScene())->CanRunSimulation())
+	{
+		TSharedPtr<FDataflowEditorViewportClient> DataflowClient = StaticCastSharedPtr<FDataflowEditorViewportClient>(Client);
+		TWeakPtr<FDataflowSimulationScene> SimulationScene = DataflowClient->GetDataflowEditorToolkit().Pin()->GetSimulationScene();
+            
+		ViewportOverlay->AddSlot()
+		[
+			SNew(SHorizontalBox)
+			+ SHorizontalBox::Slot()
+			.HAlign(HAlign_Fill)
+			.VAlign(VAlign_Bottom)
+			.FillWidth(1)
+			.Padding(10.0f, 0.0f)
+			[
+				SNew(SBorder)
+				.BorderImage(FAppStyle::Get().GetBrush("EditorViewport.OverlayBrush"))
+				.Visibility(EVisibility::Visible)
+				.Padding(10.0f, 2.0f)
+				[
+					SNew(SDataflowSimulationPanel, SimulationScene)
+					.ViewInputMin(this, &SDataflowEditorViewport::GetViewMinInput)
+					.ViewInputMax(this, &SDataflowEditorViewport::GetViewMaxInput)
+				]
+			]
+		];
+	}
 }
 
 TSharedPtr<SWidget> SDataflowEditorViewport::MakeViewportToolbar()
@@ -32,9 +61,9 @@ TSharedPtr<SWidget> SDataflowEditorViewport::MakeViewportToolbar()
 
 void SDataflowEditorViewport::OnFocusViewportToSelection()
 {
-	if(UDataflowEditorMode* DataflowMode = GetEdMode())
+	if(const FDataflowPreviewScene* PreviewScene = static_cast<FDataflowPreviewScene*>(Client->GetPreviewScene()))
 	{
-		const FBox SceneBoundingBox = DataflowMode->SceneBoundingBox();
+		const FBox SceneBoundingBox = PreviewScene->GetBoundingBox();
 		Client->FocusViewportOnBox(SceneBoundingBox);
 	}
 }
@@ -76,5 +105,16 @@ TSharedPtr<FExtender> SDataflowEditorViewport::GetExtenders() const
 void SDataflowEditorViewport::OnFloatingButtonClicked()
 {
 }
+
+float SDataflowEditorViewport:: GetViewMinInput() const
+{
+	return static_cast<FDataflowPreviewScene*>(Client->GetPreviewScene())->GetDataflowContent()->GetSimulationRange()[0];
+}
+
+float SDataflowEditorViewport::GetViewMaxInput() const
+{
+	return static_cast<FDataflowPreviewScene*>(Client->GetPreviewScene())->GetDataflowContent()->GetSimulationRange()[1];
+}
+
 
 #undef LOCTEXT_NAMESPACE

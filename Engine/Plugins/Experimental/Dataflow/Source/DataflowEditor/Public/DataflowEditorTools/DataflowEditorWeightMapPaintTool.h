@@ -31,7 +31,7 @@ class UDataflowWeightMapEraseBrushOpProps;
 class UDataflowWeightMapPaintBrushOpProps;
 class UDataflowWeightMapSmoothBrushOpProps;
 class UPolygonSelectionMechanic;
-class UDataflowEditorContextObject;
+class UDataflowContextObject;
 struct FDataflowCollectionAddScalarVertexPropertyNode;
 
 DECLARE_STATS_GROUP(TEXT("WeightMapPaintTool"), STATGROUP_WeightMapPaintTool, STATCAT_Advanced);
@@ -282,7 +282,7 @@ public:
 
 	virtual void CommitResult(UBaseDynamicMeshComponent* Component, bool bModifiedTopology) override;
 
-	void SetDataflowEditorContextObject(TObjectPtr<UDataflowEditorContextObject> InDataflowEditorContextObject);
+	void SetDataflowEditorContextObject(TObjectPtr<UDataflowContextObject> InDataflowEditorContextObject);
 
 public:
 
@@ -402,7 +402,7 @@ protected:
 	TObjectPtr<UMeshElementsVisualizer> MeshElementsDisplay;
 
 	UPROPERTY()
-	TObjectPtr<UDataflowEditorContextObject> DataflowEditorContextObject = nullptr;
+	TObjectPtr<UDataflowContextObject> DataflowEditorContextObject = nullptr;
 
 	// realtime visualization
 	void OnDynamicMeshComponentChanged(UDynamicMeshComponent* Component, const FMeshVertexChange* Change, bool bRevert);

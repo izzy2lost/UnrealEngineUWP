@@ -2,12 +2,12 @@
 #pragma once
 
 #include "CoreMinimal.h"
-#include "SEditorViewportToolBarMenu.h"
 #include "SCommonEditorViewportToolbarBase.h"
 
 // ----------------------------------------------------------------------------------
 class SDataflowEditorViewport;
 
+/** Base toolbar for the dataflow. Should be extended to add more features */
 class SDataflowViewportSelectionToolBar : public SCommonEditorViewportToolbarBase
 {
 public:
@@ -16,10 +16,7 @@ public:
 
 	/** Constructs this widget with the given parameters */
 	void Construct(const FArguments& InArgs, TSharedPtr<SDataflowEditorViewport> InDataflowViewport);
-
-	TSharedRef<SWidget> MakeSelectionModeToolBar();
-
-
+	
 private:
 	/** Reference to the parent viewport */
 	TWeakPtr<SDataflowEditorViewport> EditorViewport;

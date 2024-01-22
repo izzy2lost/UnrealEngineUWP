@@ -6,7 +6,7 @@
 #include "Animation/Skeleton.h"
 #include "Dataflow/DataflowCore.h"
 #include "Dataflow/DataflowEditor.h"
-#include "Dataflow/DataflowEditorContent.h"
+#include "Dataflow/DataflowContent.h"
 #include "Dataflow/DataflowEditorCommands.h"
 #include "Dataflow/DataflowEditorMode.h"
 #include "Dataflow/DataflowEditorModeToolkit.h"
@@ -55,13 +55,14 @@ const FName FDataflowEditorToolkit::CollectionSpreadSheetTabId_1(TEXT("DataflowE
 const FName FDataflowEditorToolkit::CollectionSpreadSheetTabId_2(TEXT("DataflowEditor_CollectionSpreadSheet_2"));
 const FName FDataflowEditorToolkit::CollectionSpreadSheetTabId_3(TEXT("DataflowEditor_CollectionSpreadSheet_3"));
 const FName FDataflowEditorToolkit::CollectionSpreadSheetTabId_4(TEXT("DataflowEditor_CollectionSpreadSheet_4"));
+const FName FDataflowEditorToolkit::SimulationViewportTabId(TEXT("DataflowEditor_SimulationViewport"));
 
 FDataflowEditorToolkit::FDataflowEditorToolkit(UAssetEditor* InOwningAssetEditor)
 	: FBaseCharacterFXEditorToolkit(InOwningAssetEditor, FName("DataflowEditor")) 
 {
 	check(Cast<UDataflowEditor>(InOwningAssetEditor));
 
-	StandaloneDefaultLayout = FTabManager::NewLayout(FName("DataflowEditorLayout.V9"))
+	StandaloneDefaultLayout = FTabManager::NewLayout(FName("DataflowEditorLayout.V10"))
 		->AddArea
 		(
 			FTabManager::NewPrimaryArea()->SetOrientation(Orient_Horizontal)
@@ -111,9 +112,10 @@ FDataflowEditorToolkit::FDataflowEditorToolkit(UAssetEditor* InOwningAssetEditor
 	FAdvancedPreviewScene::ConstructionValues PreviewSceneArgs;
 	PreviewSceneArgs.bShouldSimulatePhysics = 1;
 	PreviewSceneArgs.bCreatePhysicsScene = 1;
-	ObjectScene = MakeUnique<FDataflowPreviewScene>(PreviewSceneArgs, GetDataflowEditorContent());
+	
+	ObjectScene = MakeUnique<FDataflowConstructionScene>(PreviewSceneArgs, GetDataflowContent());
+	SimulationScene = MakeShared<FDataflowSimulationScene>(PreviewSceneArgs, GetDataflowContent());
 }
-
 
 FDataflowEditorToolkit::~FDataflowEditorToolkit()
 {
@@ -137,21 +139,30 @@ FDataflowEditorToolkit::~FDataflowEditorToolkit()
 	// will end up getting destroyed before the mode's Exit() function gets to run, and we'll get some
 	// warnings when we destroy any mode actors.
 	EditorModeManager->DestroyMode(UDataflowEditorMode::EM_DataflowEditorModeId);
-	
+	SimulationModeManager->DestroyMode(UDataflowEditorMode::EM_DataflowEditorModeId);
 }
 
 void FDataflowEditorToolkit::CreateEditorModeManager()
 {
+	// Setup the construction manager / scene
 	FBaseCharacterFXEditorToolkit::CreateEditorModeManager();
 	static_cast<FDataflowPreviewScene*>(ObjectScene.Get())->GetDataflowModeManager()
 		= StaticCastSharedPtr<FAssetEditorModeManager>(EditorModeManager);
+
+	// Setup the simulation manager / scene
+	SimulationModeManager = MakeShared<FAssetEditorModeManager>();
+	StaticCastSharedPtr<FAssetEditorModeManager>(SimulationModeManager)->SetPreviewScene(
+		SimulationScene.Get());
+
+	static_cast<FDataflowPreviewScene*>(SimulationScene.Get())->GetDataflowModeManager()
+		= StaticCastSharedPtr<FAssetEditorModeManager>(SimulationModeManager);
 }
 
 bool FDataflowEditorToolkit::CanOpenDataflowEditor(UObject* ObjectToEdit)
 {
 	if (const UClass* Class = ObjectToEdit->GetClass())
 	{
-		return Class->FindPropertyByName(FName("DataflowAsset")) != nullptr;
+		return (Class->FindPropertyByName(FName("DataflowAsset")) != nullptr) ;
 	}
 	return false;
 }
@@ -209,16 +220,15 @@ FEditorModeID FDataflowEditorToolkit::GetEditorModeId() const
 	return UDataflowEditorMode::EM_DataflowEditorModeId;
 }
 
-TObjectPtr<UDataflowEditorContent> FDataflowEditorToolkit::GetDataflowEditorContent()
+TObjectPtr<UDataflowBaseContent> FDataflowEditorToolkit::GetDataflowContent()
 {
-	return Cast<UDataflowEditor>(OwningAssetEditor)->Content;
+	return Cast<UDataflowEditor>(OwningAssetEditor)->DataflowContent;
 }
 
-TObjectPtr<const UDataflowEditorContent> FDataflowEditorToolkit::GetDataflowEditorContent() const
+const TObjectPtr<UDataflowBaseContent> FDataflowEditorToolkit::GetDataflowContent() const
 {
-	return Cast<UDataflowEditor>(OwningAssetEditor)->Content;
+	return Cast<UDataflowEditor>(OwningAssetEditor)->DataflowContent;
 }
-
 
 bool FDataflowEditorToolkit::OnRequestClose(EAssetEditorCloseReason InCloseReason)
 {
@@ -284,37 +294,30 @@ void FDataflowEditorToolkit::PostInitAssetEditor()
 
 		// We need the viewport client to start out focused, or else it won't get ticked until
 		// we click inside it.
-		Client->ReceivedFocus(Client->Viewport);
+		if(Client->Viewport)
+		{
+			Client->ReceivedFocus(Client->Viewport);
+		}
 	};
 	SetCommonViewportClientOptions(ViewportClient.Get());
+	SetCommonViewportClientOptions(SimulationViewportClient.Get());
 
 	//@todo(brice) : FChaosClothAssetEditorToolkit::PostInitAssetEditor() has alot more going on. 
-
-	// Set up 3D viewport
-	TSharedPtr<FDataflowEditorViewportClient> DataflowViewportClient = StaticCastSharedPtr<FDataflowEditorViewportClient>(ViewportClient);
-	DataflowViewportClient->SetDataflowEditorToolkit(StaticCastSharedRef<FDataflowEditorToolkit>(this->AsShared()));
 
 	//@todo(brice) : can we remove this coupling of the viewport and mode
 	UDataflowEditorMode* const DataflowMode = CastChecked<UDataflowEditorMode>(EditorModeManager->GetActiveScriptableMode(UDataflowEditorMode::EM_DataflowEditorModeId));
 	const TWeakPtr<FViewportClient> WeakViewportClient(ViewportClient);
 	DataflowMode->SetRestSpaceViewportClient(StaticCastWeakPtr<FDataflowEditorViewportClient>(WeakViewportClient));
-
-	check(GetDataflowEditorContent());
-
-
-	//SetEditingObject(GetDataflowEditorContent().DataflowOwner);
-
 }
 
 void FDataflowEditorToolkit::InitializeEdMode(UBaseCharacterFXEditorMode* EdMode)
 {
-
 	UDataflowEditorMode* DataflowMode = Cast<UDataflowEditorMode>(EdMode);
 	check(DataflowMode);
 
 	// We first set the preview scene in order to store the dynamic mesh elements
 	// generated by the tools
-	DataflowMode->SetDataflowPreviewScene(static_cast<FDataflowPreviewScene*>(ObjectScene.Get()));
+	DataflowMode->SetDataflowConstructionScene(static_cast<FDataflowConstructionScene*>(ObjectScene.Get()));
 
 	// Set of the graph editor to be able to add nodes
 	DataflowMode->SetDataflowGraphEditor(GraphEditor);
@@ -327,7 +330,6 @@ void FDataflowEditorToolkit::InitializeEdMode(UBaseCharacterFXEditorMode* EdMode
 	{
 		FDataflowEditorModeToolkit* DataflowModeToolkit = static_cast<FDataflowEditorModeToolkit*>(ModeToolkit.Get());
 		DataflowModeToolkit->SetRestSpaceViewportWidget(DataflowEditorViewport);
-		//ClothModeToolkit->SetPreviewViewportWidget(PreviewViewportWidget);
 
 		FName ParentToolbarName;
 		const FName ToolBarName = GetToolMenuToolbarName(ParentToolbarName);
@@ -335,10 +337,8 @@ void FDataflowEditorToolkit::InitializeEdMode(UBaseCharacterFXEditorMode* EdMode
 	}
 
 	// @todo(brice) : This used to crash when comnmented out. 
-	//FBaseCharacterFXEditorToolkit::InitializeEdMode(EdMode);
+	FBaseCharacterFXEditorToolkit::InitializeEdMode(EdMode);
 }
-
-
 
 void FDataflowEditorToolkit::CreateEditorModeUILayer()
 {
@@ -349,9 +349,9 @@ void FDataflowEditorToolkit::GetSaveableObjects(TArray<UObject*>& OutObjects) co
 {
 	FBaseCharacterFXEditorToolkit::GetSaveableObjects(OutObjects);
 
-	if (ensure(GetDataflowEditorContent()))
+	if (ensure(GetDataflowContent()))
 	{
-		if (UDataflow* DataflowAsset = GetDataflowEditorContent()->GetDataflowAsset())
+		if (UDataflow* DataflowAsset = GetDataflowContent()->DataflowAsset)
 		{
 			check(DataflowAsset->IsAsset());
 			OutObjects.Add(DataflowAsset);
@@ -368,14 +368,16 @@ void FDataflowEditorToolkit::CreateWidgets()
 {
 	FBaseCharacterFXEditorToolkit::CreateWidgets();
 
-	if (TObjectPtr<UDataflowEditorContent> Content = GetDataflowEditorContent())
+	if (TObjectPtr<UDataflowBaseContent> DataflowContent = GetDataflowContent())
 	{
-		if (UDataflow* DataflowAsset = Content->GetDataflowAsset())
+		if (UDataflow* DataflowAsset = DataflowContent->GetDataflowAsset())
 		{
-			NodeDetailsEditor = CreateNodeDetailsEditorWidget(Content->GetDataflowOwner());
-			AssetDetailsEditor = CreateAssetDetailsEditorWidget(Content->GetDataflowOwner());
+			NodeDetailsEditor = CreateNodeDetailsEditorWidget(DataflowContent->GetDataflowOwner());
+			AssetDetailsEditor = CreateAssetDetailsEditorWidget(DataflowContent->GetDataflowOwner());
 			GraphEditor = CreateGraphEditorWidget(DataflowAsset, NodeDetailsEditor);
-			SkeletalEditor = CreateSkeletalEditorWidget(Content->GetDataflowOwner());
+			SkeletalEditor = CreateSkeletalEditorWidget();
+
+			CreateSimulationViewportClient();
 		}
 	}
 }
@@ -403,28 +405,51 @@ TSharedPtr<FEditorViewportClient> FDataflowEditorToolkit::CreateEditorViewportCl
 	// namely ViewportType.
 	// Instead, we do viewport client adjustment in PostInitAssetEditor().
 	check(EditorModeManager.IsValid());
-	return MakeShared<FDataflowEditorViewportClient>(EditorModeManager.Get(), ObjectScene.Get());
+	TSharedPtr<FDataflowEditorViewportClient> LocalConstructionClient = MakeShared<FDataflowEditorViewportClient>(
+	EditorModeManager.Get(), ObjectScene.Get(), true);
+	LocalConstructionClient->SetDataflowEditorToolkit(StaticCastSharedRef<FDataflowEditorToolkit>(
+		const_cast<FDataflowEditorToolkit*>(this)->AsShared()));
+	return LocalConstructionClient;
+}
+
+void FDataflowEditorToolkit::CreateSimulationViewportClient()
+{
+	SimulationTabContent = MakeShareable(new FEditorViewportTabContent());
+	SimulationViewportClient = MakeShared<FDataflowEditorViewportClient>(SimulationModeManager.Get(),
+		SimulationScene.Get(), false);
+	
+	SimulationViewportClient->SetDataflowEditorToolkit(StaticCastSharedRef<FDataflowEditorToolkit>(this->AsShared()));
+
+	SimulationViewportDelegate = [this](FAssetEditorViewportConstructionArgs InArgs)
+	{
+		return SAssignNew(DataflowSimulationViewport, SDataflowEditorViewport, InArgs)
+			.ViewportClient(StaticCastSharedPtr<FDataflowEditorViewportClient>(SimulationViewportClient));
+	};
 }
 
 //~ End FBaseAssetToolkit overrides
 
 void FDataflowEditorToolkit::OnPropertyValueChanged(const FPropertyChangedEvent& PropertyChangedEvent)
 {
-	if (TObjectPtr<UDataflowEditorContent> EditorContent = GetDataflowEditorContent())
+	if (TObjectPtr<UDataflowBaseContent> EditorContent = GetDataflowContent())
 	{
 		ensure(EditorContent);
 		if (UDataflow* DataflowAsset = EditorContent->GetDataflowAsset())
 		{
-			TSharedPtr<Dataflow::FEngineContext>& DataflowContext = EditorContent->GetDataflowContext();
-			Dataflow::FTimestamp& LastNodeTimestamp = EditorContent->GetLastModifiedTimestamp();
+			TSharedPtr<Dataflow::FEngineContext> DataflowContext = EditorContent->GetDataflowContext();
+			Dataflow::FTimestamp LastNodeTimestamp = EditorContent->GetLastModifiedTimestamp();
+			
 			FDataflowEditorCommands::OnPropertyValueChanged(DataflowAsset, DataflowContext, LastNodeTimestamp, PropertyChangedEvent, SelectedDataflowNodes);
+
+			EditorContent->SetDataflowContext(DataflowContext);
+			EditorContent->SetLastModifiedTimestamp(LastNodeTimestamp);
 		}
 	}
 }
 
 void FDataflowEditorToolkit::OnAssetPropertyValueChanged(const FPropertyChangedEvent& PropertyChangedEvent)
 {
-	if (TObjectPtr<UDataflowEditorContent> EditorContent = GetDataflowEditorContent())
+	if (TObjectPtr<UDataflowBaseContent> EditorContent = GetDataflowContent())
 	{
 		ensure(EditorContent);	FDataflowEditorCommands::OnAssetPropertyValueChanged(EditorContent, PropertyChangedEvent);
 	}
@@ -442,7 +467,6 @@ void FDataflowEditorToolkit::OnNodeTitleCommitted(const FText& InNewText, ETextC
 
 void FDataflowEditorToolkit::OnNodeSelectionChanged(const TSet<UObject*>& InNewSelection)
 {
-
 	auto FindDataflowNodesInSet = [](const TSet<UObject*>& InSet) {
 		TSet<UObject*> Results;
 		for (UObject* Item : InSet)
@@ -493,7 +517,7 @@ void FDataflowEditorToolkit::OnNodeSelectionChanged(const TSet<UObject*>& InNewS
 	// Despite this function's name, we might not have actually changed which node is selected
 	bool bPrimarySelectionChanged = false;
 
-	if (TObjectPtr<UDataflowEditorContent> EditorContent = GetDataflowEditorContent(); EditorContent->GetDataflowAsset())
+	if (TObjectPtr<UDataflowBaseContent> EditorContent = GetDataflowContent(); EditorContent->DataflowAsset)
 	{
 		// Only keep UDataflowEdNode from NewSelection
 		TSet<UObject*> NodeSelection = FindDataflowNodesInSet(InNewSelection);
@@ -598,17 +622,19 @@ void FDataflowEditorToolkit::OnNodeDeleted(const TSet<UObject*>& NewSelection)
 
 void FDataflowEditorToolkit::Tick(float DeltaTime)
 {
-	if (TObjectPtr<UDataflowEditorContent> EditorContent = GetDataflowEditorContent())
+	if (TObjectPtr<UDataflowBaseContent> EditorContent = GetDataflowContent())
 	{
-		if (EditorContent->IsValid())
+		if (EditorContent->GetDataflowAsset())
 		{
+			Dataflow::FTimestamp TimeStamp = EditorContent->GetLastModifiedTimestamp();
 			if (!EditorContent->GetDataflowContext())
 			{
-				EditorContent->GetDataflowContext() = MakeShared<Dataflow::FEngineContext>(EditorContent->GetDataflowOwner(), EditorContent->GetDataflowAsset(), Dataflow::FTimestamp::Invalid);
-				EditorContent->GetLastModifiedTimestamp() = Dataflow::FTimestamp::Invalid;
+				EditorContent->SetDataflowContext(MakeShared<Dataflow::FEngineContext>(EditorContent->GetDataflowOwner(), EditorContent->GetDataflowAsset(), Dataflow::FTimestamp::Invalid));
+				TimeStamp = Dataflow::FTimestamp::Invalid;
 			}
-			FDataflowEditorCommands::EvaluateTerminalNode(*EditorContent->GetDataflowContext().Get(), EditorContent->GetLastModifiedTimestamp(),
-														  EditorContent->GetDataflowAsset(), nullptr, nullptr, EditorContent->GetDataflowOwner(), EditorContent->GetDataflowTerminal());
+			FDataflowEditorCommands::EvaluateTerminalNode(*EditorContent->GetDataflowContext().Get(), TimeStamp, EditorContent->GetDataflowAsset(), 
+			nullptr, nullptr, EditorContent->GetDataflowOwner(), EditorContent->GetDataflowTerminal());
+			EditorContent->SetLastModifiedTimestamp(TimeStamp);
 		}
 	}
 }
@@ -625,19 +651,20 @@ TSharedRef<SDataflowGraphEditor> FDataflowEditorToolkit::CreateGraphEditorWidget
 
 	FDataflowEditorCommands::FGraphEvaluationCallback Evaluate = [&](FDataflowNode* Node, FDataflowOutput* Out)
 	{
-		if (TObjectPtr<UDataflowEditorContent> EditorContent = GetDataflowEditorContent())
+		if (TObjectPtr<UDataflowBaseContent> EditorContent = GetDataflowContent())
 		{
-			if (EditorContent->IsValid())
+			if (EditorContent->GetDataflowAsset())
 			{
 				if (!EditorContent->GetDataflowContext())
 				{
-					EditorContent->GetDataflowContext() = MakeShared<Dataflow::FEngineContext>(EditorContent->GetDataflowOwner(), EditorContent->GetDataflowAsset(), Dataflow::FTimestamp::Invalid);
+					EditorContent->SetDataflowContext(MakeShared<Dataflow::FEngineContext>(EditorContent->GetDataflowOwner(), EditorContent->GetDataflowAsset(), Dataflow::FTimestamp::Invalid));
 				}
 				Node->Invalidate();
-				EditorContent->GetLastModifiedTimestamp() = Dataflow::FTimestamp::Invalid;
-
-				FDataflowEditorCommands::EvaluateTerminalNode(*EditorContent->GetDataflowContext().Get(), EditorContent->GetLastModifiedTimestamp(),
+				Dataflow::FTimestamp TimeStamp = Dataflow::FTimestamp::Invalid;
+				
+				FDataflowEditorCommands::EvaluateTerminalNode(*EditorContent->GetDataflowContext().Get(), TimeStamp,
 															  EditorContent->GetDataflowAsset(), Node, Out, EditorContent->GetDataflowOwner(), EditorContent->GetDataflowTerminal());
+				EditorContent->SetLastModifiedTimestamp(TimeStamp);
 			}
 		}
 	};
@@ -655,7 +682,6 @@ TSharedRef<SDataflowGraphEditor> FDataflowEditorToolkit::CreateGraphEditorWidget
 
 	OnSelectionChangedMulticastDelegateHandle = NewGraphEditor->OnSelectionChangedMulticast.AddSP(this, &FDataflowEditorToolkit::OnNodeSelectionChanged);
 	OnNodeDeletedMulticastDelegateHandle = NewGraphEditor->OnNodeDeletedMulticast.AddSP(this, &FDataflowEditorToolkit::OnNodeDeleted);
-	GetDataflowEditorContent()->SetDataflowGraphEditor(NewGraphEditor);
 
 	return NewGraphEditor;
 }
@@ -715,15 +741,15 @@ TSharedPtr<IDetailsView> FDataflowEditorToolkit::CreateAssetDetailsEditorWidget(
 
 }
 
-TSharedPtr<ISkeletonTree> FDataflowEditorToolkit::CreateSkeletalEditorWidget(UObject* ObjectToEdit)
+TSharedPtr<ISkeletonTree> FDataflowEditorToolkit::CreateSkeletalEditorWidget()
 {
-	if (TObjectPtr<UDataflowEditorContent> EditorContent = GetDataflowEditorContent())
+	if (const TObjectPtr<UDataflowSkeletalContent> SkeletalContent = Cast<UDataflowSkeletalContent>(GetDataflowContent()))
 	{
-		if (EditorContent->GetDataflowAsset())
+		if (SkeletalContent->GetDataflowAsset())
 		{
-			FSkeletonTreeArgs SkeletonTreeArgs;
+			const FSkeletonTreeArgs SkeletonTreeArgs;
 			ISkeletonEditorModule& SkeletonEditorModule = FModuleManager::LoadModuleChecked<ISkeletonEditorModule>("SkeletonEditor");
-			TSharedPtr<ISkeletonTree> SkeletonTree = SkeletonEditorModule.CreateSkeletonTree(EditorContent->GetSkeleton(), SkeletonTreeArgs);
+			TSharedPtr<ISkeletonTree> SkeletonTree = SkeletonEditorModule.CreateSkeletonTree(SkeletalContent->GetSkeleton(), SkeletonTreeArgs);
 			return SkeletonTree;
 		}
 	}
@@ -741,6 +767,15 @@ TSharedRef<SDockTab> FDataflowEditorToolkit::SpawnTab_AssetDetails(const FSpawnT
 		];
 }
 
+TSharedRef<SDockTab> FDataflowEditorToolkit::SpawnTab_SimulationViewport(const FSpawnTabArgs& Args)
+{
+	TSharedRef<SDockTab> DockableTab = SNew(SDockTab);
+	if(SimulationTabContent)
+	{
+		SimulationTabContent->Initialize(SimulationViewportDelegate, DockableTab, SimulationViewportTabId.ToString());
+	}
+	return DockableTab;
+}
 
 TSharedRef<SDockTab> FDataflowEditorToolkit::SpawnTab_GraphCanvas(const FSpawnTabArgs& Args)
 {
@@ -769,16 +804,21 @@ TSharedRef<SDockTab> FDataflowEditorToolkit::SpawnTab_NodeDetails(const FSpawnTa
 TSharedRef<SDockTab> FDataflowEditorToolkit::SpawnTab_Skeletal(const FSpawnTabArgs& Args)
 {
 	check(Args.GetTabId() == SkeletalTabId);
-	if (const TObjectPtr<UDataflowEditorContent> EditorContent = GetDataflowEditorContent())
+	if(SkeletalEditor)
 	{
-		SkeletalEditor->SetSkeletalMesh(EditorContent->GetSkeletalMesh());
+		if (const TObjectPtr<UDataflowSkeletalContent> EditorContent = Cast<UDataflowSkeletalContent>(GetDataflowContent()))
+		{
+			SkeletalEditor->SetSkeletalMesh(EditorContent->GetSkeletalMesh());
+		}
+		return SNew(SDockTab)
+			.Label(LOCTEXT("DataflowEditor_Skeletal_TabTitle", "Skeletal Hierarchy"))
+			[
+				SkeletalEditor.ToSharedRef()
+			];
 	}
 
 	return SNew(SDockTab)
-		.Label(LOCTEXT("DataflowEditor_Skeletal_TabTitle", "Skeletal Hierarchy"))
-		[
-			SkeletalEditor.ToSharedRef()
-		];
+		.Label(LOCTEXT("DataflowEditor_Skeletal_TabTitle", "Skeletal Hierarchy"));
 }
 
 TSharedRef<SDockTab> FDataflowEditorToolkit::SpawnTab_SelectionView(const FSpawnTabArgs& Args)
@@ -827,7 +867,7 @@ TSharedRef<SDockTab> FDataflowEditorToolkit::SpawnTab_SelectionView(const FSpawn
 
 	if (SelectionViewWidget)
 	{
-		if (const TObjectPtr<UDataflowEditorContent> EditorContent = GetDataflowEditorContent())
+		if (const TObjectPtr<UDataflowBaseContent> EditorContent = GetDataflowContent())
 		{
 			if (Args.GetTabId() == SelectionViewTabId_1)
 			{
@@ -921,7 +961,7 @@ TSharedRef<SDockTab> FDataflowEditorToolkit::SpawnTab_CollectionSpreadSheet(cons
 
 	if (CollectionSpreadSheetWidget)
 	{
-		if (const TObjectPtr<UDataflowEditorContent> EditorContent = GetDataflowEditorContent())
+		if (const TObjectPtr<UDataflowBaseContent> EditorContent = GetDataflowContent())
 		{
 			if (Args.GetTabId() == CollectionSpreadSheetTabId_1)
 			{
@@ -980,7 +1020,12 @@ void FDataflowEditorToolkit::RegisterTabSpawners(const TSharedRef<FTabManager>& 
 	const TSharedRef<FWorkspaceItem> CollectionSpreadSheetWorkspaceMenuCategoryRef = EditorMenuCategory->AddGroup(LOCTEXT("WorkspaceMenu_CollectionSpreadSheet", "Collection SpreadSheet"), FSlateIcon(FAppStyle::GetAppStyleSetName(), "LevelEditor.Tabs.Outliner"));
 	
 	InTabManager->RegisterTabSpawner(ViewportTabID, FOnSpawnTab::CreateSP(this, &FDataflowEditorToolkit::SpawnTab_Viewport))
-		.SetDisplayName(LOCTEXT("DataflowViewportTab", "Dataflow Viewport"))
+		.SetDisplayName(LOCTEXT("DataflowViewportTab", "Construction Viewport"))
+		.SetGroup(EditorMenuCategory.ToSharedRef())
+		.SetIcon(FSlateIcon(FAppStyle::GetAppStyleSetName(), "LevelEditor.Tabs.Viewports"));
+
+	InTabManager->RegisterTabSpawner(SimulationViewportTabId, FOnSpawnTab::CreateSP(this, &FDataflowEditorToolkit::SpawnTab_SimulationViewport))
+		.SetDisplayName(LOCTEXT("SimulationViewportTab", "Simulation Viewport"))
 		.SetGroup(EditorMenuCategory.ToSharedRef())
 		.SetIcon(FSlateIcon(FAppStyle::GetAppStyleSetName(), "LevelEditor.Tabs.Viewports"));
 
@@ -1060,6 +1105,7 @@ void FDataflowEditorToolkit::UnregisterTabSpawners(const TSharedRef<class FTabMa
 	InTabManager->UnregisterTabSpawner(CollectionSpreadSheetTabId_2);
 	InTabManager->UnregisterTabSpawner(CollectionSpreadSheetTabId_3);
 	InTabManager->UnregisterTabSpawner(CollectionSpreadSheetTabId_4);
+	InTabManager->UnregisterTabSpawner(SimulationViewportTabId);
 }
 
 void FDataflowEditorToolkit::OnTabClosed(TSharedRef<SDockTab> Tab)
@@ -1105,7 +1151,7 @@ FName FDataflowEditorToolkit::GetToolkitFName() const
 
 FText FDataflowEditorToolkit::GetToolkitName() const
 {
-	if (TObjectPtr<const UDataflowEditorContent> EditorContent = GetDataflowEditorContent())
+	if (const TObjectPtr<UDataflowBaseContent> EditorContent = GetDataflowContent())
 	{
 		if (EditorContent->GetDataflowOwner())
 		{

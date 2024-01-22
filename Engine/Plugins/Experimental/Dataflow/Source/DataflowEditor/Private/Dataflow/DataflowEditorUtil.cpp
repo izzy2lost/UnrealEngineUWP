@@ -4,7 +4,7 @@
 
 #include "Animation/Skeleton.h"
 #include "Dataflow/DataflowEditor.h"
-#include "Dataflow/DataflowEditorContent.h"
+#include "Dataflow/DataflowContent.h"
 #include "Dataflow/DataflowEditorToolkit.h"
 #include "Dataflow/DataflowEdNode.h"
 #include "Dataflow/DataflowObject.h"
@@ -18,6 +18,26 @@ using namespace UE::Geometry;
 
 namespace Private
 {
+	bool HasSkeletalMesh(UObject* InObject)
+	{
+		if (UClass* Class = InObject->GetClass())
+		{
+			return Class->FindPropertyByName(FName("SkeletalMesh")) &&
+				   Class->FindPropertyByName(FName("Skeleton"));
+		}
+		return false;
+	}
+	
+	bool HasDataflowAsset(UObject* InObject)
+	{
+		if (UClass* Class = InObject->GetClass())
+		{
+			return Class->FindPropertyByName(FName("DataflowAsset")) &&
+				   Class->FindPropertyByName(FName("DataflowTerminal"));
+		}
+		return false;
+	}
+	
 	UDataflow* GetDataflowAssetFrom(UObject* InObject)
 	{
 		if (UClass* Class = InObject->GetClass())
@@ -96,7 +116,7 @@ namespace UE
 
 namespace Dataflow
 {
-	TSharedPtr<FEngineContext> GetContext(UDataflowEditorContent* Content)
+	TSharedPtr<FEngineContext> GetContext(TObjectPtr<UDataflowBaseContent> Content)
 	{
 		if (Content)
 		{

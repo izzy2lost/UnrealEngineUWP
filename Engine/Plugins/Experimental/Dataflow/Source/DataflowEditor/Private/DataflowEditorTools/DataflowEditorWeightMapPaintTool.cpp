@@ -11,11 +11,10 @@
 #include "Changes/BasicChanges.h"
 #include "ContextObjectStore.h"
 #include "DataflowEditorTools/DataflowEditorWeightMapPaintBrushOps.h"
-#include "Dataflow/DataflowEditorContent.h"
+#include "Dataflow/DataflowContent.h"
 #include "Dataflow/DataflowEdNode.h"
 #include "Dataflow/DataflowObject.h"
 #include "Dataflow/DataflowCollectionAddScalarVertexPropertyNode.h"
-#include "Dataflow/DataflowPatternVertexType.h"
 #include "Dataflow/DataflowSNode.h"
 #include "Dataflow/DataflowGraphEditor.h"
 #include "Drawing/MeshElementsVisualizer.h"
@@ -75,7 +74,7 @@ UMeshSurfacePointTool* UDataflowEditorWeightMapPaintToolBuilder::CreateNewTool(c
 	UDataflowEditorWeightMapPaintTool* PaintTool = NewObject<UDataflowEditorWeightMapPaintTool>(SceneState.ToolManager);
 	PaintTool->SetWorld(SceneState.World);
 
-	if (UDataflowEditorContextObject* ContextObject = SceneState.ToolManager->GetContextObjectStore()->FindContext<UDataflowEditorContextObject>())
+	if (UDataflowContextObject* ContextObject = SceneState.ToolManager->GetContextObjectStore()->FindContext<UDataflowContextObject>())
 	{
 		PaintTool->SetDataflowEditorContextObject(ContextObject);
 	}
@@ -362,7 +361,7 @@ void UDataflowEditorWeightMapPaintTool::Setup()
 }
 
 
-void UDataflowEditorWeightMapPaintTool::SetDataflowEditorContextObject(TObjectPtr<UDataflowEditorContextObject> InDataflowEditorContextObject)
+void UDataflowEditorWeightMapPaintTool::SetDataflowEditorContextObject(TObjectPtr<UDataflowContextObject> InDataflowEditorContextObject)
 {
 	DataflowEditorContextObject = InDataflowEditorContextObject;
 }

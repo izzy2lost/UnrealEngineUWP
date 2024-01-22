@@ -8,7 +8,7 @@
 #include "Dataflow/AssetDefinition_DataflowAsset.h"
 #include "Dataflow/DataflowAssetFactory.h"
 #include "Dataflow/DataflowEditorCommands.h"
-#include "Dataflow/DataflowEditorModule.h"
+#include "Dataflow/DataflowContent.h"
 #include "Dataflow/DataflowSchema.h"
 #include "Dataflow/DataflowSNode.h"
 #include "Dataflow/DataflowSNodeFactories.h"
@@ -17,7 +17,7 @@
 #include "DataflowEditor.generated.h"
 
 class FDataflowEditorToolkit;
-class UDataflowEditorContent;
+class UDataflowBaseContent;
 
 /** 
  * The actual asset editor class doesn't have that much in it, intentionally. 
@@ -44,6 +44,9 @@ public:
 	virtual TSharedPtr<FBaseAssetToolkit> CreateToolkit() override;
 	virtual void Initialize(const TArray<TObjectPtr<UObject>>& InObjects) override;
 
+	/** Initialize an editor with a given content and an owner */
+	void InitializeContent(TObjectPtr<UDataflowBaseContent> BaseContent, const TObjectPtr<UObject>& ContentOwner);
+
 private :
 
 	friend class FDataflowEditorToolkit;
@@ -53,7 +56,7 @@ private :
 	// It is why the data flow asset/owner/skelmesh have been added here. Could be added
 	// in the subsystem if necessary
 	UPROPERTY()
-	TObjectPtr<UDataflowEditorContent> Content;
+	TObjectPtr<UDataflowBaseContent> DataflowContent;
 };
 
 DECLARE_LOG_CATEGORY_EXTERN(LogDataflowEditor, Log, All);
