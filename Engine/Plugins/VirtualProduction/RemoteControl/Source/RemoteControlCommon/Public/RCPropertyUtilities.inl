@@ -524,7 +524,8 @@ namespace RemoteControlPropertyUtilities
 
 			static const TArray<FString> SetterPrefixes = {
 				FString("Set"),
-				FString("K2_Set")
+				FString("K2_Set"),
+				FString("BP_Set")
 			};
 
 			for (const FString& Prefix : SetterPrefixes)
