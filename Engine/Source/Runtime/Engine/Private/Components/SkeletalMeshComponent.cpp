@@ -4331,30 +4331,14 @@ void USkeletalMeshComponent::FinalizeBoneTransform()
 	TRACE_SKELETAL_MESH_COMPONENT(this);
 }
 
-bool USkeletalMeshComponent::ShouldEvaluatePostProcessAnimBP() const
+bool USkeletalMeshComponent::ShouldUpdatePostProcessInstance() const
 {
-	const int32 LODLevel = GetPredictedLODLevel();
-	if (!(PostProcessAnimBPLODThreshold == INDEX_NONE || LODLevel <= PostProcessAnimBPLODThreshold))
-	{
-		return false;
-	}
-
 	if (USkeletalMesh* SkelMesh = GetSkeletalMeshAsset())
 	{
-		if (!SkelMesh->ShouldEvaluatePostProcessAnimBP(LODLevel))
+		if (!SkelMesh->ShouldEvaluatePostProcessAnimBP(GetPredictedLODLevel()))
 		{
 			return false;
 		}
-	}
-
-	return true;
-}
-
-bool USkeletalMeshComponent::ShouldUpdatePostProcessInstance() const
-{
-	if (!ShouldEvaluatePostProcessAnimBP())
-	{
-		return false;
 	}
 
 	return PostProcessAnimInstance && !bDisablePostProcessBlueprint;
@@ -4362,9 +4346,12 @@ bool USkeletalMeshComponent::ShouldUpdatePostProcessInstance() const
 
 bool USkeletalMeshComponent::ShouldPostUpdatePostProcessInstance() const
 {
-	if (!ShouldEvaluatePostProcessAnimBP())
+	if (USkeletalMesh* SkelMesh = GetSkeletalMeshAsset())
 	{
-		return false;
+		if (!SkelMesh->ShouldEvaluatePostProcessAnimBP(GetPredictedLODLevel()))
+		{
+			return false;
+		}
 	}
 
 	return PostProcessAnimInstance && PostProcessAnimInstance->NeedsUpdate() && !bDisablePostProcessBlueprint;
@@ -4372,9 +4359,12 @@ bool USkeletalMeshComponent::ShouldPostUpdatePostProcessInstance() const
 
 bool USkeletalMeshComponent::ShouldEvaluatePostProcessInstance() const
 {
-	if (!ShouldEvaluatePostProcessAnimBP())
+	if (USkeletalMesh* SkelMesh = GetSkeletalMeshAsset())
 	{
-		return false;
+		if (!SkelMesh->ShouldEvaluatePostProcessAnimBP(GetPredictedLODLevel()))
+		{
+			return false;
+		}
 	}
 
 	return PostProcessAnimInstance && !bDisablePostProcessBlueprint;
