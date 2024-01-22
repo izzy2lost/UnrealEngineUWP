@@ -72,7 +72,9 @@ void FTimersViewColumnFactory::CreateTimerTreeViewColumns(TArray<TSharedRef<Insi
 	Columns.Add(CreateTypeColumn());
 	Columns.Add(CreateInstanceCountColumn());
 	Columns.Add(CreateTotalInclusiveTimeColumn());
+	Columns.Add(CreateAverageInclusiveTimeColumn());
 	Columns.Add(CreateTotalExclusiveTimeColumn());
+	Columns.Add(CreateAverageExclusiveTimeColumn());
 }
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -583,7 +585,7 @@ TSharedRef<Insights::FTableColumn> FTimersViewColumnFactory::CreateMaxExclusiveT
 	Column.SetDescription(ETraceFrameType::TraceFrameType_Count, LOCTEXT("MaxExclusiveTime_ColumnDesc", "Maximum exclusive duration of selected timer's instances, in milliseconds"));
 	Column.SetDescription(ETraceFrameType::TraceFrameType_Game, LOCTEXT("MaxExclusiveTime_GameFrameColumnDesc", "Game Frame Maximum Exclusive Duration.\nExclusive duration is computed for a single frame as the sum of exclusive duration of all instances of the timer in the respective frame.\nThe maximum is selected from these per-frame Exclusive durations. Unit is miliseconds."));
 	Column.SetDescription(ETraceFrameType::TraceFrameType_Rendering, LOCTEXT("MaxExclusiveTime_RenderingFrameColumnDesc", "Rendering Frame Maximum Exclusive Duration.\nExclusive duration is computed for a single frame as the sum of exclusive duration of all instances of the timer in the respective frame. The maximum is selected from these per-frame Exclusive durations.\nUnit is miliseconds."));
-	
+
 	Column.SetFlags(ETableColumnFlags::CanBeHidden |
 					//ETableColumnFlags::ShouldBeVisible |
 					ETableColumnFlags::CanBeFiltered);
