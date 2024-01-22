@@ -170,6 +170,8 @@ namespace Horde.Server.Dashboard
 						{
 							rchart.Metrics.Add(new TelemetryChartMetricResponse { MetricId = metric.MetricId.ToString(), Threshold = metric.Threshold, Alias = metric.Alias });
 						}
+
+						rcategory.Charts.Add(rchart);
 					}
 
 					rview.Categories.Add(rcategory);
