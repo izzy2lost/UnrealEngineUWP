@@ -2141,6 +2141,7 @@ TSharedRef<SWidget> UToolMenus::GenerateWidget(UToolMenu* GeneratedMenu)
 
 	// Store a copy so that we can call 'Refresh' on menus not in the database
 	FGeneratedToolMenuWidget& GeneratedMenuWidget = WidgetsForMenuName.Instances.AddDefaulted_GetRef();
+	GeneratedMenuWidget.OriginalMenu = GeneratedMenu;
 	GeneratedMenuWidget.GeneratedMenu = DuplicateObject<UToolMenu>(GeneratedMenu, this, MakeUniqueObjectName(this, UToolMenus::StaticClass(), FName("MenuForRefresh")));
 	GeneratedMenuWidget.GeneratedMenu->bShouldCleanupContextOnDestroy = true;
 	// Copy native properties that serialize does not
@@ -2302,6 +2303,13 @@ bool UToolMenus::RefreshMenuWidget(const FName InName, FGeneratedToolMenuWidget&
 
 	// Regenerate menu from database
 	GeneratedMenuWidget.GeneratedMenu->bShouldCleanupContextOnDestroy = false; // The new menu will do this
+
+	// GeneratedMenuWidget.GeneratedMenu is a copy of the original menu, so we also need to make sure the original menu does not clean up its context
+	if(UToolMenu* OriginalMenu = GeneratedMenuWidget.OriginalMenu.Get())
+	{
+		OriginalMenu->bShouldCleanupContextOnDestroy = false;
+	}
+	
 	UToolMenu* GeneratedMenu = GenerateMenu(InName, GeneratedMenuWidget.GeneratedMenu->Context);
 	GeneratedMenuWidget.GeneratedMenu = GeneratedMenu;
 

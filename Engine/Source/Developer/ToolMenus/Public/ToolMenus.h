@@ -34,8 +34,14 @@ struct FToolMenuSection;
 
 struct FGeneratedToolMenuWidget
 {
+	// A copy of the menu so we can refresh menus not in the database
 	TObjectPtr<UToolMenu> GeneratedMenu;
+
+	// The actual widget for the menu
 	TWeakPtr<SWidget> Widget;
+
+	// Weak ptr to the original menu that owns the widget
+	TWeakObjectPtr<UToolMenu> OriginalMenu;
 };
 
 struct FGeneratedToolMenuWidgets
