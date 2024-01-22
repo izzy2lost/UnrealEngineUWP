@@ -498,6 +498,9 @@ class FMicropolyRasterizeCS;
 struct FNaniteRasterPipeline
 {
 	const FMaterialRenderProxy* RasterMaterial = nullptr;
+
+	FDisplacementScaling DisplacementScaling;
+
 	bool bIsTwoSided = false;
 	bool bPerPixelEval = false;
 	bool bForceDisableWPO = false;
@@ -512,6 +515,8 @@ struct FNaniteRasterPipeline
 		{
 			uint32 MaterialFlags;
 			uint32 MaterialHash;
+
+			FDisplacementScaling DisplacementScaling;
 
 			static inline uint32 PointerHash(const void* Key)
 			{
@@ -531,6 +536,8 @@ struct FNaniteRasterPipeline
 		HashKey.MaterialFlags |= bForceDisableWPO ? 0x2u : 0x0u;
 		HashKey.MaterialFlags |= bSplineMesh ? 0x4u : 0x0u;
 		HashKey.MaterialHash   = FHashKey::PointerHash(RasterMaterial);
+
+		HashKey.DisplacementScaling = DisplacementScaling;
 
 		const uint64 PipelineHash = CityHash64((char*)&HashKey, sizeof(FHashKey));
 		return HashCombineFast(uint32(PipelineHash & 0xFFFFFFFF), uint32((PipelineHash >> 32) & 0xFFFFFFFF));
@@ -645,6 +652,8 @@ struct FNaniteRasterMaterialCache
 	TShaderRef<FMicropolyRasterizeCS> PatchComputeShader;
 
 	TOptional<uint32> MaterialBitFlags;
+	TOptional<FDisplacementScaling> DisplacementScaling;
+
 	bool bFinalized = false;
 };
 

@@ -69,6 +69,7 @@ void FNaniteVisualizationData::Initialize()
 		AddVisualizationMode(TEXT("NoDerivativeOps"), LOCTEXT("NoDerivativeOps", "No Derivative Ops"), FModeType::Advanced, NANITE_VISUALIZE_NO_DERIVATIVE_OPS, true);
 		AddVisualizationMode(TEXT("FastClearTiles"), LOCTEXT("FastClearTiles", "Fast Clear Tiles"), FModeType::Advanced, NANITE_VISUALIZE_FAST_CLEAR_TILES, true);
 		AddVisualizationMode(TEXT("Tessellation"), LOCTEXT("Tessellation", "Tessellation"), FModeType::Advanced, NANITE_VISUALIZE_TESSELLATION, true);
+		AddVisualizationMode(TEXT("DisplacementScale"), LOCTEXT("DisplacementScale", "DisplacementScale"), FModeType::Advanced, NANITE_VISUALIZE_DISPLACEMENT_SCALE, true);
 
 		ConfigureConsoleCommand();
 

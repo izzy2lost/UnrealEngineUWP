@@ -311,6 +311,10 @@ void ClusterRasterize( uint VisibleIndex, uint GroupThreadIndex )
 #endif
 
 #if NANITE_TESSELLATION
+
+	MaterialShader.DisplacementCenter = RasterBinMeta[ActiveRasterBin].MaterialDisplacementCenter;
+	MaterialShader.DisplacementMagnitude = RasterBinMeta[ActiveRasterBin].MaterialDisplacementMagnitude;
+
 	uint TriIndex = TriRange.Start + GroupThreadIndex;
 	bool bTriValid = GroupThreadIndex < TriRange.Num;
 
@@ -713,6 +717,8 @@ void PatchRasterize( uint GroupID, uint GroupThreadIndex )
 #endif
 		MaterialShader.TransformedTri = MakeTransformedNaniteTriangle(Patches_Verts, PatchStartLane + uint3(0, 1, 2));
 
+		MaterialShader.DisplacementCenter = RasterBinMeta[ActiveRasterBin].MaterialDisplacementCenter;
+		MaterialShader.DisplacementMagnitude = RasterBinMeta[ActiveRasterBin].MaterialDisplacementMagnitude;
 
 		uint PixelValue = (SplitPatch.VisibleClusterIndex + 1) << 7;
 
@@ -872,6 +878,11 @@ VSOut CommonRasterizerVS(FNaniteView NaniteView, FPrimitiveSceneData PrimitiveDa
 	MaterialShader.Cluster 				= Cluster;
 
 	WorldPositionOffset = MaterialShader.EvaluateWorldPositionOffset(InputVert);
+#endif
+
+#if NANITE_TESSELLATION
+	MaterialShader.DisplacementCenter = RasterBinMeta[ActiveRasterBin].MaterialDisplacementCenter;
+	MaterialShader.DisplacementMagnitude = RasterBinMeta[ActiveRasterBin].MaterialDisplacementMagnitude;
 #endif
 	
 	const float3 PointTranslatedWorld = DFTransformLocalToTranslatedWorld(InputVert.Position, InstanceData.LocalToWorld, NaniteView.PreViewTranslation) + WorldPositionOffset;

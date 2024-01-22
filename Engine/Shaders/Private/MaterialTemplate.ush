@@ -3437,27 +3437,12 @@ half GetMaterialOpacityMaskClipValue()
 }
 
 #if USES_DISPLACEMENT && IS_NANITE_PASS
-float GetMaterialDisplacementMagnitude()
-{
-%{get_material_displacement_magnitude};
-}
-
-float GetMaterialDisplacementCenter()
-{
-%{get_material_displacement_center};
-}
 
 float GetMaterialDisplacement(FPixelMaterialInputs PixelMaterialInputs)
 {
 	return saturate(PixelMaterialInputs.Displacement);
 }
 
-float GetMaterialDisplacementScaled(FPixelMaterialInputs PixelMaterialInputs)
-{
-	const float CenterScaled = GetMaterialDisplacementCenter() * GetMaterialDisplacementMagnitude();
-	const float NormalizedDisplacement = GetMaterialDisplacement(PixelMaterialInputs);
-	return (NormalizedDisplacement * GetMaterialDisplacementMagnitude()) - CenterScaled;
-}
 #endif
 
 // Should only be used by GetMaterialOpacity(), returns the unmodified value generated from the shader expressions of the opacity input.

@@ -269,6 +269,7 @@
 #define NANITE_VISUALIZE_NO_DERIVATIVE_OPS					36u
 #define NANITE_VISUALIZE_FAST_CLEAR_TILES					37u
 #define NANITE_VISUALIZE_TESSELLATION						38u
+#define NANITE_VISUALIZE_DISPLACEMENT_SCALE					39u
 
 #define NANITE_PICKING_DOMAIN_TRIANGLE		0
 #define NANITE_PICKING_DOMAIN_CLUSTER		1
@@ -446,8 +447,8 @@ struct FNaniteRasterBinMeta
 	UINT_TYPE ClusterOffset;
 	UINT_TYPE MaterialFlags;
 
-	float MinMaterialDisplacement;
-	float MaxMaterialDisplacement;
+	float MaterialDisplacementCenter;
+	float MaterialDisplacementMagnitude;
 };
 
 struct FNaniteShadingBinMeta

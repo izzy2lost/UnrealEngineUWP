@@ -2287,6 +2287,7 @@ private:
 		TArray<FRasterizerPass, SceneRenderingAllocator> RasterizerPasses;
 
 		FRasterBinMetaArray MetaBufferData;
+		FRDGBufferRef MetaBuffer = nullptr;
 
 		const FMaterialRenderProxy* FixedMaterialProxy = nullptr;
 		const FMaterialRenderProxy* HiddenMaterialProxy = nullptr;
@@ -2535,6 +2536,7 @@ private:
 	FRDGBufferRef	HiddenPrimitivesBuffer		= nullptr;
 	FRDGBufferRef	ShowOnlyPrimitivesBuffer	= nullptr;
 	FRDGBufferRef	StatsBuffer					= nullptr;
+	FRDGBufferRef	RasterBinMetaBuffer			= nullptr;
 
 	FRDGBufferRef	MainAndPostNodesAndClusterBatchesBuffer	= nullptr;
 	FRDGBufferRef	MainAndPostCandididateClustersBuffer	= nullptr;
@@ -2586,7 +2588,6 @@ private:
 		FRDGBufferRef VisiblePatchesArgs,
 		const FGlobalWorkQueueParameters& SplitWorkQueue,
 		bool bMainPass,
-		const FRasterBinMetaArray& MetaBufferData,
 		ERDGPassFlags PassFlags
 	);
 
@@ -3398,27 +3399,17 @@ FBinningData FRenderer::AddPass_Binning(
 	FRDGBufferRef VisiblePatchesArgs,
 	const FGlobalWorkQueueParameters& SplitWorkQueue,
 	bool bMainPass,
-	const FRasterBinMetaArray& MetaBufferData,
 	ERDGPassFlags PassFlags
 )
 {
 	FBinningData BinningData = {};
-	BinningData.BinCount = MetaBufferData.Num();
+	BinningData.BinCount = DispatchContext.MetaBufferData.Num();
 
 	const ENaniteMeshPass::Type MeshPass = Configuration.bIsLumenCapture ? ENaniteMeshPass::LumenCardCapture : ENaniteMeshPass::BasePass;
 
 	if (BinningData.BinCount > 0)
 	{
-		BinningData.MetaBuffer = CreateStructuredBuffer(
-			GraphBuilder,
-			TEXT("Nanite.RasterBinMeta"),
-			sizeof(FNaniteRasterBinMeta),
-			FMath::RoundUpToPowerOfTwo(FMath::Max(BinningData.BinCount, 1u)),
-			MetaBufferData.GetData(),
-			sizeof(FNaniteRasterBinMeta) * MetaBufferData.Num(),
-			// The buffer data is allocated on the RDG timeline and and gets filled by an RDG setup task.
-			ERDGInitialDataFlags::NoCopy
-		);
+		BinningData.MetaBuffer = DispatchContext.MetaBuffer;
 
 		BinningData.IndirectArgs = GraphBuilder.CreateBuffer(FRDGBufferDesc::CreateIndirectDesc(BinningData.BinCount * NANITE_RASTERIZER_ARG_COUNT), TEXT("Nanite.RasterBinIndirectArgs"));
 
@@ -3718,7 +3709,11 @@ void FRenderer::PrepareRasterizerPasses(
 					RasterEntry.RasterPipeline.bSplineMesh
 				);
 				RasterMaterialCache.MaterialBitFlags = MaterialBitFlags;
+				RasterMaterialCache.DisplacementScaling = RasterizerPass.RasterPipeline.DisplacementScaling;
 			}
+
+			BinMeta.MaterialDisplacementCenter = RasterMaterialCache.DisplacementScaling->Center;
+			BinMeta.MaterialDisplacementMagnitude = RasterMaterialCache.DisplacementScaling->Magnitude;
 
 			RasterizerPass.bVertexProgrammable = FNaniteMaterialShader::IsVertexProgrammable(MaterialBitFlags);
 			RasterizerPass.bPixelProgrammable = FNaniteMaterialShader::IsPixelProgrammable(MaterialBitFlags);
@@ -4035,6 +4030,21 @@ void FRenderer::PrepareRasterizerPasses(
 		UE::Tasks::ETaskPriority::Normal,
 		CVarNaniteRasterSetupTask.GetValueOnRenderThread() > 0
 	);
+
+	// Create raster in meta buffer (now that the setup task has completed populating the source memory)
+	if (RasterBinCount > 0)
+	{
+		Context.MetaBuffer = CreateStructuredBuffer(
+			GraphBuilder,
+			TEXT("Nanite.RasterBinMeta"),
+			sizeof(FNaniteRasterBinMeta),
+			FMath::RoundUpToPowerOfTwo(FMath::Max(RasterBinCount, 1u)),
+			Context.MetaBufferData.GetData(),
+			sizeof(FNaniteRasterBinMeta) * RasterBinCount,
+			// The buffer data is allocated on the RDG timeline and and gets filled by an RDG setup task.
+			ERDGInitialDataFlags::NoCopy
+		);
+	}
 }
 
 FBinningData FRenderer::AddPass_Rasterize(
@@ -4162,7 +4172,6 @@ FBinningData FRenderer::AddPass_Rasterize(
 		nullptr,
 		SplitWorkQueue,
 		bMainPass,
-		DispatchContext.MetaBufferData,
 		ERDGPassFlags::Compute
 	);
 
@@ -4270,7 +4279,6 @@ FBinningData FRenderer::AddPass_Rasterize(
 			VisiblePatchesArgs,
 			SplitWorkQueue,
 			bMainPass,
-			DispatchContext.MetaBufferData,
 			PatchPassFlags
 		);
 
@@ -5167,6 +5175,8 @@ void FRenderer::DrawGeometry(
 		ExtractStats( MainPassBinning, PostPassBinning );
 	}
 
+	RasterBinMetaBuffer = DispatchContext.MetaBuffer;
+
 	FeedbackStatus();
 }
 
@@ -5185,8 +5195,9 @@ void FRenderer::ExtractResults( FRasterResults& RasterResults )
 	
 	if (RasterContext.VisualizeActive)
 	{
-		RasterResults.DbgBuffer64 = RasterContext.DbgBuffer64;
-		RasterResults.DbgBuffer32 = RasterContext.DbgBuffer32;
+		RasterResults.DbgBuffer64	= RasterContext.DbgBuffer64;
+		RasterResults.DbgBuffer32	= RasterContext.DbgBuffer32;
+		RasterResults.RasterBinMeta = RasterBinMetaBuffer;
 	}
 }
 

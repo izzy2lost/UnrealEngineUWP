@@ -90,6 +90,7 @@ struct FRasterResults
 
 	FRDGBufferRef	ViewsBuffer			= nullptr;
 	FRDGBufferRef	VisibleClustersSWHW	= nullptr;
+	FRDGBufferRef	RasterBinMeta		= nullptr;
 
 	FRDGTextureRef	VisBuffer64			= nullptr;
 	FRDGTextureRef	DbgBuffer64			= nullptr;

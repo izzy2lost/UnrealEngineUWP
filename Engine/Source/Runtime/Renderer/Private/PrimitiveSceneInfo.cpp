@@ -772,6 +772,8 @@ void BuildNaniteMaterialBins(FScene* Scene, FPrimitiveSceneInfo* PrimitiveSceneI
 						RasterPipeline.bPerPixelEval = MaterialSection.MaterialRelevance.bMasked ||
 													   MaterialSection.MaterialRelevance.bUsesPixelDepthOffset;
 
+						RasterPipeline.DisplacementScaling = MaterialSection.DisplacementScaling;
+
 						float WPODisableDistance;
 						RasterPipeline.bWPODisableDistance =
 							MaterialSection.MaterialRelevance.bUsesWorldPositionOffset &&

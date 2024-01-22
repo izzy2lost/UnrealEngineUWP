@@ -1572,7 +1572,6 @@ FShadeBinning ShadeBinning(
 	FRDGBufferRef ShadingBinScatterMetaBuffer = GraphBuilder.CreateBuffer(FRDGBufferDesc::CreateStructuredDesc(sizeof(FNaniteShadingBinScatterMeta), ShadingBinCountPow2), TEXT("Nanite.ShadingBinScatterMeta"));
 	FRDGBufferUAVRef ShadingBinScatterMetaUAV = GraphBuilder.CreateUAV(ShadingBinScatterMetaBuffer);
 
-
 	if (bGatherStats)
 	{
 		AddClearUAVPass(GraphBuilder, ShadingBinStatsUAV, 0);

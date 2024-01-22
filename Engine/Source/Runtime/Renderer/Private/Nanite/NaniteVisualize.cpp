@@ -191,6 +191,7 @@ class FNaniteVisualizeCS : public FNaniteGlobalShader
 		SHADER_PARAMETER_RDG_BUFFER_SRV(ByteAddressBuffer, ClusterPageData)
 		SHADER_PARAMETER_RDG_BUFFER_SRV(ByteAddressBuffer, VisibleClustersSWHW)
 		SHADER_PARAMETER_RDG_BUFFER_SRV(ByteAddressBuffer, ShadingBinData)
+		SHADER_PARAMETER_RDG_BUFFER_SRV(StructuredBuffer<FNaniteRasterBinMeta>, RasterBinMeta)
 		SHADER_PARAMETER_RDG_TEXTURE(Texture2D<UlongType>, VisBuffer64)
 		SHADER_PARAMETER_RDG_TEXTURE(Texture2D<UlongType>, DbgBuffer64)
 		SHADER_PARAMETER_RDG_TEXTURE(Texture2D<uint>, DbgBuffer32)
@@ -643,6 +644,8 @@ void AddVisualizationPasses(
 					FRDGTextureRef DbgBuffer32 = Data.DbgBuffer32 ? Data.DbgBuffer32 : SystemTextures.Black;
 					FRDGTextureRef ShadingMask = Data.ShadingMask ? Data.ShadingMask : SystemTextures.Black;
 
+					FRDGBufferRef RasterBinMeta = Data.RasterBinMeta ? Data.RasterBinMeta : GSystemTextures.GetDefaultStructuredBuffer<FNaniteRasterBinMeta>(GraphBuilder);
+
 					FRDGBufferRef VisibleClustersSWHW = Data.VisibleClustersSWHW;
 
 					// Debug picking feedback (mouse dependent, does not support stereo)
@@ -810,6 +813,7 @@ void AddVisualizationPasses(
 						PassParameters->MaterialDepthTable = MaterialCommands.GetMaterialDepthSRV();
 						PassParameters->MaterialHitProxyTable = GraphBuilder.CreateSRV(HitProxyIDBuffer);
 						PassParameters->ShadingBinData = GetShadingBinDataSRV(GraphBuilder);
+						PassParameters->RasterBinMeta = GraphBuilder.CreateSRV(RasterBinMeta);
 						PassParameters->DebugOutput = GraphBuilder.CreateUAV(Visualization.ModeOutput);
 
 						auto ComputeShader = View.ShaderMap->GetShader<FNaniteVisualizeCS>();

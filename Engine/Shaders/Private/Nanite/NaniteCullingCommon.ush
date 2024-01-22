@@ -21,17 +21,6 @@
 #define DISABLE_DISPLACEMENT_BOUNDS 0
 #endif
 
-float GetAbsMaxMaterialDisplacement(StructuredBuffer<FNaniteRasterBinMeta> RasterBinMeta, uint RasterBin)
-{
-#if DISABLE_DISPLACEMENT_BOUNDS
-	return 0.0f;
-#else
-	const float MinMaterialDisplacement = RasterBinMeta[RasterBin].MinMaterialDisplacement;
-	const float MaxMaterialDisplacement = RasterBinMeta[RasterBin].MaxMaterialDisplacement;
-	return max(-MinMaterialDisplacement, MaxMaterialDisplacement);
-#endif
-}
-
 float GetAbsMaxMaterialDisplacement(FPrimitiveSceneData PrimitiveData)
 {
 #if DISABLE_DISPLACEMENT_BOUNDS
