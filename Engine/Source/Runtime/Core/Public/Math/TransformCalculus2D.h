@@ -442,7 +442,7 @@ public:
 	}
 
 	/** Ctor. initialize from a rotation. */
-	explicit TMatrix2x2(const FQuat2D& Rotation)
+	explicit TMatrix2x2(const TQuat2<T>& Rotation)
 	{
 		T CosAngle = (T)Rotation.GetVector().X;
 		T SinAngle = (T)Rotation.GetVector().Y;
