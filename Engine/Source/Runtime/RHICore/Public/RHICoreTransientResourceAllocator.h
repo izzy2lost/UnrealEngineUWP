@@ -211,6 +211,7 @@ public:
 			}
 		}
 
+		TRACE_CPUPROFILER_EVENT_SCOPE(CreatePlacedResource);
 		TransientResourceType* Resource = CreateFunction(Hash);
 		Allocated.Emplace(Resource);
 		MissCount++;
@@ -596,9 +597,6 @@ public:
 		// The minimum size to use when creating a heap. This is the default but can grow based on allocations.
 		uint64 MinimumHeapSize = 0;
 
-		// The maximum size of a pool. Allocations above this size will fail.
-		uint64 MaximumHeapSize = 0;
-
 		// The minimum alignment for resources in the heap.
 		uint32 HeapAlignment = 0;
 
@@ -633,8 +631,7 @@ public:
 
 	uint64 GetHeapSize(uint64 RequestedHeapSize) const
 	{
-		check(RequestedHeapSize <= Initializer.MaximumHeapSize);
-		return FMath::Clamp(FMath::RoundUpToPowerOfTwo64(RequestedHeapSize), Initializer.MinimumHeapSize, Initializer.MaximumHeapSize);
+		return FMath::Max(FMath::RoundUpToPowerOfTwo64(RequestedHeapSize), Initializer.MinimumHeapSize);
 	}
 
 private:

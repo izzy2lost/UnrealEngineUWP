@@ -4761,9 +4761,9 @@ public:
 
 	// Sets the debug name of the RHI view resources.
 #if !(UE_BUILD_SHIPPING || UE_BUILD_TEST)
-	RHI_API void SetDebugName(const TCHAR* DebugName);
+	RHI_API void SetDebugName(FRHICommandListBase& RHICmdList, const TCHAR* DebugName);
 #else
-	void SetDebugName(const TCHAR* DebugName) {}
+	void SetDebugName(FRHICommandListBase& RHICmdList, const TCHAR* DebugName) {}
 #endif
 
 private:
@@ -4787,9 +4787,9 @@ public:
 
 	// Sets the debug name of the RHI view resources.
 #if !(UE_BUILD_SHIPPING || UE_BUILD_TEST)
-	RHI_API void SetDebugName(const TCHAR* DebugName);
+	RHI_API void SetDebugName(FRHICommandListBase& RHICmdList, const TCHAR* DebugName);
 #else
-	void SetDebugName(const TCHAR* DebugName) {}
+	void SetDebugName(FRHICommandListBase& RHICmdList, const TCHAR* DebugName) {}
 #endif
 
 private:

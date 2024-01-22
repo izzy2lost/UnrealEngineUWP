@@ -4,15 +4,6 @@
 
 PRAGMA_DISABLE_BUFFER_OVERRUN_WARNING
 
-inline void FRDGSubresourceState::Finalize()
-{
-	ensureMsgf(!EnumHasAnyFlags(GetPipelines(), ERHIPipeline::AsyncCompute), TEXT("Resource should not be on the async compute pipeline!"));
-
-	const ERHIAccess LocalAccess = Access;
-	*this = {};
-	Access = LocalAccess;
-}
-
 inline void FRDGSubresourceState::SetPass(ERHIPipeline Pipeline, FRDGPassHandle PassHandle)
 {
 	FirstPass = {};

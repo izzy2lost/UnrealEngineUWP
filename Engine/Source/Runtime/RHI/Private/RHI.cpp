@@ -2116,38 +2116,38 @@ FRHIUnorderedAccessView* FRHIBufferViewCache::GetOrCreateUAV(FRHICommandListBase
 
 #if !(UE_BUILD_SHIPPING || UE_BUILD_TEST)
 
-void FRHITextureViewCache::SetDebugName(const TCHAR* DebugName)
+void FRHITextureViewCache::SetDebugName(FRHICommandListBase& RHICmdList, const TCHAR* DebugName)
 {
 	for (const auto& KeyValue : UAVs)
 	{
-		RHIBindDebugLabelName(KeyValue.Value, DebugName);
+		RHICmdList.BindDebugLabelName(KeyValue.Value, DebugName);
 	}
 }
 
-void FRHIBufferViewCache::SetDebugName(const TCHAR* DebugName)
+void FRHIBufferViewCache::SetDebugName(FRHICommandListBase& RHICmdList, const TCHAR* DebugName)
 {
 	for (const auto& KeyValue : UAVs)
 	{
-		RHIBindDebugLabelName(KeyValue.Value, DebugName);
+		RHICmdList.BindDebugLabelName(KeyValue.Value, DebugName);
 	}
 }
 
 #endif
 
-void FRHITransientTexture::Acquire(const TCHAR* InName, uint32 InPassIndex, uint64 InAcquireCycle)
+void FRHITransientTexture::Acquire(FRHICommandListBase& RHICmdList, const TCHAR* InName, uint32 InPassIndex, uint64 InAcquireCycle)
 {
-	FRHITransientResource::Acquire(InName, InPassIndex, InAcquireCycle);
-	ViewCache.SetDebugName(InName);
+	FRHITransientResource::Acquire(RHICmdList, InName, InPassIndex, InAcquireCycle);
+	ViewCache.SetDebugName(RHICmdList, InName);
 
 #if !(UE_BUILD_SHIPPING || UE_BUILD_TEST)
-	RHIBindDebugLabelName(GetRHI(), InName);
+	RHICmdList.BindDebugLabelName(GetRHI(), InName);
 #endif
 }
 
-void FRHITransientBuffer::Acquire(const TCHAR* InName, uint32 InPassIndex, uint64 InAcquireCycle)
+void FRHITransientBuffer::Acquire(FRHICommandListBase& RHICmdList, const TCHAR* InName, uint32 InPassIndex, uint64 InAcquireCycle)
 {
-	FRHITransientResource::Acquire(InName, InPassIndex, InAcquireCycle);
-	ViewCache.SetDebugName(InName);
+	FRHITransientResource::Acquire(RHICmdList, InName, InPassIndex, InAcquireCycle);
+	ViewCache.SetDebugName(RHICmdList, InName);
 
 	// TODO: Add method to rename a buffer.
 }

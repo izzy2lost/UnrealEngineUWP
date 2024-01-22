@@ -167,8 +167,8 @@ public:
 private:
 	struct FResourceMap
 	{
-		TMap<FRDGTextureRef, TArray<FRHITransitionInfo>> Textures;
-		TMap<FRDGBufferRef, FRHITransitionInfo> Buffers;
+		TMap<FRDGTextureRef, TArray<FRDGTransitionInfo>> Textures;
+		TMap<FRDGBufferRef, FRDGTransitionInfo> Buffers;
 		TMap<FRDGViewableResource*, FRHITransientAliasingInfo> Aliases;
 	};
 

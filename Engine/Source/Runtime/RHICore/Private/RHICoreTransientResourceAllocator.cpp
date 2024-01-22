@@ -15,13 +15,6 @@ static FAutoConsoleVariableRef CVarRHITransientAllocatorMinimumHeapSize(
 	TEXT("Minimum size of an RHI transient heap in MB. Heaps will default to this size and grow to the maximum based on the first allocation (Default 128)."),
 	ECVF_ReadOnly);
 
-static int32 GRHITransientAllocatorMaximumHeapSize = 512;
-static FAutoConsoleVariableRef CVarRHITransientAllocatorMaximumHeapSize(
-	TEXT("RHI.TransientAllocator.MaximumHeapSize"),
-	GRHITransientAllocatorMaximumHeapSize,
-	TEXT("Maximum size of an RHI transient allocation in MB. Allocations larger than this will fail the transient allocator (Default 512)."),
-	ECVF_ReadOnly);
-
 static int32 GRHITransientAllocatorBufferCacheSize = 64;
 static FAutoConsoleVariableRef CVarRHITransientAllocatorBufferCacheSize(
 	TEXT("RHI.TransientAllocator.BufferCacheSize"),
@@ -440,7 +433,7 @@ FRHITransientTexture* FRHITransientHeap::CreateTexture(
 	});
 
 	check(Texture);
-	Texture->Acquire(DebugName, PassIndex, CurrentAllocatorCycle);
+	Texture->Acquire(FRHICommandListImmediate::Get(), DebugName, PassIndex, CurrentAllocatorCycle);
 	AllocateMemoryInternal(Texture, DebugName, PassIndex, CurrentAllocatorCycle, Allocation);
 	Stats.AllocateTexture(Allocation.Size);
 	return Texture;
@@ -476,7 +469,7 @@ FRHITransientBuffer* FRHITransientHeap::CreateBuffer(
 	});
 
 	check(Buffer);
-	Buffer->Acquire(DebugName, PassIndex, CurrentAllocatorCycle);
+	Buffer->Acquire(FRHICommandListImmediate::Get(), DebugName, PassIndex, CurrentAllocatorCycle);
 	AllocateMemoryInternal(Buffer, DebugName, PassIndex, CurrentAllocatorCycle, Allocation);
 	Stats.AllocateBuffer(Allocation.Size);
 	return Buffer;
@@ -493,10 +486,10 @@ void FRHITransientHeap::AllocateMemoryInternal(FRHITransientResource* Resource, 
 	Resource->GetHeapAllocation() = Allocation;
 
 	check(Allocation.Offset % Initializer.Alignment == 0);
-	const uint64 AlignedSize   = Align(Allocation.Size, Initializer.Alignment);
-	const uint32 PageOffsetMin = Allocation.Offset >> AlignmentLog2;
-	const uint32 PageOffsetMax = (Allocation.Offset + AlignedSize) >> AlignmentLog2;
-	OverlapTracker.Track(Resource, PageOffsetMin, PageOffsetMax);
+		const uint64 AlignedSize   = Align(Allocation.Size, Initializer.Alignment);
+		const uint32 PageOffsetMin = Allocation.Offset >> AlignmentLog2;
+		const uint32 PageOffsetMax = (Allocation.Offset + AlignedSize) >> AlignmentLog2;
+		OverlapTracker.Track(Resource, PageOffsetMin, PageOffsetMax);
 
 	CommitSize = FMath::Max(CommitSize, Allocation.Offset + Allocation.Size);
 }
@@ -573,8 +566,8 @@ void FRHITransientHeap::Flush(uint64 AllocatorCycle, FRHITransientMemoryStats& O
 			}
 		}
 
-		OverlapTracker.Reset();
-	}
+			OverlapTracker.Reset();
+		}
 }
 
 //////////////////////////////////////////////////////////////////////////
@@ -583,7 +576,6 @@ FRHITransientHeapCache::FInitializer FRHITransientHeapCache::FInitializer::Creat
 {
 	FInitializer Initializer;
 	Initializer.MinimumHeapSize = GRHITransientAllocatorMinimumHeapSize * 1024 * 1024;
-	Initializer.MaximumHeapSize = GRHITransientAllocatorMaximumHeapSize * 1024 * 1024;
 	Initializer.HeapAlignment = 64 * 1024;
 	Initializer.BufferCacheSize = GRHITransientAllocatorBufferCacheSize;
 	Initializer.TextureCacheSize = GRHITransientAllocatorTextureCacheSize;
@@ -682,11 +674,6 @@ FRHITransientTexture* FRHITransientResourceHeapAllocator::CreateTextureInternal(
 	uint32 TextureAlignment,
 	FRHITransientHeap::FCreateTextureFunction CreateTextureFunction)
 {
-	if (TextureSize > HeapCache.GetInitializer().MaximumHeapSize)
-	{
-		return nullptr;
-	}
-
 	const ERHITransientHeapFlags TextureHeapFlags =
 		EnumHasAnyFlags(CreateInfo.Flags, TexCreate_RenderTargetable | TexCreate_ResolveTargetable | TexCreate_DepthStencilTargetable | TexCreate_DepthStencilResolveTarget)
 		? ERHITransientHeapFlags::AllowRenderTargets
@@ -730,11 +717,6 @@ FRHITransientBuffer* FRHITransientResourceHeapAllocator::CreateBufferInternal(
 	uint32 BufferAlignment,
 	FRHITransientHeap::FCreateBufferFunction CreateBufferFunction)
 {
-	if (BufferSize > HeapCache.GetInitializer().MaximumHeapSize)
-	{
-		return nullptr;
-	}
-
 	FRHITransientBuffer* Buffer = nullptr;
 
 	for (FRHITransientHeap* Heap : Heaps)
@@ -1218,11 +1200,11 @@ void FRHITransientPagePool::Allocate(FAllocationContext& Context)
 		const  int32 AllocationIndex   = Context.Allocations.Num();
 		const uint64 AllocationHash    = CityHash64WithSeed((const char*)&PageSpans[PageSpanOffsetMin], PageSpanCount * sizeof(FRHITransientPageSpan), DestinationGpuVirtualAddress);
 
-		for (uint32 Index = PageSpanOffsetMin; Index < PageSpanOffsetMax; ++Index)
-		{
-			const FRHITransientPageSpan Span = PageSpans[Index];
-			OverlapTracker.Track(&Context.Resource, Span.Offset, Span.Offset + Span.Count);
-		}
+			for (uint32 Index = PageSpanOffsetMin; Index < PageSpanOffsetMax; ++Index)
+			{
+				const FRHITransientPageSpan Span = PageSpans[Index];
+				OverlapTracker.Track(&Context.Resource, Span.Offset, Span.Offset + Span.Count);
+			}
 
 		FRHITransientPagePoolAllocation Allocation;
 		Allocation.Pool = this;
@@ -1273,7 +1255,7 @@ void FRHITransientPagePool::Flush(FRHICommandListImmediate& RHICmdList)
 		PageSpans.Reserve(PageSpanCountMax);
 	}
 
-	OverlapTracker.Reset();
+		OverlapTracker.Reset();
 }
 
 ///////////////////////////////////////////////////////////////////////////////////////////////////
@@ -1420,7 +1402,7 @@ FRHITransientTexture* FRHITransientResourcePageAllocator::CreateTexture(
 	const float FastPoolPercentageRequested = bFastPool ? CreateInfo.FastVRAMPercentage / 255.f : 0.f;
 
 	check(Texture);
-	Texture->Acquire(DebugName, PassIndex, CurrentCycle);
+	Texture->Acquire(FRHICommandListImmediate::Get(), DebugName, PassIndex, CurrentCycle);
 	AllocateMemoryInternal(Texture, DebugName, PassIndex, bFastPool, FastPoolPercentageRequested);
 	Stats.AllocateTexture(Texture->GetSize());
 	IF_RHICORE_TRANSIENT_ALLOCATOR_DEBUG(ActiveResources.Emplace(Texture));
@@ -1439,7 +1421,7 @@ FRHITransientBuffer* FRHITransientResourcePageAllocator::CreateBuffer(
 	});
 
 	check(Buffer);
-	Buffer->Acquire(DebugName, PassIndex, CurrentCycle);
+	Buffer->Acquire(FRHICommandListImmediate::Get(), DebugName, PassIndex, CurrentCycle);
 	AllocateMemoryInternal(Buffer, DebugName, PassIndex, EnumHasAnyFlags(CreateInfo.Usage, EBufferUsageFlags::FastVRAM), false);
 	Stats.AllocateBuffer(Buffer->GetSize());
 	IF_RHICORE_TRANSIENT_ALLOCATOR_DEBUG(ActiveResources.Emplace(Buffer));

@@ -215,9 +215,7 @@ class TRDGScopeStack final
 public:
 	using ScopeType = typename ScopeOpType::ScopeType;
 
-	TRDGScopeStack(FRDGAllocator& InAllocator)
-		: Allocator(InAllocator)
-	{}
+	TRDGScopeStack() = default;
 
 	~TRDGScopeStack()
 	{
@@ -231,7 +229,7 @@ public:
 	template <typename... TScopeConstructArgs>
 	inline void BeginScope(TScopeConstructArgs&&... ScopeConstructArgs)
 	{
-		auto Scope = Allocator.AllocNoDestruct<ScopeType>(CurrentScope, Forward<TScopeConstructArgs>(ScopeConstructArgs)...);
+		auto Scope = FRDGAllocator::GetTLS().AllocNoDestruct<ScopeType>(CurrentScope, Forward<TScopeConstructArgs>(ScopeConstructArgs)...);
 		Scopes.Add(Scope);
 		CurrentScope = Scope;
 	}
@@ -269,7 +267,6 @@ public:
 	}
 
 private:
-	FRDGAllocator& Allocator;
 
 	/** The top of the scope stack during setup. */
 	const ScopeType* CurrentScope = nullptr;
@@ -323,9 +320,7 @@ private:
 class FRDGTimingScopeStack final
 {
 public:
-	FRDGTimingScopeStack(FRDGAllocator& Allocator)
-		: ScopeStack(Allocator)
-	{}
+	FRDGTimingScopeStack() = default;
 
 	inline void BeginScope(const DynamicRenderScaling::FBudget& Budget)
 	{
@@ -490,9 +485,8 @@ public:
 class FRDGEventScopeStack final
 {
 public:
-	FRDGEventScopeStack(FRDGAllocator& Allocator)
-		: ScopeStack(Allocator)
-		, bRDGEvents(GetEmitRDGEvents())
+	FRDGEventScopeStack()
+		: bRDGEvents(GetEmitRDGEvents())
 	{}
 
 	inline void BeginScope(FRDGEventName&& EventName, FRHIGPUMask GPUMask, ERDGEventScopeFlags Flags)
@@ -642,10 +636,9 @@ public:
 class FRDGGPUStatScopeStack final
 {
 public:
-	FRDGGPUStatScopeStack(FRDGAllocator& Allocator)
-		: ScopeStack(Allocator)
+	FRDGGPUStatScopeStack()
 #if HAS_GPU_STATS
-		, bGPUStats(AreGPUStatsEnabled())
+		: bGPUStats(AreGPUStatsEnabled())
 #endif
 	{}
 
@@ -750,13 +743,7 @@ struct FRDGGPUScopeOpArrays
 /** The complete set of scope stack implementations. */
 struct FRDGGPUScopeStacks
 {
-	FRDGGPUScopeStacks(FRDGAllocator& Allocator)
-		: Timing(Allocator)
-#if RDG_GPU_DEBUG_SCOPES
-		, Event(Allocator)
-		, Stat(Allocator)
-#endif
-	{}
+	FRDGGPUScopeStacks() = default;
 
 	inline void ReserveOps(int32 PassCount)
 	{
@@ -805,9 +792,7 @@ struct FRDGGPUScopeStacks
 
 struct FRDGGPUScopeStacksByPipeline
 {
-	FRDGGPUScopeStacksByPipeline(FRDGAllocator& Allocator)
-		: Graphics(Allocator)
-		, AsyncCompute(Allocator)
+	FRDGGPUScopeStacksByPipeline()
 	{
 		IsTimingIsEnabled.SetAll(false);
 	}
@@ -836,15 +821,21 @@ struct FRDGGPUScopeStacksByPipeline
 #if RDG_GPU_DEBUG_SCOPES
 	inline void BeginEventScope(FRDGEventName&& ScopeName, FRHIGPUMask GPUMask, ERDGEventScopeFlags Flags)
 	{
-		FRDGEventName ScopeNameCopy = ScopeName;
-		Graphics.Event.BeginScope(MoveTemp(ScopeNameCopy), GPUMask, Flags);
-		AsyncCompute.Event.BeginScope(MoveTemp(ScopeName), GPUMask, Flags);
+		if (!bFinalEventScopeActive)
+		{
+			FRDGEventName ScopeNameCopy = ScopeName;
+			Graphics.Event.BeginScope(MoveTemp(ScopeNameCopy), GPUMask, Flags);
+			AsyncCompute.Event.BeginScope(MoveTemp(ScopeName), GPUMask, Flags);
+		}
 	}
 
 	inline void EndEventScope()
 	{
-		Graphics.Event.EndScope();
-		AsyncCompute.Event.EndScope();
+		if (!bFinalEventScopeActive)
+		{
+			Graphics.Event.EndScope();
+			AsyncCompute.Event.EndScope();
+		}
 	}
 
 	inline void BeginStatScope(const FName& Name, const FName& StatName, const TCHAR* Description, FDrawCallCategoryName& Category)
@@ -879,6 +870,7 @@ struct FRDGGPUScopeStacksByPipeline
 
 	FRDGGPUScopeStacks Graphics;
 	FRDGGPUScopeStacks AsyncCompute;
+	bool bFinalEventScopeActive = false;
 
 private:
 	DynamicRenderScaling::TMap<bool> IsTimingIsEnabled;
@@ -922,9 +914,7 @@ public:
 class FRDGCSVStatScopeStack final
 {
 public:
-	FRDGCSVStatScopeStack(FRDGAllocator& Allocator)
-		: ScopeStack(Allocator)
-	{}
+	FRDGCSVStatScopeStack() = default;
 
 	void BeginScope(const char* StatName)
 	{
@@ -1018,9 +1008,7 @@ struct FRDGCPUScopeOpArrays
 
 struct FRDGCPUScopeStacks
 {
-	FRDGCPUScopeStacks(FRDGAllocator& Allocator)
-		: CSV(Allocator)
-	{}
+	FRDGCPUScopeStacks() = default;
 
 	inline void ReserveOps()
 	{

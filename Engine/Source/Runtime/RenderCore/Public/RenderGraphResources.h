@@ -45,8 +45,6 @@ struct FRDGViewableResourceDebugData;
 /** Used for tracking pass producer / consumer edges in the graph for culling and pipe fencing. */
 struct FRDGProducerState
 {
-	FRDGProducerState() = default;
-
 	FRDGPass* Pass = nullptr;
 	FRDGPass* PassIfSkipUAVBarrier = nullptr;
 	ERHIAccess Access = ERHIAccess::Unknown;
@@ -64,17 +62,23 @@ struct FRDGSubresourceState
 	/** Given a before and after state, returns whether they can be merged into a single state. */
 	static bool IsMergeAllowed(ERDGViewableResourceType ResourceType, const FRDGSubresourceState& Previous, const FRDGSubresourceState& Next);
 
-	FRDGSubresourceState() = default;
+	FRDGSubresourceState()
+		: bReservedCommit(0)
+	{}
 
 	explicit FRDGSubresourceState(ERHIAccess InAccess)
 		: Access(InAccess)
+		, bReservedCommit(0)
 	{}
+
+	explicit FRDGSubresourceState(ERHIPipeline Pipeline, FRDGPassHandle PassHandle)
+		: bReservedCommit(0)
+	{
+		SetPass(Pipeline, PassHandle);
+	}
 
 	/** Initializes the first and last pass and the pipeline. Clears any other pass state. */
 	void SetPass(ERHIPipeline Pipeline, FRDGPassHandle PassHandle);
-
-	/** Finalizes the state at the end of the transition chain; keeps access intact. */
-	void Finalize();
 
 	/** Validates that the state is in a correct configuration for use. */
 	void Validate();
@@ -94,9 +98,6 @@ struct FRDGSubresourceState
 	/** The last used access on the pass. */
 	ERHIAccess Access = ERHIAccess::Unknown;
 
-	/** The last used transition flags on the pass. */
-	EResourceTransitionFlags Flags = EResourceTransitionFlags::None;
-
 	/** The first pass in this state. */
 	FRDGPassHandlesByPipeline FirstPass;
 
@@ -105,10 +106,15 @@ struct FRDGSubresourceState
 
 	/** The last no-UAV barrier to be used by this subresource. */
 	FRDGViewUniqueFilter NoUAVBarrierFilter;
+
+	/** The last used transition flags on the pass. */
+	EResourceTransitionFlags Flags = EResourceTransitionFlags::None;
+
+	/** Whether this subresource state represents a commit operation for a reserved resource. */
+	uint8 bReservedCommit : 1;
 };
 
-using FRDGTextureSubresourceState = TRDGTextureSubresourceArray<FRDGSubresourceState, FRDGArrayAllocator>;
-using FRDGTextureSubresourceStateIndirect = TRDGTextureSubresourceArray<FRDGSubresourceState*, FRDGArrayAllocator>;
+using FRDGTextureSubresourceState = TRDGTextureSubresourceArray<FRDGSubresourceState*, FRDGArrayAllocator>;
 
 /** Generic graph resource. */
 class FRDGResource
@@ -232,7 +238,6 @@ private:
 	const FRDGParameterStruct ParameterStruct;
 	TRefCountPtr<FRHIUniformBuffer> UniformBufferRHI;
 	FRDGUniformBufferHandle Handle;
-	bool bQueuedForCreate = false;
 	bool bExternal = false;
 
 	friend FRDGBuilder;
@@ -293,12 +298,6 @@ public:
 		return bExternal;
 	}
 
-	/** Whether this resource is allocated through the transient resource allocator. */
-	bool IsTransient() const
-	{
-		return bTransient;
-	}
-
 	/** Whether this resource is has been queued for extraction at the end of graph execution. */
 	bool IsExtracted() const
 	{
@@ -321,6 +320,11 @@ public:
 protected:
 	RENDERCORE_API FRDGViewableResource(const TCHAR* InName, ERDGViewableResourceType InType, bool bSkipTracking, bool bImmediateFirstBarrier);
 
+	bool IsCullRoot() const
+	{
+		return bExternal || bExtracted;
+	}
+
 	static const ERHIAccess DefaultEpilogueAccess = ERHIAccess::SRVMask;
 
 	enum class ETransientExtractionHint : uint8
@@ -328,13 +332,6 @@ protected:
 		None,
 		Disable,
 		Enable
-	};
-
-	enum class EFirstBarrier : uint8
-	{
-		Split,
-		ImmediateRequested,
-		ImmediateConfirmed
 	};
 
 	enum class EAccessMode : uint8
@@ -380,32 +377,44 @@ protected:
 	/** Whether this resource cannot be made transient. */
 	uint8 bForceNonTransient : 1;
 
-	/** Whether this resource is allowed to be both transient and extracted. */
-	ETransientExtractionHint TransientExtractionHint : 2;
+	/** If true, the graph will skip the last graph transition. Used for aliased pooled resources. */
+	uint8 bSkipLastTransition : 1;
 
-	/** Whether this resource is the last owner of its allocation (i.e. nothing aliases the allocation later in the execution timeline). */
-	uint8 bLastOwner : 1;
+	/** If true, this resource should skip the first split barrier and perform transition right away. */
+	uint8 bSplitFirstTransition : 1;
 
 	/** If true, the resource has been queued for an upload operation. */
 	uint8 bQueuedForUpload : 1;
 
-	/** If true, this resource should skip the prologue split barrier and perform transition right away. */
-	EFirstBarrier FirstBarrier : 2;
+	/** If false, the resource needs to be collected. */
+	uint8 bCollectForAllocate : 1;
+
+	/** If true, the reserved resource is having tiles committed. */
+	uint8 bQueuedForReservedCommit : 1;
+
+	/** Whether this resource is allowed to be both transient and extracted. */
+	ETransientExtractionHint TransientExtractionHint;
 
 	FRDGPassHandle FirstPass;
 	FRDGPassHandle LastPass;
-
-	/** The state of the resource at the graph epilogue. */
-	ERHIAccess EpilogueAccess = DefaultEpilogueAccess;
-
-private:
-	static const uint16 DeallocatedReferenceCount = ~0;
+	FRDGPassHandle MinAcquirePass;
+	FRDGPassHandle MinDiscardPass;
+	FRDGPassHandle MaxDiscardPass;
 
 	/** Number of references in passes and deferred queries. */
 	uint16 ReferenceCount;
 
 	/** Scratch index allocated for the resource in the pass being setup. */
 	uint16 PassStateIndex = 0;
+
+	/** Set of aliasing overlaps to apply to the acquire transition if transient. */
+	TArrayView<const FRHITransientAliasingOverlap> AliasingOverlaps;
+
+	/** The state of the resource at the graph epilogue. */
+	ERHIAccess EpilogueAccess = DefaultEpilogueAccess;
+
+private:
+	static const uint16 DeallocatedReferenceCount = ~0;
 
 	void SetExternalAccessMode(ERHIAccess InReadOnlyAccess, ERHIPipeline InPipelines)
 	{
@@ -556,24 +565,7 @@ public:
 	RENDERCORE_API FRDGTextureSubresourceRange GetSubresourceRangeSRV() const;
 
 private:
-	FRDGTexture(const TCHAR* InName, const FRDGTextureDesc& InDesc, ERDGTextureFlags InFlags)
-		: FRDGViewableResource(InName, ERDGViewableResourceType::Texture, EnumHasAnyFlags(InFlags, ERDGTextureFlags::SkipTracking), EnumHasAnyFlags(InFlags, ERDGTextureFlags::ForceImmediateFirstBarrier) || EnumHasAnyFlags(InDesc.Flags, ETextureCreateFlags::Presentable))
-		, Desc(InDesc)
-		, Flags(InFlags)
-		, Layout(InDesc)
-		, WholeRange(Layout)
-		, SubresourceCount(Layout.GetSubresourceCount())
-	{
-		MergeState.Reserve(SubresourceCount);
-		MergeState.SetNum(SubresourceCount);
-		LastProducers.Reserve(SubresourceCount);
-		LastProducers.SetNum(SubresourceCount);
-
-		if (EnumHasAnyFlags(Desc.Flags, ETextureCreateFlags::Foveation))
-		{
-			EpilogueAccess = ERHIAccess::ShadingRateSource;
-		}
-	}
+	FRDGTexture(const TCHAR* InName, const FRDGTextureDesc& InDesc, ERDGTextureFlags InFlags);
 
 	/** Returns RHI texture without access checks. */
 	FRHITexture* GetRHIUnchecked() const
@@ -581,50 +573,44 @@ private:
 		return static_cast<FRHITexture*>(FRDGResource::GetRHIUnchecked());
 	}
 
-	/** Returns the current texture state. Only valid to call after SetRHI. */
-	FRDGTextureSubresourceState& GetState()
-	{
-		check(State);
-		return *State;
-	}
-
-	/** The next texture to own the PooledTexture allocation during execution. */
-	FRDGTextureHandle NextOwner;
-
 	/** The handle registered with the builder. */
 	FRDGTextureHandle Handle;
+
+	/** The previous / next texture to own the PooledTexture allocation during execution. */
+	FRDGTextureHandle PreviousOwner;
+	FRDGTextureHandle NextOwner;
 
 	/** The layout used to facilitate subresource transitions. */
 	FRDGTextureSubresourceLayout Layout;
 	FRDGTextureSubresourceRange  WholeRange;
-	const uint32 SubresourceCount;
+	const uint16 SubresourceCount;
+
+	/** Tracks subresource states as the graph is built. */
+	FRDGTextureSubresourceState State;
+
+	/** Tracks the first state in the graph for each subresource. */
+	FRDGTextureSubresourceState FirstState;
+
+	/** Tracks merged subresource states as the graph is built. */
+	FRDGTextureSubresourceState MergeState;
+
+	/** Tracks pass producers for each subresource as the graph is built. */
+	TRDGTextureSubresourceArray<FRDGProducerStatesByPipeline, FRDGArrayAllocator> LastProducers;
 
 	/** The assigned render target to use during execution. Never reset. */
 	IPooledRenderTarget* RenderTarget = nullptr;
 
-	union
-	{
-		/** The assigned pooled texture to use during execution. Never reset. */
-		FRDGPooledTexture* PooledTexture = nullptr;
+	/** The assigned pooled texture to use during execution. Never reset. */
+	FRDGPooledTexture* PooledTexture = nullptr;
 
-		/** The assigned transient texture to use during execution. Never reset. */
-		FRHITransientTexture* TransientTexture;
-	};
+	/** The assigned transient texture to use during execution. Never reset. */
+	FRHITransientTexture* TransientTexture = nullptr;
 
 	/** The assigned view cache for this texture (sourced from transient / pooled texture). Never reset. */
 	FRHITextureViewCache* ViewCache = nullptr;
 
 	/** Valid strictly when holding a strong reference; use PooledRenderTarget instead. */
 	TRefCountPtr<IPooledRenderTarget> Allocation;
-
-	/** Tracks subresource states as the graph is built. */
-	FRDGTextureSubresourceState* State = nullptr;
-
-	/** Tracks merged subresource states as the graph is built. */
-	FRDGTextureSubresourceStateIndirect MergeState;
-
-	/** Tracks pass producers for each subresource as the graph is built. */
-	TRDGTextureSubresourceArray<FRDGProducerStatesByPipeline, FRDGArrayAllocator> LastProducers;
 
 #if RDG_ENABLE_DEBUG
 	struct FRDGTextureDebugData* TextureDebugData = nullptr;
@@ -1292,11 +1278,7 @@ public:
 	}
 
 private:
-	FRDGBuffer(const TCHAR* InName, const FRDGBufferDesc& InDesc, ERDGBufferFlags InFlags)
-		: FRDGViewableResource(InName, ERDGViewableResourceType::Buffer, EnumHasAnyFlags(InFlags, ERDGBufferFlags::SkipTracking), EnumHasAnyFlags(InFlags, ERDGBufferFlags::ForceImmediateFirstBarrier))
-		, Desc(InDesc)
-		, Flags(InFlags)
-	{}
+	FRDGBuffer(const TCHAR* InName, const FRDGBufferDesc& InDesc, ERDGBufferFlags InFlags);
 
 	FRDGBuffer(const TCHAR* InName, const FRDGBufferDesc& InDesc, ERDGBufferFlags InFlags, FRDGBufferNumElementsCallback&& InNumElementsCallback)
 		: FRDGBuffer(InName, InDesc, InFlags)
@@ -1305,57 +1287,31 @@ private:
 	}
 
 	/** Finalizes any pending field of the buffer descriptor. */
-	void FinalizeDesc()
-	{
-		if (NumElementsCallback)
-		{
-			Desc.NumElements = FMath::Max(NumElementsCallback(), 1u);
-		}
-	}
+	void FinalizeDesc();
 
 	FRHIBuffer* GetRHIUnchecked() const
 	{
 		return static_cast<FRHIBuffer*>(FRDGResource::GetRHIUnchecked());
 	}
 
-	bool IsCulled() const
-	{
-		return FRDGViewableResource::IsCulled() && (PendingCommitSize == 0);
-	}
-
-	/** Returns the current buffer state. Only valid to call after SetRHI. */
-	FRDGSubresourceState& GetState() const
-	{
-		check(State);
-		return *State;
-	}
-
 	/** Registered handle set by the builder. */
 	FRDGBufferHandle Handle;
 
-	/** The next buffer to own the PooledBuffer allocation during execution. */
+	/** The previous / next buffer to own the PooledBuffer allocation during execution. */
+	FRDGBufferHandle PreviousOwner;
 	FRDGBufferHandle NextOwner;
 
-	union
-	{
-		/** Assigned pooled buffer pointer. Never reset once assigned. */
-		FRDGPooledBuffer* PooledBuffer = nullptr;
+	/** Assigned pooled buffer pointer. Never reset once assigned. */
+	FRDGPooledBuffer* PooledBuffer = nullptr;
 
-		/** Assigned transient buffer pointer. Never reset once assigned. */
-		FRHITransientBuffer* TransientBuffer;
-	};
+	/** Assigned transient buffer pointer. Never reset once assigned. */
+	FRHITransientBuffer* TransientBuffer = nullptr;
 
 	/** The assigned buffer view cache (sourced from the pooled / transient buffer. Never reset. */
 	FRHIBufferViewCache* ViewCache = nullptr;
 
 	/** Valid strictly when holding a strong reference; use PooledBuffer instead. */
 	TRefCountPtr<FRDGPooledBuffer> Allocation;
-
-	/** Cached state pointer from the pooled / transient buffer. */
-	FRDGSubresourceState* State = nullptr;
-
-	/** Tracks the merged subresource state as the graph is built. */
-	FRDGSubresourceState* MergeState = nullptr;
 
 	/** Tracks the last pass that produced this resource as the graph is built. */
 	FRDGProducerStatesByPipeline LastProducer;
@@ -1365,6 +1321,15 @@ private:
 
 	/** Optional reserved resource commit size to apply on the first resource transition. */
 	uint64 PendingCommitSize = 0;
+
+	/** Cached state pointer from the pooled / transient buffer. */
+	FRDGSubresourceState* State = nullptr;
+
+	/** Tracks the first state in the graph for this buffer. */
+	FRDGSubresourceState* FirstState = nullptr;
+
+	/** Tracks the merged subresource state as the graph is built. */
+	FRDGSubresourceState* MergeState = nullptr;
 
 #if RDG_ENABLE_DEBUG
 	struct FRDGBufferDebugData* BufferDebugData = nullptr;
@@ -1377,12 +1342,6 @@ private:
 	friend FRDGBufferRegistry;
 	friend FRDGAllocator;
 	friend FRDGTrace;
-
-#if RDG_ENABLE_DEBUG
-	// Access to IsCulled() is needed
-	template <typename ResourceRegistryType, typename FunctionType>
-	friend void EnumerateExtendedLifetimeResources(ResourceRegistryType& Registry, FunctionType Function);
-#endif //RDG_ENABLE_DEBUG
 };
 
 /** Render graph tracked buffer SRV. */

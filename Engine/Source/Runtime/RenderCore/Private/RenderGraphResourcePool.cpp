@@ -102,7 +102,7 @@ TRefCountPtr<FRDGPooledBuffer> FRDGBufferPool::FindFreeBuffer(FRHICommandListBas
 		check(PooledBuffer->GetAlignedDesc() == AlignedDesc);
 
 		PooledBuffer->LastUsedFrame = FrameCounter;
-		PooledBuffer->ViewCache.SetDebugName(InDebugName);
+		PooledBuffer->ViewCache.SetDebugName(RHICmdList, InDebugName);
 		PooledBuffer->Name = InDebugName;
 
 	#if !(UE_BUILD_SHIPPING || UE_BUILD_TEST)
