@@ -22,7 +22,7 @@ enum class EOptimusGroomExecDomain : uint8
 
 /** Compute Framework Data Interface for executing kernels over a skinned mesh domain. */
 UCLASS(Category = ComputeFramework)
-class HAIRSTRANDSCORE_API UOptimusGroomExecDataInterface :
+class UOptimusGroomExecDataInterface :
 	public UOptimusComputeDataInterface,
 	public IOptimusDeprecatedExecutionDataInterface
 {

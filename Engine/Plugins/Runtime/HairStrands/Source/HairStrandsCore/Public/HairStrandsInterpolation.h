@@ -91,6 +91,8 @@ void AddGroomCacheUpdatePass(
 
 HAIRSTRANDSCORE_API void ComputeInterpolationWeights(UGroomBindingAsset* BindingAsset, FSkeletalMeshRenderData* TargetRenderData, TArray<FRWBuffer>& TransferedPositions);
 
+HAIRSTRANDSCORE_API FHairGroupPublicData::FVertexFactoryInput ComputeHairStrandsVertexInputData(const FHairGroupInstance* Instance, EGroomViewMode ViewMode);
+
 struct FRDGHairStrandsCullingData
 {
 	bool bCullingResultAvailable = false;

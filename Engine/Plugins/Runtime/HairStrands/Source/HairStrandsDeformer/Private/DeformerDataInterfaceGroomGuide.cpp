@@ -13,6 +13,7 @@
 #include "GlobalRenderResources.h"
 #include "HairStrandsDefinitions.h"
 #include "DeformerGroomComponentSource.h"
+#include "HairStrandsInterpolation.h"
 
 FString UOptimusGroomGuideDataInterface::GetDisplayName() const
 {
@@ -170,7 +171,6 @@ void FOptimusGroomGuideDataProviderProxy::AllocateResources(FRDGBuilder& GraphBu
 	}
 }
 
-FHairGroupPublicData::FVertexFactoryInput ComputeHairStrandsVertexInputData(const FHairGroupInstance* Instance, EGroomViewMode ViewMode);
 void FOptimusGroomGuideDataProviderProxy::GatherDispatchData(FDispatchData const& InDispatchData)
 {
 	const uint32 InstanceCount = GroomComponent ? GroomComponent->GetGroupCount() : 0;

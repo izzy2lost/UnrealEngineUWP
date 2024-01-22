@@ -13,7 +13,7 @@ class UGroomComponent;
 
 /** Compute Framework Data Interface for reading groom. */
 UCLASS(Category = ComputeFramework)
-class HAIRSTRANDSCORE_API UOptimusGroomDataInterface : public UOptimusComputeDataInterface
+class UOptimusGroomDataInterface : public UOptimusComputeDataInterface
 {
 	GENERATED_BODY()
 

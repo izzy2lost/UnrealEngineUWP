@@ -277,9 +277,9 @@ struct FHairStrandsDeformedResource : public FHairCommonResource
 	//bool NeedsToUpdateTangent();
 
 	// Return deformer buffers
-	FRDGExternalBuffer& GetDeformerBuffer(FRDGBuilder& GraphBuilder);
-	FRDGExternalBuffer& GetDeformerCurveAttributeBuffer(FRDGBuilder& GraphBuilder);
-	FRDGExternalBuffer& GetDeformerPointAttributeBuffer(FRDGBuilder& GraphBuilder);
+	HAIRSTRANDSCORE_API FRDGExternalBuffer& GetDeformerBuffer(FRDGBuilder& GraphBuilder);
+	HAIRSTRANDSCORE_API FRDGExternalBuffer& GetDeformerCurveAttributeBuffer(FRDGBuilder& GraphBuilder);
+	HAIRSTRANDSCORE_API FRDGExternalBuffer& GetDeformerPointAttributeBuffer(FRDGBuilder& GraphBuilder);
 };
 
 

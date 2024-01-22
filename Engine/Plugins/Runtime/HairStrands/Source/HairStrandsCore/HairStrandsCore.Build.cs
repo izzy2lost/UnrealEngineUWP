@@ -23,9 +23,7 @@ namespace UnrealBuildTool.Rules
 					"Renderer",
 					"VectorVM",
 					"RHI",
-					"StaticMeshDescription",
-					"ComputeFramework",
-					"OptimusCore",
+					"StaticMeshDescription"
 				});
 
 			PrivateIncludePathModuleNames.AddRange(

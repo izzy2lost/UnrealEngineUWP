@@ -2,35 +2,31 @@
 
 #pragma once
 
+#include "RenderGraphDefinitions.h"
 #include "OptimusComputeDataInterface.h"
+#include "HairStrandsInterface.h"
 #include "ComputeFramework/ComputeDataProvider.h"
-#include "DeformerDataInterfaceGroomWrite.generated.h"
+#include "DeformerDataInterfaceGroomGuide.generated.h"
 
-class FGroomWriteDataInterfaceParameters;
-struct FHairGroupInstance;
-class FRDGBuffer;
-class FRDGBufferSRV;
-class FRDGBufferUAV;
+class FGroomGuideDataInterfaceParameters;
 class UGroomComponent;
 
-/** Compute Framework Data Interface for writing skinned mesh. */
+/** Compute Framework Data Interface for reading groom guides. */
 UCLASS(Category = ComputeFramework)
-class HAIRSTRANDSCORE_API UOptimusGroomWriteDataInterface : public UOptimusComputeDataInterface
+class UOptimusGroomGuideDataInterface : public UOptimusComputeDataInterface
 {
 	GENERATED_BODY()
 
 public:
 	//~ Begin UOptimusComputeDataInterface Interface
 	FString GetDisplayName() const override;
-	FName GetCategory() const override;
 	TArray<FOptimusCDIPinDefinition> GetPinDefinitions() const override;
 	TSubclassOf<UActorComponent> GetRequiredComponentClass() const override;
 	//~ End UOptimusComputeDataInterface Interface
 	
 	//~ Begin UComputeDataInterface Interface
-	TCHAR const* GetClassName() const override { return TEXT("GroomWrite"); }
+	TCHAR const* GetClassName() const override { return TEXT("Groom"); }
 	void GetSupportedInputs(TArray<FShaderFunctionDefinition>& OutFunctions) const override;
-	void GetSupportedOutputs(TArray<FShaderFunctionDefinition>& OutFunctions) const override;
 	void GetShaderParameters(TCHAR const* UID, FShaderParametersMetadataBuilder& InOutBuilder, FShaderParametersMetadataAllocations& InOutAllocations) const override;
 	TCHAR const* GetShaderVirtualPath() const override;
 	void GetShaderHash(FString& InOutKey) const override;
@@ -42,27 +38,25 @@ private:
 	static TCHAR const* TemplateFilePath;
 };
 
-/** Compute Framework Data Provider for writing skinned mesh. */
+/** Compute Framework Data Provider for reading groom. */
 UCLASS(BlueprintType, editinlinenew, Category = ComputeFramework)
-class UOptimusGroomWriteDataProvider : public UComputeDataProvider
+class UOptimusGroomGuideDataProvider : public UComputeDataProvider
 {
 	GENERATED_BODY()
 
 public:
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = Binding)
-	TObjectPtr<UGroomComponent> GroomComponent = nullptr;
-
-	uint64 OutputMask = 0;
+	TObjectPtr<UGroomComponent> Groom = nullptr;
 
 	//~ Begin UComputeDataProvider Interface
 	FComputeDataProviderRenderProxy* GetRenderProxy() override;
 	//~ End UComputeDataProvider Interface
 };
 
-class FOptimusGroomWriteDataProviderProxy : public FComputeDataProviderRenderProxy
+class FOptimusGroomGuideDataProviderProxy : public FComputeDataProviderRenderProxy
 {
 public:
-	FOptimusGroomWriteDataProviderProxy(UGroomComponent* InGroomComponent, uint64 InOutputMask);
+	FOptimusGroomGuideDataProviderProxy(UGroomComponent* InGroomComponent);
 
 	//~ Begin FComputeDataProviderRenderProxy Interface
 	bool IsValid(FValidationData const& InValidationData) const override;
@@ -71,22 +65,10 @@ public:
 	//~ End FComputeDataProviderRenderProxy Interface
 
 private:
-	using FParameters = FGroomWriteDataInterfaceParameters;
+	using FParameters = FGroomGuideDataInterfaceParameters;
 
-	TArray<FHairGroupInstance*> Instances;
-	uint64 OutputMask = 0;
+	UGroomComponent* GroomComponent = nullptr;
+	TArray<FHairStrandsInstanceResourceParameters> Resources;
+	FRDGBufferSRVRef FallbackSRV;
 
-	struct FResources
-	{
-		FRDGBufferSRV* PositionOffsetBufferSRV = nullptr;
-		FRDGBufferSRV* PositionBufferSRV = nullptr;
-		FRDGBufferUAV* PositionBufferUAV = nullptr;
-		FRDGBufferSRV* PositionBufferSRV_fallback = nullptr;
-		FRDGBufferUAV* PositionBufferUAV_fallback = nullptr;
-
-		FRDGBufferUAV* PointAttributeBufferUAV = nullptr;
-		FRDGBufferUAV* CurveAttributeBufferUAV = nullptr;
-		FRDGBufferUAV* AttributeBufferUAV_fallback = nullptr;
-	};
-	TArray<FResources> Resources;
 };

@@ -15,6 +15,7 @@
 #include "DeformerGroomComponentSource.h"
 #include "RenderGraphUtils.h"
 #include "SystemTextures.h"
+#include "HairStrandsInterpolation.h"
 
 FString UOptimusGroomWriteDataInterface::GetDisplayName() const
 {
@@ -264,7 +265,6 @@ void FOptimusGroomWriteDataProviderProxy::AllocateResources(FRDGBuilder& GraphBu
 	}
 }
 
-FHairGroupPublicData::FVertexFactoryInput ComputeHairStrandsVertexInputData(const FHairGroupInstance* Instance, EGroomViewMode ViewMode);
 void FOptimusGroomWriteDataProviderProxy::GatherDispatchData(FDispatchData const& InDispatchData)
 {
 	const TStridedView<FParameters> ParameterArray = MakeStridedParameterView<FParameters>(InDispatchData);
