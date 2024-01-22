@@ -831,16 +831,12 @@ void UKismetRenderingLibrary::EndDrawCanvasToRenderTarget(UObject* WorldContextO
 		{
 			FTextureRenderTargetResource* RenderTargetResource = Context.RenderTarget->GameThread_GetRenderTargetResource();
 
-			// Note: If multisampled, it should have already been resolved by ~FCanvasRenderThreadScope()
-			if (!RenderTargetResource->GetRenderTargetTexture()->GetDesc().IsMultisample())
-			{
-				ENQUEUE_RENDER_COMMAND(CanvasRenderTargetResolveCommand)(
-					[RenderTargetResource](FRHICommandListImmediate& RHICmdList)
-					{
-						TransitionAndCopyTexture(RHICmdList, RenderTargetResource->GetRenderTargetTexture(), RenderTargetResource->TextureRHI, {});
-					}
-				);
-			}
+			ENQUEUE_RENDER_COMMAND(CanvasRenderTargetResolveCommand)(
+				[RenderTargetResource](FRHICommandListImmediate& RHICmdList)
+				{
+					TransitionAndCopyTexture(RHICmdList, RenderTargetResource->GetRenderTargetTexture(), RenderTargetResource->TextureRHI, {});
+				}
+			);
 
 #if WANTS_DRAW_MESH_EVENTS
 			STOP_DRAW_EVENT_GAMETHREAD(*Context.DrawEvent);
