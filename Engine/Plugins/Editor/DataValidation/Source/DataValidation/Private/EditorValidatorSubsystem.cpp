@@ -626,7 +626,7 @@ void UEditorValidatorSubsystem::ValidateOnSave(TArray<FAssetData> AssetDataList,
 		return;
 	}
 
-	if ((!bValidateAssetsWhileSavingForCook && bProceduralSave))
+	if (bProceduralSave)
 	{
 		return;
 	}
@@ -668,7 +668,7 @@ void UEditorValidatorSubsystem::ValidateSavedPackage(FName PackageName, bool bPr
 	}
 
 	// For performance reasons, don't validate when making a procedural save by default. Assumption is we validated when saving previously. 
-	if ((!bValidateAssetsWhileSavingForCook && bProceduralSave))
+	if (bProceduralSave)
 	{
 		return;
 	}

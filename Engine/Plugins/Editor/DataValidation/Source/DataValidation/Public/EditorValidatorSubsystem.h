@@ -380,10 +380,6 @@ protected:
 	UPROPERTY(Transient)
 	TMap<FTopLevelAssetPath, TObjectPtr<UEditorValidatorBase>> Validators;
 
-	/** Specifies whether or not to validate assets on save when saving for a cook */
-	UPROPERTY(config)
-	bool bValidateAssetsWhileSavingForCook;
-
 	/** Specifies whether or not to allow Blueprint validators */
 	UPROPERTY(config)
 	bool bAllowBlueprintValidators;
