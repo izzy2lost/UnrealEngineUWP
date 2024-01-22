@@ -67,6 +67,9 @@ enum class EDefaultAudioCompressionType : uint8
 
 	// Encodes the asset to a platform specific format and will be different depending on the platform. It does not currently support seeking.
 	PlatformSpecific,
+
+	// As BinkAudio, except better quality. Comparable CPU usage on newer platforms, higher CPU on older platforms.
+	RadAudio
 };
 
 

@@ -172,6 +172,7 @@ public class Engine : ModuleRules
 		}
 
 		// Cross platform Audio Codecs: (we build here, but don't depend on them directly)
+		DynamicallyLoadedModuleNames.Add("RadAudioDecoder");
 		DynamicallyLoadedModuleNames.Add("BinkAudioDecoder");
 		DynamicallyLoadedModuleNames.Add("VorbisAudioDecoder");
 		DynamicallyLoadedModuleNames.Add("OpusAudioDecoder");

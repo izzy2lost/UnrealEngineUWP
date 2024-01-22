@@ -53,6 +53,7 @@ namespace Audio {
 	inline FName NAME_ADPCM(TEXT("ADPCM"));
 	inline FName NAME_PCM(TEXT("PCM"));
 	inline FName NAME_OPUS(TEXT("OPUS"));
+	inline FName NAME_RADA(TEXT("RADA"));
 
 	// Not yet supported on all platforms as a selectable option so is included under "platform specific" enumeration for now. 
 	inline FName NAME_OGG(TEXT("OGG"));
