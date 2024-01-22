@@ -742,6 +742,13 @@ UObject* ULevelSequence::CreateDirectorInstance(IMovieScenePlayer& Player, FMovi
 	ULevelSequencePlayer* LevelSequencePlayer = Cast<ULevelSequencePlayer>(Player.AsUObject());
 	UObject*              DirectorOuter       = LevelSequencePlayer ? LevelSequencePlayer : Player.GetPlaybackContext();
 
+#if WITH_EDITOR
+	if (!UMovieScene::IsTrackClassAllowed(ULevelSequenceDirector::StaticClass()))
+	{
+		return nullptr;
+	}
+#endif
+
 	if (DirectorClass && DirectorOuter && DirectorClass->IsChildOf(ULevelSequenceDirector::StaticClass()))
 	{
 		FName DirectorName = NAME_None;
