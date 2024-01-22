@@ -1798,7 +1798,7 @@ UInterchangeManager::ImportInternal(const FString& ContentPath, const UInterchan
 				for (const FInterchangeTranslatorPipelines& TranslatorPipelines : PipelineStack.PerTranslatorPipelines)
 				{
 					const UClass* TranslatorClass = TranslatorPipelines.Translator.LoadSynchronous();
-					if (ScopedTranslator.GetTranslator()->IsA(TranslatorClass))
+					if (ScopedTranslator.GetTranslator() && ScopedTranslator.GetTranslator()->IsA(TranslatorClass))
 					{
 						Pipelines = &TranslatorPipelines.Pipelines;
 						break;
