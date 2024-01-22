@@ -45,10 +45,7 @@ struct CONTROLRIG_API FRigModuleConnector
 	FRigModuleConnector()
 	{}
 
-	bool operator==(const FRigModuleConnector& Other) const
-	{
-		return Name == Other.Name && GetTypeHash(Settings) == GetTypeHash(Other.Settings);
-	}
+	bool operator==(const FRigModuleConnector& Other) const;
 
 	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = Connector)
 	FString Name;
