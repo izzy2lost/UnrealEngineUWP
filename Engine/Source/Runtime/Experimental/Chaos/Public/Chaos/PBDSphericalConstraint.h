@@ -407,6 +407,16 @@ PRAGMA_ENABLE_DEPRECATION_WARNINGS
 		return bUseLegacyBackstop;
 	}
 
+	FSolverReal GetBackstopRadius(int32 ConstraintIndex) const
+	{
+		return SphereRadii.Num() == ParticleCount ? BackstopRadiusBase + BackstopRadiusRange * SphereRadii[ConstraintIndex] : BackstopRadiusBase;
+	}
+
+	FSolverReal GetBackstopDistance(int32 ConstraintIndex) const
+	{
+		return SphereOffsetDistances.Num() == ParticleCount ? BackstopDistanceBase + BackstopDistanceRange * SphereOffsetDistances[ConstraintIndex] : BackstopDistanceBase;
+	}
+
 private:
 
 	template<bool bHasBackstopDistance, bool bHasBackstopRadius, typename SolverParticlesOrRange>
