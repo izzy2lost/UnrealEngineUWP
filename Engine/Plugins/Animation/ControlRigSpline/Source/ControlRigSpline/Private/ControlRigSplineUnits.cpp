@@ -182,17 +182,6 @@ FRigUnit_TransformFromControlRigSpline_Execute()
 	Transform.SetTranslation(Spline.PositionAtParam(U));
 }
 
-FRigVMStructUpgradeInfo FRigUnit_TransformFromControlRigSpline::GetUpgradeInfo() const
-{
-	FRigUnit_TransformFromControlRigSpline2 NewNode;
-	NewNode.Spline = Spline; 
-	NewNode.U = U; 
-	NewNode.SecondaryAxis = UpVector; 
-	NewNode.Transform = Transform; 
-
-	return FRigVMStructUpgradeInfo(*this, NewNode);
-}
-
 FRigUnit_TransformFromControlRigSpline2_Execute()
 {
 	if (!Spline.SplineData.IsValid())
