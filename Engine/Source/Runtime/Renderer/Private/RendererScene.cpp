@@ -2945,6 +2945,12 @@ void FScene::AddDecal(UDecalComponent* Component)
 		// Create the decals's scene proxy.
 		Component->SceneProxy = Component->CreateSceneProxy();
 
+		// If there is no scene proxy then don't add to scene
+		if (!Component->SceneProxy)
+		{
+			return;
+		}
+
 		INC_DWORD_STAT(STAT_SceneDecals);
 
 		// Send a command to the rendering thread to add the light to the scene.

@@ -12,7 +12,9 @@
 #include "TimerManager.h"
 #include "SceneManagement.h"
 #include "SceneView.h"
+#include "LocalVertexFactory.h"
 #include "Materials/MaterialInstanceDynamic.h"
+#include "MarkActorRenderStateDirtyTask.h"
 
 #include UE_INLINE_GENERATED_CPP_BY_NAME(DecalComponent)
 
@@ -298,7 +300,46 @@ void UDecalComponent::SetDecalMaterial(class UMaterialInterface* NewDecalMateria
 {
 	DecalMaterial = NewDecalMaterial;
 
+	PrecachePSOs();
+
 	MarkRenderStateDirty();	
+}
+
+void UDecalComponent::PostLoad()
+{
+	Super::PostLoad();
+
+	PrecachePSOs();
+}
+
+void UDecalComponent::PrecachePSOs()
+{
+#if UE_WITH_PSO_PRECACHING
+	if (!FApp::CanEverRender() || !IsComponentPSOPrecachingEnabled())
+	{
+		return;
+	}
+
+	// clear the current request data
+	PSOPrecacheCompileEvent = nullptr;
+
+	if (DecalMaterial)
+	{
+		FPSOPrecacheParams PSOPrecacheParams;		
+		FPSOPrecacheVertexFactoryDataList VertexFactoryDataList;		
+		VertexFactoryDataList.Add(FPSOPrecacheVertexFactoryData(&FLocalVertexFactory::StaticType));
+
+		// Immediately create at high priority and thus doesn't need boosting anymore
+		TArray<FMaterialPSOPrecacheRequestID> MaterialPSOPrecacheRequestIDs;
+		FGraphEventArray GraphEvents = DecalMaterial->PrecachePSOs(VertexFactoryDataList, PSOPrecacheParams, EPSOPrecachePriority::High, MaterialPSOPrecacheRequestIDs);
+
+		// Request recreate of the render state when the PSO compilation is ready (if we want to delay proxy creation)
+		if (GraphEvents.Num() > 0 && GetPSOPrecacheProxyCreationStrategy() != EPSOPrecacheProxyCreationStrategy::AlwaysCreate)
+		{
+			PSOPrecacheCompileEvent = TGraphTask<FMarkActorRenderStateDirtyTask>::CreateTask(&GraphEvents).ConstructAndDispatchWhenReady(this);
+		}
+	}
+#endif
 }
 
 void UDecalComponent::PushSelectionToProxy()
@@ -339,6 +380,15 @@ void UDecalComponent::GetUsedMaterials( TArray<UMaterialInterface*>& OutMaterial
 FDeferredDecalProxy* UDecalComponent::CreateSceneProxy()
 {
 	LLM_SCOPE(ELLMTag::SceneRender);
+
+#if UE_WITH_PSO_PRECACHING
+	if (PSOPrecacheCompileEvent && !PSOPrecacheCompileEvent->IsComplete() && GetPSOPrecacheProxyCreationStrategy() == EPSOPrecacheProxyCreationStrategy::DelayUntilPSOPrecached)
+	{
+		return nullptr;
+	}
+	PSOPrecacheCompileEvent = nullptr;
+#endif // UE_WITH_PSO_PRECACHING
+
 	return new FDeferredDecalProxy(this);
 }
 

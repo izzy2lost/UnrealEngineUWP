@@ -50,6 +50,7 @@
 #include "PSOPrecacheMaterial.h"
 #include "MaterialCachedData.h"
 #include "MaterialShared.h"
+#include "MarkActorRenderStateDirtyTask.h"
 
 #if WITH_EDITOR
 #include "Engine/LODActor.h"
@@ -4639,32 +4640,6 @@ void UPrimitiveComponent::SetupPrecachePSOParams(FPSOPrecacheParams& Params)
 	}
 }
 
-class FMarkRenderStateDirtyTask
-{
-public:
-	explicit FMarkRenderStateDirtyTask(UPrimitiveComponent* InPrimitiveComponent)
-		: PrimitiveComponent(InPrimitiveComponent)
-	{
-	}
-
-	void DoTask(ENamedThreads::Type CurrentThread, const FGraphEventRef& MyCompletionGraphEvent)
-	{
-		if (PrimitiveComponent.IsValid())
-		{
-			PrimitiveComponent->MarkRenderStateDirty();
-			PrimitiveComponent = nullptr;
-		}
-	}
-
-public:
-
-	TWeakObjectPtr<UPrimitiveComponent> PrimitiveComponent;
-
-	static ESubsequentsMode::Type	GetSubsequentsMode() { return ESubsequentsMode::TrackSubsequents; }
-	ENamedThreads::Type				GetDesiredThread() { return ENamedThreads::GameThread; }
-	FORCEINLINE TStatId				GetStatId() const { return TStatId(); }
-};
-
 void UPrimitiveComponent::PrecachePSOs()
 {
 #if UE_WITH_PSO_PRECACHING
@@ -4698,7 +4673,7 @@ void UPrimitiveComponent::RequestRecreateRenderStateWhenPSOPrecacheFinished(cons
 	// schedule a task to mark the render state dirty when all PSOs are compiled so the proxy gets recreated.
 	if (UsePSOPrecacheRenderProxyDelay() && GetPSOPrecacheProxyCreationStrategy() != EPSOPrecacheProxyCreationStrategy::AlwaysCreate && !PSOPrecacheCompileEvents.IsEmpty())
 	{
-		PSOPrecacheCompileEvent = TGraphTask<FMarkRenderStateDirtyTask>::CreateTask(&PSOPrecacheCompileEvents).ConstructAndDispatchWhenReady(this);
+		PSOPrecacheCompileEvent = TGraphTask<FMarkActorRenderStateDirtyTask>::CreateTask(&PSOPrecacheCompileEvents).ConstructAndDispatchWhenReady(this);
 	}
 
 	bPSOPrecacheCalled = true;
