@@ -49,11 +49,7 @@ void FRayTracingScene::Create(FRDGBuilder& GraphBuilder, const FViewInfo& View, 
 
 void FRayTracingScene::InitPreViewTranslation(const FViewMatrices& ViewMatrices)
 {
-	const FLargeWorldRenderPosition AbsoluteViewOrigin(ViewMatrices.GetViewOrigin());
-	const FVector ViewTileOffset = AbsoluteViewOrigin.GetTileOffset();
-
-	RelativePreViewTranslation = ViewMatrices.GetPreViewTranslation() + ViewTileOffset;
-	ViewTilePosition = AbsoluteViewOrigin.GetTile();
+	PreViewTranslation = FDFVector3(ViewMatrices.GetPreViewTranslation());
 }
 
 void FRayTracingScene::CreateWithInitializationData(FRDGBuilder& GraphBuilder, const FViewInfo& View, const FGPUScene* GPUScene, FRayTracingSceneWithGeometryInstances SceneWithGeometryInstances)
@@ -230,8 +226,7 @@ void FRayTracingScene::CreateWithInitializationData(FRDGBuilder& GraphBuilder, c
 			[PassParams,
 			this,
 			GPUScene,
-			ViewTilePosition = ViewTilePosition,
-			RelativePreViewTranslation = RelativePreViewTranslation,
+			PreViewTranslation = PreViewTranslation,
 			&SceneInitializer,
 			NumNativeGPUSceneInstances = SceneWithGeometryInstances.NumNativeGPUSceneInstances,
 			NumNativeCPUInstances = SceneWithGeometryInstances.NumNativeCPUInstances,
@@ -275,8 +270,7 @@ void FRayTracingScene::CreateWithInitializationData(FRDGBuilder& GraphBuilder, c
 				BuildRayTracingInstanceBuffer(
 					RHICmdList,
 					GPUScene,
-					ViewTilePosition,
-					FVector3f(RelativePreViewTranslation),
+					PreViewTranslation,
 					PassParams->InstanceBuffer->GetRHI(),
 					InstanceUploadSRV,
 					AccelerationStructureAddressesBuffer.SRV,

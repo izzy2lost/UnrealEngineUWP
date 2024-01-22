@@ -321,7 +321,7 @@ void CollideWithDepthBuffer(
 	in float Resilience
 	)
 {
-	float3 InPosition = LWCToFloat(LWCAdd(InPosition_LWC, PrimaryView.PreViewTranslation));
+	float3 InPosition = LWCToFloat(LWCAdd(InPosition_LWC, PrimaryView.TileOffset.PreViewTranslation));
 
 	// Integration assuming no collision.
 	float3 MidVelocity = InVelocity.xyz + 0.5f * Acceleration;
@@ -354,7 +354,7 @@ void CollideWithDepthBuffer(
 			// in the view frustum. To avoid this, we disable the collision test if one of the derivate is above a threshold.
 			if (max(abs(SceneDepth - SceneDepth0), abs(SceneDepth - SceneDepth1)) > CollisionDepthBounds)
 			{
-				NewPosition_LWC = LWCSubtract(NewPosition, PrimaryView.PreViewTranslation);
+				NewPosition_LWC = LWCSubtract(NewPosition, PrimaryView.TileOffset.PreViewTranslation);
 				return;
 			}
 #endif
@@ -439,7 +439,7 @@ void CollideWithDepthBuffer(
 		}
 	}
 
-	NewPosition_LWC = LWCSubtract(NewPosition, PrimaryView.PreViewTranslation);
+	NewPosition_LWC = LWCSubtract(NewPosition, PrimaryView.TileOffset.PreViewTranslation);
 }
 #endif // #if DEPTH_BUFFER_COLLISION
 
@@ -459,7 +459,7 @@ void CollideWithDistanceField(
 	in float Resilience
 	)
 {
-	float3 InPosition = LWCToFloat(LWCAdd(InPosition_LWC, PrimaryView.PreViewTranslation));
+	float3 InPosition = LWCToFloat(LWCAdd(InPosition_LWC, PrimaryView.TileOffset.PreViewTranslation));
 
 	// Integration assuming no collision.
 	float3 MidVelocity = InVelocity.xyz + 0.5f * Acceleration;
@@ -518,7 +518,7 @@ void CollideWithDistanceField(
 		}
 	}
 
-	NewPosition_LWC = LWCSubtract(NewPosition, PrimaryView.PreViewTranslation);
+	NewPosition_LWC = LWCSubtract(NewPosition, PrimaryView.TileOffset.PreViewTranslation);
 }
 
 #endif

@@ -138,9 +138,10 @@ void ComputeHeterogeneousVolumeBakeMaterial(
 		PassParameters->Scene = View.GetSceneUniforms().GetBuffer(GraphBuilder);
 
 		// Object data
-		FMatrix44f LocalToWorld = FMatrix44f(HeterogeneousVolumeInterface->GetLocalToWorld());
-		PassParameters->LocalToWorld = LocalToWorld;
-		PassParameters->WorldToLocal = LocalToWorld.Inverse();
+		FVector3f ViewOriginHigh = FDFVector3(View.ViewMatrices.GetViewOrigin()).High;
+		FMatrix44f RelativeLocalToWorld = FDFMatrix::MakeToRelativeWorldMatrix(ViewOriginHigh, HeterogeneousVolumeInterface->GetLocalToWorld()).M;
+		PassParameters->LocalToWorld = RelativeLocalToWorld;
+		PassParameters->WorldToLocal = RelativeLocalToWorld.Inverse();
 		PassParameters->LocalBoundsOrigin = FVector3f(LocalBoxSphereBounds.Origin);
 		PassParameters->LocalBoundsExtent = FVector3f(LocalBoxSphereBounds.BoxExtent);
 		PassParameters->PrimitiveId = PersistentPrimitiveIndex.Index;

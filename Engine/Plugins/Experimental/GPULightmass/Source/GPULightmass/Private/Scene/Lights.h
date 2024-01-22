@@ -15,7 +15,7 @@ class FSkyLightImportanceSamplingData;
 
 struct FLightShaderConstants
 {
-	FVector3f	RelativeWorldPosition;
+	FVector3f	PositionHigh;
 	float		InvRadius;
 	FVector3f	Color;
 	float		FalloffExponent;
@@ -23,7 +23,7 @@ struct FLightShaderConstants
 	float		SpecularScale;
 	FVector3f	Tangent;
 	float		SourceRadius;
-	FVector3f	TilePosition;
+	FVector3f	PositionLow;
 	float		SourceLength;
 	FVector2f	SpotAngles;
 	float		SoftSourceRadius;
@@ -34,9 +34,9 @@ struct FLightShaderConstants
 
 	FLightShaderConstants(const FLightRenderParameters& LightShaderParameters)
 	{
-		const FLargeWorldRenderPosition AbsoluteWorldPosition(LightShaderParameters.WorldPosition);
+		const FDFVector3 AbsoluteWorldPosition(LightShaderParameters.WorldPosition);
 
-		RelativeWorldPosition = AbsoluteWorldPosition.GetOffset();
+		PositionHigh = AbsoluteWorldPosition.High;
 		InvRadius = LightShaderParameters.InvRadius;
 		Color = FVector3f(LightShaderParameters.Color);
 		FalloffExponent = LightShaderParameters.FalloffExponent;
@@ -44,7 +44,7 @@ struct FLightShaderConstants
 		SpecularScale = LightShaderParameters.SpecularScale;
 		Tangent = LightShaderParameters.Tangent;
 		SourceRadius = LightShaderParameters.SourceRadius;
-		TilePosition = AbsoluteWorldPosition.GetTile();
+		PositionLow = AbsoluteWorldPosition.Low;
 		SourceLength = LightShaderParameters.SourceLength;
 		SpotAngles = LightShaderParameters.SpotAngles;
 		SoftSourceRadius = LightShaderParameters.SoftSourceRadius;

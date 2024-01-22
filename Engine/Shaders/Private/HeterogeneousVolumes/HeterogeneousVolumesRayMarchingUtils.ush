@@ -333,7 +333,7 @@ float3 ComputeInscattering(
 	float3 ToLight = L * 10000;
 
 	float LightAttenuation = 1.0;
-	float3 TranslatedWorldPosition = LWCHackToFloat(LWCAdd(WorldPosition, PrimaryView.PreViewTranslation));
+	float3 TranslatedWorldPosition = DFFastToTranslatedWorld(WorldPosition, PrimaryView.PreViewTranslation);
 	if (LightType != LIGHT_TYPE_DIRECTIONAL)
 	{
 		LightAttenuation = GetLocalLightAttenuation(TranslatedWorldPosition, LightData, ToLight, L);
@@ -411,7 +411,7 @@ void RayMarchSingleScattering(
 
 #if DIM_USE_LUMEN_GI
 			float3 TranslucencyEvaluationPosition = WorldPosition;
-			FTwoBandSHVectorRGB TranslucencyGISH = GetTranslucencyGIVolumeLighting(LWCPromote(TranslucencyEvaluationPosition), PrimaryView.WorldToClip, true);
+			FTwoBandSHVectorRGB TranslucencyGISH = GetTranslucencyGIVolumeLighting(DFPromote(TranslucencyEvaluationPosition), PrimaryView.WorldToClip, true);
 
 			FTwoBandSHVector RotatedHGZonalHarmonic;
 			float3 CameraVector = normalize(RayMarchingContext.WorldRayDirection);

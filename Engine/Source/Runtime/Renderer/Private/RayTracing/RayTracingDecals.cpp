@@ -56,7 +56,7 @@ IMPLEMENT_GLOBAL_SHADER_PARAMETER_STRUCT(FRayTracingDecals, "RayTracingDecals");
 BEGIN_GLOBAL_SHADER_PARAMETER_STRUCT(FDecalParametersRayTracing, )
 	SHADER_PARAMETER(FMatrix44f, WorldToDecal)
 	SHADER_PARAMETER(FMatrix44f, DecalToWorld)
-	SHADER_PARAMETER(FVector3f, DecalTilePosition)
+	SHADER_PARAMETER(FVector3f, DecalPositionHigh)
 	SHADER_PARAMETER(FVector3f, DecalToWorldInvScale)
 	SHADER_PARAMETER(FVector3f, DecalOrientation)
 	SHADER_PARAMETER(FVector2f, DecalParams)
@@ -74,17 +74,17 @@ static TUniformBufferRef<FDecalParametersRayTracing> CreateDecalParametersBuffer
 {
 	FDecalParametersRayTracing Parameters;
 
-	const FLargeWorldRenderPosition AbsoluteOrigin(View.ViewMatrices.GetInvViewMatrix().GetOrigin());
-	const FVector3f TilePosition = AbsoluteOrigin.GetTile();
-	const FMatrix WorldToDecalMatrix = DecalData.Proxy.ComponentTrans.ToInverseMatrixWithScale();
 	const FMatrix DecalToWorldMatrix = DecalData.Proxy.ComponentTrans.ToMatrixWithScale();
-	const FMatrix44f RelativeDecalToWorldMatrix = FLargeWorldRenderScalar::MakeToRelativeWorldMatrix(AbsoluteOrigin.GetTileOffset(), DecalToWorldMatrix);
+	const FMatrix WorldToDecalMatrix = DecalData.Proxy.ComponentTrans.ToInverseMatrixWithScale();
+	const FDFVector3 AbsoluteOrigin(DecalToWorldMatrix.GetOrigin());
+	const FVector3f PositionHigh = AbsoluteOrigin.High;
+	const FMatrix44f RelativeDecalToWorldMatrix = FDFMatrix::MakeToRelativeWorldMatrix(PositionHigh, DecalToWorldMatrix).M;
 	const FVector3f OrientationVector = (FVector3f)DecalData.Proxy.ComponentTrans.GetUnitAxis(EAxis::X);
 
-	Parameters.DecalTilePosition = TilePosition;
+	Parameters.DecalPositionHigh = PositionHigh;
 	Parameters.WorldToDecal = FMatrix44f(FTranslationMatrix(-View.ViewMatrices.GetPreViewTranslation()) * WorldToDecalMatrix);
 	Parameters.DecalToWorld = RelativeDecalToWorldMatrix;
-	Parameters.DecalToWorldInvScale = RelativeDecalToWorldMatrix.GetScaleVector().Reciprocal();
+	Parameters.DecalToWorldInvScale = static_cast<FVector3f>(DecalToWorldMatrix.GetScaleVector().Reciprocal());
 	Parameters.DecalOrientation = OrientationVector;
 	Parameters.DecalColorParam = DecalData.DecalColor;
 

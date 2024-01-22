@@ -600,7 +600,7 @@ FMaterialPixelParameters GetMaterialPixelParameters(FVertexFactoryInterpolantsVS
 
 half3x3 CalcTangentToWorldNoScale(FVertexFactoryIntermediates Intermediates, half3x3 TangentToLocal)
 {
-	half3x3 LocalToWorld = LWCToFloat3x3(GetInstanceData(Intermediates).LocalToWorld);
+	half3x3 LocalToWorld = DFToFloat3x3(GetInstanceData(Intermediates).LocalToWorld);
 	half3 InvScale = GetInstanceData(Intermediates).InvNonUniformScale;
 	LocalToWorld[0] *= InvScale.x;
 	LocalToWorld[1] *= InvScale.y;
@@ -629,14 +629,14 @@ FMaterialVertexParameters GetMaterialVertexParameters(FVertexFactoryInput Input,
 
 #if USE_INSTANCING
 	float4x4 InstanceToLocal = GetInstanceTransform(Intermediates);
-	Result.InstanceLocalToWorld = LWCMultiply(InstanceToLocal, PrimitiveData.LocalToWorld);
+	Result.InstanceLocalToWorld = DFMultiply(InstanceToLocal, PrimitiveData.LocalToWorld);
 	Result.InstanceLocalPosition = Input.Position.xyz;
 	#if	NEEDS_PER_INSTANCE_PARAMS
 	Result.PerInstanceParams = Intermediates.PerInstanceParams;
 	#endif
 	Result.InstanceId = GetInstanceId(Input.InstanceId); 
 	Result.InstanceOffset = InstanceOffset;
-	Result.PrevFrameLocalToWorld = LWCMultiply(GetInstancePrevTransform(Intermediates), PrimitiveData.PreviousLocalToWorld);
+	Result.PrevFrameLocalToWorld = DFMultiply(GetInstancePrevTransform(Intermediates), PrimitiveData.PreviousLocalToWorld);
 	Result.PerInstanceRandom = GetInstanceRandom(Intermediates);
 
 	// Calculate derived world to local
@@ -656,7 +656,7 @@ FMaterialVertexParameters GetMaterialVertexParameters(FVertexFactoryInput Input,
 		LocalToInstance			 = transpose(LocalToInstance);
 		LocalToInstance[3].xyz	 = mul(float4(-InstanceToLocal[3].xyz, 0.0f), LocalToInstance).xyz;
 
-		Result.InstanceWorldToLocal = LWCMultiply(PrimitiveData.WorldToLocal, LocalToInstance);
+		Result.InstanceWorldToLocal = DFMultiply(PrimitiveData.WorldToLocal, LocalToInstance);
 	}
 #else
 	Result.PrevFrameLocalToWorld = InstanceData.PrevLocalToWorld;
@@ -736,10 +736,13 @@ FMaterialVertexParameters GetMaterialVertexParameters(FVertexFactoryInput Input,
 #if ENABLE_NEW_HLSL_GENERATOR
 	EvaluateVertexMaterialAttributes(Result);
 #endif
+
+	Result.LWCData = MakeMaterialLWCData(Result);
+
 	return Result;
 }
 
-float4 CalcWorldPosition(FVertexFactoryIntermediatesCommon Intermediates, float4 Position, FLWCMatrix LocalToWorld)
+float4 CalcWorldPosition(FVertexFactoryIntermediatesCommon Intermediates, float4 Position, FDFMatrix LocalToWorld)
 {
 #if USE_INSTANCING
 	return TransformLocalToTranslatedWorld(mul(Position, GetInstanceTransform(Intermediates)).xyz, LocalToWorld);
@@ -808,7 +811,7 @@ half3x3 CalcTangentToLocal(FVertexFactoryInput Input, FVertexFactoryIntermediate
 half3x3 CalcTangentToWorld(FVertexFactoryIntermediates Intermediates, half3x3 TangentToLocal)
 {
 #if USE_INSTANCING
-	half3x3 InstanceToWorld = mul(GetInstanceToLocal3x3(Intermediates), LWCToFloat3x3(GetInstanceData(Intermediates).LocalToWorld));
+	half3x3 InstanceToWorld = mul(GetInstanceToLocal3x3(Intermediates), DFToFloat3x3(GetInstanceData(Intermediates).LocalToWorld));
 	// remove scaling
 	InstanceToWorld[0] = normalize(InstanceToWorld[0]);
 	InstanceToWorld[1] = normalize(InstanceToWorld[1]);
@@ -971,7 +974,7 @@ FVertexFactoryIntermediates GetVertexFactoryIntermediates(FVertexFactoryInput In
 	const float InstanceViewDistSq = Square(InstanceViewDistance);
 #else
 	// get the "instance" view distance from the primitive bounding center
-	const float InstanceViewDistSq = length2(LWCToFloat(LWCAdd(PrimitiveData.ObjectWorldPosition, ResolvedView.PreViewTranslation)));
+	const float InstanceViewDistSq = length2(DFFastToTranslatedWorld(PrimitiveData.ObjectWorldPosition, ResolvedView.PreViewTranslation));
 #endif // USE_INSTANCING
 
 #if !USE_INSTANCE_CULLING && USES_WORLD_POSITION_OFFSET && !ALWAYS_EVALUATE_WORLD_POSITION_OFFSET && (FEATURE_LEVEL > FEATURE_LEVEL_ES3_1)
@@ -1024,7 +1027,7 @@ half3x3 VertexFactoryGetTangentToLocal( FVertexFactoryInput Input, FVertexFactor
 // @return translated world position
 float4 VertexFactoryGetWorldPosition(FVertexFactoryInput Input, FVertexFactoryIntermediates Intermediates)
 {
-	FLWCMatrix LocalToWorld = GetInstanceData(Intermediates).LocalToWorld;
+	FDFMatrix LocalToWorld = GetInstanceData(Intermediates).LocalToWorld;
 
 	// Scale to zero if not visible, seems a bit wild but whatever
 	return CalcWorldPosition(Intermediates.Common, Input.Position, LocalToWorld) * Intermediates.IsVisible;
@@ -1143,7 +1146,7 @@ FVertexFactoryInterpolantsVSToPS VertexFactoryGetInterpolantsVSToPS(FVertexFacto
 float4 VertexFactoryGetWorldPosition(FPositionOnlyVertexFactoryInput Input)
 {
 	FVertexFactoryIntermediatesCommon Intermediates = LOCALVF_GET_COMMON_INTERMEDIATES(Input);
-	FLWCMatrix LocalToWorld = GetInstanceData(Intermediates).LocalToWorld;
+	FDFMatrix LocalToWorld = GetInstanceData(Intermediates).LocalToWorld;
 
 	return CalcWorldPosition(Intermediates, Input.Position, LocalToWorld);
 }
@@ -1152,7 +1155,7 @@ float4 VertexFactoryGetWorldPosition(FPositionOnlyVertexFactoryInput Input)
 float4 VertexFactoryGetWorldPosition(FPositionAndNormalOnlyVertexFactoryInput Input)
 {
 	FVertexFactoryIntermediatesCommon Intermediates = LOCALVF_GET_COMMON_INTERMEDIATES(Input);
-	FLWCMatrix LocalToWorld = GetInstanceData(Intermediates).LocalToWorld;
+	FDFMatrix LocalToWorld = GetInstanceData(Intermediates).LocalToWorld;
 
 	return CalcWorldPosition(Intermediates, Input.Position, LocalToWorld);
 }
@@ -1160,7 +1163,7 @@ float4 VertexFactoryGetWorldPosition(FPositionAndNormalOnlyVertexFactoryInput In
 float3 VertexFactoryGetWorldNormal(FPositionAndNormalOnlyVertexFactoryInput Input)
 {
 	FVertexFactoryIntermediatesCommon Intermediates = LOCALVF_GET_COMMON_INTERMEDIATES(Input);
-	FLWCMatrix LocalToWorld = GetInstanceData(Intermediates).LocalToWorld;
+	FDFMatrix LocalToWorld = GetInstanceData(Intermediates).LocalToWorld;
 	float3 InvScale = GetInstanceData(Intermediates).InvNonUniformScale;
 	float3 Normal = Input.Normal.xyz;
 
@@ -1180,7 +1183,7 @@ float3 VertexFactoryGetWorldNormal(FVertexFactoryInput Input, FVertexFactoryInte
 // @return previous translated world position
 float4 VertexFactoryGetPreviousWorldPosition(FVertexFactoryInput Input, FVertexFactoryIntermediates Intermediates)
 {
-	FLWCMatrix PreviousLocalToWorld = GetInstanceData(Intermediates).PrevLocalToWorld;
+	FDFMatrix PreviousLocalToWorld = GetInstanceData(Intermediates).PrevLocalToWorld;
 	float4 PrevLocalPosition = Input.Position;
 
 #if SUPPORT_GPUSKIN_PASSTHROUGH
@@ -1313,7 +1316,7 @@ float4 VertexFactoryGetInstanceHitProxyId(FVertexFactoryInput Input, FVertexFact
 float4 VertexFactoryGetTranslatedPrimitiveVolumeBounds(FVertexFactoryInterpolantsVSToPS Interpolants)
 {
 	FPrimitiveSceneData PrimitiveData = GetPrimitiveData(GetPrimitiveId(Interpolants));
-	return float4(LWCToFloat(LWCAdd(PrimitiveData.ObjectWorldPosition, ResolvedView.PreViewTranslation)), PrimitiveData.ObjectRadius);
+	return float4(DFFastToTranslatedWorld(PrimitiveData.ObjectWorldPosition, ResolvedView.PreViewTranslation), PrimitiveData.ObjectRadius);
 }
 
 uint VertexFactoryGetPrimitiveId(FVertexFactoryInterpolantsVSToPS Interpolants)

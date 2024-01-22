@@ -46,12 +46,14 @@ struct FPackedView
 	FIntVector4	ViewRect;
 	FVector4f	ViewSizeAndInvSize;
 	FVector4f	ClipSpaceScaleOffset;
-	FVector3f	RelativePreViewTranslation;
-	float		ViewTilePositionX;
-	FVector3f	RelativePrevPreViewTranslation;
-	float		ViewTilePositionY;
-	FVector3f	RelativeWorldCameraOrigin;
-	float		ViewTilePositionZ;
+	FVector3f	PreViewTranslationHigh;
+	float		ViewOriginHighX;
+	FVector3f	PrevPreViewTranslationHigh;
+	float		ViewOriginHighY;
+	FVector3f	PrevPreViewTranslationLow;
+	float		MinBoundsRadiusSq;
+	FVector3f	ViewOriginLow;
+	float		ViewOriginHighZ;
 	FVector3f	CullingViewOriginTranslatedWorld;
 	float		RangeBasedCullingDistance;
 	FVector3f	ViewForward;
@@ -59,19 +61,18 @@ struct FPackedView
 
 	FVector4f	TranslatedGlobalClipPlane;
 
-	FVector3f	MatrixTilePosition;
+	FVector3f	PreViewTranslationLow;
 	float		CullingViewScreenMultiple;
 
 	FVector2f	LODScales;
-	float		MinBoundsRadiusSq;
+	uint32		InstanceOcclusionQueryMask;
 	uint32		StreamingPriorityCategory_AndFlags;
 
 	FIntVector4 TargetLayerIdX_AndMipLevelY_AndNumMipLevelsZ;
 
 	FIntVector4	HZBTestViewRect;	// In full resolution
 
-	uint32 InstanceOcclusionQueryMask;
-	uint32 Padding[3];
+	
 
 	/**
 	 * Calculates the LOD scales assuming view size and projection is already set up.

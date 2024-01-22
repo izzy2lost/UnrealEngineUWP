@@ -305,7 +305,7 @@ void GetMaterialPayload(
   #endif // SUBSTRATE_OPTIMIZED_UNLIT
 
 	Payload.Radiance += EmissiveLuminance;
-	Payload.TranslatedWorldPos = LWCToFloat(LWCAdd(MaterialParameters.AbsoluteWorldPosition, ResolvedView.PreViewTranslation));
+	Payload.TranslatedWorldPos = DFFastToTranslatedWorld(MaterialParameters.AbsoluteWorldPosition, ResolvedView.PreViewTranslation);
 
 	// SUBSTRATE_TODO Payload.Ior when available (accounting for REFRACTION_USE_INDEX_OF_REFRACTION and REFRACTION_ROOT_NODE_OVERRIDES_DEFAULT)
 
@@ -341,7 +341,7 @@ void GetMaterialPayload(
 	/**
 	 * Set material attributes for full materials
 	 **/
-	Payload.TranslatedWorldPos = LWCToFloat(LWCAdd(MaterialParameters.AbsoluteWorldPosition, ResolvedView.PreViewTranslation));
+	Payload.TranslatedWorldPos = DFFastToTranslatedWorld(MaterialParameters.AbsoluteWorldPosition, ResolvedView.PreViewTranslation);
 	Payload.WorldNormal = normalize(MaterialParameters.WorldNormal);
 	Payload.Radiance = GetMaterialEmissive(PixelMaterialInputs);
 	Payload.BaseColor = BaseColor;
@@ -412,9 +412,9 @@ void GetMaterialPayload(
 #if MATERIAL_SHADINGMODEL_SINGLELAYERWATER
 	if (Payload.ShadingModelID == SHADINGMODELID_SINGLELAYERWATER)
 	{
-		const float3 ScatteringCoeff = max(0.0f, LWCToFloat(GetSingleLayerWaterMaterialOutput0(MaterialParameters)));
-		const float3 AbsorptionCoeff = max(0.0f, LWCToFloat(GetSingleLayerWaterMaterialOutput1(MaterialParameters)));
-		const float PhaseG = clamp(LWCToFloat(GetSingleLayerWaterMaterialOutput2(MaterialParameters)), -1.0f, 1.0f);
+		const float3 ScatteringCoeff = max(0.0f, DFDemote(GetSingleLayerWaterMaterialOutput0(MaterialParameters)));
+		const float3 AbsorptionCoeff = max(0.0f, DFDemote(GetSingleLayerWaterMaterialOutput1(MaterialParameters)));
+		const float PhaseG = clamp(DFDemote(GetSingleLayerWaterMaterialOutput2(MaterialParameters)), -1.0f, 1.0f);
 
 		const float3 WaterExtinction = ScatteringCoeff + AbsorptionCoeff;
 		const float3 WaterAlbedo = ScatteringCoeff / WaterExtinction;
@@ -450,7 +450,7 @@ void GetMaterialPayload(
 	float3 VolumetricLightmapBrickTextureUVs;
 		
 	#if PRECOMPUTED_IRRADIANCE_VOLUME_LIGHTING
-		VolumetricLightmapBrickTextureUVs = ComputeVolumetricLightmapBrickTextureUVs(LWCHackToFloat(MaterialParameters.AbsoluteWorldPosition)); // RT_LWC_TODO
+	VolumetricLightmapBrickTextureUVs = ComputeVolumetricLightmapBrickTextureUVs(WSHackToFloat(GetWorldPosition(MaterialParameters))); // RT_LWC_TODO
 	#endif
 
 	VTPageTableResult LightmapVTPageTableResult = (VTPageTableResult)0.0f;

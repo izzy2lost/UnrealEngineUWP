@@ -288,9 +288,9 @@ struct FVertexFactoryIntermediates
 	float3 InvNonUniformScale;
 	float DeterminantSign;
 
-	FLWCMatrix LocalToWorld;
-	FLWCInverseMatrix WorldToLocal;
-	FLWCMatrix PrevLocalToWorld;
+	FDFMatrix LocalToWorld;
+	FDFInverseMatrix WorldToLocal;
+	FDFMatrix PrevLocalToWorld;
 
 	// Blend Matrix (used for position/tangents)
 	FBoneMatrix BlendMatrix;
@@ -333,7 +333,7 @@ FMaterialVertexParameters GetMaterialVertexParameters(FVertexFactoryInput Input,
 	Result.SceneData = Intermediates.SceneData;
 	Result.WorldPosition = WorldPosition;
 	Result.VertexColor = Intermediates.Color;
-	Result.TangentToWorld = mul(TangentToLocal, LWCToFloat3x3(Intermediates.LocalToWorld));
+	Result.TangentToWorld = mul(TangentToLocal, DFToFloat3x3(Intermediates.LocalToWorld));
 	Result.PreSkinnedPosition = Intermediates.UnpackedPosition.xyz;
 	Result.PreSkinnedNormal = Input.TangentZ.xyz;
 
@@ -360,6 +360,9 @@ FMaterialVertexParameters GetMaterialVertexParameters(FVertexFactoryInput Input,
 #if ENABLE_NEW_HLSL_GENERATOR
 	EvaluateVertexMaterialAttributes(Result);
 #endif
+
+	Result.LWCData = MakeMaterialLWCData(Result);
+
 	return Result;
 }
 
@@ -837,7 +840,7 @@ float3 VertexFactoryGetPositionForVertexLighting(FVertexFactoryInput Input, FVer
 
 void CalcTangentToWorld(FVertexFactoryInput Input, FVertexFactoryIntermediates Intermediates, out float3 TangentToWorld0, out float4 TangentToWorld2)
 {
-	float3x3 LocalToWorld = LWCToFloat3x3(Intermediates.LocalToWorld);
+	float3x3 LocalToWorld = DFToFloat3x3(Intermediates.LocalToWorld);
 
 	// Remove scaling.
 	half3 InvScale = Intermediates.InvNonUniformScale;

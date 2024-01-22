@@ -360,7 +360,7 @@ FVirtualShadowMapSampleResult TraceLocalLight(
 		// Move from PrimaryView translated world to Shadow translated world
 		// NOTE: Cube map faces all share the same PreViewTranslation and projection depth scale
 		FVirtualShadowMapProjectionShaderData ProjectionData = GetVirtualShadowMapProjectionData(OffsetVirtualShadowMapId);
-		const float3 PrimaryToShadowTranslation = LWCToFloat(LWCSubtract(ProjectionData.PreViewTranslation, PrimaryView.PreViewTranslation));
+		const float3 PrimaryToShadowTranslation = DFFastLocalSubtractDemote(ProjectionData.PreViewTranslation, PrimaryView.PreViewTranslation);
 		const float3 ShadowTranslatedWorld = TranslatedWorldPosition + PrimaryToShadowTranslation;
 
 		const float2 DepthSlopeUV = ComputeDepthSlopeLocalUV(OffsetVirtualShadowMapId, ShadowTranslatedWorld, WorldNormal);

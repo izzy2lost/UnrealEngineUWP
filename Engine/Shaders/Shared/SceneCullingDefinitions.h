@@ -46,7 +46,7 @@ inline FCellHeader UnpackCellHeader(FPackedCellHeader Packed)
 
 struct FCellBlockData
 {
-	FLWCVector3 WorldPos;
+	FDFVector3 WorldPos;
 	float LevelCellSize; // Note, not the block size, but the cell size.
 	uint Pad;
 };

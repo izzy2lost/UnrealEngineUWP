@@ -300,7 +300,7 @@ float3 PackNormalAndWPONew(WaveOutput inWave)
 	return packedoutput;
 }
 
-WaveOutput GetSingleGerstnerWaveNew(int InWaveIndex, FWaterBodyData InWaterBodyData, float InTime, FLWCVector2 InWorldPos)
+WaveOutput GetSingleGerstnerWaveNew(int InWaveIndex, FWaterBodyData InWaterBodyData, float InTime, FDFVector2 InWorldPos)
 {
 	WaveOutput OutWave = (WaveOutput)0;
 		
@@ -313,12 +313,12 @@ WaveOutput GetSingleGerstnerWaveNew(int InWaveIndex, FWaterBodyData InWaterBodyD
 
 	// Use the offset of the normalized tile as world position.
 	// Doing proper LWC math is both more expensive and leads to less smooth/precise results.
-	InWorldPos = LWCNormalizeTile(InWorldPos);
-	float2 WorldPos = InWorldPos.Offset;
-
+	FLWCVector2 LWCWorldPos = DFToTileOffset_Hack(InWorldPos);
+	float2 WorldPos = LWCWorldPos.Offset;	
+	
 	float WavePos = dot(WorldPos, WaveVector) - WaveTime;
-	float WaveSin = sin(WavePos);
-	float WaveCos = cos(WavePos);
+	float WaveSin, WaveCos;
+	sincos(WavePos, WaveSin, WaveCos);
 
 	// Fix up tile borders by blending between them
 	const float2 TileBorderDist = (UE_LWC_RENDER_TILE_SIZE * 0.5f) - abs(WorldPos);
@@ -355,7 +355,7 @@ WaveOutput GetSingleGerstnerWaveNew(int InWaveIndex, FWaterBodyData InWaterBodyD
 		
 }
 
-WaveOutput GetAllGerstnerWavesNew(int InWaterBodyIndex, float InTime, FLWCVector2 InWorldPos)
+WaveOutput GetAllGerstnerWavesNew(int InWaterBodyIndex, float InTime, FDFVector2 InWorldPos)
 {		
 	WaveOutput OutWaves = (WaveOutput)0;
 	WaveOutput CurrentWave = (WaveOutput)0;
@@ -373,8 +373,10 @@ WaveOutput GetAllGerstnerWavesNew(int InWaterBodyIndex, float InTime, FLWCVector
 	OutWaves.Normal = FinalizeNormalNew(OutWaves.Normal);
 	return OutWaves;
 }
+
+WaveOutput GetAllGerstnerWavesNew(int InWaterBodyIndex, float InTime, FLWCVector2 InWorldPos) { return GetAllGerstnerWavesNew(InWaterBodyIndex, InTime, DFFromTileOffset(InWorldPos)); }
 	
-WaveOutput GetRangeGerstnerWavesNew(int InMinWaveIndex, int InMaxWaveIndex, int InWaterBodyIndex, float InTime, FLWCVector2 InWorldPos)
+WaveOutput GetRangeGerstnerWavesNew(int InMinWaveIndex, int InMaxWaveIndex, int InWaterBodyIndex, float InTime, FDFVector2 InWorldPos)
 {
 	WaveOutput OutWaves = (WaveOutput)0;
 	WaveOutput CurrentWave = (WaveOutput)0;
@@ -397,7 +399,7 @@ WaveOutput GetRangeGerstnerWavesNew(int InMinWaveIndex, int InMaxWaveIndex, int 
 	return OutWaves;
 }
 
-WaveOutputs GetPerFrequencyGerstnerWavesNew(int LowFrequencyMaxIndex, int MiddleFrequencyMaxIndex, int InWaterBodyIndex, float InTime, FLWCVector2 InWorldPos)
+WaveOutputs GetPerFrequencyGerstnerWavesNew(int LowFrequencyMaxIndex, int MiddleFrequencyMaxIndex, int InWaterBodyIndex, float InTime, FDFVector2 InWorldPos)
 {
 	const int NumWaves = GetWaterBodyData(InWaterBodyIndex).NumWaves;
 	// Correct bad user input. Further input handling is done internally inside GetRangeGerstnerWavesNew to ensure the index ranges are valid for the number of waves in a given water body.
@@ -410,6 +412,11 @@ WaveOutputs GetPerFrequencyGerstnerWavesNew(int LowFrequencyMaxIndex, int Middle
 	Result.AllWaves = AddWavesNew(Result.LowFrequency, AddWavesNew(Result.HighFrequency, Result.MiddleFrequency));
 
 	return Result;
+}
+
+WaveOutputs GetPerFrequencyGerstnerWavesNew(int LowFrequencyMaxIndex, int MiddleFrequencyMaxIndex, int InWaterBodyIndex, float InTime, FLWCVector2 InWorldPos)
+{
+	return GetPerFrequencyGerstnerWavesNew(LowFrequencyMaxIndex, MiddleFrequencyMaxIndex, InWaterBodyIndex, InTime, DFFromTileOffset(InWorldPos));
 }
 
 /** Returns the wave attenuation factor according to a given water body and a given water depth. Should match the CPU version (GetWaveAttenuationFactor) */

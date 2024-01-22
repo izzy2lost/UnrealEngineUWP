@@ -2156,7 +2156,7 @@ public:
 				[this](int32 Index, const FCellBlockData& HostValue, const FCellBlockData &GPUValue) 
 				{
 					check(GPUValue.LevelCellSize == HostValue.LevelCellSize); 
-					check(GPUValue.WorldPos.GetAbsolute() == HostValue.WorldPos.GetAbsolute()); 
+					check(GPUValue.WorldPos.GetVector3d() == HostValue.WorldPos.GetVector3d());
 					check(GPUValue.Pad == HostValue.Pad); 
 					check(GPUValue.Pad == 0xDeafBead); 				
 				});
@@ -2256,7 +2256,7 @@ public:
 				}
 #endif
 				SpatialHashMap.RemoveByElementId(BlockIndex);
-				BlockData.WorldPos = TLargeWorldRenderPosition<float>();
+				BlockData.WorldPos = FDFVector3{};
 				BlockData.LevelCellSize = 0.0f;
 			}
 			else
@@ -2265,7 +2265,7 @@ public:
 				FVector3d BlockWorldPos = SpatialHash.CalcBlockWorldPosition(BlockLoc);
 
 				SceneCulling.BlockLevelOccupancyMask[BlockLoc.GetLevel()] = true;
-				BlockData.WorldPos = TLargeWorldRenderPosition<float>{ BlockWorldPos };
+				BlockData.WorldPos = FDFVector3{ BlockWorldPos };
 				BlockData.LevelCellSize = SpatialHash.GetCellSize(BlockLoc.GetLevel() - FSpatialHash::CellBlockDimLog2);
 			}
 			// Keep host/GPU in sync (mostly for validation/debugging purposes)

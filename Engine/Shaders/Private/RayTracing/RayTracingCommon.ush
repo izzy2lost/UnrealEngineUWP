@@ -418,15 +418,15 @@ void ApplyCameraRelativeDepthBias(inout float3 RayOrigin, float3 RayDirection, u
 
 float3 TranslatedWorldToTLASWorld(float3 TranslatedWorldPosition)
 {
-	const FLWCVector3 TLASPreViewTranslation = MakeLWCVector3(-View.TLASViewTilePosition, View.TLASRelativePreViewTranslation);
-	const float3 TLASWorldPosition = TranslatedWorldPosition - LWCToFloat(LWCSubtract(PrimaryView.PreViewTranslation, TLASPreViewTranslation));
+	const FDFVector3 TLASPreViewTranslation = MakeDFVector3(View.TLASPreViewTranslationHigh, View.TLASPreViewTranslationLow);
+	const float3 TLASWorldPosition = TranslatedWorldPosition - DFFastSubtractDemote(PrimaryView.PreViewTranslation, TLASPreViewTranslation);
 	return TLASWorldPosition;
 }
 
 float3 TLASWorldToTranslatedWorld(float3 TLASWorldPosition)
 {
-	const FLWCVector3 TLASPreViewTranslation = MakeLWCVector3(-View.TLASViewTilePosition, View.TLASRelativePreViewTranslation);
-	const float3 TranslatedWorldPosition = TLASWorldPosition + LWCToFloat(LWCSubtract(PrimaryView.PreViewTranslation, TLASPreViewTranslation));
+	const FDFVector3 TLASPreViewTranslation = MakeDFVector3(View.TLASPreViewTranslationHigh, View.TLASPreViewTranslationLow);
+	const float3 TranslatedWorldPosition = TLASWorldPosition + DFFastSubtractDemote(PrimaryView.PreViewTranslation, TLASPreViewTranslation);
 	return TranslatedWorldPosition;
 }
 

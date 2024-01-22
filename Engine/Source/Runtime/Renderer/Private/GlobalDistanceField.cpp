@@ -1409,8 +1409,8 @@ class FCullObjectsToClipmapCS : public FGlobalShader
 		SHADER_PARAMETER(uint32, AcceptOftenMovingObjectsOnly)
 		SHADER_PARAMETER(uint32, NumPackedClipmaps)
 		SHADER_PARAMETER(uint32, ObjectIndexBufferStride)
-		SHADER_PARAMETER(FVector3f, ViewTilePosition)
-		SHADER_PARAMETER(FVector3f, RelativePreViewTranslation)
+		SHADER_PARAMETER(FVector3f, PreViewTranslationHigh)
+		SHADER_PARAMETER(FVector3f, PreViewTranslationLow)
 	END_SHADER_PARAMETER_STRUCT()
 
 	class FReadbackHasPendingStreaming : SHADER_PERMUTATION_BOOL("READBACK_HAS_PENDING_STREAMING");
@@ -1528,8 +1528,8 @@ class FCullObjectsToGridCS : public FGlobalShader
 		SHADER_PARAMETER(FVector3f, CullGridCoordToTranslatedWorldCenterBias)
 		SHADER_PARAMETER(FVector3f, CullTileWorldExtent)
 		SHADER_PARAMETER(float, InfluenceRadiusSq)
-		SHADER_PARAMETER(FVector3f, ViewTilePosition)
-		SHADER_PARAMETER(FVector3f, RelativePreViewTranslation)
+		SHADER_PARAMETER(FVector3f, PreViewTranslationHigh)
+		SHADER_PARAMETER(FVector3f, PreViewTranslationLow)
 		SHADER_PARAMETER(uint32, PackedClipmapIndex)
 		SHADER_PARAMETER(uint32, ObjectIndexBufferStride)
 	END_SHADER_PARAMETER_STRUCT()
@@ -1564,8 +1564,8 @@ BEGIN_SHADER_PARAMETER_STRUCT(FGlobalDistanceFieldUpdateParameters, )
 	SHADER_PARAMETER(FVector3f, ComposeTileWorldExtent)
 	SHADER_PARAMETER(FVector3f, ClipmapMinBounds)
 	SHADER_PARAMETER(uint32, PageTableClipmapOffsetZ)
-	SHADER_PARAMETER(FVector3f, ViewTilePosition)
-	SHADER_PARAMETER(FVector3f, RelativePreViewTranslation)
+	SHADER_PARAMETER(FVector3f, PreViewTranslationHigh)
+	SHADER_PARAMETER(FVector3f, PreViewTranslationLow)
 END_SHADER_PARAMETER_STRUCT()
 
 class FCompositeObjectsIntoObjectGridPagesCS : public FGlobalShader
@@ -1719,8 +1719,8 @@ class FAllocatePagesCS : public FGlobalShader
 		SHADER_PARAMETER(FIntVector, CullGridResolution)
 		SHADER_PARAMETER_STRUCT_INCLUDE(FDistanceFieldObjectBufferParameters, DistanceFieldObjectBuffers)
 		SHADER_PARAMETER_STRUCT_INCLUDE(FDistanceFieldAtlasParameters, DistanceFieldAtlas)
-		SHADER_PARAMETER(FVector3f, ViewTilePosition)
-		SHADER_PARAMETER(FVector3f, RelativePreViewTranslation)
+		SHADER_PARAMETER(FVector3f, PreViewTranslationHigh)
+		SHADER_PARAMETER(FVector3f, PreViewTranslationLow)
 	END_SHADER_PARAMETER_STRUCT()
 
 	class FProcessDistanceFields : SHADER_PERMUTATION_BOOL("PROCESS_DISTANCE_FIELDS");
@@ -2089,8 +2089,7 @@ struct FGlobalDistanceFieldPackedClipmap
 	FVector Size;
 	FVector VoxelSize;
 	FVector VoxelExtent;
-	FVector3f ViewTilePosition;
-	FVector3f RelativePreViewTranslation;
+	FDFVector3 PreViewTranslation;
 	FBox TranslatedBounds;
 	float InfluenceRadius;
 	FVector4f VolumeTranslatedWorldToUVAddAndMul;
@@ -2179,12 +2178,10 @@ void UpdateGlobalDistanceFieldCache(
 
 			const FVector ClipmapWorldCenter = Clipmap.Bounds.GetCenter();
 
-			const FLargeWorldRenderPosition AbsoluteViewOrigin(ClipmapWorldCenter);
-			const FVector ViewTileOffset = AbsoluteViewOrigin.GetTileOffset();
 			const FVector PreViewTranslation = -ClipmapWorldCenter;
+			const FDFVector3 PreViewTranslationDF(PreViewTranslation);
 
-			PackedClipmap.ViewTilePosition = AbsoluteViewOrigin.GetTile();
-			PackedClipmap.RelativePreViewTranslation = FVector3f(PreViewTranslation + ViewTileOffset);
+			PackedClipmap.PreViewTranslation = PreViewTranslationDF;
 			PackedClipmap.TranslatedBounds = Clipmap.Bounds.ShiftBy(PreViewTranslation);
 
 			PackedClipmap.Resolution = GlobalDistanceField::GetClipmapResolution(bLumenEnabled);
@@ -2233,8 +2230,8 @@ void UpdateGlobalDistanceFieldCache(
 			PackedClipmap.UpdateParameters.PageCoordToPageTranslatedWorldCenterBias = (FVector3f)PackedClipmap.PageGridCoordToTranslatedWorldCenterBias;
 			PackedClipmap.UpdateParameters.ClipmapVolumeTranslatedWorldToUVAddAndMul = PackedClipmap.VolumeTranslatedWorldToUVAddAndMul;
 			PackedClipmap.UpdateParameters.PageTableClipmapOffsetZ = PackedClipmap.Index * PackedClipmap.PageGridResolution.Z;
-			PackedClipmap.UpdateParameters.ViewTilePosition = PackedClipmap.ViewTilePosition;
-			PackedClipmap.UpdateParameters.RelativePreViewTranslation = PackedClipmap.RelativePreViewTranslation;
+			PackedClipmap.UpdateParameters.PreViewTranslationHigh = PackedClipmap.PreViewTranslation.High;
+			PackedClipmap.UpdateParameters.PreViewTranslationLow = PackedClipmap.PreViewTranslation.Low;
 
 
 			// Upload update bounds data
@@ -2436,11 +2433,11 @@ void UpdateGlobalDistanceFieldCache(
 			PassParameters->DistanceFieldObjectBuffers = DistanceFieldObjectBuffers;
 			PassParameters->DistanceFieldAtlasParameters = DistanceFieldAtlas;
 
-			const FLargeWorldRenderPosition AbsoluteViewOrigin(View.ViewMatrices.GetViewOrigin());
-			const FVector ViewTileOffset = AbsoluteViewOrigin.GetTileOffset();
-			PassParameters->RelativePreViewTranslation = FVector3f(View.ViewMatrices.GetPreViewTranslation() + ViewTileOffset);
-			PassParameters->ViewTilePosition = AbsoluteViewOrigin.GetTile();
 
+			FDFVector3 PreViewTranslation(View.ViewMatrices.GetPreViewTranslation());
+			PassParameters->PreViewTranslationHigh = PreViewTranslation.High;
+			PassParameters->PreViewTranslationLow = PreViewTranslation.Low;
+			
 			FCullObjectsToClipmapCS::FPermutationDomain PermutationVector;
 			PermutationVector.Set<FCullObjectsToClipmapCS::FReadbackHasPendingStreaming>(bAnyClipmapHasPendingStreamingReadback);
 			auto ComputeShader = View.ShaderMap->GetShader<FCullObjectsToClipmapCS>(PermutationVector);
@@ -2587,8 +2584,8 @@ void UpdateGlobalDistanceFieldCache(
 						PassParameters->VisibilitySampler = TStaticSamplerState<SF_Bilinear>::GetRHI();
 						PassParameters->HeightfieldDescriptions = GraphBuilder.CreateSRV(HeightfieldDescriptionBuffer, EPixelFormat::PF_A32B32G32R32F);
 
-						PassParameters->ViewTilePosition = PackedClipmap.ViewTilePosition;
-						PassParameters->RelativePreViewTranslation = PackedClipmap.RelativePreViewTranslation;
+						PassParameters->PreViewTranslationHigh = PackedClipmap.PreViewTranslation.High;
+						PassParameters->PreViewTranslationLow = PackedClipmap.PreViewTranslation.Low;
 
 						auto ComputeShader = View.ShaderMap->GetShader<FMarkHeightfieldPagesCS>();
 
@@ -2687,8 +2684,8 @@ void UpdateGlobalDistanceFieldCache(
 				PassParameters->CullGridCoordToTranslatedWorldCenterBias = (FVector3f)PackedClipmap.CullGridCoordToTranslatedWorldCenterBias;
 				PassParameters->CullTileWorldExtent = (FVector3f)PackedClipmap.CullTileWorldExtent;
 				PassParameters->InfluenceRadiusSq = PackedClipmap.InfluenceRadius * PackedClipmap.InfluenceRadius;
-				PassParameters->ViewTilePosition = PackedClipmap.ViewTilePosition;
-				PassParameters->RelativePreViewTranslation = PackedClipmap.RelativePreViewTranslation;
+				PassParameters->PreViewTranslationHigh = PackedClipmap.PreViewTranslation.High;
+				PassParameters->PreViewTranslationLow = PackedClipmap.PreViewTranslation.Low;
 
 				auto ComputeShader = View.ShaderMap->GetShader<FCullObjectsToGridCS>();
 
@@ -2745,8 +2742,8 @@ void UpdateGlobalDistanceFieldCache(
 			PassParameters->DistanceFieldObjectBuffers = DistanceFieldObjectBuffers;
 			PassParameters->DistanceFieldAtlas = DistanceFieldAtlas;
 
-			PassParameters->ViewTilePosition = PackedClipmap.ViewTilePosition;
-			PassParameters->RelativePreViewTranslation = PackedClipmap.RelativePreViewTranslation;
+			PassParameters->PreViewTranslationHigh = PackedClipmap.PreViewTranslation.High;
+			PassParameters->PreViewTranslationLow = PackedClipmap.PreViewTranslation.Low;
 
 			FAllocatePagesCS::FPermutationDomain PermutationVector;
 			PermutationVector.Set<FAllocatePagesCS::FProcessDistanceFields>(Scene->DistanceFieldSceneData.NumObjectsInBuffer > 0);
@@ -2950,8 +2947,8 @@ void UpdateGlobalDistanceFieldCache(
 							PassParameters->VisibilityTexture = VisibilityTexture ? VisibilityTexture->GetResource()->TextureRHI : GBlackTexture->TextureRHI;
 							PassParameters->VisibilitySampler = TStaticSamplerState<SF_Bilinear>::GetRHI();
 							PassParameters->HeightfieldDescriptions = GraphBuilder.CreateSRV(HeightfieldDescriptionBuffer, EPixelFormat::PF_A32B32G32R32F);
-							PassParameters->ViewTilePosition = PackedClipmap.ViewTilePosition;
-							PassParameters->RelativePreViewTranslation = PackedClipmap.RelativePreViewTranslation;
+							PassParameters->PreViewTranslationHigh = PackedClipmap.PreViewTranslation.High;
+							PassParameters->PreViewTranslationLow = PackedClipmap.PreViewTranslation.Low;
 
 							FComposeHeightfieldsIntoPagesCS::FPermutationDomain PermutationVector;
 							PermutationVector.Set<FComposeHeightfieldsIntoPagesCS::FCompositeCoverageAtlas>(CoverageAtlasTexture != nullptr);
@@ -3013,8 +3010,8 @@ void UpdateGlobalDistanceFieldCache(
 							PassParameters->VisibilityTexture = VisibilityTexture ? VisibilityTexture->GetResource()->TextureRHI : GBlackTexture->TextureRHI;
 							PassParameters->VisibilitySampler = TStaticSamplerState<SF_Bilinear>::GetRHI();
 							PassParameters->HeightfieldDescriptions = GraphBuilder.CreateSRV(HeightfieldDescriptionBuffer, EPixelFormat::PF_A32B32G32R32F);
-							PassParameters->ViewTilePosition = PackedClipmap.ViewTilePosition;
-							PassParameters->RelativePreViewTranslation = PackedClipmap.RelativePreViewTranslation;
+							PassParameters->PreViewTranslationHigh = PackedClipmap.PreViewTranslation.High;
+							PassParameters->PreViewTranslationLow = PackedClipmap.PreViewTranslation.Low;
 
 							auto ComputeShader = View.ShaderMap->GetShader<FCompositeHeightfieldsIntoObjectGridPagesCS>();
 

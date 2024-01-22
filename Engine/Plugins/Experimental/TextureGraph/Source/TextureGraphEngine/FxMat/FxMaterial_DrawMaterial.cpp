@@ -65,7 +65,7 @@ FSceneView* FxMaterial_DrawMaterialBase::CreateSceneView(UTextureRenderTarget2D*
 		);
 
 		// TODO LWC
-		ViewUniformShaderParameters.RelativeWorldViewOrigin = (FVector3f)View->ViewMatrices.GetViewOrigin();
+		ViewUniformShaderParameters.RelativeWorldViewOriginTO = (FVector3f)View->ViewMatrices.GetViewOrigin();
 
 		// Slate materials need this scale to be positive, otherwise it can fail in querying scene textures (e.g., custom stencil)
 		ViewUniformShaderParameters.BufferToSceneTextureScale = FVector2f(1.0f, 1.0f);

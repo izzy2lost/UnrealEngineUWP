@@ -27,10 +27,10 @@ FPrimitiveSceneData LoadPrimitiveDataUBO(uint DrawInstanceId)
 	DataIdx += 3u; 
 #endif
 
-	// TilePosition, Flags
+	// PositionHigh, Flags
 	{
 		float4 Data = LoadPrimitiveDataElementUBO(DrawInstanceId, DataIdx + 0);
-		PrimitiveData.TilePosition = Data.xyz;
+		PrimitiveData.PositionHigh = Data.xyz;
 		PrimitiveData.Flags = asuint(Data.w);
 		DataIdx += 1u;
 	}
@@ -43,7 +43,7 @@ FPrimitiveSceneData LoadPrimitiveDataUBO(uint DrawInstanceId)
 			LoadPrimitiveDataElementUBO(DrawInstanceId, DataIdx+2),
 			float4(0, 0, 0, 1)
 		));
-		PrimitiveData.LocalToWorld = MakeLWCMatrix4x3(PrimitiveData.TilePosition, LocalToRelativeWorld);
+		PrimitiveData.LocalToWorld = MakeDFMatrix4x3(PrimitiveData.PositionHigh, LocalToRelativeWorld);
 		DataIdx += 3u;
 	}
 
@@ -61,16 +61,18 @@ FPrimitiveSceneData LoadPrimitiveDataUBO(uint DrawInstanceId)
 	// ObjectWorldPosition, Radius
 	{
 		float4 Data = LoadPrimitiveDataElementUBO(DrawInstanceId, DataIdx+0);
-		PrimitiveData.ObjectWorldPosition = MakeLWCVector3(PrimitiveData.TilePosition, Data.xyz);
+		float4 Data2 = LoadPrimitiveDataElementUBO(DrawInstanceId, DataIdx+1);
+		PrimitiveData.ObjectWorldPosition = MakeDFVector3(Data.xyz, Data2.xyz);
 		PrimitiveData.ObjectRadius = Data.w;
-		DataIdx += 1u;
+		DataIdx += 2u;
 	}
 
 	// ActorWorldPosition, TODO .w
 	{
 		float4 Data = LoadPrimitiveDataElementUBO(DrawInstanceId, DataIdx+0);
-		PrimitiveData.ActorWorldPosition = MakeLWCVector3(PrimitiveData.TilePosition, Data.xyz);
-		DataIdx += 1u;
+		float4 Data2 = LoadPrimitiveDataElementUBO(DrawInstanceId, DataIdx+1);
+		PrimitiveData.ActorWorldPosition = MakeDFVector3(Data.xyz, Data2.xyz);
+		DataIdx += 2u;
 	}
 
 	// ObjectOrientation, ObjectBoundsX
@@ -117,7 +119,7 @@ FPrimitiveSceneData LoadPrimitiveDataUBO(uint DrawInstanceId)
 			LoadPrimitiveDataElementUBO(DrawInstanceId, DataIdx+2),
 			float4(0, 0, 0, 1)
 		));
-		PrimitiveData.WorldToLocal = MakeLWCInverseMatrix(PrimitiveData.TilePosition, RelativeWorldToLocal);
+		PrimitiveData.WorldToLocal = MakeDFInverseMatrix(PrimitiveData.PositionHigh, RelativeWorldToLocal);
 		DataIdx += 3u;
 	}
 
@@ -129,7 +131,7 @@ FPrimitiveSceneData LoadPrimitiveDataUBO(uint DrawInstanceId)
 			LoadPrimitiveDataElementUBO(DrawInstanceId, DataIdx+2),
 			float4(0, 0, 0, 1)
 		));
-		PrimitiveData.PreviousLocalToWorld = MakeLWCMatrix4x3(PrimitiveData.TilePosition, PreviousLocalToRelativeWorld);
+		PrimitiveData.PreviousLocalToWorld = MakeDFMatrix4x3(PrimitiveData.PositionHigh, PreviousLocalToRelativeWorld);
 		DataIdx += 3u;
 	}
 
@@ -141,7 +143,7 @@ FPrimitiveSceneData LoadPrimitiveDataUBO(uint DrawInstanceId)
 			LoadPrimitiveDataElementUBO(DrawInstanceId, DataIdx+2),
 			float4(0, 0, 0, 1)
 		));
-		PrimitiveData.PreviousWorldToLocal = MakeLWCInverseMatrix(PrimitiveData.TilePosition, PreviousRelativeWorldToLocal);
+		PrimitiveData.PreviousWorldToLocal = MakeDFInverseMatrix(PrimitiveData.PositionHigh, PreviousRelativeWorldToLocal);
 		DataIdx += 3u;
 	}
 
@@ -178,10 +180,10 @@ FInstanceSceneData LoadInstanceDataUBO(uint DrawInstanceId)
 	uint DataIdx = 0;
 
 	// TilePosition, Flags
-	float3 TilePosition = 0;
+	float3 PositionHigh = 0;
 	{
 		float4 Data = LoadInstanceDataElementUBO(DrawInstanceId, DataIdx + 0);
-		TilePosition = Data.xyz;
+		PositionHigh = Data.xyz;
 		InstanceData.Flags = asuint(Data.w);
 		DataIdx += 1u;
 	}
@@ -194,7 +196,7 @@ FInstanceSceneData LoadInstanceDataUBO(uint DrawInstanceId)
 			LoadInstanceDataElementUBO(DrawInstanceId, DataIdx+2),
 			float4(0, 0, 0, 1)
 		));
-		InstanceData.LocalToWorld = MakeLWCMatrix4x3(TilePosition, LocalToRelativeWorld);
+		InstanceData.LocalToWorld = MakeDFMatrix4x3(PositionHigh, LocalToRelativeWorld);
 		DataIdx += 3u;
 	}
 
@@ -218,7 +220,7 @@ FInstanceSceneData LoadInstanceDataUBO(uint DrawInstanceId)
 			LoadInstanceDataElementUBO(DrawInstanceId, DataIdx+2),
 			float4(0, 0, 0, 1)
 		));
-		InstanceData.PrevLocalToWorld = MakeLWCMatrix4x3(TilePosition, PreviousLocalToRelativeWorld);
+		InstanceData.PrevLocalToWorld = MakeDFMatrix4x3(PositionHigh, PreviousLocalToRelativeWorld);
 		DataIdx += 3u;
 	}
 #if ALLOW_STATIC_LIGHTING

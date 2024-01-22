@@ -85,7 +85,7 @@ float3 ComputeCellTranslatedWorldPosition(uint3 GridCoordinate, float3 CellOffse
 
 float3 ComputeCellWorldPosition(uint3 GridCoordinate, float3 CellOffset, out float SceneDepth)
 {
-	return ComputeCellTranslatedWorldPosition(GridCoordinate, CellOffset, SceneDepth) - LWCHackToFloat(PrimaryView.PreViewTranslation);
+	return ComputeCellTranslatedWorldPosition(GridCoordinate, CellOffset, SceneDepth) - DFHackToFloat(PrimaryView.PreViewTranslation);
 }
 
 float3 ComputeCellWorldPosition(uint3 GridCoordinate, float3 CellOffset)
@@ -166,7 +166,7 @@ void MaterialSetupCS(
 	if(length(TranslatedWorldPosition - PrimaryView.TranslatedWorldCameraOrigin) > LFVGlobalStartDistance)
 	{
 		float3 CamRayTranslatedWorldOrigin = PrimaryView.TranslatedWorldCameraOrigin;
-		float3 PreViewTranslation = LWCHackToFloat(PrimaryView.PreViewTranslation);
+		float3 PreViewTranslation = DFHackToFloat(PrimaryView.PreViewTranslation);
 		//float3 TranslatedWorldPosition = WorldPosition + PreViewTranslation;
 
 
@@ -404,7 +404,7 @@ float4 InjectShadowedLocalLightCommon(uint3 GridCoordinate)
 
 			float SceneDepth;
 			float3 TranslatedWorldPosition = ComputeCellTranslatedWorldPosition(GridCoordinate, CellOffset, SceneDepth);
-			float3 WorldPosition = TranslatedWorldPosition - LWCHackToFloat(PrimaryView.PreViewTranslation);
+			float3 WorldPosition = TranslatedWorldPosition - DFHackToFloat(PrimaryView.PreViewTranslation);
 			float3 CameraVector = normalize(TranslatedWorldPosition - PrimaryView.TranslatedWorldCameraOrigin);
 
 			float CellRadius = length(TranslatedWorldPosition - ComputeCellTranslatedWorldPosition(GridCoordinate + uint3(1, 1, 1), CellOffset));
@@ -744,7 +744,7 @@ void LightScatteringCS(
 
 		float SceneDepth;
 		float3 TranslatedWorldPosition = ComputeCellTranslatedWorldPosition(GridCoordinate, CellOffset, SceneDepth);
-		float3 WorldPosition = TranslatedWorldPosition - LWCHackToFloat(PrimaryView.PreViewTranslation); // LWC_TODO
+		float3 WorldPosition = TranslatedWorldPosition - DFHackToFloat(PrimaryView.PreViewTranslation); // LWC_TODO
 		float CameraVectorLength = length(TranslatedWorldPosition - PrimaryView.TranslatedWorldCameraOrigin);
 		float3 CameraVector = (TranslatedWorldPosition - PrimaryView.TranslatedWorldCameraOrigin) / CameraVectorLength;
 		
@@ -811,7 +811,7 @@ void LightScatteringCS(
 #if LUMEN_GI
 
 		// Lumen Dynamic GI + shadowed Skylight
-		FTwoBandSHVectorRGB TranslucencyGISH = GetTranslucencyGIVolumeLighting(LWCPromote(WorldPosition), PrimaryView.WorldToClip, false); // LUMEN_LWC_TODO
+		FTwoBandSHVectorRGB TranslucencyGISH = GetTranslucencyGIVolumeLighting(DFPromote(WorldPosition), PrimaryView.WorldToClip, false); // LUMEN_LWC_TODO
 
 		LightScattering += max(DotSH(TranslucencyGISH, RotatedHGZonalHarmonic), 0);
 

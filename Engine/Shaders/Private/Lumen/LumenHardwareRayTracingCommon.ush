@@ -37,10 +37,12 @@ float3 CalcPrevTranslatedWorldPositionFromGPUSceneInstanceIndex(float3 Translate
 {
 	FInstanceSceneData InstanceSceneData = GetInstanceSceneData(GPUSceneInstanceIndex, Scene.GPUScene.InstanceDataSOAStride);
 
-	FLWCVector3 WorldPosition = LWCSubtract(LWCPromote(TranslatedWorldPosition), PrimaryView.PreViewTranslation);
-	float3 LocalPosition = LWCMultiply(WorldPosition, InstanceSceneData.WorldToLocal);
-	FLWCVector3 PrevWorldPosition = LWCMultiply(LocalPosition, InstanceSceneData.PrevLocalToWorld);
-	return LWCToFloat(LWCAdd(PrevWorldPosition, PrimaryView.PreViewTranslation));
+	float4x4 TranslatedWorldToLocal = DFFastToTranslatedWorld(InstanceSceneData.WorldToLocal, PrimaryView.PreViewTranslation);
+	float4x4 PrevLocalToTranslatedWorld = DFFastToTranslatedWorld(InstanceSceneData.PrevLocalToWorld, PrimaryView.PreViewTranslation);
+
+	float3 LocalPosition = mul(float4(TranslatedWorldPosition, 1.0), TranslatedWorldToLocal).xyz;
+	float3 PrevTranslatedWorldPosition = mul(float4(LocalPosition, 1.0), PrevLocalToTranslatedWorld).xyz;
+	return PrevTranslatedWorldPosition;
 }
 
 #ifndef ENABLE_NEAR_FIELD_TRACING
@@ -495,7 +497,7 @@ FSurfaceCacheSample CalculateSurfaceCacheLighting(
 	FSurfaceCacheSample SurfaceCacheSample = EvaluateRayHitFromSurfaceCache(
 		Context.TraceCoord,
 		MeshCardsIndex,
-		RayHitTranslatedWorldPosition - LWCHackToFloat(PrimaryView.PreViewTranslation), // LUMEN_LWC_TODO
+		RayHitTranslatedWorldPosition - DFHackToFloat(PrimaryView.PreViewTranslation), // LUMEN_LWC_TODO
 		RayHitWorldNormal,
 		InterpolateRadius,
 		SurfaceCacheBias,

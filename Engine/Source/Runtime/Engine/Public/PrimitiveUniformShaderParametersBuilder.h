@@ -69,8 +69,7 @@ public:
 		Parameters.MaxMaterialDisplacement			= 0.0f;
 
 		// Default colors
-		Parameters.WireframeColor					= FVector3f(1.0f, 1.0f, 1.0f);
-		Parameters.PrimitiveColor					= FVector3f(1.0f, 1.0f, 1.0f);
+		Parameters.WireframeAndPrimitiveColor			= FVector2f(FMath::AsFloat(0xFFFFFF00), FMath::AsFloat(0xFFFFFF00));
 
 		// Invalid indices
 		Parameters.LightmapDataIndex				= 0;
@@ -232,8 +231,9 @@ public:
 
 	inline FPrimitiveUniformShaderParametersBuilder& EditorColors(const FLinearColor& InWireframeColor, const FLinearColor& InPrimitiveColor)
 	{
-		Parameters.WireframeColor = FVector3f(InWireframeColor.R, InWireframeColor.G, InWireframeColor.B);
-		Parameters.PrimitiveColor = FVector3f(InPrimitiveColor.R, InPrimitiveColor.G, InPrimitiveColor.B);
+		FColor WireframeColor = InWireframeColor.QuantizeRound();
+		FColor PrimitiveColor = InPrimitiveColor.QuantizeRound();
+		Parameters.WireframeAndPrimitiveColor = FVector2f(FMath::AsFloat(WireframeColor.ToPackedRGBA()), FMath::AsFloat(PrimitiveColor.ToPackedRGBA()));
 		return *this;
 	}
 
@@ -308,16 +308,18 @@ public:
 
 	inline const FPrimitiveUniformShaderParameters& Build()
 	{
-		const FLargeWorldRenderPosition AbsoluteWorldPosition(AbsoluteLocalToWorld.GetOrigin());
-		const FVector TilePositionOffset = AbsoluteWorldPosition.GetTileOffset();
+		const FDFVector3 AbsoluteWorldPosition(AbsoluteLocalToWorld.GetOrigin());
+		const FVector PositionHigh(AbsoluteWorldPosition.High);
 
-		Parameters.TilePosition = AbsoluteWorldPosition.GetTile();
+		Parameters.PositionHigh = AbsoluteWorldPosition.High;
 
 		{
 			// Inverse on FMatrix44f can generate NaNs if the source matrix contains large scaling, so do it in double precision.
 			// Also use double precision to calculate WorldToPreviousWorld to prevent precision issues at far distances
-			FMatrix LocalToRelativeWorld = FLargeWorldRenderScalar::MakeToRelativeWorldMatrixDouble(TilePositionOffset, AbsoluteLocalToWorld);
-			FMatrix PrevLocalToRelativeWorld = FLargeWorldRenderScalar::MakeClampedToRelativeWorldMatrixDouble(TilePositionOffset, AbsolutePreviousLocalToWorld);
+
+			FMatrix LocalToRelativeWorld = FDFMatrix::MakeToRelativeWorldMatrixDouble(PositionHigh, AbsoluteLocalToWorld);
+			FMatrix PrevLocalToRelativeWorld = FDFMatrix::MakeClampedToRelativeWorldMatrixDouble(PositionHigh, AbsolutePreviousLocalToWorld);
+
 			FMatrix RelativeWorldToLocal = LocalToRelativeWorld.Inverse();
 
 			Parameters.LocalToRelativeWorld = FMatrix44f(LocalToRelativeWorld);
@@ -336,9 +338,27 @@ public:
 			}
 		}
 
-		Parameters.ActorRelativeWorldPosition = FVector3f(AbsoluteActorWorldPosition - TilePositionOffset);	//LWC_TODO: Precision loss
-		const FVector3f ObjectRelativeWorldPositionAsFloat = FVector3f(AbsoluteObjectWorldPosition - TilePositionOffset);
-		Parameters.ObjectRelativeWorldPositionAndRadius = FVector4f(ObjectRelativeWorldPositionAsFloat, ObjectRadius);
+		static TConsoleVariableData<int32>* CVarPrimitiveHasTileOffsetData = nullptr;
+		CVarPrimitiveHasTileOffsetData = CVarPrimitiveHasTileOffsetData ? CVarPrimitiveHasTileOffsetData : IConsoleManager::Get().FindTConsoleVariableDataInt(TEXT("r.PrimitiveHasTileOffsetData")); // null at first
+		const bool bPrimitiveHasTileOffsetData = CVarPrimitiveHasTileOffsetData ? (CVarPrimitiveHasTileOffsetData->GetValueOnAnyThread() != 0) : false;
+		if (bPrimitiveHasTileOffsetData)
+		{
+			const FLargeWorldRenderPosition AbsoluteActorWorldPositionTO { AbsoluteActorWorldPosition };
+			Parameters.ActorWorldPositionHigh = AbsoluteActorWorldPositionTO.GetTile();
+			Parameters.ActorWorldPositionLow = AbsoluteActorWorldPositionTO.GetOffset();
+			const FLargeWorldRenderPosition ObjectWorldPositionTO { AbsoluteObjectWorldPosition };
+			Parameters.ObjectWorldPositionHighAndRadius = FVector4f(ObjectWorldPositionTO.GetTile(), ObjectRadius);
+			Parameters.ObjectWorldPositionLow = ObjectWorldPositionTO.GetOffset();
+		}
+		else
+		{
+			const FDFVector3 AbsoluteActorWorldPositionDF { AbsoluteActorWorldPosition };
+			Parameters.ActorWorldPositionHigh = AbsoluteActorWorldPositionDF.High;
+			Parameters.ActorWorldPositionLow = AbsoluteActorWorldPositionDF.Low;
+			const FDFVector3 ObjectWorldPosition { AbsoluteObjectWorldPosition };
+			Parameters.ObjectWorldPositionHighAndRadius = FVector4f(ObjectWorldPosition.High, ObjectRadius);
+			Parameters.ObjectWorldPositionLow = ObjectWorldPosition.Low;
+		}
 
 		if (!bHasInstanceLocalBounds)
 		{

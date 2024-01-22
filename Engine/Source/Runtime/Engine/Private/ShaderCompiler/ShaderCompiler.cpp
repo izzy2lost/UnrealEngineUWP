@@ -7387,8 +7387,25 @@ void GenerateInstancedStereoCode(FString& Result, EShaderPlatform ShaderPlatform
 	const TArray<FShaderParametersMetadata::FMember>& StructMembersView = View->GetMembers();
 	const TArray<FShaderParametersMetadata::FMember>& StructMembersInstanced = InstancedView->GetMembers();
 
+	static const auto CVarViewHasTileOffsetData = IConsoleManager::Get().FindTConsoleVariableDataInt(TEXT("r.ViewHasTileOffsetData"));
+	const bool bViewHasTileOffsetData = CVarViewHasTileOffsetData ? (CVarViewHasTileOffsetData->GetValueOnAnyThread() != 0) : false;
+
+	Result = "";
+	if (bViewHasTileOffsetData)
+	{
+		Result +=  "struct ViewStateTileOffsetData\r\n";
+		Result += "{\r\n";
+		Result += "\tFLWCVector3 WorldCameraOrigin;\r\n";
+		Result += "\tFLWCVector3 WorldViewOrigin;\r\n";
+		Result += "\tFLWCVector3 PrevWorldCameraOrigin;\r\n";
+		Result += "\tFLWCVector3 PrevWorldViewOrigin;\r\n";
+		Result += "\tFLWCVector3 PreViewTranslation;\r\n";
+		Result += "\tFLWCVector3 PrevPreViewTranslation;\r\n";
+		Result += "};\r\n";
+	}
+
 	// ViewState definition
-	Result =  "struct ViewState\n";
+	Result +=  "struct ViewState\n";
 	Result += "{\n";
 	for (int32 MemberIndex = 0; MemberIndex < StructMembersInstanced.Num(); ++MemberIndex)
 	{
@@ -7399,16 +7416,22 @@ void GenerateInstancedStereoCode(FString& Result, EShaderPlatform ShaderPlatform
 		GenerateUniformBufferStructMember(MemberDecl, StructMembersView[MemberIndex], ShaderPlatform);
 		Result += FString::Printf(TEXT("\t%s;\n"), *MemberDecl);
 	}
-	Result += "\tFLWCInverseMatrix WorldToClip;\n";
-	Result += "\tFLWCMatrix ClipToWorld;\n";
-	Result += "\tFLWCMatrix ScreenToWorld;\n";
-	Result += "\tFLWCMatrix PrevClipToWorld;\n";
-	Result += "\tFLWCVector3 WorldCameraOrigin;\n";
-	Result += "\tFLWCVector3 WorldViewOrigin;\n";
-	Result += "\tFLWCVector3 PrevWorldCameraOrigin;\n";
-	Result += "\tFLWCVector3 PrevWorldViewOrigin;\n";
-	Result += "\tFLWCVector3 PreViewTranslation;\n";
-	Result += "\tFLWCVector3 PrevPreViewTranslation;\n";
+	Result += "\tFDFInverseMatrix WorldToClip;\n";
+	Result += "\tFDFMatrix ClipToWorld;\n";
+	Result += "\tFDFMatrix ScreenToWorld;\n";
+	Result += "\tFDFMatrix PrevClipToWorld;\n";
+	Result += "\tFDFVector3 WorldCameraOrigin;\n";
+	Result += "\tFDFVector3 WorldViewOrigin;\n";
+	Result += "\tFDFVector3 PrevWorldCameraOrigin;\n";
+	Result += "\tFDFVector3 PrevWorldViewOrigin;\n";
+	Result += "\tFDFVector3 PreViewTranslation;\n";
+	Result += "\tFDFVector3 PrevPreViewTranslation;\n";
+
+	if (bViewHasTileOffsetData)
+	{
+		Result += "\tViewStateTileOffsetData TileOffset;\n";
+	}
+
 	Result += "};\n";
 
 	Result += "\tvoid FinalizeViewState(inout ViewState InOutView);\n";
@@ -7781,6 +7804,14 @@ void GlobalBeginCompileShader(
 			Input.Environment.SetCompileArgument(TEXT("STRIP_REFLECT_ANDROID"), false);
 		}
 	}
+
+	static const auto CVarViewHasTileOffsetData = IConsoleManager::Get().FindTConsoleVariableDataInt(TEXT("r.ViewHasTileOffsetData"));
+	const bool bViewHasTileOffsetData = CVarViewHasTileOffsetData->GetValueOnAnyThread() != 0;
+	SET_SHADER_DEFINE_AND_COMPILE_ARGUMENT(Input.Environment, VIEW_HAS_TILEOFFSET_DATA, bViewHasTileOffsetData);
+
+	static const auto CVarPrimitiveHasTileOffsetData = IConsoleManager::Get().FindTConsoleVariableDataInt(TEXT("r.PrimitiveHasTileOffsetData"));
+	const bool bPrimitiveHasTileOffsetData = CVarPrimitiveHasTileOffsetData->GetValueOnAnyThread() != 0;
+	SET_SHADER_DEFINE_AND_COMPILE_ARGUMENT(Input.Environment, PRIMITIVE_HAS_TILEOFFSET_DATA, bPrimitiveHasTileOffsetData);
 
 	// Set VR definitions
 	if (ShaderFrequencyNeedsInstancedStereoMods(ShaderType))

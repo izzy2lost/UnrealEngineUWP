@@ -67,7 +67,7 @@ LUMEN_HARDWARE_RAY_TRACING_ENTRY(LumenRadiosityHardwareRayTracing)
 
 			if (RadiosityTexel.bValid)
 			{
-				float3 TranslatedWorldPosition = RadiosityTexel.WorldPosition + LWCHackToFloat(PrimaryView.PreViewTranslation); // LUMEN_LWC_TODO
+				float3 TranslatedWorldPosition = RadiosityTexel.WorldPosition + DFHackToFloat(PrimaryView.PreViewTranslation); // LUMEN_LWC_TODO
 				float3 WorldNormal = RadiosityTexel.WorldNormal;
 				
 				float3 WorldRayDirection;

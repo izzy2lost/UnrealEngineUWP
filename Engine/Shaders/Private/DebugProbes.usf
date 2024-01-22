@@ -253,7 +253,7 @@ void MainPS(
 	float4 TranslatedWorldPos = mul(float4(GetScreenPositionForProjectionType(ScreenPosition, Depth), Depth, 1), View.ScreenToTranslatedWorld);
 
 	const float3 RayDir = normalize(TranslatedWorldPos.xyz - View.TranslatedWorldCameraOrigin);
-	const float3 RayOrig = LWCHackToFloat(ResolvedView.WorldCameraOrigin);
+	const float3 RayOrig = DFHackToFloat(ResolvedView.WorldCameraOrigin);
 
 #if PERMUTATION_ILLUMINANCEMETER /////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
@@ -273,8 +273,8 @@ void MainPS(
 
 		float3 WorldPosition = RayOrig;
 		float3 Velocity = 0.0f;
-		float4 ScreenPos = mul(float4(WorldPosition.xyz + LWCHackToFloat(ResolvedView.PreViewTranslation), 1), ResolvedView.TranslatedWorldToClip);
-		float4 PrevScreenPos = mul(float4(WorldPosition.xyz + LWCHackToFloat(ResolvedView.PrevPreViewTranslation), 1), ResolvedView.PrevTranslatedWorldToClip);
+		float4 ScreenPos = mul(float4(WorldPosition.xyz + DFHackToFloat(ResolvedView.PreViewTranslation), 1), ResolvedView.TranslatedWorldToClip);
+		float4 PrevScreenPos = mul(float4(WorldPosition.xyz + DFHackToFloat(ResolvedView.PrevPreViewTranslation), 1), ResolvedView.PrevTranslatedWorldToClip);
 		Velocity = Calculate3DVelocity(ScreenPos, PrevScreenPos);
 		OutColor = EncodeVelocityToTexture(Velocity);
 
@@ -333,7 +333,6 @@ void MainPS(
 	else
 	{
 		discard;
-		return;
 	}
 
 
@@ -353,7 +352,7 @@ void MainPS(
 	if (DebugProbesMode == 1 || DebugProbesMode == 3)
 	{
 		{
-			float3 SphereCenter = LWCHackToFloat(ResolvedView.WorldCameraOrigin) + (ResolvedView.ViewForward * 1.0f + ResolvedView.ViewRight * 0.5f + ResolvedView.ViewUp * -0.2f) * METER_TO_CENTIMETER;
+			float3 SphereCenter = DFHackToFloat(ResolvedView.WorldCameraOrigin) + (ResolvedView.ViewForward * 1.0f + ResolvedView.ViewRight * 0.5f + ResolvedView.ViewUp * -0.2f) * METER_TO_CENTIMETER;
 			float  SphereRadius = 0.2f * METER_TO_CENTIMETER;
 
 			DebugSphereIntersection(
@@ -361,7 +360,7 @@ void MainPS(
 				ProbeMode, RayT, WorldPosition, WorldNormal, bProbeAttachedToCamera);
 		}
 		{
-			float3 SphereCenter = LWCHackToFloat(ResolvedView.WorldCameraOrigin) + (ResolvedView.ViewForward * 1.0f + ResolvedView.ViewRight * -0.5f + ResolvedView.ViewUp * -0.2f) * METER_TO_CENTIMETER;
+			float3 SphereCenter = DFHackToFloat(ResolvedView.WorldCameraOrigin) + (ResolvedView.ViewForward * 1.0f + ResolvedView.ViewRight * -0.5f + ResolvedView.ViewUp * -0.2f) * METER_TO_CENTIMETER;
 			float  SphereRadius = 0.2f * METER_TO_CENTIMETER;
 
 			DebugSphereIntersection(
@@ -379,7 +378,7 @@ void MainPS(
 #if 1
 		// Using Amanatides 3D-DDA to march virtual voxels around the camera and only evaluate intersection for sphere inside each voxel.
 		const float3 VoxelSizeCm = float3(5.0f, 5.0f, 5.0f) * METER_TO_CENTIMETER;
-		const float3 SnappedOrigin = (floor(LWCHackToFloat(ResolvedView.WorldCameraOrigin) / VoxelSizeCm) + 0.5) * VoxelSizeCm
+		const float3 SnappedOrigin = (floor(DFHackToFloat(ResolvedView.WorldCameraOrigin) / VoxelSizeCm) + 0.5) * VoxelSizeCm
 								   + float3(0.0f, 0.0f, 1.4 * SphereRadius);	// Small offset to have probes above the ground level 0
 
 		const float3 BoxMin = SnappedOrigin - VoxelSizeCm * 4.0f;
@@ -441,7 +440,7 @@ void MainPS(
 #else
 		// Simple but slow volume around the camera
 		const float3 Steps = float3(5.0f, 5.0f, 2.5f);
-		const float3 SnappedOrigin = floor(LWCHackToFloat(ResolvedView.WorldCameraOrigin) / (Steps * METER_TO_CENTIMETER) + 0.5) * Steps * METER_TO_CENTIMETER
+		const float3 SnappedOrigin = floor(DFHackToFloat(ResolvedView.WorldCameraOrigin) / (Steps * METER_TO_CENTIMETER) + 0.5) * Steps * METER_TO_CENTIMETER
 								   + float3(0.0f, 0.0f, 1.4 * SphereRadius);	// Small offset to have probes above the ground level 0
 		LOOP
 		for (float x = -15.0f * METER_TO_CENTIMETER; x <= 15.0f * METER_TO_CENTIMETER; x += Steps.x * METER_TO_CENTIMETER)
@@ -464,7 +463,7 @@ void MainPS(
 	}
 
 
-	float4 ClipPos = mul(float4(WorldPosition, 1.0f), LWCHackToFloat(ResolvedView.WorldToClip));
+	float4 ClipPos = mul(float4(WorldPosition, 1.0f), DFHackToFloat(ResolvedView.WorldToClip));
 	ClipPos /= ClipPos.w;
 	const float DeviceZ = ClipPos.z;
 #if DEPTH_OUTPUT_ENABLED
@@ -474,7 +473,6 @@ void MainPS(
 	if (RayT <= 0.0f)
 	{
 		discard;
-		return;
 	}
 
 
@@ -484,8 +482,8 @@ void MainPS(
 
 	if (!bProbeAttachedToCamera)
 	{
-		float4 ScreenPos	= mul(float4(WorldPosition.xyz + LWCHackToFloat(ResolvedView.PreViewTranslation), 1),	ResolvedView.TranslatedWorldToClip);
-		float4 PrevScreenPos= mul(float4(WorldPosition.xyz + LWCHackToFloat(ResolvedView.PrevPreViewTranslation), 1),ResolvedView.PrevTranslatedWorldToClip);
+		float4 ScreenPos	= mul(float4(WorldPosition.xyz + DFHackToFloat(ResolvedView.PreViewTranslation), 1),	ResolvedView.TranslatedWorldToClip);
+		float4 PrevScreenPos= mul(float4(WorldPosition.xyz + DFHackToFloat(ResolvedView.PrevPreViewTranslation), 1),ResolvedView.PrevTranslatedWorldToClip);
 		Velocity = Calculate3DVelocity(ScreenPos, PrevScreenPos);
 	}
 

@@ -90,10 +90,10 @@ struct FVirtualShadowMapProjectionShaderData
 	FVector3f LightDirection;
 	uint32 LightType = ELightComponentType::LightType_Directional;
 
-	FVector3f PreViewTranslationLWCTile;
+	FVector3f PreViewTranslationHigh;
 	float LightRadius;
 	
-	FVector3f PreViewTranslationLWCOffset;
+	FVector3f PreViewTranslationLow;
 	// Slightly different meaning for clipmaps (includes camera pixel size scaling stuff) and local lights (raw bias)
 	float ResolutionLodBias = 0.0f;
 	

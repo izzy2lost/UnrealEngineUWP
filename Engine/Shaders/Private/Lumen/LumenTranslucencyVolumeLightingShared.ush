@@ -48,7 +48,7 @@ float3 ComputeCellTranslatedWorldPosition(uint3 GridCoordinate, float3 CellOffse
 
 float3 ComputeCellWorldPosition(uint3 GridCoordinate, float3 CellOffset)
 {
-	return ComputeCellTranslatedWorldPosition(GridCoordinate, CellOffset) - LWCHackToFloat(PrimaryView.PreViewTranslation);
+	return ComputeCellTranslatedWorldPosition(GridCoordinate, CellOffset) - DFHackToFloat(PrimaryView.PreViewTranslation);
 }
 
 float3 ComputeTranslucencyGIVolumeUV(float3 WorldPosition, float4x4 WorldToClip)

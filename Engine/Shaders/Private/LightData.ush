@@ -468,7 +468,7 @@ FDeferredLightData ConvertToDeferredLight(FLightSceneData In)
 
 	const uint LightType = UnpackLightType(In.LightTypeAndShadowMapChannelMaskPacked);
 
-	Out.TranslatedWorldPosition = LWCToFloat(LWCAdd(In.WorldPosition, PrimaryView.PreViewTranslation));
+	Out.TranslatedWorldPosition = DFFastAddDemote(In.WorldPosition, PrimaryView.PreViewTranslation);
 	Out.InvRadius				= In.InvRadius;
 	Out.Color					= In.Color.xyz;
 	Out.FalloffExponent			= In.FalloffExponent;
@@ -510,7 +510,7 @@ FDeferredLightData ConvertToDeferredLight(FLightSceneData In)
 FLightShaderParameters ConvertToLightShaderParameters(FLightSceneData In)
 {
 	FLightShaderParameters Out;
-	Out.TranslatedWorldPosition	= LWCToFloat(LWCAdd(In.WorldPosition, PrimaryView.PreViewTranslation));
+	Out.TranslatedWorldPosition	= DFFastAddDemote(In.WorldPosition, PrimaryView.PreViewTranslation);
 	Out.InvRadius				= In.InvRadius;
 	Out.Color					= In.Color.xyz;
 	Out.FalloffExponent			= In.FalloffExponent;

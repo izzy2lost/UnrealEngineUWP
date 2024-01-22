@@ -4,6 +4,10 @@
 	MobileBasePassPixelShader.usf: Base pass pixel shader used with forward shading 
 =============================================================================*/
 
+#if !MATERIAL_LWC_ENABLED
+#define UE_DF_FORCE_FP32_OPS 1
+#endif
+
 #include "Common.ush"
 
 // Reroute MobileSceneTextures uniform buffer references to the base pass uniform buffer 

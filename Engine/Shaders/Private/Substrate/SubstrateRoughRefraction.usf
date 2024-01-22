@@ -471,7 +471,7 @@ void VisualizeRoughRefractionPS(
 	float2 PixelPos = SVPos.xy;
 	float2 UvBuffer = PixelPos * View.BufferSizeAndInvSize.zw;
 	float3 WorldDir = GetScreenWorldDir(SVPos);
-	float3 CamWorldPos = LWCToFloat(PrimaryView.WorldCameraOrigin);
+	float3 CamWorldPos = DFDemote(PrimaryView.WorldCameraOrigin);
 
 	FLobeStat LobeState = LobStatisticsBuffer[0];
 

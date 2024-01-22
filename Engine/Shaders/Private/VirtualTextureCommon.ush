@@ -787,6 +787,14 @@ MaterialFloat4 TextureVirtualSampleLevel(
 
 
 /**	Helper function to convert world space to virtual texture UV space. */
+float2 VirtualTextureWorldToUV(in FDFVector3 WorldPos, in FDFVector3 O, in float3 U, in float3 V)
+{
+	// After the subtract we can assume that the offset is small enough for float maths.
+	float3 P = DFFastSubtractDemote(WorldPos, O);
+	return float2(dot(P, U), dot(P, V));
+}
+
+/**	Helper function to convert world space to virtual texture UV space. */
 float2 VirtualTextureWorldToUV(in FLWCVector3 WorldPos, in FLWCVector3 O, in float3 U, in float3 V)
 {
 	// After the subtract we can assume that the offset is small enough for float maths.
@@ -799,6 +807,16 @@ float2 VirtualTextureWorldToUV(in float3 TranslatedWorldPos, in float3 O, in flo
 {
 	float3 P = TranslatedWorldPos - O;
 	return float2(dot(P, U), dot(P, V));
+}
+
+/**	Derivative-aware helper function to convert world space to virtual texture UV space. */
+FloatDeriv2 VirtualTextureWorldToUVDeriv(in FDFVector3Deriv WorldPos, in FDFVector3 O, in float3 U, in float3 V)
+{
+	FloatDeriv2 Result;
+	Result.Value = VirtualTextureWorldToUV(WorldPos.Value, O, U, V);
+	Result.Ddx = float2(dot(WorldPos.Ddx, U), dot(WorldPos.Ddx, V));
+	Result.Ddy = float2(dot(WorldPos.Ddy, U), dot(WorldPos.Ddy, V));
+	return Result;
 }
 
 /**	Derivative-aware helper function to convert world space to virtual texture UV space. */

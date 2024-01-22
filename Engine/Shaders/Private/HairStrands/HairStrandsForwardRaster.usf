@@ -255,7 +255,7 @@ void CalcHomogenousPos(in uint PrimId, out float4 HP, out uint Type)
 	const FHairControlPoint CP = UnpackHairControlPoint(PrimId);
 
 	const float3 WP = CP.Position; // This is actually WorldPosition
-	HP = mul(float4(WP, 1.0f), LWCHackToFloat(PrimaryView.WorldToClip)); // TODO move this at least into translated world space
+	HP = mul(float4(WP, 1.0f), DFHackToFloat(PrimaryView.WorldToClip)); // TODO move this at least into translated world space
 	Type = CP.Type;
 }
 
@@ -264,7 +264,7 @@ void CalcHomogenousPosAndRad(in uint PrimId, out float4 HP, out float Rad, out u
 	const FHairControlPoint CP = UnpackHairControlPoint(PrimId);
 
 	const float3 WP = CP.Position; // This is actually WorldPosition
-	HP = mul(float4(WP, 1.0f), LWCHackToFloat(PrimaryView.WorldToClip));
+	HP = mul(float4(WP, 1.0f), DFHackToFloat(PrimaryView.WorldToClip));
 	Rad = CP.WorldRadius;
 	Type = CP.Type;
 }

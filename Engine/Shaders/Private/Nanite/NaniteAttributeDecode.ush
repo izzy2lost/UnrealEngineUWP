@@ -739,7 +739,7 @@ FNaniteAttributeData GetAttributeData(
 				TangentToLocal = mul(TangentToLocal, TangentRot);
 
 				// Should be Pow2(InvScale) but that requires renormalization
-				float3x3 LocalToWorldNoScale = LWCToFloat3x3(InstanceData.LocalToWorld);
+				float3x3 LocalToWorldNoScale = DFToFloat3x3(InstanceData.LocalToWorld);
 				float3 InvScale = InstanceData.InvNonUniformScale;
 				LocalToWorldNoScale[0] *= InvScale.x;
 				LocalToWorldNoScale[1] *= InvScale.y;
@@ -751,7 +751,7 @@ FNaniteAttributeData GetAttributeData(
 		{
 			if (TexCoordIndex == 0)
 			{
-				AttributeData.TangentToWorld = float3x3(float3(0, 0, 0), float3(0, 0, 0), LWCMultiplyVector(TangentZ * InstanceData.InvNonUniformScale.z, InstanceData.LocalToWorld));
+				AttributeData.TangentToWorld = float3x3(float3(0, 0, 0), float3(0, 0, 0), DFMultiplyVector(TangentZ * InstanceData.InvNonUniformScale.z, InstanceData.LocalToWorld));
 			}
 		}
 

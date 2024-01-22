@@ -318,9 +318,10 @@ FVertexFactoryIntermediates GetVertexFactoryIntermediates( FVertexFactoryInput I
 	Rotation = Rotation * 2.0f * 3.1415926535897932f;
 
 	// Transform position to (post-view-translation) world space.
+	FLWCMatrix Transform = DFToTileOffset(GetPrimitiveDataFromUniformBuffer().LocalToWorld);
 	FLWCVector3 LWCTileOffset = MakeLWCVector3(EmitterDynamicUniforms.LWCTile, 0);
-	FLWCVector3 ParticleWorldPosition = LWCAdd(LWCMultiply(PositionSample.xyz, GetPrimitiveDataFromUniformBuffer().LocalToWorld), LWCTileOffset);
-	float3 ParticleTranslatedWorldPosition = LWCToFloat(LWCAdd(ParticleWorldPosition, ResolvedView.PreViewTranslation));
+	FLWCVector3 ParticleWorldPosition = LWCAdd(LWCMultiply(PositionSample.xyz, Transform), LWCTileOffset);
+	float3 ParticleTranslatedWorldPosition = LWCToFloat(LWCAdd(ParticleWorldPosition, ResolvedView.TileOffset.PreViewTranslation));
 
 	// Compute tangents for the sprite.
 	float3 TangentUp, TangentRight;
@@ -577,6 +578,8 @@ FMaterialVertexParameters GetMaterialVertexParameters(FVertexFactoryInput Input,
 #if ENABLE_NEW_HLSL_GENERATOR
 	EvaluateVertexMaterialAttributes(Result);
 #endif
+	Result.LWCData = MakeMaterialLWCData(Result);
+
 	return Result;
 }
 

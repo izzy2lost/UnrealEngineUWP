@@ -102,7 +102,7 @@ float3 GetPrecomputedIndirectLighting(float3 AbsoluteWorldPosition, float3 Diffu
 	float3 OutDiffuseLighting = 0;
 
 	#if PRECOMPUTED_IRRADIANCE_VOLUME_LIGHTING
-	const float3 VolumetricLightmapBrickTextureUVs = ComputeVolumetricLightmapBrickTextureUVs(LWCHackToFloat(AbsoluteWorldPosition));
+	const float3 VolumetricLightmapBrickTextureUVs = ComputeVolumetricLightmapBrickTextureUVs(AbsoluteWorldPosition);
 	FThreeBandSHVectorRGB IrradianceSH = GetVolumetricLightmapSH3(VolumetricLightmapBrickTextureUVs);
 	
 	// Diffuse convolution
@@ -147,7 +147,7 @@ float3 GatherRadiance(float3 RayDirection, float Roughness, uint2 PixelPosition,
 {
 #if PERMUTATION_LUMEN
 	// Lumen probe
-	const float3 AbsoluteWorldPosition = TranslatedWorldPosition + LWCHackToFloat(PrimaryView.WorldCameraOrigin); // HAIR_LWC
+	const float3 AbsoluteWorldPosition = TranslatedWorldPosition + DFHackToFloat(PrimaryView.WorldCameraOrigin); // HAIR_LWC
 	FRadianceCacheCoverage Coverage = GetRadianceCacheCoverage(AbsoluteWorldPosition, RayDirection, .5f); // HAIR_LWC
 	if (Coverage.bValid)
 	{
@@ -707,7 +707,7 @@ float3 ReflectionEnvironmentSH(
 	bool bDebugEnabled)
 {
 	const float3 TranslatedWorldPosition = mul(float4(ScreenPosition * GBuffer.Depth, GBuffer.Depth, 1), PrimaryView.ScreenToTranslatedWorld).xyz;
-	const float3 AbsoluteWorldPosition = TranslatedWorldPosition + LWCHackToFloat(PrimaryView.WorldCameraOrigin);
+	const float3 AbsoluteWorldPosition = TranslatedWorldPosition + DFHackToFloat(PrimaryView.WorldCameraOrigin);
 	const float3 CameraToPixel = normalize(TranslatedWorldPosition - PrimaryView.TranslatedWorldCameraOrigin);
 	const float3 V = -CameraToPixel;
 

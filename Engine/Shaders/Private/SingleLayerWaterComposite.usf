@@ -103,7 +103,7 @@ SingleLayerWaterCompositeOutput SingleLayerWaterComposite(float2 BufferUV, float
 			float3 Reflection = 0.0f;
 
 			// TODO MAKE COMMON WITH ReflectionEnvironment?
-			float3 WorldPosition = mul(float4(GetScreenPositionForProjectionType(ScreenPosition, WaterDepth), WaterDepth, 1), LWCHackToFloat(PrimaryView.ScreenToWorld)).xyz;
+			float3 WorldPosition = mul(float4(GetScreenPositionForProjectionType(ScreenPosition, WaterDepth), WaterDepth, 1), DFHackToFloat(PrimaryView.ScreenToWorld)).xyz;
 			float3 CameraToPixel = GetCameraVectorFromWorldPosition(WorldPosition);
 			float3 ReflectionVector = reflect(CameraToPixel, WorldNormal);
 			float IndirectIrradiance = 0.0;

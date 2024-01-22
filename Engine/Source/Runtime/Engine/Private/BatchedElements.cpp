@@ -18,8 +18,7 @@ DEFINE_LOG_CATEGORY_STATIC(LogBatchedElements, Log, All);
 FSimpleElementVertex::FSimpleElementVertex() = default;
 
 FSimpleElementVertex::FSimpleElementVertex(const FVector4f& InPosition, const FVector2f& InTextureCoordinate, const FLinearColor& InColor, const FColor& InHitProxyColor)
-	: RelativePosition(InPosition)
-	, TilePosition(ForceInitToZero)
+	: Position(InPosition, FVector4f{0.0f, 0.0f, 0.0f, 0.0f})
 	, TextureCoordinate(InTextureCoordinate)
 	, Color(InColor)
 	, HitProxyIdColor(InHitProxyColor)
@@ -27,8 +26,7 @@ FSimpleElementVertex::FSimpleElementVertex(const FVector4f& InPosition, const FV
 }
 
 FSimpleElementVertex::FSimpleElementVertex(const FVector4f& InPosition, const FVector2D& InTextureCoordinate, const FLinearColor& InColor, const FColor& InHitProxyColor)
-	: RelativePosition(InPosition)
-	, TilePosition(ForceInitToZero)
+	: Position(InPosition, FVector4f{0.0f, 0.0f, 0.0f, 0.0f})
 	, TextureCoordinate(InTextureCoordinate)
 	, Color(InColor)
 	, HitProxyIdColor(InHitProxyColor)
@@ -36,8 +34,7 @@ FSimpleElementVertex::FSimpleElementVertex(const FVector4f& InPosition, const FV
 }
 
 FSimpleElementVertex::FSimpleElementVertex(const FVector3f& InPosition, const FVector2D& InTextureCoordinate, const FLinearColor& InColor, const FColor& InHitProxyColor)
-	: RelativePosition(InPosition)
-	, TilePosition(ForceInitToZero)
+	: Position(FVector4f{ InPosition, 1.0 }, FVector4f{0.0f, 0.0f, 0.0f, 0.0f})
 	, TextureCoordinate(FVector2f(InTextureCoordinate))
 	, Color(InColor)
 	, HitProxyIdColor(InHitProxyColor)
@@ -45,24 +42,18 @@ FSimpleElementVertex::FSimpleElementVertex(const FVector3f& InPosition, const FV
 }
 
 FSimpleElementVertex::FSimpleElementVertex(const FVector4d& InPosition, const FVector2D& InTextureCoordinate, const FLinearColor& InColor, const FColor& InHitProxyColor)
-	: TextureCoordinate(InTextureCoordinate)
+	: Position(InPosition)
+	, TextureCoordinate(InTextureCoordinate)
 	, Color(InColor)
 	, HitProxyIdColor(InHitProxyColor)
-{
-	const FLargeWorldRenderPosition AbsolutePosition(InPosition);
-	RelativePosition = FVector4f(AbsolutePosition.GetOffset(), (float)InPosition.W); // Don't bother with LWC W-component
-	TilePosition = FVector4f(AbsolutePosition.GetTile(), 0.0f);
-}
+{}
 
 FSimpleElementVertex::FSimpleElementVertex(const FVector3d& InPosition, const FVector2D& InTextureCoordinate, const FLinearColor& InColor, const FColor& InHitProxyColor)
-	: TextureCoordinate(InTextureCoordinate)
+	: Position(InPosition, 1.0)
+	, TextureCoordinate(InTextureCoordinate)
 	, Color(InColor)
 	, HitProxyIdColor(InHitProxyColor)
-{
-	const FLargeWorldRenderPosition AbsolutePosition(InPosition);
-	RelativePosition = FVector4f(AbsolutePosition.GetOffset(), 1.0f);
-	TilePosition = FVector4f(AbsolutePosition.GetTile(), 0.0f);
-}
+{}
 
 FSimpleElementVertex::FSimpleElementVertex(const FVector4f& InPosition, const FVector2f& InTextureCoordinate, const FLinearColor& InColor, FHitProxyId InHitProxyId)
 	: FSimpleElementVertex(InPosition, InTextureCoordinate, InColor, InHitProxyId.GetColor())
@@ -97,8 +88,8 @@ void FSimpleElementVertexDeclaration::InitRHI(FRHICommandListBase& RHICmdList)
 {
 	FVertexDeclarationElementList Elements;
 	uint16 Stride = sizeof(FSimpleElementVertex);
-	Elements.Add(FVertexElement(0, STRUCT_OFFSET(FSimpleElementVertex, RelativePosition), VET_Float4, 0, Stride));
-	Elements.Add(FVertexElement(0, STRUCT_OFFSET(FSimpleElementVertex, TilePosition), VET_Float4, 1, Stride));
+	Elements.Add(FVertexElement(0, STRUCT_OFFSET(FSimpleElementVertex, Position.High), VET_Float4, 0, Stride));
+	Elements.Add(FVertexElement(0, STRUCT_OFFSET(FSimpleElementVertex, Position.Low), VET_Float4, 1, Stride));
 	Elements.Add(FVertexElement(0, STRUCT_OFFSET(FSimpleElementVertex, TextureCoordinate), VET_Float2, 2, Stride));
 	Elements.Add(FVertexElement(0, STRUCT_OFFSET(FSimpleElementVertex, Color), VET_Float4, 3, Stride));
 	Elements.Add(FVertexElement(0, STRUCT_OFFSET(FSimpleElementVertex, HitProxyIdColor), VET_Color, 4, Stride));
@@ -568,7 +559,7 @@ void FBatchedElements::PrepareShaders(
 	uint32 StencilRef,
 	ERHIFeatureLevel::Type FeatureLevel,
 	ESimpleElementBlendMode BlendMode,
-	const FRelativeViewMatrices& ViewMatrices,
+	const FDFRelativeViewMatrices& ViewMatrices,
 	FBatchedElementParameters* BatchedElementParameters,
 	const FTexture* Texture,
 	bool bHitTesting,
@@ -653,8 +644,9 @@ void FBatchedElements::PrepareShaders(
 	if( BatchedElementParameters != NULL )
 	{
 		// Use the vertex/pixel shader that we were given
-		ensure(ViewMatrices.TilePosition.IsZero());
-		BatchedElementParameters->BindShaders(RHICmdList, GraphicsPSOInit, FeatureLevel, FMatrix(ViewMatrices.RelativeWorldToClip), GammaToUse, ColorWeights, Texture);
+		FMatrix WorldToClip(ViewMatrices.RelativeWorldToClip);
+		WorldToClip.SetOrigin(WorldToClip.GetOrigin() + FVector(ViewMatrices.PositionHigh));
+		BatchedElementParameters->BindShaders(RHICmdList, GraphicsPSOInit, FeatureLevel, WorldToClip, GammaToUse, ColorWeights, Texture);
 	}
 	else
 	{
@@ -893,7 +885,7 @@ FSceneView FBatchedElements::CreateProxySceneView(const FMatrix& ProjectionMatri
 
 bool FBatchedElements::Draw(FRHICommandList& RHICmdList, const FMeshPassProcessorRenderState& DrawRenderState, ERHIFeatureLevel::Type FeatureLevel, const FSceneView& View, bool bHitTesting, float Gamma /* = 1.0f */, EBlendModeFilter::Type Filter /* = EBlendModeFilter::All */) const
 {
-	const FRelativeViewMatrices RelativeMatrices = FRelativeViewMatrices::Create(View.ViewMatrices);
+	const FDFRelativeViewMatrices RelativeMatrices = FDFRelativeViewMatrices::Create(View.ViewMatrices);
 	const FMatrix& WorldToClip = View.ViewMatrices.GetViewProjectionMatrix();
 	const FMatrix& ClipToWorld = View.ViewMatrices.GetInvViewProjectionMatrix();
 	const uint32 ViewportSizeX = View.UnscaledViewRect.Width();

@@ -272,7 +272,7 @@ void EmitCustomHLSL(const FEmitCustomHLSL& EmitCustomHLSL, const TCHAR* Paramete
 			if (InputType.IsNumericLWC())
 			{
 				// Add an additional input for LWC type with the LWC-prefix
-				OutCode.Appendf(TEXT(", %s LWC"), InputType.GetName());
+				OutCode.Appendf(TEXT(", %s WS"), InputType.GetName());
 				OutCode.Append(Input.Name);
 				// Regular, unprefixed input uses non-LWC type
 				InputType = InputType.GetNonLWCType();
@@ -326,7 +326,7 @@ void EmitCustomHLSL(const FEmitCustomHLSL& EmitCustomHLSL, const TCHAR* Paramete
 			OutCode.Append(Input.Name);
 			if (Input.Type.IsNumericLWC())
 			{
-				OutCode.Append(TEXT(", LWCToFloat("));
+				OutCode.Append(TEXT(", WSDemote("));
 				OutCode.Append(Input.Name);
 				OutCode.Append(TEXT(")"));
 			}
@@ -1204,28 +1204,28 @@ FEmitShaderExpression* FEmitContext::EmitPreshaderOrConstant(FEmitScope& Scope, 
 			if (TypeDesc.ComponentType == Shader::EValueComponentType::Double)
 			{
 				const Shader::FDoubleValue DoubleValue = FieldConstantValue.AsDouble();
-				TStringBuilder<256> TileValue;
-				TStringBuilder<256> OffsetValue;
+				TStringBuilder<256> ValueHigh;
+				TStringBuilder<256> ValueLow;
 				for (int32 Index = 0; Index < NumFieldComponents; ++Index)
 				{
 					if (Index > 0)
 					{
-						TileValue.Append(TEXT(", "));
-						OffsetValue.Append(TEXT(", "));
+						ValueHigh.Append(TEXT(", "));
+						ValueLow.Append(TEXT(", "));
 					}
 
-					const FLargeWorldRenderScalar Value(DoubleValue[Index]);
-					TileValue.Appendf(TEXT("%#.9gf"), Value.GetTile());
-					OffsetValue.Appendf(TEXT("%#.9gf"), Value.GetOffset());
+					const FDFScalar Value(DoubleValue[Index]);
+					ValueHigh.Appendf(TEXT("%#.9gf"), Value.High);
+					ValueLow.Appendf(TEXT("%#.9gf"), Value.Low);
 				}
 
 				if (NumFieldComponents > 1)
 				{
-					FormattedCode.Appendf(TEXT("MakeLWCVector%d(float%d(%s), float%d(%s))"), NumFieldComponents, NumFieldComponents, TileValue.ToString(), NumFieldComponents, OffsetValue.ToString());
+					FormattedCode.Appendf(TEXT("DFToWS(MakeDFVector%d(float%d(%s), float%d(%s)))"), NumFieldComponents, NumFieldComponents, ValueHigh.ToString(), NumFieldComponents, ValueLow.ToString());
 				}
 				else
 				{
-					FormattedCode.Appendf(TEXT("MakeLWCScalar(%s, %s)"), TileValue.ToString(), OffsetValue.ToString());
+					FormattedCode.Appendf(TEXT("DFToWS(MakeDFScalar(%s, %s))"), ValueHigh.ToString(), ValueLow.ToString());
 				}
 			}
 			else
@@ -1303,12 +1303,12 @@ FEmitShaderExpression* FEmitContext::EmitCast(FEmitScope& Scope, FEmitShaderExpr
 			{
 				// float->LWC
 				ShaderValue = EmitCast(Scope, ShaderValue, Shader::MakeValueType(Shader::EValueComponentType::Float, DestTypeDesc.NumComponents));
-				FormattedCode.Appendf(TEXT("LWCPromote(%s)"), ShaderValue->Reference);
+				FormattedCode.Appendf(TEXT("WSPromote(%s)"), ShaderValue->Reference);
 			}
 			else
 			{
 				//LWC->float
-				FormattedCode.Appendf(TEXT("LWCToFloat(%s)"), ShaderValue->Reference);
+				FormattedCode.Appendf(TEXT("WSDemote(%s)"), ShaderValue->Reference);
 				IntermediateType = Shader::MakeValueType(Shader::EValueComponentType::Float, SourceTypeDesc.NumComponents);
 				bInline = false; // LWCToFloat has non-zero cost
 			}
@@ -1324,7 +1324,7 @@ FEmitShaderExpression* FEmitContext::EmitCast(FEmitScope& Scope, FEmitShaderExpr
 			bool bNeedClosingParen = false;
 			if (bIsLWC)
 			{
-				FormattedCode.Append(TEXT("MakeLWCVector("));
+				FormattedCode.Append(TEXT("MakeWSVector("));
 				bNeedClosingParen = true;
 			}
 			else
@@ -1375,11 +1375,11 @@ FEmitShaderExpression* FEmitContext::EmitCast(FEmitScope& Scope, FEmitShaderExpr
 					{
 						if (!bReplicateScalar && ComponentIndex >= SourceTypeDesc.NumComponents)
 						{
-							FormattedCode.Append(TEXT("LWCPromote(0.0f)"));
+							FormattedCode.Append(TEXT("WSPromote(0.0f)"));
 						}
 						else
 						{
-							FormattedCode.Appendf(TEXT("LWCGetComponent(%s, %d)"), ShaderValue->Reference, bReplicateScalar ? 0 : ComponentIndex);
+							FormattedCode.Appendf(TEXT("WSGetComponent(%s, %d)"), ShaderValue->Reference, bReplicateScalar ? 0 : ComponentIndex);
 						}
 					}
 					else

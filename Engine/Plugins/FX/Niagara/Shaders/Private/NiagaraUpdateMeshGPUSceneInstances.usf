@@ -154,15 +154,15 @@ void UpdateMeshInstancesCS(uint3 GroupId : SV_GroupID, uint GroupIndex : SV_Grou
 	Params.DefaultPrevCameraOffset 		= DefaultPrevCameraOffset;
 	Params.VelocityDirMag				= NiagaraGetVelocityDirMag(VelocityDataOffset, DefaultVelocity, ParticleIndex);
 	Params.PrevVelocityDirMag			= NiagaraGetVelocityDirMag(PrevVelocityDataOffset, DefaultPrevVelocity, ParticleIndex);
-	Params.CameraOrigin 				= PrimaryView.WorldCameraOrigin;
+	Params.CameraOrigin 				= PrimaryView.TileOffset.WorldCameraOrigin;
 	Params.CameraForwardDir				= View.ViewForward;
 	Params.CameraUpDir					= View.ViewUp;
-	Params.PrevCameraOrigin 			= PrimaryView.PrevWorldCameraOrigin;
+	Params.PrevCameraOrigin 			= PrimaryView.TileOffset.PrevWorldCameraOrigin;
 	Params.PrevCameraForwardDir			= View.PrevViewToTranslatedWorld[2].xyz;
 	Params.PrevCameraUpDir				= View.PrevViewToTranslatedWorld[1].xyz;
-	Params.PrimitiveLocalToWorld		= PrimitiveData.LocalToWorld;
-	Params.PrimitiveWorldToLocal 		= PrimitiveData.WorldToLocal;
-	Params.PrimitivePrevLocalToWorld 	= PrimitiveData.PreviousLocalToWorld;
+	Params.PrimitiveLocalToWorld		= DFFastToTileOffset(PrimitiveData.LocalToWorld);
+	Params.PrimitiveWorldToLocal 		= DFFastToTileOffset(PrimitiveData.WorldToLocal);
+	Params.PrimitivePrevLocalToWorld 	= DFFastToTileOffset(PrimitiveData.PreviousLocalToWorld);
 	Params.PrimitiveInvNonUniformScale	= PrimitiveData.InvNonUniformScale;
 
 	NiagaraMeshParticleTransforms Transforms = NiagaraCalculateMeshParticleTransforms(Params);
@@ -170,7 +170,7 @@ void UpdateMeshInstancesCS(uint3 GroupId : SV_GroupID, uint GroupIndex : SV_Grou
 	// Transform the bounding center to world-space and distance cull
 	{
 		const FLWCVector3 BCenter = LWCMultiply(LocalBoundingCenter, Transforms.LocalToWorld);
-		const float3 CamVec = LWCToFloat(LWCSubtract(BCenter, PrimaryView.WorldCameraOrigin));
+		const float3 CamVec = LWCToFloat(LWCSubtract(BCenter, PrimaryView.TileOffset.WorldCameraOrigin));
 		const float CamDistSq = length2(CamVec);
 		if (CamDistSq < DistanceCullRangeSquared.x  || CamDistSq > DistanceCullRangeSquared.y)
 		{
@@ -195,10 +195,10 @@ void UpdateMeshInstancesCS(uint3 GroupId : SV_GroupID, uint GroupIndex : SV_Grou
  		PayloadDataFlags,
  		1,
  		0.0f,
-		Transforms.LocalToWorld
+		DFFromTileOffset(Transforms.LocalToWorld)
 	);
 	
 	FInstancePayloadDataOffsets PayloadOffsets = GetInstancePayloadDataOffsets(PrimitiveId, PayloadDataFlags, LocalInstanceId);
-	WriteInstanceDynamicDataWS(PayloadOffsets, PrimitiveId, Transforms.PrevLocalToWorld);
+	WriteInstanceDynamicDataWS(PayloadOffsets, PrimitiveId, DFFromTileOffset(Transforms.PrevLocalToWorld));
 	WriteInstanceCustomData(PayloadOffsets, 0, float4(asfloat(ParticleIndex), 0.0f, 0.0f, 0.0f));
 }

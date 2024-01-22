@@ -105,14 +105,21 @@ ViewState ResolveView(FNaniteView NaniteView)
 	Ret.PreViewTranslation 			= NaniteView.PreViewTranslation;
 	Ret.PrevPreViewTranslation 		= NaniteView.PrevPreViewTranslation;
 	Ret.ViewForward 				= NaniteView.ViewForward;
-	Ret.ViewTilePosition 			= NaniteView.ViewTilePosition;
-	Ret.MatrixTilePosition 			= NaniteView.MatrixTilePosition;
+	Ret.ViewOriginHigh 				= NaniteView.ViewOriginHigh;
 	Ret.NearPlane 					= NaniteView.NearPlane;
 
 	// HACK: This fixes some material nodes for shadows, as shadow views borrow some view uniforms from the closest
 	// camera view, rather than exposing their own parameters.
-	Ret.WorldCameraOrigin = LWCNegate(NaniteView.PreViewTranslation);
-	Ret.WorldCameraOrigin.Offset += NaniteView.CullingViewOriginTranslatedWorld;
+	Ret.WorldCameraOrigin = DFFastSubtract(NaniteView.CullingViewOriginTranslatedWorld, NaniteView.PreViewTranslation);
+
+#if VIEW_HAS_TILEOFFSET_DATA
+	Ret.TileOffset.PreViewTranslation = DFToTileOffset(Ret.PreViewTranslation);
+	Ret.TileOffset.PrevPreViewTranslation = DFToTileOffset(Ret.PrevPreViewTranslation);
+	//Ret.TileOffset.WorldViewOrigin = DFToTileOffset(Ret.WorldViewOrigin);
+	//Ret.TileOffset.PrevWorldViewOrigin = DFToTileOffset(Ret.PrevWorldViewOrigin);
+	Ret.TileOffset.WorldCameraOrigin = DFToTileOffset(Ret.WorldCameraOrigin);
+	//Ret.TileOffset.PrevWorldCameraOrigin = DFToTileOffset(Ret.PrevWorldCameraOrigin);
+#endif
 
 	return Ret;
 }
@@ -866,9 +873,8 @@ VSOut CommonRasterizerVS(FNaniteView NaniteView, FPrimitiveSceneData PrimitiveDa
 
 	WorldPositionOffset = MaterialShader.EvaluateWorldPositionOffset(InputVert);
 #endif
-
-	const float4x4 LocalToTranslatedWorld = LWCMultiplyTranslation(InstanceData.LocalToWorld, NaniteView.PreViewTranslation);
-	const float3 PointTranslatedWorld = mul( float4( InputVert.Position, 1 ), LocalToTranslatedWorld ).xyz + WorldPositionOffset;
+	
+	const float3 PointTranslatedWorld = DFTransformLocalToTranslatedWorld(InputVert.Position, InstanceData.LocalToWorld, NaniteView.PreViewTranslation) + WorldPositionOffset;
 	float4 PointClip = mul( float4( PointTranslatedWorld, 1 ), NaniteView.TranslatedWorldToClip );
 #if VIRTUAL_TEXTURE_TARGET
 	/*

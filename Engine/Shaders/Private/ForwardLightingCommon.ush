@@ -129,7 +129,7 @@ FDeferredLightingSplit GetForwardDirectLightingSplit(
 	float InDirectionalLightCloudShadow, float3 InDirectionalLightAtmosphereTransmittance, inout float OutDirectionalLightShadow,
 	bool bSeparateMainDirLightLuminance, inout float3 SeparatedMainDirLightLuminance, bool bSkipDirLightVirtualShadowMapEvaluation)
 {
-	float3 WorldPosition = TranslatedWorldPosition - LWCHackToFloat(PrimaryView.PreViewTranslation);
+	float3 WorldPosition = TranslatedWorldPosition - DFHackToFloat(PrimaryView.PreViewTranslation);
 
 	float4 DynamicShadowFactors = 1;
 
@@ -411,7 +411,7 @@ half3 GetImageBasedReflectionSpecular(FMaterialPixelParameters MaterialParameter
 	if (FinalProbeResolution > 0 && !bUseLumenFrontLayerReflection)
 	{
 		float ClipmapDitherRandom = InterleavedGradientNoise(MaterialParameters.SvPosition.xy, View.StateFrameIndexMod8);
-		LumenRadianceCacheCoverage = GetRadianceCacheCoverage(LWCHackToFloat(MaterialParameters.AbsoluteWorldPosition), RayDirection, ClipmapDitherRandom);
+		LumenRadianceCacheCoverage = GetRadianceCacheCoverage(WSHackToFloat(GetWorldPosition(MaterialParameters)), RayDirection, ClipmapDitherRandom);
 	}
 
 	if (bUseLumenFrontLayerReflection)
@@ -421,7 +421,7 @@ half3 GetImageBasedReflectionSpecular(FMaterialPixelParameters MaterialParameter
 	else if (LumenRadianceCacheCoverage.bValid)
 	{
 		float ConeHalfAngle = 0;
-		SpecularIBL = SampleRadianceCacheInterpolated(LumenRadianceCacheCoverage, LWCHackToFloat(MaterialParameters.AbsoluteWorldPosition), RayDirection, ConeHalfAngle);
+		SpecularIBL = SampleRadianceCacheInterpolated(LumenRadianceCacheCoverage, WSHackToFloat(GetWorldPosition(MaterialParameters)), RayDirection, ConeHalfAngle);
 	}
 	// Fallback to unshadowed skylight if no valid Radiance Cache
 	else

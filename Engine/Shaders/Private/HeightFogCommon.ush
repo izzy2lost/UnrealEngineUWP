@@ -85,10 +85,10 @@ half4 GetExponentialHeightFog(float3 WorldPositionRelativeToCamera, float Exclud
 	const half MinFogOpacity = FogStruct.ExponentialFogColorParameter.w;
 	const float MaxWorldObserverHeight = FogStruct.ExponentialFogParameters.z;
 
-	const float3 WorldObserverOrigin = float3(LWCHackToFloat(PrimaryView.WorldCameraOrigin).xy, min(LWCHackToFloat(PrimaryView.WorldCameraOrigin).z, MaxWorldObserverHeight)); // Clamp z to max height
+	const float3 WorldObserverOrigin = float3(DFHackToFloat(PrimaryView.WorldCameraOrigin).xy, min(DFHackToFloat(PrimaryView.WorldCameraOrigin).z, MaxWorldObserverHeight)); // Clamp z to max height
 
 	float3 CameraToReceiver = WorldPositionRelativeToCamera;
-	CameraToReceiver.z += LWCHackToFloat(PrimaryView.WorldCameraOrigin).z - WorldObserverOrigin.z; // Compensate this vector for clamping the observer height 
+	CameraToReceiver.z += DFHackToFloat(PrimaryView.WorldCameraOrigin).z - WorldObserverOrigin.z; // Compensate this vector for clamping the observer height 
 	float CameraToReceiverLengthSqr = dot(CameraToReceiver, CameraToReceiver);
 	float CameraToReceiverLengthInv = rsqrt(max(CameraToReceiverLengthSqr, 0.00000001f));
 	float CameraToReceiverLength = CameraToReceiverLengthSqr * CameraToReceiverLengthInv;
@@ -105,7 +105,7 @@ half4 GetExponentialHeightFog(float3 WorldPositionRelativeToCamera, float Exclud
 	// While rendering a planar reflection with a clip plane, we must compute analytical fog using a camera path starting from the plane, rather than the virtual camera origin
 	if (dot(View.GlobalClippingPlane.xyz, 1) > 0.0f)
 	{
-		float CameraOriginPlaneDistance = dot(View.GlobalClippingPlane, float4(WorldObserverOrigin + LWCHackToFloat(PrimaryView.PreViewTranslation), 1));
+		float CameraOriginPlaneDistance = dot(View.GlobalClippingPlane, float4(WorldObserverOrigin + DFHackToFloat(PrimaryView.PreViewTranslation), 1));
 		float PlaneIntersectionTime = -CameraOriginPlaneDistance / dot(CameraToReceiver, View.GlobalClippingPlane.xyz);
 
 		// Only modify the start distance if the reflection plane is between the camera and receiver point
@@ -294,14 +294,19 @@ float3 ComputeVolumeUVFromNDC(float4 NDCPosition)
 	float3 VolumeUV = float3(NDCPosition.xy * float2(.5f, -.5f) + .5f, ComputeNormalizedZSliceFromDepth(NDCPosition.w));
 	return min(VolumeUV * float3(View.VolumetricFogScreenToResourceUV.xy, 1.0), float3(View.VolumetricFogUVMax, 1.0));
 }
+float3 ComputeVolumeUVFromTranslatedPos(float3 TranslatedWorldPosition, float4x4 TranslatedWorldToClip)
+{
+	float4 NDCPosition = mul(float4(TranslatedWorldPosition, 1), TranslatedWorldToClip);
+	return ComputeVolumeUVFromNDC(NDCPosition);
+}
 float3 ComputeVolumeUV_DEPRECATED(float3 WorldPosition, float4x4 WorldToClip)
 {
 	float4 NDCPosition = mul(float4(WorldPosition, 1), WorldToClip);
 	return ComputeVolumeUVFromNDC(NDCPosition);
 }
-float3 ComputeVolumeUV(FLWCVector3 WorldPosition, FLWCInverseMatrix WorldToClip)
+float3 ComputeVolumeUV(FDFVector3 WorldPosition, FDFInverseMatrix WorldToClip)
 {
-	float4 NDCPosition = LWCMultiply(MakeLWCVector4(WorldPosition, 1.0f), WorldToClip);
+	float4 NDCPosition = DFMultiplyDemote(MakeDFVector(WorldPosition, 1.0f), WorldToClip);
 	return ComputeVolumeUVFromNDC(NDCPosition);
 }
 
@@ -316,8 +321,8 @@ float3 ComputeHistoryVolumeUV_DEPRECATED(float3 WorldPosition, float4x4 WorldToC
 	float4 NDCPosition = mul(float4(WorldPosition, 1), WorldToClip);
 	return ComputeHistoryVolumeUVFromNDC(NDCPosition);
 }
-float3 ComputeHistoryVolumeUV(FLWCVector3 WorldPosition, FLWCInverseMatrix WorldToClip)
+float3 ComputeHistoryVolumeUV(FDFVector3 WorldPosition, FDFInverseMatrix WorldToClip)
 {
-	float4 NDCPosition = LWCMultiply(MakeLWCVector4(WorldPosition, 1.0f), WorldToClip);
+	float4 NDCPosition = DFMultiplyDemote(MakeDFVector(WorldPosition, 1.0f), WorldToClip);
 	return ComputeHistoryVolumeUVFromNDC(NDCPosition);
 }

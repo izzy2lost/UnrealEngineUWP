@@ -5289,8 +5289,7 @@ void UpdateReflectionSceneData(FScene* Scene)
 		}
 
 		NewSortEntry.Guid = CurrentCapture->Guid;
-		NewSortEntry.RelativePosition = CurrentCapture->RelativePosition;
-		NewSortEntry.TilePosition = CurrentCapture->TilePosition;
+		NewSortEntry.Position = CurrentCapture->Position;
 		NewSortEntry.Radius = CurrentCapture->InfluenceRadius;
 		float ShapeTypeValue = (float)CurrentCapture->Shape;
 		NewSortEntry.CaptureProperties = FVector4f(CurrentCapture->Brightness, NewSortEntry.CubemapIndex, ShapeTypeValue, 0);

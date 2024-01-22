@@ -300,10 +300,9 @@ FVirtualShadowMapSampleResult ProjectLight(
 		}
 		else
 		{
-			FLWCVector3 WorldPosition = LWCSubtract(TranslatedWorldPosition, PrimaryView.PreViewTranslation);
 			Result = SampleVirtualShadowMapDirectional(
 				VirtualShadowMapId,
-				WorldPosition,
+				TranslatedWorldPosition,
 				SMRTRayOffset,
 				WorldNormal);
 		}
@@ -330,10 +329,9 @@ FVirtualShadowMapSampleResult ProjectLight(
 		}
 		else
 		{
-			FLWCVector3 WorldPosition = LWCSubtract(TranslatedWorldPosition, PrimaryView.PreViewTranslation);
 			Result = SampleVirtualShadowMapLocal(
 				VirtualShadowMapId,
-				WorldPosition,
+				TranslatedWorldPosition,
 				SMRTRayOffset,
 				WorldNormal);
 		}

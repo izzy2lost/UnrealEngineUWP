@@ -1,22 +1,32 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 FPrimitiveSceneData GetPrimitiveData(
-	FMaterialPixelParameters Parameters,
+	uint PrimitiveId,
 	float4x4 LocalToWorld,
 	float4x4 WorldToLocal,
 	float3 LocalBoundsOrigin,
 	float3 LocalBoundsExtent
 )
 {
-	FPrimitiveSceneData PrimitiveData = GetPrimitiveData(Parameters.PrimitiveId);
+	FPrimitiveSceneData PrimitiveData = GetPrimitiveData(PrimitiveId);
 
 	// Replace local-space transforms..
-	PrimitiveData.LocalToWorld = MakeLWCMatrix(PrimitiveData.TilePosition, LocalToWorld);
-	PrimitiveData.WorldToLocal = MakeLWCInverseMatrix(PrimitiveData.TilePosition, WorldToLocal);
+	PrimitiveData.LocalToWorld = MakeDFMatrix(PrimitiveData.PositionHigh, LocalToWorld);
+	PrimitiveData.WorldToLocal = MakeDFInverseMatrix(PrimitiveData.PositionHigh, WorldToLocal);
 	PrimitiveData.LocalObjectBoundsMin = LocalBoundsOrigin - LocalBoundsExtent;
 	PrimitiveData.LocalObjectBoundsMax = LocalBoundsOrigin + LocalBoundsExtent;
 
 	return PrimitiveData;
+}
+
+FPrimitiveSceneData GetPrimitiveData(FMaterialVertexParameters Parameters, float4x4 LocalToWorld, float4x4 WorldToLocal, float3 LocalBoundsOrigin, float3 LocalBoundsExtent)
+{
+	return GetPrimitiveData(Parameters.PrimitiveId, LocalToWorld, WorldToLocal, LocalBoundsOrigin, LocalBoundsExtent);
+}
+
+FPrimitiveSceneData GetPrimitiveData(FMaterialPixelParameters Parameters, float4x4 LocalToWorld, float4x4 WorldToLocal, float3 LocalBoundsOrigin, float3 LocalBoundsExtent)
+{
+	return GetPrimitiveData(Parameters.PrimitiveId, LocalToWorld, WorldToLocal, LocalBoundsOrigin, LocalBoundsExtent);
 }
 
 // Stolen from VolumetricFog

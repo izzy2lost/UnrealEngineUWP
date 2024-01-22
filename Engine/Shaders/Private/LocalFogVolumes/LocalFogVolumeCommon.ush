@@ -391,7 +391,7 @@ float4 GetLFVContribution(
 	in bool bPlatformSupportsVolumetricFogOntranslucent,
 	inout uint OutLFVCount)
 {
-	const float3 PreViewTranslation			= LWCHackToFloat(ResolvedView.PreViewTranslation);
+	const float3 PreViewTranslation			= DFHackToFloat(ResolvedView.PreViewTranslation);
 	const float3 CamRayTranslatedWorldOrigin= ResolvedView.TranslatedWorldCameraOrigin;
 	const float3 CamRayWorldOrigin			= CamRayTranslatedWorldOrigin - PreViewTranslation;
 	const float3 CamRayWorldDir				= normalize(DepthBufferTranslatedWorldPos - CamRayTranslatedWorldOrigin);

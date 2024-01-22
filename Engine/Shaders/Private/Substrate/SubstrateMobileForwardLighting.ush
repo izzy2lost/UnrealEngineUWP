@@ -57,7 +57,7 @@ float3 SubstrateMobileForwardLighting(
 	const uint PrimitiveId = MaterialParameters.PrimitiveId;
 	const uint2 PixelPos = uint2(SvPosition.xy);
 	const float Dither = InterleavedGradientNoise(PixelPos, View.StateFrameIndexMod8);
-	const float3 AbsoluteWorldPosition = LWCToFloat(MaterialParameters.AbsoluteWorldPosition);
+	const float3 AbsoluteWorldPosition = WSDemote(GetWorldPosition(MaterialParameters));
 	const float3 TranslatedWorldPosition = MaterialParameters.WorldPosition_CamRelative;
 	const float3 LightingPositionOffset = MaterialParameters.LightingPositionOffset;
 	const half4 PrecomputedShadowFactors = GetPrimaryPrecomputedShadowMask(LightmapVTPageTableResult, Interpolants, MaterialParameters);

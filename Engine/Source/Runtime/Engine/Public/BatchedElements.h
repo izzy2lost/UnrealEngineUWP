@@ -10,6 +10,7 @@
 #include "Templates/RefCounting.h"
 #include "RenderResource.h"
 #include "Containers/DynamicRHIResourceArray.h"
+#include "Math/DoubleFloat.h"
 
 #if UE_ENABLE_INCLUDE_ORDER_DEPRECATED_IN_5_2
 #include "CoreMinimal.h"
@@ -28,7 +29,7 @@ class FSceneView;
 
 struct FBatchedPoint;
 struct FMeshPassProcessorRenderState;
-struct FRelativeViewMatrices;
+struct FDFRelativeViewMatrices;
 
 enum EBlendMode : int;
 enum ESimpleElementBlendMode : int;
@@ -50,8 +51,7 @@ struct FSimpleElementVertex
 	// Store LWC-scale positions per-vertex
 	// Could potentially optimize this by storing a global batch offset, along with relative position per-vertex, but this would be more complicated
 	// Could also pack this structure to save some space, W component of position is currently unused for example
-	FVector4f RelativePosition;
-	FVector4f TilePosition;
+	FDFVector4 Position;
 	FVector2f TextureCoordinate;
 	FLinearColor Color;
 	FColor HitProxyIdColor;
@@ -363,7 +363,7 @@ private:
 		uint32 StencilRef,
 		ERHIFeatureLevel::Type FeatureLevel,
 		ESimpleElementBlendMode BlendMode,
-		const FRelativeViewMatrices& ViewMatrices,
+		const FDFRelativeViewMatrices& ViewMatrices,
 		FBatchedElementParameters* BatchedElementParameters,
 		const FTexture* Texture,
 		bool bHitTesting,

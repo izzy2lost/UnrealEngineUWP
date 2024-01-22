@@ -240,6 +240,18 @@ static TAutoConsoleVariable<int32> CVarRayTracingSceneUpdateOnce(
 	ECVF_RenderThreadSafe
 );
 
+static TAutoConsoleVariable<int32> CVarViewHasTileOffsetData(
+	TEXT("r.ViewHasTileOffsetData"),
+	1,
+	TEXT("1 to upload lower-precision tileoffset view data to gpu, 0 to use only higher-precision double float.\n"),
+	ECVF_ReadOnly | ECVF_RenderThreadSafe);
+
+static TAutoConsoleVariable<int32> CVarPrimitiveHasTileOffsetData(
+	TEXT("r.PrimitiveHasTileOffsetData"),
+	1,
+	TEXT("1 to upload lower-precision tileoffset primitive data to gpu, 0 to use higher-precision double float.\n"),
+	ECVF_ReadOnly | ECVF_RenderThreadSafe);
+
 #if !(UE_BUILD_SHIPPING || UE_BUILD_TEST)
 static TAutoConsoleVariable<float> CVarGeneralPurposeTweak(
 	TEXT("r.GeneralPurposeTweak"),
@@ -1276,9 +1288,10 @@ void FViewInfo::SetupUniformBufferParameters(
 			ViewUniformShaderParameters.DirectionalLightDirection = FVector3f::ZeroVector;
 		}
 
-#if RHI_RAYTRACING	
-		ViewUniformShaderParameters.TLASRelativePreViewTranslation = FVector3f(Scene->RayTracingScene.RelativePreViewTranslation);
-		ViewUniformShaderParameters.TLASViewTilePosition = Scene->RayTracingScene.ViewTilePosition;
+#if RHI_RAYTRACING
+		const FDFVector3& PreViewTranslation = Scene->RayTracingScene.PreViewTranslation;
+		ViewUniformShaderParameters.TLASPreViewTranslationHigh = PreViewTranslation.High;
+		ViewUniformShaderParameters.TLASPreViewTranslationLow = PreViewTranslation.Low;
 #endif
 
 		// Set default atmosphere lights parameters
@@ -1420,7 +1433,7 @@ void FViewInfo::SetupUniformBufferParameters(
 		ViewUniformShaderParameters.SkyAtmosphereCameraAerialPerspectiveVolumeDepthSliceLengthKm = 1.0f;
 		ViewUniformShaderParameters.SkyAtmosphereCameraAerialPerspectiveVolumeDepthSliceLengthKmInv = 1.0f;
 		ViewUniformShaderParameters.SkyAtmosphereApplyCameraAerialPerspectiveVolume = 0.0f;
-		ViewUniformShaderParameters.SkyCameraTranslatedWorldOrigin = ViewUniformShaderParameters.RelativeWorldCameraOrigin;
+		ViewUniformShaderParameters.SkyCameraTranslatedWorldOrigin = ViewUniformShaderParameters.TranslatedWorldCameraOrigin;
 		ViewUniformShaderParameters.SkyPlanetTranslatedWorldCenterAndViewHeight = FVector4f(ForceInitToZero);
 		ViewUniformShaderParameters.SkyViewLutReferential = FMatrix44f::Identity;
 

@@ -93,7 +93,7 @@ void CalcHomogenousPos(in uint InPointIndex, in float3 PBO, out float4 HP, out u
 		HairStrandsVF_TipScale);
 
 	const float3 WP = mul(float4(CP.Position, 1.0f), HairStrandsVF_LocalToWorldPrimitiveTransform).xyz;
-	HP = mul(float4(WP, 1.0f), LWCHackToFloat(PrimaryView.WorldToClip));
+	HP = mul(float4(WP, 1.0f), DFHackToFloat(PrimaryView.WorldToClip));
 	Type = CP.Type;
 }
 
@@ -108,7 +108,7 @@ void CalcHomogenousPosAndRad(in uint InPointIndex, in float3 PBO, out float4 HP,
 		HairStrandsVF_TipScale);
 
 	const float3 WP = mul(float4(CP.Position, 1.0f), HairStrandsVF_LocalToWorldPrimitiveTransform).xyz;
-	HP = mul(float4(WP, 1.0f), LWCHackToFloat(PrimaryView.WorldToClip));
+	HP = mul(float4(WP, 1.0f), DFHackToFloat(PrimaryView.WorldToClip));
 	Rad = CP.WorldRadius * 2000.0; // OutputResolutionf.x; //TODO: figure this out correctly?
 	Type = CP.Type;
 }

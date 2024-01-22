@@ -73,7 +73,7 @@ void VisualizeSparseVolumeTexturePS(
 	float4 TranslatedWorldPos = mul(float4(ScreenPosition * Depth, Depth, 1), View.ScreenToTranslatedWorld);
 
 	const float3 RayDirWorld = normalize(TranslatedWorldPos.xyz - View.TranslatedWorldCameraOrigin);
-	const float3 RayOrigWorld = LWCHackToFloat(ResolvedView.WorldCameraOrigin);
+	const float3 RayOrigWorld = DFHackToFloat(ResolvedView.WorldCameraOrigin);
 
 	// Transform into local [-1.0f, 1.0f] space
 	float3 RayDir;

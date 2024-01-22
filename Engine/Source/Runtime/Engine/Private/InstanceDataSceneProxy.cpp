@@ -166,8 +166,9 @@ FRenderTransform FInstanceSceneDataBuffers::ComputeInstanceToPrimitiveRelative(c
 void FInstanceSceneDataBuffers::SetPrimitiveLocalToWorld(const FMatrix &PrimitiveLocalToWorld, FAccessTag AccessTag)
 {
 	ValidateAccess(AccessTag);
-	PrimitiveWorldSpaceOffset = FLargeWorldRenderPosition(PrimitiveLocalToWorld.GetOrigin()).GetTileOffset();
-	PrimitiveToRelativeWorld = FLargeWorldRenderScalar::MakeToRelativeWorldMatrix(PrimitiveWorldSpaceOffset, PrimitiveLocalToWorld);
+	const FVector3f PrimitiveWorldSpacePositionHigh = FDFVector3{ PrimitiveLocalToWorld.GetOrigin() }.High;
+	PrimitiveWorldSpaceOffset = FVector{ PrimitiveWorldSpacePositionHigh };
+	PrimitiveToRelativeWorld = FDFMatrix::MakeToRelativeWorldMatrix(PrimitiveWorldSpacePositionHigh, PrimitiveLocalToWorld).M;
 }
 
 FInstanceDataBufferHeader FInstanceSceneDataBuffers::GetHeader(FAccessTag AccessTag) const

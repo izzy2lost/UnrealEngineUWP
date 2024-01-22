@@ -361,7 +361,7 @@ struct FMaterialShader
 		if ((PrimitiveData.Flags & PRIMITIVE_SCENE_DATA_FLAG_EVALUATE_WORLD_POSITION_OFFSET) != 0u)
 		{
 			// Should be Pow2(InvScale) but that requires renormalization
-			float3x3 LocalToWorld = LWCToFloat3x3(InstanceData.LocalToWorld);
+			float3x3 LocalToWorld = DFToFloat3x3(InstanceData.LocalToWorld);
 			float3 InvScale = InstanceData.InvNonUniformScale;
 			LocalToWorld[0] *= InvScale.x;
 			LocalToWorld[1] *= InvScale.y;

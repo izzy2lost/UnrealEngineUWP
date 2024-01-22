@@ -9,7 +9,7 @@
 
 float3 GetTranslatedWorldPos(float3 WorldPos)
 {
-	float3 TranslatedWorldPos = LWCHackToFloat(LWCAdd(WorldPos, PrimaryView.PreViewTranslation));
+	float3 TranslatedWorldPos = DFFastToTranslatedWorld(WorldPos, PrimaryView.PreViewTranslation);
 	return TranslatedWorldPos;
 }
 
@@ -131,7 +131,7 @@ FVolumeShadedResult GetFrustumVoxelGridDensity(float3 TranslatedWorldPos, inout 
 	float3 Emission = 0.0;
 
 	// Convert TranslatedWorldPos to voxel space
-	float3 WorldPos = LWCHackToFloat(LWCSubtract(TranslatedWorldPos, PrimaryView.PreViewTranslation));
+	float3 WorldPos = DFHackToFloat(DFFastSubtract(TranslatedWorldPos, PrimaryView.PreViewTranslation));
 	float3 ViewPos = mul(float4(WorldPos, 1), FrustumGridUniformBuffer.WorldToView).xyz;
 
 	int3 VoxelDimensions = FrustumGridUniformBuffer.VoxelDimensions;

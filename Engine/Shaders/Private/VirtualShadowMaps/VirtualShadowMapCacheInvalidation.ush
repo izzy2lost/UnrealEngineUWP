@@ -39,7 +39,7 @@ void InvalidateInstancePages(int VirtualShadowMapId, uint InstanceId, bool bForc
 	const bool bDirectionalLight = (ProjectionData.LightType == LIGHT_TYPE_DIRECTIONAL);
 
 	// NOTE: This is the *shadow view*'s translated world, not primary view
-	float4x4 LocalToTranslatedWorld = LWCMultiplyTranslation(InstanceSceneData.LocalToWorld, ProjectionData.PreViewTranslation);
+	float4x4 LocalToTranslatedWorld = DFMultiplyTranslationDemote(InstanceSceneData.LocalToWorld, ProjectionData.PreViewTranslation);
 
 	// distance cull invalidations for local lights
 	if (!bDirectionalLight)

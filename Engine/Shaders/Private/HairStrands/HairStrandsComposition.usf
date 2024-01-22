@@ -38,14 +38,14 @@ Texture2D<float4>	HairLightingSampleBuffer;
 
 float4 EvaluateVolumetric(float3 WorldPosition, float SceneDepth)
 {
-	const float3 CameraRelative_WorldPosition = WorldPosition - LWCHackToFloat(PrimaryView.WorldCameraOrigin);
+	const float3 CameraRelative_WorldPosition = WorldPosition - DFHackToFloat(PrimaryView.WorldCameraOrigin);
 	float4 HeightFogging = CalculateHeightFog(CameraRelative_WorldPosition);
 	float4 Fogging = HeightFogging;
 
 	if (FogStruct.ApplyVolumetricFog > 0)
 	{
 		const uint EyeIndex = 0;
-		float3 VolumeUV = ComputeVolumeUV_DEPRECATED(WorldPosition, LWCHackToFloat(PrimaryView.WorldToClip));
+		float3 VolumeUV = ComputeVolumeUV_DEPRECATED(WorldPosition, DFHackToFloat(PrimaryView.WorldToClip));
 		Fogging = CombineVolumetricFog(HeightFogging, VolumeUV, EyeIndex, SceneDepth);
 	}
 
@@ -53,7 +53,7 @@ float4 EvaluateVolumetric(float3 WorldPosition, float SceneDepth)
 
 	if (View.SkyAtmosphereApplyCameraAerialPerspectiveVolume > 0.0f)
 	{
-		float4 NDCPosition = mul(float4(WorldPosition.xyz, 1), LWCHackToFloat(PrimaryView.WorldToClip));
+		float4 NDCPosition = mul(float4(WorldPosition.xyz, 1), DFHackToFloat(PrimaryView.WorldToClip));
 
 		// Sample the aerial perspective (AP).
 		Fogging = GetAerialPerspectiveLuminanceTransmittanceWithFogOver(
@@ -101,7 +101,7 @@ void ComposeSamplePS(
 	const uint TotalNodeCount = HairStrands.HairSampleCount[0];
 	const uint2 Resolution = GetHairSampleResolution(TotalNodeCount);
 
-	const float3 ClosetPointWorldPosition = LWCHackToFloat(SvPositionToWorld(float4(Input.Position.xy, HairDeviceZ, 1.0)));
+	const float3 ClosetPointWorldPosition = DFHackToFloat(SvPositionToWorld(float4(Input.Position.xy, HairDeviceZ, 1.0)));
 	const float4 Volumetric = EvaluateVolumetric(ClosetPointWorldPosition, ConvertFromDeviceZ(HairDeviceZ));
 
 	bool bHoldout = false;

@@ -182,8 +182,8 @@ void DepthExport(uint2 GroupId : SV_GroupID, uint ThreadIndex : SV_GroupIndex)
 					FInstanceDynamicData InstanceDynamicData = CalculateInstanceDynamicData(NaniteView, InstanceData);
 
 					const float4 ScreenPos = SvPositionToScreenPosition(float4(PixelPos.xy, asfloat(DepthInt), 1.0f));
-					const FLWCVector3 WorldPos  = SvPositionToWorld(float4(PixelPos.xy, asfloat(DepthInt), 1.0f));
-					const float3 LocalPos = LWCMultiply(WorldPos, InstanceData.WorldToLocal);
+					const FDFVector3 WorldPos  = SvPositionToWorld(float4(PixelPos.xy, asfloat(DepthInt), 1.0f));
+					const float3 LocalPos = DFMultiplyDemote(WorldPos, InstanceData.WorldToLocal);
 
 					// TODO: PROG_RASTER - this is incorrect for WPO. Will likely need to be output by the base pass
 					const float3 WorldPosPrev = mul(float4(LocalPos, 1), InstanceDynamicData.PrevLocalToTranslatedWorld).xyz;

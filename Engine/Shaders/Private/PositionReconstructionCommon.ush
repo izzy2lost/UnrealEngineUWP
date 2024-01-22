@@ -32,7 +32,7 @@ float3 ReconstructTranslatedWorldPositionFromDepth(float2 UV, float SceneDepth)
 float3 ReconstructWorldPositionFromDepth(float2 UV, float Depth)
 {
 	float2 ScreenPosition = (UV - View.ScreenPositionScaleBias.wz) / View.ScreenPositionScaleBias.xy;
-	float4 HomogeneousWorldPosition = mul(float4(GetScreenPositionForProjectionType(ScreenPosition, Depth), Depth, 1), LWCHackToFloat(PrimaryView.ScreenToWorld));
+	float4 HomogeneousWorldPosition = mul(float4(GetScreenPositionForProjectionType(ScreenPosition, Depth), Depth, 1), DFHackToFloat(PrimaryView.ScreenToWorld));
 	float3 WorldPosition = HomogeneousWorldPosition.xyz / HomogeneousWorldPosition.w;
 
 	return WorldPosition;

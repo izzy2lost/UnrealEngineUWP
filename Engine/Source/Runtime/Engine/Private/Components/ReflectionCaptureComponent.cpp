@@ -1285,10 +1285,7 @@ FReflectionCaptureProxy::FReflectionCaptureProxy(const UReflectionCaptureCompone
 
 void FReflectionCaptureProxy::SetTransform(const FMatrix& InTransform)
 {
-	const FLargeWorldRenderPosition AbsolutePosition(InTransform.GetOrigin());
-
-	RelativePosition = AbsolutePosition.GetOffset();
-	TilePosition = AbsolutePosition.GetTile();
+	Position = FDFVector3(InTransform.GetOrigin());
 
 	const FMatrix44f LocalToRelativeWorld = FMatrix44f(InTransform.RemoveTranslation());
 	BoxTransform = LocalToRelativeWorld.Inverse();

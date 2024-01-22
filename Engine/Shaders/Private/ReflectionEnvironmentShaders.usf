@@ -999,7 +999,7 @@ void VisualizeIlluminanceMeterPS(
 		float3 SkyLightIlluminance = GetIlluminance();
 
 #if PROJECT_SUPPORT_SKY_ATMOSPHERE
-		const float3 PlanetCenterToTranslatedWorldPos = (LWCToFloat(LWCAdd(SkyLightCaptureWorlPos, ResolvedView.PreViewTranslation)) - ResolvedView.SkyPlanetTranslatedWorldCenterAndViewHeight.xyz) * CM_TO_SKY_UNIT;
+		const float3 PlanetCenterToTranslatedWorldPos = (DFFastAddDemote(SkyLightCaptureWorlPos, ResolvedView.PreViewTranslation) - ResolvedView.SkyPlanetTranslatedWorldCenterAndViewHeight.xyz) * CM_TO_SKY_UNIT;
 		// GetAtmosphereTransmittance does a shadow test against the virtual planet.
 		const float3 TransmittanceToLight = GetAtmosphereTransmittance(
 			PlanetCenterToTranslatedWorldPos, ResolvedView.AtmosphereLightDirection[0].xyz, ResolvedView.SkyAtmosphereBottomRadiusKm, ResolvedView.SkyAtmosphereTopRadiusKm,

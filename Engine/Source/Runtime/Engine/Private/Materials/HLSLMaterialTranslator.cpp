@@ -2650,6 +2650,10 @@ void FHLSLMaterialTranslator::GetMaterialEnvironment(EShaderPlatform InPlatform,
 		OutEnvironment.SetDefine(TEXT("MATERIAL_SHADINGMODEL_UNLIT"), TEXT("1"));
 	}
 
+	OutEnvironment.SetDefine(TEXT("MATERIAL_LWC_ENABLED"), GLWCEnabled ? TEXT("1") : TEXT("0"));
+	OutEnvironment.SetDefine(TEXT("WSVECTOR_IS_TILEOFFSET"), TEXT("1"));
+	OutEnvironment.SetDefine(TEXT("WSVECTOR_IS_DOUBLEFLOAT"), TEXT("0"));
+
 	if (EnvironmentDefines->bMaterialVolumetricAdvanced)
 	{
 		OutEnvironment.SetDefine(TEXT("MATERIAL_VOLUMETRIC_ADVANCED"), TEXT("1"));
@@ -3279,10 +3283,10 @@ const TCHAR* FHLSLMaterialTranslator::HLSLTypeString(EMaterialValueType Type) co
 	case MCT_UInt3:					return TEXT("uint3");
 	case MCT_UInt4:					return TEXT("uint4");
 	case MCT_Substrate:				return TEXT("FSubstrateData");
-	case MCT_LWCScalar:				return TEXT("FLWCScalar");
-	case MCT_LWCVector2:			return TEXT("FLWCVector2");
-	case MCT_LWCVector3:			return TEXT("FLWCVector3");
-	case MCT_LWCVector4:			return TEXT("FLWCVector4");
+	case MCT_LWCScalar:				return TEXT("FWSScalar");
+	case MCT_LWCVector2:			return TEXT("FWSVector2");
+	case MCT_LWCVector3:			return TEXT("FWSVector3");
+	case MCT_LWCVector4:			return TEXT("FWSVector4");
 	default:						return TEXT("unknown");
 	};
 }
@@ -3316,10 +3320,10 @@ const TCHAR* FHLSLMaterialTranslator::HLSLTypeStringDeriv(EMaterialValueType Typ
 	case MCT_UInt3:					return TEXT("uint3");
 	case MCT_UInt4:					return TEXT("uint4");
 	case MCT_Substrate:				return TEXT("FSubstrateData");
-	case MCT_LWCScalar:				return (DerivativeStatus == EDerivativeStatus::Valid) ? TEXT("FLWCScalarDeriv") : TEXT("FLWCScalar");
-	case MCT_LWCVector2:			return (DerivativeStatus == EDerivativeStatus::Valid) ? TEXT("FLWCVector2Deriv") : TEXT("FLWCVector2");
-	case MCT_LWCVector3:			return (DerivativeStatus == EDerivativeStatus::Valid) ? TEXT("FLWCVector3Deriv") : TEXT("FLWCVector3");
-	case MCT_LWCVector4:			return (DerivativeStatus == EDerivativeStatus::Valid) ? TEXT("FLWCVector4Deriv") : TEXT("FLWCVector4");
+	case MCT_LWCScalar:				return (DerivativeStatus == EDerivativeStatus::Valid) ? TEXT("FWSScalarDeriv") : TEXT("FWSScalar");
+	case MCT_LWCVector2:			return (DerivativeStatus == EDerivativeStatus::Valid) ? TEXT("FWSVector2Deriv") : TEXT("FWSVector2");
+	case MCT_LWCVector3:			return (DerivativeStatus == EDerivativeStatus::Valid) ? TEXT("FWSVector3Deriv") : TEXT("FWSVector3");
+	case MCT_LWCVector4:			return (DerivativeStatus == EDerivativeStatus::Valid) ? TEXT("FWSVector4Deriv") : TEXT("FWSVector4");
 	default:						return TEXT("unknown");
 	};
 }
@@ -3397,7 +3401,7 @@ FString FHLSLMaterialTranslator::GetWorldPositionOrDefault(int32 WorldPosition, 
 	FString WorldPosCode;
 	if (PositionOrigin == EPositionOrigin::Absolute)
 	{
-		WorldPosCode = WorldPosition == INDEX_NONE ? FString(TEXT("Parameters.AbsoluteWorldPosition")) : CoerceParameter(WorldPosition, MCT_LWCVector3);
+		WorldPosCode = WorldPosition == INDEX_NONE ? FString(TEXT("GetWorldPosition(Parameters)")) : CoerceParameter(WorldPosition, MCT_LWCVector3);
 	}
 	else if (PositionOrigin == EPositionOrigin::CameraRelative)
 	{
@@ -3880,17 +3884,17 @@ int32 FHLSLMaterialTranslator::AccessUniformExpression(int32 Index)
 			AddLWCFuncUsage(ELWCFunctionKind::Constructor);
 			if (NumComponents == 1)
 			{
-				FormattedCode.Append(TEXT("MakeLWCScalar("));
+				FormattedCode.Append(TEXT("DFToWS(MakeDFScalar("));
 			}
 			else
 			{
-				FormattedCode.Appendf(TEXT("MakeLWCVector%d("), NumComponents);
+				FormattedCode.Appendf(TEXT("DFToWS(MakeDFVector%d("), NumComponents);
 			}
 
-			WriteMaterialUniformAccess(UE::Shader::EValueComponentType::Float, NumComponents, UniformOffset, FormattedCode); // Tile
+			WriteMaterialUniformAccess(UE::Shader::EValueComponentType::Float, NumComponents, UniformOffset, FormattedCode); // High
 			FormattedCode.Append(TEXT(","));
-			WriteMaterialUniformAccess(UE::Shader::EValueComponentType::Float, NumComponents, UniformOffset + NumComponents, FormattedCode); // Offset
-			FormattedCode.Append(TEXT(")"));
+			WriteMaterialUniformAccess(UE::Shader::EValueComponentType::Float, NumComponents, UniformOffset + NumComponents, FormattedCode); // Low
+			FormattedCode.Append(TEXT("))"));
 		}
 		else
 		{
@@ -4708,13 +4712,13 @@ FString FHLSLMaterialTranslator::CastValue(const FString& Code, EMaterialValueTy
 			{
 				// float->LWC
 				AddLWCFuncUsage(ELWCFunctionKind::Promote);
-				return FString::Printf(TEXT("LWCPromote(%s)"), *CastValue(Code, SourceType, MakeNonLWCType(DestType), Flags));
+				return FString::Printf(TEXT("WSPromote(%s)"), *CastValue(Code, SourceType, MakeNonLWCType(DestType), Flags));
 			}
 			else
 			{
 				//LWC->float
 				AddLWCFuncUsage(ELWCFunctionKind::Demote);
-				return CastValue(FString::Printf(TEXT("LWCToFloat(%s)"), *Code), MakeNonLWCType(SourceType), DestType, Flags);
+				return CastValue(FString::Printf(TEXT("WSDemote(%s)"), *Code), MakeNonLWCType(SourceType), DestType, Flags);
 			}
 		}
 
@@ -4724,7 +4728,7 @@ FString FHLSLMaterialTranslator::CastValue(const FString& Code, EMaterialValueTy
 		if (bIsLWC)
 		{
 			AddLWCFuncUsage(ELWCFunctionKind::Constructor);
-			Result = TEXT("MakeLWCVector(");
+			Result = TEXT("MakeWSVector(");
 			bNeedClosingParen = true;
 		}
 		else
@@ -4776,11 +4780,11 @@ FString FHLSLMaterialTranslator::CastValue(const FString& Code, EMaterialValueTy
 					{
 						check(bAllowAppendZeroes);
 						AddLWCFuncUsage(ELWCFunctionKind::Promote);
-						Result += TEXT("LWCPromote(0.0f)");
+						Result += TEXT("WSPromote(0.0f)");
 					}
 					else
 					{
-						Result += FString::Printf(TEXT("LWCGetComponent(%s, %d)"), *Code, bReplicateScalar ? 0 : ComponentIndex);
+						Result += FString::Printf(TEXT("WSGetComponent(%s, %d)"), *Code, bReplicateScalar ? 0 : ComponentIndex);
 					}
 				}
 				else
@@ -4965,8 +4969,8 @@ int32 FHLSLMaterialTranslator::ViewProperty(EMaterialExposedViewProperty Propert
 		{MEVP_FieldOfView, MCT_Float2, TEXT("View.<PREV>FieldOfViewWideAngles"), nullptr},
 		{MEVP_TanHalfFieldOfView, MCT_Float2, TEXT("Get<PREV>TanHalfFieldOfView()"), TEXT("Get<PREV>CotanHalfFieldOfView()")},
 		{MEVP_ViewSize, MCT_Float2, TEXT("View.ViewSizeAndInvSize.xy"), TEXT("View.ViewSizeAndInvSize.zw")},
-		{MEVP_WorldSpaceViewPosition, MCT_LWCVector3, TEXT("ResolvedView.<PREV>WorldViewOrigin"), nullptr},
-		{MEVP_WorldSpaceCameraPosition, MCT_LWCVector3, TEXT("ResolvedView.<PREV>WorldCameraOrigin"), nullptr},
+		{MEVP_WorldSpaceViewPosition, MCT_LWCVector3, TEXT("Get<PREV>WorldViewOrigin(Parameters)"), nullptr},
+		{MEVP_WorldSpaceCameraPosition, MCT_LWCVector3, TEXT("Get<PREV>WorldCameraOrigin(Parameters)"), nullptr},
 		{MEVP_ViewportOffset, MCT_Float2, TEXT("View.ViewRectMin.xy"), nullptr},
 		{MEVP_TemporalSampleCount, MCT_Float1, TEXT("View.TemporalAAParams.y"), nullptr},
 		{MEVP_TemporalSampleIndex, MCT_Float1, TEXT("View.TemporalAAParams.x"), nullptr},
@@ -5377,7 +5381,7 @@ int32 FHLSLMaterialTranslator::Floor(int32 X)
 		if (IsLWCType(ValueType))
 		{
 			AddLWCFuncUsage(ELWCFunctionKind::Other);
-			return AddCodeChunkZeroDeriv(ValueType, TEXT("LWCFloor(%s)"), *GetParameterCode(X));
+			return AddCodeChunkZeroDeriv(ValueType, TEXT("WSFloor(%s)"), *GetParameterCode(X));
 		}
 		else
 		{
@@ -5404,7 +5408,7 @@ int32 FHLSLMaterialTranslator::Ceil(int32 X)
 		if (IsLWCType(ValueType))
 		{
 			AddLWCFuncUsage(ELWCFunctionKind::Other);
-			return AddCodeChunkZeroDeriv(ValueType, TEXT("LWCCeil(%s)"), *GetParameterCode(X));
+			return AddCodeChunkZeroDeriv(ValueType, TEXT("WSCeil(%s)"), *GetParameterCode(X));
 		}
 		else
 		{
@@ -5431,7 +5435,7 @@ int32 FHLSLMaterialTranslator::Round(int32 X)
 		if (IsLWCType(ValueType))
 		{
 			AddLWCFuncUsage(ELWCFunctionKind::Other);
-			return AddCodeChunkZeroDeriv(ValueType, TEXT("LWCRound(%s)"), *GetParameterCode(X));
+			return AddCodeChunkZeroDeriv(ValueType, TEXT("WSRound(%s)"), *GetParameterCode(X));
 		}
 		else
 		{
@@ -5458,7 +5462,7 @@ int32 FHLSLMaterialTranslator::Truncate(int32 X)
 		if (IsLWCType(ValueType))
 		{
 			AddLWCFuncUsage(ELWCFunctionKind::Other);
-			return AddCodeChunkZeroDeriv(ValueType, TEXT("LWCTrunc(%s)"), *GetParameterCode(X));
+			return AddCodeChunkZeroDeriv(ValueType, TEXT("WSTrunc(%s)"), *GetParameterCode(X));
 		}
 		else
 		{
@@ -5485,7 +5489,7 @@ int32 FHLSLMaterialTranslator::Sign(int32 X)
 		if (IsLWCType(ValueType))
 		{
 			AddLWCFuncUsage(ELWCFunctionKind::Other);
-			return AddCodeChunkZeroDeriv(MakeNonLWCType(ValueType), TEXT("LWCSign(%s)"), *GetParameterCode(X));
+			return AddCodeChunkZeroDeriv(MakeNonLWCType(ValueType), TEXT("WSSign(%s)"), *GetParameterCode(X));
 		}
 		else
 		{
@@ -5518,7 +5522,7 @@ int32 FHLSLMaterialTranslator::Frac(int32 X)
 			if (IsLWCType(Type))
 			{
 				AddLWCFuncUsage(ELWCFunctionKind::Other);
-				return AddCodeChunk(MakeNonLWCType(Type), TEXT("LWCFrac(%s)"), *GetParameterCode(X));
+				return AddCodeChunk(MakeNonLWCType(Type), TEXT("WSFracDemote(%s)"), *GetParameterCode(X));
 			}
 			else
 			{
@@ -5770,11 +5774,11 @@ int32 FHLSLMaterialTranslator::ParticlePosition(EPositionOrigin OriginType)
 	bNeedsParticlePosition = true;
 
 	const TCHAR* TranslatedWP = TEXT("Parameters.Particle.TranslatedWorldPositionAndSize.xyz");
-	const TCHAR* AbsoluteWP = TEXT("LWCSubtract(Parameters.Particle.TranslatedWorldPositionAndSize.xyz, ResolvedView.PreViewTranslation)");
+	const TCHAR* AbsoluteWP = TEXT("GetParticleWorldPosition(Parameters)");
 	if ( bCompilingPreviousFrame && ShaderFrequency == SF_Vertex )
 	{
 		TranslatedWP = TEXT("Parameters.Particle.PrevTranslatedWorldPositionAndSize.xyz");
-		AbsoluteWP = TEXT("LWCSubtract(Parameters.Particle.PrevTranslatedWorldPositionAndSize.xyz, ResolvedView.PrevPreViewTranslation)");
+		AbsoluteWP = TEXT("GetPrevParticleWorldPosition(Parameters)");
 	}
 
 	if (OriginType == EPositionOrigin::CameraRelative)
@@ -6064,9 +6068,7 @@ int32 FHLSLMaterialTranslator::ActorWorldPosition(EPositionOrigin OriginType)
 			// and primitve uniform buffer are guaranteed to exist if ActorPosition
 			// material node is used in VS
 			AddLWCFuncUsage(ELWCFunctionKind::MultiplyVectorMatrix, 2);
-			return AddInlinedCodeChunkZeroDeriv(
-				MCT_Float3,
-				TEXT("LWCToFloat(LWCSubtract(LWCMultiply(LWCMultiply(GetActorWorldPosition(Parameters), GetWorldToInstance(Parameters)), Parameters.PrevFrameLocalToWorld), ResolvedView.PreViewTranslation))"));
+			return AddInlinedCodeChunkZeroDeriv(MCT_Float3, TEXT("GetPreviousActorTranslatedWorldPosition(Parameters)"));
 		}
 		else
 		{
@@ -6082,9 +6084,7 @@ int32 FHLSLMaterialTranslator::ActorWorldPosition(EPositionOrigin OriginType)
 			// and primitive uniform buffer are guaranteed to exist if ActorPosition
 			// material node is used in VS
 			AddLWCFuncUsage(ELWCFunctionKind::MultiplyVectorMatrix, 2);
-			Result = AddInlinedCodeChunkZeroDeriv(
-				MCT_LWCVector3,
-				TEXT("LWCMultiply(LWCMultiply(GetActorWorldPosition(Parameters), GetWorldToInstance(Parameters)), Parameters.PrevFrameLocalToWorld)"));
+			Result = AddInlinedCodeChunkZeroDeriv(MCT_LWCVector3, TEXT("GetPreviousActorWorldPosition(Parameters)"));
 		}
 		else
 		{
@@ -6870,18 +6870,18 @@ int32 FHLSLMaterialTranslator::TextureSample(
 		switch (NumComponents)
 		{
 		case 1u:
-			NonLWCCoordinateIndex = AddCodeChunkZeroDeriv(UVsType, TEXT("LWCApplyAddressMode(%s, %s)"),
+			NonLWCCoordinateIndex = AddCodeChunkZeroDeriv(UVsType, TEXT("WSApplyAddressMode(%s, %s)"),
 				*CoerceParameter(CoordinateIndex, MCT_LWCScalar),
 				AddressModeToString(StaticAddressX));
 			break;
 		case 2u:
-			NonLWCCoordinateIndex = AddCodeChunkZeroDeriv(UVsType, TEXT("LWCApplyAddressMode(%s, %s, %s)"),
+			NonLWCCoordinateIndex = AddCodeChunkZeroDeriv(UVsType, TEXT("WSApplyAddressMode(%s, %s, %s)"),
 				*CoerceParameter(CoordinateIndex, MCT_LWCVector2),
 				AddressModeToString(StaticAddressX),
 				AddressModeToString(StaticAddressY));
 			break;
 		case 3u:
-			NonLWCCoordinateIndex = AddCodeChunkZeroDeriv(UVsType, TEXT("LWCApplyAddressMode(%s, %s, %s, %s)"),
+			NonLWCCoordinateIndex = AddCodeChunkZeroDeriv(UVsType, TEXT("WSApplyAddressMode(%s, %s, %s, %s)"),
 				*CoerceParameter(CoordinateIndex, MCT_LWCVector3),
 				AddressModeToString(StaticAddressX),
 				AddressModeToString(StaticAddressY),
@@ -6904,10 +6904,10 @@ int32 FHLSLMaterialTranslator::TextureSample(
 			{
 				MipScaleIndex = AddCodeChunkZeroDeriv(UVsType, TEXT("exp2(%s)"), *CoerceParameter(MipValue0Index, MCT_Float1));
 			}
-
+			
 			AddLWCFuncUsage(ELWCFunctionKind::Other, 2);
-			MipValue0Index = AddCodeChunkZeroDeriv(UVsType, TEXT("LWCDdx(%s)"), *GetParameterCode(CoordinateIndex));
-			MipValue1Index = AddCodeChunkZeroDeriv(UVsType, TEXT("LWCDdy(%s)"), *GetParameterCode(CoordinateIndex));
+			MipValue0Index = AddCodeChunkZeroDeriv(UVsType, TEXT("WSDdxDemote(%s)"), *GetParameterCode(CoordinateIndex));
+			MipValue1Index = AddCodeChunkZeroDeriv(UVsType, TEXT("WSDdyDemote(%s)"), *GetParameterCode(CoordinateIndex));
 			if (MipScaleIndex != INDEX_NONE)
 			{
 				MipValue0Index = Mul(MipValue0Index, MipScaleIndex);
@@ -8570,7 +8570,7 @@ int32 FHLSLMaterialTranslator::Add(int32 A, int32 B)
 			if (ResultType & MCT_LWCType)
 			{
 				AddLWCFuncUsage(ELWCFunctionKind::Add);
-				return AddCodeChunk(ResultType, TEXT("LWCAdd(%s, %s)"), *GetParameterCode(A), *GetParameterCode(B));
+				return AddCodeChunk(ResultType, TEXT("WSAdd(%s, %s)"), *GetParameterCode(A), *GetParameterCode(B));
 			}
 			else
 			{
@@ -8608,7 +8608,7 @@ int32 FHLSLMaterialTranslator::Sub(int32 A, int32 B)
 			if (ResultType & MCT_LWCType)
 			{
 				AddLWCFuncUsage(ELWCFunctionKind::Subtract);
-				ResultCode = AddCodeChunk(ResultType, TEXT("LWCSubtract(%s, %s)"), *GetParameterCode(A), *GetParameterCode(B));
+				ResultCode = AddCodeChunk(ResultType, TEXT("WSSubtract(%s, %s)"), *GetParameterCode(A), *GetParameterCode(B));
 			}
 			else
 			{
@@ -9193,7 +9193,7 @@ int32 FHLSLMaterialTranslator::Step(int32 Y, int32 X)
 	if (IsLWCType(ResultType))
 	{
 		AddLWCFuncUsage(ELWCFunctionKind::Other);
-		return AddCodeChunkZeroDeriv(MakeNonLWCType(ResultType), TEXT("LWCStep(%s,%s)"), *CoerceParameter(Y, ResultType), *CoerceParameter(X, ResultType));
+		return AddCodeChunkZeroDeriv(MakeNonLWCType(ResultType), TEXT("WSStep(%s,%s)"), *CoerceParameter(Y, ResultType), *CoerceParameter(X, ResultType));
 	}
 	else
 	{
@@ -9314,7 +9314,7 @@ int32 FHLSLMaterialTranslator::SmoothStep(int32 X, int32 Y, int32 A)
 	if (IsLWCType(ResultType))
 	{
 		AddLWCFuncUsage(ELWCFunctionKind::Other);
-		return AddCodeChunk(MakeNonLWCType(ResultType), TEXT("LWCSmoothStep(%s,%s,%s)"), *CoerceParameter(X, ResultType), *CoerceParameter(Y, ResultType), *CoerceParameter(A, ResultType));
+		return AddCodeChunk(MakeNonLWCType(ResultType), TEXT("WSSmoothStepDemote(%s,%s,%s)"), *CoerceParameter(X, ResultType), *CoerceParameter(Y, ResultType), *CoerceParameter(A, ResultType));
 	}
 	else
 	{
@@ -9679,10 +9679,10 @@ static FString ComponentMaskLWC(const FString& SourceString, EMaterialValueType 
 {
 	const TCHAR* ComponentAccess[] =
 	{
-		TEXT("LWCGetX"),
-		TEXT("LWCGetY"),
-		TEXT("LWCGetZ"),
-		TEXT("LWCGetW"),
+		TEXT("WSGetX"),
+		TEXT("WSGetY"),
+		TEXT("WSGetZ"),
+		TEXT("WSGetW"),
 	};
 
 	bool bNeedClosingParen = false;
@@ -9690,7 +9690,7 @@ static FString ComponentMaskLWC(const FString& SourceString, EMaterialValueType 
 	FString Result;
 	if (ResultType != MCT_LWCScalar)
 	{
-		Result = TEXT("MakeLWCVector(");
+		Result = TEXT("MakeWSVector(");
 		bNeedClosingParen = true;
 	}
 	if (R)
@@ -9869,7 +9869,7 @@ int32 FHLSLMaterialTranslator::AppendVector(int32 A,int32 B)
 		{
 			AddLWCFuncUsage(ELWCFunctionKind::Promote, 2);
 			AddLWCFuncUsage(ELWCFunctionKind::Constructor);
-			FiniteCode = FString::Printf(TEXT("MakeLWCVector(LWCPromote(%s),LWCPromote(%s))"), *GetParameterCode(A), *GetParameterCode(B));
+			FiniteCode = FString::Printf(TEXT("MakeWSVector(WSPromote(%s),WSPromote(%s))"), *GetParameterCode(A), *GetParameterCode(B));
 		}
 		else
 		{
@@ -10016,15 +10016,15 @@ static FString MultiplyTransposeMatrix(const TCHAR* Matrix, const TCHAR* Vector,
 	}
 }
 
-static FString LWCMultiplyMatrix(const TCHAR* Vector, const TCHAR* Matrix, int AWComponent)
+static FString LWCMultiplyMatrix(const TCHAR* Vector, const TCHAR* Matrix, int AWComponent, bool Demote)
 {
 	if (AWComponent)
 	{
-		return FString::Printf(TEXT("LWCMultiply(%s, %s)"), Vector, Matrix);
+		return FString::Printf(TEXT("WSMultiply%s(%s, %s)"), Demote ? TEXT("Demote") : TEXT(""), Vector, Matrix);
 	}
 	else
 	{
-		return FString::Printf(TEXT("LWCMultiplyVector(%s, %s)"), Vector, Matrix);
+		return FString::Printf(TEXT("WSMultiplyVector(%s, %s)"), Vector, Matrix);
 	}
 }
 
@@ -10112,7 +10112,7 @@ int32 FHLSLMaterialTranslator::TransformBase(EMaterialCommonBasis SourceCoordBas
 				if (AWComponent)
 				{
 					AddLWCFuncUsage(ELWCFunctionKind::Subtract);
-					CodeStr = TEXT("LWCSubtract(<A>, ResolvedView.<PREV>PreViewTranslation)");
+					CodeStr = TEXT("WSSubtract(<A>, Get<PREV>PreViewTranslation(Parameters))");
 				}
 				else
 				{
@@ -10153,15 +10153,15 @@ int32 FHLSLMaterialTranslator::TransformBase(EMaterialCommonBasis SourceCoordBas
 
 				// TODO: inconsistent with TransformLocal<TO>World with instancing
 				AddLWCFuncUsage(ELWCFunctionKind::MultiplyVectorMatrix);
-				CodeStr = LWCMultiplyMatrix(TEXT("<A>"), TEXT("GetPrimitiveData(Parameters).<PREVIOUS>WorldToLocal"), AWComponent);
-				CodeDerivStr = LWCMultiplyMatrix(TEXT("<A>"), TEXT("GetPrimitiveData(Parameters).<PREVIOUS>WorldToLocal"), 0);
+				CodeStr = LWCMultiplyMatrix(TEXT("<A>"), TEXT("Get<PREVIOUS>WorldToLocal(Parameters)"), AWComponent, true);
+				CodeDerivStr = LWCMultiplyMatrix(TEXT("<A>"), TEXT("Get<PREVIOUS>WorldToLocal(Parameters)"), 0, true);
 			}
 			else if (DestCoordBasis == MCB_TranslatedWorld)
 			{
 				if (AWComponent)
 				{
 					AddLWCFuncUsage(ELWCFunctionKind::Add);
-					CodeStr = TEXT("LWCToFloat(LWCAdd(<A>, ResolvedView.<PREV>PreViewTranslation))");
+					CodeStr = TEXT("WSAddDemote(<A>, Get<PREV>PreViewTranslation(Parameters))");
 				}
 				else
 				{
@@ -10172,15 +10172,15 @@ int32 FHLSLMaterialTranslator::TransformBase(EMaterialCommonBasis SourceCoordBas
 			else if (DestCoordBasis == MCB_MeshParticle)
 			{
 				AddLWCFuncUsage(ELWCFunctionKind::MultiplyVectorMatrix);
-				CodeStr = LWCMultiplyMatrix(TEXT("<A>"), TEXT("Parameters.Particle.WorldToParticle"), AWComponent);
-				CodeDerivStr = LWCMultiplyMatrix(TEXT("<A>"), TEXT("Parameters.Particle.WorldToParticle"), 0);
+				CodeStr = LWCMultiplyMatrix(TEXT("<A>"), TEXT("GetWorldToParticle(Parameters)"), AWComponent, true);
+				CodeDerivStr = LWCMultiplyMatrix(TEXT("<A>"), TEXT("GetWorldToParticle(Parameters)"), 0, true);
 				bUsesParticleWorldToLocal = true;
 			}
 			else if (DestCoordBasis == MCB_Instance)
 			{
 				AddLWCFuncUsage(ELWCFunctionKind::MultiplyVectorMatrix);
-				CodeStr = LWCMultiplyMatrix(TEXT("<A>"), TEXT("GetWorldToInstance(Parameters)"), AWComponent);
-				CodeDerivStr = LWCMultiplyMatrix(TEXT("<A>"), TEXT("GetWorldToInstance(Parameters)"), 0);
+				CodeStr = LWCMultiplyMatrix(TEXT("<A>"), TEXT("GetWorldToInstance(Parameters)"), AWComponent, true);
+				CodeDerivStr = LWCMultiplyMatrix(TEXT("<A>"), TEXT("GetWorldToInstance(Parameters)"), 0, true);
 				bUsesInstanceWorldToLocalPS |= ShaderFrequency == SF_Pixel;
 			}
 
@@ -10215,8 +10215,8 @@ int32 FHLSLMaterialTranslator::TransformBase(EMaterialCommonBasis SourceCoordBas
 			if (DestCoordBasis == MCB_World)
 			{
 				AddLWCFuncUsage(ELWCFunctionKind::MultiplyVectorMatrix);
-				CodeStr = LWCMultiplyMatrix(TEXT("<A>"), TEXT("Parameters.Particle.ParticleToWorld"), AWComponent);
-				CodeDerivStr = LWCMultiplyMatrix(TEXT("<A>"), TEXT("Parameters.Particle.ParticleToWorld"), 0);
+				CodeStr = LWCMultiplyMatrix(TEXT("<A>"), TEXT("GetParticleToWorld(Parameters)"), AWComponent, false);
+				CodeDerivStr = LWCMultiplyMatrix(TEXT("<A>"), TEXT("GetParticleToWorld(Parameters)"), 0, false);
 				bUsesParticleLocalToWorld = true;
 			}
 			// use World as an intermediary base
@@ -10227,8 +10227,8 @@ int32 FHLSLMaterialTranslator::TransformBase(EMaterialCommonBasis SourceCoordBas
 			if (DestCoordBasis == MCB_World)
 			{
 				AddLWCFuncUsage(ELWCFunctionKind::MultiplyVectorMatrix);
-				CodeStr = LWCMultiplyMatrix(TEXT("<A>"), TEXT("Get<PREV>InstanceToWorld(Parameters)"), AWComponent);
-				CodeDerivStr = LWCMultiplyMatrix(TEXT("<A>"), TEXT("Get<PREV>InstanceToWorld(Parameters)"), 0);
+				CodeStr = LWCMultiplyMatrix(TEXT("<A>"), TEXT("Get<PREV>InstanceToWorld(Parameters)"), AWComponent, false);
+				CodeDerivStr = LWCMultiplyMatrix(TEXT("<A>"), TEXT("Get<PREV>InstanceToWorld(Parameters)"), 0, false);
 				bUsesInstanceLocalToWorldPS |= ShaderFrequency == SF_Pixel;
 			}
 			// use World as an intermediary base
@@ -10453,7 +10453,7 @@ int32 FHLSLMaterialTranslator::GenericSwitch(const TCHAR* SwitchExpressionText, 
 	if (IsLWCType(ResultType))
 	{
 		AddLWCFuncUsage(ELWCFunctionKind::Other);
-		return AddCodeChunk(ResultType, TEXT("LWCSelect(%s, %s, %s)"), SwitchExpressionText, *IfTrueCode, *IfFalseCode);
+		return AddCodeChunk(ResultType, TEXT("WSSelect(%s, %s, %s)"), SwitchExpressionText, *IfTrueCode, *IfFalseCode);
 	}
 	else
 	{
@@ -10604,12 +10604,14 @@ int32 FHLSLMaterialTranslator::Derivative(int32 A, const TCHAR* Component)
 
 	const FDerivInfo ADerivInfo = GetDerivInfo(A);
 	const EMaterialValueType ResultType = MakeNonLWCType(ADerivInfo.Type);
-	const TCHAR* FunctionName = IsLWCType(ADerivInfo.Type) ? TEXT("LWCDd") : TEXT("dd");
+	const TCHAR* FunctionName = IsLWCType(ADerivInfo.Type) ? TEXT("WSDd") : TEXT("dd");
+	const TCHAR* FunctionNamePostfix = IsLWCType(ADerivInfo.Type) ? TEXT("Demote") : TEXT("");
     
 	if (IsLWCType(ADerivInfo.Type))
 	{
 		AddLWCFuncUsage(ELWCFunctionKind::Other);
 	}
+	
     // Spirv expects DDX/Y to have 32 bit width, so need to ensure we use float and not half
     const EMaterialValueType ParameterType = GetParameterType(A);
     const TCHAR* CastType = TEXT("");
@@ -10622,7 +10624,7 @@ int32 FHLSLMaterialTranslator::Derivative(int32 A, const TCHAR* Component)
     	case MCT_Float4: CastType = TEXT("(float4)"); break;
     }
             
-	const FString FiniteCode = FString::Printf(TEXT("%s%s(%s%s)"), FunctionName, Component, CastType, *GetParameterCode(A));
+	const FString FiniteCode = FString::Printf(TEXT("%s%s%s(%s%s)"), FunctionName, Component, FunctionNamePostfix, CastType, *GetParameterCode(A));
 
 	if (IsAnalyticDerivEnabled() && ADerivInfo.DerivativeStatus == EDerivativeStatus::Valid)
 	{
@@ -10746,18 +10748,9 @@ int32 FHLSLMaterialTranslator::Noise(int32 Position, EPositionOrigin PositionOri
 		Position = TransformPosition(MCB_TranslatedWorld, MCB_World, Position);
 	}
 
-	const EMaterialValueType PositionType = GetParameterType(Position);
-	if (IsLWCType(PositionType))
-	{
-		// If Noise is driven by a LWC position, just take the offset within the current tile
-		// Will generate discontinuity in noise at tile boudaries
-		// Could potentially add noise functions that operate directly on LWC values, but that would be very expensive
-		Position = AddCodeChunk(MCT_Float3, TEXT("LWCNormalizeTile(%s).Offset"), *CoerceParameter(Position, MCT_LWCVector3));
-	}
-
 	return AddCodeChunk(MCT_Float, 
 		TEXT("MaterialExpressionNoise(%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)"), 
-		*CoerceParameter(Position, MCT_Float3),
+		*GetParameterCode(Position),
 		*GetParameterCode(ScaleConst),
 		*GetParameterCode(QualityConst),
 		*GetParameterCode(NoiseFunctionConst),
@@ -13602,25 +13595,25 @@ int32 FHLSLMaterialTranslator::CustomExpression( class UMaterialExpressionCustom
 			case MCT_LWCScalar:
 				InputParamDecl += TEXT("float ");
 				InputParamDecl += InputNameStr;
-				InputParamDecl += TEXT(", FLWCScalar LWC");
+				InputParamDecl += TEXT(", FWSScalar LWC");
 				InputParamDecl += InputNameStr;
 				break;
 			case MCT_LWCVector2:
 				InputParamDecl += TEXT("float2 ");
 				InputParamDecl += InputNameStr;
-				InputParamDecl += TEXT(", FLWCVector2 LWC");
+				InputParamDecl += TEXT(", FWSVector2 LWC");
 				InputParamDecl += InputNameStr;
 				break;
 			case MCT_LWCVector3:
 				InputParamDecl += TEXT("float3 ");
 				InputParamDecl += InputNameStr;
-				InputParamDecl += TEXT(", FLWCVector3 LWC");
+				InputParamDecl += TEXT(", FWSVector3 LWC");
 				InputParamDecl += InputNameStr;
 				break;
 			case MCT_LWCVector4:
 				InputParamDecl += TEXT("float4 ");
 				InputParamDecl += InputNameStr;
-				InputParamDecl += TEXT(", FLWCVector4 LWC");
+				InputParamDecl += TEXT(", FWSVector4 LWC");
 				InputParamDecl += InputNameStr;
 				break;
 			case MCT_Texture2D:
@@ -13799,7 +13792,7 @@ int32 FHLSLMaterialTranslator::CustomExpression( class UMaterialExpressionCustom
 				// LWC types get two values, first the value converted to float, then the raw LWC value
 				// This way legacy custom expressions can continue to operate on regular float values
 				AddLWCFuncUsage(ELWCFunctionKind::Demote);
-				CodeChunk += TEXT("LWCToFloat(");
+				CodeChunk += TEXT("WSDemote(");
 				CodeChunk += *ParamCode;
 				CodeChunk += TEXT("),");
 			}
@@ -13892,7 +13885,7 @@ int32 FHLSLMaterialTranslator::CustomOutput(class UMaterialExpressionCustomOutpu
 	{
 		// Add a wrapper with no suffix to return a non-LWC type
 		AddLWCFuncUsage(ELWCFunctionKind::Demote);
-		ImplementationCodeFinite += FString::Printf(TEXT("%s %s(%s FMaterial%sParameters Parameters) { return LWCToFloat(%s_LWC(Parameters)); }\n"),
+		ImplementationCodeFinite += FString::Printf(TEXT("%s %s(%s FMaterial%sParameters Parameters) { return WSDemote(%s_LWC(Parameters)); }\n"),
 			HLSLTypeString(MakeNonLWCType(OutputType)),
 			*FunctionNameBase,
 			ShaderFrequency == SF_Vertex ? TEXT("const") : TEXT("inout"),
@@ -13903,7 +13896,7 @@ int32 FHLSLMaterialTranslator::CustomOutput(class UMaterialExpressionCustomOutpu
 	{
 		// Add a wrapper with LWC suffix to return a LWC type
 		AddLWCFuncUsage(ELWCFunctionKind::Promote);
-		ImplementationCodeFinite += FString::Printf(TEXT("%s %s_LWC(%s FMaterial%sParameters Parameters) { return LWCPromote(%s(Parameters)); }\n"),
+		ImplementationCodeFinite += FString::Printf(TEXT("%s %s_LWC(%s FMaterial%sParameters Parameters) { return WSPromote(%s(Parameters)); }\n"),
 			HLSLTypeString(MakeLWCType(OutputType)),
 			*FunctionNameBase,
 			ShaderFrequency == SF_Vertex ? TEXT("const") : TEXT("inout"),

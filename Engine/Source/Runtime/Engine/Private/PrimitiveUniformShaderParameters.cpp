@@ -187,9 +187,9 @@ void FPrimitiveSceneShaderData::Setup(const FPrimitiveUniformShaderParameters& P
 		(uint32)PrimitiveUniformShaderParameters.SingleCaptureIndex | ((PrimitiveUniformShaderParameters.VisibilityFlags & 0xFFFFu) << 16u));
 
 	Store4(OutData, 1,
-		PrimitiveUniformShaderParameters.TilePosition.X,
-		PrimitiveUniformShaderParameters.TilePosition.Y,
-		PrimitiveUniformShaderParameters.TilePosition.Z,
+		PrimitiveUniformShaderParameters.PositionHigh.X,
+		PrimitiveUniformShaderParameters.PositionHigh.Y,
+		PrimitiveUniformShaderParameters.PositionHigh.Z,
 		PrimitiveUniformShaderParameters.PrimitiveComponentId);
 
 	// Pack these matrices into the buffer as float3x4 transposed
@@ -201,38 +201,45 @@ void FPrimitiveSceneShaderData::Setup(const FPrimitiveUniformShaderParameters& P
 
 
 	OutData[17]	= FVector4f(PrimitiveUniformShaderParameters.InvNonUniformScale, PrimitiveUniformShaderParameters.ObjectBoundsX);
-	OutData[18]	= PrimitiveUniformShaderParameters.ObjectRelativeWorldPositionAndRadius;
+	OutData[18]	= PrimitiveUniformShaderParameters.ObjectWorldPositionHighAndRadius;
+	OutData[19]	= PrimitiveUniformShaderParameters.ObjectWorldPositionLow;
 
-	Store4(OutData, 19, PrimitiveUniformShaderParameters.ActorRelativeWorldPosition, PrimitiveUniformShaderParameters.LightmapUVIndex);
-	Store4(OutData, 20, PrimitiveUniformShaderParameters.ObjectOrientation, PrimitiveUniformShaderParameters.LightmapDataIndex);
+	OutData[20]	= FVector4f(PrimitiveUniformShaderParameters.ActorWorldPositionHigh, 0.0f);
 
-	OutData[21]	= PrimitiveUniformShaderParameters.NonUniformScale;
+	Store4(OutData, 21, PrimitiveUniformShaderParameters.ActorWorldPositionLow, PrimitiveUniformShaderParameters.LightmapUVIndex);
+	Store4(OutData, 22, PrimitiveUniformShaderParameters.ObjectOrientation, PrimitiveUniformShaderParameters.LightmapDataIndex);
 
-	Store4(OutData, 22, PrimitiveUniformShaderParameters.PreSkinnedLocalBoundsMin, PrimitiveUniformShaderParameters.NaniteResourceID);
-	Store4(OutData, 23, PrimitiveUniformShaderParameters.PreSkinnedLocalBoundsMax, PrimitiveUniformShaderParameters.NaniteHierarchyOffset);
+	OutData[23]	= PrimitiveUniformShaderParameters.NonUniformScale;
 
-	OutData[24]	= FVector4f(PrimitiveUniformShaderParameters.LocalObjectBoundsMin, PrimitiveUniformShaderParameters.ObjectBoundsY);
-	OutData[25]	= FVector4f(PrimitiveUniformShaderParameters.LocalObjectBoundsMax, PrimitiveUniformShaderParameters.ObjectBoundsZ);
+	Store4(OutData, 24, PrimitiveUniformShaderParameters.PreSkinnedLocalBoundsMin, PrimitiveUniformShaderParameters.NaniteResourceID);
+	Store4(OutData, 25, PrimitiveUniformShaderParameters.PreSkinnedLocalBoundsMax, PrimitiveUniformShaderParameters.NaniteHierarchyOffset);
 
-	Store4(OutData, 26, PrimitiveUniformShaderParameters.InstanceLocalBoundsCenter, PrimitiveUniformShaderParameters.InstancePayloadDataOffset);
-	Store4(OutData, 27, PrimitiveUniformShaderParameters.InstanceLocalBoundsExtent, (PrimitiveUniformShaderParameters.InstancePayloadDataStride & 0x00FFFFFFu) | (PrimitiveUniformShaderParameters.InstancePayloadExtensionSize << 24u));
-	Store4(OutData, 28, PrimitiveUniformShaderParameters.WireframeColor, PrimitiveUniformShaderParameters.PackedNaniteFlags);
+	OutData[26]	= FVector4f(PrimitiveUniformShaderParameters.LocalObjectBoundsMin, PrimitiveUniformShaderParameters.ObjectBoundsY);
+	OutData[27]	= FVector4f(PrimitiveUniformShaderParameters.LocalObjectBoundsMax, PrimitiveUniformShaderParameters.ObjectBoundsZ);
 
-	Store4(OutData, 29, PrimitiveUniformShaderParameters.PrimitiveColor, uint32(PrimitiveUniformShaderParameters.PersistentPrimitiveIndex));
+	Store4(OutData, 28, PrimitiveUniformShaderParameters.InstanceLocalBoundsCenter, PrimitiveUniformShaderParameters.InstancePayloadDataOffset);
+	Store4(OutData, 29, PrimitiveUniformShaderParameters.InstanceLocalBoundsExtent, (PrimitiveUniformShaderParameters.InstancePayloadDataStride & 0x00FFFFFFu) | (PrimitiveUniformShaderParameters.InstancePayloadExtensionSize << 24u));
+
 	Store4(OutData, 30, 
+		PrimitiveUniformShaderParameters.WireframeAndPrimitiveColor.X, 
+		PrimitiveUniformShaderParameters.WireframeAndPrimitiveColor.Y, 
+		PrimitiveUniformShaderParameters.PackedNaniteFlags, 
+		uint32(PrimitiveUniformShaderParameters.PersistentPrimitiveIndex));
+
+	Store4(OutData, 31, 
 		PrimitiveUniformShaderParameters.InstanceDrawDistanceMinMaxSquared.X, 
 		PrimitiveUniformShaderParameters.InstanceDrawDistanceMinMaxSquared.Y, 
 		PrimitiveUniformShaderParameters.InstanceWPODisableDistanceSquared, 
 		PrimitiveUniformShaderParameters.NaniteRayTracingDataOffset);
 	
-	Store4(OutData, 31,
+	Store4(OutData, 32,
 		PrimitiveUniformShaderParameters.MaxWPOExtent,
 		PrimitiveUniformShaderParameters.MinMaterialDisplacement,
 		PrimitiveUniformShaderParameters.MaxMaterialDisplacement,
 		PrimitiveUniformShaderParameters.CustomStencilValueAndMask);
 
 	// Set all the custom primitive data float4. This matches the loop in SceneData.ush
-	const int32 CustomPrimitiveDataStartIndex = 32;
+	const int32 CustomPrimitiveDataStartIndex = 33;
 	for (int32 DataIndex = 0; DataIndex < FCustomPrimitiveData::NumCustomPrimitiveDataFloat4s; ++DataIndex)
 	{
 		OutData[CustomPrimitiveDataStartIndex + DataIndex] = PrimitiveUniformShaderParameters.CustomPrimitiveData[DataIndex];

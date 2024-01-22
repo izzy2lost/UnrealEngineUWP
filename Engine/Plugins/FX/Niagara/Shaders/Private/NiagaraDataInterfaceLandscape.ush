@@ -75,8 +75,8 @@ void GetBaseColor_{ParameterName}(float3 InWorldPos, out float3 OutBaseColor, ou
 		float3 UnpackBaseColorU = {ParameterName}_BaseColorVirtualTextureWorldToUvTransform[1].xyz;
 		float3 UnpackBaseColorV = {ParameterName}_BaseColorVirtualTextureWorldToUvTransform[2].xyz;
 
-		FLWCVector3 LwcWorldPos = MakeLWCVector3({ParameterName}_SystemLWCTile, InWorldPos);
-		FLWCVector3 LwcBaseColorOrigin = MakeLWCVector3({ParameterName}_BaseColorVirtualTextureLWCTile, UnpackBaseColorOrigin);
+		FDFVector3 LwcWorldPos = DFFromTileOffset_Hack(MakeLWCVector3({ParameterName}_SystemLWCTile, InWorldPos));
+		FDFVector3 LwcBaseColorOrigin = DFFromTileOffset_Hack(MakeLWCVector3({ParameterName}_BaseColorVirtualTextureLWCTile, UnpackBaseColorOrigin));
 		float2 SampleUv = VirtualTextureWorldToUV(LwcWorldPos, LwcBaseColorOrigin, UnpackBaseColorU, UnpackBaseColorV);
 
 		VTPageTableResult PageTable = TextureLoadVirtualPageTableLevel(
@@ -113,8 +113,8 @@ void GetHeight_{ParameterName}(float3 InWorldPos, out float OutHeight, out bool 
 		float3 UnpackHeightV = {ParameterName}_HeightVirtualTextureWorldToUvTransform[2].xyz;
 		float2 UnpackHeightScaleBias = {ParameterName}_HeightVirtualTextureWorldToUvTransform[3].xy;
 
-		FLWCVector3 LwcWorldPos = MakeLWCVector3({ParameterName}_SystemLWCTile, InWorldPos);
-		FLWCVector3 LwcHeightOrigin = MakeLWCVector3({ParameterName}_HeightVirtualTextureLWCTile, UnpackHeightOrigin);
+		FDFVector3 LwcWorldPos = DFFromTileOffset_Hack(MakeLWCVector3({ParameterName}_SystemLWCTile, InWorldPos));
+		FDFVector3 LwcHeightOrigin = DFFromTileOffset_Hack(MakeLWCVector3({ParameterName}_HeightVirtualTextureLWCTile, UnpackHeightOrigin));
 		float2 SampleUv = VirtualTextureWorldToUV(LwcWorldPos, LwcHeightOrigin, UnpackHeightU, UnpackHeightV);
 
 		VTPageTableResult PageTable = TextureLoadVirtualPageTableLevel(
@@ -157,8 +157,8 @@ void GetWorldNormal_{ParameterName}(float3 InWorldPos, out float3 OutNormal, out
 		float3 UnpackNormalU = {ParameterName}_NormalVirtualTextureWorldToUvTransform[1].xyz;
 		float3 UnpackNormalV = {ParameterName}_NormalVirtualTextureWorldToUvTransform[2].xyz;
 
-		FLWCVector3 LwcWorldPos = MakeLWCVector3({ParameterName}_SystemLWCTile, InWorldPos);
-		FLWCVector3 LwcNormalOrigin = MakeLWCVector3({ParameterName}_NormalVirtualTextureLWCTile, UnpackNormalOrigin);
+		FDFVector3 LwcWorldPos = DFFromTileOffset_Hack(MakeLWCVector3({ParameterName}_SystemLWCTile, InWorldPos));
+		FDFVector3 LwcNormalOrigin = DFFromTileOffset_Hack(MakeLWCVector3({ParameterName}_NormalVirtualTextureLWCTile, UnpackNormalOrigin));
 		float2 SampleUv = VirtualTextureWorldToUV(LwcWorldPos, LwcNormalOrigin, UnpackNormalU, UnpackNormalV);
 
 		VTPageTableResult PageTable = TextureLoadVirtualPageTableLevel(

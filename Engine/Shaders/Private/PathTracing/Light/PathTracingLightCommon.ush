@@ -184,8 +184,8 @@ bool IsPhysicalLight(int LightId)
 
 float3 GetTranslatedPosition(int LightId)
 {
-	//const FLWCVector3 WorldPosition = MakeLWCVector3(SceneLights[LightId].TilePosition, SceneLights[LightId].RelativeWorldPosition);
-	//return LWCToFloat(LWCAdd(WorldPosition, PreViewTranslation));
+	//const FDFVector3 WorldPosition = DFFromTileOffset_Hack(MakeLWCVector3(SceneLights[LightId].TilePosition, SceneLights[LightId].RelativeWorldPosition));
+	//return DFFastToTranslatedWorld(WorldPosition, PreViewTranslation);
 
 	return SceneLights[LightId].TranslatedWorldPosition;
 }

@@ -239,7 +239,7 @@ LUMEN_HARDWARE_RAY_TRACING_ENTRY(LumenReflectionHardwareRayTracing)
 			// If we're tracing a near field ray that missed, which has valid Radiance Cache coverage, use that for final lighting
 			if (!Result.bIsHit && RayData.bUseRadianceCache)
 			{
-				float3 WorldPosition = TranslatedWorldPosition - LWCHackToFloat(PrimaryView.PreViewTranslation); // LUMEN_LWC_TODO
+				float3 WorldPosition = TranslatedWorldPosition - DFHackToFloat(PrimaryView.PreViewTranslation); // LUMEN_LWC_TODO
 				FRadianceCacheCoverage Coverage = GetRadianceCacheCoverage(WorldPosition, RayData.Direction, InterleavedGradientNoise(ReflectionTracingCoord.Coord, View.StateFrameIndexMod8));
 				SampleRadianceCacheAndApply(Coverage, WorldPosition, RayData.Direction, RayData.ConeHalfAngle, TraceResult.Lighting, TraceResult.Transparency);
 				Result.bIsHit = true;
@@ -291,7 +291,7 @@ LUMEN_HARDWARE_RAY_TRACING_ENTRY(LumenReflectionHardwareRayTracing)
 
 				if (DebugTraceIndex >= 0 && DebugTraceIndex < 32)
 				{
-					float3 WorldPosition = TranslatedWorldPosition - LWCHackToFloat(PrimaryView.PreViewTranslation); // LUMEN_LWC_TODO
+					float3 WorldPosition = TranslatedWorldPosition - DFHackToFloat(PrimaryView.PreViewTranslation); // LUMEN_LWC_TODO
 					WriteTraceForVisualization(DebugTraceIndex, WorldPosition, RayData.Direction, TraceResult.OpaqueHitDistance, / *TraceResult.Lighting* /float3(1, 0, 0));
 				}
 			}

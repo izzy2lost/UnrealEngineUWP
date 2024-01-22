@@ -871,9 +871,9 @@ static const int32 GMaxNumReflectionCaptures = 341;
 
 /** Per-reflection capture data needed by the shader. */
 BEGIN_GLOBAL_SHADER_PARAMETER_STRUCT(FReflectionCaptureShaderData,)
-	SHADER_PARAMETER_ARRAY(FVector4f,PositionAndRadius,[GMaxNumReflectionCaptures])
+	SHADER_PARAMETER_ARRAY(FVector4f,PositionHighAndRadius,[GMaxNumReflectionCaptures])
 	// W is unused
-	SHADER_PARAMETER_ARRAY(FVector4f,TilePosition,[GMaxNumReflectionCaptures])
+	SHADER_PARAMETER_ARRAY(FVector4f,PositionLow,[GMaxNumReflectionCaptures])
 	// R is brightness, G is array index, B is shape
 	SHADER_PARAMETER_ARRAY(FVector4f,CaptureProperties,[GMaxNumReflectionCaptures])
 	SHADER_PARAMETER_ARRAY(FVector4f,CaptureOffsetAndAverageBrightness,[GMaxNumReflectionCaptures])
@@ -884,9 +884,9 @@ END_GLOBAL_SHADER_PARAMETER_STRUCT()
 
 static const int32 GMobileMaxNumReflectionCaptures = 100;
 BEGIN_GLOBAL_SHADER_PARAMETER_STRUCT(FMobileReflectionCaptureShaderData, )
-	SHADER_PARAMETER_ARRAY(FVector4f,PositionAndRadius,[GMobileMaxNumReflectionCaptures])
+	SHADER_PARAMETER_ARRAY(FVector4f,PositionHighAndRadius,[GMobileMaxNumReflectionCaptures])
 	// W is unused
-	SHADER_PARAMETER_ARRAY(FVector4f,TilePosition,[GMobileMaxNumReflectionCaptures])
+	SHADER_PARAMETER_ARRAY(FVector4f,PositionLow,[GMobileMaxNumReflectionCaptures])
 	// R is brightness, G is array index, B is shape
 	SHADER_PARAMETER_ARRAY(FVector4f,CaptureProperties,[GMobileMaxNumReflectionCaptures])
 	SHADER_PARAMETER_ARRAY(FVector4f,CaptureOffsetAndAverageBrightness,[GMobileMaxNumReflectionCaptures])

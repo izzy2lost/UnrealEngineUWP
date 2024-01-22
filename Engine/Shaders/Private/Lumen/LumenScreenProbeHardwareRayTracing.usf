@@ -132,7 +132,7 @@ LUMEN_HARDWARE_RAY_TRACING_ENTRY(LumenScreenProbeGatherHardwareRayTracing)
 
 		#if DIM_RADIANCE_CACHE
 		{
-			float3 RayOriginWorldPos = Ray.Origin - LWCHackToFloat(PrimaryView.PreViewTranslation);
+			float3 RayOriginWorldPos = Ray.Origin - DFHackToFloat(PrimaryView.PreViewTranslation);
 			FRadianceCacheCoverage Coverage = GetRadianceCacheCoverage(RayOriginWorldPos, Ray.Direction, 0); // LUMEN_LWC_TODO
 			if (Coverage.bValid)
 			{

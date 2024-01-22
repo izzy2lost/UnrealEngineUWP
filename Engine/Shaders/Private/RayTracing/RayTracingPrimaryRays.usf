@@ -307,7 +307,7 @@ RAY_TRACING_ENTRY_RAYGEN(RayTracingPrimaryRaysRGS)
 			if (IsLumenTranslucencyGIEnabled() && ShouldDoEmissiveAndIndirectLighting)
 			{
 				// Lumen Dynamic GI + shadowed Skylight
-				FLWCVector3 TranslucencyEvaluationPosition = LWCSubtract(TranslucencyEvaluationTranslatedPosition, PrimaryView.PreViewTranslation);
+				FDFVector3 TranslucencyEvaluationPosition = DFFastSubtract(TranslucencyEvaluationTranslatedPosition, PrimaryView.PreViewTranslation);
 
 				FTwoBandSHVectorRGB TranslucencyGISH = GetTranslucencyGIVolumeLighting(TranslucencyEvaluationPosition, PrimaryView.WorldToClip, true);
 

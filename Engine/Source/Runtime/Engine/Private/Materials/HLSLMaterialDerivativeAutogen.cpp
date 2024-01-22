@@ -55,13 +55,13 @@ static inline const TCHAR * GetFloatVectorName(EDerivativeType Type)
 	case EDerivativeType::Float4:
 		return TEXT("float4");
 	case EDerivativeType::LWCScalar:
-		return TEXT("FLWCScalar");
+		return TEXT("FWSScalar");
 	case EDerivativeType::LWCVector2:
-		return TEXT("FLWCVector2");
+		return TEXT("FWSVector2");
 	case EDerivativeType::LWCVector3:
-		return TEXT("FLWCVector3");
+		return TEXT("FWSVector3");
 	case EDerivativeType::LWCVector4:
-		return TEXT("FLWCVector4");
+		return TEXT("FWSVector4");
 	default:
 		check(0);
 		return TEXT("");
@@ -102,13 +102,13 @@ static inline const TCHAR * GetDerivVectorName(EDerivativeType Type)
 	case EDerivativeType::Float4:
 		return TEXT("FloatDeriv4");
 	case EDerivativeType::LWCScalar:
-		return TEXT("FLWCScalarDeriv");
+		return TEXT("FWSScalarDeriv");
 	case EDerivativeType::LWCVector2:
-		return TEXT("FLWCVector2Deriv");
+		return TEXT("FWSVector2Deriv");
 	case EDerivativeType::LWCVector3:
-		return TEXT("FLWCVector3Deriv");
+		return TEXT("FWSVector3Deriv");
 	case EDerivativeType::LWCVector4:
-		return TEXT("FLWCVector4Deriv");
+		return TEXT("FWSVector4Deriv");
 	default:
 		check(0);
 		return TEXT("");
@@ -177,16 +177,18 @@ static FString CoerceFloat(FHLSLMaterialTranslator& Translator, const TCHAR* Val
 
 void FMaterialDerivativeAutogen::EnableGeneratedDepencencies()
 {
-
-	for (int32 Index = 0; Index < NumDerivativeTypes; Index++)
+	for (int32 IndexLHS = 0; IndexLHS < NumDerivativeTypes; IndexLHS++)
 	{
-		// PowPositiveClamped requires Pow
-		if (bFunc2OpIsEnabled[(int32)EFunc2::PowPositiveClamped][Index])
+		for (int32 IndexRHS = 0; IndexRHS < NumDerivativeTypes; IndexRHS++)
 		{
-			bFunc2OpIsEnabled[(int32)EFunc2::Pow][Index] = true;
+			// PowPositiveClamped requires Pow
+			if (bFunc2OpIsEnabled[(int32)EFunc2::PowPositiveClamped][IndexLHS][IndexRHS])
+			{
+				bFunc2OpIsEnabled[(int32)EFunc2::Pow][IndexLHS][IndexRHS] = true;
+			}
 		}
 	}
-
+	
 	for (int32 Index = 0; Index < NumDerivativeTypes; Index++)
 	{
 		const EDerivativeType Type = (EDerivativeType)Index;
@@ -201,52 +203,59 @@ void FMaterialDerivativeAutogen::EnableGeneratedDepencencies()
 				// Convert from LWC->NonLWC
 				bConvertDerivEnabled[(int32)MakeNonLWCType(Type)][Index] = true;
 			}
-			bFunc2OpIsEnabled[(int32)EFunc2::Dot][Index] = true;
+			bFunc2OpIsEnabled[(int32)EFunc2::Dot][Index][Index] = true;
 			bFunc1OpIsEnabled[(int32)EFunc1::Rsqrt][(int32)ScalarType] = true;
-			bFunc2OpIsEnabled[(int32)EFunc2::Mul][Index] = true;
+			bFunc2OpIsEnabled[(int32)EFunc2::Mul][Index][Index] = true;
 		}
 
 		// length requires sqrt1 and dot, dot requires a few other things, but those are handled below
 		if (bFunc1OpIsEnabled[(int32)EFunc1::Length][Index])
 		{
-			bFunc2OpIsEnabled[(int32)EFunc2::Dot][Index] = true;
+			bFunc2OpIsEnabled[(int32)EFunc2::Dot][Index][Index] = true;
 			bFunc1OpIsEnabled[(int32)EFunc1::Sqrt][(int32)ScalarType] = true;
 		}
 
 		// inv length requires rsqrt1 (instead of sqrt1) and dot
 		if (bFunc1OpIsEnabled[(int32)EFunc1::InvLength][Index])
 		{
-			bFunc2OpIsEnabled[(int32)EFunc2::Dot][Index] = true;
+			bFunc2OpIsEnabled[(int32)EFunc2::Dot][Index][Index] = true;
 			bFunc1OpIsEnabled[(int32)EFunc1::Rsqrt][(int32)ScalarType] = true;
 		}
 	}
 
 	// Dot requires extract, mul1, add1 and FloatDeriv constructor
-	for (int32 Index = 0; Index < NumDerivativeTypes; Index++)
+	for (int32 IndexLHS = 0; IndexLHS < NumDerivativeTypes; IndexLHS++)
 	{
-		if (bFunc2OpIsEnabled[(int32)EFunc2::Dot][Index])
+		const EDerivativeType LHSType = (EDerivativeType)IndexLHS;
+		for (int32 IndexRHS = 0; IndexRHS < NumDerivativeTypes; IndexRHS++)
 		{
-			const EDerivativeType Type = (EDerivativeType)Index;
-			bExtractIndexEnabled[Index] = true;
-			if (IsLWCType(Type))
+			const EDerivativeType RHSType = (EDerivativeType)IndexRHS;
+			if (bFunc2OpIsEnabled[(int32)EFunc2::Dot][IndexLHS][IndexRHS])
 			{
-				bConstructConstantDerivEnabled[(int32)EDerivativeType::LWCScalar] = true;
-				bFunc2OpIsEnabled[(int32)EFunc2::Add][(int32)EDerivativeType::LWCScalar] = true;
-				bFunc2OpIsEnabled[(int32)EFunc2::Mul][(int32)EDerivativeType::LWCScalar] = true;
-			}
-			else
-			{
-				bConstructConstantDerivEnabled[(int32)EDerivativeType::Float1] = true;
-				bFunc2OpIsEnabled[(int32)EFunc2::Add][(int32)EDerivativeType::Float1] = true;
-				bFunc2OpIsEnabled[(int32)EFunc2::Mul][(int32)EDerivativeType::Float1] = true;
+				bool bEnableLWCVariant = IsLWCType(LHSType) || IsLWCType(RHSType);
+				bool bEnableNonLWCVariant = !IsLWCType(LHSType) || !IsLWCType(RHSType);
+
+				bExtractIndexEnabled[IndexLHS] = true;
+				if (bEnableLWCVariant)
+				{
+					bConstructConstantDerivEnabled[(int32)EDerivativeType::LWCScalar] = true;
+					bFunc2OpIsEnabled[(int32)EFunc2::Add][(int32)EDerivativeType::LWCScalar][(int32)EDerivativeType::LWCScalar] = true;
+					bFunc2OpIsEnabled[(int32)EFunc2::Mul][(int32)EDerivativeType::LWCScalar][(int32)EDerivativeType::LWCScalar] = true;
+				}
+				if(bEnableNonLWCVariant)
+				{
+					bConstructConstantDerivEnabled[(int32)EDerivativeType::Float1] = true;
+					bFunc2OpIsEnabled[(int32)EFunc2::Add][(int32)EDerivativeType::Float1][(int32)EDerivativeType::Float1] = true;
+					bFunc2OpIsEnabled[(int32)EFunc2::Mul][(int32)EDerivativeType::Float1][(int32)EDerivativeType::Float1] = true;
+				}
 			}
 		}
 	}
 
 	if (bRotateScaleOffsetTexCoords)
 	{
-		bFunc2OpIsEnabled[(int32)EFunc2::Add][1] = true;
-		bFunc2OpIsEnabled[(int32)EFunc2::Mul][1] = true;
+		bFunc2OpIsEnabled[(int32)EFunc2::Add][1][1] = true;
+		bFunc2OpIsEnabled[(int32)EFunc2::Mul][1][1] = true;
 		bConstructDerivEnabled[1] = true;
 	}
 }
@@ -406,7 +415,7 @@ FMaterialDerivativeAutogen::FOperationType2 FMaterialDerivativeAutogen::GetFunc2
 					// See note about Min/Max below
 					return LhsLWCType;
 				default:
-					return LWCType;
+					return FOperationType2(LWCType, IsLWCType(LhsType) ? LWCType : NonLWCType, IsLWCType(RhsType) ? LWCType : NonLWCType);
 				}
 			}
 		}
@@ -487,7 +496,7 @@ int32 FMaterialDerivativeAutogen::GenerateExpressionFunc1(FHLSLMaterialTranslato
 			if (bIsLWC)
 			{
 				Translator.AddLWCFuncUsage(ELWCFunctionKind::Other);
-				DstToken = TEXT("LWCAbs(") + SrcToken + TEXT(")");
+				DstToken = TEXT("WSAbs(") + SrcToken + TEXT(")");
 			}
 			else
 			{
@@ -513,7 +522,7 @@ int32 FMaterialDerivativeAutogen::GenerateExpressionFunc1(FHLSLMaterialTranslato
 			if (bIsLWC)
 			{
 				Translator.AddLWCFuncUsage(ELWCFunctionKind::Other);
-				DstToken = TEXT("LWCSin(") + SrcToken + TEXT(")");
+				DstToken = TEXT("WSSin(") + SrcToken + TEXT(")");
 			}
 			else
 			{
@@ -524,7 +533,7 @@ int32 FMaterialDerivativeAutogen::GenerateExpressionFunc1(FHLSLMaterialTranslato
 			if (bIsLWC)
 			{
 				Translator.AddLWCFuncUsage(ELWCFunctionKind::Other);
-				DstToken = TEXT("LWCCos(") + SrcToken + TEXT(")");
+				DstToken = TEXT("WSCos(") + SrcToken + TEXT(")");
 			}
 			else
 			{
@@ -535,7 +544,7 @@ int32 FMaterialDerivativeAutogen::GenerateExpressionFunc1(FHLSLMaterialTranslato
 			if (bIsLWC)
 			{
 				Translator.AddLWCFuncUsage(ELWCFunctionKind::Other);
-				DstToken = TEXT("LWCTan(") + SrcToken + TEXT(")");
+				DstToken = TEXT("WSTan(") + SrcToken + TEXT(")");
 			}
 			else
 			{
@@ -546,7 +555,7 @@ int32 FMaterialDerivativeAutogen::GenerateExpressionFunc1(FHLSLMaterialTranslato
 			if (bIsLWC)
 			{
 				Translator.AddLWCFuncUsage(ELWCFunctionKind::Other);
-				DstToken = TEXT("LWCASin(") + SrcToken + TEXT(")");
+				DstToken = TEXT("WSASin(") + SrcToken + TEXT(")");
 			}
 			else
 			{
@@ -557,7 +566,7 @@ int32 FMaterialDerivativeAutogen::GenerateExpressionFunc1(FHLSLMaterialTranslato
 			if (bIsLWC)
 			{
 				Translator.AddLWCFuncUsage(ELWCFunctionKind::Other);
-				DstToken = TEXT("LWCASin(") + SrcToken + TEXT(")");
+				DstToken = TEXT("WSASin(") + SrcToken + TEXT(")");
 			}
 			else
 			{
@@ -568,7 +577,7 @@ int32 FMaterialDerivativeAutogen::GenerateExpressionFunc1(FHLSLMaterialTranslato
 			if (bIsLWC)
 			{
 				Translator.AddLWCFuncUsage(ELWCFunctionKind::Other);
-				DstToken = TEXT("LWCACos(") + SrcToken + TEXT(")");
+				DstToken = TEXT("WSACos(") + SrcToken + TEXT(")");
 			}
 			else
 			{
@@ -579,7 +588,7 @@ int32 FMaterialDerivativeAutogen::GenerateExpressionFunc1(FHLSLMaterialTranslato
 			if (bIsLWC)
 			{
 				Translator.AddLWCFuncUsage(ELWCFunctionKind::Other);
-				DstToken = TEXT("LWCACos(") + SrcToken + TEXT(")");
+				DstToken = TEXT("WSACos(") + SrcToken + TEXT(")");
 			}
 			else
 			{
@@ -590,7 +599,7 @@ int32 FMaterialDerivativeAutogen::GenerateExpressionFunc1(FHLSLMaterialTranslato
 			if (bIsLWC)
 			{
 				Translator.AddLWCFuncUsage(ELWCFunctionKind::Other);
-				DstToken = TEXT("LWCATan(") + SrcToken + TEXT(")");
+				DstToken = TEXT("WSATan(") + SrcToken + TEXT(")");
 			}
 			else
 			{
@@ -601,7 +610,7 @@ int32 FMaterialDerivativeAutogen::GenerateExpressionFunc1(FHLSLMaterialTranslato
 			if (bIsLWC)
 			{
 				Translator.AddLWCFuncUsage(ELWCFunctionKind::Other);
-				DstToken = TEXT("LWCATan(") + SrcToken + TEXT(")");
+				DstToken = TEXT("WSATan(") + SrcToken + TEXT(")");
 			}
 			else
 			{
@@ -612,7 +621,7 @@ int32 FMaterialDerivativeAutogen::GenerateExpressionFunc1(FHLSLMaterialTranslato
 			if (bIsLWC)
 			{
 				Translator.AddLWCFuncUsage(ELWCFunctionKind::Other);
-				DstToken = TEXT("LWCSqrt(") + SrcToken + TEXT(")");
+				DstToken = TEXT("WSSqrtDemote(") + SrcToken + TEXT(")");
 			}
 			else
 			{
@@ -623,7 +632,7 @@ int32 FMaterialDerivativeAutogen::GenerateExpressionFunc1(FHLSLMaterialTranslato
 			if (bIsLWC)
 			{
 				Translator.AddLWCFuncUsage(ELWCFunctionKind::Other);
-				DstToken = TEXT("LWCRcp(") + SrcToken + TEXT(")");
+				DstToken = TEXT("WSRcpDemote(") + SrcToken + TEXT(")");
 			}
 			else
 			{
@@ -634,7 +643,7 @@ int32 FMaterialDerivativeAutogen::GenerateExpressionFunc1(FHLSLMaterialTranslato
 			if (bIsLWC)
 			{
 				Translator.AddLWCFuncUsage(ELWCFunctionKind::Other);
-				DstToken = TEXT("LWCRsqrt(") + SrcToken + TEXT(")");
+				DstToken = TEXT("WSRsqrtDemote(") + SrcToken + TEXT(")");
 			}
 			else
 			{
@@ -645,7 +654,7 @@ int32 FMaterialDerivativeAutogen::GenerateExpressionFunc1(FHLSLMaterialTranslato
 			if (bIsLWC)
 			{
 				Translator.AddLWCFuncUsage(ELWCFunctionKind::Other);
-				DstToken = TEXT("LWCSaturate(") + SrcToken + TEXT(")");
+				DstToken = TEXT("WSSaturateDemote(") + SrcToken + TEXT(")");
 			}
 			else
 			{
@@ -656,7 +665,7 @@ int32 FMaterialDerivativeAutogen::GenerateExpressionFunc1(FHLSLMaterialTranslato
 			if (bIsLWC)
 			{
 				Translator.AddLWCFuncUsage(ELWCFunctionKind::Other);
-				DstToken = TEXT("LWCFrac(") + SrcToken + TEXT(")");
+				DstToken = TEXT("WSFracDemote(") + SrcToken + TEXT(")");
 			}
 			else
 			{
@@ -667,7 +676,7 @@ int32 FMaterialDerivativeAutogen::GenerateExpressionFunc1(FHLSLMaterialTranslato
 			if (bIsLWC)
 			{
 				Translator.AddLWCFuncUsage(ELWCFunctionKind::Other);
-				DstToken = TEXT("LWCLength(") + SrcToken + TEXT(")");
+				DstToken = TEXT("WSLength(") + SrcToken + TEXT(")");
 			}
 			else
 			{
@@ -678,7 +687,7 @@ int32 FMaterialDerivativeAutogen::GenerateExpressionFunc1(FHLSLMaterialTranslato
 			if (bIsLWC)
 			{
 				Translator.AddLWCFuncUsage(ELWCFunctionKind::Other);
-				DstToken = TEXT("LWCRcpLength(") + SrcToken + TEXT(")");
+				DstToken = TEXT("WSRcpLengthDemote(") + SrcToken + TEXT(")");
 			}
 			else
 			{
@@ -689,7 +698,7 @@ int32 FMaterialDerivativeAutogen::GenerateExpressionFunc1(FHLSLMaterialTranslato
 			if (bIsLWC)
 			{
 				Translator.AddLWCFuncUsage(ELWCFunctionKind::Other);
-				DstToken = TEXT("LWCNormalize(") + SrcToken + TEXT(")");
+				DstToken = TEXT("WSNormalizeDemote(") + SrcToken + TEXT(")");
 			}
 			else if (OperationType.IntermediateType == EDerivativeType::Float1)
 			{
@@ -807,6 +816,19 @@ int32 FMaterialDerivativeAutogen::GenerateExpressionFunc1(FHLSLMaterialTranslato
 	return Ret;
 }
 
+bool FMaterialDerivativeAutogen::IsConstFloatOfPow2Expression(FHLSLMaterialTranslator& Translator, int32 ExpCode)
+{
+	FMaterialUniformExpression* ExpressionB = Translator.GetParameterUniformExpression(ExpCode);
+	FLinearColor ValueB;
+	bool bIsPow2 = false;
+	if (ExpressionB && Translator.GetConstParameterValue(ExpressionB, ValueB))
+	{
+		auto IsFloatPowerOfTwo = [](float Value) { return ((*reinterpret_cast<int*>(&Value)) & 0x007FFFFF) == 0; }; // zero mantisse
+		bIsPow2 = IsFloatPowerOfTwo(ValueB.R) && IsFloatPowerOfTwo(ValueB.G) && IsFloatPowerOfTwo(ValueB.B) && IsFloatPowerOfTwo(ValueB.A);
+	}
+	return bIsPow2;
+}
+
 int32 FMaterialDerivativeAutogen::GenerateExpressionFunc2(FHLSLMaterialTranslator& Translator, EFunc2 Op, int32 LhsCode, int32 RhsCode)
 {
 	if (LhsCode == INDEX_NONE || RhsCode == INDEX_NONE)
@@ -907,7 +929,7 @@ int32 FMaterialDerivativeAutogen::GenerateExpressionFunc2(FHLSLMaterialTranslato
 			if (bIsLWC)
 			{
 				Translator.AddLWCFuncUsage(ELWCFunctionKind::Add);
-				DstToken = TEXT("LWCAdd(") + LhsToken + TEXT(", ") + RhsToken + TEXT(")");
+				DstToken = TEXT("WSAdd(") + LhsToken + TEXT(", ") + RhsToken + TEXT(")");
 			}
 			else
 			{
@@ -918,7 +940,7 @@ int32 FMaterialDerivativeAutogen::GenerateExpressionFunc2(FHLSLMaterialTranslato
 			if (bIsLWC)
 			{
 				Translator.AddLWCFuncUsage(ELWCFunctionKind::Subtract);
-				DstToken = TEXT("LWCSubtract(") + LhsToken + TEXT(", ") + RhsToken + TEXT(")");
+				DstToken = TEXT("WSSubtract(") + LhsToken + TEXT(", ") + RhsToken + TEXT(")");
 			}
 			else
 			{
@@ -928,8 +950,16 @@ int32 FMaterialDerivativeAutogen::GenerateExpressionFunc2(FHLSLMaterialTranslato
 		case EFunc2::Mul:
 			if (bIsLWC)
 			{
-				Translator.AddLWCFuncUsage(ELWCFunctionKind::MultiplyVectorVector);
-				DstToken = TEXT("LWCMultiply(") + LhsToken + TEXT(", ") + RhsToken + TEXT(")");
+				if (IsConstFloatOfPow2Expression(Translator, RhsCode))
+				{
+					//Translator.AddLWCFuncUsage(ELWCFunctionKind::MultiplyVectorVector);
+					DstToken = TEXT("WSMultiplyByPow2(") + LhsToken + TEXT(", ") + RhsToken + TEXT(")");
+				}
+				else
+				{
+					Translator.AddLWCFuncUsage(ELWCFunctionKind::MultiplyVectorVector);
+					DstToken = TEXT("WSMultiply(") + LhsToken + TEXT(", ") + RhsToken + TEXT(")");
+				}
 			}
 			else
 			{
@@ -939,8 +969,16 @@ int32 FMaterialDerivativeAutogen::GenerateExpressionFunc2(FHLSLMaterialTranslato
 		case EFunc2::Div:
 			if (bIsLWC)
 			{
-				Translator.AddLWCFuncUsage(ELWCFunctionKind::Divide);
-				DstToken = TEXT("LWCDivide(") + LhsToken + TEXT(", ") + RhsToken + TEXT(")");
+				if (IsConstFloatOfPow2Expression(Translator, RhsCode))
+				{
+					//Translator.AddLWCFuncUsage(ELWCFunctionKind::Divide);
+					DstToken = TEXT("WSDivideByPow2(") + LhsToken + TEXT(", ") + RhsToken + TEXT(")");
+				}
+				else
+				{
+					Translator.AddLWCFuncUsage(ELWCFunctionKind::Divide);
+					DstToken = TEXT("WSDivide(") + LhsToken + TEXT(", ") + RhsToken + TEXT(")");
+				}
 			}
 			else
 			{
@@ -951,7 +989,7 @@ int32 FMaterialDerivativeAutogen::GenerateExpressionFunc2(FHLSLMaterialTranslato
 			if (bIsLWC)
 			{
 				Translator.AddLWCFuncUsage(ELWCFunctionKind::Other);
-				DstToken = TEXT("LWCFmod(") + LhsToken + TEXT(",") + RhsToken + TEXT(")");
+				DstToken = TEXT("WSFmodDemote(") + LhsToken + TEXT(",") + RhsToken + TEXT(")");
 			}
 			else
 			{
@@ -962,7 +1000,7 @@ int32 FMaterialDerivativeAutogen::GenerateExpressionFunc2(FHLSLMaterialTranslato
 			if (bIsLWC)
 			{
 				Translator.AddLWCFuncUsage(ELWCFunctionKind::Other);
-				DstToken = TEXT("LWCMin(") + LhsToken + TEXT(",") + RhsToken + TEXT(")");
+				DstToken = TEXT("WSMin(") + LhsToken + TEXT(",") + RhsToken + TEXT(")");
 			}
 			else
 			{
@@ -973,7 +1011,7 @@ int32 FMaterialDerivativeAutogen::GenerateExpressionFunc2(FHLSLMaterialTranslato
 			if (bIsLWC)
 			{
 				Translator.AddLWCFuncUsage(ELWCFunctionKind::Other);
-				DstToken = TEXT("LWCMax(") + LhsToken + TEXT(",") + RhsToken + TEXT(")");
+				DstToken = TEXT("WSMax(") + LhsToken + TEXT(",") + RhsToken + TEXT(")");
 			}
 			else
 			{
@@ -984,7 +1022,7 @@ int32 FMaterialDerivativeAutogen::GenerateExpressionFunc2(FHLSLMaterialTranslato
 			if (bIsLWC)
 			{
 				Translator.AddLWCFuncUsage(ELWCFunctionKind::Other);
-				DstToken = TEXT("LWCDot(") + LhsToken + TEXT(", ") + RhsToken + TEXT(")");
+				DstToken = TEXT("WSDot(") + LhsToken + TEXT(", ") + RhsToken + TEXT(")");
 			}
 			else
 			{
@@ -1024,7 +1062,7 @@ int32 FMaterialDerivativeAutogen::GenerateExpressionFunc2(FHLSLMaterialTranslato
 		RhsToken = CoerceValueDeriv(RhsToken, RhsDerivInfo, OperationType.RhsIntermediateType);
 
 		check(Op < EFunc2::Num);
-		bFunc2OpIsEnabled[(int32)Op][(int32)OperationType.LhsIntermediateType] = true;
+		bFunc2OpIsEnabled[(int32)Op][(int32)OperationType.LhsIntermediateType][(int32)OperationType.RhsIntermediateType] = true;
 
 		FString DstToken;
 		switch(Op)
@@ -1108,7 +1146,7 @@ int32 FMaterialDerivativeAutogen::GenerateLerpFunc(FHLSLMaterialTranslator& Tran
 	const bool bAllZeroDeriv = (ADerivInfo.DerivativeStatus == EDerivativeStatus::Zero && BDerivInfo.DerivativeStatus == EDerivativeStatus::Zero && SDerivInfo.DerivativeStatus == EDerivativeStatus::Zero);
 	const bool bIsLWC = ResultType & MCT_LWCType;
 	if (bIsLWC) { Translator.AddLWCFuncUsage(ELWCFunctionKind::Other); }
-	const TCHAR* FunctionName = bIsLWC ? TEXT("LWCLerp") : TEXT("lerp");
+	const TCHAR* FunctionName = bIsLWC ? TEXT("WSLerp") : TEXT("lerp");
 	FString FiniteString = FString::Printf(TEXT("%s(%s,%s,%s)"), FunctionName, *Translator.CoerceParameter(A, ResultType), *Translator.CoerceParameter(B, ResultType), *Translator.CoerceParameter(S, AlphaType));
 	
 	if (!bAllZeroDeriv && IsDerivativeValid(ADerivInfo.DerivativeStatus) && IsDerivativeValid(BDerivInfo.DerivativeStatus) && IsDerivativeValid(SDerivInfo.DerivativeStatus))
@@ -1224,7 +1262,7 @@ int32 FMaterialDerivativeAutogen::GenerateIfFunc(FHLSLMaterialTranslator& Transl
 	if (IsLWCType(CompareType))
 	{
 		Translator.AddLWCFuncUsage(ELWCFunctionKind::Other);
-		CompareGreaterEqual = FString::Printf(TEXT("LWCGreaterEqual(%s, %s)"), *AFinite, *BFinite);
+		CompareGreaterEqual = FString::Printf(TEXT("WSGreaterEqual(%s, %s)"), *AFinite, *BFinite);
 	}
 	else
 	{
@@ -1237,7 +1275,7 @@ int32 FMaterialDerivativeAutogen::GenerateIfFunc(FHLSLMaterialTranslator& Transl
 		if (IsLWCType(CompareType))
 		{
 			Translator.AddLWCFuncUsage(ELWCFunctionKind::Other);
-			CompareNotEqual = FString::Printf(TEXT("(!LWCEqualsApprox(%s, %s, %s))"), *AFinite, *BFinite, *ThresholdFinite);
+			CompareNotEqual = FString::Printf(TEXT("(!WSEqualsApprox(%s, %s, %s))"), *AFinite, *BFinite, *ThresholdFinite);
 		}
 		else
 		{
@@ -1248,7 +1286,7 @@ int32 FMaterialDerivativeAutogen::GenerateIfFunc(FHLSLMaterialTranslator& Transl
 		{
 			Translator.AddLWCFuncUsage(ELWCFunctionKind::Other);
 			CodeFinite = FString::Printf(
-				TEXT("LWCSelect(%s, LWCSelect(%s, %s, %s), %s)"),
+				TEXT("WSSelect(%s, WSSelect(%s, %s, %s), %s)"),
 				*CompareNotEqual, *CompareGreaterEqual,
 				*GreaterFinite, *LessFinite, *Translator.GetParameterCode(Equal));
 		}
@@ -1278,7 +1316,7 @@ int32 FMaterialDerivativeAutogen::GenerateIfFunc(FHLSLMaterialTranslator& Transl
 		{
 			Translator.AddLWCFuncUsage(ELWCFunctionKind::Other);
 			CodeFinite = FString::Printf(
-				TEXT("LWCSelect(%s, %s, %s)"),
+				TEXT("WSSelect(%s, %s, %s)"),
 				*CompareGreaterEqual,
 				*GreaterFinite, *LessFinite
 			);
@@ -1415,8 +1453,8 @@ FString FMaterialDerivativeAutogen::GenerateUsedFunctions(FHLSLMaterialTranslato
 			if (Index == 4)
 			{
 				// LWC_TODO: Better way to do this??
-				Ret += TEXT("\tRet.Ddx = ddx(LWCHackToFloat(InValue));") HLSL_LINE_TERMINATOR;
-				Ret += TEXT("\tRet.Ddy = ddy(LWCHackToFloat(InValue));") HLSL_LINE_TERMINATOR;
+				Ret += TEXT("\tRet.Ddx = ddx(WSHackToFloat(InValue));") HLSL_LINE_TERMINATOR;
+				Ret += TEXT("\tRet.Ddy = ddy(WSHackToFloat(InValue));") HLSL_LINE_TERMINATOR;
 			}
 			else
 			{
@@ -1488,7 +1526,7 @@ FString FMaterialDerivativeAutogen::GenerateUsedFunctions(FHLSLMaterialTranslato
 				Ret += TEXT("\t") + ScalarName + TEXT(" Ret;") HLSL_LINE_TERMINATOR;
 				if (IsLWCType(DerivType))
 				{
-					Ret += FString::Printf(TEXT("\tRet.Value = LWCGetComponent(InValue.Value, %d);") HLSL_LINE_TERMINATOR, ElemIndex);
+					Ret += FString::Printf(TEXT("\tRet.Value = WSGetComponent(InValue.Value, %d);") HLSL_LINE_TERMINATOR, ElemIndex);
 				}
 				else
 				{
@@ -1506,293 +1544,297 @@ FString FMaterialDerivativeAutogen::GenerateUsedFunctions(FHLSLMaterialTranslato
 	// Func2s
 	for (int32 Op = 0; Op < (int32)EFunc2::Num; Op++)
 	{
-		for (int32 Index = 0; Index < NumDerivativeTypes; Index++)
+		for (int32 LHSIndex = 0; LHSIndex < NumDerivativeTypes; LHSIndex++)
 		{
-			if (bFunc2OpIsEnabled[Op][Index] || IsDebugGenerateAllFunctionsEnabled())
+			for (int32 RHSIndex = 0; RHSIndex < NumDerivativeTypes; RHSIndex++)
 			{
-				EDerivativeType DerivType = (EDerivativeType)Index;
-				EDerivativeType ScalarDerivType = IsLWCType(DerivType) ? EDerivativeType::LWCScalar : EDerivativeType::Float1;
-				FString BaseName = GetDerivVectorName(DerivType);
-				FString NonLWCBaseName = GetDerivVectorName(MakeNonLWCType(DerivType));
-				FString ScalarName = GetDerivVectorName(ScalarDerivType);
-				FString FieldName = GetFloatVectorName(MakeNonLWCType(DerivType));
-				FString BoolName = GetBoolVectorName(DerivType);
-				const uint32 NumComponents = GetNumComponents(DerivType);
-				const FString Suffix = IsLWCType(DerivType) ? TEXT("LWC") : TEXT("");
-
-				switch ((EFunc2)Op)
+				if (bFunc2OpIsEnabled[Op][LHSIndex][RHSIndex] || IsDebugGenerateAllFunctionsEnabled())
 				{
-				case EFunc2::Add:
-					Ret += BaseName + TEXT(" AddDeriv") + Suffix + TEXT("(") + BaseName + TEXT(" A, ") + BaseName + TEXT(" B)") HLSL_LINE_TERMINATOR;
-					Ret += TEXT("{") HLSL_LINE_TERMINATOR;
-					Ret += TEXT("\t") + BaseName + TEXT(" Ret;") HLSL_LINE_TERMINATOR;
-					if (IsLWCType(DerivType))
+					EDerivativeType LHSDerivType = (EDerivativeType)LHSIndex;
+					EDerivativeType RHSDerivType = (EDerivativeType)RHSIndex;
+					bool bIsLWCOp = IsLWCType(LHSDerivType) || IsLWCType(RHSDerivType);
+					EDerivativeType DerivType = bIsLWCOp ? MakeLWCType(LHSDerivType) : MakeNonLWCType(LHSDerivType);
+
+					EDerivativeType ScalarDerivType = bIsLWCOp ? EDerivativeType::LWCScalar : EDerivativeType::Float1;
+					FString BaseName = GetDerivVectorName(DerivType);
+					FString NonLWCBaseName = GetDerivVectorName(MakeNonLWCType(DerivType));
+					FString ScalarName = GetDerivVectorName(ScalarDerivType);
+					FString FieldName = GetFloatVectorName(MakeNonLWCType(DerivType));
+					FString BoolName = GetBoolVectorName(DerivType);
+
+					FString LHSBaseName = GetDerivVectorName(LHSDerivType);
+					FString RHSBaseName = GetDerivVectorName(RHSDerivType);
+
+					const uint32 NumComponents = GetNumComponents(DerivType);
+					const FString Suffix = bIsLWCOp ? TEXT("LWC") : TEXT("");
+
+					switch ((EFunc2)Op)
 					{
-						Translator.AddLWCFuncUsage(ELWCFunctionKind::Add);
-						Ret += TEXT("\tRet.Value = LWCAdd(A.Value, B.Value);") HLSL_LINE_TERMINATOR;
-					}
-					else
-					{
-						Ret += TEXT("\tRet.Value = A.Value + B.Value;") HLSL_LINE_TERMINATOR;
-					}
-					Ret += TEXT("\tRet.Ddx = A.Ddx + B.Ddx;") HLSL_LINE_TERMINATOR;
-					Ret += TEXT("\tRet.Ddy = A.Ddy + B.Ddy;") HLSL_LINE_TERMINATOR;
-					Ret += TEXT("\treturn Ret;") HLSL_LINE_TERMINATOR;
-					Ret += TEXT("}") HLSL_LINE_TERMINATOR;
-					Ret += TEXT("") HLSL_LINE_TERMINATOR;
-					break;
-				case EFunc2::Sub:
-					Ret += BaseName + TEXT(" SubDeriv") + Suffix + TEXT("(") + BaseName + TEXT(" A, ") + BaseName + TEXT(" B)") HLSL_LINE_TERMINATOR;
-					Ret += TEXT("{") HLSL_LINE_TERMINATOR;
-					Ret += TEXT("\t") + BaseName + TEXT(" Ret;") HLSL_LINE_TERMINATOR;
-					if (IsLWCType(DerivType))
-					{
-						Translator.AddLWCFuncUsage(ELWCFunctionKind::Subtract);
-						Ret += TEXT("\tRet.Value = LWCSubtract(A.Value, B.Value);") HLSL_LINE_TERMINATOR;
-					}
-					else
-					{
-						Ret += TEXT("\tRet.Value = A.Value - B.Value;") HLSL_LINE_TERMINATOR;
-					}
-					Ret += TEXT("\tRet.Ddx = A.Ddx - B.Ddx;") HLSL_LINE_TERMINATOR;
-					Ret += TEXT("\tRet.Ddy = A.Ddy - B.Ddy;") HLSL_LINE_TERMINATOR;
-					Ret += TEXT("\treturn Ret;") HLSL_LINE_TERMINATOR;
-					Ret += TEXT("}") HLSL_LINE_TERMINATOR;
-					Ret += TEXT("") HLSL_LINE_TERMINATOR;
-					break;
-				case EFunc2::Mul:
-					Ret += BaseName + TEXT(" MulDeriv") + Suffix + TEXT("(") + BaseName + TEXT(" A, ") + BaseName + TEXT(" B)") HLSL_LINE_TERMINATOR;
-					Ret += TEXT("{") HLSL_LINE_TERMINATOR;
-					Ret += TEXT("\t") + BaseName + TEXT(" Ret;") HLSL_LINE_TERMINATOR;
-					if (IsLWCType(DerivType))
-					{
-						Translator.AddLWCFuncUsage(ELWCFunctionKind::MultiplyVectorVector);
-						Ret += TEXT("\tRet.Value = LWCMultiply(A.Value, B.Value);") HLSL_LINE_TERMINATOR;
-						Ret += TEXT("\tRet.Ddx = A.Ddx * LWCToFloat(B.Value) + LWCToFloat(A.Value) * B.Ddx;") HLSL_LINE_TERMINATOR;
-						Ret += TEXT("\tRet.Ddy = A.Ddy * LWCToFloat(B.Value) + LWCToFloat(A.Value) * B.Ddy;") HLSL_LINE_TERMINATOR;
-					}
-					else
-					{
-						Ret += TEXT("\tRet.Value = A.Value * B.Value;") HLSL_LINE_TERMINATOR;
-						Ret += TEXT("\tRet.Ddx = A.Ddx * B.Value + A.Value * B.Ddx;") HLSL_LINE_TERMINATOR;
-						Ret += TEXT("\tRet.Ddy = A.Ddy * B.Value + A.Value * B.Ddy;") HLSL_LINE_TERMINATOR;
-					}
-					Ret += TEXT("\treturn Ret;") HLSL_LINE_TERMINATOR;
-					Ret += TEXT("}") HLSL_LINE_TERMINATOR;
-					Ret += TEXT("") HLSL_LINE_TERMINATOR;
-					break;
-				case EFunc2::Div:
-					Ret += BaseName + TEXT(" DivDeriv") + Suffix + TEXT("(") + BaseName + TEXT(" A, ") + BaseName + TEXT(" B)") HLSL_LINE_TERMINATOR;
-					Ret += TEXT("{") HLSL_LINE_TERMINATOR;
-					Ret += TEXT("\t") + BaseName + TEXT(" Ret;") HLSL_LINE_TERMINATOR;
-					if (IsLWCType(DerivType))
-					{
-						Translator.AddLWCFuncUsage(ELWCFunctionKind::Divide);
-						Ret += TEXT("\tRet.Value = LWCDivide(A.Value, B.Value);") HLSL_LINE_TERMINATOR;
-						Translator.AddLWCFuncUsage(ELWCFunctionKind::Other);
-						Translator.AddLWCFuncUsage(ELWCFunctionKind::Demote, 2);
-						Translator.AddLWCFuncUsage(ELWCFunctionKind::MultiplyVectorVector, 3);
-						Ret += TEXT("\t") + FieldName + TEXT(" Denom = LWCRcp(LWCMultiply(B.Value, B.Value));") HLSL_LINE_TERMINATOR;
-						Ret += TEXT("\t") + FieldName + TEXT(" dFdA =  LWCToFloat(LWCMultiply(B.Value, Denom));") HLSL_LINE_TERMINATOR;
-						Ret += TEXT("\t") + FieldName + TEXT(" dFdB = -LWCToFloat(LWCMultiply(A.Value, Denom));") HLSL_LINE_TERMINATOR;
-						Ret += TEXT("\tRet.Ddx = dFdA * A.Ddx + dFdB * B.Ddx;") HLSL_LINE_TERMINATOR;
-						Ret += TEXT("\tRet.Ddy = dFdA * A.Ddy + dFdB * B.Ddy;") HLSL_LINE_TERMINATOR;
-					}
-					else
-					{
-						Ret += TEXT("\tRet.Value = A.Value / B.Value;") HLSL_LINE_TERMINATOR;
-						Ret += TEXT("\t") + FieldName + TEXT(" Denom = rcp(B.Value * B.Value);") HLSL_LINE_TERMINATOR;
+					case EFunc2::Add:
+						Ret += BaseName + TEXT(" AddDeriv") + Suffix + TEXT("(") + LHSBaseName + TEXT(" A, ") + RHSBaseName + TEXT(" B)") HLSL_LINE_TERMINATOR;
+						Ret += TEXT("{") HLSL_LINE_TERMINATOR;
+						Ret += TEXT("\t") + BaseName + TEXT(" Ret;") HLSL_LINE_TERMINATOR;
+						if (IsLWCType(DerivType))
+						{
+							Translator.AddLWCFuncUsage(ELWCFunctionKind::Add);
+							Ret += TEXT("\tRet.Value = WSAdd(A.Value, B.Value);") HLSL_LINE_TERMINATOR;
+						}
+						else
+						{
+							Ret += TEXT("\tRet.Value = A.Value + B.Value;") HLSL_LINE_TERMINATOR;
+						}
+						Ret += TEXT("\tRet.Ddx = A.Ddx + B.Ddx;") HLSL_LINE_TERMINATOR;
+						Ret += TEXT("\tRet.Ddy = A.Ddy + B.Ddy;") HLSL_LINE_TERMINATOR;
+						Ret += TEXT("\treturn Ret;") HLSL_LINE_TERMINATOR;
+						Ret += TEXT("}") HLSL_LINE_TERMINATOR;
+						Ret += TEXT("") HLSL_LINE_TERMINATOR;
+						break;
+					case EFunc2::Sub:
+						Ret += BaseName + TEXT(" SubDeriv") + Suffix + TEXT("(") + LHSBaseName + TEXT(" A, ") + RHSBaseName + TEXT(" B)") HLSL_LINE_TERMINATOR;
+						Ret += TEXT("{") HLSL_LINE_TERMINATOR;
+						Ret += TEXT("\t") + BaseName + TEXT(" Ret;") HLSL_LINE_TERMINATOR;
+						if (IsLWCType(DerivType))
+						{
+							Translator.AddLWCFuncUsage(ELWCFunctionKind::Subtract);
+							Ret += TEXT("\tRet.Value = WSSubtract(A.Value, B.Value);") HLSL_LINE_TERMINATOR;
+						}
+						else
+						{
+							Ret += TEXT("\tRet.Value = A.Value - B.Value;") HLSL_LINE_TERMINATOR;
+						}
+						Ret += TEXT("\tRet.Ddx = A.Ddx - B.Ddx;") HLSL_LINE_TERMINATOR;
+						Ret += TEXT("\tRet.Ddy = A.Ddy - B.Ddy;") HLSL_LINE_TERMINATOR;
+						Ret += TEXT("\treturn Ret;") HLSL_LINE_TERMINATOR;
+						Ret += TEXT("}") HLSL_LINE_TERMINATOR;
+						Ret += TEXT("") HLSL_LINE_TERMINATOR;
+						break;
+					case EFunc2::Mul:
+						Ret += BaseName + TEXT(" MulDeriv") + Suffix + TEXT("(") + LHSBaseName + TEXT(" A, ") + RHSBaseName + TEXT(" B)") HLSL_LINE_TERMINATOR;
+						Ret += TEXT("{") HLSL_LINE_TERMINATOR;
+						Ret += TEXT("\t") + BaseName + TEXT(" Ret;") HLSL_LINE_TERMINATOR;
+						if (IsLWCType(DerivType))
+						{
+							Translator.AddLWCFuncUsage(ELWCFunctionKind::MultiplyVectorVector);
+							Ret += TEXT("\tRet.Value = WSMultiply(A.Value, B.Value);") HLSL_LINE_TERMINATOR;
+							Ret += TEXT("\tRet.Ddx = A.Ddx * WSDemote(B.Value) + WSDemote(A.Value) * B.Ddx;") HLSL_LINE_TERMINATOR;
+							Ret += TEXT("\tRet.Ddy = A.Ddy * WSDemote(B.Value) + WSDemote(A.Value) * B.Ddy;") HLSL_LINE_TERMINATOR;
+						}
+						else
+						{
+							Ret += TEXT("\tRet.Value = A.Value * B.Value;") HLSL_LINE_TERMINATOR;
+							Ret += TEXT("\tRet.Ddx = A.Ddx * B.Value + A.Value * B.Ddx;") HLSL_LINE_TERMINATOR;
+							Ret += TEXT("\tRet.Ddy = A.Ddy * B.Value + A.Value * B.Ddy;") HLSL_LINE_TERMINATOR;
+						}
+						Ret += TEXT("\treturn Ret;") HLSL_LINE_TERMINATOR;
+						Ret += TEXT("}") HLSL_LINE_TERMINATOR;
+						Ret += TEXT("") HLSL_LINE_TERMINATOR;
+						break;
+					case EFunc2::Div:
+						Ret += BaseName + TEXT(" DivDeriv") + Suffix + TEXT("(") + LHSBaseName + TEXT(" A, ") + RHSBaseName + TEXT(" B)") HLSL_LINE_TERMINATOR;
+						Ret += TEXT("{") HLSL_LINE_TERMINATOR;
+						Ret += TEXT("\t") + BaseName + TEXT(" Ret;") HLSL_LINE_TERMINATOR;
+						if (IsLWCType(LHSDerivType) && IsLWCType(RHSDerivType))
+						{
+							Translator.AddLWCFuncUsage(ELWCFunctionKind::Divide);
+							Ret += TEXT("\tRet.Value = WSDivide(A.Value, B.Value);") HLSL_LINE_TERMINATOR;
+							Translator.AddLWCFuncUsage(ELWCFunctionKind::Other);
+							Translator.AddLWCFuncUsage(ELWCFunctionKind::Demote, 2);
+							Translator.AddLWCFuncUsage(ELWCFunctionKind::MultiplyVectorVector, 3);
+							Ret += TEXT("\t") + FieldName + TEXT(" Denom = WSRcpDemote(WSMultiply(B.Value, B.Value));") HLSL_LINE_TERMINATOR;
+							Ret += TEXT("\t") + FieldName + TEXT(" dFdA =  WSDemote(WSMultiply(B.Value, Denom));") HLSL_LINE_TERMINATOR;
+							Ret += TEXT("\t") + FieldName + TEXT(" dFdB = -WSDemote(WSMultiply(A.Value, Denom));") HLSL_LINE_TERMINATOR;
+							Ret += TEXT("\tRet.Ddx = dFdA * A.Ddx + dFdB * B.Ddx;") HLSL_LINE_TERMINATOR;
+							Ret += TEXT("\tRet.Ddy = dFdA * A.Ddy + dFdB * B.Ddy;") HLSL_LINE_TERMINATOR;
+						}
+						else if (IsLWCType(LHSDerivType) && !IsLWCType(RHSDerivType))
+						{
+							Translator.AddLWCFuncUsage(ELWCFunctionKind::Divide);
+							Ret += TEXT("\tRet.Value = WSDivide(A.Value, B.Value);") HLSL_LINE_TERMINATOR;
+							Ret += TEXT("\t") + FieldName + TEXT(" Denom = rcp(B.Value * B.Value);") HLSL_LINE_TERMINATOR;
+							Ret += TEXT("\t") + FieldName + TEXT(" dFdA =  B.Value * Denom;") HLSL_LINE_TERMINATOR;
+							Translator.AddLWCFuncUsage(ELWCFunctionKind::Demote);
+							Translator.AddLWCFuncUsage(ELWCFunctionKind::MultiplyVectorVector);
+							Ret += TEXT("\t") + FieldName + TEXT(" dFdB = -WSDemote(WSMultiply(A.Value, Denom));") HLSL_LINE_TERMINATOR;
+							Ret += TEXT("\tRet.Ddx = dFdA * A.Ddx + dFdB * B.Ddx;") HLSL_LINE_TERMINATOR;
+							Ret += TEXT("\tRet.Ddy = dFdA * A.Ddy + dFdB * B.Ddy;") HLSL_LINE_TERMINATOR;
+						}
+						else
+						{
+							Ret += TEXT("\tRet.Value = A.Value / B.Value;") HLSL_LINE_TERMINATOR;
+							Ret += TEXT("\t") + FieldName + TEXT(" Denom = rcp(B.Value * B.Value);") HLSL_LINE_TERMINATOR;
+							Ret += TEXT("\t") + FieldName + TEXT(" dFdA =  B.Value * Denom;") HLSL_LINE_TERMINATOR;
+							Ret += TEXT("\t") + FieldName + TEXT(" dFdB = -A.Value * Denom;") HLSL_LINE_TERMINATOR;
+							Ret += TEXT("\tRet.Ddx = dFdA * A.Ddx + dFdB * B.Ddx;") HLSL_LINE_TERMINATOR;
+							Ret += TEXT("\tRet.Ddy = dFdA * A.Ddy + dFdB * B.Ddy;") HLSL_LINE_TERMINATOR;
+						}
+						Ret += TEXT("\treturn Ret;") HLSL_LINE_TERMINATOR;
+						Ret += TEXT("}") HLSL_LINE_TERMINATOR;
+						Ret += TEXT("") HLSL_LINE_TERMINATOR;
+
+						break;
+					case EFunc2::Fmod:
+						// Only valid when B derivatives are zero.
+						// We can't really do anything meaningful in the non-zero case.
+						Ret += NonLWCBaseName + TEXT(" FmodDeriv") + Suffix + TEXT("(") + LHSBaseName + TEXT(" A, ") + NonLWCBaseName + TEXT(" B)") HLSL_LINE_TERMINATOR;
+						Ret += TEXT("{") HLSL_LINE_TERMINATOR;
+						Ret += TEXT("\t") + NonLWCBaseName + TEXT(" Ret;") HLSL_LINE_TERMINATOR;
+						if (IsLWCType(DerivType))
+						{
+							Translator.AddLWCFuncUsage(ELWCFunctionKind::Other);
+							Ret += TEXT("\tRet.Value = WSFmodDemote(A.Value, B.Value);") HLSL_LINE_TERMINATOR;
+						}
+						else
+						{
+							Ret += TEXT("\tRet.Value = fmod(A.Value, B.Value);") HLSL_LINE_TERMINATOR;
+						}
+						Ret += TEXT("\tRet.Ddx = A.Ddx;") HLSL_LINE_TERMINATOR;
+						Ret += TEXT("\tRet.Ddy = A.Ddy;") HLSL_LINE_TERMINATOR;
+						Ret += TEXT("\treturn Ret;") HLSL_LINE_TERMINATOR;
+						Ret += TEXT("}") HLSL_LINE_TERMINATOR;
+						Ret += TEXT("") HLSL_LINE_TERMINATOR;
+						break;
+					case EFunc2::Min:
+						Ret += BaseName + TEXT(" MinDeriv") + Suffix + TEXT("(") + LHSBaseName + TEXT(" A, ") + RHSBaseName + TEXT(" B)") HLSL_LINE_TERMINATOR;
+						Ret += TEXT("{") HLSL_LINE_TERMINATOR;
+						Ret += TEXT("\t") + BaseName + TEXT(" Ret;") HLSL_LINE_TERMINATOR;
+						if (IsLWCType(DerivType))
+						{
+							Translator.AddLWCFuncUsage(ELWCFunctionKind::Other);
+							Ret += TEXT("\t") + BoolName + TEXT(" Cmp = WSLess(A.Value, B.Value);") HLSL_LINE_TERMINATOR;
+							Ret += TEXT("\tRet.Value = WSSelect(Cmp, A.Value, B.Value);") HLSL_LINE_TERMINATOR;
+						}
+						else
+						{
+							Ret += TEXT("\t") + BoolName + TEXT(" Cmp = A.Value < B.Value;") HLSL_LINE_TERMINATOR;
+							Ret += TEXT("\tRet.Value = select(Cmp, A.Value, B.Value);") HLSL_LINE_TERMINATOR;
+						}
+						Ret += TEXT("\tRet.Ddx = select(Cmp, A.Ddx, B.Ddx);") HLSL_LINE_TERMINATOR;
+						Ret += TEXT("\tRet.Ddy = select(Cmp, A.Ddy, B.Ddy);") HLSL_LINE_TERMINATOR;
+						Ret += TEXT("\treturn Ret;") HLSL_LINE_TERMINATOR;
+						Ret += TEXT("}") HLSL_LINE_TERMINATOR;
+						Ret += TEXT("") HLSL_LINE_TERMINATOR;
+						break;
+					case EFunc2::Max:
+						Ret += BaseName + TEXT(" MaxDeriv") + Suffix + TEXT("(") + LHSBaseName + TEXT(" A, ") + RHSBaseName + TEXT(" B)") HLSL_LINE_TERMINATOR;
+						Ret += TEXT("{") HLSL_LINE_TERMINATOR;
+						Ret += TEXT("\t") + BaseName + TEXT(" Ret;") HLSL_LINE_TERMINATOR;
+						if (IsLWCType(DerivType))
+						{
+							Translator.AddLWCFuncUsage(ELWCFunctionKind::Other);
+							Ret += TEXT("\t") + BoolName + TEXT(" Cmp = WSGreater(A.Value, B.Value);") HLSL_LINE_TERMINATOR;
+							Ret += TEXT("\tRet.Value = WSSelect(Cmp, A.Value, B.Value);") HLSL_LINE_TERMINATOR;
+						}
+						else
+						{
+							Ret += TEXT("\t") + BoolName + TEXT(" Cmp = A.Value > B.Value;") HLSL_LINE_TERMINATOR;
+							Ret += TEXT("\tRet.Value = select(Cmp, A.Value, B.Value);") HLSL_LINE_TERMINATOR;
+						}
+						Ret += TEXT("\tRet.Ddx = select(Cmp, A.Ddx, B.Ddx);") HLSL_LINE_TERMINATOR;
+						Ret += TEXT("\tRet.Ddy = select(Cmp, A.Ddy, B.Ddy);") HLSL_LINE_TERMINATOR;
+						Ret += TEXT("\treturn Ret;") HLSL_LINE_TERMINATOR;
+						Ret += TEXT("}") HLSL_LINE_TERMINATOR;
+						Ret += TEXT("") HLSL_LINE_TERMINATOR;
+						break;
+					case EFunc2::Dot:
+						Ret += ScalarName + TEXT(" DotDeriv") + Suffix + TEXT("(") + LHSBaseName + TEXT(" A, ") + RHSBaseName + TEXT(" B)") HLSL_LINE_TERMINATOR;
+						Ret += TEXT("{") HLSL_LINE_TERMINATOR;
+						if (IsLWCType(DerivType))
+						{
+							Ret += TEXT("\t") + ScalarName + TEXT(" Ret = ConstructConstant") + ScalarName + TEXT("(WSPromote(0.0f));") HLSL_LINE_TERMINATOR;
+						}
+						else
+						{
+							Ret += TEXT("\t") + ScalarName + TEXT(" Ret = ConstructConstant") + ScalarName + TEXT("(0);") HLSL_LINE_TERMINATOR;
+						}
+						for (uint32 Component = 0; Component < NumComponents; Component++)
+						{
+							Ret += FString::Printf(TEXT("\tRet = AddDeriv%s(Ret,MulDeriv%s(Extract%s_%d(A),Extract%s_%d(B)));"), *Suffix, *Suffix, *BaseName, Component + 1, *BaseName, Component + 1) + HLSL_LINE_TERMINATOR;
+						}
+						Ret += TEXT("\treturn Ret;") HLSL_LINE_TERMINATOR;
+						Ret += TEXT("}") HLSL_LINE_TERMINATOR;
+						Ret += TEXT("") HLSL_LINE_TERMINATOR;
+						break;
+					case EFunc2::Pow:
+						// pow(A,B) = exp(B*log(A))
+						//     pow'(A,B) = exp(B*log(A)) * (B'*log(A) + (B/A)*A')
+						//     pow'(A,B) = pow(A,B) * (B'*log(A) + (B/A)*A')
+						// sanity check when B is constant and A is a linear function (B'=0,A'=1)
+						//     pow'(A,B) = pow(A,B) * (0*log(A) + (B/A)*1)
+						//     pow'(A,B) = B * pow(A,B-1)
+						Ret += BaseName + TEXT(" PowDeriv") + Suffix + TEXT("(") + LHSBaseName + TEXT(" A, ") + RHSBaseName + TEXT(" B)") HLSL_LINE_TERMINATOR;
+						Ret += TEXT("{") HLSL_LINE_TERMINATOR;
+						Ret += TEXT("\t") + BaseName + TEXT(" Ret;") HLSL_LINE_TERMINATOR;
+						Ret += TEXT("\tRet.Value = pow(A.Value, B.Value);") HLSL_LINE_TERMINATOR;
+						Ret += TEXT("\tRet.Ddx = Ret.Value * (B.Ddx * log(A.Value) + (B.Value/A.Value)*A.Ddx);") HLSL_LINE_TERMINATOR;
+						Ret += TEXT("\tRet.Ddy = Ret.Value * (B.Ddy * log(A.Value) + (B.Value/A.Value)*A.Ddy);") HLSL_LINE_TERMINATOR;
+						Ret += TEXT("\treturn Ret;") HLSL_LINE_TERMINATOR;
+						Ret += TEXT("}") HLSL_LINE_TERMINATOR;
+						Ret += TEXT("") HLSL_LINE_TERMINATOR;
+						break;
+					case EFunc2::PowPositiveClamped:
+						Ret += BaseName + TEXT(" PowPositiveClampedDeriv") + Suffix + TEXT("(") + LHSBaseName + TEXT(" A, ") + RHSBaseName + TEXT(" B)") HLSL_LINE_TERMINATOR;
+						Ret += TEXT("{") HLSL_LINE_TERMINATOR;
+						Ret += TEXT("\t") + BaseName + TEXT(" Ret;") HLSL_LINE_TERMINATOR;
+						Ret += TEXT("\t") + BoolName + TEXT(" InRange = (0.0 < B.Value);") HLSL_LINE_TERMINATOR; // should we check for A as well?
+						Ret += TEXT("\t") + FieldName + TEXT(" Zero = 0.0;") HLSL_LINE_TERMINATOR;
+						Ret += TEXT("\tRet.Value = PositiveClampedPow(A.Value, B.Value);") HLSL_LINE_TERMINATOR;
+						Ret += TEXT("\tRet.Ddx = Ret.Value * (B.Ddx * log(A.Value) + (B.Value/A.Value)*A.Ddx);") HLSL_LINE_TERMINATOR;
+						Ret += TEXT("\tRet.Ddy = Ret.Value * (B.Ddy * log(A.Value) + (B.Value/A.Value)*A.Ddy);") HLSL_LINE_TERMINATOR;
+						Ret += TEXT("\tRet.Ddx = select(InRange, Ret.Ddx, Zero);") HLSL_LINE_TERMINATOR;
+						Ret += TEXT("\tRet.Ddy = select(InRange, Ret.Ddy, Zero);") HLSL_LINE_TERMINATOR;
+						Ret += TEXT("\treturn Ret;") HLSL_LINE_TERMINATOR;
+						Ret += TEXT("}") HLSL_LINE_TERMINATOR;
+						Ret += TEXT("") HLSL_LINE_TERMINATOR;
+						break;
+					case EFunc2::Atan2:
+						Ret += BaseName + TEXT(" Atan2Deriv") + Suffix + TEXT("(") + LHSBaseName + TEXT(" A, ") + RHSBaseName + TEXT(" B)") HLSL_LINE_TERMINATOR;
+						Ret += TEXT("{") HLSL_LINE_TERMINATOR;
+						Ret += TEXT("\t") + BaseName + TEXT(" Ret;") HLSL_LINE_TERMINATOR;
+						Ret += TEXT("\tRet.Value = atan2(A.Value, B.Value);") HLSL_LINE_TERMINATOR;
+						Ret += TEXT("\t") + FieldName + TEXT(" Denom = rcp(A.Value * A.Value + B.Value * B.Value);") HLSL_LINE_TERMINATOR;
 						Ret += TEXT("\t") + FieldName + TEXT(" dFdA =  B.Value * Denom;") HLSL_LINE_TERMINATOR;
 						Ret += TEXT("\t") + FieldName + TEXT(" dFdB = -A.Value * Denom;") HLSL_LINE_TERMINATOR;
 						Ret += TEXT("\tRet.Ddx = dFdA * A.Ddx + dFdB * B.Ddx;") HLSL_LINE_TERMINATOR;
 						Ret += TEXT("\tRet.Ddy = dFdA * A.Ddy + dFdB * B.Ddy;") HLSL_LINE_TERMINATOR;
-					}
-					Ret += TEXT("\treturn Ret;") HLSL_LINE_TERMINATOR;
-					Ret += TEXT("}") HLSL_LINE_TERMINATOR;
-					Ret += TEXT("") HLSL_LINE_TERMINATOR;
-
-					if (IsLWCType(DerivType))
-					{
-						// Add an overload to divide LWC by non-LWC value
-						Ret += BaseName + TEXT(" DivDeriv") + Suffix + TEXT("(") + BaseName + TEXT(" A, ") + NonLWCBaseName + TEXT(" B)") HLSL_LINE_TERMINATOR;
+						Ret += TEXT("\treturn Ret;") HLSL_LINE_TERMINATOR;
+						Ret += TEXT("}") HLSL_LINE_TERMINATOR;
+						Ret += TEXT("") HLSL_LINE_TERMINATOR;
+						break;
+					case EFunc2::Atan2Fast:
+						Ret += BaseName + TEXT(" Atan2FastDeriv") + Suffix + TEXT("(") + LHSBaseName + TEXT(" A, ") + RHSBaseName + TEXT(" B)") HLSL_LINE_TERMINATOR;
 						Ret += TEXT("{") HLSL_LINE_TERMINATOR;
 						Ret += TEXT("\t") + BaseName + TEXT(" Ret;") HLSL_LINE_TERMINATOR;
-						Translator.AddLWCFuncUsage(ELWCFunctionKind::Divide);
-						Ret += TEXT("\tRet.Value = LWCDivide(A.Value, B.Value);") HLSL_LINE_TERMINATOR;
-						Ret += TEXT("\t") + FieldName + TEXT(" Denom = rcp(B.Value * B.Value);") HLSL_LINE_TERMINATOR;
+						Ret += TEXT("\tRet.Value = atan2Fast(A.Value, B.Value);") HLSL_LINE_TERMINATOR;
+						Ret += TEXT("\t") + FieldName + TEXT(" Denom = rcp(A.Value * A.Value + B.Value * B.Value);") HLSL_LINE_TERMINATOR;
 						Ret += TEXT("\t") + FieldName + TEXT(" dFdA =  B.Value * Denom;") HLSL_LINE_TERMINATOR;
-						Translator.AddLWCFuncUsage(ELWCFunctionKind::Demote);
-						Translator.AddLWCFuncUsage(ELWCFunctionKind::MultiplyVectorVector);
-						Ret += TEXT("\t") + FieldName + TEXT(" dFdB = -LWCToFloat(LWCMultiply(A.Value, Denom));") HLSL_LINE_TERMINATOR;
+						Ret += TEXT("\t") + FieldName + TEXT(" dFdB = -A.Value * Denom;") HLSL_LINE_TERMINATOR;
 						Ret += TEXT("\tRet.Ddx = dFdA * A.Ddx + dFdB * B.Ddx;") HLSL_LINE_TERMINATOR;
 						Ret += TEXT("\tRet.Ddy = dFdA * A.Ddy + dFdB * B.Ddy;") HLSL_LINE_TERMINATOR;
 						Ret += TEXT("\treturn Ret;") HLSL_LINE_TERMINATOR;
 						Ret += TEXT("}") HLSL_LINE_TERMINATOR;
 						Ret += TEXT("") HLSL_LINE_TERMINATOR;
+						break;
+					case EFunc2::Cross:
+						if (DerivType == EDerivativeType::Float3)
+						{
+							// (A*B)' = A' * B + A * B'
+							// Cross(A, B) = A.yzx * B.zxy - A.zxy * B.yzx;
+							// Cross(A, B)' = A.yzx' * B.zxy + A.yzx * B.zxy' - A.zxy' * B.yzx - A.zxy * B.yzx';
+							Ret += BaseName + TEXT(" CrossDeriv") + Suffix + TEXT("(") + LHSBaseName + TEXT(" A, ") + RHSBaseName + TEXT(" B)") HLSL_LINE_TERMINATOR;
+							Ret += TEXT("{") HLSL_LINE_TERMINATOR;
+							Ret += TEXT("\t") + BaseName + TEXT(" Ret;") HLSL_LINE_TERMINATOR;
+							Ret += TEXT("\tRet.Value = cross(A.Value, B.Value);") HLSL_LINE_TERMINATOR;
+							Ret += TEXT("\tRet.Ddx = A.Ddx.yzx * B.Value.zxy + A.Value.yzx * B.Ddx.zxy - A.Ddx.zxy * B.Value.yzx - A.Value.zxy * B.Ddx.yzx;") HLSL_LINE_TERMINATOR;
+							Ret += TEXT("\tRet.Ddy = A.Ddy.yzx * B.Value.zxy + A.Value.yzx * B.Ddy.zxy - A.Ddy.zxy * B.Value.yzx - A.Value.zxy * B.Ddy.yzx;") HLSL_LINE_TERMINATOR;
+							Ret += TEXT("\treturn Ret;") HLSL_LINE_TERMINATOR;
+							Ret += TEXT("}") HLSL_LINE_TERMINATOR;
+							Ret += TEXT("") HLSL_LINE_TERMINATOR;
+						}
+						break;
+					default:
+						check(0);
+						break;
 					}
-					break;
-				case EFunc2::Fmod:
-					// Only valid when B derivatives are zero.
-					// We can't really do anything meaningful in the non-zero case.
-					Ret += NonLWCBaseName + TEXT(" FmodDeriv") + Suffix + TEXT("(") + BaseName + TEXT(" A, ") + NonLWCBaseName + TEXT(" B)") HLSL_LINE_TERMINATOR;
-					Ret += TEXT("{") HLSL_LINE_TERMINATOR;
-					Ret += TEXT("\t") + NonLWCBaseName + TEXT(" Ret;") HLSL_LINE_TERMINATOR;
-					if (IsLWCType(DerivType))
-					{
-						Translator.AddLWCFuncUsage(ELWCFunctionKind::Other);
-						Ret += TEXT("\tRet.Value = LWCFmod(A.Value, B.Value);") HLSL_LINE_TERMINATOR;
-					}
-					else
-					{
-						Ret += TEXT("\tRet.Value = fmod(A.Value, B.Value);") HLSL_LINE_TERMINATOR;
-					}
-					Ret += TEXT("\tRet.Ddx = A.Ddx;") HLSL_LINE_TERMINATOR;
-					Ret += TEXT("\tRet.Ddy = A.Ddy;") HLSL_LINE_TERMINATOR;
-					Ret += TEXT("\treturn Ret;") HLSL_LINE_TERMINATOR;
-					Ret += TEXT("}") HLSL_LINE_TERMINATOR;
-					Ret += TEXT("") HLSL_LINE_TERMINATOR;
-					break;
-				case EFunc2::Min:
-					Ret += BaseName + TEXT(" MinDeriv") + Suffix + TEXT("(") + BaseName + TEXT(" A, ") + BaseName + TEXT(" B)") HLSL_LINE_TERMINATOR;
-					Ret += TEXT("{") HLSL_LINE_TERMINATOR;
-					Ret += TEXT("\t") + BaseName + TEXT(" Ret;") HLSL_LINE_TERMINATOR;
-					if (IsLWCType(DerivType))
-					{
-						Translator.AddLWCFuncUsage(ELWCFunctionKind::Other);
-						Ret += TEXT("\t") + BoolName + TEXT(" Cmp = LWCLess(A.Value, B.Value);") HLSL_LINE_TERMINATOR;
-						Ret += TEXT("\tRet.Value = LWCSelect(Cmp, A.Value, B.Value);") HLSL_LINE_TERMINATOR;
-					}
-					else
-					{
-						Ret += TEXT("\t") + BoolName + TEXT(" Cmp = A.Value < B.Value;") HLSL_LINE_TERMINATOR;
-						Ret += TEXT("\tRet.Value = select(Cmp, A.Value, B.Value);") HLSL_LINE_TERMINATOR;
-					}
-					Ret += TEXT("\tRet.Ddx = select(Cmp, A.Ddx, B.Ddx);") HLSL_LINE_TERMINATOR;
-					Ret += TEXT("\tRet.Ddy = select(Cmp, A.Ddy, B.Ddy);") HLSL_LINE_TERMINATOR;
-					Ret += TEXT("\treturn Ret;") HLSL_LINE_TERMINATOR;
-					Ret += TEXT("}") HLSL_LINE_TERMINATOR;
-					Ret += TEXT("") HLSL_LINE_TERMINATOR;
-					break;
-				case EFunc2::Max:
-					Ret += BaseName + TEXT(" MaxDeriv") + Suffix + TEXT("(") + BaseName + TEXT(" A, ") + BaseName + TEXT(" B)") HLSL_LINE_TERMINATOR;
-					Ret += TEXT("{") HLSL_LINE_TERMINATOR;
-					Ret += TEXT("\t") + BaseName + TEXT(" Ret;") HLSL_LINE_TERMINATOR;
-					if (IsLWCType(DerivType))
-					{
-						Translator.AddLWCFuncUsage(ELWCFunctionKind::Other);
-						Ret += TEXT("\t") + BoolName + TEXT(" Cmp = LWCGreater(A.Value, B.Value);") HLSL_LINE_TERMINATOR;
-						Ret += TEXT("\tRet.Value = LWCSelect(Cmp, A.Value, B.Value);") HLSL_LINE_TERMINATOR;
-					}
-					else
-					{
-						Ret += TEXT("\t") + BoolName + TEXT(" Cmp = A.Value > B.Value;") HLSL_LINE_TERMINATOR;
-						Ret += TEXT("\tRet.Value = select(Cmp, A.Value, B.Value);") HLSL_LINE_TERMINATOR;
-					}
-					Ret += TEXT("\tRet.Ddx = select(Cmp, A.Ddx, B.Ddx);") HLSL_LINE_TERMINATOR;
-					Ret += TEXT("\tRet.Ddy = select(Cmp, A.Ddy, B.Ddy);") HLSL_LINE_TERMINATOR;
-					Ret += TEXT("\treturn Ret;") HLSL_LINE_TERMINATOR;
-					Ret += TEXT("}") HLSL_LINE_TERMINATOR;
-					Ret += TEXT("") HLSL_LINE_TERMINATOR;
-					break;
-				case EFunc2::Dot:
-					Ret += ScalarName + TEXT(" DotDeriv") + Suffix + TEXT("(") + BaseName + TEXT(" A, ") + BaseName + TEXT(" B)") HLSL_LINE_TERMINATOR;
-					Ret += TEXT("{") HLSL_LINE_TERMINATOR;
-					if (IsLWCType(DerivType))
-					{
-						Ret += TEXT("\t") + ScalarName + TEXT(" Ret = ConstructConstant") + ScalarName + TEXT("(LWCPromote(0.0f));") HLSL_LINE_TERMINATOR;
-					}
-					else
-					{
-						Ret += TEXT("\t") + ScalarName + TEXT(" Ret = ConstructConstant") + ScalarName + TEXT("(0);") HLSL_LINE_TERMINATOR;
-					}
-					for (uint32 Component = 0; Component < NumComponents; Component++)
-					{
-						Ret += FString::Printf(TEXT("\tRet = AddDeriv%s(Ret,MulDeriv%s(Extract%s_%d(A),Extract%s_%d(B)));"), *Suffix, *Suffix, *BaseName, Component + 1, *BaseName, Component + 1) + HLSL_LINE_TERMINATOR;
-					}
-					Ret += TEXT("\treturn Ret;") HLSL_LINE_TERMINATOR;
-					Ret += TEXT("}") HLSL_LINE_TERMINATOR;
-					Ret += TEXT("") HLSL_LINE_TERMINATOR;
-					break;
-				case EFunc2::Pow:
-					// pow(A,B) = exp(B*log(A))
-					//     pow'(A,B) = exp(B*log(A)) * (B'*log(A) + (B/A)*A')
-					//     pow'(A,B) = pow(A,B) * (B'*log(A) + (B/A)*A')
-					// sanity check when B is constant and A is a linear function (B'=0,A'=1)
-					//     pow'(A,B) = pow(A,B) * (0*log(A) + (B/A)*1)
-					//     pow'(A,B) = B * pow(A,B-1)
-					Ret += BaseName + TEXT(" PowDeriv") + Suffix + TEXT("(") + BaseName + TEXT(" A, ") + BaseName + TEXT(" B)") HLSL_LINE_TERMINATOR;
-					Ret += TEXT("{") HLSL_LINE_TERMINATOR;
-					Ret += TEXT("\t") + BaseName + TEXT(" Ret;") HLSL_LINE_TERMINATOR;
-					Ret += TEXT("\tRet.Value = pow(A.Value, B.Value);") HLSL_LINE_TERMINATOR;
-					Ret += TEXT("\tRet.Ddx = Ret.Value * (B.Ddx * log(A.Value) + (B.Value/A.Value)*A.Ddx);") HLSL_LINE_TERMINATOR;
-					Ret += TEXT("\tRet.Ddy = Ret.Value * (B.Ddy * log(A.Value) + (B.Value/A.Value)*A.Ddy);") HLSL_LINE_TERMINATOR;
-					Ret += TEXT("\treturn Ret;") HLSL_LINE_TERMINATOR;
-					Ret += TEXT("}") HLSL_LINE_TERMINATOR;
-					Ret += TEXT("") HLSL_LINE_TERMINATOR;
-					break;
-				case EFunc2::PowPositiveClamped:
-					Ret += BaseName + TEXT(" PowPositiveClampedDeriv") + Suffix + TEXT("(") + BaseName + TEXT(" A, ") + BaseName + TEXT(" B)") HLSL_LINE_TERMINATOR;
-					Ret += TEXT("{") HLSL_LINE_TERMINATOR;
-					Ret += TEXT("\t") + BaseName + TEXT(" Ret;") HLSL_LINE_TERMINATOR;
-					Ret += TEXT("\t") + BoolName + TEXT(" InRange = (0.0 < B.Value);") HLSL_LINE_TERMINATOR; // should we check for A as well?
-					Ret += TEXT("\t") + FieldName + TEXT(" Zero = 0.0;") HLSL_LINE_TERMINATOR;
-					Ret += TEXT("\tRet.Value = PositiveClampedPow(A.Value, B.Value);") HLSL_LINE_TERMINATOR;
-					Ret += TEXT("\tRet.Ddx = Ret.Value * (B.Ddx * log(A.Value) + (B.Value/A.Value)*A.Ddx);") HLSL_LINE_TERMINATOR;
-					Ret += TEXT("\tRet.Ddy = Ret.Value * (B.Ddy * log(A.Value) + (B.Value/A.Value)*A.Ddy);") HLSL_LINE_TERMINATOR;
-					Ret += TEXT("\tRet.Ddx = select(InRange, Ret.Ddx, Zero);") HLSL_LINE_TERMINATOR;
-					Ret += TEXT("\tRet.Ddy = select(InRange, Ret.Ddy, Zero);") HLSL_LINE_TERMINATOR;
-					Ret += TEXT("\treturn Ret;") HLSL_LINE_TERMINATOR;
-					Ret += TEXT("}") HLSL_LINE_TERMINATOR;
-					Ret += TEXT("") HLSL_LINE_TERMINATOR;
-					break;
-				case EFunc2::Atan2:
-					Ret += BaseName + TEXT(" Atan2Deriv") + Suffix + TEXT("(") + BaseName + TEXT(" A, ") + BaseName + TEXT(" B)") HLSL_LINE_TERMINATOR;
-					Ret += TEXT("{") HLSL_LINE_TERMINATOR;
-					Ret += TEXT("\t") + BaseName + TEXT(" Ret;") HLSL_LINE_TERMINATOR;
-					Ret += TEXT("\tRet.Value = atan2(A.Value, B.Value);") HLSL_LINE_TERMINATOR;
-					Ret += TEXT("\t") + FieldName + TEXT(" Denom = rcp(A.Value * A.Value + B.Value * B.Value);") HLSL_LINE_TERMINATOR;
-					Ret += TEXT("\t") + FieldName + TEXT(" dFdA =  B.Value * Denom;") HLSL_LINE_TERMINATOR;
-					Ret += TEXT("\t") + FieldName + TEXT(" dFdB = -A.Value * Denom;") HLSL_LINE_TERMINATOR;
-					Ret += TEXT("\tRet.Ddx = dFdA * A.Ddx + dFdB * B.Ddx;") HLSL_LINE_TERMINATOR;
-					Ret += TEXT("\tRet.Ddy = dFdA * A.Ddy + dFdB * B.Ddy;") HLSL_LINE_TERMINATOR;
-					Ret += TEXT("\treturn Ret;") HLSL_LINE_TERMINATOR;
-					Ret += TEXT("}") HLSL_LINE_TERMINATOR;
-					Ret += TEXT("") HLSL_LINE_TERMINATOR;
-					break;
-				case EFunc2::Atan2Fast:
-					Ret += BaseName + TEXT(" Atan2FastDeriv") + Suffix + TEXT("(") + BaseName + TEXT(" A, ") + BaseName + TEXT(" B)") HLSL_LINE_TERMINATOR;
-					Ret += TEXT("{") HLSL_LINE_TERMINATOR;
-					Ret += TEXT("\t") + BaseName + TEXT(" Ret;") HLSL_LINE_TERMINATOR;
-					Ret += TEXT("\tRet.Value = atan2Fast(A.Value, B.Value);") HLSL_LINE_TERMINATOR;
-					Ret += TEXT("\t") + FieldName + TEXT(" Denom = rcp(A.Value * A.Value + B.Value * B.Value);") HLSL_LINE_TERMINATOR;
-					Ret += TEXT("\t") + FieldName + TEXT(" dFdA =  B.Value * Denom;") HLSL_LINE_TERMINATOR;
-					Ret += TEXT("\t") + FieldName + TEXT(" dFdB = -A.Value * Denom;") HLSL_LINE_TERMINATOR;
-					Ret += TEXT("\tRet.Ddx = dFdA * A.Ddx + dFdB * B.Ddx;") HLSL_LINE_TERMINATOR;
-					Ret += TEXT("\tRet.Ddy = dFdA * A.Ddy + dFdB * B.Ddy;") HLSL_LINE_TERMINATOR;
-					Ret += TEXT("\treturn Ret;") HLSL_LINE_TERMINATOR;
-					Ret += TEXT("}") HLSL_LINE_TERMINATOR;
-					Ret += TEXT("") HLSL_LINE_TERMINATOR;
-					break;
-				case EFunc2::Cross:
-					if (DerivType == EDerivativeType::Float3)
-					{
-						// (A*B)' = A' * B + A * B'
-						// Cross(A, B) = A.yzx * B.zxy - A.zxy * B.yzx;
-						// Cross(A, B)' = A.yzx' * B.zxy + A.yzx * B.zxy' - A.zxy' * B.yzx - A.zxy * B.yzx';
-						Ret += BaseName + TEXT(" CrossDeriv") + Suffix + TEXT("(") + BaseName + TEXT(" A, ") + BaseName + TEXT(" B)") HLSL_LINE_TERMINATOR;
-						Ret += TEXT("{") HLSL_LINE_TERMINATOR;
-						Ret += TEXT("\t") + BaseName + TEXT(" Ret;") HLSL_LINE_TERMINATOR;
-						Ret += TEXT("\tRet.Value = cross(A.Value, B.Value);") HLSL_LINE_TERMINATOR;
-						Ret += TEXT("\tRet.Ddx = A.Ddx.yzx * B.Value.zxy + A.Value.yzx * B.Ddx.zxy - A.Ddx.zxy * B.Value.yzx - A.Value.zxy * B.Ddx.yzx;") HLSL_LINE_TERMINATOR;
-						Ret += TEXT("\tRet.Ddy = A.Ddy.yzx * B.Value.zxy + A.Value.yzx * B.Ddy.zxy - A.Ddy.zxy * B.Value.yzx - A.Value.zxy * B.Ddy.yzx;") HLSL_LINE_TERMINATOR;
-						Ret += TEXT("\treturn Ret;") HLSL_LINE_TERMINATOR;
-						Ret += TEXT("}") HLSL_LINE_TERMINATOR;
-						Ret += TEXT("") HLSL_LINE_TERMINATOR;
-					}
-					break;
-				default:
-					check(0);
-					break;
 				}
 			}
 		}
@@ -1824,8 +1866,8 @@ FString FMaterialDerivativeAutogen::GenerateUsedFunctions(FHLSLMaterialTranslato
 					if (IsLWCType(DerivType))
 					{
 						Translator.AddLWCFuncUsage(ELWCFunctionKind::Other);
-						Ret += TEXT("\tRet.Value = LWCAbs(A.Value);") HLSL_LINE_TERMINATOR;
-						Ret += TEXT("\t") + NonLWCFieldName + TEXT(" dFdA = select(LWCGreaterEqual(A.Value, 0.0f), One, -One);") HLSL_LINE_TERMINATOR;
+						Ret += TEXT("\tRet.Value = WSAbs(A.Value);") HLSL_LINE_TERMINATOR;
+						Ret += TEXT("\t") + NonLWCFieldName + TEXT(" dFdA = select(WSGreaterEqual(A.Value, 0.0f), One, -One);") HLSL_LINE_TERMINATOR;
 					}
 					else
 					{
@@ -1846,8 +1888,8 @@ FString FMaterialDerivativeAutogen::GenerateUsedFunctions(FHLSLMaterialTranslato
 					if (IsLWCType(DerivType))
 					{
 						Translator.AddLWCFuncUsage(ELWCFunctionKind::Other);
-						Ret += TEXT("\tRet.Value = LWCSin(A.Value);") HLSL_LINE_TERMINATOR;
-						Ret += TEXT("\t") + FieldName + TEXT(" dFdA = LWCCos(A.Value);");
+						Ret += TEXT("\tRet.Value = WSSin(A.Value);") HLSL_LINE_TERMINATOR;
+						Ret += TEXT("\t") + FieldName + TEXT(" dFdA = WSCos(A.Value);");
 					}
 					else
 					{
@@ -1867,8 +1909,8 @@ FString FMaterialDerivativeAutogen::GenerateUsedFunctions(FHLSLMaterialTranslato
 					if (IsLWCType(DerivType))
 					{
 						Translator.AddLWCFuncUsage(ELWCFunctionKind::Other);
-						Ret += TEXT("\tRet.Value = LWCCos(A.Value);") HLSL_LINE_TERMINATOR;
-						Ret += TEXT("\t") + FieldName + TEXT(" dFdA = -LWCSin(A.Value);");
+						Ret += TEXT("\tRet.Value = WSCos(A.Value);") HLSL_LINE_TERMINATOR;
+						Ret += TEXT("\t") + FieldName + TEXT(" dFdA = -WSSin(A.Value);");
 					}
 					else
 					{
@@ -1888,8 +1930,8 @@ FString FMaterialDerivativeAutogen::GenerateUsedFunctions(FHLSLMaterialTranslato
 					if (IsLWCType(DerivType))
 					{
 						Translator.AddLWCFuncUsage(ELWCFunctionKind::Other);
-						Ret += TEXT("\tRet.Value = LWCTan(A.Value);") HLSL_LINE_TERMINATOR;
-						Ret += TEXT("\t") + FieldName + TEXT(" dFdA = rcp(Pow2(LWCCos(A.Value)));");
+						Ret += TEXT("\tRet.Value = WSTan(A.Value);") HLSL_LINE_TERMINATOR;
+						Ret += TEXT("\t") + FieldName + TEXT(" dFdA = rcp(Pow2(WSCos(A.Value)));");
 					}
 					else
 					{
@@ -1981,8 +2023,8 @@ FString FMaterialDerivativeAutogen::GenerateUsedFunctions(FHLSLMaterialTranslato
 					if (IsLWCType(DerivType))
 					{
 						Translator.AddLWCFuncUsage(ELWCFunctionKind::Other);
-						Ret += TEXT("\tRet.Value = LWCSqrt(A.Value);") HLSL_LINE_TERMINATOR;
-						Ret += TEXT("\t") + NonLWCFieldName + TEXT(" dFdA = 0.5f * LWCRsqrt(LWCMax(A.Value, 0.00001f));") HLSL_LINE_TERMINATOR;
+						Ret += TEXT("\tRet.Value = WSSqrtDemote(A.Value);") HLSL_LINE_TERMINATOR;
+						Ret += TEXT("\t") + NonLWCFieldName + TEXT(" dFdA = 0.5f * WSRsqrtDemote(WSMax(A.Value, 0.00001f));") HLSL_LINE_TERMINATOR;
 					}
 					else
 					{
@@ -2003,7 +2045,7 @@ FString FMaterialDerivativeAutogen::GenerateUsedFunctions(FHLSLMaterialTranslato
 					if (IsLWCType(DerivType))
 					{
 						Translator.AddLWCFuncUsage(ELWCFunctionKind::Other);
-						Ret += TEXT("\tRet.Value = LWCRcp(A.Value);") HLSL_LINE_TERMINATOR;
+						Ret += TEXT("\tRet.Value = WSRcpDemote(A.Value);") HLSL_LINE_TERMINATOR;
 					}
 					else
 					{
@@ -2023,8 +2065,8 @@ FString FMaterialDerivativeAutogen::GenerateUsedFunctions(FHLSLMaterialTranslato
 					if (IsLWCType(DerivType))
 					{
 						Translator.AddLWCFuncUsage(ELWCFunctionKind::Other);
-						Ret += TEXT("\tRet.Value = LWCRsqrt(A.Value);") HLSL_LINE_TERMINATOR;
-						Ret += TEXT("\t") + NonLWCFieldName + TEXT(" dFdA = -0.5f * LWCRsqrt(A.Value) * LWCRcp(A.Value);");
+						Ret += TEXT("\tRet.Value = WSRsqrtDemote(A.Value);") HLSL_LINE_TERMINATOR;
+						Ret += TEXT("\t") + NonLWCFieldName + TEXT(" dFdA = -0.5f * WSRsqrtDemote(A.Value) * WSRcpDemote(A.Value);");
 					}
 					else
 					{
@@ -2046,8 +2088,8 @@ FString FMaterialDerivativeAutogen::GenerateUsedFunctions(FHLSLMaterialTranslato
 					if (IsLWCType(DerivType))
 					{
 						Translator.AddLWCFuncUsage(ELWCFunctionKind::Other);
-						Ret += TEXT("\tRet.Value = LWCSaturate(A.Value);") HLSL_LINE_TERMINATOR;
-						Ret += TEXT("\t") + BoolName + TEXT(" InRange = LWCEquals(Ret.Value, A.Value);") HLSL_LINE_TERMINATOR;
+						Ret += TEXT("\tRet.Value = WSSaturateDemote(A.Value);") HLSL_LINE_TERMINATOR;
+						Ret += TEXT("\t") + BoolName + TEXT(" InRange = WSEquals(Ret.Value, A.Value);") HLSL_LINE_TERMINATOR;
 					}
 					else
 					{
@@ -2067,7 +2109,7 @@ FString FMaterialDerivativeAutogen::GenerateUsedFunctions(FHLSLMaterialTranslato
 					if (IsLWCType(DerivType))
 					{
 						Translator.AddLWCFuncUsage(ELWCFunctionKind::Other);
-						Ret += TEXT("\tRet.Value = LWCFrac(A.Value);") HLSL_LINE_TERMINATOR;
+						Ret += TEXT("\tRet.Value = WSFracDemote(A.Value);") HLSL_LINE_TERMINATOR;
 					}
 					else
 					{
@@ -2145,7 +2187,7 @@ FString FMaterialDerivativeAutogen::GenerateUsedFunctions(FHLSLMaterialTranslato
 					if (IsLWCType(DerivType))
 					{
 						Translator.AddLWCFuncUsage(ELWCFunctionKind::Other);
-						Ret += TEXT("\tRet.Value = LWCLength(A.Value);") HLSL_LINE_TERMINATOR;
+						Ret += TEXT("\tRet.Value = WSLength(A.Value);") HLSL_LINE_TERMINATOR;
 					}
 					else
 					{
@@ -2165,7 +2207,7 @@ FString FMaterialDerivativeAutogen::GenerateUsedFunctions(FHLSLMaterialTranslato
 					if (IsLWCType(DerivType))
 					{
 						Translator.AddLWCFuncUsage(ELWCFunctionKind::Other);
-						Ret += TEXT("\tRet.Value = LWCRcpLength(A.Value);") HLSL_LINE_TERMINATOR;
+						Ret += TEXT("\tRet.Value = WSRcpLengthDemote(A.Value);") HLSL_LINE_TERMINATOR;
 					}
 					else
 					{
@@ -2222,10 +2264,10 @@ FString FMaterialDerivativeAutogen::GenerateUsedFunctions(FHLSLMaterialTranslato
 			if (IsLWCType(DerivType))
 			{
 				Translator.AddLWCFuncUsage(ELWCFunctionKind::Other);
-				Ret += TEXT("\tRet.Value = LWCLerp(A.Value, B.Value, S.Value);") HLSL_LINE_TERMINATOR;
+				Ret += TEXT("\tRet.Value = WSLerp(A.Value, B.Value, S.Value);") HLSL_LINE_TERMINATOR;
 				Translator.AddLWCFuncUsage(ELWCFunctionKind::Subtract, 2);
-				Ret += TEXT("\tRet.Ddx = lerp(A.Ddx, B.Ddx, S.Value) + S.Ddx * LWCToFloat(LWCSubtract(B.Value, A.Value));") HLSL_LINE_TERMINATOR;
-				Ret += TEXT("\tRet.Ddy = lerp(A.Ddy, B.Ddy, S.Value) + S.Ddy * LWCToFloat(LWCSubtract(B.Value, A.Value));") HLSL_LINE_TERMINATOR;
+				Ret += TEXT("\tRet.Ddx = lerp(A.Ddx, B.Ddx, S.Value) + S.Ddx * WSSubtractDemote(B.Value, A.Value);") HLSL_LINE_TERMINATOR;
+				Ret += TEXT("\tRet.Ddy = lerp(A.Ddy, B.Ddy, S.Value) + S.Ddy * WSSubtractDemote(B.Value, A.Value);") HLSL_LINE_TERMINATOR;
 			}
 			else
 			{

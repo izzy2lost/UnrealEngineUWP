@@ -102,7 +102,6 @@ struct FPositionAndNormalOnlyVertexFactoryInput
  */
 struct FVertexFactoryIntermediates
 {
-	FLWCVector3 MorphedWorldPos;
 	float3 MorphedTranslatedWorldPos;
 	
 	uint WaveParamIndex;
@@ -189,17 +188,21 @@ FMaterialVertexParameters GetMaterialVertexParameters(FVertexFactoryInput Input,
 
 #if NUM_MATERIAL_TEXCOORDS_VERTEX
 	// Water doesn't get texcoords from its input verts, so all the vert texcoords will default to the same world position
+	// LWC note: this calculation was optimized to avoid a subtraction, which theoretically could have an impact near tile edges, but testing showed no additional artifacts.
+	float3 WorldPosOffset = Intermediates.MorphedTranslatedWorldPos - DFToTileOffset_Hack(ResolvedView.PreViewTranslation).Offset;
 	UNROLL
 	for(int CoordinateIndex = 0; CoordinateIndex < NUM_MATERIAL_TEXCOORDS_VERTEX; CoordinateIndex++)
 	{
 		// LWC_TODO: Using the LWC Offset here will result in seams at the tile edges.
-		Result.TexCoords[CoordinateIndex] = Intermediates.MorphedWorldPos.Offset.xy;
+		Result.TexCoords[CoordinateIndex] = WorldPosOffset.xy;
 	}
 #endif  //NUM_MATERIAL_TEXCOORDS_VERTEX
 
 #if WATER_MESH_FACTORY
 	Result.WaterWaveParamIndex = Intermediates.WaveParamIndex;
 #endif
+
+	Result.LWCData = MakeMaterialLWCData(Result);
 
 	return Result;
 }
@@ -378,8 +381,6 @@ FVertexFactoryIntermediates GetVertexFactoryIntermediates(FVertexFactoryInput In
 	Intermediates.MorphedTranslatedWorldPos *= IsVisible;
 #endif // WITH_WATER_SELECTION_SUPPORT_VF
 
-	Intermediates.MorphedWorldPos = LWCSubtract(Intermediates.MorphedTranslatedWorldPos, ResolvedView.PreViewTranslation);
-
 	return Intermediates;
 }
 
@@ -462,13 +463,13 @@ float4 VertexFactoryGetWorldPosition(FPositionOnlyVertexFactoryInput Input)
 // @return previous translated world position
 float4 VertexFactoryGetPreviousWorldPosition(FVertexFactoryInput Input, FVertexFactoryIntermediates Intermediates)
 {
-	return float4(LWCToFloat(LWCAdd(Intermediates.MorphedWorldPos, ResolvedView.PrevPreViewTranslation)), 1);
+	return float4(Intermediates.MorphedTranslatedWorldPos + DFFastLocalSubtractDemote(ResolvedView.PrevPreViewTranslation, ResolvedView.PreViewTranslation), 1);
 }
 
 float4 VertexFactoryGetTranslatedPrimitiveVolumeBounds(FVertexFactoryInterpolantsVSToPS Interpolants)
 {
 	FPrimitiveSceneData PrimitiveData = GetPrimitiveData(GetPrimitiveId(Interpolants));
-	return float4(LWCToFloat(LWCAdd(PrimitiveData.ObjectWorldPosition, ResolvedView.PreViewTranslation)), PrimitiveData.ObjectRadius);
+	return float4(DFFastToTranslatedWorld(PrimitiveData.ObjectWorldPosition, ResolvedView.PreViewTranslation), PrimitiveData.ObjectRadius);
 }
 
 uint VertexFactoryGetPrimitiveId(FVertexFactoryInterpolantsVSToPS Interpolants)

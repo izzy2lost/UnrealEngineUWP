@@ -31,7 +31,7 @@
 #endif // PIXELSHADER
 
 // large world coordinate tile position
-float4 DecalTilePosition;
+float4 DecalPositionHigh;
 // from SvPosition to decal space (for position), used like this: mul(float4(SvPosition.xyz, 1), SvPositionToDecal);
 float4x4 SvPositionToDecal;
 // to transform position from decal space to world space, for normals use transpose of inverse
@@ -138,7 +138,8 @@ void FPixelShaderInOut_MainPS(inout FPixelShaderIn In, inout FPixelShaderOut Out
 	MaterialParameters.ScreenPosition = SvPositionToScreenPosition(In.SvPosition);
 	MaterialParameters.LightVector = SwizzlePos;
 
-	MaterialParameters.AbsoluteWorldPosition = MaterialParameters.WorldPosition_NoOffsets = LWCSubtract(TranslatedWorldPosition, PrimaryView.PreViewTranslation);
+	MaterialParameters.AbsoluteWorldPosition = MaterialParameters.WorldPosition_NoOffsets = DFFastSubtract(TranslatedWorldPosition, PrimaryView.PreViewTranslation);
+	MaterialParameters.LWCData.AbsoluteWorldPosition = MaterialParameters.LWCData.WorldPosition_NoOffsets = DFToWS(MaterialParameters.AbsoluteWorldPosition);
 	MaterialParameters.WorldPosition_CamRelative = MaterialParameters.WorldPosition_NoOffsets_CamRelative = TranslatedWorldPosition;
 
 #if MATERIAL_VIRTUALTEXTURE_FEEDBACK

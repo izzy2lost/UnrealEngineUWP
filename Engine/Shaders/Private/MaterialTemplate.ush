@@ -12,6 +12,11 @@
 #define ENABLE_NEW_HLSL_GENERATOR 0
 #endif
 
+#if !MATERIAL_LWC_ENABLED
+#define UE_DF_FORCE_FP32_OPS 1
+#endif
+
+#include "/Engine/Private/WorldSpaceMath.ush"
 #include "/Engine/Private/SceneTexturesCommon.ush"
 #include "/Engine/Private/EyeAdaptationCommon.ush"
 #include "/Engine/Private/Random.ush"
@@ -203,6 +208,10 @@ struct FMaterialParticleParameters
 	float4 TranslatedWorldPositionAndSize;
 	/** Previous Particle translated world space position and size */
 	float4 PrevTranslatedWorldPositionAndSize;
+	/** Particle world space position. */
+	FWSVector3 WorldPosition;
+	/** Previous particle world space position. */
+	FWSVector3 PrevWorldPosition;
 	/** Macro UV scale and bias. */
 	half4 MacroUV;
 
@@ -225,10 +234,10 @@ struct FMaterialParticleParameters
 #endif
 
 	/** mesh particle transform */
-	FLWCMatrix ParticleToWorld;
+	FDFMatrix ParticleToWorld;
 
 	/** Inverse mesh particle transform */
-	FLWCInverseMatrix WorldToParticle;
+	FDFInverseMatrix WorldToParticle;
 
 #if USE_PARTICLE_SUBUVS
 	/** SubUV texture coordinates*/
@@ -323,6 +332,42 @@ FSubstrateData GetFrontSubstrateData()
 #endif // TEMPLATE_USES_SUBSTRATE
 };
 
+/**
+* Worldspace transforms/vectors, converted to the LWC format used by the material.
+*/
+struct FMaterialLWCData
+{
+	// Vertex/pixel
+	FWSVector3 AbsoluteWorldPosition;
+	FWSVector3 WorldPosition_NoOffsets;
+
+	// Primitive
+	FWSMatrix	LocalToWorld;
+	FWSInverseMatrix WorldToLocal;
+	FWSMatrix	PreviousLocalToWorld;
+	FWSInverseMatrix PreviousWorldToLocal;
+
+	FWSMatrix	InstanceToWorld;
+	FWSInverseMatrix WorldToInstance;
+	FWSMatrix	PreviousInstanceToWorld;
+
+	FWSVector3	ObjectWorldPosition;
+	FWSVector3	ActorWorldPosition;
+
+	FWSMatrix ParticleToWorld;
+	FWSInverseMatrix WorldToParticle;
+	FWSVector3 ParticleWorldPosition;
+	FWSVector3 PrevParticleWorldPosition;
+
+	// View
+	FWSVector3 PreViewTranslation;
+	FWSVector3 PrevPreViewTranslation;
+	FWSVector3 WorldViewOrigin;
+	FWSVector3 PrevWorldViewOrigin;
+	FWSVector3 WorldCameraOrigin;
+	FWSVector3 PrevWorldCameraOrigin;
+};
+
 /** 
  * Parameters needed by pixel shader material inputs, related to Geometry.
  * These are independent of vertex factory.
@@ -390,7 +435,7 @@ struct FMaterialPixelParameters
 	 * Interpolated worldspace position of this pixel
 	 * todo: Make this TranslatedWorldPosition and also rename the VS WorldPosition to be TranslatedWorldPosition
 	 */
-	FLWCVector3 AbsoluteWorldPosition;
+	FDFVector3 AbsoluteWorldPosition;
 
 	/** 
 	 * Interpolated worldspace position of this pixel, centered around the camera
@@ -401,7 +446,7 @@ struct FMaterialPixelParameters
 	 * Interpolated worldspace position of this pixel, not including any world position offset or displacement.
 	 * Only valid if shader is compiled with NEEDS_WORLD_POSITION_EXCLUDING_SHADER_OFFSETS, otherwise just contains 0
 	 */
-	FLWCVector3 WorldPosition_NoOffsets;
+	FDFVector3 WorldPosition_NoOffsets;
 
 	/** 
 	 * Interpolated worldspace position of this pixel, not including any world position offset or displacement.
@@ -465,10 +510,10 @@ struct FMaterialPixelParameters
 #endif
 
 #if HAS_INSTANCE_LOCAL_TO_WORLD_PS
-	FLWCMatrix InstanceLocalToWorld;
+	FDFMatrix InstanceLocalToWorld;
 #endif
 #if HAS_INSTANCE_WORLD_TO_LOCAL_PS
-	FLWCInverseMatrix InstanceWorldToLocal;
+	FDFInverseMatrix InstanceWorldToLocal;
 #endif
 	/** Per-particle properties. Only valid for particle vertex factories. */
 	FMaterialParticleParameters Particle;
@@ -537,6 +582,8 @@ struct FMaterialPixelParameters
 #endif
 
 	FMaterialAttributes MaterialAttributes;
+
+	FMaterialLWCData LWCData;
 };
 
 /**
@@ -582,8 +629,8 @@ struct FMaterialVertexParameters
 	float PerInstanceRandom;
 	
 #if USE_INSTANCING || USE_INSTANCE_CULLING || IS_MESHPARTICLE_FACTORY || IS_NANITE_PASS
-	FLWCMatrix InstanceLocalToWorld;
-	FLWCInverseMatrix InstanceWorldToLocal;
+	FDFMatrix InstanceLocalToWorld;
+	FDFInverseMatrix InstanceWorldToLocal;
 #endif
 #if USE_INSTANCING || USE_INSTANCE_CULLING || IS_NANITE_PASS
 	/** Per-instance properties. */
@@ -596,7 +643,7 @@ struct FMaterialVertexParameters
 #endif
 	// If either USE_INSTANCING or (IS_MESHPARTICLE_FACTORY && FEATURE_LEVEL >= FEATURE_LEVEL_SM4)
 	// is true, PrevFrameLocalToWorld is a per-instance transform
-	FLWCMatrix PrevFrameLocalToWorld;
+	FDFMatrix PrevFrameLocalToWorld;
 
 	float3 PreSkinnedPosition;
 	float3 PreSkinnedNormal;
@@ -631,6 +678,8 @@ struct FMaterialVertexParameters
 	uint PrimitiveId;
 
 	bool bEvaluateWorldPositionOffset;
+
+	FMaterialLWCData LWCData;
 };
 
 FMaterialVertexParameters MakeInitializedMaterialVertexParameters()
@@ -701,7 +750,7 @@ MaterialFloat3x3 GetLocalToWorld3x3(FMaterialVertexParameters Parameters)
 #if DECAL_PRIMITIVE
 	return (float3x3)DecalToWorld;
 #else
-	return LWCToFloat3x3(GetPrimitiveData(Parameters).LocalToWorld);
+	return DFToFloat3x3(GetPrimitiveData(Parameters).LocalToWorld);
 #endif
 }
 
@@ -710,7 +759,7 @@ MaterialFloat3x3 GetPreviousLocalToWorld3x3(FMaterialVertexParameters Parameters
 #if DECAL_PRIMITIVE
 	return (float3x3)DecalToWorld;
 #else
-	return LWCToFloat3x3(GetPrimitiveData(Parameters).PreviousLocalToWorld);
+	return DFToFloat3x3(GetPrimitiveData(Parameters).PreviousLocalToWorld);
 #endif
 }
 
@@ -719,16 +768,16 @@ MaterialFloat3x3 GetLocalToWorld3x3(FMaterialPixelParameters Parameters)
 #if DECAL_PRIMITIVE
 	return (float3x3)DecalToWorld;
 #else
-	return LWCToFloat3x3(GetPrimitiveData(Parameters).LocalToWorld);
+	return DFToFloat3x3(GetPrimitiveData(Parameters).LocalToWorld);
 #endif
 }
 
 MaterialFloat3x3 GetLocalToWorld3x3()
 {
-	return LWCToFloat3x3(GetPrimitiveDataFromUniformBuffer().LocalToWorld);
+	return DFToFloat3x3(GetPrimitiveDataFromUniformBuffer().LocalToWorld);
 }
 
-FLWCInverseMatrix GetWorldToInstance(FMaterialVertexParameters Parameters)
+FDFInverseMatrix GetWorldToInstanceDF(FMaterialVertexParameters Parameters)
 {
 	#if USE_INSTANCING || USE_INSTANCE_CULLING || IS_MESHPARTICLE_FACTORY || IS_NANITE_PASS
 		return Parameters.InstanceWorldToLocal;
@@ -736,8 +785,9 @@ FLWCInverseMatrix GetWorldToInstance(FMaterialVertexParameters Parameters)
 		return GetPrimitiveData(Parameters).WorldToLocal;
 	#endif
 }
+FWSInverseMatrix GetWorldToInstance(FMaterialVertexParameters Parameters) { return Parameters.LWCData.WorldToInstance; }
 
-FLWCInverseMatrix GetWorldToInstance(FMaterialPixelParameters Parameters)
+FDFInverseMatrix GetWorldToInstanceDF(FMaterialPixelParameters Parameters)
 {
 	#if HAS_INSTANCE_WORLD_TO_LOCAL_PS
 		return Parameters.InstanceWorldToLocal;
@@ -745,8 +795,9 @@ FLWCInverseMatrix GetWorldToInstance(FMaterialPixelParameters Parameters)
 		return GetPrimitiveData(Parameters).WorldToLocal;
 	#endif
 }
+FWSInverseMatrix GetWorldToInstance(FMaterialPixelParameters Parameters) { return Parameters.LWCData.WorldToInstance; }
 
-FLWCMatrix GetInstanceToWorld(FMaterialVertexParameters Parameters)
+FDFMatrix GetInstanceToWorldDF(FMaterialVertexParameters Parameters)
 {
 	#if USE_INSTANCING || USE_INSTANCE_CULLING || IS_MESHPARTICLE_FACTORY || IS_NANITE_PASS
 		return Parameters.InstanceLocalToWorld;
@@ -754,8 +805,9 @@ FLWCMatrix GetInstanceToWorld(FMaterialVertexParameters Parameters)
 		return GetPrimitiveData(Parameters).LocalToWorld;
 	#endif
 }
+FWSMatrix GetInstanceToWorld(FMaterialVertexParameters Parameters) { return Parameters.LWCData.InstanceToWorld; }
 
-FLWCMatrix GetPrevInstanceToWorld(FMaterialVertexParameters Parameters)
+FDFMatrix GetPrevInstanceToWorldDF(FMaterialVertexParameters Parameters)
 {
 #if USE_INSTANCING || USE_INSTANCE_CULLING || IS_MESHPARTICLE_FACTORY || IS_NANITE_PASS
 	return Parameters.PrevFrameLocalToWorld;
@@ -763,14 +815,83 @@ FLWCMatrix GetPrevInstanceToWorld(FMaterialVertexParameters Parameters)
 	return GetPrimitiveData(Parameters).PreviousLocalToWorld;
 #endif
 }
+FWSMatrix GetPrevInstanceToWorld(FMaterialVertexParameters Parameters) { return Parameters.LWCData.PreviousInstanceToWorld; }
 
-FLWCMatrix GetInstanceToWorld(FMaterialPixelParameters Parameters)
+
+FDFMatrix GetInstanceToWorldDF(FMaterialPixelParameters Parameters)
 {
 	#if HAS_INSTANCE_LOCAL_TO_WORLD_PS
 		return Parameters.InstanceLocalToWorld;
 	#else
 		return GetPrimitiveData(Parameters).LocalToWorld;
 	#endif
+}
+FWSMatrix GetInstanceToWorld(FMaterialPixelParameters Parameters) { return Parameters.LWCData.InstanceToWorld; }
+
+FDFMatrix GetPrevInstanceToWorldDF(FMaterialPixelParameters Parameters)
+{
+	return GetPrimitiveData(Parameters).PreviousLocalToWorld;
+}
+FWSMatrix GetPrevInstanceToWorld(FMaterialPixelParameters Parameters) { return Parameters.LWCData.PreviousInstanceToWorld; }
+
+FWSVector3 GetPreViewTranslation(FMaterialVertexParameters Parameters)
+{
+	return Parameters.LWCData.PreViewTranslation;
+}
+
+FWSVector3 GetPreViewTranslation(FMaterialPixelParameters Parameters)
+{
+	return Parameters.LWCData.PreViewTranslation;
+}
+
+FWSVector3 GetPrevPreViewTranslation(FMaterialVertexParameters Parameters)
+{
+	return Parameters.LWCData.PrevPreViewTranslation;
+}
+
+FWSVector3 GetPrevPreViewTranslation(FMaterialPixelParameters Parameters)
+{
+	return Parameters.LWCData.PrevPreViewTranslation;
+}
+
+FWSVector3 GetWorldViewOrigin(FMaterialVertexParameters Parameters)
+{
+	return Parameters.LWCData.WorldViewOrigin;
+}
+
+FWSVector3 GetWorldViewOrigin(FMaterialPixelParameters Parameters)
+{
+	return Parameters.LWCData.WorldViewOrigin;
+}
+
+FWSVector3 GetPrevWorldViewOrigin(FMaterialVertexParameters Parameters)
+{
+	return Parameters.LWCData.PrevWorldViewOrigin;
+}
+
+FWSVector3 GetPrevWorldViewOrigin(FMaterialPixelParameters Parameters)
+{
+	return Parameters.LWCData.PrevWorldViewOrigin;
+}
+
+FWSVector3 GetWorldCameraOrigin(FMaterialVertexParameters Parameters)
+{
+	return Parameters.LWCData.WorldCameraOrigin;
+}
+
+FWSVector3 GetWorldCameraOrigin(FMaterialPixelParameters Parameters)
+{
+	return Parameters.LWCData.WorldCameraOrigin;
+}
+
+FWSVector3 GetPrevWorldCameraOrigin(FMaterialVertexParameters Parameters)
+{
+	return Parameters.LWCData.PrevWorldCameraOrigin;
+}
+
+FWSVector3 GetPrevWorldCameraOrigin(FMaterialPixelParameters Parameters)
+{
+	return Parameters.LWCData.PrevWorldCameraOrigin;
 }
 
 float3 GetTranslatedWorldPosition(FMaterialVertexParameters Parameters)
@@ -788,24 +909,24 @@ float3 GetPrevTranslatedWorldPosition(FMaterialVertexParameters Parameters)
 	return GetTranslatedWorldPosition(Parameters);
 }
 
-FLWCVector3 GetWorldPosition(FMaterialVertexParameters Parameters)
+FWSVector3 GetWorldPosition(FMaterialVertexParameters Parameters)
 {
-	return LWCSubtract(GetTranslatedWorldPosition(Parameters), ResolvedView.PreViewTranslation);
+	return Parameters.LWCData.AbsoluteWorldPosition;
 }
 
-FLWCVector3 GetPrevWorldPosition(FMaterialVertexParameters Parameters)
+FWSVector3 GetPrevWorldPosition(FMaterialVertexParameters Parameters)
 {
-	return LWCSubtract(GetPrevTranslatedWorldPosition(Parameters), ResolvedView.PrevPreViewTranslation);
+	return WSSubtract(GetPrevTranslatedWorldPosition(Parameters), GetPrevPreViewTranslation(Parameters));
 }
 
-FLWCVector3 GetWorldPosition(FMaterialPixelParameters Parameters)
+FWSVector3 GetWorldPosition(FMaterialPixelParameters Parameters)
 {
-	return Parameters.AbsoluteWorldPosition;
+	return Parameters.LWCData.AbsoluteWorldPosition;
 }
 
-FLWCVector3 GetWorldPosition_NoMaterialOffsets(FMaterialPixelParameters Parameters)
+FWSVector3 GetWorldPosition_NoMaterialOffsets(FMaterialPixelParameters Parameters)
 {
-	return Parameters.WorldPosition_NoOffsets;
+	return Parameters.LWCData.WorldPosition_NoOffsets;
 }
 
 float3 GetTranslatedWorldPosition(FMaterialPixelParameters Parameters)
@@ -816,6 +937,26 @@ float3 GetTranslatedWorldPosition(FMaterialPixelParameters Parameters)
 float3 GetTranslatedWorldPosition_NoMaterialOffsets(FMaterialPixelParameters Parameters)
 {
 	return Parameters.WorldPosition_NoOffsets_CamRelative;
+}
+
+FWSVector3 GetParticleWorldPosition(FMaterialVertexParameters Parameters)
+{
+	return Parameters.LWCData.ParticleWorldPosition;
+}
+
+FWSVector3 GetParticleWorldPosition(FMaterialPixelParameters Parameters)
+{
+	return Parameters.LWCData.ParticleWorldPosition;
+}
+
+FWSVector3 GetPrevParticleWorldPosition(FMaterialVertexParameters Parameters)
+{
+	return Parameters.LWCData.PrevParticleWorldPosition;
+}
+
+FWSVector3 GetPrevParticleWorldPosition(FMaterialPixelParameters Parameters)
+{
+	return Parameters.LWCData.PrevParticleWorldPosition;
 }
 
 float4 GetScreenPosition(FMaterialVertexParameters Parameters)
@@ -1115,38 +1256,51 @@ MaterialFloat2 GetDefaultSceneTextureUV(FMaterialPixelParameters Parameters, con
 	}
 #endif // DECAL_PRIMITIVE && NUM_MATERIAL_TEXCOORDS
 
-	/*
-	 * Deferred decal don't have a Primitive uniform buffer, because we don't know on which primitive the decal
-	 * is being projected to. But the user may still need to get the decal's actor world position.
-	 * So instead of setting up a primitive buffer that may cost to much CPU effort to be almost never used,
-	 * we directly fetch this value from the DeferredDecal.usf specific uniform variable DecalToWorld.
-	 */
-	FLWCVector3 GetActorWorldPosition(FMaterialVertexParameters Parameters)
+	
+	FWSVector3 GetActorWorldPosition(FMaterialVertexParameters Parameters) { return Parameters.LWCData.ActorWorldPosition; }
+
+	FWSVector3 GetActorWorldPosition(FMaterialPixelParameters Parameters) { return Parameters.LWCData.ActorWorldPosition; }
+
+	FWSVector3 GetPreviousActorWorldPosition(FMaterialVertexParameters Parameters)
 	{
-	#if DECAL_PRIMITIVE
-		return MakeLWCVector3(DecalTilePosition.xyz, DecalToWorld[3].xyz);
-	#else
-		return GetPrimitiveData(Parameters).ActorWorldPosition;
-	#endif
+		float3 InstanceToActor = WSMultiplyDemote(GetActorWorldPosition(Parameters), GetWorldToInstance(Parameters));
+		return WSMultiply(InstanceToActor, Parameters.LWCData.PreviousLocalToWorld);
 	}
 
-	FLWCVector3 GetActorWorldPosition(FMaterialPixelParameters Parameters)
+	FWSVector3 GetPreviousActorWorldPosition(FMaterialPixelParameters Parameters)
 	{
-	#if DECAL_PRIMITIVE
-		return MakeLWCVector3(DecalTilePosition.xyz, DecalToWorld[3].xyz);
-	#else
-		return GetPrimitiveData(Parameters).ActorWorldPosition;
-	#endif
+		float3 InstanceToActor = WSMultiplyDemote(GetActorWorldPosition(Parameters), GetWorldToInstance(Parameters));
+		return WSMultiply(InstanceToActor, Parameters.LWCData.PreviousLocalToWorld);
 	}
 
 	float3 GetActorTranslatedWorldPosition(FMaterialVertexParameters Parameters)
 	{
-		return LWCToFloat(LWCAdd(GetActorWorldPosition(Parameters), ResolvedView.PreViewTranslation));
+#if PRIMITIVE_HAS_TILEOFFSET_DATA && VIEW_HAS_TILEOFFSET_DATA
+		return LWCToFloat(LWCAdd(GetPrimitiveData(Parameters).ActorWorldPositionTO, ResolvedView.TileOffset.PreViewTranslation));
+#else
+		return DFFastToTranslatedWorld(GetPrimitiveData(Parameters).ActorWorldPosition, ResolvedView.PreViewTranslation);
+#endif
 	}
 
 	float3 GetActorTranslatedWorldPosition(FMaterialPixelParameters Parameters)
 	{
-		return LWCToFloat(LWCAdd(GetActorWorldPosition(Parameters), ResolvedView.PreViewTranslation));
+#if PRIMITIVE_HAS_TILEOFFSET_DATA && VIEW_HAS_TILEOFFSET_DATA
+		return LWCToFloat(LWCAdd(GetPrimitiveData(Parameters).ActorWorldPositionTO, ResolvedView.TileOffset.PreViewTranslation));
+#else
+		return DFFastToTranslatedWorld(GetPrimitiveData(Parameters).ActorWorldPosition, ResolvedView.PreViewTranslation);
+#endif
+	}
+
+	float3 GetPreviousActorTranslatedWorldPosition(FMaterialVertexParameters Parameters)
+	{
+		float3 InstanceToActor = WSMultiplyDemote(GetActorWorldPosition(Parameters), GetWorldToInstance(Parameters));
+		return WSSubtractDemote(WSMultiply(InstanceToActor, Parameters.LWCData.PreviousLocalToWorld), WSNegate(GetPreViewTranslation(Parameters)));
+	}
+
+	float3 GetPreviousActorTranslatedWorldPosition(FMaterialPixelParameters Parameters)
+	{
+		float3 InstanceToActor = WSMultiplyDemote(GetActorWorldPosition(Parameters), GetWorldToInstance(Parameters));
+		return WSSubtractDemote(WSMultiply(InstanceToActor, Parameters.LWCData.PreviousLocalToWorld), WSNegate(GetPreViewTranslation(Parameters)));
 	}
 	
 	float3 GetObjectOrientation(FMaterialVertexParameters Parameters)
@@ -1301,10 +1455,11 @@ MaterialFloat3 TransformTangentVectorToView(FMaterialPixelParameters Parameters,
 	return mul(mul(InTangentVector, Parameters.TangentToWorld), (MaterialFloat3x3)ResolvedView.TranslatedWorldToView);
 }
 
-FLWCMatrix GetLocalToWorld(FMaterialVertexParameters Parameters)
+/** Local to world */
+FDFMatrix GetLocalToWorldDF(FMaterialVertexParameters Parameters)
 {
 #if DECAL_PRIMITIVE
-	return MakeLWCMatrix(DecalTilePosition.xyz, DecalToWorld);
+	return MakeDFMatrix(DecalPositionHigh.xyz, DecalToWorld);
 #elif USE_INSTANCING || USE_INSTANCE_CULLING || IS_MESHPARTICLE_FACTORY
 	return Parameters.InstanceLocalToWorld;
 #else
@@ -1312,22 +1467,88 @@ FLWCMatrix GetLocalToWorld(FMaterialVertexParameters Parameters)
 #endif
 }
 
-FLWCMatrix GetLocalToWorld(FMaterialPixelParameters Parameters)
+FWSMatrix GetLocalToWorld(FMaterialVertexParameters Parameters)
+{
+	return Parameters.LWCData.LocalToWorld;
+}
+
+FDFMatrix GetLocalToWorldDF(FMaterialPixelParameters Parameters)
 {
 #if DECAL_PRIMITIVE
-	return MakeLWCMatrix(DecalTilePosition.xyz, DecalToWorld);
+	return MakeDFMatrix(DecalPositionHigh.xyz, DecalToWorld);
 #else
 	return GetPrimitiveData(Parameters).LocalToWorld;
 #endif
 }
 
-FLWCMatrix GetPrevLocalToWorld(FMaterialVertexParameters Parameters)
+FWSMatrix GetLocalToWorld(FMaterialPixelParameters Parameters)
+{
+	return Parameters.LWCData.LocalToWorld;
+}
+
+FDFMatrix GetPrevLocalToWorldDF(FMaterialVertexParameters Parameters)
 {
 #if USE_INSTANCING || USE_INSTANCE_CULLING || IS_MESHPARTICLE_FACTORY
 	return Parameters.PrevFrameLocalToWorld;
 #else
 	return GetPrimitiveData(Parameters).PreviousLocalToWorld;
 #endif
+}
+
+FWSMatrix GetPrevLocalToWorld(FMaterialVertexParameters Parameters)
+{
+	return Parameters.LWCData.PreviousLocalToWorld;
+}
+
+FDFMatrix GetPrevLocalToWorldDF(FMaterialPixelParameters Parameters)
+{
+	return GetPrimitiveData(Parameters).PreviousLocalToWorld;
+}
+
+FWSMatrix GetPrevLocalToWorld(FMaterialPixelParameters Parameters)
+{
+	return Parameters.LWCData.PreviousLocalToWorld;
+}
+
+/** World to local*/
+FDFInverseMatrix GetWorldToLocalDF(FMaterialVertexParameters Parameters)
+{
+	return GetPrimitiveData(Parameters).WorldToLocal;
+}
+
+FWSInverseMatrix GetWorldToLocal(FMaterialVertexParameters Parameters)
+{
+	return Parameters.LWCData.WorldToLocal;
+}
+
+FDFInverseMatrix GetWorldToLocalDF(FMaterialPixelParameters Parameters)
+{
+	return GetPrimitiveData(Parameters).WorldToLocal;
+}
+
+FWSInverseMatrix GetWorldToLocal(FMaterialPixelParameters Parameters)
+{
+	return Parameters.LWCData.WorldToLocal;
+}
+
+FDFInverseMatrix GetPrevWorldToLocalDF(FMaterialVertexParameters Parameters)
+{
+	return GetPrimitiveData(Parameters).PreviousWorldToLocal;
+}
+
+FWSInverseMatrix GetPrevWorldToLocal(FMaterialVertexParameters Parameters)
+{
+	return Parameters.LWCData.PreviousWorldToLocal;
+}
+
+FDFInverseMatrix GetPrevWorldToLocalDF(FMaterialPixelParameters Parameters)
+{
+	return GetPrimitiveData(Parameters).PreviousWorldToLocal;
+}
+
+FWSInverseMatrix GetPrevWorldToLocal(FMaterialPixelParameters Parameters)
+{
+	return Parameters.LWCData.PreviousWorldToLocal;
 }
 
 /** Transforms a vector from local space to world space (PS version) */
@@ -1340,7 +1561,7 @@ MaterialFloat3 TransformLocalVectorToWorld(FMaterialPixelParameters Parameters, 
 MaterialFloat3 TransformLocalVectorToWorld(FMaterialVertexParameters Parameters,MaterialFloat3 InLocalVector)
 {
 	#if USE_INSTANCING || USE_INSTANCE_CULLING || IS_MESHPARTICLE_FACTORY
-		return LWCMultiplyVector(InLocalVector, Parameters.InstanceLocalToWorld);
+		return DFMultiplyVector(InLocalVector, Parameters.InstanceLocalToWorld);
 	#else
 		return mul(InLocalVector, GetLocalToWorld3x3(Parameters));
 	#endif
@@ -1350,60 +1571,211 @@ MaterialFloat3 TransformLocalVectorToWorld(FMaterialVertexParameters Parameters,
 MaterialFloat3 TransformLocalVectorToPrevWorld(FMaterialVertexParameters Parameters, MaterialFloat3 InLocalVector)
 {
 #if USE_INSTANCING || USE_INSTANCE_CULLING || IS_MESHPARTICLE_FACTORY
-	return LWCMultiplyVector(InLocalVector, Parameters.PrevFrameLocalToWorld);
+	return DFMultiplyVector(InLocalVector, Parameters.PrevFrameLocalToWorld);
 #else
 	return mul(InLocalVector, GetPreviousLocalToWorld3x3(Parameters));
 #endif
 }
 
 /** Transforms a position from local space to absolute world space */
-FLWCVector3 TransformLocalPositionToWorld(FMaterialPixelParameters Parameters,float3 InLocalPosition)
+FWSVector3 TransformLocalPositionToWorld(FMaterialPixelParameters Parameters,float3 InLocalPosition)
 {
-	return LWCMultiply(InLocalPosition, GetLocalToWorld(Parameters));
+	return WSMultiply(InLocalPosition, GetLocalToWorld(Parameters));
 }
 
 /** Transforms a position from local space to absolute world space */
-FLWCVector3 TransformLocalPositionToWorld(FMaterialVertexParameters Parameters,float3 InLocalPosition)
+FWSVector3 TransformLocalPositionToWorld(FMaterialVertexParameters Parameters,float3 InLocalPosition)
 {
-	return LWCMultiply(InLocalPosition, GetLocalToWorld(Parameters));
+	return WSMultiply(InLocalPosition, GetLocalToWorld(Parameters));
 }
 
 /** Transforms a position from local space to previous frame absolute world space */
-FLWCVector3 TransformLocalPositionToPrevWorld(FMaterialVertexParameters Parameters,float3 InLocalPosition)
+FWSVector3 TransformLocalPositionToPrevWorld(FMaterialVertexParameters Parameters,float3 InLocalPosition)
 {
-	return LWCMultiply(InLocalPosition, GetPrevLocalToWorld(Parameters));
+	return WSMultiply(InLocalPosition, GetPrevLocalToWorld(Parameters));
 }
 
 /** Return the object's position in world space */
-FLWCVector3 GetObjectWorldPosition(FMaterialPixelParameters Parameters)
+FWSVector3 GetObjectWorldPosition(FMaterialPixelParameters Parameters)
 {
-#if DECAL_PRIMITIVE
-	return MakeLWCVector3(DecalTilePosition.xyz, DecalToWorld[3].xyz);
-#else
-	return GetPrimitiveData(Parameters).ObjectWorldPosition;
-#endif
+	return Parameters.LWCData.ObjectWorldPosition;
 }
 
 /** Return the object's position in world space. For instanced meshes, this returns the instance position. */
-FLWCVector3 GetObjectWorldPosition(FMaterialVertexParameters Parameters)
+FWSVector3 GetObjectWorldPosition(FMaterialVertexParameters Parameters)
 {
-#if DECAL_PRIMITIVE
-	return MakeLWCVector3(DecalTilePosition.xyz, DecalToWorld[3].xyz);
-#elif USE_INSTANCING || USE_INSTANCE_CULLING || IS_MESHPARTICLE_FACTORY
-	return LWCGetOrigin(Parameters.InstanceLocalToWorld);
-#else
-	return GetPrimitiveData(Parameters).ObjectWorldPosition;
-#endif
+	return Parameters.LWCData.ObjectWorldPosition;
 }
 
 float3 GetObjectTranslatedWorldPosition(FMaterialPixelParameters Parameters)
 {
-	return LWCToFloat(LWCAdd(GetObjectWorldPosition(Parameters), ResolvedView.PreViewTranslation));
+#if PRIMITIVE_HAS_TILEOFFSET_DATA && VIEW_HAS_TILEOFFSET_DATA
+	return LWCToFloat(LWCAdd(GetPrimitiveData(Parameters).ObjectWorldPositionTO, ResolvedView.TileOffset.PreViewTranslation));
+#else
+	return DFFastToTranslatedWorld(GetPrimitiveData(Parameters).ObjectWorldPosition, ResolvedView.PreViewTranslation);
+#endif
 }
 
 float3 GetObjectTranslatedWorldPosition(FMaterialVertexParameters Parameters)
 {
-	return LWCToFloat(LWCAdd(GetObjectWorldPosition(Parameters), ResolvedView.PreViewTranslation));
+#if PRIMITIVE_HAS_TILEOFFSET_DATA && VIEW_HAS_TILEOFFSET_DATA
+	return LWCToFloat(LWCAdd(GetPrimitiveData(Parameters).ObjectWorldPositionTO, ResolvedView.TileOffset.PreViewTranslation));
+#else
+	return DFFastToTranslatedWorld(GetPrimitiveData(Parameters).ObjectWorldPosition, ResolvedView.PreViewTranslation);
+#endif
+}
+
+FWSInverseMatrix GetWorldToParticle(FMaterialPixelParameters Parameters)
+{
+	return Parameters.LWCData.WorldToParticle;
+}
+
+FWSInverseMatrix GetWorldToParticle(FMaterialVertexParameters Parameters)
+{
+	return Parameters.LWCData.WorldToParticle;
+}
+
+FWSMatrix GetParticleToWorld(FMaterialPixelParameters Parameters)
+{
+	return Parameters.LWCData.ParticleToWorld;
+}
+
+FWSMatrix GetParticleToWorld(FMaterialVertexParameters Parameters)
+{
+	return Parameters.LWCData.ParticleToWorld;
+}
+
+FMaterialLWCData MakeMaterialLWCData(FMaterialVertexParameters Parameters)
+{
+	FMaterialLWCData Result = (FMaterialLWCData)0;
+
+#if VIEW_HAS_TILEOFFSET_DATA && WSVECTOR_IS_TILEOFFSET
+	Result.PreViewTranslation = ResolvedView.TileOffset.PreViewTranslation;
+	Result.PrevPreViewTranslation = ResolvedView.TileOffset.PrevPreViewTranslation;
+	Result.WorldViewOrigin = ResolvedView.TileOffset.WorldViewOrigin;
+	Result.PrevWorldViewOrigin = ResolvedView.TileOffset.PrevWorldViewOrigin;
+	Result.WorldCameraOrigin = ResolvedView.TileOffset.WorldCameraOrigin;
+	Result.PrevWorldCameraOrigin = ResolvedView.TileOffset.PrevWorldCameraOrigin;
+#else
+	Result.PreViewTranslation = DFToWS(ResolvedView.PreViewTranslation);
+	Result.PrevPreViewTranslation = DFToWS(ResolvedView.PrevPreViewTranslation);
+	Result.WorldViewOrigin = DFToWS(ResolvedView.WorldViewOrigin);
+	Result.PrevWorldViewOrigin = DFToWS(ResolvedView.PrevWorldViewOrigin);
+	Result.WorldCameraOrigin = DFToWS(ResolvedView.WorldCameraOrigin);
+	Result.PrevWorldCameraOrigin = DFToWS(ResolvedView.PrevWorldCameraOrigin);
+#endif
+
+	Result.AbsoluteWorldPosition = WSSubtract(Parameters.WorldPosition, Result.PreViewTranslation);
+
+	Result.InstanceToWorld = DFFastToWS(GetInstanceToWorldDF(Parameters));
+	Result.WorldToInstance = DFFastToWS(GetWorldToInstanceDF(Parameters));
+	Result.PreviousInstanceToWorld = DFFastToWS(GetPrevInstanceToWorldDF(Parameters));
+
+	Result.LocalToWorld = DFFastToWS(GetLocalToWorldDF(Parameters));
+	Result.WorldToLocal = DFFastToWS(GetWorldToLocalDF(Parameters));
+	Result.PreviousLocalToWorld = DFFastToWS(GetPrevLocalToWorldDF(Parameters));
+	Result.PreviousWorldToLocal = DFFastToWS(GetPrevWorldToLocalDF(Parameters));
+
+#if DECAL_PRIMITIVE
+	/*
+	 * Deferred decal don't have a Primitive uniform buffer, because we don't know on which primitive the decal
+	 * is being projected to. But the user may still need to get the decal's actor world position.
+	 * So instead of setting up a primitive buffer that may cost to much CPU effort to be almost never used,
+	 * we directly fetch this value from the DeferredDecal.usf specific uniform variable DecalToWorld.
+	 */
+	Result.ObjectWorldPosition = DFToWS(MakeDFVector3(DecalPositionHigh.xyz, DecalToWorld[3].xyz));
+	Result.ActorWorldPosition = Result.ObjectWorldPosition;
+
+#else //DECAL_PRIMITIVE
+	
+#if USE_INSTANCING || USE_INSTANCE_CULLING || IS_MESHPARTICLE_FACTORY
+#if MATERIAL_LWC_ENABLED
+	Result.ObjectWorldPosition = WSGetOrigin(DFFastToWS(Parameters.InstanceLocalToWorld));
+#else //MATERIAL_LWC_ENABLED
+	Result.ObjectWorldPosition = WSPromote(Parameters.InstanceLocalToWorld.PostTranslation + Parameters.InstanceLocalToWorld.M[3].xyz);
+#endif //MATERIAL_LWC_ENABLED
+#elif PRIMITIVE_HAS_TILEOFFSET_DATA && WSVECTOR_IS_TILEOFFSET
+	Result.ObjectWorldPosition = GetPrimitiveData(Parameters).ObjectWorldPositionTO;
+#else
+	Result.ObjectWorldPosition = DFToWS(GetPrimitiveData(Parameters).ObjectWorldPosition);
+#endif
+
+#if PRIMITIVE_HAS_TILEOFFSET_DATA && WSVECTOR_IS_TILEOFFSET
+	Result.ActorWorldPosition = GetPrimitiveData(Parameters).ActorWorldPositionTO;
+#else
+	Result.ActorWorldPosition = DFToWS(GetPrimitiveData(Parameters).ActorWorldPosition);
+#endif
+
+#endif //DECAL_PRIMITIVE
+
+	Result.ParticleToWorld = DFFastToWS(Parameters.Particle.ParticleToWorld);
+	Result.WorldToParticle = DFFastToWS(Parameters.Particle.WorldToParticle);
+	Result.ParticleWorldPosition = WSSubtract(Parameters.Particle.TranslatedWorldPositionAndSize.xyz, Result.PreViewTranslation);
+	Result.PrevParticleWorldPosition = WSSubtract(Parameters.Particle.PrevTranslatedWorldPositionAndSize.xyz, Result.PrevPreViewTranslation);
+	
+	return Result;
+}
+
+FMaterialLWCData MakeMaterialLWCData(FMaterialPixelParameters Parameters)
+{
+	FMaterialLWCData Result = (FMaterialLWCData)0;
+
+#if VIEW_HAS_TILEOFFSET_DATA && WSVECTOR_IS_TILEOFFSET
+	Result.PreViewTranslation = ResolvedView.TileOffset.PreViewTranslation;
+	Result.PrevPreViewTranslation = ResolvedView.TileOffset.PrevPreViewTranslation;
+	Result.WorldViewOrigin = ResolvedView.TileOffset.WorldViewOrigin;
+	Result.PrevWorldViewOrigin = ResolvedView.TileOffset.PrevWorldViewOrigin;
+	Result.WorldCameraOrigin = ResolvedView.TileOffset.WorldCameraOrigin;
+	Result.PrevWorldCameraOrigin = ResolvedView.TileOffset.PrevWorldCameraOrigin;
+#else
+	Result.PreViewTranslation = DFToWS(ResolvedView.PreViewTranslation);
+	Result.PrevPreViewTranslation = DFToWS(ResolvedView.PrevPreViewTranslation);
+	Result.WorldViewOrigin = DFToWS(ResolvedView.WorldViewOrigin);
+	Result.PrevWorldViewOrigin = DFToWS(ResolvedView.PrevWorldViewOrigin);
+	Result.WorldCameraOrigin = DFToWS(ResolvedView.WorldCameraOrigin);
+	Result.PrevWorldCameraOrigin = DFToWS(ResolvedView.PrevWorldCameraOrigin);
+#endif
+
+	Result.AbsoluteWorldPosition = WSSubtract(Parameters.WorldPosition_CamRelative, Result.PreViewTranslation);
+	Result.WorldPosition_NoOffsets = WSSubtract(Parameters.WorldPosition_NoOffsets_CamRelative, Result.PreViewTranslation);
+
+	Result.InstanceToWorld = DFFastToWS(GetInstanceToWorldDF(Parameters));
+	Result.WorldToInstance = DFFastToWS(GetWorldToInstanceDF(Parameters));
+	Result.PreviousInstanceToWorld = DFFastToWS(GetPrevInstanceToWorldDF(Parameters));
+
+	Result.LocalToWorld = DFFastToWS(GetLocalToWorldDF(Parameters));
+	Result.WorldToLocal = DFFastToWS(GetWorldToLocalDF(Parameters));
+	Result.PreviousLocalToWorld = DFFastToWS(GetPrevLocalToWorldDF(Parameters));
+	Result.PreviousWorldToLocal = DFFastToWS(GetPrevWorldToLocalDF(Parameters));
+
+#if DECAL_PRIMITIVE
+	/*
+	 * Deferred decal don't have a Primitive uniform buffer, because we don't know on which primitive the decal
+	 * is being projected to. But the user may still need to get the decal's actor world position.
+	 * So instead of setting up a primitive buffer that may cost to much CPU effort to be almost never used,
+	 * we directly fetch this value from the DeferredDecal.usf specific uniform variable DecalToWorld.
+	 */
+	Result.ObjectWorldPosition = DFToWS(MakeDFVector3(DecalPositionHigh.xyz, DecalToWorld[3].xyz));
+	Result.ActorWorldPosition = Result.ObjectWorldPosition;
+
+#else //DECAL_PRIMITIVE
+
+#if PRIMITIVE_HAS_TILEOFFSET_DATA && WSVECTOR_IS_TILEOFFSET
+	Result.ObjectWorldPosition = GetPrimitiveData(Parameters).ObjectWorldPositionTO;
+	Result.ActorWorldPosition = GetPrimitiveData(Parameters).ActorWorldPositionTO;
+#else
+	Result.ObjectWorldPosition = DFToWS(GetPrimitiveData(Parameters).ObjectWorldPosition);
+	Result.ActorWorldPosition = DFToWS(GetPrimitiveData(Parameters).ActorWorldPosition);
+#endif
+
+#endif //DECAL_PRIMITIVE
+
+	Result.ParticleToWorld = DFFastToWS(Parameters.Particle.ParticleToWorld);
+	Result.WorldToParticle = DFFastToWS(Parameters.Particle.WorldToParticle);
+	Result.ParticleWorldPosition = WSSubtract(Parameters.Particle.TranslatedWorldPositionAndSize.xyz, Result.PreViewTranslation);
+	Result.PrevParticleWorldPosition = WSSubtract(Parameters.Particle.PrevTranslatedWorldPositionAndSize.xyz, Result.PrevPreViewTranslation);
+
+	return Result;
 }
 
 /** Get the per-instance random value when instancing */
@@ -1470,12 +1842,12 @@ float3 RotateAboutAxis(float4 NormalizedRotationAxisAndAngle, float3 PositionOnA
  * Rotates Position about the given axis by the given angle, in radians, and returns the offset to Position.
  * Note that this returns an *offset*, so even though inputs are in LWC-space, the offset is returned as a regular float
  */
-float3 RotateAboutAxis(float4 NormalizedRotationAxisAndAngle, FLWCVector3 PositionOnAxis, FLWCVector3 Position)
+float3 RotateAboutAxis(float4 NormalizedRotationAxisAndAngle, FWSVector3 PositionOnAxis, FWSVector3 Position)
 {
 	// Project Position onto the rotation axis and find the closest point on the axis to Position
-	FLWCVector3 ClosestPointOnAxis = LWCAdd(PositionOnAxis, NormalizedRotationAxisAndAngle.xyz * dot(NormalizedRotationAxisAndAngle.xyz, LWCToFloat(LWCSubtract(Position, PositionOnAxis))));
+	FWSVector3 ClosestPointOnAxis = WSAdd(PositionOnAxis, NormalizedRotationAxisAndAngle.xyz * dot(NormalizedRotationAxisAndAngle.xyz, WSSubtractDemote(Position, PositionOnAxis)));
 	// Construct orthogonal axes in the plane of the rotation
-	float3 UAxis = LWCToFloat(LWCSubtract(Position, ClosestPointOnAxis));
+	float3 UAxis = WSSubtractDemote(Position, ClosestPointOnAxis);
 	float3 VAxis = cross(NormalizedRotationAxisAndAngle.xyz, UAxis);
 	float CosAngle;
 	float SinAngle;
@@ -1743,9 +2115,9 @@ float3 MaterialExpressionSkyAtmosphereLightIlluminance(FMaterialPixelParameters 
 #endif
 }
 
-float3 MaterialExpressionSkyAtmosphereLightIlluminance(FMaterialPixelParameters Parameters, FLWCVector3 WorldPosition, uint LightIndex)
+float3 MaterialExpressionSkyAtmosphereLightIlluminance(FMaterialPixelParameters Parameters, FWSVector3 WorldPosition, uint LightIndex)
 {
-	const float3 TranslatedWorldPosition = LWCToFloat(LWCAdd(WorldPosition, ResolvedView.PreViewTranslation));
+	const float3 TranslatedWorldPosition = DFFastToTranslatedWorld(WSToDF(WorldPosition), ResolvedView.PreViewTranslation);
 	return MaterialExpressionSkyAtmosphereLightIlluminance(Parameters, TranslatedWorldPosition, LightIndex);
 }
 
@@ -1813,7 +2185,7 @@ float4 MaterialExpressionSkyAtmosphereAerialPerspective(FMaterialPixelParameters
 
 	// NDCPosition is not computed using WorldPosition because it could result in position outside the frustum, 
 	// distorted uvs and bad visuals with artefact. Only the distance computation can actually be benefit from the surface position specified here.
-	float4 NDCPosition = LWCMultiply(MakeLWCVector4(Parameters.AbsoluteWorldPosition, 1.0f), ResolvedView.WorldToClip);
+	float4 NDCPosition = mul(float4(GetTranslatedWorldPosition(Parameters), 1.0f), ResolvedView.TranslatedWorldToClip);
 
 	const float NearFadeOutRangeInvDepthKm = 1.0 / 0.00001f; // 1 centimeter fade region
 	float4 AerialPerspective = GetAerialPerspectiveLuminanceTransmittance(
@@ -1833,9 +2205,9 @@ float4 MaterialExpressionSkyAtmosphereAerialPerspective(FMaterialPixelParameters
 #endif
 }
 
-float4 MaterialExpressionSkyAtmosphereAerialPerspective(FMaterialPixelParameters Parameters, FLWCVector3 WorldPosition)
+float4 MaterialExpressionSkyAtmosphereAerialPerspective(FMaterialPixelParameters Parameters, FWSVector3 WorldPosition)
 {
-	const float3 TranslatedWorldPosition = LWCToFloat(LWCAdd(WorldPosition, ResolvedView.PreViewTranslation));
+	const float3 TranslatedWorldPosition = WSAddDemote(WorldPosition, Parameters.LWCData.PreViewTranslation);
 	return MaterialExpressionSkyAtmosphereAerialPerspective(Parameters, TranslatedWorldPosition);
 }
 
@@ -2065,7 +2437,7 @@ float GetSphericalParticleOpacity(FMaterialPixelParameters Parameters, float Den
 
 	// Substitute object attributes if the mesh is not a particle
 	// This is mostly useful for previewing materials using spherical opacity in the material editor
-	float3 ParticleTranslatedWorldPosition = LWCToFloat(LWCAdd(GetPrimitiveData(Parameters).ObjectWorldPosition, ResolvedView.PreViewTranslation));
+	float3 ParticleTranslatedWorldPosition = GetObjectTranslatedWorldPosition(Parameters);
 	float ParticleRadius = max(0.000001f, GetPrimitiveData(Parameters).ObjectRadius);
 
 #endif
@@ -2158,14 +2530,65 @@ float3 LWCApplyAddressMode(FLWCVector3 UV, uint AddressX, uint AddressY, uint Ad
 	return float3(LWCApplyAddressMode(LWCGetX(UV), AddressX), LWCApplyAddressMode(LWCGetY(UV), AddressY), LWCApplyAddressMode(LWCGetZ(UV), AddressZ));
 }
 
+
+float DFApplyAddressModeWrap(FDFScalar V)
+{
+	// Hacky and certainly not flawless, but reasonably fast.
+	// The resulting value is not in [0;1] so the texture unit apply the final coordinate wrapping, which will allow derivatives to work correctly unless cross the modulo boundary.
+	const float Divisor = 0x1000; // Chosen somewhat arbitrarily. Large enough to not have seams everywhere, but small enough to have plenty of fractional precision in the result.
+	return DFFmodByPow2Demote(V, Divisor);
+}
+
+float DFApplyAddressModeMirror(FDFScalar V)
+{
+	// Unclear what the best option is for MIRROR
+	// We can apply the mirror logic directly, but that will break derivatives
+	// We can use similar logic as WRAP, but in that case results will actually be incorrect at tile boundaries (not just wrong derivatives)
+	// Or we can convert to float and accept precision loss for large values (but otherwise correct)
+	// TODO - something better?
+
+	float a = DFFracDemote(DFDivideByPow2(V, 2));
+	float b = 2.0 * a;
+	float c = 2.0 * (1.0 - a);
+	return min(b, c); //DF_TODO: derivatives? Maybe use the same logic from Wrap instead?
+}
+
+float DFApplyAddressModeClamp(FDFScalar V)
+{
+	// For the CLAMP case, a simple DFDemote() is sufficient.  This will lose a ton of precision for large values, but we don't care about this since the GPU will clamp to [0,1) anyway
+	// It's possible certain GPUs might need a special case if the ToFloat() conversion overflows
+	return DFDemote(V);
+}
+
+float DFApplyAddressMode(FDFScalar v, uint AddressMode)
+{
+	if(AddressMode == LWCADDRESSMODE_WRAP) return DFApplyAddressModeWrap(v);
+	else if(AddressMode == LWCADDRESSMODE_MIRROR) return DFApplyAddressModeMirror(v);
+	else return DFApplyAddressModeClamp(v);
+}
+float2 DFApplyAddressMode(FDFVector2 UV, uint AddressX, uint AddressY)
+{
+	return float2(DFApplyAddressMode(DFGetX(UV), AddressX), DFApplyAddressMode(DFGetY(UV), AddressY));
+}
+float3 DFApplyAddressMode(FDFVector3 UV, uint AddressX, uint AddressY, uint AddressZ)
+{
+	return float3(DFApplyAddressMode(DFGetX(UV), AddressX), DFApplyAddressMode(DFGetY(UV), AddressY), DFApplyAddressMode(DFGetZ(UV), AddressZ));
+}
+
+#if WSVECTOR_IS_TILEOFFSET
+#define WSApplyAddressMode LWCApplyAddressMode
+#elif WSVECTOR_IS_DOUBLEFLOAT
+#define WSApplyAddressMode DFApplyAddressMode
+#endif
+
 float2 RotateScaleOffsetTexCoords(float2 InTexCoords, float4 InRotationScale, float2 InOffset)
 {
 	return float2(dot(InTexCoords, InRotationScale.xy), dot(InTexCoords, InRotationScale.zw)) + InOffset;
 }
 
-FLWCVector2 RotateScaleOffsetTexCoords(FLWCVector2 InTexCoords, float4 InRotationScale, float2 InOffset)
+FWSVector2 RotateScaleOffsetTexCoords(FWSVector2 InTexCoords, float4 InRotationScale, float2 InOffset)
 {
-	return LWCAdd(MakeLWCVector(LWCDot(InTexCoords, InRotationScale.xy), LWCDot(InTexCoords, InRotationScale.zw)), InOffset);
+	return WSAdd(MakeWSVector(WSDot(InTexCoords, InRotationScale.xy), WSDot(InTexCoords, InRotationScale.zw)), InOffset);
 }
 
 #if USES_SPEEDTREE
@@ -2178,7 +2601,7 @@ float3 GetSpeedTreeVertexOffsetInner(FMaterialVertexParameters Parameters, int G
 	#endif
 
 	#if USE_INSTANCING || USE_INSTANCE_CULLING
-		float3x3 LocalToWorld = LWCToFloat3x3(Parameters.InstanceLocalToWorld);
+		float3x3 LocalToWorld = DFToFloat3x3(Parameters.InstanceLocalToWorld);
 		float3 LocalPosition = Parameters.InstanceLocalPosition;
 
 		// skip if this instance is hidden
@@ -2187,24 +2610,24 @@ float3 GetSpeedTreeVertexOffsetInner(FMaterialVertexParameters Parameters, int G
 			return float3(0,0,0);
 		}
 	#else
-		float3x3 LocalToWorld = LWCToFloat3x3(GetPrimitiveData(Parameters).LocalToWorld);
-		float3 LocalPosition = LWCMultiply(GetWorldPosition(Parameters), GetPrimitiveData(Parameters).WorldToLocal);
+		float3x3 LocalToWorld = DFToFloat3x3(GetPrimitiveData(Parameters).LocalToWorld);
+		float3 LocalPosition = WSMultiplyDemote(GetWorldPosition(Parameters), Parameters.LWCData.WorldToLocal);
 	#endif
 
-	FLWCVector3 TreePos = GetObjectWorldPosition(Parameters);
+	FWSVector3 TreePos = GetObjectWorldPosition(Parameters);
 
 	// compute LOD by finding screen space size
 	float LodInterp = 1.0;
 #if !USE_INSTANCING || !USE_DITHERED_LOD_TRANSITION
 	if (LODType == SPEEDTREE_LOD_TYPE_SMOOTH) 
 	{
-		const float Dist = length(LWCToFloat(LWCSubtract(TreePos, ResolvedView.WorldCameraOrigin)));
+		const float Dist = length(WSSubtractDemote(TreePos, DFToWS(ResolvedView.WorldCameraOrigin)));
         const float ScreenMultiple = 0.5 * max(ResolvedView.ViewToClip[0][0], ResolvedView.ViewToClip[1][1]);
         const float ScreenRadius = 2.0 * ScreenMultiple * GetPrimitiveData(Parameters).ObjectRadius / max(1.0, Dist);
         LodInterp = saturate((ScreenRadius - SpeedTreeLODInfo.x) / SpeedTreeLODInfo.z);
 	}
 #endif
-	float3 TreePosOffset = LWCHackToFloat(LWCMultiply(TreePos, 0.001f)); // The only other use of the tree position is as an offset into trig functions, but big numbers don't play nice there
+	float3 TreePosOffset = WSHackToFloat(WSDivideByPow2(TreePos, 1024)); // The only other use of the tree position is as an offset into trig functions, but big numbers don't play nice there
 
 	// SpeedTrees should only be uniformly scaled, but if necessary, it takes a few more instructions
 	float TreeScale = length(mul(float3(0,0,1), LocalToWorld));
@@ -3625,15 +4048,25 @@ void CalcMaterialParametersEx(
 	float3 TranslatedWorldPosition,
 	float3 TranslatedWorldPositionExcludingShaderOffsets)
 {
-	// Remove the pre view translation
-	Parameters.WorldPosition_CamRelative = TranslatedWorldPosition.xyz;
-	Parameters.AbsoluteWorldPosition = LWCSubtract(TranslatedWorldPosition.xyz, ResolvedView.PreViewTranslation);
+	Parameters.WorldPosition_CamRelative = TranslatedWorldPosition;
+	Parameters.WorldPosition_NoOffsets_CamRelative = TranslatedWorldPositionExcludingShaderOffsets;
+
+	Parameters.LWCData = MakeMaterialLWCData(Parameters);
+
+#if WSVECTOR_IS_TILEOFFSET
+	Parameters.AbsoluteWorldPosition = DFMultiplyLHSAndFastTwoSum(Parameters.LWCData.AbsoluteWorldPosition.Tile, UE_LWC_RENDER_TILE_SIZE, Parameters.LWCData.AbsoluteWorldPosition.Offset);
+#elif WSVECTOR_IS_DOUBLEFLOAT
+	Parameters.AbsoluteWorldPosition = Parameters.LWCData.AbsoluteWorldPosition;
+#endif
 
 	// If the material uses any non-offset world position expressions, calculate those parameters. If not, 
 	// the variables will have been initialised to 0 earlier.
 #if USE_WORLD_POSITION_EXCLUDING_SHADER_OFFSETS
-	Parameters.WorldPosition_NoOffsets_CamRelative = TranslatedWorldPositionExcludingShaderOffsets;
-	Parameters.WorldPosition_NoOffsets = LWCSubtract(TranslatedWorldPositionExcludingShaderOffsets, ResolvedView.PreViewTranslation);
+#if WSVECTOR_IS_TILEOFFSET
+	Parameters.WorldPosition_NoOffsets = DFMultiplyLHSAndFastTwoSum(Parameters.LWCData.WorldPosition_NoOffsets.Tile, UE_LWC_RENDER_TILE_SIZE, Parameters.LWCData.WorldPosition_NoOffsets.Offset);
+#elif WSVECTOR_IS_DOUBLEFLOAT
+	Parameters.WorldPosition_NoOffsets = Parameters.LWCData.WorldPosition_NoOffsets;
+#endif
 #endif
 
 	Parameters.SvPosition = SvPosition;
@@ -3804,7 +4237,9 @@ float ApplyPixelDepthOffsetToMaterialParameters(inout FMaterialPixelParameters M
 	// Update positions used for shading
 	MaterialParameters.ScreenPosition.w += PixelDepthOffset;
 	MaterialParameters.SvPosition.w = MaterialParameters.ScreenPosition.w;
-	MaterialParameters.AbsoluteWorldPosition = LWCAdd(MaterialParameters.AbsoluteWorldPosition, -MaterialParameters.CameraVector * PixelDepthOffset);
+
+	MaterialParameters.LWCData.AbsoluteWorldPosition = WSAdd(MaterialParameters.LWCData.AbsoluteWorldPosition, -MaterialParameters.CameraVector * PixelDepthOffset);
+	MaterialParameters.AbsoluteWorldPosition = WSToDF(MaterialParameters.LWCData.AbsoluteWorldPosition);
 
 	OutDepth = INVARIANT(DeviceDepth);
 

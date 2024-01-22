@@ -3,6 +3,7 @@
 #include "CoreMinimal.h"
 #include "RHI.h"
 #include "Misc/AutomationTest.h"
+#include "Math/DoubleFloat.h"
 
 #if WITH_DEV_AUTOMATION_TESTS || WITH_EDITOR
 
@@ -262,8 +263,7 @@ bool RunRayTracingTestbed_RenderThread(const FString& Parameters)
 	BuildRayTracingInstanceBuffer(
 		RHICmdList,
 		nullptr,
-		FVector3f::ZeroVector,
-		FVector3f::ZeroVector,
+		FDFVector3{},
 		InstanceBuffer.UAV,
 		InstanceUploadSRV,
 		AccelerationStructureAddressesBuffer.SRV,

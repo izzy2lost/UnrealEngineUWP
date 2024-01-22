@@ -1697,8 +1697,7 @@ public:
 
 struct FReflectionCaptureSortData
 {
-	FVector3f RelativePosition;
-	FVector3f TilePosition;
+	FDFVector3 Position;
 	FMatrix44f BoxTransform;
 	uint32 Guid;
 	int32 CubemapIndex;

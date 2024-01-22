@@ -397,29 +397,29 @@ void FExpressionExternalInput::EmitValueShader(FEmitContext& Context, FEmitScope
 
 		case EExternalInput::CameraVector: Code = TEXT("Parameters.CameraVector"); break;
 		case EExternalInput::LightVector: Code = TEXT("Parameters.LightVector"); break;
-		case EExternalInput::CameraWorldPosition: Code = TEXT("ResolvedView.WorldCameraOrigin"); break;
-		case EExternalInput::ViewWorldPosition: Code = TEXT("ResolvedView.WorldViewOrigin"); break;
-		case EExternalInput::PreViewTranslation: Code = TEXT("ResolvedView.PreViewTranslation"); break;
+		case EExternalInput::CameraWorldPosition: Code = TEXT("GetWorldCameraOrigin(Parameters)"); break;
+		case EExternalInput::ViewWorldPosition: Code = TEXT("GetWorldViewOrigin(Parameters)"); break;
+		case EExternalInput::PreViewTranslation: Code = TEXT("GetPreViewTranslation(Parameters)"); break;
 		case EExternalInput::TangentToWorld: Code = TEXT("Parameters.TangentToWorld"); break;
 		case EExternalInput::LocalToWorld: Code = TEXT("GetLocalToWorld(Parameters)"); break;
-		case EExternalInput::WorldToLocal: Code = TEXT("GetPrimitiveData(Parameters).WorldToLocal"); break;
+		case EExternalInput::WorldToLocal: Code = TEXT("GetWorldToLocal(Parameters)"); break;
 		case EExternalInput::TranslatedWorldToCameraView: Code = TEXT("ResolvedView.TranslatedWorldToCameraView"); break;
 		case EExternalInput::TranslatedWorldToView: Code = TEXT("ResolvedView.TranslatedWorldToView"); break;
 		case EExternalInput::CameraViewToTranslatedWorld: Code = TEXT("ResolvedView.CameraViewToTranslatedWorld"); break;
 		case EExternalInput::ViewToTranslatedWorld: Code = TEXT("ResolvedView.ViewToTranslatedWorld"); break;
-		case EExternalInput::WorldToParticle: Code = TEXT("Parameters.Particle.WorldToParticle"); break;
+		case EExternalInput::WorldToParticle: Code = TEXT("GetWorldToParticle(Parameters)"); break;
 		case EExternalInput::WorldToInstance: Code = TEXT("GetWorldToInstance(Parameters)"); break;
-		case EExternalInput::ParticleToWorld: Code = TEXT("Parameters.Particle.ParticleToWorld"); break;
+		case EExternalInput::ParticleToWorld: Code = TEXT("GetParticleToWorld(Parameters)"); break;
 		case EExternalInput::InstanceToWorld: Code = TEXT("GetInstanceToWorld(Parameters)"); break;
 
 		case EExternalInput::PrevFieldOfView: Code = TEXT("View.PrevFieldOfViewWideAngles"); break;
 		case EExternalInput::PrevTanHalfFieldOfView: Code = TEXT("GetPrevTanHalfFieldOfView()"); break;
 		case EExternalInput::PrevCotanHalfFieldOfView: Code = TEXT("GetPrevCotanHalfFieldOfView()"); break;
-		case EExternalInput::PrevCameraWorldPosition: Code = TEXT("ResolvedView.PrevWorldCameraOrigin"); break;
-		case EExternalInput::PrevViewWorldPosition: Code = TEXT("ResolvedView.PrevWorldViewOrigin"); break;
-		case EExternalInput::PrevPreViewTranslation: Code = TEXT("ResolvedView.PrevPreViewTranslation"); break;
+		case EExternalInput::PrevCameraWorldPosition: Code = TEXT("GetPrevWorldCameraOrigin(Parameters)"); break;
+		case EExternalInput::PrevViewWorldPosition: Code = TEXT("GetPrevWorldViewOrigin(Parameters)"); break;
+		case EExternalInput::PrevPreViewTranslation: Code = TEXT("GetPrevPreViewTranslation(Parameters)"); break;
 		case EExternalInput::PrevLocalToWorld: Code = TEXT("GetPrevLocalToWorld(Parameters)"); break;
-		case EExternalInput::PrevWorldToLocal: Code = TEXT("GetPrimitiveData(Parameters).PreviousWorldToLocal"); break;
+		case EExternalInput::PrevWorldToLocal: Code = TEXT("GetPrevWorldToLocal(Parameters)"); break;
 		case EExternalInput::PrevTranslatedWorldToCameraView: Code = TEXT("ResolvedView.PrevTranslatedWorldToCameraView"); break;
 		case EExternalInput::PrevTranslatedWorldToView: Code = TEXT("ResolvedView.PrevTranslatedWorldToView"); break;
 		case EExternalInput::PrevCameraViewToTranslatedWorld: Code = TEXT("ResolvedView.PrevCameraViewToTranslatedWorld"); break;
@@ -2461,14 +2461,6 @@ void FExpressionNoise::EmitValueShader(FEmitContext& Context, FEmitScope& Scope,
 	bool bIsLWC = Shader::IsLWCType(PreparedType.Type);
 	FEmitShaderExpression* EmitPosition = PositionExpression->GetValueShader(Context, Scope, bIsLWC ? Shader::EValueType::Double3 : Shader::EValueType::Float3);
 	FEmitShaderExpression* EmitFilterWidth = FilterWidthExpression->GetValueShader(Context, Scope, Shader::EValueType::Float1);
-
-	if (bIsLWC)
-	{
-		// If Noise is driven by a LWC position, just take the offset within the current tile
-		// Will generate discontinuity in noise at tile boudaries
-		// Could potentially add noise functions that operate directly on LWC values, but that would be very expensive
-		EmitPosition = Context.EmitExpression(Scope, Shader::EValueType::Float3, TEXT("LWCNormalizeTile(%).Offset"), EmitPosition);
-	}
 
 	OutResult.Code = Context.EmitExpression(Scope, Shader::EValueType::Float1, TEXT("MaterialExpressionNoise(%,%,%,%,%,%,%,%,%,%,%,%)"),
 		EmitPosition,

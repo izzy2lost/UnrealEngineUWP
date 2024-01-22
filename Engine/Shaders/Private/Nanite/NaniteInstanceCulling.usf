@@ -36,13 +36,13 @@ void DrawImposter( FNaniteView NaniteView, FInstanceSceneData InstanceData, uint
 			float2 Noise = Rand3DPCG16( int3( PixelPos, FrameRand ) ).xy / 65535.0;
 			float2 PixelClip = ( ( PixelPos + 0.5 ) * NaniteView.ViewSizeAndInvSize.zw - 0.5 ) * float2(2, -2);
 
-			FLWCVector3 RayWorldOrigin;
+			FDFVector3 RayWorldOrigin;
 			float3 RayWorldDirection;
 			if( bOrtho )
 			{
 				float3 NearPoint = mul( float4( PixelPos + 0.5, 1, 1 ), NaniteView.SVPositionToTranslatedWorld ).xyz;
 				float3 FarPoint  = mul( float4( PixelPos + 0.5, 0, 1 ), NaniteView.SVPositionToTranslatedWorld ).xyz;
-				RayWorldOrigin = LWCSubtract( NearPoint, NaniteView.PreViewTranslation );
+				RayWorldOrigin = DFFastSubtract( NearPoint, NaniteView.PreViewTranslation );
 				RayWorldDirection = FarPoint - NearPoint;
 				Noise = 0.5;
 			}
@@ -53,8 +53,8 @@ void DrawImposter( FNaniteView NaniteView, FInstanceSceneData InstanceData, uint
 			}
 	
 			FRay RayLocal;
-			RayLocal.Origin		= LWCMultiply( RayWorldOrigin,	InstanceData.WorldToLocal );
-			RayLocal.Direction	= LWCMultiplyVector( RayWorldDirection,	InstanceData.WorldToLocal );
+			RayLocal.Origin		= DFMultiplyDemote( RayWorldOrigin, InstanceData.WorldToLocal );
+			RayLocal.Direction	= DFMultiplyVector( RayWorldDirection, InstanceData.WorldToLocal );
 
 			uint2 ImposterPixel = RayIntersectImposter( RayLocal, ImposterIndex, BoundsCenter, BoundsExtent, Noise );
 

@@ -141,7 +141,7 @@ void LumenCardBatchDirectLightingCS(
 		if (ShadowMaskRay.ShadowFactor > 0.0f)
 		{
 			uint ViewIndex = HAS_MULTIPLE_VIEWS ? LightTile.ViewIndex : 0;
-			Irradiance += GetIrradianceForLight(LightTile.LightIndex, SurfaceCacheData, LWCHackToFloat(PreViewTranslation[ViewIndex]).xyz, ViewExposure[ViewIndex], ShadowMaskRay.ShadowFactor);
+			Irradiance += GetIrradianceForLight(LightTile.LightIndex, SurfaceCacheData, PreViewTranslation[ViewIndex].xyz, ViewExposure[ViewIndex], ShadowMaskRay.ShadowFactor);
 
 			//Irradiance += bShadowFactorValid ? float3(0, 1, 0) : float3(0.2f, 0.0f, 0.0f);
 		}

@@ -33,6 +33,11 @@ RWTexture3D<float3> RWExtinctionTexture;
 RWTexture3D<float3> RWEmissionTexture;
 RWTexture3D<float3> RWAlbedoTexture;
 
+FPrimitiveSceneData GetPrimitiveData(FMaterialVertexParameters Parameters)
+{
+	return GetPrimitiveData(Parameters, LocalToWorld, WorldToLocal, LocalBoundsOrigin, LocalBoundsExtent);
+}
+
 FPrimitiveSceneData GetPrimitiveData(FMaterialPixelParameters Parameters)
 {
 	return GetPrimitiveData(Parameters, LocalToWorld, WorldToLocal, LocalBoundsOrigin, LocalBoundsExtent);
@@ -55,7 +60,8 @@ void HeterogeneousVolumesBakeMaterialCS(
 		// Setup evaluation context
 		FMaterialPixelParameters MaterialParameters = MakeInitializedMaterialPixelParameters();
 		MaterialParameters.PrimitiveId = PrimitiveId;
-		MaterialParameters.AbsoluteWorldPosition = LWCPromote(WorldPosition);
+		MaterialParameters.AbsoluteWorldPosition = DFPromote(WorldPosition);
+		MaterialParameters.LWCData.AbsoluteWorldPosition = WSPromote(WorldPosition);
 
 		// Evaluate material graph
 		FPixelMaterialInputs PixelMaterialInputs;
@@ -257,7 +263,8 @@ void RasterizeBottomLevelOrthoGridCS(
 				// Setup evaluation context
 				FMaterialPixelParameters MaterialParameters = MakeInitializedMaterialPixelParameters();
 				MaterialParameters.PrimitiveId = PrimitiveId;
-				MaterialParameters.AbsoluteWorldPosition = LWCPromote(WorldPosition);
+				MaterialParameters.AbsoluteWorldPosition = DFPromote(WorldPosition);
+				MaterialParameters.LWCData.AbsoluteWorldPosition = WSPromote(WorldPosition);
 
 				// Evaluate material graph
 				FPixelMaterialInputs PixelMaterialInputs;
@@ -462,7 +469,8 @@ void RasterizeBottomLevelFrustumGridCS(
 	{
 		FMaterialPixelParameters MaterialParameters = MakeInitializedMaterialPixelParameters();
 		MaterialParameters.PrimitiveId = PrimitiveId;
-		MaterialParameters.AbsoluteWorldPosition = LWCPromote(WorldPosition);
+		MaterialParameters.AbsoluteWorldPosition = DFPromote(WorldPosition);
+		MaterialParameters.LWCData.AbsoluteWorldPosition = WSPromote(WorldPosition);
 
 		// Evaluate material graph
 		FPixelMaterialInputs PixelMaterialInputs;

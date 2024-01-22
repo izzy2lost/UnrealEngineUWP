@@ -198,7 +198,7 @@ FMaterialPixelParameters GetMaterialPixelParameters(FVertexFactoryInterpolantsVS
 
 half3x3 CalcTangentToWorldNoScale(FVertexFactoryIntermediates Intermediates, half3x3 TangentToLocal)
 {
-	half3x3 LocalToWorld = LWCToFloat3x3(GetPrimitiveData(Intermediates).LocalToWorld);
+	half3x3 LocalToWorld = DFToFloat3x3(GetPrimitiveData(Intermediates).LocalToWorld);
 	half3 InvScale = GetPrimitiveData(Intermediates).InvNonUniformScale;
 	LocalToWorld[0] *= InvScale.x;
 	LocalToWorld[1] *= InvScale.y;
@@ -219,10 +219,13 @@ FMaterialVertexParameters GetMaterialVertexParameters(FVertexFactoryInput Input,
 	Result.PrevFrameLocalToWorld = GetPrimitiveData(Intermediates).PreviousLocalToWorld;
 	Result.PreSkinnedPosition = GetVertexPreviousPosition(Input);
 	Result.PreSkinnedNormal = TangentToLocal[2];
+
+	Result.LWCData = MakeMaterialLWCData(Result);
+
 	return Result;
 }
 
-float4 CalcWorldPosition(float3 Position, FLWCMatrix LocalToWorld)
+float4 CalcWorldPosition(float3 Position, FDFMatrix LocalToWorld)
 {
 	return TransformLocalToTranslatedWorld(Position, LocalToWorld);
 }
@@ -355,16 +358,14 @@ float4 VertexFactoryGetWorldPositionRaw(FVertexFactoryInput Input, FVertexFactor
 // @return previous translated world position
 float4 VertexFactoryGetPreviousWorldPosition(FVertexFactoryInput Input, FVertexFactoryIntermediates Intermediates)
 {
-	float4x4 PreviousLocalToWorldTranslated = LWCMultiplyTranslation(GetPrimitiveData(Intermediates).PreviousLocalToWorld, ResolvedView.PrevPreViewTranslation);
-
 	const float3 VertexPosition = GetVertexPreviousPosition(Input);
-	return mul(float4(VertexPosition,1), PreviousLocalToWorldTranslated);
+	return DFTransformLocalToTranslatedWorld(VertexPosition, GetPrimitiveData(Intermediates).PreviousLocalToWorld, ResolvedView.PrevPreViewTranslation);
 }
 
 float4 VertexFactoryGetTranslatedPrimitiveVolumeBounds(FVertexFactoryInterpolantsVSToPS Interpolants)
 {
 	FPrimitiveSceneData PrimitiveData = GetPrimitiveData(GetPrimitiveId(Interpolants));
-	return float4(LWCToFloat(LWCAdd(PrimitiveData.ObjectWorldPosition, ResolvedView.PreViewTranslation)), PrimitiveData.ObjectRadius);
+	return float4(DFFastToTranslatedWorld(PrimitiveData.ObjectWorldPosition, ResolvedView.PreViewTranslation), PrimitiveData.ObjectRadius);
 }
 
 uint VertexFactoryGetPrimitiveId(FVertexFactoryInterpolantsVSToPS Interpolants)

@@ -39,17 +39,18 @@ float ComputeOptimalSlopeBiasDirectional(
 	return 2.0f * max(0.0f, dot(DepthSlopeUV, OffsetUV));
 }
 
-int GetMappedClipmapId(int VirtualShadowMapId, FLWCVector3 RayOriginWorld)
+int GetMappedClipmapId(int VirtualShadowMapId, float3 RayOriginTranslatedWorld)
 {
 	// This is the (unbiased) most detailed clipmap level that we are guaranteed to have a page table entry for
 	const FVirtualShadowMapProjectionShaderData BaseProjectionData = GetVirtualShadowMapProjectionData(VirtualShadowMapId);		
-	float ClipmapLevelFloat = CalcBiasedAbsoluteClipmapLevelForSampling(BaseProjectionData, RayOriginWorld);
+	float ClipmapLevelFloat = CalcBiasedAbsoluteClipmapLevelForSampling(BaseProjectionData, RayOriginTranslatedWorld);
 	int ClipmapIndex = max(0, int(floor(ClipmapLevelFloat)) - BaseProjectionData.ClipmapLevel);
 
 	// Clipmap origin should be near shaded samples, so shadow translated world should be regular range
 	int ClipmapId = VirtualShadowMapId + ClipmapIndex;
 	const FVirtualShadowMapProjectionShaderData ProjectionData = GetVirtualShadowMapProjectionData(ClipmapId);
-	float3 RayOriginShadowTranslatedWorld = LWCToFloat(LWCAdd(RayOriginWorld, ProjectionData.PreViewTranslation));
+	float3 ViewToShadowTranslation = DFFastLocalSubtractDemote(ProjectionData.PreViewTranslation, PrimaryView.PreViewTranslation);
+	float3 RayOriginShadowTranslatedWorld = RayOriginTranslatedWorld + ViewToShadowTranslation;
 	float3 RayStartUVZ = mul(float4(RayOriginShadowTranslatedWorld, 1.0f), ProjectionData.TranslatedWorldToShadowUVMatrix).xyz;
 
 	// NOTE: We don't need the actual sample here, we're just looking for the best mapped page at the ray origin
@@ -218,7 +219,7 @@ FVirtualShadowMapSampleResult TraceDirectional(
 	float ExtrapolateSlope,
 	uint SMRTAdaptiveRayCount)
 {
-	FLWCVector3 WorldPosition = LWCSubtract(LWCPromote(TranslatedWorldPosition), PrimaryView.PreViewTranslation);
+
 	float3 ViewPosition = mul(float4(TranslatedWorldPosition, 1.0f), View.TranslatedWorldToView).xyz;
 	float DistanceFromViewOrigin = length(ViewPosition);
 
@@ -229,7 +230,7 @@ FVirtualShadowMapSampleResult TraceDirectional(
 	if (!bCullBackface || !IsBackfaceToDirectionalLight(WorldNormal, Light.Direction, Light.SourceRadius))
 	{
 		// Find the best resolution mapped clipmap at the ray origin location
-		const int ClipmapId = GetMappedClipmapId(VirtualShadowMapId, WorldPosition);
+		const int ClipmapId = GetMappedClipmapId(VirtualShadowMapId, TranslatedWorldPosition);
 		const FVirtualShadowMapProjectionShaderData ProjectionData = GetVirtualShadowMapProjectionData(ClipmapId);
 
 		// This function is designed to vary in depth in roughly the same way as shadow texel density does,
@@ -259,7 +260,8 @@ FVirtualShadowMapSampleResult TraceDirectional(
 		float RayLength = RayLengthScale * DistanceFromViewOrigin;
 
 		// Clipmap origin should be near shaded samples, so shadow translated world should be regular range
-		float3 RayOriginShadowTranslatedWorld = LWCToFloat(LWCAdd(WorldPosition, ProjectionData.PreViewTranslation));
+		float3 ViewToShadowTranslation = DFFastLocalSubtractDemote(ProjectionData.PreViewTranslation, PrimaryView.PreViewTranslation);
+		float3 RayOriginShadowTranslatedWorld = TranslatedWorldPosition + ViewToShadowTranslation;
 
 		uint RayMissCount = 0;
 		uint i = 0;

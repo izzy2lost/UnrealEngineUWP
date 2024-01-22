@@ -293,8 +293,8 @@ struct FRayTracingBuildInstanceBufferCS : public FGlobalShader
 
 		SHADER_PARAMETER(uint32, InstanceSceneDataSOAStride)
 
-		SHADER_PARAMETER(FVector3f, ViewTilePosition)
-		SHADER_PARAMETER(FVector3f, RelativePreViewTranslation)
+		SHADER_PARAMETER(FVector3f, PreViewTranslationHigh)
+		SHADER_PARAMETER(FVector3f, PreViewTranslationLow)
 
 		// Instance culling params
 		SHADER_PARAMETER(float, CullingRadius)
@@ -337,8 +337,7 @@ IMPLEMENT_GLOBAL_SHADER(FRayTracingBuildInstanceBufferCS, "/Engine/Private/Raytr
 void BuildRayTracingInstanceBuffer(
 	FRHICommandList& RHICmdList,
 	const FGPUScene* GPUScene,
-	FVector3f ViewTilePosition,
-	FVector3f RelativePreViewTranslation,
+	const FDFVector3& PreViewTranslation,
 	uint32 NumInstances,
 	uint32 InputDescOffset,
 	FUnorderedAccessViewRHIRef InstancesUAV,
@@ -356,8 +355,8 @@ void BuildRayTracingInstanceBuffer(
 	PassParams.FarFieldReferencePos = (FVector3f)Lumen::GetFarFieldReferencePos();	// LWC_TODO: Precision Loss
 	PassParams.NumInstances = NumInstances;
 	PassParams.InputDescOffset = InputDescOffset;
-	PassParams.ViewTilePosition = ViewTilePosition;
-	PassParams.RelativePreViewTranslation = RelativePreViewTranslation;
+	PassParams.PreViewTranslationHigh = PreViewTranslation.High;
+	PassParams.PreViewTranslationLow = PreViewTranslation.Low;
 
 	if (GPUScene)
 	{
@@ -400,8 +399,7 @@ void BuildRayTracingInstanceBuffer(
 void BuildRayTracingInstanceBuffer(
 	FRHICommandList& RHICmdList,
 	const FGPUScene* GPUScene,
-	FVector3f ViewTilePosition,
-	FVector3f RelativePreViewTranslation,
+	const FDFVector3& PreViewTranslation,
 	FUnorderedAccessViewRHIRef InstancesUAV,
 	FShaderResourceViewRHIRef InstanceUploadSRV,
 	FShaderResourceViewRHIRef AccelerationStructureAddressesSRV,
@@ -417,8 +415,7 @@ void BuildRayTracingInstanceBuffer(
 		BuildRayTracingInstanceBuffer(
 			RHICmdList,
 			GPUScene,
-			ViewTilePosition,
-			RelativePreViewTranslation,
+			PreViewTranslation,
 			NumNativeGPUSceneInstances,
 			0,
 			InstancesUAV,
@@ -434,8 +431,7 @@ void BuildRayTracingInstanceBuffer(
 		BuildRayTracingInstanceBuffer(
 			RHICmdList,
 			GPUScene,
-			ViewTilePosition,
-			RelativePreViewTranslation,
+			PreViewTranslation,
 			NumNativeCPUInstances,
 			NumNativeGPUSceneInstances, // CPU instance input descriptors are stored after GPU Scene instances
 			InstancesUAV,
@@ -454,8 +450,7 @@ void BuildRayTracingInstanceBuffer(
 		BuildRayTracingInstanceBuffer(
 			RHICmdList,
 			GPUScene,
-			ViewTilePosition,
-			RelativePreViewTranslation,
+			PreViewTranslation,
 			GPUInstance.NumInstances,
 			InputDescOffset,
 			InstancesUAV,

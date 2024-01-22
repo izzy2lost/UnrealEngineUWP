@@ -124,7 +124,7 @@ enum class EValueType : uint8
 	Float4x4,
 
 	// Both of these are double4x4 on CPU
-	// On GPU, they map to FLWCMatrix and FLWCInverseMatrix
+	// On GPU, they map to FDFMatrix and FDFInverseMatrix
 	Double4x4,
 	DoubleInverse4x4,
 

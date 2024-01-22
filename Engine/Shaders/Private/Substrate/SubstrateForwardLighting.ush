@@ -63,7 +63,7 @@ float3 SubstrateForwardLighting(
 	const uint PrimitiveId = MaterialParameters.PrimitiveId;
 	const uint2 PixelPos = uint2(SvPosition.xy);
 	const float Dither = InterleavedGradientNoise(PixelPos, View.StateFrameIndexMod8);
-	const float3 AbsoluteWorldPosition = LWCToFloat(MaterialParameters.AbsoluteWorldPosition);
+	const float3 AbsoluteWorldPosition = WSDemote(GetWorldPosition(MaterialParameters));
 	const float3 TranslatedWorldPosition = MaterialParameters.WorldPosition_CamRelative;
 	const float3 LightingPositionOffset = MaterialParameters.LightingPositionOffset;
 	float3 V = MaterialParameters.CameraVector;
@@ -377,7 +377,7 @@ float3 SubstrateForwardLighting(
 				{
 					// Determine the shadow space position
 					// Apply a stable offset to the world position used for shadowing, which blurs out high frequency details in the shadowmap with many layers
-					float4 HomogeneousShadowPosition = mul(float4(LWCHackToFloat(AbsoluteWorldPosition) + LightingPositionOffset, 1), TranslucentSelfShadow.WorldToShadowMatrix);
+					float4 HomogeneousShadowPosition = mul(float4(AbsoluteWorldPosition + LightingPositionOffset, 1), TranslucentSelfShadow.WorldToShadowMatrix);
 					float2 ShadowUVs = HomogeneousShadowPosition.xy / HomogeneousShadowPosition.w;
 					float ShadowZ = 1 - HomogeneousShadowPosition.z;
 					// Lookup the shadow density at the point being shaded

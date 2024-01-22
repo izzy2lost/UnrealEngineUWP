@@ -202,8 +202,8 @@ void HierarchyCellInstanceCull(uint3 GroupId : SV_GroupID, uint GroupIndex : SV_
 			const bool bViewHZB = (NaniteView.Flags & NANITE_VIEW_FLAG_HZBTEST) != 0u;
 			const bool bIsViewUncached = (NaniteView.Flags & NANITE_VIEW_FLAG_UNCACHED) != 0u;
 
-			float4x4 LocalToTranslatedWorld = MakeTranslationMatrix(LWCToFloat(LWCAdd(NaniteView.PreViewTranslation, CellData.BlockData.WorldPos)));
-			float4x4 PrevLocalToTranslatedWorld = MakeTranslationMatrix(LWCToFloat(LWCAdd(NaniteView.PrevPreViewTranslation, CellData.BlockData.WorldPos)));
+			float4x4 LocalToTranslatedWorld = MakeTranslationMatrix(DFFastToTranslatedWorld(CellData.BlockData.WorldPos, NaniteView.PreViewTranslation));
+			float4x4 PrevLocalToTranslatedWorld = MakeTranslationMatrix(DFFastToTranslatedWorld(CellData.BlockData.WorldPos, NaniteView.PrevPreViewTranslation));
 
 			FBoxCull Cull;
 			Cull.Init(NaniteView, CellData.LocalBoundsCenter, CellData.LocalBoundsExtent, float3(1.0f, 1.0f, 1.0f), LocalToTranslatedWorld, PrevLocalToTranslatedWorld);

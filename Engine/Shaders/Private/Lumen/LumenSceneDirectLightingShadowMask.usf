@@ -91,7 +91,7 @@ void LumenSceneDirectLightingShadowMaskFromLightAttenuationCS(
 		const FDeferredLightData LightData = InitDeferredLightFromUniforms(LIGHT_TYPE);
 		float3 WorldNormal = SurfaceCacheData.WorldNormal;
 		float3 WorldPosition = SurfaceCacheData.WorldPosition;
-		float3 TranslatedWorldPosition = WorldPosition + LWCHackToFloat(PrimaryView.PreViewTranslation);
+		float3 TranslatedWorldPosition = WorldPosition + DFHackToFloat(PrimaryView.PreViewTranslation);
 
 		float3 L = LightData.Direction;
 		float3 ToLight = L;

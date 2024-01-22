@@ -136,7 +136,7 @@ void Main(
 
 #if TRANSLUCENCY_ANY_PERVERTEX_LIGHTING || SUPPORT_CLOUD_SHADOW_ON_FORWARD_LIT_TRANSLUCENT || NEEDS_BASEPASS_CLOUD_SHADOW_INTERPOLATOR
 	float3 WorldPositionForVertexLightingTranslated = VertexFactoryGetPositionForVertexLighting(Input, VFIntermediates, WorldPosition.xyz);
-	float3 WorldPositionForVertexLighting = WorldPositionForVertexLightingTranslated - LWCHackToFloat(ResolvedView.PreViewTranslation);
+	float3 WorldPositionForVertexLighting = WorldPositionForVertexLightingTranslated - DFHackToFloat(ResolvedView.PreViewTranslation);
 #endif
 
 #if TRANSLUCENCY_PERVERTEX_LIGHTING_VOLUME

@@ -5369,8 +5369,8 @@ void CreateReflectionCaptureUniformBuffer(const TArray<FReflectionCaptureSortDat
 	T SamplePositionsBuffer;
 	for (int32 CaptureIndex = 0; CaptureIndex < SortedCaptures.Num(); CaptureIndex++)
 	{
-		SamplePositionsBuffer.PositionAndRadius[CaptureIndex] = FVector4f(SortedCaptures[CaptureIndex].RelativePosition, SortedCaptures[CaptureIndex].Radius);
-		SamplePositionsBuffer.TilePosition[CaptureIndex] = FVector4f(SortedCaptures[CaptureIndex].TilePosition, 0);
+		SamplePositionsBuffer.PositionHighAndRadius[CaptureIndex] = FVector4f(SortedCaptures[CaptureIndex].Position.High, SortedCaptures[CaptureIndex].Radius);
+		SamplePositionsBuffer.PositionLow[CaptureIndex] = FVector4f(SortedCaptures[CaptureIndex].Position.Low, 0);
 
 		SamplePositionsBuffer.CaptureProperties[CaptureIndex] = SortedCaptures[CaptureIndex].CaptureProperties;
 		SamplePositionsBuffer.CaptureOffsetAndAverageBrightness[CaptureIndex] = SortedCaptures[CaptureIndex].CaptureOffsetAndAverageBrightness;
@@ -5423,8 +5423,7 @@ void FSceneRenderer::SetupSceneReflectionCaptureBuffer(FRHICommandListImmediate&
 
 			for (int32 CaptureIndex = 0; CaptureIndex < SortedCaptures.Num(); CaptureIndex++)
 			{
-				FLargeWorldRenderPosition AbsolutePosition(SortedCaptures[CaptureIndex].TilePosition, SortedCaptures[CaptureIndex].RelativePosition);
-				const FSphere BoundingSphere(AbsolutePosition.GetAbsolute(), SortedCaptures[CaptureIndex].Radius);
+				const FSphere BoundingSphere(SortedCaptures[CaptureIndex].Position.GetVector3d(), SortedCaptures[CaptureIndex].Radius);
 
 				const float Distance = View.ViewMatrices.GetViewMatrix().TransformPosition(BoundingSphere.Center).Z + BoundingSphere.W;
 

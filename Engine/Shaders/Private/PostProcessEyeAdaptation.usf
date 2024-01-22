@@ -560,7 +560,7 @@ void CalculateExposureIlluminance(uint2 ThreadId : SV_DispatchThreadID)
 			if (IsLumenTranslucencyGIEnabled())
 			{
 				// Lumen Dynamic GI + shadowed Skylight
-				FLWCVector3 TranslucencyEvaluationPosition = LWCSubtract(TranslucencyEvaluationTranslatedPosition, PrimaryView.PreViewTranslation);
+				FDFVector3 TranslucencyEvaluationPosition = DFFastSubtract(TranslucencyEvaluationTranslatedPosition, PrimaryView.PreViewTranslation);
 
 				FTwoBandSHVectorRGB TranslucencyGISH = GetTranslucencyGIVolumeLighting(TranslucencyEvaluationPosition, PrimaryView.WorldToClip, true);
 

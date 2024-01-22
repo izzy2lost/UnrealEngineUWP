@@ -14047,7 +14047,7 @@ void UMaterialExpressionCustom::Serialize(FStructuredArchive::FRecord Record)
 	if (UnderlyingArchive.UEVer() < VER_UE4_INSTANCED_STEREO_UNIFORM_UPDATE)
 	{
 		// Look for WorldPosition rename
-		if (Code.ReplaceInline(TEXT("Parameters.WorldPosition"), TEXT("Parameters.AbsoluteWorldPosition"), ESearchCase::CaseSensitive) > 0)
+		if (Code.ReplaceInline(TEXT("Parameters.WorldPosition"), TEXT("Parameters.AbsoluteWorldPosition"), ESearchCase::CaseSensitive) > 0) //DF_TODO
 		{
 			bDidUpdate = true;
 		}
@@ -14183,7 +14183,7 @@ void UMaterialExpressionCustom::Serialize(FStructuredArchive::FRecord Record)
 		for (const TCHAR* Member : UniformMembers)
 		{
 			const FString ViewSearchString = FString(TEXT("View.")) + Member;
-			const FString ReplaceString = FString(TEXT("LWCToFloat(ResolvedView.")) + Member + FString(TEXT(")"));
+			const FString ReplaceString = FString(TEXT("DFDemote(ResolvedView.")) + Member + FString(TEXT(")"));
 
 			if (Code.ReplaceInline(*ViewSearchString, *ReplaceString, ESearchCase::CaseSensitive) > 0)
 			{
@@ -14191,18 +14191,18 @@ void UMaterialExpressionCustom::Serialize(FStructuredArchive::FRecord Record)
 			}
 		}
 
-		// We really want to replace all instances of 'View.Member' and 'ResolvedView.Member' with 'LWCToFloat(ResolvedView.Member)'
-		// But since this is just dumb string processing and we're not really attempting to parse HLSL, replacing 'View.Member' will also match 'ResolvedVIEW.Member', and turn it into 'ResolvedLWCToFloat(ResolvedView.Member)'
-		// So we just allow that to happen, and then fix up any instances of 'ResolvedLWCToFloat' here
+		// We really want to replace all instances of 'View.Member' and 'ResolvedView.Member' with 'DFDemote(ResolvedView.Member)'
+		// But since this is just dumb string processing and we're not really attempting to parse HLSL, replacing 'View.Member' will also match 'ResolvedVIEW.Member', and turn it into 'ResolvedDFDemote(ResolvedView.Member)'
+		// So we just allow that to happen, and then fix up any instances of 'ResolvedDFDemote' here
 		// This is admittedly pretty ugly...if this gets any worse probably need to just add a real HLSL parser here
-		if (Code.ReplaceInline(TEXT("ResolvedLWCToFloat(ResolvedView."), TEXT("LWCToFloat(ResolvedView."), ESearchCase::CaseSensitive) > 0)
+		if (Code.ReplaceInline(TEXT("ResolvedDFDemote(ResolvedView."), TEXT("DFDemote(ResolvedView."), ESearchCase::CaseSensitive) > 0)
 		{
 			bDidUpdate = true;
 		}
 
 		for (const TCHAR* Expression : GlobalExpressions)
 		{
-			const FString ReplaceString = FString::Printf(TEXT("LWCToFloat(%s)"), Expression);
+			const FString ReplaceString = FString::Printf(TEXT("DFDemote(%s)"), Expression);
 			if (Code.ReplaceInline(Expression, *ReplaceString, ESearchCase::CaseSensitive) > 0)
 			{
 				bDidUpdate = true;

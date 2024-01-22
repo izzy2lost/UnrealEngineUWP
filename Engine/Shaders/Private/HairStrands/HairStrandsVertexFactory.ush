@@ -317,7 +317,7 @@ FMaterialPixelParameters GetMaterialPixelParameters(FVertexFactoryInterpolantsVS
 
 half3x3 CalcTangentToWorldNoScale(FPrimitiveSceneData SceneData, half3x3 TangentToLocal)
 {
-	half3x3 LocalToWorld = LWCToFloat3x3(SceneData.LocalToWorld);
+	half3x3 LocalToWorld = DFToFloat3x3(SceneData.LocalToWorld);
 	half3 InvScale = SceneData.InvNonUniformScale;
 	LocalToWorld[0] *= InvScale.x;
 	LocalToWorld[1] *= InvScale.y;
@@ -338,12 +338,15 @@ FMaterialVertexParameters GetMaterialVertexParameters(FVertexFactoryInput Input,
 	Result.PrevFrameLocalToWorld = Intermediates.SceneData.Primitive.PreviousLocalToWorld;
 	Result.PreSkinnedPosition = GetVertexPreviousPosition(Input);
 	Result.PreSkinnedNormal = TangentToLocal[2];
+
+	Result.LWCData = MakeMaterialLWCData(Result);
+
 	return Result;
 }
 
-float4 CalcWorldPosition(float3 Position, FLWCMatrix LocalToWorld)
+float4 CalcWorldPosition(float3 Position, FDFMatrix LocalToWorld)
 {
-	return TransformLocalToTranslatedWorld(Position, LocalToWorld);
+	return DFTransformLocalToTranslatedWorld(Position, LocalToWorld, ResolvedView.PreViewTranslation);
 }
 
 half3x3 CalcTangentToLocal(uint VertexIndex, inout float TangentSign)
@@ -577,7 +580,7 @@ FMaterialPixelParameters GetMaterialPixelParameters(float3 RayOrigin, float3 Ray
 		float4 B = float4(P1.Position, P1.WorldRadius);
 		float4 C = lerp(A, B, UCoord);
 		// approximate position along the width of the ribbon
-		float3 WorldC = LWCToFloat(TransformLocalToWorld(C.xyz, SceneData.Primitive.LocalToWorld));
+		float3 WorldC = DFDemote(TransformLocalToWorld(C.xyz, SceneData.Primitive.LocalToWorld));
 		float3 rd = RayDirection;
 		float3 cp = WorldC - RayOrigin;
 		float t = dot(cp, rd) / dot(rd, rd);
@@ -585,7 +588,7 @@ FMaterialPixelParameters GetMaterialPixelParameters(float3 RayOrigin, float3 Ray
 		float d2 = length2(dp);
 		float v = saturate(sqrt(d2 / Pow2(C.w))); // TODO: account for scale of radius
 		// figure out sign of v
-		float3 WorldU = LWCToFloat(TransformLocalToWorld(B.xyz - A.xyz, SceneData.Primitive.LocalToWorld));
+		float3 WorldU = DFDemote(TransformLocalToWorld(B.xyz - A.xyz, SceneData.Primitive.LocalToWorld));
 		VCoord = v * sign(dot(dp, cross(RayDirection, WorldU)));
 		VCoord = 0.5 * VCoord + 0.5;
 	}
@@ -795,17 +798,14 @@ float4 VertexFactoryGetWorldPositionRaw(FVertexFactoryInput Input, FVertexFactor
 // @return previous translated world position
 float4 VertexFactoryGetPreviousWorldPosition(FVertexFactoryInput Input, FVertexFactoryIntermediates Intermediates, bool bInvalidJointVertex = true)
 {
-	float4x4 PreviousLocalToWorldTranslated = LWCMultiplyTranslation(Intermediates.SceneData.Primitive.PreviousLocalToWorld, ResolvedView.PrevPreViewTranslation);
-
-
 	const float3 VertexPosition = GetVertexPreviousPosition(Input, bInvalidJointVertex);
-	return mul(float4(VertexPosition,1), PreviousLocalToWorldTranslated);
+	return DFTransformLocalToTranslatedWorld(VertexPosition, Intermediates.SceneData.Primitive.PreviousLocalToWorld, ResolvedView.PrevPreViewTranslation);
 }
 
 float4 VertexFactoryGetTranslatedPrimitiveVolumeBounds(FVertexFactoryInterpolantsVSToPS Interpolants)
 {
 	FPrimitiveSceneData PrimitiveData = GetPrimitiveData(GetPrimitiveId(Interpolants));
-	return float4(LWCToFloat(LWCAdd(PrimitiveData.ObjectWorldPosition, ResolvedView.PreViewTranslation)), PrimitiveData.ObjectRadius);
+	return float4(DFFastToTranslatedWorld(PrimitiveData.ObjectWorldPosition, ResolvedView.PreViewTranslation), PrimitiveData.ObjectRadius);
 }
 
 uint VertexFactoryGetPrimitiveId(FVertexFactoryInterpolantsVSToPS Interpolants)

@@ -1198,14 +1198,12 @@ bool FSceneRenderState::SetupRayTracingScene(FRDGBuilder& GraphBuilder, FSceneUn
 					}
 				});
 
-			const FLargeWorldRenderPosition AbsoluteViewOrigin(View.ViewMatrices.GetViewOrigin());
-			const FVector ViewTileOffset = AbsoluteViewOrigin.GetTileOffset();
+			const FDFVector3 PreViewTranslation { View.ViewMatrices.GetPreViewTranslation() };
 
 			BuildRayTracingInstanceBuffer(
 				RHICmdList,
 				nullptr,
-				AbsoluteViewOrigin.GetTile(),
-				FVector3f(View.ViewMatrices.GetPreViewTranslation() + ViewTileOffset),
+				PreViewTranslation,
 				InstanceBuffer.UAV,
 				InstanceUploadSRV,
 				AccelerationStructureAddressesBuffer.SRV,

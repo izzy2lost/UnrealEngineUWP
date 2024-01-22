@@ -19,7 +19,7 @@ uint GetProbeTraceCostBudget()
 // Note: should match GenerateProbeTraceTilesCS as closely as possible
 uint GetProbeTraceCost(float3 ProbeWorldPosition)
 {
-	float CameraDistance = GetDistanceToCameraFromViewVector(LWCHackToFloat(PrimaryView.WorldCameraOrigin) - ProbeWorldPosition);
+	float CameraDistance = GetDistanceToCameraFromViewVector(DFHackToFloat(PrimaryView.WorldCameraOrigin) - ProbeWorldPosition);
 	float DistanceFromCameraSq = CameraDistance * CameraDistance;
 
 	if (DistanceFromCameraSq < SupersampleDistanceFromCameraSq)

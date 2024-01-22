@@ -69,7 +69,7 @@ void ReflectionTraceScreenTexturesCS(
 		if (SceneDepth > 0.0f)
 		{
 			float3 TranslatedWorldPosition = GetTranslatedWorldPositionFromScreenUV(ScreenUV, SceneDepth);
-			float3 WorldPosition = TranslatedWorldPosition - LWCHackToFloat(PrimaryView.PreViewTranslation);
+			float3 WorldPosition = TranslatedWorldPosition - DFHackToFloat(PrimaryView.PreViewTranslation);
 			FRayData RayData = GetRayData(ReflectionTracingCoord.CoordFlatten);
 
 			float3 TranslatedRayOrigin = TranslatedWorldPosition;
@@ -630,7 +630,7 @@ void TraceMeshSDFs(FReflectionTracingCoord ReflectionTracingCoord, float TraceHi
 	float Transparency = TraceResult.Transparency;
 	float OpaqueHitDistance = TraceResult.OpaqueHitDistance;
 
-	float DistanceFromViewpoint = length(LWCHackToFloat(PrimaryView.WorldCameraOrigin) - WorldPosition);
+	float DistanceFromViewpoint = length(DFHackToFloat(PrimaryView.WorldCameraOrigin) - WorldPosition);
 	float DistanceFade = saturate(4 * DistanceFromViewpoint / CardTraceEndDistanceFromCamera - 3);
 	DistanceFade = max(DistanceFade, saturate((OpaqueHitDistance - MaxMeshSDFTraceDistance * .7f) / (MaxMeshSDFTraceDistance * .3f)));
 

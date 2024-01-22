@@ -9,6 +9,7 @@
 
 class FGPUScene;
 struct FRayTracingCullingParameters;
+struct FDFVector3;
 
 /*
 * 
@@ -87,8 +88,7 @@ RENDERER_API void FillRayTracingInstanceUploadBuffer(
 RENDERER_API void BuildRayTracingInstanceBuffer(
 	FRHICommandList& RHICmdList,
 	const FGPUScene* GPUScene,
-	FVector3f ViewTilePosition,
-	FVector3f RelativePreViewTranslation,
+	const FDFVector3& PreViewTranslation,
 	FUnorderedAccessViewRHIRef InstancesUAV,
 	FShaderResourceViewRHIRef InstanceUploadSRV,
 	FShaderResourceViewRHIRef AccelerationStructureAddressesSRV,

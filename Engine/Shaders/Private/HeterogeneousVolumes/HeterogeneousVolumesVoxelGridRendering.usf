@@ -120,7 +120,7 @@ FTrackingResult DivideTrackingResult(FTrackingResult Value, int SPP)
 
 float3 GetTranslatedWorldPos(float3 WorldPos)
 {
-	float3 TranslatedWorldPos = LWCHackToFloat(LWCAdd(WorldPos, PrimaryView.PreViewTranslation));
+	float3 TranslatedWorldPos = DFFastToTranslatedWorld(WorldPos, PrimaryView.PreViewTranslation);
 	return TranslatedWorldPos;
 }
 
@@ -753,8 +753,8 @@ void RenderTransmittanceWithVoxelGridCS(
 		FrustumRayTMin += RayTOffset;
 		FrustumRayTMax += RayTOffset;
 #else
-		float3 WorldRayOrigin = LWCHackToFloat(SvPositionToWorld(float4(PixelCoord + 0.5, DeviceNearZ, 1)));
-		float3 WorldRayEnd = LWCHackToFloat(SvPositionToWorld(float4(PixelCoord + 0.5, DeviceFarZ, 1)));
+		float3 WorldRayOrigin = DFHackToFloat(SvPositionToWorld(float4(PixelCoord + 0.5, DeviceNearZ, 1)));
+		float3 WorldRayEnd = DFHackToFloat(SvPositionToWorld(float4(PixelCoord + 0.5, DeviceFarZ, 1)));
 		float3 WorldRayDirection = WorldRayEnd - WorldRayOrigin;
 		float WorldRayLength = length(WorldRayDirection);
 		WorldRayDirection /= WorldRayLength;

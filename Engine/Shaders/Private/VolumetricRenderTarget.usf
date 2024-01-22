@@ -336,8 +336,8 @@ void ReconstructVolumetricRenderTargetPS(
 				int2 NeightboorsOffset[8] = { int2(1,0), int2(1,1), int2(0,1), int2(-1,1), int2(-1,0), int2(-1,-1), int2(0,-1), int2(1,-1)};
 
 				const float ReconstructDepthZ = HalfResDepthTexture.Load(int3(SVPos.xy + ViewViewRectMin, 0)).r;
-				const float3 WorldPosition = LWCHackToFloat(SvPositionToWorld(float4(CenterSample, ReconstructDepthZ, 1.0)));
-				const float PixelDistanceFromViewKm = length(WorldPosition - LWCHackToFloat(PrimaryView.WorldCameraOrigin)) * CENTIMETER_TO_KILOMETER;
+				const float3 WorldPosition = DFHackToFloat(SvPositionToWorld(float4(CenterSample, ReconstructDepthZ, 1.0)));
+				const float PixelDistanceFromViewKm = length(WorldPosition - DFHackToFloat(PrimaryView.WorldCameraOrigin)) * CENTIMETER_TO_KILOMETER;
 
 				RGBA = HistoryRGBA;
 				DepthData = HistoryDepthData;
@@ -587,10 +587,10 @@ void ComposeVolumetricRTOverScenePS(
 
 	float PixelLinearDepth = ConvertFromDeviceZ(WaterLinearDepthTexture.SampleLevel(WaterLinearDepthSampler, WaterDepthScreenUV, 0).r);
 
-	float3 WorldPosition = LWCHackToFloat(SvPositionToWorld(float4(SVPos.xy, 0.5, 1.0)));
-	WorldPosition = normalize(WorldPosition - LWCHackToFloat(PrimaryView.WorldCameraOrigin)) * PixelLinearDepth + LWCHackToFloat(PrimaryView.WorldCameraOrigin);
+	float3 WorldPosition = DFHackToFloat(SvPositionToWorld(float4(SVPos.xy, 0.5, 1.0)));
+	WorldPosition = normalize(WorldPosition - DFHackToFloat(PrimaryView.WorldCameraOrigin)) * PixelLinearDepth + DFHackToFloat(PrimaryView.WorldCameraOrigin);
 
-	float4 ClipPosition = mul(float4(WorldPosition,1.0), LWCHackToFloat(PrimaryView.WorldToClip));
+	float4 ClipPosition = mul(float4(WorldPosition,1.0), DFHackToFloat(PrimaryView.WorldToClip));
 	ClipPosition /= ClipPosition.w;
 	float PixelDeviceZ = ClipPosition.z;
 

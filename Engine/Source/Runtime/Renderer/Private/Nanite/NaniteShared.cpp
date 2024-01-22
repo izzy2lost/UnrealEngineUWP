@@ -109,44 +109,48 @@ FPackedView CreatePackedView( const FPackedViewParams& Params )
 	// Longer term it would be great to refactor a common place for both of this logic, but currently FSceneView has a lot of heavy-weight
 	// stuff in it beyond the relevant parameters to SetupViewRectUniformBufferParameters (and Nanite has a few of its own parameters too).
 
-	const FRelativeViewMatrices RelativeMatrices = FRelativeViewMatrices::Create(Params.ViewMatrices, Params.PrevViewMatrices);
-	const FLargeWorldRenderPosition AbsoluteViewOrigin(Params.ViewMatrices.GetViewOrigin());
-	const FVector ViewTileOffset = AbsoluteViewOrigin.GetTileOffset();
+	const FDFRelativeViewMatrices RelativeMatrices = FDFRelativeViewMatrices::Create(Params.ViewMatrices, Params.PrevViewMatrices);
+	const FDFVector3 AbsoluteViewOrigin(Params.ViewMatrices.GetViewOrigin());
+	const FVector ViewHigh(AbsoluteViewOrigin.High);
+	const FDFVector3 AbsolutePreViewTranslation(Params.ViewMatrices.GetPreViewTranslation()); // Usually equal to -AbsoluteViewOrigin, but there are some ortho edge cases
 
 	const FIntRect& ViewRect = Params.ViewRect;
 	const FVector4f ViewSizeAndInvSize(ViewRect.Width(), ViewRect.Height(), 1.0f / float(ViewRect.Width()), 1.0f / float(ViewRect.Height()));
 
 	const float NaniteMaxPixelsPerEdge = CVarNaniteMaxPixelsPerEdge.GetValueOnRenderThread() * Params.MaxPixelsPerEdgeMultipler;
 	const float NaniteMinPixelsPerEdgeHW = CVarNaniteMinPixelsPerEdgeHW.GetValueOnRenderThread();
-	const FVector3f ViewTilePosition = AbsoluteViewOrigin.GetTile();
+	
 	const FVector CullingViewOrigin = Params.bUseCullingViewOverrides ? Params.CullingViewOrigin : Params.ViewMatrices.GetViewOrigin();
 	// We bake the view lod scales into ScreenMultiple since the two things are always used together.
 	const float ViewDistanceLODScale = GetCachedScalabilityCVars().StaticMeshLODDistanceScale * Params.ViewLODDistanceFactor;
 	const float ScreenMultiple = FMath::Max(Params.ViewMatrices.GetProjectionMatrix().M[0][0], Params.ViewMatrices.GetProjectionMatrix().M[1][1]) / ViewDistanceLODScale;
 	const float CullingViewScreenMulitple = Params.bUseCullingViewOverrides && Params.CullingViewScreenMultiple > 0.f ? Params.CullingViewScreenMultiple : ScreenMultiple;
 
+	const FDFVector3 PrevPreViewTranslation(Params.PrevViewMatrices.GetPreViewTranslation());
+
 	FPackedView PackedView;
 	PackedView.TranslatedWorldToView		= FMatrix44f(Params.ViewMatrices.GetOverriddenTranslatedViewMatrix());	// LWC_TODO: Precision loss? (and below)
 	PackedView.TranslatedWorldToClip		= FMatrix44f(Params.ViewMatrices.GetTranslatedViewProjectionMatrix());
 	PackedView.ViewToClip					= RelativeMatrices.ViewToClip;
 	PackedView.ClipToRelativeWorld			= RelativeMatrices.ClipToRelativeWorld;
-	PackedView.RelativePreViewTranslation	= FVector3f(Params.ViewMatrices.GetPreViewTranslation() + ViewTileOffset);
-	PackedView.RelativeWorldCameraOrigin	= FVector3f(Params.ViewMatrices.GetViewOrigin() - ViewTileOffset);
+	PackedView.PreViewTranslationHigh		= AbsolutePreViewTranslation.High;
+	PackedView.PreViewTranslationLow		= AbsolutePreViewTranslation.Low;
+	PackedView.ViewOriginLow				= AbsoluteViewOrigin.Low;
 	PackedView.CullingViewOriginTranslatedWorld = FVector3f(CullingViewOrigin + Params.ViewMatrices.GetPreViewTranslation());
 	PackedView.ViewForward					= (FVector3f)Params.ViewMatrices.GetOverriddenTranslatedViewMatrix().GetColumn(2);
 	PackedView.NearPlane					= Params.ViewMatrices.ComputeNearPlane();
-	PackedView.ViewTilePositionX			= ViewTilePosition.X;
-	PackedView.ViewTilePositionY			= ViewTilePosition.Y;
-	PackedView.ViewTilePositionZ			= ViewTilePosition.Z;
+	PackedView.ViewOriginHighX				= AbsoluteViewOrigin.High.X;
+	PackedView.ViewOriginHighY				= AbsoluteViewOrigin.High.Y;
+	PackedView.ViewOriginHighZ				= AbsoluteViewOrigin.High.Z;
 	PackedView.RangeBasedCullingDistance	= Params.RangeBasedCullingDistance;
-	PackedView.MatrixTilePosition			= RelativeMatrices.TilePosition;
 	PackedView.CullingViewScreenMultiple	= CullingViewScreenMulitple;
 
-	PackedView.PrevTranslatedWorldToView		= FMatrix44f(Params.PrevViewMatrices.GetOverriddenTranslatedViewMatrix()); // LWC_TODO: Precision loss? (and below)
-	PackedView.PrevTranslatedWorldToClip		= FMatrix44f(Params.PrevViewMatrices.GetTranslatedViewProjectionMatrix());
-	PackedView.PrevViewToClip					= FMatrix44f(Params.PrevViewMatrices.GetProjectionMatrix());
-	PackedView.PrevClipToRelativeWorld			= RelativeMatrices.PrevClipToRelativeWorld;
-	PackedView.RelativePrevPreViewTranslation	= FVector3f(Params.PrevViewMatrices.GetPreViewTranslation() + ViewTileOffset);
+	PackedView.PrevTranslatedWorldToView	= FMatrix44f(Params.PrevViewMatrices.GetOverriddenTranslatedViewMatrix()); // LWC_TODO: Precision loss? (and below)
+	PackedView.PrevTranslatedWorldToClip	= FMatrix44f(Params.PrevViewMatrices.GetTranslatedViewProjectionMatrix());
+	PackedView.PrevViewToClip				= FMatrix44f(Params.PrevViewMatrices.GetProjectionMatrix());
+	PackedView.PrevClipToRelativeWorld		= RelativeMatrices.PrevClipToRelativeWorld;
+	PackedView.PrevPreViewTranslationHigh	= PrevPreViewTranslation.High;
+	PackedView.PrevPreViewTranslationLow	= PrevPreViewTranslation.Low;
 
 	PackedView.ViewRect = FIntVector4(ViewRect.Min.X, ViewRect.Min.Y, ViewRect.Max.X, ViewRect.Max.Y);
 	PackedView.ViewSizeAndInvSize = ViewSizeAndInvSize;

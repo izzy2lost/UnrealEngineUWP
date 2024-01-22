@@ -12,16 +12,18 @@ VirtualShadowMapProjectionCommon.ush:
 
 #define VIRTUAL_SHADOW_MAP_MIN_OCCLUDER_DISTANCE 1e-6f
 
-float CalcAbsoluteClipmapLevel(FVirtualShadowMapProjectionShaderData BaseProjectionData, FLWCVector3 WorldPosition)
+float CalcAbsoluteClipmapLevel(FVirtualShadowMapProjectionShaderData BaseProjectionData, float3 TranslatedWorldPosition)
 {
-	float DistanceToClipmapOrigin = length(LWCToFloat(LWCSubtract(WorldPosition, BaseProjectionData.ClipmapWorldOrigin)));
+	float3 ViewToShadowTranslation = DFFastLocalSubtractDemote(BaseProjectionData.PreViewTranslation, PrimaryView.PreViewTranslation);
+	float3 TranslatedWorldOrigin = -BaseProjectionData.ClipmapWorldOriginOffset + ViewToShadowTranslation;
+	float DistanceToClipmapOrigin = length(TranslatedWorldPosition + TranslatedWorldOrigin);
 	return log2(DistanceToClipmapOrigin);
 }
 
 // Optionally apply the resolution bias (rather than greedy sampling highest res data) depending on the global setting
-float CalcBiasedAbsoluteClipmapLevelForSampling(FVirtualShadowMapProjectionShaderData BaseProjectionData, FLWCVector3 WorldPosition)
+float CalcBiasedAbsoluteClipmapLevelForSampling(FVirtualShadowMapProjectionShaderData BaseProjectionData, float3 TranslatedWorldPosition)
 {
-	float AbsoluteLevel = CalcAbsoluteClipmapLevel(BaseProjectionData, WorldPosition);
+	float AbsoluteLevel = CalcAbsoluteClipmapLevel(BaseProjectionData, TranslatedWorldPosition);
 	AbsoluteLevel += VirtualShadowMap.bClipmapGreedyLevelSelection ? 0.0f : BaseProjectionData.ResolutionLodBias;
 	return AbsoluteLevel;
 }
@@ -341,7 +343,7 @@ FVirtualShadowMapSampleResult InitVirtualShadowMapSampleResult()
 * Sample virtual shadow (clip)map for a directional light
 *
 * VirtualShadowMapId is the ID of the virtual shadow map to sample
-* WorldPosition is the sample position in world space to project into the shadow map
+* TranslatedWorldPosition is the sample position in PrimaryViews translated world space to project into the shadow map
 * RayStartDistance is an optional offset to move the lookup along the shadow ray towards the light
 *   - Should be zero or positive
 *   - This offset is useful in that it does *not* affect the selection of clipmap level, unlike offsetting the WorldPosition itself
@@ -352,7 +354,7 @@ FVirtualShadowMapSampleResult InitVirtualShadowMapSampleResult()
 */
 FVirtualShadowMapSampleResult SampleVirtualShadowMapDirectional(
 	int VirtualShadowMapId,
-	FLWCVector3 WorldPosition,
+	float3 TranslatedWorldPosition,
 	float RayStartDistance,
 	float3 EstimatedGeoWorldNormal,
 	bool bUseOptimalBias = true)
@@ -362,7 +364,7 @@ FVirtualShadowMapSampleResult SampleVirtualShadowMapDirectional(
 	FVirtualShadowMapProjectionShaderData BaseProjectionData = GetVirtualShadowMapProjectionData(VirtualShadowMapId);
 	checkSlow(BaseProjectionData.LightType == LIGHT_TYPE_DIRECTIONAL);
 	
-	const int ClipmapLevel = int(floor(CalcBiasedAbsoluteClipmapLevelForSampling(BaseProjectionData, WorldPosition)));
+	const int ClipmapLevel = int(floor(CalcBiasedAbsoluteClipmapLevelForSampling(BaseProjectionData, TranslatedWorldPosition)));
 	int ClipmapIndex = max(0, ClipmapLevel - BaseProjectionData.ClipmapLevel);
 
 	// Check if sample is within the clipmap range (from camera)
@@ -372,7 +374,8 @@ FVirtualShadowMapSampleResult SampleVirtualShadowMapDirectional(
 		FVirtualShadowMapProjectionShaderData ProjectionData = GetVirtualShadowMapProjectionData(ClipmapLevelVirtualShadowMapId);
 
 		// No perspective divided needed for ortho projection
-		float3 ShadowTranslatedWorldPosition = LWCToFloat(LWCAdd(WorldPosition, ProjectionData.PreViewTranslation));
+		float3 ViewToShadowTranslation = DFFastLocalSubtractDemote(ProjectionData.PreViewTranslation, PrimaryView.PreViewTranslation);
+		float3 ShadowTranslatedWorldPosition = TranslatedWorldPosition + ViewToShadowTranslation;
 		float4 ShadowUVz = mul(float4(ShadowTranslatedWorldPosition, 1.0f), ProjectionData.TranslatedWorldToShadowUVMatrix);
 
 		FVirtualShadowMapSample SmSample;
@@ -426,7 +429,7 @@ FVirtualShadowMapSampleResult SampleVirtualShadowMapDirectional(
 */
 FVirtualShadowMapSampleResult SampleVirtualShadowMapLocal(
 	int VirtualShadowMapId,
-	FLWCVector3 WorldPosition,
+	float3 TranslatedWorldPosition,
 	float RayStartDistance,
 	float3 EstimatedGeoWorldNormal,
 	bool bUseOptimalBias = true)
@@ -434,7 +437,8 @@ FVirtualShadowMapSampleResult SampleVirtualShadowMapLocal(
 	RayStartDistance = max(RayStartDistance, 0.0f);
 
 	FVirtualShadowMapProjectionShaderData ProjectionData = GetVirtualShadowMapProjectionData(VirtualShadowMapId);
-	float3 ShadowTranslatedWorldPosition = LWCToFloat(LWCAdd(WorldPosition, ProjectionData.PreViewTranslation));
+	float3 ViewToShadowTranslation = DFFastLocalSubtractDemote(ProjectionData.PreViewTranslation, PrimaryView.PreViewTranslation);
+	float3 ShadowTranslatedWorldPosition = TranslatedWorldPosition + ViewToShadowTranslation;
 
 	if (ProjectionData.LightType != LIGHT_TYPE_SPOT)
 	{
@@ -493,13 +497,11 @@ FVirtualShadowMapSampleResult SampleVirtualShadowMapLocal(
 // Sample in PrimaryView translated world space with no optimal bias
 FVirtualShadowMapSampleResult SampleVirtualShadowMapDirectional(int VirtualShadowMapId, float3 TranslatedWorldPosition, float RayStartDistance = 0.0f)
 {
-	FLWCVector3 WorldPosition = LWCSubtract(TranslatedWorldPosition, PrimaryView.PreViewTranslation);
-	return SampleVirtualShadowMapDirectional(VirtualShadowMapId, WorldPosition, RayStartDistance, float3(0, 0, 0), false);
+	return SampleVirtualShadowMapDirectional(VirtualShadowMapId, TranslatedWorldPosition, RayStartDistance, float3(0, 0, 0), false);
 }
 FVirtualShadowMapSampleResult SampleVirtualShadowMapLocal(int VirtualShadowMapId, float3 TranslatedWorldPosition, float RayStartDistance = 0.0f)
 {
-	FLWCVector3 WorldPosition = LWCSubtract(TranslatedWorldPosition, PrimaryView.PreViewTranslation);
-	return SampleVirtualShadowMapLocal(VirtualShadowMapId, WorldPosition, RayStartDistance, float3(0, 0, 0), false);
+	return SampleVirtualShadowMapLocal(VirtualShadowMapId, TranslatedWorldPosition, RayStartDistance, float3(0, 0, 0), false);
 }
 /**
 * Sample a virtual shadow map for an unknown light type with no optimal bias.

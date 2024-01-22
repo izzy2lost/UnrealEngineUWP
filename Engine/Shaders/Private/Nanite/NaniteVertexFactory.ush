@@ -241,6 +241,8 @@ void SetVertexParameterAttributeData(inout FMaterialVertexParameters VertexParam
 		VertexParameters.TexCoords[TexCoordIndex] = Vert.RawAttributeData.TexCoords[min(TexCoordIndex, NANITE_MAX_UVS - 1)];
 	}
 #endif
+
+	VertexParameters.LWCData = MakeMaterialLWCData(VertexParameters);
 }
 
 // Group of transforms needed to transform a Nanite vertex
@@ -296,11 +298,11 @@ FNaniteVertTransforms CalculateNaniteVertexTransforms(FInstanceSceneData Instanc
 	PrevLocalToWorldNoScale[1] *= InvNonUniformScale.y;
 	PrevLocalToWorldNoScale[2] *= InvNonUniformScale.z;
 
-	float3x3 WorldToLocalVector = LWCToFloat3x3(InstanceData.WorldToLocal);
+	float3x3 WorldToLocalVector = DFToFloat3x3(InstanceData.WorldToLocal);
 	
 	// TODO: We need PrevWorldToLocal here, but we don't have it
 	const float3 SqInvNonUniformScale = Pow2(InvNonUniformScale);
-	float3x3 PrevWorldToLocalVector = LWCToFloat3x3(InstanceData.PrevLocalToWorld);
+	float3x3 PrevWorldToLocalVector = DFToFloat3x3(InstanceData.PrevLocalToWorld);
 	PrevWorldToLocalVector[0] *= SqInvNonUniformScale.x;
 	PrevWorldToLocalVector[1] *= SqInvNonUniformScale.y;
 	PrevWorldToLocalVector[2] *= SqInvNonUniformScale.z;
@@ -779,7 +781,7 @@ FMaterialPixelParameters FetchNaniteMaterialPixelParameters(FNaniteView NaniteVi
 			const float2 PixelClip = (SvPosition.xy - NaniteView.ViewRect.xy) * NaniteView.ViewSizeAndInvSize.zw * float2(2, -2) + float2(-1, 1);
 
 		#if USES_DISPLACEMENT
-			float4x4 TranslatedWorldToLocal = LWCMultiplyTranslation( LWCNegate( NaniteView.PreViewTranslation ), InstanceData.WorldToLocal );
+			float4x4 TranslatedWorldToLocal = DFFastToTranslatedWorld( InstanceData.WorldToLocal, NaniteView.PreViewTranslation );
 			
 			float4 PixelTranslatedWorld		= mul( SvPosition,		NaniteView.SVPositionToTranslatedWorld );
 			float4 PixelTranslatedWorld_dx	= mul( float4(1,0,0,0),	NaniteView.SVPositionToTranslatedWorld );

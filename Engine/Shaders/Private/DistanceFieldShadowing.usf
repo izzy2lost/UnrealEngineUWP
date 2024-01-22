@@ -103,7 +103,7 @@ void CullObjectsForShadowCS(
 	{
 #if (DISTANCEFIELD_PRIMITIVE_TYPE == DFPT_SignedDistanceField)
 		const FDFObjectBounds DFObjectBounds = LoadDFObjectBounds(ObjectIndex);
-		const float3 TranslatedCenter = LWCToFloat(LWCAdd(DFObjectBounds.Center, PrimaryView.PreViewTranslation));
+		const float3 TranslatedCenter = DFFastToTranslatedWorld(DFObjectBounds.Center, PrimaryView.PreViewTranslation);
 
 		const float3 CenterToShadowBoundingSphere = ShadowBoundingSphere.xyz - TranslatedCenter;
 		const bool bConvexHullIntersect = ShadowBoundingSphere.w == 0 && ShadowConvexHullIntersectSphere(TranslatedCenter, DFObjectBounds.SphereRadius);
@@ -116,7 +116,7 @@ void CullObjectsForShadowCS(
 			FDFObjectData DFObjectData = LoadDFObjectData(ObjectIndex);
 
 			// Assume ObjectBoundingSphere is located at (0, 0, 0) in local space
-			const float3 TranslatedWorldViewOrigin = LWCToFloat(LWCAdd(PrimaryView.WorldViewOrigin, PrimaryView.PreViewTranslation));
+			const float3 TranslatedWorldViewOrigin = DFFastToTranslatedWorld(PrimaryView.WorldViewOrigin, PrimaryView.PreViewTranslation);
 			float ViewDist2 = length2(TranslatedCenter - TranslatedWorldViewOrigin);
 
             if ((DFObjectData.MinMaxDrawDistance2.x < 0.0001 || ViewDist2 > DFObjectData.MinMaxDrawDistance2.x)
@@ -129,7 +129,7 @@ void CullObjectsForShadowCS(
         }
 #else
 		FHeightfieldObjectBounds Bounds = LoadHeightfieldObjectBounds(ObjectIndex);
-		const float3 TranslatedBoxOrigin = LWCToFloat(LWCAdd(Bounds.BoxOrigin, PrimaryView.PreViewTranslation));
+		const float3 TranslatedBoxOrigin = DFFastToTranslatedWorld(Bounds.BoxOrigin, PrimaryView.PreViewTranslation);
 		if ((Bounds.bInAtlas || !bCullHeighfieldsNotInAtlas) && ShadowConvexHullIntersectBox(TranslatedBoxOrigin, Bounds.BoxExtent))
 		{
 			uint DestIndex;
@@ -228,7 +228,7 @@ void ShadowObjectCullVS(
 
 #if (DISTANCEFIELD_PRIMITIVE_TYPE == DFPT_SignedDistanceField)
 	FDFObjectData DFObjectData = LoadDFObjectData(ObjectIndex);
-	float4x4 ObjectOBBToTranslatedWorld = LWCMultiplyTranslation(DFObjectData.VolumeToWorld, PrimaryView.PreViewTranslation);
+	float4x4 ObjectOBBToTranslatedWorld = DFFastToTranslatedWorld(DFObjectData.VolumeToWorld, PrimaryView.PreViewTranslation);
 
 	float ObjectScaleX = (1.0f + MinExpandRadius / length(ObjectOBBToTranslatedWorld[0].xyz));
 	float ObjectScaleY = (1.0f + MinExpandRadius / length(ObjectOBBToTranslatedWorld[1].xyz));
@@ -243,7 +243,7 @@ void ShadowObjectCullVS(
 #else
 
 	FHeightfieldObjectBounds Bounds = LoadHeightfieldObjectBounds(ObjectIndex);
-	float3 BoxTranslatedOrigin = LWCToFloat(LWCAdd(Bounds.BoxOrigin, PrimaryView.PreViewTranslation));
+	float3 BoxTranslatedOrigin = DFFastToTranslatedWorld(Bounds.BoxOrigin, PrimaryView.PreViewTranslation);
 	float3 BoxExtent = Bounds.BoxExtent;
 
 	BoxExtent += MinExpandRadius;
@@ -305,11 +305,10 @@ FObjectViewSpaceBox GetObjectViewSpaceBox(uint ObjectIndex)
 
 #if (DISTANCEFIELD_PRIMITIVE_TYPE == DFPT_SignedDistanceField)
 		FDFObjectData DFObjectData = LoadDFObjectData(ObjectIndex);
-		float4x4 VolumeToTranslatedWorld = LWCMultiplyTranslation(DFObjectData.VolumeToWorld, PrimaryView.PreViewTranslation);
-		float3 TranslatedWorldBoundsPosition = mul(float4(UnitBoxVertex * DFObjectData.VolumePositionExtent, 1.0f), VolumeToTranslatedWorld).xyz;
+		float3 TranslatedWorldBoundsPosition = DFTransformLocalToTranslatedWorld(UnitBoxVertex * DFObjectData.VolumePositionExtent, DFObjectData.VolumeToWorld, PrimaryView.PreViewTranslation);
 #else
 		FHeightfieldObjectBounds HeightfieldObjectBounds = LoadHeightfieldObjectBounds(ObjectIndex);
-		float3 TranslatedWorldBoundsPosition = UnitBoxVertex * HeightfieldObjectBounds.BoxExtent + LWCToFloat(LWCAdd(HeightfieldObjectBounds.BoxOrigin, PrimaryView.PreViewTranslation));
+		float3 TranslatedWorldBoundsPosition = UnitBoxVertex * HeightfieldObjectBounds.BoxExtent + DFFastToTranslatedWorld(HeightfieldObjectBounds.BoxOrigin, PrimaryView.PreViewTranslation);
 #endif
 
 		float3 ViewSpacePosition = mul(float4(TranslatedWorldBoundsPosition, 1.0f), TranslatedWorldToShadow).xyz;
@@ -558,7 +557,7 @@ void CullObjectsToTileWithGather(
 		{
 			const uint ObjectIndex = CulledObjectIndices[IndexInCulledList];
 			const FDFObjectBounds Bounds = LoadDFObjectBounds(ObjectIndex);
-			const float3 TranslatedBoundsCenter = LWCToFloat(LWCAdd(Bounds.Center, PrimaryView.PreViewTranslation));
+			const float3 TranslatedBoundsCenter = DFFastToTranslatedWorld(Bounds.Center, PrimaryView.PreViewTranslation);
 
 			BRANCH
 			if (RaySegmentHitSphere(TranslatedWorldGroup0Center, LightDirection0, RayLength0, TranslatedBoundsCenter, Bounds.SphereRadius + Group0BoundingRadius))

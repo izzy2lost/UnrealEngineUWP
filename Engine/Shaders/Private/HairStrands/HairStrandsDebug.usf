@@ -282,7 +282,7 @@ void MainCS(uint3 DispatchThreadId : SV_DispatchThreadID)
 		HairStrandsVF.TipScale).Position;
 
 	const float3 P_World = mul(float4(P_Local, 1), LocalToWorld).xyz;
-	float4 SamplePosition = float4(P_World + LWCHackToFloat(PrimaryView.PreViewTranslation), 1);
+	float4 SamplePosition = float4(P_World + DFHackToFloat(PrimaryView.PreViewTranslation), 1);
 	float4 ClipPosition = mul(SamplePosition, View.TranslatedWorldToClip);
 	float2 ScreenPosition = ClipPosition.xy / ClipPosition.w;
 	float2 ScreenUV = ScreenPosition * View.ScreenPositionScaleBias.xy + View.ScreenPositionScaleBias.wz;
@@ -1002,8 +1002,8 @@ void DrawInstanceAABB(uint PrimitiveId)
 	if (InstanceID != ~0)
 	{
 		FInstanceSceneData InstanceData = GetInstanceSceneData(InstanceID, Scene.GPUScene.InstanceDataSOAStride);
-		AddOBBWS(InstanceData.LocalBoundsCenter - InstanceData.LocalBoundsExtent, InstanceData.LocalBoundsCenter + InstanceData.LocalBoundsExtent, GetGPUSceneBoundColor(), LWCHackToFloat(InstanceData.LocalToWorld));
-		AddReferentialWS(LWCHackToFloat(InstanceData.LocalToWorld), 50.f);
+		AddOBBWS(InstanceData.LocalBoundsCenter - InstanceData.LocalBoundsExtent, InstanceData.LocalBoundsCenter + InstanceData.LocalBoundsExtent, GetGPUSceneBoundColor(), DFHackToFloat(InstanceData.LocalToWorld));
+		AddReferentialWS(DFHackToFloat(InstanceData.LocalToWorld), 50.f);
 	}
 }
 

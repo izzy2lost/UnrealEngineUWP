@@ -41,9 +41,9 @@ void WritePrimitiveDataUBO(RWStructuredBuffer<float4> Output, uint Offset, FPrim
 	}
 #endif
 
-	// TilePosition, Flags
+	// PositionHigh, Flags
 	{
-		WriteDataElementUBO(Output, Offset, DataIdx + 0, float4(LWCGetTile(PrimitiveData.LocalToWorld), asfloat(PrimitiveData.Flags)));
+		WriteDataElementUBO(Output, Offset, DataIdx + 0, float4(PrimitiveData.LocalToWorld.PostTranslation, asfloat(PrimitiveData.Flags)));
 		DataIdx += 1u;
 	}
 
@@ -64,14 +64,16 @@ void WritePrimitiveDataUBO(RWStructuredBuffer<float4> Output, uint Offset, FPrim
 
 	// ObjectWorldPosition, Radius
 	{
-		WriteDataElementUBO(Output, Offset, DataIdx + 0, float4(PrimitiveData.ObjectWorldPosition.Offset, PrimitiveData.ObjectRadius));
-		DataIdx += 1u;
+		WriteDataElementUBO(Output, Offset, DataIdx + 0, float4(PrimitiveData.ObjectWorldPosition.High, PrimitiveData.ObjectRadius));
+		WriteDataElementUBO(Output, Offset, DataIdx + 0, float4(PrimitiveData.ObjectWorldPosition.Low, 0));
+		DataIdx += 2u;
 	}
 
 	// ActorWorldPosition, TODO .w
 	{
-		WriteDataElementUBO(Output, Offset, DataIdx + 0, float4(PrimitiveData.ActorWorldPosition.Offset, 0.0));
-		DataIdx += 1u;
+		WriteDataElementUBO(Output, Offset, DataIdx + 0, float4(PrimitiveData.ActorWorldPosition.High, 0.0));
+		WriteDataElementUBO(Output, Offset, DataIdx + 0, float4(PrimitiveData.ActorWorldPosition.Low, 0.0));
+		DataIdx += 2u;
 	}
 
 	// ObjectOrientation, ObjectBoundsX
@@ -134,9 +136,9 @@ void WritePrimitiveDataUBO(RWStructuredBuffer<float4> Output, uint Offset, FPrim
 void WriteInstanceDataUBO(RWStructuredBuffer<float4> Output, uint Offset, uint InstanceId, FInstanceSceneData InstanceData, uint InstanceSceneDataSOAStride)
 {
 	uint DataIdx = 0;
-	// TilePosition, Flags
+	// PositionHigh, Flags
 	{
-		WriteDataElementUBO(Output, Offset, DataIdx + 0, float4(LWCGetTile(InstanceData.LocalToWorld), asfloat(InstanceData.Flags)));
+		WriteDataElementUBO(Output, Offset, DataIdx + 0, float4(InstanceData.LocalToWorld.PostTranslation, asfloat(InstanceData.Flags)));
 		DataIdx += 1u;
 	}
 	// LocalToWorld

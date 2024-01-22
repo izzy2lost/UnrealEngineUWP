@@ -289,7 +289,7 @@ RAY_TRACING_ENTRY_RAYGEN(LumenValidateReservoirsRGS)
 		float2 HistoryScreenUV = (SvPosition + 0.5f) * View.BufferSizeAndInvSize.zw;
 		float2 HistoryScreenPosition = (HistoryScreenUV - HistoryScreenPositionScaleBias.wz) / HistoryScreenPositionScaleBias.xy;
 		float3 HistoryTranslatedWorldPosition = GetPrevTranslatedWorldPosition(HistoryScreenPosition, HistorySceneDepth);
-		float3 HistoryWorldPosition = HistoryTranslatedWorldPosition - LWCHackToFloat(PrimaryView.PrevPreViewTranslation);
+		float3 HistoryWorldPosition = HistoryTranslatedWorldPosition - DFHackToFloat(PrimaryView.PrevPreViewTranslation);
 		float3 HistorySampleWorldNormal = DecodeNormal(DownsampledNormalHistory[HistoryReservoirCoord]);
 
 		float RayBias = 0.05f;
@@ -618,9 +618,9 @@ void TemporalResamplingCS(
 		float DisocclusionDistanceThreshold = HistoryDistanceThreshold * lerp(.5f, 1.5f, HistoryDistanceNoise);
 
 		float3 TranslatedWorldPosition = GetTranslatedWorldPositionFromScreenUV(ScreenUV, SceneDepth);
-		float3 WorldPosition = TranslatedWorldPosition - LWCHackToFloat(PrimaryView.PreViewTranslation).xyz;
+		float3 WorldPosition = TranslatedWorldPosition - DFHackToFloat(PrimaryView.PreViewTranslation).xyz;
 		float3 WorldNormal = DecodeNormal(DownsampledWorldNormal[ReservoirCoord]);
-		const float NormalViewSpaceZ = mul(float4(WorldNormal, 0), LWCHackToFloat(PrimaryView.TranslatedWorldToView)).z;
+		const float NormalViewSpaceZ = mul(float4(WorldNormal, 0), PrimaryView.TranslatedWorldToView).z;
 
 #define EXPAND_HISTORY_DISTANCE_THRESHOLD_FOR_JITTER 1
 #if EXPAND_HISTORY_DISTANCE_THRESHOLD_FOR_JITTER
@@ -676,7 +676,7 @@ void TemporalResamplingCS(
 					float2 HistorySampleSampleScreenUV = (HistorySampleSampleScreenCoord + View.ViewRectMinAndSize.xy + 0.5f) * View.BufferSizeAndInvSize.zw;
 					float3 HistorySampleTranslatedWorldPosition = GetTranslatedWorldPositionFromScreenUV(HistorySampleSampleScreenUV, HistorySampleSceneDepth);
 
-					float3 HistorySampleWorldPosition = HistorySampleTranslatedWorldPosition - LWCHackToFloat(PrimaryView.PreViewTranslation).xyz;
+					float3 HistorySampleWorldPosition = HistorySampleTranslatedWorldPosition - DFHackToFloat(PrimaryView.PreViewTranslation).xyz;
 
 					//@todo - causes fireflies
 					float Jacobian = 1;//CalculateJacobian(WorldPosition, HistorySampleWorldPosition, HistorySampleReservoir.Sample);
@@ -802,10 +802,10 @@ void SpatialResamplingCS(
 		uint2 SvPosition = ScreenCoord + View.ViewRectMinAndSize.xy;
 		float2 ScreenUV = (SvPosition + 0.5f) * View.BufferSizeAndInvSize.zw;
 		float3 TranslatedWorldPosition = GetTranslatedWorldPositionFromScreenUV(ScreenUV, SceneDepth);
-		float3 WorldPosition = TranslatedWorldPosition - LWCHackToFloat(PrimaryView.PreViewTranslation).xyz;
+		float3 WorldPosition = TranslatedWorldPosition - DFHackToFloat(PrimaryView.PreViewTranslation).xyz;
 
 		float3 WorldNormal = DecodeNormal(DownsampledWorldNormal[ReservoirCoord]);
-		const float NormalViewSpaceZ = mul(float4(WorldNormal, 0), LWCHackToFloat(PrimaryView.TranslatedWorldToView)).z;
+		const float NormalViewSpaceZ = mul(float4(WorldNormal, 0), PrimaryView.TranslatedWorldToView).z;
 		float4 ScenePlane = float4(WorldNormal, dot(TranslatedWorldPosition, WorldNormal));
 
 		float Noise = BlueNoiseScalar(ReservoirCoord, GENERAL_FRAME_INDEX);
@@ -856,7 +856,7 @@ void SpatialResamplingCS(
 
 				if (DepthError < ResamplingDepthErrorThreshold && NormalDot > ResamplingNormalDotThreshold)
 				{
-					float3 NeighborWorldPosition = SampleTranslatedWorldPosition - LWCHackToFloat(PrimaryView.PreViewTranslation).xyz;
+					float3 NeighborWorldPosition = SampleTranslatedWorldPosition - DFHackToFloat(PrimaryView.PreViewTranslation).xyz;
 					float Jacobian = CalculateJacobian(WorldPosition, NeighborWorldPosition, NeighborReservoir.Sample);
 
 					bool bNeighborHitVisible = true;

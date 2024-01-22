@@ -635,7 +635,7 @@ FOcclusionResult ComputeOcclusion(
 
 		// Fix light sampling to occur at the light center for all transmission computations..
 		float2 LightSample = 0.5;
-		const float3 TranslatedWorldViewOrigin = LWCToFloat(LWCAdd(PrimaryView.WorldViewOrigin, PrimaryView.PreViewTranslation));
+		const float3 TranslatedWorldViewOrigin = DFFastToTranslatedWorld(PrimaryView.WorldViewOrigin, PrimaryView.PreViewTranslation);
 		const float3 V = normalize(TranslatedWorldPosition - TranslatedWorldViewOrigin);
 
 		// Apply sqrt to match the behavior of the rasterizer closer visually when ExtinctionScale <=1.

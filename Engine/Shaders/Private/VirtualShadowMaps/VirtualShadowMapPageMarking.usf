@@ -37,9 +37,9 @@ uint bCullBackfacingPixels;
 uint NumDirectionalLightSmInds;
 uint MipModeLocal;
 
-int GetBiasedClipmapLevel(FVirtualShadowMapProjectionShaderData BaseProjectionData, FLWCVector3 WorldPosition)
+int GetBiasedClipmapLevel(FVirtualShadowMapProjectionShaderData BaseProjectionData, float3 TranslatedWorldPosition)
 {
-	float BiasedLevel = CalcAbsoluteClipmapLevel(BaseProjectionData, WorldPosition) + BaseProjectionData.ResolutionLodBias + VirtualShadowMap.GlobalResolutionLodBias;
+	float BiasedLevel = CalcAbsoluteClipmapLevel(BaseProjectionData, TranslatedWorldPosition) + BaseProjectionData.ResolutionLodBias + VirtualShadowMap.GlobalResolutionLodBias;
 	return int(floor(BiasedLevel));
 }
 
@@ -48,8 +48,8 @@ uint GetMipLevelLocal(int VirtualShadowMapId, float3 TranslatedWorldPosition, fl
 	FVirtualShadowMapProjectionShaderData ProjectionData = GetVirtualShadowMapProjectionData(VirtualShadowMapId);
 
 	// If local lights are near the primary view the combined offset should be small
-	float3 ShadowTranslatedWorldPosition = TranslatedWorldPosition + 
-		LWCToFloat(LWCSubtract(ProjectionData.PreViewTranslation, PrimaryView.PreViewTranslation));
+	float3 ViewToShadowTranslation = DFFastLocalSubtractDemote(ProjectionData.PreViewTranslation, PrimaryView.PreViewTranslation);
+	float3 ShadowTranslatedWorldPosition = TranslatedWorldPosition + ViewToShadowTranslation;
 
 	float Footprint = VirtualShadowMapCalcPixelFootprintLocal(ProjectionData, ShadowTranslatedWorldPosition, SceneDepth);
 
@@ -84,8 +84,8 @@ void MarkPage(uint VirtualShadowMapId, uint MipLevel, float3 TranslatedWorldPosi
 	// MarkPage (or mark pixel pages) should never run for a distant light.
 	checkSlow(!IsSinglePageVirtualShadowMap(VirtualShadowMapId));
 
-	float3 ShadowTranslatedWorldPosition = TranslatedWorldPosition + 
-		LWCToFloat(LWCSubtract(ProjectionData.PreViewTranslation, PrimaryView.PreViewTranslation));
+	float3 ViewToShadowTranslation = DFFastLocalSubtractDemote(ProjectionData.PreViewTranslation, PrimaryView.PreViewTranslation);
+	float3 ShadowTranslatedWorldPosition = TranslatedWorldPosition + ViewToShadowTranslation;
 	float4 ShadowUVz = mul(float4(ShadowTranslatedWorldPosition, 1.0f), ProjectionData.TranslatedWorldToShadowUVMatrix);
 	ShadowUVz.xyz /= ShadowUVz.w;
 
@@ -128,11 +128,10 @@ void MarkPage(uint VirtualShadowMapId, uint MipLevel, float3 TranslatedWorldPosi
 void MarkPageClipmap(
 	FVirtualShadowMapProjectionShaderData ProjectionData,
 	bool bUsePageDilation, 
-	float2 PageDilationOffset, 
-	FLWCVector3 WorldPosition,
+	float2 PageDilationOffset,
 	float3 TranslatedWorldPosition)
 {
-	const int ClipmapLevel = GetBiasedClipmapLevel(ProjectionData, WorldPosition);
+	const int ClipmapLevel = GetBiasedClipmapLevel(ProjectionData, TranslatedWorldPosition);
 	int ClipmapIndex = max(0, ClipmapLevel - ProjectionData.ClipmapLevel);
 	if (ClipmapIndex < ProjectionData.ClipmapLevelCountRemaining)
 	{
@@ -212,7 +211,6 @@ struct FPositionData
 	float SceneDepth;
 	float4 SvPosition;
 	float3 TranslatedWorldPosition;
-	FLWCVector3 WorldPosition;
 	float DeviceZ;
 };
 
@@ -225,7 +223,6 @@ FPositionData InitPositionData(uint2 PixelPos, float DeviceZ, bool bIsValid)
 		Out.SceneDepth = ConvertFromDeviceZ(Out.DeviceZ);
 		Out.SvPosition = float4(float2(PixelPos) + 0.5f, Out.DeviceZ, 1.0f);
 		Out.TranslatedWorldPosition = SvPositionToTranslatedWorld(Out.SvPosition);
-		Out.WorldPosition = LWCSubtract(Out.TranslatedWorldPosition, PrimaryView.PreViewTranslation);
 	}
 	return Out;
 }
@@ -418,13 +415,13 @@ void GeneratePageFlagsFromPixels(
 
 			if (!bBackfaceCulledGBuffer)
 			{
-				MarkPageClipmap(ProjectionData, bUsePageDilation, PageDilationOffset, Primary.WorldPosition, Primary.TranslatedWorldPosition);
+				MarkPageClipmap(ProjectionData, bUsePageDilation, PageDilationOffset, Primary.TranslatedWorldPosition);
 			}
 			
 			#if PERMUTATION_WATER_DEPTH
 			if (bIsWaterDepthValid)
 			{
-				MarkPageClipmap(ProjectionData, bUsePageDilation, PageDilationOffset, Water.WorldPosition, Water.TranslatedWorldPosition);
+				MarkPageClipmap(ProjectionData, bUsePageDilation, PageDilationOffset, Water.TranslatedWorldPosition);
 			}
 			#endif // PERMUTATION_INPUT_TYPE == INPUT_TYPE_GBUFFER_AND_WATER_DEPTH
 
@@ -432,7 +429,7 @@ void GeneratePageFlagsFromPixels(
 			#if PERMUTATION_TRANSLUCENCY_DEPTH
 			if (bIsTranslucencyDepthValid)
 			{
-				MarkPageClipmap(ProjectionData, bUsePageDilation, PageDilationOffset, Translucency.WorldPosition, Translucency.TranslatedWorldPosition);
+				MarkPageClipmap(ProjectionData, bUsePageDilation, PageDilationOffset, Translucency.TranslatedWorldPosition);
 			}
 			#endif
 		}
@@ -555,7 +552,7 @@ void MarkCoarsePages(uint DispatchThreadId : SV_DispatchThreadID)
 		if (((ClipmapIndexMask >> ClipmapIndex) & 1) != 0)
 		{
 			// TODO: Optimize this... can be boiled down to be just in terms of the snap offsets
-			float3 OriginTranslatedWorld = LWCToFloat(LWCAdd(ProjectionData.ClipmapWorldOrigin, ProjectionData.PreViewTranslation));
+			float3 OriginTranslatedWorld = ProjectionData.ClipmapWorldOriginOffset;
 			float4 ShadowUVz = mul(float4(OriginTranslatedWorld, 1.0f), ProjectionData.TranslatedWorldToShadowUVMatrix);
 			float2 VirtualTexelAddressFloat = ShadowUVz.xy * float(CalcLevelDimsTexels(0));
 			float2 PageAddressFloat = VirtualTexelAddressFloat * float(1.0f / VSM_PAGE_SIZE);

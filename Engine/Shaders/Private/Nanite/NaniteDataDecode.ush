@@ -126,25 +126,24 @@ struct FNaniteView
 	float4x4	TranslatedWorldToView;
 	float4x4	TranslatedWorldToClip;
 	float4x4	ViewToClip;
-	FLWCMatrix	ClipToWorld;
+	FDFMatrix	ClipToWorld;
 	
 	float4x4	PrevTranslatedWorldToView;
 	float4x4	PrevTranslatedWorldToClip;
 	float4x4	PrevViewToClip;
-	FLWCMatrix	PrevClipToWorld;
+	FDFMatrix	PrevClipToWorld;
 
 	float4		TranslatedGlobalClipPlane;
 
 	int4		ViewRect;
 	float4		ViewSizeAndInvSize;
 	float4		ClipSpaceScaleOffset;
-	FLWCVector3	PreViewTranslation;
-	FLWCVector3	PrevPreViewTranslation;
-	FLWCVector3	WorldCameraOrigin;
+	FDFVector3	PreViewTranslation;
+	FDFVector3	PrevPreViewTranslation;
+	FDFVector3	WorldCameraOrigin;
 	float3		CullingViewOriginTranslatedWorld;
 	float3		ViewForward;
-	float3		ViewTilePosition;
-	float3		MatrixTilePosition;
+	float3		ViewOriginHigh;
 	float		NearPlane;
 	float		LODScale;
 	float		LODScaleHW;
@@ -369,8 +368,8 @@ FInstanceSceneData GetInstanceSceneData( inout FVisibleCluster VisibleCluster, b
 
 FInstanceDynamicData CalculateInstanceDynamicData( FNaniteView NaniteView, FInstanceSceneData InstanceData )
 {
-	float4x4 LocalToTranslatedWorld = LWCMultiplyTranslation(InstanceData.LocalToWorld, NaniteView.PreViewTranslation);
-	float4x4 PrevLocalToTranslatedWorld = LWCMultiplyTranslation(InstanceData.PrevLocalToWorld, NaniteView.PrevPreViewTranslation);
+	float4x4 LocalToTranslatedWorld = DFFastToTranslatedWorld(InstanceData.LocalToWorld, NaniteView.PreViewTranslation);
+	float4x4 PrevLocalToTranslatedWorld = DFFastToTranslatedWorld(InstanceData.PrevLocalToWorld, NaniteView.PrevPreViewTranslation);
 
 	FInstanceDynamicData DynamicData;
 	DynamicData.LocalToTranslatedWorld = LocalToTranslatedWorld;
@@ -717,38 +716,37 @@ float3 DecodePosition(uint VertIndex, FCluster Cluster)
 
 FNaniteView UnpackNaniteView(FPackedNaniteView PackedView)
 {
-	const float3 ViewTilePosition =
+	const float3 ViewOriginHigh =
 	{
-		PackedView.ViewTilePositionX,
-		PackedView.ViewTilePositionY,
-		PackedView.ViewTilePositionZ
+		PackedView.ViewOriginHighX,
+		PackedView.ViewOriginHighY,
+		PackedView.ViewOriginHighZ
 	};
 
 	FNaniteView NaniteView;
 
 	NaniteView.SVPositionToTranslatedWorld	= PackedView.SVPositionToTranslatedWorld;
 	NaniteView.ViewToTranslatedWorld		= PackedView.ViewToTranslatedWorld;
-	NaniteView.ViewTilePosition				= ViewTilePosition;
-	NaniteView.MatrixTilePosition			= PackedView.MatrixTilePosition;
+	NaniteView.ViewOriginHigh				= ViewOriginHigh;
 
 	NaniteView.TranslatedWorldToView		= PackedView.TranslatedWorldToView;
 	NaniteView.TranslatedWorldToClip		= PackedView.TranslatedWorldToClip;
 	NaniteView.ViewToClip					= PackedView.ViewToClip;
-	NaniteView.ClipToWorld					= MakeLWCMatrix(PackedView.MatrixTilePosition, PackedView.ClipToRelativeWorld);
+	NaniteView.ClipToWorld					= MakeDFMatrix(ViewOriginHigh, PackedView.ClipToRelativeWorld);
 	
 	NaniteView.PrevTranslatedWorldToView	= PackedView.PrevTranslatedWorldToView;
 	NaniteView.PrevTranslatedWorldToClip	= PackedView.PrevTranslatedWorldToClip;
 	NaniteView.PrevViewToClip				= PackedView.PrevViewToClip;
-	NaniteView.PrevClipToWorld				= MakeLWCMatrix(PackedView.MatrixTilePosition, PackedView.PrevClipToRelativeWorld);
+	NaniteView.PrevClipToWorld				= MakeDFMatrix(ViewOriginHigh, PackedView.PrevClipToRelativeWorld);
 
 	NaniteView.TranslatedGlobalClipPlane	= PackedView.TranslatedGlobalClipPlane;
 
 	NaniteView.ViewRect						= PackedView.ViewRect;
 	NaniteView.ViewSizeAndInvSize			= PackedView.ViewSizeAndInvSize;
 	NaniteView.ClipSpaceScaleOffset			= PackedView.ClipSpaceScaleOffset;
-	NaniteView.PreViewTranslation			= MakeLWCVector3(-ViewTilePosition, PackedView.RelativePreViewTranslation);
-	NaniteView.PrevPreViewTranslation		= MakeLWCVector3(-ViewTilePosition, PackedView.RelativePrevPreViewTranslation);
-	NaniteView.WorldCameraOrigin			= MakeLWCVector3(ViewTilePosition, PackedView.RelativeWorldCameraOrigin);
+	NaniteView.PreViewTranslation			= MakeDFVector3(PackedView.PreViewTranslationHigh, PackedView.PreViewTranslationLow);
+	NaniteView.PrevPreViewTranslation		= MakeDFVector3(PackedView.PrevPreViewTranslationHigh, PackedView.PrevPreViewTranslationLow);
+	NaniteView.WorldCameraOrigin			= MakeDFVector3(ViewOriginHigh, PackedView.ViewOriginLow);
 	NaniteView.CullingViewOriginTranslatedWorld = PackedView.CullingViewOriginTranslatedWorld;
 	NaniteView.ViewForward					= PackedView.ViewForward;
 	NaniteView.NearPlane					= PackedView.NearPlane;
@@ -785,8 +783,7 @@ FNaniteView GetNaniteView( uint ViewIndex )
 
 	NaniteView.SVPositionToTranslatedWorld  = LocalView.SVPositionToTranslatedWorld;
 	NaniteView.ViewToTranslatedWorld		= LocalView.ViewToTranslatedWorld;
-	NaniteView.ViewTilePosition				= LocalView.ViewTilePosition;
-	NaniteView.MatrixTilePosition			= LocalView.MatrixTilePosition;
+	NaniteView.ViewOriginHigh				= LocalView.ViewOriginHigh;
 
 	NaniteView.TranslatedWorldToView		= LocalView.TranslatedWorldToView;
 	NaniteView.TranslatedWorldToClip		= LocalView.TranslatedWorldToClip;
@@ -842,8 +839,7 @@ void PatchViewState(FNaniteView NaniteView, inout ViewState InOutView)
 {
 	InOutView.SVPositionToTranslatedWorld	= NaniteView.SVPositionToTranslatedWorld;
 	InOutView.ViewToTranslatedWorld			= NaniteView.ViewToTranslatedWorld;
-	InOutView.ViewTilePosition				= NaniteView.ViewTilePosition;
-	InOutView.MatrixTilePosition			= NaniteView.MatrixTilePosition;
+	InOutView.ViewOriginHigh				= NaniteView.ViewOriginHigh;
 
 	InOutView.TranslatedWorldToView			= NaniteView.TranslatedWorldToView;
 	InOutView.TranslatedWorldToClip			= NaniteView.TranslatedWorldToClip;
@@ -862,6 +858,15 @@ void PatchViewState(FNaniteView NaniteView, inout ViewState InOutView)
 	InOutView.WorldCameraOrigin				= NaniteView.WorldCameraOrigin;
 	InOutView.ViewForward					= NaniteView.ViewForward;
 	InOutView.NearPlane						= NaniteView.NearPlane;
+
+#if VIEW_HAS_TILEOFFSET_DATA
+	InOutView.TileOffset.PreViewTranslation = DFToTileOffset(InOutView.PreViewTranslation); //DF_TODO: should we upload TO data?
+	InOutView.TileOffset.PrevPreViewTranslation = DFToTileOffset(InOutView.PrevPreViewTranslation);
+	//InOutView.TileOffset.WorldViewOrigin = DFToTileOffset(InOutView.WorldViewOrigin);
+	//InOutView.TileOffset.PrevWorldViewOrigin = DFToTileOffset(InOutView.PrevWorldViewOrigin);
+	InOutView.TileOffset.WorldCameraOrigin = DFToTileOffset(InOutView.WorldCameraOrigin);
+	//InOutView.TileOffset.PrevWorldCameraOrigin = DFToTileOffset(InOutView.PrevWorldCameraOrigin);
+#endif
 }
 
 void WriteDispatchArgsSWHW(RWBuffer<uint> RasterizerArgsSWHW, uint ArgsOffset, uint NumClustersSW, uint NumClustersHW)

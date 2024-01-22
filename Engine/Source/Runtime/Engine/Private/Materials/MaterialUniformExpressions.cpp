@@ -962,18 +962,18 @@ void FUniformExpressionSet::FillUniformBuffer(const FMaterialRenderContext& Mate
 					{
 						const FDoubleValue DoubleValue = FieldValue.AsDouble();
 
-						float TileValue[4];
-						float OffsetValue[4];
+						float ValueHigh[4];
+						float ValueLow[4];
 						for (int32 i = 0; i < NumFieldComponents; ++i)
 						{
-							const FLargeWorldRenderScalar Value(DoubleValue[i]);
-							TileValue[i] = Value.GetTile();
-							OffsetValue[i] = Value.GetOffset();
+							const FDFScalar Value(DoubleValue[i]);
+							ValueHigh[i] = Value.High;
+							ValueLow[i] = Value.Low;
 						}
 
 						float* DestAddress = PreshaderBuffer + PreshaderField.BufferOffset;
-						for (int32 i = 0; i < NumFieldComponents; ++i) *DestAddress++ = TileValue[i];
-						for (int32 i = 0; i < NumFieldComponents; ++i) *DestAddress++ = OffsetValue[i];
+						for (int32 i = 0; i < NumFieldComponents; ++i) *DestAddress++ = ValueHigh[i];
+						for (int32 i = 0; i < NumFieldComponents; ++i) *DestAddress++ = ValueLow[i];
 					}
 					else
 					{

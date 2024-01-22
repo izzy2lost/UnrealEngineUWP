@@ -514,8 +514,9 @@ void FPrimitiveInstanceDataManager::InitChangeSet(const FChangeDesc &ChangeDesc,
 	bNumCustomDataChanged = false;
 	bBakedLightingDataChanged = false;
 
-	ChangeSet.PrimitiveWorldSpaceOffset = FLargeWorldRenderPosition(PrimitiveLocalToWorld.GetOrigin()).GetTileOffset();
-	ChangeSet.PrimitiveToRelativeWorld = FLargeWorldRenderScalar::MakeToRelativeWorldMatrix(ChangeSet.PrimitiveWorldSpaceOffset, PrimitiveLocalToWorld);
+	const FVector3f PrimitiveWorldSpacePositionHigh = FDFVector3{ PrimitiveLocalToWorld.GetOrigin() }.High;
+	ChangeSet.PrimitiveWorldSpaceOffset = FVector{ PrimitiveWorldSpacePositionHigh };
+	ChangeSet.PrimitiveToRelativeWorld = FDFMatrix::MakeToRelativeWorldMatrix(PrimitiveWorldSpacePositionHigh, PrimitiveLocalToWorld).M;
 	ChangeSet.Flags = Flags;
 	ChangeSet.AbsMaxDisplacement = AbsMaxDisplacement;
 	ChangeSet.NumCustomDataFloats = NumCustomDataFloats;
@@ -581,8 +582,9 @@ bool FPrimitiveInstanceDataManager::FlushChanges(FInstanceUpdateComponentDesc &&
 		NumCustomDataFloats = ComponentData.NumCustomDataFloats;
 
 		FLegacyRebuildChangeSet ExternalChangeSet;
-		ExternalChangeSet.PrimitiveWorldSpaceOffset = FLargeWorldRenderPosition(PrimitiveLocalToWorld.GetOrigin()).GetTileOffset();
-		ExternalChangeSet.PrimitiveToRelativeWorld = FLargeWorldRenderScalar::MakeToRelativeWorldMatrix(ExternalChangeSet.PrimitiveWorldSpaceOffset, PrimitiveLocalToWorld);
+		const FVector3f PrimitiveWorldSpacePositionHigh = FDFVector3{ PrimitiveLocalToWorld.GetOrigin() }.High;
+		ExternalChangeSet.PrimitiveWorldSpaceOffset = FVector{ PrimitiveWorldSpacePositionHigh };
+		ExternalChangeSet.PrimitiveToRelativeWorld = FDFMatrix::MakeToRelativeWorldMatrix(PrimitiveWorldSpacePositionHigh, PrimitiveLocalToWorld).M;
 		ExternalChangeSet.InstanceLocalBounds = ComponentData.StaticMeshBounds;
 		ExternalChangeSet.Flags = Flags;
 
@@ -726,11 +728,11 @@ bool FPrimitiveInstanceDataManager::FlushChanges(FInstanceUpdateComponentDesc &&
 			TOptional<FTransform> PreviousTransform = FMotionVectorSimulation::Get().GetPreviousTransform(PrimitiveComponent.Get());
 			if (PreviousTransform.IsSet())
 			{
-				ChangeSet.PreviousPrimitiveToRelativeWorld = FLargeWorldRenderScalar::MakeToRelativeWorldMatrix(ChangeSet.PrimitiveWorldSpaceOffset, PreviousTransform.GetValue().ToMatrixWithScale());
+				ChangeSet.PreviousPrimitiveToRelativeWorld = FDFMatrix::MakeToRelativeWorldMatrix(FVector3f{ ChangeSet.PrimitiveWorldSpaceOffset }, PreviousTransform.GetValue().ToMatrixWithScale()).M;
 			}
 			else
 			{
-				ChangeSet.PreviousPrimitiveToRelativeWorld = FLargeWorldRenderScalar::MakeToRelativeWorldMatrix(ChangeSet.PrimitiveWorldSpaceOffset, PrevPrimitiveLocalToWorld);				
+				ChangeSet.PreviousPrimitiveToRelativeWorld = FDFMatrix::MakeToRelativeWorldMatrix(FVector3f{ ChangeSet.PrimitiveWorldSpaceOffset }, PrevPrimitiveLocalToWorld).M;				
 			}
 		}
 

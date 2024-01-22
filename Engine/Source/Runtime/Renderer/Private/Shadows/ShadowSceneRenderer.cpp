@@ -205,14 +205,14 @@ FVirtualShadowMapProjectionShaderData FShadowSceneRenderer::GetLocalLightProject
 	uint32 Flags = CacheEntry->IsUncached() ? VSM_PROJ_FLAG_UNCACHED : 0U;
 
 	const FViewMatrices ViewMatrices = ProjectedShadowInfo->GetShadowDepthRenderingViewMatrices(MapIndex, true);
-	const FLargeWorldRenderPosition PreViewTranslation(ProjectedShadowInfo->PreShadowTranslation);
+	const FDFVector3 PreViewTranslation(ProjectedShadowInfo->PreShadowTranslation);
 
 	FVirtualShadowMapProjectionShaderData Data; 
 	Data.ShadowViewToClipMatrix					= FMatrix44f(ViewMatrices.GetProjectionMatrix());
 	Data.TranslatedWorldToShadowUVMatrix		= FMatrix44f(CalcTranslatedWorldToShadowUVMatrix( ViewMatrices.GetTranslatedViewMatrix(), ViewMatrices.GetProjectionMatrix() ));
 	Data.TranslatedWorldToShadowUVNormalMatrix	= FMatrix44f(CalcTranslatedWorldToShadowUVNormalMatrix( ViewMatrices.GetTranslatedViewMatrix(), ViewMatrices.GetProjectionMatrix() ));
-	Data.PreViewTranslationLWCTile				= PreViewTranslation.GetTile();
-	Data.PreViewTranslationLWCOffset			= PreViewTranslation.GetOffset();
+	Data.PreViewTranslationHigh					= PreViewTranslation.High;
+	Data.PreViewTranslationLow					= PreViewTranslation.Low;
 	Data.LightType								= ProjectedShadowInfo->GetLightSceneInfo().Proxy->GetLightType();
 	Data.LightSourceRadius						= ProjectedShadowInfo->GetLightSceneInfo().Proxy->GetSourceRadius();
 	Data.ResolutionLodBias						= ResolutionLODBiasLocal;

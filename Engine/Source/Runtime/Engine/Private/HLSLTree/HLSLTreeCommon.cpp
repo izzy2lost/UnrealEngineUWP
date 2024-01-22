@@ -758,7 +758,7 @@ void SwizzleEmitValueShader(FEmitContext& Context,
 		TStringBuilder<256> FormattedCode;
 		if (bIsLWC)
 		{
-			FormattedCode.Appendf(TEXT("LWCSwizzle(%s"), EmitInput->Reference);
+			FormattedCode.Appendf(TEXT("WSSwizzle(%s"), EmitInput->Reference);
 		}
 		else
 		{
@@ -1013,7 +1013,7 @@ void FExpressionAppend::EmitValueShader(FEmitContext& Context, FEmitScope& Scope
 		FEmitShaderExpression* RhsValue = Rhs->GetValueShader(Context, Scope, Types.RhsRequestedType, Types.RhsType);
 		if (Types.bIsLWC)
 		{
-			OutResult.Code = Context.EmitInlineExpression(Scope, ResultType, TEXT("MakeLWCVector(%, %)"),
+			OutResult.Code = Context.EmitInlineExpression(Scope, ResultType, TEXT("MakeWSVector(%, %)"),
 				LhsValue,
 				RhsValue);
 		}

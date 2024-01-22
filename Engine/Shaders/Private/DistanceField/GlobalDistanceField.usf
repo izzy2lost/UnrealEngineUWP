@@ -90,8 +90,8 @@ RWStructuredBuffer<uint> RWObjectIndexNumBuffer;
 RWStructuredBuffer<uint> RWHasPendingStreaming;
 
 
-float3 ViewTilePosition;
-float3 RelativePreViewTranslation;
+float3 PreViewTranslationHigh;
+float3 PreViewTranslationLow;
 
 // 0: accept only mostly static objects, 1: accept only often moving objects, 2: accept all objects
 uint AcceptOftenMovingObjectsOnly;
@@ -113,8 +113,8 @@ void CullObjectsToClipmapCS(
 
 		if (bMatchingMobility && bVisible)
 		{
-			const FLWCVector3 PreViewTranslation = MakeLWCVector3(-ViewTilePosition, RelativePreViewTranslation);
-			const float3 TranslatedWorldObjectBoundsCenter = LWCToFloat(LWCAdd(DFObjectBounds.Center, PreViewTranslation));
+			const FDFVector3 PreViewTranslation = MakeDFVector3(PreViewTranslationHigh, PreViewTranslationLow);
+			const float3 TranslatedWorldObjectBoundsCenter = DFFastToTranslatedWorld(DFObjectBounds.Center, PreViewTranslation);
 
 			for (uint PackedClipmapIndex = 0; PackedClipmapIndex < NumPackedClipmaps; ++PackedClipmapIndex)
 			{
@@ -380,7 +380,7 @@ void AllocatePagesCS(
 	uint3 DispatchThreadId : SV_DispatchThreadID,
 	uint3 GroupThreadId : SV_GroupThreadID)
 {
-	const FLWCVector3 PreViewTranslation = MakeLWCVector3(-ViewTilePosition, RelativePreViewTranslation);
+	const FDFVector3 PreViewTranslation = MakeDFVector3(PreViewTranslationHigh, PreViewTranslationLow);
 
 	uint ThreadIndex = GroupThreadId.x;
 	uint IndexInPageTileBuffer = GroupId.x;
@@ -393,7 +393,7 @@ void AllocatePagesCS(
 
 	uint3 PageTableTextureCoord = PageGridCoordToPageTableTextureCoord(PageGridCoord);
 	float3 PageTranslatedWorldCenter = PageGridCoord * PageCoordToPageTranslatedWorldCenterScale + PageCoordToPageTranslatedWorldCenterBias;
-	FLWCVector3 PageWorldCenter = LWCSubtract(PageTranslatedWorldCenter, PreViewTranslation);
+	FDFVector3 PageWorldCenter = DFFastSubtract(PageTranslatedWorldCenter, PreViewTranslation);
 
 #if PROCESS_DISTANCE_FIELDS
 	// Loop through objects to find out if the current page contains any objects and should be allocated
@@ -412,7 +412,7 @@ void AllocatePagesCS(
 			uint ObjectIndex = CullGridObjectArray[CullGridObjectOffset + IndexInCullCell];
 
 			const FDFObjectBounds DFObjectBounds = LoadDFObjectBounds(ObjectIndex);
-			const float3 TranslatedBoundsCenter = LWCToFloat(LWCAdd(DFObjectBounds.Center, PreViewTranslation));
+			const float3 TranslatedBoundsCenter = DFFastToTranslatedWorld(DFObjectBounds.Center, PreViewTranslation);
 			float SquaredDistanceBetweenAABBs = ComputeSquaredDistanceBetweenAABBs(PageTranslatedWorldCenter, PageWorldExtent, TranslatedBoundsCenter, DFObjectBounds.BoxExtent);
 
 			if (SquaredDistanceBetweenAABBs < ClipmapInfluenceRadius * ClipmapInfluenceRadius)
@@ -591,7 +591,7 @@ void CullObjectsToGridCS(
 	uint3 DispatchThreadId : SV_DispatchThreadID,
     uint3 GroupThreadId : SV_GroupThreadID) 
 {
-	const FLWCVector3 PreViewTranslation = MakeLWCVector3(-ViewTilePosition, RelativePreViewTranslation);
+	const FDFVector3 PreViewTranslation = MakeDFVector3(PreViewTranslationHigh, PreViewTranslationLow);
 
 	uint ThreadIndex = GroupThreadId.x;
 
@@ -615,7 +615,7 @@ void CullObjectsToGridCS(
 			uint ObjectIndex = ObjectIndexBuffer[PackedClipmapIndex * ObjectIndexBufferStride + IndexInObjectIndexBuffer];
 
 			const FDFObjectBounds DFObjectBounds = LoadDFObjectBounds(ObjectIndex);
-			const float3 TranslatedBoundsCenter = LWCToFloat(LWCAdd(DFObjectBounds.Center, PreViewTranslation));
+			const float3 TranslatedBoundsCenter = DFFastToTranslatedWorld(DFObjectBounds.Center, PreViewTranslation);
 			float DistanceSq = ComputeSquaredDistanceBetweenAABBs(CullTileTranslatedWorldCenter, CullTileWorldExtent, TranslatedBoundsCenter, DFObjectBounds.BoxExtent);
 
 			if (DistanceSq <= InfluenceRadiusSq)
@@ -645,7 +645,7 @@ void CullObjectsToGridCS(
 			uint ObjectIndex = ObjectIndexBuffer[PackedClipmapIndex * ObjectIndexBufferStride + IndexInObjectIndexBuffer];
 
 			const FDFObjectBounds DFObjectBounds = LoadDFObjectBounds(ObjectIndex);
-			const float3 TranslatedBoundsCenter = LWCToFloat(LWCAdd(DFObjectBounds.Center, PreViewTranslation));
+			const float3 TranslatedBoundsCenter = DFFastToTranslatedWorld(DFObjectBounds.Center, PreViewTranslation);
 			float DistanceSq = ComputeSquaredDistanceBetweenAABBs(CullTileTranslatedWorldCenter, CullTileWorldExtent, TranslatedBoundsCenter, DFObjectBounds.BoxExtent);
 
 			if (DistanceSq <= InfluenceRadiusSq)

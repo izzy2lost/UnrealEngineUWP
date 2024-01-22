@@ -19,7 +19,7 @@ namespace UE::HLSL
 struct FLightSceneData
 {
 	// Position of the light in world space.
-	FLWCVector3 WorldPosition;
+	FDFVector3 WorldPosition;
 
 	// 1 / light's falloff radius from Position.
 	float InvRadius;

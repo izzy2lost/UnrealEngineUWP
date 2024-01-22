@@ -413,22 +413,39 @@ float CalculateDistanceFieldApproxAO(float3 TranslatedWorldPosition, float3 Worl
 
 #endif
 
+float GetDistanceToNearestSurfaceGlobal(FDFVector3 WorldPosition)
+{
+	const float3 TranslatedWorldPosition = DFFastToTranslatedWorld(WorldPosition, ResolvedView.PreViewTranslation);
+	return GetDistanceToNearestSurfaceGlobal(TranslatedWorldPosition);
+}
+
 float GetDistanceToNearestSurfaceGlobal(FLWCVector3 WorldPosition)
 {
-	const float3 TranslatedWorldPosition = LWCToFloat(LWCAdd(WorldPosition, ResolvedView.PreViewTranslation));
+	return GetDistanceToNearestSurfaceGlobal(DFFromTileOffset(WorldPosition));
+}
 
-	return GetDistanceToNearestSurfaceGlobal(TranslatedWorldPosition);
+float3 GetDistanceFieldGradientGlobal(FDFVector3 WorldPosition)
+{
+	const float3 TranslatedWorldPosition = DFFastToTranslatedWorld(WorldPosition, ResolvedView.PreViewTranslation);
+	return GetDistanceFieldGradientGlobal(TranslatedWorldPosition);
 }
 
 float3 GetDistanceFieldGradientGlobal(FLWCVector3 WorldPosition)
 {
-	const float3 TranslatedWorldPosition = LWCToFloat(LWCAdd(WorldPosition, ResolvedView.PreViewTranslation));
+	return GetDistanceFieldGradientGlobal(DFFromTileOffset(WorldPosition));
+}
 
-	return GetDistanceFieldGradientGlobal(TranslatedWorldPosition);
+float CalculateDistanceFieldApproxAO(FDFVector3 WorldPosition, float3 WorldNormal, uint NumSteps, float StepDistance, float StepScale, float DistanceBias, float MaxDistance)
+{
+	const float3 TranslatedWorldPosition = DFFastToTranslatedWorld(WorldPosition, ResolvedView.PreViewTranslation);
+	return CalculateDistanceFieldApproxAO(TranslatedWorldPosition, WorldNormal, NumSteps, StepDistance, StepScale, DistanceBias, MaxDistance);
 }
 
 float CalculateDistanceFieldApproxAO(FLWCVector3 WorldPosition, float3 WorldNormal, uint NumSteps, float StepDistance, float StepScale, float DistanceBias, float MaxDistance)
 {
-	const float3 TranslatedWorldPosition = LWCToFloat(LWCAdd(WorldPosition, ResolvedView.PreViewTranslation));
+	const float3 TranslatedWorldPosition = LWCToFloat(LWCAdd(WorldPosition, DFToTileOffset(ResolvedView.PreViewTranslation)));
 	return CalculateDistanceFieldApproxAO(TranslatedWorldPosition, WorldNormal, NumSteps, StepDistance, StepScale, DistanceBias, MaxDistance);
 }
+
+
+

@@ -714,8 +714,9 @@ bool TileBoundsIntersectDistanceFieldCaster(
 	float TileConeAngleSin,
 	float MaxOcclusionDistance)
 {
+	const float3 TranslatedBoundsCenter = DFFastToTranslatedWorld(DFObjectBounds.Center, ResolvedView.PreViewTranslation);
 	BRANCH
-	if (SphereIntersectSphere(float4(LWCToFloat(LWCAdd(DFObjectBounds.Center, PrimaryView.PreViewTranslation)), DFObjectBounds.SphereRadius + MaxOcclusionDistance), TileTranslatedBoundingSphere)
+	if (SphereIntersectSphere(float4(TranslatedBoundsCenter, DFObjectBounds.SphereRadius + MaxOcclusionDistance), TileTranslatedBoundingSphere)
 #if LIGHT_SOURCE_MODE != LIGHT_SOURCE_FROM_RECEIVER
 		// This 'can object cast on tile bounds' test has to be disabled because the weight used to combine occlusion from multiple objects is computed based on distance to occluder only
 		//&& SphereIntersectConeWithMaxDistance(float4(SphereCenterAndRadius.xyz, SphereCenterAndRadius.w + TileBoundingSphere.w), TileBoundingSphere.xyz, TileConeAxis, TileConeAngleCos, TileConeAngleSin, MaxOcclusionDistance)
@@ -724,7 +725,7 @@ bool TileBoundsIntersectDistanceFieldCaster(
 	{
 #if USE_DISTANCE_FIELD_FOR_TILE_CULLING
 		FDFObjectData DFObjectData = LoadDFObjectData(ObjectIndex);
-		float4x4 TranslatedWorldToVolume = LWCMultiplyTranslation(LWCNegate(PrimaryView.PreViewTranslation), DFObjectData.WorldToVolume);
+		float4x4 TranslatedWorldToVolume = DFFastToTranslatedWorld(DFObjectData.WorldToVolume, PrimaryView.PreViewTranslation);
 		float3 VolumeSamplePosition = mul(float4(TileTranslatedBoundingSphere.xyz, 1), TranslatedWorldToVolume).xyz;
 		float3 ClampedSamplePosition = clamp(VolumeSamplePosition, -DFObjectData.VolumePositionExtent, DFObjectData.VolumePositionExtent);
 		float DistanceToClamped = length(ClampedSamplePosition - VolumeSamplePosition);
@@ -854,7 +855,7 @@ float ShadowConeTraceAgainstCulledDistanceFieldCasters(
 
 		FDFObjectBounds DFObjectBounds = LoadDFObjectBounds(ObjectIndex);
 		FDFObjectData DFObjectData = LoadDFObjectData(ObjectIndex);
-		float4x4 TranslatedWorldToVolume = LWCMultiplyTranslation(LWCNegate(PrimaryView.PreViewTranslation), DFObjectData.WorldToVolume);
+		float4x4 TranslatedWorldToVolume = DFFastToTranslatedWorld(DFObjectData.WorldToVolume, PrimaryView.PreViewTranslation);
 
 		// Increase max occlusion distance based on object size for distance field casters
 		// This improves the solidness of the shadows, since the fadeout distance causes internal structure of objects to become visible

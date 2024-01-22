@@ -69,7 +69,8 @@ float3 GetLightFunctionColor(float3 LightVector, float3 TranslatedWorldSpace
 	MaterialParameters.CameraVector = LightVector.xyz;
 	MaterialParameters.ReflectionVector = LightVector.xyz;
 	MaterialParameters.LightVector = LightVector.xyz;
-	MaterialParameters.AbsoluteWorldPosition = LWCSubtract(TranslatedWorldSpace, PrimaryView.PreViewTranslation);
+	MaterialParameters.AbsoluteWorldPosition = DFFastSubtract(TranslatedWorldSpace, PrimaryView.PreViewTranslation);
+	MaterialParameters.LWCData.AbsoluteWorldPosition = DFToWS(MaterialParameters.AbsoluteWorldPosition);
 	MaterialParameters.ScreenPosition = mul(float4(TranslatedWorldSpace, 1.0f), PrimaryView.TranslatedWorldToClip);
 
 	FPixelMaterialInputs PixelMaterialInputs;

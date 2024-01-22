@@ -8,6 +8,7 @@
 #if RHI_RAYTRACING
 
 #include "Async/TaskGraphInterfaces.h"
+#include "Math/DoubleFloat.h"
 #include "RHI.h"
 #include "RHIUtilities.h"
 #include "RenderGraphResources.h"
@@ -129,8 +130,7 @@ public:
 	bool bNeedsDebugInstanceGPUSceneIndexBuffer = false;
 
 	// Used for transforming to translated world space in which TLAS was built.
-	FVector RelativePreViewTranslation = FVector::Zero();
-	FVector3f ViewTilePosition = FVector3f::ZeroVector;
+	FDFVector3 PreViewTranslation {};
 private:
 	void WaitForTasks() const;
 

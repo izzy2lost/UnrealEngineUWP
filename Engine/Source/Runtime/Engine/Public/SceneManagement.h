@@ -1473,8 +1473,7 @@ public:
 	EReflectionCaptureShape::Type Shape;
 
 	// Properties shared among all shapes
-	FVector3f RelativePosition;
-	FVector3f TilePosition;
+	FDFVector3 Position;
 	float InfluenceRadius;
 	float Brightness;
 	uint32 Guid;

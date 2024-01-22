@@ -15,7 +15,7 @@
 #include "DataDrivenShaderPlatformInfo.h"
 
 class FSceneView;
-struct FRelativeViewMatrices;
+struct FDFRelativeViewMatrices;
 
 /**
  * A vertex shader for rendering a texture on a simple element.
@@ -28,18 +28,18 @@ public:
 	FSimpleElementVS() {}
 
 	ENGINE_API void SetParameters(FRHIBatchedShaderParameters& BatchedParameters, const FMatrix& WorldToClipMatrix);
-	ENGINE_API void SetParameters(FRHIBatchedShaderParameters& BatchedParameters, const FRelativeViewMatrices& Matrices);
+	ENGINE_API void SetParameters(FRHIBatchedShaderParameters& BatchedParameters, const FDFRelativeViewMatrices& Matrices);
 
 	UE_DEPRECATED(5.3, "SetParameters with FRHIBatchedShaderParameters should be used.")
 	ENGINE_API void SetParameters(FRHICommandList& RHICmdList, const FMatrix& WorldToClipMatrix);
 	UE_DEPRECATED(5.3, "SetParameters with FRHIBatchedShaderParameters should be used.")
-	ENGINE_API void SetParameters(FRHICommandList& RHICmdList, const FRelativeViewMatrices& Matrices);
+	ENGINE_API void SetParameters(FRHICommandList& RHICmdList, const FDFRelativeViewMatrices& Matrices);
 
 	static void ModifyCompilationEnvironment(const FGlobalShaderPermutationParameters& Parameters, FShaderCompilerEnvironment& OutEnvironment);
 
 private:
 	LAYOUT_FIELD(FShaderParameter, RelativeTransform);
-	LAYOUT_FIELD(FShaderParameter, TransformTilePosition);
+	LAYOUT_FIELD(FShaderParameter, TransformPositionHigh);
 };
 
 /**

@@ -9,6 +9,7 @@
 #include "Math/Vector.h"
 #include "Math/Vector4.h"
 #include "Misc/LargeWorldCoordinates.h"
+#include "Math/DoubleFloat.h"
 
 static constexpr double UE_LWC_RENDER_TILE_SIZE = 2097152.0;
 

@@ -192,16 +192,6 @@ FDFVector4 DFSwizzle(FDFVector2 V, int C0, int C1, int C2, int C3) { return Make
 FDFVector4 DFSwizzle(FDFVector3 V, int C0, int C1, int C2, int C3) { return MakeDFVector(DFGetComponent(V, C0), DFGetComponent(V, C1), DFGetComponent(V, C2), DFGetComponent(V, C3)); }
 FDFVector4 DFSwizzle(FDFVector4 V, int C0, int C1, int C2, int C3) { return MakeDFVector(DFGetComponent(V, C0), DFGetComponent(V, C1), DFGetComponent(V, C2), DFGetComponent(V, C3)); }
 
-float3 DFFastToTranslatedWorld(FDFVector3 WorldPosition, FDFVector3 PreViewTranslation)
-{
-	return DFFastLocalSubtractDemote(WorldPosition, DFNegate(PreViewTranslation));
-}
-
-float3 DFFastToTranslatedWorld(float3 WorldPosition, FDFVector3 PreViewTranslation)
-{
-	return DFFastLocalSubtractDemote(WorldPosition, DFNegate(PreViewTranslation));
-}
-
 #define DFHackToFloat DFDemote
 
 // Transforms *to* absolute world space
@@ -509,6 +499,29 @@ float4 DFTransformLocalToTranslatedWorld(float3 LocalPosition, FDFMatrix LocalTo
 #endif
 	
 	return float4(RotatedScaledPosition + TranslatedWorldPositionOrigin, 1.0f);
+}
+
+// Translate the input vector with PreViewTranslation. Assumes the result fits in FP32 (i.e. is close to the view origin)
+float3 DFFastToTranslatedWorld(FDFVector3 WorldPosition, FDFVector3 PreViewTranslation)
+{
+	return DFFastLocalSubtractDemote(WorldPosition, DFNegate(PreViewTranslation));
+}
+
+float3 DFFastToTranslatedWorld(float3 WorldPosition, FDFVector3 PreViewTranslation)
+{
+	return DFFastLocalSubtractDemote(WorldPosition, DFNegate(PreViewTranslation));
+}
+
+// Transforms a WorldToX matrix to a TranslatedWorldToX matrix.
+float4x4 DFFastToTranslatedWorld(FDFInverseMatrix WorldToLocal, FDFVector3 PreViewTranslation)
+{
+	return DFFastMultiplyTranslationDemote(DFNegate(PreViewTranslation), WorldToLocal);
+}
+
+// Transforms a XToWorld matrix to a XToTranslatedWorld matrix.
+float4x4 DFFastToTranslatedWorld(FDFMatrix LocalToWorld, FDFVector3 PreViewTranslation)
+{
+	return DFFastMultiplyTranslationDemote(LocalToWorld, PreViewTranslation);
 }
 
 FDFVector3 DFMultiplyLHSAndFastTwoSum(float3 Lhs, float Factor, float3 Rhs)

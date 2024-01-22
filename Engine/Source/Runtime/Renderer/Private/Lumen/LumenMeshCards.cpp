@@ -172,13 +172,12 @@ public:
 	{
 		// Note: layout must match GetLumenCardData in usf
 
-		const FLargeWorldRenderPosition WorldPosition(Card.WorldOBB.Origin);
-		const FVector3f Offset = WorldPosition.GetOffset();
+		const FDFVector3 WorldPosition(Card.WorldOBB.Origin);
 
-		OutData[0] = WorldPosition.GetTile();
-		OutData[1] = FVector4f(Card.WorldOBB.AxisX[0], Card.WorldOBB.AxisY[0], Card.WorldOBB.AxisZ[0], Offset.X);
-		OutData[2] = FVector4f(Card.WorldOBB.AxisX[1], Card.WorldOBB.AxisY[1], Card.WorldOBB.AxisZ[1], Offset.Y);
-		OutData[3] = FVector4f(Card.WorldOBB.AxisX[2], Card.WorldOBB.AxisY[2], Card.WorldOBB.AxisZ[2], Offset.Z);
+		OutData[0] = WorldPosition.High;
+		OutData[1] = FVector4f(Card.WorldOBB.AxisX[0], Card.WorldOBB.AxisY[0], Card.WorldOBB.AxisZ[0], WorldPosition.Low.X);
+		OutData[2] = FVector4f(Card.WorldOBB.AxisX[1], Card.WorldOBB.AxisY[1], Card.WorldOBB.AxisZ[1], WorldPosition.Low.Y);
+		OutData[3] = FVector4f(Card.WorldOBB.AxisX[2], Card.WorldOBB.AxisY[2], Card.WorldOBB.AxisZ[2], WorldPosition.Low.Z);
 
 		const FIntPoint ResLevelBias = Card.ResLevelToResLevelXYBias();
 		const uint32 LightingChannelMask = InPrimitiveGroup ? InPrimitiveGroup->LightingChannelMask : UINT32_MAX;
@@ -239,13 +238,12 @@ void FLumenMeshCardsGPUData::FillData(const FLumenMeshCards& RESTRICT MeshCards,
 {
 	// Note: layout must match GetLumenMeshCardsData in usf
 
-	const FLargeWorldRenderPosition WorldOrigin(MeshCards.LocalToWorld.GetOrigin());
-	const FVector3f WorldOriginOffset = WorldOrigin.GetOffset();
+	const FDFVector3 WorldOrigin(MeshCards.LocalToWorld.GetOrigin());
 
-	OutData[0] = WorldOrigin.GetTile();
-	OutData[1] = FVector4f(FVector4(MeshCards.WorldToLocalRotation.GetScaledAxis(EAxis::X), WorldOriginOffset.X));
-	OutData[2] = FVector4f(FVector4(MeshCards.WorldToLocalRotation.GetScaledAxis(EAxis::Y), WorldOriginOffset.Y));
-	OutData[3] = FVector4f(FVector4(MeshCards.WorldToLocalRotation.GetScaledAxis(EAxis::Z), WorldOriginOffset.Z));
+	OutData[0] = WorldOrigin.High;
+	OutData[1] = FVector4f(FVector4(MeshCards.WorldToLocalRotation.GetScaledAxis(EAxis::X), WorldOrigin.Low.X));
+	OutData[2] = FVector4f(FVector4(MeshCards.WorldToLocalRotation.GetScaledAxis(EAxis::Y), WorldOrigin.Low.Y));
+	OutData[3] = FVector4f(FVector4(MeshCards.WorldToLocalRotation.GetScaledAxis(EAxis::Z), WorldOrigin.Low.Z));
 
 	uint32 PackedData[4];
 	PackedData[0] = MeshCards.FirstCardIndex;

@@ -81,7 +81,7 @@ struct FDebugOutput
 
 RWStructuredBuffer<FDebugOutput> RWDebugOutputBuffer;
 
-FDebugOutput CreateDebugOutput(
+/*FDebugOutput CreateDebugOutput(
 	inout FMaterialPixelParameters MaterialParameters,
 	inout FPixelMaterialInputs PixelMaterialInputs)
 {
@@ -92,10 +92,15 @@ FDebugOutput CreateDebugOutput(
 	DebugOutput.PrimitiveId = MaterialParameters.PrimitiveId;
 	DebugOutput.LocalObjectBoundsMin = PrimitiveData.LocalObjectBoundsMin.xyz;
 	DebugOutput.LocalObjectBoundsMax = PrimitiveData.LocalObjectBoundsMax.xyz;
-	DebugOutput.LocalToWorld = LWCToFloat(PrimitiveData.LocalToWorld);
-	DebugOutput.WorldToLocal = LWCToFloat(PrimitiveData.WorldToLocal);
+	DebugOutput.LocalToWorld = DFDemote(PrimitiveData.LocalToWorld);
+	DebugOutput.WorldToLocal = DFDemote(PrimitiveData.WorldToLocal);
 
 	return DebugOutput;
+}*/
+
+FPrimitiveSceneData GetPrimitiveData(FMaterialVertexParameters Parameters)
+{
+	return GetPrimitiveData(Parameters, LocalToWorld, WorldToLocal, LocalBoundsOrigin, LocalBoundsExtent);
 }
 
 FPrimitiveSceneData GetPrimitiveData(FMaterialPixelParameters Parameters)
@@ -169,7 +174,8 @@ FVolumeSampleContext CreateVolumeSampleContext(float3 LocalPosition, float3 Worl
 	FVolumeSampleContext VolumeSampleContext;
 	VolumeSampleContext.MaterialParameters = MakeInitializedMaterialPixelParameters();
 	//VolumeSampleContext.MaterialParameters.PrimitiveId = PrimitiveId;
-	VolumeSampleContext.MaterialParameters.AbsoluteWorldPosition = LWCPromote(WorldPosition);
+	VolumeSampleContext.MaterialParameters.AbsoluteWorldPosition = DFPromote(WorldPosition);
+	VolumeSampleContext.MaterialParameters.LWCData.AbsoluteWorldPosition = WSPromote(WorldPosition);
 
 	// Evaluate Material graph
 	CalcPixelMaterialInputs(VolumeSampleContext.MaterialParameters, VolumeSampleContext.PixelMaterialInputs);
@@ -249,7 +255,7 @@ void RenderLightingCacheWithLiveShadingCS(
 	if (LightType != LIGHT_TYPE_DIRECTIONAL)
 	{
 		// Note: this function also permutes ToLight and L
-		float3 TranslatedWorldPosition = LWCHackToFloat(LWCAdd(WorldRayOrigin, PrimaryView.PreViewTranslation));
+		float3 TranslatedWorldPosition = DFFastToTranslatedWorld(WorldRayOrigin, PrimaryView.PreViewTranslation);
 		GetLocalLightAttenuation(TranslatedWorldPosition, LightData, ToLight, L);
 
 		if (LightData.bRectLight)
@@ -304,8 +310,8 @@ void RenderSingleScatteringWithLiveShadingCS(
 
 	// Intersect ray with bounding volume
 	// TODO: LWC integration..
-	float3 WorldRayOrigin = LWCHackToFloat(LWCSubtract(View.TranslatedWorldCameraOrigin, PrimaryView.PreViewTranslation));
-	float3 WorldRayEnd = LWCHackToFloat(SvPositionToWorld(float4(PixelCoord + View.TemporalAAJitter.xy, DeviceZ, 1)));
+	float3 WorldRayOrigin = DFHackToFloat(DFFastSubtract(View.TranslatedWorldCameraOrigin, PrimaryView.PreViewTranslation));
+	float3 WorldRayEnd = DFHackToFloat(SvPositionToWorld(float4(PixelCoord + View.TemporalAAJitter.xy, DeviceZ, 1)));
 	float3 WorldRayDirection = WorldRayEnd - WorldRayOrigin;
 	float WorldRayLength = length(WorldRayDirection);
 	WorldRayDirection /= WorldRayLength;

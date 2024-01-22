@@ -30,8 +30,8 @@ uint InstanceSceneDataSOAStride;
 
 float3 FarFieldReferencePos;
 
-float3 ViewTilePosition;
-float3 RelativePreViewTranslation;
+float3 PreViewTranslationHigh;
+float3 PreViewTranslationLow;
 
 RWStructuredBuffer<FRayTracingInstanceDescriptor> InstancesDescriptors;
 
@@ -95,7 +95,7 @@ bool CullInstance(FInstanceSceneData InstanceSceneData, float4x4 LocalToTranslat
 [numthreads(THREADGROUP_SIZE, 1, 1)]
 void RayTracingBuildInstanceBufferCS(uint3 DispatchThreadId : SV_DispatchThreadID)
 {
-	const FLWCVector3 PreViewTranslation = MakeLWCVector3(-ViewTilePosition, RelativePreViewTranslation);
+	const FDFVector3 PreViewTranslation = MakeDFVector3(PreViewTranslationHigh, PreViewTranslationLow);
 
 	const uint Index = DispatchThreadId.x;
 
@@ -109,7 +109,7 @@ void RayTracingBuildInstanceBufferCS(uint3 DispatchThreadId : SV_DispatchThreadI
 		FInstanceSceneData InstanceSceneData = GetInstanceSceneData(InputDesc.GPUSceneInstanceOrTransformIndex, InstanceSceneDataSOAStride);
 		FPrimitiveSceneData PrimitiveData = GetPrimitiveData(InstanceSceneData.PrimitiveId);
 
-		float4x4 LocalToTranslatedWorld4x4 = LWCMultiplyTranslation(InstanceSceneData.LocalToWorld, PreViewTranslation);
+		float4x4 LocalToTranslatedWorld4x4 = DFFastToTranslatedWorld(InstanceSceneData.LocalToWorld, PreViewTranslation);
 
 		const bool bFarFieldInstance = PrimitiveData.Flags & PRIMITIVE_SCENE_DATA_FLAG_RAYTRACING_FAR_FIELD;
 

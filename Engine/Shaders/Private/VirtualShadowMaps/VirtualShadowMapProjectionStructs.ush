@@ -15,12 +15,11 @@ struct FVirtualShadowMapProjectionShaderData
 	float3 LightDirection;
 	uint LightType;		// Matches ELightComponentType via defines in SSDDefinitions.ush
 
-	FLWCVector3 PreViewTranslation;
-
+	FDFVector3 PreViewTranslation;
 	float LightRadius;
 	float ResolutionLodBias;
 
-	FLWCVector3 ClipmapWorldOrigin;	
+	float3 ClipmapWorldOriginOffset; // Clipmap origin, in shadow translated world
 
 	int2 ClipmapCornerRelativeOffset;
 	int ClipmapLevel;					// "Absolute" level, can be negative
@@ -64,10 +63,10 @@ FVirtualShadowMapProjectionShaderData DecodeVirtualShadowMapProjectionData(ByteA
 	Result.LightDirection					= asfloat(ProjectionData.Load3(Base + (16*12 + 4*0)));
 	Result.LightType						=		 (ProjectionData.Load (Base + (16*12 + 4*3)));
 		 
-	float3 PreViewTranslationTile			= asfloat(ProjectionData.Load3(Base + (16*13 + 4*0)));
+	float3 PreViewTranslationHigh			= asfloat(ProjectionData.Load3(Base + (16*13 + 4*0)));
 	Result.LightRadius						= asfloat(ProjectionData.Load (Base + (16*13 + 4*3)));
 
-	float3 PreViewTranslationOffset			= asfloat(ProjectionData.Load3(Base + (16*14 + 4*0)));
+	float3 PreViewTranslationLow			= asfloat(ProjectionData.Load3(Base + (16*14 + 4*0)));
 	Result.ResolutionLodBias				= asfloat(ProjectionData.Load (Base + (16*14 + 4*3)));
 
 	float3 NegativeClipmapWorldOriginOffset = asfloat(ProjectionData.Load3(Base + (16*15 + 4*0)));
@@ -82,8 +81,8 @@ FVirtualShadowMapProjectionShaderData DecodeVirtualShadowMapProjectionData(ByteA
 		                                    = asfloat(ProjectionData.Load (Base + (16*17 + 4*1)));
 	
 	// Computed data
-	Result.PreViewTranslation				= MakeLWCVector3(PreViewTranslationTile, PreViewTranslationOffset);
-	Result.ClipmapWorldOrigin				= LWCNegate(MakeLWCVector3(PreViewTranslationTile, NegativeClipmapWorldOriginOffset));
+	Result.PreViewTranslation				= MakeDFVector3(PreViewTranslationHigh, PreViewTranslationLow);
+	Result.ClipmapWorldOriginOffset			= -NegativeClipmapWorldOriginOffset;
 
 	Result.bUnCached = (Result.Flags & VSM_PROJ_FLAG_UNCACHED) != 0U;
 	Result.bUnreferenced = (Result.Flags & VSM_PROJ_FLAG_UNREFERENCED) != 0U;

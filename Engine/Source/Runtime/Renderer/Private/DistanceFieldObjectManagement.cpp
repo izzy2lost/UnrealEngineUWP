@@ -613,18 +613,16 @@ void FDistanceFieldSceneData::UpdateDistanceFieldObjectBuffers(
 								// This is mirrored in the SDF encoding
 								const FBox3f::FReal LocalToVolumeScale = 1.0f / LocalSpaceMeshBounds.GetExtent().GetMax();
 
-								const FLargeWorldRenderPosition WorldPosition(PrimAndInst.Origin);
-								const FVector TilePositionOffset = WorldPosition.GetTileOffset();
+								const FDFVector3 WorldPosition(PrimAndInst.Origin + FVector(PrimAndInst.WorldBoundsRelativeToOrigin.GetCenter()));
 
-								FMatrix44f LocalToRelativeWorld = FLargeWorldRenderScalar::MakeToRelativeWorldMatrix(TilePositionOffset, PrimAndInst.GetLocalToWorld());
+								FMatrix44f LocalToRelativeWorld = FDFMatrix::MakeToRelativeWorldMatrix(WorldPosition.High, PrimAndInst.GetLocalToWorld()).M;
 								FMatrix44f RelativeWorldToLocal = FMatrix44f(LocalToRelativeWorld.InverseFast());
 
 								{
-									const FBox3f RelativeWorldSpaceMeshBounds = PrimAndInst.WorldBoundsRelativeToOrigin.ShiftBy(FVector3f(PrimAndInst.Origin - TilePositionOffset));
+									const FVector3f BoundsExtent = PrimAndInst.WorldBoundsRelativeToOrigin.GetExtent();
+									const FVector4f ObjectBoundingSphere(WorldPosition.Low, BoundsExtent.Size());
 
-									const FVector4f ObjectBoundingSphere(RelativeWorldSpaceMeshBounds.GetCenter(), RelativeWorldSpaceMeshBounds.GetExtent().Size());
-
-									UploadObjectBounds[0] = WorldPosition.GetTile();
+									UploadObjectBounds[0] = WorldPosition.High;
 									UploadObjectBounds[1] = ObjectBoundingSphere;
 
 									const FGlobalDFCacheType CacheType = PrimitiveSceneProxy->IsOftenMoving() ? GDF_Full : GDF_MostlyStatic;
@@ -643,7 +641,7 @@ void FDistanceFieldSceneData::UpdateDistanceFieldObjectBuffers(
 									Flags |= bVisible ? 16u : 0;
 									Flags |= bAffectIndirectLightingWhileHidden ? 32u : 0;
 
-									FVector4f ObjectWorldExtentAndFlags(RelativeWorldSpaceMeshBounds.GetExtent(), 0.0f);
+									FVector4f ObjectWorldExtentAndFlags(BoundsExtent, 0.0f);
 									ObjectWorldExtentAndFlags.W = *(const float*)&Flags;
 									UploadObjectBounds[2] = ObjectWorldExtentAndFlags;
 								}
@@ -651,9 +649,7 @@ void FDistanceFieldSceneData::UpdateDistanceFieldObjectBuffers(
 								const FMatrix44f VolumeToRelativeWorld = FScaleMatrix44f(1.0f / LocalToVolumeScale) * FTranslationMatrix44f(LocalSpaceMeshBounds.GetCenter()) * LocalToRelativeWorld;
 								const FMatrix44f RelativeWorldToVolume = RelativeWorldToLocal * FTranslationMatrix44f(-LocalSpaceMeshBounds.GetCenter()) * FScaleMatrix44f(LocalToVolumeScale);
 
-								// TilePosition
-								UploadObjectData[0] = WorldPosition.GetTile();
-
+								UploadObjectData[0] = WorldPosition.High;
 								const FMatrix44f WorldToVolumeT = RelativeWorldToVolume.GetTransposed();
 								// WorldToVolumeT
 								UploadObjectData[1] = (*(FVector4f*)&WorldToVolumeT.M[0]);
@@ -675,7 +671,7 @@ void FDistanceFieldSceneData::UpdateDistanceFieldObjectBuffers(
 								// In this case, it will effectively disable max draw distance culling
 								float MaxDrawDist = FMath::Max(PrimBounds.MaxCullDistance, 0.f) * GetCachedScalabilityCVars().ViewDistanceScale;
 
-								const uint32 GPUSceneInstanceIndex = PrimitiveSceneProxy->SupportsInstanceDataBuffer() ? 
+								const uint32 GPUSceneInstanceIndex = PrimitiveSceneProxy->SupportsInstanceDataBuffer() ?
 									PrimAndInst.Primitive->GetInstanceSceneDataOffset() + PrimAndInst.InstanceIndex :
 									PrimAndInst.Primitive->GetInstanceSceneDataOffset();
 
@@ -699,7 +695,7 @@ void FDistanceFieldSceneData::UpdateDistanceFieldObjectBuffers(
 								check(AssetStateSetId.IsValidId());
 								const int32 AssetStateInt = AssetStateSetId.AsInteger();
 								FloatVector8.W = *(const float*)&AssetStateInt;
-									
+
 								UploadObjectData[9] = FloatVector8;
 							}
 						}
@@ -818,9 +814,9 @@ void FSceneRenderer::UpdateGlobalHeightFieldObjectBuffers(FRDGBuilder& GraphBuil
 				const FBoxSphereBounds& Bounds = Primitive->Proxy->GetBounds();
 				const FBox BoxBound = Bounds.GetBox();
 
-				const FLargeWorldRenderPosition AbsoluteWorldPosition(BoxBound.GetCenter());
+				const FDFVector3 AbsoluteWorldPosition(BoxBound.GetCenter());
 
-				const FVector4f ObjectBoundingSphere(AbsoluteWorldPosition.GetOffset(), Bounds.SphereRadius);
+				const FVector4f ObjectBoundingSphere(AbsoluteWorldPosition.Low, Bounds.SphereRadius);
 
 				uint32 Flags = 0;
 				Flags |= bInAtlas ? 1u : 0;
@@ -828,7 +824,7 @@ void FSceneRenderer::UpdateGlobalHeightFieldObjectBuffers(FRDGBuilder& GraphBuil
 				FVector4f BoxBoundExtentAndFlags((FVector3f)BoxBound.GetExtent(), 0.0f);
 				BoxBoundExtentAndFlags.W = *(const float*)&Flags;
 
-				UploadObjectBounds[0] = AbsoluteWorldPosition.GetTile();
+				UploadObjectBounds[0] = AbsoluteWorldPosition.High;
 				UploadObjectBounds[1] = ObjectBoundingSphere;
 				UploadObjectBounds[2] = BoxBoundExtentAndFlags;
 			}
@@ -836,13 +832,12 @@ void FSceneRenderer::UpdateGlobalHeightFieldObjectBuffers(FRDGBuilder& GraphBuil
 			const FMatrix& LocalToWorld = HeightFieldCompDesc.LocalToWorld;
 			check(LocalToWorld.GetMaximumAxisScale() > 0.f);
 
-			const FLargeWorldRenderPosition WorldPosition(LocalToWorld.GetOrigin());
-			const FVector TilePositionOffset = WorldPosition.GetTileOffset();
+			const FDFVector3 WorldPosition(LocalToWorld.GetOrigin());
 
 			// Inverse on FMatrix44f can generate NaNs if the source matrix contains large scaling, so do it in double precision.
-			FMatrix LocalToRelativeWorld = FLargeWorldRenderScalar::MakeToRelativeWorldMatrixDouble(TilePositionOffset, LocalToWorld);
+			FMatrix LocalToRelativeWorld = FDFMatrix::MakeToRelativeWorldMatrixDouble(FVector(WorldPosition.High), LocalToWorld);
 
-			UploadObjectData[0] = WorldPosition.GetTile();
+			UploadObjectData[0] = WorldPosition.High;
 
 			const FMatrix44f WorldToLocalT = FMatrix44f(LocalToRelativeWorld.Inverse().GetTransposed());
 			UploadObjectData[1] = *(const FVector4f*)&WorldToLocalT.M[0];

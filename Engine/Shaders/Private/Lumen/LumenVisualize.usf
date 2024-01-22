@@ -58,7 +58,7 @@ void VisualizeQuadsCS(
 	bool bCoveredByRadianceCache = false;
 
 #if RADIANCE_CACHE
-	FRadianceCacheCoverage Coverage = GetRadianceCacheCoverage(LWCHackToFloat(PrimaryView.WorldCameraOrigin), CameraVector, .5f);
+	FRadianceCacheCoverage Coverage = GetRadianceCacheCoverage(DFHackToFloat(PrimaryView.WorldCameraOrigin), CameraVector, .5f);
 				
 	if (Coverage.bValid)
 	{
@@ -67,7 +67,7 @@ void VisualizeQuadsCS(
 #endif
 
 	FConeTraceInput TraceInput;
-	TraceInput.Setup(LWCHackToFloat(PrimaryView.WorldCameraOrigin), PrimaryView.TranslatedWorldCameraOrigin, CameraVector, ConeAngle, .01f, MinTraceDistance, TraceDistance, VisualizeStepFactor);
+	TraceInput.Setup(DFHackToFloat(PrimaryView.WorldCameraOrigin), PrimaryView.TranslatedWorldCameraOrigin, CameraVector, ConeAngle, .01f, MinTraceDistance, TraceDistance, VisualizeStepFactor);
 	TraceInput.SDFStepFactor = lerp(.8f, 1.0f, Noise);
 	TraceInput.bDitheredTransparency = false;
 	TraceInput.DitherScreenCoord = PixelPos;
@@ -119,7 +119,7 @@ void VisualizeQuadsCS(
 #endif
 
 #if RADIANCE_CACHE
-	TraceResult.Lighting += SampleRadianceCacheInterpolated(Coverage, LWCHackToFloat(PrimaryView.WorldCameraOrigin), CameraVector, ConeAngle).xyz * TraceResult.Transparency;
+	TraceResult.Lighting += SampleRadianceCacheInterpolated(Coverage, DFHackToFloat(PrimaryView.WorldCameraOrigin), CameraVector, ConeAngle).xyz * TraceResult.Transparency;
 	TraceResult.Transparency = 0.0f;
 #else
 	ApplySkylightToTraceResult(CameraVector, TraceResult);
@@ -184,7 +184,7 @@ void VisualizeTracesVS(
 		WorldPosition += VisualizeTracesData[TraceIndex * VISUALIZE_TRACE_DATA_STRIDE + 1].xyz;
 	}
 
-	OutPosition = mul(float4(WorldPosition, 1), LWCHackToFloat(PrimaryView.WorldToClip));
+	OutPosition = mul(float4(WorldPosition, 1), DFHackToFloat(PrimaryView.WorldToClip));
 	Output.TraceLighting = VisualizeTracesData[TraceIndex * VISUALIZE_TRACE_DATA_STRIDE + 2].xyz;
 } 
 

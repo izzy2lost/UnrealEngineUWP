@@ -27,7 +27,7 @@ void VLMVoxelizationVS(
 	ResolvedView = ResolveView();
 
 	FVertexFactoryIntermediates VFIntermediates = GetVertexFactoryIntermediates(Input);
-	Output.WorldPosition = VertexFactoryGetWorldPosition(Input, VFIntermediates) - float4(LWCHackToFloat(ResolvedView.PreViewTranslation), 0.0f);
+	Output.WorldPosition = VertexFactoryGetWorldPosition(Input, VFIntermediates) - float4(DFHackToFloat(ResolvedView.PreViewTranslation), 0.0f);
 	Output.WorldPosition = float4((Output.WorldPosition.xyz - VLMVoxelizationParams.VolumeCenter.xyz) / max(VLMVoxelizationParams.VolumeExtent.xyz, float3(0.0001, 0.0001, 0.0001)), 1.0f);
 }
 

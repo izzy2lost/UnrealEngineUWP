@@ -355,7 +355,7 @@ void BuildLightTilesCS(
 				if (bLightAffectsCard)
 				{
 					// Center of a tile for estimating attenuation
-					float3 TranslatedWorldPosition = CardPageWorldCenter + LWCHackToFloat(PrimaryView.PreViewTranslation);
+					float3 TranslatedWorldPosition = CardPageWorldCenter + DFHackToFloat(PrimaryView.PreViewTranslation);
 
 					FLightSample LightSample;
 					LightSample.Weight = GetLightWeight(LumenLight, TranslatedWorldPosition);

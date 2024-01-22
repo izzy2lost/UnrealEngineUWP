@@ -9,22 +9,21 @@
 float3 GetWorldPositionFromScreenUV(float2 ScreenUV, float SceneDepth)
 {
 	float2 ScreenPosition = (ScreenUV - View.ScreenPositionScaleBias.wz) / View.ScreenPositionScaleBias.xy;
-	float3 WorldPosition = mul(float4(GetScreenPositionForProjectionType(ScreenPosition, SceneDepth), SceneDepth, 1), LWCHackToFloat(PrimaryView.ScreenToWorld)).xyz;
+	float3 WorldPosition = mul(float4(GetScreenPositionForProjectionType(ScreenPosition, SceneDepth), SceneDepth, 1), DFHackToFloat(PrimaryView.ScreenToWorld)).xyz;
 	return WorldPosition;
 }
 
 float3 GetTranslatedWorldPositionFromScreenUV(float2 ScreenUV, float SceneDepth)
 {
 	float2 ScreenPosition = (ScreenUV - View.ScreenPositionScaleBias.wz) / View.ScreenPositionScaleBias.xy;
-	float3 TranslatedWorldPosition = mul(float4(GetScreenPositionForProjectionType(ScreenPosition, SceneDepth), SceneDepth, 1), View.ScreenToTranslatedWorld).xyz;
-	return TranslatedWorldPosition;
+	return mul(float4(GetScreenPositionForProjectionType(ScreenPosition, SceneDepth), SceneDepth, 1), PrimaryView.ScreenToTranslatedWorld).xyz;
 }
 
 float3 GetPrevTranslatedWorldPosition(float3 HistoryScreenPosition)
 {
 	float HistorySceneDepth = ConvertFromDeviceZ(HistoryScreenPosition.z);
 	float3 PrevPositionTranslatedWorld = mul(float4(GetScreenPositionForProjectionType(HistoryScreenPosition.xy, HistorySceneDepth), HistorySceneDepth, 1), View.PrevScreenToTranslatedWorld).xyz;
-	float3 PreViewTranslationOffset = LWCToFloat(LWCSubtract(PrimaryView.PreViewTranslation, PrimaryView.PrevPreViewTranslation));
+	float3 PreViewTranslationOffset = DFFastLocalSubtractDemote(PrimaryView.PreViewTranslation, PrimaryView.PrevPreViewTranslation);
 	float3 PrevTranslatedWorldPosition = PrevPositionTranslatedWorld + PreViewTranslationOffset;
 	return PrevTranslatedWorldPosition;
 }
@@ -32,7 +31,7 @@ float3 GetPrevTranslatedWorldPosition(float3 HistoryScreenPosition)
 float3 GetPrevTranslatedWorldPosition(float2 HistoryScreenPosition, float HistorySceneDepth)
 {
 	float3 PrevPositionTranslatedWorld = mul(float4(HistoryScreenPosition.xy * HistorySceneDepth, HistorySceneDepth, 1), View.PrevScreenToTranslatedWorld).xyz;
-	float3 PreViewTranslationOffset = LWCToFloat(LWCSubtract(PrimaryView.PreViewTranslation, PrimaryView.PrevPreViewTranslation));
+	float3 PreViewTranslationOffset = DFFastLocalSubtractDemote(PrimaryView.PreViewTranslation, PrimaryView.PrevPreViewTranslation);
 	float3 PrevTranslatedWorldPosition = PrevPositionTranslatedWorld + PreViewTranslationOffset;
 	return PrevTranslatedWorldPosition;
 }

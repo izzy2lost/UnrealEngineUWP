@@ -776,64 +776,71 @@ void FExpressionOperation::EmitValueShader(FEmitContext& Context, FEmitScope& Sc
 	switch (Op)
 	{
 	// Unary Ops
-	case EOperation::Abs: OutResult.Code = Context.EmitExpression(Scope, ResultType, Types.bIsLWC ? TEXT("LWCAbs(%)") : TEXT("abs(%)"), InputValue[0]); break;
+	case EOperation::Abs: OutResult.Code = Context.EmitExpression(Scope, ResultType, Types.bIsLWC ? TEXT("WSAbs(%)") : TEXT("abs(%)"), InputValue[0]); break;
 	case EOperation::Neg:
 		if (Types.bIsLWC)
 		{
-			OutResult.Code = Context.EmitExpression(Scope, ResultType, TEXT("LWCNegate(%)"), InputValue[0]);
+			OutResult.Code = Context.EmitExpression(Scope, ResultType, TEXT("WSNegate(%)"), InputValue[0]);
 		}
 		else
 		{
 			OutResult.Code = Context.EmitInlineExpression(Scope, ResultType, TEXT("(-%)"), InputValue[0]);
 		}
 		break;
-	case EOperation::Rcp: OutResult.Code = Context.EmitExpression(Scope, ResultType, Types.bIsLWC ? TEXT("LWCRcp(%)") : TEXT("rcp(%)"), InputValue[0]); break;
-	case EOperation::Sqrt: OutResult.Code = Context.EmitExpression(Scope, ResultType, Types.bIsLWC ? TEXT("LWCSqrt(%)") : TEXT("sqrt(%)"), InputValue[0]); break;
-	case EOperation::Rsqrt: OutResult.Code = Context.EmitExpression(Scope, ResultType, Types.bIsLWC ? TEXT("LWCRsqrt(%)") : TEXT("rsqrt(%)"), InputValue[0]); break;
+	case EOperation::Rcp: OutResult.Code = Context.EmitExpression(Scope, ResultType, Types.bIsLWC ? TEXT("WSRcpDemote(%)") : TEXT("rcp(%)"), InputValue[0]); break;
+	case EOperation::Sqrt: OutResult.Code = Context.EmitExpression(Scope, ResultType, Types.bIsLWC ? TEXT("WSSqrtDemote(%)") : TEXT("sqrt(%)"), InputValue[0]); break;
+	case EOperation::Rsqrt: OutResult.Code = Context.EmitExpression(Scope, ResultType, Types.bIsLWC ? TEXT("WSRsqrtDemote(%)") : TEXT("rsqrt(%)"), InputValue[0]); break;
 	case EOperation::Log: OutResult.Code = Context.EmitExpression(Scope, ResultType, TEXT("log(%)"), InputValue[0]); break;
 	case EOperation::Log2: OutResult.Code = Context.EmitExpression(Scope, ResultType, TEXT("log2(%)"), InputValue[0]); break;
 	case EOperation::Exp: OutResult.Code = Context.EmitExpression(Scope, ResultType, TEXT("exp(%)"), InputValue[0]); break;
 	case EOperation::Exp2: OutResult.Code = Context.EmitExpression(Scope, ResultType, TEXT("exp2(%)"), InputValue[0]); break;
-	case EOperation::Frac: OutResult.Code = Context.EmitExpression(Scope, ResultType, Types.bIsLWC ? TEXT("LWCFrac(%)") : TEXT("frac(%)"), InputValue[0]); break;
-	case EOperation::Floor: OutResult.Code = Context.EmitExpression(Scope, ResultType, Types.bIsLWC ? TEXT("LWCFloor(%)") : TEXT("floor(%)"), InputValue[0]); break;
-	case EOperation::Ceil: OutResult.Code = Context.EmitExpression(Scope, ResultType, Types.bIsLWC ? TEXT("LWCCeil(%)") : TEXT("ceil(%)"), InputValue[0]); break;
-	case EOperation::Round: OutResult.Code = Context.EmitExpression(Scope, ResultType, Types.bIsLWC ? TEXT("LWCRound(%)") : TEXT("round(%)"), InputValue[0]); break;
-	case EOperation::Trunc: OutResult.Code = Context.EmitExpression(Scope, ResultType, Types.bIsLWC ? TEXT("LWCTrunc(%)") : TEXT("trunc(%)"), InputValue[0]); break;
-	case EOperation::Saturate: OutResult.Code = Context.EmitExpression(Scope, ResultType, Types.bIsLWC ? TEXT("LWCSaturate(%)") : TEXT("saturate(%)"), InputValue[0]); break;
-	case EOperation::Sign: OutResult.Code = Context.EmitExpression(Scope, ResultType, Types.bIsLWC ? TEXT("LWCSign(%)") : TEXT("sign(%)"), InputValue[0]); break;
-	case EOperation::Length: OutResult.Code = Context.EmitExpression(Scope, ResultType, Types.bIsLWC ? TEXT("LWCLength(%)") : TEXT("length(%)"), InputValue[0]); break;
-	case EOperation::Normalize: OutResult.Code = Context.EmitExpression(Scope, ResultType, Types.bIsLWC ? TEXT("LWCNormalize(%)") : TEXT("normalize(%)"), InputValue[0]); break;
-	case EOperation::Sum: OutResult.Code = Context.EmitExpression(Scope, ResultType, Types.bIsLWC ? TEXT("LWCVectorSum(%)") : TEXT("VectorSum(%)"), InputValue[0]); break;
-	case EOperation::Sin: OutResult.Code = Context.EmitExpression(Scope, ResultType, Types.bIsLWC ? TEXT("LWCSin(%)") : TEXT("sin(%)"), InputValue[0]); break;
-	case EOperation::Cos: OutResult.Code = Context.EmitExpression(Scope, ResultType, Types.bIsLWC ? TEXT("LWCCos(%)") : TEXT("cos(%)"), InputValue[0]); break;
-	case EOperation::Tan: OutResult.Code = Context.EmitExpression(Scope, ResultType, Types.bIsLWC ? TEXT("LWCTan(%)") : TEXT("tan(%)"), InputValue[0]); break;
-	case EOperation::Asin: OutResult.Code = Context.EmitExpression(Scope, ResultType, Types.bIsLWC ? TEXT("LWCAsin(%)") : TEXT("asin(%)"), InputValue[0]); break;
-	case EOperation::AsinFast: OutResult.Code = Context.EmitExpression(Scope, ResultType, Types.bIsLWC ? TEXT("LWCAsin(%)") : TEXT("asinFast(%)"), InputValue[0]); break;
-	case EOperation::Acos: OutResult.Code = Context.EmitExpression(Scope, ResultType, Types.bIsLWC ? TEXT("LWCAcos(%)") : TEXT("acos(%)"), InputValue[0]); break;
-	case EOperation::AcosFast: OutResult.Code = Context.EmitExpression(Scope, ResultType, Types.bIsLWC ? TEXT("LWCAcos(%)") : TEXT("acosFast(%)"), InputValue[0]); break;
-	case EOperation::Atan: OutResult.Code = Context.EmitExpression(Scope, ResultType, Types.bIsLWC ? TEXT("LWCAtan(%)") : TEXT("atan(%)"), InputValue[0]); break;
-	case EOperation::AtanFast: OutResult.Code = Context.EmitExpression(Scope, ResultType, Types.bIsLWC ? TEXT("LWCAtan(%)") : TEXT("atanFast(%)"), InputValue[0]); break;
+	case EOperation::Frac: OutResult.Code = Context.EmitExpression(Scope, ResultType, Types.bIsLWC ? TEXT("WSFracDemote(%)") : TEXT("frac(%)"), InputValue[0]); break;
+	case EOperation::Floor: OutResult.Code = Context.EmitExpression(Scope, ResultType, Types.bIsLWC ? TEXT("WSFloor(%)") : TEXT("floor(%)"), InputValue[0]); break;
+	case EOperation::Ceil: OutResult.Code = Context.EmitExpression(Scope, ResultType, Types.bIsLWC ? TEXT("WSCeil(%)") : TEXT("ceil(%)"), InputValue[0]); break;
+	case EOperation::Round: OutResult.Code = Context.EmitExpression(Scope, ResultType, Types.bIsLWC ? TEXT("WSRound(%)") : TEXT("round(%)"), InputValue[0]); break;
+	case EOperation::Trunc: OutResult.Code = Context.EmitExpression(Scope, ResultType, Types.bIsLWC ? TEXT("WSTrunc(%)") : TEXT("trunc(%)"), InputValue[0]); break;
+	case EOperation::Saturate: OutResult.Code = Context.EmitExpression(Scope, ResultType, Types.bIsLWC ? TEXT("WSSaturateDemote(%)") : TEXT("saturate(%)"), InputValue[0]); break;
+	case EOperation::Sign: OutResult.Code = Context.EmitExpression(Scope, ResultType, Types.bIsLWC ? TEXT("WSSign(%)") : TEXT("sign(%)"), InputValue[0]); break;
+	case EOperation::Length: OutResult.Code = Context.EmitExpression(Scope, ResultType, Types.bIsLWC ? TEXT("WSLength(%)") : TEXT("length(%)"), InputValue[0]); break;
+	case EOperation::Normalize: OutResult.Code = Context.EmitExpression(Scope, ResultType, Types.bIsLWC ? TEXT("WSNormalizeDemote(%)") : TEXT("normalize(%)"), InputValue[0]); break;
+	case EOperation::Sum: OutResult.Code = Context.EmitExpression(Scope, ResultType, Types.bIsLWC ? TEXT("WSVectorSum(%)") : TEXT("VectorSum(%)"), InputValue[0]); break;
+	case EOperation::Sin: OutResult.Code = Context.EmitExpression(Scope, ResultType, Types.bIsLWC ? TEXT("WSSin(%)") : TEXT("sin(%)"), InputValue[0]); break;
+	case EOperation::Cos: OutResult.Code = Context.EmitExpression(Scope, ResultType, Types.bIsLWC ? TEXT("WSCos(%)") : TEXT("cos(%)"), InputValue[0]); break;
+	case EOperation::Tan: OutResult.Code = Context.EmitExpression(Scope, ResultType, Types.bIsLWC ? TEXT("WSTan(%)") : TEXT("tan(%)"), InputValue[0]); break;
+	case EOperation::Asin: OutResult.Code = Context.EmitExpression(Scope, ResultType, Types.bIsLWC ? TEXT("WSAsin(%)") : TEXT("asin(%)"), InputValue[0]); break;
+	case EOperation::AsinFast: OutResult.Code = Context.EmitExpression(Scope, ResultType, Types.bIsLWC ? TEXT("WSAsin(%)") : TEXT("asinFast(%)"), InputValue[0]); break;
+	case EOperation::Acos: OutResult.Code = Context.EmitExpression(Scope, ResultType, Types.bIsLWC ? TEXT("WSAcos(%)") : TEXT("acos(%)"), InputValue[0]); break;
+	case EOperation::AcosFast: OutResult.Code = Context.EmitExpression(Scope, ResultType, Types.bIsLWC ? TEXT("WSAcos(%)") : TEXT("acosFast(%)"), InputValue[0]); break;
+	case EOperation::Atan: OutResult.Code = Context.EmitExpression(Scope, ResultType, Types.bIsLWC ? TEXT("WSAtan(%)") : TEXT("atan(%)"), InputValue[0]); break;
+	case EOperation::AtanFast: OutResult.Code = Context.EmitExpression(Scope, ResultType, Types.bIsLWC ? TEXT("WSAtan(%)") : TEXT("atanFast(%)"), InputValue[0]); break;
 	
 	// Binary Ops
-	case EOperation::Add: OutResult.Code = Context.EmitExpression(Scope, ResultType, Types.bIsLWC ? TEXT("LWCAdd(%, %)") : TEXT("(% + %)"), InputValue[0], InputValue[1]); break;
-	case EOperation::Sub: OutResult.Code = Context.EmitExpression(Scope, ResultType, Types.bIsLWC ? TEXT("LWCSubtract(%, %)") : TEXT("(% - %)"), InputValue[0], InputValue[1]); break;
-	case EOperation::Mul: OutResult.Code = Context.EmitExpression(Scope, ResultType, Types.bIsLWC ? TEXT("LWCMultiply(%, %)") : TEXT("(% * %)"), InputValue[0], InputValue[1]); break;
-	case EOperation::Div: OutResult.Code = Context.EmitExpression(Scope, ResultType, Types.bIsLWC ? TEXT("LWCDivide(%, %)") : TEXT("(% / %)"), InputValue[0], InputValue[1]); break;
-	case EOperation::Fmod: OutResult.Code = Context.EmitExpression(Scope, ResultType, Types.bIsLWC ? TEXT("LWCFmod(%, %)") : TEXT("fmod(%, %)"), InputValue[0], InputValue[1]); break;
-	case EOperation::Step: OutResult.Code = Context.EmitExpression(Scope, ResultType, Types.bIsLWC ? TEXT("LWCStep(%, %)") : TEXT("step(%, %)"), InputValue[0], InputValue[1]); break;
+	case EOperation::Add: OutResult.Code = Context.EmitExpression(Scope, ResultType, Types.bIsLWC ? TEXT("WSAdd(%, %)") : TEXT("(% + %)"), InputValue[0], InputValue[1]); break;
+	case EOperation::Sub: OutResult.Code = Context.EmitExpression(Scope, ResultType, Types.bIsLWC ? TEXT("WSSubtract(%, %)") : TEXT("(% - %)"), InputValue[0], InputValue[1]); break;
+	case EOperation::Mul: OutResult.Code = Context.EmitExpression(Scope, ResultType, Types.bIsLWC ? TEXT("WSMultiply(%, %)") : TEXT("(% * %)"), InputValue[0], InputValue[1]); break;
+	case EOperation::Div: OutResult.Code = Context.EmitExpression(Scope, ResultType, Types.bIsLWC ? TEXT("WSDivide(%, %)") : TEXT("(% / %)"), InputValue[0], InputValue[1]); break;
+	case EOperation::Fmod: OutResult.Code = Context.EmitExpression(Scope, ResultType, Types.bIsLWC ? TEXT("WSFmodDemote(%, %)") : TEXT("fmod(%, %)"), InputValue[0], InputValue[1]); break;
+	case EOperation::Step: OutResult.Code = Context.EmitExpression(Scope, ResultType, Types.bIsLWC ? TEXT("WSStep(%, %)") : TEXT("step(%, %)"), InputValue[0], InputValue[1]); break;
 	case EOperation::PowPositiveClamped: OutResult.Code = Context.EmitExpression(Scope, ResultType, TEXT("PositiveClampedPow(%, %)"), InputValue[0], InputValue[1]); break;
 	case EOperation::Atan2: OutResult.Code = Context.EmitExpression(Scope, ResultType, TEXT("atan2(%, %)"), InputValue[0], InputValue[1]); break;
 	case EOperation::Atan2Fast: OutResult.Code = Context.EmitExpression(Scope, ResultType, TEXT("atan2Fast(%, %)"), InputValue[0], InputValue[1]); break;
-	case EOperation::Min: OutResult.Code = Context.EmitExpression(Scope, ResultType, Types.bIsLWC ? TEXT("LWCMin(%, %)") : TEXT("min(%, %)"), InputValue[0], InputValue[1]); break;
-	case EOperation::Max: OutResult.Code = Context.EmitExpression(Scope, ResultType, Types.bIsLWC ? TEXT("LWCMax(%, %)") : TEXT("max(%, %)"), InputValue[0], InputValue[1]); break;
-	case EOperation::Less: OutResult.Code = Context.EmitExpression(Scope, ResultType, Types.bIsLWC ? TEXT("LWCLess(%, %)") : TEXT("(% < %)"), InputValue[0], InputValue[1]); break;
-	case EOperation::Greater: OutResult.Code = Context.EmitExpression(Scope, ResultType, Types.bIsLWC ? TEXT("LWCGreater(%, %)") : TEXT("(% > %)"), InputValue[0], InputValue[1]); break;
-	case EOperation::LessEqual: OutResult.Code = Context.EmitExpression(Scope, ResultType, Types.bIsLWC ? TEXT("LWCLessEqual(%, %)") : TEXT("(% <= %)"), InputValue[0], InputValue[1]); break;
-	case EOperation::GreaterEqual: OutResult.Code = Context.EmitExpression(Scope, ResultType, Types.bIsLWC ? TEXT("LWCGreaterEqual(%, %)") : TEXT("(% >= %)"), InputValue[0], InputValue[1]); break;
+	case EOperation::Min: OutResult.Code = Context.EmitExpression(Scope, ResultType, Types.bIsLWC ? TEXT("WSMin(%, %)") : TEXT("min(%, %)"), InputValue[0], InputValue[1]); break;
+	case EOperation::Max: OutResult.Code = Context.EmitExpression(Scope, ResultType, Types.bIsLWC ? TEXT("WSMax(%, %)") : TEXT("max(%, %)"), InputValue[0], InputValue[1]); break;
+	case EOperation::Less: OutResult.Code = Context.EmitExpression(Scope, ResultType, Types.bIsLWC ? TEXT("WSLess(%, %)") : TEXT("(% < %)"), InputValue[0], InputValue[1]); break;
+	case EOperation::Greater: OutResult.Code = Context.EmitExpression(Scope, ResultType, Types.bIsLWC ? TEXT("WSGreater(%, %)") : TEXT("(% > %)"), InputValue[0], InputValue[1]); break;
+	case EOperation::LessEqual: OutResult.Code = Context.EmitExpression(Scope, ResultType, Types.bIsLWC ? TEXT("WSLessEqual(%, %)") : TEXT("(% <= %)"), InputValue[0], InputValue[1]); break;
+	case EOperation::GreaterEqual: OutResult.Code = Context.EmitExpression(Scope, ResultType, Types.bIsLWC ? TEXT("WSGreaterEqual(%, %)") : TEXT("(% >= %)"), InputValue[0], InputValue[1]); break;
 	case EOperation::VecMulMatrix3:
 		if (Types.bIsLWC)
 		{
-			OutResult.Code = Context.EmitExpression(Scope, ResultType, TEXT("LWCMultiply(%, %)"), InputValue[0], InputValue[1]);
+			if (RequestedType.GetValueComponentType() == Shader::EValueComponentType::Double)
+			{
+				OutResult.Code = Context.EmitExpression(Scope, ResultType, TEXT("WSMultiply(%, %)"), InputValue[0], InputValue[1]);
+			}
+			else
+			{
+				OutResult.Code = Context.EmitExpression(Scope, ResultType, TEXT("WSMultiplyDemote(%, %)"), InputValue[0], InputValue[1]);
+			}
 		}
 		else
 		{
@@ -843,7 +850,14 @@ void FExpressionOperation::EmitValueShader(FEmitContext& Context, FEmitScope& Sc
 	case EOperation::VecMulMatrix4:
 		if (Types.bIsLWC)
 		{
-			OutResult.Code = Context.EmitExpression(Scope, ResultType, TEXT("LWCMultiply(%, %)"), InputValue[0], InputValue[1]);
+			if (RequestedType.GetValueComponentType() == Shader::EValueComponentType::Double)
+			{
+				OutResult.Code = Context.EmitExpression(Scope, ResultType, TEXT("WSMultiply(%, %)"), InputValue[0], InputValue[1]);
+			}
+			else
+			{
+				OutResult.Code = Context.EmitExpression(Scope, ResultType, TEXT("WSMultiplyDemote(%, %)"), InputValue[0], InputValue[1]);
+			}
 		}
 		else
 		{
@@ -859,7 +873,7 @@ void FExpressionOperation::EmitValueShader(FEmitContext& Context, FEmitScope& Sc
 		break;
 
 	// Ternary Ops
-	case EOperation::SmoothStep: OutResult.Code = Context.EmitExpression(Scope, ResultType, Types.bIsLWC ? TEXT("LWCSmoothStep(%, %, %)") : TEXT("smoothstep(%, %, %)"), InputValue[0], InputValue[1], InputValue[2]); break;
+	case EOperation::SmoothStep: OutResult.Code = Context.EmitExpression(Scope, ResultType, Types.bIsLWC ? TEXT("WSSmoothStep(%, %, %)") : TEXT("smoothstep(%, %, %)"), InputValue[0], InputValue[1], InputValue[2]); break;
 
 	default:
 		checkNoEntry();

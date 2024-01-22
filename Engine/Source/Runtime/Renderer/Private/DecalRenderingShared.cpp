@@ -76,7 +76,7 @@ public:
 	FDeferredDecalPS(const ShaderMetaType::CompiledShaderInitializerType& Initializer)
 		: FMaterialShader(Initializer)
 	{
-		DecalTilePosition.Bind(Initializer.ParameterMap, TEXT("DecalTilePosition"));
+		DecalPositionHigh.Bind(Initializer.ParameterMap, TEXT("DecalPositionHigh"));
 		SvPositionToDecal.Bind(Initializer.ParameterMap,TEXT("SvPositionToDecal"));
 		DecalToWorld.Bind(Initializer.ParameterMap,TEXT("DecalToWorld"));
 		DecalToWorldInvScale.Bind(Initializer.ParameterMap, TEXT("DecalToWorldInvScale"));
@@ -95,14 +95,14 @@ public:
 
 		const FMatrix DecalToWorldMatrix = DecalProxy.ComponentTrans.ToMatrixWithScale();
 		const FMatrix WorldToDecalMatrix = DecalProxy.ComponentTrans.ToInverseMatrixWithScale();
-		const FLargeWorldRenderPosition AbsoluteOrigin(DecalToWorldMatrix.GetOrigin());
-		const FVector3f TilePosition = AbsoluteOrigin.GetTile();
-		const FMatrix44f RelativeDecalToWorldMatrix = FLargeWorldRenderScalar::MakeToRelativeWorldMatrix(AbsoluteOrigin.GetTileOffset(), DecalToWorldMatrix);
+		const FDFVector3 AbsoluteOrigin(DecalToWorldMatrix.GetOrigin());
+		const FVector3f PositionHigh = AbsoluteOrigin.High;
+		const FMatrix44f RelativeDecalToWorldMatrix = FDFMatrix::MakeToRelativeWorldMatrix(PositionHigh, DecalToWorldMatrix).M;
 		const FVector3f OrientationVector = (FVector3f)DecalProxy.ComponentTrans.GetUnitAxis(EAxis::X);
 
-		if (DecalTilePosition.IsBound())
+		if (DecalPositionHigh.IsBound())
 		{
-			SetShaderValue(BatchedParameters, DecalTilePosition, TilePosition);
+			SetShaderValue(BatchedParameters, DecalPositionHigh, PositionHigh);
 		}
 		if(SvPositionToDecal.IsBound())
 		{
@@ -134,7 +134,7 @@ public:
 		}
 		if (DecalToWorldInvScale.IsBound())
 		{
-			SetShaderValue(BatchedParameters, DecalToWorldInvScale, RelativeDecalToWorldMatrix.GetScaleVector().Reciprocal());
+			SetShaderValue(BatchedParameters, DecalToWorldInvScale, static_cast<FVector3f>(DecalToWorldMatrix.GetScaleVector().Reciprocal()));
 		}
 		if (DecalOrientation.IsBound())
 		{
@@ -155,7 +155,7 @@ public:
 
 private:
 	LAYOUT_FIELD(FShaderParameter, SvPositionToDecal);
-	LAYOUT_FIELD(FShaderParameter, DecalTilePosition);
+	LAYOUT_FIELD(FShaderParameter, DecalPositionHigh);
 	LAYOUT_FIELD(FShaderParameter, DecalToWorld);
 	LAYOUT_FIELD(FShaderParameter, DecalToWorldInvScale);
 	LAYOUT_FIELD(FShaderParameter, DecalOrientation);

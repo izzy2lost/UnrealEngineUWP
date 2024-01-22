@@ -8204,7 +8204,7 @@ void TNiagaraHlslTranslator<GraphBridge>::ProcessCustomHlsl(const FString& InCus
 				{
 					if (TokenMemberName.Equals(LWCMember, ESearchCase::CaseSensitive))
 					{
-						Token = FString::Printf(TEXT("LWCToFloat(PrimaryView.%s)"), LWCMember);
+						Token = FString::Printf(TEXT("DFDemote(PrimaryView.%s)"), LWCMember);
 						if (TokenPostfix.Len() > 0)
 						{
 							Token.Append(TokenPostfix);

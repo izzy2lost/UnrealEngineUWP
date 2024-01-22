@@ -523,8 +523,8 @@ struct FUploadDataSourceAdapterScenePrimitives
 			// This is already precomputed in the InstanceSceneDataBuffers and we don't need to do it again here, except for validation purposes
 			// TODO: this validation should (also?) move elsewhere and validate that the transform on RT matches that on GT
 			const FMatrix LocalToWorld = PrimitiveSceneProxy->GetLocalToWorld();
-			const FLargeWorldRenderPosition AbsoluteOrigin(LocalToWorld.GetOrigin());
-			InstanceUploadInfo.PrimitiveToWorld = FLargeWorldRenderScalar::MakeToRelativeWorldMatrix(AbsoluteOrigin.GetTileOffset(), LocalToWorld);
+			const FDFVector3 AbsoluteOrigin(LocalToWorld.GetOrigin());
+			InstanceUploadInfo.PrimitiveToWorld = FDFMatrix::MakeToRelativeWorldMatrix(AbsoluteOrigin.High, LocalToWorld).M;
 #endif
 
 		}
@@ -532,8 +532,8 @@ struct FUploadDataSourceAdapterScenePrimitives
 		{
 			// Old path, only taken for uninstanced primitives.
 			const FMatrix LocalToWorld = PrimitiveSceneProxy->GetLocalToWorld();
-			const FLargeWorldRenderPosition AbsoluteOrigin(LocalToWorld.GetOrigin());
-			InstanceUploadInfo.PrimitiveToWorld = FLargeWorldRenderScalar::MakeToRelativeWorldMatrix(AbsoluteOrigin.GetTileOffset(), LocalToWorld);
+			const FDFVector3 AbsoluteOrigin(LocalToWorld.GetOrigin());
+			InstanceUploadInfo.PrimitiveToWorld = FDFMatrix::MakeToRelativeWorldMatrix(AbsoluteOrigin.High, LocalToWorld).M;
 
 			InstanceUploadInfo.InstanceFlags = 0u;
 			check(InstanceUploadInfo.InstancePayloadDataOffset == INDEX_NONE && InstanceUploadInfo.InstancePayloadDataStride == 0);
@@ -551,7 +551,7 @@ struct FUploadDataSourceAdapterScenePrimitives
 
 				FMatrix PreviousLocalToWorld;
 				Scene.GetPrimitiveUniformShaderParameters_RenderThread(PrimitiveSceneInfo, bHasPrecomputedVolumetricLightmap, PreviousLocalToWorld, SingleCaptureIndex, bOutputVelocity);
-				InstanceUploadInfo.PrevPrimitiveToWorld = FLargeWorldRenderScalar::MakeClampedToRelativeWorldMatrix(AbsoluteOrigin.GetTileOffset(), PreviousLocalToWorld);;
+				InstanceUploadInfo.PrevPrimitiveToWorld = FDFMatrix::MakeClampedToRelativeWorldMatrix(AbsoluteOrigin.High, PreviousLocalToWorld).M;
 			}
 #endif
 			InstanceUploadInfo.InstanceLightShadowUVBias = TConstArrayView<FVector4f>();
@@ -699,7 +699,7 @@ void FGPUScene::UpdateGPULights(FRDGBuilder& GraphBuilder, const UE::Tasks::FTas
 			}
 			else
 			{
-				LightData[Index].WorldPosition = TLargeWorldRenderPosition<float>(FVector::ZeroVector);
+				LightData[Index].WorldPosition = FDFVector3{};
 				LightData[Index].Color = FVector3f::ZeroVector;
 				LightData[Index].InvRadius = 0.0f;
 			}
@@ -752,7 +752,7 @@ void FGPUScene::InitLightData(const FLightSceneInfoCompact& LightInfoCompact, bo
 	}
 
 	// FLightRenderParameters fields
-	DataOut.WorldPosition = TLargeWorldRenderPosition<float>{ LightParams.WorldPosition };
+	DataOut.WorldPosition = FDFVector3{ LightParams.WorldPosition };
 	DataOut.InvRadius = LightParams.InvRadius;
 	DataOut.Color = LightParams.Color;
 	DataOut.FalloffExponent = LightParams.FalloffExponent;
@@ -2305,15 +2305,15 @@ void FBatchedPrimitiveShaderData::Setup(const FPrimitiveUniformShaderParameters&
 		i+=3;
 	}
 
-	// TilePosition, Flags
+	// PositionHigh, Flags
 	{
-		Data[i].X = PrimitiveUniformShaderParameters.TilePosition.X;
-		Data[i].Y = PrimitiveUniformShaderParameters.TilePosition.Y;
-		Data[i].Z = PrimitiveUniformShaderParameters.TilePosition.Z;
+		Data[i].X = PrimitiveUniformShaderParameters.PositionHigh.X;
+		Data[i].Y = PrimitiveUniformShaderParameters.PositionHigh.Y;
+		Data[i].Z = PrimitiveUniformShaderParameters.PositionHigh.Z;
 		Data[i].W = FMath::AsFloat(PrimitiveUniformShaderParameters.Flags);
 		i+=1;
 	}
-
+	
 	// LocalToWorld
 	{
 		FMatrix44f LocalToRelativeWorldTranspose = PrimitiveUniformShaderParameters.LocalToRelativeWorld.GetTransposed();
@@ -2331,14 +2331,16 @@ void FBatchedPrimitiveShaderData::Setup(const FPrimitiveUniformShaderParameters&
 
 	// ObjectWorldPosition, Radius
 	{
-		Data[i+0] = PrimitiveUniformShaderParameters.ObjectRelativeWorldPositionAndRadius;
-		i+=1;
+		Data[i+0] = PrimitiveUniformShaderParameters.ObjectWorldPositionHighAndRadius;
+		Data[i+1] = PrimitiveUniformShaderParameters.ObjectWorldPositionLow;
+		i+=2;
 	}
 
 	// ActorWorldPosition, TODO .w
 	{
-		Data[i+0] = FVector4f(PrimitiveUniformShaderParameters.ActorRelativeWorldPosition, 0.0f);
-		i+=1;
+		Data[i+0] = FVector4f(PrimitiveUniformShaderParameters.ActorWorldPositionHigh, 0.0f);
+		Data[i+1] = FVector4f(PrimitiveUniformShaderParameters.ActorWorldPositionLow, 0.0f);
+		i+=2;
 	}
 
 	// ObjectOrientation, ObjectBoundsX

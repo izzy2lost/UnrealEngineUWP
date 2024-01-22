@@ -74,7 +74,7 @@
 #define PRIMITIVE_SCENE_DATA_FLAG_REVERSE_CULLING						NOTE: Out of flags
 #endif
 // Stride of a single primitive's data in float4's
-#define PRIMITIVE_SCENE_DATA_STRIDE 41
+#define PRIMITIVE_SCENE_DATA_STRIDE 42
 
 // Currently limited by # of bits for size in primitive scene data
 #define PRIMITIVE_SCENE_DATA_MAX_PAYLOAD_EXTENSION_SIZE 255

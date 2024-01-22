@@ -329,12 +329,12 @@ FVirtualShadowMapProjectionShaderData FVirtualShadowMapClipmap::ComputeProjectio
 	check(ClipmapIndex >= 0 && ClipmapIndex < LevelData.Num());
 	const FLevelData& Level = LevelData[ClipmapIndex];
 	
-	const FLargeWorldRenderPosition PreViewTranslation(GetPreViewTranslation(ClipmapIndex));
+	const FVector PreViewTranslation = GetPreViewTranslation(ClipmapIndex);
+	const FDFVector3 PreViewTranslationDF(PreViewTranslation);
 
-	// WorldOrigin should be near the Level.WorldCenter, so we share the LWC tile offset
+	// WorldOrigin should be near the Level.WorldCenter, so we can make it relative
 	// NOTE: We need to negate so that it's not opposite though
-	const FVector TileOffset = PreViewTranslation.GetTileOffset();
-	const FVector3f NegativeClipmapWorldOriginOffset(-WorldOrigin - TileOffset);
+	const FVector3f NegativeClipmapWorldOriginOffset(-(WorldOrigin + PreViewTranslation));
 
 	// NOTE: Some shader logic (projection, etc) assumes some of these parameters are constant across all levels in a clipmap
 	FVirtualShadowMapProjectionShaderData Data;
@@ -342,8 +342,8 @@ FVirtualShadowMapProjectionShaderData FVirtualShadowMapClipmap::ComputeProjectio
 	Data.ShadowViewToClipMatrix = FMatrix44f(Level.ViewToClip);
 	Data.TranslatedWorldToShadowUVMatrix = FMatrix44f(CalcTranslatedWorldToShadowUVMatrix(WorldToLightViewRotationMatrix, Level.ViewToClip));
 	Data.TranslatedWorldToShadowUVNormalMatrix = FMatrix44f(CalcTranslatedWorldToShadowUVNormalMatrix(WorldToLightViewRotationMatrix, Level.ViewToClip));
-	Data.PreViewTranslationLWCTile = PreViewTranslation.GetTile();
-	Data.PreViewTranslationLWCOffset = PreViewTranslation.GetOffset();
+	Data.PreViewTranslationHigh = PreViewTranslationDF.High;
+	Data.PreViewTranslationLow = PreViewTranslationDF.Low;
 	Data.LightType = ELightComponentType::LightType_Directional;
 	Data.NegativeClipmapWorldOriginLWCOffset = NegativeClipmapWorldOriginOffset;
 	Data.ClipmapLevel = FirstLevel + ClipmapIndex;

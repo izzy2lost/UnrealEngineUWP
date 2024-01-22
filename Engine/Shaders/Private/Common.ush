@@ -1234,12 +1234,12 @@ float3 GetCameraVector(float3 Position, float3 CameraPosition)
 
 float3 GetCameraVectorFromWorldPosition(float3 WorldPosition)
 {
-	return GetCameraVector(WorldPosition, LWCHackToFloat(PrimaryView.WorldCameraOrigin));
+	return GetCameraVector(WorldPosition, DFHackToFloat(PrimaryView.WorldCameraOrigin));
 }
 
 float3 GetCameraVectorFromTranslatedWorldPosition(float3 TranslatedWorldPosition)
 {
-	return GetCameraVector(TranslatedWorldPosition, LWCHackToFloat(PrimaryView.TranslatedWorldCameraOrigin));
+	return GetCameraVector(TranslatedWorldPosition, PrimaryView.TranslatedWorldCameraOrigin);
 }
 
 float GetDistanceToCameraFromViewVector(float3 DistanceVector)
@@ -1321,10 +1321,10 @@ float3 SvPositionToResolvedTranslatedWorld(float4 SvPosition)
 }
 
 // prefer to use SvPositionToTranslatedWorld() for better quality
-FLWCVector3 SvPositionToWorld(float4 SvPosition)
+FDFVector3 SvPositionToWorld(float4 SvPosition)
 {
 	float3 TranslatedWorldPosition = SvPositionToTranslatedWorld(SvPosition);
-	return LWCSubtract(TranslatedWorldPosition, PrimaryView.PreViewTranslation);
+	return DFFastSubtract(TranslatedWorldPosition, PrimaryView.PreViewTranslation);
 }
 
 // investigate: doesn't work for usage with PrimaryView.ScreenToWorld, see SvPositionToScreenPosition2()
@@ -1568,6 +1568,18 @@ MaterialFloat MaterialExpressionNoise(float3 Position, float Scale, int Quality,
 	return lerp(OutputMin, OutputMax, Out);
 }
 
+MaterialFloat MaterialExpressionNoise(FDFVector3 LWCPosition, float Scale, int Quality, int Function, bool bTurbulence, uint Levels, float OutputMin, float OutputMax, float LevelScale, float FilterWidth, bool bTiling, float RepeatSize)
+{
+	const float TileSize = 65536;
+	float3 Position = abs(TileSize * DFFracDemote(DFDivideByPow2(LWCPosition, TileSize))); // Mirror and repeat every TileSize
+	return MaterialExpressionNoise(Position, Scale, Quality, Function, bTurbulence, Levels, OutputMin, OutputMax, LevelScale, FilterWidth, bTiling, RepeatSize);
+}
+
+MaterialFloat MaterialExpressionNoise(FLWCVector3 LWCPosition, float Scale, int Quality, int Function, bool bTurbulence, uint Levels, float OutputMin, float OutputMax, float LevelScale, float FilterWidth, bool bTiling, float RepeatSize)
+{
+	float3 Position = LWCNormalizeTile(LWCPosition).Offset;
+	return MaterialExpressionNoise(Position, Scale, Quality, Function, bTurbulence, Levels, OutputMin, OutputMax, LevelScale, FilterWidth, bTiling, RepeatSize);
+}
 
 // Material node for noise functions returning a vector value
 // @param LevelScale usually 2 but higher values allow efficient use of few levels

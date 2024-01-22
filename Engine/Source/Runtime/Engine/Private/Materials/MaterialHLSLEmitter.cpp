@@ -621,6 +621,12 @@ static void GetMaterialEnvironment(EShaderPlatform InPlatform,
 		OutEnvironment.SetDefine(TEXT("MATERIAL_SHADINGMODEL_UNLIT"), TEXT("1"));
 	}
 
+	//static TConsoleVariableData<int32>* CVarLWCEnabled = IConsoleManager::Get().FindTConsoleVariableDataInt(TEXT("r.MaterialEditor.LWCEnabled"));
+	static IConsoleVariable* CVarLWCEnabled = IConsoleManager::Get().FindConsoleVariable(TEXT("r.MaterialEditor.LWCEnabled"));
+	OutEnvironment.SetDefine(TEXT("MATERIAL_LWC_ENABLED"), CVarLWCEnabled->GetInt() ? TEXT("1") : TEXT("0"));
+	OutEnvironment.SetDefine(TEXT("WSVECTOR_IS_TILEOFFSET"), TEXT("1"));
+	OutEnvironment.SetDefine(TEXT("WSVECTOR_IS_DOUBLEFLOAT"), TEXT("0"));
+
 	if (InMaterial.GetMaterialDomain() == MD_Volume) // && Material->HasN)
 	{
 		TArray<const UMaterialExpressionVolumetricAdvancedMaterialOutput*> VolumetricAdvancedExpressions;

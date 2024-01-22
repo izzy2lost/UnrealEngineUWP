@@ -1404,7 +1404,7 @@ void ScreenProbeIntegrateCS(
 
 			#if SUPPORT_DIRECT_LIGHTING && SUPPORT_LUMEN_DIRECT_LIGHTING
 			{
-				float3 CameraVector = normalize(WorldPosition - LWCHackToFloat(PrimaryView.WorldCameraOrigin));
+				float3 CameraVector = normalize(WorldPosition - DFHackToFloat(PrimaryView.WorldCameraOrigin));
 				EvaluateDirectLighting(ScreenProbeSample, CameraVector, Material.GBufferData.WorldNormal, Material.GBufferData.SpecularColor, Material.GBufferData.Roughness, DirectDiffuseLighting, DirectSpecularLighting);
 			}
 			#endif
