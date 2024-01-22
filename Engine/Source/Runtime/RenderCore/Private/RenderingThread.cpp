@@ -2031,6 +2031,8 @@ inline bool HasBitsSet(const FRenderCommandPipeBitArray& Bits)
 
 namespace UE::RenderCommandPipe
 {
+	static thread_local FRenderCommandPipe* ReplayingPipe = nullptr;
+
 	void Initialize()
 	{
 		GRenderCommandPipeRegistry.Initialize();
@@ -2044,6 +2046,11 @@ namespace UE::RenderCommandPipe
 	bool IsReplaying()
 	{
 		return GRenderCommandPipeRegistry.IsReplaying();
+	}
+
+	bool IsReplaying(const FRenderCommandPipe& Pipe)
+	{
+		return ReplayingPipe == &Pipe;
 	}
 
 	void StartRecording()
@@ -2129,55 +2136,63 @@ FRenderCommandPipe::~FRenderCommandPipe()
 	Frame_RenderThread = nullptr;
 }
 
+void FRenderCommandPipe::ExecuteCommand(FFunctionVariant&& FunctionVariant, const TCHAR* CommandName, uint32& CommandSpecId)
+{
+	TRACE_CPUPROFILER_EVENT_SCOPE_USE_ON_CHANNEL(CommandSpecId, CommandName, CommandEventScope, RenderCommandsChannel, true);
+	if (FCommandListFunction* Function = FunctionVariant.TryGet<FCommandListFunction>())
+	{
+		if (!Frame_RenderThread->RHICmdList)
+		{
+			FRHICommandList* RHICmdList = new FRHICommandList(FRHIGPUMask::All());
+			RHICmdList->SwitchPipeline(ERHIPipeline::Graphics);
+			Frame_RenderThread->RHICmdList = RHICmdList;
+		}
+
+		(*Function)(*Frame_RenderThread->RHICmdList);
+	}
+	else
+	{
+		FunctionVariant.Get<FEmptyFunction>()();
+	}
+}
+
 void FRenderCommandPipe::EnqueueAndLaunch(FFunctionVariant&& FunctionVariant, const TCHAR* CommandName, uint32& CommandSpecId)
 {
+	ensureMsgf(!UE::RenderCommandPipe::ReplayingPipe, TEXT("Attempting to launch render command to render command pipe %s from another pipe %s"), Name, UE::RenderCommandPipe::ReplayingPipe->Name);
+
 	bool bWasEmpty = Frame_GameThread->Queue.IsEmpty();
 	Frame_GameThread->Queue.Emplace(MoveTemp(FunctionVariant), CommandName, CommandSpecId);
 	NumInFlightCommands.fetch_add(1, std::memory_order_relaxed);
-
+	
 	if (bWasEmpty)
 	{
 		TRACE_CPUPROFILER_EVENT_SCOPE_ON_CHANNEL_STR("RenderCommandPipe LaunchTask", RenderCommandsChannel)
-
+	
 		Frame_GameThread->Pipe.Launch(Name, [this]
 		{
 			check(Frame_RenderThread);
 			TRACE_CPUPROFILER_EVENT_SCOPE_ON_CHANNEL_STR("RenderCommandPipe ReplayCommands", RenderCommandsChannel)
 			SCOPED_NAMED_EVENT_TCHAR(Name, FColor::Magenta);
 			FOptionalTaskTagScope Scope(ETaskTag::EParallelRenderingThread);
-
+	
 			TArray<FCommand> PoppedQueue;
-
+	
 			Mutex.Lock();
 			PoppedQueue = MoveTemp(Frame_RenderThread->Queue);
 			Frame_RenderThread->Queue.Reserve(128);
 			Mutex.Unlock();
-
+	
+			FRenderCommandPipe* const PreviousReplayingPipe = UE::RenderCommandPipe::ReplayingPipe;
+			UE::RenderCommandPipe::ReplayingPipe = this;
+	
 			for (FCommand& Command : PoppedQueue)
 			{
-				TRACE_CPUPROFILER_EVENT_SCOPE_USE_ON_CHANNEL(*Command.SpecId, Command.Name, CommandEventScope, RenderCommandsChannel, true);
-
-				if (FCommandListFunction* Function = Command.Function.TryGet<FCommandListFunction>())
-				{
-					if (!Frame_RenderThread->RHICmdList)
-					{
-						FRHICommandList* RHICmdList = new FRHICommandList(FRHIGPUMask::All());
-						RHICmdList->SwitchPipeline(ERHIPipeline::Graphics);
-						Frame_RenderThread->RHICmdList = RHICmdList;
-					}
-
-					(*Function)(*Frame_RenderThread->RHICmdList);
-				}
-				else
-				{
-					Command.Function.Get<FEmptyFunction>()();
-				}
-
-				Command.Function = {};
+				ExecuteCommand(MoveTemp(Command.Function), Command.Name, *Command.SpecId);
 			}
-
+	
+			UE::RenderCommandPipe::ReplayingPipe = PreviousReplayingPipe;
 			NumInFlightCommands.fetch_sub(PoppedQueue.Num(), std::memory_order_release);
-
+	
 		}, Frame_GameThread->TaskEvent);
 	}
 }

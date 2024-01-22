@@ -311,6 +311,9 @@ namespace UE::RenderCommandPipe
 	// [Render Thread (Parallel)] Returns whether any render command pipes are currently replaying commands on the render thread timeline.
 	extern RENDERCORE_API bool IsReplaying();
 
+	// [Render Thread (Parallel)] Returns whether the specific render command pipe is replaying.
+	extern RENDERCORE_API bool IsReplaying(const FRenderCommandPipe& Pipe);
+
 	// [Game Thread] Starts recording render commands into pipes. Returns whether the operation succeeded.
 	extern RENDERCORE_API void StartRecording();
 	extern RENDERCORE_API void StartRecording(const FRenderCommandPipeBitArray& PipeBits);
@@ -447,6 +450,14 @@ public:
 		if (GRenderCommandPipeMode == ERenderCommandPipeMode::All && Pipe)
 		{
 			UE::TScopeLock Lock(Pipe->Mutex);
+
+			// Execute the function directly if this is being called recursively from within another pipe command.
+			if (UE::RenderCommandPipe::IsReplaying(*Pipe))
+			{
+				Pipe->ExecuteCommand(MoveTemp(Function), RenderCommandTag::GetName(), RenderCommandTag::GetSpecId());
+				return;
+			}
+
 			if (Pipe->Frame_GameThread)
 			{
 				Pipe->EnqueueAndLaunch(MoveTemp(Function), RenderCommandTag::GetName(), RenderCommandTag::GetSpecId());
@@ -469,6 +480,14 @@ public:
 		if (GRenderCommandPipeMode == ERenderCommandPipeMode::All && Pipe)
 		{
 			UE::TScopeLock Lock(Pipe->Mutex);
+
+			// Execute the function directly if this is being called recursively from within another pipe command.
+			if (UE::RenderCommandPipe::IsReplaying(*Pipe))
+			{
+				Pipe->ExecuteCommand(MoveTemp(Function), RenderCommandTag::GetName(), RenderCommandTag::GetSpecId());
+				return;
+			}
+
 			if (Pipe->Frame_GameThread)
 			{
 				Pipe->EnqueueAndLaunch(MoveTemp(Function), RenderCommandTag::GetName(), RenderCommandTag::GetSpecId());
@@ -506,6 +525,18 @@ private:
 	void EnqueueAndLaunch(FEmptyFunction&& Function, const TCHAR* CommandName, uint32& CommandSpecId)
 	{
 		EnqueueAndLaunch(FFunctionVariant(TInPlaceType<FEmptyFunction>(), MoveTemp(Function)), CommandName, CommandSpecId);
+	}
+
+	RENDERCORE_API void ExecuteCommand(FFunctionVariant&& FunctionVariant, const TCHAR* CommandName, uint32& CommandSpecId);
+
+	void ExecuteCommand(FCommandListFunction&& Function, const TCHAR* CommandName, uint32& CommandSpecId)
+	{
+		ExecuteCommand(FFunctionVariant(TInPlaceType<FCommandListFunction>(), MoveTemp(Function)), CommandName, CommandSpecId);
+	}
+
+	void ExecuteCommand(FEmptyFunction&& Function, const TCHAR* CommandName, uint32& CommandSpecId)
+	{
+		ExecuteCommand(FFunctionVariant(TInPlaceType<FEmptyFunction>(), MoveTemp(Function)), CommandName, CommandSpecId);
 	}
 
 	struct FCommand
