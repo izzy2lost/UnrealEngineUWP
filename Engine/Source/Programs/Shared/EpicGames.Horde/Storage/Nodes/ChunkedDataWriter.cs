@@ -344,7 +344,6 @@ namespace EpicGames.Horde.Storage.Nodes
 		}
 	}
 
-
 	/// <summary>
 	/// Describes a chunked data stream
 	/// </summary>
