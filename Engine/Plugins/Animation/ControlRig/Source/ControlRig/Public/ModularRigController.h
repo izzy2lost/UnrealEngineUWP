@@ -35,6 +35,9 @@ class CONTROLRIG_API UModularRigController : public UObject
 
 	UFUNCTION(BlueprintCallable, Category = "Control Rig | Modules")
 	bool DisconnectConnector(const FRigElementKey& InConnectorKey, bool bSetupUndo = true);
+	
+	UFUNCTION(BlueprintCallable, Category = "Control Rig | Modules")
+	TArray<FRigElementKey> DisconnectCyclicConnectors(bool bSetupUndo = true);
 
 	UFUNCTION(BlueprintCallable, Category = "Control Rig | Modules")
 	bool SetConfigValueInModule(const FString& InModulePath, const FName& InVariableName, const FString& InValue, bool bSetupUndo = true);
@@ -69,6 +72,7 @@ class CONTROLRIG_API UModularRigController : public UObject
 	FRigName GetSafeNewName(const FString& InParentModulePath, const FRigName& InDesiredName) const;
 	FRigName GetSafeNewShortName(const FRigName& InDesiredShortName) const;
 	FRigModuleReference* FindModule(const FString& InPath);
+	const FRigModuleReference* FindModule(const FString& InPath) const;
 	FModularRigModifiedEvent& OnModified() { return ModifiedEvent; }
 
 private:

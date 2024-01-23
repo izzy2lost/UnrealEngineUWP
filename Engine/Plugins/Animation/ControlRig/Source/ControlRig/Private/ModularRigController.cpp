@@ -98,40 +98,18 @@ FString UModularRigController::AddModule(const FName& InModuleName, TSubclassOf<
 
 FRigModuleReference* UModularRigController::FindModule(const FString& InPath)
 {
-	FString Path = InPath;
-	Path.RemoveFromEnd(UModularRig::NamespaceSeparator);
-	
-	TArray<FRigModuleReference*>* Children = &Model->RootModules;
-	FString Left = Path, Right;
-	while (Left.Split(UModularRig::NamespaceSeparator, &Left, &Right))
-	{
-		FRigModuleReference** Cur = Children->FindByPredicate([Left](FRigModuleReference* Module)
-		{
-			return Module->Name == Left;
-		});
-		if (!Cur)
-		{
-			return nullptr;
-		}
-		Children = &(*Cur)->CachedChildren;
-		Left = Right;
-	}
+	return Model->FindModule(InPath);
+}
 
-	FRigModuleReference** Cur = Children->FindByPredicate([Left](FRigModuleReference* Module)
-		{
-			return Module->Name == Left;
-		});
-	if (!Cur)
-	{
-		return nullptr;
-	}
-	return *Cur;
+const FRigModuleReference* UModularRigController::FindModule(const FString& InPath) const
+{
+	return const_cast<UModularRigController*>(this)->FindModule(InPath);
 }
 
 bool UModularRigController::CanConnectConnectorToElement(const FRigElementKey& InConnectorKey, const FRigElementKey& InTargetKey, FText& OutErrorMessage)
 {
 	FString ConnectorModulePath, ConnectorName;
-	if (!InConnectorKey.Name.ToString().Split(UModularRig::NamespaceSeparator, &ConnectorModulePath, &ConnectorName, ESearchCase::CaseSensitive, ESearchDir::FromEnd))
+	if (!URigHierarchy::SplitNameSpace(InConnectorKey.Name.ToString(), &ConnectorModulePath, &ConnectorName))
 	{
 		OutErrorMessage = FText::FromString(FString::Printf(TEXT("Connector %s does not contain a namespace"), *InConnectorKey.ToString()));
 		return false;
@@ -254,7 +232,7 @@ bool UModularRigController::ConnectConnectorToElement(const FRigElementKey& InCo
 	}
 	
 	FString ConnectorParentPath, ConnectorName;
-	InConnectorKey.Name.ToString().Split(UModularRig::NamespaceSeparator, &ConnectorParentPath, &ConnectorName, ESearchCase::CaseSensitive, ESearchDir::FromEnd);
+	(void)URigHierarchy::SplitNameSpace(InConnectorKey.Name.ToString(), &ConnectorParentPath, &ConnectorName);
 	FRigModuleReference* Module = FindModule(ConnectorParentPath);
 
 	FRigElementKey CurrentTarget = Model->Connections.FindTargetFromConnector(InConnectorKey);
@@ -347,6 +325,8 @@ bool UModularRigController::ConnectConnectorToElement(const FRigElementKey& InCo
 	}
 #endif
 
+	(void)DisconnectCyclicConnectors();
+
 #if WITH_EDITOR
 	TransactionPtr.Reset();
 #endif
@@ -357,7 +337,7 @@ bool UModularRigController::ConnectConnectorToElement(const FRigElementKey& InCo
 bool UModularRigController::DisconnectConnector(const FRigElementKey& InConnectorKey, bool bSetupUndo)
 {
 	FString ConnectorModulePath, ConnectorName;
-	if (!InConnectorKey.Name.ToString().Split(UModularRig::NamespaceSeparator, &ConnectorModulePath, &ConnectorName, ESearchCase::CaseSensitive, ESearchDir::FromEnd))
+	if (!URigHierarchy::SplitNameSpace(InConnectorKey.Name.ToString(), &ConnectorModulePath, &ConnectorName))
 	{
 		UE_LOG(LogControlRig, Error, TEXT("Connector %s does not contain a namespace"), *InConnectorKey.ToString());
 		return false;
@@ -389,13 +369,6 @@ bool UModularRigController::DisconnectConnector(const FRigElementKey& InConnecto
 	}
 
 	UBlueprint* Blueprint = Cast<UBlueprint>(GetOuter());
-	const IRigHierarchyProvider* HierarchyProvider = CastChecked<IRigHierarchyProvider>(Blueprint);
-	const FRigConnectorElement* Connector = Cast<FRigConnectorElement>(HierarchyProvider->GetHierarchy()->Find(InConnectorKey));
-	if (!Connector)
-	{
-		UE_LOG(LogControlRig, Error, TEXT("Could not find connector %s"), *InConnectorKey.ToString());
-		return false;
-	}
 
 	if(!Model->Connections.HasConnection(InConnectorKey))
 	{
@@ -413,7 +386,7 @@ bool UModularRigController::DisconnectConnector(const FRigElementKey& InConnecto
 
 	Model->Connections.RemoveConnection(InConnectorKey);
 
-	if (Connector->IsPrimary())
+	if (ModuleConnector->IsPrimary())
 	{
 		// Remove connections from module and child modules
 		TArray<FRigElementKey> ConnectionsToRemove;
@@ -429,14 +402,14 @@ bool UModularRigController::DisconnectConnector(const FRigElementKey& InConnecto
 			Model->Connections.RemoveConnection(ToRemove);
 		}
 	}
-	else if (!Connector->Settings.bOptional)
+	else if (!ModuleConnector->IsOptional())
 	{
 		// Remove connections from child modules
 		TArray<FRigElementKey> ConnectionsToRemove;
 		for (const FModularRigSingleConnection& Connection : Model->Connections.ConnectionList)
 		{
 			FString OtherConnectorModulePath, OtherConnectorName;
-			Connection.Connector.Name.ToString().Split(UModularRig::NamespaceSeparator, &OtherConnectorModulePath, &OtherConnectorName, ESearchCase::CaseSensitive, ESearchDir::FromEnd);
+			(void)URigHierarchy::SplitNameSpace(Connection.Connector.Name.ToString(), &OtherConnectorModulePath, &OtherConnectorName);
 			if (OtherConnectorModulePath.StartsWith(ConnectorModulePath, ESearchCase::CaseSensitive) && OtherConnectorModulePath.Len() > ConnectorModulePath.Len())
 			{
 				ConnectionsToRemove.Add(Connection.Connector);
@@ -450,6 +423,12 @@ bool UModularRigController::DisconnectConnector(const FRigElementKey& InConnecto
 
 	// todo: Make sure all the rest of the connections are still valid
 
+	// un-parent the module if we've disconnected the primary
+	if(ModuleConnector->IsPrimary() && !Module->IsRootModule())
+	{
+		(void)ReparentModule(Module->GetPath(), FString(), bSetupUndo);
+	}
+
 	Notify(EModularRigNotification::ConnectionChanged, Module);
 
 #if WITH_EDITOR
@@ -457,6 +436,63 @@ bool UModularRigController::DisconnectConnector(const FRigElementKey& InConnecto
 #endif
 	
 	return true;
+}
+
+TArray<FRigElementKey> UModularRigController::DisconnectCyclicConnectors(bool bSetupUndo)
+{
+	TArray<FRigElementKey> DisconnectedConnectors;
+
+#if WITH_EDITOR
+	const UBlueprint* Blueprint = Cast<UBlueprint>(GetOuter());
+	check(Blueprint);
+
+	const UModularRig* ModularRig = Cast<UModularRig>(Blueprint->GetObjectBeingDebugged());
+	if (!ModularRig)
+	{
+		return DisconnectedConnectors;
+	}
+	
+	const URigHierarchy* Hierarchy = ModularRig->GetHierarchy();
+	if (!Hierarchy)
+	{
+		return DisconnectedConnectors;
+	}
+
+	TArray<FRigElementKey> ConnectorsToDisconnect;
+	for (const FModularRigSingleConnection& Connection : Model->Connections.ConnectionList)
+	{
+		const FString ConnectorModulePath = Hierarchy->GetModulePath(Connection.Connector);
+		const FString TargetModulePath = Hierarchy->GetModulePath(Connection.Target);
+
+		// targets in the base hierarchy are always allowed
+		if(TargetModulePath.IsEmpty())
+		{
+			continue;
+		}
+
+		const FRigModuleReference* ConnectorModule = Model->FindModule(ConnectorModulePath);
+		const FRigModuleReference* TargetModule = Model->FindModule(TargetModulePath);
+		if(ConnectorModule == nullptr || TargetModule == nullptr)
+		{
+			continue;
+		}
+
+		if(!Model->IsModuleParentedTo(ConnectorModule, TargetModule))
+		{
+			ConnectorsToDisconnect.Add(Connection.Connector);
+		}
+	}
+
+	for(const FRigElementKey& ConnectorToDisconnect : ConnectorsToDisconnect)
+	{
+		if(DisconnectConnector(ConnectorToDisconnect, bSetupUndo))
+		{
+			DisconnectedConnectors.Add(ConnectorToDisconnect);
+		}
+	}
+#endif
+
+	return DisconnectedConnectors;
 }
 
 bool UModularRigController::SetConfigValueInModule(const FString& InModulePath, const FName& InVariableName, const FString& InValue, bool bSetupUndo)
@@ -614,7 +650,7 @@ bool UModularRigController::CanBindModuleVariable(const FString& InModulePath, c
 	}
 
 	FString SourceModulePath, SourceVariableName = InSourcePath;
-	InSourcePath.Split(UModularRig::NamespaceSeparator, &SourceModulePath, &SourceVariableName, ESearchCase::CaseSensitive, ESearchDir::FromEnd);
+	(void)URigHierarchy::SplitNameSpace(InSourcePath, &SourceModulePath, &SourceVariableName);
 
 	FRigModuleReference* SourceModule = nullptr;
 	if (!SourceModulePath.IsEmpty())
@@ -675,7 +711,7 @@ bool UModularRigController::BindModuleVariable(const FString& InModulePath, cons
 	const FProperty* TargetProperty = Module->Class->FindPropertyByName(InVariableName);
 
 	FString SourceModulePath, SourceVariableName = InSourcePath;
-	InSourcePath.Split(UModularRig::NamespaceSeparator, &SourceModulePath, &SourceVariableName, ESearchCase::CaseSensitive, ESearchDir::FromEnd);
+	(void)URigHierarchy::SplitNameSpace(InSourcePath, &SourceModulePath, &SourceVariableName);
 
 	FRigModuleReference* SourceModule = nullptr;
 	if (!SourceModulePath.IsEmpty())
@@ -799,7 +835,7 @@ bool UModularRigController::DeleteModule(const FString& InModulePath, bool bSetu
 		for (FModularRigSingleConnection& Connection : Model->Connections.ConnectionList)
 		{
 			FString ConnectionModulePath, ConnectionName;
-			Connection.Connector.Name.ToString().Split(UModularRig::NamespaceSeparator, &ConnectionModulePath, &ConnectionName, ESearchCase::CaseSensitive, ESearchDir::FromEnd);
+			(void)URigHierarchy::SplitNameSpace(Connection.Connector.Name.ToString(), &ConnectionModulePath, &ConnectionName);
 
 			if (ConnectionModulePath == InModulePath)
 			{
@@ -807,7 +843,7 @@ bool UModularRigController::DeleteModule(const FString& InModulePath, bool bSetu
 			}
 
 			FString TargetModulePath, TargetName;
-			Connection.Target.Name.ToString().Split(UModularRig::NamespaceSeparator, &TargetModulePath, &TargetName, ESearchCase::CaseSensitive, ESearchDir::FromEnd);
+			(void)URigHierarchy::SplitNameSpace(Connection.Target.Name.ToString(), &TargetModulePath, &TargetName);
 			if (TargetModulePath == InModulePath)
 			{
 				ToRemove.Add(Connection.Connector);
@@ -825,7 +861,7 @@ bool UModularRigController::DeleteModule(const FString& InModulePath, bool bSetu
 		Reference.Bindings = Reference.Bindings.FilterByPredicate([InModulePath](const TPair<FName, FString>& Binding)
 		{
 			FString ModulePath, VariableName = Binding.Value;
-			Binding.Value.Split(UModularRig::NamespaceSeparator, &ModulePath, &VariableName, ESearchCase::CaseSensitive, ESearchDir::FromEnd);
+			(void)URigHierarchy::SplitNameSpace(Binding.Value, &ModulePath, &VariableName);
 			if (ModulePath == InModulePath)
 			{
 				return false;
@@ -928,7 +964,7 @@ FString UModularRigController::RenameModule(const FString& InModulePath, const F
 		for (TPair<FName, FString>& Binding : Reference.Bindings)
 		{
 			FString ModulePath, VariableName = Binding.Value;
-			Binding.Value.Split(UModularRig::NamespaceSeparator, &ModulePath, &VariableName, ESearchCase::CaseSensitive, ESearchDir::FromEnd);
+			(void)URigHierarchy::SplitNameSpace(Binding.Value, &ModulePath, &VariableName);
 			if (ModulePath == OldPath)
 			{
 				Binding.Value = URigHierarchy::JoinNameSpace(NewPath, VariableName);
@@ -1060,7 +1096,7 @@ FString UModularRigController::ReparentModule(const FString& InModulePath, const
 		for (TPair<FName, FString>& Binding : Reference.Bindings)
 		{
 			FString ModulePath, VariableName = Binding.Value;
-			Binding.Value.Split(UModularRig::NamespaceSeparator, &ModulePath, &VariableName, ESearchCase::CaseSensitive, ESearchDir::FromEnd);
+			(void)URigHierarchy::SplitNameSpace(Binding.Value, &ModulePath, &VariableName);
 			if (ModulePath == OldPath)
 			{
 				Binding.Value = URigHierarchy::JoinNameSpace(NewPath, VariableName);
@@ -1080,6 +1116,12 @@ FString UModularRigController::ReparentModule(const FString& InModulePath, const
 			return !Binding.Value.IsEmpty();
 		});
 	}
+
+	// Fix connectors in the hierarchies
+	
+
+	// since we've reparented the module now we should clear out all connectors which are cyclic
+	(void)DisconnectCyclicConnectors(bSetupUndo);
 
 	Notify(EModularRigNotification::ModuleReparented, Module);
 	
@@ -1316,7 +1358,7 @@ void UModularRigController::UpdateShortNames()
 		{
 			FString RemainingPath = Module.GetPath();
 			TokenToCount.FindOrAdd(RemainingPath, 0)++;
-			while(RemainingPath.Split(UModularRig::NamespaceSeparator, nullptr, &RemainingPath, ESearchCase::IgnoreCase, ESearchDir::FromStart))
+			while(URigHierarchy::SplitNameSpace(RemainingPath, nullptr, &RemainingPath, false))
 			{
 				TokenToCount.FindOrAdd(RemainingPath, 0)++;
 			}
@@ -1337,7 +1379,7 @@ void UModularRigController::UpdateShortNames()
 				FString Left, Right, RemainingPath = Module.GetPath();
 				ShortPath.Reset();
 
-				while (RemainingPath.Split(UModularRig::NamespaceSeparator, &Left, &Right, ESearchCase::IgnoreCase, ESearchDir::FromEnd))
+				while(URigHierarchy::SplitNameSpace(RemainingPath, &Left, &Right))
 				{
 					ShortPath = ShortPath.IsEmpty() ? Right : URigHierarchy::JoinNameSpace(Right, ShortPath);
 

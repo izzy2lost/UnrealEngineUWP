@@ -175,7 +175,7 @@ void UModularRigRuleManager::FilterIncompatibleTypes(FWorkData& InOutWorkData)
 
 void UModularRigRuleManager::FilterInvalidNameSpaces(FWorkData& InOutWorkData)
 {
-	const FName NameSpace = InOutWorkData.Hierarchy->GetNameMetadata(InOutWorkData.Connector->GetKey(), URigHierarchy::NameSpaceMetadataName, NAME_None);
+	const FName NameSpace = InOutWorkData.Hierarchy->GetNameSpaceFName(InOutWorkData.Connector->GetKey());
 	if(NameSpace.IsNone())
 	{
 		return;
@@ -184,7 +184,7 @@ void UModularRigRuleManager::FilterInvalidNameSpaces(FWorkData& InOutWorkData)
 	const FString NameSpaceString = NameSpace.ToString(); 
 	InOutWorkData.Filter([NameSpaceString, InOutWorkData](FRigElementResolveResult& Result)
 	{
-		const FName MatchNameSpace = InOutWorkData.Hierarchy->GetNameMetadata(Result.GetKey(), URigHierarchy::NameSpaceMetadataName, NAME_None);
+		const FName MatchNameSpace = InOutWorkData.Hierarchy->GetNameSpaceFName(Result.GetKey());
 		if(!MatchNameSpace.IsNone())
 		{
 			const FString MatchNameSpaceString = MatchNameSpace.ToString();

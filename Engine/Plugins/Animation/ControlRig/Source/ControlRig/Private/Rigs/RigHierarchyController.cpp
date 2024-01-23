@@ -612,8 +612,8 @@ FRigElementKey URigHierarchyController::AddConnector(FName InName, FRigConnector
 					const FString NameSpace = CRContext.GetRigModuleNameSpace();
 					if(!NameSpace.IsEmpty())
 					{
-						const FName& ConnectorNameSpace = Hierarchy->GetNameMetadata(Connector->GetKey(), URigHierarchy::NameSpaceMetadataName, NAME_None);
-						if(!ConnectorNameSpace.IsNone() && ConnectorNameSpace.ToString().Equals(NameSpace, ESearchCase::CaseSensitive))
+						const FString ConnectorNameSpace = Hierarchy->GetNameSpace(Connector->GetKey());
+						if(!ConnectorNameSpace.IsEmpty() && ConnectorNameSpace.Equals(NameSpace, ESearchCase::CaseSensitive))
 						{
 							static constexpr TCHAR Format[] = TEXT("Cannot add connector '%s' - there already is a primary connector.");
 							ReportAndNotifyErrorf(Format, *InName.ToString());

@@ -1207,7 +1207,7 @@ void FRigModuleInstanceDetails::FillBindingMenu(FMenuBuilder& MenuBuilder, const
 			for(const FString& VariablePath : Data.Variables)
 			{
 				FString VariableName = VariablePath;
-				(void)VariablePath.Split(UModularRig::NamespaceSeparator, nullptr, &VariableName, ESearchCase::CaseSensitive, ESearchDir::FromEnd);
+				(void)URigHierarchy::SplitNameSpace(VariablePath, nullptr, &VariableName);
 				
 				InMenuBuilder.AddMenuEntry(
 					FUIAction(FExecuteAction::CreateLambda([ThisDetails, InProperty, VariablePath]()
@@ -1259,11 +1259,11 @@ void FRigModuleInstanceDetails::FillBindingMenu(FMenuBuilder& MenuBuilder, const
 	for(const FString& BindingPath : CombinedBindings)
 	{
 		FString MenuPath;
-		(void)BindingPath.Split(UModularRig::NamespaceSeparator, &MenuPath, nullptr, ESearchCase::CaseSensitive, ESearchDir::FromEnd);
+		(void)URigHierarchy::SplitNameSpace(BindingPath, &MenuPath, nullptr);
 
 		FString PreviousMenuPath = MenuPath;
 		FString ParentMenuPath = MenuPath, RemainingPath;
-		while(ParentMenuPath.Split(UModularRig::NamespaceSeparator, &ParentMenuPath, &RemainingPath, ESearchCase::CaseSensitive, ESearchDir::FromEnd))
+		while(URigHierarchy::SplitNameSpace(ParentMenuPath, &ParentMenuPath, &RemainingPath))
 		{
 			// scope since the map may change at the end of this block
 			{

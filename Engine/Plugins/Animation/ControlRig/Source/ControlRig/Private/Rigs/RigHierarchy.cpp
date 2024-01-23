@@ -1181,8 +1181,29 @@ bool URigHierarchy::RemoveAllMetadata(FRigElementKey InItem)
 
 FName URigHierarchy::GetModulePathFName(FRigElementKey InItem) const
 {
-	return GetNameMetadata(InItem, ModuleMetadataName, NAME_None);
+	if(!InItem.IsValid())
+	{
+		return NAME_None;
+	}
 	
+	const FName Result = GetNameMetadata(InItem, ModuleMetadataName, NAME_None);
+	if(!Result.IsNone())
+	{
+		return Result;
+	}
+
+	// fall back on the name of the item
+	const FString NameString = InItem.Name.ToString();
+	FString ModulePathFromName;
+	if(SplitNameSpace(NameString, &ModulePathFromName, nullptr))
+	{
+		if(!ModulePathFromName.IsEmpty())
+		{
+			return *ModulePathFromName;
+		}
+	}
+
+	return NAME_None;
 }
 
 FString URigHierarchy::GetModulePath(FRigElementKey InItem) const
@@ -1191,6 +1212,43 @@ FString URigHierarchy::GetModulePath(FRigElementKey InItem) const
 	if(!ModulePathName.IsNone())
 	{
 		return ModulePathName.ToString();
+	}
+	return FString();
+}
+
+FName URigHierarchy::GetNameSpaceFName(FRigElementKey InItem) const
+{
+	if(!InItem.IsValid())
+	{
+		return NAME_None;
+	}
+	
+	const FName Result = GetNameMetadata(InItem, NameSpaceMetadataName, NAME_None);
+	if(!Result.IsNone())
+	{
+		return Result;
+	}
+
+	// fall back on the name of the item
+	const FString NameString = InItem.Name.ToString();
+	FString NameSpaceFromName;
+	if(SplitNameSpace(NameString, &NameSpaceFromName, nullptr))
+	{
+		if(!NameSpaceFromName.IsEmpty())
+		{
+			return *(NameSpaceFromName + UModularRig::NamespaceSeparator);
+		}
+	}
+	
+	return NAME_None;
+}
+
+FString URigHierarchy::GetNameSpace(FRigElementKey InItem) const
+{
+	const FName NameSpaceName = GetNameSpaceFName(InItem);
+	if(!NameSpaceName.IsNone())
+	{
+		return NameSpaceName.ToString();
 	}
 	return FString();
 }
@@ -1260,6 +1318,42 @@ FString URigHierarchy::JoinNameSpace(const FString& InLeft, const FString& InRig
 		return InLeft + InRight;
 	}
 	return InLeft + UModularRig::NamespaceSeparator + InRight;
+}
+
+TPair<FString, FString> URigHierarchy::SplitNameSpace(const FString& InNameSpacedPath, bool bFromEnd)
+{
+	TPair<FString, FString> Result;
+	(void)SplitNameSpace(InNameSpacedPath, &Result.Key, &Result.Value, bFromEnd);
+	return Result;
+}
+
+TPair<FRigName, FRigName> URigHierarchy::SplitNameSpace(const FRigName& InNameSpacedPath, bool bFromEnd)
+{
+	const TPair<FString, FString> Result = SplitNameSpace(InNameSpacedPath.GetName(), bFromEnd);
+	return {FRigName(Result.Key), FRigName(Result.Value)};
+}
+
+bool URigHierarchy::SplitNameSpace(const FString& InNameSpacedPath, FString* OutNameSpace, FString* OutName, bool bFromEnd)
+{
+	return InNameSpacedPath.Split(UModularRig::NamespaceSeparator, OutNameSpace, OutName, ESearchCase::CaseSensitive, bFromEnd ? ESearchDir::FromEnd : ESearchDir::FromStart);
+}
+
+bool URigHierarchy::SplitNameSpace(const FRigName& InNameSpacedPath, FRigName* OutNameSpace, FRigName* OutName, bool bFromEnd)
+{
+	FString NameSpace, Name;
+	if(SplitNameSpace(InNameSpacedPath.GetName(), &NameSpace, &Name, bFromEnd))
+	{
+		if(OutNameSpace)
+		{
+			OutNameSpace->SetName(NameSpace);
+		}
+		if(OutName)
+		{
+			OutName->SetName(Name);
+		}
+		return true;
+	}
+	return false;
 }
 
 void URigHierarchy::SanitizeName(FRigName& InOutName, bool bAllowNameSpaces)
@@ -1544,7 +1638,7 @@ FText URigHierarchy::GetDisplayNameForUI(const FRigBaseElement* InElement, bool 
 
 	const FName& DisplayName = InElement->GetDisplayName();
 	FString DisplayNameString = DisplayName.ToString();
-	(void)DisplayNameString.Split(UModularRig::NamespaceSeparator, nullptr, &DisplayNameString, ESearchCase::CaseSensitive, ESearchDir::FromEnd);
+	(void)SplitNameSpace(DisplayNameString, nullptr, &DisplayNameString);
 	
 	if(bIncludeNameSpace)
 	{

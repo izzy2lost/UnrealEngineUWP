@@ -2350,8 +2350,8 @@ void UControlRigBlueprint::RefreshModuleConnectors(const FRigModuleReference* In
 			const TArray<FRigElementKey> ExistingConnectors = AllConnectors.FilterByPredicate([Namespace](const FRigElementKey& ConnectorKey) -> bool
 			{
 				const FString ConnectorName = ConnectorKey.Name.ToString();
-				FString ConnectorNamespace, ShortName = ConnectorName;
-				ConnectorName.Split(UModularRig::NamespaceSeparator, &ConnectorNamespace, &ShortName, ESearchCase::CaseSensitive, ESearchDir::FromEnd);
+				FString ConnectorNamespace;
+				(void)URigHierarchy::SplitNameSpace(ConnectorName, &ConnectorNamespace, nullptr);
 				ConnectorNamespace.Append(UModularRig::NamespaceSeparator);
 				return ConnectorNamespace.Equals(Namespace, ESearchCase::CaseSensitive);
 			});
@@ -2368,7 +2368,7 @@ void UControlRigBlueprint::RefreshModuleConnectors(const FRigModuleReference* In
 			{
 				const FString ConnectorNameString = Connector.Name.ToString();
 				FString ConnectorNamespace, ShortName = ConnectorNameString;
-				ConnectorNameString.Split(UModularRig::NamespaceSeparator, &ConnectorNamespace, &ShortName, ESearchCase::CaseSensitive, ESearchDir::FromEnd);
+				(void)URigHierarchy::SplitNameSpace(ConnectorNameString, &ConnectorNamespace, &ShortName);
 				const bool bConnectorExpected = ExpectedConnectors.ContainsByPredicate(
 					[ShortName](const FRigModuleConnector& ExpectedConnector) -> bool
 					{
@@ -2550,7 +2550,7 @@ void UControlRigBlueprint::HandleRigModulesModified(EModularRigNotification InNo
 						{
 							FString OldConnectorName = Connector.Name.ToString();
 							FString OldConnectorNamespace, ShortName;
-							OldConnectorName.Split(UModularRig::NamespaceSeparator, &OldConnectorNamespace, &ShortName, ESearchCase::CaseSensitive, ESearchDir::FromEnd);
+							(void)URigHierarchy::SplitNameSpace(OldConnectorName, &OldConnectorNamespace, &ShortName);
 							OldConnectorNamespace.Append(UModularRig::NamespaceSeparator);
 							if (OldConnectorNamespace.StartsWith(OldNamespace))
 							{
@@ -2578,7 +2578,7 @@ void UControlRigBlueprint::HandleRigModulesModified(EModularRigNotification InNo
 							for (TPair<FRigElementKey, ConnectionInfo>& Pair : RenamedConnectors)
 							{
 								FString Namespace, ConnectorName;
-								Pair.Value.NewPath.Split(UModularRig::NamespaceSeparator, &Namespace, &ConnectorName, ESearchCase::CaseSensitive, ESearchDir::FromEnd);
+								(void)URigHierarchy::SplitNameSpace(Pair.Value.NewPath, &Namespace, &ConnectorName);
 								Namespace.Append(UModularRig::NamespaceSeparator);
 								FControlRigExecuteContextRigModuleGuard RigModuleGuard(PublicContext, Namespace);
 								Controller->AddConnector(*ConnectorName, Pair.Value.Settings);

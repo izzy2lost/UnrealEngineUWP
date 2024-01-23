@@ -341,7 +341,7 @@ bool UModularRig::Execute_Internal(const FName& InEventName)
 					const bool bIsInteracting = UnitContext.ElementsBeingInteracted.ContainsByPredicate(
 						[ModuleNamespace, Hierarchy](const FRigElementKey& InteractionElement)
 						{
-							return ModuleNamespace == Hierarchy->GetNameMetadata(InteractionElement, URigHierarchy::NameSpaceMetadataName, NAME_None);
+							return ModuleNamespace == Hierarchy->GetNameSpace(InteractionElement);
 						});
 					if (!bIsInteracting)
 					{
@@ -454,7 +454,7 @@ void UModularRig::ExecuteQueue()
 				RigUnitContext.ElementsBeingInteracted = RigUnitContext.ElementsBeingInteracted.FilterByPredicate(
 					[ModuleNamespace, Hierarchy](const FRigElementKey& Key)
 				{
-					return ModuleNamespace == Hierarchy->GetNameMetadata(Key, URigHierarchy::NameSpaceMetadataName, NAME_None);
+					return ModuleNamespace == Hierarchy->GetNameSpace(Key);
 				});
 				RigUnitContext.InteractionType = RigUnitContext.ElementsBeingInteracted.IsEmpty() ?
 					(uint8) EControlRigInteractionType::None
@@ -732,7 +732,7 @@ bool UModularRig::SetModuleVariableBindings(const FString& InModulePath, const T
 		for (const TPair<FName, FString>& Pair : InVariableBindings)
 		{
 			FString SourceModulePath, SourceVariableName = Pair.Value;
-			Pair.Value.Split(NamespaceSeparator, &SourceModulePath, &SourceVariableName, ESearchCase::CaseSensitive, ESearchDir::FromEnd);
+			(void)URigHierarchy::SplitNameSpace(Pair.Value, &SourceModulePath, &SourceVariableName);
 			FRigVMExternalVariable SourceVariable;
 			if (SourceModulePath.IsEmpty())
 			{

@@ -43,7 +43,7 @@ FModularRigTreeElement::FModularRigTreeElement(const FString& InKey, TWeakPtr<SM
 	bIsPrimary = bInIsPrimary;
 
 	FString ShortNameStr = Key;
-	ShortNameStr.Split(UModularRig::NamespaceSeparator, &ModulePath, &ShortNameStr, ESearchCase::Type::CaseSensitive, ESearchDir::FromEnd);
+	(void)URigHierarchy::SplitNameSpace(ShortNameStr, &ModulePath, &ShortNameStr);
 	if (bIsPrimary)
 	{
 		ModulePath = Key;

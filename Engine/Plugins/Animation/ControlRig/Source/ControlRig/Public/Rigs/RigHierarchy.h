@@ -1579,6 +1579,20 @@ public:
 	UFUNCTION(BlueprintPure, Category = URigHierarchy)
 	FString GetModulePath(FRigElementKey InItem) const;
 
+	/**
+	 * Returns the namespace of an element belong to (or NAME_None in case the element doesn't belong to a module / namespace)
+	 * @return The namespace the element belongs to (or NAME_None)
+	 */
+	UFUNCTION(BlueprintPure, Category = URigHierarchy)
+	FName GetNameSpaceFName(FRigElementKey InItem) const;
+	
+	/**
+	 * Returns the namespace of an element belong to (or an empty string in case the element doesn't belong to a module / namespace)
+	 * @return The namespace the element belongs to (or empty string)
+	 */
+	UFUNCTION(BlueprintPure, Category = URigHierarchy)
+	FString GetNameSpace(FRigElementKey InItem) const;
+
 	/*
 	 * Returns the tags for a given item
 	 * @param InItem The item to return the tags for
@@ -1680,6 +1694,14 @@ public:
 	 */
 	static FString JoinNameSpace(const FString& InLeft, const FString& InRight);
 	static FRigName JoinNameSpace(const FRigName& InLeft, const FRigName& InRight);
+
+	/**
+	 * Returns the two name sections with the right namespace separator
+	 */
+	static TPair<FString, FString> SplitNameSpace(const FString& InNameSpacedPath, bool bFromEnd = true);
+	static TPair<FRigName, FRigName> SplitNameSpace(const FRigName& InNameSpacedPath, bool bFromEnd = true);
+	static bool SplitNameSpace(const FString& InNameSpacedPath, FString* OutNameSpace, FString* OutName, bool bFromEnd = true);
+	static bool SplitNameSpace(const FRigName& InNameSpacedPath, FRigName* OutNameSpace, FRigName* OutName, bool bFromEnd = true);
 
 	/**
 	 * Returns the max allowed length for a name within the hierarchy.

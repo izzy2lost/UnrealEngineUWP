@@ -89,6 +89,10 @@ void FControlRigSchematicModel::Tick(float InDeltaTime)
 			{
 				continue;
 			}
+			if(TemporaryNodeGuids.Contains(Pair.Value))
+			{
+				continue;
+			}
 
 			const TArray<FRigElementKey>& Connectors = Connections.FindConnectorsFromTarget(Pair.Key);
 			if(Connectors.Num() > 1)
@@ -1236,7 +1240,7 @@ TArray<FRigElementKey> FControlRigSchematicModel::GetElementKeysFromDragDropEven
 					const FString ModuleNameSpace = ModuleInstance->GetNamespace();
 					for(const FRigConnectorElement* Connector : Connectors)
 					{
-						const FString ConnectorNameSpace = Hierarchy->GetNameMetadata(Connector->GetKey(), URigHierarchy::NameSpaceMetadataName, NAME_None).ToString();
+						const FString ConnectorNameSpace = Hierarchy->GetNameSpace(Connector->GetKey());
 						if(ConnectorNameSpace.Equals(ModuleNameSpace))
 						{
 							if(Connector->IsPrimary())
@@ -1355,8 +1359,7 @@ void FControlRigSchematicModel::HandleSchematicBeginDrag(SSchematicGraphPanel* I
 		return;
 	}
 
-	FString ModulePath = Hierarchy->GetNameMetadata(DraggedKey, URigHierarchy::NameSpaceMetadataName, NAME_None).ToString();
-	ModulePath.RemoveFromEnd(UModularRig::NamespaceSeparator);
+	const FString ModulePath = Hierarchy->GetModulePath(DraggedKey);
 	const FRigModuleInstance* ModuleInstance = ModularRig->FindModule(ModulePath);
 	if (!ModuleInstance)
 	{
@@ -1388,6 +1391,7 @@ void FControlRigSchematicModel::HandleSchematicBeginDrag(SSchematicGraphPanel* I
 	{
 		if(FControlRigSchematicRigElementKeyNode* ExistingElementKeyNode = Cast<FControlRigSchematicRigElementKeyNode>(Node.Get()))
 		{
+			PreDragVisibilityPerNode.Add(Node->GetGuid(), ExistingElementKeyNode->Visibility);
 			ExistingElementKeyNode->SetVisibility(Matches.ContainsByPredicate([ExistingElementKeyNode](const FRigElementResolveResult& Match)
 			{
 				return ExistingElementKeyNode->GetKey() == Match.GetKey();
@@ -1398,16 +1402,26 @@ void FControlRigSchematicModel::HandleSchematicBeginDrag(SSchematicGraphPanel* I
 
 void FControlRigSchematicModel::HandleSchematicEndDrag(SSchematicGraphPanel* InPanel, SSchematicGraphNode* InNode, const FDragDropOperation& InDragDropOperation)
 {
+	if(TemporaryNodeGuids.IsEmpty() && PreDragVisibilityPerNode.IsEmpty())
+	{
+		return;
+	}
+	
 	for (FGuid& TempNodeGuid : TemporaryNodeGuids)
 	{
 		RemoveNode(TempNodeGuid);
 	}
 	TemporaryNodeGuids.Reset();
 
-	for (const TSharedPtr<FSchematicGraphNode>& Node : Nodes)
+	for(const TPair<FGuid, ESchematicGraphVisibility::Type>& Pair : PreDragVisibilityPerNode)
 	{
-		Node->SetVisibility(ESchematicGraphVisibility::Visible);
+		if(FControlRigSchematicRigElementKeyNode* Node = FindNode<FControlRigSchematicRigElementKeyNode>(Pair.Key))
+		{
+			Node->Visibility = Pair.Value;
+		}
 	}
+	PreDragVisibilityPerNode.Reset();
+
 	UpdateElementKeyLinks();
 }
 
@@ -1486,7 +1500,7 @@ void FControlRigSchematicModel::HandleSchematicDrop(SSchematicGraphPanel* InPane
 								if (Connector->IsPrimary())
 								{
 									FString Path, Name;
-									Connector->GetName().Split(UModularRig::NamespaceSeparator, &Path, &Name, ESearchCase::CaseSensitive, ESearchDir::FromEnd);
+									(void)URigHierarchy::SplitNameSpace(Connector->GetName(), &Path, &Name);
 									if (Path == ModulePath)
 									{
 										PrimaryConnectorKey = Connector->GetKey();
@@ -1495,7 +1509,7 @@ void FControlRigSchematicModel::HandleSchematicDrop(SSchematicGraphPanel* InPane
 								}
 							}
 
-							const FName TargetModulePath = Hierarchy->GetNameMetadata(TargetKey, URigHierarchy::NameSpaceMetadataName, NAME_None);
+							const FName TargetModulePath = Hierarchy->GetNameSpaceFName(TargetKey);
 							if(!TargetModulePath.IsNone())
 							{
 								(void)Controller->ReparentModule(ModulePath, TargetModulePath.ToString());
@@ -1572,7 +1586,7 @@ void FControlRigSchematicModel::HandleSchematicDrop(SSchematicGraphPanel* InPane
 						const FString ModuleNameSpace = Module->GetNamespace();
 						for(const FRigConnectorElement* Connector : Connectors)
 						{
-							const FString ConnectorNameSpace = Hierarchy->GetNameMetadata(Connector->GetKey(), URigHierarchy::NameSpaceMetadataName, NAME_None).ToString();
+							const FString ConnectorNameSpace = Hierarchy->GetNameSpace(Connector->GetKey());
 							if(ConnectorNameSpace.Equals(ModuleNameSpace))
 							{
 								if(Connector->IsPrimary())

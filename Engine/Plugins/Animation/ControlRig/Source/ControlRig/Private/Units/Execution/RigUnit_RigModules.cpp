@@ -53,10 +53,10 @@ FRigUnit_GetItemNameSpace_Execute()
 
 	if(const URigHierarchy* Hierarchy = ExecuteContext.Hierarchy)
 	{
-		const FName NameSpaceName = Hierarchy->GetNameMetadata(Item, URigHierarchy::NameSpaceMetadataName, NAME_None);
-		if(!NameSpaceName.IsNone())
+		const FString NameSpaceForItem = Hierarchy->GetNameSpace(Item);
+		if(!NameSpaceForItem.IsEmpty())
 		{
-			NameSpace = NameSpaceName.ToString();
+			NameSpace = NameSpaceForItem;
 			HasNameSpace = true;
 		}
 	}
@@ -109,7 +109,7 @@ FRigUnit_GetItemsInNameSpace_Execute()
 				const FRigElementKey Key = InElement->GetKey();
 				if(((uint8)TypeToSearch & (uint8)Key.Type) == (uint8)Key.Type)
 				{
-					const FName ItemNameSpace = Hierarchy->GetNameMetadata(Key, URigHierarchy::NameSpaceMetadataName, NAME_None);
+					const FName ItemNameSpace = Hierarchy->GetNameSpaceFName(Key);
 					if(!ItemNameSpace.IsNone())
 					{
 						if(ItemNameSpace.IsEqual(NameSpaceName, ENameCase::CaseSensitive))

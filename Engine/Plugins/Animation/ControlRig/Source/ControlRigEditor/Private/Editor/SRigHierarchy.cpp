@@ -2916,7 +2916,7 @@ FReply SRigHierarchy::OnAcceptDrop(const FDragDropEvent& DragDropEvent, EItemDro
 							if (Connector->IsPrimary())
 							{
 								FString Path, Name;
-								Connector->GetName().Split(UModularRig::NamespaceSeparator, &Path, &Name, ESearchCase::CaseSensitive, ESearchDir::FromEnd);
+								(void)URigHierarchy::SplitNameSpace(Connector->GetName(), &Path, &Name);
 								if (Path == ModulePath)
 								{
 									PrimaryConnectorKey = Connector->GetKey();
@@ -2964,7 +2964,7 @@ void SRigHierarchy::UpdateConnectorMatchesOnDrag(const TArray<FRigElementKey>& I
 						{
 							if(const FRigConnectorElement* Connector = Hierarchy->Find<FRigConnectorElement>(DraggedElement))
 							{
-								const FName NameSpace = Hierarchy->GetNameMetadata(Connector->GetKey(), URigHierarchy::NameSpaceMetadataName, NAME_None);
+								const FName NameSpace = Hierarchy->GetNameSpaceFName(Connector->GetKey());
 								if(!NameSpace.IsNone())
 								{
 									if(const FRigModuleInstance* Module = ControlRig->FindModule(NameSpace.ToString()))

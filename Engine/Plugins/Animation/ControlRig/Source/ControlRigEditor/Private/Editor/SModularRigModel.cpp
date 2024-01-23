@@ -582,7 +582,7 @@ bool SModularRigModel::HandleVerifyNameChanged(const FString& InOldPath, const F
 
 	FString ParentPath;
 	FString OldName = InOldPath;
-	InOldPath.Split(UModularRig::NamespaceSeparator, &ParentPath, &OldName, ESearchCase::CaseSensitive, ESearchDir::FromEnd);
+	(void)URigHierarchy::SplitNameSpace(InOldPath, &ParentPath, &OldName);
 
 	if (InNewName == OldName)
 	{
@@ -728,8 +728,7 @@ void SModularRigModel::OnHierarchyModified(ERigHierarchyNotification InNotif, UR
 			FString ModulePathOrConnectorName;
 			if(Connector->IsPrimary())
 			{
-				ModulePathOrConnectorName = InHierarchy->GetNameMetadata(Connector->GetKey(), URigHierarchy::NameSpaceMetadataName, NAME_None).ToString();
-				ModulePathOrConnectorName = ModulePathOrConnectorName.LeftChop(1);
+				ModulePathOrConnectorName = InHierarchy->GetModulePath(Connector->GetKey());
 			}
 			else
 			{

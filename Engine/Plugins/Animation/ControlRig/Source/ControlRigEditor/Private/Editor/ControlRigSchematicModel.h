@@ -127,6 +127,7 @@ private:
 	TWeakObjectPtr<UControlRig> ControlRigBeingDebuggedPtr;
 
 	TArray<FGuid> TemporaryNodeGuids;
+	TMap<FGuid, ESchematicGraphVisibility::Type> PreDragVisibilityPerNode;
 	TMap<FRigElementKey, FGuid> RigElementKeyToGuid;
 	mutable TMap<FSoftObjectPath, FSlateBrush> ModuleIcons;
 

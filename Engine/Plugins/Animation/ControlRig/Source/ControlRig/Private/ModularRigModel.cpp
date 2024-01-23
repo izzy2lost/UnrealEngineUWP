@@ -21,7 +21,7 @@ FString FRigModuleReference::GetPath() const
 	{
 		return Name.ToString();
 	}
-	return ParentPath + UModularRig::NamespaceSeparator + Name.ToString();
+	return URigHierarchy::JoinNameSpace(ParentPath, Name.ToString());
 }
 
 FString FRigModuleReference::GetNamespace() const
@@ -81,7 +81,7 @@ TMap<FRigElementKey, FRigElementKey> FModularRigConnections::GetModuleConnection
 	for (const FModularRigSingleConnection& Connection : ConnectionList)
 	{
 		FString Path, Name;
-		Connection.Connector.Name.ToString().Split(UModularRig::NamespaceSeparator, &Path, &Name, ESearchCase::CaseSensitive, ESearchDir::FromEnd);
+		URigHierarchy::SplitNameSpace(Connection.Connector.Name.ToString(), &Path, &Name);
 
 		// Exactly the same path (do not return connectors from child modules)
 		if (Path == InModulePath)
@@ -156,12 +156,12 @@ void FModularRigModel::UpdateCachedChildren()
 	}
 }
 
-FRigModuleReference* FModularRigModel::FindModule(const FString InPath) const
+FRigModuleReference* FModularRigModel::FindModule(const FString& InPath)
 {
 	const TArray<FRigModuleReference*>* Children = &RootModules;
 
 	FString Left = InPath, Right;
-	while (Left.Split(UModularRig::NamespaceSeparator, &Left, &Right))
+	while (URigHierarchy::SplitNameSpace(Left, &Left, &Right, false))
 	{
 		FRigModuleReference* const * Child = Children->FindByPredicate([Left](FRigModuleReference* Module)
 		{
@@ -189,9 +189,80 @@ FRigModuleReference* FModularRigModel::FindModule(const FString InPath) const
 	return *Child;
 }
 
-FString FModularRigModel::FindParentPath(const FString InPath) const
+const FRigModuleReference* FModularRigModel::FindModule(const FString& InPath) const
 {
-	if (FRigModuleReference* Element = FindModule(InPath))
+	FRigModuleReference* Module = const_cast<FModularRigModel*>(this)->FindModule(InPath);
+	return const_cast<FRigModuleReference*>(Module);
+}
+
+FRigModuleReference* FModularRigModel::GetParentModule(const FString& InPath)
+{
+	const FString ParentPath = GetParentPath(InPath);
+	if(!ParentPath.IsEmpty())
+	{
+		return FindModule(ParentPath);
+	}
+	return nullptr;
+}
+
+const FRigModuleReference* FModularRigModel::GetParentModule(const FString& InPath) const
+{
+	FRigModuleReference* Module = const_cast<FModularRigModel*>(this)->GetParentModule(InPath);
+	return const_cast<FRigModuleReference*>(Module);
+}
+
+FRigModuleReference* FModularRigModel::GetParentModule(const FRigModuleReference* InChildModule)
+{
+	if(InChildModule)
+	{
+		return FindModule(InChildModule->ParentPath);
+	}
+	return nullptr;
+}
+
+const FRigModuleReference* FModularRigModel::GetParentModule(const FRigModuleReference* InChildModule) const
+{
+	FRigModuleReference* Module = const_cast<FModularRigModel*>(this)->GetParentModule(InChildModule);
+	return const_cast<FRigModuleReference*>(Module);
+}
+
+bool FModularRigModel::IsModuleParentedTo(const FString& InChildModulePath, const FString& InParentModulePath) const
+{
+	const FRigModuleReference* ChildModule = FindModule(InChildModulePath);
+	const FRigModuleReference* ParentModule = FindModule(InParentModulePath);
+	if(ChildModule == nullptr || ParentModule == nullptr)
+	{
+		return false;
+	}
+	return IsModuleParentedTo(ChildModule, ParentModule);
+}
+
+bool FModularRigModel::IsModuleParentedTo(const FRigModuleReference* InChildModule, const FRigModuleReference* InParentModule) const
+{
+	if(InChildModule == nullptr || InParentModule == nullptr)
+	{
+		return false;
+	}
+	if(InChildModule == InParentModule)
+	{
+		return false;
+	}
+	
+	while(InChildModule)
+	{
+		if(InChildModule == InParentModule)
+		{
+			return true;
+		}
+		InChildModule = GetParentModule(InChildModule);
+	}
+
+	return false;
+}
+
+FString FModularRigModel::GetParentPath(const FString& InPath) const
+{
+	if (const FRigModuleReference* Element = FindModule(InPath))
 	{
 		return Element->ParentPath;
 	}

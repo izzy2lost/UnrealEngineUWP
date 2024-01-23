@@ -91,6 +91,10 @@ struct CONTROLRIG_API FRigModuleReference
 	FString GetPath() const;
 
 	FString GetNamespace() const;
+
+	bool HasParentModule() const { return !ParentPath.IsEmpty(); }
+
+	bool IsRootModule() const { return !HasParentModule(); }
 	
 	friend bool operator==(const FRigModuleReference& A, const FRigModuleReference& B)
 	{
@@ -258,13 +262,24 @@ public:
 
 	void UpdateCachedChildren();
 
-	FRigModuleReference* FindModule(const FString InPath) const;
+	FRigModuleReference* FindModule(const FString& InPath);
+	const FRigModuleReference* FindModule(const FString& InPath) const;
 
-	FString FindParentPath(const FString InPath) const;
+	FRigModuleReference* GetParentModule(const FString& InPath);
+	const FRigModuleReference* GetParentModule(const FString& InPath) const;
+
+	FRigModuleReference* GetParentModule(const FRigModuleReference* InChildModule);
+	const FRigModuleReference* GetParentModule(const FRigModuleReference* InChildModule) const;
+
+	FString GetParentPath(const FString& InPath) const;
 
 	void ForEachModule(TFunction<bool(const FRigModuleReference*)> PerModule) const;
 
 	TArray<FString> SortPaths(const TArray<FString>& InPaths) const;
+
+	bool IsModuleParentedTo(const FString& InChildModulePath, const FString& InParentModulePath) const;
+	
+	bool IsModuleParentedTo(const FRigModuleReference* InChildModule, const FRigModuleReference* InParentModule) const;
 
 private:
 	TWeakObjectPtr<UObject> OuterClientHost;
