@@ -1858,6 +1858,36 @@ void FStaticMeshRenderData::Serialize(FArchive& Ar, UStaticMesh* Owner, bool bCo
 			}
 		}
 	}
+
+#if WITH_EDITORONLY_DATA
+	// when cooking for a cooked cooker, we need to save extra data it may later need from its own cooked assets
+	if (Ar.IsCooking())
+	{
+		FStripDataFlags StripFlags(Ar);
+		if (!StripFlags.IsDataNeededForCookingStripped())
+		{
+			// if we need to keep data needed for cooking, just save the collision data
+			UStaticMesh* OwnerStaticMesh = Cast<UStaticMesh>(Owner);
+			check(OwnerStaticMesh);
+
+			FTriMeshCollisionData CollisionData;
+			OwnerStaticMesh->GetPhysicsTriMeshData(&CollisionData, true);
+
+			Ar << CollisionData;
+		}
+	}
+#endif
+	if (bCooked && Ar.IsLoading())
+	{
+		FStripDataFlags StripFlags(Ar);
+#if WITH_EDITORONLY_DATA	// the below lines can only happen for a cooked cooker, which has editor data
+		if (!StripFlags.IsDataNeededForCookingStripped())
+		{
+			CollisionDataForCookedCooker = MakeUnique<FTriMeshCollisionData>();
+			Ar << *CollisionDataForCookedCooker;
+		}
+#endif
+	}
 }
 
 void FStaticMeshRenderData::InitResources(ERHIFeatureLevel::Type InFeatureLevel, UStaticMesh* Owner)
@@ -7380,6 +7410,16 @@ bool UStaticMesh::GetPhysicsTriMeshDataCheckComplex(struct FTriMeshCollisionData
 	bInUseAllTriData = true;
 #endif // #if !WITH_EDITORONLY_DATA
 
+#if WITH_EDITORONLY_DATA
+	// if we're a cooked cooker, just use the canned data
+	if (UNLIKELY(GetRenderData()->CollisionDataForCookedCooker))
+	{
+		*CollisionData = *GetRenderData()->CollisionDataForCookedCooker;
+	}
+	else
+	{
+#endif // #if !WITH_EDITORONLY_DATA
+
 	check(HasValidRenderData());
 
 	// Get the LOD level to use for collision
@@ -7439,7 +7479,10 @@ bool UStaticMesh::GetPhysicsTriMeshDataCheckComplex(struct FTriMeshCollisionData
 		}
 	}
 	CollisionData->bFlipNormals = true;
-	
+
+#if WITH_EDITORONLY_DATA
+	}
+#endif
 	// We only have a valid TriMesh if the CollisionData has vertices AND indices. For meshes with disabled section collision, it
 	// can happen that the indices will be empty, in which case we do not want to consider that as valid trimesh data
 	return CollisionData->Vertices.Num() > 0 && CollisionData->Indices.Num() > 0;
@@ -7499,6 +7542,14 @@ bool UStaticMesh::ContainsPhysicsTriMeshDataCheckComplex(bool bInUseAllTriData, 
 	bInUseAllTriData = true;
 #endif // #if !WITH_EDITORONLY_DATA
 	
+#if WITH_EDITORONLY_DATA
+	// if we're a cooked cooker, just use the canned data
+	if (UNLIKELY(GetRenderData()->CollisionDataForCookedCooker))
+	{
+		return !GetRenderData()->CollisionDataForCookedCooker->Vertices.IsEmpty();
+	}
+#endif // #if !WITH_EDITORONLY_DATA
+
 	if(GetRenderData() == nullptr || GetRenderData()->LODResources.Num() == 0)
 	{
 		return false;
