@@ -107,6 +107,7 @@ FGuid FSkeletalMeshLODInfo::ComputeDeriveDataCacheKey(const FSkeletalMeshLODGrou
 	}
 	
 	FArchive_Serialize_BitfieldBool(Ar, bAllowCPUAccess);
+	FArchive_Serialize_BitfieldBool(Ar, bBuildHalfEdgeBuffers);
 	FArchive_Serialize_BitfieldBool(Ar, bSupportUniformlyDistributedSampling);
 
 	//Use the LOD settings asset if there is one

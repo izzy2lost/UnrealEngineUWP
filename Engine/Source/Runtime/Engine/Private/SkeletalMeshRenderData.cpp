@@ -354,7 +354,11 @@ void FSkeletalMeshRenderData::Cache(const ITargetPlatform* TargetPlatform, USkin
 						VertexBufferBuildFlags |= ESkeletalMeshVertexFlags::UseHighPrecisionWeights;
 					}
 				}
-				LODData->BuildFromLODModel(LODModel, LODInfo->VertexAttributes, VertexBufferBuildFlags);
+				FSkeletalMeshLODRenderData::FBuildSettings BuildSettings;
+				BuildSettings.BuildFlags = VertexBufferBuildFlags;
+				BuildSettings.bBuildHalfEdgeBuffers = LODInfo->bBuildHalfEdgeBuffers;
+				
+				LODData->BuildFromLODModel(LODModel, LODInfo->VertexAttributes, BuildSettings);
 			}
 
 			FLargeMemoryWriter Ar(0, /*bIsPersistent=*/ true);

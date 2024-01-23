@@ -413,6 +413,9 @@ struct FFortniteMainBranchObjectVersion
 
 		// Skeletal Mesh uses Mesh Description to store mesh bulk data.
 		MeshDescriptionForSkeletalMesh,
+
+		// Skeletal Mesh optionally cooks half edge data per lod
+		SkeletalHalfEdgeData,
 		
 		// -----<new versions can be added above this line>-------------------------------------------------
 		VersionPlusOne,
