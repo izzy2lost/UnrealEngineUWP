@@ -23,7 +23,9 @@ enum class EComponentMaterialType
 	/* An overlay material on a mesh component*/
 	OverlayMaterial,
 	/* A decal material*/
-	DecalMaterial
+	DecalMaterial,
+	/* Volumetric Cloud Material*/
+	VolumetricCloudMaterial
 };
 
 /**

@@ -177,6 +177,8 @@ class UVolumetricCloudComponent : public USceneComponent
 	UFUNCTION(BlueprintCallable, Category = "Rendering")
 	ENGINE_API void SetMaterial(UMaterialInterface* NewValue);
 
+	ENGINE_API UMaterialInterface* GetMaterial() const { return Material; }
+
 	// Deprecated functions but still valid because they forward data correctly.
 	UE_DEPRECATED(5.0, "This function has been replaced by SetReflectionViewSampleCountScale.")
 	UFUNCTION(BlueprintCallable, Category = "Rendering", meta = (DeprecatedFunction, DeprecationMessage = "This function has been replaced by SetReflectionViewSampleCountScale."))

@@ -13,6 +13,7 @@
 #include "Components/PrimitiveComponent.h"
 #include "Components/MeshComponent.h"
 #include "Materials/MaterialInterface.h"
+#include "Components/VolumetricCloudComponent.h"
 
 #include UE_INLINE_GENERATED_CPP_BY_NAME(MovieSceneMaterialTrack)
 
@@ -365,7 +366,21 @@ FText UMovieSceneComponentMaterialTrack::GetDisplayNameToolTipText(const FMovieS
 						return LOCTEXT("DecalMaterialTrackTooltip_MissingMaterial", "No decal material could be found");
 					}
 				}
-				break;
+				break;			
+			case EComponentMaterialType::VolumetricCloudMaterial:
+					if (UVolumetricCloudComponent* CloudComponent = Cast<UVolumetricCloudComponent>(WeakObject.Get()))
+					{
+						Material = CloudComponent->GetMaterial();
+						if (Material)
+						{
+							return FText::Format(LOCTEXT("CloudMaterialTrackTooltip", "Material parameter track for volumetric cloud material {0}"), FText::FromString(Material->GetName()));
+						}
+						else
+						{
+							return LOCTEXT("CloudMaterialTrackTooltip_MissingMaterial", "No volumetric cloud material could be found");
+						}
+					}
+					break;
 			default:
 				break;
 			}
@@ -453,6 +468,19 @@ FSlateColor UMovieSceneComponentMaterialTrack::GetLabelColor(const FMovieSceneLa
 				if (UDecalComponent* DecalComponent = Cast<UDecalComponent>(WeakObject.Get()))
 				{
 					UMaterialInterface* Material = DecalComponent->GetDecalMaterial();
+					if (!Material)
+					{
+						return GetDimmedColor(FLinearColor::Red);
+					}
+				}
+				else
+				{
+					return GetDimmedColor(FLinearColor::Red);
+				}
+			case EComponentMaterialType::VolumetricCloudMaterial:
+				if (UVolumetricCloudComponent* CloudComponent = Cast<UVolumetricCloudComponent>(WeakObject.Get()))
+				{
+					UMaterialInterface* Material = CloudComponent->GetMaterial();
 					if (!Material)
 					{
 						return GetDimmedColor(FLinearColor::Red);

@@ -9,6 +9,7 @@
 #include "Materials/MaterialInterface.h"
 #include "Algo/Find.h"
 #include "Components/MeshComponent.h"
+#include "Components/VolumetricCloudComponent.h"
 
 
 #define LOCTEXT_NAMESPACE "PrimitiveMaterialTrackEditor"
@@ -114,6 +115,22 @@ void FPrimitiveMaterialTrackEditor::ConstructObjectBindingTrackMenu(FMenuBuilder
 		}
 		MenuBuilder.EndSection();
 	}
+	else if (UVolumetricCloudComponent* CloudComponent = Cast<UVolumetricCloudComponent>(SceneComponent))
+	{
+		MenuBuilder.BeginSection("Materials", LOCTEXT("MaterialSection", "Material Parameters"));
+		{
+			FComponentMaterialInfo MaterialInfo{ FName(), 0, EComponentMaterialType::VolumetricCloudMaterial };
+			const bool bAlreadyExists = Algo::FindBy(Binding->GetTracks(), MaterialInfo, GetMaterialInfoForTrack) != nullptr;
+			if (!bAlreadyExists)
+			{
+				FUIAction AddMaterialSwitcherAction(FExecuteAction::CreateSP(this, &FPrimitiveMaterialTrackEditor::CreateTrackForElement, ObjectBindings, MaterialInfo));
+				FText CloudMaterialSwitcherLabel = LOCTEXT("CloudMaterialSwitcher_Format", "Volumetric Cloud Material Switcher");
+				FText CloudMaterialSwitcherTooltip = LOCTEXT("CloudMaterialSwitcherTooltip_Format", "Add volumetric cloud material switcher");
+				MenuBuilder.AddMenuEntry(CloudMaterialSwitcherLabel, CloudMaterialSwitcherTooltip, FSlateIcon(), AddMaterialSwitcherAction);
+			}
+		}
+		MenuBuilder.EndSection();
+	}
 }
 
 void FPrimitiveMaterialTrackEditor::CreateTrackForElement(TArray<FGuid> ObjectBindingIDs, FComponentMaterialInfo MaterialInfo)
@@ -143,7 +160,10 @@ void FPrimitiveMaterialTrackEditor::CreateTrackForElement(TArray<FGuid> ObjectBi
 			break;
 		case EComponentMaterialType::DecalMaterial:
 			TrackDisplayName = LOCTEXT("DecalMaterialSwitcherTrackName", "Decal Material");
-			break;
+			break;		
+		case EComponentMaterialType::VolumetricCloudMaterial:
+				TrackDisplayName = LOCTEXT("CloudMaterialSwitcherTrackName", "Volumetric Cloud Material");
+				break;
 		default:
 			break;
 

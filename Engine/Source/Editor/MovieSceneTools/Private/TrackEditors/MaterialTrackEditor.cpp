@@ -16,6 +16,7 @@
 #include "Engine/Selection.h"
 #include "ISequencerModule.h"
 #include "Components/MeshComponent.h"
+#include "Components/VolumetricCloudComponent.h"
 
 
 #define LOCTEXT_NAMESPACE "MaterialTrackEditor"
@@ -475,6 +476,12 @@ UMaterialInterface* FComponentMaterialTrackEditor::GetMaterialInterfaceForTrack(
 			return DecalComponent->GetDecalMaterial();
 		}
 		break;
+	case EComponentMaterialType::VolumetricCloudMaterial:
+		if (UVolumetricCloudComponent* CloudComponent = Cast<UVolumetricCloudComponent>(Object))
+		{
+			return CloudComponent->GetMaterial();
+		}
+		break;
 	default:
 		break;
 	}
@@ -483,7 +490,7 @@ UMaterialInterface* FComponentMaterialTrackEditor::GetMaterialInterfaceForTrack(
 
 void FComponentMaterialTrackEditor::ExtendObjectBindingTrackMenu(TSharedRef<FExtender> Extender, const TArray<FGuid>& ObjectBindings, const UClass* ObjectClass)
 {
-	if (ObjectClass->IsChildOf(UPrimitiveComponent::StaticClass()) || ObjectClass->IsChildOf(UDecalComponent::StaticClass()))
+	if (ObjectClass->IsChildOf(UPrimitiveComponent::StaticClass()) || ObjectClass->IsChildOf(UDecalComponent::StaticClass()) || ObjectClass->IsChildOf(UVolumetricCloudComponent::StaticClass()))
 	{
 		Extender->AddMenuExtension(SequencerMenuExtensionPoints::AddTrackMenu_PropertiesSection, EExtensionHook::Before, nullptr, FMenuExtensionDelegate::CreateSP(this, &FComponentMaterialTrackEditor::ConstructObjectBindingTrackMenu, ObjectBindings));
 	}
@@ -576,6 +583,25 @@ void FComponentMaterialTrackEditor::ConstructObjectBindingTrackMenu(FMenuBuilder
 			MenuBuilder.EndSection();
 		}
 	}
+	else if (UVolumetricCloudComponent* CloudComponent = Cast<UVolumetricCloudComponent>(SceneComponent))
+	{
+		if (UMaterialInterface* CloudMaterial = CloudComponent->GetMaterial())
+		{
+			MenuBuilder.BeginSection("Materials", LOCTEXT("MaterialSection", "Material Parameters"));
+			{
+				FComponentMaterialInfo MaterialInfo{ FName(), 0, EComponentMaterialType::VolumetricCloudMaterial };
+				const bool bAlreadyExists = Algo::FindBy(Binding->GetTracks(), MaterialInfo, GetMaterialInfoForTrack) != nullptr;
+				if (!bAlreadyExists)
+				{
+					FUIAction AddComponentMaterialAction(FExecuteAction::CreateRaw(this, &FComponentMaterialTrackEditor::HandleAddComponentMaterialActionExecute, SceneComponent, MaterialInfo));
+					FText AddCloudMaterialLabel = FText::Format(LOCTEXT("AddCloudMaterialLabelFormat", "Volumetric Cloud: {0}"), FText::FromString(CloudMaterial->GetName()));
+					FText AddCloudMaterialToolTip = FText::Format(LOCTEXT("AddCloudMaterialToolTipFormat", "Add volumetric cloud material {0}"), FText::FromString(CloudMaterial->GetName()));
+					MenuBuilder.AddMenuEntry(AddCloudMaterialLabel, AddCloudMaterialToolTip, FSlateIcon(), AddComponentMaterialAction);
+				}
+			}
+			MenuBuilder.EndSection();
+		}
+	}
 }
 
 void FComponentMaterialTrackEditor::HandleAddComponentMaterialActionExecute(USceneComponent* Component, FComponentMaterialInfo MaterialInfo)
@@ -647,7 +673,10 @@ void FComponentMaterialTrackEditor::HandleAddComponentMaterialActionExecute(USce
 				break;
 			case EComponentMaterialType::DecalMaterial:
 				TrackDisplayName = FText::Format(LOCTEXT("DecalMaterialTrackName", "Decal Material {0}"), MaterialInterface ? FText::FromString(MaterialInterface->GetName()) : FText());
-				break;
+				break;			
+			case EComponentMaterialType::VolumetricCloudMaterial:
+					TrackDisplayName = FText::Format(LOCTEXT("CloudMaterialTrackName", "Volumetric Cloud Material {0}"), MaterialInterface ? FText::FromString(MaterialInterface->GetName()) : FText());
+					break;
 			default:
 				break;
 

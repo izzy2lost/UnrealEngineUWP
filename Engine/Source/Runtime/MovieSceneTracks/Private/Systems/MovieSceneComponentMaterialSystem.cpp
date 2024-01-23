@@ -17,6 +17,7 @@
 #include "Components/PrimitiveComponent.h"
 #include "Components/DecalComponent.h"
 #include "Components/MeshComponent.h"
+#include "Components/VolumetricCloudComponent.h"
 
 #include UE_INLINE_GENERATED_CPP_BY_NAME(MovieSceneComponentMaterialSystem)
 
@@ -76,6 +77,12 @@ UMaterialInterface* FComponentMaterialAccessor::GetMaterial() const
 			return DecalComponent->GetDecalMaterial();
 		}
 		break;
+	case EComponentMaterialType::VolumetricCloudMaterial:
+		if (UVolumetricCloudComponent* CloudComponent = Cast<UVolumetricCloudComponent>(Object))
+		{
+			return CloudComponent->GetMaterial();
+		}
+		break;
 	default:
 		break;
 	}
@@ -112,6 +119,12 @@ void FComponentMaterialAccessor::SetMaterial(UMaterialInterface* InMaterial) con
 		if (UDecalComponent* DecalComponent = Cast<UDecalComponent>(Object))
 		{
 			DecalComponent->SetDecalMaterial(InMaterial);
+		}
+		break;
+	case EComponentMaterialType::VolumetricCloudMaterial:
+		if (UVolumetricCloudComponent* CloudComponent = Cast<UVolumetricCloudComponent>(Object))
+		{
+			CloudComponent->SetMaterial(InMaterial);
 		}
 		break;
 	default:
@@ -162,6 +175,14 @@ UMaterialInstanceDynamic* FComponentMaterialAccessor::CreateDynamicMaterial(UMat
 		if (UDecalComponent* DecalComponent = Cast<UDecalComponent>(Object))
 		{
 			return DecalComponent->CreateDynamicMaterialInstance();
+		}
+		break;
+	case EComponentMaterialType::VolumetricCloudMaterial:
+		if (UVolumetricCloudComponent* CloudComponent = Cast<UVolumetricCloudComponent>(Object))
+		{
+			UMaterialInstanceDynamic* Result = MakeDynamicMaterial();
+			CloudComponent->SetMaterial(Result);
+			return Result;
 		}
 		break;
 	default:
