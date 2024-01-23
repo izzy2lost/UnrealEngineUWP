@@ -2394,6 +2394,16 @@ bool FPerforceGetPendingChangelistsWorker::Execute(FPerforceSourceControlCommand
 
 					TMap<FString, FString>& OutShelvedFileMap = OutCLShelvedFilesMap.Emplace_GetRef();
 					GetDepotFileToLocalFileMap(Connection, InCommand, OutShelvedStateMap, OutShelvedFileMap);
+
+					// Remove errors encountered in GetDepotFileToLocalFileMap when parsing changelists in other workspaces
+					// as we expect those files to not be in the client view
+					// TODO: The root cause of this issue is we iterate over all changelists but in general we only care
+					// about the changelists for the active workspace, we should
+					// a) Not try to resolve local files for changelists in other workspaces
+					// b) Provide better filtering so the user can request this operation only run on changelists for the
+					// active workspace.
+					const bool bMoveToInfo = false;
+					RemoveRedundantErrors(InCommand, TEXT(" - file(s) not in client view."), bMoveToInfo);
 				}
 			}
 		}
