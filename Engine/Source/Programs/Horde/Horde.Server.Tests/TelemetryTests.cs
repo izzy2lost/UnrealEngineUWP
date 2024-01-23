@@ -55,7 +55,7 @@ namespace Horde.Server.Tests
 				await sink.FlushAsync(CancellationToken.None);
 				await collection.FlushAsync(CancellationToken.None);
 
-				List<IMetric> metrics = await collection.FindAsync(metricConfig.Id);
+				List<IMetric> metrics = await collection.FindAsync([metricConfig.Id]);
 				Assert.AreEqual(1, metrics.Count);
 				Assert.AreEqual(new DateTime(2023, 6, 8, 4, 0, 0), metrics[0].Time);
 				Assert.AreEqual(3, metrics[0].Value);
@@ -89,7 +89,7 @@ namespace Horde.Server.Tests
 				await sink.FlushAsync(CancellationToken.None);
 				await collection.FlushAsync(CancellationToken.None);
 
-				List<IMetric> metrics = await collection.FindAsync(metricConfig.Id);
+				List<IMetric> metrics = await collection.FindAsync([metricConfig.Id]);
 				Assert.AreEqual(1, metrics.Count);
 				Assert.AreEqual(new DateTime(2023, 6, 8, 4, 0, 0), metrics[0].Time);
 				Assert.AreEqual(6, metrics[0].Value);
@@ -102,7 +102,7 @@ namespace Horde.Server.Tests
 				await sink.FlushAsync(CancellationToken.None);
 				await collection.FlushAsync(CancellationToken.None);
 
-				List<IMetric> metrics = await collection.FindAsync(metricConfig.Id);
+				List<IMetric> metrics = await collection.FindAsync([metricConfig.Id]);
 				Assert.AreEqual(1, metrics.Count);
 				Assert.AreEqual(new DateTime(2023, 6, 8, 4, 0, 0), metrics[0].Time);
 				Assert.AreEqual(9, metrics[0].Value);
@@ -117,7 +117,7 @@ namespace Horde.Server.Tests
 				await sink.FlushAsync(CancellationToken.None);
 				await collection.FlushAsync(CancellationToken.None);
 
-				List<IMetric> metrics = await collection.FindAsync(metricConfig.Id);
+				List<IMetric> metrics = await collection.FindAsync([metricConfig.Id]);
 				Assert.AreEqual(2, metrics.Count);
 
 				Assert.AreEqual(new DateTime(2023, 6, 8, 5, 0, 0), metrics[0].Time);
@@ -163,13 +163,13 @@ namespace Horde.Server.Tests
 				await sink.FlushAsync(CancellationToken.None);
 				await collection.FlushAsync(CancellationToken.None);
 
-				List<IMetric> metrics = await collection.FindAsync(metricConfig1.Id);
+				List<IMetric> metrics = await collection.FindAsync([metricConfig1.Id]);
 				Assert.AreEqual(1, metrics.Count);
 				Assert.AreEqual(new DateTime(2023, 6, 8, 4, 0, 0), metrics[0].Time);
 				Assert.AreEqual(6, metrics[0].Value);
 				Assert.AreEqual(3, metrics[0].Count);
 
-				List<IMetric> metrics2 = await collection.FindAsync(metricConfig2.Id);
+				List<IMetric> metrics2 = await collection.FindAsync([metricConfig2.Id]);
 				Assert.AreEqual(1, metrics2.Count);
 				Assert.AreEqual(new DateTime(2023, 6, 8, 4, 0, 0), metrics2[0].Time);
 				Assert.AreEqual(101, metrics2[0].Value);
@@ -223,7 +223,7 @@ namespace Horde.Server.Tests
 			await sink.FlushAsync(CancellationToken.None);
 			await collection.FlushAsync(CancellationToken.None);
 
-			List<IMetric> metrics = await collection.FindAsync(metricConfig.Id, maxResults: 1);
+			List<IMetric> metrics = await collection.FindAsync([metricConfig.Id], maxResults: 1);
 			Assert.AreEqual(1, metrics.Count);
 			Assert.AreEqual(values.Length, metrics[0].Count);
 			Assert.AreEqual(result, metrics[0].Value);
@@ -256,7 +256,7 @@ namespace Horde.Server.Tests
 			await sink.FlushAsync(CancellationToken.None);
 			await collection.FlushAsync(CancellationToken.None);
 
-			List<IMetric> metrics = await collection.FindAsync(metricConfig.Id);
+			List<IMetric> metrics = await collection.FindAsync([metricConfig.Id]);
 			metrics = metrics.OrderBy(x => x.Group).ToList();
 			Assert.AreEqual(3, metrics.Count);
 
@@ -326,7 +326,7 @@ namespace Horde.Server.Tests
 				await sink.FlushAsync(CancellationToken.None);
 				await collection.FlushAsync(CancellationToken.None);
 
-				List<IMetric> metrics = await collection.FindAsync(metricConfig.Id);
+				List<IMetric> metrics = await collection.FindAsync([metricConfig.Id]);
 				metrics = metrics.OrderBy(x => x.Group).ToList();
 
 				Assert.AreEqual(5, metrics.Count);

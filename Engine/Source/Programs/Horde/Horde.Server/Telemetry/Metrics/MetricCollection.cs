@@ -330,7 +330,7 @@ namespace Horde.Server.Telemetry.Metrics
 		}
 
 		/// <inheritdoc/>
-		public async Task<List<IMetric>> FindAsync(MetricId metricId, DateTime? minTime = null, DateTime? maxTime = null, string? group = null, int maxResults = 50, CancellationToken cancellationToken = default)
+		public async Task<List<IMetric>> FindAsync(MetricId[] metricIds, DateTime? minTime = null, DateTime? maxTime = null, string? group = null, int maxResults = 50, CancellationToken cancellationToken = default)
 		{
 			FilterDefinition<MetricDocument> filter = FilterDefinition<MetricDocument>.Empty;
 
@@ -343,7 +343,7 @@ namespace Horde.Server.Telemetry.Metrics
 				filter &= Builders<MetricDocument>.Filter.Lte(x => x.Time, maxTime.Value);
 			}
 
-			filter &= Builders<MetricDocument>.Filter.Eq(x => x.MetricId, metricId);
+			filter &= Builders<MetricDocument>.Filter.In(x => x.MetricId, metricIds);
 
 			if (group != null)
 			{

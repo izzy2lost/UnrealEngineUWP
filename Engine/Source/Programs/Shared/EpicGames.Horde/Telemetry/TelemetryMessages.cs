@@ -36,6 +36,16 @@ namespace EpicGames.Horde.Telemetry
 	public class GetTelemetryMetricsResponse
 	{
 		/// <summary>
+		/// The corresponding metric id
+		/// </summary>
+		public string MetricId { get; set; } = String.Empty;
+
+		/// <summary>
+		/// Metric grouping information
+		/// </summary>
+		public string GroupBy { get; set; } = String.Empty;
+
+		/// <summary>
 		/// Metrics matching the search terms
 		/// </summary>
 		public List<GetTelemetryMetricResponse> Metrics { get; set; } = new List<GetTelemetryMetricResponse>();

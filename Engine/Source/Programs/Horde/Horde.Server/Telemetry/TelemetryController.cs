@@ -3,6 +3,7 @@
 using System;
 using System.Collections.Generic;
 using System.ComponentModel.DataAnnotations;
+using System.Linq;
 using System.Text.Json.Nodes;
 using System.Threading;
 using System.Threading.Tasks;
@@ -42,7 +43,7 @@ namespace Horde.Server.Telemetry
 		/// <summary>
 		/// Queries aggregated metrics from the telemetry system
 		/// </summary>
-		/// <param name="id">The metric to query</param>
+		/// <param name="ids">The metrics to query</param>
 		/// <param name="minTime">Minimum time interval to query</param>
 		/// <param name="maxTime">Maximum time interval to query</param>
 		/// <param name="group">Grouping key</param>
@@ -50,32 +51,50 @@ namespace Horde.Server.Telemetry
 		/// <param name="cancellationToken">Cancellation token for the operation</param>
 		[HttpGet]
 		[Authorize]
-		[Route("/api/v1/telemetry/metrics/{Id}")]
-		public async Task<ActionResult<GetTelemetryMetricsResponse>> GetMetricsAsync(MetricId id, [FromQuery] DateTime? minTime = null, [FromQuery] DateTime? maxTime = null, [FromQuery] string? group = null, [FromQuery] int results = 50, CancellationToken cancellationToken = default)
+		[Route("/api/v1/telemetry/metrics")]
+		public async Task<ActionResult<List<GetTelemetryMetricsResponse>>> GetMetricsAsync([FromQuery] MetricId[] ids, [FromQuery] DateTime? minTime = null, [FromQuery] DateTime? maxTime = null, [FromQuery] string? group = null, [FromQuery] int results = 50, CancellationToken cancellationToken = default)
 		{
 			if (!_globalConfig.Value.Authorize(TelemetryAclAction.QueryMetrics, User))
 			{
 				return Forbid(TelemetryAclAction.QueryMetrics);
 			}
 
-			List<IMetric> metrics = await _metricCollection.FindAsync(id, minTime, maxTime, group, results, cancellationToken);
+			List<GetTelemetryMetricsResponse> result = new List<GetTelemetryMetricsResponse>();
 
-			GetTelemetryMetricsResponse responses = new GetTelemetryMetricsResponse();
-			foreach (IMetric metric in metrics)
+			List<IMetric> metrics = await _metricCollection.FindAsync(ids, minTime, maxTime, group, results, cancellationToken);
+
+			HashSet<MetricId> unique = new HashSet<MetricId>(metrics.Select(m => m.MetricId));
+
+			foreach (MetricId metricId in unique)
 			{
-				GetTelemetryMetricResponse response = new GetTelemetryMetricResponse();
-				response.Time = metric.Time;
-				response.Value = metric.Value;
+				MetricConfig? metricConfig = _globalConfig.Value.Telemetry.Metrics.Find(m => m.Id == metricId);
 
-				if (group == null)
+				if (metricConfig == null)
 				{
-					response.Group = metric.Group;
+					continue;
 				}
 
-				responses.Metrics.Add(response);
-			}
+				GetTelemetryMetricsResponse response = new GetTelemetryMetricsResponse();
+				response.MetricId = metricId.ToString();
+				response.GroupBy = metricConfig.GroupBy;
+				result.Add(response);
 
-			return responses;
+				foreach (IMetric metric in metrics.Where(m => m.MetricId == metricId))
+				{
+					GetTelemetryMetricResponse rmetric = new GetTelemetryMetricResponse();
+					rmetric.Time = metric.Time;
+					rmetric.Value = metric.Value;
+
+					if (group == null)
+					{
+						rmetric.Group = metric.Group;
+					}
+
+					response.Metrics.Add(rmetric);
+				}
+			}		
+
+			return result;
 		}
 
 		/// <summary>

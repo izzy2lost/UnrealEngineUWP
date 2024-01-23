@@ -23,13 +23,13 @@ namespace Horde.Server.Telemetry.Metrics
 		/// <summary>
 		/// Finds metrics over a given time period
 		/// </summary>
-		/// <param name="metricId">Metric to search for</param>
+		/// <param name="metricIds">Metrics to search for</param>
 		/// <param name="minTime">Start of the time period to query</param>
 		/// <param name="maxTime">End of the time period to query</param>
 		/// <param name="group">Grouping key to filter results</param>
 		/// <param name="maxResults">Maximum number of results to return</param>
 		/// <param name="cancellationToken">Cancellation token for the operation</param>
-		Task<List<IMetric>> FindAsync(MetricId metricId, DateTime? minTime = null, DateTime? maxTime = null, string? group = null, int maxResults = 50, CancellationToken cancellationToken = default);
+		Task<List<IMetric>> FindAsync(MetricId[] metricIds, DateTime? minTime = null, DateTime? maxTime = null, string? group = null, int maxResults = 50, CancellationToken cancellationToken = default);
 
 		/// <summary>
 		/// Flush all the pending events to storage
