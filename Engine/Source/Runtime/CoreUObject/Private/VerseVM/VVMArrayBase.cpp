@@ -63,7 +63,7 @@ uint32 VArrayBase::GetTypeHashImpl()
 
 void VArrayBase::ToStringImpl(FStringBuilderBase& Builder, FAllocationContext Context, const FCellFormatter& Formatter)
 {
-	for (int I = 0; I < Num(); ++I)
+	for (uint32 I = 0; I < Num(); ++I)
 	{
 		if (I > 0)
 		{

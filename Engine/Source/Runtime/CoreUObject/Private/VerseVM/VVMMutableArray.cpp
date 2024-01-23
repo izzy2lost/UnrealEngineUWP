@@ -43,7 +43,7 @@ void VMutableArray::SerializeImpl(VMutableArray*& This, FAllocationContext Conte
 FOpResult VMutableArray::FreezeImpl(FRunningContext Context)
 {
 	VArray& FrozenArray = VArray::New(Context, Num());
-	for (int I = 0; I < Num(); ++I)
+	for (uint32 I = 0; I < Num(); ++I)
 	{
 		FOpResult ValueResult = VValue::Freeze(Context, GetValue(I));
 		FrozenArray.SetValue(Context, I, ValueResult.Value);

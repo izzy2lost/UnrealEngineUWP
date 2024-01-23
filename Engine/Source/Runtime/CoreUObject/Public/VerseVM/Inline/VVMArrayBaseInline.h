@@ -49,11 +49,11 @@ inline T& VArrayBase::Concat(FAllocationContext Context, VArrayBase& Lhs, VArray
 {
 	T& NewArray = T::New(Context, Lhs.Num() + Rhs.Num());
 	uint32 Index = 0;
-	for (int I = 0; I < Lhs.Num(); ++I)
+	for (uint32 I = 0; I < Lhs.Num(); ++I)
 	{
 		NewArray.SetValue(Context, Index++, Lhs.GetValue(I));
 	}
-	for (int J = 0; J < Rhs.Num(); ++J)
+	for (uint32 J = 0; J < Rhs.Num(); ++J)
 	{
 		NewArray.SetValue(Context, Index++, Rhs.GetValue(J));
 	}

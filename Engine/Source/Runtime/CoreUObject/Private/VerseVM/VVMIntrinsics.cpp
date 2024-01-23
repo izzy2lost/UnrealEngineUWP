@@ -51,7 +51,7 @@ FNativeCallResult VIntrinsics::ConcatenateMapsImpl(FRunningContext Context, VVal
 	V_REQUIRE_CONCRETE(Arguments[1]);
 	VMap& Lhs = Arguments[0].StaticCast<VMap>();
 	VMap& Rhs = Arguments[1].StaticCast<VMap>();
-	V_RETURN(VMapBase::New<VMap>(Context, Lhs.Num() + Rhs.Num(), [&](uint32 I) {
+	V_RETURN(VMapBase::New<VMap>(Context, Lhs.Num() + Rhs.Num(), [&](int32 I) {
 		if (I < Lhs.Num())
 		{
 			return TPair<VValue, VValue>{Lhs.GetKey(I), Lhs.GetValue(I)};
