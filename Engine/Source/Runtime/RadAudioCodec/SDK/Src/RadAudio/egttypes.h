@@ -1,6 +1,4 @@
-//===============================================
 // Copyright Epic Games Tools, LLC. All Rights Reserved.
-//===============================================
 
 #ifndef __EGTTYPESH__
 #define __EGTTYPESH__
@@ -8,8 +6,6 @@
 #if !defined(__RADTYPESH__) && !defined(__RADRR_COREH__) 
 #define __RADTYPESH__
 #define __RADRR_COREH__ // block old rr_core
-
-#define RADCOPYRIGHT "Copyright (C) 1994-2024, Epic Games Tools, LLC"
 
 #if !defined(__RADRES__) // don't include anything for resource compiles
 

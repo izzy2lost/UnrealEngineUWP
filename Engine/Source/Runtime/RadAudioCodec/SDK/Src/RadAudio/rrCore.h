@@ -1,6 +1,4 @@
-/// ========================================================================
 // Copyright Epic Games Tools, LLC. All Rights Reserved. Global types header file
-// ========================================================================
 
 #if !defined(__RADRR_CORE2H__)
 #define __RADRR_CORE2H__
