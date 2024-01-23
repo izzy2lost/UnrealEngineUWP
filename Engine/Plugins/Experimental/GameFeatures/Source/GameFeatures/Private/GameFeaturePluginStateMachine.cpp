@@ -1637,7 +1637,7 @@ struct FGameFeaturePluginState_Unmounting : public FGameFeaturePluginState
 			// This will also cause any assets we added to the asset manager to be removed.
 			// Scan paths added to the asset manager should have already been cleaned up.
 			FText FailureReason;
-			if (!IPluginManager::Get().UnmountExplicitlyLoadedPlugin(StateProperties.PluginName, &FailureReason))
+			if (!IPluginManager::Get().UnmountExplicitlyLoadedPlugin(StateProperties.PluginName, &FailureReason, false))
 			{
 				const FStringView ShortUrl = StateProperties.PluginIdentifier.GetIdentifyingString();
 				ensureMsgf(false, TEXT("Failed to explicitly unmount the PluginURL(%.*s) because %s"), ShortUrl.Len(), ShortUrl.GetData(), *FailureReason.ToString());

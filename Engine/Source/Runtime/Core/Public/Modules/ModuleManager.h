@@ -288,10 +288,11 @@ public:
 	 *
 	 * @param InModuleName The name of the module to unload.  Should not include path, extension or platform/configuration info.  This is just the "module name" part of the module file name.
 	 * @param bIsShutdown Is this unload module call occurring at shutdown (default = false).
+	 * @param bAllowUnloadCode Allow unloading of code library if possible (default = true).
 	 * @return true if module was unloaded successfully, false otherwise.
 	 * @see AbandonModule, IsModuleLoaded, LoadModule, LoadModuleWithFailureReason
 	 */
-	CORE_API bool UnloadModule( const FName InModuleName, bool bIsShutdown = false );
+	CORE_API bool UnloadModule( const FName InModuleName, bool bIsShutdown = false, bool bAllowUnloadCode = true );
 
 	/**
 	 * Calls PreUnload then either unloads or abandons a module in memory, depending on whether the module supports unloading.

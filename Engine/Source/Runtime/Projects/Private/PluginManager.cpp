@@ -2755,10 +2755,10 @@ bool FPluginManager::TryLoadModulesForPlugin( const FPlugin& Plugin, const ELoad
 	return true;
 }
 
-bool FPluginManager::TryUnloadModulesForPlugin(const FPlugin& Plugin, const ELoadingPhase::Type LoadingPhase, FText* OutFailureMessage /*= nullptr*/, bool bSkipUnload /*= false*/) const
+bool FPluginManager::TryUnloadModulesForPlugin(const FPlugin& Plugin, const ELoadingPhase::Type LoadingPhase, FText* OutFailureMessage /*= nullptr*/, bool bSkipUnload /*= false*/, bool bAllowUnloadCode /*= true*/) const
 {
 	TMap<FName, EModuleUnloadResult> Errors;
-	FModuleDescriptor::UnloadModulesForPhase(LoadingPhase, Plugin.Descriptor.Modules, Errors, bSkipUnload);
+	FModuleDescriptor::UnloadModulesForPhase(LoadingPhase, Plugin.Descriptor.Modules, Errors, bSkipUnload, bAllowUnloadCode);
 
 	FText FailureMessage;
 	for( const TPair<FName, EModuleUnloadResult>& FailureIt : Errors)
@@ -3316,7 +3316,7 @@ bool FPluginManager::GetPluginDependencies_FromDescriptor(const FPluginReference
 	return false;
 }
 
-bool FPluginManager::UnmountExplicitlyLoadedPlugin(const FString& PluginName, FText* OutReason)
+bool FPluginManager::UnmountExplicitlyLoadedPlugin(const FString& PluginName, FText* OutReason, bool bAllowUnloadCode)
 {
 	TSharedPtr<FPlugin> Plugin = FindPluginInstance(PluginName);
 	TRACE_CPUPROFILER_EVENT_SCOPE(UnmountPluginFromExternalSource);
@@ -3395,7 +3395,7 @@ bool FPluginManager::UnmountExplicitlyLoadedPlugin(const FString& PluginName, FT
 	{
 		if (LoadingPhase != ELoadingPhase::None)
 		{
-			verify(TryUnloadModulesForPlugin(*Plugin, LoadingPhase));
+			verify(TryUnloadModulesForPlugin(*Plugin, LoadingPhase, nullptr, false, bAllowUnloadCode));
 		}
 	}
 

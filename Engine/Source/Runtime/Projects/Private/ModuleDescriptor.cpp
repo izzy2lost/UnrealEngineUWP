@@ -703,7 +703,7 @@ void FModuleDescriptor::LoadModulesForPhase(ELoadingPhase::Type LoadingPhase, co
 	}
 }
 
-void FModuleDescriptor::UnloadModulesForPhase(ELoadingPhase::Type LoadingPhase, const TArray<FModuleDescriptor>& Modules, TMap<FName, EModuleUnloadResult>& OutErrors, bool bSkipUnload /*= false*/)
+void FModuleDescriptor::UnloadModulesForPhase(ELoadingPhase::Type LoadingPhase, const TArray<FModuleDescriptor>& Modules, TMap<FName, EModuleUnloadResult>& OutErrors, bool bSkipUnload /*= false*/, bool bAllowUnloadCode /*= true*/)
 {
 	FScopedSlowTask SlowTask((float)Modules.Num());
 	for (const FModuleDescriptor& Descriptor : Modules)
@@ -734,7 +734,7 @@ void FModuleDescriptor::UnloadModulesForPhase(ELoadingPhase::Type LoadingPhase, 
 		}
 
 		Module->PreUnloadCallback();
-		verify(FModuleManager::Get().UnloadModule(Descriptor.Name));
+		verify(FModuleManager::Get().UnloadModule(Descriptor.Name, false, bAllowUnloadCode));
 	}
 }
 

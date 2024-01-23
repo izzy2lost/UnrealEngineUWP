@@ -440,6 +440,7 @@ public:
 	 * Marks an explicitly loaded plugin as disabled, unmounts its content (does not work on plugins with compiled modules).
 	 */
 	virtual bool UnmountExplicitlyLoadedPlugin(const FString& PluginName, FText* OutReason) = 0;
+	virtual bool UnmountExplicitlyLoadedPlugin(const FString& PluginName, FText* OutReason, bool bAllowUnloadCode) = 0;
 
 	/**
 	 * Tries to get a list of plugin dependencies for a given plugin. Returns false if the plugin provided was not found

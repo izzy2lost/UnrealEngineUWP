@@ -729,7 +729,7 @@ IModuleInterface* FModuleManager::LoadModuleWithFailureReason(const FName InModu
 }
 
 
-bool FModuleManager::UnloadModule( const FName InModuleName, bool bIsShutdown )
+bool FModuleManager::UnloadModule( const FName InModuleName, bool bIsShutdown, bool bAllowUnloadCode)
 {
 	// Do we even know about this module?
 	ModuleInfoPtr ModuleInfoPtr = FindModule(InModuleName);
@@ -756,7 +756,7 @@ bool FModuleManager::UnloadModule( const FName InModuleName, bool bIsShutdown )
 				// instead.  This makes it much less likely that code will be unloaded that could still be called by
 				// another module, such as a destructor or other virtual function.  The module will still be unloaded by
 				// the operating system when the process exits.
-				if( !bIsShutdown )
+				if( !bIsShutdown && bAllowUnloadCode )
 				{
 					// Unload the DLL
 					FPlatformProcess::FreeDllHandle( ModuleInfo.Handle );
