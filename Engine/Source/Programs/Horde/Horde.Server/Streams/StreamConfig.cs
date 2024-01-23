@@ -74,6 +74,7 @@ namespace Horde.Server.Streams
 	[JsonSchema("https://unrealengine.com/horde/stream")]
 	[JsonSchemaCatalog("Horde Stream", "Horde stream configuration file", new[] { "*.stream.json", "Streams/*.json" })]
 	[ConfigIncludeRoot]
+	[ConfigMacroScope]
 	public class StreamConfig : IAclScope
 	{
 		/// <summary>
@@ -105,6 +106,11 @@ namespace Horde.Server.Streams
 		/// Includes for other configuration files
 		/// </summary>
 		public List<ConfigInclude> Include { get; set; } = new List<ConfigInclude>();
+
+		/// <summary>
+		/// Macros within this stream
+		/// </summary>
+		public List<ConfigMacro> Macros { get; set; } = new List<ConfigMacro>();
 
 		/// <summary>
 		/// Revision identifier for this configuration object

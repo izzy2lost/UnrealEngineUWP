@@ -22,6 +22,7 @@ namespace Horde.Server.Projects
 	[JsonSchema("https://unrealengine.com/horde/project")]
 	[JsonSchemaCatalog("Horde Project", "Horde project configuration file", new[] { "*.project.json", "Projects/*.json" })]
 	[ConfigIncludeRoot]
+	[ConfigMacroScope]
 	[DebuggerDisplay("{Id}")]
 	public class ProjectConfig : IAclScope
 	{
@@ -59,6 +60,11 @@ namespace Horde.Server.Projects
 		/// Includes for other configuration files
 		/// </summary>
 		public List<ConfigInclude> Include { get; set; } = new List<ConfigInclude>();
+
+		/// <summary>
+		/// Macros within the global scope
+		/// </summary>
+		public List<ConfigMacro> Macros { get; set; } = new List<ConfigMacro>();
 
 		/// <summary>
 		/// Order of this project on the dashboard

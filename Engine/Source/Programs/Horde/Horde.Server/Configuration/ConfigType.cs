@@ -50,6 +50,30 @@ namespace Horde.Server.Configuration
 	}
 
 	/// <summary>
+	/// Attribute used to mark <see cref="Uri"/> properties that are relative to their containing file
+	/// </summary>
+	[AttributeUsage(AttributeTargets.Class)]
+	public sealed class ConfigMacroScopeAttribute : Attribute
+	{
+	}
+
+	/// <summary>
+	/// Declares a config macro
+	/// </summary>
+	public class ConfigMacro
+	{
+		/// <summary>
+		/// Name of the macro property
+		/// </summary>
+		public string Name { get; set; } = String.Empty;
+
+		/// <summary>
+		/// Value for the macro property
+		/// </summary>
+		public string Value { get; set; } = String.Empty;
+	}
+
+	/// <summary>
 	/// Possible methods for merging config values
 	/// </summary>
 	public enum ConfigMergeStrategy
@@ -345,8 +369,23 @@ namespace Horde.Server.Configuration
 			}
 			else
 			{
-				return new ValueTask<object?>(node.Deserialize(_type, context.JsonOptions));
+				return new ValueTask<object?>(Deserialize(node, _type, context));
 			}
+		}
+
+		public static object? Deserialize(JsonNode node, Type propertyType, ConfigContext context)
+		{
+			JsonElement element = node.GetValue<JsonElement>();
+			if (element.ValueKind == JsonValueKind.String)
+			{
+				string strValue = element.GetString()!;
+				string expandedStrValue = context.ExpandMacros(strValue);
+				if (!ReferenceEquals(strValue, expandedStrValue))
+				{
+					node = JsonValue.Create(expandedStrValue);
+				}
+			}
+			return JsonSerializer.Deserialize(node, propertyType, context.JsonOptions);
 		}
 	}
 
@@ -366,6 +405,10 @@ namespace Horde.Server.Configuration
 				PropertyInfo = propertyInfo;
 			}
 
+			public abstract bool HasMacros();
+
+			public abstract void ParseMacros(JsonNode jsonNode, ConfigContext context, Dictionary<string, string> macros);
+
 			public abstract bool HasIncludes();
 
 			public abstract Task MergeAsync(object target, JsonNode? node, ConfigContext context, CancellationToken cancellationToken);
@@ -380,6 +423,10 @@ namespace Horde.Server.Configuration
 			{
 			}
 
+			public override bool HasMacros() => false;
+
+			public override void ParseMacros(JsonNode jsonNode, ConfigContext context, Dictionary<string, string> macros) { }
+
 			public override bool HasIncludes() => PropertyInfo.GetCustomAttribute<ConfigIncludeAttribute>() != null;
 
 			public override Task MergeAsync(object target, JsonNode? node, ConfigContext context, CancellationToken cancellationToken)
@@ -387,13 +434,17 @@ namespace Horde.Server.Configuration
 				context.AddProperty(Name);
 
 				object? value;
-				if (PropertyInfo.GetCustomAttribute<ConfigRelativePathAttribute>() != null)
+				if (node == null)
+				{
+					value = null;
+				}
+				else if (PropertyInfo.GetCustomAttribute<ConfigRelativePathAttribute>() != null)
 				{
 					value = CombinePaths(context.CurrentFile, JsonSerializer.Deserialize<string>(node, context.JsonOptions) ?? String.Empty).AbsoluteUri;
 				}
 				else
 				{
-					value = JsonSerializer.Deserialize(node, PropertyInfo.PropertyType, context.JsonOptions);
+					value = ScalarConfigType.Deserialize(node, PropertyInfo.PropertyType, context);
 				}
 
 				if (!PropertyInfo.CanWrite)
@@ -458,6 +509,20 @@ namespace Horde.Server.Configuration
 				_elementType = elementType;
 			}
 
+			public override bool HasMacros() => _elementType is ClassConfigType elementType && elementType.HasMacros();
+
+			public override void ParseMacros(JsonNode jsonNode, ConfigContext context, Dictionary<string, string> macros)
+			{
+				if (jsonNode is JsonArray jsonArrayValue)
+				{
+					ClassConfigType classElementType = (ClassConfigType)_elementType;
+					foreach (JsonObject jsonObjectElement in jsonArrayValue.OfType<JsonObject>())
+					{
+						classElementType.ParseMacros(jsonObjectElement, context, macros);
+					}
+				}
+			}
+
 			public override bool HasIncludes() => _elementType is ClassConfigType elementType && elementType.HasIncludes();
 
 			public override async Task MergeAsync(object target, JsonNode? node, ConfigContext context, CancellationToken cancellationToken)
@@ -505,6 +570,10 @@ namespace Horde.Server.Configuration
 				_elementType = elementType;
 			}
 
+			public override bool HasMacros() => false;
+
+			public override void ParseMacros(JsonNode jsonNode, ConfigContext context, Dictionary<string, string> macros) { }
+
 			public override bool HasIncludes() => _elementType is ClassConfigType elementType && elementType.HasIncludes();
 
 			public override async Task MergeAsync(object target, JsonNode? node, ConfigContext context, CancellationToken cancellationToken)
@@ -550,6 +619,16 @@ namespace Horde.Server.Configuration
 				: base(name, propertyInfo)
 			{
 				_classConfigType = classConfigType;
+			}
+
+			public override bool HasMacros() => _classConfigType.HasMacros();
+
+			public override void ParseMacros(JsonNode jsonNode, ConfigContext context, Dictionary<string, string> macros)
+			{
+				if (jsonNode is JsonObject obj)
+				{
+					_classConfigType.ParseMacros(obj, context, macros);
+				}
 			}
 
 			public override bool HasIncludes() => _classConfigType.HasIncludes();
@@ -600,7 +679,9 @@ namespace Horde.Server.Configuration
 		readonly Type _type;
 		readonly bool _isIncludeRoot;
 		readonly bool _isIncludeContext;
+		readonly bool _isMacroScope;
 		readonly Dictionary<string, Property> _nameToProperty = new Dictionary<string, Property>(StringComparer.OrdinalIgnoreCase);
+		readonly Dictionary<string, Property> _nameToMacroProperty = new Dictionary<string, Property>(StringComparer.OrdinalIgnoreCase);
 		readonly Dictionary<string, Property> _nameToIncludeProperty = new Dictionary<string, Property>(StringComparer.OrdinalIgnoreCase);
 		readonly Dictionary<string, ClassConfigType>? _knownTypes;
 
@@ -613,6 +694,7 @@ namespace Horde.Server.Configuration
 			_type = type;
 			_isIncludeRoot = type.GetCustomAttribute<ConfigIncludeRootAttribute>() != null;
 			_isIncludeContext = type.GetCustomAttribute<ConfigIncludeContextAttribute>() != null;
+			_isMacroScope = type.GetCustomAttribute<ConfigMacroScopeAttribute>() != null;
 
 			// Find all the direct include properties
 			PropertyInfo[] propertyInfos = type.GetProperties(BindingFlags.Instance | BindingFlags.Public | BindingFlags.GetProperty);
@@ -625,9 +707,13 @@ namespace Horde.Server.Configuration
 				}
 			}
 
-			// Build a map of all the properties which can include other files
+			// Build a map of all the properties which can contain macros or include other files
 			foreach (Property property in _nameToProperty.Values)
 			{
+				if (property.HasMacros())
+				{
+					_nameToMacroProperty.Add(property.Name, property);
+				}
 				if (property.HasIncludes())
 				{
 					_nameToIncludeProperty.Add(property.Name, property);
@@ -649,6 +735,8 @@ namespace Horde.Server.Configuration
 				}
 			}
 		}
+
+		bool HasMacros() => !_isMacroScope && (_type == typeof(ConfigMacro) || _nameToMacroProperty.Count > 0);
 
 		bool HasIncludes() => !_isIncludeRoot && _nameToIncludeProperty.Count > 0;
 
@@ -784,12 +872,48 @@ namespace Horde.Server.Configuration
 				await ParseIncludesAsync(obj, target, this, context, cancellationToken);
 			}
 
+			// Parse all the macros for this scope
+			if (_isMacroScope)
+			{
+				Dictionary<string, string> macros = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+				ParseMacros(obj, context, macros);
+				context.MacroScopes.Add(macros);
+			}
+
 			// Parse all the properties into this object
 			foreach ((string name, JsonNode? node) in obj)
 			{
 				if (_nameToProperty.TryGetValue(name, out Property? property))
 				{
 					await property.MergeAsync(target, node, context, cancellationToken);
+				}
+			}
+
+			// Parse all the macros for this scope
+			if (_isMacroScope)
+			{
+				context.MacroScopes.RemoveAt(context.MacroScopes.Count - 1);
+			}
+		}
+
+		void ParseMacros(JsonObject jsonObject, ConfigContext context, Dictionary<string, string> macros)
+		{
+			if (_type == typeof(ConfigMacro))
+			{
+				ConfigMacro? macro = JsonSerializer.Deserialize<ConfigMacro>(jsonObject, context.JsonOptions);
+				if (macro != null)
+				{
+					macros.Add(macro.Name, macro.Value);
+				}
+			}
+			else
+			{
+				foreach ((string name, JsonNode? node) in jsonObject)
+				{
+					if (node != null && _nameToMacroProperty.TryGetValue(name, out Property? property))
+					{
+						property.ParseMacros(node, context, macros);
+					}
 				}
 			}
 		}

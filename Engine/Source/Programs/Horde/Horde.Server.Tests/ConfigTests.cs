@@ -166,5 +166,82 @@ namespace Horde.Server.Tests
 			};
 			Assert.AreEqual("global", GetNetworkConfig(gc,"15.3.4.5")!.Id);
 		}
+
+		class ObjectValue
+		{
+			public string Value { get; set; } = "";
+		}
+
+		[ConfigMacroScope]
+		class BaseMacroScope
+		{
+			public List<ConfigMacro> Macros { get; set; } = new List<ConfigMacro>();
+			public string Value { get; set; } = "";
+			public List<string> ListValue { get; set; } = new List<string>();
+			public ObjectValue ObjectValue { get; set; } = new ObjectValue();
+			public BaseMacroScope? ChildScope { get; set; }
+		}
+
+		[TestMethod]
+		public async Task MacroTestAsync()
+		{
+			CancellationToken cancellationToken = CancellationToken.None;
+			InMemoryConfigSource source = new InMemoryConfigSource();
+
+			// memory:///bar
+			Uri fooUri = new Uri("memory:///foo");
+			{
+				BaseMacroScope obj = new BaseMacroScope();
+				obj.Macros.Add(new ConfigMacro { Name = "MacroName", Value = "MacroValue" });
+				obj.Value = "This is a macro $(MacroName)";
+				obj.ListValue.Add("List element macro $(MacroName)");
+				obj.ObjectValue = new ObjectValue { Value = "Object macro $(MacroName)" };
+
+				byte[] data2 = JsonSerializer.SerializeToUtf8Bytes(obj, _jsonOptions);
+				source.Add(fooUri, data2);
+			}
+
+			Dictionary<string, IConfigSource> sources = new Dictionary<string, IConfigSource>();
+			sources["memory"] = source;
+
+			ConfigContext options = new ConfigContext(_jsonOptions, sources, NullLogger.Instance);
+
+			BaseMacroScope result = await ConfigType.ReadAsync<BaseMacroScope>(fooUri, options, cancellationToken);
+			Assert.AreEqual("This is a macro MacroValue", result.Value);
+			Assert.AreEqual("List element macro MacroValue", result.ListValue[0]);
+			Assert.AreEqual("Object macro MacroValue", result.ObjectValue.Value);
+		}
+
+		[TestMethod]
+		public async Task NestedMacroTestAsync()
+		{
+			CancellationToken cancellationToken = CancellationToken.None;
+			InMemoryConfigSource source = new InMemoryConfigSource();
+
+			// memory:///bar
+			Uri fooUri = new Uri("memory:///foo");
+			{
+				BaseMacroScope obj = new BaseMacroScope();
+				obj.Macros.Add(new ConfigMacro { Name = "MacroName", Value = "MacroValue" });
+
+				obj.ChildScope = new BaseMacroScope();
+				obj.ChildScope.Macros.Add(new ConfigMacro { Name = "MacroName2", Value = "MacroValue2" });
+				obj.ChildScope.Value = "This is a macro $(MacroName) $(MacroName2)";
+
+				obj.Value = "This is a macro $(MacroName) $(MacroName2)";
+
+				byte[] data2 = JsonSerializer.SerializeToUtf8Bytes(obj, _jsonOptions);
+				source.Add(fooUri, data2);
+			}
+
+			Dictionary<string, IConfigSource> sources = new Dictionary<string, IConfigSource>();
+			sources["memory"] = source;
+
+			ConfigContext options = new ConfigContext(_jsonOptions, sources, NullLogger.Instance);
+
+			BaseMacroScope result = await ConfigType.ReadAsync<BaseMacroScope>(fooUri, options, cancellationToken);
+			Assert.AreEqual("This is a macro MacroValue $(MacroName2)", result.Value);
+			Assert.AreEqual("This is a macro MacroValue MacroValue2", result.ChildScope!.Value);
+		}
 	}
 }

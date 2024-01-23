@@ -74,6 +74,7 @@ namespace Horde.Server.Server
 	[JsonSchema("https://unrealengine.com/horde/global")]
 	[JsonSchemaCatalog("Horde Globals", "Horde global configuration file", new[] { "globals.json", "*.global.json" })]
 	[ConfigIncludeRoot]
+	[ConfigMacroScope]
 	public class GlobalConfig : IAclScope
 	{
 		/// <summary>
@@ -100,6 +101,11 @@ namespace Horde.Server.Server
 		/// Other paths to include
 		/// </summary>
 		public List<ConfigInclude> Include { get; set; } = new List<ConfigInclude>();
+
+		/// <summary>
+		/// Macros within the global scope
+		/// </summary>
+		public List<ConfigMacro> Macros { get; set; } = new List<ConfigMacro>();
 
 		/// <summary>
 		/// Settings for the dashboard
