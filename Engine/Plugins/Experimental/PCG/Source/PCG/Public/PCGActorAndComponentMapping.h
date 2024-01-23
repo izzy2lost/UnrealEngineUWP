@@ -130,11 +130,14 @@ private:
 	bool AnyRuntimeGenComponentsExist() const;
 
 	// Typedef to store the previous position and previous tags of changed actors.
-	using FActorPreviousData = TTuple<FBox, TSet<FName>>;
+	using FActorPreviousData = TTuple<FBox, TSet<FName>, double>;
 
 #if WITH_EDITOR
 	/** Return true if the key is tracked.*/
 	bool IsKeyTracked(const FPCGSelectionKey& InKey) const;
+
+	/** Return true if the actor is tracked.*/
+	bool IsActorTracked(const AActor* InActor) const;
 
 	void OnActorAdded(AActor* InActor);
 	void OnActorLoaded(AActor& InActor);
@@ -144,7 +147,7 @@ private:
 	void OnActorDeleted_Internal(AActor* InActor, bool bShouldDirty, int32 LevelInstanceDepth);
 	void OnLandscapeChanged(ALandscapeProxy* InLandscape, const FLandscapeProxyComponentDataChangedParams& InChangeParams);
 	void ApplyLandscapeChanges(ALandscapeProxy* InLandscape);
-	void OnPreObjectPropertyChanged(UObject* InObject, const FEditPropertyChain& InEditPropertyChain);
+	void OnObjectModified(UObject* InObject);
 	void OnObjectPropertyChanged(UObject* InObject, FPropertyChangedEvent& InEvent);
 	void OnObjectSaved(UObject* InObject, FObjectPreSaveContext InObjectSaveContext);
 	void OnPCGGraphGeneratedOrCleaned(UPCGComponent* InComponent);
@@ -228,5 +231,8 @@ private:
 
 	// Temp boolean to indicate we are currently exiting the landscape edit mode
 	bool bIsCurrentlyExitingLandscapeEditMode = false;
+
+	// Time keeper for cleaning up cached previous actor data
+	double LastPreviousActorDataCleanup = -1.0;
 #endif // WITH_EDITOR
 };

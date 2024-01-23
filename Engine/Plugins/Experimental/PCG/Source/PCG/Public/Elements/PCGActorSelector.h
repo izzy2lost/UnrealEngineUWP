@@ -62,7 +62,7 @@ struct FPCGSelectionKey
 
 	friend uint32 GetTypeHash(const FPCGSelectionKey& In);
 	bool IsMatching(const UObject* InObject, const UPCGComponent* InComponent) const;
-	bool IsMatching(const UObject* InObject, const TSet<FName>& InRemovedTags, const TSet<UPCGComponent*>& InComponents, TSet<UPCGComponent*>& MatchedComponents) const;
+	bool IsMatching(const UObject* InObject, const TSet<FName>& InRemovedTags, const TSet<UPCGComponent*>& InComponents, TSet<UPCGComponent*>* OptionalMatchedComponents = nullptr) const;
 
 	void SetExtraDependency(const UClass* InExtraDependency);
 

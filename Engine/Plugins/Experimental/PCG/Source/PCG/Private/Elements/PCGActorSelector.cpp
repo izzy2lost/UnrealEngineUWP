@@ -297,7 +297,7 @@ bool FPCGSelectionKey::IsMatching(const UObject* InObject, const UPCGComponent* 
 	}
 }
 
-bool FPCGSelectionKey::IsMatching(const UObject* InObject, const TSet<FName>& InRemovedTags, const TSet<UPCGComponent*>& InComponents, TSet<UPCGComponent*>& MatchedComponents) const
+bool FPCGSelectionKey::IsMatching(const UObject* InObject, const TSet<FName>& InRemovedTags, const TSet<UPCGComponent*>& InComponents, TSet<UPCGComponent*>* OptionalMatchedComponents) const
 {
 	if (!InObject)
 	{
@@ -343,8 +343,15 @@ bool FPCGSelectionKey::IsMatching(const UObject* InObject, const TSet<FName>& In
 			{
 				if (InComponents.Contains(PCGComponent))
 				{
-					MatchedComponents.Add(PCGComponent);
 					bFoundMatch = true;
+					if (OptionalMatchedComponents)
+					{
+						OptionalMatchedComponents->Add(PCGComponent);
+					}
+					else
+					{
+						break;
+					}
 				}
 			}
 		}
@@ -372,9 +379,9 @@ bool FPCGSelectionKey::IsMatching(const UObject* InObject, const TSet<FName>& In
 		break;
 	}
 
-	if (bIsMatched)
+	if (bIsMatched && OptionalMatchedComponents)
 	{
-		MatchedComponents.Append(InComponents);
+		OptionalMatchedComponents->Append(InComponents);
 	}
 
 	return bIsMatched;
