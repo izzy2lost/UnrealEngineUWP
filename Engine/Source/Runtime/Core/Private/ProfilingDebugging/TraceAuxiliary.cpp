@@ -1801,11 +1801,11 @@ static bool LaunchTraceServerCommand(ELaunchTraceServerCommand Command, bool bAd
 	TAnsiStringBuilder<64> ForkArg;
 	if (Command == ELaunchTraceServerCommand::Fork)
 	{
-		ForkArg << " fork";
+		ForkArg << "fork";
 	}
 	else if (Command == ELaunchTraceServerCommand::Kill)
 	{
-		ForkArg << " kill";
+		ForkArg << "kill";
 	}
 	if (bAddSponsor)
 	{
