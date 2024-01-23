@@ -174,7 +174,7 @@ void UPoseSearchFeatureChannel_Position::DebugDraw(const UE::PoseSearch::FDebugD
 	DrawParams.DrawPoint(BonePos, Color);
 
 	const bool bDrawOrigin = !DeltaPos.IsNearlyZero() && (SchemaOriginBoneIdx != RootSchemaBoneIdx || !FMath::IsNearlyZero(OriginTimeOffset) ||
-							 SampleRole != OriginRole || PermutationTimeType != EPermutationTimeType::UseSampleTime);
+							 SampleRole != OriginRole || PermutationTimeType != EPermutationTimeType::UseSampleTime || bUseBlueprintQueryOverride);
 	if (bDrawOrigin)
 	{
 		DrawParams.DrawPoint(OriginBonePos, Color);
