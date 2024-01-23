@@ -36,7 +36,7 @@ void USkeletalMeshComponentBudgeted::BeginPlay()
 		{
 			if (FAnimationBudgetAllocator* LocalAnimationBudgetAllocator = static_cast<FAnimationBudgetAllocator*>(IAnimationBudgetAllocator::Get(LocalWorld)))
 			{
-				if(LocalAnimationBudgetAllocator->HasBegunPlay())
+				if(LocalWorld->HasBegunPlay())
 				{
 					// World is playing, so register 
 					LocalAnimationBudgetAllocator->RegisterComponent(this);
