@@ -2,10 +2,10 @@
 
 #include "TG_EditorErrorReporter.h"
 
-#include "SGraphNode.h"
 #include "TG_Node.h"
 #include "EdGraph/TG_EdGraph.h"
 #include "EdGraph/TG_EdGraphNode.h"
+#include "Misc/MessageDialog.h"
 
 FTextureGraphErrorReport FTG_EditorErrorReporter::ReportLog(int32 ErrorId, const FString& ErrorMsg, UObject* ReferenceObj /*= nullptr*/)
 {
@@ -32,6 +32,14 @@ FTextureGraphErrorReport FTG_EditorErrorReporter::Report(int32 ErrorId, const FS
 				EdNode->ErrorType = ErrorType;	
 			}
 		}
+	}
+	else if (ReferenceObj == nullptr)
+	{
+		// if no node provided we do a popup on the Editor
+		// Editor->
+		const FText Message = FText::FromString(ErrorMsg);
+		EAppMsgCategory MsgCategory = GetMsgAppCategoryFromEMessageSeverity(ErrorType);
+		FMessageDialog::Open(MsgCategory, EAppMsgType::Ok, Message);
 	}
 	TArray<FTextureGraphErrorReport>& ErrorEntry = CompilationErrors.FindOrAdd(ErrorId);
 
@@ -84,3 +92,18 @@ void FTG_EditorErrorReporter::Clear()
 	FTextureGraphErrorReporter::Clear();
 }
 
+EAppMsgCategory FTG_EditorErrorReporter::GetMsgAppCategoryFromEMessageSeverity(EMessageSeverity::Type ErrorType)
+{
+	switch (ErrorType)
+	{
+	case EMessageSeverity::Info:
+	default:
+		return EAppMsgCategory::Info;
+
+	case EMessageSeverity::Warning:
+		return EAppMsgCategory::Warning;
+		
+	case EMessageSeverity::Error:
+   		return EAppMsgCategory::Error;
+	}
+}

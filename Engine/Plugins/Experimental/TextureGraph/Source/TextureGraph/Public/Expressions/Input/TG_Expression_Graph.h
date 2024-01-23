@@ -23,6 +23,7 @@ public:
 	virtual void Evaluate(FTG_EvaluationContext* InContext) override;
 
 protected:
+	
 	mutable TArray<FTG_Id> InParamIds;
 	mutable TArray<FTG_Id> OutParamIds;
 
@@ -42,6 +43,9 @@ class TEXTUREGRAPH_API UTG_Expression_TextureGraph : public UTG_Expression_Graph
 	GENERATED_BODY()
 public:
 
+	UTG_Expression_TextureGraph();
+	virtual ~UTG_Expression_TextureGraph();
+	
 #if WITH_EDITOR
 	virtual void PostEditChangeProperty(FPropertyChangedEvent& PropertyChangedEvent) override;
 #endif
@@ -51,6 +55,7 @@ public:
 
 	UPROPERTY(EditAnywhere, Setter, Category = NoCategory, meta = (TGType = "TG_Setting"))
 	TObjectPtr<UTextureGraph>	TextureGraph;				// The TextureGraph to use for the sub-graph
+
 	void SetTextureGraph(UTextureGraph* InTextureGraph);
 
 	virtual bool CanHandleAsset(UObject* Asset) override;
@@ -62,10 +67,14 @@ protected:
 
 	virtual UTG_Graph* GetGraph() const override;
 
+	void OnTextureGraphPreSave(UObject* Object, FObjectPreSaveContext SaveContext);
 private:
 	UPROPERTY(Transient)
 	TObjectPtr<UTG_Graph>	RuntimeGraph;		// The runtime graph instance to use for the sub-graph
 
+	FDelegateHandle PreSaveHandle;				// delegate handle for global ObjectPreSave event 
+	
+	bool CheckDependencies(const UTextureGraph* InTextureGraph) const;
 	void SetTextureGraphInternal(UTextureGraph* InTextureGraph);
 
 public:

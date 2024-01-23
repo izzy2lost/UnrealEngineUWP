@@ -24,8 +24,9 @@ public:
 	virtual void Clear() override;
 
 private:
+	static EAppMsgCategory GetMsgAppCategoryFromEMessageSeverity(EMessageSeverity::Type ErrorType);
+	
 	FTextureGraphErrorReport Report(int32 ErrorId, const FString& ErrorMsg, UObject* ReferenceObj, EMessageSeverity::Type ErrorType);
 
 	FTG_Editor* Editor;
 };
-

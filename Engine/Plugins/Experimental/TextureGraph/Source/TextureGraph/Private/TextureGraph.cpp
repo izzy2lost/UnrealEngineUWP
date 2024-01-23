@@ -7,8 +7,10 @@
 #include "TG_CustomVersion.h"
 
 #include "UObject/ObjectSaveContext.h"
+#include "UObject/Package.h"
 
 #include "2D/TextureHelper.h"
+#include "Expressions/Input/TG_Expression_Graph.h"
 #include "FxMat/MaterialManager.h"
 #include "Model/Mix/MixManager.h"
 #include "Model/Mix/MixSettings.h"
@@ -17,6 +19,66 @@
 #include "Model/Mix/ViewportSettings.h"
 #include "Transform/Mix/T_InvalidateTiles.h"
 #include "Transform/Mix/T_UpdateTargets.h"
+
+
+bool UTextureGraph::CheckCyclicDependency(const UTextureGraph* InTextureGraph) const
+{
+	TArray<UTextureGraph*> DependentGraphs;
+	GatherAllDependentGraphs(DependentGraphs);
+
+	// if after exhausting all nodes and their dependent graphs recursively, we found our source graph, we have a dependency
+	return DependentGraphs.ContainsByPredicate([&InTextureGraph](const UTextureGraph* CurrentTextureGraph)
+	{
+		const UPackage* Package = CurrentTextureGraph->GetPackage();  
+		const UPackage* SecondPackage = InTextureGraph->GetPackage();  
+		const bool bIsTransientPackage = Package->HasAnyFlags(RF_Transient) || Package == GetTransientPackage();
+		return CurrentTextureGraph->GetOutermostObject() == InTextureGraph->GetOutermostObject() ||
+				(Package == SecondPackage && !bIsTransientPackage);
+	});
+}
+void UTextureGraph::GatherAllDependentGraphs(TArray<UTextureGraph*>& DependentGraphs) const
+{
+	Graph()->ForEachNodes(
+			[&](const UTG_Node* Node, uint32 Index)
+		{
+				if (Node)
+				{
+					if (UTG_Expression_TextureGraph* TextureGraphExpr = Cast<UTG_Expression_TextureGraph>(Node->GetExpression()))
+					{
+						const auto OriginalAssetForGraphInExpression = TextureGraphExpr->TextureGraph;
+
+						if (OriginalAssetForGraphInExpression != nullptr)
+						{
+							// save it in the list
+							if(!DependentGraphs.Contains(OriginalAssetForGraphInExpression))
+								DependentGraphs.Add(OriginalAssetForGraphInExpression);
+
+							// recursively gather graphs for all GraphExpressions encountered
+							OriginalAssetForGraphInExpression->GatherAllDependentGraphs(DependentGraphs);
+						}
+					}
+				}
+		});
+}
+bool UTextureGraph::IsDependent(const UTextureGraph* InTextureGraph) const
+{
+	
+	// check if we're trying to assign our own TextureGraph to this expression
+	
+	if (this->GetOutermostObject() == InTextureGraph->GetOutermostObject())
+	{
+		return true;
+	}
+			
+	// check for cyclic dependency
+	if (CheckCyclicDependency(InTextureGraph))
+	{
+		return true;
+	}
+
+	// default to false (Not dependent)
+	return false;
+}
 
 void UTextureGraph::Construct(FString InName)
 {

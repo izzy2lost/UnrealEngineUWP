@@ -21,8 +21,13 @@ protected:
 	UPROPERTY(EditAnywhere, Category = NoCategory)
 	TObjectPtr<UTG_OutputSettingsSet> OutputSettingsSet;
 
+	bool CheckCyclicDependency(const UTextureGraph* InTextureGraph) const;
+	void GatherAllDependentGraphs(TArray<UTextureGraph*>& DependentGraphs) const;
+	
 public:
 
+	bool IsDependent(const UTextureGraph* TextureGraph) const;
+	
 	// Construct the script giving it its name Initialize to a default one output script
 	virtual void Construct(FString Name);
 

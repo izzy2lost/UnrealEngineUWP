@@ -283,6 +283,7 @@ protected:
 	void EvalInOutPins() const;
 	void EvalTraverseOrder() const;
 
+	bool IsDependentInternal(const UTG_Graph* SourceGraph, TArray<UTG_Graph*>& DependentGraphs);
 
 #if WITH_EDITORONLY_DATA
 	// Extra data to hold information that is useful only in editor (like comments)
