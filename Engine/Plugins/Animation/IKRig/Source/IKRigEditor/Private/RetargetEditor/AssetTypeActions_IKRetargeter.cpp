@@ -156,4 +156,13 @@ void FAssetTypeActions_IKRetargeter::ExtendAnimAssetMenusForBatchRetargeting()
 	}
 }
 
+const TArray<FText>& FAssetTypeActions_IKRetargeter::GetSubMenus() const
+{
+	static const TArray<FText> SubMenus
+	{
+		LOCTEXT("AnimRetargetingSubMenu", "Retargeting")
+	};
+	return SubMenus;
+}
+
 #undef LOCTEXT_NAMESPACE

@@ -19,6 +19,7 @@ public:
 	virtual void OpenAssetEditor(const TArray<UObject*>& InObjects, TSharedPtr<class IToolkitHost> EditWithinLevelEditor = TSharedPtr<IToolkitHost>()) override;
 	virtual uint32 GetCategories() override { return EAssetTypeCategories::Animation; }
 	virtual UThumbnailInfo* GetThumbnailInfo(UObject* Asset) const override;
+	virtual const TArray<FText>& GetSubMenus() const override;
 	// END IAssetTypeActions
 
 	static void ExtendIKRigMenuToMakeRetargeter();
