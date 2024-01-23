@@ -25,7 +25,9 @@ public:
 	SLATE_BEGIN_ARGS(STG_PaletteItem) {};
 	SLATE_END_ARGS()
 
-		void Construct(const FArguments& InArgs, FCreateWidgetForActionData* const InCreateData);
+	void Construct(const FArguments& InArgs, FCreateWidgetForActionData* const InCreateData);
+
+	virtual FReply OnMouseButtonDown(const FGeometry& MyGeometry, const FPointerEvent& MouseEvent) override;
 
 protected:
 	virtual FString GetIconBrushName();
@@ -37,6 +39,9 @@ protected:
 	const FSlateBrush* GetIconBrush();
 
 	virtual FText GetItemTooltip() const override;
+
+	/** Delegate executed when mouse button goes down */
+	FCreateWidgetMouseButtonDown MouseButtonDownDelegate;
 };
 
 /** Widget for displaying a single item  */

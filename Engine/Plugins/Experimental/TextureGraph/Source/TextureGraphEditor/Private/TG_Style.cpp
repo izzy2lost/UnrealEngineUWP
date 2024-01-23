@@ -13,6 +13,7 @@
 #include "HAL/PlatformFileManager.h"
 #include "GenericPlatform/GenericPlatformFile.h"
 #include "HAL/FileManagerGeneric.h"
+#include "Styling/StyleColors.h"
 
 #define FONT(...) FSlateFontInfo(FCoreStyle::GetDefaultFont(), __VA_ARGS__)
 
@@ -123,10 +124,12 @@ FTG_Style::FTG_Style() : FSlateStyleSet("TG_Style")
 
 		Set(FName(PropertyName), new IMAGE_BRUSH_SVG(Path, Icon16x16));
 	}
-	FLinearColor NoSpillColor(1, 1, 1, 1.0);
-	int BodyRadius = 10;
-	int NodeHeaderRadius = 7;
-	int PalleteRadius = 4;
+	
+	const FLinearColor NoSpillColor(1, 1, 1, 1.0);
+	const int BodyRadius = 10;
+	const int NodeHeaderRadius = 7;
+	const int PalleteRadius = 4;
+	const int NodeTitleEdiboxRadius = 4;
 
 	Set("TG.Graph.Node.BodyBackground", new FSlateRoundedBoxBrush(NoSpillColor, BodyRadius));
 	Set("TG.Graph.Node.BodyBorder", new FSlateRoundedBoxBrush(NoSpillColor, BodyRadius));
@@ -148,14 +151,25 @@ FTG_Style::FTG_Style() : FSlateStyleSet("TG_Style")
 		.SetShadowColorAndOpacity(FLinearColor(0.f, 0.f, 0.f, 0.7f))
 	);
 
-	FTextBlockStyle GraphNodeTitleText = FTextBlockStyle(/*NormalText*/)
+	FTextBlockStyle GraphNodeTitleText = FTextBlockStyle()
 		.SetColorAndOpacity(FLinearColor(1.0, 1.0,1.0))
-		.SetFont(FCoreStyle::GetDefaultFontStyle("Normal", 12));
+		.SetFont(FCoreStyle::GetDefaultFontStyle("Bold", 12))
+		.SetShadowOffset(FVector2D::ZeroVector)
+		.SetShadowColorAndOpacity(FLinearColor(0.f, 0.f, 0.f, 0.7f));
 	Set("TG.Graph.Node.Title", GraphNodeTitleText);
 
 	FEditableTextBoxStyle GraphActionNodeTitleEditableText = FEditableTextBoxStyle()
-		.SetTextStyle(FAppStyle::Get().GetWidgetStyle<FTextBlockStyle>("NormalText"))
-		.SetFont(GraphNodeTitleText.Font);
+		.SetFont(NormalText.Font)
+		.SetForegroundColor(FStyleColors::Input)
+		.SetBackgroundImageNormal(FSlateRoundedBoxBrush(FStyleColors::Foreground, NodeTitleEdiboxRadius, FStyleColors::Secondary, 1.0f))
+		.SetBackgroundImageHovered(FSlateRoundedBoxBrush(FStyleColors::Foreground, NodeTitleEdiboxRadius, FStyleColors::Hover, 1.0f))
+		.SetBackgroundImageFocused(FSlateRoundedBoxBrush(FStyleColors::Foreground, NodeTitleEdiboxRadius, FStyleColors::Primary, 1.0f))
+		.SetBackgroundImageReadOnly(FSlateRoundedBoxBrush(FStyleColors::Header, NodeTitleEdiboxRadius, FStyleColors::InputOutline, 1.0f))
+		.SetForegroundColor(FStyleColors::Background)
+		.SetBackgroundColor(FStyleColors::White)
+		.SetReadOnlyForegroundColor(FStyleColors::Foreground)
+		.SetFocusedForegroundColor(FStyleColors::Background);
+
 	Set("TG.Graph.Node.NodeTitleEditableText", GraphActionNodeTitleEditableText);
 
 	Set("TG.Graph.Node.NodeTitleInlineEditableText", FInlineEditableTextBlockStyle()

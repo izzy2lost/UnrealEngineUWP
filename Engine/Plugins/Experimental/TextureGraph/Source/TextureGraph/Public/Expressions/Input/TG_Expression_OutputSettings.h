@@ -36,7 +36,7 @@ public:
 	virtual FTG_Name GetDefaultName() const override { return TEXT("Settings"); }
 	virtual void SetTitleName(FName NewName) override;
 	virtual FName GetTitleName() const override;
-	virtual FText GetTooltipText() const override { return FText::FromString(TEXT("Makes an the settings for the output.")); }
+	virtual FText GetTooltipText() const override { return FText::FromString(TEXT("Makes the settings for the output.")); }
 
 private:
 	FTG_OutputSettings PreviousInput;

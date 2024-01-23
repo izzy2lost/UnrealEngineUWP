@@ -26,6 +26,7 @@ void STG_PaletteItem::Construct(const FArguments& InArgs, FCreateWidgetForAction
 
 	TSharedPtr<FEdGraphSchemaAction> GraphAction = InCreateData->Action;
 	ActionPtr = InCreateData->Action;
+	MouseButtonDownDelegate = InCreateData->MouseButtonDownDelegate;
 
 	const FSlateBrush* IconBrush = GetIconBrush();
 	FSlateColor IconColor = FSlateColor::UseForeground();
@@ -116,6 +117,16 @@ TSharedRef<SWidget> STG_PaletteItem::CreateHotkeyDisplayWidget(const TSharedPtr<
 FText STG_PaletteItem::GetItemTooltip() const
 {
 	return ActionPtr.Pin()->GetTooltipDescription();
+}
+
+FReply STG_PaletteItem::OnMouseButtonDown(const FGeometry& MyGeometry, const FPointerEvent& MouseEvent)
+{
+	if (MouseButtonDownDelegate.IsBound() && MouseButtonDownDelegate.Execute(ActionPtr))
+	{
+		return FReply::Handled();
+	}
+
+	return FReply::Unhandled();
 }
 
 ////////////////////////////////////////////////////////////////////
