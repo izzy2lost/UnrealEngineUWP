@@ -26,6 +26,8 @@
 #include "PhysicsProxy/ClusterUnionPhysicsProxy.h"
 #include "CoreMinimal.h"
 
+extern CHAOS_API bool bBuildGeometryForChildrenOnPT;
+
 namespace Chaos
 {
 	//
@@ -1042,6 +1044,31 @@ namespace Chaos
 		return ReleaseClusterParticlesImpl(ClusteredParticle, bForceRelease, false /*bCreateNewClusters*/);
 	}
 	
+	void GenerateEdges(FGeometryCollectionPhysicsProxy& ConcreteGCProxy, FPBDRigidClusteredParticleHandle& ClusteredParticle, FClusterUnionManager& ClusterUnionManager)
+	{
+		ConcreteGCProxy.CreateChildrenGeometry_Internal();
+		if (Chaos::FClusterUnion* ClusterUnion = ClusterUnionManager.FindClusterUnionFromParticle(&ClusteredParticle))
+		{
+			ClusterUnion->PendingConnectivityOperations.Add({ &ClusteredParticle, Chaos::EClusterUnionConnectivityOperation::Add });
+
+			const TArray<Chaos::TConnectivityEdge<Chaos::FReal>> Edges = ClusteredParticle.ConnectivityEdges();
+			for (const Chaos::TConnectivityEdge<Chaos::FReal>& Edge : Edges)
+			{
+				if (Edge.Sibling != nullptr && Edge.Sibling->GetParticleType() == Chaos::EParticleType::Clustered)
+				{
+					Chaos::FPBDRigidClusteredParticleHandle* Sibling = Edge.Sibling->CastToClustered();
+					if (Sibling->PhysicsProxy()->GetType() == FGeometryCollectionPhysicsProxy::ConcreteType())
+					{
+						FGeometryCollectionPhysicsProxy* GCProxy = GetConcreteProxy<FGeometryCollectionPhysicsProxy>(Sibling);
+						GCProxy->CreateChildrenGeometry_Internal();
+					}
+				}
+			}
+			ClusterUnionManager.RequestDeferredClusterPropertiesUpdate(ClusterUnion->InternalIndex, Chaos::EUpdateClusterUnionPropertiesFlags::IncrementalGenerateConnectionGraph);
+			ClusterUnionManager.HandleDeferredClusterUnionUpdateProperties();
+		}
+	}
+
 	TSet<FPBDRigidParticleHandle*> FRigidClustering::ReleaseClusterParticlesImpl(
 		FPBDRigidClusteredParticleHandle* ClusteredParticle,
 		bool bForceRelease,
@@ -1070,6 +1097,11 @@ namespace Chaos
 			bUseDamagePropagation = SimParams.bUseDamagePropagation;
 			BreakDamagePropagationFactor = SimParams.BreakDamagePropagationFactor;
 			ShockDamagePropagationFactor = SimParams.ShockDamagePropagationFactor;
+			
+			if (bBuildGeometryForChildrenOnPT == false)
+			{
+				GenerateEdges(*ConcreteGCProxy, *ClusteredParticle, ClusterUnionManager);
+			}
 		}
 
 		TArray<FPBDRigidParticleHandle*>& Children = MChildren[ClusteredParticle];
@@ -1216,10 +1248,6 @@ namespace Chaos
 
 		if (ActivatedChildren.Num() > 0)
 		{
-			if (ConcreteGCProxy)
-			{
-				ConcreteGCProxy->CreateChildrenGeometry_Internal();
-			}
 			const bool bIsClusterUnion = ClusterUnionManager.IsClusterUnionParticle(ClusteredParticle);
 			if (Children.Num() == 0)
 			{
