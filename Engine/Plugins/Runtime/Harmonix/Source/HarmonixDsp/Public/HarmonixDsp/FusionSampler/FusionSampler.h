@@ -168,9 +168,9 @@ protected:
 	bool RemoveChild(FVirtualInstrument* child);
 	void DumpAllChildren();
 
-	// apply all preset-specific settings from the patch.
-	// call whenever the preset or the patch change.
-	void ApplyPatchPresetSettings();
+	// apply all settings from the patch.
+	// call whenever the patch is set
+	void ApplyPatchSettings();
 
 	void  SetFineTuneCents(float cents);
 	float GetFineTuneCents() const;
@@ -405,16 +405,12 @@ protected:
 	TArray<FVirtualInstrument*> FusionPreChildren;
 	TArray<FVirtualInstrument*> FusionPostChildren;
 
-protected:
-
 	// we'll keep track of the 'current tempo' as it is
 	// needed by any 'beat sync' effects...
 	float CurrentTempoBPM = 120.0f;
 
 	float RawPitchMultiplier = 0.0f;
 	int32 Transposition = 0;
-
-	int32 PresetIdx = 0;
 
 	EKeyzoneSelectMode KeyzoneSelectMode = EKeyzoneSelectMode::Layers;
 

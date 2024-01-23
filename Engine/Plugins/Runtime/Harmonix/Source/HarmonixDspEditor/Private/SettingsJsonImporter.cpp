@@ -119,21 +119,21 @@ bool FSettingsJsonImporter::TryParseJson(TSharedPtr<FJsonObject> JsonObj, FPanne
 	return false;
 }
 
-bool FSettingsJsonImporter::TryParseJson(TSharedPtr<FJsonObject> JsonObj, FFusionPatchSettings& Preset)
+bool FSettingsJsonImporter::TryParseJson(TSharedPtr<FJsonObject> JsonObj, FFusionPatchSettings& PatchSettings)
 {
 	FFusionPatchSettings Defaults;
-	TryGetNumberField(JsonObj, "volume", Preset.VolumeDb, HarmonixDsp::kDbSilence);
+	TryGetNumberField(JsonObj, "volume", PatchSettings.VolumeDb, HarmonixDsp::kDbSilence);
 	
-	TryParseJson(JsonObj, Preset.PannerDetails);
+	TryParseJson(JsonObj, PatchSettings.PannerDetails);
 
-	TryGetNumberField(JsonObj, "start_point", Preset.StartPointOffsetMs, Defaults.StartPointOffsetMs);
-	TryGetNumberField(JsonObj, "fine_tune", Preset.FineTuneCents, Defaults.FineTuneCents);
-	TryGetNumberField(JsonObj, "voice_limit", Preset.MaxVoices, 8);
-	TryGetEnumField(JsonObj, "layer_select_mode", Preset.KeyzoneSelectMode, EKeyzoneSelectMode::Layers);
+	TryGetNumberField(JsonObj, "start_point", PatchSettings.StartPointOffsetMs, Defaults.StartPointOffsetMs);
+	TryGetNumberField(JsonObj, "fine_tune", PatchSettings.FineTuneCents, Defaults.FineTuneCents);
+	TryGetNumberField(JsonObj, "voice_limit", PatchSettings.MaxVoices, 8);
+	TryGetEnumField(JsonObj, "layer_select_mode", PatchSettings.KeyzoneSelectMode, EKeyzoneSelectMode::Layers);
 
 	// apply defaults just in case
-	Preset.DownPitchBendCents = -700.0f;
-	Preset.UpPitchBendCents = 700.0f;
+	PatchSettings.DownPitchBendCents = -700.0f;
+	PatchSettings.UpPitchBendCents = 700.0f;
 	TSharedPtr<FJsonObject> PitchBendObj;
 	if (TryGetObjectField(JsonObj, "pitch_bend", PitchBendObj))
 	{
@@ -142,8 +142,8 @@ bool FSettingsJsonImporter::TryParseJson(TSharedPtr<FJsonObject> JsonObj, FFusio
 		{
 			if (ensure(RangeValues->Num() == 2))
 			{
-				TryGetNumber((*RangeValues)[0], Preset.DownPitchBendCents, Defaults.DownPitchBendCents);
-				TryGetNumber((*RangeValues)[1], Preset.UpPitchBendCents, Defaults.UpPitchBendCents);
+				TryGetNumber((*RangeValues)[0], PatchSettings.DownPitchBendCents, Defaults.DownPitchBendCents);
+				TryGetNumber((*RangeValues)[1], PatchSettings.UpPitchBendCents, Defaults.UpPitchBendCents);
 			}
 		}
 	}
@@ -161,7 +161,7 @@ bool FSettingsJsonImporter::TryParseJson(TSharedPtr<FJsonObject> JsonObj, FFusio
 		if (!TryGetObjectField(AdsrObj, "adsr", AdsrValue))
 			continue;
 
-		FAdsrSettings& AdsrSettings = AdsrIdx == 0 ? Preset.Adsrs.Volume : Preset.Adsrs.Assignable;
+		FAdsrSettings& AdsrSettings = AdsrIdx == 0 ? PatchSettings.Adsrs.Volume : PatchSettings.Adsrs.Assignable;
 		if (!TryParseJson(AdsrValue, AdsrSettings))
 			continue;
 
@@ -181,7 +181,7 @@ bool FSettingsJsonImporter::TryParseJson(TSharedPtr<FJsonObject> JsonObj, FFusio
 	{
 		++LfoIdx;
 
-		if (!ensure(LfoIdx < Preset.Lfos.Num()))
+		if (!ensure(LfoIdx < PatchSettings.Lfos.Num()))
 			break;
 
 		TSharedPtr<FJsonObject> LfoObj;
@@ -192,7 +192,7 @@ bool FSettingsJsonImporter::TryParseJson(TSharedPtr<FJsonObject> JsonObj, FFusio
 		if (!TryGetObjectField(LfoObj, "lfo", LfoValue))
 			continue;
 
-		FLfoSettings& LfoSettings = Preset.Lfos[LfoIdx];
+		FLfoSettings& LfoSettings = PatchSettings.Lfos[LfoIdx];
 
 		if (!TryParseJson(LfoValue, LfoSettings))
 			continue;
@@ -211,11 +211,11 @@ bool FSettingsJsonImporter::TryParseJson(TSharedPtr<FJsonObject> JsonObj, FFusio
 	TSharedPtr<FJsonObject> FilterObj;
 	if (TryGetObjectField(JsonObj, "filter", FilterObj))
 	{
-		TryParseJson(FilterObj, Preset.Filter);
+		TryParseJson(FilterObj, PatchSettings.Filter);
 	}
 	else
 	{
-		Preset.Filter.IsEnabled = false;
+		PatchSettings.Filter.IsEnabled = false;
 	}
 
 	{
@@ -223,7 +223,7 @@ bool FSettingsJsonImporter::TryParseJson(TSharedPtr<FJsonObject> JsonObj, FFusio
 	for (TSharedPtr<FJsonValue> ArrayValue : IterField(JsonObj, "randomizers"))
 	{
 		++RandomizerIdx;
-		if (!ensure(RandomizerIdx < Preset.Randomizers.Num()))
+		if (!ensure(RandomizerIdx < PatchSettings.Randomizers.Num()))
 			break;
 
 		TSharedPtr<FJsonObject> RandomizerObj;
@@ -234,7 +234,7 @@ bool FSettingsJsonImporter::TryParseJson(TSharedPtr<FJsonObject> JsonObj, FFusio
 		if (!TryGetObjectField(RandomizerObj, "modulator", RandomizerValue))
 			continue;
 
-		TryParseJson(RandomizerValue, Preset.Randomizers[RandomizerIdx]);
+		TryParseJson(RandomizerValue, PatchSettings.Randomizers[RandomizerIdx]);
 	}
 	}
 
@@ -243,7 +243,7 @@ bool FSettingsJsonImporter::TryParseJson(TSharedPtr<FJsonObject> JsonObj, FFusio
 	for (TSharedPtr<FJsonValue> ArrayValue : IterField(JsonObj, "velocity_mods"))
 	{
 		++ModIdx;
-		if (!ensure(ModIdx < Preset.VelocityModulators.Num()))
+		if (!ensure(ModIdx < PatchSettings.VelocityModulators.Num()))
 			break;
 
 		TSharedPtr<FJsonObject> VelocityModObj;
@@ -254,7 +254,7 @@ bool FSettingsJsonImporter::TryParseJson(TSharedPtr<FJsonObject> JsonObj, FFusio
 		if (!TryGetObjectField(VelocityModObj, "modulator", VelocityModValue))
 			continue;
 
-		TryParseJson(VelocityModValue, Preset.VelocityModulators[ModIdx]);
+		TryParseJson(VelocityModValue, PatchSettings.VelocityModulators[ModIdx]);
 	}
 	}
 
@@ -262,11 +262,11 @@ bool FSettingsJsonImporter::TryParseJson(TSharedPtr<FJsonObject> JsonObj, FFusio
 	TSharedPtr<FJsonObject> DelayObj;
 	if (TryGetObjectField(JsonObj, "delay_effect", DelayObj))
 	{
-		TryParseJson(DelayObj, Preset.Delay);
+		TryParseJson(DelayObj, PatchSettings.Delay);
 	}
 	else
 	{
-		Preset.Delay.IsEnabled = false;
+		PatchSettings.Delay.IsEnabled = false;
 	}
 	}
 
@@ -274,11 +274,11 @@ bool FSettingsJsonImporter::TryParseJson(TSharedPtr<FJsonObject> JsonObj, FFusio
 	TSharedPtr<FJsonObject> BitcrushObj;
 	if (TryGetObjectField(JsonObj, "bitcrush_effect", BitcrushObj))
 	{
-		TryParseJson(BitcrushObj, Preset.BitCrusher);
+		TryParseJson(BitcrushObj, PatchSettings.BitCrusher);
 	}
 	else
 	{
-		Preset.BitCrusher.IsEnabled = false;
+		PatchSettings.BitCrusher.IsEnabled = false;
 	}
 	}
 
@@ -286,11 +286,11 @@ bool FSettingsJsonImporter::TryParseJson(TSharedPtr<FJsonObject> JsonObj, FFusio
 	TSharedPtr<FJsonObject> VocoderObj;
 	if (TryGetObjectField(JsonObj, "vocoder_effect", VocoderObj))
 	{
-		TryParseJson(VocoderObj, Preset.Vocoder);
+		TryParseJson(VocoderObj, PatchSettings.Vocoder);
 	}
 	else
 	{
-		Preset.Vocoder.IsEnabled = false;
+		PatchSettings.Vocoder.IsEnabled = false;
 	}
 	}
 
@@ -298,11 +298,11 @@ bool FSettingsJsonImporter::TryParseJson(TSharedPtr<FJsonObject> JsonObj, FFusio
 	TSharedPtr<FJsonObject> DistortionObj;
 	if (TryGetObjectField(JsonObj, "distortion_effect", DistortionObj))
 	{
-		TryParseJson(DistortionObj, Preset.Distortion);
+		TryParseJson(DistortionObj, PatchSettings.Distortion);
 	}
 	else
 	{
-		Preset.Distortion.IsEnabled = false;
+		PatchSettings.Distortion.IsEnabled = false;
 	}
 	}
 
@@ -310,13 +310,13 @@ bool FSettingsJsonImporter::TryParseJson(TSharedPtr<FJsonObject> JsonObj, FFusio
 	TSharedPtr<FJsonObject> PortamentoObj;
 	if (TryGetObjectField(JsonObj, "portamento", PortamentoObj))
 	{
-		TryParseJson(PortamentoObj, Preset.Portamento);
+		TryParseJson(PortamentoObj, PatchSettings.Portamento);
 	}
 	else
 	{
-		Preset.Portamento.IsEnabled = false;
-		Preset.Portamento.Mode = EPortamentoMode::Legato;
-		Preset.Portamento.Seconds = 0.0f;
+		PatchSettings.Portamento.IsEnabled = false;
+		PatchSettings.Portamento.Mode = EPortamentoMode::Legato;
+		PatchSettings.Portamento.Seconds = 0.0f;
 	}
 	}
 

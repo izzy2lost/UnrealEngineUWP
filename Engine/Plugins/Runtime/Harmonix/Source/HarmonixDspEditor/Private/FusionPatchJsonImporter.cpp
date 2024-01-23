@@ -54,7 +54,7 @@ bool FFusionPatchJsonImporter::TryParseJson(TSharedPtr<FJsonObject> JsonObj, UFu
 	
 	FFusionPatchData& FusionPatchData = FusionPatch->FusionPatchData;
 
-	// import presets and keyzones first
+	// import patch settings and keyzones first
 	for (TSharedPtr<FJsonValue> ArrayValue : IterField(JsonObj, "presets"))
 	{
 		TSharedPtr<FJsonObject> PresetObject = nullptr;
@@ -76,20 +76,19 @@ bool FFusionPatchJsonImporter::TryParseJson(TSharedPtr<FJsonObject> JsonObj, UFu
 				continue;
 			}
 
-			FFusionPatchSettings Preset;
-			if (!FSettingsJsonImporter::TryParseJson(PresetJson, Preset))
+			FFusionPatchSettings PatchSettings;
+			if (!FSettingsJsonImporter::TryParseJson(PresetJson, PatchSettings))
 			{
 				UE_LOG(LogFusionPatchJsonImporter, Warning, TEXT("Unable to parse preset in json"));
 				continue;
 			}
 
-			Preset.Name = FName(Key);
-			FusionPatchData.AddPreset(Preset);
+			FusionPatchData.UpdateSettings(PatchSettings);
+			// we only support one "preset" and that's the settings
+			break;
 		}
 	}
-
-	FusionPatchData.CurrentPresetIndex = 0;
-
+	
 	// collect audio sample files for import
 	TArray<FString> AudioSampleFiles;
 	bool AllFilesExist = true;

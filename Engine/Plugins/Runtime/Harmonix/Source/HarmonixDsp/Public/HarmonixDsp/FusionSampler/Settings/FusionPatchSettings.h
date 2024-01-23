@@ -37,9 +37,6 @@ struct HARMONIXDSP_API FFusionPatchSettings
 public:
 
 	FFusionPatchSettings();
-
-	UPROPERTY(EditDefaultsOnly, Category = "Settings")
-	FName Name = FName("Default");
 	
 	UPROPERTY(EditDefaultsOnly, Category = "Settings", Meta = (ClampMin = "-96", ClampMax = "12", UIMin = "-96", UIMax = "12"))
 	float VolumeDb = 0.0f;

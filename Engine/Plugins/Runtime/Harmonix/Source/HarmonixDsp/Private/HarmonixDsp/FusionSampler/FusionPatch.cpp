@@ -31,33 +31,11 @@ TSharedPtr<Audio::IProxyData> UFusionPatch::CreateProxyData(const Audio::FProxyD
 
 UFusionPatch::UFusionPatch() : Super()
 {
-	FusionPatchData.CurrentPresetIndex = 0;
-	FFusionPatchSettings& DefaultSettings = FusionPatchData.Presets.Emplace_GetRef();
+	FFusionPatchSettings& DefaultSettings = FusionPatchData.Settings;
 	FAdsrSettings& VolumeAdsr = DefaultSettings.Adsrs.Volume;
 	VolumeAdsr.Target = EAdsrTarget::Volume;
 	VolumeAdsr.Depth = 1.0f;
 	VolumeAdsr.IsEnabled = true;
-}
-
-void UFusionPatch::SetCurrentPresetIndex(int32 Index)
-{
-	FusionPatchData.SetCurrentPresetIndex(Index);
-
-	UpdateRenderableForNonTrivialChange();
-}
-
-void UFusionPatch::AddPreset(FFusionPatchSettings& Preset)
-{
-	FusionPatchData.AddPreset(Preset);
-
-	UpdateRenderableForNonTrivialChange();
-}
-
-void UFusionPatch::UpdatePreset(int32 Index, FFusionPatchSettings& Preset)
-{
-	FusionPatchData.UpdatePreset(Index, Preset);
-
-	UpdateRenderableForNonTrivialChange();
 }
 
 void UFusionPatch::UpdateRenderableForNonTrivialChange()
@@ -92,7 +70,7 @@ void UFusionPatch::PostEditChangeChainProperty(FPropertyChangedChainEvent& Prope
 		return;
 	}
 
-	for (FKeyzoneSettings& Keyzone : FusionPatchData.GetKeyzones())
+	for (FKeyzoneSettings& Keyzone : FusionPatchData.Keyzones)
 	{
 		int8 MinNote = Keyzone.MinNote;
 		int8 MaxNote = Keyzone.MaxNote;
@@ -191,6 +169,14 @@ void UFusionPatch::Serialize(FArchive& Ar)
 		UE_LOG(LogFusionPatch, Warning, TEXT("Fusion patch was loaded with an outdated version. Asset requires reimport: %s"), *GetPathName());
 	}
 
+	if (Ar.IsLoading() && Version < FFusionPatchCustomVersion::DeprecatedPresets)
+	{
+		if (FusionPatchData.Presets_DEPRECATED.IsValidIndex(0))
+		{
+			FusionPatchData.Settings = FusionPatchData.Presets_DEPRECATED[0];
+		}
+	}
+
 	const UStretcherAndPitchShifterFactoryConfig* FactoryConfig = GetDefault<UStretcherAndPitchShifterFactoryConfig>();
 	for (FKeyzoneSettings& Keyzone : FusionPatchData.Keyzones)
 	{
@@ -206,69 +192,12 @@ void UFusionPatch::PostLoad()
 	Super::PostLoad();
 }
 
-TArray<FKeyzoneSettings>& FFusionPatchData::GetKeyzones()
-{
-	return Keyzones;
-}
-
-const TArray<FKeyzoneSettings>& FFusionPatchData::GetKeyzones() const
-{
-	return Keyzones;
-}
-
-int32 FFusionPatchData::GetCurrentPresetIndex() const
-{
-	return CurrentPresetIndex;
-}
-
-void FFusionPatchData::SetCurrentPresetIndex(int32 Index)
-{
-	ensureAlwaysMsgf(Presets.Num() > 0, TEXT("Fusion Patch Data presets have not been initialized"));
-	ensureAlwaysMsgf(Presets.IsValidIndex(Index), TEXT("assigning Fusion Patch Data to an invalid preset"));
-	CurrentPresetIndex = FMath::Clamp(Index, 0, Presets.Num());
-}
-
-int32 FFusionPatchData::GetNumPresets() const
-{
-	return Presets.Num();
-}
-
 void FFusionPatchData::InitProxyData(const Audio::FProxyDataInitParams& InitParams)
 {
 	for (auto& Keyzone : Keyzones)
 	{
 		Keyzone.InitProxyData(InitParams);
 	}
-}
-
-void FFusionPatchData::AddPreset(const FFusionPatchSettings& Preset)
-{
-	// There shouldn't be that many presets, so this should be a pretty fast search
-	int32 Index = FindPresetIndex(Preset.Name);
-
-	// replace the preset of the same name with the new preset
-	if (Index != INDEX_NONE)
-	{
-		Presets[Index] = Preset;
-	}
-	else
-	{
-		Presets.Add(Preset);
-	}
-}
-
-int32 FFusionPatchData::FindPresetIndex(FName PresetName) const
-{
-	return Presets.IndexOfByPredicate([&PresetName](const FFusionPatchSettings& Elem)
-		{
-			return Elem.Name == PresetName;
-		});
-}
-
-void FFusionPatchData::UpdatePreset(int32 Index, const FFusionPatchSettings& Preset)
-{
-	check(Presets.IsValidIndex(Index));
-	Presets[Index] = Preset;
 }
 
 void FFusionPatchData::DisconnectSampler(const FFusionSampler* Sampler)
@@ -280,38 +209,4 @@ void FFusionPatchData::DisconnectSampler(const FFusionSampler* Sampler)
 			Keyzone.SingletonFusionVoicePool->SamplerDisconnecting(Sampler);
 		}
 	}
-}
-
-bool FFusionPatchData::HasPreset(FName PresetName) const
-{
-	return Presets.ContainsByPredicate([&PresetName](const FFusionPatchSettings& Elem)
-		{
-			return Elem.Name == PresetName;
-		});
-}
-
-const FFusionPatchSettings& FFusionPatchData::GetPreset(int32 Index) const
-{
-	check(Presets.IsValidIndex(Index));
-	return Presets[Index];
-}
-
-FFusionPatchSettings& FFusionPatchData::GetPreset(int32 Index)
-{
-	check(Presets.IsValidIndex(Index));
-	return Presets[Index];
-}
-
-const FFusionPatchSettings& FFusionPatchData::GetCurrentPreset() const
-{
-	check(Presets.Num() > 0);
-	check(Presets.IsValidIndex(CurrentPresetIndex));
-	return Presets[GetCurrentPresetIndex()];
-}
-
-FFusionPatchSettings& FFusionPatchData::GetCurrentPreset()
-{
-	check(Presets.Num() > 0);
-	check(Presets.IsValidIndex(CurrentPresetIndex));
-	return Presets[CurrentPresetIndex];
 }

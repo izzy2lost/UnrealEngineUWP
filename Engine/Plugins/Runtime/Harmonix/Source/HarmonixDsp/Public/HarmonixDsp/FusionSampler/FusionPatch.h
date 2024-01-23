@@ -27,44 +27,24 @@ public:
 
 	FFusionPatchData() {};
 
-	const TArray<FKeyzoneSettings>& GetKeyzones() const;
-	TArray<FKeyzoneSettings>& GetKeyzones();
-
-	int32 GetNumPresets() const;
-	int32 GetCurrentPresetIndex() const;
-	void SetCurrentPresetIndex(int32 Index);
-
-	bool IsCurrentPresetIndexValid() const { return Presets.IsValidIndex(CurrentPresetIndex); }
-	bool IsPresetIndexValid(int32 Index) const { return Presets.IsValidIndex(Index); }
-
-	bool HasPreset(FName PresetName) const;
-
-	// returns the index for the preset of the given name
-	// returns INDEX_NONE if there is no preset with the given name
-	int32 FindPresetIndex(FName PresetName) const;
-
-	const FFusionPatchSettings& GetPreset(int32 Index) const;
-	FFusionPatchSettings& GetPreset(int32 Index);
-	
-	const FFusionPatchSettings& GetCurrentPreset() const;
-	FFusionPatchSettings& GetCurrentPreset();
+	const TArray<FKeyzoneSettings>& GetKeyzones() const { return Keyzones; };
+	const FFusionPatchSettings& GetSettings() const { return Settings; }
+	void UpdateSettings(const FFusionPatchSettings& InSettings) { Settings = InSettings; }
 
 	void InitProxyData(const Audio::FProxyDataInitParams& InitParams);
-	void AddPreset(const FFusionPatchSettings& Preset);
-	void UpdatePreset(int32 Index, const FFusionPatchSettings& Preset);
 
 	void DisconnectSampler(const FFusionSampler* sampler);
 
 private:
 
-	UPROPERTY(EditAnywhere, Category="Presets")
+	UPROPERTY(EditAnywhere, Category="Keyzones")
 	TArray<FKeyzoneSettings> Keyzones;
 
-	UPROPERTY(EditAnywhere, Category="Presets")
-	TArray<FFusionPatchSettings> Presets;
-	
-	UPROPERTY(EditAnywhere, Category="Presets")
-	int32 CurrentPresetIndex = -1;
+	UPROPERTY(EditAnywhere, Category="Settings")
+	FFusionPatchSettings Settings;
+
+	UPROPERTY()
+	TArray<FFusionPatchSettings> Presets_DEPRECATED;
 };
 
 // This next macro does a few things. 
@@ -101,25 +81,9 @@ public:
 
 	UFusionPatch();
 
-	int32 GetCurrentPresetIndex() const { return FusionPatchData.GetCurrentPresetIndex(); }
-	void SetCurrentPresetIndex(int32 Index);
-	int32 GetNumPresets() const { return FusionPatchData.GetNumPresets(); }
-
-	bool IsCurrentPresetIndexValid() const { return FusionPatchData.IsCurrentPresetIndexValid(); }
-	bool IsPresetIndexValid(int32 Index) const { return FusionPatchData.IsPresetIndexValid(Index); }
-
-	bool HasPreset(FName PresetName) const { return FusionPatchData.HasPreset(PresetName); }
-
-	// returns the index for the preset of the given name
-	// returns INDEX_NONE if there is no preset with the given name
-	int32 FindPresetIndex(FName PresetName) const { return FusionPatchData.FindPresetIndex(PresetName); }
-
-	const FFusionPatchSettings& GetPreset(int32 Index) const { return FusionPatchData.GetPreset(Index); }
-	const FFusionPatchSettings& GetCurrentPreset() const { return FusionPatchData.GetCurrentPreset(); }
+	const FFusionPatchSettings& GetSettings() const { return FusionPatchData.GetSettings(); }
+	void UpdateSettings(const FFusionPatchSettings& InSettings);
 	const TArray<FKeyzoneSettings>& GetKeyzones() const { return FusionPatchData.GetKeyzones(); }
-
-	void AddPreset(FFusionPatchSettings& Preset);
-	void UpdatePreset(int32 Index, FFusionPatchSettings& Preset);
 
 #if WITH_EDITORONLY_DATA
 

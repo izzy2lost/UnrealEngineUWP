@@ -22,10 +22,8 @@ void FFusionPatchDetailCustomization::CustomizeDetails(IDetailLayoutBuilder& Det
 	//get a handle of Fusion Patch Data
 	TSharedPtr<IPropertyHandle> FusionPatchDataHandle = DetailLayout.GetProperty("FusionPatchData");
 	check(FusionPatchDataHandle);
-	TSharedPtr<IPropertyHandle> PresetsHandle = FusionPatchDataHandle->GetChildHandle("Presets");
-	check(PresetsHandle);
-	TSharedPtr<IPropertyHandle> CurrentPresetIndexHandle = FusionPatchDataHandle->GetChildHandle("CurrentPresetIndex");
-	check(CurrentPresetIndexHandle);
+	TSharedPtr<IPropertyHandle> SettingsHandle = FusionPatchDataHandle->GetChildHandle("Settings");
+	check(SettingsHandle);
 
 	//get a handle of the keyzones as array
 	TSharedPtr<IPropertyHandleArray> KeyzonesHandle = FusionPatchDataHandle->GetChildHandle("Keyzones")->AsArray();
@@ -89,9 +87,8 @@ void FFusionPatchDetailCustomization::CustomizeDetails(IDetailLayoutBuilder& Det
 
 	DrawSelectedKeyzoneProperties(FusionPatchDataCategory, KeyzonesHandle, NumKeyzones);
 
-	//add the presets properties since they're not customized 
-	FusionPatchDataCategory.AddProperty(PresetsHandle);
-	FusionPatchDataCategory.AddProperty(CurrentPresetIndexHandle);
+	//add the Settings properties back so they're visible
+	FusionPatchDataCategory.AddProperty(SettingsHandle);
 
 	//hide the non-customized versions of these properties
 	DetailLayout.HideProperty(FusionPatchDataHandle);

@@ -55,7 +55,6 @@ FFusionSampler::FFusionSampler()
 	, CurrentTempoBPM(120.0f)
 	, RawPitchMultiplier(1.0f)
 	, Transposition(0)
-	, PresetIdx(0)
 	, KeyzoneSelectMode(EKeyzoneSelectMode::Layers)
 {
 	// Can't use 'alignas' because we may have been allocated in an array of FusionSamplers.
@@ -687,38 +686,33 @@ void FFusionSampler::SetPatch(FFusionPatchData* PatchData)
 
 	if (FusionPatchData)
 	{
-		PresetIdx = FusionPatchData->GetCurrentPresetIndex();
-		ApplyPatchPresetSettings();
+		ApplyPatchSettings();
 	}
 }
 
-void FFusionSampler::ApplyPatchPresetSettings()
+void FFusionSampler::ApplyPatchSettings()
 {
 	check(FusionPatchData);
-
-	check(FusionPatchData->GetNumPresets() > 0);
-	PresetIdx = FMath::Clamp<size_t>(PresetIdx, 0, FusionPatchData->GetNumPresets() - 1);
-
-	const FFusionPatchSettings& Preset = FusionPatchData->GetPreset(PresetIdx);
-	SetTrimVolume(Preset.VolumeDb);
-	SetMinPitchBendCents(Preset.DownPitchBendCents);
-	SetMaxPitchBendCents(Preset.UpPitchBendCents);
-	SetMaxNumVoices(Preset.MaxVoices);
-	SetStartPointMs(Preset.StartPointOffsetMs);
-	SetFineTuneCents(Preset.FineTuneCents);
-	SetPan(Preset.PannerDetails);
-	KeyzoneSelectMode = Preset.KeyzoneSelectMode;
+	const FFusionPatchSettings& Settings = FusionPatchData->GetSettings();
+	SetTrimVolume(Settings.VolumeDb);
+	SetMinPitchBendCents(Settings.DownPitchBendCents);
+	SetMaxPitchBendCents(Settings.UpPitchBendCents);
+	SetMaxNumVoices(Settings.MaxVoices);
+	SetStartPointMs(Settings.StartPointOffsetMs);
+	SetFineTuneCents(Settings.FineTuneCents);
+	SetPan(Settings.PannerDetails);
+	KeyzoneSelectMode = Settings.KeyzoneSelectMode;
 
 	for (EAdsrIndex Idx : TEnumRange<EAdsrIndex>())
 	{
-		AdsrSettings[Idx].CopySettings(Preset.Adsrs[Idx]);
-		AdsrSettings[Idx].CopyCurveTables(Preset.Adsrs[Idx]);
+		AdsrSettings[Idx].CopySettings(Settings.Adsrs[Idx]);
+		AdsrSettings[Idx].CopyCurveTables(Settings.Adsrs[Idx]);
 	}
 
 	//-------------------------------------
 	// get the filter info
 	//------------------------------------
-	FilterSettings = Preset.Filter;
+	FilterSettings = Settings.Filter;
 
 	//------------------------------------
 	// Read in Lfo settings
@@ -726,14 +720,14 @@ void FFusionSampler::ApplyPatchPresetSettings()
 
 	for (ELfoIndex Idx : TEnumRange<ELfoIndex>())
 	{
-		LfoSettings[Idx].CopySettings(Preset.Lfos[Idx]);
+		LfoSettings[Idx].CopySettings(Settings.Lfos[Idx]);
 	}
 
 	//------------------------------------
 	// Read in portamento settings
 	//------------------------------------
 	{
-		const FPortamentoSettings& Portamento = Preset.Portamento;
+		const FPortamentoSettings& Portamento = Settings.Portamento;
 		SetIsPortamentoEnabled(Portamento.IsEnabled);
 		SetPortamentoMode(Portamento.Mode);
 		SetPortamentoTime(Portamento.Seconds);
@@ -742,7 +736,7 @@ void FFusionSampler::ApplyPatchPresetSettings()
 	// read in delay settings
 	//-------------------------------------
 	{
-		const FDelaySettings& DelaySettings = Preset.Delay;
+		const FDelaySettings& DelaySettings = Settings.Delay;
 		SetDelayEnabled(DelaySettings.IsEnabled);
 		Delay.SetTimeSyncOption(DelaySettings.TimeSyncOption);
 		Delay.SetDelaySeconds(DelaySettings.TimeSeconds);
@@ -768,7 +762,7 @@ void FFusionSampler::ApplyPatchPresetSettings()
 	// read in bitcrusher settings
 	//-------------------------------------
 	{
-		const FBitCrusherSettings& CrushSettings = Preset.BitCrusher;
+		const FBitCrusherSettings& CrushSettings = Settings.BitCrusher;
 		SetBitCrusherEnabled(CrushSettings.IsEnabled);
 		BitCrusher.Reset();
 		BitCrusher.SetWetGain(CrushSettings.WetGain);
@@ -780,7 +774,7 @@ void FFusionSampler::ApplyPatchPresetSettings()
 	// read in vocoder settings
 	//-------------------------------------
 	{
-		const FVocoderSettings& VocoderSettings = Preset.Vocoder;
+		const FVocoderSettings& VocoderSettings = Settings.Vocoder;
 		VocoderEnabled = VocoderSettings.IsEnabled;
 		Vocoder.SetBandConfig(VocoderSettings.BandConfig);
 		Vocoder.SetSoloing(VocoderSettings.Soloing);
@@ -800,7 +794,7 @@ void FFusionSampler::ApplyPatchPresetSettings()
 	// read in distortion settings
 	//-------------------------------------
 	{
-		const FDistortionSettingsV1& DistortionSettings = Preset.Distortion;
+		const FDistortionSettingsV1& DistortionSettings = Settings.Distortion;
 		DistortionEnabled = DistortionSettings.IsEnabled;
 		Distortion.SetSampleRate((int32)GetSamplesPerSecond());
 		Distortion.SetInputGainDb(DistortionSettings.InputGainDb);
@@ -1416,7 +1410,6 @@ void FFusionSampler::GetController(MidiConstants::EControllerID InController, in
 	{
 	case MidiConstants::EControllerID::BankSelection:
 	{
-		Msb = (int8)PresetIdx;
 		break;
 	}
 
@@ -1624,8 +1617,10 @@ void FFusionSampler::SetController(MidiConstants::EControllerID InController, fl
 	switch (InController)
 	{
 	case MidiConstants::EControllerID::BankSelection: 
-	{ 
-		PresetIdx = (int32)InValue; ApplyPatchPresetSettings(); 
+	{
+		// swap out the fusion patch with the new desired patch
+
+		// ApplyPatchSettings(); 
 		break;
 	}
 	case MidiConstants::EControllerID::Volume: 
