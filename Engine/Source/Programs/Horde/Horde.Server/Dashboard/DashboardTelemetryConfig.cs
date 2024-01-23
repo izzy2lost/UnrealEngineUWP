@@ -53,7 +53,7 @@ namespace Horde.Server.Dashboard
 		/// Associated metric id
 		/// </summary>
 		[Required]
-		public MetricId MetricId { get; set; }
+		public MetricId Id { get; set; }
 
 		/// <summary>
 		/// The threshold for KPI values

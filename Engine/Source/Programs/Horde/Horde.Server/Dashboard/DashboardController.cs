@@ -168,7 +168,7 @@ namespace Horde.Server.Dashboard
 
 						foreach (TelemetryChartMetricConfig metric  in chart.Metrics)
 						{
-							rchart.Metrics.Add(new GetTelemetryChartMetricResponse { MetricId = metric.MetricId.ToString(), Threshold = metric.Threshold, Alias = metric.Alias });
+							rchart.Metrics.Add(new GetTelemetryChartMetricResponse { MetricId = metric.Id.ToString(), Threshold = metric.Threshold, Alias = metric.Alias });
 						}
 
 						rcategory.Charts.Add(rchart);
