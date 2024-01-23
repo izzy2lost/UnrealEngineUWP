@@ -27,7 +27,7 @@ namespace UE::MultiUserClient
 	{
 		StreamEditorModel.OnObjectsChanged().AddRaw(this, &FAutoSubmissionPolicy::OnObjectsChanged);
 		StreamEditorModel.OnPropertiesChanged().AddRaw(this, &FAutoSubmissionPolicy::OnChangesDetected);
-		AuthorityChangeTracker.OnAddedOwnedObjects().AddRaw(this, &FAutoSubmissionPolicy::OnChangesDetected);
+		AuthorityChangeTracker.OnChangedOwnedObjects().AddRaw(this, &FAutoSubmissionPolicy::OnChangesDetected);
 		FrequencyChangeTracker.OnFrequencySettingsChanged().AddRaw(this, &FAutoSubmissionPolicy::OnChangesDetected);
 	}
 
@@ -35,7 +35,7 @@ namespace UE::MultiUserClient
 	{
 		StreamEditorModel.OnObjectsChanged().RemoveAll(this);
 		StreamEditorModel.OnPropertiesChanged().RemoveAll(this);
-		AuthorityChangeTracker.OnAddedOwnedObjects().RemoveAll(this);
+		AuthorityChangeTracker.OnChangedOwnedObjects().RemoveAll(this);
 		FrequencyChangeTracker.OnFrequencySettingsChanged().RemoveAll(this);
 	}
 

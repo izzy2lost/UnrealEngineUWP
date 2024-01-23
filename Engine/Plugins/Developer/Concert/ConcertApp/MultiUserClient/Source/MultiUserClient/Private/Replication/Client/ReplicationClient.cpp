@@ -56,7 +56,7 @@ namespace UE::MultiUserClient
 	{
 		LocalClientEditModel->OnObjectsChanged().AddRaw(this, &FReplicationClient::OnObjectsChanged);
 		LocalClientEditModel->OnPropertiesChanged().AddRaw(this, &FReplicationClient::OnPropertiesChanged);
-		LocalAuthorityDiffer.OnAddedOwnedObjects().AddRaw(this, &FReplicationClient::DeferOnModelChanged);
+		LocalAuthorityDiffer.OnChangedOwnedObjects().AddRaw(this, &FReplicationClient::DeferOnModelChanged);
 
 		SubmissionWorkflow->OnAuthorityRequestCompleted_AnyThread().AddRaw(this, &FReplicationClient::OnAuthoritySubmissionCompleted);
 		StreamSynchronizer->OnServerStateChanged().AddRaw(this, &FReplicationClient::OnServerStateChanged);

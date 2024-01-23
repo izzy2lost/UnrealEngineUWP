@@ -17,6 +17,7 @@ namespace UE::MultiUserClient::MultiStreamColumns
 	ConcertSharedSlate::ReplicationColumns::FReplicationTopLevelObjectColumn ReassignOwnership(
 		TSharedRef<IConcertClient> ConcertClient,
 		TAttribute<TSharedPtr<ConcertSharedSlate::IMultiReplicationStreamEditor>> MultiStreamModelAttribute,
+		TAttribute<ConcertSharedSlate::IObjectHierarchyModel*> ObjectHierarchyModelAttribute,
 		FReassignObjectPropertiesLogic& ReassignmentLogic,
 		const FReplicationClientManager& ClientManager,
 		const int32 ColumnsSortPriority
@@ -25,18 +26,12 @@ namespace UE::MultiUserClient::MultiStreamColumns
 		using namespace ConcertSharedSlate::ReplicationColumns;
 
 		auto MakeWidget =
-			[ConcertClient, MultiStreamModelAttribute = MoveTemp(MultiStreamModelAttribute), &ReassignmentLogic, &ClientManager]
+			[ConcertClient, MultiStreamModelAttribute = MoveTemp(MultiStreamModelAttribute), ObjectHierarchyModelAttribute = MoveTemp(ObjectHierarchyModelAttribute), &ReassignmentLogic, &ClientManager]
 			(const FReplicationTopLevelObjectColumn::FBuildArgs& InArgs)
 			{
 				return SNew(SReassignObjectComboBox, ConcertClient, ReassignmentLogic, ClientManager)
 					.ManagedObject(InArgs.RowData.GetObjectPath())
-					.ConsolidatedModel_Lambda([MultiStreamModelAttribute]()
-					{
-						const TSharedPtr<ConcertSharedSlate::IMultiReplicationStreamEditor> Editor = MultiStreamModelAttribute.Get();
-						return Editor
-							? &MultiStreamModelAttribute.Get()->GetConsolidatedModel()
-							: nullptr;
-					})
+					.ObjectHierarchyModel(ObjectHierarchyModelAttribute)
 					.HighlightText(InArgs.HighlightText)
 					.OnReassignAllOptionClicked_Lambda([MultiStreamModelAttribute](auto)
 					{

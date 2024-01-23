@@ -51,7 +51,7 @@ namespace UE::MultiUserClient
 
 		/** Called entries are added to NewAuthorityStates. NOT called when objects are removed. */
 		DECLARE_MULTICAST_DELEGATE(FOnAuthorityChangeMade);
-		FOnAuthorityChangeMade& OnAddedOwnedObjects() { return OnAddedOwnedObjectsDelegate; }
+		FOnAuthorityChangeMade& OnChangedOwnedObjects() { return OnChangedOwnedObjectsDelegate; }
 		
 	private:
 
@@ -67,7 +67,7 @@ namespace UE::MultiUserClient
 		TMap<FSoftObjectPath, bool> NewAuthorityStates;
 
 		/** Called when NewAuthorityStates is updated. */
-		FOnAuthorityChangeMade OnAddedOwnedObjectsDelegate;
+		FOnAuthorityChangeMade OnChangedOwnedObjectsDelegate;
 		
 		void OnClientChanged(const FGuid& Guid) { RefreshChanges(); }
 	};

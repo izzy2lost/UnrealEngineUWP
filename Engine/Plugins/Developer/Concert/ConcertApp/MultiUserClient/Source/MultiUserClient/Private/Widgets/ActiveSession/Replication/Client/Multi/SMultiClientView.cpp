@@ -72,16 +72,18 @@ namespace UE::MultiUserClient
 		   {
 			   return StreamEditor;
 		   });
-		const TAttribute<IReplicationStreamModel*> ConsolidatedStreamModelAttribute =
-		   TAttribute<IReplicationStreamModel*>::CreateLambda([this]()
+		const TAttribute<IObjectHierarchyModel*> ObjecHierarchyAttribute =
+		   TAttribute<IObjectHierarchyModel*>::CreateLambda([this]()
 		   {
-			   return &StreamEditor->GetConsolidatedModel();
+			   return ObjectHierarchy.Get();
 		   });
 		FGetAutoAssignTarget GetAutoAssignTargetDelegate = FGetAutoAssignTarget::CreateLambda([this, &InClientManager](TConstArrayView<UObject*>)
 		{
 			const TSharedRef<IEditableReplicationStreamModel>& LocalStream = InClientManager.GetLocalClient().GetClientEditModel();
 			return StreamModel->GetEditableStreams().Contains(LocalStream) ? LocalStream.ToSharedPtr() : nullptr;
 		});
+		
+		ObjectHierarchy = ConcertClientSharedSlate::CreateObjectHierarchyForComponentHierarchy();
 		
 		FCreateMultiStreamEditorParams Params
 		{
@@ -92,13 +94,13 @@ namespace UE::MultiUserClient
 			.GetAutoAssignToStreamDelegate = MoveTemp(GetAutoAssignTargetDelegate),
 			.ViewerParams 
 			{
-				.ObjectHierarchy = ConcertClientSharedSlate::CreateObjectHierarchyForComponentHierarchy(), // This makes actors have children in the top view
+				.ObjectHierarchy = ObjectHierarchy, // This makes actors have children in the top view
 				.NameModel = ConcertClientSharedSlate::CreateEditorObjectNameModel(), // This makes actors use their labels, and components use the names given in the BP editor
 				.OnExtendObjectsContextMenu = FExtendObjectMenu::CreateSP(this, &SMultiClientView::ExtendObjectContextMenu),
 				.AdditionalObjectColumns =
 				{
-					MultiStreamColumns::ReplicationToggle(InConcertClient, ConsolidatedStreamModelAttribute, InClientManager),
-					MultiStreamColumns::ReassignOwnership(InConcertClient, MultiStreamEditorAttribute, InClientManager.GetReassignmentLogic(), InClientManager)
+					MultiStreamColumns::ReplicationToggle(InConcertClient, ObjecHierarchyAttribute, InClientManager),
+					MultiStreamColumns::ReassignOwnership(InConcertClient, MultiStreamEditorAttribute, ObjecHierarchyAttribute, InClientManager.GetReassignmentLogic(), InClientManager)
 				},
 				.AdditionalPropertyColumns = { MultiStreamColumns::AssignPropertyColumn(MultiStreamEditorAttribute, InConcertClient, InClientManager) },
 				.PrimaryPropertySort = { MultiStreamColumns::AssignPropertyColumnId, EColumnSortMode::Ascending}

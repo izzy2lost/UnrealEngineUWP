@@ -2,6 +2,7 @@
 
 #pragma once
 
+#include "Containers/Array.h"
 #include "Delegates/Delegate.h"
 #include "Misc/EBreakBehavior.h"
 #include "UObject/SoftObjectPath.h"
@@ -87,7 +88,21 @@ namespace UE::ConcertSharedSlate
 			const FSoftObjectPath& Root,
 			TFunctionRef<EBreakBehavior(const FSoftObjectPath& Parent, const FSoftObjectPath& ChildObject, EChildRelationship Relationship)> Callback,
 			EChildRelationshipFlags InclusionFlags = EChildRelationshipFlags::All
-			);
+			) const;
+
+		/** Builds a TArray containing all children, recursively. */
+		template<typename TAllocator = FDefaultAllocator>
+		TArray<FSoftObjectPath, TAllocator> GetChildrenRecursive(const FSoftObjectPath& Root, EChildRelationshipFlags InclusionFlags = EChildRelationshipFlags::All) const
+		{
+			TArray<FSoftObjectPath, TAllocator> AllObjects;
+			ForEachChildRecursive(Root,
+				[&AllObjects](const FSoftObjectPath&, const FSoftObjectPath& ChildObject, EChildRelationship)
+				{
+					AllObjects.Add(ChildObject);
+					return EBreakBehavior::Continue;
+				}, InclusionFlags);
+			return AllObjects;
+		}
 
 		virtual ~IObjectHierarchyModel() = default;
 	};

@@ -10,12 +10,12 @@ namespace UE::ConcertSharedSlate
 		const FSoftObjectPath& Root,
 		TFunctionRef<EBreakBehavior(const FSoftObjectPath& Parent, const FSoftObjectPath& ChildObject, EChildRelationship Relationship)> Callback,
 		EChildRelationshipFlags InclusionFlags
-		)
+		) const
 	{
 		struct FHelper
 		{
 			static EBreakBehavior Visit(
-				IObjectHierarchyModel& Model,
+				const IObjectHierarchyModel& Model,
 				const FSoftObjectPath& Parent,
 				const FSoftObjectPath& ChildObject,
 				EChildRelationship Relationship,

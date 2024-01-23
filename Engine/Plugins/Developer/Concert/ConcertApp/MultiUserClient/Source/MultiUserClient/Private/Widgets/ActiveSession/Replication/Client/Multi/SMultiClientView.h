@@ -10,6 +10,7 @@ class FMenuBuilder;
 
 namespace UE::ConcertSharedSlate
 {
+	class IObjectHierarchyModel;
 	class IMultiReplicationStreamEditor;
 	class IEditableReplicationStreamModel;
 }
@@ -48,6 +49,8 @@ namespace UE::MultiUserClient
 		TSharedPtr<FMultiStreamModel> StreamModel;
 		/** Displayed in the UI. */
 		TSharedPtr<ConcertSharedSlate::IMultiReplicationStreamEditor> StreamEditor;
+		/** Used by widgets in columns. */
+		TSharedPtr<ConcertSharedSlate::IObjectHierarchyModel> ObjectHierarchy;
 
 		/** Creates this widget's editor content */
 		TSharedRef<SWidget> CreateEditorContent(const TSharedRef<IConcertClient>& InConcertClient, FReplicationClientManager& InClientManager);

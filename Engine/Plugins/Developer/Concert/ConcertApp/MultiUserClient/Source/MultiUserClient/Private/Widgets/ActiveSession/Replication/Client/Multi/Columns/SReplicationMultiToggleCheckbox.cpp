@@ -9,6 +9,7 @@
 #include "Algo/AnyOf.h"
 #include "Framework/Commands/UIAction.h"
 #include "Framework/MultiBox/MultiBoxBuilder.h"
+#include "Replication/Editor/Model/Object/IObjectHierarchyModel.h"
 #include "Styling/AppStyle.h"
 #include "Styling/SlateTypes.h"
 #include "Textures/SlateIcon.h"
@@ -29,8 +30,8 @@ namespace UE::MultiUserClient
 		)
 	{
 		Object = InArgs._Object;
-		ConsolidatedStreamModelAttribute = InArgs._ConsolidatedStreamModelAttribute;
-		check(ConsolidatedStreamModelAttribute.IsSet() || ConsolidatedStreamModelAttribute.IsBound());
+		ObjectHierarchyModelAttribute = InArgs._ObjectHierarchyModel;
+		check(ObjectHierarchyModelAttribute.IsSet() || ObjectHierarchyModelAttribute.IsBound());
 		
 		ClientManager = &InClientManager;
 		ConcertClient = MoveTemp(InConcertClient);
@@ -51,9 +52,9 @@ namespace UE::MultiUserClient
 				.AutoWidth()
 				[
 					SNew(SCheckBox)
-					.IsChecked(this, &SReplicationMultiToggleCheckbox::GetCheckboxStateForObject, Object)
-					.IsEnabled(this, &SReplicationMultiToggleCheckbox::IsCheckboxEnabledForObject, Object)
-					.OnCheckStateChanged(this, &SReplicationMultiToggleCheckbox::OnCheckboxStateChangedForObject, Object)
+					.IsChecked(this, &SReplicationMultiToggleCheckbox::GetCheckboxStateForThisAndChildren)
+					.IsEnabled(this, &SReplicationMultiToggleCheckbox::CanToggleThisOrChildren)
+					.OnCheckStateChanged(this, &SReplicationMultiToggleCheckbox::OnCheckboxStateChanged)
 				]
 			
 				+SHorizontalBox::Slot()
@@ -91,45 +92,48 @@ namespace UE::MultiUserClient
 		}
 	}
 
-	ECheckBoxState SReplicationMultiToggleCheckbox::GetCheckboxStateForObject(FSoftObjectPath InObject) const
+	ECheckBoxState SReplicationMultiToggleCheckbox::GetCheckboxStateForObjects(TConstArrayView<FSoftObjectPath> InObjects) const
 	{
 		// The checkbox shows
-		// - checked if all editable clients with the object registered have authority
-		// - unchecked if all editable clients with the object registered do not have authority
+		// - checked if all editable clients with the objects registered have authority
+		// - unchecked if all editable clients with the objects registered do not have authority
 		// - undetermined otherwise
-		const TArray<FGuid> ClientsWithAuthority = ClientManager->GetAuthorityCache().GetClientsWithAuthorityOverObject(InObject);
 
-		// TODO UE-200496 Predict conflicts
-		
 		bool bHadAnyEditableClient = false;
-		ECheckBoxState ConsolidatedState = ECheckBoxState::Undetermined;
-		ClientManager->GetAuthorityCache().ForEachClientWithObjectInStream(InObject, [this, &ClientsWithAuthority, &bHadAnyEditableClient, &ConsolidatedState](const FGuid& ClientId)
+		TOptional<ECheckBoxState> ConsolidatedState;
+		for (const FSoftObjectPath& InObject : InObjects)
 		{
-			// The state of the checkbox always skips non-editable clients
-			const FReplicationClient* Client = ClientManager->FindClient(ClientId);
-			if (!ensure(Client) || !Client->AllowsEditing())
+			const TArray<FGuid> ClientsWithAuthority = ClientManager->GetAuthorityCache().GetClientsWithAuthorityOverObject(InObject);
+
+			// TODO UE-200496 Predict conflicts
+			ClientManager->GetAuthorityCache().ForEachClientWithObjectInStream(InObject, [this, &ClientsWithAuthority, &bHadAnyEditableClient, &ConsolidatedState](const FGuid& ClientId)
 			{
+				// The state of the checkbox always skips non-editable clients
+				const FReplicationClient* Client = ClientManager->FindClient(ClientId);
+				if (!ensure(Client) || !Client->AllowsEditing())
+				{
+					return EBreakBehavior::Continue;
+				}
+			
+				bHadAnyEditableClient = true;
+				const bool bHasAuthority = ClientsWithAuthority.Contains(Client->GetEndpointId());
+				const ECheckBoxState ClientState = bHasAuthority ? ECheckBoxState::Checked : ECheckBoxState::Unchecked;
+			
+				if (!ConsolidatedState.IsSet())
+				{
+					ConsolidatedState = ClientState;
+				}
+				else if (*ConsolidatedState != ClientState)
+				{
+					ConsolidatedState = ECheckBoxState::Undetermined;
+					return EBreakBehavior::Break;
+				}
+			
 				return EBreakBehavior::Continue;
-			}
-			
-			bHadAnyEditableClient = true;
-			const bool bHasAuthority = ClientsWithAuthority.Contains(Client->GetEndpointId());
-			const ECheckBoxState ClientState = bHasAuthority ? ECheckBoxState::Checked : ECheckBoxState::Unchecked;
-			
-			if (ConsolidatedState == ECheckBoxState::Undetermined)
-			{
-				ConsolidatedState = ClientState;
-			}
-			else if (ConsolidatedState != ClientState)
-			{
-				ConsolidatedState = ECheckBoxState::Undetermined;
-				return EBreakBehavior::Break;
-			}
-			
-			return EBreakBehavior::Continue;
-		});
+			});
+		}
 		
-		return bHadAnyEditableClient ? ConsolidatedState : ECheckBoxState::Unchecked;
+		return bHadAnyEditableClient ? ConsolidatedState.Get(ECheckBoxState::Unchecked) : ECheckBoxState::Unchecked;
 	}
 
 	bool SReplicationMultiToggleCheckbox::IsCheckboxEnabledForObject(FSoftObjectPath InObject) const
@@ -146,19 +150,18 @@ namespace UE::MultiUserClient
 		return bHasAtLeastOneEditableClient;
 	}
 
-	void SReplicationMultiToggleCheckbox::OnCheckboxStateChangedForObject(ECheckBoxState NewState, FSoftObjectPath InObject) const
+	void SReplicationMultiToggleCheckbox::OnCheckboxStateChanged(ECheckBoxState NewState) const
 	{
 		const bool bShouldHaveAuthority = NewState == ECheckBoxState::Checked;
-		ClientManager->GetAuthorityCache().ForEachClientWithObjectInStream(InObject, [this, InObject, bShouldHaveAuthority](const FGuid& ClientId)
-		{
-			FReplicationClient* Client = ClientManager->FindClient(ClientId);
-			if (ensure(Client) && Client->AllowsEditing())
+		
+		SetAuthorityForObject(bShouldHaveAuthority, Object);
+		ObjectHierarchyModelAttribute.Get()->ForEachChildRecursive(
+			Object, 
+		[this, bShouldHaveAuthority](const FSoftObjectPath&, const FSoftObjectPath& ChildObject, ConcertSharedSlate::EChildRelationship)
 			{
-				Client->GetAuthorityDiffer().SetAuthorityIfAllowed({ InObject }, bShouldHaveAuthority);
-			}
-			
-			return EBreakBehavior::Continue;
-		});
+				SetAuthorityForObject(bShouldHaveAuthority, ChildObject);
+				return EBreakBehavior::Continue;
+			});
 	}
 
 	TSharedRef<SWidget> SReplicationMultiToggleCheckbox::GetDropDownMenuContent()
@@ -166,17 +169,12 @@ namespace UE::MultiUserClient
 		FMenuBuilder MenuBuilder(true, nullptr);
 
 		MenuBuilder.AddMenuEntry(
-			LOCTEXT("OnlyThis", "Toggle object only"),
+			LOCTEXT("OnlyThis", "Toggle this only"),
 			FText::GetEmpty(),
 			FSlateIcon(),
 			FUIAction(
-				FExecuteAction::CreateLambda([this]()
-				{
-					const ECheckBoxState OldCheckboxState = GetCheckboxStateForObject(Object);
-					const bool bGiveAuthority = OldCheckboxState == ECheckBoxState::Unchecked;
-					OnCheckboxStateChangedForObject(bGiveAuthority ? ECheckBoxState::Checked : ECheckBoxState::Unchecked, Object);
-				}),
-				FCanExecuteAction::CreateLambda([this](){ return IsCheckboxEnabledForObject(Object); })
+				FExecuteAction::CreateSP(this, &SReplicationMultiToggleCheckbox::ToggleThis),
+				FCanExecuteAction::CreateSP(this, &SReplicationMultiToggleCheckbox::CanToggleThis)
 				)
 			);
 		MenuBuilder.AddMenuEntry(
@@ -188,20 +186,29 @@ namespace UE::MultiUserClient
 				FCanExecuteAction::CreateSP(this, &SReplicationMultiToggleCheckbox::CanToggleChildren)
 				)
 			);
+		MenuBuilder.AddMenuEntry(
+			LOCTEXT("OnlyThis", "Toggle this & children"),
+			FText::GetEmpty(),
+			FSlateIcon(),
+			FUIAction(
+				FExecuteAction::CreateSP(this, &SReplicationMultiToggleCheckbox::ToggleThisAndChildren),
+				FCanExecuteAction::CreateSP(this, &SReplicationMultiToggleCheckbox::CanToggleThisOrChildren)
+				)
+			);
 		
 		return MenuBuilder.MakeWidget();
 	}
 
-	void SReplicationMultiToggleCheckbox::ToggleChildren() const
+	TArray<FSoftObjectPath> SReplicationMultiToggleCheckbox::GetThisAndChildren() const
 	{
-		const TArray<FSoftObjectPath> Subobjects = ConsolidatedStreamModelAttribute.Get()->GetSubobjects(Object);
-		ToggleObjects(Subobjects);
+		TArray<FSoftObjectPath> AllObjects = GetChildObjects();
+		AllObjects.Add(Object);
+		return AllObjects;
 	}
 
-	bool SReplicationMultiToggleCheckbox::CanToggleChildren() const
+	TArray<FSoftObjectPath> SReplicationMultiToggleCheckbox::GetChildObjects() const
 	{
-		const TArray<FSoftObjectPath> Subobjects = ConsolidatedStreamModelAttribute.Get()->GetSubobjects(Object);
-		return CanToggleObjects(Subobjects);
+		return ObjectHierarchyModelAttribute.Get()->GetChildrenRecursive(Object);
 	}
 
 	void SReplicationMultiToggleCheckbox::ToggleObjects(TConstArrayView<FSoftObjectPath> Objects) const
@@ -224,9 +231,10 @@ namespace UE::MultiUserClient
 		}
 
 		const ECheckBoxState StateToSet = ConsolidatedCheckboxState == ECheckBoxState::Unchecked ? ECheckBoxState::Checked : ECheckBoxState::Unchecked;
+		const bool bShouldHaveAuthority = StateToSet == ECheckBoxState::Checked;
 		for (const FSoftObjectPath& ObjectPath : Objects)
 		{
-			OnCheckboxStateChangedForObject(StateToSet, ObjectPath);
+			SetAuthorityForObject(bShouldHaveAuthority, ObjectPath);
 		}
 	}
 
@@ -235,6 +243,20 @@ namespace UE::MultiUserClient
 		return Algo::AnyOf(Objects, [this](const FSoftObjectPath& ObjectPath)
 		{
 			return IsCheckboxEnabledForObject(ObjectPath);
+		});
+	}
+
+	void SReplicationMultiToggleCheckbox::SetAuthorityForObject(bool bShouldHaveAuthority, const FSoftObjectPath& InObject) const
+	{
+		ClientManager->GetAuthorityCache().ForEachClientWithObjectInStream(InObject, [this, InObject, bShouldHaveAuthority](const FGuid& ClientId)
+		{
+			FReplicationClient* Client = ClientManager->FindClient(ClientId);
+			if (ensure(Client) && Client->AllowsEditing())
+			{
+				Client->GetAuthorityDiffer().SetAuthorityIfAllowed({ InObject }, bShouldHaveAuthority);
+			}
+			
+			return EBreakBehavior::Continue;
 		});
 	}
 

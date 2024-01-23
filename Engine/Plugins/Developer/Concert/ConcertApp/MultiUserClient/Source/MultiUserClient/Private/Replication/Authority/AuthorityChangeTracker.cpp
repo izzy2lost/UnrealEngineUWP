@@ -44,7 +44,7 @@ namespace UE::MultiUserClient
 
 		if (bAddedAnything)
 		{
-			OnAddedOwnedObjectsDelegate.Broadcast();
+			OnChangedOwnedObjectsDelegate.Broadcast();
 		}
 	}
 

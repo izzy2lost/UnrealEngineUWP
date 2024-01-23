@@ -16,7 +16,7 @@ namespace UE::MultiUserClient::MultiStreamColumns
 	
 	ConcertSharedSlate::ReplicationColumns::FReplicationTopLevelObjectColumn ReplicationToggle(
 		TSharedRef<IConcertClient> ConcertClient,
-		TAttribute<ConcertSharedSlate::IReplicationStreamModel*> ConsolidatedStreamModelAttribute,
+		TAttribute<ConcertSharedSlate::IObjectHierarchyModel*> ObjectHierarchyModelAttribute,
 		FReplicationClientManager& ClientManager,
 		const int32 ColumnsSortPriority
 		)
@@ -25,14 +25,14 @@ namespace UE::MultiUserClient::MultiStreamColumns
 		
 		return FReplicationTopLevelObjectColumn(
 			FReplicationTopLevelObjectColumn::FArguments()
-				.GenerateWidgetColumn_Lambda([ConcertClient = MoveTemp(ConcertClient), ConsolidatedStreamModelAttribute = MoveTemp(ConsolidatedStreamModelAttribute), &ClientManager](const FReplicationTopLevelObjectColumn::FBuildArgs& InArgs)
+				.GenerateWidgetColumn_Lambda([ConcertClient = MoveTemp(ConcertClient), ObjectHierarchyModelAttribute = MoveTemp(ObjectHierarchyModelAttribute), &ClientManager](const FReplicationTopLevelObjectColumn::FBuildArgs& InArgs)
 				{
 					return SNew(SBox)
 					.HAlign(HAlign_Left) // Warning icon is sometimes collapsed - we don't want the widget to be centered
 					[
 						SNew(SReplicationMultiToggleCheckbox, ClientManager, ConcertClient)
 						.Object(InArgs.RowData.GetObjectPath())
-						.ConsolidatedStreamModelAttribute(ConsolidatedStreamModelAttribute)
+						.ObjectHierarchyModel(ObjectHierarchyModelAttribute)
 					];
 				})
 				.ColumnSortOrder(ColumnsSortPriority),

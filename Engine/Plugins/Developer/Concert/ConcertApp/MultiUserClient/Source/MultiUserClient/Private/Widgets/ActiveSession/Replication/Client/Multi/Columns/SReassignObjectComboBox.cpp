@@ -13,6 +13,7 @@
 #include "Framework/MultiBox/MultiBoxBuilder.h"
 #include "Framework/Commands/UIAction.h"
 #include "Framework/Commands/UICommandInfo.h"
+#include "Replication/Editor/Model/Object/IObjectHierarchyModel.h"
 #include "Textures/SlateIcon.h"
 #include "Widgets/Images/SThrobber.h"
 #include "Widgets/Input/SComboBox.h"
@@ -82,8 +83,8 @@ namespace UE::MultiUserClient
 		HighlightText = InArgs._HighlightText;
 
 		ManagedObject = InArgs._ManagedObject;
-		ConsolidatedStreamModelAttribute = InArgs._ConsolidatedModel;
-		check(ConsolidatedStreamModelAttribute.IsSet() || ConsolidatedStreamModelAttribute.IsBound());
+		ObjectHierarchyModelAttribute = InArgs._ObjectHierarchyModel;
+		check(ObjectHierarchyModelAttribute.IsSet() || ObjectHierarchyModelAttribute.IsBound());
 
 		OnReassignAllOptionClickedDelegate = InArgs._OnReassignAllOptionClicked;
 		
@@ -204,8 +205,7 @@ namespace UE::MultiUserClient
 
 	SReassignObjectComboBox::FInlineObjectPathArray SReassignObjectComboBox::GetChildrenOfManagedObject() const
 	{
-		const ConcertSharedSlate::IReplicationStreamModel* Model = ConsolidatedStreamModelAttribute.Get();
-		return ensure(Model) ? Model->GetSubobjects<FInlineAllocator>(ManagedObject) : FInlineObjectPathArray{};
+		return ObjectHierarchyModelAttribute.Get()->GetChildrenRecursive<FInlineAllocator>(ManagedObject);
 	}
 }
 

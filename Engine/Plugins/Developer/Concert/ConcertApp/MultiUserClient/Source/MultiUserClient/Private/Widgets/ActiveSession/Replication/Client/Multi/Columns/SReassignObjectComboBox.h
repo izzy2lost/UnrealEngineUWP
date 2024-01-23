@@ -10,7 +10,7 @@ class IConcertClient;
 class IConcertClientSession;
 
 namespace UE::ConcertClientSharedSlate { class SHorizontalClientList; }
-namespace UE::ConcertSharedSlate { class IReplicationStreamModel; }
+namespace UE::ConcertSharedSlate { class IObjectHierarchyModel; }
 
 namespace UE::MultiUserClient
 {
@@ -46,7 +46,7 @@ namespace UE::MultiUserClient
 			SLATE_ARGUMENT(FSoftObjectPath, ManagedObject)
 			SLATE_ARGUMENT(TSharedPtr<FText>, HighlightText)
 			/** Used to to figure out child objects. */
-			SLATE_ATTRIBUTE(ConcertSharedSlate::IReplicationStreamModel*, ConsolidatedModel)
+			SLATE_ATTRIBUTE(ConcertSharedSlate::IObjectHierarchyModel*, ObjectHierarchyModel)
 
 			/** Called when a valid client ID is selected for reassignment. */
 			SLATE_EVENT(FOnReassignAllOptionClicked, OnReassignAllOptionClicked)
@@ -73,7 +73,7 @@ namespace UE::MultiUserClient
 		/** The object being reassigned by this widget. */
 		FSoftObjectPath ManagedObject;
 		/** Used to to figure out child objects. */
-		TAttribute<ConcertSharedSlate::IReplicationStreamModel*> ConsolidatedStreamModelAttribute;
+		TAttribute<ConcertSharedSlate::IObjectHierarchyModel*> ObjectHierarchyModelAttribute;
 		
 		/** Displayed as content of combo button */
 		TSharedPtr<ConcertClientSharedSlate::SHorizontalClientList> ComboClientList;

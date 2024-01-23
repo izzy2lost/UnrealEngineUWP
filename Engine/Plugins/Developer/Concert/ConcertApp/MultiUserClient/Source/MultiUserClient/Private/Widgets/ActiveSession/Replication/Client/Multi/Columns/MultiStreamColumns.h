@@ -17,6 +17,7 @@ namespace UE::MultiUserClient
 
 namespace UE::ConcertSharedSlate
 {
+	class IObjectHierarchyModel;
 	class IReplicationStreamModel;
 	class IMultiReplicationStreamEditor;
 	class IReplicationStreamViewer;
@@ -40,7 +41,7 @@ namespace UE::MultiUserClient::MultiStreamColumns
 	 * Toggles replication for all clients assigned to the object (and optionally all children).
 	 * 
 	 * @param ConcertClient Used to look up client names
-	 * @param ConsolidatedStreamModelAttribute Used to get child objects
+	 * @param ObjectHierarchyModelAttribute Used to get child objects
 	 * @param ClientManager Used to access all clients for toggling authority
 	 * @param ColumnsSortPriority The order relative to the other columns
 	 * 
@@ -48,7 +49,7 @@ namespace UE::MultiUserClient::MultiStreamColumns
 	 */
 	ConcertSharedSlate::ReplicationColumns::FReplicationTopLevelObjectColumn ReplicationToggle(
 		TSharedRef<IConcertClient> ConcertClient,
-		TAttribute<ConcertSharedSlate::IReplicationStreamModel*> ConsolidatedStreamModelAttribute,
+		TAttribute<ConcertSharedSlate::IObjectHierarchyModel*> ObjectHierarchyModelAttribute,
 		FReplicationClientManager& ClientManager,
 		const int32 ColumnsSortPriority = static_cast<int32>(EColumnSortOrder::ReplicationToggle)
 		);
@@ -57,7 +58,8 @@ namespace UE::MultiUserClient::MultiStreamColumns
 	 * A combo box which displays all current owners for an object and allows bulk reassigning properties.
 	 *
 	 * @param ConcertClient Used to look up client names
-	 * @param MultiStreamModelAttribute Used to get child objects from the consolidated model and for requesting resorting the column
+	 * @param MultiStreamModelAttribute Used for requesting resorting the column
+	 * @param ObjectHierarchyModelAttribute Used to get child objects
 	 * @param ReassignmentLogic Performs the act of reassigning
 	 * @param ClientManager Used to access all clients for display in the combo box drop-down
 	 * @param ColumnsSortPriority The order relative to the other columns
@@ -65,6 +67,7 @@ namespace UE::MultiUserClient::MultiStreamColumns
 	ConcertSharedSlate::ReplicationColumns::FReplicationTopLevelObjectColumn ReassignOwnership(
 		TSharedRef<IConcertClient> ConcertClient,
 		TAttribute<TSharedPtr<ConcertSharedSlate::IMultiReplicationStreamEditor>> MultiStreamModelAttribute,
+		TAttribute<ConcertSharedSlate::IObjectHierarchyModel*> ObjectHierarchyModelAttribute,
 		FReassignObjectPropertiesLogic& ReassignmentLogic,
 		const FReplicationClientManager& ClientManager,
 		int32 ColumnsSortPriority = static_cast<int32>(EColumnSortOrder::ReassignOwnership)

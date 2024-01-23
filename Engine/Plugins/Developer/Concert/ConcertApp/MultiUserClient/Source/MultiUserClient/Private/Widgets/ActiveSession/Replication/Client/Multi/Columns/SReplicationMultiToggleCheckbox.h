@@ -9,18 +9,12 @@
 class IConcertClient;
 enum class ECheckBoxState : uint8;
 
-namespace UE::ConcertSharedSlate
-{
-	class IReplicationStreamModel;
-}
+namespace UE::ConcertSharedSlate { class IObjectHierarchyModel; }
 
 namespace UE::MultiUserClient
 {
 	class FReplicationClientManager;
-}
-
-namespace UE::MultiUserClient
-{
+	
 	/**
 	 * Checkbox in a combo button.
 	 * 
@@ -36,7 +30,7 @@ namespace UE::MultiUserClient
 		SLATE_BEGIN_ARGS(SReplicationMultiToggleCheckbox)
 		{}
 		    SLATE_ARGUMENT(FSoftObjectPath, Object)
-			SLATE_ATTRIBUTE(ConcertSharedSlate::IReplicationStreamModel*, ConsolidatedStreamModelAttribute)
+			SLATE_ATTRIBUTE(ConcertSharedSlate::IObjectHierarchyModel*, ObjectHierarchyModel)
 		SLATE_END_ARGS()
 
 		void Construct(
@@ -53,7 +47,7 @@ namespace UE::MultiUserClient
 		/** Used to access all clients for toggling authority. */
 		FReplicationClientManager* ClientManager = nullptr;
 		/** Used to get children of Object */
-		TAttribute<ConcertSharedSlate::IReplicationStreamModel*> ConsolidatedStreamModelAttribute;
+		TAttribute<ConcertSharedSlate::IObjectHierarchyModel*> ObjectHierarchyModelAttribute;
 		
 		/** Used to look up client display names in case of conflicts. */
 		TSharedPtr<IConcertClient> ConcertClient;
@@ -62,20 +56,36 @@ namespace UE::MultiUserClient
 		FText GetRootToolTipText() const;
 		
 		/** @return Goes through all clients that can be edited and returns whether all of them have authority. */
-		ECheckBoxState GetCheckboxStateForObject(FSoftObjectPath InObject) const;
+		ECheckBoxState GetCheckboxStateForObject(const FSoftObjectPath& InObject) const { return GetCheckboxStateForObjects({ InObject }); }
+		ECheckBoxState GetCheckboxStateForThisAndChildren() const
+		{
+			// This algorithm could be improved but it will be performant enough for small hierarchies.
+			// The growth is linear in the number of children but every checkbox evaluates itself constantly instead of asking child boxes for cached state.
+			return GetCheckboxStateForObjects(GetThisAndChildren());
+		}
+		ECheckBoxState GetCheckboxStateForObjects(TConstArrayView<FSoftObjectPath> InObjects) const;
 		/** @return Whether there are any clients for which the authority can be changed. */
 		bool IsCheckboxEnabledForObject(FSoftObjectPath InObject) const;
-		/** Gives all editable clients which have something registered to Object authority or takes it away. */
-		void OnCheckboxStateChangedForObject(ECheckBoxState NewState, FSoftObjectPath InObject) const;
+		/** Sets the authority state of this and all children based on NewState. */
+		void OnCheckboxStateChanged(ECheckBoxState NewState) const;
 
 		/** @return Menu widget that with the options to remove or give authority to this and other objects. */
 		TSharedRef<SWidget> GetDropDownMenuContent();
-		
-		void ToggleChildren() const;
-		bool CanToggleChildren() const;
+
+		TArray<FSoftObjectPath> GetThisAndChildren() const;
+		TArray<FSoftObjectPath> GetChildObjects() const;
+
+		void ToggleThis() const { ToggleObjects({ Object }); };
+		void ToggleChildren() const { ToggleObjects(GetChildObjects()); }
+		void ToggleThisAndChildren() const { ToggleObjects(GetThisAndChildren()); }
+
+		bool CanToggleThis() const { return CanToggleObjects({ Object }); }
+		bool CanToggleChildren() const { return CanToggleObjects(GetChildObjects()); }
+		bool CanToggleThisOrChildren() const { return CanToggleObjects(GetThisAndChildren()); }
 
 		void ToggleObjects(TConstArrayView<FSoftObjectPath> Objects) const;
 		bool CanToggleObjects(TConstArrayView<FSoftObjectPath> Objects) const;
+		void SetAuthorityForObject(bool bShouldHaveAuthority, const FSoftObjectPath& InObject) const;
 		
 		EVisibility GetWarningVisibility() const;
 		FText GetWarningToolTipText() const;
