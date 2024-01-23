@@ -68,6 +68,11 @@ private:
 	void WriteTileDataVoxel(int32 TileIndex, const FIntVector3& TileDataCoord, int32 MipLevel, int32 AttributesIdx, const FVector4f& Value, int32 DstComponent = -1);
 };
 
+// Returns true if Point >= Min && Point < Max for all components
+bool IsInBounds(const FIntVector3& Point, const FIntVector3& Min, const FIntVector3& Max);
+// Computes Max(Value >> ShiftBy, MinValue)
+FIntVector3 ShiftRightAndMax(const FIntVector3& Value, uint32 ShiftBy, int32 MinValue);
+
 }
 }
 

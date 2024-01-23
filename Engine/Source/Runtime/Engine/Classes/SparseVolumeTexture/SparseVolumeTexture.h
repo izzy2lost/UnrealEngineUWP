@@ -53,6 +53,35 @@ struct FHeader
 	ENGINE_API bool Validate(bool bPrintToLog);
 };
 
+// Linear struct of arrays octree describing the mipped SVT topology
+struct FPageTopology
+{
+	struct FMip
+	{
+		uint32 PageOffset; // Offset in Pages array where the pages for this mip begin
+		uint32 PageCount; // Number of pages in this mip
+	};
+
+	struct FPage
+	{
+		uint32 PackedPageTableCoord; // 11|11|10
+		uint32 TileIndex; // Index of the tile this page points to. Indexes into compressed tile data and is relative to each mip level (starts at 0 for every mip)
+		uint32 ParentIndex;
+	};
+
+	struct FInteriorPageData
+	{
+		uint32 ChildIndices[8];
+	};
+
+	TArray<FMip> MipInfo;
+	TArray<FPage> Pages; // One entry for every page in the sparse topology. This single array is shared across all mip levels
+	TArray<FInteriorPageData> InteriorPageData; // One entry for every interior page/node (all mips except mip0)
+
+	void Reset();
+	void Serialize(FArchive& Ar);
+};
+
 // Describes a mip level of a SVT frame in terms of the sizes and offsets of the data in the built bulk data.
 // Each mip level consists of 4 buffer sections:
 // 
@@ -104,6 +133,8 @@ public:
 	// Data for all streamable mip levels
 	FByteBulkData StreamableMipLevels;
 
+	FPageTopology Topology;
+
 	// These are used for logging and retrieving StreamableMipLevels from DDC in FStreamingManager
 #if WITH_EDITORONLY_DATA
 	FString ResourceName;
@@ -142,6 +173,14 @@ private:
 	void BeginRebuildBulkDataFromCache(const UObject* Owner);
 	void EndRebuildBulkDataFromCache();
 #endif
+
+	// Stores page table into BulkData as two consecutive arrays of packed page coordinates and linear indices into the physical tiles array.
+	// Returns number of written/non-zero page table entries
+	static int32 CompressPageTable(const TArray<uint32>& PageTable, const FIntVector3& Resolution, TArray<uint8>& BulkData, TMap<uint32, uint32>& CoordToIndexMap);
+
+	static void CompressTiles(int32 NumTiles, const TArray64<uint8>& PhysicalTileDataA, const TArray64<uint8>& PhysicalTileDataB, const TArrayView<EPixelFormat>& Formats, const TArrayView<FVector4f>& FallbackValues, TArray<uint8>& BulkData, FMipLevelStreamingInfo& MipStreamingInfo);
+	
+	static FPageTopology BuildTopology(const FTextureData& InTextureData, const TArray<uint8>& InRootData, const TArray<uint8>& InStreamableBulkData, const TArray<TMap<uint32, uint32>, TInlineAllocator<16>>& InCoordToPageIndexInMipData, const TArray<FMipLevelStreamingInfo>& InMipLevelStreamingInfo);
 };
 
 // Encapsulates RHI resources needed to render a SparseVolumeTexture.
@@ -182,6 +221,9 @@ private:
 }
 
 FArchive& operator<<(FArchive& Ar, UE::SVT::FHeader& Header);
+FArchive& operator<<(FArchive& Ar, UE::SVT::FPageTopology::FMip& Mip);
+FArchive& operator<<(FArchive& Ar, UE::SVT::FPageTopology::FPage& Page);
+FArchive& operator<<(FArchive& Ar, UE::SVT::FPageTopology::FInteriorPageData& Children);
 
 enum ESparseVolumeTextureShaderUniform
 {

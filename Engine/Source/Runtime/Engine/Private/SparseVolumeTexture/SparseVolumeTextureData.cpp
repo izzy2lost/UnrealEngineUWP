@@ -40,13 +40,13 @@ namespace UE
 namespace SVT
 {
 
-static bool IsInBounds(const FIntVector3& Point, const FIntVector3& Min, const FIntVector3& Max)
+bool IsInBounds(const FIntVector3& Point, const FIntVector3& Min, const FIntVector3& Max)
 {
 	return Point.X >= Min.X && Point.Y >= Min.Y && Point.Z >= Min.Z
 		&& Point.X < Max.X && Point.Y < Max.Y && Point.Z < Max.Z;
 }
 
-static FIntVector3 ShiftRightAndMax(const FIntVector3& Value, uint32 ShiftBy, int32 MinValue)
+FIntVector3 ShiftRightAndMax(const FIntVector3& Value, uint32 ShiftBy, int32 MinValue)
 {
 	FIntVector3 Result = FIntVector3(
 		FMath::Max(Value.X >> ShiftBy, MinValue),

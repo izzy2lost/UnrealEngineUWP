@@ -1159,7 +1159,6 @@ void FStreamingManager::BeginAsyncUpdate(FRDGBuilder& GraphBuilder, bool bBlocki
 	AsyncState.NumReadyMipLevels = DetermineReadyMipLevels();
 
 	// Do a first pass over all the mips to be uploaded to compute the upload buffer size requirements.
-	int32 NumPageTableUpdatesTotal = 0;
 	TileDataTexturesToUpdate.Reset();
 	{
 		const int32 StartPendingMipLevelIndex = (NextPendingMipLevelIndex + MaxPendingMipLevels - NumPendingMipLevels) % MaxPendingMipLevels;
@@ -1181,10 +1180,7 @@ void FStreamingManager::BeginAsyncUpdate(FRDGBuilder& GraphBuilder, bool bBlocki
 			SVTInfo->TileDataTexture->NumVoxelsToUploadA += FormatSizeA > 0 ? Resources->MipLevelStreamingInfo[PendingMipLevel.MipLevelIndex].TileDataSize[0] / FormatSizeA : 0;
 			SVTInfo->TileDataTexture->NumVoxelsToUploadB += FormatSizeB > 0 ? Resources->MipLevelStreamingInfo[PendingMipLevel.MipLevelIndex].TileDataSize[1] / FormatSizeB : 0;
 			TileDataTexturesToUpdate.Add(SVTInfo->TileDataTexture.Get());
-			NumPageTableUpdatesTotal += Resources->MipLevelStreamingInfo[PendingMipLevel.MipLevelIndex].PageTableSize / (2 * sizeof(uint32));
 		}
-
-		PageTableUpdater->Init(GraphBuilder, NumPageTableUpdatesTotal, 1);
 
 		for (FTileDataTexture* TileDataTexture : TileDataTexturesToUpdate)
 		{
@@ -1273,7 +1269,8 @@ void FStreamingManager::EndAsyncUpdate(FRDGBuilder& GraphBuilder)
 	SVTsWithInvalidatedStreamingInfoBuffer.Reset();
 	StreamingInfoBufferUpdater->Apply(GraphBuilder);
 
-	PageTableUpdater->Apply(GraphBuilder);
+	// Update page table with newly streamed in/out pages and make sure descendant pages in the hierarchy have correct fallback values
+	PatchPageTable(GraphBuilder);
 
 	check(AsyncState.NumReadyMipLevels <= NumPendingMipLevels);
 	NumPendingMipLevels -= AsyncState.NumReadyMipLevels;
@@ -1350,6 +1347,10 @@ void FStreamingManager::AddInternal(FRDGBuilder& GraphBuilder, FNewSparseVolumeT
 		{
 			FrameInfo.TileAllocations[MipLevel].SetNumZeroed(Resources->MipLevelStreamingInfo[MipLevel].NumPhysicalTiles);
 		}
+		const int32 NumPagesTotal = Resources->Topology.Pages.Num();
+		FrameInfo.ResidentPages.SetNum(NumPagesTotal, false);
+		FrameInfo.ResidentPagesNew.SetNum(NumPagesTotal, false);
+		FrameInfo.PageEntries.SetNum(NumPagesTotal);
 		
 		int32 NumPhysicalTiles = 0;
 		for (const FMipLevelStreamingInfo& MipLevelStreamingInfo : Resources->MipLevelStreamingInfo)
@@ -1464,6 +1465,7 @@ void FStreamingManager::AddInternal(FRDGBuilder& GraphBuilder, FNewSparseVolumeT
 				const uint32 TileCoord = SVTInfo.TileDataTexture->Allocate();
 				check(TileCoord != INDEX_NONE);
 				FrameInfo.TileAllocations.Last()[0] = TileCoord;
+				FrameInfo.PageEntries[Resources->Topology.MipInfo.Last().PageOffset] = TileCoord;
 
 				const int32 NumVoxelsA = FormatSizes[0] > 0 ? RootStreamingInfo->TileDataSize[0] / FormatSizes[0] : 0;
 				const int32 NumVoxelsB = FormatSizes[1] > 0 ? RootStreamingInfo->TileDataSize[1] / FormatSizes[1] : 0;
@@ -1494,8 +1496,13 @@ void FStreamingManager::AddInternal(FRDGBuilder& GraphBuilder, FNewSparseVolumeT
 
 				// Update highest mip (1x1x1) in page table
 				const FUpdateTextureRegion3D UpdateRegion(0, 0, 0, 0, 0, 0, 1, 1, 1);
-				RHIUpdateTexture3D(FrameInfo.PageTableTextureRHIRef, FrameInfo.PageTableTextureRHIRef->GetDesc().NumMips - 1, UpdateRegion, sizeof(uint32), sizeof(uint32), (uint8*)&TileCoord);
+				RHIUpdateTexture3D(FrameInfo.PageTableTextureRHIRef, NumMipLevels - 1, UpdateRegion, sizeof(uint32), sizeof(uint32), (uint8*)&TileCoord);
 			}
+
+			const FPageTopology::FMip& TopologyMipInfo = Resources->Topology.MipInfo[NumMipLevels - 1];
+			FrameInfo.ResidentPagesNew.SetRange(TopologyMipInfo.PageOffset, TopologyMipInfo.PageCount, true);
+
+			InvalidatedSVTFrames.Add(&FrameInfo);
 		}
 
 		RootTileUploader.ResourceUploadTo(GraphBuilder, SVTInfo.TileDataTexture->TileDataTextureARHIRef, SVTInfo.TileDataTexture->TileDataTextureBRHIRef, SVTInfo.FallbackValueA, SVTInfo.FallbackValueB);
@@ -1551,6 +1558,7 @@ void FStreamingManager::RemoveInternal(UStreamableSparseVolumeTexture* SparseVol
 		for (FFrameInfo& FrameInfo : SVTInfo->PerFrameInfo)
 		{
 			FrameInfo.PageTableTextureRHIRef.SafeRelease();
+			InvalidatedSVTFrames.Remove(&FrameInfo);
 		}
 		if (SVTInfo->TileDataTexture)
 		{
@@ -1959,6 +1967,7 @@ void FStreamingManager::StreamOutMipLevel(FStreamingInfo* SVTInfo, FLRUNode* LRU
 	// Update the streaming info buffer data
 	SVTInfo->DirtyStreamingInfoData[FrameIndex] = true;
 	SVTsWithInvalidatedStreamingInfoBuffer.Add(SVTInfo);
+	InvalidatedSVTFrames.Add(&FrameInfo);
 
 	// Unlink
 	LRUNode->Remove();
@@ -1975,6 +1984,9 @@ void FStreamingManager::StreamOutMipLevel(FStreamingInfo* SVTInfo, FLRUNode* LRU
 		SVTInfo->TileDataTexture->Free(TileCoord);
 		TileCoord = 0;
 	}
+
+	const FPageTopology::FMip& TopologyMipInfo = FrameInfo.Resources->Topology.MipInfo[MipLevelIndex];
+	FrameInfo.ResidentPagesNew.SetRange(TopologyMipInfo.PageOffset, TopologyMipInfo.PageCount, false);
 }
 
 int32 FStreamingManager::DetermineReadyMipLevels()
@@ -2157,10 +2169,6 @@ void FStreamingManager::InstallReadyMipLevels()
 
 		FTileUploader::FAddResult TileDataAddResult = SVTInfo->TileDataTexture->TileUploader->Add_GetRef(NumPhysicalTiles, NumVoxelsA, NumVoxelsB);
 
-		uint8* DstPageCoords = nullptr;
-		uint8* DstPageEntries = nullptr;
-		PageTableUpdater->Add_GetRef(FrameInfo.PageTableTextureRHIRef, PendingMipLevel.MipLevelIndex, NumPageTableUpdates, DstPageCoords, DstPageEntries);
-
 		// Tile data
 		{
 			FUploadTask::FTileDataTask TileDataTask = {};
@@ -2187,8 +2195,6 @@ void FStreamingManager::InstallReadyMipLevels()
 		{
 			FUploadTask::FPageTableTask PageTableTask = {};
 			PageTableTask.PendingMipLevel = &PendingMipLevel;
-			PageTableTask.DstPageCoords = DstPageCoords;
-			PageTableTask.DstPageEntries = DstPageEntries;
 			PageTableTask.SrcPageCoords = SrcPtr + MipLevelStreamingInfo.PageTableOffset;
 			PageTableTask.SrcPageEntries = SrcPtr + MipLevelStreamingInfo.PageTableOffset + NumPageTableUpdates * sizeof(uint32);
 			PageTableTask.NumPageTableUpdates = NumPageTableUpdates;
@@ -2216,9 +2222,13 @@ void FStreamingManager::InstallReadyMipLevels()
 		// Update the streaming info buffer data
 		SVTInfo->DirtyStreamingInfoData[PendingMipLevel.FrameIndex] = true;
 		SVTsWithInvalidatedStreamingInfoBuffer.Add(SVTInfo);
+		InvalidatedSVTFrames.Add(&FrameInfo);
 
 		const int32 LRUNodeIndex = PendingMipLevel.FrameIndex * SVTInfo->NumMipLevelsGlobal + PendingMipLevel.MipLevelIndex;
 		SVTInfo->LRUNodes[LRUNodeIndex].PendingMipLevelIndex = INDEX_NONE;
+
+		const FPageTopology::FMip& TopologyMipInfo = FrameInfo.Resources->Topology.MipInfo[PendingMipLevel.MipLevelIndex];
+		FrameInfo.ResidentPagesNew.SetRange(TopologyMipInfo.PageOffset, TopologyMipInfo.PageCount, true);
 	}
 
 	// Do all the memcpy's in parallel
@@ -2234,15 +2244,18 @@ void FStreamingManager::InstallReadyMipLevels()
 				FUploadTask::FPageTableTask& PageTableTask = Task.Union.GetSubtype<FUploadTask::FPageTableTask>();
 				if (PageTableTask.NumPageTableUpdates > 0)
 				{
-					FMemory::Memcpy(PageTableTask.DstPageCoords, PageTableTask.SrcPageCoords, PageTableTask.NumPageTableUpdates * sizeof(uint32));
-
+					const int32 FrameIndex = PageTableTask.PendingMipLevel->FrameIndex;
+					const int32 MipLevelIndex = PageTableTask.PendingMipLevel->MipLevelIndex;
 					FStreamingInfo* SVTInfo = FindStreamingInfo(PageTableTask.PendingMipLevel->SparseVolumeTexture);
-					TArray<uint32>& TileAllocations = SVTInfo->PerFrameInfo[PageTableTask.PendingMipLevel->FrameIndex].TileAllocations[PageTableTask.PendingMipLevel->MipLevelIndex];
+					FFrameInfo& FrameInfo = SVTInfo->PerFrameInfo[FrameIndex];
+					TArray<uint32>& TileAllocations = FrameInfo.TileAllocations[MipLevelIndex];
 					const uint32* SrcEntries = reinterpret_cast<const uint32*>(PageTableTask.SrcPageEntries);
-					uint32* DstEntries = reinterpret_cast<uint32*>(PageTableTask.DstPageEntries);
+					uint32* EntriesForBookKeeping = FrameInfo.PageEntries.GetData() + FrameInfo.Resources->Topology.MipInfo[MipLevelIndex].PageOffset;
+					const uint32 MipLevelEntry = static_cast<uint32>(MipLevelIndex) << 24u;					
 					for (int32 i = 0; i < PageTableTask.NumPageTableUpdates; ++i)
 					{
-						DstEntries[i] = TileAllocations[SrcEntries[i]];
+						const uint32 Entry = TileAllocations[SrcEntries[i]] | MipLevelEntry;
+						EntriesForBookKeeping[i] = Entry;
 					}
 				}
 			}
@@ -2308,6 +2321,146 @@ void FStreamingManager::InstallReadyMipLevels()
 		Pair.Key->StreamableMipLevels.Unlock();
 	}
 #endif
+}
+
+void FStreamingManager::PatchPageTable(FRDGBuilder& GraphBuilder)
+{
+	int32 NumUpdates = 0;
+
+	// Generate bitsets of invalidated pages for every frame.
+	for (FFrameInfo* FrameInfoPtr : InvalidatedSVTFrames)
+	{
+		FFrameInfo& FrameInfo = *FrameInfoPtr;
+		const FPageTopology& Topology = FrameInfo.Resources->Topology;
+
+		// Get all pages that were streamed in or out in this streaming update.
+		const TBitArray<> ResidentPagesDiff = TBitArray<>::BitwiseXOR(FrameInfo.ResidentPages, FrameInfo.ResidentPagesNew, EBitwiseOperatorFlags::MaxSize);
+		
+		// Initialize InvalidatedPages with the diff. In the following loop, we then find all descendants of the newly streamed in/out pages and also mark them as invalidated.
+		FrameInfo.InvalidatedPages = ResidentPagesDiff;
+		for (TConstSetBitIterator It(ResidentPagesDiff); It; ++It)
+		{
+			const int32 PageIndex = It.GetIndex();
+			check(Topology.Pages.IsValidIndex(PageIndex));
+
+			auto InvalidateDescendants = [&](uint32 InPageIndex, auto& InRecursiveLambda) -> void
+			{
+				// Mip0 pages are leaf-nodes in the topology and don't have children
+				const bool bIsInteriorPage = Topology.InteriorPageData.IsValidIndex(InPageIndex);
+				if (bIsInteriorPage)
+				{
+					for (uint32 ChildPageIndex : Topology.InteriorPageData[InPageIndex].ChildIndices)
+					{
+						// Only process child if it is not already resident or included in the set of invalidated pages
+						if (ChildPageIndex != INDEX_NONE && !FrameInfo.InvalidatedPages[ChildPageIndex] && !FrameInfo.ResidentPages[ChildPageIndex])
+						{
+							FrameInfo.InvalidatedPages[ChildPageIndex] = true;
+							InRecursiveLambda(ChildPageIndex, InRecursiveLambda); // Let the child node walk its own children
+						}
+					}
+				}
+			};
+
+			InvalidateDescendants(PageIndex, InvalidateDescendants);
+		}
+
+		NumUpdates += FrameInfo.InvalidatedPages.CountSetBits();
+	}
+
+	if (NumUpdates > 0)
+	{
+		PageTableUpdater->Init(GraphBuilder, NumUpdates, 0);
+
+		// Generate updates
+		for (FFrameInfo* FrameInfoPtr : InvalidatedSVTFrames)
+		{
+			FFrameInfo& FrameInfo = *FrameInfoPtr;
+			const FPageTopology& Topology = FrameInfo.Resources->Topology;
+			
+			// This set of variables is updated every time we start processing a new mip level
+			bool bEnteredNewMipRange = true;
+			int32 MipLevel = FrameInfo.NumMipLevels - 1;
+			int32 NumUpdatesThisMip = 0;
+			uint32 MipUpdateWriteIndex = 0;
+			uint8* DstCoordsPtr = nullptr;
+			uint8* DstEntryPtr = nullptr;
+
+			// Iterate over all invalidated pages and generate page table updates (packed page write coord and data to write to that coord).
+			for (TConstSetBitIterator It(FrameInfo.InvalidatedPages); It; ++It)
+			{
+				const int32 PageIndex = It.GetIndex();
+				check(Topology.Pages.IsValidIndex(PageIndex));
+
+				auto IsInMipRange = [](const FPageTopology& InTopology, uint32 InIndex, int32 InMipLevel)
+				{
+					return InIndex >= InTopology.MipInfo[InMipLevel].PageOffset && InIndex < (InTopology.MipInfo[InMipLevel].PageOffset + InTopology.MipInfo[InMipLevel].PageCount);
+				};
+
+				// Determine the current mip level. Bits are ordered highest to lowest mip level.
+				while (MipLevel > 0 && !IsInMipRange(Topology, PageIndex, MipLevel))
+				{
+					bEnteredNewMipRange = true;
+					--MipLevel;
+					check(MipLevel >= 0);
+				}
+				check(IsInMipRange(Topology, PageIndex, MipLevel));
+
+				// If we entered a new mip range, get a new set of write pointers from the PageTableUpdater.
+				if (bEnteredNewMipRange)
+				{
+					check(NumUpdatesThisMip == MipUpdateWriteIndex);
+					const uint32 PageOffset = Topology.MipInfo[MipLevel].PageOffset;
+					const uint32 PageCount = Topology.MipInfo[MipLevel].PageCount;
+					NumUpdatesThisMip = FrameInfo.InvalidatedPages.CountSetBits(PageOffset, PageOffset + PageCount);
+					MipUpdateWriteIndex = 0;
+					bEnteredNewMipRange = false;
+
+					PageTableUpdater->Add_GetRef(FrameInfo.PageTableTextureRHIRef, MipLevel, NumUpdatesThisMip, DstCoordsPtr, DstEntryPtr);
+				}
+
+				uint32 PageTableEntry = 0;
+				if (FrameInfo.ResidentPagesNew[PageIndex])
+				{
+					// This page is already resident, so we can simply use its value in PageEntries
+					PageTableEntry = FrameInfo.PageEntries[PageIndex];
+					check(PageTableEntry);
+					PageTableEntry |= MipLevel << 24u;
+				}
+				else
+				{
+					// This page is not resident but needs a fallback value written to it, so we probe the parent pages until we find a resident one
+					uint32 ParentPageIndex = Topology.Pages[PageIndex].ParentIndex;
+					int32 ParentMipLevel = MipLevel + 1;
+					while (ParentPageIndex != INDEX_NONE)
+					{
+						// The parent page is resident in GPU memory, so we can use it's cached value in PageEntries.
+						if (FrameInfo.ResidentPagesNew[ParentPageIndex])
+						{
+							PageTableEntry = FrameInfo.PageEntries[ParentPageIndex];
+							check(PageTableEntry);
+							PageTableEntry |= ParentMipLevel << 24u;
+							FrameInfo.PageEntries[PageIndex] = PageTableEntry; // Don't forget to update the PageEntries value of our current page to reflect that it falls back to a coarser mip.
+							break;
+						}
+						ParentPageIndex = Topology.Pages[ParentPageIndex].ParentIndex;
+						++ParentMipLevel;
+					}
+					check(ParentPageIndex != INDEX_NONE); // If we hit this, then we tried to find the root node's parent. This should never happen as the root node should always be resident.
+				}
+
+				// Write the update to the upload buffer pointers
+				reinterpret_cast<uint32*>(DstCoordsPtr)[MipUpdateWriteIndex] = Topology.Pages[PageIndex].PackedPageTableCoord;
+				reinterpret_cast<uint32*>(DstEntryPtr)[MipUpdateWriteIndex] = PageTableEntry;
+				++MipUpdateWriteIndex;
+			}
+
+			FrameInfo.ResidentPages = FrameInfo.ResidentPagesNew;
+		}
+
+		PageTableUpdater->Apply(GraphBuilder);
+	}
+
+	InvalidatedSVTFrames.Reset();
 }
 
 FStreamingManager::FStreamingInfo* FStreamingManager::FindStreamingInfo(UStreamableSparseVolumeTexture* Key)

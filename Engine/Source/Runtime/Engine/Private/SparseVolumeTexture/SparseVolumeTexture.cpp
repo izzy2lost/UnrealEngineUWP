@@ -83,6 +83,30 @@ FArchive& operator<<(FArchive& Ar, UE::SVT::FHeader& Header)
 	return Ar;
 }
 
+FArchive& operator<<(FArchive& Ar, UE::SVT::FPageTopology::FMip& Mip)
+{
+	Ar << Mip.PageOffset;
+	Ar << Mip.PageCount;
+	return Ar;
+}
+
+FArchive& operator<<(FArchive& Ar, UE::SVT::FPageTopology::FPage& Page)
+{
+	Ar << Page.PackedPageTableCoord;
+	Ar << Page.TileIndex;
+	Ar << Page.ParentIndex;
+	return Ar;
+}
+
+FArchive& operator<<(FArchive& Ar, UE::SVT::FPageTopology::FInteriorPageData& InteriorPageData)
+{
+	for (uint32& ChildIndex : InteriorPageData.ChildIndices)
+	{
+		Ar << ChildIndex;
+	}
+	return Ar;
+}
+
 ////////////////////////////////////////////////////////////////////////////////////////////////
 
 namespace UE
@@ -105,8 +129,13 @@ static int32 ComputeNumMipLevels(const FIntVector3& InVirtualVolumeMin, const FI
 
 static const FString& GetDerivedDataVersion()
 {
-	static FString CachedVersionString = TEXT("381AE2A9-A903-4C8F-8486-891E24D6FC72");	// Bump this if you want to ignore all cached data so far.
+	static FString CachedVersionString = TEXT("A1A4EFBF-6596-418D-A1C1-11FC07BA0B7F");	// Bump this if you want to ignore all cached data so far.
 	return CachedVersionString;
+}
+
+uint32 PackX11Y11Z10(uint32 X, uint32 Y, uint32 Z)
+{
+	return (X & 0x7FFu) | ((Y & 0x7FFu) << 11u) | ((Z & 0x3FFu) << 22u);
 }
 
 FHeader::FHeader(const FIntVector3& AABBMin, const FIntVector3& AABBMax, EPixelFormat FormatA, EPixelFormat FormatB, const FVector4f& FallbackValueA, const FVector4f& FallbackValueB)
@@ -188,6 +217,22 @@ bool FHeader::Validate(bool bPrintToLog)
 
 ////////////////////////////////////////////////////////////////////////////////////////////////
 
+void FPageTopology::Reset()
+{
+	MipInfo.Reset();
+	Pages.Reset();
+	InteriorPageData.Reset();
+}
+
+void FPageTopology::Serialize(FArchive& Ar)
+{
+	Ar << MipInfo;
+	Ar << Pages;
+	Ar << InteriorPageData;
+}
+
+////////////////////////////////////////////////////////////////////////////////////////////////
+
 void FResources::Serialize(FArchive& Ar, UObject* Owner, bool bCooked)
 {
 	// Note: this is all derived data, native versioning is not needed, but be sure to bump GetDerivedDataVersion() when modifying!
@@ -211,6 +256,8 @@ void FResources::Serialize(FArchive& Ar, UObject* Owner, bool bCooked)
 
 		Ar << MipLevelStreamingInfo;
 		Ar << RootData;
+
+		Topology.Serialize(Ar);
 
 		// StreamableMipLevels is only serialized in cooked builds and when caching to DDC failed in editor builds.
 		// If the data was successfully cached to DDC, we just query it from DDC on the next run or recreate it if that failed.
@@ -328,190 +375,21 @@ bool FResources::Build(USparseVolumeTextureFrame* Owner, UE::Serialization::FEdi
 		Header = DerivedTextureData.Header;
 		RootData.Reset();
 		MipLevelStreamingInfo.SetNumZeroed(NumMipLevels);
+		Topology.Reset();
 		ResourceFlags = 0;
 		ResourceName.Reset();
 		DDCKeyHash.Reset();
 		DDCRawHash.Reset();
 		DDCRebuildState.store(EDDCRebuildState::Initial);
 
-		// Stores page table into BulkData as two consecutive arrays of packed page coordinates and linear indices into the physical tiles array.
-		// Returns number of written/non-zero page table entries
-		auto CompressPageTable = [](const TArray<uint32>& PageTable, const FIntVector3& Resolution, TArray<uint8>& BulkData) -> int32
-		{
-			TRACE_CPUPROFILER_EVENT_SCOPE(SVT::FResources::Build::CompressPageTable);
-
-			int32 NumNonZeroEntries = 0;
-			for (uint32 Entry : PageTable)
-			{
-				if (Entry)
-				{
-					++NumNonZeroEntries;
-				}
-			}
-
-			const int32 BaseOffset = BulkData.Num();
-			BulkData.SetNum(BulkData.Num() + NumNonZeroEntries * 2 * sizeof(uint32));
-			uint32* PackedCoords = reinterpret_cast<uint32*>(BulkData.GetData() + BaseOffset);
-			uint32* PageEntries = PackedCoords + NumNonZeroEntries;
-			
-			int32 NumWrittenEntries = 0;
-			for (int32 Z = 0; Z < Resolution.Z; ++Z)
-			{
-				for (int32 Y = 0; Y < Resolution.Y; ++Y)
-				{
-					for (int32 X = 0; X < Resolution.X; ++X)
-					{
-						const int32 LinearCoord = (Z * Resolution.Y * Resolution.X) + (Y * Resolution.X) + X;
-						const uint32 Entry = PageTable[LinearCoord];
-						if (Entry)
-						{
-							const uint32 Packed = (X & 0x7FFu) | ((Y & 0x7FFu) << 11u) | ((Z & 0x3FFu) << 22u);
-							PackedCoords[NumWrittenEntries] = Packed;
-							PageEntries[NumWrittenEntries] = Entry - 1;
-							++NumWrittenEntries;
-						}
-					}
-				}
-			}
-
-			return NumNonZeroEntries;
-		};
-
-		auto CompressTiles = [](int32 NumTiles, const TArray64<uint8>& PhysicalTileDataA, const TArray64<uint8>& PhysicalTileDataB, const TArrayView<EPixelFormat>& Formats, const TArrayView<FVector4f>& FallbackValues, TArray<uint8>& BulkData, FMipLevelStreamingInfo& MipStreamingInfo)
-		{
-			TRACE_CPUPROFILER_EVENT_SCOPE(SVT::FResources::Build::CompressTiles);
-
-			const int64 FormatSize[] = { GPixelFormats[Formats[0]].BlockBytes, GPixelFormats[Formats[1]].BlockBytes };
-			uint8 NullTileValuesU8[2][sizeof(float) * 4] = {};
-			int32 NumTextures = 0;
-			for (int32 i = 0; i < 2; ++i)
-			{
-				if (Formats[i] != PF_Unknown)
-				{
-					++NumTextures;
-					SVT::WriteVoxel(0, NullTileValuesU8[i], Formats[i], FallbackValues[i]);
-				}
-			}
-
-			const int32 OccupancySizePerTexture = NumTiles * SVT::NumOccupancyWordsPerPaddedTile * sizeof(uint32);
-			const int32 OccupancySize = NumTextures * OccupancySizePerTexture;
-			const int32 TileDataOffsetsSize = NumTextures * NumTiles * sizeof(uint32);
-			BulkData.Reserve(BulkData.Num() + OccupancySize + TileDataOffsetsSize);
-
-			MipStreamingInfo.OccupancyBitsOffset[0] = BulkData.Num() - MipStreamingInfo.BulkOffset;
-			MipStreamingInfo.OccupancyBitsSize[0] = Formats[0] != PF_Unknown ? OccupancySizePerTexture : 0;
-			BulkData.SetNum(BulkData.Num() + MipStreamingInfo.OccupancyBitsSize[0]);
-			
-			MipStreamingInfo.OccupancyBitsOffset[1] = BulkData.Num() - MipStreamingInfo.BulkOffset;
-			MipStreamingInfo.OccupancyBitsSize[1] = Formats[1] != PF_Unknown ? OccupancySizePerTexture : 0;
-			BulkData.SetNum(BulkData.Num() + MipStreamingInfo.OccupancyBitsSize[1]);
-
-			MipStreamingInfo.TileDataOffsetsOffset[0] = BulkData.Num() - MipStreamingInfo.BulkOffset;
-			MipStreamingInfo.TileDataOffsetsSize[0] = Formats[0] != PF_Unknown ? NumTiles * sizeof(uint32) : 0;
-			BulkData.SetNum(BulkData.Num() + MipStreamingInfo.TileDataOffsetsSize[0]);
-
-			MipStreamingInfo.TileDataOffsetsOffset[1] = BulkData.Num() - MipStreamingInfo.BulkOffset;
-			MipStreamingInfo.TileDataOffsetsSize[1] = Formats[1] != PF_Unknown ? NumTiles * sizeof(uint32) : 0;
-			BulkData.SetNum(BulkData.Num() + MipStreamingInfo.TileDataOffsetsSize[1]);
-
-			// Zero the bitmasks
-			FMemory::Memzero(BulkData.GetData() + MipStreamingInfo.BulkOffset + MipStreamingInfo.OccupancyBitsOffset[0], MipStreamingInfo.OccupancyBitsSize[0] + MipStreamingInfo.OccupancyBitsSize[1]);
-
-			uint32* OccupancyBits[2];
-			OccupancyBits[0] = reinterpret_cast<uint32*>(BulkData.GetData() + MipStreamingInfo.BulkOffset + MipStreamingInfo.OccupancyBitsOffset[0]);
-			OccupancyBits[1] = reinterpret_cast<uint32*>(BulkData.GetData() + MipStreamingInfo.BulkOffset + MipStreamingInfo.OccupancyBitsOffset[1]);
-
-			uint32* PrefixSums[2];
-			PrefixSums[0] = reinterpret_cast<uint32*>(BulkData.GetData() + MipStreamingInfo.BulkOffset + MipStreamingInfo.TileDataOffsetsOffset[0]);
-			PrefixSums[1] = reinterpret_cast<uint32*>(BulkData.GetData() + MipStreamingInfo.BulkOffset + MipStreamingInfo.TileDataOffsetsOffset[1]);
-
-			// Compute occupancy bitmasks and count number of non-fallback voxels per tile
-			ParallelFor(NumTiles, [&](int32 TileIndex)
-				{
-					for (int32 AttributesIdx = 0; AttributesIdx < 2; ++AttributesIdx)
-					{
-						if (Formats[AttributesIdx] != PF_Unknown)
-						{
-							PrefixSums[AttributesIdx][TileIndex] = 0;
-							for (int64 VoxelIndex = 0; VoxelIndex < SVT::NumVoxelsPerPaddedTile; ++VoxelIndex)
-							{
-								const uint8* Src = (AttributesIdx == 0 ? PhysicalTileDataA.GetData() : PhysicalTileDataB.GetData()) + FormatSize[AttributesIdx] * (TileIndex * SVT::NumVoxelsPerPaddedTile + VoxelIndex);
-								bool bIsFallbackValue = FMemory::Memcmp(Src, NullTileValuesU8[AttributesIdx], FormatSize[AttributesIdx]) == 0;
-								if (!bIsFallbackValue)
-								{
-									const int64 WordIndex = TileIndex * SVT::NumOccupancyWordsPerPaddedTile + (VoxelIndex / 32);
-									OccupancyBits[AttributesIdx][WordIndex] |= 1u << (static_cast<uint32>(VoxelIndex) % 32u);
-									PrefixSums[AttributesIdx][TileIndex]++;
-								}
-							}
-						}
-					}
-				});
-
-			// Compute actual per-tile voxel data offsets (prefix sum)
-			uint32 Sums[2] = {};
-			for (int32 AttributesIdx = 0; AttributesIdx < 2; ++AttributesIdx)
-			{
-				if (Formats[AttributesIdx] != PF_Unknown)
-				{
-					for (int32 TileIndex = 0; TileIndex < NumTiles; ++TileIndex)
-					{
-						uint32 Tmp = PrefixSums[AttributesIdx][TileIndex];
-						PrefixSums[AttributesIdx][TileIndex] = Sums[AttributesIdx];
-						Sums[AttributesIdx] += Tmp;
-					}
-				}
-			}
-
-			// Allocate compacted tile data memory
-			MipStreamingInfo.TileDataOffset[0] = BulkData.Num() - MipStreamingInfo.BulkOffset;
-			MipStreamingInfo.TileDataSize[0] = Sums[0] * FormatSize[0];
-
-			MipStreamingInfo.TileDataOffset[1] = MipStreamingInfo.TileDataOffset[0] + MipStreamingInfo.TileDataSize[0];
-			MipStreamingInfo.TileDataSize[1] = Sums[1] * FormatSize[1];
-
-			BulkData.SetNum(BulkData.Num() + MipStreamingInfo.TileDataSize[0] + MipStreamingInfo.TileDataSize[1]);
-
-			// All above pointers into the BulkData are now invalid!
-
-			uint8* RelativeBulkDataPtr = BulkData.GetData() + MipStreamingInfo.BulkOffset;
-
-			uint8* DstTileData[2];
-			DstTileData[0] = RelativeBulkDataPtr + MipStreamingInfo.TileDataOffset[0];
-			DstTileData[1] = RelativeBulkDataPtr + MipStreamingInfo.TileDataOffset[1];
-
-			// Copy voxels to compacted locations
-			ParallelFor(NumTiles, [&](int32 TileIndex)
-				{
-					for (int32 AttributesIdx = 0; AttributesIdx < 2; ++AttributesIdx)
-					{
-						if (Formats[AttributesIdx] != PF_Unknown)
-						{
-							uint32 VoxelDataWriteOffset = reinterpret_cast<uint32*>(RelativeBulkDataPtr + MipStreamingInfo.TileDataOffsetsOffset[AttributesIdx])[TileIndex];
-							const uint32* TileOccupancyBits = reinterpret_cast<uint32*>(RelativeBulkDataPtr + MipStreamingInfo.OccupancyBitsOffset[AttributesIdx] + TileIndex * SVT::NumOccupancyWordsPerPaddedTile * sizeof(uint32));
-
-							for (int64 VoxelIndex = 0; VoxelIndex < SVT::NumVoxelsPerPaddedTile; ++VoxelIndex)
-							{
-								const int64 WordIndex = (VoxelIndex / 32);
-
-								if (TileOccupancyBits[WordIndex] & (1u << (static_cast<uint32>(VoxelIndex) % 32u)))
-								{
-									uint8* Dst = DstTileData[AttributesIdx] + VoxelDataWriteOffset * FormatSize[AttributesIdx];
-									const uint8* Src = (AttributesIdx == 0 ? PhysicalTileDataA.GetData() : PhysicalTileDataB.GetData()) + FormatSize[AttributesIdx] * (TileIndex * SVT::NumVoxelsPerPaddedTile + VoxelIndex);
-									FMemory::Memcpy(Dst, Src, FormatSize[AttributesIdx]);
-									++VoxelDataWriteOffset;
-								}
-							}
-						}
-					}
-				});
-		};
+		TArray<TMap<uint32, uint32>, TInlineAllocator<16>> CoordToPageIndexInMipData;
+		CoordToPageIndexInMipData.SetNum(NumMipLevels);
 
 		TArray<uint8> StreamableBulkData;
-		for (int32 MipLevelIdx = 0; MipLevelIdx < DerivedTextureData.MipMaps.Num(); ++MipLevelIdx)
+		for (int32 MipLevelIdx = NumMipLevels - 1; MipLevelIdx >= 0; --MipLevelIdx)
 		{
 			const FTextureData::FMipMap& Mip = DerivedTextureData.MipMaps[MipLevelIdx];
-			const bool bIsRootMipLevel = (MipLevelIdx == (DerivedTextureData.MipMaps.Num() - 1));
+			const bool bIsRootMipLevel = (MipLevelIdx == (NumMipLevels - 1));
 			TArray<uint8>& BulkData = bIsRootMipLevel ? RootData : StreamableBulkData;
 
 			FIntVector3 MipPageTableResolution = DerivedTextureData.Header.PageTableVolumeResolution >> MipLevelIdx;
@@ -521,7 +399,7 @@ bool FResources::Build(USparseVolumeTextureFrame* Owner, UE::Serialization::FEdi
 			MipStreamingInfo.BulkOffset = BulkData.Num();
 
 			MipStreamingInfo.PageTableOffset = BulkData.Num() - MipStreamingInfo.BulkOffset;
-			const int32 NumNonZeroPageTableEntries = CompressPageTable(Mip.PageTable, MipPageTableResolution, BulkData);
+			const int32 NumNonZeroPageTableEntries = CompressPageTable(Mip.PageTable, MipPageTableResolution, BulkData, CoordToPageIndexInMipData[MipLevelIdx]);
 			MipStreamingInfo.PageTableSize = NumNonZeroPageTableEntries * 2 * sizeof(uint32);
 			
 			CompressTiles(Mip.NumPhysicalTiles, Mip.PhysicalTileDataA, Mip.PhysicalTileDataB, Header.AttributesFormats, Header.FallbackValues, BulkData, MipStreamingInfo);
@@ -540,6 +418,9 @@ bool FResources::Build(USparseVolumeTextureFrame* Owner, UE::Serialization::FEdi
 			StreamableMipLevels.Unlock();
 			StreamableMipLevels.SetBulkDataFlags(BULKDATA_Force_NOT_InlinePayload);
 		}
+
+		// Build page topology
+		Topology = BuildTopology(DerivedTextureData, RootData, StreamableBulkData, CoordToPageIndexInMipData, MipLevelStreamingInfo);
 
 		return true;
 	}
@@ -752,6 +633,285 @@ void FResources::EndRebuildBulkDataFromCache()
 
 #endif // WITH_EDITORONLY_DATA
 
+int32 FResources::CompressPageTable(const TArray<uint32>& PageTable, const FIntVector3& Resolution, TArray<uint8>& BulkData, TMap<uint32, uint32>& CoordToIndexMap)
+{
+	TRACE_CPUPROFILER_EVENT_SCOPE(SVT::FResources::Build::CompressPageTable);
+
+	int32 NumNonZeroEntries = 0;
+	for (uint32 Entry : PageTable)
+	{
+		if (Entry)
+		{
+			++NumNonZeroEntries;
+		}
+	}
+	CoordToIndexMap.Reserve(NumNonZeroEntries);
+
+	const int32 BaseOffset = BulkData.Num();
+	BulkData.SetNum(BulkData.Num() + NumNonZeroEntries * 2 * sizeof(uint32));
+	uint32* PackedCoords = reinterpret_cast<uint32*>(BulkData.GetData() + BaseOffset);
+	uint32* PageEntries = PackedCoords + NumNonZeroEntries;
+
+	int32 NumWrittenEntries = 0;
+	for (int32 Z = 0; Z < Resolution.Z; ++Z)
+	{
+		for (int32 Y = 0; Y < Resolution.Y; ++Y)
+		{
+			for (int32 X = 0; X < Resolution.X; ++X)
+			{
+				const int32 LinearCoord = (Z * Resolution.Y * Resolution.X) + (Y * Resolution.X) + X;
+				const uint32 Entry = PageTable[LinearCoord];
+				if (Entry)
+				{
+					const uint32 Packed = PackX11Y11Z10(X, Y, Z);
+					PackedCoords[NumWrittenEntries] = Packed;
+					PageEntries[NumWrittenEntries] = Entry - 1;
+					CoordToIndexMap.Add(Packed, NumWrittenEntries);
+					++NumWrittenEntries;
+				}
+			}
+		}
+	}
+
+	return NumNonZeroEntries;
+}
+
+void FResources::CompressTiles(int32 NumTiles, const TArray64<uint8>& PhysicalTileDataA, const TArray64<uint8>& PhysicalTileDataB, const TArrayView<EPixelFormat>& Formats, const TArrayView<FVector4f>& FallbackValues, TArray<uint8>& BulkData, FMipLevelStreamingInfo& MipStreamingInfo)
+{
+	TRACE_CPUPROFILER_EVENT_SCOPE(SVT::FResources::Build::CompressTiles);
+
+	const int64 FormatSize[] = { GPixelFormats[Formats[0]].BlockBytes, GPixelFormats[Formats[1]].BlockBytes };
+	uint8 NullTileValuesU8[2][sizeof(float) * 4] = {};
+	int32 NumTextures = 0;
+	for (int32 i = 0; i < 2; ++i)
+	{
+		if (Formats[i] != PF_Unknown)
+		{
+			++NumTextures;
+			SVT::WriteVoxel(0, NullTileValuesU8[i], Formats[i], FallbackValues[i]);
+		}
+	}
+
+	const int32 OccupancySizePerTexture = NumTiles * SVT::NumOccupancyWordsPerPaddedTile * sizeof(uint32);
+	const int32 OccupancySize = NumTextures * OccupancySizePerTexture;
+	const int32 TileDataOffsetsSize = NumTextures * NumTiles * sizeof(uint32);
+	BulkData.Reserve(BulkData.Num() + OccupancySize + TileDataOffsetsSize);
+
+	MipStreamingInfo.OccupancyBitsOffset[0] = BulkData.Num() - MipStreamingInfo.BulkOffset;
+	MipStreamingInfo.OccupancyBitsSize[0] = Formats[0] != PF_Unknown ? OccupancySizePerTexture : 0;
+	BulkData.SetNum(BulkData.Num() + MipStreamingInfo.OccupancyBitsSize[0]);
+
+	MipStreamingInfo.OccupancyBitsOffset[1] = BulkData.Num() - MipStreamingInfo.BulkOffset;
+	MipStreamingInfo.OccupancyBitsSize[1] = Formats[1] != PF_Unknown ? OccupancySizePerTexture : 0;
+	BulkData.SetNum(BulkData.Num() + MipStreamingInfo.OccupancyBitsSize[1]);
+
+	MipStreamingInfo.TileDataOffsetsOffset[0] = BulkData.Num() - MipStreamingInfo.BulkOffset;
+	MipStreamingInfo.TileDataOffsetsSize[0] = Formats[0] != PF_Unknown ? NumTiles * sizeof(uint32) : 0;
+	BulkData.SetNum(BulkData.Num() + MipStreamingInfo.TileDataOffsetsSize[0]);
+
+	MipStreamingInfo.TileDataOffsetsOffset[1] = BulkData.Num() - MipStreamingInfo.BulkOffset;
+	MipStreamingInfo.TileDataOffsetsSize[1] = Formats[1] != PF_Unknown ? NumTiles * sizeof(uint32) : 0;
+	BulkData.SetNum(BulkData.Num() + MipStreamingInfo.TileDataOffsetsSize[1]);
+
+	// Zero the bitmasks
+	FMemory::Memzero(BulkData.GetData() + MipStreamingInfo.BulkOffset + MipStreamingInfo.OccupancyBitsOffset[0], MipStreamingInfo.OccupancyBitsSize[0] + MipStreamingInfo.OccupancyBitsSize[1]);
+
+	uint32* OccupancyBits[2];
+	OccupancyBits[0] = reinterpret_cast<uint32*>(BulkData.GetData() + MipStreamingInfo.BulkOffset + MipStreamingInfo.OccupancyBitsOffset[0]);
+	OccupancyBits[1] = reinterpret_cast<uint32*>(BulkData.GetData() + MipStreamingInfo.BulkOffset + MipStreamingInfo.OccupancyBitsOffset[1]);
+
+	uint32* PrefixSums[2];
+	PrefixSums[0] = reinterpret_cast<uint32*>(BulkData.GetData() + MipStreamingInfo.BulkOffset + MipStreamingInfo.TileDataOffsetsOffset[0]);
+	PrefixSums[1] = reinterpret_cast<uint32*>(BulkData.GetData() + MipStreamingInfo.BulkOffset + MipStreamingInfo.TileDataOffsetsOffset[1]);
+
+	// Compute occupancy bitmasks and count number of non-fallback voxels per tile
+	ParallelFor(NumTiles, [&](int32 TileIndex)
+	{
+		for (int32 AttributesIdx = 0; AttributesIdx < 2; ++AttributesIdx)
+		{
+			if (Formats[AttributesIdx] != PF_Unknown)
+			{
+				PrefixSums[AttributesIdx][TileIndex] = 0;
+				for (int64 VoxelIndex = 0; VoxelIndex < SVT::NumVoxelsPerPaddedTile; ++VoxelIndex)
+				{
+					const uint8* Src = (AttributesIdx == 0 ? PhysicalTileDataA.GetData() : PhysicalTileDataB.GetData()) + FormatSize[AttributesIdx] * (TileIndex * SVT::NumVoxelsPerPaddedTile + VoxelIndex);
+					bool bIsFallbackValue = FMemory::Memcmp(Src, NullTileValuesU8[AttributesIdx], FormatSize[AttributesIdx]) == 0;
+					if (!bIsFallbackValue)
+					{
+						const int64 WordIndex = TileIndex * SVT::NumOccupancyWordsPerPaddedTile + (VoxelIndex / 32);
+						OccupancyBits[AttributesIdx][WordIndex] |= 1u << (static_cast<uint32>(VoxelIndex) % 32u);
+						PrefixSums[AttributesIdx][TileIndex]++;
+					}
+				}
+			}
+		}
+	});
+
+	// Compute actual per-tile voxel data offsets (prefix sum)
+	uint32 Sums[2] = {};
+	for (int32 AttributesIdx = 0; AttributesIdx < 2; ++AttributesIdx)
+	{
+		if (Formats[AttributesIdx] != PF_Unknown)
+		{
+			for (int32 TileIndex = 0; TileIndex < NumTiles; ++TileIndex)
+			{
+				uint32 Tmp = PrefixSums[AttributesIdx][TileIndex];
+				PrefixSums[AttributesIdx][TileIndex] = Sums[AttributesIdx];
+				Sums[AttributesIdx] += Tmp;
+			}
+		}
+	}
+
+	// Allocate compacted tile data memory
+	MipStreamingInfo.TileDataOffset[0] = BulkData.Num() - MipStreamingInfo.BulkOffset;
+	MipStreamingInfo.TileDataSize[0] = Sums[0] * FormatSize[0];
+
+	MipStreamingInfo.TileDataOffset[1] = MipStreamingInfo.TileDataOffset[0] + MipStreamingInfo.TileDataSize[0];
+	MipStreamingInfo.TileDataSize[1] = Sums[1] * FormatSize[1];
+
+	BulkData.SetNum(BulkData.Num() + MipStreamingInfo.TileDataSize[0] + MipStreamingInfo.TileDataSize[1]);
+
+	// All above pointers into the BulkData are now invalid!
+
+	uint8* RelativeBulkDataPtr = BulkData.GetData() + MipStreamingInfo.BulkOffset;
+
+	uint8* DstTileData[2];
+	DstTileData[0] = RelativeBulkDataPtr + MipStreamingInfo.TileDataOffset[0];
+	DstTileData[1] = RelativeBulkDataPtr + MipStreamingInfo.TileDataOffset[1];
+
+	// Copy voxels to compacted locations
+	ParallelFor(NumTiles, [&](int32 TileIndex)
+	{
+		for (int32 AttributesIdx = 0; AttributesIdx < 2; ++AttributesIdx)
+		{
+			if (Formats[AttributesIdx] != PF_Unknown)
+			{
+				uint32 VoxelDataWriteOffset = reinterpret_cast<uint32*>(RelativeBulkDataPtr + MipStreamingInfo.TileDataOffsetsOffset[AttributesIdx])[TileIndex];
+				const uint32* TileOccupancyBits = reinterpret_cast<uint32*>(RelativeBulkDataPtr + MipStreamingInfo.OccupancyBitsOffset[AttributesIdx] + TileIndex * SVT::NumOccupancyWordsPerPaddedTile * sizeof(uint32));
+
+				for (int64 VoxelIndex = 0; VoxelIndex < SVT::NumVoxelsPerPaddedTile; ++VoxelIndex)
+				{
+					const int64 WordIndex = (VoxelIndex / 32);
+
+					if (TileOccupancyBits[WordIndex] & (1u << (static_cast<uint32>(VoxelIndex) % 32u)))
+					{
+						uint8* Dst = DstTileData[AttributesIdx] + VoxelDataWriteOffset * FormatSize[AttributesIdx];
+						const uint8* Src = (AttributesIdx == 0 ? PhysicalTileDataA.GetData() : PhysicalTileDataB.GetData()) + FormatSize[AttributesIdx] * (TileIndex * SVT::NumVoxelsPerPaddedTile + VoxelIndex);
+						FMemory::Memcpy(Dst, Src, FormatSize[AttributesIdx]);
+						++VoxelDataWriteOffset;
+					}
+				}
+			}
+		}
+	});
+}
+
+FPageTopology FResources::BuildTopology(const FTextureData& InTextureData, const TArray<uint8>& InRootData, const TArray<uint8>& InStreamableBulkData, const TArray<TMap<uint32, uint32>, TInlineAllocator<16>>& InCoordToPageIndexInMipData, const TArray<FMipLevelStreamingInfo>& InMipLevelStreamingInfo)
+{
+	FPageTopology Topology;
+
+	const int32 NumMipLevels = InMipLevelStreamingInfo.Num();
+
+	// Reserve memory and initialize the page offsets and counts for each mip level
+	{
+		Topology.MipInfo.SetNum(NumMipLevels);
+		uint32 NumInteriorPages = 0;
+		uint32 NumPages = 0;
+		for (int32 MipLevel = NumMipLevels - 1; MipLevel >= 0; --MipLevel)
+		{
+			// Page table bulk data stores 2 entries per non-zero page table entry
+			const uint32 NumPagesMip = InMipLevelStreamingInfo[MipLevel].PageTableSize / (2 * sizeof(uint32));
+			Topology.MipInfo[MipLevel].PageOffset = NumPages;
+			Topology.MipInfo[MipLevel].PageCount = NumPagesMip;
+			NumPages += NumPagesMip;
+			if (MipLevel > 0)
+			{
+				NumInteriorPages += NumPagesMip;
+			}
+		}
+		Topology.Pages.SetNumUninitialized(NumPages);
+		Topology.InteriorPageData.SetNumUninitialized(NumInteriorPages);
+	}
+
+	// Recursively build the page mip hierarchy. The order of nodes is identical to how they're stored in bulk data.
+	auto BuildHierarchy = [&](const FIntVector3& InPageTableMipResolution, int32 InMipLevel, int32 InPageX, int32 InPageY, int32 InPageZ, uint32 InParentIndex, auto& InRecursionLambda) -> uint32
+	{
+		// Load entry from dense page table. 
+		const int32 LinearPageIndex = InPageZ * (InPageTableMipResolution.X * InPageTableMipResolution.Y) + (InPageY * InPageTableMipResolution.X) + InPageX;
+		const uint32 PageTableEntry = InTextureData.MipMaps[InMipLevel].PageTable[LinearPageIndex];
+		if (!PageTableEntry)
+		{
+			return INDEX_NONE;
+		}
+
+		FPageTopology::FPage Page;
+		Page.PackedPageTableCoord = PackX11Y11Z10(InPageX, InPageY, InPageZ);
+		Page.TileIndex = PageTableEntry - 1;
+		Page.ParentIndex = InParentIndex;
+
+		// Look up index of page in sparse list of non-zero pages
+		const uint32 PageIndex = InCoordToPageIndexInMipData[InMipLevel][Page.PackedPageTableCoord] + Topology.MipInfo[InMipLevel].PageOffset;
+
+		Topology.Pages[PageIndex] = Page;
+
+		// Process any potential children
+		if (InMipLevel > 0)
+		{
+			const int32 ChildMipLevel = InMipLevel - 1;
+			const FIntVector3 ChildPageTableMipResolution = ShiftRightAndMax(InTextureData.Header.PageTableVolumeResolution, ChildMipLevel, 1);
+
+			FPageTopology::FInteriorPageData InteriorPageData;
+			for (uint32 ChildIndex = 0; ChildIndex < 8; ++ChildIndex)
+			{
+				const int32 ChildPageX = InPageX * 2 + int32((ChildIndex >> 0u) & 1u);
+				const int32 ChildPageY = InPageY * 2 + int32((ChildIndex >> 1u) & 1u);
+				const int32 ChildPageZ = InPageZ * 2 + int32((ChildIndex >> 2u) & 1u);
+				const uint32 ChildPageIndex = InRecursionLambda(ChildPageTableMipResolution, ChildMipLevel, ChildPageX, ChildPageY, ChildPageZ, PageIndex, InRecursionLambda);
+				InteriorPageData.ChildIndices[ChildIndex] = ChildPageIndex;
+			}
+
+			Topology.InteriorPageData[PageIndex] = InteriorPageData;
+		}
+
+		return PageIndex;
+	};
+
+	BuildHierarchy(FIntVector3::ZeroValue, NumMipLevels - 1, 0, 0, 0, INDEX_NONE, BuildHierarchy);
+
+	// Validate
+	{
+#if DO_CHECK
+		for (int32 MipLevel = NumMipLevels - 1; MipLevel >= 0; --MipLevel)
+		{
+			const int32 NumPageTableEntries = (InMipLevelStreamingInfo[MipLevel].PageTableSize / (sizeof(uint32) * 2));
+			check(Topology.MipInfo[MipLevel].PageCount == NumPageTableEntries); // PageCount in topology must match number of pages in compressed bulk data
+			const bool bIsHighestMipLevel = MipLevel == (NumMipLevels - 1);
+			check(!bIsHighestMipLevel || NumPageTableEntries <= 1); // Highest mip has a maximum of 1 page
+			const TArray<uint8>& BulkData = bIsHighestMipLevel ? InRootData : InStreamableBulkData;
+			const uint32* PackedCoords = reinterpret_cast<const uint32*>(BulkData.GetData() + InMipLevelStreamingInfo[MipLevel].BulkOffset + InMipLevelStreamingInfo[MipLevel].PageTableOffset);
+			const uint32* PageEntries = PackedCoords + NumPageTableEntries;
+
+			const FIntVector3 PageTableRes = ShiftRightAndMax(InTextureData.Header.PageTableVolumeResolution, MipLevel, 1);
+
+			for (int32 i = 0; i < NumPageTableEntries; ++i)
+			{
+				const int32 PageIndex = Topology.MipInfo[MipLevel].PageOffset + i;
+				check(PackedCoords[i] == Topology.Pages[PageIndex].PackedPageTableCoord); // Topology stores pages in the same order as in the compressed bulk data
+				check(PageEntries[i] == Topology.Pages[PageIndex].TileIndex);
+				const int32 PageX = (PackedCoords[i] >> 0u) & 0x7FFu;
+				const int32 PageY = (PackedCoords[i] >> 11u) & 0x7FFu;
+				const int32 PageZ = (PackedCoords[i] >> 22u) & 0x3FFu;
+				const int32 LinearPageIndex = (PageZ * (PageTableRes.X * PageTableRes.Y)) + (PageY * PageTableRes.X) + PageX;
+				const uint32 PageTableEntry = InTextureData.MipMaps[MipLevel].PageTable[LinearPageIndex];
+				check(PageTableEntry != 0 && PageTableEntry != INDEX_NONE); // Unpacked page coord must map to a valid entry in the dense page table
+			}
+		}
+#endif // DO_CHECK
+	}
+
+	return Topology;
+}
+
 ////////////////////////////////////////////////////////////////////////////////////////////////
 
 void FTextureRenderResources::GetPackedUniforms(FUintVector4& OutPacked0, FUintVector4& OutPacked1) const
@@ -774,7 +934,7 @@ void FTextureRenderResources::GetPackedUniforms(FUintVector4& OutPacked0, FUintV
 	OutPacked0.X = AsUint(VolumePageResolution.X);
 	OutPacked0.Y = AsUint(VolumePageResolution.Y);
 	OutPacked0.Z = AsUint(VolumePageResolution.Z);
-	OutPacked0.W = (PageTableOffset.X & 0x7FFu) | ((PageTableOffset.Y & 0x7FFu) << 11u) | ((PageTableOffset.Z & 0x3FFu) << 22u);
+	OutPacked0.W = PackX11Y11Z10(PageTableOffset.X, PageTableOffset.Y, PageTableOffset.Z);
 	OutPacked1.X = AsUint(TileDataTexelSize.X);
 	OutPacked1.Y = AsUint(TileDataTexelSize.Y);
 	OutPacked1.Z = AsUint(TileDataTexelSize.Z);

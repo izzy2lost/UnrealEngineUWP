@@ -185,6 +185,10 @@ private:
 		int32 LowestRequestedMipLevel; // Lowest mip level that should be resident. Can be lower than LowestResidentMipLevel when streaming in new mips. Stream-out is instant, so it should never be higher.
 		int32 LowestResidentMipLevel; // Actually resident on the GPU
 		TArray<TArray<uint32>> TileAllocations; // TileAllocations[MipLevel][PhysicalTileIndex]
+		TArray<uint32> PageEntries; // Flat array of sparse page table. Reflects the current state of the GPU page table
+		TBitArray<> ResidentPages; //  One bit for every (non-zero) page (in the sparse page octree) for all mip levels, starting at the highest mip
+		TBitArray<> ResidentPagesNew; // Reflects changes made during an update of the streaming system
+		TBitArray<> InvalidatedPages; // All pages that need updated page table entries
 		FTextureRHIRef PageTableTextureRHIRef;
 	};
 
@@ -284,8 +288,6 @@ private:
 		struct FPageTableTask
 		{
 			FPendingMipLevel* PendingMipLevel;
-			uint8* DstPageCoords;
-			uint8* DstPageEntries;
 			const uint8* SrcPageCoords;
 			const uint8* SrcPageEntries;
 			int32 NumPageTableUpdates;
@@ -340,6 +342,7 @@ private:
 	TArray<FStreamingRequest> ParentRequestsToAdd;
 	TSet<FTileDataTexture*> TileDataTexturesToUpdate;
 	TSet<FStreamingInfo*> SVTsWithInvalidatedStreamingInfoBuffer; // Changes in the lowest resident mip level cause invalidation
+	TSet<FFrameInfo*> InvalidatedSVTFrames; // Set of SVT frames where pages have been streamed in or out. Used in PatchPageTable().
 	TArray<FStreamingRequest> PrioritizedRequestsHeap;
 	TArray<FStreamingRequest> SelectedRequests;
 	TArray<FPageTableClear> PageTableClears;
@@ -356,6 +359,7 @@ private:
 	void StreamOutMipLevel(FStreamingInfo* SVTInfo, FLRUNode* LRUNode);
 	int32 DetermineReadyMipLevels();
 	void InstallReadyMipLevels();
+	void PatchPageTable(FRDGBuilder& GraphBuilder); // Patches the page table to reflect streamed in/out pages and to ensure non-resident mip levels fall back to coarser mip level tile data
 	FStreamingInfo* FindStreamingInfo(UStreamableSparseVolumeTexture* Key); // Returns nullptr if the key can't be found
 
 #if WITH_EDITORONLY_DATA
