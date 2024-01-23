@@ -14,8 +14,8 @@ struct FBodyInstance;
 struct FConstraintInstance;
 class FEvent;
 
-extern ANIMGRAPHRUNTIME_API TAutoConsoleVariable<int32> CVarEnableRigidBodyNode;
-extern ANIMGRAPHRUNTIME_API TAutoConsoleVariable<int32> CVarEnableRigidBodyNodeServer;
+extern ANIMGRAPHRUNTIME_API bool bEnableRigidBodyNode;
+extern ANIMGRAPHRUNTIME_API FAutoConsoleVariableRef CVarEnableRigidBodyNode;
 extern ANIMGRAPHRUNTIME_API TAutoConsoleVariable<int32> CVarEnableRigidBodyNodeSimulation;
 extern ANIMGRAPHRUNTIME_API TAutoConsoleVariable<int32> CVarRigidBodyLODThreshold;
 
@@ -186,9 +186,6 @@ struct FAnimNode_RigidBody : public FAnimNode_SkeletalControlBase
 	void SetOverridePhysicsAsset(UPhysicsAsset* PhysicsAsset);
 
 	UPhysicsAsset* GetPhysicsAsset() const { return UsePhysicsAsset; }
-
-	// Used to check if whether p.RigidBodyNode or p.RigidBodyNodeServer is enabled.
-	ANIMGRAPHRUNTIME_API static bool IsEnableRigidBodyNodeCVarEnabled(const UAnimInstance* InAnimInstance);
 
 public:
 	/** Physics asset to use. If empty use the skeletal mesh's default physics asset in case Default To Skeletal Mesh Physics Asset is set to True. */
