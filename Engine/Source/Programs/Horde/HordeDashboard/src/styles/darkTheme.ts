@@ -237,6 +237,9 @@ export const darkTheme = createTheme({
                         },
                         "*::-webkit-scrollbar-thumb": {
                             background: hordeDarkTheme.scrollbarThumbColor
+                        },
+                        "*::-webkit-scrollbar-corner": {
+                            background: hordeDarkTheme.scrollbarTrackColor
                         }
 
                     }

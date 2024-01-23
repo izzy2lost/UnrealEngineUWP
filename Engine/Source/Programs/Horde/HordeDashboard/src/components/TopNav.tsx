@@ -470,6 +470,15 @@ export const TopNav: React.FC<{ suppressServer?: boolean }> = observer(({ suppre
             link: `/automation`
          });
       }
+
+      if (dashboard.telemetryViews.length) {
+         automatonItems.push({
+            key: "admin_telemetry",
+            text: "Telemetry",
+            link: `/telemetry`
+         });
+      }
+
       if (automatonItems.length) {
          subItems.push({
             itemType: ContextualMenuItemType.Section,

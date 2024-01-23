@@ -102,6 +102,7 @@ registerIcons({
       "FlowReview": IconContents.FLOW_REVIEW,
       "FastForward": IconContents.FAST_FORWARD,
       "Play": IconContents.PLAY,
+      "Maximize" : IconContents.MAXIMIZE,
       "Star": IconContents.STAR
    }
 });

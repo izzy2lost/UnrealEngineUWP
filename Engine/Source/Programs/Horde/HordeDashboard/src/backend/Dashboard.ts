@@ -2,7 +2,7 @@
 
 import { action, makeObservable, observable } from 'mobx';
 import backend from '.';
-import { DashboardPreference, GetDashboardAgentCategoryResponse, GetDashboardConfigResponse, GetJobTemplateSettingsResponse, GetUserResponse, UserClaim } from './Api';
+import { DashboardPreference, GetDashboardAgentCategoryResponse, GetDashboardConfigResponse, GetJobTemplateSettingsResponse, GetTelemetryViewResponse, GetUserResponse, UserClaim } from './Api';
 
 export enum StatusColor {
     Success,
@@ -537,7 +537,7 @@ export class Dashboard {
                     this.config = await backend.getDashboardConfig();
                 } catch (reason) {
                     console.error("Error getting dashboard config, defaults used: " + reason);
-                    this.config = { agentCategories: []};
+                    this.config = { agentCategories: [], telemetryViews: []};
                 }
             }
 
@@ -641,6 +641,13 @@ export class Dashboard {
 
     get user(): GetUserResponse {
         return this.data;
+    }
+
+    get telemetryViews(): GetTelemetryViewResponse[] {
+        if (!this.config?.telemetryViews) {
+            return [];
+        }
+        return this.config?.telemetryViews;
     }
 
     private async postPreferences(reload?: boolean): Promise<boolean> {
