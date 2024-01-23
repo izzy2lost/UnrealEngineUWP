@@ -9,16 +9,6 @@
 ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 // Hair control points
 
-// Hair control point layout
-// [                  uint2                   ]
-// [      x     ][              y             ]
-// [   32bits   ][           32bits           ]
-// [  16 ][  16 ][ 16  ][   8  ][   6  ][  2  ]
-// [ 0-15][16-32][ 0-15][ 16-23][ 24-29][30-31]
-// [Pos.x][Pos.y][Pos.z][CoordU][Radius][ Type]
-#define FPackedHairPosition uint2
-#define FPackedHairPositionStrideInBytes 8u
-
 FPackedHairPosition ReadPackedHairPosition(ByteAddressBuffer InBuffer, uint InPointIndex)
 {
 	return InBuffer.Load2(InPointIndex * FPackedHairPositionStrideInBytes);

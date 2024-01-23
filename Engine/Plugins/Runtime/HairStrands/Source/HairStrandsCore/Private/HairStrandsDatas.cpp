@@ -552,14 +552,18 @@ void FHairStrandsBulkData::SerializeHeader(FArchive& Ar, UObject* Owner)
 
 	Ar << Header.Strides.PositionStride;
 	Ar << Header.Strides.CurveStride;
-
 	Ar << Header.Strides.PointToCurveChunkStride;
-	Ar << Header.Strides.PointToCurveChunkElementCount;
-
 	Ar << Header.Strides.CurveAttributeChunkStride;
 	Ar << Header.Strides.PointAttributeChunkStride;
+	Ar << Header.Strides.TranscodedPositionChunkStride;
+
+	Ar << Header.Strides.PointToCurveChunkElementCount;
 	Ar << Header.Strides.CurveAttributeChunkElementCount;
 	Ar << Header.Strides.PointAttributeChunkElementCount;
+	Ar << Header.Strides.TranscodedPositionChunkElementCount;
+
+	Ar << Header.Transcoding.PositionOffset;
+	Ar << Header.Transcoding.PositionScale;
 }
 
 void FHairStrandsBulkData::GetResourceVersion(FArchive& Ar) const
@@ -592,17 +596,25 @@ void FHairStrandsBulkData::GetResources(FHairStrandsBulkCommon::FQuery& Out)
 	const uint32 PointAttributeSize = GetPointAttributeSizeInBytes(PointCount);
 	const uint32 CurveAttributeSize = GetCurveAttributeSizeInBytes(CurveCount);
 	const uint32 PointToCurveIndexSize = GetPointToCurveSizeInBytes(PointCount);
+	const uint32 TranscodedPositionSize = GetTranscodedPositionSizeInBytes(PointCount);
 
 	if (!!(Header.Flags & DataFlags_HasData))
 	{
-		Out.Add(Data.Positions, 			TEXT("_Positions"), 		Data.Positions.LoadedSize, 		PointCount * Header.Strides.PositionStride);
-		Out.Add(Data.CurveAttributes, 		TEXT("_CurveAttributes"), 	Data.CurveAttributes.LoadedSize,CurveAttributeSize);
+		if (!!(Header.Flags & DataFlags_HasTranscodedPosition))
+		{
+			Out.Add(Data.TranscodedPositions,TEXT("_TranscodedPositions"), 	Data.TranscodedPositions.LoadedSize,TranscodedPositionSize);
+		}
+		else
+		{
+			Out.Add(Data.Positions, 		TEXT("_Positions"), 			Data.Positions.LoadedSize, 			PointCount * Header.Strides.PositionStride);
+		}
+		Out.Add(Data.CurveAttributes, 		TEXT("_CurveAttributes"), 		Data.CurveAttributes.LoadedSize,	CurveAttributeSize);
 		if (Header.Flags & DataFlags_HasPointAttribute)
 		{
-			Out.Add(Data.PointAttributes, 	TEXT("_PointAttributes"), 	Data.PointAttributes.LoadedSize,PointAttributeSize);
+			Out.Add(Data.PointAttributes, 	TEXT("_PointAttributes"), 		Data.PointAttributes.LoadedSize,	PointAttributeSize);
 		}
-		Out.Add(Data.PointToCurve, 			TEXT("_PointToCurve"), 		Data.PointToCurve.LoadedSize,	PointToCurveIndexSize);
-		Out.Add(Data.Curves, 				TEXT("_Curves"), 			Data.Curves.LoadedSize, 		CurveCount * Header.Strides.CurveStride);
+		Out.Add(Data.PointToCurve, 			TEXT("_PointToCurve"), 			Data.PointToCurve.LoadedSize,		PointToCurveIndexSize);
+		Out.Add(Data.Curves, 				TEXT("_Curves"), 				Data.Curves.LoadedSize, 			CurveCount * Header.Strides.CurveStride);
 	}
 }
 
@@ -610,6 +622,7 @@ uint32 FHairStrandsBulkData::GetSize() const
 {
 	uint32 Out = 0;
 	Out += Data.Positions.GetBulkDataSize();
+	Out += Data.TranscodedPositions.GetBulkDataSize();
 	Out += Data.CurveAttributes.GetBulkDataSize();
 	Out += Data.PointAttributes.GetBulkDataSize();
 	Out += Data.PointToCurve.GetBulkDataSize();
@@ -635,6 +648,7 @@ void FHairStrandsBulkData::Reset()
 	}
 	// Deallocate memory if needed
 	Data.Positions.RemoveBulkData();
+	Data.TranscodedPositions.RemoveBulkData();
 	Data.CurveAttributes.RemoveBulkData();
 	Data.PointAttributes.RemoveBulkData();
 	Data.PointToCurve.RemoveBulkData();
@@ -642,6 +656,7 @@ void FHairStrandsBulkData::Reset()
 
 	// Reset the bulk byte buffer to ensure the (serialize) data size is reset to 0
 	Data.Positions 		= FHairBulkContainer();
+	Data.TranscodedPositions= FHairBulkContainer();
 	Data.CurveAttributes= FHairBulkContainer();
 	Data.PointAttributes= FHairBulkContainer();
 	Data.PointToCurve	= FHairBulkContainer();
@@ -651,6 +666,7 @@ void FHairStrandsBulkData::Reset()
 void FHairStrandsBulkData::ResetLoadedSize()
 {
 	Data.Positions.LoadedSize		= 0;
+	Data.TranscodedPositions.LoadedSize		= 0;
 	Data.CurveAttributes.LoadedSize	= 0;
 	Data.PointAttributes.LoadedSize	= 0;
 	Data.PointToCurve.LoadedSize	= 0;

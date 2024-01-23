@@ -87,7 +87,8 @@ struct HAIRSTRANDSCORE_API FGroomBuilder
 	static void BuildBulkData(
 		const FHairGroupInfo& InInfo,
 		const FHairStrandsDatas& InData,
-		FHairStrandsBulkData& OutBulkData);
+		FHairStrandsBulkData& OutBulkData,
+		bool bAllowCompression);
 
 	// 4. Build interplation data based on the hairStrands data
 	static void BuildInterplationData(

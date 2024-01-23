@@ -22,6 +22,9 @@ DEFINE_LOG_CATEGORY_STATIC(LogGroomBuilder, Log, All);
 
 #define LOCTEXT_NAMESPACE "GroomBuilder"
 
+/////////////////////////////////////////////////////////////////////////////////////////
+// CVars
+
 // For debug purpose
 static float GHairInterpolationMetric_Distance = 1;
 static float GHairInterpolationMetric_Angle = 0;
@@ -38,9 +41,17 @@ static FAutoConsoleVariableRef CVarHairClusterBuilder_MaxVoxelResolution(TEXT("r
 static int32 GHairGroupIndexBuilder_MaxVoxelResolution = 64;
 static FAutoConsoleVariableRef CVarHairGroupIndexBuilder_MaxVoxelResolution(TEXT("r.HairStrands.HairGroupBuilder.MaxVoxelResolution"), GHairGroupIndexBuilder_MaxVoxelResolution, TEXT("Max voxel resolution used when voxelizing hair strands to transfer group index grom strands to cards. This avoids too long building time (default:64).  "));
 
+/////////////////////////////////////////////////////////////////////////////////////////
+// Forward declaration
+
+bool DoesHairStrandsSupportCompressedPosition();
+
+/////////////////////////////////////////////////////////////////////////////////////////
+// Helpers
+
 FString FGroomBuilder::GetVersion()
 {
-	return TEXT("v12c");
+	return TEXT("v13_Dummy10");
 }
 
 // For debug purpose
@@ -53,6 +64,9 @@ void ReportSize(const TCHAR* InName, const TArray<T>& In)
 	UE_LOG(LogGroomBuilder, Log, TEXT("Size: %10d Kbytes - Num: %8d - Name: %s"), TotalKBytes, In.Num(), InName);
 #endif
 }
+
+/////////////////////////////////////////////////////////////////////////////////////////
+// Build functions
 
 namespace FHairStrandsDecimation
 {
@@ -168,7 +182,7 @@ namespace HairStrandsBuilder
 	}
 
 	/** Build the bulk/packed datas for gpu rendering/simulation */
-	void BuildBulkData(const FHairStrandsDatas& HairStrands, const TArray<uint8>& RandomSeeds, FHairStrandsBulkData& OutBulkData)
+	void BuildBulkData(const FHairStrandsDatas& HairStrands, const TArray<uint8>& RandomSeeds, FHairStrandsBulkData& OutBulkData, bool bAllowTranscoding)
 	{
 		TRACE_CPUPROFILER_EVENT_SCOPE(HairStrandsBuilder::BuildBulkData);
 
@@ -229,6 +243,7 @@ namespace HairStrandsBuilder
 		const float MaxRadius = GetHairStrandsMaxRadius(HairStrands);
 
 		static_assert(sizeof(FPackedHairVertex) == sizeof(FPackedHairVertex::BulkType));
+		static_assert(sizeof(FPackedHairVertex) == FPackedHairPositionStrideInBytes);
 		static_assert(sizeof(FPackedHairVertex) == 8u);
 
 		uint32 MinPointPerCurve = HAIR_MAX_NUM_POINT_PER_CURVE;
@@ -401,6 +416,138 @@ namespace HairStrandsBuilder
 				Curve.PointOffset = FMath::Min(uint32(IndexOffset), HAIR_MAX_NUM_POINT_PER_GROUP);
 			}
 		}
+		
+		// Transcoded positions (optional)
+		const FVector3f TranscodingPositionOffset = -HairStrands.BoundingBox.GetExtent();
+		const FVector3f TranscodingPositionScale  =  HairStrands.BoundingBox.GetExtent() * 2.f;
+		const uint32 TranscodedPositionChunkElementCount = 3u;
+		const uint32 TranscodedPositionChunkStride = sizeof(FTranscodedHairPositions);
+		TArray<FTranscodedHairPositions> OutTranscodedPositions;
+		if (DoesHairStrandsSupportCompressedPosition() && bAllowTranscoding)
+		{
+			bool bHasTranscodedPositions = false;
+			static_assert(sizeof(FTranscodedHairPositions) == 16u);
+			static_assert(sizeof(FTranscodedHairPositions) == FCompressedHairPositionsStrideInBytes);
+
+			auto To10bitsPosition = [TranscodingPositionOffset, TranscodingPositionScale](const FHairStrandsPositionFormat::Type& In, bool& bIsResconstructionErrorLowerThanThreshold)
+			{
+				const FVector3f PF = FVector3f(In.X, In.Y, In.Z);
+				const FVector3f NP = (PF - TranscodingPositionOffset) / TranscodingPositionScale;
+
+				const float bPrecisionError = 0.001f;
+				check(NP.X >= 0-bPrecisionError && NP.X <= 1+bPrecisionError); 
+				check(NP.Y >= 0-bPrecisionError && NP.Y <= 1+bPrecisionError); 
+				check(NP.Z >= 0-bPrecisionError && NP.Z <= 1+bPrecisionError); 
+
+				FTranscodedHairPositions::FPosition Out;
+				Out.X 	= NP.X * 1023.f;
+				Out.Y 	= NP.Y * 1023.f;
+				Out.Z 	= NP.Z * 1023.f;
+				Out.Type= In.Type;
+
+				// Relative error
+				{
+					const FVector3f ReconstructedNP = FVector3f(Out.X / 1023.f, Out.Y / 1023.f, Out.Z / 1023.f);
+					const float fMaxError = (ReconstructedNP - NP).GetAbsMax();
+
+					const float ErrorThreshold = 0.01f; // 1%
+					const bool bIsValid = fMaxError <= ErrorThreshold;
+					if (!bIsValid) { bIsResconstructionErrorLowerThanThreshold = false; }
+				}
+
+				// Absolute error
+				#if 0
+				{
+					const FVector3f ReconstructedPF = FVector3f(Out.X / 1023.f, Out.Y / 1023.f, Out.Z / 1023.f) * TranscodingPositionScale + TranscodingPositionOffset;
+					const float fMaxError = (ReconstructedPF - PF).GetAbsMax();
+
+					const float ErrorThreshold = 0.1f; // 1mm
+					const bool bIsValid = fMaxError <= ErrorThreshold;
+					if (!bIsValid) { bIsResconstructionErrorLowerThanThreshold = false; }
+				}
+				#endif
+
+				return Out;
+			};
+
+			const FHairStrandsPositionFormat::Type DummInPoint = {0,0,0,0,0,0};
+			const FTranscodedHairPositions::FPosition DummyOutPoint = {0,0,0,0};
+			const uint32 TranscodedPositionChunkCount = FMath::DivideAndRoundUp(uint32(OutPackedPositions.Num()), TranscodedPositionChunkElementCount);
+			OutTranscodedPositions.SetNum(TranscodedPositionChunkCount);
+			for (uint32 ChunkIt=0;ChunkIt<TranscodedPositionChunkCount;++ChunkIt)
+			{
+				static_assert(TranscodedPositionChunkElementCount == 3u);
+				const uint32 I0 = ChunkIt * TranscodedPositionChunkElementCount + 0;
+				const uint32 I1 = ChunkIt * TranscodedPositionChunkElementCount + 1;
+				const uint32 I2 = ChunkIt * TranscodedPositionChunkElementCount + 2;
+	
+				const FHairStrandsPositionFormat::Type P0 = OutPackedPositions.IsValidIndex(I0) ? OutPackedPositions[I0] : DummInPoint;
+				const FHairStrandsPositionFormat::Type P1 = OutPackedPositions.IsValidIndex(I1) ? OutPackedPositions[I1] : DummInPoint;
+				const FHairStrandsPositionFormat::Type P2 = OutPackedPositions.IsValidIndex(I2) ? OutPackedPositions[I2] : DummInPoint;
+	
+				bool bCanUseCompressedPosition = true;
+				FTranscodedHairPositions Out;
+				Out.CP0 = OutPackedPositions.IsValidIndex(I0) ? To10bitsPosition(P0, bCanUseCompressedPosition) : DummyOutPoint;
+				Out.CP1 = OutPackedPositions.IsValidIndex(I1) ? To10bitsPosition(P1, bCanUseCompressedPosition) : DummyOutPoint;
+				Out.CP2 = OutPackedPositions.IsValidIndex(I2) ? To10bitsPosition(P2, bCanUseCompressedPosition) : DummyOutPoint;
+
+				if (!bCanUseCompressedPosition)
+				{
+					OutTranscodedPositions.SetNum(0);
+					break;
+				}
+
+				const float UCoord0 = P0.UCoord / 255.f;
+				const float UCoord1 = P1.UCoord / 255.f;
+				const float UCoord2 = P2.UCoord / 255.f;
+
+				const bool bInnerCurve = P0.Type == 0 && P1.Type == 0 && P2.Type == 0;
+				if (bInnerCurve)
+				{
+					// Radius
+					Out.Attribute0.Radius0 = P0.Radius;
+					Out.Attribute0.Radius1 = P1.Radius;
+					Out.Attribute0.Radius2 = P2.Radius;	
+
+					// UCoord
+					Out.Attribute0.UCoord0 = UCoord0 * 63.f; // 6 bits
+					Out.Attribute0.UCoord2 = UCoord2 * 63.f; // 6 bits
+					Out.Attribute0.Interp  = float(UCoord1 - UCoord0) / FMath::Max(0.001f, UCoord2 - UCoord0) * 3.f; // 2 bits
+				}
+				else
+				{
+					// Radius
+					Out.Attribute1.Radius0 = P0.Radius;
+					Out.Attribute1.Radius1 = P1.Radius;
+					Out.Attribute1.Radius2 = P2.Radius;
+
+					// UCoord
+					bool bFirst = true;
+					switch (P0.Type)
+					{
+						case HAIR_CONTROLPOINT_START : /* = 0*/ break;
+						case HAIR_CONTROLPOINT_INSIDE: bFirst ? Out.Attribute1.UCoord0 = UCoord0 * 127u: Out.Attribute1.UCoord1 = UCoord0 * 127u; bFirst = false; break;
+						case HAIR_CONTROLPOINT_END   : /* = 1*/ break;
+					}
+
+					switch (P1.Type)
+					{
+						case HAIR_CONTROLPOINT_START : /* = 0*/ break;
+						case HAIR_CONTROLPOINT_INSIDE: bFirst ? Out.Attribute1.UCoord0 = UCoord1 * 127u: Out.Attribute1.UCoord1 = UCoord1 * 127u; bFirst = false; break;
+						case HAIR_CONTROLPOINT_END   : /* = 1*/ break;
+					}
+
+					switch (P2.Type)
+					{
+						case HAIR_CONTROLPOINT_START : /* = 0*/ break;
+						case HAIR_CONTROLPOINT_INSIDE: bFirst ? Out.Attribute1.UCoord0 = UCoord2 * 127u: Out.Attribute1.UCoord1 = UCoord2 * 127u; bFirst = false; break;
+						case HAIR_CONTROLPOINT_END   : /* = 1*/ break;
+					}
+				}
+
+				OutTranscodedPositions[ChunkIt] = Out;
+			}
+		}
 
 		OutBulkData.Header.BoundingBox.Min = (FVector)HairStrands.BoundingBox.Min;
 		OutBulkData.Header.BoundingBox.Max = (FVector)HairStrands.BoundingBox.Max;
@@ -415,6 +562,17 @@ namespace HairStrandsBuilder
 		OutBulkData.Header.Flags = FHairStrandsBulkData::DataFlags_HasData;
 		OutBulkData.Header.ImportedAttributes = HairStrands.GetAttributes();
 		OutBulkData.Header.ImportedAttributeFlags = HairStrands.GetAttributeFlags();
+		OutBulkData.Header.Transcoding.PositionOffset = FVector3f::ZeroVector;
+		OutBulkData.Header.Transcoding.PositionScale = FVector3f::ZeroVector;
+
+		// Transcoding
+		const bool bHasTranscodedPosition = OutTranscodedPositions.Num() > 0;
+		if (bHasTranscodedPosition)
+		{
+			OutBulkData.Header.Flags |= FHairStrandsBulkData::DataFlags_HasTranscodedPosition;
+			OutBulkData.Header.Transcoding.PositionOffset = TranscodingPositionOffset;
+			OutBulkData.Header.Transcoding.PositionScale = TranscodingPositionScale;
+		}
 
 		const uint32 UintToByte = 4;
 
@@ -578,8 +736,17 @@ namespace HairStrandsBuilder
 			}
 		}
 
-		CopyToBulkData<FHairStrandsPositionFormat>(OutBulkData.Data.Positions, OutPackedPositions);
-		ReportSize(TEXT("Positions"), OutPackedPositions);
+		if (bHasTranscodedPosition)
+		{
+			CopyToBulkData<FHairStrandsTranscodedPositionFormat>(OutBulkData.Data.TranscodedPositions, OutTranscodedPositions);
+			ReportSize(TEXT("Positions"), OutTranscodedPositions);
+		}
+		else
+		{
+			CopyToBulkData<FHairStrandsPositionFormat>(OutBulkData.Data.Positions, OutPackedPositions);
+			ReportSize(TEXT("Positions"), OutPackedPositions);
+		}
+
 		CopyToBulkData<FHairStrandsCurveFormat>(OutBulkData.Data.Curves, OutPackedCurves);
 		ReportSize(TEXT("PackedCurves"), OutPackedCurves);
 		CopyToBulkData<FHairStrandsPointToCurveFormat>(OutBulkData.Data.PointToCurve, OutPointToCurve);
@@ -604,12 +771,15 @@ namespace HairStrandsBuilder
 
 		OutBulkData.Header.Strides.CurveAttributeChunkElementCount = CurveAttributeChunkElementCount;
 		OutBulkData.Header.Strides.PointAttributeChunkElementCount = PointAttributeChunkElementCount;
+
+		OutBulkData.Header.Strides.TranscodedPositionChunkElementCount = TranscodedPositionChunkElementCount;
+		OutBulkData.Header.Strides.TranscodedPositionChunkStride = sizeof(FTranscodedHairPositions);
 	}
 
-	void BuildBulkData(const FHairStrandsDatas& HairStrands, FHairStrandsBulkData& OutBulkData)
+	void BuildBulkData(const FHairStrandsDatas& HairStrands, FHairStrandsBulkData& OutBulkData, bool bAllowTranscoding)
 	{
 		TArray<uint8> RandomSeeds;
-		BuildBulkData(HairStrands, RandomSeeds, OutBulkData);
+		BuildBulkData(HairStrands, RandomSeeds, OutBulkData, bAllowTranscoding);
 	}
 
 } // namespace HairStrandsBuilder
@@ -2206,7 +2376,8 @@ void FGroomBuilder::BuildData(
 void FGroomBuilder::BuildBulkData(
 	const FHairGroupInfo& InInfo,
 	const FHairStrandsDatas& InData,
-	FHairStrandsBulkData& OutBulkData)
+	FHairStrandsBulkData& OutBulkData, 
+	bool bAllowTranscoding)
 {
 	OutBulkData.Reset();
 
@@ -2219,7 +2390,7 @@ void FGroomBuilder::BuildBulkData(
 	{
 		CurveSeeds[Index] = Random.RandHelper(255);
 	}
-	HairStrandsBuilder::BuildBulkData(InData, CurveSeeds, OutBulkData);
+	HairStrandsBuilder::BuildBulkData(InData, CurveSeeds, OutBulkData, bAllowTranscoding);
 }
 
 void FGroomBuilder::BuildInterplationData(

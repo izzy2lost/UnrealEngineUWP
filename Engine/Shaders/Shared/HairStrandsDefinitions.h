@@ -119,3 +119,25 @@ FORCEINLINE bool HasHairFlags(uint32 In, uint32 Flags)
 {
 	return (In & Flags) != 0;
 }
+
+///////////////////////////////////////////////////////////////////////////////////////////////////
+// Types
+
+// Hair control point layout
+// [                  uint2                   ]
+// [      x     ][              y             ]
+// [   32bits   ][           32bits           ]
+// [  16 ][  16 ][ 16  ][   8  ][   6  ][  2  ]
+// [ 0-15][16-32][ 0-15][ 16-23][ 24-29][30-31]
+// [Pos.x][Pos.y][Pos.z][CoordU][Radius][ Type]
+#define FPackedHairPosition uint2
+#define FPackedHairPositionStrideInBytes 8u
+
+// Compressed Hair control point layout - Packed 4 points per 16-bytes
+// [                            uint4                                 ]
+// [Position0+Type][Position1+Type][Position2+Type][ Radius012|CoordU ]
+// [   32bits     ][   32bits     ][   32bits     ][      32bits      ]
+// [10][10][10][ 2][10][10][10][ 2][10][10][10][ 2][ 6][ 6][ 6][ 7][ 7]
+#define FCompressedHairPositions uint4
+#define FCompressedHairPositionsStrideInBytes 16u
+#define HAIR_POINT_COUNT_PER_COMPRESSED_POSITION_CHUNK 3

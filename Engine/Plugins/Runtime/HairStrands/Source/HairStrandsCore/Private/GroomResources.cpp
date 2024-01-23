@@ -24,12 +24,17 @@
 #include "UObject/ReleaseObjectVersion.h"
 #include "NiagaraSystem.h"
 #include "Async/ParallelFor.h"
+#include "Shader.h"
+#include "GlobalShader.h"
+#include "ShaderParameters.h"
+#include "ShaderParameterStruct.h"
 #include "RenderGraph.h"
 #include "RenderGraphUtils.h"
 #include "RenderTargetPool.h"
 #include "RHIUtilities.h"
 #include "GroomBindingBuilder.h"
 #include "GroomRBFDeformer.h"
+#include "UnifiedBuffer.h"
 #if WITH_EDITORONLY_DATA
 #include "Containers/StringView.h"
 #include "DerivedDataCache.h"
@@ -60,9 +65,9 @@ bool ValidateHairBulkData()
 	return GHairStrandsBulkData_Validation > 0;
 }
 
-static void ConvertToExternalBufferWithViews(FRDGBuilder& GraphBuilder, FRDGBufferRef& InBuffer, FRDGExternalBuffer& OutBuffer, EPixelFormat Format = PF_Unknown)
+static void CreateExternalBufferViews(FRDGBuilder& GraphBuilder, FRDGBufferRef& InBuffer, FRDGExternalBuffer& OutBuffer, EPixelFormat Format = PF_Unknown)
 {
-	OutBuffer.Buffer = GraphBuilder.ConvertToExternalBuffer(InBuffer);
+	check(OutBuffer.Buffer);
 	if (EnumHasAnyFlags(InBuffer->Desc.Usage, BUF_ShaderResource))
 	{
 		OutBuffer.SRV = OutBuffer.Buffer->GetOrCreateSRV(GraphBuilder.RHICmdList, FRDGBufferSRVDesc(InBuffer, Format));
@@ -72,6 +77,12 @@ static void ConvertToExternalBufferWithViews(FRDGBuilder& GraphBuilder, FRDGBuff
 		OutBuffer.UAV = OutBuffer.Buffer->GetOrCreateUAV(GraphBuilder.RHICmdList, FRDGBufferUAVDesc(InBuffer, Format));
 	}
 	OutBuffer.Format = Format;
+}
+
+static void ConvertToExternalBufferWithViews(FRDGBuilder& GraphBuilder, FRDGBufferRef& InBuffer, FRDGExternalBuffer& OutBuffer, EPixelFormat Format = PF_Unknown)
+{
+	OutBuffer.Buffer = GraphBuilder.ConvertToExternalBuffer(InBuffer);
+	CreateExternalBufferViews(GraphBuilder, InBuffer, OutBuffer, Format);
 }
 
 ////////////////////////////////////////////////////////////////////////////////////
@@ -247,16 +258,107 @@ FRDGBufferRef InternalCreateStructuredBufferRDG_FromBulkData(FRDGBuilder& GraphB
 	return InternalCreateBufferRDG_FromBulkData(GraphBuilder, InBulkData, Out, PF_Unknown, Desc, DebugName, OwnerName);
 }
 
-FRDGBufferRef InternalCreateByteAddressBufferRDG_FromBulkData(FRDGBuilder& GraphBuilder, FByteBulkData& InBulkData, FRDGExternalBuffer& Out, const TCHAR* DebugName, const FName& OwnerName, EHairResourceUsageType UsageType)
-{
-	const FRDGBufferDesc Desc = ApplyUsage(FRDGBufferDesc::CreateByteAddressDesc(InBulkData.GetBulkDataSize()), UsageType);
-	return InternalCreateBufferRDG_FromBulkData(GraphBuilder, InBulkData, Out, PF_Unknown, Desc, DebugName, OwnerName);
-}
-
-
 ///////////////////////////////////////////////////////////////////////////////////////////////////
 // HairBulkData loading
 
+
+///////////////////////////////////////////////////////////////////////////////////////////////////
+class FHairTranscodeCS : public FGlobalShader
+{
+	DECLARE_GLOBAL_SHADER(FHairTranscodeCS);
+	SHADER_USE_PARAMETER_STRUCT(FHairTranscodeCS, FGlobalShader);
+
+	class FTranscoding : SHADER_PERMUTATION_BOOL("PERMUTATION_TRANSCODING");
+	using FPermutationDomain = TShaderPermutationDomain<FTranscoding>;
+
+	BEGIN_SHADER_PARAMETER_STRUCT(FParameters, )
+		SHADER_PARAMETER(uint32, OffsetInBytes)
+		SHADER_PARAMETER(uint32, DataSizeInBytes)
+		SHADER_PARAMETER(uint32, TotalSizeInBytes)
+
+		SHADER_PARAMETER(uint32, UncompressedOffsetInBytes)
+		SHADER_PARAMETER(uint32, UncompressedTotalSizeInBytes)
+
+		SHADER_PARAMETER(FVector3f, PositionScale)
+		SHADER_PARAMETER(FVector3f, PositionOffset)
+
+		SHADER_PARAMETER_RDG_BUFFER_SRV(ByteAddressBuffer, InBuffer)
+		SHADER_PARAMETER_RDG_BUFFER_UAV(RWByteAddressBuffer, OutBuffer)
+	END_SHADER_PARAMETER_STRUCT()
+
+public:
+	static uint32 GetGroupSize() { return 1024u; }
+	static bool ShouldCompilePermutation(const FGlobalShaderPermutationParameters& Parameters) { return IsHairStrandsSupported(EHairStrandsShaderType::All, Parameters.Platform); }
+	static void ModifyCompilationEnvironment(const FGlobalShaderPermutationParameters& Parameters, FShaderCompilerEnvironment& OutEnvironment)
+	{
+		FGlobalShader::ModifyCompilationEnvironment(Parameters, OutEnvironment);
+		OutEnvironment.SetDefine(TEXT("SHADER_TRANSCODE"), 1);
+		OutEnvironment.SetDefine(TEXT("GROUP_SIZE"), GetGroupSize());
+	}
+};
+
+IMPLEMENT_GLOBAL_SHADER(FHairTranscodeCS, "/Engine/Private/HairStrands/HairStrandsTranscode.usf", "MainCS", SF_Compute);
+
+struct FHairTranscoding
+{
+	bool bEnabled = false;
+	FVector3f PositionOffset = FVector3f::ZeroVector;
+	FVector3f PositionScale = FVector3f::ZeroVector;
+
+	uint32 UncompressedTotalSizeInBytes = 0;
+	uint32 UncompressedOffsetInBytes = 0;
+};
+
+static void AddTranscodePass(
+	FRDGBuilder& GraphBuilder,
+	uint32 InOffsetInBytes,
+	uint32 InNewDataSizeInSize,
+	uint32 InTotalSizeInBytes,
+	FRDGBufferRef In,
+	FRDGBufferRef Out,
+	const FHairTranscoding& InTranscoding)
+{
+	const FGlobalShaderMap* ShaderMap = GetGlobalShaderMap(GMaxRHIFeatureLevel);
+
+	FHairTranscodeCS::FParameters* Parameters = GraphBuilder.AllocParameters<FHairTranscodeCS::FParameters>();
+	Parameters->TotalSizeInBytes = InTotalSizeInBytes;
+	Parameters->DataSizeInBytes = InNewDataSizeInSize;
+	Parameters->OffsetInBytes = InOffsetInBytes;
+	Parameters->InBuffer = GraphBuilder.CreateSRV(In);
+	Parameters->OutBuffer = GraphBuilder.CreateUAV(Out);
+
+	// Transcoding parameters
+	Parameters->UncompressedTotalSizeInBytes = InTranscoding.UncompressedTotalSizeInBytes;
+	Parameters->UncompressedOffsetInBytes = InTranscoding.UncompressedOffsetInBytes;
+	Parameters->PositionScale = InTranscoding.PositionScale;
+	Parameters->PositionOffset = InTranscoding.PositionOffset;
+
+	// Data needs to be 4-bytes aligned
+	check((Parameters->DataSizeInBytes & 0x3) == 0);
+	check((Parameters->OffsetInBytes & 0x3) == 0);
+
+	const uint32 Byte4Count  = Parameters->DataSizeInBytes >> 2u;
+	const uint32 Byte16Count = Parameters->DataSizeInBytes >> 4u;
+	const FIntVector DispatchGroupCount = InTranscoding.bEnabled ? 
+		FComputeShaderUtils::GetGroupCount(Byte16Count, FHairTranscodeCS::GetGroupSize()): 
+		FComputeShaderUtils::GetGroupCount(Byte4Count,  FHairTranscodeCS::GetGroupSize());
+
+	const FShaderParametersMetadata* ParametersMetadata = FHairTranscodeCS::FParameters::FTypeInfo::GetStructMetadata();
+
+	FHairTranscodeCS::FPermutationDomain PermutationVector;
+	PermutationVector.Set<FHairTranscodeCS::FTranscoding>(InTranscoding.bEnabled ? 1u : 0u);
+
+	TShaderMapRef<FHairTranscodeCS> ComputeShader(ShaderMap, PermutationVector);
+	ClearUnusedGraphResources(ComputeShader, ParametersMetadata, Parameters);
+	FComputeShaderUtils::AddPass(
+		GraphBuilder,
+		RDG_EVENT_NAME("HairStrands::Transcode(Transcoding:%d)", InTranscoding.bEnabled ? 1u: 0u),
+		ComputeShader,
+		Parameters,
+		DispatchGroupCount);
+}
+
+// Used for Buffer and StructuredBuffer
 static FRDGBufferRef InternalCreateBufferRDG_FromHairBulkData(FRDGBuilder& GraphBuilder, FHairBulkContainer& InData, const FRDGBufferRef& In, const FRDGBufferDesc& BufferDesc, const FRDGBufferDesc& UploadDesc, const TCHAR* DebugName, const FName& OwnerName)
 {
 	check(InData.ChunkRequest);
@@ -275,6 +377,7 @@ static FRDGBufferRef InternalCreateBufferRDG_FromHairBulkData(FRDGBuilder& Graph
 		FRDGBufferDesc NewBufferDesc = BufferDesc;
 		NewBufferDesc.Usage |= EBufferUsageFlags::UnorderedAccess;
 		FRDGBufferRef Out = GraphBuilder.CreateBuffer(NewBufferDesc, DebugName, ERDGBufferFlags::MultiFrame);
+		Out->SetOwnerName(OwnerName);
 
 		// 2. Copy existing data from the old buffer to the new buffer
 		check (Out->Desc.GetSize() <= In->Desc.GetSize());
@@ -286,6 +389,7 @@ static FRDGBufferRef InternalCreateBufferRDG_FromHairBulkData(FRDGBuilder& Graph
 		check(BufferDesc.GetSize() >= UploadDesc.GetSize());
 
 		FRDGBufferRef Out = GraphBuilder.CreateBuffer(BufferDesc, DebugName, ERDGBufferFlags::MultiFrame);
+		Out->SetOwnerName(OwnerName);
 		GraphBuilder.QueueBufferUpload(Out, InChunk.GetData(), InChunk.Size, ERDGInitialDataFlags::None);
 		InChunk.Release();
 		return Out;
@@ -300,7 +404,8 @@ static FRDGBufferRef InternalCreateBufferRDG_FromHairBulkData(FRDGBuilder& Graph
 			FRDGBufferDesc NewBufferDesc = BufferDesc;
 			NewBufferDesc.Usage |= EBufferUsageFlags::UnorderedAccess;
 			Out = GraphBuilder.CreateBuffer(NewBufferDesc, DebugName, ERDGBufferFlags::MultiFrame);
-	
+			Out->SetOwnerName(OwnerName);
+
 			// 1.2 Copy existing data from the old buffer to the new buffer
 			AddCopyBufferPass(GraphBuilder, Out, 0, In, 0, In->Desc.GetSize());
 		}
@@ -367,25 +472,87 @@ FRDGBufferRef InternalCreateStructuredBufferRDG_FromHairBulkData(FRDGBuilder& Gr
 	return nullptr;
 }
 
-FRDGBufferRef InternalCreateByteAddressBufferRDG_FromHairBulkData(FRDGBuilder& GraphBuilder, FHairBulkContainer& InChunk, FRDGExternalBuffer& Out, const TCHAR* DebugName, const FName& OwnerName, EHairResourceUsageType UsageType)
+FRDGBufferRef InternalCreateByteAddressBufferRDG_FromHairBulkData(FRDGBuilder& GraphBuilder, FHairBulkContainer& InHairBulkContainer, FRDGExternalBuffer& OutExternal, const TCHAR* DebugName, const FName& OwnerName, EHairResourceUsageType UsageType, FHairTranscoding InTranscoding = FHairTranscoding())
 {
-	// Fallback for non-streamble resources (e.g. guides)
-	if (InChunk.ChunkRequest == nullptr)
-	{
-		return InternalCreateByteAddressBufferRDG_FromBulkData(GraphBuilder, InChunk.Data, Out, DebugName, OwnerName, UsageType);
-	}
+	FHairStreamingRequest::FChunk* Chunk = InHairBulkContainer.ChunkRequest;
+	FByteBulkData* BulkData = &InHairBulkContainer.Data;
 
-	const FRDGBufferRef In = Out.Buffer ? Register(GraphBuilder, Out, ERDGImportedBufferFlags::None).Buffer : nullptr;
-	const FRDGBufferDesc BufferDesc = ApplyUsage(FRDGBufferDesc::CreateByteAddressDesc(InChunk.ChunkRequest->TotalSize), UsageType);
-	const FRDGBufferDesc UploadDesc = ApplyUsage(FRDGBufferDesc::CreateByteAddressDesc(InChunk.ChunkRequest->Size), UsageType);
-	if (BufferDesc.GetSize() == 0) 	{ Out.Buffer = nullptr; return nullptr; }
-	if (UploadDesc.GetSize()==0) 	{ return nullptr; }
-	if (FRDGBufferRef Buffer = InternalCreateBufferRDG_FromHairBulkData(GraphBuilder, InChunk, In, BufferDesc, UploadDesc, DebugName, OwnerName))
+	// Fallback for non-streamble resources (e.g. guides, cards guides, ...)
+	if (Chunk == nullptr)
 	{
-		ConvertToExternalBufferWithViews(GraphBuilder, Buffer, Out);
-		return Buffer;
+		const FRDGBufferDesc Desc = ApplyUsage(FRDGBufferDesc::CreateByteAddressDesc(BulkData->GetBulkDataSize()), UsageType);
+		//return InternalCreateBufferRDG_FromBulkData(GraphBuilder, LocalBulkData, Out, PF_Unknown, Desc, DebugName, OwnerName);
+		InternalSetBulkDataFlags(*BulkData);
+
+		const uint32 DataSizeInBytes = Desc.GetSize();
+		check(BulkData->GetBulkDataSize() >= DataSizeInBytes);
+		if (DataSizeInBytes == 0)
+		{
+			OutExternal.Buffer = nullptr;
+			return nullptr;
+		}
+	
+		const uint8* Data = (const uint8*)BulkData->Lock(LOCK_READ_ONLY);
+		FRDGBufferRef OutBuffer = GraphBuilder.CreateBuffer(Desc, DebugName, ERDGBufferFlags::MultiFrame);
+		OutBuffer->SetOwnerName(OwnerName);
+		if (Data && DataSizeInBytes)
+		{
+			#if !WITH_EDITORONLY_DATA
+			if (ReleaseAfterUse())
+			{
+				GraphBuilder.QueueBufferUpload(OutBuffer, Data, DataSizeInBytes, [BulkData](const void* Ptr) { BulkData->Unlock(); });
+			}
+			else
+			#endif
+			{
+				GraphBuilder.QueueBufferUpload(OutBuffer, Data, DataSizeInBytes, ERDGInitialDataFlags::None);  // Copy data internally
+				BulkData->Unlock();
+			}
+		}
+		ConvertToExternalBufferWithViews(GraphBuilder, OutBuffer, OutExternal, PF_Unknown);
+		return OutBuffer;
 	}
-	return nullptr;
+	else // Streamable resources
+	{
+		// Size of the final buffer, after decompression if any
+		const uint32 BufferTotalSizeInBytes = InTranscoding.bEnabled ? InTranscoding.UncompressedTotalSizeInBytes : Chunk->TotalSize;
+		const FRDGBufferRef In = OutExternal.Buffer ? Register(GraphBuilder, OutExternal, ERDGImportedBufferFlags::None).Buffer : nullptr;
+		const FRDGBufferDesc BufferDesc = ApplyUsage(FRDGBufferDesc::CreateByteAddressDesc(BufferTotalSizeInBytes), UsageType);
+		const FRDGBufferDesc UploadDesc = ApplyUsage(FRDGBufferDesc::CreateByteAddressDesc(Chunk->Size), UsageType);
+
+		if (BufferDesc.GetSize()==0) { OutExternal.Buffer = nullptr; return nullptr; }
+		if (UploadDesc.GetSize()==0) { return nullptr; }
+	
+		const bool bDeallocate  = In != nullptr && Chunk->Status == FHairStreamingRequest::FChunk::EStatus::Unloading;
+		const bool bUploadData	= Chunk->Size > 0;
+	
+		// If no shrink, no create, no append, no action needed
+		if (!bDeallocate && !bUploadData)
+		{
+			return nullptr;
+		}
+	
+		// 1. Resize buffer to fit the new required size (shrink/increase)
+		// Ensure the buffer is 16 bytes aligned for resources copy during resizing
+		const uint32 TotalSizeInBytes = FMath::DivideAndRoundUp(BufferDesc.NumElements * BufferDesc.BytesPerElement, 16u) * 16u;
+		FRDGBufferRef OutBuffer = ResizeByteAddressBufferIfNeeded(GraphBuilder, OutExternal.Buffer, TotalSizeInBytes, DebugName);
+		OutBuffer->SetOwnerName(OwnerName);
+		CreateExternalBufferViews(GraphBuilder, OutBuffer, OutExternal, PF_Unknown);
+	
+		// 2. Append data
+		if (!bDeallocate && bUploadData)
+		{
+			// 2.1 Upload new data
+			FRDGBufferRef UploadBuffer = GraphBuilder.CreateBuffer(UploadDesc, DebugName, ERDGBufferFlags::MultiFrame);
+			UploadBuffer->SetOwnerName(OwnerName);
+			GraphBuilder.QueueBufferUpload(UploadBuffer, Chunk->GetData(), Chunk->Size, ERDGInitialDataFlags::None); // Copy data internally
+			Chunk->Release();
+	
+			// 2.2 Append new data to the new/existing buffer
+			AddTranscodePass(GraphBuilder, Chunk->Offset, Chunk->Size, Chunk->TotalSize, UploadBuffer, OutBuffer, InTranscoding);
+		}
+		return OutBuffer;
+	}
 }
 
 ///////////////////////////////////////////////////////////////////////////////////////////////////
@@ -1027,7 +1194,37 @@ void FHairStrandsRestResource::InternalAllocate(FRDGBuilder& GraphBuilder)
 
 	// 1. Lock data, which force the loading data from files (on non-editor build/cooked data). These data are then uploaded to the GPU
 	// 2. A local copy is done by the buffer uploader. This copy is discarded once the uploading is done.
-	InternalCreateByteAddressBufferRDG_FromHairBulkData(GraphBuilder, BulkData.Data.Positions, PositionBuffer, ToHairResourceDebugName(HAIRSTRANDS_RESOUCE_NAME(CurveType, Hair.StrandsRest_PositionBuffer), ResourceName), OwnerName, EHairResourceUsageType::Static);
+	const bool bTranscodedPosition = !!(BulkData.Header.Flags & FHairStrandsBulkData::EDataFlags::DataFlags_HasTranscodedPosition);
+	if (bTranscodedPosition)
+	{
+		FHairTranscoding PositionTranscoding;
+		PositionTranscoding.bEnabled						= true;
+		PositionTranscoding.PositionOffset 					= BulkData.Header.Transcoding.PositionOffset;
+		PositionTranscoding.PositionScale 					= BulkData.Header.Transcoding.PositionScale;
+		PositionTranscoding.UncompressedOffsetInBytes 		= 0;
+		PositionTranscoding.UncompressedTotalSizeInBytes 	= 0;
+
+		if (BulkData.Data.TranscodedPositions.ChunkRequest)
+		{
+			// Compressed data stored into chunk data
+			const uint32 CompressedDataOffsetBytes = BulkData.Data.TranscodedPositions.ChunkRequest->Offset;
+			const uint32 CompressedDataSizeInBytes = BulkData.Data.TranscodedPositions.ChunkRequest->TotalSize;
+
+			// Number of compressed chunks
+			const uint32 CompressedChunkCount_Offset = (CompressedDataOffsetBytes / FCompressedHairPositionsStrideInBytes);
+			const uint32 CompressedChunkCount_Total  = (CompressedDataSizeInBytes / FCompressedHairPositionsStrideInBytes);
+
+			// Uncompressed size/offset, i.e., size and offset of the final data (faster transcoding)
+			PositionTranscoding.UncompressedOffsetInBytes 		= CompressedChunkCount_Offset * HAIR_POINT_COUNT_PER_COMPRESSED_POSITION_CHUNK * FPackedHairPositionStrideInBytes;
+			PositionTranscoding.UncompressedTotalSizeInBytes 	= CompressedChunkCount_Total  * HAIR_POINT_COUNT_PER_COMPRESSED_POSITION_CHUNK * FPackedHairPositionStrideInBytes;
+		}
+
+		InternalCreateByteAddressBufferRDG_FromHairBulkData(GraphBuilder, BulkData.Data.TranscodedPositions, PositionBuffer, ToHairResourceDebugName(HAIRSTRANDS_RESOUCE_NAME(CurveType, Hair.StrandsRest_PositionBuffer), ResourceName), OwnerName, EHairResourceUsageType::Static, PositionTranscoding);
+	}
+	else
+	{
+		InternalCreateByteAddressBufferRDG_FromHairBulkData(GraphBuilder, BulkData.Data.Positions, PositionBuffer, ToHairResourceDebugName(HAIRSTRANDS_RESOUCE_NAME(CurveType, Hair.StrandsRest_PositionBuffer), ResourceName), OwnerName, EHairResourceUsageType::Static);
+	}
 	InternalCreateByteAddressBufferRDG_FromHairBulkData(GraphBuilder, BulkData.Data.CurveAttributes, CurveAttributeBuffer, ToHairResourceDebugName(HAIRSTRANDS_RESOUCE_NAME(CurveType, Hair.StrandsRest_CurveAttributeBuffer), ResourceName), OwnerName, EHairResourceUsageType::Static);
 	if (!!(BulkData.Header.Flags & FHairStrandsBulkData::DataFlags_HasPointAttribute))
 	{

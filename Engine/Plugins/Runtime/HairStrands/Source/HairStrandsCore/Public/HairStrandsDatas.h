@@ -45,6 +45,49 @@ struct FPackedHairVertex
 	uint8 Type : 2;
 };
 
+struct FTranscodedHairPositions
+{
+	typedef FUintVector4 BulkType;
+
+	struct FPosition
+	{
+		uint32 X    : 10;
+		uint32 Y    : 10;
+		uint32 Z    : 10;
+		uint32 Type : 2;
+	};
+
+	struct FAttributePacking0
+	{
+		uint32 Radius0 : 6;
+		uint32 Radius1 : 6;
+		uint32 Radius2 : 6;
+
+		uint32 UCoord0 : 6;
+		uint32 UCoord2 : 6;
+		uint32 Interp  : 2;
+	};
+
+	struct FAttributePacking1
+	{
+		uint32 Radius0 : 6;
+		uint32 Radius1 : 6;
+		uint32 Radius2 : 6;
+
+		uint32 UCoord0 : 7;
+		uint32 UCoord1 : 7;
+	};
+
+	FPosition CP0;
+	FPosition CP1;
+	FPosition CP2;
+	union
+	{
+		FAttributePacking0 Attribute0;
+		FAttributePacking1 Attribute1;
+	};
+};
+
 struct FPackedHairAttribute0Vertex
 {
 	typedef uint16 BulkType;
@@ -69,6 +112,16 @@ struct FVector4_16
 	FFloat16 W;
 }; 
 FArchive& operator<<(FArchive& Ar, FVector4_16& Vertex);
+
+struct FHairStrandsTranscodedPositionFormat
+{
+	typedef FTranscodedHairPositions Type;
+	typedef FTranscodedHairPositions::BulkType BulkType;
+	static const uint32 ComponentCount = 1;
+	static const uint32 SizeInByte = sizeof(Type);
+	static const EVertexElementType VertexElementType = VET_UShort4;
+	static const EPixelFormat Format = PF_Unknown;
+};
 
 struct FHairStrandsPositionFormat
 {
@@ -554,8 +607,9 @@ struct HAIRSTRANDSCORE_API FHairStrandsBulkData : FHairStrandsBulkCommon
 {
 	enum EDataFlags
 	{
-		DataFlags_HasData = 1,				// Contains valid data. Otherwise: Position, Attributes, ... are all empty
-		DataFlags_HasPointAttribute = 2,	// Contains point attribute data.
+		DataFlags_HasData = 0x1u,				// Contains valid data. Otherwise: Position, Attributes, ... are all empty
+		DataFlags_HasPointAttribute = 0x2,		// Contains point attribute data.
+		DataFlags_HasTranscodedPosition = 0x4u,	// Contains transcoded position
 	};
 
 	virtual void SerializeHeader(FArchive& Ar, UObject* Owner) override;
@@ -575,9 +629,10 @@ struct HAIRSTRANDSCORE_API FHairStrandsBulkData : FHairStrandsBulkCommon
 	const FBox& GetBounds() const { return Header.BoundingBox; }
 	uint32 GetSize() const;
 
-	uint32 GetCurveAttributeSizeInBytes(uint32 InCurveCount=HAIR_MAX_NUM_CURVE_PER_GROUP) const	{ return InCurveCount > 0 ? FMath::DivideAndRoundUp(FMath::Min(Header.CurveCount, InCurveCount), Header.Strides.CurveAttributeChunkElementCount) * Header.Strides.CurveAttributeChunkStride : 0; }
-	uint32 GetPointAttributeSizeInBytes(uint32 InPointCount=HAIR_MAX_NUM_POINT_PER_GROUP) const	{ return InPointCount > 0 ? FMath::DivideAndRoundUp(FMath::Min(Header.PointCount, InPointCount), Header.Strides.PointAttributeChunkElementCount) * Header.Strides.PointAttributeChunkStride : 0; }
-	uint32 GetPointToCurveSizeInBytes(uint32 InPointCount=HAIR_MAX_NUM_POINT_PER_GROUP) const	{ return InPointCount > 0 ? FMath::DivideAndRoundUp(FMath::Min(Header.PointCount, InPointCount), Header.Strides.PointToCurveChunkElementCount)   * Header.Strides.PointToCurveChunkStride   : 0; }
+	uint32 GetCurveAttributeSizeInBytes(uint32 InCurveCount=HAIR_MAX_NUM_CURVE_PER_GROUP) const			{ return InCurveCount > 0 ? FMath::DivideAndRoundUp(FMath::Min(Header.CurveCount, InCurveCount), Header.Strides.CurveAttributeChunkElementCount) * Header.Strides.CurveAttributeChunkStride : 0; }
+	uint32 GetPointAttributeSizeInBytes(uint32 InPointCount=HAIR_MAX_NUM_POINT_PER_GROUP) const			{ return InPointCount > 0 ? FMath::DivideAndRoundUp(FMath::Min(Header.PointCount, InPointCount), Header.Strides.PointAttributeChunkElementCount) * Header.Strides.PointAttributeChunkStride : 0; }
+	uint32 GetPointToCurveSizeInBytes(uint32 InPointCount=HAIR_MAX_NUM_POINT_PER_GROUP) const			{ return InPointCount > 0 ? FMath::DivideAndRoundUp(FMath::Min(Header.PointCount, InPointCount), Header.Strides.PointToCurveChunkElementCount)   * Header.Strides.PointToCurveChunkStride   : 0; }
+	uint32 GetTranscodedPositionSizeInBytes(uint32 InPointCount = HAIR_MAX_NUM_POINT_PER_GROUP) const 	{ return InPointCount > 0 ? FMath::DivideAndRoundUp(FMath::Min(Header.PointCount, InPointCount), Header.Strides.TranscodedPositionChunkElementCount) * Header.Strides.TranscodedPositionChunkStride : 0; }
 
 	struct FHeader
 	{
@@ -600,6 +655,13 @@ struct HAIRSTRANDSCORE_API FHairStrandsBulkData : FHairStrandsBulkCommon
 		// Map 'curve' count to 'point' count (used for CLOD)
 		TArray<uint32> CurveToPointCount;
 
+		// Data transcoding parameters
+		struct FTranscoding
+		{
+			FVector3f PositionOffset = FVector3f::OneVector;
+			FVector3f PositionScale = FVector3f::OneVector;
+		} Transcoding;
+
 		// Data strides
 		struct FStrides
 		{
@@ -608,21 +670,24 @@ struct HAIRSTRANDSCORE_API FHairStrandsBulkData : FHairStrandsBulkCommon
 			uint32 PointToCurveChunkStride = 0;
 			uint32 CurveAttributeChunkStride = 0;
 			uint32 PointAttributeChunkStride = 0;
+			uint32 TranscodedPositionChunkStride = 0;
 
 			// Number of element per chunk block
 			uint32 PointToCurveChunkElementCount = 0;
 			uint32 CurveAttributeChunkElementCount = 0;
 			uint32 PointAttributeChunkElementCount = 0;
+			uint32 TranscodedPositionChunkElementCount = 0;
 		} Strides;
 	} Header;
 
 	struct FData
 	{
-		FHairBulkContainer Positions;		// Size = PointCount
-		FHairBulkContainer CurveAttributes;	// Size = y*CurveCount (depends on the per-curve stored attributes)
-		FHairBulkContainer PointAttributes;	// Size = x*PointCount (depends on the per-point stored attributes)
-		FHairBulkContainer PointToCurve; 	// Size = PointCount
-		FHairBulkContainer Curves;			// Size = CurveCount
+		FHairBulkContainer Positions;			// Size = PointCount
+		FHairBulkContainer TranscodedPositions;	// Size = PointCount / TranscodedPositionChunkElementCount (=3)
+		FHairBulkContainer CurveAttributes;		// Size = y*CurveCount (depends on the per-curve stored attributes)
+		FHairBulkContainer PointAttributes;		// Size = x*PointCount (depends on the per-point stored attributes)
+		FHairBulkContainer PointToCurve; 		// Size = PointCount
+		FHairBulkContainer Curves;				// Size = CurveCount
 	} Data;
 };
 

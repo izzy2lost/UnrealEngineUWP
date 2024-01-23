@@ -85,6 +85,14 @@ static TAutoConsoleVariable<int32> GHairStrandsWarningLogVerbosity(
 static int32 GHairStrandsDDCLogEnable = 0;
 static FAutoConsoleVariableRef CVarHairStrandsDDCLogEnable(TEXT("r.HairStrands.DDCLog"), GHairStrandsDDCLogEnable, TEXT("Enable DDC logging for groom assets and groom binding assets"));
 
+static int32 GHairStrandsSupportCompressedPosition = 1;
+static FAutoConsoleVariableRef CVarHairStrandsSupportCompressedPosition(TEXT("r.HairStrands.CompressedPosition"), GHairStrandsSupportCompressedPosition, TEXT("Optional compessed position"), ECVF_ReadOnly);
+
+bool DoesHairStrandsSupportCompressedPosition()
+{
+	return GHairStrandsSupportCompressedPosition > 0;
+}
+
 bool IsHairStrandsDDCLogEnable()
 {
 	return GHairStrandsDDCLogEnable > 0;
@@ -528,8 +536,8 @@ static bool BuildHairGroup_Strands(
 		FHairStrandsDatas GuidesData;
 		FGroomBuilder::BuildData(HairGroup, InHairGroupsInterpolation[GroupIndex], OutHairGroupsInfo[GroupIndex], StrandsData, GuidesData);
 
-		FGroomBuilder::BuildBulkData(HairGroup.Info, GuidesData, OutHairGroupsData[GroupIndex].Guides.BulkData);
-		FGroomBuilder::BuildBulkData(HairGroup.Info, StrandsData, OutHairGroupsData[GroupIndex].Strands.BulkData);
+		FGroomBuilder::BuildBulkData(HairGroup.Info, GuidesData, OutHairGroupsData[GroupIndex].Guides.BulkData, false /*bAllowCompression*/);
+		FGroomBuilder::BuildBulkData(HairGroup.Info, StrandsData, OutHairGroupsData[GroupIndex].Strands.BulkData, true /*bAllowCompression*/);
 
 		// If there is no simulation or no global interpolation on that group there is no need for builder the interpolation data
 		if (bNeedInterpolationData)
@@ -2063,9 +2071,12 @@ namespace GroomDerivedDataCacheUtils
 
 	void SerializeHairInterpolationSettingsForDDC(FArchive& Ar, uint32 GroupIndex, FHairGroupsInterpolation& InterpolationSettings, FHairGroupsLOD& LODSettings, bool bRequireInterpolationData)
 	{
+		bool bSupportCompressedPosition = DoesHairStrandsSupportCompressedPosition();
+
 		// Note: this serializer is only used to build the groom DDC key, no versioning is required
 		Ar << GroupIndex;
 		Ar << bRequireInterpolationData;
+		Ar << bSupportCompressedPosition;
 
 		InterpolationSettings.BuildDDCKey(Ar);
 		LODSettings.BuildDDCKey(Ar);
@@ -2888,7 +2899,7 @@ bool UGroomAsset::BuildHairGroup_Cards(uint32 GroupIndex)
 
 				// 1. Build data & bulk data for the cards guides
 				FGroomBuilder::BuildData(LODGuidesData);
-				FGroomBuilder::BuildBulkData(DummyGroupInfo, LODGuidesData, LOD.GuideBulkData);
+				FGroomBuilder::BuildBulkData(DummyGroupInfo, LODGuidesData, LOD.GuideBulkData, false /*bAllowCompression*/);
 
 				// 2. (Re)Build data for the sim guides (since there are transient/no-cached)
 				const FHairDescriptionGroups& LocalHairDescriptionGroups = GetHairDescriptionGroups();
