@@ -74,9 +74,9 @@
 #include "Insights/Widgets/STimingProfilerWindow.h"
 #include "Insights/Widgets/STimingViewTrackList.h"
 #include "Insights/Widgets/SQuickFind.h"
+#include "Insights/ViewModels/ThreadTrackEvent.h"
 
 #include <limits>
-
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 
@@ -2190,6 +2190,11 @@ FReply STimingView::OnMouseButtonUp(const FGeometry& MyGeometry, const FPointerE
 				SelectHoveredTimingTrack();
 				SelectHoveredTimingEvent();
 
+				if (MouseEvent.GetModifierKeys().IsShiftDown())
+				{
+					ToggleGraphSeries(HoveredEvent);
+				}
+
 				// When clicking on an empty space...
 				if (!SelectedEvent.IsValid())
 				{
@@ -3459,7 +3464,7 @@ void STimingView::SelectTimeInterval(double IntervalStartTime, double IntervalDu
 	SelectionStartTime = IntervalStartTime;
 	SelectionEndTime = IntervalStartTime + IntervalDuration;
 
-	if (GetFrameTypeToSnapTo() != ETraceFrameType::TraceFrameType_Count)
+	if (GetFrameTypeToSnapTo() != ETraceFrameType::TraceFrameType_Count && IsInTimingProfiler())
 	{
 		SnapToFrameBound(SelectionStartTime, SelectionEndTime);
 	}
@@ -3890,6 +3895,18 @@ void STimingView::SelectTimingEvent(const TSharedPtr<const ITimingEvent> InEvent
 		}
 
 		OnSelectedTimingEventChanged();
+	}
+}
+
+////////////////////////////////////////////////////////////////////////////////////////////////////
+
+void STimingView::ToggleGraphSeries(const TSharedPtr<const ITimingEvent> InEvent)
+{
+	if(InEvent.Get() && InEvent.Get()->Is<FThreadTrackEvent>() && IsInTimingProfiler())
+	{
+		const FThreadTrackEvent& TrackEvent = InEvent.Get()->As<FThreadTrackEvent>();
+
+		FTimingProfilerManager::Get()->ToggleTimingViewMainGraphEventSeries(TrackEvent.GetTimerId());
 	}
 }
 
@@ -5419,6 +5436,13 @@ void STimingView::UpdateFilters()
 	{
 		FilterConfigurator->Update();
 	}
+}
+
+////////////////////////////////////////////////////////////////////////////////////////////////////
+
+bool STimingView::IsInTimingProfiler()
+{
+	return GetName() == FInsightsManagerTabs::TimingProfilerTabId;
 }
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////

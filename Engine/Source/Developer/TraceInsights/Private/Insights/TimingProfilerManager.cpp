@@ -516,6 +516,22 @@ void FTimingProfilerManager::SetSelectedTimer(uint32 InTimerId)
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 
+void FTimingProfilerManager::ToggleTimingViewMainGraphEventSeries(uint32 InTimerId)
+{
+	FTimerNodePtr NodePtr = GetTimerNode(InTimerId);
+	TSharedPtr<STimingProfilerWindow> Wnd = GetProfilerWindow();
+	if (Wnd && NodePtr)
+	{
+		TSharedPtr<STimersView> TimersView = Wnd->GetTimersView();
+		if (TimersView)
+		{
+			TimersView->ToggleTimingViewMainGraphEventSeries(NodePtr);
+		}
+	}
+}
+
+////////////////////////////////////////////////////////////////////////////////////////////////////
+
 void FTimingProfilerManager::OnThreadFilterChanged()
 {
 	UpdateCallersAndCallees();

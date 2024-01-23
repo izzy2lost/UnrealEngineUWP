@@ -372,6 +372,7 @@ public:
 
 	void SelectTimingTrack(const TSharedPtr<FBaseTimingTrack> InTrack, bool bBringTrackIntoView);
 	void SelectTimingEvent(const TSharedPtr<const ITimingEvent> InEvent, bool bBringEventIntoViewHorizontally, bool bBringEventIntoViewVertically = false);
+	void ToggleGraphSeries(const TSharedPtr<const ITimingEvent> InEvent);
 
 	const TSharedPtr<ITimingEventFilter> GetEventFilter() const { return TimingEventFilter; }
 	void SetEventFilter(const TSharedPtr<ITimingEventFilter> InEventFilter);
@@ -531,6 +532,8 @@ protected:
 	* and the timer list can change. 
 	 */ 
 	void UpdateFilters();
+
+	bool IsInTimingProfiler();
 
 protected:
 	/** The name of the view. */

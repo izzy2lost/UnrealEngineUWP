@@ -93,6 +93,8 @@ public:
 
 	void OnTimingViewTrackListChanged();
 
+	void ToggleTimingViewMainGraphEventSeries(FTimerNodePtr TimerNode) const;
+
 private:
 	void InitCommandList();
 
@@ -317,9 +319,9 @@ private:
 	TSharedPtr<FTimingGraphTrack> GetTimingViewMainGraphTrack() const;
 	TSharedPtr<SFrameTrack> GetFrameTrack() const;
 
-	void ToggleGraphSeries(TSharedRef<FTimingGraphTrack> GraphTrack, FTimerNodeRef NodePtr) const;
-	bool IsSeriesInTimingViewMainGraph(FTimerNodePtr TimerNode) const;
-	void ToggleTimingViewMainGraphEventSeries(FTimerNodePtr TimerNode) const;
+	void ToggleGraphInstanceSeries(TSharedRef<FTimingGraphTrack> GraphTrack, FTimerNodeRef NodePtr) const;
+	bool IsInstanceSeriesInTimingViewMainGraph(FTimerNodePtr TimerNode) const;
+	void ToggleTimingViewMainGraphEventInstanceSeries(FTimerNodePtr TimerNode) const;
 
 	void ToggleGraphFrameStatsSeries(TSharedRef<FTimingGraphTrack> GraphTrack, FTimerNodeRef NodePtr, ETraceFrameType FrameType) const;
 	bool IsFrameStatsSeriesInTimingViewMainGraph(FTimerNodePtr TimerNode, ETraceFrameType FrameType) const;

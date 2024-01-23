@@ -845,7 +845,7 @@ void STimersView::TreeView_BuildPlotTimerMenu(FMenuBuilder& MenuBuilder)
 
 		if (SelectedNode.IsValid() &&
 			SelectedNode->GetType() != ETimerNodeType::Group &&
-			IsSeriesInTimingViewMainGraph(SelectedNode))
+			IsInstanceSeriesInTimingViewMainGraph(SelectedNode))
 		{
 			MenuBuilder.AddMenuEntry
 			(
@@ -1521,25 +1521,7 @@ void STimersView::TreeView_OnMouseButtonDoubleClick(FTimerNodePtr NodePtr)
 		}
 		else
 		{
-			switch (ModeFrameType)
-			{
-				case ETraceFrameType::TraceFrameType_Count:
-				{
-					// Instance graph
-					ToggleTimingViewMainGraphEventSeries(NodePtr);
-					break;
-				}
-				case ETraceFrameType::TraceFrameType_Game:
-				case ETraceFrameType::TraceFrameType_Rendering:
-				{
-					ToggleTimingViewMainGraphEventFrameStatsSeries(NodePtr, ModeFrameType);
-					break;
-				}
-				default:
-				{
-					ensure(0);
-				}
-			}
+			ToggleTimingViewMainGraphEventSeries(NodePtr);
 		}
 	}
 }
@@ -2639,7 +2621,32 @@ TSharedPtr<SFrameTrack> STimersView::GetFrameTrack() const
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 
-void STimersView::ToggleGraphSeries(TSharedRef<FTimingGraphTrack> GraphTrack, FTimerNodeRef NodePtr) const
+void STimersView::ToggleTimingViewMainGraphEventSeries(FTimerNodePtr TimerNode) const
+{
+	switch (ModeFrameType)
+	{
+	case ETraceFrameType::TraceFrameType_Count:
+	{
+		// Instance graph
+		ToggleTimingViewMainGraphEventInstanceSeries(TimerNode);
+		break;
+	}
+	case ETraceFrameType::TraceFrameType_Game:
+	case ETraceFrameType::TraceFrameType_Rendering:
+	{
+		ToggleTimingViewMainGraphEventFrameStatsSeries(TimerNode, ModeFrameType);
+		break;
+	}
+	default:
+	{
+		ensure(0);
+	}
+	}
+}
+
+////////////////////////////////////////////////////////////////////////////////////////////////////
+
+void STimersView::ToggleGraphInstanceSeries(TSharedRef<FTimingGraphTrack> GraphTrack, FTimerNodeRef NodePtr) const
 {
 	const uint32 TimerId = NodePtr->GetTimerId();
 	TSharedPtr<FTimingGraphSeries> Series = GraphTrack->GetTimerSeries(TimerId);
@@ -2661,7 +2668,7 @@ void STimersView::ToggleGraphSeries(TSharedRef<FTimingGraphTrack> GraphTrack, FT
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 
-bool STimersView::IsSeriesInTimingViewMainGraph(FTimerNodePtr TimerNode) const
+bool STimersView::IsInstanceSeriesInTimingViewMainGraph(FTimerNodePtr TimerNode) const
 {
 	TSharedPtr<FTimingGraphTrack> GraphTrack = GetTimingViewMainGraphTrack();
 
@@ -2678,12 +2685,12 @@ bool STimersView::IsSeriesInTimingViewMainGraph(FTimerNodePtr TimerNode) const
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 
-void STimersView::ToggleTimingViewMainGraphEventSeries(FTimerNodePtr TimerNode) const
+void STimersView::ToggleTimingViewMainGraphEventInstanceSeries(FTimerNodePtr TimerNode) const
 {
 	TSharedPtr<FTimingGraphTrack> GraphTrack = GetTimingViewMainGraphTrack();
 	if (GraphTrack.IsValid())
 	{
-		ToggleGraphSeries(GraphTrack.ToSharedRef(), TimerNode.ToSharedRef());
+		ToggleGraphInstanceSeries(GraphTrack.ToSharedRef(), TimerNode.ToSharedRef());
 	}
 }
 
