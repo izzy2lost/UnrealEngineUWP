@@ -12,7 +12,7 @@ namespace Horde.Server.Dashboard
 	/// <summary>
 	/// Configuration for dashboard features
 	/// </summary>
-	[JsonSchema("https://unrealengine.com/horde/telemetry")]
+	[JsonSchema("https://unrealengine.com/horde/dashboard")]
 	[JsonSchemaCatalog("Horde Dashboard", "Horde dashboard configuration file", new[] { "*.dashboard.json", "Dashboard/*.json" })]
 	[ConfigIncludeRoot]
 	public class DashboardConfig
