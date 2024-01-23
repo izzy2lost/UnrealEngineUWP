@@ -1,27 +1,33 @@
 {
-	"FileVersion" : 3,
-	
-	"FriendlyName" : "Online Subsystem Utils",
-	"Version" : 1,
-	"VersionName" : "1.0",
-	"Description" : "Shared code for interacting online service and online subsystem implementations.",
-	"Category" : "Online Platform",
-	"CreatedBy" : "Epic Games, Inc.",
-	"CreatedByURL" : "https://epicgames.com",
-	"EnabledByDefault" : true,
+	"FileVersion": 3,
 
-    "Modules": [
-        {
-            "Name": "OnlineSubsystemUtils",
-            "Type": "Runtime",
-            "LoadingPhase": "PostConfigInit"
-        },
-        {
-            "Name": "OnlineBlueprintSupport",
-            "Type": "UncookedOnly",
-            "LoadingPhase": "PostConfigInit"
-        }
-    ],
+	"FriendlyName": "Online Subsystem Utils",
+	"Version": 1,
+	"VersionName": "1.0",
+	"Description": "Shared code for interacting online service and online subsystem implementations.",
+	"Category": "Online Platform",
+	"CreatedBy": "Epic Games, Inc.",
+	"CreatedByURL": "https://epicgames.com",
+	"EnabledByDefault": true,
+
+	"Modules":
+	[
+		{
+			"Name": "OnlineSubsystemUtils",
+			"Type": "Runtime",
+			"LoadingPhase": "PostConfigInit"
+		},
+		{
+			"Name": "OnlineSubsystemUtilsTest",
+			"Type": "Editor",
+			"LoadingPhase": "PostEngineInit"
+		},
+		{
+			"Name": "OnlineBlueprintSupport",
+			"Type": "UncookedOnly",
+			"LoadingPhase": "PostConfigInit"
+		}
+	],
 	"LocalizationTargets":
 	[
 		{

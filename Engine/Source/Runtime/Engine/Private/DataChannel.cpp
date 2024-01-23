@@ -1621,6 +1621,7 @@ void UChannel::AddedToChannelPool()
 -----------------------------------------------------------------------------*/
 
 const TCHAR* FNetControlMessageInfo::Names[256];
+bool FNetControlMessageInfo::bInitialized = false;
 
 // control channel message implementation
 IMPLEMENT_CONTROL_CHANNEL_MESSAGE(Hello);
