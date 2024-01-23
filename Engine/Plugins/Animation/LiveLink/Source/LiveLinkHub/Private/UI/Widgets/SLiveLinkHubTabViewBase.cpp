@@ -86,6 +86,7 @@ void SLiveLinkHubTabViewBase::Construct(const FArguments& InArgs)
 						SNew(SSeparator)
 						.Orientation(Orient_Vertical)
 					]
+					/* Disable until we use timecode in LLH
 					+ SHorizontalBox::Slot()
 					.Padding(2.f)
                     .VAlign(VAlign_Center)
@@ -95,7 +96,7 @@ void SLiveLinkHubTabViewBase::Construct(const FArguments& InArgs)
 						{
 							return FApp::GetTimecode();
 						}))
-					]
+					]*/
 				]
 			]
 			+SVerticalBox::Slot()

@@ -81,26 +81,26 @@ struct FLiveLinkHubUEClientInfo
 	FLiveLinkHubClientId Id;
 
 	/** Full name used to identify this client. (ie.UEFN_sessionID_LDN_WSYS_9999) */
-	UPROPERTY(VisibleAnywhere, Category = "LiveLink Client")
+	UPROPERTY(VisibleAnywhere, Category = "Client Details")
    	FString LongName;
 	
 	/** Status of the client, ie. is it actively doing a take record at the moment? */
 	UPROPERTY(transient)
 	ELiveLinkClientStatus Status = ELiveLinkClientStatus::Disconnected;
 	
-	UPROPERTY(VisibleAnywhere, Category = "LiveLink Client", DisplayName = "IP Address")
+	UPROPERTY(VisibleAnywhere, Category = "Client Details", DisplayName = "IP Address")
 	FString IPAddress;
 	
 	/** Name of the host of the UE client */
-	UPROPERTY(VisibleAnywhere, Category = "LiveLink Client")
+	UPROPERTY(VisibleAnywhere, Category = "Client Details")
 	FString Hostname;
 
 	/** Name of the current project. */
-	UPROPERTY(VisibleAnywhere, Category = "LiveLink Client")
+	UPROPERTY(VisibleAnywhere, Category = "Client Details")
 	FString ProjectName;
 	
 	/** Name of the current level opened. */
-	UPROPERTY(VisibleAnywhere, Category = "LiveLink Client")
+	UPROPERTY(VisibleAnywhere, Category = "Client Details")
 	FString CurrentLevel;
 	
 	/** Subjects that should not be transmitted to this client. */

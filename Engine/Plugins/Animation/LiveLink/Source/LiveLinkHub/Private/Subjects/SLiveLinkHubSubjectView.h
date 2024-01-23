@@ -39,6 +39,7 @@ public:
 		DetailsViewArgs.ViewIdentifier = NAME_None;
 		DetailsViewArgs.bShowCustomFilterOption = false;
 		DetailsViewArgs.bShowOptions = false;
+		DetailsViewArgs.bAllowSearch = false;
 
 		FPropertyEditorModule& PropertyEditorModule = FModuleManager::GetModuleChecked<FPropertyEditorModule>("PropertyEditor");
 		FStructureDetailsViewArgs StructureDetailsArgs;

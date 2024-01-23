@@ -14,6 +14,7 @@
 #include "LiveLinkHubClientsModel.h"
 #include "LiveLinkHubUEClientInfo.h"
 #include "Session/LiveLinkHubSessionManager.h"
+#include "Styling/SlateStyleMacros.h"
 #include "Styling/SlateTypes.h"
 #include "Widgets/Input/SButton.h"
 #include "Widgets/Input/SCheckBox.h"
@@ -312,30 +313,43 @@ public:
 		[
 			SNew(SVerticalBox)
 			+ SVerticalBox::Slot()
-			.HAlign(HAlign_Right)
 			.AutoHeight()
 			[
-				SNew(SComboButton)
-				.CollapseMenuOnParentFocus(true)
-				.ButtonContent()
+				SNew(SHorizontalBox)
+				+ SHorizontalBox::Slot()
+				.HAlign(HAlign_Left)
+				.FillWidth(1.0f)
+				.Padding(FMargin(2.0f))
 				[
 					SNew(STextBlock)
-					.Text(LOCTEXT("AddClientLabel", "Add Client"))
+					.Font( DEFAULT_FONT( "Regular", 14 ) )
+					.Text(LOCTEXT("ClientsHeaderText", "Clients"))
 				]
-				.MenuContent()
+				+ SHorizontalBox::Slot()
+				.HAlign(HAlign_Right)
+				.AutoWidth()
 				[
-					SNew(SBox)
-					.HeightOverride(200.0)
-					.WidthOverride(200.0)
+					SNew(SComboButton)
+					.CollapseMenuOnParentFocus(true)
+					.ButtonContent()
 					[
-						SAssignNew(DiscoveredClientsListView, SListView<TSharedPtr<FLiveLinkHubClientId>>)
-						.ListItemsSource(&DiscoveredClients)
-						.ItemHeight(20.0f)
-						.OnSelectionChanged(this, &SLiveLinkHubClientsView::OnDiscoveredClientPicked)
-						.OnGenerateRow(this, &SLiveLinkHubClientsView::OnGenerateDiscoveredClientsRow)
+						SNew(STextBlock)
+						.Text(LOCTEXT("AddClientLabel", "Add Client"))
+					]
+					.MenuContent()
+					[
+						SNew(SBox)
+						.HeightOverride(200.0)
+						.WidthOverride(200.0)
+						[
+							SAssignNew(DiscoveredClientsListView, SListView<TSharedPtr<FLiveLinkHubClientId>>)
+							.ListItemsSource(&DiscoveredClients)
+							.ItemHeight(20.0f)
+							.OnSelectionChanged(this, &SLiveLinkHubClientsView::OnDiscoveredClientPicked)
+							.OnGenerateRow(this, &SLiveLinkHubClientsView::OnGenerateDiscoveredClientsRow)
+						]
 					]
 				]
-				
 			]
 			+ SVerticalBox::Slot()
 			.AutoHeight()

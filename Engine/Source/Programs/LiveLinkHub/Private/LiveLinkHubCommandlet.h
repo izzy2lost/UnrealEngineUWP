@@ -32,6 +32,8 @@ public:
 			AssetDataSourceModule->StartupModule();
 			PRIVATE_GIsRunningCommandlet = true;	
 		}
+
+		FModuleManager::Get().LoadModule("OutputLog");
 		
 		FModuleManager::Get().LoadModuleChecked<ILiveLinkHubModule>("LiveLinkHub").StartLiveLinkHub();
 

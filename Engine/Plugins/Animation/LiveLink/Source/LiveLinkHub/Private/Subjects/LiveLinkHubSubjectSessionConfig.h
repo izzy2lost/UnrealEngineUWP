@@ -37,15 +37,15 @@ private:
 
 private:
 	/** Name of  the subject, */
-	UPROPERTY(VisibleAnywhere, Category = "LiveLink")
+	UPROPERTY(VisibleAnywhere, Category = "Subject Details")
 	FString SubjectName;
 
 	/** Name override that will be transmitted to clients instead of the subject name. */
-	UPROPERTY(EditAnywhere, Category = "LiveLink")
+	UPROPERTY(EditAnywhere, Category = "Subject Details")
 	FString OutboundName;
 
 	/** Source that contains the subject. */
-	UPROPERTY(VisibleAnywhere, Category = "LiveLink")
+	UPROPERTY(VisibleAnywhere, Category = "Subject Details")
 	FString Source;
 
 	/** SubjectKey for this subject, */

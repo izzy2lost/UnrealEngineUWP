@@ -62,4 +62,7 @@ private:
 	TArray<TSharedRef<ILiveLinkHubComponent>> LiveLinkHubComponents;
 	/** Manages modal windows for the application. */
 	TSharedPtr<FModalWindowManager> ModalWindowManager;
+	/** Menu bar widget for the hub. */
+	TSharedPtr<class SWindowTitleBar> WindowTitleBar;
+
 };

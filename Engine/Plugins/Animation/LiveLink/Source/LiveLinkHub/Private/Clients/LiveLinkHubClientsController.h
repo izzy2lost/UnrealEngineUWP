@@ -69,6 +69,7 @@ public:
 		DetailsViewArgs.NameAreaSettings = FDetailsViewArgs::HideNameArea;
 		DetailsViewArgs.ViewIdentifier = NAME_None;
 		DetailsViewArgs.bShowOptions = false;
+		DetailsViewArgs.bAllowSearch = false;
 
 		FStructureDetailsViewArgs StructDetailsArgs;
 		StructDetailsView = PropertyEditorModule.CreateStructureDetailView(DetailsViewArgs, StructDetailsArgs, UEClientInfo);
@@ -125,7 +126,10 @@ private:
 		if (TOptional<FLiveLinkHubUEClientInfo> ClientInfo = ClientsModel->GetClientInfo(Client))
 		{
 			UEClientInfo->InitializeAs<FLiveLinkHubUEClientInfo>(*ClientInfo);
-			StructDetailsView->SetStructureData(UEClientInfo);
+			if (StructDetailsView)
+			{
+				StructDetailsView->SetStructureData(UEClientInfo);
+			}
 		}
 		else
 		{
