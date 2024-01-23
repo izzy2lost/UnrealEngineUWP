@@ -485,12 +485,10 @@ void UChaosClothAsset::Build(TArray<FChaosClothAssetLodTransitionDataCache>* InO
 	// Build simulation model
 	BuildClothSimulationModel(InOutTransitionCache);
 
-	// Rebuild LOD Model
-#if WITH_EDITORONLY_DATA
-	BuildMeshModel();
-#endif
-
 #if WITH_EDITOR
+	// Rebuild LOD Model
+	BuildMeshModel();
+
 	// Load/save render data from/to DDC
 	ExecuteBuildInternal(Context);
 #endif
@@ -553,32 +551,25 @@ void UChaosClothAsset::FinishBuildInternal(FSkinnedAssetBuildContext& Context)
 }
 #endif // #if WITH_EDITOR
 
-#if WITH_EDITORONLY_DATA
+#if WITH_EDITOR
 void UChaosClothAsset::BuildMeshModel()
 {
-	const TArray<IClothAssetBuilderClassProvider*> ClassProviders = IModularFeatures::Get().GetModularFeatureImplementations<IClothAssetBuilderClassProvider>(IClothAssetBuilderClassProvider::FeatureName);
-	if (const TSubclassOf<UClothAssetBuilder> ClothAssetBuilderClass = ClassProviders.Num() ? ClassProviders[0]->GetClothAssetBuilderClass() : nullptr)
+	using namespace UE::Chaos::ClothAsset;
+
+	const int32 NumLods = ClothCollections.Num();
+
+	// Build each LOD
+	check(MeshModel);  // MeshModel should always be created in the Cloth Asset constructor WITH_EDITORONLY_DATA
+	MeshModel->LODModels.Empty();
+
+	for (int32 LodIndex = 0; LodIndex < NumLods; ++LodIndex)
 	{
-		if (const UClothAssetBuilder* const ClothAssetBuilder = ClothAssetBuilderClass->GetDefaultObject<UClothAssetBuilder>())
-		{
-			using namespace UE::Chaos::ClothAsset;
-
-			const int32 NumLods = ClothCollections.Num();
-
-			// Build each LOD
-			check(MeshModel);  // MeshModel should always be created in the Cloth Asset constructor WITH_EDITORONLY_DATA
-			MeshModel->LODModels.Empty();
-
-			for (int32 LodIndex = 0; LodIndex < NumLods; ++LodIndex)
-			{
-				FSkeletalMeshLODModel* LODModel = new FSkeletalMeshLODModel();
-				ClothAssetBuilder->BuildLod(*LODModel, *this, LodIndex);
-				MeshModel->LODModels.Add(LODModel);
-			}
-		}
+		FSkeletalMeshLODModel* LODModel = new FSkeletalMeshLODModel();
+		FBuilder::BuildLod(*LODModel, *this, LodIndex);
+		MeshModel->LODModels.Add(LODModel);
 	}
 }
-#endif  // #if WITH_EDITORONLY_DATA
+#endif  // #if WITH_EDITOR
 
 void UChaosClothAsset::BuildClothSimulationModel(TArray<FChaosClothAssetLodTransitionDataCache>* InOutTransitionCache)
 {

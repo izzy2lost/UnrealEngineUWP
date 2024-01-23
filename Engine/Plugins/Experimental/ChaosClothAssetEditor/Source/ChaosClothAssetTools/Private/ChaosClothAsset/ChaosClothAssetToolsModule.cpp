@@ -1,6 +1,5 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
-#include "ChaosClothAsset/ClothAssetBuilderEditor.h"
 #include "Features/IModularFeatures.h"
 #include "Modules/ModuleManager.h"
 #include "ClothAssetEditorStyle.h"
@@ -9,7 +8,7 @@
 
 namespace UE::Chaos::ClothAsset
 {
-	class FChaosClothAssetToolsModule : public IModuleInterface, public IClothingAssetExporterClassProvider, public IClothAssetBuilderClassProvider
+	class FChaosClothAssetToolsModule : public IModuleInterface, public IClothingAssetExporterClassProvider
 	{
 	public:
 		// IModuleInterface implementation
@@ -21,7 +20,6 @@ namespace UE::Chaos::ClothAsset
 
 			// Register modular features
 			IModularFeatures::Get().RegisterModularFeature(IClothingAssetExporterClassProvider::FeatureName, static_cast<IClothingAssetExporterClassProvider*>(this));
-			IModularFeatures::Get().RegisterModularFeature(IClothAssetBuilderClassProvider::FeatureName, static_cast<IClothAssetBuilderClassProvider*>(this));
 		}
 
 		virtual void ShutdownModule() override
@@ -30,7 +28,6 @@ namespace UE::Chaos::ClothAsset
 			{
 				// Unregister modular features
 				IModularFeatures::Get().UnregisterModularFeature(IClothingAssetExporterClassProvider::FeatureName, static_cast<IClothingAssetExporterClassProvider*>(this));
-				IModularFeatures::Get().UnregisterModularFeature(IClothAssetBuilderClassProvider::FeatureName, static_cast<IClothAssetBuilderClassProvider*>(this));
 			}
 		}
 
@@ -38,12 +35,6 @@ namespace UE::Chaos::ClothAsset
 		virtual TSubclassOf<UClothingAssetExporter> GetClothingAssetExporterClass() const override
 		{
 			return UClothingAssetToChaosClothAssetExporter::StaticClass();
-		}
-
-		// IClothAssetBuilderClassProvider implementation
-		virtual TSubclassOf<UClothAssetBuilder> GetClothAssetBuilderClass() const override
-		{
-			return UClothAssetBuilderEditor::StaticClass();
 		}
 	};
 }

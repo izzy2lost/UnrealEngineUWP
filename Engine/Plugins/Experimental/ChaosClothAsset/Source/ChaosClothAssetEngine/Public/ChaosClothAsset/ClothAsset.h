@@ -198,7 +198,7 @@ private:
 	UE_DEPRECATED(5.3, "Use Build() instead")
 	void UpdateSkeleton(bool bRebuildClothSimulationModel = true);
 
-#if WITH_EDITORONLY_DATA
+#if WITH_EDITOR
 	/** Build the SkeletalMeshLODModel for this asset. */
 	void BuildMeshModel();
 #endif
@@ -335,5 +335,7 @@ private:
 
 #endif
 
-	friend class UClothAssetBuilderEditor;
+#if WITH_EDITOR
+	struct FBuilder;
+#endif
 };
