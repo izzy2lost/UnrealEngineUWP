@@ -105,9 +105,9 @@ void FAnimNode_StrideWarping::EvaluateSkeletalControl_AnyThread(FComponentSpaceP
 			bFoundRootMotionAttribute = true;
 #endif
 		}
-		else
+		// Early exit on missing root motion delta attribute
+		else if (bDisableIfMissingRootMotion)
 		{
-			// Early exit on missing root motion delta attribute
 			return;
 		}
 	}

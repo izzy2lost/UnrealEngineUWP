@@ -107,6 +107,10 @@ struct ANIMATIONWARPINGRUNTIME_API FAnimNode_StrideWarping : public FAnimNode_Sk
 	UPROPERTY(EditAnywhere, Category=Advanced, meta=(DisplayName="Clamp IK Using FK Limits", EditCondition="bCompensateIKUsingFKThighRotation"))
 	bool bClampIKUsingFKLimits = true;
 
+	// Do not execute stride warping if animation data has no root motion
+	UPROPERTY(EditAnywhere, Category=Advanced)
+	bool bDisableIfMissingRootMotion = true;
+
 #if WITH_EDITORONLY_DATA
 	// Scale all debug drawing visualization by a factor
 	UPROPERTY(EditAnywhere, Category=Debug, meta=(ClampMin="0.0"))
