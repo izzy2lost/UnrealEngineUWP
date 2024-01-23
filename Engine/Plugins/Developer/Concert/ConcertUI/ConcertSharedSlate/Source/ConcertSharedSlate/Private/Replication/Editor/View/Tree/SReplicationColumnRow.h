@@ -62,7 +62,12 @@ namespace UE::ConcertSharedSlate
 			ExpandableColumnLabel = InArgs._ExpandableColumnLabel;
 			RowHeight = InArgs._RowHeight;
 			
-			SMultiColumnTableRow<TSharedPtr<TListItemType>>::Construct({}, InOwner);
+			using FTableRowArgs = typename STableRow<TSharedPtr<TListItemType>>::FArguments;
+			SMultiColumnTableRow<TSharedPtr<TListItemType>>::Construct(
+				FTableRowArgs()
+				.Style(FAppStyle::Get(), "TableView.AlternatingRow"),
+				InOwner
+				);
 		}
 
 		/** Generates the widget representing this row. */

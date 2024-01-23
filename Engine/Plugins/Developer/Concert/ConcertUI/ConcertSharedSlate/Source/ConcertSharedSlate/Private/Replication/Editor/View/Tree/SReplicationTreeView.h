@@ -383,6 +383,8 @@ namespace UE::ConcertSharedSlate
 					.SelectionMode(InArgs._SelectionMode)
 					.AllowOverscroll(EAllowOverscroll::No)
 					.HeaderRow(CreateHeaderRow(InArgs))
+					// Preserve the selection when the selected item is hidden due to a parent collapsing
+					.AllowInvisibleItemSelection(true)
 				]
 
 				+SVerticalBox::Slot()
