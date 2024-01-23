@@ -117,11 +117,15 @@ void UNiagaraSummaryViewViewModel::Initialize(TSharedRef<FNiagaraEmitterViewMode
 {
 	EmitterViewModelWeak = EmitterViewModel;
 	EmitterViewModel->OnScriptGraphChanged().AddUObject(this, &UNiagaraSummaryViewViewModel::OnScriptGraphChanged);
-	EmitterViewModel->GetEmitter().Emitter->OnRenderersChanged().AddUObject(this, &UNiagaraSummaryViewViewModel::OnRenderersChanged);
-	EmitterViewModel->GetEmitter().Emitter->OnSimStagesChanged().AddUObject(this, &UNiagaraSummaryViewViewModel::OnSimStagesChanged);
-	EmitterViewModel->GetEmitter().Emitter->OnEventHandlersChanged().AddUObject(this, &UNiagaraSummaryViewViewModel::OnEventHandlersChanged);
+	//-TODO:Stateless: Do we need stateless support here?
+	if (EmitterViewModel->GetEmitter().Emitter)
+	{
+		EmitterViewModel->GetEmitter().Emitter->OnRenderersChanged().AddUObject(this, &UNiagaraSummaryViewViewModel::OnRenderersChanged);
+		EmitterViewModel->GetEmitter().Emitter->OnSimStagesChanged().AddUObject(this, &UNiagaraSummaryViewViewModel::OnSimStagesChanged);
+		EmitterViewModel->GetEmitter().Emitter->OnEventHandlersChanged().AddUObject(this, &UNiagaraSummaryViewViewModel::OnEventHandlersChanged);
 
-	UNiagaraHierarchyViewModelBase::Initialize();
+		UNiagaraHierarchyViewModelBase::Initialize();
+	}
 }
 
 void UNiagaraSummaryViewViewModel::FinalizeInternal()

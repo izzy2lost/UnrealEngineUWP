@@ -216,6 +216,11 @@ const FSlateBrush* UNiagaraStackEmitterPropertiesGroup::GetSecondaryIconBrush() 
 	if (IsFinalized() == false && GetEmitterViewModel().IsValid())
 	{
 		FVersionedNiagaraEmitterData* EmitterData = GetEmitterViewModel()->GetEmitter().GetEmitterData();
+		//-TODO:Stateless: Do we need a stateless icon?
+		if (EmitterData == nullptr)
+		{
+			return FNiagaraEditorStyle::Get().GetBrush("NiagaraEditor.Stack.GPUIcon");
+		}
 		if (EmitterData->SimTarget == ENiagaraSimTarget::CPUSim)
 		{
 			return FNiagaraEditorStyle::Get().GetBrush("NiagaraEditor.Stack.CPUIcon");

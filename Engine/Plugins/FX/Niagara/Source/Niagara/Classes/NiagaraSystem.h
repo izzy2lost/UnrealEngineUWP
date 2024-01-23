@@ -11,6 +11,7 @@
 #include "NiagaraMessageStore.h"
 #include "NiagaraParameterCollection.h"
 #include "NiagaraParameterDefinitionsSubscriber.h"
+#include "NiagaraSystemEmitterState.h"
 #include "NiagaraUserRedirectionParameterStore.h"
 #include "Particles/ParticleSystem.h"
 #include "UObject/Object.h"
@@ -785,6 +786,12 @@ public:
 	NIAGARA_API void PrepareRapidIterationParametersForCompilation();
 #endif
 
+	/** Can we run the code only system state path, i.e. we don't need to invoke the VVM / store per instance data set? */
+	bool SystemStateFastPathEnabled() const { return bSystemStateFastPathEnabled && bAllowSystemStateFastPath; }
+
+	/** Access the code system state data. */
+	const FNiagaraSystemStateData& GetSystemStateData() const { return SystemStateData; }
+
 private:
 #if WITH_EDITORONLY_DATA
 
@@ -815,6 +822,8 @@ private:
 	NIAGARA_API void ResolveParameterStoreBindings();
 #endif
 
+
+	void ResolveRequiresScripts();
 	NIAGARA_API void ResolveScalabilitySettings();
 	NIAGARA_API void UpdatePostCompileDIInfo();
 	NIAGARA_API void UpdateDITickFlags();
@@ -1018,6 +1027,13 @@ protected:
 	uint32 bHasAnyGPUEmitters : 1;
 	uint32 bNeedsSortedSignificanceCull : 1;
 
+	/** When enabled if all emitters don't require script execution and the system script is empty / constant we can invoke a faster CPU path. */
+	UPROPERTY(EditAnywhere, Category = "Performance", AdvancedDisplay)
+	uint32 bAllowSystemStateFastPath : 1 = true;
+
+	UPROPERTY()
+	uint32 bSystemStateFastPathEnabled : 1 = true;
+
 #if WITH_EDITORONLY_DATA
 	/** Messages associated with the System asset. */
 	UPROPERTY()
@@ -1034,6 +1050,9 @@ protected:
 
 	struct FStaticBuffersDeletor { void operator()(FNiagaraSystemStaticBuffers* Ptr) const; };
 	TUniquePtr<FNiagaraSystemStaticBuffers, FStaticBuffersDeletor> StaticBuffers;
+
+	UPROPERTY()
+	FNiagaraSystemStateData SystemStateData;
 
 	FRenderCommandFence WaitRenderCommandsFence;
 };

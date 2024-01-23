@@ -720,7 +720,12 @@ void UNiagaraStackEntry::FinalizeInternal()
 void UNiagaraStackEntry::RefreshChildren()
 {
 	checkf(bIsFinalized == false, TEXT("Can not refresh children on an entry after it has been finalized."));
-	checkf(SystemViewModel.IsValid(), TEXT("Base stack entry not initialized."));
+	//-TODO:Stateless: Do we need stateless support here?
+	//checkf(SystemViewModel.IsValid(), TEXT("Base stack entry not initialized."));
+	if (SystemViewModel.IsValid() == false)
+	{
+		return;
+	}
 
 	for (UNiagaraStackEntry* Child : Children)
 	{
@@ -829,19 +834,23 @@ void UNiagaraStackEntry::RefreshChildren()
 		ErrorChild->OnIssueModified().AddUObject(this, &UNiagaraStackEntry::IssueModified);
 	}
 
-	const FText* NewAlternateName = StackEditorData->GetStackEntryDisplayName(StackEditorDataKey);
-	if (NewAlternateName != nullptr && NewAlternateName->IsEmptyOrWhitespace() == false)
+	//-TODO:Stateless: Do we need stateless support here?
+	if (StackEditorData)
 	{
-		if (AlternateDisplayName.IsSet() == false || NewAlternateName->IdenticalTo(AlternateDisplayName.GetValue()) == false)
+		const FText* NewAlternateName = StackEditorData->GetStackEntryDisplayName(StackEditorDataKey);
+		if (NewAlternateName != nullptr && NewAlternateName->IsEmptyOrWhitespace() == false)
 		{
-			AlternateDisplayName = *NewAlternateName;
+			if (AlternateDisplayName.IsSet() == false || NewAlternateName->IdenticalTo(AlternateDisplayName.GetValue()) == false)
+			{
+				AlternateDisplayName = *NewAlternateName;
+				AlternateDisplayNameChangedDelegate.Broadcast();
+			}
+		}
+		else if (AlternateDisplayName.IsSet())
+		{
+			AlternateDisplayName.Reset();
 			AlternateDisplayNameChangedDelegate.Broadcast();
 		}
-	}
-	else if(AlternateDisplayName.IsSet())
-	{
-		AlternateDisplayName.Reset();
-		AlternateDisplayNameChangedDelegate.Broadcast();
 	}
 
 	PostRefreshChildrenInternal();

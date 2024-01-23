@@ -69,6 +69,11 @@
 #include "ViewModels/NiagaraParameterPanelViewModel.h"
 #include "Widgets/Notifications/SNotificationList.h"
 
+//-TODO:Stateless:
+#include "Stateless/NiagaraStatelessEmitter.h"
+#include "NiagaraSpriteRendererProperties.h"
+//-TODO:Stateless:
+
 DECLARE_CYCLE_STAT(TEXT("Niagara - SystemViewModel - CompileSystem"), STAT_NiagaraEditor_SystemViewModel_CompileSystem, STATGROUP_NiagaraEditor);
 
 #define LOCTEXT_NAMESPACE "NiagaraSystemViewModel"
@@ -594,6 +599,84 @@ TSharedPtr<FNiagaraEmitterHandleViewModel> FNiagaraSystemViewModel::AddEmptyEmit
 	EmptyEmitter->SetUniqueEmitterName(EmptyEmitterName.ToString());
 	EmptyEmitter->SetFlags(RF_Transactional);
 	return AddEmitter(FVersionedNiagaraEmitter(EmptyEmitter, FGuid()));
+}
+
+TSharedPtr<FNiagaraEmitterHandleViewModel> FNiagaraSystemViewModel::AddStatelessEmitter()
+{
+	UNiagaraSystem& NiagaraSystem = GetSystem();
+
+	auto SetupStatelessEmitter =
+		[](UNiagaraStatelessEmitter* StatelessEmitter, FName EmitterName)
+		{
+			StatelessEmitter->SetUniqueEmitterName(*EmitterName.ToString());
+
+			StatelessEmitter->AddSpawnInfo();
+			if (UClass* TemplateClass = FindObject<UClass>(nullptr, TEXT("/Script/Niagara.NiagaraStatelessEmitterDefault")))
+			{
+				StatelessEmitter->SetEmitterTemplateClass(TemplateClass);
+			}
+			{
+				FSoftObjectPath DefaultMaterial(TEXT("Material'/Niagara/DefaultAssets/DefaultSpriteMaterial.DefaultSpriteMaterial'"));
+
+				UNiagaraSpriteRendererProperties* NewRenderer = NewObject<UNiagaraSpriteRendererProperties>(StatelessEmitter, "Renderer", RF_Transactional);
+				NewRenderer->Material = Cast<UMaterialInterface>(DefaultMaterial.TryLoad());
+				StatelessEmitter->AddRenderer(NewRenderer, FGuid());// EmitterData->Version.VersionGuid);
+			}
+		};
+
+	// This method uses the combined standard / stateless setup
+	static bool bPureStatelessAdd = false;
+	if (bPureStatelessAdd == false)
+	{
+		TSharedPtr<FNiagaraEmitterHandleViewModel> NewViewModel = AddEmptyEmitter();
+		if (FNiagaraEmitterHandle* EmitterHandle = NewViewModel->GetEmitterHandle())
+		{
+			UNiagaraStatelessEmitter* NewEmitter = NewObject<UNiagaraStatelessEmitter>(&NiagaraSystem, "StatelessEmitter", RF_Transactional);
+			SetupStatelessEmitter(NewEmitter, EmitterHandle->GetName());
+
+			EmitterHandle->SetStatelessEmitter(NewEmitter);
+			EmitterHandle->SetEmitterMode(NiagaraSystem, ENiagaraEmitterMode::Stateless);
+		}
+		return NewViewModel;
+	}
+
+	// This method is pure stateless only which might result in compilation / graph issue that need ironing out
+	UNiagaraStatelessEmitter* NewEmitter = nullptr;
+	{
+		TSet<FName> EmitterHandleNames;
+		for (const FNiagaraEmitterHandle& EmitterHandle : NiagaraSystem.GetEmitterHandles())
+		{
+			EmitterHandleNames.Add(EmitterHandle.GetName());
+		}
+		FName NewEmitterName = FName("Stateless");
+		NewEmitterName = FNiagaraUtilities::GetUniqueName(NewEmitterName, EmitterHandleNames);
+		NewEmitter = NewObject<UNiagaraStatelessEmitter>(&NiagaraSystem, *NewEmitterName.ToString(), RF_Transactional);
+		SetupStatelessEmitter(NewEmitter, NewEmitterName);
+	}
+
+	ResetEmitterHandleViewModelsAndTracks();
+
+	GEditor->BeginTransaction(LOCTEXT("AddEmitter", "Add emitter"));
+	FNiagaraEmitterHandle EmitterHandle = FNiagaraEmitterHandle(*NewEmitter);
+	{
+		FNiagaraEditorUtilities::KillSystemInstances(NiagaraSystem);
+		NiagaraSystem.Modify();
+		NiagaraSystem.AddEmitterHandleDirect(EmitterHandle);
+		GetEditorData().SynchronizeOverviewGraphWithSystem(NiagaraSystem);
+	}
+	GEditor->EndTransaction();
+	const FGuid NewEmitterHandleId = EmitterHandle.GetId();
+
+	if (GetSystem().GetNumEmitters() == 1 && EditorSettings->GetAutoPlay() && Sequencer.IsValid())
+	{
+		// When adding a new emitter to an empty system start playing.
+		Sequencer->SetPlaybackStatus(EMovieScenePlayerStatus::Playing);
+	}
+
+	RefreshAll();
+	
+	TSharedPtr<FNiagaraEmitterHandleViewModel> NewEmitterHandleViewModel = GetEmitterHandleViewModelById(NewEmitterHandleId);
+	return NewEmitterHandleViewModel;
 }
 TSharedPtr<FNiagaraEmitterHandleViewModel> FNiagaraSystemViewModel::AddEmitter(const FVersionedNiagaraEmitter& VersionedEmitter)
 {
@@ -1394,10 +1477,9 @@ TArray<UNiagaraGraph*> FNiagaraSystemViewModel::GetAllGraphs()
 		for (const TSharedRef<FNiagaraEmitterHandleViewModel>& EmitterHandleViewModel : EmitterHandleViewModels)
 		{
 			FNiagaraEmitterHandle* EmitterHandle = EmitterHandleViewModel->GetEmitterHandle();
-			//-TODO:Stateless:
+			//-TODO:Stateless: Do we need stateless support here?
 			FVersionedNiagaraEmitterData* EmitterData = EmitterHandle ? EmitterHandle->GetEmitterData() : nullptr;
 			if (EmitterData == nullptr)
-			//-TODO:Stateless:
 			{
 				continue;
 			}
@@ -1411,10 +1493,9 @@ TArray<UNiagaraGraph*> FNiagaraSystemViewModel::GetAllGraphs()
 	else
 	{
 		FNiagaraEmitterHandle* EmitterHandle = GetEmitterHandleViewModels()[0]->GetEmitterHandle();
-		//-TODO:Stateless:
+		//-TODO:Stateless: Do we need stateless support here?
 		FVersionedNiagaraEmitterData* EmitterData = EmitterHandle ? EmitterHandle->GetEmitterData() : nullptr;
 		if (EmitterData != nullptr)
-		//-TODO:Stateless:
 		{
 			OutGraphs.Add(Cast<UNiagaraScriptSource>(EmitterData->GraphSource)->NodeGraph);
 		}
@@ -1609,9 +1690,8 @@ void FNiagaraSystemViewModel::SendLastCompileMessageJobs() const
 	for (const FNiagaraEmitterHandle& Handle : EmitterHandles)
 	{
 		FVersionedNiagaraEmitter EmitterInSystem = Handle.GetInstance();
-		//-TODO:Stateless:
+		//-TODO:Stateless: Do we need stateless support here?
 		if (FVersionedNiagaraEmitterData* EmitterData = EmitterInSystem.GetEmitterData())
-		//-TODO:Stateless:
 		{
 			TArray<UNiagaraScript*> EmitterScripts;
 			EmitterData->GetScripts(EmitterScripts, false);
@@ -1766,9 +1846,8 @@ void FNiagaraSystemViewModel::TickCompileStatus()
 					ScriptsToCheckForStatus.Add(System->GetSystemUpdateScript());
 					for (const FNiagaraEmitterHandle& EmitterHandle : System->GetEmitterHandles())
 					{
-						//-TODO:Stateless:
+						//-TODO:Stateless: Do we need stateless support here?
 						if (EmitterHandle.GetIsEnabled() && EmitterHandle.GetEmitterData())
-						//-TODO:Stateless:
 						{
 							EmitterHandle.GetEmitterData()->GetScripts(ScriptsToCheckForStatus, true);
 						}
@@ -3279,12 +3358,11 @@ void FNiagaraSystemViewModel::RefreshAssetMessages()
 		{
 			FVersionedNiagaraEmitter VersionedEmitter = EmitterHandle.GetInstance();
 			UNiagaraEmitter* Emitter = VersionedEmitter.Emitter.Get();
-			//-TODO:Stateless:
+			//-TODO:Stateless: Do we need stateless support here?
 			if (Emitter == nullptr)
 			{
 				continue;
 			}	
-		//-TODO:Stateless:
 			PublishMessages(FNiagaraMessageSourceAndStore(*Emitter, Emitter->GetMessageStore()));
 			MessageSourceObjectKeys.Add(FObjectKey(Emitter));
 			VersionedEmitter.GetEmitterData()->GetScripts(Scripts, false);
@@ -3298,9 +3376,8 @@ void FNiagaraSystemViewModel::RefreshAssetMessages()
 		if (ensureMsgf(EmitterHandles.Num() == 1, TEXT("There was not exactly 1 Emitter Handle for the SystemViewModel in Emitter edit mode!")))
 		{
 			FVersionedNiagaraEmitter VersionedEmitter = EmitterHandles[0].GetInstance();
-			//-TODO:Stateless:
+			//-TODO:Stateless: Do we need stateless support here?
 			if (UNiagaraEmitter* Emitter = VersionedEmitter.Emitter.Get())
-			//-TODO:Stateless:
 			{
 				PublishMessages(FNiagaraMessageSourceAndStore(*Emitter, Emitter->GetMessageStore()));
 				MessageSourceObjectKeys.Add(FObjectKey(Emitter));

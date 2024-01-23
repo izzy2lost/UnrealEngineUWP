@@ -1,0 +1,41 @@
+// Copyright Epic Games, Inc. All Rights Reserved.
+
+#include "../NiagaraStatelessCommon.ush"
+
+float	ScaleMeshSizeBySpeed_VelocityNorm;
+int		ScaleMeshSizeBySpeed_Offset;
+int		ScaleMeshSizeBySpeed_Length;
+
+struct FStatelessModule_ScaleMeshSizeBySpeed
+{
+};
+
+float3 ScaleMeshSizeBySpeed_GetScale(in FStatelessParticle Particle, float NormSpeed)
+{
+	const float Offset = NormSpeed * float(ScaleMeshSizeBySpeed_Length - 1);
+	const int A = floor(Offset);
+	const int B = ceil(Offset);
+	const float U = frac(Offset);
+
+	return lerp(
+		GetStaticFloat3(ScaleMeshSizeBySpeed_Offset, A),
+		GetStaticFloat3(ScaleMeshSizeBySpeed_Offset, B),
+		U
+	);
+}
+
+void ScaleMeshSizeBySpeed_Initialize(inout FStatelessModule_ScaleMeshSizeBySpeed MouldeData, inout FStatelessParticle Particle)
+{
+}
+	
+void ScaleMeshSizeBySpeed_Simulate(in FStatelessModule_ScaleMeshSizeBySpeed MouldeData, inout FStatelessParticle Particle)
+{
+	if (ScaleMeshSizeBySpeed_Length > 0)
+	{
+		const float Speed = length2(Particle.Position - Particle.PreviousPosition) * Particle.InvDeltaTime;
+		const float NormSpeed = saturate(Speed * ScaleMeshSizeBySpeed_VelocityNorm);
+			
+		Particle.Scale			*= ScaleMeshSizeBySpeed_GetScale(Particle, NormSpeed);
+		Particle.PreviousScale	*= ScaleMeshSizeBySpeed_GetScale(Particle, NormSpeed);
+	}
+}

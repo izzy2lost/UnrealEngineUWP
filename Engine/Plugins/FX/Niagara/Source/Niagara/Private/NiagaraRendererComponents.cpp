@@ -403,7 +403,6 @@ void FNiagaraRendererComponents::PostSystemTick_GameThread(const UNiagaraRendere
 	}
 
 
-	//-TODO:Stateless:
 	const FNiagaraEmitterInstanceImpl* StatefulEmitter = Emitter->AsStateful();
 	if (StatefulEmitter == nullptr)
 	{

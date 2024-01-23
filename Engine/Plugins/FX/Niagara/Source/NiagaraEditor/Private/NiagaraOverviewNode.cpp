@@ -1,6 +1,7 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 #include "NiagaraOverviewNode.h"
+#include "NiagaraSettings.h"
 #include "NiagaraSystem.h"
 #include "NiagaraEditorModule.h"
 #include "NiagaraEditorStyle.h"
@@ -284,6 +285,46 @@ void UNiagaraOverviewNode::GetNodeContextMenuActions(class UToolMenu* Menu, clas
 						)
 					)
 				);
+
+				if (GetDefault<UNiagaraSettings>()->bStatelessEmittersEnabled)
+				{
+					Section.AddSubMenu(
+						"EmitterMode",
+						LOCTEXT("EmitterModeSubMenuLabel", "Emitter Mode..."),
+						FText(),
+						FNewToolMenuDelegate::CreateLambda([OwningSystemViewModel](UToolMenu* InMenu)
+						{
+							if (OwningSystemViewModel.IsValid())
+							{
+								bool bCanExecute = OwningSystemViewModel->GetSelectionViewModel()->GetSelectedEmitterHandleIds().Num() > 0;
+								FToolMenuSection& SubMenuSection = InMenu->AddSection("EmitterModeOptions", LOCTEXT("EmitterModeSubMenuHeader", "Emitter Mode"));
+								SubMenuSection.AddMenuEntry(
+									"SetEmitterModeStandard",
+									LOCTEXT("SetEmitterStandardModeMenuLabel", "Standard Mode"),
+									LOCTEXT("SetEmitterStandardModeMenuToolTip", "Set this emitter to use standard mode."),
+									FSlateIcon(),
+									FUIAction(
+										FExecuteAction::CreateStatic(&FNiagaraEditorUtilities::SetSelectedEmittersEmitterMode, OwningSystemViewModel.ToSharedRef(), ENiagaraEmitterMode::Standard),
+										FCanExecuteAction::CreateLambda([bCanExecute]() { return bCanExecute; }),
+										FGetActionCheckState::CreateStatic(&FNiagaraEditorUtilities::GetSelectedEmittersEmitterModeCheckState, OwningSystemViewModel.ToSharedRef(), ENiagaraEmitterMode::Standard)
+									),
+									EUserInterfaceActionType::RadioButton
+								);
+								SubMenuSection.AddMenuEntry(
+									"SetEmitterModeStateless",
+									LOCTEXT("SetEmitterStatelessModeMenuLabel", "Stateless Mode"),
+									LOCTEXT("SetEmitterStatelessModeMenuToolTip", "Set this emitter to use stateless mode."),
+									FSlateIcon(),
+									FUIAction(
+										FExecuteAction::CreateStatic(&FNiagaraEditorUtilities::SetSelectedEmittersEmitterMode, OwningSystemViewModel.ToSharedRef(), ENiagaraEmitterMode::Stateless),
+										FCanExecuteAction::CreateLambda([bCanExecute]() { return bCanExecute; }),
+										FGetActionCheckState::CreateStatic(&FNiagaraEditorUtilities::GetSelectedEmittersEmitterModeCheckState, OwningSystemViewModel.ToSharedRef(), ENiagaraEmitterMode::Stateless)
+									),
+									EUserInterfaceActionType::RadioButton
+								);
+							}
+						}));
+				}
 			}
 		}
 	}

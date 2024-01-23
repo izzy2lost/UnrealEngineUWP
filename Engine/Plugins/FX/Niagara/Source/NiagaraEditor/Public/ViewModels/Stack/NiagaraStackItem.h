@@ -7,9 +7,34 @@
 #include "Layout/Visibility.h"
 #include "NiagaraStackItem.generated.h"
 
+struct FSlateBrush;
 class UNiagaraStackItemFooter;
 class UNiagaraNode;
 class UNiagaraClipboardContent;
+
+class INiagaraStackItemHeaderValueHandler
+{
+public: 
+	enum class EValueMode
+	{
+		BoolToggle,
+		EnumDropDown
+	};
+
+public:
+	virtual ~INiagaraStackItemHeaderValueHandler() { }
+	virtual EValueMode GetMode() const = 0;
+	virtual const UEnum* GetEnum() const = 0;
+	virtual const FText& GetLabelText() const = 0;
+	virtual const FSlateBrush* GetIconBrush() const = 0;
+	virtual const EHorizontalAlignment GetHAlign() const = 0;
+
+	virtual bool GetBoolValue() const = 0;
+	virtual void NotifyBoolValueChanged(bool bInValue) = 0;
+
+	virtual int32 GetEnumValue() const = 0;
+	virtual void NotifyEnumValueChanged(int32 bInValue) = 0;
+};
 
 UCLASS(MinimalAPI)
 class UNiagaraStackItem : public UNiagaraStackEntry
@@ -45,6 +70,9 @@ public:
 	virtual TOptional<FText> GetEditModeButtonText() const { return TOptional<FText>(); }
 	virtual TOptional<FText> GetEditModeButtonTooltip() const { return TOptional<FText>(); }
 	virtual EVisibility IsEditButtonVisible() const { return SupportsEditMode() ? EVisibility::Visible : EVisibility::Collapsed; }
+
+	virtual bool SupportsHeaderValues() const { return false; }
+	virtual void GetHeaderValueHandlers(TArray<TSharedRef<INiagaraStackItemHeaderValueHandler>>& OutHeaderValueHandlers) const { };
 
 	virtual bool GetIsInherited() const { return false; }
 

@@ -245,6 +245,9 @@ public:
 	/** Adds an empty emitter to the system. */
 	NIAGARAEDITOR_API TSharedPtr<FNiagaraEmitterHandleViewModel> AddEmptyEmitter();
 
+	/** Adds a stateless emitter to the system. */
+	NIAGARAEDITOR_API TSharedPtr<FNiagaraEmitterHandleViewModel> AddStatelessEmitter();
+
 	/** Deletes the emitters with the supplied ids from the system */
 	NIAGARAEDITOR_API void DeleteEmitters(TSet<FGuid> EmitterHandleIdsToDelete);
 

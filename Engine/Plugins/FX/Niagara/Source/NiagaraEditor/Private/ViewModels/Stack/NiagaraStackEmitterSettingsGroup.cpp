@@ -32,7 +32,10 @@ void UNiagaraStackEmitterPropertiesItem::Initialize(FRequiredEntryData InRequire
 {
 	Super::Initialize(InRequiredEntryData, TEXT("EmitterProperties"));
 	EmitterWeakPtr = GetEmitterViewModel()->GetEmitter().ToWeakPtr();
-	EmitterWeakPtr.Emitter->OnPropertiesChanged().AddUObject(this, &UNiagaraStackEmitterPropertiesItem::EmitterPropertiesChanged);
+	if (EmitterWeakPtr.IsValid())
+	{
+		EmitterWeakPtr.Emitter->OnPropertiesChanged().AddUObject(this, &UNiagaraStackEmitterPropertiesItem::EmitterPropertiesChanged);
+	}
 }
 
 void UNiagaraStackEmitterPropertiesItem::FinalizeInternal()
@@ -118,9 +121,13 @@ void UNiagaraStackEmitterPropertiesItem::RefreshChildrenInternal(const TArray<UN
 	{
 		EmitterObject = NewObject<UNiagaraStackObject>(this);
 		FRequiredEntryData RequiredEntryData(GetSystemViewModel(), GetEmitterViewModel(), FExecutionCategoryNames::Emitter, NAME_None, GetStackEditorData());
-		bool bIsTopLevelObject = true;
-		EmitterObject->Initialize(RequiredEntryData, EmitterWeakPtr.Emitter.Get(), bIsTopLevelObject, GetStackEditorDataKey());
-		EmitterObject->RegisterInstancedCustomPropertyLayout(UNiagaraEmitter::StaticClass(), FOnGetDetailCustomizationInstance::CreateStatic(&FNiagaraEmitterDetails::MakeInstance));
+		if (EmitterWeakPtr.IsValid())
+		{
+			bool bIsTopLevelObject = true;
+			bool bHideTopLevelCategories = false;
+			EmitterObject->Initialize(RequiredEntryData, EmitterWeakPtr.Emitter.Get(), bIsTopLevelObject, bHideTopLevelCategories, GetStackEditorDataKey());
+			EmitterObject->RegisterInstancedCustomPropertyLayout(UNiagaraEmitter::StaticClass(), FOnGetDetailCustomizationInstance::CreateStatic(&FNiagaraEmitterDetails::MakeInstance));
+		}
 	}
 
 	NewChildren.Add(EmitterObject);

@@ -129,7 +129,6 @@ void FNiagaraGPUSystemTick::Init(FNiagaraSystemInstance* InSystemInstance)
 				continue;
 			}
 
-			//-TODO:Stateless:
 			FNiagaraEmitterInstanceImpl* EmitterInstanceImpl = EmitterInstance->AsStateful();
 			if (!EmitterInstanceImpl)
 			{

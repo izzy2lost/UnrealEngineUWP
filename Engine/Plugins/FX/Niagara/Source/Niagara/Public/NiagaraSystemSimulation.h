@@ -433,4 +433,6 @@ protected:
 	float FixedDeltaTickAge = 0;
 
 	FNiagaraTickInfo TickInfo;
+
+	bool bSystemStateFastPathEnabled = true;
 };

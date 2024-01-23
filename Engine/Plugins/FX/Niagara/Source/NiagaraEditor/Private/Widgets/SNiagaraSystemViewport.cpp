@@ -7,6 +7,7 @@
 #include "EditorViewportCommands.h"
 #include "EngineUtils.h"
 #include "ImageUtils.h"
+#include "Stateless/NiagaraStatelessEmitter.h"
 #include "NiagaraComponent.h"
 #include "NiagaraEditorCommands.h"
 #include "NiagaraEditorModule.h"
@@ -189,6 +190,22 @@ void FNiagaraSystemViewportClient::Draw(FViewport* InViewport, FCanvas* Canvas)
 		}
 	}
 
+	//-TODO:Stateless: Temporary to draw some debug information
+	if (ParticleSystem && Component)
+	{
+		UWorld* World = Component->GetWorld();
+		for (const FNiagaraEmitterHandle& EmitterHandle : ParticleSystem->GetEmitterHandles())
+		{
+			UNiagaraStatelessEmitter* StatelessEmitter = EmitterHandle.GetStatelessEmitter();
+			if (!StatelessEmitter || EmitterHandle.GetEmitterMode() != ENiagaraEmitterMode::Stateless)
+			{
+				continue;
+			}
+
+			StatelessEmitter->DrawModuleDebug(World, Component->GetComponentTransform());
+		}
+	}
+
 	if (NiagaraViewport.IsValid() && NiagaraViewport->GetDrawElement(SNiagaraSystemViewport::EDrawElements::Bounds))
 	{
 		EngineShowFlags.SetBounds(true);
@@ -332,11 +349,13 @@ void FNiagaraSystemViewportClient::DrawParticleCounts(UNiagaraComponent* Compone
 		TextItem.Draw(Canvas);
 		CurrentY += FontHeight;
 
-		for (const TSharedRef<FNiagaraEmitterInstance, ESPMode::ThreadSafe>& EmitterInstance : SystemInstance->GetEmitters())
+		for (const FNiagaraEmitterInstanceRef& EmitterInstance : SystemInstance->GetEmitters())
 		{
+			FVersionedNiagaraEmitterData* EmitterData = EmitterInstance->GetEmitterHandle().GetEmitterData();
+
 			const FName EmitterName = EmitterInstance->GetEmitterHandle().GetName();
 			const int32 CurrentCount = EmitterInstance->GetNumParticles();
-			const int32 MaxCount = EmitterInstance->GetEmitterHandle().GetEmitterData()->GetMaxParticleCountEstimate();
+			const int32 MaxCount = EmitterData ? EmitterData->GetMaxParticleCountEstimate() : 0;
 			const bool IsIsolated = EmitterInstance->GetEmitterHandle().IsIsolated();
 			const bool IsEnabled = EmitterInstance->GetEmitterHandle().GetIsEnabled();
 			const ENiagaraExecutionState ExecutionState = EmitterInstance->GetExecutionState();

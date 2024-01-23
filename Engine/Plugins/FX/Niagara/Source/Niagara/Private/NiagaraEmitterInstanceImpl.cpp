@@ -372,6 +372,7 @@ void FNiagaraEmitterInstanceImpl::Init(int32 InEmitterIndex)
 			GPUExecContext->SystemStatID = GetSystemStatID(false, false);
 			GPUExecContext->EmitterStatID = GetEmitterStatID(false, false);
 		#endif
+			GPUDataBufferInterfaces = GPUExecContext;
 		}
 	}
 

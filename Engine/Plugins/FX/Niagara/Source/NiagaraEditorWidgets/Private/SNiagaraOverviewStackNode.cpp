@@ -484,6 +484,27 @@ TSharedRef<SWidget> SNiagaraOverviewStackNode::CreateTitleWidget_Default(TShared
 				DefaultTitle
 			];
 	}
+
+	if (!GetDefault<UNiagaraSettings>()->bStatelessEmittersEnabled)
+	{
+		TSharedPtr<FNiagaraEmitterHandleViewModel> EmitterHandleViewModel = EmitterHandleViewModelWeak.Pin();
+		FNiagaraEmitterHandle* EmitterHandle = EmitterHandleViewModel.IsValid() ? EmitterHandleViewModel->GetEmitterHandle() : nullptr;
+		if (EmitterHandle && EmitterHandle->GetEmitterMode() != ENiagaraEmitterMode::Standard)
+		{
+			DefaultTitle =
+				SNew(SVerticalBox)
+				+ SVerticalBox::Slot()
+				.Padding(0, 0, 5, 0)
+				[
+					SNew(STextBlock)
+						.Text(LOCTEXT("StatelessNotEnabled", "Stateless not enabled\nin project settings."))
+				]
+				+ SVerticalBox::Slot()
+				[
+					DefaultTitle
+				];
+		}
+	}
 	
 	TSharedPtr<SWidget> TitleWidget = SNew(SHorizontalBox)
 	// Summary View Controls

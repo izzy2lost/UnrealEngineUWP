@@ -9,12 +9,14 @@
 #include "NiagaraEmitter.h"
 #include "NiagaraScriptExecutionContext.h"
 
+struct INiagaraComputeDataBufferInterface;
 struct FNiagaraComputeExecutionContext;
 struct FNiagaraScriptExecutionContext;
 class UNiagaraDataInterface;
 class FNiagaraSystemInstance;
 
 class FNiagaraEmitterInstanceImpl;
+class FNiagaraStatelessEmitterInstance;
 
 /**
 * Base class for different emitter instances
@@ -54,6 +56,7 @@ public:
 	const FNiagaraDataSet& GetParticleData() const { check(ParticleDataSet); return *ParticleDataSet; }
 
 	FNiagaraComputeExecutionContext* GetGPUContext() const { return GPUExecContext; }
+	INiagaraComputeDataBufferInterface* GetComputeDataBufferInterface() const { return GPUDataBufferInterfaces; }
 
 	ENiagaraExecutionState GetExecutionState() const { return ExecutionState; }
 	bool IsActive() const { return ExecutionState == ENiagaraExecutionState::Active; }
@@ -94,11 +97,13 @@ public:
 	//////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
 	////////////////////////////////////////////////////////////////////////////////////////////////////
-	//-TODO:Stateless:
+	//-TODO:Stateless: Consider removing these virtual functions
 	// Can we remove these virtual functions
 	virtual FNiagaraEmitterInstanceImpl* AsStateful() { return nullptr; }
+	virtual FNiagaraStatelessEmitterInstance* AsStateless() { return nullptr; }
 
 	const FNiagaraEmitterInstanceImpl* AsStateful() const { return const_cast<FNiagaraEmitterInstance*>(this)->AsStateful(); }
+	const FNiagaraStatelessEmitterInstance* AsStateless() const { return const_cast<FNiagaraEmitterInstance*>(this)->AsStateless(); }
 
 	UNiagaraEmitter* GetEmitter() const { return VersionedEmitter.Emitter; }
 	const FVersionedNiagaraEmitter& GetVersionedEmitter() const { return VersionedEmitter; }
@@ -204,6 +209,7 @@ protected:
 	FNiagaraSystemInstance*				ParentSystemInstance = nullptr;
 	FNiagaraDataSet*					ParticleDataSet = nullptr;
 	FNiagaraComputeExecutionContext*	GPUExecContext = nullptr;
+	INiagaraComputeDataBufferInterface* GPUDataBufferInterfaces = nullptr;
 	FVersionedNiagaraEmitter			VersionedEmitter = {};
 
 	FNiagaraParameterStore				RendererBindings;

@@ -71,6 +71,10 @@ void SNiagaraStackFunctionInputValue::Construct(const FArguments& InArgs, UNiaga
 	FunctionInput->OnValueChanged().AddSP(this, &SNiagaraStackFunctionInputValue::OnInputValueChanged);
 	SyntaxHighlighter = FNiagaraHLSLSyntaxHighlighter::Create();
 
+	TAttribute<bool> EntryIsEnabled;
+	EntryIsEnabled.Bind(this, &SNiagaraStackFunctionInputValue::GetEntryEnabled);
+	SetEnabled(EntryIsEnabled);
+
 	TSharedPtr<SHorizontalBox> OuterChildrenBox;
 	TSharedPtr<SHorizontalBox> ChildrenBox;
 	ChildSlot
@@ -548,7 +552,12 @@ void SNiagaraStackFunctionInputValue::SetToLocalValue()
 
 bool SNiagaraStackFunctionInputValue::GetInputEnabled() const
 {
-	return FunctionInput->GetHasEditCondition() == false || FunctionInput->GetEditConditionEnabled();
+	return FunctionInput->IsFinalized() == false && (FunctionInput->GetHasEditCondition() == false || FunctionInput->GetEditConditionEnabled());
+}
+
+bool SNiagaraStackFunctionInputValue::GetEntryEnabled() const
+{
+	return FunctionInput->IsFinalized() == false && FunctionInput->GetIsEnabledAndOwnerIsEnabled();
 }
 
 TSharedRef<SWidget> SNiagaraStackFunctionInputValue::ConstructLocalValueStructWidget()

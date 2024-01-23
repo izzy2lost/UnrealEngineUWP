@@ -542,6 +542,9 @@ FReply FNiagaraParameterBindingCustomization::OnResetToDefaultsClicked()
 			FMemory::Memcpy(DefaultValueStructOnScope->GetStructMemory(), DefaultValue.GetData(), DefaultValue.Num());
 			DefaultValueParameterEditor->UpdateInternalValueFromStruct(DefaultValueStructOnScope.ToSharedRef());
 		}
+
+		PropertyHandle->NotifyPostChange(EPropertyChangeType::ValueSet);
+		PropertyHandle->NotifyFinishedChangingProperties();
 	}
 
 	return FReply::Handled();

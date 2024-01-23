@@ -19,6 +19,7 @@ NiagaraRenderer.h: Base class for Niagara render modules
 #include "NiagaraBoundsCalculator.h"
 #include "RayTracingGeometry.h"
 
+struct INiagaraComputeDataBufferInterface;
 class FNiagaraDataSet;
 class FNiagaraSceneProxy;
 class FNiagaraGPURendererCount;
@@ -47,7 +48,7 @@ protected:
 	FNiagaraSystemInstanceID SystemInstanceID;
 
 	FNiagaraDataBufferRef CPUParticleData;
-	FNiagaraComputeExecutionContext* GPUExecContext = nullptr;
+	INiagaraComputeDataBufferInterface* ComputeDataBufferInterface = nullptr;
 };
 
 //////////////////////////////////////////////////////////////////////////

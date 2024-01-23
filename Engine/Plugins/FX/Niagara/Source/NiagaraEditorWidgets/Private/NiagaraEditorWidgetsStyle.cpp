@@ -517,6 +517,17 @@ void FNiagaraEditorWidgetsStyle::InitStackTextStyles()
 		.SetFont(CategoryFont);
 
 	Set("NiagaraEditor.Stack.ItemText", StackItemText);
+
+	FSlateFontInfo StackItemHeaderValueLabelFont = FAppStyle::Get().GetFontStyle(TEXT("PropertyWindow.NormalFont"));
+	FTextBlockStyle StackItemHeaderValueLabelText = FTextBlockStyle(NormalText)
+		.SetFont(StackItemHeaderValueLabelFont);
+	Set("NiagaraEditor.Stack.ItemHeaderValueLabelText", StackItemHeaderValueLabelText);
+
+	FSlateFontInfo StackItemHeaderValueFont = FAppStyle::Get().GetFontStyle(TEXT("PropertyWindow.NormalFont"));
+	FTextBlockStyle StackItemHeaderValueText = FTextBlockStyle(NormalText)
+		.SetFont(StackItemHeaderValueFont)
+		.SetColorAndOpacity(FLinearColor(1.f, 1.f, 1.f, 1.f));
+	Set("NiagaraEditor.Stack.ItemHeaderValueText", StackItemHeaderValueText);
 	
 	FTextBlockStyle OverviewStackItemText = FTextBlockStyle(CategoryText)
 		.SetFont(NormalFont);
@@ -644,5 +655,7 @@ void FNiagaraEditorWidgetsStyle::InitMisc()
 	);
 
 	Set("NiagaraEditor.Stack.SearchResult", new BOX_BRUSH("Icons/SearchResultBorder", FMargin(1.f/8.f)));
+
+	Set("NiagaraEditor.Stack.ItemHeaderValue.BackgroundBrush", new FSlateRoundedBoxBrush(FStyleColors::Panel, 6));
 }
 

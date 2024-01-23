@@ -2,6 +2,7 @@
 
 #include "NiagaraSystemInstance.h"
 #include "Misc/LargeWorldRenderPosition.h"
+#include "Stateless/NiagaraStatelessEmitterInstance.h"
 #include "NiagaraSystemGpuComputeProxy.h"
 #include "NiagaraCommon.h"
 #include "NiagaraComputeExecutionContext.h"
@@ -901,7 +902,8 @@ void FNiagaraSystemInstance::ResetInternal(bool bResetSimulations)
 	Age = 0;
 	TickCount = 0;
 	CachedDeltaSeconds = 0.0f;
-	
+	InitSystemState();
+
 	if(!bLODDistanceIsOverridden)
 	{
 		bLODDistanceIsValid = false;
@@ -1027,6 +1029,7 @@ void FNiagaraSystemInstance::ReInitInternal()
 	CachedDeltaSeconds = 0.0f;
 	bAlreadyBound = false;
 	bSolo = bForceSolo;
+	InitSystemState();
 
 	if (!::IsValid(System))
 	{
@@ -1073,7 +1076,6 @@ void FNiagaraSystemInstance::ReInitInternal()
 	// Make sure that we've gotten propagated instance parameters before calling InitEmitters, as they might bind to them.
 	const FNiagaraSystemCompiledData& SystemCompiledData = System->GetSystemCompiledData();
 	InstanceParameters = SystemCompiledData.InstanceParamStore;
-
 
 	//When re initializing, throw away old emitters and init new ones.
 	Emitters.Reset();
@@ -2157,8 +2159,15 @@ void FNiagaraSystemInstance::InitEmitters()
 			//-TODO: We should not create emitter instances for disabled emitters
 			const bool EmitterEnabled = EmitterHandle.GetIsEnabled();
 
-			Emitters.Emplace(MakeShared<FNiagaraEmitterInstanceImpl, ESPMode::ThreadSafe>(this));
-
+			//-TODO:Stateless: Should this be a factory?
+			if ( EmitterHandle.GetEmitterMode() == ENiagaraEmitterMode::Stateless )
+			{
+				Emitters.Emplace(MakeShared<FNiagaraStatelessEmitterInstance, ESPMode::ThreadSafe>(this));
+			}
+			else
+			{
+				Emitters.Emplace(MakeShared<FNiagaraEmitterInstanceImpl, ESPMode::ThreadSafe>(this));
+			}
 			FNiagaraEmitterInstanceRef EmitterInstance = Emitters.Last();
 
 			if (System->bFixedBounds)
@@ -2977,4 +2986,78 @@ const FString& FNiagaraSystemInstance::GetCrashReporterTag()const
 		CrashReporterTag = FString::Printf(TEXT("SystemInstance | System: %s | bSolo: %s | Component: %s | AttachedTo: %s |"), *SystemName, IsSolo() ? TEXT("true") : TEXT("false"), *CompName, *AttachName);
 	}
 	return CrashReporterTag;
+}
+
+void FNiagaraSystemInstance::InitSystemState()
+{
+	const FNiagaraSystemStateData& SystemStateData = System->GetSystemStateData();
+	SystemState_RandomStream.Initialize(RandomSeed + RandomSeedOffset);
+
+	SystemState_LoopCount			= 0;
+	SystemState_CurrentLoopDuration = SystemState_RandomStream.FRandRange(SystemStateData.LoopDurationMin, SystemStateData.LoopDurationMax);
+	SystemState_CurrentLoopDelay	= SystemState_RandomStream.FRandRange(SystemStateData.LoopDelayMin, SystemStateData.LoopDelayMax);
+	SystemState_CurrentLoopAgeStart	= 0.0f;
+	SystemState_CurrentLoopAgeEnd	= SystemState_CurrentLoopAgeStart + SystemState_CurrentLoopDelay + SystemState_CurrentLoopDuration;
+}
+
+void FNiagaraSystemInstance::TickSystemState()
+{
+	const uint32 ParameterIndex = GetParameterIndex();
+	const FNiagaraSystemParameters& CurrentSystemParameters = SystemParameters[ParameterIndex];
+	ENiagaraExecutionState ExecutionState = static_cast<ENiagaraExecutionState>(CurrentSystemParameters.EngineExecutionState);
+
+	if (ExecutionState == ENiagaraExecutionState::Active)
+	{
+		if (Age < SystemState_CurrentLoopAgeEnd)
+		{
+			return;
+		}
+
+		const FNiagaraSystemStateData& SystemStateData = System->GetSystemStateData();
+		if (SystemStateData.bIgnoreSystemState == false)
+		{
+			const ENiagaraExecutionState InactiveExecutionState = SystemStateData.InactiveResponse == ENiagaraSystemInactiveResponse::Kill ? ENiagaraExecutionState::Complete : ENiagaraExecutionState::Inactive;
+
+			if (SystemStateData.LoopBehavior == ENiagaraLoopBehavior::Once)
+			{
+				SetActualExecutionState(InactiveExecutionState);
+				return;
+			}
+
+			// Keep looping until we find out which loop we are in as a small loop age + large DT could result in crossing multiple loops
+			do
+			{
+				++SystemState_LoopCount;
+				if (SystemStateData.LoopBehavior == ENiagaraLoopBehavior::Multiple && SystemState_LoopCount >= SystemStateData.LoopCount)
+				{
+					SetActualExecutionState(InactiveExecutionState);
+					return;
+				}
+
+				if (SystemStateData.bRecalculateDurationEachLoop)
+				{
+					SystemState_CurrentLoopDuration = SystemState_RandomStream.FRandRange(SystemStateData.LoopDurationMin, SystemStateData.LoopDurationMax);
+				}
+
+				if (SystemStateData.bDelayFirstLoopOnly)
+				{
+					SystemState_CurrentLoopDelay = 0.0f;
+				}
+				else if (SystemStateData.bRecalculateDelayEachLoop)
+				{
+					SystemState_CurrentLoopDelay = SystemState_RandomStream.FRandRange(SystemStateData.LoopDelayMin, SystemStateData.LoopDelayMax);
+				}
+
+				SystemState_CurrentLoopAgeStart	= SystemState_CurrentLoopAgeEnd;
+				SystemState_CurrentLoopAgeEnd	= SystemState_CurrentLoopAgeStart + SystemState_CurrentLoopDelay + SystemState_CurrentLoopDuration;
+			} while (Age >= SystemState_CurrentLoopAgeEnd);
+		}
+	}
+	// Waiting on emitters to complete
+	//else if (ExecutionState == ENiagaraExecutionState::Inactive)
+	//{
+	//}
+
+	// Update the actual execution state
+	SetActualExecutionState(ExecutionState);
 }

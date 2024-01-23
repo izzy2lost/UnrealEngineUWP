@@ -335,9 +335,8 @@ const UNiagaraEmitterEditorData& FNiagaraEmitterViewModel::GetEditorData() const
 	{
 		return *CastChecked<UNiagaraEmitterEditorData>(EmitterWeakPtr.GetEmitterData()->GetEditorData());
 	}
-	//-TODO:Stateless:Figure this out
+	//-TODO:Stateless: We don't have UNiagaraEmitterEditorData
 	return *GetDefault<UNiagaraEmitterEditorData>();
-	//-TODO:Stateless:Figure this out
 }
 
 UNiagaraEmitterEditorData& FNiagaraEmitterViewModel::GetEditorData()
@@ -346,9 +345,8 @@ UNiagaraEmitterEditorData& FNiagaraEmitterViewModel::GetEditorData()
 	{
 		return *CastChecked<UNiagaraEmitterEditorData>(EmitterWeakPtr.GetEmitterData()->GetEditorData());
 	}
-	//-TODO:Stateless:Figure this out
+	//-TODO:Stateless: We don't have UNiagaraEmitterEditorData
 	return *GetMutableDefault<UNiagaraEmitterEditorData>();
-	//-TODO:Stateless:Figure this out
 }
 
 void FNiagaraEmitterViewModel::GetEmitterMessageStores(TArray<FNiagaraMessageSourceAndStore>& OutMessageStores)

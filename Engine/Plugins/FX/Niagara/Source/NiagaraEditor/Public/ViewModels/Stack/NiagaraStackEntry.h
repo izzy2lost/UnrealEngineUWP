@@ -440,6 +440,20 @@ public:
 		return nullptr;
 	}
 
+	template<typename ChildType>
+	static ChildType* FindCurrentChildOfType(const TArray<UNiagaraStackEntry*>& CurrentChildren)
+	{
+		for (UNiagaraStackEntry* CurrentChild : CurrentChildren)
+		{
+			ChildType* TypedCurrentChild = Cast<ChildType>(CurrentChild);
+			if (TypedCurrentChild != nullptr)
+			{
+				return TypedCurrentChild;
+			}
+		}
+		return nullptr;
+	}
+
 	NIAGARAEDITOR_API virtual void GetSearchItems(TArray<FStackSearchItem>& SearchItems) const;
 
 	NIAGARAEDITOR_API virtual UObject* GetExternalAsset() const;

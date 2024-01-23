@@ -272,19 +272,15 @@ FNiagaraDynamicDataBase::FNiagaraDynamicDataBase(const FNiagaraEmitterInstance* 
 
 	SystemInstanceID = InEmitter->GetParentSystemInstance()->GetId();
 
-	const FNiagaraDataSet& DataSet = InEmitter->GetParticleData();
-	const ENiagaraSimTarget SimTarget = DataSet.GetSimTarget();
-	if (SimTarget == ENiagaraSimTarget::CPUSim)
+	// CPU simulations we take a reference to the most recent data
+	if (InEmitter->GetSimTarget() == ENiagaraSimTarget::CPUSim)
 	{
-		//On CPU we pass through direct ptr to the most recent data buffer.
-		CPUParticleData = &DataSet.GetCurrentDataChecked();
+		CPUParticleData = &InEmitter->GetParticleData().GetCurrentDataChecked();
 	}
+	// GPU simulations we get a callback which will give us the correct data
 	else
 	{
-		//On GPU we must access the correct buffer via the GPUExecContext. Probably a way to route this data better outside the dynamic data in future.
-		//During simulation, the correct data buffer for rendering will be placed in the GPUContext and AddReadRef called.
-		check(SimTarget == ENiagaraSimTarget::GPUComputeSim);
-		GPUExecContext = InEmitter->GetGPUContext();
+		ComputeDataBufferInterface = InEmitter->GetComputeDataBufferInterface();
 	}
 }
 
@@ -294,12 +290,12 @@ FNiagaraDynamicDataBase::~FNiagaraDynamicDataBase()
 
 bool FNiagaraDynamicDataBase::IsGpuLowLatencyTranslucencyEnabled() const
 {
-	return GPUExecContext ? GPUExecContext->HasTranslucentDataToRender() : false;
+	return ComputeDataBufferInterface ? ComputeDataBufferInterface->HasTranslucentDataToRender() : false;
 }
 
-FNiagaraDataBuffer* FNiagaraDynamicDataBase::GetParticleDataToRender(bool bIsLowLatencyTranslucent)const
+FNiagaraDataBuffer* FNiagaraDynamicDataBase::GetParticleDataToRender(bool bIsLowLatencyTranslucent) const
 {
-	FNiagaraDataBuffer* Ret = GPUExecContext ? GPUExecContext->GetDataToRender(bIsLowLatencyTranslucent) : CPUParticleData.GetReference();
+	FNiagaraDataBuffer* Ret = ComputeDataBufferInterface ? ComputeDataBufferInterface->GetDataToRender(bIsLowLatencyTranslucent) : CPUParticleData.GetReference();
 	checkSlow(Ret == nullptr || Ret->IsBeingRead());
 	return Ret;
 }

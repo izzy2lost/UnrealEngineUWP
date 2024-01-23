@@ -1,0 +1,36 @@
+// Copyright Epic Games, Inc. All Rights Reserved.
+
+#include "../NiagaraStatelessCommon.ush"
+
+int		ScaleColor_Offset;
+int		ScaleColor_Length;
+
+struct FStatelessModule_ScaleColor
+{
+};
+
+float4 ScaleColor_GetScale(in FStatelessParticle Particle, float NormalizedAge)
+{
+	const float Offset = NormalizedAge * float(ScaleColor_Length - 1);
+	const int A = floor(Offset);
+	const int B = ceil(Offset);
+	const float U = frac(Offset);
+
+	return lerp(
+		GetStaticFloat4(ScaleColor_Offset, A),
+		GetStaticFloat4(ScaleColor_Offset, B), 
+		U
+	);
+}
+
+void ScaleColor_Initialize(inout FStatelessModule_ScaleColor ModuleData, inout FStatelessParticle Particle)
+{
+}
+	
+void ScaleColor_Simulate(in FStatelessModule_ScaleColor ModuleData, inout FStatelessParticle Particle)
+{
+	if (ScaleColor_Length > 0)
+	{
+		Particle.Color *= ScaleColor_GetScale(Particle, Particle.NormalizedAge);
+	}
+}

@@ -103,7 +103,8 @@ void UNiagaraStackSimulationStagePropertiesItem::RefreshChildrenInternal(const T
 	{
 		SimulationStageObject = NewObject<UNiagaraStackObject>(this);
 		bool bIsTopLevelObject = true;
-		SimulationStageObject->Initialize(CreateDefaultChildRequiredData(), SimulationStage.Get(), bIsTopLevelObject, GetStackEditorDataKey());
+		bool bHideTopLevelCategories = false;
+		SimulationStageObject->Initialize(CreateDefaultChildRequiredData(), SimulationStage.Get(), bIsTopLevelObject, bHideTopLevelCategories, GetStackEditorDataKey());
 		SimulationStageObject->SetObjectGuid(SimulationStage->GetMergeId());
 	}
 

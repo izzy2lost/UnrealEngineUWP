@@ -246,7 +246,6 @@ void FNiagaraDataInterfaceUtilities::ForEachDataInterface(FNiagaraSystemInstance
 
 	for (const FNiagaraEmitterInstanceRef& Emitter : SystemInstance->GetEmitters())
 	{
-		//-TODO:Stateless:
 		FNiagaraEmitterInstanceImpl* StatefulEmitter = Emitter->AsStateful();
 		if (!StatefulEmitter || Emitter->IsDisabled())
 		{
@@ -289,7 +288,6 @@ void FNiagaraDataInterfaceUtilities::ForEachDataInterface(FNiagaraSystemInstance
 
 	for (const FNiagaraEmitterInstanceRef& Emitter : SystemInstance->GetEmitters())
 	{
-		//-TODO:Stateless:
 		FNiagaraEmitterInstanceImpl* StatefulEmitter = Emitter->AsStateful();
 		if (!StatefulEmitter || Emitter->IsDisabled())
 		{

@@ -96,6 +96,7 @@ class FNiagaraDebugHud
 	#if WITH_EDITORONLY_DATA
 		bool		bCompileForEdit = false;
 	#endif
+		bool		bSystemStateFastPath = false;
 
 		#if WITH_PARTICLE_PERF_STATS
 		TSharedPtr<FNiagaraDebugHUDPerfStats> PerfStats = nullptr;

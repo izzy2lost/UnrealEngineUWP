@@ -393,8 +393,11 @@ void UNiagaraStackScriptItemGroup::Initialize(
 	ScriptUsage = InScriptUsage;
 	ScriptUsageId = InScriptUsageId;
 	ScriptGraph = InScriptViewModel->GetGraphViewModel()->GetGraph();
-	ScriptGraph->AddOnGraphChangedHandler(
-		FOnGraphChanged::FDelegate::CreateUObject(this, &UNiagaraStackScriptItemGroup::OnScriptGraphChanged));
+	//-TODO:Stateless: Do we need stateless support here?
+	if (ScriptGraph.IsValid())
+	{
+		ScriptGraph->AddOnGraphChangedHandler(FOnGraphChanged::FDelegate::CreateUObject(this, &UNiagaraStackScriptItemGroup::OnScriptGraphChanged));
+	}
 
 	if (ScriptUsage == ENiagaraScriptUsage::SystemSpawnScript || ScriptUsage == ENiagaraScriptUsage::EmitterSpawnScript)
 	{
@@ -408,11 +411,14 @@ void UNiagaraStackScriptItemGroup::Initialize(
 	}
 	else if (GetEmitterViewModel().IsValid())
 	{
-		OwningParticleScriptWeak = GetEmitterViewModel()->GetEmitter().GetEmitterData()->GetScript(ScriptUsage, ScriptUsageId);
-		if (OwningParticleScriptWeak.IsValid())
+		if (FVersionedNiagaraEmitterData* EmitterData = GetEmitterViewModel()->GetEmitter().GetEmitterData())
 		{
-			OwningParticleScriptWeak->OnVMScriptCompiled().AddUObject(this, &UNiagaraStackScriptItemGroup::OnParticleScriptCompiled);
-			OwningParticleScriptWeak->OnGPUScriptCompiled().AddUObject(this, &UNiagaraStackScriptItemGroup::OnParticleScriptCompiled);
+			OwningParticleScriptWeak = EmitterData->GetScript(ScriptUsage, ScriptUsageId);
+			if (OwningParticleScriptWeak.IsValid())
+			{
+				OwningParticleScriptWeak->OnVMScriptCompiled().AddUObject(this, &UNiagaraStackScriptItemGroup::OnParticleScriptCompiled);
+				OwningParticleScriptWeak->OnGPUScriptCompiled().AddUObject(this, &UNiagaraStackScriptItemGroup::OnParticleScriptCompiled);
+			}
 		}
 	}
 }
@@ -546,6 +552,12 @@ void UNiagaraStackScriptItemGroup::RefreshChildrenInternal(const TArray<UNiagara
 	checkf(ScriptViewModelPinned.IsValid(), TEXT("Can not refresh children when the script view model has been deleted."));
 
 	UNiagaraGraph* Graph = ScriptViewModelPinned->GetGraphViewModel()->GetGraph();
+	//-TODO:Stateless: Do we need stateless support here?
+	if (Graph == nullptr)
+	{
+		return;
+	}
+
 	FText ErrorMessage;
 	bIsValidForOutput = false;
 	if (FNiagaraStackGraphUtilities::ValidateGraphForOutput(*Graph, ScriptUsage, ScriptUsageId, ErrorMessage) == true)

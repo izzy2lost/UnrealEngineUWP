@@ -579,7 +579,7 @@ void UNiagaraDataInterfaceDataChannelRead::PostStageTick(FNDICpuPostStageContext
 					{
 						SpawnInfo.SpawnGroup = i;
 					}
-					//-TODO:Stateless:
+					//-TODO:Stateless: We need to handle the stateless path here
 					if (FNiagaraEmitterInstanceImpl* StatefulEmitter = TargetEmitter->AsStateful())
 					{
 						StatefulEmitter->GetSpawnInfo().Emplace(SpawnInfo);

@@ -81,7 +81,6 @@ public:
 	NIAGARA_API void CalculateFixedBounds(const FTransform& ToWorldSpace);
 #endif
 
-	//-TODO:Stateless: Cache miss hell never call GetEmitterData()!
 	FORCEINLINE const FNiagaraEmitterScalabilitySettings& GetScalabilitySettings() const { check(VersionedEmitter.GetEmitterData() != nullptr); return VersionedEmitter.GetEmitterData()->GetScalabilitySettings(); }
 
 	//ENiagaraExecutionState GetExecutionState() { return ExecutionState; }

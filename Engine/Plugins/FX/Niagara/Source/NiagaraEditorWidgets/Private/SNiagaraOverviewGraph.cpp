@@ -16,6 +16,7 @@
 #include "NiagaraObjectSelection.h"
 #include "NiagaraOverviewGraphNodeFactory.h"
 #include "NiagaraOverviewNode.h"
+#include "NiagaraSettings.h"
 #include "NiagaraSystem.h"
 #include "NiagaraSystemEditorData.h"
 #include "NiagaraStackEditorData.h"
@@ -274,6 +275,14 @@ FActionMenuContent SNiagaraOverviewGraph::OnCreateGraphActionMenu(UEdGraph* InGr
 				LOCTEXT("AddEmitterToolTip", "Adds an empty emitter without any modules or renderers."),
 				FSlateIcon(),
 				FExecuteAction::CreateSP(this, &SNiagaraOverviewGraph::OnCreateEmptyEmitter));
+			if (GetDefault<UNiagaraSettings>()->bStatelessEmittersEnabled)
+			{
+				MenuBuilder.AddMenuEntry(
+					LOCTEXT("AddStatelessEmitter", "Add stateless emitter"),
+					LOCTEXT("AddStatelessEmitterToolTip", "Adds a stateless emitter without any modules or renderers."),
+					FSlateIcon(),
+					FExecuteAction::CreateSP(this, &SNiagaraOverviewGraph::OnCreateStatelessEmitter));
+			}
 			MenuBuilder.AddMenuEntry(
 				LOCTEXT("CommentsLabel", "Add Comment"),
 				LOCTEXT("AddCommentBoxToolTip", "Add a comment box"),
@@ -311,6 +320,11 @@ FActionMenuContent SNiagaraOverviewGraph::OnCreateGraphActionMenu(UEdGraph* InGr
 void SNiagaraOverviewGraph::OnCreateEmptyEmitter()
 {
 	ViewModel->GetSystemViewModel()->AddEmptyEmitter();
+}
+
+void SNiagaraOverviewGraph::OnCreateStatelessEmitter()
+{
+	ViewModel->GetSystemViewModel()->AddStatelessEmitter();
 }
 
 void SNiagaraOverviewGraph::OnCreateComment()

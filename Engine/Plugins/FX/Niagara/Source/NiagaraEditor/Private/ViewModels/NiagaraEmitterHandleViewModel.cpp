@@ -61,12 +61,16 @@ void FNiagaraEmitterHandleViewModel::GetRendererEntries(TArray<UNiagaraStackEntr
 	if (StackRoot)
 	{
 		TArray<UNiagaraStackEntry*> Children;
-		StackRoot->GetRenderGroup()->GetUnfilteredChildren(Children);
-		for (UNiagaraStackEntry* Child : Children)
+		UNiagaraStackRenderItemGroup* RendererGroup = StackRoot->GetRenderGroup();
+		if (RendererGroup != nullptr)
 		{
-			if (UNiagaraStackRendererItem* RendererItem = Cast<UNiagaraStackRendererItem>(Child))
+			RendererGroup->GetUnfilteredChildren(Children);
+			for (UNiagaraStackEntry* Child : Children)
 			{
-				InRenderingEntries.Add(Child);
+				if (UNiagaraStackRendererItem* RendererItem = Cast<UNiagaraStackRendererItem>(Child))
+				{
+					InRenderingEntries.Add(Child);
+				}
 			}
 		}
 	}

@@ -1039,6 +1039,7 @@ void FNiagaraDebugHud::GatherSystemInfo()
 	#if WITH_EDITORONLY_DATA
 		SystemDebugInfo.bCompileForEdit = NiagaraComponent ? NiagaraComponent->GetAsset()->GetCompileForEdit() : false;
 	#endif
+		SystemDebugInfo.bSystemStateFastPath = NiagaraComponent ? NiagaraComponent->GetAsset()->SystemStateFastPathEnabled() : false;
 		SystemDebugInfo.bShowInWorld = Settings.bSystemFilterEnabled && SystemDebugInfo.SystemName.MatchesWildcard(Settings.SystemFilter);
 		SystemDebugInfo.bPassesSystemFilter = !Settings.bSystemFilterEnabled || SystemDebugInfo.SystemName.MatchesWildcard(Settings.SystemFilter);
 
@@ -1131,8 +1132,7 @@ void FNiagaraDebugHud::GatherSystemInfo()
 				check(SystemInstance);
 				for (const FNiagaraEmitterInstanceRef& EmitterInstance : SystemInstance->GetEmitters())
 				{
-					const UNiagaraEmitter* NiagaraEmitter = EmitterInstance->GetEmitter();
-					if (NiagaraEmitter == nullptr)
+					if (EmitterInstance->IsDisabled())
 					{
 						continue;
 					}
@@ -1627,13 +1627,19 @@ void FNiagaraDebugHud::DrawOverview(class FNiagaraWorldManager* WorldManager, FC
 				Canvas->DrawTile(X, Y, Col.MaxWidth, fAdvanceHeight, 0,0,0,0, RowBGColor);
 				const FLinearColor RowColor = SystemInfo.bShowInWorld ? DetailHighlightColor : DetailColor;
 
-				const bool bShowEditMode = 
-#if WITH_EDITORONLY_DATA
-					SystemInfo.bCompileForEdit;
-#else
-					false;
-#endif
-					Canvas->DrawShadowedString(X, Y, bShowEditMode ? *FString::Printf(TEXT("%s (Edit Mode)"), *SystemInfo.SystemName) : *SystemInfo.SystemName, Font, RowColor);
+				FNameBuilder SystemNameString;
+				SystemNameString.Append(*SystemInfo.SystemName);
+			#if WITH_EDITORONLY_DATA
+				if (SystemInfo.bCompileForEdit)
+				{
+					SystemNameString.Append(TEXT(" (Edit Mode)"));
+				}
+			#endif
+				if (SystemInfo.bSystemStateFastPath)
+				{
+					SystemNameString.Append(TEXT(" (Fast Path)"));
+				}
+				Canvas->DrawShadowedString(X, Y, SystemNameString.ToString(), Font, RowColor);
 		});
 
 		if (Settings.OverviewMode == ENiagaraDebugHUDOverviewMode::Overview)
@@ -2934,8 +2940,7 @@ void FNiagaraDebugHud::DrawComponents(FNiagaraWorldManager* WorldManager, UCanva
 					int32 ActiveParticles = 0;
 					for (const FNiagaraEmitterInstanceRef& EmitterInstance : SystemInstance->GetEmitters())
 					{
-						const UNiagaraEmitter* NiagaraEmitter = EmitterInstance->GetEmitter();
-						if (NiagaraEmitter == nullptr)
+						if (EmitterInstance->IsDisabled())
 						{
 							continue;
 						}
@@ -2949,13 +2954,14 @@ void FNiagaraDebugHud::DrawComponents(FNiagaraWorldManager* WorldManager, UCanva
 
 						if (Settings.SystemEmitterVerbosity == ENiagaraDebugHudVerbosity::Verbose)
 						{
+							const FString EmitterName = EmitterInstance->GetEmitterHandle().GetUniqueInstanceName();
 							if ( EmitterInstance->GetGPUContext() )
 							{
-								StringBuilder.Appendf(TEXT("Emitter(GPU) %s - State %s - Particles %d\n"), *NiagaraEmitter->GetUniqueEmitterName(), *ExecutionStateEnum->GetNameStringByIndex((int32)EmitterInstance->GetExecutionState()), EmitterInstance->GetNumParticles());
+								StringBuilder.Appendf(TEXT("Emitter(GPU) %s - State %s - Particles %d\n"), *EmitterName, *ExecutionStateEnum->GetNameStringByIndex((int32)EmitterInstance->GetExecutionState()), EmitterInstance->GetNumParticles());
 							}
 							else
 							{
-								StringBuilder.Appendf(TEXT("Emitter %s - State %s - Particles %d\n"), *NiagaraEmitter->GetUniqueEmitterName(), *ExecutionStateEnum->GetNameStringByIndex((int32)EmitterInstance->GetExecutionState()), EmitterInstance->GetNumParticles());
+								StringBuilder.Appendf(TEXT("Emitter %s - State %s - Particles %d\n"), *EmitterName, *ExecutionStateEnum->GetNameStringByIndex((int32)EmitterInstance->GetExecutionState()), EmitterInstance->GetNumParticles());
 							}
 						}
 					}
@@ -2998,7 +3004,6 @@ void FNiagaraDebugHud::DrawComponents(FNiagaraWorldManager* WorldManager, UCanva
 							for (const FParameterStoreVariable& ParameterStoreVariable : CachedVariables.ParameterStoreVariables)
 							{
 								FNiagaraParameterStore* ParameterStore = nullptr;
-								//-TODO:Stateless:
 								FNiagaraEmitterInstanceImpl* StatefulEmitter = SystemInstance->Emitters.IsValidIndex(ParameterStoreVariable.EmitterIndex) ? SystemInstance->Emitters[ParameterStoreVariable.EmitterIndex]->AsStateful() : nullptr;
 								switch (ParameterStoreVariable.StoreLocation)
 								{

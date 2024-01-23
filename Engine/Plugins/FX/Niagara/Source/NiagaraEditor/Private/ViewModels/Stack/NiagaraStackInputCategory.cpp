@@ -18,6 +18,7 @@
 #include "ViewModels/Stack/NiagaraStackObject.h"
 #include "ViewModels/Stack/NiagaraStackPropertyRow.h"
 #include "ViewModels/Stack/NiagaraStackRendererItem.h"
+#include "ViewModels/Stack/NiagaraStackRenderersOwner.h"
 #include "ViewModels/Stack/NiagaraStackSimulationStageGroup.h"
 
 #include UE_INLINE_GENERATED_CPP_BY_NAME(NiagaraStackInputCategory)
@@ -530,7 +531,7 @@ void UNiagaraStackSummaryCategory::RefreshChildrenInternal(const TArray<UNiagara
 				if (StackRenderer == nullptr)
 				{
 					StackRenderer = NewObject<UNiagaraStackRendererItem>(this);
-					StackRenderer->Initialize(CreateDefaultChildRequiredData(), *MatchingRendererProperties);
+					StackRenderer->Initialize(CreateDefaultChildRequiredData(), FNiagaraStackRenderersOwnerStandard::CreateShared(GetEmitterViewModel().ToSharedRef()), *MatchingRendererProperties);
 				}
 			
 				NewChildren.Add(StackRenderer);	
@@ -648,35 +649,28 @@ void UNiagaraStackSummaryCategory::RefreshChildrenInternal(const TArray<UNiagara
 				UNiagaraStackObject* StackObjectWithProperty = FindCurrentChildOfTypeByPredicate<UNiagaraStackObject>(CurrentChildren,
 				[&](UNiagaraStackObject* StackObjectCandidate)
 				{
-					if(StackObjectCandidate->GetObject() != Object)
-					{
-						return false;
-					}
-
-					if(StackObjectCandidate->GetCustomRootNodeNames().Num() == 1 && StackObjectCandidate->GetCustomRootNodeNames()[0] == ObjectProperty->GetPersistentIdentity().Names[0])
-					{
-						return true;
-					}
-
-					return false;
+					return StackObjectCandidate->GetObject() == Object && StackObjectCandidate->GetCustomName() == ObjectProperty->GetPersistentIdentity().Names[0];
 				});
 
 				if(StackObjectWithProperty == nullptr)
 				{
 					StackObjectWithProperty = NewObject<UNiagaraStackObject>(this);
-					StackObjectWithProperty->Initialize(CreateDefaultChildRequiredData(), Object, false, GetStackEditorDataKey(), nullptr);
-					StackObjectWithProperty->SetOnGetCustomRootNodes(UNiagaraStackObject::FOnGetCustomRootNodes::CreateLambda([PropertyName = ObjectProperty->GetPersistentIdentity().Names[0]](TArray<TSharedRef<IDetailTreeNode>> DefaultRootNodes, TArray<TSharedRef<IDetailTreeNode>>* Result)
+					bool bIsInTopLevelObject = false;
+					bool bHideTopLevelCategories = false;
+					StackObjectWithProperty->Initialize(CreateDefaultChildRequiredData(), Object, bIsInTopLevelObject, bHideTopLevelCategories, GetStackEditorDataKey(), nullptr);
+					StackObjectWithProperty->SetCustomName(ObjectProperty->GetPersistentIdentity().Names[0]);
+					StackObjectWithProperty->SetOnFilterDetailNodes(FNiagaraStackObjectShared::FOnFilterDetailNodes::CreateLambda([PropertyName = ObjectProperty->GetPersistentIdentity().Names[0]]( const TArray<TSharedRef<IDetailTreeNode>>& InSourceNodes, TArray<TSharedRef<IDetailTreeNode>>& OutFilteredNodes)
 					{
-						for(TSharedRef<IDetailTreeNode>& RootNode : DefaultRootNodes)
+						for(const TSharedRef<IDetailTreeNode>& SourceNode : InSourceNodes)
 						{
 							TArray<TSharedRef<IDetailTreeNode>> ChildrenNodes;
-							RootNode->GetChildren(ChildrenNodes);
+							SourceNode->GetChildren(ChildrenNodes);
 							
 							for(TSharedRef<IDetailTreeNode> ChildNode : ChildrenNodes)
 							{
 								if(ChildNode->GetNodeName() == PropertyName)
 								{
-									Result->Add(ChildNode);
+									OutFilteredNodes.Add(ChildNode);
 								}
 							}
 						}

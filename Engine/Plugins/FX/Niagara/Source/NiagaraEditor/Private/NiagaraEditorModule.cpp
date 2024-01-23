@@ -289,6 +289,50 @@ class FNiagaraEditorOnlyDataUtilities : public INiagaraEditorOnlyDataUtilities
 	{
 		return FNiagaraEditorUtilities::GetResolvedRuntimeInstanceForEditorDataInterfaceInstance(OwningSystem, EditorDataInterfaceInstance);
 	}
+
+	virtual TOptional<FNiagaraSystemStateData> TryGetSystemStateData(const UNiagaraSystem& System) const override
+	{
+		TOptional<FNiagaraSystemStateData> SystemStateData;
+
+		// Never allow if stateless is not enabled
+		if (!GetDefault<UNiagaraSettings>()->bStatelessEmittersEnabled)
+		{
+			return SystemStateData;
+		}
+
+		// All emitters must be stateless currently
+		// We can perhaps look at this again, but we always write Emitter.RandomSeed currently even with an empty script
+		for (const FNiagaraEmitterHandle& EmitterHandle : System.GetEmitterHandles())
+		{
+			if ( !EmitterHandle.GetIsEnabled() && EmitterHandle.GetEmitterMode() != ENiagaraEmitterMode::Stateless )
+			{
+				return SystemStateData;
+			}
+		}
+
+		// Try to resolve system state from the system scripts
+		const UNiagaraScript* Script = System.GetSystemSpawnScript();
+		const UNiagaraScriptSource* ScriptSource = Script ? Cast<UNiagaraScriptSource>(Script->GetLatestSource()) : nullptr;
+		if (ScriptSource)
+		{
+			const TCHAR* SystemStateName = TEXT("/Niagara/Modules/System/SystemState.SystemState");
+			TArray<UNiagaraNodeFunctionCall*> Nodes;
+			ScriptSource->NodeGraph->GetNodesOfClass<UNiagaraNodeFunctionCall>(Nodes);
+			Nodes.RemoveAll([](UNiagaraNodeFunctionCall* Node) { return !Node || !Node->IsNodeEnabled(); });
+
+			// No function calls, we can enable fast path with the empty system state
+			if (Nodes.Num() == 0)
+			{
+				SystemStateData.Emplace(FNiagaraSystemStateData());
+			}
+			//-TODO:Stateless: Single function call which is system state, attempt to extract the data
+			//else if (Nodes.Num() == 1 && Nodes[0]->FunctionScript->GetPathName() == SystemStateName)
+			//{
+			//}
+		}
+
+		return SystemStateData;
+	}
 };
 
 class FNiagaraScriptGraphPanelPinFactory : public FGraphPanelPinFactory

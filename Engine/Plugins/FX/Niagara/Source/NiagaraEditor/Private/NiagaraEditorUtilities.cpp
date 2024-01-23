@@ -2569,6 +2569,49 @@ void FNiagaraEditorUtilities::ToggleSelectedEmittersIsolated(TSharedRef<FNiagara
 	SystemViewModel->IsolateEmitters(EmittersToIsolate);
 }
 
+ECheckBoxState FNiagaraEditorUtilities::GetSelectedEmittersEmitterModeCheckState(TSharedRef<FNiagaraSystemViewModel> SystemViewModel, ENiagaraEmitterMode EmitterMode)
+{
+	TOptional<ENiagaraEmitterMode> CurrentEmitterMode;
+	const TArray<FGuid>& SelectedEmitterHandleIds = SystemViewModel->GetSelectionViewModel()->GetSelectedEmitterHandleIds();
+	for (const TSharedRef<FNiagaraEmitterHandleViewModel>& EmitterHandleViewModel : SystemViewModel->GetEmitterHandleViewModels())
+	{
+		if (SelectedEmitterHandleIds.Contains(EmitterHandleViewModel->GetId()) == false)
+		{
+			continue;
+		}
+		if (CurrentEmitterMode.IsSet() == false)
+		{
+			CurrentEmitterMode = EmitterHandleViewModel->GetEmitterHandle()->GetEmitterMode();
+		}
+		else
+		{
+			if (CurrentEmitterMode.GetValue() != EmitterHandleViewModel->GetEmitterHandle()->GetEmitterMode())
+			{
+				return ECheckBoxState::Undetermined;
+			}
+		}
+	}
+	if (CurrentEmitterMode.IsSet())
+	{
+		return CurrentEmitterMode.GetValue() == EmitterMode ? ECheckBoxState::Checked : ECheckBoxState::Unchecked;
+	}
+	return ECheckBoxState::Unchecked;
+}
+
+void FNiagaraEditorUtilities::SetSelectedEmittersEmitterMode(TSharedRef<FNiagaraSystemViewModel> SystemViewModel, ENiagaraEmitterMode EmitterMode)
+{
+	FScopedTransaction ScopedTransaction(LOCTEXT("ChangeEmitterMode", "Change emitter mode"));
+	SystemViewModel->GetSystem().Modify();
+
+	const TArray<FGuid>& SelectedEmitterHandleIds = SystemViewModel->GetSelectionViewModel()->GetSelectedEmitterHandleIds();
+	for (const TSharedRef<FNiagaraEmitterHandleViewModel>& EmitterHandleViewModel : SystemViewModel->GetEmitterHandleViewModels())
+	{
+		if (SelectedEmitterHandleIds.Contains(EmitterHandleViewModel->GetId()))
+		{
+			EmitterHandleViewModel->GetEmitterHandle()->SetEmitterMode(SystemViewModel->GetSystem(), EmitterMode);
+		}
+	}
+}
 
 void FNiagaraEditorUtilities::CreateAssetFromEmitter(TSharedRef<FNiagaraEmitterHandleViewModel> EmitterHandleViewModel)
 {

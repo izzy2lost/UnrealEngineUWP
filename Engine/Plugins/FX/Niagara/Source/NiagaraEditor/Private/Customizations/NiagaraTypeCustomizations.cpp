@@ -45,6 +45,10 @@
 #include "NiagaraVariableMetaData.h"
 #include "ViewModels/NiagaraEmitterHandleViewModel.h"
 
+//-TODO:stateless:Remove and unify emitter
+#include "Stateless/NiagaraStatelessEmitter.h"
+//-TODO:stateless:Remove and unify emitter
+
 #include "Widgets/SNiagaraParameterMenu.h"
 
 #include UE_INLINE_GENERATED_CPP_BY_NAME(NiagaraTypeCustomizations)
@@ -131,12 +135,11 @@ void FNiagaraMatrixCustomization::CustomizeChildren(TSharedRef<IPropertyHandle> 
 	}
 }
 
-TArray<FNiagaraVariableBase> FNiagaraStackAssetAction_VarBind::FindVariables(const FVersionedNiagaraEmitter& InEmitter, bool bSystem, bool bEmitter, bool bParticles, bool bUser, bool bAllowStatic)
+TArray<FNiagaraVariableBase> FNiagaraStackAssetAction_VarBind::FindVariables(UNiagaraSystem* NiagaraSystem, const FVersionedNiagaraEmitter& InEmitter, bool bSystem, bool bEmitter, bool bParticles, bool bUser, bool bAllowStatic)
 {
 	TArray<FNiagaraVariableBase> Bindings;
 	TArray<FNiagaraParameterMapHistory> Histories;
 
-	UNiagaraEmitter* Emitter = InEmitter.Emitter;
 	if (FVersionedNiagaraEmitterData* EmitterData = InEmitter.GetEmitterData())
 	{
 		if ( UNiagaraScriptSource* Source = Cast<UNiagaraScriptSource>(EmitterData->GraphSource) )
@@ -145,17 +148,16 @@ TArray<FNiagaraVariableBase> FNiagaraStackAssetAction_VarBind::FindVariables(con
 		}
 	}
 
-	if (bSystem || bEmitter)
+	if (NiagaraSystem && (bSystem || bEmitter))
 	{
-		if (UNiagaraSystem* Sys = Emitter->GetTypedOuter<UNiagaraSystem>())
+		if ( UNiagaraScriptSource* Source = Cast<UNiagaraScriptSource>(NiagaraSystem->GetSystemUpdateScript()->GetLatestSource()) )
 		{
-			if ( UNiagaraScriptSource* Source = Cast<UNiagaraScriptSource>(Sys->GetSystemUpdateScript()->GetLatestSource()) )
-			{
-				Histories.Append(UNiagaraNodeParameterMapBase::GetParameterMaps(Source->NodeGraph));
-			}
+			Histories.Append(UNiagaraNodeParameterMapBase::GetParameterMaps(Source->NodeGraph));
 		}
 	}
-	
+
+	UNiagaraEmitter* NiagaraEmitter = InEmitter.Emitter;
+	bEmitter &= NiagaraEmitter != nullptr;
 	for (const FNiagaraParameterMapHistory& History : Histories)
 	{
 		for (const FNiagaraVariable& Var : History.Variables)
@@ -163,42 +165,40 @@ TArray<FNiagaraVariableBase> FNiagaraStackAssetAction_VarBind::FindVariables(con
 			if (Var.GetType().IsStatic() && !bAllowStatic)
 				continue;
 
-			if (FNiagaraParameterUtilities::IsAttribute(Var) && bParticles)
+			if (bParticles && FNiagaraParameterUtilities::IsAttribute(Var))
 			{
 				Bindings.AddUnique(Var);
 			}
-			else if (FNiagaraParameterUtilities::IsSystemParameter(Var) && bSystem)
+			else if (bSystem && FNiagaraParameterUtilities::IsSystemParameter(Var))
 			{
 				Bindings.AddUnique(Var);
 			}
-			else if (Var.IsInNameSpace(Emitter->GetUniqueEmitterName()) && bEmitter)
+			else if (bEmitter && NiagaraEmitter && Var.IsInNameSpace(NiagaraEmitter->GetUniqueEmitterName()))
 			{
-				Bindings.AddUnique(FNiagaraUtilities::ResolveAliases(Var, FNiagaraAliasContext()
-					.ChangeEmitterNameToEmitter(Emitter->GetUniqueEmitterName())));
+				Bindings.AddUnique(
+					FNiagaraUtilities::ResolveAliases(Var, FNiagaraAliasContext().ChangeEmitterNameToEmitter(NiagaraEmitter->GetUniqueEmitterName()))
+				);
 			}
-			else if (FNiagaraParameterUtilities::IsAliasedEmitterParameter(Var) && bEmitter)
-			{
-				Bindings.AddUnique(Var);
-			}
-			else if (Var.IsInNameSpace(FNiagaraConstants::EmitterNamespaceString) && bEmitter)
+			else if (bEmitter && FNiagaraParameterUtilities::IsAliasedEmitterParameter(Var))
 			{
 				Bindings.AddUnique(Var);
 			}
-			else if (FNiagaraParameterUtilities::IsUserParameter(Var) && bUser)
+			else if (bEmitter && Var.IsInNameSpace(FNiagaraConstants::EmitterNamespaceString))
+			{
+				Bindings.AddUnique(Var);
+			}
+			else if (bUser && FNiagaraParameterUtilities::IsUserParameter(Var))
 			{
 				Bindings.AddUnique(Var);
 			}
 		}
 	}
 
-	if (bUser)
+	if (NiagaraSystem && bUser)
 	{
-		if (UNiagaraSystem* Sys = Emitter->GetTypedOuter<UNiagaraSystem>())
+		for (const FNiagaraVariable Var : NiagaraSystem->GetExposedParameters().ReadParameterVariables())
 		{
-			for (const FNiagaraVariable Var : Sys->GetExposedParameters().ReadParameterVariables())
-			{
-				Bindings.AddUnique(Var);
-			}
+			Bindings.AddUnique(Var);
 		}
 	}
 	return Bindings;
@@ -782,7 +782,6 @@ void FNiagaraUserParameterBindingCustomization::CustomizeHeader(TSharedRef<IProp
 					.ToolTipText(this, &FNiagaraUserParameterBindingCustomization::GetTooltipText)
 					.ButtonContent()
 					[
-
 						SNew(SNiagaraParameterName)
 						.ParameterName(this, &FNiagaraUserParameterBindingCustomization::GetVariableName)
 						.IsReadOnly(true)
@@ -982,14 +981,18 @@ TArray<TPair<FNiagaraVariableBase, FNiagaraVariableBase> > FNiagaraMaterialAttri
 	TArray<TPair<FNiagaraVariableBase, FNiagaraVariableBase>> Names;
 	TArray<FNiagaraVariableBase> BaseVars;
 
-	if (BaseSystem && BaseEmitter.Emitter && TargetParameterBinding)
+	//-TODO:stateless:Remove and unify emitter
+	if (BaseSystem && (BaseEmitter.Emitter || StatelessEmitter) && TargetParameterBinding)
+	//-TODO:stateless:Remove and unify emitter
 	{
-		bool bSystem = true;
-		bool bEmitter = true;
-		bool bParticles = false;
-		bool bUser = true;
-		bool bStatic = false;
-		BaseVars = FNiagaraStackAssetAction_VarBind::FindVariables(BaseEmitter, bSystem, bEmitter, bParticles, bUser, bStatic);
+		const bool bSystem = true;
+		//-TODO:stateless:Remove and unify emitter
+		const bool bEmitter = true;
+		//-TODO:stateless:Remove and unify emitter
+		const bool bParticles = false;
+		const bool bUser = true;
+		const bool bStatic = false;
+		BaseVars = FNiagaraStackAssetAction_VarBind::FindVariables(BaseSystem, BaseEmitter, bSystem, bEmitter, bParticles, bUser, bStatic);
 
 		TArray<UNiagaraScript*> Scripts;
 		Scripts.Add(BaseSystem->GetSystemUpdateScript());
@@ -1000,7 +1003,12 @@ TArray<TPair<FNiagaraVariableBase, FNiagaraVariableBase> > FNiagaraMaterialAttri
 		}
 
 		TMap<FString, FString> EmitterAlias;
-		EmitterAlias.Emplace(FNiagaraConstants::EmitterNamespace.ToString(), BaseEmitter.Emitter->GetUniqueEmitterName());
+		//-TODO:stateless:Remove and unify emitter
+		if (BaseEmitter.Emitter)
+		//-TODO:stateless:Remove and unify emitter
+		{
+			EmitterAlias.Emplace(FNiagaraConstants::EmitterNamespace.ToString(), BaseEmitter.Emitter->GetUniqueEmitterName());
+		}
 
 		auto FindCachedDI = 
 			[&](const FNiagaraVariableBase& BaseVariable) -> UNiagaraDataInterface*
@@ -1008,6 +1016,9 @@ TArray<TPair<FNiagaraVariableBase, FNiagaraVariableBase> > FNiagaraMaterialAttri
 				FName VariableName = BaseVariable.GetName();
 				if (BaseVariable.IsInNameSpace(FNiagaraConstants::EmitterNamespaceString))
 				{
+					//-TODO:stateless:Remove and unify emitter
+					check(BaseEmitter.Emitter);
+					//-TODO:stateless:Remove and unify emitter
 					VariableName = FNiagaraUtilities::ResolveAliases(BaseVariable, FNiagaraAliasContext()
 						.ChangeEmitterToEmitterName(BaseEmitter.Emitter->GetUniqueEmitterName())).GetName();
 				}
@@ -1385,6 +1396,9 @@ void FNiagaraMaterialAttributeBindingCustomization::CustomizeChildren(TSharedRef
 		if (RenderProps)
 		{
 			BaseEmitter = RenderProps->GetOuterEmitter();
+			//-TODO:stateless:Remove and unify emitter
+			StatelessEmitter = RenderProps->GetTypedOuter<UNiagaraStatelessEmitter>();
+			//-TODO:stateless:Remove and unify emitter
 		}
 		if (BaseSystem)
 		{
@@ -2263,6 +2277,16 @@ FText FNiagaraRendererMaterialParameterCustomization::GetBindingNameText(TShared
 	return FText::FromName(BindingName);
 }
 
+FName FNiagaraRendererMaterialParameterCustomization::GetBindingName(TSharedPtr<IPropertyHandle> PropertyHandle) const
+{
+	FName BindingName;
+	if (PropertyHandle.IsValid())
+	{
+		PropertyHandle->GetValue(BindingName);
+	}
+	return BindingName;
+}
+
 FText FNiagaraRendererMaterialParameterCustomization::GetMaterialBindingTooltip(FName ParameterName, const FString& ParameterDesc)
 {
 	if (ParameterDesc.Len() > 0)
@@ -2368,9 +2392,9 @@ bool FNiagaraRendererMaterialStaticBoolParameterCustomization::CustomizeChildPro
 			.ForegroundColor(FAppStyle::GetColor("PropertyEditor.AssetName.ColorAndOpacity"))
 			.ButtonContent()
 			[
-				SNew(STextBlock)
-				.Text(this, &FNiagaraRendererMaterialParameterCustomization::GetBindingNameText, PropertyHandle)
-				.Font(IDetailLayoutBuilder::GetDetailFont())
+				SNew(SNiagaraParameterName)
+				.ParameterName(this, &FNiagaraRendererMaterialParameterCustomization::GetBindingName, PropertyHandle)
+				.IsReadOnly(true)
 			]
 		];
 
@@ -2398,54 +2422,54 @@ TSharedRef<SWidget> FNiagaraRendererMaterialStaticBoolParameterCustomization::On
 	{
 		const FVersionedNiagaraEmitter NiagaraEmitter = RenderProperties->GetOuterEmitter();
 		const FNiagaraTypeDefinition StaticBoolDef = FNiagaraTypeDefinition::GetBoolDef().ToStaticDef();
+		FNiagaraAliasContext AliasContext;
 
+		auto AddStaticVariables =
+			[&](UNiagaraScript* NiagaraScript)
+			{
+				if (NiagaraScript == nullptr)
+				{
+					return;
+				}
+				for ( const FNiagaraVariable& StaticVariable : NiagaraScript->GetVMExecutableData().StaticVariablesWritten )
+				{
+					if ( StaticVariable.GetType() != StaticBoolDef)
+					{
+						continue;
+					}
+					const FNiagaraVariableBase ResolvedVariable = FNiagaraUtilities::ResolveAliases(StaticVariable, AliasContext);
+					const bool bSystemAttribute = ResolvedVariable.IsInNameSpace(FNiagaraConstants::SystemNamespaceString);
+					const bool bEmitterAttribute = ResolvedVariable.IsInNameSpace(FNiagaraConstants::EmitterNamespaceString);
+					const bool bParticleAttribute = ResolvedVariable.IsInNameSpace(FNiagaraConstants::ParticleAttributeNamespaceString);
+					if (!bSystemAttribute && !bEmitterAttribute && !bParticleAttribute)
+					{
+						continue;
+					}
+
+					MenuBuilder.AddMenuEntry(
+						FText::FromName(ResolvedVariable.GetName()),
+						TAttribute<FText>(),
+						FSlateIcon(),
+						FUIAction(
+							FExecuteAction::CreateLambda(
+								[ValidBinding= ResolvedVariable.GetName(), PropertyHandle]()
+								{
+									PropertyHandle->SetValue(ValidBinding);
+								}
+							)
+						)
+					);
+				}
+			};
+
+		if (UNiagaraSystem* NiagaraSystem = RenderProperties->GetTypedOuter<UNiagaraSystem>())
+		{
+			AddStaticVariables(NiagaraSystem->GetSystemSpawnScript());
+			AddStaticVariables(NiagaraSystem->GetSystemUpdateScript());
+		}
 		if (FVersionedNiagaraEmitterData* EmitterData = NiagaraEmitter.GetEmitterData())
 		{
-			const FNiagaraAliasContext AliasContext = FNiagaraAliasContext().ChangeEmitterNameToEmitter(NiagaraEmitter.Emitter->GetUniqueEmitterName());
-
-			auto AddStaticVariables =
-				[&](UNiagaraScript* NiagaraScript)
-				{
-					if (NiagaraScript == nullptr)
-					{
-						return;
-					}
-					for ( const FNiagaraVariable& StaticVariable : NiagaraScript->GetVMExecutableData().StaticVariablesWritten )
-					{
-						if ( StaticVariable.GetType() != StaticBoolDef)
-						{
-							continue;
-						}
-						const FNiagaraVariableBase ResolvedVariable = FNiagaraUtilities::ResolveAliases(StaticVariable, AliasContext);
-						const bool bSystemAttribute = ResolvedVariable.IsInNameSpace(FNiagaraConstants::SystemNamespaceString);
-						const bool bEmitterAttribute = ResolvedVariable.IsInNameSpace(FNiagaraConstants::EmitterNamespaceString);
-						const bool bParticleAttribute = ResolvedVariable.IsInNameSpace(FNiagaraConstants::ParticleAttributeNamespaceString);
-						if (!bSystemAttribute && !bEmitterAttribute && !bParticleAttribute)
-						{
-							continue;
-						}
-
-						MenuBuilder.AddMenuEntry(
-							FText::FromName(ResolvedVariable.GetName()),
-							TAttribute<FText>(),
-							FSlateIcon(),
-							FUIAction(
-								FExecuteAction::CreateLambda(
-									[ValidBinding= ResolvedVariable.GetName(), PropertyHandle]()
-									{
-										PropertyHandle->SetValue(ValidBinding);
-									}
-								)
-							)
-						);
-					}
-				};
-
-			if (UNiagaraSystem* NiagaraSystem = RenderProperties->GetTypedOuter<UNiagaraSystem>())
-			{
-				AddStaticVariables(NiagaraSystem->GetSystemSpawnScript());
-				AddStaticVariables(NiagaraSystem->GetSystemUpdateScript());
-			}
+			AliasContext.ChangeEmitterNameToEmitter(NiagaraEmitter.Emitter->GetUniqueEmitterName());
 			EmitterData->ForEachScript(AddStaticVariables);
 		}
 	}

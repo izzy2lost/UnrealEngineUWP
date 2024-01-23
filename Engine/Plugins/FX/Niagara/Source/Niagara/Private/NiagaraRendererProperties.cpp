@@ -11,6 +11,8 @@
 #include "NiagaraSystem.h"
 #include "NiagaraSystemImpl.h"
 
+#include "Stateless/NiagaraStatelessEmitter.h"
+
 #include "Interfaces/ITargetPlatform.h"
 #include "Materials/MaterialInterface.h"
 #include "Materials/MaterialInstanceConstant.h"
@@ -854,6 +856,24 @@ bool UNiagaraRendererProperties::NeedsLoadForTargetPlatform(const ITargetPlatfor
 					return ResolvedStaticValue.Get(true);
 				}
 			#endif
+				return true;
+			}
+		}
+	}
+	//-TODO:Stateless: We need a base emitter type
+	else if (const UNiagaraStatelessEmitter* OwnerStatelessEmitter = GetTypedOuter<UNiagaraStatelessEmitter>())
+	{
+		if (OwnerStatelessEmitter->NeedsLoadForTargetPlatform(TargetPlatform))
+		{
+			if (bIsEnabled && Platforms.IsEnabledForPlatform(TargetPlatform->IniPlatformName()))
+			{
+//#if WITH_EDITORONLY_DATA
+//				if (GNiagaraRendererCookOutStaticEnabledBinding && RendererEnabledBinding.IsValid())
+//				{
+//					TOptional<bool> ResolvedStaticValue = TryResolveStaticVariableBool(OwnerEmitter, RendererEnabledBinding.GetParamMapBindableVariable());
+//					return ResolvedStaticValue.Get(true);
+//				}
+//#endif
 				return true;
 			}
 		}

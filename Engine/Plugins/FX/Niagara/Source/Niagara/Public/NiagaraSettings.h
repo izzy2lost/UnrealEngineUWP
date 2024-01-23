@@ -158,6 +158,16 @@ class UNiagaraSettings : public UDeveloperSettings
 	UPROPERTY(config, EditAnywhere, Category = Niagara, meta = (DisplayName = "Enable building data for Experimental VM"))
 	bool bExperimentalVMEnabled = false;
 
+	/**
+	Enables Stateless Emitters experimental feature.
+	Statless emitters are lightweight fixed function emitters, they are not fully programmable like regular emitters and do not run scripts on the CPU.
+	Particle data is extrapolated per frame for the current particle age.  This means we never store particle data, we only generate it on demand.
+	Systems that contain only stateless emitters and no system script modules can take advantage of a much faster path to execute.
+	** There is no guarantee on backwards compatability for this feature currently.  Do not ship stateless content. **
+	*/
+	UPROPERTY(config, EditAnywhere, Category = Niagara, meta = (DisplayName = "Enable Stateless Emitters (Experimental)", ConfigRestartRequired = true))
+	bool bStatelessEmittersEnabled = false;
+
 	/** Whether to limit the max tick delta time or not. */
 	UPROPERTY(config, EditAnywhere, BlueprintReadWrite, AdvancedDisplay, Category = "Niagara", meta = (InlineEditConditionToggle))
 	bool bLimitDeltaTime = true;

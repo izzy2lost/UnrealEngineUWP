@@ -1,0 +1,38 @@
+// Copyright Epic Games, Inc. All Rights Reserved.
+
+#include "../NiagaraStatelessCommon.ush"
+
+int		ScaleMeshSize_Offset;
+int		ScaleMeshSize_Length;
+
+struct FStatelessModule_ScaleMeshSize
+{
+};
+
+
+float3 ScaleMeshSize_GetScale(in FStatelessParticle Particle, float NormalizedAge)
+{
+	const float Offset = NormalizedAge * float(ScaleMeshSize_Length - 1);
+	const int A = floor(Offset);
+	const int B = ceil(Offset);
+	const float U = frac(Offset);
+
+	return lerp(
+		GetStaticFloat3(ScaleMeshSize_Offset, A),
+		GetStaticFloat3(ScaleMeshSize_Offset, B), 
+		U
+	);
+}
+	
+void ScaleMeshSize_Initialize(inout FStatelessModule_ScaleMeshSize ModuleData, inout FStatelessParticle Particle)
+{
+}
+	
+void ScaleMeshSize_Simulate(in FStatelessModule_ScaleMeshSize ModuleData, inout FStatelessParticle Particle)
+{
+	if (ScaleMeshSize_Length > 0)
+	{
+		Particle.Scale *= ScaleMeshSize_GetScale(Particle, Particle.NormalizedAge);
+		Particle.PreviousScale *= ScaleMeshSize_GetScale(Particle, Particle.PreviousNormalizedAge);
+	}
+}

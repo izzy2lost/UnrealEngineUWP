@@ -45,6 +45,7 @@
 #include "DataInterface/NiagaraDataInterfaceDataChannelCommon.h"
 #include "DataInterface/NiagaraDataInterfaceDataChannelWrite.h"
 #include "DataInterface/NiagaraDataInterfaceDataChannelRead.h"
+#include "Stateless/NiagaraStatelessCommon.h"
 
 #if UE_USE_OPENVDB
 #include "NiagaraOpenVDB.h"
@@ -450,6 +451,7 @@ void INiagaraModule::StartupModule()
 	UNiagaraMeshRendererProperties::InitCDOPropertiesAfterModuleStartup();
 	UNiagaraComponentRendererProperties::InitCDOPropertiesAfterModuleStartup();
 	UNiagaraVolumeRendererProperties::InitCDOPropertiesAfterModuleStartup();
+	NiagaraStatelessCommon::Initialize();
 
 	// Register the data interface CDO finder with the shader module..
 	INiagaraShaderModule& NiagaraShaderModule = FModuleManager::LoadModuleChecked<INiagaraShaderModule>("NiagaraShader");

@@ -681,6 +681,16 @@ public:
 	};
 
 	FInstanceParameters GatheredInstanceParameters;
+
+	void InitSystemState();
+	void TickSystemState();
+
+	FRandomStream	SystemState_RandomStream;
+	int32			SystemState_LoopCount = 0;
+	float			SystemState_CurrentLoopDuration = 0.0f;
+	float			SystemState_CurrentLoopDelay = 0.0f;
+	float			SystemState_CurrentLoopAgeStart = 0.0f;
+	float			SystemState_CurrentLoopAgeEnd = 0.0f;
 };
 
 FORCEINLINE void FNiagaraSystemInstance::SetLODDistance(float InLODDistance, float InMaxLODDistance, bool bOverride)

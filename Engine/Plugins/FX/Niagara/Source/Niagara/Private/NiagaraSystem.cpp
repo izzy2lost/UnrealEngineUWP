@@ -8,6 +8,7 @@
 #include "AssetRegistry/IAssetRegistry.h"
 #include "INiagaraEditorOnlyDataUtlities.h"
 #include "Materials/MaterialInterface.h"
+#include "Stateless/NiagaraStatelessEmitter.h"
 #include "NiagaraAsyncCompile.h"
 #include "NiagaraConstants.h"
 #include "NiagaraBakerSettings.h"
@@ -628,6 +629,8 @@ void UNiagaraSystem::UpdateSystemAfterLoad()
 		bIsReadyToRunCached = IsReadyToRunInternal();
 	}
 
+	ResolveRequiresScripts();
+
 	ResolveScalabilitySettings();
 
 	ComputeEmittersExecutionOrder();
@@ -893,6 +896,14 @@ void UNiagaraSystem::PreEditChange(FProperty* PropertyThatWillChange)
 		UpdateContext.SetDestroyOnAdd(true);
 		UpdateContext.Add(this, false);
 	}
+
+	////-TODO:Stateless: Merge into emitter handle
+	//if (PropertyThatWillChange && PropertyThatWillChange->GetFName() == GET_MEMBER_NAME_CHECKED(UNiagaraSystem, StatelessEmitters))
+	//{
+	//	UpdateContext.SetDestroyOnAdd(true);
+	//	UpdateContext.Add(this, false);
+	//}
+	////-TODO:Stateless: Merge into emitter handle
 }
 
 void UNiagaraSystem::PostEditChangeProperty(struct FPropertyChangedEvent& PropertyChangedEvent)
@@ -1970,15 +1981,34 @@ void UNiagaraSystem::ComputeRenderersDrawOrder()
 			continue;
 		}
 
-		if (FVersionedNiagaraEmitterData* EmitterData = EmitterHandle.GetEmitterData())
+		if (EmitterHandle.GetEmitterMode() == ENiagaraEmitterMode::Standard)
 		{
-			EmitterData->ForEachEnabledRenderer(
-				[&](UNiagaraRendererProperties* Properties)
-				{
-					RendererSortInfo.Emplace(Properties->SortOrderHint, RendererSortInfo.Num());
-				}
-			);
+			if (FVersionedNiagaraEmitterData* EmitterData = EmitterHandle.GetEmitterData())
+			{
+				EmitterData->ForEachEnabledRenderer(
+					[&](UNiagaraRendererProperties* Properties)
+					{
+						RendererSortInfo.Emplace(Properties->SortOrderHint, RendererSortInfo.Num());
+					}
+				);
+			}
 		}
+		//-TODO:Stateless:Abstract this away
+		else
+		{
+			ensure(EmitterHandle.GetEmitterMode() == ENiagaraEmitterMode::Stateless);
+			const UNiagaraStatelessEmitter* StatelessEmitter = EmitterHandle.GetStatelessEmitter();
+			if (StatelessEmitter)
+			{
+				StatelessEmitter->ForEachEnabledRenderer(
+					[&](UNiagaraRendererProperties* Properties)
+					{
+						RendererSortInfo.Emplace(Properties->SortOrderHint, RendererSortInfo.Num());
+					}
+				);
+			}
+		}
+		//-TODO:Stateless:Abstract this away
 	}
 
 	// We sort by the sort hint in order to guarantee that we submit according to the preferred sort order..
@@ -2028,71 +2058,84 @@ void UNiagaraSystem::CacheFromCompiledData()
 			continue;
 		}
 
-		if (FVersionedNiagaraEmitterData* EmitterData = EmitterHandle.GetEmitterData())
+		if (EmitterHandle.GetEmitterMode() == ENiagaraEmitterMode::Standard)
 		{
-			// Cache system instance accessors
-			ExecutionStateNameBuilder.Reset();
-			ExecutionStateNameBuilder << EmitterHandle.GetInstance().Emitter->GetUniqueEmitterName();
-			ExecutionStateNameBuilder << TEXT(".ExecutionState");
-			const FName ExecutionStateName(ExecutionStateNameBuilder);
-
-			EmitterExecutionState.Init(SystemDataSet, ExecutionStateName);
-
-			// Cache emitter data set accessors, for things like bounds, etc
-			const FNiagaraDataSetCompiledData* DataSetCompiledData = nullptr;
-			if (EmitterCompiledData.IsValidIndex(i))
+			if (FVersionedNiagaraEmitterData* EmitterData = EmitterHandle.GetEmitterData())
 			{
-				for (const FName& SpawnName : EmitterCompiledData[i]->SpawnAttributes)
+				// Cache system instance accessors
+				ExecutionStateNameBuilder.Reset();
+				ExecutionStateNameBuilder << EmitterHandle.GetInstance().Emitter->GetUniqueEmitterName();
+				ExecutionStateNameBuilder << TEXT(".ExecutionState");
+				const FName ExecutionStateName(ExecutionStateNameBuilder);
+
+				EmitterExecutionState.Init(SystemDataSet, ExecutionStateName);
+
+				// Cache emitter data set accessors, for things like bounds, etc
+				const FNiagaraDataSetCompiledData* DataSetCompiledData = nullptr;
+				if (EmitterCompiledData.IsValidIndex(i))
 				{
-					EmitterSpawnInfoAccessors[i].Emplace(SystemDataSet, SpawnName);
-				}
-
-				DataSetCompiledData = &EmitterCompiledData[i]->DataSetCompiledData;
-
-				if (NiagaraSettings->bLimitDeltaTime)
-				{
-					MaxDeltaTime = MaxDeltaTime.IsSet() ? FMath::Min(MaxDeltaTime.GetValue(), NiagaraSettings->MaxDeltaTimePerTick) : NiagaraSettings->MaxDeltaTimePerTick;
-				}
-			}
-			EmitterHandle.GetInstance().Emitter->ConditionalPostLoad();
-			EmitterData->CacheFromCompiledData(DataSetCompiledData, *EmitterHandle.GetInstance().Emitter);
-
-			PSOPrecacheEvents.Append(EmitterData->PrecacheComputePSOs(*EmitterHandle.GetInstance().Emitter));
-
-			// Allow data interfaces to cache static buffers
-			UNiagaraScript* NiagaraEmitterScripts[] =
-			{
-				EmitterData->SpawnScriptProps.Script,
-				EmitterData->UpdateScriptProps.Script,
-				EmitterData->GetGPUComputeScript(),
-			};
-
-			for (UNiagaraScript* NiagaraScript : NiagaraEmitterScripts)
-			{
-				if (NiagaraScript == nullptr)
-				{
-					continue;
-				}
-
-				const bool bUsedByCPU = EmitterData->SimTarget == ENiagaraSimTarget::CPUSim;
-				const bool bUsedByGPU = EmitterData->SimTarget == ENiagaraSimTarget::GPUComputeSim;
-				for (const FNiagaraScriptResolvedDataInterfaceInfo& DataInterfaceInfo : NiagaraScript->GetResolvedDataInterfaces())
-				{
-					if (UNiagaraDataInterface* DataInterface = DataInterfaceInfo.ResolvedDataInterface)
+					for (const FName& SpawnName : EmitterCompiledData[i]->SpawnAttributes)
 					{
-						DataInterface->CacheStaticBuffers(*StaticBuffers.Get(), DataInterfaceInfo.ResolvedVariable, bUsedByCPU, bUsedByGPU);
+						EmitterSpawnInfoAccessors[i].Emplace(SystemDataSet, SpawnName);
+					}
 
-						if ( bUsedByGPU )
+					DataSetCompiledData = &EmitterCompiledData[i]->DataSetCompiledData;
+
+					if (NiagaraSettings->bLimitDeltaTime)
+					{
+						MaxDeltaTime = MaxDeltaTime.IsSet() ? FMath::Min(MaxDeltaTime.GetValue(), NiagaraSettings->MaxDeltaTimePerTick) : NiagaraSettings->MaxDeltaTimePerTick;
+					}
+				}
+				EmitterHandle.GetInstance().Emitter->ConditionalPostLoad();
+				EmitterData->CacheFromCompiledData(DataSetCompiledData, *EmitterHandle.GetInstance().Emitter);
+
+				PSOPrecacheEvents.Append(EmitterData->PrecacheComputePSOs(*EmitterHandle.GetInstance().Emitter));
+
+				// Allow data interfaces to cache static buffers
+				UNiagaraScript* NiagaraEmitterScripts[] =
+				{
+					EmitterData->SpawnScriptProps.Script,
+					EmitterData->UpdateScriptProps.Script,
+					EmitterData->GetGPUComputeScript(),
+				};
+
+				for (UNiagaraScript* NiagaraScript : NiagaraEmitterScripts)
+				{
+					if (NiagaraScript == nullptr)
+					{
+						continue;
+					}
+
+					const bool bUsedByCPU = EmitterData->SimTarget == ENiagaraSimTarget::CPUSim;
+					const bool bUsedByGPU = EmitterData->SimTarget == ENiagaraSimTarget::GPUComputeSim;
+					for (const FNiagaraScriptResolvedDataInterfaceInfo& DataInterfaceInfo : NiagaraScript->GetResolvedDataInterfaces())
+					{
+						if (UNiagaraDataInterface* DataInterface = DataInterfaceInfo.ResolvedDataInterface)
 						{
-							if (DataInterfaceInfo.bIsInternal == false)
+							DataInterface->CacheStaticBuffers(*StaticBuffers.Get(), DataInterfaceInfo.ResolvedVariable, bUsedByCPU, bUsedByGPU);
+
+							if ( bUsedByGPU )
 							{
-								DataInterfaceGpuUsage.Add(DataInterfaceInfo.ParameterStoreVariable.GetName()); 
+								if (DataInterfaceInfo.bIsInternal == false)
+								{
+									DataInterfaceGpuUsage.Add(DataInterfaceInfo.ParameterStoreVariable.GetName()); 
+								}
 							}
 						}
 					}
 				}
 			}
 		}
+		//-TODO:Stateless:Abstract this away
+		else
+		{
+			ensure(EmitterHandle.GetEmitterMode() == ENiagaraEmitterMode::Stateless);
+			if (UNiagaraStatelessEmitter* StatelessEmitter = EmitterHandle.GetStatelessEmitter())
+			{
+				StatelessEmitter->CacheFromCompiledData();
+			}
+		}
+		//-TODO:Stateless:Abstract this away
 	}
 
 	// If we had any precache events to wait on add a task to ensure the system does not start until they are ready
@@ -2421,13 +2464,25 @@ void UNiagaraSystem::AddEmitterHandleDirect(FNiagaraEmitterHandle& EmitterHandle
 
 FNiagaraEmitterHandle UNiagaraSystem::DuplicateEmitterHandle(const FNiagaraEmitterHandle& EmitterHandleToDuplicate, FName EmitterName)
 {
-	UNiagaraEmitter* DuplicateEmitter = UNiagaraEmitter::CreateAsDuplicate(*EmitterHandleToDuplicate.GetInstance().Emitter, EmitterName, *this);
-	FNiagaraEmitterHandle EmitterHandle(*DuplicateEmitter, EmitterHandleToDuplicate.GetInstance().Version);
-	EmitterHandle.SetIsEnabled(EmitterHandleToDuplicate.GetIsEnabled(), *this, false);
-	EmitterHandles.Add(EmitterHandle);
-	RefreshSystemParametersFromEmitter(EmitterHandle);
+	UNiagaraEmitter* DuplicateEmitter = EmitterHandleToDuplicate.GetInstance().Emitter ? UNiagaraEmitter::CreateAsDuplicate(*EmitterHandleToDuplicate.GetInstance().Emitter, EmitterName, *this) : nullptr;
+	UNiagaraStatelessEmitter* DuplicateStatelessEmitter = EmitterHandleToDuplicate.GetStatelessEmitter() ? EmitterHandleToDuplicate.GetStatelessEmitter()->CreateAsDuplicate(EmitterName, *this) : nullptr;
+	if (DuplicateEmitter)
+	{
+		EmitterHandles.Emplace_GetRef(*DuplicateEmitter, EmitterHandleToDuplicate.GetInstance().Version);
+	}
+	else
+	{
+		check(DuplicateStatelessEmitter);
+		EmitterHandles.Emplace(*DuplicateStatelessEmitter);
+	}
+
+	FNiagaraEmitterHandle& NewHandle = EmitterHandles.Last();
+	NewHandle.SetIsEnabled(EmitterHandleToDuplicate.GetIsEnabled(), *this, false);
+	NewHandle.SetStatelessEmitter(DuplicateStatelessEmitter);
+	NewHandle.SetEmitterMode(*this, EmitterHandleToDuplicate.GetEmitterMode());
+	RefreshSystemParametersFromEmitter(NewHandle);
 	InvalidateCachedData();
-	return EmitterHandle;
+	return NewHandle;
 }
 
 void UNiagaraSystem::RemoveEmitterHandle(const FNiagaraEmitterHandle& EmitterHandleToDelete)
@@ -2953,6 +3008,7 @@ bool UNiagaraSystem::QueryCompileComplete(bool bWait)
 	UpdateHasGPUEmitters();
 	UpdateDITickFlags();
 	ResolveScalabilitySettings();
+	ResolveRequiresScripts();
 
 	CurrentCompilation->ReportResults(Options);
 
@@ -3254,7 +3310,9 @@ void UNiagaraSystem::InitEmitterCompiledData()
 			const FNiagaraEmitterHandle& EmitterHandle = EmitterHandles[EmitterIdx];
 			const UNiagaraEmitter* Emitter = EmitterHandle.GetInstance().Emitter;
 			FNiagaraDataSetCompiledData& EmitterDataSetCompiledData = NewEmitterCompiledData[EmitterIdx]->DataSetCompiledData;
-			if (ensureMsgf(Emitter != nullptr, TEXT("Failed to get Emitter Instance from Emitter Handle in post compile, please investigate.")))
+			//-TODO:Stateless: Do we need stateless support here?
+			//if (ensureMsgf(Emitter != nullptr, TEXT("Failed to get Emitter Instance from Emitter Handle in post compile, please investigate.")))
+			if (Emitter != nullptr)
 			{
 				InitEmitterVariableAliasNames(NewEmitterCompiledData[EmitterIdx].Get(), Emitter);
 				InitEmitterDataSetCompiledData(EmitterDataSetCompiledData, EmitterHandle);			
@@ -3323,7 +3381,9 @@ void UNiagaraSystem::InitSystemCompiledData()
 	{
 		const FNiagaraEmitterHandle& PerEmitterHandle = EmitterHandles[EmitterIdx];
 		const UNiagaraEmitter* Emitter = PerEmitterHandle.GetInstance().Emitter;
-		if (ensureMsgf(Emitter != nullptr, TEXT("Failed to get Emitter Instance from Emitter Handle when post compiling Niagara System %s!"), *GetPathNameSafe(this)))
+		//-TODO:Stateless: Do we need stateless support here?
+		//if (ensureMsgf(Emitter != nullptr, TEXT("Failed to get Emitter Instance from Emitter Handle when post compiling Niagara System %s!"), *GetPathNameSafe(this)))
+		if (Emitter != nullptr)
 		{
 			const FString EmitterName = Emitter->GetUniqueEmitterName();
 
@@ -3571,6 +3631,23 @@ void UNiagaraSystem::GatherStaticVariables(TArray<FNiagaraVariable>& OutVars, TA
 	}
 }
 #endif
+
+void UNiagaraSystem::ResolveRequiresScripts()
+{
+#if WITH_EDITORONLY_DATA
+	TOptional<FNiagaraSystemStateData> NewSystemStateData;
+
+	if (bAllowSystemStateFastPath)
+	{
+		INiagaraModule& NiagaraModule = FModuleManager::GetModuleChecked<INiagaraModule>("Niagara");
+		const INiagaraEditorOnlyDataUtilities& EditorOnlyDataUtilities = NiagaraModule.GetEditorOnlyDataUtilities();
+		NewSystemStateData = EditorOnlyDataUtilities.TryGetSystemStateData(*this);
+	}
+
+	bSystemStateFastPathEnabled = NewSystemStateData.IsSet();
+	SystemStateData = NewSystemStateData.Get(FNiagaraSystemStateData());
+#endif //WITH_EDITORONLY_DATA
+}
 
 void UNiagaraSystem::ResolveScalabilitySettings()
 {

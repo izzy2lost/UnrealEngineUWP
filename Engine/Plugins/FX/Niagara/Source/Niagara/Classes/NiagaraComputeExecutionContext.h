@@ -55,10 +55,33 @@ struct FNiagaraGpuSpawnInfo
 	}
 };
 
-struct FNiagaraComputeExecutionContext
+struct INiagaraComputeDataBufferInterface
+{
+	virtual bool HasTranslucentDataToRender() const = 0;
+	virtual FNiagaraDataBuffer* GetDataToRender(bool bIsLowLatencyTranslucent) const = 0;
+};
+
+struct FNiagaraComputeExecutionContext : public INiagaraComputeDataBufferInterface
 {
 	FNiagaraComputeExecutionContext();
-	~FNiagaraComputeExecutionContext();
+	virtual ~FNiagaraComputeExecutionContext();
+
+	// Begin: INiagaraComputeDataBufferInterface
+	virtual bool HasTranslucentDataToRender() const override { return TranslucentDataToRender != nullptr; }
+	virtual FNiagaraDataBuffer* GetDataToRender(bool bIsLowLatencyTranslucent) const override
+	{
+		if (bIsLowLatencyTranslucent)
+		{
+			// Translucent rendering uses current frame (newest) data, which is TranslucentDataToRender if present
+			return TranslucentDataToRender ? TranslucentDataToRender : DataToRender;
+		}
+		else
+		{
+			// Non-translucent rendering uses previous frame (older) data, which is MultiViewPreviousDataToRender if present
+			return MultiViewPreviousDataToRender ? MultiViewPreviousDataToRender : DataToRender;
+		}
+	}
+	// End: INiagaraComputeDataBufferInterface
 
 	void Reset(FNiagaraGpuComputeDispatchInterface* ComputeDispatchInterface);
 
@@ -73,20 +96,6 @@ struct FNiagaraComputeExecutionContext
 	void SetDataToRender(FNiagaraDataBuffer* InDataToRender);
 	void SetTranslucentDataToRender(FNiagaraDataBuffer* InTranslucentDataToRender);
 	void SetMultiViewPreviousDataToRender(FNiagaraDataBuffer* InMultiViewPreviousDataToRender);
-	bool HasTranslucentDataToRender() const { return TranslucentDataToRender != nullptr; }	
-	FNiagaraDataBuffer* GetDataToRender(bool bIsLowLatencyTranslucent) const
-	{
-		if (bIsLowLatencyTranslucent)
-		{
-			// Translucent rendering uses current frame (newest) data, which is TranslucentDataToRender if present
-			return TranslucentDataToRender ? TranslucentDataToRender : DataToRender;
-		}
-		else
-		{
-			// Non-translucent rendering uses previous frame (older) data, which is MultiViewPreviousDataToRender if present
-			return MultiViewPreviousDataToRender ? MultiViewPreviousDataToRender : DataToRender;
-		}
-	}
 
 	int32 GetConstantBufferSize() const;
 	uint8* WriteConstantBufferInstanceData(uint8* InTargetBuffer, FNiagaraComputeInstanceData& InstanceData) const;
