@@ -436,6 +436,14 @@ void SAssetAuditBrowser::Construct(const FArguments& InArgs)
 					+SHorizontalBox::Slot()
 					.AutoWidth()
 					[
+						IAssetManagerEditorModule::MakePrimaryAssetTypeSelector(
+							FOnGetPrimaryAssetDisplayText::CreateLambda([] { return LOCTEXT("AddManagedAssetsOfType", "Add Managed Assets of Type"); }),
+							FOnSetPrimaryAssetType::CreateSP(this, &SAssetAuditBrowser::AddManagedAssetsOfType),
+							false, false)
+					]
+					+SHorizontalBox::Slot()
+					.AutoWidth()
+					[
 						SNew(SButton)
 						.HAlign(HAlign_Center)
 						.VAlign(VAlign_Center)
@@ -782,6 +790,26 @@ void SAssetAuditBrowser::AddManagedAssets(FPrimaryAssetId AssetId)
 
 		AssetManager->GetManagedPackageList(AssetId, AssetPackageArray);
 
+		AddAssetsToList(AssetPackageArray, false);
+	}
+}
+
+void SAssetAuditBrowser::AddManagedAssetsOfType(FPrimaryAssetType AssetType)
+{
+	if (AssetType.IsValid())
+	{
+		TArray<FSoftObjectPath> AssetArray;
+		AssetManager->GetPrimaryAssetPathList(AssetType, AssetArray);
+		AddAssetsToList(AssetArray, false);
+
+		TArray<FName> AssetPackageArray;
+		TArray<FPrimaryAssetId> PrimaryAssetIds;
+		AssetManager->GetPrimaryAssetIdList(AssetType, PrimaryAssetIds);
+		for (const FPrimaryAssetId& PrimaryAssetId : PrimaryAssetIds)
+		{
+			// Calling GetManagedPackageList rather than AddManagedAssets to reduce UI update calls
+			AssetManager->GetManagedPackageList(PrimaryAssetId, AssetPackageArray);
+		}
 		AddAssetsToList(AssetPackageArray, false);
 	}
 }
