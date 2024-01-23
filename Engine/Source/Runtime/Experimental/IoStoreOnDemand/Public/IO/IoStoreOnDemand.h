@@ -180,6 +180,7 @@ struct FIoStoreUploadParams
 	FString TocOutputDir;
 
 	UE_API static TIoStatusOr<FIoStoreUploadParams> Parse(const TCHAR* CommandLine);
+	FIoStatus Validate() const;
 };
 
 /** Results from uploading a FOnDemandToc */
@@ -217,6 +218,7 @@ struct FIoStoreDownloadParams
 	int32 MaxConcurrentDownloads = 16;
 	
 	UE_API static TIoStatusOr<FIoStoreDownloadParams> Parse(const TCHAR* CommandLine);
+	FIoStatus Validate() const;
 };
 
 UE_API FIoStatus DownloadContainerFiles(const FIoStoreDownloadParams& DownloadParams, const FString& TocPath);
@@ -274,6 +276,7 @@ struct FIoStoreListTocsParams
 	bool bBlockHashes = false;
 
 	UE_API static TIoStatusOr<FIoStoreListTocsParams> Parse(const TCHAR* CommandLine);
+	FIoStatus Validate() const;
 };
 
 UE_API FIoStatus ListTocs(const FIoStoreListTocsParams& Params);
