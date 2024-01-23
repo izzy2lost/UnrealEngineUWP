@@ -4975,7 +4975,7 @@ private:
 
 			RETURN_IF_ERROR(ParseInfo->Reader()->Read(GroupingType));							// grouping_type
 
-			if (Version == 1)
+			if (Version >= 1)
 			{
 				RETURN_IF_ERROR(ParseInfo->Reader()->Read(DefaultLength));						// default_length
 			}
