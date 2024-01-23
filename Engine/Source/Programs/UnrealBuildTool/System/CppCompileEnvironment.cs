@@ -689,7 +689,7 @@ namespace UnrealBuildTool
 		public bool bValidateFormatStrings = true;
 
 		/// <summary>
-		/// Emits compilation errors for incorrect UE_LOG format strings.
+		/// Emits deprecated warnings\errors for internal API usage for non-engine modules.
 		/// </summary>
 		public bool bValidateInternalApi = false;
 
