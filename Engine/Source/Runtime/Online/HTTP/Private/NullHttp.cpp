@@ -130,8 +130,6 @@ bool FNullHttpRequest::ProcessRequest()
 	CompletionStatus = EHttpRequestStatus::Processing;
 
 	UE_LOG(LogHttp, Log, TEXT("Start request. %p %s url=%s"), this, *GetVerb(), *GetURL());
-
-	FHttpModule::Get().GetHttpManager().AddRequest(SharedThis(this));
 	return true;
 }
 
@@ -170,7 +168,7 @@ void FNullHttpRequest::Tick(float DeltaSeconds)
 	if (CompletionStatus == EHttpRequestStatus::Processing)
 	{
 		ElapsedTime += DeltaSeconds;
-		const float HttpTimeout = GetTimeout().Get(FHttpModule::Get().GetHttpTimeout());
+		const float HttpTimeout = GetTimeout().Get(FHttpModule::Get().GetHttpActivityTimeout());
 		if (HttpTimeout > 0 && ElapsedTime >= HttpTimeout)
 		{
 			UE_LOG(LogHttp, Warning, TEXT("Timeout processing Http request. %p"),

@@ -41,6 +41,41 @@ class FMockHttpModule : public FHttpModule
 {
 public:
 	using FHttpModule::HttpConnectionTimeout;
+	using FHttpModule::HttpTotalTimeout;
+	using FHttpModule::HttpActivityTimeout;
+};
+
+class FHttpTestLogLevelInitializer
+{
+public:
+	FHttpTestLogLevelInitializer()
+		: OldVerbosity(LogHttp.GetVerbosity())
+	{
+		FParse::Bool(FCommandLine::Get(), TEXT("very_verbose="), bVeryVerbose);
+		if (bVeryVerbose)
+		{
+			LogHttp.SetVerbosity(ELogVerbosity::VeryVerbose);
+		}
+	}
+
+	~FHttpTestLogLevelInitializer()
+	{
+		if (OldVerbosity != LogHttp.GetVerbosity())
+		{
+			LogHttp.SetVerbosity(OldVerbosity);
+		}
+	}
+
+	void DisableWarningsInThisTest()
+	{
+		if (!bVeryVerbose)
+		{
+			LogHttp.SetVerbosity(ELogVerbosity::Error);
+		}
+	}
+
+	bool bVeryVerbose = false;
+	ELogVerbosity::Type OldVerbosity;
 };
 
 class FHttpModuleTestFixture
@@ -51,7 +86,6 @@ public:
 		, WebServerHttpPort(8000)
 		, bRunHeavyTests(false)
 		, bRetryEnabled(true)
-		, OldVerbosity(LogHttp.GetVerbosity())
 	{
 		ParseSettingsFromCommandLine();
 
@@ -69,23 +103,18 @@ public:
 		IModuleInterface* Module = HttpModule;
 		Module->ShutdownModule();
 		delete Module;
-
-		if (OldVerbosity != LogHttp.GetVerbosity())
-		{
-			LogHttp.SetVerbosity(OldVerbosity);
-		}
 	}
 
 	void ParseSettingsFromCommandLine()
 	{
-		FParse::Value(FCommandLine::Get(), TEXT("web_server_ip"), WebServerIp);
-		FParse::Bool(FCommandLine::Get(), TEXT("run_heavy_tests"), bRunHeavyTests);
-		FParse::Bool(FCommandLine::Get(), TEXT("retry_enabled"), bRetryEnabled);
+		FParse::Value(FCommandLine::Get(), TEXT("web_server_ip="), WebServerIp);
+		FParse::Bool(FCommandLine::Get(), TEXT("run_heavy_tests="), bRunHeavyTests);
+		FParse::Bool(FCommandLine::Get(), TEXT("retry_enabled="), bRetryEnabled);
 	}
 
 	void DisableWarningsInThisTest()
 	{
-		LogHttp.SetVerbosity(ELogVerbosity::Error);
+		HttpTestLogLevelInitializer.DisableWarningsInThisTest();
 	}
 
 	const FString UrlWithInvalidPortToTestConnectTimeout() const { return TEXT("http://10.255.255.1:8765"); } // non-routable IP address with a random port
@@ -99,10 +128,9 @@ public:
 	FString WebServerIp;
 	uint32 WebServerHttpPort;
 	FMockHttpModule* HttpModule;
-
 	bool bRunHeavyTests;
 	bool bRetryEnabled;
-	ELogVerbosity::Type OldVerbosity;
+	FHttpTestLogLevelInitializer HttpTestLogLevelInitializer;
 };
 
 TEST_CASE_METHOD(FHttpModuleTestFixture, "Shutdown http module without issue when there are ongoing http requests.", HTTP_TAG)
@@ -244,6 +272,18 @@ TEST_CASE_METHOD(FWaitUntilCompleteHttpFixture, "Http Methods", HTTP_TAG)
 	HttpRequest->ProcessRequest();
 }
 
+TEST_CASE_METHOD(FWaitUntilCompleteHttpFixture, "Can process https request", HTTP_TAG)
+{
+	TSharedRef<IHttpRequest> HttpRequest = HttpModule->CreateRequest();
+	HttpRequest->SetVerb(TEXT("GET"));
+	HttpRequest->SetURL(TEXT("https://www.unrealengine.com/"));
+	HttpRequest->OnProcessRequestComplete().BindLambda([](FHttpRequestPtr HttpRequest, FHttpResponsePtr HttpResponse, bool bSucceeded) {
+		CHECK(bSucceeded);
+		REQUIRE(HttpResponse != nullptr);
+	});
+	HttpRequest->ProcessRequest();
+}
+
 TEST_CASE_METHOD(FWaitUntilCompleteHttpFixture, "Get large response content without chunks", HTTP_TAG)
 {
 	TSharedRef<IHttpRequest> HttpRequest = CreateRequest();
@@ -261,6 +301,7 @@ TEST_CASE_METHOD(FWaitUntilCompleteHttpFixture, "Http request connect timeout", 
 {
 	DisableWarningsInThisTest();
 
+	HttpModule->HttpActivityTimeout = 3.0f; // Make sure this won't be triggered before establishing connection
 	HttpModule->HttpConnectionTimeout = 15.0f;
 
 	TSharedRef<IHttpRequest> HttpRequest = CreateRequest();
@@ -615,6 +656,133 @@ void WriteTestFile(const FString& TestFileName, uint64 TestFileSize)
 }
 
 }
+}
+
+#define HTTP_TEST_TIMEOUT_CHUNK_SIZE 16*1024 // Use a big chunk size so it triggers data received callback in time on all platforms
+
+TEST_CASE_METHOD(FWaitUntilCompleteHttpFixture, "Http request activity timeout", HTTP_TAG)
+{
+	DisableWarningsInThisTest();
+
+	float ReceiveTimeoutSetting = 3.0f;
+	HttpModule->HttpActivityTimeout = ReceiveTimeoutSetting;
+
+	TSharedPtr<IHttpRequest> HttpRequest = CreateRequest();
+	HttpRequest->SetURL(UrlStreamDownload(3/*Chunks*/, HTTP_TEST_TIMEOUT_CHUNK_SIZE, 5/*ChunkLatency*/));
+	HttpRequest->SetVerb(TEXT("GET"));
+
+	const double StartTime = FPlatformTime::Seconds();
+
+	HttpRequest->OnProcessRequestComplete().BindLambda([StartTime, ReceiveTimeoutSetting](FHttpRequestPtr HttpRequest, FHttpResponsePtr HttpResponse, bool bSucceeded) {
+		CHECK(!bSucceeded);
+		CHECK(HttpRequest->GetStatus() == EHttpRequestStatus::Failed);
+		CHECK(HttpRequest->GetFailureReason() == EHttpFailureReason::ConnectionError);
+
+		const double DurationInSeconds  = FPlatformTime::Seconds() - StartTime;
+#if WITH_CURL_XCURL
+		// Unlike libCurl, currently there is an issue in xCurl that it triggers CURLINFO_HEADER_OUT even if can't 
+		// connect. Had to disable that code, make sure not to treat that event as connected
+		// So it takes 5s to receive the first chunk to be considered as connected, then start response timer and 
+		// take 3s to response timeout
+		CHECK(FMath::IsNearlyEqual(DurationInSeconds, ReceiveTimeoutSetting + 5, HTTP_TIME_DIFF_TOLERANCE));
+#else
+		CHECK(FMath::IsNearlyEqual(DurationInSeconds, ReceiveTimeoutSetting, HTTP_TIME_DIFF_TOLERANCE));
+#endif
+
+	});
+	HttpRequest->ProcessRequest();
+}
+
+TEST_CASE_METHOD(FWaitUntilCompleteHttpFixture, "Http request receive won't timeout for streaming request", HTTP_TAG)
+{
+	HttpModule->HttpActivityTimeout = 3.0f;
+
+	TSharedPtr<IHttpRequest> HttpRequest = CreateRequest();
+	HttpRequest->SetURL(UrlStreamDownload(3/*Chunks*/, HTTP_TEST_TIMEOUT_CHUNK_SIZE, 2/*ChunkLatency*/)); // Needs 6s to complete
+	HttpRequest->SetVerb(TEXT("GET"));
+
+	const double StartTime = FPlatformTime::Seconds();
+	HttpRequest->OnProcessRequestComplete().BindLambda([this, StartTime](FHttpRequestPtr HttpRequest, FHttpResponsePtr HttpResponse, bool bSucceeded) {
+		CHECK(bSucceeded);
+		REQUIRE(HttpResponse != nullptr);
+		CHECK(HttpResponse->GetResponseCode() == 200);
+		const double DurationInSeconds = FPlatformTime::Seconds() - StartTime;
+		CHECK(DurationInSeconds > HttpModule->HttpActivityTimeout);
+	});
+	HttpRequest->ProcessRequest();
+}
+
+TEST_CASE_METHOD(FWaitUntilCompleteHttpFixture, "Http request total timeout with get", HTTP_TAG)
+{
+	DisableWarningsInThisTest();
+
+	float TotalTimeoutSetting = 3.0f;
+	HttpModule->HttpTotalTimeout = TotalTimeoutSetting;
+	HttpModule->HttpConnectionTimeout = 5.0f;
+
+	TSharedPtr<IHttpRequest> HttpRequest = CreateRequest();
+	HttpRequest->SetURL(UrlMockLatency(10));
+	HttpRequest->SetVerb(TEXT("GET"));
+
+	const double StartTime = FPlatformTime::Seconds();
+
+	HttpRequest->OnProcessRequestComplete().BindLambda([StartTime, TotalTimeoutSetting](FHttpRequestPtr HttpRequest, FHttpResponsePtr HttpResponse, bool bSucceeded) {
+		CHECK(!bSucceeded);
+		CHECK(HttpRequest->GetStatus() == EHttpRequestStatus::Failed);
+		CHECK(HttpRequest->GetFailureReason() == EHttpFailureReason::TimedOut);
+		const double DurationInSeconds  = FPlatformTime::Seconds() - StartTime;
+		CHECK(FMath::IsNearlyEqual(DurationInSeconds, TotalTimeoutSetting, HTTP_TIME_DIFF_TOLERANCE));
+	});
+	HttpRequest->ProcessRequest();
+}
+
+TEST_CASE_METHOD(FWaitUntilCompleteHttpFixture, "Http request total timeout with streaming download", HTTP_TAG)
+{
+	DisableWarningsInThisTest();
+
+	float TimeoutSetting = 3.0f;
+	HttpModule->HttpActivityTimeout = 2.5f; // Make sure it won't fail because of receive timeout
+	HttpModule->HttpTotalTimeout = TimeoutSetting;
+
+	if (bRetryEnabled)
+	{
+		TimeoutSetting = 4.0f; // This will override http module default timeout
+		HttpRetryManager->RetryTimeoutRelativeSecondsDefault = TimeoutSetting;
+	}
+
+	TSharedPtr<IHttpRequest> HttpRequest;
+	SECTION("Use default timeout from http module or retry manager depends on bRetryEnabled")
+	{
+		HttpRequest = CreateRequest();
+	}
+	SECTION("Override from http request")
+	{
+		TimeoutSetting = 5.0f; // This will override default timeout in http module and retry manager
+
+		if (bRetryEnabled)
+		{
+			HttpRequest = HttpRetryManager->CreateRequest(FHttpRetrySystem::FRetryLimitCountSetting(), TimeoutSetting);
+		}
+		else
+		{
+			HttpRequest = HttpModule->CreateRequest();
+			HttpRequest->SetTimeout(TimeoutSetting);
+		}
+	}
+
+	HttpRequest->SetURL(UrlStreamDownload(4/*Chunks*/, HTTP_TEST_TIMEOUT_CHUNK_SIZE, 2/*ChunkLatency*/)); // Needs 8s to complete
+	HttpRequest->SetVerb(TEXT("GET"));
+
+	const double StartTime = FPlatformTime::Seconds();
+
+	HttpRequest->OnProcessRequestComplete().BindLambda([StartTime, TimeoutSetting](FHttpRequestPtr HttpRequest, FHttpResponsePtr HttpResponse, bool bSucceeded) {
+		CHECK(!bSucceeded);
+		CHECK(HttpRequest->GetStatus() == EHttpRequestStatus::Failed);
+		CHECK(HttpRequest->GetFailureReason() == EHttpFailureReason::TimedOut);
+		const double DurationInSeconds  = FPlatformTime::Seconds() - StartTime;
+		CHECK(FMath::IsNearlyEqual(DurationInSeconds, TimeoutSetting, HTTP_TIME_DIFF_TOLERANCE));
+	});
+	HttpRequest->ProcessRequest();
 }
 
 TEST_CASE_METHOD(FWaitUntilCompleteHttpFixture, "Streaming http upload from file by PUT can work well", HTTP_TAG)

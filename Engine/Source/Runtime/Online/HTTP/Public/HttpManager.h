@@ -20,6 +20,7 @@
 
 class FHttpThreadBase;
 class FOutputDevice;
+class IHttpTaskTimerHandle;
 class IHttpThreadedRequest;
 
 enum class EHttpFlushReason : uint8
@@ -98,6 +99,7 @@ public:
 	 *
 	 * @param Request - the request object to add
 	 */
+	UE_DEPRECATED(5.4, "AddRequest has been deprecated, use AddThreadedRequest instead")
 	HTTP_API void AddRequest(const FHttpRequestRef& Request);
 
 	/**
@@ -243,12 +245,20 @@ public:
 	HTTP_API void AddGameThreadTask(TFunction<void()>&& Task);
 
 	/**
-	 * Add task to be ran on the http thread next tick
+	 * Add task to be ran on the http thread
 	 *
 	 * @param Task The task to be ran
 	 * @param InDelay The delay to wait before running the task
+	 * @return The handle of the timer, which could be used to remove the task before it's triggered
 	 */
-	HTTP_API void AddHttpThreadTask(TFunction<void()>&& Task, float InDelay = 0.0f);
+	HTTP_API TSharedPtr<IHttpTaskTimerHandle> AddHttpThreadTask(TFunction<void()>&& Task, float InDelay = 0.0f);
+
+	/**
+	 * Remove the task from the http thread before it's triggered
+	 *
+	 * @param HttpTaskTimerHandle The handle of the timer
+	 */
+	HTTP_API void RemoveHttpThreadTask(TSharedPtr<IHttpTaskTimerHandle> HttpTaskTimerHandle);
 
 	/**
 	 * Set url request filter through code, instead of setting it through config.
@@ -282,6 +292,7 @@ protected:
 
 	/** Queue of tasks to run on the game thread */
 	TQueue<TFunction<void()>, EQueueMode::Mpsc> GameThreadQueue;
+	FCriticalSection GameThreadQueueLock;
 
 	// This variable is set to true in Flush(EHttpFlushReason), and prevents new Http requests from being launched
 	bool bFlushing;

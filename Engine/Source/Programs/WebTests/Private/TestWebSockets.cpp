@@ -66,8 +66,8 @@ public:
 
 	void ParseSettingsFromCommandLine()
 	{
-		FParse::Value(FCommandLine::Get(), TEXT("web_server_ip"), WebServerIp);
-		FParse::Value(FCommandLine::Get(), TEXT("web_server_websockets_port"), WebServerWebSocketsPort);
+		FParse::Value(FCommandLine::Get(), TEXT("web_server_ip="), WebServerIp);
+		FParse::Value(FCommandLine::Get(), TEXT("web_server_websockets_port="), WebServerWebSocketsPort);
 	}
 
 	void DisableWarningsInThisTest()

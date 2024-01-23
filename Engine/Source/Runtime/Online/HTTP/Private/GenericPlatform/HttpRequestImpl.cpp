@@ -36,6 +36,17 @@ FHttpRequestWillRetryDelegate& FHttpRequestImpl::OnRequestWillRetry()
 	return OnRequestWillRetryDelegate;
 }
 
+void FHttpRequestImpl::Shutdown()
+{
+	OnProcessRequestComplete().Unbind();
+PRAGMA_DISABLE_DEPRECATION_WARNINGS
+	OnRequestProgress().Unbind();
+PRAGMA_ENABLE_DEPRECATION_WARNINGS
+	OnRequestProgress64().Unbind();
+	OnStatusCodeReceived().Unbind();
+	OnHeaderReceived().Unbind();
+}
+
 void FHttpRequestImpl::BroadcastResponseHeadersReceived()
 {
 	if (OnHeaderReceived().IsBound())

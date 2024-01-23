@@ -16,7 +16,7 @@
 
 TAutoConsoleVariable<bool> CVarHttpRetrySystemNonGameThreadSupportEnabled(
 	TEXT("Http.RetrySystemNonGameThreadSupportEnabled"),
-	false,
+	true,
 	TEXT("Enable retry system non-game thread support")
 );
 
@@ -735,6 +735,19 @@ FHttpRetrySystem::FManager::FHttpRetryRequestEntry::FHttpRetryRequestEntry(TShar
 bool FHttpRetrySystem::FManager::ProcessRequest(TSharedRef<FHttpRetrySystem::FRequest, ESPMode::ThreadSafe>& HttpRetryRequest)
 {
 	QUICK_SCOPE_CYCLE_COUNTER(STAT_FHttpRetrySystem_FManager_ProcessRequest);
+
+	if (CVarHttpRetrySystemNonGameThreadSupportEnabled.GetValueOnAnyThread())
+	{
+		// Let the request trigger timeout by itself, instead of ticking it in retry system
+		if (HttpRetryRequest->RetryTimeoutRelativeSecondsOverride.IsSet())
+		{
+			HttpRetryRequest->SetTimeout(HttpRetryRequest->RetryTimeoutRelativeSecondsOverride.GetValue());
+		}
+		else if (RetryTimeoutRelativeSecondsDefault.IsSet())
+		{
+			HttpRetryRequest->SetTimeout(RetryTimeoutRelativeSecondsDefault.GetValue());
+		}
+	}
 
 	FScopeLock ScopeLock(&RequestListLock);
 	RequestList.Add(FHttpRetryRequestEntry(HttpRetryRequest));

@@ -25,6 +25,23 @@ DECLARE_CYCLE_STAT(TEXT("CompleteThreadedRequest"), STAT_HTTPThread_CompleteThre
 DECLARE_CYCLE_STAT(TEXT("ActiveSleep"), STAT_HTTPThread_ActiveSleep, STATGROUP_HTTPThread);
 DECLARE_CYCLE_STAT(TEXT("IdleSleep"), STAT_HTTPThread_IdleSleep, STATGROUP_HTTPThread);
 
+class FHttpTaskTimerHandleFTSTicker : public IHttpTaskTimerHandle
+{
+public:
+	FHttpTaskTimerHandleFTSTicker(FTSTicker::FDelegateHandle InHandle)
+		: Handle(InHandle)
+	{
+	}
+
+	virtual void RemoveTaskFrom(FHttpThreadBase* HttpThreadBase) 
+	{ 
+		HttpThreadBase->RemoveTimerHandle(Handle);
+	}
+
+private:
+	FTSTicker::FDelegateHandle Handle;
+};
+
 // FHttpThread
 
 FHttpThreadBase::FHttpThreadBase()
@@ -352,12 +369,22 @@ void FLegacyHttpThread::Tick()
 	}
 }
 
-void FLegacyHttpThread::AddHttpThreadTask(TFunction<void()>&& Task, float InDelay)
+TSharedPtr<IHttpTaskTimerHandle> FLegacyHttpThread::AddHttpThreadTask(TFunction<void()>&& Task, float InDelay)
 {
-	Ticker.AddTicker(FTickerDelegate::CreateLambda([this, Task=MoveTemp(Task)](float) {
+	return MakeShared<FHttpTaskTimerHandleFTSTicker>(Ticker.AddTicker(FTickerDelegate::CreateLambda([this, Task=MoveTemp(Task)](float) {
 		Task();
 		return false;
-	}), InDelay);
+	}), InDelay));
+}
+
+void FLegacyHttpThread::RemoveTimerHandle(FTSTicker::FDelegateHandle DelegateHandle)
+{
+	Ticker.RemoveTicker(DelegateHandle);
+}
+
+void FLegacyHttpThread::RemoveTimerHandle(UE::EventLoop::FTimerHandle EventLoopTimerHandle)
+{
+	checkNoEntry();
 }
 
 void FLegacyHttpThread::HttpThreadTick(float DeltaSeconds)

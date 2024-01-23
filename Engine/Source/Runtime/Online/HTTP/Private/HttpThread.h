@@ -3,6 +3,7 @@
 #pragma once
 
 #include "CoreMinimal.h"
+#include "EventLoop/EventLoopTimer.h"
 #include "HAL/ThreadSafeCounter.h"
 #include "HAL/Runnable.h"
 #include "HttpPackage.h"
@@ -15,6 +16,15 @@
 #include <atomic>
 
 class IHttpThreadedRequest;
+class FHttpThreadBase;
+
+class IHttpTaskTimerHandle
+{
+public:
+	virtual ~IHttpTaskTimerHandle() {};
+
+	virtual void RemoveTaskFrom(FHttpThreadBase* HttpThreadBase) = 0;
+};
 
 /**
  * Manages Http thread
@@ -84,8 +94,13 @@ public:
 	 *
 	 * @param Task The task to be ran
 	 * @param InDelay The delay to wait before running the task
+	 * @return The handle of the timer, which could be used to remove the task before it get triggered
 	 */
-	virtual void AddHttpThreadTask(TFunction<void()>&& Task, float InDelay) = 0;
+	virtual TSharedPtr<IHttpTaskTimerHandle> AddHttpThreadTask(TFunction<void()>&& Task, float InDelay) = 0;
+
+	virtual void RemoveTimerHandle(FTSTicker::FDelegateHandle DelegateHandle) = 0;
+
+	virtual void RemoveTimerHandle(UE::EventLoop::FTimerHandle EventLoopTimerHandle) = 0;
 
 protected:
 
@@ -199,8 +214,11 @@ protected:
 	virtual void Stop() override;
 	//~ End FRunnable Interface
 
-	virtual void AddHttpThreadTask(TFunction<void()>&& Task, float InDelay) override;
+	virtual TSharedPtr<IHttpTaskTimerHandle> AddHttpThreadTask(TFunction<void()>&& Task, float InDelay) override;
 	virtual void HttpThreadTick(float DeltaSeconds) override;
+
+	virtual void RemoveTimerHandle(FTSTicker::FDelegateHandle DelegateHandle) override;
+	virtual void RemoveTimerHandle(UE::EventLoop::FTimerHandle EventLoopTimerHandle) override;
 
 	/** signal request to stop and exit thread */
 	FThreadSafeCounter ExitRequest;

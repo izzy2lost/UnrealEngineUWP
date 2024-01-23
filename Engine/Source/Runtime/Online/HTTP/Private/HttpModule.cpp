@@ -44,8 +44,10 @@ static bool ShouldLaunchUrl(const TCHAR* Url)
 
 void FHttpModule::UpdateConfigs()
 {
-	GConfig->GetFloat(TEXT("HTTP"), TEXT("HttpTimeout"), HttpTimeout, GEngineIni);
+	GConfig->GetFloat(TEXT("HTTP"), TEXT("HttpTimeout"), HttpActivityTimeout, GEngineIni);
+	GConfig->GetFloat(TEXT("HTTP"), TEXT("HttpTotalTimeout"), HttpTotalTimeout, GEngineIni);
 	GConfig->GetFloat(TEXT("HTTP"), TEXT("HttpConnectionTimeout"), HttpConnectionTimeout, GEngineIni);
+	GConfig->GetFloat(TEXT("HTTP"), TEXT("HttpActivityTimeout"), HttpActivityTimeout, GEngineIni);
 	GConfig->GetFloat(TEXT("HTTP"), TEXT("HttpReceiveTimeout"), HttpReceiveTimeout, GEngineIni);
 	GConfig->GetFloat(TEXT("HTTP"), TEXT("HttpSendTimeout"), HttpSendTimeout, GEngineIni);
 	GConfig->GetInt(TEXT("HTTP"), TEXT("HttpMaxConnectionsPerServer"), HttpMaxConnectionsPerServer, GEngineIni);
@@ -77,8 +79,9 @@ void FHttpModule::StartupModule()
 	Singleton = this;
 
 	MaxReadBufferSize = 256 * 1024;
-	HttpTimeout = 300.0f;
+	HttpTotalTimeout = 0.0f;
 	HttpConnectionTimeout = 60.0f;
+	HttpActivityTimeout = 300.0f;
 	HttpReceiveTimeout = HttpConnectionTimeout;
 	HttpSendTimeout = HttpConnectionTimeout;
 	HttpMaxConnectionsPerServer = 16;

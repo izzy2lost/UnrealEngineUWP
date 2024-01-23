@@ -5,7 +5,6 @@
 #include "Curl/CurlHttp.h"
 #include "Stats/Stats.h"
 #include "Misc/App.h"
-#include "HAL/PlatformTime.h"
 #include "HttpModule.h"
 #include "Http.h"
 #include "Misc/EngineVersion.h"
@@ -66,13 +65,11 @@ FCurlHttpRequest::FCurlHttpRequest()
 	: EasyHandle(nullptr)
 	, HeaderList(nullptr)
 	, Verb(TEXT("GET"))
-	, bCanceled(false)
 	, bCurlRequestCompleted(false)
 	, bRedirected(false)
 	, CurlAddToMultiResult(CURLM_OK)
 	, CurlCompletionResult(CURLE_OK)
 	, ElapsedTime(0.0f)
-	, TimeSinceLastResponse(0.0f)
 	, bAnyHttpActivity(false)
 	, BytesSent(0)
 	, TotalBytesSent(0)
@@ -181,6 +178,8 @@ FCurlHttpRequest::FCurlHttpRequest()
 	{
 		SetHeader(It.Key(), It.Value());
 	}
+
+	bUsePlatformActivityTimeout = false;
 }
 
 FCurlHttpRequest::~FCurlHttpRequest()
@@ -470,7 +469,8 @@ size_t FCurlHttpRequest::ReceiveResponseHeaderCallback(void* Ptr, size_t SizeInB
 		TotalBytesRead = 0;
 	}
 
-	TimeSinceLastResponse = 0.0f;
+	OnAnyActivityOccur(TEXTVIEW("Received header"));
+
 	uint32 HeaderSize = SizeInBlocks * BlockSizeInBytes;
 	if (HeaderSize > 0 && HeaderSize <= CURL_MAX_HTTP_HEADER)
 	{
@@ -555,7 +555,7 @@ size_t FCurlHttpRequest::ReceiveResponseBodyCallback(void* Ptr, size_t SizeInBlo
 		Response = MakeShared<FCurlHttpResponse, ESPMode::ThreadSafe>(*this);
 	}
 
-	TimeSinceLastResponse = 0.0f;
+	OnAnyActivityOccur(TEXTVIEW("Received body"));
 
 	// Number of bytes actually taken care of. If that amount differs from the amount passed to your 
 	// callback function, it will signal an error condition to the library. This will cause the transfer 
@@ -599,7 +599,7 @@ size_t FCurlHttpRequest::ReceiveResponseBodyCallback(void* Ptr, size_t SizeInBlo
 
 size_t FCurlHttpRequest::UploadCallback(void* Ptr, size_t SizeInBlocks, size_t BlockSizeInBytes)
 {
-	TimeSinceLastResponse = 0.0f;
+	OnAnyActivityOccur(TEXTVIEW("Upload callback"));
 
 	size_t MaxBufferSize = SizeInBlocks * BlockSizeInBytes;
 	size_t SizeAlreadySent = BytesSent.load();
@@ -743,30 +743,51 @@ size_t FCurlHttpRequest::DebugCallback(CURL * Handle, curl_infotype DebugInfoTyp
 
 	switch (DebugInfoType)
 	{
-		case CURLINFO_HEADER_IN:
-		case CURLINFO_HEADER_OUT:
-		case CURLINFO_DATA_IN:
-		case CURLINFO_DATA_OUT:
-		case CURLINFO_SSL_DATA_IN:
-		case CURLINFO_SSL_DATA_OUT:
-			TimeSinceLastResponse = 0.0f;
-			bAnyHttpActivity = true;
-#if WITH_CURL_XCURL
-			// Unlike libCurl, currently there is an issue in xCurl that it triggers CURLINFO_HEADER_OUT even if can't 
-			// connect. Had to disable this code, make sure not to treat that event as connected
-			if (ConnectTime < 0 && DebugInfoType != CURLINFO_HEADER_OUT)
-			{
-				ConnectTime = FPlatformTime::Seconds() - StartProcessTime;
-			}
-#else
-			curl_easy_getinfo(EasyHandle, CURLINFO_CONNECT_TIME, &ConnectTime);
+	case CURLINFO_HEADER_IN: 
+		OnAnyActivityOccur(TEXTVIEW("Header in"));
+		break;
+	case CURLINFO_HEADER_OUT: 
+		// Unlike libCurl, currently there is an issue in xCurl that it triggers CURLINFO_HEADER_OUT even if can't 
+		// connect. Had to disable this code, make sure not to treat that event as connected/activity happened
+#if !WITH_CURL_XCURL
+		OnAnyActivityOccur(TEXTVIEW("Header out"));
 #endif
-			break;
-		default:
-			break;
+		break;
+	case CURLINFO_DATA_IN: 
+		OnAnyActivityOccur(TEXTVIEW("Data in"));
+		break;
+	case CURLINFO_DATA_OUT:
+		OnAnyActivityOccur(TEXTVIEW("Data out"));
+		break;
+	case CURLINFO_SSL_DATA_IN:
+		OnAnyActivityOccur(TEXTVIEW("Ssl data in"));
+		break;
+	case CURLINFO_SSL_DATA_OUT:
+		OnAnyActivityOccur(TEXTVIEW("Ssl data out"));
+		break;
+	default:
+		break;
 	}
-	
+
 	return 0;
+}
+
+void FCurlHttpRequest::OnAnyActivityOccur(FStringView Reason)
+{
+	if (!bAnyHttpActivity)
+	{
+		bAnyHttpActivity = true;
+
+#if WITH_CURL_XCURL
+		ConnectTime = FPlatformTime::Seconds() - StartProcessTime;
+#else
+		curl_easy_getinfo(EasyHandle, CURLINFO_CONNECT_TIME, &ConnectTime);
+#endif
+
+		StartActivityTimeoutTimer();
+	}
+
+	ResetActivityTimeoutTimer(Reason);
 }
 
 bool FCurlHttpRequest::SetupRequest()
@@ -790,7 +811,6 @@ bool FCurlHttpRequest::SetupRequest()
 	}
 
 	bCurlRequestCompleted = false;
-	bCanceled = false;
 	CurlAddToMultiResult = CURLM_OK;
 	LastReportedBytesSent = 0;
 
@@ -996,20 +1016,10 @@ bool FCurlHttpRequest::ProcessRequest()
 	// Clear out response. If this is a re-used request, Response could point to a stale response until SetupRequestHttpThread is called
 	Response = nullptr;
 	LastReportedBytesRead = 0;
-	TotalBytesRead = 0;
 
 	if (!PreProcess())
 	{
 		return false;
-	}
-
-	// Clear the info cache log so we don't output messages from previous requests when reusing/retrying a request
-	{
-		const FScopeLock CacheLock(&InfoMessageCacheCriticalSection);
-		for (FString& Line : InfoMessageCache)
-		{
-			Line.Reset();
-		}
 	}
 
 	QUICK_SCOPE_CYCLE_COUNTER(STAT_CurlHttpAddThreadedRequest);
@@ -1027,12 +1037,30 @@ bool FCurlHttpRequest::ProcessRequest()
 	return true;
 }
 
+void FCurlHttpRequest::ClearInCaseOfRetry()
+{
+	IHttpThreadedRequest::ClearInCaseOfRetry();
+
+	// Clear out response. If this is a re-used request, Response could point to a stale response until SetupRequestHttpThread is called
+	Response = nullptr;
+	LastReportedBytesRead = 0;
+	TotalBytesRead = 0;
+	bAnyHttpActivity = false;
+
+	// Clear the info cache log so we don't output messages from previous requests when reusing/retrying a request
+	{
+		const FScopeLock CacheLock(&InfoMessageCacheCriticalSection);
+		for (FString& Line : InfoMessageCache)
+		{
+			Line.Reset();
+		}
+	}
+}
+
 bool FCurlHttpRequest::StartThreadedRequest()
 {
 	// reset timeout
 	ElapsedTime = 0.0f;
-	TimeSinceLastResponse = 0.0f;
-	bAnyHttpActivity = false;
 	
 	UE_LOG(LogHttp, Verbose, TEXT("%p: request (easy handle:%p) has started threaded processing"), this, EasyHandle);
 
@@ -1045,8 +1073,13 @@ bool FCurlHttpRequest::IsThreadedRequestComplete()
 	{
 		return true;
 	}
+
+	if (bTimedOut || bActivityTimedOut)
+	{
+		return true;
+	}
 	
-	if (bCurlRequestCompleted && ElapsedTime >= FHttpModule::Get().GetHttpDelayTime())
+	if (bCurlRequestCompleted  && ElapsedTime >= FHttpModule::Get().GetHttpDelayTime())
 	{
 		return true;
 	}
@@ -1056,39 +1089,16 @@ bool FCurlHttpRequest::IsThreadedRequestComplete()
 		return true;
 	}
 
-	const float HttpTimeout = GetTimeoutOrDefault();
-	bool bTimedOut = (HttpTimeout > 0 && TimeSinceLastResponse >= HttpTimeout);
-#if CURL_ENABLE_NO_TIMEOUTS_OPTION
-	static const bool bNoTimeouts = FParse::Param(FCommandLine::Get(), TEXT("NoTimeouts"));
-	bTimedOut = bTimedOut && !bNoTimeouts;
-#endif
-	if (bTimedOut)
-	{
-		UE_LOG(LogHttp, Warning, TEXT("%p: HTTP request timed out after %0.2f seconds URL=%s"), this, TimeSinceLastResponse, *GetURL());
-		return true;
-	}
-
 	return false;
 }
 
 void FCurlHttpRequest::TickThreadedRequest(float DeltaSeconds)
 {
 	ElapsedTime += DeltaSeconds;
-	TimeSinceLastResponse += DeltaSeconds;
 }
 
-void FCurlHttpRequest::CancelRequest()
+void FCurlHttpRequest::AbortRequest()
 {
-	QUICK_SCOPE_CYCLE_COUNTER(STAT_FCurlHttpRequest_CancelRequest);
-
-	if (bCanceled)
-	{
-		return;
-	}
-
-	bCanceled = true;
-	UE_LOG(LogHttp, Verbose, TEXT("%p: HTTP request canceled.  URL=%s"), this, *GetURL());
-
 	FHttpManager& HttpManager = FHttpModule::Get().GetHttpManager();
 	if (HttpManager.IsValidRequest(this))
 	{
@@ -1150,18 +1160,15 @@ void FCurlHttpRequest::MarkAsCompleted(CURLcode InCurlCompletionResult)
 {
 	CurlCompletionResult = InCurlCompletionResult;
 	bCurlRequestCompleted = true;
+
+	StopActivityTimeoutTimer();
 }
 
 void FCurlHttpRequest::FinishRequest()
 {
 	QUICK_SCOPE_CYCLE_COUNTER(STAT_FCurlHttpRequest_FinishRequest);
 
-	if (RequestPayload.IsValid())
-	{
-		RequestPayload->Close();
-	}
-
-	curl_easy_setopt(EasyHandle, CURLOPT_SHARE, nullptr);
+	PostProcess();
 	
 	CheckProgressDelegate();
 	// if completed, get more info
@@ -1288,6 +1295,14 @@ void FCurlHttpRequest::FinishRequest()
 		{
 			SetFailureReason(EHttpFailureReason::Cancelled);
 		}
+		else if (bTimedOut)
+		{
+			SetFailureReason(EHttpFailureReason::TimedOut);
+		}
+		else if (bActivityTimedOut)
+		{
+			SetFailureReason(EHttpFailureReason::ConnectionError);
+		}
 		else if (bCurlRequestCompleted)
 		{
 			switch (CurlCompletionResult)
@@ -1309,14 +1324,7 @@ void FCurlHttpRequest::FinishRequest()
 		}
 		else
 		{
-			if (bAnyHttpActivity)
-			{
-				SetFailureReason(EHttpFailureReason::Other);
-			}
-			else
-			{
-				SetFailureReason(EHttpFailureReason::ConnectionError);
-			}
+			SetFailureReason(EHttpFailureReason::Other);
 		}
 		// Call delegate with failure
 		OnProcessRequestComplete().ExecuteIfBound(SharedThis(this), Response, false);
@@ -1332,6 +1340,15 @@ float FCurlHttpRequest::GetElapsedTime() const
 	return ElapsedTime;
 }
 
+void FCurlHttpRequest::CleanupRequest()
+{
+	if (RequestPayload.IsValid())
+	{
+		RequestPayload->Close();
+	}
+
+	curl_easy_setopt(EasyHandle, CURLOPT_SHARE, nullptr);
+}
 
 // FCurlHttpRequest
 

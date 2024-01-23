@@ -165,7 +165,6 @@ public:
 	virtual void SetHeader(const FString& HeaderName, const FString& HeaderValue) override;
 	virtual void AppendToHeader(const FString& HeaderName, const FString& AdditionalHeaderValue) override;
 	virtual bool ProcessRequest() override;
-	virtual void CancelRequest() override;
 	virtual const FHttpResponsePtr GetResponse() const override;
 	virtual void Tick(float DeltaSeconds) override;
 	virtual float GetElapsedTime() const override;
@@ -339,6 +338,8 @@ private:
 	 */
 	virtual bool SetupRequest() override;
 
+	virtual void AbortRequest() override;
+
 	/**
 	 * Trigger the request progress delegate if progress has changed
 	 */
@@ -349,7 +350,13 @@ private:
 
 	/** Combine a header's key/value in the format "Key: Value" */
 	static FString CombineHeaderKeyValue(const FString& HeaderKey, const FString& HeaderValue);
-	
+
+	virtual void CleanupRequest() override;
+
+	void OnAnyActivityOccur(FStringView Reason);
+
+	void ClearInCaseOfRetry() override;
+
 private:
 
 	/** Pointer to an easy handle specific to this request */
@@ -360,8 +367,6 @@ private:
 	FString			URL;
 	/** Cached verb */
 	FString			Verb;
-	/** Set to true if request has been canceled */
-	bool			bCanceled;
 	/** Set to true when request has been completed */
 	std::atomic<bool> bCurlRequestCompleted;
 	/** Set to true when request has "30* Multiple Choices" (e.g. 301 Moved Permanently, 302 temporary redirect, 308 Permanent Redirect, etc.) */
@@ -382,8 +387,6 @@ private:
 	TMap<FString, FString> Headers;
 	/** Total elapsed time in seconds since the start of the request */
 	float ElapsedTime;
-	/** Elapsed time since the last received HTTP response. */
-	float TimeSinceLastResponse;
 	/** Have we had any HTTP activity with the host? Sending headers, SSL handshake, etc */
 	bool bAnyHttpActivity;
 	/** Newly received headers we need to inform listeners about */

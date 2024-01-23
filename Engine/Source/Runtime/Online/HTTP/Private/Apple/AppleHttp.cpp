@@ -410,7 +410,7 @@ FAppleHttpRequest::FAppleHttpRequest(NSURLSession* InSession)
 FAppleHttpRequest::~FAppleHttpRequest()
 {
 	UE_LOG(LogHttp, Verbose, TEXT("FAppleHttpRequest::~FAppleHttpRequest()"));
-	CleanupRequest();
+	PostProcess();
 	[Request release];
     [Session release];
 }
@@ -691,7 +691,7 @@ bool FAppleHttpRequest::SetupRequest()
 		[Request setValue:Tag forHTTPHeaderField:@"User-Agent"];
 	}
 
-	CleanupRequest();
+	PostProcess();
 
 	LastReportedBytesWritten = 0;
 	LastReportedBytesRead = 0;
@@ -732,8 +732,7 @@ void FAppleHttpRequest::FinishRequest()
 {
 	UE_LOG(LogHttp, Verbose, TEXT("FAppleHttpRequest::FinishRequest()"));
 
-	// Clean up session/request handles that may have been created
-	CleanupRequest();
+	PostProcess();
 
 	bool bSucceeded = (Response && Response->GetStatusFromDelegate() == EHttpRequestStatus::Succeeded);
 	UE_LOG(LogHttp, Verbose, TEXT("Request %s"), bSucceeded ? TEXT("succeeded") : TEXT("failed"));
@@ -741,7 +740,16 @@ void FAppleHttpRequest::FinishRequest()
 
 	if (!bSucceeded)
 	{
-		SetFailureReason(Response ? Response->GetFailureReasonFromDelegate() : EHttpFailureReason::Other);
+		EHttpFailureReason Reason = EHttpFailureReason::Other;
+		if (Response)
+		{
+			Reason = Response->GetFailureReasonFromDelegate();
+			if (Reason == EHttpFailureReason::Cancelled && bTimedOut)
+			{
+				Reason = EHttpFailureReason::TimedOut;
+			}
+		}
+		SetFailureReason(Reason);
 
 		if (GetFailureReason() == EHttpFailureReason::ConnectionError)
 		{
@@ -777,10 +785,8 @@ void FAppleHttpRequest::CleanupRequest()
 	}
 }
 
-void FAppleHttpRequest::CancelRequest()
+void FAppleHttpRequest::AbortRequest()
 {
-	UE_LOG(LogHttp, Verbose, TEXT("FAppleHttpRequest::CancelRequest()"));
-
 	if (Task != nil)
 	{
 		[Task cancel];

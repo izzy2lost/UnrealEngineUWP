@@ -22,7 +22,7 @@ namespace LowLevelTests
 
 		public string ExtraCommandLine(UnrealTargetPlatform InPlatform, string InTestApp, string InBuildPath)
 		{
-			return string.Format("--web_server_ip{0}", UnrealHelpers.GetHostIpAddress());
+			return string.Format("--web_server_ip={0}", UnrealHelpers.GetHostIpAddress());
 		}
 
 		public void PreRunTests()

@@ -19,6 +19,11 @@ public:
 	HTTP_API virtual FHttpRequestHeaderReceivedDelegate& OnHeaderReceived() override;
 	HTTP_API virtual FHttpRequestWillRetryDelegate& OnRequestWillRetry() override;
 
+	/**
+	 * Clear callbacks before http module get deleted
+	 */
+	HTTP_API virtual void Shutdown();
+
 protected:
 	/** 
 	 * Broadcast all of our response's headers as having been received

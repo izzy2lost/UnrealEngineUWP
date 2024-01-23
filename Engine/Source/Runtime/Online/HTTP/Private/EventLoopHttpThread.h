@@ -40,7 +40,11 @@ protected:
 
 	void ResetTickTimer();
 
-	virtual void AddHttpThreadTask(TFunction<void()>&& Task, float InDelay) override;
+	virtual TSharedPtr<IHttpTaskTimerHandle> AddHttpThreadTask(TFunction<void()>&& Task, float InDelay) override;
+
+	virtual void RemoveTimerHandle(FTSTicker::FDelegateHandle DelegateHandle) override;
+
+	virtual void RemoveTimerHandle(UE::EventLoop::FTimerHandle EventLoopTimerHandle) override;
 
 protected:
 	UE::EventLoop::FTimerHandle RequestTickTimer;

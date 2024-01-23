@@ -4,12 +4,16 @@
 
 #include "GenericPlatform/HttpRequestImpl.h"
 
+class IHttpTaskTimerHandle;
+
 /**
  * Contains implementation of some common functions that don't vary between implementations of different platforms
  */
 class FHttpRequestCommon : public FHttpRequestImpl
 {
 public:
+	FHttpRequestCommon();
+
 	// IHttpBase
 	HTTP_API virtual FString GetURLParameter(const FString& ParameterName) const override;
 
@@ -27,14 +31,19 @@ public:
 	// Can be called on game thread or http thread depend on the delegate thread policy
 	HTTP_API virtual void FinishRequest() = 0;
 
+	HTTP_API virtual void CancelRequest() override;
+
+	HTTP_API virtual void Shutdown() override;
+
 protected:
 	/**
 	 * Check if this request is valid or allowed, before actually process the request
 	 */
 	HTTP_API bool PreProcess();
+	HTTP_API void PostProcess();
 	HTTP_API virtual bool SetupRequest() = 0;
 	HTTP_API bool PreCheck() const;
-	HTTP_API void ClearInCaseOfRetry();
+	HTTP_API virtual void ClearInCaseOfRetry();
 
 	HTTP_API void SetStatus(EHttpRequestStatus::Type InCompletionStatus);
 	HTTP_API void SetFailureReason(EHttpFailureReason InFailureReason);
@@ -45,6 +54,19 @@ protected:
 	HTTP_API void FinishRequestNotInHttpManager();
 
 	HTTP_API void HandleRequestSucceed(TSharedPtr<IHttpResponse> Response);
+
+	HTTP_API void StartActivityTimeoutTimer();
+	HTTP_API void StartActivityTimeoutTimerBy(double DelayToTrigger);
+	HTTP_API void ResetActivityTimeoutTimer(FStringView Reason);
+	HTTP_API void OnActivityTimeoutTimerTaskTrigger();
+	HTTP_API void StopActivityTimeoutTimer();
+	HTTP_API void StartTotalTimeoutTimer();
+	HTTP_API void StopTotalTimeoutTimer();
+	HTTP_API void OnTotalTimeoutTimerTaskTrigger();
+
+	HTTP_API virtual void AbortRequest() = 0;
+
+	HTTP_API virtual void CleanupRequest() = 0;
 
 	HTTP_API void TriggerStatusCodeReceivedDelegate(int32 StatusCode);
 
@@ -61,8 +83,28 @@ protected:
 	/** Timeout in seconds for the entire HTTP request to complete */
 	TOptional<float> TimeoutSecs;
 
+	/** Indicate the request is timed out, it should quit and fail with EHttpFailureReason::TimedOut */
+	bool bTimedOut = false;
+	/** Indicate the request is activity timed out, it should quit and fail with EHttpFailureReason::ConnectionError */
+	bool bActivityTimedOut = false;
+	/** Indicate the request is cancelled, it should quit and fail with EHttpFailureReason::Cancelled */
+	bool bCanceled = false;
+
+	/** TODO: Move this feature into CurlHttp */
+	bool bUsePlatformActivityTimeout = true;
+
 	/** Record when this request started */
 	double RequestStartTimeAbsoluteSeconds;
+
+	/** Record when this request will activity timeout */
+	double ActivityTimeoutAt;
+
+	/** Holder the timer handle, if the request get destroyed before triggering the timeout, use this to remove the timer */
+	TSharedPtr<IHttpTaskTimerHandle> TotalTimeoutHttpTaskTimerHandle;
+	/** Holder the timer handle, if the request get destroyed before triggering the timeout, use this to remove the timer */
+	TSharedPtr<IHttpTaskTimerHandle> ActivityTimeoutHttpTaskTimerHandle;
+	/** Critical section for accessing HttpTaskTimerHandle */
+	FCriticalSection HttpTaskTimerHandleCriticalSection;
 
 	/** Record when the request start to process */
 	double StartProcessTime = 0.0;

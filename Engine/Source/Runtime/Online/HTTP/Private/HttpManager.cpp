@@ -83,14 +83,8 @@ void FHttpManager::Shutdown()
 	// Clear delegates since they may point to deleted instances
 	for (TArray<FHttpRequestRef>::TIterator It(Requests); It; ++It)
 	{
-		FHttpRequestRef& Request = *It;
-		Request->OnProcessRequestComplete().Unbind();
-PRAGMA_DISABLE_DEPRECATION_WARNINGS
-		Request->OnRequestProgress().Unbind();
-PRAGMA_ENABLE_DEPRECATION_WARNINGS
-		Request->OnRequestProgress64().Unbind();
-		Request->OnStatusCodeReceived().Unbind();
-		Request->OnHeaderReceived().Unbind();
+		TSharedPtr<IHttpRequest> Request = *It;
+		StaticCastSharedPtr<FHttpRequestImpl>(Request)->Shutdown();
 
 		// Don't emit these tracking logs in commandlet runs. Build system traps warnings during cook, and these are not truly fatal, but useful for tracking down shutdown issues.
 		UE_CLOG(ShouldOutputHttpWarnings(), LogHttp, Warning, TEXT("	verb=[%s] url=[%s] refs=[%d] status=%s"), *Request->GetVerb(), *Request->GetURL(), Request.GetSharedReferenceCount(), EHttpRequestStatus::ToString(Request->GetStatus()));
@@ -285,10 +279,16 @@ void FHttpManager::AddGameThreadTask(TFunction<void()>&& Task)
 	}
 }
 
-void FHttpManager::AddHttpThreadTask(TFunction<void()>&& Task, float InDelay)
+TSharedPtr<IHttpTaskTimerHandle> FHttpManager::AddHttpThreadTask(TFunction<void()>&& Task, float InDelay)
 {
 	check(Thread);
-	Thread->AddHttpThreadTask(MoveTemp(Task), InDelay);
+	return Thread->AddHttpThreadTask(MoveTemp(Task), InDelay);
+}
+
+void FHttpManager::RemoveHttpThreadTask(TSharedPtr<IHttpTaskTimerHandle> HttpTaskTimerHandle)
+{
+	check(Thread);
+	HttpTaskTimerHandle->RemoveTaskFrom(Thread);
 }
 
 FHttpThreadBase* FHttpManager::CreateHttpThread()
@@ -406,17 +406,25 @@ bool FHttpManager::Tick(float DeltaSeconds)
 {
     QUICK_SCOPE_CYCLE_COUNTER(STAT_FHttpManager_Tick);
 
+	// Normally Tick() should only be called from game thread. But it's still possible Tick() be called 
+	// from off-game thread when quit in purpose like GPU OOM, to flush remain HTTP analysis requests
+
 	// Run GameThread tasks
-	TFunction<void()> Task = nullptr;
-	while (GameThreadQueue.Dequeue(Task))
 	{
-		check(Task);
-		Task();
+		FScopeLock ScopeLock(&GameThreadQueueLock);
+
+		TFunction<void()> Task = nullptr;
+		while (GameThreadQueue.Dequeue(Task))
+		{
+			check(Task);
+			Task();
+		}
 	}
+
+	FScopeLock ScopeLock(&RequestLock);
 
 	if (Thread)
 	{
-		FScopeLock ScopeLock(&RequestLock);
 		// Tick each active request
 		for (const FHttpRequestRef& Request: Requests)
 		{
@@ -441,8 +449,7 @@ bool FHttpManager::Tick(float DeltaSeconds)
 	else
 	{
 		TArray<FHttpRequestRef> CompletedRequests;
-		
-		FScopeLock ScopeLock(&RequestLock);
+
 		// Tick each active request
 		for (const FHttpRequestRef& Request: Requests)
 		{
@@ -489,7 +496,9 @@ void FHttpManager::AddThreadedRequest(const TSharedRef<IHttpThreadedRequest, ESP
 {
 	check(Thread);
 	{
+PRAGMA_DISABLE_DEPRECATION_WARNINGS
 		AddRequest(Request);
+PRAGMA_ENABLE_DEPRECATION_WARNINGS
 	}
 	Thread->AddRequest(&Request.Get());
 }

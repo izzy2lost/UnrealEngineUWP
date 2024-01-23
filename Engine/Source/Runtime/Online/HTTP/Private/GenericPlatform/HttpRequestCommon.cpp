@@ -4,6 +4,14 @@
 #include "GenericPlatform/HttpResponseCommon.h"
 #include "Http.h"
 #include "HttpManager.h"
+#include "Misc/CommandLine.h"
+#include "Stats/Stats.h"
+
+FHttpRequestCommon::FHttpRequestCommon()
+	: RequestStartTimeAbsoluteSeconds(FPlatformTime::Seconds())
+	, ActivityTimeoutAt(0.0)
+{
+}
 
 FString FHttpRequestCommon::GetURLParameter(const FString& ParameterName) const
 {
@@ -60,6 +68,12 @@ bool FHttpRequestCommon::PreCheck() const
 		return false;
 	}
 
+	if (bTimedOut)
+	{
+		UE_LOG(LogHttp, Warning, TEXT("ProcessRequest failed. Request with URL '%s' already timed out."), *GetURL());
+		return false;
+	}
+
 	return true;
 }
 
@@ -73,16 +87,25 @@ bool FHttpRequestCommon::PreProcess()
 		return false;
 	}
 
+	StartTotalTimeoutTimer();
+
 	UE_LOG(LogHttp, Verbose, TEXT("%p: Verb='%s' URL='%s'"), this, *GetVerb(), *GetURL());
 
 	return true;
+}
+
+void FHttpRequestCommon::PostProcess()
+{
+	CleanupRequest();
 }
 
 void FHttpRequestCommon::ClearInCaseOfRetry()
 {
 	// TODO: clear response shared ptr here as well after moving it from child class to this class
 
+	bActivityTimedOut = false;
 	FailureReason = EHttpFailureReason::None;
+	bCanceled = false;
 }
 
 void FHttpRequestCommon::FinishRequestNotInHttpManager()
@@ -174,7 +197,189 @@ TOptional<float> FHttpRequestCommon::GetTimeout() const
 
 float FHttpRequestCommon::GetTimeoutOrDefault() const
 {
-	return GetTimeout().Get(FHttpModule::Get().GetHttpTimeout());
+	return GetTimeout().Get(FHttpModule::Get().GetHttpTotalTimeout());
+}
+
+void FHttpRequestCommon::CancelRequest()
+{
+	if (bCanceled)
+	{
+		return;
+	}
+
+	bCanceled = true;
+	UE_LOG(LogHttp, Verbose, TEXT("HTTP request canceled. URL=%s"), *GetURL());
+
+	FHttpModule::Get().GetHttpManager().AddHttpThreadTask([StrongThis = StaticCastSharedRef<FHttpRequestCommon>(AsShared())]()
+	{
+		// Run AbortRequest in HTTP thread to avoid potential concurrency issue
+		QUICK_SCOPE_CYCLE_COUNTER(STAT_FHttpRequestCommon_AbortRequest);
+		StrongThis->AbortRequest();
+	});
+}
+
+void FHttpRequestCommon::StartActivityTimeoutTimer()
+{
+	const FScopeLock CacheLock(&HttpTaskTimerHandleCriticalSection);
+
+	if (bUsePlatformActivityTimeout)
+	{
+		return;
+	}
+
+#if !UE_BUILD_SHIPPING
+	static const bool bNoTimeouts = FParse::Param(FCommandLine::Get(), TEXT("NoTimeouts"));
+	if (bNoTimeouts)
+	{
+		return;
+	}
+#endif
+
+	if (bActivityTimedOut)
+	{
+		return;
+	}
+
+	float HttpActivityTimeout = FHttpModule::Get().GetHttpActivityTimeout();
+	check(HttpActivityTimeout > 0);
+	StartActivityTimeoutTimerBy(HttpActivityTimeout);
+
+	ResetActivityTimeoutTimer(TEXTVIEW("Connected"));
+}
+
+void FHttpRequestCommon::StartActivityTimeoutTimerBy(double DelayToTrigger)
+{
+	check(ActivityTimeoutHttpTaskTimerHandle == nullptr);
+
+	TWeakPtr<IHttpRequest> RequestWeakPtr(AsShared());
+	ActivityTimeoutHttpTaskTimerHandle = FHttpModule::Get().GetHttpManager().AddHttpThreadTask([RequestWeakPtr]() {
+		if (TSharedPtr<IHttpRequest> RequestPtr = RequestWeakPtr.Pin())
+		{
+			TSharedPtr<FHttpRequestCommon> RequestCommonPtr = StaticCastSharedPtr<FHttpRequestCommon>(RequestPtr);
+			RequestCommonPtr->OnActivityTimeoutTimerTaskTrigger();
+		}
+	}, DelayToTrigger + 0.05);
+}
+
+void FHttpRequestCommon::OnActivityTimeoutTimerTaskTrigger()
+{
+	const FScopeLock CacheLock(&HttpTaskTimerHandleCriticalSection);
+
+	ActivityTimeoutHttpTaskTimerHandle.Reset();
+
+	checkf(!EHttpRequestStatus::IsFinished(GetStatus()), TEXT("PostProcess must be called when request complete, to stop activity timeout timer."));
+
+	if (FPlatformTime::Seconds() < ActivityTimeoutAt)
+	{
+		// Check back later
+		UE_LOG(LogHttp, VeryVerbose, TEXT("Request %p check response timeout at [%s], will check again in %.5f seconds"), this, *FDateTime::Now().ToString(TEXT("%H:%M:%S:%s")), ActivityTimeoutAt - FPlatformTime::Seconds());
+		StartActivityTimeoutTimerBy(ActivityTimeoutAt - FPlatformTime::Seconds());
+		return;
+	}
+
+	QUICK_SCOPE_CYCLE_COUNTER(STAT_FHttpRequestCommon_AbortRequest);
+	bActivityTimedOut = true;
+	AbortRequest();
+	UE_LOG(LogHttp, Warning, TEXT("Request [%s] timed out at [%s] because of no responding for %0.2f seconds"), *GetURL(), *FDateTime::Now().ToString(TEXT("%H:%M:%S:%s")), FHttpModule::Get().GetHttpActivityTimeout());
+}
+
+void FHttpRequestCommon::ResetActivityTimeoutTimer(FStringView Reason)
+{
+	const FScopeLock CacheLock(&HttpTaskTimerHandleCriticalSection);
+
+	if (bUsePlatformActivityTimeout)
+	{
+		return;
+	}
+
+	ActivityTimeoutAt = FPlatformTime::Seconds() + FHttpModule::Get().GetHttpActivityTimeout();
+	UE_LOG(LogHttp, VeryVerbose, TEXT("Request [%p] reset response timeout timer at %s: %s"), this, *FDateTime::Now().ToString(TEXT("%H:%M:%S:%s")), Reason.GetData());
+}
+
+void FHttpRequestCommon::StopActivityTimeoutTimer()
+{
+	const FScopeLock CacheLock(&HttpTaskTimerHandleCriticalSection);
+
+	if (bUsePlatformActivityTimeout)
+	{
+		return;
+	}
+
+	if (ActivityTimeoutHttpTaskTimerHandle)
+	{
+		FHttpModule::Get().GetHttpManager().RemoveHttpThreadTask(ActivityTimeoutHttpTaskTimerHandle);
+		ActivityTimeoutHttpTaskTimerHandle.Reset();
+	}
+}
+
+void FHttpRequestCommon::StartTotalTimeoutTimer()
+{
+	const FScopeLock CacheLock(&HttpTaskTimerHandleCriticalSection);
+
+#if !UE_BUILD_SHIPPING
+	static const bool bNoTimeouts = FParse::Param(FCommandLine::Get(), TEXT("NoTimeouts"));
+	if (bNoTimeouts)
+	{
+		return;
+	}
+#endif
+
+	float TimeoutOrDefault = GetTimeoutOrDefault();
+	if (TimeoutOrDefault == 0)
+	{
+		return;
+	}
+
+	if (bTimedOut)
+	{
+		return;
+	}
+
+	// Timeout include retries, so if it's already started before, check this to prevent from adding timer multiple times
+	if (TotalTimeoutHttpTaskTimerHandle)
+	{
+		return;
+	}
+
+	TWeakPtr<IHttpRequest> RequestWeakPtr(AsShared());
+	TotalTimeoutHttpTaskTimerHandle = FHttpModule::Get().GetHttpManager().AddHttpThreadTask([RequestWeakPtr]() {
+		if (TSharedPtr<IHttpRequest> RequestPtr = RequestWeakPtr.Pin())
+		{
+			TSharedPtr<FHttpRequestCommon> RequestCommonPtr = StaticCastSharedPtr<FHttpRequestCommon>(RequestPtr);
+			RequestCommonPtr->OnTotalTimeoutTimerTaskTrigger();
+		}
+	}, TimeoutOrDefault);
+}
+
+void FHttpRequestCommon::OnTotalTimeoutTimerTaskTrigger()
+{
+	const FScopeLock CacheLock(&HttpTaskTimerHandleCriticalSection);
+	bTimedOut = true;
+	UE_LOG(LogHttp, Warning, TEXT("HTTP request timed out after %0.2f seconds URL=%s"), GetTimeoutOrDefault(), *GetURL());
+
+	if (!EHttpRequestStatus::IsFinished(GetStatus())) 
+	{
+		QUICK_SCOPE_CYCLE_COUNTER(STAT_FHttpRequestCommon_AbortRequest);
+		AbortRequest();
+	}
+}
+
+void FHttpRequestCommon::StopTotalTimeoutTimer()
+{
+	const FScopeLock CacheLock(&HttpTaskTimerHandleCriticalSection);
+
+	if (TotalTimeoutHttpTaskTimerHandle)
+	{
+		FHttpModule::Get().GetHttpManager().RemoveHttpThreadTask(TotalTimeoutHttpTaskTimerHandle);
+		TotalTimeoutHttpTaskTimerHandle.Reset();
+	}
+}
+void FHttpRequestCommon::Shutdown()
+{
+	FHttpRequestImpl::Shutdown();
+
+	StopActivityTimeoutTimer();
+	StopTotalTimeoutTimer();
 }
 
 void FHttpRequestCommon::TriggerStatusCodeReceivedDelegate(int32 StatusCode)

@@ -46,7 +46,6 @@ public:
 	virtual void SetHeader(const FString& HeaderName, const FString& HeaderValue) override;
 	virtual void AppendToHeader(const FString& HeaderName, const FString& AdditionalHeaderValue) override;
 	virtual bool ProcessRequest() override;
-	virtual void CancelRequest() override;
 	virtual const FHttpResponsePtr GetResponse() const override;
 	virtual void Tick(float DeltaSeconds) override;
 	virtual float GetElapsedTime() const override;
@@ -88,10 +87,12 @@ private:
 	 */
 	virtual bool SetupRequest() override;
 
+	virtual void AbortRequest() override;
+
 	/**
 	 * Close session/request handles and unregister callbacks
 	 */
-	void CleanupRequest();
+	virtual void CleanupRequest() override;
 
 private:
 	/** This is the NSMutableURLRequest, all our Apple functionality will deal with this. */
