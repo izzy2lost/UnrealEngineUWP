@@ -472,7 +472,6 @@ bool AOnlineBeaconHost::HandleControlMessage(UNetConnection* Connection, uint8 M
 			ClientActors.Add(NewClientActor);
 
 			FNetControlMessage<NMT_BeaconAssignGUID>::Send(Connection, NetGUID);
-			Connection->FlushNet(true);
 		}
 		break;
 	case NMT_BeaconNetGUIDAck:
@@ -564,8 +563,6 @@ void AOnlineBeaconHost::FinishHandshake(UNetConnection* Connection, FString Beac
 
 	// Send an RPC to the client to open the actor channel and guarantee RPCs will work
 	ClientActor->ClientOnConnected();
-	Connection->FlushNet(true);
-
 	UE_LOG(LogBeacon, Log, TEXT("%s: Handshake complete."), *GetDebugName(Connection));
 	OnBeaconConnectedDelegate->ExecuteIfBound(ClientActor, Connection);
 }

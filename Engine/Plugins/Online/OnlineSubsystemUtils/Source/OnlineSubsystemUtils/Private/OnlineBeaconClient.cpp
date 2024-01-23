@@ -445,7 +445,7 @@ void AOnlineBeaconClient::NotifyControlMessage(UNetConnection* Connection, uint8
 				// send NMT_Login
 				Connection->ClientResponse = TEXT("0");
 				FNetControlMessage<NMT_Login>::Send(Connection, Connection->ClientResponse, URLString, Connection->PlayerId, OnlinePlatformNameString);
-				Connection->FlushNet();
+				NetDriver->ServerConnection->FlushNet();
 			}
 			else
 			{
@@ -464,7 +464,7 @@ void AOnlineBeaconClient::NotifyControlMessage(UNetConnection* Connection, uint8
 				if (!BeaconType.IsEmpty())
 				{
 					FNetControlMessage<NMT_BeaconJoin>::Send(Connection, BeaconType, Connection->PlayerId);
-					Connection->FlushNet();
+					NetDriver->ServerConnection->FlushNet();
 				}
 				else
 				{
@@ -486,7 +486,6 @@ void AOnlineBeaconClient::NotifyControlMessage(UNetConnection* Connection, uint8
 
 						FString BeaconType = GetBeaconType();
 						FNetControlMessage<NMT_BeaconNetGUIDAck>::Send(Connection, BeaconType);
-						Connection->FlushNet();
 						// Server will send ClientOnConnected() when it gets this control message
 
 						// Fail safe for connection to server but no client connection RPC
