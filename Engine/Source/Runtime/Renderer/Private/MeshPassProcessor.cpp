@@ -1060,7 +1060,7 @@ void FMeshDrawCommand::SetDrawParametersAndFinalize(
 	NumInstances = BatchElement.NumInstances;
 
 	// If the mesh batch has a valid dynamic index buffer, use it instead
-	if (BatchElement.DynamicIndexBuffer.IsValid())
+	if (BatchElement.DynamicIndexBuffer.IsValid() &&  BatchElement.DynamicIndexBuffer.IndexBuffer->IsInitialized())
 	{
 		check(!BatchElement.DynamicIndexBuffer.IndexBuffer || (BatchElement.DynamicIndexBuffer.IndexBuffer && BatchElement.DynamicIndexBuffer.IndexBuffer->IsInitialized() && BatchElement.DynamicIndexBuffer.IndexBuffer->IndexBufferRHI));
 		IndexBuffer = BatchElement.DynamicIndexBuffer.IndexBuffer ? BatchElement.DynamicIndexBuffer.IndexBuffer->IndexBufferRHI.GetReference() : nullptr;
