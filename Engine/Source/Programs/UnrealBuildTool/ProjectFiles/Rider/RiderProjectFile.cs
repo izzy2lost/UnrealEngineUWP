@@ -111,7 +111,7 @@ namespace UnrealBuildTool
 							Platform, Configuration, ProjectArchitectures, Arguments);
 						try
 						{
-							UEBuildTarget BuildTarget = UEBuildTarget.Create(TargetDesc, false, false, false, Logger);
+							UEBuildTarget BuildTarget = UEBuildTarget.Create(TargetDesc, false, false, false, UnrealIntermediateEnvironment.GenerateProjectFiles, Logger);
 
 							FileReference OutputFile = FileReference.Combine(TargetFolder, $"{ProjectName}.json");
 							FileToTarget.Add(new TargetEntry(OutputFile, BuildTarget, bBuildByDefault));

@@ -1131,6 +1131,10 @@ namespace UnrealBuildTool
 		/// Query
 		/// </summary>
 		Query,
+		/// <summary>
+		/// Generate project files
+		/// </summary>
+		GenerateProjectFiles,
 	}
 
 	/// <summary>
@@ -1740,6 +1744,9 @@ namespace UnrealBuildTool
 					break;
 				case UnrealIntermediateEnvironment.Query:
 					TargetFolderName += "QRY";
+					break;
+				case UnrealIntermediateEnvironment.GenerateProjectFiles:
+					TargetFolderName += "GPF";
 					break;
 			}
 			return TargetFolderName;
