@@ -124,7 +124,7 @@ public:
 private:
 #if RDG_USE_MALLOC
 	TArray<void*> Mallocs;
-	uint32 NumMallocBytes = 0;
+	uint64 NumMallocBytes = 0;
 #else
 	FMemStackBase MemStack;
 #endif
