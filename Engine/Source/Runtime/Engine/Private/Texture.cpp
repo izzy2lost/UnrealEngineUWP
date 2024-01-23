@@ -4400,7 +4400,7 @@ void FTextureSource::InitLayeredImpl(
 	check( NewNumMips <= GetFullMipCount(SizeX,SizeY,GetVolumeSizeZ()) );
 
 	Format = NewLayerFormat[0];
-	LayerFormat.SetNum(NewNumLayers, EAllowShrinking::No);
+	LayerFormat.SetNum(NewNumLayers, EAllowShrinking::Yes);
 	for (int i = 0; i < NewNumLayers; ++i)
 	{
 		LayerFormat[i] = NewLayerFormat[i];
