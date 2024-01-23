@@ -44,7 +44,7 @@ namespace Horde.Commands.Compute
 		{
 			DirectoryReference sandboxDir = DirectoryReference.Combine(DirectoryReference.GetSpecialFolder(Environment.SpecialFolder.LocalApplicationData)!, "Horde", "Sandbox");
 
-			AgentMessageHandler worker = new AgentMessageHandler(sandboxDir, null, false, null, logger);
+			AgentMessageHandler worker = new AgentMessageHandler(sandboxDir, null, false, null, null, logger);
 			await worker.RunAsync(socket, cancellationToken);
 		}
 	}

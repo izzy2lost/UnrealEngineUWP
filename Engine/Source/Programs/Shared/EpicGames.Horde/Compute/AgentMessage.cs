@@ -10,6 +10,8 @@ using System.Threading.Tasks;
 using EpicGames.Core;
 using EpicGames.Horde.Storage;
 
+#pragma warning disable CA1054 // URI-like parameters should not be strings
+
 namespace EpicGames.Horde.Compute
 {
 	/// <summary>
@@ -68,6 +70,11 @@ namespace EpicGames.Horde.Compute
 		/// Execute a process in a sandbox (Initiator -> Remote)
 		/// </summary>
 		ExecuteV2 = 0x22,
+		
+		/// <summary>
+		/// Execute a process in a sandbox (Initiator -> Remote)
+		/// </summary>
+		ExecuteV3 = 0x23,
 
 		/// <summary>
 		/// Returns output from the child process to the caller (Remote -> Initiator)
@@ -126,6 +133,12 @@ namespace EpicGames.Horde.Compute
 		/// Agent still reserves the right to refuse it (e.g no Wine executable configured, mismatching OS etc)
 		/// </summary>
 		UseWine = 1,
+		
+		/// <summary>
+		/// Use compute process executable as entrypoint for container
+		/// If not set, path to the executable is passed as the first parameter to the container invocation
+		/// </summary>
+		ReplaceContainerEntrypoint = 2,
 	}
 
 	/// <summary>
@@ -229,7 +242,8 @@ namespace EpicGames.Horde.Compute
 	/// <param name="WorkingDir">Working directory to execute in</param>
 	/// <param name="EnvVars">Environment variables for the child process. Null values unset variables.</param>
 	/// <param name="Flags">Additional execution flags</param>
-	public record struct ExecuteProcessMessage(string Executable, IReadOnlyList<string> Arguments, string? WorkingDir, IReadOnlyDictionary<string, string?> EnvVars, ExecuteProcessFlags Flags);
+	/// <param name="ContainerImageUrl">URL to container image. If specified, process will be executed inside this container</param>
+	public record struct ExecuteProcessMessage(string Executable, IReadOnlyList<string> Arguments, string? WorkingDir, IReadOnlyDictionary<string, string?> EnvVars, ExecuteProcessFlags Flags, string? ContainerImageUrl);
 
 	/// <summary>
 	/// Response from executing a child process
@@ -471,6 +485,32 @@ namespace EpicGames.Horde.Compute
 			}
 			return new AgentManagedProcess(channel);
 		}
+		
+		/// <summary>
+		/// Executes a remote process (using ExecuteV3)
+		/// </summary>
+		/// <param name="channel">Current channel</param>
+		/// <param name="executable">Executable to run, relative to the sandbox root</param>
+		/// <param name="arguments">Arguments for the child process</param>
+		/// <param name="workingDir">Working directory for the process</param>
+		/// <param name="envVars">Environment variables for the child process</param>
+		/// <param name="flags">Additional execution flags</param>
+		/// <param name="containerImageUrl">Optional container image URL. If set, execution will happen inside this container</param>
+		/// <param name="cancellationToken">Cancellation token for the operation</param>
+		public static async Task<AgentManagedProcess> ExecuteAsync(this AgentMessageChannel channel, string executable, IReadOnlyList<string> arguments, string? workingDir, IReadOnlyDictionary<string, string?>? envVars, ExecuteProcessFlags flags, string? containerImageUrl, CancellationToken cancellationToken = default)
+		{
+			using (IAgentMessageBuilder request = await channel.CreateMessageAsync(AgentMessageType.ExecuteV3, cancellationToken))
+			{
+				request.WriteString(executable);
+				request.WriteList(arguments, MemoryWriterExtensions.WriteString);
+				request.WriteOptionalString(workingDir);
+				request.WriteDictionary(envVars ?? new Dictionary<string, string?>(), MemoryWriterExtensions.WriteString, MemoryWriterExtensions.WriteOptionalString);
+				request.WriteInt32((int)flags);
+				request.WriteString(containerImageUrl ?? "");
+				request.Send();
+			}
+			return new AgentManagedProcess(channel);
+		}
 
 		/// <summary>
 		/// Parses a message as a <see cref="ExecuteProcessMessage"/>
@@ -481,7 +521,7 @@ namespace EpicGames.Horde.Compute
 			List<string> arguments = message.ReadList(MemoryReaderExtensions.ReadString);
 			string? workingDir = message.ReadOptionalString();
 			Dictionary<string, string?> envVars = message.ReadDictionary(MemoryReaderExtensions.ReadString, MemoryReaderExtensions.ReadOptionalString);
-			return new ExecuteProcessMessage(executable, arguments, workingDir, envVars, ExecuteProcessFlags.None);
+			return new ExecuteProcessMessage(executable, arguments, workingDir, envVars, ExecuteProcessFlags.None, null);
 		}
 		
 		/// <summary>
@@ -494,7 +534,21 @@ namespace EpicGames.Horde.Compute
 			string? workingDir = message.ReadOptionalString();
 			Dictionary<string, string?> envVars = message.ReadDictionary(MemoryReaderExtensions.ReadString, MemoryReaderExtensions.ReadOptionalString);
 			ExecuteProcessFlags flags = (ExecuteProcessFlags)message.ReadInt32();
-			return new ExecuteProcessMessage(executable, arguments, workingDir, envVars, flags);
+			return new ExecuteProcessMessage(executable, arguments, workingDir, envVars, flags, null);
+		}
+		
+		/// <summary>
+		/// Parses a message as a <see cref="ExecuteProcessMessage"/>
+		/// </summary>
+		public static ExecuteProcessMessage ParseExecuteProcessV3Message(this AgentMessage message)
+		{
+			string executable = message.ReadString();
+			List<string> arguments = message.ReadList(MemoryReaderExtensions.ReadString);
+			string? workingDir = message.ReadOptionalString();
+			Dictionary<string, string?> envVars = message.ReadDictionary(MemoryReaderExtensions.ReadString, MemoryReaderExtensions.ReadOptionalString);
+			ExecuteProcessFlags flags = (ExecuteProcessFlags)message.ReadInt32();
+			string containerImageUrl = message.ReadString();
+			return new ExecuteProcessMessage(executable, arguments, workingDir, envVars, flags, String.IsNullOrEmpty(containerImageUrl) ? null : containerImageUrl);
 		}
 
 		/// <summary>

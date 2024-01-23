@@ -28,6 +28,7 @@ namespace EpicGames.Horde.Compute
 		readonly Dictionary<string, string?> _envVars;
 		readonly bool _executeInProcess;
 		readonly string? _wineExecutablePath;
+		readonly string? _containerEngineExecutable;
 		readonly ILogger _logger;
 
 		/// <summary>
@@ -37,13 +38,15 @@ namespace EpicGames.Horde.Compute
 		/// <param name="envVars">Environment variables to set for any child processes</param>
 		/// <param name="executeInProcess">Whether to execute any external assemblies in the current process</param>
 		/// <param name="wineExecutablePath">Path to Wine executable. If null, execution under Wine is disabled</param>
+		/// <param name="containerEngineExecutable">Path to container engine executable, e.g /usr/bin/podman. If null, execution inside a container is disabled</param>
 		/// <param name="logger">Logger for diagnostics</param>
-		public AgentMessageHandler(DirectoryReference sandboxDir, Dictionary<string, string?>? envVars, bool executeInProcess, string? wineExecutablePath, ILogger logger)
+		public AgentMessageHandler(DirectoryReference sandboxDir, Dictionary<string, string?>? envVars, bool executeInProcess, string? wineExecutablePath, string? containerEngineExecutable, ILogger logger)
 		{
 			_sandboxDir = sandboxDir;
 			_envVars = envVars ?? new Dictionary<string, string?>();
 			_executeInProcess = executeInProcess;
 			_wineExecutablePath = wineExecutablePath;
+			_containerEngineExecutable = containerEngineExecutable;
 			_logger = logger;
 		}
 
@@ -118,14 +121,20 @@ namespace EpicGames.Horde.Compute
 							break;
 						case AgentMessageType.ExecuteV1:
 							{
-								ExecuteProcessMessage executeProcess = message.ParseExecuteProcessV1Message();
-								await ExecuteProcessAsync(socket, channel, executeProcess.Executable, executeProcess.Arguments, executeProcess.WorkingDir, executeProcess.EnvVars, executeProcess.Flags, cancellationToken);
+								ExecuteProcessMessage ep = message.ParseExecuteProcessV1Message();
+								await ExecuteProcessAsync(socket, channel, ep.Executable, ep.Arguments, ep.WorkingDir, ep.ContainerImageUrl, ep.EnvVars, ep.Flags, cancellationToken);
 							}
 							break;
 						case AgentMessageType.ExecuteV2:
 							{
-								ExecuteProcessMessage executeProcess = message.ParseExecuteProcessV2Message();
-								await ExecuteProcessAsync(socket, channel, executeProcess.Executable, executeProcess.Arguments, executeProcess.WorkingDir, executeProcess.EnvVars, executeProcess.Flags, cancellationToken);
+								ExecuteProcessMessage ep = message.ParseExecuteProcessV2Message();
+								await ExecuteProcessAsync(socket, channel, ep.Executable, ep.Arguments, ep.WorkingDir, ep.ContainerImageUrl, ep.EnvVars, ep.Flags, cancellationToken);
+							}
+							break;
+						case AgentMessageType.ExecuteV3:
+							{
+								ExecuteProcessMessage ep = message.ParseExecuteProcessV3Message();
+								await ExecuteProcessAsync(socket, channel, ep.Executable, ep.Arguments, ep.WorkingDir, ep.ContainerImageUrl, ep.EnvVars, ep.Flags, cancellationToken);
 							}
 							break;
 						case AgentMessageType.XorRequest:
@@ -245,13 +254,26 @@ namespace EpicGames.Horde.Compute
 			}
 		}
 
-		async Task ExecuteProcessAsync(ComputeSocket socket, AgentMessageChannel channel, string executable, IReadOnlyList<string> arguments, string? workingDir, IReadOnlyDictionary<string, string?>? envVars, ExecuteProcessFlags flags, CancellationToken cancellationToken)
+		async Task ExecuteProcessAsync(
+			ComputeSocket socket,
+			AgentMessageChannel channel,
+			string executable,
+			IReadOnlyList<string> arguments,
+			string? workingDir,
+			string? containerImageUrl,
+			IReadOnlyDictionary<string, string?>? envVars,
+			ExecuteProcessFlags flags,
+			CancellationToken cancellationToken)
 		{
 			try
 			{
 				if (RuntimeInformation.IsOSPlatform(OSPlatform.Windows))
 				{
 					await ExecuteProcessWindowsAsync(socket, channel, executable, arguments, workingDir, envVars, flags, cancellationToken);
+				}
+				else if (containerImageUrl != null)
+				{
+					await ExecuteProcessInContainerAsync(channel, executable, arguments, workingDir, containerImageUrl, envVars, flags, cancellationToken);
 				}
 				else
 				{
@@ -407,48 +429,109 @@ namespace EpicGames.Horde.Compute
 			}
 		}
 
+		async Task ExecuteProcessAssemblyAsync(AgentMessageChannel channel, IReadOnlyList<string> arguments, string? workingDir, IReadOnlyDictionary<string, string?>? envVars, CancellationToken cancellationToken)
+		{
+			List<(string, string?)> prevEnvVars = new List<(string, string?)>();
+			if (envVars != null)
+			{
+				foreach ((string key, string? value) in envVars)
+				{
+					prevEnvVars.Add((key, Environment.GetEnvironmentVariable(key)));
+					Environment.SetEnvironmentVariable(key, value);
+				}
+			}
+
+			string prevWorkingDir = Directory.GetCurrentDirectory();
+			Directory.SetCurrentDirectory(GetWorkingDirAbsPath(workingDir));
+
+			try
+			{
+				string assemblyPath = FileReference.Combine(_sandboxDir, arguments[0]).FullName;
+				string[] mainArgs = arguments.Skip(1).ToArray();
+
+				_logger.LogWarning("Note: Loading and running {Assembly} in process", assemblyPath);
+
+				TaskCompletionSource<int> resultTcs = new TaskCompletionSource<int>();
+
+				Thread thread = new Thread(() => resultTcs.SetResult(AppDomain.CurrentDomain.ExecuteAssembly(assemblyPath, mainArgs)));
+				thread.Start();
+
+				int result = await resultTcs.Task;
+				await channel.SendExecuteResultAsync(result, cancellationToken);
+			}
+			finally
+			{
+				Directory.SetCurrentDirectory(prevWorkingDir);
+				foreach((string key, string? value) in prevEnvVars)
+				{
+					Environment.SetEnvironmentVariable(key, value);
+				}
+			}
+		}
+
+		async Task ExecuteProcessInContainerAsync(AgentMessageChannel channel, string executable, IReadOnlyList<string> arguments, string? workingDir, string containerImageUrl, IReadOnlyDictionary<string, string?>? envVars, ExecuteProcessFlags flags, CancellationToken cancellationToken)
+		{
+			if (!RuntimeInformation.IsOSPlatform(OSPlatform.Linux))
+			{
+				throw new Exception("Only Linux is supported for executing a process inside a container");
+			}
+			
+			if (_containerEngineExecutable == null)
+			{
+				throw new Exception("Container execution requested but agent has no container engine configured");
+			}
+
+			string resolvedExecutable = FileReference.Combine(_sandboxDir, executable).FullName;
+			uint linuxUid = getuid();
+			uint linuxGid = getgid();
+
+			// Resolve env vars here even if they are resolved later in ExecuteProcessInternalAsync
+			// The environment file must be written at this step
+			Dictionary<string, string> resolvedEnvVars = ResolveEnvVars(envVars);
+			string envFilePath = Path.GetTempFileName();
+			StringBuilder sb = new();
+			foreach ((string key, string value) in resolvedEnvVars)
+			{
+				sb.AppendLine($"{key}={value}");
+			}
+			await File.WriteAllTextAsync(envFilePath, sb.ToString(), cancellationToken);
+			
+			List<string> resolvedArguments = new()
+			{
+				"run",
+				"--tty", // Allocate a pseudo-TTY
+				"--rm", // Ensure container is removed after run
+				$"--user={linuxUid}:{linuxGid}", // Run container as current user (important for mounted dirs)
+				$"--volume={_sandboxDir}:{_sandboxDir}:rw",
+				"--env-file=" + envFilePath,
+			};
+			
+			if (flags.HasFlag(ExecuteProcessFlags.ReplaceContainerEntrypoint))
+			{
+				resolvedArguments.Add("--entrypoint=" + resolvedExecutable);
+				resolvedArguments.Add(containerImageUrl);
+			}
+			else
+			{
+				resolvedArguments.Add(containerImageUrl);
+				resolvedArguments.Add(resolvedExecutable); // Add executable as first argument and assume the entrypoint inside the container image will handle this
+			}
+			
+			resolvedArguments.AddRange(arguments);
+			_logger.LogInformation("Executing {File} {Arguments} in container", _containerEngineExecutable, arguments);
+
+			// Skip forwarding of env vars as they are explicitly set above as arguments to container run
+			await ExecuteProcessInternalAsync(channel, _containerEngineExecutable, resolvedArguments, workingDir, new Dictionary<string, string?>(), flags, cancellationToken);
+		}
+
 		async Task ExecuteProcessInternalAsync(AgentMessageChannel channel, string executable, IReadOnlyList<string> arguments, string? workingDir, IReadOnlyDictionary<string, string?>? envVars, ExecuteProcessFlags flags, CancellationToken cancellationToken)
 		{
-			string resolvedExecutable = FileReference.Combine(_sandboxDir, executable).FullName;
-			string resolvedWorkingDir = DirectoryReference.Combine(_sandboxDir, workingDir ?? String.Empty).FullName;
+			string resolvedExecutable = GetExecutableAbsPath(executable);
+			string resolvedWorkingDir = GetWorkingDirAbsPath(workingDir);
+
 			if (_executeInProcess && Path.GetFileNameWithoutExtension(resolvedExecutable).Equals("dotnet", StringComparison.OrdinalIgnoreCase))
 			{
-				List<(string, string?)> prevEnvVars = new List<(string, string?)>();
-				if (envVars != null)
-				{
-					foreach ((string key, string? value) in envVars)
-					{
-						prevEnvVars.Add((key, Environment.GetEnvironmentVariable(key)));
-						Environment.SetEnvironmentVariable(key, value);
-					}
-				}
-
-				string prevWorkingDir = Directory.GetCurrentDirectory();
-				Directory.SetCurrentDirectory(resolvedWorkingDir);
-
-				try
-				{
-					string assemblyPath = FileReference.Combine(_sandboxDir, arguments[0]).FullName;
-					string[] mainArgs = arguments.Skip(1).ToArray();
-
-					_logger.LogWarning("Note: Loading and running {Assembly} in process", assemblyPath);
-
-					TaskCompletionSource<int> resultTcs = new TaskCompletionSource<int>();
-
-					Thread thread = new Thread(() => resultTcs.SetResult(AppDomain.CurrentDomain.ExecuteAssembly(assemblyPath, mainArgs)));
-					thread.Start();
-
-					int result = await resultTcs.Task;
-					await channel.SendExecuteResultAsync(result, cancellationToken);
-				}
-				finally
-				{
-					Directory.SetCurrentDirectory(prevWorkingDir);
-					foreach((string key, string? value) in prevEnvVars)
-					{
-						Environment.SetEnvironmentVariable(key, value);
-					}
-				}
+				await ExecuteProcessAssemblyAsync(channel, arguments, workingDir, envVars, cancellationToken);
 			}
 			else
 			{
@@ -461,31 +544,7 @@ namespace EpicGames.Horde.Compute
 					resolvedExecutable = _wineExecutablePath;
 				}
 
-				Dictionary<string, string> resolvedEnvVars = ManagedProcess.GetCurrentEnvVars();
-
-				foreach ((string key, string? value) in _envVars)
-				{
-					if (value != null)
-					{
-						resolvedEnvVars[key] = value;
-					}
-				}
-				
-				if (envVars != null)
-				{
-					foreach ((string key, string? value) in envVars)
-					{
-						if (value == null)
-						{
-							resolvedEnvVars.Remove(key);
-						}
-						else
-						{
-							resolvedEnvVars[key] = value;
-						}
-					}
-				}
-
+				Dictionary<string, string> resolvedEnvVars = ResolveEnvVars(envVars);
 				if (!File.Exists(resolvedExecutable))
 				{
 					_logger.LogWarning("Executable {Path} does not exist", resolvedExecutable);	
@@ -518,5 +577,64 @@ namespace EpicGames.Horde.Compute
 				}
 			}
 		}
+		
+		private string GetExecutableAbsPath(string relPath)
+		{
+			return FileReference.Combine(_sandboxDir, relPath).FullName;
+		}
+		
+		private string GetWorkingDirAbsPath(string? relPath)
+		{
+			return DirectoryReference.Combine(_sandboxDir, relPath ?? String.Empty).FullName;
+		}
+
+		/// <summary>
+		/// Flattens and merges available env vars to be used for compute process execution
+		/// </summary>
+		/// <param name="envVars">Optional extra env vars</param>
+		/// <returns>Merged environment variables</returns>
+		private Dictionary<string, string> ResolveEnvVars(IReadOnlyDictionary<string, string?>? envVars)
+		{
+			Dictionary<string, string> resolvedEnvVars = ManagedProcess.GetCurrentEnvVars();
+
+			foreach ((string key, string? value) in _envVars)
+			{
+				if (value != null)
+				{
+					resolvedEnvVars[key] = value;
+				}
+			}
+
+			if (envVars != null)
+			{
+				foreach ((string key, string? value) in envVars)
+				{
+					if (value == null)
+					{
+						resolvedEnvVars.Remove(key);
+					}
+					else
+					{
+						resolvedEnvVars[key] = value;
+					}
+				}
+			}
+
+			return resolvedEnvVars;
+		}
+
+		/// <summary>
+		/// Get user identity (Linux only)
+		/// </summary>
+		/// <returns>Real user ID of the calling process</returns>
+		[DllImport("libc", SetLastError = true)]
+		internal static extern uint getuid();
+
+		/// <summary>
+		/// Get group identity (Linux only)
+		/// </summary>
+		/// <returns>Real group ID of the calling process</returns>
+		[DllImport("libc", SetLastError = true)]
+		internal static extern uint getgid();
 	}
 }

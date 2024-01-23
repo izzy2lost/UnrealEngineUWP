@@ -78,7 +78,7 @@ namespace EpicGames.Horde.Compute.Clients
 			using Socket tcpSocket = await listener.AcceptAsync(cancellationToken);
 			await using TcpTransport tcpTransport = new (tcpSocket);
 			await using RemoteComputeSocket socket = new (tcpTransport, ComputeProtocol.Latest, logger);
-			AgentMessageHandler worker = new (sandboxDir, null, executeInProcess, null, logger);
+			AgentMessageHandler worker = new (sandboxDir, null, executeInProcess, null, null, logger);
 			await worker.RunAsync(socket, cancellationToken);
 			await socket.CloseAsync(cancellationToken);
 		}

@@ -27,6 +27,9 @@ namespace Horde.Commands.Compute
 			public string WorkingDir { get; set; } = String.Empty;
 			public Dictionary<string, string?> EnvVars { get; set; } = new Dictionary<string, string?>();
 			public List<string> OutputPaths { get; set; } = new List<string>();
+			public string? ContainerImageUrl { get; set; }
+			public bool ContainerReplaceEntrypoint { get; set; } = false;
+			public bool UseWine { get; set; } = false;
 		}
 
 		[CommandLine("-Cluster")]
@@ -123,7 +126,7 @@ namespace Horde.Commands.Compute
 
 			// Read the task definition
 			byte[] data = await FileReference.ReadAllBytesAsync(TaskFile, cancellationToken);
-			JsonComputeTask jsonComputeTask = JsonSerializer.Deserialize<JsonComputeTask>(data, new JsonSerializerOptions { AllowTrailingCommas = true, PropertyNameCaseInsensitive = true, PropertyNamingPolicy = JsonNamingPolicy.CamelCase })!;
+			JsonComputeTask task = JsonSerializer.Deserialize<JsonComputeTask>(data, new JsonSerializerOptions { AllowTrailingCommas = true, PropertyNameCaseInsensitive = true, PropertyNamingPolicy = JsonNamingPolicy.CamelCase })!;
 
 			// Create a sandbox from the data to be uploaded
 			using BundleStorageClient storage = BundleStorageClient.CreateInMemory(logger);
@@ -135,7 +138,11 @@ namespace Horde.Commands.Compute
 				await channel.WaitForAttachAsync(cancellationToken);
 				await channel.UploadFilesAsync("", sandbox, storage.Backend, cancellationToken);
 
-				await using (AgentManagedProcess process = await channel.ExecuteAsync(jsonComputeTask.Executable, jsonComputeTask.Arguments, jsonComputeTask.WorkingDir, jsonComputeTask.EnvVars, ExecuteProcessFlags.None, cancellationToken))
+				ExecuteProcessFlags execFlags = ExecuteProcessFlags.None;
+				execFlags |= task.UseWine ? ExecuteProcessFlags.UseWine : 0;
+				execFlags |= task.ContainerReplaceEntrypoint ? ExecuteProcessFlags.ReplaceContainerEntrypoint : 0;
+
+				await using (AgentManagedProcess process = await channel.ExecuteAsync(task.Executable, task.Arguments, task.WorkingDir, task.EnvVars, execFlags, task.ContainerImageUrl, cancellationToken))
 				{
 					string? line;
 					while ((line = await process.ReadLineAsync(cancellationToken)) != null)

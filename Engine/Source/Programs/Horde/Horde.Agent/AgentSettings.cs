@@ -235,9 +235,14 @@ namespace Horde.Agent
 		public List<ProcessToTerminate> ProcessesToTerminate { get; } = new List<ProcessToTerminate>();
 		
 		/// <summary>
-		/// Path to Wine executable. Set to null to disable.
+		/// Path to Wine executable. If null, execution under Wine is disabled
 		/// </summary>
 		public string? WineExecutablePath { get; set; }
+
+		/// <summary>
+		/// Path to container engine executable, such as /usr/bin/podman. If null, execution of compute workloads inside a container is disabled
+		/// </summary>
+		public string? ContainerEngineExecutablePath { get; set; }
 
 		/// <summary>
 		/// Whether to write step output to the logging device

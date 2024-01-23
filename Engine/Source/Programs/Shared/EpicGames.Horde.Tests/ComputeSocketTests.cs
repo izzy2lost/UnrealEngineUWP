@@ -240,7 +240,7 @@ namespace EpicGames.Horde.Tests
 		{
 			try
 			{
-				AgentMessageHandler handler = new AgentMessageHandler(tempDir, null, true, null, NullLogger.Instance);
+				AgentMessageHandler handler = new AgentMessageHandler(tempDir, null, true, null, null, NullLogger.Instance);
 				await handler.RunAsync(socket, cancellationToken);
 			}
 			catch (Exception e)
