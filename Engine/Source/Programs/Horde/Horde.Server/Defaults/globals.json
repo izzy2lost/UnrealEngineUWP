@@ -69,24 +69,19 @@
 	},
 	"pools": [
 		{
-			"id": "any",
-			"name": "Any",
-			"condition": "true"
-		},
-		{
-			"id": "win64",
 			"name": "Win64",
-			"condition": "Platform == 'Win64'"
+			"condition": "Platform == 'Win64'",
+			"color": "Blue"
 		},
 		{
-			"id": "mac",
 			"name": "Mac",
-			"condition": "Platform == 'Mac'"
+			"condition": "Platform == 'Mac'",
+			"color": "Green"
 		},
 		{
-			"id": "linux",
 			"name": "Linux",
-			"condition": "Platform == 'Linux'"
+			"condition": "Platform == 'Linux'",
+			"color": "Orange"
 		}
 	],
 	"networks": [
