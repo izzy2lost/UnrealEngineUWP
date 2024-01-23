@@ -491,11 +491,11 @@ namespace
 						ValueString.TrimStartAndEndInline();
 						if (ValueString.Left(1) == TEXT("\""))
 						{
-							ValueString.RightChopInline(1, false);
+							ValueString.RightChopInline(1, EAllowShrinking::No);
 						}
 						if (ValueString.Right(1) == TEXT("\""))
 						{
-							ValueString.LeftChopInline(1, false);
+							ValueString.LeftChopInline(1, EAllowShrinking::No);
 						}
 						Contents.Add(KeyString, ValueString);
 					}

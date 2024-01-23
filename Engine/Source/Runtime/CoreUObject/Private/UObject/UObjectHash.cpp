@@ -1065,7 +1065,7 @@ FORCEINLINE void RemoveFromClassMap(FUObjectHashTables& ThreadHash, UObjectBase*
 #if UE_STORE_OBJECT_LIST_INTERNAL_INDEX
 		ObjectList.Last()->ObjectListInternalIndex = Object->ObjectListInternalIndex;
 		ObjectList[Object->ObjectListInternalIndex] = ObjectList.Last();
-		ObjectList.Pop(false);
+		ObjectList.Pop(EAllowShrinking::No);
 #else
 		int32 NumRemoved = ObjectList.Remove(Object);
 

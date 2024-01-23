@@ -6518,7 +6518,7 @@ TSharedRef<FRecastTileGenerator> FRecastNavMeshGenerator::CreateTileGeneratorFro
 
 	TSharedRef<FRecastTileGenerator> TileGenerator = CreateTileGenerator(PendingElement.Coord, PendingElement.DirtyAreas, PendingElement.CreationTime);
 
-	PendingDirtyTiles.RemoveAt(PendingItemIdx, 1, false);
+	PendingDirtyTiles.RemoveAt(PendingItemIdx, 1, EAllowShrinking::No);
 
 	return TileGenerator;
 }

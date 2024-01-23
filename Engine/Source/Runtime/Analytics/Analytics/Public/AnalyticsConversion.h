@@ -93,7 +93,7 @@ FString AnalyticsConversionToString(const TMap<KeyType, ValueType, Allocator, Ke
 		Result += TEXT(",");
 	}
 	// Remove the trailing comma (LeftChop will ensure an empty container won't crash here).
-	Result.LeftChopInline(1, false);
+	Result.LeftChopInline(1, EAllowShrinking::No);
 	return Result;
 }
 

@@ -103,7 +103,7 @@ void FMallocLeakDetection::PopContext()
 {
 	TArray<FContextString>* TLContexts = (TArray<FContextString>*)FPlatformTLS::GetTlsValue(FMallocLeakDetectionStatics::Get().ContextsTLSID);
 	check(TLContexts);
-	TLContexts->Pop(false);
+	TLContexts->Pop(EAllowShrinking::No);
 }
 
 void FMallocLeakDetection::AddCallstack(FCallstackTrack& Callstack)

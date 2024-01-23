@@ -658,7 +658,7 @@ void ExtractPose(const TArray<FBoneAnimationTrack>& BoneAnimationTracks, const T
 					if (PoseBoneIndex == VB.VBIndex)
 					{
 						// Remove this bone as we have written data for it (false so we dont resize allocation)
-						VBCompactPoseData.RemoveAtSwap(Idx, 1, false);
+						VBCompactPoseData.RemoveAtSwap(Idx, 1, EAllowShrinking::No);
 						break; //Modified TArray so must break here
 					}
 				}

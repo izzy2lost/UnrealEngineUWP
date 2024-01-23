@@ -1702,7 +1702,7 @@ FGenericPlatformProcess::EWaitAndForkResult FUnixPlatformProcess::WaitAndFork()
 						UE_LOG(LogHAL, Log, TEXT("[Parent] WaitAndFork child %d missing. Removing from children list..."), ChildPidAndSignal.Pid);
 					}
 
-					AllChildren.RemoveAt(ChildIdx, 1, false);
+					AllChildren.RemoveAt(ChildIdx, 1, EAllowShrinking::No);
 				}
 			}
 		}
@@ -2076,7 +2076,7 @@ bool FUnixPlatformProcess::IsFirstInstance()
 			FString ExecPath(FPlatformProcess::ExecutableName());
 			ExecPath.ReplaceInline(TEXT("/"), TEXT("-"), ESearchCase::CaseSensitive);
 			// [RCL] 2015-09-20: can run out of filename limits (256 bytes) due to a long path, be conservative and assume 4-char UTF-8 name like e.g. Japanese
-			ExecPath.RightInline(80, false);
+			ExecPath.RightInline(80, EAllowShrinking::No);
 
 			LockFileName += ExecPath;
 
