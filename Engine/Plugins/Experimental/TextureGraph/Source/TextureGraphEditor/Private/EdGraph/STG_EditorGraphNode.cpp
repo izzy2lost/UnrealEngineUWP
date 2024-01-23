@@ -885,7 +885,10 @@ TSharedRef<SWidget> STG_EditorGraphNode::CreateTitleRightWidget()
 			{
 				CachedThumb->OnFinalise().then([CachedThumb, ThumbnailWidget]()
 				{
-					ThumbnailWidget->UpdateBlob(CachedThumb);
+					if (ThumbnailWidget.IsValid())
+					{
+						ThumbnailWidget->UpdateBlob(CachedThumb);
+					}
 				});
 			}
 			
@@ -1013,7 +1016,11 @@ void STG_EditorGraphNode::UpdateThumbnail(const FTG_EvaluationContext* InContext
 					.then([=, this](BufferResultPtr) mutable
 						{
 							auto ThumbWidget = FindOrCreateThumbWidget(Pin->GetId());
-							ThumbWidget->UpdateBlob(ThumbBlob);
+
+							if (ThumbWidget.IsValid())
+							{
+								ThumbWidget->UpdateBlob(ThumbBlob);
+							}
 						});
 			}
 		}

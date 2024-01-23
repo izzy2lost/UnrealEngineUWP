@@ -42,8 +42,11 @@ void STG_TextureHistogram::SetTexture(FTG_Texture& Source, UTextureGraph* InText
 		})
 		.then([this, Source]() mutable
 		{
-			TiledBlobPtr FinalizedHistogram = std::static_pointer_cast<TiledBlob>(Source.RasterBlob->GetHistogram());
-			HistogramBars->Update(FinalizedHistogram);
+			if (DoesSharedInstanceExist())
+            {
+				TiledBlobPtr FinalizedHistogram = std::static_pointer_cast<TiledBlob>(Source.RasterBlob->GetHistogram());
+				HistogramBars->Update(FinalizedHistogram);
+			}
 		});
 	}
 }

@@ -97,7 +97,10 @@ void STG_OutputSelectionDlg::AddExportItems()
 				ThumbBlob->OnFinalise()
 					.then([ThumbBlob, NodeThumbnail]
 					{
-						NodeThumbnail->UpdateBlob(ThumbBlob);
+						if (NodeThumbnail.IsValid())
+						{
+							NodeThumbnail->UpdateBlob(ThumbBlob);
+						}
 					});
 
 				ThumbnailWidget = NodeThumbnail;

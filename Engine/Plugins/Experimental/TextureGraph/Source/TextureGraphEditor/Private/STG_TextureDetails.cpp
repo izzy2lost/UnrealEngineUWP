@@ -159,10 +159,29 @@ void STG_TextureDetails::CalculateHistogram(BlobPtr InBlob, UTextureGraph* InTex
 	})
 	.then([this, InBlob]() mutable
 	{
-		TiledBlobPtr FinalizedHistogram = std::static_pointer_cast<TiledBlob>(InBlob->GetHistogram());
-		HistogramBlobWidgetR->Update(FinalizedHistogram);
-		HistogramBlobWidgetG->Update(FinalizedHistogram);
-		HistogramBlobWidgetB->Update(FinalizedHistogram);
-		HistogramBlobWidgetLuma->Update(FinalizedHistogram);
+		if (DoesSharedInstanceExist())
+		{
+			TiledBlobPtr FinalizedHistogram = std::static_pointer_cast<TiledBlob>(InBlob->GetHistogram());
+			if (HistogramBlobWidgetR.IsValid())
+			{
+				HistogramBlobWidgetR->Update(FinalizedHistogram);
+			}
+
+			if (HistogramBlobWidgetG.IsValid())
+			{
+				HistogramBlobWidgetG->Update(FinalizedHistogram);
+			}
+		
+			if (HistogramBlobWidgetB.IsValid())
+			{
+				HistogramBlobWidgetB->Update(FinalizedHistogram);
+			}
+		
+			if (HistogramBlobWidgetLuma.IsValid())
+			{
+				HistogramBlobWidgetLuma->Update(FinalizedHistogram);
+			}
+		}
+		
 	});
 }
