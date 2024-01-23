@@ -28,12 +28,13 @@ FMovieSceneDynamicBindingResolveResult FMovieSceneDynamicBindingInvoker::Resolve
 		return FMovieSceneDynamicBindingResolveResult();
 	}
 
-	ISequenceDirectorPlaybackCapability* DirectorCapability = SharedPlaybackState->FindCapability<ISequenceDirectorPlaybackCapability>();
-	if (!ensureMsgf(
-				DirectorCapability, 
-				TEXT("Can't invoke dynamic bindings, the current evaluation context does not have a sequence director playback capability!")))
+	// Auto-add the director playback capability, which is just really a cache for director instances after
+	// they've been created by the sequences in the hierarchy.
+	FSequenceDirectorPlaybackCapability* DirectorCapability = SharedPlaybackState->FindCapability<FSequenceDirectorPlaybackCapability>();
+	if (!DirectorCapability)
 	{
-		return FMovieSceneDynamicBindingResolveResult();
+		TSharedRef<FSharedPlaybackState> MutableState = ConstCastSharedRef<FSharedPlaybackState>(SharedPlaybackState);
+		DirectorCapability = &MutableState->AddCapability<FSequenceDirectorPlaybackCapability>();
 	}
 
 	UObject* DirectorInstance = DirectorCapability->GetOrCreateDirectorInstance(SharedPlaybackState, SequenceID);

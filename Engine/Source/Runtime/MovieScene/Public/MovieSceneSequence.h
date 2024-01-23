@@ -42,6 +42,11 @@ struct FMovieSceneTimecodeSource;
 struct FUniversalObjectLocator;
 struct FMovieSceneBindingReferences;
 
+namespace UE::MovieScene
+{
+	struct FSharedPlaybackState;
+}
+
 enum class ETrackSupport
 {
 	/** This track is not supported */
@@ -61,6 +66,8 @@ class UMovieSceneSequence
 	: public UMovieSceneSignedObject
 {
 public:
+
+	using FSharedPlaybackState = UE::MovieScene::FSharedPlaybackState;
 
 	GENERATED_BODY()
 
@@ -259,7 +266,10 @@ public:
 	/**
 	 * Called to retrieve or construct a director instance to be used for the specified player
 	 */
-	virtual UObject* CreateDirectorInstance(IMovieScenePlayer& Player, FMovieSceneSequenceID SequenceID) { return nullptr; }
+	virtual UObject* CreateDirectorInstance(TSharedRef<const FSharedPlaybackState> SharedPlaybackState, FMovieSceneSequenceID SequenceID) { return nullptr; }
+
+	UE_DEPRECATED(5.4, "Please use the version that takes a SharedPlaybackState")
+	UObject* CreateDirectorInstance(IMovieScenePlayer& Player, FMovieSceneSequenceID SequenceID);
 
 	MOVIESCENE_API virtual EMovieSceneServerClientMask OverrideNetworkMask(EMovieSceneServerClientMask InDefaultMask) const;
 

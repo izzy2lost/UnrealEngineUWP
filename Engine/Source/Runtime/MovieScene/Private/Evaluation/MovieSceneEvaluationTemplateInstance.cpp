@@ -180,8 +180,6 @@ void FMovieSceneRootEvaluationTemplateInstance::Initialize(UMovieSceneSequence& 
 		{
 			Player.PreAnimatedState.Initialize(EntitySystemLinker, RootInstanceHandle);
 		}
-
-		ResetDirectorInstances();
 	}
 }
 
@@ -204,14 +202,17 @@ void FMovieSceneRootEvaluationTemplateInstance::EvaluateSynchronousBlocking(FMov
 	}
 }
 
-void FMovieSceneRootEvaluationTemplateInstance::OnFinished()
-{
-	ResetDirectorInstances();
-}
-
 void FMovieSceneRootEvaluationTemplateInstance::ResetDirectorInstances()
 {
-	DirectorInstances.Reset();
+	using namespace UE::MovieScene;
+
+	if (SharedPlaybackState)
+	{
+		if (FSequenceDirectorPlaybackCapability* Cap = SharedPlaybackState->FindCapability<FSequenceDirectorPlaybackCapability>())
+		{
+			Cap->ResetDirectorInstances();
+		}
+	}
 }
 
 bool FMovieSceneRootEvaluationTemplateInstance::IsValid() const
@@ -424,44 +425,16 @@ void FMovieSceneRootEvaluationTemplateInstance::FindEntitiesFromOwner(UObject* O
 
 UObject* FMovieSceneRootEvaluationTemplateInstance::GetOrCreateDirectorInstance(FMovieSceneSequenceIDRef SequenceID, IMovieScenePlayer& Player)
 {
-	UObject* ExistingDirectorInstance = DirectorInstances.FindRef(SequenceID);
-#if WITH_EDITOR
-	if (ExistingDirectorInstance)
+	using namespace UE::MovieScene;
+
+	if (SharedPlaybackState)
 	{
-		// Invalidate our cached director instance if it has been recompiled.
-		UClass* DirectorClass = ExistingDirectorInstance->GetClass();
-		if (!DirectorClass || DirectorClass->HasAnyClassFlags(CLASS_NewerVersionExists))
+		if (FSequenceDirectorPlaybackCapability* Cap = SharedPlaybackState->FindCapability<FSequenceDirectorPlaybackCapability>())
 		{
-			ExistingDirectorInstance = nullptr;
+			return Cap->GetOrCreateDirectorInstance(SharedPlaybackState.ToSharedRef(), SequenceID);
 		}
 	}
-#endif
-	if (ExistingDirectorInstance)
-	{
-		return ExistingDirectorInstance;
-	}
-
-	UObject* NewDirectorInstance = nullptr;
-	if (SequenceID == MovieSceneSequenceID::Root)
-	{
-		if (UMovieSceneSequence* Sequence = GetRootSequence())
-		{
-			NewDirectorInstance = Sequence->CreateDirectorInstance(Player, SequenceID);
-		}
-	}
-	else if (const FMovieSceneSequenceHierarchy* Hierarchy = GetHierarchy())
-	{
-		const FMovieSceneSubSequenceData* SubData = Hierarchy->FindSubData(SequenceID);
-		check(SubData);
-		NewDirectorInstance = SubData->GetSequence()->CreateDirectorInstance(Player, SequenceID);
-	}
-
-	if (NewDirectorInstance)
-	{
-		DirectorInstances.Add(SequenceID, NewDirectorInstance);
-	}
-
-	return NewDirectorInstance;
+	return nullptr;
 }
 
 void FMovieSceneRootEvaluationTemplateInstance::PlaybackContextChanged(IMovieScenePlayer& Player)
@@ -517,8 +490,6 @@ void FMovieSceneRootEvaluationTemplateInstance::PlaybackContextChanged(IMovieSce
 	FSequenceInstance& RootInstance = InstanceRegistry->MutateInstance(RootInstanceHandle);
 	SharedPlaybackState = RootInstance.GetSharedPlaybackState();
 	Player.InitializeRootInstance(SharedPlaybackState.ToSharedRef());
-
-	DirectorInstances.Reset();
 
 	Player.PreAnimatedState.Initialize(EntitySystemLinker, RootInstanceHandle);
 	if (bGlobalCapture)

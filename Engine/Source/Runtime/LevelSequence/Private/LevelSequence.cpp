@@ -737,10 +737,10 @@ FGuid ULevelSequence::CreateSpawnable(UObject* ObjectToSpawn)
 
 #endif // WITH_EDITOR
 
-UObject* ULevelSequence::CreateDirectorInstance(IMovieScenePlayer& Player, FMovieSceneSequenceID SequenceID)
+UObject* ULevelSequence::CreateDirectorInstance(TSharedRef<const FSharedPlaybackState> SharedPlaybackState, FMovieSceneSequenceID SequenceID)
 {
-	ULevelSequencePlayer* LevelSequencePlayer = Cast<ULevelSequencePlayer>(Player.AsUObject());
-	UObject*              DirectorOuter       = LevelSequencePlayer ? LevelSequencePlayer : Player.GetPlaybackContext();
+	UObject* DirectorOuter = SharedPlaybackState->GetPlaybackContext();
+	IMovieScenePlayer* OptionalPlayer = UE::MovieScene::FPlayerIndexPlaybackCapability::GetPlayer(SharedPlaybackState);
 
 #if WITH_EDITOR
 	if (!UMovieScene::IsTrackClassAllowed(ULevelSequenceDirector::StaticClass()))
@@ -758,10 +758,19 @@ UObject* ULevelSequence::CreateDirectorInstance(IMovieScenePlayer& Player, FMovi
 		DirectorName = MakeUniqueObjectName(DirectorOuter, DirectorClass, *(GetFName().ToString() + TEXT("_Director")));
 #endif
 
+		ULevelSequencePlayer* LevelSequencePlayer = nullptr;
+		if (OptionalPlayer)
+		{
+			LevelSequencePlayer = Cast<ULevelSequencePlayer>(OptionalPlayer->AsUObject());
+		}
+
 		ULevelSequenceDirector* NewDirector = NewObject<ULevelSequenceDirector>(DirectorOuter, DirectorClass, DirectorName, RF_Transient);
-		NewDirector->Player = LevelSequencePlayer;
-		NewDirector->MovieScenePlayerIndex = Player.GetUniqueIndex();
 		NewDirector->SubSequenceID = SequenceID.GetInternalValue();
+		NewDirector->WeakLinker = SharedPlaybackState->GetLinker();
+		NewDirector->InstanceID = SharedPlaybackState->GetRootInstanceHandle().InstanceID;
+		NewDirector->InstanceSerial = SharedPlaybackState->GetRootInstanceHandle().InstanceSerial;
+		NewDirector->Player = LevelSequencePlayer;
+		NewDirector->MovieScenePlayerIndex = OptionalPlayer ? OptionalPlayer->GetUniqueIndex() : INDEX_NONE;
 		NewDirector->OnCreated();
 		return NewDirector;
 	}

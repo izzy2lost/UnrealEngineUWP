@@ -434,10 +434,6 @@ void UUMGSequencePlayer::HandleLatentStop()
 
 	PlayerStatus = EMovieScenePlayerStatus::Stopped;
 
-	// This isn't really necessary because UMG animations cannot have director instances
-	// but it is here for completeness
-	RootTemplateInstance.ResetDirectorInstances();
-
 	if (bRestoreState)
 	{
 		RestorePreAnimatedState();

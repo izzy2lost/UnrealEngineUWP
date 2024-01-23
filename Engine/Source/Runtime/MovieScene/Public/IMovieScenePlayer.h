@@ -110,7 +110,6 @@ using EMovieSceneCameraCutParams = FMovieSceneCameraCutParams;
 class IMovieScenePlayer 
 	: public UE::MovieScene::IObjectBindingNotifyPlaybackCapability
 	, public UE::MovieScene::IStaticBindingOverridesPlaybackCapability
-	, public UE::MovieScene::ISequenceDirectorPlaybackCapability
 {
 public:
 	MOVIESCENE_API IMovieScenePlayer();
@@ -222,12 +221,14 @@ public:
 	/**
 	 * Remove all director blueprint instances
 	 */
-	MOVIESCENE_API virtual void ResetDirectorInstances() override;
+	UE_DEPRECATED(5.4, "Director instances are now automanaged via FSequenceDirectorPlaybackCapability")
+	void ResetDirectorInstances();
 
 	/**
 	 * Gets a new or existing director blueprint instance for the given root or sub sequence
 	 */
-	MOVIESCENE_API virtual UObject* GetOrCreateDirectorInstance(TSharedRef<const UE::MovieScene::FSharedPlaybackState> SharedPlaybackState, FMovieSceneSequenceIDRef SequenceID) override;
+	UE_DEPRECATED(5.4, "Director instances are now automanaged via FSequenceDirectorPlaybackCapability")
+	UObject* GetOrCreateDirectorInstance(TSharedRef<const UE::MovieScene::FSharedPlaybackState> SharedPlaybackState, FMovieSceneSequenceIDRef SequenceID);
 
 	/**
 	 * Called to initialize the flag structure that denotes what functions need to be called on this updater

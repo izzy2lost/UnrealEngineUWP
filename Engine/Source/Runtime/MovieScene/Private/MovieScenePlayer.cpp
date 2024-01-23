@@ -165,12 +165,31 @@ TSharedRef<UE::MovieScene::FSharedPlaybackState> IMovieScenePlayer::GetSharedPla
 
 void IMovieScenePlayer::ResetDirectorInstances()
 {
-	GetEvaluationTemplate().ResetDirectorInstances();
+	using namespace UE::MovieScene;
+
+	TSharedPtr<const FSharedPlaybackState> SharedPlaybackState = FindSharedPlaybackState();
+	if (!SharedPlaybackState)
+	{
+		return;
+	}
+
+	FSequenceDirectorPlaybackCapability* Cap = SharedPlaybackState->FindCapability<FSequenceDirectorPlaybackCapability>();
+	if (Cap)
+	{
+		Cap->ResetDirectorInstances();
+	}
 }
 
 UObject* IMovieScenePlayer::GetOrCreateDirectorInstance(TSharedRef<const UE::MovieScene::FSharedPlaybackState> SharedPlaybackState, FMovieSceneSequenceIDRef SequenceID)
 {
-	return GetEvaluationTemplate().GetOrCreateDirectorInstance(SequenceID, *this);
+	using namespace UE::MovieScene;
+
+	FSequenceDirectorPlaybackCapability* Cap = SharedPlaybackState->FindCapability<FSequenceDirectorPlaybackCapability>();
+	if (Cap)
+	{
+		return Cap->GetOrCreateDirectorInstance(SharedPlaybackState, SequenceID);
+	}
+	return nullptr;
 }
 
 TArray<UObject*> IMovieScenePlayer::GetEventContexts() const
@@ -214,7 +233,6 @@ void IMovieScenePlayer::InitializeRootInstance(TSharedRef<UE::MovieScene::FShare
 	NewSharedPlaybackState->AddCapabilityRaw(&GetSpawnRegister());
 	NewSharedPlaybackState->AddCapabilityRaw((IObjectBindingNotifyPlaybackCapability*)this);
 	NewSharedPlaybackState->AddCapabilityRaw((IStaticBindingOverridesPlaybackCapability*)this);
-	NewSharedPlaybackState->AddCapabilityRaw((ISequenceDirectorPlaybackCapability*)this);
 
 	if (IMovieScenePlaybackClient* PlaybackClient = GetPlaybackClient())
 	{

@@ -65,11 +65,7 @@ public:
 	UE_DEPRECATED(5.1, "Use EvaluateSynchronousBlocking instead.")
 	MOVIESCENE_API void Evaluate(FMovieSceneContext Context, IMovieScenePlayer& Player);
 
-	/**
-	 * Called when this instance has completely finished playing
-	 */
-	void OnFinished();
-
+	UE_DEPRECATED(5.4, "Director instances are now auto-managed via FSequenceDirectorPlaybackCapability")
 	MOVIESCENE_API void ResetDirectorInstances();
 
 	MOVIESCENE_API bool IsValid() const;
@@ -107,6 +103,7 @@ public:
 
 	MOVIESCENE_API UMovieSceneSequence* GetSequence(FMovieSceneSequenceIDRef SequenceID) const;
 
+	UE_DEPRECATED(5.4, "Director instances are now auto-managed via FSequenceDirectorPlaybackCapability")
 	MOVIESCENE_API UObject* GetOrCreateDirectorInstance(FMovieSceneSequenceIDRef SequenceID, IMovieScenePlayer& Player);
 
 	MOVIESCENE_API void PlaybackContextChanged(IMovieScenePlayer& Player);
@@ -144,10 +141,6 @@ private:
 
 	/** The playback state for the hierarchy of sequence instances */
 	TSharedPtr<UE::MovieScene::FSharedPlaybackState> SharedPlaybackState;
-	
-	/** Map of director instances by sequence ID. Kept alive by this map assuming this struct is reference collected */
-	UPROPERTY()
-	TMap<FMovieSceneSequenceID, TObjectPtr<UObject>> DirectorInstances;
 
 	FMovieSceneSequenceID RootID;
 

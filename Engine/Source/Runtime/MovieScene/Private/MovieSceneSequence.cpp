@@ -399,3 +399,8 @@ FMovieSceneTimecodeSource UMovieSceneSequence::GetEarliestTimecodeSource() const
 	return MovieScene->GetEarliestTimecodeSource();
 }
 
+UObject* UMovieSceneSequence::CreateDirectorInstance(IMovieScenePlayer& Player, FMovieSceneSequenceID SequenceID)
+{
+	return CreateDirectorInstance(Player.GetSharedPlaybackState(), SequenceID);
+}
+

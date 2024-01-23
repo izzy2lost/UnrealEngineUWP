@@ -16,6 +16,7 @@
 #include "IMovieScenePlayer.h"
 #include "MovieSceneSequence.h"
 
+#include "Templates/SharedPointer.h"
 #include "Templates/SubclassOf.h"
 #include "Engine/World.h"
 #include "Engine/LevelScriptActor.h"
@@ -141,10 +142,13 @@ void UMovieSceneEventSystem::TriggerEvents(TArrayView<const FMovieSceneEventTrig
 	UE_LOG(LogMovieScene, VeryVerbose, TEXT("%s: Triggering %d events"), *SequenceName, Events.Num());
 #endif
 
-	ISequenceDirectorPlaybackCapability* DirectorCapability = SharedPlaybackState->FindCapability<ISequenceDirectorPlaybackCapability>();
-	if (!ensureMsgf(DirectorCapability, TEXT("Can't trigger events on %s: no director blueprint capability found"), *SequenceName))
+	// Auto-add the director playback capability, which is just really a cache for director instances after
+	// they've been created by the sequences in the hierarchy.
+	FSequenceDirectorPlaybackCapability* DirectorCapability = SharedPlaybackState->FindCapability<FSequenceDirectorPlaybackCapability>();
+	if (!DirectorCapability)
 	{
-		return;
+		TSharedRef<FSharedPlaybackState> MutableState = ConstCastSharedRef<FSharedPlaybackState>(SharedPlaybackState);
+		DirectorCapability = &MutableState->AddCapability<FSequenceDirectorPlaybackCapability>();
 	}
 
 	TArray<UObject*> GlobalContexts;

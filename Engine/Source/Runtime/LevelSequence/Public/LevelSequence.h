@@ -53,7 +53,7 @@ public:
 	LEVELSEQUENCE_API virtual bool CanRebindPossessable(const FMovieScenePossessable& InPossessable) const override;
 	LEVELSEQUENCE_API virtual UObject* MakeSpawnableTemplateFromInstance(UObject& InSourceObject, FName ObjectName) override;
 	LEVELSEQUENCE_API virtual bool CanAnimateObject(UObject& InObject) const override;
-	LEVELSEQUENCE_API virtual UObject* CreateDirectorInstance(IMovieScenePlayer& Player, FMovieSceneSequenceID SequenceID) override;
+	LEVELSEQUENCE_API virtual UObject* CreateDirectorInstance(TSharedRef<const FSharedPlaybackState> SharedPlaybackState, FMovieSceneSequenceID SequenceID) override;
 	LEVELSEQUENCE_API virtual const FMovieSceneBindingReferences* GetBindingReferences() const override;
 	LEVELSEQUENCE_API virtual void PostLoad() override;
 #if WITH_EDITORONLY_DATA
