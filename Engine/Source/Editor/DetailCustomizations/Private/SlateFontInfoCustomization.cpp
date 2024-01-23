@@ -193,12 +193,17 @@ void FSlateFontInfoStructCustomization::AddFontSizeProperty(IDetailChildrenBuild
 		.AllowWheel(true)
 		.WheelStep(1.0f)
 		.AllowSpin(FontSizePropertyRef->GetNumPerObjectValues() == 1) //Don't allow spin for multiple value select. Allowing it would result in the widget background not being displayed.
-		.IsEnabled(!FontSizePropertyRef->IsEditConst())
+		.IsEnabled(this, &FSlateFontInfoStructCustomization::IsFontSizeEnabled)
 		.ToolTip(IDocumentation::Get()->CreateToolTip(TAttribute<FText>(this, &FSlateFontInfoStructCustomization::GetFontSizeTooltipText),
 													  nullptr,
 													  TEXT("Shared/Types/FSlateFontInfo"),
 													  TEXT("Size")))
 	];
+}
+
+bool FSlateFontInfoStructCustomization::IsFontSizeEnabled() const
+{
+	return FontSizeProperty && !FontSizeProperty->IsEditConst();
 }
 
 FText FSlateFontInfoStructCustomization::GetFontSizeTooltipText() const
