@@ -606,16 +606,6 @@ namespace EpicGames.Horde.Storage.Nodes
 			await writerFork.FlushAsync(cancellationToken);
 		}
 
-		static async Task<ChunkedData[]> CreateInteriorChunkNodesAsync(LeafChunkedData[] leafChunkedFiles, InteriorChunkedDataNodeOptions chunkingOptions, IBlobWriter writer, BlobSerializerOptions? serializerOptions, CancellationToken cancellationToken)
-		{
-			ChunkedData[] chunkedFiles = new ChunkedData[leafChunkedFiles.Length];
-			for (int idx = 0; idx < leafChunkedFiles.Length; idx++)
-			{
-				chunkedFiles[idx] = await InteriorChunkedDataNode.CreateTreeAsync(leafChunkedFiles[idx], chunkingOptions, writer, serializerOptions, cancellationToken);
-			}
-			return chunkedFiles;
-		}
-
 		/// <summary>
 		/// Updates this tree of directory objects
 		/// </summary>

@@ -412,6 +412,11 @@ namespace EpicGames.Horde.Storage.Nodes
 	public record class InteriorChunkedDataNodeOptions(int MinChildCount, int TargetChildCount, int MaxChildCount, uint SliceThreshold)
 	{
 		/// <summary>
+		/// Default settings
+		/// </summary>
+		public static InteriorChunkedDataNodeOptions Default { get; } = new InteriorChunkedDataNodeOptions(1, 100, 500);
+
+		/// <summary>
 		/// Constructor
 		/// </summary>
 		public InteriorChunkedDataNodeOptions(int minChildCount, int targetChildCount, int maxChildCount)
