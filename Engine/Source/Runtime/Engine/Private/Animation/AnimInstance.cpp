@@ -3626,8 +3626,7 @@ UAnimInstance* UAnimInstance::GetLinkedAnimLayerInstanceByGroupAndClass(FName In
 	return nullptr;
 }
 
-
-UAnimInstance* UAnimInstance::GetLinkedAnimLayerInstanceByClass(TSubclassOf<UAnimInstance> InClass) const
+UAnimInstance* UAnimInstance::GetLinkedAnimLayerInstanceByClass(TSubclassOf<UAnimInstance> InClass, bool bCheckForChildClass) const
 {
 	if (IAnimClassInterface* AnimBlueprintClass = IAnimClassInterface::GetFromClass(GetClass()))
 	{
@@ -3635,9 +3634,13 @@ UAnimInstance* UAnimInstance::GetLinkedAnimLayerInstanceByClass(TSubclassOf<UAni
 		{
 			const FAnimNode_LinkedAnimLayer* Layer = LayerNodeProperty->ContainerPtrToValuePtr<FAnimNode_LinkedAnimLayer>(this);
 			UAnimInstance* TargetInstance = Layer->GetTargetInstance<UAnimInstance>();
-			if (TargetInstance && TargetInstance->GetClass() == InClass.Get())
+			
+			if (TargetInstance && TargetInstance->GetClass())
 			{
-				return TargetInstance;
+				if ((bCheckForChildClass && TargetInstance->GetClass()->IsChildOf(InClass)) || (!bCheckForChildClass && TargetInstance->GetClass() == InClass.Get()))
+				{
+					return TargetInstance;
+				}
 			}
 		}
 	}

@@ -844,9 +844,9 @@ public:
 	UE_DEPRECATED(4.24, "Function renamed, please use GetLinkedAnimLayerInstanceByClass")
 	UAnimInstance* GetLayerSubInstanceByClass(TSubclassOf<UAnimInstance> InClass) const { return GetLinkedAnimLayerInstanceByClass(InClass); }
 
-	/** Gets the first layer linked instance corresponding to the specified class */
+	/** Gets the first layer linked instance corresponding to the specified class, optionally if bCheckForChildClass is true, it will check IsChildOf on InClass. */
 	UFUNCTION(BlueprintPure, Category = "Animation|Linked Anim Graphs")
-	ENGINE_API UAnimInstance* GetLinkedAnimLayerInstanceByClass(TSubclassOf<UAnimInstance> InClass) const;
+	ENGINE_API UAnimInstance* GetLinkedAnimLayerInstanceByClass(TSubclassOf<UAnimInstance> InClass, bool bCheckForChildClass = false) const;
 
 	/** Sets up initial layer groupings */
 	ENGINE_API void InitializeGroupedLayers(bool bInDeferSubGraphInitialization);
