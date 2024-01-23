@@ -65,8 +65,9 @@ public:
 	 * @param Ar currently being used to serialize the current object (will be used to retrieve the current property serialized path)
 	 * @param Property the property about to be serialized, can be null
 	 * @param DataPtr to the memory of that property
+	 * @param DefaultValue memory pointer of that property
 	 * @return the overridden property operation */
-	static EOverriddenPropertyOperation GetOverriddenPropertyOperation(const FArchive& Ar, FProperty* Property = nullptr, uint8* DataPtr = nullptr);
+	static EOverriddenPropertyOperation GetOverriddenPropertyOperation(const FArchive& Ar, FProperty* Property = nullptr, uint8* DataPtr = nullptr, uint8* DefaultValue = nullptr);
 
 private:
 	static thread_local bool bUseOverridableSerialization;
@@ -268,6 +269,14 @@ public:
 	 * @param NodeID the ID of the sub property 
 	 * @return the node to the sub property */
 	FOverriddenPropertyNode* SetSubPropertyOperation(EOverriddenPropertyOperation Operation, FOverriddenPropertyNode& Node, FOverriddenPropertyNodeID NodeID);
+
+	/**
+	 * Check if this is an overridden property set of a CDO and that this property is owned by the class of this CDO
+	 * NOTE: this is used to know if a property should be serialized to keep its default CDO value.
+	 * @param Property 
+	 * @return 
+	 */
+	bool IsCDOOwningProperty(const FProperty& Property) const;
 
 	/**
 	 * Resets all overrides of the object */

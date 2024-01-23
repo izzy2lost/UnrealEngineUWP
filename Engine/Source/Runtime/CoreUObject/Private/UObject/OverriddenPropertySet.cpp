@@ -22,7 +22,7 @@ DEFINE_LOG_CATEGORY(LogOverridableObject);
 thread_local bool FOverridableSerializationLogic::bUseOverridableSerialization = false;
 thread_local FOverriddenPropertySet* FOverridableSerializationLogic::OverriddenProperties = nullptr;
 
-EOverriddenPropertyOperation FOverridableSerializationLogic::GetOverriddenPropertyOperation(const FArchive& Ar, FProperty* Property /*= nullptr*/, uint8* DataPtr /*= nullptr*/)
+EOverriddenPropertyOperation FOverridableSerializationLogic::GetOverriddenPropertyOperation(const FArchive& Ar, FProperty* Property /*= nullptr*/, uint8* DataPtr /*= nullptr*/, uint8* DefaultValue)
 {
 	checkf(bUseOverridableSerialization, TEXT("Nobody should use this method if it is not setup to use overridable serialization"));
 
@@ -40,6 +40,17 @@ EOverriddenPropertyOperation FOverridableSerializationLogic::GetOverriddenProper
 		{
 			return EOverriddenPropertyOperation::Replace;
 		}
+
+		// In the case of a CDO owning default value, we might need to serialize it to keep its value.
+		if (OverriddenProperties && OverriddenProperties->IsCDOOwningProperty(*CurrentProperty))
+		{
+			// Only need serialize this value if it is different from the default property value
+			if (!CurrentProperty->Identical(DataPtr, DefaultValue, Ar.GetPortFlags()))
+			{
+				return 	EOverriddenPropertyOperation::Replace;
+			}
+		}
+
 		// Here we should just use CurrentProperty->ContainsInstancedObjectProperty() but somehow this CPF_InstanceReference seems to always be there on verse classes
 		// This should probably be fix in verse at some point.
 		else if (CurrentProperty->HasAnyPropertyFlags(CPF_PersistentInstance))
@@ -875,6 +886,20 @@ FOverriddenPropertyNode* FOverriddenPropertySet::SetSubPropertyOperation(EOverri
 	FOverriddenPropertyNode& OverriddenPropertyNode = FindOrAddNode(Node, NodeID);
 	OverriddenPropertyNode.Operation = Operation;
 	return &OverriddenPropertyNode;
+}
+
+bool FOverriddenPropertySet::IsCDOOwningProperty(const FProperty& Property) const
+{
+	checkf(IsValid(Owner), TEXT("Expecting a valid overridable owner"));
+	if (!Owner->HasAnyFlags(RF_ClassDefaultObject))
+	{
+		return false;
+	}
+
+	// We need to serialize only if the property owner is the current CDO class
+	// Otherwise on derived class, this is done in parent CDO or it should be explicitly overridden if it is different than the parent value
+	// This is sort of like saying it overrides the default property initialization value.
+	return Property.GetOwnerClass() == Owner->GetClass();
 }
 
 void FOverriddenPropertySet::Reset()
