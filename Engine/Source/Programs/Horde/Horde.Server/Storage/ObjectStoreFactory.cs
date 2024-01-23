@@ -124,7 +124,7 @@ namespace Horde.Server.Storage
 			_logger = logger;
 		}
 
-		string GetTrace()
+		static string GetTrace()
 		{
 			try
 			{
