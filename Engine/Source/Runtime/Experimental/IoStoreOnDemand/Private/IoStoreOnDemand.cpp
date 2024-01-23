@@ -1838,7 +1838,7 @@ TIoStatusOr<FIoStoreListTocsParams> FIoStoreListTocsParams::Parse(const TCHAR* C
 	{
 		if (!FParse::Value(CommandLine, TEXT("Bucket="), Params.Bucket))
 		{
-			FIoStatus(EIoErrorCode::InvalidParameter, TEXT("Invalid bucket name"));
+			return FIoStatus(EIoErrorCode::InvalidParameter, TEXT("Invalid bucket name"));
 		}
 	}
 
@@ -1864,7 +1864,6 @@ TIoStatusOr<FIoStoreListTocsParams> FIoStoreListTocsParams::Parse(const TCHAR* C
 	}
 
 	FParse::Value(CommandLine, TEXT("Json="), Params.OutFile);
-
 
 	if (FParse::Value(CommandLine, TEXT("TocUrl="), Params.TocUrl))
 	{
