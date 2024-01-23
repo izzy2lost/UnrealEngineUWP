@@ -805,15 +805,7 @@ UPCGComponent* FPCGActorAndComponentMapping::GetLocalComponent(uint32 GridSize, 
 		const TObjectPtr<APCGPartitionActor>* PartitionActor = PartitionActorsOnGrid->Find(CellCoords);
 		if (PartitionActor && *PartitionActor)
 		{
-			TArray<UPCGComponent*, TInlineAllocator<4>> PCGComponents;
-			(*PartitionActor)->GetComponents(PCGComponents);
-
-			UPCGComponent** MatchingComponent = PCGComponents.FindByPredicate([InOriginalComponent](UPCGComponent* Comp)
-			{
-				return Comp->GetOriginalComponent() == InOriginalComponent;
-			});
-
-			return MatchingComponent ? *MatchingComponent : nullptr;
+			return (*PartitionActor)->GetLocalComponent(InOriginalComponent);
 		}
 	}
 

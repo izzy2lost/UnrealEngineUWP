@@ -87,7 +87,13 @@ void FPCGRuntimeGenScheduler::Tick(APCGWorldActor* InPCGWorldActor)
 
 	TickCVars(InPCGWorldActor);
 
-	const TSet<IPCGGenSourceBase*> GenSources = bAnyRuntimeGenComponentsExist ? GenSourceManager->GetGenSources(InPCGWorldActor) : TSet<IPCGGenSourceBase*>();
+	TSet<IPCGGenSourceBase*> GenSources;
+
+	if (bAnyRuntimeGenComponentsExist)
+	{
+		GenSourceManager->Tick();
+		GenSources = GenSourceManager->GetAllGenSources(InPCGWorldActor);
+	}
 
 	// Initialize RuntimeGen PA pool if necessary. If PoolSize is 0, then we have not initialized the pool yet.
 	if (!GenSources.IsEmpty() || !GeneratedComponents.IsEmpty())
@@ -97,6 +103,10 @@ void FPCGRuntimeGenScheduler::Tick(APCGWorldActor* InPCGWorldActor)
 			AddPartitionActorPoolCount(PCGRuntimeGenSchedulerHelpers::CVarRuntimeGenerationBasePoolSize.GetValueOnAnyThread());
 		}
 	}
+
+	// Remove any generation keys that have been registered for deferred removal.
+	GeneratedComponents = GeneratedComponents.Difference(GeneratedComponentsToRemove);
+	GeneratedComponentsToRemove.Empty();
 
 	// 1. Queue nearby components for generation.
 	
@@ -238,7 +248,7 @@ void FPCGRuntimeGenScheduler::TickQueueComponentsForGeneration(
 	{
 		TRACE_CPUPROFILER_EVENT_SCOPE(FPCGRuntimeGenScheduler::CollectLocalComponents);
 
-		if (!ensure(OriginalComponent))
+		if (!ensure(OriginalComponent) || !OriginalComponent->GetGraph())
 		{
 			continue;
 		}
@@ -252,12 +262,13 @@ void FPCGRuntimeGenScheduler::TickQueueComponentsForGeneration(
 			PCGHiGenGrid::FSizeArray GridSizes;
 			ensure(PCGHelpers::GetGenerationGridSizes(OriginalComponent->GetGraph(), InPCGWorldActor, GridSizes, bHasUnbounded));
 
-			if (GridSizes.IsEmpty())
+			if (GridSizes.IsEmpty() && !bHasUnbounded)
 			{
 				continue;
 			}
 
-			const double MaxGenerationRadius = OriginalComponent->GetGenerationRadiusFromGrid(PCGHiGenGrid::GridSizeToGrid(GridSizes[0]));
+			const EPCGHiGenGrid MaxGrid = bHasUnbounded ? EPCGHiGenGrid::Unbounded : PCGHiGenGrid::GridSizeToGrid(GridSizes[0]);
+			const double MaxGenerationRadius = OriginalComponent->GetGenerationRadiusFromGrid(MaxGrid);
 
 			for (const IPCGGenSourceBase* GenSource : InGenSources)
 			{
@@ -351,12 +362,12 @@ void FPCGRuntimeGenScheduler::TickQueueComponentsForGeneration(
 
 								if (InPCGWorldActor->bUse2DGrid)
 								{
-									ModifiedGenSourcePosition.Z = CellBounds.Min.Z;
+									ModifiedGenSourcePosition.Z = IntersectedBounds.Min.Z;
 								}
 
 								// Verify the grid cell actually lies within the generation radius.
 								// TODO: this is no longer necessary if we rasterize the sphere instead.
-								const double LocalDistanceSquared = CellBounds.ComputeSquaredDistanceToPoint(ModifiedGenSourcePosition);
+								const double LocalDistanceSquared = IntersectedBounds.ComputeSquaredDistanceToPoint(ModifiedGenSourcePosition);
 								if (LocalDistanceSquared <= GenerationRadius * GenerationRadius)
 								{
 									AddComponentToGenerate(Key, GenSource, Policy, IntersectedBounds, InPCGWorldActor->bUse2DGrid);
@@ -374,7 +385,7 @@ void FPCGRuntimeGenScheduler::TickQueueComponentsForGeneration(
 	{
 		TRACE_CPUPROFILER_EVENT_SCOPE(FPCGRuntimeGenScheduler::CollectNonPartitionedComponents);
 
-		if (!ensure(OriginalComponent))
+		if (!ensure(OriginalComponent) || !OriginalComponent->GetGraph())
 		{
 			continue;
 		}
@@ -488,9 +499,10 @@ void FPCGRuntimeGenScheduler::TickCleanup(const TSet<IPCGGenSourceBase*>& InGenS
 		else
 		{
 			UPCGComponent* LocalComponent = ActorAndComponentMapping->GetLocalComponent(GridSize, GridCoords, OriginalComponent, /*bRuntimeGenerated=*/true);
-			if (!ensure(LocalComponent))
+			if (!LocalComponent)
 			{
-				UE_LOG(LogPCG, Error, TEXT("[RUNTIMEGEN] Generated local component could not be retrieved: %u, %d_%d_%d"), GridSize, GridCoords.X, GridCoords.Y, GridCoords.Z);
+				// Attempt to clean even in failure case to avoid leaking resources.
+				ComponentsToClean.Add({ GenerationKey, LocalComponent });
 				continue;
 			}
 
@@ -774,12 +786,6 @@ void FPCGRuntimeGenScheduler::CleanupLocalComponents(const APCGWorldActor* InPCG
 		if (Grid != EPCGHiGenGrid::Unbounded)
 		{
 			UPCGComponent* LocalComponent = ActorAndComponentMapping->GetLocalComponent(GridSize, GridCoords, OriginalComponent, /*bRuntimeGenerated=*/true);
-			if (!ensure(LocalComponent))
-			{
-				UE_LOG(LogPCG, Error, TEXT("[RUNTIMEGEN] Generated local component could not be retrieved: %u, %d_%d_%d"), GridSize, GridCoords.X, GridCoords.Y, GridCoords.Z);
-				continue;
-			}
-
 			ComponentsToClean.Add({ GenerationKey, LocalComponent });
 		}
 	}
@@ -801,9 +807,9 @@ void FPCGRuntimeGenScheduler::CleanupComponent(const FGridGenerationKey& Generat
 
 	APCGPartitionActor* PartitionActor = nullptr;
 
-	if (!ensure(GeneratedComponent))
+	if (!GeneratedComponent)
 	{
-		UE_LOG(LogPCG, Error, TEXT("[RUNTIMEGEN] GENERATED COMPONENT COULD NOT BE RECOVERED ON GRID %d AT (%d, %d, %d)"), GridSize, GridCoords.X, GridCoords.Y, GridCoords.Z);
+		UE_LOG(LogPCG, Warning, TEXT("Runtime generated component could not be recovered on grid %d at (%d, %d, %d). It has been lost or destroyed."), GridSize, GridCoords.X, GridCoords.Y, GridCoords.Z);
 
 		// If the GeneratedComponent has been lost for some reason, get the PA directly from the ActorAndComponentMapping.
 		PartitionActor = ActorAndComponentMapping->GetPartitionActor(GridSize, GridCoords, /*bRuntimeGenerated=*/true);
@@ -918,8 +924,8 @@ void FPCGRuntimeGenScheduler::RefreshComponent(UPCGComponent* InComponent, bool 
 	{
 		// Refresh path - mark component dirty and removed generated keys which will cause it to be scheduled for regeneration.
 
-		// Remove from generated component set, component will be regenerated later (and in grid order so that e.g. unbounded
-		// is generated first).
+		// Register for deferred removal from generated components set, component will be regenerated later (and in grid order
+		// so that e.g. unbounded is generated first).
 		if (PartitionActor)
 		{
 			if (bLoggingEnabled)
@@ -927,21 +933,18 @@ void FPCGRuntimeGenScheduler::RefreshComponent(UPCGComponent* InComponent, bool 
 				UE_LOG(LogPCG, Warning, TEXT("[RUNTIMEGEN] SHALLOW REFRESH LOCAL COMPONENT: '%s'"), *PartitionActor->GetActorNameOrLabel());
 			}
 
-			GeneratedComponents.Remove({ PartitionActor->GetPCGGridSize(), PartitionActor->GetGridCoord(), OriginalComponent });
-
+			GeneratedComponentsToRemove.Emplace({ PartitionActor->GetPCGGridSize(), PartitionActor->GetGridCoord(), OriginalComponent });
 			InComponent->CleanupLocalImmediate(/*bRemoveComponents=*/false);
 		}
 		else
 		{
-			// Remove original component
-			GeneratedComponents.Remove({ PCGHiGenGrid::UnboundedGridSize(), FIntVector(0), OriginalComponent });
+			// Register original component for deferred removal.
+			GeneratedComponentsToRemove.Emplace({ PCGHiGenGrid::UnboundedGridSize(), FIntVector(0), OriginalComponent });
 
-			// Remove local components
-			TSet<FGridGenerationKey> KeysToRemove;
-
+			// Register local components for deferred removal if they have not already registered themselves.
 			for (const FGridGenerationKey& Key : GeneratedComponents)
 			{
-				if (Key.GetOriginalComponent() == InComponent)
+				if (Key.GetOriginalComponent() == InComponent && !GeneratedComponentsToRemove.Contains(Key))
 				{
 					// TODO - clean up local immediate will have a flag in the future to clean up the local components on its own, so this call to CleanupLocalImmediate will not be required
 					UPCGComponent* LocalComponent = ActorAndComponentMapping->GetLocalComponent(
@@ -960,11 +963,9 @@ void FPCGRuntimeGenScheduler::RefreshComponent(UPCGComponent* InComponent, bool 
 						LocalComponent->CleanupLocalImmediate(/*bRemoveComponents=*/false);
 					}
 
-					KeysToRemove.Add(Key);
+					GeneratedComponentsToRemove.Add(Key);
 				}
 			}
-
-			GeneratedComponents = GeneratedComponents.Difference(KeysToRemove);
 
 			if (bLoggingEnabled && OriginalComponent->GetOwner())
 			{
@@ -1038,14 +1039,15 @@ void FPCGRuntimeGenScheduler::RefreshComponent(UPCGComponent* InComponent, bool 
 				{
 					const FIntVector GridCoords = GenerationKey.GetGridCoords();
 
-					UPCGComponent* LocalComponent = ActorAndComponentMapping->GetLocalComponent(GridSize, GridCoords, OriginalComponent, /*bRuntimeGenerated=*/true);
-					if (!ensure(LocalComponent))
+					if (UPCGComponent* LocalComponent = ActorAndComponentMapping->GetLocalComponent(GridSize, GridCoords, OriginalComponent, /*bRuntimeGenerated=*/true))
 					{
-						UE_LOG(LogPCG, Error, TEXT("[RUNTIMEGEN] Generated local component could not be retrieved: %u, %d_%d_%d"), GridSize, GridCoords.X, GridCoords.Y, GridCoords.Z);
-						continue;
+						RefreshLocalComponent(LocalComponent);
 					}
-
-					RefreshLocalComponent(LocalComponent);
+					else
+					{
+						// If the local component could not be recovered, cleanup its entry to avoid leaking resources/locking the grid cell.
+						CleanupComponent(GenerationKey, nullptr);
+					}
 				}
 			}
 		}

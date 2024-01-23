@@ -1476,7 +1476,8 @@ void UPCGComponent::RefreshAfterGraphChanged(UPCGGraphInterface* InGraph, EPCGCh
 
 		DirtyGenerated(bDirtyInputs ? (EPCGComponentDirtyFlag::Actor | EPCGComponentDirtyFlag::Landscape) : EPCGComponentDirtyFlag::None);
 
-		if (bHasGraph)
+		// If there is no graph, we should still refresh if we are runtime-managed, since the RuntimeGenScheduler will need to flush its resources.
+		if (bHasGraph || IsManagedByRuntimeGenSystem())
 		{
 			Refresh(ChangeType);
 		}
@@ -1597,7 +1598,7 @@ void UPCGComponent::PostEditChangeProperty(FPropertyChangedEvent& PropertyChange
 	}
 	else if (PropName == GET_MEMBER_NAME_CHECKED(UPCGComponent, GraphInstance))
 	{
-		OnGraphChanged(GraphInstance, EPCGChangeType::Structural);
+		OnGraphChanged(GraphInstance, EPCGChangeType::Structural | EPCGChangeType::GenerationGrid);
 	}
 	else if (PropName == GET_MEMBER_NAME_CHECKED(UPCGComponent, InputType))
 	{
@@ -1679,6 +1680,15 @@ void UPCGComponent::PreEditUndo()
 	// so we can have a consistent state
 	LastGeneratedBoundsPriorToUndo = LastGeneratedBounds;
 
+	if (IsManagedByRuntimeGenSystem())
+	{
+		// Always flush the runtime gen state before undo/redo to avoid leaking resources or locking grid cells from future generation.
+		if (UPCGSubsystem* Subsystem = GetSubsystem())
+		{
+			Subsystem->RefreshRuntimeGenComponent(this, EPCGChangeType::GenerationGrid);
+		}
+	}
+
 	if (bGenerated)
 	{
 		// Cleanup so managed resources are cleaned in all cases
@@ -1706,7 +1716,7 @@ void UPCGComponent::PostEditUndo()
 		// operation removes the component, a valid refresh task ID is set but the refresh task itself will fail
 		// and leave the valid task ID hanging on the component. Forcing here means if we later retrieve this state
 		// from the undo/redo buffer, the refresh will be forced which will reset the state.
-		Refresh(EPCGChangeType::Structural, /*bCancelExistingRefresh=*/true);
+		Refresh(EPCGChangeType::Structural | EPCGChangeType::GenerationGrid, /*bCancelExistingRefresh=*/true);
 	}
 
 	Super::PostEditUndo();

@@ -133,11 +133,15 @@ void APCGWorldActor::EndPlay(const EEndPlayReason::Type EndPlayReason)
 
 void APCGWorldActor::CreateGridGuidsIfNecessary(const PCGHiGenGrid::FSizeArray& InGridSizes, bool bAreGridsSerialized)
 {
+	if (InGridSizes.IsEmpty())
+	{
+		return;
+	}
+
 	TMap<uint32, FGuid>& GuidsMap = bAreGridsSerialized ? GridGuids : TransientGridGuids;
 	FRWLock& GuidsLock = bAreGridsSerialized ? GridGuidsLock : TransientGridGuidsLock;
 
 	// Check if any need adding
-	ensure(!InGridSizes.IsEmpty());
 	PCGHiGenGrid::FSizeArray GridSizesToAdd;
 	{
 		FReadScopeLock ReadLock(GuidsLock);

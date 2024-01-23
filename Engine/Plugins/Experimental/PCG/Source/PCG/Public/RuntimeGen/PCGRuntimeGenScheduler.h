@@ -102,6 +102,12 @@ private:
 	*/
 	TSet<FGridGenerationKey> GeneratedComponents;
 
+	/** Tracks the components which should be removed from the GeneratedComponents set on the next tick. This helps us defer removal in case we get multiple
+	* refreshes in a single tick. For example, a shallow refresh followed by a deep refresh would require the generated components to persist, otherwise we
+	* will leak Partition Actors.
+	*/
+	TSet<FGridGenerationKey> GeneratedComponentsToRemove;
+
 	/** Pool of RuntimeGen PartitionActors used for hierarchical generation. */
 	TArray<APCGPartitionActor*> PartitionActorPool;
 
