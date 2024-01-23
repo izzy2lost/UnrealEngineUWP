@@ -1621,6 +1621,12 @@ void FRDGBuilder::WaitForParallelSetupTasks()
 		UE::Tasks::Wait(ParallelSetup.Tasks);
 		ParallelSetup.Tasks.Reset();
 	}
+
+	if (!ParallelSetup.CommandLists.IsEmpty())
+	{
+		RHICmdList.QueueAsyncCommandListSubmit(ParallelSetup.CommandLists);
+		ParallelSetup.CommandLists.Reset();
+	}
 }
 
 ///////////////////////////////////////////////////////////////////////////////////////////////////
@@ -1892,12 +1898,6 @@ void FRDGBuilder::Execute()
 	{
 		// Launch a task to absorb the cost of waking up threads and avoid stalling the render thread.
 		UE::Tasks::Launch(UE_SOURCE_LOCATION, [this] { ParallelExecute.DispatchTaskEvent->Trigger(); });
-	}
-
-	if (!ParallelSetup.CommandLists.IsEmpty())
-	{
-		RHICmdList.QueueAsyncCommandListSubmit(ParallelSetup.CommandLists);
-		ParallelSetup.CommandLists.Empty();
 	}
 
 	IF_RDG_ENABLE_DEBUG(GRDGAllowRHIAccess = ParallelExecute.bEnabled);
