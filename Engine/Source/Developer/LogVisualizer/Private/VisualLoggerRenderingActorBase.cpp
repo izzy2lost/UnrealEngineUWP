@@ -7,6 +7,7 @@
 #endif // WITH_EDITOR
 #include "VisualLoggerRenderingComponent.h"
 #include "VisualLogger/VisualLogger.h"
+#include "AI/Navigation/NavigationTypes.h"
 
 #include UE_INLINE_GENERATED_CPP_BY_NAME(VisualLoggerRenderingActorBase)
 

@@ -7,8 +7,9 @@
 #endif
 #include "UObject/ObjectMacros.h"
 #include "UObject/Interface.h"
-#include "AI/Navigation/NavigationTypes.h"	//ENavDataGatheringMode
+#include "AI/Navigation/NavDataGatheringMode.h"
 #if UE_ENABLE_INCLUDE_ORDER_DEPRECATED_IN_5_4
+#include "AI/Navigation/NavigationTypes.h"
 #include "AI/NavigationModifier.h"
 #include "AI/Navigation/NavigationRelevantData.h"
 #endif

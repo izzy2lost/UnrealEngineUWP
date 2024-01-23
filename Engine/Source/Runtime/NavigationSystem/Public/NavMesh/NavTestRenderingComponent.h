@@ -3,6 +3,7 @@
 #pragma once
 
 #include "Debug/DebugDrawComponent.h"
+#include "AI/Navigation/NavigationTypes.h" // NavNodeRef
 
 #if UE_ENABLE_INCLUDE_ORDER_DEPRECATED_IN_5_4
 #include "PrimitiveViewRelevance.h"

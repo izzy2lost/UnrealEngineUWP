@@ -9,6 +9,7 @@
 #include "Templates/SubclassOf.h"
 #include "EngineDefines.h"
 #include "AI/Navigation/NavigationTypes.h"
+#include "AI/Navigation/NavigationDataResolution.h"
 #include "NavigationSystemTypes.h"
 #include "NavigationData.h"
 #include "NavMesh/NavMeshPath.h"
@@ -59,6 +60,7 @@ class dtQueryFilter;
 class FRecastNavMeshGenerator;
 struct dtMeshTile;
 class UNavigationSystemV1;
+class UNavigationSystemBase;
 
 UENUM()
 namespace ERecastPartitioning

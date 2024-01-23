@@ -8,8 +8,8 @@
 #include "Templates/SubclassOf.h"
 #if UE_ENABLE_INCLUDE_ORDER_DEPRECATED_IN_5_4
 #include "NavFilters/NavigationQueryFilter.h"
-#endif
 #include "AI/Navigation/NavigationTypes.h"
+#endif
 #include "NavigationSystemTypes.h"
 #if UE_ENABLE_INCLUDE_ORDER_DEPRECATED_IN_5_4
 #include "GameFramework/Actor.h"
@@ -17,6 +17,7 @@
 #include "AITypes.generated.h"
 
 class AActor;
+typedef TSharedPtr<FMoveRequestCustomData, ESPMode::ThreadSafe> FCustomMoveSharedPtr;
 
 DECLARE_CYCLE_STAT_EXTERN(TEXT("Overall AI Time"), STAT_AI_Overall, STATGROUP_AI, AIMODULE_API);
 

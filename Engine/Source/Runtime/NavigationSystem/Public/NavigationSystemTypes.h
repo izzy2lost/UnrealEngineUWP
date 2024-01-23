@@ -5,13 +5,13 @@
 #if UE_ENABLE_INCLUDE_ORDER_DEPRECATED_IN_5_4
 #include "CoreMinimal.h"
 #include "NavFilters/NavigationQueryFilter.h"
-#endif // UE_ENABLE_INCLUDE_ORDER_DEPRECATED_IN_5_4
 #include "AI/NavigationSystemConfig.h"
 #include "AI/Navigation/NavLinkDefinition.h"
-#if UE_ENABLE_INCLUDE_ORDER_DEPRECATED_IN_5_4
 #include "Math/GenericOctreePublic.h"
-#endif
 #include "AI/NavigationModifier.h"
+#endif
+#include "AI/Navigation/NavigationTypes.h"
+#include "AI/Navigation/NavAgentSelector.h"
 #include "UObject/WeakInterfacePtr.h"
 
 #define NAVSYS_DEBUG (0 && UE_BUILD_DEBUG)
@@ -26,9 +26,12 @@ class FNavigationOctree;
 class UNavigationPath;
 class ANavigationData;
 class INavigationInvokerInterface;
-
+struct FCompositeNavModifier;
+struct FNavigationLink;
+struct FNavigationSegmentLink;
 struct FNavigationQueryFilter;
 typedef TSharedPtr<const FNavigationQueryFilter, ESPMode::ThreadSafe> FSharedConstNavQueryFilter;
+typedef TSharedPtr<struct FNavigationPath, ESPMode::ThreadSafe> FNavPathSharedPtr;
 
 struct FPathFindingQueryData
 {

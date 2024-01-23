@@ -10,6 +10,7 @@
 #include "UObject/SoftObjectPath.h"
 #if UE_ENABLE_INCLUDE_ORDER_DEPRECATED_IN_5_4
 #include "GameFramework/Actor.h"
+#include "AI/Navigation/NavDataGatheringMode.h"
 #endif
 #if UE_ENABLE_INCLUDE_ORDER_DEPRECATED_IN_5_2
 #include "AI/Navigation/NavAgentSelector.h"
@@ -112,14 +113,6 @@ struct FNavigationDirtyArea
 	{
 		return !(*this == Other);
 	}
-};
-
-UENUM()
-enum class ENavDataGatheringMode : uint8
-{
-	Default,
-	Instant,
-	Lazy
 };
 
 UENUM()
