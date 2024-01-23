@@ -3,7 +3,7 @@
 #include "SActiveSessionRoot.h"
 
 #include "Overview/SActiveSessionOverviewTab.h"
-#include "Replication/SReplicationTabWithWarningOverlay.h"
+#include "Replication/SReplicationRootWidget.h"
 #include "SActiveSessionToolbar.h"
 
 #include "Framework/Docking/TabManager.h"
@@ -107,7 +107,7 @@ namespace UE::MultiUserClient
 			.Label(LOCTEXT("ReplicationTab.Label", "Replication"))
 			.ToolTipText(LOCTEXT("ReplicationTab.Tooltip", "Manage real-time object replication"))
 			[
-				SNew(SReplicationTabWithWarningOverlay, InReplicationManager, ConcertSyncClient.ToSharedRef())
+				SNew(SReplicationRootWidget, InReplicationManager, ConcertSyncClient.ToSharedRef())
 			];
 	}
 }
