@@ -13,6 +13,7 @@
 #include "Materials/Material.h"
 
 #include "MuCO/CustomizableObject.h"
+#include "MuCO/CustomizableObjectInstanceAssetUserData.h"
 #include "MuCO/CustomizableObjectMipDataProvider.h"
 #include "MuT/UnrealPixelFormatOverride.h"
 #include "Rendering/SkeletalMeshModel.h"
@@ -741,6 +742,16 @@ void BakeCustomizableObjectInstance(
 						UAssetUserData* NewAssetUserData = Cast<UAssetUserData>(StaticDuplicateObject(AssetUserData, SkeletalMesh));
 						SkeletalMesh->AddAssetUserData(NewAssetUserData);
 					}
+				}
+			}
+
+			// Add Instance Info in a custom AssetUserData
+			{
+				if (InInstance.GetAnimationGameplayTags().Num())
+				{
+					UCustomizableObjectInstanceUserData* InstanceData = NewObject<UCustomizableObjectInstanceUserData>(SkeletalMesh, NAME_None, RF_Public | RF_Transactional);
+					InstanceData->SetAnimationGameplayTags(InInstance.GetAnimationGameplayTags());
+					SkeletalMesh->AddAssetUserData(InstanceData);
 				}
 			}
 

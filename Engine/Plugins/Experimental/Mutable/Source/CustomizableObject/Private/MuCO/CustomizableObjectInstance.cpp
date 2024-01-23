@@ -26,6 +26,7 @@
 #include "MuCO/CustomizableObjectMipDataProvider.h"
 #include "MuCO/CustomizableObjectPrivate.h"
 #include "MuCO/CustomizableObjectInstanceUsage.h"
+#include "MuCO/CustomizableObjectInstanceAssetUserData.h"
 #include "MuCO/DefaultImageProvider.h"
 #include "MuCO/ICustomizableObjectModule.h"
 #include "MuCO/UnrealConversionUtils.h"
@@ -3325,6 +3326,14 @@ void UCustomizableInstancePrivate::InitSkeletalMeshData(const TSharedRef<FUpdate
 		for (TObjectPtr<UAssetUserData> AssetUserData : ComponentData.AssetUserDataArray)
 		{
 			SkeletalMesh->AddAssetUserData(AssetUserData);
+		}
+
+		//Custom Asset User Data
+		if (OperationData->Instance->GetAnimationGameplayTags().Num())
+		{
+			UCustomizableObjectInstanceUserData* InstanceData = NewObject<UCustomizableObjectInstanceUserData>(SkeletalMesh, NAME_None, RF_Public | RF_Transactional);
+			InstanceData->SetAnimationGameplayTags(OperationData->Instance->GetAnimationGameplayTags());
+			SkeletalMesh->AddAssetUserData(InstanceData);
 		}
 	}
 
