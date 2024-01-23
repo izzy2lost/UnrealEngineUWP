@@ -52,6 +52,7 @@ private:
 protected:
 	void									GenerateRenderModesList();
 	
+	virtual FReply							OnDrop( const FGeometry& MyGeometry, const FDragDropEvent& DragDropEvent ) override;
 public:
 	void									Construct(const FArguments& InArgs);
 
