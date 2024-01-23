@@ -23,7 +23,7 @@ ETickableTickType UCustomizableObjectInstanceUsage::GetTickableTickType() const
 { 
 	return (HasAnyFlags(RF_ClassDefaultObject))
 		? ETickableTickType::Never
-		: ETickableTickType::Always;
+		: ETickableTickType::Conditional;
 }
 
 
