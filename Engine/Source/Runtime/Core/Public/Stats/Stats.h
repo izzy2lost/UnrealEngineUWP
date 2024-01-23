@@ -3,7 +3,12 @@
 #pragma once
 
 #include "CoreTypes.h"
+#if UE_ENABLE_INCLUDE_ORDER_DEPRECATED_IN_5_4
 #include "Math/Color.h"
+#endif
+#if ENABLE_STATNAMEDEVENTS
+#include "Math/Color.h"
+#endif
 #include "UObject/NameTypes.h"
 #include "Delegates/Delegate.h"
 #include "HAL/PlatformTime.h"
