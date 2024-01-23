@@ -64,8 +64,9 @@ public:
 #endif // WITH_WATER_SELECTION_SUPPORT
 
 	// At runtime, we only ever need one version of the vertex factory : with selection support (editor) or without : 
-	using FWaterVertexFactoryType = TWaterVertexFactory<WITH_WATER_SELECTION_SUPPORT, /*bIndirectDraws = */ false>;
-	using FWaterVertexFactoryIndirectDrawType = TWaterVertexFactory<WITH_WATER_SELECTION_SUPPORT, /*bIndirectDraws = */ true>;
+	using FWaterVertexFactoryType = TWaterVertexFactory<WITH_WATER_SELECTION_SUPPORT, EWaterVertexFactoryDrawMode::NonIndirect>;
+	using FWaterVertexFactoryIndirectDrawType = TWaterVertexFactory<WITH_WATER_SELECTION_SUPPORT, EWaterVertexFactoryDrawMode::Indirect>;
+	using FWaterVertexFactoryIndirectDrawISRType = TWaterVertexFactory<WITH_WATER_SELECTION_SUPPORT, EWaterVertexFactoryDrawMode::IndirectInstancedStereo>;
 	using FWaterInstanceDataBuffersType = TWaterInstanceDataBuffers<WITH_WATER_SELECTION_SUPPORT>;
 	using FWaterMeshUserDataBuffersType = TWaterMeshUserDataBuffers<WITH_WATER_SELECTION_SUPPORT>;
 
@@ -106,7 +107,8 @@ private:
 
 	// One vertex factory per LOD
 	TArray<FWaterVertexFactoryType*> WaterVertexFactories;
-	FWaterVertexFactoryIndirectDrawType* WaterVertexFactoryIndirectDraw;
+	FWaterVertexFactoryIndirectDrawType* WaterVertexFactoryIndirectDraw = nullptr;
+	FWaterVertexFactoryIndirectDrawISRType* WaterVertexFactoryIndirectDrawISR = nullptr;
 
 	/** Tiles containing water, stored in a quad tree */
 	FWaterQuadTree WaterQuadTree;
@@ -115,10 +117,10 @@ private:
 	FWaterQuadTreeGPU QuadTreeGPU;
 
 	/** Unique Instance data buffer shared accross water batch draw calls */	
-	FWaterInstanceDataBuffersType* WaterInstanceDataBuffers;
+	FWaterInstanceDataBuffersType* WaterInstanceDataBuffers = nullptr;
 
 	/** Per-"water render group" user data (the number of groups might vary depending on whether we're in the editor or not) */
-	FWaterMeshUserDataBuffersType* WaterMeshUserDataBuffers;
+	FWaterMeshUserDataBuffersType* WaterMeshUserDataBuffers = nullptr;
 
 	double WaterQuadTreeMinHeight = DBL_MAX;
 	double WaterQuadTreeMaxHeight = -DBL_MAX;
