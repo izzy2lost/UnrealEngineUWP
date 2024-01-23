@@ -141,8 +141,8 @@ RAY_TRACING_ENTRY_CALLABLE(RayTracingDecalMaterialShader, FDecalShaderPayload, P
 	MaterialParameters.LightVector = SwizzlePos;
 
 	MaterialParameters.AbsoluteWorldPosition = MaterialParameters.WorldPosition_NoOffsets = DFFastSubtract(TranslatedWorldPosition.xyz, PrimaryView.PreViewTranslation);
-	MaterialParameters.LWCData.AbsoluteWorldPosition = MaterialParameters.LWCData.WorldPosition_NoOffsets = DFToWS(MaterialParameters.AbsoluteWorldPosition);
 	MaterialParameters.WorldPosition_CamRelative = MaterialParameters.WorldPosition_NoOffsets_CamRelative = TranslatedWorldPosition.xyz;
+	MaterialParameters.LWCData = MakeMaterialLWCData(MaterialParameters);
 
 	FPixelMaterialInputs PixelMaterialInputs;
 	CalcPixelMaterialInputs(MaterialParameters, PixelMaterialInputs);

@@ -139,8 +139,8 @@ void FPixelShaderInOut_MainPS(inout FPixelShaderIn In, inout FPixelShaderOut Out
 	MaterialParameters.LightVector = SwizzlePos;
 
 	MaterialParameters.AbsoluteWorldPosition = MaterialParameters.WorldPosition_NoOffsets = DFFastSubtract(TranslatedWorldPosition, PrimaryView.PreViewTranslation);
-	MaterialParameters.LWCData.AbsoluteWorldPosition = MaterialParameters.LWCData.WorldPosition_NoOffsets = DFToWS(MaterialParameters.AbsoluteWorldPosition);
 	MaterialParameters.WorldPosition_CamRelative = MaterialParameters.WorldPosition_NoOffsets_CamRelative = TranslatedWorldPosition;
+	MaterialParameters.LWCData = MakeMaterialLWCData(MaterialParameters);
 
 #if MATERIAL_VIRTUALTEXTURE_FEEDBACK
 	InitializeVirtualTextureFeedback(MaterialParameters.VirtualTextureFeedback, (uint2)In.SvPosition.xy, View.FrameNumber);
