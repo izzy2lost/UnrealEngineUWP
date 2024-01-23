@@ -122,7 +122,7 @@ namespace UE
 {
 	namespace MovieRenderPipeline
 	{
-		MOVIERENDERPIPELINECORE_API TArray<UClass*> FindMoviePipelineSettingClasses(UClass* InBaseClass);
+		MOVIERENDERPIPELINECORE_API TArray<UClass*> FindMoviePipelineSettingClasses(UClass* InBaseClass, const bool bIncludeBlueprints = true);
 		MOVIERENDERPIPELINECORE_API EAntiAliasingMethod GetEffectiveAntiAliasingMethod(const UMoviePipelineAntiAliasingSetting* InSetting);
 		
 		UE_DEPRECATED(5.3, "Do not use, this is here as a temporary workaround for another issue.")

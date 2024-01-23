@@ -38,7 +38,7 @@ namespace UE
 {
 	namespace MovieRenderPipeline
 	{
-		TArray<UClass*> FindMoviePipelineSettingClasses(UClass* InBaseClass)
+		TArray<UClass*> FindMoviePipelineSettingClasses(UClass* InBaseClass, const bool bIncludeBlueprints)
 		{
 			FAssetRegistryModule& AssetRegistryModule = FModuleManager::LoadModuleChecked<FAssetRegistryModule>(TEXT("AssetRegistry"));
 
@@ -46,7 +46,10 @@ namespace UE
 
 			FARFilter Filter;
 			Filter.ClassPaths.Add(InBaseClass->GetClassPathName());
-			Filter.ClassPaths.Add(UBlueprint::StaticClass()->GetClassPathName());
+			if (bIncludeBlueprints)
+			{
+				Filter.ClassPaths.Add(UBlueprint::StaticClass()->GetClassPathName());
+			}
 
 			// Include any Blueprint based objects as well, this includes things like Blutilities, UMG, and GameplayAbility objects
 			Filter.bRecursiveClasses = true;
