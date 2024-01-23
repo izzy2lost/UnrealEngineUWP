@@ -16,6 +16,13 @@
 DECLARE_CYCLE_STAT(TEXT("Slate PostProcessing RT"), STAT_SlatePostProcessingRTTime, STATGROUP_Slate);
 DECLARE_CYCLE_STAT(TEXT("Slate ColorDeficiency RT"), STAT_SlateColorDeficiencyRTTime, STATGROUP_Slate);
 
+int GSlateEnableDeleteUnusedPostProcess = 0;
+static FAutoConsoleVariableRef CVarSlateEnableDeleteUnusedPostProcess(
+	TEXT("Slate.EnableDeleteUnusedPostProcess"),
+	GSlateEnableDeleteUnusedPostProcess,
+	TEXT("Greater than zero implies that post process render targets will be deleted when they are not used after n frames.")
+);
+
 static const int32 NumIntermediateTargets = 2;
 
 FSlatePostProcessResource* FindSlatePostProcessResource(TArray<FSlatePostProcessResource*>& IntermediateTargetsArray, EPixelFormat PixelFormat)
@@ -843,4 +850,21 @@ static int32 ComputeWeights(int32 KernelSize, float Sigma, TArray<FVector4f>& Ou
 int32 FSlatePostProcessor::ComputeBlurWeights(int32 KernelSize, float StdDev, TArray<FVector4f>& OutWeightsAndOffsets)
 {
 	return ComputeWeights(KernelSize, StdDev, OutWeightsAndOffsets);
+}
+
+void FSlatePostProcessor::TickPostProcessResources()
+{
+	if (GSlateEnableDeleteUnusedPostProcess > 0)
+	{
+		check(IsInRenderingThread());
+
+		for (TArray<FSlatePostProcessResource*>::TIterator It = IntermediateTargetsArray.CreateIterator(); It; ++It)
+		{
+			if (GFrameCounter - (*It)->GetFrameUsed() > GSlateEnableDeleteUnusedPostProcess)
+			{
+				(*It)->CleanUp();
+				It.RemoveCurrent();
+			}
+		}
+	}
 }

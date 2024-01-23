@@ -1540,6 +1540,9 @@ void FSlateRHIRenderer::DrawWindow_RenderThread(FRHICommandListImmediate& RHICmd
 		ScreenshotViewportInfo = nullptr;
 	}
 
+	// check if we need to cleanup slate render targets alloc.
+	RenderingPolicy->TickPostProcessResources();
+
 	// Calculate renderthread time (excluding idle time).	
 	uint32 StartTime = FPlatformTime::Cycles();
 
