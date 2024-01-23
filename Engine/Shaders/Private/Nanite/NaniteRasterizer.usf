@@ -877,12 +877,12 @@ VSOut CommonRasterizerVS(FNaniteView NaniteView, FPrimitiveSceneData PrimitiveDa
 	MaterialShader.NaniteView			= NaniteView;
 	MaterialShader.Cluster 				= Cluster;
 
-	WorldPositionOffset = MaterialShader.EvaluateWorldPositionOffset(InputVert);
+#if NANITE_TESSELLATION
+	MaterialShader.DisplacementCenter		= RasterBinMeta[ActiveRasterBin].MaterialDisplacementCenter;
+	MaterialShader.DisplacementMagnitude	= RasterBinMeta[ActiveRasterBin].MaterialDisplacementMagnitude;
 #endif
 
-#if NANITE_TESSELLATION
-	MaterialShader.DisplacementCenter = RasterBinMeta[ActiveRasterBin].MaterialDisplacementCenter;
-	MaterialShader.DisplacementMagnitude = RasterBinMeta[ActiveRasterBin].MaterialDisplacementMagnitude;
+	WorldPositionOffset = MaterialShader.EvaluateWorldPositionOffset(InputVert);
 #endif
 	
 	const float3 PointTranslatedWorld = DFTransformLocalToTranslatedWorld(InputVert.Position, InstanceData.LocalToWorld, NaniteView.PreViewTranslation) + WorldPositionOffset;
