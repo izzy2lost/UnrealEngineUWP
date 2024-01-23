@@ -25,5 +25,19 @@ public:
 	 * Marks any property of the provided handles array as hidden if they are not valid CVD properties (meaning they don't have serialized data loaded from a CVD recording)
 	 * @param InPropertyHandles Handles of properties to evaluate and hide if needed
 	 */
-	static void HideInvalidParticleDataProperties(TConstArrayView<TSharedPtr<IPropertyHandle>> InPropertyHandles);
+	static void HideInvalidCVDDataWrapperProperties(TConstArrayView<TSharedPtr<IPropertyHandle>> InPropertyHandles);
+
+	/**
+	 * Marks any property of the provided handles array as hidden if they are not valid CVD properties (meaning they don't have serialized data loaded from a CVD recording), using the provided details builder
+	 * @param InPropertyHandles Handles of properties to evaluate and hide if needed
+	 * @param DetailBuilder Details builder that will hide the property
+	 */
+	static void HideInvalidCVDDataWrapperProperties(TConstArrayView<TSharedRef<IPropertyHandle>> InPropertyHandles, IDetailLayoutBuilder& DetailBuilder);
+
+	/**
+	 * Marks any property of the provided handles array as hidden if they are not valid CVD properties (meaning they don't have serialized data loaded from a CVD recording), using the provided details builder
+	 * @param InPropertyHandle Property Handle to evaluate if it is valid
+	 * @param bOutIsCVDBaseDataStruct Set to true if the property handle provided is from a CVD Wrapper Data Base. All other types will be deemed valid
+	 */
+	static bool HasValidCVDWrapperData(const TSharedPtr<IPropertyHandle>& InPropertyHandle, bool& bOutIsCVDBaseDataStruct);
 };

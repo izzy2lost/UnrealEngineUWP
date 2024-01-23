@@ -10,11 +10,20 @@
 
 #include "ChaosVDRuntimeModule.h"
 
+enum class EChaosVDContextType : int32
+{
+	Any,
+	Solver,
+	Query,
+	SubTraceQuery,
+};
+
 /** Chaos Visual Debugger data used to context for logging or debugging purposes */
 struct FChaosVDContext
 {
 	int32 OwnerID = INDEX_NONE;
 	int32 Id = INDEX_NONE;
+	int32 Type = INDEX_NONE;
 };
 
 /** Singleton class that manages the thread local storage used to store CVD Context data */
@@ -34,6 +43,13 @@ public:
 	 * @return true if the copy was successful
 	 */
 	bool GetCurrentContext(FChaosVDContext& OutContext);
+	
+	/** Gets the current CVD context data -
+	 * Don't use of a function that will recursively push new context data as it might invalidate the pointer
+	 * @param Type type of the context we want to get
+	 * @return Ptr to the Current CVD context data if it matches the provided type
+	 */
+	const FChaosVDContext* GetCurrentContext(EChaosVDContextType Type);
 	
 	/** Gets the current CVD context data -
 	 * Don't use of a function that will recursively push new context data as it might invalidate the pointer

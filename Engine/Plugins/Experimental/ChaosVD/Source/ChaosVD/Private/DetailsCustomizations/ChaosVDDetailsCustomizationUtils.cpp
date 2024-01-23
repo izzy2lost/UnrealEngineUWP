@@ -20,7 +20,7 @@ void FChaosVDDetailsCustomizationUtils::HideAllCategories(IDetailLayoutBuilder& 
 	}
 }
 
-void FChaosVDDetailsCustomizationUtils::HideInvalidParticleDataProperties(TConstArrayView<TSharedPtr<IPropertyHandle>> InPropertyHandles)
+void FChaosVDDetailsCustomizationUtils::HideInvalidCVDDataWrapperProperties(TConstArrayView<TSharedPtr<IPropertyHandle>> InPropertyHandles)
 {
 	if (InPropertyHandles.Num() == 0)
 	{
@@ -29,25 +29,52 @@ void FChaosVDDetailsCustomizationUtils::HideInvalidParticleDataProperties(TConst
 
 	for (const TSharedPtr<IPropertyHandle>& Handle : InPropertyHandles)
 	{
-		if (FProperty* Property = Handle ? Handle->GetProperty() : nullptr)
+		bool bIsParticleDataStruct;
+		if (Handle && !HasValidCVDWrapperData(Handle, bIsParticleDataStruct))
 		{
-			const FStructProperty* StructProperty = CastField<FStructProperty>(Property);
-			if (StructProperty && StructProperty->Struct && StructProperty->Struct->IsChildOf(FChaosVDParticleDataBase::StaticStruct()))
-			{
-				void* Data = nullptr;
-				Handle->GetValueData(Data);
-				if (Data)
-				{
-					const FChaosVDParticleDataBase* DataViewer = static_cast<const FChaosVDParticleDataBase*>(Data);
+			// TODO: This doesn't work in all cases. It seems this just sets the IsCustom flag on, and that is why it is hidden but depends on how it is being customized
+			// We need to find a more reliable way of hiding it
+			Handle->MarkHiddenByCustomization();
+		}
+	}
+}
 
-					// The Particle Data viewer struct has several fields that will have default values if there was no recorded data for them in the trace file
-					// As these do not represent any real value, we should hide them in the details panel
-					if (!DataViewer->HasValidData())
-					{
-						Handle->MarkHiddenByCustomization();
-					}
-				}
+void FChaosVDDetailsCustomizationUtils::HideInvalidCVDDataWrapperProperties(TConstArrayView<TSharedRef<IPropertyHandle>> InPropertyHandles, IDetailLayoutBuilder& DetailBuilder)
+{
+	for (const TSharedRef<IPropertyHandle>& PropertyHandle : InPropertyHandles)
+	{
+		bool bIsParticleDataStruct = false;
+		if (!HasValidCVDWrapperData(PropertyHandle, bIsParticleDataStruct))
+		{
+			if (bIsParticleDataStruct)
+			{
+				DetailBuilder.HideProperty(PropertyHandle);
 			}
 		}
 	}
+}
+
+bool FChaosVDDetailsCustomizationUtils::HasValidCVDWrapperData(const TSharedPtr<IPropertyHandle>& InPropertyHandle, bool& bOutIsCVDBaseDataStruct)
+{
+	if (FProperty* Property = InPropertyHandle ? InPropertyHandle->GetProperty() : nullptr)
+	{
+		const FStructProperty* StructProperty = CastField<FStructProperty>(Property);
+		if (StructProperty && StructProperty->Struct && StructProperty->Struct->IsChildOf(FChaosVDWrapperDataBase::StaticStruct()))
+		{
+			bOutIsCVDBaseDataStruct = true;
+
+			void* Data = nullptr;
+			InPropertyHandle->GetValueData(Data);
+			if (Data)
+			{
+				const FChaosVDWrapperDataBase* DataViewer = static_cast<const FChaosVDWrapperDataBase*>(Data);
+
+				// The Particle Data viewer struct has several fields that will have default values if there was no recorded data for them in the trace file
+				// As these do not represent any real value, we should hide them in the details panel
+				return DataViewer->HasValidData();
+			}
+		}
+	}
+
+	return true;
 }

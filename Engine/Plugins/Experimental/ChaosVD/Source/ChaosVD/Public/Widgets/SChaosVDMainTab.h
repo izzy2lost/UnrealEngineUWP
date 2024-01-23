@@ -52,6 +52,8 @@ public:
 	TSharedPtr<FComponentVisualizer> FindComponentVisualizer(UClass* ClassPtr);
 	TSharedPtr<FComponentVisualizer> FindComponentVisualizer(FName ClassName);
 
+	TConstArrayView<TSharedPtr<FComponentVisualizer>> GetAllComponentVisualizers() { return ComponentVisualizers; }
+
 private:
 
 	template<typename TabType>
@@ -83,6 +85,7 @@ private:
 	TMap<FName, TSharedPtr<FChaosVDTabSpawnerBase>> TabSpawnersByIDMap;
 
 	TMap<FName, TSharedPtr<FComponentVisualizer>> ComponentVisualizersMap;
+	TArray<TSharedPtr<FComponentVisualizer>> ComponentVisualizers;
 
 	TMap<FName, TWeakPtr<SDockTab>> ActiveTabsByID;
 

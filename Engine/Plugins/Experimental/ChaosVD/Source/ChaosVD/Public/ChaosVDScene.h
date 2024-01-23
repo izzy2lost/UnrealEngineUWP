@@ -9,12 +9,14 @@
 #include "UObject/ObjectMacros.h"
 #include "UObject/ObjectPtr.h"
 
+class AChaosVDSceneQueryDataContainer;
 class AChaosVDSolverInfoActor;
 class AChaosVDSceneCollisionContainer;
 class UChaosVDEditorSettings;
 class FChaosVDGeometryBuilder;
 class AChaosVDParticleActor;
 class FReferenceCollector;
+class UChaosVDSceneQueryDataComponent;
 class UObject;
 class UMaterial;
 class USelection;
@@ -56,7 +58,7 @@ public:
 	// No need to deprecate the old version since it is not a public API nor inline 
 	void HandleNewGeometryData(const Chaos::FConstImplicitObjectPtr& Geometry, const uint32 GeometryID) const;
 	
-	void HandleEnterNewGameFrame(int32 FrameNumber, const TArray<int32>& AvailableSolversIds);
+	void HandleEnterNewGameFrame(int32 FrameNumber, const TArray<int32>& AvailableSolversIds, const FChaosVDGameFrameData& InNewGameFrameData);
 
 	/** Deletes all actors of the Scene and underlying UWorld */
 	void CleanUpScene();
@@ -105,6 +107,8 @@ public:
 
 	AActor* GetMeshComponentsContainerActor() const { return MeshComponentContainerActor; }
 
+	UChaosVDSceneQueryDataComponent* GetSceneQueryDataContainerComponent() const;
+
 	FChaosVDActorActiveStateUpdateDelegate& OnActorActiveStateChanged() { return ParticleActorUpdateDelegate; }
 
 	TSharedPtr<FChaosVDRecording> LoadedRecording;
@@ -117,6 +121,8 @@ private:
 	/** Returns the ID used to track this recorded particle data */
 	int32 GetIDForRecordedParticleData(const TSharedPtr<FChaosVDParticleDataWrapper>& InParticleData) const;
 	void CreateBaseLights(UWorld* TargetWorld) const;
+
+	void CreateSceneQueriesContainer(UWorld* TargetWorld);
 
 	AActor* CreateMeshComponentsContainer(UWorld* TargetWorld);
 
@@ -172,6 +178,7 @@ private:
 	mutable AActor* SkySphere = nullptr;
 
 	AActor* MeshComponentContainerActor = nullptr;
+	AChaosVDSceneQueryDataContainer* SceneQueriesContainer = nullptr;
 
 	bool bIsInitialized = false;
 

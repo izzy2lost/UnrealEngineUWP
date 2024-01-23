@@ -1,4 +1,5 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
+
 #include "ChaosVisualDebugger/ChaosVisualDebuggerTrace.h"
 
 #if CHAOS_VISUAL_DEBUGGER_ENABLED
@@ -13,6 +14,7 @@
 #include "DataWrappers/ChaosVDCollisionDataWrappers.h"
 #include "DataWrappers/ChaosVDImplicitObjectDataWrapper.h"
 #include "DataWrappers/ChaosVDParticleDataWrapper.h"
+#include "DataWrappers/ChaosVDQueryDataWrappers.h"
 #include "HAL/CriticalSection.h"
 #include "Misc/ScopeRWLock.h"
 #include "Serialization/MemoryWriter.h"
@@ -110,7 +112,7 @@ void FChaosVisualDebuggerTrace::TraceParticle(const Chaos::FGeometryParticleHand
 		return;
 	}
 
-	const FChaosVDContext* CVDContextData = FChaosVDThreadContext::Get().GetCurrentContext();
+	const FChaosVDContext* CVDContextData = FChaosVDThreadContext::Get().GetCurrentContext(EChaosVDContextType::Solver);
 	if (!ensure(CVDContextData))
 	{
 		return;
@@ -146,13 +148,8 @@ void FChaosVisualDebuggerTrace::TraceParticle(Chaos::FGeometryParticleHandle* Pa
 		
 		for (const Chaos::FShapeInstancePtr& ShapeData : ShapesInstancesArray)
 		{
-			const Chaos::FCollisionData& CollisionData = ShapeData->GetCollisionData();
 			FChaosVDShapeCollisionData CVDCollisionData;
-			CVDCollisionData.bQueryCollision = CollisionData.bQueryCollision;
-			CVDCollisionData.bIsProbe = CollisionData.bIsProbe;
-			CVDCollisionData.bSimCollision = CollisionData.bSimCollision;
-			CVDCollisionData.CollisionTraceType = static_cast<EChaosVDCollisionTraceFlag>(CollisionData.CollisionTraceType);
-
+			FChaosVDDataWrapperUtils::CopyShapeDataToWrapper(ShapeData, CVDCollisionData);
 			ParticleDataWrapper.CollisionDataPerShape.Add(MoveTemp(CVDCollisionData));
 		}
 		
@@ -175,7 +172,7 @@ void FChaosVisualDebuggerTrace::TraceParticles(const Chaos::TGeometryParticleHan
 		return;
 	}
 
-	const FChaosVDContext* CVDContextData = FChaosVDThreadContext::Get().GetCurrentContext();
+	const FChaosVDContext* CVDContextData = FChaosVDThreadContext::Get().GetCurrentContext(EChaosVDContextType::Solver);
 	if (!ensure(CVDContextData))
 	{
 		return;
@@ -203,7 +200,7 @@ void FChaosVisualDebuggerTrace::TraceParticleDestroyed(const Chaos::FGeometryPar
 
 	GeometryTracerObject.RemoveCachedGeometryHash(ParticleHandle->GetGeometry());
 	
-	const FChaosVDContext* CVDContextData = FChaosVDThreadContext::Get().GetCurrentContext();
+	const FChaosVDContext* CVDContextData = FChaosVDThreadContext::Get().GetCurrentContext(EChaosVDContextType::Solver);
 	if (!ensure(CVDContextData))
 	{
 		return;
@@ -222,7 +219,7 @@ void FChaosVisualDebuggerTrace::TraceParticlesSoA(const Chaos::FPBDRigidsSOAs& P
 		return;
 	}
 
-	const FChaosVDContext* CVDContextData = FChaosVDThreadContext::Get().GetCurrentContext();
+	const FChaosVDContext* CVDContextData = FChaosVDThreadContext::Get().GetCurrentContext(EChaosVDContextType::Solver);
 	if (!ensure(CVDContextData))
 	{
 		return;
@@ -268,7 +265,7 @@ void FChaosVisualDebuggerTrace::TraceMidPhase(const Chaos::FParticlePairMidPhase
 		return;
 	}
 
-	const FChaosVDContext* CVDContextData = FChaosVDThreadContext::Get().GetCurrentContext();
+	const FChaosVDContext* CVDContextData = FChaosVDThreadContext::Get().GetCurrentContext(EChaosVDContextType::Solver);
 	if (!ensure(CVDContextData))
 	{
 		return;
@@ -298,7 +295,7 @@ void FChaosVisualDebuggerTrace::TraceMidPhasesFromCollisionConstraints(Chaos::FP
 		return;
 	}
 
-	const FChaosVDContext* CVDContextData = FChaosVDThreadContext::Get().GetCurrentContext();
+	const FChaosVDContext* CVDContextData = FChaosVDThreadContext::Get().GetCurrentContext(EChaosVDContextType::Solver);
 	if (!ensure(CVDContextData))
 	{
 		return;
@@ -320,7 +317,7 @@ void FChaosVisualDebuggerTrace::TraceCollisionConstraint(const Chaos::FPBDCollis
 		return;
 	}
 
-	const FChaosVDContext* CVDContextData = FChaosVDThreadContext::Get().GetCurrentContext();
+	const FChaosVDContext* CVDContextData = FChaosVDThreadContext::Get().GetCurrentContext(EChaosVDContextType::Solver);
 	if (!ensure(CVDContextData))
 	{
 		return;
@@ -344,7 +341,7 @@ void FChaosVisualDebuggerTrace::TraceCollisionConstraintView(TArrayView<Chaos::F
 		return;
 	}
 
-	const FChaosVDContext* CVDContextData = FChaosVDThreadContext::Get().GetCurrentContext();
+	const FChaosVDContext* CVDContextData = FChaosVDThreadContext::Get().GetCurrentContext(EChaosVDContextType::Solver);
 	if (!ensure(CVDContextData))
 	{
 		return;
@@ -365,6 +362,11 @@ void FChaosVisualDebuggerTrace::TraceSolverFrameStart(const FChaosVDContext& Con
 	}
 
 	if (!ensure(ContextData.Id != INDEX_NONE))
+	{
+		return;
+	}
+
+	if (!ensure(ContextData.Type == static_cast<int32>(EChaosVDContextType::Solver)))
 	{
 		return;
 	}
@@ -416,7 +418,7 @@ void FChaosVisualDebuggerTrace::TraceSolverStepStart(FStringView StepName)
 		return;
 	}
 
-	const FChaosVDContext* CVDContextData = FChaosVDThreadContext::Get().GetCurrentContext();
+	const FChaosVDContext* CVDContextData = FChaosVDThreadContext::Get().GetCurrentContext(EChaosVDContextType::Solver);
 	if (!ensure(CVDContextData))
 	{
 		return;
@@ -435,7 +437,7 @@ void FChaosVisualDebuggerTrace::TraceSolverStepEnd()
 		return;
 	}
 
-	const FChaosVDContext* CVDContextData = FChaosVDThreadContext::Get().GetCurrentContext();
+	const FChaosVDContext* CVDContextData = FChaosVDThreadContext::Get().GetCurrentContext(EChaosVDContextType::Solver);
 	if (!ensure(CVDContextData))
 	{
 		return;
@@ -453,7 +455,7 @@ void FChaosVisualDebuggerTrace::TraceSolverSimulationSpace(const Chaos::FRigidTr
 		return;
 	}
 
-	const FChaosVDContext* CVDContextData = FChaosVDThreadContext::Get().GetCurrentContext();
+	const FChaosVDContext* CVDContextData = FChaosVDThreadContext::Get().GetCurrentContext(EChaosVDContextType::Solver);
 	if (!ensure(CVDContextData))
 	{
 		return;
@@ -596,6 +598,88 @@ void FChaosVisualDebuggerTrace::TraceNonSolverTransform(const FTransform& InTran
 		<< CVD_TRACE_VECTOR_ON_EVENT(ChaosVDNonSolverTransform, Scale, InTransform.GetScale3D())
 		<< CVD_TRACE_ROTATOR_ON_EVENT(ChaosVDNonSolverTransform, Rotation, InTransform.GetRotation())
 		<< ChaosVDNonSolverTransform.DebugName(DebugNameID.GetData(), DebugNameID.Len());
+}
+
+void FChaosVisualDebuggerTrace::TraceSceneQueryStart(const Chaos::FImplicitObject* InputGeometry, const FQuat& GeometryOrientation,  const FVector& Start, const FVector& End, ECollisionChannel TraceChannel, FChaosVDCollisionQueryParams&& Params, FChaosVDCollisionResponseParams&& ResponseParams, FChaosVDCollisionObjectQueryParams&& ObjectParams, EChaosVDSceneQueryType QueryType, EChaosVDSceneQueryMode QueryMode, int32 SolverID, bool bIsRetry)
+{
+	if (!IsTracing())
+	{
+		return;
+	}
+
+	const FChaosVDContext* CVDContextData = FChaosVDThreadContext::Get().GetCurrentContext();
+	const bool bIsQueryContext = CVDContextData && (CVDContextData->Type == static_cast<int32>(EChaosVDContextType::Query) ||  CVDContextData->Type == static_cast<int32>(EChaosVDContextType::SubTraceQuery));
+
+	if (!ensure(bIsQueryContext))
+	{
+		return;
+	}
+
+	FChaosVDQueryDataWrapper WrappedQueryData;
+
+	if (InputGeometry)
+	{
+		const uint32 GeometryHash = GeometryTracerObject.GetGeometryHashForImplicit(InputGeometry);
+		TraceImplicitObject({ GeometryHash, const_cast<Chaos::FImplicitObject*>(InputGeometry) });
+	
+		WrappedQueryData.InputGeometryKey = GeometryHash;
+	}
+	
+	WrappedQueryData.ID = CVDContextData->Id;
+	WrappedQueryData.ParentQueryID = CVDContextData->OwnerID;
+	WrappedQueryData.WorldSolverID = SolverID;
+	WrappedQueryData.bIsRetryQuery = bIsRetry;
+	
+	WrappedQueryData.GeometryOrientation = GeometryOrientation;
+
+	WrappedQueryData.CollisionChannel = TraceChannel;
+	WrappedQueryData.StartLocation = Start;
+	WrappedQueryData.EndLocation = End;
+
+	WrappedQueryData.CollisionQueryParams = MoveTemp(Params);
+	WrappedQueryData.CollisionResponseParams = MoveTemp(ResponseParams);
+	WrappedQueryData.CollisionObjectQueryParams = MoveTemp(ObjectParams);
+
+	WrappedQueryData.Mode = QueryMode;
+	WrappedQueryData.Type = QueryType;
+
+	FChaosVDScopedTLSBufferAccessor TLSDataBuffer;
+
+	FMemoryWriter MemWriterAr(TLSDataBuffer.BufferRef);
+	MemWriterAr.SetShouldSkipUpdateCustomVersion(true);
+	MemWriterAr.SetUseUnversionedPropertySerialization(true);
+
+	WrappedQueryData.Serialize(MemWriterAr);
+
+	TraceBinaryData(TLSDataBuffer.BufferRef, FChaosVDQueryDataWrapper::WrapperTypeName);
+}
+
+void FChaosVisualDebuggerTrace::TraceSceneQueryVisit(FChaosVDQueryVisitStep&& InQueryVisitData)
+{
+	if (!IsTracing())
+	{
+		return;
+	}
+
+	const FChaosVDContext* CVDContextData = FChaosVDThreadContext::Get().GetCurrentContext();
+	const bool bIsQueryContext = CVDContextData && (CVDContextData->Type == static_cast<int32>(EChaosVDContextType::Query) ||  CVDContextData->Type == static_cast<int32>(EChaosVDContextType::SubTraceQuery));
+
+	if (!ensure(bIsQueryContext))
+	{
+		return;
+	}
+
+	InQueryVisitData.OwningQueryID = CVDContextData->Id;
+
+	FChaosVDScopedTLSBufferAccessor TLSDataBuffer;
+
+	FMemoryWriter MemWriterAr(TLSDataBuffer.BufferRef);
+	MemWriterAr.SetShouldSkipUpdateCustomVersion(true);
+	MemWriterAr.SetUseUnversionedPropertySerialization(true);
+
+	InQueryVisitData.Serialize(MemWriterAr);
+
+	TraceBinaryData(TLSDataBuffer.BufferRef, FChaosVDQueryVisitStep::WrapperTypeName);
 }
 
 bool FChaosVisualDebuggerTrace::IsTracing()

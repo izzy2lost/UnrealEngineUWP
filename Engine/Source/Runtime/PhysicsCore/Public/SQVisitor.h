@@ -14,6 +14,12 @@
 
 #include <type_traits>
 
+#if WITH_CHAOS_VISUAL_DEBUGGER
+#include "DataWrappers/ChaosVDQueryDataWrappers.h"
+#endif
+
+#include "ChaosVDSQVisitorHelpers.h"
+
 #if CHAOS_DEBUG_DRAW
 extern PHYSICSCORE_API int32 ChaosSQDrawDebugVisitorQueries;
 extern PHYSICSCORE_API FAutoConsoleVariableRef CVarChaosSQDrawDebugQueries;
@@ -202,10 +208,14 @@ private:
 		bool bAllShapesIgnoredInPrefilter = true;
 		bool bHitBufferIncreased = false;
 #endif
-
-		for (const auto& Shape : Shapes)
+		
+		for (int32 ShapeIndex = 0; ShapeIndex < Shapes.Num(); ++ShapeIndex)
 		{
+			const TUniquePtr<FPerShapeData>& Shape = Shapes[ShapeIndex];
+
 			const FImplicitObject* Geom = Shape->GetGeometry();
+
+			CVD_TRACE_SCOPED_SCENE_QUERY_VISIT_HELPER(EChaosVDSceneQueryVisitorType::NarrowPhase, FTransform(GeometryParticle->R(), GeometryParticle->X()), Payload.UniqueIdx().Idx, ShapeIndex, CurData);
 
 			if (bTestShapeBounds)
 			{
@@ -221,6 +231,7 @@ private:
 
 					InflatedWorldBounds = FAABB3(Shape->GetWorldSpaceInflatedShapeBounds().Min() - WorldHalfExtent, Shape->GetWorldSpaceInflatedShapeBounds().Max() + WorldHalfExtent);
 				}
+	
 				if (SQ != ESQType::Overlap)
 				{
 					//todo: use fast raycast
@@ -355,10 +366,12 @@ private:
 
 						if (HitType != ECollisionQueryHitType::None)
 						{
-
 							//overlap never blocks
 							const bool bBlocker = (HitType == ECollisionQueryHitType::Block || bAnyHit || HitBuffer.WantsSingleResult());
 							HitBuffer.InsertHit(Hit, bBlocker);
+
+							CVD_FILL_HIT_DATA_HELPER(Hit, HitType);
+
 #if CHAOS_DEBUG_DRAW
 							bHitBufferIncreased = true;
 #endif
@@ -546,14 +559,22 @@ private:
 		const FShapesArray& Shapes = GeometryParticle->ShapesArray();
 		THitType Hit;
 		Hit.Actor = GeometryParticle;
-		for (const auto& Shape : Shapes)
+
+		for (int32 ShapeIndex = 0; ShapeIndex < Shapes.Num(); ++ShapeIndex)
 		{
+			const TUniquePtr<FPerShapeData>& Shape = Shapes[ShapeIndex];
+
+			CVD_TRACE_SCOPED_SCENE_QUERY_VISIT_HELPER(EChaosVDSceneQueryVisitorType::BroadPhase, FTransform(GeometryParticle->R(), GeometryParticle->X()), Payload.UniqueIdx().Idx, ShapeIndex, CurData);
+
 			ECollisionQueryHitType HitType = QueryFilterData.flags & FPhysicsQueryFlag::ePREFILTER ? QueryCallback.PreFilter(QueryFilterDataConcrete, *Shape, *GeometryParticle) : ECollisionQueryHitType::Block;
 			if (HitType != ECollisionQueryHitType::None)
 			{
 				const bool bBlocker = (HitType == ECollisionQueryHitType::Block || bAnyHit || HitBuffer.WantsSingleResult());
 				Hit.Shape = Shape.Get();
 				HitBuffer.InsertHit(Hit, bBlocker);
+
+				CVD_FILL_HIT_DATA_HELPER(Hit, HitType);
+
 				if (bAnyHit)
 				{
 					bContinue = false;

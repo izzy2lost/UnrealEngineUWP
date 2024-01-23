@@ -188,4 +188,24 @@ FChaosVDParticlePairMidPhase FChaosVDDataWrapperUtils::BuildMidPhaseDataWrapperF
 
 	return MoveTemp(WrappedMidPhaseData);
 }
+
+void FChaosVDDataWrapperUtils::CopyShapeDataToWrapper(const Chaos::FShapeInstancePtr& ShapeDataPtr, FChaosVDShapeCollisionData& OutCopyTo)
+{
+	const Chaos::FCollisionData& CollisionData = ShapeDataPtr->GetCollisionData();
+
+	OutCopyTo.bQueryCollision = CollisionData.bQueryCollision;
+	OutCopyTo.bIsProbe = CollisionData.bIsProbe;
+	OutCopyTo.bSimCollision = CollisionData.bSimCollision;
+	OutCopyTo.CollisionTraceType = static_cast<EChaosVDCollisionTraceFlag>(CollisionData.CollisionTraceType);
+
+	OutCopyTo.SimData.Word0 = CollisionData.SimData.Word0;
+	OutCopyTo.SimData.Word1 = CollisionData.SimData.Word1;
+	OutCopyTo.SimData.Word2 = CollisionData.SimData.Word2;
+	OutCopyTo.SimData.Word3 = CollisionData.SimData.Word3;
+	
+	OutCopyTo.QueryData.Word0 = CollisionData.QueryData.Word0;
+	OutCopyTo.QueryData.Word1 = CollisionData.QueryData.Word1;
+	OutCopyTo.QueryData.Word2 = CollisionData.QueryData.Word2;
+	OutCopyTo.QueryData.Word3 = CollisionData.QueryData.Word3;
+}
 #endif //WITH_CHAOS_VISUAL_DEBUGGER

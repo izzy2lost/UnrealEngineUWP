@@ -73,7 +73,7 @@ void FChaosVDParticleActorCustomization::CustomizeDetails(IDetailLayoutBuilder& 
 			const TSharedPtr<FStructOnScope> ParticleDataView = MakeShared<FStructOnScope>(FChaosVDParticleDataWrapper::StaticStruct(), reinterpret_cast<uint8*>(&CurrentParticleDataCopy));
 			TArray<TSharedPtr<IPropertyHandle>> Handles = CVDMainCategoryBuilder.AddAllExternalStructureProperties(ParticleDataView.ToSharedRef(), EPropertyLocation::Default, nullptr);
 
-			FChaosVDDetailsCustomizationUtils::HideInvalidParticleDataProperties(Handles);
+			FChaosVDDetailsCustomizationUtils::HideInvalidCVDDataWrapperProperties(Handles);
 		}
 	}
 }

@@ -396,6 +396,38 @@ enum class EChaosVDCollisionTraceFlag
 };
 
 USTRUCT()
+struct CHAOSVDRUNTIME_API FChaosVDCollisionFilterData
+{
+	GENERATED_BODY()
+
+	UPROPERTY(VisibleAnywhere, Category=CollisionData)
+	uint32 Word0;
+	UPROPERTY(VisibleAnywhere, Category=CollisionData)
+	uint32 Word1;
+	UPROPERTY(VisibleAnywhere, Category=CollisionData)
+	uint32 Word2;
+	UPROPERTY(VisibleAnywhere, Category=CollisionData)
+	uint32 Word3;
+
+	bool Serialize(FArchive& Ar);
+};
+
+template<>
+struct TStructOpsTypeTraits<FChaosVDCollisionFilterData> : public TStructOpsTypeTraitsBase2<FChaosVDCollisionFilterData>
+{
+	enum
+	{
+		WithSerializer = true,
+	};
+};
+
+inline FArchive& operator<<(FArchive& Ar, FChaosVDCollisionFilterData& Data)
+{
+	Data.Serialize(Ar);
+	return Ar;
+}
+
+USTRUCT()
 struct CHAOSVDRUNTIME_API FChaosVDShapeCollisionData
 {
 	GENERATED_BODY()
@@ -409,6 +441,12 @@ struct CHAOSVDRUNTIME_API FChaosVDShapeCollisionData
 	uint8 bQueryCollision : 1 = false;
 	UPROPERTY(VisibleAnywhere, Category=CollisionData)
 	uint8 bIsProbe : 1 = false;
+
+	UPROPERTY(VisibleAnywhere, Category=FilterData)
+	FChaosVDCollisionFilterData QueryData;
+
+	UPROPERTY(VisibleAnywhere, Category=SimData)
+	FChaosVDCollisionFilterData SimData;
 
 	bool bIsComplex = false;
 

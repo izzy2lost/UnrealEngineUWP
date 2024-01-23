@@ -8,6 +8,7 @@
 #include "ChaosVDPlaybackController.h"
 #include "ChaosVDScene.h"
 #include "ChaosVDSkySphereInterface.h"
+#include "Components/ChaosVDSceneQueryDataComponent.h"
 #include "ComponentVisualizer.h"
 #include "EditorModeManager.h"
 #include "Elements/Framework/TypedElementSelectionSet.h"
@@ -79,18 +80,27 @@ void FChaosVDPlaybackViewportClient::ProcessClick(FSceneView& View, HHitProxy* H
 
 	const FViewportClick Click(&View, this, Key, Event, HitX, HitY);
 
-	if (TSharedPtr<FChaosVDScene> ScenePtr = CVDScene.Pin())
+	if (const TSharedPtr<FChaosVDScene> ScenePtr = CVDScene.Pin())
 	{
 		bool bClickHandled = false;
 
-		// TODO: Iterate trough all registered visualizers
 		HComponentVisProxy* ComponentVisProxy = HitProxyCast<HComponentVisProxy>(HitProxy);
-		if (const TSharedPtr<FComponentVisualizer> Visualizer = MainTabToolkitHost->FindComponentVisualizer(UChaosVDSolverCollisionDataComponent::StaticClass()))
+		const TConstArrayView<TSharedPtr<FComponentVisualizer>> AllVisualizers = MainTabToolkitHost->GetAllComponentVisualizers();
+		for (const TSharedPtr<FComponentVisualizer>& Visualizer : AllVisualizers)
 		{
 			// Not sure if this is compliant with the normal use of the component visualizers,
 			// but passing a null hitproxy when the hit proxy was not a component
 			// It allow us to handle things like clear selection on the Collision Data Visualizer
-			bClickHandled = Visualizer->VisProxyHandleClick(this, ComponentVisProxy, Click);
+			if (Visualizer->VisProxyHandleClick(this, ComponentVisProxy, Click))
+			{
+				bClickHandled = true;
+				break;
+			}
+		}
+
+		if (bClickHandled)
+		{
+			return;
 		}
 
 		const IChaosVDGeometryComponent* AsCVDGeometryComponent = nullptr;
@@ -330,18 +340,24 @@ void FChaosVDPlaybackViewportClient::Draw(const FSceneView* View, FPrimitiveDraw
 		return;
 	}
 
-	if (TSharedPtr<FChaosVDScene> ScenePtr = CVDScene.Pin())
+	if (const TSharedPtr<FChaosVDScene> ScenePtr = CVDScene.Pin())
 	{
-	
 		for (const TPair<int32, AChaosVDSolverInfoActor*>& SolverInfoWithID : ScenePtr->GetSolverInfoActorsMap())
 		{
-			UChaosVDSolverCollisionDataComponent* CollisionDataComponent = SolverInfoWithID.Value ? SolverInfoWithID.Value->GetCollisionDataComponent() : nullptr;
-			if (CollisionDataComponent)
+			if (const UChaosVDSolverCollisionDataComponent* CollisionDataComponent = SolverInfoWithID.Value ? SolverInfoWithID.Value->GetCollisionDataComponent() : nullptr)
 			{
-				if (TSharedPtr<FComponentVisualizer> Visualizer = MainTabToolkitHost->FindComponentVisualizer(CollisionDataComponent->StaticClass()))
+				if (const TSharedPtr<FComponentVisualizer> Visualizer = MainTabToolkitHost->FindComponentVisualizer(CollisionDataComponent->StaticClass()))
 				{
 					Visualizer->DrawVisualization(CollisionDataComponent, View, PDI);
 				}
+			}
+		}
+
+		if (const UChaosVDSceneQueryDataComponent* SceneQueryDataComponent = ScenePtr->GetSceneQueryDataContainerComponent())
+		{
+			if (const TSharedPtr<FComponentVisualizer> Visualizer = MainTabToolkitHost->FindComponentVisualizer(SceneQueryDataComponent->StaticClass()))
+			{
+				Visualizer->DrawVisualization(SceneQueryDataComponent, View, PDI);
 			}
 		}
 		

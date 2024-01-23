@@ -95,6 +95,18 @@
 	#define CVD_TRACE_INVALIDATE_CACHED_GEOMETRY(ImplicitObjectPtr)
 #endif
 
+#ifndef CVD_TRACE_SCOPED_SCENE_QUERY
+	#define CVD_TRACE_SCENE_QUERY_START(InputGeometry, GeometryOrientation, Start, End, TraceChannel, Params, ResponseParams, ObjectParams, QueryType, QueryMode, SolverID)
+#endif
+
+#ifndef CVD_TRACE_SCOPED_SCENE_QUERY_VISIT
+	#define CVD_TRACE_SCOPED_SCENE_QUERY_VISIT(InQueryVisitData)
+#endif
+
+#ifndef CVD_TRACE_SCENE_QUERY_VISIT
+	#define CVD_TRACE_SCENE_QUERY_VISIT(InQueryVisitData)
+#endif
+
 #else
 
 #include "ChaosVDRuntimeModule.h"
@@ -319,7 +331,32 @@ UE_TRACE_EVENT_END()
 	FChaosVisualDebuggerTrace::InvalidateGeometryFromCache(ImplicitObjectPtr);
 #endif
 
+#ifndef CVD_TRACE_SCOPED_SCENE_QUERY
+	#define CVD_TRACE_SCENE_QUERY_START(InputGeometry, GeometryOrientation, Start, End, TraceChannel, Params, ResponseParams, ObjectParams, QueryType, QueryMode, SolverID, bIsRetry) \
+	FChaosVisualDebuggerTrace::TraceSceneQueryStart(InputGeometry, GeometryOrientation, Start, End, TraceChannel, Params, ResponseParams, ObjectParams, QueryType, QueryMode, SolverID, bIsRetry);
+#endif
+
+#ifndef CVD_TRACE_SCOPED_SCENE_QUERY_VISIT
+	#define CVD_TRACE_SCOPED_SCENE_QUERY_VISIT(InQueryVisitData) \
+	FChaosVDScopeSceneQueryVisit CVDQueryVisit(InQueryVisitData);
+#endif
+
+#ifndef CVD_TRACE_SCENE_QUERY_VISIT
+	#define CVD_TRACE_SCENE_QUERY_VISIT(InQueryVisitData) \
+	FChaosVisualDebuggerTrace::TraceSceneQueryVisit(InQueryVisitData);
+#endif
+
 struct FChaosVDContext;
+struct FChaosVDQueryVisitStep;
+struct FChaosVDCollisionResponseParams;
+struct FChaosVDCollisionObjectQueryParams;
+struct FChaosVDCollisionQueryParams;
+enum class EChaosVDSceneQueryMode;
+enum class EChaosVDSceneQueryType;
+struct FCollisionObjectQueryParams;
+struct FCollisionResponseParams;
+struct FCollisionQueryParams;
+enum ECollisionChannel : int;
 
 namespace Chaos
 {
@@ -442,6 +479,9 @@ public:
 	 */
 	static CHAOS_API void TraceNonSolverTransform(const FTransform& InTransform, FStringView DebugNameID);
 
+	static CHAOS_API void TraceSceneQueryStart(const Chaos::FImplicitObject* InputGeometry, const FQuat& GeometryOrientation, const FVector& Start, const FVector& End, ECollisionChannel TraceChannel, FChaosVDCollisionQueryParams&& Params, FChaosVDCollisionResponseParams&& ResponseParams, FChaosVDCollisionObjectQueryParams&& ObjectParams, EChaosVDSceneQueryType QueryType, EChaosVDSceneQueryMode QueryMode, int32 SolverID, bool bIsRetry);
+	static CHAOS_API void TraceSceneQueryVisit(FChaosVDQueryVisitStep&& InQueryVisitData);
+
 	/** Returns true if the provided solver ID needs a Full Capture */
 	static bool ShouldPerformFullCapture(int32 SolverID);
 
@@ -505,13 +545,13 @@ void FChaosVisualDebuggerTrace::TraceParticlesView(const Chaos::TParticleView<Pa
 		return;
 	}
 
-	const FChaosVDContext* CVDContextData = FChaosVDThreadContext::Get().GetCurrentContext();
+	const FChaosVDContext* CVDContextData = FChaosVDThreadContext::Get().GetCurrentContext(EChaosVDContextType::Solver);
 	if (!ensure(CVDContextData))
 	{
 		return;
 	}
 
-	FChaosVDContext CopyContext = *FChaosVDThreadContext::Get().GetCurrentContext();
+	FChaosVDContext CopyContext = *CVDContextData;
 	
 	ParticlesView.ParallelFor([CopyContext](auto& Particle, int32 Index)
 	{
@@ -563,5 +603,20 @@ struct FChaosVDScopeSolverFrame
 	}
 
 	T& SolverRef;
+};
+
+struct FChaosVDScopeSceneQueryVisit
+{
+	FChaosVDScopeSceneQueryVisit(FChaosVDQueryVisitStep& InVisitData) : VisitData(InVisitData)
+	{
+		
+	}
+
+	~FChaosVDScopeSceneQueryVisit()
+	{
+		CVD_TRACE_SCENE_QUERY_VISIT(MoveTemp(VisitData));
+	}
+
+	FChaosVDQueryVisitStep& VisitData;
 };
 #endif // CHAOS_VISUAL_DEBUGGER_ENABLED

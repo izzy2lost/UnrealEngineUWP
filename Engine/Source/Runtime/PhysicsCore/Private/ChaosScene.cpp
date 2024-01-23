@@ -82,6 +82,7 @@ FChaosScene::FChaosScene(
 #if WITH_CHAOS_VISUAL_DEBUGGER
 	SceneSolver->GetChaosVDContextData().OwnerID = GetChaosVDContextData().Id;
 	SceneSolver->GetChaosVDContextData().Id = FChaosVDRuntimeModule::Get().GenerateUniqueID();
+	SceneSolver->GetChaosVDContextData().Type = static_cast<int32>(EChaosVDContextType::Solver);
 #endif
 
 	SceneSolver->PhysSceneHack = this;

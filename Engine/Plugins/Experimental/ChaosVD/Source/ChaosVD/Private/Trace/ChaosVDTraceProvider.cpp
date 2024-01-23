@@ -11,6 +11,8 @@
 #include "Serialization/MemoryReader.h"
 #include "Trace/DataProcessors/ChaosVDConstraintDataProcessor.h"
 #include "Trace/DataProcessors/ChaosVDMidPhaseDataProcessor.h"
+#include "Trace/DataProcessors/ChaosVDSceneQueryDataProcessor.h"
+#include "Trace/DataProcessors/ChaosVDSceneQueryVisitDataProcessor.h"
 #include "Trace/DataProcessors/ChaosVDTraceImplicitObjectProcessor.h"
 #include "Trace/DataProcessors/ChaosVDTraceParticleDataProcessor.h"
 
@@ -201,6 +203,14 @@ void FChaosVDTraceProvider::RegisterDefaultDataProcessorsIfNeeded()
 	TSharedPtr<FChaosVDConstraintDataProcessor> ConstraintDataProcessor = MakeShared<FChaosVDConstraintDataProcessor>();
 	ConstraintDataProcessor->SetTraceProvider(AsShared());
 	RegisterDataProcessor(ConstraintDataProcessor);
+
+	TSharedPtr<FChaosVDSceneQueryDataProcessor> SceneQueryDataProcessor = MakeShared<FChaosVDSceneQueryDataProcessor>();
+	SceneQueryDataProcessor->SetTraceProvider(AsShared());
+	RegisterDataProcessor(SceneQueryDataProcessor);
+
+	TSharedPtr<FChaosVDSceneQueryVisitDataProcessor> SceneQueryVisitDataProcessor = MakeShared<FChaosVDSceneQueryVisitDataProcessor>();
+	SceneQueryVisitDataProcessor->SetTraceProvider(AsShared());
+	RegisterDataProcessor(SceneQueryVisitDataProcessor);
 
 	bDefaultDataProcessorsRegistered = true;
 }

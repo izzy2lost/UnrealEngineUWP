@@ -4,6 +4,8 @@
 
 #include "CanvasItem.h"
 #include "ChaosVDEditorSettings.h"
+#include "ChaosVDGeometryBuilder.h"
+#include "Generators/MeshShapeGenerator.h"
 #include "Engine/Engine.h"
 #include "SceneView.h"
 
@@ -168,6 +170,44 @@ void FChaosVDDebugDrawUtils::DrawLine(FPrimitiveDrawInterface* PDI, const FVecto
 		DrawText(DebugText, TextWorldPosition, InColor);
 	}
 }
+
+void FChaosVDDebugDrawUtils::DrawImplicitObject(FPrimitiveDrawInterface* PDI, const TSharedPtr<FChaosVDGeometryBuilder>& GeometryGenerator, const Chaos::FConstImplicitObjectPtr& ImplicitObject, const FTransform& InWorldTransform, const FColor& InColor, FStringView DebugText, ESceneDepthPriorityGroup DepthPriority)
+{
+	if (!PDI)
+	{
+		return;
+	}
+
+	if (!ImplicitObject.IsValid())
+	{
+	  return;
+	}
+
+	constexpr float SimpleShapesComplexityFactor = 0.5f;
+	if (const TSharedPtr<UE::Geometry::FMeshShapeGenerator> MeshGenerator = GeometryGenerator->CreateMeshGeneratorForImplicitObject(ImplicitObject, SimpleShapesComplexityFactor))
+	{
+		FTransform AdjustedTransform = InWorldTransform;
+		GeometryGenerator->AdjustedTransformForImplicit(ImplicitObject, AdjustedTransform);
+		MeshGenerator->Generate();
+
+		for (const UE::Geometry::FIndex3i& Triangle : MeshGenerator->Triangles)
+		{
+			FVector VertexA = AdjustedTransform.TransformPosition(MeshGenerator->Vertices[Triangle.A]);
+			FVector VertexB = AdjustedTransform.TransformPosition(MeshGenerator->Vertices[Triangle.B]);
+			FVector VertexC = AdjustedTransform.TransformPosition(MeshGenerator->Vertices[Triangle.C]);
+	
+			DrawLine(PDI, VertexA, VertexB, InColor, nullptr, DepthPriority);
+			DrawLine(PDI, VertexB, VertexC, InColor, nullptr, DepthPriority);
+			DrawLine(PDI, VertexC, VertexA, InColor, nullptr, DepthPriority);
+		}	
+	}
+
+	if (!DebugText.IsEmpty())
+	{
+		DrawText(DebugText, InWorldTransform.GetLocation(), InColor);
+	}
+}
+
 
 void FChaosVDDebugDrawUtils::DrawCanvas(FViewport& InViewport, FSceneView& View, FCanvas& Canvas)
 {

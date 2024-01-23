@@ -42,12 +42,14 @@ enum class EChaosVDObjectStateType: int8
 
 /** Base struct that declares the interface to be used for any ParticleData Viewer */
 USTRUCT()
-struct FChaosVDParticleDataBase
+struct FChaosVDWrapperDataBase
 {
 	GENERATED_BODY()
-	virtual ~FChaosVDParticleDataBase() = default;
+	virtual ~FChaosVDWrapperDataBase() = default;
 
 	virtual bool HasValidData() const { return bHasValidData; }
+
+	void MarkAsValid() { bHasValidData = true; }
 
 protected:
 	UPROPERTY()
@@ -55,7 +57,7 @@ protected:
 };
 
 USTRUCT()
-struct FChaosVDFRigidParticleControlFlags : public FChaosVDParticleDataBase 
+struct FChaosVDFRigidParticleControlFlags : public FChaosVDWrapperDataBase 
 {
 	GENERATED_BODY()
 
@@ -113,7 +115,7 @@ struct TStructOpsTypeTraits<FChaosVDFRigidParticleControlFlags> : public TStruct
  * Used to be able to show the values in the editor and allow changes via the Property Editor.
  */
 USTRUCT()
-struct FChaosVDParticlePositionRotation : public FChaosVDParticleDataBase
+struct FChaosVDParticlePositionRotation : public FChaosVDWrapperDataBase
 {
 	GENERATED_BODY()
 
@@ -158,7 +160,7 @@ struct TStructOpsTypeTraits<FChaosVDParticlePositionRotation> : public TStructOp
  * Used to be able to show the values in the editor and allow changes via the Property Editor.
  */
 USTRUCT()
-struct FChaosVDParticleVelocities : public FChaosVDParticleDataBase
+struct FChaosVDParticleVelocities : public FChaosVDWrapperDataBase
 {
 	GENERATED_BODY()
 
@@ -202,7 +204,7 @@ struct TStructOpsTypeTraits<FChaosVDParticleVelocities> : public TStructOpsTypeT
  * Used to be able to show the values in the editor and allow changes via the Property Editor.
  */
 USTRUCT()
-struct FChaosVDParticleDynamics : public FChaosVDParticleDataBase
+struct FChaosVDParticleDynamics : public FChaosVDWrapperDataBase
 {
 	GENERATED_BODY()
 	
@@ -256,7 +258,7 @@ struct TStructOpsTypeTraits<FChaosVDParticleDynamics> : public TStructOpsTypeTra
  * Used to be able to show the values in the editor and allow changes via the Property Editor.
  */
 USTRUCT()
-struct FChaosVDParticleMassProps : public FChaosVDParticleDataBase
+struct FChaosVDParticleMassProps : public FChaosVDWrapperDataBase
 {
 	GENERATED_BODY()
 
@@ -317,7 +319,7 @@ struct TStructOpsTypeTraits<FChaosVDParticleMassProps> : public TStructOpsTypeTr
  * Used to be able to show the values in the editor and allow changes via the Property Editor.
  */
 USTRUCT()
-struct FChaosVDParticleDynamicMisc : public FChaosVDParticleDataBase
+struct FChaosVDParticleDynamicMisc : public FChaosVDWrapperDataBase
 {
 	GENERATED_BODY()
 
@@ -438,7 +440,7 @@ struct TStructOpsTypeTraits<FChaosVDConnectivityEdge> : public TStructOpsTypeTra
  * Used to be able to show the values in the editor and allow changes via the Property Editor.
  */
 USTRUCT()
-struct FChaosVDParticleCluster : public FChaosVDParticleDataBase
+struct FChaosVDParticleCluster : public FChaosVDWrapperDataBase
 {
 	GENERATED_BODY()
 
@@ -538,7 +540,7 @@ struct TStructOpsTypeTraits<FChaosVDParticleCluster> : public TStructOpsTypeTrai
  * Used to be able to show the values in the editor and allow changes via the Property Editor.
  */
 USTRUCT(DisplayName="Particle Data")
-struct FChaosVDParticleDataWrapper : public FChaosVDParticleDataBase
+struct FChaosVDParticleDataWrapper : public FChaosVDWrapperDataBase
 {
 	virtual ~FChaosVDParticleDataWrapper() override = default;
 

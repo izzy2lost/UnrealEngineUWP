@@ -117,6 +117,16 @@ bool FChaosVDParticlePairMidPhase::Serialize(FArchive& Ar)
 	return true;
 }
 
+bool FChaosVDCollisionFilterData::Serialize(FArchive& Ar)
+{
+	Ar << Word0;
+	Ar << Word1;
+	Ar << Word2;
+	Ar << Word3;
+
+	return !Ar.IsError();
+}
+
 bool FChaosVDShapeCollisionData::Serialize(FArchive& Ar)
 {
 	Ar << CollisionTraceType;

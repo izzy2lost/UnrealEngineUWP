@@ -221,13 +221,22 @@ private:
 	 */
 	bool ApplyMeshToComponentFromKey(TWeakObjectPtr<UMeshComponent> MeshComponent, const uint32 GeometryKey);
 
-	/** Creates a mesh generator for the provided Implicit object which will be used to create a Static Mesh or Dynamic Mesh */
-	TSharedPtr<UE::Geometry::FMeshShapeGenerator> CreateMeshGeneratorForImplicitObject(const Chaos::FImplicitObject* InImplicit);
+public:
+	/** Creates a mesh generator for the provided Implicit object which will be used to create a Static Mesh or Dynamic Mesh
+	 * @param InImplicit ImplicitObject used a data source for the mesh generator
+	 * @param SimpleShapesComplexityFactor Factor used to reduce or increase the complexity (number of triangles generated) of simple shapes (Sphere/Capsule)
+	 */
+	TSharedPtr<UE::Geometry::FMeshShapeGenerator> CreateMeshGeneratorForImplicitObject(const Chaos::FImplicitObject* InImplicit, float SimpleShapesComplexityFactor = 1.0f);
+
+private:
 
 	const Chaos::FImplicitObject* UnpackImplicitObject(const Chaos::FImplicitObject* InImplicitObject, Chaos::FRigidTransform3& InOutTransform) const;
-
+	
+public:
 	/** Re-adjust the provided transform if needed, so it can be visualized properly with its generated mesh */
 	void AdjustedTransformForImplicit(const Chaos::FImplicitObject* InImplicit, FTransform& OutAdjustedTransform);
+
+private:
 
 	/** Extracts data from an implicit object in a format CVD can use, and starts the Mesh generation process if needed
 	 * @return Returns a handle to the generated data that can be used to access the generated mesh when ready
@@ -421,6 +430,7 @@ void FChaosVDGeometryBuilder::CreateMeshesFromImplicit_Internal(const Chaos::FIm
 	if (const TSharedPtr<FChaosVDExtractedGeometryDataHandle> MeshDataHandle = ExtractGeometryDataForImplicit<MeshType>(InLeafImplicitObject, InTransform, MeshIndex))
 	{	
 		MeshDataHandle->SetImplicitObject(InLeafImplicitObject);
+		MeshDataHandle->SetImplicitObjectIndex(MeshIndex);
 		MeshDataHandle->SetRootImplicitObject(InRootImplicitObject);
 
 		OutMeshDataHandles.Add(MeshDataHandle);

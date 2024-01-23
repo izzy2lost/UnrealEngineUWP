@@ -311,7 +311,7 @@ bool FChaosVDGeometryBuilder::ApplyMeshToComponentFromKey(TWeakObjectPtr<UMeshCo
 	return bApplyMeshRequestProcessed;
 }
 
-TSharedPtr<UE::Geometry::FMeshShapeGenerator> FChaosVDGeometryBuilder::CreateMeshGeneratorForImplicitObject(const Chaos::FImplicitObject* InImplicit)
+TSharedPtr<UE::Geometry::FMeshShapeGenerator> FChaosVDGeometryBuilder::CreateMeshGeneratorForImplicitObject(const Chaos::FImplicitObject* InImplicit, float SimpleShapesComplexityFactor)
 {
 	using namespace Chaos;
 
@@ -323,8 +323,8 @@ TSharedPtr<UE::Geometry::FMeshShapeGenerator> FChaosVDGeometryBuilder::CreateMes
 			{
 				TSharedPtr<UE::Geometry::FSphereGenerator> SphereGen = MakeShared<UE::Geometry::FSphereGenerator>();
 				SphereGen->Radius = Sphere->GetRadius();
-				SphereGen->NumTheta = 50;
-				SphereGen->NumPhi = 50;
+				SphereGen->NumTheta = 25 * SimpleShapesComplexityFactor;
+				SphereGen->NumPhi = 25 * SimpleShapesComplexityFactor;
 				SphereGen->bPolygroupPerQuad = false;
 
 				return SphereGen;	
@@ -351,8 +351,8 @@ TSharedPtr<UE::Geometry::FMeshShapeGenerator> FChaosVDGeometryBuilder::CreateMes
 				TSharedPtr<UE::Geometry::FCapsuleGenerator> CapsuleGenerator = MakeShared<UE::Geometry::FCapsuleGenerator>();
 				CapsuleGenerator->Radius = FMath::Max(FMathf::ZeroTolerance, Capsule->GetRadius());
 				CapsuleGenerator->SegmentLength = FMath::Max(FMathf::ZeroTolerance, Capsule->GetSegment().GetLength());
-				CapsuleGenerator->NumHemisphereArcSteps = 12;
-				CapsuleGenerator->NumCircleSteps = 12;
+				CapsuleGenerator->NumHemisphereArcSteps = 12 * SimpleShapesComplexityFactor;
+				CapsuleGenerator->NumCircleSteps = 12 * SimpleShapesComplexityFactor;
 
 				return CapsuleGenerator;
 			}

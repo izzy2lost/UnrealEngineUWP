@@ -239,7 +239,7 @@ void FChaosVDPlaybackController::GoToRecordedGameFrame_AssumesLocked(const int32
 						TArray<int32> AvailableSolversID;
 						LoadedRecording->GetAvailableSolverIDsAtGameFrameNumber_AssumesLocked(FrameNumber, AvailableSolversID);
 
-						SceneToControlSharedPtr->HandleEnterNewGameFrame(FrameNumber, AvailableSolversID);
+						SceneToControlSharedPtr->HandleEnterNewGameFrame(FrameNumber, AvailableSolversID, *FoundGameFrameData);
 
 						for (const int32 SolverID : AvailableSolversID)
 						{

@@ -2,6 +2,8 @@
 
 #include "ChaosVDScene.h"
 
+#include "Actors/ChaosVDSceneQueryDataContainer.h"
+#include "Actors/ChaosVDSolverInfoActor.h"
 #include "ChaosVDEditorSettings.h"
 #include "ChaosVDGeometryBuilder.h"
 #include "ChaosVDModule.h"
@@ -9,6 +11,8 @@
 #include "Chaos/ImplicitObject.h"
 #include "ChaosVDRecording.h"
 #include "ChaosVDSkySphereInterface.h"
+#include "Components/ChaosVDSceneQueryDataComponent.h"
+#include "Components/ChaosVDSolverCollisionDataComponent.h"
 #include "DataWrappers/ChaosVDParticleDataWrapper.h"
 #include "EditorActorFolders.h"
 #include "EditorLevelUtils.h"
@@ -23,8 +27,6 @@
 #include "Selection.h"
 #include "UObject/Package.h"
 #include "WorldPersistentFolders.h"
-#include "Actors/ChaosVDSolverInfoActor.h"
-#include "Components/ChaosVDSolverCollisionDataComponent.h"
 
 #define LOCTEXT_NAMESPACE "ChaosVisualDebugger"
 
@@ -229,7 +231,7 @@ void FChaosVDScene::HandleNewGeometryData(const Chaos::FConstImplicitObjectPtr& 
 	NewGeometryAvailableDelegate.Broadcast(GeometryData, GeometryID);
 }
 
-void FChaosVDScene::HandleEnterNewGameFrame(int32 FrameNumber, const TArray<int32>& AvailableSolversIds)
+void FChaosVDScene::HandleEnterNewGameFrame(int32 FrameNumber, const TArray<int32>& AvailableSolversIds, const FChaosVDGameFrameData& InNewGameFrameData)
 {
 	// Currently the particle actors from all the solvers are in the same level, and we manage them by keeping track
 	// of to which solvers they belong using maps.
@@ -279,6 +281,14 @@ void FChaosVDScene::HandleEnterNewGameFrame(int32 FrameNumber, const TArray<int3
 	if (AmountRemoved > 0)
 	{
 		CollectGarbage(GARBAGE_COLLECTION_KEEPFLAGS);
+	}
+
+	if (SceneQueriesContainer)
+	{
+		if (UChaosVDSceneQueryDataComponent* QueryDataComponent = SceneQueriesContainer->GetSceneQueryDataComponent())
+		{
+			QueryDataComponent->UpdateQueriesFromFrameData(InNewGameFrameData);
+		}
 	}
 }
 
@@ -343,6 +353,11 @@ bool FChaosVDScene::IsSolverForServer(int32 SolverID) const
 	}
 
 	return false;
+}
+
+UChaosVDSceneQueryDataComponent* FChaosVDScene::GetSceneQueryDataContainerComponent() const
+{
+	return SceneQueriesContainer ? SceneQueriesContainer->GetSceneQueryDataComponent() : nullptr;
 }
 
 AChaosVDParticleActor* FChaosVDScene::SpawnParticleFromRecordedData(const TSharedPtr<FChaosVDParticleDataWrapper>& InParticleData, const FChaosVDSolverFrameData& InFrameData)
@@ -415,6 +430,15 @@ void FChaosVDScene::CreateBaseLights(UWorld* TargetWorld) const
 	}
 }
 
+void FChaosVDScene::CreateSceneQueriesContainer(UWorld* TargetWorld)
+{
+	const FName FolderPath("ChaosVisualDebugger/SceneQueries");
+
+	SceneQueriesContainer = TargetWorld->SpawnActor<AChaosVDSceneQueryDataContainer>();
+	SceneQueriesContainer->SetFolderPath(FolderPath);
+	SceneQueriesContainer->SetScene(AsWeak());
+}
+
 AActor* FChaosVDScene::CreateMeshComponentsContainer(UWorld* TargetWorld)
 {
 	const FName GeometryFolderPath("ChaosVisualDebugger/GeneratedMeshComponents");
@@ -446,6 +470,7 @@ UWorld* FChaosVDScene::CreatePhysicsVDWorld()
 	);
 
 	CreateBaseLights(NewWorld);
+	CreateSceneQueriesContainer(NewWorld);
 	CreateMeshComponentsContainer(NewWorld);
 
 	ActorDestroyedHandle = NewWorld->AddOnActorDestroyedHandler(FOnActorDestroyed::FDelegate::CreateRaw(this, &FChaosVDScene::HandleActorDestroyed));

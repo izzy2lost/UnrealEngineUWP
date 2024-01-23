@@ -1,6 +1,7 @@
 ﻿// Copyright Epic Games, Inc. All Rights Reserved.
 
 #pragma once
+#include "Chaos/ShapeInstanceFwd.h"
 
 #if WITH_CHAOS_VISUAL_DEBUGGER
 #include "Chaos/Collision/ContactPoint.h"
@@ -51,6 +52,8 @@ private:
 
 	/** Converts a Chaos::FVec3 to a FVector. It is worth notice that FVector is double precision and FVec3 is single */
 	static FVector ConvertToFVector(const Chaos::FVec3f& VectorRef) { return FVector(VectorRef); }
+
+	static void CopyShapeDataToWrapper(const Chaos::FShapeInstancePtr& ShapeDataPtr, FChaosVDShapeCollisionData& OutCopyTo);
 
 	friend FChaosVisualDebuggerTrace;
 };

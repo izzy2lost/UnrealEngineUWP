@@ -17,4 +17,5 @@ public:
 	static const FName CVDEditorSettings;
 	static const FName StatusBar;
 	static const FName CollisionDataDetails;
+	static const FName SceneQueryDataDetails;
 };

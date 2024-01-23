@@ -45,7 +45,8 @@ public class ChaosVD : ModuleRules
 				"TypedElementFramework",
 				"StatusBar",
 				"SubobjectEditor",
-				"SubobjectDataInterface"
+				"SubobjectDataInterface",
+				"PropertyEditor"
 			}
 			);
 
