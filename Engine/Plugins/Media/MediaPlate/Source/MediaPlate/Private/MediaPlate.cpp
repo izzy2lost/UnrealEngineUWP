@@ -25,6 +25,27 @@
 FLazyName AMediaPlate::MediaPlateComponentName(TEXT("MediaPlateComponent0"));
 FLazyName AMediaPlate::MediaTextureName("MediaTexture");
 
+namespace UE::MediaPlate::Private
+{
+	void ApplyTranslucencyScreenPercentageCVar(int32 InBasis)
+	{
+		static IConsoleVariable* TranslucencySPBasisCVar = IConsoleManager::Get().FindConsoleVariable(TEXT("r.Translucency.ScreenPercentage.Basis"));
+		if (TranslucencySPBasisCVar->GetInt() != InBasis)
+		{
+			if (InBasis)
+			{
+				UE_LOG(LogMediaPlate, Warning, TEXT("Setting 'r.Translucency.ScreenPercentage.Basis' to 1. For media plates with overlay materials, please apply this console variable permanently to your project."));
+			}
+			else
+			{
+				UE_LOG(LogMediaPlate, Warning, TEXT("Setting 'r.Translucency.ScreenPercentage.Basis' to 0."));
+			}
+
+			TranslucencySPBasisCVar->Set(InBasis);
+		}
+	}
+}
+
 AMediaPlate::AMediaPlate(const FObjectInitializer& ObjectInitializer)
 	: Super(ObjectInitializer)
 {
@@ -95,6 +116,12 @@ void AMediaPlate::PostRegisterAllComponents()
 	{
 		UseDefaultMaterial();		
 	}
+
+	if (IsValid(StaticMeshComponent) &&
+		IsValid(StaticMeshComponent->OverlayMaterial))
+	{
+		UE::MediaPlate::Private::ApplyTranslucencyScreenPercentageCVar(1);
+	}
 	
 	AddAssetUserData();
 #endif // WITH_EDITOR
@@ -132,6 +159,13 @@ void AMediaPlate::UseDefaultMaterial()
 	UMaterial* DefaultMaterial = LoadObject<UMaterial>(NULL, TEXT("/MediaPlate/M_MediaPlate"), NULL, LOAD_None, NULL);
 	
 	ApplyMaterial(DefaultMaterial);
+
+	if (IsValid(StaticMeshComponent))
+	{
+		StaticMeshComponent->SetOverlayMaterial(nullptr);
+		
+		LastOverlayMaterial = nullptr;
+	}
 }
 
 void AMediaPlate::ApplyCurrentMaterial()
@@ -270,6 +304,8 @@ void AMediaPlate::ApplyOverlayMaterial(UMaterialInterface* InOverlayMaterial)
 				LastOverlayMaterial = Result;
 			}
 		}
+
+		UE::MediaPlate::Private::ApplyTranslucencyScreenPercentageCVar(1);
 	}
 }
 

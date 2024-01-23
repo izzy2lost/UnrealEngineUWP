@@ -11,6 +11,11 @@ class UMaterialInterface;
 class UMaterialInstanceDynamic;
 class UMediaPlateComponent;
 
+namespace UE::MediaPlate::Private
+{
+	MEDIAPLATE_API void ApplyTranslucencyScreenPercentageCVar(int32 InBasis);
+}
+
 /**
  * MediaPlate is an actor that can play and show media in the world.
  */
@@ -36,7 +41,7 @@ public:
 #if WITH_EDITOR
 
 	/*
-	 * Call this to change the static mesh to use the default media plate material.
+	 * Call this to change the static mesh to use the default media plate material and reset the overlay material.
 	 */
 	void UseDefaultMaterial();
 
