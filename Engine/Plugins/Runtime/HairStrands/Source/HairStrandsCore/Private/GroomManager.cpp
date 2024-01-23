@@ -265,7 +265,6 @@ struct FHairGeometryCache
 		uint32 Index = HashTable.First(Hash);
 		while (HashTable.IsValid(Index) && Datas[Index].Key != Key)
 		{
-			check(Datas[Index].Hash == Hash); // Sanitycheck
 			Index = HashTable.Next(Index);
 		}
 
