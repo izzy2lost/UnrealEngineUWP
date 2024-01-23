@@ -6,54 +6,72 @@ _error()   { printf "\x1b[91m!! ERROR: %s\x1b[0m\n" "$1" ; }
 _header()  { printf "\x1b[96m-- %s\x1b[0m\n" "$1" ; }
 _success() { printf "\x1b[92m%s\x1b[0m\n" "$1" ; }
 
-py_ver=3.10
+py_ver_maj=3
+py_ver_min=12
+py_ver=$py_ver_maj.$py_ver_min
 
-# Try and find a suitable Python binary
-_header "Looking for a Python binary"
-if command -v python${py_ver}; then
-    py_bin=python${py_ver}
-elif command -v /usr/local/opt/python@${py_ver}/bin/python3; then
-    py_bin=/usr/local/opt/python@${py_ver}/bin/python3
-elif command -v python3; then
-    py_bin=python3
-else
-    echo FAILED
+# If we've already a destination we're done here
+if [ -z "$1" ]; then
+    _error "Missing 'working dir' argument"
     exit 1
 fi
-_success Found
 
-# Work out what version of Python we've got
-py_ver_full=$($py_bin --version)
-IFS=" "
-read -ra py_ver_full <<< "$py_ver_full"
-py_ver_full=${py_ver_full[1]}
+# If we've already a destination we're done here
+dest_dir=$1/python/$py_ver
+if [ -d "$dest_dir" ]; then
+    exit 0
+fi
 
 # Check the versions good enough
 function _check_version()
 {
     # Bash's here document syntax is ugly
-    cat << EOF | $1
-l = lambda x: [int(y) for y in x.split('.')][0:2]
-raise SystemExit(l('${py_ver_full}') < l('${py_ver}'))
+    cat << EOF | $1 -EsSB
+import sys
+vi = sys.version_info
+raise SystemExit(vi.major != ${py_ver_maj} or vi.minor < ${py_ver_min})
 EOF
     return $?
 }
 
-_check_version $py_bin
-if [ "$?" -ne "0" ]; then
-    _error "Version $py_ver_full is too old. $py_ver is required"
+function _bin_select()
+{
+    py_bin=
+    for candidate in "$@"; do
+        if ! command -v $candidate; then
+            continue
+        fi
+
+        if ! _check_version $candidate; then
+            continue
+        fi
+
+        py_bin=$candidate
+        return 0
+    done
+    return 1
+}
+
+_header "Looking for a $py_ver Python binary"
+_bin_select \
+    $USHELL_PY_BIN \
+    python$py_ver_maj \
+    /usr/local/opt/python@${py_ver_maj}.*/bin/python$py_ver_maj \
+    /usr/bin/python$py_ver_maj.*[0-9] \
+    /usr/local/bin/python$py_ver_maj.*[0-9] \
+    python
+
+if [ -z "$py_bin" ]; then
+    _error "No suitable binary found that is $py_ver or newer"
+    echo ""
     echo "Examples to install Python $py_ver:"
     echo "   Ubuntu: apt install python$py_ver"
     echo "      Mac: brew install python@$py_ver"
+    echo ""
     exit 1
 fi
-echo Using version $py_ver_full
 
-# Check if our destination exists already
-dest_dir=$1/python/$py_ver_full
-if [ -d "$dest_dir" ]; then
-    exit 0
-fi
+_success "Found: $py_bin: (as $($py_bin --version))"
 
 # Make sure that the Python install has Pip installed
 _header "Checking for Pip"
@@ -66,7 +84,7 @@ fi
 # Create the Python virtual env
 _header "Fetching virtual env"
 
-temp_dir=$1/python/${py_ver_full}_$$
+temp_dir=$1/python/${py_ver}_$$
 
 if ! $py_bin -m pip install virtualenv; then
     _error "Unable to install 'virtualenv' Pip package"

@@ -5,7 +5,7 @@
 self_dir=$(dirname $0)
 working_dir=~/.ushell/.working
 
-# provision python >=3.8 using provision.sh
+# provision Python using provision.sh
 if ! $self_dir/provision.sh $working_dir; then
     echo Failed to provision Python
     exit 1

@@ -11,9 +11,10 @@ call:check_bin tar.exe _tar_path
 call:check_bin curl.exe _curl_path
 call:check_bin certutil.exe _certutil_path
 
-set _pyver=3.11.4
-set _pysha=126802ff9fe787b961ae4d877262e6d6ce807d636295ef429c02e4dfd3e48041
-set _pytag=311
+set _pyver=3.12.1
+set _pysha=7a77c7471f5ceee88831a29b9460eddd784adf31b0230f188149ef0c588642d1
+set _pytag=312
+
 set _destdir=%~f1\%_pyver%
 
 if exist "%_destdir%" (

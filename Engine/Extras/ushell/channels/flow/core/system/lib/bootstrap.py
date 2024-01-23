@@ -7,6 +7,7 @@ import hashlib
 import marshal
 import flow.describe
 import subprocess as sp
+from pathlib import Path
 
 #-------------------------------------------------------------------------------
 class _Log(object):
@@ -86,6 +87,10 @@ def _http_get(url, dest_dir, progress_cb=None):
 
 #-------------------------------------------------------------------------------
 def _extract_zip(payload, dest_dir):
+    # Use tar on POSIX platforms as Python's zipfile doesn't seem to apply attrs
+    if os.name != "nt":
+        return _extract_tar(payload, dest_dir)
+
     import zipfile
     zip_file = zipfile.ZipFile(payload, "r")
     zip_file.extractall(dest_dir)
@@ -571,9 +576,9 @@ class _Prune(_Action):
 
 
 #-------------------------------------------------------------------------------
-def impl(working_dir, *channels_dirs):
-    channels_dirs = [os.path.abspath(x) for x in channels_dirs if x]
-    working_dir = os.path.abspath(working_dir)
+def impl(working_dir:Path, *channels_dirs:Path):
+    channels_dirs = [str(x.resolve()) for x in channels_dirs if x.is_dir()]
+    working_dir = str(working_dir.resolve())
 
     def _read_channels(dir, depth=0):
         for item in fsutils.read_dirs(dir):
