@@ -818,6 +818,9 @@ export type GetPoolResponse = {
 	/// Condition for agents to be auto-added to the pool
 	condition?: Condition;
 
+	/// Color for the pool
+	colorValue: string;
+
 	/// Whether to enable autoscaling for this pool
 	enableAutoscaling: boolean;
 

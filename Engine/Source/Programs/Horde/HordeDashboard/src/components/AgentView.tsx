@@ -808,6 +808,7 @@ class EditPoolsModalState {
          pool: {
             id: pool.id,
             name: pool.name,
+            colorValue: pool.colorValue,
             properties: { ...pool.properties },
             enableAutoscaling: pool.enableAutoscaling,
             workspaces: pool.workspaces
@@ -872,7 +873,7 @@ class EditPoolsModalState {
    @action
    addNewTempPool() {
       const newId = this.newPoolInputId + this.newIdSuffix;
-      const newPool: PoolData = { id: newId, name: "", properties: { Color: "0" }, enableAutoscaling: false, workspaces: [] };
+      const newPool: PoolData = { id: newId, name: "", properties: { Color: "0" }, colorValue: "#aaaaaa", enableAutoscaling: false, workspaces: [] };
       const newItem: PoolEditorItem = { key: newId, sortKey: newId, pool: newPool, numAgentsAssigned: 0, deleted: false };
       this.newIdSuffix++;
       this.modifiedPools.push(newItem);
@@ -906,6 +907,7 @@ class EditPoolsModalState {
    setSelectedPoolColor(range: string) {
       if (this.lastSelectedPool) {
          this.selectedColor = linearInterpolate(range);
+         this.lastSelectedPool.pool.colorValue = this.selectedColor;
          this.lastSelectedPool.pool.properties!["Color"] = range;
       }
    }
@@ -1552,7 +1554,7 @@ export const PoolEditorModal: React.FC = observer(() => {
    function onRenderPoolModalItem(item: PoolEditorItem, index?: number, column?: IColumn) {
       switch (column!.key) {
          case 'name':
-            const color = linearInterpolate(item.pool.properties!["Color"]);
+            const color = item.pool.colorValue;
             const textColor = "white";
             return (
                <Stack styles={{ root: { height: '100%', } }} horizontal>
@@ -1791,7 +1793,7 @@ export const PoolSelectionModal: React.FC = observer(() => {
    // renderitem override
    const onTagRenderItem: IBasePickerProps<ITag>['onRenderItem'] = (props) => {
       const item = props.item as SelectPoolItem;
-      let color = linearInterpolate(item.pool.properties!["Color"]);
+      let color = item.pool.colorValue;
       const hoverColor = hexToRGB(color);
       const hoverCloseColor = hexToRGB(color);
       hoverColor.r *= .8;
@@ -2500,7 +2502,7 @@ export const AgentViewInner: React.FC<{ agentId?: string, poolId?: string, searc
                   let color = "darkgrey";
                   const textColor = "white";
                   if (poolObjs[idx].properties?.["Color"]) {
-                     color = linearInterpolate(poolObjs[idx].properties!["Color"]);
+                     color = poolObjs[idx].colorValue;
                      if (agent.pendingConform || agent.pendingFullConform) {
                         const pendingConformColor = hexToRGB(color);
                         color = `rgb(${pendingConformColor.r},${pendingConformColor.g},${pendingConformColor.b}, .5)`;
