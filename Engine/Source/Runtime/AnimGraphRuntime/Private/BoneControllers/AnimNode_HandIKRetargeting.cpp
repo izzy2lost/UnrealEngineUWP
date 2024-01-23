@@ -14,7 +14,8 @@ static TAutoConsoleVariable<bool> CVarAnimHandIKRetargetingEnable(TEXT("a.AnimNo
 // FAnimNode_HandIKRetargeting
 
 FAnimNode_HandIKRetargeting::FAnimNode_HandIKRetargeting()
-: HandFKWeight(0.5f)
+: PerAxisAlpha(1.f,1.f,1.f)
+, HandFKWeight(0.5f)
 {
 }
 
@@ -47,6 +48,12 @@ void FAnimNode_HandIKRetargeting::EvaluateSkeletalControl_AnyThread(FComponentSp
 		return;
 	}
 #endif 
+	// Early exit if alpha is zero
+	if (PerAxisAlpha.IsNearlyZero())
+	{
+		return;
+	}
+
 	checkSlow(OutBoneTransforms.Num() == 0);
 
 	const FBoneContainer& BoneContainer = Output.Pose.GetPose().GetBoneContainer();
@@ -87,7 +94,7 @@ void FAnimNode_HandIKRetargeting::EvaluateSkeletalControl_AnyThread(FComponentSp
 		IKLocation = FMath::Lerp<FVector>(LeftHandIKLocation, RightHandIKLocation, HandFKWeight);
 	}
 	
-	const FVector IK_To_FK_Translation = FKLocation - IKLocation;
+	const FVector IK_To_FK_Translation = (FKLocation - IKLocation) * PerAxisAlpha;
 
 	// If we're not translating, don't send any bones to update.
 	if (!IK_To_FK_Translation.IsNearlyZero())
