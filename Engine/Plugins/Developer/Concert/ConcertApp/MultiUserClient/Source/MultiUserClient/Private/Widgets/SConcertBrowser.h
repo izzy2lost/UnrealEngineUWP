@@ -46,8 +46,11 @@ private:
 	/** Interacts with the replication system on behalf of Multi-User. */
 	TWeakPtr<UE::MultiUserClient::FMultiUserReplicationManager> WeakReplicationManager;
 
-	/** Kept so it can be passed on to SActiveSessionRoot. */
-	TSharedPtr<SDockTab> ConstructedUnderMajorTab;
+	/**
+	 * Kept so it can be passed on to SActiveSessionRoot.
+	 * Important: since this a pointer to the top-level widget that contains us, we must keep a weak ptr or we'll cause a memory leak.
+	 */
+	TWeakPtr<SDockTab> ConstructedUnderMajorTab;
 
 	/** Keeps the session browser searched text in memory to reapply it when a user leaves a session and goes back to the session browser. */
 	TSharedPtr<FText> SearchedText;

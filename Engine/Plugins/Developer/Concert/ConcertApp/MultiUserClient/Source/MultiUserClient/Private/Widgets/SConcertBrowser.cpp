@@ -6,7 +6,6 @@
 #include "IConcertSyncClient.h"
 #include "MultiUserClientUtils.h"
 #include "ActiveSession/SActiveSessionRoot.h"
-#include "Widgets/ActiveSession/Overview/SActiveSessionOverviewTab.h"
 #include "Widgets/Disconnected/SConcertClientSessionBrowser.h"
 #include "Widgets/Disconnected/SConcertNoAvailability.h"
 
@@ -60,6 +59,12 @@ void SConcertBrowser::HandleSessionConnectionChanged(IConcertClientSession& InSe
 
 void SConcertBrowser::AttachChildWidget(EConcertConnectionStatus ConnectionStatus)
 {
+	const TSharedPtr<SDockTab> OwningMajorTab = ConstructedUnderMajorTab.Pin();
+	if (!ensure(OwningMajorTab))
+	{
+		return;
+	}
+	
 	if (const TSharedPtr<IConcertSyncClient> ConcertSyncClient = WeakConcertSyncClient.Pin()
 		; ensure(ConcertSyncClient))
 	{
@@ -70,7 +75,7 @@ void SConcertBrowser::AttachChildWidget(EConcertConnectionStatus ConnectionStatu
 			{
 				ChildSlot.AttachWidget(
 					SNew(UE::MultiUserClient::SActiveSessionRoot,
-						ConstructedUnderMajorTab.ToSharedRef(),
+						OwningMajorTab.ToSharedRef(),
 						ConcertSyncClient,
 						ReplicationManager.ToSharedRef()
 						)
