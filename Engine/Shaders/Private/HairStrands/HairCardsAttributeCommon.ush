@@ -63,8 +63,8 @@ uint GetHairCardChannelIndex(uint InLayoutIndex, uint InAttribute)
 	{
 		case EHairCardsVFAttribute_Depth      : return LAYOUT_VALUES(InLayoutIndex, 0, 0, 1, 1);
 		case EHairCardsVFAttribute_Seed       : return LAYOUT_VALUES(InLayoutIndex, 3, 3, 2, 2);
-		case EHairCardsVFAttribute_CoordU     : return LAYOUT_VALUES(InLayoutIndex, 2, 2, 3, 1);
-		case EHairCardsVFAttribute_GroupIndex : return LAYOUT_VALUES(InLayoutIndex, 3, 3, 0, 2);
+		case EHairCardsVFAttribute_CoordU     : return LAYOUT_VALUES(InLayoutIndex, 2, 2, 3, 2);
+		case EHairCardsVFAttribute_GroupIndex : return LAYOUT_VALUES(InLayoutIndex, 3, 3, 0, 3);
 		case EHairCardsVFAttribute_Roughness  : return LAYOUT_VALUES(InLayoutIndex, 3, 0, 3, 3);
 		case EHairCardsVFAttribute_RootUV     : return LAYOUT_VALUES(InLayoutIndex, 0, 0, 0, 0);
 		case EHairCardsVFAttribute_Color      : return LAYOUT_VALUES(InLayoutIndex, 0, 0, 0, 0);
@@ -142,74 +142,74 @@ float4 GetAuxilary    (float2 InAtlasUV, float4 InDefault)      { float4 Out = I
 ///////////////////////////////////////////////////////////////////////////////////////////////////
 // MaterialTemplate interface
 
-float GetHairStrandsDepth(float2 InAtlasUV, float InDeviceZ)
+float GetHairCardsDepth(float2 InAtlasUV, float InDeviceZ)
 {
 	const float SceneDepthOffset = GetDepthOffset(InAtlasUV);
 	const float SceneDepth = ConvertFromDeviceZ(InDeviceZ);
 	return ConvertToDeviceZ(SceneDepth + SceneDepthOffset);
 }
 
-float3 GetHairStrandsTangent(float2 InAtlasUV, half3x3 TangentToWorld, bool bUseTangentSpace)
+float3 GetHairCardsTangent(float2 InAtlasUV, half3x3 TangentToWorld, bool bUseTangentSpace)
 {
 	const float3 LocalTangent = GetTangent(InAtlasUV, float3(0, 1, 0));
 	const float3 WorldTangent = mul(LocalTangent, TangentToWorld);
 	return bUseTangentSpace ? LocalTangent : WorldTangent;
 }
 
-float GetHairStrandsCoverage(float2 InAtlasUV)
+float GetHairCardsCoverage(float2 InAtlasUV)
 {
 	return GetCoverage(InAtlasUV, 1.f);
 }
 
-float4 GetHairStrandsAuxilaryData(float2 InAtlasUV)
+float4 GetHairCardsAuxilaryData(float2 InAtlasUV)
 {
 	return GetAuxilary(InAtlasUV, 0.f);
 }
 
-float2 GetHairStrandsUV(float2 InAtlasUV)
+float2 GetHairCardsUV(float2 InAtlasUV)
 {
 	return float2(GetCoordU(InAtlasUV), 0.5f);
 }
 
-float2 GetHairStrandsDimensions(float2 InAtlasUV, float HairPrimitiveLength)
+float2 GetHairCardsDimensions(float2 InAtlasUV, float HairPrimitiveLength)
 {
 	return float2(HairPrimitiveLength, 0.01f/*WorldRadius*/);
 }
 
-float2 GetHairStrandsRootUV(float2 InAtlasUV, float2 InRootUV)
+float2 GetHairCardsRootUV(float2 InAtlasUV, float2 InRootUV)
 {
 	// Invert V to compensate image origin flip
 	// Similar to DecodeHairAttribute in HairStrandVertexFactoryCommon.ush
 	return GetRootUV(InAtlasUV, float2(InRootUV.x, 1.0 - InRootUV.y));
 }
 
-float GetHairStrandsSeed(float2 InAtlasUV)
+float GetHairCardsSeed(float2 InAtlasUV)
 {
 	return GetSeed(InAtlasUV);
 }
 
-uint3 GetHairStrandsClumpID(float2 InAtlasUV)
+uint3 GetHairCardsClumpID(float2 InAtlasUV)
 {
 	return 0;
 }
 
-float3 GetHairStrandsColor(float2 InAtlasUV, float3 InColor)
+float3 GetHairCardsColor(float2 InAtlasUV, float3 InColor)
 {
 	return GetColor(InAtlasUV, InColor);
 }
 
-float GetHairStrandsRoughness(float2 InAtlasUV, float InCardRoughness)
+float GetHairCardsRoughness(float2 InAtlasUV, float InCardRoughness)
 {
 	//return GetRoughness(InAtlasUV, InCardRoughness);
 	return (HairCardsVF.Flags & EHairCardsVFAttribute_Roughness) ? 0 : InCardRoughness;
 }
 
-float GetHairStrandsAO(float2 InAtlasUV, float InAO)
+float GetHairCardsAO(float2 InAtlasUV, float InAO)
 {
 	return 1.0f;
 }
 
-float GetHairStrandsGroupIndex(float2 InAtlasUV, float InCardGroupIndex)
+float GetHairCardsGroupIndex(float2 InAtlasUV, float InCardGroupIndex)
 {
 	// * For hair cards,  group index is stored onto vertices
 	// * For hair meshes, group index is stored within a texture

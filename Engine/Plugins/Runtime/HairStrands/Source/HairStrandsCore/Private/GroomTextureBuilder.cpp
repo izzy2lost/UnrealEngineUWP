@@ -25,6 +25,11 @@
 #include "DerivedDataRequestOwner.h"
 #endif
 
+// Enable this to force looping texture generation pass and automatically 
+// triggering RenderDoc capture when generating groom textures
+#define DEBUG_TEXTURE_GENERATION 0
+#define DEBUG_TEXTURE_RENDERDOC 0
+
 static int32 GHairStrandsTextureDilationPassCount = 8;
 static FAutoConsoleVariableRef CVarHairStrandsTextureDilationPassCount(TEXT("r.HairStrands.Textures.DilationCount"), GHairStrandsTextureDilationPassCount, TEXT("Number of dilation pass run onto the generated hair strands textures (Default:8)."));
 
@@ -1156,12 +1161,15 @@ static bool TraceTextures(
 	}
 
 	// Increment processed tile
+	// When debugging, never complete texture generation to force pass execution every frame
+	#if !DEBUG_TEXTURE_GENERATION
 	++Output.TileCoord.X;
 	if (Output.TileCoord.X >= Output.TileCount.X)
 	{
 		Output.TileCoord.X = 0;
 		++Output.TileCoord.Y;
 	}
+	#endif
 
 	return true;
 }
@@ -1312,13 +1320,15 @@ void RunHairStrandsTexturesQueries(FRDGBuilder& GraphBuilder, FGlobalShaderMap* 
 		{
 			if (R)
 			{
-
+			#if DEBUG_TEXTURE_GENERATION && DEBUG_TEXTURE_RENDERDOC
 				RenderCaptureInterface::FScopedCapture RenderCapture(true, GraphBuilder, TEXT("PassX"));
-
+			#endif
 				FHairStrandsRDGTextures Textures = RegisterTextures(GraphBuilder, R->InProgress);
 
 				TraceTextures(GraphBuilder, ShaderMap, R->Info, DebugShaderData, Textures);
 
+			// When debugging, never complete texture generation to force pass execution every frame
+			#if !DEBUG_TEXTURE_GENERATION
 				if (Textures.IsCompleted())
 				{
 					Textures = DilateTextures(GraphBuilder, ShaderMap, Textures);
@@ -1326,6 +1336,7 @@ void RunHairStrandsTexturesQueries(FRDGBuilder& GraphBuilder, FGlobalShaderMap* 
 					GStrandsTexturesReadbacks.Enqueue(R);
 				}
 				else
+			#endif
 				{
 					ExportTextures(GraphBuilder, Textures, R->InProgress);
 					NotCompleted.Add(R);
@@ -1369,7 +1380,9 @@ void RunHairStrandsTexturesQueries(FRDGBuilder& GraphBuilder, FGlobalShaderMap* 
 			R->Output = Q.Output;
 			R->Info = Q.Info;
 
+		#if DEBUG_TEXTURE_GENERATION && DEBUG_TEXTURE_RENDERDOC
 			RenderCaptureInterface::FScopedCapture RenderCapture(true, GraphBuilder, TEXT("Pass0"));
+		#endif
 
 			FHairStrandsRDGTextures Textures = CreateTextures(GraphBuilder, FIntPoint(FMath::Clamp(Q.Info.Resolution, 512u, 16384u), FMath::Clamp(Q.Info.Resolution, 512u, 16384u)), Q.Info.Layout);
 			AddTextureClearPass(GraphBuilder, ShaderMap, Q.Info.Resolution, Q.Info.Layout, Textures.Texture);

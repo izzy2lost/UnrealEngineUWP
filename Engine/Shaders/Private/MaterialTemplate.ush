@@ -1923,7 +1923,7 @@ float2 MaterialExpressionGetHairRootUV(FMaterialPixelParameters Parameters)
 #if HAIR_STRAND_MESH_FACTORY
 	return GetHairStrandsRootUV(Parameters.HairControlPointId);
 #elif HAIR_CARD_MESH_FACTORY
-	return GetHairStrandsRootUV(Parameters.HairPrimitiveUV, Parameters.HairPrimitiveRootUV);
+	return GetHairCardsRootUV(Parameters.HairPrimitiveUV, Parameters.HairPrimitiveRootUV);
 #else
 	return float2(0, 0);
 #endif
@@ -1934,7 +1934,7 @@ float2 MaterialExpressionGetHairUV(FMaterialPixelParameters Parameters)
 #if HAIR_STRAND_MESH_FACTORY
 	return GetHairStrandsUV(Parameters.HairControlPointId, Parameters.HairPrimitiveUV);
 #elif HAIR_CARD_MESH_FACTORY
-	return GetHairStrandsUV(Parameters.HairPrimitiveUV);
+	return GetHairCardsUV(Parameters.HairPrimitiveUV);
 #else
 	return float2(0,0);
 #endif
@@ -1945,7 +1945,7 @@ float2 MaterialExpressionGetHairDimensions(FMaterialPixelParameters Parameters)
 #if HAIR_STRAND_MESH_FACTORY
 	return GetHairStrandsDimensions(Parameters.HairControlPointId, Parameters.HairPrimitiveUV.x);
 #elif HAIR_CARD_MESH_FACTORY
-	return GetHairStrandsDimensions(Parameters.HairPrimitiveUV, Parameters.HairPrimitiveLength);
+	return GetHairCardsDimensions(Parameters.HairPrimitiveUV, Parameters.HairPrimitiveLength);
 #else
 	return float2(0, 0);
 #endif
@@ -1956,7 +1956,7 @@ float MaterialExpressionGetHairSeed(FMaterialPixelParameters Parameters)
 #if HAIR_STRAND_MESH_FACTORY
 	return GetHairStrandsSeed(Parameters.HairControlPointId);
 #elif HAIR_CARD_MESH_FACTORY
-	return GetHairStrandsSeed(Parameters.HairPrimitiveUV);
+	return GetHairCardsSeed(Parameters.HairPrimitiveUV);
 #else
 	return 0;
 #endif
@@ -1967,7 +1967,7 @@ float3 MaterialExpressionGetHairClumpID(FMaterialPixelParameters Parameters)
 #if HAIR_STRAND_MESH_FACTORY
 	return GetHairStrandsClumpID(Parameters.HairControlPointId);
 #elif HAIR_CARD_MESH_FACTORY
-	return GetHairStrandsClumpID(Parameters.HairPrimitiveUV);
+	return GetHairCardsClumpID(Parameters.HairPrimitiveUV);
 #else
 	return 0;
 #endif
@@ -1978,7 +1978,7 @@ float3 MaterialExpressionGetHairBaseColor(FMaterialPixelParameters Parameters)
 #if HAIR_STRAND_MESH_FACTORY
 	return GetHairStrandsColor(Parameters.HairControlPointId, Parameters.HairPrimitiveUV.x);
 #elif HAIR_CARD_MESH_FACTORY
-	return GetHairStrandsColor(Parameters.HairPrimitiveUV, Parameters.HairPrimitiveMaterial.xyz);
+	return GetHairCardsColor(Parameters.HairPrimitiveUV, Parameters.HairPrimitiveMaterial.xyz);
 #else
 	return float3(0,0,0);
 #endif
@@ -1989,7 +1989,7 @@ float MaterialExpressionGetHairRoughness(FMaterialPixelParameters Parameters)
 #if HAIR_STRAND_MESH_FACTORY
 	return GetHairStrandsRoughness(Parameters.HairControlPointId, Parameters.HairPrimitiveUV.x);
 #elif HAIR_CARD_MESH_FACTORY
-	return GetHairStrandsRoughness(Parameters.HairPrimitiveUV, Parameters.HairPrimitiveMaterial.w);
+	return GetHairCardsRoughness(Parameters.HairPrimitiveUV, Parameters.HairPrimitiveMaterial.w);
 #else
 	return 0;
 #endif
@@ -2000,7 +2000,7 @@ float MaterialExpressionGetHairAO(FMaterialPixelParameters Parameters)
 #if HAIR_STRAND_MESH_FACTORY
 	return GetHairStrandsAO(Parameters.HairControlPointId, Parameters.HairPrimitiveUV.x);
 #elif HAIR_CARD_MESH_FACTORY
-	return GetHairStrandsAO(Parameters.HairPrimitiveUV, 1.0f);
+	return GetHairCardsAO(Parameters.HairPrimitiveUV, 1.0f);
 #else
 	return 0;
 #endif
@@ -2016,7 +2016,7 @@ float MaterialExpressionGetHairDepth(FMaterialPixelParameters Parameters)
 #if HAIR_STRAND_MESH_FACTORY
 	return GetHairStrandsDepth();
 #elif HAIR_CARD_MESH_FACTORY
-	return GetHairStrandsDepth(Parameters.HairPrimitiveUV, Parameters.SvPosition.z);
+	return GetHairCardsDepth(Parameters.HairPrimitiveUV, Parameters.SvPosition.z);
 #else
 	return 0; 
 #endif
@@ -2027,7 +2027,7 @@ float MaterialExpressionGetHairCoverage(FMaterialPixelParameters Parameters)
 #if HAIR_STRAND_MESH_FACTORY
 	return GetHairStrandsCoverage();
 #elif HAIR_CARD_MESH_FACTORY
-	return GetHairStrandsCoverage(Parameters.HairPrimitiveUV);
+	return GetHairCardsCoverage(Parameters.HairPrimitiveUV);
 #else
 	return 0;
 #endif
@@ -2038,7 +2038,7 @@ float3 MaterialExpressionGetHairTangent(FMaterialPixelParameters Parameters, boo
 #if HAIR_STRAND_MESH_FACTORY
 	return bUseTangentSpace ? float3(0,1,0) : Parameters.TangentToWorld[2];
 #elif HAIR_CARD_MESH_FACTORY
-	return GetHairStrandsTangent(Parameters.HairPrimitiveUV, Parameters.TangentToWorld, bUseTangentSpace);
+	return GetHairCardsTangent(Parameters.HairPrimitiveUV, Parameters.TangentToWorld, bUseTangentSpace);
 #else
 	return 0;
 #endif	
@@ -2059,7 +2059,7 @@ float2 MaterialExpressionGetAtlasUVs(FMaterialPixelParameters Parameters)
 float4 MaterialExpressionGetHairAuxilaryData(FMaterialPixelParameters Parameters)
 {
 #if HAIR_CARD_MESH_FACTORY
-	return GetHairStrandsAuxilaryData(Parameters.HairPrimitiveUV);
+	return GetHairCardsAuxilaryData(Parameters.HairPrimitiveUV);
 #else
 	return 0;
 #endif
@@ -2070,7 +2070,7 @@ float MaterialExpressionGetHairGroupIndex(FMaterialPixelParameters Parameters)
 #if HAIR_STRAND_MESH_FACTORY
 	return GetHairStrandsGroupIndex();
 #elif HAIR_CARD_MESH_FACTORY
-	return GetHairStrandsGroupIndex(Parameters.HairPrimitiveUV, Parameters.HairPrimitiveGroupIndex);
+	return GetHairCardsGroupIndex(Parameters.HairPrimitiveUV, Parameters.HairPrimitiveGroupIndex);
 #else
 	return 0;
 #endif
