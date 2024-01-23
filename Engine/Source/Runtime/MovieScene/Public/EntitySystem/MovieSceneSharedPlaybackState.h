@@ -99,12 +99,26 @@ public:
 	/**
 	 * Gets the capabilities container.
 	 */
-	FPlaybackCapabilities& GetCapabilities() { return Capabilities; }
+	FPlaybackCapabilities& GetCapabilities()
+	{
+#if !UE_BUILD_SHIPPING
+		ensureMsgf(IsInGameThread(), 
+				TEXT("Playback capabilities aren't meant to be thread-safe. Do not modify or access their container outside of the game thread."));
+#endif
+		return Capabilities;
+	}
 
 	/**
 	 * Gets the capabilities container.
 	 */
-	const FPlaybackCapabilities& GetCapabilities() const { return Capabilities; }
+	const FPlaybackCapabilities& GetCapabilities() const
+	{
+#if !UE_BUILD_SHIPPING
+		ensureMsgf(IsInGameThread(), 
+				TEXT("Playback capabilities aren't meant to be thread-safe. Do not modify or access their container outside of the game thread."));
+#endif
+		return Capabilities;
+	}
 
 	/**
 	 * Returns whether the root sequence has the specified capability.
@@ -112,6 +126,10 @@ public:
 	template<typename T>
 	bool HasCapability() const
 	{
+#if !UE_BUILD_SHIPPING
+		ensureMsgf(IsInGameThread(), 
+				TEXT("Playback capabilities aren't meant to be thread-safe. Do not modify or access their container outside of the game thread."));
+#endif
 		return Capabilities.HasCapability<T>();
 	}
 
@@ -121,6 +139,10 @@ public:
 	template<typename T>
 	T* FindCapability() const
 	{
+#if !UE_BUILD_SHIPPING
+		ensureMsgf(IsInGameThread(), 
+				TEXT("Playback capabilities aren't meant to be thread-safe. Do not modify or access their container outside of the game thread."));
+#endif
 		return Capabilities.FindCapability<T>();
 	}
 
@@ -130,6 +152,10 @@ public:
 	template<typename T, typename ...ArgTypes>
 	T& AddCapability(ArgTypes&&... InArgs)
 	{
+#if !UE_BUILD_SHIPPING
+		ensureMsgf(IsInGameThread(), 
+				TEXT("Playback capabilities aren't meant to be thread-safe. Do not modify or access their container outside of the game thread."));
+#endif
 		T& Cap = Capabilities.AddCapability<T>(Forward<ArgTypes>(InArgs)...);
 		MaybeInitialize(Cap);
 		return Cap;
@@ -141,6 +167,10 @@ public:
 	template<typename T>
 	T& AddCapabilityRaw(T* InPointer)
 	{
+#if !UE_BUILD_SHIPPING
+		ensureMsgf(IsInGameThread(), 
+				TEXT("Playback capabilities aren't meant to be thread-safe. Do not modify or access their container outside of the game thread."));
+#endif
 		T& Cap = Capabilities.AddCapabilityRaw<T>(InPointer);
 		MaybeInitialize(Cap);
 		return Cap;
@@ -152,6 +182,10 @@ public:
 	template<typename T>
 	T& AddCapabilityShared(TSharedRef<T> InSharedRef)
 	{
+#if !UE_BUILD_SHIPPING
+		ensureMsgf(IsInGameThread(), 
+				TEXT("Playback capabilities aren't meant to be thread-safe. Do not modify or access their container outside of the game thread."));
+#endif
 		T& Cap = Capabilities.AddCapabilityShared<T>(InSharedRef);
 		MaybeInitialize(Cap);
 		return Cap;
@@ -168,6 +202,10 @@ public:
 	template<typename T, typename ...ArgTypes>
 	T& SetOrAddCapability(ArgTypes&&... InArgs)
 	{
+#if !UE_BUILD_SHIPPING
+		ensureMsgf(IsInGameThread(), 
+				TEXT("Playback capabilities aren't meant to be thread-safe. Do not modify or access their container outside of the game thread."));
+#endif
 		if (HasCapability<T>())
 		{
 			T& Cap = Capabilities.OverwriteCapability<T>(Forward<ArgTypes>(InArgs)...);
@@ -190,6 +228,10 @@ public:
 	template<typename T, typename ...ArgTypes>
 	T& SetOrAddCapabilityRaw(T* InPointer)
 	{
+#if !UE_BUILD_SHIPPING
+		ensureMsgf(IsInGameThread(), 
+				TEXT("Playback capabilities aren't meant to be thread-safe. Do not modify or access their container outside of the game thread."));
+#endif
 		if (HasCapability<T>())
 		{
 			T& Cap = Capabilities.OverwriteCapabilityRaw<T>(InPointer);
@@ -212,6 +254,10 @@ public:
 	template<typename T, typename ...ArgTypes>
 	T& SetOrAddCapabilityShared(TSharedRef<T> InSharedRef)
 	{
+#if !UE_BUILD_SHIPPING
+		ensureMsgf(IsInGameThread(), 
+				TEXT("Playback capabilities aren't meant to be thread-safe. Do not modify or access their container outside of the game thread."));
+#endif
 		if (HasCapability<T>())
 		{
 			T& Cap = Capabilities.OverwriteCapabilityShared<T>(InSharedRef);

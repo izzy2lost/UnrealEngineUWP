@@ -357,7 +357,6 @@ struct FGatherSkeletalAnimations
 			// Get the full context, so we can get both the current and previous evaluation times.
 			const FSequenceInstance& SequenceInstance = InstanceRegistry->GetInstance(InstanceHandle);
 			const FMovieSceneContext& Context = SequenceInstance.GetContext();
-			IMovieScenePlayer* Player = SequenceInstance.GetPlayer();
 
 			// Calculate the time at which to evaluate the animation
 			const UMovieSceneSkeletalAnimationSection* AnimSection = SkeletalAnimation.Section;
@@ -376,7 +375,7 @@ struct FGatherSkeletalAnimations
 			const FMovieSceneContext& RootContext = RootInstance.GetContext();
 			const double RootDeltaTime = (RootContext.HasJumped() ? FFrameTime(0) : RootContext.GetRange().Size<FFrameTime>() ) / RootContext.GetFrameRate();
 
-			const EMovieScenePlayerStatus::Type PlayerStatus = Player->GetPlaybackStatus();
+			const EMovieScenePlayerStatus::Type PlayerStatus = Context.GetStatus();
 
 			const bool bResetDynamics = PlayerStatus == EMovieScenePlayerStatus::Stepping || 
 				PlayerStatus == EMovieScenePlayerStatus::Jumping || 
