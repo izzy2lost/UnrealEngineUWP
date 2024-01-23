@@ -69,6 +69,15 @@ private:
 	FName CurveName;
 	FAnimationCurveIdentifier CurveId;
 
+	/** Cached color */
+	FLinearColor Color;
+
+	/** Cached comment */
+	FString Comment;
+
+	/** Cached metadata flag */
+	bool bIsMetadata = false;
+
 	/** Label we can edit */
 	TSharedPtr<SInlineEditableTextBlock> EditableTextLabel;
 
