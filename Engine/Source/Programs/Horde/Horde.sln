@@ -69,7 +69,8 @@ Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "Horde.Agent.TrayApp", "Hord
 EndProject
 Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "Installer", "Installer", "{BEC23DA9-595D-4411-A12C-34A2F201B904}"
 	ProjectSection(SolutionItems) = preProject
-		Installer\Installer.wxs = Installer\Installer.wxs
+		Installer\AgentInstaller.wxs = Installer\AgentInstaller.wxs
+		Installer\ServerInstaller.wxs = Installer\ServerInstaller.wxs
 	EndProjectSection
 EndProject
 Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "Build", "Build", "{94A745C1-C2C6-46BB-8F12-498D3DE066F6}"
