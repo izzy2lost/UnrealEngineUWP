@@ -173,25 +173,8 @@ void ComputeHeterogeneousVolumeBakeMaterial(
 
 			if (!ComputeShader.IsNull())
 			{
-				FMeshPassProcessorRenderState DrawRenderState;
-
-				FMeshMaterialShaderElementData ShaderElementData;
-				ShaderElementData.FadeUniformBuffer = GDistanceCullFadedInUniformBuffer.GetUniformBufferRHI();
-				ShaderElementData.DitherUniformBuffer = GDitherFadedInUniformBuffer.GetUniformBufferRHI();
-
-				FMeshProcessorShaders PassShaders;
-				PassShaders.ComputeShader = ComputeShader;
-
 				FMeshDrawShaderBindings ShaderBindings;
-				{
-					ShaderBindings.Initialize(PassShaders);
-
-					int32 DataOffset = 0;
-					FMeshDrawSingleShaderBindings SingleShaderBindings = ShaderBindings.GetSingleShaderBindings(SF_Compute, DataOffset);
-					ComputeShader->GetShaderBindings(LocalScene, LocalScene->GetFeatureLevel(), nullptr, *MaterialRenderProxy, Material, DrawRenderState, ShaderElementData, SingleShaderBindings);
-
-					ShaderBindings.Finalize(&PassShaders);
-				}
+				UE::MeshPassUtils::SetupComputeBindings(ComputeShader, LocalScene, LocalScene->GetFeatureLevel(), nullptr, *MaterialRenderProxy, Material, ShaderBindings);
 
 				UE::MeshPassUtils::Dispatch(RHICmdList, ComputeShader, ShaderBindings, *PassParameters, GroupCount);
 			}

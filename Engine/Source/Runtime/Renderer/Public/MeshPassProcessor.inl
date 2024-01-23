@@ -51,7 +51,7 @@ void FMeshPassProcessor::BuildMeshDrawCommands(
 	const FMaterialRenderProxy& RESTRICT MaterialRenderProxy,
 	const FMaterial& RESTRICT MaterialResource,
 	const FMeshPassProcessorRenderState& RESTRICT DrawRenderState,
-	PassShadersType PassShaders,
+	const PassShadersType& PassShaders,
 	ERasterizerFillMode MeshFillMode,
 	ERasterizerCullMode MeshCullMode,
 	FMeshDrawCommandSortKey SortKey,
@@ -90,7 +90,7 @@ void FMeshPassProcessor::BuildMeshDrawCommands(
 
 	check(!VertexFactory->NeedsDeclaration() || VertexDeclaration);
 
-	FMeshProcessorShaders MeshProcessorShaders = PassShaders.GetUntypedShaders();
+	const FMeshProcessorShaders MeshProcessorShaders = PassShaders.GetUntypedShaders();
 	PipelineState.SetupBoundShaderState(VertexDeclaration, MeshProcessorShaders);
 
 	SharedMeshDrawCommand.InitializeShaderBindings(MeshProcessorShaders);
@@ -133,22 +133,22 @@ void FMeshPassProcessor::BuildMeshDrawCommands(
 	if (PassShaders.VertexShader.IsValid())
 	{
 		FMeshDrawSingleShaderBindings ShaderBindings = SharedMeshDrawCommand.ShaderBindings.GetSingleShaderBindings(SF_Vertex, DataOffset);
-		PassShaders.VertexShader->GetShaderBindings(Scene, FeatureLevel, PrimitiveSceneProxy, MaterialRenderProxy, MaterialResource, DrawRenderState, ShaderElementData, ShaderBindings);
+		PassShaders.VertexShader->GetShaderBindings(Scene, FeatureLevel, PrimitiveSceneProxy, MaterialRenderProxy, MaterialResource, ShaderElementData, ShaderBindings);
 	}
 
 	if (PassShaders.PixelShader.IsValid())
 	{
 		FMeshDrawSingleShaderBindings ShaderBindings = SharedMeshDrawCommand.ShaderBindings.GetSingleShaderBindings(SF_Pixel, DataOffset);
-		PassShaders.PixelShader->GetShaderBindings(Scene, FeatureLevel, PrimitiveSceneProxy, MaterialRenderProxy, MaterialResource, DrawRenderState, ShaderElementData, ShaderBindings);
+		PassShaders.PixelShader->GetShaderBindings(Scene, FeatureLevel, PrimitiveSceneProxy, MaterialRenderProxy, MaterialResource, ShaderElementData, ShaderBindings);
 	}
 
 	if (PassShaders.GeometryShader.IsValid())
 	{
 		FMeshDrawSingleShaderBindings ShaderBindings = SharedMeshDrawCommand.ShaderBindings.GetSingleShaderBindings(SF_Geometry, DataOffset);
-		PassShaders.GeometryShader->GetShaderBindings(Scene, FeatureLevel, PrimitiveSceneProxy, MaterialRenderProxy, MaterialResource, DrawRenderState, ShaderElementData, ShaderBindings);
+		PassShaders.GeometryShader->GetShaderBindings(Scene, FeatureLevel, PrimitiveSceneProxy, MaterialRenderProxy, MaterialResource, ShaderElementData, ShaderBindings);
 	}
 
-	SharedMeshDrawCommand.SetDebugData(PrimitiveSceneProxy, &MaterialResource, &MaterialRenderProxy, PassShaders.GetUntypedShaders(), VertexFactory, MeshBatch, PSOCollectorIndex);
+	SharedMeshDrawCommand.SetDebugData(PrimitiveSceneProxy, &MaterialResource, &MaterialRenderProxy, MeshProcessorShaders, VertexFactory, MeshBatch, PSOCollectorIndex);
 	SharedMeshDrawCommand.SetStatsData(PrimitiveSceneProxy);
 
 	const int32 NumElements = ShouldSkipMeshDrawCommand(MeshBatch, PrimitiveSceneProxy) ? 0 : MeshBatch.Elements.Num();
@@ -199,8 +199,7 @@ void FMeshPassProcessor::BuildMeshDrawCommands(
 
 			FMeshDrawCommandPrimitiveIdInfo IdInfo = GetDrawCommandPrimitiveId(PrimitiveSceneInfo, BatchElement);
 
-			FMeshProcessorShaders ShadersForDebugging = PassShaders.GetUntypedShaders();
-			DrawListContext->FinalizeCommand(MeshBatch, BatchElementIndex, IdInfo, MeshFillMode, MeshCullMode, SortKey, Flags, PipelineState, &ShadersForDebugging, MeshDrawCommand);
+			DrawListContext->FinalizeCommand(MeshBatch, BatchElementIndex, IdInfo, MeshFillMode, MeshCullMode, SortKey, Flags, PipelineState, &MeshProcessorShaders, MeshDrawCommand);
 		}
 	}
 }
@@ -211,7 +210,7 @@ void FMeshPassProcessor::AddGraphicsPipelineStateInitializer(
 	const FMaterial& RESTRICT MaterialResource,
 	const FMeshPassProcessorRenderState& RESTRICT DrawRenderState,
 	const FGraphicsPipelineRenderTargetsInfo& RESTRICT RenderTargetsInfo,
-	PassShadersType PassShaders,
+	const PassShadersType& PassShaders,
 	ERasterizerFillMode MeshFillMode,
 	ERasterizerCullMode MeshCullMode,
 	EPrimitiveType PrimitiveType,
@@ -242,7 +241,7 @@ void FMeshPassProcessor::AddGraphicsPipelineStateInitializer(
 	const FMaterial& RESTRICT MaterialResource,
 	const FMeshPassProcessorRenderState& RESTRICT DrawRenderState,
 	const FGraphicsPipelineRenderTargetsInfo& RESTRICT RenderTargetsInfo,
-	PassShadersType PassShaders,
+	const PassShadersType& PassShaders,
 	ERasterizerFillMode MeshFillMode,
 	ERasterizerCullMode MeshCullMode,
 	EPrimitiveType PrimitiveType,
@@ -278,9 +277,7 @@ void FMeshPassProcessor::AddGraphicsPipelineStateInitializer(
 	}
 	check(VertexDeclaration);
 
-	FMeshProcessorShaders MeshProcessorShaders = PassShaders.GetUntypedShaders();
-	MinimalPipelineStateInitializer.SetupBoundShaderState(VertexDeclaration, MeshProcessorShaders);
-
+	MinimalPipelineStateInitializer.SetupBoundShaderState(VertexDeclaration, PassShaders.GetUntypedShaders());
 	MinimalPipelineStateInitializer.RasterizerState = GetStaticRasterizerState<true>(MeshFillMode, MeshCullMode);
 
 	check(DrawRenderState.GetDepthStencilState());

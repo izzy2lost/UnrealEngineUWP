@@ -72,11 +72,10 @@ public:
 		const FPrimitiveSceneProxy* PrimitiveSceneProxy,
 		const FMaterialRenderProxy& MaterialRenderProxy,
 		const FMaterial& Material,
-		const FMeshPassProcessorRenderState& DrawRenderState,
 		const FMeshMaterialShaderElementData& ShaderElementData,
 		FMeshDrawSingleShaderBindings& ShaderBindings) const
 	{
-		FMeshMaterialShader::GetShaderBindings(Scene, FeatureLevel, PrimitiveSceneProxy, MaterialRenderProxy, Material, DrawRenderState, ShaderElementData, ShaderBindings);
+		FMeshMaterialShader::GetShaderBindings(Scene, FeatureLevel, PrimitiveSceneProxy, MaterialRenderProxy, Material, ShaderElementData, ShaderBindings);
 	}
 
 	void GetElementShaderBindings(
@@ -243,15 +242,7 @@ void FRayTracingDynamicGeometryCollection::AddDynamicMeshBatchForGeometryUpdate(
 		auto* MaterialInterface = Material.GetMaterialInterface();
 		const FMaterialRenderProxy& MaterialRenderProxy = FallbackMaterialRenderProxyPtr ? *FallbackMaterialRenderProxyPtr : *MeshBatch.MaterialRenderProxy;
 
-		TMeshProcessorShaders<
-			FMeshMaterialShader,
-			FMeshMaterialShader,
-			FMeshMaterialShader,
-			FMeshMaterialShader,
-			FRayTracingDynamicGeometryConverterCS> Shaders;
-
 		FMeshComputeDispatchCommand DispatchCmd;
-
 		
 		FMaterialShaderTypes ShaderTypes;
 		ShaderTypes.AddShaderType<FRayTracingDynamicGeometryConverterCS>();
@@ -265,19 +256,18 @@ void FRayTracingDynamicGeometryCollection::AddDynamicMeshBatchForGeometryUpdate(
 		TShaderRef<FRayTracingDynamicGeometryConverterCS> Shader;
 		MaterialShaders.TryGetShader(SF_Compute, Shader);
 
+		FMeshProcessorShaders MeshProcessorShaders;
+		MeshProcessorShaders.ComputeShader = Shader;
+
 		DispatchCmd.MaterialShader = Shader;
 		FMeshDrawShaderBindings& ShaderBindings = DispatchCmd.ShaderBindings;
-
-		Shaders.ComputeShader = Shader;
-		ShaderBindings.Initialize(Shaders.GetUntypedShaders());
+		ShaderBindings.Initialize(MeshProcessorShaders);
 
 		FMeshMaterialShaderElementData ShaderElementData;
 		ShaderElementData.InitializeMeshMaterialData(View, PrimitiveSceneProxy, MeshBatch, -1, false);
 
-		int32 DataOffset = 0;
-		FMeshDrawSingleShaderBindings SingleShaderBindings = ShaderBindings.GetSingleShaderBindings(SF_Compute, DataOffset);
-		FMeshPassProcessorRenderState DrawRenderState;
-		Shader->GetShaderBindings(Scene, Scene->GetFeatureLevel(), PrimitiveSceneProxy, MaterialRenderProxy, Material, DrawRenderState, ShaderElementData, SingleShaderBindings);
+		FMeshDrawSingleShaderBindings SingleShaderBindings = ShaderBindings.GetSingleShaderBindings(SF_Compute);
+		Shader->GetShaderBindings(Scene, Scene->GetFeatureLevel(), PrimitiveSceneProxy, MaterialRenderProxy, Material, ShaderElementData, SingleShaderBindings);
 
 		FVertexInputStreamArray DummyArray;
 		FMeshMaterialShader::GetElementShaderBindings(Shader, Scene, View, MeshBatch.VertexFactory, EVertexInputStreamType::Default, Scene->GetFeatureLevel(), PrimitiveSceneProxy, MeshBatch, MeshBatch.Elements[0], ShaderElementData, SingleShaderBindings, DummyArray);
@@ -312,8 +302,7 @@ void FRayTracingDynamicGeometryCollection::AddDynamicMeshBatchForGeometryUpdate(
 		SingleShaderBindings.Add(Shader->WorldToInstance, UpdateParams.WorldToInstance);
 
 #if MESH_DRAW_COMMAND_DEBUG_DATA
-		FMeshProcessorShaders ShadersForDebug = Shaders.GetUntypedShaders();
-		ShaderBindings.Finalize(&ShadersForDebug);
+		ShaderBindings.Finalize(&MeshProcessorShaders);
 #endif
 
 		DispatchCommands.Add(DispatchCmd);

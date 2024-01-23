@@ -1920,25 +1920,8 @@ void RasterizeVolumesIntoFrustumVoxelGrid(
 				{
 					ClearUnusedGraphResources(ComputeShader, PassParameters);
 
-					FMeshPassProcessorRenderState DrawRenderState;
-
-					FMeshMaterialShaderElementData ShaderElementData;
-					ShaderElementData.FadeUniformBuffer = GDistanceCullFadedInUniformBuffer.GetUniformBufferRHI();
-					ShaderElementData.DitherUniformBuffer = GDitherFadedInUniformBuffer.GetUniformBufferRHI();
-
-					FMeshProcessorShaders PassShaders;
-					PassShaders.ComputeShader = ComputeShader;
-
 					FMeshDrawShaderBindings ShaderBindings;
-					{
-						ShaderBindings.Initialize(PassShaders);
-
-						int32 DataOffset = 0;
-						FMeshDrawSingleShaderBindings SingleShaderBindings = ShaderBindings.GetSingleShaderBindings(SF_Compute, DataOffset);
-						ComputeShader->GetShaderBindings(LocalScene, LocalScene->GetFeatureLevel(), nullptr, *MaterialRenderProxy, Material, DrawRenderState, ShaderElementData, SingleShaderBindings);
-
-						ShaderBindings.Finalize(&PassShaders);
-					}
+					UE::MeshPassUtils::SetupComputeBindings(ComputeShader, LocalScene, LocalScene->GetFeatureLevel(), nullptr, *MaterialRenderProxy, Material, ShaderBindings);
 
 					UE::MeshPassUtils::DispatchIndirect(RHICmdList, ComputeShader, ShaderBindings, *PassParameters, PassParameters->IndirectArgs->GetIndirectRHICallBuffer(), 0);
 				}
@@ -2383,30 +2366,12 @@ void RasterizeVolumesIntoOrthoVoxelGrid(
 					PermutationVector.Set<FRasterizeBottomLevelOrthoGridCS::FEnableHomogeneousAggregation>(HeterogeneousVolumes::EnableHomogeneousAggregation());
 					TShaderRef<FRasterizeBottomLevelOrthoGridCS> ComputeShader = Material.GetShader<FRasterizeBottomLevelOrthoGridCS>(&FLocalVertexFactory::StaticType, PermutationVector, false);
 
-
 					if (!ComputeShader.IsNull())
 					{
 						ClearUnusedGraphResources(ComputeShader, PassParameters);
 
-						FMeshPassProcessorRenderState DrawRenderState;
-
-						FMeshMaterialShaderElementData ShaderElementData;
-						ShaderElementData.FadeUniformBuffer = GDistanceCullFadedInUniformBuffer.GetUniformBufferRHI();
-						ShaderElementData.DitherUniformBuffer = GDitherFadedInUniformBuffer.GetUniformBufferRHI();
-
-						FMeshProcessorShaders PassShaders;
-						PassShaders.ComputeShader = ComputeShader;
-
 						FMeshDrawShaderBindings ShaderBindings;
-						{
-							ShaderBindings.Initialize(PassShaders);
-
-							int32 DataOffset = 0;
-							FMeshDrawSingleShaderBindings SingleShaderBindings = ShaderBindings.GetSingleShaderBindings(SF_Compute, DataOffset);
-							ComputeShader->GetShaderBindings(LocalScene, LocalScene->GetFeatureLevel(), nullptr, *MaterialRenderProxy, Material, DrawRenderState, ShaderElementData, SingleShaderBindings);
-
-							ShaderBindings.Finalize(&PassShaders);
-						}
+						UE::MeshPassUtils::SetupComputeBindings(ComputeShader, LocalScene, LocalScene->GetFeatureLevel(), nullptr, *MaterialRenderProxy, Material, ShaderBindings);
 
 						UE::MeshPassUtils::DispatchIndirect(RHICmdList, ComputeShader, ShaderBindings, *PassParameters, PassParameters->IndirectArgs->GetIndirectRHICallBuffer(), 0);
 					}

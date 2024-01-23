@@ -16,6 +16,7 @@
 #include "Async/ParallelFor.h"
 #include "Materials/Material.h"
 #include "Materials/MaterialRenderProxy.h"
+#include "MeshPassUtils.h"
 #include "PSOPrecacheMaterial.h"
 #include "PSOPrecacheValidation.h"
 
@@ -618,50 +619,13 @@ bool LoadBasePassPipeline(
 
 		check(ShadingPipeline.ComputeShader);
 
-		TMeshProcessorShaders
-		<
-			FMeshMaterialShader, // Vertex
-			FMeshMaterialShader, // Pixel
-			FMeshMaterialShader, // Geometry
-			FMeshMaterialShader, // RayTracing
-			TBasePassComputeShaderPolicyParamType<FUniformLightMapPolicy>
-		>
-		PassShaders;
-		PassShaders.ComputeShader = BasePassComputeShader;
-
 		TBasePassShaderElementData<FUniformLightMapPolicy> ShaderElementData(LightCacheInterface);
-		ShaderElementData.InitializeMeshMaterialData(
-			/* SceneView = */ nullptr,
-			/* PrimitiveSceneProxy = */ nullptr,
-			/* StaticMeshId = */ INDEX_NONE,
-			/* bDitheredLODTransition = */ false,
-			/* bAllowStencilDither = */ false
-		);
+		ShaderElementData.InitializeMeshMaterialData();
 
 		ShadingPipeline.ShaderBindings = MakePimpl<FMeshDrawShaderBindings, EPimplPtrMode::DeepCopy>();
-		ShadingPipeline.ShaderBindings->Initialize(PassShaders.GetUntypedShaders());
 
-		{
-			int32 DataOffset = 0;
-			if (PassShaders.ComputeShader.IsValid())
-			{
-				// Dummy render state to satisfy GetShaderBindings
-				FMeshPassProcessorRenderState DrawRenderState;
-				{
-					SetupBasePassState(FExclusiveDepthStencil::DepthWrite_StencilNop, false, DrawRenderState);
-					DrawRenderState.SetDepthStencilState(TStaticDepthStencilState<false, CF_Equal>::GetRHI());
-					DrawRenderState.SetDepthStencilAccess(FExclusiveDepthStencil::DepthWrite_StencilNop);
-					check(DrawRenderState.GetDepthStencilState());
-					check(DrawRenderState.GetBlendState());
-				}
+		UE::MeshPassUtils::SetupComputeBindings(BasePassComputeShader, &Scene, FeatureLevel, SceneProxy, *MaterialProxy, *ShadingPipeline.Material, ShaderElementData, *ShadingPipeline.ShaderBindings);
 
-				FMeshDrawSingleShaderBindings ShaderBindings = ShadingPipeline.ShaderBindings->GetSingleShaderBindings(SF_Compute, DataOffset);
-				PassShaders.ComputeShader->GetShaderBindings(&Scene, FeatureLevel, SceneProxy, *MaterialProxy, *ShadingPipeline.Material, DrawRenderState, ShaderElementData, ShaderBindings);
-			}
-		}
-
-		FMeshProcessorShaders ShadersForDebugging = PassShaders.GetUntypedShaders();
-		ShadingPipeline.ShaderBindings->Finalize(&ShadersForDebugging);
 		ShadingPipeline.ShaderBindingsHash = ShadingPipeline.ShaderBindings->GetDynamicInstancingHash();
 	}
 
@@ -1868,17 +1832,6 @@ void CollectShadingPSOInitializers(
 				{
 					continue;
 				}
-
-				TMeshProcessorShaders
-				<
-					FMeshMaterialShader, // Vertex
-					FMeshMaterialShader, // Pixel
-					FMeshMaterialShader, // Geometry
-					FMeshMaterialShader, // RayTracing
-					TBasePassComputeShaderPolicyParamType<FUniformLightMapPolicy>
-				>
-				PassShaders;
-				PassShaders.ComputeShader = BasePassComputeShader;
 
 				FPSOPrecacheData ComputePSOPrecacheData;
 				ComputePSOPrecacheData.Type = FPSOPrecacheData::EType::Compute;

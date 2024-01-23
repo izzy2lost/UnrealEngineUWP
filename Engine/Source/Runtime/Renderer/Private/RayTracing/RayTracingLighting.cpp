@@ -547,25 +547,14 @@ static void BindLightFunction(
 	FRayTracingPipelineState* Pipeline = View.RayTracingMaterialPipeline;
 	const FMaterialShaderMap* MaterialShaderMap = Material.GetRenderingThreadShaderMap();
 
-
-	auto Shader = MaterialShaderMap->GetShader<FLightFunctionRayTracingShader>();
-
-	TMeshProcessorShaders<
-		FMaterialShader,
-		FMaterialShader,
-		FMaterialShader,
-		FLightFunctionRayTracingShader,
-		FMaterialShader> RayTracingShaders;
-
-	RayTracingShaders.RayTracingShader = Shader;
+	TShaderRef<FLightFunctionRayTracingShader> Shader = MaterialShaderMap->GetShader<FLightFunctionRayTracingShader>();
 
 	FMeshDrawShaderBindings ShaderBindings;
-	ShaderBindings.Initialize(RayTracingShaders.GetUntypedShaders());
+	ShaderBindings.Initialize(Shader);
 
-	int32 DataOffset = 0;
-	FMeshDrawSingleShaderBindings SingleShaderBindings = ShaderBindings.GetSingleShaderBindings( SF_RayMiss, DataOffset);
+	FMeshDrawSingleShaderBindings SingleShaderBindings = ShaderBindings.GetSingleShaderBindings( SF_RayMiss);
 
-	RayTracingShaders.RayTracingShader->GetShaderBindings(Scene, Scene->GetFeatureLevel(), MaterialRenderProxy, Material, View, DeferredLightBuffer, LightFunctionParameters, View.RayTracingLightGridUniformBuffer->GetRHIRef(), SingleShaderBindings);
+	Shader->GetShaderBindings(Scene, Scene->GetFeatureLevel(), MaterialRenderProxy, Material, View, DeferredLightBuffer, LightFunctionParameters, View.RayTracingLightGridUniformBuffer->GetRHIRef(), SingleShaderBindings);
 
 	int32 MissShaderPipelineIndex = FindRayTracingMissShaderIndex(View.RayTracingMaterialPipeline, Shader.GetRayTracingShader(), true);
 

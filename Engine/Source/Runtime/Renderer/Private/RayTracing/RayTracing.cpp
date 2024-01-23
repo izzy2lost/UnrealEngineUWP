@@ -656,8 +656,7 @@ namespace RayTracing
 											FDynamicRayTracingMeshCommandContext CommandContext(
 												*TaskDynamicCommandStorage, *TaskVisibleCommands,
 												SegmentIndex, WorkItem.InstanceIndex, WorkItem.DecalInstanceIndex);
-											FMeshPassProcessorRenderState PassDrawRenderState;
-											FRayTracingMeshProcessor RayTracingMeshProcessor(&CommandContext, &Scene, &View, PassDrawRenderState, Scene.CachedRayTracingMeshCommandsMode);
+											FRayTracingMeshProcessor RayTracingMeshProcessor(&CommandContext, &Scene, &View, Scene.CachedRayTracingMeshCommandsMode);
 											RayTracingMeshProcessor.AddMeshBatch(MeshBatch, 1, WorkItem.SceneProxy);
 										}
 									}
@@ -849,8 +848,7 @@ namespace RayTracing
 							{
 								const FMeshBatch& MeshBatch = InstanceMaterials[SegmentIndex];
 								FDynamicRayTracingMeshCommandContext CommandContext(View.DynamicRayTracingMeshCommandStorage, View.VisibleRayTracingMeshCommands, SegmentIndex, InstanceIndex, DecalInstanceIndex);
-								FMeshPassProcessorRenderState PassDrawRenderState;
-								FRayTracingMeshProcessor RayTracingMeshProcessor(&CommandContext, &Scene, &View, PassDrawRenderState, Scene.CachedRayTracingMeshCommandsMode);
+								FRayTracingMeshProcessor RayTracingMeshProcessor(&CommandContext, &Scene, &View, Scene.CachedRayTracingMeshCommandsMode);
 								RayTracingMeshProcessor.AddMeshBatch(MeshBatch, 1, SceneProxy);
 							}
 						}

@@ -84,11 +84,10 @@ public:
 		const FPrimitiveSceneProxy* PrimitiveSceneProxy,
 		const FMaterialRenderProxy& MaterialRenderProxy,
 		const FMaterial& Material,
-		const FMeshPassProcessorRenderState& DrawRenderState,
 		const TBasePassShaderElementData<FUniformLightMapPolicy>& ShaderElementData,
 		FMeshDrawSingleShaderBindings& ShaderBindings) const
 	{
-		FMeshMaterialShader::GetShaderBindings(Scene, FeatureLevel, PrimitiveSceneProxy, MaterialRenderProxy, Material, DrawRenderState, ShaderElementData, ShaderBindings);
+		FMeshMaterialShader::GetShaderBindings(Scene, FeatureLevel, PrimitiveSceneProxy, MaterialRenderProxy, Material, ShaderElementData, ShaderBindings);
 		
 		FUniformLightMapPolicy::GetPixelShaderBindings(
 			PrimitiveSceneProxy,
@@ -388,17 +387,14 @@ static bool GetRayTracingMeshProcessorShaders(
 	return true;
 }
 
-FRayTracingMeshProcessor::FRayTracingMeshProcessor(FRayTracingMeshCommandContext* InCommandContext, const FScene* InScene, const FSceneView* InViewIfDynamicMeshCommand, FMeshPassProcessorRenderState InPassDrawRenderState, ERayTracingMeshCommandsMode InRayTracingMeshCommandsMode)
+FRayTracingMeshProcessor::FRayTracingMeshProcessor(FRayTracingMeshCommandContext* InCommandContext, const FScene* InScene, const FSceneView* InViewIfDynamicMeshCommand, ERayTracingMeshCommandsMode InRayTracingMeshCommandsMode)
 	:
 	CommandContext(InCommandContext),
 	Scene(InScene),
 	ViewIfDynamicMeshCommand(InViewIfDynamicMeshCommand),
 	FeatureLevel(InScene ? InScene->GetFeatureLevel() : ERHIFeatureLevel::SM5),
-	PassDrawRenderState(InPassDrawRenderState),
 	RayTracingMeshCommandsMode(InRayTracingMeshCommandsMode)
 {
-	PassDrawRenderState.SetBlendState(TStaticBlendState<CW_RGBA, BO_Add, BF_One, BF_One, BO_Add, BF_Zero, BF_One>::GetRHI());
-	PassDrawRenderState.SetDepthStencilState(TStaticDepthStencilState<false, CF_DepthNearOrEqual>::GetRHI());
 }
 
 FRayTracingMeshProcessor::~FRayTracingMeshProcessor() = default;
@@ -411,15 +407,10 @@ bool FRayTracingMeshProcessor::Process(
 	const FMaterial& RESTRICT MaterialResource,
 	const FUniformLightMapPolicy& RESTRICT LightMapPolicy)
 {
-	TMeshProcessorShaders<
-		FMeshMaterialShader,
-		FMeshMaterialShader,
-		FMeshMaterialShader,
-		FMaterialCHS> RayTracingShaders;
-
+	TShaderRef<FMaterialCHS> RayTracingShader;
 	if (GRHISupportsRayTracingShaders)
 	{
-		if (!GetRayTracingMeshProcessorShaders(LightMapPolicy, MeshBatch.VertexFactory, MaterialResource, RayTracingShaders.RayTracingShader))
+		if (!GetRayTracingMeshProcessorShaders(LightMapPolicy, MeshBatch.VertexFactory, MaterialResource, RayTracingShader))
 		{
 			return false;
 		}
@@ -434,8 +425,7 @@ bool FRayTracingMeshProcessor::Process(
 		PrimitiveSceneProxy,
 		MaterialRenderProxy,
 		MaterialResource,
-		PassDrawRenderState,
-		RayTracingShaders,
+		RayTracingShader,
 		ShaderElementData,
 		ERayTracingViewMaskMode::RayTracing);
 

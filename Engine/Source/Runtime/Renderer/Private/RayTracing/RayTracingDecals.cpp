@@ -566,8 +566,7 @@ TRDGUniformBufferRef<FRayTracingDecals> CreateRayTracingDecalData(FRDGBuilder& G
 		Command.SetShader(CallableShader);
 		Command.SlotInScene = BaseCallableSlotIndex + Index;
 
-		int32 DataOffset = 0;
-		FMeshDrawSingleShaderBindings SingleShaderBindings = Command.ShaderBindings.GetSingleShaderBindings(SF_RayCallable, DataOffset);
+		FMeshDrawSingleShaderBindings SingleShaderBindings = Command.ShaderBindings.GetSingleShaderBindings(SF_RayCallable);
 		CallableShader->GetShaderBindings(&Scene, Scene.GetFeatureLevel(), *MaterialProxy, *MaterialResource, View, DecalParameters, SingleShaderBindings);
 
 		const FBox BoxBounds = DecalData.Proxy.GetBounds().GetBox();

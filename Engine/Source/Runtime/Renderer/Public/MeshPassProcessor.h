@@ -687,20 +687,20 @@ struct FMeshProcessorShaders
 		{
 			return VertexShader;
 		}
-		else if (Frequency == SF_Pixel)
+		if (Frequency == SF_Pixel)
 		{
 			return PixelShader;
 		}
-		else if (Frequency == SF_Geometry)
+		if (Frequency == SF_Geometry)
 		{
 			return GeometryShader;
 		}
-		else if (Frequency == SF_Compute)
+		if (Frequency == SF_Compute)
 		{
 			return ComputeShader;
 		}
 #if RHI_RAYTRACING
-		else if (Frequency == SF_RayHitGroup || Frequency == SF_RayCallable || Frequency == SF_RayMiss)
+		if (Frequency == SF_RayHitGroup || Frequency == SF_RayCallable || Frequency == SF_RayMiss)
 		{
 			if (RayTracingShader.IsValid() && Frequency != RayTracingShader->GetFrequency())
 			{
@@ -877,7 +877,8 @@ public:
 	}
 
 	/** Allocates space for the bindings of all shaders. */
-	RENDERER_API void Initialize(FMeshProcessorShaders Shaders);
+	RENDERER_API void Initialize(const FMeshProcessorShaders& Shaders);
+	RENDERER_API void Initialize(const TShaderRef<FShader>& Shader);
 
 	/** Called once binding setup is complete. */
 	RENDERER_API void Finalize(const FMeshProcessorShaders* ShadersForDebugging);
@@ -903,6 +904,12 @@ public:
 
 		checkf(0, TEXT("Invalid shader binding frequency requested"));
 		return FMeshDrawSingleShaderBindings(FMeshDrawShaderBindingsLayout(TShaderRef<FShader>()), nullptr);
+	}
+
+	FORCEINLINE FMeshDrawSingleShaderBindings GetSingleShaderBindings(EShaderFrequency Frequency)
+	{
+		int32 DataOffset = 0;
+		return GetSingleShaderBindings(Frequency, DataOffset);
 	}
 
 	/** Set shader bindings on the commandlist, filtered by state cache. */
@@ -1914,23 +1921,28 @@ struct TMeshProcessorShaders
 	TShaderRef<VertexType> VertexShader;
 	TShaderRef<PixelType> PixelShader;
 	TShaderRef<GeometryType> GeometryShader;
+
+	UE_DEPRECATED(5.4, "Compute shader mesh passes should use FMeshProcessorShaders directly instead of using TMeshProcessorShaders")
 	TShaderRef<ComputeType> ComputeShader;
 #if RHI_RAYTRACING
+	UE_DEPRECATED(5.4, "RayTracing shader mesh passes should use FMeshProcessorShaders directly instead of using TMeshProcessorShaders")
 	TShaderRef<RayTracingType> RayTracingShader;
 #endif
 
 	TMeshProcessorShaders() = default;
 
-	FMeshProcessorShaders GetUntypedShaders()
+	FMeshProcessorShaders GetUntypedShaders() const
 	{
 		FMeshProcessorShaders Shaders;
 		Shaders.VertexShader = VertexShader;
 		Shaders.PixelShader = PixelShader;
 		Shaders.GeometryShader = GeometryShader;
+		PRAGMA_DISABLE_DEPRECATION_WARNINGS
 		Shaders.ComputeShader = ComputeShader;
 #if RHI_RAYTRACING
 		Shaders.RayTracingShader = RayTracingShader;
 #endif
+		PRAGMA_ENABLE_DEPRECATION_WARNINGS
 		return Shaders;
 	}
 };
@@ -2083,7 +2095,7 @@ public:
 		const FMaterialRenderProxy& RESTRICT MaterialRenderProxy,
 		const FMaterial& RESTRICT MaterialResource,
 		const FMeshPassProcessorRenderState& RESTRICT DrawRenderState,
-		PassShadersType PassShaders,
+		const PassShadersType& PassShaders,
 		ERasterizerFillMode MeshFillMode,
 		ERasterizerCullMode MeshCullMode,
 		FMeshDrawCommandSortKey SortKey,
@@ -2096,7 +2108,7 @@ public:
 		const FMaterial& RESTRICT MaterialResource,
 		const FMeshPassProcessorRenderState& RESTRICT DrawRenderState,
 		const FGraphicsPipelineRenderTargetsInfo& RESTRICT RenderTargetsInfo,
-		PassShadersType PassShaders,
+		const PassShadersType& PassShaders,
 		ERasterizerFillMode MeshFillMode,
 		ERasterizerCullMode MeshCullMode,
 		EPrimitiveType PrimitiveType,
@@ -2110,7 +2122,7 @@ public:
 		const FMaterial& RESTRICT MaterialResource,
 		const FMeshPassProcessorRenderState& RESTRICT DrawRenderState,
 		const FGraphicsPipelineRenderTargetsInfo& RESTRICT RenderTargetsInfo,
-		PassShadersType PassShaders,
+		const PassShadersType& PassShaders,
 		ERasterizerFillMode MeshFillMode,
 		ERasterizerCullMode MeshCullMode,
 		EPrimitiveType PrimitiveType,
@@ -2336,6 +2348,9 @@ public:
 		uint32 ShaderSlot) const;
 
 	/** Sets ray hit group shaders on the mesh command and allocates room for the shader bindings. */
+	RENDERER_API void SetShader(const TShaderRef<FShader>& Shader);
+
+	UE_DEPRECATED(5.4, "Use SetShader")
 	RENDERER_API void SetShaders(const FMeshProcessorShaders& Shaders);
 
 	RENDERER_API bool IsUsingNaniteRayTracing() const;

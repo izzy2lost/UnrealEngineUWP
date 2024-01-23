@@ -967,12 +967,11 @@ class FCacheRayTracingPrimitivesContext
 public:
 	FCacheRayTracingPrimitivesContext(FScene* Scene)
 		: CommandContext(Commands)
-		, RayTracingMeshProcessor(&CommandContext, Scene, nullptr, PassDrawRenderState, Scene->CachedRayTracingMeshCommandsMode)
+		, RayTracingMeshProcessor(&CommandContext, Scene, nullptr, Scene->CachedRayTracingMeshCommandsMode)
 	{ }
 
 	FTempRayTracingMeshCommandStorage Commands;
 	FCachedRayTracingMeshCommandContext<T> CommandContext;
-	FMeshPassProcessorRenderState PassDrawRenderState;
 	FRayTracingMeshProcessor RayTracingMeshProcessor;
 	TArray<DeferredMeshLODCommandIndex> DeferredMeshLODCommandIndices;
 };
@@ -1155,8 +1154,7 @@ void FPrimitiveSceneInfo::CacheRayTracingPrimitives(FScene* Scene, const TArrayV
 		else
 		{
 			FCachedRayTracingMeshCommandContext CommandContext(CachedRayTracingMeshCommands);
-			FMeshPassProcessorRenderState PassDrawRenderState;
-			FRayTracingMeshProcessor RayTracingMeshProcessor(&CommandContext, Scene, nullptr, PassDrawRenderState, Scene->CachedRayTracingMeshCommandsMode);
+			FRayTracingMeshProcessor RayTracingMeshProcessor(&CommandContext, Scene, nullptr, Scene->CachedRayTracingMeshCommandsMode);
 
 			for (FPrimitiveSceneInfo* SceneInfo : SceneInfos)
 			{

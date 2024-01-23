@@ -760,11 +760,10 @@ void TMobileBasePassPSPolicyParamType<FUniformLightMapPolicy>::GetShaderBindings
 	const FPrimitiveSceneProxy* PrimitiveSceneProxy,
 	const FMaterialRenderProxy& MaterialRenderProxy,
 	const FMaterial& Material,
-	const FMeshPassProcessorRenderState& DrawRenderState,
 	const TMobileBasePassShaderElementData<FUniformLightMapPolicy>& ShaderElementData,
 	FMeshDrawSingleShaderBindings& ShaderBindings) const
 {
-	FMeshMaterialShader::GetShaderBindings(Scene, FeatureLevel, PrimitiveSceneProxy, MaterialRenderProxy, Material, DrawRenderState, ShaderElementData, ShaderBindings);
+	FMeshMaterialShader::GetShaderBindings(Scene, FeatureLevel, PrimitiveSceneProxy, MaterialRenderProxy, Material, ShaderElementData, ShaderBindings);
 
 	FUniformLightMapPolicy::GetPixelShaderBindings(
 		PrimitiveSceneProxy,

@@ -624,7 +624,7 @@ FMeshDrawShaderBindings::~FMeshDrawShaderBindings()
 	Release();
 }
 
-void FMeshDrawShaderBindings::Initialize(FMeshProcessorShaders Shaders)
+void FMeshDrawShaderBindings::Initialize(const FMeshProcessorShaders& Shaders)
 {
 	const int32 NumShaderFrequencies = 
 		(Shaders.VertexShader.IsValid() ? 1 : 0) +
@@ -682,6 +682,31 @@ void FMeshDrawShaderBindings::Initialize(FMeshProcessorShaders Shaders)
 		ShaderFrequencyBits |= (1 << Frequency);
 	}
 #endif
+
+	checkSlow(ShaderLayouts.Num() == NumShaderFrequencies);
+
+	if (ShaderBindingDataSize > 0)
+	{
+		AllocateZeroed(ShaderBindingDataSize);
+	}
+}
+
+void FMeshDrawShaderBindings::Initialize(const TShaderRef<FShader>& Shader)
+{
+	const int32 NumShaderFrequencies = (Shader.IsValid() ? 1 : 0);
+
+	ShaderLayouts.Empty(NumShaderFrequencies);
+	int32 ShaderBindingDataSize = 0;
+
+	if (Shader.IsValid())
+	{
+		ShaderLayouts.Add(FMeshDrawShaderBindingsLayout(Shader));
+		ShaderBindingDataSize += ShaderLayouts.Last().GetDataSizeBytes();
+
+		const EShaderFrequency Frequency = Shader->GetFrequency();
+		check(ShaderFrequencyBits < (1 << Frequency));
+		ShaderFrequencyBits |= (1 << Frequency);
+	}
 
 	checkSlow(ShaderLayouts.Num() == NumShaderFrequencies);
 
@@ -957,15 +982,20 @@ void FRayTracingMeshCommand::SetRayTracingShaderBindingsForHitGroup(
 	}
 }
 
+void FRayTracingMeshCommand::SetShader(const TShaderRef<FShader>& Shader)
+{
+	check(Shader.IsValid());
+	MaterialShaderIndex = Shader.GetRayTracingHitGroupLibraryIndex();
+	MaterialShader = Shader.GetRayTracingShader();
+	ViewUniformBufferParameter = Shader->GetUniformBufferParameter<FViewUniformShaderParameters>();
+	SceneUniformBufferParameter = Shader->GetUniformBufferParameter<FSceneUniformParameters>();
+	NaniteUniformBufferParameter = Shader->GetUniformBufferParameter<FNaniteRayTracingUniformParameters>();
+	ShaderBindings.Initialize(Shader);
+}
+
 void FRayTracingMeshCommand::SetShaders(const FMeshProcessorShaders& Shaders)
 {
-	check(Shaders.RayTracingShader.IsValid())
-	MaterialShaderIndex = Shaders.RayTracingShader.GetRayTracingHitGroupLibraryIndex();
-	MaterialShader = Shaders.RayTracingShader.GetRayTracingShader();
-	ViewUniformBufferParameter = Shaders.RayTracingShader->GetUniformBufferParameter<FViewUniformShaderParameters>();
-	SceneUniformBufferParameter = Shaders.RayTracingShader->GetUniformBufferParameter<FSceneUniformParameters>();
-	NaniteUniformBufferParameter = Shaders.RayTracingShader->GetUniformBufferParameter<FNaniteRayTracingUniformParameters>();
-	ShaderBindings.Initialize(Shaders);
+	SetShader(Shaders.RayTracingShader);
 }
 
 bool FRayTracingMeshCommand::IsUsingNaniteRayTracing() const
@@ -1011,10 +1041,7 @@ void FRayTracingShaderCommand::SetShader(const TShaderRef<FShader>& InShader)
 	SceneUniformBufferParameter = InShader->GetUniformBufferParameter<FSceneUniformParameters>();
 	NaniteUniformBufferParameter = InShader->GetUniformBufferParameter<FNaniteRayTracingUniformParameters>();
 
-	FMeshProcessorShaders Shaders;
-	Shaders.RayTracingShader = InShader;
-
-	ShaderBindings.Initialize(Shaders);
+	ShaderBindings.Initialize(InShader);
 }
 #endif // RHI_RAYTRACING
 

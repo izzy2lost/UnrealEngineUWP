@@ -261,50 +261,10 @@ bool LoadLumenCardPipeline(
 
 		check(ShadingPipeline.ComputeShader);
 
-		TMeshProcessorShaders
-		<
-			FMeshMaterialShader, // Vertex
-			FMeshMaterialShader, // Pixel
-			FMeshMaterialShader, // Geometry
-			FMeshMaterialShader, // RayTracing
-			FLumenCardCS
-		>
-		PassShaders;
-		PassShaders.ComputeShader = LumenCardComputeShader;
-
-		FMeshMaterialShaderElementData ShaderElementData;
-		ShaderElementData.InitializeMeshMaterialData(
-			/* SceneView = */ nullptr,
-			/* PrimitiveSceneProxy = */ nullptr,
-			/* StaticMeshId = */ INDEX_NONE,
-			/* bDitheredLODTransition = */ false,
-			/* bAllowStencilDither = */ false
-		);
-
 		ShadingPipeline.ShaderBindings = MakePimpl<FMeshDrawShaderBindings, EPimplPtrMode::DeepCopy>();
-		ShadingPipeline.ShaderBindings->Initialize(PassShaders.GetUntypedShaders());
 
-		{
-			int32 DataOffset = 0;
-			if (PassShaders.ComputeShader.IsValid())
-			{
-				// Dummy render state to satisfy GetShaderBindings
-				FMeshPassProcessorRenderState DrawRenderState;
-				{
-					DrawRenderState.SetBlendState(TStaticBlendStateWriteMask<CW_RGBA, CW_RGBA, CW_RGBA, CW_RGBA>::GetRHI());
-					DrawRenderState.SetDepthStencilState(TStaticDepthStencilState<false, CF_Equal>::GetRHI());
-					DrawRenderState.SetDepthStencilAccess(FExclusiveDepthStencil::DepthWrite_StencilNop);
-					check(DrawRenderState.GetDepthStencilState());
-					check(DrawRenderState.GetBlendState());
-				}
+		UE::MeshPassUtils::SetupComputeBindings(LumenCardComputeShader, &Scene, FeatureLevel, SceneProxy, *MaterialProxy, *ShadingPipeline.Material, *ShadingPipeline.ShaderBindings);
 
-				FMeshDrawSingleShaderBindings ShaderBindings = ShadingPipeline.ShaderBindings->GetSingleShaderBindings(SF_Compute, DataOffset);
-				PassShaders.ComputeShader->GetShaderBindings(&Scene, FeatureLevel, SceneProxy, *MaterialProxy, *ShadingPipeline.Material, DrawRenderState, ShaderElementData, ShaderBindings);
-			}
-		}
-
-		FMeshProcessorShaders ShadersForDebugging = PassShaders.GetUntypedShaders();
-		ShadingPipeline.ShaderBindings->Finalize(&ShadersForDebugging);
 		ShadingPipeline.ShaderBindingsHash = ShadingPipeline.ShaderBindings->GetDynamicInstancingHash();
 	}
 

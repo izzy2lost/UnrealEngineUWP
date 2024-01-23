@@ -1313,25 +1313,14 @@ static void BindLightFunction(
 	FRayTracingPipelineState* Pipeline = View.RayTracingMaterialPipeline;
 	const FMaterialShaderMap* MaterialShaderMap = Material.GetRenderingThreadShaderMap();
 
-
-	auto Shader = MaterialShaderMap->GetShader<FPathTracingLightingMS>();
-
-	TMeshProcessorShaders<
-		FMaterialShader,
-		FMaterialShader,
-		FMaterialShader,
-		FPathTracingLightingMS,
-		FMaterialShader> RayTracingShaders;
-
-	RayTracingShaders.RayTracingShader = Shader;
+	TShaderRef<FPathTracingLightingMS> Shader = MaterialShaderMap->GetShader<FPathTracingLightingMS>();
 
 	FMeshDrawShaderBindings ShaderBindings;
-	ShaderBindings.Initialize(RayTracingShaders.GetUntypedShaders());
+	ShaderBindings.Initialize(Shader);
 
-	int32 DataOffset = 0;
-	FMeshDrawSingleShaderBindings SingleShaderBindings = ShaderBindings.GetSingleShaderBindings(SF_RayMiss, DataOffset);
+	FMeshDrawSingleShaderBindings SingleShaderBindings = ShaderBindings.GetSingleShaderBindings(SF_RayMiss);
 
-	RayTracingShaders.RayTracingShader->GetShaderBindings(Scene, Scene->GetFeatureLevel(), MaterialRenderProxy, Material, View, LightFunctionParameters, SingleShaderBindings);
+	Shader->GetShaderBindings(Scene, Scene->GetFeatureLevel(), MaterialRenderProxy, Material, View, LightFunctionParameters, SingleShaderBindings);
 
 	int32 MissShaderPipelineIndex = FindRayTracingMissShaderIndex(View.RayTracingMaterialPipeline, Shader.GetRayTracingShader(), true);
 
@@ -1701,13 +1690,8 @@ bool FRayTracingMeshProcessor::ProcessPathTracing(
 		return false;
 	}
 
-	TMeshProcessorShaders<
-		FMeshMaterialShader,
-		FMeshMaterialShader,
-		FMeshMaterialShader,
-		FMeshMaterialShader,
-		FMeshMaterialShader> RayTracingShaders;
-	if (!Shaders.TryGetShader(SF_RayHitGroup, RayTracingShaders.RayTracingShader))
+	TShaderRef<FMeshMaterialShader> RayTracingShader;
+	if (!Shaders.TryGetShader(SF_RayHitGroup, RayTracingShader))
 	{
 		return false;
 	}
@@ -1721,8 +1705,7 @@ bool FRayTracingMeshProcessor::ProcessPathTracing(
 		PrimitiveSceneProxy,
 		MaterialRenderProxy,
 		MaterialResource,
-		PassDrawRenderState,
-		RayTracingShaders,
+		RayTracingShader,
 		ShaderElementData,
 		ERayTracingViewMaskMode::PathTracing);
 
