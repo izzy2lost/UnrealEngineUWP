@@ -590,6 +590,74 @@ UE_NET_TEST_FIXTURE(FTestCancelPendingDestroyFixture, TestCancelingCancelPending
 	UE_NET_ASSERT_EQ(Client->GetReplicationBridge()->GetReplicatedObject(ServerSubObject->NetRefHandle), nullptr);
 }
 
+UE_NET_TEST_FIXTURE(FTestCancelPendingDestroyFixture, TestCancelPendingDestroyFromCreatedDoesNotMissChanges)
+{
+	// Add a client
+	FReplicationSystemTestClient* Client0 = CreateClient();
+
+	// Add second client, with not filtering to keep object in scope
+	FReplicationSystemTestClient* Client1 = CreateClient();
+
+	// Spawn object on server
+	UTestReplicatedIrisObject* ServerObject = Server->CreateObject(UTestReplicatedIrisObject::FComponents());
+
+	// Write and send packet
+	Server->PreSendUpdate();
+	Server->SendAndDeliverTo(Client0, DeliverPacket);
+	Server->SendAndDeliverTo(Client1, DeliverPacket);
+	Server->PostSendUpdate();
+
+	UTestReplicatedIrisObject* Client0Object = Cast<UTestReplicatedIrisObject>(Client0->GetReplicationBridge()->GetReplicatedObject(ServerObject->NetRefHandle));
+	UTestReplicatedIrisObject* Client1Object = Cast<UTestReplicatedIrisObject>(Client1->GetReplicationBridge()->GetReplicatedObject(ServerObject->NetRefHandle));
+
+	// Verify that the object was replicated to all clients
+	UE_NET_ASSERT_NE(Client0Object, nullptr);
+	UE_NET_ASSERT_EQ(Client0Object->IntA, ServerObject->IntA);
+	UE_NET_ASSERT_NE(Client1Object, nullptr);
+	UE_NET_ASSERT_EQ(Client1Object->IntA, ServerObject->IntA);
+
+	// Filter out object to cause a PendingDestroy for Client0
+	FNetObjectGroupHandle ExclusionGroupHandle = Server->ReplicationSystem->CreateGroup();
+	Server->ReplicationSystem->AddToGroup(ExclusionGroupHandle, ServerObject->NetRefHandle);
+	Server->ReplicationSystem->AddExclusionFilterGroup(ExclusionGroupHandle);
+
+	Server->ReplicationSystem->SetGroupFilterStatus(ExclusionGroupHandle, Client0->ConnectionIdOnServer, ENetFilterStatus::Disallow);
+	Server->ReplicationSystem->SetGroupFilterStatus(ExclusionGroupHandle, Client1->ConnectionIdOnServer, ENetFilterStatus::Allow);
+	
+	Server->PreSendUpdate();
+	Server->SendTo(Client0);
+	Server->PostSendUpdate();
+
+	// Mark dirty
+	ServerObject->IntA = 3;
+
+	Server->PreSendUpdate();
+	Server->SendAndDeliverTo(Client1, DeliverPacket);
+	Server->PostSendUpdate();
+
+	// Allow replication again, to trigger cancel
+	Server->ReplicationSystem->SetGroupFilterStatus(ExclusionGroupHandle, Client0->ConnectionIdOnServer, ENetFilterStatus::Allow);
+
+	// Drop the packet with the destroy
+	Server->DeliverTo(Client0, false);
+
+	// Write and send a packet
+	Server->PreSendUpdate();
+	Server->SendAndDeliverTo(Client0, DeliverPacket);
+	Server->SendAndDeliverTo(Client1, DeliverPacket);
+	Server->PostSendUpdate();
+
+	Client0Object = Cast<UTestReplicatedIrisObject>(Client0->GetReplicationBridge()->GetReplicatedObject(ServerObject->NetRefHandle));
+	Client1Object = Cast<UTestReplicatedIrisObject>(Client1->GetReplicationBridge()->GetReplicatedObject(ServerObject->NetRefHandle));
+
+	// Verify that the cancel worked and did not miss changed state
+	UE_NET_ASSERT_NE(Client0Object, nullptr);
+	UE_NET_ASSERT_EQ(Client0Object->IntA, ServerObject->IntA);
+	UE_NET_ASSERT_NE(Client1Object, nullptr);
+	UE_NET_ASSERT_EQ(Client1Object->IntA, ServerObject->IntA);
+}
+
+
 UE_NET_TEST_FIXTURE(FTestCancelPendingDestroyFixture, TestCancelingCancelPendingSubObjectDestroyDuringWaitOnDestroyConfirmationWithPacketLoss)
 {
 	// Add a client

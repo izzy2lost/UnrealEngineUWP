@@ -652,6 +652,11 @@ void FReplicationWriter::UpdateScope(const FNetBitArrayView& UpdatedScope)
 				ObjectsPendingDestroy.ClearBit(Index);
 				Info.FlushFlags = GetDefaultFlushFlags();
 				SetState(Index, EReplicatedObjectState::Created);
+
+				// If we have accumulated changes while WaitingOnFlush, we should send them now
+				Info.SubObjectPendingDestroy = 0U;
+				Info.HasDirtyChangeMask |= FNetBitArrayView(Info.GetChangeMaskStoragePointer(), Info.ChangeMaskBitCount).IsAnyBitSet();
+				ObjectsWithDirtyChanges.SetBitValue(Index, Info.HasDirtyChangeMask);
 			}
 		}
 		else if (State == EReplicatedObjectState::WaitOnDestroyConfirmation || State == EReplicatedObjectState::CancelPendingDestroy)
@@ -789,13 +794,18 @@ void FReplicationWriter::InternalUpdateDirtyChangeMasks(const FChangeMaskCache& 
 
 	for (const auto& Entry : CachedChangeMasks.Indices)
 	{
-		if (!ObjectsInScope.GetBit(Entry.InternalIndex))
+		FReplicationInfo& Info = ReplicatedObjects[Entry.InternalIndex];
+		if (Info.GetState() == EReplicatedObjectState::Invalid)
 		{
 			continue;
 		}
 
-		MarkObjectDirty(Entry.InternalIndex, "UpdateDirtyChangeMasks");
-		FReplicationInfo& Info = ReplicatedObjects[Entry.InternalIndex];
+		// We want to accumulate dirty changes even if we are going out of scope in case we get readded to scope before repliation has ended.
+		const bool bMarkScopedObjectDirty = ObjectsInScope.GetBit(Entry.InternalIndex);
+		if (bMarkScopedObjectDirty)
+		{
+			MarkObjectDirty(Entry.InternalIndex, "UpdateDirtyChangeMasks");
+		}
 
 		if (Entry.bMarkSubObjectOwnerDirty == 0U)
 		{		
@@ -817,7 +827,7 @@ void FReplicationWriter::InternalUpdateDirtyChangeMasks(const FChangeMaskCache& 
 				Changes.Combine(UpdatedChanges, FNetBitArrayView::OrOp);
 
 				// Mark changemask as dirty
-				Info.HasDirtyChangeMask = 1U;
+				Info.HasDirtyChangeMask = bMarkScopedObjectDirty ? 1U : 0U;
 			}
 		}
 		else
