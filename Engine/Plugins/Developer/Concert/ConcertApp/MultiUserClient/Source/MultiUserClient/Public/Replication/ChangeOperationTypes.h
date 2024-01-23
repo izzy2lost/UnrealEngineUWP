@@ -63,7 +63,7 @@ namespace UE::MultiUserClient
 		// Realistic failures
 
 		/** The changes were rejected by the server. */
-		Rejected,
+		RejectedFullyOrPartially,
 		/** Failed because the request timed out. */
 		Timeout,
 		/** The authority change was not submitted because the stream change was unsuccessful. */

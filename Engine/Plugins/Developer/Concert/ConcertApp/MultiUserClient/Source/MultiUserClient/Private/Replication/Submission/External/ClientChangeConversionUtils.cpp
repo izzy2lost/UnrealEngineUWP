@@ -158,7 +158,11 @@ namespace UE::MultiUserClient::ClientChangeConversionUtils
 	{
 		switch (Response.ErrorCode)
 		{
-		case EStreamSubmissionErrorCode::Success: return EChangeStreamOperationResult::Success;
+		case EStreamSubmissionErrorCode::Success:
+			// EStreamSubmissionErrorCode::Success the op was processed but the EChangeStreamOperationResult distinguishes between successful or rejected ops.
+			return !ensureMsgf(Response.SubmissionInfo.IsSet(), TEXT("Success implies set response. Investigate.")) || Response.SubmissionInfo->Response.IsFailure()
+				? EChangeStreamOperationResult::Rejected
+				: EChangeStreamOperationResult::Success;
 		case EStreamSubmissionErrorCode::NoChange: return EChangeStreamOperationResult::NoChanges; 
 		case EStreamSubmissionErrorCode::Timeout: return EChangeStreamOperationResult::Timeout; 
 		case EStreamSubmissionErrorCode::Cancelled: return EChangeStreamOperationResult::Cancelled;
@@ -172,7 +176,11 @@ namespace UE::MultiUserClient::ClientChangeConversionUtils
 	{
 		switch (Response.ErrorCode)
 		{
-		case EAuthoritySubmissionResponseErrorCode::Success: return EChangeAuthorityOperationResult::Success;
+		case EAuthoritySubmissionResponseErrorCode::Success:
+			// EAuthoritySubmissionResponseErrorCode::Success the op was processed but the EChangeStreamOperationResult distinguishes between successful or rejected ops.
+			return !ensureMsgf(Response.Response.IsSet(), TEXT("Success implies set response. Investigate.")) || !Response.Response->RejectedObjects.IsEmpty()
+				? EChangeAuthorityOperationResult::RejectedFullyOrPartially
+				: EChangeAuthorityOperationResult::Success;
 		case EAuthoritySubmissionResponseErrorCode::NoChange: return EChangeAuthorityOperationResult::NoChanges; 
 		case EAuthoritySubmissionResponseErrorCode::Timeout: return EChangeAuthorityOperationResult::Timeout; 
 		case EAuthoritySubmissionResponseErrorCode::CancelledDueToStreamUpdate: return EChangeAuthorityOperationResult::CancelledDueToStreamUpdate; 

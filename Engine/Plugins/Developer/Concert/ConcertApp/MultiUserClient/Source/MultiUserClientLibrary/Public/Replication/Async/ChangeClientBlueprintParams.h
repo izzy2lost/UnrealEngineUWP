@@ -55,8 +55,8 @@ enum class EMultiUserChangeAuthorityOperationResult : uint8
 
 	// Realistic failures
 
-	/** The changes were rejected by the server. */
-	Rejected,
+	/** Some of the authority changes were rejected by the server. */
+	RejectedFullyOrPartially,
 	/** Failed because the request timed out. */
 	Timeout,
 	/** The authority change was not submitted because the stream change was unsuccessful. */
