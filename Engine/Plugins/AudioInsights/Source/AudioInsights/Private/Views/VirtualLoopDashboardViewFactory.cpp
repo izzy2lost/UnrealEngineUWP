@@ -248,10 +248,12 @@ namespace UE::Audio::Insights
 #if WITH_EDITOR
 	bool FVirtualLoopDashboardViewFactory::IsDebugDrawEnabled() const
 	{
+#if ENABLE_AUDIO_DEBUG
 		if (FAudioDeviceManager* Manager = FAudioDeviceManager::Get())
 		{
 			return !(Manager->IsVisualizeDebug3dEnabled() && !::Audio::FAudioDebugger::IsVirtualLoopVisualizeEnabled());
 		}
+#endif // ENABLE_AUDIO_DEBUG
 
 		return false;
 	}
