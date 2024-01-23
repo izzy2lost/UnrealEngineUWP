@@ -192,7 +192,7 @@
 			<Spawn Exe="$(WixDir)/light.exe" Arguments="-out &quot;$(BinDir)/HordeAgent.msi&quot; -sw1076 -pdbout &quot;$(BinDir)/HordeAgent.pdb&quot; &quot;$(ObjDir)/AgentInstaller.wixobj&quot; &quot;$(ObjDir)/HordeAgentFiles.wixobj&quot; -ext WixUtilExtension -ext WixUIExtension" WorkingDir="$(InstallerDir)"/>
 
 			<!-- We need to sign here as will be included in the server msi -->
-			<Sign Files="$(InstallerOutputDir)/HordeAgent.msi" If="'$(SignServerToolsAgent)' == 'true'"/>
+			<Sign Files="$(InstallerOutputDir)/HordeAgent.msi" Description="Horde Agent" If="'$(SignServerToolsAgent)' == 'true'"/>
 			
 			<!-- Copy files to the output directory -->
 			<Copy Files="HordeAgent.msi" From="$(InstallerOutputDir)" To="$(ServerToolsStagingDir_HordeAgentMsi)"/>
