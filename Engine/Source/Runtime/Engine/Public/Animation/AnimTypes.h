@@ -1001,18 +1001,30 @@ public:
 class FBoneData
 {
 public:
+	/** The bind pose orientation. */
 	FQuat		Orientation;
-	FVector3f		Position;
+
+	/** The bind pose position. */
+	FVector3f	Position;
+
+	/** The bind pose scale. */
+	FVector3f	Scale;
+
 	/** Bone name. */
 	FName		Name;
+
 	/** Direct descendants.  Empty for end effectors. */
 	TArray<int32> Children;
+
 	/** List of bone indices from parent up to root. */
 	TArray<int32>	BonesToRoot;
+
 	/** List of end effectors for which this bone is an ancestor.  End effectors have only one element in this list, themselves. */
 	TArray<int32>	EndEffectors;
+
 	/** If a Socket is attached to that bone */
 	bool		bHasSocket;
+
 	/** If matched as a Key end effector */
 	bool		bKeyEndEffector;
 
@@ -1021,11 +1033,13 @@ public:
 	{
 		return GetDepth() ? BonesToRoot[0] : -1;
 	}
+
 	/**	@return		Distance to root; 0 for the root. */
 	int32 GetDepth() const
 	{
 		return BonesToRoot.Num();
 	}
+
 	/** @return		true if this bone is an end effector (has no children). */
 	bool IsEndEffector() const
 	{

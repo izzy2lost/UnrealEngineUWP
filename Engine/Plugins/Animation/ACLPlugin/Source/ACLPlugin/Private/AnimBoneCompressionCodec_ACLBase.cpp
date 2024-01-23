@@ -192,7 +192,6 @@ static void StripBindPose(const FCompressibleAnimData& CompressibleAnimData, acl
 	check(!CompressibleAnimData.bIsValidAdditive);
 
 	const int32 NumBones = CompressibleAnimData.BoneData.Num();
-	const rtm::vector4f DefaultScale = rtm::vector_set(1.0f);
 
 	for (int32 BoneIndex = 0; BoneIndex < NumBones; ++BoneIndex)
 	{
@@ -215,7 +214,7 @@ static void StripBindPose(const FCompressibleAnimData& CompressibleAnimData, acl
 		//         Single bone decompression will output the correct value
 
 		// Set the default value to the bind pose so that it can be stripped
-		Desc.default_value = rtm::qvv_set(UEQuatToACL(UE4Bone.Orientation), UEVector3ToACL(UE4Bone.Position), DefaultScale);
+		Desc.default_value = rtm::qvv_set(UEQuatToACL(UE4Bone.Orientation), UEVector3ToACL(UE4Bone.Position), UEVector3ToACL(UE4Bone.Scale));
 	}
 }
 
