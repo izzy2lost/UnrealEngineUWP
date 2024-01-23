@@ -300,7 +300,7 @@ namespace Horde.Agent
 				DirectoryReference? programDataDir = DirectoryReference.GetSpecialFolder(Environment.SpecialFolder.CommonApplicationData);
 				if (programDataDir != null)
 				{
-					return DirectoryReference.Combine(programDataDir, "HordeAgent");
+					return DirectoryReference.Combine(programDataDir, "Epic", "Horde", "Agent");
 				}
 			}
 			return GetAppDir();
