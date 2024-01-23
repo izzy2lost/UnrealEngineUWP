@@ -7,6 +7,7 @@
 #include "Rendering/SkeletalMeshLODModel.h"
 #include "Rendering/SkeletalMeshModel.h"
 #include "MuCO/CustomizableObjectInstance.h"
+#include "MuCO/CustomizableObjectPrivate.h"
 #include "MuR/Instance.h"
 #include "GameplayTagContainer.h"
 #include "MuCO/DescriptorHash.h"
@@ -196,8 +197,10 @@ public:
 
 	virtual void PostDuplicate(bool bDuplicateForPIE) override;
 
-	void OnPostCompile();
+	void BindObjectDelegates(UCustomizableObject* CurrentCustomizableObject, UCustomizableObject* NewCustomizableObject);
 
+	void OnPostCompile();
+	void OnObjectStatusChanged(FCustomizableObjectStatus::EState Previous, FCustomizableObjectStatus::EState Next);
 #endif
 
 	/** Invalidates the previously generated data and retrieves information from the CObject after specific actions.

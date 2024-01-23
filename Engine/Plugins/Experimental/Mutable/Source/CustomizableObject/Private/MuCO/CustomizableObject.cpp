@@ -155,7 +155,6 @@ void UCustomizableObject::PreSave(FObjectPreSaveContext ObjectSaveContext)
 				*ObjectSaveContext.GetTargetPlatform()->PlatformName());
 			
 			ClearCompiledData();
-			SetModel(nullptr);
 		}
 	}
 #endif
@@ -566,7 +565,7 @@ void UCustomizableObject::SaveCompiledData(FArchive& MemoryWriter, bool bIsCooki
 
 void UCustomizableObject::LoadCompiledData(FArchive& MemoryReader, const ITargetPlatform* InTargetPlatform, bool bIsCooking)
 {
-	Private->SetModel(nullptr, FGuid());
+	TSharedPtr<mu::Model, ESPMode::ThreadSafe> LoadedModel;
 	ClearCompiledData();
 
 	MutableCompiledDataStreamHeader Header;
@@ -721,13 +720,12 @@ void UCustomizableObject::LoadCompiledData(FArchive& MemoryReader, const ITarget
 		{
 			UnrealMutableInputStream stream(MemoryReader);
 			mu::InputArchive arch(&stream);
-			TSharedPtr<mu::Model, ESPMode::ThreadSafe> Model = mu::Model::StaticUnserialise( arch );
-
-			Private->SetModel(Model, GenerateIdentifier(*this));
+			LoadedModel = mu::Model::StaticUnserialise( arch );
 		}
 	}
 	
-	UpdateParameterPropertiesFromModel(GetModel());
+	UpdateParameterPropertiesFromModel(LoadedModel);
+	Private->SetModel(LoadedModel, GenerateIdentifier(*this));
 }
 
 
@@ -837,9 +835,6 @@ void UCustomizableObject::CompileForTargetPlatform(const ITargetPlatform* Target
 		||
 		(Relevancy == ECustomizableObjectRelevancy::ClientOnly && !TargetPlatform->IsServerOnly());
 
-	// Discard any older compilation
-	Private->SetModel(nullptr, FGuid());
-
 	if (bIsRootObject && bIsRelevantForThisTarget)
 	{
 		FCompilationOptions Options;
@@ -910,9 +905,6 @@ bool UCustomizableObject::ConditionalAutoCompile()
 		System->AddUncompiledCOWarning(*this);
 		return false;
 	}
-
-	// Discard any older compilation
-	Private->SetModel(nullptr, FGuid());
 
 	// Sync/Async compilation
 	if (System->IsAutoCompilationSync())
