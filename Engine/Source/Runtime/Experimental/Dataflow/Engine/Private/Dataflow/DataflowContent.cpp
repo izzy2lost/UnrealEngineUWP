@@ -1,9 +1,11 @@
-﻿// Copyright Epic Games, Inc. All Rights Reserved.
+// Copyright Epic Games, Inc. All Rights Reserved.
 
 #include "Dataflow/DataflowContent.h"
+
 #include "Animation/AnimSingleNodeInstance.h"
-#include "Components/SkeletalMeshComponent.h"
 #include "Animation/Skeleton.h"
+#include "Components/SkeletalMeshComponent.h"
+#include "Dataflow/DataflowNodeParameters.h"
 #include "Engine/SkeletalMesh.h"
 #include "GameFramework/Actor.h"
 #include "PreviewScene.h"
@@ -12,6 +14,15 @@
 
 UDataflowBaseContent::UDataflowBaseContent()
 {
+}
+
+void UDataflowBaseContent::SetLastModifiedTimestamp(Dataflow::FTimestamp InTimestamp) 
+{ 
+	if (InTimestamp.IsInvalid() || LastModifiedTimestamp < InTimestamp)
+	{
+		LastModifiedTimestamp = InTimestamp; 
+		bIsDirty = true;
+	}
 }
 
 void UDataflowBaseContent::BuildBaseContent(TObjectPtr<UObject> ContentOwner)

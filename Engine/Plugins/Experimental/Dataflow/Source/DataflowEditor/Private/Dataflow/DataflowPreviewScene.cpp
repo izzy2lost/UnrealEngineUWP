@@ -115,7 +115,7 @@ void FDataflowConstructionScene::TickDataflowScene(const float DeltaSeconds)
 		if (const UDataflow* Dataflow = DataflowContent->DataflowAsset)
 		{
 			const Dataflow::FTimestamp SystemTimestamp = LatestTimestamp(Dataflow, DataflowContext.Get());
-			if (SystemTimestamp >= DataflowContent->GetLastModifiedTimestamp())
+			if (SystemTimestamp >= DataflowContent->GetLastModifiedTimestamp() || DataflowContent->IsDirty())
 			{
 				DataflowContent->SetLastModifiedTimestamp(SystemTimestamp.Value + 1);
 

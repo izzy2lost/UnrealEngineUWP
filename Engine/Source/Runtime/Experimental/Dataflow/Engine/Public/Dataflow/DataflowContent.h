@@ -1,4 +1,4 @@
-﻿// Copyright Epic Games, Inc. All Rights Reserved.
+// Copyright Epic Games, Inc. All Rights Reserved.
 
 #pragma once
 
@@ -85,10 +85,6 @@ class DATAFLOWENGINE_API UDataflowBaseContent : public UDataflowContextObject
 public:
 	UDataflowBaseContent();
 
-	/** Check if the dataflow data are dirty and need to be re-rendered */
-	bool IsDirty() const { return bIsDirty; }
-	void SetIsDirty(bool InDirty) { bIsDirty = InDirty; }
-
 	/** Data flow asset that we will edit */
 	UPROPERTY(EditAnywhere, Category = "Dataflow")
 	TObjectPtr<UDataflow> DataflowAsset = nullptr;
@@ -97,6 +93,27 @@ public:
 	UPROPERTY(EditAnywhere, Category = "Dataflow")
 	FString DataflowTerminal = "";
 	
+	/** 
+	*	Dirty - State Invalidation
+	*   Check if non-graph specific data has been changed, this usually requires a re-render 
+	*/
+	bool IsDirty() const { return bIsDirty; }
+	void SetIsDirty(bool InDirty) { bIsDirty = InDirty; }
+
+	/** 
+	*	LastModifiedTimestamp - State Invalidation 
+	*   Dataflow timestamp accessors can be used to see if the EvaluationContext has been invalidated. 
+	*/
+	void SetLastModifiedTimestamp(Dataflow::FTimestamp InTimestamp);
+	const Dataflow::FTimestamp& GetLastModifiedTimestamp() const { return LastModifiedTimestamp; }
+
+	/**  
+	*	Context - Dataflow Evaluation State
+	*   Dataflow context stores the evaluated state of the graph. 
+	*/
+	void SetDataflowContext(const TSharedPtr<Dataflow::FEngineContext>& InContext) { DataflowContext = InContext; bIsDirty = true; }
+	const TSharedPtr<Dataflow::FEngineContext>& GetDataflowContext() const { return DataflowContext; }
+
 	/** Return the simulation time range to be used in the simulation viewport */
 	virtual FVector2f GetSimulationRange() const { return FVector2f(0.0f, 100.0f); } 
 	
@@ -124,13 +141,6 @@ public:
 	void SetDataflowTerminal(const FString& InPath) { DataflowTerminal = InPath;  bIsDirty = true;}
 	const FString& GetDataflowTerminal() const { return DataflowTerminal; }
 
-	/**  Data flow context accessors */
-	void SetDataflowContext(const TSharedPtr<Dataflow::FEngineContext>& InContext) { DataflowContext = InContext; bIsDirty = true;}
-	const TSharedPtr<Dataflow::FEngineContext>& GetDataflowContext() const { return DataflowContext; }
-
-	/** Data flow timestamp accessors */
-	void SetLastModifiedTimestamp(Dataflow::FTimestamp InTimestamp) { LastModifiedTimestamp = InTimestamp; bIsDirty = true;}
-	const Dataflow::FTimestamp& GetLastModifiedTimestamp() const { return LastModifiedTimestamp; }
 	
 protected :
 	

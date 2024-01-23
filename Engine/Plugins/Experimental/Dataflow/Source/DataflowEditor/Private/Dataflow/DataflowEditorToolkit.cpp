@@ -494,26 +494,6 @@ void FDataflowEditorToolkit::OnNodeSelectionChanged(const TSet<UObject*>& InNewS
 		}
 	};
 
-	auto EvaluateCollection = [](TObjectPtr<UDataflowEdNode> InDataflowEdNode, const TSharedPtr<Dataflow::FEngineContext> Context)
-	{
-		if (InDataflowEdNode && Context)
-		{
-			if (const TSharedPtr<FDataflowNode> InDataflowNode = InDataflowEdNode->GetDataflowNode())
-			{
-				for (const FDataflowOutput* const Output : InDataflowNode->GetOutputs())
-				{
-					if (Output->GetType() == FName("FManagedArrayCollection"))
-					{
-						const FManagedArrayCollection DefaultValue;
-						return TSharedPtr<FManagedArrayCollection>(new FManagedArrayCollection(Output->GetValue<FManagedArrayCollection>(*Context, DefaultValue)));
-					}
-				}
-			}
-		}
-
-		return TSharedPtr<FManagedArrayCollection>(new FManagedArrayCollection());
-	};
-
 	// Despite this function's name, we might not have actually changed which node is selected
 	bool bPrimarySelectionChanged = false;
 
@@ -582,15 +562,9 @@ void FDataflowEditorToolkit::OnNodeSelectionChanged(const TSet<UObject*>& InNewS
 					ToolsContext->EndTool(EToolShutdownType::Completed);
 				}
 
-				// Update the Construction viewport with the newly selected node's Collection
-				// @todo(brice) : Is this necessary? FDataflowPreviewScene::Update will generate a new RenderCollection 
-				TSharedPtr<FManagedArrayCollection> Collection = EvaluateCollection(PrimarySelection, EditorContent->GetDataflowContext());
-				if(Collection->HasGroup("Geometry"))
-				{
-					EditorContent->SetPrimarySelectedNode(PrimarySelection);
-					DataflowMode->SetSelectedCollection(Collection);
-				}
+				EditorContent->SetPrimarySelectedNode(PrimarySelection);
 			}
+			EditorContent->SetIsDirty(true);
 		}
 	}
 }
@@ -632,8 +606,8 @@ void FDataflowEditorToolkit::Tick(float DeltaTime)
 				EditorContent->SetDataflowContext(MakeShared<Dataflow::FEngineContext>(EditorContent->GetDataflowOwner(), EditorContent->GetDataflowAsset(), Dataflow::FTimestamp::Invalid));
 				TimeStamp = Dataflow::FTimestamp::Invalid;
 			}
-			FDataflowEditorCommands::EvaluateTerminalNode(*EditorContent->GetDataflowContext().Get(), TimeStamp, EditorContent->GetDataflowAsset(), 
-			nullptr, nullptr, EditorContent->GetDataflowOwner(), EditorContent->GetDataflowTerminal());
+			FDataflowEditorCommands::EvaluateTerminalNode(*EditorContent->GetDataflowContext().Get(), TimeStamp, EditorContent->GetDataflowAsset(),
+				nullptr, nullptr, EditorContent->GetDataflowOwner(), EditorContent->GetDataflowTerminal());
 			EditorContent->SetLastModifiedTimestamp(TimeStamp);
 		}
 	}
@@ -662,8 +636,8 @@ TSharedRef<SDataflowGraphEditor> FDataflowEditorToolkit::CreateGraphEditorWidget
 				Node->Invalidate();
 				Dataflow::FTimestamp TimeStamp = Dataflow::FTimestamp::Invalid;
 				
-				FDataflowEditorCommands::EvaluateTerminalNode(*EditorContent->GetDataflowContext().Get(), TimeStamp,
-															  EditorContent->GetDataflowAsset(), Node, Out, EditorContent->GetDataflowOwner(), EditorContent->GetDataflowTerminal());
+				FDataflowEditorCommands::EvaluateTerminalNode(*EditorContent->GetDataflowContext().Get(), TimeStamp, EditorContent->GetDataflowAsset(),
+					nullptr, nullptr, EditorContent->GetDataflowOwner(), EditorContent->GetDataflowTerminal());
 				EditorContent->SetLastModifiedTimestamp(TimeStamp);
 			}
 		}

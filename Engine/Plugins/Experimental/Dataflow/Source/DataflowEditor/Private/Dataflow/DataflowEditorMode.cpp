@@ -348,22 +348,6 @@ bool UDataflowEditorMode::IsComponentSelected(const UPrimitiveComponent* InCompo
 	return false;
 }
 
-void UDataflowEditorMode::SetSelectedCollection(TSharedPtr<FManagedArrayCollection> Collection)
-{
-	SelectedCollection = Collection;
-	PreviewScene->UpdateConstructionScene();
-
-	// The first time we get a valid mesh, refocus the camera on it
-	FirstTimeFocusRestSpaceViewport();
-}
-
-TSharedPtr<FManagedArrayCollection> UDataflowEditorMode::GetSelectedCollection()
-{
-	return SelectedCollection;
-
-	// TODO: If no cloth collection node is selected, show the ClothAsset's collection. In this case, also ensure that any interactive tools are disabled. (UE-181574)
-}
-
 void UDataflowEditorMode::RefocusRestSpaceViewportClient()
 {
 	TSharedPtr<FDataflowEditorViewportClient, ESPMode::ThreadSafe> PinnedVC = ConstructionViewportClient.Pin();
@@ -396,7 +380,7 @@ void UDataflowEditorMode::RefocusRestSpaceViewportClient()
 void UDataflowEditorMode::FirstTimeFocusRestSpaceViewport()
 {
 	// If this is the first time seeing a valid 2D or 3D mesh, refocus the camera on it.
-	const bool bIsValid = (SelectedCollection && PreviewScene->HasRenderableGeometry());
+	const bool bIsValid = (PreviewScene->HasRenderableGeometry());
 	const bool bIs2D = ConstructionViewMode == Dataflow::EDataflowPatternVertexType::Sim3D;
 
 	if (bIsValid)

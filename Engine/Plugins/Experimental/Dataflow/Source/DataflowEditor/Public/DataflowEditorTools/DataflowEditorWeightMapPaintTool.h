@@ -61,6 +61,7 @@ class DATAFLOWEDITOR_API UDataflowEditorWeightMapPaintToolBuilder : public UMesh
 
 private:
 	virtual void GetSupportedViewModes(TArray<Dataflow::EDataflowPatternVertexType>& Modes) const override;
+	virtual bool CanBuildTool(const FToolBuilderState& SceneState) const override;
 	virtual UMeshSurfacePointTool* CreateNewTool(const FToolBuilderState& SceneState) const override;
 	virtual bool CanSetConstructionViewWireframeActive() const { return false; }
 };

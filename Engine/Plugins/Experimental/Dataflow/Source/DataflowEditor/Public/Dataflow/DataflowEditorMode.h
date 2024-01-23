@@ -105,14 +105,7 @@ private:
 	void SetRestSpaceViewportClient(TWeakPtr<FDataflowEditorViewportClient, ESPMode::ThreadSafe> ViewportClient);
 	void RefocusRestSpaceViewportClient();
 	void FirstTimeFocusRestSpaceViewport();
-
-	// @todo(brice) : Can this be in the content?
-	// intended to be called by the toolkit when selected node in the Dataflow graph changes
-	void SetSelectedCollection(TSharedPtr<FManagedArrayCollection> Collection);
 	bool IsComponentSelected(const UPrimitiveComponent* InComponent);
-	TSharedPtr<FManagedArrayCollection> GetSelectedCollection();
-	TSharedPtr<FManagedArrayCollection> SelectedCollection = nullptr;
-
 	void StartToolForSelectedNode(const UObject* SelectedNode);
 	void OnDataflowNodeDeleted(const TSet<UObject*>& DeletedNodes);
 

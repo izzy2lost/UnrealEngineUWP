@@ -69,6 +69,46 @@ void UDataflowEditorWeightMapPaintToolBuilder::GetSupportedViewModes(TArray<Data
 	//Modes.Add(Dataflow::EDataflowPatternVertexType::Sim2D);
 }
 
+bool UDataflowEditorWeightMapPaintToolBuilder::CanBuildTool(const FToolBuilderState& SceneState) const
+{
+	auto HasRenderableCollection = [](const FDataflowNode* InDataflowNode, const TSharedPtr<Dataflow::FEngineContext> Context)
+	{
+		if (InDataflowNode && Context)
+		{
+			for (const FDataflowOutput* const Output : InDataflowNode->GetOutputs())
+			{
+				if (Output->GetType() == FName("FManagedArrayCollection"))
+				{
+					const FManagedArrayCollection DefaultValue;
+					const FManagedArrayCollection& Collection = Output->GetValue<FManagedArrayCollection>(*Context, DefaultValue);
+					if (Collection.HasGroup("Geometry"))
+					{
+						return true;
+					}
+				}
+			}
+		}
+
+		return false;
+	};
+
+	if (UMeshSurfacePointMeshEditingToolBuilder::CanBuildTool(SceneState))
+	{
+		if (UDataflowBaseContent* ContextObject = SceneState.ToolManager->GetContextObjectStore()->FindContext<UDataflowBaseContent>())
+		{
+			if (const TSharedPtr<Dataflow::FEngineContext> EvaluationContext = ContextObject->GetDataflowContext())
+			{
+				if (const FDataflowNode* PrimarySelection = ContextObject->GetPrimarySelectedNodeOfType<FDataflowCollectionAddScalarVertexPropertyNode>())
+				{
+					return HasRenderableCollection(PrimarySelection, EvaluationContext);
+				}
+			}
+		}
+	}
+	return false;
+}
+
+
 UMeshSurfacePointTool* UDataflowEditorWeightMapPaintToolBuilder::CreateNewTool(const FToolBuilderState& SceneState) const
 {
 	UDataflowEditorWeightMapPaintTool* PaintTool = NewObject<UDataflowEditorWeightMapPaintTool>(SceneState.ToolManager);
@@ -373,13 +413,20 @@ void UDataflowEditorWeightMapPaintTool::Shutdown(EToolShutdownType ShutdownType)
 		DynamicMeshComponent->OnMeshChanged.Remove(OnDynamicMeshComponentChangedHandle);
 	}
 
-	if (ensure(MeshElementsDisplay->Settings))
+	if (MeshElementsDisplay)
 	{
-		MeshElementsDisplay->Settings->SaveProperties(this, TEXT("DataflowEditorWeightMapPaintTool2"));
+		if (ensure(MeshElementsDisplay->Settings))
+		{
+			MeshElementsDisplay->Settings->SaveProperties(this, TEXT("DataflowEditorWeightMapPaintTool2"));
+		}
+		MeshElementsDisplay->Disconnect();
 	}
-	MeshElementsDisplay->Disconnect();
 
-	FilterProperties->SaveProperties(this);
+	if (FilterProperties)
+	{
+		FilterProperties->SaveProperties(this);
+	}
+
 	if (PreviewMeshActor != nullptr)
 	{
 		PreviewMeshActor->Destroy();
