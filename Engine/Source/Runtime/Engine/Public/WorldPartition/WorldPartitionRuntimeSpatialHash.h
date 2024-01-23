@@ -43,6 +43,8 @@ struct FSpatialHashSettings
 
 	friend bool operator==(const FSpatialHashSettings& Lhs, const FSpatialHashSettings& Rhs) = default;
 	friend bool operator!=(const FSpatialHashSettings& Lhs, const FSpatialHashSettings& Rhs) = default;
+
+	void UpdateSettings(const UWorldPartitionRuntimeSpatialHash& RuntimeSpatialHash);
 	
 	UPROPERTY();
 	bool bUseAlignedGridLevels;
@@ -416,11 +418,11 @@ private:
 	ENGINE_API void GetAlwaysLoadedStreamingCells(const FSpatialHashStreamingGrid& StreamingGrid, TSet<const UWorldPartitionRuntimeCell*>& Cells) const;
 	ENGINE_API const TMap<FName, const FSpatialHashStreamingGrid*>& GetNameToGridMapping() const;
 #if WITH_EDITOR
-	ENGINE_API void UpdateSettings();
 	ENGINE_API bool CreateStreamingGrid(const FSpatialHashRuntimeGrid& RuntimeGrid, const FSquare2DGridHelper& PartionedActors, UWorldPartitionStreamingPolicy* StreamingPolicy, TArray<FString>* OutPackagesToGenerate = nullptr);
 #endif
 	ENGINE_API TArray<const FSpatialHashStreamingGrid*> GetFilteredStreamingGrids() const;
 
 	friend class UWorldPartitionSubsystem;
 	friend class UWorldPartitionRuntimeHashSet;
+	friend struct FSpatialHashSettings;
 };
