@@ -916,12 +916,13 @@ TSharedRef<SWidget> SWorldPartitionEditorGrid2D::GenerateContextualMenu() const
 		static const FName SectionSelectionName(TEXT("ContextMenu.Selection"));
 		FToolMenuSection& SectionSelection = ConxtextualMenu->AddSection(SectionSelectionName, LOCTEXT("WorldPartitionSelectionHeader", "Selection"));
 		SectionSelection.AddMenuEntry(Commands.CreateRegionFromSelection);
-		SectionSelection.AddMenuEntry(Commands.ConvertSelectedRegionsToActors);
 		
 		static const FName SectionRegionsName(TEXT("ContextMenu.Regions"));
 		FToolMenuSection& SectionRegions = ConxtextualMenu->AddSection(SectionRegionsName, LOCTEXT("WorldPartitionRegionsHeader", "Region(s)"));
 		SectionRegions.AddMenuEntry(Commands.LoadSelectedRegions);
 		SectionRegions.AddMenuEntry(Commands.UnloadSelectedRegions);
+		SectionRegions.AddSeparator(NAME_None);
+		SectionRegions.AddMenuEntry(Commands.ConvertSelectedRegionsToActors);
 	}
 
 	static const FName SectionMiscName(TEXT("ContextMenu.Misc"));
