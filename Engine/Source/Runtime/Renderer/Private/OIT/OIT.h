@@ -30,10 +30,7 @@ enum class FTriangleSortingOrder
 struct FSortedTriangleData
 {
 	const FIndexBuffer* SourceIndexBuffer = nullptr;
-	FIndexBuffer* SortedIndexBuffer = nullptr;
-
-	FShaderResourceViewRHIRef  SourceIndexSRV = nullptr;
-	FUnorderedAccessViewRHIRef SortedIndexUAV = nullptr;
+	FSortedIndexBuffer* SortedIndexBuffer = nullptr;
 
 	uint32 SortedFirstIndex = 0;
 	uint32 SourceFirstIndex	= 0;
@@ -67,10 +64,10 @@ struct FOITData
 struct FOITSceneData
 {
 	/* Allocate sorted-triangle data for a instance */
-	FSortedTriangleData Allocate(FRHICommandListBase& RHICmdList, EPrimitiveType PrimitiveType, const FMeshBatchElement& InMeshElement);
+	void Allocate(FRHICommandListBase& RHICmdList, EPrimitiveType PrimitiveType, const FMeshBatchElement& InMeshElement, FMeshBatchElementDynamicIndexBuffer& OutMeshElement);
 
 	/* Deallocate sorted-triangle data */
-	void Deallocate(FIndexBuffer* IndexBuffer);
+	void Deallocate(FMeshBatchElement& OutMeshElement);
 
 	TArray<FSortedTriangleData> Allocations;
 	TArray<FSortedIndexBuffer*> FreeBuffers;
@@ -99,9 +96,6 @@ namespace OIT
 
 	/* Sort triangles of all instances whose has the sorted triangle option enabled */
 	void AddSortTrianglesPass(FRDGBuilder& GraphBuilder, const FViewInfo& View, FOITSceneData& OITSceneData, FTriangleSortingOrder SortType);
-
-	/* Convert FSortedTriangleData into FMeshBatchElementDynamicIndexBuffer */
-	void ConvertSortedIndexToDynamicIndex(FSortedTriangleData* In, FMeshBatchElementDynamicIndexBuffer* Out);
 
 	/* Create OIT data for translucent pass */
 	FOITData CreateOITData(FRDGBuilder& GraphBuilder, const FViewInfo& View, EOITPassType PassType);

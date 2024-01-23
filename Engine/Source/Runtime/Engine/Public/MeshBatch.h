@@ -77,7 +77,7 @@ struct FMeshBatchElementDynamicIndexBuffer
 	/** Returns true if the allocation is valid. */
 	FORCEINLINE bool IsValid() const
 	{
-		return IndexBuffer != NULL;
+		return IndexBuffer != NULL && IndexBuffer->IsInitialized();
 	}
 };
 

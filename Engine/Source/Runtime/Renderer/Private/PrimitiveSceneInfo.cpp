@@ -1284,8 +1284,7 @@ void FPrimitiveSceneInfo::AddStaticMeshes(FRHICommandListBase& RHICmdList, FScen
 
 				if (bAllocateSortedTriangles && OIT::IsCompatible(Mesh, FeatureLevel))
 				{
-					FSortedTriangleData Allocation = Scene->OITSceneData.Allocate(RHICmdList, EPrimitiveType(Mesh.Type), Mesh.Elements[0]);
-					OIT::ConvertSortedIndexToDynamicIndex(&Allocation, &Mesh.Elements[0].DynamicIndexBuffer);
+					Scene->OITSceneData.Allocate(RHICmdList, EPrimitiveType(Mesh.Type), Mesh.Elements[0], Mesh.Elements[0].DynamicIndexBuffer);
 				}
 			}
 		}
@@ -1693,9 +1692,9 @@ void FPrimitiveSceneInfo::RemoveStaticMeshes()
 		for (int32 MeshIndex = 0; MeshIndex < StaticMeshes.Num(); MeshIndex++)
 		{
 			FStaticMeshBatch& Mesh = StaticMeshes[MeshIndex];
-			if (Mesh.Elements.Num() > 0 && Mesh.Elements[0].DynamicIndexBuffer.IsValid())
+			if (Mesh.Elements.Num() > 0)
 			{
-				Scene->OITSceneData.Deallocate(Mesh.Elements[0].DynamicIndexBuffer.IndexBuffer);
+				Scene->OITSceneData.Deallocate(Mesh.Elements[0]);
 			}
 		}
 	}
