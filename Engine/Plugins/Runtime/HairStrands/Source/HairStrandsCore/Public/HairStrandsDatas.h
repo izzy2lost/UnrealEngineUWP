@@ -610,6 +610,8 @@ struct HAIRSTRANDSCORE_API FHairStrandsBulkData : FHairStrandsBulkCommon
 		DataFlags_HasData = 0x1u,				// Contains valid data. Otherwise: Position, Attributes, ... are all empty
 		DataFlags_HasPointAttribute = 0x2,		// Contains point attribute data.
 		DataFlags_HasTranscodedPosition = 0x4u,	// Contains transcoded position
+		DataFlags_HasTrimmedCurve = 0x8u,		// Source data had more curves per group than the limit and some curves were trimmed
+		DataFlags_HasTrimmedPoint = 0x10u,		// Source data had more points per curve than the limit and some points were trimmed
 	};
 
 	virtual void SerializeHeader(FArchive& Ar, UObject* Owner) override;

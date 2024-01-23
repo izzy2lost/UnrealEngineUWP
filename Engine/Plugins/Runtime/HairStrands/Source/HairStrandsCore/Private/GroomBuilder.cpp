@@ -51,7 +51,7 @@ bool DoesHairStrandsSupportCompressedPosition();
 
 FString FGroomBuilder::GetVersion()
 {
-	return TEXT("v13_Dummy10");
+	return TEXT("v14");
 }
 
 // For debug purpose
@@ -182,7 +182,7 @@ namespace HairStrandsBuilder
 	}
 
 	/** Build the bulk/packed datas for gpu rendering/simulation */
-	void BuildBulkData(const FHairStrandsDatas& HairStrands, const TArray<uint8>& RandomSeeds, FHairStrandsBulkData& OutBulkData, bool bAllowTranscoding)
+	void BuildBulkData(const FHairStrandsDatas& HairStrands, const TArray<uint8>& RandomSeeds, FHairStrandsBulkData& OutBulkData, bool bAllowTranscoding, uint32 InGroupFlags)
 	{
 		TRACE_CPUPROFILER_EVENT_SCOPE(HairStrandsBuilder::BuildBulkData);
 
@@ -565,6 +565,17 @@ namespace HairStrandsBuilder
 		OutBulkData.Header.Transcoding.PositionOffset = FVector3f::ZeroVector;
 		OutBulkData.Header.Transcoding.PositionScale = FVector3f::ZeroVector;
 
+		// Transfer group trimmed pt./curve info from group to header. This allows to display this information 
+		// in the groom editor by reading the bulk data header
+		if (InGroupFlags & uint32(EHairGroupInfoFlags::HasTrimmedCurve))
+		{
+			OutBulkData.Header.Flags |= FHairStrandsBulkData::DataFlags_HasTrimmedCurve;
+		}
+		if (InGroupFlags & uint32(EHairGroupInfoFlags::HasTrimmedPoint))
+		{
+			OutBulkData.Header.Flags |= FHairStrandsBulkData::DataFlags_HasTrimmedPoint;
+		}
+	
 		// Transcoding
 		const bool bHasTranscodedPosition = OutTranscodedPositions.Num() > 0;
 		if (bHasTranscodedPosition)
@@ -775,13 +786,6 @@ namespace HairStrandsBuilder
 		OutBulkData.Header.Strides.TranscodedPositionChunkElementCount = TranscodedPositionChunkElementCount;
 		OutBulkData.Header.Strides.TranscodedPositionChunkStride = sizeof(FTranscodedHairPositions);
 	}
-
-	void BuildBulkData(const FHairStrandsDatas& HairStrands, FHairStrandsBulkData& OutBulkData, bool bAllowTranscoding)
-	{
-		TArray<uint8> RandomSeeds;
-		BuildBulkData(HairStrands, RandomSeeds, OutBulkData, bAllowTranscoding);
-	}
-
 } // namespace HairStrandsBuilder
 
 namespace HairInterpolationBuilder
@@ -2072,7 +2076,10 @@ bool FGroomBuilder::BuildHairDescriptionGroups(const FHairDescription& HairDescr
 		// If the current curve has more control point than allows, issue a warning
 		if (CurveNumVertices > HAIR_MAX_NUM_POINT_PER_CURVE && !bPointCountWarningIssued)
 		{
-			UE_LOG(LogGroomBuilder, Warning, TEXT("[Groom] Groom contains strands with more than %d control points. Control points beyond that limit will be trimmed"), uint32(HAIR_MAX_NUM_POINT_PER_CURVE));
+			// Do not display this during build time. 
+			// * This is reported at import time
+			// * This is visible in Groom editor
+			//UE_LOG(LogGroomBuilder, Warning, TEXT("[Groom] Groom contains strands with more than %d control points. Control points beyond that limit will be trimmed"), uint32(HAIR_MAX_NUM_POINT_PER_CURVE));
 			Group.Info.Flags |= uint32(EHairGroupInfoFlags::HasTrimmedPoint);
 		}
 
@@ -2081,7 +2088,10 @@ bool FGroomBuilder::BuildHairDescriptionGroups(const FHairDescription& HairDescr
 		{
 			if (!bCurveCountWarningIssued)
 			{
-				UE_LOG(LogGroomBuilder, Warning, TEXT("[Groom] Group has more than %d curves per group. Curve beyong that limit won't be part of the groom"), uint32(HAIR_MAX_NUM_CURVE_PER_GROUP));
+				// Do not display this during build time. 
+				// * This is reported at import time
+				// * This is visible in Groom editor
+				//UE_LOG(LogGroomBuilder, Warning, TEXT("[Groom] Group has more than %d curves per group. Curve beyong that limit won't be part of the groom"), uint32(HAIR_MAX_NUM_CURVE_PER_GROUP));
 				bCurveCountWarningIssued = true;
 			}
 			Group.Info.Flags |= uint32(EHairGroupInfoFlags::HasTrimmedCurve);
@@ -2390,7 +2400,7 @@ void FGroomBuilder::BuildBulkData(
 	{
 		CurveSeeds[Index] = Random.RandHelper(255);
 	}
-	HairStrandsBuilder::BuildBulkData(InData, CurveSeeds, OutBulkData, bAllowTranscoding);
+	HairStrandsBuilder::BuildBulkData(InData, CurveSeeds, OutBulkData, bAllowTranscoding, InInfo.Flags);
 }
 
 void FGroomBuilder::BuildInterplationData(

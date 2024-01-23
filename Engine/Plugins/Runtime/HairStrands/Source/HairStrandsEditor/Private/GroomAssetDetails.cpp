@@ -100,6 +100,105 @@ TSharedRef<SUniformGridPanel> MakeHairStrandsAttributeInfoGrid(const FSlateFontI
 }
 
 ///////////////////////////////////////////////////////////////////////////////////////////////////////////
+// Array panel for hair strands curve infos
+TSharedRef<SUniformGridPanel> MakeHairStrandsCurveInfoGrid(const FSlateFontInfo& DetailFontInfo, const FHairStrandsBulkData::FHeader& InHeader)
+{
+	TSharedRef<SUniformGridPanel> Grid = SNew(SUniformGridPanel).SlotPadding(2.0f);
+	
+	// Min. point per curve
+	Grid->AddSlot(0, 1) // x, y
+	.HAlign(HAlign_Left)
+	[
+		SNew(STextBlock)
+		.Font(DetailFontInfo)
+		.Text(LOCTEXT("HairInfo_CPPerCurve", "Pt/Curve"))
+	];
+	Grid->AddSlot(1, 1) // x, y
+	.HAlign(HAlign_Right)
+	[
+		SNew(STextBlock)
+		.Font(DetailFontInfo)
+		.Text(LOCTEXT("HairInfo_MinCPPerCurveText", "Min"))
+	];
+	Grid->AddSlot(2, 1) // x, y
+	.HAlign(HAlign_Right)
+	[
+		SNew(STextBlock)
+		.Font(DetailFontInfo)
+		.Text(LOCTEXT("HairInfo_MaxCPPerCurveText", "Max"))
+	];
+	Grid->AddSlot(3, 1) // x, y
+	.HAlign(HAlign_Right)
+	[
+		SNew(STextBlock)
+		.Font(DetailFontInfo)
+		.Text(LOCTEXT("HairInfo_AvgCPPerCurveText", "Avg"))
+	];
+
+	// Max. point per curve
+	Grid->AddSlot(0, 2) // x, y
+	.HAlign(HAlign_Left)
+	[
+		SNew(STextBlock)
+		.Font(DetailFontInfo)
+		.Text(LOCTEXT("HairInfo_CPPerCurveEmpty", ""))
+	];
+	Grid->AddSlot(1, 2) // x, y
+	.HAlign(HAlign_Right)
+	[
+		SNew(STextBlock)
+		.Font(DetailFontInfo)
+		.Text(FText::AsNumber(InHeader.MinPointPerCurve))
+	];
+	Grid->AddSlot(2, 2) // x, y
+	.HAlign(HAlign_Right)
+	[
+		SNew(STextBlock)
+		.Font(DetailFontInfo)
+		.Text(FText::AsNumber(InHeader.MaxPointPerCurve))
+	];
+	Grid->AddSlot(3, 2) // x, y
+	.HAlign(HAlign_Right)
+	[
+		SNew(STextBlock)
+		.Font(DetailFontInfo)
+		.Text(FText::AsNumber(InHeader.AvgPointPerCurve))
+	];
+
+	return Grid;
+}
+
+void AddHairStrandsCurveWarning(IDetailChildrenBuilder& ChildrenBuilder, const FSlateFontInfo& DetailFontInfo, const FHairStrandsBulkData::FHeader& InHeader)
+{
+	// Warning if group has trimmed curves or trimmed points
+	const FLinearColor ErrorColor = FLinearColor(FColor::Red);
+	if (InHeader.Flags & uint32(FHairStrandsBulkData::DataFlags_HasTrimmedCurve))
+	{
+		ChildrenBuilder.AddCustomRow(LOCTEXT("HairStrandsCurveWarning_Curve", "HairStrandsCurveWarning"))
+		.ValueContent()
+		.HAlign(HAlign_Fill)
+		[
+			SNew(STextBlock)
+			.Font(DetailFontInfo)
+			.ColorAndOpacity(ErrorColor)
+			.Text(LOCTEXT("HairInfo_TrimmedCurve", "Group has > 4M curves"))
+		];
+	}
+	if (InHeader.Flags & uint32(FHairStrandsBulkData::DataFlags_HasTrimmedPoint))
+	{
+		ChildrenBuilder.AddCustomRow(LOCTEXT("HairStrandsCurveWarning_Point", "HairStrandsPointWarning"))
+		.ValueContent()
+		.HAlign(HAlign_Fill)
+		[
+			SNew(STextBlock)
+			.Font(DetailFontInfo)
+			.ColorAndOpacity(ErrorColor)
+			.Text(LOCTEXT("HairInfo_TrimmedPoint", "Group has curve with >255 points."))
+		];
+	}
+}
+
+///////////////////////////////////////////////////////////////////////////////////////////////////////////
 // Array panel for hair strands infos
 TSharedRef<SUniformGridPanel> MakeHairStrandsLODInfoGrid(const FSlateFontInfo& DetailFontInfo, const FHairLODInfo& LODInfo)
 {
@@ -161,7 +260,7 @@ TSharedRef<SUniformGridPanel> MakeHairStrandsInfoGrid(const FSlateFontInfo& Deta
 	[
 		SNew(STextBlock)
 		.Font(DetailFontInfo)
-		.Text(LOCTEXT("HairInfo_Vertices", "Vertices"))
+		.Text(LOCTEXT("HairInfo_Points", "Points"))
 	];
 
 	// Strands
@@ -1424,6 +1523,13 @@ void FGroomRenderingDetails::OnGenerateElementForHairGroup(TSharedRef<IPropertyH
 		[
 			MakeHairStrandsInfoGrid(DetailFontInfo, GroomAsset->GetHairGroupsInfo()[GroupIndex], GroomAsset->GetHairGroupsPlatformData()[GroupIndex].Strands.BulkData.Header.MaxRadius)
 		];
+		ChildrenBuilder.AddCustomRow(LOCTEXT("HairStrandsCurveInfo_Array", "HairStrandsCurveInfo"))
+		.ValueContent()
+		.HAlign(HAlign_Fill)
+		[
+			MakeHairStrandsCurveInfoGrid(DetailFontInfo, GroomAsset->GetHairGroupsPlatformData()[GroupIndex].Strands.BulkData.Header)
+		];
+		AddHairStrandsCurveWarning(ChildrenBuilder, DetailFontInfo, GroomAsset->GetHairGroupsPlatformData()[GroupIndex].Strands.BulkData.Header);
 		ChildrenBuilder.AddCustomRow(LOCTEXT("HairStrandsAttributeInfo_Array", "HairStrandsAttributeInfo"))
 		.ValueContent()
 		.HAlign(HAlign_Fill)
