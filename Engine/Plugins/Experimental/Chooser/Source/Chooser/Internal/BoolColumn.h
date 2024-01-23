@@ -91,7 +91,7 @@ struct CHOOSER_API FBoolColumn : public FChooserColumnBase
 #if WITH_EDITORONLY_DATA
 		if (RowValues_DEPRECATED.Num() > 0)
 		{
-			RowValuesWithAny.SetNum(0,false);
+			RowValuesWithAny.SetNum(0,EAllowShrinking::No);
 			RowValuesWithAny.Reserve(RowValues_DEPRECATED.Num());
 			for(bool Value : RowValues_DEPRECATED)
 			{
@@ -156,7 +156,7 @@ public:
 			InputValueInterface->ConvertToInstancedStruct(Column.InputValue);
 		}
 
-		Column.RowValuesWithAny.SetNum(0,false);
+		Column.RowValuesWithAny.SetNum(0,EAllowShrinking::No);
 		Column.RowValuesWithAny.Reserve(RowValues.Num());
 		for(bool Value : RowValues)
 		{

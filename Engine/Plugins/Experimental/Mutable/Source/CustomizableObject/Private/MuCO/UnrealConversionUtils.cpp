@@ -414,11 +414,11 @@ namespace UnrealConversionUtils
 					Override.VertexIndexToInfluenceOffset.Add(ElementIndex, UniqueWeightsCount);
 					HashToUniqueWeightIndexMap.Add({ SkinWeightsBuffer, MutBoneWeightVertexSize, ElementHash }, UniqueWeightsCount);
 
-					Override.BoneIDs.SetNumUninitialized((UniqueWeightsCount + 1) * MutBoneIndicesSize, false);
+					Override.BoneIDs.SetNumUninitialized((UniqueWeightsCount + 1) * MutBoneIndicesSize, EAllowShrinking::No);
 					FMemory::Memcpy(&Override.BoneIDs[UniqueWeightsCount * MutBoneIndicesSize], SkinWeightsBuffer, MutBoneIndicesSize);
 					SkinWeightsBuffer += MutBoneIndicesSize;
 
-					Override.BoneWeights.SetNumUninitialized((UniqueWeightsCount + 1) * MutBoneWeightsSize, false);
+					Override.BoneWeights.SetNumUninitialized((UniqueWeightsCount + 1) * MutBoneWeightsSize, EAllowShrinking::No);
 					FMemory::Memcpy(&Override.BoneWeights[UniqueWeightsCount * MutBoneWeightsSize], SkinWeightsBuffer, MutBoneWeightsSize);
 					SkinWeightsBuffer += MutBoneWeightsSize;
 					++UniqueWeightsCount;

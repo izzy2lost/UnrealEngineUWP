@@ -1156,7 +1156,7 @@ void FChooserTableEditor::UpdateTableRows()
 	int32 NewNum = Chooser->ResultsStructs.Num();
 
 	// Sync the TableRows array which drives the ui table to match the number of results.
-	TableRows.SetNum(0, false);
+	TableRows.SetNum(0, EAllowShrinking::No);
 	for(int i =0; i < NewNum; i++)
 	{
 		TableRows.Add(MakeShared<FChooserTableRow>(i));

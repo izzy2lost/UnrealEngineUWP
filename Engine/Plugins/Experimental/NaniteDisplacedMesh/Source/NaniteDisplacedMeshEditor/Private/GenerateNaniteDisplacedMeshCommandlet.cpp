@@ -198,8 +198,7 @@ int32 UGenerateNaniteDisplacedMeshCommandlet::Main(const FString& CmdLineParams)
 			AssetRegistry.GetDependencies(LevelAsset.PackageName, CurrentDependencies, UE::AssetRegistry::EDependencyCategory::Package, QueryFlags);
 			while (!CurrentDependencies.IsEmpty())
 			{
-				const bool bAllowShrinking = false;
-				FName DependendPackageName = CurrentDependencies.Pop(bAllowShrinking);
+				FName DependendPackageName = CurrentDependencies.Pop(EAllowShrinking::No);
 				if (!StopSearchAt.Contains(DependendPackageName))
 				{
 					StopSearchAt.Add(DependendPackageName);
@@ -513,8 +512,7 @@ void UGenerateNaniteDisplacedMeshCommandlet::LoadLevel(const FAssetData& AssetDa
 
 					while (!QueuedLinkingRequest.IsEmpty())
 					{
-						const bool bAllowShrinking = false;
-						FOnLinkDisplacedMeshArgs LinkDisplacedMeshArgs = QueuedLinkingRequest.Pop(bAllowShrinking);
+						FOnLinkDisplacedMeshArgs LinkDisplacedMeshArgs = QueuedLinkingRequest.Pop(EAllowShrinking::No);
 						OnLinkDisplacedMesh(LinkDisplacedMeshArgs.Parameters, LinkDisplacedMeshArgs.Folder, LinkDisplacedMeshArgs.LinkDisplacedMeshAssetSetting);
 					}
 
@@ -531,8 +529,7 @@ void UGenerateNaniteDisplacedMeshCommandlet::LoadLevel(const FAssetData& AssetDa
 			// If the world don't use the external actors we still need to process the linking requests captured and kick the GC if needed
 			while (!QueuedLinkingRequest.IsEmpty())
 			{
-				const bool bAllowShrinking = false;
-				FOnLinkDisplacedMeshArgs LinkDisplacedMeshArgs = QueuedLinkingRequest.Pop(bAllowShrinking);
+				FOnLinkDisplacedMeshArgs LinkDisplacedMeshArgs = QueuedLinkingRequest.Pop(EAllowShrinking::No);
 				OnLinkDisplacedMesh(LinkDisplacedMeshArgs.Parameters, LinkDisplacedMeshArgs.Folder, LinkDisplacedMeshArgs.LinkDisplacedMeshAssetSetting);
 			}
 			if (ShouldKickGC())

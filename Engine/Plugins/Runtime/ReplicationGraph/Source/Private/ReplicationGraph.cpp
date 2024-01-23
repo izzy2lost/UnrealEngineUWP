@@ -500,7 +500,7 @@ void UReplicationGraph::AddClientConnection(UNetConnection* NetConnection)
 		{
 			if (ConnManager->NetConnection == NetConnection)
 			{
-				PendingConnections.RemoveAtSwap(i, 1, false);
+				PendingConnections.RemoveAtSwap(i, 1, EAllowShrinking::No);
 				Connections.Add(ConnManager);
 				return;
 			}
@@ -557,7 +557,7 @@ UNetReplicationGraphConnection* UReplicationGraph::FixGraphConnectionList(TArray
 				CurrentGraphConnection->ConnectionOrderNum, *CurrentGraphConnection->GetName());
 			RemovedGraphConnection = CurrentGraphConnection;
 
-			OutList.RemoveAtSwap(Index--, 1, false);
+			OutList.RemoveAtSwap(Index--, 1, EAllowShrinking::No);
 		}
 	}
 
@@ -2866,12 +2866,12 @@ void UNetReplicationGraphConnection::NotifyRemoveDestructionInfo(FActorDestructi
 {
 	const FCachedDestructInfo CachedDestructInfo(DestructInfo);
 
-	bool bRemoved = PendingDestructInfoList.RemoveSingleSwap(DestructInfo, false) > 0;
+	bool bRemoved = PendingDestructInfoList.RemoveSingleSwap(DestructInfo, EAllowShrinking::No) > 0;
 
 	// Check if the actor is in the out of range list
 	if( !bRemoved )
 	{
-		OutOfRangeDestroyedActors.RemoveSingleSwap(DestructInfo, false);
+		OutOfRangeDestroyedActors.RemoveSingleSwap(DestructInfo, EAllowShrinking::No);
 	}
 	
 	TrackedDestructionInfoPtrs.Remove(DestructInfo);
@@ -2884,7 +2884,7 @@ void UNetReplicationGraphConnection::NotifyRemoveDestructionInfo(FActorDestructi
 		DuplicateIdx = PendingDestructInfoList.IndexOfByKey(DestructInfo);
 		if (!ensureMsgf(DuplicateIdx == INDEX_NONE, TEXT("::NotifyRemoveDestructionInfo list STILL contains DestructInfo: 0x%X (%s)"), (int64)DestructInfo, *DestructInfo->PathName))
 		{
-			PendingDestructInfoList.RemoveAtSwap(DuplicateIdx, 1, false);
+			PendingDestructInfoList.RemoveAtSwap(DuplicateIdx, 1, EAllowShrinking::No);
 			continue;
 		}
 		break;
@@ -3026,7 +3026,7 @@ int64 UNetReplicationGraphConnection::ReplicateDestructionInfos(const FRepGraphD
 			{
 				NumBits += NetConnection->Driver->SendDestructionInfo(NetConnection, DestructInfo);
 
-				PendingDestructInfoList.RemoveAtSwap(idx, 1, false);
+				PendingDestructInfoList.RemoveAtSwap(idx, 1, EAllowShrinking::No);
 				TrackedDestructionInfoPtrs.Remove(DestructInfo);
 			}
 		}
@@ -3034,7 +3034,7 @@ int64 UNetReplicationGraphConnection::ReplicateDestructionInfos(const FRepGraphD
 		{
 			// Add the far actor to the out of range list so we don't evaluate it every frame
 			OutOfRangeDestroyedActors.Emplace(MoveTemp(Info));
-			PendingDestructInfoList.RemoveAtSwap(idx, 1, false);
+			PendingDestructInfoList.RemoveAtSwap(idx, 1, EAllowShrinking::No);
 		}
 	}
 #endif // #if WITH_SERVER_CODE
@@ -3121,7 +3121,7 @@ void UNetReplicationGraphConnection::OnUpdateViewerLocation(FLastLocationGatherI
 			{
 				// Swap the info into the Pending List to get it replicated
 				PendingDestructInfoList.Emplace(MoveTemp(CachedInfo));
-				OutOfRangeDestroyedActors.RemoveAtSwap(Index, 1, false);
+				OutOfRangeDestroyedActors.RemoveAtSwap(Index, 1, EAllowShrinking::No);
 			}
 		}
 	}
@@ -3177,7 +3177,7 @@ bool UReplicationGraphNode::RemoveChildNode(UReplicationGraphNode* ChildNode, UR
 	
 	if (NodeOrder == NodeOrdering::IgnoreOrdering)
 	{
-		Removed = AllChildNodes.RemoveSingleSwap(ChildNode, false);
+		Removed = AllChildNodes.RemoveSingleSwap(ChildNode, EAllowShrinking::No);
 	}
 	else
 	{
@@ -3201,7 +3201,7 @@ void UReplicationGraphNode::CleanChildNodes(UReplicationGraphNode::NodeOrdering 
 
 	if (NodeOrder == NodeOrdering::IgnoreOrdering)
 	{
-		AllChildNodes.RemoveAllSwap(RemoveFunc, false);
+		AllChildNodes.RemoveAllSwap(RemoveFunc, EAllowShrinking::No);
 	}
 	else
 	{
@@ -3975,7 +3975,7 @@ void UReplicationGraphNode_DynamicSpatialFrequency::GatherActorListsForConnectio
 
 				// Sort list by distance, remove Num - MaxNearestActors from end
 				SortedReplicationList.Sort();
-				SortedReplicationList.SetNum(MaxNearestActors, false);
+				SortedReplicationList.SetNum(MaxNearestActors, EAllowShrinking::No);
 
 				// Do rest of normal spatial calculations and resort
 				for (int32 idx = SortedReplicationList.Num()-1; idx >= 0; --idx)
@@ -4158,7 +4158,7 @@ void UReplicationGraphNode_DynamicSpatialFrequency::CalcFrequencyForActor(AActor
 	{
 		if (ExistingItemIndex != INDEX_NONE)
 		{
-			SortedReplicationList.RemoveAtSwap(ExistingItemIndex, 1, false);
+			SortedReplicationList.RemoveAtSwap(ExistingItemIndex, 1, EAllowShrinking::No);
 		}
 	};
 
@@ -4448,7 +4448,7 @@ void UReplicationGraphNode_ConnectionDormancyNode::GatherActorListsForConnection
 		FStreamingLevelActorListCollection::FStreamingLevelActors& StreamingList = StreamingLevelCollection.StreamingLevelLists[idx];
 		if (StreamingList.ReplicationActorList.Num() <= 0)
 		{
-			StreamingLevelCollection.StreamingLevelLists.RemoveAtSwap(idx, 1, false);
+			StreamingLevelCollection.StreamingLevelLists.RemoveAtSwap(idx, 1, EAllowShrinking::No);
 			continue;
 		}
 
@@ -4865,7 +4865,7 @@ void UReplicationGraphNode_DormancyNode::ConditionalGatherDormantDynamicActors(F
 						}
 
 						// Keeping the allocation when removing items let's us safe time on multiple items removed from that list.
-						if (RemoveFromList && RemoveFromList->RemoveFast(Actor, false))
+						if (RemoveFromList && RemoveFromList->RemoveFast(Actor, EAllowShrinking::No))
 						{
 							Info->bGridSpatilization_AlreadyDormant = false;
 						}
@@ -5222,7 +5222,7 @@ void UReplicationGraphNode_GridSpatialization2D::RemoveActorInternal_Static(cons
 		{
 			if (PendingStaticSpatializedActors[idx].Actor == ActorInfo.Actor)
 			{
-				PendingStaticSpatializedActors.RemoveAtSwap(idx, 1, false);
+				PendingStaticSpatializedActors.RemoveAtSwap(idx, 1, EAllowShrinking::No);
 				return;
 			}
 		}
@@ -5787,7 +5787,7 @@ void UReplicationGraphNode_GridSpatialization2D::PrepareForReplication()
 
 		AddActorInternal_Static_Implementation(NewActorInfo, GlobalInfo, PendingStaticActor.DormancyDriven);
 
-		PendingStaticSpatializedActors.RemoveAtSwap(idx, 1, false);
+		PendingStaticSpatializedActors.RemoveAtSwap(idx, 1, EAllowShrinking::No);
 	}
 	
 	// -------------------------------------------
@@ -5970,8 +5970,8 @@ void UReplicationGraphNode_GridSpatialization2D::GatherActorListsForConnection(c
 
 				if (!bPassesValidation)
 				{
-					DormancyNodesCache.RemoveAtSwap(Index, 1, false);
-					VisibleCells.RemoveAtSwap(Index--, 1, false);
+					DormancyNodesCache.RemoveAtSwap(Index, 1, EAllowShrinking::No);
+					VisibleCells.RemoveAtSwap(Index--, 1, EAllowShrinking::No);
 					continue;
 				}
 #endif
@@ -6002,8 +6002,8 @@ void UReplicationGraphNode_GridSpatialization2D::GatherActorListsForConnection(c
 						DormancyNode->ConditionalGatherDormantDynamicActors(PrevDormantActorList, Params, &GatheredActors, true);
 					}
 					// Remove cell after it's processed
-					DormancyNodesCache.RemoveAtSwap(Index, 1, false);
-					VisibleCells.RemoveAtSwap(Index--, 1, false);
+					DormancyNodesCache.RemoveAtSwap(Index, 1, EAllowShrinking::No);
+					VisibleCells.RemoveAtSwap(Index--, 1, EAllowShrinking::No);
 				}
 				else
 				{
@@ -6265,7 +6265,7 @@ void UReplicationGraphNode_TearOff_ForConnection::GatherActorListsForConnection(
 			//UE_LOG(LogReplicationGraph, Display, TEXT("Removing tearOffActor: %s. GetTearOff: %d"), *GetNameSafe(Actor), (int32)Actor->GetTearOff());
 
 			// If we didn't get added to the list, remove this
-			TearOffActors.RemoveAtSwap(idx, 1, false);
+			TearOffActors.RemoveAtSwap(idx, 1, EAllowShrinking::No);
 		}
 
 		if (ReplicationActorList.Num() > 0)

@@ -1216,7 +1216,7 @@ void FRDGBuilder::FlushCullStack()
 {
 	while (CullPassStack.Num())
 	{
-		FRDGPass* Pass = CullPassStack.Pop(false);
+		FRDGPass* Pass = CullPassStack.Pop(EAllowShrinking::No);
 
 		if (Pass->bCulled)
 		{

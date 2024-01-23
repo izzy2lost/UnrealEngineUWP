@@ -391,10 +391,9 @@ void UTypedElementDatabaseCompatibility::PendingRegistration<AddressType>::Remov
 			// Don't shrink the registration array as the array will be reused with a variety of different object counts.
 			// If memory size becomes an issue it's better to resize the array once after this loop rather than within the
 			// loop to avoid many resizes happening.
-			constexpr bool bAllowToShrink = false;
 			StorageInterface.RemoveRow(*RowHandleIt);
-			Addresses.RemoveAtSwap(AddressIt - AddressBegin, 1, bAllowToShrink);
-			ReservedRowHandles.RemoveAtSwap(RowHandleIt - RowHandleBegin, 1, bAllowToShrink);
+			Addresses.RemoveAtSwap(AddressIt - AddressBegin, 1, EAllowShrinking::No);
+			ReservedRowHandles.RemoveAtSwap(RowHandleIt - RowHandleBegin, 1, EAllowShrinking::No);
 			--AddressEnd;
 		}
 	}
@@ -518,8 +517,7 @@ void UTypedElementDatabaseCompatibility::TickObjectSync()
 					}
 				}
 				const int32 RowHandleCount = RowHandleIndex;
-				const bool bAllowShrinking = false;
-				RowHandles.SetNum(RowHandleCount, bAllowShrinking);
+				RowHandles.SetNum(RowHandleCount, EAllowShrinking::No);
 			}
 
 			ObjectsNeedingFullSync.Reset();

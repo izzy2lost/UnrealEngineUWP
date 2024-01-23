@@ -1119,7 +1119,7 @@ namespace mu
 			{
 				MUTABLE_CPUPROFILER_SCOPE(EnsureBudgetBelow_UnloadRom);
 
-				TPair<float, FRomRef> Candidate = Candidates.Pop(false);
+				TPair<float, FRomRef> Candidate = Candidates.Pop(EAllowShrinking::No);
 
 				// UE_LOG(LogMutableCore,Log, "Unloading rom because of memory budget: %d.", lowestPriorityRom);
 				int32 UnloadedSize = Candidate.Value.Model->GetPrivate()->m_program.UnloadRom(Candidate.Value.RomIndex);
@@ -1189,7 +1189,7 @@ namespace mu
 					while (!bFinished && CacheUnique.Num())
 					{
 						// Free one
-						const Resource* Removed = CacheUnique.Pop(false);
+						const Resource* Removed = CacheUnique.Pop(EAllowShrinking::No);
 
 						int32 RemovedDataSize = Removed->GetDataSize();
 
@@ -1288,7 +1288,7 @@ namespace mu
 					while (!bFinished && CacheUnique.Num())
 					{
 						// Free one
-						const Resource* Removed = CacheUnique.Pop(false);
+						const Resource* Removed = CacheUnique.Pop(EAllowShrinking::No);
 
 						// Does this data have any other cache references with op-hit-count bigger than 0?
 						bool bStillUsed = false;

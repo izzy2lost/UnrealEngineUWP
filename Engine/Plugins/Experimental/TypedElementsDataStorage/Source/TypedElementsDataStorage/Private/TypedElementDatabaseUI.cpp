@@ -470,7 +470,7 @@ void UTypedElementDatabaseUi::CreateWidgetConstructors_LongestMatch(const TArray
 		{
 			// Remove the found columns from the requested list.
 			Algo::SortBy(MatchedColumns, [](const TWeakObjectPtr<const UScriptStruct>& Column) { return Column.Get(); });
-			MatchedColumns.SetNum(Algo::Unique(MatchedColumns), false);
+			MatchedColumns.SetNum(Algo::Unique(MatchedColumns), EAllowShrinking::No);
 			
 			TWeakObjectPtr<const UScriptStruct>* ColumnsIt = Columns.GetData();
 			TWeakObjectPtr<const UScriptStruct>* ColumnsEnd = ColumnsIt + Columns.Num();
@@ -488,7 +488,7 @@ void UTypedElementDatabaseUi::CreateWidgetConstructors_LongestMatch(const TArray
 						return;
 					}
 				}
-				Columns.RemoveAt(ColumnIndex, 1, false /* Allow shrinking */);
+				Columns.RemoveAt(ColumnIndex, 1, EAllowShrinking::No);
 				--ColumnsEnd;
 			}
 			
@@ -520,7 +520,7 @@ void UTypedElementDatabaseUi::CreateWidgetConstructors_ExactMatch(const TArray<F
 		if (Factory.Columns.Verify(MatchedColumns, Columns, true))
 		{
 			Algo::SortBy(MatchedColumns, [](const TWeakObjectPtr<const UScriptStruct>& Column) { return Column.Get(); });
-			MatchedColumns.SetNum(Algo::Unique(MatchedColumns), false);
+			MatchedColumns.SetNum(Algo::Unique(MatchedColumns), EAllowShrinking::No);
 			if (MatchedColumns.Num() == Columns.Num())
 			{
 				Columns.Reset();

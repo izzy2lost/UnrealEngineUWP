@@ -315,8 +315,8 @@ namespace mu
     {
 		bUnrecoverableError = false;
 
-		m_heapData.SetNum(0, false);
-		m_heapImageDesc.SetNum(0, false);
+		m_heapData.SetNum(0, EAllowShrinking::No);
+		m_heapImageDesc.SetNum(0, EAllowShrinking::No);
 
 		// Profiling data. TODO: make optional
 		bool bProfile = false;
@@ -362,7 +362,7 @@ namespace mu
 						ScheduledStagePerOp[item] = 0;
 					}
 
-					IssuedTasks.RemoveAt(Index,1,false); // with swap? changes order of execution.
+					IssuedTasks.RemoveAt(Index,1,EAllowShrinking::No); // with swap? changes order of execution.
 				}
 				else
 				{
@@ -409,7 +409,7 @@ namespace mu
 				case EExecutionStrategy::None:
 				default:
 					// Just get one.
-					item = OpenTasks.Pop(false);
+					item = OpenTasks.Pop(EAllowShrinking::No);
 					break;
 
 				}
@@ -472,7 +472,7 @@ namespace mu
 			// Look for tasks on hold and see if we can launch them
 			while (IssuedTasksOnHold.Num() && ShouldIssueTask())
 			{
-				TSharedPtr<FIssuedTask> TaskToIssue = IssuedTasksOnHold.Pop(false);
+				TSharedPtr<FIssuedTask> TaskToIssue = IssuedTasksOnHold.Pop(EAllowShrinking::No);
 
 				bool bFailed = false;
 				LaunchIssuedTask(TaskToIssue, bFailed);
@@ -504,7 +504,7 @@ namespace mu
 				{
 					bSomeWasReady = true;
 					FTask Task = ClosedTasks[Index];
-					ClosedTasks.RemoveAt(Index, 1, false); // with swap? would change order of execution.
+					ClosedTasks.RemoveAt(Index, 1, EAllowShrinking::No); // with swap? would change order of execution.
 					OpenTasks.Push(Task.Op);
 				}
 				else

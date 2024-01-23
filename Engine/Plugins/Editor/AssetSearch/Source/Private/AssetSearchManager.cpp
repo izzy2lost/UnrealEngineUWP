@@ -968,7 +968,7 @@ bool FAssetSearchManager::Tick_GameThread(float DeltaTime)
 	int32 ScanLimit = PerformanceLimits.AssetScanRate;
 	while (ProcessAssetQueue.Num() > 0 && ScanLimit > 0)
 	{
-		FAssetOperation Operation = ProcessAssetQueue.Pop(false);
+		FAssetOperation Operation = ProcessAssetQueue.Pop(EAllowShrinking::No);
 		FAssetData Asset = Operation.Asset;
 
 		if (Operation.bRemoval)

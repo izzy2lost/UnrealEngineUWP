@@ -1278,7 +1278,7 @@ namespace mu
 		if (Tags.Num())
 		{
 			Ptr<Mesh> TaglessMesh = CloneOrTakeOver(pMesh.get());
-			TaglessMesh->m_tags.SetNum(0, false);
+			TaglessMesh->m_tags.SetNum(0, EAllowShrinking::No);
 			pMesh = TaglessMesh;
 		}
 

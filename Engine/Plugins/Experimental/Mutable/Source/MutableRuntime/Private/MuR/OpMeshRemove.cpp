@@ -209,7 +209,7 @@ namespace mu
             int32 elemSize = Result->GetVertexBuffers().GetElementSize( b );
             const uint8* SourceData = Result->GetVertexBuffers().GetBufferData( b );
 
-			Temp.SetNumUninitialized(firstFreeVertex*elemSize,false);
+			Temp.SetNumUninitialized(firstFreeVertex*elemSize,EAllowShrinking::No);
             uint8* DestData = Temp.GetData();
 
             for ( int32 v=0; v<Result->GetVertexCount(); ++v )

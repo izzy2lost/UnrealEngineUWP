@@ -259,9 +259,14 @@ struct REPLICATIONGRAPH_API FActorRepListRefView
 	}
 
 	/** Removes the element quickly but changes the list order */
-	bool RemoveFast(const FActorRepListType& ElementToRemove, bool bAllowShrink = true)
+	bool RemoveFast(const FActorRepListType& ElementToRemove, EAllowShrinking AllowShrink = EAllowShrinking::Yes)
 	{
-		return RepList.RemoveSingleSwap(ElementToRemove, bAllowShrink) > 0;
+		return RepList.RemoveSingleSwap(ElementToRemove, AllowShrink) > 0;
+	}
+	UE_ALLOWSHRINKING_BOOL_DEPRECATED("RemoveFast")
+	FORCEINLINE bool RemoveFast(const FActorRepListType& ElementToRemove, bool bAllowShrink)
+	{
+		return RemoveFast(ElementToRemove, bAllowShrink ? EAllowShrinking::Yes : EAllowShrinking::No);
 	}
 
 	/** Removes the element but keeps the order intact. Generally not recommended for large lists. */
@@ -1523,7 +1528,7 @@ struct FReplicationGraphDebugInfo
 	void Log(const FString& Str) { Ar.Logf(TEXT("%s%s"), *CurrentIndentString, *Str); }
 
 	void PushIndent() { CurrentIndentString += IndentString; }
-	void PopIndent() { CurrentIndentString.LeftChopInline(IndentString.Len(), false); }
+	void PopIndent() { CurrentIndentString.LeftChopInline(IndentString.Len(), EAllowShrinking::No); }
 };
 
 REPLICATIONGRAPH_API void LogActorRepList(FReplicationGraphDebugInfo& DebugInfo, FString Prefix, const FActorRepListRefView& List);

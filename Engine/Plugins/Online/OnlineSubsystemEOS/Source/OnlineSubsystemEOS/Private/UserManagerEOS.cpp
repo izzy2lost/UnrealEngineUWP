@@ -3165,7 +3165,7 @@ void FUserManagerEOS::ReadUserInfo(int32 LocalUserNum, EOS_EpicAccountId EpicAcc
 		}
 
 		// We mark this player as processed
-		GetLocalUserChecked(LocalUserNum).OngoingQueryUserInfoAccounts.RemoveSwap(EpicAccountId, false);
+		GetLocalUserChecked(LocalUserNum).OngoingQueryUserInfoAccounts.RemoveSwap(EpicAccountId, EAllowShrinking::No);
 
 		Callback(bWasSuccessful, EOSId, ErrorStr);
 	};
@@ -3409,7 +3409,7 @@ bool FUserManagerEOS::QueryExternalIdMappings(const FUniqueNetId& UserId, const 
 			FLocalUserEOS& LocalUser = GetLocalUserChecked(LocalUserNum);
 			for (const FString& StringId : BatchIds)
 			{
-				LocalUser.OngoingPlayerQueryExternalMappings.RemoveSwap(StringId, false);
+				LocalUser.OngoingPlayerQueryExternalMappings.RemoveSwap(StringId, EAllowShrinking::No);
 			}
 
 			const bool bWasSuccessful = Result == EOS_EResult::EOS_Success;

@@ -72,7 +72,7 @@ bool FChooserTrack::UpdateInternal()
 		TRACE_CPUPROFILER_EVENT_SCOPE(FChooserTrack::UpdateEventPointsInternal);
 		EventUpdateRequested = 0;
 		
-		EventData->Points.SetNum(0,false);
+		EventData->Points.SetNum(0,EAllowShrinking::No);
 		EventData->Windows.SetNum(0);
 
 		TraceServices::FAnalysisSessionReadScope SessionReadScope(*AnalysisSession);

@@ -766,7 +766,7 @@ TVariant<FExpressionObject, FParseError> FEngine::Parse(
 					{
 						return ParseError(TEXT("Mismatched parentheses"), ParseResult.Location); 
 					}
-					PushOperatorTokenToExpression(OperatorStack.Pop(false));
+					PushOperatorTokenToExpression(OperatorStack.Pop(EAllowShrinking::No));
 				}
 
 				if (!FunctionStack.IsEmpty() && FunctionStack.Top().OpeningOpStackSize == OperatorStack.Num())
@@ -787,7 +787,7 @@ TVariant<FExpressionObject, FParseError> FEngine::Parse(
 				}
 				
 				// Remove the now unneeded open parentheses.
-				OperatorStack.Pop(false);
+				OperatorStack.Pop(EAllowShrinking::No);
 			}
 			else if (Op == EOperatorToken::Comma)
 			{
@@ -802,7 +802,7 @@ TVariant<FExpressionObject, FParseError> FEngine::Parse(
 				// Peel off all operators that have the same precedence or higher.
 				while (!OperatorStack.IsEmpty() && GetOperatorTokenInfo(OperatorStack.Last().Get<0>()).Precedence >= TokenInfo.Precedence)
 				{
-					PushOperatorTokenToExpression(OperatorStack.Pop(false));
+					PushOperatorTokenToExpression(OperatorStack.Pop(EAllowShrinking::No));
 				}
 				OperatorStack.Push({Op, ParseResult.Location});
 			}
@@ -811,7 +811,7 @@ TVariant<FExpressionObject, FParseError> FEngine::Parse(
 				// Peel off all operators that have higher precedence.
 				while (!OperatorStack.IsEmpty() && GetOperatorTokenInfo(OperatorStack.Last().Get<0>()).Precedence > TokenInfo.Precedence)
 				{
-					PushOperatorTokenToExpression(OperatorStack.Pop(false));
+					PushOperatorTokenToExpression(OperatorStack.Pop(EAllowShrinking::No));
 				}
 				OperatorStack.Push({Op, ParseResult.Location});
 			}
@@ -827,7 +827,7 @@ TVariant<FExpressionObject, FParseError> FEngine::Parse(
 		{
 			return ParseError(TEXT("Mismatched parentheses"), OperatorStack.Last().Get<1>()); 
 		}
-		PushOperatorTokenToExpression(OperatorStack.Pop(false));
+		PushOperatorTokenToExpression(OperatorStack.Pop(EAllowShrinking::No));
 	}
 
 	// If a constant evaluator function is given, then check if the constants exist.  
@@ -889,25 +889,25 @@ float FEngine::Execute(
 				
 			case FExpressionObject::EOperator::Add:
 				{
-					const float V = ValueStack.Pop(false);
+					const float V = ValueStack.Pop(EAllowShrinking::No);
 					ValueStack.Last() += V;
 				}
 				break;	
 			case FExpressionObject::EOperator::Subtract:
 				{
-					const float V = ValueStack.Pop(false);
+					const float V = ValueStack.Pop(EAllowShrinking::No);
 					ValueStack.Last() -= V;
 				}
 				break;	
 			case FExpressionObject::EOperator::Multiply:
 				{
-					const float V = ValueStack.Pop(false);
+					const float V = ValueStack.Pop(EAllowShrinking::No);
 					ValueStack.Last() *= V;
 				}
 				break;
 			case FExpressionObject::EOperator::Divide:
 				{
-					const float V = ValueStack.Pop(false);
+					const float V = ValueStack.Pop(EAllowShrinking::No);
 					if (FMath::IsNearlyZero(V))
 					{
 						ValueStack.Last() = 0.0f;
@@ -920,7 +920,7 @@ float FEngine::Execute(
 				break;	
 			case FExpressionObject::EOperator::Modulo:
 				{
-					const float V = ValueStack.Pop(false);
+					const float V = ValueStack.Pop(EAllowShrinking::No);
 					if (FMath::IsNearlyZero(V))
 					{
 						ValueStack.Last() = 0.0f;
@@ -933,7 +933,7 @@ float FEngine::Execute(
 				break;	
 			case FExpressionObject::EOperator::Power:
 				{
-					const float V = ValueStack.Pop(false);
+					const float V = ValueStack.Pop(EAllowShrinking::No);
 					ValueStack.Last() = FMath::Pow(ValueStack.Last(), V);
 					if (!FMath::IsFinite(ValueStack.Last()))
 					{
@@ -943,7 +943,7 @@ float FEngine::Execute(
 				break;	
 			case FExpressionObject::EOperator::FloorDivide:
 				{
-					const float V = ValueStack.Pop(false);
+					const float V = ValueStack.Pop(EAllowShrinking::No);
 					if (FMath::IsNearlyZero(V))
 					{
 						ValueStack.Last() = 0.0f;
@@ -973,7 +973,7 @@ float FEngine::Execute(
 			const float FuncValue = FunctionInfo.FunctionPtr(ValueView);
 			for (int32 Index = 0; Index < FunctionInfo.ArgumentCount; Index++)
 			{
-				ValueStack.Pop(false);
+				ValueStack.Pop(EAllowShrinking::No);
 			}
 			ValueStack.Push(FuncValue);
 		}

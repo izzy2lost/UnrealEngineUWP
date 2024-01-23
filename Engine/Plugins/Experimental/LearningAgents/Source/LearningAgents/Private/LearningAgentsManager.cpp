@@ -142,7 +142,7 @@ void ULearningAgentsManager::RemoveAgent(const int32 AgentId)
 		return;
 	}
 
-	const int32 RemovedCount = OccupiedAgentIds.RemoveSingleSwap(AgentId, false);
+	const int32 RemovedCount = OccupiedAgentIds.RemoveSingleSwap(AgentId, EAllowShrinking::No);
 
 	if (RemovedCount == 0)
 	{
@@ -183,7 +183,7 @@ void ULearningAgentsManager::RemoveAgents(const TArray<int32>& AgentIds)
 			continue;
 		}
 
-		const int32 RemovedCount = OccupiedAgentIds.RemoveSingleSwap(AgentIds[AgentIdx], false);
+		const int32 RemovedCount = OccupiedAgentIds.RemoveSingleSwap(AgentIds[AgentIdx], EAllowShrinking::No);
 
 		if (RemovedCount == 0)
 		{

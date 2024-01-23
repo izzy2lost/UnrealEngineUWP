@@ -3135,7 +3135,7 @@ mu::NodeMeshPtr GenerateMutableSourceMesh(const UEdGraphPin* Pin,
 			FMorphNodeData NewMorphData = { TypedNodeMorph, TypedNodeMorph->MorphTargetName ,TypedNodeMorph->FactorPin(), TypedNodeMorph->MeshPin() };
 			GenerationContext.MeshMorphStack.Push(NewMorphData);
 			Result = GenerateMutableSourceMesh(ConnectedPin, GenerationContext, MeshData, false, bOnlyConnectedLOD);
-			GenerationContext.MeshMorphStack.Pop(true);
+			GenerationContext.MeshMorphStack.Pop(EAllowShrinking::Yes);
 		}
 		else
 		{
@@ -3201,7 +3201,7 @@ mu::NodeMeshPtr GenerateMutableSourceMesh(const UEdGraphPin* Pin,
 
 				for (int32 MorphIndex = 0; MorphIndex < AddedMorphs; ++MorphIndex)
 				{
-					GenerationContext.MeshMorphStack.Pop(true);
+					GenerationContext.MeshMorphStack.Pop(EAllowShrinking::Yes);
 				}
 			}
 			else

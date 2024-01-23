@@ -100,7 +100,7 @@ void FCompilationMessageCache::ClearMessageCounters()
 	ErrorCount = 0;
 	IgnoredCount = 0;
 	SpamBinCounts.Empty();
-	SpamBinCounts.SetNumZeroed(static_cast<uint8>(ELoggerSpamBin::ShowAll), false);
+	SpamBinCounts.SetNumZeroed(static_cast<uint8>(ELoggerSpamBin::ShowAll), EAllowShrinking::No);
 }
 
 uint32 FCompilationMessageCache::GetWarningCount(bool bIncludePerformanceWarnings) const

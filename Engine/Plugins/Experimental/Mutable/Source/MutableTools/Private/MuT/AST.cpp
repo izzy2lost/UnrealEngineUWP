@@ -114,7 +114,7 @@ void ASTOp::RemoveChildren()
 
     while (pending.Num())
     {
-        ASTOp* n = pending.Pop(false);
+        ASTOp* n = pending.Pop(EAllowShrinking::No);
 
         n->ForEachChild( [&](ASTChild& c)
         {

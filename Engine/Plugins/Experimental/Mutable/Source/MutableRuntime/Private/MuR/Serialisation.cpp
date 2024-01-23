@@ -142,7 +142,7 @@ namespace mu
             check( size<std::numeric_limits<size_t>::max() );
 
             uint64 pos = m_pD->m_buffer.Num();
-            m_pD->m_buffer.SetNum( pos + size, false );
+            m_pD->m_buffer.SetNum( pos + size, EAllowShrinking::No );
 			FMemory::Memcpy( &m_pD->m_buffer[pos], pData, size );
         }
     }

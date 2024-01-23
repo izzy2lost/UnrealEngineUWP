@@ -357,7 +357,7 @@ int32 SAudioCurveView::PaintCurves(const FGeometry& AllottedGeometry, const FSla
 					CurveMetadata.CurveColor,
 					false
 				);
-				Points.SetNum(0, false);
+				Points.SetNum(0, EAllowShrinking::No);
 			}
 
 			const float X = RangeToScreen.InputToLocalX(Point.Key);

@@ -547,9 +547,8 @@ void UAudioGameplayVolumeSubsystem::UpdateFromListeners()
 	check(DeviceHandle.IsValid());
 	const uint32 AudioDeviceID = DeviceHandle.GetDeviceID();
 
-	constexpr bool bAllowShrink = false;
 	const int32 ListenerCount = DeviceHandle->GetListeners().Num();
-	AGVListeners.SetNum(ListenerCount, bAllowShrink);
+	AGVListeners.SetNum(ListenerCount, EAllowShrinking::No);
 	constexpr bool bAllowAttenuationOverride = true;
 
 	// We have to search twice, as we only care about mutators that affect listeners, but we care about ALL proxyVolumes we're a part of

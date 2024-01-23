@@ -206,7 +206,7 @@ void SMutableMeshViewer::SetMesh(const mu::MeshPtrConst& InMesh)
 
 		// Extract a copy of the tags
 		int32 TagCount = MutableMesh ? MutableMesh->GetTagCount() : 0;
-		MeshTagList.SetNum(TagCount, false);
+		MeshTagList.SetNum(TagCount, EAllowShrinking::No);
 		for (int32 TagIndex=0; TagIndex<TagCount; ++TagIndex)
 		{
 			MeshTagList[TagIndex] = MakeShared<FString>(MutableMesh->GetTag(TagIndex));

@@ -2703,8 +2703,8 @@ void FCustomizableObjectEditor::CreatePreviewComponents()
 		}
 		else
 		{
-			PreviewSkeletalMeshComponents.SetNumZeroed(NumMeshComponents, false);
-			PreviewCustomizableSkeletalComponents.SetNumZeroed(NumMeshComponents, false);
+			PreviewSkeletalMeshComponents.SetNumZeroed(NumMeshComponents, EAllowShrinking::No);
+			PreviewCustomizableSkeletalComponents.SetNumZeroed(NumMeshComponents, EAllowShrinking::No);
 		}
 
 		for (int32 ComponentIndex = 0; ComponentIndex < PreviewSkeletalMeshComponents.Num(); ++ComponentIndex)

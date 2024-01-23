@@ -265,13 +265,13 @@ namespace HarmonixMetasound
 		if (SpeedChangesInBlock.Num() > 1)
 		{
 			SpeedChangesInBlock[0].Speed = SpeedChangesInBlock.Last().Speed;
-			SpeedChangesInBlock.SetNum(1, false);
+			SpeedChangesInBlock.SetNum(1, EAllowShrinking::No);
 		}
 		HasSpeedChangeInBlock = false;
 		if (TempoChangesInBlock.Num() > 1)
 		{
 			TempoChangesInBlock[0].Tempo = TempoChangesInBlock.Last().Tempo;
-			TempoChangesInBlock.SetNum(1, false);
+			TempoChangesInBlock.SetNum(1, EAllowShrinking::No);
 		}
 		HasTempoChangeInBlock = false;
 		CurrentBlockFrameIndex = 0;

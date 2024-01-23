@@ -596,7 +596,7 @@ namespace mu { namespace
 		uint32 VertexCount = Base->GetVertexCount();
 
 		// Stores whether each vertex in the original mesh in the clip mesh volume
-		VertexClipped.SetNumUninitialized(VertexCount,false);
+		VertexClipped.SetNumUninitialized(VertexCount,EAllowShrinking::No);
 		FMemory::Memzero(VertexClipped.GetData(),VertexClipped.GetAllocatedSize());
 
 		// Now go through all vertices in the mesh and record whether they are inside or outside of the ClipMesh

@@ -1053,7 +1053,7 @@ void FDefaultInstallBundleManager::CacheEvictionComplete(TSharedRef<IInstallBund
 	// Check to clear PendingEvict status
 	auto CacheEvictKey = MakeTuple(BundleCache->GetName(), InResultInfo.BundleName);
 	TArray<EInstallBundleSourceType> SourcesForCache = CachesPendingEvictToSources.FindChecked(CacheEvictKey);
-	SourcesForCache.RemoveSwap(Source->GetSourceType(), false);
+	SourcesForCache.RemoveSwap(Source->GetSourceType(), EAllowShrinking::No);
 	if (SourcesForCache.Num() == 0)
 	{
 		CachesPendingEvictToSources.Remove(CacheEvictKey);
@@ -1100,7 +1100,7 @@ void FDefaultInstallBundleManager::CacheEvictionComplete(TSharedRef<IInstallBund
 void FDefaultInstallBundleManager::CacheEvictionComplete(TSharedRef<IInstallBundleSource> Source, const FInstallBundleSourceReleaseContentResultInfo& InResultInfo, FCacheEvictionRequestorRef Requestor)
 {
 	TArray<EInstallBundleSourceType>& EvictFromSources = Requestor->BundlesToEvictFromSourcesMap.FindChecked(InResultInfo.BundleName);
-	EvictFromSources.RemoveSwap(Source->GetSourceType(), false);
+	EvictFromSources.RemoveSwap(Source->GetSourceType(), EAllowShrinking::No);
 	if (EvictFromSources.Num() == 0)
 	{
 		Requestor->BundlesToEvictFromSourcesMap.Remove(InResultInfo.BundleName);

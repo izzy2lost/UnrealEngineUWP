@@ -180,7 +180,7 @@ namespace mu
         rle.Reserve(  (width * rows) / 2 );
 
         uint32 offset = sizeof(uint32)*(rows+1);
-        rle.SetNum( offset, false );
+        rle.SetNum( offset, EAllowShrinking::No );
 
         for ( int32 r=0; r<rows; ++r )
         {
@@ -209,7 +209,7 @@ namespace mu
                 }
 
                 // Copy block
-                rle.SetNum( rle.Num()+4, false);
+                rle.SetNum( rle.Num()+4, EAllowShrinking::No);
                 FMemory::Memmove(&rle[ offset ], &zeroPixels, sizeof(uint16));
                 offset += 2;
 
@@ -287,7 +287,7 @@ namespace mu
         rle.Reserve(  (width*rows) );
 
         const uint32* pBaseData = (const uint32*)pBaseDataByte;
-        rle.SetNum( rows*4, false);
+        rle.SetNum( rows*4, EAllowShrinking::No);
         uint32 offset = sizeof(uint32)*rows;
         for ( int32 r=0; r<rows; ++r )
         {
@@ -329,7 +329,7 @@ namespace mu
                 }
 
                 // Copy header
-                rle.SetNum( rle.Num()+8, false);
+                rle.SetNum( rle.Num()+8, EAllowShrinking::No);
                 FMemory::Memmove(&rle[ offset ], &equal, sizeof(uint16));
                 offset += 2;
                 FMemory::Memmove(&rle[ offset ], &different, sizeof(uint16));
@@ -343,7 +343,7 @@ namespace mu
 					// If we are at the end of a row, maybe there isn't a block of 4 pixels
 					uint16 BytesToCopy = FMath::Min(different * 4 * 4, uint16(pBaseRowEnd - pDifferentPixels) * 4);
 
-					rle.SetNum( rle.Num()+ BytesToCopy, false);
+					rle.SetNum( rle.Num()+ BytesToCopy, EAllowShrinking::No);
                     FMemory::Memmove( &rle[offset], pDifferentPixels, BytesToCopy);
 					offset += BytesToCopy;
 				}
@@ -438,7 +438,7 @@ namespace mu
         rle.Reserve(  (width*rows) );
 
         const UINT24* pBaseData = (const UINT24*)pBaseDataByte;
-        rle.SetNum( rows*4, false );
+        rle.SetNum( rows*4, EAllowShrinking::No );
         uint32 offset = sizeof(uint32)*rows;
         for ( int32 r=0; r<rows; ++r )
         {
@@ -480,7 +480,7 @@ namespace mu
                 }
 
                 // Copy header
-                rle.SetNum( rle.Num()+8, false);
+                rle.SetNum( rle.Num()+8, EAllowShrinking::No);
                 FMemory::Memmove( &rle[offset], &equal, sizeof(uint16) );
                 offset += 2;
                 FMemory::Memmove( &rle[offset], &different, sizeof(uint16) );
@@ -494,7 +494,7 @@ namespace mu
 					// If we are at the end of a row, maybe there isn't a block of 4 pixels
 					uint16 BytesToCopy = FMath::Min(different * 4 * 3, uint16(pBaseRowEnd- pDifferentPixels)*3 );
 
-					rle.SetNum( rle.Num()+BytesToCopy, false );
+					rle.SetNum( rle.Num()+BytesToCopy, EAllowShrinking::No );
                     FMemory::Memmove( &rle[offset], pDifferentPixels, BytesToCopy );
 					offset += BytesToCopy;
 				}

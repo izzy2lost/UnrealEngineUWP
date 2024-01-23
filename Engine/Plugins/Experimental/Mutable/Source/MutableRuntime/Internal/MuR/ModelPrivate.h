@@ -49,7 +49,7 @@ namespace mu
     inline void AppendCode(TArray<uint8>& code, const DATA& data )
     {
         int32 pos = code.Num();
-        code.SetNum( pos+sizeof(DATA), false );
+        code.SetNum( pos+sizeof(DATA), EAllowShrinking::No);
 		FMemory::Memcpy (&code[pos], &data, sizeof(DATA));
     }
 

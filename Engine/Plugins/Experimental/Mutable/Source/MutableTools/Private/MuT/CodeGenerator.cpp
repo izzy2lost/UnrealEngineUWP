@@ -145,7 +145,7 @@ namespace mu
 
 		// Free caches
 		GeneratedGenericNodes.Reset();
-		m_constantMeshes.SetNum(0,false);
+		m_constantMeshes.SetNum(0,EAllowShrinking::No);
 		GeneratedLayouts.Reset();
 		NodeVariables.Reset();
 		m_generatedMeshes.Reset();
