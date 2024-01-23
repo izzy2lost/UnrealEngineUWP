@@ -220,6 +220,11 @@ bool FGameFeaturePluginIdentifier::ExactMatchesURL(const FString& PluginURLIn) c
 	return GetFullPluginURL().Equals(PluginURLIn, ESearchCase::IgnoreCase);
 }
 
+FStringView FGameFeaturePluginIdentifier::GetPluginName() const
+{ 
+	return FPathViews::GetBaseFilename(IdentifyingURLSubset); 
+}
+
 void FGameFeatureStateChangeContext::SetRequiredWorldContextHandle(FName Handle)
 {
 	WorldContextHandle = Handle;
@@ -641,12 +646,12 @@ void UGameFeaturesSubsystem::RemoveGameFeatureFromAssetManager(const UGameFeatur
 	}
 }
 
-void UGameFeaturesSubsystem::ForEachGameFeature(TFunction<void(FGameFeatureInfo&&)>& Visitor) const
+void UGameFeaturesSubsystem::ForEachGameFeature(TFunctionRef<void(FGameFeatureInfo&&)> Visitor) const
 {
 	for (auto StateMachineIt = GameFeaturePluginStateMachines.CreateConstIterator(); StateMachineIt; ++StateMachineIt)
 	{
 		if (UGameFeaturePluginStateMachine* GFSM = StateMachineIt.Value())
-		{	
+		{
 			FGameFeatureInfo GameFeatureInfo = { GFSM->GetPluginName(), GFSM->GetPluginURL(), GFSM->WasLoadedAsBuiltIn(), GFSM->GetCurrentState() };
 			Visitor(MoveTemp(GameFeatureInfo));
 		}
@@ -833,6 +838,21 @@ void UGameFeaturesSubsystem::OnGameFeatureStatusKnown(const FString& PluginName,
 	{
 		GameFeaturePluginNameToPathMap.Add(PluginName, PluginIdentifier.GetFullPluginURL());
 	}
+}
+
+void UGameFeaturesSubsystem::OnGameFeaturePredownloading(const FString& PluginName, const FGameFeaturePluginIdentifier& PluginIdentifier)
+{
+	CallbackObservers(EObserverCallback::Predownloading, PluginIdentifier, &PluginName);
+}
+
+void UGameFeaturesSubsystem::OnGameFeatureDownloading(const FString& PluginName, const FGameFeaturePluginIdentifier& PluginIdentifier)
+{
+	CallbackObservers(EObserverCallback::Downloading, PluginIdentifier, &PluginName);
+}
+
+void UGameFeaturesSubsystem::OnGameFeatureReleasing(const FString& PluginName, const FGameFeaturePluginIdentifier& PluginIdentifier)
+{
+	CallbackObservers(EObserverCallback::Releasing, PluginIdentifier, &PluginName);
 }
 
 void UGameFeaturesSubsystem::OnGameFeaturePreMounting(const FString& PluginName, const FGameFeaturePluginIdentifier& PluginIdentifier, FGameFeaturePreMountingContext& Context)
@@ -2185,6 +2205,8 @@ struct FGameFeaturePluginPredownloadContext : public FGameFeaturePluginPredownlo
 			}
 
 			BundlesToInstall.Append(Pair.Value.InstallBundles);
+
+			GFPSubSys.OnGameFeaturePredownloading(FString(Pair.Key.GetPluginName()), Pair.Key);
 		}
 
 		TSharedPtr<IInstallBundleManager> BundleManager = IInstallBundleManager::GetPlatformInstallBundleManager();
@@ -2776,7 +2798,7 @@ void UGameFeaturesSubsystem::CallbackObservers(EObserverCallback CallbackType, c
 	const UGameFeatureData* GameFeatureData /*= nullptr*/, 
 	FGameFeatureStateChangeContext* StateChangeContext /*= nullptr*/)
 {
-	static_assert(std::underlying_type<EObserverCallback>::type(EObserverCallback::Count) == 11, "Update UGameFeaturesSubsystem::CallbackObservers to handle added EObserverCallback");
+	static_assert(std::underlying_type<EObserverCallback>::type(EObserverCallback::Count) == 14, "Update UGameFeaturesSubsystem::CallbackObservers to handle added EObserverCallback");
 
 	// Protect against modifying the observer list during iteration
 	TArray<UObject*> LocalObservers(Observers);
@@ -2796,6 +2818,33 @@ void UGameFeaturesSubsystem::CallbackObservers(EObserverCallback CallbackType, c
 		for (UObject* Observer : LocalObservers)
 		{
 			CastChecked<IGameFeatureStateChangeObserver>(Observer)->OnGameFeatureTerminating(PluginIdentifier.GetFullPluginURL());
+		}
+		break;
+	}
+	case EObserverCallback::Predownloading:
+	{
+		check(PluginName);
+		for (UObject* Observer : LocalObservers)
+		{
+			CastChecked<IGameFeatureStateChangeObserver>(Observer)->OnGameFeaturePredownloading(*PluginName, PluginIdentifier);
+		}
+		break;
+	}
+	case EObserverCallback::Downloading:
+	{
+		check(PluginName);
+		for (UObject* Observer : LocalObservers)
+		{
+			CastChecked<IGameFeatureStateChangeObserver>(Observer)->OnGameFeatureDownloading(*PluginName, PluginIdentifier);
+		}
+		break;
+	}
+	case EObserverCallback::Releasing:
+	{
+		check(PluginName);
+		for (UObject* Observer : LocalObservers)
+		{
+			CastChecked<IGameFeatureStateChangeObserver>(Observer)->OnGameFeatureReleasing(*PluginName, PluginIdentifier);
 		}
 		break;
 	}

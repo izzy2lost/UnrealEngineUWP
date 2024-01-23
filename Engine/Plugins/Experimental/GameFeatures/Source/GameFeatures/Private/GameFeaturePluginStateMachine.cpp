@@ -1182,6 +1182,16 @@ struct FGameFeaturePluginState_Releasing : public FBaseDataReleaseGameFeaturePlu
 		: FBaseDataReleaseGameFeaturePluginState(InStateProperties)
 	{}
 
+	virtual void BeginState() override
+	{
+		if (ShouldReleaseContent())
+		{
+			UGameFeaturesSubsystem::Get().OnGameFeatureReleasing(StateProperties.PluginName, StateProperties.PluginIdentifier);
+		}
+
+		FBaseDataReleaseGameFeaturePluginState::BeginState();
+	}
+
 	virtual EGameFeaturePluginState GetSuccessTransitionState() const override
 	{
 		return EGameFeaturePluginState::StatusKnown;
@@ -1439,6 +1449,8 @@ struct FGameFeaturePluginState_Downloading : public FGameFeaturePluginState
 		check(StateProperties.GetPluginProtocol() == EGameFeaturePluginProtocol::InstallBundle);
 		ensureMsgf(AllowAsyncLoading(), TEXT("FGameFeaturePluginState::AllowAsyncLoading is false while attempting to download GFP data."));
 
+		UGameFeaturesSubsystem::Get().OnGameFeatureDownloading(StateProperties.PluginName, StateProperties.PluginIdentifier);
+
 		TSharedPtr<IInstallBundleManager> BundleManager = IInstallBundleManager::GetPlatformInstallBundleManager();
 		const TArray<FName>& InstallBundles = StateProperties.ProtocolMetadata.GetSubtype<FInstallBundlePluginProtocolMetaData>().InstallBundles;
 
@@ -1659,6 +1671,8 @@ struct FGameFeaturePluginState_Unmounting : public FGameFeaturePluginState
 			bUnmounted = true;
 			return;
 		}
+
+		UGameFeaturesSubsystem::Get().OnGameFeatureReleasing(StateProperties.PluginName, StateProperties.PluginIdentifier);
 
 		TSharedPtr<IInstallBundleManager> BundleManager = IInstallBundleManager::GetPlatformInstallBundleManager();
 
@@ -2579,32 +2593,14 @@ struct FGameFeaturePluginState_Unloading : public FGameFeaturePluginState
 {
 	FGameFeaturePluginState_Unloading(FGameFeaturePluginStateMachineProperties& InStateProperties) : FGameFeaturePluginState(InStateProperties) {}
 
-	bool bHasUnloaded = false;
-
 	virtual void BeginState() override
 	{
-		bHasUnloaded = false;
 	}
 
 	virtual void UpdateState(FGameFeaturePluginStateStatus& StateStatus) override
 	{
-		if (bHasUnloaded)
-		{
-			StateStatus.SetTransition(EGameFeaturePluginState::Registered);
-			return;
-		}
-
 		UnloadGameFeatureBundles(StateProperties.GameFeatureData);
 		UGameFeaturesSubsystem::Get().OnGameFeatureUnloading(StateProperties.GameFeatureData, StateProperties.PluginIdentifier);
-
-		if (StateProperties.Destination.MaxState == EGameFeaturePluginState::Registered)
-		{
-			// If we aren't going farther than Registered, GC now
-			// otherwise we will defer until closer to our destination state
-			bHasUnloaded = true;
-			UpdateStateMachineDeferred();
-			return;
-		}
 
 		StateStatus.SetTransition(EGameFeaturePluginState::Registered);
 	}

@@ -318,6 +318,9 @@ struct GAMEFEATURES_API FGameFeaturePluginIdentifier
 	/** Returns the Identifying information used for this Plugin. It is a subset of the URL used to create it.*/
 	FStringView GetIdentifyingString() const { return IdentifyingURLSubset; }
 
+	/** Returns the name of the plugin */
+	FStringView GetPluginName() const;
+
 	/** Get the Full PluginURL used to originally construct this identifier */
 	const FString& GetFullPluginURL() const { return PluginURL; }
 
@@ -416,7 +419,7 @@ public:
 	void AddObserver(UObject* Observer);
 	void RemoveObserver(UObject* Observer);
 
-	void ForEachGameFeature(TFunction<void(FGameFeatureInfo&&)>& Visitor) const;
+	void ForEachGameFeature(TFunctionRef<void(FGameFeatureInfo&&)> Visitor) const;
 
 	/**
 	 * Calls the compile-time lambda on each active game feature data of the specified type
@@ -638,6 +641,15 @@ private:
 	void OnGameFeatureStatusKnown(const FString& PluginName, const FGameFeaturePluginIdentifier& PluginIdentifierL);
 	friend struct FGameFeaturePluginState_CheckingStatus;
 
+	void OnGameFeaturePredownloading(const FString& PluginName, const FGameFeaturePluginIdentifier& PluginIdentifier);
+
+	void OnGameFeatureDownloading(const FString& PluginName, const FGameFeaturePluginIdentifier& PluginIdentifier);
+	friend struct FGameFeaturePluginState_Downloading;
+
+	void OnGameFeatureReleasing(const FString& PluginName, const FGameFeaturePluginIdentifier& PluginIdentifier);
+	friend struct FGameFeaturePluginState_Releasing;
+	friend struct FGameFeaturePluginState_Unmounting;
+
 	void OnGameFeaturePreMounting(const FString& PluginName, const FGameFeaturePluginIdentifier& PluginIdentifier, FGameFeaturePreMountingContext& Context);
 	void OnGameFeaturePostMounting(const FString& PluginName, const FGameFeaturePluginIdentifier& PluginIdentifier, FGameFeaturePostMountingContext& Context);
 	friend struct FGameFeaturePluginState_Mounting;
@@ -735,6 +747,9 @@ private:
 	{
 		CheckingStatus,
 		Terminating,
+		Predownloading,
+		Downloading,
+		Releasing,
 		PreMounting,
 		PostMounting,
 		Registering,

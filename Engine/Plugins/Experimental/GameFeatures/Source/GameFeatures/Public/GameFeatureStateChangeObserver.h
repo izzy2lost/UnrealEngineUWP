@@ -40,6 +40,15 @@ public:
 	// Invoked prior to terminating a game feature plugin
 	virtual void OnGameFeatureTerminating(const FString& PluginURL) {}
 
+	// Invoked when content begins installing via predownload
+	virtual void OnGameFeaturePredownloading(const FString& PluginName, const FGameFeaturePluginIdentifier& PluginIdentifier) {}
+
+	// Invoked when content begins installing
+	virtual void OnGameFeatureDownloading(const FString& PluginName, const FGameFeaturePluginIdentifier& PluginIdentifier) {}
+
+	// Invoked when content is released (the point it at which it is safe to remove it)
+	virtual void OnGameFeatureReleasing(const FString& PluginName, const FGameFeaturePluginIdentifier& PluginIdentifier) {}
+
 	// Invoked prior to mounting a plugin (but after its install bundles become available, if any)
 	virtual void OnGameFeaturePreMounting(const FString& PluginName, const FGameFeaturePluginIdentifier& PluginIdentifier, FGameFeaturePreMountingContext& Context) {}
 
