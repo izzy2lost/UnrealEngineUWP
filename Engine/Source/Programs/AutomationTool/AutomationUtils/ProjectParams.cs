@@ -3092,7 +3092,7 @@ namespace AutomationTool
 
 			if (Stage && !SkipStage && !Cook && !CookOnTheFly && !IsProgramTarget)
 			{
-				throw new AutomationException("Only cooked builds or programs can be staged, use -cook or -cookonthefly.");
+				throw new AutomationException("Only cooked builds or programs can be staged, use -cook, -cookonthefly or -skipcook.");
 			}
 
 			if (Manifests && !Cook && !Stage && !Pak)
