@@ -157,6 +157,20 @@ void UTG_EdGraphSchema::TrySetDefaultValue(UEdGraphPin& Pin, const FString& NewD
 
 #endif	//#if WITH_EDITOR
 }
+
+void UTG_EdGraphSchema::TrySetDefaultObject(UEdGraphPin& Pin, UObject* NewDefaultObject, bool bMarkAsModified) const
+{
+	Pin.DefaultObject = NewDefaultObject;
+#if WITH_EDITOR
+	UTG_EdGraphNode* Node = Cast<UTG_EdGraphNode>(Pin.GetOwningNode());
+	check(Node);
+
+	// get file path from Object changed and set as default value
+	TrySetDefaultValue(Pin, NewDefaultObject ? NewDefaultObject->GetPathName() : FString(), bMarkAsModified);
+
+#endif	//#if WITH_EDITOR
+}
+
 const FPinConnectionResponse UTG_EdGraphSchema::CanCreateConnection(const UEdGraphPin* A, const UEdGraphPin* B) const
 {
 //	bool bPreventInvalidConnections = CVarPreventInvalidMaterialConnections.GetValueOnGameThread() != 0;
