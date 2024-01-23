@@ -23,6 +23,8 @@ public:
 	virtual void Reset(bool ForceNoBroadcast = false);
 	virtual bool IsDone() const;
 
+	virtual bool UpdateWithTrackerUnchanged() { return !UnregisterASAP; }
+
 	bool Advance(bool IsLowRes = true);
 	bool AdvanceAsPreRoll();
 

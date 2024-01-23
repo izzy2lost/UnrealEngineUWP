@@ -13,18 +13,18 @@ bool FMetasoundMusicClockDriver::CalculateSongPosWithOffset(float MsOffset, ECal
 	// if we have an owner, ask them directly
 	if (const FMidiPlayCursorMgr* Owner = Cursor.GetOwner())
 	{
-		float RawMs = Owner->GetCurrentHiResMs();
+		float RawMs = Owner->GetCurrentLowResMs();
 		switch (Timebase)
 		{
 		case ECalibratedMusicTimebase::AudioRenderTime:
-			OutResult = Owner->CalculateSongPosWithOffsetMs((Clock->CurrentSmoothedAudioRenderSongPos.SecondsIncludingCountIn * 1000.0f) + MsOffset - RawMs);
+			OutResult = Owner->CalculateLowResSongPosWithOffsetMs((Clock->CurrentSmoothedAudioRenderSongPos.SecondsIncludingCountIn * 1000.0f) + MsOffset - RawMs);
 			break;
 		case ECalibratedMusicTimebase::ExperiencedTime:
-			OutResult = Owner->CalculateSongPosWithOffsetMs((Clock->CurrentPlayerExperiencedSongPos.SecondsIncludingCountIn * 1000.0f) + MsOffset - RawMs);
+			OutResult = Owner->CalculateLowResSongPosWithOffsetMs((Clock->CurrentPlayerExperiencedSongPos.SecondsIncludingCountIn * 1000.0f) + MsOffset - RawMs);
 			break;
 		case ECalibratedMusicTimebase::VideoRenderTime:
 		default:
-			OutResult = Owner->CalculateSongPosWithOffsetMs((Clock->CurrentVideoRenderSongPos.SecondsIncludingCountIn * 1000.0f) + MsOffset - RawMs);
+			OutResult = Owner->CalculateLowResSongPosWithOffsetMs((Clock->CurrentVideoRenderSongPos.SecondsIncludingCountIn * 1000.0f) + MsOffset - RawMs);
 			break;
 		}
 		return true;
@@ -239,10 +239,10 @@ void FMetasoundMusicClockDriver::RefreshCurrentSongPosFromCursor()
 	if (const FMidiPlayCursorMgr* Owner = Cursor.GetOwner())
 	{
 		Clock->CurrentClockAdvanceRate = Owner->GetCurrentAdvanceRate();
-		float RawMs = Owner->GetCurrentHiResMs();
-		Clock->CurrentPlayerExperiencedSongPos = Owner->CalculateSongPosWithOffsetMs(Clock->CurrentSmoothedAudioRenderSongPos.SecondsIncludingCountIn * 1000.0f - FHarmonixModule::GetMeasuredUserExperienceAndReactionToAudioRenderOffsetMs() - RawMs);
-		Clock->CurrentVideoRenderSongPos = Owner->CalculateSongPosWithOffsetMs(Clock->CurrentSmoothedAudioRenderSongPos.SecondsIncludingCountIn * 1000.0f - FHarmonixModule::GetMeasuredVideoToAudioRenderOffsetMs() - RawMs);
-		Clock->RawUnsmoothedAudioRenderPos = Owner->CalculateSongPosWithOffsetMs(0.0f);
+		float RawMs = Owner->GetCurrentLowResMs();
+		Clock->CurrentPlayerExperiencedSongPos = Owner->CalculateLowResSongPosWithOffsetMs(Clock->CurrentSmoothedAudioRenderSongPos.SecondsIncludingCountIn * 1000.0f - FHarmonixModule::GetMeasuredUserExperienceAndReactionToAudioRenderOffsetMs() - RawMs);
+		Clock->CurrentVideoRenderSongPos = Owner->CalculateLowResSongPosWithOffsetMs(Clock->CurrentSmoothedAudioRenderSongPos.SecondsIncludingCountIn * 1000.0f - FHarmonixModule::GetMeasuredVideoToAudioRenderOffsetMs() - RawMs);
+		Clock->RawUnsmoothedAudioRenderPos = Owner->CalculateLowResSongPosWithOffsetMs(0.0f);
 	}
 	else
 	{
