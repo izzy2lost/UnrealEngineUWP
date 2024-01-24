@@ -1433,7 +1433,7 @@ void FSkeletalMeshImportData::ComputeSmoothGroupFromNormals()
 void FSkeletalMeshImportData::SetMorphTargets(
 	const TArray<TObjectPtr<UMorphTarget>>& InMorphTargets,
 	int32 InLODIndex,
-	const TArray<int32>& InVertexMap
+	const TArray<uint32>& InVertexMap
 	)
 {
 	MorphTargets.Reset();
@@ -2074,6 +2074,7 @@ bool FSkeletalMeshImportData::GetMeshDescription(const USkeletalMesh* InSkeletal
 	
 	// Avoid repeated allocations and reserve the target buffers right off the bat.
 	OutMeshDescription.ReserveNewPolygonGroups(Materials.Num());
+	OutMeshDescription.ReserveNewPolygons(Faces.Num());
 	OutMeshDescription.ReserveNewTriangles(Faces.Num());
 	OutMeshDescription.ReserveNewVertexInstances(Wedges.Num());
 	OutMeshDescription.ReserveNewVertices(Points.Num());
@@ -2330,6 +2331,8 @@ bool FSkeletalMeshImportData::GetMeshDescription(const USkeletalMesh* InSkeletal
 			VertexAndCountAttribute.Set(PartID, {Info.StartImportedVertex, Info.NumVertices});
 		}
 	}
+
+	OutMeshDescription.BuildIndexers();
 	
 	return true;
 }
@@ -2418,6 +2421,62 @@ void FSkeletalMeshImportData::CopySkinWeightsToMeshDescription(
 	FSkeletalMeshOperations::CopySkinWeightAttributeFromMesh(
 	AlternateInfluenceMesh, OutMeshDescription, NAME_None, InSkinWeightName, &AltMeshBoneToBaseBoneMap);   
 }
+
+
+// A simpler variant of FStaticMeshOperations::ConvertHardEdgesToSmoothGroup that assumes that hard edges always form closed regions.
+static void ConvertHardEdgesToSmoothMasks(
+	const FMeshDescription& InMeshDescription,
+	TArray<uint32>& OutSmoothMasks
+	)
+{
+	OutSmoothMasks.SetNumZeroed(InMeshDescription.Triangles().Num());
+
+	TSet<FTriangleID> ProcessedTriangles;
+	TArray<FTriangleID> TriangleQueue;
+	uint32 CurrentSmoothMask = 1;
+
+	const TEdgeAttributesConstRef<bool> IsEdgeHard = InMeshDescription.EdgeAttributes().GetAttributesRef<bool>(MeshAttribute::Edge::IsHard);	
+
+	for (FTriangleID SeedTriangleID: InMeshDescription.Triangles().GetElementIDs())
+	{
+		if (ProcessedTriangles.Contains(SeedTriangleID))
+		{
+			continue;
+		}
+		
+		TriangleQueue.Push(SeedTriangleID);
+		while (!TriangleQueue.IsEmpty())
+		{
+			const FTriangleID TriangleID = TriangleQueue.Pop(EAllowShrinking::No);
+			TArrayView<const FEdgeID> TriangleEdges = InMeshDescription.GetTriangleEdges(TriangleID);
+
+			OutSmoothMasks[TriangleID.GetValue()] = CurrentSmoothMask;
+			ProcessedTriangles.Add(TriangleID);
+
+			for (const FEdgeID EdgeID: TriangleEdges)
+			{
+				if (!IsEdgeHard.Get(EdgeID))
+				{
+					TArrayView<const FTriangleID> ConnectedTriangles = InMeshDescription.GetEdgeConnectedTriangleIDs(EdgeID);
+					for (const FTriangleID NeighborTriangleID: ConnectedTriangles)
+					{
+						if (!ProcessedTriangles.Contains(NeighborTriangleID))
+						{
+							TriangleQueue.Push(NeighborTriangleID);
+						}
+					}
+				}
+			}
+		}
+
+		CurrentSmoothMask <<= 1;
+		if (CurrentSmoothMask == 0)
+		{
+			CurrentSmoothMask = 1;
+		}
+	}
+}
+
 
 
 
@@ -2538,8 +2597,7 @@ FSkeletalMeshImportData FSkeletalMeshImportData::CreateFromMeshDescription(const
 
 	//Get the per face smoothing
 	TArray<uint32> FaceSmoothingMasks;
-	FaceSmoothingMasks.AddZeroed(InMeshDescription.Triangles().Num());
-	FSkeletalMeshOperations::ConvertHardEdgesToSmoothGroup(InMeshDescription, FaceSmoothingMasks);
+	ConvertHardEdgesToSmoothMasks(InMeshDescription, FaceSmoothingMasks);
 
 	//////////////////////////////////////////////////////////////////////////
 	// Copy the materials
@@ -2600,18 +2658,14 @@ FSkeletalMeshImportData FSkeletalMeshImportData::CreateFromMeshDescription(const
 	{
 		FPolygonGroupID PolygonGroupID = InMeshDescription.GetTrianglePolygonGroup(TriangleID);
 		TArrayView<const FVertexInstanceID> VertexInstances = InMeshDescription.GetTriangleVertexInstances(TriangleID);
-		int32 FaceIndex = TriangleID.GetValue();
-		if (!ensure(SkelMeshImportData.Faces.IsValidIndex(FaceIndex)))
-		{
-			//TODO log an error for the user
-			break;
-		}
-		SkeletalMeshImportData::FTriangle& Face = SkelMeshImportData.Faces[FaceIndex];
+		int32 TriangleIndex = TriangleID.GetValue();
+		
+		SkeletalMeshImportData::FTriangle& Face = SkelMeshImportData.Faces[TriangleIndex];
 		Face.MatIndex = PolygonGroupID.GetValue();
 		Face.SmoothingGroups = 0;
-		if (FaceSmoothingMasks.IsValidIndex(FaceIndex))
+		if (FaceSmoothingMasks.IsValidIndex(TriangleIndex))
 		{
-			Face.SmoothingGroups = FaceSmoothingMasks[FaceIndex];
+			Face.SmoothingGroups = FaceSmoothingMasks[TriangleIndex];
 		}
 		//Create the wedges
 		for (int32 Corner = 0; Corner < 3; ++Corner)

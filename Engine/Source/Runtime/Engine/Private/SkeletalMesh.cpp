@@ -3208,7 +3208,7 @@ void USkeletalMesh::BeginPostLoadInternal(FSkinnedAssetPostLoadContext& Context)
 						// mesh itself. Try to back-fill from the skeletal mesh.
 						if (SerializeMeshData.MorphTargets.IsEmpty() && !GetMorphTargets().IsEmpty())
 						{
-							SerializeMeshData.SetMorphTargets(GetMorphTargets(), LODIndex, ThisLODModel.MeshToImportVertexMap);
+							SerializeMeshData.SetMorphTargets(GetMorphTargets(), LODIndex, ThisLODModel.GetRawPointIndices());
 						}
 
 						FMeshDescription MeshDescription;
@@ -3255,11 +3255,44 @@ void USkeletalMesh::BeginPostLoadInternal(FSkinnedAssetPostLoadContext& Context)
 		}
 
 		// If we didn't get any meshes from the bulk data, then try to recover them from the LODModel listings.
-		constexpr bool bInResetReductionAsNeeded = true;
+		for (int32 LODIndex = 0; LODIndex < GetImportedModel()->LODModels.Num(); ++LODIndex)
+		{
+			if (HasMeshDescription(LODIndex))
+			{
+				continue;
+			}
+
+			// If the mesh was not pulled out of the reduction data, we need to reset the LOD settings
+			// so that the mesh doesn't get reduced again if it gets regenerated.
+			FSkeletalMeshLODInfo* MeshLODInfo = GetLODInfo(LODIndex); 
+			const bool bReductionActive = IsReductionActive(LODIndex);
+			const bool bInlineReduction = (GetLODInfo(LODIndex)->ReductionSettings.BaseLOD == LODIndex);
+			if (bReductionActive && !bInlineReduction)
+			{
+				//Generated LOD (not inline) do not need imported data
+				continue;
+			}
 			
-		IMeshUtilities& MeshUtilities = FModuleManager::Get().LoadModuleChecked<IMeshUtilities>("MeshUtilities");
-		MeshUtilities.CreateImportDataFromLODModel(this, bInResetReductionAsNeeded);
-		
+			const FSkeletalMeshLODModel& LODModel = GetImportedModel()->LODModels[LODIndex];
+
+			FMeshDescription MeshDescription;
+			LODModel.GetMeshDescription(this, LODIndex, MeshDescription);
+			CreateMeshDescription(LODIndex, MoveTemp(MeshDescription));
+			CommitMeshDescription(LODIndex);
+
+			// Reset the reduction settings so that we don't re-reduce the mesh and possibly lose morph targets
+			// in the process.
+			FSkeletalMeshOptimizationSettings& ReductionSettings = MeshLODInfo->ReductionSettings;
+			
+			//Remove the reduction settings
+			ReductionSettings.NumOfTrianglesPercentage = 1.0f;
+			ReductionSettings.NumOfVertPercentage = 1.0f;
+			ReductionSettings.MaxNumOfTrianglesPercentage = MAX_uint32;
+			ReductionSettings.MaxNumOfVertsPercentage = MAX_uint32;
+			ReductionSettings.TerminationCriterion = SMTC_NumOfTriangles;
+			MeshLODInfo->bHasBeenSimplified = false;
+		}
+
 		if (GetLinkerCustomVersion(FEditorObjectVersion::GUID) < FEditorObjectVersion::SkeletalMeshBuildRefactor)
 		{
 			CreateUserSectionsDataForLegacyAssets();

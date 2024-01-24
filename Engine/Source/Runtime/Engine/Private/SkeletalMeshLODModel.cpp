@@ -1338,13 +1338,14 @@ void FSkeletalMeshLODModel::CopyStructure(FSkeletalMeshLODModel* Destination, co
 	Destination->BulkDataReadMutex = DestinationBulkDataReadMutex;
 }
 
-void FSkeletalMeshLODModel::GetMeshDescription(FMeshDescription& MeshDescription, const USkeletalMesh *Owner) const
+UE_DISABLE_OPTIMIZATION
+void FSkeletalMeshLODModel::GetMeshDescription(const USkeletalMesh *InSkeletalMesh, const int32 InLODIndex, FMeshDescription& OutMeshDescription) const
 {
 	using UE::AnimationCore::FBoneWeights;
 
-	MeshDescription.Empty();
+	OutMeshDescription.Empty();
 	
-	FSkeletalMeshAttributes MeshAttributes(MeshDescription);	
+	FSkeletalMeshAttributes MeshAttributes(OutMeshDescription);	
 	
 	// Register extra attributes for us.
 	MeshAttributes.Register();
@@ -1363,29 +1364,78 @@ void FSkeletalMeshLODModel::GetMeshDescription(FMeshDescription& MeshDescription
 	FSkeletalMeshAttributes::FBoneParentIndexAttributesRef BoneParentIndices = MeshAttributes.GetBoneParentIndices();
 	FSkeletalMeshAttributes::FBonePoseAttributesRef BonePoses = MeshAttributes.GetBonePoses();
 
+	TArray<TPair<FName, const FMorphTargetLODModel*>> MorphTargets;
+	for (UMorphTarget* MorphTargetSource: InSkeletalMesh->GetMorphTargets())
+	{
+		if (!MorphTargetSource->HasDataForLOD(InLODIndex))
+		{
+			continue;
+		}
+
+		FName Name = MorphTargetSource->GetFName();
+		if (Name.IsNone())
+		{
+			Name = TEXT("Unnamed");
+		}
+		
+		MorphTargets.Emplace(Name, &MorphTargetSource->GetMorphLODModels()[InLODIndex]);
+		MeshAttributes.RegisterMorphTargetAttribute(Name);
+	}
+
 	const int32 NumTriangles = IndexBuffer.Num() / 3;
 
-	const FReferenceSkeleton& RefSkeleton = Owner->GetRefSkeleton();
+	const FReferenceSkeleton& RefSkeleton = InSkeletalMesh->GetRefSkeleton();
 	const int NumBones = RefSkeleton.GetRawBoneNum();
 
-	MeshDescription.ReserveNewPolygonGroups(Sections.Num());
-	MeshDescription.ReserveNewTriangles(NumTriangles);
-	MeshDescription.ReserveNewVertexInstances(NumTriangles * 3);
-	MeshDescription.ReserveNewVertices(static_cast<int32>(NumVertices));
+	OutMeshDescription.ReserveNewPolygonGroups(Sections.Num());
+	OutMeshDescription.ReserveNewPolygons(NumTriangles);
+	OutMeshDescription.ReserveNewTriangles(NumTriangles);
+	OutMeshDescription.ReserveNewVertexInstances(NumTriangles * 3);
+	OutMeshDescription.ReserveNewVertices(static_cast<int32>(NumVertices));
 	MeshAttributes.ReserveNewBones(NumBones);
 
-	TArray<FVertexID> VertexIDs;
-	VertexIDs.Reserve(NumVertices);
-	for (int32 VertexIndex = 0; VertexIndex < int32(NumVertices); VertexIndex++)
+	// Map the section vertices back to the import vertices to remove seams, but only if there's
+	// mapping available.
+	TArray<int32> SourceToTargetVertexMap; 
+	TSet<int32> ProcessedTargetVertex;
+
+	int32 TargetVertexCount = 0;
+	if (RawPointIndices2.Num() == NumVertices)
 	{
-		VertexIDs.Add(MeshDescription.CreateVertex());
+		SourceToTargetVertexMap.Reserve(RawPointIndices2.Num());
+		for (const uint32 Index: RawPointIndices2)
+		{
+			SourceToTargetVertexMap.Add(Index);
+			ProcessedTargetVertex.Add(Index);
+
+			TargetVertexCount = FMath::Max(TargetVertexCount, static_cast<int32>(Index));
+		}
+
+		TargetVertexCount += 1;
+		ProcessedTargetVertex.Reset();
+	}
+	else
+	{
+		SourceToTargetVertexMap.Reserve(NumVertices);
+		for (uint32 Index = 0; Index < NumVertices; Index++)
+		{
+			SourceToTargetVertexMap.Add(Index);
+		}
+		TargetVertexCount = NumVertices;
+	}
+	
+	TArray<FVertexID> VertexIDs;
+	VertexIDs.Reserve(TargetVertexCount);
+	for (int32 VertexIndex = 0; VertexIndex < TargetVertexCount; VertexIndex++)
+	{
+		VertexIDs.Add(OutMeshDescription.CreateVertex());
 	}
 
 	// Ensure we have enough channels to store all the defined UV coordinates.
 	VertexInstanceUVs.SetNumChannels(static_cast<int32>(NumTexCoords));
 	
-	const TArray<FSkeletalMaterial>& Materials = Owner->GetMaterials();
-	const bool bHasVertexColors = EnumHasAllFlags(Owner->GetVertexBufferFlags(), ESkeletalMeshVertexFlags::HasVertexColors);
+	const TArray<FSkeletalMaterial>& Materials = InSkeletalMesh->GetMaterials();
+	const bool bHasVertexColors = EnumHasAllFlags(InSkeletalMesh->GetVertexBufferFlags(), ESkeletalMeshVertexFlags::HasVertexColors);
 
 	// Convert sections to polygon groups, each with their own material.
 	for (int32 SectionIndex = 0; SectionIndex < Sections.Num(); SectionIndex++)
@@ -1396,7 +1446,15 @@ void FSkeletalMeshLODModel::GetMeshDescription(FMeshDescription& MeshDescription
 		const TArray<FSoftSkinVertex>& SourceVertices = Section.SoftVertices;
 		for (int32 VertexIndex = 0; VertexIndex < SourceVertices.Num(); VertexIndex++)
 		{
-			const FVertexID VertexID = VertexIDs[VertexIndex + Section.BaseVertexIndex];
+			const int32 SourceVertexIndex = VertexIndex + Section.BaseVertexIndex;
+			const int32 TargetVertexIndex = SourceToTargetVertexMap[SourceVertexIndex];
+
+			if (ProcessedTargetVertex.Contains(TargetVertexIndex))
+			{
+				continue;
+			}
+			
+			const FVertexID VertexID = VertexIDs[TargetVertexIndex];
 
 			VertexPositions.Set(VertexID, SourceVertices[VertexIndex].Position);
 
@@ -1416,9 +1474,9 @@ void FSkeletalMeshLODModel::GetMeshDescription(FMeshDescription& MeshDescription
 
 		const FPolygonGroupID PolygonGroupID(Section.MaterialIndex);
 
-		if (!MeshDescription.IsPolygonGroupValid(PolygonGroupID))
+		if (!OutMeshDescription.IsPolygonGroupValid(PolygonGroupID))
 		{
-			MeshDescription.CreatePolygonGroupWithID(PolygonGroupID);
+			OutMeshDescription.CreatePolygonGroupWithID(PolygonGroupID);
 		}
 
 		if (ensure(Materials.IsValidIndex(Section.MaterialIndex)))
@@ -1436,8 +1494,10 @@ void FSkeletalMeshLODModel::GetMeshDescription(FMeshDescription& MeshDescription
 			for (int32 Corner = 0; Corner < 3; Corner++)
 			{
 				const int32 SourceVertexIndex = IndexBuffer[VertexIndexBase + Corner];
-				const FVertexID VertexID = VertexIDs[SourceVertexIndex];
-				const FVertexInstanceID VertexInstanceID = MeshDescription.CreateVertexInstance(VertexID);
+				const int32 TargetVertexIndex = SourceToTargetVertexMap[SourceVertexIndex];
+				
+				const FVertexID VertexID = VertexIDs[TargetVertexIndex];
+				const FVertexInstanceID VertexInstanceID = OutMeshDescription.CreateVertexInstance(VertexID);
 
 				const FSoftSkinVertex& SourceVertex = SourceVertices[SourceVertexIndex - Section.BaseVertexIndex];
 
@@ -1462,7 +1522,21 @@ void FSkeletalMeshLODModel::GetMeshDescription(FMeshDescription& MeshDescription
 				TriangleVertexInstanceIDs[Corner] = VertexInstanceID;
 			}
 
-			MeshDescription.CreateTriangle(PolygonGroupID, TriangleVertexInstanceIDs);
+			OutMeshDescription.CreateTriangle(PolygonGroupID, TriangleVertexInstanceIDs);
+		}
+	}
+
+	// Copy morph targets.
+	for (TPair<FName, const FMorphTargetLODModel*>& MorphSource: MorphTargets)
+	{
+		FMorphTargetVertexAttributesRef MorphTarget = MeshAttributes.GetVertexMorphTarget(MorphSource.Key);
+
+		for (const FMorphTargetDelta& Delta: MorphSource.Value->Vertices)
+		{
+			const int32 TargetVertexIndex = SourceToTargetVertexMap[Delta.SourceIdx];
+			const FVertexID VertexID = VertexIDs[TargetVertexIndex];
+			
+			MorphTarget.SetPositionAndTangentZDelta(VertexID, Delta.PositionDelta, Delta.TangentZDelta);
 		}
 	}
 
@@ -1479,5 +1553,6 @@ void FSkeletalMeshLODModel::GetMeshDescription(FMeshDescription& MeshDescription
 		BonePoses.Set(BoneID, BoneTransform);
 	}
 }
+UE_ENABLE_OPTIMIZATION
 
 #endif // WITH_EDITOR

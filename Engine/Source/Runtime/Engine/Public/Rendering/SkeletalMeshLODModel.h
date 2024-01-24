@@ -567,7 +567,7 @@ public:
 	 * Fills in a representation of this model into the given mesh description object. Existing
 	 * mesh description data is emptied.
 	 */
-	void ENGINE_API GetMeshDescription(FMeshDescription& MeshDescription, const USkeletalMesh *Owner) const;
+	void ENGINE_API GetMeshDescription(const USkeletalMesh *InSkeletalMesh, const int32 InLODIndex, FMeshDescription& OutMeshDescription) const;
 };
 
 #endif // WITH_EDITOR
