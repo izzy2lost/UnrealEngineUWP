@@ -42,7 +42,7 @@ double FAnalyticsSpan::GetDuration() const
 	return Duration;
 }
 
-void FAnalyticsSpan::Start(const FName& NewSpanName, TSharedPtr<IAnalyticsSpan> NewSpanParent, const TArray<FAnalyticsEventAttribute>& AdditionalAttributes)
+void FAnalyticsSpan::Start(const FName NewSpanName, TSharedPtr<IAnalyticsSpan> NewSpanParent, const TArray<FAnalyticsEventAttribute>& AdditionalAttributes)
 {
 	// Create a new Guid for this flow, can we assume it is unique?
 	Name			= NewSpanName;

@@ -28,7 +28,7 @@ public:
 	virtual void SetProvider(TSharedPtr<IAnalyticsProvider> AnalyticsProvider) = 0;
 
 	/** Start this span */
-	virtual void Start(const FName& Name, TSharedPtr<IAnalyticsSpan> ParentSpan, const TArray<FAnalyticsEventAttribute>& AdditionalAttributes = {}) = 0;
+	virtual void Start(const FName Name, TSharedPtr<IAnalyticsSpan> ParentSpan, const TArray<FAnalyticsEventAttribute>& AdditionalAttributes = {}) = 0;
 
 	/** End this span */
 	virtual void End(const TArray<FAnalyticsEventAttribute>& AdditionalAttributes = {}) = 0;
@@ -104,7 +104,7 @@ public:
 	};
 
 	/** End an existing span by name*/
-	bool EndSpan(const FName& Name, const TArray<FAnalyticsEventAttribute>& AdditionalAttributes = {})
+	bool EndSpan(const FName Name, const TArray<FAnalyticsEventAttribute>& AdditionalAttributes = {})
 	{
 		return EndSpan(GetSpan(Name), AdditionalAttributes);
 	}

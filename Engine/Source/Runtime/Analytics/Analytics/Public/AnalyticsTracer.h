@@ -18,7 +18,7 @@ public:
 
 	// Public IAnalyticsSpan implementation
 	virtual void SetProvider(TSharedPtr<IAnalyticsProvider> AnalyticsProvider) override;
-	virtual void Start(const FName& Name, TSharedPtr<IAnalyticsSpan> ParentSpan, const TArray<FAnalyticsEventAttribute>& AdditionalAttributes = {});
+	virtual void Start(const FName Name, TSharedPtr<IAnalyticsSpan> ParentSpan, const TArray<FAnalyticsEventAttribute>& AdditionalAttributes = {});
 	virtual void End(const TArray<FAnalyticsEventAttribute>& AdditionalAttributes = {}) override;
 	virtual void AddAttributes(const TArray<FAnalyticsEventAttribute>& AdditionalAttributes) override;
 	virtual void RecordEvent(const FString& EventName, const TArray<FAnalyticsEventAttribute>& AdditionalAttributes = {}) override;
