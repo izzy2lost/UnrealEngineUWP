@@ -39,6 +39,7 @@ namespace EpicGames.Horde.Storage.ObjectStores
 		/// <inheritdoc/>
 		public void Dispose()
 		{
+			_inner.Dispose();
 		}
 
 		/// <inheritdoc/>
