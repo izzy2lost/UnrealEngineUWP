@@ -133,7 +133,7 @@ namespace UE::PixelStreamingVCam::Private
 		Settings->PostEditChange();
 
 		const TWeakObjectPtr<UVCamPixelStreamingSession> WeakThisPtr = This;
-		FPixelStreamingVCamModule::Get().AddActiveSession(WeakThisPtr);
+		FPixelStreamingVCamModule::Get().RemoveActiveSession(WeakThisPtr);
 	}
 
 	void FVCamPixelStreamingSessionLogic::StopCapture()
