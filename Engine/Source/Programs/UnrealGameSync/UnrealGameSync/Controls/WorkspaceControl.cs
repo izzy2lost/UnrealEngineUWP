@@ -3577,7 +3577,8 @@ namespace UnrealGameSync
 							ChangesRecord? foundRecord = null;
 							async Task<bool> GetChangesRecordFunc(IPerforceConnection perforce, CancellationToken cancellationToken)
 							{
-								List<ChangesRecord> changes = await perforce.GetChangesAsync(ChangesOptions.None, 1, ChangeStatus.Submitted, $"//{_perforceSettings.ClientName}/...@{_workspace.CurrentChangeNumber},{_workspace.CurrentChangeNumber}", cancellationToken);
+								List<ChangesRecord> changes = await perforce.GetChangesAsync(ChangesOptions.None, 1, ChangeStatus.Submitted, $"//...@{_workspace.CurrentChangeNumber},{_workspace.CurrentChangeNumber}", cancellationToken);
+
 								if (changes.Count == 1)
 								{
 									foundRecord = changes[0];
