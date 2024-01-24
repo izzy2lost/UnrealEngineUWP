@@ -70,6 +70,7 @@ private:
 	UGroomComponent* GroomComponent = nullptr; // Should it be HairInstance instead?
 	TArray<FHairStrandsInstanceResourceParameters> Resources;
 	TArray<FHairStrandsInstanceInterpolationParameters> Interpolations;
-	FRDGBufferSRVRef FallbackSRV;
-
+	FRDGBufferSRVRef FallbackByteAddressSRV;
+	FRDGBufferSRVRef FallbackStructuredSRV;
+	FRDGBufferSRVRef FallbackVertexSRV;
 };
