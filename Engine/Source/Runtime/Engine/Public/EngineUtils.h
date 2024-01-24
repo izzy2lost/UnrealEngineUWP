@@ -837,6 +837,11 @@ public:
 		AudioVisual = 2,
 		Server UE_DEPRECATED(5.4, "Use AudioVisual value instead of Server") = AudioVisual,
 
+		/* This flag means that all data needed to cook packages will be stripped. What it means is specific to 
+		  an asset type, and it might be a subset of both EditorOnly and AudioVisual. This flag is normally set, except
+		  when cooking for a "cooked cooker" target. */
+		NeededForCooking = 4,
+
 		// Add global flags here (up to 8 including the already defined ones).
 
 		/** All flags */
@@ -942,6 +947,16 @@ public:
 	bool IsDataStrippedForServer() const
 	{
 		return IsAudioVisualDataStripped();
+	}
+
+	/**
+	 * Checks if FStripDataFlags::NeededForCooking flag is set or not. It should be set for all non-content-worker targets
+	 *
+	 * @return true if FStripDataFlags::NeededForCooking is set, false otherwise.
+	 */
+	bool IsDataNeededForCookingStripped() const
+	{
+		return (GlobalStripFlags & static_cast<uint8>(FStripDataFlags::EStrippedData::NeededForCooking)) != 0;
 	}
 
 	/**

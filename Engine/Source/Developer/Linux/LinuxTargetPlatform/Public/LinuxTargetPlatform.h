@@ -198,6 +198,11 @@ public:
 			return true;
 		}
 
+		if (Feature == ETargetPlatformFeatures::CanCookPackages)
+		{
+			return TProperties::HasEditorOnlyData();
+		}
+
 		return TSuper::SupportsFeature(Feature);
 	}
 
