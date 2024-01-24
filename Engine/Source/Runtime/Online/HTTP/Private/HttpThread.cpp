@@ -141,7 +141,14 @@ bool FHttpThreadBase::NeedsSingleThreadTick() const
 void FHttpThreadBase::UpdateConfigs()
 {
 	int32 LocalRunningThreadedRequestLimit = -1;
-	if (GConfig->GetInt(TEXT("HTTP.HttpThread"), TEXT("RunningThreadedRequestLimit"), LocalRunningThreadedRequestLimit, GEngineIni))
+	const bool bFoundLocalRunningThreadedRequestLimit =
+	(
+#if WITH_EDITOR
+		GConfig->GetInt(TEXT("HTTP.HttpThread"), TEXT("RunningThreadedRequestLimitEditor"), LocalRunningThreadedRequestLimit, GEditorIni) ||
+#endif
+		GConfig->GetInt(TEXT("HTTP.HttpThread"), TEXT("RunningThreadedRequestLimit"), LocalRunningThreadedRequestLimit, GEngineIni)
+	);
+	if (bFoundLocalRunningThreadedRequestLimit)
 	{
 		if (LocalRunningThreadedRequestLimit < 1)
 		{
