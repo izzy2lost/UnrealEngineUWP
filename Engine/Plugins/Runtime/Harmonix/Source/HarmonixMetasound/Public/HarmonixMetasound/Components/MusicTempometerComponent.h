@@ -298,6 +298,15 @@ private:
 		return MusicClock;
 	}
 
+	UMusicClockComponent* GetMutableClockNoMutex() const
+	{
+		if (!IsValid(MusicClock.Get()))
+		{
+			SetOwnerClock();
+		}
+		return MusicClock;
+	}
+
 	void UpdateCachedSongPos() const;
 	void UpdateCachedSongPosIfNeeded() const
 	{

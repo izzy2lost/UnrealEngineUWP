@@ -107,25 +107,25 @@ public:
 	// NOTE: INCLUDES time for count-in and pickup bars.
 	// Note: Not const as it might cause the clock to update from its source.
 	UFUNCTION(BlueprintPure, Category = "MusicClock")
-	float GetSecondsIncludingCountIn(ECalibratedMusicTimebase Timebase = ECalibratedMusicTimebase::VideoRenderTime);
+	float GetSecondsIncludingCountIn(ECalibratedMusicTimebase Timebase = ECalibratedMusicTimebase::VideoRenderTime) const;
 
 	// Time from Bar 1 Beat 1. The classic "start of the song".
 	// NOTE: DOES NOT INCLUDE time for count-in and pickup bars.
 	// Note: Not const as it might cause the clock to update from its source.
 	UFUNCTION(BlueprintPure, Category = "MusicClock")
-	float GetSecondsFromBarOne(ECalibratedMusicTimebase Timebase = ECalibratedMusicTimebase::VideoRenderTime);
+	float GetSecondsFromBarOne(ECalibratedMusicTimebase Timebase = ECalibratedMusicTimebase::VideoRenderTime) const;
 
 	// Returns the fractional total bars from the beginning of the authored music content.
 	// NOTE: INCLUDES time for count-in and pickup bars.
 	// Note: Not const as it might cause the clock to update from its source.
 	UFUNCTION(BlueprintPure, Category = "MusicClock")
-	float GetBarsIncludingCountIn(ECalibratedMusicTimebase Timebase = ECalibratedMusicTimebase::VideoRenderTime);
+	float GetBarsIncludingCountIn(ECalibratedMusicTimebase Timebase = ECalibratedMusicTimebase::VideoRenderTime) const;
 
 	// Returns the fractional total beats from the beginning of the authored music content.
 	// NOTE: INCLUDES time for count-in and pickup bars.
 	// Note: Not const as it might cause the clock to update from its source.
 	UFUNCTION(BlueprintPure, Category = "MusicClock")
-	float GetBeatsIncludingCountIn(ECalibratedMusicTimebase Timebase = ECalibratedMusicTimebase::VideoRenderTime); 
+	float GetBeatsIncludingCountIn(ECalibratedMusicTimebase Timebase = ECalibratedMusicTimebase::VideoRenderTime) const;
 
 	// Returns the "classic" musical timestamp in the form Bar (int) & Beat (float). In this form...
 	//    - Bar 1, Beat 1.0 is the "beginning of the song" AFTER count-in/pickups
@@ -133,17 +133,17 @@ public:
 	//    - While Bar can be positive or negative, Beat is always >= 1.0 and is read as "beat in the bar". Again... '1' based!
 	// Note: Not const as it might cause the clock to update from its source.
 	UFUNCTION(BlueprintPure, Category = "MusicClock")
-	FMusicTimestamp GetCurrentTimestamp(ECalibratedMusicTimebase Timebase = ECalibratedMusicTimebase::VideoRenderTime);
+	FMusicTimestamp GetCurrentTimestamp(ECalibratedMusicTimebase Timebase = ECalibratedMusicTimebase::VideoRenderTime) const;
 
 	/** Returns the name of the section that we're currently in (intro, chorus, outro) */
 	// Note: Not const as it might cause the clock to update from its source.
 	UFUNCTION(BlueprintPure, Category = "MusicClock")
-	FString GetCurrentSectionName(ECalibratedMusicTimebase Timebase = ECalibratedMusicTimebase::VideoRenderTime);
+	FString GetCurrentSectionName(ECalibratedMusicTimebase Timebase = ECalibratedMusicTimebase::VideoRenderTime) const;
 
 	/** Returns the index of the current section for the provided time base. [0, Num-1] */
 	// Note: Not const as it might cause the clock to update from its source.
 	UFUNCTION(BlueprintPure, Category = "MusicClock")
-	int32 GetCurrentSectionIndex(ECalibratedMusicTimebase Timebase = ECalibratedMusicTimebase::VideoRenderTime);
+	int32 GetCurrentSectionIndex(ECalibratedMusicTimebase Timebase = ECalibratedMusicTimebase::VideoRenderTime) const;
 
 	UFUNCTION(BlueprintPure, Category = "MusicClock")
 	const TArray<FSongSection>& GetSongSections() const;
@@ -151,54 +151,59 @@ public:
 	/** Returns the start time of the current section in milliseconds */
 	// Note: Not const as it might cause the clock to update from its source.
 	UFUNCTION(BlueprintPure, Category = "MusicClock")
-	float GetCurrentSectionStartMs(ECalibratedMusicTimebase Timebase = ECalibratedMusicTimebase::VideoRenderTime);
+	float GetCurrentSectionStartMs(ECalibratedMusicTimebase Timebase = ECalibratedMusicTimebase::VideoRenderTime) const;
 
 	/** Returns the length of the current section in milliseconds */
 	// Note: Not const as it might cause the clock to update from its source.
 	UFUNCTION(BlueprintPure, Category = "MusicClock")
-	float GetCurrentSectionLengthMs(ECalibratedMusicTimebase Timebase = ECalibratedMusicTimebase::VideoRenderTime);
+	float GetCurrentSectionLengthMs(ECalibratedMusicTimebase Timebase = ECalibratedMusicTimebase::VideoRenderTime) const;
 
-	/** Gets a value expressed in beats between 0-1 that indicates how much progress we made towards the current beat to the next one */
+	/** Gets a value expressed in beats between 0-1 that indicates how much progress we made in the current beat */
 	// Note: Not const as it might cause the clock to update from its source.
 	UFUNCTION(BlueprintPure, Category = "MusicClock")
-	float GetDistanceFromCurrentBeat(ECalibratedMusicTimebase Timebase = ECalibratedMusicTimebase::VideoRenderTime);
+	float GetDistanceFromCurrentBeat(ECalibratedMusicTimebase Timebase = ECalibratedMusicTimebase::VideoRenderTime) const;
 
 	/** Gets a value expressed in beats between 0-1 that indicates how close we are to the next beat. */
 	// Note: Not const as it might cause the clock to update from its source.
 	UFUNCTION(BlueprintPure, Category = "MusicClock")
-	float GetDistanceToNextBeat(ECalibratedMusicTimebase Timebase = ECalibratedMusicTimebase::VideoRenderTime);
+	float GetDistanceToNextBeat(ECalibratedMusicTimebase Timebase = ECalibratedMusicTimebase::VideoRenderTime) const;
 
 	/** Gets a value expressed in beats between 0-1 that indicates how close we are to the closest beat (current beat or next beat). */
 	// Note: Not const as it might cause the clock to update from its source.
 	UFUNCTION(BlueprintPure, Category = "MusicClock")
-	float GetDistanceToClosestBeat(ECalibratedMusicTimebase Timebase = ECalibratedMusicTimebase::VideoRenderTime);
+	float GetDistanceToClosestBeat(ECalibratedMusicTimebase Timebase = ECalibratedMusicTimebase::VideoRenderTime) const;
 
 	/** Gets a value expressed in bars between 0-1 that indicates how much progress we made towards the current bar to the next one. */
 	// Note: Not const as it might cause the clock to update from its source.
 	UFUNCTION(BlueprintPure, Category = "MusicClock")
-	float GetDistanceFromCurrentBar(ECalibratedMusicTimebase Timebase = ECalibratedMusicTimebase::VideoRenderTime);
+	float GetDistanceFromCurrentBar(ECalibratedMusicTimebase Timebase = ECalibratedMusicTimebase::VideoRenderTime) const;
 
 	/** Gets a value expressed in bars between 0-1 that indicates how close we are to the next bar. */
 	// Note: Not const as it might cause the clock to update from its source.
 	UFUNCTION(BlueprintPure, Category = "MusicClock")
-	float GetDistanceToNextBar(ECalibratedMusicTimebase Timebase = ECalibratedMusicTimebase::VideoRenderTime);
+	float GetDistanceToNextBar(ECalibratedMusicTimebase Timebase = ECalibratedMusicTimebase::VideoRenderTime) const;
 
 	/** Gets value expressed in bars between 0-1 that indicates how close we are to the closest bar (current bar or next bar). */
 	// Note: Not const as it might cause the clock to update from its source.
 	UFUNCTION(BlueprintPure, Category = "MusicClock")
-	float GetDistanceToClosestBar(ECalibratedMusicTimebase Timebase = ECalibratedMusicTimebase::VideoRenderTime);
+	float GetDistanceToClosestBar(ECalibratedMusicTimebase Timebase = ECalibratedMusicTimebase::VideoRenderTime) const;
 
 	// Note: Not const as it might cause the clock to update from its source.
 	UFUNCTION(BlueprintPure, Category = "MusicClock")
-	float GetDeltaBar(ECalibratedMusicTimebase Timebase = ECalibratedMusicTimebase::VideoRenderTime);
+	float GetDeltaBar(ECalibratedMusicTimebase Timebase = ECalibratedMusicTimebase::VideoRenderTime) const;
 
 	// Note: Not const as it might cause the clock to update from its source.
 	UFUNCTION(BlueprintPure, Category = "MusicClock")
-	float GetDeltaBeat(ECalibratedMusicTimebase Timebase = ECalibratedMusicTimebase::VideoRenderTime);
+	float GetDeltaBeat(ECalibratedMusicTimebase Timebase = ECalibratedMusicTimebase::VideoRenderTime) const;
 
 	// Note: Not const as it might cause the clock to update from its source.
 	UFUNCTION(BlueprintPure, Category = "MusicClock")
-	const FMidiSongPos& GetSongPos(ECalibratedMusicTimebase Timebase = ECalibratedMusicTimebase::VideoRenderTime);
+	const FMidiSongPos& GetSongPos(ECalibratedMusicTimebase Timebase = ECalibratedMusicTimebase::VideoRenderTime) const;
+
+	/** Returns the remaining time until the end of the MIDI in milliseconds based on the timestamp corresponding to the passed Timebase */
+	// Note: Not const as it might cause the clock to update from its source.
+	UFUNCTION(BlueprintPure, Category = "MusicClock")
+	float GetSongRemainingMs(ECalibratedMusicTimebase Timebase = ECalibratedMusicTimebase::VideoRenderTime) const;
 
 	UFUNCTION(BlueprintPure, Category = "Count In")
 	float GetCountInSeconds() const;
@@ -237,7 +242,7 @@ public:
 	float GetSectionEndMsAtMs(float Ms) const;
 
 	UFUNCTION(BlueprintPure, Category = "Section")
-	float GetNumSections() const;
+	int32 GetNumSections() const;
 
 	UFUNCTION(BlueprintPure, Category = "Song Data")
 	float GetSongLengthMs() const;
@@ -247,11 +252,6 @@ public:
 
 	UFUNCTION(BlueprintPure, Category = "Song Data")
 	int32 GetSongLengthBars() const;
-
-	/** Returns the remaining time until the end of the MIDI in milliseconds based on the timestamp corresponding to the passed Timebase */
-	// Note: Not const as it might cause the clock to update from its source.
-	UFUNCTION(BlueprintPure, Category = "MusicClock")
-	float GetSongRemainingTime(ECalibratedMusicTimebase Timebase = ECalibratedMusicTimebase::VideoRenderTime);
 
 	const FSongMaps& GetSongMaps() const;
 
@@ -276,27 +276,30 @@ public:
 	UPROPERTY(BlueprintAssignable, Category = "MusicClock")
 	FMusicClockDisconnected MusicClockDisconnectedEvent;
 
+private:
+	// Don't let C++ access these directly! They are a blueprint convenience and only work because 
+	// they specify getter functions!
 	UPROPERTY(BlueprintGetter = GetCurrentSmoothedAudioRenderSongPos, Category = "MusicClock")
 	FMidiSongPos CurrentSmoothedAudioRenderSongPos;
-
-	UFUNCTION(BlueprintCallable, BlueprintPure, Category = "MusicClock")
-	FMidiSongPos GetCurrentSmoothedAudioRenderSongPos();
-
 	UPROPERTY(BlueprintGetter = GetCurrentVideoRenderSongPos, Category = "MusicClock")
 	FMidiSongPos CurrentVideoRenderSongPos;
-
-	UFUNCTION(BlueprintCallable, BlueprintPure, Category = "MusicClock")
-	FMidiSongPos GetCurrentVideoRenderSongPos();
-
 	UPROPERTY(BlueprintGetter = GetCurrentPlayerExperiencedSongPos, Category = "MusicClock")
 	FMidiSongPos CurrentPlayerExperiencedSongPos;
 
+public:
+	// Getter functions for the Blueprint properties exposed above...
 	UFUNCTION(BlueprintCallable, BlueprintPure, Category = "MusicClock")
-	FMidiSongPos GetCurrentPlayerExperiencedSongPos();
+	FMidiSongPos GetCurrentSmoothedAudioRenderSongPos() const;
+
+	UFUNCTION(BlueprintCallable, BlueprintPure, Category = "MusicClock")
+	FMidiSongPos GetCurrentVideoRenderSongPos() const;
+
+	UFUNCTION(BlueprintCallable, BlueprintPure, Category = "MusicClock")
+	FMidiSongPos GetCurrentPlayerExperiencedSongPos() const;
 
 	// Note: Not const as it might cause the clock to update from its source.
 	UFUNCTION(BlueprintPure, Category = "MusicClock")
-	float MeasureSpanProgress(const FMusicalTimeSpan& Span, ECalibratedMusicTimebase Timebase = ECalibratedMusicTimebase::VideoRenderTime);
+	float MeasureSpanProgress(const FMusicalTimeSpan& Span, ECalibratedMusicTimebase Timebase = ECalibratedMusicTimebase::VideoRenderTime) const;
 
 	UFUNCTION(BlueprintCallable, Category = "Audio|MusicClock", meta = (WorldContext = "WorldContextObject", DefaultToSelf = "WorldContextObject"))
 	static UMusicClockComponent* CreateMetasoundDrivenMusicClock(UObject* WorldContextObject, UAudioComponent* InAudioComponent, FName MetasoundOuputPinName = "Midi Clock", bool Start = true);
@@ -311,7 +314,7 @@ public:
 	void ConnectToWallClockForMidi(UMidiFile* InTempoMap);
 
 	// Note: Not const as it might cause the clock to update from its source.
-	FMidiSongPos CalculateSongPosWithOffset(float MsOffset, ECalibratedMusicTimebase Timebase = ECalibratedMusicTimebase::VideoRenderTime);
+	FMidiSongPos CalculateSongPosWithOffset(float MsOffset, ECalibratedMusicTimebase Timebase = ECalibratedMusicTimebase::VideoRenderTime) const;
 
 	const FMidiSongPos& GetRawUnsmoothedAudioRenderPos() const { return RawUnsmoothedAudioRenderPos; }
 
@@ -330,14 +333,14 @@ private:
 	FSongMaps DefaultMaps;
 	FMidiSongPos RawUnsmoothedAudioRenderPos;
 
-	float     AudioRenderDeltaBarF = 0.0f;
-	float     AudioRenderDeltaBeatF = 0.0f;
-	float     PlayerExperienceDeltaBarF = 0.0f;
-	float     PlayerExperienceDeltaBeatF = 0.0f;
-	float     VideoRenderDeltaBarF = 0.0f;
-	float     VideoRenderDeltaBeatF = 0.0f;
-	int32     LastBroadcastBar = -1;
-	int32     LastBroadcastBeat = -1;
+	float AudioRenderDeltaBarF = 0.0f;
+	float AudioRenderDeltaBeatF = 0.0f;
+	float PlayerExperienceDeltaBarF = 0.0f;
+	float PlayerExperienceDeltaBeatF = 0.0f;
+	float VideoRenderDeltaBarF = 0.0f;
+	float VideoRenderDeltaBeatF = 0.0f;
+	int32 LastBroadcastBar = -1;
+	int32 LastBroadcastBeat = -1;
 	FSongSection LastBroadcastSongSection;
 
 	FMidiSongPos PrevAudioRenderSongPos;
@@ -347,14 +350,14 @@ private:
 	uint64    LastUpdateFrame = 0;
 
 	void CreateClockDriver();
-	void CalcDelta();
-	void Broadcast();
+	void BroadcastSongPosChanges();
 	void MakeDefaultSongMap();
 	bool ConnectToMetasound();
 	void ConnectToWallClock();
 
 	// Ensures the clock will be updated once per frame.  Should only get called on the game thread.
-	void UpdateClockIfNeeded();
+	void EnsureClockIsValidForGameFrame() const;
+	//void CalcDelta() const;
 };
 
 struct FMusicClockDriverBase
@@ -366,10 +369,11 @@ public:
 	{}
 	virtual ~FMusicClockDriverBase() = default;
 
+	void EnsureClockIsValidForGameFrame();
+
 	virtual bool CalculateSongPosWithOffset(float MsOffset, ECalibratedMusicTimebase Timebase, FMidiSongPos& OutResult) const = 0;
 
 	virtual void Disconnect() = 0;
-	virtual bool RefreshCurrentSongPos() = 0;
 	virtual void OnStart() = 0;
 	virtual void OnPause() = 0;
 	virtual void OnContinue() = 0;
@@ -378,5 +382,7 @@ public:
 
 protected:
 	UMusicClockComponent* Clock;
+private:
+	virtual bool RefreshCurrentSongPos() = 0;
 };
 

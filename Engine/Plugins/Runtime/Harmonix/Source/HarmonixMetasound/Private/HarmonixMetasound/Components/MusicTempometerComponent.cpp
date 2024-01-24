@@ -42,9 +42,9 @@ void UMusicTempometerComponent::UpdateCachedSongPos() const
 	LastFrameCounter = GFrameCounter;
 
 	// Cache or clear various FSongPos
-	if (const UMusicClockComponent* Clock = GetClockNoMutex())
+	if (UMusicClockComponent* Clock = GetMutableClockNoMutex())
 	{
-		SongPos = Clock->CurrentVideoRenderSongPos;
+		SongPos = Clock->GetCurrentVideoRenderSongPos();
 	}
 	else
 	{
