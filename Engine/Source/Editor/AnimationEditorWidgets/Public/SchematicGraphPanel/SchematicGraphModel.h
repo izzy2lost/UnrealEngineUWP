@@ -7,6 +7,8 @@
 #include "SchematicGraphNode.h"
 #include "SchematicGraphLink.h"
 
+class SSchematicGraphPanel;
+
 class ANIMATIONEDITORWIDGETS_API FSchematicGraphModel : public TSharedFromThis<FSchematicGraphModel>
 {
 public:
@@ -14,6 +16,7 @@ public:
 	SCHEMATICGRAPHELEMENT_BODY_BASE(FSchematicGraphModel)
 	
 	virtual void Reset();
+	virtual void ApplyToPanel(SSchematicGraphPanel* InPanel) {};
 	
 	template<typename NodeType = FSchematicGraphNode>
 	NodeType* AddNode(bool bNotify = true)
@@ -251,7 +254,7 @@ public:
 	virtual ESchematicGraphVisibility::Type GetVisibilityForLink(const FSchematicGraphLink* InLink) const;
 
 	virtual bool IsAutoGroupingEnabled() const { return true; }
-	virtual float GetAutoGroupingDistance() const { return 32.f; }
+	virtual float GetAutoGroupingDistance() const { return 4.f; }
 	virtual FSchematicGraphGroupNode* AddAutoGroupNode(); 
 
 	FOnSchematicGraphNodeAdded& OnNodeAdded() { return OnNodeAddedDelegate; }

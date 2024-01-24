@@ -1043,7 +1043,7 @@ void UControlRigBlueprint::UpdateConnectionMapFromModel()
 	{
 		ConnectionMap.Reset();
 
-		for (const FModularRigSingleConnection& Connection : ModularRigModel.Connections.ConnectionList)
+		for (const FModularRigSingleConnection& Connection : ModularRigModel.Connections)
 		{
 			ConnectionMap.Add(Connection.Connector, Connection.Target);
 		}
@@ -2581,6 +2581,7 @@ void UControlRigBlueprint::HandleRigModulesModified(EModularRigNotification InNo
 								(void)URigHierarchy::SplitNameSpace(Pair.Value.NewPath, &Namespace, &ConnectorName);
 								Namespace.Append(UModularRig::NamespaceSeparator);
 								FControlRigExecuteContextRigModuleGuard RigModuleGuard(PublicContext, Namespace);
+								const TGuardValue<bool> DisableErrors(Controller->bReportWarningsAndErrors, false);
 								Controller->AddConnector(*ConnectorName, Pair.Value.Settings);
 							}
 						}

@@ -132,6 +132,7 @@ void SModularRigModelItem::Construct(const FArguments& InArgs, const TSharedRef<
 	TSharedPtr< SHorizontalBox > HorizontalBox;
 	TSharedPtr<SVerticalBox> ComboButtonBox;
 
+	// todo: this should be done lazily - the matches need to be pulled when the user clicks
 	FModularRigResolveResult ConnectorMatches;
 	if (const UModularRig* ModularRig = Delegates.GetModularRig())
 	{

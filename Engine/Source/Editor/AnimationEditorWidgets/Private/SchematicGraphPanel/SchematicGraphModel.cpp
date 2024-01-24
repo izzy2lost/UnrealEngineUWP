@@ -870,6 +870,28 @@ void FSchematicGraphModel::Tick(float InDeltaTime)
 			LastExpandedNode = FGuid();
 		}
 	}
+
+	// remove invalid parent / child relationships
+	for(const TSharedPtr<FSchematicGraphNode>& Node : Nodes)
+	{
+		if(Node->ParentNodeGuid.IsValid())
+		{
+			if(!NodeByGuid.Contains(Node->ParentNodeGuid))
+			{
+				Node->ParentNodeGuid = FGuid();
+			}
+		}
+
+		const FGuid Guid = Node->GetGuid();
+		Node->ChildNodeGuids.RemoveAll([this, Guid](const FGuid& InChildGuid) -> bool
+		{
+			if(const FSchematicGraphNode* ChildNode = FindNode(InChildGuid))
+			{
+				return ChildNode->ParentNodeGuid != Guid;
+			}
+			return true;
+		});
+	}
 }
 
 #undef LOCTEXT_NAMESPACE

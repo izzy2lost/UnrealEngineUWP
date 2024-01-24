@@ -21,6 +21,7 @@ UModularRigController::UModularRigController(const FObjectInitializer& ObjectIni
 	: Super(ObjectInitializer)
 	, Model(nullptr)
 	, bSuspendNotifications(false)
+	, bAutomaticReparenting(true)
 {
 }
 
@@ -161,15 +162,15 @@ bool UModularRigController::CanConnectConnectorToElement(const FRigElementKey& I
 
 	if (!ModuleConnector->IsPrimary())
 	{
-		const FRigModuleConnector* PrimaryMdouleConnector = RigCDO->GetRigModuleSettings().ExposedConnectors.FindByPredicate(
-		[ConnectorName](FRigModuleConnector& Connector)
+		const FRigModuleConnector* PrimaryModuleConnector = RigCDO->GetRigModuleSettings().ExposedConnectors.FindByPredicate(
+		[](const FRigModuleConnector& Connector)
 		{
 			return Connector.IsPrimary();
 		});
 
-		const FString PrimaryConnectorPath = FString::Printf(TEXT("%s:%s"), *ConnectorModulePath, *PrimaryMdouleConnector->Name);
+		const FString PrimaryConnectorPath = FString::Printf(TEXT("%s:%s"), *ConnectorModulePath, *PrimaryModuleConnector->Name);
 		const FRigElementKey PrimaryConnectorKey(*PrimaryConnectorPath, ERigElementType::Connector);
-		FRigElementKey PrimaryTarget = Model->Connections.FindTargetFromConnector(PrimaryConnectorKey);
+		const FRigElementKey PrimaryTarget = Model->Connections.FindTargetFromConnector(PrimaryConnectorKey);
 		if (!PrimaryTarget.IsValid())
 		{
 			OutErrorMessage = FText::FromString(FString::Printf(TEXT("Cannot resolve connector %s because primary connector is not resolved"), *InConnectorKey.ToString()));
@@ -261,6 +262,7 @@ bool UModularRigController::ConnectConnectorToElement(const FRigElementKey& InCo
 	// First disconnect before connecting to anything else. This might disconnect other secondary/optional connectors.
 	if (CurrentTarget.IsValid())
 	{
+		const TGuardValue<bool> DisableAutomaticReparenting(bAutomaticReparenting, false);
 		DisconnectConnector(InConnectorKey, bSetupUndo);
 	}
 	
@@ -311,13 +313,16 @@ bool UModularRigController::ConnectConnectorToElement(const FRigElementKey& InCo
 				}
 
 				// automatically re-parent the module in the module tree as well
-				if(const FRigConnectorElement* Connector = Hierarchy->Find<FRigConnectorElement>(InConnectorKey))
+				if(bAutomaticReparenting)
 				{
-					if(Connector->IsPrimary())
+					if(const FRigConnectorElement* Connector = Hierarchy->Find<FRigConnectorElement>(InConnectorKey))
 					{
-						if(!TargetModulePathName.IsNone())
+						if(Connector->IsPrimary())
 						{
-							ReparentModule(Module->GetPath(), TargetModulePathName.ToString(), bSetupUndo);
+							if(!TargetModulePathName.IsNone())
+							{
+								ReparentModule(Module->GetPath(), TargetModulePathName.ToString(), bSetupUndo);
+							}
 						}
 					}
 				}
@@ -391,7 +396,7 @@ bool UModularRigController::DisconnectConnector(const FRigElementKey& InConnecto
 	{
 		// Remove connections from module and child modules
 		TArray<FRigElementKey> ConnectionsToRemove;
-		for (const FModularRigSingleConnection& Connection : Model->Connections.ConnectionList)
+		for (const FModularRigSingleConnection& Connection : Model->Connections)
 		{
 			if (Connection.Connector.Name.ToString().StartsWith(ConnectorModulePath, ESearchCase::CaseSensitive))
 			{
@@ -407,7 +412,7 @@ bool UModularRigController::DisconnectConnector(const FRigElementKey& InConnecto
 	{
 		// Remove connections from child modules
 		TArray<FRigElementKey> ConnectionsToRemove;
-		for (const FModularRigSingleConnection& Connection : Model->Connections.ConnectionList)
+		for (const FModularRigSingleConnection& Connection : Model->Connections)
 		{
 			FString OtherConnectorModulePath, OtherConnectorName;
 			(void)URigHierarchy::SplitNameSpace(Connection.Connector.Name.ToString(), &OtherConnectorModulePath, &OtherConnectorName);
@@ -425,9 +430,12 @@ bool UModularRigController::DisconnectConnector(const FRigElementKey& InConnecto
 	// todo: Make sure all the rest of the connections are still valid
 
 	// un-parent the module if we've disconnected the primary
-	if(ModuleConnector->IsPrimary() && !Module->IsRootModule())
+	if(bAutomaticReparenting)
 	{
-		(void)ReparentModule(Module->GetPath(), FString(), bSetupUndo);
+		if(ModuleConnector->IsPrimary() && !Module->IsRootModule())
+		{
+			(void)ReparentModule(Module->GetPath(), FString(), bSetupUndo);
+		}
 	}
 
 	Notify(EModularRigNotification::ConnectionChanged, Module);
@@ -460,7 +468,7 @@ TArray<FRigElementKey> UModularRigController::DisconnectCyclicConnectors(bool bS
 	}
 
 	TArray<FRigElementKey> ConnectorsToDisconnect;
-	for (const FModularRigSingleConnection& Connection : Model->Connections.ConnectionList)
+	for (const FModularRigSingleConnection& Connection : Model->Connections)
 	{
 		const FString ConnectorModulePath = Hierarchy->GetModulePath(Connection.Connector);
 		const FString TargetModulePath = Hierarchy->GetModulePath(Connection.Target);
@@ -833,7 +841,7 @@ bool UModularRigController::DeleteModule(const FString& InModulePath, bool bSetu
 	// Fix connections
 	{
 		TArray<FRigElementKey> ToRemove;
-		for (FModularRigSingleConnection& Connection : Model->Connections.ConnectionList)
+		for (FModularRigSingleConnection& Connection : Model->Connections)
 		{
 			FString ConnectionModulePath, ConnectionName;
 			(void)URigHierarchy::SplitNameSpace(Connection.Connector.Name.ToString(), &ConnectionModulePath, &ConnectionName);
@@ -932,7 +940,7 @@ FString UModularRigController::RenameModule(const FString& InModulePath, const F
 
 	// Fix connections
 	{
-		for (FModularRigSingleConnection& Connection : Model->Connections.ConnectionList)
+		for (FModularRigSingleConnection& Connection : Model->Connections)
 		{
 			if (Connection.Connector.Name.ToString().StartsWith(OldPath, ESearchCase::CaseSensitive))
 			{
@@ -943,20 +951,7 @@ FString UModularRigController::RenameModule(const FString& InModulePath, const F
 				Connection.Target.Name = *FString::Printf(TEXT("%s%s"), *NewPath, *Connection.Target.Name.ToString().RightChop(OldPath.Len()));
 			}
 		}
-		for (TPair<FRigElementKey, TArray<FRigElementKey>>& Pair : Model->Connections.ReverseConnectionMap)
-		{
-			if (Pair.Key.Name.ToString().StartsWith(OldPath, ESearchCase::CaseSensitive))
-			{
-				Pair.Key.Name = *FString::Printf(TEXT("%s%s"), *NewPath, *Pair.Key.Name.ToString().RightChop(OldPath.Len()));
-			}
-			for (FRigElementKey& TargetConnectorKey : Pair.Value)
-			{
-				if (TargetConnectorKey.Name.ToString().StartsWith(OldPath, ESearchCase::CaseSensitive))
-				{
-					TargetConnectorKey.Name = *FString::Printf(TEXT("%s%s"), *NewPath, *TargetConnectorKey.Name.ToString().RightChop(OldPath.Len()));
-				}
-			}
-		}
+		Model->Connections.UpdateFromConnectionList();
 	}
 
 	// Fix bindings
@@ -1063,7 +1058,7 @@ FString UModularRigController::ReparentModule(const FString& InModulePath, const
 
 	// Fix connections
 	{
-		for (FModularRigSingleConnection& Connection : Model->Connections.ConnectionList)
+		for (FModularRigSingleConnection& Connection : Model->Connections)
 		{
 			if (Connection.Connector.Name.ToString().StartsWith(OldPath, ESearchCase::CaseSensitive))
 			{
@@ -1074,20 +1069,7 @@ FString UModularRigController::ReparentModule(const FString& InModulePath, const
 				Connection.Target.Name = *FString::Printf(TEXT("%s%s"), *NewPath, *Connection.Target.Name.ToString().RightChop(OldPath.Len()));
 			}
 		}
-		for (TPair<FRigElementKey, TArray<FRigElementKey>>& Pair : Model->Connections.ReverseConnectionMap)
-		{
-			if (Pair.Key.Name.ToString().StartsWith(OldPath, ESearchCase::CaseSensitive))
-			{
-				Pair.Key.Name = *FString::Printf(TEXT("%s%s"), *NewPath, *Pair.Key.Name.ToString().RightChop(OldPath.Len()));
-			}
-			for (FRigElementKey& TargetConnectorKey : Pair.Value)
-			{
-				if (TargetConnectorKey.Name.ToString().StartsWith(OldPath, ESearchCase::CaseSensitive))
-				{
-					TargetConnectorKey.Name = *FString::Printf(TEXT("%s%s"), *NewPath, *TargetConnectorKey.Name.ToString().RightChop(OldPath.Len()));
-				}
-			}
-		}
+		Model->Connections.UpdateFromConnectionList();
 	}
 
 	// Fix bindings

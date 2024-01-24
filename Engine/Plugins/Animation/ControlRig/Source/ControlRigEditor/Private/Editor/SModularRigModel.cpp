@@ -781,12 +781,12 @@ void SModularRigModel::OnHierarchyModified(ERigHierarchyNotification InNotif, UR
 			const FRigConnectorElement* Connector = Cast<FRigConnectorElement>(InElement);
 			if(Connector == nullptr)
 			{
-				for(const TPair<FRigElementKey, FRigElementKey>& Pair : ControlRigBlueprint->ConnectionMap)
+				for(const FModularRigSingleConnection& Connection : ControlRigBlueprint->ModularRigModel.Connections)
 				{
-					check(Pair.Key.Type == ERigElementType::Connector);
-					if(Pair.Value == InElement->GetKey())
+					check(Connection.Connector.Type == ERigElementType::Connector);
+					if(Connection.Target == InElement->GetKey())
 					{
-						if(const FRigConnectorElement* TargetConnector = InHierarchy->Find<FRigConnectorElement>(Pair.Key))
+						if(const FRigConnectorElement* TargetConnector = InHierarchy->Find<FRigConnectorElement>(Connection.Connector))
 						{
 							OnHierarchyModified(InNotif, InHierarchy, TargetConnector);
 						}

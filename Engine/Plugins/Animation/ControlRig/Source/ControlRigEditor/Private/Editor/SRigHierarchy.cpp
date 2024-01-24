@@ -1613,9 +1613,10 @@ FRigElementKey SRigHierarchy::OnGetResolvedKey(const FRigElementKey& InKey)
 {
 	if (const UControlRigBlueprint* Blueprint = ControlRigEditor.Pin()->GetControlRigBlueprint())
 	{
-		if(const FRigElementKey* ResolvedKey = Blueprint->ConnectionMap.Find(InKey))
+		const FRigElementKey ResolvedKey = Blueprint->ModularRigModel.Connections.FindTargetFromConnector(InKey);
+		if(ResolvedKey.IsValid())
 		{
-			return *ResolvedKey;
+			return ResolvedKey;
 		}
 	}
 	return InKey;

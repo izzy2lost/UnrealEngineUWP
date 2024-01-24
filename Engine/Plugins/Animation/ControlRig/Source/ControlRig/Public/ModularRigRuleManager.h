@@ -28,6 +28,16 @@ public:
 	) const;
 
 	/***
+	 * Returns the possible targets for the given external module connector in the current resolve stage
+	 * Note: This method is thread-safe. 
+	 * @param InConnector The connector to resolve
+	 * @return The resolve result including a list of matches
+	 */
+	FModularRigResolveResult FindMatches(
+		const FRigModuleConnector* InConnector
+	) const;
+
+	/***
 	 * Returns the possible targets for the primary connector in the current resolve stage
 	 * Note: This method is thread-safe. 
 	 * @param InModule The module the connector belongs to
@@ -68,6 +78,7 @@ private:
 		FWorkData()
 		: Hierarchy(nullptr)
 		, Connector(nullptr)
+		, ModuleConnector(nullptr)
 		, Module(nullptr)
 		, ResolvedConnectors(nullptr)
 		, Result(nullptr)
@@ -78,10 +89,13 @@ private:
 
 		const URigHierarchy* Hierarchy;
 		const FRigConnectorElement* Connector;
+		const FRigModuleConnector* ModuleConnector;
 		const FRigModuleInstance* Module;
 		const FRigElementKeyRedirector* ResolvedConnectors;
 		FModularRigResolveResult* Result;
 	};
+
+	FModularRigResolveResult FindMatches(FWorkData& InWorkData) const;
 
 	void SetHierarchy(const URigHierarchy* InHierarchy);
 	static void ResolveConnector(FWorkData& InOutWorkData);
