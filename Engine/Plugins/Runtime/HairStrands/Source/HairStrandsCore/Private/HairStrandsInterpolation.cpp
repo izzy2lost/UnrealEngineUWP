@@ -1704,7 +1704,7 @@ FHairGroupPublicData::FVertexFactoryInput InternalComputeHairStrandsVertexInputD
 	// Flag bUseRaytracingGeometry only if RT geometry has been allocated for RayTracing view (not for PathTracing view). 
 	// This flag is used later for selecting if voxelization needs to flags voxel has shadow caster or if shadow casting is handled 
 	// by the RT geometry.
-	bRaytracingGeometry = Instance->Strands.RenRaytracingResource != nullptr && (Instance->Strands.ViewRayTracingMask & EHairViewRayTracingMask::RayTracing) != 0;
+	bRaytracingGeometry = Instance->Strands.RenRaytracingResource != nullptr && EnumHasAnyFlags(Instance->Strands.ViewRayTracingMask, EHairViewRayTracingMask::RayTracing);
 #endif
 
 	OutVFInput.Strands.Common.RegisteredIndex = Instance->RegisteredIndex;
