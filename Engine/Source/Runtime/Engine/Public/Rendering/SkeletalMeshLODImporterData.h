@@ -421,7 +421,7 @@ public:
 	/*
 	 * Add morph target data from UMorphTarget in case there was none on the mesh itself.
 	 */
-	ENGINE_API void SetMorphTargets(const TArray<TObjectPtr<UMorphTarget>>& InMorphTargets, int32 InLODIndex, const TArray<int32>& InVertexMap);
+	ENGINE_API void SetMorphTargets(const TArray<TObjectPtr<UMorphTarget>>& InMorphTargets, int32 InLODIndex, const TArray<uint32>& InVertexMap);
 
 	/**
 	 * Returns a mesh description from the import data. If logging on failures is required, pass in a pointer 
