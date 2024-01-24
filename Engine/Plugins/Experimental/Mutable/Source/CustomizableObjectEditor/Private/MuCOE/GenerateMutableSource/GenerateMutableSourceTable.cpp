@@ -13,6 +13,7 @@
 #include "Materials/Material.h"
 #include "Materials/MaterialInstance.h"
 #include "MuCO/CustomizableObjectSystem.h"
+#include "MuCO/CustomizableObjectUIData.h"
 #include "MuCO/UnrealPortabilityHelpers.h"
 #include "MuCOE/CustomizableObjectCompiler.h"
 #include "MuCOE/GenerateMutableSource/GenerateMutableSourceMesh.h"
@@ -120,9 +121,9 @@ bool FillTableColumn(const UCustomizableObjectNodeTable* TableNode,	mu::TablePtr
 													GenerationContext.AddParticipatingObject(*Anim);													
 												}
 
-												GenerationContext.AnimBPAssetsMap.Add(AnimInstance.ToString(), AnimInstance);
+												const int32 AnimInstanceIndex = GenerationContext.AnimBPAssets.AddUnique(AnimInstance);
 
-												AnimBPAssetTag = GenerateAnimationInstanceTag(AnimInstance.ToString(), SlotIndex);
+												AnimBPAssetTag = GenerateAnimationInstanceTag(AnimInstanceIndex, SlotIndex);
 											}
 										}
 									}
@@ -280,8 +281,8 @@ bool FillTableColumn(const UCustomizableObjectNodeTable* TableNode,	mu::TablePtr
 
 					GenerationContext.AddParticipatingObject(*PhysicsAsset); 						
 
-					GenerationContext.PhysicsAssetMap.Add(PhysicsAsset.ToString(), PhysicsAsset);
-					FString PhysicsAssetTag = FString("__PhysicsAsset:") + PhysicsAsset.ToString();
+					const int32 AssetIndex = GenerationContext.PhysicsAssets.AddUnique(PhysicsAsset);
+					FString PhysicsAssetTag = FString("__PA:") + FString::FromInt(AssetIndex);
 
 					AddTagToMutableMeshUnique(*MutableMesh, PhysicsAssetTag);
 				}

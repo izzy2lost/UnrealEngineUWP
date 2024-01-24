@@ -6,7 +6,9 @@
 #include "Engine/SkeletalMeshSocket.h"
 #include "Engine/TextureLODSettings.h"
 #include "Interfaces/ITargetPlatform.h"
+#include "MuCO/CustomizableObjectPrivate.h"
 #include "MuCO/CustomizableObjectExtension.h"
+#include "MuCO/CustomizableObjectUIData.h"
 #include "MuCO/ICustomizableObjectModule.h"
 #include "MuCOE/CustomizableObjectCompiler.h"
 #include "MuCOE/EdGraphSchema_CustomizableObject.h"
@@ -1476,9 +1478,9 @@ int32 AddTagToMutableMeshUnique(mu::Mesh& MutableMesh, const FString& Tag)
 	return TagCount;
 }
 
-FString GenerateAnimationInstanceTag(const FString& AnimInstance, const FName& SlotIndex)
+FString GenerateAnimationInstanceTag(const int32 AnimBpIndex, const FName& SlotIndex)
 {
-	return FString("__AnimBP:") + FString::Printf(TEXT("%s_Slot_"), *SlotIndex.ToString()) + AnimInstance;
+	return FString("__AnimBP:") + FString::Printf(TEXT("%s_Slot_"), *SlotIndex.ToString()) + FString::FromInt(AnimBpIndex);
 }
 
 
@@ -1505,7 +1507,7 @@ void PopulateReferenceSkeletalMeshesData(FMutableGraphGenerationContext& Generat
 
 		// Set the RefSkeletalMesh
 		Data.SkeletalMesh = TObjectPtr<USkeletalMesh>(RefSkeletalMesh);
-		Data.SkeletalMeshAssetPath = FSoftObjectPath(RefSkeletalMesh);
+		Data.SoftSkeletalMesh = RefSkeletalMesh;
 
 		// Gather LODData, this may include per LOD settings such as render data config or LODDataInfoArray
 		Data.LODData.AddDefaulted(GenerationContext.NumLODsInRoot);
@@ -1553,6 +1555,7 @@ void PopulateReferenceSkeletalMeshesData(FMutableGraphGenerationContext& Generat
 			Socket.RelativeLocation = RefSocket->RelativeLocation;
 			Socket.RelativeRotation = RefSocket->RelativeRotation;
 			Socket.RelativeScale = RefSocket->RelativeScale;
+			Socket.bForceAlwaysAnimated = RefSocket->bForceAlwaysAnimated;
 		}
 
 		// TODO: Generate Bounds?
@@ -1575,37 +1578,30 @@ void PopulateReferenceSkeletalMeshesData(FMutableGraphGenerationContext& Generat
 		}
 
 		// Skeleton
-		if(const USkeleton* Skeleton = RefSkeletalMesh->GetSkeleton())
+		if(USkeleton* Skeleton = RefSkeletalMesh->GetSkeleton())
 		{
-			Data.Skeleton = RefSkeletalMesh->GetSkeleton();
-			GenerationContext.ReferencedSkeletons.AddUnique(Skeleton);
+			Data.Skeleton = Skeleton;
 		}
 		
 		// Physics Asset
-		if (const UPhysicsAsset* PhysicsAsset = RefSkeletalMesh->GetPhysicsAsset())
+		if (UPhysicsAsset* PhysicsAsset = RefSkeletalMesh->GetPhysicsAsset())
 		{
 			GenerationContext.AddParticipatingObject(*PhysicsAsset);
-
 			Data.PhysicsAsset = PhysicsAsset;
-			GenerationContext.PhysicsAssetMap.FindOrAdd(Data.PhysicsAsset.ToString(), Data.PhysicsAsset);
 		}
 
 		// Post ProcessAnimInstance
 		if(const TSubclassOf<UAnimInstance> PostProcessAnimInstance = RefSkeletalMesh->GetPostProcessAnimBlueprint())
 		{
 			GenerationContext.AddParticipatingObject(*PostProcessAnimInstance.Get());
-
 			Data.PostProcessAnimInst = PostProcessAnimInstance;
-			GenerationContext.AnimBPAssetsMap.FindOrAdd(Data.PostProcessAnimInst.ToString(), Data.PostProcessAnimInst);
 		}
 		
 		// Shadow Physics Asset
-		if (const UPhysicsAsset* PhysicsAsset = RefSkeletalMesh->GetShadowPhysicsAsset())
+		if (UPhysicsAsset* PhysicsAsset = RefSkeletalMesh->GetShadowPhysicsAsset())
 		{
 			GenerationContext.AddParticipatingObject(*PhysicsAsset);
-
 			Data.ShadowPhysicsAsset = PhysicsAsset;
-			GenerationContext.PhysicsAssetMap.FindOrAdd(Data.PhysicsAsset.ToString(), Data.PhysicsAsset);
 		}
 
 		// Asset User Data

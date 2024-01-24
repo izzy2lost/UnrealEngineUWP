@@ -11,6 +11,7 @@
 #include "ClothingAsset.h"
 #include "MeshUtilities.h"
 #include "Modules/ModuleManager.h"
+#include "MuCO/CustomizableObjectPrivate.h"
 #include "MuCO/CustomizableObjectInstance.h"
 #include "MuCO/CustomizableObjectSystem.h"
 #include "MuCO/UnrealConversionUtils.h"
@@ -2866,9 +2867,9 @@ mu::NodeMeshPtr GenerateMutableSourceMesh(const UEdGraphPin* Pin,
 				}
 
 				FName SlotIndex = TypedNodeSkel->AnimBlueprintSlotName;
-				GenerationContext.AnimBPAssetsMap.Add(TypedNodeSkel->AnimInstance.ToString(), TypedNodeSkel->AnimInstance);
+				const int32 AnimInstanceIndex = GenerationContext.AnimBPAssets.AddUnique(TypedNodeSkel->AnimInstance);
 
-				AnimBPAssetTag = GenerateAnimationInstanceTag(TypedNodeSkel->AnimInstance.ToString(), SlotIndex);
+				AnimBPAssetTag = GenerateAnimationInstanceTag(AnimInstanceIndex, SlotIndex);
 				MeshUniqueTags += AnimBPAssetTag;
 			}
 
@@ -2919,8 +2920,8 @@ mu::NodeMeshPtr GenerateMutableSourceMesh(const UEdGraphPin* Pin,
 
 					GenerationContext.AddParticipatingObject(*PhysicsAsset);
 
-					GenerationContext.PhysicsAssetMap.Add(PhysicsAsset.ToString(), PhysicsAsset);
-					FString PhysicsAssetTag = FString("__PhysicsAsset:") + PhysicsAsset.ToString();
+					const int32 AssetIndex = GenerationContext.PhysicsAssets.AddUnique(PhysicsAsset);
+					FString PhysicsAssetTag = FString("__PA:") + FString::FromInt(AssetIndex);
 
 					AddTagToMutableMeshUnique(*MutableMesh, PhysicsAssetTag);
 				}
@@ -2946,7 +2947,7 @@ mu::NodeMeshPtr GenerateMutableSourceMesh(const UEdGraphPin* Pin,
 
 						GenerationContext.AddParticipatingObject(*ClothingAssetCommon->PhysicsAsset);
 						
-						GenerationContext.PhysicsAssetMap.Add(PhysicsAsset.ToString(), ClothingAssetCommon->PhysicsAsset.Get());
+						GenerationContext.PhysicsAssets.AddUnique(ClothingAssetCommon->PhysicsAsset);
 
 						AddTagToMutableMeshUnique(*MutableMesh, ClothPhysicsAssetTag);
 					}

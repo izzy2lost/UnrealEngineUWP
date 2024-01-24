@@ -17,21 +17,13 @@
 #define UE_MUTABLE_MAX_OPTIMIZATION			2
 
 class FReply;
-class FMemoryReaderView;
-class FMemoryWriter64;
 class FObjectPreSaveContext;
-class FObjectPreSaveRootContext;
 class FText;
 class IAsyncReadFileHandle;
 class ITargetPlatform;
-class UAnimInstance;
-class UAssetUserData;
 class UCustomizableObject;
 class UEdGraph;
-class UMaterialInterface;
-class UPhysicsAsset;
 class USkeletalMesh;
-class USkeleton;
 struct FFrame;
 struct FStreamableHandle;
 template <typename FuncType> class TFunctionRef;
@@ -169,7 +161,7 @@ struct FCompilationOptions
 	bool bIsCooking = false;
 
 	// This can be set for additional settings
-	const class ITargetPlatform* TargetPlatform = nullptr;
+	const ITargetPlatform* TargetPlatform = nullptr;
 
 	// Used to prevent the current model from being stored in the editor's streamed data and cache when the compilation finishes
 	bool bDontUpdateStreamedDataAndCache = false;
@@ -269,121 +261,6 @@ struct MutableCompiledDataStreamHeader
 
 
 USTRUCT()
-struct FMutableModelImageProperties
-{
-	GENERATED_USTRUCT_BODY()
-
-	FMutableModelImageProperties()
-		: Filter(TF_Default)
-		, SRGB(0)
-		, FlipGreenChannel(0)
-		, IsPassThrough(0)
-		, LODBias(0)
-		, LODGroup(TEXTUREGROUP_World)
-		, AddressX(TA_Clamp)
-		, AddressY(TA_Clamp)
-	{}
-
-	FMutableModelImageProperties(const FString& InTextureParameterName, TextureFilter InFilter, uint32 InSRGB, 
-		uint32 InFlipGreenChannel, uint32 bInIsPassThrough, int32 InLODBias, TEnumAsByte<enum TextureGroup> InLODGroup,
-		TEnumAsByte<enum TextureAddress> InAddressX, TEnumAsByte<enum TextureAddress> InAddressY)
-		: TextureParameterName(InTextureParameterName)
-		, Filter(InFilter)
-		, SRGB(InSRGB)
-		, FlipGreenChannel(InFlipGreenChannel)
-		, IsPassThrough(bInIsPassThrough)
-		, LODBias(InLODBias)
-		, LODGroup(InLODGroup)
-		, AddressX(InAddressX)
-		, AddressY(InAddressY)
-	{}
-
-	// Name in the material.
-	UPROPERTY()
-	FString TextureParameterName;
-
-	UPROPERTY()
-	TEnumAsByte<enum TextureFilter> Filter;
-
-	UPROPERTY()
-	uint32 SRGB : 1;
-
-	UPROPERTY()
-	uint32 FlipGreenChannel : 1;
-
-	UPROPERTY()
-	uint32 IsPassThrough : 1;
-
-	UPROPERTY()
-	int32 LODBias;
-
-	UPROPERTY()
-	TEnumAsByte<enum TextureGroup> LODGroup;
-
-	UPROPERTY()
-	TEnumAsByte<enum TextureAddress> AddressX;
-
-	UPROPERTY()
-	TEnumAsByte<enum TextureAddress> AddressY;
-
-	bool operator!=(const FMutableModelImageProperties& rhs)
-	{
-		return
-			TextureParameterName != rhs.TextureParameterName ||
-			Filter != rhs.Filter ||
-			SRGB != rhs.SRGB ||
-			FlipGreenChannel != rhs.FlipGreenChannel ||
-			IsPassThrough != rhs.IsPassThrough ||
-			LODBias != rhs.LODBias ||
-			LODGroup != rhs.LODGroup ||
-			AddressX != rhs.AddressX ||
-			AddressY != rhs.AddressY;
-	}
-
-	friend FArchive& operator<<(FArchive& Ar, FMutableModelImageProperties& ImageProps)
-	{
-		Ar << ImageProps.TextureParameterName;
-		Ar << ImageProps.Filter;
-
-		// Bitfields don't serialize automatically with FArchive
-		if (Ar.IsLoading())
-		{
-			int32 Aux = 0;
-			Ar << Aux;
-			ImageProps.SRGB = Aux;
-
-			Aux = 0;
-			Ar << Aux;
-			ImageProps.FlipGreenChannel = Aux;
-
-			Aux = 0;
-			Ar << Aux;
-			ImageProps.IsPassThrough = Aux;
-		}
-		else
-		{
-			int32 Aux = ImageProps.SRGB;
-			Ar << Aux;
-
-			Aux = ImageProps.FlipGreenChannel;
-			Ar << Aux;
-
-			Aux = ImageProps.IsPassThrough;
-			Ar << Aux;
-		}
-
-		Ar << ImageProps.LODBias;
-		Ar << ImageProps.LODGroup;
-
-		Ar << ImageProps.AddressX;
-		Ar << ImageProps.AddressY;
-
-		return Ar;
-	}
-};
-
-
-USTRUCT()
 struct FMutableModelParameterValue
 {
 	GENERATED_USTRUCT_BODY()
@@ -413,56 +290,6 @@ struct FMutableModelParameterProperties
 	TArray<FMutableModelParameterValue> PossibleValues;
 };
 
-
-USTRUCT()
-struct CUSTOMIZABLEOBJECT_API FAnimBpOverridePhysicsAssetsInfo
-{
-	GENERATED_BODY()
-
-	UPROPERTY()
-	TSoftClassPtr<UAnimInstance> AnimInstanceClass;
-	
-	UPROPERTY()
-	TSoftObjectPtr<UPhysicsAsset> SourceAsset;
-	
-	UPROPERTY()
-	int32 PropertyIndex = -1;
-
-	friend FArchive& operator<<(FArchive& Ar, FAnimBpOverridePhysicsAssetsInfo& Info)
-	{
-		FString AnimInstanceClassPathString;
-		FString PhysicsAssetPathString;
-
-		if (Ar.IsLoading())
-		{	
-			Ar << AnimInstanceClassPathString;
-			Ar << PhysicsAssetPathString;
-			Ar << Info.PropertyIndex;
-
-			Info.AnimInstanceClass = TSoftClassPtr<UAnimInstance>(AnimInstanceClassPathString);
-			Info.SourceAsset = TSoftObjectPtr<UPhysicsAsset>(PhysicsAssetPathString);
-		}
-
-		if (Ar.IsSaving())
-		{
-			AnimInstanceClassPathString = Info.AnimInstanceClass.ToString();
-			PhysicsAssetPathString = Info.SourceAsset.ToString();
-
-			Ar << AnimInstanceClassPathString;
-			Ar << PhysicsAssetPathString;
-			Ar << Info.PropertyIndex;
-		}
-
-		return Ar;
-	}
-
-	friend bool operator==(const FAnimBpOverridePhysicsAssetsInfo& Lhs, const FAnimBpOverridePhysicsAssetsInfo& Rhs)
-	{
-		return Lhs.AnimInstanceClass == Rhs.AnimInstanceClass && 
-			   Lhs.SourceAsset	     == Rhs.SourceAsset       && 
-		 	   Lhs.PropertyIndex     == Rhs.PropertyIndex;
-	}
-};
 
 USTRUCT()
 struct FMorphTargetInfo
@@ -623,42 +450,6 @@ struct FCustomizableObjectMeshToMeshVertData
 };
 template<> struct TCanBulkSerialize<FCustomizableObjectMeshToMeshVertData> { enum { Value = true }; };
 
-
-USTRUCT()
-struct FMutableSkinWeightProfileInfo
-{
-	GENERATED_USTRUCT_BODY()
-
-	FMutableSkinWeightProfileInfo() {};
-
-	FMutableSkinWeightProfileInfo(FName InName, bool InDefaultProfile, int8 InDefaultProfileFromLODIndex) : Name(InName),
-		DefaultProfile(InDefaultProfile), DefaultProfileFromLODIndex(InDefaultProfileFromLODIndex) {};
-
-	UPROPERTY()
-	FName Name;
-
-	UPROPERTY()
-	bool DefaultProfile = false;
-
-	UPROPERTY(meta = (ClampMin = 0))
-	int8 DefaultProfileFromLODIndex = 0;
-
-	friend FArchive& operator<<(FArchive& Ar, FMutableSkinWeightProfileInfo& Info)
-	{
-		Ar << Info.Name;
-		Ar << Info.DefaultProfile;
-		Ar << Info.DefaultProfileFromLODIndex;
-
-		return Ar;
-	}
-
-	bool operator==(const FMutableSkinWeightProfileInfo& Other) const
-	{
-		return Name == Other.Name;
-	}
-};
-
-
 USTRUCT()
 struct CUSTOMIZABLEOBJECT_API FMutableStreamableBlock
 {
@@ -696,240 +487,6 @@ struct CUSTOMIZABLEOBJECT_API FMutableCachedPlatformData
 };
 
 
-USTRUCT()
-struct FMutableRefLODInfo
-{
-	GENERATED_BODY()
-
-	UPROPERTY()
-	float ScreenSize = 0.f;
-
-	UPROPERTY()
-	float LODHysteresis = 0.f;
-
-	UPROPERTY()
-	bool bSupportUniformlyDistributedSampling = false;
-
-	UPROPERTY()
-	bool bAllowCPUAccess = false;
-
-#if WITH_EDITORONLY_DATA
-	friend FArchive& operator<<(FArchive& Ar, FMutableRefLODInfo& Data)
-	{
-		Ar << Data.ScreenSize;
-		Ar << Data.LODHysteresis;
-		Ar << Data.bSupportUniformlyDistributedSampling;
-		Ar << Data.bAllowCPUAccess;
-
-		return Ar;
-	}
-#endif
-};
-
-
-USTRUCT()
-struct FMutableRefLODRenderData
-{
-	GENERATED_BODY()
-
-	UPROPERTY()
-	bool bIsLODOptional = false;
-
-	UPROPERTY()
-	bool bStreamedDataInlined = false;
-	
-#if WITH_EDITORONLY_DATA
-	friend FArchive& operator<<(FArchive& Ar, FMutableRefLODRenderData& Data)
-	{
-		Ar << Data.bIsLODOptional;
-		Ar << Data.bStreamedDataInlined;
-
-		return Ar;
-	}
-#endif
-};
-
-
-USTRUCT()
-struct FMutableRefLODData
-{
-	GENERATED_BODY()
-
-	UPROPERTY()
-	FMutableRefLODInfo LODInfo;
-
-	UPROPERTY()
-	FMutableRefLODRenderData RenderData;
-	
-#if WITH_EDITORONLY_DATA
-	friend FArchive& operator<<(FArchive& Ar, FMutableRefLODData& Data)
-	{
-		Ar << Data.LODInfo;
-		Ar << Data.RenderData;
-		
-		return Ar;
-	}
-#endif
-};
-
-
-USTRUCT()
-struct FMutableRefSocket
-{
-	GENERATED_BODY()
-
-	UPROPERTY()
-	FName SocketName;
-	UPROPERTY()
-	FName BoneName;
-
-	UPROPERTY()
-	FVector RelativeLocation = FVector::ZeroVector;
-	UPROPERTY()
-	FRotator RelativeRotation = FRotator::ZeroRotator;
-	UPROPERTY()
-	FVector RelativeScale = FVector::ZeroVector;;
-
-	UPROPERTY()
-	bool bForceAlwaysAnimated = false;
-
-	// When two sockets have the same name, the one with higher priority will be picked and the other discarded
-	UPROPERTY()
-	int32 Priority = -1;
-
-	bool operator ==(const FMutableRefSocket& Other) const
-	{
-		if (
-			SocketName == Other.SocketName &&
-			BoneName == Other.BoneName &&
-			RelativeLocation == Other.RelativeLocation &&
-			RelativeRotation == Other.RelativeRotation &&
-			RelativeScale == Other.RelativeScale &&
-			bForceAlwaysAnimated == Other.bForceAlwaysAnimated &&
-			Priority == Other.Priority)
-		{
-			return true;
-		}
-
-		return false;
-	}
-	
-#if WITH_EDITORONLY_DATA
-	friend FArchive& operator<<(FArchive& Ar, FMutableRefSocket& Data)
-	{
-		Ar << Data.SocketName;
-		Ar << Data.BoneName;
-		Ar << Data.RelativeLocation;
-		Ar << Data.RelativeRotation;
-		Ar << Data.RelativeScale;
-		Ar << Data.bForceAlwaysAnimated;
-		Ar << Data.Priority;
-
-		return Ar;
-	}
-#endif
-};
-
-
-USTRUCT()
-struct FMutableRefSkeletalMeshSettings
-{
-	GENERATED_BODY()
-
-	UPROPERTY()
-	bool bEnablePerPolyCollision = false;
-
-	UPROPERTY()
-	float DefaultUVChannelDensity = 0.f;
-
-#if WITH_EDITORONLY_DATA
-	friend FArchive& operator<<(FArchive& Ar, FMutableRefSkeletalMeshSettings& Data)
-	{
-		Ar << Data.bEnablePerPolyCollision;
-		Ar << Data.DefaultUVChannelDensity;
-
-		return Ar;
-	}
-#endif
-};
-
-
-USTRUCT()
-struct FMutableRefAssetUserData
-{
-	GENERATED_BODY()
-
-	UPROPERTY()
-	TObjectPtr<UAssetUserData> AssetUserData;
-
-#if WITH_EDITORONLY_DATA
-	FString ClassPath;
-	TArray<uint8> Bytes;
-
-	friend FArchive& operator<<(FArchive& Ar, FMutableRefAssetUserData& Data);
-
-	void InitResources(UCustomizableObject* InOuter);
-#endif
-
-};
-
-
-USTRUCT()
-struct FMutableRefSkeletalMeshData
-{
-	GENERATED_BODY()
-
-	// Reference Skeletal Mesh
-	UPROPERTY()
-	TObjectPtr<USkeletalMesh> SkeletalMesh;
-
-	// Path to load the ReferenceSkeletalMesh
-	UPROPERTY()
-	FSoftObjectPath SkeletalMeshAssetPath;
-
-	// LOD info
-	UPROPERTY()
-	TArray<FMutableRefLODData> LODData;
-	
-	// Sockets
-	UPROPERTY()
-	TArray<FMutableRefSocket> Sockets;
-
-	// Bounding Box
-	UPROPERTY()
-	FBoxSphereBounds Bounds = FBoxSphereBounds(ForceInitToZero);
-
-	// Settings
-	UPROPERTY()
-	FMutableRefSkeletalMeshSettings Settings;
-
-	// Skeleton, must be stored in the ReferencedSkeletons too
-	UPROPERTY()
-	TSoftObjectPtr<USkeleton> Skeleton;
-	
-	// PhysicsAsset, must be stored in the PhysicsAssetMap too
-	UPROPERTY()
-	TSoftObjectPtr<UPhysicsAsset> PhysicsAsset;
-	
-	// Post Processing AnimBP, must be stored in the AnimBPAssetsMap too
-	UPROPERTY() 
-	TSoftClassPtr<UAnimInstance> PostProcessAnimInst;
-	
-	// Shadow PhysicsAsset, must be stored in the PhysicsAssetMap too
-	UPROPERTY()
-	TSoftObjectPtr<UPhysicsAsset> ShadowPhysicsAsset;
-
-	// Asset user data
-	UPROPERTY()
-	TArray<FMutableRefAssetUserData> AssetUserData;
-
-#if WITH_EDITORONLY_DATA
-	friend FArchive& operator<<(FArchive& Ar, FMutableRefSkeletalMeshData& Data);
-
-	void InitResources(UCustomizableObject* InOuter, const ITargetPlatform* InTargetPlatform);
-#endif
-
-};
 
 USTRUCT()
 struct FMutableLODSettings
@@ -1049,7 +606,7 @@ public:
 	* For more information on this topic read the Basic Concepts at work.anticto.com.
 	*/
 	UPROPERTY()
-	TObjectPtr<class USkeletalMesh> ReferenceSkeletalMesh_DEPRECATED;
+	TObjectPtr<USkeletalMesh> ReferenceSkeletalMesh_DEPRECATED;
 
 	/** All the SkeletalMeshes generated for this CustomizableObject instances will use the Reference Skeletal Mesh
 	* properties for everything that Mutable doesn't create or modify. This includes data like LOD distances, Physics
@@ -1062,46 +619,15 @@ public:
 	*
 	* For more information on this topic read the Basic Concepts at work.anticto.com.
 	*/
-	UPROPERTY(EditAnywhere, Category=CustomizableObject)
-	TArray< TObjectPtr<class USkeletalMesh> > ReferenceSkeletalMeshes;
+	UPROPERTY(EditAnywhere, Category = CustomizableObject)
+	TArray<TObjectPtr<USkeletalMesh>> ReferenceSkeletalMeshes;
 #endif
-
-	/** All the SkeletalMeshes generated for this CustomizableObject instances will use the Reference Skeletal Mesh
-	 * properties for everything that Mutable doesn't create or modify. This struct stores the information used from
-	 * the Reference Skeletal Meshes to avoid having them loaded at all times. This includes data like LOD distances,
-	 * LOD render data settings, Mesh sockets, Bounding volumes, etc.
-	 */
-	UPROPERTY()
-	TArray<FMutableRefSkeletalMeshData> ReferenceSkeletalMeshesData;
-
-	/** List of Materials referenced by this or any child customizable object. */
-	UPROPERTY()
-	TArray<TSoftObjectPtr<UMaterialInterface>> ReferencedMaterials;
-
-	/** List of Material slot names for the materials referenced by this or any child customizable object. */
-	UPROPERTY()
-	TArray<FName> ReferencedMaterialSlotNames;
-
-	/** List of skeletons referenced by any of the parts of this customizable object. 
-	 * The position in this array is used as skeleton ID passed to Mutable bones.
-	 */
-	UPROPERTY()
-	TArray<TSoftObjectPtr<USkeleton>> ReferencedSkeletons;
-
-	UPROPERTY()
-	TArray<TSoftObjectPtr<UTexture>> ReferencedPassThroughTextures;
 
 	UPROPERTY(EditAnywhere, Category = CustomizableObject, meta = (DisplayName = "LOD Settings"))
 	FMutableLODSettings LODSettings;
 
-	UPROPERTY(VisibleAnywhere, Category = CustomizableObject)
-	TArray<FMutableModelImageProperties> ImageProperties;
-
 	/** This is a non-user-controlled flag to disable streaming (set at object compilation time, depending on optimization). */
 	bool bDisableTextureStreaming = false;
-
-	/** If the object is compiled, this flag is true if it was compiled with maximum optimizations. If the object is not compiled, its value is meaningless. */
-	bool bIsCompiledWithOptimization = true;
 
 	UPROPERTY(Transient)
 	TArray<FMorphTargetInfo> ContributingMorphTargetsInfo;
@@ -1117,9 +643,6 @@ public:
 	
 	UPROPERTY(Transient)
 	TArray<FCustomizableObjectMeshToMeshVertData> ClothMeshToMeshVertData;
-
-	UPROPERTY()
-	TArray<FMutableSkinWeightProfileInfo> SkinWeightProfilesInfo;
 
 	// mu::ExtensionData::Index is an index into this array when mu::ExtensionData::Origin is ConstantAlwaysLoaded
 	UPROPERTY()
@@ -1264,11 +787,6 @@ public:
 	//
 	USkeletalMesh* GetRefSkeletalMesh(int32 ComponentIndex = 0) const;
 	
-	//
-	FMutableRefSkeletalMeshData* GetRefSkeletalMeshData(int32 ComponentIndex = 0);
-	
-	TSoftObjectPtr<UMaterialInterface> GetReferencedMaterialAssetPtr(uint32 Index);
-
 private:
 
 	
@@ -1370,13 +888,7 @@ private:
 	// This is a manual version number for the binary blobs in this asset.
 	// Increasing it invalidates all the previously compiled models.
 	// Warning: If while merging code both versions have changed, take the highest+1.
-	static const int32 CurrentSupportedVersion = 419;
-
-	// Compile the object for a specific platform - Compile for Cook Customizable Object
-	void CompileForTargetPlatform(const ITargetPlatform* TargetPlatform);
-
-	// Unless we are packaging there is no need for keeping all the data generated during compilation, this information is stored in the derived data.
-	void ClearCompiledData();
+	static const int32 CurrentSupportedVersion = 420;
 
 public:
 
@@ -1384,6 +896,12 @@ public:
 
 #if WITH_EDITOR
 	
+	// Compile the object for a specific platform - Compile for Cook Customizable Object
+	void CompileForTargetPlatform(const ITargetPlatform* TargetPlatform);
+
+	// Unless we are packaging there is no need for keeping all the data generated during compilation, this information is stored in the derived data.
+	void ClearCompiledData(bool bIsCooking);
+
 	/** Compile the object if Automatic Compilation is enabled and has not been already compiled.
 	 * Automatic compilation can be enabled/disabled in the Mutable's Plugin Settings.
 	 * @return true if compiled */
@@ -1497,38 +1015,13 @@ public:
 	UFUNCTION(BlueprintCallable, Category = CustomizableObject)
 	FParameterUIData GetParameterUIMetadataFromIndex(int32 ParamIndex) const;
 
-	TSoftObjectPtr<USkeleton> GetReferencedSkeletonAssetPtr( uint32 Index );
-
 	/** See bPreserveUserLODsOnFirstGeneration. */
 	bool IsPreserveUserLODsOnFirstGeneration() const;
-
-	/** Stores all the parameter UI metadata information for all the dependencies of this Customizable Object. */
-	UPROPERTY()
-	TMap<FString, FParameterUIData> ParameterUIDataMap;
 
 	/** Textures marked as low priority will generate defaulted resident mips (if texture streaming is enabled).
 	  * Generating defaulted resident mips greatly reduce initial generation times. */
 	UPROPERTY(EditAnywhere, Category = CustomizableObject)
 	TArray<FName> LowPriorityTextures;
-
-	/** Stores all the state UI metadata information for all the dependencies of this Customizable Object */
-	UPROPERTY()
-	TMap<FString, FParameterUIData> StateUIDataMap;
-
-	/** Stores the physics assets gathered from the SkeletalMesh nodes during compilation, to be used in mesh generation in-game */
-	UPROPERTY()
-	TMap<FString, TSoftObjectPtr<class UPhysicsAsset>> PhysicsAssetsMap;
-
-	/** Stores the UAnimBlueprint assets gathered from the SkeletalMesh nodes during compilation, to be used in mesh generation in-game */
-	UPROPERTY()
-	TMap<FString, TSoftClassPtr<UAnimInstance>> AnimBPAssetsMap;
-
-	UPROPERTY()
-	TArray<FAnimBpOverridePhysicsAssetsInfo> AnimBpOverridePhysiscAssetsInfo;
-
-	UPROPERTY()
-	/** Stores the sockets provided by the part skeletal meshes, to be merged in the generated meshes */
-	TArray<FMutableRefSocket> SocketArray;
 
 	/** Map of Hash to Streaming blocks, used to stream a block of data representing a resource from the BulkData */
 	UPROPERTY()
@@ -1558,6 +1051,9 @@ public:
 	UPROPERTY()
 	bool bIsChildObject = false;
 
+	/** If the object is compiled, this flag is true if it was compiled with maximum optimizations. If the object is not compiled, its value is meaningless. */
+	bool bIsCompiledWithOptimization = true;
+
 	ECustomizableObjectCompilationState CompilationState = ECustomizableObjectCompilationState::None;
 
 	FPostCompileDelegate PostCompileDelegate;
@@ -1586,8 +1082,6 @@ public:
 
 #if WITH_EDITOR
 	void SetModel(TSharedPtr<mu::Model, ESPMode::ThreadSafe> Model);
-
-	void SetBoneNamesArray(const TArray<FName>& BoneNames);
 #endif
 
 	int32 GetNumLODs() const;
@@ -1597,8 +1091,6 @@ public:
 
 	/** Return the names used by mutable to identify which mu::Image should be considered of LowPriority. */
 	void GetLowPriorityTextureNames(TArray<FString>& OutTextureNames);
-
-	const TArray<FName>& GetBoneNamesArray() const;
 
 	/** Return the MinLOD index to generate based on the active LODSettings (PerPlatformMinLOD or PerQualityLevelMinLOD) */
 	int32 GetMinLODIndex() const;
@@ -1610,10 +1102,6 @@ public:
 	bool IsMeshCacheEnabled() const;
 
 private:
-	
-	/** Stores the bone names of all the bones that can possibly use the generated meshes */
-	UPROPERTY()
-	TArray<FName> BoneNames;
 
 	/** BulkData that stores all in-game resources used by Mutable when generating instances.
 	  * Only valid in packaged builds */
