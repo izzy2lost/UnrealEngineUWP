@@ -74,6 +74,11 @@ namespace Horde.Server.Perforce
 		public string Cluster { get; }
 
 		/// <summary>
+		/// Whether this server supports partitioned workspaces
+		/// </summary>
+		public bool SupportsPartitionedWorkspaces { get; }
+
+		/// <summary>
 		/// Current status
 		/// </summary>
 		public PerforceServerStatus Status { get; }
@@ -108,6 +113,7 @@ namespace Horde.Server.Perforce
 			public string BaseServerAndPort { get; set; } = String.Empty;
 			public string? HealthCheckUrl { get; set; }
 			public string Cluster { get; set; } = String.Empty;
+			public bool SupportsPartitionedWorkspaces { get; set; }
 			public PerforceServerStatus Status { get; set; }
 			public string? Detail { get; set; }
 			public int NumLeases { get; set; }
@@ -118,12 +124,13 @@ namespace Horde.Server.Perforce
 			{
 			}
 
-			public PerforceServerEntry(string serverAndPort, string baseServerAndPort, string? healthCheckUrl, string cluster, PerforceServerStatus status, string? detail, DateTime? lastUpdateTime)
+			public PerforceServerEntry(string serverAndPort, string baseServerAndPort, string? healthCheckUrl, string cluster, bool supportsPartitionedWorkspaces, PerforceServerStatus status, string? detail, DateTime? lastUpdateTime)
 			{
 				ServerAndPort = serverAndPort;
 				BaseServerAndPort = baseServerAndPort;
 				HealthCheckUrl = healthCheckUrl;
 				Cluster = cluster;
+				SupportsPartitionedWorkspaces = supportsPartitionedWorkspaces;
 				Status = status;
 				Detail = detail;
 				LastUpdateTime = lastUpdateTime;
@@ -545,7 +552,7 @@ namespace Horde.Server.Perforce
 				{
 					healthCheckUrl = $"http://{hostName}:5000/healthcheck";
 				}
-				newServers.Add(new PerforceServerEntry($"{hostName}:{port}", server.ServerAndPort, healthCheckUrl, cluster.Name, PerforceServerStatus.Unknown, "", DateTime.UtcNow));
+				newServers.Add(new PerforceServerEntry($"{hostName}:{port}", server.ServerAndPort, healthCheckUrl, cluster.Name, cluster.SupportsPartitionedWorkspaces, PerforceServerStatus.Unknown, "", DateTime.UtcNow));
 			}
 		}
 

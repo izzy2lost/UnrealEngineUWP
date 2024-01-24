@@ -47,7 +47,7 @@ namespace Horde.Agent.Execution
 			{
 				using IScope _ = GlobalTracer.Instance.BuildSpan("Workspace").WithResourceName("AutoSDK").StartActive();
 				
-				ManagedWorkspaceOptions options = WorkspaceInfo.GetMwOptions(_autoSdkWorkspaceInfo.Method);
+				ManagedWorkspaceOptions options = WorkspaceInfo.GetMwOptions(_autoSdkWorkspaceInfo);
 				_autoSdkWorkspace = await WorkspaceInfo.SetupWorkspaceAsync(_autoSdkWorkspaceInfo, _rootDir, options, logger, cancellationToken);
 
 				DirectoryReference legacyDir = DirectoryReference.Combine(_autoSdkWorkspace.MetadataDir, "HostWin64");
@@ -92,7 +92,7 @@ namespace Horde.Agent.Execution
 			using (IScope scope = GlobalTracer.Instance.BuildSpan("Workspace").WithResourceName(_workspaceInfo.Identifier).StartActive())
 			{
 				// Sync the regular workspace
-				ManagedWorkspaceOptions options = WorkspaceInfo.GetMwOptions(_workspaceInfo.Method);
+				ManagedWorkspaceOptions options = WorkspaceInfo.GetMwOptions(_workspaceInfo);
 				_workspace = await WorkspaceInfo.SetupWorkspaceAsync(_workspaceInfo, _rootDir, options, logger, cancellationToken);
 
 				// Figure out the change to build
@@ -249,7 +249,7 @@ namespace Horde.Agent.Execution
 			List<WorkspaceInfo> workspaces = new List<WorkspaceInfo>();
 			foreach (AgentWorkspace pendingWorkspace in pendingWorkspaces)
 			{
-				ManagedWorkspaceOptions options = WorkspaceInfo.GetMwOptions(pendingWorkspace.Method);
+				ManagedWorkspaceOptions options = WorkspaceInfo.GetMwOptions(pendingWorkspace);
 				WorkspaceInfo workspace = await WorkspaceInfo.SetupWorkspaceAsync(pendingWorkspace, rootDir, options, logger, cancellationToken);
 				workspaces.Add(workspace);
 			}
