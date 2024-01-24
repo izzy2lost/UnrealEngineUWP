@@ -1051,8 +1051,13 @@ EPCGChangeType UPCGNode::UpdatePins(TFunctionRef<UPCGPin*(UPCGNode*)> PinAllocat
 	return ChangeType;
 }
 
-EPCGChangeType UPCGNode::PropagateDynamicPinTypes(const UPCGNode* FromNode /*= nullptr*/)
+EPCGChangeType UPCGNode::PropagateDynamicPinTypes(TSet<UPCGNode*>& TouchedNodes, const UPCGNode* FromNode /*= nullptr*/)
 {
+	// TODO - we have a performance issue - this function can recurse very deeply and take a long time. Perf can be tested by wiring
+	// nodes from reroutes in large graph. Functionality can be tested by chaining reroute nodes and checking type propagation.
+	// We could probably have a visited set - if we ensure that we update the most-upstream nodes first,
+	// so that each node receives the final type? 
+
 	EPCGChangeType ChangeType = EPCGChangeType::None;
 	const UPCGSettings* Settings = GetSettings();
 	if (!Settings || !Settings->HasDynamicPins())
@@ -1062,10 +1067,8 @@ EPCGChangeType UPCGNode::PropagateDynamicPinTypes(const UPCGNode* FromNode /*= n
 
 	ChangeType |= UpdatePins();
 
-#if WITH_EDITOR
-	// Reconstruct in case pin types need to change
-	OnNodeChangedDelegate.Broadcast(this, EPCGChangeType::Node);
-#endif
+	// ChangeType intentionally ignored here - using it breaks propagation of types across chained reroutes.
+	TouchedNodes.Add(this);
 
 	for (UPCGPin* OutputPin : OutputPins)
 	{
@@ -1086,7 +1089,7 @@ EPCGChangeType UPCGNode::PropagateDynamicPinTypes(const UPCGNode* FromNode /*= n
 			const UPCGSettings* OtherSettings = OtherNode->GetSettings();
 			if (Settings && OtherSettings->HasDynamicPins())
 			{
-				ChangeType |= OtherNode->PropagateDynamicPinTypes(this);
+				ChangeType |= OtherNode->PropagateDynamicPinTypes(TouchedNodes, this);
 			}
 		}
 	}
