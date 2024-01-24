@@ -454,6 +454,13 @@ static void AddHairSkinCacheDebugPass(
 		D.Data1.W = 0;
 	}
 
+	// Add dummy values for creating non-empty buffer
+	if (UniqueMeshCount == 0)
+	{
+		UniqueMeshNames.Add(FString(TEXT("DummyName")), 0u);
+		Infos.Add(FUniqueMeshInfo());
+	}
+
 	const uint32 InfoInBytes  = sizeof(FUniqueMeshInfo);
 	const uint32 InfoInUints = sizeof(FUniqueMeshInfo) / sizeof(uint32);
 	FRDGBufferRef InfoBuffer = CreateVertexBuffer(GraphBuilder, TEXT("Hair.Debug.UniqueMeshNames"), FRDGBufferDesc::CreateBufferDesc(4, InfoInUints * Infos.Num()), Infos.GetData(), InfoInBytes * Infos.Num());
