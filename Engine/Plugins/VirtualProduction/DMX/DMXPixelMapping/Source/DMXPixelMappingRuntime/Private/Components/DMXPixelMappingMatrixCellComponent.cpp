@@ -215,7 +215,17 @@ void UDMXPixelMappingMatrixCellComponent::UpdateRenderElement()
 	FPixelMapRenderElementParameters Parameters;
 	Parameters.UV = FVector2D(GetPosition().X / InputTextureWidth, GetPosition().Y / InputTextureHeight);
 	Parameters.UVSize = FVector2D(GetSize().X / InputTextureWidth, GetSize().Y / InputTextureHeight);
-	Parameters.UVCellSize = Parameters.UVSize / 2.f;
+
+	FVector2D A;
+	FVector2D B;
+	FVector2D C;
+	FVector2D D;
+	GetEdges(A, B, C, D);
+
+	Parameters.UVTopLeftRotated = FVector2D(A.X / InputTextureWidth, A.Y / InputTextureHeight);
+	Parameters.UVTopRightRotated = FVector2D(B.X / InputTextureWidth, B.Y / InputTextureHeight);
+
+	Parameters.Rotation = GetRotation();
 	Parameters.CellBlendingQuality = MatrixComponent->CellBlendingQuality;
 	Parameters.bStaticCalculateUV = true;
 

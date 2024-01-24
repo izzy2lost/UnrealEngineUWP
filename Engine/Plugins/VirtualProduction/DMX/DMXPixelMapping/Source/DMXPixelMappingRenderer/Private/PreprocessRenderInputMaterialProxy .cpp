@@ -14,9 +14,9 @@
 
 namespace UE::DMXPixelMapping::Rendering::Preprocess::Private
 {
-	DECLARE_CYCLE_STAT(TEXT("PixelMapping RenderInputMaterial"), STAT_PreprocessRenderInputMaterial, STATGROUP_DMX);
+	DECLARE_CYCLE_STAT(TEXT("PixelMapping RenderInputMaterial"), STAT_DMXPixelMappingPreprocessRenderInputMaterial, STATGROUP_DMX);
 
-	FPreprocessRenderInputMaterialProxy::FPreprocessRenderInputMaterialProxy(UMaterialInterface* InMaterial, const FVector2D& InInputSize)
+	FPreprocessRenderInputMaterialProxy::FPreprocessRenderInputMaterialProxy(UMaterialInterface* InMaterial, const FVector2D& InInputSize, EPixelFormat InFormat)
 		: WeakMaterial(InMaterial)
 	{
 		if (InMaterial)
@@ -24,9 +24,11 @@ namespace UE::DMXPixelMapping::Rendering::Preprocess::Private
 			InMaterial->EnsureIsComplete();
 		}
 
+		constexpr bool bForceLinearGamma = false;
+
 		IntermediateRenderTarget = NewObject<UTextureRenderTarget2D>();
 		IntermediateRenderTarget->ClearColor = FLinearColor::Black;
-		IntermediateRenderTarget->InitAutoFormat(InInputSize.X, InInputSize.Y);
+		IntermediateRenderTarget->InitCustomFormat(InInputSize.X, InInputSize.Y, InFormat, bForceLinearGamma);
 		IntermediateRenderTarget->UpdateResourceImmediate();
 
 		UIMaterialBrush = MakeShared<FSlateMaterialBrush>(FVector2D(1.f));
@@ -37,7 +39,7 @@ namespace UE::DMXPixelMapping::Rendering::Preprocess::Private
 
 	void FPreprocessRenderInputMaterialProxy::Render()
 	{
-		SCOPE_CYCLE_COUNTER(STAT_PreprocessRenderInputMaterial);
+		SCOPE_CYCLE_COUNTER(STAT_DMXPixelMappingPreprocessRenderInputMaterial);
 
 		UMaterial* Material = WeakMaterial.IsValid() ? WeakMaterial->GetMaterial() : nullptr;
 		if (Material && Material->IsUIMaterial())

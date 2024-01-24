@@ -58,9 +58,8 @@ public:
 		SHADER_PARAMETER_SAMPLER(SamplerState, InputSampler)
 
 		SHADER_PARAMETER(float, Brightness)
-		SHADER_PARAMETER(FIntPoint, InputTextureSize)
-		SHADER_PARAMETER(FIntPoint, OutputTextureSize)
-		SHADER_PARAMETER(FVector2f, UVCellSize)
+		SHADER_PARAMETER(FVector2f, UVTopLeftRotated)
+		SHADER_PARAMETER(FVector2f, UVTopRightRotated)
 	END_SHADER_PARAMETER_STRUCT()
 
 	static bool ShouldCompilePermutation(const FGlobalShaderPermutationParameters& Parameters) { return true; }
@@ -123,7 +122,8 @@ namespace UE::DMXPixelMapping::Rendering::Private
 
 						const FVector2D& UV = Element->GetParameters().UV;
 						const FVector2D& UVSize = Element->GetParameters().UVSize;
-						const FVector2D& UVCellSize = Element->GetParameters().UVCellSize;
+						const FVector2D& UVTopLeftRotated = Element->GetParameters().UVTopLeftRotated;
+						const FVector2D& UVTopRightRotated = Element->GetParameters().UVTopRightRotated;
 
 						const int32 RenderTargetPoisitionX = PixelIndex % OutputTextureSize.X;
 						const int32 RenderTargetPositionY = PixelIndex / OutputTextureSize.X;
@@ -164,9 +164,8 @@ namespace UE::DMXPixelMapping::Rendering::Private
 						PSParameters.InputTexture = InputTextureRHI;
 						PSParameters.Brightness = Brightness;
 						PSParameters.InputSampler = TStaticSamplerState<SF_Bilinear, AM_Clamp, AM_Clamp, AM_Clamp>::GetRHI();
-						PSParameters.InputTextureSize = InputTextureSize;
-						PSParameters.OutputTextureSize = OutputTextureSize;
-						PSParameters.UVCellSize = FVector2f(UVCellSize);
+						PSParameters.UVTopLeftRotated = FVector2f(UVTopLeftRotated);
+						PSParameters.UVTopRightRotated = FVector2f(UVTopRightRotated);
 						SetShaderParameters(RHICmdList, PixelShader, PixelShader.GetPixelShader(), PSParameters);
 
 						// Draw a two triangle on the entire viewport.
@@ -181,10 +180,11 @@ namespace UE::DMXPixelMapping::Rendering::Private
 					TArray<FLinearColor> ColorArray;
 					const FIntRect Rect(0, 0, OutputTextureSize.X, OutputTextureSize.Y);
 
-					// Read surface without flush rendering thread
-					RHICmdList.ReadSurfaceData(RenderTargetResource->TextureRHI, Rect, ColorArray, FReadSurfaceDataFlags());
+					// Read surface data. 
+					// Use min/max compression mode here - Either the input was tone mapped earlier, or we want to preserve dynamic range.
+					RHICmdList.ReadSurfaceData(RenderTargetResource->TextureRHI, Rect, ColorArray, ERangeCompressionMode::RCM_MinMax);
 
-					// Shrink color array to match num elements
+					// Write data to the game thread
 					if (!ensureMsgf(ColorArray.Num() >= Elements.Num(), TEXT("Pixel maparray is smaller than the number of elements that should have been rendered. Failed to Pixel Map")))
 					{
 						return;

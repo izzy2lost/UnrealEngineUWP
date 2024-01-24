@@ -34,14 +34,23 @@ namespace UE::DMXPixelMapping::Rendering
 {
 	struct DMXPIXELMAPPINGRENDERER_API FPixelMapRenderElementParameters
 	{
-		/** Position in texels of the top left corner of the quad's UV's */
+		/** Position in texels of the center of the quad's UV's */
 		FVector2D UV;
 
-		/** Size in texels of the quad's total UV space */
+		/** Size in texels of UV. May match UVSize */
 		FVector2D UVSize;
 
-		/** Size in texels of UV.May match UVSize */
-		FVector2D UVCellSize;
+		/** Position in texels of the top left corner of the quad's UV's, in rotated space */
+		FVector2D UVTopLeftRotated;
+
+		/** Position in texels of the top right corner of the quad's UV's, in rotate space */
+		FVector2D UVTopRightRotated;
+
+		/** Rotation in degrees. Useful to paint these elements in the preview view. */
+		double Rotation;
+
+		/** DERPECATED 5.4 - Size in texels of the quad's total UV space */
+		FVector2D UVCellSize_DEPRECATED;
 
 		/** The quality of color samples in the pixel shader(number of samples) */
 		EDMXPixelBlendingQuality CellBlendingQuality;

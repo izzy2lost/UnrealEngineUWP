@@ -22,6 +22,15 @@ class UWorld;
 namespace UE::DMXPixelMapping::Rendering { class FPixelMapRenderElement; }
 
 
+UENUM(BlueprintType)
+enum class EDMXPixelMappingRendererDynamicRange : uint8
+{
+	Auto UMETA(ToolTip = "Use the format of the Input Texture, use 8-bit for Input Materials and UMG."),
+	RGBA8 UMETA(DisplayName = "Low Precision 8-bit (RGBA8)"),
+	RGBA16F UMETA(DisplayName = "High Precision 16-bit (RGBA16F)")
+};
+
+
 /** 
  * Component for rendering input texture.  
  */
@@ -98,8 +107,12 @@ public:
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Render Settings")
 	TSubclassOf<UUserWidget> InputWidget;
 
-	/** The brightness of the renderer */
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Render Settings", Meta = (ClampMin = "0", UIMin = "0", UIMax = "1"))
+	/** The dynamic range of the renderer */
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Render Settings")
+	EDMXPixelMappingRendererDynamicRange DynamicRange = EDMXPixelMappingRendererDynamicRange::Auto;
+
+	/** The exposure of the pixel mapping renderer. This property affects the DMX output. */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Render Settings", Meta = (ClampMin = "0", UIMin = "0", UIMax = "1", DisplayName = "Exposure"))
 	float Brightness = 1.f;
 
 	/** If true, children are positioned relative to the size of this renderer */
@@ -116,6 +129,9 @@ private:
 
 	/** When bChildrenFollowSize is true, rearranges children relatively to the current size */
 	void LetChildrenFollowSize();
+
+	/** Returns the pixel format depending on the current dynamic range setting */
+	EPixelFormat GetFormatFromDynamicRange() const;
 
 	/** Tries to get any world. If with editor, returns the editor world, in game returns GWorld */
 	UWorld* TryGetWorld() const;
@@ -136,7 +152,7 @@ private:
 
 	/** Renderer responsible to pixel map */
 	UPROPERTY()
-	UDMXPixelMappingPixelMapRenderer* PixelMapRenderer;
+	TObjectPtr<UDMXPixelMappingPixelMapRenderer> PixelMapRenderer;
 
 	/** The current rect in which children are laid out. Useful to compute UV position and size of children. */
 	UPROPERTY()

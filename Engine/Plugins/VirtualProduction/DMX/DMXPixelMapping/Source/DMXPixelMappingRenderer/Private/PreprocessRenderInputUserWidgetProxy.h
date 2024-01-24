@@ -19,7 +19,7 @@ namespace UE::DMXPixelMapping::Rendering::Preprocess::Private
 		, public FGCObject
 	{
 	public:
-		FPreprocessRenderInputUserWidgetProxy(UUserWidget* InUserWidget, const FVector2D& InInputSize);
+		FPreprocessRenderInputUserWidgetProxy(UUserWidget* InUserWidget, const FVector2D& InInputSize, EPixelFormat InFormat);
 
 		//~ Begin IPreprocessRenderInputProxy interface
 		virtual void Render() override;

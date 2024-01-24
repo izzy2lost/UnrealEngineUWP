@@ -5,18 +5,18 @@
 #include "CanvasTypes.h"
 #include "CommonRenderResources.h"
 #include "DMXStats.h"
-#include "GlobalShader.h"
-#include "RHIStaticStates.h"
-#include "ScreenRendering.h"
-#include "TextureResource.h"
 #include "Engine/Canvas.h"
 #include "Engine/Engine.h"
 #include "Engine/Texture.h"
 #include "Engine/TextureRenderTarget2D.h"
+#include "GlobalShader.h"
 #include "Materials/MaterialInstanceDynamic.h"
 #include "Materials/MaterialInterface.h"
 #include "Materials/MaterialRenderProxy.h"
 #include "Modules/ModuleManager.h"
+#include "RHIStaticStates.h"
+#include "ScreenRendering.h"
+#include "TextureResource.h"
 
 
 namespace UE::DMXPixelMapping::Rendering::Preprocess::Private
@@ -77,6 +77,10 @@ namespace UE::DMXPixelMapping::Rendering::Preprocess::Private
 	{
 		Collector.AddReferencedObject(Canvas);
 	}
+
+	FPreprocessApplyFilterMaterialProxy::FPreprocessApplyFilterMaterialProxy(EPixelFormat InFormat)
+		: Format(InFormat)
+	{}
 
 	void FPreprocessApplyFilterMaterialProxy::Render(UTexture* InInputTexture, const UDMXPixelMappingPreprocessRenderer& InPreprocessRenderer)
 	{
@@ -159,7 +163,7 @@ namespace UE::DMXPixelMapping::Rendering::Preprocess::Private
 		}
 		UTexture* InputTexture = WeakInputTexture.Get();
 		check(InputTexture);
-
+		
 		const bool bResize = 
 			OptionalOutputSize.IsSet() &&
 			InputTexture->GetSurfaceWidth() != OptionalOutputSize.GetValue().X &&
@@ -182,7 +186,7 @@ namespace UE::DMXPixelMapping::Rendering::Preprocess::Private
 		if (bInvalidRenderTargets)
 		{
 			FlushRenderingCommands();
-
+			
 			const FVector2D InputSize = FVector2D(InputTexture->GetSurfaceWidth(), InputTexture->GetSurfaceHeight());
 
 			// Create downsample render targets
@@ -195,9 +199,12 @@ namespace UE::DMXPixelMapping::Rendering::Preprocess::Private
 				{
 					break;
 				}
+
+				constexpr bool bForceLinearGamma = false;
+
 				UTextureRenderTarget2D* DownsampleRenderTarget = NewObject<UTextureRenderTarget2D>();
 				DownsampleRenderTarget->ClearColor = FLinearColor::Black;
-				DownsampleRenderTarget->InitAutoFormat(DownsampleSize.X, DownsampleSize.Y);
+				DownsampleRenderTarget->InitCustomFormat(DownsampleSize.X, DownsampleSize.Y, Format, bForceLinearGamma);
 				DownsampleRenderTarget->UpdateResourceImmediate();
 				DownsampleRenderTargets.Add(DownsampleRenderTarget);
 			}
@@ -205,9 +212,11 @@ namespace UE::DMXPixelMapping::Rendering::Preprocess::Private
 			UTextureRenderTarget2D* ScaleRenderTarget = nullptr;
 			if (OptionalOutputSize.IsSet())
 			{
+				constexpr bool bForceLinearGamma = false;
+
 				ScaleRenderTarget = NewObject<UTextureRenderTarget2D>();
 				ScaleRenderTarget->ClearColor = FLinearColor::Black;
-				ScaleRenderTarget->InitAutoFormat(OptionalOutputSize.GetValue().X, OptionalOutputSize.GetValue().Y);
+				ScaleRenderTarget->InitCustomFormat(OptionalOutputSize.GetValue().X, OptionalOutputSize.GetValue().Y, Format, bForceLinearGamma);
 				ScaleRenderTarget->UpdateResourceImmediate();
 			}
 

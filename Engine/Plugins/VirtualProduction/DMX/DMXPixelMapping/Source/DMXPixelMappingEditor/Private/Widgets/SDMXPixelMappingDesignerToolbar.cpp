@@ -279,11 +279,20 @@ namespace UE::DMX
 			MenuBuilder.AddMenuEntry(FDMXPixelMappingEditorCommands::Get().ToggleShowCellIDs);
 			MenuBuilder.AddMenuEntry(FDMXPixelMappingEditorCommands::Get().ToggleShowPivot);
 
-			constexpr bool NoIndent = true;
+			constexpr bool bNoIndent = true;
 			MenuBuilder.AddWidget(
 				GenerateComponentFontSizeEditWidget(),
 				LOCTEXT("FontSizeLabel", "Font Size"),
-				NoIndent
+				bNoIndent
+			);
+
+			constexpr bool bSearchable = false;
+			MenuBuilder.AddWidget(
+				GenerateDesignerExposureEditWidget(),
+				LOCTEXT("ExposureLabel", "Display Exposure"),
+				bNoIndent,
+				bSearchable,
+				LOCTEXT("ExposureTooltip", "Adjusts the exposure of the Designer.\nHas no effect on the Pixel Mapping rendering and the DMX output.")
 			);
 		}
 		MenuBuilder.EndSection();
@@ -298,25 +307,19 @@ namespace UE::DMX
 
 	TSharedRef<SWidget> SDMXPixelMappingDesignerToolbar::GenerateComponentFontSizeEditWidget()
 	{
-		UDMXPixelMapping* PixelMapping = WeakToolkit.IsValid() ? WeakToolkit.Pin()->GetDMXPixelMapping() : nullptr;
-		if (PixelMapping)
-		{
-			return
-				SNew(SBorder)
-				.BorderImage(FAppStyle::GetBrush("NoBorder"))
-				.HAlign(HAlign_Right)
-				[
-					SNew(SNumericEntryBox<uint8>)
-					.MinDesiredValueWidth(40.f)
-					.MinSliderValue(6)
-					.MaxSliderValue(24)
-					.AllowSpin(true)
-					.Value(this, &SDMXPixelMappingDesignerToolbar::GetComponentFontSize)
-					.OnValueChanged(this, &SDMXPixelMappingDesignerToolbar::SetComponentFontSize)
-				];
-		}
-
-		return SNullWidget::NullWidget;
+		return
+			SNew(SBorder)
+			.BorderImage(FAppStyle::GetBrush("NoBorder"))
+			.HAlign(HAlign_Right)
+			[
+				SNew(SNumericEntryBox<uint8>)
+				.MinDesiredValueWidth(40.f)
+				.MinSliderValue(6)
+				.MaxSliderValue(24)
+				.AllowSpin(true)
+				.Value(this, &SDMXPixelMappingDesignerToolbar::GetComponentFontSize)
+				.OnValueChanged(this, &SDMXPixelMappingDesignerToolbar::SetComponentFontSize)
+			];
 	}
 
 	TOptional<uint8> SDMXPixelMappingDesignerToolbar::GetComponentFontSize() const
@@ -337,6 +340,44 @@ namespace UE::DMX
 		{
 			constexpr uint8 MinFontSize = 1;
 			PixelMapping->ComponentLabelFontSize = FMath::Max(FontSize, MinFontSize);
+		}
+	}
+
+	TSharedRef<SWidget> SDMXPixelMappingDesignerToolbar::GenerateDesignerExposureEditWidget()
+	{
+		return
+			SNew(SBorder)
+			.BorderImage(FAppStyle::GetBrush("NoBorder"))
+			.HAlign(HAlign_Right)
+			[
+				SNew(SNumericEntryBox<float>)
+				.MinDesiredValueWidth(40.f)
+				.MinSliderValue(0.f)
+				.MaxSliderValue(1.f)
+				.AllowSpin(true)
+				.Value(this, &SDMXPixelMappingDesignerToolbar::GetDesignerExposure)
+				.OnValueChanged(this, &SDMXPixelMappingDesignerToolbar::SetDesignerExposure)
+			];
+	}
+
+	TOptional<float> SDMXPixelMappingDesignerToolbar::GetDesignerExposure() const
+	{
+		UDMXPixelMapping* PixelMapping = WeakToolkit.IsValid() ? WeakToolkit.Pin()->GetDMXPixelMapping() : nullptr;
+		if (PixelMapping)
+		{
+			return PixelMapping->DesignerExposure;
+		}
+
+		return TOptional<float>();
+	}
+
+	void SDMXPixelMappingDesignerToolbar::SetDesignerExposure(float Exposure)
+	{
+		UDMXPixelMapping* PixelMapping = WeakToolkit.IsValid() ? WeakToolkit.Pin()->GetDMXPixelMapping() : nullptr;
+		if (PixelMapping)
+		{
+			constexpr uint8 MinExposure = 0.f;
+			PixelMapping->DesignerExposure = FMath::Max(MinExposure, Exposure);
 		}
 	}
 }

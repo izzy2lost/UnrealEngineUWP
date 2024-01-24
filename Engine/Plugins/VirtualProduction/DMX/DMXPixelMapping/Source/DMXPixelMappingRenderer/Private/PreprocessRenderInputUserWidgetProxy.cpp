@@ -5,6 +5,7 @@
 #include "Blueprint/UserWidget.h"
 #include "DMXStats.h"
 #include "Engine/TextureRenderTarget2D.h"
+#include "Framework/Application/SlateApplication.h"
 #include "Slate/WidgetRenderer.h"
 
 
@@ -12,12 +13,14 @@ namespace UE::DMXPixelMapping::Rendering::Preprocess::Private
 {
 	DECLARE_CYCLE_STAT(TEXT("PixelMapping RenderInputUserWidget"), STAT_PreprocessRenderInputUserWidget, STATGROUP_DMX);
 
-	FPreprocessRenderInputUserWidgetProxy::FPreprocessRenderInputUserWidgetProxy(UUserWidget* InUserWidget, const FVector2D& InInputSize)
+	FPreprocessRenderInputUserWidgetProxy::FPreprocessRenderInputUserWidgetProxy(UUserWidget* InUserWidget, const FVector2D& InInputSize, EPixelFormat InFormat)
 		: WeakUserWidget(InUserWidget)
 	{
+		constexpr bool bForceLinearGamma = false;
+
 		IntermediateRenderTarget = NewObject<UTextureRenderTarget2D>();
 		IntermediateRenderTarget->ClearColor = FLinearColor::Black;
-		IntermediateRenderTarget->InitAutoFormat(InInputSize.X, InInputSize.Y);
+		IntermediateRenderTarget->InitCustomFormat(InInputSize.X, InInputSize.Y, InFormat, bForceLinearGamma);
 		IntermediateRenderTarget->UpdateResourceImmediate();
 
 		const bool bUseGammaCorrection = false;
