@@ -44,7 +44,7 @@ public class WorkspaceInfoTest
 	static ManagedWorkspaceOptions GetMwOptions(string? method)
 	{
 		HordeCommon.Rpc.Messages.AgentWorkspace workspace = new HordeCommon.Rpc.Messages.AgentWorkspace();
-		workspace.Method = method;
+		workspace.Method = method ?? "";
 		return WorkspaceInfo.GetMwOptions(workspace);
 	}
 }
