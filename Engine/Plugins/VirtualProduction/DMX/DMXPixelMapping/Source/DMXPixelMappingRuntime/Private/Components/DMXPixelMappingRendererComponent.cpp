@@ -244,26 +244,23 @@ void UDMXPixelMappingRendererComponent::SendDMX()
 void UDMXPixelMappingRendererComponent::Render()
 {
 	SCOPE_CYCLE_COUNTER(STAT_DMXPixelMappingRender);
-
-	// Always size to texture
-	if (UTexture* Texture = PreprocessRenderer->GetRenderedTexture())
-	{
-		const FVector2D TextureSize(Texture->GetSurfaceWidth(), Texture->GetSurfaceHeight());
-		if (GetSize() != TextureSize)
-		{
-			SetSize(TextureSize);
-			LetChildrenFollowSize();
-
-			bInvalidatePixelMap = true;
-		}
-	}
-
+	
 	PreprocessRenderer->Render();
 
-	UTexture* RenderedInputTexture = PreprocessRenderer->GetRenderedTexture();
-	if (!RenderedInputTexture)
+	UTexture* PreprocessedTexture = PreprocessRenderer->GetRenderedTexture();
+	if (!PreprocessedTexture)
 	{
 		return;
+	}
+
+	// Always size to texture
+	const FVector2D TextureSize(PreprocessedTexture->GetSurfaceWidth(), PreprocessedTexture->GetSurfaceHeight());
+	if (GetSize() != TextureSize)
+	{
+		SetSize(TextureSize);
+		LetChildrenFollowSize();
+
+		bInvalidatePixelMap = true;
 	}
 
 	// Update render elements if invalidated
@@ -290,7 +287,7 @@ void UDMXPixelMappingRendererComponent::Render()
 		bInvalidatePixelMap = false;
 	}
 
-	PixelMapRenderer->Render(RenderedInputTexture, Brightness);
+	PixelMapRenderer->Render(PreprocessedTexture, Brightness);
 }
 
 void UDMXPixelMappingRendererComponent::RenderAndSendDMX()
@@ -409,10 +406,6 @@ EPixelFormat UDMXPixelMappingRendererComponent::GetFormatFromDynamicRange() cons
 			PixelFormat == PF_A2B10G10R10)
 		{
 			return PixelFormat;
-		}
-		else
-		{
-			return PF_FloatRGBA;
 		}
 	}
 	else if (DynamicRange == EDMXPixelMappingRendererDynamicRange::RGBA16F)
