@@ -12,11 +12,11 @@ namespace HarmonixMetasound::Nodes::Peak
 	
 	namespace Inputs
 	{
-		EXTERN_METASOUND_PARAM(AudioMono);
+		DECLARE_METASOUND_PARAM_EXTERN(AudioMono);
 	}
 
 	namespace Outputs
 	{
-		EXTERN_METASOUND_PARAM(Peak);
+		DECLARE_METASOUND_PARAM_EXTERN(Peak);
 	}
 }

@@ -29,13 +29,13 @@ namespace HarmonixMetasound::Nodes::Peak
 
 	namespace Inputs
 	{
-		EXTERN_METASOUND_PARAM_ALIAS(AudioMono, CommonPinNames::Inputs::AudioMono);
+		DEFINE_METASOUND_PARAM_ALIAS(AudioMono, CommonPinNames::Inputs::AudioMono);
 		METASOUND_PARAM(ParamEnable, "Enable", "Enable the peak node.")
 	}
 
 	namespace Outputs
 	{
-		EXTERN_METASOUND_PARAM_D(Peak, "Peak", "The peak for the latest block")
+		DEFINE_OUTPUT_METASOUND_PARAM(Peak, "Peak", "The peak for the latest block")
 	}
 
 	class FOp final : public Metasound::TExecutableOperator<FOp>

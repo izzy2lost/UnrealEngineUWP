@@ -35,18 +35,18 @@ namespace HarmonixMetasound::Nodes::MidiCCTriggerNode
 
 	namespace Inputs
 	{
-		EXTERN_METASOUND_PARAM_ALIAS(Enable, CommonPinNames::Inputs::Enable);
-		EXTERN_METASOUND_PARAM_ALIAS(MidiTrackNumber, CommonPinNames::Inputs::MidiTrackNumber);
-		EXTERN_METASOUND_PARAM_ALIAS(MidiChannelNumber, CommonPinNames::Inputs::MidiChannelNumber);
-		EXTERN_METASOUND_PARAM_D(InputMidiControllerID, "Standard Midi Controller ID", "Standard Midi Controller ID (0-127)");
-		EXTERN_METASOUND_PARAM_ALIAS(MidiStream, CommonPinNames::Inputs::MidiStream);
+		DEFINE_METASOUND_PARAM_ALIAS(Enable, CommonPinNames::Inputs::Enable);
+		DEFINE_METASOUND_PARAM_ALIAS(MidiTrackNumber, CommonPinNames::Inputs::MidiTrackNumber);
+		DEFINE_METASOUND_PARAM_ALIAS(MidiChannelNumber, CommonPinNames::Inputs::MidiChannelNumber);
+		DEFINE_INPUT_METASOUND_PARAM(InputMidiControllerID, "Standard Midi Controller ID", "Standard Midi Controller ID (0-127)");
+		DEFINE_METASOUND_PARAM_ALIAS(MidiStream, CommonPinNames::Inputs::MidiStream);
 	}
 
 	namespace Outputs
 	{
-		EXTERN_METASOUND_PARAM_D(OutputControlChangeValueInt32, "Midi Control Change Value (Int32)", "Midi Control Change value (0-127)");
-		EXTERN_METASOUND_PARAM_D(OutputControlChangeValueFloat, "Midi Control Change Value (Float)", "normalized Midi Control Change value (0.0-1.0)");
-		EXTERN_METASOUND_PARAM_D(OutputTrigger, "Trigger Out", "A trigger when a Midi Control Change message is found");
+		DEFINE_OUTPUT_METASOUND_PARAM(OutputControlChangeValueInt32, "Midi Control Change Value (Int32)", "Midi Control Change value (0-127)");
+		DEFINE_OUTPUT_METASOUND_PARAM(OutputControlChangeValueFloat, "Midi Control Change Value (Float)", "normalized Midi Control Change value (0.0-1.0)");
+		DEFINE_OUTPUT_METASOUND_PARAM(OutputTrigger, "Trigger Out", "A trigger when a Midi Control Change message is found");
 	}
 
 	class FOp final : public Metasound::TExecutableOperator<FOp>

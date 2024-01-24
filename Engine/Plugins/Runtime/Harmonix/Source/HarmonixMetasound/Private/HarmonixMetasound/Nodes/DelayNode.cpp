@@ -24,32 +24,32 @@ namespace HarmonixMetasound::DelayNode
 	
 	namespace Inputs
 	{
-		EXTERN_METASOUND_PARAM_D(AudioLeft, "Audio Left", "The left channel of audio to process");
-		EXTERN_METASOUND_PARAM_D(AudioRight, "Audio Right", "The right channel of audio to process");
-		EXTERN_METASOUND_PARAM_D(MidiClock, "MIDI Clock", "MIDI timing information")
-		EXTERN_METASOUND_PARAM_D(DelayTimeType, "Delay Sync Type", "Specifies if and how the delay should sync to a clock");
-		EXTERN_METASOUND_PARAM_D(DelayTime, "Delay Time", "The period of the delay. If Delay Sync Type is TempoSync, the unit is quarter notes. Otherwise, the unit is seconds.");
-		EXTERN_METASOUND_PARAM_D(Feedback, "Feedback", "The feedback amount, range [0.0, 1.0]");
-		EXTERN_METASOUND_PARAM_D(DryLevel, "Dry Gain", "The amount of dry signal to pass through, range [0.0, 1.0]");
-		EXTERN_METASOUND_PARAM_D(WetLevel, "Wet Gain", "The amount of wet signal to output, range [0.0, 1.0]");
-		EXTERN_METASOUND_PARAM_D(WetFilterEnabled, "Wet Filter Enabled", "Enables or disables the filter on the wet signal");
-		EXTERN_METASOUND_PARAM_D(FeedbackFilterEnabled, "Feedback Filter Enabled", "Enables or disables the filter on the feedback signal");
-		EXTERN_METASOUND_PARAM_D(FilterType, "Filter Type", "The type of filter to apply to the signal");
-		EXTERN_METASOUND_PARAM_D(FilterCutoff, "Filter Cutoff", "The cutoff frequency of the filter, in Hz");
-		EXTERN_METASOUND_PARAM_D(FilterQ, "Filter Q", "The Q of the filter");
-		EXTERN_METASOUND_PARAM_D(LFOEnabled, "LFO Enabled", "Enables or disables the LFO on the delay time");
-		EXTERN_METASOUND_PARAM_D(LFOTimeType, "LFO Sync Type", "Specifies if and how the LFO should sync to a clock");
-		EXTERN_METASOUND_PARAM_D(LFOFrequency, "LFO Frequency", "The period of the LFO. If LFO Sync Type is TempoSync, the unit is cycles per quarter note. Otherwise, the unit is Hz (cycles per second).");
-		EXTERN_METASOUND_PARAM_D(LFODepth, "LFO Depth", "The amount of delay to be added by the LFO. If Delay Sync Type is TempoSync, the unit is quarter notes. Otherwise, the unit is seconds.");
-		EXTERN_METASOUND_PARAM_D(StereoType, "Stereo Type", "Specifies method for panning and spreading the sound");
-		EXTERN_METASOUND_PARAM_D(StereoSpreadLeft, "Stereo Spread Left", "The amount of stereo spread on the left channel");
-		EXTERN_METASOUND_PARAM_D(StereoSpreadRight, "Stereo Spread Right", "The amount of stereo spread on the right channel");
+		DEFINE_METASOUND_PARAM_ALIAS(AudioLeft, CommonPinNames::Inputs::AudioLeft);
+		DEFINE_METASOUND_PARAM_ALIAS(AudioRight, CommonPinNames::Inputs::AudioRight);
+		DEFINE_METASOUND_PARAM_ALIAS(MidiClock, CommonPinNames::Inputs::MidiClock);
+		DEFINE_INPUT_METASOUND_PARAM(DelayTimeType, "Delay Sync Type", "Specifies if and how the delay should sync to a clock");
+		DEFINE_INPUT_METASOUND_PARAM(DelayTime, "Delay Time", "The period of the delay. If Delay Sync Type is TempoSync, the unit is quarter notes. Otherwise, the unit is seconds.");
+		DEFINE_INPUT_METASOUND_PARAM(Feedback, "Feedback", "The feedback amount, range [0.0, 1.0]");
+		DEFINE_INPUT_METASOUND_PARAM(DryLevel, "Dry Gain", "The amount of dry signal to pass through, range [0.0, 1.0]");
+		DEFINE_INPUT_METASOUND_PARAM(WetLevel, "Wet Gain", "The amount of wet signal to output, range [0.0, 1.0]");
+		DEFINE_INPUT_METASOUND_PARAM(WetFilterEnabled, "Wet Filter Enabled", "Enables or disables the filter on the wet signal");
+		DEFINE_INPUT_METASOUND_PARAM(FeedbackFilterEnabled, "Feedback Filter Enabled", "Enables or disables the filter on the feedback signal");
+		DEFINE_INPUT_METASOUND_PARAM(FilterType, "Filter Type", "The type of filter to apply to the signal");
+		DEFINE_INPUT_METASOUND_PARAM(FilterCutoff, "Filter Cutoff", "The cutoff frequency of the filter, in Hz");
+		DEFINE_INPUT_METASOUND_PARAM(FilterQ, "Filter Q", "The Q of the filter");
+		DEFINE_INPUT_METASOUND_PARAM(LFOEnabled, "LFO Enabled", "Enables or disables the LFO on the delay time");
+		DEFINE_INPUT_METASOUND_PARAM(LFOTimeType, "LFO Sync Type", "Specifies if and how the LFO should sync to a clock");
+		DEFINE_METASOUND_PARAM_ALIAS(LFOFrequency, CommonPinNames::Inputs::LFOFrequency);
+		DEFINE_INPUT_METASOUND_PARAM(LFODepth, "LFO Depth", "The amount of delay to be added by the LFO. If Delay Sync Type is TempoSync, the unit is quarter notes. Otherwise, the unit is seconds.");
+		DEFINE_INPUT_METASOUND_PARAM(StereoType, "Stereo Type", "Specifies method for panning and spreading the sound");
+		DEFINE_INPUT_METASOUND_PARAM(StereoSpreadLeft, "Stereo Spread Left", "The amount of stereo spread on the left channel");
+		DEFINE_INPUT_METASOUND_PARAM(StereoSpreadRight, "Stereo Spread Right", "The amount of stereo spread on the right channel");
 	}
 
 	namespace Outputs
 	{
-		EXTERN_METASOUND_PARAM_D(AudioLeft, "Audio Left", "The left channel of processed audio");
-		EXTERN_METASOUND_PARAM_D(AudioRight, "Audio Right", "The right channel of processed audio");
+		DEFINE_METASOUND_PARAM_ALIAS(AudioLeft, CommonPinNames::Outputs::AudioLeft);
+		DEFINE_METASOUND_PARAM_ALIAS(AudioRight, CommonPinNames::Outputs::AudioRight);
 	}
 	
 	class FDelayOperator final : public TExecutableOperator<FDelayOperator>
