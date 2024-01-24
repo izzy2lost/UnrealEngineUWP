@@ -36,6 +36,7 @@
 #include "ShaderCore.h"
 #include "UObject/AssetRegistryTagsContext.h"
 #include "UObject/Package.h"
+#include "Engine/World.h"
 
 // FIXME: We should not be accessing nodes directly.
 #include "OptimusValueContainer.h"
@@ -3409,6 +3410,13 @@ UMeshDeformerInstance* UOptimusDeformer::CreateInstance(
 	// Return nullptr if deformers are disabled. Clients can then fallback to some other behaviour.
 	EShaderPlatform Platform = InMeshComponent->GetScene() != nullptr ? InMeshComponent->GetScene()->GetShaderPlatform() : GMaxRHIShaderPlatform;
 	if (!Optimus::IsEnabled() || !Optimus::IsSupported(Platform))
+	{
+		return nullptr;
+	}
+
+	// Return nullptr if running dedicated server
+	const UWorld* World = InMeshComponent->GetWorld();
+	if (World && World->IsNetMode(NM_DedicatedServer))
 	{
 		return nullptr;
 	}
