@@ -35,7 +35,7 @@ namespace UE::ConcertSharedSlate::DefaultProperties
 				Callback(FConcertPropertyChain(&Chain, LeafProperty));
 				Paths.RemoveAtSwap(IndexOfMatches);
 			}
-			return true;
+			return bMatches;
 		});
 
 		// Warn the user of unmatched properties so they can de-clutter their settings of useless entries
