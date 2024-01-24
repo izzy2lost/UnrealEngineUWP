@@ -423,11 +423,24 @@ void FFXSystem::DrawDebug( FCanvas* Canvas )
 	}
 }
 
+DECLARE_GPU_DRAWCALL_STAT(FXSystemPreInitViews);
+
 void FFXSystem::PreInitViews(FRDGBuilder& GraphBuilder, bool bAllowGPUParticleUpdate, const TArrayView<const FSceneViewFamily*>& ViewFamilies, const FSceneViewFamily* CurrentFamily)
 {
 	if (RHISupportsGPUParticles())
 	{
-		AdvanceGPUParticleFrame(bAllowGPUParticleUpdate);
+		RDG_GPU_STAT_SCOPE(GraphBuilder, FXSystemPreInitViews);
+		RDG_CSV_STAT_EXCLUSIVE_SCOPE(GraphBuilder, FXSystem);
+
+		AddPass(
+			GraphBuilder,
+			RDG_EVENT_NAME("FFXSystem::PreInitViews"),
+			[this, bAllowGPUParticleUpdate](FRHICommandListImmediate& RHICmdList)
+			{
+
+				AdvanceGPUParticleFrame(RHICmdList, bAllowGPUParticleUpdate);
+			}
+		);
 	}
 }
 
