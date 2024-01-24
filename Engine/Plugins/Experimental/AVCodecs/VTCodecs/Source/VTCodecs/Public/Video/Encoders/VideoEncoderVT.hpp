@@ -111,36 +111,45 @@ FAVResult TVideoEncoderVT<TResource>::ApplyConfig()
 
                 CFDictionaryRef IOSurfaceValue = CFDictionaryCreate(kCFAllocatorDefault, nullptr, nullptr, 0, &kCFTypeDictionaryKeyCallBacks, &kCFTypeDictionaryValueCallBacks);
                
-                int64 PixelType = PendingConfig.GetCVPixelFormatType();
+                int64_t PixelType = PendingConfig.GetCVPixelFormatType();
                 CFNumberRef PixelFormat = CFNumberCreate(nullptr, kCFNumberLongType, &PixelType);
 
-                CFTypeRef Values[AttributesSize] = {kCFBooleanTrue, IOSurfaceValue, PixelFormat};
+                CFTypeRef Values[AttributesSize] = { kCFBooleanTrue, IOSurfaceValue, PixelFormat };
                 CFDictionaryRef SourceAttributes = CFDictionaryCreate(kCFAllocatorDefault, Keys, Values, AttributesSize, &kCFTypeDictionaryKeyCallBacks, &kCFTypeDictionaryValueCallBacks);
 
                 CONDITIONAL_RELEASE(IOSurfaceValue);
                 CONDITIONAL_RELEASE(PixelFormat);
+          
+                OSStatus Result = VTCompressionSessionCreate(kCFAllocatorDefault, 
+                                                             PendingConfig.Width,
+                                                             PendingConfig.Height,
+                                                             PendingConfig.Codec,
+                                                             NULL,
+                                                             SourceAttributes,
+                                                             NULL /* Default Compressed Data Allocator */,
+                                                             Internal::VTCompressionOutputCallback,
+                                                             this,
+                                                             &Encoder);
 
-                CFMutableDictionaryRef EncoderSpecification = CFDictionaryCreateMutable(kCFAllocatorDefault, 1, &kCFTypeDictionaryKeyCallBacks, &kCFTypeDictionaryValueCallBacks);
-                
-                // We explicitly state here that we want a hardware encoder. If it's optional, replace with kVTVideoEncoderSpecification_EnableHardwareAcceleratedVideoEncoder
-                CFDictionarySetValue(EncoderSpecification, kVTVideoEncoderSpecification_RequireHardwareAcceleratedVideoEncoder, kCFBooleanTrue);
-                
-                OSStatus Result = VTCompressionSessionCreate(kCFAllocatorDefault, PendingConfig.Width, PendingConfig.Height, PendingConfig.Codec, EncoderSpecification, SourceAttributes, nullptr /* Default Compressed Data Allocator */, Internal::VTCompressionOutputCallback, this, &Encoder);
+                CONDITIONAL_RELEASE(SourceAttributes);
                     
                 if(Result != 0)
                 {
-                    CONDITIONAL_RELEASE(SourceAttributes);
-                    CONDITIONAL_RELEASE(EncoderSpecification);
                     return FAVResult(EAVResult::ErrorCreating, TEXT("Failed to create VTCompressionSession"), TEXT("VT"), Result);
                 }
 
                 CFBooleanRef bIsUsingHardwareEncoder;
                 Result = VTSessionCopyProperty(Encoder, kVTCompressionPropertyKey_UsingHardwareAcceleratedVideoEncoder, NULL, &bIsUsingHardwareEncoder);
-                FAVResult::Log(EAVResult::Unknown, FString::Printf(TEXT("Created compression session. UsingHardwareEncoder: %s"), (Result == 0 && CFBooleanGetValue(bIsUsingHardwareEncoder) ? TEXT("TRUE") : TEXT("FALSE"))), TEXT("VT"));
-
+                if(Result != 0)
+                {
+                    FAVResult::Log(EAVResult::Warning, TEXT("VTSessionCopyProperty(kVTCompressionPropertyKey_UsingHardwareAcceleratedVideoEncoder) failed"), TEXT("VT"), Result);
+                }
+                else
+                {
+                    FAVResult::Log(EAVResult::Warning, FString::Printf(TEXT("Created compression session. UsingHardwareEncoder: %s"), (CFBooleanGetValue(bIsUsingHardwareEncoder) ? TEXT("TRUE") : TEXT("FALSE"))), TEXT("VT"));
+                }
+                
                 CONDITIONAL_RELEASE(bIsUsingHardwareEncoder);
-                CONDITIONAL_RELEASE(SourceAttributes);
-                CONDITIONAL_RELEASE(EncoderSpecification);
 
                 ConfigureCompressionSession(PendingConfig);
 			}
@@ -154,32 +163,26 @@ FAVResult TVideoEncoderVT<TResource>::ApplyConfig()
 
 template <typename TResource>
 FAVResult TVideoEncoderVT<TResource>::ConfigureCompressionSession(FVideoEncoderConfigVT const& Config)  
-{   
+{       
     VTSessionHelpers::SetVTSessionProperty(Encoder, kVTCompressionPropertyKey_RealTime, true);
-    
+
     VTSessionHelpers::SetVTSessionProperty(Encoder, kVTCompressionPropertyKey_ProfileLevel, Config.Profile);
-    
-    VTSessionHelpers::SetVTSessionProperty(Encoder, kVTCompressionPropertyKey_AllowFrameReordering, false);
     
     SetEncoderBitrate(Config);
     
-    VTSessionHelpers::SetVTSessionProperty(Encoder, kVTCompressionPropertyKey_MaxKeyFrameInterval, Config.KeyframeInterval);
+    VTSessionHelpers::SetVTSessionProperty(Encoder, kVTCompressionPropertyKey_AllowTemporalCompression, false);
     
-    VTSessionHelpers::SetVTSessionProperty(Encoder, kVTCompressionPropertyKey_MaxKeyFrameIntervalDuration, Config.KeyframeInterval * Config.FrameRate);
+    VTSessionHelpers::SetVTSessionProperty(Encoder, kVTCompressionPropertyKey_AllowFrameReordering, false);
     
-    VTSessionHelpers::SetVTSessionProperty(Encoder, kVTCompressionPropertyKey_MinAllowedFrameQP, Config.MinQP);
+    VTSessionHelpers::SetVTSessionProperty(Encoder, kVTCompressionPropertyKey_MaxKeyFrameInterval, (int32_t)Config.KeyframeInterval);
     
-    VTSessionHelpers::SetVTSessionProperty(Encoder, kVTCompressionPropertyKey_MaxAllowedFrameQP, Config.MaxQP);
+    VTSessionHelpers::SetVTSessionProperty(Encoder, kVTCompressionPropertyKey_MaxKeyFrameIntervalDuration, (Config.KeyframeInterval > 0 ? (int32_t)(Config.KeyframeInterval / Config.FrameRate) : 0));
     
+    VTSessionHelpers::SetVTSessionProperty(Encoder, kVTCompressionPropertyKey_MaximizePowerEfficiency, false);
+
     if(Config.Codec == kCMVideoCodecType_H264)
     {
         VTSessionHelpers::SetVTSessionProperty(Encoder, kVTCompressionPropertyKey_H264EntropyMode, Config.EntropyCodingMode);
-    }
-    
-    OSStatus Status = VTCompressionSessionPrepareToEncodeFrames(Encoder);
-    if(Status != 0)
-    {
-        return FAVResult(EAVResult::Warning, TEXT("Compression session failed to prepare encode frames"), TEXT("VT"));
     }
 
     return EAVResult::Success;
@@ -189,29 +192,7 @@ template <typename TResource>
 FAVResult TVideoEncoderVT<TResource>::SetEncoderBitrate(FVideoEncoderConfigVT const& Config)
 {
     VTSessionHelpers::SetVTSessionProperty(Encoder, kVTCompressionPropertyKey_AverageBitRate, Config.TargetBitrate);
-
-    // Bits to bytes conversion
-    int64_t BytesPerSecondValue = static_cast<int64_t>(Config.MaxBitrate >> 3);
-    CFNumberRef BytesPerSecond = CFNumberCreate(kCFAllocatorDefault, kCFNumberSInt64Type, &BytesPerSecondValue);
     
-    int64_t OneSecondValue = 1;
-    CFNumberRef OneSecond = CFNumberCreate(kCFAllocatorDefault, kCFNumberSInt64Type, &OneSecondValue);
-    
-    const void* Nums[2] = { BytesPerSecond, OneSecond };
-    CFArrayRef DataRateLimits = CFArrayCreate(nullptr, Nums, 2, &kCFTypeArrayCallBacks);
-    
-    OSStatus Result = VTSessionSetProperty(Encoder, kVTCompressionPropertyKey_DataRateLimits, DataRateLimits);
-    
-    CONDITIONAL_RELEASE(BytesPerSecond);
-    CONDITIONAL_RELEASE(OneSecond);
-    CONDITIONAL_RELEASE(DataRateLimits);
-    
-    if(Result != 0)
-    {
-        return FAVResult(EAVResult::Error, TEXT("Failed to set kVTCompressionPropertyKey_DataRateLimits"), TEXT("VT"), Result);
-    }
-    
-
     return EAVResult::Success;
 }
 
@@ -224,16 +205,16 @@ FAVResult TVideoEncoderVT<TResource>::SendFrame(TSharedPtr<FVideoResourceMetal> 
         PendingConfig.PixelFormat = Resource->GetFormat();
 
         FAVResult AVResult = ApplyConfig();
-		if (AVResult.IsNotSuccess())
-		{
-			return AVResult;
-		}
+        if (AVResult.IsNotSuccess())
+        {
+            return AVResult;
+        }
 
         if(Resource.IsValid())
         {
-            CMTime PresentationTime = CMTimeMake(Timestamp, 1000);
+            CMTime PresentationTime = CMTimeMake(Timestamp, 1000000);
             CFDictionaryRef FrameProperties = nullptr;
-            if (bForceKeyframe) 
+            if (bForceKeyframe)
             {
                 CFTypeRef Keys[] = {kVTEncodeFrameOptionKey_ForceKeyFrame};
                 CFTypeRef Values[] = {kCFBooleanTrue};
@@ -243,13 +224,13 @@ FAVResult TVideoEncoderVT<TResource>::SendFrame(TSharedPtr<FVideoResourceMetal> 
             TUniquePtr<EncodeParams> Params = MakeUnique<EncodeParams>();
             Params.Reset(new EncodeParams(PendingConfig.Codec, PresentationTime));
 
-            OSStatus Status = VTCompressionSessionEncodeFrame(Encoder, Resource->GetRaw(), PresentationTime, kCMTimeInvalid, FrameProperties, (void*)Params.Release(), nullptr);
+            OSStatus Status = VTCompressionSessionEncodeFrame(Encoder, Resource->GetRaw(), PresentationTime, kCMTimeInvalid, FrameProperties, (void*)Params.Release(), NULL);
 
-            CONDITIONAL_RELEASE(FrameProperties);        
+            CONDITIONAL_RELEASE(FrameProperties);
 
-            if(Status != 0)
+            if(Status != kCVReturnSuccess)
             {
-                return FAVResult(EAVResult::Error, TEXT("Failed to encode"), TEXT("VT"));
+                return FAVResult(EAVResult::Error, TEXT("Failed to encode"), TEXT("VT"), Status);
             }
             
             return EAVResult::Success;
@@ -258,18 +239,17 @@ FAVResult TVideoEncoderVT<TResource>::SendFrame(TSharedPtr<FVideoResourceMetal> 
         {
             // Flush encoder
             OSStatus Status = VTCompressionSessionCompleteFrames(Encoder, kCMTimeInvalid);
-            if(Status != 0)
+            if(Status != kCVReturnSuccess)
             {
-                return FAVResult(EAVResult::Error, TEXT("Failed to flush"), TEXT("VT"));
+                return FAVResult(EAVResult::Error, TEXT("Failed to flush"), TEXT("VT"), Status);
             }
 
             return EAVResult::Success;
         }
     }
 
-	return FAVResult(EAVResult::ErrorInvalidState, TEXT("Encoder not open"), TEXT("VT"));
+    return FAVResult(EAVResult::ErrorInvalidState, TEXT("Encoder not open"), TEXT("VT"));
 }
-
 
 template <typename TResource>
 FAVResult TVideoEncoderVT<TResource>::ReceivePacket(FVideoPacket& OutPacket)
@@ -294,12 +274,12 @@ FAVResult TVideoEncoderVT<TResource>::HandlePacket(void* Params, OSStatus Status
 	{
         if(Status != 0)
         {
-            return FAVResult(EAVResult::Error, TEXT("Failed to encode"), TEXT("VT"));
+            return FAVResult(EAVResult::Error, TEXT("Failed to encode"), TEXT("VT"), Status);
         }
 
         if(InfoFlags & kVTEncodeInfo_FrameDropped)
         {
-            return FAVResult(EAVResult::Error, TEXT("Frame dropped"), TEXT("VT"));
+            return FAVResult(EAVResult::Error, TEXT("Frame dropped"), TEXT("VT"), Status);
         }
 
         bool bIsKeyframe = false;
@@ -344,7 +324,7 @@ FAVResult TVideoEncoderVT<TResource>::HandlePacket(void* Params, OSStatus Status
             FAVResult Result = H264.Parse(FVideoPacket(CopiedData, Bitstream.Num(), 0, 0, 0, false), Slices);
             if(Result != EAVResult::Success)
             {
-                return FAVResult(EAVResult::Error, TEXT("Failed to parse bitstream"), TEXT("VT"));
+                return FAVResult(EAVResult::Error, TEXT("Failed to parse bitstream"), TEXT("VT"), Result);
             }
 
             QP = H264.GetLastSliceQP(Slices).Get(0);
@@ -356,7 +336,7 @@ FAVResult TVideoEncoderVT<TResource>::HandlePacket(void* Params, OSStatus Status
             FAVResult Result = H265.Parse(FVideoPacket(CopiedData, Bitstream.Num(), 0, 0, 0, false), Slices);
             if(Result != EAVResult::Success)
             {
-                return FAVResult(EAVResult::Error, TEXT("Failed to parse bitstream"), TEXT("VT"));
+                return FAVResult(EAVResult::Error, TEXT("Failed to parse bitstream"), TEXT("VT"), Result);
             }
 
             QP = H265.GetLastSliceQP(Slices).Get(0);

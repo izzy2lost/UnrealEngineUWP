@@ -14,7 +14,6 @@ class VTSessionHelpers
 public:
     static FString CFStringToString(const CFStringRef CfString);
 	static void SetVTSessionProperty(VTSessionRef Session, CFStringRef Key, int32_t Value);
-	static void SetVTSessionProperty(VTSessionRef Session, CFStringRef Key, uint32_t Value);
 	static void SetVTSessionProperty(VTSessionRef Session, CFStringRef Key, bool Value);
 	static void SetVTSessionProperty(VTSessionRef Session, CFStringRef Key, CFStringRef Value);
 };

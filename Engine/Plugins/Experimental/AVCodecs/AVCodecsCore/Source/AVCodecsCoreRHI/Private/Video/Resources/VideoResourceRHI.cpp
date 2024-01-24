@@ -565,84 +565,78 @@ DLLEXPORT FAVResult FAVExtension::TransformResource(TSharedPtr<FVideoResourceMet
 	if (InResource.IsValid())
 	{
 		if (InResource->GetDevice()->HasContext<FVideoContextMetal>())
-		{		
-            static CVMetalTextureCacheRef TextureCache = nullptr;
-            
-            if (TextureCache == nullptr)
+		{
+			FTextureRHIRef InResourceTexture = InResource->GetRaw().Texture;
+            if(bool(InResourceTexture->GetDesc().Flags & TexCreate_CPUReadback))
             {
-                id<MTLDevice> Device = (__bridge id<MTLDevice>)GDynamicRHI->RHIGetNativeDevice();
-                check(Device);
-                
-                CVReturn Result = CVMetalTextureCacheCreate(kCFAllocatorDefault, nullptr, Device, nullptr, &TextureCache);
+                /*
+                 * NOTE (william.belcher): If the texture passed in has was created with 'ETextureCreateFlags::CPUReadback', we can simply copy the raw bytes
+                 * out of the texture. This is the preferred way as it prevents an ~50ms block on the encoding thread
+                 */
+				const FVideoDescriptor& Descriptor = InResource->GetDescriptor();
+            
+            	CFMutableDictionaryRef SourceAttributes = CFDictionaryCreateMutable(kCFAllocatorDefault, 1, &kCFTypeDictionaryKeyCallBacks, &kCFTypeDictionaryValueCallBacks);
+            	CFDictionarySetValue(SourceAttributes, kCVPixelBufferOpenGLCompatibilityKey, kCFBooleanTrue);
+	
+            	CFDictionaryRef IOSurfaceValue = CFDictionaryCreate(kCFAllocatorDefault, nullptr, nullptr, 0, &kCFTypeDictionaryKeyCallBacks, &kCFTypeDictionaryValueCallBacks);
+            	CFDictionarySetValue(SourceAttributes, kCVPixelBufferIOSurfacePropertiesKey, IOSurfaceValue);
+	
+            	int64 PixelType = 0;
+            	switch(Descriptor.Format)
+            	{
+            	    case EVideoFormat::BGRA:
+            	        PixelType = kCVPixelFormatType_32BGRA;
+            	        break;
+            	    case EVideoFormat::ABGR10:
+            	        PixelType = kCVPixelFormatType_ARGB2101010LEPacked;
+            	        break;
+            	    default:
+            	        checkNoEntry();
+            	}
+	
+            	CFNumberRef PixelFormat = CFNumberCreate(nullptr, kCFNumberLongType, &PixelType);
+            	CFDictionarySetValue(SourceAttributes, kCVPixelBufferPixelFormatTypeKey, PixelFormat);
+	
+            	CFSafeRelease(IOSurfaceValue);
+            	CFSafeRelease(PixelFormat);
+	
+            	CVPixelBufferRef PixelBuffer;
+            	CVReturn Result = CVPixelBufferCreate(kCFAllocatorDefault, Descriptor.Width, Descriptor.Height, PixelType, SourceAttributes, &PixelBuffer);
+            	if (Result != kCVReturnSuccess)
+            	{
+            	    return FAVResult(EAVResult::Error, TEXT("Failed to create CVPixelBufferRef"), TEXT("RHI"), Result);
+            	}
+            	CFSafeRelease(SourceAttributes);
+
+                Result = CVPixelBufferLockBaseAddress(PixelBuffer, 0);
                 if (Result != kCVReturnSuccess)
                 {
-                    return FAVResult(EAVResult::Error, TEXT("Failed to create CVMetalTextureCacheRef"), TEXT("RHI"), Result);
+                    return FAVResult(EAVResult::Error, TEXT("Failed to lock base address"), TEXT("RHI"), Result);
                 }
+
+                // NOTE (belchy06): GetBytes assumes the raw texture has been created with with TexCreate_CPUReadback
+                static_cast<MTL::Texture*>(InResource->GetRaw().Texture->GetNativeResource())->getBytes(reinterpret_cast<uint8*>(CVPixelBufferGetBaseAddressOfPlane(PixelBuffer, 0)), CVPixelBufferGetBytesPerRow(PixelBuffer), MTL::Region(0, 0, Descriptor.Width, Descriptor.Height), 0);
+                CVPixelBufferUnlockBaseAddress(PixelBuffer, 0);
+                
+                OutResource = MakeShared<FVideoResourceMetal>(InResource->GetDevice(),
+                                                              PixelBuffer,
+                                                              InResource->GetLayout());
+
+				CVPixelBufferRelease(PixelBuffer);
+			
+			    return OutResource->Validate();
             }
-            
-            const FVideoDescriptor& Descriptor = InResource->GetDescriptor();
-                        
-            CFMutableDictionaryRef SourceAttributes = CFDictionaryCreateMutable(kCFAllocatorDefault, 1, &kCFTypeDictionaryKeyCallBacks, &kCFTypeDictionaryValueCallBacks);
-            CFDictionarySetValue(SourceAttributes, kCVPixelBufferOpenGLCompatibilityKey, kCFBooleanTrue);
-            CFDictionaryRef IOSurfaceValue = CFDictionaryCreate(kCFAllocatorDefault, nullptr, nullptr, 0, &kCFTypeDictionaryKeyCallBacks, &kCFTypeDictionaryValueCallBacks);
-            CFDictionarySetValue(SourceAttributes, kCVPixelBufferIOSurfacePropertiesKey, IOSurfaceValue);
-            int64 PixelType = kCVPixelFormatType_32BGRA;
-            CFNumberRef PixelFormat = CFNumberCreate(nullptr, kCFNumberLongType, &PixelType);
-            CFDictionarySetValue(SourceAttributes, kCVPixelBufferPixelFormatTypeKey, PixelFormat);
-
-            CFSafeRelease(IOSurfaceValue);
-            CFSafeRelease(PixelFormat);
-
-            CVPixelBufferRef PixelBuffer;
-            CVReturn Result = CVPixelBufferCreate(kCFAllocatorDefault, Descriptor.Width, Descriptor.Height, kCVPixelFormatType_32BGRA, SourceAttributes, &PixelBuffer);
-            if (Result != kCVReturnSuccess)
+            else
             {
-                return FAVResult(EAVResult::Error, TEXT("Failed to create CVPixelBufferRef"), TEXT("RHI"), Result);
-            }
-            CFSafeRelease(SourceAttributes);
-
-            CVMetalTextureRef TextureRef;
-            Result = CVMetalTextureCacheCreateTextureFromImage(kCFAllocatorDefault, TextureCache, PixelBuffer, nullptr, MTLPixelFormatBGRA8Unorm_sRGB, Descriptor.Width, Descriptor.Height, 0, &TextureRef);
-            if (Result != kCVReturnSuccess)
-            {
-                return FAVResult(EAVResult::Error, TEXT("Failed to create CVMetalTextureRef"), TEXT("RHI"), Result);
-            }
-
-            FGPUFenceRHIRef Fence;
-            FTextureRHIRef Destination;
-            const FRHITextureCreateDesc Desc =
-                FRHITextureCreateDesc::Create2D(TEXT("FAVExtension::TransformResource"), Descriptor.Width, Descriptor.Height, PF_B8G8R8A8)
-                .SetFlags(ETextureCreateFlags::SRGB | ETextureCreateFlags::Dynamic | ETextureCreateFlags::NoTiling | ETextureCreateFlags::ShaderResource)
-                .SetBulkData(new FBulkDataMetal(TextureRef));
-                        
-            ENQUEUE_RENDER_COMMAND(FAVExtensionTransformResource)(
-                [&Source = InResource->GetRaw().Texture, &Desc, &Fence, &Destination](FRHICommandListImmediate& RHICmdList)
-            {
-                Fence = RHICreateGPUFence(TEXT("FAVExtension::TransformResource"));
-                Destination = RHICreateTexture(Desc);
-                RHICmdList.CopyTexture(Source, Destination, FRHICopyTextureInfo());
-                            
-                RHICmdList.WriteGPUFence(Fence);
-            });
-            
-            while(!Fence || !Fence->Poll())
-            {
-				if(IsEngineExitRequested())
+                static bool bLogWarning = true;
+				if(bLogWarning)
 				{
-					return FAVResult(EAVResult::Error, TEXT("Engine exit requested before texture copy was complete"), TEXT("RHI"));
+					bLogWarning = false;
+					FAVResult::Log(EAVResult::Warning, TEXT("Unable to transform video resource! Metal RHI requires FVideoResourceRHI textures be created with the ETextureCreateFlags::CPUReadback flag"), TEXT("RHI"));
 				}
 
-                FPlatformProcess::YieldThread();
+				return EAVResult::Error;
             }
-
-            OutResource = MakeShared<FVideoResourceMetal>(InResource->GetDevice(),
-                                                          PixelBuffer,
-                                                          InResource->GetLayout());
-
-            CFSafeRelease(TextureRef);
-            CFSafeRelease(PixelBuffer);
-            
-            return OutResource->Validate();
 		}
 
 		return FAVResult(EAVResult::ErrorMapping, TEXT("No Metal context found"), TEXT("RHI"));
