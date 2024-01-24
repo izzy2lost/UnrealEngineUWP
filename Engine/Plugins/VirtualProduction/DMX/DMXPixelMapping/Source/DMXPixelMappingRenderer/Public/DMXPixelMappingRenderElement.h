@@ -2,11 +2,8 @@
 
 #pragma once
 
-#if defined(_MSC_VER) 
-#include <atomic>
-#else
+#include "DMXPixelMappingTrippleBufferedData.h"
 #include "HAL/CriticalSection.h"
-#endif
 #include "Math/Color.h"
 #include "Math/Vector2D.h"
 
@@ -83,26 +80,19 @@ namespace UE::DMXPixelMapping::Rendering
 		FLinearColor GetColor() const;
 
 	private:
-		// 5.3: Significantly better performance with atomics on MSVC. 
-		// However not all compilers currently support non-lockfree atomics.
-#if defined(_MSC_VER) 
-		/** The current parameters */
-		std::atomic<FPixelMapRenderElementParameters> Parameters;
+		/** The current color, readable from the game thread */
+		mutable FLinearColor ColorGameThread;
 
-		/** The current pixel color */
-		std::atomic<FLinearColor> Color;
-#else
+		/** Tripple buffered color data, useful to copy data to game thread without locking. */
+		mutable UE::DMX::Internal::TDMXPixelMappingTripleBufferedData<FLinearColor> ColorTipleBuffer;
+
+		/** Pointer to the color data that is currently safe to write for the producer */
+		FLinearColor* ProducerColorPtr = nullptr;
+
 		/** The current parameters */
 		FPixelMapRenderElementParameters Parameters;
 
-		/** The current pixel color */
-		FLinearColor Color;
-
 		/** Mutex acccess to parameters */
 		mutable FCriticalSection AccessParametersMutex;
-
-		/** Mutex acccess to parameters */
-		mutable FCriticalSection AccessColorMutex;
-#endif
 	};
 }
