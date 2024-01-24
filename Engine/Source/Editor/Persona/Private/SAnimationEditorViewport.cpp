@@ -2095,7 +2095,7 @@ void SAnimationEditorViewportTabBody::SetProcessRootMotionMode(EProcessRootMotio
 bool SAnimationEditorViewportTabBody::IsProcessRootMotionModeSet(EProcessRootMotionMode Mode) const
 {
 	const UDebugSkelMeshComponent* PreviewComponent = GetPreviewScene()->GetPreviewMeshComponent();
-	return PreviewComponent ? (PreviewComponent->GetProcessRootMotionMode() == Mode) : false;
+	return PreviewComponent ? (PreviewComponent->GetRequestedProcessRootMotionMode() == Mode) : false;
 }
 
 bool SAnimationEditorViewportTabBody::CanUseProcessRootMotionMode(EProcessRootMotionMode Mode) const

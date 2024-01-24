@@ -6,6 +6,9 @@
 
 
 #include "Animation/AnimSequence.h"
+#include "Animation/AnimMontage.h"
+#include "Animation/AnimComposite.h"
+#include "Animation/MirrorDataTable.h"
 #include "BonePose.h"
 
 #include "AnimationRuntime.h"
@@ -191,7 +194,68 @@ void CopyCurveDataToModel(const FRawCurveTracks& CurveData, const USkeleton* Ske
 		OutTransform.SetScale3D(DefaultScale3D);
 	}	
 }
+
+FTransform MirrorTransform(const FTransform& Transform, const UMirrorDataTable& MirrorDataTable)
+{
+	FVector T = Transform.GetTranslation();
+	T = FAnimationRuntime::MirrorVector(T, MirrorDataTable.MirrorAxis);
+
+	FQuat Q = Transform.GetRotation();
+	Q = FAnimationRuntime::MirrorQuat(Q, MirrorDataTable.MirrorAxis);
+
+	const FVector S = Transform.GetScale3D();
+	return FTransform(Q, T, S);
+}
+
+FTransform ExtractRootMotionFromAnimationAsset(const UAnimationAsset* Animation, const UMirrorDataTable* MirrorDataTable, float StartPosition, float EndPosition)
+{
+	FTransform Result = FTransform::Identity;
 	
+	if (const UAnimMontage* Montage = Cast<UAnimMontage>(Animation))
+	{
+		Result = Montage->ExtractRootMotionFromTrackRange(StartPosition, EndPosition);
+	}
+	else if (const UAnimComposite* AnimComposite = Cast<UAnimComposite>(Animation))
+	{
+		FRootMotionMovementParams RootMotion;
+		AnimComposite->ExtractRootMotionFromTrack(AnimComposite->AnimationTrack, StartPosition, EndPosition, RootMotion);
+		Result = RootMotion.GetRootMotionTransform();
+	}
+	else if (const UAnimSequence* AnimSequence = Cast<UAnimSequence>(Animation))
+	{
+		Result = AnimSequence->ExtractRootMotionFromRange(StartPosition, EndPosition);
+	}
+
+	if (MirrorDataTable)
+	{
+		Result =  MirrorTransform(Result, *MirrorDataTable);
+	}
+
+	return Result;
+}
+
+FTransform ExtractRootTransformFromAnimationAsset(const UAnimationAsset* Animation, float Time)
+{
+	FTransform Result = FTransform::Identity;
+	if (const UAnimMontage* AnimMontage = Cast<UAnimMontage>(Animation))
+	{
+		if (const FAnimSegment* Segment = AnimMontage->SlotAnimTracks[0].AnimTrack.GetSegmentAtTime(Time))
+		{
+			if (const UAnimSequence* AnimSequence = Cast<UAnimSequence>(Segment->GetAnimReference()))
+			{
+				const float AnimSequenceTime = Segment->ConvertTrackPosToAnimPos(Time);
+				Result = AnimSequence->ExtractRootTrackTransform(AnimSequenceTime, nullptr);
+			}	
+		}
+	}
+	else if (const UAnimSequence* AnimSequence = Cast<UAnimSequence>(Animation))
+	{
+		Result = AnimSequence->ExtractRootTrackTransform(Time, nullptr);
+	}
+
+	return Result;
+}
+
 Retargeting::FRetargetingScope::FRetargetingScope(const USkeleton* InSourceSkeleton, FCompactPose& ToRetargetPose, const DataModel::FEvaluationContext& InEvaluationContext)
 	: SourceSkeleton(InSourceSkeleton),
 	RetargetPose(ToRetargetPose),
