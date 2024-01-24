@@ -108,6 +108,7 @@ float ResurrectionFrameIndex;
 float PrevFrameIndex;
 uint bGenerateOutputMip1;
 uint bGenerateOutputMip2;
+uint bGenerateOutputMip3;
 uint bHasSeparateTranslucency;
 uint HistoryArrayIndices_HighFrequency;
 
@@ -315,7 +316,7 @@ T BilinearSampleColorHistory(Texture2D<T> Texture, float2 SampleUV)
 }
 #endif
 
-tsr_halfCx2 DownsampleSceneColor(tsr_halfCx2 SceneColor, uint LocalGroupThreadIndex, const uint XorButterFly)
+tsr_halfCx2 DownsampleSceneColor(tsr_halfCx2 SceneColor, uint LocalGroupThreadIndex, const uint2 XorButterFly)
 {
 	SceneColor = SceneColor * tsr_half(0.25);
 	// Forces the * tsr_half(0.25) to be applied before to avoid turning bright pixels to +inf in the adds below.
@@ -328,13 +329,70 @@ tsr_halfCx2 DownsampleSceneColor(tsr_halfCx2 SceneColor, uint LocalGroupThreadIn
 		SceneColor = dpv_min(SceneColor, ColorMax10BitsFloat);
 	#endif
 
-	#if PLATFORM_SUPPORTS_WAVE_BROADCAST && CONFIG_ENABLE_DUAL_PIXEL_VECTORIZATION
-	if (uint(XorButterFly * 4) <= WaveGetLaneCount())
+	#if PLATFORM_SUPPORTS_WAVE_BROADCAST
+	if (uint(XorButterFly.x * 2) <= WaveGetLaneCount())
 	{
-		FWaveBroadcastSettings Horizontal = InitWaveXorButterfly(XorButterFly * (XorButterFly * 0x1));
-		FWaveBroadcastSettings Vertical   = InitWaveXorButterfly(XorButterFly * (XorButterFly * 0x2));
-
+		FWaveBroadcastSettings Horizontal = InitWaveXorButterfly(XorButterFly.x);
 		SceneColor += WaveBroadcast(Horizontal, SceneColor);
+	}
+	else
+	#endif
+	{
+		#if CONFIG_SCENE_COLOR_ALPHA
+			SharedArray0[LocalGroupThreadIndex] = dpv_lo(SceneColor);
+			#if CONFIG_ENABLE_DUAL_PIXEL_VECTORIZATION
+				SharedArray1[LocalGroupThreadIndex] = dpv_hi(SceneColor);
+			#endif
+		#else
+			SharedArray0[LocalGroupThreadIndex] = tsr_half4(dpv_lo(SceneColor), 0.0);
+			#if CONFIG_ENABLE_DUAL_PIXEL_VECTORIZATION
+				SharedArray1[LocalGroupThreadIndex] = tsr_half4(dpv_hi(SceneColor), 0.0);
+			#endif
+		#endif
+		
+		#if PLATFORM_SUPPORTS_WAVE_BROADCAST
+			const bool bBarrier = XorButterFly.x * 0x2 > WaveGetLaneCount();
+		#else
+			const bool bBarrier = XorButterFly.x * 0x2 > 0x8;
+		#endif
+
+		if (bBarrier)
+		{
+			GroupMemoryBarrierWithGroupSync();
+		}
+		
+		uint OtherGroupThreadIndex = LocalGroupThreadIndex ^ (XorButterFly.x % GROUP_SHARED_SIZE);
+		tsr_halfCx2 OtherSceneColor;
+		#if CONFIG_SCENE_COLOR_ALPHA
+			#if CONFIG_ENABLE_DUAL_PIXEL_VECTORIZATION
+				OtherSceneColor = dpv_interleave_registers(SharedArray0[OtherGroupThreadIndex], SharedArray1[OtherGroupThreadIndex]);
+			#else
+				OtherSceneColor = dpv_interleave_mono_registers(SharedArray0[OtherGroupThreadIndex]);
+			#endif
+		#else
+			#if CONFIG_ENABLE_DUAL_PIXEL_VECTORIZATION
+				OtherSceneColor = dpv_interleave_registers(SharedArray0[OtherGroupThreadIndex].rgb, SharedArray1[OtherGroupThreadIndex].rgb);
+			#else
+				OtherSceneColor = dpv_interleave_mono_registers(SharedArray0[OtherGroupThreadIndex].rgb);
+			#endif
+		#endif
+		
+		if (bBarrier)
+		{
+			GroupMemoryBarrierWithGroupSync();
+		}
+		
+		SceneColor += OtherSceneColor;
+	}
+	
+	if (XorButterFly.y == 0x20 && CONFIG_ENABLE_DUAL_PIXEL_VECTORIZATION)
+	{
+		SceneColor = dpv_interleave_mono_registers(dpv_lo(SceneColor) + dpv_hi(SceneColor));
+	}
+	#if PLATFORM_SUPPORTS_WAVE_BROADCAST
+	else if (uint(XorButterFly.y * 2) <= WaveGetLaneCount())
+	{
+		FWaveBroadcastSettings Vertical = InitWaveXorButterfly(XorButterFly.y);
 		SceneColor += WaveBroadcast(Vertical, SceneColor);
 	}
 	else
@@ -352,59 +410,39 @@ tsr_halfCx2 DownsampleSceneColor(tsr_halfCx2 SceneColor, uint LocalGroupThreadIn
 			#endif
 		#endif
 		
-		if (XorButterFly * 0x2 <= 0x8)
-		{
-			// NOP
-		}
 		#if PLATFORM_SUPPORTS_WAVE_BROADCAST
-		else if (XorButterFly * 0x2 <= WaveGetLaneCount())
-		{
-			// NOP
-		}
+			const bool bBarrier = XorButterFly.y * 0x2 > WaveGetLaneCount();
+		#else
+			const bool bBarrier = XorButterFly.y * 0x2 > 0x8;
 		#endif
-		else
-		{
-			GroupMemoryBarrierWithGroupSync();
-		}
-
-		SharedArray0[LocalGroupThreadIndex] += SharedArray0[LocalGroupThreadIndex ^ (XorButterFly * 0x1)];
-		#if CONFIG_ENABLE_DUAL_PIXEL_VECTORIZATION
-			SharedArray1[LocalGroupThreadIndex] += SharedArray1[LocalGroupThreadIndex ^ (XorButterFly * 0x1)];
-		#endif
-			
-		if (XorButterFly * 0x4 <= 0x8)
-		{
-			// NOP
-		}
-		#if PLATFORM_SUPPORTS_WAVE_BROADCAST
-		else if (XorButterFly * 0x4 <= WaveGetLaneCount())
-		{
-			// NOP
-		}
-		#endif
-		else
+		
+		if (bBarrier)
 		{
 			GroupMemoryBarrierWithGroupSync();
 		}
 		
-		SharedArray0[LocalGroupThreadIndex] += SharedArray0[LocalGroupThreadIndex ^ (XorButterFly * 0x2)];
-		#if CONFIG_ENABLE_DUAL_PIXEL_VECTORIZATION
-			SharedArray1[LocalGroupThreadIndex] += SharedArray1[LocalGroupThreadIndex ^ (XorButterFly * 0x2)];
-		#endif
-					
+		uint OtherGroupThreadIndex = LocalGroupThreadIndex ^ (XorButterFly.y % GROUP_SHARED_SIZE);
+		tsr_halfCx2 OtherSceneColor;
 		#if CONFIG_SCENE_COLOR_ALPHA
 			#if CONFIG_ENABLE_DUAL_PIXEL_VECTORIZATION
-				SceneColor = dpv_interleave_registers(SharedArray0[LocalGroupThreadIndex], SharedArray1[LocalGroupThreadIndex]);
+				OtherSceneColor = dpv_interleave_registers(SharedArray0[OtherGroupThreadIndex], SharedArray1[OtherGroupThreadIndex]);
 			#else
-				SceneColor = dpv_interleave_mono_registers(SharedArray0[LocalGroupThreadIndex]);
+				OtherSceneColor = dpv_interleave_mono_registers(SharedArray0[OtherGroupThreadIndex]);
 			#endif
 		#else
 			#if CONFIG_ENABLE_DUAL_PIXEL_VECTORIZATION
-				SceneColor = dpv_interleave_registers(SharedArray0[LocalGroupThreadIndex].rgb, SharedArray1[LocalGroupThreadIndex].rgb);
+				OtherSceneColor = dpv_interleave_registers(SharedArray0[OtherGroupThreadIndex].rgb, SharedArray1[OtherGroupThreadIndex].rgb);
 			#else
-				SceneColor = dpv_interleave_mono_registers(SharedArray0[LocalGroupThreadIndex].rgb);
+				OtherSceneColor = dpv_interleave_mono_registers(SharedArray0[OtherGroupThreadIndex].rgb);
 			#endif
 		#endif
+		
+		if (bBarrier)
+		{
+			GroupMemoryBarrierWithGroupSync();
+		}
+		
+		SceneColor += OtherSceneColor;
 	}
 	return SceneColor;
 }
@@ -1088,14 +1126,22 @@ void MainCS(
 			tsr_short2x2 HalfResOutputPixelPos = dpv_interleave_mono_registers(tsr_short(-1).xx);
 
 			BRANCH
-			if (bGenerateOutputMip1 || bGenerateOutputMip2)
+			if (bGenerateOutputMip1 || bGenerateOutputMip2 || bGenerateOutputMip3)
 			{
-				HalfResOutput = DownsampleSceneColor(HalfResOutput, LocalGroupThreadIndex, /* XorButterFly = */ 0x1);
-
+				HalfResOutput = DownsampleSceneColor(HalfResOutput, LocalGroupThreadIndex, /* XorButterFly = */ uint2(0x01, 0x02));
+				
 				BRANCH
-				if (bGenerateOutputMip2)
+				if (bGenerateOutputMip3)
 				{
-					HalfResOutput = DownsampleSceneColor(HalfResOutput, LocalGroupThreadIndex, /* XorButterFly = */ 0x4);
+					HalfResOutput = DownsampleSceneColor(HalfResOutput, LocalGroupThreadIndex, /* XorButterFly = */ uint2(0x04, 0x10));
+					HalfResOutput = DownsampleSceneColor(HalfResOutput, LocalGroupThreadIndex, /* XorButterFly = */ uint2(0x08, 0x20));
+
+					HalfResOutputPixelPos[0] = (LocalHistoryPixelPos[0] >> tsr_short(3)) | (((LocalHistoryPixelPos[0] & tsr_short(0x7))) * tsr_short(~0));
+					HalfResOutputPixelPos[1] = (LocalHistoryPixelPos[1] >> tsr_short(3)) | (((LocalHistoryPixelPos[1] & tsr_short(0x7))) * tsr_short(~0));
+				}
+				else if (bGenerateOutputMip2)
+				{
+					HalfResOutput = DownsampleSceneColor(HalfResOutput, LocalGroupThreadIndex, /* XorButterFly = */ uint2(0x04, 0x10));
 
 					HalfResOutputPixelPos[0] = (LocalHistoryPixelPos[0] >> tsr_short(2)) | (((LocalHistoryPixelPos[0] & tsr_short(0x3))) * tsr_short(~0));
 					HalfResOutputPixelPos[1] = (LocalHistoryPixelPos[1] >> tsr_short(2)) | (((LocalHistoryPixelPos[1] & tsr_short(0x3))) * tsr_short(~0));

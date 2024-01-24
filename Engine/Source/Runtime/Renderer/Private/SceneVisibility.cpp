@@ -4684,11 +4684,13 @@ void FSceneRenderer::PrepareViewStateForVisibility(const FSceneTexturesConfig& S
 				// other random signal that are power of two of View.StateFrameIndex
 				if (TAAConfig == EMainTAAPassConfig::TSR)
 				{
-					static const int8 kFirstPrimeNumbers[25] = {
+					static const uint8 kFirstPrimeNumbers[] = {
 						2, 3, 5, 7, 11, 13, 17, 19, 23, 29, 31, 37, 41, 43, 47, 53, 59, 61, 67, 71, 73, 79, 83, 89, 97,
+						101, 103, 107, 109, 113, 127, 131, 137, 139, 149, 151, 157, 163, 167, 173, 179, 181, 191, 193, 197, 199,
+						211, 223, 227, 229, 233, 239, 241, 251,
 					};
 
-					for (int32 PrimeNumberId = 4; PrimeNumberId < UE_ARRAY_COUNT(kFirstPrimeNumbers); PrimeNumberId++)
+					for (int32 PrimeNumberId = FMath::Max(4, (TemporalAASamples - 1) / 5); PrimeNumberId < UE_ARRAY_COUNT(kFirstPrimeNumbers); PrimeNumberId++)
 					{
 						if (int32(kFirstPrimeNumbers[PrimeNumberId]) >= TemporalAASamples)
 						{

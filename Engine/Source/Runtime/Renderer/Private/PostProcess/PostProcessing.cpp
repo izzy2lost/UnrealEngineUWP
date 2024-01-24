@@ -193,11 +193,6 @@ bool IsPostProcessingEnabled(const FViewInfo& View)
 	}
 }
 
-bool IsPostProcessingQuarterResolutionDownsampleEnabled()
-{
-	return CVarPostProcessingQuarterResolutionDownsample.GetValueOnRenderThread() != 0;
-}
-
 bool IsPostProcessingWithAlphaChannelSupported()
 {
 	return CVarPostProcessingPropagateAlpha.GetValueOnAnyThread() != 0;
@@ -674,7 +669,8 @@ void AddPostProcessingPasses(
 		const bool bBasicEyeAdaptationEnabled = bEyeAdaptationEnabled && (AutoExposureMethod == EAutoExposureMethod::AEM_Basic);
 		const bool bLocalExposureBlurredLum = bLocalExposureEnabled && View.FinalPostProcessSettings.LocalExposureBlurredLuminanceBlend > 0.0f;
 
-		const bool bProcessQuarterResolution = IsPostProcessingQuarterResolutionDownsampleEnabled();
+		const bool bProcessQuarterResolution = CVarPostProcessingQuarterResolutionDownsample.GetValueOnRenderThread() == 1;
+		const bool bProcessEighthResolution = CVarPostProcessingQuarterResolutionDownsample.GetValueOnRenderThread() == 2;
 		const bool bMotionBlurNeedsHalfResInput = PassSequence.IsEnabled(EPass::MotionBlur) && DoesMotionBlurNeedsHalfResInput() && !bVisualizeMotionBlur;
 
 		const float FFTBloomResolutionFraction = GetFFTBloomResolutionFraction(PostTAAViewSize);
@@ -685,8 +681,9 @@ void AddPostProcessingPasses(
 			(bLensFlareEnabled && bFFTBloomEnabled) ||
 			bLocalExposureBlurredLum);
 		extern int32 GSSRHalfResSceneColor;
-		const bool bNeedBeforeBloomHalfRes    = !bProcessQuarterResolution || (bFFTBloomEnabled && FFTBloomResolutionFraction > 0.25f && FFTBloomResolutionFraction <= 0.5f) || (ReflectionsMethod == EReflectionsMethod::SSR && !View.bStatePrevViewInfoIsReadOnly && GSSRHalfResSceneColor);
-		const bool bNeedBeforeBloomQuarterRes = bProcessQuarterResolution || (bFFTBloomEnabled && FFTBloomResolutionFraction <= 0.25f);
+		const bool bNeedBeforeBloomHalfRes    = (!bProcessQuarterResolution && !bProcessEighthResolution) || (bFFTBloomEnabled && FFTBloomResolutionFraction > 0.25f && FFTBloomResolutionFraction <= 0.5f) || (ReflectionsMethod == EReflectionsMethod::SSR && !View.bStatePrevViewInfoIsReadOnly && GSSRHalfResSceneColor);
+		const bool bNeedBeforeBloomQuarterRes = bProcessQuarterResolution || (bFFTBloomEnabled && FFTBloomResolutionFraction > 0.125f && FFTBloomResolutionFraction <= 0.25f);
+		const bool bNeedBeforeBloomEighthRes  = bProcessEighthResolution || (bFFTBloomEnabled && FFTBloomResolutionFraction <= 0.125f);
 
 
 		const FPostProcessMaterialChain MaterialChainSceneColorBeforeDOF = GetPostProcessMaterialChain(View, BL_SceneColorBeforeDOF);
@@ -781,6 +778,7 @@ void AddPostProcessingPasses(
 
 		FScreenPassTextureSlice HalfResSceneColor;
 		FScreenPassTextureSlice QuarterResSceneColor;
+		FScreenPassTextureSlice EighthResSceneColor;
 		FVelocityFlattenTextures VelocityFlattenTextures;
 		if (TAAConfig != EMainTAAPassConfig::Disabled)
 		{
@@ -812,6 +810,10 @@ void AddPostProcessingPasses(
 
 				UpscalerPassInputs.bGenerateSceneColorQuarterRes =
 					bNeedBeforeBloomQuarterRes &&
+					DownsampleQuality == EDownsampleQuality::Low;
+
+				UpscalerPassInputs.bGenerateSceneColorEighthRes =
+					bNeedBeforeBloomEighthRes &&
 					DownsampleQuality == EDownsampleQuality::Low;
 			}
 			UpscalerPassInputs.bAllowFullResSlice = PassSequence.IsEnabled(EPass::MotionBlur) || PassSequence.IsEnabled(EPass::Tonemap);
@@ -850,6 +852,7 @@ void AddPostProcessingPasses(
 			SceneColorSlice = Outputs.FullRes;
 			HalfResSceneColor = Outputs.HalfRes;
 			QuarterResSceneColor = Outputs.QuarterRes;
+			EighthResSceneColor = Outputs.EighthRes;
 			VelocityFlattenTextures = Outputs.VelocityFlattenTextures;
 
 			if (PassSequence.IsEnabled(EPass::VisualizeTemporalUpscaler))
@@ -922,7 +925,7 @@ void AddPostProcessingPasses(
 			FMotionBlurInputs PassInputs;
 			PassSequence.AcceptOverrideIfLastPass(EPass::MotionBlur, PassInputs.OverrideOutput);
 			PassInputs.bOutputHalfRes = PostProcessMaterialBeforeBloomChain.Num() == 0 && bNeedBeforeBloomHalfRes && DownsampleQuality == EDownsampleQuality::Low;
-			PassInputs.bOutputQuarterRes = bNeedBeforeBloomQuarterRes && DownsampleQuality == EDownsampleQuality::Low;
+			PassInputs.bOutputQuarterRes = (bNeedBeforeBloomQuarterRes || bNeedBeforeBloomEighthRes) && DownsampleQuality == EDownsampleQuality::Low;
 			PassInputs.SceneColor = SceneColorSlice;
 			PassInputs.SceneDepth = SceneDepth;
 			PassInputs.SceneVelocity = Velocity;
@@ -965,6 +968,7 @@ void AddPostProcessingPasses(
 			{
 				HalfResSceneColor = FScreenPassTextureSlice();
 				QuarterResSceneColor = FScreenPassTextureSlice();
+				EighthResSceneColor = FScreenPassTextureSlice();
 			}
 
 			SceneColorSlice = NewSceneColorSlice;
@@ -983,7 +987,8 @@ void AddPostProcessingPasses(
 		// Generate before bloom lower res scene color if they have not been generated.
 		{
 			if ((bNeedBeforeBloomHalfRes && !HalfResSceneColor.IsValid()) ||
-				(bNeedBeforeBloomQuarterRes && !QuarterResSceneColor.IsValid() && !HalfResSceneColor.IsValid()))
+				(bNeedBeforeBloomQuarterRes && !QuarterResSceneColor.IsValid() && !HalfResSceneColor.IsValid()) ||
+				(bNeedBeforeBloomEighthRes && !EighthResSceneColor.IsValid() && !QuarterResSceneColor.IsValid() && !HalfResSceneColor.IsValid()))
 			{
 				FDownsamplePassInputs PassInputs;
 				PassInputs.Name = TEXT("PostProcessing.SceneColor.HalfRes");
@@ -994,7 +999,8 @@ void AddPostProcessingPasses(
 				HalfResSceneColor = FScreenPassTextureSlice::CreateFromScreenPassTexture(GraphBuilder, AddDownsamplePass(GraphBuilder, View, PassInputs));
 			}
 
-			if (bNeedBeforeBloomQuarterRes && !QuarterResSceneColor.IsValid())
+			if ((bNeedBeforeBloomQuarterRes && !QuarterResSceneColor.IsValid()) ||
+				(bNeedBeforeBloomEighthRes && !EighthResSceneColor.IsValid() && !QuarterResSceneColor.IsValid()))
 			{
 				FDownsamplePassInputs PassInputs;
 				PassInputs.Name = TEXT("PostProcessing.SceneColor.QuarterRes");
@@ -1002,6 +1008,16 @@ void AddPostProcessingPasses(
 				PassInputs.Quality = DownsampleQuality;
 
 				QuarterResSceneColor = FScreenPassTextureSlice::CreateFromScreenPassTexture(GraphBuilder, AddDownsamplePass(GraphBuilder, View, PassInputs));
+			}
+
+			if (bNeedBeforeBloomEighthRes && !EighthResSceneColor.IsValid())
+			{
+				FDownsamplePassInputs PassInputs;
+				PassInputs.Name = TEXT("PostProcessing.SceneColor.EighthRes");
+				PassInputs.SceneColor = QuarterResSceneColor;
+				PassInputs.Quality = DownsampleQuality;
+
+				EighthResSceneColor = FScreenPassTextureSlice::CreateFromScreenPassTexture(GraphBuilder, AddDownsamplePass(GraphBuilder, View, PassInputs));
 			}
 		}
 
@@ -1015,7 +1031,7 @@ void AddPostProcessingPasses(
 		}
 
 		{
-			FScreenPassTextureSlice LocalExposureSceneColor = bProcessQuarterResolution ? QuarterResSceneColor : HalfResSceneColor;
+			FScreenPassTextureSlice LocalExposureSceneColor = bProcessEighthResolution ? EighthResSceneColor : (bProcessQuarterResolution ? QuarterResSceneColor : HalfResSceneColor);
 
 			if (bLocalExposureEnabled)
 			{
@@ -1030,7 +1046,7 @@ void AddPostProcessingPasses(
 
 		if (bHistogramEnabled)
 		{
-			FScreenPassTextureSlice HistogramSceneColor = bProcessQuarterResolution ? QuarterResSceneColor : HalfResSceneColor;
+			FScreenPassTextureSlice HistogramSceneColor = bProcessEighthResolution ? EighthResSceneColor : (bProcessQuarterResolution ? QuarterResSceneColor : HalfResSceneColor);
 
 			if (IsAutoExposureUsingIlluminanceEnabled(View))
 			{
@@ -1061,14 +1077,14 @@ void AddPostProcessingPasses(
 			SceneDownsampleChain.Init(
 				GraphBuilder, View,
 				EyeAdaptationParameters,
-				bProcessQuarterResolution ? QuarterResSceneColor : HalfResSceneColor,
+				bProcessEighthResolution ? EighthResSceneColor : (bProcessQuarterResolution ? QuarterResSceneColor : HalfResSceneColor),
 				DownsampleChainQuality,
 				bLogLumaInAlpha);
 		}
 
 		if (bLocalExposureBlurredLum)
 		{
-			const uint32 BlurredLumMip = bProcessQuarterResolution ? 3 : 4;
+			const uint32 BlurredLumMip = bProcessEighthResolution ? 2 : (bProcessQuarterResolution ? 3 : 4);
 			LocalExposureBlurredLogLumTexture = AddLocalExposureBlurredLogLuminancePass(
 				GraphBuilder, View,
 				EyeAdaptationParameters, SceneDownsampleChain.GetTexture(BlurredLumMip));
@@ -1111,7 +1127,12 @@ void AddPostProcessingPasses(
 				float InputResolutionFraction;
 				FScreenPassTextureSlice InputSceneColor;
 
-				if (FFTBloomResolutionFraction <= 0.25f)
+				if (FFTBloomResolutionFraction <= 0.125f)
+				{
+					InputSceneColor = EighthResSceneColor;
+					InputResolutionFraction = 0.125f;
+				}
+				else if (FFTBloomResolutionFraction <= 0.25f)
 				{
 					InputSceneColor = QuarterResSceneColor;
 					InputResolutionFraction = 0.25f;
@@ -1152,7 +1173,7 @@ void AddPostProcessingPasses(
 				}
 				else
 				{
-					FScreenPassTextureSlice DownsampleInput = bProcessQuarterResolution ? QuarterResSceneColor : HalfResSceneColor;
+					FScreenPassTextureSlice DownsampleInput = bProcessEighthResolution ? EighthResSceneColor : (bProcessQuarterResolution ? QuarterResSceneColor : HalfResSceneColor);
 
 					if (bBloomSetupRequiredEnabled)
 					{

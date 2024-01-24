@@ -193,6 +193,7 @@ struct FDefaultTemporalUpscaler
 		bool bAllowFullResSlice = false;
 		bool bGenerateSceneColorHalfRes = false;
 		bool bGenerateSceneColorQuarterRes = false;
+		bool bGenerateSceneColorEighthRes = false;
 		bool bGenerateOutputMip1 = false;
 		bool bGenerateVelocityFlattenTextures = false;
 		EPixelFormat DownsampleOverrideFormat;
@@ -208,6 +209,7 @@ struct FDefaultTemporalUpscaler
 		FScreenPassTextureSlice FullRes;
 		FScreenPassTextureSlice HalfRes;
 		FScreenPassTextureSlice QuarterRes;
+		FScreenPassTextureSlice EighthRes;
 		FVelocityFlattenTextures VelocityFlattenTextures;
 	};
 };
