@@ -100,7 +100,7 @@ struct FNewParticle
 	/** Random selection of orbit attributes. */
 	float RandomOrbit;
 	/** The offset at which to inject the new particle. */
-	FVector2f Offset;
+	FVector3f Offset;
 };
 
 
@@ -131,6 +131,8 @@ public:
 	FRHITexture2D* AttributesTextureRHI;
 	/** LWC tile offset, will be 0,0,0 for localspace emitters. */
 	FVector3f LWCTile;
+	/** Tile page offset factors associated with the GPU particle simulation resources. */
+	FVector3f TilePageScale;
 
 	FGPUSpriteVertexFactory()
 		: FParticleVertexFactoryBase(PVFT_MAX, ERHIFeatureLevel::Num)
@@ -139,6 +141,7 @@ public:
 		, VelocityTextureRHI(nullptr)
 		, AttributesTextureRHI(nullptr)
 		, LWCTile(FVector3f::ZeroVector)
+		, TilePageScale(FVector3f::OneVector)
 	{}
 
 	/**
@@ -320,7 +323,7 @@ private:
 	/**
 	 * Prepares GPU particles for simulation and rendering in the next frame.
 	 */
-	void AdvanceGPUParticleFrame(bool bAllowGPUParticleUpdate);
+	void AdvanceGPUParticleFrame(FRHICommandListImmediate& RHICmdList, bool bAllowGPUParticleUpdate);
 
 	bool UsesGlobalDistanceFieldInternal() const;
 	bool UsesDepthBufferInternal() const;
