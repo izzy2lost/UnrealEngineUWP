@@ -116,6 +116,8 @@ void UAddPrimitiveTool::Setup()
 	AddToolPropertySource(OutputTypeProperties);
 
 	AddToolPropertySource(ShapeSettings);
+	
+	ShapeSettings->WatchProperty(ShapeSettings->TargetSurface, [this](EMakeMeshPlacementType){UpdateTargetSurface();});
 	ShapeSettings->RestoreProperties(this);
 
 	MaterialProperties = NewObject<UNewMeshMaterialProperties>(this);
@@ -147,7 +149,6 @@ void UAddPrimitiveTool::Setup()
 	DragAlignmentMechanic->AddToGizmo(Gizmo);
 
 	UpdatePreviewMesh();
-
 	SetState(EState::PlacingPrimitive);
 }
 
@@ -277,7 +278,7 @@ void UAddPrimitiveTool::UpdatePreviewPosition(const FInputDeviceRay& DeviceClick
 		bHit = true;
 		ShapeFrame = FFrame3d(DrawPlanePos);
 	}
-	else
+	else if (ShapeSettings->TargetSurface == EMakeMeshPlacementType::OnScene)
 	{
 		// cast ray into scene
 		FHitResult Result;
@@ -299,6 +300,11 @@ void UAddPrimitiveTool::UpdatePreviewPosition(const FInputDeviceRay& DeviceClick
 			bHit = true;
 			ShapeFrame = FFrame3d(DrawPlanePos);
 		}
+	}
+	else
+	{
+		bHit = true;
+		ShapeFrame = FFrame3d();
 	}
 
 	// Snap to grid
@@ -373,6 +379,24 @@ void UAddPrimitiveTool::UpdatePreviewMesh() const
 	const bool CalculateTangentsSuccessful = PreviewMesh->CalculateTangents();
 	checkSlow(CalculateTangentsSuccessful);
 }
+
+void UAddPrimitiveTool::UpdateTargetSurface()
+{
+	if (ShapeSettings->TargetSurface == EMakeMeshPlacementType::AtOrigin)
+	{
+		// default ray is used as coordinates will not be needed to set position at origin
+		const FInputDeviceRay DefaultRay = FInputDeviceRay();
+		UpdatePreviewPosition(DefaultRay);
+
+		SetState(EState::AdjustingSettings);
+		GetToolManager()->EmitObjectChange(this, MakeUnique<FStateChange>(PreviewMesh->GetTransform()),
+				LOCTEXT("PlaceMeshTransaction", "Place Mesh"));
+	} else
+	{
+		SetState(EState::PlacingPrimitive);
+	}
+}
+
 
 
 bool UAddPrimitiveTool::SupportsWorldSpaceFocusBox()
