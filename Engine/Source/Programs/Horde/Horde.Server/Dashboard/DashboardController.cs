@@ -155,7 +155,7 @@ namespace Horde.Server.Dashboard
 
 				foreach (TelemetryVariableConfig variable in telemetry.Variables)
 				{
-					rview.Variables.Add(new GetTelemetryVariableResponse { Name = variable.Name, Group = variable.Group });
+					rview.Variables.Add(new GetTelemetryVariableResponse { Name = variable.Name, Group = variable.Group, Defaults = variable.Defaults });
 				}
 
 				foreach (TelemetryCategoryConfig category in telemetry.Categories)
