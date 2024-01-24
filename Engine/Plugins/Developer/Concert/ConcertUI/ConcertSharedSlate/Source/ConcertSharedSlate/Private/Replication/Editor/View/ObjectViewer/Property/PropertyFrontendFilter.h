@@ -26,7 +26,7 @@ namespace UE::ConcertSharedSlate
 		virtual FText GetToolTipText() const override { return Tooltip; }
 		virtual FLinearColor GetColor() const override { return FLinearColor(0.6f, 0.6f, 0.6f, 0.6f); }
 		virtual FName GetIconName() const override { return NAME_None; }
-		virtual bool IsInverseFilter() const override { return true; }
+		virtual bool IsInverseFilter() const override { return false; }
 		virtual void ActiveStateChanged(bool bActive) override {}
 		virtual void ModifyContextMenu(FMenuBuilder& MenuBuilder) override {}
 		virtual void SaveSettings(const FString& IniFilename, const FString& IniSection, const FString& SettingsString) const override {}

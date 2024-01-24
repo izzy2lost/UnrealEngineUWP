@@ -22,13 +22,11 @@ namespace UE::ConcertSharedSlate
 	class FPropertyFilterBase : public IFilter<const FReplicatedPropertyData&>
 	{
 	public:
-
-
+		
 		//~ Begin IFilter Interface
 		virtual bool PassesFilter(const FReplicatedPropertyData& InItem) const final override
 		{
-			// If the property matches our filter criteria, it should NOT be shown in the UI since we're an inverse filter, so negate.
-			return !MatchesFilteredForProperty(InItem);
+			return MatchesFilteredForProperty(InItem);
 		}
 		virtual FChangedEvent& OnChanged() final override { return ChangedEventDelegate; }
 		//~ End IFilter Interface
