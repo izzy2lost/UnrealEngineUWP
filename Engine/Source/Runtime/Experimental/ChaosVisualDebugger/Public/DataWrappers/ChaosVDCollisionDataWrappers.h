@@ -401,13 +401,13 @@ struct CHAOSVDRUNTIME_API FChaosVDCollisionFilterData
 	GENERATED_BODY()
 
 	UPROPERTY(VisibleAnywhere, Category=CollisionData)
-	uint32 Word0;
+	uint32 Word0 = 0;
 	UPROPERTY(VisibleAnywhere, Category=CollisionData)
-	uint32 Word1;
+	uint32 Word1 = 0;
 	UPROPERTY(VisibleAnywhere, Category=CollisionData)
-	uint32 Word2;
+	uint32 Word2 = 0;
 	UPROPERTY(VisibleAnywhere, Category=CollisionData)
-	uint32 Word3;
+	uint32 Word3 = 0;
 
 	bool Serialize(FArchive& Ar);
 };

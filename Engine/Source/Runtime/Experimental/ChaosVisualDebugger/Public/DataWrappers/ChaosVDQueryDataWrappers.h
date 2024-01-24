@@ -211,10 +211,10 @@ struct FChaosVDQueryFastData : public FChaosVDWrapperDataBase
 	FVector InvDir = FVector::ZeroVector;
 	
 	UPROPERTY(VisibleAnywhere, Category=QueryFastData)
-	float CurrentLength = 0.0f;
+	double CurrentLength = 0.0;
 
 	UPROPERTY(VisibleAnywhere, Category=QueryFastData)
-	float InvCurrentLength = 0.0f;
+	double InvCurrentLength = 0.0;
 
 	UPROPERTY(VisibleAnywhere, Category=QueryFastData)
 	bool bParallel0 = false;
@@ -374,7 +374,7 @@ struct FChaosVDQueryDataWrapper
 	uint32 InputGeometryKey = 0;
 
 	UPROPERTY(VisibleAnywhere, Category=RecordedQueryData)
-	FQuat GeometryOrientation;
+	FQuat GeometryOrientation = FQuat::Identity;
 
 	UPROPERTY(VisibleAnywhere, Category=RecordedQueryData)
 	EChaosVDSceneQueryType Type = EChaosVDSceneQueryType::Invalid;

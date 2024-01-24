@@ -2,8 +2,8 @@
 
 #include "Visualizers/ChaosVDSceneQueryDataComponentVisualizer.h"
 
-#include <Actors/ChaosVDSceneQueryDataContainer.h>
-#include <Components/ChaosVDSceneQueryDataComponent.h>
+#include "Actors/ChaosVDSceneQueryDataContainer.h"
+#include "Components/ChaosVDSceneQueryDataComponent.h"
 
 #include "ChaosVDEditorSettings.h"
 #include "ChaosVDGeometryBuilder.h"
