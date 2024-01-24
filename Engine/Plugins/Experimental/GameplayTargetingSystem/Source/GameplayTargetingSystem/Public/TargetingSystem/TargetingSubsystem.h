@@ -191,7 +191,7 @@ private:
 public:
 	/** Returns the targeting source context for the targeting request handle */
 	UFUNCTION(BlueprintCallable, Category = "Targeting System | Targeting Types")
-	FTargetingSourceContext GetTargetingSourceContext(FTargetingRequestHandle TargetingHandle) const;
+	TARGETINGSYSTEM_API FTargetingSourceContext GetTargetingSourceContext(FTargetingRequestHandle TargetingHandle) const;
 
 	/** Method to get the actor targets from a given targeting request handle */
 	UFUNCTION(BlueprintCallable, Category = "Targeting System | Targeting Results")
