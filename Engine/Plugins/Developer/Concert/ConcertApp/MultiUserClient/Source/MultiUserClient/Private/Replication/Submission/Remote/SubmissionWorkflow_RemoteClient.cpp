@@ -238,7 +238,7 @@ namespace UE::MultiUserClient
 	{
 		FSingleClientSubmissionOperation& Operation = GetOperation();
 		const bool bIsStreamChangeDone = Operation.HasSetStreamPromise() || InProgressOperation->Parameters.StreamRequest->IsEmpty();
-		const bool bIsAuthorityChangeDone = Operation.HasSetAuthorityRequestPromise() || InProgressOperation->Parameters.AuthorityRequest->IsEmpty();
+		const bool bIsAuthorityChangeDone = Operation.HasSetAuthorityResponsePromise() || InProgressOperation->Parameters.AuthorityRequest->IsEmpty();
 		if (bIsStreamChangeDone && bIsAuthorityChangeDone)
 		{
 			CleanUpSubmissionProcess();
