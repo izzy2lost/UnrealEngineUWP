@@ -9,6 +9,7 @@ Name | Type | Description
 `id` | `string` | Identifier for the stream
 `path` | `string` | Direct include path for the stream config. For backwards compatibility with old config files when including from a ProjectConfig object.
 `include` | [`ConfigInclude`](#configinclude)`[]` | Includes for other configuration files
+`macros` | [`ConfigMacro`](#configmacro)`[]` | Macros within this stream
 `name` | `string` | Name of the stream
 `clusterName` | `string` | The perforce cluster containing the stream
 `order` | `integer` | Order for this stream
@@ -29,9 +30,7 @@ Name | Type | Description
 `acl` | [`AclConfig`](#aclconfig) | Custom permissions for this object
 `pausedUntil` | `string` | Pause stream builds until specified date
 `pauseComment` | `string` | Reason for pausing builds of the stream
-`replicationMode` | [`ContentReplicationMode`](#contentreplicationmode-enum) | How to replicate data from VCS to Horde Storage.
-`replicationFilter` | `string` | Filter for paths to be replicated to storage, as a Perforce wildcard relative to the root of the workspace.
-`replicationStream` | `string` | Stream to use for replication, if different to the default.
+`replicators` | [`ReplicatorConfig`](#replicatorconfig)`[]` | Configuration for workers to replicate commit data into Horde Storage.
 `workflows` | [`WorkflowConfig`](#workflowconfig)`[]` | Workflows for dealing with new issues
 `tokens` | [`TokenConfig`](#tokenconfig)`[]` | Tokens to create for each job step
 
@@ -42,6 +41,15 @@ Directive to merge config data from another source
 Name | Type | Description
 ---- | ---- | -----------
 `path` | `string` | Path to the config data to be included. May be relative to the including file's location.
+
+## ConfigMacro
+
+Declares a config macro
+
+Name | Type | Description
+---- | ---- | -----------
+`name` | `string` | Name of the macro property
+`value` | `string` | Value for the macro property
 
 ## JobOptions
 
@@ -55,8 +63,8 @@ Name | Type | Description
 `useWine` | `boolean` | Whether to execute using Wine emulation on Linux
 `runInSeparateProcess` | `boolean` | Executes the job lease in a separate process
 `workspaceMaterializer` | `string` | What workspace materializer to use in WorkspaceExecutor. Will override any value from workspace config.
-`collectIbMonFilesAsArtifacts` | `boolean` | Whether to search for and save any *.ib_mon files from Incredibuild after a job step
 `container` | [`JobContainerOptions`](#jobcontaineroptions) | Options for executing a job inside a container
+`bundleVersion` | `integer` | Version to use when writing bundles
 
 ## JobContainerOptions
 
@@ -151,6 +159,7 @@ Mapping from a BuildGraph agent type to a set of machines on the farm
 
 Name | Type | Description
 ---- | ---- | -----------
+`base` | `string` | Base agent config to inherit settings from
 `pool` | `string` | Pool of agents to use for this agent type
 `workspace` | `string` | Name of the workspace to sync
 `tempStorageDir` | `string` | Path to the temporary storage dir
@@ -174,6 +183,7 @@ Information about a workspace type
 
 Name | Type | Description
 ---- | ---- | -----------
+`base` | `string` | Base workspace to derive from
 `cluster` | `string` | Name of the Perforce server cluster to use
 `serverAndPort` | `string` | The Perforce server and port (eg. perforce:1666)
 `userName` | `string` | User to log into Perforce with (defaults to buildmachine)
@@ -193,6 +203,7 @@ Parameters to create a template within a stream
 Name | Type | Description
 ---- | ---- | -----------
 `id` | `string` | Optional identifier for this ref. If not specified, an id will be generated from the name.
+`base` | `string` | Base template id to copy from
 `showUgsBadges` | `boolean` | Whether to show badges in UGS for these jobs
 `showUgsAlerts` | `boolean` | Whether to show alerts in UGS for these jobs
 `notificationChannel` | `string` | Notification channel for this template. Overrides the stream channel if set.
@@ -408,15 +419,16 @@ Name | Type | Description
 `default` | `boolean` | Whether this argument is enabled by default
 `toolTip` | `string` | Tool tip text to display
 
-## ContentReplicationMode (Enum)
+## ReplicatorConfig
 
-How to replicate data for this stream
+Configuration for a stream replicator
 
-Name | Description
----- | -----------
-`None` | No content will be replicated for this stream
-`RevisionsOnly` | Only replicate depot path and revision data for each file
-`Full` | Replicate full stream contents to storage
+Name | Type | Description
+---- | ---- | -----------
+`id` | `string` | Identifier for the replicator within the current stream
+`enabled` | `boolean` | Whether the replicator is enabled
+`minChange` | `integer` | Minimum change number to replicate
+`maxChange` | `integer` | Maximum change number to replicate
 
 ## WorkflowConfig
 
@@ -440,8 +452,10 @@ Name | Type | Description
 `maxMentions` | `integer` | Maximum number of people to mention on a triage thread
 `allowMentions` | `boolean` | Whether to mention people on this thread. Useful to disable for testing.
 `inviteRestrictedUsers` | `boolean` | Uses the admin.conversations.invite API to invite users to the channel
+`skipWhenEmpty` | `boolean` | Skips sending reports when there are no active issues.
 `annotations` | `string` `->` `string` | Additional node annotations implicit in this workflow
 `externalIssues` | [`ExternalIssueConfig`](#externalissueconfig) | External issue tracking configuration for this workflow
+`issueHandlers` | `string[]` | Additional issue handlers enabled for this workflow
 
 ## ExternalIssueConfig
 

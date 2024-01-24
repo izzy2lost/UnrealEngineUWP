@@ -9,6 +9,7 @@ Name | Type | Description
 `serverProfiles` | [`ServerProfile`](#serverprofile)`[]` | Known servers to connect to
 `server` | `string` | The default server, unless overridden from the command line
 `name` | `string` | Name of agent to report as when connecting to server. By default, the computer's hostname will be used.
+`ephemeral` | `boolean` | Whether agent should register as being ephemeral. Doing so will not persist any long-lived data on the server and once disconnected it's assumed to have been deleted permanently. Ideal for short-lived agents, such as spot instances on AWS EC2.
 `executor` | `string` | The executor to use for jobs. Defaults to the Perforce executor.
 `localExecutor` | [`LocalExecutorSettings`](#localexecutorsettings) | Settings for the local executor
 `perforceExecutor` | [`PerforceExecutorSettings`](#perforceexecutorsettings) | Settings for the perforce executor
@@ -17,12 +18,16 @@ Name | Type | Description
 `shares` | [`MountNetworkShare`](#mountnetworkshare)`[]` | List of network shares to mount
 `processNamesToTerminate` | `string[]` | List of process names to terminate after a job
 `processesToTerminate` | [`ProcessToTerminate`](#processtoterminate)`[]` | List of process names to terminate after a lease completes, but not after a job step
-`wineExecutablePath` | `string` | Path to Wine executable. Set to null to disable.
+`wineExecutablePath` | `string` | Path to Wine executable. If null, execution under Wine is disabled
+`containerEngineExecutablePath` | `string` | Path to container engine executable, such as /usr/bin/podman. If null, execution of compute workloads inside a container is disabled
 `writeStepOutputToLogger` | `boolean` | Whether to write step output to the logging device
 `enableAwsEc2Support` | `boolean` | Queries information about the current agent through the AWS EC2 interface
 `useLocalStorageClient` | `boolean` | Option to use a local storage client rather than connecting through the server. Primarily for convenience when debugging / iterating locally.
 `computePort` | `integer` | Incoming port for listening for compute work. Needs to be tied with a lease.
+`enableTelemetry` | `boolean` | Whether to send telemetry back to Horde server
 `telemetryReportInterval` | `integer` | How often to report telemetry events to server in milliseconds
+`bundleCacheDir` | `string` | Directory to use for caching bundles
+`bundleCacheSize` | `integer` | Maximum size of the bundle cache, in megabytes.
 `properties` | `string` `->` `string` | Key/value properties in addition to those set internally by the agent
 
 ## ServerProfile

@@ -7,6 +7,7 @@ Global configuration
 Name | Type | Description
 ---- | ---- | -----------
 `include` | [`ConfigInclude`](#configinclude)`[]` | Other paths to include
+`macros` | [`ConfigMacro`](#configmacro)`[]` | Macros within the global scope
 `dashboard` | [`DashboardConfig`](#dashboardconfig) | Settings for the dashboard
 `projects` | [`ProjectConfig`](Config/Schema/Projects.md)`[]` | List of projects
 `pools` | [`PoolConfig`](#poolconfig)`[]` | List of pools
@@ -14,6 +15,7 @@ Name | Type | Description
 `perforceClusters` | [`PerforceCluster`](#perforcecluster)`[]` | List of Perforce clusters
 `software` | [`AgentSoftwareConfig`](#agentsoftwareconfig)`[]` | List of costs of a particular agent type
 `rates` | [`AgentRateConfig`](#agentrateconfig)`[]` | List of costs of a particular agent type
+`networks` | [`NetworkConfig`](#networkconfig)`[]` | List of networks
 `compute` | [`ComputeClusterConfig`](#computeclusterconfig)`[]` | List of compute profiles
 `secrets` | [`SecretConfig`](#secretconfig)`[]` | List of secrets
 `devices` | [`DeviceConfig`](#deviceconfig) | Device configuration
@@ -22,6 +24,7 @@ Name | Type | Description
 `agentShutdownIfDisabledGracePeriod` | `string` | Time to wait before shutting down an agent that has been disabled Used if no value is set on the actual pool.
 `storage` | [`StorageConfig`](#storageconfig) | Storage configuration
 `artifactTypes` | [`ArtifactTypeConfig`](#artifacttypeconfig)`[]` | Configuration for different artifact types
+`telemetry` | [`TelemetryConfig`](#telemetryconfig) | Metrics to aggregate on the Horde server
 `acl` | [`AclConfig`](#aclconfig) | Access control list
 
 ## ConfigInclude
@@ -32,9 +35,18 @@ Name | Type | Description
 ---- | ---- | -----------
 `path` | `string` | Path to the config data to be included. May be relative to the including file's location.
 
+## ConfigMacro
+
+Declares a config macro
+
+Name | Type | Description
+---- | ---- | -----------
+`name` | `string` | Name of the macro property
+`value` | `string` | Value for the macro property
+
 ## DashboardConfig
 
-Configuration for global features
+Configuration for dashboard features
 
 Name | Type | Description
 ---- | ---- | -----------
@@ -44,6 +56,89 @@ Name | Type | Description
 `showPerforceServers` | `boolean` | Show the Perforce server option on the server menu
 `showDeviceManager` | `boolean` | Show the device manager on the server menu
 `showTests` | `boolean` | Show automated tests on the server menu
+`agentCategories` | [`DashboardAgentCategoryConfig`](#dashboardagentcategoryconfig)`[]` | Configuration for different agent pages
+`telemetry` | [`TelemetryViewConfig`](#telemetryviewconfig)`[]` | Configuration for telemetry views
+`include` | [`ConfigInclude`](#configinclude)`[]` | Includes for other configuration files
+
+## DashboardAgentCategoryConfig
+
+Configuration for a category of agents
+
+Name | Type | Description
+---- | ---- | -----------
+`name` | `string` | Name of the category
+`condition` | `string` | Condition string to be evaluated for this page
+
+## TelemetryViewConfig
+
+A telemetry view of related metrics, divided into categofies
+
+Name | Type | Description
+---- | ---- | -----------
+`id` | `string` | Identifier for the view
+`name` | `string` | The name of the view
+`variables` | [`TelemetryVariableConfig`](#telemetryvariableconfig)`[]` | The variables used to filter the view data
+`categories` | [`TelemetryCategoryConfig`](#telemetrycategoryconfig)`[]` | The categories contained within the view
+
+## TelemetryVariableConfig
+
+A telemetry view variable used for filtering the charting data
+
+Name | Type | Description
+---- | ---- | -----------
+`name` | `string` | The name of the variable for display purposes
+`group` | `string` | The associated data group attached to the variable
+`defaults` | `string[]` | The default values to select
+
+## TelemetryCategoryConfig
+
+A chart categody, will be displayed on the dashbord under an associated pivot
+
+Name | Type | Description
+---- | ---- | -----------
+`name` | `string` | The name of the category
+`charts` | [`TelemetryChartConfig`](#telemetrychartconfig)`[]` | The charts contained within the category
+
+## TelemetryChartConfig
+
+Telemetry chart configuraton
+
+Name | Type | Description
+---- | ---- | -----------
+`name` | `string` | The name of the chart, will be displayed on the dashboard
+`display` | [`TelemetryMetricUnitType`](#telemetrymetricunittype-enum) | The unit to display
+`graph` | [`TelemetryMetricGraphType`](#telemetrymetricgraphtype-enum) | The graph type
+`metrics` | [`TelemetryChartMetricConfig`](#telemetrychartmetricconfig)`[]` | List of configured metrics
+`max` | `integer` | The max unit value for clamping chart
+
+## TelemetryMetricUnitType (Enum)
+
+The units used to present the telemetry
+
+Name | Description
+---- | -----------
+`Time` | Time duration
+`Ratio` | Ratio 0-100%
+`Value` | Artbitrary numeric value
+
+## TelemetryMetricGraphType (Enum)
+
+The type of
+
+Name | Description
+---- | -----------
+`Line` | A line graph
+`Indicator` | Key performance indicator (KPI) chart with thrasholds
+
+## TelemetryChartMetricConfig
+
+Metric attached to a telemetry chart
+
+Name | Type | Description
+---- | ---- | -----------
+`id` | `string` | Associated metric id
+`threshold` | `integer` | The threshold for KPI values
+`alias` | `string` | The metric alias for display purposes
 
 ## PoolConfig
 
@@ -52,50 +147,38 @@ Mutable configuration for a pool
 Name | Type | Description
 ---- | ---- | -----------
 `id` | `string` | Unique id for this pool
+`base` | `string` | Base pool config to copy settings from
 `name` | `string` | Name of the pool
 `condition` | `string` | Condition for agents to automatically be included in this pool
-`useAutoSdk` | `boolean` | 
 `properties` | `string` `->` `string` | Arbitrary properties related to this pool
+`color` | [`PoolColor`](#poolcolor-enum) | Color to use for this pool on the dashboard
 `enableAutoscaling` | `boolean` | Whether to enable autoscaling for this pool
 `minAgents` | `integer` | The minimum number of agents to keep in the pool
 `numReserveAgents` | `integer` | The minimum number of idle agents to hold in reserve
 `conformInterval` | `string` | Interval between conforms. If zero, the pool will not conform on a schedule.
-`lastScaleUpTime` | `string` | Last time the pool was (auto) scaled up
-`lastScaleDownTime` | `string` | Last time the pool was (auto) scaled down
+`lastScaleUpTime` | `string` | 
+`lastScaleDownTime` | `string` | 
 `scaleOutCooldown` | `string` | Cooldown time between scale-out events
 `scaleInCooldown` | `string` | Cooldown time between scale-in events
 `shutdownIfDisabledGracePeriod` | `string` | Time to wait before shutting down an agent that has been disabled
-`lastScaleResult` | [`ScaleResult`](#scaleresult) | Last result from scaling the pool
-`lastAgentCount` | `integer` | Last known agent count
-`lastDesiredAgentCount` | `integer` | Last known desired agent count
-`sizeStrategy` | [`PoolSizeStrategy`](#poolsizestrategy-enum) | Pool sizing strategy to be used for this pool
+`sizeStrategy` | [`PoolSizeStrategy`](#poolsizestrategy-enum) | 
 `sizeStrategies` | [`PoolSizeStrategyInfo`](#poolsizestrategyinfo)`[]` | List of pool sizing strategies for this pool. The first strategy with a matching condition will be picked.
 `fleetManagers` | [`FleetManagerInfo`](#fleetmanagerinfo)`[]` | List of fleet managers for this pool. The first strategy with a matching condition will be picked. If empty or no conditions match, a default fleet manager will be used.
 `leaseUtilizationSettings` | [`LeaseUtilizationSettings`](#leaseutilizationsettings) | Settings for lease utilization pool sizing strategy (if used)
 `jobQueueSettings` | [`JobQueueSettings`](#jobqueuesettings) | Settings for job queue pool sizing strategy (if used)
 `computeQueueAwsMetricSettings` | [`ComputeQueueAwsMetricSettings`](#computequeueawsmetricsettings) | Settings for job queue pool sizing strategy (if used)
 
-## ScaleResult
+## PoolColor (Enum)
 
-Result from a scaling operation
-
-Name | Type | Description
----- | ---- | -----------
-`outcome` | [`FleetManagerOutcome`](#fleetmanageroutcome-enum) | Outcome
-`agentsAddedCount` | `integer` | Agents added as part of operation
-`agentsRemovedCount` | `integer` | Agents added as part of operation
-`message` | `string` | Human-readable log message
-
-## FleetManagerOutcome (Enum)
-
-Outcome of a scaling operation
+Color to use for labels of this pool
 
 Name | Description
 ---- | -----------
-`Success` | Scaling operation completed as intended.
-`PartialSuccess` | Scaling operation was only partly fulfilled.
-`Failure` | Scaling operation failed
-`NoOp` | No operation took place (disabled or skipped)
+`Default` | 
+`Blue` | 
+`Orange` | 
+`Green` | 
+`Gray` | 
 
 ## PoolSizeStrategy (Enum)
 
@@ -107,6 +190,7 @@ Name | Description
 `JobQueue` | Strategy based on size of job build queue
 `NoOp` | No-op strategy used as fallback/default behavior
 `ComputeQueueAwsMetric` | A no-op strategy that reports metrics to let an external AWS auto-scaling policy scale the fleet
+`LeaseUtilizationAwsMetric` | A no-op strategy that reports metrics to let an external AWS auto-scaling policy scale the fleet
 
 ## PoolSizeStrategyInfo
 
@@ -252,12 +336,23 @@ Name | Type | Description
 
 ## AgentRateConfig
 
-Describes the monetary cost of agents matching a particular criteris
+Describes the monetary cost of agents matching a particular criteria
 
 Name | Type | Description
 ---- | ---- | -----------
 `condition` | `string` | Condition string
 `rate` | `number` | Rate for this agent
+
+## NetworkConfig
+
+Describes a network The ID describes any logical grouping, such as region, availability zone, rack or office location.
+
+Name | Type | Description
+---- | ---- | -----------
+`id` | `string` | ID for this network
+`cidrBlock` | `string` | CIDR block
+`description` | `string` | Human-readable description
+`computeId` | `string` | Compute ID for this network (used when allocating compute resources)
 
 ## ComputeClusterConfig
 
@@ -329,6 +424,7 @@ Configuration for devices
 Name | Type | Description
 ---- | ---- | -----------
 `platforms` | [`DevicePlatformConfig`](#deviceplatformconfig)`[]` | List of device platforms
+`pools` | [`DevicePoolConfig`](#devicepoolconfig)`[]` | List of device pools
 
 ## DevicePlatformConfig
 
@@ -337,8 +433,30 @@ Configuration for a device platform
 Name | Type | Description
 ---- | ---- | -----------
 `id` | `string` | The id for this platform
-`names` | `string[]` | List of platform names for this device, which may be requested by Gauntlet
-`legacyPerfSpecHighModel` | `string` | Model name for the high perf spec, which may be requested by Gauntlet (Deprecated)
+`name` | `string` | Name of the platform
+`models` | `string[]` | A list of platform models
+`legacyNames` | `string[]` | Legacy names which older versions of Gauntlet may be using
+`legacyPerfSpecHighModel` | `string` | Model name for the high perf spec, which may be requested by Gauntlet
+
+## DevicePoolConfig
+
+Configuration for a device pool
+
+Name | Type | Description
+---- | ---- | -----------
+`id` | `string` | The id for this platform
+`name` | `string` | The name of the pool
+`poolType` | [`DevicePoolType`](#devicepooltype-enum) | The type of the pool
+`projectIds` | `string[]` | List of project ids associated with pool
+
+## DevicePoolType (Enum)
+
+The type of device pool
+
+Name | Description
+---- | -----------
+`Automation` | Available to CIS jobs
+`Shared` | Shared by users with remote checking and checkouts
 
 ## ToolConfig
 
@@ -350,6 +468,8 @@ Name | Type | Description
 `name` | `string` | Name of the tool
 `description` | `string` | Description for the tool
 `public` | `boolean` | Whether this tool should be exposed for download on a public endpoint without authentication
+`showInUgs` | `boolean` | Whether to show this tool for download in the UGS tools menu
+`namespaceId` | `string` | Default namespace for new deployments of this tool
 `acl` | [`AclConfig`](#aclconfig) | Permissions for the tool
 
 ## StorageConfig
@@ -370,13 +490,15 @@ Name | Type | Description
 `id` | `string` | The storage backend ID
 `base` | `string` | Base backend to copy default settings from
 `type` | [`StorageBackendType`](#storagebackendtype-enum) | The type of storage backend to use
-`baseDir` | `string` | Base directory for storing files
+`baseDir` | `string` | Base directory for filesystem storage
 `awsBucketName` | `string` | Name of the bucket to use
 `awsBucketPath` | `string` | Base path within the bucket
 `awsCredentials` | [`AwsCredentialsType`](#awscredentialstype-enum) | Type of credentials to use
 `awsRole` | `string` | ARN of a role to assume
 `awsProfile` | `string` | The AWS profile to read credentials form
 `awsRegion` | `string` | Region to connect to
+`azureConnectionString` | `string` | Connection string for Azure
+`azureContainerName` | `string` | Name of the container
 `relayServer` | `string` | 
 `relayToken` | `string` | 
 
@@ -388,6 +510,7 @@ Name | Description
 ---- | -----------
 `FileSystem` | Local filesystem
 `Aws` | AWS S3
+`Azure` | Azure blob store
 `Memory` | In-memory only (for testing)
 
 ## AwsCredentialsType (Enum)
@@ -423,3 +546,39 @@ Name | Type | Description
 ---- | ---- | -----------
 `name` | `string` | Name of the artifact type
 `keepDays` | `integer` | Number of days to retain artifacts of this type
+
+## TelemetryConfig
+
+Config for metrics
+
+Name | Type | Description
+---- | ---- | -----------
+`metrics` | [`MetricConfig`](#metricconfig)`[]` | Metrics to aggregate on the Horde server
+`include` | [`ConfigInclude`](#configinclude)`[]` | Includes for other configuration files
+
+## MetricConfig
+
+Configures a metric to aggregate on the server
+
+Name | Type | Description
+---- | ---- | -----------
+`id` | `string` | Identifier for this metric
+`filter` | `string` | Filter expression to evaluate to determine which events to include. This query is evaluated against an array.
+`property` | `string` | Property to aggregate
+`groupBy` | `string` | Property to group by. Specified as a comma-separated list of JSON path expressions.
+`function` | [`AggregationFunction`](#aggregationfunction-enum) | How to aggregate samples for this metric
+`percentile` | `integer` | For the percentile function, specifies the percentile to measure
+`interval` | `string` | Interval for each metric. Supports times such as "2d", "1h", "1h30m", "20s".
+
+## AggregationFunction (Enum)
+
+Method for aggregating samples into a metric
+
+Name | Description
+---- | -----------
+`Count` | Count the number of matching elements
+`Min` | Take the minimum value of all samples
+`Max` | Take the maximum value of all samples
+`Sum` | Sum all the reported values
+`Average` | Average all the samples
+`Percentile` | Estimates the value at a certain percentile

@@ -10,6 +10,7 @@ Name | Type | Description
 `name` | `string` | Name for the new project
 `path` | `string` | Direct include path for the project config. For backwards compatibility with old config files when including from a GlobalConfig object.
 `include` | [`ConfigInclude`](#configinclude)`[]` | Includes for other configuration files
+`macros` | [`ConfigMacro`](#configmacro)`[]` | Macros within the global scope
 `order` | `integer` | Order of this project on the dashboard
 `logo` | `string` | Path to the project logo
 `pools` | [`PoolConfig`](#poolconfig)`[]` | List of pools for this project
@@ -26,6 +27,15 @@ Name | Type | Description
 ---- | ---- | -----------
 `path` | `string` | Path to the config data to be included. May be relative to the including file's location.
 
+## ConfigMacro
+
+Declares a config macro
+
+Name | Type | Description
+---- | ---- | -----------
+`name` | `string` | Name of the macro property
+`value` | `string` | Value for the macro property
+
 ## PoolConfig
 
 Mutable configuration for a pool
@@ -33,50 +43,38 @@ Mutable configuration for a pool
 Name | Type | Description
 ---- | ---- | -----------
 `id` | `string` | Unique id for this pool
+`base` | `string` | Base pool config to copy settings from
 `name` | `string` | Name of the pool
 `condition` | `string` | Condition for agents to automatically be included in this pool
-`useAutoSdk` | `boolean` | 
 `properties` | `string` `->` `string` | Arbitrary properties related to this pool
+`color` | [`PoolColor`](#poolcolor-enum) | Color to use for this pool on the dashboard
 `enableAutoscaling` | `boolean` | Whether to enable autoscaling for this pool
 `minAgents` | `integer` | The minimum number of agents to keep in the pool
 `numReserveAgents` | `integer` | The minimum number of idle agents to hold in reserve
 `conformInterval` | `string` | Interval between conforms. If zero, the pool will not conform on a schedule.
-`lastScaleUpTime` | `string` | Last time the pool was (auto) scaled up
-`lastScaleDownTime` | `string` | Last time the pool was (auto) scaled down
+`lastScaleUpTime` | `string` | 
+`lastScaleDownTime` | `string` | 
 `scaleOutCooldown` | `string` | Cooldown time between scale-out events
 `scaleInCooldown` | `string` | Cooldown time between scale-in events
 `shutdownIfDisabledGracePeriod` | `string` | Time to wait before shutting down an agent that has been disabled
-`lastScaleResult` | [`ScaleResult`](#scaleresult) | Last result from scaling the pool
-`lastAgentCount` | `integer` | Last known agent count
-`lastDesiredAgentCount` | `integer` | Last known desired agent count
-`sizeStrategy` | [`PoolSizeStrategy`](#poolsizestrategy-enum) | Pool sizing strategy to be used for this pool
+`sizeStrategy` | [`PoolSizeStrategy`](#poolsizestrategy-enum) | 
 `sizeStrategies` | [`PoolSizeStrategyInfo`](#poolsizestrategyinfo)`[]` | List of pool sizing strategies for this pool. The first strategy with a matching condition will be picked.
 `fleetManagers` | [`FleetManagerInfo`](#fleetmanagerinfo)`[]` | List of fleet managers for this pool. The first strategy with a matching condition will be picked. If empty or no conditions match, a default fleet manager will be used.
 `leaseUtilizationSettings` | [`LeaseUtilizationSettings`](#leaseutilizationsettings) | Settings for lease utilization pool sizing strategy (if used)
 `jobQueueSettings` | [`JobQueueSettings`](#jobqueuesettings) | Settings for job queue pool sizing strategy (if used)
 `computeQueueAwsMetricSettings` | [`ComputeQueueAwsMetricSettings`](#computequeueawsmetricsettings) | Settings for job queue pool sizing strategy (if used)
 
-## ScaleResult
+## PoolColor (Enum)
 
-Result from a scaling operation
-
-Name | Type | Description
----- | ---- | -----------
-`outcome` | [`FleetManagerOutcome`](#fleetmanageroutcome-enum) | Outcome
-`agentsAddedCount` | `integer` | Agents added as part of operation
-`agentsRemovedCount` | `integer` | Agents added as part of operation
-`message` | `string` | Human-readable log message
-
-## FleetManagerOutcome (Enum)
-
-Outcome of a scaling operation
+Color to use for labels of this pool
 
 Name | Description
 ---- | -----------
-`Success` | Scaling operation completed as intended.
-`PartialSuccess` | Scaling operation was only partly fulfilled.
-`Failure` | Scaling operation failed
-`NoOp` | No operation took place (disabled or skipped)
+`Default` | 
+`Blue` | 
+`Orange` | 
+`Green` | 
+`Gray` | 
 
 ## PoolSizeStrategy (Enum)
 
@@ -88,6 +86,7 @@ Name | Description
 `JobQueue` | Strategy based on size of job build queue
 `NoOp` | No-op strategy used as fallback/default behavior
 `ComputeQueueAwsMetric` | A no-op strategy that reports metrics to let an external AWS auto-scaling policy scale the fleet
+`LeaseUtilizationAwsMetric` | A no-op strategy that reports metrics to let an external AWS auto-scaling policy scale the fleet
 
 ## PoolSizeStrategyInfo
 
@@ -179,8 +178,8 @@ Name | Type | Description
 `useWine` | `boolean` | Whether to execute using Wine emulation on Linux
 `runInSeparateProcess` | `boolean` | Executes the job lease in a separate process
 `workspaceMaterializer` | `string` | What workspace materializer to use in WorkspaceExecutor. Will override any value from workspace config.
-`collectIbMonFilesAsArtifacts` | `boolean` | Whether to search for and save any *.ib_mon files from Incredibuild after a job step
 `container` | [`JobContainerOptions`](#jobcontaineroptions) | Options for executing a job inside a container
+`bundleVersion` | `integer` | Version to use when writing bundles
 
 ## JobContainerOptions
 

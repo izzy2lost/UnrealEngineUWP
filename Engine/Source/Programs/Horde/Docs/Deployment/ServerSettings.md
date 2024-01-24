@@ -8,11 +8,11 @@ Name | Type | Description
 ---- | ---- | -----------
 `runModes` | [`RunMode`](#runmode-enum)`[]` | Modes that the server should run in. Runmodes can be used in a multi-server deployment to limit the operations that a particular instance will try to perform.
 `dataDir` | `string` | Override the data directory used by Horde. Defaults to C:\ProgramData\HordeServer on Windows, {AppDir}/Data on other platforms.
-`httpPort` | `integer` | Main port for serving HTTP. Uses the default Kestrel port (5000) if not specified.
-`httpsPort` | `integer` | Port for serving HTTP with TLS enabled.
+`httpPort` | `integer` | Main port for serving HTTP.
+`httpsPort` | `integer` | Port for serving HTTP with TLS enabled. Disabled by default.
 `http2Port` | `integer` | Dedicated port for serving only HTTP/2.
-`computeInitiatorPort` | `integer` | Port for listening to compute tunnel initiator requests
-`computeRemotePort` | `integer` | Port for compute remotes to connect to
+`computeTunnelPort` | `integer` | Port to listen on for tunneling compute sockets to agents
+`computeTunnelAddress` | `string` | What address (host:port) clients should connect to for compute socket tunneling Port may differ from  if Horde server is behind a reverse proxy/firewall
 `databaseConnectionString` | `string` | MongoDB connection string
 `databaseName` | `string` | MongoDB database name
 `databasePublicCert` | `string` | Optional certificate to trust in order to access the database (eg. AWS public cert for TLS)
@@ -53,7 +53,7 @@ Name | Type | Description
 `enableLogService` | `boolean` | Whether to enable the hosted LogService running background jobs
 `fleetManagerV2` | [`FleetManagerType`](#fleetmanagertype-enum) | Default fleet manager to use (when not specified by pool)
 `fleetManagerV2Config` | `string` | Config for the fleet manager (serialized JSON)
-`awsAutoScalingQueueUrl` | `string` | AWS SQS queue URL where lifecycle events from EC2 auto-scaling are received
+`awsAutoScalingQueueUrls` | `string[]` | AWS SQS queue URLs where lifecycle events from EC2 auto-scaling are received
 `disableSchedules` | `boolean` | Whether to run scheduled jobs.
 `scheduleTimeZone` | `string` | Timezone for evaluating schedules
 `slackToken` | `string` | Bot token for interacting with Slack (xoxb-*)
@@ -65,6 +65,7 @@ Name | Type | Description
 `configNotificationChannel` | `string` | Channel for sending messages related to config update failures
 `updateStreamsNotificationChannel` | `string` | Channel to send stream notification update failures to
 `jobNotificationChannel` | `string` | Slack channel to send job related notifications to. Multiple channels can be specified, separated by ;
+`agentNotificationChannel` | `string` | Slack channel to send agent related notifications to.
 `dashboardUrl` | `string` | The URl to use for generating links back to the dashboard.
 `helpEmailAddress` | `string` | Help email address that users can contact with issues
 `helpSlackChannel` | `string` | Help slack channel that users can use for issues
@@ -89,6 +90,8 @@ Name | Type | Description
 `enableConformTasks` | `boolean` | Whether to enable the conform task source.
 `forceConfigUpdateOnStartup` | `boolean` | Forces configuration data to be read and updated as part of appplication startup, rather than on a schedule. Useful when running locally.
 `openBrowser` | `boolean` | Whether to open a browser on startup
+`bundleCacheDir` | `string` | Directory to use for cache data
+`bundleCacheSize` | `integer` | Maximum size of the storage cache on disk, in megabytes
 `featureFlags` | [`FeatureFlagSettings`](#featureflagsettings) | Experimental features to enable on the server.
 `commits` | [`CommitSettings`](#commitsettings) | Options for the commit service
 `telemetry` | [`BaseTelemetryConfig`](#basetelemetryconfig)`[]` | Settings for sending telemetry events to external services (for example Snowflake, ClickHouse etc)
@@ -111,9 +114,10 @@ Authentication method used for logging users in
 
 Name | Description
 ---- | -----------
-`Anonymous` | No authentication enabled, mainly for demo and testing purposes
+`Anonymous` | No authentication enabled. *Only* for demo and testing purposes.
 `Okta` | OpenID Connect authentication, tailored for Okta
 `OpenIdConnect` | Generic OpenID Connect authentication, recommended for most
+`Horde` | Authenticate using username and password credentials stored in Horde OpenID Connect (OIDC) is first and foremost recommended. But if you have a small installation (less than ~10 users) or lacking an OIDC provider, this is an option.
 
 ## StorageBackendOptions
 
@@ -122,13 +126,15 @@ Common settings object for different providers
 Name | Type | Description
 ---- | ---- | -----------
 `type` | [`StorageBackendType`](#storagebackendtype-enum) | The type of storage backend to use
-`baseDir` | `string` | Base directory for storing files
+`baseDir` | `string` | Base directory for filesystem storage
 `awsBucketName` | `string` | Name of the bucket to use
 `awsBucketPath` | `string` | Base path within the bucket
 `awsCredentials` | [`AwsCredentialsType`](#awscredentialstype-enum) | Type of credentials to use
 `awsRole` | `string` | ARN of a role to assume
 `awsProfile` | `string` | The AWS profile to read credentials form
 `awsRegion` | `string` | Region to connect to
+`azureConnectionString` | `string` | Connection string for Azure
+`azureContainerName` | `string` | Name of the container
 
 ## StorageBackendType (Enum)
 
@@ -138,6 +144,7 @@ Name | Description
 ---- | -----------
 `FileSystem` | Local filesystem
 `Aws` | AWS S3
+`Azure` | Azure blob store
 `Memory` | In-memory only (for testing)
 
 ## AwsCredentialsType (Enum)
@@ -160,13 +167,15 @@ Name | Type | Description
 `bundle` | [`BundleOptions`](#bundleoptions) | Options for creating bundles
 `chunking` | [`ChunkingOptions`](#chunkingoptions) | Options for chunking content
 `type` | [`StorageBackendType`](#storagebackendtype-enum) | The type of storage backend to use
-`baseDir` | `string` | Base directory for storing files
+`baseDir` | `string` | Base directory for filesystem storage
 `awsBucketName` | `string` | Name of the bucket to use
 `awsBucketPath` | `string` | Base path within the bucket
 `awsCredentials` | [`AwsCredentialsType`](#awscredentialstype-enum) | Type of credentials to use
 `awsRole` | `string` | ARN of a role to assume
 `awsProfile` | `string` | The AWS profile to read credentials form
 `awsRegion` | `string` | Region to connect to
+`azureConnectionString` | `string` | Connection string for Azure
+`azureContainerName` | `string` | Name of the container
 
 ## BundleOptions
 
@@ -174,11 +183,28 @@ Options for configuring a bundle serializer
 
 Name | Type | Description
 ---- | ---- | -----------
+`maxVersion` | [`BundleVersion`](#bundleversion-enum) | Maximum version number of bundles to write
 `maxBlobSize` | `integer` | Maximum payload size fo a blob
 `compressionFormat` | [`BundleCompressionFormat`](#bundlecompressionformat-enum) | Compression format to use
 `minCompressionPacketSize` | `integer` | Minimum size of a block to be compressed
-`maxInMemoryDataLength` | `integer` | Maximum amount of data to store in memory. This includes any background writes as well as bundles being built.
-`nodeCacheSize` | `integer` | Number of nodes to cache
+`maxWriteQueueLength` | `integer` | Maximum amount of data to store in memory. This includes any background writes as well as bundles being built.
+
+## BundleVersion (Enum)
+
+Bundle version number
+
+Name | Description
+---- | -----------
+`Initial` | Initial version number
+`ExportAliases` | Added the BundleExport.Alias property
+`RemoveAliases` | Back out change to include aliases. Will likely do this through an API rather than baked into the data.
+`InPlace` | Use data structures which support in-place reading and writing.
+`ImportHashes` | Add import hashes to imported nodes
+`LatestV1` | Last version using the V1 pipeline
+`PacketSequence` | Structure bundles as a sequence of self-contained packets (uses V2 code)
+`Latest` | The current version number
+`LatestV2` | Last version using the V2 pipeline
+`LatestPlusOne` | Last item in the enum. Used for
 
 ## BundleCompressionFormat (Enum)
 
@@ -189,7 +215,8 @@ Name | Description
 `None` | Packets are uncompressed
 `LZ4` | LZ4 compression
 `Gzip` | Gzip compression
-`Oodle` | Oodle compression (Kraken)
+`Oodle` | Oodle compression (Selkie)
+`Brotli` | Brotli compression
 
 ## ChunkingOptions
 
@@ -244,6 +271,7 @@ Name | Description
 `JobQueue` | Strategy based on size of job build queue
 `NoOp` | No-op strategy used as fallback/default behavior
 `ComputeQueueAwsMetric` | A no-op strategy that reports metrics to let an external AWS auto-scaling policy scale the fleet
+`LeaseUtilizationAwsMetric` | A no-op strategy that reports metrics to let an external AWS auto-scaling policy scale the fleet
 
 ## PerforceConnectionSettings
 
@@ -300,6 +328,7 @@ Name | Description
 `None` | No telemetry sink (default)
 `Epic` | Use the Epic telemetry sink
 `ClickHouse` | Use the ClickHouse telemetry sink
+`Mongo` | Mongo telemetry
 
 ## BundledToolConfig
 
@@ -314,6 +343,8 @@ Name | Type | Description
 `name` | `string` | Name of the tool
 `description` | `string` | Description for the tool
 `public` | `boolean` | Whether this tool should be exposed for download on a public endpoint without authentication
+`showInUgs` | `boolean` | Whether to show this tool for download in the UGS tools menu
+`namespaceId` | `string` | Default namespace for new deployments of this tool
 `acl` | [`AclConfig`](#aclconfig) | Permissions for the tool
 
 ## AclConfig

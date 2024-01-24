@@ -35,6 +35,7 @@
 | Name | Description |
 | ---- | ----------- |
 | `AddComputeTasks` | User can add tasks to the compute cluster |
+| `GetComputeTasks` | User can get and list tasks from the compute cluster |
 
 ## Devices
 
@@ -104,6 +105,13 @@
 | `UpdateProject` | Modify attributes of a project (name, categories, etc...) |
 | `ViewProject` | View information about a project |
 
+## Replicators
+
+| Name | Description |
+| ---- | ----------- |
+| `UpdateReplicator` | Allows deletion of projects. |
+| `ViewReplicator` | Allows the creation of new projects |
+
 ## Secrets
 
 | Name | Description |
@@ -156,6 +164,12 @@
 | `ViewStream` | Ability to view a stream |
 | `ViewChanges` | View changes submitted to a stream. NOTE: this returns responses from the server's Perforce account, which may be a priviledged user. |
 | `ViewTemplate` | View template associated with a stream |
+
+## Telemetry
+
+| Name | Description |
+| ---- | ----------- |
+| `QueryMetrics` | Ability to search for various metrics |
 
 ## Tools
 
