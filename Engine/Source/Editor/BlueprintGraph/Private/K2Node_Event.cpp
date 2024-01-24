@@ -904,7 +904,7 @@ FString UK2Node_Event::GetFindReferenceSearchString_Impl(EGetFindReferenceSearch
 	// If searching by class member, try to construct search term from the UFunction.
 	// This may fail if the function was not found or for whatever reason, its owning 
 	// class is invalid. If it fails, proceed to search by name as fallback behavior.
-	if (EnumHasAnyFlags(InFlags, EGetFindReferenceSearchStringFlags::UseSearchSyntax))
+	if (EnumHasAnyFlags(InFlags, EGetFindReferenceSearchStringFlags::UseSearchSyntax) && !EnumHasAnyFlags(InFlags, EGetFindReferenceSearchStringFlags::Legacy))
 	{
 		// Resolve the function
 		if (const UFunction* Function = FFunctionFromNodeHelper::FunctionFromNode(this))
@@ -925,18 +925,19 @@ FString UK2Node_Event::GetFindReferenceSearchString_Impl(EGetFindReferenceSearch
 		{
 			// Search by native name
 			const FString FunctionNativeName = Function->GetName();
-			return FunctionNativeName;
+			return FString::Printf(TEXT("\"%s\""), *FunctionNativeName);
 		}
 		else
 		{
-			// If we fail to find the function, still want to search for its expected name
-			return EventReference.GetMemberName().ToString();
+			// If we fail to find the function, still want to search for its expected name, in quotes
+			return FString::Printf(TEXT("\"%s\""), *EventReference.GetMemberName().ToString());
 		}
 	}
 	else
 	{
-		// The function was not an override; its name is defined by this node
-		return CustomFunctionName.ToString();
+		// The function was not an override; its name is defined by this node.
+		// Return that name in quotes (treating special characters as part of name)
+		return FString::Printf(TEXT("\"%s\""), *CustomFunctionName.ToString());
 	}
 }
 

@@ -265,7 +265,8 @@ FLinearColor UK2Node_Variable::GetNodeTitleColor() const
 
 FString UK2Node_Variable::GetFindReferenceSearchString_Impl(EGetFindReferenceSearchStringFlags InFlags) const
 {
-	if (EnumHasAnyFlags(InFlags, EGetFindReferenceSearchStringFlags::UseSearchSyntax))
+	// Legacy behavior for variable nodes was to do an exact search
+	if (EnumHasAnyFlags(InFlags, EGetFindReferenceSearchStringFlags::UseSearchSyntax) || EnumHasAnyFlags(InFlags, EGetFindReferenceSearchStringFlags::Legacy))
 	{
 		if (VariableReference.IsLocalScope())
 		{
@@ -280,7 +281,7 @@ FString UK2Node_Variable::GetFindReferenceSearchString_Impl(EGetFindReferenceSea
 	}
 
 	// Simple query: just search for variable name
-	return VariableReference.GetMemberName().ToString();
+	return FString::Printf(TEXT("\"%s\""), *VariableReference.GetMemberName().ToString());
 }
 
 UK2Node::ERedirectType UK2Node_Variable::DoPinsMatchForReconstruction(const UEdGraphPin* NewPin, int32 NewPinIndex, const UEdGraphPin* OldPin, int32 OldPinIndex) const 

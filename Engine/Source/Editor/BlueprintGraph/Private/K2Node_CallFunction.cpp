@@ -1595,14 +1595,12 @@ FString UK2Node_CallFunction::GetFindReferenceSearchString_Impl(EGetFindReferenc
 			}
 		}
 	}
-	else
+
+	// Searching by function name: try to resolve function to return native name
+	if (const UFunction* Function = GetTargetFunction())
 	{
-		// Searching by function name: try to resolve function to return native name
-		if (const UFunction* Function = GetTargetFunction())
-		{
-			const FString NativeName = Function->GetName();
-			return NativeName;
-		}
+		const FString NativeName = Function->GetName();
+		return FString::Printf(TEXT("\"%s\""), *NativeName);
 	}
 
 	// Fallback behavior: search by node title
