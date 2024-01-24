@@ -623,15 +623,21 @@ UE::Tasks::FTask FRDGBuilder::AddCommandListSetupTask(
 	// Need a separate command list with inline tasks when prerequisites are not complete yet.
 	const bool bAllocateCommandListForTask = bCondition && (ParallelSetup.bEnabled || !UE::RDG::IsCompleted(Prerequisites));
 
-	auto OuterLambda = [this, TaskLambda = MoveTemp(TaskLambda), bAllocateCommandListForTask]() mutable
+	FRHICommandList* RHICmdListTask = &RHICmdList;
+
+	if (bAllocateCommandListForTask)
+	{
+		SCOPED_NAMED_EVENT(CreateCommandList, FColor::Emerald);
+		RHICmdListTask = new FRHICommandList(RHICmdList.GetGPUMask());
+		ParallelSetup.CommandLists.Emplace(RHICmdListTask);
+	}
+
+	auto OuterLambda = [this, TaskLambda = MoveTemp(TaskLambda), RHICmdListTask, bAllocateCommandListForTask]() mutable
 	{
 		FOptionalTaskTagScope Scope(ETaskTag::EParallelRenderingThread);
 
-		FRHICommandList* RHICmdListTask = &RHICmdList;
-		
 		if (bAllocateCommandListForTask)
 		{
-			RHICmdListTask = new FRHICommandList(RHICmdList.GetGPUMask());
 			RHICmdListTask->SwitchPipeline(ERHIPipeline::Graphics);
 		}
 
@@ -640,9 +646,6 @@ UE::Tasks::FTask FRDGBuilder::AddCommandListSetupTask(
 		if (bAllocateCommandListForTask)
 		{
 			RHICmdListTask->FinishRecording();
-
-			UE::TScopeLock Lock(ParallelSetup.CommandListsMutex);
-			ParallelSetup.CommandLists.Emplace(RHICmdListTask);
 		}
 	};
 

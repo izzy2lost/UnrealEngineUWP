@@ -1621,11 +1621,14 @@ void FRDGBuilder::WaitForParallelSetupTasks()
 		UE::Tasks::Wait(ParallelSetup.Tasks);
 		ParallelSetup.Tasks.Reset();
 	}
+}
 
+void FRDGBuilder::SubmitParallelSetupTasks()
+{
 	if (!ParallelSetup.CommandLists.IsEmpty())
 	{
 		RHICmdList.QueueAsyncCommandListSubmit(ParallelSetup.CommandLists);
-		ParallelSetup.CommandLists.Reset();
+		ParallelSetup.CommandLists.Empty();
 	}
 }
 
@@ -1663,9 +1666,9 @@ void FRDGBuilder::Execute()
 
 	if (!IsImmediateMode())
 	{
-		WaitForParallelSetupTasks();
-
+		SubmitParallelSetupTasks();
 		BeginFlushResourcesRHI();
+		WaitForParallelSetupTasks();
 
 		if (ParallelSetup.bEnabled)
 		{
@@ -1889,9 +1892,8 @@ void FRDGBuilder::Execute()
 		FinalizeResources();
 	}
 
-	// Process RHI thread flush before helping with barrier compilation on the render thread.
+	SubmitParallelSetupTasks();
 	EndFlushResourcesRHI();
-
 	WaitForParallelSetupTasks();
 
 	if (ParallelExecute.DispatchTaskEvent)

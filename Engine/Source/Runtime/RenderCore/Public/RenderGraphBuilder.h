@@ -892,7 +892,6 @@ private:
 		TArray<UE::Tasks::FTask, FRDGArrayAllocator> Tasks;
 
 		/** Array of all command lists to submit for AddCommandListSetupTask. */
-		UE::FMutex CommandListsMutex;
 		TArray<FRHICommandListImmediate::FQueuedCommandList, FConcurrentLinearArrayAllocator> CommandLists;
 
 		bool bEnabled = false;
@@ -900,6 +899,7 @@ private:
 	} ParallelSetup;
 
 	void WaitForParallelSetupTasks();
+	void SubmitParallelSetupTasks();
 
 	/////////////////////////////////////////////////////////////////////////////
 	// Parallel Execution
