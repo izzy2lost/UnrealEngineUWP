@@ -75,6 +75,7 @@ public:
 	virtual ~FControlRigSchematicModel() override;
 	
 	void SetEditor(const TSharedRef<FControlRigEditor>& InEditor);
+	virtual void ApplyToPanel(SSchematicGraphPanel* InPanel) override;
 
 	virtual void Reset() override;
 	virtual void Tick(float InDeltaTime) override;
@@ -90,7 +91,6 @@ public:
 	void UpdateConnector(const FRigElementKey& InElementKey);
 
 	void OnSetObjectBeingDebugged(UObject* InObject);
-	void OnHierarchyModified(ERigHierarchyNotification InNotif, URigHierarchy* InHierarchy, const FRigBaseElement* InElement);
 	void HandleModularRigModified(EModularRigNotification InNotification, const FRigModuleReference* InModule);
 
 	virtual FSchematicGraphGroupNode* AddAutoGroupNode() override;
@@ -115,12 +115,19 @@ private:
 	void ConfigureElementKeyNode(FControlRigSchematicRigElementKeyNode* InNode, const FRigElementKey& InKey);
 
 	void HandleSchematicNodeClicked(SSchematicGraphPanel* InPanel, SSchematicGraphNode* InNode, const FPointerEvent& InMouseEvent);
-	void HandleSchematicBeginDrag(SSchematicGraphPanel* InPanel, SSchematicGraphNode* InNode, const FDragDropOperation& InDragDropOperation);
-	void HandleSchematicEndDrag(SSchematicGraphPanel* InPanel, SSchematicGraphNode* InNode, const FDragDropOperation& InDragDropOperation);
+	void HandleSchematicBeginDrag(SSchematicGraphPanel* InPanel, SSchematicGraphNode* InNode, const TSharedPtr<FDragDropOperation>& InDragDropOperation);
+	void HandleSchematicEndDrag(SSchematicGraphPanel* InPanel, SSchematicGraphNode* InNode, const TSharedPtr<FDragDropOperation>& InDragDropOperation);
+	void HandleSchematicEnterDrag(SSchematicGraphPanel* InPanel, const TSharedPtr<FDragDropOperation>& InDragDropOperation);
+	void HandleSchematicLeaveDrag(SSchematicGraphPanel* InPanel, const TSharedPtr<FDragDropOperation>& InDragDropOperation);
+	void HandleSchematicCancelDrag(SSchematicGraphPanel* InPanel, SSchematicGraphNode* InNode, const TSharedPtr<FDragDropOperation>& InDragDropOperation);
 	void HandleSchematicDrop(SSchematicGraphPanel* InPanel, SSchematicGraphNode* InNode, const FDragDropEvent& InDragDropEvent);
 	void HandlePostConstruction(UControlRig* Subject, const FName& InEventName);
 	bool IsConnectorResolved(const FRigElementKey& InConnectorKey, FRigElementKey* OutKey = nullptr) const;
 
+	void OnShowCandidatesForConnector(const FRigElementKey& InConnectorKey);
+	void OnShowCandidatesForConnector(const FRigModuleConnector* InModuleConnector);
+	void OnShowCandidatesForMatches(const FModularRigResolveResult& InMatches);
+	void OnHideCandidatesForConnector();
 
 	TWeakPtr<FControlRigEditor> ControlRigEditor;
 	TWeakObjectPtr<UControlRigBlueprint> ControlRigBlueprint;
@@ -130,6 +137,7 @@ private:
 	TMap<FGuid, ESchematicGraphVisibility::Type> PreDragVisibilityPerNode;
 	TMap<FRigElementKey, FGuid> RigElementKeyToGuid;
 	mutable TMap<FSoftObjectPath, FSlateBrush> ModuleIcons;
+	bool bUpdateElementKeyLinks = true;
 
 	friend class FControlRigEditor;
 };

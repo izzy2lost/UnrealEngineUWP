@@ -83,6 +83,8 @@ private:
 	void SetModel(FModularRigModel* InModel) { Model = InModel; }
 	void Notify(const EModularRigNotification& InNotification, const FRigModuleReference* InElement);
 	void UpdateShortNames();
+
+	bool bAutomaticReparenting;
 	
 	friend struct FModularRigModel;
 };

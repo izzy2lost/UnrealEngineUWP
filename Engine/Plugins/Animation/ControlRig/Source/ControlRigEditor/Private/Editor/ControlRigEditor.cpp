@@ -328,7 +328,6 @@ void FControlRigEditor::InitRigVMEditor(const EToolkitMode::Type Mode, const TSh
 		{
 			SchematicModel.SetEditor(SharedThis(this));
 			ControlRigBlueprint->OnSetObjectBeingDebugged().AddRaw(&SchematicModel, &FControlRigSchematicModel::OnSetObjectBeingDebugged);
-			ControlRigBlueprint->OnHierarchyModified().AddRaw(&SchematicModel, &FControlRigSchematicModel::OnHierarchyModified);
 			ControlRigBlueprint->GetModularRigController()->OnModified().AddRaw(&SchematicModel, &FControlRigSchematicModel::HandleModularRigModified);
 		}
 
@@ -2282,7 +2281,6 @@ void FControlRigEditor::HandleViewportCreated(const TSharedRef<class IPersonaVie
 																.PaddingInterNode(5)
 				;
 				InViewport->AddOverlayWidget(SchematicPanel);
-				HandleSchematicViewportCreated(SchematicPanel);
 			}
 		}
 	}
@@ -2599,15 +2597,6 @@ void FControlRigEditor::CacheNameLists()
 	}
 }
 
-void FControlRigEditor::HandleSchematicViewportCreated(const TSharedRef<SSchematicGraphPanel>& InViewport)
-{
-	SchematicViewport = InViewport.ToWeakPtr();
-	InViewport->OnNodeClicked().BindRaw(&SchematicModel, &FControlRigSchematicModel::HandleSchematicNodeClicked);
-	InViewport->OnBeginDrag().BindRaw(&SchematicModel, &FControlRigSchematicModel::HandleSchematicBeginDrag);
-	InViewport->OnEndDrag().BindRaw(&SchematicModel, &FControlRigSchematicModel::HandleSchematicEndDrag);
-	InViewport->OnAcceptDrop().BindRaw(&SchematicModel, &FControlRigSchematicModel::HandleSchematicDrop);
-}
-
 FVector2D FControlRigEditor::ComputePersonaProjectedScreenPos(const FVector& InWorldPos, bool bClampToScreenRectangle)
 {
 	if (PreviewViewport.IsValid())
@@ -2747,11 +2736,11 @@ void FControlRigEditor::FilterDraggedKeys(TArray<FRigElementKey>& Keys, bool bRe
 		FilteredKeys.Reserve(Keys.Num());
 		for (FRigElementKey Key : Keys)
 		{
-			for(const TPair<FRigElementKey,FRigElementKey>& Pair : ControlRigBlueprint->ConnectionMap)
+			for(const FModularRigSingleConnection& Connection : ControlRigBlueprint->ModularRigModel.Connections)
 			{
-				if(Pair.Value == Key)
+				if(Connection.Target == Key)
 				{
-					Key = Pair.Key;
+					Key = Connection.Connector;
 					break;
 				}
 			}

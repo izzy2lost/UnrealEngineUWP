@@ -129,14 +129,31 @@ struct FModularRigSingleConnection
 USTRUCT(BlueprintType)
 struct CONTROLRIG_API FModularRigConnections
 {
+public:
+	
 	GENERATED_BODY()
-
 	/** Connections sorted by creation order */
+
+private:
+	
 	UPROPERTY()
 	TArray<FModularRigSingleConnection> ConnectionList;
 
 	/** Target key to connector array */
 	TMap<FRigElementKey, TArray<FRigElementKey>> ReverseConnectionMap;
+
+public:
+
+	const TArray<FModularRigSingleConnection>& GetConnectionList() const { return ConnectionList; }
+
+	bool IsEmpty() const { return ConnectionList.IsEmpty(); }
+	int32 Num() const { return ConnectionList.Num(); }
+	const FModularRigSingleConnection& operator[](int32 InIndex) const { return ConnectionList[InIndex]; }
+	FModularRigSingleConnection& operator[](int32 InIndex) { return ConnectionList[InIndex]; }
+	TArray<FModularRigSingleConnection>::RangedForIteratorType begin() { return ConnectionList.begin(); }
+	TArray<FModularRigSingleConnection>::RangedForIteratorType end() { return ConnectionList.end(); }
+	TArray<FModularRigSingleConnection>::RangedForConstIteratorType begin() const { return ConnectionList.begin(); }
+	TArray<FModularRigSingleConnection>::RangedForConstIteratorType end() const { return ConnectionList.end(); }
 
 	void UpdateFromConnectionList()
 	{
@@ -252,7 +269,7 @@ public:
 	UPROPERTY(transient)
 	TObjectPtr<UObject> Controller;
 
-	bool PatchModelsOnLoad();
+	void PatchModelsOnLoad();
 
 	UModularRigController* GetController(bool bCreateIfNeeded = true);
 

@@ -246,9 +246,6 @@ private:
 	void OnToolbarAxesScaleChanged(float InValue);
 	void HandleToggleSchematicViewport();
 
-	/** Handle schematic panel setup*/
-	void HandleSchematicViewportCreated(const TSharedRef<class SSchematicGraphPanel>& InViewport);
-
 		/** Handle switching skeletal meshes */
 	void HandlePreviewMeshChanged(USkeletalMesh* InOldSkeletalMesh, USkeletalMesh* InNewSkeletalMesh);
 

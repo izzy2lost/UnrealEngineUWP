@@ -8,14 +8,11 @@
 
 #define LOCTEXT_NAMESPACE "ModularRigRuleManager"
 
-FModularRigResolveResult UModularRigRuleManager::FindMatches(
-	const FRigConnectorElement* InConnector,
-	const FRigModuleInstance* InModule,
-	const FRigElementKeyRedirector& InResolvedConnectors) const
+FModularRigResolveResult UModularRigRuleManager::FindMatches(FWorkData& InWorkData) const
 {
-	FModularRigResolveResult Result;
-	Result.Connector = InConnector->GetKey();
-	
+	check(InWorkData.Result);
+	FModularRigResolveResult& Result = *InWorkData.Result;
+
 	if(!Hierarchy.IsValid())
 	{
 		static const FText MissingHierarchyMessage = LOCTEXT("MissingHierarchyMessage", "The rule manager is missing the hierarchy.");
@@ -46,14 +43,40 @@ FModularRigResolveResult UModularRigRuleManager::FindMatches(
 		bContinue = true;
 	}, true);
 
+	InWorkData.Hierarchy = Hierarchy.Get();
+	ResolveConnector(InWorkData);
+	return Result;;
+}
+
+FModularRigResolveResult UModularRigRuleManager::FindMatches(
+	const FRigConnectorElement* InConnector,
+	const FRigModuleInstance* InModule,
+	const FRigElementKeyRedirector& InResolvedConnectors) const
+{
+	FModularRigResolveResult Result;
+	Result.Connector = InConnector->GetKey();
+
 	FWorkData WorkData;
 	WorkData.Hierarchy = Hierarchy.Get();
 	WorkData.Connector = InConnector;
 	WorkData.Module = InModule;
 	WorkData.ResolvedConnectors = &InResolvedConnectors;
 	WorkData.Result = &Result;
-	ResolveConnector(WorkData);
-	return Result;;
+
+	return FindMatches(WorkData);
+}
+
+FModularRigResolveResult UModularRigRuleManager::FindMatches(const FRigModuleConnector* InConnector) const
+{
+	FModularRigResolveResult Result;
+	Result.Connector = FRigElementKey(*InConnector->Name, ERigElementType::Connector);
+
+	FWorkData WorkData;
+	WorkData.Hierarchy = Hierarchy.Get();
+	WorkData.ModuleConnector = InConnector;
+	WorkData.Result = &Result;
+
+	return FindMatches(WorkData);
 }
 
 FModularRigResolveResult UModularRigRuleManager::FindMatchesForPrimaryConnector(const FRigModuleInstance* InModule) const
@@ -175,6 +198,11 @@ void UModularRigRuleManager::FilterIncompatibleTypes(FWorkData& InOutWorkData)
 
 void UModularRigRuleManager::FilterInvalidNameSpaces(FWorkData& InOutWorkData)
 {
+	if(InOutWorkData.Connector == nullptr)
+	{
+		return;
+	}
+	
 	const FName NameSpace = InOutWorkData.Hierarchy->GetNameSpaceFName(InOutWorkData.Connector->GetKey());
 	if(NameSpace.IsNone())
 	{
@@ -204,8 +232,12 @@ void UModularRigRuleManager::FilterInvalidNameSpaces(FWorkData& InOutWorkData)
 
 void UModularRigRuleManager::FilterByConnectorRules(FWorkData& InOutWorkData)
 {
-	const FRigConnectorElement* Connector = InOutWorkData.Connector;
-	for(const FRigConnectionRuleStash& Stash : Connector->Settings.Rules)
+	check(InOutWorkData.Connector != nullptr || InOutWorkData.ModuleConnector != nullptr);
+	
+	const TArray<FRigConnectionRuleStash>& Rules =
+		InOutWorkData.Connector ? InOutWorkData.Connector->Settings.Rules : InOutWorkData.ModuleConnector->Settings.Rules;
+	
+	for(const FRigConnectionRuleStash& Stash : Rules)
 	{
 		TSharedPtr<FStructOnScope> Storage;
 		const FRigConnectionRule* Rule = Stash.Get(Storage);
@@ -228,6 +260,11 @@ void UModularRigRuleManager::FilterByConnectorEvent(FWorkData& InOutWorkData)
 {
 	// this may be null during unit tests
 	if(InOutWorkData.Module == nullptr)
+	{
+		return;
+	}
+
+	if(InOutWorkData.Connector == nullptr)
 	{
 		return;
 	}

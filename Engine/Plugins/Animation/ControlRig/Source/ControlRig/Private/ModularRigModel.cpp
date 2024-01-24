@@ -92,12 +92,11 @@ TMap<FRigElementKey, FRigElementKey> FModularRigConnections::GetModuleConnection
 	return Result;
 }
 
-bool FModularRigModel::PatchModelsOnLoad()
+void FModularRigModel::PatchModelsOnLoad()
 {
-	bool bPatched = false;
-	if (Connections.ConnectionList.IsEmpty())
+	if (Connections.IsEmpty())
 	{
-		ForEachModule([this, &bPatched](const FRigModuleReference* Module) -> bool
+		ForEachModule([this](const FRigModuleReference* Module) -> bool
 		{
 			FString ModuleNamespace = Module->GetNamespace();
 			for (const TTuple<FRigElementKey, FRigElementKey>& Connection : Module->Connections_DEPRECATED)
@@ -108,9 +107,9 @@ bool FModularRigModel::PatchModelsOnLoad()
 			}
 			return true;
 		});
-		bPatched = !Connections.ConnectionList.IsEmpty();
 	}
-	return bPatched;
+
+	Connections.UpdateFromConnectionList();
 }
 
 UModularRigController* FModularRigModel::GetController(bool bCreateIfNeeded)
