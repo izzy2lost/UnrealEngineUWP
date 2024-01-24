@@ -115,6 +115,7 @@ private:
 
 	/** Tree view widget */
 	TSharedPtr<SModularRigTreeView> TreeView;
+	TSharedPtr<SHeaderRow> HeaderRowWidget;
 
 	TWeakObjectPtr<UControlRigBlueprint> ControlRigBlueprint;
 	TWeakObjectPtr<UModularRig> ControlRigBeingDebuggedPtr;

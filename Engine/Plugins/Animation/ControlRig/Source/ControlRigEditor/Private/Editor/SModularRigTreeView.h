@@ -133,7 +133,7 @@ public:
 	FSlateColor TextColor;
 };
 
-class SModularRigModelItem : public STableRow<TSharedPtr<FModularRigTreeElement>>
+class SModularRigModelItem : public SMultiColumnTableRow<TSharedPtr<FModularRigTreeElement>>
 {
 public:
 	
@@ -151,6 +151,8 @@ public:
 	void OnNameCommitted(const FText& InText, ETextCommit::Type InCommitType) const;
 	bool OnVerifyNameChanged(const FText& InText, FText& OutErrorMessage);
 
+	virtual TSharedRef<SWidget> GenerateWidgetForColumn(const FName& ColumnName) override;
+
 private:
 	TWeakPtr<FModularRigTreeElement> WeakRigTreeElement;
  	FModularRigTreeDelegates Delegates;
@@ -158,6 +160,8 @@ private:
 	TSharedPtr<SButton> ResetConnectorButton;
 	TSharedPtr<SButton> UseSelectedButton;
 	TSharedPtr<SButton> SelectElementButton;
+	FRigElementKey ConnectorKey;
+	TOptional<FModularRigResolveResult> ConnectorMatches;
 
 	FText GetName(bool bUseShortName) const;
 	FText GetItemTooltip() const;
@@ -169,9 +173,14 @@ class SModularRigTreeView : public STreeView<TSharedPtr<FModularRigTreeElement>>
 {
 public:
 
+	static const FName Column_Module;
+	static const FName Column_Connector;
+	static const FName Column_Buttons;
+
 	SLATE_BEGIN_ARGS(SModularRigTreeView)
 		: _AutoScrollEnabled(false)
 	{}
+		SLATE_ARGUMENT( TSharedPtr<SHeaderRow>, HeaderRow )
 		SLATE_ARGUMENT(FModularRigTreeDelegates, RigTreeDelegates)
 		SLATE_ARGUMENT(bool, AutoScrollEnabled)
 	SLATE_END_ARGS()
