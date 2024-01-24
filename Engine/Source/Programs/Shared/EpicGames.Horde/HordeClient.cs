@@ -36,7 +36,7 @@ namespace EpicGames.Horde
 		public IStorageClient CreateStorageClient(string basePath)
 		{
 			Func<HttpClient> createClient = () => _httpClientFactory.CreateClient(HordeHttpClient.HttpClientName);
-			using HttpStorageBackend httpStorageBackend = new HttpStorageBackend(basePath, createClient, _loggerFactory.CreateLogger<HttpStorageBackend>());
+			HttpStorageBackend httpStorageBackend = new HttpStorageBackend(basePath, createClient, _loggerFactory.CreateLogger<HttpStorageBackend>());
 			return new BundleStorageClient(httpStorageBackend, _bundleCache, _loggerFactory.CreateLogger<BundleStorageClient>());
 		}
 	}

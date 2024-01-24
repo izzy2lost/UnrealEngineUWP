@@ -27,11 +27,6 @@ namespace EpicGames.Horde.Storage.ObjectStores
 		public bool SupportsRedirects => false;
 
 		/// <inheritdoc/>
-		public void Dispose()
-		{
-		}
-
-		/// <inheritdoc/>
 		public Task<Stream> OpenAsync(ObjectKey key, int offset, int? length, CancellationToken cancellationToken)
 		{
 			return Task.FromResult<Stream>(new ReadOnlyMemoryStream(GetData(key, offset, length)));

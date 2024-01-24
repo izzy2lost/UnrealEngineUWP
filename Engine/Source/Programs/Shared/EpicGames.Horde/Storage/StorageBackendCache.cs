@@ -67,8 +67,6 @@ namespace EpicGames.Horde.Storage
 				_inner = inner;
 			}
 
-			public void Dispose() => _inner.Dispose();
-
 			public async Task<Stream> OpenAsync(ObjectKey key, int offset, int? length, CancellationToken cancellationToken = default)
 			{
 				IReadOnlyMemoryOwner<byte> storageObject = await ReadAsync(key, offset, length, cancellationToken);
@@ -113,8 +111,6 @@ namespace EpicGames.Horde.Storage
 				_cacheStorage = cacheStorage;
 				_inner = inner;
 			}
-
-			public void Dispose() => _inner.Dispose();
 
 			public async Task<Stream> OpenBlobAsync(BlobLocator locator, int offset, int? length, CancellationToken cancellationToken = default)
 			{
@@ -169,6 +165,7 @@ namespace EpicGames.Horde.Storage
 
 		object LockObject => _items;
 
+		readonly MemoryMappedFileCache _memoryMappedFileCache;
 		readonly FileObjectStore _objectStore;
 		readonly long _maxSize;
 		readonly ILogger _logger;
@@ -225,7 +222,8 @@ namespace EpicGames.Horde.Storage
 			cacheDir ??= new DirectoryReference(Path.Combine(Path.GetTempPath(), $"horde-{Guid.NewGuid().ToString("n")}"));
 			FileUtils.ForceDeleteDirectoryContents(cacheDir);
 
-			_objectStore = new FileObjectStore(cacheDir);
+			_memoryMappedFileCache = new MemoryMappedFileCache();
+			_objectStore = new FileObjectStore(cacheDir, _memoryMappedFileCache);
 			_maxSize = maxSize ?? (50 * 1024 * 1024);
 			_logger = logger;
 		}
@@ -237,7 +235,7 @@ namespace EpicGames.Horde.Storage
 			{
 				_objectStore.Delete(item.Key);
 			}
-			_objectStore.Dispose();
+			_memoryMappedFileCache.Dispose();
 		}
 
 		/// <summary>

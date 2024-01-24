@@ -35,7 +35,7 @@ namespace Horde.Server.Tests
 		private readonly FakeClock _clock;
         private readonly LogFileService _logFileService;
 		private readonly ILoggerFactory _loggerFactory;
-		private readonly IObjectStore _logObjectStore;
+		private readonly MemoryObjectStore _logObjectStore;
 		private readonly ILogStorage _logStorage;
 
 		public LogFileServiceTest()
@@ -60,7 +60,6 @@ namespace Horde.Server.Tests
 
 			GC.SuppressFinalize(this);
 			await _logFileService.DisposeAsync();
-			_logObjectStore.Dispose();
 			_logStorage.Dispose();
 			_loggerFactory.Dispose();
 		}

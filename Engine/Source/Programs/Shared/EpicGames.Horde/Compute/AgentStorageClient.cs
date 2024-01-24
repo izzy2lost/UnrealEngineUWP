@@ -12,7 +12,7 @@ namespace EpicGames.Horde.Compute
 	/// <summary>
 	/// Storage client which can read bundles over a compute channel
 	/// </summary>
-	public sealed class AgentStorageBackend : IStorageBackend
+	public sealed class AgentStorageBackend : IStorageBackend, IDisposable
 	{
 		readonly AgentMessageChannel _channel;
 		readonly SemaphoreSlim _semaphore;

@@ -34,11 +34,6 @@ namespace EpicGames.Horde.Storage.Backends
 		/// <inheritdoc/>
 		public bool SupportsRedirects => false;
 
-		/// <inheritdoc/>
-		public void Dispose()
-		{
-		}
-
 		#region Blobs
 
 		/// <inheritdoc/>

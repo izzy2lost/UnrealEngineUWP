@@ -37,12 +37,6 @@ namespace EpicGames.Horde.Storage.ObjectStores
 		}
 
 		/// <inheritdoc/>
-		public void Dispose()
-		{
-			_inner.Dispose();
-		}
-
-		/// <inheritdoc/>
 		public Task DeleteAsync(ObjectKey locator, CancellationToken cancellationToken = default) => _inner.DeleteAsync(GetKeyWithPrefix(locator), cancellationToken);
 
 		/// <inheritdoc/>

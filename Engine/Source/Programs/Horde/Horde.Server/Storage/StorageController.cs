@@ -61,7 +61,7 @@ namespace Horde.Server.Storage
 		[Route("/api/v1/storage/{namespaceId}/bundles")]
 		public async Task<ActionResult<WriteBlobResponse>> WriteBlobAsync(NamespaceId namespaceId, IFormFile? file, [FromForm] string? prefix = default, CancellationToken cancellationToken = default)
 		{
-			using IStorageBackend? storageBackend = _storageService.TryCreateBackend(namespaceId);
+			IStorageBackend? storageBackend = _storageService.TryCreateBackend(namespaceId);
 			if (storageBackend == null)
 			{
 				return NotFound(namespaceId);
@@ -113,7 +113,7 @@ namespace Horde.Server.Storage
 		[Route("/api/v1/storage/{namespaceId}/bundles/{*locator}")]
 		public async Task<ActionResult> ReadBlobAsync(NamespaceId namespaceId, BlobLocator locator, CancellationToken cancellationToken = default)
 		{
-			using IStorageBackend? backend = _storageService.TryCreateBackend(namespaceId);
+			IStorageBackend? backend = _storageService.TryCreateBackend(namespaceId);
 			if (backend == null)
 			{
 				return NotFound(namespaceId);
@@ -195,7 +195,7 @@ namespace Horde.Server.Storage
 		[Route("/api/v1/storage/{namespaceId}/nodes")]
 		public async Task<ActionResult<FindNodesResponse>> FindNodesAsync(NamespaceId namespaceId, [FromQuery] string alias, [FromQuery] int? maxResults = null, CancellationToken cancellationToken = default)
 		{
-			using IStorageBackend? backend = _storageService.TryCreateBackend(namespaceId);
+			IStorageBackend? backend = _storageService.TryCreateBackend(namespaceId);
 			if (backend == null)
 			{
 				return NotFound(namespaceId);
@@ -229,7 +229,7 @@ namespace Horde.Server.Storage
 		[Route("/api/v1/storage/{namespaceId}/refs/{*refName}")]
 		public async Task<ActionResult> WriteRefAsync(NamespaceId namespaceId, RefName refName, [FromBody] WriteRefRequest request, CancellationToken cancellationToken)
 		{
-			using IStorageBackend? backend = _storageService.TryCreateBackend(namespaceId);
+			IStorageBackend? backend = _storageService.TryCreateBackend(namespaceId);
 			if (backend == null)
 			{
 				return NotFound(namespaceId);

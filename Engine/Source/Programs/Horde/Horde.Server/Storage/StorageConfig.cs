@@ -8,7 +8,9 @@ using System.Diagnostics.CodeAnalysis;
 using System.IO;
 using System.Reflection;
 using System.Security.Claims;
+using System.Text.Json;
 using System.Text.Json.Serialization;
+using EpicGames.Core;
 using EpicGames.Horde.Storage;
 using Horde.Server.Acls;
 using Horde.Server.Server;
@@ -77,6 +79,20 @@ namespace Horde.Server.Storage
 			foreach (BackendConfig backendConfig in Backends)
 			{
 				MergeBackendConfigs(backendConfig.Id, _backendLookup, mergedBackendConfigs);
+			}
+
+			// Compute the hash for each backend
+			foreach (BackendConfig backendConfig in Backends)
+			{
+				using (MemoryStream stream = new MemoryStream())
+				{
+					JsonSerializerOptions options = new JsonSerializerOptions();
+					Startup.ConfigureJsonSerializer(options);
+
+					JsonSerializer.Serialize(stream, backendConfig, options: options);
+
+					backendConfig.Hash = IoHash.Compute(stream.ToArray());
+				}
 			}
 
 			// Validate the backend config for each namespace
@@ -189,6 +205,12 @@ namespace Horde.Server.Storage
 
 		/// <inheritdoc/>
 		public string? RelayToken { get; set; }
+
+		/// <summary>
+		/// Hash of this backend config. Used for caching backend instances.
+		/// </summary>
+		[JsonIgnore]
+		internal IoHash Hash { get; set; }
 
 		/// <summary>
 		/// Merge default values from another object

@@ -5,6 +5,7 @@ using EpicGames.Horde.Storage;
 using EpicGames.Horde.Storage.Backends;
 using EpicGames.Horde.Storage.Bundles;
 using EpicGames.Horde.Storage.Nodes;
+using EpicGames.Horde.Storage.ObjectStores;
 using EpicGames.Horde.Tools;
 using EpicGames.Serialization;
 using Horde.Server.Server;
@@ -164,6 +165,7 @@ namespace Horde.Server.Tools
 
 		private readonly IMongoCollection<Tool> _tools;
 		private readonly StorageService _storageService;
+		private readonly FileObjectStoreFactory _fileObjectStoreFactory;
 		private readonly IClock _clock;
 		private readonly BundleCache _cache;
 		private readonly ILogger _logger;
@@ -171,10 +173,11 @@ namespace Horde.Server.Tools
 		/// <summary>
 		/// Constructor
 		/// </summary>
-		public ToolCollection(MongoService mongoService, StorageService storageService, BundleCache cache, IClock clock, ILogger<ToolCollection> logger)
+		public ToolCollection(MongoService mongoService, StorageService storageService, BundleCache cache, FileObjectStoreFactory fileObjectStoreFactory, IClock clock, ILogger<ToolCollection> logger)
 		{
 			_tools = mongoService.GetCollection<Tool>("Tools");
 			_storageService = storageService;
+			_fileObjectStoreFactory = fileObjectStoreFactory;
 			_clock = clock;
 			_cache = cache;
 			_logger = logger;
@@ -438,7 +441,7 @@ namespace Horde.Server.Tools
 		{
 			if (tool.Config is BundledToolConfig bundledConfig)
 			{
-				return new FileStorageBackend(DirectoryReference.Combine(ServerApp.AppDir, bundledConfig.DataDir ?? $"tools/{tool.Id}"), _logger);
+				return new FileStorageBackend(_fileObjectStoreFactory.CreateStore(DirectoryReference.Combine(ServerApp.AppDir, bundledConfig.DataDir ?? $"tools/{tool.Id}")), _logger);
 			}
 			else
 			{

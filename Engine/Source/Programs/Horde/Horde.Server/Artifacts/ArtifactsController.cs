@@ -154,7 +154,7 @@ namespace Horde.Server.Artifacts
 
 		async Task<RefName?> GetPrevRefNameForArtifactAsync(IArtifact artifact, CancellationToken cancellationToken)
 		{
-			using IStorageBackend storageBackend = _storageService.CreateBackend(artifact.NamespaceId);
+			IStorageBackend storageBackend = _storageService.CreateBackend(artifact.NamespaceId);
 			await foreach (IArtifact prevArtifact in _artifactCollection.FindAsync(artifact.StreamId, maxChange: artifact.Change - 1, name: artifact.Name, type: artifact.Type, cancellationToken: cancellationToken))
 			{
 				if (prevArtifact.NamespaceId != artifact.NamespaceId)
@@ -221,7 +221,7 @@ namespace Horde.Server.Artifacts
 				return BadRequest("Invalid blob id for artifact");
 			}
 
-			using IStorageBackend storageBackend = _storageService.CreateBackend(artifact.NamespaceId);
+			IStorageBackend storageBackend = _storageService.CreateBackend(artifact.NamespaceId);
 			return await StorageController.ReadBlobInternalAsync(storageBackend, locator, Request.Headers, cancellationToken);
 		}
 
