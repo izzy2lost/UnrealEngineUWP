@@ -290,13 +290,21 @@ public:
 		bool bNeedsWidgetFixUp;
 
 	public:
+		~FWidgetAttributeIterator();
 		FWidgetAttributeIterator(const FSlateInvalidationWidgetList& InWidgetList);
+		FWidgetAttributeIterator(const FWidgetAttributeIterator&) = delete;
+		FWidgetAttributeIterator& operator= (const FWidgetAttributeIterator&) = delete;
 
 		//~ Handle operation
+		UE_DEPRECATED(5.4, "PreChildRemove is deprecated. It was unused.")
 		void PreChildRemove(const FIndexRange& Range);
+		UE_DEPRECATED(5.4, "ReIndexed is deprecated. It was unused.")
 		void ReIndexed(const IProcessChildOrderInvalidationCallback::FReIndexOperation& Operation);
+		UE_DEPRECATED(5.4, "PostResort is deprecated. It was unused.")
 		void PostResort();
+		UE_DEPRECATED(5.4, "ProxiesBuilt is deprecated. It was unused.")
 		void ProxiesBuilt(const FIndexRange& Range);
+		UE_DEPRECATED(5.4, "FixCurrentWidgetIndex is deprecated. It was unused.")
 		void FixCurrentWidgetIndex();
 		void Seek(FSlateInvalidationWidgetIndex SeekTo);
 
@@ -565,6 +573,7 @@ private:
 	TWeakPtr<SWidget> Root;
 	int32 FirstArrayIndex = INDEX_NONE;
 	int32 LastArrayIndex = INDEX_NONE;
+	mutable int32 NumberOfLock = 0;
 	IProcessChildOrderInvalidationCallback* CurrentInvalidationCallback = nullptr;
 	const FArguments WidgetListConfig;
 };
