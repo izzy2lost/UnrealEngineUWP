@@ -876,7 +876,7 @@ namespace UE::MLDeformer
 		}
 	}
 
-	void FMLDeformerMorphModelEditorModel::RecursiveAddBoneToMaskUpwards(const FReferenceSkeleton& RefSkel, int32 SkeletonBoneIndex, int32 MaxHierarchyDepth, const TArray<int32>& VirtualParentTable, TArray<int32>& OutBonesAdded, int32 CurHierarchyDepth)
+	void FMLDeformerMorphModelEditorModel::RecursiveAddBoneToMaskUpwards(const FReferenceSkeleton& RefSkel, int32 SkeletonBoneIndex, int32 MaxHierarchyDepth, TArray<int32>& OutBonesAdded, int32 CurHierarchyDepth)
 	{
 		if (CurHierarchyDepth > MaxHierarchyDepth)
 		{
@@ -893,11 +893,16 @@ namespace UE::MLDeformer
 		const int32 ParentSkeletonBoneIndex = RefSkel.GetParentIndex(SkeletonBoneIndex);
 		if (ParentSkeletonBoneIndex != INDEX_NONE)
 		{
-			RecursiveAddBoneToMaskUpwards(RefSkel, ParentSkeletonBoneIndex, MaxHierarchyDepth, VirtualParentTable, OutBonesAdded, CurHierarchyDepth + 1);
+			RecursiveAddBoneToMaskUpwards(RefSkel, ParentSkeletonBoneIndex, MaxHierarchyDepth, OutBonesAdded, CurHierarchyDepth + 1);
 		}
 	}
 
-	void FMLDeformerMorphModelEditorModel::RecursiveAddBoneToMaskDownwards(const FReferenceSkeleton& RefSkel, int32 SkeletonBoneIndex, int32 MaxHierarchyDepth, const TArray<int32>& VirtualParentTable, TArray<int32>& OutBonesAdded, int32 CurHierarchyDepth)
+	void FMLDeformerMorphModelEditorModel::RecursiveAddBoneToMaskUpwards(const FReferenceSkeleton& RefSkel, int32 SkeletonBoneIndex, int32 MaxHierarchyDepth, const TArray<int32>& VirtualParentTable, TArray<int32>& OutBonesAdded, int32 CurHierarchyDepth)
+	{
+		RecursiveAddBoneToMaskUpwards(RefSkel, SkeletonBoneIndex, MaxHierarchyDepth, OutBonesAdded, CurHierarchyDepth);
+	}
+
+	void FMLDeformerMorphModelEditorModel::RecursiveAddBoneToMaskDownwards(const FReferenceSkeleton& RefSkel, int32 SkeletonBoneIndex, int32 MaxHierarchyDepth, TArray<int32>& OutBonesAdded, int32 CurHierarchyDepth)
 	{
 		if (CurHierarchyDepth > MaxHierarchyDepth)
 		{
@@ -918,8 +923,13 @@ namespace UE::MLDeformer
 		// Now recursively add the child bones.
 		for (const int32 ChildIndex : ChildBones)
 		{
-			RecursiveAddBoneToMaskDownwards(RefSkel, ChildIndex, MaxHierarchyDepth, VirtualParentTable, OutBonesAdded, CurHierarchyDepth + 1);
+			RecursiveAddBoneToMaskDownwards(RefSkel, ChildIndex, MaxHierarchyDepth, OutBonesAdded, CurHierarchyDepth + 1);
 		}
+	}
+
+	void FMLDeformerMorphModelEditorModel::RecursiveAddBoneToMaskDownwards(const FReferenceSkeleton& RefSkel, int32 SkeletonBoneIndex, int32 MaxHierarchyDepth, const TArray<int32>& VirtualParentTable, TArray<int32>& OutBonesAdded, int32 CurHierarchyDepth)
+	{
+		RecursiveAddBoneToMaskDownwards(RefSkel, SkeletonBoneIndex, MaxHierarchyDepth, OutBonesAdded, CurHierarchyDepth);
 	}
 
 	int32 FMLDeformerMorphModelEditorModel::FindVirtualParentIndex(const FReferenceSkeleton& RefSkel, int32 BoneIndex, const TArray<FName>& IncludedBoneNames) const
@@ -947,15 +957,17 @@ namespace UE::MLDeformer
 
 	TArray<int32> FMLDeformerMorphModelEditorModel::BuildVirtualParentTable(const FReferenceSkeleton& RefSkel, const TArray<FName>& IncludedBoneNames) const
 	{
+		PRAGMA_DISABLE_DEPRECATION_WARNINGS
+
 		TArray<int32> VirtualParentTable;
 		VirtualParentTable.SetNumUninitialized(RefSkel.GetNum());
-
 		for (int32 BoneIndex = 0; BoneIndex < RefSkel.GetNum(); ++BoneIndex)
 		{
 			VirtualParentTable[BoneIndex] = FindVirtualParentIndex(RefSkel, BoneIndex, IncludedBoneNames);
 		}
-
 		return MoveTemp(VirtualParentTable);
+
+		PRAGMA_ENABLE_DEPRECATION_WARNINGS
 	}
 
 }	// namespace UE::MLDeformer

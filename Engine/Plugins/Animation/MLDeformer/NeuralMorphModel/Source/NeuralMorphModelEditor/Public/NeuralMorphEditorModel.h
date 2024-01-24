@@ -160,6 +160,18 @@ namespace UE::NeuralMorphModel
 		 */
 		void DebugDrawItemMask(FPrimitiveDrawInterface* PDI, int32 MaskItemIndex, const FVector& DrawOffset);
 
+	private:
+		/**
+		 * Add child twist bones to the list of skeletal bone indices.
+		 * This will iterate over all bones inside the SkelBoneIndices array and check if there are direct child nodes inside the ref skeleton that contain
+		 * the substring "twist" inside their name. If so, that bone will be added to the SkelBoneIndices array as well.
+		 * The "twist" string is case-insensitive. The "twist" string can be configured on a per project basis inside the UNeuralMorphModel::TwistBoneSubString property, which 
+		 * is exposed in the per project .ini file. On default this value is "twist".
+		 * @param RefSkel The reference skeleton we use to find child nodes.
+		 * @param SkelBoneIndices The input and output array of indices inside the reference skeleton. This method potentially adds new entries to this array.
+		 */
+		void AddTwistBones(const FReferenceSkeleton& RefSkel, TArray<int32>& SkelBoneIndices);
+
 	protected:
 		int32 MaskVizItemIndex = INDEX_NONE;
 	};
