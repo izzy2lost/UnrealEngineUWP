@@ -36,7 +36,7 @@ public:
 
 private:
 
-	struct BuildRequest
+	struct FBuildRequest
 	{
 		BuildRequestIndex RequestIndex = INDEX_NONE;
 
@@ -45,17 +45,17 @@ private:
 		EAccelerationStructureBuildMode BuildMode;
 	};
 
-	void SetupBuildParams(const BuildRequest& InBuildRequest, TArray<FRayTracingGeometryBuildParams>& InBuildParams, bool bRemoveFromRequestArray = true);
+	void SetupBuildParams(const FBuildRequest& InBuildRequest, TArray<FRayTracingGeometryBuildParams>& InBuildParams, bool bRemoveFromRequestArray = true);
 
 	FCriticalSection RequestCS;
 
-	TSparseArray<BuildRequest> GeometryBuildRequests;
+	TSparseArray<FBuildRequest> GeometryBuildRequests;
 
 	// Used for keeping track of geometries when ray tracing is dynamic
 	TSparseArray<FRayTracingGeometry*> RegisteredGeometries;
 
 	// Working array with all active build build params in the RHI
-	TArray<BuildRequest> SortedRequests;
+	TArray<FBuildRequest> SortedRequests;
 	TArray<FRayTracingGeometryBuildParams> BuildParams;
 
 	// TODO: Investigate removing this critical section
