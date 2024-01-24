@@ -153,6 +153,17 @@ FCursorReply FUMGDragDropOp::OnCursorQuery()
 		}
 	}
 
+	if (TSharedPtr<SObjectWidget> SourceUserWidgetObj = SourceUserWidget.Pin())
+	{
+		if (UUserWidget* SourceUserWidgetPtr = SourceUserWidgetObj->GetWidgetObject())
+		{
+			if (SourceUserWidgetPtr->bOverride_Cursor)
+			{
+				CursorReply = CursorReply.Cursor(SourceUserWidgetPtr->GetCursor());
+			}
+		}
+	}
+
 	return CursorReply;
 }
 
