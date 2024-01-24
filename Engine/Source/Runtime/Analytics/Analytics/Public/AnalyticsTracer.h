@@ -28,6 +28,7 @@ public:
 	virtual TSharedPtr<IAnalyticsSpan> GetParentSpan() const override;
 	virtual double GetDuration() const override;
 	virtual void AddChildSpan(TSharedPtr<IAnalyticsSpan> ChildSpan) override;
+	virtual bool GetIsActive() const override;
 
 private:
 

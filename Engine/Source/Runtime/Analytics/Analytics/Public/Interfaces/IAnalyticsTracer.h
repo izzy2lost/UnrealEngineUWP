@@ -51,6 +51,9 @@ public:
 	/** Get the span duration in seconds */
 	virtual double GetDuration() const = 0;
 
+	// Is the span active?
+	virtual bool GetIsActive() const = 0;
+
 	/** Get the parent span */
 	virtual TSharedPtr<IAnalyticsSpan> GetParentSpan() const = 0;
 
