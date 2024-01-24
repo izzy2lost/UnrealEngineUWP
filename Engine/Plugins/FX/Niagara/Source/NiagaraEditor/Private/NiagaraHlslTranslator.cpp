@@ -10343,7 +10343,7 @@ void TNiagaraHlslTranslator<GraphBridge>::TrimAttributes(const FNiagaraCompileOp
 		{
 			if (!Attributes.Contains(Attribute))
 			{
-				TranslateResults.CompileTags.Emplace(Attribute, TEXT("Trimmed"));
+				TranslateResults.CompileTagsEditorOnly.Emplace(Attribute, TEXT("Trimmed"));
 			}
 		}
 	}
