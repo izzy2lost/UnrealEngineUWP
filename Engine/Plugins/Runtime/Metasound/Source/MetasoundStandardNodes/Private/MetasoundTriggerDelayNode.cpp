@@ -103,6 +103,7 @@ namespace Metasound
 			[this](int32 StartFrame, int32 EndFrame)
 			{
 				const int32 FrameToTrigger = FMath::Max(0, FMath::RoundToInt(DelayTime->GetSeconds() * SampleRate)) + StartFrame;
+				TriggerOut->RemoveAfter(StartFrame);
 				TriggerOut->TriggerFrame(FrameToTrigger);
 			}
 		);
