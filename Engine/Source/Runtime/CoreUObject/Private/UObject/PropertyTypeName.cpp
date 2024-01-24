@@ -337,6 +337,8 @@ void FPropertyTypeNameBuilder::EndTypeParameters()
 
 void FPropertyTypeNameBuilder::AddTypeName(FName Name)
 {
+	checkf(ActiveIndex >= 0 || Nodes.IsEmpty(), TEXT("Only one type name may be added as the root node."));
+
 	FPropertyTypeNameNode& Node = Nodes.AddDefaulted_GetRef();
 	Node.Name = Name;
 	Node.InnerCount = 0;
@@ -345,6 +347,20 @@ void FPropertyTypeNameBuilder::AddTypeName(FName Name)
 	if (ActiveIndex >= 0)
 	{
 		++Nodes[ActiveIndex].InnerCount;
+	}
+}
+
+void FPropertyTypeNameBuilder::AddTypeName(FPropertyTypeName Name)
+{
+	AddTypeName(Name.GetTypeName());
+	if (const int32 Count = Name.GetTypeParameterCount())
+	{
+		BeginTypeParameters();
+		for (int32 Index = 0; Index < Count; ++Index)
+		{
+			AddTypeName(Name.GetTypeParameter(Index));
+		}
+		EndTypeParameters();
 	}
 }
 
