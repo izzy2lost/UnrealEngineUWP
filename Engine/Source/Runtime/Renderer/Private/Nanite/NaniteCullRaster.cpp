@@ -4027,6 +4027,7 @@ void FRenderer::PrepareRasterizerPasses(
 
 	},
 		bUseSetupCache ? &GNaniteRasterSetupPipe : nullptr,
+		GetVisibilityTask(VisibilityQuery),
 		UE::Tasks::ETaskPriority::Normal,
 		CVarNaniteRasterSetupTask.GetValueOnRenderThread() > 0
 	);
