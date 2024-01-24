@@ -65,7 +65,7 @@ public:
 	UPROPERTY(EditAnywhere, Category = Previewing, meta = (AllowedClasses = "/Script/Engine.StaticMesh,/Script/Engine.SkeletalMesh", ExactClass = "true"))
 	FSoftObjectPath						PreviewMesh;  // Adding it here because this will be the base class for TS_Script and TS_ScriptInstance.
 
-	DECLARE_DELEGATE_OneParam(FOnRenderDone, UMixInterface*);
+	DECLARE_DELEGATE_TwoParams(FOnRenderDone, UMixInterface*, const FInvalidationDetails*);
 	FOnRenderDone						OnRenderDone;
 	virtual void						PostMeshLoad();
 
@@ -97,7 +97,7 @@ public:
 	virtual void						InvalidateWithDetails(const FInvalidationDetails& Details);
 	virtual void						InvalidateAll();
 
-	virtual void						BroadcastOnRenderingDone();
+	virtual void						BroadcastOnRenderingDone(const FInvalidationDetails* Details);
 	
 	//////////////////////////////////////////////////////////////////////////
 	/// Inline functions

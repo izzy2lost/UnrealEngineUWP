@@ -392,7 +392,19 @@ bool Job::CheckCached()
 	{
 		check(ExistingResult->IsTiled());
 
-		Result = std::static_pointer_cast<TiledBlob>(ExistingResult.get());
+		BufferDescriptor ResultDesc = ExistingResult->GetDescriptor();
+
+		if (ResultDesc.bIsTransient == IsDiscard())
+		{
+			Result = ExistingResult;
+		}
+		else
+		{
+			ResultOrg = std::make_shared<TiledBlob_Promise>(ExistingResult->GetDescriptor(), ExistingResult->Rows(), ExistingResult->Cols(), ExistingResult->Hash());
+			ResultOrg->FinaliseFrom(ExistingResult.get());
+			Result = TiledBlobRef(std::static_pointer_cast<TiledBlob>(ResultOrg), true, false);
+		}
+
 		FinalJobResult = std::make_shared<JobResult>(GetResultRef(), nullptr);
 		bIsCulled = true;
 
@@ -461,7 +473,9 @@ TiledBlobPtr Job::InitResult(FString InNewName, const BufferDescriptor* InDesire
 	check(!ResultDesc.Name.IsEmpty());
 
 	if (ResultDesc.IsLateBound())
+	{
 		return InitLateBoundResult(NewName, ResultDesc, NumInputBlobs);
+	}
 	else if (DesiredResultDesc && ArgsDescCombined.IsLateBound() && DesiredResultDesc->IsAutoSize() && ArgsDescCombined.IsAutoSize())
 	{
 		ResultDesc.Format = BufferFormat::LateBound;
@@ -497,6 +511,7 @@ TiledBlobPtr Job::InitResult(FString InNewName, const BufferDescriptor* InDesire
 
 	check(Result->GetDescriptor().Width >= Result->Rows());
 	check(Result->GetDescriptor().Height >= Result->Cols());
+	check(Result->IsTransient() == IsDiscard());
 
 	return Result;
 }
@@ -505,11 +520,15 @@ TiledBlobPtr Job::InitLateBoundResult(FString NewName, BufferDescriptor DesiredD
 {
 	/// We can only check for a cached result for late bound blobs if there are no input blobs
 	if (!NumInputBlobs && CheckCached())
+	{
+		check(Result->IsTransient() == IsDiscard());
 		return Result;
+	}
 
 	BufferDescriptor Desc = DesiredDesc;
 	Desc.Name = NewName;
 	Desc.Format = BufferFormat::LateBound;
+	Desc.bIsTransient = IsDiscard();
 
 	CHashPtr TempHash = Hash(); ///std::make_shared<CHash>(Desc.HashValue(), false);
 	check(MixObj);
@@ -518,8 +537,8 @@ TiledBlobPtr Job::InitLateBoundResult(FString NewName, BufferDescriptor DesiredD
 	int32 NumTilesY = MixObj->GetNumYTiles();
 
 	ResultOrg = std::make_shared<TiledBlob_Promise>(Desc, NumTilesX, NumTilesY, TempHash);
-
 	Result = TiledBlobRef(std::static_pointer_cast<TiledBlob>(ResultOrg), true, false);
+	check(Result->IsTransient() == IsDiscard());
 
 	return Result;
 }
@@ -531,16 +550,16 @@ AsyncJobResultPtr Job::FinaliseTiles(JobRunInfo InRunInfo)
 
 	std::vector<std::decay_t<AsyncBufferResultPtr>, std::allocator<std::decay_t<AsyncBufferResultPtr>>> Promises;
 
-	bool discard = RunInfo.Cycle->GetDetails().IsDiscard();
+	bool bIsDiscard = RunInfo.Cycle->GetDetails().IsDiscard();
 
-	/// only flush if these have not been marked to discard
+	/// only flush if these have not been marked to bIsDiscard
 	AsyncJobResultPtr FinalPromise = cti::make_ready_continuable(FinalJobResult);
 	double flushStartTime = Util::Time();
 
 	check(Result->IsPromise());
 	TiledBlob_PromisePtr result = GetResultPromise();
 
-	if (!discard)
+	if (!bIsDiscard)
 	{
 		if (CanHandleTiles())
 		{
@@ -803,7 +822,7 @@ AsyncPrepareResult Job::PrepareTargets(JobBatch* Batch)
 		}
 	}
 
-	/// Set transient
+	/// Transient flag should've been set correctly earlier on
 	if (bIsDiscard)
 		Result->SetTransient();
 

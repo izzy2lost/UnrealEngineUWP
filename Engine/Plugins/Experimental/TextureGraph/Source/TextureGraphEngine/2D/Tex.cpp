@@ -348,7 +348,8 @@ void Tex::InitRT(bool ForceFloat /* = false */)
 		}
 	}
 
-	const FName Name = *FString::Printf(TEXT("%s [RT]"), *Desc.Name);
+	FString DescName = Desc.Name.Left(std::min(NAME_SIZE / 2, Desc.Name.Len()));
+	const FName Name = *FString::Printf(TEXT("%s [RT]"), *DescName);
 	const auto Package = Util::GetRenderTargetPackage();
 	const FName UniqueName = MakeUniqueObjectName(Package, UTextureRenderTarget2D::StaticClass(), Name);
 	RT = NewObject<UTextureRenderTarget2D>(Package, UniqueName);
@@ -358,11 +359,10 @@ void Tex::InitRT(bool ForceFloat /* = false */)
 	check(RT);
 	
 	RT->ClearColor = Desc.ClearColor;
-	
 
-	if (Desc.bMipMaps && Desc.bAutoGenerateMipMaps) {
+	if (Desc.bMipMaps && Desc.bAutoGenerateMipMaps) 
+	{
 		RT->bAutoGenerateMips = true;
-		//_rt->MipGenSettings = TMGS_Sharpen4; /// Not for RT ?
 	}
 	
 	RT->MipsSamplerFilter = Filter;
@@ -373,15 +373,9 @@ void Tex::InitRT(bool ForceFloat /* = false */)
 	RT->OverrideFormat = Desc.Format;
 	RT->SizeX = Desc.Width;
 	RT->SizeY = Desc.Height;
-	//UE_LOG(LogTexture, Log, TEXT("Mips number: %d"), _rt->GetNumMips());
 	RT->LODBias = 0;
 
-	//_rt->InitCustomFormat(_desc.Width, _desc.Height, _desc.Format, !_desc.sRGB);
-	//UE_LOG(LogTexture, Log, TEXT("Creating render target: %s"), *_desc.Name);
-
 	RT->UpdateResource();
-	//_rt->UpdateResourceImmediate(false);
-
 }
 
 FString Tex::GetReferencerName() const

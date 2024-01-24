@@ -32,7 +32,7 @@ Scheduler::Scheduler()
 	HistogramServiceObj = HistogramSPtr;
 
 	AddIdleService(BlobHasherSPtr);
-	AddIdleService(DeviceTransferSPtr);
+	//AddIdleService(DeviceTransferSPtr);
 	AddIdleService(ThumbnailsSPtr);
 	AddIdleService(MipmapSPtr);
 	AddIdleService(MinmaxSPtr);
@@ -83,7 +83,7 @@ void Scheduler::Update(float dt)
 		}
 	}
 
-	JobBatchPtr batchToRun = nullptr;
+	JobBatchPtr BatchToRun = nullptr;
 	{
 		FScopeLock Lock(&BatchMutex);
 		if (Batches.size())
@@ -91,7 +91,7 @@ void Scheduler::Update(float dt)
 			/// TODO: Enable this at some point
 			if (Batches.size() == 1)
 			{
-				batchToRun = Batches.front();
+				BatchToRun = Batches.front();
 				Batches.pop_front();
 			}
 			else
@@ -101,51 +101,51 @@ void Scheduler::Update(float dt)
 				/// OK here, we're going to merge batches belonging to the same mix together
 				
 				// figure out the prioritized mix from the Batch
-				batchToRun = Batches.front();
-				UMixInterface* currentBatchMix = batchToRun->GetCycle()->GetMix();
+				BatchToRun = Batches.front();
+				UMixInterface* currentBatchMix = BatchToRun->GetCycle()->GetMix();
 
 				// find the latest Batch of required mix
-				auto iter = Batches.begin();
-				JobBatchPtr lastMixbatch = batchToRun;
+				auto Iter = Batches.begin();
+				JobBatchPtr lastMixbatch = BatchToRun;
 
-				while (iter != Batches.end())
+				while (Iter != Batches.end())
 				{
-					JobBatchPtr futureBatch = *iter;
+					JobBatchPtr futureBatch = *Iter;
 
 					if (futureBatch->GetCycle()->GetMix() == currentBatchMix)
 					{
-						lastMixbatch = *iter;
+						lastMixbatch = *Iter;
 					}
 
-					iter++;
+					Iter++;
 				}
 
 				// we get latest Batch to run for the mix
-				batchToRun = lastMixbatch;
+				BatchToRun = lastMixbatch;
 
 				// Merge invalidation details of the mix from multiple batches.
 				// Remove the batches from the list after merging.
-				iter = Batches.begin();
-				while (iter != Batches.end())
+				Iter = Batches.begin();
+				while (Iter != Batches.end())
 				{
-					JobBatchPtr futureBatch = *iter;
+					JobBatchPtr futureBatch = *Iter;
 
 					if (futureBatch->GetCycle()->GetMix() == currentBatchMix)
 					{
-						batchToRun->GetCycle()->MergeDetails(futureBatch->GetCycle()->GetDetails());
-						iter = Batches.erase(iter);
+						BatchToRun->GetCycle()->MergeDetails(futureBatch->GetCycle()->GetDetails());
+						Iter = Batches.erase(Iter);
 					}
 					else
-						iter++;
+						Iter++;
 				}
 			}
 		}
 	}
 
-	if (batchToRun)
+	if (BatchToRun)
 	{
 		FScopeLock Lock(&CurrentBatchMutex);
-		CurrentBatch = batchToRun;
+		CurrentBatch = BatchToRun;
 		CurrentBatchStartTime = Util::Time();
 
 		UE_LOG(LogBatch, Log, TEXT("Next Batch: %llu [Prev: %llu]"), CurrentBatch->GetBatchId(), PreviousBatch ? PreviousBatch->GetBatchId() : 0);
@@ -186,39 +186,11 @@ void Scheduler::Update(float dt)
 
 					ObserverSource->BatchDone(CurrentBatch);
 
-					UE_LOG(LogBatch, Log, TEXT("Scheduler Observer::BatchDone finished for Batch: %llu"), PreviousBatch ? PreviousBatch->GetBatchId() : -1);
-				})
-				.then([this]()
-					{
-						// Trigger cycle->invalidateDetails.DoneCallBackLambda()
-						
-						//Adding logs to debug and safty checks here to avoid the crash
-						//Crash was happening in cases when we do not have a valid Cycle or Mix
-						//This could happen when we open a script run it and then delete it and then try to run another script.
-						// 
-						//TODO: Investigate why we need to call the PreviousBatch->BroadcastOnDone instead of calling Currentbatch->BroadcastOnDone
-						//As we are setting the PreviousBatch = CurrentBatch in the callback of Exec function and that gets called from EndBatch after the
-						//execution of this .then block 
-						//looks like a bug though 
-						//fix would be to remove this .then block and call PreviousBatch->GetCycle()->GetDetails().BroadcastOnDone(); in the callback of Exec function
-						if (!PreviousBatch)
-						{
-							UE_LOG(LogBatch, Log, TEXT("Scheduler Previous Batch is null"));
-							return;
-						}
-						if (!PreviousBatch->GetCycle())
-						{
-							UE_LOG(LogBatch, Warning, TEXT("Scheduler Previous Batch : %llu Cycle is null") , PreviousBatch->GetBatchId());
-							return;
-						}
-						if (!PreviousBatch->GetCycle()->GetDetails().Mix.IsValid())
-						{
-							UE_LOG(LogBatch, Warning, TEXT("Scheduler Previous Batch : %llu Cycle Details Mix is null"), PreviousBatch->GetBatchId());
-							return;
-						}
+					/// Mark the current batch as done
+					CurrentBatch->GetCycle()->GetDetails().BroadcastOnDone();
 
-						PreviousBatch->GetCycle()->GetDetails().BroadcastOnDone();
-					});
+					UE_LOG(LogBatch, Log, TEXT("Scheduler Observer::BatchDone finished for Batch: %llu"), PreviousBatch ? PreviousBatch->GetBatchId() : -1);
+				});
 	}
 	else
 	{
@@ -264,6 +236,14 @@ AsyncJobResultPtr Scheduler::UpdateIdleBatch(size_t Index)
 
 void Scheduler::UpdateIdle()
 {
+	{
+		FScopeLock Lock(&CurrentBatchMutex);
+
+		/// If there's an active batch then we don't run this at all
+		if (CurrentBatch)
+			return;
+	}
+
 	/// Currently we don't do the idle update in test mode
 	if (TextureGraphEngine::IsTestMode())
 		return;

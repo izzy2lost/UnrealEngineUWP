@@ -15,7 +15,7 @@ ThumbnailsService::~ThumbnailsService()
 
 AsyncJobResultPtr ThumbnailsService::Tick()
 {
- 	check(IsInGameThread());
+	check(IsInGameThread());
  
  	/// if no batch or the batch has no jobs then just don't do anything
  	if (!Batch)

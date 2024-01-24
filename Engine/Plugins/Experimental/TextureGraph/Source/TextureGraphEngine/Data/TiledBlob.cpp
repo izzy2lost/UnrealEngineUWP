@@ -130,7 +130,13 @@ void TiledBlob::FinaliseFrom(const Blob* RHS)
 
 	Tiles = RHSTiled->Tiles;
 	HashValue = RHSTiled->HashValue;
+
+	bool bIsTransient = Desc.bIsTransient;
 	Desc = RHSTiled->Desc;
+
+	/// Retain the transient information as cached tiled blob could be transient and this one isn't or vice-versa
+	Desc.bIsTransient = bIsTransient; 
+
 	bReady = RHSTiled->bReady;
 	bTiledTarget = RHSTiled->bTiledTarget;
 	SingleBlob = RHSTiled->SingleBlob;
@@ -1090,37 +1096,21 @@ void TiledBlob_Promise::FinaliseNow(bool bNoCalcHash, CHashPtr FixedHash)
 	UpdateLinkedBlobs(true);
 }
 
-AsyncBufferResultPtr TiledBlob_Promise::FinaliseFrom(std::shared_ptr<TiledBlob_Promise> RHS)
+void TiledBlob_Promise::FinaliseFrom(TiledBlobPtr RHS)
 {
-	if (RHS->bMakeSingleBlob && !bMakeSingleBlob)
-	{
-		check(RHS->IsFinalised());
-		check(RHS->Rows() == 1 && RHS->Cols() == 1);
-
-		auto RHSBuffer = RHS->GetTile(0, 0)->GetBufferRef();
-		check(RHSBuffer);
-		Buffer = RHSBuffer;
-
-		check(Buffer);
-		check(!bMakeSingleBlob && Desc.Width >= Tiles.Rows() && Desc.Height >= Tiles.Cols());
-		bIsFinalised = true;
-		
-		return TileBuffer(Buffer, Tiles);
-	}
-
-	*this = *RHS.get();
-	return cti::make_ready_continuable<BufferResultPtr>(std::make_shared<BufferResult>());
+	FinaliseFrom(std::static_pointer_cast<Blob>(RHS).get());
 }
 
 void TiledBlob_Promise::FinaliseFrom(const Blob* RHS)
 {
 	check(RHS->IsTiled());
 	const TiledBlob* RHSTiled = static_cast<const TiledBlob*>(RHS);
-	check(RHSTiled->IsPromise());
 
-	const TiledBlob_Promise* RHSTiledPromise = static_cast<const TiledBlob_Promise*>(RHS);
-
-	bMakeSingleBlob = RHSTiledPromise->bMakeSingleBlob;
+	if (RHSTiled->IsPromise())
+	{
+		const TiledBlob_Promise* RHSTiledPromise = static_cast<const TiledBlob_Promise*>(RHS);
+		bMakeSingleBlob = RHSTiledPromise->bMakeSingleBlob;
+	}
 
 	TiledBlob::FinaliseFrom(RHS);
 }

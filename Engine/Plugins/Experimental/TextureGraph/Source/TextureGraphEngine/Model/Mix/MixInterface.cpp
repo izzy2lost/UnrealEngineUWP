@@ -98,9 +98,9 @@ int32 UMixInterface::GetNumYTiles() const
 	return GetSettings()->GetYTiles();
 }
 
-void UMixInterface::BroadcastOnRenderingDone()
+void UMixInterface::BroadcastOnRenderingDone(const FInvalidationDetails* Details)
 {
-	OnRenderDone.ExecuteIfBound(this);
+	OnRenderDone.ExecuteIfBound(this, Details);
 }
 
 UMixSettings* UMixInterface::GetSettings() const 

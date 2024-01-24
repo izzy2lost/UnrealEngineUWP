@@ -103,7 +103,7 @@ public:
 	void											RefreshPreviewViewport();
 	
 	/** Called to update the selection view */
-	void											RefreshSelectionPreview(const TSet<class UObject*>& NewSelection);
+	void											RefreshSelectionPreview(const TSet<class UObject*>& NewSelection, const FInvalidationDetails* Details);
 
 	void											SetMesh(class UMeshComponent* InPreviewMesh, class UWorld* InWorld) override;
 	bool 											SetPreviewAsset(UObject* InAsset);
@@ -160,7 +160,7 @@ private:
 	ECheckBoxState									HandleAutoRunActionIsChecked() const;
 	void											HandleAutoRunActionExecute(ECheckBoxState InNewState);
 
-	void											OnRenderingDone(UMixInterface* script);
+	void											OnRenderingDone(UMixInterface* TextureGraph, const FInvalidationDetails* Details);
 	void											OnViewportSettingsChanged();
 	void											OnMaterialMappingChanged();
 	/** Log Graph in console */
