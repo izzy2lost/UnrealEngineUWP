@@ -2023,6 +2023,10 @@ TArray<FOptimusComputeGraphInfo> UOptimusDeformer::CompileNodeGraphToComputeGrap
 				{
 					LinksToInsertCopyKernel.FindOrAdd(SourcePin).Add(TargetPin);
 				}
+				else if (Cast<const IOptimusValueProvider>(SourceNode))
+				{
+					LinksToInsertCopyKernel.FindOrAdd(SourcePin).Add(TargetPin);
+				}
 			}
 		}
 	}
@@ -2190,7 +2194,6 @@ TArray<FOptimusComputeGraphInfo> UOptimusDeformer::CompileNodeGraphToComputeGrap
 						{
 							const FOptimusRoutedConstNode TargetRoutedNode = TargetInstancedPin.InstancedNode.RoutedNode;
 							const UOptimusNode* TargetNode = TargetRoutedNode.Node;
-							const UOptimusNodePin* TargetPin = TargetInstancedPin.Pin;
 
 							if (Cast<const IOptimusDataInterfaceProvider>(TargetNode))
 							{
@@ -2277,7 +2280,7 @@ TArray<FOptimusComputeGraphInfo> UOptimusDeformer::CompileNodeGraphToComputeGrap
 	
 	struct FDataInterfaceFunctionBinding
 	{
-		UOptimusComputeDataInterface* DataInterface;
+		UComputeDataInterface* DataInterface;
 		int32 FunctionIndex;
 	};
 	
@@ -2288,6 +2291,8 @@ TArray<FOptimusComputeGraphInfo> UOptimusDeformer::CompileNodeGraphToComputeGrap
 	for (TPair<FOptimusInstancedPin, TArray<FOptimusInstancedPin>> OutputLink : LinksToInsertCopyKernel)
 	{
 		const FOptimusInstancedPin& SourceInstancedPin = OutputLink.Key;
+		const TArray<FOptimusInstancedPin>& TargetInstancedPins = OutputLink.Value;
+		
 		const UOptimusNode* SourceNode = SourceInstancedPin.Pin->GetOwningNode();
 		if (const IOptimusDataInterfaceProvider* InterfaceProvider = Cast<const IOptimusDataInterfaceProvider>(SourceNode))
 		{
@@ -2295,6 +2300,13 @@ TArray<FOptimusComputeGraphInfo> UOptimusDeformer::CompileNodeGraphToComputeGrap
 			DataInterfaceBinding.DataInterface = NodeDataInterfaceMap[SourceNode];
 			DataInterfaceBinding.FunctionIndex = InterfaceProvider->GetDataFunctionIndexFromPin(SourceInstancedPin.Pin);
 			CopyFromDataInterfaceMap.Add(SourceInstancedPin) = DataInterfaceBinding;
+		}
+		else if (Cast<const IOptimusValueProvider>(SourceNode))
+		{
+			FDataInterfaceFunctionBinding DataInterfaceBinding;
+			DataInterfaceBinding.DataInterface = GraphDataInterface;
+			DataInterfaceBinding.FunctionIndex = ValueNodes.Find(SourceNode);
+			CopyFromDataInterfaceMap.Add(SourceInstancedPin) = DataInterfaceBinding;	
 		}
 		else if (Cast<const IOptimusComputeKernelProvider>(SourceNode))
 		{
@@ -2305,22 +2317,30 @@ TArray<FOptimusComputeGraphInfo> UOptimusDeformer::CompileNodeGraphToComputeGrap
 			CopyFromDataInterfaceMap.Add(SourceInstancedPin) = DataInterfaceBinding;
 		}
 
-		UOptimusCopyKernelDataInterface* CopyKernelDataInterface = NewObject<UOptimusCopyKernelDataInterface>(this);
-
-		CopyKernelDataInterface->SetExecutionDomain(*SourceInstancedPin.Pin->GetDataDomain().AsExpression());
-		UOptimusComponentSourceBinding* Binding = *SourceInstancedPin.Pin->GetComponentSourceBindings().CreateConstIterator();
-		CopyKernelDataInterface->SetComponentBinding(Binding);
-
-		CopyKernelDataInterfaceMap.Add(SourceInstancedPin) = CopyKernelDataInterface;
-		DataInterfaceToBindingIndexMap.Add(CopyKernelDataInterface) = Binding->GetIndex();
-
-		for (const FOptimusInstancedPin& TargetInstancedPin : OutputLink.Value)
+		bool bIsCopyKernelDataInterfaceCreated = false;
+		for (const FOptimusInstancedPin& TargetInstancedPin : TargetInstancedPins)
 		{
 			const UOptimusNode* TargetNode = TargetInstancedPin.Pin->GetOwningNode();
 
 			if (const IOptimusDataInterfaceProvider* InterfaceProvider = Cast<const IOptimusDataInterfaceProvider>(TargetNode);
 				ensure(InterfaceProvider))
 			{
+				// One-time Initialization of the copy kernel based on the first target pin, because if source is a value provider, it does not
+				// have a meaningful data domain and a meaning component source binding
+				if (!bIsCopyKernelDataInterfaceCreated)
+				{
+					bIsCopyKernelDataInterfaceCreated = true;
+					
+					UOptimusCopyKernelDataInterface* CopyKernelDataInterface = NewObject<UOptimusCopyKernelDataInterface>(this);
+					CopyKernelDataInterface->SetExecutionDomain(*TargetInstancedPin.Pin->GetDataDomain().AsExpression());
+					
+					UOptimusComponentSourceBinding* Binding = InterfaceProvider->GetComponentBinding();
+					CopyKernelDataInterface->SetComponentBinding(Binding);
+					CopyKernelDataInterfaceMap.Add(SourceInstancedPin) = CopyKernelDataInterface;
+					DataInterfaceToBindingIndexMap.Add(CopyKernelDataInterface) = Binding->GetIndex();
+				}
+				
+				
 				FDataInterfaceFunctionBinding DataInterfaceBinding;
 				DataInterfaceBinding.DataInterface = NodeDataInterfaceMap[TargetNode];
 				DataInterfaceBinding.FunctionIndex = InterfaceProvider->GetDataFunctionIndexFromPin(TargetInstancedPin.Pin);
@@ -2607,7 +2627,12 @@ TArray<FOptimusComputeGraphInfo> UOptimusDeformer::CompileNodeGraphToComputeGrap
 		
 					KernelSource->ExternalInputs.Emplace(FuncDef);
 
-					SourceText += FString::Printf(TEXT("%s Value = %s(Index);\n"), *ValueType->ToString(), *InterfaceBinding.BindingFunctionName);
+					FString IndexString;
+					if (FuncDef.ParamTypes.Num() == 2)
+					{
+						IndexString = TEXT("Index");
+					}
+					SourceText += FString::Printf(TEXT("%s Value = %s(%s);\n"), *ValueType->ToString(), *InterfaceBinding.BindingFunctionName, *IndexString);
 				}
 				
 				for (int32 TargetIndex = 0 ; TargetIndex < OutputLink.Value.Num(); TargetIndex++)

@@ -512,42 +512,37 @@ void UOptimusDeformerInstance::EnqueueWork(FEnqueueWorkDesc const& InDesc)
 		return;
 	}
 
-	// Get the current queued graphs.
-	TSet<FName> GraphsToRun;
-	{
-		UE::TScopeLock<FCriticalSection> Lock(GraphsToRunOnNextTickLock);
-		Swap(GraphsToRunOnNextTick, GraphsToRun);
-	}
-	
-	
-	
+
 	
 	// Enqueue work.
 	bool bIsWorkEnqueued = false;
 	if (bCanBeActive)
 	{
+		bool AreAllGraphsReady = true;
 		for (FOptimusDeformerInstanceExecInfo& Info: ComputeGraphExecInfos)
 		{
-			if (Info.GraphType == EOptimusNodeGraphType::Update || GraphsToRun.Contains(Info.GraphName))
+			if (Info.ComputeGraph->HasKernelResourcesPendingShaderCompilation())
 			{
-				FSimpleDelegate FallbackDelegate = InDesc.FallbackDelegate;
+				AreAllGraphsReady = false;
+				break;
+			}
+		}
 
-#if WITH_EDITOR
-				// Pending shader compilation may cause queued graph to not execute, so requeue on failure
-				// Ideally all compute graph should be ready before the deformer instance starts to enqueue work
-				if (Info.GraphType != EOptimusNodeGraphType::Update)
+		if (AreAllGraphsReady)
+		{
+			// Get the current queued graphs.
+			TSet<FName> GraphsToRun;
+			{
+				UE::TScopeLock<FCriticalSection> Lock(GraphsToRunOnNextTickLock);
+				Swap(GraphsToRunOnNextTick, GraphsToRun);
+			}
+			
+			for (FOptimusDeformerInstanceExecInfo& Info: ComputeGraphExecInfos)
+			{
+				if (Info.GraphType == EOptimusNodeGraphType::Update || GraphsToRun.Contains(Info.GraphName))
 				{
-					FallbackDelegate = FSimpleDelegate::CreateLambda([InDesc, this, GraphName=Info.GraphName]()
-					{
-						{
-							UE::TScopeLock<FCriticalSection> Lock(GraphsToRunOnNextTickLock);
-							GraphsToRunOnNextTick.Add(GraphName);
-						}	
-					});		
+					bIsWorkEnqueued |= Info.ComputeGraphInstance.EnqueueWork(Info.ComputeGraph, InDesc.Scene, ExecutionGroupName, InDesc.OwnerName, InDesc.FallbackDelegate, this);
 				}
-#endif
-				
-				bIsWorkEnqueued |= Info.ComputeGraphInstance.EnqueueWork(Info.ComputeGraph, InDesc.Scene, ExecutionGroupName, InDesc.OwnerName, FallbackDelegate, this);
 			}
 		}
 	}

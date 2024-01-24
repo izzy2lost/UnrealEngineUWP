@@ -210,6 +210,11 @@ void UComputeGraph::UpdateResources()
 	RenderProxy = CreateRenderProxy();
 }
 
+bool UComputeGraph::HasKernelResourcesPendingShaderCompilation() const
+{
+	return !KernelResourceIndicesPendingShaderCompilation.IsEmpty();
+}
+
 FComputeGraphRenderProxy const* UComputeGraph::GetRenderProxy() const 
 {
 	return RenderProxy;
@@ -621,6 +626,13 @@ void UComputeGraph::CacheResourceShadersForRendering(uint32 CompilationFlags)
 	if (FApp::CanEverRender())
 	{
 		KernelResources.SetNum(KernelInvocations.Num());
+
+		KernelResourceIndicesPendingShaderCompilation.Reset();
+		for (int32 KernelIndex = 0; KernelIndex < KernelInvocations.Num(); ++KernelIndex)
+		{
+			KernelResourceIndicesPendingShaderCompilation.Add(KernelIndex);
+		}
+		
 		for (int32 KernelIndex = 0; KernelIndex < KernelInvocations.Num(); ++KernelIndex)
 		{
 			UComputeKernel* Kernel = KernelInvocations[KernelIndex];
@@ -721,6 +733,7 @@ void UComputeGraph::ShaderCompileCompletionCallback(FComputeKernelResource const
 		if (KernelResource == KernelResources[KernelIndex].Get())
 		{
 			OnKernelCompilationComplete(KernelIndex, KernelResource->GetCompilationResults());
+			KernelResourceIndicesPendingShaderCompilation.Remove(KernelIndex);
 		}
 	}
 }
