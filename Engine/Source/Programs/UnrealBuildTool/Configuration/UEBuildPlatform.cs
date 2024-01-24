@@ -793,13 +793,6 @@ namespace UnrealBuildTool
 		}
 
 		/// <summary>
-		/// Validate a plugin's settings
-		/// </summary>
-		public virtual void ValidatePlugin(UEBuildPlugin Plugin, ReadOnlyTargetRules Target)
-		{
-		}
-
-		/// <summary>
 		/// Validate a UEBuildModule before it's processed
 		/// <param name="Module">The UEBuildModule that needs to be validated</param>
 		/// <param name="Target">Options for the target being built</param>
