@@ -46,7 +46,8 @@ struct TEXTUREGRAPH_API FTG_ArgumentType
 
 	FTG_ArgumentType() {}
 	FTG_ArgumentType(ETG_Access InAccess) : Flags(static_cast<uint8>(InAccess)) {}
-
+	FTG_ArgumentType(ETG_Access InAccess, uint8 Flags) : Flags(static_cast<uint8>(InAccess) | Flags) {}
+	
 	UPROPERTY()
 	uint32			Flags = static_cast<uint8>(ETG_Access::In);
 

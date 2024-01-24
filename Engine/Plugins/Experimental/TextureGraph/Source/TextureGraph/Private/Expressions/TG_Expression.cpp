@@ -63,41 +63,45 @@ FTG_Signature::FInit UTG_Expression::GetSignatureInitArgsFromClass() const
 	for (TFieldIterator<FProperty> Prop(GetClass()); Prop; ++Prop) {
 		FName PropName = FName(Prop->GetNameCPP());
 		FName PropTypeName = FName(Prop->GetCPPType());
+		uint8 MaskNotConnectable = 0;
 #if WITH_EDITORONLY_DATA
+		
 		auto PropertyTGType = Prop->GetMetaData(TEXT("TGType"));
+		bool PropertyPinNotConnectable = Prop->HasMetaData(TEXT("TGPinNotConnectable"));
+		MaskNotConnectable = PropertyPinNotConnectable ? static_cast<uint8>(ETG_Access::NotConnectableFlag) : 0;
 #else
 		FString PropertyTGType;
 #endif
-
+		
 		if (PropertyTGType.Compare(TEXT("TG_InputParam")) == 0)
 		{
 			// Add the new argument to the signature
-			SignatureInit.Arguments.Add(FTG_Argument{ PropName, PropTypeName, { ETG_Access::InParam } });
+			SignatureInit.Arguments.Add(FTG_Argument{ PropName, PropTypeName, { ETG_Access::InParam, MaskNotConnectable} });
 		}																								   
 		else if (PropertyTGType.Compare(TEXT("TG_OutputParam")) == 0)									   
 		{																									   
 			// Add the new argument to the signature													   
-			SignatureInit.Arguments.Add(FTG_Argument{ PropName, PropTypeName, { ETG_Access::OutParam } });
+			SignatureInit.Arguments.Add(FTG_Argument{ PropName, PropTypeName, { ETG_Access::OutParam, MaskNotConnectable } });
 		}																								   
 		else if (PropertyTGType.Compare(TEXT("TG_Input")) == 0)										   
 		{													   
 			// Add the new argument to the signature													   
-			SignatureInit.Arguments.Add(FTG_Argument{ PropName, PropTypeName, { ETG_Access::In } });
+			SignatureInit.Arguments.Add(FTG_Argument{ PropName, PropTypeName, { ETG_Access::In, MaskNotConnectable } });
 		}																								   
 		else if (PropertyTGType.Compare(TEXT("TG_Output")) == 0)										   
 		{																	   
 			// Add the new argument to the signature													   
-			SignatureInit.Arguments.Add(FTG_Argument{ PropName, PropTypeName, { ETG_Access::Out } });
+			SignatureInit.Arguments.Add(FTG_Argument{ PropName, PropTypeName, { ETG_Access::Out, MaskNotConnectable } });
 		}
 		else if (PropertyTGType.Compare(TEXT("TG_Setting")) == 0)
 		{
 			// Add the new argument to the signature as a Setting													   
-			SignatureInit.Arguments.Add(FTG_Argument{ PropName, PropTypeName, { ETG_Access::InSetting } });
+			SignatureInit.Arguments.Add(FTG_Argument{ PropName, PropTypeName, { ETG_Access::InSetting, MaskNotConnectable } });
 		}
 		else if (PropertyTGType.Compare(TEXT("TG_Private")) == 0)
 		{
 			// Add the new argument to the signature as a Private													   
-			SignatureInit.Arguments.Add(FTG_Argument{ PropName, PropTypeName, { ETG_Access::Private } });
+			SignatureInit.Arguments.Add(FTG_Argument{ PropName, PropTypeName, { ETG_Access::Private, MaskNotConnectable } });
 		}
 		else
 		{

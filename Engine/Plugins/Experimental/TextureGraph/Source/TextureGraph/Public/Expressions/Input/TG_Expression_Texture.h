@@ -27,7 +27,7 @@ public:
 	FTG_Texture Output;
 
 	// The source asset to be used to generate the Output
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = NoCategory, meta = (TGType = "TG_Input", PinNotConnectable = true))
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = NoCategory, meta = (TGType = "TG_Input", TGPinNotConnectable) )
 	TObjectPtr<UTexture> Source;
 
 	// The input texture that was loaded from the asset
