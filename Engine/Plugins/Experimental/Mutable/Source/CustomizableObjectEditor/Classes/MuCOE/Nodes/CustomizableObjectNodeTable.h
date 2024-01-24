@@ -19,6 +19,7 @@ class UObject;
 class USkeletalMesh;
 class UTexture2D;
 class UTexture2DArray;
+class UAnimInstance;
 struct FGuid;
 
 
