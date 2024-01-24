@@ -238,7 +238,6 @@ int32 SSchematicGraphNode::OnPaint(const FPaintArgs& Args, const FGeometry& Allo
 			if(!LabelSize.IsNearlyZero())
 			{
 				NewLayerId++;
-				
 				const FVector2d LabelOffset = TagCenter - LabelSize * 0.5;
 
 				FSlateDrawElement::MakeText(
@@ -283,8 +282,22 @@ int32 SSchematicGraphNode::OnPaint(const FPaintArgs& Args, const FGeometry& Allo
 		const FVector2d NodeBottomCenter = AllottedGeometry.GetLocalSize() * FVector2d(0.5f, 1.f) + FVector2d(0.f, 8.f);
 		const FVector2d NodeLabelOffset = NodeBottomCenter - NodeLabelSize * FVector2d(0.5, 0);
 
-		NewLayerId++;
+		static const FVector2d LabelBackgroundPadding = FVector2d(2.f);
+		const FVector2d LabelBackgroundSize = NodeLabelSize + LabelBackgroundPadding * 2.f;
+		const FVector2d LabelBackgroundOffset = NodeLabelOffset - LabelBackgroundPadding;
+		static const FSlateBrush* LabelBackgroundBrush = FSchematicGraphStyle::Get().GetBrush( "Schematic.Label.Background");
 
+		NewLayerId++;
+		FSlateDrawElement::MakeBox(
+			OutDrawElements,
+			NewLayerId,
+			AllottedGeometry.ToPaintGeometry(LabelBackgroundSize, FSlateLayoutTransform(LabelBackgroundOffset)),
+			LabelBackgroundBrush,
+			ESlateDrawEffect::None,
+			FLinearColor(0.2f, 0.2f, 0.2f, 0.8f) * FadedOutFactor
+		);
+
+		NewLayerId++;
 		FSlateDrawElement::MakeText(
 			OutDrawElements,
 			NewLayerId,
