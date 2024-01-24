@@ -64,6 +64,11 @@ void FAnalyticsSpan::AddChildSpan(TSharedPtr<IAnalyticsSpan> ChildSpan)
 	ChildSpans.Add(ChildSpan);
 }
 
+bool FAnalyticsSpan::GetIsActive() const
+{
+	return IsActive;
+}
+
 void FAnalyticsSpan::End(const TArray<FAnalyticsEventAttribute>& AdditionalAttributes)
 {
 	// Only End the span once

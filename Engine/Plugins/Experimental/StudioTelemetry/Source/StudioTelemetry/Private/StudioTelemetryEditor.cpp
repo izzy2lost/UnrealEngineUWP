@@ -13,6 +13,7 @@
 #include "AssetRegistry/AssetRegistryTelemetry.h"
 #include "Editor.h"
 #include "Editor/UnrealEdEngine.h"
+#include "Engine/AssetManager.h"
 #include "UnrealEdGlobals.h"
 #include "CookOnTheSide/CookOnTheFlyServer.h"
 #include "Subsystems/AssetEditorSubsystem.h"
@@ -398,44 +399,63 @@ extern ENGINE_API float GAverageFPS;
 
 void FStudioTelemetryEditor::HeartbeatCallback()
 {
-	static bool WasHitchingLastTime = false;
 	static uint32 HitchCount = 0;
 
-	// Record a hitch when FPS is below our threshold
+	// Hitching is when FPS is below our threshold
 	const bool IsHitching = GAverageFPS<MinFPSForHitching;
 
-	HitchCount += IsHitching? 1:0;
+	HitchCount += IsHitching ? 1:0;
 	
-	if (WasHitchingLastTime != IsHitching)
+	if ( IsHitching == false && HitchingSpan.IsValid()==true )
 	{
-		if (IsHitching)
-		{
-			// Start the hitch span
-			HitchingSpan = FStudioTelemetry::Get().StartSpan(HitchingSpanName);
-			HitchCount = 1;
-		}
-		else
-		{
-			TArray<FAnalyticsEventAttribute> Attributes;
-			Attributes.Emplace(FAnalyticsEventAttribute(TEXT("Hitch_Count"), HitchCount));
-			Attributes.Emplace(FAnalyticsEventAttribute(TEXT("Hitch_HitchesPerSecond"), (float)HitchCount / HitchingSpan->GetDuration()));
-			Attributes.Emplace(FAnalyticsEventAttribute(TEXT("Hitch_AverageFPS"), GAverageFPS));
-			
-			// End the hitch Span
-			FStudioTelemetry::Get().EndSpan(HitchingSpan, Attributes);
+		// No longer hitching and we have started a hitch span
+		TArray<FAnalyticsEventAttribute> Attributes;
+		Attributes.Emplace(FAnalyticsEventAttribute(TEXT("Hitch_Count"), HitchCount));
+		Attributes.Emplace(FAnalyticsEventAttribute(TEXT("Hitch_HitchesPerSecond"), (float)HitchCount / HitchingSpan->GetDuration()));
+		Attributes.Emplace(FAnalyticsEventAttribute(TEXT("Hitch_AverageFPS"), GAverageFPS));
 
-			// Record the hitch event
-			FStudioTelemetry::Get().RecordEvent(TEXT("Core.Hitch"), Attributes);
+		// End the hitch Span
+		FStudioTelemetry::Get().EndSpan(HitchingSpan, Attributes);
 
-			Attributes.Emplace(TEXT("MapName"), EditorMapName);
-			Attributes.Emplace(TEXT("PIE_MapName"), PIEMapName);
+		// Record the hitch event
+		FStudioTelemetry::Get().RecordEvent(TEXT("Core.Hitch"), Attributes);
 
-			// Record core systems events for the hitch
-			RecordEvent_CoreSystems(TEXT("Hitch"));
-		}
+		Attributes.Emplace(TEXT("MapName"), EditorMapName);
+		Attributes.Emplace(TEXT("PIE_MapName"), PIEMapName);
+
+		// Record core systems events for the hitch
+		RecordEvent_CoreSystems(TEXT("Hitch"));
+
+		// No longer need the hitch span for now so reset it
+		HitchingSpan.Reset();
 	}
+	else if ( IsHitching == true && HitchingSpan.IsValid()==false )
+	{
+		// We are hitching and we have not started a hitch span
+		HitchingSpan = FStudioTelemetry::Get().StartSpan(HitchingSpanName);
+		HitchCount = 1;
+	}	
 
-	WasHitchingLastTime = IsHitching;
+	// Monitor Asset Registry Scan
+	FAssetRegistryModule& AssetRegistryModule = FModuleManager::LoadModuleChecked<FAssetRegistryModule>(TEXT("AssetRegistry"));
+	const bool IsScaningAssets = AssetRegistryModule.Get().IsLoadingAssets() || AssetRegistryModule.Get().IsSearchAllAssets();
+
+	if (IsScaningAssets == false && AssetRegistryScanSpan.IsValid() == true)
+	{
+		// End the span
+		TArray<FAnalyticsEventAttribute> Attributes;
+		Attributes.Emplace(TEXT("MapName"), EditorMapName);
+
+		FStudioTelemetry::Get().EndSpan(AssetRegistryScanSpan, Attributes);
+
+		// No longer need the span for now so reset it
+		AssetRegistryScanSpan.Reset();
+	}
+	else if (IsScaningAssets == true && AssetRegistryScanSpan.IsValid() == false)
+	{
+		// Start the span
+		AssetRegistryScanSpan = FStudioTelemetry::Get().StartSpan(AssetRegistryScanSpanName);
+	}
 }
 
 void FStudioTelemetryEditor::Initialize()
@@ -443,7 +463,7 @@ void FStudioTelemetryEditor::Initialize()
 	SessionStartTime = FPlatformTime::Seconds();
 
 	// Install Editor Mode callbacks
-	// 
+	
 	// Start Editor and Editor Boot span. Note : this will only start when the plugin is loaded and as such will miss any activity that runs beforehand
 	EditorSpan = FStudioTelemetry::Get().StartSpan(EditorSpanName);
 	EditorBootSpan = FStudioTelemetry::Get().StartSpan(EditorBootSpanName);

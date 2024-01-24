@@ -48,6 +48,7 @@ private:
 	TSharedPtr<IAnalyticsSpan> PIEWorldStreamingSpan;
 	TSharedPtr<IAnalyticsSpan> CookingSpan;
 	TSharedPtr<IAnalyticsSpan> HitchingSpan;
+	TSharedPtr<IAnalyticsSpan> AssetRegistryScanSpan;
 	
 	const FName EditorSpanName = TEXT("Editor");
 	const FName EditorBootSpanName = TEXT("Editor.Boot");
@@ -61,7 +62,8 @@ private:
 	const FName CookingSpanName = TEXT("Cooking");
 	const FName HitchingSpanName = TEXT("Hitching");
 	const FName OpenAssetEditorSpan = TEXT("Open Asset Editor");
-	const float HeartbeatIntervalSeconds = 5.0;
+	const FName AssetRegistryScanSpanName = TEXT("Asset Registry Scan");
+	const float HeartbeatIntervalSeconds = 0.5;
 	const float MinFPSForHitching = 5.0;
 
 	TMap<FGuid, TSharedPtr<IAnalyticsSpan>> TaskSpans;
