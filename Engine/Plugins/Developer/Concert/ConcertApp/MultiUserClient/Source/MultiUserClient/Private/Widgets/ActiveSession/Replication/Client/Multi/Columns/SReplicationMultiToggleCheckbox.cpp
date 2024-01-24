@@ -38,27 +38,25 @@ namespace UE::MultiUserClient
 		
 		ChildSlot
 		[
-			SNew(SComboButton)
-			.HasDownArrow(true)
-			.ComboButtonStyle(FAppStyle::Get(), "SimpleComboButton")
-			.ForegroundColor(FSlateColor::UseStyle())
-			.ContentPadding(FMargin(2.0f, 2.0f))
-			.ButtonContent()
-			[
-				SNew(SHorizontalBox)
-				.ToolTipText(this, &SReplicationMultiToggleCheckbox::GetRootToolTipText)
-
-				+SHorizontalBox::Slot()
-				.AutoWidth()
-				[
-					SNew(SCheckBox)
-					.IsChecked(this, &SReplicationMultiToggleCheckbox::GetCheckboxStateForThisAndChildren)
-					.IsEnabled(this, &SReplicationMultiToggleCheckbox::CanToggleThisOrChildren)
-					.OnCheckStateChanged(this, &SReplicationMultiToggleCheckbox::OnCheckboxStateChanged)
-				]
+			SNew(SHorizontalBox)
 			
-				+SHorizontalBox::Slot()
-				.AutoWidth()
+			+SHorizontalBox::Slot()
+			.AutoWidth()
+			[
+				SNew(SCheckBox)
+				.IsChecked(this, &SReplicationMultiToggleCheckbox::GetCheckboxStateForThisAndChildren)
+				.IsEnabled(this, &SReplicationMultiToggleCheckbox::CanToggleThisOrChildren)
+				.OnCheckStateChanged(this, &SReplicationMultiToggleCheckbox::OnCheckboxStateChanged)
+			]
+			
+			+SHorizontalBox::Slot()
+			.AutoWidth()
+			[
+				SNew(SComboButton)
+				.HasDownArrow(true)
+				.ComboButtonStyle(FAppStyle::Get(), "SimpleComboButton")
+				.ForegroundColor(FSlateColor::UseStyle())
+				.ButtonContent()
 				[
 					SNew(SScaleBox)
 					.Stretch(EStretch::ScaleToFit)
@@ -69,8 +67,8 @@ namespace UE::MultiUserClient
 						.Image(FAppStyle::GetBrush("Icons.WarningWithColor"))
 					]
 				]
+				.OnGetMenuContent(this, &SReplicationMultiToggleCheckbox::GetDropDownMenuContent)
 			]
-			.OnGetMenuContent(this, &SReplicationMultiToggleCheckbox::GetDropDownMenuContent)
 		];
 	}
 
@@ -178,7 +176,7 @@ namespace UE::MultiUserClient
 				)
 			);
 		MenuBuilder.AddMenuEntry(
-			LOCTEXT("ThisAndChildren", "Toggle children only"),
+			LOCTEXT("ChildrenOnly", "Toggle children only"),
 			FText::GetEmpty(),
 			FSlateIcon(),
 			FUIAction(
@@ -187,7 +185,7 @@ namespace UE::MultiUserClient
 				)
 			);
 		MenuBuilder.AddMenuEntry(
-			LOCTEXT("OnlyThis", "Toggle this & children"),
+			LOCTEXT("ThisAndChildren", "Toggle this & children"),
 			FText::GetEmpty(),
 			FSlateIcon(),
 			FUIAction(

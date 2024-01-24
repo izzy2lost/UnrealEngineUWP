@@ -14,6 +14,8 @@
 #include "Widgets/Layout/SWidgetSwitcher.h"
 #include "Widgets/SBoxPanel.h"
 #include "Widgets/Views/STreeView.h"
+#include "Styling/AppStyle.h"
+#include "Styling/CoreStyle.h"
 
 #define LOCTEXT_NAMESPACE "SReplicationListView"
 
@@ -46,6 +48,7 @@ namespace UE::ConcertSharedSlate
 		SLATE_BEGIN_ARGS(SReplicationTreeView<TItemType>)
 			: _HeaderRowVisibility(EVisibility::Visible)
 			, _SelectionMode(ESelectionMode::Single)
+			, _RowStyle(&FCoreStyle::Get().GetWidgetStyle<FTableRowStyle>("TableView.Row"))
 		{}
 			/** The items to display */
 			SLATE_ARGUMENT(TArray<TSharedPtr<TItemType>>*, RootItemsSource)
@@ -96,6 +99,9 @@ namespace UE::ConcertSharedSlate
 
 			/** Optional, alternate content to show instead of the tree view when there are no rows. */
 			SLATE_NAMED_SLOT(FArguments, NoItemsContent)
+
+			/** Style to use for rows, e.g. for making them alternate in grey */
+			SLATE_STYLE_ARGUMENT(FTableRowStyle, RowStyle)
 		SLATE_END_ARGS()
 
 		void Construct(const FArguments& InArgs)
@@ -109,6 +115,7 @@ namespace UE::ConcertSharedSlate
 			OverrideColumnWidget = InArgs._OverrideColumnWidget;
 			IsSearchableItemDelegate = InArgs._IsSearchableItem;
 			ExpandableColumnId = InArgs._ExpandableColumnLabel;
+			RowStyle = InArgs._RowStyle;
 			
 			SearchText = MakeShared<FText>();
 			SearchTextFilter = MakeShared<TTextFilter<const TSharedPtr<TItemType>&>>(TTextFilter<const TSharedPtr<TItemType>&>::FItemToStringArray::CreateSP(this, &SReplicationTreeView::PopulateSearchStrings));
@@ -305,6 +312,9 @@ namespace UE::ConcertSharedSlate
 		/** Optional callback for determining whether this item can be filtered. If false, it will not be shown when searched. */
 		FIsSearchableItem IsSearchableItemDelegate;
 
+		/** Style to use for rows */
+		const FTableRowStyle* RowStyle = nullptr;
+
 		// STreeView creation
 		TSharedRef<SWidget> CreateTreeView(const FArguments& InArgs);
 		TSharedRef<SHeaderRow> CreateHeaderRow(const FArguments& InArgs);
@@ -446,7 +456,8 @@ namespace UE::ConcertSharedSlate
 			.ColumnGetter(ColumnGetter)
 			.OverrideColumnWidget(OverrideColumnWidget)
 			.RowData(Item)
-			.ExpandableColumnLabel(ExpandableColumnId);
+			.ExpandableColumnLabel(ExpandableColumnId)
+			.Style(RowStyle);
 	}
 
 	template <typename TItemType>

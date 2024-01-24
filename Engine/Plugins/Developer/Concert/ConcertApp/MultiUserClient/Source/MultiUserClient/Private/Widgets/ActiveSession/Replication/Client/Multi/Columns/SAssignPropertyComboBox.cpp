@@ -17,6 +17,7 @@
 #include "ScopedTransaction.h"
 #include "Styling/SlateTypes.h"
 #include "Widgets/Input/SComboButton.h"
+#include "Styling/AppStyle.h"
 
 #define LOCTEXT_NAMESPACE "SAssignPropertyComboBox"
 
@@ -81,10 +82,10 @@ namespace UE::MultiUserClient
 		[
 			SNew(SComboButton)
 			.HasDownArrow(true)
-			.ContentPadding(FMargin(2.0f, 2.0f))
 			.ButtonContent()
 			[
 				SAssignNew(ClientListWidget, ConcertClientSharedSlate::SHorizontalClientList, ConcertClient.ToSharedRef())
+				.Font(FAppStyle::GetFontStyle("PropertyWindow.NormalFont"))
 				.HighlightText_Lambda([this](){ return HighlightText ? *HighlightText : FText::GetEmpty(); })
 				.EmptyListSlot() [ SNew(SNoClients) ]
 			]
@@ -113,9 +114,11 @@ namespace UE::MultiUserClient
 			if (bIsLocalClient)
 			{
 				return SNew(SLocalClientName, ConcertClient.ToSharedRef())
+					.Font(FAppStyle::GetFontStyle("PropertyWindow.NormalFont"))
 					.HighlightText_Lambda([this](){ return HighlightText ? *HighlightText : FText::GetEmpty(); });
 			}
 			return SNew(SRemoteClientName, ConcertClient.ToSharedRef())
+				.Font(FAppStyle::GetFontStyle("PropertyWindow.NormalFont"))
 				.ClientEndpointId(EndpointId)
 				.HighlightText_Lambda([this](){ return HighlightText ? *HighlightText : FText::GetEmpty(); });
 		};

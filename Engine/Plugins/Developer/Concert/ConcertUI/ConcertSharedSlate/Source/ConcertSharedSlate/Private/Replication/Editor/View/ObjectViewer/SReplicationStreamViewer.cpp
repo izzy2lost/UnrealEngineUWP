@@ -229,7 +229,8 @@ namespace UE::ConcertSharedSlate
 					ObjectViewOptions.MakeViewOptionsComboButton()
 				]
 			]
-			.NoItemsContent() [ SNew(STextBlock).Text(NoObjectsAttribute) ];
+			.NoItemsContent() [ SNew(STextBlock).Text(NoObjectsAttribute) ]
+			.RowStyle(FAppStyle::Get(), "TableView.AlternatingRow");
 	}
 
 	TSharedRef<SWidget> SReplicationStreamViewer::CreatePropertiesSection(const FArguments& InArgs)
