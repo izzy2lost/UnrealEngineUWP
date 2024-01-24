@@ -103,6 +103,32 @@ void SModularRigModel::Construct(const FArguments& InArgs, TSharedRef<FControlRi
 	Delegates.OnVerifyModuleNameChanged = FOnModularRigTreeVerifyElementNameChanged::CreateSP(this, &SModularRigModel::HandleVerifyNameChanged);
 	Delegates.OnResolveConnector = FOnModularRigTreeResolveConnector::CreateSP(this, &SModularRigModel::HandleConnectorResolved);
 	Delegates.OnDisconnectConnector = FOnModularRigTreeDisconnectConnector::CreateSP(this, &SModularRigModel::HandleConnectorDisconnect);
+
+	HeaderRowWidget = SNew(SHeaderRow)
+		.Visibility(EVisibility::Visible);
+
+	HeaderRowWidget->AddColumn(
+		SHeaderRow::Column(SModularRigTreeView::Column_Module)
+		.DefaultLabel(FText::FromName(SModularRigTreeView::Column_Module))
+		.HAlignCell(HAlign_Left)
+		.HAlignHeader(HAlign_Left)
+		.VAlignCell(VAlign_Center)
+	);
+	HeaderRowWidget->AddColumn(
+		SHeaderRow::Column(SModularRigTreeView::Column_Connector)
+		.DefaultLabel(FText::FromName(SModularRigTreeView::Column_Connector))
+		.HAlignCell(HAlign_Left)
+		.HAlignHeader(HAlign_Left)
+		.VAlignCell(VAlign_Center)
+	);
+	HeaderRowWidget->AddColumn(
+		SHeaderRow::Column(SModularRigTreeView::Column_Buttons)
+		.DefaultLabel(FText::FromName(SModularRigTreeView::Column_Buttons))
+		.ManualWidth(60)
+		.HAlignCell(HAlign_Left)
+		.HAlignHeader(HAlign_Left)
+		.VAlignCell(VAlign_Center)
+	);
 	
 	ChildSlot
 	[
@@ -119,6 +145,7 @@ void SModularRigModel::Construct(const FArguments& InArgs, TSharedRef<FControlRi
 				.BorderImage(FAppStyle::GetBrush("SCSEditor.TreePanel"))
 				[
 					SAssignNew(TreeView, SModularRigTreeView)
+					.HeaderRow(HeaderRowWidget)
 					.RigTreeDelegates(Delegates)
 					.AutoScrollEnabled(true)
 				]
@@ -352,17 +379,17 @@ void SModularRigModel::CreateContextMenu()
 				{
 					const FControlRigModularRigCommands& Commands = FControlRigModularRigCommands::Get(); 
 				
-					FToolMenuSection& ElementsSection = InMenu->AddSection(TEXT("Elements"), LOCTEXT("ElementsHeader", "Elements"));
-					ElementsSection.AddSubMenu(TEXT("New"), LOCTEXT("New", "New"), LOCTEXT("New_ToolTip", "Create New Elements"),
+					FToolMenuSection& ModulesSection = InMenu->AddSection(TEXT("Modules"), LOCTEXT("ModulesHeader", "Modules"));
+					ModulesSection.AddSubMenu(TEXT("New"), LOCTEXT("New", "New"), LOCTEXT("New_ToolTip", "Create New Modules"),
 						FNewToolMenuDelegate::CreateLambda([Commands, ModelPanel](UToolMenu* InSubMenu)
 						{
 							FToolMenuSection& DefaultSection = InSubMenu->AddSection(NAME_None);
 							DefaultSection.AddMenuEntry(Commands.AddModuleItem);
 						})
 					);
-					ElementsSection.AddMenuEntry(Commands.RenameModuleItem);
-					ElementsSection.AddMenuEntry(Commands.DeleteModuleItem);
-					ElementsSection.AddMenuEntry(Commands.MirrorModuleItem);
+					ModulesSection.AddMenuEntry(Commands.RenameModuleItem);
+					ModulesSection.AddMenuEntry(Commands.DeleteModuleItem);
+					ModulesSection.AddMenuEntry(Commands.MirrorModuleItem);
 				}
 			})
 		);
