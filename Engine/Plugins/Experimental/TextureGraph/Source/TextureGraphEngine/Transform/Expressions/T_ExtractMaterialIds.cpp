@@ -587,6 +587,12 @@ cti::continuable<int32> Job_ExtractMaterialIds::ExecAsync(ENamedThreads::Type Ex
 					}
 					
 				}
+				else
+				{
+					MaterialIDCollection.Infos.Empty();
+					MaterialIDMaskInfo.Empty();
+					ActiveColorsCount = 0;
+				}
 			}
 			
 			EndNative();
