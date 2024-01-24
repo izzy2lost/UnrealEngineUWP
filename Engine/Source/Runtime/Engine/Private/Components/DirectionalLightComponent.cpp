@@ -175,7 +175,7 @@ void ComputeShadowCullingVolume(bool bReverseCulling, const FVector* CascadeFrus
 			FVector C = A + LightDirection * (A - B).Size();
 
 			// Account for winding
-			if (XOR(DotA >= 0.0f, bReverseCulling))
+			if ((DotA >= 0.0f) != bReverseCulling)
 			{
 				Planes.Add(FPlane(A, B, C));
 			}

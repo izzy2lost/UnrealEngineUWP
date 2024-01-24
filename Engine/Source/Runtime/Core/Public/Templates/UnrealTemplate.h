@@ -23,6 +23,7 @@
  * @return If the first parameter provided is non-nullptr, it is returned; otherwise the second parameter is returned.
  */
 template<typename ReferencedType>
+UE_DEPRECATED(5.4, "IfAThenAElseB has been deprecated - use regular C++ constructs instead")
 FORCEINLINE ReferencedType* IfAThenAElseB(ReferencedType* A,ReferencedType* B)
 {
 	return A ? A : B;
@@ -32,12 +33,14 @@ FORCEINLINE ReferencedType* IfAThenAElseB(ReferencedType* A,ReferencedType* B)
 * return PTRINT(Predicate) ? A : B;
 **/
 template<typename PredicateType,typename ReferencedType>
+UE_DEPRECATED(5.4, "IfPThenAElseB has been deprecated - use regular C++ constructs instead")
 FORCEINLINE ReferencedType* IfPThenAElseB(PredicateType Predicate,ReferencedType* A,ReferencedType* B)
 {
 	return Predicate ? A : B;
 }
 
 /** A logical exclusive or function. */
+UE_DEPRECATED(5.4, "XOR has been deprecated - use regular C++ constructs instead")
 inline bool XOR(bool A, bool B)
 {
 	return A != B;

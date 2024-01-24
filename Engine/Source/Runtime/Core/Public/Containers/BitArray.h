@@ -1999,8 +1999,16 @@ private:
 	void FindFirstSetBit()
 	{
 		const uint32 EmptyArrayData = 0;
-		const uint32* ArrayDataA = IfAThenAElseB(ArrayA.GetData(),&EmptyArrayData);
-		const uint32* ArrayDataB = IfAThenAElseB(ArrayB.GetData(),&EmptyArrayData);
+		const uint32* ArrayDataA = ArrayA.GetData();
+		if (!ArrayDataA)
+		{
+			ArrayDataA = &EmptyArrayData;
+		}
+		const uint32* ArrayDataB = ArrayB.GetData();
+		if (!ArrayDataB)
+		{
+			ArrayDataB = &EmptyArrayData;
+		}
 
 		// Advance to the next non-zero uint32.
 		uint32 RemainingBitMask;

@@ -1221,7 +1221,7 @@ private:
 
 		// Fire and forget mode must not have subsequents
 		// Track subsequents mode must have subsequents
-		checkThreadGraph(XOR(TTask::GetSubsequentsMode() == ESubsequentsMode::FireAndForget, IsValidRef(Subsequents)));
+		checkThreadGraph((TTask::GetSubsequentsMode() == ESubsequentsMode::FireAndForget) != IsValidRef(Subsequents));
 
 		if (TTask::GetSubsequentsMode() == ESubsequentsMode::TrackSubsequents)
 		{
