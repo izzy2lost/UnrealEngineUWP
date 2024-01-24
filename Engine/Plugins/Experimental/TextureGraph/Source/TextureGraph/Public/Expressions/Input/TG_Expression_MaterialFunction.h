@@ -21,7 +21,7 @@ public:
 #endif
 	
 	// The material function to employ for rendering
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Setter, Category = NoCategory, meta = (TGType = "TG_Setting"))
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Setter, Category = NoCategory, meta = (TGType = "TG_Setting", TGPinNotConnectable))
 	TObjectPtr<UMaterialFunctionInterface> MaterialFunction;
 	void SetMaterialFunction(UMaterialFunctionInterface* InMaterialFunction);
 

@@ -22,7 +22,7 @@ public:
 #endif
 
 	// The input material to employ for rendering
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Setter, Category = NoCategory, meta = (TGType = "TG_Setting"))
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Setter, Category = NoCategory, meta = (TGType = "TG_Setting", TGPinNotConnectable))
 	TObjectPtr<UMaterialInterface> Material;
 	
 	void SetMaterial(UMaterialInterface* InMaterial);
