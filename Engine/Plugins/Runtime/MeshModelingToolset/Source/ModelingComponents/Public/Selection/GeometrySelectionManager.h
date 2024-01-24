@@ -463,7 +463,6 @@ protected:
 	void UpdateSelectionRenderCacheOnTargetChange();
 	void RebuildSelectionRenderCaches();
 
-	UE_DEPRECATED(5.6, "Direct acces to ActivePreviewSelection is deprecated!")
     FGeometrySelection ActivePreviewSelection;										// Selection representing the active preview
 	FGeometrySelectionElements CachedPreviewRenderElements;							// Cached 3D geometry for active preview elements
     void ClearActivePreview();
