@@ -3227,6 +3227,9 @@ export type GetTelemetryVariableResponse = {
 	/// The associated data group attached to the variable 
 	group: string;
 
+	/// default values to select
+	defaults: string[];
+
 	/// Populated on dashboard
 	values: string[];
 }
