@@ -2,7 +2,7 @@
 
 #pragma once
 
-#include "DMXPixelMappingTrippleBufferedData.h"
+#include "DMXPixelMappingTripleBufferedData.h"
 #include "HAL/CriticalSection.h"
 #include "Math/Color.h"
 #include "Math/Vector2D.h"
@@ -83,7 +83,7 @@ namespace UE::DMXPixelMapping::Rendering
 		/** The current color, readable from the game thread */
 		mutable FLinearColor ColorGameThread;
 
-		/** Tripple buffered color data, useful to copy data to game thread without locking. */
+		/** Triple buffered color data, useful to copy data to game thread without locking. */
 		mutable UE::DMX::Internal::TDMXPixelMappingTripleBufferedData<FLinearColor> ColorTipleBuffer;
 
 		/** Pointer to the color data that is currently safe to write for the producer */
