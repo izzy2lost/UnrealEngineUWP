@@ -32,6 +32,8 @@ public:
 
 	virtual void Serialize(FArchive& Ar) override;
 
+	virtual void FinishTest(EFunctionalTestResult TestResult, const FString& Message) override;
+
 protected:
 	// Set player view target to screenshot camera and call PrepareForScreenshot
 	virtual void PrepareTest() override;
@@ -62,6 +64,8 @@ protected:
 	// Restore viewport size and original environment settings
 	void RestoreViewSettings();
 
+	virtual void OnTimeout() override;
+
 protected:
 
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Screenshot", meta = (MultiLine = "true"))
@@ -82,4 +86,5 @@ protected:
 private:
 	bool bNeedsViewSettingsRestore;
 	bool bNeedsViewportRestore;
+	bool bScreenshotCompleted;
 };
