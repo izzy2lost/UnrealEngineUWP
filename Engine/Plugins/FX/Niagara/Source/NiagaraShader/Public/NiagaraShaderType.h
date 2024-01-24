@@ -67,18 +67,14 @@ public:
 
 	struct CompiledShaderInitializerType : FShaderCompiledShaderInitializerType
 	{
-		const FString DebugDescription;
-
 		CompiledShaderInitializerType(
 			const FShaderType* InType,
 			const FParameters* InParameters,
 			int32 InPermutationId,
 			const FShaderCompilerOutput& CompilerOutput,
-			const FSHAHash& InNiagaraShaderMapHash,
-			const FString& InDebugDescription
+			const FSHAHash& InNiagaraShaderMapHash
 		)
 			: FShaderCompiledShaderInitializerType(InType, InParameters, InPermutationId, CompilerOutput, InNiagaraShaderMapHash, nullptr, nullptr)
-			, DebugDescription(InDebugDescription)
 		{
 		}
 	};
@@ -152,8 +148,7 @@ public:
 	 */
 	FShader* FinishCompileShader(
 		const FSHAHash& NiagaraShaderMapHash,
-		const FShaderCompileJob& CurrentJob,
-		const FString& InDebugDescription
+		const FShaderCompileJob& CurrentJob
 		) const;
 #endif // WITH_EDITOR
 

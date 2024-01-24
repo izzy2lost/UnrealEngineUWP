@@ -306,15 +306,6 @@ public:
 	LAYOUT_FIELD_WITH_WRITER(TMemoryImagePtr<FNiagaraDataInterfaceParametersCS>, Parameters, WriteFrozenParameters);
 };
 
-/** Stores outputs from the script compile that need to be saved. */
-class FNiagaraComputeShaderCompilationOutput
-{
-	DECLARE_TYPE_LAYOUT(FNiagaraComputeShaderCompilationOutput, NonVirtual);
-public:
-	FNiagaraComputeShaderCompilationOutput()
-	{}
-};
-
 /** Contains all the information needed to uniquely identify a FNiagaraShaderMapID. */
 class FNiagaraShaderMapId
 {
@@ -478,18 +469,9 @@ class FNiagaraShaderMapContent : public FShaderMapContent
 	DECLARE_TYPE_LAYOUT(FNiagaraShaderMapContent, NonVirtual);
 private:
 	explicit FNiagaraShaderMapContent(const EShaderPlatform InPlatform) : Super(InPlatform) {}
-	
-	/** The script's user friendly name, typically the object name. */
-	LAYOUT_FIELD(FMemoryImageString, FriendlyName);
-
-	/** Debug information about how the shader map was compiled. */
-	LAYOUT_FIELD(FMemoryImageString, DebugDescription);
 
 	/** The static parameter set that this shader map was compiled with */
 	LAYOUT_FIELD(FNiagaraShaderMapId, ShaderMapId);
-
-	/** Shader compilation output */
-	LAYOUT_FIELD(FNiagaraComputeShaderCompilationOutput, NiagaraCompilationOutput);
 };
 
 /**
@@ -542,7 +524,6 @@ public:
 		FNiagaraShaderScript* Script,
 		const FNiagaraShaderMapId& ShaderMapId,
 		TRefCountPtr<FSharedShaderCompilerEnvironment> CompilationEnvironment,
-		const FNiagaraComputeShaderCompilationOutput& InNiagaraCompilationOutput,
 		EShaderPlatform Platform,
 		bool bSynchronousCompile,
 		bool bApplyCompletedShaderMapForRendering
@@ -569,7 +550,7 @@ public:
 	NIAGARASHADER_API void ProcessAndFinalizeShaderCompileJob(const TRefCountPtr<FShaderCommonCompileJob>& SingleJob);
 
 	/** Sorts the incoming compiled jobs into the appropriate mesh shader maps, and finalizes this shader map so that it can be used for rendering. */
-	bool ProcessCompilationResults(const TArray<TRefCountPtr<class FShaderCommonCompileJob>>& InCompilationResults, int32& ResultIndex, float& TimeBudget);
+	bool ProcessCompilationResults(const TArray<FNiagaraShaderScript*>& InScripts, const TArray<TRefCountPtr<class FShaderCommonCompileJob>>& InCompilationResults, int32& ResultIndex, float& TimeBudget);
 
 	/**
 	* Checks whether the shader map is missing any shader types necessary for the given script.
@@ -619,7 +600,7 @@ public:
 
 #if WITH_EDITOR
 	/** Saves this shader map to the derived data cache. */
-	void SaveToDerivedDataCache();
+	void SaveToDerivedDataCache(const FNiagaraShaderScript* Script);
 
 	/** Backs up any FShaders in this shader map to memory through serialization and clears FShader references. */
 	TArray<uint8>* BackupShadersToMemory();
@@ -631,11 +612,9 @@ public:
 	// Accessors.
 	const FNiagaraShaderMapId& GetShaderMapId() const		{ return GetContent()->ShaderMapId; }
 	EShaderPlatform GetShaderPlatform() const				{ return GetContent()->GetShaderPlatform(); }
-	const FMemoryImageString& GetFriendlyName() const		{ return GetContent()->FriendlyName; }
 	uint32 GetCompilingId() const							{ return CompilingId; }
 	bool IsCompilationFinalized() const						{ return bCompilationFinalized; }
 	bool CompiledSuccessfully() const						{ return bCompiledSuccessfully; }
-	const FMemoryImageString& GetDebugDescription() const	{ return GetContent()->DebugDescription; }
 
 	bool IsValid() const
 	{

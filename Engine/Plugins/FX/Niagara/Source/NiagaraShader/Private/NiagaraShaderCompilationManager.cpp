@@ -177,7 +177,7 @@ void FNiagaraShaderCompilationManager::ProcessCompiledNiagaraShaderMaps(TMap<int
 			bool bShaderMapComplete = true;
 			if (bSuccess)
 			{
-				bShaderMapComplete = ShaderMap->ProcessCompilationResults(ResultArray, CompileResults.FinalizeJobIndex, TimeBudget);
+				bShaderMapComplete = ShaderMap->ProcessCompilationResults(ScriptArray, ResultArray, CompileResults.FinalizeJobIndex, TimeBudget);
 			}
 
 			if (bShaderMapComplete)
@@ -307,7 +307,7 @@ void FNiagaraShaderCompilationManager::ProcessCompiledNiagaraShaderMaps(TMap<int
 }
 
 
-void FNiagaraShaderCompilationManager::FinishCompilation(const TCHAR* ScriptName, const TArray<int32>& ShaderMapIdsToFinishCompiling)
+void FNiagaraShaderCompilationManager::FinishCompilation(const TArray<int32>& ShaderMapIdsToFinishCompiling)
 {
 	check(!FPlatformProperties::RequiresCookedData());
 	GShaderCompilingManager->FinishCompilation(NULL, ShaderMapIdsToFinishCompiling);

@@ -125,8 +125,6 @@ void FNiagaraShaderQueueTickable::ProcessQueue()
 			continue;
 		}
 
-		FNiagaraComputeShaderCompilationOutput NewCompilationOutput;
-
 		ShaderScript->BuildScriptParametersMetadata(CompilableScript->GetVMExecutableData().ShaderScriptParametersMetadata);
 		ShaderScript->SetSourceName(TEXT("NiagaraComputeShader"));
 		UNiagaraEmitter* Emitter = Cast<UNiagaraEmitter>(CompilableScript->GetOuter());
@@ -144,7 +142,7 @@ void FNiagaraShaderQueueTickable::ProcessQueue()
 			const bool bSynchronousCompile = GIsAutomationTesting;
 
 			// Compile the shaders for the script.
-			NewShaderMap->Compile(ShaderScript, Item.ShaderMapId, CompilerEnvironment, NewCompilationOutput, Item.Platform, bSynchronousCompile, Item.bApply);
+			NewShaderMap->Compile(ShaderScript, Item.ShaderMapId, CompilerEnvironment, Item.Platform, bSynchronousCompile, Item.bApply);
 		}
 	}
 

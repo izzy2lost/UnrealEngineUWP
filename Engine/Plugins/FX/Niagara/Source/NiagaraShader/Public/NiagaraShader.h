@@ -244,8 +244,6 @@ public:
 private:
 	// Data about parameters used for each Data Interface.
 	LAYOUT_FIELD(TMemoryImageArray<FNiagaraDataInterfaceParamRef>, DataInterfaceParameters);
-
-	LAYOUT_FIELD(FMemoryImageString, DebugDescription);
 };
 
 extern NIAGARASHADER_API int32 GNiagaraSkipVectorVMBackendOptimizations;
