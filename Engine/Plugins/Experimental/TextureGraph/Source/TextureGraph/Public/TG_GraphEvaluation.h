@@ -72,7 +72,11 @@ struct TEXTUREGRAPH_API FTG_EvaluationContext
 
 	// For debug, let's log the evaluation call sequence while it happens
 	bool				bDoLog = true;
-	bool				Tweaking = false;
+
+	FORCEINLINE bool	IsTweaking() const
+	{
+		return Cycle ? Cycle->IsTweaking() : false;
+	}
 };
 
 class UTG_Pin;

@@ -21,7 +21,7 @@ struct TEXTUREGRAPHENGINE_API FInvalidationDetails
 
 	TWeakObjectPtr<UMixInterface>		Mix = nullptr;								/// The mix that is being invalidated
 	
-	DECLARE_DELEGATE(FOnDone);
+	DECLARE_DELEGATE_OneParam(FOnDone, const FInvalidationDetails*);
 	FOnDone								OnDone;										/// Delegate allowing to provide a user callback once the invalidation is executed
 
 	bool								bReload = false;							/// Whether to reload the sources or not
@@ -76,7 +76,7 @@ struct TEXTUREGRAPHENGINE_API FInvalidationDetails
 	}
 
 private:
-	DECLARE_MULTICAST_DELEGATE(FOnDoneMulti);
+	DECLARE_MULTICAST_DELEGATE_OneParam(FOnDoneMulti, const FInvalidationDetails*);
 	FOnDoneMulti				OnDoneMergedInternal; /// "Private" multicast delegate where we merge OnDone delegates for merged details
 };
 

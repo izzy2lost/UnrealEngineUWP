@@ -46,6 +46,8 @@ TiledBlobPtr T_TextureHistogram::Create(UMixInterface* InMix, TiledBlobPtr Sourc
 	}
 
 	check(SourceTex);
+	check(!SourceTex->IsTransient());
+
 	HistogramServicePtr Service = TextureGraphEngine::GetScheduler()->GetHistogramService().lock();
 	check(Service);
 
@@ -55,15 +57,12 @@ TiledBlobPtr T_TextureHistogram::Create(UMixInterface* InMix, TiledBlobPtr Sourc
 
 	FIntVector4 SrcDimensions(SourceTex->GetWidth(), SourceTex->GetHeight(), 1, 1);
 
-	auto SrcTiles = std::make_shared<JobArg_Blob>(SourceTex, "SourceTiles");
-
 	FString Name = FString::Printf(TEXT("[%s].[%d] Histogram"), *SourceTex->DisplayName(), TargetId);
 	RenderMaterial_FXPtr Transform = T_TextureHistogram::CreateMaterial_Histogram(
 		TEXT("T_Histogram"), TEXT("Result"), PermutationVector, SrcDimensions.X, SrcDimensions.Y, 1);
 
 	JobUPtr JobObj = std::make_unique<Job>(InMix, TargetId, std::static_pointer_cast<BlobTransform>(Transform));
-	JobObj
-		->AddArg(SrcTiles);
+	JobObj->AddArg(ARG_BLOB(SourceTex, "SourceTiles"));
 
 	BufferDescriptor Desc;
 	Desc.Width = NumBins;
@@ -81,7 +80,6 @@ TiledBlobPtr T_TextureHistogram::Create(UMixInterface* InMix, TiledBlobPtr Sourc
 
 	//Add the job using histogram idle service
 	AddHistogramJobToCycle(Batch->GetCycle(),std::move(JobObj), TargetId, InMix);
-
 
 	if (!SourceTex->HasHistogram())
 	{

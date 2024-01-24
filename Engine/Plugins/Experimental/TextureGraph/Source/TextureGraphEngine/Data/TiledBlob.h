@@ -182,7 +182,7 @@ public:
 
 	virtual void					FinaliseNow(bool bNoCalcHash, CHashPtr FixedHash) override;
 	virtual AsyncBufferResultPtr	Finalise(bool bNoCalcHash, CHashPtr FixedHash) override;
-	AsyncBufferResultPtr			FinaliseFrom(std::shared_ptr<TiledBlob_Promise> RHS);
+	void							FinaliseFrom(TiledBlobPtr RHS);
 
 	void							ResetForReplay(); /// For debug purpose, reset the state of the tile as a promise to NOT finalised, increment the replayCount
 

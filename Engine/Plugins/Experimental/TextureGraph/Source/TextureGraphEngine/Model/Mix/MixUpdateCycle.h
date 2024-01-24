@@ -121,6 +121,7 @@ public:
 	FORCEINLINE const JobBatch*		GetBatch() const { return Batch.get(); }
 	FORCEINLINE size_t				GetNumTargets() const { return Targets.size(); }
 	FORCEINLINE UMixInterface*		GetMix() { return MixObj.IsValid() ? MixObj.Get() : nullptr; }
+	FORCEINLINE bool				IsTweaking() const { return Details.bTweaking; }
 };
 
 typedef std::shared_ptr<MixUpdateCycle>		MixUpdateCyclePtr;

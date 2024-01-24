@@ -143,6 +143,7 @@ void STG_TextureDetails::ClearHistogramWidgets()
 
 void STG_TextureDetails::CalculateHistogram(BlobPtr InBlob, UTextureGraph* InTextureGraph)
 {
+	/// If the given blob is invalid then we clear the histogram widget
 	if (!InBlob)
 	{
 		ClearHistogramWidgets();
@@ -150,38 +151,44 @@ void STG_TextureDetails::CalculateHistogram(BlobPtr InBlob, UTextureGraph* InTex
 		return;
 	}
 
+	/// If it's a transient blob then we don't calculate histogram, but retain the existing one
+	if (InBlob->IsTransient())
+		return;
+
 	InBlob->OnFinalise()
-	.then([this, InTextureGraph, InBlob]() mutable
-	{
-		T_TextureHistogram::Create(InTextureGraph, std::static_pointer_cast<TiledBlob>(InBlob), 0);
-
-		return InBlob->GetHistogram()->OnFinalise();
-	})
-	.then([this, InBlob]() mutable
-	{
-		if (DoesSharedInstanceExist())
+		.then([this, InTextureGraph, InBlob]() mutable
 		{
-			TiledBlobPtr FinalizedHistogram = std::static_pointer_cast<TiledBlob>(InBlob->GetHistogram());
-			if (HistogramBlobWidgetR.IsValid())
+			if (!InBlob->IsTransient())
 			{
-				HistogramBlobWidgetR->Update(FinalizedHistogram);
+				T_TextureHistogram::Create(InTextureGraph, std::static_pointer_cast<TiledBlob>(InBlob), 0);
+				return InBlob->GetHistogram()->OnFinalise();
 			}
+			return (AsyncBlobResultPtr)(cti::make_ready_continuable<const Blob*>(nullptr));
+		})
+		.then([this, InBlob]() mutable
+		{
+			if (DoesSharedInstanceExist() && !InBlob->IsTransient())
+			{
+				TiledBlobPtr FinalizedHistogram = std::static_pointer_cast<TiledBlob>(InBlob->GetHistogram());
+				if (HistogramBlobWidgetR.IsValid())
+				{
+					HistogramBlobWidgetR->Update(FinalizedHistogram);
+				}
 
-			if (HistogramBlobWidgetG.IsValid())
-			{
-				HistogramBlobWidgetG->Update(FinalizedHistogram);
-			}
+				if (HistogramBlobWidgetG.IsValid())
+				{
+					HistogramBlobWidgetG->Update(FinalizedHistogram);
+				}
 		
-			if (HistogramBlobWidgetB.IsValid())
-			{
-				HistogramBlobWidgetB->Update(FinalizedHistogram);
-			}
+				if (HistogramBlobWidgetB.IsValid())
+				{
+					HistogramBlobWidgetB->Update(FinalizedHistogram);
+				}
 		
-			if (HistogramBlobWidgetLuma.IsValid())
-			{
-				HistogramBlobWidgetLuma->Update(FinalizedHistogram);
+				if (HistogramBlobWidgetLuma.IsValid())
+				{
+					HistogramBlobWidgetLuma->Update(FinalizedHistogram);
+				}
 			}
-		}
-		
-	});
+		});
 }

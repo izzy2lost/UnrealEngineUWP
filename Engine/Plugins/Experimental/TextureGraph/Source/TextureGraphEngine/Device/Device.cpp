@@ -417,8 +417,11 @@ void Device::Collect(DeviceBuffer* Buffer)
 	Cache.RemoveThreadSafe(Hash->Value());
 
 	/// Make sure that its not marked for transfer if its getting collected
-	DeviceTransferServicePtr transferSvc = TextureGraphEngine::GetScheduler()->GetDeviceTransferService().lock();
-	transferSvc->AbortTransfer(Hash->Value());
+	DeviceTransferServicePtr TransferSvc = TextureGraphEngine::GetScheduler()->GetDeviceTransferService().lock();
+	if (TransferSvc)
+	{
+		TransferSvc->AbortTransfer(Hash->Value());
+	}
 
 	BlobRef blob = TextureGraphEngine::GetBlobber()->Find(Hash->Value());
 
@@ -613,7 +616,7 @@ AsyncJobResultPtr Device::UpdateDeviceTransfers()
 							/// If we find a blob against it then we start the transfer
 							if (BlobObj)
 							{
-								//transferSvc->QueueTransfer(blob, nextDevice);
+								//TransferSvc->QueueTransfer(blob, nextDevice);
 								//auto promise = std::move(blob->TransferTo(nextDevice));
 								Promises.emplace_back(BlobObj->TransferTo(NextDevice));
 								bShouldCollect = false;

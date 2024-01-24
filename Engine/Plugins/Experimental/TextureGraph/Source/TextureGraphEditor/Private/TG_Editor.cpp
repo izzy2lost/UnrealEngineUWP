@@ -563,11 +563,11 @@ void FTG_Editor::OnRunGraph_Clicked()
 	}
 }
 
-void FTG_Editor::OnRenderingDone(UMixInterface* TextureGraph)
+void FTG_Editor::OnRenderingDone(UMixInterface* TextureGraph, const FInvalidationDetails* Details)
 {
 	if (TextureGraph != nullptr)
 	{
-		RefreshSelectionPreview(GraphEditorWidget->GetSelectedNodes());
+		RefreshSelectionPreview(GraphEditorWidget->GetSelectedNodes(), Details);
 	}
 }
 
@@ -1106,7 +1106,7 @@ void FTG_Editor::OnSelectedNodesChanged(const TSet<class UObject*>& NewSelection
 	FocusDetailsPanel();
 
 	RefreshPreviewViewport();
-	RefreshSelectionPreview(NewSelection);
+	RefreshSelectionPreview(NewSelection, nullptr);
 }
 
 void FTG_Editor::OnNodeDoubleClicked(UEdGraphNode* Node)
@@ -1768,7 +1768,7 @@ void FTG_Editor::RefreshPreviewViewport()
 	//TODO: refresh the viewport here
 }
 
-void FTG_Editor::RefreshSelectionPreview(const TSet<class UObject*>& NewSelection)
+void FTG_Editor::RefreshSelectionPreview(const TSet<class UObject*>& NewSelection, const FInvalidationDetails* Details)
 {
 	TArray<UTG_EdGraphNode*> NodesForSelectionPreview;
 	for (TSet<class UObject*>::TConstIterator SetIt(NewSelection); SetIt; ++SetIt)
@@ -1780,8 +1780,8 @@ void FTG_Editor::RefreshSelectionPreview(const TSet<class UObject*>& NewSelectio
 	}
 
 	//TODO: Handle multiple selection case
-	UTG_EdGraphNode* selectedNode = NodesForSelectionPreview.Num() > 0 ? NodesForSelectionPreview[0] : nullptr;
-	SelectionPreview->OnSelectionChanged(selectedNode);
+	UTG_EdGraphNode* SelectedNode = NodesForSelectionPreview.Num() > 0 ? NodesForSelectionPreview[0] : nullptr;
+	SelectionPreview->OnSelectionChanged(SelectedNode);
 }
 
 void FTG_Editor::SetMesh(class UMeshComponent* InPreviewMesh, class UWorld* InWorld)

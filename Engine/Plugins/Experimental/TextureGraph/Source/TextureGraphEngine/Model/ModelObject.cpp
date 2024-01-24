@@ -12,12 +12,12 @@ FInvalidationDetails::FInvalidationDetails(const TWeakObjectPtr<UMixInterface> m
 
 FInvalidationDetails& FInvalidationDetails::All()
 {
-	auto c = OnDone;
+	auto OnDoneCurrent = OnDone;
 	*this = FInvalidationDetails(Mix);
 	if (OnDone.IsBound())
 	{
 		/// Create a fresh copy
-		this->OnDone = c;
+		OnDone = OnDoneCurrent;
 	}
 
 	bRender = true;
@@ -52,25 +52,25 @@ CHashPtr FInvalidationDetails::Hash() const
 	return HashValue;
 }
 
-FInvalidationDetails& FInvalidationDetails::Merge(const FInvalidationDetails& details)
+FInvalidationDetails& FInvalidationDetails::Merge(const FInvalidationDetails& Details)
 {
-	FInvalidationDetails curr = *this;
-	*this = details;
+	FInvalidationDetails CurrentDetails = *this;
+	*this = Details;
 
 	// Current contains all the accumulated delegates
 	// the parameter Details is expected to NOT contain any delegates in _onDoneMerged
 	check(!OnDoneMergedInternal.IsBound());
-	OnDoneMergedInternal = curr.OnDoneMergedInternal;
-	// Accumulate potentially curr.OnDone
-	if (curr.OnDone.IsBound())
-		OnDoneMergedInternal.Add(curr.OnDone);
-	// At this point this contains the delegate OnDone from details
+	OnDoneMergedInternal = CurrentDetails.OnDoneMergedInternal;
+	// Accumulate potentially CurrentDetails.OnDone
+	if (CurrentDetails.OnDone.IsBound())
+		OnDoneMergedInternal.Add(CurrentDetails.OnDone);
+	// At this point this contains the delegate OnDone from Details
 	// And accumulated in _internal_onDoneMerged all the previously accumulated delegates in this
 
-	bTweaking = curr.bTweaking & details.bTweaking;
-	bRender = curr.bRender | details.bRender;
+	bTweaking = CurrentDetails.bTweaking && Details.bTweaking;
+	bRender = CurrentDetails.bRender || Details.bRender;
 
-	bSelective &= curr.bSelective;
+	bSelective &= CurrentDetails.bSelective;
 
 	// reset hash to recalculate with updated values when requested
 	HashValue = nullptr;
@@ -80,10 +80,10 @@ FInvalidationDetails& FInvalidationDetails::Merge(const FInvalidationDetails& de
 
 void FInvalidationDetails::BroadcastOnDone() const
 {
-	OnDone.ExecuteIfBound();
-	OnDoneMergedInternal.Broadcast();
+	OnDone.ExecuteIfBound(this);
+	OnDoneMergedInternal.Broadcast(this);
 	check(Mix.Get());
-	Mix->BroadcastOnRenderingDone();
+	Mix->BroadcastOnRenderingDone(this);
 }
 
 bool FInvalidationDetails::IsDiscard() const

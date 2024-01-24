@@ -961,9 +961,8 @@ void STG_EditorGraphNode::OnNodeReconstruct()
 
 void STG_EditorGraphNode::OnNodePostEvaluate(const FTG_EvaluationContext* InContext)
 {
-	if (!InContext->Tweaking)
+	if (!InContext->IsTweaking())
 		UpdateThumbnail(InContext);
-	
 }
 
 void STG_EditorGraphNode::OnPinSelectionChanged(UEdGraphPin* EdPin)

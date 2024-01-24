@@ -127,24 +127,28 @@ JobPtrW MixUpdateCycle::AddJob(int32 InTargetId, JobUPtr JobObj)
 
 	JobPtrW JobW = Batch->AddJob(std::move(JobObj));
 
-	JobRunInfo runInfo;
-	runInfo.JobScheduler = TextureGraphEngine::GetScheduler();
-	runInfo.Batch = Batch.get();
-	runInfo.Cycle = Batch->GetCycle();
-	runInfo.ThisJob = JobW;
+	JobRunInfo RunInfo;
+	RunInfo.JobScheduler = TextureGraphEngine::GetScheduler();
+	RunInfo.Batch = Batch.get();
+	RunInfo.Cycle = Batch->GetCycle();
+	RunInfo.ThisJob = JobW;
 
 	JobPtr JobS = JobW.lock();
 
 	/// If the job is fully culled, then we don't need to do anything
-	if (JobS->CheckCulled(runInfo))
+	if (JobS->CheckCulled(RunInfo))
 	{
 		UE_LOG(LogBatch, Log, TEXT("MixUpdateCycle::AddJob  Job [%llu]: IsCulled"), Batch->GetBatchId());
 	}
 
-	SceneTargetUpdatePtr target = Targets[InTargetId];
+	SceneTargetUpdatePtr Target = Targets[InTargetId];
 
 	if (JobS->GetResult())
+	{
 		JobS->GetResult()->Job() = JobW;
+		if (Details.IsDiscard())
+			JobS->GetResult()->SetTransient();
+	}
 
 	/// If the job is culled, then we remove it
 	if (JobS->IsCulled())
