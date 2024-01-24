@@ -880,7 +880,6 @@ namespace UnrealBuildTool
 
 			// Only execute linking on the local Mac.
 			LinkAction.bCanExecuteRemotely = false;
-			LinkAction.bCanExecuteInUBA = false;
 
 			LinkAction.StatusDescription = Path.GetFileName(OutputFile.AbsolutePath);
 
