@@ -15,6 +15,7 @@
 #include "DMXPixelMappingMainStreamObjectVersion.h"
 #include "DMXPixelMappingTypes.h"
 #include "DMXStats.h"
+#include "Engine/Texture2D.h"
 #include "Engine/TextureRenderTarget2D.h"
 #include "IDMXPixelMappingRenderer.h"
 #include "IDMXPixelMappingRendererModule.h"
@@ -120,10 +121,15 @@ void UDMXPixelMappingRendererComponent::PostEditChangeChainProperty(FPropertyCha
 	{
 		UpdatePreprocessRenderer();
 		LetChildrenFollowSize();
+	}	
+	
+	const FName PropertyName = PropertyChangedChainEvent.GetPropertyName();
+	if (PropertyName == GET_MEMBER_NAME_CHECKED(UDMXPixelMappingRendererComponent, DynamicRange))
+	{
+		InvalidatePixelMapRenderer();
 	}
 
 	PRAGMA_DISABLE_DEPRECATION_WARNINGS
-	const FName PropertyName = PropertyChangedChainEvent.GetPropertyName();
 	if (PropertyName == GET_MEMBER_NAME_CHECKED(UDMXPixelMappingRendererComponent, Brightness))
 	{
 		const TSharedPtr<IDMXPixelMappingRenderer>& Renderer = GetRenderer();
@@ -148,19 +154,21 @@ void UDMXPixelMappingRendererComponent::UpdatePreprocessRenderer()
 	PRAGMA_ENABLE_DEPRECATION_WARNINGS
 
 	UserWidget = nullptr;
+
+	const EPixelFormat Format = GetFormatFromDynamicRange();
 	switch (RendererType)
 	{
 	case(EDMXPixelMappingRendererType::Texture):
-		PreprocessRenderer->SetInputTexture(InputTexture.Get());
+		PreprocessRenderer->SetInputTexture(InputTexture.Get(), Format);
 		break;
 
 	case(EDMXPixelMappingRendererType::Material):
-		PreprocessRenderer->SetInputMaterial(InputMaterial.Get());
+		PreprocessRenderer->SetInputMaterial(InputMaterial.Get(), Format);
 		break;
 
 	case(EDMXPixelMappingRendererType::UMG):
 		UserWidget = CreateWidget(TryGetWorld(), InputWidget);
-		PreprocessRenderer->SetInputUserWidget(UserWidget.Get());
+		PreprocessRenderer->SetInputUserWidget(UserWidget.Get(), Format);
 		break;
 
 	default:
@@ -266,7 +274,7 @@ void UDMXPixelMappingRendererComponent::Render()
 		constexpr bool bRecursive = true;
 		ForEachChild([this](UDMXPixelMappingBaseComponent* Component)
 			{
-				if (UDMXPixelMappingFixtureGroupItemComponent* FixtureGroupItemComponent = Cast< UDMXPixelMappingFixtureGroupItemComponent>(Component))
+				if (UDMXPixelMappingFixtureGroupItemComponent* FixtureGroupItemComponent = Cast<UDMXPixelMappingFixtureGroupItemComponent>(Component))
 				{
 					PixelMapRenderElements.Add(FixtureGroupItemComponent->GetOrCreatePixelMapRenderElement());
 				}
@@ -276,7 +284,8 @@ void UDMXPixelMappingRendererComponent::Render()
 				}
 			}, bRecursive);
 
-		PixelMapRenderer->SetElements(PixelMapRenderElements);
+		const EPixelFormat Format = GetFormatFromDynamicRange();
+		PixelMapRenderer->SetElements(PixelMapRenderElements, Format);
 
 		bInvalidatePixelMap = false;
 	}
@@ -345,7 +354,7 @@ void UDMXPixelMappingRendererComponent::LetChildrenFollowSize()
 		LayoutRect = NewSize;
 		return;
 	}
-
+	
 	// Skip unchanged values, or if the current size is zero (no texture).
 	if (NewSize == LayoutRect ||
 		NewSize == FVector2D::ZeroVector)
@@ -373,6 +382,45 @@ void UDMXPixelMappingRendererComponent::LetChildrenFollowSize()
 
 	// Remember the new layout rect
 	LayoutRect = NewSize;
+}
+
+EPixelFormat UDMXPixelMappingRendererComponent::GetFormatFromDynamicRange() const
+{
+	UTexture2D* InputTexture2D = Cast<UTexture2D>(InputTexture);
+
+	if (DynamicRange == EDMXPixelMappingRendererDynamicRange::Auto &&
+		RendererType == EDMXPixelMappingRendererType::Texture &&
+		InputTexture2D)
+	{
+		const EPixelFormat PixelFormat = InputTexture2D->GetPixelFormat();
+	
+		// Propagonate the pixel format, if it is supported by render targets. 
+		// As there doesn't seem to be an engine call to do this conversion,
+		// use (the opposite) logic of GetPixelFormatFromRenderTargetFormat in TextureRenderTarget2D.h (5.4).
+		if (PixelFormat == PF_G8 ||
+			PixelFormat == PF_R8G8 ||
+			PixelFormat == PF_B8G8R8A8 ||
+			PixelFormat == PF_R16F ||
+			PixelFormat == PF_G16R16F ||
+			PixelFormat == PF_FloatRGBA ||
+			PixelFormat == PF_R32_FLOAT ||
+			PixelFormat == PF_G32R32F ||
+			PixelFormat == PF_A32B32G32R32F ||
+			PixelFormat == PF_A2B10G10R10)
+		{
+			return PixelFormat;
+		}
+		else
+		{
+			return PF_FloatRGBA;
+		}
+	}
+	else if (DynamicRange == EDMXPixelMappingRendererDynamicRange::RGBA16F)
+	{
+		return PF_FloatRGBA;
+	}
+
+	return PF_B8G8R8A8;
 }
 
 UWorld* UDMXPixelMappingRendererComponent::TryGetWorld() const

@@ -65,6 +65,15 @@ namespace UE::DMX
 		/** Sets the font size for component labels in the designer view */
 		void SetComponentFontSize(uint8 FontSize);
 
+		/** Generates a widget to edit the display exposure */
+		TSharedRef<SWidget> GenerateDesignerExposureEditWidget();
+
+		/** Gets the exposure of the designer view */
+		TOptional<float> GetDesignerExposure() const;
+
+		/** Sets the exposure of the designer view */
+		void SetDesignerExposure(float Exposure);
+
 		/** The toolkit that owns this widget */
 		TWeakPtr<FDMXPixelMappingToolkit> WeakToolkit;
 	};

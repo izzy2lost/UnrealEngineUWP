@@ -47,6 +47,8 @@ namespace UE::DMXPixelMapping::Rendering::Preprocess::Private
 		, public FGCObject
 	{
 	public:
+		FPreprocessApplyFilterMaterialProxy(EPixelFormat InFormat);
+
 		//~ Begin IPreprocessApplyFilterMaterialProxy interface
 		virtual void Render(UTexture* InInputTexture, const UDMXPixelMappingPreprocessRenderer& InPreprocessRenderer) override;
 		virtual UTexture* GetRenderedTexture() const override;
@@ -68,8 +70,11 @@ namespace UE::DMXPixelMapping::Rendering::Preprocess::Private
 		/** Updates render targets */
 		void UpdateRenderTargets(int32 NumDownsamplePasses, const TOptional<FVector2D>& OptionalOutputSize);
 
-		/** Renders the Input Texture to the Output render target*/
+		/** Renders the Input Texture to the Output render target */
 		void RenderTextureToTarget(UTexture* Texture, UTextureRenderTarget2D* RenderTarget) const;
+
+		/** The pixel format his proxy should use */
+		EPixelFormat Format = PF_Unknown;
 
 		/** Weak ref to the input texture */
 		TWeakObjectPtr<UTexture> WeakInputTexture;

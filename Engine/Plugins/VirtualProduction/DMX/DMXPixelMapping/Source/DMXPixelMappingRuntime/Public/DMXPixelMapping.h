@@ -144,6 +144,9 @@ public:
 	TObjectPtr<UDMXPixelMappingRootComponent> RootComponent;
 
 #if WITH_EDITORONLY_DATA
+	////////////////////////////////////
+	// Per Asset Editor User Settings
+
 	/** If true, grid snapping is enabled */
 	UPROPERTY(NonTransactional)
 	bool bGridSnappingEnabled = false;
@@ -163,6 +166,10 @@ public:
 	/** Font size for the component labels in the designer view */
 	UPROPERTY(NonTransactional)
 	float ComponentLabelFontSize = 8.f;
+
+	/** Exposure of the designer view */
+	UPROPERTY(NonTransactional)
+	float DesignerExposure = 1.f;
 
 	/** If true, new components use the fixture patch color instead of the default pixel mapping color. */
 	UPROPERTY(NonTransactional)

@@ -20,8 +20,8 @@ namespace UE::DMXPixelMapping::Rendering::Preprocess::Private
 		, public FGCObject
 	{
 	public:
-		FPreprocessRenderInputMaterialProxy(UMaterialInterface* InMaterial, const FVector2D& InInputSize);
-
+		FPreprocessRenderInputMaterialProxy(UMaterialInterface* InMaterial, const FVector2D& InInputSize, EPixelFormat Format);
+		
 		//~ Begin IPreprocessRenderInputProxy interface
 		virtual void Render() override;
 		virtual UTexture* GetRenderedTexture() const override;
