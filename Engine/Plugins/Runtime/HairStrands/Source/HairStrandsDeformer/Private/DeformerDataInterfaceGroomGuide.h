@@ -69,6 +69,7 @@ private:
 
 	UGroomComponent* GroomComponent = nullptr;
 	TArray<FHairStrandsInstanceResourceParameters> Resources;
-	FRDGBufferSRVRef FallbackSRV;
-
+	FRDGBufferSRVRef FallbackByteAddressSRV;
+	FRDGBufferSRVRef FallbackStructuredSRV;
+	FRDGBufferSRVRef FallbackVertexSRV;
 };

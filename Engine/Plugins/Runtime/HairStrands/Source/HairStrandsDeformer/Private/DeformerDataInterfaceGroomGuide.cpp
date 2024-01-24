@@ -14,6 +14,7 @@
 #include "HairStrandsDefinitions.h"
 #include "DeformerGroomComponentSource.h"
 #include "HairStrandsInterpolation.h"
+#include "SystemTextures.h"
 
 FString UOptimusGroomGuideDataInterface::GetDisplayName() const
 {
@@ -148,7 +149,9 @@ bool FOptimusGroomGuideDataProviderProxy::IsValid(FValidationData const& InValid
 void FOptimusGroomGuideDataProviderProxy::AllocateResources(FRDGBuilder& GraphBuilder)
 {
 	Resources.Empty();
-	FallbackSRV = nullptr;
+	FallbackByteAddressSRV = nullptr;
+	FallbackStructuredSRV = nullptr;
+	FallbackVertexSRV = nullptr;
 	const uint32 InstanceCount = GroomComponent ? GroomComponent->GetGroupCount() : 0;
 	for (uint32 Index =0; Index <InstanceCount;++Index)
 	{
@@ -163,10 +166,9 @@ void FOptimusGroomGuideDataProviderProxy::AllocateResources(FRDGBuilder& GraphBu
 				R.PointToCurveBuffer	= RegisterAsSRV(GraphBuilder, Instance->Guides.RestResource->PointToCurveBuffer);
 			}
 
-			if (!FallbackSRV)
-			{
-				FallbackSRV = GraphBuilder.CreateSRV(GraphBuilder.RegisterExternalBuffer(GWhiteVertexBufferWithRDG->Buffer), PF_R16G16B16A16_UINT); // This should be a byte address buffer
-			}
+			if (!FallbackByteAddressSRV){ FallbackByteAddressSRV = GraphBuilder.CreateSRV(GSystemTextures.GetDefaultByteAddressBuffer(GraphBuilder, 16u)); }
+			if (!FallbackStructuredSRV) { FallbackStructuredSRV  = GraphBuilder.CreateSRV(GSystemTextures.GetDefaultStructuredBuffer(GraphBuilder, 16u)); }
+			if (!FallbackVertexSRV) 	{ FallbackVertexSRV 	 = GraphBuilder.CreateSRV(GSystemTextures.GetDefaultBuffer(GraphBuilder, 4u, 0u), PF_R32_UINT); }
 		}
 	}
 }
@@ -184,10 +186,10 @@ void FOptimusGroomGuideDataProviderProxy::GatherDispatchData(FDispatchData const
 		FParameters& Parameters = ParameterArray[InvocationIndex];
 		Parameters.Common.PointCount 				= 0;
 		Parameters.Common.CurveCount 				= 0;
-		Parameters.Resources.PositionBuffer			= FallbackSRV;
-		Parameters.Resources.PositionOffsetBuffer 	= FallbackSRV;
-		Parameters.Resources.PointToCurveBuffer		= FallbackSRV;
-		Parameters.Resources.CurveBuffer			= FallbackSRV;
+		Parameters.Resources.PositionBuffer			= FallbackByteAddressSRV;
+		Parameters.Resources.PositionOffsetBuffer 	= FallbackStructuredSRV;
+		Parameters.Resources.PointToCurveBuffer		= FallbackVertexSRV;
+		Parameters.Resources.CurveBuffer			= FallbackVertexSRV;
 
 		if (FHairGroupInstance* Instance = GroomComponent->GetGroupInstance(InvocationIndex))
 		{
