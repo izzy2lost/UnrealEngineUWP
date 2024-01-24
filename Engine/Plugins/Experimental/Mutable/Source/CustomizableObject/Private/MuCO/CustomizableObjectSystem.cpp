@@ -2162,11 +2162,6 @@ namespace impl
 			MutableSystem->ClearWorkingMemory();
 		}
 
-		// Memory used in the context of this the update of mesh
-		OperationData->UpdateEndPeakBytes = mu::FGlobalMemoryCounter::GetPeak();
-		// Memory used in the context of the mesh update + the baseline memory already in use by mutable
-		OperationData->UpdateEndRealPeakBytes = OperationData->UpdateEndPeakBytes + OperationData->UpdateStartBytes;
-
 		UCustomizableObjectSystem::GetInstance()->GetPrivate()->MutableTaskGraph.AllowLaunchingMutableTaskLowPriority(true, true);
 	}
 
@@ -2310,6 +2305,11 @@ namespace impl
 			}
 		} // if (!bInstanceValid)
 
+		// Memory used in the context of this the update of mesh
+		OperationData->UpdateEndPeakBytes = mu::FGlobalMemoryCounter::GetPeak();
+		// Memory used in the context of the mesh update + the baseline memory already in use by mutable
+		OperationData->UpdateEndRealPeakBytes = OperationData->UpdateEndPeakBytes + OperationData->UpdateStartBytes;
+		
 		UCustomizableObjectSystemPrivate* CustomizableObjectSystemPrivateData = System->GetPrivateChecked();
 
 		// Next Task: Release Mutable. We need this regardless if we cancel or not
