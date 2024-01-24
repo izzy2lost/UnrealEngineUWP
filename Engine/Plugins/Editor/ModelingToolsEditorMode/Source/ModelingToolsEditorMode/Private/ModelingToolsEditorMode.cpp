@@ -260,7 +260,7 @@ bool UModelingToolsEditorMode::ShouldDrawWidget() const
 	}
 
 	// hide standard xform gizmo if we have an active selection
-	if (GetSelectionManager() && GetSelectionManager()->HasSelection())
+	if (GetSelectionManager() && (GetSelectionManager()->HasSelection() || GetSelectionManager()->GetMeshTopologyMode() != UGeometrySelectionManager::EMeshTopologyMode::None))
 	{
 		return false;
 	}

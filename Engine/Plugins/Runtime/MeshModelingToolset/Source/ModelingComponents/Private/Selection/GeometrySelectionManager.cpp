@@ -11,6 +11,7 @@
 #include "ToolContextInterfaces.h"
 #include "ToolDataVisualizer.h"
 #include "Selections/GeometrySelectionUtil.h"
+#include "Util/ColorConstants.h"
 
 #include UE_INLINE_GENERATED_CPP_BY_NAME(GeometrySelectionManager)
 
@@ -123,6 +124,9 @@ void UGeometrySelectionManager::SetSelectionElementTypeInternal(EGeometryElement
 			bool bEnableTopologyFilter = (Target->Selection.TopologyType == EGeometryTopologyType::Polygroup && Target->Selection.ElementType != EGeometryElementType::Vertex);
 			Target->SelectionEditor->UpdateQueryConfig(GetCurrentSelectionQueryConfig(), bEnableTopologyFilter);
 		}
+
+		MarkRenderCachesDirty();
+		ClearActivePreview();
 	}
 }
 
@@ -168,6 +172,9 @@ void UGeometrySelectionManager::SetMeshTopologyModeInternal(EMeshTopologyMode Ne
 			bool bEnableTopologyFilter = (Target->Selection.TopologyType == EGeometryTopologyType::Polygroup && Target->Selection.ElementType != EGeometryElementType::Vertex);
 			Target->SelectionEditor->UpdateQueryConfig(GetCurrentSelectionQueryConfig(), bEnableTopologyFilter);
 		}
+
+		MarkRenderCachesDirty();
+		ClearActivePreview();
 	}
 }
 
@@ -359,7 +366,7 @@ bool UGeometrySelectionManager::AddActiveTarget(FGeometryIdentifier TargetIdenti
 
 	ActiveTargetMap.Add(TargetIdentifier, SelectionTarget);
 	ActiveTargetReferences.Add(SelectionTarget);
-
+	
 	SelectionTarget->OnGeometryModifiedHandle = 
 		SelectionTarget->Selector->GetOnGeometryModifed().AddUObject(this, &UGeometrySelectionManager::OnTargetGeometryModified);
 
@@ -374,7 +381,7 @@ void UGeometrySelectionManager::SynchronizeActiveTargets(
 	TFunctionRef<void()> WillChangeActiveTargetsCallback)
 {
 	TArray<FGeometryIdentifier> Before = GetCurrentTargetIdentifiers();
-
+	
 	// currently only support single selection
 	if (DesiredActiveSet.Num() == 1)
 	{
@@ -570,7 +577,7 @@ TSharedPtr<UGeometrySelectionManager::FGeometrySelectionTarget> UGeometrySelecti
 	{
 		TargetCache.Add(TargetIdentifier, SelectionTarget);
 	}
-
+	
 	return SelectionTarget;
 }
 
@@ -649,7 +656,7 @@ void UGeometrySelectionManager::ClearSelection(bool bSaveSelectionBeforeClear)
 
 	GetTransactionsAPI()->EndUndoTransaction();
 
-	bSelectionRenderCachesDirty = true;
+	MarkRenderCachesDirty();
 	OnSelectionModified.Broadcast();
 }
 
@@ -689,7 +696,7 @@ void UGeometrySelectionManager::UpdateSelectionViaRaycast(
 		GetTransactionsAPI()->AppendChange(this, MoveTemp(DeltaChange), LOCTEXT("UpdateSelectionViaRaycast", "Change Selection"));
 		GetTransactionsAPI()->EndUndoTransaction();
 
-		bSelectionRenderCachesDirty = true;
+		MarkRenderCachesDirty();
 		OnSelectionModified.Broadcast();
 	}
 	else if (ResultOut.bSelectionMissed && UpdateConfig.ChangeType == EGeometrySelectionChangeType::Replace)
@@ -732,7 +739,7 @@ void UGeometrySelectionManager::UpdateSelectionViaConvex(
 		GetTransactionsAPI()->AppendChange(this, MoveTemp(DeltaChange), LOCTEXT("UpdateSelectionViaConvex", "Change Selection"));
 		GetTransactionsAPI()->EndUndoTransaction();
 
-		bSelectionRenderCachesDirty = true;
+		MarkRenderCachesDirty();
 		OnSelectionModified.Broadcast();
 	}
 	else if (ResultOut.bSelectionMissed && UpdateConfig.ChangeType == EGeometrySelectionChangeType::Replace)
@@ -777,7 +784,7 @@ bool UGeometrySelectionManager::BeginTrackedSelectionChange(FGeometrySelectionUp
 
 	if (bClearOnBegin && InitialTrackedDelta.IsEmpty() == false)
 	{
-		bSelectionRenderCachesDirty = true;
+		MarkRenderCachesDirty();
 		OnSelectionModified.Broadcast();
 	}
 
@@ -807,7 +814,7 @@ void UGeometrySelectionManager::AccumulateSelectionUpdate_Raycast(
 		ActiveTrackedDelta.Added.Append( ResultOut.SelectionDelta.Added );
 		ActiveTrackedDelta.Removed.Append( ResultOut.SelectionDelta.Removed );
 
-		bSelectionRenderCachesDirty = true;
+		MarkRenderCachesDirty();
 		OnSelectionModified.Broadcast();
 	}
 }
@@ -862,7 +869,7 @@ bool UGeometrySelectionManager::SetSelectionForComponent(UPrimitiveComponent* Co
 				NewSelectionChange->Before = InitialSelection;
 				GetTransactionsAPI()->AppendChange(this, MoveTemp(NewSelectionChange), LOCTEXT("NewSelection", "New Selection"));
 
-				bSelectionRenderCachesDirty = true;
+				MarkRenderCachesDirty();
 				OnSelectionModified.Broadcast();
 			}
 			return true;
@@ -922,7 +929,7 @@ bool UGeometrySelectionManager::RestoreSavedSelection()
 					NewSelectionChange->Before = InitialSelection;
 					GetTransactionsAPI()->AppendChange(this, MoveTemp(NewSelectionChange), LOCTEXT("RestoreSelection", "Restore Selection"));
 
-					bSelectionRenderCachesDirty = true;
+					MarkRenderCachesDirty();
 					OnSelectionModified.Broadcast();
 				}
 				bFound = true;
@@ -960,8 +967,7 @@ bool UGeometrySelectionManager::UpdateSelectionPreviewViaRaycast(
 	{
 		return false;
 	}
-	bool bUseSimplifiedPreviewHighlight = (CVarGeometrySelectionManager_FullSelectionHoverHighlights.GetValueOnGameThread() == 0);
-
+	
 	// currently only going to support one object, not sure how to support more yet...
 
 	FGeometrySelectionTarget* Target = ActiveTargetReferences[0].Get();
@@ -977,10 +983,7 @@ bool UGeometrySelectionManager::UpdateSelectionPreviewViaRaycast(
 	{
 		ActivePreviewSelection = MoveTemp(NewPreview.PreviewSelection);
 		CachedPreviewRenderElements.Reset();
-		if (ActivePreviewSelection.IsEmpty() == false)
-		{
-			Target->Selector->AccumulateSelectionElements(ActivePreviewSelection, CachedPreviewRenderElements, true, bUseSimplifiedPreviewHighlight);
-		}
+		MarkRenderCachesDirty();
 	}
 
 	return (ActivePreviewSelection.IsEmpty() == false);
@@ -988,11 +991,8 @@ bool UGeometrySelectionManager::UpdateSelectionPreviewViaRaycast(
 
 void UGeometrySelectionManager::ClearSelectionPreview()
 {
-	ActivePreviewSelection.Selection.Reset();
-	CachedPreviewRenderElements.Reset();
+	ClearActivePreview();
 }
-
-
 
 bool UGeometrySelectionManager::GetSelectionBounds(FGeometrySelectionBounds& BoundsOut) const
 {
@@ -1216,7 +1216,7 @@ void UGeometrySelectionManager::ExecuteSelectionCommand(UGeometrySelectionEditCo
 	GetTransactionsAPI()->EndUndoTransaction();
 
 	// assume this is true for now
-	bSelectionRenderCachesDirty = true;
+	MarkRenderCachesDirty();
 	OnSelectionModified.Broadcast();
 }
 
@@ -1263,7 +1263,7 @@ void UGeometrySelectionManager::ApplyChange(IGeometrySelectionChange* Change)
 
 			if (ApplyDelta.IsEmpty() == false)
 			{
-				bSelectionRenderCachesDirty = true;
+				MarkRenderCachesDirty();
 				OnSelectionModified.Broadcast();
 			}
 
@@ -1292,7 +1292,7 @@ void UGeometrySelectionManager::RevertChange(IGeometrySelectionChange* Change)
 
 			if (RevertDelta.IsEmpty() == false)
 			{
-				bSelectionRenderCachesDirty = true;
+				MarkRenderCachesDirty();
 				OnSelectionModified.Broadcast();
 			}
 
@@ -1304,8 +1304,11 @@ void UGeometrySelectionManager::RevertChange(IGeometrySelectionChange* Change)
 
 void UGeometrySelectionManager::OnTargetGeometryModified(IGeometrySelector* Selector)
 {
-	bSelectionRenderCachesDirty = true;
-
+	CachedSelectableRenderElements.Reset();
+	
+	CachedSelectableRenderElements.SetNum(ActiveTargetReferences.Num());
+	
+	MarkRenderCachesDirty();
 	ClearActivePreview();
 }
 
@@ -1313,13 +1316,38 @@ void UGeometrySelectionManager::OnTargetGeometryModified(IGeometrySelector* Sele
 void UGeometrySelectionManager::UpdateSelectionRenderCacheOnTargetChange()
 {
 	CachedSelectionRenderElements.Reset();
+	CachedSelectableRenderElements.Reset();
+	
 	CachedSelectionRenderElements.SetNum(ActiveTargetReferences.Num());
-	bSelectionRenderCachesDirty = true;
-
+	CachedSelectableRenderElements.SetNum(ActiveTargetReferences.Num());
+	
+	MarkRenderCachesDirty();
 	ClearActivePreview();
 }
 
+void UGeometrySelectionManager::MarkRenderCachesDirty()
+{
+	bSelectionRenderCachesDirty = true;
+	bSelectableRenderCachesDirty = true;
+	bPreviewRenderCachesDirty = true;
+}
+
 void UGeometrySelectionManager::RebuildSelectionRenderCaches()
+{
+	RebuildSelectionRenderCache();
+	RebuildSelectableRenderCache();
+	RebuildPreviewRenderCache();
+}
+
+void UGeometrySelectionManager::ClearActivePreview()
+{
+	ActivePreviewSelection.Reset();
+	CachedPreviewRenderElements.Reset();
+	bSelectableRenderCachesDirty = true;
+	bPreviewRenderCachesDirty = true;
+}
+
+void UGeometrySelectionManager::RebuildSelectionRenderCache()
 {
 	if (bSelectionRenderCachesDirty == false)
 	{
@@ -1330,21 +1358,75 @@ void UGeometrySelectionManager::RebuildSelectionRenderCaches()
 	for (int32 k = 0; k < ActiveTargetReferences.Num(); ++k)
 	{
 		TSharedPtr<FGeometrySelectionTarget> Target = ActiveTargetReferences[k];
-
-		FGeometrySelectionElements& Elements = CachedSelectionRenderElements[k];
-		Elements.Reset();
-
-		Target->Selector->AccumulateSelectionElements(Target->Selection, Elements, true, false);
+		
+		FGeometrySelectionElements& SelectionElements = CachedSelectionRenderElements[k];
+		SelectionElements.Reset();
+		Target->Selector->AccumulateSelectionElements(Target->Selection, SelectionElements, true, false);
 	}
 
 	bSelectionRenderCachesDirty = false;
 }
 
-
-void UGeometrySelectionManager::ClearActivePreview()
+void UGeometrySelectionManager::RebuildSelectableRenderCache()
 {
-	ActivePreviewSelection.Reset();
-	CachedPreviewRenderElements.Reset();
+	if (bSelectableRenderCachesDirty == false || MeshTopologyMode == EMeshTopologyMode::None)
+	{
+		return;
+	}
+
+	check(ActiveTargetReferences.Num() == CachedSelectionRenderElements.Num());
+	for (int32 k = 0; k < ActiveTargetReferences.Num(); ++k)
+	{
+		TSharedPtr<FGeometrySelectionTarget> Target = ActiveTargetReferences[k];
+		FGeometrySelectionElements& AllElements = CachedSelectableRenderElements[k];
+		
+		AllElements.Reset();
+		
+		Target->Selector->AccumulateElementsFromPredicate(AllElements, true, false, MeshTopologyMode == EMeshTopologyMode::Polygroup, [Target, this](EGeometryElementType Type, FGeoSelectionID ID)
+		{
+			uint64 EncodedID = ID.Encoded();
+
+			// Selectable faces are not displayed directly, just implicitly via displayed edges.
+			if (Type == EGeometryElementType::Face)
+			{
+				return false;
+			}
+			
+			// Exclude selected elements from selectable elements
+			if (Target->Selection.ElementType == Type && Target->Selection.Selection.Contains(EncodedID))
+			{
+				return false;
+			}
+
+			// Exclude hovered elements from selectable elements
+			if (ActivePreviewSelection.ElementType == Type && ActivePreviewSelection.Selection.Contains(EncodedID))
+			{
+				return false;
+			}
+			
+			return true;
+		});
+	}
+
+	bSelectableRenderCachesDirty = false;
+}
+
+void UGeometrySelectionManager::RebuildPreviewRenderCache()
+{
+	if (bPreviewRenderCachesDirty == false || ActiveTargetReferences.Num() == 0)
+	{
+		return;
+	}
+
+	const bool bUseSimplifiedPreviewHighlight = (CVarGeometrySelectionManager_FullSelectionHoverHighlights.GetValueOnGameThread() == 0);
+	const TSharedPtr<FGeometrySelectionTarget> Target = ActiveTargetReferences[0];
+	
+	if (ActivePreviewSelection.IsEmpty() == false)
+	{
+		Target->Selector->AccumulateSelectionElements(ActivePreviewSelection, CachedPreviewRenderElements, true, bUseSimplifiedPreviewHighlight);
+	}
+	
+	bPreviewRenderCachesDirty = false;
 }
 
 
@@ -1383,12 +1465,25 @@ void UGeometrySelectionManager::DebugRender(IToolsContextRenderAPI* RenderAPI)
 
 	//const UMaterialInterface* TriangleMaterial = ToolSetupUtil::GetSelectionMaterial(FLinearColor(1.0f, 0, 0, 0.5f), nullptr, 0.5f);
 
-	RebuildSelectionRenderCaches();
-	for ( const FGeometrySelectionElements& Elements : CachedSelectionRenderElements )
+	if (!this->ToolsContext->ToolManager->HasAnyActiveTool())
 	{
-		ToolSelectionUtil::DebugRenderGeometrySelectionElements(RenderAPI, Elements, false);
+		RebuildSelectionRenderCaches();
+		
+		for ( const FGeometrySelectionElements& Elements : CachedSelectionRenderElements )
+		{
+			ToolSelectionUtil::DebugRender(RenderAPI, Elements, 4.f, LinearColors::Gold3f(), 10.f, LinearColors::Gold3f(), 6.f);
+		}
+
+		if (MeshTopologyMode != EMeshTopologyMode::None)
+		{
+			for ( const FGeometrySelectionElements& Elements : CachedSelectableRenderElements )
+			{
+				ToolSelectionUtil::DebugRender(RenderAPI, Elements, 2.f, LinearColors::Red3f(), 8.f, LinearColors::Red3f(), 5.f);
+			}
+		}
+		
+		ToolSelectionUtil::DebugRender(RenderAPI, CachedPreviewRenderElements, 4.f, LinearColors::Green3f(), 10.f, LinearColors::Green3f(), 7.f);
 	}
-	ToolSelectionUtil::DebugRenderGeometrySelectionElements(RenderAPI, CachedPreviewRenderElements, true);
 }
 
 

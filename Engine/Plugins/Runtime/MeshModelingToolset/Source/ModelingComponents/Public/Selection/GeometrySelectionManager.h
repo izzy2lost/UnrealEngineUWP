@@ -152,7 +152,11 @@ public:
 		FInputRayHit& HitResultOut
 	);
 
-
+	/**
+	 * Invalidates all cached selection elements.
+	 */
+	void MarkRenderCachesDirty();
+	
 	//
 	// Selection Updates
 	//
@@ -278,9 +282,12 @@ public:
 		const FRay3d& WorldRay
 	);
 
+	/**
+	 * Resets the active preview selection and invalidates its associated cached render elements.
+	 */
 	virtual void ClearSelectionPreview();
 
-
+	
 	//
 	// Selection queries
 	//
@@ -448,25 +455,20 @@ protected:
 
 	void OnTargetGeometryModified(IGeometrySelector* Selector);
 
-	//
-	// 3D geometry for element selections of each ActiveTarget is cached
-	// to improve rendering performance
-	//
-	TArray<FGeometrySelectionElements> CachedSelectionRenderElements;
+	
+	// todo [nickolas.drake]: cane we move CachedSelectionRenderElements, CachedPreviewRenderElements, and bSelectionRenderCachesDirty to private?
+	
+	TArray<FGeometrySelectionElements> CachedSelectionRenderElements;				// Cached 3D geometry for current selection
 	bool bSelectionRenderCachesDirty = false;
 	void UpdateSelectionRenderCacheOnTargetChange();
 	void RebuildSelectionRenderCaches();
 
+	UE_DEPRECATED(5.6, "Direct acces to ActivePreviewSelection is deprecated!")
+    FGeometrySelection ActivePreviewSelection;										// Selection representing the active preview
+	FGeometrySelectionElements CachedPreviewRenderElements;							// Cached 3D geometry for active preview elements
+    void ClearActivePreview();
 
-	//
-	// 3D geometry for active hover/preview highlight
-	// note: currently only supporting single target here, will need to be refactored to handle multiple targets...
-	//
-	FGeometrySelection ActivePreviewSelection;
-	FGeometrySelectionElements CachedPreviewRenderElements;
-	void ClearActivePreview();
-
-
+	
 	// various change types need internal access
 
 	friend class FGeometrySelectionManager_SelectionTypeChange;
@@ -486,6 +488,23 @@ protected:
 
 private:
 
+	//
+	// 3D geometry for element selections of each ActiveTarget is cached
+	// to improve rendering performance
+	//
+	
+	// todo [nickolas.drake]: refactor Rebuild_X_RenderCache() functions below to populate a UPreviewGeometry with the accumulated elements and remove PDI rendering
+	
+	void RebuildSelectionRenderCache();
+	
+	TArray<FGeometrySelectionElements> CachedSelectableRenderElements;				// Cached 3D geometry for all selectable elements
+	void RebuildSelectableRenderCache();
+	bool bSelectableRenderCachesDirty = false;
+	
+	void RebuildPreviewRenderCache();
+	bool bPreviewRenderCachesDirty = false;
+
+	
 	// Tracks saved selection state. Useful when the selection is temporarily cleared (e.g., for a tool)
 	struct FSavedSelection
 	{
