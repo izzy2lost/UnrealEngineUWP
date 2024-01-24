@@ -530,12 +530,15 @@ void UTG_EdGraphNode::AutowireNewNode(UEdGraphPin* FromPin)
 		TObjectPtr<UTG_Pin> OtherPin = Node->GetGraph()->GetPin(OtherPinId);
 		check(OtherPin);
 
-		const FName& OtherPinName = OtherPin->GetArgumentName();
-		UEdGraphPin* ToPin = FindPinChecked(OtherPinName, bFromPinIsInput ? EEdGraphPinDirection::EGPD_Output : EEdGraphPinDirection::EGPD_Input);
-		if (ToPin && GetSchema()->TryCreateConnection(FromPin, ToPin))
+		if(!OtherPin->IsNotConnectable() && !OtherPin->IsParam())
 		{
-			// Connection succeeded
-			break;
+			const FName& OtherPinName = OtherPin->GetArgumentName();
+			UEdGraphPin* ToPin = FindPinChecked(OtherPinName, bFromPinIsInput ? EEdGraphPinDirection::EGPD_Output : EEdGraphPinDirection::EGPD_Input);
+			if (ToPin && GetSchema()->TryCreateConnection(FromPin, ToPin))
+			{
+				// Connection succeeded
+				break;
+			}	
 		}
 	}
 
