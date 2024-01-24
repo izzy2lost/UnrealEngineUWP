@@ -1638,14 +1638,30 @@ FText SFindInBlueprints::GetCacheBarStatusText() const
 	}
 	else
 	{
-		const FText IndexAllWarningText = LOCTEXT("IndexAllWarning", "Press \"Index All\" to load these assets right now. The editor may become unresponsive while these assets are loaded for indexing. Save your work before initiating this: broken assets and memory usage can affect editor stability. Alternatively, export the asset list to inspect which assets do not have optimal searchability.");
-		const FText IndexAllDisabledText = LOCTEXT("IndexAllDisabled", "Your Blueprint Editor settings disallow loading all these assets from this window. Export the asset list to inspect which assets do not have optimal searchability.");
-
 		const int32 UnindexedCount = FindInBlueprintManager.GetNumberUnindexedAssets();
 		Args.Add(TEXT("UnindexedCount"), UnindexedCount);
 		Args.Add(TEXT("OutOfDateCount"), OutOfDateWithLastSearchBPCount);
 		Args.Add(TEXT("Count"), UnindexedCount + OutOfDateWithLastSearchBPCount);
-		Args.Add(TEXT("Instruction"), CanCacheAllUnindexedBlueprints() ? IndexAllWarningText : IndexAllDisabledText);
+
+		// Show a different instruction depending on the "Index All" permission level in editor settings
+		const EFiBIndexAllPermission IndexAllPermission = GetDefault<UBlueprintEditorSettings>()->AllowIndexAllBlueprints;
+		const FText IndexAllDisabledText = LOCTEXT("IndexAllDisabled", "Your editor settings disallow loading all these assets from this window, see Blueprint Editor Settings: AllowIndexAllBlueprints. Export the asset list to inspect which assets do not have optimal searchability.");
+		const FText IndexAllWarningText_LoadOnly = LOCTEXT("IndexAllWarning_LoadOnly", "Press \"Index All\" to load these assets right now. The editor may become unresponsive while these assets are loaded for indexing. Save your work before initiating this: broken assets and memory usage can affect editor stability. Alternatively, export the asset list to inspect which assets do not have optimal searchability.");
+		const FText IndexAllWarningText_Checkout = LOCTEXT("IndexAllWarning_Checkout", "Press \"Index All\" to load, and optionally checkout and resave, these assets right now. The editor may become unresponsive while these assets are loaded for indexing. Save your work before initiating this: broken assets and memory usage can affect editor stability. Alternatively, export the asset list to inspect which assets do not have optimal searchability.");
+		switch (IndexAllPermission)
+		{
+		case EFiBIndexAllPermission::CheckoutAndResave:
+			Args.Add(TEXT("Instruction"), IndexAllWarningText_Checkout);
+			break;
+		case EFiBIndexAllPermission::LoadOnly:
+			Args.Add(TEXT("Instruction"), IndexAllWarningText_LoadOnly);
+			break;
+		case EFiBIndexAllPermission::None:
+			Args.Add(TEXT("Instruction"), IndexAllDisabledText);
+			break;
+		default:
+			ensureMsgf(false, TEXT("Unhandled case"));
+		}
 		
 		ReturnDisplayText = FText::Format(LOCTEXT("UncachedAssets", "Search incomplete: {Count} blueprints don't have an up-to-date index ({UnindexedCount} unindexed/{OutOfDateCount} out-of-date). These assets are searchable but some results may be missing. Load and resave these assets to improve their searchability. \n\n{Instruction}"), Args);
 
@@ -1674,7 +1690,7 @@ FText SFindInBlueprints::GetCacheBarCurrentAssetName() const
 
 bool SFindInBlueprints::CanCacheAllUnindexedBlueprints() const
 {
-	return GetDefault<UBlueprintEditorSettings>()->bAllowIndexAllBlueprints;
+	return GetDefault<UBlueprintEditorSettings>()->AllowIndexAllBlueprints != EFiBIndexAllPermission::None;
 }
 
 void SFindInBlueprints::OnCacheStarted(EFiBCacheOpType InOpType, EFiBCacheOpFlags InOpFlags)

@@ -69,7 +69,7 @@ UBlueprintEditorSettings::UBlueprintEditorSettings(const FObjectInitializer& Obj
 	// Perf Settings
 	, NodeTemplateCacheCapMB(20.f)
 	// Find-in-Blueprints Settings
-	, bAllowIndexAllBlueprints(true)
+	, AllowIndexAllBlueprints(EFiBIndexAllPermission::LoadOnly)
 	// No category
 	, bShowInheritedVariables(false)
 	, bAlwaysShowInterfacesInOverrides(true)
