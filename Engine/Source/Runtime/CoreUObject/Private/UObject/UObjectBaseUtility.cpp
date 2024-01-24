@@ -588,12 +588,21 @@ void* UObjectBaseUtility::GetNativeInterfaceAddress(UClass* InterfaceClass)
 	return NULL;
 }
 
-bool UObjectBaseUtility::IsDefaultSubobject() const
+bool UObjectBaseUtility::IsTemplateForSubobjects(EObjectFlags TemplateTypes) const
 {
-	const bool bIsInstanced = !HasAnyFlags(RF_ClassDefaultObject) && GetOuter() && (GetOuter()->HasAnyFlags(RF_ClassDefaultObject) || ((UObject*)this)->GetArchetype() != GetClass()->GetDefaultObject(false));
-	return bIsInstanced;
+	// This includes archetype objects that are inside CDOs or inheritable component templates, but not the CDO itself
+	return HasAnyFlags(RF_ArchetypeObject) && !HasAnyFlags(RF_ClassDefaultObject) && IsTemplate(TemplateTypes);
 }
 
+bool UObjectBaseUtility::IsDefaultSubobject() const
+{
+	// For historical reasons this behavior does not match the RF_DefaultSubObject flag.
+	// It will return true for any object instanced using a non-CDO archetype, 
+	// but it will return false for indirectly nested subobjects of a CDO that can be used as an archetype.
+	
+	return !HasAnyFlags(RF_ClassDefaultObject) && GetOuter() &&
+		(GetOuter()->HasAnyFlags(RF_ClassDefaultObject) || ((UObject*)this)->GetArchetype() != GetClass()->GetDefaultObject(false));
+}
 
 UClass* GetParentNativeClass(UClass* Class)
 {

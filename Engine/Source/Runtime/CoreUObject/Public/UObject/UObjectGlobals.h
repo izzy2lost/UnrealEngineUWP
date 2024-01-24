@@ -1195,11 +1195,11 @@ public:
 	COREUOBJECT_API UClass* GetClass() const;
 
 	/**
-	 * Create a component or subobject
+	 * Create a component or subobject that will be instanced inside all instances of this class.
 	 * @param	TReturnType					class of return type, all overrides must be of this type
 	 * @param	Outer						outer to construct the subobject in
-	 * @param	SubobjectName				name of the new component
-	 * @param bTransient		true if the component is being assigned to a transient property
+	 * @param	SubobjectName				name of the new component, this will be the same for all instances of this class
+	 * @param	bTransient					true if the component is being assigned to a transient property
 	 */
 	template<class TReturnType>
 	TReturnType* CreateDefaultSubobject(UObject* Outer, FName SubobjectName, bool bTransient = false) const
@@ -1209,12 +1209,12 @@ public:
 	}
 
 	/**
-	 * Create optional component or subobject. Optional subobjects may not get created
-	 * when a derived class specified DoNotCreateDefaultSubobject with the subobject's name.
+	 * Create optional component or subobject. Optional subobjects will not get created.
+	 * if a derived class specifies DoNotCreateDefaultSubobject with the subobject name.
 	 * @param	TReturnType					class of return type, all overrides must be of this type
 	 * @param	Outer						outer to construct the subobject in
-	 * @param	SubobjectName				name of the new component
-	 * @param bTransient		true if the component is being assigned to a transient property
+	 * @param	SubobjectName				name of the new component, this will be the same for all instances of this class
+	 * @param	bTransient					true if the component is being assigned to a transient property
 	 */
 	template<class TReturnType>
 	TReturnType* CreateOptionalDefaultSubobject(UObject* Outer, FName SubobjectName, bool bTransient = false) const
@@ -1224,13 +1224,13 @@ public:
 	}
 
 	/** 
-	* Create a component or subobject 
-	* @param TReturnType class of return type, all overrides must be of this type 
-	* @param TClassToConstructByDefault class to construct by default
-	* @param Outer outer to construct the subobject in 
-	* @param SubobjectName name of the new component 
-	* @param bTransient		true if the component is being assigned to a transient property
-	*/ 
+	 * Create a component or subobject, allows creating a child class and returning the parent class.
+	 * @param	TReturnType					class of return type, all overrides must be of this type 
+	 * @param	TClassToConstructByDefault	class to construct by default
+	 * @param	Outer						outer to construct the subobject in
+	 * @param	SubobjectName				name of the new component, this will be the same for all instances of this class
+	 * @param	bTransient					true if the component is being assigned to a transient property
+	 */ 
 	template<class TReturnType, class TClassToConstructByDefault> 
 	TReturnType* CreateDefaultSubobject(UObject* Outer, FName SubobjectName, bool bTransient = false) const 
 	{ 
@@ -1241,7 +1241,7 @@ public:
 	 * Create a component or subobject only to be used with the editor.
 	 * @param	TReturnType					class of return type, all overrides must be of this type
 	 * @param	Outer						outer to construct the subobject in
-	 * @param	SubobjectName				name of the new component
+	 * @param	SubobjectName				name of the new component, this will be the same for all instances of this class
 	 * @param	bTransient					true if the component is being assigned to a transient property
 	 */
 	template<class TReturnType>
@@ -1254,14 +1254,14 @@ public:
 	/**
 	* Create a component or subobject only to be used with the editor.
 	* @param	Outer						outer to construct the subobject in
-	* @param	SubobjectName				name of the new component
+	* @param	SubobjectName				name of the new component, this will be the same for all instances of this class
 	* @param	ReturnType					type of the new component
 	* @param	bTransient					true if the component is being assigned to a transient property
 	*/
 	COREUOBJECT_API UObject* CreateEditorOnlyDefaultSubobject(UObject* Outer, FName SubobjectName, const UClass* ReturnType, bool bTransient = false) const;
 
 	/**
-	 * Create a component or subobject
+	 * Create a component or subobject that will be instanced inside all instances of this class.
 	 * @param	Outer                       outer to construct the subobject in
 	 * @param	SubobjectName               name of the new component
 	 * @param	ReturnType                  class of return type, all overrides must be of this type

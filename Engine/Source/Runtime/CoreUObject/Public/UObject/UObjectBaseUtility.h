@@ -495,11 +495,12 @@ public:
 	COREUOBJECT_API bool MarkPackageDirty() const;
 
 	/**
-	* Determines whether this object is a template object
-	*
-	* @return	true if this object is a template object (owned by a UClass)
-	*/
-	COREUOBJECT_API bool IsTemplate( EObjectFlags TemplateTypes = RF_ArchetypeObject|RF_ClassDefaultObject ) const;
+	 * Determines whether this object is a template object by checking flags on the object and the outer chain.
+	 *
+	 * @param	TemplateTypes	Specific flags to look for, the default checks class default and non-class templates
+	 * @return	true if this object is a template object that can be used as an archetype
+	 */
+	COREUOBJECT_API bool IsTemplate(EObjectFlags TemplateTypes = RF_ArchetypeObject|RF_ClassDefaultObject) const;
 
 	/**
 	 * Traverses the outer chain searching for the next object of a certain type.  (T must be derived from UObject)
@@ -653,9 +654,23 @@ public:
 	}
 
 	/**
-	 * Returns whether this component was instanced from a component/subobject template, or if it is a component/subobject template.
+	 * Returns whether this is a template that can be used to create instanced subobjects.
+	 * By default this includes subobjects of a class default object and other templates associated with a class.
+	 * 
+	 * @param	TemplateTypes	Specific flags to check on this object and the outer chain
+	 * @return	true if this is a template for creating instanced subobjects
+	 */
+	COREUOBJECT_API bool IsTemplateForSubobjects(EObjectFlags TemplateTypes = RF_ClassDefaultObject|RF_DefaultSubObject|RF_InheritableComponentTemplate) const;
+	
+	/**
+	 * Returns whether this is a subobject (template or instance) that was originally defined inside a default class object.
+	 * This will return true for all instanced objects created from an archetype that is not a class default object,
+	 * but will only return true for template objects nested directly inside a class default object.
 	 *
-	 * @return	true if this component was instanced from a template.  false if this component was created manually at runtime.
+	 * @warning The behavior of this function is inconsistent for historical reasons and is not equivalent to RF_DefaultSubobject.
+	 * 			Call IsTemplateSubobject to handle all types of subobject templates, or call GetArchetype() first if you have an instance.
+	 *
+	 * @return	true if this was instanced from a subobject template, or is the direct subobject of a class default object
 	 */
 	COREUOBJECT_API bool IsDefaultSubobject() const;
 	
