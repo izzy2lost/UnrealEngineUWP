@@ -3942,7 +3942,7 @@ void SSCSEditor::Construct( const FArguments& InArgs )
 		);
 
 	CommandList->MapAction( FGraphEditorCommands::Get().FindReferences,
-		FUIAction( FExecuteAction::CreateSP( this, &SSCSEditor::OnFindReferences, false, EGetFindReferenceSearchStringFlags::UseSearchSyntax ) )
+		FUIAction( FExecuteAction::CreateSP( this, &SSCSEditor::OnFindReferences, false, EGetFindReferenceSearchStringFlags::Legacy) )
 	);
 
 	CommandList->MapAction( FGraphEditorCommands::Get().FindReferencesByNameLocal,

@@ -1654,7 +1654,7 @@ TSharedRef<SGraphEditor> FBlueprintEditor::CreateGraphEditorWidget(TSharedRef<FT
 				);
 
 			GraphEditorCommands->MapAction( FGraphEditorCommands::Get().FindReferences,
-				FExecuteAction::CreateSP( this, &FBlueprintEditor::OnFindReferences, /*bSearchAllBlueprints=*/false, EGetFindReferenceSearchStringFlags::None),
+				FExecuteAction::CreateSP( this, &FBlueprintEditor::OnFindReferences, /*bSearchAllBlueprints=*/false, EGetFindReferenceSearchStringFlags::Legacy),
 				FCanExecuteAction::CreateSP( this, &FBlueprintEditor::CanFindReferences )
 				);
 			
@@ -10222,12 +10222,6 @@ void FBlueprintEditor::OnFindReferences(bool bSearchAllBlueprints, const EGetFin
 				FString SearchTerm = SelectedNode->GetFindReferenceSearchString(Flags);
 				if (!SearchTerm.IsEmpty())
 				{
-					// If not using search syntax, surround the search term with quotes
-					if (!EnumHasAnyFlags(Flags, EGetFindReferenceSearchStringFlags::UseSearchSyntax))
-					{
-						SearchTerm = FString::Printf(TEXT("\"%s\""), *SearchTerm);
-					}
-
 					// Start the search
 					const bool bSetFindWithinBlueprint = !bSearchAllBlueprints;
 					SummonSearchUI(bSetFindWithinBlueprint, SearchTerm);

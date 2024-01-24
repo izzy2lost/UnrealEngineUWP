@@ -205,7 +205,7 @@ void FWidgetBlueprintEditor::InitWidgetBlueprintEditor(const EToolkitMode::Type 
 		);
 
 	DesignerCommandList->MapAction(FGraphEditorCommands::Get().FindReferences,
-		FExecuteAction::CreateSP(this, &FWidgetBlueprintEditor::OnFindWidgetReferences, false, EGetFindReferenceSearchStringFlags::UseSearchSyntax),
+		FExecuteAction::CreateSP(this, &FWidgetBlueprintEditor::OnFindWidgetReferences, false, EGetFindReferenceSearchStringFlags::Legacy),
 		FCanExecuteAction::CreateSP(this, &FWidgetBlueprintEditor::CanFindWidgetReferences));
 	
 	DesignerCommandList->MapAction(FGraphEditorCommands::Get().FindReferencesByNameLocal,

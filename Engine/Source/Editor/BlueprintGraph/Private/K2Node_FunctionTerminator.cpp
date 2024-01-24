@@ -75,6 +75,17 @@ FString UK2Node_FunctionTerminator::GetFindReferenceSearchString_Impl(EGetFindRe
 			}
 		}
 	}
+	else
+	{
+		// When searching by name, return function native name in quotes.
+		// The quotes guarantee that the whole function name is used as single search term.
+		// This avoids function names with special characters being interpreted as operators.
+		if (const UFunction* Function = FFunctionFromNodeHelper::FunctionFromNode(this))
+		{
+			const FString NativeName = Function->GetName();
+			return FString::Printf(TEXT("\"%s\""), *NativeName);
+		}
+	}
 
 	// Fallback behavior: function was not resolved
 	return Super::GetFindReferenceSearchString_Impl(InFlags);

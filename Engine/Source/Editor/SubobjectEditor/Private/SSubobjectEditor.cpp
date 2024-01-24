@@ -2148,7 +2148,7 @@ void SSubobjectEditor::CreateCommandList()
 	);
 
 	CommandList->MapAction(FGraphEditorCommands::Get().GetFindReferences(),
-		FUIAction(FExecuteAction::CreateSP(this, &SSubobjectEditor::OnFindReferences, false, EGetFindReferenceSearchStringFlags::UseSearchSyntax ) )
+		FUIAction(FExecuteAction::CreateSP(this, &SSubobjectEditor::OnFindReferences, false, EGetFindReferenceSearchStringFlags::Legacy) )
 	);
 	
 	CommandList->MapAction( FGraphEditorCommands::Get().FindReferencesByNameLocal,
