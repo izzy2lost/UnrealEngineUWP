@@ -31,9 +31,12 @@ enum class EOffsetRootBoneMode : uint8
 };
 
 USTRUCT(BlueprintInternalUseOnly, Experimental)
-struct ANIMATIONWARPINGRUNTIME_API FAnimNode_OffsetRootBone : public FAnimNode_SkeletalControlBase
+struct ANIMATIONWARPINGRUNTIME_API FAnimNode_OffsetRootBone : public FAnimNode_Base
 {
 	GENERATED_BODY();
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = Links, meta = (DisplayPriority = 0))
+	FPoseLink Source;
 
 #if WITH_EDITORONLY_DATA
 	UPROPERTY(EditAnywhere, Category = Evaluation, meta=(FoldProperty))
@@ -101,14 +104,10 @@ struct ANIMATIONWARPINGRUNTIME_API FAnimNode_OffsetRootBone : public FAnimNode_S
 public:
 	// FAnimNode_Base interface
 	virtual void GatherDebugData(FNodeDebugData& DebugData) override;
-	virtual void UpdateInternal(const FAnimationUpdateContext& Context) override;
-	// End of FAnimNode_Base interface
-
-	// FAnimNode_SkeletalControlBase interface
+	virtual void Update_AnyThread(const FAnimationUpdateContext& Context) override;
+	virtual void Evaluate_AnyThread(FPoseContext& Output) override;
 	virtual void Initialize_AnyThread(const FAnimationInitializeContext& Context) override;
-	virtual void EvaluateSkeletalControl_AnyThread(FComponentSpacePoseContext& Output, TArray<FBoneTransform>& OutBoneTransforms) override;
-	virtual bool IsValidToEvaluate(const USkeleton* Skeleton, const FBoneContainer& RequiredBones) override;
-	// End of FAnimNode_SkeletalControlBase interface
+	// End of FAnimNode_Base interface
 
 	// Folded property accesors
 	EWarpingEvaluationMode GetEvaluationMode() const;
