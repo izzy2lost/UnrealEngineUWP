@@ -197,14 +197,9 @@ public:
 
 
 	/*
-	* Iterates over all fragments and combines their types' default editor flags.
+	* Iterates over all fragments and combines their types' default flags.
 	*/
-	UNIVERSALOBJECTLOCATOR_API UE::UniversalObjectLocator::EFragmentTypeFlags GetDefaultEditorFlags() const;
-
-	/*
-	* Iterates over all fragments and combines their types' default runtime flags.
-	*/
-	UNIVERSALOBJECTLOCATOR_API UE::UniversalObjectLocator::EFragmentTypeFlags GetDefaultRuntimeFlags() const;
+	UNIVERSALOBJECTLOCATOR_API UE::UniversalObjectLocator::EFragmentTypeFlags GetDefaultFlags() const;
 
 	/**
 	 * Equality comparison.

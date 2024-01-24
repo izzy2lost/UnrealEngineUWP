@@ -54,16 +54,12 @@ struct FMovieSceneUniversalLocatorInfo
 	GENERATED_BODY()
 
 	// Locator for the entry
-	UPROPERTY(EditAnywhere, Category = "Default")
+	UPROPERTY(EditAnywhere, Category = "Default", meta=(AllowedLocators="Actor"))
 	FUniversalObjectLocator Locator;
 
-	// Flags for how to resolve the locator when in editor
+	// Flags for how to resolve the locator
 	UPROPERTY(EditAnywhere, Category = "Default")
-	ELocatorResolveFlags EditorResolveFlags = ELocatorResolveFlags::None;
-
-	// Flags for how to resolve the locator when in runtime
-	UPROPERTY(EditAnywhere, Category = "Default")
-	ELocatorResolveFlags RuntimeResolveFlags = ELocatorResolveFlags::None;
+	ELocatorResolveFlags ResolveFlags = ELocatorResolveFlags::None;
 };
 
 // Helper struct for editing arrays of locators for object bindings

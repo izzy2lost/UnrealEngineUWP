@@ -329,8 +329,7 @@ void FEngineModule::StartupModule()
 			{
 				FFragmentTypeParameters FragmentTypeParams("asset", NSLOCTEXT("Engine", "AssetLocatorFragment", "Asset"));
 				FragmentTypeParams.PrimaryEditorType = "Asset";
-				FragmentTypeParams.EditorFlags = EFragmentTypeFlags::CanBeLoaded | EFragmentTypeFlags::LoadedByDefault;
-				FragmentTypeParams.RuntimeFlags = EFragmentTypeFlags::CanBeLoaded;
+				FragmentTypeParams.Flags = EFragmentTypeFlags::CanBeLoaded;
 				FAssetLocatorFragment::FragmentType = UolModule.RegisterFragmentType<FAssetLocatorFragment>(FragmentTypeParams);
 			}
 			{

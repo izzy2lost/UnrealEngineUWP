@@ -30,8 +30,7 @@ struct FFragmentTypeParameters
 	FText DisplayText;
 	FName FragmentTypeID;
 	FName PrimaryEditorType;
-	EFragmentTypeFlags EditorFlags;
-	EFragmentTypeFlags RuntimeFlags;
+	EFragmentTypeFlags Flags;
 };
 
 class IUniversalObjectLocatorModule
@@ -75,8 +74,7 @@ public:
 		FFragmentType NewFragmentType;
 		NewFragmentType.FragmentTypeID     = FragmentTypeParameters.FragmentTypeID;
 		NewFragmentType.PrimaryEditorType  = FragmentTypeParameters.PrimaryEditorType;
-		NewFragmentType.EditorFlags		   = FragmentTypeParameters.EditorFlags;
-		NewFragmentType.RuntimeFlags	   = FragmentTypeParameters.RuntimeFlags;
+		NewFragmentType.Flags			   = FragmentTypeParameters.Flags;
 		NewFragmentType.DebuggingAssistant = MakeShared<TFragmentTypeDebuggingAssistant<PayloadStructType>>();
 		NewFragmentType.PayloadType        = PayloadStructType::StaticStruct();
 

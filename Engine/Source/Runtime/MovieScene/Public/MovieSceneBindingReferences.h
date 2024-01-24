@@ -25,13 +25,8 @@ struct FMovieSceneBindingReference
 	UPROPERTY()
 	FUniversalObjectLocator Locator;
 
-#if WITH_EDITORONLY_DATA
 	UPROPERTY()
-	ELocatorResolveFlags EditorResolveFlags = ELocatorResolveFlags::None;
-#endif
-
-	UPROPERTY()
-	ELocatorResolveFlags RuntimeResolveFlags = ELocatorResolveFlags::None;
+	ELocatorResolveFlags ResolveFlags = ELocatorResolveFlags::None;
 
 	void InitializeLocatorResolveFlags();
 };
@@ -93,7 +88,7 @@ struct FMovieSceneBindingReferences
 	 * @param ObjectId	The ID to associate the object with
 	 * @param InContext	A context in which InObject resides (either a UWorld, or an AActor)
 	 */
-	MOVIESCENE_API const FMovieSceneBindingReference* AddBinding(const FGuid& ObjectId, FUniversalObjectLocator&& NewLocator, ELocatorResolveFlags InEditorResolveFlags, ELocatorResolveFlags InRuntimeResolveFlags);
+	MOVIESCENE_API const FMovieSceneBindingReference* AddBinding(const FGuid& ObjectId, FUniversalObjectLocator&& NewLocator, ELocatorResolveFlags InResolveFlags);
 
 	/**
 	 * Resolve a binding for the specified ID using a given context

@@ -68,15 +68,12 @@ const FMovieSceneBindingReference* FMovieSceneBindingReferences::AddBinding(cons
 	return &NewBinding;
 }
 
-const FMovieSceneBindingReference* FMovieSceneBindingReferences::AddBinding(const FGuid& ObjectId, FUniversalObjectLocator&& NewLocator, ELocatorResolveFlags InEditorResolveFlags, ELocatorResolveFlags InRuntimeResolveFlags)
+const FMovieSceneBindingReference* FMovieSceneBindingReferences::AddBinding(const FGuid& ObjectId, FUniversalObjectLocator&& NewLocator, ELocatorResolveFlags InResolveFlags)
 {
 	const int32 Index = Algo::UpperBoundBy(SortedReferences, ObjectId, &FMovieSceneBindingReference::ID);
 
 	FMovieSceneBindingReference& NewBinding = SortedReferences.Insert_GetRef(FMovieSceneBindingReference{ ObjectId, MoveTemp(NewLocator) }, Index);
-#if WITH_EDITOR
-	NewBinding.EditorResolveFlags = InEditorResolveFlags;
-#endif
-	NewBinding.RuntimeResolveFlags = InRuntimeResolveFlags;
+	NewBinding.ResolveFlags = InResolveFlags;
 
 	return &NewBinding;
 }
@@ -119,16 +116,7 @@ void FMovieSceneBindingReferences::ResolveBinding(const FGuid& ObjectId, const U
 		{
 			if (UWorld* World = ResolveParams.Context->GetWorld())
 			{
-#if WITH_EDITOR
-				if (World->IsEditorWorld())
-				{
-					EnumAddFlags(const_cast<UE::UniversalObjectLocator::FResolveParams&>(ResolveParams).Flags, SortedReferences[Index].EditorResolveFlags);
-				}
-				else
-#endif
-				{
-					EnumAddFlags(const_cast<UE::UniversalObjectLocator::FResolveParams&>(ResolveParams).Flags, SortedReferences[Index].RuntimeResolveFlags);
-				}
+				EnumAddFlags(const_cast<UE::UniversalObjectLocator::FResolveParams&>(ResolveParams).Flags, SortedReferences[Index].ResolveFlags);
 			}
 		}
 
@@ -237,8 +225,5 @@ void FMovieSceneBindingReference::InitializeLocatorResolveFlags()
 		}
 	};
 
-#if WITH_EDITOR
-	InitializeFlags(Locator.GetDefaultEditorFlags(), EditorResolveFlags);
-#endif
-	InitializeFlags(Locator.GetDefaultRuntimeFlags(), RuntimeResolveFlags);
+	InitializeFlags(Locator.GetDefaultFlags(), ResolveFlags);
 }
