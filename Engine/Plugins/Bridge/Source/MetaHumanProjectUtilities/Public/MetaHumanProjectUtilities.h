@@ -23,6 +23,7 @@ struct FMetaHumanAssetImportDescription
 	FString SourcePath = DefaultDestinationPath; // The asset path that the exporter has written the assets out to
 	FString DestinationPath = DefaultDestinationPath; // The asset path to install the MetaHuman to in the project
 	TArray<FQuixelAccountMetaHumanEntry> AccountMetaHumans; // All the MetaHumans that are included in the user's account. Used to show which MetaHumans can be upgraded
+	bool ForceUpdate = false; // Ignore asset version metadata and update all assets
 };
 
 class IMetaHumanProjectUtilitiesAutomationHandler

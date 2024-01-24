@@ -39,7 +39,7 @@ namespace UE::MetaHumanImport::Private
 	// Helper functions *************************************
 
 	// Calculate which assets to add to the project, which to replace, which to update and which to skip
-	FAssetOperationPaths DetermineAssetOperations(const TMap<FString, FMetaHumanAssetVersion>& SourceVersionInfo, const FImportPaths& ImportPaths)
+	FAssetOperationPaths DetermineAssetOperations(const TMap<FString, FMetaHumanAssetVersion>& SourceVersionInfo, const FImportPaths& ImportPaths, bool ForceUpdate)
 	{
 		FScopedSlowTask AssetScanProgress(SourceVersionInfo.Num(), FText::FromString(TEXT("Scanning existing assets")), true);
 		AssetScanProgress.MakeDialog();
@@ -56,8 +56,8 @@ namespace UE::MetaHumanImport::Private
 				continue;
 			}
 
-			// If the asset is unique to the MetaHuman we always replace it
-			if (!SourceAssetInfo.Key.StartsWith(TEXT("MetaHumans/Common/")))
+			// If we are doing a force update or the asset is unique to the MetaHuman we always replace it
+			if (ForceUpdate || !SourceAssetInfo.Key.StartsWith(TEXT("MetaHumans/Common/")))
 			{
 				AssetOperations.Replace.Add(SourceAssetInfo.Key);
 				continue;
@@ -306,7 +306,7 @@ void FMetaHumanImport::ImportAsset(const FMetaHumanAssetImportDescription& Impor
 		FMessageDialog::Open(EAppMsgType::Ok, FText(FText::FromString(TEXT("The downloaded MetaHuman is corrupted and can not be imported. Please re-generate and re-download the MetaHuman and try again."))));
 		return;
 	}
-	const FAssetOperationPaths AssetOperations = DetermineAssetOperations(ParseVersionInfo(SourceAssetVersionFilePath), ImportPaths);
+	const FAssetOperationPaths AssetOperations = DetermineAssetOperations(ParseVersionInfo(SourceAssetVersionFilePath), ImportPaths, ImportDescription.ForceUpdate);
 
 	// If we are updating common files, have incompatible characters and are not updating all of them, then ask the user if they want to continue.
 	if (IncompatibleCharacters.Num() > 0 && !ImportDescription.bIsBatchImport && !AssetOperations.Update.IsEmpty())
