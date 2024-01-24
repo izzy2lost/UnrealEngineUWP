@@ -2256,9 +2256,6 @@ void FShadowDepthPassMeshProcessor::CollectPSOInitializersForEachShadowDepthType
 		CollectPSOInitializersForEachStreamSetup(VertexFactoryData, Material, LocalShadowDepthType, MeshFillMode, FinalCullMode, bRequired, PSOInitializers);
 	}
 
-	// Only mark directional shadows are required to wait for proxy creation
-	bRequired = false;
-
 	// Collect for non-directional one pass point light shadows
 	{
 		LocalShadowDepthType.bDirectionalLight = false;
