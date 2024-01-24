@@ -1109,7 +1109,7 @@ static void RunHairStrandsInterpolation_Strands(
 	};
 
 	// Gather all strands instances
-	const uint32 ViewRayTracingMask = RHI_RAYTRACING ? (View->Family->EngineShowFlags.PathTracing ? EHairViewRayTracingMask::PathTracing : EHairViewRayTracingMask::RayTracing) : 0u;
+	const EHairViewRayTracingMask ViewRayTracingMask = RHI_RAYTRACING ? (View->Family->EngineShowFlags.PathTracing ? EHairViewRayTracingMask::PathTracing : EHairViewRayTracingMask::RayTracing) : EHairViewRayTracingMask::None;
 	bool bHasAnySimCacheInstances = false;
 	bool bHasAnyRenCacheInstances = false;
 	bool bHasAnyRaytracingInstances = false;
@@ -1171,7 +1171,7 @@ static void RunHairStrandsInterpolation_Strands(
 		}
 
 		#if RHI_RAYTRACING
-		InstanceData.bNeedRaytracing = InstanceData.Instance->Strands.RenRaytracingResource && (InstanceData.Instance->Strands.ViewRayTracingMask & ViewRayTracingMask) != 0;
+		InstanceData.bNeedRaytracing = InstanceData.Instance->Strands.RenRaytracingResource && EnumHasAnyFlags(InstanceData.Instance->Strands.ViewRayTracingMask, ViewRayTracingMask);
 		if (InstanceData.bNeedRaytracing)
 		{
 			InstanceData.RDGResources.Raytracing_PositionBuffer = Register(GraphBuilder, InstanceData.Instance->Strands.RenRaytracingResource->PositionBuffer, ERDGImportedBufferFlags::CreateViews);

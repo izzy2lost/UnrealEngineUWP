@@ -643,7 +643,7 @@ public:
 		}
 
 		const bool bWireframe = AllowDebugViewmodes() && Context.ReferenceViewFamily.EngineShowFlags.Wireframe;
-		const uint32 ViewRayTracingMask = Context.ReferenceViewFamily.EngineShowFlags.PathTracing ? EHairViewRayTracingMask::PathTracing : EHairViewRayTracingMask::RayTracing;
+		const EHairViewRayTracingMask ViewRayTracingMask = Context.ReferenceViewFamily.EngineShowFlags.PathTracing ? EHairViewRayTracingMask::PathTracing : EHairViewRayTracingMask::RayTracing;
 		if (bWireframe)
 			return;
 
@@ -659,7 +659,7 @@ public:
 
 			FHairStrandsRaytracingResource* RTGeometry = nullptr;
 			bool bIsHairStrands = false;
-			uint32 InstanceViewRayTracingMask = EHairViewRayTracingMask::PathTracing | EHairViewRayTracingMask::RayTracing;
+			EHairViewRayTracingMask InstanceViewRayTracingMask = EHairViewRayTracingMask::PathTracing | EHairViewRayTracingMask::RayTracing;
 			switch (GeometryType)
 			{
 				case EHairGeometryType::Strands:
@@ -682,7 +682,7 @@ public:
 			}
 
 			// If the view and the instance raytracing mask don't match skip this instance.
-			if ((InstanceViewRayTracingMask & ViewRayTracingMask) == 0)
+			if (!EnumHasAnyFlags(InstanceViewRayTracingMask, ViewRayTracingMask))
 			{
 				continue;
 			}
