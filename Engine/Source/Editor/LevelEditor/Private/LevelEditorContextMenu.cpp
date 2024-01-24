@@ -1143,7 +1143,7 @@ void FLevelEditorContextMenuImpl::FillTransformMenu(UToolMenu* Menu)
 {
 	if (ULevelEditorContextMenuContext* LevelEditorContext = Menu->FindContext<ULevelEditorContextMenuContext>())
 	{
-		if (LevelEditorContext->CurrentSelection->GetNumSelectedElements() == 0)
+		if (!LevelEditorContext->CurrentSelection || LevelEditorContext->CurrentSelection->GetNumSelectedElements() == 0)
 		{
 			return;
 		}
