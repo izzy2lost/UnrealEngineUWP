@@ -182,12 +182,8 @@ void FAnimNode_IKRig::Initialize_AnyThread(const FAnimationInitializeContext& Co
 
 	// Initial update of the node, so we dont have a frame-delay on setup
 	GetEvaluateGraphExposedInputs().Execute(Context);
-
-	// ensure there is always a processor available
-	if (!IKRigProcessor && IsInGameThread())
-	{
-		IKRigProcessor = NewObject<UIKRigProcessor>(Context.AnimInstanceProxy->GetSkelMeshComponent());	
-	}
+	
+	CreateIKRigProcessorIfNeeded(Context.AnimInstanceProxy->GetSkelMeshComponent());
 
 	InitializeProperties(Context.GetAnimInstanceObject(), GetTargetClass());
 }
@@ -255,7 +251,7 @@ void FAnimNode_IKRig::PreUpdate(const UAnimInstance* InAnimInstance)
 	
 	if (!IsValid(IKRigProcessor))
 	{
-		IKRigProcessor = NewObject<UIKRigProcessor>(InAnimInstance->GetOwningComponent());	
+		CreateIKRigProcessorIfNeeded(InAnimInstance->GetOwningComponent());
 	}
 	
 	// initialize the IK Rig (will only try once on the current version of the rig asset)
@@ -304,6 +300,20 @@ void FAnimNode_IKRig::SetProcessorNeedsInitialized()
 	{
 		IKRigProcessor->SetNeedsInitialized();
 	}
+}
+
+void FAnimNode_IKRig::CreateIKRigProcessorIfNeeded(UObject* Outer)
+{
+	// ensure there is always a processor available
+	if (!IKRigProcessor && IsInGameThread())
+	{
+		IKRigProcessor = NewObject<UIKRigProcessor>(Outer);	
+	}
+}
+
+UIKRigProcessor* FAnimNode_IKRig::GetIKRigProcessor()
+{
+	return IKRigProcessor;
 }
 
 void FAnimNode_IKRig::CacheBones_AnyThread(const FAnimationCacheBonesContext& Context)
