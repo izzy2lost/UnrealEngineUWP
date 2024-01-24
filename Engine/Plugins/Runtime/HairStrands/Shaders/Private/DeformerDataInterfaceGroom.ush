@@ -43,7 +43,7 @@ FHairCurve ReadCurveData(uint CurveIndex)
 		return (FHairCurve)0;
 	}
 
-	return UnpackHairCurve({DataInterfaceName}_CurveBuffer[CurveIndex]);
+	return ReadHairCurve({DataInterfaceName}_CurveBuffer, CurveIndex);
 }
 
 ///////////////////////////////////////////////////////////////////////////////////////////////////
@@ -122,7 +122,7 @@ float ReadCurveNumPoint_{DataInterfaceName}(uint CurveIndex)
 uint ReadGuideIndex_{DataInterfaceName}(uint ControlPointIndex)
 {
 	// Find the rendering curve index
-	const uint CurveIndex = UnpackHairPointToCurveIndex({DataInterfaceName}_PointToCurveBuffer, ControlPointIndex);
+	const uint CurveIndex = ReadHairPointToCurveIndex({DataInterfaceName}_PointToCurveBuffer, ControlPointIndex);
 
 	// Fint the curve and point interpolation data
 	const FGuideCurveData CurveData = UnpackGuideCurveData({DataInterfaceName}_CurveInterpolationBuffer, CurveIndex, {DataInterfaceName}_bSingleGuide);

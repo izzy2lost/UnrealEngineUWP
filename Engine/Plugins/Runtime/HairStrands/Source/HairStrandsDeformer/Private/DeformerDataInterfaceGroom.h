@@ -72,5 +72,4 @@ private:
 	TArray<FHairStrandsInstanceInterpolationParameters> Interpolations;
 	FRDGBufferSRVRef FallbackByteAddressSRV;
 	FRDGBufferSRVRef FallbackStructuredSRV;
-	FRDGBufferSRVRef FallbackVertexSRV;
 };

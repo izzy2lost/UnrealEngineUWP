@@ -138,7 +138,6 @@ void AddHairStrandsInterpolationPass(
 	const FHairStrandsDeformedRootResource* SimDeformedRootResources,
 	const FRDGBufferSRVRef& RenRestPosePositionBuffer,
 	const FRDGBufferSRVRef& RenCurveBuffer,
-	const FRDGBufferSRVRef& SimCurveBuffer,
 	const bool bUseSingleGuide,
 	const FRDGBufferSRVRef& CurveInterpolationBuffer,
 	const FRDGBufferSRVRef& PoinInterpolationBuffer,

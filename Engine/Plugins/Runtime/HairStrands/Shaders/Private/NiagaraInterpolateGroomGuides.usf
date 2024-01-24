@@ -23,10 +23,10 @@ Buffer<uint>		RootToUniqueTriangleIndexBuffer;
 
 #endif
 
-Buffer<uint>		PointToCurveIndexBuffer;
+ByteAddressBuffer	PointToCurveIndexBuffer;
 RWByteAddressBuffer	DeformedPositionBuffer;
 ByteAddressBuffer	RestPositionBuffer;
-Buffer<uint>		CurvesOffsetsBuffer;
+ByteAddressBuffer	CurvesOffsetsBuffer;
 StructuredBuffer<float4> DeformedPositionOffset;
 float3				RestPositionOffset;
 float4x4			WorldToLocal;
@@ -71,9 +71,9 @@ void MainCS(uint3 DispatchThreadId : SV_DispatchThreadID)
 {
 	if (DispatchThreadId.x < uint(NumPoints))
 	{
-		const int StrandIndex = UnpackHairPointToCurveIndex(PointToCurveIndexBuffer, DispatchThreadId.x);
+		const int StrandIndex = ReadHairPointToCurveIndex(PointToCurveIndexBuffer, DispatchThreadId.x);
 
-		const FHairCurve Curve = UnpackHairCurve(CurvesOffsetsBuffer[StrandIndex]);
+		const FHairCurve Curve = ReadHairCurve(CurvesOffsetsBuffer, StrandIndex);
 		const int PointBegin = Curve.PointIndex;
 		const int PointCount = Curve.PointCount;
 		const int PointIndex = DispatchThreadId.x - PointBegin;

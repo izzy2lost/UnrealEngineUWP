@@ -72,7 +72,7 @@ uint CurvePerGroup;
 uint DispatchCountX;
 float4 ClusterInfoParameters;
 
-Buffer<uint> CurveBuffer;
+ByteAddressBuffer CurveBuffer;
 Buffer<uint> CurveToClusterIdBuffer;
 Buffer<uint> PointLODBuffer;
 StructuredBuffer<FPackedHairClusterInfo> ClusterInfoBuffer;
@@ -80,7 +80,7 @@ StructuredBuffer<FPackedHairClusterInfo> ClusterInfoBuffer;
 RWStructuredBuffer<uint>  OutPointCounter;
 RWBuffer<uint>  OutIndexBuffer;
 RWBuffer<float> OutRadiusScaleBuffer;
-RWBuffer<uint>  OutCulledCurveBuffer;
+RWByteAddressBuffer  OutCulledCurveBuffer;
 
 #ifndef GROUP_SIZE
 #error GROUP_SIZE needs to be Undefined
@@ -152,7 +152,7 @@ void Main(uint3 DispatchThreadId : SV_DispatchThreadID, uint ThreadIndex : SV_Gr
 		CurvePointCount[LocalCurveIndex] = 0;
 		if (bValidCurveIndex)
 		{
-			const FHairCurve Curve = UnpackHairCurve(CurveBuffer[GlobalCurveIndex]);
+			const FHairCurve Curve = ReadHairCurve(CurveBuffer, GlobalCurveIndex);
 			CurvePointIndex[LocalCurveIndex] = Curve.PointIndex;
 			CurvePointCount[LocalCurveIndex] = Curve.PointCount;
 		}
@@ -241,7 +241,7 @@ void Main(uint3 DispatchThreadId : SV_DispatchThreadID, uint ThreadIndex : SV_Gr
 			CulledCurve.PointIndex = WriteOffset0[LocalCurveIndex];
 			CulledCurve.PointCount =(WriteOffsetN[LocalCurveIndex] - WriteOffset0[LocalCurveIndex]) + 1;
 
-			OutCulledCurveBuffer[GlobalCurveIndex] = PackHairCurve(CulledCurve);
+			WriteHairCurve(OutCulledCurveBuffer, GlobalCurveIndex, CulledCurve);
 		}
 	}
 }
@@ -297,7 +297,7 @@ void Main(uint3 DispatchThreadId : SV_DispatchThreadID, uint ThreadIndex : SV_Gr
 		CurvePointCount = 0;
 		if (bIsCurveValid)
 		{
-			const FHairCurve Curve = UnpackHairCurve(CurveBuffer[CurveIndex]);
+			const FHairCurve Curve = ReadHairCurve(CurveBuffer, CurveIndex);
 			CurvePointIndex = Curve.PointIndex;
 			CurvePointCount = Curve.PointCount;
 		}
@@ -387,7 +387,7 @@ void Main(uint3 DispatchThreadId : SV_DispatchThreadID, uint ThreadIndex : SV_Gr
 		FHairCurve CulledCurve;
 		CulledCurve.PointCount = AllocationCount;
 		CulledCurve.PointIndex = AllocationOffset;
-		OutCulledCurveBuffer[CurveIndex] = PackHairCurve(CulledCurve);
+		WriteHairCurve(OutCulledCurveBuffer, CurveIndex, CulledCurve);
 	}
 }
 #endif // PERMUTATION_POINT_PER_CURVE == 64
@@ -446,7 +446,7 @@ float3 CPUBoundMax;
 float LODIndex;
 float4x4 LocalToTranslatedWorldMatrix;
 
-Buffer<uint> RenCurveBuffer;
+ByteAddressBuffer RenCurveBuffer;
 Buffer<uint> RenPointLODBuffer;
 ByteAddressBuffer RenderDeformedPositionBuffer;
 StructuredBuffer<float4> RenderDeformedOffsetBuffer;
@@ -485,7 +485,7 @@ groupshared float3 OutHairPositionOffset;
 		const uint CurveIndex = GroupId.x;
 		if (CurveIndex < CurveCount)
 		{
-			const FHairCurve RenCurve = UnpackHairCurve(RenCurveBuffer[CurveIndex]);
+			const FHairCurve RenCurve = ReadHairCurve(RenCurveBuffer, CurveIndex);
 			CurvePointIndex = RenCurve.PointIndex;
 			CurvePointCount = RenCurve.PointCount;
 		}

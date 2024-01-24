@@ -361,9 +361,9 @@ uint PackHairCurve(FHairCurve In)
 
 FHairCurve UnpackHairCurve(uint In)
 {
-	#if HAIR_MAX_NUM_POINT_PER_CURVE != 0xFF || HAIR_MAX_NUM_POINT_PER_GROUP != 0xFFFFFF
-	#error Update hair curve ENCODING_TYPE
-	#endif
+#if HAIR_MAX_NUM_POINT_PER_CURVE != 0xFF || HAIR_MAX_NUM_POINT_PER_GROUP != 0xFFFFFF
+#error Update hair curve ENCODING_TYPE
+#endif
 
 	FHairCurve Out = (FHairCurve)0;
 	Out.PointIndex = In & HAIR_MAX_NUM_POINT_PER_GROUP;
@@ -371,13 +371,23 @@ FHairCurve UnpackHairCurve(uint In)
 	return Out;
 }
 
-uint UnpackHairPointToCurveIndex(Buffer<uint> InBuffer, uint InPointIndex)
+FHairCurve ReadHairCurve(ByteAddressBuffer InBuffer, uint InIndex)
 {
-	// Encoding: base curve index + detla encoding for 8 consecutive control points
+	return UnpackHairCurve(InBuffer.Load(InIndex * 4u));
+}
+
+void WriteHairCurve(RWByteAddressBuffer InBuffer, uint InIndex, FHairCurve In)
+{
+	InBuffer.Store(InIndex * 4u, PackHairCurve(In));
+}
+
+uint ReadHairPointToCurveIndex(ByteAddressBuffer InBuffer, uint InPointIndex)
+{
+	// Encoding: base curve index + delta encoding for 8 consecutive control points
 
 	const uint PointIndex8 = InPointIndex >> 3u;
 	const uint LocalIndex8 = InPointIndex & 0x7;
-	const uint Data = InBuffer[PointIndex8];
+	const uint Data = InBuffer.Load(PointIndex8 * 4u);
 
 	// Extract the curve index delta encoding
 	const uint Mask     = BitFieldMaskU32(LocalIndex8+1, 0);

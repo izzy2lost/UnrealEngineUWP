@@ -26,9 +26,9 @@ RWByteAddressBuffer OutSimDeformedPositionBuffer;
 Buffer<float4>  SimRestPositionBuffer;
 Buffer<float4>  SimDeformedPositionBuffer;
 
-Buffer<uint>	SimRootBarycentricBuffer;
-Buffer<uint>    SimPointToCurveBuffer;
-Buffer<uint>	SimRootToUniqueTriangleIndexBuffer;
+Buffer<uint>	  SimRootBarycentricBuffer;
+ByteAddressBuffer SimPointToCurveBuffer;
+Buffer<uint>	  SimRootToUniqueTriangleIndexBuffer;
 
 // Return world position of a guide vertex deformed by a skinned triangle
 float3 DeformGuideByTriangle(
@@ -73,7 +73,7 @@ float3 DisplacePosition(uint VertexIndex, float3 Pos)
 #endif
 
 #if PERMUTATION_DEFORMATION == DEFORMATION_OFFSET_GUIDE_DYNAMIC
-	const uint RootIndex = UnpackHairPointToCurveIndex(SimPointToCurveBuffer, VertexIndex);
+	const uint RootIndex = ReadHairPointToCurveIndex(SimPointToCurveBuffer, VertexIndex);
 	const float3 RootBarycentric = UnpackBarycentrics(SimRootBarycentricBuffer[RootIndex]);
 
 	const uint TriangleIndex = SimRootToUniqueTriangleIndexBuffer[RootIndex];

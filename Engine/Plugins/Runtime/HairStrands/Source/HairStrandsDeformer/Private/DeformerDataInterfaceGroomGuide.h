@@ -71,5 +71,4 @@ private:
 	TArray<FHairStrandsInstanceResourceParameters> Resources;
 	FRDGBufferSRVRef FallbackByteAddressSRV;
 	FRDGBufferSRVRef FallbackStructuredSRV;
-	FRDGBufferSRVRef FallbackVertexSRV;
 };
