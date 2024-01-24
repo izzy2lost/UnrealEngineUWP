@@ -179,6 +179,11 @@ FString TextNamespaceUtil::GenerateRandomTextKey()
 
 FString TextNamespaceUtil::GenerateDeterministicTextKey(UObject* InTextOwner, const FTextProperty* InTextProperty, const bool bApplyPackageNamespace)
 {
+	return GenerateDeterministicTextKey(InTextOwner, InTextProperty->GetFName(), bApplyPackageNamespace);
+}
+
+FString TextNamespaceUtil::GenerateDeterministicTextKey(UObject* InTextOwner, const FName InTextPropertyName, const bool bApplyPackageNamespace)
+{
 	auto GetNameKeyHash = [](const FName Name)
 	{
 		FNameBuilder Builder(Name);
@@ -196,7 +201,7 @@ FString TextNamespaceUtil::GenerateDeterministicTextKey(UObject* InTextOwner, co
 	};
 
 	// Build a (hopefully) unique and deterministic key from a combination of the text owner and text property info
-	FGuid KeyGuid(GetObjectKeyHash(InTextOwner->GetOuter()), GetNameKeyHash(InTextOwner->GetFName()), GetNameKeyHash(InTextOwner->GetClass()->GetFName()), GetNameKeyHash(InTextProperty->GetFName()));
+	FGuid KeyGuid(GetObjectKeyHash(InTextOwner->GetOuter()), GetNameKeyHash(InTextOwner->GetFName()), GetNameKeyHash(InTextOwner->GetClass()->GetFName()), GetNameKeyHash(InTextPropertyName));
 #if USE_STABLE_LOCALIZATION_KEYS
 	if (const FString PackageNamespace = bApplyPackageNamespace ? EnsurePackageNamespace(InTextOwner) : FString();
 		!PackageNamespace.IsEmpty())
