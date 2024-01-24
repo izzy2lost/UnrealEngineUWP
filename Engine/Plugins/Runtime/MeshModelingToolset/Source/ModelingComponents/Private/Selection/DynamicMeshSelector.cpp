@@ -628,6 +628,22 @@ void FBaseDynamicMeshSelector::AccumulateSelectionElements(const FGeometrySelect
 		bMapFacesToEdges);
 }
 
+void FBaseDynamicMeshSelector::AccumulateElementsFromPredicate(FGeometrySelectionElements& Elements, bool bTransformToWorld, bool bIsForPreview, bool bUseGroupTopology, TFunctionRef<bool(EGeometryElementType, FGeoSelectionID)> Predicate)
+{
+	auto AccumulateElementsOfTypeFromPredicate = [this, &Elements, &Predicate, bTransformToWorld, bIsForPreview, bUseGroupTopology](EGeometryElementType ElementType)
+	{
+		FGeometrySelection Selection;
+		Selection.ElementType = ElementType;
+		Selection.TopologyType = bUseGroupTopology ? EGeometryTopologyType::Polygroup : EGeometryTopologyType::Triangle;
+		InitializeSelectionFromPredicate(Selection, [&Predicate, ElementType](FGeoSelectionID InID){ return Predicate(ElementType, InID); });
+		AccumulateSelectionElements(Selection, Elements, bTransformToWorld, bIsForPreview);
+	};
+
+	AccumulateElementsOfTypeFromPredicate(EGeometryElementType::Vertex);
+	AccumulateElementsOfTypeFromPredicate(EGeometryElementType::Edge);
+	AccumulateElementsOfTypeFromPredicate(EGeometryElementType::Face);
+}
+
 
 
 
