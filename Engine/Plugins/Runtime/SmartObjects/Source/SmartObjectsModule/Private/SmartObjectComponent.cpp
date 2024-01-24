@@ -24,7 +24,7 @@ void USmartObjectComponent::GetLifetimeReplicatedProps(TArray<FLifetimeProperty>
 	// Required to allow for sub classes to replicate the state of this smart object.
 	Super::GetLifetimeReplicatedProps(OutLifetimeProps);
 	
-	DISABLE_REPLICATED_PROPERTY(USmartObjectComponent, DefinitionAsset);
+	DISABLE_REPLICATED_PROPERTY(USmartObjectComponent, DefinitionRef);
 	DISABLE_REPLICATED_PROPERTY(USmartObjectComponent, RegisteredHandle);
 }
 
@@ -49,6 +49,22 @@ void USmartObjectComponent::PostInitProperties()
 	}
 #endif // WITH_EDITORONLY_DATA
 }
+
+void USmartObjectComponent::PostLoad()
+{
+	Super::PostLoad();
+	
+#if WITH_EDITORONLY_DATA
+	PRAGMA_DISABLE_DEPRECATION_WARNINGS
+	if (DefinitionAsset_DEPRECATED)
+	{
+		DefinitionRef.SetSmartObjectDefinition(DefinitionAsset_DEPRECATED);
+		DefinitionAsset_DEPRECATED = nullptr;
+	}
+	PRAGMA_ENABLE_DEPRECATION_WARNINGS
+#endif
+}
+
 
 #if WITH_EDITOR
 void USmartObjectComponent::OnRegister()
@@ -141,6 +157,17 @@ void USmartObjectComponent::UnregisterFromSubsystem(const ESmartObjectUnregistra
 	}
 }
 
+const USmartObjectDefinition* USmartObjectComponent::GetDefinitionAsset() const
+{
+	return GetDefinition();
+}
+
+void USmartObjectComponent::SetDefinitionAsset(USmartObjectDefinition* NewAsset)
+{
+	DefinitionRef.SetSmartObjectDefinition(NewAsset);
+	CachedDefinitionAssetVariation = nullptr;
+}
+
 void USmartObjectComponent::BeginPlay()
 {
 	Super::BeginPlay();
@@ -175,13 +202,38 @@ FBox USmartObjectComponent::GetSmartObjectBounds() const
 {
 	FBox BoundingBox(ForceInitToZero);
 
-	const AActor* Owner = GetOwner();
-	if (Owner != nullptr && DefinitionAsset != nullptr)
+	if (const AActor* Owner = GetOwner())
 	{
-		BoundingBox = DefinitionAsset->GetBounds().TransformBy(Owner->GetTransform());
+		if (const USmartObjectDefinition* Definition = GetDefinition())
+		{
+			BoundingBox = Definition->GetBounds().TransformBy(Owner->GetTransform());
+		}
 	}
 
 	return BoundingBox;
+}
+
+const USmartObjectDefinition* USmartObjectComponent::GetDefinition() const
+{
+	if (!CachedDefinitionAssetVariation)
+	{
+		if (USmartObjectDefinition* BaseDefinitionAsset = const_cast<USmartObjectDefinition*>(DefinitionRef.GetSmartObjectDefinition()))
+		{
+			CachedDefinitionAssetVariation = BaseDefinitionAsset->GetAssetVariation(DefinitionRef.GetParameters());
+		}
+	}
+	
+	return CachedDefinitionAssetVariation;
+}
+
+const USmartObjectDefinition* USmartObjectComponent::GetBaseDefinition() const
+{
+	return DefinitionRef.GetSmartObjectDefinition();
+}
+
+void USmartObjectComponent::SetDefinition(USmartObjectDefinition* Definition)
+{
+	DefinitionRef.SetSmartObjectDefinition(Definition);
 }
 
 void USmartObjectComponent::SetRegisteredHandle(const FSmartObjectHandle Value, const ESmartObjectRegistrationType InRegistrationType)
@@ -261,13 +313,14 @@ bool USmartObjectComponent::IsSmartObjectEnabledForReason(const FGameplayTag Rea
 
 TStructOnScope<FActorComponentInstanceData> USmartObjectComponent::GetComponentInstanceData() const
 {
-	return MakeStructOnScope<FActorComponentInstanceData, FSmartObjectComponentInstanceData>(this, DefinitionAsset);
+	return MakeStructOnScope<FActorComponentInstanceData, FSmartObjectComponentInstanceData>(this, DefinitionRef);
 }
 
 #if WITH_EDITOR
 void USmartObjectComponent::PostEditUndo()
 {
 	Super::PostEditUndo();
+	CachedDefinitionAssetVariation = nullptr;
 
 	OnSmartObjectChanged.Broadcast(*this);
 }
@@ -275,6 +328,7 @@ void USmartObjectComponent::PostEditUndo()
 void USmartObjectComponent::PostEditChangeProperty(FPropertyChangedEvent& PropertyChangedEvent)
 {
 	Super::PostEditChangeProperty(PropertyChangedEvent);
+	CachedDefinitionAssetVariation = nullptr;
 
 	OnSmartObjectChanged.Broadcast(*this);
 }
@@ -297,9 +351,10 @@ void FSmartObjectComponentInstanceData::ApplyToComponent(UActorComponent* Compon
 		USmartObjectComponent* SmartObjectComponent = CastChecked<USmartObjectComponent>(Component);
 		// We only need to force a register if DefinitionAsset is currently null and a valid one was backed up.
 		// Reason is that our registration to the Subsystem depends on a valid definition so it can be skipped.
-		if (SmartObjectComponent->DefinitionAsset != DefinitionAsset && SmartObjectComponent->DefinitionAsset == nullptr)
+		if (SmartObjectComponent->DefinitionRef != SmartObjectDefinitionRef
+			&& SmartObjectComponent->DefinitionRef.IsValid())
 		{
-			SmartObjectComponent->DefinitionAsset = DefinitionAsset;
+			SmartObjectComponent->DefinitionRef = SmartObjectDefinitionRef;
 
 			const UWorld* World = SmartObjectComponent->GetWorld();
 			if (World != nullptr && !World->IsGameWorld())
