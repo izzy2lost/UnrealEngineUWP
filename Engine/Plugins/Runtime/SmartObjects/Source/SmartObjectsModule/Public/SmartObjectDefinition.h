@@ -8,13 +8,28 @@
 #include "WorldConditionQuery.h"
 #include "WorldConditions/SmartObjectWorldConditionSchema.h"
 #include "SmartObjectTypes.h"
+#include "PropertyBag.h"
+#include "PropertyBindingPath.h"
 #include "SmartObjectDefinition.generated.h"
 
 struct FSmartObjectSlotIndex;
 class UGameplayBehaviorConfig;
 class USmartObjectSlotValidationFilter;
+class USmartObjectDefinition;
 enum class ESmartObjectTagFilteringPolicy: uint8;
 enum class ESmartObjectTagMergingPolicy: uint8;
+
+
+namespace UE::SmartObject::Delegates
+{
+#if WITH_EDITOR
+
+	/** Called in editor when parameters for a specific SmartObjectDefinition changes. */
+	DECLARE_MULTICAST_DELEGATE_OneParam(FOnParametersChanged, const USmartObjectDefinition& /*SmartObjectDefinition*/);
+	extern SMARTOBJECTSMODULE_API FOnParametersChanged OnParametersChanged;
+
+#endif
+}; //
 
 /** Indicates how Tags from slots and parent object are combined to be evaluated by a TagQuery from a find request. */
 UENUM()
@@ -215,6 +230,126 @@ struct SMARTOBJECTSMODULE_API FSmartObjectDefinitionPreviewData
 	/** Validation filter used for previewing the smart object user in the asset editor. */
 	UPROPERTY(EditDefaultsOnly, Category = "User Preview")
 	TSoftClassPtr<USmartObjectSlotValidationFilter> UserValidationFilterClass;
+};
+
+/** Used internally by USmartObjectDefinition to point to a specific piece of data. */
+USTRUCT()
+struct SMARTOBJECTSMODULE_API FSmartObjectDefinitionDataHandle
+{
+	GENERATED_BODY()
+
+	static const FSmartObjectDefinitionDataHandle Invalid;
+	static const FSmartObjectDefinitionDataHandle Root;
+	static const FSmartObjectDefinitionDataHandle Parameters;
+
+	FSmartObjectDefinitionDataHandle() = default;
+	
+	explicit FSmartObjectDefinitionDataHandle(const int32 InSlotIndex, const int32 InDataIndex = INDEX_NONE)
+	{
+		check(InSlotIndex < InvalidIndex || InSlotIndex == INDEX_NONE);
+		check(InDataIndex < InvalidIndex || InDataIndex == INDEX_NONE);
+		SlotIndex = InSlotIndex == INDEX_NONE ? InvalidIndex : (uint16)InSlotIndex;
+		DataIndex = InDataIndex == INDEX_NONE ? InvalidIndex : (uint16)InDataIndex;
+	}
+
+	FSmartObjectDefinitionDataHandle& operator=(const FSmartObjectDefinitionDataHandle& Other)
+	{
+		SlotIndex = Other.SlotIndex;
+		DataIndex = Other.DataIndex;
+		return *this;
+	}
+
+	bool operator==(const FSmartObjectDefinitionDataHandle& Other) const
+	{
+		return SlotIndex == Other.SlotIndex && DataIndex == Other.DataIndex;
+	}
+
+	bool operator!=(const FSmartObjectDefinitionDataHandle& Other) const
+	{
+		return !(*this == Other);
+	}
+
+	bool IsSlotValid() const
+	{
+		return SlotIndex != InvalidIndex;
+	}
+
+	bool IsDataValid() const
+	{
+		return DataIndex != InvalidIndex;
+	}
+
+	bool IsRoot() const
+	{
+		return SlotIndex == RootIndex;
+	}
+
+	bool IsParameters() const
+	{
+		return SlotIndex == ParametersIndex;
+	}
+
+	int32 GetSlotIndex() const
+	{
+		return SlotIndex == InvalidIndex ? INDEX_NONE : SlotIndex;
+	}
+
+	int32 GetDataIndex() const
+	{
+		return DataIndex == InvalidIndex ? INDEX_NONE : DataIndex;
+	}
+	
+protected:
+
+	static constexpr uint16 InvalidIndex = MAX_uint16;
+	static constexpr uint16 RootIndex = MAX_uint16 - 1;
+	static constexpr uint16 ParametersIndex = MAX_uint16 - 2;
+	
+	UPROPERTY()
+	uint16 SlotIndex = InvalidIndex;
+	
+	UPROPERTY()
+	uint16 DataIndex = InvalidIndex;
+};
+
+/** Used internally by USmartObjectDefinition to store a property binding. */
+USTRUCT()
+struct SMARTOBJECTSMODULE_API FSmartObjectDefinitionPropertyBinding
+{
+	GENERATED_BODY()
+
+	FSmartObjectDefinitionPropertyBinding() = default;
+
+	FSmartObjectDefinitionPropertyBinding(const FPropertyBindingPath& InSourcePath, const FPropertyBindingPath& InTargetPath)
+		: SourcePath(InSourcePath)
+		, TargetPath(InTargetPath)
+	{
+	}
+
+	const FPropertyBindingPath& GetSourcePath() const
+	{
+		return SourcePath;
+	}
+
+	const FPropertyBindingPath& GetTargetPath() const
+	{
+		return TargetPath;
+	}
+
+protected:
+	UPROPERTY()
+	FPropertyBindingPath SourcePath;
+
+	UPROPERTY()
+	FPropertyBindingPath TargetPath;
+
+	UPROPERTY()
+	FSmartObjectDefinitionDataHandle SourceDataHandle;
+
+	UPROPERTY()
+	FSmartObjectDefinitionDataHandle TargetDataHandle;
+
+	friend USmartObjectDefinition;
 };
 
 /**
@@ -445,23 +580,101 @@ PRAGMA_ENABLE_DEPRECATION_WARNINGS
 
 		return nullptr;
 	}
-	
+
+	/** @return reference to definition default parameters. */
+	const FInstancedPropertyBag& GetDefaultParameters() const
+	{
+		return Parameters;
+	}
+
+	/**
+	 * Returns a variation of this asset with specified parameters applied.
+	 * The variations are cached, and if a variation with same parameters is already in use, the existing asset is returned.
+	 * @return Pointer to an asset variation.
+	*/
+	USmartObjectDefinition* GetAssetVariation(const FInstancedPropertyBag& Parameters);
+
+	static bool ArePropertiesCompatible(const FProperty* SourceProperty, const FProperty* TargetProperty);
+
+#if WITH_EDITOR
+	void AddPropertyBinding(const FPropertyBindingPath& SourcePath, const FPropertyBindingPath& TargetPath);
+	void RemovePropertyBindings(const FPropertyBindingPath& TargetPath);
+	const FPropertyBindingPath* GetPropertyBindingSource(const FPropertyBindingPath& TargetPath);
+	void GetAccessibleStructs(const FGuid TargetStructID, TArray<FBindableStructDesc>& OutStructDescs);
+	bool GetDataViewByID(const FGuid StructID, FPropertyBindingDataView& OutDataView);
+	bool GetStructDescByID(const FGuid StructID, FBindableStructDesc& OutDesc);
+	FGuid GetDataRootID() const;
+	bool AddParameterAndBindingFromPropertyPath(const FPropertyBindingPath& TargetPath);
+#endif // WITH_EDITOR
+
 protected:
 
 #if WITH_EDITOR
 	void UpdateSlotReferences();
+	void UpdateBindingPaths();
+	bool UpdateAndValidatePath(FPropertyBindingPath& Path);
+	FSmartObjectDefinitionDataHandle GetDataHandleByID(const FGuid StructID);
 
 	virtual void PostEditChangeChainProperty(FPropertyChangedChainEvent& PropertyChangedEvent) override;
 	virtual void PreSave(FObjectPreSaveContext SaveContext) override;
 	virtual EDataValidationResult IsDataValid(class FDataValidationContext& Context) const override;
 #endif // WITH_EDITOR
 
+	virtual void PostInitProperties() override;
 	virtual void PostLoad() override;
 
 private:
 	/** Finds first behavior definition of a given class in the provided list of definitions. */
 	static const USmartObjectBehaviorDefinition* GetBehaviorDefinitionByType(const TArray<USmartObjectBehaviorDefinition*>& BehaviorDefinitions, const TSubclassOf<USmartObjectBehaviorDefinition>& DefinitionClass);
 
+	USmartObjectDefinition* MakeDuplicateWithParameters(const uint64 VariationParametersHash, const FInstancedPropertyBag& VariationParameters);
+
+	void ApplyParameters(const FInstancedPropertyBag& VariationParameters);
+	bool CopyProperty(FPropertyBindingDataView SourceDataView, const FPropertyBindingPath& SourcePath, FPropertyBindingDataView TargetDataView, const FPropertyBindingPath& TargetPath);
+	bool GetDataView(const FSmartObjectDefinitionDataHandle DataHandle, FPropertyBindingDataView& OutDataView);
+
+#if WITH_EDITOR
+	void EnsureValidGuids();
+	void UpdateBindingDataHandles();
+#endif // WITH_EDITOR
+
+	/** Used internally by USmartObjectDefinition to store a variation of a definition asset. */
+	struct FSmartObjectDefinitionAssetVariation
+	{
+		FSmartObjectDefinitionAssetVariation() = default;
+	
+		FSmartObjectDefinitionAssetVariation(USmartObjectDefinition* InDefinitionAsset, uint64 InParametersHash)
+			: DefinitionAsset(InDefinitionAsset)
+			, ParametersHash(InParametersHash)
+		{
+		}
+	
+		/** Pointer to the asset variation which has the parameters applied to it. Stored as weak pointer, so that we can prune variations which are not used anymore. */
+		TWeakObjectPtr<USmartObjectDefinition> DefinitionAsset = nullptr;
+
+		/** Hash of the variation properties. */
+		uint64 ParametersHash = 0;
+	};
+	
+	/** Variations of the asset based on provided parameters, created on demand via GetAssetVariation(). */
+	TArray<FSmartObjectDefinitionAssetVariation> Variations;
+	
+	/** Parameters for the SmartObject definition */
+	UPROPERTY(EditDefaultsOnly, Category = "SmartObject", meta = (NoBinding))
+	FInstancedPropertyBag Parameters;
+
+	/** Binding ID for the parameters. */
+	UPROPERTY()
+	FGuid ParametersID;
+
+	/** Binding ID for the whole asset. */
+	UPROPERTY()
+	FGuid RootID;
+
+	/** Property bindings. */
+	UPROPERTY()
+	TArray<FSmartObjectDefinitionPropertyBinding> PropertyBindings;
+	
 	/**
 	 * Where SmartObject's user needs to stay to be able to activate it. These
 	 * will be used by AI to approach the object. Locations are relative to object's location.
@@ -485,7 +698,7 @@ private:
 #endif // WITH_EDITORONLY_DATA
 
 	/** Preconditions that must pass for the object to be found/used. */
-	UPROPERTY(EditDefaultsOnly, Category = "SmartObject")
+	UPROPERTY(EditDefaultsOnly, Category = "SmartObject", meta = (NoBinding))
 	FWorldConditionQueryDefinition Preconditions;
 
 private:
@@ -497,15 +710,15 @@ private:
 	UPROPERTY(EditDefaultsOnly, Category = "SmartObject", meta=(DisallowedStructs="/Script/SmartObjectsModule.SmartObjectSlotAnnotation"))
 	TArray<FSmartObjectDefinitionDataProxy> DefinitionData;
 
-	UPROPERTY(EditDefaultsOnly, Category = "SmartObject", AdvancedDisplay)
+	UPROPERTY(EditDefaultsOnly, Category = "SmartObject", AdvancedDisplay, meta = (NoBinding))
 	TSubclassOf<USmartObjectWorldConditionSchema> WorldConditionSchemaClass;
 	
 	/** Indicates how Tags from slots and parent object are combined to be evaluated by a TagQuery from a find request. */
-	UPROPERTY(EditAnywhere, Category = "SmartObject", AdvancedDisplay)
+	UPROPERTY(EditAnywhere, Category = "SmartObject", AdvancedDisplay, meta = (NoBinding))
 	ESmartObjectTagMergingPolicy ActivityTagsMergingPolicy;
 
 	/** Indicates how TagQueries from slots and parent object will be processed against User Tags from a find request. */
-	UPROPERTY(EditAnywhere, Category = "SmartObject", AdvancedDisplay)
+	UPROPERTY(EditAnywhere, Category = "SmartObject", AdvancedDisplay, meta = (NoBinding))
 	ESmartObjectTagFilteringPolicy UserTagsFilteringPolicy;
 	
 	mutable TOptional<bool> bValid;
