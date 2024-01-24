@@ -20,10 +20,8 @@ void FAnimNode_RetargetPoseFromMesh::Initialize_AnyThread(const FAnimationInitia
 	// Initial update of the node, so we dont have a frame-delay on setup
 	GetEvaluateGraphExposedInputs().Execute(Context);
 
-	if (!Processor && IsInGameThread())
-	{
-		Processor = NewObject<UIKRetargetProcessor>(Context.AnimInstanceProxy->GetSkelMeshComponent());	
-	}
+	// create the processor
+	CreateRetargetProcessorIfNeeded(Context.AnimInstanceProxy->GetSkelMeshComponent());
 }
 
 void FAnimNode_RetargetPoseFromMesh::CacheBones_AnyThread(const FAnimationCacheBonesContext& Context)
@@ -186,6 +184,14 @@ void FAnimNode_RetargetPoseFromMesh::PreUpdate(const UAnimInstance* InAnimInstan
 			
 			UpdateSpeedValuesFromCurves();
 		}
+	}
+}
+
+void FAnimNode_RetargetPoseFromMesh::CreateRetargetProcessorIfNeeded(UObject* Outer)
+{
+	if (!Processor && IsInGameThread())
+	{
+		Processor = NewObject<UIKRetargetProcessor>(Outer);	
 	}
 }
 

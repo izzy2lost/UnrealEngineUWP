@@ -110,8 +110,11 @@ public:
 	virtual void OnInitializeAnimInstance(const FAnimInstanceProxy* InProxy, const UAnimInstance* InAnimInstance) override;
 	// End of FAnimNode_Base interface
 
-	/** force reinitialization */
+	// force reinitialization
 	void SetProcessorNeedsInitialized();
+	
+	void CreateIKRigProcessorIfNeeded(UObject* Outer);
+	UIKRigProcessor* GetIKRigProcessor();
 
 protected:
 
@@ -128,6 +131,4 @@ private:
 	virtual void ConditionalDebugDraw(FPrimitiveDrawInterface* PDI, USkeletalMeshComponent* PreviewSkelMeshComp) const;
 	
 	friend class UAnimGraphNode_IKRig;
-	friend struct FIKRigAnimInstanceProxy;
-	friend class UIKRigAnimInstance;
 };

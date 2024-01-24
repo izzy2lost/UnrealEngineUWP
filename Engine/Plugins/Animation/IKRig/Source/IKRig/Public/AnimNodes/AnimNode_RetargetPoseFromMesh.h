@@ -52,6 +52,7 @@ struct IKRIG_API FAnimNode_RetargetPoseFromMesh : public FAnimNode_Base
 	// End of FAnimNode_Base interface
 
 	/** Access to the runtime processor */
+	void CreateRetargetProcessorIfNeeded(UObject* Outer);
 	UIKRetargetProcessor* GetRetargetProcessor() const;
 
 private:
