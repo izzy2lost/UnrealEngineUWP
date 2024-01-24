@@ -8,6 +8,7 @@ RUN wget https://s3.amazonaws.com/rds-downloads/rds-combined-ca-bundle.pem
 COPY Source/Programs/Horde/HordeDashboard ./Dashboard
 RUN cd ./Dashboard && yarn install
 RUN cd ./Dashboard && yarn run build
+COPY Source/Programs/Horde/HordeDashboard/documentation ./Dashboard/build/documentation
 
 FROM nginx:1.17.10 as runtime-env
 ## Remove default nginx index page and conf
