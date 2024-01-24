@@ -10,7 +10,10 @@
 #include "UObject/Interface.h"
 #include "NavAreas/NavArea.h"
 #include "AI/Navigation/NavLinkDefinition.h"
+#if UE_ENABLE_INCLUDE_ORDER_DEPRECATED_IN_5_4
 #include "Engine/World.h"
+#endif
+#include "Engine/WorldInitializationValues.h"
 #include "NavLinkCustomInterface.generated.h"
 
 /** 
@@ -102,7 +105,7 @@ class INavLinkCustomInterface
 	UE_DEPRECATED(5.3, "LinkIds are now based on a FNavLinkId Hash. If your project is still using any of the old incremental Ids then this function must be called still (typically by existing engine code), otherwise it is not necessary.")
 	static NAVIGATIONSYSTEM_API void ResetUniqueId();
 
-	static NAVIGATIONSYSTEM_API void OnPreWorldInitialization(UWorld* World, const UWorld::InitializationValues IVS);
+	static NAVIGATIONSYSTEM_API void OnPreWorldInitialization(UWorld* World, const FWorldInitializationValues IVS);
 
 	UE_DEPRECATED(5.3, "LinkIds are now based on FNavLinkId using FNavLinkId::GenerateUniqueId().")
 	static uint32 NextUniqueId;
