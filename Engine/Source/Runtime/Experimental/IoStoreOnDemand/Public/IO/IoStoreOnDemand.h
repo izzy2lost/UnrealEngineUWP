@@ -186,6 +186,7 @@ struct FIoStoreUploadParams
 	FString CredentialsFileKeyName;
 	FString BuildVersion;
 	FString TargetPlatform;
+	FString EncryptionKeyName;
 	int32 MaxConcurrentUploads = 16;
 	bool bDeleteContainerFiles = true;
 	bool bDeletePakFiles = true;

@@ -9693,9 +9693,10 @@ bool UploadIoStoreContainerFiles(const UE::IO::IAS::FIoStoreUploadParams& Upload
 
 		// Temporary solution to get replays working with encrypted on demand content
 		{
-			FString EncryptionKeyName;
-			if (FParse::Value(FCommandLine::Get(), TEXT("OnDemandEncryptionKeyName="), EncryptionKeyName))
+			if (!UploadParams.EncryptionKeyName.IsEmpty())
 			{
+				const TCHAR* EncryptionKeyName = *(UploadParams.EncryptionKeyName);
+
 				TOptional<FNamedAESKey> EncryptionKey;
 				for (const TPair<FGuid, FNamedAESKey>& KeyPair: KeyChain.GetEncryptionKeys())
 				{
@@ -9712,7 +9713,7 @@ bool UploadIoStoreContainerFiles(const UE::IO::IAS::FIoStoreUploadParams& Upload
 				}
 				else
 				{
-					UE_LOG(LogIoStore, Warning, TEXT("Failed to encryption key '%s' in key chain"), *EncryptionKeyName);
+					UE_LOG(LogIoStore, Warning, TEXT("Failed to encryption key '%s' in key chain"), EncryptionKeyName);
 				}
 			}
 		}
