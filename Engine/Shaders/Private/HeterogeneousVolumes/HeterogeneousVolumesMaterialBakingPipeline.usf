@@ -62,6 +62,9 @@ void HeterogeneousVolumesBakeMaterialCS(
 		MaterialParameters.PrimitiveId = PrimitiveId;
 		MaterialParameters.AbsoluteWorldPosition = DFPromote(WorldPosition);
 		MaterialParameters.LWCData.AbsoluteWorldPosition = WSPromote(WorldPosition);
+		// TODO: Add object centroid to LWC.ObjectWorldPosition
+		MaterialParameters.LWCData.LocalToWorld = WSPromote(LocalToWorld);
+		MaterialParameters.LWCData.WorldToLocal = WSPromoteInverse(WorldToLocal);
 
 		// Evaluate material graph
 		FPixelMaterialInputs PixelMaterialInputs;
@@ -265,6 +268,9 @@ void RasterizeBottomLevelOrthoGridCS(
 				MaterialParameters.PrimitiveId = PrimitiveId;
 				MaterialParameters.AbsoluteWorldPosition = DFPromote(WorldPosition);
 				MaterialParameters.LWCData.AbsoluteWorldPosition = WSPromote(WorldPosition);
+				// TODO: Add object centroid to LWC.ObjectWorldPosition
+				MaterialParameters.LWCData.LocalToWorld = WSPromote(LocalToWorld);
+				MaterialParameters.LWCData.WorldToLocal = WSPromoteInverse(WorldToLocal);
 
 				// Evaluate material graph
 				FPixelMaterialInputs PixelMaterialInputs;
@@ -471,6 +477,9 @@ void RasterizeBottomLevelFrustumGridCS(
 		MaterialParameters.PrimitiveId = PrimitiveId;
 		MaterialParameters.AbsoluteWorldPosition = DFPromote(WorldPosition);
 		MaterialParameters.LWCData.AbsoluteWorldPosition = WSPromote(WorldPosition);
+		// TODO: Add object centroid to LWC.ObjectWorldPosition
+		MaterialParameters.LWCData.LocalToWorld = WSPromote(LocalToWorld);
+		MaterialParameters.LWCData.WorldToLocal = WSPromoteInverse(WorldToLocal);
 
 		// Evaluate material graph
 		FPixelMaterialInputs PixelMaterialInputs;
