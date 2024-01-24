@@ -165,7 +165,7 @@ public:
 			FTypeInfo& TypeInfo = RegisteredTypes.CueTypes[i];
 			if (TypeInfo.IDPtr == &TCue::ID)
 			{
-				RegisteredTypes.CueTypes.RemoveAtSwap(i, 1, false);
+				RegisteredTypes.CueTypes.RemoveAtSwap(i, 1, EAllowShrinking::No);
 				RegisteredTypes.bDirty = true;
 				break;
 			}
