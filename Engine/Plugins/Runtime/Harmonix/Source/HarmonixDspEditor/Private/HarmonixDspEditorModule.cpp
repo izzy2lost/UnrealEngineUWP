@@ -34,7 +34,7 @@ void FHarmonixDspEditorModule::ShutdownModule()
 {
 
 	FPropertyEditorModule& PropertyEditorModule = FModuleManager::LoadModuleChecked<FPropertyEditorModule>("PropertyEditor");
-	PropertyEditorModule.UnregisterCustomClassLayout(UFusionPatch::StaticClass()->GetFName());
+	PropertyEditorModule.UnregisterCustomClassLayout("FusionPatch");
 	PropertyEditorModule.UnregisterCustomClassLayout("StretcherAndPitchShifterFactoryConfig");
 	PropertyEditorModule.UnregisterCustomPropertyTypeLayout("PannerDetails");
 	PropertyEditorModule.UnregisterCustomPropertyTypeLayout("PitchShifterName");
