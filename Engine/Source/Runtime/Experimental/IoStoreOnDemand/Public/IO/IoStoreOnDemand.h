@@ -21,6 +21,7 @@
 class FArchive;
 class FCbFieldView;
 class FCbWriter;
+struct FKeyChain;
 class IIoStoreWriter;
 struct FAnalyticsEventAttribute;
 struct FIoContainerSettings;
@@ -218,7 +219,7 @@ struct FIoStoreUploadResult
 UE_API TIoStatusOr<FIoStoreUploadResult> UploadContainerFiles(
 	const FIoStoreUploadParams& UploadParams,
 	TConstArrayView<FString> ContainerFiles,
-	const TMap<FGuid, FAES::FAESKey>& EncryptionKeys);
+	const FKeyChain& KeyChain);
 
 ////////////////////////////////////////////////////////////////////////////////
 struct FIoStoreDownloadParams

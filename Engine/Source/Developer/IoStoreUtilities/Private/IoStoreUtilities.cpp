@@ -9654,13 +9654,7 @@ int32 CreateIoStoreContainerFiles(const TCHAR* CmdLine)
 
 bool UploadIoStoreContainerFiles(const UE::IO::IAS::FIoStoreUploadParams& UploadParams, TConstArrayView<FString> ContainerFiles, const FKeyChain& KeyChain)
 {
-	TMap<FGuid, FAES::FAESKey> EncryptionKeys;
-	for (const TPair<FGuid, FNamedAESKey>& KeyPair: KeyChain.GetEncryptionKeys())
-	{
-		EncryptionKeys.Add(KeyPair.Key, KeyPair.Value.Key);
-	}
-
-	TIoStatusOr<UE::IO::IAS::FIoStoreUploadResult> Result = UE::IO::IAS::UploadContainerFiles(UploadParams, ContainerFiles, EncryptionKeys);
+	TIoStatusOr<UE::IO::IAS::FIoStoreUploadResult> Result = UE::IO::IAS::UploadContainerFiles(UploadParams, ContainerFiles, KeyChain);
 	if (Result.IsOk() == false)
 	{
 		UE_LOG(LogIoStore, Error, TEXT("Failed to upload container file(s), reason '%s'"), *Result.Status().ToString());
