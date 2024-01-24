@@ -10,53 +10,6 @@
 
 struct FPropertyBindingPath;
 
-
-
-/**
- * Descriptor for a struct or class that can be a binding source or target.
- * Each struct has unique identifier, which is used to distinguish them, and name that is mostly for debugging and UI.
- */
-USTRUCT()
-struct PROPERTYBINDINGUTILS_API FBindableStructDesc
-{
-	GENERATED_BODY()
-
-	FBindableStructDesc() = default;
-
-#if WITH_EDITORONLY_DATA
-	FBindableStructDesc(const FName InName, const UStruct* InStruct, const FGuid InGuid)
-		: Struct(InStruct)
-		, Name(InName)
-		, ID(InGuid)
-	{
-	}
-
-	bool operator==(const FBindableStructDesc& RHS) const
-	{
-		return ID == RHS.ID && Struct == RHS.Struct; // Not checking name, it's cosmetic.
-	}
-#endif
-
-	bool IsValid() const { return Struct != nullptr; }
-
-	FString ToString() const;
-	
-	/** The type of the struct or class. */
-	UPROPERTY()
-	TObjectPtr<const UStruct> Struct = nullptr;
-
-	/** Name of the struct (used for debugging, logging, cosmetic). */
-	UPROPERTY()
-	FName Name;
-
-#if WITH_EDITORONLY_DATA
-	/** Unique identifier of the struct. */
-	UPROPERTY()
-	FGuid ID;
-#endif
-};
-
-
 UENUM()
 enum class EPropertyBindingAccessType : uint8
 {
@@ -302,11 +255,6 @@ struct PROPERTYBINDINGUTILS_API FPropertyBindingPathIndirection
 	}
 	
 	const void* GetPropertyAddress() const
-	{
-		return (uint8*)ContainerAddress + PropertyOffset;
-	}
-
-	void* GetMutablePropertyAddress() const
 	{
 		return (uint8*)ContainerAddress + PropertyOffset;
 	}

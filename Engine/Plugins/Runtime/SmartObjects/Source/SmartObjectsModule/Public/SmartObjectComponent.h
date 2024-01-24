@@ -5,7 +5,6 @@
 #include "Components/SceneComponent.h"
 #include "SmartObjectTypes.h"
 #include "SmartObjectDefinition.h"
-#include "SmartObjectDefinitionReference.h"
 #include "SmartObjectComponent.generated.h"
 
 namespace EEndPlayReason { enum Type : int; }
@@ -47,15 +46,9 @@ public:
 
 	FBox GetSmartObjectBounds() const;
 
-	/** @return Smart Object Definition with parameters applied. */
-	const USmartObjectDefinition* GetDefinition() const;
+	const USmartObjectDefinition* GetDefinition() const { return DefinitionAsset; }
+	void SetDefinition(USmartObjectDefinition* Definition) { DefinitionAsset = Definition; }
 
-	/** @return Smart Object Definition without applied parameters. */
-	const USmartObjectDefinition* GetBaseDefinition() const;
-
-	/** Sets the Smart Object Definition. */
-	void SetDefinition(USmartObjectDefinition* Definition);
-	
 	bool GetCanBePartOfCollection() const { return bCanBePartOfCollection; }
 
 	ESmartObjectRegistrationType GetRegistrationType() const { return RegistrationType; }
@@ -125,19 +118,11 @@ protected:
 	void ReceiveOnEvent(const FSmartObjectEventData& EventData, const AActor* Interactor);
 
 	virtual void PostInitProperties() override;
-	virtual void PostLoad() override;
 
 	virtual void BeginPlay() override;
 	virtual void EndPlay(const EEndPlayReason::Type EndPlayReason) override;
-
-	/** Getter and setter to deal with deprecated TObjectPtr<USmartObjectDefinition> DefinitionAsset */
 	
-	UFUNCTION(BlueprintGetter)
-	const USmartObjectDefinition* GetDefinitionAsset() const;
-
-	UFUNCTION(BlueprintSetter)
-	void SetDefinitionAsset(USmartObjectDefinition* NewAsset);
-
+protected:
 #if WITH_EDITOR
 	virtual void OnRegister() override;
 	virtual void OnUnregister() override;
@@ -149,20 +134,9 @@ protected:
 	void RegisterToSubsystem();
 	void UnregisterFromSubsystem(const ESmartObjectUnregistrationType UnregistrationType);
 
-#if WITH_EDITORONLY_DATA
-	UE_DEPRECATED(5.4, "Use SmartObjectReference instead.")
-	UPROPERTY()
-	TObjectPtr<USmartObjectDefinition> DefinitionAsset_DEPRECATED;
-#endif
+	UPROPERTY(EditAnywhere, Category = SmartObject, BlueprintReadWrite, Replicated)
+	TObjectPtr<USmartObjectDefinition> DefinitionAsset;
 
-	/** Reference to Smart Object Definition Asset with parameters. */
-	UPROPERTY(EditAnywhere, Category = SmartObject, Replicated, meta = (DisplayName="Definition"))
-	FSmartObjectDefinitionReference DefinitionRef;
-
-	/** Cached Smart Object definition asset with parameters applied from SmartObjectDefinitionRef. */
-	UPROPERTY(Transient)
-	mutable TObjectPtr<USmartObjectDefinition> CachedDefinitionAssetVariation = nullptr;
-	
 	/** RegisteredHandle != FSmartObjectHandle::Invalid when registered into a collection by SmartObjectSubsystem */
 	UPROPERTY(Transient, VisibleAnywhere, Category = SmartObject, BlueprintReadOnly, Replicated)
 	FSmartObjectHandle RegisteredHandle;
@@ -195,17 +169,17 @@ struct FSmartObjectComponentInstanceData : public FActorComponentInstanceData
 public:
 	FSmartObjectComponentInstanceData() = default;
 
-	explicit FSmartObjectComponentInstanceData(const USmartObjectComponent* SourceComponent, const FSmartObjectDefinitionReference& Ref)
+	explicit FSmartObjectComponentInstanceData(const USmartObjectComponent* SourceComponent, USmartObjectDefinition* Asset)
 		: FActorComponentInstanceData(SourceComponent)
-		, SmartObjectDefinitionRef(Ref)
+		, DefinitionAsset(Asset)
 	{}
 
-	const FSmartObjectDefinitionReference& GetSmartObjectDefinitionReference() const { return SmartObjectDefinitionRef; }
+	USmartObjectDefinition* GetDefinitionAsset() const { return DefinitionAsset; }
 
 protected:
 	virtual bool ContainsData() const override;
 	virtual void ApplyToComponent(UActorComponent* Component, const ECacheApplyPhase CacheApplyPhase) override;
 
 	UPROPERTY()
-	FSmartObjectDefinitionReference SmartObjectDefinitionRef;
+	TObjectPtr<USmartObjectDefinition> DefinitionAsset = nullptr;
 };

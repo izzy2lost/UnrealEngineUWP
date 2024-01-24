@@ -16,7 +16,6 @@
 #include "Brushes/SlateRoundedBoxBrush.h"
 #include "Styling/StyleColors.h"
 #include "SmartObjectEditorStyle.h"
-#include "SmartObjectBindingExtension.h"
 
 #define LOCTEXT_NAMESPACE "SmartObjectEditor"
 
@@ -252,21 +251,6 @@ void FSmartObjectSlotDefinitionDetails::CustomizeChildren(TSharedRef<IPropertyHa
 	const FName HiddenName(TEXT("Hidden"));
 	check(DefinitionDataPropertyHandle);
 	check(NamePropertyHandle)
-
-	// Find Slot ID for binding
-	FGuid SlotID;
-	StructProperty->EnumerateConstRawData([&SlotID](const void* RawData, const int32 /*DataIndex*/, const int32 /*NumDatas*/)
-	{
-		if (RawData)
-		{
-			const FSmartObjectSlotDefinition& SlotDefinition = *static_cast<const FSmartObjectSlotDefinition*>(RawData);
-			SlotID = SlotDefinition.ID;
-			return false; // stop
-		}
-		return true;
-	});
-
-	const FString SlotIDString = LexToString(SlotID);
 	
 	uint32 NumChildren = 0;
 	StructPropertyHandle->GetNumChildren(NumChildren);
@@ -285,19 +269,13 @@ void FSmartObjectSlotDefinitionDetails::CustomizeChildren(TSharedRef<IPropertyHa
 			{
 				continue;
 			}
-
-			// Set slot ID for binding
-			ChildPropertyHandle->SetInstanceMetaData(UE::SmartObject::PropertyBinding::DataIDName, LexToString(SlotIDString));
-
+			
 			StructBuilder.AddProperty(ChildPropertyHandle.ToSharedRef());
 		}
 	}
 
 	if (DefinitionDataPropertyHandle)
 	{
-		// Set slot ID for binding
-		DefinitionDataPropertyHandle->SetInstanceMetaData(UE::SmartObject::PropertyBinding::DataIDName, LexToString(SlotIDString));
-
 		IDetailPropertyRow& DefinitionDataRow = StructBuilder.AddProperty(DefinitionDataPropertyHandle.ToSharedRef());
 
 		DefinitionDataRow.CustomWidget(true)
