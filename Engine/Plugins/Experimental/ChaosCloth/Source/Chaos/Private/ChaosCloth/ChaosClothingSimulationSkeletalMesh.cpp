@@ -166,7 +166,7 @@ PRAGMA_ENABLE_DEPRECATION_WARNINGS
 		{
 			const FClothLODDataCommon& ClothLODData = Asset->LodData[LODIndex];
 			const FClothPhysicalMeshData& ClothPhysicalMeshData = ClothLODData.PhysicalMeshData;
-			static const FString SelfCollisionSetName("_SelfCollisionSpheres");
+			static const FString SelfCollisionSetName(TEXT("_SelfCollisionSpheres"));
 			VertexSets.Add(SelfCollisionSetName, &ClothPhysicalMeshData.SelfCollisionVertexSet);
 		}
 

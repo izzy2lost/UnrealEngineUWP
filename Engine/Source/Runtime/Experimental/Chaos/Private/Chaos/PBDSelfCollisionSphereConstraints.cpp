@@ -7,7 +7,7 @@
 
 namespace Chaos::Softs {
 
-	const FString FPBDSelfCollisionSphereConstraints::SelectionSetName("_SelfCollisionSpheres");
+	const FString FPBDSelfCollisionSphereConstraints::SelectionSetName(TEXT("_SelfCollisionSpheres"));
 
 	namespace Private
 	{
