@@ -40,6 +40,9 @@
 #include "WeightedRandomSampler.h"
 #include "PerPlatformProperties.h"
 #include "RayTracingGeometry.h"
+#if WITH_EDITORONLY_DATA
+#include "Interface_CollisionDataProviderCore.h"
+#endif
 
 class FDistanceFieldVolumeData;
 class UBodySetup;
@@ -719,6 +722,12 @@ public:
 
 	/** The next cached derived data in the list. */
 	TUniquePtr<class FStaticMeshRenderData> NextCachedRenderData;
+
+	/**
+	 * Canned FTriMeshCollisionData for static meshes cooked for CookedCooker platform (see TCookedCookerTargetPlatform).
+	 * It is needed because the "cooked cooker" can be cooking a new spline mesh that is deforming a cooked static mesh, so it will request the SM's collision data.
+	 */
+	TUniquePtr<FTriMeshCollisionData> CollisionDataForCookedCooker;
 
 	/** Estimate of total compressed size of all rendering data, including Nanite data. */
 	uint64 EstimatedCompressedSize = 0;
