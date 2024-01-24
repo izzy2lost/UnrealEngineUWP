@@ -113,18 +113,6 @@ class FDefaultBitArrayAllocator;
 template<int IndexSize> class TSizedDefaultAllocator;
 using FDefaultAllocator = TSizedDefaultAllocator<32>;
 
-/** branchless pointer selection
-* return A ? A : B;
-**/
-template<typename ReferencedType>
-ReferencedType* IfAThenAElseB(ReferencedType* A,ReferencedType* B);
-
-/** branchless pointer selection based on predicate
-* return PTRINT(Predicate) ? A : B;
-**/
-template<typename PredicateType,typename ReferencedType>
-ReferencedType* IfPThenAElseB(PredicateType Predicate,ReferencedType* A,ReferencedType* B);
-
 template <typename SizeType>
 FORCEINLINE SizeType DefaultCalculateSlackShrink(SizeType NumElements, SizeType NumAllocatedElements, SIZE_T BytesPerElement, bool bAllowQuantize, uint32 Alignment = DEFAULT_ALIGNMENT)
 {
@@ -888,7 +876,11 @@ public:
 		// FContainerAllocatorInterface
 		FORCEINLINE ElementType* GetAllocation() const
 		{
-			return IfAThenAElseB<ElementType>(SecondaryData.GetAllocation(),GetInlineElements());
+			if (ElementType* Result = SecondaryData.GetAllocation())
+			{
+				return Result;
+			}
+			return GetInlineElements();
 		}
 
 		void ResizeAllocation(SizeType PreviousNumElements, SizeType NumElements,SIZE_T NumBytesPerElement)
