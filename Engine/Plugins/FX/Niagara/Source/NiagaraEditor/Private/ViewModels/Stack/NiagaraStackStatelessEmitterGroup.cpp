@@ -1,7 +1,5 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
-#pragma once
-
 #include "ViewModels/Stack/NiagaraStackStatelessEmitterGroup.h"
 
 #include "IDetailTreeNode.h"
