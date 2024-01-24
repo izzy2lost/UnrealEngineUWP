@@ -2,11 +2,36 @@
 
 #include "BlendStack/BlendStackAnimNodeLibrary.h"
 #include "BlendStack/AnimNode_BlendStack.h"
+#include "BlendStack/AnimNode_BlendStackInput.h"
 #include "BlendStack/BlendStackDefines.h"
 
 FBlendStackAnimNodeReference UBlendStackAnimNodeLibrary::ConvertToBlendStackNode(const FAnimNodeReference& Node, EAnimNodeReferenceConversionResult& Result)
 {
 	return FAnimNodeReference::ConvertToType<FBlendStackAnimNodeReference>(Node, Result);
+}
+
+UAnimationAsset* UBlendStackAnimNodeLibrary::GetCurrentBlendStackAnimAsset(const FAnimNodeReference& Node)
+{
+	if (FAnimNode_BlendStackInput* BlendStackInput = Node.GetAnimNodePtr<FAnimNode_BlendStackInput>())
+	{
+		if (BlendStackInput->Player && *BlendStackInput->Player )
+		{
+			return (*BlendStackInput->Player)->GetAnimationAsset();
+		}
+	}
+	return nullptr;
+}
+
+float UBlendStackAnimNodeLibrary::GetCurrentBlendStackAnimAssetTime(const FAnimNodeReference& Node)
+{
+	if (FAnimNode_BlendStackInput* BlendStackInput = Node.GetAnimNodePtr<FAnimNode_BlendStackInput>())
+	{
+		if (BlendStackInput->Player && *BlendStackInput->Player )
+		{
+			return (*BlendStackInput->Player)->GetAccumulatedTime();
+		}
+	}
+	return 0.f;
 }
 
 void UBlendStackAnimNodeLibrary::BlendTo(const FAnimUpdateContext& Context, 

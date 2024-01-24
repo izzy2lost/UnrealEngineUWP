@@ -27,6 +27,15 @@ public:
 	/** Get a blend stack node context from an anim node context */
 	UFUNCTION(BlueprintCallable, Category = "Animation|BlendStack", meta = (BlueprintThreadSafe, ExpandEnumAsExecs = "Result"))
 	static FBlendStackAnimNodeReference ConvertToBlendStackNode(const FAnimNodeReference& Node, EAnimNodeReferenceConversionResult& Result);
+	
+	
+	/** Get the current AnimationAsset that is playing from a Blend Stack Input node */
+    UFUNCTION(BlueprintPure, Category = "Animation|BlendStack", meta = (BlueprintThreadSafe))
+    static UAnimationAsset* GetCurrentBlendStackAnimAsset(const FAnimNodeReference& Node);
+	
+	/** Get the current elapsed time of the animation that is playing from a Blend Stack Input node */
+    UFUNCTION(BlueprintPure, Category = "Animation|BlendStack", meta = (BlueprintThreadSafe))
+    static float GetCurrentBlendStackAnimAssetTime(const FAnimNodeReference& Node);
 
 	/** Get a blend stack node context from an anim node context (pure) */
 	UFUNCTION(BlueprintPure, Category = "Animation|BlendStack", meta = (BlueprintThreadSafe, DisplayName = "Convert to Blend Stack Node"))
