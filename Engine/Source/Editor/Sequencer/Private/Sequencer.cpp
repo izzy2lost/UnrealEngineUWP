@@ -8893,41 +8893,6 @@ void FixSortingOrders(FMovieSceneBinding* InBinding, UMovieScene* MovieScene)
 
 void FSequencer::OnAddBinding(const FGuid& ObjectBinding, UMovieScene* MovieScene)
 {
-	// If a new binding requires a binding lifetime track and doesn't have one, add one.
-	if (UMovieSceneSequence* OuterSequence = MovieScene->GetTypedOuter<UMovieSceneSequence>())
-	{
-		if (FMovieSceneBindingReferences* BindingReferences = OuterSequence->GetBindingReferences())
-		{
-			TArrayView<const FMovieSceneBindingReference> References = BindingReferences->GetReferences(ObjectBinding);
-			bool bRequiresBindingLifetimeTrack = false;
-			for (const FMovieSceneBindingReference& Reference : References)
-			{
-				if (EnumHasAllFlags(Reference.EditorResolveFlags, ELocatorResolveFlags::Load) || EnumHasAllFlags(Reference.RuntimeResolveFlags, ELocatorResolveFlags::Load))
-				{
-					bRequiresBindingLifetimeTrack = true;
-					break;
-				}
-			}
-
-			// We may need to force-create a Binding Lifetime Track here if the locator has been set to load. This allows the sequence to manage load/unload of the locator.
-			if (bRequiresBindingLifetimeTrack)
-			{
-				UMovieSceneBindingLifetimeTrack* BindingLifetimeTrack = Cast<UMovieSceneBindingLifetimeTrack>(MovieScene->FindTrack(UMovieSceneBindingLifetimeTrack::StaticClass(), ObjectBinding, NAME_None));
-				if (!BindingLifetimeTrack)
-				{
-					BindingLifetimeTrack = Cast<UMovieSceneBindingLifetimeTrack>(MovieScene->AddTrack(UMovieSceneBindingLifetimeTrack::StaticClass(), ObjectBinding));
-				}
-
-				if (BindingLifetimeTrack && BindingLifetimeTrack->GetAllSections().IsEmpty())
-				{
-					UMovieSceneBindingLifetimeSection* BindingLifetimeSection = Cast<UMovieSceneBindingLifetimeSection>(BindingLifetimeTrack->CreateNewSection());
-					BindingLifetimeSection->SetRange(TRange<FFrameNumber>::All());
-					BindingLifetimeTrack->AddSection(*BindingLifetimeSection);
-				}
-			}
-		}
-	}
-
 	FMovieSceneBinding* Binding = MovieScene->FindBinding(ObjectBinding);
 	if (Binding)
 	{

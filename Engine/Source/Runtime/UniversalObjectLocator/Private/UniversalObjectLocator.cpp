@@ -309,7 +309,7 @@ const FUniversalObjectLocatorFragment* FUniversalObjectLocator::GetLastFragment(
 }
 
 
-UE::UniversalObjectLocator::EFragmentTypeFlags FUniversalObjectLocator::GetDefaultEditorFlags() const
+UE::UniversalObjectLocator::EFragmentTypeFlags FUniversalObjectLocator::GetDefaultFlags() const
 {
 	using namespace UE::UniversalObjectLocator;
 	EFragmentTypeFlags Flags = EFragmentTypeFlags::None;
@@ -318,22 +318,7 @@ UE::UniversalObjectLocator::EFragmentTypeFlags FUniversalObjectLocator::GetDefau
 	{
 		if (const FFragmentType* FragmentTypePtr = Fragment.GetFragmentType())
 		{
-			EnumAddFlags(Flags, FragmentTypePtr->EditorFlags);
-		}
-	}
-	return Flags;
-}
-
-
-UE::UniversalObjectLocator::EFragmentTypeFlags FUniversalObjectLocator::GetDefaultRuntimeFlags() const
-{
-	using namespace UE::UniversalObjectLocator;
-	EFragmentTypeFlags Flags = EFragmentTypeFlags::None;
-	for (const FUniversalObjectLocatorFragment& Fragment : Fragments)
-	{
-		if (const FFragmentType* FragmentTypePtr = Fragment.GetFragmentType())
-		{
-			EnumAddFlags(Flags, FragmentTypePtr->RuntimeFlags);
+			EnumAddFlags(Flags, FragmentTypePtr->Flags);
 		}
 	}
 	return Flags;

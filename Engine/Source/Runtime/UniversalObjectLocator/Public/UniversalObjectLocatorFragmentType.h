@@ -115,11 +115,8 @@ struct FFragmentType
 	/** Name of the primary editor type for this fragment type, defining how it appears on UI */
 	FName PrimaryEditorType;
 
-	/** Flags defining behavior of this fragment type in editor */
-	EFragmentTypeFlags EditorFlags;
-
-	/** Flags defining behavior of this fragment type at runtime */
-	EFragmentTypeFlags RuntimeFlags;
+	/** Flags defining behavior of this fragment type */
+	EFragmentTypeFlags Flags;
 
 	UScriptStruct* GetStruct() const
 	{

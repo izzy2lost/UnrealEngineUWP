@@ -1842,7 +1842,7 @@ void ULevelSequenceEditorSubsystem::AddBindingPropertiesMenu(FMenuBuilder& MenuB
 		FMovieSceneUniversalLocatorList* Locators = (FMovieSceneUniversalLocatorList*)LocatorsStruct->GetStructMemory();
 		Algo::Transform(BindingReferences->GetReferences(ObjectBindings[0]), Locators->Bindings, [](const FMovieSceneBindingReference& Reference) 
 			{ 
-				return FMovieSceneUniversalLocatorInfo{ Reference.Locator, Reference.EditorResolveFlags, Reference.RuntimeResolveFlags };
+				return FMovieSceneUniversalLocatorInfo{ Reference.Locator, Reference.ResolveFlags };
 			});
 
 		MenuBuilder.AddMenuSeparator();
@@ -1942,15 +1942,12 @@ void ULevelSequenceEditorSubsystem::OnFinishedChangingLocators(const FPropertyCh
 				const FMovieSceneBindingReference* NewRef = BindingReferences->AddBinding(ObjectBindingID, MoveTemp(LocatorInfo.Locator));
 				if (NewRef)
 				{
-#if WITH_EDITOR
-					LocatorInfo.EditorResolveFlags = NewRef->EditorResolveFlags;
-#endif
-					LocatorInfo.RuntimeResolveFlags = NewRef->RuntimeResolveFlags;
+					LocatorInfo.ResolveFlags = NewRef->ResolveFlags;
 				}
 			}
 			else
 			{
-				BindingReferences->AddBinding(ObjectBindingID, MoveTemp(LocatorInfo.Locator), LocatorInfo.EditorResolveFlags, LocatorInfo.RuntimeResolveFlags);
+				BindingReferences->AddBinding(ObjectBindingID, MoveTemp(LocatorInfo.Locator), LocatorInfo.ResolveFlags);
 			}
 		}
 
@@ -2011,7 +2008,7 @@ void ULevelSequenceEditorSubsystem::OnFinishedChangingLocators(const FPropertyCh
 		Locators->Bindings.Empty();
 		Algo::Transform(BindingReferences->GetReferences(ObjectBindingID), Locators->Bindings, [](const FMovieSceneBindingReference& Reference)
 			{
-				return FMovieSceneUniversalLocatorInfo{ Reference.Locator, Reference.EditorResolveFlags, Reference.RuntimeResolveFlags };
+				return FMovieSceneUniversalLocatorInfo{ Reference.Locator, Reference.ResolveFlags };
 			});
 
 
