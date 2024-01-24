@@ -377,6 +377,17 @@ void UXRCreativeITFComponent::InitializeComponent()
 {
 	Super::InitializeComponent();
 
+#if WITH_EDITOR
+	if (GEditor)
+	{
+		if (UTransBuffer* TransBuffer = Cast<UTransBuffer>(GEditor->Trans))
+		{
+			TransBuffer->OnUndo().AddUObject(this, &UXRCreativeITFComponent::HandleTransactorUndo);
+			TransBuffer->OnRedo().AddUObject(this, &UXRCreativeITFComponent::HandleTransactorRedo);
+		}
+	}
+#endif
+
 	ensure(IsValid(PointerComponent));
 
 	// Ensure our motion controller components tick before we do
@@ -453,6 +464,17 @@ void UXRCreativeITFComponent::InitializeComponent()
 void UXRCreativeITFComponent::UninitializeComponent()
 {
 	bIsShuttingDown = true;
+
+#if WITH_EDITOR
+	if (GEditor)
+	{
+		if (UTransBuffer* TransBuffer = Cast<UTransBuffer>(GEditor->Trans))
+		{
+			TransBuffer->OnUndo().RemoveAll(this);
+			TransBuffer->OnRedo().RemoveAll(this);
+		}
+	}
+#endif
 
 	if (ToolsContext)
 	{
@@ -821,7 +843,25 @@ void UXRCreativeITFComponent::EditorToolsTick(float InDeltaTime)
 	// force rendering flush so that PDI lines get drawn
 	FlushRenderingCommands();
 }
-#endif
+
+
+void UXRCreativeITFComponent::HandleTransactorUndo(const FTransactionContext& TransactionContext, bool bSucceeded)
+{
+	if (bSucceeded)
+	{
+		OnUndo.Broadcast();
+	}
+}
+
+
+void UXRCreativeITFComponent::HandleTransactorRedo(const FTransactionContext& TransactionContext, bool bSucceeded)
+{
+	if (bSucceeded)
+	{
+		OnRedo.Broadcast();
+	}
+}
+#endif // #if WITH_EDITOR
 
 
 void UXRCreativeITFComponent::LeftMousePressed()

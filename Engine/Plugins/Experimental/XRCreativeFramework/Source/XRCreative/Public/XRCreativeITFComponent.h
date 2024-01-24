@@ -18,6 +18,10 @@ class UXRCreativeTransformInteraction;
 class UXRCreativeITFRenderComponent;
 class UXRCreativePointerComponent;
 
+#if WITH_EDITOR
+struct FTransactionContext;
+#endif
+
 
 DECLARE_DYNAMIC_DELEGATE_RetVal_OneParam(bool, FCanSelectActorPredicate, AActor*, SelectionCandidate);
 
@@ -50,6 +54,14 @@ public:
 
 	UFUNCTION(BlueprintCallable, Category="XR Creative|Tools")
 	void Redo();
+
+	DECLARE_DYNAMIC_MULTICAST_DELEGATE(FOnUndoRedo);
+
+	UPROPERTY(BlueprintAssignable, Category="XR Creative|Tools")
+	FOnUndoRedo OnUndo;
+
+	UPROPERTY(BlueprintAssignable, Category="XR Creative|Tools")
+	FOnUndoRedo OnRedo;
 
 
 	UFUNCTION(BlueprintCallable, Category="XR Creative|Tools")
@@ -119,6 +131,9 @@ protected:
 
 #if WITH_EDITOR
 	void EditorToolsTick(float InDeltaTime);
+
+	void HandleTransactorUndo(const FTransactionContext& TransactionContext, bool Succeeded);
+	void HandleTransactorRedo(const FTransactionContext& TransactionContext, bool Succeeded);
 #endif
 
 protected:

@@ -48,42 +48,6 @@
 			"Enabled": true
 		},
 		{
-			"Name": "BlueprintFileUtils",
-			"Enabled": true
-		},
-		{
-			"Name": "JsonBlueprintUtilities",
-			"Enabled": true
-		},
-		{
-			"Name": "SunPosition",
-			"Enabled": true
-		},
-		{
-			"Name": "GeometryScripting",
-			"Enabled": true
-		},
-		{
-			"Name": "GizmoFramework",
-			"Enabled": true
-		},
-		{
-			"Name": "GizmoEdMode",
-			"Enabled": true
-		},
-		{
-			"Name": "ModelingToolsEditorMode",
-			"Enabled": true
-		},
-		{
-			"Name": "ConsoleVariables",
-			"Enabled": true
-		},
-		{
-			"Name": "LevelSnapshots",
-			"Enabled": true
-		},
-		{
 			"Name": "MultiUserClient",
 			"Enabled": true
 		},
