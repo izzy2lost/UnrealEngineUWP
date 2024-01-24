@@ -20,35 +20,10 @@
 #include "Widgets/Images/SImage.h"
 #include "Widgets/Input/SComboButton.h"
 #include "SmartObjectEditorStyle.h"
-#include "SmartObjectBindingExtension.h"
 
 #define LOCTEXT_NAMESPACE "SmartObjectEditor"
 
-////////////////////////////////////
-class FSmartObjectDefinitionDataStructDetails : public FInstancedStructDataDetails
-{
-public:
-	FSmartObjectDefinitionDataStructDetails(TSharedPtr<IPropertyHandle> InStructProperty, const FGuid InID)
-		: FInstancedStructDataDetails(InStructProperty)
-		, ID(InID)
-	{
-	}
 
-	virtual void OnChildRowAdded(IDetailPropertyRow& ChildRow) override
-	{
-		if (ID.IsValid())
-		{
-			TSharedPtr<IPropertyHandle> ChildPropHandle = ChildRow.GetPropertyHandle();
-			check(ChildPropHandle.IsValid());
-			
-			// Pass the node ID to binding extension. Since the properties are added using AddChildStructure(), we break the hierarchy and cannot access parent.
-			ChildPropHandle->SetInstanceMetaData(UE::SmartObject::PropertyBinding::DataIDName, LexToString(ID));
-		}
-	}
-
-private:
-	FGuid ID;
-};
 
 ////////////////////////////////////
 class FSmartObjectDefinitionDataStructFilter : public IStructViewerFilter
@@ -313,7 +288,7 @@ void FSmartObjectDefinitionDataProxyDetails::CustomizeChildren(TSharedRef<IPrope
 {
 	check(DataPropertyHandle);
 	// Add instance directly as child.
-	const TSharedRef<FSmartObjectDefinitionDataStructDetails> DataDetails = MakeShared<FSmartObjectDefinitionDataStructDetails>(DataPropertyHandle, GetItemID());
+	TSharedRef<FInstancedStructDataDetails> DataDetails = MakeShared<FInstancedStructDataDetails>(DataPropertyHandle);
 	StructBuilder.AddCustomBuilder(DataDetails);
 }
 

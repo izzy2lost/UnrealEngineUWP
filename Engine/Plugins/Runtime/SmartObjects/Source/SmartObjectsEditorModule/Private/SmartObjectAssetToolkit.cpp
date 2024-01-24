@@ -21,7 +21,6 @@
 #include "Brushes/SlateRoundedBoxBrush.h"
 #include "SPositiveActionButton.h"
 #include "PropertyPath.h"
-#include "SmartObjectBindingExtension.h"
 
 #define LOCTEXT_NAMESPACE "SmartObjectAssetToolkit"
 
@@ -238,22 +237,7 @@ void FSmartObjectAssetToolkit::PostInitAssetEditor()
 	SlotsChangedHandle = ViewModel->GetOnSlotsChanged().AddSP(this, &FSmartObjectAssetToolkit::HandleSlotsChanged);
 	
 	// Register to be notified when properties are edited
-	FCoreUObjectDelegates::OnObjectPropertyChanged.AddSP(this, &FSmartObjectAssetToolkit::OnPropertyChanged);
-
-	UE::SmartObject::Delegates::OnParametersChanged.AddSP(this, &FSmartObjectAssetToolkit::OnParametersChanged);
-}
-
-void FSmartObjectAssetToolkit::OnParametersChanged(const USmartObjectDefinition& SmartObjectDefinition)
-{
-	if (ViewModel && ViewModel->GetAsset() == &SmartObjectDefinition)
-	{
-		// Accessible structs might be different after modifying parameters so forcing refresh
-		// so the FStateTreeBindingExtension can rebuild the list of bindable structs
-		if (DetailsAssetView.IsValid())
-		{
-			DetailsAssetView->ForceRefresh();
-		}
-	}
+	FCoreUObjectDelegates::OnObjectPropertyChanged.AddRaw(this, &FSmartObjectAssetToolkit::OnPropertyChanged);
 }
 
 void FSmartObjectAssetToolkit::RegisterTabSpawners(const TSharedRef<FTabManager>& InTabManager)
@@ -370,8 +354,6 @@ TSharedRef<SDockTab> FSmartObjectAssetToolkit::SpawnTab_SelectionDetails(const F
 	DetailsViewArgs.bAllowSearch = true;
 
 	DetailsAssetView = PropertyEditorModule.CreateDetailView(DetailsViewArgs);
-
-	DetailsAssetView->SetExtensionHandler(MakeShared<FSmartObjectDefinitionBindingExtension>());
 
 	if (USmartObjectDefinition* Definition = CastChecked<USmartObjectDefinition>(GetEditingObject()))
 	{

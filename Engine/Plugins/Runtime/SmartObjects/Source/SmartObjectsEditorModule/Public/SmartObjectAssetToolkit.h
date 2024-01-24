@@ -44,8 +44,6 @@ protected:
 	
 private:
 
-	void OnParametersChanged(const USmartObjectDefinition& SmartObjectDefinition);
-
 	void UpdatePreviewActor();
 	void UpdateCachedPreviewDataFromDefinition();
 

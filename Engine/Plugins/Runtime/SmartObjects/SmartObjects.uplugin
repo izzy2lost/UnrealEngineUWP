@@ -49,10 +49,6 @@
 		{
 			"Name": "WorldConditions",
 			"Enabled": true
-		},
-		{
-			"Name": "PropertyBindingUtils",
-			"Enabled": true
 		}
 	]
 }
