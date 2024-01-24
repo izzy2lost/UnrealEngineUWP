@@ -75,6 +75,10 @@
 			"SupportedTargetPlatforms": [
 				"Win64"
 			]
-        }
+        },
+		{
+			"Name": "TetMeshing",
+			"Enabled": true
+		}
 	]
 }
