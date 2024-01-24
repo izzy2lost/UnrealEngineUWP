@@ -53,28 +53,13 @@ FPathState LoadPathStateData(uint Index)
 	Output.RandSequence.SampleSeed  = Data.RandSeqSampleSeed;
 	Output.Radiance = Data.Radiance;
 	Output.Alpha = Data.Alpha;
-	Output.Albedo.x = f16tof32(Data.PackedAlbedoNormal.x);
-	Output.Albedo.y = f16tof32(Data.PackedAlbedoNormal.x >> 16);
-	Output.Albedo.z = f16tof32(Data.PackedAlbedoNormal.y);
-	Output.Normal.x = f16tof32(Data.PackedAlbedoNormal.y >> 16);
-	Output.Normal.y = f16tof32(Data.PackedAlbedoNormal.z);
-	Output.Normal.z = f16tof32(Data.PackedAlbedoNormal.z >> 16);
+	Output.PackedAlbedoNormal = Data.PackedAlbedoNormal;
 	Output.Ray.Origin = Data.RayOrigin;
 	Output.Ray.Direction = Data.RayDirection;
 	Output.Ray.TMin = 0;
 	Output.Ray.TMax = POSITIVE_INFINITY;
 	Output.PathThroughput = Data.PathThroughput;
-	Output.PathRoughness = f16tof32(Data.PackedRoughnessSigma.x);
-	Output.SigmaT.x = f16tof32(Data.PackedRoughnessSigma.x >> 16);
-	Output.SigmaT.y = f16tof32(Data.PackedRoughnessSigma.y);
-	Output.SigmaT.z = f16tof32(Data.PackedRoughnessSigma.y >> 16);
-	// extract scatter type from sign bits of SigmaT
-	Output.FirstScatterType = 0;
-	Output.FirstScatterType |= (asuint(Output.SigmaT.x) >> 31) << 0;
-	Output.FirstScatterType |= (asuint(Output.SigmaT.y) >> 31) << 1;
-	Output.FirstScatterType |= (asuint(Output.SigmaT.z) >> 31) << 2;
-	// remove sign bits from SigmaT (must be a positive value)
-	Output.SigmaT = abs(Output.SigmaT);
+	Output.PackedRoughnessSigma = Data.PackedRoughnessSigma;
 	return Output;
 }
 
@@ -85,19 +70,11 @@ void StorePathStateData(FPathState PathState, uint Index)
 	Data.RandSeqSampleSeed  = PathState.RandSequence.SampleSeed;
 	Data.Radiance = PathState.Radiance;
 	Data.Alpha = PathState.Alpha;
-	Data.PackedAlbedoNormal.x = f32tof16(PathState.Albedo.x) | (f32tof16(PathState.Albedo.y) << 16);
-	Data.PackedAlbedoNormal.y = f32tof16(PathState.Albedo.z) | (f32tof16(PathState.Normal.x) << 16);
-	Data.PackedAlbedoNormal.z = f32tof16(PathState.Normal.y) | (f32tof16(PathState.Normal.z) << 16);
+	Data.PackedAlbedoNormal = PathState.PackedAlbedoNormal;
 	Data.RayOrigin = PathState.Ray.Origin;
 	Data.RayDirection = PathState.Ray.Direction;
 	Data.PathThroughput = PathState.PathThroughput;
-
-	float3 ScatterAndSigmaT = abs(PathState.SigmaT);
-	ScatterAndSigmaT.x = asfloat(((PathState.FirstScatterType & 1) << 31) | asuint(ScatterAndSigmaT.x));
-	ScatterAndSigmaT.y = asfloat(((PathState.FirstScatterType & 2) << 30) | asuint(ScatterAndSigmaT.y));
-	ScatterAndSigmaT.z = asfloat(((PathState.FirstScatterType & 4) << 29) | asuint(ScatterAndSigmaT.z));
-	Data.PackedRoughnessSigma.x = f32tof16(PathState.PathRoughness) | (f32tof16(ScatterAndSigmaT.x) << 16);
-	Data.PackedRoughnessSigma.y = f32tof16(ScatterAndSigmaT.y) | (f32tof16(ScatterAndSigmaT.z) << 16);
+	Data.PackedRoughnessSigma = PathState.PackedRoughnessSigma;
 	PathStateData[Index] = Data;
 }
 
