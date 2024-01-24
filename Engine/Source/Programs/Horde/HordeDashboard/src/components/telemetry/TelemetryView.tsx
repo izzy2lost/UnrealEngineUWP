@@ -229,12 +229,10 @@ class MetricsHandler {
       if (!this.searchState?.variables?.length) {
 
          const vars = this.getChartVariables();
-         vars.forEach(v => {
-            /*
+         vars.forEach(v => {            
             if (v.defaults?.length) {
                this.setVariables(v.group, v.defaults);
-            }
-            */
+            }            
          })
       }
 
