@@ -194,6 +194,10 @@ void SModularRigModel::BindCommands()
 	CommandList->MapAction(Commands.DeleteModuleItem,
 		FExecuteAction::CreateSP(this, &SModularRigModel::HandleDeleteModules),
 		FCanExecuteAction());
+
+	CommandList->MapAction(Commands.MirrorModuleItem,
+		FExecuteAction::CreateSP(this, &SModularRigModel::HandleMirrorModules),
+		FCanExecuteAction());
 }
 
 FReply SModularRigModel::OnKeyDown(const FGeometry& MyGeometry, const FKeyEvent& InKeyEvent)
@@ -358,6 +362,7 @@ void SModularRigModel::CreateContextMenu()
 					);
 					ElementsSection.AddMenuEntry(Commands.RenameModuleItem);
 					ElementsSection.AddMenuEntry(Commands.DeleteModuleItem);
+					ElementsSection.AddMenuEntry(Commands.MirrorModuleItem);
 				}
 			})
 		);
@@ -659,6 +664,71 @@ void SModularRigModel::HandleReparentModules(const TArray<FString>& InPaths, con
 		for (const FString& Path : InPaths)
 		{
 			Controller->ReparentModule(Path, InParentPath);
+		}
+	}
+}
+
+void SModularRigModel::HandleMirrorModules()
+{
+	if(!ControlRigEditor.IsValid())
+	{
+		return;
+	}
+
+	UModularRig* Rig = GetDefaultModularRig();
+	if (Rig)
+	{
+		TArray<TSharedPtr<FModularRigTreeElement>> SelectedItems = TreeView->GetSelectedItems();
+		TArray<FString> SelectedPaths;
+		Algo::Transform(SelectedItems, SelectedPaths, [](const TSharedPtr<FModularRigTreeElement>& Element)
+		{
+			if (Element.IsValid())
+			{
+				return Element->ModulePath;
+			}
+			return FString();
+		});
+		HandleMirrorModules(SelectedPaths);
+	}
+
+	return;
+}
+
+void SModularRigModel::HandleMirrorModules(const TArray<FString>& InPaths)
+{
+	if (ControlRigBlueprint.IsValid())
+	{
+		FRigVMMirrorSettings Settings;
+		TSharedPtr<FStructOnScope> StructToDisplay = MakeShareable(new FStructOnScope(FRigVMMirrorSettings::StaticStruct(), (uint8*)&Settings));
+		
+		TSharedRef<SKismetInspector> KismetInspector = SNew(SKismetInspector);
+		KismetInspector->ShowSingleStruct(StructToDisplay);
+		
+		TSharedRef<SCustomDialog> MirrorDialog = SNew(SCustomDialog)
+			.Title(FText(LOCTEXT("ControlModularModelMirror", "Mirror Selected Modules")))
+			.Content()
+			[
+				KismetInspector
+			]
+			.Buttons({
+				SCustomDialog::FButton(LOCTEXT("OK", "OK")),
+				SCustomDialog::FButton(LOCTEXT("Cancel", "Cancel"))
+		});
+
+		if (MirrorDialog->ShowModal() == 0)
+		{
+			FScopedTransaction Transaction(LOCTEXT("ModularRigModelMirror", "Mirror Modules"));
+
+			UModularRigController* Controller = ControlRigBlueprint->GetModularRigController();
+			check(Controller);
+
+			// Make sure we delete the modules from children to root
+			TArray<FString> SortedPaths = Controller->Model->SortPaths(InPaths);
+			Algo::Reverse(SortedPaths);
+			for (const FString& Path : SortedPaths)
+			{
+				Controller->MirrorModule(Path, Settings);
+			}
 		}
 	}
 }

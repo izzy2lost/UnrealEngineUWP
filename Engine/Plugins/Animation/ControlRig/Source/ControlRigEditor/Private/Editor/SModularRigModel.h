@@ -74,6 +74,10 @@ private:
 	/** Reparent items */
 	void HandleReparentModules(const TArray<FString>& InPaths, const FString& InParentPath);
 
+	/** Mirror items */
+	void HandleMirrorModules();
+	void HandleMirrorModules(const TArray<FString>& InPaths);
+
 	/** Resolve connector */
 	void HandleConnectorResolved(const FRigElementKey& InConnector, const FRigElementKey& InTarget);
 
