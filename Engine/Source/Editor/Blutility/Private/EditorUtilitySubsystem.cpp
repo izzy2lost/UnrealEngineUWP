@@ -529,6 +529,10 @@ void UEditorUtilitySubsystem::RegisterAndExecuteTask(UEditorUtilityTask* NewTask
 
 		// Register it
 		check(!(PendingTasks.Contains(NewTask) || ActiveTaskStack.Contains(NewTask)));
+		for (auto& KVP : PendingTasks)
+		{
+			check(!KVP.Value.Contains(NewTask));
+		}
 		NewTask->MyTaskManager = this;
 		NewTask->MyParentTask = OptionalParentTask;
 
@@ -544,7 +548,6 @@ void UEditorUtilitySubsystem::RemoveTaskFromActiveList(UEditorUtilityTask* Task)
 	{
 		if (ensure(Task->MyTaskManager == this))
 		{
-			check(PendingTasks.Contains(Task) || ActiveTaskStack.Contains(Task));
 			PendingTasks.Remove(Task);
 			ActiveTaskStack.Remove(Task);
 
