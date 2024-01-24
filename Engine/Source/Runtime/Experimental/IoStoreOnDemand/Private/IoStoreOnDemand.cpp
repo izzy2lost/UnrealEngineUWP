@@ -38,6 +38,7 @@
 #include "HAL/PlatformFileManager.h"
 #include "IO/IoStore.h"
 #include "Misc/EnumClassFlags.h"
+#include "Misc/KeyChainUtilities.h"
 #include "Serialization/JsonSerializer.h"
 #include "Serialization/JsonWriter.h"
 #include "S3/S3Client.h"
@@ -1121,8 +1122,14 @@ FIoStatus FIoStoreUploadParams::Validate() const
 TIoStatusOr<FIoStoreUploadResult> UploadContainerFiles(
 	const FIoStoreUploadParams& UploadParams,
 	TConstArrayView<FString> ContainerFiles,
-	const TMap<FGuid, FAES::FAESKey>& EncryptionKeys)
+	const FKeyChain& KeyChain)
 {
+	TMap<FGuid, FAES::FAESKey> EncryptionKeys;
+	for (const TPair<FGuid, FNamedAESKey>& KeyPair: KeyChain.GetEncryptionKeys())
+	{
+		EncryptionKeys.Add(KeyPair.Key, KeyPair.Value.Key);
+	}
+
 	struct FContainerStats
 	{
 		FString ContainerName;
