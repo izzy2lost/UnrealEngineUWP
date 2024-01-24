@@ -47,7 +47,7 @@ namespace UE::MVVM::BindingHelper
 	 * Is the Field usable as a destination (settable) by the binding system.
 	 * @note It may be a BlueprintSetter and binding to the Property would be better in the editor.
 	 */
-	[[nodiscard]] MODELVIEWVIEWMODEL_API bool IsValidForDestinationBinding(const FMVVMConstFieldVariant InFunction);
+	[[nodiscard]] MODELVIEWVIEWMODEL_API bool IsValidForDestinationBinding(const FMVVMConstFieldVariant InVariant);
 
 	/**
 	 * Is the Function usable as a conversion function by the binding system without any wrapper.
@@ -60,6 +60,17 @@ namespace UE::MVVM::BindingHelper
 	 * A complex conversion takes a no argument and returns a single value.
 	 */
 	[[nodiscard]] MODELVIEWVIEWMODEL_API bool IsValidForComplexRuntimeConversion(const UFunction* InFunction);
+
+	/**
+	 * Is the Function usable as an event binding.
+	 * Events can trigger functions with any number of parameters and any return values.
+	 */
+	[[nodiscard]] MODELVIEWVIEWMODEL_API bool IsValidForEventBinding(const UFunction* InFunction);
+
+	/**
+	 * Is the Field usable as an event binding by the binding system.
+	 */
+	[[nodiscard]] MODELVIEWVIEWMODEL_API bool IsValidForEventBinding(const FMVVMConstFieldVariant InVariant);
 
 #if WITH_EDITOR
 	/** Is the Property usable as a source by the binding system and can it be read directly or it requires a Getter. */

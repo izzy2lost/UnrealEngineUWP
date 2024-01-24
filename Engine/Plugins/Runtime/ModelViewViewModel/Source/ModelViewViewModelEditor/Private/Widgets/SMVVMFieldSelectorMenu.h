@@ -48,6 +48,7 @@ public:
 		SLATE_EVENT(FOnLinkedValueSelectionChanged, OnSelectionChanged)
 		SLATE_EVENT(FSimpleDelegate, OnMenuCloseRequested)
 		SLATE_ARGUMENT(FFieldSelectionContext, SelectionContext)
+		SLATE_ARGUMENT_DEFAULT(bool, IsBindingToEvent) { false };
 	SLATE_END_ARGS()
 
 	void Construct(const FArguments& InArgs, const UWidgetBlueprint* InWidgetBlueprint);

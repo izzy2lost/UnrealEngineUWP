@@ -923,7 +923,8 @@ TSharedRef<SWidget> SFieldSelectorMenu::CreateBindingListPanel(const FArguments&
 		.ShowSearchBox(false)
 		.OnDoubleClicked(this, &SFieldSelectorMenu::SetPropertyPathSelection)
 		.FieldVisibilityFlags(Private::GetFieldVisibilityFlags(SelectionContext.BindingMode, SelectionContext.bReadable, SelectionContext.bWritable))
-		.AssignableTo(AssignableToProperty);
+		.AssignableTo(AssignableToProperty)
+		.IsBindingToEvent(InArgs._IsBindingToEvent);
 
 	const bool bValidSelectedProperty = InArgs._CurrentSelected.IsSet() && InArgs._CurrentSelected.GetValue().IsPropertyPath();
 

@@ -571,7 +571,7 @@ namespace Private
 		 */
 		int32 LocalContainerPathIndex = INDEX_NONE;
 	};
-	TValueOrError<FCanSetterGraphResult, FText> CanCreateSetterGraph(UBlueprint* WidgetBlueprint, const TArrayView<FMVVMConstFieldVariant> Path)
+	TValueOrError<FCanSetterGraphResult, FText> CanCreateSetterGraph(UBlueprint* WidgetBlueprint, const TArrayView<FMVVMConstFieldVariant> Path, const bool bIsForEvent)
 	{
 		/**
 		 * Different types:
@@ -628,7 +628,14 @@ namespace Private
 		}
 
 		const FMVVMConstFieldVariant& LastField = Path.Last();
-		if (!BindingHelper::IsValidForDestinationBinding(LastField))
+		if (bIsForEvent)
+		{
+			if (!BindingHelper::IsValidForEventBinding(LastField))
+			{
+				return MakeError(FText::Format(LOCTEXT("SetterGraph_InvalidSetter", "The setter for field {0} can't be used."), FText::FromName(LastField.GetName())));
+			}
+		}
+		else if (!BindingHelper::IsValidForDestinationBinding(LastField))
 		{
 			return MakeError(FText::Format(LOCTEXT("SetterGraph_InvalidSetter", "The setter for field {0} can't be used."), FText::FromName(LastField.GetName())));
 		}
@@ -638,7 +645,14 @@ namespace Private
 			// Can the local container be set.
 			check(Path.IsValidIndex(Result.LocalContainerPathIndex));
 			const FMVVMConstFieldVariant& Field = Path[Result.LocalContainerPathIndex];
-			if (!BindingHelper::IsValidForDestinationBinding(Field))
+			if (bIsForEvent)
+			{
+				if (!BindingHelper::IsValidForEventBinding(LastField))
+				{
+					return MakeError(FText::Format(LOCTEXT("SetterGraph_ContainerSetter", "The path contains a getter of a struct that can't be set. See field {0}."), FText::FromName(Field.GetName())));
+				}
+			}
+			else if (!BindingHelper::IsValidForDestinationBinding(Field))
 			{
 				return MakeError(FText::Format(LOCTEXT("SetterGraph_ContainerSetter", "The path contains a getter of a struct that can't be set. See field {0}."), FText::FromName(Field.GetName())));
 			}
@@ -732,7 +746,7 @@ FName CreateWrapperName(const FMVVMBlueprintViewBinding& Binding, bool bSourceTo
 TValueOrError<void, FText> CanCreateSetterGraph(UBlueprint* Blueprint, const FMVVMBlueprintPropertyPath& PropertyPath)
 {
 	TArray<UE::MVVM::FMVVMConstFieldVariant> Fields = PropertyPath.GetCompleteFields(Blueprint);
-	TValueOrError<Private::FCanSetterGraphResult, FText> Result = Private::CanCreateSetterGraph(Blueprint, Fields);
+	TValueOrError<Private::FCanSetterGraphResult, FText> Result = Private::CanCreateSetterGraph(Blueprint, Fields, false);
 	if (Result.HasError())
 	{
 		return MakeError(Result.StealError());
@@ -740,10 +754,10 @@ TValueOrError<void, FText> CanCreateSetterGraph(UBlueprint* Blueprint, const FMV
 	return MakeValue();
 }
 
-TValueOrError<FCreateGraphResult, FText> CreateSetterGraph(UBlueprint* Blueprint, FName GraphName, const UFunction* Signature, const FMVVMBlueprintPropertyPath& PropertyPath, bool bIsConst, bool bTransient)
+TValueOrError<FCreateGraphResult, FText> CreateSetterGraph(UBlueprint* Blueprint, FName GraphName, const UFunction* Signature, const FMVVMBlueprintPropertyPath& PropertyPath, bool bIsConst, bool bTransient, const bool bIsForEvent)
 {
 	TArray<UE::MVVM::FMVVMConstFieldVariant> Fields = PropertyPath.GetCompleteFields(Blueprint);
-	TValueOrError<Private::FCanSetterGraphResult, FText> CanCreateSetterGraphResult = Private::CanCreateSetterGraph(Blueprint, Fields);
+	TValueOrError<Private::FCanSetterGraphResult, FText> CanCreateSetterGraphResult = Private::CanCreateSetterGraph(Blueprint, Fields, bIsForEvent);
 	if (CanCreateSetterGraphResult.HasError())
 	{
 		return MakeError(CanCreateSetterGraphResult.StealError());

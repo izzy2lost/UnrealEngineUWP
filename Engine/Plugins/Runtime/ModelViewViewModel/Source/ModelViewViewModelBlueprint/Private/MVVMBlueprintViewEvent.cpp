@@ -246,7 +246,7 @@ UEdGraph* UMVVMBlueprintViewEvent::CreateWrapperGraphInternal()
 	UWidgetBlueprint* WidgetBlueprint = GetWidgetBlueprintInternal();
 	bool bIsConst = false;
 	bool bTransient = true;
-	TValueOrError<UE::MVVM::ConversionFunctionHelper::FCreateGraphResult, FText> CreateSetterGraphResult = UE::MVVM::ConversionFunctionHelper::CreateSetterGraph(WidgetBlueprint, GraphName, DelegateSignature, DestinationPath, bIsConst, bTransient);
+	TValueOrError<UE::MVVM::ConversionFunctionHelper::FCreateGraphResult, FText> CreateSetterGraphResult = UE::MVVM::ConversionFunctionHelper::CreateSetterGraph(WidgetBlueprint, GraphName, DelegateSignature, DestinationPath, bIsConst, bTransient, true);
 	if (CreateSetterGraphResult.HasError())
 	{
 		SetCachedWrapperGraphInternal(nullptr, nullptr);

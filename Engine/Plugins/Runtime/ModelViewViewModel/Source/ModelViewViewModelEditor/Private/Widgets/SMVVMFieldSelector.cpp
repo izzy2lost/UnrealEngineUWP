@@ -38,6 +38,7 @@ void SFieldSelector::Construct(const FArguments& InArgs, const UWidgetBlueprint*
 	OnGetSelectionContext = InArgs._OnGetSelectionContext;
 	OnDragEnterEvent = InArgs._OnDragEnter;
 	OnDropEvent = InArgs._OnDrop;
+	bIsBindingToEvent = InArgs._IsBindingToEvent;
 
 	ChildSlot
 	[
@@ -134,6 +135,7 @@ TSharedRef<SWidget> SFieldSelector::HandleGetMenuContent()
 		.OnSelectionChanged(this, &SFieldSelector::HandleFieldSelectionChanged)
 		.OnMenuCloseRequested(this, &SFieldSelector::HandleMenuClosed)
 		.SelectionContext(SelectionContext)
+		.IsBindingToEvent(bIsBindingToEvent)
 		;
 
 	ComboButton->SetMenuContentWidgetToFocus(Menu->GetWidgetToFocus());

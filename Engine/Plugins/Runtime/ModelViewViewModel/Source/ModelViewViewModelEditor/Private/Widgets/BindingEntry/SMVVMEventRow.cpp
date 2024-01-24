@@ -124,6 +124,7 @@ TSharedRef<SWidget> SEventRow::BuildRowWidget()
 					.OnGetSelectionContext(this, &SEventRow::GetSelectedSelectionContext, false)
 					.OnDrop(this, &SEventRow::HandleFieldSelectorDrop, false)
 					.OnDragEnter(this, &SEventRow::HandleFieldSelectorDragEnter, false)
+					.IsBindingToEvent(true)
 				]
 			]
 

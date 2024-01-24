@@ -30,7 +30,8 @@ public:
 		{
 		}
 		SLATE_STYLE_ARGUMENT(FTextBlockStyle, TextStyle)
-		SLATE_ARGUMENT_DEFAULT(bool, ShowContext) = true;
+		SLATE_ARGUMENT_DEFAULT(bool, ShowContext) { true };
+		SLATE_ARGUMENT_DEFAULT(bool, IsBindingToEvent) { false };
 		SLATE_EVENT(FOnGetLinkedPinValue, OnGetLinkedValue)
 		SLATE_EVENT(FOnLinkedValueSelectionChanged, OnSelectionChanged)
 		SLATE_EVENT(FOnGetSelectionContext, OnGetSelectionContext)
@@ -66,6 +67,7 @@ private:
 	FOnGetSelectionContext OnGetSelectionContext;
 	FOnDrop OnDropEvent;
 	FOnDragEnter OnDragEnterEvent;
+	bool bIsBindingToEvent = false;
 }; 
 
 } // namespace UE::MVVM

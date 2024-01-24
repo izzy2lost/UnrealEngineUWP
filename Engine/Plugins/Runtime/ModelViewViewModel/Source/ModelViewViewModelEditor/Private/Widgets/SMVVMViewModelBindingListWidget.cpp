@@ -158,10 +158,11 @@ namespace Private
 	}
 }
 
-FFieldIterator_Bindable::FFieldIterator_Bindable(const UWidgetBlueprint* InWidgetBlueprint, EFieldVisibility InVisibilityFlags, const FProperty* InAssignableTo) :
+FFieldIterator_Bindable::FFieldIterator_Bindable(const UWidgetBlueprint* InWidgetBlueprint, EFieldVisibility InVisibilityFlags, const FProperty* InAssignableTo, const bool InIsBindingToEvent) :
 	WidgetBlueprint(InWidgetBlueprint),
 	FieldVisibilityFlags(InVisibilityFlags),
-	AssignableTo(InAssignableTo)
+	AssignableTo(InAssignableTo),
+	bIsBindingToEvent(InIsBindingToEvent)
 {
 }
 
@@ -205,7 +206,8 @@ TArray<FFieldVariant> FFieldIterator_Bindable::GetFields(const UStruct* Struct) 
 	{
 		const UWidgetBlueprint* WidgetBlueprintPtr = WidgetBlueprint.Get();
 		TSubclassOf<UObject> AccessorClass = WidgetBlueprintPtr ? WidgetBlueprintPtr->GeneratedClass : nullptr;
-		TArray<FMVVMAvailableBinding> Bindings = UMVVMSubsystem::GetAvailableBindings(const_cast<UClass*>(Class), AccessorClass);
+
+		TArray<FMVVMAvailableBinding> Bindings = bIsBindingToEvent ? UMVVMSubsystem::GetAvailableBindingsForEvent(const_cast<UClass*>(Class), AccessorClass) : UMVVMSubsystem::GetAvailableBindings(const_cast<UClass*>(Class), AccessorClass);
 		AddResult(Bindings);
 	}
 	else if (const UScriptStruct* ScriptStruct = Cast<const UScriptStruct>(Struct))
@@ -298,11 +300,11 @@ TOptional<const UStruct*> FFieldExpander_Bindable::GetExpandedFunction(const UFu
 	return TOptional<const UStruct*>();
 }
 
-TSharedRef<SWidget> ConstructFieldPreSlot(const UWidgetBlueprint* WidgetBlueprint, UE::PropertyViewer::SPropertyViewer::FHandle Handle, const FFieldVariant FieldPath)
+TSharedRef<SWidget> ConstructFieldPreSlot(const UWidgetBlueprint* WidgetBlueprint, UE::PropertyViewer::SPropertyViewer::FHandle Handle, const FFieldVariant FieldPath, const bool bIsForEvent)
 {
 	TSharedRef<SWidget> ImageWidget = SNullWidget::NullWidget;
 	TSubclassOf<UObject> AccessorClass = WidgetBlueprint ? WidgetBlueprint->SkeletonGeneratedClass : nullptr;
-	FMVVMAvailableBinding Binding = UMVVMSubsystem::GetAvailableBindingForField(FMVVMConstFieldVariant(FieldPath), AccessorClass);
+	FMVVMAvailableBinding Binding = bIsForEvent ? UMVVMSubsystem::GetAvailableBindingForEvent(FMVVMConstFieldVariant(FieldPath), AccessorClass) : UMVVMSubsystem::GetAvailableBindingForField(FMVVMConstFieldVariant(FieldPath), AccessorClass);
 	if (Binding.IsValid())
 	{
 		const FSlateBrush* Brush = nullptr;
@@ -358,10 +360,10 @@ TSharedRef<SWidget> ConstructFieldPreSlot(const UWidgetBlueprint* WidgetBlueprin
 void SSourceBindingList::Construct(const FArguments& InArgs, const UWidgetBlueprint* InWidgetBlueprint)
 {
 	WidgetBlueprint = InWidgetBlueprint;
-	FieldIterator = MakeUnique<FFieldIterator_Bindable>(InWidgetBlueprint, InArgs._FieldVisibilityFlags, InArgs._AssignableTo);
+	FieldIterator = MakeUnique<FFieldIterator_Bindable>(InWidgetBlueprint, InArgs._FieldVisibilityFlags, InArgs._AssignableTo, InArgs._IsBindingToEvent);
 	FieldExpander = MakeUnique<FFieldExpander_Bindable>();
 
-
+	bIsBindingToEvent = InArgs._IsBindingToEvent;
 	OnDoubleClicked = InArgs._OnDoubleClicked;
 
 	PropertyViewer = SNew(SPropertyViewer)
@@ -513,7 +515,7 @@ FMVVMBlueprintPropertyPath SSourceBindingList::CreateBlueprintPropertyPath(SProp
 
 			if (const UClass* OwnerClass = Cast<const UClass>(CurrentContainer))
 			{
-				FMVVMAvailableBinding Binding = UMVVMSubsystem::GetAvailableBinding(OwnerClass, FMVVMBindingName(FieldName), AccessorClass);
+				FMVVMAvailableBinding Binding = bIsBindingToEvent ? UMVVMSubsystem::GetAvailableBindingForEvent(OwnerClass, FMVVMBindingName(FieldName), AccessorClass) : UMVVMSubsystem::GetAvailableBinding(OwnerClass, FMVVMBindingName(FieldName), AccessorClass);
 				if (Binding.IsValid())
 				{
 					EFilterFlag FilterFlags;
@@ -555,7 +557,7 @@ FMVVMBlueprintPropertyPath SSourceBindingList::CreateBlueprintPropertyPath(SProp
 	else if(AccessorClass)
 	{
 		FMVVMBindingName BindingName = Source->Key.ToBindingName(WidgetBlueprintPtr);
-		FMVVMAvailableBinding Binding = UMVVMSubsystem::GetAvailableBinding(AccessorClass, BindingName, AccessorClass);
+		FMVVMAvailableBinding Binding = bIsBindingToEvent ? UMVVMSubsystem::GetAvailableBindingForEvent(AccessorClass, BindingName, AccessorClass) : UMVVMSubsystem::GetAvailableBinding(AccessorClass, BindingName, AccessorClass);
 		if (Binding.IsValid())
 		{
 			EFilterFlag FilterFlags;
@@ -591,7 +593,7 @@ TSharedPtr<SWidget> SSourceBindingList::HandleGetPreSlot(SPropertyViewer::FHandl
 {
 	if (FieldPath.Num() > 0)
 	{
-		return ConstructFieldPreSlot(WidgetBlueprint.Get(), Handle, FieldPath.Last());
+		return ConstructFieldPreSlot(WidgetBlueprint.Get(), Handle, FieldPath.Last(), bIsBindingToEvent);
 	}
 	return TSharedPtr<SWidget>();
 }
