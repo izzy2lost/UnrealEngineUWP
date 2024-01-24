@@ -30,15 +30,23 @@ public:
 	void MarkWaterInfoTextureForRebuild(const UE::WaterInfo::FRenderingContext& RenderContext);
 
 	void MarkGPUDataDirty();
+
+	void AddWaterZone(AWaterZone* InWaterZone);
+	void RemoveWaterZone(AWaterZone* InWaterZone);
+
 private:
 	/** Queued Water Info rendering contexts to submit for rendering on the next SetupView call */
 	TMap<AWaterZone*, UE::WaterInfo::FRenderingContext> WaterInfoContextsToRender;
 
-	/** 
-	 * For each water zone, store the bounds of the tile from which the water zone was last rendered.
-	 * When the view location crosses the bounds, submit a new WaterInfo update to reflect the new active area
-	 */
-	TMap<AWaterZone*, FBox2D> WaterInfoUpdateBounds;
+	struct FWaterZoneInfo
+	{
+		/** 
+		 * For each water zone, store the bounds of the tile from which the water zone was last rendered.
+		 * When the view location crosses the bounds, submit a new WaterInfo update to reflect the new active area
+		 */
+		TOptional<FBox2D> UpdateBounds = FBox2D(ForceInit);
+	};
+	TMap<AWaterZone*, FWaterZoneInfo> WaterZoneInfos;
 
 	struct FWaterGPUResources
 	{
