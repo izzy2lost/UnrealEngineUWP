@@ -410,6 +410,14 @@ public:
 	}
 
 	/**
+	 * If the object has a parent (for instance the main cvar that owns an other-platform cvar), return it
+	 */
+	virtual IConsoleObject* GetParentObject() const
+	{
+		return nullptr;
+	}
+	
+	/**
 	 * Casts this object to an IConsoleVariable, returns 0 if it's not
 	 */
 	virtual class IConsoleVariable* AsVariable()
