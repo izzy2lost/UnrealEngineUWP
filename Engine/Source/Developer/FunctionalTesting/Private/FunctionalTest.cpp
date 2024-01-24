@@ -258,6 +258,11 @@ bool AFunctionalTest::RunTest(const TArray<FString>& Params)
 	{
 		FunctionalTest->SetLogErrorAndWarningHandling(bSuppressErrors, bSuppressWarnings, bWarningsAreErrors);
 		FunctionalTest->SetFunctionalTestRunning(TestLabel);
+		if (FAutomationTestFramework::NeedLogBPTestMetadata() && GIsAutomationTesting)
+		{
+			AddInfo(FString::Printf(TEXT("[Owner] %s"), *Author));
+			AddInfo(FString::Printf(TEXT("[Description] %s"), *Description));
+		}
 	}
 
 	FailureMessage = TEXT("");
@@ -297,12 +302,6 @@ void AFunctionalTest::StartTest()
 	TotalTime = 0.f;
 	StartFrame = GFrameNumber;
 	StartTime = (float)GetWorld()->GetTimeSeconds();
-
-	if (FAutomationTestFramework::NeedLogBPTestMetadata() && GIsAutomationTesting)
-	{
-		AddInfo(FString::Printf(TEXT("[Owner] %s"), *Author));
-		AddInfo(FString::Printf(TEXT("[Description] %s"), *Description));
-	}
 
 	ReceiveStartTest();
 	OnTestStart.Broadcast();
