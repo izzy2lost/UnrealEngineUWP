@@ -200,6 +200,14 @@ TEST_CASE_NAMED(FPropertyTypeNameSmokeTest, "CoreUObject::PropertyTypeName::Smok
 		Builder.EndTypeParameters();
 		const FPropertyTypeName MapIntToIntToInt = Builder.Build();
 
+		Builder.Reset();
+		Builder.AddTypeName(NAME_MapProperty);
+		Builder.BeginTypeParameters();
+		Builder.AddTypeName(NAME_IntProperty);
+		Builder.AddTypeName(MapIntToInt);
+		Builder.EndTypeParameters();
+		const FPropertyTypeName MapIntToIntToIntAlternative = Builder.Build();
+
 		CHECK(FPropertyTypeName() == FPropertyTypeName());
 		CHECK(GetTypeHash(FPropertyTypeName()) == GetTypeHash(FPropertyTypeName()));
 
@@ -236,6 +244,8 @@ TEST_CASE_NAMED(FPropertyTypeNameSmokeTest, "CoreUObject::PropertyTypeName::Smok
 		CHECK(VectorArray < MapIntToIntToInt);
 		CHECK(GetTypeHash(MapIntToInt) == GetTypeHash(MapIntToIntToInt.GetTypeParameter(1)));
 		CHECK_FALSE(GetTypeHash(MapIntToInt) == GetTypeHash(MapIntToIntToInt));
+
+		CHECK(MapIntToIntToInt == MapIntToIntToIntAlternative);
 	}
 
 	SECTION("Archive")

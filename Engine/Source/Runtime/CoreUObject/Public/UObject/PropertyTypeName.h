@@ -58,11 +58,27 @@ public:
 	/**
 	 * Returns the indexed parameter under the root of this property type name.
 	 *
+	 * An out-of-bounds index will return an empty type name.
+	 *
 	 * Example: MapProperty<StructProperty<KeyStruct>,EnumProperty<ByteProperty<ByteEnum>>>
 	 * - GetTypeParameter(0) -> StructProperty<KeyStruct>
 	 * - GetTypeParameter(1) -> EnumProperty<ByteProperty<ByteEnum>>
 	 */
-	UE_API FPropertyTypeName GetTypeParameter(int32 ParamIndex) const;
+	UE_API FPropertyTypeName GetTypeParameter(int32 ParamIndex = 0) const;
+
+	/**
+	 * Returns the indexed parameter type name under the root of this property type name.
+	 *
+	 * An out-of-bounds index will return a name of None.
+	 *
+	 * Example: MapProperty<StructProperty<KeyStruct>,EnumProperty<ByteProperty<ByteEnum>>>
+	 * - GetTypeParameterName(0) -> StructProperty
+	 * - GetTypeParameterName(1) -> EnumProperty
+	 */
+	inline FName GetTypeParameterName(int32 ParamIndex = 0) const
+	{
+		return GetTypeParameter(ParamIndex).GetTypeName();
+	}
 
 	/**
 	 * Resets this to an empty type name.
@@ -93,15 +109,15 @@ private:
  * Example: MapProperty<StructProperty<KeyStruct>,EnumProperty<ByteProperty<ByteEnum>>>
  *
  * FPropertyTypeNameBuilder Builder;
- * Builder.AddTypeName(TEXT("MapProperty"));
+ * Builder.AddTypeName(NAME_MapProperty));
  * Builder.BeginTypeParameters();
- *   Builder.AddTypeName(TEXT("StructProperty"));
+ *   Builder.AddTypeName(NAME_StructProperty);
  *   Builder.BeginTypeParameters();
  *     Builder.AddTypeName(TEXT("KeyStruct"));
  *   Builder.EndTypeParameters();
- *   Builder.AddTypeName(TEXT("EnumProperty"));
+ *   Builder.AddTypeName(NAME_EnumProperty);
  *   Builder.BeginTypeParameters();
- *     Builder.AddTypeName(TEXT("ByteProperty"));
+ *     Builder.AddTypeName(NAME_ByteProperty);
  *     Builder.BeginTypeParameters();
  *       Builder.AddTypeName(TEXT("ByteEnum"));
  *     Builder.EndTypeParameters();
@@ -112,6 +128,10 @@ private:
 class FPropertyTypeNameBuilder
 {
 public:
+	/** Add a complete type name with its type parameters. */
+	UE_API void AddTypeName(FPropertyTypeName Name);
+
+	/** Add a type name without any type parameters. */
 	UE_API void AddTypeName(FName Name);
 
 	/** Mark the beginning of the type parameters for the last added type. */
