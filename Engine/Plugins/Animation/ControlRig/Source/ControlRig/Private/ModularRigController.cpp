@@ -8,6 +8,7 @@
 #include "ModularRigRuleManager.h"
 #include "Misc/DefaultValueHelper.h"
 #include "Rigs/RigHierarchyController.h"
+#include "RigVMFunctions/Math/RigVMMathLibrary.h"
 
 #include UE_INLINE_GENERATED_CPP_BY_NAME(ModularRigController)
 
@@ -1126,6 +1127,94 @@ FString UModularRigController::ReparentModule(const FString& InModulePath, const
 	Notify(EModularRigNotification::ModuleReparented, Module);
 	
 	return NewPath;
+}
+
+FString UModularRigController::MirrorModule(const FString& InModulePath, const FRigVMMirrorSettings& InSettings, bool bSetupUndo)
+{
+	FRigModuleReference* OriginalModule = FindModule(InModulePath);
+	if (!OriginalModule || !OriginalModule->Class.IsValid())
+	{
+		return FString();
+	}
+
+	FString NewModuleName = OriginalModule->Name.ToString();
+	if (!InSettings.SearchString.IsEmpty())
+	{
+		NewModuleName = NewModuleName.Replace(*InSettings.SearchString, *InSettings.ReplaceString, ESearchCase::CaseSensitive);
+	}
+
+	FString NewModulePath = AddModule(*NewModuleName, OriginalModule->Class.Get(), OriginalModule->ParentPath, bSetupUndo);
+	FRigModuleReference* NewModule = FindModule(NewModulePath);
+	if (!NewModule)
+	{
+		return FString();
+	}
+
+	const TMap<FRigElementKey, FRigElementKey> OriginalConnectionMap = Model->Connections.GetModuleConnectionMap(InModulePath);
+	for (const TPair<FRigElementKey, FRigElementKey>& Pair : OriginalConnectionMap)
+	{
+		FString OriginalTargetPath = Pair.Value.Name.ToString();
+		FString NewTargetPath = OriginalTargetPath.Replace(*InSettings.SearchString, *InSettings.ReplaceString, ESearchCase::CaseSensitive);
+		FRigElementKey NewTargetKey(*NewTargetPath, Pair.Value.Type);
+
+		FString NewConnectorPath = URigHierarchy::JoinNameSpace(NewModulePath, Pair.Key.Name.ToString());
+		FRigElementKey NewConnectorKey(*NewConnectorPath, ERigElementType::Connector);
+		ConnectConnectorToElement(NewConnectorKey, NewTargetKey, bSetupUndo);
+	}
+
+	for (const TPair<FName, FString>& Pair : OriginalModule->Bindings)
+	{
+		FString NewSourcePath = Pair.Value.Replace(*InSettings.SearchString, *InSettings.ReplaceString, ESearchCase::CaseSensitive);
+		BindModuleVariable(NewModulePath, Pair.Key, NewSourcePath, bSetupUndo);
+	}
+
+	for (const TPair<FName, FString>& Pair : OriginalModule->ConfigValues)
+	{
+#if WITH_EDITOR
+		const FProperty* Property = NewModule->Class->FindPropertyByName(Pair.Key);
+		if (!Property)
+		{
+			continue;
+		}
+
+		FString CPPType = Property->GetCPPType();
+		bool bIsVector;
+		if (CPPType == TEXT("FVector"))
+		{
+			bIsVector = true;
+		}
+		else if (CPPType == TEXT("FTransform"))
+		{
+			bIsVector = false;
+		}
+		else
+		{
+			SetConfigValueInModule(NewModulePath, Pair.Key, Pair.Value, bSetupUndo);
+			continue;
+		}
+
+		FString NewValue;
+		if (bIsVector)
+		{
+			FVector Value;
+			FBlueprintEditorUtils::PropertyValueFromString_Direct(Property, Pair.Value, (uint8*)&Value);
+			Value = InSettings.MirrorVector(Value);
+			FBlueprintEditorUtils::PropertyValueToString_Direct(Property, (uint8*)&Value, NewValue, nullptr);
+		}
+		else
+		{
+			FTransform Value;
+			FBlueprintEditorUtils::PropertyValueFromString_Direct(Property, Pair.Value, (uint8*)&Value);
+			Value = InSettings.MirrorTransform(Value);
+			FBlueprintEditorUtils::PropertyValueToString_Direct(Property, (uint8*)&Value, NewValue, nullptr);
+		}
+		SetConfigValueInModule(NewModulePath, Pair.Key, NewValue, bSetupUndo);
+#else
+		SetConfigValueInModule(NewModulePath, Pair.Key, Pair.Value, bSetupUndo);
+#endif
+	}
+	
+	return NewModulePath;
 }
 
 bool UModularRigController::SetModuleShortName(const FString& InModulePath, const FString& InNewShortName, bool bSetupUndo)

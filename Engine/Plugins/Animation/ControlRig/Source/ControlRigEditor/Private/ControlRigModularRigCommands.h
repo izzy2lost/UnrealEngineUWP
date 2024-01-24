@@ -27,6 +27,9 @@ public:
 	/** Delete Module */
 	TSharedPtr< FUICommandInfo > DeleteModuleItem;
 
+	/** Mirror Module */
+	TSharedPtr< FUICommandInfo > MirrorModuleItem;
+
 	/**
 	 * Initialize commands
 	 */
