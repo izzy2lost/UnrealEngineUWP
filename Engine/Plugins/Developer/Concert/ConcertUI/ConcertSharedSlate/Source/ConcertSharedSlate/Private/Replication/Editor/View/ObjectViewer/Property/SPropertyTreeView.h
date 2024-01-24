@@ -89,6 +89,7 @@ namespace UE::ConcertSharedSlate
 
 		/** Runs all filters through this item */
 		bool PassesFilters(const TSharedPtr<FReplicatedPropertyData>& ReplicatedPropertyData) const;
+		bool PassesAnyFilters(const TSharedPtr<FReplicatedPropertyData>& ReplicatedPropertyData) const;
 
 		/** Gets the message to display when all properties are filtered out. */
 		FText GetAllFilteredText() const;
