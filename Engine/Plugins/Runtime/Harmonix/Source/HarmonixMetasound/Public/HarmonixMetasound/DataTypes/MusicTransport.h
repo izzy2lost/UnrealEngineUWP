@@ -82,7 +82,7 @@ namespace HarmonixMetasound
 		NumStates
 	};
 
-	class FMusicTransportControllable
+	class HARMONIXMETASOUND_API FMusicTransportControllable
 	{
 	public:
 		FMusicTransportControllable(EMusicPlayerTransportState InitialState);
