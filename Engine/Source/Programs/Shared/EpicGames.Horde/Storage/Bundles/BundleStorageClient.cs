@@ -10,6 +10,7 @@ using EpicGames.Core;
 using EpicGames.Horde.Storage.Backends;
 using EpicGames.Horde.Storage.Bundles.V1;
 using EpicGames.Horde.Storage.Bundles.V2;
+using EpicGames.Horde.Storage.ObjectStores;
 using Microsoft.Extensions.Logging;
 
 namespace EpicGames.Horde.Storage.Bundles
@@ -23,6 +24,7 @@ namespace EpicGames.Horde.Storage.Bundles
 		readonly BundleCache _cache;
 		readonly PacketReaderStats _packetReaderStats = new PacketReaderStats();
 		readonly Bundles.V1.BundleReader _bundleReader;
+		readonly IDisposable? _ownedResources;
 
 		internal Bundles.V1.BundleReader BundleReader => _bundleReader;
 
@@ -49,17 +51,18 @@ namespace EpicGames.Horde.Storage.Bundles
 		/// <summary>
 		/// Constructor
 		/// </summary>
-		public BundleStorageClient(IStorageBackend backend, BundleCache cache, ILogger logger)
+		public BundleStorageClient(IStorageBackend backend, BundleCache cache, ILogger logger, IDisposable? ownedResources = null)
 		{
 			_backend = backend;
 			_cache = cache;
 			_bundleReader = new Bundles.V1.BundleReader(this, cache, logger);
+			_ownedResources = ownedResources;
 		}
 
 		/// <inheritdoc/>
 		public void Dispose()
 		{
-			_backend.Dispose();
+			_ownedResources?.Dispose();
 		}
 
 		/// <summary>
@@ -76,8 +79,9 @@ namespace EpicGames.Horde.Storage.Bundles
 		/// </summary>
 		public static BundleStorageClient CreateFromDirectory(DirectoryReference rootDir, BundleCache cache, ILogger logger)
 		{
-			FileStorageBackend backend = new FileStorageBackend(rootDir, logger);
-			return new BundleStorageClient(backend, cache, logger);
+			MemoryMappedFileCache memoryMappedFileCache = new MemoryMappedFileCache();
+			FileStorageBackend backend = new FileStorageBackend(new FileObjectStore(rootDir, memoryMappedFileCache), logger);
+			return new BundleStorageClient(backend, cache, logger, memoryMappedFileCache);
 		}
 
 		/// <summary>

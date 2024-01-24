@@ -13,10 +13,15 @@ namespace EpicGames.Horde.Storage.ObjectStores
 	/// <summary>
 	/// Storage backend that utilizes the local filesystem
 	/// </summary>
-	public sealed class FileObjectStore : IObjectStore, IDisposable
+	public sealed class FileObjectStore : IObjectStore
 	{
 		readonly DirectoryReference _baseDir;
 		readonly MemoryMappedFileCache _mappedFileCache;
+
+		/// <summary>
+		/// Accessor for the base directory
+		/// </summary>
+		public DirectoryReference BaseDir => _baseDir;
 
 		/// <inheritdoc/>
 		public bool SupportsRedirects => false;
@@ -25,18 +30,13 @@ namespace EpicGames.Horde.Storage.ObjectStores
 		/// Constructor
 		/// </summary>
 		/// <param name="baseDir">Base directory for the store</param>
-		public FileObjectStore(DirectoryReference baseDir)
+		/// <param name="mappedFileCache">Cache for memory mapped files</param>
+		public FileObjectStore(DirectoryReference baseDir, MemoryMappedFileCache mappedFileCache)
 		{
 			_baseDir = baseDir;
-			_mappedFileCache = new MemoryMappedFileCache();
+			_mappedFileCache = mappedFileCache;
 
 			DirectoryReference.CreateDirectory(_baseDir);
-		}
-
-		/// <inheritdoc/>
-		public void Dispose()
-		{
-			_mappedFileCache.Dispose();
 		}
 
 		/// <summary>
@@ -174,5 +174,30 @@ namespace EpicGames.Horde.Storage.ObjectStores
 		/// <inheritdoc/>
 		public void GetStats(StorageStats stats) { }
 	}
-}
 
+	/// <summary>
+	/// Storage backend that utilizes the local filesystem
+	/// </summary>
+	public sealed class FileObjectStoreFactory : IDisposable
+	{
+		readonly MemoryMappedFileCache _mappedFileCache;
+
+		/// <summary>
+		/// Constructor
+		/// </summary>
+		public FileObjectStoreFactory()
+		{
+			_mappedFileCache = new MemoryMappedFileCache();
+		}
+
+		/// <inheritdoc/>
+		public void Dispose()
+			=> _mappedFileCache.Dispose();
+
+		/// <summary>
+		/// Create a new store instance with the given base directory
+		/// </summary>
+		public FileObjectStore CreateStore(DirectoryReference baseDir)
+			=> new FileObjectStore(baseDir, _mappedFileCache);
+	}
+}

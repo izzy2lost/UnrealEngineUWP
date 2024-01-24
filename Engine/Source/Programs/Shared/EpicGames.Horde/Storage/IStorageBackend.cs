@@ -12,7 +12,7 @@ namespace EpicGames.Horde.Storage
 	/// <summary>
 	/// Interface for a low-level storage backend.
 	/// </summary>
-	public interface IStorageBackend : IDisposable
+	public interface IStorageBackend
 	{
 		#region Blobs
 

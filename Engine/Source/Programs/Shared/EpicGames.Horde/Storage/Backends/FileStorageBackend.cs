@@ -25,19 +25,21 @@ namespace EpicGames.Horde.Storage.Backends
 		/// <summary>
 		/// Constructor
 		/// </summary>
-		/// <param name="rootDir">Base directory for the store</param>
+		/// <param name="objectStore">The backing object store</param>
 		/// <param name="logger">Logger interface</param>
-		public FileStorageBackend(DirectoryReference rootDir, ILogger logger)
+		public FileStorageBackend(FileObjectStore objectStore, ILogger logger)
 		{
-			_rootDir = rootDir;
-			_objectStore = new FileObjectStore(rootDir);
+			_rootDir = objectStore.BaseDir;
+			_objectStore = objectStore;
 			_logger = logger;
 		}
 
-		/// <inheritdoc/>
-		public void Dispose()
+		/// <summary>
+		/// Constructor
+		/// </summary>
+		public FileStorageBackend(DirectoryReference rootDir, MemoryMappedFileCache memoryMappedFileCache, ILogger logger)
+			: this(new FileObjectStore(rootDir, memoryMappedFileCache), logger)
 		{
-			_objectStore.Dispose();
 		}
 
 		#region Blobs

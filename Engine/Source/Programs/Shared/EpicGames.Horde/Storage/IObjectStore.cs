@@ -12,7 +12,7 @@ namespace EpicGames.Horde.Storage
 	/// <summary>
 	/// Interface for a object storage service.
 	/// </summary>
-	public interface IObjectStore : IDisposable
+	public interface IObjectStore
 	{
 		/// <summary>
 		/// Whether this storage backend supports HTTP redirects for reads and writes
@@ -112,7 +112,6 @@ namespace EpicGames.Horde.Storage
 			public bool SupportsRedirects => _inner.SupportsRedirects;
 
 			public TypedObjectStore(IObjectStore inner) => _inner = inner;
-			public void Dispose() => _inner.Dispose();
 
 			public Task<Stream> OpenAsync(ObjectKey key, int offset, int? length, CancellationToken cancellationToken) => _inner.OpenAsync(key, offset, length, cancellationToken);
 			public Task<IReadOnlyMemoryOwner<byte>> ReadAsync(ObjectKey key, int offset, int? length, CancellationToken cancellationToken) => _inner.ReadAsync(key, offset, length, cancellationToken);

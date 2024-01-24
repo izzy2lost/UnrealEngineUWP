@@ -60,7 +60,7 @@ namespace EpicGames.Horde.Tests
 
 		static async Task<byte[]> CreateBundleNormalAsync()
 		{
-			using MemoryStorageBackend memoryStore = new MemoryStorageBackend();
+			MemoryStorageBackend memoryStore = new MemoryStorageBackend();
 			using BundleStorageClient store = new BundleStorageClient(memoryStore, BundleCache.None, NullLogger.Instance);
 			await using IBlobWriter writer = store.CreateBlobWriter(options: new BundleOptions { MaxVersion = BundleVersion.ImportHashes, CompressionFormat = BundleCompressionFormat.None });
 
@@ -98,9 +98,7 @@ namespace EpicGames.Horde.Tests
 		[TestMethod]
 		public async Task TestTreeAsync()
 		{
-			using IMemoryCache cache = new MemoryCache(new MemoryCacheOptions());
-
-			using MemoryStorageBackend blobStore = new MemoryStorageBackend();
+			MemoryStorageBackend blobStore = new MemoryStorageBackend();
 			using BundleStorageClient bundleStore = new BundleStorageClient(blobStore, BundleCache.None, NullLogger.Instance);
 
 			await TestTreeAsync(bundleStore, new BundleOptions { MaxBlobSize = 1024 * 1024 });
@@ -112,9 +110,7 @@ namespace EpicGames.Horde.Tests
 		[TestMethod]
 		public async Task TestTreeSeparateBlobsAsync()
 		{
-			using IMemoryCache cache = new MemoryCache(new MemoryCacheOptions());
-
-			using MemoryStorageBackend blobStore = new MemoryStorageBackend();
+			MemoryStorageBackend blobStore = new MemoryStorageBackend();
 			using BundleStorageClient bundleStore = new BundleStorageClient(blobStore, BundleCache.None, NullLogger.Instance);
 
 			await TestTreeAsync(bundleStore, new BundleOptions { MaxBlobSize = 1 });
@@ -333,8 +329,7 @@ namespace EpicGames.Horde.Tests
 		[TestMethod]
 		public async Task StreamTestAsync()
 		{
-			using MemoryStorageBackend memoryStore = new MemoryStorageBackend();
-			using BundleStorageClient store = new BundleStorageClient(memoryStore, BundleCache.None, NullLogger.Instance);
+			using BundleStorageClient store = BundleStorageClient.CreateInMemory(NullLogger.Instance);
 
 			const int Length = 4096;
 
@@ -373,9 +368,7 @@ namespace EpicGames.Horde.Tests
 		[TestMethod]
 		public async Task LargeFileTestAsync()
 		{
-			using IMemoryCache cache = new MemoryCache(new MemoryCacheOptions());
-			using MemoryStorageBackend memoryStore = new MemoryStorageBackend();
-			using BundleStorageClient store = new BundleStorageClient(memoryStore, BundleCache.None, NullLogger.Instance);
+			using BundleStorageClient store = BundleStorageClient.CreateInMemory(NullLogger.Instance);
 
 			const int Length = 1024;
 			const int Copies = 4096;

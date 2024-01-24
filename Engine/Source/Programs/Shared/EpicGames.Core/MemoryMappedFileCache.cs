@@ -11,7 +11,7 @@ namespace EpicGames.Core
 	/// <summary>
 	/// Manages a cache of memory mapped file handles
 	/// </summary>
-	public class MemoryMappedFileCache
+	public sealed class MemoryMappedFileCache : IDisposable
 	{
 		// Item which has been opened from the cache using a memory mapped file
 		class MappedFile : IDisposable

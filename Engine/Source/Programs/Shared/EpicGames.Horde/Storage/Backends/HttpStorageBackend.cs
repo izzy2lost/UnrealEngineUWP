@@ -44,11 +44,6 @@ namespace EpicGames.Horde.Storage.Backends
 			_logger = logger;
 		}
 
-		/// <inheritdoc/>
-		public void Dispose()
-		{
-		}
-
 		#region Blobs
 
 		/// <inheritdoc/>

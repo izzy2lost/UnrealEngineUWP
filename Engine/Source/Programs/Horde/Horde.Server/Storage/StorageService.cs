@@ -49,7 +49,6 @@ namespace Horde.Server.Storage
 			readonly StorageService _outer;
 			readonly IObjectStore _store;
 			readonly NamespaceConfig _config;
-			RefCount _refCount;
 
 			public NamespaceConfig Config => _config;
 			public NamespaceId NamespaceId => _config.Id;
@@ -62,39 +61,9 @@ namespace Horde.Server.Storage
 				_outer = outer;
 				_store = store;
 				_config = config;
-				_refCount = new RefCount();
 
 				SupportsRedirects = store.SupportsRedirects && !config.EnableAliases;
 			}
-
-			public StorageBackendImpl(StorageBackendImpl other)
-			{
-				_outer = other._outer;
-				_store = other._store;
-				_config = other._config;
-				_refCount = other._refCount;
-
-				SupportsRedirects = other.SupportsRedirects;
-
-				_refCount.AddRef();
-			}
-
-			/// <inheritdoc/>
-			public void Dispose()
-			{
-				if (_refCount != null)
-				{
-					int remainingCount = _refCount.Release();
-					if (remainingCount == 0)
-					{
-						_store.Dispose();
-					}
-					_refCount = null!;
-				}
-			}
-
-			public StorageBackendImpl AddRef()
-				=> new StorageBackendImpl(this);
 
 			#region Blobs
 
@@ -188,25 +157,14 @@ namespace Horde.Server.Storage
 			public void GetStats(StorageStats stats) => _store.GetStats(stats);
 		}
 
-		class State : IDisposable
+		class State
 		{
 			public GlobalConfig Config { get; }
 			public Dictionary<NamespaceId, NamespaceInfo> Namespaces { get; } = new Dictionary<NamespaceId, NamespaceInfo>();
-			public int _refCount = 1;
 
 			public State(GlobalConfig config)
 			{
 				Config = config;
-			}
-
-			public void AddRef() => Interlocked.Increment(ref _refCount);
-
-			public void Release()
-			{
-				if (Interlocked.Decrement(ref _refCount) == 0)
-				{
-					Dispose();
-				}
 			}
 
 			public IStorageBackend? TryCreateBackend(NamespaceId namespaceId)
@@ -216,140 +174,11 @@ namespace Horde.Server.Storage
 				{
 					return null;
 				}
-				return new StorageBackendImpl(namespaceInfo.Backend);
-			}
-
-			public void Dispose()
-			{
-				foreach (NamespaceInfo namespaceInfo in Namespaces.Values)
-				{
-					namespaceInfo.Dispose();
-				}
+				return namespaceInfo.Backend;
 			}
 		}
 
-		sealed class ScopedState : IDisposable
-		{
-			State? _inner;
-
-			public State Value => _inner ?? throw new ObjectDisposedException(GetType().Name);
-
-			public ScopedState(State state)
-			{
-				_inner = state;
-				_inner.AddRef();
-			}
-
-			public void Dispose()
-			{
-				_inner?.Release();
-				_inner = null;
-			}
-
-			public IStorageBackend? TryCreateBackend(NamespaceId namespaceId) => _inner?.TryCreateBackend(namespaceId);
-		}
-
-		/// <summary>
-		/// Wraps another storage client to add shared ownership semantics
-		/// </summary>
-		class SharedStorageClient : IStorageClient
-		{
-			class RefCount
-			{
-				public int _value = 1;
-			}
-
-			readonly IStorageClient _inner;
-			RefCount? _refCount;
-
-			/// <summary>
-			/// Create a new 
-			/// </summary>
-			/// <param name="inner"></param>
-			public SharedStorageClient(IStorageClient inner)
-			{
-				_inner = inner;
-				_refCount = new RefCount();
-			}
-
-			/// <summary>
-			/// Adds a new 
-			/// </summary>
-			/// <param name="other"></param>
-			public SharedStorageClient(SharedStorageClient other)
-			{
-				_inner = other._inner;
-				_refCount = other._refCount;
-
-				if (_refCount != null)
-				{
-					Interlocked.Increment(ref _refCount._value);
-				}
-			}
-
-			/// <summary>
-			/// Creates 
-			/// </summary>
-			/// <returns></returns>
-			public SharedStorageClient AddRef() => new SharedStorageClient(this);
-
-			/// <inheritdoc/>
-			public void Dispose()
-			{
-				if (_refCount != null)
-				{
-					if (Interlocked.Decrement(ref _refCount._value) == 0)
-					{
-						_inner.Dispose();
-					}
-					_refCount = null;
-				}
-			}
-
-			#region Blobs
-
-			/// <inheritdoc/>
-			public IBlobHandle CreateBlobHandle(BlobLocator locator) => _inner.CreateBlobHandle(locator);
-
-			/// <inheritdoc/>
-			public IBlobWriter CreateBlobWriter(string? basePath = null) => _inner.CreateBlobWriter(basePath);
-
-			#endregion
-
-			#region Alias
-
-			/// <inheritdoc/>
-			public Task AddAliasAsync(string name, IBlobHandle handle, int rank = 0, ReadOnlyMemory<byte> data = default, CancellationToken cancellationToken = default) => _inner.AddAliasAsync(name, handle, rank, data, cancellationToken);
-
-			/// <inheritdoc/>
-			public Task RemoveAliasAsync(string name, IBlobHandle handle, CancellationToken cancellationToken = default) => _inner.RemoveAliasAsync(name, handle, cancellationToken);
-
-			/// <inheritdoc/>
-			public Task<BlobAlias[]> FindAliasesAsync(string name, int? maxResults = null, CancellationToken cancellationToken = default) => _inner.FindAliasesAsync(name, maxResults, cancellationToken);
-
-			#endregion
-
-			#region Refs
-
-			/// <inheritdoc/>
-			public Task<IBlobHandle?> TryReadRefAsync(RefName name, RefCacheTime cacheTime = default, CancellationToken cancellationToken = default) => _inner.TryReadRefAsync(name, cacheTime, cancellationToken);
-
-			/// <inheritdoc/>
-			public Task WriteRefAsync(RefName name, IBlobHandle handle, RefOptions? options = null, CancellationToken cancellationToken = default) => _inner.WriteRefAsync(name, handle, options, cancellationToken);
-
-			/// <inheritdoc/>
-			public Task<bool> DeleteRefAsync(RefName name, CancellationToken cancellationToken = default) => _inner.DeleteRefAsync(name, cancellationToken);
-
-			#endregion
-
-			/// <inheritdoc/>
-			public void GetStats(StorageStats stats)
-			{
-				_inner.GetStats(stats);
-			}
-		}
-
-		class NamespaceInfo : IDisposable
+		class NamespaceInfo
 		{
 			public NamespaceId Id => Config.Id;
 			public NamespaceConfig Config { get; }
@@ -361,11 +190,6 @@ namespace Horde.Server.Storage
 				Config = config;
 				Store = store;
 				Backend = backend;
-			}
-
-			public void Dispose()
-			{
-				Backend.Dispose();
 			}
 		}
 
@@ -572,12 +396,6 @@ namespace Horde.Server.Storage
 		/// <inheritdoc/>
 		public async ValueTask DisposeAsync()
 		{
-			if (_lastState != null)
-			{
-				_lastState.Dispose();
-				_lastState = null;
-			}
-
 			await _blobTicker.DisposeAsync();
 			await _refTicker.DisposeAsync();
 			await _gcTicker.DisposeAsync();
@@ -635,7 +453,7 @@ namespace Horde.Server.Storage
 		/// <inheritdoc/>
 		public IStorageBackend? TryCreateBackend(GlobalConfig globalConfig, NamespaceId namespaceId)
 		{
-			using ScopedState snapshot = CreateState(globalConfig);
+			State snapshot = CreateState(globalConfig);
 			return snapshot.TryCreateBackend(namespaceId);
 		}
 
@@ -661,7 +479,7 @@ namespace Horde.Server.Storage
 
 		#region Config
 
-		ScopedState CreateState(GlobalConfig globalConfig)
+		State CreateState(GlobalConfig globalConfig)
 		{
 			lock (_lockObject)
 			{
@@ -675,21 +493,16 @@ namespace Horde.Server.Storage
 					foreach (NamespaceConfig namespaceConfig in storageConfig.Namespaces)
 					{
 						NamespaceId namespaceId = namespaceConfig.Id;
-
-						IObjectStore? objectStore = null;
-						StorageBackendImpl? backend = null;
 						try
 						{
-							objectStore = _objectStoreFactory.CreateObjectStore(namespaceConfig.BackendConfig);
+							IObjectStore objectStore = _objectStoreFactory.CreateObjectStore(namespaceConfig.BackendConfig);
 
 							if (!String.IsNullOrEmpty(namespaceConfig.Prefix))
 							{
 								objectStore = new PrefixedObjectStore(namespaceConfig.Prefix, objectStore);
 							}
 
-#pragma warning disable CA2000 // Dispose objects before losing scope
-							backend = new StorageBackendImpl(this, namespaceConfig, objectStore);
-#pragma warning restore CA2000 // Dispose objects before losing scope
+							StorageBackendImpl backend = new StorageBackendImpl(this, namespaceConfig, objectStore);
 
 							NamespaceInfo namespaceInfo = new NamespaceInfo(namespaceConfig, objectStore, backend);
 							nextState.Namespaces.Add(namespaceId, namespaceInfo);
@@ -697,17 +510,13 @@ namespace Horde.Server.Storage
 						catch (Exception ex)
 						{
 							_logger.LogError(ex, "Unable to create storage backend for {NamespaceId}: ", namespaceId);
-							backend?.Dispose();
-							objectStore?.Dispose();
 						}
 					}
-
-					_lastState?.Release();
 
 					_lastState = nextState;
 					_lastConfigRevision = globalConfig.Revision;
 				}
-				return new ScopedState(_lastState);
+				return _lastState;
 			}
 		}
 
@@ -752,7 +561,7 @@ namespace Horde.Server.Storage
 			DateTime utcNow = _clock.UtcNow;
 
 			// Get the current state of the storage system
-			using ScopedState scopedState = CreateState(_globalConfig.CurrentValue);
+			State state = CreateState(_globalConfig.CurrentValue);
 
 			Dictionary<NamespaceId, BundleStorageClient> cachedClients = new();
 			try
@@ -767,18 +576,16 @@ namespace Horde.Server.Storage
 						foreach (BlobInfo blobInfo in cursor.Current)
 						{
 							NamespaceInfo? namespaceInfo;
-							if (scopedState.Value.Namespaces.TryGetValue(blobInfo.NamespaceId, out namespaceInfo))
+							if (state.Namespaces.TryGetValue(blobInfo.NamespaceId, out namespaceInfo))
 							{
 								List<ObjectId> importInfoIds = new List<ObjectId>();
 
-#pragma warning disable CA2000
 								BundleStorageClient? storageClient;
 								if (!cachedClients.TryGetValue(namespaceInfo.Id, out storageClient))
 								{
-									storageClient = new BundleStorageClient(namespaceInfo.Backend.AddRef(), _bundleCache, _logger);
+									storageClient = new BundleStorageClient(namespaceInfo.Backend, _bundleCache, _logger);
 									cachedClients.Add(namespaceInfo.Id, storageClient);
 								}
-#pragma warning restore CA2000
 
 								IEnumerable<BlobLocator> importLocators = await storageClient.ReadBundleReferencesAsync(blobInfo.Locator, cancellationToken);
 								foreach (BlobLocator importLocator in importLocators)
@@ -1068,8 +875,8 @@ namespace Horde.Server.Storage
 			{
 				GlobalConfig globalConfig = _globalConfig.CurrentValue;
 
-				using ScopedState scopedState = CreateState(globalConfig);
-				StorageConfig storageConfig = scopedState.Value.Config.Storage;
+				State state = CreateState(globalConfig);
+				StorageConfig storageConfig = state.Config.Storage;
 
 				// Synchronize the list of configured namespaces with the GC state object
 				GcState gcState = await _gcState.GetAsync();
@@ -1117,7 +924,7 @@ namespace Horde.Server.Storage
 							{
 								try
 								{
-									await TickGcForNamespaceAsync(scopedState.Value.Namespaces[namespaceId], gcState.LastImportBlobInfoId, utcNow, cancellationToken);
+									await TickGcForNamespaceAsync(state.Namespaces[namespaceId], gcState.LastImportBlobInfoId, utcNow, cancellationToken);
 								}
 								catch (Exception ex)
 								{

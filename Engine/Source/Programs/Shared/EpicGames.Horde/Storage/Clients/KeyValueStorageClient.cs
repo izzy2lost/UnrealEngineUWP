@@ -126,7 +126,6 @@ namespace EpicGames.Horde.Storage.Clients
 		/// <inheritdoc/>
 		public void Dispose()
 		{
-			_backend.Dispose();
 		}
 
 		/// <summary>

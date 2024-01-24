@@ -296,9 +296,9 @@ namespace Horde.Server
 			switch (options.Type ?? StorageBackendType.FileSystem)
 			{
 				case StorageBackendType.FileSystem:
-					return new FileObjectStore(DirectoryReference.Combine(ServerApp.DataDir, options.BaseDir ?? "Storage"));
+					return sp.GetRequiredService<FileObjectStoreFactory>().CreateStore(DirectoryReference.Combine(ServerApp.DataDir, options.BaseDir ?? "Storage"));
 				case StorageBackendType.Aws:
-					return new AwsObjectStore(sp.GetRequiredService<IConfiguration>(), options, sp.GetRequiredService<ILogger<AwsObjectStore>>());
+					return sp.GetRequiredService<AwsObjectStoreFactory>().CreateStore(options);
 				case StorageBackendType.Memory:
 					return new MemoryObjectStore();
 				default:
@@ -597,6 +597,8 @@ namespace Horde.Server
 
 			// Storage providers
 			services.AddSingleton<IObjectStoreFactory, ObjectStoreFactory>();
+			services.AddSingleton<AwsObjectStoreFactory>();
+			services.AddSingleton<FileObjectStoreFactory>();
 			services.AddSingleton(sp => CreateObjectStore(sp, settings.LogStorage).ForType<PersistentLogStorage>());
 			services.AddSingleton(sp => CreateObjectStore(sp, settings.ArtifactStorage).ForType<ArtifactCollectionV1>());
 

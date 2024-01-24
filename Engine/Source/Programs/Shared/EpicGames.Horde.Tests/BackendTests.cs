@@ -39,7 +39,7 @@ namespace EpicGames.Horde.Tests
 		[TestMethod]
 		public async Task TestMemoryBackendAsync()
 		{
-			using MemoryStorageBackend backend = new MemoryStorageBackend();
+			MemoryStorageBackend backend = new MemoryStorageBackend();
 			await TestBackendAsync(backend);
 		}
 
@@ -48,7 +48,8 @@ namespace EpicGames.Horde.Tests
 		{
 			using (TempDir tempDir = new TempDir("Cache"))
 			{
-				using FileStorageBackend backend = new FileStorageBackend(tempDir.Location, NullLogger.Instance);
+				using MemoryMappedFileCache memoryMappedFileCache = new MemoryMappedFileCache();
+				FileStorageBackend backend = new FileStorageBackend(tempDir.Location, memoryMappedFileCache, NullLogger.Instance);
 				await TestBackendAsync(backend);
 			}
 		}
@@ -58,7 +59,8 @@ namespace EpicGames.Horde.Tests
 		{
 			using (TempDir tempDir = new TempDir("Cache"))
 			{
-				using FileStorageBackend backend = new FileStorageBackend(tempDir.Location, NullLogger.Instance);
+				using MemoryMappedFileCache memoryMappedFileCache = new MemoryMappedFileCache();
+				FileStorageBackend backend = new FileStorageBackend(tempDir.Location, memoryMappedFileCache, NullLogger.Instance);
 				BlobLocator path = await backend.WriteBytesAsync(Encoding.UTF8.GetBytes("hello world"));
 
 				using (IReadOnlyMemoryOwner<byte> handle = await backend.ReadBlobAsync(path, 0, null))
@@ -83,8 +85,8 @@ namespace EpicGames.Horde.Tests
 			{
 				using StorageBackendCache cache = new StorageBackendCache(tempDir.Location, 12, NullLogger.Instance);
 
-				using MemoryStorageBackend memoryBackend = new MemoryStorageBackend();
-				using IStorageBackend cacheBackend = cache.CreateWrapper("", memoryBackend);
+				MemoryStorageBackend memoryBackend = new MemoryStorageBackend();
+				IStorageBackend cacheBackend = cache.CreateWrapper("", memoryBackend);
 
 				await TestBackendAsync(cacheBackend);
 

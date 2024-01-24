@@ -63,7 +63,7 @@ namespace Horde.Server.Tools
 				return Forbid(ToolAclAction.UploadTool, id);
 			}
 
-			using IStorageBackend storageBackend = _toolCollection.CreateStorageBackend(tool);
+			IStorageBackend storageBackend = _toolCollection.CreateStorageBackend(tool);
 			return await StorageController.WriteBlobAsync(storageBackend, file, cancellationToken: cancellationToken);
 		}
 
@@ -394,7 +394,7 @@ namespace Horde.Server.Tools
 				return BadRequest("Invalid blob id for tool");
 			}
 
-			using IStorageBackend storageBackend = _toolCollection.CreateStorageBackend(tool);
+			IStorageBackend storageBackend = _toolCollection.CreateStorageBackend(tool);
 			return StorageController.ReadBlobInternalAsync(storageBackend, locator, Request.Headers, cancellationToken);
 		}
 

@@ -117,7 +117,7 @@ namespace Horde.Server.Logs
 				return Forbid();
 			}
 
-			using IStorageBackend storageBackend = _storageService.CreateBackend(Namespace.Logs);
+			IStorageBackend storageBackend = _storageService.CreateBackend(Namespace.Logs);
 			return await StorageController.WriteBlobAsync(storageBackend, file, $"{logFile.RefName}", cancellationToken);
 		}
 

@@ -102,7 +102,7 @@ namespace Horde.Server.Storage.ObjectStores
 	/// <summary>
 	/// Storage backend using AWS S3
 	/// </summary>
-	public sealed class AwsObjectStore : IObjectStore, IDisposable
+	public sealed class AwsObjectStore : IObjectStore
 	{
 		/// <summary>
 		/// S3 Client
@@ -135,16 +135,15 @@ namespace Horde.Server.Storage.ObjectStores
 		/// <summary>
 		/// Constructor
 		/// </summary>
-		/// <param name="configuration">Global configuration object</param>
+		/// <param name="client">Client instance</param>
 		/// <param name="options">Storage options</param>
+		/// <param name="semaphore">Semaphore for making requests</param>
 		/// <param name="logger">Logger interface</param>
-		public AwsObjectStore(IConfiguration configuration, IAwsStorageOptions options, ILogger<AwsObjectStore> logger)
+		public AwsObjectStore(IAmazonS3 client, IAwsStorageOptions options, SemaphoreSlim semaphore, ILogger<AwsObjectStore> logger)
 		{
-			AWSOptions awsOptions = GetAwsOptions(configuration, options);
-
-			_client = awsOptions.CreateServiceClient<IAmazonS3>();
+			_client = client;
 			_options = options;
-			_semaphore = new SemaphoreSlim(16);
+			_semaphore = semaphore;
 			_logger = logger;
 
 			_pathPrefix = (_options.AwsBucketPath ?? String.Empty).TrimEnd('/');
@@ -152,58 +151,6 @@ namespace Horde.Server.Storage.ObjectStores
 			{
 				_pathPrefix += '/';
 			}
-
-			logger.LogInformation("Created AWS storage backend for bucket {BucketName} using credentials {Credentials} {CredentialsStr}", options.AwsBucketName, awsOptions.Credentials.GetType(), awsOptions.Credentials.ToString());
-		}
-
-		/// <summary>
-		/// Gets the AWS options 
-		/// </summary>
-		/// <param name="configuration">Global configuration object</param>
-		/// <param name="options">AWS storage options</param>
-		/// <returns></returns>
-		static AWSOptions GetAwsOptions(IConfiguration configuration, IAwsStorageOptions options)
-		{
-			AWSOptions awsOptions = configuration.GetAWSOptions();
-			if (options.AwsRegion != null)
-			{
-				awsOptions.Region = RegionEndpoint.GetBySystemName(options.AwsRegion);
-			}
-
-			switch (options.AwsCredentials ?? AwsCredentialsType.Default)
-			{
-				case AwsCredentialsType.Default:
-					// Using the fallback credentials from the AWS SDK, it will pick up credentials through a number of default mechanisms.
-					awsOptions.Credentials = FallbackCredentialsFactory.GetCredentials();
-					break;
-				case AwsCredentialsType.Profile:
-					if (options.AwsProfile == null)
-					{
-						throw new AwsException($"Missing {nameof(IAwsStorageOptions.AwsProfile)} setting for configuring {nameof(AwsObjectStore)}", null);
-					}
-
-					(string accessKey, string secretAccessKey, string secretToken) = AwsHelper.ReadAwsCredentials(options.AwsProfile);
-					awsOptions.Credentials = new Amazon.SecurityToken.Model.Credentials(accessKey, secretAccessKey, secretToken, DateTime.Now + TimeSpan.FromHours(12));
-					break;
-				case AwsCredentialsType.AssumeRole:
-					if (options.AwsRole == null)
-					{
-						throw new AwsException($"Missing {nameof(IAwsStorageOptions.AwsRole)} setting for configuring {nameof(AwsObjectStore)}", null);
-					}
-					awsOptions.Credentials = new AssumeRoleAWSCredentials(FallbackCredentialsFactory.GetCredentials(), options.AwsRole, "Horde");
-					break;
-				case AwsCredentialsType.AssumeRoleWebIdentity:
-					awsOptions.Credentials = AssumeRoleWithWebIdentityCredentials.FromEnvironmentVariables();
-					break;
-			}
-			return awsOptions;
-		}
-
-		/// <inheritdoc/>
-		public void Dispose()
-		{
-			_client.Dispose();
-			_semaphore.Dispose();
 		}
 
 		class WrappedResponseStream : Stream
@@ -639,5 +586,88 @@ namespace Horde.Server.Storage.ObjectStores
 
 		/// <inheritdoc/>
 		public void GetStats(StorageStats stats) { }
+	}
+
+	/// <summary>
+	/// Factory for constructing <see cref="AwsObjectStore"/> instances
+	/// </summary>
+	public sealed class AwsObjectStoreFactory : IDisposable
+	{
+		readonly IConfiguration _configuration;
+		readonly SemaphoreSlim _semaphore;
+		readonly ILogger<AwsObjectStore> _logger;
+
+		/// <summary>
+		/// Constructor
+		/// </summary>
+		public AwsObjectStoreFactory(IConfiguration configuration, ILogger<AwsObjectStore> logger)
+		{
+			_configuration = configuration;
+			_semaphore = new SemaphoreSlim(16);
+			_logger = logger;
+		}
+
+		/// <inheritdoc/>
+		public void Dispose()
+		{
+			_semaphore.Dispose();
+		}
+
+		/// <summary>
+		/// Create a new object store with the given configuration
+		/// </summary>
+		/// <param name="options">Configuration for the store</param>
+		public AwsObjectStore CreateStore(IAwsStorageOptions options)
+		{
+			AWSOptions awsOptions = GetAwsOptions(_configuration, options);
+
+			IAmazonS3 client = awsOptions.CreateServiceClient<IAmazonS3>();
+			_logger.LogInformation("Created AWS storage backend for bucket {BucketName} using credentials {Credentials} {CredentialsStr}", options.AwsBucketName, awsOptions.Credentials.GetType(), awsOptions.Credentials.ToString());
+
+			return new AwsObjectStore(client, options, _semaphore, _logger);
+		}
+
+		/// <summary>
+		/// Gets the AWS options 
+		/// </summary>
+		/// <param name="configuration">Global configuration object</param>
+		/// <param name="options">AWS storage options</param>
+		/// <returns></returns>
+		static AWSOptions GetAwsOptions(IConfiguration configuration, IAwsStorageOptions options)
+		{
+			AWSOptions awsOptions = configuration.GetAWSOptions();
+			if (options.AwsRegion != null)
+			{
+				awsOptions.Region = RegionEndpoint.GetBySystemName(options.AwsRegion);
+			}
+
+			switch (options.AwsCredentials ?? AwsCredentialsType.Default)
+			{
+				case AwsCredentialsType.Default:
+					// Using the fallback credentials from the AWS SDK, it will pick up credentials through a number of default mechanisms.
+					awsOptions.Credentials = FallbackCredentialsFactory.GetCredentials();
+					break;
+				case AwsCredentialsType.Profile:
+					if (options.AwsProfile == null)
+					{
+						throw new AwsException($"Missing {nameof(IAwsStorageOptions.AwsProfile)} setting for configuring {nameof(AwsObjectStore)}", null);
+					}
+
+					(string accessKey, string secretAccessKey, string secretToken) = AwsHelper.ReadAwsCredentials(options.AwsProfile);
+					awsOptions.Credentials = new Amazon.SecurityToken.Model.Credentials(accessKey, secretAccessKey, secretToken, DateTime.Now + TimeSpan.FromHours(12));
+					break;
+				case AwsCredentialsType.AssumeRole:
+					if (options.AwsRole == null)
+					{
+						throw new AwsException($"Missing {nameof(IAwsStorageOptions.AwsRole)} setting for configuring {nameof(AwsObjectStore)}", null);
+					}
+					awsOptions.Credentials = new AssumeRoleAWSCredentials(FallbackCredentialsFactory.GetCredentials(), options.AwsRole, "Horde");
+					break;
+				case AwsCredentialsType.AssumeRoleWebIdentity:
+					awsOptions.Credentials = AssumeRoleWithWebIdentityCredentials.FromEnvironmentVariables();
+					break;
+			}
+			return awsOptions;
+		}
 	}
 }
