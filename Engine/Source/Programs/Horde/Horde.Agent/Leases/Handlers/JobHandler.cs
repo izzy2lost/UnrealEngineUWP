@@ -431,14 +431,14 @@ namespace Horde.Agent.Leases.Handlers
 					if (res.AbortRequested)
 					{
 						_defaultLogger.LogDebug("Step was aborted by server (JobId={JobId} BatchId={BatchId} StepId={StepId})", jobId, batchId, stepId);
-						stepCancelSource.Cancel();
+						await stepCancelSource.CancelAsync();
 						break;
 					}
 				}
 				catch (RpcException ex)
 				{
 					_defaultLogger.LogError(ex, "Poll for step abort has failed. Aborting (JobId={JobId} BatchId={BatchId} StepId={StepId})", jobId, batchId, stepId);
-					stepCancelSource.Cancel();
+					await stepCancelSource.CancelAsync();
 					break;
 				}
 
