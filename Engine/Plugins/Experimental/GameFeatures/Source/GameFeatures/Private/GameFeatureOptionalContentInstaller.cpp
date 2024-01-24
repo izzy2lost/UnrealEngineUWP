@@ -17,7 +17,7 @@ namespace GameFeatureOptionalContentInstaller
 	static const FStringView ErrorNamespace = TEXTVIEW("GameFeaturePlugin.OptionalDownload.");
 
 	static TAutoConsoleVariable<bool> CVarEnableOptionalContentInstaller(TEXT("GameFeatureOptionalContentInstaller.Enable"), 
-		false,
+		true,
 		TEXT("Enable optional content installer"));
 }
 
