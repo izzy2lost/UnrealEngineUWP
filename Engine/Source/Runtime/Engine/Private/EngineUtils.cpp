@@ -595,7 +595,6 @@ FStripDataFlags::FStripDataFlags( class FArchive& Ar, uint8 InClassFlags /*= 0*/
 			// platform's properties.
 			GlobalStripFlags |= Ar.CookingTarget()->HasEditorOnlyData() ? static_cast<uint8>(FStripDataFlags::EStrippedData::None) : static_cast<uint8>(FStripDataFlags::EStrippedData::EditorOnly);
 			GlobalStripFlags |= Ar.CookingTarget()->AllowAudioVisualData() ? static_cast<uint8>(FStripDataFlags::EStrippedData::None) : static_cast<uint8>(FStripDataFlags::EStrippedData::AudioVisual);
-			GlobalStripFlags |= Ar.CookingTarget()->SupportsFeature(ETargetPlatformFeatures::CanCookPackages) ? static_cast<uint8>(FStripDataFlags::EStrippedData::None) : static_cast<uint8>(FStripDataFlags::EStrippedData::NeededForCooking);
 			ClassStripFlags = InClassFlags;
 		}
 		Ar << GlobalStripFlags;
@@ -640,7 +639,6 @@ FStripDataFlags::FStripDataFlags(FStructuredArchive::FSlot Slot, uint8 InClassFl
 			// platform's properties.
 			GlobalStripFlags |= UnderlyingArchive.IsFilterEditorOnly() ? static_cast<uint8>(FStripDataFlags::EStrippedData::EditorOnly) : static_cast<uint8>(FStripDataFlags::EStrippedData::None);
 			GlobalStripFlags |= !UnderlyingArchive.CookingTarget()->AllowAudioVisualData() ? static_cast<uint8>(FStripDataFlags::EStrippedData::AudioVisual) : static_cast<uint8>(FStripDataFlags::EStrippedData::None);
-			GlobalStripFlags |= UnderlyingArchive.CookingTarget()->SupportsFeature(ETargetPlatformFeatures::CanCookPackages) ? static_cast<uint8>(FStripDataFlags::EStrippedData::None) : static_cast<uint8>(FStripDataFlags::EStrippedData::NeededForCooking);
 			ClassStripFlags = InClassFlags;
 		}
 		Record << SA_VALUE(TEXT("GlobalStripFlags"), GlobalStripFlags);

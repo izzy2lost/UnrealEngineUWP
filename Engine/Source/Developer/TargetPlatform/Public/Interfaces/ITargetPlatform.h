@@ -118,10 +118,7 @@ enum class ETargetPlatformFeatures
 	ShowAsPlatformGroup,
 
 	/** Does the platform allow various connection types to be used (ie: wifi and usb) */
-	SupportsMultipleConnectionTypes,
-
-	/** The platform can cook packages (e.g. CookedCooker) */
-	CanCookPackages
+	SupportsMultipleConnectionTypes
 };
 
 enum class EPlatformAuthentication

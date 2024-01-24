@@ -472,9 +472,6 @@ public:
 		case ETargetPlatformFeatures::Packaging:
 			return false;
 
-		case ETargetPlatformFeatures::CanCookPackages:
-			return false;
-
 		case ETargetPlatformFeatures::TextureStreaming:
 			return TPlatformProperties::SupportsTextureStreaming();
 		case ETargetPlatformFeatures::MeshLODStreaming:
