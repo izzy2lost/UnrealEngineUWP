@@ -22,10 +22,6 @@ bool FLifetime::ShouldKeepAlive()
 	// Check if all sponsors are alive. If no sponsors are alive try to shutdown
 	// the store if it has no active connections. 
 	const bool bShouldKeepAlive = IsAnySponsorActive() || !ShutdownStoreIfNoConnections();
-	if (!bShouldKeepAlive)
-	{
-		TS_LOG("Terminating server, no sponsors or connections active.");
-	}
 	return bShouldKeepAlive;
 }
 
