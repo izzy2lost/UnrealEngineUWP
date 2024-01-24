@@ -471,8 +471,7 @@ void FNiagaraShaderType::AddUniformBufferIncludesToEnvironment(FShaderCompilerEn
  */
 FShader* FNiagaraShaderType::FinishCompileShader(
 	const FSHAHash& ShaderMapHash,
-	const FShaderCompileJob& CurrentJob,
-	const FString& InDebugDescription
+	const FShaderCompileJob& CurrentJob
 	) const
 {
 	check(CurrentJob.bSucceeded);
@@ -483,8 +482,7 @@ FShader* FNiagaraShaderType::FinishCompileShader(
 			static_cast<const FParameters*>(CurrentJob.ShaderParameters.Get()),
 			CurrentJob.Key.PermutationId,
 			CurrentJob.Output,
-			ShaderMapHash,
-			InDebugDescription
+			ShaderMapHash
 		)
 	);
 
@@ -578,14 +576,14 @@ void FNiagaraShaderMap::LoadFromDerivedDataCache(const FNiagaraShaderScript* Scr
 	}
 }
 
-void FNiagaraShaderMap::SaveToDerivedDataCache()
+void FNiagaraShaderMap::SaveToDerivedDataCache(const FNiagaraShaderScript* Script)
 {
 	COOK_STAT(auto Timer = NiagaraShaderCookStats::UsageStats.TimeSyncWork());
 	TArray<uint8> SaveData;
 	FMemoryWriter Ar(SaveData, true);
 	Serialize(Ar);
 
-	GetDerivedDataCacheRef().Put(*GetNiagaraShaderMapKeyString(GetContent()->ShaderMapId, GetShaderPlatform()), SaveData, FStringView(*GetFriendlyName()));
+	GetDerivedDataCacheRef().Put(*GetNiagaraShaderMapKeyString(GetContent()->ShaderMapId, GetShaderPlatform()), SaveData, Script ? Script->GetFriendlyName() : TEXT(""));
 	COOK_STAT(Timer.AddMiss(SaveData.Num()));
 }
 
@@ -620,7 +618,6 @@ void FNiagaraShaderMap::Compile(
 	FNiagaraShaderScript* Script,
 	const FNiagaraShaderMapId& InShaderMapId,
 	TRefCountPtr<FSharedShaderCompilerEnvironment> CompilationEnvironment,
-	const FNiagaraComputeShaderCompilationOutput& InNiagaraCompilationOutput,
 	EShaderPlatform InPlatform,
 	bool bSynchronousCompile,
 	bool bApplyCompletedShaderMapForRendering)
@@ -663,8 +660,6 @@ void FNiagaraShaderMap::Compile(
   
 			// Store the script name for debugging purposes.
 			FNiagaraShaderMapContent* NewContent = new FNiagaraShaderMapContent(InPlatform);
-			NewContent->FriendlyName = Script->GetFriendlyName();
-			NewContent->NiagaraCompilationOutput = InNiagaraCompilationOutput;
 			NewContent->ShaderMapId = InShaderMapId;
 			AssignContent(NewContent);
 
@@ -732,7 +727,7 @@ void FNiagaraShaderMap::Compile(
 			{
 				TArray<int32> CurrentShaderMapId;
 				CurrentShaderMapId.Add(CompilingId);
-				GNiagaraShaderCompilationManager.FinishCompilation(*NewContent->FriendlyName, CurrentShaderMapId);
+				GNiagaraShaderCompilationManager.FinishCompilation(CurrentShaderMapId);
 			}
 		}
 	}
@@ -771,7 +766,6 @@ void FNiagaraShaderMap::CreateCompileJobs(
 
 	// Store the script name for debugging purposes.
 	FNiagaraShaderMapContent* NewContent = new FNiagaraShaderMapContent(InPlatform);
-	NewContent->FriendlyName = FString(FriendlyName);
 	NewContent->ShaderMapId = InShaderMapId;
 	AssignContent(NewContent);
 
@@ -813,7 +807,7 @@ FShader* FNiagaraShaderMap::ProcessCompilationResultsForSingleJob(const TRefCoun
 
 	const FNiagaraShaderType* NiagaraShaderType = CurrentJob->Key.ShaderType->GetNiagaraShaderType();
 	check(NiagaraShaderType);
-	Shader = NiagaraShaderType->FinishCompileShader(ShaderMapHash, *CurrentJob, GetContent()->FriendlyName);
+	Shader = NiagaraShaderType->FinishCompileShader(ShaderMapHash, *CurrentJob);
 	bCompiledSuccessfully = CurrentJob->bSucceeded;
 
 	FNiagaraShader* NiagaraShader = static_cast<FNiagaraShader*>(Shader);
@@ -837,7 +831,7 @@ void FNiagaraShaderMap::ProcessAndFinalizeShaderCompileJob(const TRefCountPtr<FS
 	bCompilationFinalized = true;
 }
 
-bool FNiagaraShaderMap::ProcessCompilationResults(const TArray<FShaderCommonCompileJobPtr>& InCompilationResults, int32& InOutJobIndex, float& TimeBudget)
+bool FNiagaraShaderMap::ProcessCompilationResults(const TArray<FNiagaraShaderScript*>& InScripts, const TArray<FShaderCommonCompileJobPtr>& InCompilationResults, int32& InOutJobIndex, float& TimeBudget)
 {
 	check(InOutJobIndex < InCompilationResults.Num());
 
@@ -864,7 +858,7 @@ bool FNiagaraShaderMap::ProcessCompilationResults(const TArray<FShaderCommonComp
 	{
 		FinalizeContent();
 
-		SaveToDerivedDataCache();
+		SaveToDerivedDataCache(InScripts.IsEmpty() ? nullptr : InScripts.Top());
 		// The shader map can now be used on the rendering thread
 		bCompilationFinalized = true;
 		return true;
@@ -1178,10 +1172,7 @@ const FNiagaraShaderMap* FNiagaraShaderMap::GetShaderMapBeingCompiled(const FNia
 
 FNiagaraShader::FNiagaraShader(const FNiagaraShaderType::CompiledShaderInitializerType& Initializer)
 	: FShader(Initializer)
-	, DebugDescription(Initializer.DebugDescription)
 {
-	check(!DebugDescription.IsEmpty());
-
 	// Cache off requirements for later queries
 	bNeedsViewUniformBuffer = Initializer.ParameterMap.ContainsParameterAllocation(TEXT("View"));
 
