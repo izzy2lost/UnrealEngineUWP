@@ -165,7 +165,7 @@ namespace Horde.Server.Agents
 		public HordeCommon.Rpc.Messages.AgentWorkspace ToRpcMessage(IPerforceServer server, PerforceCredentials? credentials)
 		{
 			// Construct the message
-			HordeCommon.Rpc.Messages.AgentWorkspace result = new ()
+			HordeCommon.Rpc.Messages.AgentWorkspace result = new()
 			{
 				ConfiguredCluster = Cluster, ConfiguredUserName = UserName,
 				ServerAndPort = server.ServerAndPort,
@@ -174,6 +174,7 @@ namespace Horde.Server.Agents
 				Identifier = Identifier,
 				Stream = Stream,
 				Incremental = Incremental,
+				Partitioned = server.SupportsPartitionedWorkspaces,
 				Method = Method ?? String.Empty
 			};
 			

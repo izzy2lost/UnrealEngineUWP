@@ -1004,6 +1004,11 @@ namespace Horde.Server.Server
 		public bool CanImpersonate { get; set; } = true;
 
 		/// <summary>
+		/// Whether to use partitioned workspaces on this server
+		/// </summary>
+		public bool SupportsPartitionedWorkspaces { get; set; } = false;
+
+		/// <summary>
 		/// List of servers
 		/// </summary>
 		public List<PerforceServer> Servers { get; set; } = new List<PerforceServer>();

@@ -265,9 +265,9 @@ namespace Horde.Agent.Utility
 		/// <summary>
 		/// Create ManagedWorkspace options from a URL-encoded query string.
 		/// </summary>
-		/// <param name="method">URL-encoded query string</param>
+		/// <param name="workspace">Workspace settings</param>
 		/// <returns></returns>
-		public static ManagedWorkspaceOptions GetMwOptions(string? method)
+		public static ManagedWorkspaceOptions GetMwOptions(AgentWorkspace workspace)
 		{
 			const string NameKey = "name";
 			const string ManagedWorkspaceValue = "managedWorkspace";
@@ -277,6 +277,9 @@ namespace Horde.Agent.Utility
 			const string UseHaveTableKey = "useHaveTable";
 
 			ManagedWorkspaceOptions defaultOptions = new ();
+			defaultOptions.Partitioned = workspace.Partitioned;
+
+			string? method = workspace.Method;
 
 			int numParallelSyncThreads = defaultOptions.NumParallelSyncThreads;
 			int maxFileConcurrency = defaultOptions.MaxFileConcurrency;

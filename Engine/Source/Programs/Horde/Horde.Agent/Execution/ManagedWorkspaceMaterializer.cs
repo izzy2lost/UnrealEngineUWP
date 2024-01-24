@@ -41,7 +41,7 @@ public class ManagedWorkspaceMaterializer : IWorkspaceMaterializer
 	{
 		using IScope scope = CreateTraceSpan("ManagedWorkspaceMaterializer.InitializeAsync");
 		
-		ManagedWorkspaceOptions options = WorkspaceInfo.GetMwOptions(_agentWorkspace.Method);
+		ManagedWorkspaceOptions options = WorkspaceInfo.GetMwOptions(_agentWorkspace);
 		_workspace = await WorkspaceInfo.SetupWorkspaceAsync(_agentWorkspace, _workingDir, options, logger, cancellationToken);
 		return await GetSettingsAsync(cancellationToken);
 	}
