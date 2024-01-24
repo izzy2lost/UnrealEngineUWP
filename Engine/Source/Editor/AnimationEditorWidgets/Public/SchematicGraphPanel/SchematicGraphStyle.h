@@ -37,6 +37,8 @@ public:
 		Set("Schematic.Dot.Large", new IMAGE_BRUSH_SVG("SchematicGraph/Schematic_Dot_Large", Icon128x128));
 		Set("Schematic.Dot.Group", new IMAGE_BRUSH_SVG("SchematicGraph/Schematic_Dot_Group", Icon128x128));
 
+		Set("Schematic.Label.Background", new FSlateRoundedBoxBrush(FStyleColors::White, 4.0f, FStyleColors::Transparent, 0.0f));
+
 		FSlateStyleRegistry::RegisterSlateStyle(*this);
 	}
 
