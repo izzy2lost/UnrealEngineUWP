@@ -45,19 +45,19 @@ void FAnimNode_OffsetRootBone::GatherDebugData(FNodeDebugData& DebugData)
 	DebugLine += FString::Printf(TEXT("\n - Rotation Halflife: (%.3fd)"), GetRotationHalfLife());
 #endif
 	DebugData.AddDebugItem(DebugLine);
-	ComponentPose.GatherDebugData(DebugData);
 }
 
 void FAnimNode_OffsetRootBone::Initialize_AnyThread(const FAnimationInitializeContext& Context)
 {
-	FAnimNode_SkeletalControlBase::Initialize_AnyThread(Context);
+	FAnimNode_Base::Initialize_AnyThread(Context);
 	AnimInstanceProxy = Context.AnimInstanceProxy;
+	Source.Initialize(Context);
 	Reset(Context);
 }
 
-void FAnimNode_OffsetRootBone::UpdateInternal(const FAnimationUpdateContext& Context)
+void FAnimNode_OffsetRootBone::Update_AnyThread(const FAnimationUpdateContext& Context)
 {
-	FAnimNode_SkeletalControlBase::UpdateInternal(Context);
+	FAnimNode_Base::Update_AnyThread(Context);
 	CachedDeltaTime = Context.GetDeltaTime();
 
 	// If we just became relevant and haven't been initialized yet, then reset.
@@ -66,12 +66,22 @@ void FAnimNode_OffsetRootBone::UpdateInternal(const FAnimationUpdateContext& Con
 		Reset(Context);
 	}
 	UpdateCounter.SynchronizeWith(Context.AnimInstanceProxy->GetUpdateCounter());
+	Source.Update(Context);
 }
 
-void FAnimNode_OffsetRootBone::EvaluateSkeletalControl_AnyThread(FComponentSpacePoseContext& Output, TArray<FBoneTransform>& OutBoneTransforms)
+void FAnimNode_OffsetRootBone::Evaluate_AnyThread(FPoseContext& Output)
 {
 	SCOPE_CYCLE_COUNTER(STAT_OffsetRootBone_Eval);
-	check(OutBoneTransforms.Num() == 0);
+
+	Super::Evaluate_AnyThread(Output);
+	Source.Evaluate(Output);
+
+#if ENABLE_ANIM_DEBUG
+	if (CVarAnimNodeOffsetRootBoneEnable.GetValueOnAnyThread() == 0)
+	{
+		return;
+	}
+#endif
 
 	bool bGraphDriven = false;
 	const UE::Anim::IAnimRootMotionProvider* RootMotionProvider = UE::Anim::IAnimRootMotionProvider::Get();
@@ -83,7 +93,7 @@ void FAnimNode_OffsetRootBone::EvaluateSkeletalControl_AnyThread(FComponentSpace
 	}
 
 	const FCompactPoseBoneIndex TargetBoneIndex(0);
-	const FTransform InputBoneTransform = Output.Pose.GetComponentSpaceTransform(TargetBoneIndex);
+	const FTransform InputBoneTransform = Output.Pose[TargetBoneIndex];
 
 	const FTransform LastComponentTransform = ComponentTransform;
 	ComponentTransform = AnimInstanceProxy->GetComponentTransform();
@@ -144,7 +154,7 @@ void FAnimNode_OffsetRootBone::EvaluateSkeletalControl_AnyThread(FComponentSpace
 	// Simulated translation should stay the same along the approach direction
 	SimulatedTranslation = FVector::PointPlaneProject(SimulatedTranslation, ComponentTransform.GetLocation(), GravityDirCS);
 
-	const FBoneContainer& RequiredBones = Output.Pose.GetPose().GetBoneContainer();
+	const FBoneContainer& RequiredBones = Output.Pose.GetBoneContainer();
 
 	bool bModifyBone = true;
 #if ENABLE_ANIM_DEBUG
@@ -242,10 +252,8 @@ void FAnimNode_OffsetRootBone::EvaluateSkeletalControl_AnyThread(FComponentSpace
 	FTransform TargetBoneTransform = SimulatedTransform * ComponentTransform.Inverse();
 	// Accumulate the input bone transform to keep the offset independent from any previous adjustments to the root
 	TargetBoneTransform.Accumulate(InputBoneTransform);
-	if (bModifyBone)
-	{
-		OutBoneTransforms.Add(FBoneTransform(TargetBoneIndex, TargetBoneTransform));
-	}
+
+	Output.Pose[TargetBoneIndex] = TargetBoneTransform;
 
 #if ENABLE_VISUAL_LOG
 	if (FVisualLogger::IsRecording())
@@ -331,18 +339,6 @@ void FAnimNode_OffsetRootBone::EvaluateSkeletalControl_AnyThread(FComponentSpace
 	}
 
 	bIsFirstUpdate = false;
-}
-
-bool FAnimNode_OffsetRootBone::IsValidToEvaluate(const USkeleton* Skeleton, const FBoneContainer& RequiredBones)
-{
-#if ENABLE_ANIM_DEBUG
-	if (CVarAnimNodeOffsetRootBoneEnable.GetValueOnAnyThread() == 0)
-	{
-		return false;
-	}
-#endif
-
-	return true;
 }
 
 EWarpingEvaluationMode FAnimNode_OffsetRootBone::GetEvaluationMode() const
