@@ -1070,6 +1070,7 @@ TIoStatusOr<FIoStoreUploadParams> FIoStoreUploadParams::Parse(const TCHAR* Comma
 	FParse::Value(CommandLine, TEXT("CredentialsFileKeyName="), Params.CredentialsFileKeyName);
 	FParse::Value(CommandLine, TEXT("BuildVersion="), Params.BuildVersion);
 	FParse::Value(CommandLine, TEXT("TargetPlatform="), Params.TargetPlatform);
+	FParse::Value(CommandLine, TEXT("EncryptionKeyName="), Params.EncryptionKeyName);
 	Params.bDeleteContainerFiles = !FParse::Param(CommandLine, TEXT("KeepContainerFiles"));
 	Params.bDeletePakFiles = !FParse::Param(CommandLine, TEXT("KeepPakFiles"));
 	Params.bWriteTocToDisk = FParse::Param(CommandLine, TEXT("WriteTocToDisk"));
