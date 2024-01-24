@@ -333,10 +333,9 @@ public:
 
 			const FMaterialPSOPrecacheParams& Params = MaterialPSORequests[MaterialPSORequestID];
 			FPrecacheData* FindResult = MaterialPSORequestData.Find(Params);
-			check(FindResult);
 
 			// Only process if not boosted yet and not completed yet
-			if (FindResult->Priority == EPSOPrecachePriority::High || FindResult->State == EState::Completed)
+			if (FindResult == nullptr || FindResult->Priority == EPSOPrecachePriority::High || FindResult->State == EState::Completed)
 			{
 				return;
 			}
