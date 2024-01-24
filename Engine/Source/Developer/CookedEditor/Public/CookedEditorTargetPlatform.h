@@ -213,7 +213,6 @@ public:
 		case ETargetPlatformFeatures::MemoryMappedAudio:
 			return false;
 
-		case ETargetPlatformFeatures::CanCookPackages:
 		case ETargetPlatformFeatures::Packaging:
 			return true;
 
