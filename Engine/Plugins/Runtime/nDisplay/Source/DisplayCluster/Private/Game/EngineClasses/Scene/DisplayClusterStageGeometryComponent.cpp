@@ -115,7 +115,9 @@ bool UDisplayClusterStageGeometryComponent::MorphProceduralMesh(UProceduralMeshC
 		{
 			if (bSyncMeshLocation)
 			{
-				InProceduralMeshComponent->SetWorldLocation(CommonViewPoint->GetComponentLocation());
+				// Align the procedural mesh with the view point that the stage geometry component was rendered from to ensure an accurate morph.
+				// The procedural mesh's world orientation must also be set to zero, as the geometry component render was computed in world coordinates
+				InProceduralMeshComponent->SetWorldLocationAndRotation(CommonViewPoint->GetComponentLocation(), FRotator::ZeroRotator);
 			}
 
 			if (FProcMeshSection* Section = InProceduralMeshComponent->GetProcMeshSection(0))
