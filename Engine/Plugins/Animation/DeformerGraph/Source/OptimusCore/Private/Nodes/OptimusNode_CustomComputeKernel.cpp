@@ -1719,7 +1719,7 @@ void UOptimusNode_CustomComputeKernel::UpdatePreamble()
 		{
 			AddCountFunctionIfNeeded(Binding.DataDomain.DimensionNames);
 		
-			if (Binding.DataType->ShaderValueType.IsValid())
+			if (Binding.DataType.IsValid() && Binding.DataType->ShaderValueType.IsValid())
 			{
 				Declarations.Add(GetDeclarationForBinding(Binding, true));
 			}
