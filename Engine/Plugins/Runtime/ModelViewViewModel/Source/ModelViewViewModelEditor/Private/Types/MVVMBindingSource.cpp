@@ -18,16 +18,11 @@ namespace UE::MVVM
 
 const UClass* FBindingSource::GetClass() const
 {
-	return IsValid() ? Class.Get() : nullptr;
+	return Class.Get();
 }
 
 FText FBindingSource::GetDisplayName() const
 {
-	if (!IsValid())
-	{
-		return LOCTEXT("None", "<None>");
-	}
-
 	return DisplayName;
 }
 
