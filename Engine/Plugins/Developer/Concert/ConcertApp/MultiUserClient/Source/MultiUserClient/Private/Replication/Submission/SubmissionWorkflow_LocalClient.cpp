@@ -4,6 +4,7 @@
 
 #include "IConcertSyncClient.h"
 #include "Replication/IConcertClientReplicationManager.h"
+#include "Widgets/ActiveSession/Replication/Client/ClientUtils.h"
 
 namespace UE::MultiUserClient
 {
@@ -76,6 +77,7 @@ namespace UE::MultiUserClient
 		)
 	{
 		const TSharedRef<FSingleClientSubmissionOperation> Operation = InProgressOperation->Operation;
+		LogStreamErrorsIfNeeded(ChangeStreamResponse);
 		
 		const EStreamSubmissionErrorCode ErrorCode = ChangeStreamResponse.ErrorCode == EReplicationResponseErrorCode::Handled
 			? EStreamSubmissionErrorCode::Success
@@ -152,5 +154,17 @@ namespace UE::MultiUserClient
 		
 		Operation->EmplaceCompleteOperationPromise(ESubmissionOperationCompletedCode::Processed);
 		OnSubmitOperationCompletedDelegate.Broadcast();
+	}
+
+	void FSubmissionWorkflow_LocalClient::LogStreamErrorsIfNeeded(const FConcertReplication_ChangeStream_Response& Response) const
+	{
+		const TSharedPtr<IConcertClientSession> CurrentSession = Client->GetConcertClient()->GetCurrentSession();
+		if (Response.IsFailure() && CurrentSession)
+		{
+			FStringOutputDevice OutputDevice;
+			Response.LogErrors(OutputDevice);
+			const FString ClientName = ClientUtils::GetClientDisplayName(*CurrentSession, CurrentSession->GetSessionClientEndpointId());
+			UE_LOG(LogConcert, Warning, TEXT("Submission failed for local client %s. Errors: %s"), *ClientName, *OutputDevice);
+		}
 	}
 }

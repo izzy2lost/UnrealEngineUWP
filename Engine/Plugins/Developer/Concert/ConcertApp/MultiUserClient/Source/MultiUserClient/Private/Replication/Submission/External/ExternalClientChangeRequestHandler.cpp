@@ -18,21 +18,21 @@ namespace UE::MultiUserClient
 	{
 		class FNotInSessionOperation : public IClientChangeOperation
 		{
-			TPromise<EChangeStreamOperationResult> ChangeStreamPromise;
-			TPromise<EChangeAuthorityOperationResult> ChangeAuthorityPromise;
+			TPromise<FChangeClientStreamResponse> ChangeStreamPromise;
+			TPromise<FChangeClientAuthorityResponse> ChangeAuthorityPromise;
 			TPromise<FChangeClientReplicationResult> OperationCompletedPromise;
 			
 		public:
 
-			FNotInSessionOperation(EChangeStreamOperationResult StreamResult, EChangeAuthorityOperationResult AuthorityResult)
-				: ChangeStreamPromise(MakeFulfilledPromise<EChangeStreamOperationResult>(StreamResult))
-				, ChangeAuthorityPromise(MakeFulfilledPromise<EChangeAuthorityOperationResult>(AuthorityResult))
-				, OperationCompletedPromise(MakeFulfilledPromise<FChangeClientReplicationResult>(FChangeClientReplicationResult{ StreamResult, AuthorityResult }))
+			FNotInSessionOperation(EChangeStreamOperationResult StreamErrorCode, EChangeAuthorityOperationResult AuthorityErrorCode)
+				: ChangeStreamPromise(MakeFulfilledPromise<FChangeClientStreamResponse>(FChangeClientStreamResponse{ StreamErrorCode }))
+				, ChangeAuthorityPromise(MakeFulfilledPromise<FChangeClientAuthorityResponse>(FChangeClientAuthorityResponse{ AuthorityErrorCode }))
+				, OperationCompletedPromise(MakeFulfilledPromise<FChangeClientReplicationResult>(FChangeClientReplicationResult{ { StreamErrorCode }, { AuthorityErrorCode } }))
 			{}
 			
 			//~ Begin IClientChangeOperation Interface
-			virtual TFuture<EChangeStreamOperationResult> OnChangeStream() override { return ChangeStreamPromise.GetFuture(); }
-			virtual TFuture<EChangeAuthorityOperationResult> OnChangeAuthority() override { return ChangeAuthorityPromise.GetFuture(); }
+			virtual TFuture<FChangeClientStreamResponse> OnChangeStream() override { return ChangeStreamPromise.GetFuture(); }
+			virtual TFuture<FChangeClientAuthorityResponse> OnChangeAuthority() override { return ChangeAuthorityPromise.GetFuture(); }
 			virtual TFuture<FChangeClientReplicationResult> OnOperationCompleted() override { return OperationCompletedPromise.GetFuture(); }
 			//~ End IClientChangeOperation Interface
 		};

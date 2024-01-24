@@ -61,6 +61,8 @@ namespace UE::MultiUserClient
 		
 		void SkipAuthorityStage(EAuthoritySubmissionRequestErrorCode RequestCode, EAuthoritySubmissionResponseErrorCode ResponseCode);
 		void CleanUpSubmissionOperation();
+
+		void LogStreamErrorsIfNeeded(const FConcertReplication_ChangeStream_Response& Response) const;
 	};
 }
 

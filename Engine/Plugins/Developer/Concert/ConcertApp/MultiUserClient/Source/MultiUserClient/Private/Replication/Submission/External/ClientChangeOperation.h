@@ -53,8 +53,8 @@ namespace UE::MultiUserClient
 		virtual ~FClientChangeOperation() override;
 
 		//~ Begin IClientChangeOperation Interface
-		virtual TFuture<EChangeStreamOperationResult> OnChangeStream() override { return ChangeStreamPromise.GetFuture(); }
-		virtual TFuture<EChangeAuthorityOperationResult> OnChangeAuthority() override { return ChangeAuthorityPromise.GetFuture(); }
+		virtual TFuture<FChangeClientStreamResponse> OnChangeStream() override { return ChangeStreamPromise.GetFuture(); }
+		virtual TFuture<FChangeClientAuthorityResponse> OnChangeAuthority() override { return ChangeAuthorityPromise.GetFuture(); }
 		virtual TFuture<FChangeClientReplicationResult> OnOperationCompleted() override { return OperationCompletedPromise.GetFuture(); }
 		//~ End IClientChangeOperation Interface
 
@@ -78,14 +78,14 @@ namespace UE::MultiUserClient
 		/** Callback to build submission params when task is ready to be executed. */
 		const TAttribute<FChangeClientReplicationRequest> MakeSubmissionParamsAttribute;
 
-		TPromise<EChangeStreamOperationResult> ChangeStreamPromise;
-		TPromise<EChangeAuthorityOperationResult> ChangeAuthorityPromise;
+		TPromise<FChangeClientStreamResponse> ChangeStreamPromise;
+		TPromise<FChangeClientAuthorityResponse> ChangeAuthorityPromise;
 		TPromise<FChangeClientReplicationResult> OperationCompletedPromise;
 
 		/** Set when ChangeStreamPromise is fulfilled. */
-		TOptional<EChangeStreamOperationResult> StreamResult;
+		TOptional<FChangeClientStreamResponse> StreamResult;
 		/** Set when ChangeAuthorityPromise is fulfilled. */
-		TOptional<EChangeAuthorityOperationResult> AuthorityResult;
+		TOptional<FChangeClientAuthorityResponse> AuthorityResult;
 
 		FClientChangeOperation(
 			const FGuid& InStreamId,
@@ -94,20 +94,20 @@ namespace UE::MultiUserClient
 			TAttribute<FChangeClientReplicationRequest> InMakeSubmissionParamsAttribute
 			);
 
-		void EmplaceStreamResult(EChangeStreamOperationResult Result)
+		void EmplaceStreamResult(FChangeClientStreamResponse Result)
 		{
 			if (ensure(!StreamResult))
 			{
-				StreamResult = Result;
-				ChangeStreamPromise.EmplaceValue(Result);
+				StreamResult = MoveTemp(Result);
+				ChangeStreamPromise.EmplaceValue(*StreamResult);
 			}
 		}
-		void EmplaceAuthorityResult(EChangeAuthorityOperationResult Result)
+		void EmplaceAuthorityResult(FChangeClientAuthorityResponse Result)
 		{
 			if (ensure(!AuthorityResult))
 			{
-				AuthorityResult = Result;
-				ChangeAuthorityPromise.EmplaceValue(Result);
+				AuthorityResult = MoveTemp(Result);
+				ChangeAuthorityPromise.EmplaceValue(*AuthorityResult);
 			}
 		}
 		void CompleteOperation()

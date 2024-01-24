@@ -146,12 +146,91 @@ namespace UE::MultiUserClient
 		 */
 		TOptional<FChangeAuthorityRequest> AuthorityChangeRequest;
 	};
+	
+	enum class EChangeObjectFrequencyErrorCode : uint8
+	{
+		/** The object for which the frequency was being changed was not registered. */
+		UnregisteredStream,
+		/** The replication rate parameter was rejected (it cannot be 0). */
+		InvalidReplicationRate,
+
+		/** Not an actual parameter. Make sure it's always last. */
+		Count
+	};
+
+	/** Result about changing frequency. */
+	struct FChangeClientStreamFrequencyResponse
+	{
+		/** Errors encountered for specific objects */
+		TMap<FSoftObjectPath, EChangeObjectFrequencyErrorCode> ObjectErrors;
+		/** Error for changing the default replication frequency. */
+		TOptional<EChangeObjectFrequencyErrorCode> DefaultChangeErrorCode;
+	};
+
+	/** Explains why a change to an object in the stream was invalid. */
+	enum class EPutObjectErrorCode : uint8
+	{
+		/** Stream that the object referenced was not registered on the server. */
+		UnresolvedStream,
+		/**
+		 * Either PutObject contained no data to update with (ensure either ClassPath or Properties is set),
+		 * or it tried to create a new object with insufficient data (make sure ClassPath and Properties are both specified).
+		 */
+		MissingData,
+
+		/** Not an actual parameter. Make sure it's always last. */
+		Count
+	};
+
+	/** Result of processing FChangeStreamRequest. */
+	struct FChangeClientStreamResponse
+	{
+		/**
+		 * Gives general information about what happened to this request.
+		 * All other fields only make sense if ErrorCode == Success.
+		 */
+		EChangeStreamOperationResult ErrorCode;
+		
+		/**
+		 * Dynamic authority errors.
+		 * The change was rejected because
+		 * 1. this client is replicating the object already,
+		 * 2. another client is also replicating the object,
+		 * 3. this change would cause overlapping properties with the other client.
+		 * */
+		TMap<FSoftObjectPath, FGuid> AuthorityConflicts;
+		
+		/** Errors made in the format of the request */
+		TMap<FSoftObjectPath, EPutObjectErrorCode> SemanticErrors;
+
+		/** Errors made in the way frequency was changed. */
+		FChangeClientStreamFrequencyResponse FrequencyErrors;
+
+		/**
+		 * The client attempted to register the Multi-User stream but failed in doing so.
+		 * This usually indicates an internal error that you cannot do anything about as API user.
+		 */
+		bool bFailedStreamCreation = false;
+	};
+
+	/** Result of processing FChangeAuthorityRequest */
+	struct FChangeClientAuthorityResponse
+	{
+		/**
+		 * Gives general information about what happened to this request.
+		 * All other fields only make sense if ErrorCode == Success.
+		 */
+		EChangeAuthorityOperationResult ErrorCode;
+		
+		/** Objects the client did not get authority over. */
+		TSet<FSoftObjectPath> RejectedObjects;
+	};
 
 	/** Result of processing a FChangeClientReplicationRequest. */
 	struct FChangeClientReplicationResult
 	{
-		EChangeStreamOperationResult StreamChangeResult;
-		EChangeAuthorityOperationResult AuthorityChangeResult;
+		FChangeClientStreamResponse StreamChangeResult;
+		FChangeClientAuthorityResponse AuthorityChangeResult;
 	};
 }
 

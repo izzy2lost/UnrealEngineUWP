@@ -2,13 +2,14 @@
 
 #pragma once
 
+#include "HAL/Platform.h"
 #include "Replication/IConcertClientReplicationManager.h"
 
 namespace UE::MultiUserClient
 {
 	class ISubmissionOperation;
 
-	enum class EStreamSubmissionErrorCode
+	enum class EStreamSubmissionErrorCode : uint8
 	{
 		/** Changes were submitted to and processed by the server */
 		Success,

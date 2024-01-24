@@ -211,7 +211,10 @@ enum class EConcertPutObjectErrorCode : uint8
 	 * Either PutObject contained no data to update with (ensure either ClassPath or Properties is set),
 	 * or it tried to create a new object with insufficient data (make sure ClassPath and Properties are both specified).
 	 */
-	MissingData
+	MissingData,
+
+	/** Not an actual parameter. Make sure it's always last. */
+	Count
 };
 
 UENUM()
@@ -220,7 +223,10 @@ enum class EConcertChangeObjectFrequencyErrorCode : uint8
 	/** The object for which the frequency was being changed was not registered. */
 	NotRegistered,
 	/** The replication rate parameter was rejected (it cannot be 0). */
-	InvalidReplicationRate
+	InvalidReplicationRate,
+
+	/** Not an actual parameter. Make sure it's always last. */
+	Count
 };
 
 UENUM()
@@ -229,7 +235,10 @@ enum class EConcertChangeStreamFrequencyErrorCode : uint8
 	/** The stream was not registered */
 	UnknownStream,
 	/** The replication rate parameter was rejected (it cannot be 0). */
-	InvalidReplicationRate
+	InvalidReplicationRate,
+
+	/** Not an actual parameter. Make sure it's always last. */
+	Count
 };
 
 USTRUCT()

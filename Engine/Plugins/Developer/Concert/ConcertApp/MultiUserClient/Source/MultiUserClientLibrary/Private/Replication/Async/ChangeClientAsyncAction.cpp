@@ -57,6 +57,6 @@ void UChangeClientAsyncAction::Activate()
 	else
 #endif
 	{
-		OnCompleted.Broadcast({ EMultiUserChangeStreamOperationResult::NotAvailable, EMultiUserChangeAuthorityOperationResult::NotAvailable });
+		OnCompleted.Broadcast({ { EMultiUserChangeStreamOperationResult::NotAvailable }, { EMultiUserChangeAuthorityOperationResult::NotAvailable } });
 	}
 }
