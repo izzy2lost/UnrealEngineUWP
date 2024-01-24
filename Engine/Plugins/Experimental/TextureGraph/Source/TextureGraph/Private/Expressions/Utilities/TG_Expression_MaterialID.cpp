@@ -10,21 +10,26 @@ void UTG_Expression_MaterialID::Evaluate(FTG_EvaluationContext* InContext)
 {
 	Super::Evaluate(InContext);
 
-	if(!MaterialIDMap)
+	if(MaterialIDMap)
 	{
-		MaterialIDMap = FTG_Texture::GetBlack();
-	}
-	
-	T_ExtractMaterialIds::Create(InContext->Cycle, MaterialIDMap, MaterialIDInfoCollection, MaterialIDMaskInfos, ActiveColorsCount, InContext->TargetId);
+		T_ExtractMaterialIds::Create(InContext->Cycle, MaterialIDMap, MaterialIDInfoCollection, MaterialIDMaskInfos, ActiveColorsCount, InContext->TargetId);
 
-	if(ActiveColorsCount > 0)
-	{
-		// Generate the mask based on active colors.
-		Output = T_MaterialIDMask::Create(InContext->Cycle, MaterialIDMap, ActiveColors, ActiveColorsCount, Output.GetBufferDescriptor(), InContext->TargetId);
+		if(ActiveColorsCount > 0)
+		{
+			// Generate the mask based on active colors.
+			Output = T_MaterialIDMask::Create(InContext->Cycle, MaterialIDMap, ActiveColors, ActiveColorsCount, Output.GetBufferDescriptor(), InContext->TargetId);
+		}
+		else
+		{
+			Output = TextureHelper::GetBlack();
+		}
 	}
 	else
 	{
 		Output = TextureHelper::GetBlack();
+		MaterialIDInfoCollection.Infos.Empty();
+		MaterialIDMaskInfos.Empty();
+		ActiveColorsCount = 0;
 	}
 }
 
