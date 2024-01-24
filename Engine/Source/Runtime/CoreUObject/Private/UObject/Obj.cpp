@@ -1372,10 +1372,9 @@ void UObject::PostLoadSubobjects( FObjectInstancingGraph* OuterInstanceGraph/*=N
 				InstanceGraph = &CurrentInstanceGraph;
 			}
 
-			// this will be filled with the list of component instances which were serialized from disk
 			TArray<UObject*> SerializedComponents;
-			// fill the array with the component contained by this object that were actually serialized to disk through property references
-			CollectDefaultSubobjects(SerializedComponents, false);
+			// fill the array with the top level default subobjects
+			GetDefaultSubobjects(SerializedComponents);
 
 			// now, add all of the instanced components to the instance graph that will be used for instancing any components that have been added
 			// to this object's archetype since this object was last saved

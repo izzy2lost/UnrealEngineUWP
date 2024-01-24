@@ -489,7 +489,7 @@ namespace UE::Reload::Private
 		const int32 DefaultSubobjectArrayCapacity = 16;
 		TArray<UObject*> DefaultSubobjectArray;
 		DefaultSubobjectArray.Empty(DefaultSubobjectArrayCapacity);
-		NewClass->GetDefaultObject()->CollectDefaultSubobjects(DefaultSubobjectArray);
+		NewClass->GetDefaultObject()->GetDefaultSubobjects(DefaultSubobjectArray);
 
 		TArray<FPropertyToUpdate> PropertiesToUpdate;
 		// Collect all properties that have actually changed
@@ -548,7 +548,7 @@ namespace UE::Reload::Private
 				}
 
 				DefaultSubobjectArray.Empty(DefaultSubobjectArrayCapacity);
-				ObjectPtr->CollectDefaultSubobjects(DefaultSubobjectArray);
+				ObjectPtr->GetDefaultSubobjects(DefaultSubobjectArray);
 
 				for (auto& PropertyToUpdate : PropertiesToUpdate)
 				{

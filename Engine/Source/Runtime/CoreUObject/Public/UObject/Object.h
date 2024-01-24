@@ -135,7 +135,7 @@ class UObject : public UObjectBaseUtility
 	}
 
 	/**
-	 * Create a component or subobject.
+	 * Create a component or subobject that will be instanced inside all instances of this class.
 	 * @param	TReturnType					Class of return type, all overrides must be of this type
 	 * @param	SubobjectName				Name of the new component
 	 * @param	bTransient					True if the component is being assigned to a transient property. This does not make the component itself transient, but does stop it from inheriting parent defaults
@@ -161,8 +161,8 @@ class UObject : public UObjectBaseUtility
 	}
 	
 	/**
-	 * Create an optional component or subobject. Optional subobjects will not get created
-	 * if a derived class specified DoNotCreateDefaultSubobject with the subobject's name.
+	 * Create an optional component or subobject.Optional subobjects will not get created.
+	 * if a derived class specifies DoNotCreateDefaultSubobject with the subobject name.
 	 * @param	TReturnType					Class of return type, all overrides must be of this type
 	 * @param	SubobjectName				Name of the new component
 	 * @param	bTransient					True if the component is being assigned to a transient property. This does not make the component itself transient, but does stop it from inheriting parent defaults
@@ -175,8 +175,8 @@ class UObject : public UObjectBaseUtility
 	}
 	
 	/**
-	 * Create an optional component or subobject. Optional subobjects will not get created
-	 * if a derived class specified DoNotCreateDefaultSubobject with the subobject's name.
+	 * Create an optional component or subobject. Optional subobjects will not get created.
+	 * if a derived class specifies DoNotCreateDefaultSubobject with the subobject name.
 	 * @param	TReturnType					Class of return type, all overrides must be of this type
 	 * @param	TClassToConstructByDefault	Class of object to actually construct, must be a subclass of TReturnType
 	 * @param	SubobjectName				Name of the new component
@@ -189,14 +189,14 @@ class UObject : public UObjectBaseUtility
 	}
 
 	/**
-	 * Gets all default subobjects associated with this object instance.
-	 * @param	OutDefaultSubobjects	Array containing all default subobjects of this object.
+	 * Gets all directly nested default subobjects that are associated with this object instance.
+	 * @param	OutDefaultSubobjects	Array containing the directly nested default subobjects of this object.
 	 */
 	COREUOBJECT_API void GetDefaultSubobjects(TArray<UObject*>& OutDefaultSubobjects);
 
 	/**
-	 * Finds a subobject associated with this object instance by its name
-	 * @param	Name	Object name to look for
+	 * Finds a default subobject associated with this object instance by its name.
+	 * @param	Name	Object name to look for matching the SubobjectName used to create the default subobject
 	 */
 	COREUOBJECT_API UObject* GetDefaultSubobjectByName(FName ToFind);
 
@@ -1224,13 +1224,11 @@ public:
 	 */
 	COREUOBJECT_API virtual void BuildSubobjectMapping(UObject* OtherObject, TMap<UObject*, UObject*>& ObjectMapping) const;
 
-	/**
-	 * Uses the TArchiveObjectReferenceCollector to build a list of all components referenced by this object which have this object as the outer
-	 *
-	 * @param	OutDefaultSubobjects	the array that should be populated with the default subobjects "owned" by this object
-	 * @param	bIncludeNestedSubobjects	controls whether subobjects which are contained by this object, but do not have this object
-	 *										as its direct Outer should be included
+	/** 
+	 * Gets all subobjects inside this object that return true for IsDefaultSubobject.
+	 * The nested behavior is inconsistent because IsDefaultSubobject does not work reliably for nested subobjects and it is less efficient than GetDefaultSubobjects
 	 */
+	UE_DEPRECATED(5.4, "Call GetDefaultSubobjects for top level subobjects or use ForEachObjectWithOuter with a more precise check")
 	COREUOBJECT_API void CollectDefaultSubobjects( TArray<UObject*>& OutDefaultSubobjects, bool bIncludeNestedSubobjects=false ) const;
 
 	/**
