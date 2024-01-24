@@ -20,6 +20,7 @@
 #include "MuCOE/UnrealEditorPortabilityHelpers.h"
 #include "Rendering/SkeletalMeshLODModel.h"
 #include "Rendering/SkeletalMeshModel.h"
+#include "Animation/AnimInstance.h"
 
 class ICustomizableObjectEditor;
 class UCustomizableObjectNodeRemapPins;
