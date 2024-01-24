@@ -41,7 +41,7 @@ namespace UE::MultiUserClient
 
 		// Column widths
 		StyleSet->Set("AllClients.Object.OwnerColumnWidth", 200.f);
-		StyleSet->Set("AllClients.Object.ReplicationToggle", 50.f);
+		StyleSet->Set("AllClients.Object.ReplicationToggle", 45.f);
 		StyleSet->Set("AllClients.Property.OwnerColumnWidth", 200.f);
 		StyleSet->Set("SingleClient.Object.OwnerColumnWidth", 200.f);
 		StyleSet->Set("SingleClient.Property.OwnerColumnWidth", 200.f);

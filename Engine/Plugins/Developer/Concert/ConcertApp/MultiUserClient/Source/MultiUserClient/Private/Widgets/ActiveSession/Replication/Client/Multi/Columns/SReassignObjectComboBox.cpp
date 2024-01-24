@@ -17,6 +17,7 @@
 #include "Textures/SlateIcon.h"
 #include "Widgets/Images/SThrobber.h"
 #include "Widgets/Input/SComboBox.h"
+#include "Widgets/Layout/SScaleBox.h"
 
 #define LOCTEXT_NAMESPACE "SReassignObjectComboBox"
 
@@ -104,10 +105,10 @@ namespace UE::MultiUserClient
 			[
 				SNew(SComboButton)
 				.HasDownArrow(true)
-				.ContentPadding(FMargin(2.0f, 2.0f))
 				.ButtonContent()
 				[
 					SAssignNew(ComboClientList, ConcertClientSharedSlate::SHorizontalClientList, InConcertClient)
+					.Font(FAppStyle::GetFontStyle("PropertyWindow.NormalFont"))
 					.HighlightText_Lambda([this](){ return HighlightText ? *HighlightText : FText::GetEmpty(); })
 					.EmptyListSlot() [ SNew(SNoClients) ]
 				]

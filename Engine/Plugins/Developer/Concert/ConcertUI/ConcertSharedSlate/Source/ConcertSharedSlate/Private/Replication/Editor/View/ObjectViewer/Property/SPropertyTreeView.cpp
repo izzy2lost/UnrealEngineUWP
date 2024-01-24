@@ -126,8 +126,8 @@ namespace UE::ConcertSharedSlate
 			LOCTEXT("CommonCategory.ToolTip", "Include commonly replicated properties.")
 		);
 		TSharedRef<FFilterCategory> UncommonCategory = MakeShared<FFilterCategory>(
-			LOCTEXT("NumericCategory.Advanced", "Uncommon"),
-			LOCTEXT("NumericCategory.ToolTip", "Include uncommonly replicated properties.")
+			LOCTEXT("UncommonCategory.Advanced", "Uncommon"),
+			LOCTEXT("UncommonCategory.ToolTip", "Include uncommonly replicated properties.")
 		);
 
 		FBuildFilterBarResult Result;
@@ -135,6 +135,14 @@ namespace UE::ConcertSharedSlate
 		// Do not show under search bar
 		Result.DisabledByDefault =
 		{
+			// Ordering matters for the drop-down menu next to settings
+			// Common
+			MakeShared<FFrontendFilter>(MoveTemp(CommonCategory), LOCTEXT("Ints", "Integer"), LOCTEXT("Ints.Tooltip", "Includes: uint16, uint32, uint64, int16, int32, int64"), TSet<FFieldClass*>{ FUInt16Property::StaticClass(), FUInt32Property::StaticClass(), FUInt64Property::StaticClass(), FInt16Property::StaticClass(), FIntProperty::StaticClass(), FInt64Property::StaticClass() }),
+			MakeShared<FFrontendFilter>(MoveTemp(CommonCategory), LOCTEXT("Floats", "Float"), LOCTEXT("Floats.Tooltip", "Includes: float, double"), TSet<FFieldClass*>{ FFloatProperty::StaticClass(), FDoubleProperty::StaticClass() }),
+			MakeShared<FFrontendFilter>(MoveTemp(CommonCategory), LOCTEXT("Struct", "Struct"), TSet<FFieldClass*>{ FStructProperty::StaticClass() }),
+			MakeShared<FFrontendFilter>(MoveTemp(CommonCategory), LOCTEXT("Containers", "Containers"), LOCTEXT("Containers.Tooltip", "Includes: array, set, map"), TSet<FFieldClass*>{ FArrayProperty::StaticClass(), FSetProperty::StaticClass(), FMapProperty::StaticClass() }),
+
+			// Uncommon
 			MakeShared<FFrontendFilter>(MoveTemp(UncommonCategory), LOCTEXT("Bool", "Boolean"), TSet<FFieldClass*>{ FBoolProperty::StaticClass() }),
 			MakeShared<FFrontendFilter>(MoveTemp(UncommonCategory), LOCTEXT("Enum", "Enum"), TSet<FFieldClass*>{ FEnumProperty::StaticClass(), FByteProperty::StaticClass() }),
 			MakeShared<FFrontendFilter>(MoveTemp(UncommonCategory), LOCTEXT("Text", "Text"), LOCTEXT("Text.Tooltip", "Includes: FName, FString, FText"), TSet<FFieldClass*>{ FNameProperty::StaticClass(), FStrProperty::StaticClass(), FTextProperty::StaticClass() }),
@@ -143,10 +151,7 @@ namespace UE::ConcertSharedSlate
 		// Show up under search bar as enabled
 		Result.EnabledByDefault =
 		{
-			MakeShared<FFrontendFilter>(MoveTemp(CommonCategory), LOCTEXT("Ints", "Integer"), LOCTEXT("Ints.Tooltip", "Includes: uint16, uint32, uint64, int16, int32, int64"), TSet<FFieldClass*>{ FUInt16Property::StaticClass(), FUInt32Property::StaticClass(), FUInt64Property::StaticClass(), FInt16Property::StaticClass(), FIntProperty::StaticClass(), FInt64Property::StaticClass() }),
-			MakeShared<FFrontendFilter>(MoveTemp(CommonCategory), LOCTEXT("Floats", "Float"), LOCTEXT("Ints.Tooltip", "Includes: float, double"), TSet<FFieldClass*>{ FFloatProperty::StaticClass(), FDoubleProperty::StaticClass() }),
-			MakeShared<FFrontendFilter>(MoveTemp(CommonCategory), LOCTEXT("Struct", "Struct"), TSet<FFieldClass*>{ FStructProperty::StaticClass() }),
-			MakeShared<FFrontendFilter>(MoveTemp(CommonCategory), LOCTEXT("Containers", "Containers"), LOCTEXT("Ints.Tooltip", "Includes: array, set, map"), TSet<FFieldClass*>{ FArrayProperty::StaticClass(), FSetProperty::StaticClass(), FMapProperty::StaticClass() }),
+			// We'll not enable any filters by default because that's the default for other places in the engine, like the Content Browser, too
 		};
 		// Show up in menu
 		TArray<FFilterRef> AllFilters;

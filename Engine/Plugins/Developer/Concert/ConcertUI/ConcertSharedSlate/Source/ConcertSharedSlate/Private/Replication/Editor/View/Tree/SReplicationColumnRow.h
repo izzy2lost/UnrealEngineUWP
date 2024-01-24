@@ -2,12 +2,16 @@
 
 #pragma once
 
+#include "ConcertFrontendStyle.h"
 #include "Replication/Editor/View/ReplicationColumn.h"
+
 #include "Widgets/Layout/SBox.h"
 #include "Widgets/SNullWidget.h"
 #include "Widgets/Views/SExpanderArrow.h"
 #include "Widgets/Views/STableRow.h"
 #include "Widgets/Views/STableViewBase.h"
+#include "Styling/AppStyle.h"
+#include "Styling/CoreStyle.h"
 
 namespace UE::ConcertSharedSlate
 {
@@ -27,7 +31,7 @@ namespace UE::ConcertSharedSlate
 		DECLARE_DELEGATE_RetVal_TwoParams(TSharedPtr<SWidget>, FOverrideColumnWidget, const FName& ColumnName, const TListItemType& RowData);
 		
 		SLATE_BEGIN_ARGS(SReplicationColumnRow)
-			: _RowHeight(20.f)
+			: _Style(&FCoreStyle::Get().GetWidgetStyle<FTableRowStyle>("TableView.Row"))
 		{}
 			/** Used for highlighting the text being searched. */
 			SLATE_ARGUMENT(TSharedPtr<FText>, HighlightText)
@@ -47,8 +51,9 @@ namespace UE::ConcertSharedSlate
 			/** The name of the column that will have the SExpanderArrow for the tree view. */
 			SLATE_ARGUMENT(FName, ExpandableColumnLabel)
 
-			/** The height of the row */
-			SLATE_ARGUMENT(float, RowHeight)
+			/** Style to use for rows, e.g. for making them alternate in grey */
+			SLATE_STYLE_ARGUMENT(FTableRowStyle, Style)
+		
 		SLATE_END_ARGS()
 
 		void Construct(
@@ -60,12 +65,11 @@ namespace UE::ConcertSharedSlate
 			HighlightText = InArgs._HighlightText;
 			RowData = InArgs._RowData;
 			ExpandableColumnLabel = InArgs._ExpandableColumnLabel;
-			RowHeight = InArgs._RowHeight;
-			
+
 			using FTableRowArgs = typename STableRow<TSharedPtr<TListItemType>>::FArguments;
 			SMultiColumnTableRow<TSharedPtr<TListItemType>>::Construct(
 				FTableRowArgs()
-				.Style(FAppStyle::Get(), "TableView.AlternatingRow"),
+				.Style(InArgs._Style),
 				InOwner
 				);
 		}
@@ -92,7 +96,8 @@ namespace UE::ConcertSharedSlate
 			if (!bNeedsExpanderArrow)
 			{
 				return SNew(SBox)
-					.MinDesiredHeight(RowHeight)
+					// Enforce all items to be the same size so it is more consistent with other places, like the SSceneOutliner
+					.MaxDesiredHeight(FConcertFrontendStyle::Get()->GetFloat("Concert.Replication.Tree.RowHeight"))
 					.VAlign(VAlign_Center)
 					[
 						ColumnWidget
@@ -100,7 +105,8 @@ namespace UE::ConcertSharedSlate
 			}
 			
 			return SNew(SBox)
-				.MinDesiredHeight(RowHeight)
+				// Enforce all items to be the same size so it is more consistent with other places, like the SSceneOutliner
+				.MaxDesiredHeight(FConcertFrontendStyle::Get()->GetFloat("Concert.Replication.Tree.RowHeight"))
 				[
 					SNew(SHorizontalBox)
 
@@ -129,6 +135,5 @@ namespace UE::ConcertSharedSlate
 		TSharedPtr<FText> HighlightText;
 		TSharedPtr<TListItemType> RowData;
 		FName ExpandableColumnLabel;
-		float RowHeight;
 	};
 }

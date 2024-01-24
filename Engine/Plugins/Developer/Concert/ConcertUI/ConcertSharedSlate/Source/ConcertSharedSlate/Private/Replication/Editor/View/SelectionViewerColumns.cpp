@@ -2,14 +2,13 @@
 
 #include "Replication/Editor/View/SelectionViewerColumns.h"
 
+#include "ConcertFrontendStyle.h"
 #include "Replication/Editor/Model/IEditableReplicationStreamModel.h"
-#include "Replication/Editor/Model/Object/IObjectNameModel.h"
 #include "Replication/Editor/Model/ReplicatedPropertyData.h"
 #include "Replication/Editor/Model/ReplicatedObjectData.h"
 #include "Replication/Editor/View/DisplayUtils.h"
 #include "Replication/Editor/View/ObjectEditor/SBaseReplicationStreamEditor.h"
 #include "Replication/Editor/View/ReplicationColumnsUtils.h"
-#include "Replication/ObjectUtils.h"
 #include "Replication/PropertyChainUtils.h"
 
 #include "Internationalization/Internationalization.h"
@@ -18,6 +17,7 @@
 #include "Widgets/SBoxPanel.h"
 #include "Widgets/Text/STextBlock.h"
 #include "Widgets/Input/SCheckBox.h"
+#include "Styling/AppStyle.h"
 
 #define LOCTEXT_NAMESPACE "ReplicationObjectColumns"
 
@@ -74,7 +74,7 @@ namespace UE::ConcertSharedSlate::ReplicationColumns::TopLevel
 				.ColumnSortOrder(static_cast<int32>(ETopLevelColumnOrder::Label)),
 			SHeaderRow::Column(LabelColumnId)
 				.DefaultLabel(LOCTEXT("LabelColumnLabel", "Label"))
-				.FillWidth(1.f)
+				.FillSized(FConcertFrontendStyle::Get()->GetFloat("Concert.Replication.Tree.Object.LabelRowWidth"))
 			);
 	}
 	
@@ -120,6 +120,7 @@ namespace UE::ConcertSharedSlate::ReplicationColumns::Property
 				.GenerateWidgetColumn_Lambda([](const FReplicationPropertyColumn::FBuildArgs& Args)
 				{
 					return SNew(STextBlock)
+						.Font(FAppStyle::GetFontStyle("PropertyWindow.NormalFont"))
 						.HighlightText(TAttribute<FText>::CreateLambda([HighlightText = Args.HighlightText](){ return *HighlightText; }))
 						.Text(DisplayUtils::GetPropertyDisplayText(Args.RowData.GetProperty()));
 				})
@@ -134,7 +135,7 @@ namespace UE::ConcertSharedSlate::ReplicationColumns::Property
 				.ColumnSortOrder(static_cast<int32>(EReplicationPropertyColumnOrder::Label)),
 			SHeaderRow::Column(LabelColumnId)
 				.DefaultLabel(LOCTEXT("LabelColumnLabel", "Label"))
-				.FillWidth(1.f)
+				.FillSized(FConcertFrontendStyle::Get()->GetFloat("Concert.Replication.Tree.Property.LabelRowWidth"))
 			);
 	}
 	
@@ -152,6 +153,7 @@ namespace UE::ConcertSharedSlate::ReplicationColumns::Property
 				.GenerateWidgetColumn_Lambda([](const FReplicationPropertyColumn::FBuildArgs& Args)
 				{
 					return SNew(STextBlock)
+						.Font(FAppStyle::GetFontStyle("PropertyWindow.NormalFont"))
 						.HighlightText(TAttribute<FText>::CreateLambda([HighlightText = Args.HighlightText](){ return *HighlightText; }))
 						.Text(GetDisplayText(Args.RowData));
 				})
@@ -166,7 +168,7 @@ namespace UE::ConcertSharedSlate::ReplicationColumns::Property
 				.ColumnSortOrder(static_cast<int32>(EReplicationPropertyColumnOrder::Type)),
 			SHeaderRow::Column(TypeColumnId)
 				.DefaultLabel(LOCTEXT("TypeColumnLabel", "Type"))
-				.FillWidth(0.5f)
+				.FillWidth(1.f)
 			);
 	}
 }
