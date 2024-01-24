@@ -1,4 +1,3 @@
-import moment from "moment";
 import backend from "../../backend";
 import { GetTelemetryMetricsResponse, GetTelemetryViewResponse } from "../../backend/Api";
 import dashboard from "../../backend/Dashboard";
@@ -41,6 +40,10 @@ export const graphColors = [
 
 const loadedMetrics = new Map<string, GetTelemetryMetricsResponse>();
 
+export const clearTelemetryViewMetrics = () => {
+    loadedMetrics.clear();
+}
+
 const getTelemetryViewMetrics = async (viewId: string, categoryName: string, minTime: string, maxTime: string): Promise<GetTelemetryMetricsResponse[] | undefined> => {
 
     return new Promise<GetTelemetryMetricsResponse[] | undefined>(async (resolve, reject) => {
@@ -66,7 +69,7 @@ const getTelemetryViewMetrics = async (viewId: string, categoryName: string, min
         if (needMetrics.size) {
 
             const need: string[] = Array.from(needMetrics);
-            const allMetrics = await backend.getMetrics({ id: need, minTime: minTime, maxTime: maxTime, results: 4096 * 16 });            
+            const allMetrics = await backend.getMetrics({ id: need, minTime: minTime, maxTime: maxTime, results: 4096 * 16 });
 
             for (let i = 0; i < need.length; i++) {
                 const metricId = need[i];
@@ -108,7 +111,7 @@ const getTelemetryViewMetrics = async (viewId: string, categoryName: string, min
                         }
                     }
                     return true;
-                })                
+                })
 
                 loadedMetrics.set(metricId, metrics);
             }
@@ -131,10 +134,7 @@ export type TelemetryViewData = {
     metrics: GetTelemetryMetricsResponse[];
 }
 
-export const getTelemetryViewData = async (view: GetTelemetryViewResponse, categoryName: string, days: number = 7): Promise<TelemetryViewData | undefined> => {    
-
-    const minTime = moment().subtract(days, 'days').toISOString();
-    const maxTime = moment().toISOString();
+export const getTelemetryViewData = async (view: GetTelemetryViewResponse, categoryName: string, minDate: Date, maxDate: Date): Promise<TelemetryViewData | undefined> => {
 
     return new Promise<TelemetryViewData | undefined>(async (resolve, reject) => {
 
@@ -144,7 +144,7 @@ export const getTelemetryViewData = async (view: GetTelemetryViewResponse, categ
             return;
         }
 
-        const viewMetrics: GetTelemetryMetricsResponse[] = await getTelemetryViewMetrics(view.id, categoryName, minTime, maxTime) as GetTelemetryMetricsResponse[];
+        const viewMetrics: GetTelemetryMetricsResponse[] = await getTelemetryViewMetrics(view.id, categoryName, minDate.toISOString(), maxDate.toISOString()) as GetTelemetryMetricsResponse[];
 
         if (!viewMetrics?.length) {
             reject("Unable to get view metrics");
@@ -175,8 +175,8 @@ export const getTelemetryViewData = async (view: GetTelemetryViewResponse, categ
         })
 
         const result: TelemetryViewData = {
-            minTime: new Date(minTime),
-            maxTime: new Date(maxTime),
+            minTime: minDate,
+            maxTime: maxDate,
             metrics: viewMetrics
         }
 
