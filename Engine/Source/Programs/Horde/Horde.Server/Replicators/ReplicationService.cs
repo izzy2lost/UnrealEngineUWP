@@ -68,7 +68,7 @@ namespace Horde.Server.Replicators
 			for (; ; )
 			{
 				TaskCompletionSource tcs = new TaskCompletionSource();
-				using (IDisposable? registration = _globalConfig.OnChange((_, _) => tcs.SetResult()))
+				using (IDisposable? registration = _globalConfig.OnChange((_, _) => tcs.TrySetResult()))
 				{
 					GlobalConfig globalConfig = _globalConfig.CurrentValue;
 
