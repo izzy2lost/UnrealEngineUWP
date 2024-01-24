@@ -327,21 +327,17 @@ FGuidePointData UnpackGuidePointData(ByteAddressBuffer InBuffer, uint InPointInd
 
 struct FCardsGuideData
 {
-	uint3  VertexIndices;
-	float3 VertexLerps;
-	float3 VertexWeights;
+	uint  VertexIndex;
+	float VertexLerp;
 };
 
-FCardsGuideData UnpackCardGuideData(ByteAddressBuffer InBuffer, uint InVertexId)
+FCardsGuideData ReadCardGuideData(ByteAddressBuffer InBuffer, uint InVertexId)
 {
 	const uint Data = InBuffer.Load(InVertexId * HAIR_INTERPOLATION_CARDS_GUIDE_STRIDE);
 
 	FCardsGuideData Out = (FCardsGuideData)0;
-	Out.VertexWeights	= float3(1, 0, 0);
-	Out.VertexIndices	= 0;
-	Out.VertexLerps		= 0;
-	Out.VertexIndices.x	= Data & 0xFFFFFF;
-	Out.VertexLerps.x	= UnpackR8(Data >> 24);
+	Out.VertexIndex	= Data & 0xFFFFFF;
+	Out.VertexLerp	= UnpackR8(Data >> 24);
 	return Out;
 }
 
