@@ -3157,7 +3157,7 @@ struct FCoreUObjectDelegates
 	/** Called after reachability analysis, before any purging */
 	static COREUOBJECT_API FSimpleMulticastDelegate PostReachabilityAnalysis;
 
-	/** Called after garbage collection */
+	/** Called after garbage collection (before purge phase if incremental purge is enabled and after purge phase if incremental purge is disabled) */
 	static COREUOBJECT_API FSimpleMulticastDelegate& GetPostGarbageCollect();
 
 	/** Called after purging unreachable objects during garbage collection */
@@ -3174,6 +3174,9 @@ struct FCoreUObjectDelegates
 
 	/** Called after ConditionalBeginDestroy phase of garbage collection */
 	static COREUOBJECT_API FSimpleMulticastDelegate PostGarbageCollectConditionalBeginDestroy;
+
+	/** Called after garbage collection is complete, all objects have been purged (regardless of whether incremental purge is enabled or not), memory has been trimmed and all other GC callbacks have been fired. */
+	static COREUOBJECT_API FSimpleMulticastDelegate GarbageCollectComplete;
 
 	/** Queries whether an object should be loaded on top ( replace ) an already existing one */
 	DECLARE_DELEGATE_RetVal_OneParam(bool, FOnLoadObjectsOnTop, const FString&);
