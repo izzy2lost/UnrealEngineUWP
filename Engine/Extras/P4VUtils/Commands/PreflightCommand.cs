@@ -111,6 +111,50 @@ namespace P4VUtils.Commands
 				Stream = await Perforce.GetStreamAsync(Stream.Parent, false, CancellationToken.None);
 			}
 
+			// To support import+ streams get the common prefix and compare it to the Stream,
+			// if it doesn't match then we'll pivot to trying to find a stream that does
+			string CommonPrefix = DescribeRecord.Files[0].DepotFile;
+			if (DescribeRecord.Files.Count > 1)
+			{
+				// DescribeRecords conveniently come sorted alphabetically by depot file
+				// so the common prefix is the common elements of the first and last entry
+				string LastFile = DescribeRecord.Files.Last().DepotFile;
+				for (int i = 0; i < Math.Min(CommonPrefix.Length, LastFile.Length); i++)
+				{
+					if (CommonPrefix[i] != LastFile[i])
+					{
+						CommonPrefix = CommonPrefix.Substring(0, i);
+						break;
+					}
+				}
+			}
+			// If the common prefix is not the stream name then we'll try to find a valid stream out of the common prefix,
+			// but if at any point we have ambiguity we'll just fall back to the original stream again
+			if (!CommonPrefix.StartsWith(Stream.Name, StringComparison.Ordinal))
+			{
+				// Start by determining the common depot
+				int CommonStreamNameEnd = CommonPrefix.IndexOf('/', 2);
+				if (CommonStreamNameEnd != -1)
+				{
+					// Get the depot record and extract how many components a stream name has to determine how much
+					// of the common prefix to examine for a stream name
+					DepotRecord Depot = await Perforce.GetDepotAsync(CommonPrefix.Substring(2, CommonStreamNameEnd - 2));
+					int StreamDepth = Depot.GetStreamDepth();
+					for (int i = 0; i < StreamDepth && CommonStreamNameEnd != -1; i++)
+					{
+						CommonStreamNameEnd = CommonPrefix.IndexOf('/', CommonStreamNameEnd + 1);
+					}
+					if (CommonStreamNameEnd != -1)
+					{
+						StreamRecord? CommonStream = await Perforce.GetStreamAsync(CommonPrefix.Substring(0,CommonStreamNameEnd), false, CancellationToken.None);
+						if (CommonStream != null)
+						{
+							Stream = CommonStream;
+						}
+					}
+				}
+			}
+
 			return true;
 		}
 
