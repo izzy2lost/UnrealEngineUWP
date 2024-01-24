@@ -88,6 +88,11 @@ namespace UnrealBuildTool
 		/// Loaded only by clients and editor (editor can run PIE which is kinda a commandlet)
 		/// </summary>
 		ClientOnlyNoCommandlet,
+
+		/// <summary>
+		/// External module, should never be loaded automatically only referenced
+		/// </summary>
+		External,
 	}
 
 	/// <summary>
