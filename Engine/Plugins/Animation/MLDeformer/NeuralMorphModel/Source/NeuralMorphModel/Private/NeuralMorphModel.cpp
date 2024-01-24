@@ -9,6 +9,7 @@
 #include "MLDeformerObjectVersion.h"
 #include "UObject/AssetRegistryTagsContext.h"
 #include "UObject/UObjectGlobals.h"
+#include "Engine/SkeletalMesh.h"
 
 #include UE_INLINE_GENERATED_CPP_BY_NAME(NeuralMorphModel)
 
@@ -50,8 +51,101 @@ UMLDeformerInputInfo* UNeuralMorphModel::CreateInputInfo()
 	return NewObject<UNeuralMorphInputInfo>(this);
 }
 
+
+namespace
+{
+	int32 FindVirtualParentIndex(const FReferenceSkeleton& RefSkel, int32 BoneIndex, const TArray<FName>& IncludedBoneNames)
+	{
+		int32 CurBoneIndex = BoneIndex;
+		while (CurBoneIndex != INDEX_NONE)
+		{
+			const int32 ParentIndex = RefSkel.GetParentIndex(CurBoneIndex);
+			if (ParentIndex == INDEX_NONE)
+			{
+				break;
+			}
+
+			const FName ParentName = RefSkel.GetBoneName(ParentIndex);
+			if (IncludedBoneNames.Contains(ParentName))
+			{
+				return ParentIndex;
+			}
+
+			CurBoneIndex = ParentIndex;
+		}
+
+		return BoneIndex;
+	}
+
+	void ModifyMaskInfosForBackwardCompatibility(const FReferenceSkeleton& RefSkel, const TArray<FBoneReference>& BoneIncludeList, TMap<FName, FNeuralMorphMaskInfo>& MaskInfos)
+	{
+		// If we are not using some masks, just skip it.
+		if (MaskInfos.IsEmpty())
+		{
+			return;
+		}
+
+		// Build a list of bone names that we have setup as inputs.
+		TArray<FName> InputBoneNames;
+		for (const FBoneReference& BoneReference : BoneIncludeList)
+		{
+			InputBoneNames.Add(BoneReference.BoneName);
+		}
+
+		// Build a virtual parent table.
+		// This basically finds the first parent bone up the chain that is also in the bone input list.
+		// So if the input list contains upper and lower arm, then the tip of the index finger's virtual parent will be the lower arm bone
+		// even if there is a hand bone and more finger bones up the chain.
+		TArray<int32> VirtualParentTable;
+		VirtualParentTable.SetNumUninitialized(RefSkel.GetNum());
+		for (int32 BoneIndex = 0; BoneIndex < RefSkel.GetNum(); ++BoneIndex)
+		{
+			VirtualParentTable[BoneIndex] = FindVirtualParentIndex(RefSkel, BoneIndex, InputBoneNames);
+		}
+
+		// For all bone masks.
+		TArray<FName> RequiredBones;
+		for (auto& MaskInfoEntry : MaskInfos)
+		{
+			FNeuralMorphMaskInfo& MaskInfo = MaskInfoEntry.Value;
+			RequiredBones.Reset();
+			for (const FName MaskBoneName : MaskInfo.BoneNames)
+			{
+				const int32 MaskBoneIndex = RefSkel.FindBoneIndex(MaskBoneName);
+				if (MaskBoneIndex == INDEX_NONE)
+				{
+					UE_LOG(LogNeuralMorphModel, Warning, TEXT("Mask contains a bone named '%s' that isn't inside the skeleton."), *MaskBoneName.ToString());
+					continue;
+				}
+	
+				// Find out all required bones.
+				// This adds all child bones that have the current bone as (virtual) parent.
+				if (MaskBoneIndex != INDEX_NONE)
+				{
+					for (int32 Index = 0; Index < VirtualParentTable.Num(); ++Index)
+					{
+						const int32 VirtualParent = VirtualParentTable[Index];
+						const FName CurBoneName = RefSkel.GetBoneName(Index);
+						if (VirtualParent == MaskBoneIndex && !MaskInfo.BoneNames.Contains(CurBoneName))
+						{
+							RequiredBones.AddUnique(CurBoneName);
+						}
+					}
+				}
+			}
+
+			// Add the required bones.
+			for (const FName BoneName : RequiredBones)
+			{
+				MaskInfo.BoneNames.AddUnique(BoneName);
+			}
+		}
+	}
+} // Anonymous namespace.
+
 void UNeuralMorphModel::Serialize(FArchive& Archive)
 {
+	Super::Serialize(Archive);
 	Archive.UsingCustomVersion(UE::MLDeformer::FMLDeformerObjectVersion::GUID);
 
 	if (Archive.IsSaving())
@@ -82,9 +176,24 @@ void UNeuralMorphModel::Serialize(FArchive& Archive)
 			NeuralMorphInputInfo->CopyMembersFrom(CurInputInfo);
 			SetInputInfo(NeuralMorphInputInfo);
 		}		
-	}
+ 	}
 
-	Super::Serialize(Archive);
+	// Since 5.4 (when LOD was added), we modified the way the bone masks are generated.
+	// In UE 5.3 we added some extra bones to the mask. To keep the same behavior, we will upgrade the mask to include those bones again to ensure we get the same results when training.
+	// Newer assets will not do this.
+	#if WITH_EDITORONLY_DATA
+		if (Archive.IsLoading() && 
+			Archive.CustomVer(UE::MLDeformer::FMLDeformerObjectVersion::GUID) < UE::MLDeformer::FMLDeformerObjectVersion::LODSupportAdded)
+		{
+			USkeletalMesh* SkelMesh = GetSkeletalMesh();
+			if (SkelMesh)
+			{
+				const FReferenceSkeleton& RefSkeleton = SkelMesh->GetRefSkeleton();
+				ModifyMaskInfosForBackwardCompatibility(RefSkeleton, GetBoneIncludeList(), BoneMaskInfos);
+				ModifyMaskInfosForBackwardCompatibility(RefSkeleton, GetBoneIncludeList(), BoneGroupMaskInfos);
+			}
+		}
+	#endif
 }
 
 void UNeuralMorphModel::UpdateMissingGroupNames()
