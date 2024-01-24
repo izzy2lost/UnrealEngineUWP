@@ -11,7 +11,7 @@
 #include "Misc/Paths.h"
 #include "UObject/Package.h"
 
-static bool bAutoPopulateRevisionControlState = false;
+static bool bAutoPopulateRevisionControlState = true;
 TYPEDELEMENTSDATASTORAGE_API FAutoConsoleVariableRef CVarAutoPopulateState(
 	TEXT("TEDS.RevisionControl.AutoPopulateState"),
 	bAutoPopulateRevisionControlState,
