@@ -29,19 +29,19 @@ namespace HarmonixMetasound::Nodes::DjFilter
 
 	namespace Inputs
 	{
-		EXTERN_METASOUND_PARAM_ALIAS(AudioMono, CommonPinNames::Inputs::AudioMono);
-		EXTERN_METASOUND_PARAM_D(Amount, "Amount", "The knob position. -1 to DeadZoneSize will low-pass the signal. DeadZoneSize to 1 will high-pass the signal. Within the dead zone will fade to dry.");
-		EXTERN_METASOUND_PARAM_D(Resonance, "Resonance", "The filter resonance");
-		EXTERN_METASOUND_PARAM_D(LowPassMinFrequency, "Low-Pass Min Frequency", "The frequency the low-pass will be at when Amount is set to -1");
-		EXTERN_METASOUND_PARAM_D(LowPassMaxFrequency, "Low-Pass Max Frequency", "The frequency the low-pass will be at when Amount is set to -DeadZoneSize");
-		EXTERN_METASOUND_PARAM_D(HighPassMinFrequency, "High-Pass Min Frequency", "The frequency the high-pass will be at when Amount is set to DeadZoneSize");
-		EXTERN_METASOUND_PARAM_D(HighPassMaxFrequency, "High-Pass Max Frequency", "The frequency the high-pass will be at when Amount is set to 1");
-		EXTERN_METASOUND_PARAM_D(DeadZoneSize, "Dead Zone Size", "The portion of the Amount that will cross-fade between the filtered signal and the dry signal");
+		DEFINE_METASOUND_PARAM_ALIAS(AudioMono, CommonPinNames::Inputs::AudioMono);
+		DEFINE_INPUT_METASOUND_PARAM(Amount, "Amount", "The knob position. -1 to DeadZoneSize will low-pass the signal. DeadZoneSize to 1 will high-pass the signal. Within the dead zone will fade to dry.");
+		DEFINE_INPUT_METASOUND_PARAM(Resonance, "Resonance", "The filter resonance");
+		DEFINE_INPUT_METASOUND_PARAM(LowPassMinFrequency, "Low-Pass Min Frequency", "The frequency the low-pass will be at when Amount is set to -1");
+		DEFINE_INPUT_METASOUND_PARAM(LowPassMaxFrequency, "Low-Pass Max Frequency", "The frequency the low-pass will be at when Amount is set to -DeadZoneSize");
+		DEFINE_INPUT_METASOUND_PARAM(HighPassMinFrequency, "High-Pass Min Frequency", "The frequency the high-pass will be at when Amount is set to DeadZoneSize");
+		DEFINE_INPUT_METASOUND_PARAM(HighPassMaxFrequency, "High-Pass Max Frequency", "The frequency the high-pass will be at when Amount is set to 1");
+		DEFINE_INPUT_METASOUND_PARAM(DeadZoneSize, "Dead Zone Size", "The portion of the Amount that will cross-fade between the filtered signal and the dry signal");
 	}
 
 	namespace Outputs
 	{
-		EXTERN_METASOUND_PARAM_ALIAS(AudioMono, CommonPinNames::Outputs::AudioMono);
+		DEFINE_METASOUND_PARAM_ALIAS(AudioMono, CommonPinNames::Outputs::AudioMono);
 	}
 
 	class FOp final : public Metasound::TExecutableOperator<FOp>

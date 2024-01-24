@@ -33,18 +33,18 @@ namespace HarmonixMetasound::Nodes::MultibandAnalyzer
 	
 	namespace Inputs
 	{
-		EXTERN_METASOUND_PARAM_ALIAS(Enable, CommonPinNames::Inputs::Enable);
-		EXTERN_METASOUND_PARAM_ALIAS(AudioMono, CommonPinNames::Inputs::AudioMono);
-		EXTERN_METASOUND_PARAM_D(CrossoverFrequencies, "Crossover Frequencies", "The frequencies at which the analysis bands should be split");
-		EXTERN_METASOUND_PARAM_D(ApplySmoothing, "Apply Smoothing", "If enabled, will use an envelope follower on each band to smooth the output levels. Otherwise, the raw peak value for each band will be reported.");
-		EXTERN_METASOUND_PARAM_D(AttackTime, "Attack Time", "The amount of smoothing on rising amplitude, in seconds");
-		EXTERN_METASOUND_PARAM_D(ReleaseTime, "Release Time", "The amount of smoothing on falling amplitudes, in seconds");
-		EXTERN_METASOUND_PARAM_D(PeakMode, "Peak Mode", "The method for reporting output levels for each band");
+		DEFINE_METASOUND_PARAM_ALIAS(Enable, CommonPinNames::Inputs::Enable);
+		DEFINE_METASOUND_PARAM_ALIAS(AudioMono, CommonPinNames::Inputs::AudioMono);
+		DEFINE_INPUT_METASOUND_PARAM(CrossoverFrequencies, "Crossover Frequencies", "The frequencies at which the analysis bands should be split");
+		DEFINE_INPUT_METASOUND_PARAM(ApplySmoothing, "Apply Smoothing", "If enabled, will use an envelope follower on each band to smooth the output levels. Otherwise, the raw peak value for each band will be reported.");
+		DEFINE_INPUT_METASOUND_PARAM(AttackTime, "Attack Time", "The amount of smoothing on rising amplitude, in seconds");
+		DEFINE_INPUT_METASOUND_PARAM(ReleaseTime, "Release Time", "The amount of smoothing on falling amplitudes, in seconds");
+		DEFINE_INPUT_METASOUND_PARAM(PeakMode, "Peak Mode", "The method for reporting output levels for each band");
 	}
 
 	namespace Outputs
 	{
-		EXTERN_METASOUND_PARAM_D(BandLevels, "Band Levels", "The levels for each band");
+		DEFINE_OUTPUT_METASOUND_PARAM(BandLevels, "Band Levels", "The levels for each band");
 	}
 
 	/**

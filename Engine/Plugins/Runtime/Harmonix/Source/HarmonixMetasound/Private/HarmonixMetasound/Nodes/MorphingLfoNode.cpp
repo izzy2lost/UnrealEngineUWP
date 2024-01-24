@@ -18,16 +18,16 @@ namespace HarmonixMetasound::Nodes::MorphingLFO
 {
 	namespace Inputs
 	{
-		EXTERN_METASOUND_PARAM_ALIAS(MidiClock, CommonPinNames::Inputs::MidiClock);
-		EXTERN_METASOUND_PARAM_ALIAS(LFOSyncType, CommonPinNames::Inputs::LFOSyncType);
-		EXTERN_METASOUND_PARAM_ALIAS(LFOFrequency, CommonPinNames::Inputs::LFOFrequency);
-		EXTERN_METASOUND_PARAM_ALIAS(LFOInvert, CommonPinNames::Inputs::LFOInvert);
-		EXTERN_METASOUND_PARAM_ALIAS(LFOShape, CommonPinNames::Inputs::LFOShape);
+		DEFINE_METASOUND_PARAM_ALIAS(MidiClock, CommonPinNames::Inputs::MidiClock);
+		DEFINE_METASOUND_PARAM_ALIAS(LFOSyncType, CommonPinNames::Inputs::LFOSyncType);
+		DEFINE_METASOUND_PARAM_ALIAS(LFOFrequency, CommonPinNames::Inputs::LFOFrequency);
+		DEFINE_METASOUND_PARAM_ALIAS(LFOInvert, CommonPinNames::Inputs::LFOInvert);
+		DEFINE_METASOUND_PARAM_ALIAS(LFOShape, CommonPinNames::Inputs::LFOShape);
 	}
 
 	namespace Outputs
 	{
-		EXTERN_METASOUND_PARAM_D(LFO, "LFO Output", "The output of the LFO, range [0.0, 1.0]")
+		DEFINE_OUTPUT_METASOUND_PARAM(LFO, "LFO Output", "The output of the LFO, range [0.0, 1.0]")
 	}
 
 	template<typename OutputDataType>

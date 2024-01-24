@@ -12,17 +12,17 @@ namespace HarmonixMetasound::Nodes::MidiCCTriggerNode
 
 	namespace Inputs
 	{
-		EXTERN_METASOUND_PARAM(Enable);
-		EXTERN_METASOUND_PARAM(MidiTrackNumber);
-		EXTERN_METASOUND_PARAM(MidiChannelNumber);
-		EXTERN_METASOUND_PARAM(InputMidiControllerID);
-		EXTERN_METASOUND_PARAM(MidiStream);
+		DECLARE_METASOUND_PARAM_EXTERN(Enable);
+		DECLARE_METASOUND_PARAM_EXTERN(MidiTrackNumber);
+		DECLARE_METASOUND_PARAM_EXTERN(MidiChannelNumber);
+		DECLARE_METASOUND_PARAM_EXTERN(InputMidiControllerID);
+		DECLARE_METASOUND_PARAM_EXTERN(MidiStream);
 	}
 
 	namespace Outputs
 	{
-		EXTERN_METASOUND_PARAM(OutputControlChangeValueInt32);
-		EXTERN_METASOUND_PARAM(OutputControlChangeValueFloat);
-		EXTERN_METASOUND_PARAM(OutputTrigger);
+		DECLARE_METASOUND_PARAM_EXTERN(OutputControlChangeValueInt32);
+		DECLARE_METASOUND_PARAM_EXTERN(OutputControlChangeValueFloat);
+		DECLARE_METASOUND_PARAM_EXTERN(OutputTrigger);
 	}
 }

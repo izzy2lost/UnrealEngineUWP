@@ -34,7 +34,7 @@ namespace HarmonixMetasound
 	{
 		namespace Inputs
 		{
-			METASOUND_PARAM(Enable, "Enable", "When set, enables the analyzer, otherwise skips processing.")
+			DEFINE_METASOUND_PARAM_ALIAS(Enable, CommonPinNames::Inputs::Enable);
 			METASOUND_PARAM(Audio, "In", "Audio Input");
 			METASOUND_PARAM(FFTSize, "FFT Size", "The size of the FFT window, which determines the frequency resolution of the resulting spectrum analysis (a larger size will result in higher frequency resolution).");
 			METASOUND_PARAM(MinFrequencyHz, "Min Frequency Hz", "The minimum frequency that will be included in the spectrum analysis.");
