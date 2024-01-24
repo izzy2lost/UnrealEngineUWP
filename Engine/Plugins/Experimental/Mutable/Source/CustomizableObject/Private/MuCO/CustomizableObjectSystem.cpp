@@ -14,6 +14,7 @@
 #include "MuCO/CustomizableInstanceLODManagement.h"
 #include "MuCO/CustomizableInstancePrivateData.h"
 #include "MuCO/CustomizableObjectPrivate.h"
+#include "MuCO/CustomizableObjectUIData.h"
 #include "MuCO/DefaultImageProvider.h"
 #include "MuCO/CustomizableObjectInstanceUsage.h"
 #include "MuCO/ICustomizableObjectModule.h"
@@ -907,7 +908,7 @@ void UCustomizableObjectSystemPrivate::GetMipStreamingConfig(const UCustomizable
 
 	// From user-controlled per-state flag?
 	const FString CurrentState = Instance.GetCurrentState();
-	const FParameterUIData* State = Instance.GetCustomizableObject()->StateUIDataMap.Find(CurrentState);	
+	const FParameterUIData* State = Instance.GetCustomizableObject()->GetPrivate()->GetModelResources().StateUIDataMap.Find(CurrentState);	
 	if (State)
 	{
 		bOutNeverStream = State->bDisableTextureStreaming;
@@ -1647,6 +1648,8 @@ namespace impl
 		check(System != nullptr);
 
 		const UCustomizableObject* CustomizableObject = OperationData->Instance->GetCustomizableObject();
+		const FModelResources& ModelResources = CustomizableObject->GetPrivate()->GetModelResources();
+
 		UCustomizableInstancePrivate* CustomizableObjectInstancePrivateData = OperationData->Instance->GetPrivate();
 
 		CustomizableObjectInstancePrivateData->PassThroughTexturesToLoad.Empty();
@@ -1777,9 +1780,9 @@ namespace impl
 							FString KeyName = Image.Name.ToString();
 							int32 ImageKey = FCString::Atoi(*KeyName);
 
-							if (ImageKey >= 0 && ImageKey < CustomizableObject->ImageProperties.Num())
+							if (ImageKey >= 0 && ImageKey < ModelResources.ImageProperties.Num())
 							{
-								const FMutableModelImageProperties& Props = CustomizableObject->ImageProperties[ImageKey];
+								const FMutableModelImageProperties& Props = ModelResources.ImageProperties[ImageKey];
 
 								if (Props.IsPassThrough)
 								{
@@ -1791,9 +1794,9 @@ namespace impl
 
 									uint32 ReferenceID = Image.Image->GetReferencedTexture();
 
-									if (CustomizableObject->ReferencedPassThroughTextures.IsValidIndex(ReferenceID))
+									if (ModelResources.PassThroughTextures.IsValidIndex(ReferenceID))
 									{
-										TSoftObjectPtr<UTexture> Ref = CustomizableObject->ReferencedPassThroughTextures[ReferenceID];
+										TSoftObjectPtr<UTexture> Ref = ModelResources.PassThroughTextures[ReferenceID];
 										CustomizableObjectInstancePrivateData->PassThroughTexturesToLoad.Add(Ref);
 									}
 									else
@@ -2655,18 +2658,12 @@ namespace impl
 
 		bool bCancel = false;
 
-		// If the object is locked (for instance, compiling) we skip any instance update.
 		TObjectPtr<UCustomizableObject> CustomizableObject = CandidateInstance->GetCustomizableObject();
-		if (!CustomizableObject)
+
+		// If the object is locked (for instance, compiling) we skip any instance update.
+		if (!CustomizableObject || CustomizableObject->GetPrivate()->bLocked)
 		{
 			bCancel = true;
-		}
-		else
-		{
-			if (CustomizableObject->GetPrivate()->bLocked)
-			{
-				bCancel = true;
-			}
 		}
 
 		// Only update resources if the instance is in range (it could have got far from the player since the task was queued)
@@ -2705,7 +2702,7 @@ namespace impl
 		CandidateInstance->CommitMinMaxLOD();
 
 		FString StateName = CandidateInstance->GetCustomizableObject()->GetStateName(CandidateInstance->GetState());
-		const FParameterUIData* StateData = CandidateInstance->GetCustomizableObject()->StateUIDataMap.Find(StateName);
+		const FParameterUIData* StateData = CandidateInstance->GetCustomizableObject()->GetPrivate()->GetModelResources().StateUIDataMap.Find(StateName);
 
 		Operation->bLiveUpdateMode = false;
 

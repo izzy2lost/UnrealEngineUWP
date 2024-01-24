@@ -4,6 +4,7 @@
 
 #include "MuCO/CustomizableObjectSystem.h"
 #include "MuCO/CustomizableObject.h"
+#include "MuCO/CustomizableObjectPrivate.h"
 #include "MuCO/UnrealToMutableTextureConversionUtils.h"
 #include "TextureResource.h"
 #include "MuR/Parameters.h"
@@ -123,7 +124,8 @@ bool FUnrealMutableImageProvider::Tick(float DeltaTime)
 		return true;
 	}
 
-	if (!CO->ReferencedPassThroughTextures.IsValidIndex(Request->Id))
+	const FModelResources& ModelResources = CO->GetPrivate()->GetModelResources();
+	if (!ModelResources.PassThroughTextures.IsValidIndex(Request->Id))
 	{
 		// The id is not valid for this CO
 		check(false);
@@ -131,7 +133,7 @@ bool FUnrealMutableImageProvider::Tick(float DeltaTime)
 	}
 
 	// Find the texture id
-	TSoftObjectPtr<UTexture> TexturePtr = CO->ReferencedPassThroughTextures[Request->Id];
+	TSoftObjectPtr<UTexture> TexturePtr = ModelResources.PassThroughTextures[Request->Id];
 
 	// This can cause a stall because of loading the asset.
 	UTexture2D* Texture = Cast<UTexture2D>( TexturePtr.LoadSynchronous() );

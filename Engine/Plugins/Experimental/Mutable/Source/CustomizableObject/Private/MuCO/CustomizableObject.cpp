@@ -8,6 +8,7 @@
 #include "EdGraph/EdGraph.h"
 #include "Engine/Engine.h"
 #include "Engine/SkeletalMesh.h"
+#include "Animation/AnimInstance.h"
 #include "Animation/Skeleton.h"
 #include "Engine/AssetUserData.h"
 #include "HAL/FileManager.h"
@@ -21,6 +22,7 @@
 #include "MuCO/CustomizableObjectInstance.h"
 #include "MuCO/CustomizableObjectPrivate.h"
 #include "MuCO/CustomizableObjectSystem.h"
+#include "MuCO/CustomizableObjectUIData.h"
 #include "MuCO/ICustomizableObjectModule.h"
 #include "MuCO/MutableProjectorTypeUtils.h"
 #include "MuCO/UnrealMutableModelDiskStreamer.h"
@@ -154,7 +156,7 @@ void UCustomizableObject::PreSave(FObjectPreSaveContext ObjectSaveContext)
 			UE_LOG(LogMutable, Warning, TEXT("Cook: Customizable Object [%s] is missing [%s] platform data."), *GetName(),
 				*ObjectSaveContext.GetTargetPlatform()->PlatformName());
 			
-			ClearCompiledData();
+			ClearCompiledData(true);
 		}
 	}
 #endif
@@ -217,15 +219,6 @@ void UCustomizableObject::PostLoad()
 	}
 
 	const int32 CustomizableObjectCustomVersion = GetLinkerCustomVersion(FCustomizableObjectCustomVersion::GUID);
-
-	// Update state never-stream flag from deprecated enum
-	if (CustomizableObjectCustomVersion < FCustomizableObjectCustomVersion::CustomizableObjectStateHasSeparateNeverStreamFlag)
-	{
-		for (TPair<FString, FParameterUIData>& s : StateUIDataMap)
-		{
-			s.Value.bDisableTextureStreaming = s.Value.TextureCompressionStrategy != ETextureCompressionStrategy::None;
-		}
-	}
 
 	if (!IsRunningCookCommandlet())
 	{
@@ -331,29 +324,20 @@ FGuid GenerateIdentifier(const UCustomizableObject& CustomizableObject)
 }
 
 
-void UCustomizableObject::ClearCompiledData()
+void UCustomizableObject::ClearCompiledData(bool bIsCooking)
 {
-	ReferenceSkeletalMeshesData.Empty();
-	ReferencedMaterials.Empty();
-	ReferencedMaterialSlotNames.Empty();
-	ReferencedPassThroughTextures.Empty();
-	ReferencedSkeletons.Empty();
-	ImageProperties.Empty();
-	ParameterUIDataMap.Empty();
-	StateUIDataMap.Empty();
-	PhysicsAssetsMap.Empty();
+	Private->GetModelResources(bIsCooking) = FModelResources();
+
 	ContributingMorphTargetsInfo.Empty();
 	MorphTargetReconstructionData.Empty();
 	ClothMeshToMeshVertData.Empty();
 	ContributingClothingAssetsData.Empty();
 	ClothSharedConfigsData.Empty();
-	SkinWeightProfilesInfo.Empty();
-	AnimBpOverridePhysiscAssetsInfo.Empty();
-	BoneNames.Empty();
 
 #if WITH_EDITORONLY_DATA
 	CustomizableObjectPathMap.Empty();
 	GroupNodeMap.Empty();
+	Private->ParticipatingObjects.Empty();
 #endif
 
 	HashToStreamableBlock.Empty();
@@ -383,7 +367,7 @@ void SerializeStreamedResources(FArchive& Ar, UObject* Object, TArray<FCustomiza
 
 				if (AssetUserData->AssetUserDataEditor)
 				{
-					AssetUserDataPath = TSoftObjectPtr<UAssetUserData>(AssetUserData->AssetUserDataEditor).ToSoftObjectPath().ToString();
+					AssetUserDataPath = TSoftObjectPtr<UAssetUserData>(AssetUserData->AssetUserDataEditor).ToString();
 				}
 
 				Ar << AssetUserDataPath;
@@ -478,58 +462,68 @@ void UCustomizableObject::SaveCompiledData(FArchive& MemoryWriter, bool bIsCooki
 	MutableCompiledDataStreamHeader Header(InternalVersion, VersionId);
 	MemoryWriter << Header;
 
-	MemoryWriter << ReferenceSkeletalMeshesData;
+	FModelResources& ModelResources = Private->GetModelResources(false);
+
+	MemoryWriter << ModelResources.ReferenceSkeletalMeshesData;
 
 	SerializeStreamedResources(MemoryWriter, this, StreamedResourceData, bIsCooking);
-	
-	int32 NumReferencedMaterials = ReferencedMaterials.Num();
+
+	int32 NumReferencedMaterials = ModelResources.Materials.Num();
 	MemoryWriter << NumReferencedMaterials;
 
-	for (const TSoftObjectPtr<UMaterialInterface>& Material : ReferencedMaterials)
+	for (const TSoftObjectPtr<UMaterialInterface>& Material : ModelResources.Materials)
 	{
-		FString StringRef = Material.ToSoftObjectPath().ToString();
+		FString StringRef = Material.ToString();
 		MemoryWriter << StringRef;
 	}
 
-	int32 NumReferencedMaterialSlotNames = ReferencedMaterialSlotNames.Num();
-	MemoryWriter << NumReferencedMaterialSlotNames;
-
-	for (const FName& MaterialSlotName : ReferencedMaterialSlotNames)
-	{
-		FString StringRef = MaterialSlotName.ToString();
-		MemoryWriter << StringRef;
-	}
-
-	int32 NumReferencedSkeletons = ReferencedSkeletons.Num();
+	int32 NumReferencedSkeletons = ModelResources.Skeletons.Num();
 	MemoryWriter << NumReferencedSkeletons;
 
-	for (const TSoftObjectPtr<USkeleton>& Skeleton : ReferencedSkeletons)
+	for (const TSoftObjectPtr<USkeleton>& Skeleton : ModelResources.Skeletons)
 	{
-		FString StringRef = Skeleton.ToSoftObjectPath().ToString();
+		FString StringRef = Skeleton.ToString();
 		MemoryWriter << StringRef;
 	}
 
-	int32 NumPassthroughTextures = ReferencedPassThroughTextures.Num();
+	int32 NumPassthroughTextures = ModelResources.PassThroughTextures.Num();
 	MemoryWriter << NumPassthroughTextures;
 
-	for (const TSoftObjectPtr<UTexture>& PassthroughTexture : ReferencedPassThroughTextures)
+	for (const TSoftObjectPtr<UTexture>& PassthroughTexture : ModelResources.PassThroughTextures)
 	{
-		FString StringRef = PassthroughTexture.ToSoftObjectPath().ToString();
+		FString StringRef = PassthroughTexture.ToString();
 		MemoryWriter << StringRef;
 	}
 
-	MemoryWriter << ImageProperties;
-	MemoryWriter << ParameterUIDataMap;
-	MemoryWriter << StateUIDataMap;
-
-	int32 NumPhysicsAssets = PhysicsAssetsMap.Num();
+	int32 NumPhysicsAssets = ModelResources.PhysicsAssets.Num();
 	MemoryWriter << NumPhysicsAssets;
 
-	for (const TPair<FString, TSoftObjectPtr<class UPhysicsAsset>>& PhysicsAsset : PhysicsAssetsMap)
+	for (const TSoftObjectPtr<UPhysicsAsset>& PhysicsAsset : ModelResources.PhysicsAssets)
 	{
-		FString StringRef = PhysicsAsset.Value.ToSoftObjectPath().ToString();
+		FString StringRef = PhysicsAsset.ToString();
 		MemoryWriter << StringRef;
 	}
+
+	int32 NumAnimBps = ModelResources.AnimBPs.Num();
+	MemoryWriter << NumAnimBps;
+
+	for (const TSoftClassPtr<UAnimInstance>& AnimBp : ModelResources.AnimBPs)
+	{
+		FString StringRef = AnimBp.ToString();
+		MemoryWriter << StringRef;
+	}
+
+	MemoryWriter << ModelResources.AnimBpOverridePhysiscAssetsInfo;
+
+	MemoryWriter << ModelResources.MaterialSlotNames;
+	MemoryWriter << ModelResources.BoneNames;
+	MemoryWriter << ModelResources.SocketArray;
+
+	MemoryWriter << ModelResources.SkinWeightProfilesInfo;
+
+	MemoryWriter << ModelResources.ImageProperties;
+	MemoryWriter << ModelResources.ParameterUIDataMap;
+	MemoryWriter << ModelResources.StateUIDataMap;
 
 	MemoryWriter << ContributingMorphTargetsInfo;
 	MemoryWriter << MorphTargetReconstructionData;
@@ -537,22 +531,8 @@ void UCustomizableObject::SaveCompiledData(FArchive& MemoryWriter, bool bIsCooki
 	MemoryWriter << ClothMeshToMeshVertData;
 	MemoryWriter << ContributingClothingAssetsData;
 	MemoryWriter << ClothSharedConfigsData; 
-	
-	MemoryWriter << SkinWeightProfilesInfo;
-
-	MemoryWriter << AnimBpOverridePhysiscAssetsInfo;
-
-	MemoryWriter << BoneNames;
 
 	MemoryWriter << HashToStreamableBlock;
-
-	// All Editor Only data must be serialized here
-	if (!bIsCooking)
-	{
-		MemoryWriter << CustomizableObjectPathMap;
-		MemoryWriter << GroupNodeMap;
-		MemoryWriter << GetPrivate()->ParticipatingObjects;
-	}
 
 	MemoryWriter << LODSettings.NumLODsInRoot;
 	MemoryWriter << NumMeshComponentsInRoot;
@@ -561,12 +541,18 @@ void UCustomizableObject::SaveCompiledData(FArchive& MemoryWriter, bool bIsCooki
 
 	MemoryWriter << LODSettings.NumLODsToStream;
 	MemoryWriter << LODSettings.bLODStreamingEnabled;
+
+	// Editor Only data
+	MemoryWriter << bIsCompiledWithOptimization;
+	MemoryWriter << CustomizableObjectPathMap;
+	MemoryWriter << GroupNodeMap;
+	MemoryWriter << GetPrivate()->ParticipatingObjects;
 }
 
 void UCustomizableObject::LoadCompiledData(FArchive& MemoryReader, const ITargetPlatform* InTargetPlatform, bool bIsCooking)
 {
 	TSharedPtr<mu::Model, ESPMode::ThreadSafe> LoadedModel;
-	ClearCompiledData();
+	ClearCompiledData(bIsCooking);
 
 	MutableCompiledDataStreamHeader Header;
 	MemoryReader << Header;
@@ -576,15 +562,19 @@ void UCustomizableObject::LoadCompiledData(FArchive& MemoryReader, const ITarget
 		// Make sure mutable has been initialised.
 		UCustomizableObjectSystem::GetInstance();
 
-		MemoryReader << ReferenceSkeletalMeshesData;
+		FModelResources& ModelResources = Private->GetModelResources(bIsCooking);
+		ModelResources = FModelResources();
+
+		MemoryReader << ModelResources.ReferenceSkeletalMeshesData;
 
 		// Initialize resources. 
-		for(FMutableRefSkeletalMeshData& ReferenceSkeletalMeshData : ReferenceSkeletalMeshesData)
+		for(FMutableRefSkeletalMeshData& ReferenceSkeletalMeshData : ModelResources.ReferenceSkeletalMeshesData)
 		{
 			ReferenceSkeletalMeshData.InitResources(this, InTargetPlatform);
 		}
 
 		SerializeStreamedResources(MemoryReader, this, StreamedResourceData, bIsCooking);
+
 
 		int32 NumReferencedMaterials = 0;
 		MemoryReader << NumReferencedMaterials;
@@ -594,18 +584,7 @@ void UCustomizableObject::LoadCompiledData(FArchive& MemoryReader, const ITarget
 			FString StringRef;
 			MemoryReader << StringRef;
 
-			ReferencedMaterials.Add(TSoftObjectPtr<UMaterialInterface>(FSoftObjectPath(StringRef)));
-		}
-
-		int32 NumReferencedMaterialSlotNames = 0;
-		MemoryReader << NumReferencedMaterialSlotNames;
-
-		for (int32 i = 0; i < NumReferencedMaterialSlotNames; ++i)
-		{
-			FString StringRef;
-			MemoryReader << StringRef;
-
-			ReferencedMaterialSlotNames.Add(FName(*StringRef));
+			ModelResources.Materials.Add(TSoftObjectPtr<UMaterialInterface>(FSoftObjectPath(StringRef)));
 		}
 
 		int32 NumReferencedSkeletons = 0;
@@ -616,7 +595,7 @@ void UCustomizableObject::LoadCompiledData(FArchive& MemoryReader, const ITarget
 			FString StringRef;
 			MemoryReader << StringRef;
 
-			ReferencedSkeletons.Add(TSoftObjectPtr<USkeleton>(FSoftObjectPath(StringRef)));
+			ModelResources.Skeletons.Add(TSoftObjectPtr<USkeleton>(FSoftObjectPath(StringRef)));
 		}
 
 		int32 NumPassthroughTextures = 0;
@@ -627,12 +606,8 @@ void UCustomizableObject::LoadCompiledData(FArchive& MemoryReader, const ITarget
 			FString StringRef;
 			MemoryReader << StringRef;
 
-			ReferencedPassThroughTextures.Add(TSoftObjectPtr<UTexture>(FSoftObjectPath(StringRef)));
+			ModelResources.PassThroughTextures.Add(TSoftObjectPtr<UTexture>(FSoftObjectPath(StringRef)));
 		}
-
-		MemoryReader << ImageProperties;
-		MemoryReader << ParameterUIDataMap;
-		MemoryReader << StateUIDataMap;
 
 		int32 NumPhysicsAssets = 0;
 		MemoryReader << NumPhysicsAssets;
@@ -642,8 +617,32 @@ void UCustomizableObject::LoadCompiledData(FArchive& MemoryReader, const ITarget
 			FString StringRef;
 			MemoryReader << StringRef;
 
-			PhysicsAssetsMap.Add(StringRef, TSoftObjectPtr<UPhysicsAsset>(FSoftObjectPath(StringRef)));
+			ModelResources.PhysicsAssets.Add(TSoftObjectPtr<UPhysicsAsset>(FSoftObjectPath(StringRef)));
 		}
+
+		int32 NumAnimBps = 0;
+		MemoryReader << NumAnimBps;
+
+		for (int32 Index = 0; Index < NumAnimBps; ++Index)
+		{
+			FString StringRef;
+			MemoryReader << StringRef;
+
+			ModelResources.AnimBPs.Add(TSoftClassPtr<UAnimInstance>(StringRef));
+		}
+
+		MemoryReader << ModelResources.AnimBpOverridePhysiscAssetsInfo;
+
+		MemoryReader << ModelResources.MaterialSlotNames;
+		MemoryReader << ModelResources.BoneNames;
+		MemoryReader << ModelResources.SocketArray;
+
+		MemoryReader << ModelResources.SkinWeightProfilesInfo;
+
+		MemoryReader << ModelResources.ImageProperties;
+		MemoryReader << ModelResources.ParameterUIDataMap;
+		MemoryReader << ModelResources.StateUIDataMap;
+
 
 		MemoryReader << ContributingMorphTargetsInfo;
 		MemoryReader << MorphTargetReconstructionData;
@@ -652,58 +651,7 @@ void UCustomizableObject::LoadCompiledData(FArchive& MemoryReader, const ITarget
 		MemoryReader << ContributingClothingAssetsData;
 		MemoryReader << ClothSharedConfigsData;
 
-		MemoryReader << SkinWeightProfilesInfo;
-
-		MemoryReader << AnimBpOverridePhysiscAssetsInfo;
-
-		TArray<FString> StringBoneNames;
-		MemoryReader << StringBoneNames;
-
-		BoneNames.Reserve(StringBoneNames.Num());
-		for (const FString& BoneName : StringBoneNames)
-		{
-			BoneNames.Add(FName(*BoneName));
-		}
-
 		MemoryReader << HashToStreamableBlock;
-
-		bool bForceRecompilation = false;
-
-		// All Editor Only data must be loaded here
-		if (!bIsCooking)
-		{
-			MemoryReader << CustomizableObjectPathMap;
-			MemoryReader << GroupNodeMap;
-
-			TMap<FName, FGuid>& ParticipatingObjects = GetPrivate()->ParticipatingObjects;
-			MemoryReader << ParticipatingObjects;
-
-			const FAssetRegistryModule& AssetRegistryModule = FModuleManager::LoadModuleChecked<FAssetRegistryModule>("AssetRegistry");
-			
-			for (TTuple<FName, FGuid>& ParticipatingObject : ParticipatingObjects)
-			{				
-				FAssetPackageData AssetPackageData;
-				const UE::AssetRegistry::EExists Result = AssetRegistryModule.Get().TryGetAssetPackageData(ParticipatingObject.Key, AssetPackageData);
-				if (Result == UE::AssetRegistry::EExists::Exists)
-				{
-					PRAGMA_DISABLE_DEPRECATION_WARNINGS
-					const FGuid PackageGuid = AssetPackageData.PackageGuid;
-					PRAGMA_ENABLE_DEPRECATION_WARNINGS
-		
-					bForceRecompilation = PackageGuid != ParticipatingObject.Value;
-				}
-				else
-				{
-					bForceRecompilation = true;
-				}
-		
-				if (bForceRecompilation)
-                {
-                	UE_LOG(LogMutable, Display, TEXT("Forcing recompilation due to changes in %s."), *ParticipatingObject.Key.ToString());
-					break;
-                }
-			}
-		}
 
 		MemoryReader << LODSettings.NumLODsInRoot;
 		MemoryReader << NumMeshComponentsInRoot;
@@ -712,6 +660,47 @@ void UCustomizableObject::LoadCompiledData(FArchive& MemoryReader, const ITarget
 
 		MemoryReader << LODSettings.NumLODsToStream;
 		MemoryReader << LODSettings.bLODStreamingEnabled;
+
+		bool bForceRecompilation = false;
+
+		// Editor Only data
+		{
+			MemoryReader << bIsCompiledWithOptimization;
+			MemoryReader << CustomizableObjectPathMap;
+			MemoryReader << GroupNodeMap;
+
+			TMap<FName, FGuid>& ParticipatingObjects = GetPrivate()->ParticipatingObjects;
+			MemoryReader << ParticipatingObjects;
+
+			if (!bIsCooking)
+			{
+				const FAssetRegistryModule& AssetRegistryModule = FModuleManager::LoadModuleChecked<FAssetRegistryModule>("AssetRegistry");
+
+				for (TTuple<FName, FGuid>& ParticipatingObject : ParticipatingObjects)
+				{
+					FAssetPackageData AssetPackageData;
+					const UE::AssetRegistry::EExists Result = AssetRegistryModule.Get().TryGetAssetPackageData(ParticipatingObject.Key, AssetPackageData);
+					if (Result == UE::AssetRegistry::EExists::Exists)
+					{
+						PRAGMA_DISABLE_DEPRECATION_WARNINGS
+							const FGuid PackageGuid = AssetPackageData.PackageGuid;
+						PRAGMA_ENABLE_DEPRECATION_WARNINGS
+
+							bForceRecompilation = PackageGuid != ParticipatingObject.Value;
+					}
+					else
+					{
+						bForceRecompilation = true;
+					}
+
+					if (bForceRecompilation)
+					{
+						UE_LOG(LogMutable, Display, TEXT("Forcing recompilation due to changes in %s."), *ParticipatingObject.Key.ToString());
+						break;
+					}
+				}
+			}
+		}
 
 		bool bModelSerialized = false;
 		MemoryReader << bModelSerialized;
@@ -994,7 +983,6 @@ void UCustomizableObject::SaveEmbeddedData(FArchive& Ar)
 	{
 		// General derived flags
 		Ar << bDisableTextureStreaming;
-		Ar << bIsCompiledWithOptimization;
 
 		// Serialize morph data
 		{
@@ -1038,7 +1026,6 @@ void UCustomizableObject::LoadEmbeddedData(FArchive& Ar)
 	{
 		// General derived flags
 		Ar << bDisableTextureStreaming;
-		Ar << bIsCompiledWithOptimization;
 
 		// Load morph data
 		{
@@ -1101,55 +1088,13 @@ USkeletalMesh* UCustomizableObject::GetRefSkeletalMesh(int32 ComponentIndex) con
 		return ReferenceSkeletalMeshes[ComponentIndex];
 	}
 #else
-	if (ReferenceSkeletalMeshesData.IsValidIndex(ComponentIndex))
+	const FModelResources& ModelResources = Private->GetModelResources();
+	if (ModelResources.ReferenceSkeletalMeshesData.IsValidIndex(ComponentIndex))
 	{
 		// Can be nullptr if RefSkeletalMeshes are not loaded yet.
-		return ReferenceSkeletalMeshesData[ComponentIndex].SkeletalMesh;
+		return ModelResources.ReferenceSkeletalMeshesData[ComponentIndex].SkeletalMesh;
 	}
 #endif
-	return nullptr;
-}
-
-
-FMutableRefSkeletalMeshData* UCustomizableObject::GetRefSkeletalMeshData(int32 ComponentIndex)
-{
-	if(ReferenceSkeletalMeshesData.IsValidIndex(ComponentIndex))
-	{
-		return &ReferenceSkeletalMeshesData[ComponentIndex];
-	}
-
-	UE_LOG(LogMutable, Warning, TEXT("UCustomizableObject::GetRefSkeletalMeshData with an invalid Index. "
-			"Reference SkeletalMesh data and compiled model may be out of sync. "
-			"Try recompiling the CustomizableObject [%s]."), *GetName() );
-	
-	return nullptr;
-}
-
-
-TSoftObjectPtr<UMaterialInterface> UCustomizableObject::GetReferencedMaterialAssetPtr( uint32 Index )
-{
-	if (ReferencedMaterials.IsValidIndex(Index))
-	{
-		return ReferencedMaterials[Index];
-	}
-
-	UE_LOG(LogMutable, Warning, TEXT("UCustomizableObject::GetReferencedMaterial with an invalid Index. "
-		"Source material data and CustomizableObject data may be out of sync. "
-		"Try recompiling and saving the CustomizableObject asset [%s]."), *GetName() );
-	return nullptr;
-}
-
-
-TSoftObjectPtr<USkeleton> UCustomizableObject::GetReferencedSkeletonAssetPtr( uint32 Index )
-{
-	if (ReferencedSkeletons.IsValidIndex(Index))
-	{
-		return ReferencedSkeletons[Index];
-	}
-
-	UE_LOG(LogMutable, Warning, TEXT("UCustomizableObject::GetReferencedSkeleton with an invalid Index. "
-		"Skeleton data and CustomizableObject data may be out of sync. "
-		"Try recompiling and saving the CustomizableObject asset [%s]."), *GetName());
 	return nullptr;
 }
 
@@ -1291,12 +1236,6 @@ void UCustomizableObject::SetModel(TSharedPtr<mu::Model, ESPMode::ThreadSafe> Mo
 
 	Private->SetModel(Model, GenerateIdentifier(*this));
 }
-
-void UCustomizableObject::SetBoneNamesArray(const TArray<FName>& InBoneNames)
-{
-	BoneNames = InBoneNames;
-}
-
 #endif // End WITH_EDITOR
 
 
@@ -1570,7 +1509,7 @@ FString UCustomizableObject::FindIntParameterValueName(int32 ParamIndex, int32 P
 
 FParameterUIData UCustomizableObject::GetParameterUIMetadata(const FString& ParamName) const
 {
-	const FParameterUIData* ParameterUIData = ParameterUIDataMap.Find(ParamName);
+	const FParameterUIData* ParameterUIData = Private->GetModelResources().ParameterUIDataMap.Find(ParamName);
 
 	return ParameterUIData ? *ParameterUIData : FParameterUIData();
 }
@@ -1584,7 +1523,7 @@ FParameterUIData UCustomizableObject::GetParameterUIMetadataFromIndex(int32 Para
 
 FParameterUIData UCustomizableObject::GetStateUIMetadata(const FString& StateName) const
 {
-	const FParameterUIData* StateUIData = StateUIDataMap.Find(StateName);
+	const FParameterUIData* StateUIData = Private->GetModelResources().StateUIDataMap.Find(StateName);
 
 	return StateUIData ? *StateUIData : FParameterUIData();
 }
@@ -1817,21 +1756,16 @@ void UCustomizableObject::GetLowPriorityTextureNames(TArray<FString>& OutTexture
 
 	if (!LowPriorityTextures.IsEmpty())
 	{
-		const int32 ImageCount = ImageProperties.Num();
+		const FModelResources& ModelResources = Private->GetModelResources();
+		const int32 ImageCount = ModelResources.ImageProperties.Num();
 		for (int32 ImageIndex = 0; ImageIndex < ImageCount; ++ImageIndex)
 		{
-			if (LowPriorityTextures.Find(FName(ImageProperties[ImageIndex].TextureParameterName)) != INDEX_NONE)
+			if (LowPriorityTextures.Find(FName(ModelResources.ImageProperties[ImageIndex].TextureParameterName)) != INDEX_NONE)
 			{
 				OutTextureNames.Add(FString::FromInt(ImageIndex));
 			}
 		}
 	}
-}
-
-
-const TArray<FName>& UCustomizableObject::GetBoneNamesArray() const
-{
-	return BoneNames;
 }
 
 
@@ -1962,6 +1896,23 @@ TSharedPtr<const mu::Model, ESPMode::ThreadSafe> UCustomizableObjectPrivate::Get
 {
 	return MutableModel;
 }
+
+const FModelResources& UCustomizableObjectPrivate::GetModelResources() const
+{
+#if WITH_EDITORONLY_DATA
+	return ModelResourcesEditor;
+#else
+	return ModelResources;
+#endif
+}
+
+
+#if WITH_EDITORONLY_DATA
+FModelResources& UCustomizableObjectPrivate::GetModelResources(bool bIsCooking)
+{
+	return bIsCooking ? ModelResources : ModelResourcesEditor;
+}
+#endif
 
 
 //-------------------------------------------------------------------------------------------------
@@ -2105,26 +2056,179 @@ void UCustomizableObjectBulk::PrepareBulkData(UCustomizableObject* InOuter, cons
 	}
 }
 
-#if WITH_EDITORONLY_DATA
+#endif // WITH_EDITOR
 
 //-------------------------------------------------------------------------------------------------
 //-------------------------------------------------------------------------------------------------
 //-------------------------------------------------------------------------------------------------
-void FMutableRefAssetUserData::InitResources(UCustomizableObject* InOuter)
+bool FAnimBpOverridePhysicsAssetsInfo::operator==(const FAnimBpOverridePhysicsAssetsInfo& Rhs) const
 {
-	UClass* AssetUserDataClass = FindObject<UClass>(nullptr, *ClassPath);
-	if (AssetUserDataClass)
-	{
-		AssetUserData = UE::Mutable::Private::MoveOldObjectAndCreateNew<UAssetUserData>(AssetUserDataClass, InOuter);
-		if (AssetUserData)
-		{
-			FMemoryReaderView MemoryReader(Bytes);
-			AssetUserData->Serialize(MemoryReader);
+	return AnimInstanceClass == Rhs.AnimInstanceClass &&
+		SourceAsset == Rhs.SourceAsset &&
+		PropertyIndex == Rhs.PropertyIndex;
+}
 
-			ClassPath.Empty();
-			Bytes.Empty();
-		}
+
+bool FMutableModelImageProperties::operator!=(const FMutableModelImageProperties& Other) const
+{
+	return
+		TextureParameterName != Other.TextureParameterName ||
+		Filter != Other.Filter ||
+		SRGB != Other.SRGB ||
+		FlipGreenChannel != Other.FlipGreenChannel ||
+		IsPassThrough != Other.IsPassThrough ||
+		LODBias != Other.LODBias ||
+		LODGroup != Other.LODGroup ||
+		AddressX != Other.AddressX ||
+		AddressY != Other.AddressY;
+}
+
+
+bool FMutableRefSocket::operator==(const FMutableRefSocket& Other) const
+{
+	if (
+		SocketName == Other.SocketName &&
+		BoneName == Other.BoneName &&
+		RelativeLocation == Other.RelativeLocation &&
+		RelativeRotation == Other.RelativeRotation &&
+		RelativeScale == Other.RelativeScale &&
+		bForceAlwaysAnimated == Other.bForceAlwaysAnimated &&
+		Priority == Other.Priority)
+	{
+		return true;
 	}
+
+	return false;
+}
+
+
+bool FMutableSkinWeightProfileInfo::operator==(const FMutableSkinWeightProfileInfo& Other) const
+{
+	return Name == Other.Name;
+}
+
+
+#if WITH_EDITORONLY_DATA
+FArchive& operator<<(FArchive& Ar, FMutableModelImageProperties& ImageProps)
+{
+	Ar << ImageProps.TextureParameterName;
+	Ar << ImageProps.Filter;
+
+	// Bitfields don't serialize automatically with FArchive
+	if (Ar.IsLoading())
+	{
+		int32 Aux = 0;
+		Ar << Aux;
+		ImageProps.SRGB = Aux;
+
+		Aux = 0;
+		Ar << Aux;
+		ImageProps.FlipGreenChannel = Aux;
+
+		Aux = 0;
+		Ar << Aux;
+		ImageProps.IsPassThrough = Aux;
+	}
+	else
+	{
+		int32 Aux = ImageProps.SRGB;
+		Ar << Aux;
+
+		Aux = ImageProps.FlipGreenChannel;
+		Ar << Aux;
+
+		Aux = ImageProps.IsPassThrough;
+		Ar << Aux;
+	}
+
+	Ar << ImageProps.LODBias;
+	Ar << ImageProps.LODGroup;
+
+	Ar << ImageProps.AddressX;
+	Ar << ImageProps.AddressY;
+
+	return Ar;
+}
+
+
+FArchive& operator<<(FArchive& Ar, FAnimBpOverridePhysicsAssetsInfo& Info)
+{
+	FString AnimInstanceClassPathString;
+	FString PhysicsAssetPathString;
+
+	if (Ar.IsLoading())
+	{
+		Ar << AnimInstanceClassPathString;
+		Ar << PhysicsAssetPathString;
+		Ar << Info.PropertyIndex;
+
+		Info.AnimInstanceClass = TSoftClassPtr<UAnimInstance>(AnimInstanceClassPathString);
+		Info.SourceAsset = TSoftObjectPtr<UPhysicsAsset>(PhysicsAssetPathString);
+	}
+
+	if (Ar.IsSaving())
+	{
+		AnimInstanceClassPathString = Info.AnimInstanceClass.ToString();
+		PhysicsAssetPathString = Info.SourceAsset.ToString();
+
+		Ar << AnimInstanceClassPathString;
+		Ar << PhysicsAssetPathString;
+		Ar << Info.PropertyIndex;
+	}
+
+	return Ar;
+}
+
+
+FArchive& operator<<(FArchive& Ar, FMutableRefSocket& Data)
+{
+	Ar << Data.SocketName;
+	Ar << Data.BoneName;
+	Ar << Data.RelativeLocation;
+	Ar << Data.RelativeRotation;
+	Ar << Data.RelativeScale;
+	Ar << Data.bForceAlwaysAnimated;
+	Ar << Data.Priority;
+
+	return Ar;
+}
+
+
+FArchive& operator<<(FArchive& Ar, FMutableRefLODRenderData& Data)
+{
+	Ar << Data.bIsLODOptional;
+	Ar << Data.bStreamedDataInlined;
+
+	return Ar;
+}
+
+
+FArchive& operator<<(FArchive& Ar, FMutableRefLODInfo& Data)
+{
+	Ar << Data.ScreenSize;
+	Ar << Data.LODHysteresis;
+	Ar << Data.bSupportUniformlyDistributedSampling;
+	Ar << Data.bAllowCPUAccess;
+
+	return Ar;
+}
+
+
+FArchive& operator<<(FArchive& Ar, FMutableRefLODData& Data)
+{
+	Ar << Data.LODInfo;
+	Ar << Data.RenderData;
+
+	return Ar;
+}
+
+
+FArchive& operator<<(FArchive& Ar, FMutableRefSkeletalMeshSettings& Data)
+{
+	Ar << Data.bEnablePerPolyCollision;
+	Ar << Data.DefaultUVChannelDensity;
+
+	return Ar;
 }
 
 
@@ -2156,60 +2260,40 @@ FArchive& operator<<(FArchive& Ar, FMutableRefAssetUserData& Data)
 }
 
 
-FArchive& operator<<(FArchive& Ar, FMutableRefSkeletalMeshData& Data)
+FArchive& operator<<(FArchive& Ar, FMutableSkinWeightProfileInfo& Info)
 {
-	Ar << Data.LODData;
-	Ar << Data.Sockets;
-	Ar << Data.Bounds;
-	Ar << Data.Settings;
-
-	if (Ar.IsSaving())
-	{
-		FString AssetPath = Data.SkeletalMeshAssetPath.ToString();
-		Ar << AssetPath;
-
-		AssetPath = Data.Skeleton.ToSoftObjectPath().ToString();
-		Ar << AssetPath;
-
-		AssetPath = Data.PhysicsAsset.ToSoftObjectPath().ToString();
-		Ar << AssetPath;
-
-		AssetPath = Data.PostProcessAnimInst.ToSoftObjectPath().ToString();
-		Ar << AssetPath;
-
-		AssetPath = Data.ShadowPhysicsAsset.ToSoftObjectPath().ToString();
-		Ar << AssetPath;
-
-	}
-	else
-	{
-		FString SkeletalMeshAssetPath;
-		Ar << SkeletalMeshAssetPath;
-		Data.SkeletalMeshAssetPath = SkeletalMeshAssetPath;
-
-		FString SkeletonAssetPath;
-		Ar << SkeletonAssetPath;
-		Data.Skeleton = TSoftObjectPtr<USkeleton>(FSoftObjectPath(SkeletonAssetPath));
-
-		FString PhysicsAssetPath;
-		Ar << PhysicsAssetPath;
-		Data.PhysicsAsset = TSoftObjectPtr<UPhysicsAsset>(FSoftObjectPath(PhysicsAssetPath));
-
-		FString PostProcessAnimInstAssetPath;
-		Ar << PostProcessAnimInstAssetPath;
-		Data.PostProcessAnimInst = TSoftClassPtr<UAnimInstance>(FSoftObjectPath(PostProcessAnimInstAssetPath));
-
-		FString ShadowPhysicsAssetPath;
-		Ar << ShadowPhysicsAssetPath;
-		Data.ShadowPhysicsAsset = TSoftObjectPtr<UPhysicsAsset>(FSoftObjectPath(ShadowPhysicsAssetPath));
-	}
-
-	Ar << Data.AssetUserData;
+	Ar << Info.Name;
+	Ar << Info.DefaultProfile;
+	Ar << Info.DefaultProfileFromLODIndex;
 
 	return Ar;
 }
 
 
+//-------------------------------------------------------------------------------------------------
+//-------------------------------------------------------------------------------------------------
+//-------------------------------------------------------------------------------------------------
+void FMutableRefAssetUserData::InitResources(UCustomizableObject* InOuter)
+{
+	UClass* AssetUserDataClass = FindObject<UClass>(nullptr, *ClassPath);
+	if (AssetUserDataClass)
+	{
+		AssetUserData = UE::Mutable::Private::MoveOldObjectAndCreateNew<UAssetUserData>(AssetUserDataClass, InOuter);
+		if (AssetUserData)
+		{
+			FMemoryReaderView MemoryReader(Bytes);
+			AssetUserData->Serialize(MemoryReader);
+
+			ClassPath.Empty();
+			Bytes.Empty();
+		}
+	}
+}
+
+
+//-------------------------------------------------------------------------------------------------
+//-------------------------------------------------------------------------------------------------
+//-------------------------------------------------------------------------------------------------
 void FMutableRefSkeletalMeshData::InitResources(UCustomizableObject* InOuter, const ITargetPlatform* InTargetPlatform)
 {
 	check(InOuter);
@@ -2217,7 +2301,7 @@ void FMutableRefSkeletalMeshData::InitResources(UCustomizableObject* InOuter, co
 	const bool bHasServer = InTargetPlatform ? !InTargetPlatform->IsClientOnly() : false;	
 	if (InOuter->IsEnableUseRefSkeletalMeshAsPlaceholder() || bHasServer)
 	{
-		SkeletalMesh = TSoftObjectPtr<USkeletalMesh>(SkeletalMeshAssetPath).LoadSynchronous();
+		SkeletalMesh = TSoftObjectPtr<USkeletalMesh>(SoftSkeletalMesh).LoadSynchronous();
 	}
 
 	// Initialize AssetUserData
@@ -2228,8 +2312,59 @@ void FMutableRefSkeletalMeshData::InitResources(UCustomizableObject* InOuter, co
 }
 
 
-#endif
+FArchive& operator<<(FArchive& Ar, FMutableRefSkeletalMeshData& Data)
+{
+	Ar << Data.LODData;
+	Ar << Data.Sockets;
+	Ar << Data.Bounds;
+	Ar << Data.Settings;
 
-#endif
+	if (Ar.IsSaving())
+	{
+		FString AssetPath = Data.SoftSkeletalMesh.ToString();
+		Ar << AssetPath;
+
+		AssetPath = TSoftObjectPtr<USkeleton>(Data.Skeleton).ToString();
+		Ar << AssetPath;
+
+		AssetPath = TSoftObjectPtr<UPhysicsAsset>(Data.PhysicsAsset).ToString();
+		Ar << AssetPath;
+
+		AssetPath = Data.PostProcessAnimInst.ToString();
+		Ar << AssetPath;
+
+		AssetPath = TSoftObjectPtr<UPhysicsAsset>(Data.ShadowPhysicsAsset).ToString();
+		Ar << AssetPath;
+
+	}
+	else
+	{
+		FString SkeletalMeshAssetPath;
+		Ar << SkeletalMeshAssetPath;
+		Data.SoftSkeletalMesh = SkeletalMeshAssetPath;
+
+		FString SkeletonAssetPath;
+		Ar << SkeletonAssetPath;
+		Data.Skeleton = TSoftObjectPtr<USkeleton>(SkeletonAssetPath).LoadSynchronous();
+
+		FString PhysicsAssetPath;
+		Ar << PhysicsAssetPath;
+		Data.PhysicsAsset = TSoftObjectPtr<UPhysicsAsset>(PhysicsAssetPath).LoadSynchronous();
+
+		FString PostProcessAnimInstAssetPath;
+		Ar << PostProcessAnimInstAssetPath;
+		Data.PostProcessAnimInst = TSoftClassPtr<UAnimInstance>(PostProcessAnimInstAssetPath).LoadSynchronous();
+
+		FString ShadowPhysicsAssetPath;
+		Ar << ShadowPhysicsAssetPath;
+		Data.ShadowPhysicsAsset = TSoftObjectPtr<UPhysicsAsset>(ShadowPhysicsAssetPath).LoadSynchronous();
+	}
+
+	Ar << Data.AssetUserData;
+
+	return Ar;
+}
+
+#endif // WITH_EDITORONLY_DATA
 
 #undef LOCTEXT_NAMESPACE

@@ -9,6 +9,7 @@
 #include "Interfaces/ITargetPlatformManagerModule.h"
 #include "Materials/MaterialInterface.h"
 #include "MessageLogModule.h"
+#include "MuCO/CustomizableObjectPrivate.h"
 #include "MuCO/CustomizableObjectInstance.h"
 #include "MuCO/CustomizableObjectSystem.h"
 #include "MuCO/ICustomizableObjectModule.h"
@@ -929,13 +930,65 @@ void FCustomizableObjectCompiler::CompileInternal(UCustomizableObject* Object, c
 	}
 	else
 	{
+		FModelResources& ModelResources = Object->GetPrivate()->GetModelResources(false);
+		ModelResources = FModelResources();
+		
+		ModelResources.ReferenceSkeletalMeshesData = MoveTemp(GenerationContext.ReferenceSkeletalMeshesData);
+
+		ModelResources.Skeletons.Reserve(GenerationContext.ReferencedSkeletons.Num());
+		for (const USkeleton* Skeleton : GenerationContext.ReferencedSkeletons)
+		{
+			ModelResources.Skeletons.Emplace(Skeleton);
+		}
+		
+		ModelResources.Materials.Reserve(GenerationContext.ReferencedMaterials.Num());
+		for (const UMaterialInterface* Material : GenerationContext.ReferencedMaterials)
+		{
+			ModelResources.Materials.Emplace(Material);
+		}
+
+		for (const TPair<TSoftObjectPtr<UTexture>, FMutableGraphGenerationContext::FGeneratedReferencedTexture>& Pair : GenerationContext.RuntimeReferencedTextureMap)
+		{
+			check(Pair.Value.ID == ModelResources.PassThroughTextures.Num());
+			ModelResources.PassThroughTextures.Add(Pair.Key);
+		}
+
+		ModelResources.PhysicsAssets = MoveTemp(GenerationContext.PhysicsAssets);
+
+		ModelResources.AnimBPs = MoveTemp(GenerationContext.AnimBPAssets);
+		ModelResources.AnimBpOverridePhysiscAssetsInfo = MoveTemp(GenerationContext.AnimBpOverridePhysicsAssetsInfo);
+
+		ModelResources.MaterialSlotNames = MoveTemp(GenerationContext.ReferencedMaterialSlotNames);
+		ModelResources.BoneNames = MoveTemp(GenerationContext.BoneNames);
+		ModelResources.SocketArray = MoveTemp(GenerationContext.SocketArray);
+
+		ModelResources.SkinWeightProfilesInfo = MoveTemp(GenerationContext.SkinWeightProfilesInfo);
+
+		TArray<FGeneratedImageProperties> ImageProperties;
+		GenerationContext.ImageProperties.GenerateValueArray(ImageProperties);
+
+		ModelResources.ImageProperties.Empty(ImageProperties.Num());
+
+		for (const FGeneratedImageProperties& ImageProp : ImageProperties)
+		{
+			ModelResources.ImageProperties.Add({ ImageProp.TextureParameterName,
+										ImageProp.Filter,
+										ImageProp.SRGB,
+										ImageProp.bFlipGreenChannel,
+										ImageProp.bIsPassThrough,
+										ImageProp.LODBias,
+										ImageProp.LODGroup,
+										ImageProp.AddressX, ImageProp.AddressY });
+		}
+
+		ModelResources.ParameterUIDataMap = MoveTemp(GenerationContext.ParameterUIDataMap);
+		ModelResources.StateUIDataMap = MoveTemp(GenerationContext.StateUIDataMap);
+
 		// Morph target generated data does not need extra processing so move semantics can be used
 		// to avoid a possibly expensive copy.
 		Object->ContributingMorphTargetsInfo = MoveTemp(GenerationContext.ContributingMorphTargetsInfo);
 		Object->MorphTargetReconstructionData = MoveTemp(GenerationContext.MorphTargetReconstructionData);
 		
-		Object->SkinWeightProfilesInfo = MoveTemp(GenerationContext.SkinWeightProfilesInfo);
-		Object->AnimBpOverridePhysiscAssetsInfo = MoveTemp(GenerationContext.AnimBpOverridePhysicsAssetsInfo);
 		
 		// Clothing	
 		Object->ClothMeshToMeshVertData = MoveTemp(GenerationContext.ClothMeshToMeshVertData);
@@ -980,63 +1033,8 @@ void FCustomizableObjectCompiler::CompileInternal(UCustomizableObject* Object, c
 			 ClothingAssetData.ConfigsData.RemoveAllSwap(IsSharedConfigData);
 		}
 
-		// Mark the object as modified, used to avoid missing assets in packages. 
-		if (!ParamNamesToSelectedOptions.Num()) // Don't mark the objects as modified because of a partial compilation
-		{
-			if (Object->ReferencedMaterials.Num() != GenerationContext.ReferencedMaterials.Num())
-			{
-				Object->MarkPackageDirty();
-			}
-			else
-			{
-				for (int32 i = 0; i < Object->ReferencedMaterials.Num(); ++i)
-				{
-					if (Object->ReferencedMaterials[i] != GenerationContext.ReferencedMaterials[i])
-					{
-						Object->MarkPackageDirty();
-						break;
-					}
-				}
-			}
-		}
-
-		Object->ReferenceSkeletalMeshesData = GenerationContext.ReferenceSkeletalMeshesData;
-		
-		Object->ReferencedMaterials.Empty(GenerationContext.ReferencedMaterials.Num());
-
-		for (const UMaterialInterface* Material : GenerationContext.ReferencedMaterials)
-		{
-			Object->ReferencedMaterials.Add(Material);
-		}
-
-		Object->ReferencedMaterialSlotNames.Empty(GenerationContext.ReferencedMaterialSlotNames.Num());
-
-		for (const FName& MaterialSlotName : GenerationContext.ReferencedMaterialSlotNames)
-		{
-			Object->ReferencedMaterialSlotNames.Add(MaterialSlotName);
-		}
-
-		Object->ImageProperties.Empty(GenerationContext.ImageProperties.Num());
-
-		TArray<FGeneratedImageProperties> ImageProperties;
-		GenerationContext.ImageProperties.GenerateValueArray(ImageProperties);
-
-		for (const FGeneratedImageProperties& ImageProp : ImageProperties)
-		{
-			Object->ImageProperties.Add({ ImageProp.TextureParameterName,
-										ImageProp.Filter,
-										ImageProp.SRGB,
-										ImageProp.bFlipGreenChannel,
-										ImageProp.bIsPassThrough,
-										ImageProp.LODBias,
-										ImageProp.LODGroup,
-										ImageProp.AddressX, ImageProp.AddressY });
-		}
-
 		Object->GroupNodeMap = GenerationContext.GroupNodeMap;
-		Object->ParameterUIDataMap = GenerationContext.ParameterUIDataMap;
 
-		Object->StateUIDataMap = GenerationContext.StateUIDataMap;
 		if (GenerationContext.Options.OptimizationLevel == 0)
 		{
 			// If the optimization level is "none" disable texture streaming, because textures are all referenced
@@ -1067,69 +1065,7 @@ void FCustomizableObjectCompiler::CompileInternal(UCustomizableObject* Object, c
 		Object->LODSettings.bLODStreamingEnabled = GenerationContext.bEnableLODStreaming;
 		Object->LODSettings.NumLODsToStream = GenerationContext.NumMaxLODsToStream;
 
-		// Mark the object as modified, used to avoid missing assets in packages. 
-		if (!Object->PhysicsAssetsMap.OrderIndependentCompareEqual(GenerationContext.PhysicsAssetMap))
-		{
-			if (!ParamNamesToSelectedOptions.Num()) // Don't mark the objects as modified because of a partial compilation
-			{
-				Object->MarkPackageDirty();
-			}
-		}
-
-		Object->PhysicsAssetsMap = GenerationContext.PhysicsAssetMap;
-
-		// Mark the object as modified, used to avoid missing assets in packages. 
-		if (!Object->AnimBPAssetsMap.OrderIndependentCompareEqual(GenerationContext.AnimBPAssetsMap))
-		{
-			if (!ParamNamesToSelectedOptions.Num()) // Don't mark the objects as modified because of a partial compilation
-			{
-				Object->MarkPackageDirty();
-			}
-		}
-	
-		Object->AnimBPAssetsMap = GenerationContext.AnimBPAssetsMap;
-
 		Object->StreamedResourceData = MoveTemp(GenerationContext.StreamedResourceData);
-
-		// Mark the object as modified, used to avoid missing assets in packages.
-		if (Object->SocketArray != GenerationContext.SocketArray)
-		{
-			if (!ParamNamesToSelectedOptions.Num()) // Don't mark the objects as modified because of a partial compilation
-			{
-				Object->MarkPackageDirty();
-			}
-		}
-
-		Object->SocketArray = GenerationContext.SocketArray;
-
-		// 
-		if (!ParamNamesToSelectedOptions.Num()) // Don't mark the objects as modified because of a partial compilation
-		{
-			if (Object->ReferencedSkeletons.Num() != GenerationContext.ReferencedSkeletons.Num())
-			{
-				Object->MarkPackageDirty();
-			}
-			else
-			{
-				for (int32 SkeletonIndex = 0; SkeletonIndex < Object->ReferencedSkeletons.Num(); ++SkeletonIndex)
-				{
-					if (Object->ReferencedSkeletons[SkeletonIndex] != GenerationContext.ReferencedSkeletons[SkeletonIndex])
-					{
-						Object->MarkPackageDirty();
-						break;
-					}
-				}
-			}
-		}
-
-		Object->ReferencedSkeletons.Empty(GenerationContext.ReferencedSkeletons.Num());
-
-		for (const USkeleton* Skeleton : GenerationContext.ReferencedSkeletons)
-		{
-			Object->ReferencedSkeletons.Add(Skeleton);
-		}
-
-		Object->SetBoneNamesArray(GenerationContext.BoneNames);
 
 		// Pass-through textures
 		TArray<TSoftObjectPtr<UTexture>> NewCompileTimeReferencedTextures;
@@ -1137,24 +1073,6 @@ void FCustomizableObjectCompiler::CompileInternal(UCustomizableObject* Object, c
 		{
 			check(Pair.Value.ID == NewCompileTimeReferencedTextures.Num());
 			NewCompileTimeReferencedTextures.Add(Pair.Key);
-		}
-
-		TArray<TSoftObjectPtr<UTexture>> NewRuntimeReferencedTextures;
-		for (const TPair<TSoftObjectPtr<UTexture>, FMutableGraphGenerationContext::FGeneratedReferencedTexture>& Pair : GenerationContext.RuntimeReferencedTextureMap)
-		{
-			check(Pair.Value.ID == NewRuntimeReferencedTextures.Num());
-			NewRuntimeReferencedTextures.Add(Pair.Key);
-		}
-
-		// Mark the object as modified, used to avoid missing assets in packages.
-		if (Object->ReferencedPassThroughTextures != NewRuntimeReferencedTextures)
-		{
-			Object->ReferencedPassThroughTextures = NewRuntimeReferencedTextures;
-
-			if (!ParamNamesToSelectedOptions.Num()) // Don't mark the objects as modified because of a partial compilation
-			{
-				Object->MarkPackageDirty();
-			}
 		}
 
 		if (!ParamNamesToSelectedOptions.Num())

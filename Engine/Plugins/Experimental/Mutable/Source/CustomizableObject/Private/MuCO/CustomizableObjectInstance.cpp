@@ -1294,7 +1294,7 @@ namespace
 
 		Result->bNotForDedicatedServer = TemplateAsset->bNotForDedicatedServer;
 
-		const TArray<FName>& BoneNames = CustomizableObject.GetBoneNamesArray();
+		const FModelResources& ModelResources = CustomizableObject.GetPrivate()->GetModelResources();
 		TMap<FName, int32> BonesInUse;
 
 		const int32 MutablePhysicsBodyCount = MutablePhysics->GetBodyCount();
@@ -1302,9 +1302,9 @@ namespace
 		for ( int32 I = 0; I < MutablePhysicsBodyCount; ++I )
 		{
 			const uint16 BoneNameId = MutablePhysics->GetBodyBoneId(I);
-			if (BoneNames.IsValidIndex(BoneNameId))
+			if (ModelResources.BoneNames.IsValidIndex(BoneNameId))
 			{
-				FName BoneName = BoneNames[BoneNameId];
+				FName BoneName = ModelResources.BoneNames[BoneNameId];
 				BonesInUse.Add(BoneName, I);
 			}
 		}
@@ -1462,7 +1462,7 @@ UPhysicsAsset* UCustomizableInstancePrivate::GetOrBuildMainPhysicsAsset(
 
 	Result->bNotForDedicatedServer = TemplateAsset->bNotForDedicatedServer;
 
-	const TArray<FName>& BoneNames = CustomizableObject.GetBoneNamesArray();
+	const FModelResources& ModelResources = CustomizableObject.GetPrivate()->GetModelResources();
 	TMap<FName, int32> BonesInUse;
 
 	const int32 MutablePhysicsBodyCount = MutablePhysics->GetBodyCount();
@@ -1470,9 +1470,9 @@ UPhysicsAsset* UCustomizableInstancePrivate::GetOrBuildMainPhysicsAsset(
 	for ( int32 I = 0; I < MutablePhysicsBodyCount; ++I )
 	{
 		const uint16 BoneNameId = MutablePhysics->GetBodyBoneId(I);
-		if (BoneNames.IsValidIndex(BoneNameId))
+		if (ModelResources.BoneNames.IsValidIndex(BoneNameId))
 		{
-			FName BoneName = BoneNames[BoneNameId];
+			FName BoneName = ModelResources.BoneNames[BoneNameId];
 			BonesInUse.Add(BoneName, I);
 		}
 	}
@@ -1852,6 +1852,8 @@ bool UCustomizableInstancePrivate::UpdateSkeletalMesh_PostBeginUpdate0(UCustomiz
 	UCustomizableObject* CustomizableObject = Public->GetCustomizableObject();
 	check(CustomizableObject);
 
+	const FModelResources& ModelResources = CustomizableObject->GetPrivate()->GetModelResources();
+
 	// Initialize the maximum number of SkeletalMeshes we could possibly have. 
 	SkeletalMeshes.Init(nullptr, CustomizableObject->GetComponentCount());
 
@@ -1901,12 +1903,13 @@ bool UCustomizableInstancePrivate::UpdateSkeletalMesh_PostBeginUpdate0(UCustomiz
 			continue;
 		}
 
-		const FMutableRefSkeletalMeshData* RefSkeletalMeshData = CustomizableObject->GetRefSkeletalMeshData(Component.Id);
-		if (!RefSkeletalMeshData)
+		if (!ModelResources.ReferenceSkeletalMeshesData.IsValidIndex(Component.Id))
 		{
 			bSuccess = false;
 			break;
 		}
+
+		const FMutableRefSkeletalMeshData& RefSkeletalMeshData = ModelResources.ReferenceSkeletalMeshesData[Component.Id];
 
 		// Create and initialize the SkeletalMesh for this component
 		MUTABLE_CPUPROFILER_SCOPE(ConstructMesh);
@@ -1922,7 +1925,7 @@ bool UCustomizableInstancePrivate::UpdateSkeletalMesh_PostBeginUpdate0(UCustomiz
 		if (Component.Mesh)
 		{
 			// Construct a new skeleton, fix up ActiveBones and Bonemap arrays and recompute the RefInvMatrices
-			bSuccess = BuildSkeletonData(OperationData, *SkeletalMesh, *RefSkeletalMeshData, *CustomizableObject, Component.Id);
+			bSuccess = BuildSkeletonData(OperationData, *SkeletalMesh, RefSkeletalMeshData, *CustomizableObject, Component.Id);
 
 			if (!bSuccess)
 			{
@@ -1934,7 +1937,7 @@ bool UCustomizableInstancePrivate::UpdateSkeletalMesh_PostBeginUpdate0(UCustomiz
 			{
 				constexpr bool bDisallowCollisionBetweenAssets = true;
 				UPhysicsAsset* PhysicsAssetResult = GetOrBuildMainPhysicsAsset(
-					RefSkeletalMeshData->PhysicsAsset.Get(), MutablePhysics.get(), *CustomizableObject, Component.Id, bDisallowCollisionBetweenAssets);
+					RefSkeletalMeshData.PhysicsAsset, MutablePhysics.get(), *CustomizableObject, Component.Id, bDisallowCollisionBetweenAssets);
 
 				SkeletalMesh->SetPhysicsAsset(PhysicsAssetResult);
 
@@ -1963,7 +1966,7 @@ bool UCustomizableInstancePrivate::UpdateSkeletalMesh_PostBeginUpdate0(UCustomiz
 
 				const int32 PhysicsBodyExternalId = Component.Mesh->AdditionalPhysicsBodies[I]->CustomId;
 				
-				const FAnimBpOverridePhysicsAssetsInfo& Info = CustomizableObject->AnimBpOverridePhysiscAssetsInfo[PhysicsBodyExternalId];
+				const FAnimBpOverridePhysicsAssetsInfo& Info = ModelResources.AnimBpOverridePhysiscAssetsInfo[PhysicsBodyExternalId];
 
 				// Make sure the AnimInstance class is loaded. It is expected to be already loaded at this point though. 
 				UClass* AnimInstanceClassLoaded = Info.AnimInstanceClass.LoadSynchronous();
@@ -1987,7 +1990,7 @@ bool UCustomizableInstancePrivate::UpdateSkeletalMesh_PostBeginUpdate0(UCustomiz
 			}
 
 			// Add sockets from the SkeletalMesh of reference and from the MutableMesh
-			BuildMeshSockets(OperationData, SkeletalMesh, RefSkeletalMeshData, Public, Component.Mesh);
+			BuildMeshSockets(OperationData, SkeletalMesh, ModelResources, RefSkeletalMeshData, Component.Mesh);
 		}
 		else
 		{
@@ -2815,6 +2818,8 @@ void UCustomizableInstancePrivate::SetDefaultSkeletalMesh(bool bSetEmptyMesh) co
 	}
 
 	UCustomizableObject* CustomizableObject = Instance->GetCustomizableObject();
+	const FModelResources& ModelResources = CustomizableObject->GetPrivate()->GetModelResources();
+
 	const int32 NumComponents = CustomizableObject->GetComponentCount();
 
 	for (TObjectIterator<UCustomizableObjectInstanceUsage> It; It; ++It)
@@ -2831,14 +2836,18 @@ void UCustomizableInstancePrivate::SetDefaultSkeletalMesh(bool bSetEmptyMesh) co
 			continue;
 		}
 #endif
+		const int32 ComponentIndex = CustomizableObjectInstanceUsage->GetComponentIndex();
+		if (!ModelResources.ReferenceSkeletalMeshesData.IsValidIndex(ComponentIndex))
+		{
+			continue;
+		}
 
 		USkeletalMesh* SkeletalMesh = nullptr;
 		
-		FMutableRefSkeletalMeshData* RefSkeletalMeshData = CustomizableObject->GetRefSkeletalMeshData(CustomizableObjectInstanceUsage->GetComponentIndex());
-		if (!bSetEmptyMesh && RefSkeletalMeshData)
+		if (!bSetEmptyMesh)
 		{
 			// Force load the reference mesh if necessary. 
-			SkeletalMesh = TSoftObjectPtr<USkeletalMesh>(RefSkeletalMeshData->SkeletalMeshAssetPath).LoadSynchronous();
+			SkeletalMesh = ModelResources.ReferenceSkeletalMeshesData[ComponentIndex].SoftSkeletalMesh.LoadSynchronous();
 		}
 		
 		CustomizableObjectInstanceUsage->SetSkeletalMesh(SkeletalMesh);
@@ -3302,19 +3311,18 @@ void ConvertImage(UTexture2D* Texture, mu::Ptr<const mu::Image> MutableImage, co
 }
 
 
-void UCustomizableInstancePrivate::InitSkeletalMeshData(const TSharedRef<FUpdateContextPrivate>& OperationData, USkeletalMesh* SkeletalMesh, const FMutableRefSkeletalMeshData* RefSkeletalMeshData, const UCustomizableObject& CustomizableObject, int32 ComponentIndex)
+void UCustomizableInstancePrivate::InitSkeletalMeshData(const TSharedRef<FUpdateContextPrivate>& OperationData, USkeletalMesh* SkeletalMesh, const FMutableRefSkeletalMeshData& RefSkeletalMeshData, const UCustomizableObject& CustomizableObject, int32 ComponentIndex)
 {
 	MUTABLE_CPUPROFILER_SCOPE(UCustomizableInstancePrivate::InitSkeletalMesh);
 
 	check(SkeletalMesh);
-	check(RefSkeletalMeshData);
 
 	// Mutable skeletal meshes are generated dynamically in-game and cannot be streamed from disk
 	SkeletalMesh->NeverStream = 1;
 
-	SkeletalMesh->SetImportedBounds(RefSkeletalMeshData->Bounds);
-	SkeletalMesh->SetPostProcessAnimBlueprint(RefSkeletalMeshData->PostProcessAnimInst.Get());
-	SkeletalMesh->SetShadowPhysicsAsset(RefSkeletalMeshData->ShadowPhysicsAsset.Get());
+	SkeletalMesh->SetImportedBounds(RefSkeletalMeshData.Bounds);
+	SkeletalMesh->SetPostProcessAnimBlueprint(RefSkeletalMeshData.PostProcessAnimInst.Get());
+	SkeletalMesh->SetShadowPhysicsAsset(RefSkeletalMeshData.ShadowPhysicsAsset.Get());
 
 	// Set Min LOD
 	SkeletalMesh->SetMinLod(FMath::Max(CustomizableObject.LODSettings.MinLOD.GetDefault(), (int32)FirstLODAvailable));
@@ -3324,12 +3332,12 @@ void UCustomizableInstancePrivate::InitSkeletalMeshData(const TSharedRef<FUpdate
 	SkeletalMesh->SetHasVertexColors(false);
 
 	// Set the default Physics Assets
-	SkeletalMesh->SetPhysicsAsset(RefSkeletalMeshData->PhysicsAsset.Get());
-	SkeletalMesh->SetEnablePerPolyCollision(RefSkeletalMeshData->Settings.bEnablePerPolyCollision);
+	SkeletalMesh->SetPhysicsAsset(RefSkeletalMeshData.PhysicsAsset.Get());
+	SkeletalMesh->SetEnablePerPolyCollision(RefSkeletalMeshData.Settings.bEnablePerPolyCollision);
 
 	// Asset User Data
 	{
-		for (const FMutableRefAssetUserData& MutAssetUserData : RefSkeletalMeshData->AssetUserData)
+		for (const FMutableRefAssetUserData& MutAssetUserData : RefSkeletalMeshData.AssetUserData)
 		{
 			if (MutAssetUserData.AssetUserData)
 			{
@@ -3362,7 +3370,7 @@ void UCustomizableInstancePrivate::InitSkeletalMeshData(const TSharedRef<FUpdate
 		{
 			RenderData->LODRenderData.Add(new FSkeletalMeshLODRenderData());
 
-			const FMutableRefLODData& LODData = RefSkeletalMeshData->LODData[LODIndex];
+			const FMutableRefLODData& LODData = RefSkeletalMeshData.LODData[LODIndex];
 
 			FSkeletalMeshLODInfo& LODInfo = SkeletalMesh->AddLODInfo();
 			LODInfo.ScreenSize = LODData.LODInfo.ScreenSize;
@@ -3420,15 +3428,15 @@ bool UCustomizableInstancePrivate::BuildSkeletonData(const TSharedRef<FUpdateCon
 	{
 		MUTABLE_CPUPROFILER_SCOPE(BuildSkeletonData_EnsureBonesExist);
 
-		const TArray<FName>& BoneNames = CustomizableObject.GetBoneNamesArray();
+		const FModelResources& ModelResources = CustomizableObject.GetPrivate()->GetModelResources();
 
 		// Ensure all the required bones are present in the skeleton
 		for (int32 BoneIndex = 0; BoneIndex < MutBoneCount; ++BoneIndex)
 		{
 			const uint16 BoneId = MutSkeletonData.BoneIds[BoneIndex];
-			check(BoneNames.IsValidIndex(BoneId));
+			check(ModelResources.BoneNames.IsValidIndex(BoneId));
 
-			const FName BoneName = BoneNames[BoneId]; 
+			const FName BoneName = ModelResources.BoneNames[BoneId];
 			check(BoneName != NAME_None);
 
 			const int32 SourceBoneIndex = ReferenceSkeleton.FindRawBoneIndex(BoneName);
@@ -3524,16 +3532,13 @@ bool UCustomizableInstancePrivate::BuildSkeletonData(const TSharedRef<FUpdateCon
 }
 
 
-void UCustomizableInstancePrivate::BuildMeshSockets(const TSharedRef<FUpdateContextPrivate>& OperationData, USkeletalMesh* SkeletalMesh, const FMutableRefSkeletalMeshData* RefSkeletalMeshData, UCustomizableObjectInstance* Public, mu::MeshPtrConst MutableMesh)
+void UCustomizableInstancePrivate::BuildMeshSockets(const TSharedRef<FUpdateContextPrivate>& OperationData, USkeletalMesh* SkeletalMesh, const FModelResources& ModelResources, const FMutableRefSkeletalMeshData& RefSkeletalMeshData, mu::MeshPtrConst MutableMesh)
 {
 	// Build mesh sockets.
 	MUTABLE_CPUPROFILER_SCOPE(UCustomizableInstancePrivate::BuildMeshSockets);
-
 	check(SkeletalMesh);
-	check(RefSkeletalMeshData);
-	check(Public);
 
-	const uint32 SocketCount = RefSkeletalMeshData->Sockets.Num();
+	const uint32 SocketCount = RefSkeletalMeshData.Sockets.Num();
 
 	TArray<TObjectPtr<USkeletalMeshSocket>>& Sockets = SkeletalMesh->GetMeshOnlySocketList();
 	Sockets.Empty(SocketCount);
@@ -3545,7 +3550,7 @@ void UCustomizableInstancePrivate::BuildMeshSockets(const TSharedRef<FUpdateCont
 	
 		for (uint32 SocketIndex = 0; SocketIndex < SocketCount; ++SocketIndex)
 		{
-			const FMutableRefSocket& RefSocket = RefSkeletalMeshData->Sockets[SocketIndex];
+			const FMutableRefSocket& RefSocket = RefSkeletalMeshData.Sockets[SocketIndex];
 
 			USkeletalMeshSocket* Socket = NewObject<USkeletalMeshSocket>(SkeletalMesh);
 
@@ -3568,9 +3573,6 @@ void UCustomizableInstancePrivate::BuildMeshSockets(const TSharedRef<FUpdateCont
 	{
 		MUTABLE_CPUPROFILER_SCOPE(BuildMeshSockets_MutableSockets);
 
-		const UCustomizableObject* CustomizableObject = Public->GetCustomizableObject();
-		check(CustomizableObject);
-
 		for (int32 TagIndex = 0; TagIndex < MutableMesh->GetTagCount(); ++TagIndex)
 		{
 			FString Tag = MutableMesh->GetTag(TagIndex);
@@ -3580,9 +3582,9 @@ void UCustomizableInstancePrivate::BuildMeshSockets(const TSharedRef<FUpdateCont
 				check(Tag.IsNumeric());
 				const int32 MutableSocketIndex = FCString::Atoi(*Tag);
 
-				if (CustomizableObject->SocketArray.IsValidIndex(MutableSocketIndex))
+				if (ModelResources.SocketArray.IsValidIndex(MutableSocketIndex))
 				{
-					const FMutableRefSocket& MutableSocket = CustomizableObject->SocketArray[MutableSocketIndex];
+					const FMutableRefSocket& MutableSocket = ModelResources.SocketArray[MutableSocketIndex];
 					int32 IndexToWriteSocket = -1;
 
 					if (TTuple<int32, int32>* FoundSocket = SocketMap.Find(MutableSocket.SocketName))
@@ -4679,6 +4681,7 @@ bool UCustomizableInstancePrivate::BuildOrCopyRenderData(const TSharedRef<FUpdat
 
 	UCustomizableObject* CustomizableObject = Public->GetCustomizableObject();
 	check(CustomizableObject);
+	const FModelResources& ModelResources = CustomizableObject->GetPrivate()->GetModelResources();
 
 	int32 LastValidLODIndex = OperationData->CurrentMaxLOD;
 	for (int32 LODIndex = OperationData->CurrentMaxLOD; LODIndex >= FirstLODAvailable; --LODIndex)
@@ -4766,14 +4769,13 @@ bool UCustomizableInstancePrivate::BuildOrCopyRenderData(const TSharedRef<FUpdat
 		LODModel.ActiveBoneIndices.Append(Component->ActiveBones);
 		LODModel.RequiredBones.Append(Component->ActiveBones);
 
-		const TArray<FMutableSkinWeightProfileInfo>& SkinWeightProfilesInfo = CustomizableObject->SkinWeightProfilesInfo;
-		if (SkinWeightProfilesInfo.Num())
+		if (!ModelResources.SkinWeightProfilesInfo.IsEmpty())
 		{
 			bool bHasSkinWeightProfiles = false;
 
 			const mu::FMeshBufferSet& MutableMeshVertexBuffers = Component->Mesh->GetVertexBuffers();
-
-			const int32 SkinWeightProfilesCount = CustomizableObject->SkinWeightProfilesInfo.Num();
+			
+			const int32 SkinWeightProfilesCount = ModelResources.SkinWeightProfilesInfo.Num();
 			for (int32 ProfileIndex = 0; ProfileIndex < SkinWeightProfilesCount; ++ProfileIndex)
 			{
 				const int32 ProfileSemanticsIndex = ProfileIndex + 10;
@@ -4794,7 +4796,7 @@ bool UCustomizableInstancePrivate::BuildOrCopyRenderData(const TSharedRef<FUpdat
 					bHasSkinWeightProfiles = true;
 				}
 
-				const FMutableSkinWeightProfileInfo& Profile = CustomizableObject->SkinWeightProfilesInfo[ProfileIndex];
+				const FMutableSkinWeightProfileInfo& Profile = ModelResources.SkinWeightProfilesInfo[ProfileIndex];
 
 				const FSkinWeightProfileInfo* ExistingProfile = SkeletalMesh->GetSkinWeightProfiles().FindByPredicate(
 					[&Profile](const FSkinWeightProfileInfo& P) { return P.Name == Profile.Name; });
@@ -4820,7 +4822,7 @@ bool UCustomizableInstancePrivate::BuildOrCopyRenderData(const TSharedRef<FUpdat
 		}
 
 		// Update LOD and streaming data
-		const FMutableRefLODRenderData& RefLODRenderData = CustomizableObject->GetRefSkeletalMeshData(Component->Id)->LODData[LODIndex].RenderData;
+		const FMutableRefLODRenderData& RefLODRenderData = ModelResources.ReferenceSkeletalMeshesData[Component->Id].LODData[LODIndex].RenderData;
 		LODModel.bIsLODOptional = RefLODRenderData.bIsLODOptional;
 		LODModel.bStreamedDataInlined = RefLODRenderData.bStreamedDataInlined;
 
@@ -4849,6 +4851,8 @@ FGraphEventRef UCustomizableInstancePrivate::LoadAdditionalAssetsAsync(const TSh
 
 	UCustomizableObject* CustomizableObject = Public->GetCustomizableObject();
 
+	const FModelResources& ModelResources = CustomizableObject->GetPrivate()->GetModelResources();
+
 	FGraphEventRef Result = nullptr;
 
 	TArray<FSoftObjectPath> AssetsToStream;
@@ -4869,26 +4873,21 @@ FGraphEventRef UCustomizableInstancePrivate::LoadAdditionalAssetsAsync(const TSh
 
 	for (const FInstanceUpdateData::FSurface& Surface : OperationData->InstanceUpdateData.Surfaces)
 	{
-		uint32 MaterialIndex = Surface.MaterialIndex;
-
-		if (!ObjectToInstanceIndexMap.Contains(MaterialIndex))
+		const uint32 MaterialIndex = Surface.MaterialIndex;
+		if (ObjectToInstanceIndexMap.Contains(MaterialIndex))
 		{
-			UMaterialInterface* MatInterface = CustomizableObject->GetReferencedMaterialAssetPtr(MaterialIndex).Get();
+			continue;
+		}
 
-			ObjectToInstanceIndexMap.Add(MaterialIndex, ReferencedMaterials.Num());
-			ReferencedMaterials.Add(MatInterface);
+		TSoftObjectPtr<UMaterialInterface> AssetPtr = ModelResources.Materials.IsValidIndex(MaterialIndex) ? ModelResources.Materials[MaterialIndex] : nullptr;
+		UMaterialInterface* LoadedMaterial = AssetPtr.Get();
 
-			check(ObjectToInstanceIndexMap.Num() == ReferencedMaterials.Num());
+		const int32 ReferencedMaterialsIndex = ReferencedMaterials.Add(LoadedMaterial);
+		ObjectToInstanceIndexMap.Add(MaterialIndex, ReferencedMaterialsIndex);
 
-			if (!MatInterface)
-			{
-				FSoftObjectPath MaterialPath = CustomizableObject->GetReferencedMaterialAssetPtr(MaterialIndex).ToSoftObjectPath();
-
-				if (MaterialPath.IsValid())
-				{
-					AssetsToStream.Add(MaterialPath);
-				}
-			}
+		if (!LoadedMaterial && !AssetPtr.IsNull())
+		{
+			AssetsToStream.Add(AssetPtr.ToSoftObjectPath());
 		}
 	}
 
@@ -4915,8 +4914,7 @@ FGraphEventRef UCustomizableInstancePrivate::LoadAdditionalAssetsAsync(const TSh
 		// Add Skeletons to merge
 		for (const uint32 SkeletonId : SkeletonData.SkeletonIds)
 		{
-			TSoftObjectPtr<USkeleton> AssetPtr = CustomizableObject->GetReferencedSkeletonAssetPtr(SkeletonId);
-
+			TSoftObjectPtr<USkeleton> AssetPtr = ModelResources.Skeletons.IsValidIndex(SkeletonId) ? ModelResources.Skeletons[SkeletonId] : nullptr;
 			if (AssetPtr.IsNull())
 			{
 				continue;
@@ -4978,95 +4976,100 @@ FGraphEventRef UCustomizableInstancePrivate::LoadAdditionalAssetsAsync(const TSh
 			for (int32 TagIndex = 0; TagIndex < MutableMesh->GetTagCount(); ++TagIndex)
 			{
 				FString Tag = MutableMesh->GetTag(TagIndex);
-				if (Tag.RemoveFromStart("__PhysicsAsset:"))
+				if (Tag.RemoveFromStart("__PA:"))
 				{
-					TSoftObjectPtr<UPhysicsAsset>* PhysicsAsset = CustomizableObject->PhysicsAssetsMap.Find(Tag);
+					const int32 AssetIndex = FCString::Atoi(*Tag);
+					const TSoftObjectPtr<UPhysicsAsset>& PhysicsAsset = ModelResources.PhysicsAssets.IsValidIndex(AssetIndex) ? ModelResources.PhysicsAssets[AssetIndex] : nullptr;
 
-					if (!PhysicsAsset->IsNull())
+					if (!PhysicsAsset.IsNull())
 					{
-						if (PhysicsAsset->Get())
+						if (PhysicsAsset.Get())
 						{
-							ComponentData->PhysicsAssets.PhysicsAssetsToMerge.Add(PhysicsAsset->Get());
+							ComponentData->PhysicsAssets.PhysicsAssetsToMerge.Add(PhysicsAsset.Get());
 						}
 						else
 						{
-							ComponentData->PhysicsAssets.PhysicsAssetToLoad.Add(PhysicsAsset->ToSoftObjectPath().ToString());
-							AssetsToStream.Add(PhysicsAsset->ToSoftObjectPath());
+							ComponentData->PhysicsAssets.PhysicsAssetToLoad.Add(AssetIndex);
+							AssetsToStream.Add(PhysicsAsset.ToSoftObjectPath());
 						}
 					}
 				}
 				else if (Tag.RemoveFromStart("__ClothPhysicsAsset:"))
 				{
-					FString AssetIndexString, AssetPath;
+					FString AssetIndexString, PhysicsAssetIndexString;
 
-					if (Tag.Split(TEXT("_AssetIdx_"), &AssetIndexString, &AssetPath) && AssetIndexString.IsNumeric())
+					if (Tag.Split(TEXT("_AssetIdx_"), &AssetIndexString, &PhysicsAssetIndexString) && AssetIndexString.IsNumeric())
 					{
+						const int32 AssetIndex = FCString::Atoi(*AssetIndexString);
+						const int32 PhysicsAssetIndex = FCString::Atoi(*PhysicsAssetIndexString);
 
-						int32 AssetIndex = FCString::Atoi(*AssetIndexString);
-
-						TSoftObjectPtr<UPhysicsAsset>* PhysicsAssetPtr = CustomizableObject->PhysicsAssetsMap.Find(AssetPath);
+						const TSoftObjectPtr<UPhysicsAsset>& PhysicsAsset = ModelResources.PhysicsAssets.IsValidIndex(PhysicsAssetIndex) ? ModelResources.PhysicsAssets[PhysicsAssetIndex] : nullptr;
 
 						// The entry should always be in the map
-						check(PhysicsAssetPtr);
-						if (!PhysicsAssetPtr->IsNull())
+						if (!PhysicsAsset.IsNull())
 						{
-							if (PhysicsAssetPtr->Get())
+							if (PhysicsAsset.Get())
 							{
 								if (ClothingPhysicsAssets.IsValidIndex(AssetIndex))
 								{
-									ClothingPhysicsAssets[AssetIndex] = PhysicsAssetPtr->Get();
+									ClothingPhysicsAssets[AssetIndex] = PhysicsAsset.Get();
 								}
 							}
 							else
 							{
-								ComponentData->ClothingPhysicsAssetsToStream.Emplace(AssetIndex, PhysicsAssetPtr->ToSoftObjectPath().ToString());
-								AssetsToStream.Add(PhysicsAssetPtr->ToSoftObjectPath());
+								ComponentData->ClothingPhysicsAssetsToStream.Emplace(AssetIndex, PhysicsAssetIndex);
+								AssetsToStream.Add(PhysicsAsset.ToSoftObjectPath());
 							}
 						}
 					}
 				}
 				if (Tag.RemoveFromStart("__AnimBP:"))
 				{
-					FString SlotIndexString, AssetPath;
+					FString SlotIndexString, AnimBpIndexString;
 
-					if (Tag.Split(TEXT("_Slot_"), &SlotIndexString, &AssetPath))
+					if (Tag.Split(TEXT("_Slot_"), &SlotIndexString, &AnimBpIndexString))
 					{
-						if (!SlotIndexString.IsEmpty())
+						if (SlotIndexString.IsEmpty() || AnimBpIndexString.IsEmpty())
 						{
-							FName SlotIndex = *SlotIndexString;
+							continue;
+						}
 
-							TSoftClassPtr<UAnimInstance>* AnimBPAsset = CustomizableObject->AnimBPAssetsMap.Find(AssetPath);
+						const int32 AnimBpIndex = FCString::Atoi(*AnimBpIndexString);
+						if (!ModelResources.AnimBPs.IsValidIndex(AnimBpIndex))
+						{
+							continue;
+						}
 
-							if (AnimBPAsset && !AnimBPAsset->IsNull())
+						FName SlotIndex = *SlotIndexString;
+
+						const TSoftClassPtr<UAnimInstance>& AnimBPAsset = ModelResources.AnimBPs[AnimBpIndex];
+
+						if (!AnimBPAsset.IsNull())
+						{
+							if (!ComponentData->AnimSlotToBP.Contains(SlotIndex))
 							{
-								if (!ComponentData->AnimSlotToBP.Contains(SlotIndex))
-								{
-									ComponentData->AnimSlotToBP.Add(SlotIndex, *AnimBPAsset);
+								ComponentData->AnimSlotToBP.Add(SlotIndex, AnimBPAsset);
 
-									if (AnimBPAsset->Get())
-									{
-										GatheredAnimBPs.Add(AnimBPAsset->Get());
-									}
-									else
-									{
-										AssetsToStream.Add(AnimBPAsset->ToSoftObjectPath());
-									}
+								if (AnimBPAsset.Get())
+								{
+									GatheredAnimBPs.Add(AnimBPAsset.Get());
 								}
 								else
 								{
-									// Two submeshes should not have the same animation slot index
-									OperationData->UpdateResult = EUpdateResult::Warning;
-									
-									FString WarningMessage = FString::Printf(TEXT("Two submeshes have the same anim slot index [%s] in a Mutable Instance."), *SlotIndex.ToString());
-									UE_LOG(LogMutable, Warning, TEXT("%s"), *WarningMessage);
-#if WITH_EDITOR
-									FMessageLogModule& MessageLogModule = FModuleManager::LoadModuleChecked<FMessageLogModule>("MessageLog");
-									MessageLogModule.RegisterLogListing(FName("Mutable"), FText::FromString(FString("Mutable")));
-									FMessageLog MessageLog("Mutable");
-
-									MessageLog.Notify(FText::FromString(WarningMessage), EMessageSeverity::Warning, true);
-#endif
+									AssetsToStream.Add(AnimBPAsset.ToSoftObjectPath());
 								}
+							}
+							else
+							{
+								// Two submeshes should not have the same animation slot index
+								OperationData->UpdateResult = EUpdateResult::Warning;
+
+								FString WarningMessage = FString::Printf(TEXT("Two submeshes have the same anim slot index [%s] in a Mutable Instance."), *SlotIndex.ToString());
+								UE_LOG(LogMutable, Warning, TEXT("%s"), *WarningMessage);
+#if WITH_EDITOR
+								FMessageLog MessageLog("Mutable");
+								MessageLog.Notify(FText::FromString(WarningMessage), EMessageSeverity::Warning, true);
+#endif
 							}
 						}
 					}
@@ -5089,7 +5092,7 @@ FGraphEventRef UCustomizableInstancePrivate::LoadAdditionalAssetsAsync(const TSh
 				const int32 ExternalId = MutableMesh->AdditionalPhysicsBodies[I]->CustomId;
 				
 				ComponentData->PhysicsAssets.AdditionalPhysicsAssetsToLoad.Add(ExternalId);
-				AssetsToStream.Add(CustomizableObject->AnimBpOverridePhysiscAssetsInfo[ExternalId].SourceAsset.ToSoftObjectPath());
+				AssetsToStream.Add(ModelResources.AnimBpOverridePhysiscAssetsInfo[ExternalId].SourceAsset.ToSoftObjectPath());
 			}
 		}
 	}
@@ -5135,30 +5138,25 @@ void UCustomizableInstancePrivate::AdditionalAssetsAsyncLoaded(UCustomizableObje
 
 	UCustomizableObject* CustomizableObject = Public->GetCustomizableObject();
 
+	const FModelResources& ModelResources = CustomizableObject->GetPrivate()->GetModelResources();
+
 	// Loaded Materials
 	check(ObjectToInstanceIndexMap.Num() == ReferencedMaterials.Num());
 
 	for (TPair<uint32, uint32> Pair : ObjectToInstanceIndexMap)
 	{
-		ReferencedMaterials[Pair.Value] = CustomizableObject->GetReferencedMaterialAssetPtr(Pair.Key).Get();
-	}
+		const TSoftObjectPtr<UMaterialInterface>& AssetPtr = ModelResources.Materials.IsValidIndex(Pair.Key) ? ModelResources.Materials[Pair.Key] : nullptr;
+		ReferencedMaterials[Pair.Value] = AssetPtr.Get();
 
 #if WITH_EDITOR
-	for (int32 i = 0; i < ReferencedMaterials.Num(); ++i)
-	{
-		if (!ReferencedMaterials[i])
+		if (!ReferencedMaterials[Pair.Value])
 		{
-			const uint32* Key = ObjectToInstanceIndexMap.FindKey(i);
-			TSoftObjectPtr<UMaterialInterface> ErrorMaterial = Key != nullptr ? CustomizableObject->GetReferencedMaterialAssetPtr(*Key) : nullptr;
-
-			if (!ErrorMaterial.IsNull())
+			if (!AssetPtr.IsNull())
 			{
-				FMessageLogModule& MessageLogModule = FModuleManager::LoadModuleChecked<FMessageLogModule>("MessageLog");
-				MessageLogModule.RegisterLogListing(FName("Mutable"), FText::FromString(FString("Mutable")));
-				FMessageLog MessageLog("Mutable");
-
-				FString ErrorMsg = FString::Printf(TEXT("Mutable couldn't load the material [%s] and won't be rendered. If it has been deleted or renamed, please recompile all the mutable objects that use it."), *ErrorMaterial.GetAssetName());
+				FString ErrorMsg = FString::Printf(TEXT("Mutable couldn't load the material [%s] and won't be rendered. If it has been deleted or renamed, please recompile all the mutable objects that use it."), *AssetPtr.GetAssetName());
 				UE_LOG(LogMutable, Error, TEXT("%s"), *ErrorMsg);
+
+				FMessageLog MessageLog("Mutable");
 				MessageLog.Notify(FText::FromString(ErrorMsg), EMessageSeverity::Error, true);
 			}
 			else
@@ -5166,8 +5164,8 @@ void UCustomizableInstancePrivate::AdditionalAssetsAsyncLoaded(UCustomizableObje
 				ensure(false); // Couldn't load the material, and we don't know which material
 			}
 		}
-	}
 #endif
+	}
 
 	
 	TArray<FCustomizableObjectStreamedResourceData>& StreamedResources = CustomizableObject->StreamedResourceData;
@@ -5204,27 +5202,27 @@ void UCustomizableInstancePrivate::AdditionalAssetsAsyncLoaded(UCustomizableObje
 		FReferencedSkeletons& Skeletons = ComponentData.Skeletons;
 		for (int32 SkeletonIndex : Skeletons.SkeletonIds)
 		{
-			Skeletons.SkeletonsToMerge.AddUnique(CustomizableObject->GetReferencedSkeletonAssetPtr(SkeletonIndex).Get());
+			const TSoftObjectPtr<USkeleton>& AssetPtr = ModelResources.Skeletons.IsValidIndex(SkeletonIndex) ? ModelResources.Skeletons[SkeletonIndex] : nullptr;
+			Skeletons.SkeletonsToMerge.AddUnique(AssetPtr.Get());
 		}
 
 		// Loaded PhysicsAssets
 		FReferencedPhysicsAssets& PhysicsAssets = ComponentData.PhysicsAssets;
-		for(const FString& Path : PhysicsAssets.PhysicsAssetToLoad)
+		for(const int32 PhysicsAssetIndex : PhysicsAssets.PhysicsAssetToLoad)
 		{
-			const TSoftObjectPtr<UPhysicsAsset>* PhysicsAssetPtr = CustomizableObject->PhysicsAssetsMap.Find(Path);
-			PhysicsAssets.PhysicsAssetsToMerge.Add(PhysicsAssetPtr->Get());
+			check(ModelResources.PhysicsAssets.IsValidIndex(PhysicsAssetIndex));
+			const TSoftObjectPtr<UPhysicsAsset>& PhysicsAsset = ModelResources.PhysicsAssets[PhysicsAssetIndex];
+			PhysicsAssets.PhysicsAssetsToMerge.Add(PhysicsAsset.Get());
 
 #if WITH_EDITOR
-			if (!PhysicsAssetPtr->Get())
+			if (!PhysicsAsset.Get())
 			{
-				if (!PhysicsAssetPtr->IsNull())
+				if (!PhysicsAsset.IsNull())
 				{
-					FMessageLogModule& MessageLogModule = FModuleManager::LoadModuleChecked<FMessageLogModule>("MessageLog");
-					MessageLogModule.RegisterLogListing(FName("Mutable"), FText::FromString(FString("Mutable")));
-					FMessageLog MessageLog("Mutable");
-
-					FString ErrorMsg = FString::Printf(TEXT("Mutable couldn't load the PhysicsAsset [%s] and won't be merged. If it has been deleted or renamed, please recompile all the mutable objects that use it."), *PhysicsAssetPtr->GetAssetName());
+					FString ErrorMsg = FString::Printf(TEXT("Mutable couldn't load the PhysicsAsset [%s] and won't be merged. If it has been deleted or renamed, please recompile all the mutable objects that use it."), *PhysicsAsset.GetAssetName());
 					UE_LOG(LogMutable, Error, TEXT("%s"), *ErrorMsg);
+
+					FMessageLog MessageLog("Mutable");
 					MessageLog.Notify(FText::FromString(ErrorMsg), EMessageSeverity::Error, true);
 				}
 				else
@@ -5237,16 +5235,14 @@ void UCustomizableInstancePrivate::AdditionalAssetsAsyncLoaded(UCustomizableObje
 		PhysicsAssets.PhysicsAssetToLoad.Empty();
 		
 		// Loaded Clothing PhysicsAssets 
-		for ( TPair<int32, FString>& AssetToStream : ComponentData.ClothingPhysicsAssetsToStream )
+		for ( TPair<int32, int32>& AssetToStream : ComponentData.ClothingPhysicsAssetsToStream )
 		{
 			const int32 AssetIndex = AssetToStream.Key;
 
-			if (ClothingPhysicsAssets.IsValidIndex(AssetIndex))
+			if (ClothingPhysicsAssets.IsValidIndex(AssetIndex) && ModelResources.PhysicsAssets.IsValidIndex(AssetToStream.Value))
 			{
-				const TSoftObjectPtr<UPhysicsAsset>* PhysicsAssetPtr = CustomizableObject->PhysicsAssetsMap.Find(AssetToStream.Value);
-				check(PhysicsAssetPtr) // Should always be found.
-			
-				ClothingPhysicsAssets[AssetIndex] = PhysicsAssetPtr->Get();
+				const TSoftObjectPtr<UPhysicsAsset>& PhysicsAssetPtr = ModelResources.PhysicsAssets[AssetToStream.Value];
+				ClothingPhysicsAssets[AssetIndex] = PhysicsAssetPtr.Get();
 			}
 		}
 		ComponentData.ClothingPhysicsAssetsToStream.Empty();
@@ -5264,12 +5260,10 @@ void UCustomizableInstancePrivate::AdditionalAssetsAsyncLoaded(UCustomizableObje
 #if WITH_EDITOR
 			else
 			{
-				FMessageLogModule& MessageLogModule = FModuleManager::LoadModuleChecked<FMessageLogModule>("MessageLog");
-				MessageLogModule.RegisterLogListing(FName("Mutable"), FText::FromString(FString("Mutable")));
-				FMessageLog MessageLog("Mutable");
-
 				FString ErrorMsg = FString::Printf(TEXT("Mutable couldn't load the AnimBlueprint [%s]. If it has been deleted or renamed, please recompile all the mutable objects that use it."), *SlotAnimBP.Value.GetAssetName());
 				UE_LOG(LogMutable, Error, TEXT("%s"), *ErrorMsg);
+
+				FMessageLog MessageLog("Mutable");
 				MessageLog.Notify(FText::FromString(ErrorMsg), EMessageSeverity::Error, true);
 			}
 #endif
@@ -5282,7 +5276,7 @@ void UCustomizableInstancePrivate::AdditionalAssetsAsyncLoaded(UCustomizableObje
 			// Make the loaded assets references strong.
 			const int32 AnimBpPhysicsOverrideIndex = ComponentData.PhysicsAssets.AdditionalPhysicsAssetsToLoad[I];
 			ComponentData.PhysicsAssets.AdditionalPhysicsAssets.Add( 
-					CustomizableObject->AnimBpOverridePhysiscAssetsInfo[AnimBpPhysicsOverrideIndex].SourceAsset.Get());
+				ModelResources.AnimBpOverridePhysiscAssetsInfo[AnimBpPhysicsOverrideIndex].SourceAsset.Get());
 		}
 		ComponentData.PhysicsAssets.AdditionalPhysicsAssetsToLoad.Empty();
 	}
@@ -5405,6 +5399,8 @@ void UCustomizableInstancePrivate::BuildMaterials(const TSharedRef<FUpdateContex
 
 	UCustomizableObject* CustomizableObject = Public->GetCustomizableObject();
 
+	const FModelResources& ModelResources = CustomizableObject->GetPrivate()->GetModelResources();
+
 	// Find skipped LODs. The following valid LOD will be copied into them. 
 	TArray<bool> LODsSkipped;
 	LODsSkipped.SetNum(OperationData->NumLODsAvailable);
@@ -5479,8 +5475,7 @@ void UCustomizableInstancePrivate::BuildMaterials(const TSharedRef<FUpdateContex
 
 			check(Component.bGenerated);
 
-			const FMutableRefSkeletalMeshData* RefSkeletalMeshData = CustomizableObject->GetRefSkeletalMeshData(Component.Id);
-			check(RefSkeletalMeshData);
+			const FMutableRefSkeletalMeshData& RefSkeletalMeshData = ModelResources.ReferenceSkeletalMeshesData[Component.Id];
 
 			for (int32 SurfaceIndex = 0; SurfaceIndex < Component.SurfaceCount; ++SurfaceIndex)
 			{
@@ -5511,8 +5506,13 @@ void UCustomizableInstancePrivate::BuildMaterials(const TSharedRef<FUpdateContex
 				const int32 MaterialSlotIndex = Materials.Num();
 				FSkeletalMaterial& MaterialSlot = Materials.AddDefaulted_GetRef();
 				MaterialSlot.MaterialInterface = MaterialTemplate;
-				MaterialSlot.MaterialSlotName = CustomizableObject->ReferencedMaterialSlotNames.IsValidIndex(Surface.MaterialIndex) ? CustomizableObject->ReferencedMaterialSlotNames[Surface.MaterialIndex] : NAME_None;
-				SetMeshUVChannelDensity(MaterialSlot.UVChannelData, RefSkeletalMeshData->Settings.DefaultUVChannelDensity);
+
+				if (ModelResources.MaterialSlotNames.IsValidIndex(Surface.MaterialIndex))
+				{
+					MaterialSlot.MaterialSlotName = ModelResources.MaterialSlotNames[Surface.MaterialIndex];
+				}
+
+				SetMeshUVChannelDensity(MaterialSlot.UVChannelData, RefSkeletalMeshData.Settings.DefaultUVChannelDensity);
 
 				const int32 LODMaterialIndex = SkeletalMesh->GetLODInfoArray()[LODIndex].LODMaterialMap.Add(MaterialSlotIndex);
 				SkeletalMesh->GetResourceForRendering()->LODRenderData[LODIndex].RenderSections[SurfaceIndex].MaterialIndex = LODMaterialIndex;
@@ -5633,9 +5633,9 @@ void UCustomizableInstancePrivate::BuildMaterials(const TSharedRef<FUpdateContex
 							check(MutableImage->IsReference());
 
 							uint32 ReferenceID = MutableImage->GetReferencedTexture();
-							if (CustomizableObject->ReferencedPassThroughTextures.IsValidIndex(ReferenceID))
+							if (ModelResources.PassThroughTextures.IsValidIndex(ReferenceID))
 							{
-								TSoftObjectPtr<UTexture> Ref = CustomizableObject->ReferencedPassThroughTextures[ReferenceID];
+								TSoftObjectPtr<UTexture> Ref = ModelResources.PassThroughTextures[ReferenceID];
 
 								// The texture should have been loaded by now by LoadAdditionalAssetsAsync()
 								PassThroughTexture = Ref.Get();
@@ -5661,9 +5661,9 @@ void UCustomizableInstancePrivate::BuildMaterials(const TSharedRef<FUpdateContex
 
 						// Find the additional information for this image
 						int32 ImageKey = FCString::Atoi(*KeyName);
-						if (ImageKey >= 0 && ImageKey < CustomizableObject->ImageProperties.Num())
+						if (ImageKey >= 0 && ImageKey < ModelResources.ImageProperties.Num())
 						{
-							const FMutableModelImageProperties& Props = CustomizableObject->ImageProperties[ImageKey];
+							const FMutableModelImageProperties& Props = ModelResources.ImageProperties[ImageKey];
 
 							if (!MutableTexture && !PassThroughTexture && MutableImage)
 							{

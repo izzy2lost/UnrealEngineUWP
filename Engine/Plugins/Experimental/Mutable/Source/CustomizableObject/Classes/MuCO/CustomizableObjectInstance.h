@@ -31,6 +31,7 @@ struct FFrame;
 struct FGameplayTagContainer;
 struct FPropertyChangedEvent;
 struct FTexturePlatformData;
+struct FMutableModelImageProperties;
 
 
 // Priority for the mutable update queue, Low is the normal distance-based priority, High is normally used for discards and Mid for LOD downgrades

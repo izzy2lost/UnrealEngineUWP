@@ -22,6 +22,7 @@ namespace mu
 	typedef uint64 FResourceID;
 }
 
+struct FModelResources;
 struct FMutableModelImageProperties;
 struct FMutableRefSkeletalMeshData;
 struct FMutableImageCacheKey;
@@ -63,7 +64,7 @@ struct FReferencedPhysicsAssets
 {
 	GENERATED_USTRUCT_BODY();
 	
-	TArray<FString> PhysicsAssetToLoad;
+	TArray<int32> PhysicsAssetToLoad;
 	
 	UPROPERTY(Transient)
 	TArray< TObjectPtr<UPhysicsAsset> > PhysicsAssetsToMerge;
@@ -122,7 +123,7 @@ struct FCustomizableInstanceComponentData
 	FReferencedPhysicsAssets PhysicsAssets;
 
 	/** Clothing PhysicsAssets required by the current generated instance. PhysicsAssets to be loaded and merged.*/
-	TArray<TPair<int32, FString>> ClothingPhysicsAssetsToStream;
+	TArray<TPair<int32, int32>> ClothingPhysicsAssetsToStream;
 
 	/** Array of generated MeshIds per each LOD, used to decide if the mesh should be updated or not.
 	 *  Size == NumLODsAvailable
@@ -258,10 +259,10 @@ public:
 
 private:
 
-	void InitSkeletalMeshData(const TSharedRef<FUpdateContextPrivate>& OperationData, USkeletalMesh* SkeletalMesh, const FMutableRefSkeletalMeshData* RefSkeletalMeshData, const UCustomizableObject& CustomizableObject, int32 ComponentIndex);
+	void InitSkeletalMeshData(const TSharedRef<FUpdateContextPrivate>& OperationData, USkeletalMesh* SkeletalMesh, const FMutableRefSkeletalMeshData& RefSkeletalMeshData, const UCustomizableObject& CustomizableObject, int32 ComponentIndex);
 
 	bool BuildSkeletonData(const TSharedRef<FUpdateContextPrivate>& OperationData, USkeletalMesh& SkeletalMesh, const FMutableRefSkeletalMeshData& RefSkeletalMeshData, UCustomizableObject& CustomizableObject, int32 ComponentIndex);
-	void BuildMeshSockets(const TSharedRef<FUpdateContextPrivate>& OperationData, USkeletalMesh* SkeletalMesh, const FMutableRefSkeletalMeshData* RefSkeletalMeshData, UCustomizableObjectInstance* CustomizableObjectInstance, mu::Ptr<const mu::Mesh> MutableMesh);
+	void BuildMeshSockets(const TSharedRef<FUpdateContextPrivate>& OperationData, USkeletalMesh* SkeletalMesh, const FModelResources& ModelResources, const FMutableRefSkeletalMeshData& RefSkeletalMeshData, mu::Ptr<const mu::Mesh> MutableMesh);
 	void BuildOrCopyElementData(const TSharedRef<FUpdateContextPrivate>& OperationData, USkeletalMesh* SkeletalMesh, UCustomizableObjectInstance* CustomizableObjectInstance, int32 ComponentIndex);
 	void BuildOrCopyMorphTargetsData(const TSharedRef<FUpdateContextPrivate>& OperationData, USkeletalMesh* SkeletalMesh, const USkeletalMesh* SrcSkeletalMesh, UCustomizableObjectInstance* CustomizableObjectInstance, int32 ComponentIndex);
 	bool BuildOrCopyRenderData(const TSharedRef<FUpdateContextPrivate>& OperationData, USkeletalMesh* SkeletalMesh, const USkeletalMesh* SrcSkeletalMesh, UCustomizableObjectInstance* CustomizableObjectInstance, int32 ComponentIndex);

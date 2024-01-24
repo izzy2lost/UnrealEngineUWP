@@ -41,9 +41,12 @@ class UObject;
 class UPhysicsAsset;
 class UTexture2D;
 struct FCustomizableObjectIdPair;
+struct FAnimBpOverridePhysicsAssetsInfo;
 struct FMutableGraphGenerationContext;
 struct FParameterUIData;
-
+struct FMutableRefSkeletalMeshData;
+struct FMutableRefSocket;
+struct FMutableSkinWeightProfileInfo;
 
 struct FGeneratedImageProperties
 {
@@ -751,10 +754,10 @@ struct FMutableGraphGenerationContext
 	const UCustomizableObject* CustomizableObjectWithCycle = nullptr;
 
 	/** Stores the physics assets gathered from the SkeletalMesh nodes during compilation, to be used in mesh generation in-game */
-	TMap<FString, TSoftObjectPtr<UPhysicsAsset>> PhysicsAssetMap;
+	TArray<TSoftObjectPtr<UPhysicsAsset>> PhysicsAssets;
 
 	/** Stores the anim BP assets gathered from the SkeletalMesh nodes during compilation, to be used in mesh generation in-game */
-	TMap<FString, TSoftClassPtr<UAnimInstance>> AnimBPAssetsMap;
+	TArray<TSoftClassPtr<UAnimInstance>> AnimBPAssets;
 
 	/** Stores the sockets provided by the part skeletal meshes, to be merged in the generated meshes */
 	TArray<FMutableRefSocket> SocketArray;
@@ -859,7 +862,7 @@ int32 AddTagToMutableMeshUnique(mu::Mesh& MutableMesh, const FString& Tag);
 void AddSocketTagsToMesh(const USkeletalMesh* SourceMesh, mu::Ptr<mu::Mesh> MutableMesh, FMutableGraphGenerationContext& GenerationContext);
 
 // Generates the tag for an animation instance
-FString GenerateAnimationInstanceTag(const FString& AnimInstance, const FName& SlotIndex);
+FString GenerateAnimationInstanceTag(const int32 AnimInstanceIndex, const FName& SlotIndex);
 
 
 FString GenerateGameplayTag(const FString& GameplayTag);
