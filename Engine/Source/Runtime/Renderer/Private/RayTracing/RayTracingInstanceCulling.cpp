@@ -94,8 +94,9 @@ bool ShouldConsiderCulling(const FRayTracingCullingParameters& CullingParameters
 
 bool CullPrimitiveByFlags(const FRayTracingCullingParameters& CullingParameters, const FScene* RESTRICT Scene, int32 PrimitiveIndex)
 {
-	if (Scene->PrimitiveRayTracingFlags[PrimitiveIndex] == ERayTracingPrimitiveFlags::UnsupportedProxyType)
+	if (EnumHasAnyFlags(Scene->PrimitiveRayTracingFlags[PrimitiveIndex], ERayTracingPrimitiveFlags::UnsupportedProxyType))
 	{
+		checkf(Scene->PrimitiveRayTracingFlags[PrimitiveIndex] == ERayTracingPrimitiveFlags::UnsupportedProxyType, TEXT("ERayTracingPrimitiveFlags::UnsupportedProxyType should not be combined with other flags"));
 		return true;
 	}
 
