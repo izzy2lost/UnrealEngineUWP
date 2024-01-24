@@ -532,6 +532,31 @@ bool LoadFromCompactBinary(FCbFieldView Field, FOnDemandTocContainerEntry& OutCo
 	return false;
 }
 
+bool FOnDemandTocSentinel::IsValid()
+{
+	return FMemory::Memcmp(&Data, FOnDemandTocSentinel::SentinelImg, FOnDemandTocSentinel::SentinelSize) == 0;
+}
+
+FArchive& operator<<(FArchive& Ar, FOnDemandTocSentinel& Sentinel)
+{
+	if (Ar.IsSaving())
+	{	
+		// We could just cast FOnDemandTocSentinel::SentinelImg to a non-const pointer but we can't be 
+		// 100% sure that the FArchive won't change the data, even if it is in Saving mode. Since this 
+		// isn't performance critical we will play it safe.
+		uint8 Output[FOnDemandTocSentinel::SentinelSize];
+		FMemory::Memcpy(Output, FOnDemandTocSentinel::SentinelImg, FOnDemandTocSentinel::SentinelSize);
+
+		Ar.Serialize(&Output, FOnDemandTocSentinel::SentinelSize);
+	}
+	else
+	{
+		Ar.Serialize(&Sentinel.Data, FOnDemandTocSentinel::SentinelSize);
+	}
+
+	return Ar;
+}
+
 FArchive& operator<<(FArchive& Ar, FOnDemandToc& Toc)
 {
 	Ar << Toc.Header;
@@ -1003,6 +1028,9 @@ static FIoStatus WriteContainerFiles(FOnDemandToc& OnDemandToc, const TMap<FIoHa
 		// (to avoid running over the file twice) to verify that nothing was corrupted.
 
 		(*Ar) << ContainerToc;
+
+		FOnDemandTocSentinel Sentinel;
+		(*Ar) << Sentinel;
 
 		if (Ar->IsError() || Ar->IsCriticalError())
 		{

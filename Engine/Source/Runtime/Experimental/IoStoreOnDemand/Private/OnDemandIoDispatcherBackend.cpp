@@ -1562,6 +1562,31 @@ void FOnDemandIoBackend::MountContainer(FStringView ContainerPath)
 			return;
 		}
 
+		/// First we read and validate the sentinel at the end of the file to check for potential
+		// file corruption that could lead to crashing during serialization.
+		{
+			const int64 SentinelPos = Ar->TotalSize() - FOnDemandTocSentinel::SentinelSize;
+
+			if (SentinelPos < 0)
+			{
+				UE_LOG(LogIas, Error, TEXT("The file '%s' is smaller than expected and quite possible corrupted"), *TocPath);
+				return;
+			}
+
+			Ar->Seek(SentinelPos);
+
+			FOnDemandTocSentinel Sentinel;
+			(*Ar) << Sentinel;
+
+			if (!Sentinel.IsValid())
+			{
+				UE_LOG(LogIas, Error, TEXT("File corruption detected when serializing '%s'"), *TocPath);
+				return;
+			}
+
+			Ar->Seek(0);
+		}
+
 		FOnDemandToc ContainerToc;
 		(*Ar) << ContainerToc;
 
