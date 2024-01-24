@@ -145,7 +145,7 @@ public:
 	const TArray<TObjectPtr<UPCGPin>>& GetOutputPins() const { return OutputPins; }
 
 	/** Recursively follow downstream edges and call UpdatePins on each node that has dynamic pins. */
-	EPCGChangeType PropagateDynamicPinTypes(const UPCGNode* FromNode = nullptr);
+	EPCGChangeType PropagateDynamicPinTypes(TSet<UPCGNode*>& TouchedNodes, const UPCGNode* FromNode = nullptr);
 
 #if WITH_EDITOR
 	/** Transfer all editor only properties to the other node */
