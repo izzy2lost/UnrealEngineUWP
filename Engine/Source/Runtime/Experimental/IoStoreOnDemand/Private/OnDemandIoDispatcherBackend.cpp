@@ -1488,6 +1488,16 @@ FOnDemandIoBackend::FOnDemandIoBackend(TUniquePtr<IIasCache>&& InCache)
 		ECVF_Cheat)
 	);
 #endif // UE_IAS_DEBUG_CONSOLE_CMDS
+
+	{
+		bool bForceTocFromMountedPaks = false;
+		GConfig->GetBool(TEXT("Ias"), TEXT("ForceTocFromMountedPaks"), bForceTocFromMountedPaks, GEngineIni);
+
+		if (bForceTocFromMountedPaks)
+		{
+			ForceTocMode(ETocMode::LoadTocFromMountedPaks);
+		}
+	}
 }
 
 FOnDemandIoBackend::~FOnDemandIoBackend()

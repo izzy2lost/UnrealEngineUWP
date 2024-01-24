@@ -66,9 +66,6 @@ static FAutoConsoleVariableRef CVar_DistributedEndpointFallbackUrl(
 	TEXT("CDN url to be used if a distributed endpoint cannot be reached (overrides IoStoreOnDemand.ini)")
 );
 
-// When eanbled we will write out a toc (using extension GIasOnDemandTocExt) per container, currently disabled for testing
-static bool GIasWriteOnDemandTocs = false;
-
 ////////////////////////////////////////////////////////////////////////////////
 static int64 ParseSizeParam(FStringView Value)
 {
@@ -1238,6 +1235,9 @@ TIoStatusOr<FIoStoreUploadResult> UploadContainerFiles(
 	FString ChunksRelativePath = UploadParams.BucketPrefix.IsEmpty() ? TEXT("Chunks") : FString::Printf(TEXT("%s/Chunks"), *UploadParams.BucketPrefix);
 	ChunksRelativePath.ToLowerInline();
 
+	bool bWritePerContainerToc = false;
+	GConfig->GetBool(TEXT("Ias"), TEXT("ForceTocFromMountedPaks"), bWritePerContainerToc, GEngineIni);
+
 	uint64 TotalUploadedChunks = 0;
 	uint64 TotalUploadedBytes = 0;
 
@@ -1404,7 +1404,7 @@ TIoStatusOr<FIoStoreUploadResult> UploadContainerFiles(
 			ContainerFileReader.GetContainerFilePaths(FilesToDelete);
 
 			// We need the pak files in order to mount OnDemand toc files!
-			if (UploadParams.bDeletePakFiles && !GIasWriteOnDemandTocs)
+			if (UploadParams.bDeletePakFiles && !bWritePerContainerToc)
 			{
 				FilesToDelete.Add(FPaths::ChangeExtension(Path, TEXT(".pak")));
 				FilesToDelete.Add(FPaths::ChangeExtension(Path, TEXT(".sig")));
@@ -1471,7 +1471,7 @@ TIoStatusOr<FIoStoreUploadResult> UploadContainerFiles(
 		}
 	}
 
-	if (GIasWriteOnDemandTocs)
+	if (bWritePerContainerToc)
 	{
 		// Write out separate .uondemandtoc files, one per.utoc containing ondemand data.
 		FIoStatus Result = WriteContainerFiles(OnDemandToc, UTocPaths);
@@ -2370,7 +2370,7 @@ void FIoStoreOnDemandModule::InitializeInternal()
 		return;
 	}
 #endif //WITH_EDITOR
-	
+
 	const TCHAR* CommandLine = FCommandLine::Get();
 	
 #if !UE_BUILD_SHIPPING
