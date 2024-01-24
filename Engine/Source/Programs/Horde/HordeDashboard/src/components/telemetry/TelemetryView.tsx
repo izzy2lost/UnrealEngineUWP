@@ -350,7 +350,7 @@ class MetricsHandler {
       state.variables = this.search.getAll("v") ?? undefined;
       let minutes = Number.parseInt(this.search.get("minutes") ?? "0")
       if (!minutes) {
-         minutes = 240;
+         minutes = 60 * 24;
       }
       state.minutes = minutes;
 
