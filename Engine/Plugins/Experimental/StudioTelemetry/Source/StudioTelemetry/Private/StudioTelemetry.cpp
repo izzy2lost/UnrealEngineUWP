@@ -145,7 +145,8 @@ void FStudioTelemetry::StartSession()
 		DefaultEventAttributes.Emplace(TEXT("Config_IsUnattended"), FApp::IsUnattended());
 		DefaultEventAttributes.Emplace(TEXT("Config_IsBuildMachine"), GIsBuildMachine);
 		DefaultEventAttributes.Emplace(TEXT("Config_IsRunningCommandlet"), IsRunningCommandlet());
-
+		DefaultEventAttributes.Emplace(TEXT("Config_IsDebuggerPresent"), FPlatformMisc::IsDebuggerPresent());
+		
 #if WITH_EDITOR
 		if (!FHorde::GetJobId().IsEmpty())
 		{
@@ -191,7 +192,16 @@ void FStudioTelemetry::RecordEvent(const FString& EventName, const TArray<FAnaly
 	}
 }
 
-void FStudioTelemetry::RecordEvent(const FString& ProviderName, const FString& EventName, const TArray<FAnalyticsEventAttribute>& Attributes)
+void FStudioTelemetry::RecordEvent(const FName CategoryName, const FString& EventName, const TArray<FAnalyticsEventAttribute>& Attributes)
+{
+	if (AnalyticsProvider.IsValid())
+	{
+		FScopeLock ScopeLock(&CriticalSection);
+		AnalyticsProvider->RecordEvent(EventName, Attributes);
+	}
+}
+
+void FStudioTelemetry::RecordEventToProvider(const FString& ProviderName, const FString& EventName, const TArray<FAnalyticsEventAttribute>& Attributes)
 {
 	FScopeLock ScopeLock(&CriticalSection);
 	TSharedPtr<IAnalyticsProvider> NamedProvider = GetProvider(ProviderName).Pin();
@@ -232,7 +242,7 @@ bool FStudioTelemetry::EndSpan(TSharedPtr<IAnalyticsSpan> Span, const TArray<FAn
 	return AnalyticsTracer.IsValid() ? AnalyticsTracer->EndSpan(Span, AdditionalAttributes) : false;
 }
 
-bool FStudioTelemetry::EndSpan(const FName& Name, const TArray<FAnalyticsEventAttribute>& AdditionalAttributes)
+bool FStudioTelemetry::EndSpan(const FName Name, const TArray<FAnalyticsEventAttribute>& AdditionalAttributes)
 {
 	return AnalyticsTracer.IsValid() ? AnalyticsTracer->EndSpan(Name, AdditionalAttributes) : false;
 }

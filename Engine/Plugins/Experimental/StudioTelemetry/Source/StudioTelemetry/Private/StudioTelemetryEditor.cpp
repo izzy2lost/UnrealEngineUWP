@@ -394,6 +394,50 @@ void FStudioTelemetryEditor::RegisterCollectionWorkflowDelegates(FTelemetryRoute
 	});
 }
 
+extern ENGINE_API float GAverageFPS;
+
+void FStudioTelemetryEditor::HeartbeatCallback()
+{
+	static bool WasHitchingLastTime = false;
+	static uint32 HitchCount = 0;
+
+	// Record a hitch when FPS is below our threshold
+	const bool IsHitching = GAverageFPS<MinFPSForHitching;
+
+	HitchCount += IsHitching? 1:0;
+	
+	if (WasHitchingLastTime != IsHitching)
+	{
+		if (IsHitching)
+		{
+			// Start the hitch span
+			HitchingSpan = FStudioTelemetry::Get().StartSpan(HitchingSpanName);
+			HitchCount = 1;
+		}
+		else
+		{
+			TArray<FAnalyticsEventAttribute> Attributes;
+			Attributes.Emplace(FAnalyticsEventAttribute(TEXT("Hitch_Count"), HitchCount));
+			Attributes.Emplace(FAnalyticsEventAttribute(TEXT("Hitch_HitchesPerSecond"), (float)HitchCount / HitchingSpan->GetDuration()));
+			Attributes.Emplace(FAnalyticsEventAttribute(TEXT("Hitch_AverageFPS"), GAverageFPS));
+			
+			// End the hitch Span
+			FStudioTelemetry::Get().EndSpan(HitchingSpan, Attributes);
+
+			// Record the hitch event
+			FStudioTelemetry::Get().RecordEvent(TEXT("Core.Hitch"), Attributes);
+
+			Attributes.Emplace(TEXT("MapName"), EditorMapName);
+			Attributes.Emplace(TEXT("PIE_MapName"), PIEMapName);
+
+			// Record core systems events for the hitch
+			RecordEvent_CoreSystems(TEXT("Hitch"));
+		}
+	}
+
+	WasHitchingLastTime = IsHitching;
+}
+
 void FStudioTelemetryEditor::Initialize()
 {
 	SessionStartTime = FPlatformTime::Seconds();
@@ -407,9 +451,9 @@ void FStudioTelemetryEditor::Initialize()
 
 	TArray<FAnalyticsEventAttribute> Attributes;
 	Attributes.Emplace(FAnalyticsEventAttribute(TEXT("MapName"), EditorMapName));
-
 	EditorBootSpan->AddAttributes(Attributes);
 
+	// Set up Slow Task callbacks
 	ensureMsgf(GWarn, TEXT("GWarn was not valid"));
 
 	if (GWarn != nullptr)
@@ -534,6 +578,11 @@ void FStudioTelemetryEditor::Initialize()
 
 						FStudioTelemetry::Get().EndSpan(OpenAssetEditorSpan, Attributes);			
 				});
+
+				// Setup a timer for a heartbeat event.
+				FTimerDelegate Delegate;
+				Delegate.BindRaw(this, &FStudioTelemetryEditor::HeartbeatCallback);
+				GEditor->GetTimerManager()->SetTimer(TelemetryHeartbeatTimerHandle, Delegate, HeartbeatIntervalSeconds, true);
 			}
 
 			ensureMsgf(GUnrealEd, TEXT("GUnrealEd was not valid"));
@@ -549,8 +598,6 @@ void FStudioTelemetryEditor::Initialize()
 						FStudioTelemetryEditor::RecordEvent_CoreSystems(TEXT("Cooking"), Attributes);
 					});
 			}
-
-			
 		});
 
 	// Install PIE Mode callbacks
@@ -623,8 +670,14 @@ void FStudioTelemetryEditor::Initialize()
 
 	FEditorDelegates::EndPIE.AddLambda([this](bool)
 		{
-			// PIE has ended, ie. the user has pressed the Stop PIE button, and we are going back to interactive Editor mode	
-			FStudioTelemetry::Get().EndSpan(PIESpan);
+			if (PIESpan.IsValid())
+			{
+				// PIE has ended, ie. the user has pressed the Stop PIE button, and we are going back to interactive Editor mode	
+				FStudioTelemetry::Get().EndSpan(PIESpan);
+
+				FStudioTelemetryEditor::RecordEvent_Loading(TEXT("PIE.EndTime"), PIESpan->GetDuration(), PIESpan->GetAttributes());
+				FStudioTelemetryEditor::RecordEvent_CoreSystems(TEXT("PIE.EndTime"), PIESpan->GetAttributes());
+			}
 
 			TArray<FAnalyticsEventAttribute> Attributes;
 			Attributes.Emplace(TEXT("MapName"), EditorMapName);

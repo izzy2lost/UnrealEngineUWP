@@ -46,8 +46,11 @@ public:
 	/** Thread safe method to record an event to all registered analytics providers*/
 	STUDIOTELEMETRY_API void RecordEvent(const FString& EventName, const TArray<FAnalyticsEventAttribute>& Attributes = {});
 
+	/** Thread safe method to record an event to all registered analytics providers*/
+	STUDIOTELEMETRY_API void RecordEvent(const FName CategoryName, const FString& EventName, const TArray<FAnalyticsEventAttribute>& Attributes = {});
+
 	/** Thread safe method to record an event to the specifically named analytics provider */
-	STUDIOTELEMETRY_API void RecordEvent(const FString& ProviderName, const FString& EventName, const TArray<FAnalyticsEventAttribute>& Attributes = {});
+	STUDIOTELEMETRY_API void RecordEventToProvider(const FString& ProviderName, const FString& EventName, const TArray<FAnalyticsEventAttribute>& Attributes = {});
 
 	/** Start a new span specifying the parent*/
 	STUDIOTELEMETRY_API TSharedPtr<IAnalyticsSpan> StartSpan(const FName Name, const TArray<FAnalyticsEventAttribute>& AdditionalAttributes = {});
@@ -59,7 +62,7 @@ public:
 	STUDIOTELEMETRY_API bool EndSpan(TSharedPtr<IAnalyticsSpan> Span, const TArray<FAnalyticsEventAttribute>& AdditionalAttributes = {});
 
 	/** End an existing span by name*/
-	STUDIOTELEMETRY_API bool EndSpan(const FName& Name, const TArray<FAnalyticsEventAttribute>& AdditionalAttributes = {});
+	STUDIOTELEMETRY_API bool EndSpan(const FName Name, const TArray<FAnalyticsEventAttribute>& AdditionalAttributes = {});
 
 	/** Get an active span by name, non active spans will not be available*/
 	STUDIOTELEMETRY_API TSharedPtr<IAnalyticsSpan> GetSpan(const FName Name);

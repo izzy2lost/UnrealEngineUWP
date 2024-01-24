@@ -5,11 +5,13 @@
 #if WITH_EDITOR
 
 #include "StudioTelemetry.h"
+#include "Engine/EngineTypes.h"
 
 class FTelemetryRouter;
+struct FTimerHandle;
 
 /**
- * A class that implements a variety of pre-configured Core and Editor telemetry events that can be used to evaluate the efficiecnty of the most common developer workflows
+ * A class that implements a variety of pre-configured Core and Editor telemetry events that can be used to evaluate the efficiency of the most common developer workflows
  */
 class FStudioTelemetryEditor : FNoncopyable
 {
@@ -33,7 +35,8 @@ private:
 	static void RecordEvent_Zen(const FString& Context, TArray<FAnalyticsEventAttribute> Attributes = {});
 	static void RecordEvent_VirtualAssets(const FString& Context, TArray<FAnalyticsEventAttribute> Attributes = {});
 	static void RegisterCollectionWorkflowDelegates(FTelemetryRouter& Router);
-
+	void HeartbeatCallback();
+	
 	TSharedPtr<IAnalyticsSpan> EditorSpan;
 	TSharedPtr<IAnalyticsSpan> EditorBootSpan;
 	TSharedPtr<IAnalyticsSpan> EditorInteractSpan;
@@ -44,6 +47,7 @@ private:
 	TSharedPtr<IAnalyticsSpan> PIELoadMapSpan;
 	TSharedPtr<IAnalyticsSpan> PIEWorldStreamingSpan;
 	TSharedPtr<IAnalyticsSpan> CookingSpan;
+	TSharedPtr<IAnalyticsSpan> HitchingSpan;
 	
 	const FName EditorSpanName = TEXT("Editor");
 	const FName EditorBootSpanName = TEXT("Editor.Boot");
@@ -55,11 +59,15 @@ private:
 	const FName PIELoadMapSpanName = TEXT("PIE.LoadMap");
 	const FName PIEWorldStreamingSpanName = TEXT("PIE.WorldStreaming");
 	const FName CookingSpanName = TEXT("Cooking");
+	const FName HitchingSpanName = TEXT("Hitching");
 	const FName OpenAssetEditorSpan = TEXT("Open Asset Editor");
+	const float HeartbeatIntervalSeconds = 5.0;
+	const float MinFPSForHitching = 5.0;
 
 	TMap<FGuid, TSharedPtr<IAnalyticsSpan>> TaskSpans;
 	FCriticalSection TaskSpanCriticalSection;
 
+	FTimerHandle TelemetryHeartbeatTimerHandle;
 	FString EditorMapName;
 	FString PIEMapName;
 	double SessionStartTime;
