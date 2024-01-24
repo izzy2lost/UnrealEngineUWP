@@ -341,16 +341,16 @@ namespace UnrealBuildTool
 		public HashSet<UEBuildModule> GetDependencies(bool bWithIncludePathModules, bool bWithDynamicallyLoadedModules)
 		{
 			HashSet<UEBuildModule> Modules = new HashSet<UEBuildModule>();
-			Modules.UnionWith(PublicDependencyModules!);
-			Modules.UnionWith(PrivateDependencyModules!);
+			Modules.UnionWith(PublicDependencyModules ?? new());
+			Modules.UnionWith(PrivateDependencyModules ?? new());
 			if (bWithIncludePathModules)
 			{
-				Modules.UnionWith(PublicIncludePathModules!);
-				Modules.UnionWith(PrivateIncludePathModules!);
+				Modules.UnionWith(PublicIncludePathModules ?? new());
+				Modules.UnionWith(PrivateIncludePathModules ?? new());
 			}
 			if (bWithDynamicallyLoadedModules)
 			{
-				Modules.UnionWith(DynamicallyLoadedModules!);
+				Modules.UnionWith(DynamicallyLoadedModules ?? new());
 			}
 			return Modules;
 		}
