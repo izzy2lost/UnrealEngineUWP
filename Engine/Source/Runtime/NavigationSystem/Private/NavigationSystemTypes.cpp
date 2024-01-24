@@ -312,7 +312,7 @@ FNavigationLink INavLinkCustomInterface::GetModifier(const INavLinkCustomInterfa
 	return LinkMod;
 }
 
-void INavLinkCustomInterface::OnPreWorldInitialization(UWorld* World, const UWorld::InitializationValues IVS)
+void INavLinkCustomInterface::OnPreWorldInitialization(UWorld* World, const FWorldInitializationValues IVS)
 {
 	PRAGMA_DISABLE_DEPRECATION_WARNINGS
 	ResetUniqueId();
