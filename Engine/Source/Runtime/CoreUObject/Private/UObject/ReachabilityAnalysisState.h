@@ -10,6 +10,7 @@
 #include "UObject/UObjectBase.h"
 #include "UObject/Object.h"
 #include "UObject/FastReferenceCollector.h"
+#include "UObject/ReachabilityAnalysis.h"
 
 namespace UE::GC
 {
@@ -329,3 +330,13 @@ public:
 };
 
 } // namespace UE::GC
+
+namespace UE::GC::Private
+{
+	/**
+	 * Returns statistics of the last Garbage Collecion cycle.
+	 *
+	 * @return	Statistics of the last Garabage Collection cycle.
+	 */
+	COREUOBJECT_API UE::GC::Private::FStats GetGarbageCollectionStats();
+}
