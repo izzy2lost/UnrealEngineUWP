@@ -30,19 +30,6 @@ void VTSessionHelpers::SetVTSessionProperty(VTSessionRef Session, CFStringRef Ke
     }
 }
 
-void VTSessionHelpers::SetVTSessionProperty(VTSessionRef Session, CFStringRef Key, uint32_t Value) 
-{
-    int64_t Value_64 = Value;
-    CFNumberRef Num = CFNumberCreate(kCFAllocatorDefault, kCFNumberSInt64Type, &Value_64);
-    OSStatus Status = VTSessionSetProperty(Session, Key, Num);
-    CFRelease(Num);
-    if (Status != 0) 
-    {
-        FString KeyString = CFStringToString(Key);
-        FAVResult::Log(EAVResult::Warning, FString::Printf(TEXT("VTSessionSetProperty failed to set: %s to %d"), *KeyString, Value), TEXT("VT"), Status);
-    }
-}
-
 void VTSessionHelpers::SetVTSessionProperty(VTSessionRef Session, CFStringRef Key, bool Value) 
 {
     CFBooleanRef Bool = (Value) ? kCFBooleanTrue : kCFBooleanFalse;
