@@ -9675,18 +9675,14 @@ bool UploadIoStoreContainerFiles(const UE::IO::IAS::FIoStoreUploadParams& Upload
 		FStringBuilderBase Sb;
 		Sb << TEXT("[Endpoint]") << TEXT("\r\n");
 
-		FString DistributionUrl;
-		if (FParse::Value(FCommandLine::Get(), TEXT("DistributionUrl="), DistributionUrl))
+		if (!UploadParams.DistributionUrl.IsEmpty())
 		{
-			Sb << TEXT("DistributionUrl=\"") << DistributionUrl << TEXT("\"\r\n");
+			Sb << TEXT("DistributionUrl=\"") << UploadParams.DistributionUrl << TEXT("\"\r\n");
 
-			FString FallbackUrl;
-			if (FParse::Value(FCommandLine::Get(), TEXT("FallbackUrl="), FallbackUrl))
+			if (!UploadParams.FallbackUrl.IsEmpty())
 			{
-				Sb << TEXT("FallbackUrl=\"") << FallbackUrl << TEXT("\"\r\n");
+				Sb << TEXT("FallbackUrl=\"") << UploadParams.FallbackUrl << TEXT("\"\r\n");
 			}
-			
-			
 		}
 		else
 		{
