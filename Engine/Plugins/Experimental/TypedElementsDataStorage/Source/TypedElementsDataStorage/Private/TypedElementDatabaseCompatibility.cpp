@@ -2,7 +2,9 @@
 
 #include "TypedElementDatabaseCompatibility.h"
 
+#include <utility>
 #include "Algo/Unique.h"
+#include "Async/UniqueLock.h"
 #include "Editor.h"
 #include "Editor/TransBuffer.h"
 #include "Elements/Columns/TypedElementCompatibilityColumns.h"
@@ -12,6 +14,7 @@
 #include "Elements/Columns/TypedElementTransformColumns.h"
 #include "Elements/Columns/TypedElementTypeInfoColumns.h"
 #include "Elements/Framework/TypedElementIndexHasher.h"
+#include "Elements/Framework/TypedElementQueryBuilder.h"
 #include "MassActorSubsystem.h"
 #include "TypedElementDataStorageProfilingMacros.h"
 
@@ -26,7 +29,8 @@ void UTypedElementDatabaseCompatibility::Initialize(ITypedElementDataStorageInte
 
 	PostEditChangePropertyDelegateHandle = FCoreUObjectDelegates::OnObjectPropertyChanged.AddUObject(this, &UTypedElementDatabaseCompatibility::OnPostEditChangeProperty);
 	ObjectModifiedDelegateHandle = FCoreUObjectDelegates::OnObjectModified.AddUObject(this, &UTypedElementDatabaseCompatibility::OnObjectModified);
-	
+	ObjectReinstancedDelegateHandle = FCoreUObjectDelegates::OnObjectsReinstanced.AddUObject(this, &UTypedElementDatabaseCompatibility::OnObjectReinstanced);
+
 	PostWorldInitializationDelegateHandle = FWorldDelegates::OnPostWorldInitialization.AddUObject(this, &UTypedElementDatabaseCompatibility::OnPostWorldInitialization);
 	PreWorldFinishDestroyDelegateHandle = FWorldDelegates::OnPreWorldFinishDestroy.AddUObject(this, &UTypedElementDatabaseCompatibility::OnPreWorldFinishDestroy);
 }
@@ -40,7 +44,8 @@ void UTypedElementDatabaseCompatibility::Deinitialize()
 
 	FWorldDelegates::OnPreWorldFinishDestroy.Remove(PreWorldFinishDestroyDelegateHandle);
 	FWorldDelegates::OnPostWorldInitialization.Remove(PostWorldInitializationDelegateHandle);
-
+	
+	FCoreUObjectDelegates::OnObjectsReinstanced.Remove(ObjectReinstancedDelegateHandle);
 	FCoreUObjectDelegates::OnObjectModified.Remove(ObjectModifiedDelegateHandle);
 	FCoreUObjectDelegates::OnObjectPropertyChanged.Remove(PostEditChangePropertyDelegateHandle);
 	
@@ -110,13 +115,9 @@ TypedElementRowHandle UTypedElementDatabaseCompatibility::AddCompatibleObjectExp
 		TypedElementRowHandle Result = FindRowWithCompatibleObjectExplicit(Object);
 		if (!Storage->IsRowAvailable(Result))
 		{
-			TableHandle Table = FindBestMatchingTable(TypeInfo.Get());
-			Table = (Table != InvalidTableHandle) ? Table : StandardExternalObjectTable;
-
 			Result = Storage->ReserveRow();
 			Storage->IndexRow(GenerateIndexHash(Object), Result);
-			PendingRegistration<ExternalObjectRegistration>& Pending = ExternalObjectsPendingRegistration.FindOrAdd(Table);
-			Pending.Add(Result, ExternalObjectRegistration{ .Object = Object, .TypeInfo = TypeInfo });
+			ExternalObjectsPendingRegistration.Add(Result, ExternalObjectRegistration{ .Object = Object, .TypeInfo = TypeInfo });
 		}
 		return Result;
 	}
@@ -149,7 +150,6 @@ void UTypedElementDatabaseCompatibility::RemoveCompatibleObjectExplicit(void* Ob
 	}
 }
 
-
 TypedElementRowHandle UTypedElementDatabaseCompatibility::FindRowWithCompatibleObjectExplicit(const UObject* Object) const
 {
 	using namespace TypedElementDataStorage;
@@ -169,19 +169,10 @@ TypedElementRowHandle UTypedElementDatabaseCompatibility::FindRowWithCompatibleO
 	return (Object && Storage && Storage->IsAvailable()) ? Storage->FindIndexedRow(GenerateIndexHash(Object)) : InvalidRowHandle;
 }
 
-void UTypedElementDatabaseCompatibility::AddReferencedObjects(UObject* InThis, FReferenceCollector& Collector)
-{
-	Super::AddReferencedObjects(InThis, Collector);
-
-	UTypedElementDatabaseCompatibility* Compatibility = Cast<UTypedElementDatabaseCompatibility>(InThis);
-	checkf(Compatibility, TEXT("AddReferencedObjects was given a null pointer or an object wasn't a typed element data compatibility object."));
-
-	Collector.AddReferencedObjects(Compatibility->TypeToTableMap);
-}
-
 void UTypedElementDatabaseCompatibility::Prepare()
 {
 	CreateStandardArchetypes();
+	RegisterTypeInformationQueries();
 }
 
 void UTypedElementDatabaseCompatibility::Reset()
@@ -212,6 +203,21 @@ void UTypedElementDatabaseCompatibility::CreateStandardArchetypes()
 
 	RegisterTypeTableAssociation(AActor::StaticClass(), StandardActorTable);
 	RegisterTypeTableAssociation(UObject::StaticClass(), StandardUObjectTable);
+}
+
+void UTypedElementDatabaseCompatibility::RegisterTypeInformationQueries()
+{
+	using namespace TypedElementQueryBuilder;
+
+	ClassTypeInfoQuery = Storage->RegisterQuery(
+		Select()
+			.ReadWrite<FTypedElementClassTypeInfoColumn>()
+		.Compile());
+	
+	ScriptStructTypeInfoQuery = Storage->RegisterQuery(
+		Select()
+			.ReadWrite<FTypedElementScriptStructTypeInfoColumn>()
+		.Compile());
 }
 
 bool UTypedElementDatabaseCompatibility::ShouldAddObject(const UObject* Object) const
@@ -255,15 +261,9 @@ TypedElementRowHandle UTypedElementDatabaseCompatibility::AddCompatibleObjectExp
 	TypedElementRowHandle Result = FindRowWithCompatibleObjectExplicit(Object);
 	if (!Storage->IsRowAvailable(Result))
 	{
-		TableHandle Table = FindBestMatchingTable(Object->GetClass());
-		checkf(Table != InvalidTableHandle, TEXT("The Typed Elements Data Storage could not find any matching tables for object of type '%s'. "
-			"This can mean that the object doesn't derive from UObject or that a table for UObject is no longer registered."), *Object->GetClass()->GetFName().ToString());
-
 		Result = Storage->ReserveRow();
 		Storage->IndexRow(GenerateIndexHash(Object), Result);
-
-		PendingRegistration<TWeakObjectPtr<UObject>>& Pending = UObjectsPendingRegistration.FindOrAdd(Table);
-		Pending.Add(Result, Object);
+		UObjectsPendingRegistration.Add(Result, Object);
 
 		if constexpr (bEnableTransactions)
 		{
@@ -322,10 +322,11 @@ TypedElementRowHandle UTypedElementDatabaseCompatibility::DealiasObject(const UO
 void UTypedElementDatabaseCompatibility::Tick()
 {
 	TEDS_EVENT_SCOPE(TEXT("Compatibility Tick"))
-	UWorld* EditorWorld = GEditor->GetEditorWorldContext().World();
+	
+	PendingTypeInformationUpdate.Process(*this);
 
 	// Delay processing until the required systems are available by not clearing any lists or doing any work.
-	if (Storage && Storage->IsAvailable() && EditorWorld)
+	if (Storage && Storage->IsAvailable())
 	{
 		TickPendingUObjectRegistration();
 		TickPendingExternalObjectRegistration();
@@ -333,130 +334,278 @@ void UTypedElementDatabaseCompatibility::Tick()
 	}
 }
 
+
+
+//
+// FPendingTypeInformatUpdate
+// 
+
+UTypedElementDatabaseCompatibility::FPendingTypeInformationUpdate::FPendingTypeInformationUpdate()
+	: PendingTypeInformationUpdatesActive(&PendingTypeInformationUpdates[0])
+	, PendingTypeInformationUpdatesSwapped(&PendingTypeInformationUpdates[1])
+{}
+
+void UTypedElementDatabaseCompatibility::FPendingTypeInformationUpdate::AddTypeInformation(const TMap<UObject*, UObject*>& ReplacedObjects)
+{
+	UE::TUniqueLock Lock(Safeguard);
+
+	for (TMap<UObject*, UObject*>::TConstIterator It = ReplacedObjects.CreateConstIterator(); It; ++It)
+	{
+		if (It->Key->IsA<UStruct>())
+		{
+			PendingTypeInformationUpdatesActive->Add(*It);
+			bHasPendingUpdate = true;
+		}
+	}
+}
+
+void UTypedElementDatabaseCompatibility::FPendingTypeInformationUpdate::Process(UTypedElementDatabaseCompatibility& Compatibility)
+{
+	using namespace TypedElementDataStorage;
+	using namespace TypedElementQueryBuilder;
+	
+	if (bHasPendingUpdate)
+	{
+		// Swap to release the lock as soon as possible.
+		{
+			UE::TUniqueLock Lock(Safeguard);
+			std::swap(PendingTypeInformationUpdatesActive, PendingTypeInformationUpdatesSwapped);
+		}
+
+		for (TypeToTableMapType::TIterator It = Compatibility.TypeToTableMap.CreateIterator(); It; ++It)
+		{
+			if (TOptional<TWeakObjectPtr<UObject>> NewObject = ProcessResolveTypeRecursively(It.Key()); NewObject.IsSet())
+			{
+				UpdatedTypeInfoScratchBuffer.Emplace(Cast<UStruct>(*NewObject), It.Value());
+				It.RemoveCurrent();
+			}
+		}
+		for (TPair<TWeakObjectPtr<UStruct>, TypedElementDataStorage::TableHandle>& UpdatedEntry : UpdatedTypeInfoScratchBuffer)
+		{
+			checkf(UpdatedEntry.Key.IsValid(),
+				TEXT("Type info column in data storage has been re-instanced to an object without type information"));
+			Compatibility.TypeToTableMap.Add(UpdatedEntry);
+		}
+		UpdatedTypeInfoScratchBuffer.Reset();
+
+		Compatibility.Storage->RunQuery(Compatibility.ClassTypeInfoQuery, CreateDirectQueryCallbackBinding(
+			[this](IDirectQueryContext& Context, FTypedElementClassTypeInfoColumn& Type)
+			{
+				if (TOptional<TWeakObjectPtr<UObject>> NewObject = ProcessResolveTypeRecursively(Type.TypeInfo); NewObject.IsSet())
+				{
+					Type.TypeInfo = Cast<UClass>(*NewObject);
+					checkf(Type.TypeInfo.IsValid(),
+						TEXT("Type info column in data storage has been re-instanced to an object without class type information"));
+				}
+			}));
+		Compatibility.Storage->RunQuery(Compatibility.ScriptStructTypeInfoQuery, CreateDirectQueryCallbackBinding(
+			[this](IDirectQueryContext& Context, FTypedElementScriptStructTypeInfoColumn& Type)
+			{
+				if (TOptional<TWeakObjectPtr<UObject>> NewObject = ProcessResolveTypeRecursively(Type.TypeInfo); NewObject.IsSet())
+				{
+					Type.TypeInfo = Cast<UScriptStruct>(*NewObject);
+					checkf(Type.TypeInfo.IsValid(),
+						TEXT("Type info column in data storage has been re-instanced to an object without struct type information"));
+				}
+			}));
+
+		Compatibility.ExternalObjectsPendingRegistration.ForEachAddress(
+			[this](ExternalObjectRegistration& Entry)
+			{
+				if (TOptional<TWeakObjectPtr<UObject>> NewObject = ProcessResolveTypeRecursively(Entry.TypeInfo); NewObject.IsSet())
+				{
+					Entry.TypeInfo = Cast<UScriptStruct>(*NewObject);
+					checkf(Entry.TypeInfo.Get(),
+						TEXT("Type info pending processing in data storage has been re-instanced to an object without struct type information"));
+				}
+			});
+
+		PendingTypeInformationUpdatesSwapped->Reset();
+		bHasPendingUpdate = false;
+	}
+}
+
+TOptional<TWeakObjectPtr<UObject>> UTypedElementDatabaseCompatibility::FPendingTypeInformationUpdate::ProcessResolveTypeRecursively(
+	const TWeakObjectPtr<const UObject>& Target)
+{
+	if (const TWeakObjectPtr<UObject>* NewObject = PendingTypeInformationUpdatesSwapped->Find(Target))
+	{
+		TWeakObjectPtr<UObject> LastNewObject = *NewObject;
+		while (const TWeakObjectPtr<UObject>* NextNewObject = PendingTypeInformationUpdatesSwapped->Find(LastNewObject))
+		{
+			LastNewObject = *NextNewObject;
+		}
+		return LastNewObject;
+	}
+	return TOptional<TWeakObjectPtr<UObject>>();
+}
+
+
+
+
+//
+// PendingRegistration
+//
+
 template<typename AddressType>
 void UTypedElementDatabaseCompatibility::PendingRegistration<AddressType>::Add(TypedElementRowHandle ReservedRowHandle, AddressType Address)
 {
-	Addresses.Add(Forward<AddressType>(Address));
-	ReservedRowHandles.Add(ReservedRowHandle);
+	Entries.Emplace(FEntry{ .Address = Address, .Row = ReservedRowHandle });
 }
 
 template<typename AddressType>
 bool UTypedElementDatabaseCompatibility::PendingRegistration<AddressType>::IsEmpty() const
 {
-	// ReservedRowHandles can also be returned as they'll both have the same length.
-	return Addresses.IsEmpty();
+	return Entries.IsEmpty();
 }
 
 template<typename AddressType>
 int32 UTypedElementDatabaseCompatibility::PendingRegistration<AddressType>::Num() const
 {
-	// ReservedRowHandles can also be returned as they'll both have the same length.
-	return Addresses.Num();
+	return Entries.Num();
 }
 
 template<typename AddressType>
-TArrayView<AddressType> UTypedElementDatabaseCompatibility::PendingRegistration<AddressType>::GetAddresses()
+void UTypedElementDatabaseCompatibility::PendingRegistration<AddressType>::ForEachAddress(const TFunctionRef<void(AddressType&)>& Callback)
 {
-	return Addresses;
-}
-
-template<typename AddressType>
-TArrayView<TypedElementRowHandle> UTypedElementDatabaseCompatibility::PendingRegistration<AddressType>::GetReservedRowHandles()
-{
-	return ReservedRowHandles;
-}
-
-template<typename AddressType>
-void UTypedElementDatabaseCompatibility::PendingRegistration<AddressType>::RemoveInvalidEntries(
-	ITypedElementDataStorageInterface& StorageInterface, const TFunctionRef<bool(const AddressType&)>& Validator)
-{
-	checkf(Addresses.Num() == ReservedRowHandles.Num(),
-		TEXT("The reserved row handle count (%i) didn't match the stored pointer count (%i)."),
-		ReservedRowHandles.Num(), Addresses.Num());
-
-	AddressType* AddressBegin = Addresses.GetData();
-	AddressType* AddressIt = Addresses.GetData();
-	AddressType* AddressEnd = AddressBegin + Addresses.Num();
-	TypedElementRowHandle* RowHandleBegin = ReservedRowHandles.GetData();
-	TypedElementRowHandle* RowHandleIt = ReservedRowHandles.GetData();
-	while (AddressIt != AddressEnd)
+	for (FEntry& Entry : Entries)
 	{
-		if (StorageInterface.IsRowAvailable(*RowHandleIt) && Validator(*AddressIt))
-		{
-			++AddressIt;
-			++RowHandleIt;
-		}
-		else
-		{
-			// Don't shrink the registration array as the array will be reused with a variety of different object counts.
-			// If memory size becomes an issue it's better to resize the array once after this loop rather than within the
-			// loop to avoid many resizes happening.
-			StorageInterface.RemoveRow(*RowHandleIt);
-			Addresses.RemoveAtSwap(AddressIt - AddressBegin, 1, EAllowShrinking::No);
-			ReservedRowHandles.RemoveAtSwap(RowHandleIt - RowHandleBegin, 1, EAllowShrinking::No);
-			--AddressEnd;
-		}
+		Callback(Entry.Address);
 	}
 }
 
 template<typename AddressType>
 void UTypedElementDatabaseCompatibility::PendingRegistration<AddressType>::ProcessEntries(ITypedElementDataStorageInterface& StorageInterface,
-	TypedElementTableHandle Table, const TFunctionRef<void(TypedElementRowHandle, const AddressType&)>& SetupRowCallback)
+	UTypedElementDatabaseCompatibility& Compatibility, const TFunctionRef<void(TypedElementRowHandle, const AddressType&)>& SetupRowCallback)
 {
-	if (!IsEmpty())
+	using namespace TypedElementDataStorage;
+
+	// Start by removing any entries that are no longer valid.
+	for (auto It = Entries.CreateIterator(); It; ++It)
 	{
-		AddressType* TargetIt = GetAddresses().GetData();
-		AddressType* TargetEnd = TargetIt + Num();
-		StorageInterface.BatchAddRow(Table, GetReservedRowHandles(), 
-			[this, &SetupRowCallback, &TargetIt, TargetEnd](TypedElementRowHandle Row)
+		bool bIsValid = StorageInterface.IsRowAvailable(It->Row);
+		if constexpr (std::is_same_v<AddressType, TWeakObjectPtr<UObject>>)
+		{
+			bIsValid = bIsValid && It->Address.IsValid();
+		}
+		else if constexpr (std::is_same_v<AddressType, ExternalObjectRegistration>)
+		{
+			bIsValid = bIsValid && (It->Address.Object != nullptr);
+		}
+		else
+		{
+			static_assert(sizeof(AddressType) == 0, "Unsupported type for pending object registration in data storage compatibility.");
+		}
+
+		if (!bIsValid)
+		{
+			It.RemoveCurrentSwap();
+		}
+	}
+
+	// Check for empty here are the above code could potentially leave an empty array behind. This would result in break the assumption
+	// that there is at least one entry later in this function.
+	if (!Entries.IsEmpty())
+	{
+		// Next resolve the required table handles.
+		for (FEntry& Entry : Entries)
+		{
+			if constexpr (std::is_same_v<AddressType, TWeakObjectPtr<UObject>>)
 			{
-				SetupRowCallback(Row, *TargetIt);
-				checkf(TargetIt < TargetEnd, TEXT("More (%i) entities were added than were requested (%i)."), TargetEnd - TargetIt, Num());
-				++TargetIt;
+				Entry.Table = Compatibility.FindBestMatchingTable(Entry.Address->GetClass());
+				checkf(Entry.Table != InvalidTableHandle, 
+					TEXT("The data storage could not find any matching tables for object of type '%s'. "
+					"This can mean that the object doesn't derive from UObject or that a table for UObject is no longer registered."), 
+					*Entry.Address->GetClass()->GetFName().ToString());
+
+			}
+			else if constexpr (std::is_same_v<AddressType, ExternalObjectRegistration>)
+			{
+				Entry.Table = Compatibility.FindBestMatchingTable(Entry.Address.TypeInfo.Get());
+				Entry.Table = (Entry.Table != InvalidTableHandle) ? Entry.Table : Compatibility.StandardExternalObjectTable;
+			}
+			else
+			{
+				static_assert(sizeof(AddressType) == 0, "Unsupported type for pending object registration in data storage compatibility.");
+			}
+		}
+
+		// Next sort them by table then by row handle to allow batch insertion.
+		Entries.Sort(
+			[](const FEntry& Lhs, const FEntry& Rhs)
+			{
+				if (Lhs.Table < Rhs.Table)
+				{
+					return true;
+				}
+				else if (Lhs.Table > Rhs.Table)
+				{
+					return false;
+				}
+				else
+				{
+					return Lhs.Row < Rhs.Row;
+				}
 			});
+
+		// Batch up the entries and add them to the storage.
+		FEntry* Current = Entries.GetData();
+		FEntry* End = Current + Entries.Num();
+		
+		FEntry* TableFront = Current;
+		TableHandle CurrentTable = Entries[0].Table;
+		
+		for (; Current != End; ++Current)
+		{
+			if (Current->Table != CurrentTable)
+			{
+				StorageInterface.BatchAddRow(CurrentTable, Compatibility.RowScratchBuffer,
+					[&SetupRowCallback, &TableFront](TypedElementRowHandle Row)
+					{
+						SetupRowCallback(Row, TableFront->Address);
+						++TableFront;
+					});
+
+				CurrentTable = Current->Table;
+				Compatibility.RowScratchBuffer.Reset();
+			}
+			Compatibility.RowScratchBuffer.Add(Current->Row);
+		}
+		StorageInterface.BatchAddRow(CurrentTable, Compatibility.RowScratchBuffer,
+			[&SetupRowCallback, &TableFront](TypedElementRowHandle Row)
+			{
+				SetupRowCallback(Row, TableFront->Address);
+				++TableFront;
+			});
+		Compatibility.RowScratchBuffer.Reset();
 	}
 }
 
 template<typename AddressType>
 void UTypedElementDatabaseCompatibility::PendingRegistration<AddressType>::Reset()
 {
-	Addresses.Reset();
-	ReservedRowHandles.Reset();
+	Entries.Reset();
 }
 
 void UTypedElementDatabaseCompatibility::TickPendingUObjectRegistration()
 {
 	if (!UObjectsPendingRegistration.IsEmpty())
 	{
-		// Filter out the objects that are already registered or already destroyed. 
-		for (auto It = UObjectsPendingRegistration.CreateIterator(); It; ++It)
-		{
-			It->Value.RemoveInvalidEntries(*Storage,
-				[](const TWeakObjectPtr<UObject>& Object)
+		UObjectsPendingRegistration.ProcessEntries(*Storage, *this,
+			[this](TypedElementRowHandle Row, const TWeakObjectPtr<UObject>& Object)
+			{
+				if (AActor* Actor = Cast<AActor>(Object))
 				{
-					return Object.Get() != nullptr;
-				});
-		}
+					constexpr bool bIsOwnedByMass = false;
+					Storage->AddOrGetColumn<FMassActorFragment>(Row)->SetNoHandleMapUpdate(FMassEntityHandle::FromNumber(Row), Actor, bIsOwnedByMass);
+				}
 
-		// Add the remaining object to the data storage.
-		for (auto It = UObjectsPendingRegistration.CreateIterator(); It; ++It)
-		{
-			It->Value.ProcessEntries(*Storage, It->Key,
-				[Table = It->Key, this](TypedElementRowHandle Row, const TWeakObjectPtr<UObject>& Object)
-				{
-					if (AActor* Actor = Cast<AActor>(Object))
-					{
-						constexpr bool bIsOwnedByMass = false;
-						Storage->AddOrGetColumn<FMassActorFragment>(Row)->SetNoHandleMapUpdate(FMassEntityHandle::FromNumber(Row), Actor, bIsOwnedByMass);
-					}
-
-					Storage->AddOrGetColumn<FTypedElementUObjectColumn>(Row, FTypedElementUObjectColumn{ .Object = Object });
-					Storage->AddOrGetColumn<FTypedElementClassTypeInfoColumn>(Row, FTypedElementClassTypeInfoColumn{ .TypeInfo = Object->GetClass() });
-					// Make sure the new row is tagged for update.
-					Storage->AddColumn<FTypedElementSyncFromWorldTag>(Row);
-					OnObjectAdded(Object.Get(), Object->GetClass(), Row);
-				});
-		}
+				Storage->AddOrGetColumn<FTypedElementUObjectColumn>(Row, FTypedElementUObjectColumn{ .Object = Object });
+				Storage->AddOrGetColumn<FTypedElementClassTypeInfoColumn>(Row, FTypedElementClassTypeInfoColumn{ .TypeInfo = Object->GetClass() });
+				// Make sure the new row is tagged for update.
+				Storage->AddColumn<FTypedElementSyncFromWorldTag>(Row);
+				OnObjectAdded(Object.Get(), Object->GetClass(), Row);
+			});
 
 		UObjectsPendingRegistration.Reset();
 	}
@@ -466,30 +615,16 @@ void UTypedElementDatabaseCompatibility::TickPendingExternalObjectRegistration()
 {
 	if (!ExternalObjectsPendingRegistration.IsEmpty())
 	{
-		// Filter out the objects that are already registered or already destroyed. 
-		for (auto It = ExternalObjectsPendingRegistration.CreateIterator(); It; ++It)
-		{
-			It->Value.RemoveInvalidEntries(*Storage,
-				[](const ExternalObjectRegistration& Object)
-				{
-					return Object.Object != nullptr;
-				});
-		}
+		ExternalObjectsPendingRegistration.ProcessEntries(*Storage, *this,
+			[this](TypedElementRowHandle Row, const ExternalObjectRegistration& Object)
+			{
+				Storage->AddOrGetColumn<FTypedElementExternalObjectColumn>(Row, FTypedElementExternalObjectColumn{ .Object = Object.Object });
+				Storage->AddOrGetColumn<FTypedElementScriptStructTypeInfoColumn>(Row, FTypedElementScriptStructTypeInfoColumn{ .TypeInfo = Object.TypeInfo });
+				// Make sure the new row is tagged for update.
+				Storage->AddColumn<FTypedElementSyncFromWorldTag>(Row);
 
-		// Add the remaining object to the data storage.
-		for (auto It = ExternalObjectsPendingRegistration.CreateIterator(); It; ++It)
-		{
-			It->Value.ProcessEntries(*Storage, It->Key, 
-				[Table = It->Key, this](TypedElementRowHandle Row, const ExternalObjectRegistration& Object)
-				{
-					Storage->AddOrGetColumn<FTypedElementExternalObjectColumn>(Row, FTypedElementExternalObjectColumn{ .Object = Object.Object });
-					Storage->AddOrGetColumn<FTypedElementScriptStructTypeInfoColumn>(Row, FTypedElementScriptStructTypeInfoColumn{ .TypeInfo = Object.TypeInfo });
-					// Make sure the new row is tagged for update.
-					Storage->AddColumn<FTypedElementSyncFromWorldTag>(Row);
-
-					OnObjectAdded(Object.Object, Object.TypeInfo.Get(), Row);
-				});
-		}
+				OnObjectAdded(Object.Object, Object.TypeInfo.Get(), Row);
+			});
 
 		ExternalObjectsPendingRegistration.Reset();
 	}
@@ -517,7 +652,8 @@ void UTypedElementDatabaseCompatibility::TickObjectSync()
 					}
 				}
 				const int32 RowHandleCount = RowHandleIndex;
-				RowHandles.SetNum(RowHandleCount, EAllowShrinking::No);
+				const bool bAllowShrinking = false;
+				RowHandles.SetNum(RowHandleCount, bAllowShrinking);
 			}
 
 			ObjectsNeedingFullSync.Reset();
@@ -569,6 +705,11 @@ void UTypedElementDatabaseCompatibility::OnPreObjectRemoved(const void* Object, 
 		const ObjectRemovedCallback& Callback = CallbackPair.Key;
 		Callback(Object, TypeInfo, Row);
 	}
+}
+
+void UTypedElementDatabaseCompatibility::OnObjectReinstanced(const FCoreUObjectDelegates::FReplacementObjectMap& ReplacedObjects)
+{
+	PendingTypeInformationUpdate.AddTypeInformation(ReplacedObjects);
 }
 
 void UTypedElementDatabaseCompatibility::OnPostWorldInitialization(UWorld* World, const UWorld::InitializationValues InitializationValues)

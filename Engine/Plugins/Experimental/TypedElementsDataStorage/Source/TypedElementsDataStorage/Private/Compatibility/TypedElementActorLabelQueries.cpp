@@ -7,74 +7,11 @@
 #include "Elements/Columns/TypedElementLabelColumns.h"
 #include "Elements/Framework/TypedElementQueryBuilder.h"
 #include "Elements/Framework/TypedElementRegistry.h"
-#include "HAL/IConsoleManager.h"
 #include "Hash/CityHash.h"
 #include "MassActorSubsystem.h"
-#include "ProfilingDebugging/CpuProfilerTrace.h"
 #include "ScopedTransaction.h"
 
 #define LOCTEXT_NAMESPACE "TypedElementDataStorage"
-
-FAutoConsoleCommandWithOutputDevice PrintActorLabelsConsoleCommand(
-	TEXT("TEDS.PrintActorLabels"),
-	TEXT("Prints out the labels for all actors found in the Typed Elements Data Storage."),
-	FConsoleCommandWithOutputDeviceDelegate::CreateLambda([](FOutputDevice& Output)
-		{
-			using namespace TypedElementQueryBuilder;
-			using DSI = ITypedElementDataStorageInterface;
-
-			TRACE_CPUPROFILER_EVENT_SCOPE(TEDS.PrintActorLabelsCommand);
-
-			if (ITypedElementDataStorageInterface* DataStorage = UTypedElementRegistry::GetInstance()->GetMutableDataStorage())
-			{
-				static TypedElementQueryHandle LabelQuery = TypedElementInvalidQueryHandle;
-				if (LabelQuery == TypedElementInvalidQueryHandle)
-				{
-					LabelQuery = DataStorage->RegisterQuery(
-						Select()
-							.ReadOnly<FMassActorFragment, FTypedElementLabelColumn>()
-						.Compile());
-				}
-				
-				if (LabelQuery != TypedElementInvalidQueryHandle)
-				{
-					FString Message;
-					Output.Log(TEXT("The Typed Elements Data Storage has the following actors:"));
-					DataStorage->RunQuery(LabelQuery, CreateDirectQueryCallbackBinding(
-						[&Output, &Message](DSI::IDirectQueryContext& Context, const FMassActorFragment* Actors, const FTypedElementLabelColumn* Labels)
-						{
-							const uint32 Count = Context.GetRowCount();
-
-							const FTypedElementLabelColumn* LabelsIt = Labels;
-							int32 CharacterCount = 0;
-							// Reserve memory first to avoid repeated memory allocations.
-							for (uint32 Index = 0; Index < Count; ++Index)
-							{
-								CharacterCount 
-									+= 14 /* Prefixed text size */ 
-									+ 16 /* Hex address of actor */
-									+ 3 /* Closing brace, colon and space */
-									+ LabelsIt->Label.Len() 
-									+ 1 /* Trailing new line */;
-								++LabelsIt;
-							}
-							Message.Reset(CharacterCount);
-
-							LabelsIt = Labels;
-							for (uint32 Index = 0; Index < Count; ++Index)
-							{
-								Message.Appendf(TEXT("    Actor (0x%p): %s\n"), Actors->Get(), *LabelsIt->Label);
-
-								++LabelsIt;
-								++Actors;
-							}
-
-							Output.Log(Message);
-						}));
-					Output.Log(TEXT("End of Typed Elements Data Storage actors list."));
-				}
-			}
-		}));
 
 void UTypedElementActorLabelFactory::RegisterQueries(ITypedElementDataStorageInterface& DataStorage)
 {

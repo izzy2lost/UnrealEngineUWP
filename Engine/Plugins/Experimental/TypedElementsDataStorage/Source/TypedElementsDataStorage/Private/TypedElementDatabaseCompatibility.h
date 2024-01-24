@@ -2,6 +2,8 @@
 
 #pragma once
 
+#include <atomic>
+#include "Async/Mutex.h"
 #include "Containers/Array.h"
 #include "Containers/Map.h"
 #include "Compatibility/TypedElementObjectReinstancingManager.h"
@@ -9,6 +11,7 @@
 #include "Elements/Interfaces/TypedElementDataStorageCompatibilityInterface.h"
 #include "Engine/World.h"
 #include "Misc/Change.h"
+#include "Misc/Optional.h"
 #include "UObject/ObjectMacros.h"
 #include "UObject/WeakObjectPtr.h"
 
@@ -44,16 +47,14 @@ public:
 	void UnregisterObjectRemovedCallback(FDelegateHandle Handle);
 	
 	TypedElementRowHandle AddCompatibleObjectExplicit(UObject* Object) override;
-	TypedElementRowHandle AddCompatibleObjectExplicit(void* Object, TWeakObjectPtr<const UScriptStruct> TypeInfo);
+	TypedElementRowHandle AddCompatibleObjectExplicit(void* Object, TWeakObjectPtr<const UScriptStruct> TypeInfo) override;
 	
 	void RemoveCompatibleObjectExplicit(UObject* Object) override;
 	void RemoveCompatibleObjectExplicit(void* Object) override;
 
 	TypedElementRowHandle FindRowWithCompatibleObjectExplicit(const UObject* Object) const override;
 	TypedElementRowHandle FindRowWithCompatibleObjectExplicit(const void* Object) const override;
-
-	static void AddReferencedObjects(UObject* InThis, FReferenceCollector& Collector);
-
+	
 private:
 
 	// The below changes expect UTypedElementDatabaseCompatibility to be the object passed in to StoreUndo.
@@ -87,6 +88,7 @@ private:
 	void Prepare();
 	void Reset();
 	void CreateStandardArchetypes();
+	void RegisterTypeInformationQueries();
 	
 	bool ShouldAddObject(const UObject* Object) const;
 	TypedElementDataStorage::TableHandle FindBestMatchingTable(const UStruct* TypeInfo) const;
@@ -105,42 +107,75 @@ private:
 	void OnObjectModified(UObject* Object);
 	void OnObjectAdded(const void* Object, FTypedElementDatabaseCompatibilityObjectTypeInfo TypeInfo, TypedElementRowHandle Row) const;
 	void OnPreObjectRemoved(const void* Object, FTypedElementDatabaseCompatibilityObjectTypeInfo TypeInfo, TypedElementRowHandle Row) const;
-	
+	void OnObjectReinstanced(const FCoreUObjectDelegates::FReplacementObjectMap& ReplacedObjects);
+
 	void OnPostWorldInitialization(UWorld* World, const UWorld::InitializationValues InitializationValues);
 	void OnPreWorldFinishDestroy(UWorld* World);
 
 	void OnActorDestroyed(AActor* Actor);
-	
-	template<typename AddressType>
-	struct PendingRegistration
+
+	struct FPendingTypeInformationUpdate
 	{
-	private:
-		TArray<AddressType> Addresses;
-		TArray<TypedElementRowHandle> ReservedRowHandles;
-
 	public:
-		void Add(TypedElementRowHandle ReservedRowHandle, AddressType Address);
-		bool IsEmpty() const;
-		int32 Num() const;
-		TArrayView<AddressType> GetAddresses();
-		TArrayView<TypedElementRowHandle> GetReservedRowHandles();
+		FPendingTypeInformationUpdate();
 
-		void RemoveInvalidEntries(ITypedElementDataStorageInterface& Storage, const TFunctionRef<bool(const AddressType&)>& Validator);
-		void ProcessEntries(ITypedElementDataStorageInterface& Storage, TypedElementTableHandle Table,
-			const TFunctionRef<void(TypedElementRowHandle, const AddressType&)>& SetupRowCallback);
-		void Reset();
+		void AddTypeInformation(const TMap<UObject*, UObject*>& ReplacedObjects);
+		void Process(UTypedElementDatabaseCompatibility& Compatibility);
+
+	private:
+		TOptional<TWeakObjectPtr<UObject>> ProcessResolveTypeRecursively(const TWeakObjectPtr<const UObject>& Target);
+
+		struct FTypeInfoEntryKeyFuncs : TDefaultMapHashableKeyFuncs<TWeakObjectPtr<UObject>, TWeakObjectPtr<UObject>, false>
+		{
+			static inline bool Matches(KeyInitType Lhs, KeyInitType Rhs) { return Lhs.HasSameIndexAndSerialNumber(Rhs); }
+		};
+		using PendingTypeInformationMap = TMap<TWeakObjectPtr<UObject>, TWeakObjectPtr<UObject>, FDefaultSetAllocator, FTypeInfoEntryKeyFuncs>;
+
+		PendingTypeInformationMap PendingTypeInformationUpdates[2];
+		PendingTypeInformationMap* PendingTypeInformationUpdatesActive;
+		PendingTypeInformationMap* PendingTypeInformationUpdatesSwapped;
+		TArray<TTuple<TWeakObjectPtr<UStruct>, TypedElementDataStorage::TableHandle>> UpdatedTypeInfoScratchBuffer;
+		UE::FMutex Safeguard;
+		std::atomic<bool> bHasPendingUpdate = false;
 	};
+	FPendingTypeInformationUpdate PendingTypeInformationUpdate;
+
 	struct ExternalObjectRegistration
 	{
 		void* Object;
 		TWeakObjectPtr<const UScriptStruct> TypeInfo;
 	};
-	TMap<TypedElementTableHandle, PendingRegistration<TWeakObjectPtr<UObject>>> UObjectsPendingRegistration;
-	TMap<TypedElementTableHandle, PendingRegistration<ExternalObjectRegistration>> ExternalObjectsPendingRegistration;
+	
+	template<typename AddressType>
+	struct PendingRegistration
+	{
+	private:
+		struct FEntry
+		{
+			AddressType Address;
+			TypedElementDataStorage::RowHandle Row;
+			TypedElementDataStorage::TableHandle Table;
+		};
+		TArray<FEntry> Entries;
+
+	public:
+		void Add(TypedElementRowHandle ReservedRowHandle, AddressType Address);
+		bool IsEmpty() const;
+		int32 Num() const;
+		
+		void ForEachAddress(const TFunctionRef<void(AddressType&)>& Callback);
+		void ProcessEntries(ITypedElementDataStorageInterface& Storage, UTypedElementDatabaseCompatibility& Compatibility,
+			const TFunctionRef<void(TypedElementRowHandle, const AddressType&)>& SetupRowCallback);
+		void Reset();
+	};
+	PendingRegistration<TWeakObjectPtr<UObject>> UObjectsPendingRegistration;
+	PendingRegistration<ExternalObjectRegistration> ExternalObjectsPendingRegistration;
+	TArray<TypedElementDataStorage::RowHandle> RowScratchBuffer;
 	
 	TArray<ObjectRegistrationFilter> ObjectRegistrationFilters;
 	TArray<ObjectToRowDealiaser> ObjectToRowDialiasers;
-	TMap<TObjectPtr<UStruct>, TypedElementDataStorage::TableHandle> TypeToTableMap;
+	using TypeToTableMapType = TMap<TWeakObjectPtr<UStruct>, TypedElementDataStorage::TableHandle>;
+	TypeToTableMapType TypeToTableMap;
 	TArray<TPair<ObjectAddedCallback, FDelegateHandle>> ObjectAddedCallbackList;
 	TArray<TPair<ObjectRemovedCallback, FDelegateHandle>> PreObjectRemovedCallbackList;
 
@@ -161,6 +196,10 @@ private:
 	FDelegateHandle ObjectModifiedDelegateHandle;
 	FDelegateHandle PostWorldInitializationDelegateHandle;
 	FDelegateHandle PreWorldFinishDestroyDelegateHandle;
+	FDelegateHandle ObjectReinstancedDelegateHandle;
+
+	TypedElementDataStorage::QueryHandle ClassTypeInfoQuery;
+	TypedElementDataStorage::QueryHandle ScriptStructTypeInfoQuery;
 };
 
 enum class ETypedElementDatabaseCompatibilityObjectType : uint8
