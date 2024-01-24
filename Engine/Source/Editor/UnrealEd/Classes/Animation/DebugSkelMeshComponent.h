@@ -248,6 +248,10 @@ class UDebugSkelMeshComponent : public USkeletalMeshComponent
 	UPROPERTY()
 	uint32 bPreviewRootMotion_DEPRECATED : 1;
 
+	/** Requested Process root motion mode, ProcessRootMotionMode gets set based on requested mode and what is supported. */
+	UPROPERTY(transient)
+	EProcessRootMotionMode RequestedProcessRootMotionMode;
+
 	/** Process root motion mode */
 	UPROPERTY(transient)
 	EProcessRootMotionMode ProcessRootMotionMode;
@@ -298,7 +302,13 @@ class UDebugSkelMeshComponent : public USkeletalMeshComponent
 
 	/** Storage of Source Animation Pose for when bDisplaySourceAnimation == true, as they have to be calculated */
 	TArray<FTransform> SourceAnimationPoses;
-	
+
+	/** Accumulated root motion. */
+	FTransform RootMotionTransform;
+
+	/** Transform representing the actor transform at the beginning of the animation. */
+	FTransform RootMotionReferenceTransform;
+
 	/** Array of bones to render bone weights for */
 	UPROPERTY(transient)
 	TArray<int32> BonesOfInterest;
@@ -392,6 +402,21 @@ class UDebugSkelMeshComponent : public USkeletalMeshComponent
 	UNREALED_API virtual void ShowReferencePose(bool bRefPose);
 	UNREALED_API virtual bool IsReferencePoseShown() const;
 
+	/** @return Accumulated root motion with turntable animation. */
+	FTransform GetRootMotionTransform() const
+	{
+		return RootMotionTransform * TurntableTransform;
+	}
+
+	/** @return Transform representing the actor transform at the beginning of the animation with turntable animation. */
+	FTransform GetRootMotionReferenceTransform() const
+	{
+		return RootMotionReferenceTransform * TurntableTransform;
+	}
+
+	/** Called when mirror data table changes on anim instance. */
+	UNREALED_API void OnMirrorDataTableChanged();
+
 	/**
 	 * Update material information depending on color render mode 
 	 * Refresh/replace materials 
@@ -451,10 +476,13 @@ class UDebugSkelMeshComponent : public USkeletalMeshComponent
 	/** Whether we are processing root motion or not */
 	UNREALED_API bool IsProcessingRootMotion() const;
 
+	/** Gets requested process root motion mode, can differ from GetProcessRootMotionMode() if the current asset does not support root motion. */
+	UNREALED_API EProcessRootMotionMode GetRequestedProcessRootMotionMode() const;
+
 	/** Gets process root motion mode */
 	UNREALED_API EProcessRootMotionMode GetProcessRootMotionMode() const;
 
-	/** Sets process root motion mode. Note: disabling root motion preview resets transform. */
+	/** Sets process root motion mode, the request may be ignored if current asset does not support the mode. Note: disabling root motion preview resets transform. */
 	UNREALED_API void SetProcessRootMotionMode(EProcessRootMotionMode Mode);
 
 	/** Whether the supplied root motion mode can be used for the current asset */
@@ -577,6 +605,8 @@ private:
 
 	// Rebuilds the cloth bounds for the asset.
 	UNREALED_API void RebuildCachedClothBounds();
+
+	UNREALED_API void SetProcessRootMotionModeInternal(EProcessRootMotionMode Mode);
 protected:
 
 	// Overridden to support single clothing ticks
@@ -589,6 +619,8 @@ public:
 	EPersonaTurnTableMode::Type TurnTableMode;
 	/** Current turn table speed scaling */
 	float TurnTableSpeedScaling;
+	/** Current turn table transform */
+	FTransform TurntableTransform;
 
 	UNREALED_API virtual void TickComponent(float DeltaTime, enum ELevelTick TickType, FActorComponentTickFunction *ThisTickFunction) override;
 

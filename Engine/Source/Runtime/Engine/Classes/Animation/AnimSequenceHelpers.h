@@ -182,7 +182,35 @@ namespace Anim {
 	* @param	KeyIndex		Key index to retrieve from the track.
 	*/
 	ENGINE_API void ExtractBoneTransform(const struct FRawAnimSequenceTrack& RawTrack, FTransform& OutTransform, int32 KeyIndex);
-		
+
+
+	/**
+	 * Mirrors transform based on the specified mirror table.
+	 *
+	 * @param	Transform		Transform to mirror
+	 * @param	MirrorDataTable	Animation data mirroring data table.
+	 * @returns Transform mirrored based on the mirror data table.
+	 */
+	ENGINE_API FTransform MirrorTransform(const FTransform& Transform, const UMirrorDataTable& MirrorDataTable);
+
+	/**
+	 * Extract relative root motion between start and end position of the animation asset.
+	 *
+	 * @param	Animation		Animation asset to extract the root motion from.
+	 * @param	MirrorDataTable	[optional] Animation data mirroring data table.
+	 * @param	StartPosition	Start Position of the animation.
+	 * @param	EndPosition		End Position of the animation.
+	 */
+	ENGINE_API FTransform ExtractRootMotionFromAnimationAsset(const UAnimationAsset* Animation, const UMirrorDataTable* MirrorDataTable, float StartPosition, float EndPosition);
+
+	/**
+	 * Extract absolute root transform at specific position in time from the animation asset.
+	 *
+	 * @param	Animation		Animation asset to extract the root motion from.
+	 * @param	Position		Start Position of the animation.
+	 */
+	ENGINE_API FTransform ExtractRootTransformFromAnimationAsset(const UAnimationAsset* Animation, float Position);
+
 	namespace Compression
 	{
 		/**
