@@ -5,6 +5,7 @@
 #include "ComponentVisualizer.h"
 #include "IChaosVDParticleVisualizationDataProvider.h"
 #include "Chaos/ImplicitFwd.h"
+#include "Chaos/ImplicitObject.h"
 #include "Components/ChaosVDSceneQueryDataComponent.h"
 
 struct FChaosVDRecording;
