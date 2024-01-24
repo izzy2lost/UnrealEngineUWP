@@ -290,6 +290,13 @@ namespace UE
 			ConvertToInstanceDataObjectProperty(AsMapProperty->ValueProp, Outer, LooseProperties, Path);
 			Path.Pop();
 		}
+		
+#if WITH_EDITORONLY_DATA
+		if (!Property->HasMetaData(TEXT("category")))
+		{
+			Property->SetMetaData(TEXT("category"), TEXT("Verse"));
+		}
+#endif
 	}
 	
 	// copy template property then convert it into an InstanceDataObject property by adding loose properties
@@ -425,6 +432,13 @@ namespace UE
 				}
 				Path.Push(CreateSegmentFromProperty(TemplateProperty));
 				FProperty* SuperProperty = CreateInstanceDataObjectProperty(TemplateProperty, Super, LooseProperties, Path);
+				
+#if WITH_EDITORONLY_DATA
+				if (!SuperProperty->HasMetaData(TEXT("category")))
+				{
+					SuperProperty->SetMetaData(TEXT("category"), TEXT("Verse"));
+				}
+#endif
 				Path.Pop();
 				SuperProperties.Add(SuperProperty);
 			}
@@ -487,12 +501,35 @@ namespace UE
 		Result->StaticLink(/*RelinkExistingProperties*/true);
 		return Result;
 	}
+
+	void CopyCDO(const UStruct* SourceStruct, const void* SourceData, const UStruct* DestinationStruct, void* DestinationData)
+	{
+		for (const FProperty* SourceProperty : TFieldRange<FProperty>(SourceStruct))
+		{
+			if (const FProperty* DestinationProperty = DestinationStruct->FindPropertyByName(SourceProperty->GetFName()))
+			{
+				FString ValueText;
+				const void* SourceValue = SourceProperty->ContainerPtrToValuePtr<void>(SourceData);
+				void* DestinationValue = DestinationProperty->ContainerPtrToValuePtr<void>(DestinationData);
+				SourceProperty->ExportText_Direct(ValueText, SourceValue, SourceValue, nullptr, PPF_None);
+				DestinationProperty->ImportText_Direct(*ValueText, DestinationValue, nullptr, PPF_None);
+			}
+		}
+	}
 	
-	UClass* CreateInstanceDataObjectClass(const FPropertyBag* PropertyBag, UStruct* TemplateStruct, UObject* Outer)
+	UClass* CreateInstanceDataObjectClass(const FPropertyBag* PropertyBag, UClass* OwnerClass, UObject* Outer)
 	{
 		const TMap<FWildcardPropertyPathName, TMap<FName, const FProperty*>> LooseProperties = GetWildcardedLooseProperties(PropertyBag);
 		FWildcardPropertyPathName ParentPath;
-		return CreateInstanceDataObjectStructRec<UClass>(TemplateStruct, Outer, LooseProperties, ParentPath);
+		UClass* Result = CreateInstanceDataObjectStructRec<UClass>(OwnerClass, Outer, LooseProperties, ParentPath);
+
+		const UObject* OwnerCDO = OwnerClass->GetDefaultObject(true);
+		UObject* ResultCDO = Result->GetDefaultObject(true);
+		if (ensure(OwnerCDO && ResultCDO))
+		{
+			CopyCDO(OwnerClass, OwnerCDO, Result, ResultCDO);
+		}
+		return Result;
 	}
 
 	static void MarkPropertySetBySerialization(const UStruct* Struct, const void* StructData, const void* PropertyDataPtr)

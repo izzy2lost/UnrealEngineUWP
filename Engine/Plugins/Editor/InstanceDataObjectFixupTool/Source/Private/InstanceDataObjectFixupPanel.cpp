@@ -11,6 +11,9 @@
 #include "Editor.h"
 #include "UObject/PropertyBagRepository.h"
 
+#include "UObject/OverriddenPropertySet.h"
+#include "UObject/OverridableManager.h"
+
 #define LOCTEXT_NAMESPACE "InstanceDataObjectFixupPanel"
 
 FRedirectedPropertyNode::FRedirectedPropertyNode(const FRedirectedPropertyNode& Other)
@@ -382,6 +385,29 @@ static void* ResolvePath(const FPropertyPath& Path, void* Value)
 	return Value;
 }
 
+static FPropertyChangedEvent ConstructChangeEventForRedirect(const FPropertyPath& Path, FEditPropertyChain& OutChain, TMap<FString, int32>& OutArrayIndices)
+{
+	FPropertyChangedEvent OutEvent = FPropertyChangedEvent(Path.GetLeafMostProperty().Property.Get(), EPropertyChangeType::ValueSet);
+	for (int32 I = 0; I < Path.GetNumProperties(); ++I)
+	{
+		const FPropertyInfo& Info = Path.GetPropertyInfo(I);
+		OutChain.AddTail(Info.Property.Get()); // only the head is used in OverrideProperty
+		if (Info.ArrayIndex != INDEX_NONE)
+		{
+			OutArrayIndices.Add(Info.Property->GetName(), Info.ArrayIndex);
+		}
+		if (Info.Property->IsA<FArrayProperty>() || Info.Property->IsA<FSetProperty>() || Info.Property->IsA<FMapProperty>())
+		{
+			if (++I < Path.GetNumProperties())
+			{
+				OutArrayIndices.Add(Info.Property->GetName(), Path.GetPropertyInfo(I).ArrayIndex);
+			}
+		}
+	}
+	OutEvent.SetArrayIndexPerObject(MakeArrayView(&OutArrayIndices, 1));
+	return OutEvent;
+}
+
 void FInstanceDataObjectFixupPanel::RedirectProperty(const FPropertyPath& From, const FPropertyPath& To)
 {
 	UInstanceDataObjectFixupUndoHandler* Snapshot = NewObject<UInstanceDataObjectFixupUndoHandler>();
@@ -473,7 +499,12 @@ void FInstanceDataObjectFixupPanel::RedirectProperty(const FPropertyPath& From, 
 			continue;
 		}
 	
-		FPropertyChangedEvent ChangeEvent(To.GetRootProperty().Property.Get(), EPropertyChangeType::ValueSet);
+
+		// construct change event
+		FEditPropertyChain Chain;
+		TMap<FString, int32> ArrayIndices;
+		FPropertyChangedEvent ChangeEvent = ConstructChangeEventForRedirect(To, Chain, ArrayIndices);
+		FOverridableManager::Get().PreOverrideProperty(*Instance, Chain);
 		Instance->PreEditChange(ChangeEvent.Property);
 
 		if (ToRevertInfo)
@@ -503,6 +534,7 @@ void FInstanceDataObjectFixupPanel::RedirectProperty(const FPropertyPath& From, 
 			FromRevertInfoItr += DestinationProperty->ArrayDim * DestinationProperty->ElementSize;
 		}
 		Instance->PostEditChangeProperty(ChangeEvent);
+		FOverridableManager::Get().PostOverrideProperty(*Instance, ChangeEvent, Chain);
 	}
 
 	GEditor->EndTransaction();
