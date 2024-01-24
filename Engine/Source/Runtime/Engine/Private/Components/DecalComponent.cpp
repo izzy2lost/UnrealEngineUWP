@@ -323,7 +323,7 @@ void UDecalComponent::PrecachePSOs()
 	// clear the current request data
 	PSOPrecacheCompileEvent = nullptr;
 
-	if (DecalMaterial)
+	if (DecalMaterial && !DecalMaterial->HasAnyFlags(RF_NeedPostLoad))
 	{
 		FPSOPrecacheParams PSOPrecacheParams;		
 		FPSOPrecacheVertexFactoryDataList VertexFactoryDataList;		
