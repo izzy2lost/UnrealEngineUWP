@@ -127,6 +127,20 @@ struct FOnDemandTocContainerEntry
 
 UE_API bool LoadFromCompactBinary(FCbFieldView Field, FOnDemandTocContainerEntry& OutContainer);
 
+struct FOnDemandTocSentinel
+{
+public:
+	static constexpr inline char SentinelImg[] = "-[]--[]--[]--[]-";
+	static constexpr uint32 SentinelSize = 16;
+
+	bool IsValid();
+
+	UE_API friend FArchive& operator<<(FArchive& Ar, FOnDemandTocSentinel& Sentinel);
+
+private:
+	uint8 Data[SentinelSize] = { 0 };
+};
+
 struct FOnDemandToc
 {
 	FOnDemandToc() = default;
