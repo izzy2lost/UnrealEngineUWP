@@ -151,7 +151,6 @@ void FOptimusGroomGuideDataProviderProxy::AllocateResources(FRDGBuilder& GraphBu
 	Resources.Empty();
 	FallbackByteAddressSRV = nullptr;
 	FallbackStructuredSRV = nullptr;
-	FallbackVertexSRV = nullptr;
 	const uint32 InstanceCount = GroomComponent ? GroomComponent->GetGroupCount() : 0;
 	for (uint32 Index =0; Index <InstanceCount;++Index)
 	{
@@ -168,7 +167,6 @@ void FOptimusGroomGuideDataProviderProxy::AllocateResources(FRDGBuilder& GraphBu
 
 			if (!FallbackByteAddressSRV){ FallbackByteAddressSRV = GraphBuilder.CreateSRV(GSystemTextures.GetDefaultByteAddressBuffer(GraphBuilder, 16u)); }
 			if (!FallbackStructuredSRV) { FallbackStructuredSRV  = GraphBuilder.CreateSRV(GSystemTextures.GetDefaultStructuredBuffer(GraphBuilder, 16u)); }
-			if (!FallbackVertexSRV) 	{ FallbackVertexSRV 	 = GraphBuilder.CreateSRV(GSystemTextures.GetDefaultBuffer(GraphBuilder, 4u, 0u), PF_R32_UINT); }
 		}
 	}
 }
@@ -188,8 +186,8 @@ void FOptimusGroomGuideDataProviderProxy::GatherDispatchData(FDispatchData const
 		Parameters.Common.CurveCount 				= 0;
 		Parameters.Resources.PositionBuffer			= FallbackByteAddressSRV;
 		Parameters.Resources.PositionOffsetBuffer 	= FallbackStructuredSRV;
-		Parameters.Resources.PointToCurveBuffer		= FallbackVertexSRV;
-		Parameters.Resources.CurveBuffer			= FallbackVertexSRV;
+		Parameters.Resources.PointToCurveBuffer		= FallbackByteAddressSRV;
+		Parameters.Resources.CurveBuffer			= FallbackByteAddressSRV;
 
 		if (FHairGroupInstance* Instance = GroomComponent->GetGroupInstance(InvocationIndex))
 		{

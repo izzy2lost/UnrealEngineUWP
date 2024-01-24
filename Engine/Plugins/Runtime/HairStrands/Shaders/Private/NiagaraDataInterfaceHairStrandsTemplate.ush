@@ -7,7 +7,7 @@ NiagaraDataInterfaceHairStrands.ush
 
 RWByteAddressBuffer	{ParameterName}_DeformedPositionBuffer;
 ByteAddressBuffer	{ParameterName}_RestPositionBuffer;
-Buffer<uint>		{ParameterName}_CurvesOffsetsBuffer;
+ByteAddressBuffer	{ParameterName}_CurvesOffsetsBuffer;
 Buffer<float4>		{ParameterName}_RestTrianglePositionBuffer;
 Buffer<float4>		{ParameterName}_DeformedTrianglePositionBuffer;
 Buffer<uint>		{ParameterName}_RootBarycentricCoordinatesBuffer;
@@ -115,7 +115,7 @@ void BuildBoundingBox_{ParameterName}(in float3 NodePosition, out bool FunctionS
  */
 FHairCurve UnpackCurve_{ParameterName}(in uint InCurveIndex)
 {
-	return UnpackHairCurve({ParameterName}_CurvesOffsetsBuffer[InCurveIndex]);
+	return ReadHairCurve({ParameterName}_CurvesOffsetsBuffer, InCurveIndex);
 }
 
 /* -----------------------------------------------------------------

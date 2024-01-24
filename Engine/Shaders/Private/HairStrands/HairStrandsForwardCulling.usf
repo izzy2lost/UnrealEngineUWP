@@ -107,7 +107,7 @@ void CSMain(uint DispatchThreadID : SV_DispatchThreadID, uint GroupThreadID : SV
 	FHairCurve Curve = (FHairCurve)0;
 	if (bValidCurve)
 	{
-		Curve = UnpackHairCurve(HairStrandsVF_CurveBuffer[CurveID]);
+		Curve = ReadHairCurve(HairStrandsVF_CurveBuffer, CurveID);
 		
 		uint VisiblePointCount = 0;
 		for (uint PointIt=0; PointIt < Curve.PointCount-1; ++PointIt)

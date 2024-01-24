@@ -36,9 +36,9 @@ Buffer<float4>  TriangleRestPositionBuffer;
 
 Buffer<float4>  TriangleDeformedPositionBuffer;
 
-Buffer<uint>	GuideRootBarycentricBuffer;
-Buffer<uint>    GuideVertexToRootIndexBuffer;
-Buffer<uint>    GuideRootToUniqueTriangleIndexBuffer;
+Buffer<uint>		GuideRootBarycentricBuffer;
+ByteAddressBuffer   GuideVertexToRootIndexBuffer;
+Buffer<uint>    	GuideRootToUniqueTriangleIndexBuffer;
 
 #if PERMUTATION_DYNAMIC_GEOMETRY == 1
 float3 ComputeDynamicGeometryOffset(
@@ -144,7 +144,7 @@ void MainCS(uint DispatchThreadId : SV_DispatchThreadID)
 	const uint GuidePointIndex0 = GuideData.VertexIndex;
 	const uint GuidePointIndex1 = min(GuidePointIndex0 + 1, GuideVertexCount - 1);
 
-	const uint GuideCurveIndex = UnpackHairPointToCurveIndex(GuideVertexToRootIndexBuffer, GuidePointIndex0);
+	const uint GuideCurveIndex = ReadHairPointToCurveIndex(GuideVertexToRootIndexBuffer, GuidePointIndex0);
 	const uint TriangleIndex = GuideRootToUniqueTriangleIndexBuffer[GuideCurveIndex];
 
 	const float3 RootBarycentric = UnpackBarycentrics(GuideRootBarycentricBuffer[GuideCurveIndex]);

@@ -397,8 +397,7 @@ float3 ApplyDeformer(const FRootTriangleData RenTri, float3 InRestPostion, float
 
 uint CurveCount;
 
-Buffer<uint> SimCurveBuffer;
-Buffer<uint> RenCurveBuffer;
+ByteAddressBuffer RenCurveBuffer;
 
 #define TOTALMAXPOINTPERCURVE 32
 //-------------------------------------------------------------------------------------------------
@@ -444,7 +443,7 @@ void MainCS(uint3 DispatchThreadId : SV_DispatchThreadID, uint ThreadIndex : SV_
 		if (bValidCurveIndex)
 		{
 			// Curve's point count/offset
-			const FHairCurve Curve = UnpackHairCurve(RenCurveBuffer[GlobalCurveIndex]);
+			const FHairCurve Curve = ReadHairCurve(RenCurveBuffer, GlobalCurveIndex);
 			CurvePointIndex[LocalCurveIndex] = Curve.PointIndex;
 			CurvePointCount[LocalCurveIndex] = Curve.PointCount;	
 
@@ -608,7 +607,7 @@ void MainCS(uint3 DispatchThreadId : SV_DispatchThreadID, uint ThreadIndex : SV_
 		CurvePointCount = 0;
 		if (bIsCurveValid)
 		{
-			const FHairCurve Curve = UnpackHairCurve(RenCurveBuffer[CurveIndex]);
+			const FHairCurve Curve = ReadHairCurve(RenCurveBuffer, CurveIndex);
 			CurvePointIndex = Curve.PointIndex;
 			CurvePointCount = Curve.PointCount;
 
@@ -737,7 +736,7 @@ void MainCS(uint3 DispatchThreadId : SV_DispatchThreadID, uint ThreadIndex : SV_
 uint				CurveCount;
 uint				bUseSingleGuide;
 
-Buffer<uint>		RenCurveBuffer;
+ByteAddressBuffer	RenCurveBuffer;
 Buffer<uint>		RenCurveToClusterIdBuffer;
 RWByteAddressBuffer	OutRenAttributeBuffer;
 
@@ -783,7 +782,7 @@ void MainCS(uint2 DispatchThreadId : SV_DispatchThreadID, uint GroupThread1D : S
 		#else // if (PERMUTATION_SIMULATION > 0)
 		{
 
-			const uint VertexIndex0 = UnpackHairCurve(RenCurveBuffer[CurveIndex]).PointIndex;
+			const uint VertexIndex0 = ReadHairCurve(RenCurveBuffer, CurveIndex).PointIndex;
 
 			const FGuideCurveData SimCurveData = UnpackGuideCurveData(CurveInterpolationBuffer, CurveIndex, bUseSingleGuide);
 			const FGuidePointData SimPointData = UnpackGuidePointData(PointInterpolationBuffer, VertexIndex0, bUseSingleGuide); 
