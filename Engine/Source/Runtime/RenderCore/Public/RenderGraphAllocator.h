@@ -113,7 +113,7 @@ public:
 	FORCEINLINE int32 GetByteCount() const
 	{
 #if RDG_USE_MALLOC
-		return NumMallocBytes;
+		return static_cast<int32>(NumMallocBytes);
 #else
 		return MemStack.GetByteCount();
 #endif
