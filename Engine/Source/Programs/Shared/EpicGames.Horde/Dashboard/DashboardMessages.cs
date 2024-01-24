@@ -273,6 +273,11 @@ namespace EpicGames.Horde.Dashboard
 		/// The associated data group attached to the variable 
 		/// </summary>
 		public string Group { get; set; } = null!;
+
+		/// <summary>
+		/// The default values to select
+		/// </summary>
+		public List<string> Defaults { get; set; } = new List<string> { };
 	}
 
 	/// <summary>

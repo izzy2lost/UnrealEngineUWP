@@ -131,6 +131,11 @@ namespace Horde.Server.Dashboard
 		/// </summary>
 		[Required]
 		public string Group { get; set; } = null!;
+
+		/// <summary>
+		/// The default values to select
+		/// </summary>
+		public List<string> Defaults { get; set; } = new List<string> { };
 	}
 
 	/// <summary>
