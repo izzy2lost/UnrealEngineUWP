@@ -78,12 +78,9 @@ public class GLTFExporter : ModuleRules
 					"MeshMergeUtilities",
 					"MeshDescription",
 					"StaticMeshDescription",
+					"MeshMergeUtilities",
 				}
 			);
-
-			PrivateIncludePaths.AddRange(new string[] {
-				System.IO.Path.Combine(GetModuleDirectory("MeshMergeUtilities"), "Private"),
-			});
 		}
 	}
 }
