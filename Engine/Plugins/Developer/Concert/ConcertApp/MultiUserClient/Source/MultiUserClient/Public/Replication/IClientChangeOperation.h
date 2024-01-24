@@ -24,14 +24,14 @@ namespace UE::MultiUserClient
 		 * @note This can be called at most once; subsequent calls result in an unset future.
 		 * @note This future can complete on any thread.
 		 */
-		virtual TFuture<EChangeStreamOperationResult> OnChangeStream() = 0;
+		virtual TFuture<FChangeClientStreamResponse> OnChangeStream() = 0;
 		
 		/**
 		 * Completes when the operation of changing authority has completed.
 		 * @note This can be called at most once; subsequent calls result in an unset future.
 		 * @note This future can complete on any thread.
 		 */
-		virtual TFuture<EChangeAuthorityOperationResult> OnChangeAuthority() = 0;
+		virtual TFuture<FChangeClientAuthorityResponse> OnChangeAuthority() = 0;
 		
 		/**
 		 * Completes all sub-operations have completed.

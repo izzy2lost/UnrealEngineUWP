@@ -15,6 +15,49 @@ namespace UE::MultiUserClientLibrary
 		static_assert(static_cast<int32>(MultiUserClient::EChangeAuthorityOperationResult::Count) == 10, "Update EMultiUserChangeStreamOperationResult to have the equivalent enum entry you added to EChangeStreamOperationResult");
 		return static_cast<EMultiUserChangeAuthorityOperationResult>(Data);
 	}
+
+	EMultiUserChangeFrequencyErrorCode Transform(MultiUserClient::EChangeObjectFrequencyErrorCode Data)
+	{
+		static_assert(static_cast<int32>(EMultiUserChangeFrequencyErrorCode::UnregisteredStream) == static_cast<int32>(MultiUserClient::EChangeObjectFrequencyErrorCode::UnregisteredStream), "Update this code when making modification to the enums");
+		static_assert(static_cast<int32>(EMultiUserChangeFrequencyErrorCode::InvalidReplicationRate) == static_cast<int32>(MultiUserClient::EChangeObjectFrequencyErrorCode::InvalidReplicationRate), "Update this code when making modification to the enums");
+		static_assert(static_cast<int32>(EMultiUserChangeFrequencyErrorCode::Count) == static_cast<int32>(MultiUserClient::EChangeObjectFrequencyErrorCode::Count), "Update this code when making modification to the enums");
+		return static_cast<EMultiUserChangeFrequencyErrorCode>(Data);
+	}
+	
+	EMultiUserPutObjectErrorCode Transform(MultiUserClient::EPutObjectErrorCode Data)
+	{
+		static_assert(static_cast<int32>(EMultiUserPutObjectErrorCode::UnresolvedStream) == static_cast<int32>(MultiUserClient::EPutObjectErrorCode::UnresolvedStream), "Update this code when making modification to the enums");
+		static_assert(static_cast<int32>(EMultiUserPutObjectErrorCode::MissingData) == static_cast<int32>(MultiUserClient::EPutObjectErrorCode::MissingData), "Update this code when making modification to the enums");
+		static_assert(static_cast<int32>(EMultiUserPutObjectErrorCode::Count) == static_cast<int32>(MultiUserClient::EPutObjectErrorCode::Count), "Update this code when making modification to the enums");
+		return static_cast<EMultiUserPutObjectErrorCode>(Data);
+	}
+
+	FMultiUserChangeClientStreamResponse Transform(MultiUserClient::FChangeClientStreamResponse Data)
+	{
+		FMultiUserChangeClientStreamResponse Response { Transform(Data.ErrorCode), MoveTemp(Data.AuthorityConflicts) };
+
+		for (const TPair<FSoftObjectPath, MultiUserClient::EPutObjectErrorCode>& Pair : Data.SemanticErrors)
+		{
+			Response.SemanticErrors.Add(Pair.Key, Transform(Pair.Value));
+		}
+		
+		for (const TPair<FSoftObjectPath, MultiUserClient::EChangeObjectFrequencyErrorCode>& Pair : Data.FrequencyErrors.ObjectErrors)
+		{
+			Response.FrequencyErrors.ObjectErrors.Add(Pair.Key, Transform(Pair.Value));
+		}
+		
+		if (Data.FrequencyErrors.DefaultChangeErrorCode)
+		{
+			Response.FrequencyErrors.DefaultChangeErrorCode = Transform(*Data.FrequencyErrors.DefaultChangeErrorCode);
+		}
+			
+		Response.bFailedStreamCreation = Data.bFailedStreamCreation;
+		return Response;
+	}
+	FMultiUserChangeClientAuthorityResponse Transform(MultiUserClient::FChangeClientAuthorityResponse Data)
+	{
+		return FMultiUserChangeClientAuthorityResponse{ Transform(Data.ErrorCode), MoveTemp(Data.RejectedObjects) };
+	}
 	FMultiUserChangeClientReplicationResult Transform(MultiUserClient::FChangeClientReplicationResult Data)
 	{
 		return { Transform(Data.StreamChangeResult), Transform(Data.AuthorityChangeResult) };

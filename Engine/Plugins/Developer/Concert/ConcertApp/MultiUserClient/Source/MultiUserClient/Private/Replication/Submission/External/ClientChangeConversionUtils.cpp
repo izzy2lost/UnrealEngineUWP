@@ -3,12 +3,12 @@
 #include "ClientChangeConversionUtils.h"
 
 #include "Replication/ChangeOperationTypes.h"
+#include "Replication/Submission/Data/AuthoritySubmission.h"
+#include "Replication/Submission/Data/StreamSubmission.h"
 #include "Replication/Util/StreamRequestUtils.h"
 
 #include "Algo/RemoveIf.h"
 #include "Misc/Guid.h"
-#include "Replication/Submission/Data/AuthoritySubmission.h"
-#include "Replication/Submission/Data/StreamSubmission.h"
 
 namespace UE::MultiUserClient::ClientChangeConversionUtils
 {
@@ -153,16 +153,16 @@ namespace UE::MultiUserClient::ClientChangeConversionUtils
 		}
 		return Result;
 	}
-
-	EChangeStreamOperationResult Transform(const FSubmitStreamChangesResponse& Response)
+	
+	EChangeStreamOperationResult ExtractErrorCode(const FSubmitStreamChangesResponse& Response)
 	{
 		switch (Response.ErrorCode)
 		{
 		case EStreamSubmissionErrorCode::Success:
 			// EStreamSubmissionErrorCode::Success the op was processed but the EChangeStreamOperationResult distinguishes between successful or rejected ops.
-			return !ensureMsgf(Response.SubmissionInfo.IsSet(), TEXT("Success implies set response. Investigate.")) || Response.SubmissionInfo->Response.IsFailure()
-				? EChangeStreamOperationResult::Rejected
-				: EChangeStreamOperationResult::Success;
+				return !ensureMsgf(Response.SubmissionInfo.IsSet(), TEXT("Success implies set response. Investigate.")) || Response.SubmissionInfo->Response.IsFailure()
+					? EChangeStreamOperationResult::Rejected
+					: EChangeStreamOperationResult::Success;
 		case EStreamSubmissionErrorCode::NoChange: return EChangeStreamOperationResult::NoChanges; 
 		case EStreamSubmissionErrorCode::Timeout: return EChangeStreamOperationResult::Timeout; 
 		case EStreamSubmissionErrorCode::Cancelled: return EChangeStreamOperationResult::Cancelled;
@@ -172,15 +172,15 @@ namespace UE::MultiUserClient::ClientChangeConversionUtils
 		}
 	}
 	
-	EChangeAuthorityOperationResult Transform(const FSubmitAuthorityChangesResponse& Response)
+	EChangeAuthorityOperationResult ExtractErrorCode(const FSubmitAuthorityChangesResponse& Response)
 	{
 		switch (Response.ErrorCode)
 		{
 		case EAuthoritySubmissionResponseErrorCode::Success:
 			// EAuthoritySubmissionResponseErrorCode::Success the op was processed but the EChangeStreamOperationResult distinguishes between successful or rejected ops.
-			return !ensureMsgf(Response.Response.IsSet(), TEXT("Success implies set response. Investigate.")) || !Response.Response->RejectedObjects.IsEmpty()
-				? EChangeAuthorityOperationResult::RejectedFullyOrPartially
-				: EChangeAuthorityOperationResult::Success;
+				return !ensureMsgf(Response.Response.IsSet(), TEXT("Success implies set response. Investigate.")) || !Response.Response->RejectedObjects.IsEmpty()
+					? EChangeAuthorityOperationResult::RejectedFullyOrPartially
+					: EChangeAuthorityOperationResult::Success;
 		case EAuthoritySubmissionResponseErrorCode::NoChange: return EChangeAuthorityOperationResult::NoChanges; 
 		case EAuthoritySubmissionResponseErrorCode::Timeout: return EChangeAuthorityOperationResult::Timeout; 
 		case EAuthoritySubmissionResponseErrorCode::CancelledDueToStreamUpdate: return EChangeAuthorityOperationResult::CancelledDueToStreamUpdate; 
@@ -189,5 +189,78 @@ namespace UE::MultiUserClient::ClientChangeConversionUtils
 			checkNoEntry();
 			return EChangeAuthorityOperationResult::Cancelled;
 		}
+	}
+
+	FChangeClientStreamResponse Transform(const FSubmitStreamChangesResponse& Response)
+	{
+		FChangeClientStreamResponse Result { ExtractErrorCode(Response) };
+		
+		if (Response.SubmissionInfo)
+		{
+			FConcertReplication_ChangeStream_Response ContainedResponse = Response.SubmissionInfo->Response;
+			
+			for (const TPair<FConcertObjectInStreamID, FConcertReplicatedObjectId>& Pair : ContainedResponse.AuthorityConflicts)
+			{
+				Result.AuthorityConflicts.Add(Pair.Key.Object, Pair.Value.SenderEndpointId);
+			}
+
+			for (const TPair<FConcertObjectInStreamID, EConcertPutObjectErrorCode>& Pair : ContainedResponse.ObjectsToPutSemanticErrors)
+			{
+				Result.SemanticErrors.Add(Pair.Key.Object, Transform(Pair.Value));
+			}
+
+			for (const TPair<FConcertObjectInStreamID, EConcertChangeObjectFrequencyErrorCode>& Pair : ContainedResponse.FrequencyErrors.OverrideFailures)
+			{
+				Result.FrequencyErrors.ObjectErrors.Add(Pair.Key.Object, Transform(Pair.Value));
+			}
+			if (!ContainedResponse.FrequencyErrors.DefaultFailures.IsEmpty())
+			{
+				ensure(ContainedResponse.FrequencyErrors.DefaultFailures.Num() == 1);
+				Result.FrequencyErrors.DefaultChangeErrorCode = Transform(ContainedResponse.FrequencyErrors.DefaultFailures.CreateIterator().Value());
+			}
+
+			Result.bFailedStreamCreation = !ContainedResponse.FailedStreamCreation.IsEmpty();
+		}
+		
+		return Result;
+	}
+	
+	FChangeClientAuthorityResponse Transform(const FSubmitAuthorityChangesResponse& Response)
+	{
+		FChangeClientAuthorityResponse Result{ ExtractErrorCode(Response) };
+
+		if (Response.Response)
+		{
+			for (const TPair<FSoftObjectPath, FConcertStreamArray>& Pair : Response.Response->RejectedObjects)
+			{
+				Result.RejectedObjects.Add(Pair.Key);
+			}
+		}
+		
+		return Result;
+	}
+
+	EPutObjectErrorCode Transform(EConcertPutObjectErrorCode ErrorCode)
+	{
+		static_assert(static_cast<int32>(EPutObjectErrorCode::MissingData) == static_cast<int32>(EConcertPutObjectErrorCode::MissingData), "Update this code when making modification to the enums");
+		static_assert(static_cast<int32>(EPutObjectErrorCode::UnresolvedStream) == static_cast<int32>(EConcertPutObjectErrorCode::UnresolvedStream), "Update this code when making modification to the enums");
+		static_assert(static_cast<int32>(EPutObjectErrorCode::Count) == static_cast<int32>(EConcertPutObjectErrorCode::Count), "Update this code when making modification to the enums");
+		return static_cast<EPutObjectErrorCode>(ErrorCode);
+	}
+	
+	EChangeObjectFrequencyErrorCode Transform(EConcertChangeObjectFrequencyErrorCode ErrorCode)
+	{
+		static_assert(static_cast<int32>(EChangeObjectFrequencyErrorCode::UnregisteredStream) == static_cast<int32>(EConcertChangeObjectFrequencyErrorCode::NotRegistered), "Update this code when making modification to the enums");
+		static_assert(static_cast<int32>(EChangeObjectFrequencyErrorCode::InvalidReplicationRate) == static_cast<int32>(EConcertChangeObjectFrequencyErrorCode::InvalidReplicationRate), "Update this code when making modification to the enums");
+		static_assert(static_cast<int32>(EChangeObjectFrequencyErrorCode::Count) == static_cast<int32>(EConcertChangeObjectFrequencyErrorCode::Count), "Update this code when making modification to the enums");
+		return static_cast<EChangeObjectFrequencyErrorCode>(ErrorCode);
+	}
+
+	EChangeObjectFrequencyErrorCode Transform(EConcertChangeStreamFrequencyErrorCode ErrorCode)
+	{
+		static_assert(static_cast<int32>(EChangeObjectFrequencyErrorCode::UnregisteredStream) == static_cast<int32>(EConcertChangeStreamFrequencyErrorCode::UnknownStream), "Update this code when making modification to the enums");
+        static_assert(static_cast<int32>(EChangeObjectFrequencyErrorCode::InvalidReplicationRate) == static_cast<int32>(EConcertChangeStreamFrequencyErrorCode::InvalidReplicationRate), "Update this code when making modification to the enums");
+        static_assert(static_cast<int32>(EChangeObjectFrequencyErrorCode::Count) == static_cast<int32>(EConcertChangeStreamFrequencyErrorCode::Count), "Update this code when making modification to the enums");
+        return static_cast<EChangeObjectFrequencyErrorCode>(ErrorCode);
 	}
 }

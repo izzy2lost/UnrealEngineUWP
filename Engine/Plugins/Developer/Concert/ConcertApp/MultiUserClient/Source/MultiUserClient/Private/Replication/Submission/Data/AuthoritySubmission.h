@@ -2,13 +2,14 @@
 
 #pragma once
 
+#include "HAL/Platform.h"
 #include "Replication/IConcertClientReplicationManager.h"
 
 namespace UE::MultiUserClient
 {
 	class ISubmissionOperation;
 	
-	enum class EAuthoritySubmissionRequestErrorCode
+	enum class EAuthoritySubmissionRequestErrorCode : uint8
 	{
 		/** The operation completed as expected */
 		Success,
@@ -23,7 +24,7 @@ namespace UE::MultiUserClient
 		Cancelled
 	};
 
-	enum class EAuthoritySubmissionResponseErrorCode
+	enum class EAuthoritySubmissionResponseErrorCode : uint8
     {
     	/** The operation completed as expected */
     	Success,

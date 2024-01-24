@@ -217,19 +217,117 @@ struct FMultiUserChangeClientReplicationRequest
 	FMultiUserChangeAuthorityRequest AuthorityChangeRequest;
 };
 
+UENUM(BlueprintType)
+enum class EMultiUserChangeFrequencyErrorCode : uint8
+{
+	/** The object for which the frequency was being changed was not registered. */
+	UnregisteredStream,
+	/** The replication rate parameter was rejected (it cannot be 0). */
+	InvalidReplicationRate,
+
+	/** Not an actual parameter. Make sure it's always last. */
+	Count UMETA(Hidden)
+};
+
+/** Result about changing frequency. */
+USTRUCT(BlueprintType)
+struct FChangeClientStreamFrequencyResponse
+{
+	GENERATED_BODY()
+	
+	/** Errors encountered for specific objects */
+	UPROPERTY(BlueprintReadOnly, Category = "Multi-user")
+	TMap<FSoftObjectPath, EMultiUserChangeFrequencyErrorCode> ObjectErrors;
+	
+	/** Error for changing the default replication frequency. */
+	UPROPERTY(BlueprintReadOnly, Category = "Multi-user")
+	TOptional<EMultiUserChangeFrequencyErrorCode> DefaultChangeErrorCode;
+};
+
+/** Explains why a change to an object in the stream was invalid. */
+UENUM(BlueprintType)
+enum class EMultiUserPutObjectErrorCode : uint8
+{
+	/** Stream that the object referenced was not registered on the server. */
+	UnresolvedStream,
+	/**
+	 * Either PutObject contained no data to update with (ensure either ClassPath or Properties is set),
+	 * or it tried to create a new object with insufficient data (make sure ClassPath and Properties are both specified).
+	 */
+	MissingData,
+
+	/** Not an actual parameter. Make sure it's always last. */
+	Count UMETA(Hidden)
+};
+
+USTRUCT(BlueprintType)
+struct FMultiUserChangeClientStreamResponse
+{
+	GENERATED_BODY()
+	
+	/** The error code of changing streams. */
+	UPROPERTY(BlueprintReadOnly, Category = "Multi-user")
+	EMultiUserChangeStreamOperationResult ErrorCode = EMultiUserChangeStreamOperationResult::Timeout;
+	
+	/**
+	 * Dynamic authority errors.
+	 * The change was rejected because
+	 * 1. this client is replicating the object already,
+	 * 2. another client is also replicating the object,
+	 * 3. this change would cause overlapping properties with the other client.
+	 * */
+	UPROPERTY(BlueprintReadOnly, Category = "Multi-user")
+	TMap<FSoftObjectPath, FGuid> AuthorityConflicts;
+		
+	/** Errors made in the format of the request */
+	UPROPERTY(BlueprintReadOnly, Category = "Multi-user")
+	TMap<FSoftObjectPath, EMultiUserPutObjectErrorCode> SemanticErrors;
+
+	/** Errors made in the way frequency was changed. */
+	UPROPERTY(BlueprintReadOnly, Category = "Multi-user")
+	FChangeClientStreamFrequencyResponse FrequencyErrors;
+
+	/**
+	 * The client attempted to register the Multi-User stream but failed in doing so.
+	 * This usually indicates an internal error that you cannot do anything about as API user.
+	 */
+	UPROPERTY(BlueprintReadOnly, Category = "Multi-user")
+	bool bFailedStreamCreation = false;
+};
+
+USTRUCT(BlueprintType)
+struct FMultiUserChangeClientAuthorityResponse
+{
+	GENERATED_BODY()
+	
+	/** The error code of changing authority. Fails if StreamChangeResult fails. */
+	UPROPERTY(BlueprintReadOnly, Category = "Multi-user")
+	EMultiUserChangeAuthorityOperationResult ErrorCode = EMultiUserChangeAuthorityOperationResult::Timeout;
+	
+	/** Objects the client did not get authority over. */
+	UPROPERTY(BlueprintReadOnly, Category = "Multi-user")
+	TSet<FSoftObjectPath> RejectedObjects;
+};
+
 /** Result of processing a FChangeClientReplicationRequest. */
 USTRUCT(BlueprintType)
 struct FMultiUserChangeClientReplicationResult
 {
 	GENERATED_BODY()
 
-	/** The result of changing streams. */
+	/**
+	 * The result of changing streams.
+	 * You can inspect this for why the operation failed.
+	 */
 	UPROPERTY(BlueprintReadOnly, Category = "Multi-user")
-	EMultiUserChangeStreamOperationResult StreamChangeResult = EMultiUserChangeStreamOperationResult::Success;
+	FMultiUserChangeClientStreamResponse StreamResponse;
 
-	/** The result of changing authority. Fails if StreamChangeResult fails. */
+	/**
+	 * The result of changing authority. Fails if StreamChangeResult fails.
+	 * You can inspect this for why the operation failed.
+	 */
 	UPROPERTY(BlueprintReadOnly, Category = "Multi-user")
-	EMultiUserChangeAuthorityOperationResult AuthorityChangeResult = EMultiUserChangeAuthorityOperationResult::Success;
+	FMultiUserChangeClientAuthorityResponse AuthorityResponse;
 };
 
 namespace UE::MultiUserClientLibrary
@@ -237,6 +335,11 @@ namespace UE::MultiUserClientLibrary
 #if WITH_CONCERT
 	MULTIUSERCLIENTLIBRARY_API EMultiUserChangeStreamOperationResult Transform(MultiUserClient::EChangeStreamOperationResult Data);
 	MULTIUSERCLIENTLIBRARY_API EMultiUserChangeAuthorityOperationResult Transform(MultiUserClient::EChangeAuthorityOperationResult Data);
+	MULTIUSERCLIENTLIBRARY_API EMultiUserChangeFrequencyErrorCode Transform(MultiUserClient::EChangeObjectFrequencyErrorCode Data);
+	MULTIUSERCLIENTLIBRARY_API EMultiUserPutObjectErrorCode Transform(MultiUserClient::EPutObjectErrorCode Data);
+	
+	MULTIUSERCLIENTLIBRARY_API FMultiUserChangeClientStreamResponse Transform(MultiUserClient::FChangeClientStreamResponse Data);
+	MULTIUSERCLIENTLIBRARY_API FMultiUserChangeClientAuthorityResponse Transform(MultiUserClient::FChangeClientAuthorityResponse Data);
 	MULTIUSERCLIENTLIBRARY_API FMultiUserChangeClientReplicationResult Transform(MultiUserClient::FChangeClientReplicationResult Data);
 	
 	MULTIUSERCLIENTLIBRARY_API MultiUserClient::EPropertyChangeType Transform(EMultiUserPropertyChangeType Data);

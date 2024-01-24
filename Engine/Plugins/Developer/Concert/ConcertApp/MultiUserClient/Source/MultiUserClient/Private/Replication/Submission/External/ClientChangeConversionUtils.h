@@ -6,6 +6,7 @@
 #include "Replication/Messages/ChangeAuthority.h"
 #include "Replication/Messages/ChangeStream.h"
 
+#include "HAL/Platform.h"
 #include "Misc/Optional.h"
 
 struct FConcertObjectReplicationMap;
@@ -13,9 +14,10 @@ struct FGuid;
 
 namespace UE::MultiUserClient
 {
-	enum class EChangeStreamOperationResult : uint8;
-	enum class EChangeAuthorityOperationResult : uint8;
+	enum class EAuthoritySubmissionResponseErrorCode : uint8;
 	
+	struct FChangeClientAuthorityResponse;
+	struct FChangeClientStreamResponse;
 	struct FSubmitAuthorityChangesResponse;
 	struct FSubmitStreamChangesResponse;
 }
@@ -38,12 +40,15 @@ namespace UE::MultiUserClient::ClientChangeConversionUtils
 		const FGuid& ClientStreamId
 		);
 
+	EChangeStreamOperationResult ExtractErrorCode(const FSubmitStreamChangesResponse& Response);
+	EChangeAuthorityOperationResult ExtractErrorCode(const FSubmitAuthorityChangesResponse& Response);
+	
+	FChangeClientStreamResponse Transform(const FSubmitStreamChangesResponse& Response);
+	FChangeClientAuthorityResponse Transform(const FSubmitAuthorityChangesResponse& Response);
 
-	/** Extract an error code from FSubmitStreamChangesResponse. */
-	EChangeStreamOperationResult Transform(const FSubmitStreamChangesResponse& Response);
-	/** Extract an error code from FSubmitAuthorityChangesResponse. */
-	EChangeAuthorityOperationResult Transform(const FSubmitAuthorityChangesResponse& Response);
-
+	EChangeObjectFrequencyErrorCode Transform(EConcertChangeObjectFrequencyErrorCode ErrorCode);
+	EChangeObjectFrequencyErrorCode Transform(EConcertChangeStreamFrequencyErrorCode ErrorCode);
+	EPutObjectErrorCode Transform(EConcertPutObjectErrorCode ErrorCode);
 
 	inline TOptional<FConcertReplication_ChangeStream_Request> Transform(
 		TOptional<FChangeStreamRequest> Request,

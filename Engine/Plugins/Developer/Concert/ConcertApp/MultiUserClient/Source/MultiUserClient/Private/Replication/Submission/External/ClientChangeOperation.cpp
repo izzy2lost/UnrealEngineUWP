@@ -48,12 +48,12 @@ namespace UE::MultiUserClient
 		const bool bIsAlreadyCompleted = StreamResult && AuthorityResult;
 		if (!StreamResult)
 		{
-			EmplaceStreamResult(EChangeStreamOperationResult::Cancelled);
+			EmplaceStreamResult(FChangeClientStreamResponse{ EChangeStreamOperationResult::Cancelled });
 		}
 		if (!AuthorityResult)
 		{
 			// Also executes OnOperationCompleted
-			EmplaceAuthorityResult(EChangeAuthorityOperationResult::Cancelled);
+			EmplaceAuthorityResult(FChangeClientAuthorityResponse{ EChangeAuthorityOperationResult::Cancelled });
 		}
 		if (!bIsAlreadyCompleted)
 		{
@@ -68,8 +68,8 @@ namespace UE::MultiUserClient
 		FChangeClientReplicationRequest Request = MakeSubmissionParamsAttribute.Get();
 		if (!Request.StreamChangeRequest && !Request.AuthorityChangeRequest)
 		{
-			EmplaceStreamResult(EChangeStreamOperationResult::NoChanges);
-			EmplaceAuthorityResult(EChangeAuthorityOperationResult::NoChanges);
+			EmplaceStreamResult(FChangeClientStreamResponse{ EChangeStreamOperationResult::NoChanges });
+			EmplaceAuthorityResult(FChangeClientAuthorityResponse{ EChangeAuthorityOperationResult::NoChanges });
 			CompleteOperation();
 		}
 		else
@@ -87,8 +87,8 @@ namespace UE::MultiUserClient
 		if (!SubmissionOperation)
 		{
 			UE_LOG(LogConcert, Error, TEXT("Failed to submit request to server. Check log for additional errors."));
-			EmplaceStreamResult(EChangeStreamOperationResult::FailedToSendRequest);
-			EmplaceAuthorityResult(EChangeAuthorityOperationResult::FailedToSendRequest);
+			EmplaceStreamResult(FChangeClientStreamResponse{ EChangeStreamOperationResult::FailedToSendRequest });
+			EmplaceAuthorityResult(FChangeClientAuthorityResponse{ EChangeAuthorityOperationResult::FailedToSendRequest });
 			CompleteOperation();
 			return;
 		}
@@ -101,7 +101,7 @@ namespace UE::MultiUserClient
 			{
 				if (const TSharedPtr<FClientChangeOperation> ThisPin = WeakThis.Pin())
 				{
-					ThisPin->EmplaceStreamResult(ClientChangeConversionUtils::Transform(Response));
+					ThisPin->EmplaceStreamResult(FChangeClientStreamResponse{ ClientChangeConversionUtils::Transform(Response) });
 				}
 			});
 		SubmissionOperation->OnCompleteAuthorityChangeFuture_AnyThread()
@@ -109,7 +109,7 @@ namespace UE::MultiUserClient
 			{
 				if (const TSharedPtr<FClientChangeOperation> ThisPin = WeakThis.Pin())
 				{
-					ThisPin->EmplaceAuthorityResult(ClientChangeConversionUtils::Transform(Response));
+					ThisPin->EmplaceAuthorityResult(FChangeClientAuthorityResponse{ ClientChangeConversionUtils::Transform(Response) });
 				}
 			});
 		SubmissionOperation->OnCompletedOperation_AnyThread()
