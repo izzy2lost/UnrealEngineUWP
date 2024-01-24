@@ -38,15 +38,29 @@ void FWaterBodyManager::RemoveWaterBodyComponent(UWaterBodyComponent* InWaterBod
 
 int32 FWaterBodyManager::AddWaterZone(AWaterZone* InWaterZone)
 {
-	RequestGPUDataRebuild();
 	int32 LowestFreeIndex = 0;
-	return WaterZones.EmplaceAtLowestFreeIndex(LowestFreeIndex, InWaterZone);
+	int32 WaterZoneIndex = WaterZones.EmplaceAtLowestFreeIndex(LowestFreeIndex, InWaterZone);
+
+	if (WaterViewExtension)
+	{
+		WaterViewExtension->AddWaterZone(InWaterZone);
+	}
+
+	RequestGPUDataRebuild();
+
+	return WaterZoneIndex;
 }
 
 void FWaterBodyManager::RemoveWaterZone(AWaterZone* InWaterZone)
 {
-	RequestGPUDataRebuild();
+	if (WaterViewExtension)
+	{
+		WaterViewExtension->RemoveWaterZone(InWaterZone);
+	}
+
 	WaterZones.RemoveAt(InWaterZone->GetWaterZoneIndex());
+
+	RequestGPUDataRebuild();
 }
 
 void FWaterBodyManager::RequestGPUDataRebuild()
