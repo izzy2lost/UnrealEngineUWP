@@ -353,4 +353,5 @@ void UChaosClothAsset::FBuilder::BuildLod(FSkeletalMeshLODModel& LODModel, const
 	USkeletalMesh::CalculateRequiredBones(LODModel, ClothAsset.RefSkeleton, nullptr);
 }
 
+#undef LOCTEXT_NAMESPACE
 #endif  // #if WITH_EDITOR
