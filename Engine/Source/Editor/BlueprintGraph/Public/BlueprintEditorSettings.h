@@ -12,6 +12,7 @@
 #include "Delegates/Delegate.h"
 #include "Engine/Blueprint.h"
 #include "Engine/DeveloperSettings.h"
+#include "FindInBlueprints.h"
 #include "Internationalization/Text.h"
 #include "Kismet2/Breakpoint.h"
 #include "Kismet2/KismetDebugUtilities.h"
@@ -264,9 +265,9 @@ public:
 
 	// Find-in-Blueprint Settings
 public:
-	/** Whether to enable the "Index All" button in the Find-in-Blueprints search window when blueprint assets with an out-of-date index (search metadata) are found */
+	/** Whether to enable the "Index All" action in the Find-in-Blueprints search window when blueprint assets with an out-of-date index (search metadata) are found and whether to allow automatic resaving. WARNING: Only allow "Index All" if your project is small enough that all assets can be loaded in memory at once. Only enable saving if you are allowed to potentially checkout and resave all assets. */
 	UPROPERTY(EditAnywhere, config, Category = FindInBlueprints)
-	bool bAllowIndexAllBlueprints;
+	EFiBIndexAllPermission AllowIndexAllBlueprints;
 
 public:
 	/** If set we'll show the inherited variables in the My Blueprint view. */

@@ -39,6 +39,7 @@
 #include "WorkspaceMenuStructure.h"
 #include "WorkspaceMenuStructureModule.h"
 
+#include "BlueprintEditorSettings.h"
 #include "Blueprint/BlueprintExtension.h"
 #include "Engine/SimpleConstructionScript.h"
 #include "Kismet2/BlueprintEditorUtils.h"
@@ -3311,10 +3312,24 @@ void FFindInBlueprintSearchManager::CacheAllAssets(TWeakPtr< SFindInBlueprints >
 			Args.Add(TEXT("PackageCount"), UnindexedAssets.Num() + BlueprintsToUpdate.Num());
 			Args.Add(TEXT("UnindexedCount"), UnindexedAssets.Num());
 			Args.Add(TEXT("OutOfDateCount"), BlueprintsToUpdate.Num());
-			const FText DialogDisplayText = FText::Format(LOCTEXT("CacheAllConfirmationMessage_UnindexedAndOutOfDate", "About to load {PackageCount} Blueprints ({UnindexedCount} unindexed/{OutOfDateCount} out-of-date). The editor may become unresponsive while these assets are loaded for indexing. Save your work before initiating this: broken assets and memory usage can affect editor stability. \n\nLoaded assets must be resaved to make this indexing permanent, otherwise their updated searchability is for this editor session only. Select 'Yes' to checkout, load and resave all Blueprints with an outdated index. Select 'No' to load them only."), Args);
-			const EAppReturnType::Type ReturnValue = FMessageDialog::Open(EAppMsgType::YesNoCancel, DialogDisplayText, DialogTitle);
 
-			// If Yes is chosen, checkout and save all Blueprints, if No is chosen, only load all Blueprints
+			// Retrieve from blueprint editor settings whether user is allowed to checkout and resave
+			const bool bCanCheckoutResaveAll = GetDefault<UBlueprintEditorSettings>()->AllowIndexAllBlueprints == EFiBIndexAllPermission::CheckoutAndResave;
+
+			// Present a prompt depending on whether checkout is allowed
+			EAppReturnType::Type ReturnValue;
+			if (bCanCheckoutResaveAll)
+			{
+				const FText DialogDisplayText = FText::Format(LOCTEXT("CacheAllConfirmationMessage_UnindexedAndOutOfDate_WithCheckout", "About to CHECKOUT and RESAVE {PackageCount} Blueprints ({UnindexedCount} unindexed/{OutOfDateCount} out-of-date)! The editor may become unresponsive while these assets are loaded for indexing. Save your work before initiating this: broken assets and memory usage can affect editor stability. \n\nLoaded assets must be resaved to make this indexing permanent, otherwise their updated searchability is for this editor session only. Select 'Yes' to checkout, load and resave all Blueprints with an outdated index. Select 'No' to load these Blueprints only without checking out and resaving them."), Args);
+				ReturnValue = FMessageDialog::Open(EAppMsgType::YesNoCancel, DialogDisplayText, DialogTitle);
+			}
+			else
+			{
+				const FText DialogDisplayText = FText::Format(LOCTEXT("CacheAllConfirmationMessage_UnindexedAndOutOfDate_LoadOnly", "About to load {PackageCount} Blueprints ({UnindexedCount} unindexed/{OutOfDateCount} out-of-date)! The editor may become unresponsive while these assets are loaded for indexing. Save your work before initiating this: broken assets and memory usage can affect editor stability. \n\nLoaded assets must be resaved to make this indexing permanent, otherwise their updated searchability is for this editor session only. Your editor settings disallow resaving all these assets from this window, see Blueprint Editor Settings: AllowIndexAllBlueprints."), Args);
+				ReturnValue = FMessageDialog::Open(EAppMsgType::OkCancel, DialogDisplayText, DialogTitle);
+			}
+
+			// If checkout is allowed and Yes is chosen, checkout and save all Blueprints. Otherwise only load all Blueprints. Cancel aborts everything.
 			if (ReturnValue != EAppReturnType::Cancel)
 			{
 				FailedToCachePaths.Empty();
@@ -3323,7 +3338,7 @@ void FFindInBlueprintSearchManager::CacheAllAssets(TWeakPtr< SFindInBlueprints >
 				TempUncachedAssets.Append(UnindexedAssets);
 				TempUncachedAssets.Append(BlueprintsToUpdate);
 
-				const bool bCheckOutAndSave = (ReturnValue == EAppReturnType::Yes);
+				const bool bCheckOutAndSave = bCanCheckoutResaveAll && (ReturnValue == EAppReturnType::Yes);
 				CacheParams.OpFlags = EFiBCacheOpFlags::ShowProgress | EFiBCacheOpFlags::AllowUserCancel | EFiBCacheOpFlags::AllowUserCloseProgress;
 				if (bCheckOutAndSave)
 				{

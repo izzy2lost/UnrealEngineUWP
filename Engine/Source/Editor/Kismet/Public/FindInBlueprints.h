@@ -261,6 +261,18 @@ enum class EFiBSearchBarWidget
 	ProgressBar,
 };
 
+// Whether the Find-in-Blueprints window allows the user to load and resave all assets with out-of-date Blueprint search metadata
+UENUM()
+enum class EFiBIndexAllPermission
+{
+	// Users may not automatically load all Blueprints with out-of-date search metadata
+	None,
+	// Users may automatically load all Blueprints with out-of-date search metadata, but not resave
+	LoadOnly,
+	// Users may automatically checkout, load and resave all Blueprints with out-of-date search metadata
+	CheckoutAndResave
+};
+
 /*Widget for searching for (functions/events) across all blueprints or just a single blueprint */
 class KISMET_API SFindInBlueprints: public SCompoundWidget
 {
