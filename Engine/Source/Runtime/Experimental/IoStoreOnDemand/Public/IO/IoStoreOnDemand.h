@@ -160,6 +160,8 @@ TIoStatusOr<FOnDemandToc> LoadTocFromUrl(const FString& ServiceURL, const FStrin
 struct FIoStoreUploadParams
 {
 	FString ServiceUrl;
+	FString DistributionUrl;
+	FString FallbackUrl;
 	FString Bucket;
 	FString BucketPrefix;
 	FString Region; 

@@ -1032,6 +1032,8 @@ TIoStatusOr<FIoStoreUploadParams> FIoStoreUploadParams::Parse(const TCHAR* Comma
 
 	FParse::Value(CommandLine, TEXT("BucketPrefix="), Params.BucketPrefix);
 	FParse::Value(CommandLine, TEXT("ServiceUrl="), Params.ServiceUrl);
+	FParse::Value(CommandLine, TEXT("DistributionUrl="), Params.DistributionUrl);
+	FParse::Value(CommandLine, TEXT("FallbackUrl="), Params.FallbackUrl);
 	FParse::Value(CommandLine, TEXT("Region="), Params.Region);
 	FParse::Value(CommandLine, TEXT("AccessKey="), Params.AccessKey);
 	FParse::Value(CommandLine, TEXT("SecretKey="), Params.SecretKey);
