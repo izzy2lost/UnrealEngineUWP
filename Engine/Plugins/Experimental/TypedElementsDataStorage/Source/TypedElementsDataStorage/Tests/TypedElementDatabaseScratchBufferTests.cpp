@@ -8,7 +8,7 @@
 #include "TypedElementDatabaseScratchBuffer.h"
 #include "Tests/TestHarnessAdapter.h"
 
-// Tries to shutdown all threads within the maximum wait time. If it takes longer than the minimum wait time the test will fail.
+// Tries to shutdown all threads within the maximum wait time. If it takes longer than the maximum wait time the test will fail.
 template<int ThreadCount, class Rep, class Period>
 static void WaitForFinalization(std::condition_variable& WaitVariable, std::mutex& WaitMutex, 
 	std::atomic<bool>& bRunFlag, std::atomic<uint32>& CompletedThreadCount, const std::chrono::duration<Rep, Period>& MaxWaitTime)
@@ -24,17 +24,6 @@ static void WaitForFinalization(std::condition_variable& WaitVariable, std::mute
 	REQUIRE(CompletedThreadCount == ThreadCount);
 }
 
-// Spin locks for the maximum wait time to let threads resume
-template<int ThreadCount, class Rep, class Period>
-static void WaitForPause(std::atomic<uint32>& PausedCounter, const std::chrono::duration<Rep, Period>& MaxWaitTime)
-{
-	std::chrono::system_clock::time_point StartTime = std::chrono::system_clock::now();
-	while (PausedCounter != ThreadCount
-		&& std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::system_clock::now() - StartTime) < MaxWaitTime)
-	{}
-	REQUIRE(PausedCounter == ThreadCount);
-}
-
 TEST_CASE("TypedElementsDataStorage::Scratch Buffer - MT (FTypedElementDatabaseScratchBuffer)", "[ApplicationContextMask][EngineFilter]")
 {
 	SECTION("Stress test without recycling.")
@@ -42,7 +31,7 @@ TEST_CASE("TypedElementsDataStorage::Scratch Buffer - MT (FTypedElementDatabaseS
 		using namespace std::chrono_literals;
 		constexpr uint32 ThreadCount = 8;
 
-		TSharedPtr<FTypedElementDatabaseScratchBuffer> Buffer = MakeShared<FTypedElementDatabaseScratchBuffer>();
+		FTypedElementDatabaseScratchBuffer Buffer;
 
 		std::atomic<bool> bKeepRunning = true;
 		std::atomic<uint32> FailedAllocations = 0;
@@ -57,7 +46,7 @@ TEST_CASE("TypedElementsDataStorage::Scratch Buffer - MT (FTypedElementDatabaseS
 				{
 					while (bKeepRunning)
 					{
-						void* Data = Buffer->Allocate(128, 4);
+						void* Data = Buffer.Allocate(128, 4);
 						if (Data == nullptr)
 						{
 							FailedAllocations++;
@@ -87,15 +76,10 @@ TEST_CASE("TypedElementsDataStorage::Scratch Buffer - MT (FTypedElementDatabaseS
 
 		constexpr uint32 ThreadCount = 8;
 
-		TSharedPtr<FTypedElementDatabaseScratchBuffer> Buffer = MakeShared<FTypedElementDatabaseScratchBuffer>();
+		FTypedElementDatabaseScratchBuffer Buffer;
 
 		std::atomic<bool> bKeepRunning = true;
-		std::atomic<bool> bPause = false;
-		std::atomic<uint32> PausedCounter = 0;
 		std::atomic<uint32> FailedAllocations = 0;
-
-		std::condition_variable PauseSync;
-		std::mutex PauseMutex;
 
 		std::atomic<uint32> CompletedThreadCount = 0;
 		std::condition_variable CompletionSync;
@@ -106,8 +90,7 @@ TEST_CASE("TypedElementsDataStorage::Scratch Buffer - MT (FTypedElementDatabaseS
 		for (uint32 ThreadCounter = 0; ThreadCounter < ThreadCount; ++ThreadCounter)
 		{
 			Threads.Emplace([
-				ThreadCounter, &Buffer, &bKeepRunning, &FailedAllocations, &bPause, &PausedCounter, 
-				&PauseSync, &PauseMutex, &CompletedThreadCount, &CompletionSync]()
+				ThreadCounter, &Buffer, &bKeepRunning, &FailedAllocations, &CompletedThreadCount, &CompletionSync]()
 				{
 					static constexpr uint32 MemoryAllocationSizes[] = { 128, 32, 14332, 741, 8871, 48, 27335 };
 					static constexpr uint32 MemoryAllocationSizeCount = sizeof(MemoryAllocationSizes) / sizeof(MemoryAllocationSizes[0]);
@@ -115,26 +98,20 @@ TEST_CASE("TypedElementsDataStorage::Scratch Buffer - MT (FTypedElementDatabaseS
 					uint32 MemoryAllocationSizeIndex = ThreadCounter;
 					while (bKeepRunning)
 					{
-						// Not using % as there's currently a false positive in MSVC that marks it warning (C6385).
+						// Not using % as there's currently a false positive in MSVC that marks it as a warning (C6385).
 						++MemoryAllocationSizeIndex;
 						if (MemoryAllocationSizeIndex >= MemoryAllocationSizeCount)
 						{
 							MemoryAllocationSizeIndex = 0;
 						}
 
-						void* Data = Buffer->Allocate(static_cast<size_t>(MemoryAllocationSizes[MemoryAllocationSizeIndex]), 4);
+						void* Data = Buffer.Allocate(static_cast<size_t>(MemoryAllocationSizes[MemoryAllocationSizeIndex]), 4);
 						if (Data == nullptr)
 						{
 							FailedAllocations++;
 						}
-
-						if (bPause)
-						{
-							++PausedCounter; // Announce that this thread is paused.
-							std::unique_lock<std::mutex> WaitLock(PauseMutex); // Wait to be re-enabled again.
-							PauseSync.wait(WaitLock);
-							++PausedCounter; // Announce that this thread has resumed.
-						}
+						// Sleep a little while as to not to end up with an excessive amount of memory allocations.
+						std::this_thread::sleep_for(1ms);
 					}
 					if (++CompletedThreadCount == ThreadCount)
 					{
@@ -143,26 +120,10 @@ TEST_CASE("TypedElementsDataStorage::Scratch Buffer - MT (FTypedElementDatabaseS
 				});
 		}
 
-		// While the threads are continuously allocating memory, use the main thread to periodically pause the other threads 
-		// and recycle blocks.
+		// While the threads are continuously allocating memory, use the main thread to periodically recycle blocks.
 		for (uint32 IterationCounter = 0; IterationCounter < 60; ++IterationCounter)
 		{
-			PausedCounter = 0;
-			bPause = true;
-			WaitForPause<ThreadCount>(PausedCounter, 500ms);
-			
-			Buffer->NextFrame();
-			Buffer->RecycleBlocks();
-
-			// Resume all threads.
-			{
-				std::unique_lock<std::mutex> WaitLock(PauseMutex);
-				PausedCounter = 0;
-				bPause = false;
-				PauseSync.notify_all();
-			}
-			WaitForPause<ThreadCount>(PausedCounter, 500ms);
-		
+			Buffer.BatchDelete();
 			std::this_thread::sleep_for(33ms);
 		}
 		WaitForFinalization<ThreadCount>(CompletionSync, CompletionMutex, bKeepRunning, CompletedThreadCount, 500ms);
@@ -185,68 +146,55 @@ TEST_CASE("TypedElementsDataStorage::Scratch Buffer (FTypedElementDatabaseScratc
 
 	SECTION("Allocate small block")
 	{
-		TSharedPtr<FTypedElementDatabaseScratchBuffer> Buffer = MakeShared<FTypedElementDatabaseScratchBuffer>();
-		void* Data = Buffer->Allocate(4, 4);
+		FTypedElementDatabaseScratchBuffer Buffer;
+		void* Data = Buffer.Allocate(4, 4);
 		CHECK(Data != nullptr);
 	}
 
 	SECTION("Allocate over-sized block")
 	{
-		TSharedPtr<FTypedElementDatabaseScratchBuffer> Buffer = MakeShared<FTypedElementDatabaseScratchBuffer>();
-		void* Data = Buffer->Allocate(Buffer->MaxAllocationSize() * 4, 4);
+		FTypedElementDatabaseScratchBuffer Buffer;
+		void* Data = Buffer.Allocate(Buffer.MaxAllocationSize() * 4, 4);
 		CHECK(Data != nullptr);
-	}
-
-	SECTION("Allocate exactly remaining block size")
-	{
-		TSharedPtr<FTypedElementDatabaseScratchBuffer> Buffer = MakeShared<FTypedElementDatabaseScratchBuffer>();
-		void* Data1 = Buffer->Allocate(1, 1);
-		void* Data2 = Buffer->Allocate(Buffer->MaxAllocationSize() - 1, 1);
-
-		REQUIRE(Data1 != nullptr);
-		REQUIRE(Data2 != nullptr);
-		// Check if they're both in the same buffer.
-		CHECK(reinterpret_cast<uintptr_t>(Data2) == reinterpret_cast<uintptr_t>(Data1) + 1);
 	}
 
 	SECTION("Alignment respected")
 	{
-		TSharedPtr<FTypedElementDatabaseScratchBuffer> Buffer = MakeShared<FTypedElementDatabaseScratchBuffer>();
-		void* Data1 = Buffer->Allocate(1, 1);
-		void* Data2 = Buffer->Allocate(4, 4);
+		FTypedElementDatabaseScratchBuffer Buffer;
+		void* Data1 = Buffer.Allocate(1, 1);
+		void* Data2 = Buffer.Allocate(4, 4);
 
 		REQUIRE(Data1 != nullptr);
 		REQUIRE(Data2 != nullptr);
-		// Check if they're both in the same buffer.
+		// Check alignment is respected.
 		CHECK((reinterpret_cast<uintptr_t>(Data2) & 3) == 0);
 	}
 
 	SECTION("Multiple blocks used.")
 	{
-		TSharedPtr<FTypedElementDatabaseScratchBuffer> Buffer = MakeShared<FTypedElementDatabaseScratchBuffer>();
+		FTypedElementDatabaseScratchBuffer Buffer;
 
-		int32 IncrementCount = (Buffer->MaxAllocationSize() * 4 /* Fill 4 blocks*/) / 64 /* With 64 by allocations */;
+		int32 IncrementCount = (Buffer.MaxAllocationSize() * 4 /* Fill 4 blocks*/) / 64 /* With 64 byte allocations */;
 		for (int32 Counter = 0; Counter < IncrementCount; ++Counter)
 		{
-			void* Data = Buffer->Allocate(64, 4);
+			void* Data = Buffer.Allocate(64, 4);
 			REQUIRE(Data != nullptr);
 		}
 	}
 
 	SECTION("Recycle full blocks.")
 	{
-		TSharedPtr<FTypedElementDatabaseScratchBuffer> Buffer = MakeShared<FTypedElementDatabaseScratchBuffer>();
+		FTypedElementDatabaseScratchBuffer Buffer;
 
 		for (int32 Iterations = 0; Iterations < 16; ++Iterations)
 		{
-			int32 IncrementCount = Buffer->MaxAllocationSize() / 64;
-			for (int32 Counter = 0; Counter <= IncrementCount; ++Counter) // Increment one more that needed to fill the block and make sure it's recycled.
+			int32 IncrementCount = Buffer.MaxAllocationSize() / 64;
+			for (int32 Counter = 0; Counter <= IncrementCount; ++Counter) // Increment one more than needed to fill the block and make sure it's recycled.
 			{
-				void* Data = Buffer->Allocate(64, 4);
+				void* Data = Buffer.Allocate(64, 4);
 				REQUIRE(Data != nullptr);
 			}
-			Buffer->NextFrame();
-			Buffer->RecycleBlocks();
+			Buffer.BatchDelete();
 		}
 	}
 }

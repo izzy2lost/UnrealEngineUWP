@@ -221,16 +221,13 @@ void UTypedElementDatabase::OnPreMassTick(float DeltaTime)
 	// to complete pending work.
 	FTypedElementDatabaseCommandBuffer::ProcessBuffer(DeferredCommands, *Environment);
 	DeferredCommands.Reset();
-
-	Environment->GetScratchBuffer().NextFrame();
 }
 
 void UTypedElementDatabase::OnPostMassTick(float DeltaTime)
 {
 	checkf(IsAvailable(), TEXT("Typed Element Database was ticked while it's not ready."));
 	
-	// Recycle any full scratch memory blocks from the previous frame.
-	Environment->GetScratchBuffer().RecycleBlocks();
+	Environment->GetScratchBuffer().BatchDelete();
 }
 
 TSharedPtr<FMassEntityManager> UTypedElementDatabase::GetActiveMutableEditorEntityManager()
