@@ -2509,25 +2509,10 @@ bool GenerateGlslShader(std::string& OutString, GLSLCompileParameters& GLSLCompi
 			std::string NewUAVName = FrequencyPrefix + std::string("i") + std::to_string(UAVIndex);
 
 			// Find instances of UAVs
-			std::string RegexExpression = "(?:^|\\W|\\S)" + UAV + "(?:$|\\W)";
+			std::string RegexExpression = "\\b" + UAV + "\\b";
+			std::regex RegexExpressionPattern(RegexExpression);
 
-			std::cmatch RegexMatch;
-			std::vector<std::string> RegexMatches;
-
-			const char* TempString = OutString.c_str();
-			while (std::regex_search(TempString, RegexMatch, std::regex(RegexExpression)))
-			{
-				RegexMatches.push_back(RegexMatch.str());
-				TempString = RegexMatch.suffix().first;
-			}
-
-			for (const auto& Match : RegexMatches)
-			{
-				size_t MatchOffset = Match.find_first_of(UAV);
-				size_t MatchPos = OutString.find(Match);
-
-				OutString.replace(MatchPos + MatchOffset, UAV.size(), NewUAVName);
-			}
+			OutString = std::regex_replace(OutString, RegexExpressionPattern, NewUAVName);
 
 			UAVIndex++;
 		}
