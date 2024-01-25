@@ -194,7 +194,7 @@ void FPCGActorAndComponentMapping::Tick()
 #endif // WITH_EDITOR
 }
 
-TArray<FPCGTaskId> FPCGActorAndComponentMapping::DispatchToRegisteredLocalComponents(UPCGComponent* OriginalComponent, const TFunction<FPCGTaskId(UPCGComponent*)>& InFunc) const
+TArray<FPCGTaskId> FPCGActorAndComponentMapping::DispatchToRegisteredLocalComponents(UPCGComponent* OriginalComponent, const TFunctionRef<FPCGTaskId(UPCGComponent*)>& InFunc) const
 {
 	TRACE_CPUPROFILER_EVENT_SCOPE(FPCGActorAndComponentMapping::DispatchToRegisteredLocalComponents);
 	if (!ensure(OriginalComponent))
@@ -218,7 +218,7 @@ TArray<FPCGTaskId> FPCGActorAndComponentMapping::DispatchToRegisteredLocalCompon
 	return DispatchToLocalComponents(OriginalComponent, *PartitionActorsPtr, InFunc);
 }
 
-TArray<FPCGTaskId> FPCGActorAndComponentMapping::DispatchToLocalComponents(UPCGComponent* OriginalComponent, const TSet<TObjectPtr<APCGPartitionActor>>& PartitionActors, const TFunction<FPCGTaskId(UPCGComponent*)>& InFunc) const
+TArray<FPCGTaskId> FPCGActorAndComponentMapping::DispatchToLocalComponents(UPCGComponent* OriginalComponent, const TSet<TObjectPtr<APCGPartitionActor>>& PartitionActors, const TFunctionRef<FPCGTaskId(UPCGComponent*)>& InFunc) const
 {
 	TArray<FPCGTaskId> TaskIds;
 	for (APCGPartitionActor* PartitionActor : PartitionActors)
@@ -501,12 +501,29 @@ void FPCGActorAndComponentMapping::UnregisterNonPartitionedPCGComponent(UPCGComp
 	NonPartitionedOctree.RemoveComponent(InComponent);
 }
 
-void FPCGActorAndComponentMapping::ForAllIntersectingComponents(const FBoxCenterAndExtent& InBounds, TFunction<void(UPCGComponent*)> InFunc) const
+void FPCGActorAndComponentMapping::ForAllIntersectingPartitionedComponents(const FBoxCenterAndExtent& InBounds, TFunctionRef<void(UPCGComponent*)> InFunc) const
 {
 	PartitionedOctree.FindElementsWithBoundsTest(InBounds, [&InFunc](const FPCGComponentRef& ComponentRef)
 	{
 		InFunc(ComponentRef.Component);
 	});
+}
+
+TArray<UPCGComponent*> FPCGActorAndComponentMapping::GetAllIntersectingComponents(const FBoxCenterAndExtent& InBounds) const
+{
+	TArray<UPCGComponent*> Result;
+	auto AddToResult = [&Result](const FPCGComponentRef& ComponentRef)
+	{
+		if (IsValid(ComponentRef.Component))
+		{
+			Result.Add(ComponentRef.Component);
+		}
+	};
+
+	PartitionedOctree.FindElementsWithBoundsTest(InBounds, AddToResult);
+	NonPartitionedOctree.FindElementsWithBoundsTest(InBounds, AddToResult);
+
+	return Result;
 }
 
 void FPCGActorAndComponentMapping::RegisterPartitionActor(APCGPartitionActor* InActor, bool bDoComponentMapping)
@@ -547,7 +564,7 @@ void FPCGActorAndComponentMapping::RegisterPartitionActor(APCGPartitionActor* In
 	if (!bIsRuntimeGenerated)
 	{
 		FWriteScopeLock WriteLock(ComponentToPartitionActorsMapLock);
-		ForAllIntersectingComponents(FBoxCenterAndExtent(InActor->GetFixedBounds()), [this, InActor, bDoComponentMapping](UPCGComponent* Component)
+		ForAllIntersectingPartitionedComponents(FBoxCenterAndExtent(InActor->GetFixedBounds()), [this, InActor, bDoComponentMapping](UPCGComponent* Component)
 		{
 			// For each component, do the mapping if we ask it explicitly, or if the component is generated
 			if (bDoComponentMapping || Component->bGenerated)
@@ -589,7 +606,7 @@ void FPCGActorAndComponentMapping::UnregisterPartitionActor(APCGPartitionActor* 
 	if (!bIsRuntimeGenerated)
 	{
 		FWriteScopeLock WriteLock(ComponentToPartitionActorsMapLock);
-		ForAllIntersectingComponents(FBoxCenterAndExtent(Actor->GetFixedBounds()), [this, Actor](UPCGComponent* Component)
+		ForAllIntersectingPartitionedComponents(FBoxCenterAndExtent(Actor->GetFixedBounds()), [this, Actor](UPCGComponent* Component)
 		{
 			TSet<TObjectPtr<APCGPartitionActor>>* PartitionActorsPtr = ComponentToPartitionActorsMap.Find(Component);
 			if (PartitionActorsPtr)
@@ -600,7 +617,7 @@ void FPCGActorAndComponentMapping::UnregisterPartitionActor(APCGPartitionActor* 
 	}
 }
 
-void FPCGActorAndComponentMapping::ForAllIntersectingPartitionActors(const FBox& InBounds, TFunction<void(APCGPartitionActor*)> InFunc) const
+void FPCGActorAndComponentMapping::ForAllIntersectingPartitionActors(const FBox& InBounds, TFunctionRef<void(APCGPartitionActor*)> InFunc) const
 {
 	// No PCGWorldActor just early out. Same for invalid bounds.
 	APCGWorldActor* PCGWorldActor = PCGSubsystem->GetPCGWorldActor();

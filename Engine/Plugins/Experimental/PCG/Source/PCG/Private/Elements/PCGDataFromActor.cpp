@@ -45,6 +45,8 @@ namespace PCGDataFromActorHelpers
 		bool bMustOverlap = false,
 		const FBox& OverlappingBounds = FBox())
 	{
+		TRACE_CPUPROFILER_EVENT_SCOPE(FPCGDataFromActorElement::GetPCGComponentsFromActor);
+
 		TInlineComponentArray<UPCGComponent*, 1> PCGComponents;
 
 		if (!Actor || !Subsystem)
@@ -75,31 +77,27 @@ namespace PCGDataFromActorHelpers
 
 		if (bGetLocalComponents)
 		{
+			auto AddComponent = [&LocalComponents, bGetAllGrids, AllowedGrids](UPCGComponent* LocalComponent)
+			{
+				if (bGetAllGrids || (AllowedGrids & (int32)LocalComponent->GetGenerationGrid()))
+				{
+					LocalComponents.Add(LocalComponent);
+				}
+			};
+
 			// Collect the local components for each actor PCG component.
 			for (UPCGComponent* Component : PCGComponents)
 			{
 				if (Component && Component->IsPartitioned())
 				{
-					Subsystem->ForAllRegisteredLocalComponents(Component, [&LocalComponents, bGetAllGrids, AllowedGrids, bMustOverlap, &OverlappingBounds](UPCGComponent* LocalComponent)
+					if (bMustOverlap)
 					{
-						if (bGetAllGrids || (AllowedGrids & (int32)LocalComponent->GetGenerationGrid()))
-						{
-							if (bMustOverlap)
-							{
-								const FBox LocalBounds = LocalComponent->GetGridBounds();
-
-								// We reject overlaps with zero volume instead of simply checking Intersect(...) to avoid bounds which touch but do not overlap.
-								if (OverlappingBounds.Overlap(LocalBounds).GetVolume() > 0)
-								{
-									LocalComponents.Add(LocalComponent);
-								}
-							}
-							else
-							{
-								LocalComponents.Add(LocalComponent);
-							}
-						}
-					});
+						Subsystem->ForAllRegisteredIntersectingLocalComponents(Component, OverlappingBounds, AddComponent);
+					}
+					else
+					{
+						Subsystem->ForAllRegisteredLocalComponents(Component, AddComponent);
+					}
 				}
 			}
 		}
@@ -309,8 +307,56 @@ bool FPCGDataFromActorElement::ExecuteInternal(FPCGContext* InContext) const
 			};
 		}
 
-		Context->FoundActors = PCGActorSelector::FindActors(Settings->ActorSelector, Context->SourceComponent.Get(), BoundsCheck, SelfIgnoreCheck);
-		Context->bPerformedQuery = true;
+		// When gathering PCG data on any world actor, we can leverage the octree kept by the Tracking system, and get all intersecting components if we need to overlap self
+		// or just gather all registered components (which is way faster than going through all actors in the world).
+		if (Settings->Mode == EPCGGetDataFromActorMode::GetDataFromPCGComponent && Settings->ActorSelector.ActorFilter == EPCGActorFilter::AllWorldActors)
+		{
+			UPCGSubsystem* Subsystem = Context->SourceComponent.IsValid() ? Context->SourceComponent->GetSubsystem() : nullptr;
+			if (Subsystem)
+			{
+				TRACE_CPUPROFILER_EVENT_SCOPE(FPCGDataFromActorElement::Execute::FindPCGComponents);
+
+				const FPCGSelectionKey Key = Settings->ActorSelector.GetAssociatedKey();
+
+				// TODO: Perhaps move the logic into the selector.
+				if (Settings->ActorSelector.bMustOverlapSelf)
+				{
+					FBox ActorBounds = PCGHelpers::GetGridBounds(Self, PCGComponent);
+					for (UPCGComponent* Component : Subsystem->GetAllIntersectingComponents(ActorBounds))
+					{
+						if (AActor* Actor = Component->GetOwner())
+						{
+							if (Key.IsMatching(Actor, Component))
+							{
+								Context->FoundActors.Add(Actor);
+							}
+						}
+					}
+				}
+				else
+				{
+					for (UPCGComponent* Component : Subsystem->GetAllRegisteredComponents())
+					{
+						if (AActor* Actor = Component->GetOwner())
+						{
+							if (Key.IsMatching(Actor, Component))
+							{
+								Context->FoundActors.Add(Actor);
+							}
+						}
+					}
+				}
+
+				Context->bPerformedQuery = true;
+			}
+		}
+		
+		if (!Context->bPerformedQuery)
+		{
+			TRACE_CPUPROFILER_EVENT_SCOPE(FPCGDataFromActorElement::Execute::FindActors);
+			Context->FoundActors = PCGActorSelector::FindActors(Settings->ActorSelector, Context->SourceComponent.Get(), BoundsCheck, SelfIgnoreCheck);
+			Context->bPerformedQuery = true;
+		}
 
 		if (Context->FoundActors.IsEmpty())
 		{

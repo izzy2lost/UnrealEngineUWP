@@ -851,7 +851,7 @@ bool UPCGSubsystem::IsGraphCurrentlyExecuting(UPCGGraph* Graph)
 	return GraphExecutor->IsGraphCurrentlyExecuting(Graph);
 }
 
-void UPCGSubsystem::ForAllRegisteredLocalComponents(UPCGComponent* OriginalComponent, const TFunction<void(UPCGComponent*)>& InFunc) const
+void UPCGSubsystem::ForAllRegisteredLocalComponents(UPCGComponent* InOriginalComponent, const TFunctionRef<void(UPCGComponent*)>& InFunc) const
 {
 	auto WrapperFunc = [&InFunc](UPCGComponent* Component) -> FPCGTaskId
 	{
@@ -859,10 +859,30 @@ void UPCGSubsystem::ForAllRegisteredLocalComponents(UPCGComponent* OriginalCompo
 		return InvalidPCGTaskId;
 	};
 
-	ActorAndComponentMapping.DispatchToRegisteredLocalComponents(OriginalComponent, WrapperFunc);
+	ActorAndComponentMapping.DispatchToRegisteredLocalComponents(InOriginalComponent, WrapperFunc);
 }
 
-void UPCGSubsystem::ForAllOverlappingComponentsInHierarchy(UPCGComponent* InComponent, const TFunction<void(UPCGComponent*)>& InFunc) const
+void UPCGSubsystem::ForAllRegisteredIntersectingLocalComponents(UPCGComponent* InOriginalComponent, const FBoxCenterAndExtent& InBounds, const TFunctionRef<void(UPCGComponent*)>& InFunc) const
+{
+	check(InOriginalComponent);
+	const FBox Overlap = InOriginalComponent->GetGridBounds().Overlap(InBounds.GetBox());
+
+	// We reject overlaps with zero volume instead of simply checking Intersect(...) to avoid bounds which touch but do not overlap.
+	if (Overlap.GetVolume() <= 0)
+	{
+		return;
+	}
+
+	ActorAndComponentMapping.ForAllIntersectingPartitionActors(Overlap, [InOriginalComponent, &InFunc](APCGPartitionActor* Actor)
+	{
+		if (UPCGComponent* LocalComponent = Actor->GetLocalComponent(InOriginalComponent))
+		{
+			InFunc(LocalComponent);
+		}
+	});
+}
+
+void UPCGSubsystem::ForAllOverlappingComponentsInHierarchy(UPCGComponent* InComponent, const TFunctionRef<void(UPCGComponent*)>& InFunc) const
 {
 	UPCGComponent* OriginalComponent = InComponent->GetOriginalComponent();
 
@@ -1408,7 +1428,7 @@ void UPCGSubsystem::DeletePartitionActors(bool bOnlyDeleteUnused, bool bOnlyChil
 
 					auto FoundComponents = [&bIntersectWithOneComponent](UPCGComponent*) { bIntersectWithOneComponent = true; };
 
-					ActorAndComponentMapping.ForAllIntersectingComponents(PartitionActor->GetFixedBounds(), FoundComponents);
+					ActorAndComponentMapping.ForAllIntersectingPartitionedComponents(PartitionActor->GetFixedBounds(), FoundComponents);
 
 					if (!bIntersectWithOneComponent)
 					{
