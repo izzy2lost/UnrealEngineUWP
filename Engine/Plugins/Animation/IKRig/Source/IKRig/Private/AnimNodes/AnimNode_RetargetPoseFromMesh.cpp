@@ -77,7 +77,7 @@ void FAnimNode_RetargetPoseFromMesh::Evaluate_AnyThread(FPoseContext& Output)
 
 	SCOPE_CYCLE_COUNTER(STAT_IKRetarget);
 
-	if (!(IKRetargeterAsset && Processor && SourceMeshComponent.IsValid()))
+	if (!(IKRetargeterAsset && Processor && SourceMeshComponent.IsValid() && IsLODEnabled(Output.AnimInstanceProxy)))
 	{
 		Output.ResetToRefPose();
 		return;
@@ -111,6 +111,17 @@ void FAnimNode_RetargetPoseFromMesh::Evaluate_AnyThread(FPoseContext& Output)
 
 	// apply custom profile settings to the processor
 	Processor->ApplySettingsFromProfile(CustomRetargetProfile);
+	
+	// LOD off the IK pass
+	if (Output.AnimInstanceProxy->GetLODLevel() > LODThresholdForIK)
+	{
+		// override the custom profile's global settings but with IK forcibly turned off
+		FRetargetProfile TurnIKOffProfile;
+		TurnIKOffProfile.bApplyGlobalSettings = true;
+		TurnIKOffProfile.GlobalSettings = CustomRetargetProfile.GlobalSettings;
+		TurnIKOffProfile.GlobalSettings.bEnableIK = false;
+		Processor->ApplySettingsFromProfile(TurnIKOffProfile);
+	}
 
 	// run the retargeter
 	const TArray<FTransform>& RetargetedPose = Processor->RunRetargeter(SourceMeshComponentSpaceBoneTransforms, SpeedValuesFromCurves, DeltaTime);
