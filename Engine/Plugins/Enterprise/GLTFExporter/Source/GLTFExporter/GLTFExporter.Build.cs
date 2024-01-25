@@ -47,6 +47,7 @@ public class GLTFExporter : ModuleRules
 				"Projects",
 				"EngineSettings",
 				"Analytics",
+				"Landscape",
 			}
 		);
 

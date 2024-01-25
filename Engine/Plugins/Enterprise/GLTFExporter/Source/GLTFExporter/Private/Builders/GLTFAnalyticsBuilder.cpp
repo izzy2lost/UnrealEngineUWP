@@ -19,13 +19,15 @@ TArray<FAnalyticsEventAttribute> FGLTFAnalyticsBuilder::GenerateAnalytics() cons
 	int32 NumberOfActors = ActorsRecorded.Num();
 	int32 NumberOfStaticMeshes = StaticMeshesRecorded.Num();
 	int32 NumberOfSkeletalMeshes = SkeletalMeshesRecorded.Num();
+	int32 NumberOfSplineStaticMeshes = SplineStaticMeshesRecorded.Num();
+	int32 NumberOfLandscapes = LandscapeComponentsRecorded.Num();
 	int32 NumberOfLevelSequences = LevelSequencesRecorded.Num();
 	int32 NumberOfAnimSequences = AnimSequencesRecorded.Num();
 	int32 NumberOfMaterials = MaterialsRecorded.Num();
 	int32 NumberOfTextures = TexturesRecorded.Num();
 	int32 NumberOfCameras = CamerasRecorded.Num();
 	int32 NumberOfLights = LightsRecorded.Num();
-
+	
 	TArray<FAnalyticsEventAttribute> EventAttributes;
 	auto Add = [&EventAttributes](const FString& Name, int32 Value)
 	{
@@ -35,6 +37,8 @@ TArray<FAnalyticsEventAttribute> FGLTFAnalyticsBuilder::GenerateAnalytics() cons
 	Add(TEXT("NumberOfActors"), NumberOfActors);
 	Add(TEXT("NumberOfStaticMeshes"), NumberOfStaticMeshes);
 	Add(TEXT("NumberOfSkeletalMeshes"), NumberOfSkeletalMeshes);
+	Add(TEXT("NumberOfSplineStaticMeshes"), NumberOfSplineStaticMeshes);
+	Add(TEXT("NumberOfLandscapes"), NumberOfLandscapes);
 	Add(TEXT("NumberOfLevelSequences"), NumberOfLevelSequences);
 	Add(TEXT("NumberOfAnimSequences"), NumberOfAnimSequences);
 	Add(TEXT("NumberOfMaterials"), NumberOfMaterials);
@@ -104,6 +108,15 @@ void FGLTFAnalyticsBuilder::RecordStaticMesh(const UStaticMesh* Object)
 void FGLTFAnalyticsBuilder::RecordSkeletalMesh(const USkeletalMesh* Object)
 {
 	SkeletalMeshesRecorded.Add(Object);
+}
+
+void FGLTFAnalyticsBuilder::RecordSplineStaticMesh(const UStaticMesh* Object)
+{
+	SplineStaticMeshesRecorded.Add(Object);
+}
+void FGLTFAnalyticsBuilder::RecordLandscapeComponent(const ULandscapeComponent* Object)
+{
+	LandscapeComponentsRecorded.Add(Object);
 }
 
 void FGLTFAnalyticsBuilder::RecordLevelSequence(const ULevelSequence* Object)
