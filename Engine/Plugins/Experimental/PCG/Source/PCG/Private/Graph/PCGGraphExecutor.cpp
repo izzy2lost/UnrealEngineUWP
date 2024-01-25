@@ -1426,7 +1426,7 @@ void FPCGGraphExecutor::CullInactiveDownstreamNodes(FPCGTaskId InCompletedTaskId
 				if (PinCount > 0)
 				{
 					// Deactivate all output pins.
-					const uint64 InactiveOutputPinBitmask = (1 << PinCount) - 1;
+					const uint64 InactiveOutputPinBitmask = (1ULL << PinCount) - 1;
 
 					// Deactivate its pins - add to set of pins to deactivate.
 					GetPinIdsToDeactivate(RemovedTaskId, InactiveOutputPinBitmask, PinIdsToDeactivate);
