@@ -3853,6 +3853,11 @@ void FRenderer::PrepareRasterizerPasses(
 			// Fixed function bins are always visible
 			if (!bFixedFunctionBin)
 			{
+				if ((RenderFlags & NANITE_RENDER_FLAG_DISABLE_PROGRAMMABLE) != 0u)
+				{
+					continue;
+				}
+
 				if (bCustomPass && !RasterPipelines.ShouldBinRenderInCustomPass(RasterEntry.BinIndex))
 				{
 					// Predicting that this bin will be empty if we rasterize it in the Custom Pass (i.e. Custom)
