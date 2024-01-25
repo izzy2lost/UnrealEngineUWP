@@ -751,18 +751,6 @@ void AActor::RerunConstructionScripts()
 					}
 				}
 			}
-#if WITH_EDITORONLY_DATA
-			if (OwningWorld && OwningWorld->GetWorldPartition() != nullptr)
-			{
-				if (USceneComponent* OldSceneComponent = Cast<USceneComponent>(ComponentData.OldComponent))
-				{
-					if (USceneComponent* NewSceneComponent = Cast<USceneComponent>(ResolvedNewComponent))
-					{
-						OldSceneComponent->ReplacementSceneComponent = NewSceneComponent;
-					}
-				}
-			}
-#endif
 
 			OldToNewComponentMapping.Add(ComponentData.OldComponent, ResolvedNewComponent);
 		}
