@@ -52,7 +52,7 @@ public:
 	void InitializeWithBuffer(TSharedPtr<TArray<uint8>, ESPMode::ThreadSafe> InBuffer, uint32 InStride, FIntPoint Dim, TSharedPtr<Electra::FParamDict, ESPMode::ThreadSafe> InParamDict);
 
 	void InitializeWithResource(const TRefCountPtr<ID3D12Device>& InD3D12Device, const TRefCountPtr<ID3D12Resource> Resource, uint32 ResourcePitch, const FElectraDecoderOutputSync& OutputSync, const FIntPoint& OutputDim, TSharedPtr<Electra::FParamDict, ESPMode::ThreadSafe> InParamDict, TWeakPtr<Electra::IVideoDecoderResourceDelegate, ESPMode::ThreadSafe> ResourceDelegate,
-								uint32 MaxWidth, uint32 MaxHeight, uint32 MaxOutputBuffers);
+								TSharedPtr<FElectraMediaDecoderOutputBufferPool_DX12>& InOutD3D12ResourcePool, uint32 MaxWidth, uint32 MaxHeight, uint32 MaxOutputBuffers);
 
 	// Hardware decode to shared DX11 texture (Win8+) from IMFSample
 	void InitializeWithSharedTexture(const TRefCountPtr<ID3D11Device>& InD3D11Device, const TRefCountPtr<ID3D11DeviceContext> InDeviceContext, const TRefCountPtr<IMFSample> MFSample, const FIntPoint& OutputDim, TSharedPtr<Electra::FParamDict, ESPMode::ThreadSafe> InParamDict);
@@ -72,11 +72,7 @@ public:
 	TRefCountPtr<IUnknown> GetSync(uint64& SyncValue) const override;
 
 private:
-#if HAVE_MFSAMPLE_WITH_DX12
-	void TriggerDataCopy(TRefCountPtr<IMFD3D12SynchronizationObjectCommands> DecoderSync, TRefCountPtr<ID3D12Fence> ResourceFence, const FElectraDecoderOutputSync& OutputSync, Electra::IVideoDecoderResourceDelegate* InResourceDelegate) const;
-#else
-	void TriggerDataCopy(TRefCountPtr<IUnknown> DecoderSync, TRefCountPtr<ID3D12Fence> ResourceFence, const FElectraDecoderOutputSync& OutputSync, Electra::IVideoDecoderResourceDelegate* InResourceDelegate) const;
-#endif
+	static void TriggerDataCopy(TRefCountPtr<ID3D12GraphicsCommandList> D3DCmdList, TRefCountPtr<ID3D12Fence> D3DFence, uint64 FenceValue, const FElectraDecoderOutputSync& OutputSync, Electra::IVideoDecoderResourceDelegate* InResourceDelegate);
 
 	// Decoder output type
 	EOutputType OutputType = EOutputType::Unknown;

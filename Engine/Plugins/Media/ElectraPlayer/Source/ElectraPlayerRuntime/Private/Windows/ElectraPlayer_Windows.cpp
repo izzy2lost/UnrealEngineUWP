@@ -49,23 +49,28 @@ namespace Electra
 	class FVideoDecoderResourceDelegate : public IVideoDecoderResourceDelegate
 	{
 	public:
-		FVideoDecoderResourceDelegate(const TWeakPtr<IElectraPlayerAdapterDelegate, ESPMode::ThreadSafe>& InAdapterDelegate) : PlayerAdapterDelegate(InAdapterDelegate) {}
-		virtual ~FVideoDecoderResourceDelegate() {}
+		FVideoDecoderResourceDelegate(const TWeakPtr<IElectraPlayerAdapterDelegate, ESPMode::ThreadSafe>& InAdapterDelegate)
+		: PlayerAdapterDelegate(InAdapterDelegate)
+		{
+			const TSharedPtr<IElectraPlayerAdapterDelegate, ESPMode::ThreadSafe> PinnedAdapterDelegate = PlayerAdapterDelegate.Pin();
+			check(PinnedAdapterDelegate.IsValid());
+
+			// Grab a reference to the IElectraPlayerResourceDelegate as we need it still when IElectraPlayerAdapterDelegate is already destroyed
+			ResourceDelegate = PinnedAdapterDelegate->GetResourceDelegate();
+			check(ResourceDelegate.IsValid());
+		}
+
+		virtual ~FVideoDecoderResourceDelegate() = default;
 
 		virtual void ExecuteCodeWithCopyCommandQueueUsage(TFunction<void(ID3D12CommandQueue*)>&& CodeToRun) override
 		{
-			if (const TSharedPtr<IElectraPlayerAdapterDelegate, ESPMode::ThreadSafe>& PinnedAdapterDelegate = PlayerAdapterDelegate.Pin())
-			{
-				TSharedPtr<IElectraPlayerResourceDelegate, ESPMode::ThreadSafe> ResourceDelegate = PinnedAdapterDelegate->GetResourceDelegate();
-				if (ResourceDelegate)
-				{
-					ResourceDelegate->ExecuteCodeWithCopyCommandQueueUsage(MoveTemp(CodeToRun));
-				}
-			}
+			check(ResourceDelegate.IsValid());
+			ResourceDelegate->ExecuteCodeWithCopyCommandQueueUsage(MoveTemp(CodeToRun));
 		}
 
 	private:
 		TWeakPtr<IElectraPlayerAdapterDelegate, ESPMode::ThreadSafe> PlayerAdapterDelegate;
+		TSharedPtr<IElectraPlayerResourceDelegate, ESPMode::ThreadSafe> ResourceDelegate;
 	};
 
 	TSharedPtr<IVideoDecoderResourceDelegate, ESPMode::ThreadSafe> PlatformCreateVideoDecoderResourceDelegate(const TWeakPtr<IElectraPlayerAdapterDelegate, ESPMode::ThreadSafe>& AdapterDelegate)

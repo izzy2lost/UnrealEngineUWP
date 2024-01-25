@@ -38,16 +38,15 @@ FElectraPlayerVideoDecoderOutputPC::EOutputType FElectraPlayerVideoDecoderOutput
 
 const TArray<uint8>& FElectraPlayerVideoDecoderOutputPC::GetBuffer() const
 {
-	check(OutputType == EOutputType::SoftwareWin8Plus || OutputType == EOutputType::SoftwareWin7 || OutputType == EOutputType::HardwareDX9_DX12);
-	if (Buffer.IsValid())
+	if ((OutputType == EOutputType::SoftwareWin8Plus || OutputType == EOutputType::SoftwareWin7 || OutputType == EOutputType::HardwareDX9_DX12))
 	{
-		return *Buffer;
+		if (Buffer.IsValid())
+		{
+			return *Buffer;
+		}
 	}
-	else
-	{
-		static TArray<uint8> Empty;
-		return Empty;
-	}
+	static TArray<uint8> Empty;
+	return Empty;
 }
 
 uint32 FElectraPlayerVideoDecoderOutputPC::GetStride() const
@@ -99,6 +98,11 @@ void FElectraPlayerVideoDecoderOutputPC::InitializeWithBuffer(const void* InBuff
 
 	SampleDim = Dim;
 	Stride = InStride;
+
+	Texture = nullptr;
+	SharedTexture = nullptr;
+	TextureDX12 = nullptr;
+	D3DFence = nullptr;
 }
 
 void FElectraPlayerVideoDecoderOutputPC::InitializeWithBuffer(TSharedPtr<TArray<uint8>, ESPMode::ThreadSafe> InBuffer, uint32 InStride, FIntPoint Dim, TSharedPtr<Electra::FParamDict, ESPMode::ThreadSafe> InParamDict)
@@ -111,11 +115,19 @@ void FElectraPlayerVideoDecoderOutputPC::InitializeWithBuffer(TSharedPtr<TArray<
 
 	SampleDim = Dim;
 	Stride = InStride;
+
+	Texture = nullptr;
+	SharedTexture = nullptr;
+	TextureDX12 = nullptr;
+	D3DFence = nullptr;
 }
 
 void FElectraPlayerVideoDecoderOutputPC::InitializeWithResource(const TRefCountPtr<ID3D12Device>& InD3D12Device, const TRefCountPtr<ID3D12Resource> InResource, uint32 ResourcePitch, const FElectraDecoderOutputSync& OutputSync, const FIntPoint& InOutputDim, TSharedPtr<Electra::FParamDict, ESPMode::ThreadSafe> InParamDict, TWeakPtr<Electra::IVideoDecoderResourceDelegate, ESPMode::ThreadSafe> InResourceDelegate,
-																uint32 MaxWidth, uint32 MaxHeight, uint32 MaxOutputBuffers)
+																TSharedPtr<FElectraMediaDecoderOutputBufferPool_DX12>& InOutD3D12ResourcePool, uint32 MaxWidth, uint32 MaxHeight, uint32 MaxOutputBuffers)
 {
+	// We must not allow re-initialization of used instances
+	check(!D3DFence.IsValid());
+
 	// General initialization
 	FVideoDecoderOutput::Initialize(InParamDict);
 
@@ -124,6 +136,12 @@ void FElectraPlayerVideoDecoderOutputPC::InitializeWithResource(const TRefCountP
 
 	SampleDim = InOutputDim;
 	OutputType = EOutputType::Hardware_DX;
+	if (!D3D12ResourcePool.IsValid() && InOutD3D12ResourcePool.IsValid())
+	{
+		D3D12ResourcePool = InOutD3D12ResourcePool;
+	}
+
+	Buffer.Reset();
 
 	HRESULT Res;
 
@@ -211,6 +229,7 @@ void FElectraPlayerVideoDecoderOutputPC::InitializeWithResource(const TRefCountP
 				UE_LOG(LogElectraPlayer, Error, TEXT("Could not allocate texture resource heap!"));
 				return;
 			}
+			InOutD3D12ResourcePool = D3D12ResourcePool;
 		}
 		
 		FElectraMediaDecoderOutputBufferPool_DX12::FOutputData OutputData;
@@ -332,29 +351,6 @@ void FElectraPlayerVideoDecoderOutputPC::InitializeWithResource(const TRefCountP
 
 	// - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 
-	// Get all synchronization info we need
-	// (we could have a fence or a DX12 decoder synchronization object)
-
-	TRefCountPtr<ID3D12Fence> ResourceFence;
-#if ALLOW_MFSAMPLE_WITH_DX12
-	TRefCountPtr<IMFD3D12SynchronizationObjectCommands> DecoderSync;
-#else
-	TRefCountPtr<IUnknown> DecoderSync;
-#endif
-
-	if (OutputSync.Sync.IsValid())
-	{
-#if ALLOW_MFSAMPLE_WITH_DX12
-		if (OutputSync.Sync->QueryInterface(__uuidof(IMFD3D12SynchronizationObjectCommands), (void**)DecoderSync.GetInitReference()) != S_OK)
-#endif // ALLOW_MFSAMPLE_WITH_DX12
-		{
-			OutputSync.Sync->QueryInterface(__uuidof(ID3D12Fence), (void**)ResourceFence.GetInitReference());
-		}
-		check(ResourceFence.IsValid() || DecoderSync.IsValid());
-	}
-
-	// - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-
 	// Can we wait for the decoder to have the data ready using an async CPU job?
 	bool bTriggerOk = false;
 	if (OutputSync.TaskSync.IsValid())
@@ -363,35 +359,40 @@ void FElectraPlayerVideoDecoderOutputPC::InitializeWithResource(const TRefCountP
 		auto ElectraDecoderResourceDelegate = Electra::FElectraDecoderResourceManagerWindows::GetDelegate();
 
 		// Note: we capture "this" as we ensure that this instance only dies once the copy triggered here is actually done, hence ensuring any reference to "this" is done
-		bTriggerOk = ElectraDecoderResourceDelegate->RunCodeAsync([WeakThis=AsWeak(), DecoderSync, ResourceFence, OutputSync, InResourceDelegate]()
+		bTriggerOk = ElectraDecoderResourceDelegate->RunCodeAsync([D3DCmdList=this->D3DCmdList, D3DFence=this->D3DFence, FenceValue=this->FenceValue, OutputSync, ResourceDelegate = InResourceDelegate.Pin()]()
 			{
-				if (auto This = StaticCastSharedPtr<FElectraPlayerVideoDecoderOutputPC, IDecoderOutputPoolable, ESPMode::ThreadSafe>(WeakThis.Pin()))
-				{
-					if (auto ResourceDelegate = InResourceDelegate.Pin())
-					{
-						This->TriggerDataCopy(DecoderSync, ResourceFence, OutputSync, ResourceDelegate.Get());
-					}
-				}
+				TriggerDataCopy(D3DCmdList, D3DFence, FenceValue, OutputSync, ResourceDelegate.Get());
 			}, OutputSync.TaskSync.Get());
 	}
 
 	if (!bTriggerOk)
 	{
 		// We could not run the trigger async. Schedule the copy right away. Any needed synchronization will be done in the copy-queue by the GPU
-		TriggerDataCopy(DecoderSync, ResourceFence, OutputSync, InResourceDelegate.Pin().Get());
+		TriggerDataCopy(D3DCmdList, D3DFence, FenceValue, OutputSync, InResourceDelegate.Pin().Get());
 	}
 }
 
-#if ALLOW_MFSAMPLE_WITH_DX12
-void FElectraPlayerVideoDecoderOutputPC::TriggerDataCopy(TRefCountPtr<IMFD3D12SynchronizationObjectCommands> DecoderSync, TRefCountPtr<ID3D12Fence> ResourceFence, const FElectraDecoderOutputSync& OutputSync, Electra::IVideoDecoderResourceDelegate* InResourceDelegate) const
-#else
-void FElectraPlayerVideoDecoderOutputPC::TriggerDataCopy(TRefCountPtr<IUnknown> DecoderSync, TRefCountPtr<ID3D12Fence> ResourceFence, const FElectraDecoderOutputSync& OutputSync, Electra::IVideoDecoderResourceDelegate* InResourceDelegate) const
-#endif
+void FElectraPlayerVideoDecoderOutputPC::TriggerDataCopy(TRefCountPtr<ID3D12GraphicsCommandList> D3DCmdList, TRefCountPtr<ID3D12Fence> D3DFence, uint64 FenceValue, const FElectraDecoderOutputSync& OutputSync, Electra::IVideoDecoderResourceDelegate* InResourceDelegate)
 {
 	// Trigger copy (this will eventually execute on the submission thread of RHI if running in UE)
 	// (note: we pass in all of FElectraDecoderOutputSync to guarantee any references needed to make the decoder output sync work are passed along, too!)
-	InResourceDelegate->ExecuteCodeWithCopyCommandQueueUsage([CmdList = D3DCmdList, DestFence = D3DFence, DestFenceValue = FenceValue, DecoderSync, ResourceFence, OutputSync](ID3D12CommandQueue* D3DCmdQueue)
+	InResourceDelegate->ExecuteCodeWithCopyCommandQueueUsage([CmdList = D3DCmdList, DestFence = D3DFence, DestFenceValue = FenceValue, OutputSync](ID3D12CommandQueue* D3DCmdQueue)
 		{
+			TRefCountPtr<ID3D12Fence> ResourceFence;
+	#if ALLOW_MFSAMPLE_WITH_DX12
+			TRefCountPtr<IMFD3D12SynchronizationObjectCommands> DecoderSync;
+	#endif
+
+			if (OutputSync.Sync.IsValid())
+			{
+	#if ALLOW_MFSAMPLE_WITH_DX12
+				if (OutputSync.Sync->QueryInterface(__uuidof(IMFD3D12SynchronizationObjectCommands), (void**)DecoderSync.GetInitReference()) != S_OK)
+	#endif // ALLOW_MFSAMPLE_WITH_DX12
+				{
+					OutputSync.Sync->QueryInterface(__uuidof(ID3D12Fence), (void**)ResourceFence.GetInitReference());
+				}
+			}
+
 	#if ALLOW_MFSAMPLE_WITH_DX12
 			if (DecoderSync)
 			{
@@ -547,6 +548,12 @@ void FElectraPlayerVideoDecoderOutputPC::ShutdownPoolable()
 		lockedVideoRenderer->SampleReleasedToPool(this);
 	}
 
+	// Drop fence (if any)
+	D3DFence = nullptr;
+
+	// Drop decoder output resource
+	DecoderOutputResource = nullptr;
+
 	if (OutputType != EOutputType::HardwareWin8Plus)
 	{
 		return;
@@ -558,11 +565,6 @@ void FElectraPlayerVideoDecoderOutputPC::ShutdownPoolable()
 	{
 		Texture->QueryInterface(__uuidof(IDXGIResource), (void**)&OtherResource);
 	}
-
-	D3DFence = nullptr;
-
-	// Drop decoder output resource
-	DecoderOutputResource = nullptr;
 
 	// Make sure DX11 shared texture sync state is as expected
 	if (OtherResource)

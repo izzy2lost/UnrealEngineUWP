@@ -1166,7 +1166,10 @@ bool FElectraVideoDecoderH264_DX::ConvertDecoderOutput()
 
 		// Request resource and fence...
 		uint32 BufferPitch;
-		D3D12ResourcePool->AllocateOutputDataAsBuffer(NewOutput->Buffer, BufferPitch);
+		if (!D3D12ResourcePool->AllocateOutputDataAsBuffer(NewOutput->Buffer, BufferPitch))
+		{
+			return false;
+		}
 
 		NewOutput->Pitch = BufferPitch;
 

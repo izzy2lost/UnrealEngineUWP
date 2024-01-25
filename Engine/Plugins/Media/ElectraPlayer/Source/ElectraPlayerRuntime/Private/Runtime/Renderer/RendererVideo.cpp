@@ -54,8 +54,6 @@ FElectraRendererVideo::FElectraRendererVideo(TSharedPtr<FElectraPlayer, ESPMode:
 
 FElectraRendererVideo::~FElectraRendererVideo()
 {
-	// Manually delete all images in all queues. Well, the queues will are also deleted automatically.
-	QueueTickedAndWaitingForDecoder.Empty();
 }
 
 
@@ -124,8 +122,6 @@ UEMediaError FElectraRendererVideo::CreateBufferPool(const Electra::FParamDict& 
 		{
 			FVideoDecoderOutputPtr DelayedImage;
 			AcquireFromPool(DelayedImage);
-			QueueTickedAndWaitingForDecoder.Enqueue(DelayedImage);
-
 		}
 		NumBuffers = RequestedNumBuffers;
 	}
@@ -150,28 +146,12 @@ UEMediaError FElectraRendererVideo::AcquireBuffer(IBuffer*& OutBuffer, int32 Tim
 		PinnedPlayer->DropOldFramesFromPresentationQueue();
 	}
 
-	// Check if we have any buffer which we can hand out to the decoder...
-	if (QueueTickedAndWaitingForDecoder.IsEmpty())
-	{
-		// Check GLOBAL number of output textures in flight...
-		if (NumOutputTexturesInUse < NumBuffers)
-		{
-			// Allocate an image from the pool, but do NOT use it immediately because it COULD be still rendering...
-			FVideoDecoderOutputPtr DelayedImage;
-			// Acquire image and with information about how many render frames to wait before usage is possible
-			AcquireFromPool(DelayedImage);
-			QueueTickedAndWaitingForDecoder.Enqueue(DelayedImage);
-		}
-
-		if (QueueTickedAndWaitingForDecoder.IsEmpty())
-		{
-			return UEMEDIA_ERROR_INSUFFICIENT_DATA;
-		}
-	}
-
 	FVideoDecoderOutputPtr DelayedImage;
-	QueueTickedAndWaitingForDecoder.Dequeue(DelayedImage);
-	check(DelayedImage.IsValid());
+	AcquireFromPool(DelayedImage);
+	if (!DelayedImage.IsValid())
+	{
+		return UEMEDIA_ERROR_INSUFFICIENT_DATA;
+	}
 
 	FMediaBufferSharedPtrWrapper* MediaBufferSharedPtrWrapper = new FMediaBufferSharedPtrWrapper(DelayedImage);
 	check(MediaBufferSharedPtrWrapper);
