@@ -41,6 +41,21 @@ struct IKRIG_API FAnimNode_RetargetPoseFromMesh : public FAnimNode_Base
 	/* Copy curves from SouceMeshComponent. This will copy any curves the source/target Skeleton have in common. */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = Settings, meta = (NeverAsPin))
 	bool bCopyCurves = true;
+
+	/*
+	* Max LOD that this node is allowed to run.
+	* For example if you have LODThreshold to be 2, it will run until LOD 2 (based on 0 index) when the component LOD becomes 3, it will stop update/evaluate
+	*/
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = Performance, meta = (DisplayName = "LOD Threshold"))
+	int32 LODThreshold = -1;
+
+	/*
+	* Max LOD that IK is allowed to run.
+	* For example if you have LODThresholdForIK to be 2, it will skip the IK pass on LODs 3 and greater.
+	* This only disables IK and does not affect the Root or FK passes.
+	*/
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = Performance, meta = (DisplayName = "IK LOD Threshold"))
+	int32 LODThresholdForIK = -1;
 	
 	// FAnimNode_Base interface
 	virtual void Initialize_AnyThread(const FAnimationInitializeContext& Context) override;
@@ -49,6 +64,7 @@ struct IKRIG_API FAnimNode_RetargetPoseFromMesh : public FAnimNode_Base
 	virtual void Evaluate_AnyThread(FPoseContext& Output) override;
 	virtual bool HasPreUpdate() const override { return true; }
 	virtual void PreUpdate(const UAnimInstance* InAnimInstance) override;
+	virtual int32 GetLODThreshold() const override { return LODThreshold; }
 	// End of FAnimNode_Base interface
 
 	/** Access to the runtime processor */

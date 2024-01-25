@@ -1007,7 +1007,7 @@ protected:
 	/** return true if enabled, otherwise, return false. This is utility function that can be used per node level */
 	ENGINE_API bool IsLODEnabled(FAnimInstanceProxy* AnimInstanceProxy);
 
-	/** Get the LOD threshold at which this node is enabled. Node is enabled if the current LOD >= threshold. */
+	/** Get the LOD level at which this node is enabled. Node is enabled if the current LOD is less than or equal to this threshold. */
 	virtual int32 GetLODThreshold() const { return INDEX_NONE; }
 
 	/** Called once, from game thread as the parent anim instance is created */
