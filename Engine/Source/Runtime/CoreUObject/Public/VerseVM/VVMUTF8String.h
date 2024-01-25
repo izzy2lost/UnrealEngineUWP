@@ -56,10 +56,10 @@ private:
 	/// There's no virtual destructor since `TLazyInitialized` is never destroyed and this is meant to be a global string pool.
 	VStringInternPool() = default;
 
-	VUniqueString& Intern(FAllocationContext Context, FUtf8StringView String);
+	COREUOBJECT_API VUniqueString& Intern(FAllocationContext Context, FUtf8StringView String);
 
 	/// This gives the string intern pool the ability to conduct census on its own to clear references to the strings.
-	virtual void ConductCensus() override;
+	COREUOBJECT_API virtual void ConductCensus() override;
 
 	// The pool doesn't own the string data, the context does. So these strings are stored as weakrefs.
 	// When the GC conducts a census, this string pool is also cleared of the strings that are unmarked.
@@ -222,7 +222,7 @@ private:
 
 	/// Global unique string table. This has to be wrapped in a `TLazyInitialized` so that the Verse heap is first
 	/// initialized before this attempts to be initialized.
-	static TLazyInitialized<VStringInternPool> StringPool;
+	COREUOBJECT_API static TLazyInitialized<VStringInternPool> StringPool;
 	friend class VStringInternPool;
 };
 
@@ -292,7 +292,7 @@ private:
 
 	/// Global unique string set pool. This has to be wrapped in a `TLazyInitialized` so that the Verse heap is first
 	/// initialized before this attempts to be initialized.
-	static TLazyInitialized<VUniqueStringSetInternPool> Pool;
+	COREUOBJECT_API static TLazyInitialized<VUniqueStringSetInternPool> Pool;
 
 	/// The storage for the actual strings in this given set.
 	SetType Strings;
@@ -356,10 +356,10 @@ private:
 	VUniqueStringSetInternPool() = default;
 
 	/// Retrieves an existing string set from the set pool if it exists or creates a new one and returns it.
-	VUniqueStringSet& Intern(FAllocationContext Context, const TSet<VUniqueString*>& InSet);
+	COREUOBJECT_API VUniqueStringSet& Intern(FAllocationContext Context, const TSet<VUniqueString*>& InSet);
 
 	/// This gives the pool the ability to conduct census on its own to clear references to the sets.
-	virtual void ConductCensus() override;
+	COREUOBJECT_API virtual void ConductCensus() override;
 
 	TSet<TWeakBarrier<VUniqueStringSet>, FHashableUniqueStringSetKeyFuncs> Sets;
 

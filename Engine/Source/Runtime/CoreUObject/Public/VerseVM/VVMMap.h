@@ -49,8 +49,8 @@ struct VMapBaseInternalKeyFuncs : TDefaultMapKeyFuncs<TWriteBarrier<VValue>, TWr
 		});
 	}
 
-	static uint32 GetKeyHash(KeyInitType Key);
-	static uint32 GetKeyHash(VValue Key);
+	COREUOBJECT_API static uint32 GetKeyHash(KeyInitType Key);
+	COREUOBJECT_API static uint32 GetKeyHash(VValue Key);
 };
 using VMapBaseInternal = TMap<TWriteBarrier<VValue>, TWriteBarrier<VValue>, FDefaultSetAllocator, VMapBaseInternalKeyFuncs>;
 
