@@ -81,7 +81,7 @@ namespace UnrealBuildTool
 					Pool = LinuxHordePool;
 				}
 
-				Console.WriteLine("CHOSEN UBA POOL: {0}", Pool);
+				//Console.WriteLine("CHOSEN UBA POOL: {0}", Pool);
 				return Pool;
 			}
 		}
