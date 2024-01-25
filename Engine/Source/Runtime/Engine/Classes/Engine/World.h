@@ -1111,6 +1111,9 @@ public:
 	/** Whether world object has been initialized via Init and has not yet had CleanupWorld called								*/
 	uint8 bIsWorldInitialized:1;
 
+	/** Indicates the the destruction process has begun for this world */
+	uint8 bIsBeingDestroyed:1;
+	
 	/** Is level streaming currently frozen?																					*/
 	uint8 bIsLevelStreamingFrozen:1;
 
