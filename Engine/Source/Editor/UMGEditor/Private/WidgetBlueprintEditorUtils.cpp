@@ -2611,7 +2611,7 @@ float FWidgetBlueprintEditorUtils::GetWidgetPreviewDPIScale(UUserWidget* UserWid
 		}
 	}
 
-	return GetDefault<UUserInterfaceSettings>()->GetDPIScaleBasedOnSize(FIntPoint(PreviewSize.X, PreviewSize.Y));
+	return GetDefault<UUserInterfaceSettings>()->GetDPIScaleBasedOnSize(FIntPoint(FMath::TruncToInt32(PreviewSize.X), FMath::TruncToInt32(PreviewSize.Y)));
 }
 
 
@@ -2809,17 +2809,17 @@ TTuple<float, FVector2D> FWidgetBlueprintEditorUtils::GetThumbnailImageScaleAndO
 	checkf(WidgetSize.X > 0.f && WidgetSize.Y > 0.f, TEXT("The size should have been previously checked to be > 0."));
 
 	float Scale;
-	float XOffset = 0;
-	float YOffset = 0;
+	double XOffset = 0;
+	double YOffset = 0;
 	if (WidgetSize.X > WidgetSize.Y)
 	{
-		Scale = ThumbnailSize.X / WidgetSize.X;
+		Scale = static_cast<float>(ThumbnailSize.X / WidgetSize.X);
 		WidgetSize *= Scale;
 		YOffset = (ThumbnailSize.Y - WidgetSize.Y) / 2.f;
 	}
 	else
 	{
-		Scale = ThumbnailSize.Y / WidgetSize.Y;
+		Scale = static_cast<float>(ThumbnailSize.Y / WidgetSize.Y);
 		WidgetSize *= Scale;
 		XOffset = (ThumbnailSize.X - WidgetSize.X) / 2.f;
 	}
