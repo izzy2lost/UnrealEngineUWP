@@ -1,14 +1,18 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
-using System;
-using System.Collections.Generic;
-using System.Linq;
 using UnrealBuildTool;
+using System.Collections.Generic;
 
 [SupportedPlatforms("Win64", "Mac", "Linux", "LinuxArm64")]
 [SupportedConfigurations(UnrealTargetConfiguration.Debug, UnrealTargetConfiguration.Development, UnrealTargetConfiguration.Shipping)]
 public class CrashReportClientTarget : TargetRules
 {
+	[ConfigFile(ConfigHierarchyType.Engine, "CrashReportClientBuildSettings", "DataRouterFallback")]
+	public string DataRouterFallback;
+		
+	[ConfigFile(ConfigHierarchyType.Engine, "CrashReportClientBuildSettings", "CompanyName")]
+	public string CompanyName;
+	
 	[ConfigFile(ConfigHierarchyType.Engine, "CrashReportClientBuildSettings", "TelemetryUrl")]
 	public string TelemetryUrl;
 
@@ -17,8 +21,11 @@ public class CrashReportClientTarget : TargetRules
 
 	[ConfigFile(ConfigHierarchyType.Engine, "CrashReportClientBuildSettings", "TelemetryKey_Release")]
 	public string TelemetryKey_Release;
+	
+	public CrashReportClientTarget(TargetInfo Target) : this(Target, true)
+	{}
 
-	public CrashReportClientTarget(TargetInfo Target) : base(Target)
+	protected CrashReportClientTarget(TargetInfo Target, bool bSetConfiguredDefinitions) : base(Target)
 	{
 		Type = TargetType.Program;
 		LinkType = TargetLinkType.Monolithic;
@@ -53,22 +60,53 @@ public class CrashReportClientTarget : TargetRules
 		// Need to disable the bundled version of dbghelp so that CrashDebugHelper can load dbgeng.dll.
 		WindowsPlatform.bUseBundledDbgHelp = false;
 
-		// Add the definitions from config files
-		if(!string.IsNullOrWhiteSpace(TelemetryUrl))
-		{
-			AddConfigMacro("CRC_TELEMETRY_URL=", string.Format("\"{0}\"", TelemetryUrl));
-		}
-		AddConfigMacro("CRC_TELEMETRY_KEY_DEV=", string.Format("\"{0}\"", TelemetryKey_Dev));
-		AddConfigMacro("CRC_TELEMETRY_KEY_RELEASE=", string.Format("\"{0}\"", TelemetryKey_Release));
+		// Set the maximum number of cores used
+		GlobalDefinitions.Add("UE_TASKGRAPH_THREAD_LIMIT=5");
 
 		GlobalDefinitions.Add("NOINITCRASHREPORTER=1");
+
+		// Since we can't use virtual calls in the constructor allow, any inheriting type to opt out
+		// of setting these configured definitions
+		if (bSetConfiguredDefinitions)
+		{
+			GlobalDefinitions.AddRange(SetupConfiguredDefines(
+				 DataRouterFallback, CompanyName, TelemetryUrl, TelemetryKey_Dev, TelemetryKey_Release));
+		}
 	}
 
-	void AddConfigMacro(string Prefix, string Value)
+	protected static List<string> SetupConfiguredDefines(
+		string DataRouterFallback, 
+		string CompanyName, 
+		string TelemetryUrl, 
+		string TelemetryKeyDev,
+		string TelemetryKeyRelease)
 	{
-		if (!string.IsNullOrEmpty(Value) && !GlobalDefinitions.Any(x => x.StartsWith(Prefix, StringComparison.Ordinal)))
+		var Definitions = new List<string>();
+		if (!string.IsNullOrEmpty(DataRouterFallback))
 		{
-			GlobalDefinitions.Add(Prefix + Value);
+			Definitions.Add($"CRC_DATAROUTER_FALLBACK=\"{DataRouterFallback}\"");
 		}
+
+		if (!string.IsNullOrEmpty(CompanyName))
+		{
+			Definitions.Add($"CRC_COMPANY_NAME_FALLBACK=\"{CompanyName}\"");
+		}
+
+		if(!string.IsNullOrWhiteSpace(TelemetryUrl))
+		{
+			Definitions.Add($"CRC_TELEMETRY_URL=\"{TelemetryUrl}\"");
+		}
+
+		if (!string.IsNullOrWhiteSpace(TelemetryKeyDev))
+		{
+			Definitions.Add($"CRC_TELEMETRY_KEY_DEV=\"{TelemetryKeyDev}\"");
+		}
+
+		if (!string.IsNullOrWhiteSpace(TelemetryKeyRelease))
+		{
+			Definitions.Add($"CRC_TELEMETRY_KEY_RELEASE=\"{TelemetryKeyRelease}\"");
+		}
+
+		return Definitions;
 	}
 }
