@@ -177,12 +177,12 @@ namespace PluginUtils
 							FString CopyToPath = FPaths::GetPath(NewName);
 
 							NewName = FPaths::Combine(CopyToPath, CleanFilename);
-						}
 
-						// Redirect the template package name to the generated package name to fix up internal references.
-						FString SourcePackageName = ConstructPackageName(SourceRoot, FilenameOrDirectory);
-						FString DestPackageName = ConstructPackageName(DestRoot, *NewName);
-						CoreRedirectList.Add(FCoreRedirect(ECoreRedirectFlags::Type_Package, SourcePackageName, DestPackageName));
+							// Redirect the template package name to the generated package name to fix up internal references.
+							FString SourcePackageName = ConstructPackageName(SourceRoot, FilenameOrDirectory);
+							FString DestPackageName = ConstructPackageName(DestRoot, *NewName);
+							CoreRedirectList.Add(FCoreRedirect(ECoreRedirectFlags::Type_Package, SourcePackageName, DestPackageName));
+						}
 
 						if (PlatformFile.FileExists(*NewName))
 						{
