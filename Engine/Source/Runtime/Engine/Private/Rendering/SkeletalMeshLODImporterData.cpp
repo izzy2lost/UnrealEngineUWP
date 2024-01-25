@@ -1839,12 +1839,25 @@ static void CopySkinWeightsToAttribute(
 			int32 BoneIndex = RawInfluence.BoneIndex;
 			if (InBoneIndexMap)
 			{
-				// The map should be complete.
-				BoneIndex = (*InBoneIndexMap)[BoneIndex];
+				// If we can't map from a source bone to a target bone, we skip the weight. 
+				if (const int32* BoneIndexPtr = InBoneIndexMap->Find(BoneIndex))
+				{
+					BoneIndex = *BoneIndexPtr;
+				}
+				else
+				{
+					continue;
+				}
 			}
 			
 			FBoneWeight BoneWeight(static_cast<FBoneIndexType>(BoneIndex), RawInfluence.Weight);
 			BoneWeights.Add(BoneWeight);
+		}
+
+		if (BoneWeights.IsEmpty())
+		{
+			const FBoneWeight RootBoneWeight(0, 1.0f);
+			BoneWeights.Add(RootBoneWeight);
 		}
 
 		OutSkinWeightsAttribute.Set(InVertexIDMap[VertexIndex], BoneWeights);		
@@ -2009,10 +2022,9 @@ bool FSkeletalMeshImportData::GetMeshDescription(const USkeletalMesh* InSkeletal
 				
 				if (InSkeletalMesh)
 				{
-					UE_ASSET_LOG(LogSkeletalMeshLODImporterData, Display, InSkeletalMesh, TEXT("Alternate influence profile '%s' binds to one or more bones (%s) that do not exist on base mesh's skeleton. Profile will be dropped since it may otherwise introduce visual errors."),
+					UE_ASSET_LOG(LogSkeletalMeshLODImporterData, Display, InSkeletalMesh, TEXT("Alternate influence profile '%s' binds to one or more bones (%s) that do not exist on base mesh's skeleton. Those bone bindings will be dropped, which may reduce visual quality."),
 						*AlternateInfluenceProfileName, *FString::Join(MissingBoneNames, TEXT(", ")));  
 				}
-				continue;
 			}
 
 			if (ensure(MeshAttributes.RegisterSkinWeightAttribute(*AlternateInfluenceProfileName)))
@@ -2335,8 +2347,7 @@ void FSkeletalMeshImportData::CopySkinWeightsToMeshDescription(
 	TMap<int32, int32> AltMeshBoneToBaseBoneMap;
 	for (int32 BoneIndex = 0; BoneIndex < InSkinWeightMesh.RefBonesBinary.Num(); BoneIndex++)
 	{
-		// It's ok if a matching bone isn't in the ref map, as long as it's not bound to the skin. This would have been checked
-		// in GetMeshDescription already.
+		// Any bone not in the base mesh will not get bound. If that results in no bindings for a vertex, the vertex will be bound to the root.
 		if (const int32* BaseBoneIndex = BaseBoneToIndexMap.Find(InSkinWeightMesh.RefBonesBinary[BoneIndex].Name))
 		{
 			AltMeshBoneToBaseBoneMap.Add(BoneIndex, *BaseBoneIndex);

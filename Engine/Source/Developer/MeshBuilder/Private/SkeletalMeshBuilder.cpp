@@ -158,11 +158,20 @@ bool FSkeletalMeshBuilder::Build(const FSkeletalMeshBuildParameters& SkeletalMes
 
 		//Re-apply the alternate skinning it must be after the inline reduction
 		SlowTask.EnterProgressFrame(1.0f, NSLOCTEXT("SkeltalMeshBuilder", "RebuildAlternateSkinning", "Rebuilding alternate skinning..."));
-		const TArray<FSkinWeightProfileInfo>& SkinProfiles = SkeletalMesh->GetSkinWeightProfiles();
+		TArray<FSkinWeightProfileInfo> SkinProfiles = SkeletalMesh->GetSkinWeightProfiles();
 		for (int32 SkinProfileIndex = 0; SkinProfileIndex < SkinProfiles.Num(); ++SkinProfileIndex)
 		{
 			const FSkinWeightProfileInfo& ProfileInfo = SkinProfiles[SkinProfileIndex];
-			FLODUtilities::UpdateAlternateSkinWeights(SkeletalMesh, ProfileInfo.Name, LODIndex, Options);
+			if (!FLODUtilities::UpdateAlternateSkinWeights(SkeletalMesh, ProfileInfo.Name, LODIndex, Options))
+			{
+				// If we failed to update the profile, remove it from the skeletal mesh so that we don't try to rely on it being there
+				// later on in the mesh build.
+				SkeletalMesh->GetSkinWeightProfiles().RemoveAll([Name=ProfileInfo.Name](const FSkinWeightProfileInfo& InProfileInfo)
+				{
+					return InProfileInfo.Name == Name;
+				});
+				BuildLODModel.SkinWeightProfiles.Remove(ProfileInfo.Name);
+			}
 		}
 
 		// Copy vertex attribute definitions and their values from the import model.

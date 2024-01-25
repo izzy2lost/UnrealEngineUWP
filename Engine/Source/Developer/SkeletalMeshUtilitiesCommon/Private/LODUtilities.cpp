@@ -2329,7 +2329,7 @@ bool FLODUtilities::UpdateAlternateSkinWeights(
 		FText Message = FText::Format(NSLOCTEXT("FLODUtilities_UpdateAlternateSkinWeights", "AlternateDataNotAvailable", 
 			"Asset {SkeletalMeshName} LOD {LODIndex} failed to import skin weight profile {ProfileName}. The alternate skinning imported source data is not available."), 
 			Args);
-		UE_LOG(LogLODUtilities, Warning, TEXT("%s"), *(Message.ToString()));
+		UE_LOG(LogLODUtilities, Display, TEXT("%s"), *(Message.ToString()));
 		return false;
 	}
 
