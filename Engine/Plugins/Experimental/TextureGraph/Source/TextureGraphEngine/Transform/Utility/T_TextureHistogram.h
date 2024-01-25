@@ -67,10 +67,11 @@ public:
 	T_TextureHistogram();
 	~T_TextureHistogram();
 
-	static TiledBlobPtr	Create(UMixInterface* InMix, TiledBlobPtr SourceTex, int32 TargetId);
-	static void AddHistogramJobToCycle(MixUpdateCyclePtr Cycle, JobUPtr Job, int32 TargetId, UMixInterface* Mix);
-	
+	static TiledBlobPtr	Create(MixUpdateCyclePtr Cycle, TiledBlobPtr SourceTex, int32 TargetId);
+
+	static TiledBlobPtr	CreateOnService(UMixInterface* InMix, TiledBlobPtr SourceTex, int32 TargetId);
+
 private:
-	static TiledBlobPtr GetMaxValueForHistogram(MixUpdateCyclePtr Cycle, TiledBlobPtr Histogram, int32 TargetId);
 	static RenderMaterial_FXPtr CreateMaterial_Histogram(FString Name, FString OutputId, const CSH_Histogram::FPermutationDomain& cmpshPermutationDomain,int NumThreadsX, int NumThreadsY, int NumThreadsZ = 1);
+	static TiledBlobPtr			CreateJobAndResult(JobUPtr& OutJob, MixUpdateCyclePtr Cycle, TiledBlobPtr Histogram, int32 TargetId);
 };

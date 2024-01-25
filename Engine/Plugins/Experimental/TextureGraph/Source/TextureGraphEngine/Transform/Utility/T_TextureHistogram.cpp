@@ -37,21 +37,10 @@ RenderMaterial_FXPtr T_TextureHistogram::CreateMaterial_Histogram(FString Name, 
 	return std::make_shared<RenderMaterial_FX>(Name, std::static_pointer_cast<FxMaterial>(Mat));
 }
 
-TiledBlobPtr T_TextureHistogram::Create(UMixInterface* InMix, TiledBlobPtr SourceTex, int32 TargetId)
+
+TiledBlobPtr T_TextureHistogram::CreateJobAndResult(JobUPtr& OutJob, MixUpdateCyclePtr Cycle, TiledBlobPtr SourceTex, int32 TargetId)
 {
-	if (SourceTex->HasHistogram())
-	{
-		TiledBlobPtr SourceHistogram = std::static_pointer_cast<TiledBlob>(SourceTex->GetHistogram());
-		return SourceHistogram;
-	}
-
-	check(SourceTex);
-	check(!SourceTex->IsTransient());
-
-	HistogramServicePtr Service = TextureGraphEngine::GetScheduler()->GetHistogramService().lock();
-	check(Service);
-
-	JobBatchPtr Batch = Service->GetOrCreateNewBatch(InMix);
+	check(!SourceTex->HasHistogram())
 
 	CSH_Histogram::FPermutationDomain PermutationVector;
 
@@ -61,8 +50,8 @@ TiledBlobPtr T_TextureHistogram::Create(UMixInterface* InMix, TiledBlobPtr Sourc
 	RenderMaterial_FXPtr Transform = T_TextureHistogram::CreateMaterial_Histogram(
 		TEXT("T_Histogram"), TEXT("Result"), PermutationVector, SrcDimensions.X, SrcDimensions.Y, 1);
 
-	JobUPtr JobObj = std::make_unique<Job>(InMix, TargetId, std::static_pointer_cast<BlobTransform>(Transform));
-	JobObj->AddArg(ARG_BLOB(SourceTex, "SourceTiles"));
+	OutJob = std::make_unique<Job>(Cycle->GetMix(), TargetId, std::static_pointer_cast<BlobTransform>(Transform));
+	OutJob->AddArg(ARG_BLOB(SourceTex, "SourceTiles"));
 
 	BufferDescriptor Desc;
 	Desc.Width = NumBins;
@@ -72,34 +61,60 @@ TiledBlobPtr T_TextureHistogram::Create(UMixInterface* InMix, TiledBlobPtr Sourc
 	Desc.Name = FString::Printf(TEXT("Histogram - %s"), *SourceTex->Name());
 	Desc.AllowUAV();
 
-	JobObj->SetTiled(false);
+	OutJob->SetTiled(false);
 
-	TiledBlobPtr Result = JobObj->InitResult(Name, &Desc,1,1);
+	TiledBlobPtr Result = OutJob->InitResult(Name, &Desc, 1, 1);
 
 	Result->MakeSingleBlob();
 
-	//Add the job using histogram idle service
-	AddHistogramJobToCycle(Batch->GetCycle(),std::move(JobObj), TargetId, InMix);
 
 	if (!SourceTex->HasHistogram())
 	{
 		//setting it as the histogram of source so it is retained untill the life cycle of source blob.
 		SourceTex->SetHistogram(Result);
 	}
+	return Result;
+}
+
+TiledBlobPtr T_TextureHistogram::Create(MixUpdateCyclePtr Cycle, TiledBlobPtr SourceTex, int32 TargetId)
+{
+	if (SourceTex->HasHistogram())
+	{
+		TiledBlobPtr SourceHistogram = std::static_pointer_cast<TiledBlob>(SourceTex->GetHistogram());
+		return SourceHistogram;
+	}
+
+	JobUPtr JobObj;
+	TiledBlobPtr Result = CreateJobAndResult(JobObj, Cycle, SourceTex, TargetId);
+
+	Cycle->AddJob(TargetId, std::move(JobObj));
 
 	return Result;
 }
 
-void T_TextureHistogram::AddHistogramJobToCycle(MixUpdateCyclePtr Cycle, JobUPtr Job, int32 TargetId,UMixInterface* Mix)
+TiledBlobPtr T_TextureHistogram::CreateOnService(UMixInterface* InMix, TiledBlobPtr SourceTex, int32 TargetId)
 {
+	if (SourceTex->HasHistogram())
+	{
+		TiledBlobPtr SourceHistogram = std::static_pointer_cast<TiledBlob>(SourceTex->GetHistogram());
+		return SourceHistogram;
+	}
+
+	check(InMix);
+	check(SourceTex);
+	check(!SourceTex->IsTransient());
+
 	HistogramServicePtr Service = TextureGraphEngine::GetScheduler()->GetHistogramService().lock();
+	check(Service);
 
-	if (!Service)
-		return;
+	JobBatchPtr Batch = Service->GetOrCreateNewBatch(InMix);
 
-	//TODO get rid of mix here and use Null Mix instead
-	UMixInterface* mix = Job->GetMix();
-	check(mix);
+	JobUPtr JobObj;
+	TiledBlobPtr Result = CreateJobAndResult(JobObj, Batch->GetCycle(), SourceTex, TargetId);
 
-	Service->AddHistogramJob(Cycle,std::move(Job), TargetId,Mix);
+	//Add the job using histogram idle service
+	//TODO: get rid of mix here and use Null Mix instead
+	Service->AddHistogramJob(Batch->GetCycle(), std::move(JobObj), TargetId, InMix);
+
+	return Result;
 }

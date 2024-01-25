@@ -37,17 +37,48 @@ void CSH_Histogram(
 
 	GroupMemoryBarrierWithGroupSync();
 
-	if(GroupIndex == 0)
+	if (GroupIndex == 0)
 	{
+		// Now only in first group, let's go through the histogram bins SEQUENTIALLY and extract the min and max count and min and max values
+		float4 MinCount = float4(MAX_flt,MAX_flt,MAX_flt,MAX_flt);
+		float4 MaxCount = float4(0,0,0,0);
+		
 		float4 MinValue = float4(MAX_flt,MAX_flt,MAX_flt,MAX_flt);
-		float4 MaxValue = float4(0,0,0,0);
+		float4 MaxValue = float4(0, 0, 0, 0);
+			
 		LOOP for(uint y = 0; y < 256 ; y++)
-		{
-			MinValue = min(Histogram[y],MinValue);
-			MaxValue = max(Histogram[y],MaxValue);
-			Result[uint2(y,0)] = float4(Histogram[y].r,Histogram[y].g,Histogram[y].b,Histogram[y].a);
+		{		
+			
+			float4 HistogramVal = float4(Histogram[y]);
+	
+			MinCount = min(HistogramVal, MinCount);
+			MaxCount = max(HistogramVal, MaxCount);
+			
+			Result[uint2(y,0)] = HistogramVal;
+			
+			if (any(HistogramVal))
+			{
+				// Assigned min value for the first HistogramVal found, never after
+				MinValue.x = (MinValue.x != MAX_flt ? MinValue.x : (HistogramVal.x == 0 ? MAX_flt : y) );
+				MinValue.y = (MinValue.y != MAX_flt ? MinValue.y : (HistogramVal.y == 0 ? MAX_flt : y) );
+				MinValue.z = (MinValue.z != MAX_flt ? MinValue.z : (HistogramVal.z == 0 ? MAX_flt : y) );
+				MinValue.w = (MinValue.w != MAX_flt ? MinValue.w : (HistogramVal.w == 0 ? MAX_flt : y) );
+				
+				// Assigned max value, always the current Y of the loop if the Histogram is not 0.
+				MaxValue.x = (HistogramVal.x == 0 ? MaxValue.x : y + 1); 
+				MaxValue.y = (HistogramVal.y == 0 ? MaxValue.y : y + 1); 
+				MaxValue.z = (HistogramVal.z == 0 ? MaxValue.z : y + 1); 
+				MaxValue.w = (HistogramVal.w == 0 ? MaxValue.w : y + 1); 
+			}			
 		}
-		Result[uint2(0,1)] = MinValue;//2nd row first pixel is the min value
-		Result[uint2(1,1)] = MaxValue;//2nd row second pixel is the max value
+		
+		MaxValue = max(MaxValue, MinValue); // Make sure Max was assigned and coherent with min
+		MinValue /= 256.0;
+		MaxValue /= 256.0;
+		
+		Result[uint2(0,1)] = MinCount;//2nd row first pixel is the min count
+		Result[uint2(1,1)] = MaxCount;//2nd row second pixel is the max count
+		Result[uint2(2,1)] = MinValue;//2nd row third pixel is the min value
+		Result[uint2(3,1)] = MaxValue;//2nd row fourth pixel is the max value
 	}
 }
