@@ -6,6 +6,7 @@
 #include "MetasoundFacade.h"
 #include "MetasoundNodeInterface.h"
 #include "MetasoundNodeRegistrationMacro.h"
+#include "MetasoundOperatorInterface.h"
 #include "MetasoundParamHelper.h"
 #include "MetasoundStandardNodesCategories.h"
 
@@ -267,6 +268,11 @@ namespace HarmonixMetasound
 			}
 		}
 
+		void Reset(const IOperator::FResetParams& Params)
+		{
+			RenderTasks.Empty(NUM_SAMPLERS);
+		}
+		
 		void Execute()
 		{
 			RenderTasks.Empty(NUM_SAMPLERS);
