@@ -1564,7 +1564,8 @@ namespace UnrealBuildTool
 		/// </summary>
 		public void SetupModuleChaosVisualDebuggerSupport(ReadOnlyTargetRules target)
 		{
-			bool bHasChaosVisualDebuggerSupport = target.bCompileChaosVisualDebuggerSupport && target.Configuration != UnrealTargetConfiguration.Shipping;
+			//TODO: Emit some form of warning if CVD support is explicitly enabled, but UE Trace is disabled
+			bool bHasChaosVisualDebuggerSupport = target.bCompileChaosVisualDebuggerSupport && target.Configuration != UnrealTargetConfiguration.Shipping && target.bEnableTrace;
 			if (bHasChaosVisualDebuggerSupport)
 			{
 				PublicDependencyModuleNames.Add("ChaosVDRuntime");
