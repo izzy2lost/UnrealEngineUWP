@@ -868,13 +868,14 @@ void FSkeletalMeshLODRenderData::SerializeStreamedData(FArchive& Ar, USkinnedAss
 	
 	if (Ar.CustomVer(FFortniteMainBranchObjectVersion::GUID) >= FFortniteMainBranchObjectVersion::SkeletalHalfEdgeData)
 	{
-		uint8 MeshDeformerStripFlag = 0;
+		uint8 ClassStripFlag = 0;
+		const uint8 MeshDeformerStripFlag = 1;
 		if (Ar.IsCooking() && !IsMeshDeformerSupportedByCookTargetPlatform(*Ar.CookingTarget()))
 		{
-			MeshDeformerStripFlag = 1;
+			ClassStripFlag |= MeshDeformerStripFlag;
 		}
-
-		FStripDataFlags MeshDeformerStripFlags(Ar, MeshDeformerStripFlag);
+		
+		FStripDataFlags MeshDeformerStripFlags(Ar, ClassStripFlag);
 		
 		if (!MeshDeformerStripFlags.IsClassDataStripped(MeshDeformerStripFlag))
 		{
