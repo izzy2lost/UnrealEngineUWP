@@ -30,6 +30,12 @@ static void PrepareMeshMaterialShaderCompileJob(EShaderPlatform Platform,
 	NewJob->bIsDefaultMaterial = Material->IsDefaultMaterial();
 	NewJob->bIsGlobalShader = false;
 
+	static IConsoleVariable* CVarShaderDevMode = IConsoleManager::Get().FindConsoleVariable(TEXT("r.ShaderDevelopmentMode"));
+	if (CVarShaderDevMode && CVarShaderDevMode->GetInt() != 0)
+	{
+		NewJob->bErrorsAreLikelyToBeCode = true;
+	}
+
 	const FMaterialShaderParameters MaterialParameters(Material);
 
 	// apply the vertex factory changes to the compile environment
