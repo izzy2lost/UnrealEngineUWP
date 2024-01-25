@@ -150,6 +150,7 @@ namespace uba
 		return true;
 	}
 
+#if PLATFORM_MAC
 	bool ExecuteCommand(LoggerWithWriter& logger, const tchar* command, StringBufferBase& commandOutput)
 	{
 		FILE* fpCommand = popen(command, "r");
@@ -167,7 +168,8 @@ namespace uba
 		}
 		return true;
 	}
-	
+#endif
+
 	bool RunClang(LoggerWithWriter& logger, SessionServer& session, const tchar* workingDir, const RunProcessFunction& runProcess)
 	{
 		StringBuffer<> sourceFile;

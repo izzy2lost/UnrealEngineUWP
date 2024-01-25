@@ -109,7 +109,7 @@ static void __attribute__((constructor(102))) PreInitCtor()
 	u8* comMem = rptr + sizeof(Event) * 3;
 
 	g_readMessageMappingMem = comMem;
-	g_writeMessageMappingMem = comMem + bytesToMap / 2;
+	g_writeMessageMappingMem = comMem;// +bytesToMap / 2;
 
 	#if 0 // TODO: For some reason this does not work
 	struct sigaction sa;
@@ -165,7 +165,7 @@ namespace uba
 	{
 		m_begin = g_writeMessageMappingMem;
 		m_pos = m_begin;
-		m_end = m_begin + CommunicationMemSize/2;
+		m_end = m_begin + CommunicationMemSize;// / 2;
 	}
 
 	void BinaryWriter::Flush(bool waitOnResponse)
@@ -194,6 +194,6 @@ namespace uba
 	{
 		m_begin = g_readMessageMappingMem;
 		m_pos = m_begin;
-		m_end = m_begin + CommunicationMemSize/2;
+		m_end = m_begin + CommunicationMemSize;// / 2;
 	}
 }

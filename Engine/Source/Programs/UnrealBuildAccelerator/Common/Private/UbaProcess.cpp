@@ -329,7 +329,7 @@ namespace uba
 		#endif
 
 		u8* writeMemory = comMemory;
-		u8* readMemory = comMemory + CommunicationMemSize / 2;
+		u8* readMemory = comMemory;// +CommunicationMemSize / 2;
 
 		u32 retryCount = 0; // Do not allow retry
 
@@ -346,7 +346,7 @@ namespace uba
 				u64 startTime = GetTime();
 				BinaryReader reader(readMemory);
 				BinaryWriter writer(writeMemory);
-				loop = HandleMessage(reader, writer, readMemory);
+				loop = HandleMessage(reader, writer);
 				SetWritten();
 				m_processStats.hostTotalTime += GetTime() - startTime;
 				++m_messageCount;
@@ -442,7 +442,7 @@ namespace uba
 		}
 	}
 
-	bool ProcessImpl::HandleMessage(BinaryReader& reader, BinaryWriter& writer, void* readStream)
+	bool ProcessImpl::HandleMessage(BinaryReader& reader, BinaryWriter& writer)
 	{
 		MessageType messageType = (MessageType)reader.ReadByte();
 		switch (messageType)
