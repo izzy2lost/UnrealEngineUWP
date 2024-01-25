@@ -19,6 +19,7 @@
 #include "Misc/StringBuilder.h"
 #include "RHI.h"
 #include "RHIDefinitions.h"
+#include "Serialization/MemoryHasher.h"
 #include "Serialization/MemoryImage.h"
 #include "Serialization/MemoryLayout.h"
 #include "Templates/AlignmentTemplates.h"
@@ -251,8 +252,6 @@ public:
 			return ElementSize;
 		}
 
-		void SerializeLayout(FArchive& Ar);
-
 		static RENDERCORE_API void GenerateShaderParameterType(
 			FString& Result,
 			bool bSupportsPrecisionModifier,
@@ -265,6 +264,10 @@ public:
 		RENDERCORE_API void GenerateShaderParameterType(FString& Result, EShaderPlatform ShaderPlatform) const;
 
 	private:
+		friend class FShaderParametersMetadata;
+#if WITH_EDITOR
+		void HashLayout(FMemoryHasherBlake3& SignatureData);
+#endif
 
 		const TCHAR* Name;
 		const TCHAR* ShaderType;
@@ -391,7 +394,30 @@ public:
 		return LayoutHash;	
 	}
 
-	void SerializeLayout(FArchive& Ar);
+#if WITH_EDITOR
+	inline void AppendKeyString(FString& OutKeyString) const
+	{
+		TStringBuilder<sizeof(TCHAR) * (sizeof(FBlake3Hash::ByteArray) * 2 + 4)> StrBuilder;
+		StrBuilder << "SPM_";
+		StrBuilder << LayoutSignature;
+		OutKeyString.Append(StrBuilder.ToView());
+	}
+#endif
+
+	inline const FBlake3Hash& GetLayoutSignature() const
+	{
+#if WITH_EDITOR
+		check(IsLayoutInitialized());
+		return LayoutSignature;
+#else
+		// shader compilation types & WITH_EDITOR is a massive mess upstream; this should never actually be called outside of the editor
+		// but actually compiling the function out is a headache, so we instead just assert if it's called 
+		checkNoEntry();
+		static FBlake3Hash Dummy;
+		return Dummy;
+#endif
+	}
+
 
 	/** Iterate recursively over all FShaderParametersMetadata. */
 	template<typename TParameterFunction>
@@ -468,6 +494,13 @@ private:
 
 	/** Hash about the entire memory layout of the structure. */
 	uint32 LayoutHash = 0;
+
+#if WITH_EDITOR
+	void HashLayout(FMemoryHasherBlake3& SignatureData);
+	
+	/** Strong persistable hash representing the binary layout of the entire parameter structure */
+	FBlake3Hash LayoutSignature;
+#endif
 
 	/** Additional flags for how to use the buffer */
 	uint32 UsageFlags = 0;

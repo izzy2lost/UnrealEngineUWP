@@ -3125,7 +3125,7 @@ void AppendKeyStringShaderDependencies(
 
 		if (const FShaderParametersMetadata* ParameterStructMetadata = ShaderType->GetRootParametersMetadata())
 		{
-			OutKeyString.Appendf(TEXT("%08x"), ParameterStructMetadata->GetLayoutHash());
+			ParameterStructMetadata->AppendKeyString(OutKeyString);
 		}
 
 		const FSHAHash LayoutHash = GetShaderTypeLayoutHash(ShaderType->GetLayout(), LayoutParams);
@@ -3155,7 +3155,7 @@ void AppendKeyStringShaderDependencies(
 		{
 			if (const FShaderParametersMetadata* ParameterStructMetadata = ShaderType->GetRootParametersMetadata())
 			{
-				OutKeyString.Appendf(TEXT("%08x"), ParameterStructMetadata->GetLayoutHash());
+				ParameterStructMetadata->AppendKeyString(OutKeyString);
 			}
 
 			for (const TCHAR* UniformBufferName : ShaderType->GetReferencedUniformBufferNames())
@@ -3195,11 +3195,6 @@ void AppendKeyStringShaderDependencies(
 	}
 
 	{
-		TArray<uint8> TempData;
-		FSerializationHistory SerializationHistory;
-		FMemoryWriter Ar(TempData, true);
-		FShaderSaveArchive SaveArchive(Ar, SerializationHistory);
-
 		TArray<const TCHAR*> SortedUniformBufferNames = ReferencedUniformBufferNames.Array();
 		Algo::Sort(SortedUniformBufferNames, FUniformBufferNameSortOrder());
 
@@ -3207,10 +3202,8 @@ void AppendKeyStringShaderDependencies(
 		for (const TCHAR* UniformBufferName : SortedUniformBufferNames)
 		{
 			FShaderParametersMetadata* UniformBufferMetadata = FindUniformBufferStructByName(UniformBufferName);
-			UniformBufferMetadata->SerializeLayout(SaveArchive);
+			UniformBufferMetadata->AppendKeyString(OutKeyString);
 		}
-
-		SerializationHistory.AppendKeyString(OutKeyString);
 	}
 }
 
@@ -3611,7 +3604,8 @@ FShaderCommonCompileJob::FInputHash FShaderCompileJob::GetInputHash()
 
 		if (Input.RootParametersStructure)
 		{
-			const_cast<FShaderParametersMetadata*>(Input.RootParametersStructure)->SerializeLayout(Hasher);
+			FBlake3Hash LayoutSignature = Input.RootParametersStructure->GetLayoutSignature();
+			Hasher << LayoutSignature;
 		}
 
 		InputHash = Hasher.Finalize();
@@ -3636,7 +3630,8 @@ FShaderCommonCompileJob::FInputHash FShaderCompileJob::GetInputHash()
 
 			if (Input.RootParametersStructure)
 			{
-				const_cast<FShaderParametersMetadata*>(Input.RootParametersStructure)->SerializeLayout(Archive);
+				FBlake3Hash LayoutSignature = Input.RootParametersStructure->GetLayoutSignature();
+				Archive << LayoutSignature;
 			}
 
 			// hash the source file so changes to files during the development are picked up

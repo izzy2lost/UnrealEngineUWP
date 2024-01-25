@@ -567,7 +567,8 @@ public:
 };
 
 /** Encapsulates information about a shader's serialization behavior, used to detect when C++ serialization changes to auto-recompile. */
-class FSerializationHistory
+
+class UE_DEPRECATED(5.4, "FSerializationHistory is no longer used and will be removed") FSerializationHistory 
 {
 public: 
 
@@ -2426,164 +2427,48 @@ public:
 };
 
 /** Tracks state when traversing a FSerializationHistory. */
-class FSerializationHistoryTraversalState
+class UE_DEPRECATED(5.4, "FSerializationHistoryTraversalState is no longer used and will be removed") FSerializationHistoryTraversalState
 {
 public:
-
-	const FSerializationHistory& History;
-	int32 NextTokenIndex;
-	int32 NextFullLengthIndex;
-
-	FSerializationHistoryTraversalState(const FSerializationHistory& InHistory) :
-		History(InHistory),
-		NextTokenIndex(0),
-		NextFullLengthIndex(0)
+	PRAGMA_DISABLE_DEPRECATION_WARNINGS
+	FSerializationHistoryTraversalState(const FSerializationHistory& InHistory)
+	PRAGMA_ENABLE_DEPRECATION_WARNINGS
 	{}
 
 	/** Gets the length value from NextTokenIndex + Offset into history. */
 	uint32 GetValue(int32 Offset)
 	{
-		int32 CurrentOffset = Offset;
-
-		// Move to the desired offset
-		while (CurrentOffset > 0)
-		{
-			StepForward();
-			CurrentOffset--;
-		}
-
-		while (CurrentOffset < 0)
-		{
-			StepBackward();
-			CurrentOffset++;
-		}
-		check(CurrentOffset == 0);
-
-		// Decode
-		const int8 Token = History.GetToken(NextTokenIndex);
-		const uint32 Value = Token == 0 ? History.FullLengths[NextFullLengthIndex] : (int32)Token;
-
-		// Restore state
-		while (CurrentOffset < Offset)
-		{
-			StepBackward();
-			CurrentOffset++;
-		}
-
-		while (CurrentOffset > Offset)
-		{
-			StepForward();
-			CurrentOffset--;
-		}
-		check(CurrentOffset == Offset);
-
-		return Value;
+		return 0;
 	}
 
 	FORCEINLINE void StepForward()
 	{
-		const int8 Token = History.GetToken(NextTokenIndex);
-
-		if (Token == 0)
-		{
-			checkSlow(NextFullLengthIndex - 1 < History.FullLengths.Num());
-			NextFullLengthIndex++;
-		}
-
-		// Not supporting seeking past the front most serialization in the history
-		checkSlow(NextTokenIndex - 1 < History.NumTokens);
-		NextTokenIndex++;
 	}
 
 	void StepBackward()
 	{
-		// Not supporting seeking outside of the history tracked
-		check(NextTokenIndex > 0);
-		NextTokenIndex--;
-
-		const int8 Token = History.GetToken(NextTokenIndex);
-
-		if (Token == 0)
-		{
-			check(NextFullLengthIndex > 0);
-			NextFullLengthIndex--;
-		}
 	}
 };
 
 /** Archive used when saving shaders, which generates data used to detect serialization mismatches on load. */
-class FShaderSaveArchive final : public FArchiveProxy
+class UE_DEPRECATED(5.4, "FShaderSaveArchive is no longer used and will be removed") FShaderSaveArchive final : public FArchiveProxy
 {
 public:
 
+	PRAGMA_DISABLE_DEPRECATION_WARNINGS
 	FShaderSaveArchive(FArchive& Archive, FSerializationHistory& InHistory) : 
-		FArchiveProxy(Archive),
-		HistoryTraversalState(InHistory),
-		History(InHistory)
+		FArchiveProxy(Archive)
+	PRAGMA_ENABLE_DEPRECATION_WARNINGS
 	{
-		OriginalPosition = Archive.Tell();
 	}
 
 	virtual ~FShaderSaveArchive()
 	{
-		// Seek back to the original archive position so we can undo any serializations that went through this archive
-		InnerArchive.Seek(OriginalPosition);
 	}
 
 	virtual void Serialize( void* V, int64 Length )
 	{
-		if (HistoryTraversalState.NextTokenIndex < HistoryTraversalState.History.NumTokens)
-		{
-			// We are no longer appending (due to a seek), make sure writes match up in size with what's already been written
-			check(Length == HistoryTraversalState.GetValue(0));
-		}
-		else
-		{
-			// Appending to the archive, track the size of this serialization
-			check(Length >= 0 && Length <= TNumericLimits<uint32>::Max());
-			History.AddValue((uint32)Length);
-		}
-		HistoryTraversalState.StepForward();
-		
-		if (V)
-		{
-			FArchiveProxy::Serialize(V, Length);
-		}
 	}
-
-	virtual void Seek( int64 InPos )
-	{
-		int64 Offset = InPos - Tell();
-		if (Offset <= 0)
-		{
-			// We're seeking backward, walk backward through the serialization history while updating NextSerialization
-			while (Offset < 0)
-			{
-				Offset += HistoryTraversalState.GetValue(-1);
-				HistoryTraversalState.StepBackward();
-			}
-		}
-		else
-		{
-			// We're seeking forward, walk forward through the serialization history while updating NextSerialization
-			while (Offset > 0)
-			{
-				Offset -= HistoryTraversalState.GetValue(-1);
-				HistoryTraversalState.StepForward();
-			}
-			HistoryTraversalState.StepForward();
-		}
-		check(Offset == 0);
-		
-		FArchiveProxy::Seek(InPos);
-	}
-
-	FSerializationHistoryTraversalState HistoryTraversalState;
-	FSerializationHistory& History;
-
-private:
-	/** Stored off position of the original archive we are wrapping. */
-	int64 OriginalPosition;
 };
 
 /**
