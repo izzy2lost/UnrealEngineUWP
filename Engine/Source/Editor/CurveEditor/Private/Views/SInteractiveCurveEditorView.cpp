@@ -170,7 +170,7 @@ FText SInteractiveCurveEditorView::GetCurveCaption() const
 	if (!CurveCaption.IdenticalTo(CachedCurveCaption))
 	{
 		CachedCurveCaption = CurveCaption;
-		const_cast<SInteractiveCurveEditorView*>(this)->RefreshRetainer();
+		bNeedsRefresh = true;
 	}
 
 	return CurveCaption;
@@ -196,7 +196,7 @@ FSlateColor SInteractiveCurveEditorView::GetCurveCaptionColor() const
 	if (CurveCaptionColor != CachedCurveCaptionColor)
 	{
 		CachedCurveCaptionColor = CurveCaptionColor;
-		const_cast<SInteractiveCurveEditorView*>(this)->RefreshRetainer();
+		bNeedsRefresh = true;
 	}
 
 	return CurveCaptionColor;
@@ -235,6 +235,19 @@ void SInteractiveCurveEditorView::GetGridLinesY(TSharedRef<const FCurveEditor> C
 	{
 		CurveEditor::ConstructFixedYGridLines(GetViewSpace(), 4, GridLineSpacing.GetValue(), MajorGridLines, MinorGridLines, CurveEditor->GetGridLineLabelFormatYAttribute().Get(), MajorGridLabels, TOptional<double>(), TOptional<double>());
 	}
+}
+
+
+void SInteractiveCurveEditorView::Tick(const FGeometry& AllottedGeometry, const double InCurrentTime, const float InDeltaTime)
+{
+	if (bNeedsRefresh)
+	{
+		bNeedsRefresh = false;
+
+		RefreshRetainer();
+	}
+
+	SCurveEditorView::Tick(AllottedGeometry, InCurrentTime, InDeltaTime);
 }
 
 int32 SInteractiveCurveEditorView::OnPaint(const FPaintArgs& Args, const FGeometry& AllottedGeometry, const FSlateRect& MyCullingRect, FSlateWindowElementList& OutDrawElements, int32 BaseLayerId, const FWidgetStyle& InWidgetStyle, bool bParentEnabled) const
