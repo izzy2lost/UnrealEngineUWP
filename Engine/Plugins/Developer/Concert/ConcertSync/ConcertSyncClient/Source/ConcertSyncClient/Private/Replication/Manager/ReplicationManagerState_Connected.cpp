@@ -43,13 +43,13 @@ namespace UE::ConcertSyncClient::Replication
 		TEXT("Whether the client should pretend that authority change requests were rejected.")
 		);
 
-	TAutoConsoleVariable<bool> CVarLogStreamRequestsAndResponses(
-		TEXT("Concert.Replication.LogStreamRequestsAndResponses"),
+	TAutoConsoleVariable<bool> CVarLogStreamRequestsAndResponsesOnClient(
+		TEXT("Concert.Replication.LogStreamRequestsAndResponsesOnClient"),
 		false,
 		TEXT("Whether to log changes to streams.")
 		);
-	TAutoConsoleVariable<bool> CVarLogAuthorityRequestsAndResponses(
-		TEXT("Concert.Replication.LogStreamRequestsAndResponses"),
+	TAutoConsoleVariable<bool> CVarLogAuthorityRequestsAndResponsesOnClient(
+		TEXT("Concert.Replication.LogAuthorityRequestsAndResponsesOnClient"),
 		false,
 		TEXT("Whether to log changes to authority.")
 		);
@@ -146,11 +146,11 @@ namespace UE::ConcertSyncClient::Replication
 		// At that point, it will log errors for receiving replication data from a client without authority.
 		HandleReleasingReplicatedObjects(Args);
 
-		Private::LogNetworkMessage(CVarLogAuthorityRequestsAndResponses, Args);
+		Private::LogNetworkMessage(CVarLogAuthorityRequestsAndResponsesOnClient, Args);
 		return LiveSession->SendCustomRequest<FConcertReplication_ChangeAuthority_Request, FConcertReplication_ChangeAuthority_Response>(Args, LiveSession->GetSessionServerEndpointId())
 			.Next([WeakThis = TWeakPtr<FReplicationManagerState_Connected>(SharedThis(this)), Args](FConcertReplication_ChangeAuthority_Response&& Response) mutable
 			{
-				Private::LogNetworkMessage(CVarLogAuthorityRequestsAndResponses, Response);
+				Private::LogNetworkMessage(CVarLogAuthorityRequestsAndResponsesOnClient, Response);
 				
 				if (const TSharedPtr<FReplicationManagerState_Connected> ThisPin = WeakThis.Pin()
 					; ThisPin && Response.ErrorCode == EReplicationResponseErrorCode::Handled)
@@ -198,11 +198,11 @@ namespace UE::ConcertSyncClient::Replication
 		// At that point, it will log errors for receiving replication data from a client without authority.
 		HandleRemovingReplicatedObjects(Args);
 		
-		Private::LogNetworkMessage(CVarLogStreamRequestsAndResponses, Args);
+		Private::LogNetworkMessage(CVarLogStreamRequestsAndResponsesOnClient, Args);
 		return LiveSession->SendCustomRequest<FConcertReplication_ChangeStream_Request, FConcertReplication_ChangeStream_Response>(Args, LiveSession->GetSessionServerEndpointId())
 			.Next([WeakThis = TWeakPtr<FReplicationManagerState_Connected>(SharedThis(this)), Args](FConcertReplication_ChangeStream_Response&& Response)
 			{
-				Private::LogNetworkMessage(CVarLogStreamRequestsAndResponses, Response);
+				Private::LogNetworkMessage(CVarLogStreamRequestsAndResponsesOnClient, Response);
 
 				const TSharedPtr<FReplicationManagerState_Connected> ThisPin = WeakThis.Pin();
 				if (ThisPin && Response.IsSuccess())

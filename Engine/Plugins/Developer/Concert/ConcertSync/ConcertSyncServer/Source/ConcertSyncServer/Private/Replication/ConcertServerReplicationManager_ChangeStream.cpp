@@ -139,8 +139,8 @@ namespace UE::ConcertSyncServer::Replication
 		}
 	}
 	
-	TAutoConsoleVariable<bool> CVarLogStreamRequestsAndResponses(
-		TEXT("Concert.Replication.LogStreamRequestsAndResponses"),
+	TAutoConsoleVariable<bool> CVarLogStreamRequestsAndResponsesOnServer(
+		TEXT("Concert.Replication.LogStreamRequestsAndResponsesOnServer"),
 		false,
 		TEXT("Whether to log changes to streams.")
 		);
@@ -150,7 +150,7 @@ namespace UE::ConcertSyncServer::Replication
 		const FConcertReplication_ChangeStream_Request& Request,
 		FConcertReplication_ChangeStream_Response& Response)
 	{
-		LogNetworkMessage(CVarLogStreamRequestsAndResponses, Request, [&](){ return GetClientName(*Session, ConcertSessionContext.SourceEndpointId); });
+		LogNetworkMessage(CVarLogStreamRequestsAndResponsesOnServer, Request, [&](){ return GetClientName(*Session, ConcertSessionContext.SourceEndpointId); });
 		Response = {};
 		
 		const FGuid SendingClientId = ConcertSessionContext.SourceEndpointId;
@@ -173,7 +173,7 @@ namespace UE::ConcertSyncServer::Replication
 		}
 		
 		Response.ErrorCode = EReplicationResponseErrorCode::Handled;
-		LogNetworkMessage(CVarLogStreamRequestsAndResponses, Response, [&](){ return GetClientName(*Session, ConcertSessionContext.SourceEndpointId); });
+		LogNetworkMessage(CVarLogStreamRequestsAndResponsesOnServer, Response, [&](){ return GetClientName(*Session, ConcertSessionContext.SourceEndpointId); });
 		return EConcertSessionResponseCode::Success;
 	}
 }
