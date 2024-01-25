@@ -271,6 +271,8 @@ void InstanceCull(
 
 	bool bIsRLEPackedChunk = false;
 	uint GroupNumInstances =  UnpackChunkInstanceCount(GroupWorkItem.PackedItemChunkDesc, bIsRLEPackedChunk);
+	ViewDrawGroup = InViewDrawRanges[GroupWorkItem.ViewGroupId];
+	uint ActiveViewMask = GroupWorkItem.ActiveViewMask;
 
 #if DEBUG_FLAGS 
 	if ((RenderFlags & NANITE_RENDER_FLAG_WRITE_STATS) != 0u && GroupThreadIndex == 0)
@@ -279,7 +281,7 @@ void InstanceCull(
 		// Add the occluded instances to the count
 		InterlockedAdd(OutStatsBuffer[0].NumPostInstancesPreCull, GroupNumInstances);
 #else // CULLING_PASS == CULLING_PASS_OCCLUSION_MAIN/NO_OCCLUSION
-		InterlockedAdd(OutStatsBuffer[0].NumMainInstancesPreCull, GroupNumInstances);
+		InterlockedAdd(OutStatsBuffer[0].NumMainInstancesPreCull, GroupNumInstances * ViewDrawGroup.NumViews);
 #endif
 	}
 #endif
@@ -290,8 +292,6 @@ void InstanceCull(
 		return;
 	}
 
-	ViewDrawGroup = InViewDrawRanges[GroupWorkItem.ViewGroupId];
-	uint ActiveViewMask = GroupWorkItem.ActiveViewMask;
 
 	// Unpack compressed ID OR load the instance ID from the buffer (this is the ID buffer prepped during hierarchy build).
 	uint InstanceId = UnpackChunkInstanceId(bIsRLEPackedChunk, GroupWorkItem, GroupThreadIndex);
@@ -548,6 +548,14 @@ void CompactViewsVSM_CS(uint DispatchThreadId : SV_DispatchThreadID)
 		ViewDrawGroupResult.NumViews = NumValidViews;
 		InOutViewDrawRanges[ViewGroupIndex] = ViewDrawGroupResult;
 	}
+
+#if DEBUG_FLAGS
+	if ((RenderFlags & NANITE_RENDER_FLAG_WRITE_STATS) != 0u)
+	{
+		InterlockedAdd(OutStatsBuffer[0].NumPrimaryViews, ViewDrawGroup.NumViews);
+		InterlockedAdd(OutStatsBuffer[0].NumTotalViews, NumValidViews);
+	}
+#endif
 #else
 
 	// Neither primary nor mip views have valid pages
