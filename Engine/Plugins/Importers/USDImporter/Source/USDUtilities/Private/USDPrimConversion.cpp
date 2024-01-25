@@ -123,264 +123,169 @@ static FAutoConsoleVariableRef CVarConsiderAllPrimsHaveAnimatedBounds(
 		 "extremely expensive!")
 );
 
-namespace UE
+namespace UE::USDPrimConversion::Private
 {
-	namespace USDPrimConversionImpl
+	// On the current edit target, will set the Xformable's op order to a single "xformOp:transform",
+	// create the corresponding attribute, and return the op
+	pxr::UsdGeomXformOp ForceMatrixXform(pxr::UsdGeomXformable& Xformable)
 	{
-		namespace Private
+		FScopedUsdAllocs Allocs;
+
+		// Note: We don't use Xformable.MakeMatrixXform() here because while it can clear the
+		// xform op order on the current edit target just fine, it will later try to AddTransformOp(),
+		// which calls AddXformOp. Internally, it will read the *composed* prim and if it finds that it already
+		// has an op of that type it will early out and not author anything. This means that if our stage
+		// has a strong opinion for an e.g. "xformOp:transform" already on the layer stack, it's not possible
+		// to author that same op on a weaker layer. We want to do this here, to ensure this prim's transform
+		// works as expected even if this weaker layer is used standalone, so we must do the analogous ourselves
+
+		// References: private constructor for UsdGeomXformOp that can receive a UsdPrim and UsdGeomXformable::AddXformOp
+
+		// Clear the existing xform op order for this prim on this layer
+		Xformable.ClearXformOpOrder();
+
+		// Find details about the transform attribute related to the default transform type xform op
+		pxr::TfToken TransformAttrName = pxr::UsdGeomXformOp::GetOpName(pxr::UsdGeomXformOp::TypeTransform);
+		const pxr::SdfValueTypeName& TransformAttrTypeName = pxr::UsdGeomXformOp::GetValueTypeName(
+			pxr::UsdGeomXformOp::TypeTransform,
+			pxr::UsdGeomXformOp::PrecisionDouble
+		);
+		if (TransformAttrName.IsEmpty() || !TransformAttrTypeName)
 		{
-			// Writes UEMaterialAssetPath as a material binding for MeshPrim, either by reusing a Material binding if
-			// it already has an 'unreal' render context output and the expected structure, or by creating a new Material prim
-			// that fulfills those requirements.
-			// Doesn't write to 'unrealMaterial' at all, as we intend on deprecating it in the future.
-			void AuthorMaterialOverride(pxr::UsdPrim& MeshPrim, const FString& UEMaterialAssetPath)
+			return {};
+		}
+
+		// Create the transform attribute that would match the default transform type xform op
+		const bool bCustom = false;
+		pxr::UsdPrim UsdPrim = Xformable.GetPrim();
+		pxr::UsdAttribute TransformAttr = UsdPrim.CreateAttribute(TransformAttrName, TransformAttrTypeName, bCustom);
+		if (!TransformAttr)
+		{
+			return {};
+		}
+
+		// Now that the attribute is created, use it to create the corresponding pxr::UsdGeomXformOp
+		const bool bIsInverseOp = false;
+		pxr::UsdGeomXformOp NewOp{TransformAttr, bIsInverseOp};
+		if (!NewOp)
+		{
+			return {};
+		}
+
+		// Store the Op name on an array that will be our new op order value
+		pxr::VtTokenArray NewOps;
+		NewOps.push_back(NewOp.GetOpName());
+		Xformable.CreateXformOpOrderAttr().Set(NewOps);
+
+		return NewOp;
+	}
+
+	// Turns OutTransform into the UE-space relative (local to parent) transform for Xformable, paying attention to if it
+	// or any of its ancestors has the '!resetXformStack!' xformOp.
+	void GetPrimConvertedRelativeTransform(
+		pxr::UsdGeomXformable Xformable,
+		double UsdTimeCode,
+		FTransform& OutTransform,
+		bool bIgnoreLocalTransform = false
+	)
+	{
+		if (!Xformable)
+		{
+			return;
+		}
+
+		FScopedUsdAllocs Allocs;
+
+		pxr::UsdPrim UsdPrim = Xformable.GetPrim();
+		pxr::UsdStageRefPtr UsdStage = UsdPrim.GetStage();
+
+		bool bResetTransformStack = false;
+		if (bIgnoreLocalTransform)
+		{
+			FTransform Dummy;
+			UsdToUnreal::ConvertXformable(UsdStage, Xformable, Dummy, UsdTimeCode, &bResetTransformStack);
+
+			OutTransform = FTransform::Identity;
+		}
+		else
+		{
+			UsdToUnreal::ConvertXformable(UsdStage, Xformable, OutTransform, UsdTimeCode, &bResetTransformStack);
+		}
+
+		// If we have the resetXformStack op on this prim's xformOpOrder we have to essentially use its transform
+		// as the world transform (i.e. we have to discard the parent transforms). We won't do this here, and will instead
+		// keep relative transforms everywhere for consistency, which means we must manually invert the ParentToWorld transform
+		// and compute our relative transform ourselves.
+		//
+		// Ideally we'd query the components for this for performance reasons, but not only we don't have access to them here,
+		// but neither the stage actor's PrimsToAnimate nor the sequencer guarantee a particular evaluation order anyway,
+		// which means that if our parent is also animated, we could end up computing our relative transforms using the outdated
+		// parent's transform instead. This means we must compute our relative transform using the actual prim hierarchy.
+		//
+		// Additionally, our parent prims may be animated, so we must query all of our ancestors for a new world matrix every frame.
+		//
+		// We could use UsdGeomXformCache for this, but given that we won't actually cache anything (since we'll have to resample
+		// all ancestors every frame anyway) and that we would have to manually handle the camera/light compensation at least for
+		// our immediate parent, it's simpler to just recursively call our own UsdToUnreal::ConvertXformable and concatenate the
+		// results. Its not as fast, but we'll only do this on the initial read for prims with `resetXformStack`, so it should
+		// be very rare. We don't ever write out the resetXformStack either, so after that initial read this op should just disappear.
+		//
+		// Note that, alternatively, we could also handle this whole situation by having the scene components specify their transforms
+		// as absolute, and the Sequencer would work with that as well. However that would spread out the handling of
+		// resetXformStack through all USD workflows, and mean we'd have to *write out* resetXformStack when writing/exporting
+		// absolute transform components, and also convert between them when the user toggles between relative/absolute manually,
+		// which is probably worse than just baking it as relative transforms on first read and forgetting about it.
+		if (bResetTransformStack)
+		{
+			FTransform ParentToWorld = FTransform::Identity;
+
+			pxr::UsdPrim AncestorPrim = UsdPrim.GetParent();
+			while (AncestorPrim && !AncestorPrim.IsPseudoRoot())
 			{
-				if (!MeshPrim)
-				{
-					return;
-				}
-
-				FScopedUsdAllocs UsdAllocs;
-
-				pxr::UsdShadeMaterialBindingAPI BindingAPI = pxr::UsdShadeMaterialBindingAPI::Apply(MeshPrim);
-
-				// If this mesh prim already has a binding to a *child* material with the 'unreal' render context,
-				// just write our material there and early out
-				if (pxr::UsdShadeMaterial ShadeMaterial = BindingAPI.ComputeBoundMaterial())
-				{
-					// Only consider this material reusable if its within the same layer as the edit target, otherwise we'll
-					// prefer to author something else that can be fully defined on the edit target. This is handy when we're
-					// exporting a level, as we'll ensure we're making these prims on the MaterialOverrides layer
-					pxr::SdfLayerRefPtr EditTarget = MeshPrim.GetStage()->GetEditTarget().GetLayer();
-					pxr::SdfLayerRefPtr MaterialPrimLayer = static_cast<pxr::SdfLayerRefPtr>(UsdUtils::FindLayerForPrim(ShadeMaterial.GetPrim()));
-					if (EditTarget == MaterialPrimLayer)
-					{
-						// We need to try reusing these materials or else we'd write a new material prim every time we change
-						// the override in UE, but we also run the risk of modifying a material that is used by multiple prims
-						// (and here we just want to set the override for this Mesh prim). The compromise is to only reuse the
-						// material if it is a child of MeshPrim already, and always to author our material prims as children
-						std::string MaterialPath = ShadeMaterial.GetPrim().GetPath().GetString();
-						std::string MeshPrimPath = MeshPrim.GetPath().GetString();
-						if (MaterialPath.rfind(MeshPrimPath, 0) == 0)
-						{
-							if (pxr::UsdPrim MaterialPrim = ShadeMaterial.GetPrim())
-							{
-								UsdUtils::SetUnrealSurfaceOutput(MaterialPrim, UEMaterialAssetPath);
-								return;
-							}
-						}
-					}
-				}
-
-				// Find a unique name for our child material prim
-				// Note how we'll always author these materials as children of the meshes themselves instead of emitting a common
-				// Material prim to use for multiple overrides: This because in the future we'll want to have a separate material
-				// bake for each mesh (to make sure we get vertex color effects, etc.), and so we'd have multiple baked .usda material
-				// asset layers for each UE material, and we'd want each mesh/section/LOD to refer to its own anyway
-				FString ChildMaterialName = TEXT("UnrealMaterial");
-				if (pxr::UsdPrim ExistingPrim = MeshPrim.GetChild(UnrealToUsd::ConvertToken(*ChildMaterialName).Get()))
-				{
-					// Get a unique name for a new prim. Don't even try checking if this prim is usable as the material binding,
-					// because if it was the material binding for this mesh we would have already used it above, when fetching the ExistingShader.
-					// If we're here, we don't know what this prim is about
-					TSet<FString> UsedNames;
-					for (pxr::UsdPrim Child : MeshPrim.GetFilteredChildren(pxr::UsdTraverseInstanceProxies(pxr::UsdPrimAllPrimsPredicate)))
-					{
-						UsedNames.Add(UsdToUnreal::ConvertToken(Child.GetName()));
-					}
-
-					ChildMaterialName = UsdUtils::GetUniqueName(ChildMaterialName, UsedNames);
-				}
-
-				pxr::UsdStageRefPtr Stage = MeshPrim.GetStage();
-				pxr::SdfPath MeshPath = MeshPrim.GetPath();
-				pxr::SdfPath MaterialPath = MeshPath.AppendChild(UnrealToUsd::ConvertToken(*ChildMaterialName).Get());
-
-				pxr::UsdShadeMaterial ChildMaterial = pxr::UsdShadeMaterial::Define(Stage, MaterialPath);
-				if (!ChildMaterial)
-				{
-					UE_LOG(
-						LogUsd,
-						Warning,
-						TEXT("Failed to author material prim '%s' when trying to write '%s's material override '%s' to USD"),
-						*UsdToUnreal::ConvertPath(MaterialPath),
-						*UsdToUnreal::ConvertPath(MeshPrim.GetPath()),
-						*UEMaterialAssetPath
-					);
-					return;
-				}
-
-				if (pxr::UsdPrim MaterialPrim = ChildMaterial.GetPrim())
-				{
-					UsdUtils::SetUnrealSurfaceOutput(MaterialPrim, UEMaterialAssetPath);
-
-					BindingAPI.Bind(ChildMaterial);
-				}
-			}
-
-			// On the current edit target, will set the Xformable's op order to a single "xformOp:transform",
-			// create the corresponding attribute, and return the op
-			pxr::UsdGeomXformOp ForceMatrixXform(pxr::UsdGeomXformable& Xformable)
-			{
-				FScopedUsdAllocs Allocs;
-
-				// Note: We don't use Xformable.MakeMatrixXform() here because while it can clear the
-				// xform op order on the current edit target just fine, it will later try to AddTransformOp(),
-				// which calls AddXformOp. Internally, it will read the *composed* prim and if it finds that it already
-				// has an op of that type it will early out and not author anything. This means that if our stage
-				// has a strong opinion for an e.g. "xformOp:transform" already on the layer stack, it's not possible
-				// to author that same op on a weaker layer. We want to do this here, to ensure this prim's transform
-				// works as expected even if this weaker layer is used standalone, so we must do the analogous ourselves
-
-				// References: private constructor for UsdGeomXformOp that can receive a UsdPrim and UsdGeomXformable::AddXformOp
-
-				// Clear the existing xform op order for this prim on this layer
-				Xformable.ClearXformOpOrder();
-
-				// Find details about the transform attribute related to the default transform type xform op
-				pxr::TfToken TransformAttrName = pxr::UsdGeomXformOp::GetOpName(pxr::UsdGeomXformOp::TypeTransform);
-				const pxr::SdfValueTypeName& TransformAttrTypeName = pxr::UsdGeomXformOp::GetValueTypeName(
-					pxr::UsdGeomXformOp::TypeTransform,
-					pxr::UsdGeomXformOp::PrecisionDouble
+				FTransform AncestorTransform = FTransform::Identity;
+				bool bAncestorResetTransformStack = false;
+				UsdToUnreal::ConvertXformable(
+					UsdStage,
+					pxr::UsdGeomXformable{AncestorPrim},
+					AncestorTransform,
+					UsdTimeCode,
+					&bAncestorResetTransformStack
 				);
-				if (TransformAttrName.IsEmpty() || !TransformAttrTypeName)
+
+				ParentToWorld = ParentToWorld * AncestorTransform;
+
+				// If we find a parent that also has the resetXformStack, then we're in luck: That transform value will be its world
+				// transform already, so we can stop concatenating stuff. Yes, on the component-side of things we'd have done the same
+				// thing of making a fake relative transform for it, but the end result would have been the same final world transform
+				if (bAncestorResetTransformStack)
 				{
-					return {};
+					break;
 				}
 
-				// Create the transform attribute that would match the default transform type xform op
-				const bool bCustom = false;
-				pxr::UsdPrim UsdPrim = Xformable.GetPrim();
-				pxr::UsdAttribute TransformAttr = UsdPrim.CreateAttribute(TransformAttrName, TransformAttrTypeName, bCustom);
-				if (!TransformAttr)
-				{
-					return {};
-				}
-
-				// Now that the attribute is created, use it to create the corresponding pxr::UsdGeomXformOp
-				const bool bIsInverseOp = false;
-				pxr::UsdGeomXformOp NewOp{TransformAttr, bIsInverseOp};
-				if (!NewOp)
-				{
-					return {};
-				}
-
-				// Store the Op name on an array that will be our new op order value
-				pxr::VtTokenArray NewOps;
-				NewOps.push_back(NewOp.GetOpName());
-				Xformable.CreateXformOpOrderAttr().Set(NewOps);
-
-				return NewOp;
+				AncestorPrim = AncestorPrim.GetParent();
 			}
 
-			// Turns OutTransform into the UE-space relative (local to parent) transform for Xformable, paying attention to if it
-			// or any of its ancestors has the '!resetXformStack!' xformOp.
-			void GetPrimConvertedRelativeTransform(
-				pxr::UsdGeomXformable Xformable,
-				double UsdTimeCode,
-				FTransform& OutTransform,
-				bool bIgnoreLocalTransform = false
-			)
+			const FVector& Scale = ParentToWorld.GetScale3D();
+			if (!FMath::IsNearlyEqual(Scale.X, Scale.Y) || !FMath::IsNearlyEqual(Scale.X, Scale.Z))
 			{
-				if (!Xformable)
-				{
-					return;
-				}
-
-				FScopedUsdAllocs Allocs;
-
-				pxr::UsdPrim UsdPrim = Xformable.GetPrim();
-				pxr::UsdStageRefPtr UsdStage = UsdPrim.GetStage();
-
-				bool bResetTransformStack = false;
-				if (bIgnoreLocalTransform)
-				{
-					FTransform Dummy;
-					UsdToUnreal::ConvertXformable(UsdStage, Xformable, Dummy, UsdTimeCode, &bResetTransformStack);
-
-					OutTransform = FTransform::Identity;
-				}
-				else
-				{
-					UsdToUnreal::ConvertXformable(UsdStage, Xformable, OutTransform, UsdTimeCode, &bResetTransformStack);
-				}
-
-				// If we have the resetXformStack op on this prim's xformOpOrder we have to essentially use its transform
-				// as the world transform (i.e. we have to discard the parent transforms). We won't do this here, and will instead
-				// keep relative transforms everywhere for consistency, which means we must manually invert the ParentToWorld transform
-				// and compute our relative transform ourselves.
-				//
-				// Ideally we'd query the components for this for performance reasons, but not only we don't have access to them here,
-				// but neither the stage actor's PrimsToAnimate nor the sequencer guarantee a particular evaluation order anyway,
-				// which means that if our parent is also animated, we could end up computing our relative transforms using the outdated
-				// parent's transform instead. This means we must compute our relative transform using the actual prim hierarchy.
-				//
-				// Additionally, our parent prims may be animated, so we must query all of our ancestors for a new world matrix every frame.
-				//
-				// We could use UsdGeomXformCache for this, but given that we won't actually cache anything (since we'll have to resample
-				// all ancestors every frame anyway) and that we would have to manually handle the camera/light compensation at least for
-				// our immediate parent, it's simpler to just recursively call our own UsdToUnreal::ConvertXformable and concatenate the
-				// results. Its not as fast, but we'll only do this on the initial read for prims with `resetXformStack`, so it should
-				// be very rare. We don't ever write out the resetXformStack either, so after that initial read this op should just disappear.
-				//
-				// Note that, alternatively, we could also handle this whole situation by having the scene components specify their transforms
-				// as absolute, and the Sequencer would work with that as well. However that would spread out the handling of
-				// resetXformStack through all USD workflows, and mean we'd have to *write out* resetXformStack when writing/exporting
-				// absolute transform components, and also convert between them when the user toggles between relative/absolute manually,
-				// which is probably worse than just baking it as relative transforms on first read and forgetting about it.
-				if (bResetTransformStack)
-				{
-					FTransform ParentToWorld = FTransform::Identity;
-
-					pxr::UsdPrim AncestorPrim = UsdPrim.GetParent();
-					while (AncestorPrim && !AncestorPrim.IsPseudoRoot())
-					{
-						FTransform AncestorTransform = FTransform::Identity;
-						bool bAncestorResetTransformStack = false;
-						UsdToUnreal::ConvertXformable(
-							UsdStage,
-							pxr::UsdGeomXformable{AncestorPrim},
-							AncestorTransform,
-							UsdTimeCode,
-							&bAncestorResetTransformStack
-						);
-
-						ParentToWorld = ParentToWorld * AncestorTransform;
-
-						// If we find a parent that also has the resetXformStack, then we're in luck: That transform value will be its world
-						// transform already, so we can stop concatenating stuff. Yes, on the component-side of things we'd have done the same
-						// thing of making a fake relative transform for it, but the end result would have been the same final world transform
-						if (bAncestorResetTransformStack)
-						{
-							break;
-						}
-
-						AncestorPrim = AncestorPrim.GetParent();
-					}
-
-					const FVector& Scale = ParentToWorld.GetScale3D();
-					if (!FMath::IsNearlyEqual(Scale.X, Scale.Y) || !FMath::IsNearlyEqual(Scale.X, Scale.Z))
-					{
-						UE_LOG(
-							LogUsd,
-							Warning,
-							TEXT("Inverting transform with non-uniform scaling '%s' when computing relative transform for prim '%s'! Result will "
-								 "likely be incorrect, since FTransforms can't invert non-uniform scalings. You can work around this by baking your "
-								 "non-uniform scaling transform into the vertices, or by not using the !resetXformStack! Xform op."),
-							*Scale.ToString(),
-							*UsdToUnreal::ConvertPath(UsdPrim.GetPrimPath())
-						);
-					}
-
-					// Multiplying with matrices here helps mitigate the issues encountered with non-uniform scaling, however it will stil
-					// never be perfect, as it is not possible to generate an FTransform that can properly invert a complex transform with non-uniform
-					// scaling when just multiplying them (which is what downstream code within USceneComponent will do).
-					OutTransform = FTransform{OutTransform.ToMatrixWithScale() * ParentToWorld.ToInverseMatrixWithScale()};
-				}
+				UE_LOG(
+					LogUsd,
+					Warning,
+					TEXT("Inverting transform with non-uniform scaling '%s' when computing relative transform for prim '%s'! Result will "
+						 "likely be incorrect, since FTransforms can't invert non-uniform scalings. You can work around this by baking your "
+						 "non-uniform scaling transform into the vertices, or by not using the !resetXformStack! Xform op."),
+					*Scale.ToString(),
+					*UsdToUnreal::ConvertPath(UsdPrim.GetPrimPath())
+				);
 			}
-		}	 // namespace Private
-	}		 // namespace USDPrimConversionImpl
-}	 // namespace UE
+
+			// Multiplying with matrices here helps mitigate the issues encountered with non-uniform scaling, however it will stil
+			// never be perfect, as it is not possible to generate an FTransform that can properly invert a complex transform with non-uniform
+			// scaling when just multiplying them (which is what downstream code within USceneComponent will do).
+			OutTransform = FTransform{OutTransform.ToMatrixWithScale() * ParentToWorld.ToInverseMatrixWithScale()};
+		}
+	}
+}	 // namespace UE::USDPrimConversion::Private
 
 bool UsdToUnreal::ConvertXformable(
 	const pxr::UsdStageRefPtr& Stage,
@@ -516,7 +421,7 @@ bool UsdToUnreal::ConvertXformable(
 
 	// Transform
 	FTransform Transform;
-	UE::USDPrimConversionImpl::Private::GetPrimConvertedRelativeTransform(Xformable, EvalTime, Transform, !bUsePrimTransform);
+	UE::USDPrimConversion::Private::GetPrimConvertedRelativeTransform(Xformable, EvalTime, Transform, !bUsePrimTransform);
 	SceneComponent.SetRelativeTransform(Transform);
 
 	SceneComponent.Modify();
@@ -1202,7 +1107,7 @@ UsdToUnreal::FPropertyTrackReader UsdToUnreal::CreatePropertyTrackReader(
 		if (PropertyPath == UnrealIdentifiers::TransformPropertyName)
 		{
 			FTransform Default = FTransform::Identity;
-			UE::USDPrimConversionImpl::Private::GetPrimConvertedRelativeTransform(
+			UE::USDPrimConversion::Private::GetPrimConvertedRelativeTransform(
 				Xformable,
 				UsdUtils::GetDefaultTimeCode(),
 				Default,
@@ -1212,7 +1117,7 @@ UsdToUnreal::FPropertyTrackReader UsdToUnreal::CreatePropertyTrackReader(
 			Reader.TransformReader = [UsdStage, Xformable, Default, bIgnorePrimLocalTransform](double UsdTimeCode)
 			{
 				FTransform Result = Default;
-				UE::USDPrimConversionImpl::Private::GetPrimConvertedRelativeTransform(Xformable, UsdTimeCode, Result, bIgnorePrimLocalTransform);
+				UE::USDPrimConversion::Private::GetPrimConvertedRelativeTransform(Xformable, UsdTimeCode, Result, bIgnorePrimLocalTransform);
 				return Result;
 			};
 			return Reader;
@@ -1856,7 +1761,7 @@ bool UsdToUnreal::ConvertBounds(const pxr::UsdPrim& Prim, UUsdDrawModeComponent*
 	return true;
 }
 
-namespace UE::USDPrimConversionImpl::Private
+namespace UE::USDPrimConversion::Private
 {
 	const static std::string UsdNamespaceDelimiter = UnrealToUsd::ConvertString(*UnrealIdentifiers::UsdNamespaceDelimiter).Get();
 
@@ -2031,7 +1936,7 @@ namespace UE::USDPrimConversionImpl::Private
 			}
 		}
 	}
-};	  // namespace UE::USDPrimConversionImpl::Private
+};	  // namespace UE::USDPrimConversion::Private
 
 bool UsdToUnreal::ConvertMetadata(
 	const pxr::UsdPrim& Prim,
@@ -2046,14 +1951,14 @@ bool UsdToUnreal::ConvertMetadata(
 		return false;
 	}
 
-	UE::USDPrimConversionImpl::Private::CollectMetadataForPrim(Prim, CombinedMetadata, BlockedPrefixFilters, bInvertFilters);
+	UE::USDPrimConversion::Private::CollectMetadataForPrim(Prim, CombinedMetadata, BlockedPrefixFilters, bInvertFilters);
 
 	if (bCollectFromEntireSubtrees)
 	{
 		pxr::UsdPrimRange PrimRange{Prim, pxr::UsdTraverseInstanceProxies()};
 		for (pxr::UsdPrimRange::iterator It = ++PrimRange.begin(); It != PrimRange.end(); ++It)
 		{
-			UE::USDPrimConversionImpl::Private::CollectMetadataForPrim(*It, CombinedMetadata, BlockedPrefixFilters, bInvertFilters);
+			UE::USDPrimConversion::Private::CollectMetadataForPrim(*It, CombinedMetadata, BlockedPrefixFilters, bInvertFilters);
 		}
 	}
 
@@ -3067,7 +2972,7 @@ bool UnrealToUsd::ConvertMaterialOverrides(
 						{
 							pxr::SdfPath OverridePrimPath = UnrealToUsd::ConvertPath(*PrimPath).Get();
 							pxr::UsdPrim MeshPrim = Stage->OverridePrim(OverridePrimPath);
-							UE::USDPrimConversionImpl::Private::AuthorMaterialOverride(MeshPrim, Override->GetPathName());
+							UsdUtils::AuthorUnrealMaterialBinding(MeshPrim, Override->GetPathName());
 						}
 					}
 				}
@@ -3079,7 +2984,7 @@ bool UnrealToUsd::ConvertMaterialOverrides(
 			{
 				pxr::SdfPath OverridePrimPath = UsdPrim.GetPath();
 				pxr::UsdPrim MeshPrim = Stage->OverridePrim(OverridePrimPath);
-				UE::USDPrimConversionImpl::Private::AuthorMaterialOverride(MeshPrim, Override->GetPathName());
+				UsdUtils::AuthorUnrealMaterialBinding(MeshPrim, Override->GetPathName());
 			}
 		}
 	}
@@ -3141,7 +3046,7 @@ bool UnrealToUsd::ConvertMaterialOverrides(
 								{
 									pxr::SdfPath OverridePrimPath = UnrealToUsd::ConvertPath(*PrimPath).Get();
 									pxr::UsdPrim MeshPrim = Stage->OverridePrim(OverridePrimPath);
-									UE::USDPrimConversionImpl::Private::AuthorMaterialOverride(MeshPrim, Override->GetPathName());
+									UsdUtils::AuthorUnrealMaterialBinding(MeshPrim, Override->GetPathName());
 								}
 							}
 						}
@@ -3178,7 +3083,7 @@ bool UnrealToUsd::ConvertMaterialOverrides(
 						}
 
 						pxr::UsdPrim MeshPrim = Stage->OverridePrim(OverridePrimPath);
-						UE::USDPrimConversionImpl::Private::AuthorMaterialOverride(MeshPrim, Override->GetPathName());
+						UsdUtils::AuthorUnrealMaterialBinding(MeshPrim, Override->GetPathName());
 					}
 				}
 			}
@@ -3313,7 +3218,7 @@ bool UnrealToUsd::ConvertMaterialOverrides(
 									{
 										pxr::SdfPath OverridePrimPath = UnrealToUsd::ConvertPath(*SourcePrimPath).Get();
 										pxr::UsdPrim MeshPrim = Stage->OverridePrim(OverridePrimPath);
-										UE::USDPrimConversionImpl::Private::AuthorMaterialOverride(MeshPrim, Override->GetPathName());
+										UsdUtils::AuthorUnrealMaterialBinding(MeshPrim, Override->GetPathName());
 										break;
 									}
 								}
@@ -3372,7 +3277,7 @@ bool UnrealToUsd::ConvertMaterialOverrides(
 						}
 
 						pxr::UsdPrim MeshPrim = Stage->OverridePrim(OverridePrimPath);
-						UE::USDPrimConversionImpl::Private::AuthorMaterialOverride(MeshPrim, Override->GetPathName());
+						UsdUtils::AuthorUnrealMaterialBinding(MeshPrim, Override->GetPathName());
 					}
 				}
 			}
@@ -3414,7 +3319,7 @@ bool UnrealToUsd::ConvertXformable(const FTransform& RelativeTransform, pxr::Usd
 
 	const pxr::UsdTimeCode UsdTimeCode(TimeCode);
 
-	if (pxr::UsdGeomXformOp MatrixXform = UE::USDPrimConversionImpl::Private::ForceMatrixXform(XForm))
+	if (pxr::UsdGeomXformOp MatrixXform = UE::USDPrimConversion::Private::ForceMatrixXform(XForm))
 	{
 		MatrixXform.Set(UsdTransform, UsdTimeCode);
 
@@ -3426,61 +3331,55 @@ bool UnrealToUsd::ConvertXformable(const FTransform& RelativeTransform, pxr::Usd
 }
 
 #if WITH_EDITOR
-namespace UE
+namespace UE::USDPrimConversion::Private
 {
-	namespace USDPrimConversionImpl
+	void ConvertFoliageInstances(
+		const FFoliageInfo& Info,
+		const TSet<int32>& UEInstances,
+		const FTransform& UEWorldToFoliageActor,
+		const FUsdStageInfo& StageInfo,
+		int PrototypeIndex,
+		pxr::VtArray<int>& ProtoIndices,
+		pxr::VtArray<pxr::GfVec3f>& Positions,
+		pxr::VtArray<pxr::GfQuath>& Orientations,
+		pxr::VtArray<pxr::GfVec3f>& Scales
+	)
 	{
-		namespace Private
+		FScopedUsdAllocs Allocs;
+
+		const int32 NumInstances = UEInstances.Num();
+
+		ProtoIndices.reserve(ProtoIndices.size() + NumInstances);
+		Positions.reserve(Positions.size() + NumInstances);
+		Orientations.reserve(Orientations.size() + NumInstances);
+		Scales.reserve(Scales.size() + NumInstances);
+
+		for (int32 InstanceIndex : UEInstances)
 		{
-			void ConvertFoliageInstances(
-				const FFoliageInfo& Info,
-				const TSet<int32>& UEInstances,
-				const FTransform& UEWorldToFoliageActor,
-				const FUsdStageInfo& StageInfo,
-				int PrototypeIndex,
-				pxr::VtArray<int>& ProtoIndices,
-				pxr::VtArray<pxr::GfVec3f>& Positions,
-				pxr::VtArray<pxr::GfQuath>& Orientations,
-				pxr::VtArray<pxr::GfVec3f>& Scales
-			)
+			const FFoliageInstancePlacementInfo* Instance = &Info.Instances[InstanceIndex];
+
+			// Convert axes
+			FTransform UEWorldTransform{Instance->Rotation, (FVector)Instance->Location, (FVector)Instance->DrawScale3D};
+			FTransform USDTransform = UsdUtils::ConvertAxes(StageInfo.UpAxis == EUsdUpAxis::ZAxis, UEWorldTransform * UEWorldToFoliageActor);
+
+			FVector Translation = USDTransform.GetTranslation();
+			FQuat Rotation = USDTransform.GetRotation();
+			FVector Scale = USDTransform.GetScale3D();
+
+			// Compensate metersPerUnit
+			const float UEMetersPerUnit = 0.01f;
+			if (!FMath::IsNearlyEqual(UEMetersPerUnit, StageInfo.MetersPerUnit))
 			{
-				FScopedUsdAllocs Allocs;
-
-				const int32 NumInstances = UEInstances.Num();
-
-				ProtoIndices.reserve(ProtoIndices.size() + NumInstances);
-				Positions.reserve(Positions.size() + NumInstances);
-				Orientations.reserve(Orientations.size() + NumInstances);
-				Scales.reserve(Scales.size() + NumInstances);
-
-				for (int32 InstanceIndex : UEInstances)
-				{
-					const FFoliageInstancePlacementInfo* Instance = &Info.Instances[InstanceIndex];
-
-					// Convert axes
-					FTransform UEWorldTransform{Instance->Rotation, (FVector)Instance->Location, (FVector)Instance->DrawScale3D};
-					FTransform USDTransform = UsdUtils::ConvertAxes(StageInfo.UpAxis == EUsdUpAxis::ZAxis, UEWorldTransform * UEWorldToFoliageActor);
-
-					FVector Translation = USDTransform.GetTranslation();
-					FQuat Rotation = USDTransform.GetRotation();
-					FVector Scale = USDTransform.GetScale3D();
-
-					// Compensate metersPerUnit
-					const float UEMetersPerUnit = 0.01f;
-					if (!FMath::IsNearlyEqual(UEMetersPerUnit, StageInfo.MetersPerUnit))
-					{
-						Translation *= (UEMetersPerUnit / StageInfo.MetersPerUnit);
-					}
-
-					ProtoIndices.push_back(PrototypeIndex);
-					Positions.push_back(pxr::GfVec3f(Translation.X, Translation.Y, Translation.Z));
-					Orientations.push_back(pxr::GfQuath(Rotation.W, Rotation.X, Rotation.Y, Rotation.Z));
-					Scales.push_back(pxr::GfVec3f(Scale.X, Scale.Y, Scale.Z));
-				}
+				Translation *= (UEMetersPerUnit / StageInfo.MetersPerUnit);
 			}
-		}	 // namespace Private
-	}		 // namespace USDPrimConversionImpl
-}	 // namespace UE
+
+			ProtoIndices.push_back(PrototypeIndex);
+			Positions.push_back(pxr::GfVec3f(Translation.X, Translation.Y, Translation.Z));
+			Orientations.push_back(pxr::GfQuath(Rotation.W, Rotation.X, Rotation.Y, Rotation.Z));
+			Scales.push_back(pxr::GfVec3f(Scale.X, Scale.Y, Scale.Z));
+		}
+	}
+}	 // namespace UE::USDPrimConversion::Private
 #endif	  // WITH_EDITOR
 
 bool UnrealToUsd::ConvertInstancedFoliageActor(const AInstancedFoliageActor& Actor, pxr::UsdPrim& UsdPrim, double TimeCode, ULevel* InstancesLevel)
@@ -3535,7 +3434,7 @@ bool UnrealToUsd::ConvertInstancedFoliageActor(const AInstancedFoliageActor& Act
 
 			if (const TSet<int32>* InstanceSet = Info.ComponentHash.Find(ComponentId))
 			{
-				UE::USDPrimConversionImpl::Private::ConvertFoliageInstances(
+				UE::USDPrimConversion::Private::ConvertFoliageInstances(
 					Info,
 					*InstanceSet,
 					UEWorldToFoliageActor,
@@ -3564,7 +3463,7 @@ bool UnrealToUsd::ConvertInstancedFoliageActor(const AInstancedFoliageActor& Act
 				}
 
 				const TSet<int32>& InstanceSet = Pair.Value;
-				UE::USDPrimConversionImpl::Private::ConvertFoliageInstances(
+				UE::USDPrimConversion::Private::ConvertFoliageInstances(
 					Info,
 					InstanceSet,
 					UEWorldToFoliageActor,
@@ -3642,7 +3541,7 @@ bool UnrealToUsd::CreateComponentPropertyBaker(
 			Xformable.CreateXformOpOrderAttr();
 
 			// Clear existing transform data and leave just one Transform op there
-			pxr::UsdGeomXformOp TransformOp = UE::USDPrimConversionImpl::Private::ForceMatrixXform(Xformable);
+			pxr::UsdGeomXformOp TransformOp = UE::USDPrimConversion::Private::ForceMatrixXform(Xformable);
 			if (!TransformOp)
 			{
 				return false;
@@ -4132,7 +4031,7 @@ UnrealToUsd::FPropertyTrackWriter UnrealToUsd::CreatePropertyTrackWriter(
 				{
 					Xformable.CreateXformOpOrderAttr();
 
-					if (pxr::UsdGeomXformOp TransformOp = UE::USDPrimConversionImpl::Private::ForceMatrixXform(Xformable))
+					if (pxr::UsdGeomXformOp TransformOp = UE::USDPrimConversion::Private::ForceMatrixXform(Xformable))
 					{
 						Attr = TransformOp.GetAttr();
 
@@ -4791,7 +4690,7 @@ bool UnrealToUsd::ConvertXformable(
 
 	if (bIsDataOutOfSync)
 	{
-		if (pxr::UsdGeomXformOp TransformOp = UE::USDPrimConversionImpl::Private::ForceMatrixXform(Xformable))
+		if (pxr::UsdGeomXformOp TransformOp = UE::USDPrimConversion::Private::ForceMatrixXform(Xformable))
 		{
 			TransformOp.GetAttr().Clear();	  // Clear existing transform data
 		}
@@ -5252,7 +5151,7 @@ bool UnrealToUsd::ConvertBoundsComponent(const UUsdDrawModeComponent& BoundsComp
 	return true;
 }
 
-namespace UE::USDPrimConversionImpl::Private
+namespace UE::USDPrimConversion::Private
 {
 	FString PrimPathToNamespace(FString PrimPath)
 	{
@@ -5278,7 +5177,7 @@ namespace UE::USDPrimConversionImpl::Private
 		const FString& NamespacePrefix = {}
 	)
 	{
-		using namespace UE::USDPrimConversionImpl::Private;
+		using namespace UE::USDPrimConversion::Private;
 
 		if (!Prim || PrimMetadata.Metadata.Num() == 0 || (bInvertFilters && BlockedPrefixFilters.Num() == 0))
 		{
@@ -5399,7 +5298,7 @@ namespace UE::USDPrimConversionImpl::Private
 		}
 		return bSuccess;
 	}
-}	 // namespace UE::USDPrimConversionImpl::Private
+}	 // namespace UE::USDPrimConversion::Private
 
 bool UnrealToUsd::ConvertMetadata(
 	const FUsdCombinedPrimMetadata& CombinedPrimMetadata,
@@ -5408,7 +5307,7 @@ bool UnrealToUsd::ConvertMetadata(
 	bool bInvertFilters
 )
 {
-	using namespace UE::USDPrimConversionImpl::Private;
+	using namespace UE::USDPrimConversion::Private;
 
 	if (!Prim || CombinedPrimMetadata.PrimPathToMetadata.Num() == 0 || (bInvertFilters && BlockedPrefixFilters.Num() == 0))
 	{
@@ -5498,7 +5397,7 @@ bool UnrealToUsd::ConvertMetadata(
 	bool bInvertFilters
 )
 {
-	return UE::USDPrimConversionImpl::Private::ConvertMetadataInternal(PrimMetadata, Prim, BlockedPrefixFilters, bInvertFilters);
+	return UE::USDPrimConversion::Private::ConvertMetadataInternal(PrimMetadata, Prim, BlockedPrefixFilters, bInvertFilters);
 }
 
 bool UnrealToUsd::ConvertMetadata(

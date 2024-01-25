@@ -352,9 +352,9 @@ namespace UE::UsdGeomMeshConversion::Private
 		int32 LODIndex,
 		const FStaticMeshLODResources& LODRenderMesh,
 		pxr::UsdGeomMesh& UsdMesh,
-		const pxr::VtArray<std::string>& MaterialAssignments,
+		const TArray<FString>& MaterialAssignments,
 		const pxr::UsdTimeCode TimeCode,
-		pxr::UsdPrim MaterialPrim
+		pxr::UsdPrim PrimToReceiveMaterialAssignments
 	)
 	{
 		pxr::UsdPrim MeshPrim = UsdMesh.GetPrim();
@@ -524,47 +524,36 @@ namespace UE::UsdGeomMeshConversion::Private
 		{
 			bool bHasUEMaterialAssignements = false;
 
-			pxr::VtArray<std::string> UnrealMaterialsForLOD;
+			TArray<FString> UnrealMaterialsForLOD;
 			for (const FStaticMeshSection& Section : LODRenderMesh.Sections)
 			{
-				if (Section.MaterialIndex >= 0 && Section.MaterialIndex < MaterialAssignments.size())
+				if (MaterialAssignments.IsValidIndex(Section.MaterialIndex))
 				{
-					UnrealMaterialsForLOD.push_back(MaterialAssignments[Section.MaterialIndex]);
+					UnrealMaterialsForLOD.Add(MaterialAssignments[Section.MaterialIndex]);
 					bHasUEMaterialAssignements = true;
 				}
 				else
 				{
 					// Keep unrealMaterials with the same number of elements as our MaterialIndices expect
-					UnrealMaterialsForLOD.push_back("");
+					UnrealMaterialsForLOD.Add(TEXT(""));
 				}
 			}
 
-			// This LOD has a single material assignment, just add an unrealMaterials attribute to the mesh prim
-			if (bHasUEMaterialAssignements && UnrealMaterialsForLOD.size() == 1)
+			// This LOD has a single material assignment, just create/bind an UnrealMaterial child prim directly
+			if (bHasUEMaterialAssignements && UnrealMaterialsForLOD.Num() == 1)
 			{
-				if (pxr::UsdAttribute UEMaterialsAttribute = MaterialPrim.CreateAttribute(
-						UnrealIdentifiers::MaterialAssignment,
-						pxr::SdfValueTypeNames->String
-					))
-				{
-					UEMaterialsAttribute.Set(UnrealMaterialsForLOD[0]);
-				}
+				UsdUtils::AuthorUnrealMaterialBinding(PrimToReceiveMaterialAssignments, UnrealMaterialsForLOD[0]);
 			}
 			// Multiple material assignments to the same LOD (and so the same mesh prim). Need to create a GeomSubset for each UE mesh section
-			else if (UnrealMaterialsForLOD.size() > 1)
+			else if (UnrealMaterialsForLOD.Num() > 1)
 			{
 				// Need to fetch all triangles of a section, and add their indices
 				for (int32 SectionIndex = 0; SectionIndex < LODRenderMesh.Sections.Num(); ++SectionIndex)
 				{
 					const FStaticMeshSection& Section = LODRenderMesh.Sections[SectionIndex];
 
-					// Note that we will continue on even if we have no material assignment, so as to satisfy the "partition" family condition (below)
-					std::string SectionMaterial;
-					if (Section.MaterialIndex >= 0 && Section.MaterialIndex < MaterialAssignments.size())
-					{
-						SectionMaterial = MaterialAssignments[Section.MaterialIndex];
-					}
-
+					// Note that we will continue authoring the GeomSubsets on even if we later find out we have no material assignment (just
+					// "") for this section, so as to satisfy the "partition" family condition (below)
 					pxr::UsdPrim GeomSubsetPrim = Stage->DefinePrim(
 						MeshPrim.GetPath().AppendPath(pxr::SdfPath("Section" + std::to_string(SectionIndex))),
 						UnrealToUsd::ConvertToken(TEXT("GeomSubset")).Get()
@@ -572,10 +561,10 @@ namespace UE::UsdGeomMeshConversion::Private
 
 					// MaterialPrim may be in another stage, so we may need another GeomSubset there
 					pxr::UsdPrim MaterialGeomSubsetPrim = GeomSubsetPrim;
-					if (MaterialPrim.GetStage() != MeshPrim.GetStage())
+					if (PrimToReceiveMaterialAssignments.GetStage() != MeshPrim.GetStage())
 					{
-						MaterialGeomSubsetPrim = MaterialPrim.GetStage()->OverridePrim(
-							MaterialPrim.GetPath().AppendPath(pxr::SdfPath("Section" + std::to_string(SectionIndex)))
+						MaterialGeomSubsetPrim = PrimToReceiveMaterialAssignments.GetStage()->OverridePrim(
+							PrimToReceiveMaterialAssignments.GetPath().AppendPath(pxr::SdfPath("Section" + std::to_string(SectionIndex)))
 						);
 					}
 
@@ -588,7 +577,6 @@ namespace UE::UsdGeomMeshConversion::Private
 					// Indices attribute
 					const uint32 TriangleCount = Section.NumTriangles;
 					const uint32 FirstTriangleIndex = Section.FirstIndex / 3;	 // FirstIndex is the first *vertex* instance index
-					FIndexArrayView VertexInstances = LODRenderMesh.IndexBuffer.GetArrayView();
 					pxr::VtArray<int> IndicesAttrValue;
 					for (uint32 TriangleIndex = FirstTriangleIndex; TriangleIndex - FirstTriangleIndex < TriangleCount; ++TriangleIndex)
 					{
@@ -607,14 +595,8 @@ namespace UE::UsdGeomMeshConversion::Private
 					// Family type
 					pxr::UsdGeomSubset::SetFamilyType(UsdMesh, pxr::UsdShadeTokens->materialBind, pxr::UsdGeomTokens->partition);
 
-					// unrealMaterial attribute
-					if (pxr::UsdAttribute UEMaterialsAttribute = MaterialGeomSubsetPrim.CreateAttribute(
-							UnrealIdentifiers::MaterialAssignment,
-							pxr::SdfValueTypeNames->String
-						))
-					{
-						UEMaterialsAttribute.Set(UnrealMaterialsForLOD[SectionIndex]);
-					}
+					// material:binding relationship
+					UsdUtils::AuthorUnrealMaterialBinding(MaterialGeomSubsetPrim, UnrealMaterialsForLOD[SectionIndex]);
 				}
 			}
 		}
@@ -1633,8 +1615,7 @@ namespace UE::UsdGeomMeshConversion::Private
 			InOutMeshData.CreaseLengths,
 			InOutMeshData.CreaseSharpnesses,
 			InOutMeshData.CornerIndices,
-			InOutMeshData.CornerSharpnesses
-		};
+			InOutMeshData.CornerSharpnesses};
 
 		pxr::PxOsdMeshTopology Topology{
 			InOutMeshData.SubdivScheme,
@@ -1642,8 +1623,7 @@ namespace UE::UsdGeomMeshConversion::Private
 			InOutMeshData.FaceVertexCounts,
 			InOutMeshData.FaceVertexIndices,
 			InOutMeshData.HoleIndices,
-			SubdivTags
-		};
+			SubdivTags};
 
 		std::vector<pxr::VtArray<int>> FaceVaryingTopologies;
 		FaceVaryingTopologies.resize(FaceVaryingChannelCounter);
@@ -3694,7 +3674,7 @@ bool UnrealToUsd::ConvertStaticMesh(
 
 	// Collect all material assignments, referenced by the sections' material indices
 	bool bHasMaterialAssignments = false;
-	pxr::VtArray<std::string> MaterialAssignments;
+	TArray<FString> MaterialAssignments;
 	for (const FStaticMaterial& StaticMaterial : StaticMesh->GetStaticMaterials())
 	{
 		FString AssignedMaterialPathName;
@@ -3707,12 +3687,12 @@ bool UnrealToUsd::ConvertStaticMesh(
 			}
 		}
 
-		MaterialAssignments.push_back(UnrealToUsd::ConvertString(*AssignedMaterialPathName).Get());
+		MaterialAssignments.Add(AssignedMaterialPathName);
 	}
 	if (!bHasMaterialAssignments)
 	{
-		// Prevent creation of the unrealMaterials attribute in case we don't have any assignments at all
-		MaterialAssignments.clear();
+		// Prevent creation of the UnrealMaterials prims in case we don't have any assignments at all
+		MaterialAssignments.Reset();
 	}
 
 	// Do this outside the variant edit context or else it's going to be a weaker opinion than the stuff outside
@@ -3981,9 +3961,9 @@ namespace UE::UsdGeometryCacheConversion::Private
 	void ConvertGeometryCacheMeshData(
 		const FGeometryCacheMeshData& MeshData,
 		pxr::UsdGeomMesh& UsdMesh,
-		const pxr::VtArray<std::string>& MaterialAssignments,
+		const TArray<FString>& MaterialAssignments,
 		const pxr::UsdTimeCode TimeCode,
-		pxr::UsdPrim MaterialPrim,
+		pxr::UsdPrim PrimToReceiveMaterialAssignments,
 		FGeometryCacheExportContext& ExportContext
 	)
 	{
@@ -4172,19 +4152,13 @@ namespace UE::UsdGeometryCacheConversion::Private
 
 		// Material assignments
 		{
-			// This mesh has a single material assignment, just add an unrealMaterials attribute to the mesh prim
-			if (MaterialAssignments.size() == 1)
+			// This LOD has a single material assignment, just create/bind an UnrealMaterial child prim directly
+			if (MaterialAssignments.Num() == 1)
 			{
-				if (pxr::UsdAttribute UEMaterialsAttribute = MaterialPrim.CreateAttribute(
-						UnrealIdentifiers::MaterialAssignment,
-						pxr::SdfValueTypeNames->String
-					))
-				{
-					UEMaterialsAttribute.Set(MaterialAssignments[0]);
-				}
+				UsdUtils::AuthorUnrealMaterialBinding(PrimToReceiveMaterialAssignments, MaterialAssignments[0]);
 			}
 			// Multiple material assignments to the same mesh. Need to create a GeomSubset for each UE mesh section
-			else if (MaterialAssignments.size() > 1)
+			else if (MaterialAssignments.Num() > 1)
 			{
 				TSet<FString> UsedSectionNames;
 				// Need to fetch all triangles of a section, and add their indices
@@ -4192,13 +4166,8 @@ namespace UE::UsdGeometryCacheConversion::Private
 				{
 					const FGeometryCacheMeshBatchInfo& Section = MeshData.BatchesInfo[SectionIndex];
 
-					// Note that we will continue on even if we have no material assignment, so as to satisfy the "partition" family condition (below)
-					std::string SectionMaterial;
-					if (Section.MaterialIndex >= 0 && Section.MaterialIndex < MaterialAssignments.size())
-					{
-						SectionMaterial = MaterialAssignments[Section.MaterialIndex];
-					}
-
+					// Note that we will continue authoring the GeomSubsets on even if we later find out we have no material assignment (just
+					// "") for this section, so as to satisfy the "partition" family condition (below)
 					FString SectionName;
 					if (ExportContext.SlotNames.IsValidIndex(SectionIndex))
 					{
@@ -4219,9 +4188,11 @@ namespace UE::UsdGeometryCacheConversion::Private
 
 					// MaterialPrim may be in another stage, so we may need another GeomSubset there
 					pxr::UsdPrim MaterialGeomSubsetPrim = GeomSubsetPrim;
-					if (MaterialPrim.GetStage() != MeshPrim.GetStage())
+					if (PrimToReceiveMaterialAssignments.GetStage() != MeshPrim.GetStage())
 					{
-						MaterialGeomSubsetPrim = MaterialPrim.GetStage()->OverridePrim(MaterialPrim.GetPath().AppendPath(PrimPath));
+						MaterialGeomSubsetPrim = PrimToReceiveMaterialAssignments.GetStage()->OverridePrim(
+							PrimToReceiveMaterialAssignments.GetPath().AppendPath(PrimPath)
+						);
 					}
 
 					pxr::UsdGeomSubset GeomSubsetSchema{GeomSubsetPrim};
@@ -4257,13 +4228,10 @@ namespace UE::UsdGeometryCacheConversion::Private
 						// Family type
 						pxr::UsdGeomSubset::SetFamilyType(UsdMesh, pxr::UsdShadeTokens->materialBind, pxr::UsdGeomTokens->partition);
 
-						// unrealMaterial attribute
-						if (pxr::UsdAttribute UEMaterialsAttribute = MaterialGeomSubsetPrim.CreateAttribute(
-								UnrealIdentifiers::MaterialAssignment,
-								pxr::SdfValueTypeNames->String
-							))
+						// material:binding relationship
+						if (MaterialAssignments.IsValidIndex(Section.MaterialIndex))
 						{
-							UEMaterialsAttribute.Set(SectionMaterial);
+							UsdUtils::AuthorUnrealMaterialBinding(MaterialGeomSubsetPrim, MaterialAssignments[Section.MaterialIndex]);
 						}
 					}
 				}
@@ -4290,7 +4258,7 @@ bool UnrealToUsd::ConvertGeometryCache(const UGeometryCache* GeometryCache, pxr:
 
 	// Collect all material assignments, referenced by the sections' material indices
 	bool bHasMaterialAssignments = false;
-	pxr::VtArray<std::string> MaterialAssignments;
+	TArray<FString> MaterialAssignments;
 	for (const UMaterialInterface* Material : GeometryCache->Materials)
 	{
 		FString AssignedMaterialPathName;
@@ -4303,12 +4271,12 @@ bool UnrealToUsd::ConvertGeometryCache(const UGeometryCache* GeometryCache, pxr:
 			}
 		}
 
-		MaterialAssignments.push_back(UnrealToUsd::ConvertString(*AssignedMaterialPathName).Get());
+		MaterialAssignments.Add(AssignedMaterialPathName);
 	}
 	if (!bHasMaterialAssignments)
 	{
 		// Prevent creation of the unrealMaterials attribute in case we don't have any assignments at all
-		MaterialAssignments.clear();
+		MaterialAssignments.Reset();
 	}
 
 	// Author material bindings on the dedicated stage if we have one
@@ -4878,6 +4846,14 @@ void UsdUtils::ReplaceUnrealMaterialsWithBaked(
 
 					if (!bAlreadyHasReference)
 					{
+						// Without this, if we tried exporting material overrides for LOD meshes they would
+						// end up outside of the variant set
+						TOptional<pxr::UsdEditContext> VarContext;
+						if (bAuthorInsideVariants)
+						{
+							VarContext.Emplace(OuterVariantSet.GetValue().GetVariantEditContext());
+						}
+
 						UE::FUsdPrim UEMatPrim{MatPrim};
 						UsdUtils::AddReference(UEMatPrim, *BakedFilename);
 					}

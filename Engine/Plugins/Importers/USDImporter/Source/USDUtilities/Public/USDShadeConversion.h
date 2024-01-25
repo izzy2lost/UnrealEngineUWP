@@ -182,6 +182,12 @@ namespace UnrealToUsd
 
 namespace UsdUtils
 {
+	// Writes UnrealMaterialPathName as a material binding for MeshOrGeomSubsetPrim, either by reusing an existing UsdShadeMaterial
+	// binding if it already has an 'unreal' render context output and the expected structure, or by creating a new Material prim
+	// that fulfills those requirements.
+	// Doesn't write to the 'unrealMaterial' attribute at all, as we intend on deprecating it in the future.
+	USDUTILITIES_API void AuthorUnrealMaterialBinding(pxr::UsdPrim& MeshOrGeomSubsetPrim, const FString& UnrealMaterialPathName);
+
 	/** Returns a path to an UE asset (e.g. "/Game/Assets/Red.Red") if MaterialPrim has an 'unreal' render context surface output that points at one
 	 */
 	USDUTILITIES_API TOptional<FString> GetUnrealSurfaceOutput(const pxr::UsdPrim& MaterialPrim);
