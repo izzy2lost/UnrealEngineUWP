@@ -14,6 +14,7 @@
 #include "USDLog.h"
 #include "USDMemory.h"
 #include "USDPrimConversion.h"
+#include "USDShadeConversion.h"
 #include "USDTypesConversion.h"
 
 #include "UsdWrappers/SdfLayer.h"
@@ -784,10 +785,10 @@ namespace UnrealToUsdImpl
 		const FSkeletalMeshLODModel& LODModel,
 		pxr::UsdGeomMesh& UsdLODPrimGeomMesh,
 		bool bHasVertexColors,
-		pxr::VtArray<std::string>& MaterialAssignments,
+		const TArray<FString>& MaterialAssignments,
 		const TArray<int32>& LODMaterialMap,
 		const pxr::UsdTimeCode TimeCode,
-		pxr::UsdPrim MaterialPrim
+		pxr::UsdPrim PrimToReceiveMaterialAssignments
 	)
 	{
 		FScopedUsdAllocs UsdAllocs;
@@ -1061,7 +1062,7 @@ namespace UnrealToUsdImpl
 		{
 			bool bHasUEMaterialAssignements = false;
 
-			pxr::VtArray<std::string> UnrealMaterialsForLOD;
+			TArray<FString> UnrealMaterialsForLOD;
 			for (const FSkelMeshSection& Section : LODModel.Sections)
 			{
 				int32 SkeletalMaterialIndex = INDEX_NONE;
@@ -1075,31 +1076,25 @@ namespace UnrealToUsdImpl
 					SkeletalMaterialIndex = Section.MaterialIndex;
 				}
 
-				if (SkeletalMaterialIndex >= 0 && SkeletalMaterialIndex < MaterialAssignments.size())
+				if (MaterialAssignments.IsValidIndex(SkeletalMaterialIndex))
 				{
-					UnrealMaterialsForLOD.push_back(MaterialAssignments[SkeletalMaterialIndex]);
+					UnrealMaterialsForLOD.Add(MaterialAssignments[SkeletalMaterialIndex]);
 					bHasUEMaterialAssignements = true;
 				}
 				else
 				{
 					// Keep unrealMaterials with the same number of elements as our MaterialIndices expect
-					UnrealMaterialsForLOD.push_back("");
+					UnrealMaterialsForLOD.Add("");
 				}
 			}
 
 			// This LOD has a single material assignment, just add an unrealMaterials attribute to the mesh prim
-			if (bHasUEMaterialAssignements && UnrealMaterialsForLOD.size() == 1)
+			if (bHasUEMaterialAssignements && UnrealMaterialsForLOD.Num() == 1)
 			{
-				if (pxr::UsdAttribute UEMaterialsAttribute = MaterialPrim.CreateAttribute(
-						UnrealIdentifiers::MaterialAssignment,
-						pxr::SdfValueTypeNames->String
-					))
-				{
-					UEMaterialsAttribute.Set(UnrealMaterialsForLOD[0]);
-				}
+				UsdUtils::AuthorUnrealMaterialBinding(PrimToReceiveMaterialAssignments, UnrealMaterialsForLOD[0]);
 			}
 			// Multiple material assignments to the same LOD (and so the same mesh prim). Need to create a GeomSubset for each UE mesh section
-			else if (UnrealMaterialsForLOD.size() > 1)
+			else if (UnrealMaterialsForLOD.Num() > 1)
 			{
 				// Need to fetch all triangles of a section, and add their indices to the GeomSubset
 				for (int32 SectionIndex = 0; SectionIndex < LODModel.Sections.Num(); ++SectionIndex)
@@ -1110,19 +1105,18 @@ namespace UnrealToUsdImpl
 						continue;
 					}
 
-					// Note that we will continue on even if we have no material assignment, so as to satisfy the "partition" family condition
-					std::string SectionMaterial = UnrealMaterialsForLOD[SectionIndex];
-
+					// Note that we will continue authoring the GeomSubsets on even if we later find out we have no material assignment (just
+					// "") for this section, so as to satisfy the "partition" family condition (below)
 					pxr::UsdPrim GeomSubsetPrim = Stage->DefinePrim(
 						UsdLODPrimGeomMesh.GetPath().AppendPath(pxr::SdfPath("Section" + std::to_string(SectionIndex))),
 						UnrealToUsd::ConvertToken(TEXT("GeomSubset")).Get()
 					);
 
 					pxr::UsdPrim MaterialGeomSubsetPrim = GeomSubsetPrim;
-					if (MaterialPrim.GetStage() != MeshPrim.GetStage())
+					if (PrimToReceiveMaterialAssignments.GetStage() != MeshPrim.GetStage())
 					{
-						MaterialGeomSubsetPrim = MaterialPrim.GetStage()->OverridePrim(
-							MaterialPrim.GetPath().AppendPath(pxr::SdfPath("Section" + std::to_string(SectionIndex)))
+						MaterialGeomSubsetPrim = PrimToReceiveMaterialAssignments.GetStage()->OverridePrim(
+							PrimToReceiveMaterialAssignments.GetPath().AppendPath(pxr::SdfPath("Section" + std::to_string(SectionIndex)))
 						);
 					}
 
@@ -1169,14 +1163,8 @@ namespace UnrealToUsdImpl
 					// Family type
 					pxr::UsdGeomSubset::SetFamilyType(UsdLODPrimGeomMesh, pxr::UsdShadeTokens->materialBind, pxr::UsdGeomTokens->partition);
 
-					// unrealMaterials attribute
-					if (pxr::UsdAttribute UEMaterialsAttribute = MaterialGeomSubsetPrim.CreateAttribute(
-							UnrealIdentifiers::MaterialAssignment,
-							pxr::SdfValueTypeNames->String
-						))
-					{
-						UEMaterialsAttribute.Set(UnrealMaterialsForLOD[SectionIndex]);
-					}
+					// material:binding relationship
+					UsdUtils::AuthorUnrealMaterialBinding(MaterialGeomSubsetPrim, UnrealMaterialsForLOD[SectionIndex]);
 				}
 			}
 		}
@@ -3316,7 +3304,7 @@ bool UnrealToUsd::ConvertSkeletalMesh(
 
 	// Collect all material assignments, referenced by the sections' material indices
 	bool bHasMaterialAssignments = false;
-	pxr::VtArray<std::string> MaterialAssignments;
+	TArray<FString> MaterialAssignments;
 	for (const FSkeletalMaterial& SkeletalMaterial : SkeletalMesh->GetMaterials())
 	{
 		FString AssignedMaterialPathName;
@@ -3329,12 +3317,12 @@ bool UnrealToUsd::ConvertSkeletalMesh(
 			}
 		}
 
-		MaterialAssignments.push_back(UnrealToUsd::ConvertString(*AssignedMaterialPathName).Get());
+		MaterialAssignments.Add(AssignedMaterialPathName);
 	}
 	if (!bHasMaterialAssignments)
 	{
 		// Prevent creation of the unrealMaterials attribute in case we don't have any assignments at all
-		MaterialAssignments.clear();
+		MaterialAssignments.Reset();
 	}
 
 	// Create and fill skeleton

@@ -57,6 +57,7 @@
 #include "pxr/usd/ar/resolverScopedCache.h"
 #include "pxr/usd/sdf/layerUtils.h"
 #include "pxr/usd/usdShade/material.h"
+#include "pxr/usd/usdShade/materialBindingAPI.h"
 #include "pxr/usd/usdShade/nodeDefAPI.h"
 #include "USDIncludesEnd.h"
 
@@ -1226,8 +1227,7 @@ namespace UE
 						TextureValue.UVScale.GetVector()[0],
 						TextureValue.UVScale.GetVector()[1],
 						TextureValue.UVTranslation[0],
-						TextureValue.UVTranslation[1]
-					};
+						TextureValue.UVTranslation[1]};
 					UsdUtils::SetVectorParameterValue(Material, *FString::Printf(TEXT("%sScaleTranslation"), ParameterName), ScaleAndTranslation);
 
 					UsdUtils::SetScalarParameterValue(Material, *FString::Printf(TEXT("%sRotation"), ParameterName), TextureValue.UVRotation);
@@ -3291,6 +3291,83 @@ void UsdUtils::SetBoolParameterValue(UMaterialInstance& Material, const TCHAR* P
 	if (!bFound)
 	{
 		SetScalarParameterValue(Material, ParameterName, bParameterValue ? 1.0f : 0.0f);
+	}
+}
+
+void UsdUtils::AuthorUnrealMaterialBinding(pxr::UsdPrim& MeshOrGeomSubsetPrim, const FString& UnrealMaterialPathName)
+{
+	if (!MeshOrGeomSubsetPrim || UnrealMaterialPathName.IsEmpty())
+	{
+		return;
+	}
+
+	FScopedUsdAllocs UsdAllocs;
+
+	pxr::UsdShadeMaterialBindingAPI BindingAPI = pxr::UsdShadeMaterialBindingAPI::Apply(MeshOrGeomSubsetPrim);
+
+	// If this mesh prim already has a binding to a *child* material with the 'unreal' render context,
+	// just write our material there and early out
+	if (pxr::UsdShadeMaterial ShadeMaterial = BindingAPI.ComputeBoundMaterial())
+	{
+		// We need to try reusing these materials or else we'd write a new material prim every time we change
+		// the override in UE, but we also run the risk of modifying a material that is used by multiple prims
+		// (and here we just want to set the override for this Mesh prim). The compromise is to only reuse the
+		// material if it is a child of MeshPrim already, and always to author our material prims as children
+		std::string MaterialPath = ShadeMaterial.GetPrim().GetPath().GetString();
+		std::string MeshPrimPath = MeshOrGeomSubsetPrim.GetPath().GetString();
+		if (MaterialPath.rfind(MeshPrimPath, 0) == 0)
+		{
+			if (pxr::UsdPrim MaterialPrim = ShadeMaterial.GetPrim())
+			{
+				UsdUtils::SetUnrealSurfaceOutput(MaterialPrim, UnrealMaterialPathName);
+				return;
+			}
+		}
+	}
+
+	// Find a unique name for our child material prim
+	// Note how we'll always author these materials as children of the meshes themselves instead of emitting a common
+	// Material prim to use for multiple overrides: This because in the future we'll want to have a separate material
+	// bake for each mesh (to make sure we get vertex color effects, etc.), and so we'd have multiple baked .usda material
+	// asset layers for each UE material, and we'd want each mesh/section/LOD to refer to its own anyway
+	FString ChildMaterialName = TEXT("UnrealMaterial");
+	if (pxr::UsdPrim ExistingPrim = MeshOrGeomSubsetPrim.GetChild(UnrealToUsd::ConvertToken(*ChildMaterialName).Get()))
+	{
+		// Get a unique name for a new prim. Don't even try checking if this prim is usable as the material binding,
+		// because if it was the material binding for this mesh we would have already used it above, when fetching the ExistingShader.
+		// If we're here, we don't know what this prim is about
+		TSet<FString> UsedNames;
+		for (pxr::UsdPrim Child : MeshOrGeomSubsetPrim.GetFilteredChildren(pxr::UsdTraverseInstanceProxies(pxr::UsdPrimAllPrimsPredicate)))
+		{
+			UsedNames.Add(UsdToUnreal::ConvertToken(Child.GetName()));
+		}
+
+		ChildMaterialName = UsdUtils::GetUniqueName(ChildMaterialName, UsedNames);
+	}
+
+	pxr::UsdStageRefPtr Stage = MeshOrGeomSubsetPrim.GetStage();
+	pxr::SdfPath MeshPath = MeshOrGeomSubsetPrim.GetPath();
+	pxr::SdfPath MaterialPath = MeshPath.AppendChild(UnrealToUsd::ConvertToken(*ChildMaterialName).Get());
+
+	pxr::UsdShadeMaterial ChildMaterial = pxr::UsdShadeMaterial::Define(Stage, MaterialPath);
+	if (!ChildMaterial)
+	{
+		UE_LOG(
+			LogUsd,
+			Warning,
+			TEXT("Failed to author material prim '%s' when trying to write '%s's material assignment '%s' to USD"),
+			*UsdToUnreal::ConvertPath(MaterialPath),
+			*UsdToUnreal::ConvertPath(MeshOrGeomSubsetPrim.GetPath()),
+			*UnrealMaterialPathName
+		);
+		return;
+	}
+
+	if (pxr::UsdPrim MaterialPrim = ChildMaterial.GetPrim())
+	{
+		UsdUtils::SetUnrealSurfaceOutput(MaterialPrim, UnrealMaterialPathName);
+
+		BindingAPI.Bind(ChildMaterial);
 	}
 }
 
