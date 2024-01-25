@@ -55,6 +55,10 @@ public:
 public:
 	NIAGARA_API virtual void StartupModule()override;
 	NIAGARA_API virtual void ShutdownModule()override;
+	
+	/** Get the instance of this module. */
+	NIAGARA_API static INiagaraModule& Get();
+	
 	NIAGARA_API void ShutdownRenderingResources();
 	
 	NIAGARA_API void OnPostEngineInit();
@@ -129,6 +133,9 @@ public:
 	static NIAGARA_API void RequestRefreshDataChannels() { bDataChannelRefreshRequested = true; }
 	static NIAGARA_API void RefreshDataChannels();
 
+	const TArray<const FNiagaraAssetTagDefinition*>& GetInternalAssetTagDefinitions() { return InternalAssetTagDefinitions; }
+	void RegisterInternalAssetTagDefinitions();
+	
 #if NIAGARA_PERF_BASELINES
 	NIAGARA_API void GeneratePerfBaselines(TArray<UNiagaraEffectType*>& BaselinesToGenerate);
 
@@ -260,9 +267,9 @@ public:
 	FORCEINLINE static const FNiagaraVariable&  GetVar_DataInstance_Alive() { return DataInstance_Alive; }
 	FORCEINLINE static const FNiagaraVariable&  GetVar_BeginDefaults() { return Translator_BeginDefaults; }
 	FORCEINLINE static const FNiagaraVariable&  GetVar_CallID() { return Translator_CallID; }
-
+	
 	FOnProcessQueue OnProcessQueue;
-
+	
 #if WITH_EDITORONLY_DATA
 	TSharedPtr<INiagaraMergeManager> MergeManager;
 	TSharedPtr<INiagaraEditorOnlyDataUtilities> EditorOnlyDataUtilities;
@@ -282,6 +289,9 @@ public:
 	static NIAGARA_API bool bUseGlobalFXBudget;
 	static NIAGARA_API bool bDataChannelsEnabled;
 
+	static const FNiagaraAssetTagDefinition TemplateTagDefinition;
+	static const FNiagaraAssetTagDefinition LearningContentTagDefinition;
+	TArray<const FNiagaraAssetTagDefinition*> InternalAssetTagDefinitions;
 private:
 	static NIAGARA_API FNiagaraVariable Engine_WorldDeltaTime;
 	static NIAGARA_API FNiagaraVariable Engine_DeltaTime;

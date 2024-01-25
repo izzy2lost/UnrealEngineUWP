@@ -15,6 +15,7 @@
 #include "Customizations/NiagaraDataInterfaceSimCacheVisualizer.h"
 #include "NiagaraEditorModule.generated.h"
 
+class FNiagaraRecentAndFavoritesManager;
 class IAssetTools;
 class IAssetTypeActions;
 class INiagaraEditorTypeUtilities;
@@ -149,6 +150,8 @@ public:
 	/** Get the instance of this module. */
 	NIAGARAEDITOR_API static FNiagaraEditorModule& Get();
 
+	NIAGARAEDITOR_API FNiagaraRecentAndFavoritesManager* GetRecentsManager();
+	
 	/** Start the compilation of the specified script. */
 	virtual int32 CompileScript(const FNiagaraCompileRequestDataBase* InCompileRequest, const FNiagaraCompileRequestDuplicateDataBase* InCompileRequestDuplicate, const FNiagaraCompileOptions& InCompileOptions);
 	virtual TSharedPtr<FNiagaraVMExecutableData> GetCompilationResult(int32 JobID, bool bWait, FNiagaraScriptCompileMetrics& ScriptMetrics);
@@ -176,7 +179,7 @@ public:
 	/** Register/unregister niagara editor settings. */
 	void RegisterSettings();
 	void UnregisterSettings();
-
+	
 	/** Gets Niagara editor type utilities for a specific type if there are any registered. */
 	TSharedPtr<INiagaraEditorTypeUtilities, ESPMode::ThreadSafe> NIAGARAEDITOR_API GetTypeUtilities(const FNiagaraTypeDefinition& Type);
 
@@ -432,7 +435,7 @@ private:
 	TSharedPtr<FNiagaraComponentBroker> NiagaraComponentBroker;
 
 	TMap<const UScriptStruct*, FOnCreateMovieSceneTrackForParameter> TypeToParameterTrackCreatorMap;
-
+	
 	IConsoleCommand* TestCompileScriptCommand;
 	IConsoleCommand* ValidateScriptVariableGuidsCommand;
 	IConsoleCommand* ValidateAndFixScriptVariableGuidsCommand;
@@ -494,4 +497,6 @@ private:
 	TAssetPreloadCache<UNiagaraParameterDefinitions> ParameterDefinitionsAssetCache;
 
 	TArray<UClass*> PluginAssetClassesPreloaded;
+
+	TSharedPtr<FNiagaraRecentAndFavoritesManager> RecentAndFavoritesManager;
 };

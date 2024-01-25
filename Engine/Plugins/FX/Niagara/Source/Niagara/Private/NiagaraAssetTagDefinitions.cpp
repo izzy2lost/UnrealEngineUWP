@@ -1,0 +1,106 @@
+﻿// Copyright Epic Games, Inc. All Rights Reserved.
+
+#include "NiagaraAssetTagDefinitions.h"
+
+#include "GeneralProjectSettings.h"
+#include "NiagaraEmitter.h"
+#include "NiagaraSystem.h"
+#include "AssetRegistry/AssetRegistryModule.h"
+#include "Interfaces/IProjectManager.h"
+#include "AssetRegistry/AssetData.h"
+#include "UObject/AssetRegistryTagsContext.h"
+
+bool FNiagaraAssetTagDefinition::IsValid() const
+{
+	return TagGuid.IsValid() && AssetTag.IsEmpty() == false;
+}
+
+bool FNiagaraAssetTagDefinition::SupportsEmitters() const
+{
+	return (AssetFlags & (int32) ENiagaraAssetLibraryAssetTypes::Emitters) != 0;
+}
+
+bool FNiagaraAssetTagDefinition::SupportsSystems() const
+{
+	return (AssetFlags & (int32) ENiagaraAssetLibraryAssetTypes::Systems) != 0;
+}
+
+bool FNiagaraAssetTagDefinition::SupportsScripts() const
+{
+	return (AssetFlags & (int32) ENiagaraAssetLibraryAssetTypes::Scripts) != 0;
+}
+
+TArray<UClass*> FNiagaraAssetTagDefinition::GetSupportedClasses() const
+{
+	TArray<UClass*> Result;
+	
+	if(SupportsEmitters())
+	{
+		Result.Add(UNiagaraEmitter::StaticClass());
+	}
+
+	if(SupportsSystems())
+	{
+		Result.Add(UNiagaraSystem::StaticClass());
+	}
+
+	if(SupportsScripts())
+	{
+		Result.Add(UNiagaraScript::StaticClass());
+	}
+
+	return Result;
+}
+
+bool FNiagaraAssetTagDefinition::DoesAssetDataContainTag(const FAssetData& AssetData) const
+{
+	return AssetData.FindTag(FName(GetGuidAsString()));
+}
+
+FString FNiagaraAssetTagDefinition::GetGuidAsString() const
+{
+	return TagGuid.ToString(EGuidFormats::DigitsWithHyphens);
+}
+
+void FNiagaraAssetTagDefinition::AddTagToAssetRegistryTags(TArray<UObject::FAssetRegistryTag>& OutTags) const
+{
+	UObject::FAssetRegistryTag* FoundAssetTag = OutTags.FindByPredicate([this](const UObject::FAssetRegistryTag& Candidate)
+	{
+		return Candidate.Name == FName(GetGuidAsString());
+	});
+
+	if(FoundAssetTag)
+	{
+		return;
+	}
+	else
+	{
+		// Value has to be >1 of data to be considered non-empty to not get thrown away
+		OutTags.Add(UObject::FAssetRegistryTag(FName(GetGuidAsString()), "  ", UObject::FAssetRegistryTag::TT_Alphabetical));
+	}
+}
+
+FNiagaraAssetTagDefinitionReference::FNiagaraAssetTagDefinitionReference(const FNiagaraAssetTagDefinition& InTagDefinition)
+{
+	SetTagDefinitionReference(InTagDefinition);
+}
+
+FString FNiagaraAssetTagDefinitionReference::GetGuidAsString() const
+{
+	return AssetTagDefinitionGuid.ToString(EGuidFormats::DigitsWithHyphens);
+}
+
+void FNiagaraAssetTagDefinitionReference::AddTagToAssetRegistryTags(FAssetRegistryTagsContext& Context) const
+{
+	UObject::FAssetRegistryTag* FoundAssetTag = Context.FindTag(FName(GetGuidAsString()));
+
+	if(FoundAssetTag)
+	{
+		return;
+	}
+	else
+	{
+		// Value has to be >1 of data to be considered non-empty to not get thrown away
+		Context.AddTag(UObject::FAssetRegistryTag(FName(GetGuidAsString()), "  ", UObject::FAssetRegistryTag::TT_Alphabetical));
+	}
+}

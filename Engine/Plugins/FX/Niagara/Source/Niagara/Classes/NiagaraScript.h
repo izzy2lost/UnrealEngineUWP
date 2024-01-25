@@ -18,6 +18,7 @@
 #include "NiagaraVersionedObject.h"
 #include "HAL/CriticalSection.h"
 #include "VectorVM.h"
+#include "NiagaraAssetTagDefinitions.h"
 
 #include "NiagaraScript.generated.h"
 
@@ -693,6 +694,9 @@ public:
 	/** Used to break up scripts of the same Usage type in UI display.*/
 	UPROPERTY(EditAnywhere, Category = Script)
 	FText Category;
+
+	UPROPERTY(EditAnywhere, Category = "Asset Options")
+	TArray<FNiagaraAssetTagDefinitionReference> AssetTagDefinitionReferences;
 
 	/** If true, this script will be added to a 'Suggested' category at the top of menus during searches */
 	UPROPERTY(AssetRegistrySearchable, EditAnywhere, Category = Script)

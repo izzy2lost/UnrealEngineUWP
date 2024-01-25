@@ -163,7 +163,6 @@ UNiagaraSystem::UNiagaraSystem(const FObjectInitializer& ObjectInitializer)
 : Super(ObjectInitializer)
 #if WITH_EDITORONLY_DATA
 , LibraryVisibility(ENiagaraScriptLibraryVisibility::Unexposed)
-, TemplateSpecification(ENiagaraScriptTemplateSpecification::None)
 , bBakeOutRapidIteration(false)
 , bBakeOutRapidIterationOnCook(true)
 , bTrimAttributes(false)
@@ -1082,12 +1081,6 @@ void UNiagaraSystem::PostLoad()
 		INiagaraModule& NiagaraModule = FModuleManager::GetModuleChecked<INiagaraModule>("Niagara");
 		EditorParameters = NiagaraModule.GetEditorOnlyDataUtilities().CreateDefaultEditorParameters(this);
 	}
-
-	// see the equivalent in NiagaraEmitter for details
-	if (bIsTemplateAsset_DEPRECATED)
-	{
-		TemplateSpecification = bIsTemplateAsset_DEPRECATED ? ENiagaraScriptTemplateSpecification::Template : ENiagaraScriptTemplateSpecification::None;
-	}
 	
 	if(bExposeToLibrary_DEPRECATED)
 	{
@@ -1117,9 +1110,22 @@ void UNiagaraSystem::PostLoad()
 
 #if WITH_EDITORONLY_DATA
 	// see the equivalent in NiagaraEmitter for details
+	ENiagaraScriptTemplateSpecification CurrentTemplateSpecification = TemplateSpecification_DEPRECATED;
 	if(bIsTemplateAsset_DEPRECATED)
 	{
-		TemplateSpecification = bIsTemplateAsset_DEPRECATED ? ENiagaraScriptTemplateSpecification::Template : ENiagaraScriptTemplateSpecification::None;
+		CurrentTemplateSpecification = ENiagaraScriptTemplateSpecification::Template;
+	}
+
+	if(NiagaraVer < FNiagaraCustomVersion::InheritanceUxRefactor)
+	{
+		if(CurrentTemplateSpecification == ENiagaraScriptTemplateSpecification::Template)
+		{
+			AssetTags.AddUnique(INiagaraModule::TemplateTagDefinition);
+		}
+		else if(CurrentTemplateSpecification == ENiagaraScriptTemplateSpecification::Behavior)
+		{
+			AssetTags.AddUnique(INiagaraModule::LearningContentTagDefinition);
+		}
 	}
 #endif // WITH_EDITORONLY_DATA
 
@@ -1582,11 +1588,6 @@ void UNiagaraSystem::GetAssetRegistryTags(FAssetRegistryTagsContext Context) con
 		++StringIter;
 	}
 
-	// TemplateSpecialization
-	FName TemplateSpecificationName = GET_MEMBER_NAME_CHECKED(UNiagaraSystem, TemplateSpecification);
-	FText TemplateSpecializationValueString = StaticEnum<ENiagaraScriptTemplateSpecification>()->GetDisplayNameTextByValue((int64) TemplateSpecification);
-	Context.AddTag(FAssetRegistryTag(TemplateSpecificationName, TemplateSpecializationValueString.ToString(), FAssetRegistryTag::TT_Alphabetical));
-
 	/*for (const UNiagaraDataInterface* DI : DataInterfaces)
 	{
 		FString ClassName;
@@ -1594,7 +1595,12 @@ void UNiagaraSystem::GetAssetRegistryTags(FAssetRegistryTagsContext Context) con
 		Context.AddTag(FAssetRegistryTag(*(TEXT("bHas")+ClassName), TEXT("True"), FAssetRegistryTag::TT_Alphabetical));
 	}*/
 
-
+	// Asset Library Tags
+	for(const FNiagaraAssetTagDefinitionReference& Tag : AssetTags)
+	{
+		Tag.AddTagToAssetRegistryTags(Context);
+	}
+	
 	//Context.AddTag(FAssetRegistryTag("CPUCollision", UsesCPUCollision() ? TEXT("True") : TEXT("False"), FAssetRegistryTag::TT_Alphabetical));
 	//Context.AddTag(FAssetRegistryTag("Looping", bAnyEmitterLoopsForever ? TEXT("True") : TEXT("False"), FAssetRegistryTag::TT_Alphabetical));
 	//Context.AddTag(FAssetRegistryTag("Immortal", IsImmortal() ? TEXT("True") : TEXT("False"), FAssetRegistryTag::TT_Alphabetical));
@@ -2442,10 +2448,9 @@ FNiagaraEmitterHandle UNiagaraSystem::AddEmitterHandle(UNiagaraEmitter& InEmitte
 {
 	UNiagaraEmitter* NewEmitter = UNiagaraEmitter::CreateWithParentAndOwner(FVersionedNiagaraEmitter(&InEmitter, EmitterVersion), this, EmitterName, ~(RF_Public | RF_Standalone));
 	FNiagaraEmitterHandle EmitterHandle(*NewEmitter, EmitterVersion);
-	if (InEmitter.TemplateSpecification == ENiagaraScriptTemplateSpecification::Template || InEmitter.TemplateSpecification == ENiagaraScriptTemplateSpecification::Behavior)
+	if (InEmitter.bIsInheritable == false)
 	{
 		NewEmitter->DisableVersioning(EmitterVersion);
-		NewEmitter->TemplateSpecification = ENiagaraScriptTemplateSpecification::None;
 		NewEmitter->TemplateAssetDescription = FText();
 		NewEmitter->GetLatestEmitterData()->RemoveParent();
 	}

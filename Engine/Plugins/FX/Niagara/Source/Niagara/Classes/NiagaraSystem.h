@@ -3,6 +3,7 @@
 #pragma once
 
 #include "CoreMinimal.h"
+#include "..\Public\NiagaraAssetTagDefinitions.h"
 
 #include "NiagaraDataSetCompiledData.h"
 #include "NiagaraDataSetAccessor.h"
@@ -455,8 +456,8 @@ public:
 	bool bIsTemplateAsset_DEPRECATED;
 
 	/** If this system is a regular system, a template or a behavior example. */
-	UPROPERTY(EditAnywhere, AdvancedDisplay, Category = "Asset Options", AssetRegistrySearchable, meta = (SkipSystemResetOnChange = "true"))
-	ENiagaraScriptTemplateSpecification TemplateSpecification;
+	UPROPERTY()
+	ENiagaraScriptTemplateSpecification TemplateSpecification_DEPRECATED;
 
 	UPROPERTY(EditAnywhere, AdvancedDisplay, Category = "Asset Options", AssetRegistrySearchable, meta = (SkipSystemResetOnChange = "true"))
 	FText TemplateAssetDescription;
@@ -464,6 +465,9 @@ public:
 	/** Category of this system. */
 	UPROPERTY(EditAnywhere, AdvancedDisplay, Category = "Asset Options", AssetRegistrySearchable, meta = (SkipSystemResetOnChange = "true"))
 	FText Category;
+
+	UPROPERTY(EditAnywhere, AdvancedDisplay, Category = "Asset Options", meta = (SkipSystemResetOnChange = "true"))
+	TArray<FNiagaraAssetTagDefinitionReference> AssetTags;
 
 	UPROPERTY()
 	TArray<TObjectPtr<UNiagaraScript>> ScratchPadScripts;

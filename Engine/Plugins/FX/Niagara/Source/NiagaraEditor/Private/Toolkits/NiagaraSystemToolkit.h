@@ -96,7 +96,7 @@ public:
 	/** Compiles the system script. */
 	void CompileSystem(bool bFullRebuild);
 
-	TSharedPtr<FNiagaraSystemViewModel> GetSystemViewModel();
+	TSharedPtr<FNiagaraSystemViewModel> GetSystemViewModel() const;
 	TSharedPtr<FNiagaraSystemGraphSelectionViewModel> GetSystemGraphSelectionViewModel();
 
 	TSharedPtr<FNiagaraSimCacheViewModel> GetSimCacheViewModel();
@@ -178,15 +178,11 @@ private:
 
 	void UpdateOriginalEmitter();
 	void UpdateExistingEmitters();
-
+	
 	void SetupCommands();
+	void LinkCommandLists();
 
 	void ResetSimulation();
-
-	void GetSequencerAddMenuContent(FMenuBuilder& MenuBuilder, TSharedRef<ISequencer> Sequencer);
-	TSharedRef<SWidget> CreateAddEmitterMenuContent();
-
-	void EmitterAssetSelected(const FAssetData& AssetData);
 
 	static void ToggleCompileEnabled();
 	static bool IsAutoCompileEnabled();
@@ -211,6 +207,9 @@ private:
 	void ManageVersions();
 	TSharedPtr<FNiagaraEmitterViewModel> GetEditedEmitterViewModel() const;
 
+	void OpenAddEmitterMenu();
+	bool CanAddEmitters() const;
+	void GetSequencerAddMenuContent(FMenuBuilder& MenuBuilder, TSharedRef<ISequencer> Sequencer);
 private:
 
 	/** The System being edited in system mode, or the placeholder system being edited in emitter mode. */

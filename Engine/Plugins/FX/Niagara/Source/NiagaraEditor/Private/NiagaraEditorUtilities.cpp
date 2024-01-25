@@ -6,6 +6,7 @@
 #include "AssetToolsModule.h"
 #include "ContentBrowserModule.h"
 #include "EdGraphSchema_Niagara.h"
+#include "GeneralProjectSettings.h"
 #include "Styling/AppStyle.h"
 #include "IContentBrowserSingleton.h"
 #include "INiagaraEditorTypeUtilities.h"
@@ -30,6 +31,7 @@
 #include "NiagaraOverviewNode.h"
 #include "NiagaraParameterMapHistory.h"
 #include "NiagaraParameterDefinitions.h"
+#include "NiagaraRecentAndFavoritesManager.h"
 #include "NiagaraScript.h"
 #include "ViewModels/NiagaraScriptGraphViewModel.h"
 #include "NiagaraScriptMergeManager.h"
@@ -1582,6 +1584,25 @@ ENiagaraScriptLibraryVisibility FNiagaraEditorUtilities::GetScriptAssetVisibilit
 	return ScriptVisibility;
 }
 
+bool FNiagaraEditorUtilities::GetIsInheritableFromAssetRegistryTags(const FAssetData& AssetData, bool& bUseInheritance)
+{
+	if(AssetData.GetTagValue(GET_MEMBER_NAME_CHECKED(UNiagaraEmitter, bIsInheritable), bUseInheritance))
+	{
+		return true;		
+	}
+	else
+	{
+		ENiagaraScriptTemplateSpecification DeprecatedTemplateTag;
+		if(GetTemplateSpecificationFromTag(AssetData, DeprecatedTemplateTag))
+		{
+			bUseInheritance = DeprecatedTemplateTag == ENiagaraScriptTemplateSpecification::None;
+			return true;
+		}
+	}
+
+	return false;
+}
+
 // this function is used as an overload inside FAssetData.GetTagValue for the ENiagaraScriptTemplateSpecification enum
 void LexFromString(ENiagaraScriptTemplateSpecification& OutValue, const TCHAR* Buffer)
 {
@@ -1591,7 +1612,7 @@ void LexFromString(ENiagaraScriptTemplateSpecification& OutValue, const TCHAR* B
 bool FNiagaraEditorUtilities::GetTemplateSpecificationFromTag(const FAssetData& Data, ENiagaraScriptTemplateSpecification& OutTemplateSpecification)
 {
 	ENiagaraScriptTemplateSpecification TemplateSpecification = ENiagaraScriptTemplateSpecification::None;
-	bool bTemplateEnumTagFound = Data.GetTagValue(GET_MEMBER_NAME_CHECKED(UNiagaraEmitter, TemplateSpecification), TemplateSpecification);
+	bool bTemplateEnumTagFound = Data.GetTagValue(FName("TemplateSpecification"), TemplateSpecification);
 
 	if(bTemplateEnumTagFound)
 	{
@@ -1835,6 +1856,7 @@ int32 FNiagaraEditorUtilities::GetWeightForItem(const TSharedPtr<FNiagaraMenuAct
 		}
 	}
 
+	// NPC Variables are rarely wanted so we halve their weight here
 	if(InCurrentAction->GetParameterVariable().IsSet())
 	{
 		if(InCurrentAction->GetParameterVariable().GetValue().IsInNameSpace(FNiagaraConstants::ParameterCollectionNamespaceString))
@@ -2060,6 +2082,8 @@ TArray<UNiagaraComponent*> FNiagaraEditorUtilities::GetComponentsThatReferenceSy
 
 const FGuid FNiagaraEditorUtilities::AddEmitterToSystem(UNiagaraSystem& InSystem, UNiagaraEmitter& InEmitterToAdd, FGuid EmitterVersion, bool bCreateCopy)
 {
+	FNiagaraEditorModule::Get().GetRecentsManager()->EmitterUsed(InEmitterToAdd);
+
 	// Kill all system instances before modifying the emitter handle list to prevent accessing deleted data.
 	KillSystemInstances(InSystem);
 
@@ -4763,6 +4787,207 @@ TMap<FNiagaraVariableBase, FGuid> FNiagaraEditorUtilities::Scripts::Validation::
 	}
 
 	return RemappedGuids;
+}
+
+TArray<FNiagaraEditorUtilities::AssetBrowser::FStructuredAssetTagDefinitionLookupData> FNiagaraEditorUtilities::AssetBrowser::GetStructuredSortedAssetTagDefinitions(bool bSortTagsByName)
+{
+	TArray<FStructuredAssetTagDefinitionLookupData> Result;
+	
+	// Internal Tags
+	{
+		FStructuredAssetTagDefinitionLookupData TagDefinitionData;
+		TagDefinitionData.DefinitionsAsset = nullptr;
+
+		for(const FNiagaraAssetTagDefinition* InternalAssetTagDefinition : INiagaraModule::Get().GetInternalAssetTagDefinitions())
+		{
+			TagDefinitionData.AssetTagDefinitions.Add(*InternalAssetTagDefinition);
+		}
+		
+		if(bSortTagsByName)
+		{
+			TagDefinitionData.AssetTagDefinitions.Sort();
+		}
+		TagDefinitionData.Source = EAssetTagSectionSource::NiagaraInternal;
+		Result.Add(TagDefinitionData);
+	}
+
+	FAssetRegistryModule& AssetRegistryModule = FModuleManager::Get().LoadModuleChecked<FAssetRegistryModule>("AssetRegistry");
+	FARFilter Filter;
+	Filter.ClassPaths.Add(UNiagaraAssetTagDefinitions::StaticClass()->GetClassPathName());
+
+	TArray<FAssetData> FilteredTagDefinitionAssets;
+	AssetRegistryModule.Get().GetAssets(Filter, FilteredTagDefinitionAssets);
+
+	for(const FAssetData& AssetData : FilteredTagDefinitionAssets)
+	{
+		UNiagaraAssetTagDefinitions* TagDefinitions = Cast<UNiagaraAssetTagDefinitions>(AssetData.GetAsset());
+		FStructuredAssetTagDefinitionLookupData TagDefinitionData;
+		TagDefinitionData.DefinitionsAsset = TagDefinitions;
+		TagDefinitionData.AssetTagDefinitions = TagDefinitions->GetAssetTagDefinitions();
+		if(bSortTagsByName)
+		{
+			TagDefinitionData.AssetTagDefinitions.Sort();
+		}
+		TagDefinitionData.Source = GetAssetTagDefinitionSource(AssetData);
+		Result.Add(TagDefinitionData);
+	}
+
+	Result.Sort([](const FStructuredAssetTagDefinitionLookupData& CandidateA, const FStructuredAssetTagDefinitionLookupData& CandidateB)
+	{
+		if((int32) CandidateA.Source != (int32) CandidateB.Source)
+		{
+			return (int32) CandidateA.Source < (int32) CandidateB.Source;
+		}
+
+		if(CandidateA.DefinitionsAsset == nullptr || CandidateB.DefinitionsAsset == nullptr)
+		{
+			if(CandidateB.DefinitionsAsset != nullptr)
+			{
+				return true;
+			}
+			else if(CandidateA.DefinitionsAsset != nullptr)
+			{
+				return false;
+			}
+			
+			return CandidateA.AssetTagDefinitions.Num() < CandidateB.AssetTagDefinitions.Num();
+		}
+		
+		return CandidateA.DefinitionsAsset->GetSortOrder() < CandidateB.DefinitionsAsset->GetSortOrder();
+	});
+	
+	return Result;
+}
+
+TArray<FNiagaraAssetTagDefinition> FNiagaraEditorUtilities::AssetBrowser::GetFlatSortedAssetTagDefinitions(bool bSortEndResultTagsByName)
+{
+	TArray<FNiagaraAssetTagDefinition> Result;
+	TArray<FStructuredAssetTagDefinitionLookupData> IntermediateResult;
+	FAssetRegistryModule& AssetRegistryModule = FModuleManager::Get().LoadModuleChecked<FAssetRegistryModule>("AssetRegistry");
+
+	for(const FNiagaraAssetTagDefinition* InternalAssetTagDefinition : INiagaraModule::Get().GetInternalAssetTagDefinitions())
+	{
+		Result.Add(*InternalAssetTagDefinition);
+	}
+
+	FARFilter Filter;
+	Filter.ClassPaths.Add(UNiagaraAssetTagDefinitions::StaticClass()->GetClassPathName());
+
+	TArray<FAssetData> AllTagDefinitionAssets;
+	AssetRegistryModule.Get().GetAssets(Filter, AllTagDefinitionAssets);
+
+	for(const FAssetData& AssetData : AllTagDefinitionAssets)
+	{
+		UNiagaraAssetTagDefinitions* TagDefinitions = Cast<UNiagaraAssetTagDefinitions>(AssetData.GetAsset());
+		FStructuredAssetTagDefinitionLookupData TagDefinitionData;
+		TagDefinitionData.DefinitionsAsset = TagDefinitions;
+		TagDefinitionData.AssetTagDefinitions = TagDefinitions->GetAssetTagDefinitions();
+		TagDefinitionData.Source = GetAssetTagDefinitionSource(AssetData);
+		IntermediateResult.Add(TagDefinitionData);
+	}
+	
+	IntermediateResult.Sort([](const FStructuredAssetTagDefinitionLookupData& CandidateA, const FStructuredAssetTagDefinitionLookupData& CandidateB)
+	{
+		if((int32) CandidateA.Source != (int32) CandidateB.Source)
+		{
+			return (int32) CandidateA.Source < (int32) CandidateB.Source;
+		}
+
+		if(CandidateA.DefinitionsAsset == nullptr || CandidateB.DefinitionsAsset == nullptr)
+		{
+			if(CandidateB.DefinitionsAsset != nullptr)
+			{
+				return true;
+			}
+			else if(CandidateA.DefinitionsAsset != nullptr)
+			{
+				return false;
+			}
+			
+			return CandidateA.AssetTagDefinitions.Num() < CandidateB.AssetTagDefinitions.Num();
+		}
+		
+		return CandidateA.DefinitionsAsset->GetSortOrder() < CandidateB.DefinitionsAsset->GetSortOrder();
+	});
+
+	for(const FStructuredAssetTagDefinitionLookupData& IntermediateData : IntermediateResult)
+	{
+		Result.Append(IntermediateData.AssetTagDefinitions);
+	}
+
+	if(bSortEndResultTagsByName)
+	{
+		Result.Sort();
+	}
+	
+	return Result;
+}
+
+const FNiagaraAssetTagDefinition& FNiagaraEditorUtilities::AssetBrowser::FindTagDefinitionForReference(const FNiagaraAssetTagDefinitionReference& Reference)
+{
+	TMap<FGuid, FNiagaraAssetTagDefinition> Result;
+	FAssetRegistryModule& AssetRegistryModule = FModuleManager::Get().LoadModuleChecked<FAssetRegistryModule>("AssetRegistry");
+
+	FARFilter Filter;
+	Filter.ClassPaths.Add(UNiagaraAssetTagDefinitions::StaticClass()->GetClassPathName());
+
+	const TArray<const FNiagaraAssetTagDefinition*>& InternalTagDefinitions = INiagaraModule::Get().GetInternalAssetTagDefinitions();
+	
+	for(const FNiagaraAssetTagDefinition* InternalTagDefinition : InternalTagDefinitions)
+	{
+		Result.Add(InternalTagDefinition->TagGuid, *InternalTagDefinition);
+	}
+
+	TArray<FAssetData> AssetTagDefinitionAssets;
+	AssetRegistryModule.Get().GetAssets(Filter, AssetTagDefinitionAssets);
+
+	for(const FAssetData& AssetTagDefinitionAsset : AssetTagDefinitionAssets)
+	{
+		UNiagaraAssetTagDefinitions* TagDefinitionsAsset = Cast<UNiagaraAssetTagDefinitions>(AssetTagDefinitionAsset.GetAsset());
+
+		for(const FNiagaraAssetTagDefinition& TagDefinition : TagDefinitionsAsset->GetAssetTagDefinitions())
+		{
+			Result.Add(TagDefinition.TagGuid, TagDefinition);
+		}
+	}
+
+	if(Result.Contains(Reference.GetTagDefinitionReferenceGuid()))
+	{
+		return Result[Reference.GetTagDefinitionReferenceGuid()];
+	}
+
+	static FNiagaraAssetTagDefinition DummyTagDefinition;
+	return DummyTagDefinition;
+}
+
+FNiagaraEditorUtilities::AssetBrowser::EAssetTagSectionSource FNiagaraEditorUtilities::AssetBrowser::GetAssetTagDefinitionSource(const FAssetData& AssetData)
+{	
+	ensure(AssetData.GetClass() == UNiagaraAssetTagDefinitions::StaticClass());
+
+	if(AssetData.PackagePath.ToString().StartsWith("/Niagara"))
+	{
+		return EAssetTagSectionSource::NiagaraInternal;
+	}
+	else if(AssetData.PackagePath.ToString().StartsWith("/Game"))
+	{
+		return EAssetTagSectionSource::Project;
+	}
+
+	return EAssetTagSectionSource::Other;
+}
+
+FText FNiagaraEditorUtilities::AssetBrowser::GetAssetTagSectionNameFromSource(EAssetTagSectionSource Source)
+{
+	if(Source == EAssetTagSectionSource::NiagaraInternal)
+	{
+		return FText::FromString("Niagara");
+	}
+	else if(Source == EAssetTagSectionSource::Project)
+	{
+		return FText::FromString(FApp::GetProjectName());
+	}
+
+	return LOCTEXT("NiagaraAssetTagSourceSectionName", "Misc");
 }
 
 void FNiagaraParameterUtilities::FilterToRelevantStaticVariables(TConstArrayView<FNiagaraVariable> InVars, TArray<FNiagaraVariable>& OutVars, FName InOldEmitterAlias, FName InNewEmitterAlias, bool bFilterByEmitterAliasAndConvertToUnaliased)

@@ -64,6 +64,7 @@ struct NIAGARAEDITOR_API FNiagaraEditorSharedTexts
 {
 	static const FText DebugDrawUIActionBaseText;
 };
+
 namespace FNiagaraEditorUtilities
 {
 	/** Determines if the contents of two sets matches */
@@ -242,6 +243,8 @@ namespace FNiagaraEditorUtilities
 
 	NIAGARAEDITOR_API ENiagaraScriptLibraryVisibility GetScriptAssetVisibility(const FAssetData& ScriptAssetData);
 
+	NIAGARAEDITOR_API bool GetIsInheritableFromAssetRegistryTags(const FAssetData& AssetData, bool& bUseInheritance);
+	
 	/** Used instead of reading the template tag directly for backwards compatibility reasons when changing from a bool template specifier to an enum */
 	NIAGARAEDITOR_API bool GetTemplateSpecificationFromTag(const FAssetData& Data, ENiagaraScriptTemplateSpecification& OutTemplateSpecification);
 
@@ -424,7 +427,7 @@ namespace FNiagaraEditorUtilities
 	NIAGARAEDITOR_API bool IsEditorDataInterfaceInstance(const UNiagaraDataInterface* DataInterface);
 
 	NIAGARAEDITOR_API UNiagaraDataInterface* GetResolvedRuntimeInstanceForEditorDataInterfaceInstance(const UNiagaraSystem& OwningSystem, UNiagaraDataInterface& EditorDataInterfaceInstance);
-
+	
 	namespace Tooltips
 	{
 		NIAGARAEDITOR_API TSharedRef<SToolTip> CreateStackNoteTooltip(UNiagaraStackNote& StackNote);
@@ -437,6 +440,36 @@ namespace FNiagaraEditorUtilities
 			TMap<FGuid, TArray<FNiagaraVariableBase>> ValidateScriptVariableIds(UNiagaraScript* Script, FGuid VersionGuid);
 			TMap<FNiagaraVariableBase, FGuid> FixupDuplicateScriptVariableGuids(UNiagaraScript* Script);
 		}
+	}
+
+	namespace AssetBrowser
+	{
+		enum EAssetTagSectionSource
+		{		
+			NiagaraInternal,
+			Project,
+			Other
+		};
+		
+		struct FStructuredAssetTagDefinitionLookupData
+		{
+			UNiagaraAssetTagDefinitions* DefinitionsAsset;
+			TArray<FNiagaraAssetTagDefinition> AssetTagDefinitions;
+			EAssetTagSectionSource Source;
+		};
+
+		
+		/** Returns a fully sorted array of tag definitions. Sorted by [Source.AssetSortOrder.(Optionally)TagNames].
+		 * If not sorted by tag names, the order defined in the asset is used. Sorting by tag names makes sense for flat lists. */
+		TArray<FStructuredAssetTagDefinitionLookupData> GetStructuredSortedAssetTagDefinitions(bool bSortTagsByName = false);
+		/** Same as above, but returns a flat list. If end result is not sorted, the order is [Source.AssetSorderOrder.OriginalTagOrder]. */
+		TArray<FNiagaraAssetTagDefinition> GetFlatSortedAssetTagDefinitions(bool bSortEndResultTagsByName = false);
+
+		const FNiagaraAssetTagDefinition& FindTagDefinitionForReference(const FNiagaraAssetTagDefinitionReference& Reference);
+
+		/* Expects a UNiagaraAssetTagDefinition asset */
+		EAssetTagSectionSource GetAssetTagDefinitionSource(const FAssetData& AssetData);
+		FText GetAssetTagSectionNameFromSource(EAssetTagSectionSource Source);
 	}
 }
 

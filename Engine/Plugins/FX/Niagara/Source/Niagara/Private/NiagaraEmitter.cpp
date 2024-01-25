@@ -631,11 +631,12 @@ void UNiagaraEmitter::PostLoad()
 			CineOverride.SpawnCountScale = GlobalSpawnCountScaleOverrides_DEPRECATED.Cine;
 		}
 	}
-
+	
 	// this can only ever be true for old assets that haven't been loaded yet, so this won't overwrite subsequent changes to the template specification
+	ENiagaraScriptTemplateSpecification CurrentTemplateSpecification = TemplateSpecification_DEPRECATED;
 	if(bIsTemplateAsset_DEPRECATED)
 	{
-		TemplateSpecification = ENiagaraScriptTemplateSpecification::Template;
+		CurrentTemplateSpecification = ENiagaraScriptTemplateSpecification::Template;
 	}
 
 	if(bExposeToLibrary_DEPRECATED)
@@ -643,6 +644,23 @@ void UNiagaraEmitter::PostLoad()
 		LibraryVisibility = ENiagaraScriptLibraryVisibility::Library;
 	}
 
+	if(NiagaraVer < FNiagaraCustomVersion::InheritanceUxRefactor)
+	{
+		if(CurrentTemplateSpecification == ENiagaraScriptTemplateSpecification::Template || CurrentTemplateSpecification == ENiagaraScriptTemplateSpecification::Behavior)
+		{
+			bIsInheritable = false;
+		}
+
+		if(CurrentTemplateSpecification == ENiagaraScriptTemplateSpecification::Template)
+		{			
+			AssetTags.AddUnique(INiagaraModule::TemplateTagDefinition);
+		}
+		else if(CurrentTemplateSpecification == ENiagaraScriptTemplateSpecification::Behavior)
+		{
+			AssetTags.AddUnique(INiagaraModule::LearningContentTagDefinition);
+		}
+	}
+	
 	if (MessageKeyToMessageMap_DEPRECATED.IsEmpty() == false)
 	{
 		MessageStore.SetMessages(MessageKeyToMessageMap_DEPRECATED);
@@ -1034,14 +1052,15 @@ void UNiagaraEmitter::GetAssetRegistryTags(FAssetRegistryTagsContext Context) co
 		Context.AddTag(FAssetRegistryTag(StringIter.Key(), LexToString(StringIter.Value()), FAssetRegistryTag::TT_Alphabetical));
 		++StringIter;
 	}
-
-	// TemplateSpecialization
-	FName TemplateSpecificationName = GET_MEMBER_NAME_CHECKED(UNiagaraEmitter, TemplateSpecification);
-	FText TemplateSpecializationValueString = StaticEnum<ENiagaraScriptTemplateSpecification>()->GetDisplayNameTextByValue((int64) TemplateSpecification);
-	Context.AddTag(FAssetRegistryTag(TemplateSpecificationName, TemplateSpecializationValueString.ToString(), FAssetRegistryTag::TT_Alphabetical));
 	
 	INiagaraModule& NiagaraModule = FModuleManager::GetModuleChecked<INiagaraModule>("Niagara");
 	Context.AddTag(NiagaraModule.GetEditorOnlyDataUtilities().CreateClassUsageAssetRegistryTag(this));
+
+	// Asset Library Tags
+	for(const FNiagaraAssetTagDefinitionReference& Tag : AssetTags)
+	{
+		Tag.AddTagToAssetRegistryTags(Context);
+	}
 #endif
 	Super::GetAssetRegistryTags(Context);
 }

@@ -67,6 +67,22 @@ static FAutoConsoleVariableRef CVarLogCompileIdGeneration(
 float INiagaraModule::EngineGlobalSpawnCountScale = 1.0f;
 float INiagaraModule::EngineGlobalSystemCountScale = 1.0f;
 
+const FNiagaraAssetTagDefinition INiagaraModule::TemplateTagDefinition = {
+	LOCTEXT("TemplateDisplayName", "Template")
+	, (int32) (ENiagaraAssetLibraryAssetTypes::Emitters) | (int32) (ENiagaraAssetLibraryAssetTypes::Systems)
+	, FText::GetEmpty()
+	, ENiagaraAssetTagDefinitionImportance::Primary
+	, FLinearColor::Yellow
+	, FGuid(0xFC157AFA, 0x50264263, 0xB9A9E658, 0xFFAC2D22)};
+
+const FNiagaraAssetTagDefinition INiagaraModule::LearningContentTagDefinition = {
+	LOCTEXT("LearningContentDisplayName", "Learning Content")
+	, (int32) (ENiagaraAssetLibraryAssetTypes::Emitters) | (int32) (ENiagaraAssetLibraryAssetTypes::Systems) | (int32) (ENiagaraAssetLibraryAssetTypes::Scripts)
+	, FText::GetEmpty()
+	, ENiagaraAssetTagDefinitionImportance::Primary
+	, FLinearColor::Green
+	, FGuid(0xFCF21AFA, 0x50764BFA, 0xB9B2E618, 0xF2A0CD6F)};
+
 std::atomic<bool> INiagaraModule::bDataChannelRefreshRequested = false;
 
 int32 GEnableVerboseNiagaraChangeIdLogging = 0;
@@ -477,6 +493,8 @@ void INiagaraModule::StartupModule()
 #endif
 #endif
 
+	RegisterInternalAssetTagDefinitions();
+	
 	FCoreDelegates::OnPostEngineInit.AddRaw(this, &INiagaraModule::OnPostEngineInit);
 	FCoreDelegates::OnPreExit.AddRaw(this, &INiagaraModule::OnPreExit);
 	FWorldDelegates::OnWorldBeginTearDown.AddRaw(this, &INiagaraModule::OnWorldBeginTearDown);
@@ -624,6 +642,11 @@ void INiagaraModule::ShutdownModule()
 #if NIAGARA_PERF_BASELINES
 	UNiagaraEffectType::OnGeneratePerfBaselines().Unbind();
 #endif
+}
+
+INiagaraModule& INiagaraModule::Get()
+{
+	return FModuleManager::LoadModuleChecked<INiagaraModule>("Niagara");
 }
 
 #if WITH_EDITOR
@@ -1867,6 +1890,13 @@ const TArray<FNiagaraVariable>& FNiagaraEmitterParameters::GetVariables()
 }
 
 #endif
+
+void INiagaraModule::RegisterInternalAssetTagDefinitions()
+{
+	// All internal tags have to be manually assigned a unique and stable guid so that names can be changed without affecting assigned assets.
+	InternalAssetTagDefinitions.Add(&TemplateTagDefinition);
+	InternalAssetTagDefinitions.Add(&LearningContentTagDefinition);
+}
 
 #if NIAGARA_PERF_BASELINES
 

@@ -5,6 +5,7 @@
 #include "NiagaraEditorTickables.h"
 #include "Modules/ModuleManager.h"
 #include "AssetToolsModule.h"
+#include "ContentBrowserMenuContexts.h"
 #include "ISequencerModule.h"
 #include "ISettingsModule.h"
 #include "SequencerChannelInterface.h"
@@ -148,6 +149,7 @@
 #include "ISourceControlModule.h"
 #include "DeviceProfiles/DeviceProfileManager.h"
 #include "Containers/Ticker.h"
+#include "UObject/AssetRegistryTagsContext.h"
 
 #include "ViewModels/Stack/NiagaraStackObjectIssueGenerator.h"
 #include "NiagaraPlatformSet.h"
@@ -159,11 +161,14 @@
 #include "Filters/CustomClassFilterData.h"
 
 #include "Widgets/SNiagaraDebugger.h"
+#include "Widgets/AssetBrowser/NiagaraAssetBrowserConfig.h"
+#include "Widgets/AssetBrowser/SNiagaraAssetBrowser.h"
 
 #include "NiagaraDebugVis.h"
 #include "NiagaraPerfBaseline.h"
 #include "NiagaraGraphDataCache.h"
 #include "NiagaraDecalRendererProperties.h"
+#include "NiagaraEditorMenuHelpers.h"
 #include "NiagaraLightRendererProperties.h"
 #include "NiagaraRibbonRendererProperties.h"
 #include "NiagaraSpriteRendererProperties.h"
@@ -171,6 +176,8 @@
 
 #include "Engine/AssetManager.h"
 #include "ViewModels/HierarchyEditor/NiagaraHierarchyCommands.h"
+#include "Widgets/AssetBrowser/SNiagaraSelectedAssetDetails.h"
+#include "NiagaraRecentAndFavoritesManager.h"
 
 #include UE_INLINE_GENERATED_CPP_BY_NAME(NiagaraEditorModule)
 
@@ -1036,12 +1043,16 @@ void FNiagaraEditorModule::StartupModule()
 	MenuExtensibilityManager = MakeShareable(new FExtensibilityManager);
 	ToolBarExtensibilityManager = MakeShareable(new FExtensibilityManager);
 
+	RecentAndFavoritesManager = MakeShared<FNiagaraRecentAndFavoritesManager>();
+	RecentAndFavoritesManager->Initialize();
+
+	UNiagaraAssetBrowserConfig::Initialize();
+
+	FNiagaraAssetDetailDatabase::Init();
+
 	FContentBrowserModule& ContentBrowserModule = FModuleManager::LoadModuleChecked<FContentBrowserModule>(TEXT("ContentBrowser"));
 	ContentBrowserModule.AddDynamicTagAssetClass(TEXT("NiagaraSystem"));
 	ContentBrowserModule.AddDynamicTagAssetClass(TEXT("NiagaraEmitter"));
-
-
-	IAssetTools& AssetTools = FModuleManager::LoadModuleChecked<FAssetToolsModule>("AssetTools").Get();
 
 	// Preload all parameter definition & collection assets so that they will be postloaded before postload calls to scripts/emitters/systems that rely on them.
 	{
@@ -1230,6 +1241,8 @@ void FNiagaraEditorModule::StartupModule()
 	//Register Stack Object Issue Generators.
 	RegisterStackIssueGenerator(FNiagaraPlatformSet::StaticStruct()->GetFName(), new FNiagaraPlatformSetIssueGenerator());
 
+	NiagaraEditorMenuHelpers::RegisterToolMenus();
+	NiagaraEditorMenuHelpers::RegisterMenuExtensions();
 
 	FNiagaraEditorStyle::Register();
 	ReinitializeStyleCommand = IConsoleManager::Get().RegisterConsoleCommand(
@@ -1506,6 +1519,9 @@ void FNiagaraEditorModule::ShutdownModule()
 	MenuExtensibilityManager.Reset();
 	ToolBarExtensibilityManager.Reset();
 
+	RecentAndFavoritesManager->Shutdown();
+	RecentAndFavoritesManager.Reset();
+	
 	// Clean up asset registry callbacks
 	if (FModuleManager::Get().IsModuleLoaded("AssetRegistry"))
 	{
@@ -1726,6 +1742,11 @@ void FNiagaraEditorModule::OnPreviewPlatformChanged()
 FNiagaraEditorModule& FNiagaraEditorModule::Get()
 {
 	return FModuleManager::LoadModuleChecked<FNiagaraEditorModule>("NiagaraEditor");
+}
+
+FNiagaraRecentAndFavoritesManager* FNiagaraEditorModule::GetRecentsManager()
+{
+	return RecentAndFavoritesManager.Get();
 }
 
 void FNiagaraEditorModule::OnNiagaraSettingsChangedEvent(const FName& PropertyName, const UNiagaraSettings* Settings)

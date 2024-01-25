@@ -40,6 +40,7 @@
 #include "NiagaraNotificationWidgetProvider.h"
 #include "NiagaraOverviewNode.h"
 #include "NiagaraParameterDefinitionsSubscriber.h"
+#include "NiagaraRecentAndFavoritesManager.h"
 #include "NiagaraScriptGraphViewModel.h"
 #include "NiagaraScriptSource.h"
 #include "NiagaraScriptVariable.h"
@@ -526,6 +527,7 @@ TSharedPtr<FNiagaraEmitterHandleViewModel> FNiagaraSystemViewModel::AddEmitterFr
 	UNiagaraEmitter* Emitter = Cast<UNiagaraEmitter>(AssetData.GetAsset());
 	if (Emitter != nullptr)
 	{
+		FNiagaraEditorModule::Get().GetRecentsManager()->EmitterUsed(*Emitter);
 		return AddEmitter(*Emitter, Emitter->GetExposedVersion().VersionGuid);
 	}
 
@@ -594,7 +596,6 @@ TSharedPtr<FNiagaraEmitterHandleViewModel> FNiagaraSystemViewModel::AddEmptyEmit
 	UNiagaraEmitter* EmptyEmitter = NewObject<UNiagaraEmitter>(GetTransientPackage());
 	bool bAddDefaultModulesAndRenderers = false;
 	UNiagaraEmitterFactoryNew::InitializeEmitter(EmptyEmitter, bAddDefaultModulesAndRenderers);
-	EmptyEmitter->TemplateSpecification = ENiagaraScriptTemplateSpecification::Template;
 	FName EmptyEmitterName = FNiagaraEditorUtilities::GetUniqueObjectName<UNiagaraEmitter>(GetTransientPackage(), TEXT("Empty"));
 	EmptyEmitter->SetUniqueEmitterName(EmptyEmitterName.ToString());
 	EmptyEmitter->SetFlags(RF_Transactional);
