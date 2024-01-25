@@ -8,6 +8,7 @@
 #include "ILiveLinkModule.h"
 #include "ILiveLinkSource.h"
 #include "LiveLinkHubMessages.h"
+#include "ILiveLinkHubMessagingModule.h"
 #include "LiveLinkHubMessageBusSource.h"
 #include "LiveLinkMessageBusDiscoveryManager.h"
 #include "LiveLinkMessageBusFinder.h"
@@ -121,7 +122,7 @@ private:
 			}
 
 			TSharedPtr<ILiveLinkSource> LiveLinkSource = MakeShared<FLiveLinkHubMessageBusSource>(FText::FromString(PollResult->Name), FText::FromString(PollResult->MachineName), PollResult->Address, PollResult->MachineTimeOffset);
-			LiveLinkClient->AddSource(LiveLinkSource);
+			FGuid SourceId = LiveLinkClient->AddSource(LiveLinkSource);
 
 			// Remove the old source if we're re-establising a connection.
 			if (TSharedPtr<ILiveLinkSource> OldSource = LastAddedSource.Value.Pin())
@@ -135,6 +136,8 @@ private:
 			}
 
 			LastAddedSource = TPair<FMessageAddress, TWeakPtr<ILiveLinkSource>>{ PollResult->Address, LiveLinkSource };
+			ILiveLinkHubMessagingModule& HubMessagingModule = FModuleManager::GetModuleChecked<ILiveLinkHubMessagingModule>("LiveLinkHubMessaging");
+			HubMessagingModule.OnConnectionEstablished().Broadcast(SourceId);
 		}
 		else
 		{

@@ -1,5 +1,7 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
+#include "ILiveLinkHubMessagingModule.h"
+
 #include "CoreMinimal.h"
 #include "LiveLinkHubConnectionManager.h"
 #include "LiveLinkHubMessageBusSourceFactory.h"
@@ -18,7 +20,8 @@
 #define LIVELINKHUB_USE_CONNECTION_MANAGER !WITH_LIVELINK_HUB && WITH_LIVELINK_DISCOVERY_MANAGER_THREAD
 #endif
 
-class FLiveLinkHubMessagingModule : public IModuleInterface
+
+class FLiveLinkHubMessagingModule : public ILiveLinkHubMessagingModule
 {
 	// The connection manager is used to communicate with the hub, so we don't need it when we're running the hub itself.
 public:
@@ -44,6 +47,12 @@ public:
 #endif
 	}
 	//~ End IModuleInterface
+
+	//~ ILiveLinkHubMessagingModule interface
+	virtual FOnHubConnectionEstablished& OnConnectionEstablished() override
+	{
+		return ConnectionEstablishedDelegate;
+	}
 
 private:
 #if LIVELINKHUB_USE_CONNECTION_MANAGER
@@ -85,6 +94,9 @@ private:
 
 	/** Handle to the delegate used to filter message bus sources. */
 	FDelegateHandle SourceFilterDelegate;
+
+	/** Delegate called when the connection between a livelink hub and the editor is establshed. */
+	FOnHubConnectionEstablished ConnectionEstablishedDelegate;
 };
 
 
