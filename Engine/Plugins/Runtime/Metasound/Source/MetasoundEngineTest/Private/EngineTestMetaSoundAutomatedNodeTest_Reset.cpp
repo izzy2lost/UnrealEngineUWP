@@ -103,22 +103,43 @@ bool FMetasoundAutomatedNodeTest_Reset::RunTest(const FString& InRegistryKeyStri
 		OutputTester.CaptureCurrentOutputValues();
 
 		IOperator::FExecuteFunction OpExecFunc = Operator->GetExecuteFunction();
-		IOperator::FResetFunction OpResetFunc = Operator->GetResetFunction();
-		// Test execute function with input variations
-		if (OpExecFunc)
+		auto ConditionallyCallExecFunc = [&OpExecFunc] (IOperator* Operator)
 		{
-			OpExecFunc(Operator.Get());
-
+			if (OpExecFunc)
+			{
+				OpExecFunc(Operator);
+			}
+		};
+		IOperator::FPostExecuteFunction OpPostExecFunc = Operator->GetPostExecuteFunction();
+		auto ConditionallyCallPostExecFunc = [&OpPostExecFunc] (IOperator* Operator)
+        {
+        	if (OpPostExecFunc)
+        	{
+        		OpPostExecFunc(Operator);
+        	}
+        };
+		IOperator::FResetFunction OpResetFunc = Operator->GetResetFunction();
+		
+		// Test execute function with input variations
+		if (OpExecFunc || OpPostExecFunc)
+		{
+			ConditionallyCallExecFunc(Operator.Get());
+			ConditionallyCallPostExecFunc(Operator.Get());
+			
 			if (InputTester.GetNumMutableInputs() > 0)
 			{
 				InputTester.SetMutableInputsToDefault();
-				OpExecFunc(Operator.Get());
+				ConditionallyCallExecFunc(Operator.Get());
+				ConditionallyCallPostExecFunc(Operator.Get());
 				InputTester.SetMutableInputsToMin();
-				OpExecFunc(Operator.Get());
+				ConditionallyCallExecFunc(Operator.Get());
+				ConditionallyCallPostExecFunc(Operator.Get());
 				InputTester.SetMutableInputsToMax();
-				OpExecFunc(Operator.Get());
+				ConditionallyCallExecFunc(Operator.Get());
+				ConditionallyCallPostExecFunc(Operator.Get());
 				InputTester.SetMutableInputsToRandom();
-				OpExecFunc(Operator.Get());
+				ConditionallyCallExecFunc(Operator.Get());
+				ConditionallyCallPostExecFunc(Operator.Get());
 			}
 		}
 
@@ -129,7 +150,7 @@ bool FMetasoundAutomatedNodeTest_Reset::RunTest(const FString& InRegistryKeyStri
 		{
 			OpResetFunc(Operator.Get(), ResetParams);
 		}
-		else if (OpExecFunc)
+		else if (OpExecFunc || OpPostExecFunc)
 		{
 			AddError(FString::Printf(TEXT("Missing initialize function when execute function exists for node %s - %s"), *InRegistryKeyString, *GetPrettyName(RegistryKey)));
 		}
