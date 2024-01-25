@@ -1475,7 +1475,7 @@ namespace uba
 			{
 				if (pipe(outPipe) || pipe(errPipe))
 				{
-					logger.Error("pipe failed");
+					logger.Error("pipe failed (%s)", strerror(errno));
 					return UBA_EXIT_CODE(18);
 				}
 
