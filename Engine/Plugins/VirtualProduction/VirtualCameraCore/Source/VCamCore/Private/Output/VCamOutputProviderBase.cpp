@@ -2,7 +2,6 @@
 
 #include "Output/VCamOutputProviderBase.h"
 
-#include "Interface/IVCamModifierInterface.h"
 #include "Interface/IVCamOutputProviderCreatedWidget.h"
 #include "UI/VCamWidget.h"
 #include "Util/LevelViewportUtils.h"
@@ -423,11 +422,6 @@ void UVCamOutputProviderBase::NotifyAboutComponentChange()
 					if (UVCamWidget* VCamWidget = Cast<UVCamWidget>(Widget))
 					{
 						VCamWidget->InitializeConnections(VCamComponent);
-					}
-					
-					if (Widget->Implements<UVCamModifierInterface>())
-					{
-						IVCamModifierInterface::Execute_OnVCamComponentChanged(Widget, VCamComponent);
 					}
 					
 					if (Widget->Implements<UVCamOutputProviderCreatedWidget>())
