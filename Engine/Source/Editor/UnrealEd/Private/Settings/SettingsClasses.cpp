@@ -944,6 +944,7 @@ ULevelEditorViewportSettings::ULevelEditorViewportSettings( const FObjectInitial
 	bAllowArcballRotate = false;
 	bAllowScreenRotate = false;
 	bShowActorEditorContext = true;
+	bAllowEditWidgetAxisDisplay = true;
 	MouseSensitivty = .2f;
 	bUseLegacyCameraMovementNotifications = false;
 	// Set a default preview mesh

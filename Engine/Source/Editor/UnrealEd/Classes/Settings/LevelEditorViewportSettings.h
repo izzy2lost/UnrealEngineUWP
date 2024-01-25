@@ -321,6 +321,10 @@ class ULevelEditorViewportSettings
 	UPROPERTY(EditAnywhere, config, Category = LookAndFeel, meta=(AdvancedDisplay))
 	uint32 bShowActorEditorContext : 1;
 
+	/** If true, the Edit widget of a transform will display the axis */
+	UPROPERTY(EditAnywhere, config, Category=LookAndFeel, meta=( DisplayName = "Enable Axis drawing for transform Edit Widget" ))
+	uint32 bAllowEditWidgetAxisDisplay:1;
+
 	/** How fast the perspective camera moves when flying through the world. */
 	UPROPERTY(config, meta=(UIMin = "1", UIMax = "8", ClampMin="1", ClampMax="8"))
 	int32 CameraSpeed;
