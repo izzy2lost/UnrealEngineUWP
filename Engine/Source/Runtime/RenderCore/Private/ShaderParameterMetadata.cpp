@@ -5,15 +5,17 @@
 =============================================================================*/
 
 #include "ShaderParameterMetadata.h"
+
+#include "DataDrivenShaderPlatformInfo.h"
+#include "Interfaces/IPluginManager.h"
+#include "Misc/CommandLine.h"
 #include "RenderCore.h"
 #include "RHIUniformBufferLayoutInitializer.h"
+#include "Serialization/MemoryHasher.h"
 #include "ShaderCore.h"
 #include "ShaderCompilerCore.h"
 #include "ShaderParameters.h"
-#include "DataDrivenShaderPlatformInfo.h"
 #include "ShaderParameterMacros.h"
-#include "Interfaces/IPluginManager.h"
-#include "Misc/CommandLine.h"
 
 bool SupportShaderPrecisionModifier(EShaderPlatform Platform)
 {
@@ -456,16 +458,15 @@ void FShaderParametersMetadata::InitializeAllUniformBufferStructs()
 	}
 }
 
-void FShaderParametersMetadata::FMember::SerializeLayout(FArchive& Ar)
-{
-	// This is only used at the moment for writing to a buffer for hashing; deserialize not supported
-	// due to various const members, but also not needed.
-	check(Ar.IsSaving());
+#if WITH_EDITOR
 
-	Ar << Offset;
-	Ar << reinterpret_cast<uint8&>(BaseType);
-	Ar.Serialize(const_cast<TCHAR*>(Name), FCString::Strlen(Name));
-	Ar << NumElements;
+void FShaderParametersMetadata::FMember::HashLayout(FMemoryHasherBlake3& Hasher)
+{
+	Hasher << Offset;
+	Hasher << reinterpret_cast<uint8&>(BaseType);
+
+	Hasher.Serialize(const_cast<TCHAR*>(Name), FCString::Strlen(Name));
+	Hasher << NumElements;
 
 	const bool bIsRHIResource = (
 		BaseType == UBMT_TEXTURE ||
@@ -477,33 +478,28 @@ void FShaderParametersMetadata::FMember::SerializeLayout(FArchive& Ar)
 		BaseType == UBMT_UINT32 ||
 		BaseType == UBMT_FLOAT32)
 	{
-		Ar << reinterpret_cast<uint8&>(Precision);
-		Ar << NumRows;
-		Ar << NumColumns;
+		Hasher << reinterpret_cast<uint8&>(Precision);
+		Hasher << NumRows;
+		Hasher << NumColumns;
 	}
 	else if (BaseType == UBMT_INCLUDED_STRUCT || BaseType == UBMT_NESTED_STRUCT)
 	{
-		const_cast<FShaderParametersMetadata*>(Struct)->SerializeLayout(Ar);
+		const_cast<FShaderParametersMetadata*>(Struct)->HashLayout(Hasher);
 	}
 	else if (bIsRHIResource || bIsRDGResource)
 	{
-		Ar.Serialize(const_cast<TCHAR*>(ShaderType), FCString::Strlen(ShaderType));
+		Hasher.Serialize(const_cast<TCHAR*>(ShaderType), FCString::Strlen(ShaderType));
 	}
 }
 
-void FShaderParametersMetadata::SerializeLayout(FArchive& Ar) 
+void FShaderParametersMetadata::HashLayout(FMemoryHasherBlake3& SignatureData) 
 {
-	// This is only used at the moment for writing to a buffer for hashing; deserialize not supported
-	check(Ar.IsSaving());
-
-	Ar << const_cast<uint32&>(Size);
-
 	for (FMember& CurrentMember : Members)
 	{
-		CurrentMember.SerializeLayout(Ar);
+		CurrentMember.HashLayout(SignatureData);
 	}
 }
-
+#endif // WITH_EDITOR
 
 void FShaderParametersMetadata::InitializeLayout(FRHIUniformBufferLayoutInitializer* OutLayoutInitializer)
 {
@@ -856,6 +852,12 @@ void FShaderParametersMetadata::InitializeLayout(FRHIUniformBufferLayoutInitiali
 	}
 
 	Layout = RHICreateUniformBufferLayout(LayoutInitializer);
+
+#if WITH_EDITOR
+	FMemoryHasherBlake3 Hasher;
+	HashLayout(Hasher);
+	LayoutSignature = Hasher.Finalize();
+#endif
 }
 
 
