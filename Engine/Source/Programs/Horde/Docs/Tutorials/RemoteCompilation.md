@@ -20,4 +20,11 @@ remote machine behind the scenes as necessary.
 * Install the [Horde server](Installing.md)
 * One or more machines to function as build workers
 
-## Walkthrough
+## Steps
+
+1. Install the Horde Server [as described here](InstallServer.md).
+2. Download the `Horde Agent` installer from the tools page on the server. For Windows, it's easiest to use the MSI
+   installer. Install the agent on a worker machine, entering the URL of the Horde Server when prompted.
+3. Click on the `Agents` link from the `Server` menu and make sure the agent has registered with the server correctly.
+  It should have automatically been added to the correct pool.
+4. Configure UnrealBuildTool to use your remote worker.
