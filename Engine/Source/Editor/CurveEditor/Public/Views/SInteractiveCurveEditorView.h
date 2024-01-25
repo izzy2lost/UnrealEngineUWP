@@ -121,6 +121,7 @@ protected:
 protected:
 
 	// SWidget Interface
+	virtual void Tick(const FGeometry& AllottedGeometry, const double InCurrentTime, const float InDeltaTime) override;
 	virtual int32 OnPaint(const FPaintArgs& Args, const FGeometry& AllottedGeometry, const FSlateRect& MyCullingRect, FSlateWindowElementList& OutDrawElements, int32 BaseLayerId, const FWidgetStyle& InWidgetStyle, bool bParentEnabled) const override;
 	virtual void OnMouseEnter(const FGeometry& MyGeometry, const FPointerEvent& MouseEvent) override;
 	virtual void OnMouseLeave(const FPointerEvent& MouseEvent) override;
@@ -223,4 +224,6 @@ private:
 
 	/** Cached curve caption color, used to determine when to refresh the retainer */
 	mutable FSlateColor CachedCurveCaptionColor;
+
+	mutable bool bNeedsRefresh = false;
 };
