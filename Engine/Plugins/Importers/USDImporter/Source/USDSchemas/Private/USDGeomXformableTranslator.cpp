@@ -687,7 +687,7 @@ void FUsdGeomXformableTranslator::UpdateComponents(USceneComponent* SceneCompone
 				StaticMeshComponent->BodyInstance.SetCollisionProfileName(PrimStaticMesh->GetBodySetup()->DefaultInstance.GetCollisionProfileName());
 			}
 		}
-		else if (UUsdDrawModeComponent* BoundsComponent = Cast<UUsdDrawModeComponent>(SceneComponent))
+		else if (UUsdDrawModeComponent* DrawModeComponent = Cast<UUsdDrawModeComponent>(SceneComponent))
 		{
 			TOptional<FWriteScopeLock> BBoxLock;
 			pxr::UsdGeomBBoxCache* PxrBBoxCache = nullptr;
@@ -696,7 +696,7 @@ void FUsdGeomXformableTranslator::UpdateComponents(USceneComponent* SceneCompone
 				BBoxLock.Emplace(UEBBoxCache->Lock);
 				PxrBBoxCache = &static_cast<pxr::UsdGeomBBoxCache&>(*UEBBoxCache);
 			}
-			UsdToUnreal::ConvertBounds(Prim, BoundsComponent, Context->Time, PxrBBoxCache);
+			UsdToUnreal::ConvertDrawMode(Prim, DrawModeComponent, Context->Time, PxrBBoxCache);
 		}
 
 		// Handle LiveLink, but only if we're not a skeletal case: The SkelSkeletonTranslator will deal with the
@@ -759,12 +759,7 @@ void FUsdGeomXformableTranslator::UpdateComponents(USceneComponent* SceneCompone
 
 namespace UE::UsdXformableTranslatorImpl::Private
 {
-	void AssignBoundsComponentTextures(
-		UE::FUsdPrim Prim,
-		UUsdDrawModeComponent* BoundsComponent,
-		UUsdAssetCache2& AssetCache,
-		FUsdInfoCache& InfoCache
-	)
+	void AssignDrawModeComponentTextures(UE::FUsdPrim Prim, UUsdDrawModeComponent* DrawModeComponent, UUsdAssetCache2& AssetCache, FUsdInfoCache& InfoCache)
 	{
 		if (!Prim)
 		{
@@ -833,7 +828,7 @@ namespace UE::UsdXformableTranslatorImpl::Private
 
 		TFunction<void(const pxr::UsdAttribute&, TextureSetterFunc, EUsdModelCardFace)> HandleCardFace =
 			[&AuthoredFaces,
-			 BoundsComponent,
+			 DrawModeComponent,
 			 &AttrPathToTextures](const pxr::UsdAttribute& Attr, TextureSetterFunc TextureSetter, EUsdModelCardFace Face)
 		{
 			if (Attr && Attr.HasAuthoredValue())
@@ -847,7 +842,7 @@ namespace UE::UsdXformableTranslatorImpl::Private
 					{
 						if (UTexture2D* Texture = iter->second)
 						{
-							(BoundsComponent->*TextureSetter)(Texture);
+							(DrawModeComponent->*TextureSetter)(Texture);
 						}
 					}
 				}
@@ -863,7 +858,7 @@ namespace UE::UsdXformableTranslatorImpl::Private
 		// Override the AuthoredFaces with the correct value. The texture setter functions will all set the authored faces
 		// when we set any texture in the component, but we also want to set as authored the faces where there *was* some
 		// texture authored in USD but we failed to resolve it, so that we can show that face with vertex color like USD specifies
-		BoundsComponent->SetAuthoredFaces(AuthoredFaces);
+		DrawModeComponent->SetAuthoredFaces(AuthoredFaces);
 	}
 }	 // namespace UE::UsdXformableTranslatorImpl::Private
 
@@ -887,7 +882,7 @@ USceneComponent* FUsdGeomXformableTranslator::CreateAlternativeDrawModeComponent
 			{
 				// For now we only assign textures when creating components, not when updating. Maybe in the future we can
 				// add support for "texture animations"
-				UE::UsdXformableTranslatorImpl::Private::AssignBoundsComponentTextures(
+				UE::UsdXformableTranslatorImpl::Private::AssignDrawModeComponentTextures(
 					GetPrim(),
 					Component,
 					*Context->AssetCache,

@@ -83,11 +83,8 @@ namespace UE::UsdDrawModeComponentImpl::Private
 				// Reference: PrimitiveDrawingUtils.cpp, DrawBox function
 
 				// Calculate verts for a face pointing down Z
-				FVector3f Positions[4] = {
-					FVector3f(-0.5, -0.5, +0.5),
-					FVector3f(-0.5, +0.5, +0.5),
-					FVector3f(+0.5, +0.5, +0.5),
-					FVector3f(+0.5, -0.5, +0.5)};
+				FVector3f Positions[4] =
+					{FVector3f(-0.5, -0.5, +0.5), FVector3f(-0.5, +0.5, +0.5), FVector3f(+0.5, +0.5, +0.5), FVector3f(+0.5, -0.5, +0.5)};
 
 				FVector2f UVs[4] = {
 					FVector2f(0, 0),
@@ -730,46 +727,52 @@ EUsdModelCardFace UsdUtils::GetOppositeFaceOnSameAxis(EUsdModelCardFace Face)
 
 void UUsdDrawModeComponent::SetBoundsMin(const FVector& NewMin)
 {
+	Modify();
 	BoundsMin = NewMin;
 	MarkRenderStateDirty();
 }
 
 void UUsdDrawModeComponent::SetBoundsMax(const FVector& NewMax)
 {
+	Modify();
 	BoundsMax = NewMax;
 	MarkRenderStateDirty();
 }
 
 void UUsdDrawModeComponent::SetDrawMode(EUsdDrawMode NewDrawMode)
 {
+	Modify();
 	DrawMode = NewDrawMode;
 	MarkRenderStateDirty();
 }
 
 void UUsdDrawModeComponent::SetBoundsColor(FLinearColor NewColor)
 {
+	Modify();
 	BoundsColor = NewColor;
 	MarkRenderStateDirty();
 }
 
 void UUsdDrawModeComponent::SetCardGeometry(EUsdModelCardGeometry NewGeometry)
 {
+	Modify();
 	CardGeometry = NewGeometry;
 	MarkRenderStateDirty();
 }
 
 void UUsdDrawModeComponent::SetCardTextureXPos(UTexture2D* NewTexture)
 {
+	Modify();
 	// We have this logic so that clearing the texture on the details panel means
 	// removing the opinion of that face texture in the USD stage
 	// (when we convert the component back to USD we'll clear faces that aren't in AuthoredFaces).
 	if (NewTexture)
 	{
-		AuthoredFaces |= EUsdModelCardFace::XPos;
+		AuthoredFaces |= (int32)EUsdModelCardFace::XPos;
 	}
 	else
 	{
-		AuthoredFaces &= ~EUsdModelCardFace::XPos;
+		AuthoredFaces &= (int32)~EUsdModelCardFace::XPos;
 	}
 
 	CardTextureXPos = NewTexture;
@@ -778,13 +781,14 @@ void UUsdDrawModeComponent::SetCardTextureXPos(UTexture2D* NewTexture)
 
 void UUsdDrawModeComponent::SetCardTextureYPos(UTexture2D* NewTexture)
 {
+	Modify();
 	if (NewTexture)
 	{
-		AuthoredFaces |= EUsdModelCardFace::YPos;
+		AuthoredFaces |= (int32)EUsdModelCardFace::YPos;
 	}
 	else
 	{
-		AuthoredFaces &= ~EUsdModelCardFace::YPos;
+		AuthoredFaces &= (int32)~EUsdModelCardFace::YPos;
 	}
 
 	CardTextureYPos = NewTexture;
@@ -793,13 +797,14 @@ void UUsdDrawModeComponent::SetCardTextureYPos(UTexture2D* NewTexture)
 
 void UUsdDrawModeComponent::SetCardTextureZPos(UTexture2D* NewTexture)
 {
+	Modify();
 	if (NewTexture)
 	{
-		AuthoredFaces |= EUsdModelCardFace::ZPos;
+		AuthoredFaces |= (int32)EUsdModelCardFace::ZPos;
 	}
 	else
 	{
-		AuthoredFaces &= ~EUsdModelCardFace::ZPos;
+		AuthoredFaces &= (int32)~EUsdModelCardFace::ZPos;
 	}
 
 	CardTextureZPos = NewTexture;
@@ -808,13 +813,14 @@ void UUsdDrawModeComponent::SetCardTextureZPos(UTexture2D* NewTexture)
 
 void UUsdDrawModeComponent::SetCardTextureXNeg(UTexture2D* NewTexture)
 {
+	Modify();
 	if (NewTexture)
 	{
-		AuthoredFaces |= EUsdModelCardFace::XNeg;
+		AuthoredFaces |= (int32)EUsdModelCardFace::XNeg;
 	}
 	else
 	{
-		AuthoredFaces &= ~EUsdModelCardFace::XNeg;
+		AuthoredFaces &= (int32)~EUsdModelCardFace::XNeg;
 	}
 
 	CardTextureXNeg = NewTexture;
@@ -823,13 +829,14 @@ void UUsdDrawModeComponent::SetCardTextureXNeg(UTexture2D* NewTexture)
 
 void UUsdDrawModeComponent::SetCardTextureYNeg(UTexture2D* NewTexture)
 {
+	Modify();
 	if (NewTexture)
 	{
-		AuthoredFaces |= EUsdModelCardFace::YNeg;
+		AuthoredFaces |= (int32)EUsdModelCardFace::YNeg;
 	}
 	else
 	{
-		AuthoredFaces &= ~EUsdModelCardFace::YNeg;
+		AuthoredFaces &= (int32)~EUsdModelCardFace::YNeg;
 	}
 
 	CardTextureYNeg = NewTexture;
@@ -838,13 +845,14 @@ void UUsdDrawModeComponent::SetCardTextureYNeg(UTexture2D* NewTexture)
 
 void UUsdDrawModeComponent::SetCardTextureZNeg(UTexture2D* NewTexture)
 {
+	Modify();
 	if (NewTexture)
 	{
-		AuthoredFaces |= EUsdModelCardFace::ZNeg;
+		AuthoredFaces |= (int32)EUsdModelCardFace::ZNeg;
 	}
 	else
 	{
-		AuthoredFaces &= ~EUsdModelCardFace::ZNeg;
+		AuthoredFaces &= (int32)~EUsdModelCardFace::ZNeg;
 	}
 
 	CardTextureZNeg = NewTexture;
@@ -948,7 +956,7 @@ UUsdDrawModeComponent::UUsdDrawModeComponent()
 	, CardTextureYNeg{nullptr}
 	, CardTextureZNeg{nullptr}
 	, MaterialInstances({nullptr, nullptr, nullptr, nullptr, nullptr, nullptr})
-	, AuthoredFaces{EUsdModelCardFace::None}
+	, AuthoredFaces{(int32)EUsdModelCardFace::None}
 {
 	RefreshMaterialInstances();
 }
@@ -1083,12 +1091,13 @@ HHitProxy* UUsdDrawModeComponent::CreateMeshHitProxy(int32 SectionIndex, int32 M
 
 EUsdModelCardFace UUsdDrawModeComponent::GetAuthoredFaces() const
 {
-	return AuthoredFaces;
+	return (EUsdModelCardFace)AuthoredFaces;
 }
 
 void UUsdDrawModeComponent::SetAuthoredFaces(EUsdModelCardFace NewAuthoredFaces)
 {
-	AuthoredFaces = NewAuthoredFaces;
+	Modify();
+	AuthoredFaces = (int32)NewAuthoredFaces;
 	MarkRenderStateDirty();
 }
 

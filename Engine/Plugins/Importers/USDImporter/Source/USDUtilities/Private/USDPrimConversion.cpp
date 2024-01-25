@@ -1662,12 +1662,12 @@ UsdToUnreal::FPropertyTrackReader UsdToUnreal::CreatePropertyTrackReader(
 	return Reader;
 }
 
-bool UsdToUnreal::ConvertBounds(const pxr::UsdPrim& Prim, UUsdDrawModeComponent* BoundsComponent, double EvalTime, pxr::UsdGeomBBoxCache* BBoxCache)
+bool UsdToUnreal::ConvertDrawMode(const pxr::UsdPrim& Prim, UUsdDrawModeComponent* DrawModeComponent, double EvalTime, pxr::UsdGeomBBoxCache* BBoxCache)
 {
 	// We're not going to check if Prim actually has the "bounds" draw mode or if it has "applyDrawMode" set
 	// to true, as that can be expensive and this can get called from UpdateComponents, which can get called
 	// every frame of Time animation. If we have a UUsdDrawModeComponent at all we'll assume we're OK here
-	if (!BoundsComponent)
+	if (!DrawModeComponent)
 	{
 		return false;
 	}
@@ -1719,8 +1719,8 @@ bool UsdToUnreal::ConvertBounds(const pxr::UsdPrim& Prim, UUsdDrawModeComponent*
 			TArray<FVector>{UESpaceUSDMin, UESpaceUSDMax}
 		 };
 
-		BoundsComponent->SetBoundsMin(UEBox.Min);
-		BoundsComponent->SetBoundsMax(UEBox.Max);
+		DrawModeComponent->SetBoundsMin(UEBox.Min);
+		DrawModeComponent->SetBoundsMax(UEBox.Max);
 	}
 
 	if (pxr::UsdGeomModelAPI GeomModelAPI{Prim})
@@ -1729,7 +1729,7 @@ bool UsdToUnreal::ConvertBounds(const pxr::UsdPrim& Prim, UUsdDrawModeComponent*
 		pxr::UsdAttribute ColorAttr = GeomModelAPI.GetModelDrawModeColorAttr();
 		if (ColorAttr && ColorAttr.Get(&Color))
 		{
-			BoundsComponent->SetBoundsColor(UsdToUnreal::ConvertColor(Color));
+			DrawModeComponent->SetBoundsColor(UsdToUnreal::ConvertColor(Color));
 		}
 
 		// It's not super efficient to call this whole function every time but not only this lets us
@@ -1739,7 +1739,7 @@ bool UsdToUnreal::ConvertBounds(const pxr::UsdPrim& Prim, UUsdDrawModeComponent*
 		// the prim is not a model, or doesn't have applyDrawMode enabled, etc.) so we can't just check
 		// the drawMode attribute directly here
 		EUsdDrawMode DrawMode = UsdUtils::GetAppliedDrawMode(Prim);
-		BoundsComponent->SetDrawMode(DrawMode);
+		DrawModeComponent->SetDrawMode(DrawMode);
 
 		pxr::TfToken CardGeometryToken;
 		pxr::UsdAttribute GeometryAttr = GeomModelAPI.GetModelCardGeometryAttr();
@@ -1754,7 +1754,7 @@ bool UsdToUnreal::ConvertBounds(const pxr::UsdPrim& Prim, UUsdDrawModeComponent*
 			{
 				CardGeometry = EUsdModelCardGeometry::FromTexture;
 			}
-			BoundsComponent->SetCardGeometry(CardGeometry);
+			DrawModeComponent->SetCardGeometry(CardGeometry);
 		}
 	}
 
@@ -3758,7 +3758,7 @@ bool UnrealToUsd::CreateComponentPropertyBaker(
 			}
 		}
 	}
-	else if (const UUsdDrawModeComponent* BoundsComponent = Cast<UUsdDrawModeComponent>(&Component))
+	else if (const UUsdDrawModeComponent* DrawModeComponent = Cast<UUsdDrawModeComponent>(&Component))
 	{
 		static TSet<FString> RelevantProperties = {
 			GET_MEMBER_NAME_CHECKED(UUsdDrawModeComponent, BoundsMin).ToString(),
@@ -3767,10 +3767,10 @@ bool UnrealToUsd::CreateComponentPropertyBaker(
 		if (RelevantProperties.Contains(PropertyPath))
 		{
 			BakerType = EBakingType::Bounds;
-			BakerFunction = [UsdStage, BoundsComponent, UsdPrim](double UsdTimeCode) mutable
+			BakerFunction = [UsdStage, DrawModeComponent, UsdPrim](double UsdTimeCode) mutable
 			{
 				const bool bWriteExtents = true;
-				UnrealToUsd::ConvertBoundsComponent(*BoundsComponent, UsdPrim, bWriteExtents, UsdTimeCode);
+				UnrealToUsd::ConvertDrawModeComponent(*DrawModeComponent, UsdPrim, bWriteExtents, UsdTimeCode);
 			};
 		}
 	}
@@ -4487,7 +4487,7 @@ UnrealToUsd::FPropertyTrackWriter UnrealToUsd::CreatePropertyTrackWriter(
 			}
 
 			// If we still don't have an attr try applying the schema.
-			// Not entirely sure how this can possibly happen at this point, but this is more for "parity" with ConvertBoundsComponent
+			// Not entirely sure how this can possibly happen at this point, but this is more for "parity" with ConvertDrawModeComponent
 			if (!Attr)
 			{
 				if (pxr::UsdGeomModelAPI GeomModelAPI = pxr::UsdGeomModelAPI::Apply(UsdPrim))
@@ -4944,7 +4944,7 @@ TArray<UE::FUsdAttribute> UnrealToUsd::GetAttributesForProperty(const UE::FUsdPr
 	return {};
 }
 
-bool UnrealToUsd::ConvertBoundsComponent(const UUsdDrawModeComponent& BoundsComponent, pxr::UsdPrim& UsdPrim, bool bWriteExtents, double UsdTimeCode)
+bool UnrealToUsd::ConvertDrawModeComponent(const UUsdDrawModeComponent& DrawModeComponent, pxr::UsdPrim& UsdPrim, bool bWriteExtents, double UsdTimeCode)
 {
 	if (!UsdPrim)
 	{
@@ -4990,8 +4990,8 @@ bool UnrealToUsd::ConvertBoundsComponent(const UUsdDrawModeComponent& BoundsComp
 	{
 		FUsdStageInfo StageInfo{UsdPrim.GetStage()};
 
-		const FVector& UEBoundsMin = BoundsComponent.BoundsMin;
-		const FVector& UEBoundsMax = BoundsComponent.BoundsMax;
+		const FVector& UEBoundsMin = DrawModeComponent.BoundsMin;
+		const FVector& UEBoundsMax = DrawModeComponent.BoundsMax;
 		pxr::GfVec3f UEBoundsMinUsdSpace = UnrealToUsd::ConvertVectorFloat(StageInfo, UEBoundsMin);
 		pxr::GfVec3f UEBoundsMaxUsdSpace = UnrealToUsd::ConvertVectorFloat(StageInfo, UEBoundsMax);
 		pxr::GfVec3f UsdMin{
@@ -5026,10 +5026,10 @@ bool UnrealToUsd::ConvertBoundsComponent(const UUsdDrawModeComponent& BoundsComp
 	if (pxr::UsdAttribute Attr = GeomModelAPI.CreateModelDrawModeAttr())
 	{
 		Attr.Set(
-			BoundsComponent.DrawMode == EUsdDrawMode::Origin	  ? pxr::UsdGeomTokens->origin
-			: BoundsComponent.DrawMode == EUsdDrawMode::Bounds	  ? pxr::UsdGeomTokens->bounds
-			: BoundsComponent.DrawMode == EUsdDrawMode::Cards	  ? pxr::UsdGeomTokens->cards
-			: BoundsComponent.DrawMode == EUsdDrawMode::Inherited ? pxr::UsdGeomTokens->inherited
+			DrawModeComponent.DrawMode == EUsdDrawMode::Origin	  ? pxr::UsdGeomTokens->origin
+			: DrawModeComponent.DrawMode == EUsdDrawMode::Bounds	  ? pxr::UsdGeomTokens->bounds
+			: DrawModeComponent.DrawMode == EUsdDrawMode::Cards	  ? pxr::UsdGeomTokens->cards
+			: DrawModeComponent.DrawMode == EUsdDrawMode::Inherited ? pxr::UsdGeomTokens->inherited
 																  : pxr::UsdGeomTokens->default_,
 			UsdTimeCode
 		);
@@ -5038,8 +5038,8 @@ bool UnrealToUsd::ConvertBoundsComponent(const UUsdDrawModeComponent& BoundsComp
 	if (pxr::UsdAttribute Attr = GeomModelAPI.CreateModelCardGeometryAttr())
 	{
 		Attr.Set(
-			BoundsComponent.CardGeometry == EUsdModelCardGeometry::Cross ? pxr::UsdGeomTokens->cross
-			: BoundsComponent.CardGeometry == EUsdModelCardGeometry::Box ? pxr::UsdGeomTokens->box
+			DrawModeComponent.CardGeometry == EUsdModelCardGeometry::Cross ? pxr::UsdGeomTokens->cross
+			: DrawModeComponent.CardGeometry == EUsdModelCardGeometry::Box ? pxr::UsdGeomTokens->box
 																		 : pxr::UsdGeomTokens->fromTexture,
 			UsdTimeCode
 		);
@@ -5056,7 +5056,7 @@ bool UnrealToUsd::ConvertBoundsComponent(const UUsdDrawModeComponent& BoundsComp
 	{
 		// This color is just a vec3f and our color is already linear anyway, so just convert it directly instead of going through
 		// UnrealToUsd::ConvertColor
-		pxr::GfVec3f UsdColor{BoundsComponent.BoundsColor.R, BoundsComponent.BoundsColor.G, BoundsComponent.BoundsColor.B};
+		pxr::GfVec3f UsdColor{DrawModeComponent.BoundsColor.R, DrawModeComponent.BoundsColor.G, DrawModeComponent.BoundsColor.B};
 		Attr.Set(UsdColor, UsdTimeCode);
 	}
 
@@ -5067,15 +5067,15 @@ bool UnrealToUsd::ConvertBoundsComponent(const UUsdDrawModeComponent& BoundsComp
 	// when setting/clearing textures via blueprint/details panels we will also tweak AuthoredFaces. The combined effect is that when a user sets a
 	// new texture in a property we will assume that means it became "authored", and when they clear a texture property we will assume that ceases to
 	// be "authored"
-	EUsdModelCardFace AuthoredFaces = BoundsComponent.GetAuthoredFaces();
+	EUsdModelCardFace AuthoredFaces = DrawModeComponent.GetAuthoredFaces();
 
 	using CreateAttrFuncType = decltype(&pxr::UsdGeomModelAPI::CreateModelCardTextureXPosAttr);
 	using GetAttrFuncType = decltype(&pxr::UsdGeomModelAPI::GetModelCardTextureXPosAttr);
 
 	TFunction<void(EUsdModelCardFace, GetAttrFuncType, CreateAttrFuncType)> ExportCardFace =
-		[&BoundsComponent, AuthoredFaces, UsdTimeCode, &GeomModelAPI](EUsdModelCardFace Face, GetAttrFuncType GetAttr, CreateAttrFuncType CreateAttr)
+		[&DrawModeComponent, AuthoredFaces, UsdTimeCode, &GeomModelAPI](EUsdModelCardFace Face, GetAttrFuncType GetAttr, CreateAttrFuncType CreateAttr)
 	{
-		UTexture2D* FaceTexture = BoundsComponent.GetTextureForFace(Face);
+		UTexture2D* FaceTexture = DrawModeComponent.GetTextureForFace(Face);
 
 		if (EnumHasAllFlags(AuthoredFaces, Face))
 		{
@@ -5089,12 +5089,46 @@ bool UnrealToUsd::ConvertBoundsComponent(const UUsdDrawModeComponent& BoundsComp
 #if WITH_EDITOR
 					if (FaceTexture->AssetImportData)
 					{
-						// If this texture doesn't have an asset import data, or the filename stored there is not valid then this reference
-						// won't resolve when it read it back from USD...
-						// TOD: Should we export the texture now? To where?
 						FString TextureSourcePath = FaceTexture->AssetImportData->GetFirstFilename();
-						pxr::SdfAssetPath AssetPath = pxr::SdfAssetPath{UnrealToUsd::ConvertString(*TextureSourcePath).Get()};
-						Attr.Set(AssetPath, UsdTimeCode);
+						FString ResolvedPath = UsdUtils::GetResolvedTexturePath(Attr);
+
+						// Avoid authoring anything unless they point at different files because in the general case the
+						// asset import data will have an absolute path, while the path on the attribute may be currently relative.
+						// We still want to implement some kind of larger feature to let the user pick whether we should be authoring
+						// relative or absolute paths all over, but for now the least we can do is try not changing relative paths
+						// to absolute unnecessarily (or vice versa)
+						if (!FPaths::IsSamePath(ResolvedPath, TextureSourcePath))
+						{
+							if (!FPaths::FileExists(TextureSourcePath))
+							{
+								UE_LOG(
+									LogUsd,
+									Warning,
+									TEXT("Authoring card texture path '%s' for texture '%s' onto attribute '%s', but the source image file doesn't "
+										 "exist on disk! It may not be possible to display this card texture if the stage is reloaded or reopened. "
+										 "UTexture assets can't be automatically exported in this manner just yet. If you want to assign a new "
+										 "texture, make sure the UTexture asset's source image file exists on disk."),
+									*TextureSourcePath,
+									*FaceTexture->GetPathName(),
+									*UsdToUnreal::ConvertPath(Attr.GetPath())
+								);
+							}
+
+							pxr::SdfAssetPath AssetPath = pxr::SdfAssetPath{UnrealToUsd::ConvertString(*TextureSourcePath).Get()};
+							Attr.Set(AssetPath, UsdTimeCode);
+						}
+					}
+					else
+					{
+						UE_LOG(
+							LogUsd,
+							Warning,
+							TEXT("Not authoring card texture for attribute '%s' because the assigned texture '%s' has no AssetImportData! UTexture "
+								 "assets can't be automatically exported in this manner just yet. If you want to assign a new texture, make sure the "
+								 "UTexture asset's source image file exists on disk."),
+							*UsdToUnreal::ConvertPath(Attr.GetPath()),
+							*FaceTexture->GetPathName()
+						);
 					}
 #endif	  // WITH_EDITOR
 				}
