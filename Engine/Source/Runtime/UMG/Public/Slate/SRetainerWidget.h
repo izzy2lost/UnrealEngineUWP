@@ -49,12 +49,11 @@ public:
 		_PhaseCount = 1;
 		_RenderOnPhase = true;
 		_RenderOnInvalidation = false;
-		_RenderWithLocalTransform = true;
 	}
 	SLATE_DEFAULT_SLOT(FArguments, Content)
 		SLATE_ARGUMENT(bool, RenderOnPhase)
 		SLATE_ARGUMENT(bool, RenderOnInvalidation)
-		SLATE_ARGUMENT(bool, RenderWithLocalTransform)
+		SLATE_ARGUMENT_DEPRECATED(bool, RenderWithLocalTransform, 5.4, "This argument has no effect anymore, because bugs from each render path (with RenderWithLocalTransform set to true or false) have been fixed, making it no longer necessary.")
 		SLATE_ARGUMENT(int32, Phase)
 		SLATE_ARGUMENT(int32, PhaseCount)
 		SLATE_ARGUMENT(FName, StatId)
@@ -154,7 +153,6 @@ private:
 
 	bool bEnableRetainedRenderingDesire;
 	bool bEnableRetainedRendering;
-	bool bEnableRenderWithLocalTransform;
 
 #if WITH_EDITOR
 	/** True if widget is used in design time */

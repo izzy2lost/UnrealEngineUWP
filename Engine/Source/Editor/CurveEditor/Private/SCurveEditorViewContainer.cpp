@@ -423,7 +423,6 @@ void SCurveEditorViewContainer::AddView(TSharedRef<SCurveEditorView> ViewToAdd)
 		SAssignNew(RetainerWidget, SRetainerWidget)
 		.RenderOnPhase(false)
 		.RenderOnInvalidation(false)
-		.RenderWithLocalTransform(false)
 		.bWarnOnInvalidSize(false)
 		[
 			SNew(SBox)
