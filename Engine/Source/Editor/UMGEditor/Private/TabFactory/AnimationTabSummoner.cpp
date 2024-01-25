@@ -394,7 +394,7 @@ public:
 		[
 			SNew(SBorder)
 			.BorderImage(FAppStyle::GetBrush("ToolPanel.GroupBorder"))
-			.Padding( FMargin(bIsDrawerTab ? 8.0 : 2.0, 2.0) )
+			.Padding( FMargin(bIsDrawerTab ? 8.0f : 2.0f, 2.0f) )
 			[
 				SNew(SOverlay)
 				+SOverlay::Slot()
