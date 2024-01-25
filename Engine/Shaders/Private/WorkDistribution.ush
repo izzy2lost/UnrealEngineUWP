@@ -290,10 +290,8 @@ void DistributeWork( FTask Task, uint GroupIndex, uint NumWorkItems )
 
 		FTask ChildTask = Task.CreateChild( SourceIndex );
 
-		if( WorkHead + LaneIndex < WorkTail )
-		{
-			ChildTask.RunChild( LocalItemIndex );
-		}
+		bool bActive = ( WorkHead + LaneIndex < WorkTail );
+		ChildTask.RunChild( Task, bActive, LocalItemIndex );
 
 		// Did 1 wave of work
 		WorkHead += LaneCount;

@@ -234,7 +234,7 @@ FRaster CreateRaster( FNaniteView NaniteView, FInstanceSceneData InstanceData, F
 }
 
 #if PATCHES
-	#define VERTEX_CACHE_SIZE 153
+	#define VERTEX_CACHE_SIZE 120		// (MaxTessFactor+1)*(MaxTessFactor+2)/2
 #else
 	#define VERTEX_CACHE_SIZE 256
 #endif
@@ -311,9 +311,10 @@ void ClusterRasterize( uint VisibleIndex, uint GroupThreadIndex )
 #endif
 
 #if NANITE_TESSELLATION
-
+#if USES_DISPLACEMENT
 	MaterialShader.DisplacementCenter = RasterBinMeta[ActiveRasterBin].MaterialDisplacementCenter;
 	MaterialShader.DisplacementMagnitude = RasterBinMeta[ActiveRasterBin].MaterialDisplacementMagnitude;
+#endif
 
 	uint TriIndex = TriRange.Start + GroupThreadIndex;
 	bool bTriValid = GroupThreadIndex < TriRange.Num;
@@ -345,19 +346,22 @@ void ClusterRasterize( uint VisibleIndex, uint GroupThreadIndex )
 
 	float3 TessFactors = GetTessFactors( NaniteView, TriPointView );
 
-	const uint ImmediateDiceLimit = 8;
 	const uint ImmediateSplitLimit = 8;
 
-	bool bCanDice = max3( TessFactors.x, TessFactors.y, TessFactors.z ) <= ImmediateDiceLimit;
+	bool bCanDice = max3( TessFactors.x, TessFactors.y, TessFactors.z ) <= NANITE_TESSELLATION_TABLE_IMMEDIATE_SIZE;
 
+	if( WaveActiveAnyTrue( bCanDice ) )
 	{
 		FDiceTask DiceTask;
 		DiceTask.Raster				= Raster;
 		DiceTask.Shader				= MaterialShader;
 		DiceTask.PixelValue			= ( VisibleIndex + 1 ) << 7;
 		DiceTask.VisualizeValues	= GetVisualizeValues();
+		DiceTask.UVDensities		= GetMaterialUVDensities( Cluster, InstanceData.PrimitiveId, TriRange.Start );
 		DiceTask.bReverseWinding	= bReverseWindingOrder;
 		DiceTask.Vert				= Vert;
+
+		DiceTask.CacheToLDS();
 
 		uint NumVerts = 0;
 		uint NumTris = 0;
@@ -367,9 +371,6 @@ void ClusterRasterize( uint VisibleIndex, uint GroupThreadIndex )
 			NumVerts = DiceTask.TessellatedPatch.GetNumVerts();
 			NumTris  = DiceTask.TessellatedPatch.GetNumTris();
 		}
-
-		//DiceTask.FirstVert = WavePrefixSum( NumVerts );
-		//DiceTask.NumCached = 0;
 
 		BRANCH
 		if ((RenderFlags & NANITE_RENDER_FLAG_WRITE_STATS) != 0u)
@@ -603,6 +604,7 @@ void PatchRasterize( uint GroupID, uint GroupThreadIndex )
 	FTessellatedPatch		Patches_TessellatedPatch;
 	FNaniteVertTransforms	Patches_VertTransforms;
 	FNaniteTransformedVert	Patches_Verts;
+	float4					Patches_UVDensities;
 
 	if (GroupThreadIndex < NumPatches * 3u)
 	{
@@ -657,10 +659,10 @@ void PatchRasterize( uint GroupID, uint GroupThreadIndex )
 		const uint3 VertIndexes = DecodeTriangleIndices(Cluster, Patches_SplitPatch.TriIndex);
 		Patches_Verts = FetchTransformedNaniteVertex(PrimitiveData, Patches_InstanceData, Patches_VertTransforms, Cluster, VertIndexes[PatchCornerIndex], bEvaluateWPO);
 
+		Patches_UVDensities = GetMaterialUVDensities(Cluster, Patches_InstanceData.PrimitiveId, Patches_SplitPatch.TriIndex);
+
 #if NANITE_TESSELLATION_PATCH_REFS
-		const uint Pattern = VisiblePatch.y;
-		Patches_TessellatedPatch.Pattern = Pattern;
-		Patches_TessellatedPatch.TableOffsets = TessellationTable_Offsets.Load4(4 * 2 * (Pattern & 0xfff));
+		Patches_TessellatedPatch.Init(VisiblePatch.y, false);
 #else
 		
 		const float3 OuterPatchCornersView = mul(float4(Patches_Verts.PointWorld, 1), NaniteView.TranslatedWorldToView).xyz;
@@ -675,7 +677,7 @@ void PatchRasterize( uint GroupID, uint GroupThreadIndex )
 		CornersView[2] = WaveReadLaneAt(InnerPatchCornersView, PatchStartLane + 2);
 		
 		const float3 TessFactors = GetTessFactors(NaniteView, CornersView);
-		Patches_TessellatedPatch.Init(TessFactors, Patches_EncodedPatch.yzw);
+		Patches_TessellatedPatch.Init(TessFactors, Patches_EncodedPatch.yzw, false);
 		Patches_SplitPatch.Decode(Patches_EncodedPatch);
 #endif
 	}
@@ -688,6 +690,7 @@ void PatchRasterize( uint GroupID, uint GroupThreadIndex )
 		const bool bReverseWindingOrder					= WaveReadLaneAt(Patches_bReverseWindingOrders, PatchStartLane);
 		const FSplitPatch SplitPatch					= WaveReadLaneAt(Patches_SplitPatch, PatchStartLane);
 		const FTessellatedPatch TessellatedPatch		= WaveReadLaneAt(Patches_TessellatedPatch, PatchStartLane);
+		const float4 UVDensities						= WaveReadLaneAt(Patches_UVDensities, PatchStartLane);
 				
 		// The following values can be used in a shader, but will most likely be dead code eliminated
 		const FInstanceSceneData InstanceData			= WaveReadLaneAt(Patches_InstanceData, PatchStartLane);
@@ -717,8 +720,10 @@ void PatchRasterize( uint GroupID, uint GroupThreadIndex )
 #endif
 		MaterialShader.TransformedTri = MakeTransformedNaniteTriangle(Patches_Verts, PatchStartLane + uint3(0, 1, 2));
 
+#if USES_DISPLACEMENT
 		MaterialShader.DisplacementCenter = RasterBinMeta[ActiveRasterBin].MaterialDisplacementCenter;
 		MaterialShader.DisplacementMagnitude = RasterBinMeta[ActiveRasterBin].MaterialDisplacementMagnitude;
+#endif
 
 		uint PixelValue = (SplitPatch.VisibleClusterIndex + 1) << 7;
 
@@ -745,7 +750,6 @@ void PatchRasterize( uint GroupID, uint GroupThreadIndex )
 		}
 	#endif
 
-		const float4 UVDensities = GetMaterialUVDensities( Cluster, InstanceData.PrimitiveId, SplitPatch.TriIndex );
 		for( uint VertIndex = GroupThreadIndex; VertIndex < NumVerts; VertIndex += ThreadGroupSize )
 		{
 			FBarycentrics Barycentrics;
@@ -877,7 +881,7 @@ VSOut CommonRasterizerVS(FNaniteView NaniteView, FPrimitiveSceneData PrimitiveDa
 	MaterialShader.NaniteView			= NaniteView;
 	MaterialShader.Cluster 				= Cluster;
 
-#if NANITE_TESSELLATION
+#if NANITE_TESSELLATION && USES_DISPLACEMENT
 	MaterialShader.DisplacementCenter		= RasterBinMeta[ActiveRasterBin].MaterialDisplacementCenter;
 	MaterialShader.DisplacementMagnitude	= RasterBinMeta[ActiveRasterBin].MaterialDisplacementMagnitude;
 #endif

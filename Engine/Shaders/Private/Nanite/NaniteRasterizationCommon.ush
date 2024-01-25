@@ -475,12 +475,6 @@ struct FMaterialShader
 
 		return PointClip;
 	}
-
-	float4 EvaluateDomain( uint TriIndex, FBarycentrics Barycentrics )
-	{
-		const float4 UVDensities = GetMaterialUVDensities( Cluster, InstanceData.PrimitiveId, TriIndex );
-		return EvaluateDomain( UVDensities, Barycentrics );
-	}
 #endif
 
 	bool EvaluatePixel( FBarycentrics Barycentrics, float4 SvPosition, inout FVisBufferPixel Pixel )
