@@ -129,7 +129,7 @@ static FString GetVDBSequenceBaseFileName(const FString& FileName, bool bDiscard
 				// The number at the end of a filename in a sequence is often separated by an underscore or other special character,
 				// so when we want to get the base filename for deriving the new asset name, we also discard these characters.
 				// Underscores are not part of the invalid chars string literal, so we append them here to also discard these chars.
-				const TCHAR* InvalidChars = TEXT("_")INVALID_OBJECTNAME_CHARACTERS;
+				const TCHAR* InvalidChars = TEXT("_") INVALID_OBJECTNAME_CHARACTERS;
 				while (*InvalidChars)
 				{
 					if (Letter == *InvalidChars)
