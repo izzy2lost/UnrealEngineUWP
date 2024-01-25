@@ -60,7 +60,7 @@ public:
 	 * Number of Newton iterations for force-based solver. Prototype only--very few constraints support this.
 	 */
 	UPROPERTY(EditAnywhere, Category = Experimental, meta = (UIMin = "1", UIMax = "10", ClampMin = "0", ClampMax = "100", EditCondition = "bEnableForceBasedSolver"))
-	int32 NumNewtonIterations = 1;
+	int32 NumNewtonIterations = 0;
 
 	/**
 	 * Max number of CG Iterations per linear solve
@@ -81,6 +81,8 @@ public:
 	bool bDoQuasistatics = false;
 
 	FChaosClothAssetSimulationSolverConfigNode(const Dataflow::FNodeParameters& InParam, FGuid InGuid = FGuid::NewGuid());
+
+	virtual void Serialize(FArchive& Ar) override;
 
 private:
 	virtual void AddProperties(FPropertyHelper& PropertyHelper) const override;
