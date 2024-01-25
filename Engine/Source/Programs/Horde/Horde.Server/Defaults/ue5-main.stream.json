@@ -171,7 +171,7 @@
 		{
 			"id": "test-executor$(Project)",
 			"name": "Run Test Executor",
-			"initialAgentType": "AnyAgent",
+			"initialAgentType": "Win64",
 			"arguments": [
 				"-Target=Full Build",
 				"-Project=$(Project)"
@@ -183,7 +183,7 @@
 		{
 			"id": "local-executor",
 			"name": "Run Local Executor",
-			"initialAgentType": "AnyAgent",
+			"initialAgentType": "Win64",
 			"arguments": [
 				"-Script=Engine/Build/Graph/Examples/TagsAndFiles.xml",
 				"-Target=Tag and File Examples"
