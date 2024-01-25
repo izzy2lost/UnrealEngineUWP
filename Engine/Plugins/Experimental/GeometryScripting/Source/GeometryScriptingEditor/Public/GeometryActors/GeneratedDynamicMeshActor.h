@@ -35,7 +35,7 @@ public:
 	UPROPERTY(Category = "DynamicMeshActor", EditAnywhere, BlueprintReadWrite)
 	bool bFrozen = false;
 
-	/** If true, the DynamicMeshComponent will be cleared before the OnRebuildGeneratedMesh event is executed. */
+	/** If true, the DynamicMeshComponent will be cleared before the RebuildGeneratedMesh event is executed. */
 	UPROPERTY(Category = "DynamicMeshActor|Advanced", EditAnywhere, BlueprintReadWrite)
 	bool bResetOnRebuild = true;
 
@@ -55,10 +55,18 @@ public:
 
 
 	/**
-	 * This function will fire the OnRebuildGeneratedMesh event if the actor has been
+	 * This function will fire the RebuildGeneratedMesh function if the actor has been
 	 * marked for a pending rebuild (eg via OnConstruction)
 	 */
 	virtual void ExecuteRebuildGeneratedMeshIfPending();
+
+
+protected:
+	/**
+	 * Overridable native event for when the generated Mesh should be rebuilt.
+	 * This function will fire the OnRebuildGeneratedMesh event to the BP.
+	 */
+	virtual void RebuildGeneratedMesh(UDynamicMesh* TargetMesh);
 
 
 public:
@@ -101,7 +109,7 @@ public:
 
 protected:
 	// this internal flag is set in OnConstruction, and will cause ExecuteRebuildGeneratedMesh to
-	// fire the OnRebuildGeneratedMesh event, after which the flag will be cleared
+	// fire the RebuildGeneratedMesh event, after which the flag will be cleared
 	bool bGeneratedMeshRebuildPending = false;
 
 	// indicates that this Actor is registered with the UEditorGeometryGenerationSubsystem, which 

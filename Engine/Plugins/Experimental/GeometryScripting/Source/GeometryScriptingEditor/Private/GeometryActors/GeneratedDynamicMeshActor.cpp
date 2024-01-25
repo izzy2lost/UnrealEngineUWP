@@ -202,12 +202,12 @@ void AGeneratedDynamicMeshActor::ExecuteRebuildGeneratedMeshIfPending()
 		Progress.MakeDialogDelayed(this->DialogDelay, true);
 		ActiveSlowTask = &Progress;
 		CurProgressAccumSteps = 0;
-		OnRebuildGeneratedMesh(Component->GetDynamicMesh());
+		RebuildGeneratedMesh(Component->GetDynamicMesh());
 		ActiveSlowTask = nullptr;
 	}
 	else
 	{
-		OnRebuildGeneratedMesh(Component->GetDynamicMesh());
+		RebuildGeneratedMesh(Component->GetDynamicMesh());
 	}
 
 	bGeneratedMeshRebuildPending = false;
@@ -218,6 +218,10 @@ void AGeneratedDynamicMeshActor::ExecuteRebuildGeneratedMeshIfPending()
 	}
 }
 
+void AGeneratedDynamicMeshActor::RebuildGeneratedMesh(UDynamicMesh* TargetMesh)
+{
+	OnRebuildGeneratedMesh(TargetMesh);
+}
 
 void AGeneratedDynamicMeshActor::MarkForMeshRebuild(bool bImmediate, bool bImmediateEvenIfFrozen)
 {
