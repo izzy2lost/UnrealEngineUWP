@@ -15,7 +15,7 @@ struct FNiagaraAssetBrowserConfiguration
 	TArray<FName> MainFilterSelection;
 
 	UPROPERTY()
-	bool bShouldDisplayViewport;
+	bool bShouldDisplayViewport = false;
 };
 
 UCLASS(EditorConfig="NiagaraAssetBrowser")

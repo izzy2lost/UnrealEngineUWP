@@ -30,6 +30,13 @@ struct FNiagaraAssetTagDefinition
 	GENERATED_BODY()
 
 public:
+	FNiagaraAssetTagDefinition()
+	{
+		TagGuid = FGuid::NewGuid();
+	}
+
+	FNiagaraAssetTagDefinition(FText InAssetTag, int32 InAssetFlags, FText InDescription, ENiagaraAssetTagDefinitionImportance InDisplayType, FLinearColor InColor, FGuid InTagGuid);
+	
 	/** The Display Name used for this tag. */
 	UPROPERTY(EditAnywhere, Category="Properties")
 	FText AssetTag;
@@ -48,11 +55,11 @@ public:
 
 	/** The color used in UI to represent this tag. */
 	UPROPERTY(EditAnywhere, Category="Properties")
-	FLinearColor Color;
+	FLinearColor Color = FLinearColor::Black;
 
 	/** The Tag Guid identifies this tag. This makes it possible to change the AssetTag name without it affecting functionality. */
 	UPROPERTY(VisibleAnywhere, Category="Properties")
-	FGuid TagGuid = FGuid::NewGuid();
+	FGuid TagGuid = FGuid();
 
 	bool operator<(const FNiagaraAssetTagDefinition& Other) const
 	{		
