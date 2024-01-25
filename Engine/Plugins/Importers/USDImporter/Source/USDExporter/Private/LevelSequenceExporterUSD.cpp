@@ -42,6 +42,7 @@
 #include "Selection.h"
 #include "Sequencer/MovieSceneControlRigParameterTrack.h"
 #include "Subsystems/AssetEditorSubsystem.h"
+#include "Tracks/MovieScene3DAttachTrack.h"
 #include "Tracks/MovieScenePropertyTrack.h"
 #include "Tracks/MovieSceneSkeletalAnimationTrack.h"
 #include "Tracks/MovieSceneSpawnTrack.h"
@@ -1037,6 +1038,12 @@ namespace UE::LevelSequenceExporterUSD::Private
 							}
 							UnrealToUsd::CreateSkeletalAnimationBaker(SkeletonPrim, SkelAnimPrim, *SkeletalBoundComponent, Baker);
 						}
+					}
+					// If we have an attach track that attaches the object to somewhere else, then we'll need to bake in that transform
+					// change, as we can't export "hierarchy changes" otherwise
+					else if (Track->IsA<UMovieScene3DAttachTrack>())
+					{
+						UnrealToUsd::CreateComponentPropertyBaker(Prim, *BoundComponent, TEXT("Transform"), Baker);
 					}
 
 					// If we made a baker and we don't have one of this type for this component yet, add its lambda to the array
