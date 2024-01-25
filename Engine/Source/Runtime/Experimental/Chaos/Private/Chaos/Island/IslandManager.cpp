@@ -373,6 +373,9 @@ namespace Chaos::Private
 		if (Constraint != nullptr)
 		{
 			Constraint->SetConstraintGraphEdge(this);
+
+			// Initialize edge state to match constraint state
+			Flags.bIsSleeping = Constraint->IsSleeping();
 		}
 	}
 
@@ -744,6 +747,9 @@ namespace Chaos::Private
 		// When we explicitly wake we reset sleep counters etc
 		if (FPBDIslandParticle* Node = GetGraphNode(Particle))
 		{
+			// Make sure the node sleep state matches the particle state
+			Node->Flags.bIsSleeping = FConstGenericParticleHandle(Particle)->IsSleeping();
+
 			// NOTE: We could check Flags.bIsDynamic here, but checking the Island pointer means we 
 			// are automatically handling the case where a kinematic with constraints on it 
 			// was made dynamic right before calling WakeParticleIsland
@@ -767,6 +773,23 @@ namespace Chaos::Private
 		if (FPBDRigidParticleHandle* Rigid = Particle->CastToRigidParticle())
 		{
 			Rigid->SetSleepCounter(0);
+		}
+	}
+
+	void FPBDIslandManager::SleepParticle(FGeometryParticleHandle* Particle)
+	{
+		// When we explicitly sleep we must check the island for sleeping before we update constraints
+		// so that constraint sleep state matched their particles' sleep state.
+		const bool bIsSleepAllowed = true;
+		if (FPBDIslandParticle* Node = GetGraphNode(Particle))
+		{
+			Node->Flags.bIsSleeping = true;
+
+			if ((Node->Island != nullptr) && !Node->Island->Flags.bIsSleeping)
+			{
+				// Set the checksleep flag for processing in See UpdateParticlesCheckSleep
+				EnqueueIslandCheckSleep(Node->Island, bIsSleepAllowed);
+			}
 		}
 	}
 
@@ -930,19 +953,6 @@ namespace Chaos::Private
 		{
 			const bool bIsSleepAllowed = false;
 			EnqueueIslandCheckSleep(Edge->Island, bIsSleepAllowed);
-		}
-	}
-
-	void FPBDIslandManager::SetParticleIslandIsSleeping(FGeometryParticleHandle* Particle, const bool bInIsSleeping)
-	{
-		if (FPBDIslandParticle* Node = GetGraphNode(Particle))
-		{
-			if ((Node->Island != nullptr) && (Node->Island->Flags.bIsSleeping != bInIsSleeping))
-			{
-				Node->Island->Flags.bIsSleeping = bInIsSleeping;
-				Node->Island->SleepCounter = 0;
-				PropagateIslandSleep(Node->Island);
-			}
 		}
 	}
 
@@ -2067,6 +2077,52 @@ namespace Chaos::Private
 		Validate();
 	}
 
+	void FPBDIslandManager::UpdateExplicitSleep()
+	{
+		// UpdateExplicitSleep should be called after processing physics inputs that may change the sleep/wake status of particles. 
+		// It is required so that the Particle/Constraint/Island sleep states are in sync when we Integrate and Detection Collisions.
+		// E.g., If we do not do this and a particle was explicitly put to sleep, it will not be integrated and no collisions will 
+		// be detected. If that particle is in an island with other awake particles it will be woken immediately but will not have 
+		// moved or have any collisions.
+
+		const auto ShouldIslandSleep = [](FPBDIsland * Island) -> bool
+		{
+			for (FPBDIslandParticle* Node : Island->GetParticles())
+			{
+				const bool bIsDynamic = IsParticleDynamic(Node->GetParticle());
+				const bool bIsSleeping = IsParticleSleeping(Node->GetParticle());
+				if (bIsDynamic && !bIsSleeping)
+				{
+					return false;
+				}
+			}
+			return true;
+		};
+
+		// If we have explicitly made some particles go to sleep (as opposed to them naturally sleeping based on low movement)
+		// we must check to see if the whole island can go to sleep. This is primarily to address the issue that we do not
+		// update collisions for sleeping particles and destroy collisions in awake islands that are not updated this tick.
+		for (FPBDIsland* Island : Islands)
+		{
+			if (!!Island->Flags.bCheckSleep)
+			{
+				const bool bIslandShouldSleep = !!Island->Flags.bIsSleepAllowed && ShouldIslandSleep(Island);
+				if (bIslandShouldSleep != Island->Flags.bIsSleeping)
+				{
+					Island->Flags.bIsSleeping = bIslandShouldSleep;
+					Island->SleepCounter = 0;
+				}
+
+				// NOTE: we only get here if particle sleep state was changed. We need to ensure that
+				// constraint sleep state matches the particle sleep state. Ideally we would only
+				// do this if we know that they don't match, but that's hard to determine.
+				PropagateIslandSleep(Island);
+
+				Island->Flags.bCheckSleep = false;
+			}
+		}
+	}
+
 	void FPBDIslandManager::ProcessSleep(const FRealSingle Dt)
 	{
 		if (!CVars::bChaosSolverSleepEnabled)
@@ -2206,6 +2262,12 @@ namespace Chaos::Private
 
 	void FPBDIslandManager::PropagateIslandSleep(FPBDIsland* Island)
 	{
+		PropagateIslandSleepToParticles(Island);
+		PropagateIslandSleepToConstraints(Island);
+	}
+
+	void FPBDIslandManager::PropagateIslandSleepToParticles(FPBDIsland* Island)
+	{
 		bool bRebuildViews = false;
 		for (FPBDIslandParticle* IslandNode : Island->Nodes)
 		{
@@ -2247,7 +2309,10 @@ namespace Chaos::Private
 		{
 			Particles.RebuildViews();
 		}
+	}
 
+	void FPBDIslandManager::PropagateIslandSleepToConstraints(FPBDIsland* Island)
+	{
 		// Set the constraint sleep state to match
 		for (TArray<FPBDIslandConstraint*>& IslandEdges : Island->ContainerEdges)
 		{

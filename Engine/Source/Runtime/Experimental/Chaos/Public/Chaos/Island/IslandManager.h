@@ -402,6 +402,7 @@ namespace Chaos::Private
 		CHAOS_API void UpdateParticleMaterial(FGeometryParticleHandle* Particle);
 		CHAOS_API int32 GetParticleLevel(FGeometryParticleHandle* Particle) const;
 		CHAOS_API void WakeParticleIslands(FGeometryParticleHandle* Particle);
+		CHAOS_API void SleepParticle(FGeometryParticleHandle* Particle);
 
 		// Constraint management
 		int32 GetNumConstraints() const { return Edges.Num(); }
@@ -429,6 +430,7 @@ namespace Chaos::Private
 		CHAOS_API void SetDisableCounterThreshold(const int32 InDisableCounterThreshold);
 		CHAOS_API void SetIsDeterministic(const bool bInIsDeterministic);
 		CHAOS_API void SetAssignLevels(const bool bInAssignLevels);
+		CHAOS_API void UpdateExplicitSleep();
 		CHAOS_API void UpdateParticles();
 		CHAOS_API void UpdateIslands();
 		CHAOS_API void UpdateSleep(const FReal Dt = 0);
@@ -467,7 +469,6 @@ namespace Chaos::Private
 		CHAOS_API TArray<const FPBDIsland*> FindParticleIslands(const FGeometryParticleHandle* Particle) const;
 		CHAOS_API TArray<const FGeometryParticleHandle*> FindParticlesInIslands(const TArray<const FPBDIsland*> Islands) const;
 		CHAOS_API TArray<const FConstraintHandle*> FindConstraintsInIslands(const TArray<const FPBDIsland*> Islands, int32 ContainerId) const;
-		CHAOS_API void SetParticleIslandIsSleeping(FGeometryParticleHandle* Particle, const bool bInIsSleeping);
 
 		// Debug draw
 #if CHAOS_DEBUG_DRAW
@@ -547,6 +548,8 @@ namespace Chaos::Private
 		CHAOS_API void ProcessParticlesSleep(const FRealSingle Dt);
 		CHAOS_API void ProcessIslandSleep(FPBDIsland* Island, const FRealSingle Dt);
 		CHAOS_API void PropagateIslandSleep(FPBDIsland* Island);
+		CHAOS_API void PropagateIslandSleepToParticles(FPBDIsland* Island);
+		CHAOS_API void PropagateIslandSleepToConstraints(FPBDIsland* Island);
 
 		// Disabling
 		CHAOS_API void ProcessDisable(TFunctionRef<void(FPBDRigidParticleHandle*)> ParticleDisableFunctor);

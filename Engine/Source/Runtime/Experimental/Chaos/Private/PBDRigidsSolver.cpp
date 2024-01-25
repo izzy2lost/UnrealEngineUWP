@@ -454,6 +454,10 @@ namespace Chaos
 				// the next broadphase, we'll pass the epoch check but have an invalid index into a now-empty active constraints array.
 				MSolver->GetEvolution()->GetRigidClustering().UnionClusterGroups();
 
+				// Process any sleep/wake requests that came from the game thread
+				// NOTE: Must be before GetCollisionConstraints().BeginFrame() (because its behaviour depends on sleep state)
+				MSolver->GetEvolution()->GetIslandManager().UpdateExplicitSleep();
+
 				// clear out the collision constraints as they will be stale from last frame if AdvanceOneTimeStep never gets called due to TimeRemaining being less than MinDeltaTime 
 				// @todo(chaos): maybe we can pull data at a better time instead to avoid collision-specific code here for event dispatch
 				MSolver->GetEvolution()->GetCollisionConstraints().BeginFrame();

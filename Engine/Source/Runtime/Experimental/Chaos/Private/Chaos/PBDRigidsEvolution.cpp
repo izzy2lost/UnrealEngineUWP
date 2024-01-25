@@ -1049,6 +1049,7 @@ namespace Chaos
 		const EObjectStateType InitialState = Particle->ObjectState();
 		const bool bWasDynamic = (InitialState == EObjectStateType::Dynamic) || (InitialState == EObjectStateType::Sleeping);
 		const bool bIsDynamic = (ObjectState == EObjectStateType::Dynamic) || (ObjectState == EObjectStateType::Sleeping);
+		const bool bIsSleeping = (ObjectState == EObjectStateType::Sleeping);
 
 		Particle->SetObjectStateLowLevel(ObjectState);
 
@@ -1079,6 +1080,15 @@ namespace Chaos
 				Particle->SetSleepCounter(0);
 			}
 
+			// If all particles in an island are explicitly put to sleep, the island and all its
+			// constraints need to sleep at the start of the next tick. This is because we don't
+			// detect collisions on sleeping particles, and we destroy collisions that are 
+			// awake and were not updated this tick.
+			if (bIsSleeping)
+			{
+				IslandManager.SleepParticle(Particle);
+			}
+
 			// If we are not kinematic, the MovingKinematic flag should be cleared
 			// If we are kinematic and are (or become) moving, the flag will be updated in ApplyKinematicTargets
 			// Either way, we can reset the flag here
@@ -1101,14 +1111,16 @@ namespace Chaos
 
 	void FPBDRigidsEvolutionBase::WakeParticle(FPBDRigidParticleHandle* Particle)
 	{
-		if (Particle->IsDynamic())
+		if (Particle->IsSleeping())
 		{
+			// Set to dynamic - this will also wake the particle's island
 			SetParticleObjectState(Particle, EObjectStateType::Dynamic);
-
-			// Reset the sleep counters etc in the sleep management system
-			// @todo(chaos): ideally we would just set reset the sleepiness of the particle
-			IslandManager.WakeParticleIslands(Particle);
 		}
+
+		// Explicitly waking a particle should reset any sleep state, even if we are already awake.
+		// E.g., this will reset the sleep counter to prevent the particle from immediately sleeping again.
+		// NOTE: This also allows us to "wake" a kinematic which will wake all islands that the kinematic is in.
+		IslandManager.WakeParticleIslands(Particle);
 	}
 
 	void FPBDRigidsEvolutionBase::SetParticleSleepType(FPBDRigidParticleHandle* Particle, ESleepType InSleepType)
