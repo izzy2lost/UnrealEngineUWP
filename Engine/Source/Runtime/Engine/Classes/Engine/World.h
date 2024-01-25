@@ -1110,9 +1110,6 @@ public:
 
 	/** Whether world object has been initialized via Init and has not yet had CleanupWorld called								*/
 	uint8 bIsWorldInitialized:1;
-
-	/** Indicates the the destruction process has begun for this world */
-	uint8 bIsBeingDestroyed:1;
 	
 	/** Is level streaming currently frozen?																					*/
 	uint8 bIsLevelStreamingFrozen:1;
@@ -1244,6 +1241,9 @@ private:
 	/** Whether InitWorld was ever called on this world since its creation. Not cleared to false during CleanupWorld			*/
 	uint8 bHasEverBeenInitialized: 1;
 
+	/** Indicates that the world is in the process of being cleaned up */
+	bool bIsBeingCleanedUp;
+	
 	/** Whether the world is currently in a BlockTillLevelStreamingCompleted() call */
 	uint32 IsInBlockTillLevelStreamingCompleted;
 
@@ -3008,6 +3008,9 @@ public:
 	 * Destroy this World instance. If destroying the world to load a different world, supply it here to prevent GC of the new world or it's sublevels.
 	 */
 	void DestroyWorld( bool bInformEngineOfWorld, UWorld* NewWorld = nullptr );
+
+	/** Returns true if the world is in the process of being cleaned up. */
+	bool IsBeingCleanedUp() const { return bIsBeingCleanedUp; }
 
 	/** 
 	 * Marks this world and all objects within as pending kill

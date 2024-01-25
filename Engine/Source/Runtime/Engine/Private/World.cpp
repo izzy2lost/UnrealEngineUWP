@@ -597,7 +597,6 @@ UWorld::UWorld( const FObjectInitializer& ObjectInitializer )
 , FeatureLevel(GMaxRHIFeatureLevel)
 , bIsBuilt(false)
 , bIsWorldInitialized(false)
-, bIsBeingDestroyed(false)
 #if WITH_EDITOR
 , bDebugFrameStepExecutedThisFrame(false)
 , bToggledBetweenPIEandSIEThisFrame(false)
@@ -605,6 +604,7 @@ UWorld::UWorld( const FObjectInitializer& ObjectInitializer )
 #endif
 , bShouldTick(true)
 , bHasEverBeenInitialized(false)
+, bIsBeingCleanedUp(false)
 , ActiveLevelCollectionIndex(INDEX_NONE)
 , AudioDeviceHandle()
 #if WITH_EDITOR
@@ -2385,8 +2385,6 @@ void UWorld::InitializeNewWorld(const InitializationValues IVS, bool bInSkipInit
 
 void UWorld::DestroyWorld( bool bInformEngineOfWorld, UWorld* NewWorld )
 {
-	bIsBeingDestroyed = true;
-	
 	// Clean up existing world and remove it from root set so it can be garbage collected.
 	bIsLevelStreamingFrozen = false;
 	SetShouldForceUnloadStreamingLevels(true);
@@ -5366,6 +5364,8 @@ void UWorld::CleanupWorld(bool bSessionEnded, bool bCleanupResources, UWorld* Ne
 
 void UWorld::CleanupWorldInternal(bool bSessionEnded, bool bCleanupResources, bool bWorldChanged)
 {
+	TGuardValue<bool> IsBeingCleanedUp(bIsBeingCleanedUp, true);
+	
 	if(CleanupWorldTag == CleanupWorldGlobalTag)
 	{
 		return;
