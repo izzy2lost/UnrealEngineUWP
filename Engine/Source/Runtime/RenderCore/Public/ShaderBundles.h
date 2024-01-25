@@ -24,17 +24,25 @@ class FDispatchShaderBundleCS : public FGlobalShader
 	DECLARE_EXPORTED_GLOBAL_SHADER(FDispatchShaderBundleCS, RENDERCORE_API);
 
 public:
-	SHADER_USE_PARAMETER_STRUCT(FDispatchShaderBundleCS, FGlobalShader)
+
+	FDispatchShaderBundleCS() = default;
+	FDispatchShaderBundleCS(const ShaderMetaType::CompiledShaderInitializerType& Initializer)
+		: FGlobalShader(Initializer)
+	{
+		RecordCountParam.Bind(Initializer.ParameterMap, TEXT("RecordCount"), SPF_Mandatory);
+		PlatformDataParam.Bind(Initializer.ParameterMap, TEXT("PlatformData"), SPF_Mandatory);
+		RecordArgBufferParam.Bind(Initializer.ParameterMap, TEXT("RecordArgBuffer"), SPF_Mandatory);
+		RecordDataBufferParam.Bind(Initializer.ParameterMap, TEXT("RecordDataBuffer"), SPF_Mandatory);
+		RWExecutionBufferParam.Bind(Initializer.ParameterMap, TEXT("RWExecutionBuffer"), SPF_Mandatory);
+	}
 
 	static const uint32 ThreadGroupSizeX = 64;
 
-	BEGIN_SHADER_PARAMETER_STRUCT(FParameters, RENDERCORE_API)
-		SHADER_PARAMETER(uint32, RecordCount)
-		SHADER_PARAMETER(FUintVector4, PlatformData)
-		SHADER_PARAMETER_SRV(ByteAddressBuffer, RecordArgBuffer)
-		SHADER_PARAMETER_SRV(ByteAddressBuffer, RecordDataBuffer)
-		SHADER_PARAMETER_UAV(RWByteAddressBuffer, RWExecutionBuffer)
-	END_SHADER_PARAMETER_STRUCT()
+	LAYOUT_FIELD(FShaderParameter, RecordCountParam);
+	LAYOUT_FIELD(FShaderParameter, PlatformDataParam);
+	LAYOUT_FIELD(FShaderResourceParameter, RecordArgBufferParam);
+	LAYOUT_FIELD(FShaderResourceParameter, RecordDataBufferParam);
+	LAYOUT_FIELD(FShaderResourceParameter, RWExecutionBufferParam);
 
 	static bool ShouldCompilePermutation(const FGlobalShaderPermutationParameters& Parameters);
 	static void ModifyCompilationEnvironment(const FGlobalShaderPermutationParameters& Parameters, FShaderCompilerEnvironment& OutEnvironment);
