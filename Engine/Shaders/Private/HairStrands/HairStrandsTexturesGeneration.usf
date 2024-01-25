@@ -520,13 +520,13 @@ void MainPS(
 	OutDepthTest = OutDepth;
 	OutTriangleMask = 1;
 
+	WriteValue3(LayoutIndex, EHairCardsVFAttribute_Color,      OutColor);
 	WriteValue1(LayoutIndex, EHairCardsVFAttribute_Depth,      OutDepth);
 	WriteValue1(LayoutIndex, EHairCardsVFAttribute_Seed,       OutSeed);
 	WriteValue1(LayoutIndex, EHairCardsVFAttribute_CoordU,     OutCoordU);
 	WriteValue1(LayoutIndex, EHairCardsVFAttribute_GroupIndex, OutGroupIndex);
 	WriteValue1(LayoutIndex, EHairCardsVFAttribute_Roughness,  OutRoughness);
 	WriteValue2(LayoutIndex, EHairCardsVFAttribute_RootUV,     OutRootUV);
-	WriteValue3(LayoutIndex, EHairCardsVFAttribute_Color,      OutColor);
 	WriteValue3(LayoutIndex, EHairCardsVFAttribute_Tangent,    OutTangent);
 	WriteValue1(LayoutIndex, EHairCardsVFAttribute_Coverage,   OutCoverage);
 
@@ -634,7 +634,7 @@ void MainCS(int2 DispatchThreadId : SV_DispatchThreadID)
 						case 0 : WriteOut.x = 0.f; break;
 						case 1 : WriteOut.y = 0.f; break;
 						case 2 : WriteOut.z = 0.f; break;
-						case 3 : WriteOut.z = 0.f; break;
+						case 3 : WriteOut.w = 0.f; break;
 					}
 				}
 				TargetTexture[uint3(PixelCoord, TextureIt)] = WriteOut;
@@ -691,13 +691,13 @@ void MainCS(int2 DispatchThreadId : SV_DispatchThreadID)
 		float4 OutTexture4 = 0;
 		float4 OutTexture5 = 0;
 
+		WriteValue3(LayoutIndex, EHairCardsVFAttribute_Color,      0.f);
 		WriteValue1(LayoutIndex, EHairCardsVFAttribute_Depth,      1.f);
 		WriteValue1(LayoutIndex, EHairCardsVFAttribute_Seed,       0.f);
 		WriteValue1(LayoutIndex, EHairCardsVFAttribute_CoordU,     0.f);
 		WriteValue1(LayoutIndex, EHairCardsVFAttribute_GroupIndex, 0.f);
 		WriteValue1(LayoutIndex, EHairCardsVFAttribute_Roughness,  0.f);
 		WriteValue2(LayoutIndex, EHairCardsVFAttribute_RootUV,     0.f);
-		WriteValue3(LayoutIndex, EHairCardsVFAttribute_Color,      0.f);
 		WriteValue3(LayoutIndex, EHairCardsVFAttribute_Tangent,    0.f);
 		WriteValue1(LayoutIndex, EHairCardsVFAttribute_Coverage,   0.f);
 

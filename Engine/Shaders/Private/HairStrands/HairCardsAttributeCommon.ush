@@ -37,13 +37,13 @@ uint GetHairCardTextureIndex(uint InLayoutIndex, uint InAttribute)
 	// See GroomAssetCards.cpp, EHairTextureLayout::Layout0/1/2/3 for mapping details. (9 = not present/not available)
 	switch (InAttribute)
 	{
-		case EHairCardsVFAttribute_Depth      : return LAYOUT_VALUES(InLayoutIndex, 0, 0, 1, 2);
+		case EHairCardsVFAttribute_Depth      : return LAYOUT_VALUES(InLayoutIndex, 0, 0, 1, 1);
 		case EHairCardsVFAttribute_Seed       : return LAYOUT_VALUES(InLayoutIndex, 3, 3, 1, 2);
-		case EHairCardsVFAttribute_CoordU     : return LAYOUT_VALUES(InLayoutIndex, 3, 3, 0, 1);
+		case EHairCardsVFAttribute_CoordU     : return LAYOUT_VALUES(InLayoutIndex, 3, 3, 0, 0);
 		case EHairCardsVFAttribute_GroupIndex : return LAYOUT_VALUES(InLayoutIndex, 9, 4, 9, 1); // Only used for mesh, not for cards
-		case EHairCardsVFAttribute_Roughness  : return LAYOUT_VALUES(InLayoutIndex, 9, 9, 9, 3);
+		case EHairCardsVFAttribute_Roughness  : return LAYOUT_VALUES(InLayoutIndex, 9, 9, 9, 9);
 		case EHairCardsVFAttribute_RootUV     : return LAYOUT_VALUES(InLayoutIndex, 9, 3, 9, 1);
-		case EHairCardsVFAttribute_Color      : return LAYOUT_VALUES(InLayoutIndex, 9, 4, 9, 3);
+		case EHairCardsVFAttribute_Color      : return LAYOUT_VALUES(InLayoutIndex, 9, 4, 9, 2);
 		case EHairCardsVFAttribute_Tangent    : return LAYOUT_VALUES(InLayoutIndex, 2, 2, 0, 0);
 		case EHairCardsVFAttribute_Coverage   : return LAYOUT_VALUES(InLayoutIndex, 1, 1, 1, 2);
 		case EHairCardsVFAttribute_Auxilary   : return LAYOUT_VALUES(InLayoutIndex, 5, 5, 9, 9); 
@@ -61,15 +61,15 @@ uint GetHairCardChannelIndex(uint InLayoutIndex, uint InAttribute)
 	// See GroomAssetCards.cpp, EHairTextureLayout::Layout0/1/2/3 for mapping details
 	switch (InAttribute)
 	{
-		case EHairCardsVFAttribute_Depth      : return LAYOUT_VALUES(InLayoutIndex, 0, 0, 1, 1);
+		case EHairCardsVFAttribute_Depth      : return LAYOUT_VALUES(InLayoutIndex, 0, 0, 1, 2);
 		case EHairCardsVFAttribute_Seed       : return LAYOUT_VALUES(InLayoutIndex, 3, 3, 2, 2);
-		case EHairCardsVFAttribute_CoordU     : return LAYOUT_VALUES(InLayoutIndex, 2, 2, 3, 2);
+		case EHairCardsVFAttribute_CoordU     : return LAYOUT_VALUES(InLayoutIndex, 2, 2, 3, 3);
 		case EHairCardsVFAttribute_GroupIndex : return LAYOUT_VALUES(InLayoutIndex, 3, 3, 0, 3);
 		case EHairCardsVFAttribute_Roughness  : return LAYOUT_VALUES(InLayoutIndex, 3, 0, 3, 3);
 		case EHairCardsVFAttribute_RootUV     : return LAYOUT_VALUES(InLayoutIndex, 0, 0, 0, 0);
-		case EHairCardsVFAttribute_Color      : return LAYOUT_VALUES(InLayoutIndex, 0, 0, 0, 0);
+		case EHairCardsVFAttribute_Color      : return LAYOUT_VALUES(InLayoutIndex, 0, 0, 0, 0); // For layout 3, Color is only Color.XY The Z channel is overriden by Seed. See GetHairCardsColor()
 		case EHairCardsVFAttribute_Tangent    : return LAYOUT_VALUES(InLayoutIndex, 0, 0, 0, 0);
-		case EHairCardsVFAttribute_Coverage   : return LAYOUT_VALUES(InLayoutIndex, 0, 0, 0, 0);
+		case EHairCardsVFAttribute_Coverage   : return LAYOUT_VALUES(InLayoutIndex, 0, 0, 0, 3);
 		case EHairCardsVFAttribute_Auxilary   : return LAYOUT_VALUES(InLayoutIndex, 0, 0, 0, 0); 
 	}
 	return 0;
@@ -195,7 +195,8 @@ uint3 GetHairCardsClumpID(float2 InAtlasUV)
 
 float3 GetHairCardsColor(float2 InAtlasUV, float3 InColor)
 {
-	return GetColor(InAtlasUV, InColor);
+	float3 OutColor = GetColor(InAtlasUV, InColor);
+	return HairCardsVF.LayoutIndex == 3 ? float3(OutColor.xy, 0) : OutColor;
 }
 
 float GetHairCardsRoughness(float2 InAtlasUV, float InCardRoughness)
