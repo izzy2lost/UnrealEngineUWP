@@ -14,12 +14,10 @@
 #include "LiveLinkHubClientsModel.h"
 #include "LiveLinkHubUEClientInfo.h"
 #include "Session/LiveLinkHubSessionManager.h"
-#include "SPositiveActionButton.h"
 #include "Styling/SlateStyleMacros.h"
 #include "Styling/SlateTypes.h"
 #include "Widgets/Input/SButton.h"
 #include "Widgets/Input/SCheckBox.h"
-#include "Widgets/Layout/SScaleBox.h"
 #include "Widgets/Input/SComboButton.h"
 #include "Widgets/Text/STextBlock.h"
 #include "Widgets/Views/STreeView.h"
@@ -315,22 +313,13 @@ public:
 		[
 			SNew(SVerticalBox)
 			+ SVerticalBox::Slot()
-			.Padding(FMargin(10.0, 7.0))
 			.AutoHeight()
 			[
 				SNew(SHorizontalBox)
 				+ SHorizontalBox::Slot()
-				.AutoWidth()
-				.Padding(0.f, 5.f, 0.f, 5.f)
-				[
-					SNew(SImage)
-					.ColorAndOpacity(FSlateColor::UseForeground())
-					.Image(FSlateIcon("LiveLinkStyle", "LiveLinkHub.Clients.Icon").GetIcon())
-				]
-				+ SHorizontalBox::Slot()
 				.HAlign(HAlign_Left)
 				.FillWidth(1.0f)
-				.Padding(FMargin(4.0, 2.0))
+				.Padding(FMargin(2.0f))
 				[
 					SNew(STextBlock)
 					.Font( DEFAULT_FONT( "Regular", 14 ) )
@@ -340,10 +329,13 @@ public:
 				.HAlign(HAlign_Right)
 				.AutoWidth()
 				[
-					SNew(SPositiveActionButton)
-                	.Icon(FAppStyle::Get().GetBrush("Icons.Plus"))
-                	.Text(LOCTEXT("AddClientLabel", "Add Client"))
-                	.ToolTipText(LOCTEXT("AddClient_Tooltip", "Connect to an unreal editor instance."))
+					SNew(SComboButton)
+					.CollapseMenuOnParentFocus(true)
+					.ButtonContent()
+					[
+						SNew(STextBlock)
+						.Text(LOCTEXT("AddClientLabel", "Add Client"))
+					]
 					.MenuContent()
 					[
 						SNew(SBox)

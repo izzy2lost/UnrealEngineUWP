@@ -40,28 +40,8 @@ public:
 		ChildSlot
 		[
 			SNew(SButton)
+				.Text(TAttribute<FText>::CreateSP(this, &SLiveLinkHubRecordingView::GetRecordingText))
 				.OnClicked(this, &SLiveLinkHubRecordingView::OnClickRecordButton)
-				[
-					SNew(SHorizontalBox)
-					+ SHorizontalBox::Slot()
-					.AutoWidth()
-					.HAlign(HAlign_Center)
-					.VAlign(VAlign_Center)
-					[
-						SNew(SImage)
-						.Image(FAppStyle::Get().GetBrush("Animation.Record"))
-						.ColorAndOpacity(FSlateColor::UseForeground())
-					]
-					+ SHorizontalBox::Slot()
-					.Padding(FMargin(3, 0, 0, 0))
-					.VAlign(VAlign_Center)
-					.AutoWidth()
-					[
-						SNew(STextBlock)
-						.Text(TAttribute<FText>::CreateSP(this, &SLiveLinkHubRecordingView::GetRecordingText))
-						.TextStyle(FAppStyle::Get(), "NormalText")
-					]
-				]
 		];
 	}
 
@@ -85,7 +65,7 @@ public:
 			OnStartRecordingDelegate.Execute();
 		}
 
-		return FReply::Handled(); 
+		return FReply::Handled();
 	}
 
 	/** Returns whether we're currently recording. */
