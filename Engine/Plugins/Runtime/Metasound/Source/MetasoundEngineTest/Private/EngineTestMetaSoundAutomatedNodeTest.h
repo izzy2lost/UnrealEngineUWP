@@ -141,6 +141,9 @@ namespace Metasound::EngineTest
 	// Return an array of all currently registered MetaSound nodes. 
 	void GetAllRegisteredNodes(TArray<FString>& OutBeautifiedNames, TArray<FString>& OutNodeRegistryKeys);
 
+	// Return an array of all currently registered native MetaSound nodes. 
+	void GetAllRegisteredNativeNodes(TArray<FString>& OutBeautifiedNames, TArray<FString>& OutNodeRegistryKeys);
+
 	// Create any variables that exist on the vertex interface.
 	void CreateVariables(const FOperatorSettings& InOperatorSettings, FInputVertexInterfaceData& OutVertexData);
 
