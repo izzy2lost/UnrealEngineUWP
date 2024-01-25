@@ -371,7 +371,7 @@ bool FPCGSwitchElement::ExecuteInternal(FPCGContext* Context) const
 		if (ensure(SelectedPinIndex != INDEX_NONE))
 		{
 			const int AllPinsMask = (1 << NumOutputPins) - 1;
-			Context->OutputData.InactiveOutputPinBitmask = ~(1 << SelectedPinIndex) & AllPinsMask;
+			Context->OutputData.InactiveOutputPinBitmask = ~(1ULL << SelectedPinIndex) & AllPinsMask;
 		}
 	}
 
