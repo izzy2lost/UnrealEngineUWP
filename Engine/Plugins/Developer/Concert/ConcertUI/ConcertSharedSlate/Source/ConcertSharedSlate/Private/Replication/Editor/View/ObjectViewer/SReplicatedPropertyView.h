@@ -87,6 +87,9 @@ namespace UE::ConcertSharedSlate
 		/** Inverse map of PropertyRowData using FReplicatedPropertyData::GetProperty as key. Contains all elements of PropertyRowData. */
 		TMap<FConcertPropertyChain, TSharedPtr<FReplicatedPropertyData>> ChainToPropertyDataCache;
 
+		/** Used to determine whether to rebuild the entire property data. */
+		TArray<FSoftObjectPath> PreviousSelectedObjects;
+
 		TSharedRef<SWidget> CreatePropertiesView(const FArguments& InArgs);
 		
 		TSharedRef<FReplicatedPropertyData> AllocatePropertyData(FSoftClassPath OwningClass, FConcertPropertyChain PropertyChain);

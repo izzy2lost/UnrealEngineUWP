@@ -203,7 +203,8 @@ namespace UE::ConcertSharedSlate
 			.RootItemsSource(&RootObjectRowData)
 			.OnGetChildren(this, &SReplicationStreamViewer::GetObjectRowChildren)
 			.OnContextMenuOpening(InArgs._OnObjectsContextMenuOpening)
-			.OnDeleteItems(InArgs._OnDeleteObjects).OnSelectionChanged_Lambda([this]()
+			.OnDeleteItems(InArgs._OnDeleteObjects)
+			.OnSelectionChanged_Lambda([this]()
 			{
 				RefreshPropertyData();
 			})

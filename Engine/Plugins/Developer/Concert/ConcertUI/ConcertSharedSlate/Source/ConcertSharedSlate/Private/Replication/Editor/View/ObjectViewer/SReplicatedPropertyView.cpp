@@ -10,10 +10,7 @@
 
 #include "Algo/AllOf.h"
 #include "Algo/ForEach.h"
-#include "Widgets/Layout/SBorder.h"
-#include "Widgets/Layout/SSplitter.h"
 #include "Widgets/Layout/SWidgetSwitcher.h"
-#include "Widgets/SBoxPanel.h"
 #include "Widgets/Text/STextBlock.h"
 
 #define LOCTEXT_NAMESPACE "SReplicatedPropertyView"
@@ -34,7 +31,7 @@ namespace UE::ConcertSharedSlate
 	
 	void SReplicatedPropertyView::RefreshPropertyData()
 	{
-		const TArray<FSoftObjectPath> SelectedObjects = GetObjectsSelectedForPropertyEditing();
+		TArray<FSoftObjectPath> SelectedObjects = GetObjectsSelectedForPropertyEditing();
 		if (SelectedObjects.IsEmpty())
 		{
 			SetPropertyContent(EReplicatedPropertyContent::NoSelection);
@@ -52,6 +49,17 @@ namespace UE::ConcertSharedSlate
 		if (!ensureMsgf(Class.IsValid(), TEXT("This should only trigger if IReplicationSubobjectView returned a object not contained the model & that the UI is view-only. In that case fix your IReplicationSubobjectView or use it in an UI editor.")))
 		{
 			return;
+		}
+
+		// If the objects have changed, the classes may share properties.
+		// In that case, below we'd reuse the item pointer, which would cause the tree view to re-use the old row widgets.
+		// However, we must regenerate all column widgets since they may be referencing the object the row was originally built for. So they'd display the state of the previous object still!
+		// Example: Assign property combo-box in Multi-User All Clients view displays who has the property assigned.
+		// Note: If the objects did not change, we definitely want to reuse item pointers since otherwise the user row selection is reset.
+		const bool bCanReusePropertyData = PreviousSelectedObjects == SelectedObjects; // This SHOULD be an order independent compare but usually Num == 1, so whatever
+		if (!bCanReusePropertyData)
+		{
+			ChainToPropertyDataCache.Reset();
 		}
 
 		// Build the set of properties that are shared by all of the selected objects
@@ -79,6 +87,8 @@ namespace UE::ConcertSharedSlate
 		// The tree view requires the item source to only contain the root items.
 		BuildRootPropertyRowData();
 		SetPropertyContent(EReplicatedPropertyContent::Properties);
+
+		PreviousSelectedObjects = MoveTemp(SelectedObjects);
 		ReplicatedProperties->OnItemsChanged();
 	}
 
