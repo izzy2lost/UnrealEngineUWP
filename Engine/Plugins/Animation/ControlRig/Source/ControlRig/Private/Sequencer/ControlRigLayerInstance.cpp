@@ -170,4 +170,24 @@ UAnimInstance* UControlRigLayerInstance::GetSourceAnimInstance()
 	return GetProxyOnGameThread<FControlRigLayerInstanceProxy>().GetSourceAnimInstance();
 }
 
+#if WITH_EDITOR
+void UControlRigLayerInstance::HandleObjectsReinstanced(const TMap<UObject*, UObject*>& OldToNewInstanceMap)
+{
+	Super::HandleObjectsReinstanced(OldToNewInstanceMap);
+
+	static IConsoleVariable* UseLegacyAnimInstanceReinstancingBehavior = IConsoleManager::Get().FindConsoleVariable(TEXT("bp.UseLegacyAnimInstanceReinstancingBehavior"));
+	if(UseLegacyAnimInstanceReinstancingBehavior == nullptr || !UseLegacyAnimInstanceReinstancingBehavior->GetBool())
+	{
+		// Forward to control rig nodes
+		FControlRigLayerInstanceProxy& Proxy = GetProxyOnGameThread<FControlRigLayerInstanceProxy>();
+		for(TSharedPtr<FAnimNode_ControlRig_ExternalSource>& ControlRigNode : Proxy.ControlRigNodes)
+		{
+			if(ControlRigNode.IsValid())
+			{
+				ControlRigNode->HandleObjectsReinstanced(OldToNewInstanceMap);
+			}
+		}
+	}
+}
+#endif
 
