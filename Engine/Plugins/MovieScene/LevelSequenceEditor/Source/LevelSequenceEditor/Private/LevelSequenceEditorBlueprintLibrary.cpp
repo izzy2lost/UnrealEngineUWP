@@ -207,6 +207,24 @@ float ULevelSequenceEditorBlueprintLibrary::GetPlaybackSpeed()
 	return 0.f;
 }
 
+void ULevelSequenceEditorBlueprintLibrary::SetLoopMode(ESequencerLoopMode NewLoopMode)
+{
+	if (CurrentSequencer.IsValid())
+	{
+		CurrentSequencer.Pin()->GetSequencerSettings()->SetLoopMode(NewLoopMode);
+	}
+}
+
+ESequencerLoopMode ULevelSequenceEditorBlueprintLibrary::GetLoopMode()
+{
+	if (CurrentSequencer.IsValid())
+	{
+		return CurrentSequencer.Pin()->GetSequencerSettings()->GetLoopMode();
+	}
+
+	return ESequencerLoopMode::SLM_NoLoop;
+}
+
 void ULevelSequenceEditorBlueprintLibrary::PlayTo(FMovieSceneSequencePlaybackParams PlaybackParams)
 {
 	if (CurrentSequencer.IsValid())

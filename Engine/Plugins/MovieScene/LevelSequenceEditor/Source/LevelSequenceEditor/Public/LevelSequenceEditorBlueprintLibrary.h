@@ -4,6 +4,7 @@
 
 #include "Kismet/BlueprintFunctionLibrary.h"
 #include "SequencerCurveEditorObject.h"
+#include "SequencerSettings.h"
 #include "LevelSequenceEditorBlueprintLibrary.generated.h"
 
 struct FMovieSceneBindingProxy;
@@ -116,6 +117,18 @@ public:
 	 */
 	UFUNCTION(BlueprintCallable, Category = "Level Sequence Editor")
 	static float GetPlaybackSpeed();
+
+	/**
+     * Set loop mode (note this is a per user preference)
+     */
+	UFUNCTION(BlueprintCallable, Category = "Level Sequence Editor")
+	static void SetLoopMode(ESequencerLoopMode NewLoopMode);
+
+	/**
+	 * Get loop mode (note this is a per user preference)
+	 */
+	UFUNCTION(BlueprintCallable, Category = "Level Sequence Editor")
+	static ESequencerLoopMode GetLoopMode();
 
 	/**
 	 * Play from the current time to the requested time in frames
