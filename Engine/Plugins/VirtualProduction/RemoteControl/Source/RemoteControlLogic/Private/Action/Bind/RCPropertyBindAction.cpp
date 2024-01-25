@@ -97,7 +97,7 @@ static int32 GetPropertyIndexInArray(const TSharedRef<FRemoteControlProperty>& I
 	// Number of integer digits, so that we know how many characters to keep at the end of the string
 	const int32 Digits = FMath::Floor(FMath::LogX(10.0f, ElementsNum) + 1);
 	const int32 CharactersToRemove = FieldName.Len() - Digits;
-	FieldName.RemoveAt(0, CharactersToRemove, true);
+	FieldName.RemoveAt(0, CharactersToRemove, EAllowShrinking::Yes);
 	const int32 Index = FCString::Atoi(*FieldName);
 
 	return Index;

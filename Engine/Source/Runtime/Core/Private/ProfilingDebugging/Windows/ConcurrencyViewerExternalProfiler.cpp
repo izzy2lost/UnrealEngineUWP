@@ -85,7 +85,7 @@ public:
 			{
 				CvLeaveSpan(SpanStack.Last());
 			}
-			SpanStack.Pop(false);
+			SpanStack.Pop(EAllowShrinking::No);
 		}
 	}
 

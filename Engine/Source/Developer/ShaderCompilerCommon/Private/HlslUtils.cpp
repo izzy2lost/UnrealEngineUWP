@@ -38,7 +38,7 @@ namespace CrossCompiler
 				}
 
 				auto* Page = FreePages.Last();
-				FreePages.RemoveAt(FreePages.Num() - 1, 1, false);
+				FreePages.RemoveAt(FreePages.Num() - 1, 1, EAllowShrinking::No);
 				UsedPages.Add(Page);
 				return Page;
 			}
@@ -49,7 +49,7 @@ namespace CrossCompiler
 
 				int32 Index = UsedPages.Find(Page);
 				check(Index >= 0);
-				UsedPages.RemoveAt(Index, 1, false);
+				UsedPages.RemoveAt(Index, 1, EAllowShrinking::No);
 				FreePages.Add(Page);
 			}
 

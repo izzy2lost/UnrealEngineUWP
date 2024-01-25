@@ -337,8 +337,8 @@ void UE::GroomQueries::ExtractCardQuads(
 						check(false);
 					}
 
-					RemainingTris.RemoveSwap(tid, false);
-					RemainingTris.RemoveSwap(OtherTID, false);
+					RemainingTris.RemoveSwap(tid, EAllowShrinking::No);
+					RemainingTris.RemoveSwap(OtherTID, EAllowShrinking::No);
 					TmpMesh.RemoveTriangle(tid, false);
 
 					FIndex3i OtherNbrTris = TmpMesh.GetTriNeighbourTris(OtherTID);

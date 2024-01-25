@@ -274,7 +274,7 @@ void FParamStack::PopLayer(FPushedLayerHandle InHandle)
 			InHandle.Index, InHandle.SerialNumber, (uint32)Layers.Num() - 1, TopLayer.SerialNumber);
 
 		// Dont shrink allocs to avoid thrashing
-		constexpr bool bAllowShrinking = false;
+		constexpr EAllowShrinking AllowShrinking = EAllowShrinking::No;
 
 		// Remove params and indices from hash table
 		const int32 NumLayerParams = TopLayer.Layer.Params.Num();
@@ -285,20 +285,20 @@ void FParamStack::PopLayer(FPushedLayerHandle InHandle)
 			--ParamStackIndex;
 		}
 
-		EntryStack.RemoveAt(EntryStack.Num() - NumLayerParams, NumLayerParams, bAllowShrinking);
+		EntryStack.RemoveAt(EntryStack.Num() - NumLayerParams, NumLayerParams, AllowShrinking);
 
 		// If we own the layer, pop the owned stack
 		if(TopLayer.Layer.OwnedStorageOffset != MAX_uint32 && TopLayer.Layer.OwningStack == this)
 		{
 			check(OwnedStackLayers.Num() && &TopLayer.Layer == &OwnedStackLayers[OwnedStackLayers.Num() - 1]);
-			OwnedStackLayers.Pop(bAllowShrinking);
+			OwnedStackLayers.Pop(AllowShrinking);
 
 			// Free any owned storage
 			FreeOwnedParamStorage(TopLayer.Layer.OwnedStorageOffset);
 		}
 
 		// Pop the layer itself
-		Layers.Pop(bAllowShrinking);
+		Layers.Pop(AllowShrinking);
 	}
 }
 
@@ -502,7 +502,7 @@ void FParamStack::FreeOwnedParamStorage(uint32 InOffset)
 {
 	check(InOffset <= (uint32)OwnedLayerParamStorage.Num());
 
-	OwnedLayerParamStorage.SetNum(InOffset, false);
+	OwnedLayerParamStorage.SetNum(InOffset, EAllowShrinking::No);
 }
 
 uint32 FParamStack::MakeSerialNumber()

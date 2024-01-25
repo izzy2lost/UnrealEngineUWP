@@ -41,7 +41,7 @@ void FChaosArchiveMemoryTrackingContext::PushSection(const FName& SectionName, c
 void FChaosArchiveMemoryTrackingContext::PopSection(const int64 MemoryLocation)
 {
 	// Remove & get the top section
-	const FChaosArchiveSection Section = SectionStack.Pop(false);
+	const FChaosArchiveSection Section = SectionStack.Pop(EAllowShrinking::No);
 
 	// Decrement the number of absorbers if the top section was absorbing subsections
 	ChildAbsorbers -= (int32)Section.bAbsorbChildren;

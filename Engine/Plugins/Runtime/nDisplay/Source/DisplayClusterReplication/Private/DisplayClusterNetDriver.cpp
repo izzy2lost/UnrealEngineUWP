@@ -695,7 +695,7 @@ void UDisplayClusterNetDriver::GenerateClusterCommandsEvent(FDisplayClusterClust
 	const int ValueSize = sizeof(int32);
 	const int RecordSize = KeySize + ValueSize;
 
-	ClusterEventData.SetNumUninitialized(Parameters.Num() * RecordSize, true);
+	ClusterEventData.SetNumUninitialized(Parameters.Num() * RecordSize, EAllowShrinking::Yes);
 
 	uint8* RawData = ClusterEventData.GetData();
 

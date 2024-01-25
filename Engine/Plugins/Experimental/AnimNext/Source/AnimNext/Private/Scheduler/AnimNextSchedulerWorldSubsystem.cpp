@@ -63,7 +63,7 @@ void UAnimNextSchedulerWorldSubsystem::FlushPendingActions()
 					if (PendingAction.Handle.Index == Entries.Num() - 1)
 					{
 						// Last entry, shrink array
-						Entries.Pop(false);
+						Entries.Pop(EAllowShrinking::No);
 					}
 					else
 					{
@@ -110,7 +110,7 @@ UE::AnimNext::FScheduleHandle UAnimNextSchedulerWorldSubsystem::AcquireHandle(UO
 	{
 		Handle.Index = FreeEntryIndices.Last();
 		Handle.SerialNumber = ++GEntrySerialNumber;
-		FreeEntryIndices.Pop(false);
+		FreeEntryIndices.Pop(EAllowShrinking::No);
 		new (Entries[Handle.Index].Get()) FAnimNextSchedulerEntry(InSchedule, InObject, Handle, InInitMethod, MoveTemp(InInitializeCallback));
 	}
 	// Otherwise append a new entry
@@ -143,7 +143,7 @@ void UAnimNextSchedulerWorldSubsystem::ReleaseHandle(UE::AnimNext::FScheduleHand
 		if (InHandle.Index == Entries.Num() - 1)
 		{
 			// Last entry, shrink array
-			Entries.Pop(false);
+			Entries.Pop(EAllowShrinking::No);
 		}
 		else
 		{

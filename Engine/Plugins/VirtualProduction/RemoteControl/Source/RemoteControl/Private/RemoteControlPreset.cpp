@@ -479,7 +479,7 @@ void FRemoteControlPresetLayout::SwapFieldsDefaultGroup(const FFieldSwapArgs& In
 			}
 			DragOriginFieldIndex = InEntities.IndexOfByKey(InFieldSwapArgs.DraggedFieldsIds[Index]);
 
-			DragOriginGroup->AccessFields().RemoveSwap(InFieldSwapArgs.DraggedFieldsIds[Index], true);
+			DragOriginGroup->AccessFields().RemoveSwap(InFieldSwapArgs.DraggedFieldsIds[Index], EAllowShrinking::Yes);
 
 			DragTargetInitialFieldIndex = DragTargetInitialFieldIndex == INDEX_NONE ? 0 : DragTargetInitialFieldIndex;
 			DragTargetGroup->AccessFields().Insert(InFieldSwapArgs.DraggedFieldsIds[Index], DragTargetInitialFieldIndex);

@@ -1220,7 +1220,7 @@ void ULidarPointCloud::Merge(TArray<ULidarPointCloud*> PointCloudsToMerge, TFunc
 	{
 		if (!IsValid(PointCloudsToMerge[i]) || PointCloudsToMerge[i] == this)
 		{
-			PointCloudsToMerge.RemoveAtSwap(i--, 1, false);
+			PointCloudsToMerge.RemoveAtSwap(i--, 1, EAllowShrinking::No);
 		}
 	}
 

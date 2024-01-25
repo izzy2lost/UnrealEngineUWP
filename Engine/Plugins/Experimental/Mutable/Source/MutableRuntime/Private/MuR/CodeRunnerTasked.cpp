@@ -402,7 +402,7 @@ namespace mu
 				//	}
 
 				//	item = OpenTasks[BestOp];
-				//	OpenTasks.RemoveAtSwap(BestOp,1,false);
+				//	OpenTasks.RemoveAtSwap(BestOp,1,EAllowShrinking::No);
 				//	break;
 				//}
 

@@ -1955,14 +1955,14 @@ static void FillOutSyncTopologies(TArray<FSyncTopo>& SyncTopos)
 		TArray<NV_GSYNC_GPU> GSyncGPUs;
 		TArray<NV_GSYNC_DISPLAY> GSyncDisplays;
 		{
-			GSyncGPUs.SetNumUninitialized(GSyncGPUCount, false);
+			GSyncGPUs.SetNumUninitialized(GSyncGPUCount, EAllowShrinking::No);
 
 			for (NvU32 GSyncGPUIdx = 0; GSyncGPUIdx < GSyncGPUCount; GSyncGPUIdx++)
 			{
 				GSyncGPUs[GSyncGPUIdx].version = NV_GSYNC_GPU_VER;
 			}
 
-			GSyncDisplays.SetNumUninitialized(GSyncDisplayCount, false);
+			GSyncDisplays.SetNumUninitialized(GSyncDisplayCount, EAllowShrinking::No);
 
 			for (NvU32 GSyncDisplayIdx = 0; GSyncDisplayIdx < GSyncDisplayCount; GSyncDisplayIdx++)
 			{
@@ -2169,7 +2169,7 @@ static void FillOutMosaicTopologies(TArray<FMosaicTopo>& MosaicTopos)
 
 	// get the grids
 	{
-		GridTopologies.SetNumUninitialized(GridCount, false);
+		GridTopologies.SetNumUninitialized(GridCount, EAllowShrinking::No);
 
 		for (NvU32 TopoIdx = 0; TopoIdx < GridCount; TopoIdx++)
 		{

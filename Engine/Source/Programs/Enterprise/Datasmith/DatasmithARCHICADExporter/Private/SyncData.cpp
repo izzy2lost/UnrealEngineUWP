@@ -1718,7 +1718,7 @@ FSyncData* FSyncData::FInterator::Next()
 		}
 		else
 		{
-			Stack.Pop(false);
+			Stack.Pop(EAllowShrinking::No);
 		}
 	}
 	return Current;

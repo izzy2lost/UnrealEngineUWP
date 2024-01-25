@@ -73,8 +73,7 @@ public:
 			}
 
 			const int32 FinalNumSamples = AlignDown(ConvertedBuffer.Num(), 4);
-			constexpr bool bAllowShrinking = true;
-			ConvertedBuffer.SetNum(FinalNumSamples, bAllowShrinking);
+			ConvertedBuffer.SetNum(FinalNumSamples, EAllowShrinking::Yes);
 
 #if WITH_MEDIA_IO_AUDIO_DEBUGGING
 			//MEDIA_IO_DUMP_AUDIO(InBuffer.GetData(), InBuffer.Num() * sizeof(float), sizeof(float), NumInputChannels);

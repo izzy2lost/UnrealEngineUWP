@@ -79,7 +79,7 @@ FNiagaraDataBuffer* FNiagaraStatelessComputeManager::GetDataBuffer(uintptr_t Emi
 			if (FreeData[i]->DataSetLayoutHash == DataSetLayoutHash)
 			{
 				CacheData = FreeData[i].Release();
-				FreeData.RemoveAtSwap(i, 1, false);
+				FreeData.RemoveAtSwap(i, 1, EAllowShrinking::No);
 				break;
 			}
 		}

@@ -116,7 +116,7 @@ static void DumpAccessibilityStatsForwarder()
 	Queue.Push(RootId);
 	while(Queue.Num() > 0)
 	{
-		AccessibleWidgetId CurrentId = Queue.Pop(false);
+		AccessibleWidgetId CurrentId = Queue.Pop(EAllowShrinking::No);
 		FMacAccessibilityElement* CurrentElement = [Cache objectForKey:@(RootId)];
 		if(CurrentElement.ChildIds.Num() == 0)
 		{

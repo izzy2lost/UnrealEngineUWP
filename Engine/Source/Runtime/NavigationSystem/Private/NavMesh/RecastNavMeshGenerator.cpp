@@ -150,7 +150,7 @@ static void ExportGeomToOBJFile(const FString& InFileName, const TNavStatArray<F
 			DestBuffer += HeaderSize;
 
 			FCompression::CompressMemory(NAME_Zlib, (void*)DestBuffer, CompressedSize, (void*)UncompressedBuffer.GetData(), UncompressedSize, COMPRESS_BiasMemory);
-			CompressedBuffer.SetNum(CompressedSize + HeaderSize, false);
+			CompressedBuffer.SetNum(CompressedSize + HeaderSize, EAllowShrinking::No);
 		}
 	};
 	FDataChunk AllDataChunks[3];

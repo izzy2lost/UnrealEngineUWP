@@ -732,7 +732,7 @@ public:
 				if (CurrentLock.RHIBuffer == RHIBuffer && CurrentLock.MipIndex == MipIndex && CurrentLock.ArrayIndex == ArrayIndex)
 				{
 					FLockParams Result = OutstandingLocks[Index];
-					OutstandingLocks.RemoveAtSwap(Index, 1, false);
+					OutstandingLocks.RemoveAtSwap(Index, 1, EAllowShrinking::No);
 					TotalMemoryOutstanding -= Result.BufferSize;
 					return Result;
 				}
