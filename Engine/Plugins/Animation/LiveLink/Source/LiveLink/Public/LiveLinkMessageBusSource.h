@@ -21,12 +21,6 @@ struct FLiveLinkClearSubject;
 class LIVELINK_API FLiveLinkMessageBusSource : public ILiveLinkSource
 {
 public:
-	/** Text description for a valid source. */
-	static FText ValidSourceStatus();
-	/** Text description for an invalid source. */
-	static FText InvalidSourceStatus();
-	/** Text description for a source that has timed out. */
-	static FText TimeoutSourceStatus();
 
 	FLiveLinkMessageBusSource(const FText& InSourceType, const FText& InSourceMachineName, const FMessageAddress& InConnectionAddress, double InMachineTimeOffset);
 

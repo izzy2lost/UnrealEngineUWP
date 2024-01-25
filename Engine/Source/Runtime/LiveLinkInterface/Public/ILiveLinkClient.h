@@ -165,9 +165,6 @@ public:
 	/** Get the machine name of the source. */
 	virtual FText GetSourceMachineName(FGuid EntryGuid) const = 0;
 
-	/** Returns whether the Source is connected to its data provider and can still push valid data. */
-	virtual bool IsSourceStillValid(FGuid EntryGuid) const = 0;
-
 	/** Push static data for a specific subject for a certain role. This will clear all buffered frames */
 	virtual void PushSubjectStaticData_AnyThread(const FLiveLinkSubjectKey& SubjectKey, TSubclassOf<ULiveLinkRole> Role, FLiveLinkStaticDataStruct&& StaticData) = 0;
 

@@ -18,20 +18,6 @@
 #include "MessageEndpointBuilder.h"
 #include "Misc/App.h"
 
-FText FLiveLinkMessageBusSource::ValidSourceStatus()
-{
-	return NSLOCTEXT("LiveLinkMessageBusSource", "ActiveStatus", "Active");
-}
-
-FText FLiveLinkMessageBusSource::InvalidSourceStatus()
-{
-	return NSLOCTEXT("LiveLinkMessageBusSource", "InvalidConnection", "Waiting for connection");
-}
-
-FText FLiveLinkMessageBusSource::TimeoutSourceStatus()
-{
-	return NSLOCTEXT("LiveLinkMessageBusSource", "TimeoutStatus", "Not responding");
-}
 
 FLiveLinkMessageBusSource::FLiveLinkMessageBusSource(const FText& InSourceType, const FText& InSourceMachineName, const FMessageAddress& InConnectionAddress, double InMachineTimeOffset)
 	: ConnectionAddress(InConnectionAddress)
@@ -220,13 +206,13 @@ FText FLiveLinkMessageBusSource::GetSourceStatus() const
 {
 	if (!ConnectionAddress.IsValid())
 	{
-		return InvalidSourceStatus();
+		return NSLOCTEXT("LiveLinkMessageBusSource", "InvalidConnection", "Waiting for connection");
 	}
 	else if (IsSourceStillValid())
 	{
-		return ValidSourceStatus();
+		return NSLOCTEXT("LiveLinkMessageBusSource", "ActiveStatus", "Active");
 	}
-	return TimeoutSourceStatus();
+	return NSLOCTEXT("LiveLinkMessageBusSource", "TimeoutStatus", "Not responding");
 }
 
 TSubclassOf<ULiveLinkSourceSettings> FLiveLinkMessageBusSource::GetSettingsClass() const
