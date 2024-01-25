@@ -164,7 +164,7 @@ namespace uba
 #endif
 	}
 
-	FileMappingHandle CreateFileMappingW(FileHandle file, u32 flProtect, u64 maxSize)
+	FileMappingHandle CreateFileMappingW(FileHandle file, u32 flProtect, u64 maxSize, const tchar* hint)
 	{
 		ExtendedTimerScope ts(SystemStats::GetCurrent().createFileMapping);
 #if PLATFORM_WINDOWS
@@ -172,20 +172,23 @@ namespace uba
 #else
 		FileMappingHandle h;
 		int fd = asFileDescriptor(file);
-		if (lseek(fd, maxSize - 1, SEEK_SET) == -1)
+		if (maxSize)
 		{
-			UBA_ASSERTF(false, "lseek to %llu failed: %s\n", maxSize - 1, strerror(errno));
-			return h;
-		}
+			if (lseek(fd, maxSize - 1, SEEK_SET) == -1)
+			{
+				UBA_ASSERTF(false, "lseek to %llu failed for %s: %s\n", maxSize - 1, hint, strerror(errno));
+				return h;
+			}
 
-		errno = 0;
-		int res = write(fd, "", 1);
-		if (res == 0)
-			res = write(fd, "", 1);
-		if (res != 1)
-		{
-			UBA_ASSERTF(false, "write one byte on fd %i failed (res: %i): %s\n", fd, res, strerror(errno));
-			return h;
+			errno = 0;
+			int res = write(fd, "", 1);
+			if (res == 0)
+				res = write(fd, "", 1);
+			if (res != 1)
+			{
+				//UBA_ASSERTF(false, "write one byte at %llu on fd %i (%s) failed (res: %i): %s\n", maxSize - 1, fd, hint, res, strerror(errno));
+				//return h;
+			}
 		}
 
 		h.shmFd = fd;
@@ -311,7 +314,7 @@ namespace uba
 
 	bool FileMappingBuffer::AddPersistent(const tchar* name, FileHandle fileHandle, u64 size, u64 capacity)
 	{
-		FileMappingHandle sparseMemoryHandle = uba::CreateFileMappingW(fileHandle, PAGE_READWRITE, capacity);
+		FileMappingHandle sparseMemoryHandle = uba::CreateFileMappingW(fileHandle, PAGE_READWRITE, capacity, name);
 		if (!sparseMemoryHandle.IsValid())
 		{
 			m_logger.Error(TC("Failed to create file mapping (%s)"), LastErrorToText().data);

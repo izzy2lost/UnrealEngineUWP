@@ -247,7 +247,7 @@ namespace uba
 		{
 			if (!readMem)
 			{
-				FileMappingHandle fileMapping = uba::CreateFileMappingW(readHandle, PAGE_READONLY, fileSize);
+				FileMappingHandle fileMapping = uba::CreateFileMappingW(readHandle, PAGE_READONLY, fileSize, from);
 				if (!fileMapping.IsValid())
 					return m_logger.Error(TC("Failed to create file mapping for %s (%s)"), from, LastErrorToText().data);
 
@@ -2209,7 +2209,7 @@ namespace uba
 
 		if (m_workManager && fileSize > BufferSlotSize)
 		{
-			FileMappingHandle fileMapping = uba::CreateFileMappingW(fileHandle, PAGE_READONLY, fileSize);
+			FileMappingHandle fileMapping = uba::CreateFileMappingW(fileHandle, PAGE_READONLY, fileSize, fileName);
 			if (!fileMapping.IsValid())
 			{
 				m_logger.Error(TC("Failed to create file mapping for %s (%s)"), fileName, LastErrorToText().data);
@@ -2318,7 +2318,7 @@ namespace uba
 			u64 compressedSize;
 			if (!uba::GetFileSizeEx(compressedSize, fileHandle))
 				return m_logger.Error(TC("GetFileSize failed for %s (%s)"), fileName, LastErrorToText().data);
-			FileMappingHandle fileMapping = uba::CreateFileMappingW(fileHandle, PAGE_READONLY, compressedSize);
+			FileMappingHandle fileMapping = uba::CreateFileMappingW(fileHandle, PAGE_READONLY, compressedSize, fileName);
 			if (!fileMapping.IsValid())
 				return m_logger.Error(TC("Failed to create file mapping for %s (%s)"), fileName, LastErrorToText().data);
 			auto fmg = MakeGuard([&]() { CloseFileMapping(fileMapping); });
