@@ -41,7 +41,6 @@
 #include "Widgets/Layout/SUniformGridPanel.h"
 #include "Widgets/Notifications/SNotificationList.h"
 #include "SPositiveActionButton.h"
-#include "Widgets/SNullWidget.h"
 #include "Widgets/SWindow.h"
 
 
@@ -433,108 +432,92 @@ void SLiveLinkClientPanelToolbar::Construct(const FArguments& Args, FLiveLinkCli
 	[
 		SNew(SBorder)
 		.BorderImage(FAppStyle::GetBrush("ToolPanel.GroupBorder"))
-		.Padding(4.0f)
+		.Padding(2.0f)
 		[
 			SNew(SHorizontalBox)
 			+ SHorizontalBox::Slot()
 			.Padding(.0f)
-			.HAlign(HAlign_Left)
 			.AutoWidth()
 			[
-				Args._CustomHeader ? Args._CustomHeader.ToSharedRef() : SNullWidget::NullWidget
+				SNew(SPositiveActionButton)
+				.OnGetMenuContent(this, &SLiveLinkClientPanelToolbar::OnGenerateSourceMenu)
+				.Icon(FAppStyle::Get().GetBrush("Icons.Plus"))
+				.Text(LOCTEXT("AddSource", "Source"))
+				.ToolTipText(LOCTEXT("AddSource_ToolTip", "Add a new LiveLink source"))
 			]
-			+ SHorizontalBox::Slot()
-			.Padding(.0f)
-			.HAlign(Args._SourceButtonAlignment)
-			.FillWidth(1.0f)
-			[
-				SNew(SHorizontalBox)
-				+ SHorizontalBox::Slot()
-				.AutoWidth()
-				.Padding(.0f)
-				[
-					SNew(SPositiveActionButton)
-					.OnGetMenuContent(this, &SLiveLinkClientPanelToolbar::OnGenerateSourceMenu)
-					.Icon(FAppStyle::Get().GetBrush("Icons.Plus"))
-					.Text(LOCTEXT("AddSource", "Add Source"))
-					.ToolTipText(LOCTEXT("AddSource_ToolTip", "Add a new LiveLink source"))
-				]
-				+ SHorizontalBox::Slot()
-				.Padding(8.f, 0.f, 0.f, 0.f)
-				.AutoWidth()
-				[
-					SNew(SComboButton)
-					.ContentPadding(4.f)
-					.ComboButtonStyle(FLiveLinkEditorPrivate::GetStyleSet(), "ComboButton")
-					.OnGetMenuContent(this, &SLiveLinkClientPanelToolbar::OnPresetGeneratePresetsMenu)
-					.ForegroundColor(FSlateColor::UseForeground())
-					.Visibility(Args._ShowPresetPicker ? EVisibility::Visible : EVisibility::Collapsed)
-					.ButtonContent()
-					[
-						SNew(SHorizontalBox)
-						+ SHorizontalBox::Slot()
-						.Padding(4.f, 0.f, 4.f, 0.f)
-						.AutoWidth()
-						[
-							SNew(SImage)
-							.Image(FSlateIconFinder::FindIconBrushForClass(ULiveLinkPreset::StaticClass()))
-						]
-						+ SHorizontalBox::Slot()
-						[
-							SNew(STextBlock)
-							.Text(LOCTEXT("PresetsToolbarButton", "Presets"))
-						]
-					]
-				]
 
-				+ SHorizontalBox::Slot()
-				.Padding(8.f, 0.f, 0.f, 0.f)
-				.VAlign(VAlign_Center)
-				.HAlign(HAlign_Center)
-				.AutoWidth()
+			+ SHorizontalBox::Slot()
+			.Padding(8.f, 0.f, 0.f, 0.f)
+			.AutoWidth()
+			[
+				SNew(SComboButton)
+				.ContentPadding(4.f)
+				.ComboButtonStyle(FLiveLinkEditorPrivate::GetStyleSet(), "ComboButton")
+				.OnGetMenuContent(this, &SLiveLinkClientPanelToolbar::OnPresetGeneratePresetsMenu)
+				.ForegroundColor(FSlateColor::UseForeground())
+				.ButtonContent()
 				[
-					SNew(SButton)
-					//.ContentPadding(FMargin(8.f, 0.f, 0.f, 0.f))
-					.ToolTipText(LOCTEXT("RevertChanges_Text", "Revert all changes made to this take back its original state (either its original preset, or an empty preset)."))
-					.ForegroundColor(FSlateColor::UseForeground())
-					.ButtonStyle(FAppStyle::Get(), "HoverHintOnly")
-					.OnClicked(this, &SLiveLinkClientPanelToolbar::OnRevertChanges)
-					.Visibility(Args._ShowPresetPicker ? EVisibility::Visible : EVisibility::Collapsed)
-					.IsEnabled(this, &SLiveLinkClientPanelToolbar::HasLoadedLiveLinkPreset)
+					SNew(SHorizontalBox)
+					+ SHorizontalBox::Slot()
+					.Padding(4.f, 0.f, 4.f, 0.f)
+					.AutoWidth()
+					[
+						SNew(SImage)
+						.Image(FSlateIconFinder::FindIconBrushForClass(ULiveLinkPreset::StaticClass()))
+					]
+					+ SHorizontalBox::Slot()
 					[
 						SNew(STextBlock)
-						.Font(FAppStyle::Get().GetFontStyle("FontAwesome.11"))
-						.Text(FEditorFontGlyphs::Undo)
+						.Text(LOCTEXT("PresetsToolbarButton", "Presets"))
 					]
 				]
+			]
 
-				+ SHorizontalBox::Slot()
+			+ SHorizontalBox::Slot()
+			.Padding(8.f, 0.f, 0.f, 0.f)
+			.VAlign(VAlign_Center)
+			.HAlign(HAlign_Center)
+			.AutoWidth()
+			[
+				SNew(SButton)
+				//.ContentPadding(FMargin(8.f, 0.f, 0.f, 0.f))
+				.ToolTipText(LOCTEXT("RevertChanges_Text", "Revert all changes made to this take back its original state (either its original preset, or an empty preset)."))
+				.ForegroundColor(FSlateColor::UseForeground())
+				.ButtonStyle(FAppStyle::Get(), "HoverHintOnly")
+				.OnClicked(this, &SLiveLinkClientPanelToolbar::OnRevertChanges)
+				.IsEnabled(this, &SLiveLinkClientPanelToolbar::HasLoadedLiveLinkPreset)
 				[
-					SNew(SSpacer)
+					SNew(STextBlock)
+					.Font(FAppStyle::Get().GetFontStyle("FontAwesome.11"))
+					.Text(FEditorFontGlyphs::Undo)
 				]
+			]
 
-				+ SHorizontalBox::Slot()
-				.Padding(.0f)
-				.AutoWidth()
-				.HAlign(HAlign_Right)
+			+ SHorizontalBox::Slot()
+			[
+				SNew(SSpacer)
+			]
+
+			+ SHorizontalBox::Slot()
+			.Padding(.0f)
+			.AutoWidth()
+			.HAlign(HAlign_Right)
+			[
+				SNew(SBox)
+				.WidthOverride(ButtonBoxSize)
+				.HeightOverride(ButtonBoxSize)
 				[
-					SNew(SBox)
-					.WidthOverride(ButtonBoxSize)
-					.Visibility(Args._ShowSettings ? EVisibility::Visible : EVisibility::Collapsed)
-					.HeightOverride(ButtonBoxSize)
+					SNew(SCheckBox)
+					.Padding(4.f)
+					.ToolTipText(LOCTEXT("ShowUserSettings_Tip", "Show/Hide the general user settings for LiveLink"))
+					.Style(FAppStyle::Get(), "ToggleButtonCheckbox")
+					.ForegroundColor(FSlateColor::UseForeground())
+					.IsChecked_Lambda([]() { return ECheckBoxState::Unchecked; })
+					.OnCheckStateChanged_Lambda([](ECheckBoxState CheckState){ FModuleManager::LoadModuleChecked<ISettingsModule>("Settings").ShowViewer("Project", "Plugins", "LiveLink"); })
 					[
-						SNew(SCheckBox)
-						.Padding(4.f)
-						.ToolTipText(LOCTEXT("ShowUserSettings_Tip", "Show/Hide the general user settings for LiveLink"))
-						.Style(FAppStyle::Get(), "ToggleButtonCheckbox")
-						.ForegroundColor(FSlateColor::UseForeground())
-						.IsChecked_Lambda([]() { return ECheckBoxState::Unchecked; })
-						.OnCheckStateChanged_Lambda([](ECheckBoxState CheckState){ FModuleManager::LoadModuleChecked<ISettingsModule>("Settings").ShowViewer("Project", "Plugins", "LiveLink"); })
-						[
-							SNew(STextBlock)
-							.Font(FAppStyle::Get().GetFontStyle("FontAwesome.14"))
-							.Text(FEditorFontGlyphs::Cogs)
-						]
+						SNew(STextBlock)
+						.Font(FAppStyle::Get().GetFontStyle("FontAwesome.14"))
+						.Text(FEditorFontGlyphs::Cogs)
 					]
 				]
 			]
