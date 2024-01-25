@@ -36,7 +36,6 @@ public sealed class CrashReportClientEditorTarget : CrashReportClientTarget
 
 		if (bHostRecoverySvc)
 		{
-			throw new BuildException("No longer supported.");
 			AdditionalPlugins.Add("UdpMessaging");
 			AdditionalPlugins.Add("ConcertSyncServer");
 			bCompileWithPluginSupport = true; // Enable Developer plugins (like Concert!)
