@@ -4559,7 +4559,7 @@ namespace UnrealBuildTool
 					foreach (PluginReferenceDescriptor NextReference in Info.Descriptor.Plugins)
 					{
 						// Ignore any plugin dependency which is programmatically filtered out by the target
-						if (Rules.IgnorePluginDependency(Info, NextReference))
+						if (Rules.ShouldIgnorePluginDependency(Info, NextReference))
 						{
 							Logger.LogDebug("Ignoring plugin '{0}' (referenced via {1}) due to it being filtered out by the target rules.", NextReference.Name, Info.Name);
 							continue;
