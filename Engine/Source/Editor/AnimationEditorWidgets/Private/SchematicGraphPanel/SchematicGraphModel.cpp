@@ -333,21 +333,6 @@ FText FSchematicGraphModel::GetToolTipForNode(const FSchematicGraphNode* InNode)
 	return InNode->GetToolTip();
 }
 
-ESchematicGraphPlacementConstraint::Type FSchematicGraphModel::GetPlacementForNode(const FGuid& InNodeGuid) const
-{
-	if(const FSchematicGraphNode* Node = FindNode(InNodeGuid))
-	{
-		return GetPlacementForNode(Node);
-	}
-	return ESchematicGraphPlacementConstraint::Free;
-}
-
-ESchematicGraphPlacementConstraint::Type FSchematicGraphModel::GetPlacementForNode(const FSchematicGraphNode* InNode) const
-{
-	check(InNode);
-	return InNode->GetPlacement();
-}
-
 ESchematicGraphVisibility::Type FSchematicGraphModel::GetVisibilityForNode(const FGuid& InNodeGuid) const
 {
 	if(const FSchematicGraphNode* Node = FindNode(InNodeGuid))

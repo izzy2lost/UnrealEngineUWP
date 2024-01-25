@@ -13,18 +13,6 @@ class FSchematicGraphNode;
 class FSchematicGraphLink;
 class FSchematicGraphModel;
 
-namespace ESchematicGraphPlacementConstraint
-{
-	enum Type : int
-	{
-		Free,
-		TopLeft,
-		TopRight,
-		BottomLeft,
-		BottomRight
-	};
-}
-
 namespace ESchematicGraphVisibility
 {
 	enum Type : int

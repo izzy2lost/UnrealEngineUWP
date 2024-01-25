@@ -56,8 +56,6 @@ public:
 	virtual const FSlateBrush* GetBrush(int32 InLayerIndex) const { return Brushes[InLayerIndex]; }
 	virtual bool IsAutoScaleEnabled() const { return false; }
 	virtual const FText& GetToolTip() const;
-	virtual ESchematicGraphPlacementConstraint::Type GetPlacement() const { return Placement; }
-	virtual void SetPlacement(ESchematicGraphPlacementConstraint::Type InPlacement) { Placement = InPlacement; }
 	virtual ESchematicGraphVisibility::Type GetVisibility() const;
 	virtual void SetVisibility(ESchematicGraphVisibility::Type InVisibility) { Visibility = InVisibility; }
 	virtual bool IsInteractive() const;
@@ -152,7 +150,6 @@ protected:
 	TArray<FLinearColor> Colors;
 	TArray<const FSlateBrush*> Brushes;
 	FText ToolTip = FText();
-	ESchematicGraphPlacementConstraint::Type Placement = ESchematicGraphPlacementConstraint::Free;
 	ESchematicGraphVisibility::Type Visibility = ESchematicGraphVisibility::Visible;
 	bool bDragSupported = false;
 

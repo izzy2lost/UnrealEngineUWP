@@ -1019,13 +1019,6 @@ void SSchematicGraphPanel::Tick(float DeltaTime)
 		DragDropOpFromOutside.Reset();
 	}
 
-	NodesTopLeft.Reset();
-	NodesTopRight.Reset();
-	NodesBottomLeft.Reset();
-	NodesBottomRight.Reset();
-
-	const FVector2D Size = GetCachedGeometry().Size;
-
 	for (int32 i=0; i<Children.Num(); ++i)
 	{
 		TSharedRef<SSchematicGraphNode> Widget = GetChild(i);
@@ -1040,35 +1033,6 @@ void SSchematicGraphPanel::Tick(float DeltaTime)
 		if(Widget->GetVisibility() != EVisibility::Visible)
 		{
 			continue;
-		}
-
-		// collect the nodes displayed in the corners
-		switch(GraphData->GetPlacementForNode(Widget->GetNodeData()))
-		{
-			case ESchematicGraphPlacementConstraint::Free:
-			{
-				break;
-			}
-			case ESchematicGraphPlacementConstraint::TopLeft:
-			{
-				NodesTopLeft.Add(Widget->GetGuid());
-				break;
-			}
-			case ESchematicGraphPlacementConstraint::TopRight:
-			{
-				NodesTopRight.Add(Widget->GetGuid());
-				break;
-			}
-			case ESchematicGraphPlacementConstraint::BottomLeft:
-			{
-				NodesBottomLeft.Add(Widget->GetGuid());
-				break;
-			}
-			case ESchematicGraphPlacementConstraint::BottomRight:
-			{
-				NodesBottomRight.Add(Widget->GetGuid());
-				break;
-			}
 		}
 
 		if (Widget->IsBeingDragged())
@@ -1182,55 +1146,7 @@ FVector2d SSchematicGraphPanel::GetPositionForNode(FGuid InNodeGuid) const
 		if(const FSchematicGraphNode* Node = GraphData->FindNode(InNodeGuid))
 		{
 			FVector2d Position = GraphData->GetPositionOffsetForNode(Node);
-
-			const FVector2d OriginalSize = NodeWidget->GetOriginalSize();
-			const FVector2D Size = GetCachedGeometry().Size;
-			const FVector2d HalfOriginalSize = OriginalSize * 0.5;
-
-			switch(GraphData->GetPlacementForNode(Node))
-			{
-				case ESchematicGraphPlacementConstraint::Free:
-				{
-					Position += GraphData->GetPositionForNode(Node);
-					break;
-				}
-				case ESchematicGraphPlacementConstraint::TopLeft:
-				{
-					const int32 NodeIndexInCorner = NodesTopLeft.IndexOfByKey(InNodeGuid);
-					if(NodeIndexInCorner != INDEX_NONE)
-					{
-						Position += FVector2d(PaddingLeft + HalfOriginalSize.X, PaddingTop + HalfOriginalSize.Y + ((OriginalSize.Y + PaddingInterNode) * NodeIndexInCorner));
-					}
-					break;
-				}
-				case ESchematicGraphPlacementConstraint::TopRight:
-				{
-					const int32 NodeIndexInCorner = NodesTopRight.IndexOfByKey(InNodeGuid);
-					if(NodeIndexInCorner != INDEX_NONE)
-					{
-						Position += FVector2d(Size.X - PaddingRight - HalfOriginalSize.X, PaddingTop + HalfOriginalSize.Y + ((OriginalSize.Y + PaddingInterNode) * NodeIndexInCorner));
-					}
-					break;
-				}
-				case ESchematicGraphPlacementConstraint::BottomLeft:
-				{
-					const int32 NodeIndexInCorner = NodesBottomLeft.IndexOfByKey(InNodeGuid);
-					if(NodeIndexInCorner != INDEX_NONE)
-					{
-						Position += FVector2d(PaddingLeft + HalfOriginalSize.X, Size.Y - PaddingBottom - HalfOriginalSize.Y - ((OriginalSize.Y + PaddingInterNode)  * NodeIndexInCorner));
-					}
-					break;
-				}
-				case ESchematicGraphPlacementConstraint::BottomRight:
-				{
-					const int32 NodeIndexInCorner = NodesBottomRight.IndexOfByKey(InNodeGuid);
-					if(NodeIndexInCorner != INDEX_NONE)
-					{
-						Position += FVector2d(Size.X - PaddingRight - HalfOriginalSize.X, Size.Y - PaddingBottom - HalfOriginalSize.Y - ((OriginalSize.Y + PaddingInterNode)  * NodeIndexInCorner));
-					}
-					break;
-				}
-			}
+			Position += GraphData->GetPositionForNode(Node);
 			return Position;
 		}
 	}
@@ -1347,7 +1263,6 @@ void SSchematicGraphPanel::UpdatePerNodeCaches(bool bRemoveNodesFromAutoGroups)
 			}
 			Cache.bHasParent = Node->HasParentNode();
 			Cache.Visibility = GraphData->GetVisibilityForNode(Node);
-			Cache.Placement = GraphData->GetPlacementForNode(Node);
 			Cache.bIsAutoScaling = !Cache.bHasParent && !Widget->bIsBeingDragged && Widget->EnableAutoScale.Get();
 			Cache.Position = GetPositionForNode(Node->GetGuid());
 			const FVector2d NodeSize = GraphData->GetSizeForNode(Node->GetGuid());
@@ -1391,10 +1306,6 @@ void SSchematicGraphPanel::UpdateAutoGroupingForNodes()
 			continue;
 		}
 		if(PerNodeCaches[i].Visibility == ESchematicGraphVisibility::Hidden)
-		{
-			continue;
-		}
-		if(PerNodeCaches[i].Placement != ESchematicGraphPlacementConstraint::Free)
 		{
 			continue;
 		}

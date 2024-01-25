@@ -262,10 +262,6 @@ private:
 	FOnLeaveDrag OnLeaveDragDelegate;
 	FOnCancelDrag OnCancelDragDelegate;
 	FOnDrop OnDropDelegate;
-	TArray<FGuid> NodesTopLeft;
-	TArray<FGuid> NodesTopRight;
-	TArray<FGuid> NodesBottomLeft;
-	TArray<FGuid> NodesBottomRight;
 	TMap<FGuid, TSharedPtr<SSchematicGraphNode>> NodeByGuid;
 
 	struct FPerNodeCache
@@ -273,7 +269,6 @@ private:
 		FPerNodeCache()
 			: bHasParent(false)
 			, Visibility(ESchematicGraphVisibility::Visible)
-			, Placement(ESchematicGraphPlacementConstraint::Free)
 			, bIsAutoScaling(false)
 			, Position(FVector2d::ZeroVector)
 			, Radius(0.0)
@@ -281,7 +276,6 @@ private:
 
 		bool bHasParent;
 		ESchematicGraphVisibility::Type Visibility;
-		ESchematicGraphPlacementConstraint::Type Placement;
 		bool bIsAutoScaling;
 		FVector2d Position;
 		double Radius;
