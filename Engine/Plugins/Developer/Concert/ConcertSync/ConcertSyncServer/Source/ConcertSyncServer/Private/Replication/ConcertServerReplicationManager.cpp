@@ -13,9 +13,16 @@
 #include "Replication/Messages/Handshake.h"
 #include "Replication/Processing/ObjectReplicationCache.h"
 #include "Util/JoinRequestValidation.h"
+#include "Util/LogUtils.h"
 
 namespace UE::ConcertSyncServer::Replication
 {
+	TAutoConsoleVariable<bool> CVarLogAuthorityRequestsAndResponses(
+		TEXT("Concert.Replication.LogAuthorityRequestsAndResponses"),
+		false,
+		TEXT("Whether to log changes to authority.")
+		);
+	
 	FConcertServerReplicationManager::FConcertServerReplicationManager(TSharedRef<IConcertServerSession> InLiveSession)
 		: Session(MoveTemp(InLiveSession))
 		, ReplicationFormat(MakeShared<ConcertSyncCore::FFullObjectFormat>())
@@ -79,7 +86,9 @@ namespace UE::ConcertSyncServer::Replication
 		// Have a pair of logs before and after processing in case of potential disaster
 		UE_LOG(LogConcert, Log, TEXT("Received replication join request from endpoint %s"), *ConcertSessionContext.SourceEndpointId.ToString());
 		
+		LogNetworkMessage(CVarLogAuthorityRequestsAndResponses, Request, [&](){ return GetClientName(*Session, ConcertSessionContext.SourceEndpointId); });
 		const EConcertSessionResponseCode Result = InternalHandleJoinReplicationSessionRequest(ConcertSessionContext, Request, Response);
+		LogNetworkMessage(CVarLogAuthorityRequestsAndResponses, Response, [&](){ return GetClientName(*Session, ConcertSessionContext.SourceEndpointId); });
 		
 		UE_CLOG(Response.JoinErrorCode == EJoinReplicationErrorCode::Success, LogConcert, Log, TEXT("Accepted replication join request"));
 		UE_CLOG(Response.JoinErrorCode != EJoinReplicationErrorCode::Success, LogConcert, Log, TEXT("Rejected replication join request. %s: %s"), *ConcertSyncCore::Replication::LexJoinErrorCode(Response.JoinErrorCode), *Response.DetailedErrorMessage);

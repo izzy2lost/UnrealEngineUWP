@@ -12,9 +12,9 @@
 #include "Replication/Processing/ClientReplicationDataCollector.h"
 #include "Replication/Processing/ObjectReplicationApplierProcessor.h"
 #include "Replication/Processing/ObjectReplicationReceiver.h"
-#include "Replication/Processing/ObjectReplicationSender.h"
 
 #include "Algo/RemoveIf.h"
+#include "JsonObjectConverter.h"
 #include "Misc/ScopeExit.h"
 #include "UObject/Package.h"
 #include "UObject/UObjectGlobals.h"
@@ -42,6 +42,31 @@ namespace UE::ConcertSyncClient::Replication
 		false,
 		TEXT("Whether the client should pretend that authority change requests were rejected.")
 		);
+
+	TAutoConsoleVariable<bool> CVarLogStreamRequestsAndResponses(
+		TEXT("Concert.Replication.LogStreamRequestsAndResponses"),
+		false,
+		TEXT("Whether to log changes to streams.")
+		);
+	TAutoConsoleVariable<bool> CVarLogAuthorityRequestsAndResponses(
+		TEXT("Concert.Replication.LogStreamRequestsAndResponses"),
+		false,
+		TEXT("Whether to log changes to authority.")
+		);
+
+	namespace Private
+	{
+		template<typename TMessage>
+		static void LogNetworkMessage(const TAutoConsoleVariable<bool>& ShouldLog, const TMessage& Message)
+		{
+			if (ShouldLog.GetValueOnAnyThread())
+			{
+				FString JsonString;
+				FJsonObjectConverter::UStructToJsonObjectString(TMessage::StaticStruct(), &Message, JsonString, 0, 0);
+				UE_LOG(LogConcert, Log, TEXT("%s\n%s"), *TMessage::StaticStruct()->GetName(), *JsonString);
+			}
+		}
+	}
 	
 	FReplicationManagerState_Connected::FReplicationManagerState_Connected(
 		TSharedRef<IConcertClientSession> LiveSession,
@@ -120,10 +145,13 @@ namespace UE::ConcertSyncClient::Replication
 		// Stop replicating removed objects right now: the server will remove authority after processing this request.
 		// At that point, it will log errors for receiving replication data from a client without authority.
 		HandleReleasingReplicatedObjects(Args);
-		
+
+		Private::LogNetworkMessage(CVarLogAuthorityRequestsAndResponses, Args);
 		return LiveSession->SendCustomRequest<FConcertReplication_ChangeAuthority_Request, FConcertReplication_ChangeAuthority_Response>(Args, LiveSession->GetSessionServerEndpointId())
 			.Next([WeakThis = TWeakPtr<FReplicationManagerState_Connected>(SharedThis(this)), Args](FConcertReplication_ChangeAuthority_Response&& Response) mutable
 			{
+				Private::LogNetworkMessage(CVarLogAuthorityRequestsAndResponses, Response);
+				
 				if (const TSharedPtr<FReplicationManagerState_Connected> ThisPin = WeakThis.Pin()
 					; ThisPin && Response.ErrorCode == EReplicationResponseErrorCode::Handled)
 				{
@@ -170,9 +198,12 @@ namespace UE::ConcertSyncClient::Replication
 		// At that point, it will log errors for receiving replication data from a client without authority.
 		HandleRemovingReplicatedObjects(Args);
 		
+		Private::LogNetworkMessage(CVarLogStreamRequestsAndResponses, Args);
 		return LiveSession->SendCustomRequest<FConcertReplication_ChangeStream_Request, FConcertReplication_ChangeStream_Response>(Args, LiveSession->GetSessionServerEndpointId())
 			.Next([WeakThis = TWeakPtr<FReplicationManagerState_Connected>(SharedThis(this)), Args](FConcertReplication_ChangeStream_Response&& Response)
 			{
+				Private::LogNetworkMessage(CVarLogStreamRequestsAndResponses, Response);
+
 				const TSharedPtr<FReplicationManagerState_Connected> ThisPin = WeakThis.Pin();
 				if (ThisPin && Response.IsSuccess())
 				{

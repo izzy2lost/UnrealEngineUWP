@@ -4,6 +4,8 @@
 
 #include "Replication/IConcertClientReplicationManager.h"
 
+class IConcertClientSession;
+
 struct FConcertReplication_ChangeStream_Request;
 
 namespace UE::MultiUserClient

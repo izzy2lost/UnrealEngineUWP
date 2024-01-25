@@ -2,8 +2,6 @@
 
 #include "Replication/Messages/ChangeStream.h"
 
-#include "Misc/OutputDevice.h"
-
 TOptional<FConcertReplication_ChangeStream_PutObject> FConcertReplication_ChangeStream_PutObject::MakeFromInfo(const FConcertReplicatedObjectInfo& New)
 {
 	if (!New.IsValidForSendingToServer())
@@ -31,31 +29,4 @@ TOptional<FConcertReplicatedObjectInfo> FConcertReplication_ChangeStream_PutObje
 		return {};
 	}
 	return FConcertReplicatedObjectInfo{ ClassPath, Properties };
-}
-
-void FConcertReplication_ChangeStream_Response::LogErrors(FOutputDevice& OutputDevice) const
-{
-	for (const TPair<FConcertObjectInStreamID, FConcertReplicatedObjectId>& Conflict : AuthorityConflicts)
-	{
-		OutputDevice.Logf(TEXT("Authority: { %s } conflicts with { %s }"), *Conflict.Key.ToString(), *Conflict.Value.ToString());
-	}
-
-	for (const TPair<FConcertObjectInStreamID, EConcertPutObjectErrorCode>& Error : ObjectsToPutSemanticErrors)
-	{
-		const FString ErrorCodeAsString = [&Error]()
-		{
-			switch (Error.Value)
-			{
-			case EConcertPutObjectErrorCode::UnresolvedStream: return TEXT("Unresolved stream");
-			case EConcertPutObjectErrorCode::MissingData: return TEXT("Missing data");
-			default: return TEXT("Unknown");
-			}
-		}();
-		OutputDevice.Logf(TEXT("Semantic error: %s - %s"), *Error.Key.ToString(), *ErrorCodeAsString);
-	}
-
-	for (const FGuid& Stream : FailedStreamCreation)
-	{
-		OutputDevice.Logf(TEXT("Failed to create stream: %s"), *Stream.ToString());
-	}
 }

@@ -8,6 +8,7 @@
 #include "Replication/Data/ReplicationStream.h"
 
 #include "Misc/Optional.h"
+#include "Templates/Function.h"
 #include "ChangeStream.generated.h"
 
 class FOutputDevice;
@@ -312,7 +313,4 @@ struct FConcertReplication_ChangeStream_Response
 	bool IsFailure() const { return !IsSuccess(); }
 
 	bool WasObjectPutSuccessful(const FConcertObjectInStreamID& Object) const { return !AuthorityConflicts.Contains(Object) && !ObjectsToPutSemanticErrors.Contains(Object); }
-
-	/** If IsFailure(), logs the errors. */
-	CONCERTSYNCCORE_API void LogErrors(FOutputDevice& OutputDevice) const;
 };

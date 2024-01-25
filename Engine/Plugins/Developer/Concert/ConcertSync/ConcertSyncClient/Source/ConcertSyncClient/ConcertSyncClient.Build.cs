@@ -25,6 +25,7 @@ namespace UnrealBuildTool.Rules
 					"ConcertTransport",
 					"HeadMountedDisplay",
 					"InputCore",
+					"JsonUtilities",
 					"LevelSequence",
 					"MovieScene",
 					"RenderCore",

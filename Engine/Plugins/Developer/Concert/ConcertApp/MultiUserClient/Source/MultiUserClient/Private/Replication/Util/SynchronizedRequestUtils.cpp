@@ -27,20 +27,6 @@ namespace UE::MultiUserClient
 				}
 			}
 		}
-		
-		static void LogStreamChangeError(const FGuid& ClientId, const FSubmitStreamChangesResponse& Response)
-		{
-			if (Response.ErrorCode == EStreamSubmissionErrorCode::Timeout)
-			{
-				UE_LOG(LogConcert, Warning, TEXT("Remote stream change to client %s timed out."), *ClientId.ToString());
-			}
-			else if (Response.SubmissionInfo && Response.SubmissionInfo->Response.IsFailure())
-			{
-				FStringOutputDevice OutputDevice;
-				Response.SubmissionInfo->Response.LogErrors(OutputDevice);
-				UE_LOG(LogConcert, Warning, TEXT("Remote stream change to client %s failed: %s"), *ClientId.ToString(), *OutputDevice);
-			}
-		}
 
 		class FSyncOperation;
 
@@ -142,8 +128,6 @@ namespace UE::MultiUserClient
 
 			void OnCompleteStream(const FGuid& ClientId, FSubmitStreamChangesResponse&& Response)
 			{
-				LogStreamChangeError(ClientId, Response);
-				
 				IntermediateResults.StreamResponses[ClientId] = MoveTemp(Response);
 				FindOperationByClient(ClientId)->bHasCompletedStreamChanges.store(true, std::memory_order_release);
 

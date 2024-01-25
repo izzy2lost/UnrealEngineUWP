@@ -82,8 +82,6 @@ namespace UE::MultiUserClient
 		void FinishSubmissionIfDone();
 
 		FString GetRemoteClientName() const;
-		
-		void LogStreamErrorsIfNeeded(const FConcertReplication_ChangeStream_Response& Response) const;
 	};
 }
 
