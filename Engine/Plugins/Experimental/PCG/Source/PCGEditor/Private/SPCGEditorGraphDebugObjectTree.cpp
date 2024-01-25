@@ -880,7 +880,7 @@ void SPCGEditorGraphDebugObjectTree::OnGetChildren(FPCGEditorGraphDebugObjectIte
 
 void SPCGEditorGraphDebugObjectTree::OnSelectionChanged(FPCGEditorGraphDebugObjectItemPtr InItem, ESelectInfo::Type InSelectInfo)
 {
-	if (const FPCGStack* Stack = InItem ? InItem->GetPCGStack() : nullptr)
+	if (const FPCGStack* Stack = (InItem && InItem->IsDebuggable()) ? InItem->GetPCGStack() : nullptr)
 	{
 		SelectedStack = *Stack;
 	}
@@ -900,9 +900,10 @@ void SPCGEditorGraphDebugObjectTree::OnSelectionChanged(FPCGEditorGraphDebugObje
 		return;
 	}
 
-	if (const FPCGStack* PCGStack = InItem->GetPCGStack())
+	const FPCGStack* InspectedStack = PCGEditor.Pin()->GetStackBeingInspected();
+	if (!InspectedStack || SelectedStack != *InspectedStack)
 	{
-		PCGEditor.Pin()->SetStackBeingInspected(*PCGStack);
+		PCGEditor.Pin()->SetStackBeingInspected(SelectedStack);
 	}
 }
 

@@ -97,3 +97,33 @@ namespace PCGDelegates
 #endif
 } // PCGDelegates
 
+namespace PCGPinIdHelpers
+{
+	FPCGPinId NodeIdAndPinIndexToPinId(FPCGTaskId NodeId, uint64 PinIndex)
+	{
+		// Construct a unique ID from node index and pin index.
+		ensure(PinIndex < PCGPinIdHelpers::MaxOutputPins);
+		return (NodeId * PCGPinIdHelpers::PinActiveBitmaskSize) + (PinIndex % PCGPinIdHelpers::PinActiveBitmaskSize);
+	}
+
+	FPCGPinId NodeIdToPinId(FPCGTaskId NodeId)
+	{
+		// Use (max pins - 1) to make a special pin ID that is not associated to a specific node pin.
+		return (NodeId * PCGPinIdHelpers::PinActiveBitmaskSize) + PCGPinIdHelpers::MaxOutputPins;
+	}
+
+	FPCGPinId OffsetNodeIdInPinId(FPCGPinId PinId, uint64 NodeIDOffset)
+	{
+		return NodeIDOffset * PCGPinIdHelpers::PinActiveBitmaskSize + PinId;
+	}
+
+	FPCGTaskId GetNodeIdFromPinId(FPCGPinId PinId)
+	{
+		return PinId / PCGPinIdHelpers::PinActiveBitmaskSize;
+	}
+
+	uint64 GetPinIndexFromPinId(FPCGPinId PinId)
+	{
+		return PinId % PCGPinIdHelpers::PinActiveBitmaskSize;
+	}
+}

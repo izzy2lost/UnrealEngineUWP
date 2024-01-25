@@ -2501,17 +2501,24 @@ void FPCGEditor::OnComponentGenerationCompleteOrCancelled()
 {
 	DebugObjectTreeWidget->RequestRefresh();
 
-	// If we are debugging the graph cache then we need to refresh the cache count displayed in the title after every generation.
-	if (UPCGSubsystem* Subsystem = GetSubsystem())
+	const UPCGSubsystem* Subsystem = GetSubsystem();
+	const bool CacheDebuggingEnabled = Subsystem && Subsystem->IsGraphCacheDebuggingEnabled();
+
+	// Refresh nodes to report any errors/warnings, and to display culling state after execution.
+	check(PCGEditorGraph);
+	for (UEdGraphNode* Node : PCGEditorGraph->Nodes)
 	{
-		if (Subsystem->IsGraphCacheDebuggingEnabled() && PCGEditorGraph)
+		if (UPCGEditorGraphNodeBase* PCGEditorGraphNode = Cast<UPCGEditorGraphNodeBase>(Node))
 		{
-			for (UEdGraphNode* EdGraphNode : PCGEditorGraph->Nodes)
+			// If we are debugging the graph cache then we need to refresh the cache count displayed in the title after every generation.
+			EPCGChangeType ChangeType = CacheDebuggingEnabled ? EPCGChangeType::Cosmetic : EPCGChangeType::None;
+
+			ChangeType |= PCGEditorGraphNode->UpdateErrorsAndWarnings();
+			ChangeType |= PCGEditorGraphNode->UpdateStructuralVisualization(PCGComponentBeingInspected.Get(), &StackBeingInspected);
+
+			if (ChangeType != EPCGChangeType::None)
 			{
-				if (UPCGEditorGraphNodeBase* PCGEditorGraphNode = Cast<UPCGEditorGraphNodeBase>(EdGraphNode))
-				{
-					PCGEditorGraphNode->ReconstructNode();
-				}
+				PCGEditorGraphNode->ReconstructNode();
 			}
 		}
 	}

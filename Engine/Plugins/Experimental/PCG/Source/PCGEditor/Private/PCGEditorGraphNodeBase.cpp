@@ -3,11 +3,14 @@
 #include "PCGEditorGraphNodeBase.h"
 
 #include "PCGComponent.h"
+#include "PCGEdge.h"
+#include "PCGEngineSettings.h"
 #include "PCGGraph.h"
 #include "PCGPin.h"
 #include "PCGSettingsWithDynamicInputs.h"
 #include "PCGSubsystem.h"
 #include "PCGWorldActor.h"
+#include "Elements/PCGReroute.h"
 
 #include "PCGEditor.h"
 #include "PCGEditorCommands.h"
@@ -25,6 +28,83 @@
 #include "Widgets/Colors/SColorPicker.h"
 
 #define LOCTEXT_NAMESPACE "PCGEditorGraphNodeBase"
+
+namespace PCGEditorGraphNodeBase
+{
+	/** Whether this node was culled during graph compilation or during graph execution. */
+	bool ShouldDisplayAsActive(const UPCGEditorGraphNodeBase* InNode, const UPCGComponent* InComponentBeingDebugged, const FPCGStack* InStackBeingInspected)
+	{
+		if (!InNode)
+		{
+			return true;
+		}
+
+		const UPCGNode* PCGNode = InNode->GetPCGNode();
+		if (!PCGNode)
+		{
+			return true;
+		}
+
+		// Don't display as culled while component is executing or about to refresh as nodes will flash to culled state and back
+		// which looks disturbing.
+		if (!InComponentBeingDebugged || InComponentBeingDebugged->IsGenerating() || InComponentBeingDebugged->IsRefreshInProgress())
+		{
+			return true;
+		}
+
+		const UPCGEngineSettings* EngineSettings = GetDefault<UPCGEngineSettings>();
+		const bool bActiveVisualizationEnabled = !ensure(EngineSettings) || EngineSettings->bDisplayCullingStateWhenDebugging;
+		const UPCGSettings* Settings = PCGNode ? PCGNode->GetSettings() : nullptr;
+
+		// Display whether node was culled dynamically or statically.
+		if (InStackBeingInspected && bActiveVisualizationEnabled)
+		{
+			if (!Settings || !Settings->IsA<UPCGRerouteSettings>())
+			{
+				// Task will be displayed as active if it was executed or if it does not produce tasks for execution.
+				return InComponentBeingDebugged->WasNodeExecuted(PCGNode, *InStackBeingInspected) || (Settings && !Settings->EmitsTaskForExecution());
+			}
+			else
+			{
+				// Named reroute usages mirror the enabled state of the upstream declaration.
+				if (const UPCGNamedRerouteUsageSettings* RerouteUsageSettings = Cast<UPCGNamedRerouteUsageSettings>(Settings))
+				{
+					const UPCGNode* DeclarationPCGNode = RerouteUsageSettings->Declaration ? Cast<UPCGNode>(RerouteUsageSettings->Declaration->GetOuter()) : nullptr;
+					const UPCGEditorGraph* EditorGraph = Cast<UPCGEditorGraph>(InNode->GetOuter());
+					const UPCGEditorGraphNodeBase* DeclarationNode = EditorGraph ? EditorGraph->GetEditorNodeFromPCGNode(DeclarationPCGNode) : nullptr;
+					return !DeclarationNode || ShouldDisplayAsActive(DeclarationNode, InComponentBeingDebugged, InStackBeingInspected);
+				}
+
+				// Special case - reroute culled state is evaluated here based on upstream connections. Reroutes are always culled/never executed, but still need
+				// to reflect the active/inactive state to not look wrong/confusing.
+				for (const UEdGraphPin* Pin : InNode->Pins)
+				{
+					if (Pin && Pin->Direction == EEdGraphPinDirection::EGPD_Input)
+					{
+						for (const UEdGraphPin* LinkedPin : Pin->LinkedTo)
+						{
+							if (const UPCGEditorGraphNodeBase* UpstreamNode = LinkedPin ? Cast<UPCGEditorGraphNodeBase>(LinkedPin->GetOwningNode()) : nullptr)
+							{
+								const bool bUpstreamNodeActive = ShouldDisplayAsActive(UpstreamNode, InComponentBeingDebugged, InStackBeingInspected);
+								const bool bUpstreamPinActive = UpstreamNode->IsOutputPinActive(LinkedPin);
+
+								if (bUpstreamNodeActive && bUpstreamPinActive)
+								{
+									// Active if any input is active.
+									return true;
+								}
+							}
+						}
+					}
+				}
+
+				return false;
+			}
+		}
+
+		return true;
+	}
+}
 
 void UPCGEditorGraphNodeBase::Construct(UPCGNode* InPCGNode)
 {
@@ -412,10 +492,19 @@ EPCGChangeType UPCGEditorGraphNodeBase::UpdateStructuralVisualization(UPCGCompon
 
 	EPCGChangeType ChangeType = EPCGChangeType::None;
 
-	SetOnActiveBranch(Graph->IsNodeOnActiveBranch(PCGNode));
+	const bool bIsCulled = !PCGEditorGraphNodeBase::ShouldDisplayAsActive(this, InComponentBeingDebugged, InStackBeingInspected);
 
-	bool bShouldDisplayAsDisabled = !IsOnActiveBranch();
+	SetIsCulledFromExecution(bIsCulled);
+
+	bool bShouldDisplayAsDisabled = bIsCulled;
 	bool bShouldDisplayAsHighlighted = false;
+
+	const uint64 NewInactiveMask = (InComponentBeingDebugged && InStackBeingInspected) ? InComponentBeingDebugged->GetNodeInactivePinMask(PCGNode, *InStackBeingInspected) : 0;
+	if (NewInactiveMask != InactiveOutputPinMask)
+	{
+		InactiveOutputPinMask = NewInactiveMask;
+		ChangeType |= EPCGChangeType::Cosmetic;
+	}
 
 	const bool HiGenEnabled = Graph->IsHierarchicalGenerationEnabled();
 	const uint32 InspectingGridSize = InComponentBeingDebugged ? InComponentBeingDebugged->GetGenerationGridSize() : PCGHiGenGrid::UninitializedGridSize();
@@ -489,6 +578,38 @@ FText UPCGEditorGraphNodeBase::GetAuthoredTitleLine() const
 FText UPCGEditorGraphNodeBase::GetGeneratedTitleLine() const
 {
 	return PCGNode ? PCGNode->GetGeneratedTitleLine() : FText();
+}
+
+bool UPCGEditorGraphNodeBase::IsOutputPinActive(const UEdGraphPin* InOutputPin) const
+{
+	bool bPinActive = true;
+
+	if (InactiveOutputPinMask != 0)
+	{
+		bool bFoundPin = false;
+		int OutputPinIndex = 0;
+
+		for (const UEdGraphPin* NodePin : Pins)
+		{
+			if (NodePin == InOutputPin)
+			{
+				bFoundPin = true;
+				break;
+			}
+
+			if (NodePin->Direction == EEdGraphPinDirection::EGPD_Output)
+			{
+				++OutputPinIndex;
+			}
+		}
+
+		if (bFoundPin)
+		{
+			bPinActive = !((1ULL << OutputPinIndex) & InactiveOutputPinMask);
+		}
+	}
+
+	return bPinActive;
 }
 
 void UPCGEditorGraphNodeBase::EnterRenamingMode()
@@ -765,6 +886,7 @@ void UPCGEditorGraphNodeBase::GetPinHoverText(const UEdGraphPin& Pin, FString& H
 		Description = MatchingPin->Properties.Tooltip.IsEmpty() ? FText::FromName(MatchingPin->Properties.Label) : MatchingPin->Properties.Tooltip;
 	}
 
+	FText Required;
 	FText MultiDataSupport;
 	FText MultiConnectionSupport;	
 
@@ -772,19 +894,26 @@ void UPCGEditorGraphNodeBase::GetPinHoverText(const UEdGraphPin& Pin, FString& H
 	{
 		if (bIsInputPin)
 		{
-			MultiDataSupport = MatchingPin->Properties.bAllowMultipleData ? FText(LOCTEXT("InputSupportsMultiData", "Supports multiple data in input(s). ")) : FText(LOCTEXT("InputSingleDataOnly", "Supports only single data in input(s). "));
-			MultiConnectionSupport = MatchingPin->Properties.AllowsMultipleConnections() ? FText(LOCTEXT("SupportsMultiInput", "Supports multiple inputs.")) : FText(LOCTEXT("SingleInputOnly", "Supports only one input."));
+			if (PCGNode && PCGNode->IsInputPinRequiredByExecution(MatchingPin))
+			{
+				Required = LOCTEXT("InputIsRequired", "Required input. ");
+			}
+
+			MultiDataSupport = MatchingPin->Properties.bAllowMultipleData ? LOCTEXT("InputSupportsMultiData", "Supports multiple data in input(s). ") : LOCTEXT("InputSingleDataOnly", "Supports only single data in input(s). ");
+
+			MultiConnectionSupport = MatchingPin->Properties.AllowsMultipleConnections() ? LOCTEXT("SupportsMultiInput", "Supports multiple inputs.") : LOCTEXT("SingleInputOnly", "Supports only one input.");
 		}
 		else
 		{
-			MultiDataSupport = MatchingPin->Properties.bAllowMultipleData ? FText(LOCTEXT("OutputSupportsMultiData", "Can generate multiple data.")) : FText(LOCTEXT("OutputSingleDataOnly", "Generates only single data."));
+			MultiDataSupport = MatchingPin->Properties.bAllowMultipleData ? LOCTEXT("OutputSupportsMultiData", "Can generate multiple data.") : LOCTEXT("OutputSingleDataOnly", "Generates only single data.");
 		}
 	}
 
-	HoverTextOut = FText::Format(LOCTEXT("PinHoverToolTipFull", "{0}\n\nType: {1}\nSubtype: {2}\nAdditional information: {3}{4}"),
+	HoverTextOut = FText::Format(LOCTEXT("PinHoverToolTipFull", "{0}\n\nType: {1}\nSubtype: {2}\nAdditional information: {3}{4}{5}"),
 		Description,
 		DataTypeText,
 		DataSubtypeText,
+		Required,
 		MultiDataSupport,
 		MultiConnectionSupport).ToString();
 }

@@ -7,6 +7,7 @@
 #include "PCGSubsystem.h"
 #include "Graph/PCGGraphCache.h"
 #include "Graph/PCGGraphCompiler.h"
+#include "Graph/PCGPinDependencyExpression.h"
 #include "Graph/PCGStackContext.h"
 
 #include "UObject/GCObject.h"
@@ -60,7 +61,6 @@ struct FPCGGraphTaskInput
 struct FPCGGraphTask
 {
 	TArray<FPCGGraphTaskInput> Inputs;
-	//TArray<DataId> Outputs;
 	const UPCGNode* Node = nullptr;
 	TWeakObjectPtr<UPCGComponent> SourceComponent = nullptr;
 	FPCGElementPtr Element; // Added to have tasks that aren't node-bound
@@ -68,6 +68,11 @@ struct FPCGGraphTask
 	FPCGTaskId NodeId = InvalidPCGTaskId;
 	FPCGTaskId CompiledTaskId = InvalidPCGTaskId; // the task id as it exists when compiled
 	FPCGTaskId ParentId = InvalidPCGTaskId; // represents the parent sub object graph task, if we were called from one
+
+	/** Conjunction of disjunctions of pin IDs that are required to be active for this task to be active.
+	* Example - keep task if: UpstreamPin0Active && (UpstreamPin1Active || UpstreamPin2Active)
+	*/
+	FPCGPinDependencyExpression PinDependency;
 
 	int32 StackIndex = INDEX_NONE;
 	TSharedPtr<const FPCGStackContext> StackContext;
@@ -190,7 +195,7 @@ public:
 private:
 	TSet<UPCGComponent*> Cancel(TFunctionRef<bool(TWeakObjectPtr<UPCGComponent>)> CancelFilter);
 	void ClearAllTasks();
-	void QueueNextTasks(FPCGTaskId FinishedTask);
+	void QueueNextTasks(FPCGTaskId FinishedTask, bool bIgnoreMissingTasks = false);
 	bool CancelNextTasks(FPCGTaskId CancelledTask, TSet<UPCGComponent*>& OutCancelledComponents);
 	void RemoveTaskFromInputSuccessors(FPCGTaskId CancelledTask, const TArray<FPCGGraphTaskInput>& CancelledTaskInputs);
 	void BuildTaskInput(const FPCGGraphTask& Task, FPCGDataCollection& TaskInput);
@@ -199,9 +204,20 @@ private:
 	void StoreResults(FPCGTaskId InTaskId, const FPCGDataCollection& InTaskOutput);
 	void ClearResults();
 
+	/** If the completed task has one or more deactivated pins, delete any downstream tasks that are inactive as a result. */
+	void CullInactiveDownstreamNodes(FPCGTaskId CompletedTaskId, uint64 InInactiveOutputPinBitmask);
+
+	/** Builds an array of all deactivated unique pin IDs. */
+	void GetPinIdsToDeactivate(FPCGTaskId TaskId, uint64 InactiveOutputPinBitmask, TArray<FPCGPinId>& InOutPinIds);
+
 	FPCGElementPtr GetFetchInputElement();
 
+	void LogTaskState() const;
+
 #if WITH_EDITOR
+	/** Notify the component that the given pins were deactivated during execution. */
+	void SendInactivePinNotification(const UPCGNode* InNode, const FPCGStack* InStack, uint64 InactiveOutputPinBitmask);
+
 	void SaveDirtyActors();
 	void ReleaseUnusedActors();
 

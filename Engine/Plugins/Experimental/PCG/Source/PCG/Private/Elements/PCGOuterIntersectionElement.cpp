@@ -9,13 +9,6 @@
 
 #define LOCTEXT_NAMESPACE "PCGOuterIntersectionElement"
 
-namespace PCGIntersectionConstants
-{
-	const FName PrimaryLabel = TEXT("Primary Source");
-	const FName SecondaryLabel = TEXT("Source");
-	const FText SecondaryTooltip = LOCTEXT("SecondaryPinLabel", "Secondary pin inputs will be implicitly unioned together before being compared to the primary pin's input for calculation of the intersection operation. Empty data passed along on one of the secondary pins will result in an empty intersection output, unless the 'Ignore Empty Secondary Input' flag is enabled.");
-}
-
 TArray<FPCGPinProperties> UPCGOuterIntersectionSettings::StaticInputPinProperties() const
 {
 	TArray<FPCGPinProperties> StaticPinProperties;

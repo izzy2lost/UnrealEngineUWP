@@ -46,6 +46,9 @@ public:
 	FName GetLabelStyle(FName DefaultLabelStyle) const;
 	bool GetExtraIcon(FName& OutExtraIcon, FText& OutTooltip) const;
 
+	/** Whether pin is required to be connected for execution. */
+	bool IsRequiredForExecution() const;
+
 private:
 	void ApplyUnusedPinStyle(FSlateColor& InOutColor) const;
 	void GetPCGNodeAndPin(const UPCGNode*& OutNode, const UPCGPin*& OutPin) const;
@@ -53,10 +56,9 @@ private:
 
 void SPCGEditorGraphNodePin::Construct(const FArguments& InArgs, UEdGraphPin* InPin)
 {
-	// TODO: replace this with base class when we have sufficient controls to change the padding
-	// IMPLEMENTATION NOTE: this is the code from SGraphPin::Construct
-	// e.g. SGraphPin::Construct(SGraphPin::FArguments().SideToSideMargin(0.0f), InPin);
-	// with additional padding exposed
+	// IMPLEMENTATION NOTE: this is the code from SGraphPin::Construct with additional padding exposed,
+	// with an optional extra icon shown before the pin label, and with a marker icon to show pins
+	// that are required for execution.
 
 	bUsePinColorForText = InArgs._UsePinColorForText;
 	this->SetCursor(EMouseCursor::Default);
@@ -76,6 +78,22 @@ void SPCGEditorGraphNodePin::Construct(const FArguments& InArgs, UEdGraphPin* In
 	);
 
 	const bool bIsInput = (GetDirection() == EGPD_Input);
+
+	// A small marker to indicate the pin is required for the node to be executed.
+	TSharedPtr<SImage> RequiredPinIconWidget;
+	float RequiredPinMarkerWidth = 0.0f;
+	bool bDisplayPinMarker = false;
+	if (bIsInput)
+	{
+		const FSlateBrush* RequiredPinMarkerIcon = FPCGEditorStyle::Get().GetBrush(PCGEditorStyleConstants::Pin_Required);
+		RequiredPinMarkerWidth = RequiredPinMarkerIcon ? RequiredPinMarkerIcon->GetImageSize().X : 8.0f;
+		bDisplayPinMarker = IsRequiredForExecution();
+
+		RequiredPinIconWidget =
+			SNew(SImage)
+			.Image(bDisplayPinMarker ? RequiredPinMarkerIcon : FAppStyle::GetNoBrush())
+			.ColorAndOpacity(this, &SPCGEditorGraphNodePin::GetPinColor);
+	}
 
 	// Create the pin icon widget
 	TSharedRef<SWidget> PinWidgetRef = SPinTypeSelector::ConstructPinTypeImage(
@@ -206,7 +224,13 @@ void SPCGEditorGraphNodePin::Construct(const FArguments& InArgs, UEdGraphPin* In
 			+SHorizontalBox::Slot()
 			.AutoWidth()
 			.VAlign(VAlign_Center)
-			.Padding(0, 0, InArgs._SideToSideMargin, 0)
+			[
+				RequiredPinIconWidget.ToSharedRef()
+			]
+			+SHorizontalBox::Slot()
+			.AutoWidth()
+			.VAlign(VAlign_Center)
+			.Padding(bDisplayPinMarker ? 0.0f : RequiredPinMarkerWidth, 0, InArgs._SideToSideMargin, 0)
 			[
 				PinWidgetRef
 			]
@@ -277,8 +301,14 @@ void SPCGEditorGraphNodePin::GetPCGNodeAndPin(const UPCGNode*& OutNode, const UP
 	if (GraphPin && !GraphPin->IsPendingKill())
 	{
 		const UPCGEditorGraphNodeBase* EditorNode = CastChecked<const UPCGEditorGraphNodeBase>(GraphPinObj->GetOwningNode());
+		
 		OutNode = EditorNode ? EditorNode->GetPCGNode() : nullptr;
+
 		OutPin = OutNode ? OutNode->GetInputPin(GraphPin->GetFName()) : nullptr;
+		if (!OutPin)
+		{
+			OutPin = OutNode ? OutNode->GetOutputPin(GraphPin->GetFName()) : nullptr;
+		}
 	}
 	else
 	{
@@ -291,11 +321,27 @@ void SPCGEditorGraphNodePin::ApplyUnusedPinStyle(FSlateColor& InOutColor) const
 {
 	const UPCGPin* PCGPin = nullptr;
 	const UPCGNode* PCGNode = nullptr;
-
 	GetPCGNodeAndPin(PCGNode, PCGPin);
 
+	bool bPinDisabled = false;
+
+	// Check if the pin was deactivated in the previous execution.
+	const UEdGraphPin* Pin = GetPinObj();
+	if (Pin && Pin->Direction == EEdGraphPinDirection::EGPD_Output)
+	{
+		if (const UPCGEditorGraphNodeBase* Node = Cast<UPCGEditorGraphNodeBase>(Pin ? Pin->GetOwningNode() : nullptr))
+		{
+			// If node is already disabled, don't bother disabling pin on top of that, does not look nice to disable both and may
+			// not be meaningful to do so in any case.
+			if (!Node->IsDisplayAsDisabledForced())
+			{
+				bPinDisabled = !Node->IsOutputPinActive(Pin);
+			}
+		}
+	}
+
 	// Halve opacity if pin is unused - intended to happen whether disabled or not
-	if (PCGPin && PCGNode && !PCGNode->IsPinUsedByNodeExecution(PCGPin))
+	if (bPinDisabled || (PCGPin && PCGNode && !PCGNode->IsPinUsedByNodeExecution(PCGPin)))
 	{
 		FLinearColor Color = InOutColor.GetSpecifiedColor();
 		Color.A *= 0.5;
@@ -349,6 +395,15 @@ bool SPCGEditorGraphNodePin::GetExtraIcon(FName& OutExtraIcon, FText& OutTooltip
 
 	const UPCGSettings* Settings = PCGNode ? PCGNode->GetSettings() : nullptr;
 	return (PCGPin && Settings) ? Settings->GetPinExtraIcon(PCGPin, OutExtraIcon, OutTooltip) : false;
+}
+
+bool SPCGEditorGraphNodePin::IsRequiredForExecution() const
+{
+	const UPCGPin* PCGPin = nullptr;
+	const UPCGNode* PCGNode = nullptr;
+	GetPCGNodeAndPin(PCGNode, PCGPin);
+
+	return PCGPin && PCGNode->IsInputPinRequiredByExecution(PCGPin);
 }
 
 void SPCGEditorGraphNode::Construct(const FArguments& InArgs, UPCGEditorGraphNodeBase* InNode)
@@ -523,51 +578,59 @@ void SPCGEditorGraphNode::AddPin(const TSharedRef<SGraphPin>& PinToAdd)
 	}
 
 	SGraphNode::AddPin(PinToAdd);
+
+	// The base class does not give an override to change the padding of the pin widgets, so do it here. Our input pins widgets include
+	// a small marker to indicate the pin is required, which need to display at the left edge of the node, so remove left padding.
+	if (PinToAdd->GetDirection() == EEdGraphPinDirection::EGPD_Input)
+	{
+		const int LastIndex = LeftNodeBox->GetChildren()->Num() - 1;
+		check(LastIndex >= 0);
+
+		SVerticalBox::FSlot& PinSlot = LeftNodeBox->GetSlot(LastIndex);
+
+		FMargin Margin = Settings->GetInputPinPadding();
+		Margin.Left = 0;
+		PinSlot.SetPadding(Margin);
+	}
 }
 
 void SPCGEditorGraphNode::GetOverlayBrushes(bool bSelected, const FVector2D WidgetSize, TArray<FOverlayBrushInfo>& Brushes) const
 {
 	check(PCGEditorGraphNode);
 	
-	if (!PCGEditorGraphNode->IsOnActiveBranch())
+	FVector2D OverlayOffset(0.0, 0.0);
+
+	auto AddOverlayBrush = [&OverlayOffset, &Brushes](const FName& BrushName)
 	{
-		const FSlateBrush* InactiveBranchBrush = FPCGEditorStyle::Get().GetBrush(PCGEditorStyleConstants::Node_Overlay_Inactive);
+		const FSlateBrush* Brush = FPCGEditorStyle::Get().GetBrush(BrushName);
 
-		FOverlayBrushInfo BrushInfo;
-		BrushInfo.Brush = InactiveBranchBrush;
-		BrushInfo.OverlayOffset = -InactiveBranchBrush->GetImageSize() / 2.0;
-		Brushes.Add(BrushInfo);
-	}
-	else
-	{
-		const FSlateBrush* DebugBrush = FPCGEditorStyle::Get().GetBrush(TEXT("PCG.NodeOverlay.Debug"));
-		const FSlateBrush* InspectBrush = FPCGEditorStyle::Get().GetBrush(TEXT("PCG.NodeOverlay.Inspect"));
-
-		const FVector2D HalfDebugBrushSize = DebugBrush->GetImageSize() / 2.0;
-		const FVector2D HalfInspectBrushSize = InspectBrush->GetImageSize() / 2.0;
-
-		FVector2D OverlayOffset(0.0, 0.0);
-
-		if (const UPCGNode* PCGNode = PCGEditorGraphNode->GetPCGNode())
-		{
-			if (PCGNode->GetSettingsInterface() && PCGNode->GetSettingsInterface()->bDebug)
-			{
-				FOverlayBrushInfo BrushInfo;
-				BrushInfo.Brush = DebugBrush;
-				BrushInfo.OverlayOffset = OverlayOffset - HalfDebugBrushSize;
-				Brushes.Add(BrushInfo);
-
-				OverlayOffset.Y += HalfDebugBrushSize.Y + HalfInspectBrushSize.Y;
-			}
-		}
-
-		if (PCGEditorGraphNode->GetInspected())
+		if (Brush)
 		{
 			FOverlayBrushInfo BrushInfo;
-			BrushInfo.Brush = InspectBrush;
-			BrushInfo.OverlayOffset = OverlayOffset - HalfInspectBrushSize;
+			BrushInfo.Brush = Brush;
+			BrushInfo.OverlayOffset = OverlayOffset - Brush->GetImageSize() / 2.0;
 			Brushes.Add(BrushInfo);
+
+			OverlayOffset.Y += Brush->GetImageSize().Y;
 		}
+	};
+
+	if (PCGEditorGraphNode->IsCulledFromExecution())
+	{
+		AddOverlayBrush(PCGEditorStyleConstants::Node_Overlay_Inactive);
+	}
+
+	if (const UPCGNode* PCGNode = PCGEditorGraphNode->GetPCGNode())
+	{
+		if (PCGNode->GetSettingsInterface() && PCGNode->GetSettingsInterface()->bDebug)
+		{
+			AddOverlayBrush(TEXT("PCG.NodeOverlay.Debug"));
+		}
+	}
+
+	if (PCGEditorGraphNode->GetInspected())
+	{
+		AddOverlayBrush(TEXT("PCG.NodeOverlay.Inspect"));
 	}
 }
 

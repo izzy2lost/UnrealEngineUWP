@@ -34,7 +34,7 @@ public:
 	void UpdatePropertyName(FName InNewName);
 
 	//~Begin UPCGSettings interface
-	virtual bool ShouldHookToPreTask() const override { return true; }
+	virtual bool RequiresDataFromPreTask() const override { return true; }
 #if WITH_EDITOR
 	virtual bool CanUserEditTitle() const override { return false; }
 #endif

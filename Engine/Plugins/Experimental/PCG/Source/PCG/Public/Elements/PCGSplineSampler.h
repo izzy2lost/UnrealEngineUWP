@@ -13,6 +13,12 @@ class UPCGPolyLineData;
 class UPCGSpatialData;
 class UPCGPointData;
 
+namespace PCGSplineSamplerConstants
+{
+	const FName SplineLabel = TEXT("Spline");
+	const FName BoundingShapeLabel = TEXT("Bounding Shape");
+}
+
 UENUM()
 enum class EPCGSplineSamplingMode : uint8
 {
@@ -188,12 +194,10 @@ public:
 	virtual FText GetDefaultNodeTitle() const override { return NSLOCTEXT("PCGSplineSamplerSettings", "NodeTitle", "Spline Sampler"); }
 	virtual FText GetNodeTooltipText() const override;
 	virtual EPCGSettingsType GetType() const override { return EPCGSettingsType::Sampler; }
-#endif
-
-#if WITH_EDITOR
 	virtual void ApplyDeprecation(UPCGNode* InOutNode) override;
 	virtual void ApplyDeprecationBeforeUpdatePins(UPCGNode* InOutNode, TArray<TObjectPtr<UPCGPin>>& InputPins, TArray<TObjectPtr<UPCGPin>>& OutputPins) override;
 #endif
+	virtual bool IsInputPinRequiredByExecution(const UPCGPin* InPin) const override { return InPin->Properties.Label == PCGSplineSamplerConstants::SplineLabel; }
 
 protected:
 	virtual TArray<FPCGPinProperties> InputPinProperties() const override;

@@ -18,7 +18,6 @@ class UPCGEditorGraph : public UEdGraph
 	GENERATED_BODY()
 
 public:
-
 	// ~Begin UObject interface
 	virtual void BeginDestroy() override;
 	// ~End UObject interface
@@ -42,6 +41,9 @@ public:
 
 	/** Updates the grid size visualization in the editor. */
 	void UpdateStructuralVisualization(UPCGComponent* PCGComponentBeingInspected, const FPCGStack* PCGStackBeingInspected);
+
+	/** Returns the PCG editor graph node corresponding to the given PCG node. */
+	const UPCGEditorGraphNodeBase* GetEditorNodeFromPCGNode(const UPCGNode* InPCGNode) const;
 
 protected:
 	void CreateLinks(UPCGEditorGraphNodeBase* InGraphNode, bool bCreateInbound, bool bCreateOutbound, const TMap<UPCGNode*, UPCGEditorGraphNodeBase*>& InPCGNodeToPCGEditorNodeMap);

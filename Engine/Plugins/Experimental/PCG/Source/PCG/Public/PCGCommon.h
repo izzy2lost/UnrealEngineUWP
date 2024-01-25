@@ -9,6 +9,32 @@
 using FPCGTaskId = uint64;
 static const FPCGTaskId InvalidPCGTaskId = (uint64)-1;
 
+using FPCGPinId = uint64;
+
+namespace PCGPinIdHelpers
+{
+	/** Pin active bitmask stored in uint64, so 64 flags available. */
+	constexpr int PinActiveBitmaskSize = 64;
+
+	/** There are 64 pin flags available, however we use flag 63 as a special pin-less ID for task dependencies that don't have associated pins. */
+	constexpr int MaxOutputPins = PinActiveBitmaskSize - 1;
+
+	/** Convert node ID and pin index to a unique pin ID. */
+	FPCGPinId NodeIdAndPinIndexToPinId(FPCGTaskId NodeId, uint64 PinIndex);
+
+	/** Create a pin ID from a node ID alone. Used for task inputs that don't have associated pins. */
+	FPCGPinId NodeIdToPinId(FPCGTaskId NodeId);
+
+	/** Adjust the pin ID to incorporate the given node ID offset. */
+	FPCGPinId OffsetNodeIdInPinId(FPCGPinId PinId, uint64 NodeIDOffset);
+
+	/** Extract node ID from the given pin ID. */
+	FPCGTaskId GetNodeIdFromPinId(FPCGPinId PinId);
+
+	/** Extract pin index from unique pin ID. */
+	uint64 GetPinIndexFromPinId(FPCGPinId PinId);
+}
+
 UENUM(meta = (Bitflags))
 enum class EPCGChangeType : uint8
 {

@@ -9,11 +9,12 @@
 
 enum class EPCGChangeType : uint8;
 
-struct FPCGStack;
 class UPCGComponent;
+class UPCGGraph;
 class UPCGNode;
 class UPCGPin;
 class UToolMenu;
+struct FPCGStack;
 
 UCLASS()
 class UPCGEditorGraphNodeBase : public UEdGraphNode
@@ -58,8 +59,9 @@ public:
 	void SetInspected(bool InIsInspecting) { bIsInspected = InIsInspecting; }
 	bool GetInspected() const { return bIsInspected; }
 
-	void SetOnActiveBranch(bool bInIsOnActiveBranch) { bIsOnActiveBranch = bInIsOnActiveBranch; }
-	bool IsOnActiveBranch() const { return bIsOnActiveBranch; }
+	/** Whether node was culled either during compilation or at execution time. */
+	void SetIsCulledFromExecution(bool bInIsCulledFromExecution) { bIsCulledFromExecution = bInIsCulledFromExecution; }
+	bool IsCulledFromExecution() const { return bIsCulledFromExecution; }
 
 	/** Increase deferred reconstruct counter, calls to ReconstructNode will flag reconstruct to happen when count hits zero */
 	void EnableDeferredReconstruct();
@@ -92,6 +94,12 @@ public:
 
 	/** Generated part of node title, not user editable (like "X = 5.0"). */
 	FText GetGeneratedTitleLine() const;
+
+	/** Bitmask of inactive output pins. Bit N will be set if output pin index N is inactive. */
+	uint64 GetInactiveOutputPinMask() const { return InactiveOutputPinMask; }
+
+	/** Whether the given output pin was active in the previous execution. */
+	bool IsOutputPinActive(const UEdGraphPin* InOutputPin) const;
 
 	/** Marks the node as re-nameable and provokes the node to update, placing the user in rename mode. */
 	void EnterRenamingMode();
@@ -139,5 +147,10 @@ protected:
 	bool bIsInspected = false;
 	bool bIsHighlighted = false;
 	bool bCanUserAddRemoveSourcePins = false;
-	bool bIsOnActiveBranch = true;
+
+	/** Whether this node was culled in the last execution. */
+	bool bIsCulledFromExecution = false;
+
+	/** Bitmask of inactive output pins. Bit N will be set if output pin index N is inactive. */
+	uint64 InactiveOutputPinMask = 0;
 };

@@ -22,12 +22,6 @@
 
 #define LOCTEXT_NAMESPACE "PCGSplineSamplerElement"
 
-namespace PCGSplineSamplerConstants
-{
-	const FName SplineLabel = TEXT("Spline");
-	const FName BoundingShapeLabel = TEXT("Bounding Shape");
-}
-
 namespace PCGSplineSamplerHelpers
 {
 	/**

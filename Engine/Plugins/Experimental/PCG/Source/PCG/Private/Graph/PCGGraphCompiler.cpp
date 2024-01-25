@@ -10,8 +10,18 @@
 #include "Elements/PCGHiGenGridSize.h"
 #include "Elements/PCGReroute.h"
 #include "Graph/PCGGraphExecutor.h"
+#include "Graph/PCGPinDependencyExpression.h"
 
+#include "HAL/IConsoleManager.h"
 #include "Misc/ScopeRWLock.h"
+
+namespace PCGGraphCompiler
+{
+	TAutoConsoleVariable<bool> CVarEnableTaskStaticCulling(
+		TEXT("pcg.GraphExecution.TaskStaticCulling"),
+		true,
+		TEXT("Enable static culling of tasks which considers static branches, generation grid size, trivial nodes and more."));
+}
 
 TArray<FPCGGraphTask> FPCGGraphCompiler::CompileGraph(UPCGGraph* InGraph, FPCGTaskId& NextId, FPCGStackContext& InOutStackContext)
 {
@@ -131,10 +141,13 @@ TArray<FPCGGraphTask> FPCGGraphCompiler::CompileGraph(UPCGGraph* InGraph, FPCGTa
 					continue;
 				}
 
+				// We hook to pretask if the element requires data from the pretask, or otherwise if there are no inputs, to ensure
+				// that the element executes with the other subgraph tasks (and can be culled if the subgraph node is culled).
 				const UPCGSettings* Settings = Subtask.Node->GetSettings();
-				if (Settings && Settings->ShouldHookToPreTask())
+				const bool bRequiresDataFromPreTask = Settings && Settings->RequiresDataFromPreTask();
+				if (bRequiresDataFromPreTask || Subtask.Inputs.IsEmpty())
 				{
-					Subtask.Inputs.Emplace(PreId, nullptr, nullptr);
+					Subtask.Inputs.Emplace(PreId, /*InInboundPin=*/nullptr, /*InOutboundPin=*/nullptr, bRequiresDataFromPreTask);
 				}
 			}
 
@@ -151,10 +164,14 @@ TArray<FPCGGraphTask> FPCGGraphCompiler::CompileGraph(UPCGGraph* InGraph, FPCGTa
 			// especially since we cannot distinguish between the pre and post during execution so any data filtering related to pins is bound to fail.
 			PostTask.Element = MakeShared<FPCGTrivialElement>();
 
+			// Add execution-only dependency on pre-task, without this post task can be scheduled concurrently with pre-task, and concurrently
+			// with something that might become inactive and would then fail to dynamically cull this already-scheduled task.
+			PostTask.Inputs.Emplace(PreId, /*InInboundPin=*/nullptr, /*InOutboundPin=*/nullptr, /*bInProvideData=*/false);
+
 			// Add subgraph output node task as input to the post-task
 			if (OutputNodeTask)
 			{
-				PostTask.Inputs.Emplace(OutputNodeTask->NodeId, nullptr, nullptr);
+				PostTask.Inputs.Emplace(OutputNodeTask->NodeId, /*InInboundPin=*/nullptr, /*InOutboundPin=*/nullptr);
 			}
 
 			check(!IdMapping.Contains(Node));
@@ -467,21 +484,71 @@ EPCGHiGenGrid FPCGGraphCompiler::CalculateGridRecursive(
 	return Grid;
 }
 
-bool FPCGGraphCompiler::CalculateActiveRecursive(FPCGTaskId InTaskId, const TArray<FPCGGraphTask>& InCompiledTasks, TMap<int32, bool>& InTaskIdToActiveFlag)
+bool FPCGGraphCompiler::CalculateStaticallyActiveRecursive(FPCGTaskId InTaskId, const TArray<FPCGGraphTask>& InCompiledTasks, TMap<int32, bool>& InOutTaskIdToActiveFlag)
 {
-	if (const bool* bEntry = InTaskIdToActiveFlag.Find(InTaskId))
+	if (const bool* bEntry = InOutTaskIdToActiveFlag.Find(InTaskId))
 	{
 		return *bEntry;
 	}
 
-	bool bAnyInputActive = false;
-
-	for (FPCGGraphTaskInput Input : InCompiledTasks[InTaskId].Inputs)
+	// Nodes within subgraphs - if the subgraph node is inactive then all tasks within the subgraph are inactive.
+	if (InCompiledTasks[InTaskId].ParentId != InvalidPCGTaskId)
 	{
+		const bool bParentActive = CalculateStaticallyActiveRecursive(InCompiledTasks[InTaskId].ParentId, InCompiledTasks, InOutTaskIdToActiveFlag);
+		if (!bParentActive)
+		{
+			InOutTaskIdToActiveFlag.Add(InTaskId, bParentActive);
+
+			return bParentActive;
+		}
+	}
+
+	const UPCGNode* Node = InCompiledTasks[InTaskId].Node;
+	if (!Node)
+	{
+		InOutTaskIdToActiveFlag.Add(InTaskId, true);
+		return true;
+	}
+
+	TArray<FName, TInlineAllocator<8>> PinsRequiringActiveConnection;
+
+	// Three relevant types of input pins - required, non-advanced and advanced. This tracks if we encounter the second category.
+	bool bHasAnyNonAdvancedPins = false;
+
+	for (UPCGPin* InputPin : Node->GetInputPins())
+	{
+		if (!InputPin)
+		{
+			continue;
+		}
+
+		bHasAnyNonAdvancedPins |= !InputPin->Properties.bAdvancedPin;
+
+		if (Node->IsInputPinRequiredByExecution(InputPin))
+		{
+			PinsRequiringActiveConnection.AddUnique(InputPin->Properties.Label);
+		}
+	}
+	
+	bool bHasAnyNonAdvancedInputs = false;
+	bool bHasAnyActiveNonAdvancedInput = false;
+
+	for (const FPCGGraphTaskInput& Input : InCompiledTasks[InTaskId].Inputs)
+	{
+		const UPCGPin* InputPin = Input.OutPin;
+
+		// Only non-advanced input pins play a part in determining active/inactive state.
+		if (InputPin && InputPin->Properties.bAdvancedPin)
+		{
+			continue;
+		}
+
+		bHasAnyNonAdvancedInputs = true;
+
 		// Default to tasks being active unless proved otherwise.
 		bool bInputActive = true;
 
-		// If we are connected to an upstream branch node, evaluate if the output pin is active.
+		// If we are connected to an upstream node, evaluate if the output pin is active.
 		const UPCGNode* UpstreamNode = InCompiledTasks[Input.TaskId].Node;
 		if (const UPCGSettings* UpstreamSettings = UpstreamNode ? UpstreamNode->GetSettings() : nullptr)
 		{
@@ -490,22 +557,49 @@ bool FPCGGraphCompiler::CalculateActiveRecursive(FPCGTaskId InTaskId, const TArr
 
 		if (bInputActive)
 		{
-			bInputActive &= CalculateActiveRecursive(Input.TaskId, InCompiledTasks, InTaskIdToActiveFlag);
+			bInputActive &= CalculateStaticallyActiveRecursive(Input.TaskId, InCompiledTasks, InOutTaskIdToActiveFlag);
 		}
 
 		if (bInputActive)
 		{
-			bAnyInputActive = true;
-			break;
+			bHasAnyActiveNonAdvancedInput = true;
+
+			if (InputPin)
+			{
+				// Register received input on this pin.
+				PinsRequiringActiveConnection.Remove(InputPin->Properties.Label);
+			}
 		}
 	}
 
-	const bool bActive = bAnyInputActive || InCompiledTasks[InTaskId].Inputs.IsEmpty();
-	InTaskIdToActiveFlag.Add(InTaskId, bActive);
+	const UPCGSettings* Settings = Node->GetSettings();
+	const bool bCanCullIfUnwired = Settings && Settings->CanCullTaskIfUnwired();
+
+	bool bActive = true;
+
+	if (!PinsRequiringActiveConnection.IsEmpty())
+	{
+		// If PinsRequiringActiveConnection is not empty then we did not find an input for each required pin.
+		bActive = false;
+	}
+	else if (bCanCullIfUnwired)
+	{
+		// Cull if we have non-advanced pins but we don't have any active non-advanced inputs.
+		bActive = !(bHasAnyNonAdvancedPins && !bHasAnyActiveNonAdvancedInput);
+	}
+	else if (bHasAnyNonAdvancedInputs)
+	{
+		// This task is allowed to be unwired, so we have non-advanced inputs and they're all inactive - basically
+		// all upstream inputs are inactive which forces this task to be inactive.
+		bActive = bHasAnyActiveNonAdvancedInput || InCompiledTasks[InTaskId].Inputs.IsEmpty();
+	}
+
+	InOutTaskIdToActiveFlag.Add(InTaskId, bActive);
+
 	return bActive;
 }
 
-void FPCGGraphCompiler::CullTasksStaticBranchNodes(TArray<FPCGGraphTask>& InOutCompiledTasks)
+void FPCGGraphCompiler::CullTasksStaticInactive(TArray<FPCGGraphTask>& InOutCompiledTasks)
 {
 	if (InOutCompiledTasks.IsEmpty())
 	{
@@ -518,7 +612,8 @@ void FPCGGraphCompiler::CullTasksStaticBranchNodes(TArray<FPCGGraphTask>& InOutC
 
 	for (int32 i = 1; i < InOutCompiledTasks.Num(); ++i)
 	{
-		CalculateActiveRecursive(InOutCompiledTasks[i].NodeId, InOutCompiledTasks, NodeIdToActiveFlag);
+		// Results of each call memoized via NodeIdToActiveFlag.
+		CalculateStaticallyActiveRecursive(InOutCompiledTasks[i].NodeId, InOutCompiledTasks, NodeIdToActiveFlag);
 	}
 
 	auto ShouldCull = [&NodeIdToActiveFlag](const FPCGGraphTask& InTask)
@@ -679,6 +774,112 @@ void FPCGGraphCompiler::PostCullStackCleanup(TArray<FPCGGraphTask>& InCompiledTa
 	}
 }
 
+void FPCGGraphCompiler::CalculateDynamicActivePinDependencies(FPCGTaskId InTaskId, TArray<FPCGGraphTask>& InOutCompiledTasks)
+{
+	if (!ensure(InOutCompiledTasks.IsValidIndex(InTaskId)))
+	{
+		return;
+	}
+
+	const UPCGNode* Node = InOutCompiledTasks[InTaskId].Node;
+
+	// First if there are any required pins, build the pin dependencies from these. We have an array of inputs, each one can
+	// correspond to a pin. Use a map to compile an expression for each input pin label.
+	TMap<FName, FPCGPinDependencyExpression> InputPinLabelToPinDependency;
+
+	for (const FPCGGraphTaskInput& Input : InOutCompiledTasks[InTaskId].Inputs)
+	{
+		if (!Node || !Input.OutPin)
+		{
+			continue;
+		}
+
+		const UPCGPin* InputPin = Input.OutPin;
+
+		// Consider only primary input pins in this pass.
+		if (!Node->IsInputPinRequiredByExecution(InputPin))
+		{
+			continue;
+		}
+
+		const UPCGNode* UpstreamNode = InOutCompiledTasks[Input.TaskId].Node;
+		if (!UpstreamNode)
+		{
+			continue;
+		}
+
+		const int PinIndex = UpstreamNode->GetOutputPins().IndexOfByPredicate([&Input](const UPCGPin* InPin)
+		{
+			return InPin == Input.InPin;
+		});
+
+		if (PinIndex != INDEX_NONE)
+		{
+			check(PinIndex < PCGPinIdHelpers::MaxOutputPins);
+
+			FPCGPinDependencyExpression& PinDependency = InputPinLabelToPinDependency.FindOrAdd(Input.OutPin->Properties.Label);
+			PinDependency.AddPinDependency(PCGPinIdHelpers::NodeIdAndPinIndexToPinId(Input.TaskId, PinIndex));
+		}
+	}
+
+	// Result expression. Conjunction of disjunctions of pin IDs that are required to be active for this task to be active.
+	// Example - keep task if: UpstreamPin0Active && (UpstreamPin1Active || UpstreamPin2Active)
+	FPCGPinDependencyExpression PinDependency;
+
+	if (!InputPinLabelToPinDependency.IsEmpty())
+	{
+		// If we have registered pin dependencies from the first pass (required pins) then we have can compose these for our pin
+		// dependency expression. Build conjunction from the per-pin disjunctions.
+		for (TPair<FName, FPCGPinDependencyExpression>& PinExpression : InputPinLabelToPinDependency)
+		{
+			PinDependency.AppendUsingConjunction(PinExpression.Value);
+		}
+	}
+	else
+	{
+		// If we don't have any dependent pins logged by now then there are no required pins (note that a node that does not have task
+		// inputs for required pins will be statically culled in an earlier compilation step). In which case we'll be active if *any* input
+		// is active. We build a disjunction that expresses this.
+		for (const FPCGGraphTaskInput& Input : InOutCompiledTasks[InTaskId].Inputs)
+		{
+			if (Input.OutPin && Input.OutPin->Properties.bAdvancedPin)
+			{
+				// Advanced input pins never participate in keeping node active.
+				continue;
+			}
+
+			if (const UPCGPin* UpstreamOutputPin = Input.InPin)
+			{
+				// Input connection is via node pins.
+				const UPCGNode* UpstreamNode = InOutCompiledTasks[Input.TaskId].Node;
+				if (!UpstreamNode)
+				{
+					continue;
+				}
+
+				const int PinIndex = UpstreamNode->GetOutputPins().IndexOfByPredicate([UpstreamOutputPin](const UPCGPin* InPin)
+				{
+					return InPin == UpstreamOutputPin;
+				});
+
+				if (PinIndex != INDEX_NONE)
+				{
+					check(PinIndex < PCGPinIdHelpers::MaxOutputPins);
+
+					PinDependency.AddPinDependency(PCGPinIdHelpers::NodeIdAndPinIndexToPinId(Input.TaskId, PinIndex));
+				}
+			}
+			else
+			{
+				// No associated pin, use a special pin ID for a pin-less dependency.
+				PinDependency.AddPinDependency(PCGPinIdHelpers::NodeIdToPinId(Input.TaskId));
+			}
+		}
+	}
+
+	InOutCompiledTasks[InTaskId].PinDependency = MoveTemp(PinDependency);
+}
+
 TArray<FPCGGraphTask> FPCGGraphCompiler::GetCompiledTasks(UPCGGraph* InGraph, uint32 GenerationGridSize, FPCGStackContext& OutStackContext, bool bIsTopGraph)
 {
 	TArray<FPCGGraphTask> CompiledTasks;
@@ -741,6 +942,8 @@ void FPCGGraphCompiler::OffsetNodeIds(TArray<FPCGGraphTask>& Tasks, FPCGTaskId O
 		{
 			Input.TaskId += Offset;
 		}
+
+		Task.PinDependency.OffsetNodeIds(Offset);
 	}
 }
 
@@ -766,38 +969,54 @@ void FPCGGraphCompiler::CompileTopGraph(UPCGGraph* InGraph, uint32 GenerationGri
 		return;
 	}
 
-	// Remove reroute nodes before execution grid setup, as grid linkages need final nodes to connect from/to.
-	CullTasks(CompiledTasks, /*bAddPassthroughWires=*/true, [](const FPCGGraphTask& InTask) { return InTask.Node && Cast<UPCGRerouteSettings>(InTask.Node->GetSettings()); });
-
-	// Cull inactive branches downstream of branch nodes with static selection values.
-	CullTasksStaticBranchNodes(CompiledTasks);
-
-	// For hierarchical generation resolve the execution grid for each task and cull any tasks that won't execute.
-	// TODO - we could add an else branch for higen disabled that culls the grid size nodes.
-	if (InGraph->IsHierarchicalGenerationEnabled() && GenerationGridSize != PCGHiGenGrid::UninitializedGridSize())
+	if (PCGGraphCompiler::CVarEnableTaskStaticCulling.GetValueOnAnyThread())
 	{
-		const EPCGHiGenGrid GenerationGrid = PCGHiGenGrid::GridSizeToGrid(GenerationGridSize);
-		const EPCGHiGenGrid DefaultGrid = PCGHiGenGrid::GridSizeToGrid(InGraph->GetDefaultGridSize());
+		// Remove reroute nodes before execution grid setup, as grid linkages need final nodes to connect from/to.
+		CullTasks(CompiledTasks, /*bAddPassthroughWires=*/true, [](const FPCGGraphTask& InTask) { return InTask.Node && Cast<UPCGRerouteSettings>(InTask.Node->GetSettings()); });
 
-		// Propagate grid size nodes through the graph to determine which grid size each task should execute on.
-		TArray<EPCGHiGenGrid> TaskGenerationGrid;
-		TaskGenerationGrid.SetNumZeroed(CompiledTasks.Num());
-		ResolveGridSizes(GenerationGrid, CompiledTasks, StackContext, DefaultGrid, TaskGenerationGrid);
+		// Cull inactive branches downstream of branch nodes with static selection values.
+		CullTasksStaticInactive(CompiledTasks);
 
-		// Create linkage tasks for edges that cross from large grid to small grid tasks.
-		CreateGridLinkages(GenerationGrid, TaskGenerationGrid, CompiledTasks, StackContext);
-
-		// Cull any task that should not execute on the current grid.
-		CullTasks(CompiledTasks, /*bAddPassthroughWires=*/false, [GenerationGrid, &TaskGenerationGrid](const FPCGGraphTask& InTask)
+		// For hierarchical generation resolve the execution grid for each task and cull any tasks that won't execute.
+		// TODO - we could add an else branch for higen disabled that culls the grid size nodes.
+		if (InGraph->IsHierarchicalGenerationEnabled() && GenerationGridSize != PCGHiGenGrid::UninitializedGridSize())
 		{
-			const EPCGHiGenGrid TaskGrid = TaskGenerationGrid[InTask.NodeId];
-			return TaskGrid != EPCGHiGenGrid::Uninitialized && !(TaskGrid & GenerationGrid);
-		});
+			const EPCGHiGenGrid GenerationGrid = PCGHiGenGrid::GridSizeToGrid(GenerationGridSize);
+			const EPCGHiGenGrid DefaultGrid = PCGHiGenGrid::GridSizeToGrid(InGraph->GetDefaultGridSize());
+
+			// Propagate grid size nodes through the graph to determine which grid size each task should execute on.
+			TArray<EPCGHiGenGrid> TaskGenerationGrid;
+			TaskGenerationGrid.SetNumZeroed(CompiledTasks.Num());
+			ResolveGridSizes(GenerationGrid, CompiledTasks, StackContext, DefaultGrid, TaskGenerationGrid);
+
+			// Create linkage tasks for edges that cross from large grid to small grid tasks.
+			CreateGridLinkages(GenerationGrid, TaskGenerationGrid, CompiledTasks, StackContext);
+
+			// Cull any task that should not execute on the current grid.
+			CullTasks(CompiledTasks, /*bAddPassthroughWires=*/false, [GenerationGrid, &TaskGenerationGrid](const FPCGGraphTask& InTask)
+			{
+				const EPCGHiGenGrid TaskGrid = TaskGenerationGrid[InTask.NodeId];
+				return TaskGrid != EPCGHiGenGrid::Uninitialized && !(TaskGrid & GenerationGrid);
+			});
+		}
 	}
 
 	// Post culling - remove any stacks that are no longer part of execution. Besides being tidy this also helps
 	// debug tools discern which stacks were executed or not.
 	PostCullStackCleanup(CompiledTasks, StackContext);
+
+	// To feed dynamic culling at execution time, build list of upstream pins that we depend on (if all of these pins
+	// are determined to be inactive at execution time, then the task will be deactivated). An empty list means the
+	// task will never be deactivated and will always execute.
+	// TODO: Expand pin dependencies to pure branches that aren't directly downstream - nodes that have no side effects
+	// and feed into a branch can also be culled if the branch is culled.
+	// TODO: Pin dependencies should be transitive across nodes. If a node is dependent on a single upstream node, it could
+	// likely take the pin dependencies from the upstream node, which should save iterations in the dynamic culling code.
+	for (int TaskIndex = 0; TaskIndex < CompiledTasks.Num(); ++TaskIndex)
+	{
+		// Result is written directly to tasks.
+		CalculateDynamicActivePinDependencies(CompiledTasks[TaskIndex].NodeId, CompiledTasks);
+	}
 
 	const int TaskNum = CompiledTasks.Num();
 	const FPCGTaskId PreExecuteTaskId = FPCGTaskId(TaskNum);

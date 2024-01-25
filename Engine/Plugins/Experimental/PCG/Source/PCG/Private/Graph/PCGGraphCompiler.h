@@ -58,16 +58,19 @@ private:
 		const FPCGStackContext& InStackContext);
 
 	/** Discovers whether task is on a statically active branch (and needs to be passed to graph executor). */
-	static bool CalculateActiveRecursive(FPCGTaskId InTaskId, const TArray<FPCGGraphTask>& InCompiledTasks, TMap<int32, bool>& InTaskIdToActiveFlag);
+	static bool CalculateStaticallyActiveRecursive(FPCGTaskId InTaskId, const TArray<FPCGGraphTask>& InCompiledTasks, TMap<int32, bool>& InTaskIdToActiveFlag);
 
-	/** Culls nodes that are not on statically active branches. */
-	static void CullTasksStaticBranchNodes(TArray<FPCGGraphTask>& InOutCompiledTasks);
+	/** Culls nodes that are inactive for e.g. missing required inputs or on a statically inactive branch. */
+	static void CullTasksStaticInactive(TArray<FPCGGraphTask>& InOutCompiledTasks);
 
 	/** Culls tasks based on a given lambda. Never culls the first (input) task in the array. */
 	static void CullTasks(TArray<FPCGGraphTask>& InOutCompiledTasks, bool bAddPassthroughWires, TFunctionRef<bool(const FPCGGraphTask&)> CullTask);
 
 	/** Remove any stack frames that are not used by any task. */
 	static void PostCullStackCleanup(TArray<FPCGGraphTask>& InCompiledTasks, FPCGStackContext& InOutStackContext);
+
+	/** Task will be active if *any* of the upstream pin IDs are active, or if the pin ID list is empty. */
+	static void CalculateDynamicActivePinDependencies(FPCGTaskId InTaskId, TArray<FPCGGraphTask>& InOutCompiledTasks);
 
 	mutable FRWLock GraphToTaskMapLock;
 	TMap<UPCGGraph*, TArray<FPCGGraphTask>> GraphToTaskMap;

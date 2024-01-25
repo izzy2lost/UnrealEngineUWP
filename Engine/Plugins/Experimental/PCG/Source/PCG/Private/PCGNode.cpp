@@ -637,6 +637,12 @@ const UPCGPin* UPCGNode::GetPassThroughOutputPin() const
 	return GetOutputPins().Num() > PrimaryOutputPinIndex ? GetOutputPins()[PrimaryOutputPinIndex] : nullptr;
 }
 
+bool UPCGNode::IsInputPinRequiredByExecution(const UPCGPin* InPin) const
+{
+	const UPCGSettings* Settings = GetSettings();
+	return !Settings || Settings->IsInputPinRequiredByExecution(InPin);
+}
+
 bool UPCGNode::IsPinUsedByNodeExecution(const UPCGPin* InPin) const
 {
 	check(InPin);

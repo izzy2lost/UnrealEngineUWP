@@ -46,6 +46,12 @@ FText UPCGSwitchSettings::GetNodeTooltipText() const
 
 bool UPCGSwitchSettings::IsPinStaticallyActive(const FName& PinLabel) const
 {
+	if (!bEnabled)
+	{
+		// If node disabled, active pin is first pin - first option or otherwise default.
+		return PinLabel == (CachedPinLabels.IsEmpty() ? PCGPinConstants::DefaultInputLabel : CachedPinLabels[0]);
+	}
+
 	// Dynamic branches are never known in advance - assume all branches are active prior to execution.
 	if (IsSwitchDynamic())
 	{
@@ -226,6 +232,33 @@ bool UPCGSwitchSettings::IsValuePresent(const int64 Value) const
 	return Index != INDEX_NONE && Index < EnumSelection.Class->NumEnums() - 1;
 }
 
+int UPCGSwitchSettings::GetSelectedOutputPinIndex() const
+{
+	if (SelectionMode == EPCGControlFlowSelectionMode::Integer)
+	{
+		// Return selected pin index or if no selection matched return the index after the options which will be "Default" pin.
+		const int Index = IntOptions.IndexOfByKey(IntegerSelection);
+		return Index != INDEX_NONE ? Index : IntOptions.Num();
+	}
+	else if (SelectionMode == EPCGControlFlowSelectionMode::String)
+	{
+		// Return selected pin index or if no selection matched return the index after the options which will be "Default" pin.
+		const int Index = StringOptions.IndexOfByKey(StringSelection);
+		return Index != INDEX_NONE ? Index : StringOptions.Num();
+	}
+	else if (SelectionMode == EPCGControlFlowSelectionMode::Enum)
+	{
+		// A "hidden" value could be selected that wasn't cached, so do a name-wise comparison
+		const FName PinLabel(EnumSelection.Class->GetDisplayNameTextByValue(EnumSelection.Value).ToString());
+
+		// Return index if found, otherwise fallback to the index after the options which will be "Default" pin.
+		const int FoundIndex = CachedPinLabels.IndexOfByKey(PinLabel);
+		return FoundIndex != INDEX_NONE ? FoundIndex : StringOptions.Num();
+	}
+
+	return INDEX_NONE;
+}
+
 bool UPCGSwitchSettings::GetSelectedPinLabel(FName& OutSelectedPinLabel) const
 {
 	if (CachedPinLabels.IsEmpty())
@@ -281,6 +314,38 @@ void UPCGSwitchSettings::CachePinLabels()
 	});
 }
 
+bool UPCGSwitchSettings::IsPinUsedByNodeExecution(const UPCGPin* InPin) const
+{
+	if (!InPin->IsOutputPin())
+	{
+		return Super::IsPinUsedByNodeExecution(InPin);
+	}
+
+	// Dynamic control flow never known statically - assume all branches are active prior to execution.
+	if (IsSwitchDynamic())
+	{
+		return true;
+	}
+
+	if (CachedPinLabels.IsEmpty())
+	{
+		// Labels not ready yet. Assumed used.
+		return true;
+	}
+
+	const int SelectedPinIndex = GetSelectedOutputPinIndex();
+	if (SelectedPinIndex == INDEX_NONE || !CachedPinLabels.IsValidIndex(SelectedPinIndex))
+	{
+		ensure(false);
+		return true;
+	}
+
+	// TODO disabled state? Discussing with Ryan.
+	//const FName ActiveOutputPinLabel = (bEnabled && bOutputToB) ? PCGBranchConstants::OutputLabelB : PCGBranchConstants::OutputLabelA;
+
+	return InPin->Properties.Label == CachedPinLabels[SelectedPinIndex];
+}
+
 bool FPCGSwitchElement::ExecuteInternal(FPCGContext* Context) const
 {
 	TRACE_CPUPROFILER_EVENT_SCOPE(FPCGSwitchElement::ExecuteInternal);
@@ -297,6 +362,18 @@ bool FPCGSwitchElement::ExecuteInternal(FPCGContext* Context) const
 
 	// Reuse the functionality of the Gather node
 	Context->OutputData = PCGGather::GatherDataForPin(Context->InputData, PCGPinConstants::DefaultInputLabel, SelectedPinLabel);
+
+	// Output bitmask of deactivated pins.
+	const int NumOutputPins = Context->Node ? Context->Node->GetOutputPins().Num() : 0;
+	if (ensure(NumOutputPins > 0))
+	{
+		const int SelectedPinIndex = Settings->GetSelectedOutputPinIndex();
+		if (ensure(SelectedPinIndex != INDEX_NONE))
+		{
+			const int AllPinsMask = (1 << NumOutputPins) - 1;
+			Context->OutputData.InactiveOutputPinBitmask = ~(1 << SelectedPinIndex) & AllPinsMask;
+		}
+	}
 
 	return true;
 }

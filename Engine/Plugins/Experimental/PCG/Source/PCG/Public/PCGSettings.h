@@ -243,6 +243,9 @@ public:
 	/** If the node has any dynamic pins that can change based on input or settings */
 	virtual bool HasDynamicPins() const { return false; }
 
+	/** Whether this node can deactivate its output pins during execution, which can dynamically cull downstream nodes. */
+	virtual bool OutputPinsCanBeDeactivated() const { return false; }
+
 	/** Bitwise union of the allowed types of each incident edge on pin. Returns None if no common bits, or no edges. */
 	EPCGDataType GetTypeUnionOfIncidentEdges(const FName& PinLabel) const;
 
@@ -313,6 +316,9 @@ public:
 
 	/** Perform post-operations when an editor node is copied */
 	virtual void PostPaste();
+
+	/** Whether the node will emit one or more tasks for execution. */
+	virtual bool EmitsTaskForExecution() const { return true; }
 #endif // WITH_EDITOR
 
 	/** Derived classes can implement this to expose additional information or context, such as an asset in use by the node. */
@@ -335,11 +341,21 @@ public:
 	UE_DEPRECATED(5.4, "AdditionalTaskName is deprecated and is replaced with GetAdditionalTitleInformation.")
 	virtual FName AdditionalTaskName() const { return FName(GetAdditionalTitleInformation()); }
 
+	/** By default a node does not specify any pin requirements, and will execute if it has no non-advanced pins or if it has any active
+	* connection to any pin. Override this function to specify which pins *must* have active connections to avoid getting culled.
+	*/
+	virtual bool IsInputPinRequiredByExecution(const UPCGPin* InPin) const { return false; }
+
 	/** Returns true if InPin is in use by node (assuming node enabled). Can be used to communicate when a pin is not in use to user. */
 	virtual bool IsPinUsedByNodeExecution(const UPCGPin* InPin) const { return true; }
 
 	/** True if we know prior to execution that the given pin will be active (not on inactive branch). */
 	virtual bool IsPinStaticallyActive(const FName& OutputPinLabel) const { return true; }
+
+	/** True if we can safely cull this node & task if it has unwired non-advanced inputs. Counter-example: BP nodes may have side effects and always execute
+	* if not on an inactive branch.
+	*/
+	virtual bool CanCullTaskIfUnwired() const { return true; }
 
 	/** Returns true if only the first input edge is used from the primary pin when the node is disabled. */
 	virtual bool OnlyPassThroughOneEdgeWhenDisabled() const { return false; }
@@ -436,7 +452,7 @@ public:
 	virtual bool HasOverridableParams() const { return !CachedOverridableParams.IsEmpty(); }
 
 	/** Check if we need to hook the output of the pre-task to this. One use is to compute overrides in the subgraph element and pass the overrides as data, to all nodes that needs it. */
-	virtual bool ShouldHookToPreTask() const { return false; }
+	virtual bool RequiresDataFromPreTask() const { return false; }
 protected:
 	/** Iterate over OverridableParams to automatically add param pins to the list. */
 	void FillOverridableParamsPins(TArray<FPCGPinProperties>& OutPins) const;

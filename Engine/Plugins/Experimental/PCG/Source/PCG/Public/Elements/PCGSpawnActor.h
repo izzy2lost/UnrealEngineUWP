@@ -110,6 +110,7 @@ public:
 #endif // WITH_EDITOR
 
 	//~Begin UCPGSettings interface
+	virtual bool IsInputPinRequiredByExecution(const UPCGPin* InPin) const override { return !InPin->Properties.bAdvancedPin; }
 	virtual UPCGNode* CreateNode() const override;
 
 #if WITH_EDITOR	

@@ -21,6 +21,10 @@ public:
 	UPROPERTY(EditAnywhere, Config, Category = Workflow)
 	bool bGenerateOnDrop = true;
 
+	/** Display culling state in graph editor when a debug object is selected (requires regeneration to apply). */
+	UPROPERTY(EditAnywhere, Config, Category = Workflow)
+	bool bDisplayCullingStateWhenDebugging = true;
+
 #if WITH_EDITORONLY_DATA
 	// Console variables defined in PCGActorAndComponentMapping.cpp
 	// Use the variables to get the values, not GetDefault<UPCGEngineSettings>

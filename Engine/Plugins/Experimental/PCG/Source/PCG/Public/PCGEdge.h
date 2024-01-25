@@ -31,9 +31,11 @@ public:
 	UPROPERTY()
 	TObjectPtr<UPCGNode> OutboundNode_DEPRECATED;
 
+	/** Pin at upstream end of edge. */
 	UPROPERTY()
 	TObjectPtr<UPCGPin> InputPin;
 
+	/** Pin at downstream end of edge. */
 	UPROPERTY()
 	TObjectPtr<UPCGPin> OutputPin;
 
