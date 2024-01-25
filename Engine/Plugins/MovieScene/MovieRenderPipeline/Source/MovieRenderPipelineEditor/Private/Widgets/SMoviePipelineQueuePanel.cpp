@@ -72,6 +72,10 @@ void SMoviePipelineQueuePanel::Construct(const FArguments& InArgs)
 		UMoviePipelineExecutorJob::StaticClass(),
 		FOnGetDetailCustomizationInstance::CreateStatic(&FJobDetailsCustomization::MakeInstance));
 
+	JobDetailsPanelWidget->RegisterInstancedCustomPropertyLayout(
+		UMoviePipelineExecutorShot::StaticClass(),
+		FOnGetDetailCustomizationInstance::CreateStatic(&FJobDetailsCustomization::MakeInstance));
+
 	JobDetailsPanelWidget->RegisterInstancedCustomPropertyTypeLayout(
 		FMovieGraphNamedResolution::StaticStruct()->GetFName(),
 		FOnGetPropertyTypeCustomizationInstance::CreateStatic(&FMovieGraphNamedResolutionCustomization::MakeInstance));
@@ -499,12 +503,18 @@ void SMoviePipelineQueuePanel::OnConfigUpdatedForJobToPreset(TWeakObjectPtr<UMov
 	OnConfigWindowClosed();
 }
 
-void SMoviePipelineQueuePanel::OnSelectionChanged(const TArray<UMoviePipelineExecutorJob*>& InSelectedJobs)
+void SMoviePipelineQueuePanel::OnSelectionChanged(const TArray<UMoviePipelineExecutorJob*>& InSelectedJobs, const TArray<UMoviePipelineExecutorShot*>& InSelectedShots)
 {
 	TArray<UObject*> Jobs;
-	for (UMoviePipelineExecutorJob* Job : InSelectedJobs)
+
+	// Select the shot if a shot is selected, otherwise select the primary job
+	if (!InSelectedShots.IsEmpty())
 	{
-		Jobs.Add(Job);
+		Jobs.Append(InSelectedShots);
+	}
+	else
+	{
+		Jobs.Append(InSelectedJobs);
 	}
 	
 	JobDetailsPanelWidget->SetObjects(Jobs);
