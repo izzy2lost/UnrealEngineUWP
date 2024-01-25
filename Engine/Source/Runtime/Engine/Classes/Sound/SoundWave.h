@@ -339,7 +339,7 @@ enum class ESoundAssetCompressionType : uint8
 	ProjectDefined,
 
 	// As BinkAudio, except better quality. Comparable CPU usage.
-	RadAudio,
+	RADAudio UMETA(DisplayName = "RAD Audio"),
 };
 
 
@@ -349,7 +349,7 @@ namespace Audio
 	{
 		switch (InDecoderType)
 		{
-		case ESoundAssetCompressionType::RadAudio:				return NAME_RADA;
+		case ESoundAssetCompressionType::RADAudio:				return NAME_RADA;
 		case ESoundAssetCompressionType::BinkAudio:				return NAME_BINKA;
 		case ESoundAssetCompressionType::ADPCM:					return NAME_ADPCM;
 		case ESoundAssetCompressionType::PCM:					return NAME_PCM;
@@ -366,7 +366,7 @@ namespace Audio
 	{
 		switch (InDefaultCompressionType)
 		{
-			case EDefaultAudioCompressionType::RadAudio:			return ESoundAssetCompressionType::RadAudio;
+			case EDefaultAudioCompressionType::RADAudio:			return ESoundAssetCompressionType::RADAudio;
 			case EDefaultAudioCompressionType::BinkAudio:			return ESoundAssetCompressionType::BinkAudio;
 			case EDefaultAudioCompressionType::ADPCM:				return ESoundAssetCompressionType::ADPCM;
 			case EDefaultAudioCompressionType::PCM:					return ESoundAssetCompressionType::PCM;
