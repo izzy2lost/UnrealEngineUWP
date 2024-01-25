@@ -35,7 +35,7 @@ enum ESequencerZoomPosition : int
 	SZP_MousePosition UMETA(DisplayName="Mouse Position"),
 };
 
-UENUM()
+UENUM(BlueprintType)
 enum ESequencerLoopMode : int
 {
 	/** No Looping. */
