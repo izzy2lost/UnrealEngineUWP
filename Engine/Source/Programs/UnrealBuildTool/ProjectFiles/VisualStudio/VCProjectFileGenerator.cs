@@ -93,6 +93,12 @@ namespace UnrealBuildTool
 		/// </summary>
 		[XmlConfigFile(Category = "VCProjectFileGenerator")]
 		public bool bBuildLiveCodingConsole = false;
+
+		/// <summary>
+		/// Whether to generate a project file for each individual target, and not include e.g. Editor/Client/Server in the Configuration.
+		/// </summary>
+		[XmlConfigFile(Category = "VCProjectFileGenerator")]
+		public bool bMakeProjectPerTarget = false;
 	}
 
 	/// <summary>
@@ -101,14 +107,14 @@ namespace UnrealBuildTool
 	class VCProjectFileGenerator : ProjectFileGenerator
 	{
 		/// <summary>
-		/// Set to true to enable a project for each target, and do not put the target type into the configuration
-		/// </summary>
-		protected override bool bMakeProjectPerTarget => false;
-
-		/// <summary>
 		/// The settings object
 		/// </summary>
 		protected VCProjectFileSettings Settings = new VCProjectFileSettings();
+
+		/// <summary>
+		/// Set to true to enable a project for each target, and do not put the target type into the configuration
+		/// </summary>
+		protected override bool bMakeProjectPerTarget => Settings.bMakeProjectPerTarget;
 
 		/// <summary>
 		/// Override for the build tool to use in generated projects. If the compiler version is specified on the command line, we use the same argument on the 
