@@ -154,7 +154,7 @@ void UTargetingSubsystem::Deinitialize()
 
 bool UTargetingSubsystem::Exec_Runtime(UWorld* Inworld, const TCHAR* Cmd, FOutputDevice& Ar)
 {
-	if (HasAnyFlags(RF_ClassDefaultObject) || IsDefaultSubobject())
+	if (IsTemplate())
 	{
 		return false;
 	}
