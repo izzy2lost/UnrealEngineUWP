@@ -22,7 +22,7 @@ namespace UE::Audio::Insights
 {
 	namespace DashboardFactoryPrivate
 	{
-		static const FText ToolName = LOCTEXT("AudioDashboard_ToolName", "Audio Dashboard");
+		static const FText ToolName = LOCTEXT("AudioDashboard_ToolName", "Audio Insights");
 
 		static const FLazyName MainToolbarName = "MainToolbar";
 		static const FText MainToolbarDisplayName = LOCTEXT("AudioDashboard_MainToolbarDisplayName", "Dashboard Transport");
@@ -554,7 +554,7 @@ namespace UE::Audio::Insights
 	void FDashboardFactory::RegisterViewFactory(TSharedRef<IDashboardViewFactory> InFactory)
 	{
 		const FName Name = InFactory->GetName();
-		if (ensureAlwaysMsgf(!DashboardViewFactories.Contains(Name), TEXT("Failed to register Audio Dashboard '%s': Dashboard with name already registered"), *Name.ToString()))
+		if (ensureAlwaysMsgf(!DashboardViewFactories.Contains(Name), TEXT("Failed to register Audio Insights Dashboard '%s': Dashboard with name already registered"), *Name.ToString()))
 		{
 			DashboardViewFactories.Add(Name, InFactory);
 		}
