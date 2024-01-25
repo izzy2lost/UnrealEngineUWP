@@ -745,11 +745,25 @@ void FTextureEditorToolkit::PopulateQuickInfo( )
 			} // end if encode speed supported
 		} // end if results metadata valid
 
-		SourceMipsAlphaDetectedText->SetText(FText::Format(NSLOCTEXT("TextureEditor", "QuickInfo_SourceAlphaDetected", "Source Alpha Detected: {0}"),
-			PlatformData->bSourceMipsAlphaDetectedValid ? (PlatformData->bSourceMipsAlphaDetected ? NSLOCTEXT("TextureEditor", "True", "True") : NSLOCTEXT("TextureEditor", "False", "False")) : NSLOCTEXT("TextureEditor", "Unknown", "Unknown")));
+		if (Texture->Source.IsValid() &&
+			Texture->Source.GetLayerColorInfo().Num())
+		{
+			// Make a 1x1 image with our max colors to use for alpha detection.
+			FImageView View(&Texture->Source.GetLayerColorInfo()[0].ColorMin, 1, 1);
+
+			bool bSourceAlphaDetected = FImageCore::DetectAlphaChannel(View);
+			SourceMipsAlphaDetectedText->SetText(FText::Format(NSLOCTEXT("TextureEditor", "QuickInfo_SourceAlphaDetected", "Source Alpha Detected: {0}"),
+				bSourceAlphaDetected ? NSLOCTEXT("TextureEditor", "True", "True") : NSLOCTEXT("TextureEditor", "False", "False")));
+		}
+		else
+		{
+			SourceMipsAlphaDetectedText->SetText(FText::Format(NSLOCTEXT("TextureEditor", "QuickInfo_SourceAlphaDetected", "Source Alpha Detected: {0}"),
+				NSLOCTEXT("TextureEditor", "Unknown", "Unknown")));
+		}
 	} // end if valid platform data
 
 	UTexture2D* Texture2D = Cast<UTexture2D>(Texture);
+
 
 	const bool bIsVolume = IsVolumeTexture();
 	const bool bIsArray = IsArrayTexture();

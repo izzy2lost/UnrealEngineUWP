@@ -77,9 +77,6 @@ static TAutoConsoleVariable<int32> CVarTexturesCookToDerivedDataReferences(
 static const FGuid GTextureSLEDerivedDataVer(0xBD855730U, 0xA5B44BBBU, 0x89D051D0U, 0x695AC618U);
 const FGuid& GetTextureSLEDerivedDataVersion() { return GTextureSLEDerivedDataVer; }
 
-// This GUID is copied in TextureBuildFunction.cpp for the IBuild flow (TextureMetadataDerivedDataVer)
-#define TEXTURE_METADATA_DERIVEDDATA_VER TEXT("B9106D68A61B4F2A8105E16F48799976")
-
 static bool IsUsingNewDerivedData()
 {
 	struct FTextureDerivedDataSetting
@@ -555,18 +552,6 @@ void GetTextureDerivedMipKey(
 		TEXTURE_DERIVEDDATA_VER,
 		*FString::Printf(TEXT("%s_MIP%u_%dx%d"), *KeySuffix, MipIndex, Mip.SizeX, Mip.SizeY)
 		);
-}
-
-// Get the ddc key for the texture metadata (old build flow).
-UE::DerivedData::FCacheKey GetTextureDerivedMetadataKeyFromSuffix(
-	const FString& KeySuffix
-	)
-{
-	FString Key = FDerivedDataCacheInterface::BuildCacheKey(
-		TEXT("TEXTURE"),
-		TEXTURE_DERIVEDDATA_VER,
-		*(KeySuffix + FString(TEXT("_METADATA_" TEXTURE_METADATA_DERIVEDDATA_VER))));
-	return UE::DerivedData::ConvertLegacyCacheKey(Key);
 }
 
 /**
@@ -1259,8 +1244,6 @@ static void GetBuildSettingsPerFormat(
 	}
 }
 
-void UnpackTextureBuildMetadataFromPlatformData(UE::TextureBuildUtilities::FTextureBuildMetadata* BuildMetadata, const FTexturePlatformData* PlatformData);
-
 /**
  * Stores derived data in the DDC.
  * After this returns, all bulk data from streaming (non-inline) mips will be sent separately to the DDC and the BulkData for those mips removed.
@@ -1279,20 +1262,6 @@ int64 PutDerivedDataInCache(FTexturePlatformData* DerivedData, const FString& De
 
 	// Build the key with which to cache derived data.
 	GetTextureDerivedDataKeyFromSuffix(DerivedDataKeySuffix, DerivedDataKey);
-
-	{
-		// Store the metadata.
-		UE::TextureBuildUtilities::FTextureBuildMetadata BuildMetadata;
-		UnpackTextureBuildMetadataFromPlatformData(&BuildMetadata, DerivedData);
-		FCbObject MetadataObject = BuildMetadata.ToCompactBinaryWithDefaults();
-		UE::DerivedData::FValue Value = UE::DerivedData::FValue::Compress(MetadataObject.GetBuffer());
-
-		const UE::DerivedData::FSharedString Name(WriteToString<256>(TextureName, TEXTVIEW(" [Meta]")));
-		UE::DerivedData::FRequestOwner AsyncOwner(UE::DerivedData::EPriority::Normal);
-		const UE::DerivedData::ECachePolicy Policy = bReplaceExistingDDC ? UE::DerivedData::ECachePolicy::Store : UE::DerivedData::ECachePolicy::Default;
-		UE::DerivedData::GetCache().PutValue({ {Name, GetTextureDerivedMetadataKeyFromSuffix(DerivedDataKeySuffix), MoveTemp(Value), Policy} }, AsyncOwner);
-		AsyncOwner.KeepAlive();
-	}
 
 	FString LogString;
 
@@ -1564,7 +1533,6 @@ void FTexturePlatformData::Reset()
 	CPUCopy.SafeRelease();
 
 #if WITH_EDITORONLY_DATA
-	bSourceMipsAlphaDetectedValid = false;
 	PreEncodeMipsHash = 0;
 	ResultMetadata.bIsValid = false;
 #endif
