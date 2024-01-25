@@ -26,7 +26,6 @@ namespace UE::MultiUserClient
 	public:
 		
 		FSubmissionWorkflow_LocalClient(TSharedRef<IConcertSyncClient> InClient);
-		virtual ~FSubmissionWorkflow_LocalClient() override;
 		
 		//~ Begin ISubmissionWorkflow Interface
 		virtual TSharedPtr<ISubmissionOperation> SubmitChanges(FSubmissionParams Params) override;
@@ -61,8 +60,6 @@ namespace UE::MultiUserClient
 		
 		void SkipAuthorityStage(EAuthoritySubmissionRequestErrorCode RequestCode, EAuthoritySubmissionResponseErrorCode ResponseCode);
 		void CleanUpSubmissionOperation();
-
-		void LogStreamErrorsIfNeeded(const FConcertReplication_ChangeStream_Response& Response) const;
 	};
 }
 

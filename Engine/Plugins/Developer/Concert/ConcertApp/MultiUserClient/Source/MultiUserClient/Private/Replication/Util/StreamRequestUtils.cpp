@@ -2,8 +2,12 @@
 
 #include "StreamRequestUtils.h"
 
-#include "Replication/Stream/IClientStreamSynchronizer.h"
+#include "ConcertLogGlobal.h"
+#include "JsonObjectConverter.h"
 #include "Replication/Stream/StreamChangeTracker.h"
+#include "Widgets/ActiveSession/Replication/Client/ClientUtils.h"
+
+#include "Containers/UnrealString.h"
 
 namespace UE::MultiUserClient::StreamRequestUtils
 {

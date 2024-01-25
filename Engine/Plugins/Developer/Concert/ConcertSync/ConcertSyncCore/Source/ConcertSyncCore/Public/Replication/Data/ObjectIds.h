@@ -42,6 +42,7 @@ struct FConcertReplicatedObjectId : public FConcertObjectInStreamID
 	FGuid SenderEndpointId;
 	
 	FString ToString() const { return FString::Printf(TEXT("StreamId: %s, Object: %s, Sender: %s"), *StreamId.ToString(), *Object.ToString(), *SenderEndpointId.ToString()); }
+	FString ToString(const FString& ClientName) const { return FString::Printf(TEXT("StreamId: %s, Object: %s, Sender: %s"), *StreamId.ToString(), *Object.ToString(), *ClientName); }
 		
 	friend bool operator==(const FConcertReplicatedObjectId& Left, const FConcertReplicatedObjectId& Right)
 	{

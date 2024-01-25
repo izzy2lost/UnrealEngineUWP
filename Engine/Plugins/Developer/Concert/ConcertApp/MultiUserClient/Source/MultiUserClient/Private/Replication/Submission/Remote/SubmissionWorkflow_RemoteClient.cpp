@@ -6,6 +6,7 @@
 #include "IConcertSession.h"
 #include "RemoteSubmissionMessages.h"
 #include "Replication/Submission/SingleClientSubmissionOperation.h"
+#include "Replication/Util/StreamRequestUtils.h"
 #include "Widgets/ActiveSession/Replication/Client/ClientUtils.h"
 
 namespace UE::MultiUserClient
@@ -188,8 +189,6 @@ namespace UE::MultiUserClient
 		FSingleClientSubmissionOperation& Operation = GetOperation();
 		if (EventData.bProcessedSuccessfully)
 		{
-			LogStreamErrorsIfNeeded(EventData.StreamChangeResponse);
-			
 			const FCompletedChangeSubmission StreamChangeSubmission { *InProgressOperation->Parameters.StreamRequest, { EventData.StreamChangeResponse } };
 			const FSubmitStreamChangesResponse StreamResponse { EStreamSubmissionErrorCode::Success, StreamChangeSubmission };
 			Operation.EmplaceStreamPromise(StreamResponse);
@@ -248,16 +247,5 @@ namespace UE::MultiUserClient
 	FString FSubmissionWorkflow_RemoteClient::GetRemoteClientName() const
 	{
 		return ClientUtils::GetClientDisplayName(*ConcertSession, RemoteClientEndpointId);
-	}
-
-	void FSubmissionWorkflow_RemoteClient::LogStreamErrorsIfNeeded(const FConcertReplication_ChangeStream_Response& Response) const
-	{
-		if (Response.IsFailure())
-		{
-			FStringOutputDevice OutputDevice;
-			Response.LogErrors(OutputDevice);
-			const FString ClientName = ClientUtils::GetClientDisplayName(*ConcertSession, RemoteClientEndpointId);
-			UE_LOG(LogConcert, Warning, TEXT("Submission failed for remote client %s. Errors: %s"), *ClientName, *OutputDevice);
-		}
 	}
 }

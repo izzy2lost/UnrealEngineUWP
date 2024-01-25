@@ -25,6 +25,7 @@ namespace UnrealBuildTool.Rules
 					"EditorStyle",
 					"Engine",
 					"InputCore",
+					"JsonUtilities",
 					"MessageLog",
 					"Projects",
 					"Slate",

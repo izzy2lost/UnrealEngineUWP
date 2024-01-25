@@ -9,6 +9,7 @@
 #include "Replication/ConcertReplicationClient.h"
 #include "Replication/Messages/ChangeStream.h"
 #include "Replication/Messages/Handshake.h"
+#include "Util/LogUtils.h"
 
 namespace UE::ConcertSyncServer::Replication
 {
@@ -137,12 +138,19 @@ namespace UE::ConcertSyncServer::Replication
 			return OutResponse.IsSuccess();
 		}
 	}
-
+	
+	TAutoConsoleVariable<bool> CVarLogStreamRequestsAndResponses(
+		TEXT("Concert.Replication.LogStreamRequestsAndResponses"),
+		false,
+		TEXT("Whether to log changes to streams.")
+		);
+	
 	EConcertSessionResponseCode FConcertServerReplicationManager::HandleChangeStreamRequest(
 		const FConcertSessionContext& ConcertSessionContext,
 		const FConcertReplication_ChangeStream_Request& Request,
 		FConcertReplication_ChangeStream_Response& Response)
 	{
+		LogNetworkMessage(CVarLogStreamRequestsAndResponses, Request, [&](){ return GetClientName(*Session, ConcertSessionContext.SourceEndpointId); });
 		Response = {};
 		
 		const FGuid SendingClientId = ConcertSessionContext.SourceEndpointId;
@@ -165,6 +173,7 @@ namespace UE::ConcertSyncServer::Replication
 		}
 		
 		Response.ErrorCode = EReplicationResponseErrorCode::Handled;
+		LogNetworkMessage(CVarLogStreamRequestsAndResponses, Response, [&](){ return GetClientName(*Session, ConcertSessionContext.SourceEndpointId); });
 		return EConcertSessionResponseCode::Success;
 	}
 }
