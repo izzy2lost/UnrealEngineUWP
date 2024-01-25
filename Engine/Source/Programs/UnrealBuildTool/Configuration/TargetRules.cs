@@ -2625,7 +2625,7 @@ namespace UnrealBuildTool
 		/// Checks if a plugin should be programmatically allowed in the build
 		/// </summary>
 		/// <returns>true if the plugin is allowed</returns>
-		public virtual bool IgnorePluginDependency(PluginInfo parentInfo, PluginReferenceDescriptor descriptor) => false;
+		public virtual bool ShouldIgnorePluginDependency(PluginInfo parentInfo, PluginReferenceDescriptor descriptor) => false;
 
 		/// <summary>
 		/// Checks if a property has been set with the RequiresUniqueBuildEnvironmentAttribute, and is different from it's base
