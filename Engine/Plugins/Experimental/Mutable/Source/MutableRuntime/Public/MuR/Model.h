@@ -13,8 +13,8 @@
 //! data structures. Compiled models are not necessarily compatible when the runtime is updated,
 //! so this version number can be used externally to verify this. It is not used internally, and
 //! serializing models from different versions than this runtime will probably result in a crash.
-#define MUTABLE_COMPILED_MODEL_CODE_VERSION		uint32( 82 )
-#define MUTABLE_PARAMETERS_VERSION              uint32( 2 )
+#define MUTABLE_COMPILED_MODEL_CODE_VERSION		uint32( 83 )
+#define MUTABLE_PARAMETERS_VERSION              uint32( 3 )
 
 
 namespace mu
@@ -126,7 +126,7 @@ namespace mu
 		//! \pre The parameter specified by index is a T_FLOAT.
         //! \param Index Index of the parameter from 0 to GetCount()-1
         //! \param R,G,B Pointers to values where every resulting colour channel will be stored
-    	void GetColourDefaultValue(int32 Index, float* R, float* G, float* B) const;
+    	void GetColourDefaultValue(int32 Index, float* R, float* G, float* B, float* A) const;
 
     	//! Return the default value of a projector parameter, as a 4x4 matrix. The matrix is supposed to be
 		//! a linear transform in column-major.

@@ -1612,7 +1612,7 @@ FLinearColor UCustomizableObject::GetColorParameterDefaultValue(const FString& I
 	}
 	
 	FLinearColor Value;
-	Model->GetColourDefaultValue(ParameterIndex, &Value.R, &Value.G, &Value.B);
+	Model->GetColourDefaultValue(ParameterIndex, &Value.R, &Value.G, &Value.B, &Value.A);
 
 	return Value;
 }

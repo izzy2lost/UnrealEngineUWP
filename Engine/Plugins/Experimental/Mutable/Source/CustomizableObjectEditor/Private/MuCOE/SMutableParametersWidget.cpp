@@ -574,8 +574,7 @@ FLinearColor SMutableParametersWidget::GetColorParameterValue(int32 ParamIndex, 
 	}
 
 	FLinearColor Result;
-	MutableParameters->GetColourValue(ParamIndex, &Result.R, &Result.G, &Result.B, RangeIndex);
-	Result.A = 1.0f;
+	MutableParameters->GetColourValue(ParamIndex, &Result.R, &Result.G, &Result.B, &Result.A, RangeIndex);
 
 	return Result;
 }
@@ -588,16 +587,13 @@ FReply SMutableParametersWidget::OnColorBlockMouseButtonDown(const FGeometry& My
 		return FReply::Unhandled();
 	}
 
-	FLinearColor col = GetColorParameterValue(ParamIndex,RangeIndex);
-
-	TArray<FLinearColor*> LinearColorArray;
-	LinearColorArray.Add(&col);
+	FLinearColor Col = GetColorParameterValue(ParamIndex,RangeIndex);
 
 	FColorPickerArgs args;
 	args.bIsModal = true;
-	args.bUseAlpha = false;
+	args.bUseAlpha = true;
 	args.bOnlyRefreshOnMouseUp = false;
-	args.InitialColor = col;
+	args.InitialColor = Col;
 	args.OnColorCommitted = FOnLinearColorValueChanged::CreateSP(this, &SMutableParametersWidget::OnSetColorFromColorPicker, ParamIndex, RangeIndex);
 	OpenColorPicker(args);
 
@@ -614,7 +610,7 @@ void SMutableParametersWidget::OnSetColorFromColorPicker(FLinearColor NewColor, 
 		return;
 	}
 	
-	MutableParameters->SetColourValue(ParamIndex, NewColor.R, NewColor.G, NewColor.B, RangeIndex);
+	MutableParameters->SetColourValue(ParamIndex, NewColor.R, NewColor.G, NewColor.B, NewColor.A, RangeIndex);
 
 	OnParametersValueChanged.ExecuteIfBound(ParamIndex);
 }

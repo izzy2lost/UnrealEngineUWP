@@ -373,7 +373,7 @@ namespace Private
 	using ParamBoolType = bool;
 	using ParamIntType = int32;
 	using ParamFloatType = float;
-	using ParamColorType = FVector3f;
+	using ParamColorType = FVector4f;
 	using ParamProjectorType = Private::TIndirectObject<FProjector>;
 	using ParamImageType = FName;
 	using ParamStringType = Private::TIndirectObject<FString>;
@@ -382,7 +382,7 @@ namespace Private
             ParamBoolType, ParamIntType, ParamFloatType, ParamColorType, ParamProjectorType, ParamImageType, ParamStringType>;
 
     // static_assert to track PARAMETER_VALUE size changes. It is ok to change if needed.
-    static_assert(sizeof(PARAMETER_VALUE) == 8*3, "PARAMETER_VALUE size has changed.");
+    static_assert(sizeof(PARAMETER_VALUE) == 8*4, "PARAMETER_VALUE size has changed.");
 
 	// TVariant currently does not support this operator. Once supported remove it.
 	inline bool operator==(const PARAMETER_VALUE& ValueA, const PARAMETER_VALUE& ValueB)
@@ -462,7 +462,7 @@ namespace Private
         //!
         void Serialise( OutputArchive& arch ) const
         {
-            const int32 ver = 9;
+            const int32 ver = 10;
             arch << ver;
 
 			arch << m_name;
@@ -478,12 +478,12 @@ namespace Private
         {
             int32 ver;
             arch >> ver;
-            check( ver==9 );
+            check( ver == 10 );
 
 			arch >> m_name;
 			arch >> m_uid;
             arch >> m_type;
-            arch >> m_defaultValue;
+			arch >> m_defaultValue;
             arch >> m_ranges;
 			arch >> m_possibleValues;
         }

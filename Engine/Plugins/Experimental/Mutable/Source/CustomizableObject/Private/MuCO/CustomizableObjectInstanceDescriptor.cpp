@@ -547,7 +547,8 @@ mu::ParametersPtr FCustomizableObjectInstanceDescriptor::GetParameters() const
 			{
 				if (VectorParameter.ParameterName == Name || (Uid.IsValid() && VectorParameter.Id == Uid))
 				{
-					MutableParameters->SetColourValue(ParamIndex, VectorParameter.ParameterValue.R, VectorParameter.ParameterValue.G, VectorParameter.ParameterValue.B);
+					MutableParameters->SetColourValue(ParamIndex, VectorParameter.ParameterValue.R, VectorParameter.ParameterValue.G, 
+																  VectorParameter.ParameterValue.B, VectorParameter.ParameterValue.A);
 
 					break;
 				}
@@ -980,8 +981,8 @@ void FCustomizableObjectInstanceDescriptor::ReloadParameters()
 			}
 			else // Not found in Instance Parameters. Use Mutable Parameters.
 			{
-				MutableParameters->GetColourValue(ParamIndex, &Param.ParameterValue.R, &Param.ParameterValue.G, &Param.ParameterValue.B);
-				Param.ParameterValue.A = 1.0f;
+				MutableParameters->GetColourValue(ParamIndex, &Param.ParameterValue.R, &Param.ParameterValue.G,
+															  &Param.ParameterValue.B, &Param.ParameterValue.A);
 			}
 
 			VectorParameters.Add(Param);

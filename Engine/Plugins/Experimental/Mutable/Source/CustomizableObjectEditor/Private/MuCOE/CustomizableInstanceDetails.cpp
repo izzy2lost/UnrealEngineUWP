@@ -1134,16 +1134,13 @@ FReply FCustomizableInstanceDetails::OnColorBlockMouseButtonDown(const FGeometry
 		return FReply::Unhandled();
 	}
 
-	FLinearColor col = GetColorParameterValue(ParamName);
-
-	TArray<FLinearColor*> LinearColorArray;
-	LinearColorArray.Add(&col);
+	FLinearColor Col = GetColorParameterValue(ParamName);
 
 	FColorPickerArgs args;
 	args.bIsModal = true;
-	args.bUseAlpha = false;
+	args.bUseAlpha = true;
 	args.bOnlyRefreshOnMouseUp = false;
-	args.InitialColor = col;
+	args.InitialColor = Col;
 	args.OnColorCommitted = FOnLinearColorValueChanged::CreateSP(this, &FCustomizableInstanceDetails::OnSetColorFromColorPicker, ParamName);
 	OpenColorPicker(args);
 
