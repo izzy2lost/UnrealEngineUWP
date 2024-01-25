@@ -605,7 +605,7 @@ namespace uba
 
 					StringBuffer<> application;
 					reader.ReadString(application);
-					StringBuffer<32*1024> fullCommandLine;
+					StringBuffer<64*1024> fullCommandLine;
 					reader.ReadString(fullCommandLine);
 					StringBuffer<> currentDir;
 					reader.ReadString(currentDir);
