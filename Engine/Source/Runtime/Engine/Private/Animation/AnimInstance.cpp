@@ -125,7 +125,7 @@ UAnimInstance::UAnimInstance(const FObjectInitializer& ObjectInitializer)
 #endif
 
 #if WITH_EDITOR
-	if(!HasAnyFlags(RF_ClassDefaultObject))
+	if(!HasAnyFlags(RF_ClassDefaultObject) && !GetClass()->HasAnyClassFlags(CLASS_Native))
 	{
 		FCoreUObjectDelegates::OnObjectsReinstanced.AddUObject(this, &UAnimInstance::HandleObjectsReinstanced);
 	}
@@ -4228,6 +4228,20 @@ void UAnimInstance::HandleObjectsReinstanced(const TMap<UObject*, UObject*>& Old
 				}
 
 				MeshComponent->ClearMotionVector();
+			}
+		}
+
+		// Forward to custom property-based nodes even if it wasnt this object that was reinstanced, as they may reference different objects that may
+		// also have been reinstanced
+		if(IAnimClassInterface* AnimClassInterface = IAnimClassInterface::GetFromClass(GetClass()))
+		{
+			for(const FStructProperty* NodeProperty : AnimClassInterface->GetAnimNodeProperties())
+			{
+				if(NodeProperty && NodeProperty->Struct && NodeProperty->Struct->IsChildOf(FAnimNode_CustomProperty::StaticStruct()))
+				{
+					FAnimNode_CustomProperty* CustomPropertyNode = NodeProperty->ContainerPtrToValuePtr<FAnimNode_CustomProperty>(this);
+					CustomPropertyNode->HandleObjectsReinstanced(OldToNewInstanceMap);
+				}
 			}
 		}
 	}
