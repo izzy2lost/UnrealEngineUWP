@@ -6,6 +6,7 @@
 #include "Action/RCFunctionAction.h"
 #include "Action/RCPropertyAction.h"
 #include "Behaviour/Builtin/Conditional/RCBehaviourConditionalNode.h"
+#include "PropertyBag.h"
 #include "RCVirtualProperty.h"
 #include "RemoteControlField.h"
 #include "Controller/RCController.h"
@@ -84,7 +85,11 @@ bool URCBehaviourConditional::CanHaveActionForField(const TSharedPtr<FRemoteCont
 	{
 		if (const TSharedPtr<FRemoteControlProperty>& RCProperty = StaticCastSharedPtr<FRemoteControlProperty>(InRemoteControlField))
 		{
-			return RCProperty->IsEditable();
+			if (const FProperty* Property = RCProperty->GetProperty())
+			{
+				const FPropertyBagPropertyDesc PropertyBagDesc = FPropertyBagPropertyDesc(Property->GetFName(), Property);
+				return RCProperty->IsEditable() && PropertyBagDesc.ValueType != EPropertyBagPropertyType::None;
+			}
 		}
 	}
 
