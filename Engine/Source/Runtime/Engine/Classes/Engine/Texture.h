@@ -572,8 +572,14 @@ private:
 	friend class UTextureCubeArray;
 
 #if WITH_EDITOR
-	/** Protects simultaneous access to BulkData */
-	TDontCopy<FRWLock> BulkDataLock;
+	/** BulkDataLock protects simultaneous access to BulkData ;
+	BulkDataLock protects the BulkData, also LockState, NumLockedMips, LockedMipData.
+	(eg. it protects the functions LockMip, GetMipData, Compress, Decompress, etc.)
+	It does NOT protect scalar fields (eg. "SizeX").
+	It is intended to allow multiple read-like threads to read from the same TextureSource.
+	If you need to modify a TextureSource you must first manually flush all other threads that could be using it.
+	eg. using BlockOnAnyAsyncBuild. */
+	TDontCopy<FCriticalSection> BulkDataLock;
 	/** Owner for associating BulkData with a package */
 	UTexture* Owner;
 	/** TextureClass == Owner->GetTextureClass(); a copy is kept here for torn-off **/
