@@ -201,4 +201,16 @@ int32 FChaosClothAssetSimulationBaseConfigNode::FPropertyHelper::SetPropertyWeig
 	return PropertyKeyIndex;
 }
 
+int32 FChaosClothAssetSimulationBaseConfigNode::FPropertyHelper::SetPropertyString(
+	const FName& PropertyName,
+	const FChaosClothAssetConnectableIStringValue& PropertyValue,
+	const TArray<FName>& SimilarPropertyNames,
+	ECollectionPropertyFlags PropertyFlags)
+{
+	const int32 PropertyKeyIndex = ConfigNode.AddPropertyHelper(Properties, PropertyName, SimilarPropertyNames, PropertyFlags);
+	Properties.SetStringValue(PropertyKeyIndex, ConfigNode.GetValue<FString>(Context, &PropertyValue.StringValue));
+	PropertyValue.StringValue_Override = ConfigNode.GetValue<FString>(Context, &PropertyValue.StringValue, UE::Chaos::ClothAsset::FWeightMapTools::NotOverridden);
+	return PropertyKeyIndex;
+}
+
 #undef LOCTEXT_NAMESPACE

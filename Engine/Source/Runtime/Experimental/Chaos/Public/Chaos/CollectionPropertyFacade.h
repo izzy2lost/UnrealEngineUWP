@@ -537,27 +537,27 @@ PRAGMA_ENABLE_DEPRECATION_WARNINGS
 	{ \
 		return PropertyCollection.IsAnimatable(PropertyName##Name.ToString(), bDefault); \
 	} \
-	Type GetLow##PropertyName(const FCollectionPropertyConstFacade& PropertyCollection, const Type& Default) \
+	static Type GetLow##PropertyName(const FCollectionPropertyConstFacade& PropertyCollection, const Type& Default) \
 	{ \
 		return PropertyCollection.GetLowValue<Type>(PropertyName##Name.ToString(), Default); \
 	} \
-	Type GetHigh##PropertyName(const FCollectionPropertyConstFacade& PropertyCollection, const Type& Default) \
+	static Type GetHigh##PropertyName(const FCollectionPropertyConstFacade& PropertyCollection, const Type& Default) \
 	{ \
 		return PropertyCollection.GetHighValue<Type>(PropertyName##Name.ToString(), Default); \
 	} \
-	TPair<Type, Type> GetWeighted##PropertyName(const FCollectionPropertyConstFacade& PropertyCollection, const Type& Default) \
+	static TPair<Type, Type> GetWeighted##PropertyName(const FCollectionPropertyConstFacade& PropertyCollection, const Type& Default) \
 	{ \
 		return PropertyCollection.GetWeightedValue<Type>(PropertyName##Name.ToString(), Default); \
 	} \
-	FVector2f GetWeightedFloat##PropertyName(const FCollectionPropertyConstFacade& PropertyCollection, const float& Default) \
+	static FVector2f GetWeightedFloat##PropertyName(const FCollectionPropertyConstFacade& PropertyCollection, const float& Default) \
 	{ \
 		return PropertyCollection.GetWeightedFloatValue(PropertyName##Name.ToString(), Default); \
 	} \
-	Type Get##PropertyName(const FCollectionPropertyConstFacade& PropertyCollection, const Type& Default) \
+	static Type Get##PropertyName(const FCollectionPropertyConstFacade& PropertyCollection, const Type& Default) \
 	{ \
 		return PropertyCollection.GetValue<Type>(PropertyName##Name.ToString(), Default); \
 	} \
-	FString Get##PropertyName##String(const FCollectionPropertyConstFacade& PropertyCollection, const FString& Default) \
+	static FString Get##PropertyName##String(const FCollectionPropertyConstFacade& PropertyCollection, const FString& Default) \
 	{ \
 		return PropertyCollection.GetStringValue(PropertyName##Name.ToString(), Default); \
 	} \

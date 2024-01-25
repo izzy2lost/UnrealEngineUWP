@@ -232,6 +232,15 @@ void FChaosClothAssetAddWeightMapNode::Evaluate(Dataflow::FContext& Context, con
 			ClothFacade.AddWeightMap(InName);		// Does nothing if weight map already exists
 
 			TArrayView<float> ClothWeights = ClothFacade.GetWeightMap(InName);
+			if (ClothWeights.Num() != ClothFacade.GetNumSimVertices3D())
+			{
+				check(ClothWeights.Num() == 0);
+				FClothDataflowTools::LogAndToastWarning(*this,
+					LOCTEXT("InvalidWeightMapNameHeadline", "Invalid weight map name."),
+					FText::Format(LOCTEXT("InvalidWeightMapNameDetails", "Could not create a weight map with name \"{0}\" (reserved name? wrong type?)."),
+						FText::FromName(InName)));
+			}
+
 			const int32 MaxWeightIndex = FMath::Min(GetVertexWeights().Num(), ClothWeights.Num());
 			if (GetVertexWeights().Num() > 0 && GetVertexWeights().Num() != ClothWeights.Num())
 			{

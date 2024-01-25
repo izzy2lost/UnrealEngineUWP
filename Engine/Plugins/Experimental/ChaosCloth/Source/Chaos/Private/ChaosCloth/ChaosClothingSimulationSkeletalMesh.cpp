@@ -173,6 +173,12 @@ PRAGMA_ENABLE_DEPRECATION_WARNINGS
 		return VertexSets;
 	}
 
+	TMap<FString, TConstArrayView<int32>> FClothingSimulationSkeletalMesh::GetFaceIntMaps(int32 LODIndex) const
+	{
+		// Not supported
+		return TMap<FString, TConstArrayView<int32>>();
+	}
+
 	TArray<TConstArrayView<TTuple<int32, int32, float>>> FClothingSimulationSkeletalMesh::GetTethers(int32 LODIndex, bool bUseGeodesicTethers) const
 	{
 		TArray<TConstArrayView<TTuple<int32, int32, float>>> Tethers;

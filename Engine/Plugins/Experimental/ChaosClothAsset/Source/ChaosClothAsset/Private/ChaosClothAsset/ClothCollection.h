@@ -3,18 +3,12 @@
 #pragma once
 
 #include "GeometryCollection/ManagedArray.h"
+#include "ChaosClothAsset/IsUserAttributeType.h"
 
 struct FManagedArrayCollection;
 
 namespace UE::Chaos::ClothAsset
 {
-	/** User defined attribute types. */
-	template<typename T> struct TIsUserAttributeType { static constexpr bool Value = false; };
-	template<> struct TIsUserAttributeType<bool> { static constexpr bool Value = true; };
-	template<> struct TIsUserAttributeType<int32> { static constexpr bool Value = true; };
-	template<> struct TIsUserAttributeType<float> { static constexpr bool Value = true; };
-	template<> struct TIsUserAttributeType<FVector3f> { static constexpr bool Value = true; };
-
 	/**
 	 * Cloth collection facade data.
 	 */
@@ -136,7 +130,13 @@ namespace UE::Chaos::ClothAsset
 		TArray<FName> GetUserDefinedAttributeNames(const FName& GroupName) const;
 
 		template<typename T, TEMPLATE_REQUIRES(TIsUserAttributeType<T>::Value)>
-		void AddUserDefinedAttribute(const FName& Name, const FName& GroupName);
+		TManagedArray<T>* FindOrAddUserDefinedAttribute(const FName& Name, const FName& GroupName);
+
+		template<typename T, TEMPLATE_REQUIRES(TIsUserAttributeType<T>::Value)>
+		void AddUserDefinedAttribute(const FName& Name, const FName& GroupName)
+		{
+			FindOrAddUserDefinedAttribute<T>(Name, GroupName);
+		}
 
 		void RemoveUserDefinedAttribute(const FName& Name, const FName& GroupName);
 
@@ -148,6 +148,9 @@ namespace UE::Chaos::ClothAsset
 
 		template<typename T, TEMPLATE_REQUIRES(TIsUserAttributeType<T>::Value)>
 		TManagedArray<T>* GetUserDefinedAttribute(const FName& Name, const FName& GroupName);
+
+		static bool IsValidClothCollectionGroupName(const FName& GroupName);
+		static bool IsValidUserDefinedAttributeName(const FName& Name, const FName& GroupName);
 
 		//~ LODs Group (There should be only one LOD per ClothCollection)
 		const TManagedArray<FString>* GetPhysicsAssetPathName() const { return PhysicsAssetPathName; }

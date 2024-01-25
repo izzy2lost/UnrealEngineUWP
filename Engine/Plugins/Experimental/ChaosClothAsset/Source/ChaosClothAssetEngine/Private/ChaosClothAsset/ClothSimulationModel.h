@@ -65,6 +65,9 @@ struct FChaosClothSimulationLodModel
 	/** Vertex sets */
 	TMap<FName, TSet<int32>> VertexSets;
 
+	/** Face int maps (currently used by cloth collision layers)*/
+	TMap<FName, TArray<int32>> FaceIntMaps;
+
 	// Custom serialize for weight maps
 	bool Serialize(FArchive& Ar);
 };

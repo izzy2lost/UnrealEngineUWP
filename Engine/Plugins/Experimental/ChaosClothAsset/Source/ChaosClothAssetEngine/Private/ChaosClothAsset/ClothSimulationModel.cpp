@@ -146,6 +146,7 @@ bool FChaosClothSimulationLodModel::Serialize(FArchive& Ar)
 	Ar << LODTransitionDownData;
 
 	Ar << VertexSets;
+	Ar << FaceIntMaps;
 
 	// Return true to confirm that serialization has already been taken care of
 	return true;
@@ -191,6 +192,14 @@ FChaosClothSimulationModel::FChaosClothSimulationModel(const TArray<TSharedRef<c
 			{
 				LodModel.VertexSets.Add(SelectionName) = Selection.GetSelectionSet(SelectionName);
 			}
+		}
+
+		// Copy face int maps
+		const TArray<FName> FaceIntMapNames = Cloth.GetUserDefinedAttributeNames<int32>(ClothCollectionGroup::SimFaces);
+		LodModel.FaceIntMaps.Reserve(FaceIntMapNames.Num());
+		for (const FName& FaceIntMapName : FaceIntMapNames)
+		{
+			LodModel.FaceIntMaps.Add(FaceIntMapName) = Cloth.GetUserDefinedAttribute<int32>(FaceIntMapName, ClothCollectionGroup::SimFaces);
 		}
 
 		// Copy bone influences and gather tether data

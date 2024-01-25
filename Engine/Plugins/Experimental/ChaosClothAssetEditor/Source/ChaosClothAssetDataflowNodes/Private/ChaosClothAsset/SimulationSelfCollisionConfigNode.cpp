@@ -1,6 +1,7 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 #include "ChaosClothAsset/SimulationSelfCollisionConfigNode.h"
+#include "Dataflow/DataflowInputOutput.h"
 #include "Chaos/CollectionPropertyFacade.h"
 
 #include UE_INLINE_GENERATED_CPP_BY_NAME(SimulationSelfCollisionConfigNode)
@@ -9,6 +10,7 @@ FChaosClothAssetSimulationSelfCollisionConfigNode::FChaosClothAssetSimulationSel
 	: FChaosClothAssetSimulationBaseConfigNode(InParam, InGuid)
 {
 	RegisterCollectionConnections();
+	RegisterInputConnection(&SelfCollisionLayers.StringValue, GET_MEMBER_NAME_CHECKED(FChaosClothAssetConnectableIStringValue, StringValue));
 }
 
 void FChaosClothAssetSimulationSelfCollisionConfigNode::AddProperties(FPropertyHelper& PropertyHelper) const
@@ -17,6 +19,8 @@ void FChaosClothAssetSimulationSelfCollisionConfigNode::AddProperties(FPropertyH
 	PropertyHelper.SetProperty(this, &SelfCollisionThickness);
 	PropertyHelper.SetProperty(this, &SelfCollisionStiffness);
 	PropertyHelper.SetProperty(this, &SelfCollisionFriction);
+	PropertyHelper.SetProperty(this, &SelfCollisionDisableNeighborDistance, {}, ECollectionPropertyFlags::None); // Non animatable
+	PropertyHelper.SetPropertyString(this, &SelfCollisionLayers);
 
 	PropertyHelper.SetPropertyBool(this, &bUseSelfIntersections);
 	PropertyHelper.SetPropertyBool(this, &bUseGlobalIntersectionAnalysis);

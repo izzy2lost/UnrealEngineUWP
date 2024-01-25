@@ -206,6 +206,12 @@ TMap<FString, const TSet<int32>*> FClothingSimulationMesh::GetVertexSets(int32 L
 	return TMap<FString, const TSet<int32>*>();
 }
 
+TMap<FString, TConstArrayView<int32>> FClothingSimulationMesh::GetFaceIntMaps(int32 LODIndex) const
+{
+	// Not supported
+	return TMap<FString, TConstArrayView<int32>>();
+}
+
 TArray<TConstArrayView<TTuple<int32, int32, float>>> FClothingSimulationMesh::GetTethers(int32 LODIndex, bool bUseGeodesicTethers) const
 {
 	TArray<TConstArrayView<TTuple<int32, int32, float>>> Tethers;

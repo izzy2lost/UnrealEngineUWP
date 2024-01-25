@@ -57,6 +57,7 @@ struct FClothingSimulationCloth::FLODData
 	const int32 NumParticles;
 	const TMap<FString, TConstArrayView<FRealSingle>> WeightMaps;
 	const TMap<FString, const TSet<int32>*> VertexSets;
+	const TMap<FString, TConstArrayView<int32>> FaceIntMaps;
 	const TArray<TConstArrayView<TTuple<int32, int32, FRealSingle>>> Tethers;
 
 	const FClothingPatternData PatternData;
@@ -83,6 +84,7 @@ struct FClothingSimulationCloth::FLODData
 		const TConstArrayView<uint32>& InPatternToWeldedIndices,
 		TMap<FString, TConstArrayView<FRealSingle>>&& InWeightMaps,
 		TMap<FString, const TSet<int32>*>&& InVertexSets,
+		TMap<FString, TConstArrayView<int32>>&& InFaceIntMaps,
 		const TArray<TConstArrayView<TTuple<int32, int32, FRealSingle>>>& InTethers);
 
 	static FTriangleMesh BuildTriangleMesh(const TConstArrayView<uint32>& Indices, const int32 NumParticles);
@@ -107,10 +109,12 @@ FClothingSimulationCloth::FLODData::FLODData(
 	const TConstArrayView<uint32>& InPatternToWeldedIndices,
 	TMap<FString, TConstArrayView<FRealSingle>>&& InWeightMaps,
 	TMap<FString, const TSet<int32>*>&& InVertexSets,
+	TMap<FString, TConstArrayView<int32>>&& InFaceIntMaps,
 	const TArray<TConstArrayView<TTuple<int32, int32, FRealSingle>>>& InTethers)
 	: NumParticles(InNumParticles)
 	, WeightMaps(MoveTemp(InWeightMaps))
 	, VertexSets(MoveTemp(InVertexSets))
+	, FaceIntMaps(MoveTemp(InFaceIntMaps))
 	, Tethers(InTethers)
 	, PatternData(NumParticles, InIndices, InPatternPositions, InPatternIndices, InPatternToWeldedIndices)
 	, NoOffsetTriangleMesh(BuildTriangleMesh(InIndices, NumParticles))
@@ -249,7 +253,7 @@ PRAGMA_ENABLE_DEPRECATION_WARNINGS
 
 	// Create constraints
 	const bool bEnabled = false;  // Set constraint disabled by default
-	ClothConstraints.AddRules(ConfigProperties, TriangleMesh, &PatternData, WeightMaps, VertexSets, Tethers, MeshScale, bEnabled);
+	ClothConstraints.AddRules(ConfigProperties, TriangleMesh, &PatternData, WeightMaps, VertexSets, FaceIntMaps, Tethers, MeshScale, bEnabled);
 
 	// Update LOD stats
 	const TConstArrayView<Softs::FSolverReal> InvMasses(Solver->GetParticleInvMasses(ParticleRangeId), NumParticles);
@@ -290,7 +294,7 @@ PRAGMA_DISABLE_DEPRECATION_WARNINGS  // TODO: CHAOS_IS_CLOTHINGSIMULATIONMESH_AB
 	const Softs::FSolverReal MeshScale = Cloth->Mesh->GetScale();
 PRAGMA_ENABLE_DEPRECATION_WARNINGS
 	const Softs::FSolverReal MaxDistancesScale = (Softs::FSolverReal)Cloth->MaxDistancesMultiplier;
-	ClothConstraints.Update(Cloth->Config->GetProperties(SolverDatum.LODIndex), WeightMaps, VertexSets, MeshScale, MaxDistancesScale);
+	ClothConstraints.Update(Cloth->Config->GetProperties(SolverDatum.LODIndex), WeightMaps, VertexSets, FaceIntMaps, MeshScale, MaxDistancesScale);
 }
 
 void FClothingSimulationCloth::FLODData::Enable(FClothingSimulationSolver* Solver, bool bEnable) const
@@ -604,6 +608,7 @@ void FClothingSimulationCloth::SetMesh(FClothingSimulationMesh* InMesh)
 		}
 
 		TMap<FString, const TSet<int32>*> VertexSets = Mesh->GetVertexSets(LODIndex);
+		TMap<FString, TConstArrayView<int32>> FaceIntMaps = Mesh->GetFaceIntMaps(LODIndex);
 
 		const bool bUseGeodesicTethers = Config->GetProperties(LODIndex).GetValue<bool>(TEXT("UseGeodesicTethers"), ClothingSimulationClothDefault::bUseGeodesicTethers);
 
@@ -616,6 +621,7 @@ void FClothingSimulationCloth::SetMesh(FClothingSimulationMesh* InMesh)
 			Mesh->GetPatternToWeldedIndices(LODIndex),
 			MoveTemp(WeightMaps),
 			MoveTemp(VertexSets),
+			MoveTemp(FaceIntMaps),
 			Mesh->GetTethers(LODIndex, bUseGeodesicTethers)));
 	}
 
