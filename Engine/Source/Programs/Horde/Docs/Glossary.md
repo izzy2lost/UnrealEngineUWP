@@ -20,8 +20,10 @@
 * `Aggregate` - A name given to a set of nodes within a graph as a shorthand.
 * `Target` - Specifies the nodes and/or aggregates within a BuildGraph script that a user wishes to execute.
 
-## CI
+## Build Automation
 
+* `Continuous Integration (CI)` - The process of continually validating a stream of changes submitted to a codebase through build automation.
+* `Continuous Delivery (CD)` - Abbreviation for 'Continuous Delivery'; the process of continually producing new builds of a product through build automation.
 * `Template` - Describes the options for running a particular BuildGraph script, and specifies parameters for how to execute it.
 * `Job` - An instance of a template, run at a particular changelist with certain parameters.
 * `Job Batch` - A set of steps within a job which are run sequentially on a single machine (in a _lease_) using a synced workspace. Steps within the batch may or may not have dependencies on each other.

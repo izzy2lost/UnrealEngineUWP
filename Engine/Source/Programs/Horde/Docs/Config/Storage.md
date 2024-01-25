@@ -4,27 +4,41 @@
 
 ## Introduction
 
-Horde's storage system is used by many features within the server. In many respects, the storage layer functions as an immutable content-addressable store (ie. items are stored and retrieved via a hash of their content), though the on-disk representation consists of data packed into larger _bundles_ stored with unique identifiers in a more familiar location-based storage backend. 
+Horde's storage system is used by many features within the server. In many respects, the storage layer functions as an
+immutable content-addressable store (ie. items are stored and retrieved via a hash of their content), though the on-disk
+representation consists of data packed into larger _bundles_ stored with unique identifiers in a more familiar
+location-based storage backend.
 
-An important feature of this system is the ability to reason about massive data structures; that is, individual _nodes_ in the storage system (some arbitrary block of data) are characterized by being *immutable* and having zero or more outward references to other nodes. These tree-like data structures can be traversed one node at a time, with the underlying storage system taking care of retrieving and storing individual nodes efficiently.
+An important feature of this system is the ability to reason about massive data structures; that is, individual _nodes_
+in the storage system (some arbitrary block of data) are characterized by being _immutable_ and having zero or more
+outward references to other nodes. These tree-like data structures can be traversed one node at a time, with the
+underlying storage system taking care of retrieving and storing individual nodes efficiently.
 
-The entry point to any such data structure is a _ref_, a user-defined name that keeps a reference to the root of the tree. Any nodes which are not directly or indirectly referenced by a ref are subject to [garbage collection](#garbage-collection).
+The entry point to any such data structure is a _ref_, a user-defined name that keeps a reference to the root of the
+tree. Any nodes which are not directly or indirectly referenced by a ref are subject to garbage collection.
 
-This design is meant to support massive range in payload sizes by splitting larger blocks of data into smaller chunks - functionality which has advantages in caching and incremental patching of data stored on clients. It thus becomes as reasonable to have a ref point to a single 4kb payload as it is to point to a multi-gigabyte payload split into (say) 128kb chunks.
-
-A more detailed discussion of this model is expounded in [Horde > Internals > Bundles](../Internals/Bundles.md).
+This design is meant to support massive range in payload sizes by splitting larger blocks of data into smaller chunks -
+functionality which has advantages in caching and incremental patching of data stored on clients. It thus becomes as
+reasonable to have a ref point to a single 4kb payload as it is to point to a multi-gigabyte payload split into
+(say) 128kb chunks.
 
 ## Namespaces and Backends
 
-Storage is partitioned into several non-overlapping _namespaces_, each of which can be configured to use a different _backend_. Permissions to access content in storage is normally controlled at the namespace level, though some higher-level systems (eg. logs, artifacts) expose custom endpoints over underlying storage namespaces which provide their own permissions model that does not require direct access to the backing namespace.
+Storage is partitioned into several non-overlapping _namespaces_, each of which can be configured to use a different
+_backend_. Permissions to access content in storage is normally controlled at the namespace level, though some
+higher-level systems (eg. logs, artifacts) expose custom endpoints over underlying storage namespaces which provide
+their own permissions model that does not require direct access to the backing namespace.
 
-Namespaces and backends are configured through the `Storage` section of the [globals.json](../Config/Schema/Globals.md) file.
+Namespaces and backends are configured through the `Storage` section of the [globals.json](../Config/Schema/Globals.md)
+file.
 
 ### Namespaces
 
-Namespaces configure permissions and garbage collection policies for a logical storage partition. They also specify a [backend](#backend) to use for storing the actual data. 
+Namespaces configure permissions and garbage collection policies for a logical storage partition. They also specify a
+[backend](#backends) to use for storing the actual data.
 
-Multiple namespaces may use the same storage backend by setting the `Prefix` property to append a prefix to any stored files.
+Multiple namespaces may use the same storage backend by setting the `Prefix` property to append a prefix to any stored
+files.
 
 Settings for namespaces are described in the [globals.json](../Config/Schema/Globals.md#namespace-config) schema.
 
@@ -41,7 +55,8 @@ Settings for backends are described in the [globals.json](../Config/Schema/Globa
 
 ### Well-known Namespaces
 
-Certain subsystems in Horde use well-known namespace names, which can be configured as you see fit. These are defined in `StorageConfig.cs`, and currently consist of the following:
+Certain subsystems in Horde use well-known namespace names, which can be configured as you see fit. These are defined in
+`StorageConfig.cs`, and currently consist of the following:
 
 | Name | Description |
 | ---- | ----------- |
