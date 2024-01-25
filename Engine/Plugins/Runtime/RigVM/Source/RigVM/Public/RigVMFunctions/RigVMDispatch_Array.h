@@ -152,7 +152,7 @@ protected:
 	static void Execute(FRigVMExtendedExecuteContext& InContext, FRigVMMemoryHandleArray Handles, FRigVMPredicateBranchArray Predicates);
 };
 
-USTRUCT(meta=(DisplayName = "At"))
+USTRUCT(meta=(DisplayName = "At", Keywords = "Get Index,At Index,[]"))
 struct RIGVM_API FRigVMDispatch_ArrayGetAtIndex : public FRigVMDispatch_ArrayBase
 {
 	GENERATED_BODY()
