@@ -92,9 +92,14 @@ namespace EpicGames.UHT.Parsers
 		WithCoreUObject = 1 << 8,
 
 		/// <summary>
+		/// This indicates we are in a "#if WITH_VERSE_VM" block
+		/// </summary>
+		WithVerseVM = 1 << 9,
+
+		/// <summary>
 		/// This directive is unrecognized and does not change the code generation at all
 		/// </summary>
-		Unrecognized = 1 << 9,
+		Unrecognized = 1 << 10,
 
 		/// <summary>
 		/// The following flags are always ignored when keywords test for allowed conditional blocks
@@ -104,7 +109,7 @@ namespace EpicGames.UHT.Parsers
 		/// <summary>
 		/// Default compiler directives to be allowed
 		/// </summary>
-		DefaultAllowedCheck = WithEditor | WithEditorOnlyData,
+		DefaultAllowedCheck = WithEditor | WithEditorOnlyData | WithVerseVM,
 
 		/// <summary>
 		/// All flags are allowed
@@ -169,6 +174,7 @@ namespace EpicGames.UHT.Parsers
 				case UhtCompilerDirective.WithEditorOnlyData: return "WITH_EDITORONLY_DATA";
 				case UhtCompilerDirective.WithEngine: return "WITH_ENGINE";
 				case UhtCompilerDirective.WithCoreUObject: return "WITH_COREUOBJECT";
+				case UhtCompilerDirective.WithVerseVM: return "WITH_VERSE_VM";
 				default: return "<unrecognized>";
 			}
 		}
@@ -987,6 +993,10 @@ namespace EpicGames.UHT.Parsers
 					{
 						return notPresent ? UhtCompilerDirective.Unrecognized : UhtCompilerDirective.WithCoreUObject;
 					}
+					else if (define.IsValue("WITH_VERSE_VM"))
+					{
+						return notPresent ? UhtCompilerDirective.Unrecognized : UhtCompilerDirective.WithVerseVM;
+					}
 					else if (define.IsValue("CPP"))
 					{
 						return notPresent ? UhtCompilerDirective.NotCPPBlock : UhtCompilerDirective.CPPBlock;
@@ -1067,6 +1077,7 @@ namespace EpicGames.UHT.Parsers
 				case UhtCompilerDirective.WithEngine:
 				case UhtCompilerDirective.WithCoreUObject:
 				case UhtCompilerDirective.WithHotReload:
+				case UhtCompilerDirective.WithVerseVM:
 					return true;
 
 				default:
@@ -1090,6 +1101,7 @@ namespace EpicGames.UHT.Parsers
 				case UhtCompilerDirective.WithEngine:
 				case UhtCompilerDirective.WithCoreUObject:
 				case UhtCompilerDirective.WithHotReload:
+				case UhtCompilerDirective.WithVerseVM:
 					return true;
 
 				default:
@@ -1104,7 +1116,8 @@ namespace EpicGames.UHT.Parsers
 				compilerDirective == UhtCompilerDirective.WithEditorOnlyData ||
 				compilerDirective == UhtCompilerDirective.WithHotReload ||
 				compilerDirective == UhtCompilerDirective.WithEngine ||
-				compilerDirective == UhtCompilerDirective.WithCoreUObject;
+				compilerDirective == UhtCompilerDirective.WithCoreUObject ||
+				compilerDirective == UhtCompilerDirective.WithVerseVM;
 		}
 
 		private static void SkipVirtualAndAPI(IUhtTokenReader replayReader)

@@ -62,6 +62,10 @@ namespace EpicGames.UHT.Exporters.CodeGen
 				{
 					builder.Append("#include \"Net/Core/PushModel/PushModelMacros.h\"\r\n");
 				}
+				if (headerInfo.NeedsVerseHeaders)
+				{
+					builder.Append("#include \"UObject/VerseTypes.h\"\r\n");
+				}
 				builder.Append("\r\n");
 				builder.Append(DisableDeprecationWarnings).Append("\r\n");
 

@@ -816,6 +816,10 @@ namespace EpicGames.UHT.Parsers
 						tokenReader.LogError("UProperties should not be wrapped by WITH_EDITOR, use WITH_EDITORONLY_DATA instead.");
 					}
 				}
+				else if (compilerDirective.HasAnyFlags(UhtCompilerDirective.WithVerseVM))
+				{
+					propertySettings.DefineScope |= UhtDefineScope.VerseVM;
+				}
 			}
 
 			// Parse type information including UPARAM that might appear in template arguments
