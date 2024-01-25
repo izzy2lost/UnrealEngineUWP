@@ -111,7 +111,7 @@ void FTextureShareResource::HandleFrameEnd_RenderThread()
 	{
 		if (CachedSharedResources[Index].bUnused)
 		{
-			CachedSharedResources.RemoveAtSwap(Index, 1, false);
+			CachedSharedResources.RemoveAtSwap(Index, 1, EAllowShrinking::No);
 			// RemoveAtSwap func replace the elements in the hole created by the removal with elements from the end of the array, so
 			Index--;
 		}

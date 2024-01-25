@@ -509,7 +509,7 @@ void SParameterPicker::RefreshFilter()
 	while (Stack.Num() > 0)
 	{
 		TSharedRef<FParameterPickerEntry> Top = Stack.Top();
-		Stack.Pop(false);
+		Stack.Pop(EAllowShrinking::No);
 
 		if (Top->FilterResult != FParameterPickerEntry::EFilterResult::DoesNotPassFilter)
 		{

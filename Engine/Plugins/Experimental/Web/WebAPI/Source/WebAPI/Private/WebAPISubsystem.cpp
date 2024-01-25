@@ -29,7 +29,7 @@ TObjectPtr<UWebAPIOperationObject> FWebAPIPooledOperation::Pop()
 		}
 
 		// One or more available, so get last
-		TObjectPtr<UWebAPIOperationObject> AvailableItem = AvailableItems.Pop(false);
+		TObjectPtr<UWebAPIOperationObject> AvailableItem = AvailableItems.Pop(EAllowShrinking::No);
 
 		// Move to in use and return reference 
 		return ItemsInUse.Add_GetRef(MoveTemp(AvailableItem));
@@ -47,7 +47,7 @@ bool FWebAPIPooledOperation::Push(const TObjectPtr<UWebAPIOperationObject>& InIt
 #endif
 
 	// Remove from "in use"
-	const int32 ItemsRemoved = ItemsInUse.RemoveSwap(InItem, false);
+	const int32 ItemsRemoved = ItemsInUse.RemoveSwap(InItem, EAllowShrinking::No);
 
 	// Reset to "new" state
 	InItem->Reset();

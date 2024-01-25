@@ -199,8 +199,7 @@ void FUbaHordeAgent::Poll(bool LogReports)
 				// Remove trailing newline characters and add NUL-terminator
 				while (ResponseData.Num() > 0 && (ResponseData.Last() == '\n' || ResponseData.Last() == '\r'))
 				{
-					constexpr bool bAllowShrinking = false;
-					ResponseData.Pop(bAllowShrinking);
+					ResponseData.Pop(EAllowShrinking::No);
 				}
 				ResponseData.Add('\0');
 

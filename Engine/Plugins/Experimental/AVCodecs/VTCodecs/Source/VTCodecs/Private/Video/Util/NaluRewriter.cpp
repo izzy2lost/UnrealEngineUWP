@@ -47,7 +47,7 @@ bool NaluRewriter::H264CMSampleBufferToAnnexBBuffer(CMSampleBufferRef avcc_sampl
     check(param_set_count == 2);
 
     // Truncate any previous data in the buffer without changing its capacity.
-    annexb_buffer.SetNum(0, false);
+    annexb_buffer.SetNum(0, EAllowShrinking::No);
 
     // Place all parameter sets at the front of buffer.
     if (is_keyframe) 
@@ -283,7 +283,7 @@ bool NaluRewriter::H265CMSampleBufferToAnnexBBuffer(CMSampleBufferRef hvcc_sampl
     check(param_set_count == 3);
 
     // Truncate any previous data in the buffer without changing its capacity.
-    annexb_buffer.SetNum(0, false);
+    annexb_buffer.SetNum(0, EAllowShrinking::No);
 
     // Place all parameter sets at the front of buffer.
     if (is_keyframe) 

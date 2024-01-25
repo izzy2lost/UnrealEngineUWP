@@ -126,7 +126,7 @@ static const uint32 MinAuxiliaryBufferEntries = 4 * 1024 * 1024; // buffer size 
 
 namespace Nanite
 {
-	static FRDGBufferRef ResizeBufferIfNeeded(FRDGBuilder& GraphBuilder, TRefCountPtr<FRDGPooledBuffer>& ExternalBuffer, uint32 BytesPerElement, uint32 NumElements, const TCHAR* Name, bool bCopy, bool bAllowShrinking)
+	static FRDGBufferRef ResizeBufferIfNeeded(FRDGBuilder& GraphBuilder, TRefCountPtr<FRDGPooledBuffer>& ExternalBuffer, uint32 BytesPerElement, uint32 NumElements, const TCHAR* Name, bool bCopy, EAllowShrinking AllowShrinking)
 	{
 		FRDGBufferDesc BufferDesc = FRDGBufferDesc::CreateStructuredDesc(BytesPerElement, NumElements);
 
@@ -143,7 +143,7 @@ namespace Nanite
 				AddCopyBufferPass(GraphBuilder, BufferRDG, SrcBufferRDG);
 			}
 		}
-		else if (bAllowShrinking && BufferDesc.GetSize() / 2 < BufferRDG->GetSize()) // shrink
+		else if (AllowShrinking == EAllowShrinking::Yes && BufferDesc.GetSize() / 2 < BufferRDG->GetSize()) // shrink
 		{
 			FRDGBufferRef SrcBufferRDG = BufferRDG;
 
@@ -508,8 +508,7 @@ namespace Nanite
 		{
 			const uint32 BufferNumAuxiliaryDataEntries = FMath::Max(NumAuxiliaryDataEntries, MinAuxiliaryBufferEntries);
 			const bool bCopy = false;
-			const bool bAllowShrinking = true;
-			StagingAuxiliaryDataBufferRDG = ResizeBufferIfNeeded(GraphBuilder, StagingAuxiliaryDataBuffer, sizeof(uint32), BufferNumAuxiliaryDataEntries, TEXT("NaniteRayTracing.StagingAuxiliaryDataBuffer"), bCopy, bAllowShrinking);
+			StagingAuxiliaryDataBufferRDG = ResizeBufferIfNeeded(GraphBuilder, StagingAuxiliaryDataBuffer, sizeof(uint32), BufferNumAuxiliaryDataEntries, TEXT("NaniteRayTracing.StagingAuxiliaryDataBuffer"), bCopy, EAllowShrinking::Yes);
 			StagingAuxiliaryDataBuffer = GraphBuilder.ConvertToExternalBuffer(StagingAuxiliaryDataBufferRDG);
 
 			SET_MEMORY_STAT(STAT_NaniteRayTracingStagingAuxiliaryDataBuffer, StagingAuxiliaryDataBufferRDG->GetSize());
@@ -799,8 +798,7 @@ namespace Nanite
 		{
 			const uint32 NumAuxiliaryDataEntries = FMath::Max((uint32)AuxiliaryDataAllocator.GetMaxSize(), MinAuxiliaryBufferEntries);
 			const bool bCopy = true;
-			const bool bAllowShrinking = false;
-			AuxiliaryDataBufferRDG = ResizeBufferIfNeeded(GraphBuilder, AuxiliaryDataBuffer, sizeof(uint32), NumAuxiliaryDataEntries, TEXT("NaniteRayTracing.AuxiliaryDataBuffer"), bCopy, bAllowShrinking);
+			AuxiliaryDataBufferRDG = ResizeBufferIfNeeded(GraphBuilder, AuxiliaryDataBuffer, sizeof(uint32), NumAuxiliaryDataEntries, TEXT("NaniteRayTracing.AuxiliaryDataBuffer"), bCopy, EAllowShrinking::No);
 			AuxiliaryDataBuffer = GraphBuilder.ConvertToExternalBuffer(AuxiliaryDataBufferRDG);
 
 			SET_MEMORY_STAT(STAT_NaniteRayTracingAuxiliaryDataBuffer, AuxiliaryDataBufferRDG->GetSize());

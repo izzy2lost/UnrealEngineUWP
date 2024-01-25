@@ -98,7 +98,7 @@ namespace EventCacheStatic
 		// convert directly into new array, precompute length
 		// get the string length and expand our buffer to fit it.
 		//const int32 StrLen = FPlatformString::ConvertedLength<UTF8CHAR>(Str, Len);
-		//UTF8Stream.SetNumUninitialized(OldLen + StrLen, false);
+		//UTF8Stream.SetNumUninitialized(OldLen + StrLen, EAllowShrinking::No);
 		//FPlatformString::Convert((UTF8CHAR*)&UTF8Stream[OldLen], StrLen, Str, Len);
 
 		// optimistically allocate a bit of extra space and see if we fill up the buffer.

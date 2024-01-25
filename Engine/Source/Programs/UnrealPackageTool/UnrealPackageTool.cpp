@@ -389,7 +389,7 @@ public:
 	}
 	virtual void LeaveRecord() override
 	{
-		FStackEntry Record = Stack.Pop(false);
+		FStackEntry Record = Stack.Pop(EAllowShrinking::No);
 		if (Record.MapEntries.Num() == 0)
 		{
 			return;
@@ -488,7 +488,7 @@ public:
 		{
 			LeaveStreamElement();
 		}
-		FStackEntry Record = Stack.Pop(false);
+		FStackEntry Record = Stack.Pop(EAllowShrinking::No);
 		if (Stack.Num() == 1)
 		{
 			GetValueBuffer() << LINE_TERMINATOR << LINE_TERMINATOR;

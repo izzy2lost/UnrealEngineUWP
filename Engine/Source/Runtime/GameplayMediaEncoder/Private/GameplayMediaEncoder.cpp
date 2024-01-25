@@ -470,7 +470,7 @@ void FGameplayMediaEncoder::ProcessAudioFrame(const float* AudioData, int32 NumS
 	//{
 	//	PCM16[i] = PCM16[remainderIdx + i];
 	//}
-	// PCM16.SetNum(bufferSize, false);
+	// PCM16.SetNum(bufferSize, EAllowShrinking::No);
 
 	Audio::AlignedFloatBuffer InData;
 	InData.Append(AudioData, NumSamples);

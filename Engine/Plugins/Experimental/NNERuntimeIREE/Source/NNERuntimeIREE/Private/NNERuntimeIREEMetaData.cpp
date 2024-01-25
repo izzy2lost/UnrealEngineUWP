@@ -297,7 +297,7 @@ void UNNERuntimeIREEModuleMetaData::Serialize(FArchive& Ar)
 		{
 		case UE::NNERuntimeIREE::ModuleMetaData::Private::Version::V0:
 			Ar << NumItems;
-			FunctionMetaData.SetNum(NumItems, true);
+			FunctionMetaData.SetNum(NumItems, EAllowShrinking::Yes);
 			for (int32 i = 0; i < NumItems; i++)
 			{
 				Ar << MetaData.Name;
