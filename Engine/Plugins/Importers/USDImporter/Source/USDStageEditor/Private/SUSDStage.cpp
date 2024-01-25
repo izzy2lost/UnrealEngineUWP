@@ -2697,7 +2697,7 @@ void SUsdStage::OnSlateTick(float Time)
 		}
 	}
 
-	if (UsdPrimInfoWidget && !PrimPathToSelect.IsEmpty())
+	if (UsdPrimInfoWidget && (bStageTreeViewNeedsFullUpdate || !PrimPathToSelect.IsEmpty()))
 	{
 		UsdPrimInfoWidget->SetPrimPath(GetCurrentStage(), *PrimPathToSelect);
 		PrimPathToSelect.Empty();
