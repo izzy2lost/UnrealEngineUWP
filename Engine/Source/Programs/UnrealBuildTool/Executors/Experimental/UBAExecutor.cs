@@ -244,7 +244,7 @@ namespace UnrealBuildTool
 		public string Crypto { get; private set; } = String.Empty;
 		public IServer? Server { get; private set; }
 		ISessionServer? _session;
-		List<IUBAAgentCoordinator> _agentCoordinators = new List<IUBAAgentCoordinator>();
+		readonly List<IUBAAgentCoordinator> _agentCoordinators = new List<IUBAAgentCoordinator>();
 		DirectoryReference? _rootDirRef;
 		bool _bIsCancelled;
 		bool _bIsRemoteActionsAllowed = true;
@@ -264,6 +264,7 @@ namespace UnrealBuildTool
 			{
 				_session?.Dispose();
 				_session = null;
+				_threadedLogger.Dispose();
 			}
 			base.Dispose(disposing);
 		}
@@ -334,7 +335,7 @@ namespace UnrealBuildTool
 
 			if (!UBAConfig.bDisableRemote)
 			{
-				foreach (var coordinator in _agentCoordinators)
+				foreach (IUBAAgentCoordinator coordinator in _agentCoordinators)
 				{
 					await coordinator.InitAsync(this);
 
@@ -386,7 +387,7 @@ namespace UnrealBuildTool
 				_bIsCancelled = true;
 				_session?.CancelAll();
 				ubaStorage?.SaveCasTable();
-				foreach (var coordinator in _agentCoordinators)
+				foreach (IUBAAgentCoordinator coordinator in _agentCoordinators)
 				{
 					coordinator.CloseAsync().Wait(2000); // Give coordinators some time to close (this makes coordinators like horde return resources faster)
 				}
@@ -435,7 +436,7 @@ namespace UnrealBuildTool
 			{
 				Console.CancelKeyPress -= CancelKeyPress;
 
-				foreach (var coordinator in _agentCoordinators)
+				foreach (IUBAAgentCoordinator coordinator in _agentCoordinators)
 				{
 					await coordinator.CloseAsync();
 				}
@@ -527,7 +528,7 @@ namespace UnrealBuildTool
 					if (count <= NumParallelProcesses)
 					{
 						_bIsRemoteActionsAllowed = false;
-						foreach (var coordinator in _agentCoordinators)
+						foreach (IUBAAgentCoordinator coordinator in _agentCoordinators)
 						{
 							coordinator.Stop();
 						}
@@ -554,7 +555,7 @@ namespace UnrealBuildTool
 
 			try
 			{
-				foreach (var coordinator in _agentCoordinators)
+				foreach (IUBAAgentCoordinator coordinator in _agentCoordinators)
 				{
 					coordinator.Start(queue, CanRunRemotely);
 				}
@@ -564,20 +565,19 @@ namespace UnrealBuildTool
 			}
 			finally
 			{
-				foreach (var coordinator in _agentCoordinators)
+				foreach (IUBAAgentCoordinator coordinator in _agentCoordinators)
 				{
 					coordinator.Stop();
 				}
 			}
 		}
 
-
 		/// <summary>
 		/// Determine if an action must be run locally and with no detouring
 		/// </summary>
 		/// <param name="action">The action to check</param>
 		/// <returns>If this action must be local, non-detoured</returns>
-		bool ForceLocalNoDetour(LinkedAction action)
+		static bool ForceLocalNoDetour(LinkedAction action)
 		{
 			// Don't let Mac run shell commands through Uba as interposing dylibs into
 			// the shell results in dyld errors about no matching architecture.
@@ -586,9 +586,8 @@ namespace UnrealBuildTool
 			// Linking is similarly currently not working in Uba on Mac
 			bool bIsShellAction = action.CommandPath == BuildHostPlatform.Current.Shell;
 			bool bIsLinkAction = action.ActionType == ActionType.Link;
-			return System.OperatingSystem.IsMacOS() && (bIsShellAction || bIsLinkAction);
+			return OperatingSystem.IsMacOS() && (bIsShellAction || bIsLinkAction);
 		}
-
 
 		/// <summary>
 		/// Determine if an action is able to be run remotely
@@ -668,12 +667,7 @@ namespace UnrealBuildTool
 					List<string> logLines = process.LogLines;
 					logLines.RemoveAll((line) => line.StartsWith("   Creating library ", StringComparison.OrdinalIgnoreCase) && line.EndsWith(".exp", StringComparison.OrdinalIgnoreCase) || line.EndsWith("file(s) copied.", StringComparison.OrdinalIgnoreCase));
 
-					string? additionalDescription = null;
-					if (!enableDetour)
-					{
-						additionalDescription = "(UBA disabled)";
-					}
-
+					string? additionalDescription = !enableDetour ? "(UBA disabled)" : null;
 					ActionFinished(queue, new ExecuteResults(logLines, process.ExitCode, executionTime, processorTime, additionalDescription), action, pchItem, process);
 				}
 				return Task.CompletedTask;
@@ -696,7 +690,7 @@ namespace UnrealBuildTool
 					int sizeOfChar = System.OperatingSystem.IsWindows() ? 2 : 1;
 
 					int byteCount = 0;
-					foreach (var item in action.PrerequisiteItems)
+					foreach (FileItem item in action.PrerequisiteItems)
 					{
 						byteCount += (item.FullName.Length + 1) * sizeOfChar;
 						++knownInputsCount;
@@ -705,14 +699,19 @@ namespace UnrealBuildTool
 					knownInputs = new byte[byteCount + sizeOfChar];
 
 					int byteOffset = 0;
-					foreach (var item in action.PrerequisiteItems)
+					foreach (FileItem item in action.PrerequisiteItems)
 					{
-						var str = item.FullName;
+						string str = item.FullName;
 						int strBytes = str.Length * sizeOfChar;
 						if (sizeOfChar == 1) // Unmanaged size uses ascii
+						{
 							System.Buffer.BlockCopy(System.Text.Encoding.ASCII.GetBytes(str.ToCharArray()), 0, knownInputs, byteOffset, strBytes);
+						}
 						else
+						{
 							System.Buffer.BlockCopy(str.ToCharArray(), 0, knownInputs, byteOffset, strBytes);
+						}
+
 						byteOffset += strBytes + sizeOfChar;
 					}
 				}
