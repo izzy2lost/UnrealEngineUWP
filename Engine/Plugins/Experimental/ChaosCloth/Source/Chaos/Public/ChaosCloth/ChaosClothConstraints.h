@@ -67,11 +67,12 @@ PRAGMA_ENABLE_DEPRECATION_WARNINGS
 			const FClothingPatternData* PatternData,
 			const TMap<FString, TConstArrayView<FRealSingle>>& WeightMaps,
 			const TMap<FString, const TSet<int32>*>& VertexSets,
+			const TMap<FString, TConstArrayView<int32>>& FaceIntMaps,
 			const TArray<TConstArrayView<TTuple<int32, int32, FRealSingle>>>& Tethers,
 			Softs::FSolverReal MeshScale,
 			bool bEnabled);
 
-		UE_DEPRECATED(5.4, "Use AddRules() with WeightMaps, VertexSets, and optional PatternData instead.")
+		UE_DEPRECATED(5.4, "Use AddRules() with WeightMaps, VertexSets, FaceIntMaps, and optional PatternData instead.")
 		void AddRules(
 			const Softs::FCollectionPropertyConstFacade& ConfigProperties,
 			const FTriangleMesh& TriangleMesh,
@@ -81,7 +82,7 @@ PRAGMA_ENABLE_DEPRECATION_WARNINGS
 			Softs::FSolverReal MeshScale,
 			bool bEnabled);
 
-		UE_DEPRECATED(5.3, "Use AddRules() with WeightMaps, VertexSets, and optional PatternData instead.")
+		UE_DEPRECATED(5.3, "Use AddRules() with WeightMaps, VertexSets, FaceIntMap, and optional PatternData instead.")
 		void AddRules(
 			const Softs::FCollectionPropertyConstFacade& ConfigProperties,
 			const FTriangleMesh& TriangleMesh,
@@ -94,17 +95,18 @@ PRAGMA_ENABLE_DEPRECATION_WARNINGS
 			const Softs::FCollectionPropertyConstFacade& ConfigProperties,
 			const TMap<FString, TConstArrayView<FRealSingle>>& WeightMaps,
 			const TMap<FString, const TSet<int32>*>& VertexSets,
+			const TMap<FString, TConstArrayView<int32>>& FaceIntMaps,
 			Softs::FSolverReal MeshScale,
 			Softs::FSolverReal MaxDistancesScale = (Softs::FSolverReal)1.);
 
-		UE_DEPRECATED(5.4, "Use Update() with WeightMaps and VertexSets instead.")
+		UE_DEPRECATED(5.4, "Use Update() with WeightMaps, VertexSets, and FaceIntMaps instead.")
 		void Update(
 			const Softs::FCollectionPropertyConstFacade& ConfigProperties,
 			const TMap<FString, TConstArrayView<FRealSingle>>& WeightMaps,
 			Softs::FSolverReal MeshScale,
 			Softs::FSolverReal MaxDistancesScale = (Softs::FSolverReal)1.);
 
-		UE_DEPRECATED(5.3, "Use Update() with WeightMaps instead.")
+		UE_DEPRECATED(5.3, "Use Update() with WeightMaps, VertexSets, and FaceIntMaps instead.")
 		void Update(
 			const Softs::FCollectionPropertyConstFacade& ConfigProperties,
 			Softs::FSolverReal MeshScale,
@@ -148,6 +150,7 @@ PRAGMA_ENABLE_DEPRECATION_WARNINGS
 		void CreateSelfCollisionConstraints(
 			const Softs::FCollectionPropertyConstFacade& ConfigProperties,
 			const TMap<FString, const TSet<int32>*>& VertexSets,
+			const TMap<FString, TConstArrayView<int32>>& FaceIntMaps,
 			const FTriangleMesh& TriangleMesh);
 		void CreateStretchConstraints(
 			const Softs::FCollectionPropertyConstFacade& ConfigProperties,

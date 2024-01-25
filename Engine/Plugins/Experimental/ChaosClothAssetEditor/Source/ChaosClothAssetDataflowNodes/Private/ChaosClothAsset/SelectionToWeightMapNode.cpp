@@ -45,50 +45,60 @@ void FChaosClothAssetSelectionToWeightMapNode::Evaluate(Dataflow::FContext& Cont
 					const FName InMapName(WeightMapName.IsEmpty() ? SelectionName : WeightMapName);
 					ClothFacade.AddWeightMap(InMapName);
 					TArrayView<float> OutClothWeights = ClothFacade.GetWeightMap(InMapName);
-
-					if (SelectionGroup == ClothCollectionGroup::SimVertices3D)
+					if (OutClothWeights.Num() == ClothFacade.GetNumSimVertices3D())
 					{
-						for (int32 VertexIndex = 0; VertexIndex < OutClothWeights.Num(); ++VertexIndex)
+						if (SelectionGroup == ClothCollectionGroup::SimVertices3D)
 						{
-							OutClothWeights[VertexIndex] = SelectionSet->Contains(VertexIndex) ? SelectedValue : UnselectedValue;
-						}
-					}
-					else if (SelectionGroup == ClothCollectionGroup::SimVertices2D)
-					{
-						// We are given a selection over the set of 2D vertices, but weight maps only exist for 3D vertices, so
-						// we need a bit of translation
-						const TConstArrayView<TArray<int32>> Vertex3DTo2D = ClothFacade.GetSimVertex2DLookup();
-
-						for (int32 Vertex3DIndex = 0; Vertex3DIndex < OutClothWeights.Num(); ++Vertex3DIndex)
-						{
-							// If any corresponding 2D vertex is selected, set the 3D weight map value to one, otherwise it gets zero
-							OutClothWeights[Vertex3DIndex] = UnselectedValue;
-							for (const int32 Vertex2DIndex : Vertex3DTo2D[Vertex3DIndex])
+							for (int32 VertexIndex = 0; VertexIndex < OutClothWeights.Num(); ++VertexIndex)
 							{
-								if (SelectionSet->Contains(Vertex2DIndex))
+								OutClothWeights[VertexIndex] = SelectionSet->Contains(VertexIndex) ? SelectedValue : UnselectedValue;
+							}
+						}
+						else if (SelectionGroup == ClothCollectionGroup::SimVertices2D)
+						{
+							// We are given a selection over the set of 2D vertices, but weight maps only exist for 3D vertices, so
+							// we need a bit of translation
+							const TConstArrayView<TArray<int32>> Vertex3DTo2D = ClothFacade.GetSimVertex2DLookup();
+
+							for (int32 Vertex3DIndex = 0; Vertex3DIndex < OutClothWeights.Num(); ++Vertex3DIndex)
+							{
+								// If any corresponding 2D vertex is selected, set the 3D weight map value to one, otherwise it gets zero
+								OutClothWeights[Vertex3DIndex] = UnselectedValue;
+								for (const int32 Vertex2DIndex : Vertex3DTo2D[Vertex3DIndex])
 								{
-									OutClothWeights[Vertex3DIndex] = SelectedValue;
-									break;
+									if (SelectionSet->Contains(Vertex2DIndex))
+									{
+										OutClothWeights[Vertex3DIndex] = SelectedValue;
+										break;
+									}
 								}
+							}
+						}
+						else
+						{
+							check(SelectionGroup == ClothCollectionGroup::SimFaces);
+
+							// Fill with unselected value and then set all vertices in the selected faces to the selected value.
+							for (int32 Vertex3DIndex = 0; Vertex3DIndex < OutClothWeights.Num(); ++Vertex3DIndex)
+							{
+								OutClothWeights[Vertex3DIndex] = UnselectedValue;
+							}
+							const TConstArrayView<FIntVector3> SimIndices3D = ClothFacade.GetSimIndices3D();
+							for (const int32 FaceIndex : *SelectionSet)
+							{
+								OutClothWeights[SimIndices3D[FaceIndex][0]] = SelectedValue;
+								OutClothWeights[SimIndices3D[FaceIndex][1]] = SelectedValue;
+								OutClothWeights[SimIndices3D[FaceIndex][2]] = SelectedValue;
 							}
 						}
 					}
 					else
 					{
-						check(SelectionGroup == ClothCollectionGroup::SimFaces);
-
-						// Fill with unselected value and then set all vertices in the selected faces to the selected value.
-						for (int32 Vertex3DIndex = 0; Vertex3DIndex < OutClothWeights.Num(); ++Vertex3DIndex)
-						{
-							OutClothWeights[Vertex3DIndex] = UnselectedValue;
-						}
-						const TConstArrayView<FIntVector3> SimIndices3D = ClothFacade.GetSimIndices3D();
-						for (const int32 FaceIndex : *SelectionSet)
-						{
-							OutClothWeights[SimIndices3D[FaceIndex][0]] = SelectedValue;
-							OutClothWeights[SimIndices3D[FaceIndex][1]] = SelectedValue;
-							OutClothWeights[SimIndices3D[FaceIndex][2]] = SelectedValue;
-						}
+						check(OutClothWeights.Num() == 0);
+						FClothDataflowTools::LogAndToastWarning(*this,
+							LOCTEXT("InvalidWeightMapNameHeadline", "Invalid weight map name."),
+							FText::Format(LOCTEXT("InvalidWeightMapNameDetails", "Could not create a weight map with name \"{0}\" (reserved name? wrong type?)."),
+								FText::FromName(InMapName)));
 					}
 				}
 				else

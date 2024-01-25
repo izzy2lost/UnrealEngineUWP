@@ -5,6 +5,7 @@
 #include "ChaosClothAsset/CollectionClothSimPatternFacade.h"
 #include "ChaosClothAsset/CollectionClothRenderPatternFacade.h"
 #include "ChaosClothAsset/CollectionClothSeamFacade.h"
+#include "ChaosClothAsset/IsUserAttributeType.h"
 
 namespace Chaos
 {
@@ -41,8 +42,10 @@ namespace UE::Chaos::ClothAsset
 		bool HasValidData() const;
 
 		uint32 CalculateTypeHash(bool bIncludeWeightMaps, uint32 PreviousHash = 0) const;
-
 		uint32 CalculateWeightMapTypeHash(uint32 PreviousHash = 0) const;
+		template<typename T, TEMPLATE_REQUIRES(TIsUserAttributeType<T>::Value)>
+		uint32 CalculateUserDefinedAttributesTypeHash(const FName& GroupName, uint32 PreviousHash = 0) const;
+		
 
 		//~ LOD (single per collection) Group
 		/** Return the physics asset path names used for this collection. */
@@ -119,13 +122,20 @@ namespace UE::Chaos::ClothAsset
 		int32 GetNumRenderFaces() const;
 		TConstArrayView<FIntVector3> GetRenderIndices() const;
 
+		//~ Weight Maps
 		/** Return whether this cloth collection has the specified weight map. */
 		bool HasWeightMap(const FName& Name) const;
-
 		/** Return the name of all user weight maps on this cloth collection. */
 		TArray<FName> GetWeightMapNames() const;
-
 		TConstArrayView<float> GetWeightMap(const FName& Name) const;
+
+		//~ Other User-Defined Attributes (not instantiated for bools)
+		template<typename T, TEMPLATE_REQUIRES(TIsUserAttributeType<T>::Value)>
+		bool HasUserDefinedAttribute(const FName& Name, const FName& GroupName) const;
+		template<typename T, TEMPLATE_REQUIRES(TIsUserAttributeType<T>::Value)>
+		TArray<FName> GetUserDefinedAttributeNames(const FName& GroupName) const;
+		template<typename T, TEMPLATE_REQUIRES(TIsUserAttributeType<T>::Value)>
+		TConstArrayView<T> GetUserDefinedAttribute(const FName& Name, const FName& GroupName) const;
 
 		void BuildSimulationMesh(TArray<FVector3f>& Positions, TArray<FVector3f>& Normals, TArray<uint32>& Indices, TArray<FVector2f>& PatternsPositions, TArray<uint32>& PatternsIndices, 
 			TArray<uint32>& PatternToWeldedIndices, TArray<TArray<int32>>* OptionalWeldedToPatternIndices = nullptr) const;
@@ -254,13 +264,21 @@ namespace UE::Chaos::ClothAsset
 		/** SetNumRenderFaces per pattern within pattern facade. */
 		TArrayView<FIntVector3> GetRenderIndices();
 
+		//~ Weight Maps
 		/** Add a new weight map to this cloth. Access is then done per pattern. */
 		void AddWeightMap(const FName& Name);
-
 		/** Remove a weight map from this cloth. */
 		void RemoveWeightMap(const FName& Name);
-
 		TArrayView<float> GetWeightMap(const FName& Name);
+
+		//~ Other User-Defined Attributes (not instantiated for bools)
+		/** GroupName must be an existing group as defined in ClothCollectionGroup. Returns success */
+		template<typename T, TEMPLATE_REQUIRES(TIsUserAttributeType<T>::Value)>
+		bool AddUserDefinedAttribute(const FName& Name, const FName& GroupName);
+		void RemoveUserDefinedAttribute(const FName& Name, const FName& GroupName);
+		template<typename T, TEMPLATE_REQUIRES(TIsUserAttributeType<T>::Value)>
+		TArrayView<T> GetUserDefinedAttribute(const FName& Name, const FName& GroupName);
+		static bool IsValidClothCollectionGroupName(const FName& GroupName);
 
 	private:
 		void SetDefaults();

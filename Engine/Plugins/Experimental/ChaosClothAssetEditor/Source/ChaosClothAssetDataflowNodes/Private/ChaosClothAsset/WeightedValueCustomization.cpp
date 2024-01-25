@@ -161,7 +161,7 @@ namespace UE::Chaos::ClothAsset
 			TWeakPtr<IPropertyHandle> HandleWeakPtr = PropertyHandle;
 			return
 				SNew(SEditableTextBox)
-				.ToolTipText(LOCTEXT("WeightMap", "The name of the weight map for this property."))
+				.ToolTipText(PropertyHandle->GetToolTipText())
 				.Text_Lambda([HandleWeakPtr, OverrideHandleWeakPtr]() -> FText
 					{
 						FString Text;

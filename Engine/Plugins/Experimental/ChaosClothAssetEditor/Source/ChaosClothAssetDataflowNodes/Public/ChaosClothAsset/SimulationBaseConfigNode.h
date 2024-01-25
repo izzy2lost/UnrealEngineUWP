@@ -3,6 +3,7 @@
 #pragma once 
 
 #include "Chaos/CollectionPropertyFacade.h"
+#include "ChaosClothAsset/ConnectableValue.h"
 #include "ChaosClothAsset/WeightedValue.h"
 #include "Dataflow/DataflowNode.h"
 #include "GeometryCollection/ManagedArrayCollection.h"
@@ -52,6 +53,10 @@ protected:
 
 		int32 SetPropertyString(const FName& PropertyName, const FString& PropertyValue, const TArray<FName>& SimilarPropertyNames = {}, ECollectionPropertyFlags PropertyFlags = ECollectionPropertyFlags::Animatable);
 
+		int32 SetPropertyString(const FName& PropertyName, const FChaosClothAssetConnectableIStringValue& PropertyValue, const TArray<FName>& SimilarPropertyNames = {}, ECollectionPropertyFlags PropertyFlags = ECollectionPropertyFlags::Animatable);
+
+		template<typename T, typename ConnectableStringValueType, TEMPLATE_REQUIRES(TIsDerivedFrom<T, FChaosClothAssetSimulationBaseConfigNode>::Value)>
+		inline int32 SetPropertyString(const T* ConfigStruct, const ConnectableStringValueType* PropertyValue, const TArray<FName>& SimilarPropertyNames = {}, ECollectionPropertyFlags PropertyFlags = ECollectionPropertyFlags::Animatable);
 		template<typename T, TEMPLATE_REQUIRES(TIsDerivedFrom<T, FChaosClothAssetSimulationBaseConfigNode>::Value)>
 		inline int32 SetPropertyString(const T* ConfigStruct, const FString* PropertyValue, const TArray<FName>& SimilarPropertyNames = {}, ECollectionPropertyFlags PropertyFlags = ECollectionPropertyFlags::Animatable);
 
@@ -203,6 +208,19 @@ inline int32 FChaosClothAssetSimulationBaseConfigNode::FPropertyHelper::SetPrope
 	const FName PropertyName = FindPropertyNameByAddress(ConfigStruct, PropertyValue);
 	checkf(PropertyName != NAME_None, TEXT("Unknown property."));
 	return SetPropertyWeighted(PropertyName, *PropertyValue, SimilarPropertyNames, PropertyFlags);
+}
+
+template<typename T, typename ConnectableStringValueType, typename TEnableIf<TIsDerivedFrom<T, FChaosClothAssetSimulationBaseConfigNode>::Value, int>::type>
+inline int32 FChaosClothAssetSimulationBaseConfigNode::FPropertyHelper::SetPropertyString(
+	const T* ConfigStruct, 
+	const ConnectableStringValueType* PropertyValue,
+	const TArray<FName>& SimilarPropertyNames, 
+	ECollectionPropertyFlags PropertyFlags)
+{
+	check(PropertyValue);
+	const FName PropertyName = FindPropertyNameByAddress(ConfigStruct, PropertyValue);
+	checkf(PropertyName != NAME_None, TEXT("Unknown property."));
+	return SetPropertyString(PropertyName, *PropertyValue, SimilarPropertyNames, PropertyFlags);
 }
 
 template<typename T, typename TEnableIf<TIsDerivedFrom<T, FChaosClothAssetSimulationBaseConfigNode>::Value, int>::type>

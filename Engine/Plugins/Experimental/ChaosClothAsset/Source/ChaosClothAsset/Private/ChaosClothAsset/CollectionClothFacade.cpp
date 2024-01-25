@@ -116,6 +116,22 @@ namespace UE::Chaos::ClothAsset
 		return ResultHash;
 	}
 
+	template<typename T, typename TEnableIf<TIsUserAttributeType<T>::Value, int>::type>
+	uint32 FCollectionClothConstFacade::CalculateUserDefinedAttributesTypeHash(const FName& GroupName, uint32 PreviousHash) const
+	{
+		uint32 ResultHash = PreviousHash;
+		const TArray<FName> AttributesNames = GetUserDefinedAttributeNames<T>(GroupName);
+		for (const FName& AttributesName : AttributesNames)
+		{
+			ResultHash = HashCombineFast(ResultHash, GetTypeHash(AttributesName));
+			ResultHash = HashCombineFast(ResultHash, ClothCollection->GetElementsTypeHash(ClothCollection->GetUserDefinedAttribute<T>(AttributesName, GroupName)));
+		}
+		return ResultHash;
+	}
+	template CHAOSCLOTHASSET_API uint32 FCollectionClothConstFacade::CalculateUserDefinedAttributesTypeHash<int32>(const FName& GroupName, uint32 PreviousHash) const;
+	template CHAOSCLOTHASSET_API uint32 FCollectionClothConstFacade::CalculateUserDefinedAttributesTypeHash<float>(const FName& GroupName, uint32 PreviousHash) const;
+	template CHAOSCLOTHASSET_API uint32 FCollectionClothConstFacade::CalculateUserDefinedAttributesTypeHash<FVector3f>(const FName& GroupName, uint32 PreviousHash) const;
+
 	const FString& FCollectionClothConstFacade::GetPhysicsAssetPathName() const
 	{
 		static const FString EmptyString;
@@ -328,6 +344,34 @@ namespace UE::Chaos::ClothAsset
 		return ClothCollection->GetElements(ClothCollection->GetUserDefinedAttribute<float>(Name, ClothCollectionGroup::SimVertices3D));
 	}
 
+
+	template<typename T, typename TEnableIf<TIsUserAttributeType<T>::Value, int>::type>
+	bool FCollectionClothConstFacade::HasUserDefinedAttribute(const FName& Name, const FName& GroupName) const
+	{
+		return ClothCollection->HasUserDefinedAttribute<T>(Name, GroupName);
+	}
+	template CHAOSCLOTHASSET_API bool FCollectionClothConstFacade::HasUserDefinedAttribute<int32>(const FName& Name, const FName& GroupName) const;
+	template CHAOSCLOTHASSET_API bool FCollectionClothConstFacade::HasUserDefinedAttribute<float>(const FName& Name, const FName& GroupName) const;
+	template CHAOSCLOTHASSET_API bool FCollectionClothConstFacade::HasUserDefinedAttribute<FVector3f>(const FName& Name, const FName& GroupName) const;
+
+	template<typename T, typename TEnableIf<TIsUserAttributeType<T>::Value, int>::type>
+	TArray<FName> FCollectionClothConstFacade::GetUserDefinedAttributeNames(const FName& GroupName) const
+	{
+		return ClothCollection->GetUserDefinedAttributeNames<T>(GroupName);
+	}
+	template CHAOSCLOTHASSET_API TArray<FName> FCollectionClothConstFacade::GetUserDefinedAttributeNames<int32>(const FName& GroupName) const;
+	template CHAOSCLOTHASSET_API TArray<FName> FCollectionClothConstFacade::GetUserDefinedAttributeNames<float>(const FName& GroupName) const;
+	template CHAOSCLOTHASSET_API TArray<FName> FCollectionClothConstFacade::GetUserDefinedAttributeNames<FVector3f>(const FName& GroupName) const;
+
+	template<typename T, typename TEnableIf<TIsUserAttributeType<T>::Value, int>::type>
+	TConstArrayView<T> FCollectionClothConstFacade::GetUserDefinedAttribute(const FName& Name, const FName& GroupName) const
+	{
+		return ClothCollection->GetElements(ClothCollection->GetUserDefinedAttribute<T>(Name, GroupName));
+	}
+	template CHAOSCLOTHASSET_API TConstArrayView<int32> FCollectionClothConstFacade::GetUserDefinedAttribute<int32>(const FName& Name, const FName& GroupName) const;
+	template CHAOSCLOTHASSET_API TConstArrayView<float> FCollectionClothConstFacade::GetUserDefinedAttribute<float>(const FName& Name, const FName& GroupName) const;
+	template CHAOSCLOTHASSET_API TConstArrayView<FVector3f> FCollectionClothConstFacade::GetUserDefinedAttribute<FVector3f>(const FName& Name, const FName& GroupName) const;
+
 	void FCollectionClothConstFacade::BuildSimulationMesh(TArray<FVector3f>& Positions, TArray<FVector3f>& Normals, TArray<uint32>& Indices, TArray<FVector2f>& PatternsPositions, TArray<uint32>& PatternsIndices,
 		TArray<uint32>& PatternToWeldedIndices, TArray<TArray<int32>>* OptionalWeldedToPatternIndices) const
 	{
@@ -431,7 +475,9 @@ namespace UE::Chaos::ClothAsset
 		// Sim Patterns Group
 		const int32 StartNumSimVertices2D = GetNumSimVertices2D();
 		const int32 StartNumSimPatterns = GetNumSimPatterns();
+		const int32 StartNumSimFaces = GetNumSimFaces();
 		const int32 OtherNumSimPatterns = Other.GetNumSimPatterns();
+		const int32 OtherNumSimFaces = Other.GetNumSimFaces();
 		SetNumSimPatterns(StartNumSimPatterns + OtherNumSimPatterns);
 		for (int32 PatternIndex = 0; PatternIndex < OtherNumSimPatterns; ++PatternIndex)
 		{
@@ -470,6 +516,14 @@ namespace UE::Chaos::ClothAsset
 		{
 			AddWeightMap(WeightMapName);
 			FClothCollection::CopyArrayViewData(GetWeightMap(WeightMapName).Right(OtherNumSimVertices3D), Other.GetWeightMap(WeightMapName));
+		}
+
+		// Face int maps (self collision layers)
+		const TArray<FName> FaceIntMapNames = Other.GetUserDefinedAttributeNames<int32>(ClothCollectionGroup::SimFaces);
+		for (const FName& IntMapName : FaceIntMapNames)
+		{
+			AddUserDefinedAttribute<int32>(IntMapName, ClothCollectionGroup::SimFaces);
+			FClothCollection::CopyArrayViewData(GetUserDefinedAttribute<int32>(IntMapName, ClothCollectionGroup::SimFaces).Right(OtherNumSimFaces), Other.GetUserDefinedAttribute<int32>(IntMapName, ClothCollectionGroup::SimFaces));
 		}
 	}
 
@@ -758,6 +812,36 @@ namespace UE::Chaos::ClothAsset
 	TArrayView<float> FCollectionClothFacade::GetWeightMap(const FName& Name)
 	{
 		return GetClothCollection()->GetElements(GetClothCollection()->GetUserDefinedAttribute<float>(Name, ClothCollectionGroup::SimVertices3D));
+	}
+
+	template<typename T, typename TEnableIf<TIsUserAttributeType<T>::Value, int>::type>
+	bool FCollectionClothFacade::AddUserDefinedAttribute(const FName& Name, const FName& GroupName)
+	{
+		check(IsValid());
+		return GetClothCollection()->FindOrAddUserDefinedAttribute<T>(Name, GroupName) != nullptr;
+	}
+	template CHAOSCLOTHASSET_API bool FCollectionClothFacade::AddUserDefinedAttribute<int32>(const FName& Name, const FName& GroupName);
+	template CHAOSCLOTHASSET_API bool FCollectionClothFacade::AddUserDefinedAttribute<float>(const FName& Name, const FName& GroupName);
+	template CHAOSCLOTHASSET_API bool FCollectionClothFacade::AddUserDefinedAttribute<FVector3f>(const FName& Name, const FName& GroupName);
+
+	void FCollectionClothFacade::RemoveUserDefinedAttribute(const FName& Name, const FName& GroupName)
+	{
+		check(IsValid());
+		GetClothCollection()->RemoveUserDefinedAttribute(Name, GroupName);
+	}
+
+	template<typename T, typename TEnableIf<TIsUserAttributeType<T>::Value, int>::type>
+	TArrayView<T> FCollectionClothFacade::GetUserDefinedAttribute(const FName& Name, const FName& GroupName)
+	{
+		return GetClothCollection()->GetElements(GetClothCollection()->GetUserDefinedAttribute<T>(Name, GroupName));
+	}
+	template CHAOSCLOTHASSET_API TArrayView<int32> FCollectionClothFacade::GetUserDefinedAttribute<int32>(const FName& Name, const FName& GroupName);
+	template CHAOSCLOTHASSET_API TArrayView<float> FCollectionClothFacade::GetUserDefinedAttribute<float>(const FName& Name, const FName& GroupName);
+	template CHAOSCLOTHASSET_API TArrayView<FVector3f> FCollectionClothFacade::GetUserDefinedAttribute<FVector3f>(const FName& Name, const FName& GroupName);
+
+	bool FCollectionClothFacade::IsValidClothCollectionGroupName(const FName& GroupName)
+	{
+		return FClothCollection::IsValidClothCollectionGroupName(GroupName);
 	}
 
 	void FCollectionClothFacade::SetDefaults()

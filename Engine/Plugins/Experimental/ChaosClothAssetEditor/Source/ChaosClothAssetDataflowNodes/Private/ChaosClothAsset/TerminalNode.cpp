@@ -31,6 +31,7 @@ namespace UE::Chaos::ClothAsset::Private
 			if (Cloth.HasValidData())
 			{
 				Checksum = Cloth.CalculateTypeHash(bIncludeWeightMapsTrue, Checksum);
+				Checksum = Cloth.CalculateUserDefinedAttributesTypeHash<int32>(ClothCollectionGroup::SimFaces, Checksum);
 			}
 			FCollectionClothSelectionConstFacade Selection(ClothCollection);
 			if (Selection.IsValid())

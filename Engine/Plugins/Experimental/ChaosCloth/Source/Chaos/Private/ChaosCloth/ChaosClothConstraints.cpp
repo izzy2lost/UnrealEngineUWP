@@ -470,7 +470,7 @@ void FClothConstraints::AddRules(
 
 	// Call new AddRules function
 	AddRules(ConfigProperties, TriangleMesh, nullptr, WeightMaps, TMap<FString, const TSet<int32>*>(),
-		Tethers, MeshScale, bEnabled);
+		TMap<FString, TConstArrayView<int32>>(), Tethers, MeshScale, bEnabled);
 }
 
 void FClothConstraints::AddRules(
@@ -482,7 +482,7 @@ void FClothConstraints::AddRules(
 	Softs::FSolverReal MeshScale, bool bEnabled)
 {
 	AddRules(ConfigProperties, TriangleMesh, PatternData, WeightMaps, TMap<FString, const TSet<int32>*>(),
-		Tethers, MeshScale, bEnabled);
+		TMap<FString, TConstArrayView<int32>>(), Tethers, MeshScale, bEnabled);
 }
 
 //only counts the number of rules that GS/CG currently cupports
@@ -797,11 +797,12 @@ void FClothConstraints::AddRules(
 	const FClothingPatternData* PatternData,
 	const TMap<FString, TConstArrayView<FRealSingle>>& WeightMaps,
 	const TMap<FString, const TSet<int32>*>& VertexSets,
+	const TMap<FString, TConstArrayView<int32>>& FaceIntMaps,
 	const TArray<TConstArrayView<TTuple<int32, int32, FRealSingle>>>& Tethers,
 	Softs::FSolverReal MeshScale, bool bEnabled)
 {
 	// Self collisions
-	CreateSelfCollisionConstraints(ConfigProperties, VertexSets, TriangleMesh);
+	CreateSelfCollisionConstraints(ConfigProperties, VertexSets, FaceIntMaps, TriangleMesh);
 
 	// Edge constraints
 	CreateStretchConstraints(ConfigProperties, WeightMaps, TriangleMesh, PatternData);
@@ -867,27 +868,13 @@ void FClothConstraints::AddRules(
 }
 
 void FClothConstraints::CreateSelfCollisionConstraints(const Softs::FCollectionPropertyConstFacade& ConfigProperties, 
-	const TMap<FString, const TSet<int32>*>& VertexSets, const FTriangleMesh& TriangleMesh)
+	const TMap<FString, const TSet<int32>*>& VertexSets,
+	const TMap<FString, TConstArrayView<int32>>& FaceIntMaps, const FTriangleMesh& TriangleMesh)
 {
 	const bool bUseSelfCollisions = ConfigProperties.GetValue<bool>(TEXT("UseSelfCollisions"));
 
 	if (bUseSelfCollisions)
 	{
-		static const int32 DisabledCollisionElementsN = 5;  // TODO: Make this a parameter?
-		TSet<TVec2<int32>> DisabledCollisionElements;  // TODO: Is this needed? Turn this into a bit array?
-
-		const TVec2<int32> Range = TriangleMesh.GetVertexRange();
-		for (int32 Index = Range[0]; Index <= Range[1]; ++Index)
-		{
-			const TSet<int32> Neighbors = TriangleMesh.GetNRing(Index, DisabledCollisionElementsN);
-			for (int32 Element : Neighbors)
-			{
-				check(Index != Element);
-				DisabledCollisionElements.Emplace(TVec2<int32>(Index, Element));
-				DisabledCollisionElements.Emplace(TVec2<int32>(Element, Index));
-			}
-		}
-
 		SelfCollisionInit = MakeShared<Softs::FPBDTriangleMeshCollisions>(
 			ParticleOffset,
 			NumParticles,
@@ -900,7 +887,7 @@ void FClothConstraints::CreateSelfCollisionConstraints(const Softs::FCollectionP
 			NumParticles,
 			TriangleMesh,
 			AnimationPositions,
-			MoveTemp(DisabledCollisionElements),
+			FaceIntMaps,
 			ConfigProperties);
 		++NumPostCollisionConstraintRules;
 
@@ -2106,6 +2093,7 @@ void FClothConstraints::Update(
 	const Softs::FCollectionPropertyConstFacade& ConfigProperties,
 	const TMap<FString, TConstArrayView<FRealSingle>>& WeightMaps,
 	const TMap<FString, const TSet<int32>*>& VertexSets,
+	const TMap<FString, TConstArrayView<int32>>& FaceIntMaps,
 	Softs::FSolverReal MeshScale,
 	Softs::FSolverReal MaxDistancesScale)
 {
@@ -2171,7 +2159,7 @@ void FClothConstraints::Update(
 	}
 	if (SelfCollisionConstraints)
 	{
-		SelfCollisionConstraints->SetProperties(ConfigProperties);
+		SelfCollisionConstraints->SetProperties(ConfigProperties, FaceIntMaps);
 	}
 	if (SelfCollisionInit)
 	{
@@ -2217,7 +2205,7 @@ void FClothConstraints::Update(
 	Softs::FSolverReal MeshScale,
 	Softs::FSolverReal MaxDistancesScale)
 {
-	Update(ConfigProperties, WeightMaps, TMap<FString, const TSet<int32>*>(), MeshScale, MaxDistancesScale);
+	Update(ConfigProperties, WeightMaps, TMap<FString, const TSet<int32>*>(), TMap<FString, TConstArrayView<int32>>(), MeshScale, MaxDistancesScale);
 }
 
 // Deprecated
@@ -2226,7 +2214,7 @@ void FClothConstraints::Update(
 	Softs::FSolverReal MeshScale,
 	Softs::FSolverReal MaxDistancesScale)
 {
-	Update(ConfigProperties, TMap<FString, TConstArrayView<FRealSingle>>(), TMap<FString, const TSet<int32>*>(), MeshScale, MaxDistancesScale);
+	Update(ConfigProperties, TMap<FString, TConstArrayView<FRealSingle>>(), TMap<FString, const TSet<int32>*>(), TMap<FString, TConstArrayView<int32>>(), MeshScale, MaxDistancesScale);
 }
 
 }  // End namespace Chaos

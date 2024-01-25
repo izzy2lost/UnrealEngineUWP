@@ -602,24 +602,50 @@ namespace UE::Chaos::ClothAsset
 	template CHAOSCLOTHASSET_API TArray<FName> FClothCollection::GetUserDefinedAttributeNames<FVector3f>(const FName& GroupName) const;
 
 	template<typename T, typename TEnableIf<TIsUserAttributeType<T>::Value, int>::type>
-	void FClothCollection::AddUserDefinedAttribute(const FName& Name, const FName& GroupName)
+	TManagedArray<T>* FClothCollection::FindOrAddUserDefinedAttribute(const FName& Name, const FName& GroupName)
 	{
-		ManagedArrayCollection->AddAttribute<T>(Name, GroupName);
+		using namespace UE::Chaos::ClothAsset::Private;
+		if (const TArray<FName>* const FixedAttributeNames = FixedAttributeNamesMap.Find(GroupName))
+		{
+			// Only allow adding to know groups. Do not allow adding a name reserved as a fixed attribute.
+			if (!FixedAttributeNames->Contains(Name))
+			{
+				return ManagedArrayCollection->FindOrAddAttributeTyped<T>(Name, GroupName);
+			}
+		}
+		return nullptr;
 	}
-	template CHAOSCLOTHASSET_API void FClothCollection::AddUserDefinedAttribute<bool>(const FName& Name, const FName& GroupName);
-	template CHAOSCLOTHASSET_API void FClothCollection::AddUserDefinedAttribute<int32>(const FName& Name, const FName& GroupName);
-	template CHAOSCLOTHASSET_API void FClothCollection::AddUserDefinedAttribute<float>(const FName& Name, const FName& GroupName);
-	template CHAOSCLOTHASSET_API void FClothCollection::AddUserDefinedAttribute<FVector3f>(const FName& Name, const FName& GroupName);
+	template CHAOSCLOTHASSET_API TManagedArray<bool>* FClothCollection::FindOrAddUserDefinedAttribute<bool>(const FName& Name, const FName& GroupName);
+	template CHAOSCLOTHASSET_API TManagedArray<int32>* FClothCollection::FindOrAddUserDefinedAttribute<int32>(const FName& Name, const FName& GroupName);
+	template CHAOSCLOTHASSET_API TManagedArray<float>* FClothCollection::FindOrAddUserDefinedAttribute<float>(const FName& Name, const FName& GroupName);
+	template CHAOSCLOTHASSET_API TManagedArray<FVector3f>* FClothCollection::FindOrAddUserDefinedAttribute<FVector3f>(const FName& Name, const FName& GroupName);
 
 	void FClothCollection::RemoveUserDefinedAttribute(const FName& Name, const FName& GroupName)
 	{
-		ManagedArrayCollection->RemoveAttribute(Name, GroupName);
+		using namespace UE::Chaos::ClothAsset::Private;
+		if (const TArray<FName>* const FixedAttributeNames = FixedAttributeNamesMap.Find(GroupName))
+		{
+			// User defined attributes are only allowed in known group names. Do not allow removing fixed attributes through this method.
+			if (!FixedAttributeNames->Contains(Name))
+			{
+				ManagedArrayCollection->RemoveAttribute(Name, GroupName);
+			}
+		}
 	}
 
 	template<typename T, typename TEnableIf<TIsUserAttributeType<T>::Value, int>::type>
 	bool FClothCollection::HasUserDefinedAttribute(const FName& Name, const FName& GroupName) const
 	{
-		return ManagedArrayCollection->FindAttributeTyped<T>(Name, GroupName) != nullptr;
+		using namespace UE::Chaos::ClothAsset::Private;
+		if (const TArray<FName>* const FixedAttributeNames = FixedAttributeNamesMap.Find(GroupName))
+		{
+			// User defined attributes are only allowed in known group names.
+			if (!FixedAttributeNames->Contains(Name))
+			{
+				return ManagedArrayCollection->FindAttributeTyped<T>(Name, GroupName) != nullptr;
+			}
+		}
+		return false;
 	}
 	template CHAOSCLOTHASSET_API bool FClothCollection::HasUserDefinedAttribute<bool>(const FName& Name, const FName& GroupName) const;
 	template CHAOSCLOTHASSET_API bool FClothCollection::HasUserDefinedAttribute<int32>(const FName& Name, const FName& GroupName) const;
@@ -629,7 +655,16 @@ namespace UE::Chaos::ClothAsset
 	template<typename T, typename TEnableIf<TIsUserAttributeType<T>::Value, int>::type>
 	const TManagedArray<T>* FClothCollection::GetUserDefinedAttribute(const FName& Name, const FName& GroupName) const
 	{
-		return ManagedArrayCollection->FindAttribute<T>(Name, GroupName);
+		using namespace UE::Chaos::ClothAsset::Private;
+		if (const TArray<FName>* const FixedAttributeNames = FixedAttributeNamesMap.Find(GroupName))
+		{
+			// User defined attributes are only allowed in known group names.
+			if (!FixedAttributeNames->Contains(Name))
+			{
+				return ManagedArrayCollection->FindAttributeTyped<T>(Name, GroupName);
+			}
+		}
+		return nullptr;
 	}
 	template CHAOSCLOTHASSET_API const TManagedArray<bool>* FClothCollection::GetUserDefinedAttribute<bool>(const FName& Name, const FName& GroupName) const;
 	template CHAOSCLOTHASSET_API const TManagedArray<int32>* FClothCollection::GetUserDefinedAttribute<int32>(const FName& Name, const FName& GroupName) const;
@@ -639,12 +674,41 @@ namespace UE::Chaos::ClothAsset
 	template<typename T, typename TEnableIf<TIsUserAttributeType<T>::Value, int>::type>
 	TManagedArray<T>* FClothCollection::GetUserDefinedAttribute(const FName& Name, const FName& GroupName)
 	{
-		return ManagedArrayCollection->FindAttribute<T>(Name, GroupName);
+		using namespace UE::Chaos::ClothAsset::Private;
+		if (const TArray<FName>* const FixedAttributeNames = FixedAttributeNamesMap.Find(GroupName))
+		{
+			// User defined attributes are only allowed in known group names.
+			if (!FixedAttributeNames->Contains(Name))
+			{
+				return ManagedArrayCollection->FindAttributeTyped<T>(Name, GroupName);
+			}
+		}
+		return nullptr;
 	}
 	template CHAOSCLOTHASSET_API TManagedArray<bool>* FClothCollection::GetUserDefinedAttribute<bool>(const FName& Name, const FName& GroupName);
 	template CHAOSCLOTHASSET_API TManagedArray<int32>* FClothCollection::GetUserDefinedAttribute<int32>(const FName& Name, const FName& GroupName);
 	template CHAOSCLOTHASSET_API TManagedArray<float>* FClothCollection::GetUserDefinedAttribute<float>(const FName& Name, const FName& GroupName);
 	template CHAOSCLOTHASSET_API TManagedArray<FVector3f>* FClothCollection::GetUserDefinedAttribute<FVector3f>(const FName& Name, const FName& GroupName);
+
+	bool FClothCollection::IsValidClothCollectionGroupName(const FName& GroupName)
+	{
+		using namespace UE::Chaos::ClothAsset::Private;
+		return FixedAttributeNamesMap.Contains(GroupName);
+	}
+
+	bool FClothCollection::IsValidUserDefinedAttributeName(const FName& Name, const FName& GroupName)
+	{
+		using namespace UE::Chaos::ClothAsset::Private;
+		if (const TArray<FName>* const FixedAttributeNames = FixedAttributeNamesMap.Find(GroupName))
+		{
+			// User defined attributes are only allowed in known group names and cannot be reserved by FixedAttributeNames.
+			if (!FixedAttributeNames->Contains(Name))
+			{
+				return true;
+			}
+		}
+		return false;
+	}
 
 	void FClothCollection::CopyArrayViewDataAndApplyOffset(const TArrayView<TArray<int32>>& To, const TConstArrayView<TArray<int32>>& From, const int32 Offset)
 	{

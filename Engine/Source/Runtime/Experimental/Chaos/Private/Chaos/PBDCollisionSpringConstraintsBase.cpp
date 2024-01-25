@@ -38,6 +38,7 @@ FPBDCollisionSpringConstraintsBase::FPBDCollisionSpringConstraintsBase(
 	const FTriangleMesh& InTriangleMesh,
 	const TArray<FSolverVec3>* InReferencePositions,
 	TSet<TVec2<int32>>&& InDisabledCollisionElements,
+	const TConstArrayView<int32>& InSelfCollisionLayers,
 	const FSolverReal InThickness,
 	const FSolverReal InStiffness,
 	const FSolverReal InFrictionCoefficient,
@@ -54,6 +55,41 @@ FPBDCollisionSpringConstraintsBase::FPBDCollisionSpringConstraintsBase(
 	, NumParticles(InNumParticles)
 	, bGlobalIntersectionAnalysis(false)
 {
+	UpdateCollisionLayers(InSelfCollisionLayers);
+}
+
+void FPBDCollisionSpringConstraintsBase::UpdateCollisionLayers(const TConstArrayView<int32>& InFaceCollisionLayers)
+{
+	if (InFaceCollisionLayers.Num() != Elements.Num())
+	{
+		// Reset collision layers
+		FaceCollisionLayers = TConstArrayView<int32>();
+		VertexCollisionLayers.Reset();
+	}
+	else
+	{
+		FaceCollisionLayers = InFaceCollisionLayers;
+		VertexCollisionLayers.SetNumUninitialized(NumParticles);
+
+		TConstArrayView<TArray<int32>> PointToTriangle = TriangleMesh.GetPointToTriangleMap();
+		for (int32 ParticleIndexNoOffset = 0; ParticleIndexNoOffset < NumParticles; ++ParticleIndexNoOffset)
+		{
+			const int32 ParticleIndex = ParticleIndexNoOffset + Offset;
+			TVec2<int32>& VertexCollisionLayer = VertexCollisionLayers[ParticleIndexNoOffset];
+			VertexCollisionLayer = TVec2<int32>(INDEX_NONE);
+			for (const int32 FaceIndex : PointToTriangle[ParticleIndex])
+			{
+				if (FaceCollisionLayers[FaceIndex] != INDEX_NONE)
+				{
+					VertexCollisionLayer[0] = VertexCollisionLayer[0] == INDEX_NONE ? 
+						FaceCollisionLayers[FaceIndex] : FMath::Min(FaceCollisionLayers[FaceIndex], VertexCollisionLayer[0]);
+
+					VertexCollisionLayer[1] = VertexCollisionLayer[1] == INDEX_NONE ?
+						FaceCollisionLayers[FaceIndex] : FMath::Max(FaceCollisionLayers[FaceIndex], VertexCollisionLayer[1]);
+				}
+			}
+		}
+	}
 }
 
 void FPBDCollisionSpringConstraintsBase::Init(const FSolverParticles& Particles)
@@ -112,12 +148,24 @@ void FPBDCollisionSpringConstraintsBase::Init(const SolverParticlesOrRange& Part
 				}
 				constexpr FSolverReal ExtraThicknessMult = 1.5f;
 
+				const bool bVertexHasCollisionLayers = VertexCollisionLayers.IsValidIndex(i) && VertexCollisionLayers[i][0] != INDEX_NONE;
+				check(!bVertexHasCollisionLayers || VertexCollisionLayers[i][0] <= VertexCollisionLayers[i][1]);
+
 				TArray< TTriangleCollisionPoint<FSolverReal> > Result;
 				if (TriangleMesh.PointProximityQuery(Spatial, static_cast<const TArrayView<const FSolverVec3>&>(Particles.XArray()), Index, Particles.X(Index), Thickness * ExtraThicknessMult, Thickness * ExtraThicknessMult,
-					[this, &VertexGIAColors, &TriangleGIAColors](const int32 PointIndex, const int32 TriangleIndex)->bool
+					[this, bVertexHasCollisionLayers, &VertexGIAColors, &TriangleGIAColors](const int32 PointIndex, const int32 TriangleIndex)->bool
 					{
-						const TVector<int32, 3>& Elem = Elements[TriangleIndex];
-						if (bGlobalIntersectionAnalysis)
+						const TVector<int32, 3>& Elem = Elements[TriangleIndex];						
+
+						bool bUseCollisionLayerOverride = false;
+						if (bVertexHasCollisionLayers && FaceCollisionLayers[TriangleIndex] != INDEX_NONE)
+						{
+							if (FaceCollisionLayers[TriangleIndex] < VertexCollisionLayers[PointIndex - Offset][0] || FaceCollisionLayers[TriangleIndex] > VertexCollisionLayers[PointIndex - Offset][1])
+							{
+								bUseCollisionLayerOverride = true;
+							}
+						}
+						if (!bUseCollisionLayerOverride && bGlobalIntersectionAnalysis)
 						{
 							const bool bIsAnyBoundary = VertexGIAColors[PointIndex].IsBoundary()
 								|| VertexGIAColors[Elem[0]].IsBoundary() 
@@ -180,20 +228,44 @@ void FPBDCollisionSpringConstraintsBase::Init(const SolverParticlesOrRange& Part
 							}
 						}
 
-						// NOTE: CollisionPoint.Normal has already been flipped to point toward the Point, so need to recalculate here.
-						const TTriangle<FSolverReal> Triangle(Particles.X(Elem[0]), Particles.X(Elem[1]), Particles.X(Elem[2]));
-						bool bFlipNormal = (Particles.X(Index) - CollisionPoint.Location).Dot(Triangle.GetNormal()) < 0; // Is Point currently behind Triangle?
-
-						// Doing a check against ANY (plus the TriangleGIAColors which captures sub-triangle intersections) seems to work better than checking against ALL vertex colors where the triangle must agree.
-						// In particular, it's better at handling thin regions of intersection where a single vertex or line of vertices intersect through faces.
-						if (bGlobalIntersectionAnalysis &&
-							(FPBDTriangleMeshCollisions::FGIAColor::ShouldFlipNormal(VertexGIAColors[Index], VertexGIAColors[Elem[0]]) ||
-								FPBDTriangleMeshCollisions::FGIAColor::ShouldFlipNormal(VertexGIAColors[Index], VertexGIAColors[Elem[1]]) ||
-								FPBDTriangleMeshCollisions::FGIAColor::ShouldFlipNormal(VertexGIAColors[Index], VertexGIAColors[Elem[2]]) ||
-								FPBDTriangleMeshCollisions::FGIAColor::ShouldFlipNormal(VertexGIAColors[Index], TriangleGIAColors[CollisionPoint.Indices[1]])))
+						bool bFlipNormal = false;
+						// Check collision layers
+						bool bUseCollisionLayerOverride = false;
+						if (bVertexHasCollisionLayers && FaceCollisionLayers[CollisionPoint.Indices[1]] != INDEX_NONE)
 						{
+							if (FaceCollisionLayers[CollisionPoint.Indices[1]] < VertexCollisionLayers[i][0])
+							{
+								// Face is lower layer than the vertex. Vertex should always be in front of face (as UE sees it).
+								// NOTE: Chaos internal winding order for normals is reversed, so flip normal in this case.
+								bFlipNormal = true;
+								bUseCollisionLayerOverride = true;
+							}
+							else if (FaceCollisionLayers[CollisionPoint.Indices[1]] > VertexCollisionLayers[i][1])
+							{
+								// Face is higher layer than the vertex. Vertex should always be behind face (as UE sees it).
+								// NOTE: Chaos internal winding order for normals is reversed, so don't flip normal in this case.
+								bFlipNormal = false;
+								bUseCollisionLayerOverride = true;
+							}
+						}
+
+						if (!bUseCollisionLayerOverride)
+						{
+							// NOTE: CollisionPoint.Normal has already been flipped to point toward the Point, so need to recalculate here.
+							const TTriangle<FSolverReal> Triangle(Particles.X(Elem[0]), Particles.X(Elem[1]), Particles.X(Elem[2]));
+							bFlipNormal = (Particles.X(Index) - CollisionPoint.Location).Dot(Triangle.GetNormal()) < 0; // Is Point currently behind Triangle?
+							// Doing a check against ANY (plus the TriangleGIAColors which captures sub-triangle intersections) seems to work better than checking against ALL vertex colors where the triangle must agree.
+							// In particular, it's better at handling thin regions of intersection where a single vertex or line of vertices intersect through faces.
 							// Want Point to push to opposite side of triangle
-							bFlipNormal = !bFlipNormal;
+							if (bGlobalIntersectionAnalysis &&
+								(FPBDTriangleMeshCollisions::FGIAColor::ShouldFlipNormal(VertexGIAColors[Index], VertexGIAColors[Elem[0]]) ||
+									FPBDTriangleMeshCollisions::FGIAColor::ShouldFlipNormal(VertexGIAColors[Index], VertexGIAColors[Elem[1]]) ||
+									FPBDTriangleMeshCollisions::FGIAColor::ShouldFlipNormal(VertexGIAColors[Index], VertexGIAColors[Elem[2]]) ||
+									FPBDTriangleMeshCollisions::FGIAColor::ShouldFlipNormal(VertexGIAColors[Index], TriangleGIAColors[CollisionPoint.Indices[1]])))
+							{
+
+								bFlipNormal = !bFlipNormal;
+							}
 						}
 						const int32 IndexToWrite = ConstraintIndex.fetch_add(1);
 

@@ -32,10 +32,26 @@ public:
 		const FTriangleMesh& InTriangleMesh,
 		const TArray<FSolverVec3>* InReferencePositions,
 		TSet<TVec2<int32>>&& InDisabledCollisionElements,
+		const TConstArrayView<int32>& InSelfCollisionLayers,
 		const FSolverReal InThickness = BackCompatThickness,
 		const FSolverReal InStiffness = BackCompatStiffness,
 		const FSolverReal InFrictionCoefficient = BackCompatFrictionCoefficient,
 		const FSolverReal InProximityStiffness = DefaultProximityStiffness);
+
+	UE_DEPRECATED(5.4, "Use constructor with SelfCollisionLayers")
+	FPBDCollisionSpringConstraintsBase(
+		const int32 InOffset,
+		const int32 InNumParticles,
+		const FTriangleMesh& InTriangleMesh,
+		const TArray<FSolverVec3>* InReferencePositions,
+		TSet<TVec2<int32>>&& InDisabledCollisionElements,
+		const FSolverReal InThickness = BackCompatThickness,
+		const FSolverReal InStiffness = BackCompatStiffness,
+		const FSolverReal InFrictionCoefficient = BackCompatFrictionCoefficient,
+		const FSolverReal InProximityStiffness = DefaultProximityStiffness)
+		: FPBDCollisionSpringConstraintsBase(InOffset, InNumParticles, InTriangleMesh, InReferencePositions, MoveTemp(InDisabledCollisionElements),
+			TConstArrayView<int32>(), InThickness, InStiffness, InFrictionCoefficient, InProximityStiffness)
+	{}
 
 	virtual ~FPBDCollisionSpringConstraintsBase() {}
 
@@ -102,6 +118,9 @@ public:
 	}
 
 	CHAOS_API void UpdateLinearSystem(const FSolverParticlesRange& Particles, const FSolverReal Dt, FEvolutionLinearSystem& LinearSystem) const;
+	
+	TConstArrayView<int32> GetFaceCollisionLayers() const { return FaceCollisionLayers; }
+	const TArray<TVector<int32, 2>>& GetVertexCollisionLayers() const { return VertexCollisionLayers; }
 
 protected:
 	TArray<TVec4<int32>> Constraints;
@@ -112,11 +131,15 @@ protected:
 	FSolverReal FrictionCoefficient;
 	FSolverReal ProximityStiffness; // (actual spring stiffness for force-based solver)
 
+	CHAOS_API void UpdateCollisionLayers(const TConstArrayView<int32>& InFaceCollisionLayers);
+
 private:
 	const FTriangleMesh& TriangleMesh;
 	const TArray<TVec3<int32>>& Elements;
 	const TArray<FSolverVec3>* ReferencePositions;
 	const TSet<TVec2<int32>> DisabledCollisionElements;  // TODO: Make this a bitarray
+	TConstArrayView<int32> FaceCollisionLayers;
+	TArray<TVector<int32, 2>> VertexCollisionLayers; // Only non-empty if FaceCollisionLayers is non-empty. Values are Min and Max layers for that vertex
 
 	int32 Offset;
 	int32 NumParticles;

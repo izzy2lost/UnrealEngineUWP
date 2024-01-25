@@ -3,6 +3,7 @@
 #pragma once 
 
 #include "ChaosClothAsset/SimulationBaseConfigNode.h"
+#include "ChaosClothAsset/ConnectableValue.h"
 #include "SimulationSelfCollisionConfigNode.generated.h"
 
 /** Self-collision repulsion forces (point-face) properties configuration node. */
@@ -24,6 +25,17 @@ public:
 	/** Friction coefficient for cloth - cloth interaction. */
 	UPROPERTY(EditAnywhere, Category = "Self-Collision Properties", meta = (UIMin = "0", UIMax = "1", ClampMin = "0", ClampMax = "1"))
 	float SelfCollisionFriction = 0.0f;
+
+	/** Disabled neighbor collision ring. Collisions are disabled between vertices within this N-ring connectivity distance.*/
+	UPROPERTY(EditAnywhere, Category = "Self-Collision Properties", meta = (UIMin = "1", UIMax = "5", ClampMin = "1"))
+	int32 SelfCollisionDisableNeighborDistance = 5;
+
+	/** Self collision layers face int map. Generate this map using the SelectionsToIntMap node with SimFace Selections.
+	* Faces labeled with -1 will collide normally without any layering behavior.
+	* Faces labeled with any other number will keep higher layer numbers outside lower layer numbers (outside = front facing normal direction).
+	*/
+	UPROPERTY(EditAnywhere, Category = "Self-Collision Properties")
+	FChaosClothAssetConnectableIStringValue SelfCollisionLayers = { TEXT("SelfCollisionLayers") };
 
 	/** Enable self intersection resolution. This will try to fix any cloth intersections that are not handled by collision repulsions. */
 	UPROPERTY(EditAnywhere, Category = "Experimental")
