@@ -1,13 +1,30 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 using UnrealBuildTool;
-using System.Collections.Generic;
 
 [SupportedPlatforms("Win64", "Mac", "Linux")]
 [SupportedConfigurations(UnrealTargetConfiguration.Debug, UnrealTargetConfiguration.Development, UnrealTargetConfiguration.Shipping)]
-public class CrashReportClientEditorTarget : CrashReportClientTarget
+public sealed class CrashReportClientEditorTarget : CrashReportClientTarget
 {
-	public CrashReportClientEditorTarget(TargetInfo Target) : base(Target)
+	// Override the configuration values from CrashReportClient with these using another
+	// configuration block: [CrashReportClientEditorBuildSettings]
+	
+	[ConfigFile(ConfigHierarchyType.Engine, "CrashReportClientEditorBuildSettings", "DataRouterFallback")]
+	public new string DataRouterFallback;
+		
+	[ConfigFile(ConfigHierarchyType.Engine, "CrashReportClientEditorBuildSettings", "CompanyName")]
+	public new string CompanyName;
+	
+	[ConfigFile(ConfigHierarchyType.Engine, "CrashReportClientEditorBuildSettings", "TelemetryUrl")]
+	public new string TelemetryUrl;
+
+	[ConfigFile(ConfigHierarchyType.Engine, "CrashReportClientEditorBuildSettings", "TelemetryKey_Dev")]
+	public new string TelemetryKey_Dev;
+
+	[ConfigFile(ConfigHierarchyType.Engine, "CrashReportClientEditorBuildSettings", "TelemetryKey_Release")]
+	public new string TelemetryKey_Release;
+	
+	public CrashReportClientEditorTarget(TargetInfo Target) : base(Target, false /* bSetConfiguredDefinitions */)
 	{
 		LaunchModuleName = "CrashReportClientEditor";
 
@@ -19,6 +36,7 @@ public class CrashReportClientEditorTarget : CrashReportClientTarget
 
 		if (bHostRecoverySvc)
 		{
+			throw new BuildException("No longer supported.");
 			AdditionalPlugins.Add("UdpMessaging");
 			AdditionalPlugins.Add("ConcertSyncServer");
 			bCompileWithPluginSupport = true; // Enable Developer plugins (like Concert!)
@@ -30,5 +48,10 @@ public class CrashReportClientEditorTarget : CrashReportClientTarget
 				GlobalDefinitions.Add("PLATFORM_SUPPORTS_MESSAGEBUS=1");
 			}
 		}
+		
+		// We can now set the configured definitions from CrashReportClientEditorBuildSettings section
+		GlobalDefinitions.AddRange(SetupConfiguredDefines(
+			DataRouterFallback, CompanyName, TelemetryUrl, TelemetryKey_Dev, TelemetryKey_Release));
 	}
+	
 }
