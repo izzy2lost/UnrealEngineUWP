@@ -7,6 +7,8 @@
 #include "CoreMinimal.h"
 #include "Math/IntVector.h"
 
+#define TESSELLATION_TABLE_DUMP_SVG 0
+
 namespace Nanite
 {
 
@@ -18,11 +20,10 @@ public:
 	TArray< FUintVector2 >	OffsetTable;
 	TArray< uint32 >		Verts;
 	TArray< uint32 >		Indexes;
-	
-	uint32					MaxTessFactor;
+	TArray< uint32 >		VertsAndIndexes;
 
 public:
-	RENDERER_API			FTessellationTable( uint32 MaxTessFactor );
+	RENDERER_API			FTessellationTable();
 	RENDERER_API int32		GetPattern( FIntVector TessFactors ) const;
 
 	uint32		GetNumVerts( int32 Pattern ) const;
@@ -39,6 +40,12 @@ private:
 	void		UniformTessellateAndSnap( const FIntVector& TessFactors );
 
 	void		ConstrainToCacheWindow();
+	void		ConstrainForImmediateTessellation();
+
+	void		AddToVertsAndIndices( bool bImmediate, uint32 TessFactorX, uint32 TessFactorY, uint32 TessFactorZ );
+#if TESSELLATION_TABLE_DUMP_SVG
+	void		DumpSVG(const char* Filename);
+#endif
 
 	int32		FirstVert;
 	int32		FirstTri;
@@ -58,6 +65,6 @@ FORCEINLINE uint32 FTessellationTable::GetNumTris( int32 Pattern ) const
 			OffsetTable[ Pattern ].Y;
 }
 
-RENDERER_API FTessellationTable& GetTessellationTable( uint32 MaxTessFactor );
+RENDERER_API FTessellationTable& GetTessellationTable();
 
 } // namespace Nanite

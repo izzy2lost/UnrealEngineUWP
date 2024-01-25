@@ -1129,8 +1129,7 @@ class FPatchSplitCS : public FNaniteGlobalShader
 		SHADER_PARAMETER_RDG_BUFFER_SRV( ByteAddressBuffer, ClusterPageData )
 
 		SHADER_PARAMETER_SRV( ByteAddressBuffer,	TessellationTable_Offsets )
-		SHADER_PARAMETER_SRV( ByteAddressBuffer,	TessellationTable_Verts )
-		SHADER_PARAMETER_SRV( ByteAddressBuffer,	TessellationTable_Indexes )
+		SHADER_PARAMETER_SRV( ByteAddressBuffer,	TessellationTable_VertsAndIndexes )
 		SHADER_PARAMETER( float,					InvDiceRate )
 
 		SHADER_PARAMETER_STRUCT_REF(FViewUniformShaderParameters, View)
@@ -1271,8 +1270,7 @@ BEGIN_SHADER_PARAMETER_STRUCT( FRasterizePassParameters, )
 	SHADER_PARAMETER_RDG_BUFFER_SRV( Buffer< uint >, InClusterOffsetSWHW )
 	
 	SHADER_PARAMETER_SRV( ByteAddressBuffer,	TessellationTable_Offsets )
-	SHADER_PARAMETER_SRV( ByteAddressBuffer,	TessellationTable_Verts )
-	SHADER_PARAMETER_SRV( ByteAddressBuffer,	TessellationTable_Indexes )
+	SHADER_PARAMETER_SRV( ByteAddressBuffer,	TessellationTable_VertsAndIndexes )
 	SHADER_PARAMETER( float,					InvDiceRate )
 	SHADER_PARAMETER( uint32,					MaxPatchesPerGroup )
 
@@ -2125,8 +2123,7 @@ class FTessellationTableResources : public FRenderResource
 {
 public:
 	FByteAddressBuffer	Offsets;
-	FByteAddressBuffer	Verts;
-	FByteAddressBuffer	Indexes;
+	FByteAddressBuffer	VertsAndIndexes;
 
 	virtual void InitRHI(FRHICommandListBase& RHICmdList) override;
 	virtual void ReleaseRHI() override;
@@ -2148,11 +2145,10 @@ void FTessellationTableResources::InitRHI(FRHICommandListBase& RHICmdList)
 {
 	if( DoesPlatformSupportNanite( GMaxRHIShaderPlatform ) )
 	{
-		FTessellationTable TessellationTable(16);
+		FTessellationTable TessellationTable;
 
-		CreateAndUpload( RHICmdList, Offsets,	TessellationTable.OffsetTable,	TEXT("TessellationTable.Offsets") );
-		CreateAndUpload( RHICmdList, Verts,		TessellationTable.Verts,		TEXT("TessellationTable.Verts") );
-		CreateAndUpload( RHICmdList, Indexes,	TessellationTable.Indexes,		TEXT("TessellationTable.Indexes") );
+		CreateAndUpload( RHICmdList, Offsets,			TessellationTable.OffsetTable,		TEXT("TessellationTable.Offsets") );
+		CreateAndUpload( RHICmdList, VertsAndIndexes,	TessellationTable.VertsAndIndexes,	TEXT("TessellationTable.VertsAndIndexes") );
 	}
 }
 
@@ -2161,8 +2157,7 @@ void FTessellationTableResources::ReleaseRHI()
 	if( DoesPlatformSupportNanite( GMaxRHIShaderPlatform ) )
 	{
 		Offsets.Release();
-		Verts.Release();
-		Indexes.Release();
+		VertsAndIndexes.Release();
 	}
 }
 
@@ -4145,8 +4140,7 @@ FBinningData FRenderer::AddPass_Rasterize(
 		RasterPassParameters->RasterBinMeta				= GraphBuilder.CreateSRV(BinningData.MetaBuffer);
 
 		RasterPassParameters->TessellationTable_Offsets	= GTessellationTable.Offsets.SRV;
-		RasterPassParameters->TessellationTable_Verts	= GTessellationTable.Verts.SRV;
-		RasterPassParameters->TessellationTable_Indexes	= GTessellationTable.Indexes.SRV;
+		RasterPassParameters->TessellationTable_VertsAndIndexes	= GTessellationTable.VertsAndIndexes.SRV;
 		RasterPassParameters->InvDiceRate				= CVarNaniteMaxPixelsPerEdge.GetValueOnRenderThread() / CVarNaniteDicingRate.GetValueOnRenderThread();
 		RasterPassParameters->MaxPatchesPerGroup		= GetMaxPatchesPerGroup();
 		RasterPassParameters->MeshPass					= Configuration.bIsLumenCapture ? ENaniteMeshPass::LumenCardCapture : ENaniteMeshPass::BasePass;
@@ -4379,9 +4373,8 @@ void FRenderer::AddPass_PatchSplit(
 
 		PassParameters->VisibleClustersSWHW			= GraphBuilder.CreateSRV( VisibleClustersSWHW );
 
-		PassParameters->TessellationTable_Offsets	= GTessellationTable.Offsets.SRV;
-		PassParameters->TessellationTable_Verts		= GTessellationTable.Verts.SRV;
-		PassParameters->TessellationTable_Indexes	= GTessellationTable.Indexes.SRV;
+		PassParameters->TessellationTable_Offsets			= GTessellationTable.Offsets.SRV;
+		PassParameters->TessellationTable_VertsAndIndexes	= GTessellationTable.VertsAndIndexes.SRV;
 		PassParameters->InvDiceRate					= CVarNaniteMaxPixelsPerEdge.GetValueOnRenderThread() / CVarNaniteDicingRate.GetValueOnRenderThread();
 
 		PassParameters->RWVisiblePatches			= GraphBuilder.CreateUAV( VisiblePatches );

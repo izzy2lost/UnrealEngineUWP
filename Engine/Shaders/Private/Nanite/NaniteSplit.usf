@@ -63,7 +63,7 @@ struct FSplitTask
 	uint		Run();
 
 	FSplitTask	CreateChild( uint ParentLaneIndex );
-	void		RunChild( uint LocalItemIndex );
+	void		RunChild( inout FSplitTask ParentTask, bool bActive, uint LocalItemIndex );
 };
 
 void FSplitTask::Init( uint VisibleClusterIndex, uint TriIndex )
@@ -222,7 +222,7 @@ uint FSplitTask::Run()
 	}
 #endif
 
-	bool bNeedsSplitting = max3( TessFactors.x, TessFactors.y, TessFactors.z ) > TessellationTable_Size;
+	bool bNeedsSplitting = max3( TessFactors.x, TessFactors.y, TessFactors.z ) > NANITE_TESSELLATION_TABLE_SIZE;
 
 	if( Cull.bWasOccluded )
 	{
@@ -250,11 +250,11 @@ uint FSplitTask::Run()
 			if( WriteOffset < VisiblePatchesSize )
 			{
 			#if NANITE_TESSELLATION_PATCH_REFS || WRITE_STATS
-				TessellatedPatch.Init( TessFactors, Encoded.yzw );
+				TessellatedPatch.Init( TessFactors, Encoded.yzw, false );
 			#endif
 
 			#if NANITE_TESSELLATION_PATCH_REFS || WRITE_STATS
-				RWVisiblePatches.Store2( WriteOffset * 8, uint2( QueueOffset, TessellatedPatch.Pattern ) );
+				RWVisiblePatches.Store2( WriteOffset * 8, uint2( QueueOffset, TessellatedPatch.GetPattern() ) );
 				SplitWorkQueue.DataBuffer.Store4( QueueOffset * 16, Encoded );
 				QueueOffset = ~0u;
 			#else
@@ -269,7 +269,7 @@ uint FSplitTask::Run()
 		else
 		{
 			float3 SplitFactors = min( GetSplitFactors( TessFactors ), 8 );
-			TessellatedPatch.Init( SplitFactors, Encoded.yzw );
+			TessellatedPatch.Init( SplitFactors, Encoded.yzw, false );
 			return TessellatedPatch.GetNumTris();
 		}
 	}
@@ -285,8 +285,11 @@ FSplitTask FSplitTask::CreateChild( uint ParentLaneIndex )
 	return ChildTask;
 }
 
-void FSplitTask::RunChild( uint LocalItemIndex )
+void FSplitTask::RunChild( inout FSplitTask ParentTask, bool bActive, uint LocalItemIndex )
 {
+	if ( !bActive )
+		return;
+
 	FSplitPatch Patch;
 	Patch.Decode( Encoded );
 		

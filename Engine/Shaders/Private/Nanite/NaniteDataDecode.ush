@@ -223,6 +223,11 @@ FInstanceDynamicData WaveReadLaneAt(FInstanceDynamicData In, uint SrcIndex)
 	return Result;
 }
 
+float ClipZFromLinearZ(FNaniteView NaniteView, float LinearZ)
+{
+	return LinearZ * NaniteView.ViewToClip[2][2] + NaniteView.ViewToClip[3][2]; // TODO: Pack coefficients into single load?
+}
+
 // Packs a (PageIndex, ClusterIndex) pair into a flat index based on max clusters per page.
 uint PackPoolClusterRef(uint PageIndex, uint ClusterIndex)
 {
