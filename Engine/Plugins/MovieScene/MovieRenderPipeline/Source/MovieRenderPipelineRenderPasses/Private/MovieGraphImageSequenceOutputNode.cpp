@@ -195,7 +195,7 @@ UMovieGraphImageSequenceOutputNode::UMovieGraphImageSequenceOutputNode()
 	ImageWriteQueue = &FModuleManager::Get().LoadModuleChecked<IImageWriteQueueModule>("ImageWriteQueue").GetWriteQueue();
 }
 
-void UMovieGraphImageSequenceOutputNode::OnAllFramesSubmittedImpl()
+void UMovieGraphImageSequenceOutputNode::OnAllFramesSubmittedImpl(UMovieGraphPipeline* InPipeline, TObjectPtr<UMovieGraphEvaluatedConfig>& InPrimaryJobEvaluatedGraph)
 {
 	FinalizeFence = ImageWriteQueue->CreateFence();
 }

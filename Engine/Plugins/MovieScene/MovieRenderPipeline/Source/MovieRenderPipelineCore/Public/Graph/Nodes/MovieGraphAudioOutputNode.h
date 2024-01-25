@@ -45,8 +45,8 @@ public:
 
 protected:
 	// UMovieGraphFileOutputNode Interface
-	virtual void OnReceiveImageDataImpl(UMovieGraphPipeline* InPipeline, UE::MovieGraph::FMovieGraphOutputMergerFrame* InRawFrameData, const TSet<FMovieGraphRenderDataIdentifier>& InMask) override;
-	virtual void OnAllFramesSubmittedImpl() override;
+	virtual void OnAllFramesSubmittedImpl(UMovieGraphPipeline* InPipeline, TObjectPtr<UMovieGraphEvaluatedConfig>& InPrimaryJobEvaluatedGraph) override;
+	virtual void OnAllShotFramesSubmittedImpl(UMovieGraphPipeline* InPipeline, const UMoviePipelineExecutorShot* InShot) override;
 	virtual bool IsFinishedWritingToDiskImpl() const override;
 	// ~UMovieGraphFileOutputNode Interface
 
@@ -66,13 +66,28 @@ private:
 	/** Generates final audio data from all of the audio segments that were collected during render time. */
 	void GenerateFinalAudioData(TArray<FFinalAudioData>& OutFinalAudioData);
 
+	/** Begins the audio export process. */
+	void StartAudioExport();
+	
+	/** Returns true if there should be one export per shot, else false. */
+	bool NeedsPerShotFlushing() const;
+
+// The pipeline generates many instances of the same node throughout its execution; however, some nodes need to have persistent data throughout the
+// pipeline's lifetime. This static data enables the node to have shared data across instances.
 private:
 	/** Kept alive during finalization because the writer writes async to disk but doesn't expect to fall out of scope. */
-	TArray<TUniquePtr<Audio::FSoundWavePCMWriter>> ActiveWriters;
+	inline static TArray<TUniquePtr<Audio::FSoundWavePCMWriter>> ActiveWriters;
 
 	/** Keep track of segments that have already been written to disk to avoid re-writing them (and generating new output futures). */
-	TSet<FGuid> AlreadyWrittenSegments;
+	inline static TSet<FGuid> AlreadyWrittenSegments;
 
+private:
 	/** The pipeline that is running this node. */
 	TWeakObjectPtr<UMovieGraphPipeline> CachedPipeline;
+
+	/**
+	 * The graph that should be accessed during execution of the node. Do not access the graph from the pipeline as it may be invalid depending on
+	 * if a shot-level or sequence-level export is being performed.
+	 */
+	TObjectPtr<UMovieGraphEvaluatedConfig> EvaluatedGraph;
 };
