@@ -1525,6 +1525,13 @@ namespace mu
 								int32 mipsX = FMath::CeilLogTwo(BlockPixelsX / finfo.PixelsPerBlockX);
 								int32 mipsY = FMath::CeilLogTwo(BlockPixelsY / finfo.PixelsPerBlockY);
 								mop->BlockLevels = (uint8)FMath::Max(mipsX, mipsY);
+								
+								if (BlockPixelsX < finfo.PixelsPerBlockX || BlockPixelsY < finfo.PixelsPerBlockY)
+								{
+									// In this case, the mipmap will never be useful for blocks, so we indicate that
+									// it should make the mips at the root of the expression.
+									mop->bOnlyTail = true;
+								}
 
 								mop->AddressMode = mipmapNode->GetPrivate()->m_settings.m_addressMode;
 								mop->FilterType = mipmapNode->GetPrivate()->m_settings.m_filterType;
@@ -1552,6 +1559,13 @@ namespace mu
 								int mipsX = (int)ceilf(logf((float)BlockPixelsX / finfo.PixelsPerBlockX) / logf(2.0f));
 								int mipsY = (int)ceilf(logf((float)BlockPixelsY / finfo.PixelsPerBlockY) / logf(2.0f));
 								mop->BlockLevels = (uint8_t)FMath::Max(mipsX, mipsY);
+
+								if (BlockPixelsX < finfo.PixelsPerBlockX || BlockPixelsY < finfo.PixelsPerBlockY)
+								{
+									// In this case, the mipmap will never be useful for blocks, so we indicate that
+									// it should make the mips at the root of the expression.
+									mop->bOnlyTail = true;
+								}
 
 								// Not important for the end of the mip tail?
 								mop->AddressMode = EAddressMode::ClampToEdge;
