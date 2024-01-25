@@ -37,8 +37,8 @@ namespace UE::ConcertSharedSlate
 
 	void SReplicationStreamViewer::Refresh()
 	{
-		RefreshObjectData();
-		RefreshPropertyData();
+		RequestObjectDataRefresh();
+		RequestPropertyDataRefresh();
 	}
 
 	void SReplicationStreamViewer::RequestObjectColumnResort(const FName& ColumnId)
@@ -54,53 +54,6 @@ namespace UE::ConcertSharedSlate
 	TArray<FSoftObjectPath> SReplicationStreamViewer::GetObjectsBeingPropertyEdited() const
 	{
 		return PropertySection->GetObjectsSelectedForPropertyEditing();
-	}
-
-	void SReplicationStreamViewer::RefreshObjectData()
-	{
-		// Re-using existing instances is tricky: we cannot update the object path in an item because the list view will no detect this change;
-		// list view only looks at the shared ptr address. So the UI will not be refreshed. Since the number of items will be small, just reallocate... 
-		AllObjectRowData.Empty();
-
-		// Try to re-use old instances by using the old PathToObjectDataCache. This is also done so the expansion states restore correctly in the tree view.
-		TMap<FSoftObjectPath, TSharedPtr<FReplicatedObjectData>> NewPathToObjectDataCache;
-		
-		// Do a complete refresh.
-		// Complete refresh is acceptable because the list is updated infrequently and typically small < 500 items.
-		// An alternative would be to change RefreshObjectData to be called with two variables ObjectsAdded and ObjectsRemoved.
-		PropertiesModel->ForEachReplicatedObject([this, &NewPathToObjectDataCache](const FSoftObjectPath& ObjectPath) mutable
-		{
-			TOptional<IObjectHierarchyModel::FParentInfo> ParentInfo = ObjectHierarchy->GetParentInfo(ObjectPath);
-			const bool bIsActor = !ParentInfo; 
-			if (bIsActor || ShouldDisplayObject(ObjectPath, ParentInfo->Relationship))
-			{
-				const TSharedPtr<FReplicatedObjectData>* ExistingItem = PathToObjectDataCache.Find(ObjectPath);
-				ExistingItem = ExistingItem ? ExistingItem : NewPathToObjectDataCache.Find(ObjectPath);
-				const TSharedRef<FReplicatedObjectData> Item = ExistingItem ? ExistingItem->ToSharedRef() : AllocateObjectData(ObjectPath);
-				AllObjectRowData.AddUnique(Item);
-				NewPathToObjectDataCache.Emplace(ObjectPath, Item);
-				
-				BuildObjectHierarchyIfNeeded(Item, NewPathToObjectDataCache);
-			}
-			
-			return EBreakBehavior::Continue;
-		});
-
-		// Only refresh the tree if it is necessary as it causes us to select stuff in the subobject view
-		if (!PathToObjectDataCache.OrderIndependentCompareEqual(NewPathToObjectDataCache))
-		{
-			// If an item was removed, then NewPathToObjectDataCache does not contain it. 
-			PathToObjectDataCache = MoveTemp(NewPathToObjectDataCache);
-
-			// The tree view requires the item source to only contain the root items. Children are discovered via GetObjectRowChildren. We re-use GetObjectRowChildren to remove any non-root nodes.
-			BuildRootObjectRowData();
-			ReplicatedObjects->OnItemsChanged();
-		}
-	}
-
-	void SReplicationStreamViewer::RefreshPropertyData()
-	{
-		PropertySection->RefreshPropertyData();
 	}
 
 	void SReplicationStreamViewer::SelectObjects(TConstArrayView<FSoftObjectPath> Objects)
@@ -152,7 +105,36 @@ namespace UE::ConcertSharedSlate
 			ReplicatedObjects->SetExpandedItems(ItemsToExpand, true);
 		}
 	}
-	
+
+	TArray<TSharedPtr<FReplicatedObjectData>> SReplicationStreamViewer::GetSelectedOutlinerObjects() const
+	{
+		TArray<TSharedPtr<FReplicatedObjectData>> SelectedItems = ReplicatedObjects->GetSelectedItems();
+		// Items may have been removed this tick. However, selected items may not have been updated yet because STreeView processes item changes at the end of tick. 
+		SelectedItems.SetNum(Algo::RemoveIf(SelectedItems, [this](const TSharedPtr<FReplicatedObjectData>& ObjectData)
+		{
+			return !PropertiesModel->ContainsObjects({ ObjectData->GetObjectPath() });
+		}));
+		return SelectedItems;
+	}
+
+	void SReplicationStreamViewer::Tick(const FGeometry& AllottedGeometry, const double InCurrentTime, const float InDeltaTime)
+	{
+		if (bHasRequestedObjectRefresh)
+		{
+			bHasRequestedObjectRefresh = false;
+			bHasRequestedPropertyRefresh = true;
+			RefreshObjectData();
+		}
+
+		if (bHasRequestedPropertyRefresh)
+		{
+			bHasRequestedPropertyRefresh = false;
+			RefreshPropertyData();
+		}
+		
+		IReplicationStreamViewer::Tick(AllottedGeometry, InCurrentTime, InDeltaTime);
+	}
+
 	TSharedRef<FReplicatedObjectData> SReplicationStreamViewer::AllocateObjectData(FSoftObjectPath ObjectPath)
 	{
 		return MakeShared<FReplicatedObjectData>(MoveTemp(ObjectPath));
@@ -206,7 +188,7 @@ namespace UE::ConcertSharedSlate
 			.OnDeleteItems(InArgs._OnDeleteObjects)
 			.OnSelectionChanged_Lambda([this]()
 			{
-				RefreshPropertyData();
+				RequestPropertyDataRefresh();
 			})
 			.Columns(Columns)
 			.ExpandableColumnLabel(ReplicationColumns::TopLevel::LabelColumnId)
@@ -267,6 +249,53 @@ namespace UE::ConcertSharedSlate
 					.RightOfPropertySearchBar() [ InArgs._RightOfPropertySearchBar.Widget ]
 				]
 			];
+	}
+	
+	void SReplicationStreamViewer::RefreshObjectData()
+	{
+		// Re-using existing instances is tricky: we cannot update the object path in an item because the list view will no detect this change;
+		// list view only looks at the shared ptr address. So the UI will not be refreshed. Since the number of items will be small, just reallocate... 
+		AllObjectRowData.Empty();
+
+		// Try to re-use old instances by using the old PathToObjectDataCache. This is also done so the expansion states restore correctly in the tree view.
+		TMap<FSoftObjectPath, TSharedPtr<FReplicatedObjectData>> NewPathToObjectDataCache;
+		
+		// Do a complete refresh.
+		// Complete refresh is acceptable because the list is updated infrequently and typically small < 500 items.
+		// An alternative would be to change RefreshObjectData to be called with two variables ObjectsAdded and ObjectsRemoved.
+		PropertiesModel->ForEachReplicatedObject([this, &NewPathToObjectDataCache](const FSoftObjectPath& ObjectPath) mutable
+		{
+			TOptional<IObjectHierarchyModel::FParentInfo> ParentInfo = ObjectHierarchy->GetParentInfo(ObjectPath);
+			const bool bIsActor = !ParentInfo; 
+			if (bIsActor || ShouldDisplayObject(ObjectPath, ParentInfo->Relationship))
+			{
+				const TSharedPtr<FReplicatedObjectData>* ExistingItem = PathToObjectDataCache.Find(ObjectPath);
+				ExistingItem = ExistingItem ? ExistingItem : NewPathToObjectDataCache.Find(ObjectPath);
+				const TSharedRef<FReplicatedObjectData> Item = ExistingItem ? ExistingItem->ToSharedRef() : AllocateObjectData(ObjectPath);
+				AllObjectRowData.AddUnique(Item);
+				NewPathToObjectDataCache.Emplace(ObjectPath, Item);
+				
+				BuildObjectHierarchyIfNeeded(Item, NewPathToObjectDataCache);
+			}
+			
+			return EBreakBehavior::Continue;
+		});
+
+		// Only refresh the tree if it is necessary as it causes us to select stuff in the subobject view
+		if (!PathToObjectDataCache.OrderIndependentCompareEqual(NewPathToObjectDataCache))
+		{
+			// If an item was removed, then NewPathToObjectDataCache does not contain it. 
+			PathToObjectDataCache = MoveTemp(NewPathToObjectDataCache);
+
+			// The tree view requires the item source to only contain the root items. Children are discovered via GetObjectRowChildren. We re-use GetObjectRowChildren to remove any non-root nodes.
+			BuildRootObjectRowData();
+			ReplicatedObjects->OnItemsChanged();
+		}
+	}
+
+	void SReplicationStreamViewer::RefreshPropertyData()
+	{
+		PropertySection->RefreshPropertyData();
 	}
 
 	void SReplicationStreamViewer::BuildRootObjectRowData()

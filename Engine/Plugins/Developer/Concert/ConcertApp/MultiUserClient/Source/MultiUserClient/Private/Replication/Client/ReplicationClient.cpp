@@ -89,7 +89,26 @@ namespace UE::MultiUserClient
 	void FReplicationClient::OnServerStateChanged()
 	{
 		// Whenever this client's server state changes, the UI must be refreshed.
+
+		// The UI adds empty actors. However, we never send them to the server...
+		TSet<FSoftObjectPath> StagedObjects;
+		for (const TPair<FSoftObjectPath, FConcertReplicatedObjectInfo>& Pair : GetClientContent()->Stream->ReplicationMap.ReplicatedObjects)
+		{
+			if (Pair.Value.PropertySelection.ReplicatedProperties.IsEmpty())
+			{
+				StagedObjects.Add(Pair.Key);
+			}
+		}
+		
+		// ... if the user removes the last property from the entire actor-component hierarchy, we want the hierarchy to continue to displayed...
 		GetClientContent()->Stream->ReplicationMap = GetStreamSynchronizer().GetServerState();
+		// ... so add back the staged objects
+		for (const FSoftObjectPath& StagedObject : StagedObjects)
+		{
+			GetClientContent()->Stream->ReplicationMap.ReplicatedObjects.Add(StagedObject);
+		}
+		// To remove the hierarchy, the user must click the actor and delete it explicitly, which will call IEditableReplicationStream::RemoveObjects on the staged objects.
+		
 		DeferOnModelChanged();
 	}
 

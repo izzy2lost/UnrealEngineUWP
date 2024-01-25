@@ -10,7 +10,11 @@
 namespace UE::ConcertSharedSlate
 {
 	/**
-	 * Abstracts the concept of mapping objects to properties. This is a read-only interface.
+	 * Abstracts the concept of mapping objects to properties.
+	 * This is a read-only interface.
+	 *
+	 * Objects are allowed to be bound to no properties.
+	 * 
 	 * @see IEditableReplicationStreamModel 
 	 */
 	class CONCERTSHAREDSLATE_API IReplicationStreamModel : public TSharedFromThis<IReplicationStreamModel>
