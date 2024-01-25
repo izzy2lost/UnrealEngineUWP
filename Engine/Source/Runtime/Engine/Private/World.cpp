@@ -597,6 +597,7 @@ UWorld::UWorld( const FObjectInitializer& ObjectInitializer )
 , FeatureLevel(GMaxRHIFeatureLevel)
 , bIsBuilt(false)
 , bIsWorldInitialized(false)
+, bIsBeingDestroyed(false)
 #if WITH_EDITOR
 , bDebugFrameStepExecutedThisFrame(false)
 , bToggledBetweenPIEandSIEThisFrame(false)
@@ -2384,6 +2385,8 @@ void UWorld::InitializeNewWorld(const InitializationValues IVS, bool bInSkipInit
 
 void UWorld::DestroyWorld( bool bInformEngineOfWorld, UWorld* NewWorld )
 {
+	bIsBeingDestroyed = true;
+	
 	// Clean up existing world and remove it from root set so it can be garbage collected.
 	bIsLevelStreamingFrozen = false;
 	SetShouldForceUnloadStreamingLevels(true);
