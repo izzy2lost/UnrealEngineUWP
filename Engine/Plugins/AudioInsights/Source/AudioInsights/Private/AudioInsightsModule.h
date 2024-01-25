@@ -40,7 +40,6 @@ namespace UE::Audio::Insights
 
 	private:
 		TSharedRef<SDockTab> CreateDashboardTabWidget(const FSpawnTabArgs& Args);
-		TSharedRef<SDockTab> CreateInsightsTabWidget(const FSpawnTabArgs& Args);
 		void RegisterMenus();
 	};
 } // namespace UE::Audio::Insights

@@ -98,26 +98,14 @@ namespace UE::Audio::Insights
 		return DashboardFactory->MakeDockTabWidget(Args);
 	}
 
-	TSharedRef<SDockTab> FAudioInsightsModule::CreateInsightsTabWidget(const FSpawnTabArgs& Args)
-	{
-		// TODO: Implement
-		return SNew(SDockTab);
-	}
-
 	void FAudioInsightsModule::RegisterMenus()
 	{
 		const IWorkspaceMenuStructure& MenuStructure = WorkspaceMenu::GetMenuStructure();
-		FGlobalTabmanager::Get()->RegisterNomadTabSpawner("AudioDashboard", FOnSpawnTab::CreateRaw(this, &FAudioInsightsModule::CreateDashboardTabWidget))
-			.SetDisplayName(LOCTEXT("OpenDashboard_TabDisplayName", "Audio Dashboard"))
-			.SetTooltipText(LOCTEXT("OpenDashboard_TabTooltip", "Opens Audio Dashboard, an extensible suite of tools and visualizers which enable monitoring and debugging audio in the Unreal Engine."))
+		FGlobalTabmanager::Get()->RegisterNomadTabSpawner("AudioInsights", FOnSpawnTab::CreateRaw(this, &FAudioInsightsModule::CreateDashboardTabWidget))
+			.SetDisplayName(LOCTEXT("OpenDashboard_TabDisplayName", "Audio Insights"))
+			.SetTooltipText(LOCTEXT("OpenDashboard_TabTooltip", "Opens Audio Insights, an extensible suite of tools and visualizers which enable monitoring and debugging audio in the Unreal Engine."))
 			.SetGroup(MenuStructure.GetToolsCategory())
 			.SetIcon(FSlateStyle::Get().CreateIcon("AudioInsights.Icon.Dashboard"));
-
-		FGlobalTabmanager::Get()->RegisterNomadTabSpawner(GetName(), FOnSpawnTab::CreateRaw(this, &FAudioInsightsModule::CreateInsightsTabWidget))
-			.SetDisplayName(LOCTEXT("OpenAudioInsights_TabDisplayName", "Audio Insights"))
-			.SetTooltipText(LOCTEXT("OpenAudioInsights_TabTooltip", "Opens Insights audio profile mode."))
-			.SetGroup(MenuStructure.GetDeveloperToolsProfilingCategory())
-			.SetIcon(FSlateStyle::Get().CreateIcon("AudioInsights.Icon"));
 	};
 } // namespace UE::Audio::Insights
 #undef LOCTEXT_NAMESPACE // AudioInsights
