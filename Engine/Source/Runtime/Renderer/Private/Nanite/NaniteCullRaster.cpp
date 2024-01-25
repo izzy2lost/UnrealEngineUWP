@@ -710,7 +710,8 @@ class FCompactViewsVSM_CS : public FNaniteGlobalShader
 	SHADER_USE_PARAMETER_STRUCT(FCompactViewsVSM_CS, FNaniteGlobalShader);
 
 	class FViewRangeInputDim : SHADER_PERMUTATION_BOOL("INPUT_VIEW_RANGES");
-	using FPermutationDomain = TShaderPermutationDomain<FViewRangeInputDim>;
+	class FDebugFlagsDim : SHADER_PERMUTATION_BOOL( "DEBUG_FLAGS" );
+	using FPermutationDomain = TShaderPermutationDomain<FViewRangeInputDim, FDebugFlagsDim>;
 
 	static void ModifyCompilationEnvironment(const FGlobalShaderPermutationParameters& Parameters, FShaderCompilerEnvironment& OutEnvironment)
 	{
@@ -734,6 +735,8 @@ class FCompactViewsVSM_CS : public FNaniteGlobalShader
 
 		SHADER_PARAMETER_RDG_BUFFER_UAV(RWStructuredBuffer< uint >, CompactedViewsAllocationOut)
 		SHADER_PARAMETER_STRUCT_INCLUDE(FVirtualTargetParameters, VirtualShadowMap)
+
+		SHADER_PARAMETER_RDG_BUFFER_UAV( RWStructuredBuffer<FNaniteStats>, OutStatsBuffer)
 	END_SHADER_PARAMETER_STRUCT()
 };
 IMPLEMENT_GLOBAL_SHADER(FCompactViewsVSM_CS, "/Engine/Private/Nanite/NaniteInstanceCulling.usf", "CompactViewsVSM_CS", SF_Compute);
@@ -4910,12 +4913,15 @@ void FRenderer::DrawGeometry(
 			PassParameters->CompactedViewsOut			= GraphBuilder.CreateUAV(CompactedViews);
 			PassParameters->CompactedViewInfoOut		= GraphBuilder.CreateUAV(CompactedViewInfo);
 			PassParameters->CompactedViewsAllocationOut = CompactedViewsAllocationUAV;
+			
+			PassParameters->OutStatsBuffer = GraphBuilder.CreateUAV(StatsBuffer);
 
 			// TODO: breach in instance hierarchy confinement
 			//       The view compaction should be moved outside of Nanite render (into VSM specifics)
 			//       Doing so requires some more refactor and is easier done when the non-hierarchy path is removed.
 			FCompactViewsVSM_CS::FPermutationDomain PermutationVector;
 			PermutationVector.Set<FCompactViewsVSM_CS::FViewRangeInputDim>(InstanceHierarchyDriver.IsEnabled());
+			PermutationVector.Set<FCompactViewsVSM_CS::FDebugFlagsDim>(IsDebuggingEnabled());
 
 			if (InstanceHierarchyDriver.IsEnabled())
 			{
