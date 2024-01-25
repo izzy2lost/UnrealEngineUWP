@@ -10,6 +10,11 @@
 #include "AssetRegistry/AssetData.h"
 #include "UObject/AssetRegistryTagsContext.h"
 
+FNiagaraAssetTagDefinition::FNiagaraAssetTagDefinition(FText InAssetTag, int32 InAssetFlags, FText InDescription, ENiagaraAssetTagDefinitionImportance InDisplayType, FLinearColor InColor, FGuid InTagGuid)
+	: AssetTag(InAssetTag), AssetFlags(InAssetFlags), Description(InDescription), DisplayType(InDisplayType), Color(InColor), TagGuid(InTagGuid)
+{
+}
+
 bool FNiagaraAssetTagDefinition::IsValid() const
 {
 	return TagGuid.IsValid() && AssetTag.IsEmpty() == false;
