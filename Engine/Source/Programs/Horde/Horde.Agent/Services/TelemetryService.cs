@@ -270,14 +270,10 @@ class TelemetryService : BackgroundService
 		return base.StartAsync(cancellationToken);
 	}
 
-	public override async Task StopAsync(CancellationToken cancellationToken)
+	public override Task StopAsync(CancellationToken cancellationToken)
 	{
-		if (_eventLoopHeartbeatCts != null)
-		{
-			await _eventLoopHeartbeatCts.CancelAsync();
-		}
-
-		await base.StopAsync(cancellationToken);
+		_eventLoopHeartbeatCts?.Cancel();
+		return base.StopAsync(cancellationToken);
 	}
 
 	/// <summary>

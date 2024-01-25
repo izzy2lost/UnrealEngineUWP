@@ -179,7 +179,7 @@ namespace Horde.Agent.Leases
 				else
 				{
 					_logger.LogInformation("Cancelling active lease {LeaseId}", activeLease.Lease.Id);
-					await activeLease.CancellationTokenSource.CancelAsync();
+					activeLease.CancellationTokenSource.Cancel();
 				}
 			}
 
@@ -308,7 +308,6 @@ namespace Horde.Agent.Leases
 						}
 					}
 
-					List<LeaseInfo> cancelLeaseInfos = new List<LeaseInfo>();
 					lock (_lockObject)
 					{
 						// Now reconcile the local state to match what the server reports
@@ -336,7 +335,7 @@ namespace Horde.Agent.Leases
 									if (info != null)
 									{
 										_logger.LogInformation("Cancelling lease {LeaseId}", serverLease.Id);
-										cancelLeaseInfos.Add(info);
+										info.CancellationTokenSource.Cancel();
 									}
 								}
 								if (serverLease.State == LeaseState.Pending && !_activeLeases.Any(x => x.Lease.Id == serverLease.Id))
@@ -365,12 +364,6 @@ namespace Horde.Agent.Leases
 							_logger.LogInformation("No leases are active. Agent is stopping."); // TODO: Should not really hit this any more; server should report stopping state in lease update above.
 							return _sessionResult;
 						}
-					}
-
-					// Flag all canceled leases now we've released the lock
-					foreach (LeaseInfo cancelLeaseInfo in cancelLeaseInfos)
-					{
-						await cancelLeaseInfo.CancellationTokenSource.CancelAsync();
 					}
 
 					// Update the current status

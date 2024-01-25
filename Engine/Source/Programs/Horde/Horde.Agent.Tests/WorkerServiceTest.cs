@@ -244,7 +244,7 @@ namespace Horde.Agent.Tests
 
 			Task handleSessionTask = Task.Run(() => manager.RunAsync(false, cts.Token), cts.Token);
 			await fakeServer.UpdateSessionReceived.Task.WaitAsync(cts.Token);
-			await cts.CancelAsync();
+			cts.Cancel();
 			await handleSessionTask; // Ensure it runs to completion and no exceptions are raised
 		}
 	}
