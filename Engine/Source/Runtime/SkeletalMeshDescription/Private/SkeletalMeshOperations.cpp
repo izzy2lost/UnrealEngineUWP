@@ -150,8 +150,17 @@ bool FSkeletalMeshOperations::CopySkinWeightAttributeFromMesh(
 		{
 			for (FBoneWeight OriginalWeight: InWeights)
 			{
-				FBoneWeight NewWeight(static_cast<FBoneIndexType>((*SourceBoneIndexToTargetBoneIndexMap)[OriginalWeight.GetBoneIndex()]), OriginalWeight.GetRawWeight());
-				Weights.Add(NewWeight);
+				if (const int32* BoneIndexPtr = SourceBoneIndexToTargetBoneIndexMap->Find(OriginalWeight.GetBoneIndex()))
+				{
+					FBoneWeight NewWeight(static_cast<FBoneIndexType>(*BoneIndexPtr), OriginalWeight.GetRawWeight());
+					Weights.Add(NewWeight);
+				}
+			}
+
+			if (Weights.IsEmpty())
+			{
+				const FBoneWeight RootBoneWeight(0, 1.0f);
+				Weights.Add(RootBoneWeight);
 			}
 		}
 		else
