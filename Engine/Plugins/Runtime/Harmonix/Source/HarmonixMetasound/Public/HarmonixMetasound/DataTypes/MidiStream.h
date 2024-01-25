@@ -94,6 +94,11 @@ namespace HarmonixMetasound
 			MidiClockSource.Emplace(ClockSource);
 		}
 
+		void ResetClockSource()
+		{
+			MidiClockSource.Reset();
+		}
+
 		using MidiSinkFunction = std::function<void()>;
 		void ExecuteBlock(MidiSinkFunction Destination) const
 		{
