@@ -166,9 +166,17 @@ public:
 	 * Override a specific property of an object (Helper methods to call Pre/PostOverride)
 	 * Note: Supports object that does not have overridable serialization enabled
 	 * @param Object owning the property
-	 * @param PropertyEvent information about the type of change
+	 * @param PropertyEvent information about the type of change including any container item index
 	 * @param PropertyChain leading to the property that is about to be overridden */
 	COREUOBJECT_API void OverrideProperty(UObject& Object, const FPropertyChangedEvent& PropertyEvent, const FEditPropertyChain& PropertyChain);
+
+	/**
+	 * Clears an overridden properties specified by the property chain
+	 * @param Object owning the property to clear
+	 * @param PropertyEvent only needed to know about the container item index in any
+	 * @param PropertyChain to the property to clear from the root of the specified object
+	 * @return true if the property was successfully cleared. */
+	COREUOBJECT_API bool ClearOverriddenProperty(UObject& Object, const FPropertyChangedEvent& PropertyEvent, const FEditPropertyChain& PropertyChain);
 
 	/**
 	 * To be called prior to override a property of the specified object
@@ -181,7 +189,7 @@ public:
 	 * To be called after the property was overridden of the specified object
 	 * Note: Supports object that does not have overridable serialization enabled
 	 * @param Object owning the property
-	 * @param PropertyEvent information about the type of change
+	 * @param PropertyEvent information about the type of change including any container item index
 	 * @param PropertyChain leading to the property that was overridden */
 	COREUOBJECT_API void PostOverrideProperty(UObject& Object, const FPropertyChangedEvent& PropertyEvent, const FEditPropertyChain& PropertyChain);
 
@@ -190,33 +198,23 @@ public:
 	 * Note: Will ensure if the specified object does not have overridable serialization enabled
 	 * @param Notification the type of notification (pre or post
 	 * @param Object owning the property
-	 * @param PropertyEvent information about the type of change
-	 * @param PropertyNode leading to the property that is changing
-	 */
+	 * @param PropertyEvent information about the type of change including any container item index
+	 * @param PropertyNode leading to the property that is changing */
 	COREUOBJECT_API void NotifyPropertyChange(const EPropertyNotificationType Notification, UObject& Object, const FPropertyChangedEvent& PropertyEvent, const FEditPropertyChain::TDoubleLinkedListNode* PropertyNode);
 
 	/**
 	 * Retrieve the overridable operation from the specified the edit property chain
 	 * @param Object owning the property
+	 * @param PropertyEvent only needed to know about the container item index in any
 	 * @param PropertyChain leading to the property the caller is interested in
-	 * @return the current type of override operation on the property
-	 */
-	COREUOBJECT_API EOverriddenPropertyOperation GetOverriddenPropertyOperation(UObject& Object, const FEditPropertyChain& PropertyChain);
-
-	/**
-	 * Set the overridable operation from the specified the edit property chain
-	 * @param Object owning the property
-	 * @param PropertyChain leading to the property the caller is interested in
-	 * @param Operation the override operation to set on the property
-	 * @return if the operation was successful
-	 */
-	COREUOBJECT_API bool SetOverriddenPropertyOperation(UObject& Object, const FEditPropertyChain& PropertyChain, EOverriddenPropertyOperation Operation);
+	 * @param bOutInheritedState optional parameter to know if the state returned was inherited from a parent property
+	 * @return the current type of override operation on the property */
+	COREUOBJECT_API EOverriddenPropertyOperation GetOverriddenPropertyOperation(UObject& Object, const FPropertyChangedEvent& PropertyEvent, const FEditPropertyChain& PropertyChain, bool* bOutInheritedState = nullptr);
 
 	/**
 	 * Serializes the overriden properties of the specified object into the record
 	 * @param Object to serialize the overriden property
-	 * @param ObjectRecord the record to use for serialization
-	 */
+	 * @param ObjectRecord the record to use for serialization */
 	COREUOBJECT_API void SerializeOverriddenProperties(UObject& Object, FStructuredArchive::FRecord ObjectRecord);
 
 	void HandleObjectsReInstantiated(const TMap<UObject*, UObject*>& OldToNewInstanceMap);
