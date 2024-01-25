@@ -2532,7 +2532,34 @@ namespace EpicGames.Perforce
 			{
 				arguments.Add($"-m{maxFiles}");
 			}
+			if ((options & MergeOptions.AsStreamSpec) != 0)
+			{
+				arguments.Add("-As");
+			}
+			if ((options & MergeOptions.AsFiles) != 0)
+			{
+				arguments.Add("-Af");
+			}
+			if ((options & MergeOptions.Stream) != 0)
+			{
+				arguments.Add("-S");
+			}
+
 			arguments.Add(sourceFileSpec);
+
+			if ((options & MergeOptions.Force) != 0)
+			{
+				arguments.Add("-F");
+			}
+			if ((options & MergeOptions.ReverseMapping) != 0)
+			{
+				arguments.Add("-r");
+			}
+			if ((options & MergeOptions.Source) != 0)
+			{
+				arguments.Add("-s");
+			}
+
 			arguments.Add(targetFileSpec);
 
 			PerforceResponseList<MergeRecord> records = await CommandAsync<MergeRecord>(connection, "merge", arguments, null, cancellationToken);
