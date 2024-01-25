@@ -121,7 +121,7 @@ public:
 	bool ConvertSpotLightComponent(const USpotLightComponent* Component, const FString& PrimPath, float TimeCode = 3.402823466e+38F);
 
 	UFUNCTION(BlueprintCallable, Category = "Component conversion")
-	bool ConvertBoundsComponent(const UUsdDrawModeComponent* Component, const FString& PrimPath, float TimeCode = 3.402823466e+38F);
+	bool ConvertDrawModeComponent(const UUsdDrawModeComponent* Component, const FString& PrimPath, float TimeCode = 3.402823466e+38F);
 
 	UFUNCTION(BlueprintCallable, Category = "Component conversion")
 	bool ConvertSceneComponent(const USceneComponent* Component, const FString& PrimPath);

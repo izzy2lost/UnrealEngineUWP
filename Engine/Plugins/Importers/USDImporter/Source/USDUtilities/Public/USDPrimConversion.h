@@ -194,9 +194,9 @@ namespace UsdToUnreal
 	 * UUsdDrawModeComponent at EvalTime.
 	 * Must use a BBoxCache: If one is not provided it will be created on-demand for this call alone.
 	 */
-	USDUTILITIES_API bool ConvertBounds(
+	USDUTILITIES_API bool ConvertDrawMode(
 		const pxr::UsdPrim& Prim,
-		UUsdDrawModeComponent* BoundsComponent,
+		UUsdDrawModeComponent* DrawModeComponent,
 		double EvalTime = UsdUtils::GetDefaultTimeCode(),
 		pxr::UsdGeomBBoxCache* BBoxCache = nullptr
 	);
@@ -421,8 +421,8 @@ namespace UnrealToUsd
 	 * Note that this will even apply the schema itself to UsdPrim if it doesn't already have it, and potentially author
 	 * the 'kind' metadata on it and all of its ancestors (as UsdGeomModelAPI requires the prim to be a "model" to have function)
 	 */
-	USDUTILITIES_API bool ConvertBoundsComponent(
-		const UUsdDrawModeComponent& BoundsComponent,
+	USDUTILITIES_API bool ConvertDrawModeComponent(
+		const UUsdDrawModeComponent& DrawModeComponent,
 		pxr::UsdPrim& UsdPrim,
 		bool bWriteExtents = false,
 		double UsdTimeCode = UsdUtils::GetDefaultTimeCode()

@@ -100,13 +100,16 @@ private:
 	UPROPERTY()
 	TArray<TObjectPtr<UMaterialInstance>> MaterialInstances;
 
-	// Flags to enable the card faces to draw.
+	// EUsdModelCardFace flags to enable the card faces to draw.
 	// We need these because the required USD behavior specifies a difference between not having a texture because
 	// one wasn't authored (at which point we flip the opposite face), and not having a texture because it failed
 	// to resolve (at which point we draw vertex color). In both of those cases we'll end up with nullptr on the
-	// CardTexture property, but this will help us tell which case we're talking about
+	// CardTexture property, but this will help us tell which case we're talking about.
+	// Note that this must be an int32 instead of the actual EUsdModelCardFace type because otherwise during any
+	// transaction the UPROPERTY Enum code will freak out if we have more than one flag set, presumably consider
+	// the combination of flags an invalid value for the enum, and then just set it to zero instead (see UE-200646).
 	UPROPERTY()
-	EUsdModelCardFace AuthoredFaces;
+	int32 AuthoredFaces;
 
 public:
 	UFUNCTION(BlueprintSetter, Category = "USD")

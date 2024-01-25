@@ -4541,7 +4541,7 @@ void AUsdStageActor::OnObjectPropertyChanged(UObject* ObjectBeingModified, FProp
 				{
 					UnrealToUsd::ConvertMeshComponent(CurrentStage, MeshComponent, UsdPrim);
 				}
-				else if (UUsdDrawModeComponent* BoundsComponent = Cast<UUsdDrawModeComponent>(PrimSceneComponent))
+				else if (UUsdDrawModeComponent* DrawModeComponent = Cast<UUsdDrawModeComponent>(PrimSceneComponent))
 				{
 					const static TSet<FName> BoundsProperties = {
 						GET_MEMBER_NAME_CHECKED(UUsdDrawModeComponent, BoundsMin),
@@ -4551,7 +4551,7 @@ void AUsdStageActor::OnObjectPropertyChanged(UObject* ObjectBeingModified, FProp
 					// If we just manually tweaked the extents, also author those back out to USD as extents opinions
 					const bool bWriteExtents = BoundsProperties.Contains(PropertyChangedEvent.GetMemberPropertyName());
 					const double UsdTimeCode = UsdUtils::GetDefaultTimeCode();
-					UnrealToUsd::ConvertBoundsComponent(*BoundsComponent, UsdPrim, bWriteExtents, UsdTimeCode);
+					UnrealToUsd::ConvertDrawModeComponent(*DrawModeComponent, UsdPrim, bWriteExtents, UsdTimeCode);
 				}
 				else if (UsdPrim && UsdPrim.IsA(TEXT("Camera")))
 				{
