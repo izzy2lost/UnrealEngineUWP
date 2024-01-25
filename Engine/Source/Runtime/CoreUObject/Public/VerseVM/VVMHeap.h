@@ -336,7 +336,7 @@ private:
 	static TNeverDestroyed<TArray<FHeapPageHeader*>> WeakKeyMapsByHeader;
 
 	// Controls all of the fields below.
-	static UE::FMutex Mutex;
+	COREUOBJECT_API static UE::FMutex Mutex;
 	static UE::FConditionVariable ConditionVariable;
 
 	// Invariant: RequestedCycleVersion >= CompletedCycleVersion
@@ -361,7 +361,7 @@ private:
 	static size_t LiveCellBytesAtStart;
 
 	static std::atomic<size_t> MarkedNativeBytes;
-	static std::atomic<size_t> LiveNativeBytes;
+	COREUOBJECT_API static std::atomic<size_t> LiveNativeBytes;
 
 	static TNeverDestroyed<FMarkStack> MarkStack; // Must hold Mutex to access safely.
 	static unsigned NumThreadsToScanStackManually;

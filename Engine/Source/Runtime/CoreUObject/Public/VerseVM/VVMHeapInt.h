@@ -62,24 +62,24 @@ struct VHeapInt final : VHeapValue
 		return *CreateFrom(Context, Int64);
 	}
 
-	bool IsInt32() const;
-	int32 AsInt32() const;
+	COREUOBJECT_API bool IsInt32() const;
+	COREUOBJECT_API int32 AsInt32() const;
 
-	bool IsInt64() const;
-	int64 AsInt64() const;
+	COREUOBJECT_API bool IsInt64() const;
+	COREUOBJECT_API int64 AsInt64() const;
 
-	VFloat ConvertToFloat() const;
+	COREUOBJECT_API VFloat ConvertToFloat() const;
 
-	static bool Equals(VHeapInt& X, VHeapInt& Y);
+	COREUOBJECT_API static bool Equals(VHeapInt& X, VHeapInt& Y);
 
-	static VHeapInt* CreateZero(FAllocationContext Context);
+	COREUOBJECT_API static VHeapInt* CreateZero(FAllocationContext Context);
 
-	static VHeapInt* Add(FRunningContext, VHeapInt& X, VHeapInt& Y);
-	static VHeapInt* Sub(FRunningContext, VHeapInt& X, VHeapInt& Y);
-	static VHeapInt* Multiply(FRunningContext, VHeapInt& X, VHeapInt& Y);
-	static VHeapInt* Divide(FRunningContext, VHeapInt& X, VHeapInt& Y, bool* bOutHasNonZeroRemainder = nullptr);
-	static VHeapInt* Modulo(FRunningContext, VHeapInt& X, VHeapInt& Y);
-	static VHeapInt* UnaryMinus(FRunningContext, VHeapInt& X);
+	COREUOBJECT_API static VHeapInt* Add(FRunningContext, VHeapInt& X, VHeapInt& Y);
+	COREUOBJECT_API static VHeapInt* Sub(FRunningContext, VHeapInt& X, VHeapInt& Y);
+	COREUOBJECT_API static VHeapInt* Multiply(FRunningContext, VHeapInt& X, VHeapInt& Y);
+	COREUOBJECT_API static VHeapInt* Divide(FRunningContext, VHeapInt& X, VHeapInt& Y, bool* bOutHasNonZeroRemainder = nullptr);
+	COREUOBJECT_API static VHeapInt* Modulo(FRunningContext, VHeapInt& X, VHeapInt& Y);
+	COREUOBJECT_API static VHeapInt* UnaryMinus(FRunningContext, VHeapInt& X);
 
 	enum class ComparisonResult
 	{
@@ -104,7 +104,7 @@ struct VHeapInt final : VHeapValue
 
 	COREUOBJECT_API void ToStringImpl(FStringBuilderBase& Builder, FAllocationContext Context, const FCellFormatter& Formatter);
 
-	static void SerializeImpl(VHeapInt*& This, FAllocationContext Context, FAbstractVisitor& Visitor);
+	COREUOBJECT_API static void SerializeImpl(VHeapInt*& This, FAllocationContext Context, FAbstractVisitor& Visitor);
 
 private:
 	explicit VHeapInt(FAllocationContext Context, uint32 NumWords)

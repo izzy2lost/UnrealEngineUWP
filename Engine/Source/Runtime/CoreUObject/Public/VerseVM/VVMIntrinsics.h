@@ -28,10 +28,10 @@ struct VIntrinsics : VHeapValue
 	}
 
 private:
-	static FNativeCallResult AbsImpl(FRunningContext Context, VValue Scope, VNativeFunction::Args Arguments);
-	static FNativeCallResult CeilImpl(FRunningContext Context, VValue Scope, VNativeFunction::Args Arguments);
-	static FNativeCallResult FloorImpl(FRunningContext Context, VValue Scope, VNativeFunction::Args Arguments);
-	static FNativeCallResult ConcatenateMapsImpl(FRunningContext Context, VValue Scope, VNativeFunction::Args Arguments);
+	COREUOBJECT_API static FNativeCallResult AbsImpl(FRunningContext Context, VValue Scope, VNativeFunction::Args Arguments);
+	COREUOBJECT_API static FNativeCallResult CeilImpl(FRunningContext Context, VValue Scope, VNativeFunction::Args Arguments);
+	COREUOBJECT_API static FNativeCallResult FloorImpl(FRunningContext Context, VValue Scope, VNativeFunction::Args Arguments);
+	COREUOBJECT_API static FNativeCallResult ConcatenateMapsImpl(FRunningContext Context, VValue Scope, VNativeFunction::Args Arguments);
 
 	VIntrinsics(FAllocationContext Context)
 		: VHeapValue(Context, &GlobalTrivialEmergentType.Get(Context))

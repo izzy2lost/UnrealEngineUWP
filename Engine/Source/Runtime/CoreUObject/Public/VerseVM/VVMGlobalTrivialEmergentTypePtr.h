@@ -20,8 +20,8 @@ struct FGlobalTrivialEmergentTypePtrRoot : FGlobalHeapRoot
 	{
 	}
 
-	void Visit(FAbstractVisitor& Visitor) override;
-	void Visit(FMarkStackVisitor& Visitor) override;
+	COREUOBJECT_API void Visit(FAbstractVisitor& Visitor) override;
+	COREUOBJECT_API void Visit(FMarkStackVisitor& Visitor) override;
 
 	TWriteBarrier<VEmergentType> EmergentType;
 

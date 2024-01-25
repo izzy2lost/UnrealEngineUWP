@@ -161,7 +161,7 @@ protected:
 	VClass(FAllocationContext Context, VUTF8String* Name, EKind Kind, VConstructor& InConstructor, const TArray<VClass*>& InInherited, VPackage* InScope);
 
 	/// Append to `Entries` those elements of `Base` which are not already overridden, indicated by `Fields`.
-	static void Extend(TSet<VUniqueString*>& Fields, TArray<VConstructor::VEntry>& Entries, const VConstructor& Base);
+	COREUOBJECT_API static void Extend(TSet<VUniqueString*>& Fields, TArray<VConstructor::VEntry>& Entries, const VConstructor& Base);
 
 	// Helper to find initializer procedures after archetype fields have been set on an object
 	void GatherInitializers(VUniqueStringSet& ArchetypeFields, TArray<VProcedure*>& OutInitializers);

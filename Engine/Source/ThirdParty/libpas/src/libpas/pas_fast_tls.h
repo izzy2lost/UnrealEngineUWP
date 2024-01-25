@@ -59,7 +59,7 @@ static inline void pas_fast_tls_set(void* value)
 }
 #elif defined(_WIN32)
 
-extern PAS_API __declspec(thread) void* pas_fast_tls_variable;
+extern __declspec(thread) void* pas_fast_tls_variable;
 
 static inline void* pas_fast_tls_get(void)
 {
