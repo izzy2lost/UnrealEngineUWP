@@ -1457,6 +1457,11 @@ public:
 	FString GetTestContext() const { return TestParameterContext; }
 
 	/**
+	* Returns the beautified test name
+	*/
+	virtual FString GetBeautifiedTestName() const = 0;
+
+	/**
 	 * Returns the beautified test name with test context. Should return what is displayed in the Test Automation UI. See GenerateTestNames()
 	 */
 	virtual FString GetTestFullName() const {
@@ -2182,11 +2187,6 @@ protected:
 	 * @return TRUE if the test was run successfully; FALSE otherwise
 	 */
 	virtual bool RunTest(const FString& Parameters)=0;
-
-	/**
-	 * Returns the beautified test name
-	 */
-	virtual FString GetBeautifiedTestName() const = 0;
 
 	/** Sets the parameter context of the test. */
 	virtual void SetTestContext(FString Context) { TestParameterContext = Context; }
