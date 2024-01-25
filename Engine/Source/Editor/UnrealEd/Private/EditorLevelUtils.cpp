@@ -1194,7 +1194,7 @@ void SetLevelVisibilityNoGlobalUpdateInternal(ULevel* Level, const bool bShouldB
 		{
 			if (ModifyMode == ELevelVisibilityDirtyMode::ModifyOnChange)
 			{
-				CurLevelModel->Modify();
+				CurLevelModel->Modify(false);
 			}
 
 			for (TArray<FBspSurf>::TIterator SurfaceIterator(CurLevelModel->Surfs); SurfaceIterator; ++SurfaceIterator)
