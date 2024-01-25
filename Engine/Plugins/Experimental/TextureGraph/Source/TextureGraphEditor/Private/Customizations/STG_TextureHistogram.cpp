@@ -37,7 +37,7 @@ void STG_TextureHistogram::SetTexture(FTG_Texture& Source, UTextureGraph* InText
 		Source.RasterBlob->OnFinalise()
 		.then([this, InTextureGraph, Source]() mutable
 		{
-			T_TextureHistogram::Create(InTextureGraph, std::static_pointer_cast<TiledBlob>(Source.RasterBlob), 0);
+			T_TextureHistogram::CreateOnService(InTextureGraph, std::static_pointer_cast<TiledBlob>(Source.RasterBlob), 0);
 			return  Source->GetHistogram()->OnFinalise();
 		})
 		.then([this, Source]() mutable

@@ -160,7 +160,7 @@ void STG_TextureDetails::CalculateHistogram(BlobPtr InBlob, UTextureGraph* InTex
 		{
 			if (!InBlob->IsTransient())
 			{
-				T_TextureHistogram::Create(InTextureGraph, std::static_pointer_cast<TiledBlob>(InBlob), 0);
+				T_TextureHistogram::CreateOnService(InTextureGraph, std::static_pointer_cast<TiledBlob>(InBlob), 0);
 				return InBlob->GetHistogram()->OnFinalise();
 			}
 			return (AsyncBlobResultPtr)(cti::make_ready_continuable<const Blob*>(nullptr));
