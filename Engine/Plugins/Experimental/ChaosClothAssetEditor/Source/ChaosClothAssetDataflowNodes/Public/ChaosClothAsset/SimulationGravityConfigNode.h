@@ -18,8 +18,8 @@ public:
 	bool bUseGravityOverride = false;
 
 	/** Scale factor applied to the world gravity and also to the clothing simulation interactor gravity. Does not affect the gravity if set using the override below. */
-	UPROPERTY(EditAnywhere, Category = "Gravity Properties", Meta = (UIMin = "0", UIMax = "10", EditCondition = "!bUseGravityOverride"))
-	float GravityScale = 1.f;
+	UPROPERTY(EditAnywhere, Category = "Gravity Properties", DisplayName = "Gravity Scale", Meta = (UIMin = "0", UIMax = "10", EditCondition = "!bUseGravityOverride"))
+	FChaosClothAssetWeightedValue GravityScaleWeighted = {true, 1.f, 1.f, TEXT("GravityScale")};
 
 	/** The gravitational acceleration vector [cm/s^2]. */
 	UPROPERTY(EditAnywhere, Category = "Gravity Properties", Meta = (UIMin = "0", UIMax = "10", EditCondition = "bUseGravityOverride"))
@@ -27,6 +27,14 @@ public:
 
 	FChaosClothAssetSimulationGravityConfigNode(const Dataflow::FNodeParameters& InParam, FGuid InGuid = FGuid::NewGuid());
 
+	virtual void Serialize(FArchive& Ar) override;
+
 private:
+	// Deprecated properties
+#if WITH_EDITORONLY_DATA
+	UPROPERTY()
+	float GravityScale_DEPRECATED = 1.f;
+#endif
+
 	virtual void AddProperties(FPropertyHelper& PropertyHelper) const override;
 };

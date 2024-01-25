@@ -188,7 +188,8 @@ PRAGMA_ENABLE_DEPRECATION_WARNINGS
 			const FTriangleMesh& TriangleMesh
 		);
 		void CreateExternalForces(
-			const Softs::FCollectionPropertyConstFacade& ConfigProperties
+			const Softs::FCollectionPropertyConstFacade& ConfigProperties,
+			const TMap<FString, TConstArrayView<FRealSingle>>& WeightMaps
 		);
 		void CreateCollisionConstraint(
 			const Softs::FCollectionPropertyConstFacade& ConfigProperties,
