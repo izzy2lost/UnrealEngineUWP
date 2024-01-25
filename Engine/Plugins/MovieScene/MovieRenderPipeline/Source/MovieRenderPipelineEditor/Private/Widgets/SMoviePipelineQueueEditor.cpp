@@ -88,6 +88,7 @@ struct IMoviePipelineQueueTreeItem : TSharedFromThis<IMoviePipelineQueueTreeItem
 
 	virtual TSharedPtr<FMoviePipelineQueueJobTreeItem> AsJob() { return nullptr; }
 	virtual UMoviePipelineExecutorJob* GetOwningJob() { return nullptr; }
+	virtual UMoviePipelineExecutorShot* GetOwningShot() { return nullptr; }
 	virtual void Delete(UMoviePipelineQueue* InOwningQueue) {}
 	virtual void ResetStatus() {}
 	virtual UMoviePipelineExecutorJob* Duplicate(UMoviePipelineQueue* InOwningQueue) { return nullptr; }
@@ -832,6 +833,11 @@ struct FMoviePipelineShotItem : IMoviePipelineQueueTreeItem
 	virtual UMoviePipelineExecutorJob* GetOwningJob() override
 	{
 		return WeakJob.Get();
+	}
+
+	virtual UMoviePipelineExecutorShot* GetOwningShot() override
+	{
+		return WeakShot.Get();
 	}
 
 	virtual TSharedRef<ITableRow> ConstructWidget(TWeakPtr<SMoviePipelineQueueEditor> InQueueWidget, const TSharedRef<STableViewBase>& OwnerTable) override
@@ -1691,21 +1697,27 @@ void SMoviePipelineQueueEditor::SetSelectedJobs_Impl(const TArray<UMoviePipeline
 void SMoviePipelineQueueEditor::OnJobSelectionChanged_Impl(TSharedPtr<IMoviePipelineQueueTreeItem> TreeItem, ESelectInfo::Type SelectInfo)
 {
 	TArray<UMoviePipelineExecutorJob*> SelectedJobs;
+	TArray<UMoviePipelineExecutorShot*> SelectedShots;
+	
 	if (TreeItem.IsValid())
 	{
 		// Iterate the tree and get all selected items.
 		TArray<TSharedPtr<IMoviePipelineQueueTreeItem>> SelectedTreeItems = TreeView->GetSelectedItems();
 		for (TSharedPtr<IMoviePipelineQueueTreeItem> Item : SelectedTreeItems)
 		{
-			UMoviePipelineExecutorJob* Job = Item->GetOwningJob();
-			if (Job)
+			if (UMoviePipelineExecutorJob* Job = Item->GetOwningJob())
 			{
 				SelectedJobs.AddUnique(Job);
+			}
+
+			if (UMoviePipelineExecutorShot* Shot = Item->GetOwningShot())
+			{
+				SelectedShots.AddUnique(Shot);
 			}
 		}
 	}
 
-	OnJobSelectionChanged.ExecuteIfBound(SelectedJobs);
+	OnJobSelectionChanged.ExecuteIfBound(SelectedJobs, SelectedShots);
 }
 
 void SMoviePipelineQueueEditor::OnQueueLoaded()
