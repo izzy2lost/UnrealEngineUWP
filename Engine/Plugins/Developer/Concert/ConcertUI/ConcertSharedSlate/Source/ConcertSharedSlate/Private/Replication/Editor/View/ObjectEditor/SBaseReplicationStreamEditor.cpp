@@ -122,9 +122,22 @@ namespace UE::ConcertSharedSlate
 		if (!AddedObjects.IsEmpty())
 		{
 			TArray<FSoftObjectPath> TopLevelObjects;
-			Algo::Transform(AddedObjects, TopLevelObjects, [](const UObject* Object){ return Object; });
-			ReplicationViewer->SelectObjects(TopLevelObjects);
 			
+			// Goal: select an object so the property view immediately shows properties for some object.
+			// Problem: if objects have different classes, property view will be empty (incompatible class)
+			// Solution: Select the highest object in the hierarchy, which is usually an actor. Users usually select an actor to add in the "Add" combo button so this also makes intuitive sense.
+			// Caveat: There may be multiple hierarchies (e.g. if multiple actors were added). This is a very seldom case though: too bad.
+			Algo::TransformIf(AddedObjects, TopLevelObjects,
+				[this, &AddedObjects](const UObject* Object)
+				{
+					const TOptional<IObjectHierarchyModel::FParentInfo> ParentInfo = ObjectHierarchy->GetParentInfo(Object);
+					const bool bIsTopOfHierarchy = !ParentInfo || !AddedObjects.ContainsByPredicate([&ParentInfo](UObject* AddedObject){ return FSoftObjectPath(AddedObject) == ParentInfo->Parent; });
+					return bIsTopOfHierarchy;
+				},
+				[](const UObject* Object){ return Object; });
+			ReplicationViewer->SelectObjects(TopLevelObjects);
+
+			// Expand the hierarchy for all added objects for easier editing
 			constexpr bool bRecursive = true;
 			ReplicationViewer->ExpandObjects(TopLevelObjects, bRecursive);
 		}
