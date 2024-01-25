@@ -94,7 +94,7 @@ uint32 GetHairTextureLayoutTextureCount(EHairTextureLayout In)
 		case EHairTextureLayout::Layout0: OutCount = 6u; break;
 		case EHairTextureLayout::Layout1: OutCount = 6u; break;
 		case EHairTextureLayout::Layout2: OutCount = 3u; break;
-		case EHairTextureLayout::Layout3: OutCount = 4u; break;
+		case EHairTextureLayout::Layout3: OutCount = 3u; break;
 	}
 	check(OutCount <= HAIR_CARDS_MAX_TEXTURE_COUNT);
 	return OutCount;
@@ -142,13 +142,12 @@ const TCHAR* GetHairTextureLayoutTextureName(EHairTextureLayout InLayout, uint32
 		} break;
 		case EHairTextureLayout::Layout3:
 		{
-			check(4 == GetHairTextureLayoutTextureCount(EHairTextureLayout::Layout3));
+			check(3 == GetHairTextureLayoutTextureCount(EHairTextureLayout::Layout3));
 			switch (InIndex)
 			{
-				case 0: return bDetail ? TEXT("Tangent\n RGB8")								: TEXT("Tangent");
-				case 1: return bDetail ? TEXT("RooUV | CoordU | GroupID\n RGBA8")			: TEXT("RooUVCoordUGroupID");
-				case 2: return bDetail ? TEXT("Coverage | Depth | Seed\n RGB8")				: TEXT("CoverageDepthSeed");
-				case 3: return bDetail ? TEXT("Color | Roughness\n RGBA8")					: TEXT("ColorRoughness");
+				case 0: return bDetail ? TEXT("Tangent | CoordU\n RGB8")					: TEXT("TangentCoordU");
+				case 1: return bDetail ? TEXT("RooUV | Depth | GroupID\n RGBA8")			: TEXT("RooUVDepthGroupID");
+				case 2: return bDetail ? TEXT("ColorXY | Seed | Coverage \n RGBA8")			: TEXT("ColorXYSeedCoverage");
 			}
 		} break;
 	}
