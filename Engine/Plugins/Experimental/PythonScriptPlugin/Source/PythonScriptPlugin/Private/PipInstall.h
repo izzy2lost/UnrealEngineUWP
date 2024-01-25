@@ -39,6 +39,7 @@ public:
 	static int CountInstallLines(const TArray<FString>& RequirementLines);
 
 	static FString GetPipInstallPath();
+	static FString GetPipSitePackagesPath();
 
 private:
 	static void SetupPipInstallUtils(const FString& VenvInterp, FFeedbackContext* Context);

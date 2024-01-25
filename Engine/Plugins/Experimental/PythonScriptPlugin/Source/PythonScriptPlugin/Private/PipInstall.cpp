@@ -461,6 +461,18 @@ FString FPipInstall::GetPipInstallPath()
 	return FPaths::ProjectIntermediateDir() / TEXT("PipInstall");
 }
 
+FString FPipInstall::GetPipSitePackagesPath()
+{
+	const FString VenvPath = GetPipInstallPath();
+#if PLATFORM_WINDOWS
+	return VenvPath / TEXT("Lib") / TEXT("site-packages");
+#elif PLATFORM_MAC || PLATFORM_LINUX
+	return VenvPath / TEXT("lib") / FString::Printf(TEXT("python%d.%d"), PY_MAJOR_VERSION, PY_MINOR_VERSION) / TEXT("site-packages");
+#else
+	static_assert(false, "Python not supported on this platform!");
+#endif
+}
+
 
 void FPipInstall::SetupPipInstallUtils(const FString& VenvInterp, FFeedbackContext* Context)
 {

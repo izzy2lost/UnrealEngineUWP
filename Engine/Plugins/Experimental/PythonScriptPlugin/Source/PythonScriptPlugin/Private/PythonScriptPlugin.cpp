@@ -984,7 +984,7 @@ void FPythonScriptPlugin::InitializePython()
 #endif // WITH_EDITOR
 
 		// Add Pip UBT install path to site-packages if it exists
-		const FString PipSitePackagePath = GetPipSitePackagesPath();
+		const FString PipSitePackagePath = FPipInstall::GetPipSitePackagesPath();
 		if (FPaths::DirectoryExists(PipSitePackagePath))
 		{
 			PyUtil::AddSitePackagesPath(PipSitePackagePath);
@@ -1135,7 +1135,7 @@ void FPythonScriptPlugin::InitPipInstaller()
 	FScopedSlowTask PipInstallTask(0, LOCTEXT("PipInstall.RunInit", "Running Pip Init Tasks..."), true, *Context);
 
 	FPipInstall::CheckInvalidPipEnv();
-	const FString PipSitePackagePath = FPaths::ConvertRelativePathToFull(GetPipSitePackagesPath());
+	const FString PipSitePackagePath = FPaths::ConvertRelativePathToFull(FPipInstall::GetPipSitePackagesPath());
 
 	// Generate the input listing files of plugins with python dependencies and the listing of all requirements (installed or not)
 	TArray<TSharedRef<IPlugin>> PythonPlugins;
@@ -1210,18 +1210,6 @@ void FPythonScriptPlugin::RunPipInstaller()
 		UE_LOG(LogPython, Warning, TEXT("Unable to install plugin python dependencies"));
 		return;
 	}
-}
-
-FString FPythonScriptPlugin::GetPipSitePackagesPath()
-{
-	const FString VenvPath = FPipInstall::GetPipInstallPath();
-#if PLATFORM_WINDOWS
-	return VenvPath / TEXT("Lib") / TEXT("site-packages");
-#elif PLATFORM_MAC || PLATFORM_LINUX
-	return VenvPath / TEXT("lib") / FString::Printf(TEXT("python%d.%d"), PY_MAJOR_VERSION, PY_MINOR_VERSION) / TEXT("site-packages");
-#else
-	static_assert(false, "Python not supported on this platform!");
-#endif
 }
 
 void FPythonScriptPlugin::RequestStubCodeGeneration()
