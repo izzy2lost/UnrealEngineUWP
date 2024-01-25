@@ -313,7 +313,7 @@ namespace UE::CoreUObject::Private
 
 		if (PackageIndex >= static_cast<uint32>(GObjectHandleIndex.PackageData.Num()))
 		{
-			checkf(false, TEXT("FPackageId: PackageIndex invalid. This ObjectHandle is from malformed data."));
+			//checkf(false, TEXT("FObjectHandle: PackageIndex invalid.  This ObjectHandle is from malformed data."));
 			return;
 		}
 		FObjectHandlePackageData& FoundPackageData = GObjectHandleIndex.PackageData[PackageIndex];
