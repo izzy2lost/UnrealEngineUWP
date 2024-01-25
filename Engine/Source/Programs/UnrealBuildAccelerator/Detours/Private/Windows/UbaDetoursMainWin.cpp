@@ -49,7 +49,7 @@ namespace uba
 
 		u8* mem = (u8*)::MapViewOfFile(g_messageMappingHandle, FILE_MAP_READ | FILE_MAP_WRITE, ToHigh(payload.communicationOffset), ToLow(payload.communicationOffset), CommunicationMemSize);
 		g_readMessageMappingMem = mem;
-		g_writeMessageMappingMem = mem + CommunicationMemSize / 2;
+		g_writeMessageMappingMem = mem;// +CommunicationMemSize / 2;
 
 		return 0;
 	}
@@ -78,7 +78,7 @@ namespace uba
 	{
 		m_begin = g_writeMessageMappingMem;
 		m_pos = m_begin;
-		m_end = m_begin + CommunicationMemSize / 2;
+		m_end = m_begin + CommunicationMemSize;// / 2;
 	}
 
 	void BinaryWriter::Flush(bool waitOnResponse)
@@ -122,7 +122,7 @@ namespace uba
 	{
 		m_begin = g_readMessageMappingMem;
 		m_pos = m_begin;
-		m_end = m_begin + CommunicationMemSize / 2;
+		m_end = m_begin + CommunicationMemSize;// / 2;
 	}
 }
 
