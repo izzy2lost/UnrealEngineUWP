@@ -282,6 +282,7 @@ struct FDataflowNode
 	FOnNodeInvalidated& GetOnNodeInvalidatedDelegate() { return OnNodeInvalidatedDelegate; }
 
 private:
+	static FString GetPropertyFullNameString(const TConstArrayView<const FProperty*>& PropertyChain);
 	static FName GetPropertyFullName(const TArray<const FProperty*>& PropertyChain);
 	static FText GetPropertyDisplayNameText(const TArray<const FProperty*>& PropertyChain);
 	static uint32 GetPropertyOffset(const TArray<const FProperty*>& PropertyChain);
