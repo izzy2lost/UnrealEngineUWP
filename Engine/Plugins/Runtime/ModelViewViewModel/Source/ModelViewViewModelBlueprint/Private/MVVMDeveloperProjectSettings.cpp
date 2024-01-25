@@ -53,9 +53,23 @@ bool UMVVMDeveloperProjectSettings::PropertyHasFiltering(const UStruct* ObjectSt
 	Property->GetOwnerClass()->GetPathName(nullptr, StringBuilder);
 	FSoftClassPath StructPath;
 	StructPath.SetPath(StringBuilder);
-	if (const FMVVMDeveloperProjectWidgetSettings* Settings = FieldSelectorPermissions.Find(StructPath))
+
+	if (ObjectStruct)
 	{
-		return !Settings->DisallowedFieldNames.Find(Property->GetFName());
+		for (const TPair<FSoftClassPath, FMVVMDeveloperProjectWidgetSettings>& PermissionItem : FieldSelectorPermissions)
+		{
+			if (UClass* ConcreteClass = PermissionItem.Key.ResolveClass())
+			{
+				if (ObjectStruct->IsChildOf(ConcreteClass))
+				{
+					const FMVVMDeveloperProjectWidgetSettings& Settings = PermissionItem.Value;
+					if (Settings.DisallowedFieldNames.Contains(Property->GetFName()))
+					{
+						return false;
+					}
+				}
+			}
+		}
 	}
 	return true;
 }
@@ -97,11 +111,19 @@ bool UMVVMDeveloperProjectSettings::IsPropertyAllowed(const UBlueprint* Generati
 		AuthoritativeClass->GetPathName(nullptr, StringBuilder);
 		FSoftClassPath StructPath;
 		StructPath.SetPath(StringBuilder);
-		if (const FMVVMDeveloperProjectWidgetSettings* Settings = FieldSelectorPermissions.Find(StructPath))
+
+		for (const TPair<FSoftClassPath, FMVVMDeveloperProjectWidgetSettings>& PermissionItem : FieldSelectorPermissions)
 		{
-			if (Settings->DisallowedFieldNames.Find(Property->GetFName()))
+			if (UClass* ConcreteClass = PermissionItem.Key.ResolveClass())
 			{
-				return false;
+				if (AuthoritativeClass->IsChildOf(ConcreteClass))
+				{
+					const FMVVMDeveloperProjectWidgetSettings& Settings = PermissionItem.Value;
+					if (Settings.DisallowedFieldNames.Contains(Property->GetFName()))
+					{
+						return false;
+					}
+				}
 			}
 		}
 	}
@@ -143,11 +165,19 @@ bool UMVVMDeveloperProjectSettings::IsFunctionAllowed(const UBlueprint* Generati
 		AuthoritativeClass->GetPathName(nullptr, StringBuilder);
 		FSoftClassPath StructPath;
 		StructPath.SetPath(StringBuilder);
-		if (const FMVVMDeveloperProjectWidgetSettings* Settings = FieldSelectorPermissions.Find(StructPath))
+
+		for (const TPair<FSoftClassPath, FMVVMDeveloperProjectWidgetSettings>& PermissionItem : FieldSelectorPermissions)
 		{
-			if (Settings->DisallowedFieldNames.Find(Function->GetFName()))
+			if (UClass* ConcreteClass = PermissionItem.Key.ResolveClass())
 			{
-				return false;
+				if (AuthoritativeClass->IsChildOf(ConcreteClass))
+				{
+					const FMVVMDeveloperProjectWidgetSettings& Settings = PermissionItem.Value;
+					if (Settings.DisallowedFieldNames.Contains(Function->GetFName()))
+					{
+						return false;
+					}
+				}
 			}
 		}
 	}
