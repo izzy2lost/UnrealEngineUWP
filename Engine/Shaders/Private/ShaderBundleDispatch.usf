@@ -23,6 +23,7 @@ void DispatchShaderBundleEntry(uint RecordIndex : SV_DispatchThreadID)
 		ProcessShaderBundleRecord(
 			PlatformData,
 			RecordIndex,
+			RecordCount,
 			RecordArgBuffer,
 			RecordDataBuffer,
 			RWExecutionBuffer);
