@@ -143,9 +143,6 @@ private:
 	void AcquireFromPool(FVideoDecoderOutputPtr& DelayedImage);
 
 
-	// These queues are all single-producer, single-consumer which is the default mode...
-	TQueue<FVideoDecoderOutputPtr> QueueTickedAndWaitingForDecoder;
-
 	Electra::FParamDict BufferPoolProperties;
 	int32 NumBuffers;
 	int32 NumBuffersAcquiredForDecoder;

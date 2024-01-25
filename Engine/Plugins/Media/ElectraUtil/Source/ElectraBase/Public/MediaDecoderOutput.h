@@ -100,16 +100,25 @@ class TDecoderOutputObjectPool
 				}
 				else
 				{
-					if (WaitReadyForReuse.Peek(Result))
+					// Check for objects to ready to enter the pool & grab the first we find as our result...
+					// (we move all into the pool, we can to possibly safe on resources allocated by the objects)
+					ObjectType* PeekObject;
+					while (WaitReadyForReuse.Peek(PeekObject))
 					{
-						if (Result->IsReadyForReuse())
+						if (!PeekObject->IsReadyForReuse())
 						{
-							WaitReadyForReuse.Pop();
-							Result->ShutdownPoolable();
+							break;
+						}
+
+						WaitReadyForReuse.Pop();
+						PeekObject->ShutdownPoolable();
+						if (!Result)
+						{
+							Result = PeekObject;
 						}
 						else
 						{
-							Result = nullptr;
+							Pool.Add(PeekObject);
 						}
 					}
 				}

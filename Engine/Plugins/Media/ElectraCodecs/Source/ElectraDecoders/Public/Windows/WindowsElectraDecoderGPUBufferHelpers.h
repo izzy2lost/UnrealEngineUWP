@@ -68,26 +68,29 @@ static void SSE2MemCpy(const void* InDst, const void* InSrc, unsigned int InSize
 /*********************************************************************************************************************/
 /*********************************************************************************************************************/
 
+class FElectraMediaDecoderOutputBufferPool_DX12;
+
 // Simple DX12 heap and fence manager for use with decoder output buffers (both upload heaps or default GPU heaps)
-class FElectraMediaDecoderOutputBufferPool_DX12 : public TSharedFromThis<FElectraMediaDecoderOutputBufferPool_DX12, ESPMode::ThreadSafe>
+class FElectraMediaDecoderOutputBufferPoolBlock_DX12
 {
 	struct FResourceInfo
 	{
-		FResourceInfo(TWeakPtr<FElectraMediaDecoderOutputBufferPool_DX12> InPool, uint32 InBufferIdx, TRefCountPtr<ID3D12Heap> InHeap) : Pool(InPool), BufferIdx(InBufferIdx), Heap(InHeap) {}
+		FResourceInfo(TWeakPtr<FElectraMediaDecoderOutputBufferPool_DX12> InPool, uint32 InBlockIdx, uint32 InBufferIdx, TRefCountPtr<ID3D12Heap> InHeap) : Pool(InPool), BlockIdx(InBlockIdx), BufferIdx(InBufferIdx), Heap(InHeap) {}
 
 		TWeakPtr<FElectraMediaDecoderOutputBufferPool_DX12> Pool;
+		uint32 BlockIdx;
 		uint32 BufferIdx;
 		TRefCountPtr<ID3D12Heap> Heap;
 	};
 
 public:
 	// Create instance for use with buffers (usually for uploading data)
-	FElectraMediaDecoderOutputBufferPool_DX12(TRefCountPtr<ID3D12Device> InD3D12Device, uint32 InMaxNumBuffers, uint32 Width, uint32 Height, uint32 BytesPerPixel, D3D12_HEAP_TYPE InD3D12HeapType = D3D12_HEAP_TYPE_UPLOAD)
+	FElectraMediaDecoderOutputBufferPoolBlock_DX12(uint32 InBlockIdx, TRefCountPtr<ID3D12Device> InD3D12Device, uint32 InMaxNumBuffers, uint32 Width, uint32 Height, uint32 BytesPerPixel, D3D12_HEAP_TYPE InD3D12HeapType = D3D12_HEAP_TYPE_UPLOAD)
 		: D3D12Device(InD3D12Device)
 		, D3D12HeapType(InD3D12HeapType)
 		, MaxNumBuffers(InMaxNumBuffers)
 		, FreeMask((1 << InMaxNumBuffers) - 1)
-		, LastFenceValue(0)
+		, BlockIdx(InBlockIdx)
 	{
 		check(InMaxNumBuffers <= 32);
 
@@ -99,12 +102,12 @@ public:
 	}
 
 	// Create instance for use with textures (usually to receive any upload buffers or internal decoder texture data)
-	FElectraMediaDecoderOutputBufferPool_DX12(TRefCountPtr<ID3D12Device> InD3D12Device, uint32 InMaxNumBuffers, uint32 Width, uint32 Height, DXGI_FORMAT PixFmt, D3D12_HEAP_TYPE InD3D12HeapType = D3D12_HEAP_TYPE_DEFAULT)
+	FElectraMediaDecoderOutputBufferPoolBlock_DX12(uint32 InBlockIdx, TRefCountPtr<ID3D12Device> InD3D12Device, uint32 InMaxNumBuffers, uint32 Width, uint32 Height, DXGI_FORMAT PixFmt, D3D12_HEAP_TYPE InD3D12HeapType = D3D12_HEAP_TYPE_DEFAULT)
 		: D3D12Device(InD3D12Device)
 		, D3D12HeapType(InD3D12HeapType)
 		, MaxNumBuffers(InMaxNumBuffers)
 		, FreeMask((1 << InMaxNumBuffers) - 1)
-		, LastFenceValue(0)
+		, BlockIdx(InBlockIdx)
 	{
 		check(InMaxNumBuffers <= 32);
 
@@ -127,7 +130,7 @@ public:
 		InitCommon();
 	}
 
-	~FElectraMediaDecoderOutputBufferPool_DX12()
+	~FElectraMediaDecoderOutputBufferPoolBlock_DX12()
 	{
 	}
 
@@ -145,36 +148,10 @@ public:
 		return FPlatformAtomics::AtomicRead((const int32*)&FreeMask) != 0;
 	}
 
-	class FOutputData
-	{
-	public:
-		~FOutputData()
-		{
-			check(ReadyToDestroy());
-		}
-
-		TRefCountPtr<ID3D12Resource> Resource;
-		TRefCountPtr<ID3D12Fence> Fence;
-		uint64 FenceValue;
-
-		bool ReadyToDestroy() const
-		{
-			bool bOk = true;
-#if !UE_BUILD_SHIPPING
-			if (Resource.IsValid())
-			{
-				bOk = Resource->AddRef() > 1 || Fence->GetCompletedValue() >= FenceValue;
-				Resource->Release();
-			}
-#endif
-			return bOk;
-		}
-	};
-
 	// Allocate a buffer resource and return suitable sync fence data
-	bool AllocateOutputDataAsBuffer(FOutputData& OutData, uint32& OutPitch)
+	TRefCountPtr<ID3D12Resource> AllocateOutputDataAsBuffer(TWeakPtr<FElectraMediaDecoderOutputBufferPool_DX12> InPoolWeakRef, uint32& OutPitch)
 	{
-		OutData.Resource = AllocateBuffer(OutPitch, [NumBytes = BufferSize](D3D12_RESOURCE_DESC& Desc)
+		TRefCountPtr<ID3D12Resource> Resource = AllocateBuffer(InPoolWeakRef, OutPitch, [NumBytes = BufferSize](D3D12_RESOURCE_DESC& Desc)
 		{
 			Desc.MipLevels = 1;
 			Desc.Format = DXGI_FORMAT_UNKNOWN;
@@ -187,15 +164,14 @@ public:
 			Desc.Layout = D3D12_TEXTURE_LAYOUT_ROW_MAJOR;
 			Desc.Dimension = D3D12_RESOURCE_DIMENSION_BUFFER;
 		});
-		OutData.Fence = GetUpdatedBufferFence(OutData.FenceValue);
-		return OutData.Resource.IsValid();
+		return Resource;
 	}
 
 	// Allocate a texture resource and return suitable sync fence data
-	bool AllocateOutputDataAsTexture(FOutputData& OutData, uint32 InWidth, uint32 InHeight, DXGI_FORMAT InPixFmt)
+	TRefCountPtr<ID3D12Resource> AllocateOutputDataAsTexture(TWeakPtr<FElectraMediaDecoderOutputBufferPool_DX12> InPoolWeakRef, uint32 InWidth, uint32 InHeight, DXGI_FORMAT InPixFmt)
 	{
 		uint32 OutPitch;
-		OutData.Resource = AllocateBuffer(OutPitch, [InWidth, InHeight, InPixFmt](D3D12_RESOURCE_DESC& Desc)
+		TRefCountPtr<ID3D12Resource> Resource = AllocateBuffer(InPoolWeakRef, OutPitch, [InWidth, InHeight, InPixFmt](D3D12_RESOURCE_DESC& Desc)
 		{
 			Desc.MipLevels = 1;
 			Desc.Format = InPixFmt;
@@ -208,42 +184,7 @@ public:
 			Desc.Layout = D3D12_TEXTURE_LAYOUT_UNKNOWN;
 			Desc.Dimension = D3D12_RESOURCE_DIMENSION_TEXTURE2D;
 		});
-		OutData.Fence = GetUpdatedBufferFence(OutData.FenceValue);
-		return OutData.Resource.IsValid();
-	}
-
-	TRefCountPtr<ID3D12Fence> GetUpdatedBufferFence(uint64& FenceValue)
-	{
-		FenceValue = ++LastFenceValue;
-		return D3D12BufferFence;
-	}
-
-	// Helper function to copy simple, linear texture data between differently picthed buffers
-	static void CopyWithPitchAdjust(uint8* Dst, uint32 DstPitch, const uint8* Src, uint32 SrcPitch, uint32 NumRows)
-	{
-		if (DstPitch != SrcPitch)
-		{
-			for (uint32 Y = NumRows; Y > 0; --Y)
-			{
-				FMemory::Memcpy(Dst, Src, SrcPitch);
-				Src += SrcPitch;
-				Dst += DstPitch;
-			}
-		}
-		else
-		{
-			uint32 NumBytes = SrcPitch * NumRows;
-#if ALLOW_USE_OF_SSEMEMCPY
-			if ((NumBytes & 0x7f) == 0)
-			{
-				SSE2MemCpy(Dst, Src, NumBytes);
-			}
-			else
-#endif
-			{
-				FMemory::Memcpy(Dst, Src, NumBytes);
-			}
-		}
+		return Resource;
 	}
 
 private:
@@ -263,15 +204,9 @@ private:
 #if !UE_BUILD_SHIPPING
 		D3D12OutputHeap->SetName(TEXT("ElectraOutputBufferPoolHeap"));
 #endif
-
-		Res = D3D12Device->CreateFence(0, D3D12_FENCE_FLAG_NONE, IID_PPV_ARGS(D3D12BufferFence.GetInitReference()));
-		check(SUCCEEDED(Res));
-#if !UE_BUILD_SHIPPING
-		D3D12BufferFence->SetName(TEXT("ElectraOutputBufferPoolFence"));
-#endif
 	}
 
-	TRefCountPtr<ID3D12Resource> AllocateBuffer(uint32& OutBufferPitch, TFunction<void(D3D12_RESOURCE_DESC& Desc)> && InitializeDesc)
+	TRefCountPtr<ID3D12Resource> AllocateBuffer(TWeakPtr<FElectraMediaDecoderOutputBufferPool_DX12> InPoolWeakRef, uint32& OutBufferPitch, TFunction<void(D3D12_RESOURCE_DESC& Desc)> && InitializeDesc)
 	{
 		TRefCountPtr<ID3D12Resource> Resource;
 
@@ -312,7 +247,7 @@ private:
 
 				// note: we keep a reference to the heap in our context data for the destruction callback, so we can ensure the heap lives as long as there are placed resources in it
 				UINT CallbackID;
-				Res = Notifier->RegisterDestructionCallback(ResourceDestructionCallback, new FResourceInfo(AsWeak(), BufferIdx, D3D12OutputHeap), &CallbackID);
+				Res = Notifier->RegisterDestructionCallback(ResourceDestructionCallback, new FResourceInfo(InPoolWeakRef, BlockIdx, BufferIdx, D3D12OutputHeap), &CallbackID);
 				check(SUCCEEDED(Res));
 			}
 			else
@@ -335,30 +270,246 @@ private:
 		} while (OldFreeMask != FPlatformAtomics::InterlockedCompareExchange((int32*)&FreeMask, NewFreeMask, OldFreeMask));
 	}
 
-	static void ResourceDestructionCallback(void* Context)
-	{
-		auto ResourceInfo = reinterpret_cast<FResourceInfo*>(Context);
-
-		if (auto Pool = ResourceInfo->Pool.Pin())
-		{
-			Pool->FreeBuffer(ResourceInfo->BufferIdx);
-		}
-
-		// Get rid of our resource tracking info block...
-		// (this will also release the ref to the heap the resource was on)
-		delete ResourceInfo;
-	}
+	static void ResourceDestructionCallback(void* Context);
 
 	TRefCountPtr<ID3D12Device> D3D12Device;
 	D3D12_HEAP_TYPE D3D12HeapType;
 	TRefCountPtr<ID3D12Heap> D3D12OutputHeap;
-	TRefCountPtr<ID3D12Fence> D3D12BufferFence;
 	uint32 MaxNumBuffers;
 	uint32 BufferSize;
 	uint32 BufferPitch;
 	uint32 FreeMask;
-	uint64 LastFenceValue;
+	uint32 BlockIdx;
 };
+
+
+class FElectraMediaDecoderOutputBufferPool_DX12 : public TSharedFromThis<FElectraMediaDecoderOutputBufferPool_DX12, ESPMode::ThreadSafe>
+{
+	enum {
+		kExpectedMaxNumBlocks = 8,
+	};
+	
+public:
+	// Create instance for use with buffers (usually for uploading data)
+	FElectraMediaDecoderOutputBufferPool_DX12(TRefCountPtr<ID3D12Device> InD3D12Device, uint32 InMaxNumBuffers, uint32 InWidth, uint32 InHeight, uint32 InBytesPerPixel, D3D12_HEAP_TYPE InD3D12HeapType = D3D12_HEAP_TYPE_UPLOAD)
+		: D3D12Device(InD3D12Device)
+		, LastFenceValue(0)
+		, D3D12HeapType(InD3D12HeapType)
+		, Width(InWidth)
+		, Height(InHeight)
+		, PixFmt(DXGI_FORMAT_UNKNOWN)
+		, BytesPerPixel(InBytesPerPixel)
+	{
+		Blocks.Reserve(kExpectedMaxNumBlocks);
+		Blocks.Emplace(new FElectraMediaDecoderOutputBufferPoolBlock_DX12(0, D3D12Device, InMaxNumBuffers, Width, Height, BytesPerPixel, D3D12HeapType));
+		InitCommon(InMaxNumBuffers);
+	}
+
+	// Create instance for use with textures (usually to receive any upload buffers or internal decoder texture data)
+	FElectraMediaDecoderOutputBufferPool_DX12(TRefCountPtr<ID3D12Device> InD3D12Device, uint32 InMaxNumBuffers, uint32 InWidth, uint32 InHeight, DXGI_FORMAT InPixFmt, D3D12_HEAP_TYPE InD3D12HeapType = D3D12_HEAP_TYPE_DEFAULT)
+		: D3D12Device(InD3D12Device)
+		, LastFenceValue(0)
+		, D3D12HeapType(InD3D12HeapType)
+		, Width(InWidth)
+		, Height(InHeight)
+		, PixFmt(InPixFmt)
+		, BytesPerPixel(0)
+	{
+		Blocks.Reserve(kExpectedMaxNumBlocks);
+		Blocks.Emplace(new FElectraMediaDecoderOutputBufferPoolBlock_DX12(0, D3D12Device, InMaxNumBuffers, Width, Height, PixFmt, D3D12HeapType));
+		InitCommon(InMaxNumBuffers);
+	}
+
+	~FElectraMediaDecoderOutputBufferPool_DX12()
+	{
+		for (FElectraMediaDecoderOutputBufferPoolBlock_DX12* Block : Blocks)
+		{
+			delete Block;
+		}
+	}
+
+	// Check if the current setup is compatible with the new parameters
+	bool IsCompatibleAsBuffer(uint32 InMaxNumBuffers, uint32 InWidth, uint32 InHeight, uint32 InBytesPerPixel) const
+	{
+		return Blocks[0]->IsCompatibleAsBuffer(InMaxNumBuffers, InWidth, InHeight, InBytesPerPixel);
+	}
+
+	// Check if a buffer is available
+	bool BufferAvailable() const
+	{
+		for (FElectraMediaDecoderOutputBufferPoolBlock_DX12* Block : Blocks)
+		{
+			if (Block->BufferAvailable())
+			{
+				return true;
+			}
+		}
+		return false;
+	}
+
+	class FOutputData
+	{
+	public:
+		~FOutputData()
+		{
+			check(ReadyToDestroy());
+		}
+
+		TRefCountPtr<ID3D12Resource> Resource;
+		TRefCountPtr<ID3D12Fence> Fence;
+		uint64 FenceValue;
+
+		bool ReadyToDestroy() const
+		{
+			bool bOk = true;
+#if !UE_BUILD_SHIPPING
+			if (Resource.IsValid())
+			{
+				bOk = Resource->AddRef() > 1 || Fence->GetCompletedValue() >= FenceValue;
+				Resource->Release();
+			}
+#endif
+			return bOk;
+		}
+	};
+
+	bool AllocateOutputDataAsBuffer(FOutputData& OutData, uint32& OutPitch)
+	{
+		check(BytesPerPixel != 0);
+
+		OutData.Resource = nullptr;
+		for (FElectraMediaDecoderOutputBufferPoolBlock_DX12* Block : Blocks)
+		{
+			if (Block->BufferAvailable())
+			{
+				OutData.Resource = Block->AllocateOutputDataAsBuffer(AsWeak(), OutPitch);
+				if (OutData.Resource)
+				{
+					break;
+				}
+			}
+		}
+
+		if (!OutData.Resource.IsValid())
+		{
+			Blocks.Emplace(new FElectraMediaDecoderOutputBufferPoolBlock_DX12(Blocks.Num(), D3D12Device, MaxNumBuffersAddBlocks, Width, Height, BytesPerPixel, D3D12HeapType));
+			OutData.Resource = Blocks.Last()->AllocateOutputDataAsBuffer(AsWeak(), OutPitch);
+		}
+
+		if (OutData.Resource.IsValid())
+		{
+			OutData.Fence = GetUpdatedBufferFence(OutData.FenceValue);
+			return true;
+		}
+		return false;
+	}
+
+	bool AllocateOutputDataAsTexture(FOutputData& OutData, uint32 InWidth, uint32 InHeight, DXGI_FORMAT InPixFmt)
+	{
+		check(PixFmt != DXGI_FORMAT_UNKNOWN);
+
+		OutData.Resource = nullptr;
+		for (FElectraMediaDecoderOutputBufferPoolBlock_DX12* Block : Blocks)
+		{
+			if (Block->BufferAvailable())
+			{
+				OutData.Resource = Block->AllocateOutputDataAsTexture(AsWeak(), InWidth, InHeight, InPixFmt);
+				if (OutData.Resource)
+				{
+					break;
+				}
+			}
+		}
+
+		if (!OutData.Resource.IsValid())
+		{
+			Blocks.Emplace(new FElectraMediaDecoderOutputBufferPoolBlock_DX12(Blocks.Num(), D3D12Device, MaxNumBuffersAddBlocks, Width, Height, PixFmt, D3D12HeapType));
+			OutData.Resource = Blocks.Last()->AllocateOutputDataAsTexture(AsWeak(), InWidth, InHeight, InPixFmt);
+		}
+
+		if (OutData.Resource.IsValid())
+		{
+			OutData.Fence = GetUpdatedBufferFence(OutData.FenceValue);
+			return true;
+		}
+		return false;
+	}
+
+	TRefCountPtr<ID3D12Fence> GetUpdatedBufferFence(uint64& FenceValue)
+	{
+		FenceValue = ++LastFenceValue;
+		return D3D12BufferFence;
+	}
+
+	// Helper function to copy simple, linear texture data between differently picthed buffers
+	static void CopyWithPitchAdjust(uint8* Dst, uint32 DstPitch, const uint8* Src, uint32 SrcPitch, uint32 NumRows)
+	{
+		if (DstPitch != SrcPitch)
+		{
+			for (uint32 Y = NumRows; Y > 0; --Y)
+			{
+				FMemory::Memcpy(Dst, Src, SrcPitch);
+				Src += SrcPitch;
+				Dst += DstPitch;
+			}
+		}
+		else
+		{
+			uint32 NumBytes = SrcPitch * NumRows;
+#if ALLOW_USE_OF_SSEMEMCPY
+			if ((NumBytes & 0x7f) == 0)
+			{
+				SSE2MemCpy(Dst, Src, NumBytes);
+			}
+			else
+#endif
+			{
+				FMemory::Memcpy(Dst, Src, NumBytes);
+			}
+		}
+	}
+
+private:
+	friend class FElectraMediaDecoderOutputBufferPoolBlock_DX12;
+
+	void InitCommon(uint32 InMaxNumBuffers)
+	{
+		MaxNumBuffersAddBlocks = (InMaxNumBuffers > 1) ? (InMaxNumBuffers >> 1) : 1;
+
+		HRESULT Res = D3D12Device->CreateFence(0, D3D12_FENCE_FLAG_NONE, IID_PPV_ARGS(D3D12BufferFence.GetInitReference()));
+		check(SUCCEEDED(Res));
+#if !UE_BUILD_SHIPPING
+		D3D12BufferFence->SetName(TEXT("ElectraOutputBufferPoolFence"));
+#endif
+	}
+
+	TArray<FElectraMediaDecoderOutputBufferPoolBlock_DX12*> Blocks;
+	
+	TRefCountPtr<ID3D12Device> D3D12Device;
+	TRefCountPtr<ID3D12Fence> D3D12BufferFence;
+	uint64 LastFenceValue;
+	D3D12_HEAP_TYPE D3D12HeapType;
+	uint32 Width;
+	uint32 Height;
+	DXGI_FORMAT PixFmt;
+	uint32 BytesPerPixel;
+	uint32 MaxNumBuffersAddBlocks;
+	};
+
+
+inline void FElectraMediaDecoderOutputBufferPoolBlock_DX12::ResourceDestructionCallback(void* Context)
+{
+	auto ResourceInfo = reinterpret_cast<FResourceInfo*>(Context);
+
+	if (auto Pool = ResourceInfo->Pool.Pin())
+	{
+		Pool->Blocks[ResourceInfo->BlockIdx]->FreeBuffer(ResourceInfo->BufferIdx);
+	}
+
+	// Get rid of our resource tracking info block...
+	// (this will also release the ref to the heap the resource was on)
+	delete ResourceInfo;
+}
 
 
 #include "CommonElectraDecoderGPUBufferHelpers.h"
