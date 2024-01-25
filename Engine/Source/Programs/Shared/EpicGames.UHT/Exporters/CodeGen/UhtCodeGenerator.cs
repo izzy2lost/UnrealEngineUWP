@@ -2,7 +2,9 @@
 
 using System;
 using System.Collections.Generic;
+using System.Diagnostics;
 using System.IO;
+using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
 using EpicGames.Core;
@@ -39,6 +41,7 @@ namespace EpicGames.UHT.Exporters.CodeGen
 			public uint BodyHash { get; set; }
 			public bool NeedsPushModelHeaders { get; set; }
 			public bool NeedsFastArrayHeaders { get; set; }
+			public bool NeedsVerseHeaders { get; set; }
 		}
 		public HeaderInfo[] HeaderInfos { get; set; }
 
@@ -318,6 +321,7 @@ namespace EpicGames.UHT.Exporters.CodeGen
 						ObjectInfos[classObj.AlternateObject.ObjectTypeIndex].NativeInterface = classObj;
 					}
 				}
+				headerInfo.NeedsVerseHeaders = classObj.Children.Any(x => x is UhtVerseValueProperty);
 			}
 			else if (obj is UhtScriptStruct scriptStruct)
 			{
@@ -345,6 +349,7 @@ namespace EpicGames.UHT.Exporters.CodeGen
 						headerInfo.NeedsFastArrayHeaders = true;
 					}
 				}
+				headerInfo.NeedsVerseHeaders = scriptStruct.Children.Any(x => x is UhtVerseValueProperty);
 			}
 			else if (obj is UhtFunction)
 			{

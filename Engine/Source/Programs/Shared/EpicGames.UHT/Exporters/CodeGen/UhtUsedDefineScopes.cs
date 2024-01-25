@@ -746,11 +746,13 @@ namespace EpicGames.UHT.Exporters.CodeGen
 					case UhtDefineScopeNames.Standard:
 						builder
 							.AppendName(defineScope, UhtDefineScope.EditorOnlyData, "WITH_EDITORONLY_DATA", ref needOr)
+							.AppendName(defineScope, UhtDefineScope.VerseVM, "WITH_VERSE_VM", ref needOr)
 							;
 						break;
 					case UhtDefineScopeNames.WithEditor:
 						builder
 							.AppendName(defineScope, UhtDefineScope.EditorOnlyData, "WITH_EDITOR", ref needOr)
+							.AppendName(defineScope, UhtDefineScope.VerseVM, "WITH_VERSE_VM", ref needOr)
 							;
 						break;
 					default:

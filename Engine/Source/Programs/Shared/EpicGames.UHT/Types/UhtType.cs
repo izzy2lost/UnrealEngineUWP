@@ -524,7 +524,7 @@ namespace EpicGames.UHT.Types
 	}
 
 	/// <summary>
-	/// #define scope where the type was defined.  This only includes macros such as WITH_EDITOR and WITH_EDITORONLY_DATA.
+	/// #define scope where the type was defined.  This only includes macros such as WITH_EDITOR, WITH_EDITORONLY_DATA, and WITH_VERSE_VM.
 	/// Not all types support the given options.
 	/// </summary>
 	[Flags]
@@ -547,9 +547,14 @@ namespace EpicGames.UHT.Types
 		EditorOnlyData = 1 << 0,
 
 		/// <summary>
+		/// Exists inside of a WITH_VERSE_VM block
+		/// </summary>
+		VerseVM = 1 << 1,
+
+		/// <summary>
 		/// Number of unique scope combinations
 		/// </summary>
-		ScopeCount = 1 << 1,
+		ScopeCount = 1 << 2,
 	}
 
 	/// <summary>
