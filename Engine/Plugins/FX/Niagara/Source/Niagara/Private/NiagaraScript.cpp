@@ -3543,6 +3543,13 @@ void UNiagaraScript::GetAssetRegistryTags(FAssetRegistryTagsContext Context) con
 	SuggestedTag = FString::FromInt(bSuggested);
 	Context.AddTag(FAssetRegistryTag(SuggestedName, SuggestedTag, FAssetRegistryTag::TT_Hidden));
 
+	// Asset Tags
+	TArray<FNiagaraAssetTagDefinitionReference> AssetTagsDefinitionReferences = ScriptData ? ScriptData->AssetTagDefinitionReferences : TArray<FNiagaraAssetTagDefinitionReference>();
+	for(const FNiagaraAssetTagDefinitionReference& TagDefinitionReference : AssetTagsDefinitionReferences)
+	{
+		TagDefinitionReference.AddTagToAssetRegistryTags(Context);
+	}
+	
 	// Add the current custom version to the tags so that tags can be fixed up in the future without having to load
 	// the whole asset.
 	const int32 NiagaraVer = GetLinkerCustomVersion(FNiagaraCustomVersion::GUID);

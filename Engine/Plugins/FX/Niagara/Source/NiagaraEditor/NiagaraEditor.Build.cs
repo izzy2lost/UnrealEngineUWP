@@ -46,10 +46,13 @@ public class NiagaraEditor : ModuleRules
 				"ImageWrapper",
 				"AssetDefinition",
 				"ContentBrowser",
+				"ContentBrowserData",
 				"ToolWidgets",
 				"AssetTools",
 				"LevelSequence",
 				"SparseVolumeTexture",
+				"EngineSettings",
+				"EditorConfig"
 			}
 		);
 

@@ -10,6 +10,7 @@
 #include "NiagaraMessageDataBase.h"
 #include "NiagaraMessageStore.h"
 #include "INiagaraMergeManager.h"
+#include "NiagaraAssetTagDefinitions.h"
 #include "NiagaraEffectType.h"
 #include "NiagaraDataSetAccessor.h"
 #include "NiagaraBoundsCalculator.h"
@@ -703,8 +704,12 @@ private:
 public:
 	
 #if WITH_EDITORONLY_DATA
-	UPROPERTY(EditAnywhere, AdvancedDisplay, Category = "Asset Options", AssetRegistrySearchable)
-	ENiagaraScriptTemplateSpecification TemplateSpecification;
+	UPROPERTY(EditAnywhere, Category = "Asset Options", meta=(ShowOnlyInnerProperties))
+	TArray<FNiagaraAssetTagDefinitionReference> AssetTags;
+
+	/** If an emitter is inheritable, new emitters based on an inheritable emitter, or Niagara Systems using an inheritable emitter, will automatically inherit changes made to the original emitter. */
+	UPROPERTY(EditAnywhere, Category = "Asset Options", AssetRegistrySearchable)
+	bool bIsInheritable = true;
 	
 	UPROPERTY(EditAnywhere, AdvancedDisplay, Category = "Asset Options", AssetRegistrySearchable)
 	FText TemplateAssetDescription;
@@ -761,7 +766,9 @@ public:
 	UPROPERTY(meta = (DeprecatedProperty))
 	FNiagaraEmitterScriptProperties SpawnScriptProps_DEPRECATED;
 
-
+	UPROPERTY(meta = (DeprecatedProperty))
+	ENiagaraScriptTemplateSpecification TemplateSpecification_DEPRECATED;
+	
 	/** Use property in struct returned from GetEmitterData() instead */ 
 	UPROPERTY(meta = (DeprecatedProperty))
 	FNiagaraEmitterScriptProperties EmitterSpawnScriptProps_DEPRECATED;

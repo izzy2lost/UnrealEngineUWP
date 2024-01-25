@@ -106,6 +106,31 @@ void FNiagaraEditorStyle::InitAssetPicker()
 
 }
 
+void FNiagaraEditorStyle::InitAssetBrowser()
+{
+	const FTextBlockStyle NormalText = FAppStyle::GetWidgetStyle<FTextBlockStyle>("NormalText");
+
+	Set("NiagaraEditor.AssetBrowser.PropertySeparator", new FSlateColorBrush(FStyleColors::White25));
+
+	FTextBlockStyle AssetBrowserAssetTitleStyle = FAppStyle::GetWidgetStyle<FTextBlockStyle>("NormalText.Important");
+	AssetBrowserAssetTitleStyle.Font.Size = 12.f;
+	Set("NiagaraEditor.AssetBrowser.AssetTitle", AssetBrowserAssetTitleStyle);
+	
+	FTextBlockStyle AssetBrowserAssetTypeStyle = FAppStyle::GetWidgetStyle<FTextBlockStyle>("NormalText.Subdued");
+	AssetBrowserAssetTypeStyle.Font.Size = 10.f;
+	Set("NiagaraEditor.AssetBrowser.AssetType", AssetBrowserAssetTypeStyle);
+	
+	Set("NiagaraEditor.AssetBrowser.AssetTag.OuterBorder", new FSlateRoundedBoxBrush(FStyleColors::AccentGray, 4.f));
+	Set("NiagaraEditor.AssetBrowser.AssetTag.InnerBorder", new FSlateRoundedBoxBrush(FStyleColors::Black, 4.f));
+
+	FTextBlockStyle AssetTagText = NormalText;
+
+	FSlateFontInfo Font = FStyleFonts::Get().Normal;
+	Font.Size = 10.f;
+	AssetTagText.SetFont(Font);
+	Set("NiagaraEditor.AssetBrowser.AssetTag.Text", AssetTagText);
+}
+
 void FNiagaraEditorStyle::InitActionMenu()
 {
 	const FTextBlockStyle NormalText = FAppStyle::GetWidgetStyle<FTextBlockStyle>("NormalText");
@@ -878,6 +903,7 @@ FNiagaraEditorStyle::FNiagaraEditorStyle() : FSlateStyleSet("NiagaraEditorStyle"
 
 	InitStats();
 	InitAssetPicker();
+	InitAssetBrowser();
 	InitActionMenu();
 	InitEmitterHeader();
 	InitParameters();

@@ -199,6 +199,8 @@ struct FNiagaraCustomVersion
 
 		SimCache_BulkDataVersion1, // Sim Cache moved to bulk data by default
 
+		InheritanceUxRefactor, // Decoupling of 'Template' and 'Inheritance'
+		
 		// DO NOT ADD A NEW VERSION UNLESS YOU HAVE TALKED TO THE NIAGARA LEAD. Mismanagement of these versions can lead to data loss if it is adjusted in multiple streams simultaneously.
 		// -----<new versions can be added above this line>  -------------------------------------------------
 		VersionPlusOne,

@@ -53,7 +53,7 @@
 #include "Modules/ModuleManager.h"
 #include "ViewModels/NiagaraMessageLogViewModel.h"
 #include "NiagaraVersionMetaData.h"
-#include "SNiagaraAssetPickerList.h"
+#include "Interfaces/IMainFrameModule.h"
 #include "Toolkits/SystemToolkitModes/NiagaraSystemToolkitModeBase.h"
 #include "SystemToolkitModes/NiagaraSystemToolkitMode_Default.h"
 #include "SystemToolkitModes/NiagaraSystemToolkitMode_Scalability.h"
@@ -63,6 +63,7 @@
 #include "Widgets/Layout/SBox.h"
 #include "Widgets/SBoxPanel.h"
 #include "Widgets/SNiagaraEmitterVersionWidget.h"
+#include "Widgets/AssetBrowser/SNiagaraAssetBrowser.h"
 
 #define LOCTEXT_NAMESPACE "NiagaraSystemEditor"
 
@@ -138,6 +139,9 @@ void FNiagaraSystemToolkit::InitializeWithSystem(const EToolkitMode::Type Mode, 
 	Emitter = nullptr;
 	System->EnsureFullyLoaded();
 
+	// order of registering commands matters. SetupCommands before InitAssetEditor will make the toolkit prioritize niagara commands
+	SetupCommands();
+	
 	FNiagaraSystemViewModelOptions SystemOptions;
 	SystemOptions.bCanModifyEmittersFromTimeline = true;
 	SystemOptions.EditMode = ENiagaraSystemViewModelEditMode::SystemAsset;
@@ -297,8 +301,10 @@ void FNiagaraSystemToolkit::InitializeInternal(const EToolkitMode::Type Mode, co
 	constexpr bool bCreateDefaultStandaloneMenu = true;
 	constexpr bool bCreateDefaultToolbar = true;
 	UObject* ToolkitObject = SystemToolkitMode == ESystemToolkitMode::System ? (UObject*)System : (UObject*)Emitter;
-	// order of registering commands matters. SetupCommands before InitAssetEditor will make the toolkit prioritize niagara commands
-	SetupCommands();
+	// // order of registering commands matters. SetupCommands before InitAssetEditor will make the toolkit prioritize niagara commands
+	// SetupCommands();
+	// Now that everything should be initialized, we can link the command lists of various places
+	LinkCommandLists();
 
 	const TSharedRef<FTabManager::FLayout> DummyLayout = FTabManager::NewLayout("NullLayout")->AddArea(FTabManager::NewPrimaryArea());
 	FAssetEditorToolkit::InitAssetEditor(Mode, InitToolkitHost, FNiagaraEditorModule::NiagaraEditorAppIdentifier,
@@ -540,6 +546,14 @@ void FNiagaraSystemToolkit::SetupCommands()
 		FCanExecuteAction());
 
 	GetToolkitCommands()->MapAction(
+		FNiagaraEditorCommands::Get().OpenAddEmitterMenu,
+		FExecuteAction::CreateSP(this, &FNiagaraSystemToolkit::OpenAddEmitterMenu),
+		FCanExecuteAction::CreateSP(this, &FNiagaraSystemToolkit::CanAddEmitters),
+		FIsActionChecked(),
+		FIsActionButtonVisible::CreateSP(this, &FNiagaraSystemToolkit::CanAddEmitters)
+	);
+	
+	GetToolkitCommands()->MapAction(
 		FNiagaraEditorCommands::Get().OpenDebugHUD,
 		FExecuteAction::CreateSP(this, &FNiagaraSystemToolkit::OpenDebugHUD));
 	GetToolkitCommands()->MapAction(
@@ -552,7 +566,10 @@ void FNiagaraSystemToolkit::SetupCommands()
 	GetToolkitCommands()->MapAction(
 		FNiagaraEditorCommands::Get().EmitterVersioning,
 		FExecuteAction::CreateSP(this, &FNiagaraSystemToolkit::ManageVersions));
-	
+}
+
+void FNiagaraSystemToolkit::LinkCommandLists()
+{
 	// appending the sequencer commands will make the toolkit also check for sequencer commands (last)
 	GetToolkitCommands()->Append(SystemViewModel->GetSequencer()->GetCommandBindings(ESequencerCommandBindings::Sequencer).ToSharedRef());
 	SystemViewModel->GetSequencer()->GetCommandBindings(ESequencerCommandBindings::Sequencer)->Append(GetToolkitCommands());
@@ -566,6 +583,29 @@ void FNiagaraSystemToolkit::ManageVersions()
 TSharedPtr<FNiagaraEmitterViewModel> FNiagaraSystemToolkit::GetEditedEmitterViewModel() const
 {
 	return HasEmitter() ? SystemViewModel->GetEmitterHandleViewModels()[0]->GetEmitterViewModel() : TSharedPtr<FNiagaraEmitterViewModel>(); 
+}
+
+void FNiagaraSystemToolkit::OpenAddEmitterMenu()
+{
+	IMainFrameModule& MainFrame = FModuleManager::LoadModuleChecked<IMainFrameModule>("MainFrame");
+	TSharedPtr<SWindow>	ParentWindow = MainFrame.GetParentWindow();
+
+	TSharedRef<SWindow> AddEmitterWindow = SNew(SNiagaraAddEmitterToSystemWindow, GetSystemViewModel().ToSharedRef());
+	FSlateApplication::Get().AddModalWindow(AddEmitterWindow, ParentWindow);
+}
+
+bool FNiagaraSystemToolkit::CanAddEmitters() const
+{
+	return GetSystemViewModel()->GetEditMode() == ENiagaraSystemViewModelEditMode::SystemAsset ? true : false;
+}
+
+void FNiagaraSystemToolkit::GetSequencerAddMenuContent(FMenuBuilder& MenuBuilder, TSharedRef<ISequencer> Sequencer)
+{
+	MenuBuilder.PushCommandList(GetToolkitCommands());
+	
+	MenuBuilder.AddMenuEntry(FNiagaraEditorCommands::Get().OpenAddEmitterMenu);
+
+	MenuBuilder.PopCommandList();
 }
 
 void FNiagaraSystemToolkit::CaptureAssetThumbnail() const
@@ -692,49 +732,6 @@ const FName FNiagaraSystemToolkit::GetNiagaraSystemMessageLogName(UNiagaraSystem
 	checkf(InSystem, TEXT("Tried to get MessageLog name for NiagaraSystem but InSystem was null!"));
 	FName LogListingName = *FString::Printf(TEXT("%s_%s_MessageLog"), *FString::FromInt(InSystem->GetUniqueID()), *InSystem->GetName());
 	return LogListingName;
-}
-
-void FNiagaraSystemToolkit::GetSequencerAddMenuContent(FMenuBuilder& MenuBuilder, TSharedRef<ISequencer> Sequencer)
-{
-	MenuBuilder.AddSubMenu(
-		LOCTEXT("EmittersLabel", "Emitters..."),
-		LOCTEXT("EmittersToolTip", "Add an existing emitter..."),
-		FNewMenuDelegate::CreateLambda([&](FMenuBuilder& InMenuBuilder)
-		{
-			InMenuBuilder.AddWidget(CreateAddEmitterMenuContent(), FText());
-		}));
-}
-
-TSharedRef<SWidget> FNiagaraSystemToolkit::CreateAddEmitterMenuContent()
-{
-	TArray<FRefreshItemSelectorDelegate*> RefreshItemSelectorDelegates;
-	RefreshItemSelectorDelegates.Add(&RefreshItemSelector);
-	FNiagaraAssetPickerListViewOptions ViewOptions;
-	ViewOptions.SetCategorizeUserDefinedCategory(true);
-	ViewOptions.SetCategorizeLibraryAssets(true);
-	ViewOptions.SetAddLibraryOnlyCheckbox(true);
-
-	SNiagaraTemplateTabBox::FNiagaraTemplateTabOptions TabOptions;
-	TabOptions.ChangeTabState(ENiagaraScriptTemplateSpecification::Template, true);
-	TabOptions.ChangeTabState(ENiagaraScriptTemplateSpecification::None, true);
-	TabOptions.ChangeTabState(ENiagaraScriptTemplateSpecification::Behavior, true);
-
-	return SNew(SVerticalBox)
-		+SVerticalBox::Slot()
-		.FillHeight(1.0f)
-		[
-			SNew(SBox)
-			.WidthOverride(450.f)
-			.HeightOverride(500.f)
-			[
-				SNew(SNiagaraAssetPickerList, UNiagaraEmitter::StaticClass())
-				.ClickActivateMode(EItemSelectorClickActivateMode::SingleClick)
-				.ViewOptions(ViewOptions)
-				.TabOptions(TabOptions)
-				.RefreshItemSelectorDelegates(RefreshItemSelectorDelegates)
-				.OnTemplateAssetActivated(this, &FNiagaraSystemToolkit::EmitterAssetSelected)
-			]
-		];
 }
 
 FText FNiagaraSystemToolkit::GetVersionButtonLabel() const
@@ -877,7 +874,7 @@ void FNiagaraSystemToolkit::CompileSystem(bool bFullRebuild)
 	SystemViewModel->CompileSystem(bFullRebuild);
 }
 
-TSharedPtr<FNiagaraSystemViewModel> FNiagaraSystemToolkit::GetSystemViewModel()
+TSharedPtr<FNiagaraSystemViewModel> FNiagaraSystemToolkit::GetSystemViewModel() const
 {
 	return SystemViewModel;
 }
@@ -1396,12 +1393,6 @@ bool FNiagaraSystemToolkit::OnRequestClose(EAssetEditorCloseReason InCloseReason
 	
 	GEngine->ForceGarbageCollection(true);
 	return FAssetEditorToolkit::OnRequestClose(InCloseReason);
-}
-
-void FNiagaraSystemToolkit::EmitterAssetSelected(const FAssetData& AssetData)
-{
-	FSlateApplication::Get().DismissAllMenus();
-	SystemViewModel->AddEmitterFromAssetData(AssetData);
 }
 
 void FNiagaraSystemToolkit::ToggleCompileEnabled()
