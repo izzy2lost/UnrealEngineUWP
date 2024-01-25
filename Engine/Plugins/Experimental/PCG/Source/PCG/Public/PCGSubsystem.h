@@ -182,15 +182,25 @@ public:
 	void UnregisterPartitionActor(APCGPartitionActor* InActor) { ActorAndComponentMapping.UnregisterPartitionActor(InActor); }
 
 	TSet<UPCGComponent*> GetAllRegisteredPartitionedComponents() const { return ActorAndComponentMapping.GetAllRegisteredPartitionedComponents(); }
+	TSet<UPCGComponent*> GetAllRegisteredComponents() const { return ActorAndComponentMapping.GetAllRegisteredComponents(); }
 
 	/** Flushes the graph cache completely, use only for debugging */
 	void FlushCache();
 
-	/* Call the InFunc function to all local component registered to the original component. Thread safe*/
-	void ForAllRegisteredLocalComponents(UPCGComponent* OriginalComponent, const TFunction<void(UPCGComponent*)>& InFunc) const;
+	/** Call the InFunc function to all local component registered to the original component. Thread safe*/
+	void ForAllRegisteredLocalComponents(UPCGComponent* InOriginalComponent, const TFunctionRef<void(UPCGComponent*)>& InFunc) const;
+
+	/** Call the InFunc function to all local component registered to the original component within some bounds. Thread safe*/
+	void ForAllRegisteredIntersectingLocalComponents(UPCGComponent* InOriginalComponent, const FBoxCenterAndExtent& InBounds, const TFunctionRef<void(UPCGComponent*)>& InFunc) const;
+
+	/** Get all components in specified bounds. */
+	void ForAllIntersectingPartitionedComponents(const FBoxCenterAndExtent& InBounds, TFunctionRef<void(UPCGComponent*)> InFunc) const { return ActorAndComponentMapping.ForAllIntersectingPartitionedComponents(InBounds, std::move(InFunc)); }
+
+	/** Gather all the PCG components within some bounds. */
+	TArray<UPCGComponent*> GetAllIntersectingComponents(const FBoxCenterAndExtent& InBounds) const { return ActorAndComponentMapping.GetAllIntersectingComponents(InBounds); }
 
 	/** Traverses the hierarchy associated with the given component and calls InFunc for each overlapping component. */
-	void ForAllOverlappingComponentsInHierarchy(UPCGComponent* InComponent, const TFunction<void(UPCGComponent*)>& InFunc) const;
+	void ForAllOverlappingComponentsInHierarchy(UPCGComponent* InComponent, const TFunctionRef<void(UPCGComponent*)>& InFunc) const;
 
 	/** Retrieves a local component using grid size and grid coordinates, returns nullptr if no such component found. */
 	UPCGComponent* GetLocalComponent(uint32 GridSize, const FIntVector& CellCoords, const UPCGComponent* InOriginalComponent, bool bTransient = false);
