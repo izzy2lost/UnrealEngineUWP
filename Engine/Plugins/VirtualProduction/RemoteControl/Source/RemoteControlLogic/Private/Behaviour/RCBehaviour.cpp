@@ -8,6 +8,7 @@
 #include "Behaviour/RCBehaviourNode.h"
 #include "Controller/RCController.h"
 #include "Engine/Blueprint.h"
+#include "PropertyBag.h"
 #include "RemoteControlField.h"
 #include "RemoteControlPreset.h"
 
@@ -85,7 +86,11 @@ bool URCBehaviour::CanHaveActionForField(const TSharedPtr<FRemoteControlField> I
 	{
 		if (const TSharedPtr<FRemoteControlProperty>& RCProperty = StaticCastSharedPtr<FRemoteControlProperty>(InRemoteControlField))
 		{
-			return RCProperty->IsEditable();
+			if (const FProperty* Property = RCProperty->GetProperty())
+			{
+				const FPropertyBagPropertyDesc PropertyBagDesc = FPropertyBagPropertyDesc(Property->GetFName(), Property);
+				return RCProperty->IsEditable() && PropertyBagDesc.ValueType != EPropertyBagPropertyType::None;
+			}
 		}
 	}
 

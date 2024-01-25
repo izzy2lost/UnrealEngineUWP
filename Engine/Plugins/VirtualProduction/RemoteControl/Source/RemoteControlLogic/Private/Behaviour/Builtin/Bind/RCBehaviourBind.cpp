@@ -8,6 +8,7 @@
 #include "Controller/RCCustomControllerUtilities.h"
 #include "Engine/Texture2D.h"
 #include "IRemoteControlPropertyHandle.h"
+#include "PropertyBag.h"
 #include "RCVirtualProperty.h"
 #include "RemoteControlField.h"
 
@@ -84,7 +85,11 @@ bool URCBehaviourBind::CanHaveActionForField(const TSharedPtr<FRemoteControlFiel
 		{
 			if (URCBehaviourBind::CanHaveActionForField(Controller, RCProperty.ToSharedRef(), bAllowNumericInputAsStrings))
 			{
-				return RCProperty->IsEditable();
+				if (const FProperty* Property = RCProperty->GetProperty())
+				{
+					const FPropertyBagPropertyDesc PropertyBagDesc = FPropertyBagPropertyDesc(Property->GetFName(), Property);
+					return RCProperty->IsEditable() && PropertyBagDesc.ValueType != EPropertyBagPropertyType::None;
+				}
 			}
 		}
 	}
