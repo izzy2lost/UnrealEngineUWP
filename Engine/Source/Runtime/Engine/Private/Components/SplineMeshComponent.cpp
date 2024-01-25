@@ -197,7 +197,10 @@ void FSplineMeshVertexFactoryShaderParameters::GetElementShaderBindings(
 	FVertexInputStreamArray& VertexStreams
 ) const
 {
-	const bool bUseGPUScene = UseGPUScene(Scene->GetShaderPlatform(), FeatureLevel);
+	const EShaderPlatform ShaderPlatform = Scene ?
+		Scene->GetShaderPlatform() :
+		(View ? View->GetShaderPlatform() : GetFeatureLevelShaderPlatform(FeatureLevel));
+	const bool bUseGPUScene = UseGPUScene(ShaderPlatform, FeatureLevel);
 	const auto* LocalVertexFactory = static_cast<const FLocalVertexFactory*>(VertexFactory);
 	
 	if (BatchElement.bUserDataIsColorVertexBuffer)
