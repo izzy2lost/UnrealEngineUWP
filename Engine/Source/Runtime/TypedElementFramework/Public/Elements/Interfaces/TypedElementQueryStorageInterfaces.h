@@ -89,7 +89,7 @@ namespace TypedElementDataStorage
 	 */
 	struct IQueryContext : public ICommonQueryContext
 	{
-		using ObjectMoveOperator = void (*)(void* Destination, void* Source);
+		using ObjectCopyOrMove = void (*)(const UScriptStruct* TypeInfo, void* Destination, void* Source);
 
 		virtual ~IQueryContext() = default;
 
@@ -118,25 +118,27 @@ namespace TypedElementDataStorage
 		 * group.
 		 */
 		virtual void RemoveRows(TConstArrayView<RowHandle> Rows) = 0;
-		/**
-		 * Add a new column of the provided type if one does not exist.
-		 * Returns a staged column which is used to copy into the database at a later time via the UStructScript Copy operator
-		 * It is the caller's responsibility to ensure the staged column's constructor is called.  The caller
-		 * may modify other properties of the column.
-		 *
-		 * Note: The addition and modification of the column will not be done immediately done. Instead it will be deferred until the end of the tick group.
-		 */
-		virtual void* AddColumnUninitialized(RowHandle Row, const UScriptStruct* ColumnType) = 0;
 		
 		/**
-		 * Add a new column of the provided type if one does not exist.
-		 * Returns a staged column which is used to copy into the database at a later time via the provided Move operator
-		 * It is the caller's responsibility to ensure the staged column's constructor is called.  The caller
-		 * may modify other properties of the column.
-		 *
-		 * Note: The addition and modification of the column will not be done immediately done. Instead it will be deferred until the end of the tick group.
+		 * Adds the provided column to the requested row.
+		 * 
+		 * Note: The addition of the column will not be immediately done. Instead it will be deferred until the end of the tick group. Changes
+		 * made to the return column will still be applied when the column is added to the row.
 		 */
-		virtual void* AddColumnUninitialized(RowHandle Row, const UScriptStruct* ObjectType, ObjectMoveOperator Mover) = 0;
+		template<typename ColumnType>
+		ColumnType& AddColumn(RowHandle Row, ColumnType&& Column);
+		/**
+		 * Adds new empty columns to a row of the provided type. The addition will not be immediately done but delayed until the end of the
+		 * tick group.
+		 */
+		template<typename... Columns>
+		void AddColumns(RowHandle Row);
+		/**
+		 * Adds new empty columns to the listed rows of the provided type. The addition will not be immediately done but delayed until the end of the
+		 * tick group.
+		 */
+		template<typename... Columns>
+		void AddColumns(TConstArrayView<RowHandle> Rows);
 		/**
 		 * Adds new empty columns to a row of the provided type. The addition will not be immediately done but delayed until the end of the
 		 * tick group.
@@ -147,7 +149,37 @@ namespace TypedElementDataStorage
 		 * tick group.
 		 */
 		virtual void AddColumns(TConstArrayView<RowHandle> Rows, TConstArrayView<const UScriptStruct*> ColumnTypes) = 0;
+		/**
+		 * Add a new uninitialized column of the provided type if one does not exist.
+		 * Returns a staged column which is used to copy into the database at a later time via the UStructScript Copy operator at the end
+		 * of the tick group.
+		 * It is the caller's responsibility to ensure the staged column's constructor is called. The caller may modify other 
+		 * values in the column.
+		 * This function can not be used to add a tag as tags do not contain any data.
+		 */
+		virtual void* AddColumnUninitialized(RowHandle Row, const UScriptStruct* ColumnType) = 0;
+		/**
+		 * Add a new uninitialized column of the provided type if one does not exist.
+		 * Returns a staged column which is used to copy/move into the database at a later time via the provided relocator at the end of
+		 * the tick group.
+		 * It is the caller's responsibility to ensure the staged column's constructor is called. The caller may modify other 
+		 * values in the column.
+		 * This function can not be used to add a tag as tags do not contain any data.
+		 */
+		virtual void* AddColumnUninitialized(RowHandle Row, const UScriptStruct* ObjectType, ObjectCopyOrMove Relocator) = 0;
 
+		/**
+		 * Removes columns of the provided types from a row. The removal will not be immediately done but delayed until the end of the
+		 * tick group.
+		 */
+		template<typename... Columns>
+		void RemoveColumns(RowHandle Row);
+		/**
+		 * Removes columns of the provided types from the listed rows. The removal will not be immediately done but delayed until the end of the
+		 * tick group.
+		 */
+		template<typename... Columns>
+		void RemoveColumns(TConstArrayView<RowHandle> Rows);
 		/**
 		 * Removes columns of the provided types from a row. The removal will not be immediately done but delayed until the end of the
 		 * tick group.
@@ -185,21 +217,6 @@ namespace TypedElementDataStorage
 		 * are executed as part of their parent query and are not scheduled separately.
 		 */
 		virtual FQueryResult RunSubquery(int32 SubqueryIndex, RowHandle Row, SubqueryCallbackRef Callback) = 0;
-
-
-
-		// Utility functions
-
-		template<typename ColumnType>
-		ColumnType& AddColumn(RowHandle Row, ColumnType&& Column);
-		template<typename... Columns>
-		void AddColumns(RowHandle Row);
-		template<typename... Columns>
-		void AddColumns(TConstArrayView<RowHandle> Rows);
-		template<typename... Columns>
-		void RemoveColumns(RowHandle Row);
-		template<typename... Columns>
-		void RemoveColumns(TConstArrayView<RowHandle> Rows);
 	};
 } // namespace TypedElementDataStorage
 
@@ -238,9 +255,9 @@ namespace TypedElementDataStorage
 		if constexpr (std::is_move_constructible_v<ColumnType>)
 		{
 			void* Address = AddColumnUninitialized(Row, TypeInfo,
-				[](void* Destination, void* Source)
+				[](const UScriptStruct*, void* Destination, void* Source)
 				{
-					new(Destination) ColumnType(MoveTemp(*reinterpret_cast<ColumnType*>(Source)));
+					*reinterpret_cast<ColumnType*>(Destination) = MoveTemp(*reinterpret_cast<ColumnType*>(Source));
 				});
 			return *(new(Address) ColumnType(Forward<ColumnType>(Column)));
 		}

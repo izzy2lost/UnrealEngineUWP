@@ -304,105 +304,27 @@ public:
 
 	void* AddColumnUninitialized(TypedElementDataStorage::RowHandle Row, const UScriptStruct* ObjectType) override
 	{
-		checkf(ObjectType->IsChildOf(FMassTag::StaticStruct()) || ObjectType->IsChildOf(FMassFragment::StaticStruct()), TEXT("Column [%s] must be a Mass Fragment or Tag"), *ObjectType->GetName());
-		
-		struct FAddValueColumn
-		{
-			const UScriptStruct* FragmentType;
-			FMassEntityHandle Entity;
-			void* Object;
-
-			FAddValueColumn() = default;
-			FAddValueColumn(const UScriptStruct* InFragmentType, FMassEntityHandle InEntity, void* InObject)
-				: FragmentType(InFragmentType)
-				, Entity(InEntity)
-				, Object(InObject)
-			{}
-		};
-
-		struct FAddValueColumnWithDestructor : FAddValueColumn
-		{
-			FAddValueColumnWithDestructor(const UScriptStruct* InFragmentType, FMassEntityHandle InEntity, void* InObject)
-				: FAddValueColumn(InFragmentType, InEntity, InObject)
-			{}
-
-			~FAddValueColumnWithDestructor()
+		return AddColumnUninitialized(Row, ObjectType,
+			[](const UScriptStruct* TypeInfo, void* Destination, void* Source)
 			{
-				FragmentType->DestroyStruct(Object);
-			}
-		};
-
-		FTypedElementDatabaseScratchBuffer& ScratchBuffer = Environment.GetScratchBuffer();
-		void* ObjectCopy = ScratchBuffer.Allocate(ObjectType->GetStructureSize(), ObjectType->GetMinAlignment());
-		FAddValueColumn* AddedColumn = nullptr;
-		if (ObjectType->StructFlags & (STRUCT_IsPlainOldData | STRUCT_NoDestructor))
-		{
-			AddedColumn = ScratchBuffer.Emplace<FAddValueColumn>(ObjectType, FMassEntityHandle::FromNumber(Row), ObjectCopy);
-		}
-		else
-		{
-			AddedColumn = ScratchBuffer.Emplace<FAddValueColumnWithDestructor>(ObjectType, FMassEntityHandle::FromNumber(Row), ObjectCopy);
-		}
-
-		if (ObjectType->IsChildOf(FMassFragment::StaticStruct()))
-		{
-			Context.Defer().PushCommand<FMassDeferredAddCommand>(
-				[AddedColumn](FMassEntityManager& System)
-				{
-					// Check entity before proceeding. It's possible it may have been invalidated before this defer call fired
-					if (System.IsEntityActive(AddedColumn->Entity))
-					{
-						// Check before adding.  Mass's AddFragmentToEntity is not idempotent and will assert if adding
-						// column to a row that already has one
-						FStructView Fragment = System.GetFragmentDataStruct(AddedColumn->Entity, AddedColumn->FragmentType);
-						if (!Fragment.IsValid())
-						{
-							System.AddFragmentToEntity(AddedColumn->Entity, AddedColumn->FragmentType);
-						}
-					}
-				});
-			
-			Context.Defer().PushCommand<FMassDeferredSetCommand>(
-				[AddedColumn](FMassEntityManager& System)
-				{
-					// Check entity before proceeding. It's possible it may have been invalidated before this defer call fired
-					if (System.IsEntityActive(AddedColumn->Entity))
-					{
-						FStructView Fragment = System.GetFragmentDataStruct(AddedColumn->Entity, AddedColumn->FragmentType);
-						AddedColumn->FragmentType->CopyScriptStruct(Fragment.GetMemory(), AddedColumn->Object);
-					}
-				});
-		}
-		else if (ObjectType->IsChildOf(FMassTag::StaticStruct()))
-		{
-			Context.Defer().PushCommand<FMassDeferredAddCommand>(
-				[AddedColumn](FMassEntityManager& System)
-				{
-					// Check entity before proceeding. It's possible it may have been invalidated before this defer call fired
-					if (System.IsEntityActive(AddedColumn->Entity))
-					{
-						System.AddTagToEntity(AddedColumn->Entity, AddedColumn->FragmentType);
-					}
-				});
-		}
-
-		return ObjectCopy;
+				TypeInfo->CopyScriptStruct(Destination, Source);
+			});
 	}
 
-	void* AddColumnUninitialized(TypedElementDataStorage::RowHandle Row, const UScriptStruct* ObjectType, ObjectMoveOperator Mover) override
+	void* AddColumnUninitialized(TypedElementDataStorage::RowHandle Row, const UScriptStruct* ObjectType, ObjectCopyOrMove Relocator) override
 	{
-		checkf(ObjectType->IsChildOf(FMassTag::StaticStruct()) || ObjectType->IsChildOf(FMassFragment::StaticStruct()), TEXT("Column [%s] must be a Mass Fragment or Tag"), *ObjectType->GetName());
+		checkf(ObjectType->IsChildOf(FMassFragment::StaticStruct()), TEXT("Column [%s] can not be a tag"), *ObjectType->GetName());
 		
 		struct FAddMoveableValueColumn
 		{
-			ObjectMoveOperator Mover;
+			ObjectCopyOrMove Relocator;
 			const UScriptStruct* FragmentType;
 			FMassEntityHandle Entity;
 			void* Object;
 
 			FAddMoveableValueColumn() = default;
-			FAddMoveableValueColumn(ObjectMoveOperator InMover, const UScriptStruct* InFragmentType, FMassEntityHandle InEntity, void* InObject)
-				: Mover(InMover)
+			FAddMoveableValueColumn(ObjectCopyOrMove InRelocator, const UScriptStruct* InFragmentType, FMassEntityHandle InEntity, void* InObject)
+				: Relocator(InRelocator)
 				, FragmentType(InFragmentType)
 				, Entity(InEntity)
 				, Object(InObject)
@@ -412,8 +334,8 @@ public:
 		struct FAddMoveableValueColumnWithDestructor : FAddMoveableValueColumn
 		{
 			FAddMoveableValueColumnWithDestructor(
-				ObjectMoveOperator InMover, const UScriptStruct* InFragmentType, FMassEntityHandle InEntity, void* InObject)
-				: FAddMoveableValueColumn(InMover, InFragmentType, InEntity, InObject)
+				ObjectCopyOrMove InRelocator, const UScriptStruct* InFragmentType, FMassEntityHandle InEntity, void* InObject)
+				: FAddMoveableValueColumn(InRelocator, InFragmentType, InEntity, InObject)
 			{}
 
 			~FAddMoveableValueColumnWithDestructor()
@@ -423,48 +345,37 @@ public:
 		};
 
 		FTypedElementDatabaseScratchBuffer& ScratchBuffer = Environment.GetScratchBuffer();
-		void* MovedObject = ScratchBuffer.Allocate(ObjectType->GetStructureSize(), ObjectType->GetMinAlignment());
+		void* ColumnData = ScratchBuffer.Allocate(ObjectType->GetStructureSize(), ObjectType->GetMinAlignment());
 		FAddMoveableValueColumn* AddedColumn = nullptr;
 		if (ObjectType->StructFlags & (STRUCT_IsPlainOldData | STRUCT_NoDestructor))
 		{
-			AddedColumn = ScratchBuffer.Emplace<FAddMoveableValueColumn>(Mover, ObjectType, FMassEntityHandle::FromNumber(Row), MovedObject);
+			AddedColumn = ScratchBuffer.Emplace<FAddMoveableValueColumn>(Relocator, ObjectType, FMassEntityHandle::FromNumber(Row), ColumnData);
 		}
 		else
 		{
-			AddedColumn = ScratchBuffer.Emplace<FAddMoveableValueColumnWithDestructor>(Mover, ObjectType, FMassEntityHandle::FromNumber(Row), MovedObject);
+			AddedColumn = ScratchBuffer.Emplace<FAddMoveableValueColumnWithDestructor>(Relocator, ObjectType, FMassEntityHandle::FromNumber(Row), ColumnData);
 		}
 
-		if (ObjectType->IsChildOf(FMassFragment::StaticStruct()))
-		{
-			Context.Defer().PushCommand<FMassDeferredAddCommand>(
-				[AddedColumn](FMassEntityManager& System)
+		Context.Defer().PushCommand<FMassDeferredAddCommand>(
+			[AddedColumn](FMassEntityManager& System)
+			{
+				// Check before adding.  Mass's AddFragmentToEntity is not idempotent and will assert if adding
+				// column to a row that already has one
+				FStructView Fragment = System.GetFragmentDataStruct(AddedColumn->Entity, AddedColumn->FragmentType);
+				if (!Fragment.IsValid())
 				{
-					// Check before adding.  Mass's AddFragmentToEntity is not idempotent and will assert if adding
-					// column to a row that already has one
-					FStructView Fragment = System.GetFragmentDataStruct(AddedColumn->Entity, AddedColumn->FragmentType);
-					if (!Fragment.IsValid())
-					{
-						System.AddFragmentToEntity(AddedColumn->Entity, AddedColumn->FragmentType);
-					}
-				});
+					System.AddFragmentToEntity(AddedColumn->Entity, AddedColumn->FragmentType);
+				}
+			});
 
-			Context.Defer().PushCommand<FMassDeferredSetCommand>(
-				[AddedColumn](FMassEntityManager& System)
-				{
-					FStructView Fragment = System.GetFragmentDataStruct(AddedColumn->Entity, AddedColumn->FragmentType);
-					AddedColumn->Mover(Fragment.GetMemory(), AddedColumn->Object);
-				});
-		}
-		else if (ObjectType->IsChildOf(FMassTag::StaticStruct()))
-		{
-			Context.Defer().PushCommand<FMassDeferredAddCommand>(
-				[AddedColumn](FMassEntityManager& System)
-				{
-					System.AddTagToEntity(AddedColumn->Entity, AddedColumn->FragmentType);
-				});
-		}
-
-		return MovedObject;
+		Context.Defer().PushCommand<FMassDeferredSetCommand>(
+			[AddedColumn](FMassEntityManager& System)
+			{
+				FStructView Fragment = System.GetFragmentDataStruct(AddedColumn->Entity, AddedColumn->FragmentType);
+				AddedColumn->Relocator(AddedColumn->FragmentType, Fragment.GetMemory(), AddedColumn->Object);
+			});
+		
+		return ColumnData;
 	}
 
 	void AddColumns(TypedElementDataStorage::RowHandle Row, TConstArrayView<const UScriptStruct*> ColumnTypes) override
