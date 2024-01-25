@@ -12,8 +12,6 @@
 #include "HarmonixMetasound/DataTypes/MidiStream.h"
 #include "HarmonixMetasound/DataTypes/MusicTransport.h"
 
-DEFINE_LOG_CATEGORY_STATIC(LogMidiStreamMerge, Log, All);
-
 #define LOCTEXT_NAMESPACE "HarmonixMetaSound"
 
 namespace HarmonixMetasound
@@ -33,8 +31,6 @@ namespace HarmonixMetasound
 
 		virtual void BindInputs(FInputVertexInterfaceData& InVertexData) override;
 		virtual void BindOutputs(FOutputVertexInterfaceData& InVertexData) override;
-		virtual FDataReferenceCollection GetInputs() const override;
-		virtual FDataReferenceCollection GetOutputs() const override;
 
 		void Reset(const FResetParams& ResetParams);
 		
@@ -47,6 +43,8 @@ namespace HarmonixMetasound
 
 		//** OUTPUTS
 		FMidiStreamWriteRef MidiStreamOutPin;
+
+		bool bNeedsClockRefresh { true };
 	};
 
 	class FMidiStreamMergeNode : public FNodeFacade
@@ -135,6 +133,8 @@ namespace HarmonixMetasound
 
 		InVertexData.BindReadVertex(METASOUND_GET_PARAM_NAME(InputMidiStreamA), MidiStreamAInPin);
 		InVertexData.BindReadVertex(METASOUND_GET_PARAM_NAME(InputMidiStreamB), MidiStreamBInPin);
+
+		bNeedsClockRefresh = true;
 	}
 
 	void FMidiStreamMergeOperator::BindOutputs(FOutputVertexInterfaceData& InVertexData)
@@ -142,45 +142,38 @@ namespace HarmonixMetasound
 		using namespace CommonPinNames;
 
 		InVertexData.BindReadVertex(METASOUND_GET_PARAM_NAME(Outputs::MidiStream), MidiStreamOutPin);
+
+		bNeedsClockRefresh = true;
 	}
 
-	FDataReferenceCollection FMidiStreamMergeOperator::GetInputs() const
+	void FMidiStreamMergeOperator::Reset(const FResetParams&)
 	{
-		// This should never be called. Bind(...) is called instead. This method
-		// exists as a stop-gap until the API can be deprecated and removed.
-		checkNoEntry();
-		return {};
-	}
-
-	FDataReferenceCollection FMidiStreamMergeOperator::GetOutputs() const
-	{
-		// This should never be called. Bind(...) is called instead. This method
-		// exists as a stop-gap until the API can be deprecated and removed.
-		checkNoEntry();
-		return {};
-	}
-
-	void FMidiStreamMergeOperator::Reset(const FResetParams& ResetParams)
-	{
-		MidiStreamOutPin->PrepareBlock();
-		
-		if (MidiStreamAInPin.Get() && MidiStreamAInPin->GetMidiClockSource())
-		{
-			MidiStreamOutPin->SetClockSource(*(MidiStreamAInPin->GetMidiClockSource()));
-		}
-		else if (MidiStreamBInPin.Get() && MidiStreamBInPin->GetMidiClockSource())
-		{
-			MidiStreamOutPin->SetClockSource(*(MidiStreamBInPin->GetMidiClockSource()));
-		}
+		bNeedsClockRefresh = true;
 	}
 
 	void FMidiStreamMergeOperator::Execute()
 	{
+		// Refresh the clock for the output if inputs may have changed
+		if (bNeedsClockRefresh)
+		{
+			MidiStreamOutPin->ResetClockSource();
+			
+			// If there is a clock on the first stream, use that
+			if (const FMidiClockReadRef* ClockA = MidiStreamAInPin->GetMidiClockSource())
+			{
+				MidiStreamOutPin->SetClockSource(*ClockA);
+			}
+			// If not, and there's a clock on the second stream, use that
+			else if (const FMidiClockReadRef* ClockB = MidiStreamBInPin->GetMidiClockSource())
+			{
+				MidiStreamOutPin->SetClockSource(*ClockB);
+			}
+
+			bNeedsClockRefresh = false;
+		}
+		
 		MidiStreamOutPin->PrepareBlock();
-
-		TArray<FMidiStreamReadRef> MidiStreams = { MidiStreamAInPin, MidiStreamBInPin };
-
-		MidiStreamOutPin->Copy(MidiStreams);
+		MidiStreamOutPin->Copy({ MidiStreamAInPin, MidiStreamBInPin });
 	}
 }
 
