@@ -147,7 +147,7 @@ namespace Horde.Server.Dashboard
 				dashboardConfigResponse.AgentCategories.Add(new GetDashboardAgentCategoryResponse { Name = category.Name, Condition = category.Condition });
 			}
 
-			foreach (TelemetryViewConfig telemetry in _globalConfig.Value.Dashboard.Telemetry)
+			foreach (TelemetryViewConfig telemetry in _globalConfig.Value.Dashboard.Analytics)
 			{
 				GetTelemetryViewResponse rview = new GetTelemetryViewResponse();
 				rview.Id = telemetry.Id.ToString();
