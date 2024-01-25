@@ -10,6 +10,7 @@
 #include "Modules/ModuleManager.h"
 #include "Recording/LiveLinkHubRecordingController.h"
 #include "SLiveLinkHubStatusBar.h"
+#include "Widgets/Images/SImage.h"
 #include "Widgets/Input/SButton.h"
 #include "Widgets/Input/SComboButton.h"
 #include "Widgets/Layout/SBorder.h"
@@ -42,66 +43,83 @@ void SLiveLinkHubTabViewBase::Construct(const FArguments& InArgs)
 	ChildSlot
 	[
 		SNew(SBorder)
-		.BorderImage(FAppStyle::Get().GetBrush("ToolPanel.GroupBorder"))
-		.Padding(FMargin(1.0f, 2.0f))
+		.BorderImage(FAppStyle::GetBrush("NoBorder"))
+		.Padding(FMargin(0.0))
 		[
 			SNew(SVerticalBox)
 			+SVerticalBox::Slot()
-			.FillHeight(0.05f)
+			.AutoHeight()
 			.HAlign(HAlign_Fill)
-			.VAlign(VAlign_Center)
 			[
-				SNew(SHorizontalBox)
-				+ SHorizontalBox::Slot()
-				.Padding(2.f)
-				.HAlign(HAlign_Left)
-				[
-					// Should be replaced by the mode switcher widget
-					SNew(SComboButton)
-					.ContentPadding(3.f)
-					.OnGetMenuContent_Static(&::GetModeSwitcherContent)
-					.ButtonContent()
-					[
-						// Should switch depending on the currently selected mode.
-						SNew(STextBlock).Text(LOCTEXT("SelectModeLabl", "Creator Mode"))
-					]
-				]
-				+ SHorizontalBox::Slot()
-				.HAlign(HAlign_Right)
-				.VAlign(VAlign_Center)
+				SNew(SBorder)
+				.BorderImage(FAppStyle::GetBrush("ToolPanel.GroupBorder"))
+				.Padding(FMargin(4.0f, 6.0f))
 				[
 					SNew(SHorizontalBox)
 					+ SHorizontalBox::Slot()
-					.Padding(2.f)
-					.VAlign(VAlign_Center)
-					.AutoWidth()
+					.HAlign(HAlign_Left)
 					[
-						LiveLinkHub->GetRecordingController()->MakeRecordToolbarEntry()
+						// Should be replaced by the mode switcher widget
+						SNew(SComboButton)
+						.ContentPadding(FMargin(2.0f, 3.0f, 2.0f, 3.0f))
+						.OnGetMenuContent_Static(&::GetModeSwitcherContent)
+						.ButtonContent()
+						[
+							SNew(SHorizontalBox)
+							+ SHorizontalBox::Slot()
+							.AutoWidth()
+							[
+								SNew(SImage)
+								.ColorAndOpacity(FSlateColor::UseForeground())
+								.Image(FSlateIcon("LiveLinkStyle", "LiveLinkHub.Layout.Icon").GetIcon())
+							]
+							+ SHorizontalBox::Slot()
+							.Padding(FMargin(4.0f, 0.0f, 0.0f, 0.0f))
+                            .AutoWidth()
+                            [
+	                            // Should switch depending on the currently selected mode.
+								SNew(STextBlock).Text(LOCTEXT("SelectModeLabl", "Creator Mode"))
+                            ]
+
+						]
 					]
 					+ SHorizontalBox::Slot()
-					.Padding(2.f)
+					.HAlign(HAlign_Right)
 					.VAlign(VAlign_Center)
-					.AutoWidth()
 					[
-						SNew(SSeparator)
-						.Orientation(Orient_Vertical)
+						SNew(SHorizontalBox)
+						+ SHorizontalBox::Slot()
+						.Padding(2.f)
+						.VAlign(VAlign_Center)
+						.AutoWidth()
+						[
+							LiveLinkHub->GetRecordingController()->MakeRecordToolbarEntry()
+						]
+						+ SHorizontalBox::Slot()
+						.Padding(2.f)
+						.VAlign(VAlign_Center)
+						.AutoWidth()
+						[
+							SNew(SSeparator)
+							.Orientation(Orient_Vertical)
+						]
+						/* Disable until we use timecode in LLH
+						+ SHorizontalBox::Slot()
+						.Padding(2.f)
+	                    .VAlign(VAlign_Center)
+						[
+							SNew(STimecode)
+							.Timecode(MakeAttributeLambda([]
+							{
+								return FApp::GetTimecode();
+							}))
+						]*/
 					]
-					/* Disable until we use timecode in LLH
-					+ SHorizontalBox::Slot()
-					.Padding(2.f)
-                    .VAlign(VAlign_Center)
-					[
-						SNew(STimecode)
-						.Timecode(MakeAttributeLambda([]
-						{
-							return FApp::GetTimecode();
-						}))
-					]*/
 				]
 			]
 			+SVerticalBox::Slot()
 			.FillHeight(1.0f)
-			.Padding(1.0f, 2.0f)
+			.Padding(8.0f)
 			[
 				InArgs._Content.Widget
 			]
@@ -114,8 +132,13 @@ void SLiveLinkHubTabViewBase::Construct(const FArguments& InArgs)
 			+SVerticalBox::Slot()
 			.AutoHeight()
 			[
-				SNew(SLiveLinkHubStatusBar, StatusBarId)
-			]
+				SNew(SBorder)
+            	.BorderImage(FAppStyle::GetBrush("ToolPanel.GroupBorder"))
+            	.Padding(5.0f, 0.0f, 5.0f, 7.0f)
+            	[
+					SNew(SLiveLinkHubStatusBar, StatusBarId)
+            	]
+            ]
 		]
 	];
 }

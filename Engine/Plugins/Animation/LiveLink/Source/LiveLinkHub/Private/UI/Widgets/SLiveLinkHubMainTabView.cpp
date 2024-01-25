@@ -17,6 +17,7 @@
 #include "Subjects/LiveLinkHubSubjectController.h"
 #include "Widgets/Docking/SDockTab.h"
 #include "Widgets/Input/SCheckBox.h"
+#include "Widgets/Input/SComboButton.h"
 #include "Widgets/Text/STextBlock.h"
 
 
@@ -65,6 +66,8 @@ SLiveLinkHubMainTabView::~SLiveLinkHubMainTabView()
 
 void SLiveLinkHubMainTabView::CreateTabs(const TSharedRef<FTabManager>& InTabManager, const TSharedRef<FTabManager::FLayout>& InLayout, const FArguments& InArgs)
 {
+	static const FName LiveLinkStyleName = "LiveLinkStyle";
+
 	InTabManager->RegisterTabSpawner(SourcesTabId, FOnSpawnTab::CreateSP(this, &SLiveLinkHubMainTabView::SpawnSourcesTab))
 		.SetDisplayName(SourcesTabName);
 
@@ -74,10 +77,12 @@ void SLiveLinkHubMainTabView::CreateTabs(const TSharedRef<FTabManager>& InTabMan
 	*/
 
 	InTabManager->RegisterTabSpawner(SubjectsTabId, FOnSpawnTab::CreateSP(this, &SLiveLinkHubMainTabView::SpawnSubjectsTab))
+		.SetIcon(FSlateIcon(LiveLinkStyleName, TEXT("LiveLinkHub.Subjects.Icon")))
 		.SetDisplayName(SubjectsTabName);
 	InTabManager->RegisterTabSpawner(SubjectsDetailsTabId, FOnSpawnTab::CreateSP(this, &SLiveLinkHubMainTabView::SpawnSubjectsDetailsTab))
 		.SetDisplayName(SubjectsDetailsTabName);
 	InTabManager->RegisterTabSpawner(PlaybackTabId, FOnSpawnTab::CreateSP(this, &SLiveLinkHubMainTabView::SpawnPlaybackTab))
+		.SetIcon(FSlateIcon(LiveLinkStyleName, TEXT("LiveLinkHub.Playback.Icon")))
 		.SetDisplayName(PlaybackTabName);
 	InTabManager->RegisterTabSpawner(ClientsTabId, FOnSpawnTab::CreateSP(this, &SLiveLinkHubMainTabView::SpawnClientsTab))
 		.SetDisplayName(ClientsTabName);
@@ -155,16 +160,40 @@ TSharedRef<SDockTab> SLiveLinkHubMainTabView::SpawnSourcesTab(const FSpawnTabArg
 {
 	FLiveLinkClient* Client = (FLiveLinkClient*)&IModularFeatures::Get().GetModularFeature<ILiveLinkClient>(ILiveLinkClient::ModularFeatureName);
 	FLiveLinkHubModule& LiveLinkHubModule = FModuleManager::Get().GetModuleChecked<FLiveLinkHubModule>("LiveLinkHub");
+
+	TSharedRef<SWidget> CustomToolbarHeader = SNew(SHorizontalBox)
+		+ SHorizontalBox::Slot()
+		.AutoWidth()
+		.Padding(0.f, 5.f, 0.f, 5.f)
+		[
+			SNew(SImage)
+			.ColorAndOpacity(FSlateColor::UseForeground())
+			.Image(FSlateIcon("LiveLinkStyle", "LiveLinkHub.Sources.Icon").GetIcon())
+		]
+		+ SHorizontalBox::Slot()
+		.HAlign(HAlign_Left)
+		.Padding(FMargin(4.0, 2.0))
+		[
+			SNew(STextBlock)
+			.Font( DEFAULT_FONT( "Regular", 14 ) )
+			.Text(LOCTEXT("SourcesHeaderText", "Sources"))
+		];
+		
 	
 	return SNew(SDockTab)
 		.TabRole(PanelTab)
 		[
 			SNew(SVerticalBox)
 			+SVerticalBox::Slot()
+			.Padding(FMargin(4.0f, 0.f,0.f,0.f))
 			.AutoHeight()
 			[
 				SNew(SLiveLinkClientPanelToolbar, Client)
+				.SourceButtonAlignment(HAlign_Right)
 				.ParentWindow(LiveLinkHubModule.GetLiveLinkHub()->GetRootWindow())
+				.ShowPresetPicker(false)
+				.ShowSettings(false)
+				.CustomHeader(CustomToolbarHeader)
 			]
 			+SVerticalBox::Slot()
 			.FillHeight(1.f)
