@@ -4,7 +4,7 @@
 
 #include "CoreMinimal.h"
 #include "FrontendFilterBase.h"
-#include "..\..\..\..\Niagara\Public\NiagaraAssetTagDefinitions.h"
+#include "NiagaraAssetTagDefinitions.h"
 #include "Filters/GenericFilter.h"
 #include "Filters/SAssetFilterBar.h"
 #include "Widgets/SCompoundWidget.h"

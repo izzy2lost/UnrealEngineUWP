@@ -1,6 +1,6 @@
 ﻿// Copyright Epic Games, Inc. All Rights Reserved.
 
-#include "Widgets\AssetBrowser/SNiagaraAssetBrowser.h"
+#include "Widgets/AssetBrowser/SNiagaraAssetBrowser.h"
 
 #include "ContentBrowserMenuContexts.h"
 #include "ContentBrowserModule.h"
