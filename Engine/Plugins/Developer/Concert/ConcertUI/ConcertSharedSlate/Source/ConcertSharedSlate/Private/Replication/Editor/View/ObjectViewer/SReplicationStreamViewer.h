@@ -97,8 +97,8 @@ namespace UE::ConcertSharedSlate
 		virtual TArray<FSoftObjectPath> GetObjectsBeingPropertyEdited() const override;
 		//~ End IReplicationStreamViewer Interface
 
-		void RefreshObjectData();
-		void RefreshPropertyData();
+		void RequestObjectDataRefresh() { bHasRequestedObjectRefresh = true; }
+		void RequestPropertyDataRefresh() { bHasRequestedPropertyRefresh = true; }
 
 		/** Selects the given objects. */
 		void SelectObjects(TConstArrayView<FSoftObjectPath> Objects);
@@ -106,7 +106,11 @@ namespace UE::ConcertSharedSlate
 		void ExpandObjects(TConstArrayView<FSoftObjectPath> Objects, bool bRecursive);
 
 		/** @return Gets the root objects selected in the outliner; the subobject view chooses which of these objects (or their subobjects) end up in GetSelectedObjectShowingProperties. */
-		TArray<TSharedPtr<FReplicatedObjectData>> GetSelectedOutlinerObjects() const { return ReplicatedObjects->GetSelectedItems(); }
+		TArray<TSharedPtr<FReplicatedObjectData>> GetSelectedOutlinerObjects() const;
+
+		//~ Begin SWidget Interface
+		virtual void Tick(const FGeometry& AllottedGeometry, const double InCurrentTime, const float InDeltaTime) override;
+		//~ End SWidget Interface
 		
 	private:
 
@@ -136,13 +140,19 @@ namespace UE::ConcertSharedSlate
 		/** View options for the object outliner. */
 		FStreamViewerObjectViewOptions ObjectViewOptions;
 
+		bool bHasRequestedObjectRefresh = false;
+		bool bHasRequestedPropertyRefresh = false;
+
 		static TSharedRef<FReplicatedObjectData> AllocateObjectData(FSoftObjectPath ObjectPath);
 
 		// Widget creation helpers
 		TSharedRef<SWidget> CreateContentWidget(const FArguments& InArgs);
 		TSharedRef<SWidget> CreateOutlinerSection(const FArguments& InArgs);
 		TSharedRef<SWidget> CreatePropertiesSection(const FArguments& InArgs);
-
+		
+		void RefreshObjectData();
+		void RefreshPropertyData();
+		
 		/** Sets RootObjectRowData to all non-root nodes from ObjectRowData. */
 		void BuildRootObjectRowData();
 
@@ -157,8 +167,8 @@ namespace UE::ConcertSharedSlate
 		/** Called in response to subobject display view option being changed. Rebuilds the entire hierarchy. */
 		void OnSubobjectViewOptionToggled()
 		{
-			RefreshObjectData();
-			RefreshPropertyData();
+			RequestObjectDataRefresh();
+			RequestPropertyDataRefresh();
 		}
 		bool ShouldDisplayObject(const FSoftObjectPath& Object, EChildRelationship Relationship) const;
 	};

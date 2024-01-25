@@ -116,7 +116,7 @@ namespace UE::ConcertSharedSlate
 
 	void SBaseReplicationStreamEditor::OnObjectsChanged(TConstArrayView<UObject*> AddedObjects, TConstArrayView<FSoftObjectPath> RemovedObjects, EReplicatedObjectChangeReason ChangeReason)
 	{
-		ReplicationViewer->RefreshObjectData();
+		ReplicationViewer->RequestObjectDataRefresh();
 			
 		// Newly added objects should be automatically selected
 		if (!AddedObjects.IsEmpty())
@@ -145,7 +145,7 @@ namespace UE::ConcertSharedSlate
 
 	void SBaseReplicationStreamEditor::OnPropertiesChanged()
 	{
-		ReplicationViewer->RefreshPropertyData();
+		ReplicationViewer->RequestPropertyDataRefresh();
 	}
 
 	TSharedRef<SWidget> SBaseReplicationStreamEditor::BuildRootAddObjectWidgets()
