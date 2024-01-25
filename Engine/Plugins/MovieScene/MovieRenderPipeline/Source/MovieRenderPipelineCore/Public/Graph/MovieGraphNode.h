@@ -8,6 +8,7 @@
 #include "PropertyBag.h"
 #include "Graph/MovieGraphValueContainer.h"
 #include "Graph/MovieGraphFilenameResolveParams.h"
+#include "UObject/Interface.h"
 
 #if WITH_EDITOR
 #include "Textures/SlateIcon.h"
@@ -402,18 +403,26 @@ public:
 	virtual void BuildNewProcessCommandLineArgsImpl(TArray<FString>& InOutUnrealURLParams, TArray<FString>& InOutCommandLineArgs, TArray<FString>& InOutDeviceProfileCvars, TArray<FString>& InOutExecCmds) const { }
 };
 
+UINTERFACE()
+class MOVIERENDERPIPELINECORE_API UMovieGraphPostRenderNode : public UInterface
+{
+	GENERATED_BODY()
+};
+
 /**
- * A node which runs after all renders have completed.
+ * A node which runs after renders have completed. Can run after a single shot renders and/or after a sequence renders all of its shots.
  */
-UCLASS(Abstract)
-class MOVIERENDERPIPELINECORE_API UMovieGraphPostRenderNode : public UMovieGraphSettingNode
+class MOVIERENDERPIPELINECORE_API IMovieGraphPostRenderNode
 {
 	GENERATED_BODY()
 
 public:
-	/** Begins the export process for this node. */
-	virtual void BeginExport(UMovieGraphPipeline* InMoviePipeline, const FName& InBranchName) PURE_VIRTUAL(UMovieGraphPostRenderNode::BeginExport, );
+	/** Begins the export process for this node after all shots have completed. */
+	virtual void BeginExport(UMovieGraphPipeline* InMoviePipeline, TObjectPtr<UMovieGraphEvaluatedConfig>& InPrimaryJobEvaluatedGraph) = 0;
+
+	/** Begins the export process for this node after an individual shot completes. */
+	virtual void BeginShotExport(UMovieGraphPipeline* InMoviePipeline) = 0;
 
 	/** Returns true if this node has finished its export process, else false. */
-	virtual bool HasFinishedExporting() PURE_VIRTUAL(UMovieGraphPostRenderNode::HasFinishedExporting, return true; );
+	virtual bool HasFinishedExporting() = 0;
 };

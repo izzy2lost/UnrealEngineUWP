@@ -20,17 +20,29 @@ class MOVIERENDERPIPELINECORE_API UMovieGraphFileOutputNode : public UMovieGraph
 public:
 	UMovieGraphFileOutputNode() = default;
 	
-	// UMovieGraphFileOutputNode Interface
 	/** 
 	* This is called by the Game Thread containing the final output data for a given output frame. InRawFrameData contains
 	* a list of all of the data generated for this output frame, and InMask specifies which render layers within InRawFrameData
 	* should actually be written to disk by this output node.
 	*/
 	void OnReceiveImageData(UMovieGraphPipeline* InPipeline, UE::MovieGraph::FMovieGraphOutputMergerFrame* InRawFrameData, const TSet<FMovieGraphRenderDataIdentifier>& InMask) { OnReceiveImageDataImpl(InPipeline, InRawFrameData, InMask); }
-	void OnAllFramesSubmitted() { OnAllFramesSubmittedImpl(); }
-	bool IsFinishedWritingToDisk() const { return IsFinishedWritingToDiskImpl(); }
-	// ~UMovieGraphFileOutputNode Interface
 
+	/**
+	 * This is called when the pipeline has finished rendering all shots, and the sequence export process has not begun yet.
+	 * See OnAllShotFramesSubmitted() for a method that is called when an individual shot has finished rendering.
+	 */
+	void OnAllFramesSubmitted(UMovieGraphPipeline* InPipeline, TObjectPtr<UMovieGraphEvaluatedConfig>& InPrimaryJobEvaluatedGraph) { OnAllFramesSubmittedImpl(InPipeline, InPrimaryJobEvaluatedGraph); }
+
+	/**
+	 * This is called when a shot has finished rendering its last frame, and the shot export process has not begun yet.
+	 * See OnAllFramesSubmitted() for a method that is called after all shots have finished rendering.
+	 */
+	void OnAllShotFramesSubmitted(UMovieGraphPipeline* InPipeline, const UMoviePipelineExecutorShot* InShot) { OnAllShotFramesSubmittedImpl(InPipeline, InShot); }
+
+	/** Returns whether this node has finished writing all of its files to disk yet. */
+	bool IsFinishedWritingToDisk() const { return IsFinishedWritingToDiskImpl(); }
+
+	//~ Begin UMovieGraphSettingNode interface
 	virtual TArray<FMovieGraphPinProperties> GetInputPinProperties() const override
 	{
 		TArray<FMovieGraphPinProperties> Properties;
@@ -44,6 +56,7 @@ public:
 		Properties.Add(FMovieGraphPinProperties::MakeBranchProperties());
 		return Properties;
 	}
+	//~ End UMovieGraphSettingNode interface
 
 #if WITH_EDITOR
 	virtual FText GetMenuCategory() const override
@@ -61,7 +74,8 @@ public:
 
 protected:
 	virtual void OnReceiveImageDataImpl(UMovieGraphPipeline* InPipeline, UE::MovieGraph::FMovieGraphOutputMergerFrame* InRawFrameData, const TSet<FMovieGraphRenderDataIdentifier>& InMask) {}
-	virtual void OnAllFramesSubmittedImpl() {}
+	virtual void OnAllFramesSubmittedImpl(UMovieGraphPipeline* InPipeline, TObjectPtr<UMovieGraphEvaluatedConfig>& InPrimaryJobEvaluatedGraph) {}
+	virtual void OnAllShotFramesSubmittedImpl(UMovieGraphPipeline* InPipeline, const UMoviePipelineExecutorShot* InShot) {}
 	virtual bool IsFinishedWritingToDiskImpl() const { return true; }
 	
 	/** Returns the number of evaluated (active) file nodes on the specified branch. */

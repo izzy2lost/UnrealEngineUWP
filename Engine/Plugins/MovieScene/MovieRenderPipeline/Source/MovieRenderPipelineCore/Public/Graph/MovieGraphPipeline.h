@@ -57,10 +57,11 @@ public:
 	UFUNCTION(BlueprintCallable, Category = "Movie Graph")
 	void SetInitializationTime(const FDateTime& InDateTime) { GraphInitializationTime = InDateTime; }
 
+	/** Gets the graph config for the shot if one was specified for the shot. Otherwise, gets the graph config for the associated primary job. */
 	UMovieGraphConfig* GetRootGraphForShot(UMoviePipelineExecutorShot* InShot) const;
 
 	UFUNCTION(BlueprintCallable, Category = "Movie Graph")
-	FMovieGraphTraversalContext GetCurrentTraversalContext() const;
+	FMovieGraphTraversalContext GetCurrentTraversalContext(const bool bForShot = true) const;
 
 	/** Get the Active Shot list, which is the full shot list generated from the external data source, with disabled shots removed. */
 	const TArray<TObjectPtr<UMoviePipelineExecutorShot>>& GetActiveShotList() const { return ActiveShotList; }
@@ -135,7 +136,10 @@ protected:
 	virtual void TransitionToState(const EMovieRenderPipelineState InNewState);
 	virtual const TSet<TObjectPtr<UMovieGraphFileOutputNode>> GetOutputNodesUsed() const;
 	virtual void BeginFinalize();
+
+	/** Begins the export process for a primary job (not called for shot jobs). */
 	virtual void BeginExport();
+	
 	virtual void LoadPreviewWidget();
 	virtual void SetPreviewWidgetVisibleImpl(bool bInIsVisible);
 
@@ -148,10 +152,6 @@ protected:
 	*/
 	virtual void ExpandShot(const TObjectPtr<UMoviePipelineExecutorShot>& InShot, const int32 InNumHandleFrames, const bool bInHasMultipleTemporalSamples, const bool bIsPrePass,
 		const FFrameRate& InDisplayRate, const FFrameRate& InTickResolution, const int32 InWarmUpFrames);
-
-	/** Gets a setting across all active render layers. Key = branch name, value = node object. */
-	template<typename T>
-	TArray<TPair<FName, T*>> GetSettingForActiveRenderLayers(const bool bIncludeCDOs, const bool bExactMatch);
 
 	/** Resolve the version number that should be used for the specified shot (in {version} tokens). */
 	int32 ResolveVersionForShot(const TObjectPtr<UMoviePipelineExecutorShot>& Shot, const TObjectPtr<UMovieGraphEvaluatedConfig>& EvaluatedConfig);
@@ -192,6 +192,13 @@ protected:
 
 	UPROPERTY(Transient)
 	TObjectPtr<UMovieGraphAudioRendererBase> GraphAudioRendererInstance;
+
+	/**
+	 * The evaluated graph that should be referenced after all shot rendering is complete. This graph will originate from a primary job (not shot) and
+	 * can be used in post-rendering tasks.
+	 */
+	UPROPERTY(Transient)
+	TObjectPtr<UMovieGraphEvaluatedConfig> PostRenderEvaluatedGraph;
 
 protected:
 	UPROPERTY(Transient)

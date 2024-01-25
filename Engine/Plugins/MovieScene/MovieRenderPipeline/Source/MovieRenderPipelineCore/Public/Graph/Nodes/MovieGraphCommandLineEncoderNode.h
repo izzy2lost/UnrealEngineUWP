@@ -13,7 +13,7 @@ struct FMovieGraphRenderOutputData;
  * A node which kicks off an encode process after all renders have completed.
  */
 UCLASS()
-class MOVIERENDERPIPELINECORE_API UMovieGraphCommandLineEncoderNode : public UMovieGraphPostRenderNode
+class MOVIERENDERPIPELINECORE_API UMovieGraphCommandLineEncoderNode : public UMovieGraphSettingNode, public IMovieGraphPostRenderNode
 {
 	GENERATED_BODY()
 
@@ -34,17 +34,15 @@ public:
 	/** Begins the encode process (as long as there are no validation errors). */
 	void StartEncodingProcess(TArray<FMovieGraphRenderOutputData>& InGeneratedData, const bool bInIsShotEncode);
 	
-	// UMovieGraphPostRenderNode interface
-	virtual void BeginExport(UMovieGraphPipeline* InMoviePipeline, const FName& InBranchName) override;
+	// IMovieGraphPostRenderNode interface
+	virtual void BeginExport(UMovieGraphPipeline* InMoviePipeline, TObjectPtr<UMovieGraphEvaluatedConfig>& InPrimaryJobEvaluatedGraph) override;
+	virtual void BeginShotExport(UMovieGraphPipeline* InMoviePipeline) override;
 	virtual bool HasFinishedExporting() override;
-	// ~UMovieGraphPostRenderNode interface
+	// ~IMovieGraphPostRenderNode interface
 
 public:
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = Overrides, meta = (InlineEditConditionToggle))
 	uint8 bOverride_FileNameFormat : 1;
-	
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = Overrides, meta = (InlineEditConditionToggle))
-	uint8 bOverride_Quality : 1;
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = Overrides, meta = (InlineEditConditionToggle))
 	uint8 bOverride_bDeleteSourceFiles : 1;
@@ -183,13 +181,18 @@ private:
 	template<typename T>
 	T* GetSettingOnBranch(const bool bIncludeCDOs = true, const bool bExactMatch = true) const;
 
+	/** Determines the appropriate evaluated config to use for the current context (primary job encode or shot based encode). */
+	TObjectPtr<UMovieGraphEvaluatedConfig> GetEvaluatedConfig() const;
+
+// The pipeline generates many instances of the same node throughout its execution; however, some nodes need to have persistent data throughout the
+// pipeline's lifetime. This static data enables the node to have shared data across instances.
 private:
 	/** Encode jobs which are currently running. */
-	TArray<FActiveJob> ActiveEncodeJobs;
+	static inline TArray<FActiveJob> ActiveEncodeJobs;
 
 	/** The pipeline that started the export. */
-	TWeakObjectPtr<UMovieGraphPipeline> CachedPipeline;
+	static inline TWeakObjectPtr<UMovieGraphPipeline> CachedPipeline;
 
-	/** The branch that the export is occurring on. */
-	FName CachedBranchName;
+	/** The job-level graph that should be accessed during execution of the node. Do not access the graph from the pipeline as it will be invalid. */
+	static inline TObjectPtr<UMovieGraphEvaluatedConfig> PrimaryJobEvaluatedGraph;
 };

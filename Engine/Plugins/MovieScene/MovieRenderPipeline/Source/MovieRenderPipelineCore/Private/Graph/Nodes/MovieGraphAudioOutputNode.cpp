@@ -58,71 +58,52 @@ EMovieGraphBranchRestriction UMovieGraphAudioOutputNode::GetBranchRestriction() 
 	return EMovieGraphBranchRestriction::Globals;
 }
 
-void UMovieGraphAudioOutputNode::OnReceiveImageDataImpl(UMovieGraphPipeline* InPipeline, UE::MovieGraph::FMovieGraphOutputMergerFrame* InRawFrameData, const TSet<FMovieGraphRenderDataIdentifier>& InMask)
+void UMovieGraphAudioOutputNode::OnAllFramesSubmittedImpl(UMovieGraphPipeline* InPipeline, TObjectPtr<UMovieGraphEvaluatedConfig>& InPrimaryJobEvaluatedGraph)
 {
 	CachedPipeline = InPipeline;
+	EvaluatedGraph = InPrimaryJobEvaluatedGraph;
+
+	// It's possible that the pipeline is being shut down early, in which case the shot index will be invalid. Do not begin generating audio
+	// if a shutdown is being requested.
+	const int32 ShotIndex = CachedPipeline->GetCurrentShotIndex();
+	if (!CachedPipeline->GetActiveShotList().IsValidIndex(ShotIndex))
+	{
+		return;
+	}
+
+	// No need to do work if per-shot audio has already been exported
+	if (NeedsPerShotFlushing())
+	{
+		return;
+	}
+
+	StartAudioExport();
 }
 
-void UMovieGraphAudioOutputNode::OnAllFramesSubmittedImpl()
+void UMovieGraphAudioOutputNode::OnAllShotFramesSubmittedImpl(UMovieGraphPipeline* InPipeline, const UMoviePipelineExecutorShot* InShot)
 {
-	if (!UE::MoviePipeline::RenderGraph::Audio::IsMoviePipelineAudioOutputSupported(CachedPipeline.Get()))
+	CachedPipeline = InPipeline;
+	EvaluatedGraph = InPipeline->GetTimeStepInstance()->GetCalculatedTimeData().EvaluatedConfig;
+
+	// Don't do per-shot exports if a sequence-wide export was requested
+	if (!NeedsPerShotFlushing())
 	{
 		return;
 	}
 
-	ActiveWriters.Reset();
-
-	const MoviePipeline::FAudioState& AudioState = CachedPipeline->GetAudioRendererInstance()->GetAudioState();
-		
-	// There should be no active submixes by the time we finalize - they should all have been converted to recorded samples.
-	check(AudioState.ActiveSubmixes.IsEmpty());
-
-	// If we didn't end up recording audio, don't try outputting any files.
-	if (AudioState.FinishedSegments.IsEmpty())
-	{
-		return;
-	}
-
-	TArray<FFinalAudioData> FinalAudioData;
-	GenerateFinalAudioData(FinalAudioData);
-
-	// Write audio files to disk
-	for (FFinalAudioData& AudioData : FinalAudioData)
-	{
-		UE::MovieGraph::FMovieGraphOutputFutureData OutputData;
-		OutputData.Shot = CachedPipeline->GetActiveShotList()[AudioData.ShotIndex];
-		OutputData.DataIdentifier = AudioData.RenderIdentifier;
-
-		// Do this before we start manipulating the filepath for the audio API
-		OutputData.FilePath = AudioData.FilePath;
-
-		const FString FileName = FPaths::GetBaseFilename(AudioData.FilePath);
-		FString FileFolder = FPaths::GetPath(AudioData.FilePath);
-
-		TPromise<bool> Completed;
-		CachedPipeline->AddOutputFuture(Completed.GetFuture(), OutputData);
-
-		TUniquePtr<Audio::FSoundWavePCMWriter> Writer = MakeUnique<Audio::FSoundWavePCMWriter>();
-		const bool bSuccess = Writer->BeginWriteToWavFile(AudioData.SampleBuffer, FileName, FileFolder);
-
-		Completed.SetValue(bSuccess);
-		ActiveWriters.Add(MoveTemp(Writer));
-	}
-
-	// The FSoundWavePCMWriter is unfortunately async, and the completion callbacks don't work unless the main thread
-	// can be spun (as it enqueues a callback onto the main thread). We're going to just cheat here and stall the main thread
-	// for 0.5s to give it a chance to write to disk. It'll only potentially be an issue with command line encoding if it takes
-	// longer than 0.5s to write to disk.
-	if (const TConsoleVariableData<float>* CVar = IConsoleManager::Get().FindTConsoleVariableDataFloat(TEXT("MovieRenderPipeline.WaveOutput.WriteDelay")))
-	{
-		UE_LOG(LogMovieRenderPipeline, Log, TEXT("Delaying main thread for %f seconds while audio writes to disk."), CVar->GetValueOnGameThread());
-		FPlatformProcess::Sleep(CVar->GetValueOnGameThread());
-	}
+	StartAudioExport();
 }
 
 bool UMovieGraphAudioOutputNode::IsFinishedWritingToDiskImpl() const
 {
-	// Files are written in OnAllFramesSubmittedImpl(), so writing should be finished by the time this method is called
+	for (const TUniquePtr<Audio::FSoundWavePCMWriter>& ActiveWriter : ActiveWriters)
+	{
+		if (ActiveWriter && !ActiveWriter->IsDone())
+		{
+			return false;
+		}
+	}
+
 	return true;
 }
 
@@ -130,8 +111,7 @@ FString UMovieGraphAudioOutputNode::GenerateOutputPath(const FMovieGraphRenderDa
 {
 	constexpr bool bIncludeCDOs = true;
 	constexpr bool bExactMatch = true;
-	const TObjectPtr<UMovieGraphEvaluatedConfig> EvaluatedConfig = CachedPipeline->GetTimeStepInstance()->GetCalculatedTimeData().EvaluatedConfig;
-	const UMovieGraphGlobalOutputSettingNode* OutputNode = EvaluatedConfig->GetSettingForBranch<UMovieGraphGlobalOutputSettingNode>(GlobalsPinName, bIncludeCDOs, bExactMatch);
+	const UMovieGraphGlobalOutputSettingNode* OutputNode = EvaluatedGraph->GetSettingForBranch<UMovieGraphGlobalOutputSettingNode>(GlobalsPinName, bIncludeCDOs, bExactMatch);
 	FString FileNameFormatString = OutputNode->OutputDirectory.Path / FileNameFormat;
 
 	constexpr bool bIncludeRenderPass = false;
@@ -149,7 +129,7 @@ FString UMovieGraphAudioOutputNode::GenerateOutputPath(const FMovieGraphRenderDa
 		{TEXT("render_pass"), RendererName},
 		{TEXT("ext"), OutputExtension}
 	};
-	ResolveParams.EvaluatedConfig = EvaluatedConfig;
+	ResolveParams.EvaluatedConfig = EvaluatedGraph;
 	ResolveParams.RenderDataIdentifier = InRenderIdentifier;
 	ResolveParams.Version = InShot->ShotInfo.VersionNumber;
 
@@ -217,4 +197,78 @@ void UMovieGraphAudioOutputNode::GenerateFinalAudioData(TArray<FFinalAudioData>&
 		OutputSegment->SampleBuffer.Append(SampleBuffer.GetData(), Segment.SegmentData.Num(), Segment.NumChannels, Segment.SampleRate);
 		UE_LOG(LogMovieRenderPipeline, Log, TEXT("Audio Segment took %f seconds to convert to a sample buffer."), (FPlatformTime::Seconds() - StartTime));
 	}
+}
+
+void UMovieGraphAudioOutputNode::StartAudioExport()
+{
+	if (!UE::MoviePipeline::RenderGraph::Audio::IsMoviePipelineAudioOutputSupported(CachedPipeline.Get()))
+	{
+		return;
+	}
+
+	ActiveWriters.Reset();
+
+	const MoviePipeline::FAudioState& AudioState = CachedPipeline->GetAudioRendererInstance()->GetAudioState();
+		
+	// There should be no active submixes by the time we finalize - they should all have been converted to recorded samples.
+	check(AudioState.ActiveSubmixes.IsEmpty());
+
+	// If we didn't end up recording audio, don't try outputting any files.
+	if (AudioState.FinishedSegments.IsEmpty())
+	{
+		return;
+	}
+
+	TArray<FFinalAudioData> FinalAudioData;
+	GenerateFinalAudioData(FinalAudioData);
+
+	// Write audio files to disk
+	for (FFinalAudioData& AudioData : FinalAudioData)
+	{
+		UE::MovieGraph::FMovieGraphOutputFutureData OutputData;
+		OutputData.Shot = CachedPipeline->GetActiveShotList()[AudioData.ShotIndex];
+		OutputData.DataIdentifier = AudioData.RenderIdentifier;
+
+		// Do this before we start manipulating the filepath for the audio API
+		OutputData.FilePath = AudioData.FilePath;
+
+		const FString FileName = FPaths::GetBaseFilename(AudioData.FilePath);
+		FString FileFolder = FPaths::GetPath(AudioData.FilePath);
+
+		TPromise<bool> Completed;
+		CachedPipeline->AddOutputFuture(Completed.GetFuture(), OutputData);
+
+		TUniquePtr<Audio::FSoundWavePCMWriter> Writer = MakeUnique<Audio::FSoundWavePCMWriter>();
+		const bool bSuccess = Writer->BeginWriteToWavFile(AudioData.SampleBuffer, FileName, FileFolder);
+
+		Completed.SetValue(bSuccess);
+		ActiveWriters.Add(MoveTemp(Writer));
+	}
+
+	// The FSoundWavePCMWriter is unfortunately async, and the completion callbacks don't work unless the main thread
+	// can be spun (as it enqueues a callback onto the main thread). We're going to just cheat here and stall the main thread
+	// for 0.5s to give it a chance to write to disk. It'll only potentially be an issue with command line encoding if it takes
+	// longer than 0.5s to write to disk.
+	if (const TConsoleVariableData<float>* CVar = IConsoleManager::Get().FindTConsoleVariableDataFloat(TEXT("MovieRenderPipeline.WaveOutput.WriteDelay")))
+	{
+		UE_LOG(LogMovieRenderPipeline, Log, TEXT("Delaying main thread for %f seconds while audio writes to disk."), CVar->GetValueOnGameThread());
+		FPlatformProcess::Sleep(CVar->GetValueOnGameThread());
+	}
+}
+
+bool UMovieGraphAudioOutputNode::NeedsPerShotFlushing() const
+{
+	constexpr bool bIncludeCDOs = true;
+	constexpr bool bExactMatch = true;
+	const UMovieGraphGlobalOutputSettingNode* OutputSettingNode =
+		EvaluatedGraph->GetSettingForBranch<UMovieGraphGlobalOutputSettingNode>(GlobalsPinName, bIncludeCDOs, bExactMatch);
+	
+	const FString FullPath = OutputSettingNode->OutputDirectory.Path / FileNameFormat;
+	
+	if (FullPath.Contains(TEXT("{shot_name}")) || FullPath.Contains(TEXT("{camera_name}")))
+	{
+		return true;
+	}
+
+	return false;
 }

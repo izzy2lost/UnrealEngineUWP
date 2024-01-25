@@ -22,13 +22,21 @@ UMovieGraphCommandLineEncoderNode::UMovieGraphCommandLineEncoderNode()
 	, bSkipEncodeOnRenderCanceled(true)
 	, bRetainInputTextFiles(false)
 {
-	FileNameFormat = TEXT("{sequence_name}.{layer_name}");
+	FileNameFormat = TEXT("{sequence_name}");
 		
 	// Sensible defaults for cmdline arguments
 	CommandLineFormat = TEXT("-hide_banner -y -loglevel error {VideoInputs} {AudioInputs} -acodec {AudioCodec} -vcodec {VideoCodec} {Quality} \"{OutputPath}\"");
 	VideoInputStringFormat = TEXT("-f concat -safe 0 -i \"{InputFile}\" -r {FrameRate}");
 	AudioInputStringFormat = TEXT("-f concat -safe 0 -i \"{InputFile}\"");
 	EncodeSettings = TEXT("-crf 20");
+
+	// Fill in some defaults from the project settings
+	if (const UMoviePipelineCommandLineEncoderSettings* EncoderSettings = GetDefault<UMoviePipelineCommandLineEncoderSettings>())
+	{
+		AudioCodec = EncoderSettings->AudioCodec;
+		VideoCodec = EncoderSettings->VideoCodec;
+		OutputFileExtension = EncoderSettings->OutputFileExtension;
+	}
 }
 
 #if WITH_EDITOR
@@ -60,7 +68,7 @@ FSlateIcon UMovieGraphCommandLineEncoderNode::GetIconAndTint(FLinearColor& OutCo
 
 EMovieGraphBranchRestriction UMovieGraphCommandLineEncoderNode::GetBranchRestriction() const
 {
-	return EMovieGraphBranchRestriction::RenderLayer;
+	return EMovieGraphBranchRestriction::Globals;
 }
 
 void UMovieGraphCommandLineEncoderNode::StartEncodingProcess(TArray<FMovieGraphRenderOutputData>& InGeneratedData, const bool bInIsShotEncode)
@@ -106,7 +114,7 @@ void UMovieGraphCommandLineEncoderNode::StartEncodingProcess(TArray<FMovieGraphR
 		// because the encoding won't be finished by the time the scripting layer is called. Need to manipulate the original
 		// and not the copy that we're currently iterating through.
 		FMovieGraphRenderDataIdentifier CommandLineEncoderIdentifier;
-		CommandLineEncoderIdentifier.RootBranchName = CachedBranchName;
+		CommandLineEncoderIdentifier.RootBranchName = GlobalsPinName;
 		CommandLineEncoderIdentifier.RendererName = FString(TEXT("CommandLineEncoder"));
 		for (FMovieGraphRenderOutputData& OutputData : InGeneratedData)
 		{
@@ -124,20 +132,18 @@ void UMovieGraphCommandLineEncoderNode::StartEncodingProcess(TArray<FMovieGraphR
 	}
 }
 
-void UMovieGraphCommandLineEncoderNode::BeginExport(UMovieGraphPipeline* InMoviePipeline, const FName& InBranchName)
+void UMovieGraphCommandLineEncoderNode::BeginExport(UMovieGraphPipeline* InMoviePipeline, TObjectPtr<UMovieGraphEvaluatedConfig>& InPrimaryJobEvaluatedGraph)
 {
 	CachedPipeline = InMoviePipeline;
-	CachedBranchName = InBranchName;
-	
-	// When we start exporting, we remove the OnEndFrame delegate because if the user hit escape to cancel a movie render
-	// no frames will be ticked anymore. Instead we'll call OnTick from HasFinishedExporting() by hand as that will
-	// get called in a loop until it is finished.
-	FCoreDelegates::OnEndFrame.RemoveAll(this);
+	PrimaryJobEvaluatedGraph = InPrimaryJobEvaluatedGraph;
 
-	// This is called at the end of the movie render. If we were starting encode jobs per shot, then there's already
+	// This is called after all shots have finished rendering. If we were starting encode jobs per shot, then there's already
 	// an encode job going for all shots, so we early out.
 	if (NeedsPerShotFlushing())
 	{
+		// Don't warn here about a primary job graph wanting to generate a shot-level encode. It is not an error. If there are no shot-level
+		// graphs defined, it's valid that the primary graph requests that shot-level encodes are completed. The shot-level encodes will be picked
+		// up from the primary graph via BeginShotExport() and not started here.
 		return;
 	}
 
@@ -145,15 +151,49 @@ void UMovieGraphCommandLineEncoderNode::BeginExport(UMovieGraphPipeline* InMovie
 	TArray<FMovieGraphRenderOutputData>& OutputData = CachedPipeline->GetGeneratedOutputData();
 	constexpr bool bIsShotEncode = false;
 	StartEncodingProcess(OutputData, bIsShotEncode);
+
+	// Should not be used after a primary job export finishes
+	PrimaryJobEvaluatedGraph = nullptr;
+}
+
+void UMovieGraphCommandLineEncoderNode::BeginShotExport(UMovieGraphPipeline* InMoviePipeline)
+{
+	CachedPipeline = InMoviePipeline;
+	PrimaryJobEvaluatedGraph = nullptr;
+	
+	if (!NeedsPerShotFlushing())
+	{
+		UE_LOG(LogMovieRenderPipeline, Warning, TEXT("A shot-level Command Line Encoder node requested a non-shot export and will be ignored. Is it missing the {shot_name} token in the File Name Format?"));
+		return;
+	}
+	
+	TArray<FMovieGraphRenderOutputData>& OutputData = CachedPipeline->GetGeneratedOutputData();
+	TArray<FMovieGraphRenderOutputData> LatestShotData;
+	if (!OutputData.IsEmpty())
+	{
+		LatestShotData.Add(OutputData.Last());
+	}
+	
+	constexpr bool bIsShotEncode = true;
+	StartEncodingProcess(LatestShotData, bIsShotEncode);
 }
 
 bool UMovieGraphCommandLineEncoderNode::HasFinishedExporting()
 {
-	// Manually tick the output (which cleans up ActiveEncodeJobs). This is needed because manually canceling a job
-	// stops ticking the engine and repeatedly calls HasFinishedExporting().
+	// Manually tick the output (which cleans up ActiveEncodeJobs). Once a render finishes, the engine is not ticking frames, so the pipeline
+	// will call this method repeatedly until the encode has completed.
 	OnTick();
 	
-	return ActiveEncodeJobs.IsEmpty();
+	const bool bIsFinished = ActiveEncodeJobs.IsEmpty();
+
+	// Clean up persisted data if the encode is finished
+	if (bIsFinished)
+	{
+		CachedPipeline = nullptr;
+		PrimaryJobEvaluatedGraph = nullptr;
+	}
+	
+	return bIsFinished;
 }
 
 bool UMovieGraphCommandLineEncoderNode::AreSettingsValid(TArray<FText>& OutErrors) const
@@ -276,7 +316,7 @@ TMap<FMovieGraphRenderDataIdentifier, UMovieGraphCommandLineEncoderNode::FEncode
 	
 	for (FMovieGraphRenderOutputData& GeneratedRenderData : InGeneratedData)
 	{
-		// Search for audio to attach to every render layer
+		// Search for audio to attach
 		TMap<FString, TArray<FString>> AudioPathsByExtension;
 		for (const TPair<FMovieGraphRenderDataIdentifier, FMovieGraphRenderLayerOutputData>& InnerRenderLayer : GeneratedRenderData.RenderLayerData)
 		{
@@ -301,13 +341,7 @@ TMap<FMovieGraphRenderDataIdentifier, UMovieGraphCommandLineEncoderNode::FEncode
 			{
 				continue;
 			}
-
-			// This node should only be responsible for exporting movies for images generated on the node's branch
-			if (RenderIdentifier.RootBranchName != CachedBranchName)
-			{
-				continue;
-			}
-
+			
 			FEncoderParams& EncoderParams = RenderLayerEncoderParams.FindOrAdd(RenderIdentifier);
 			EncoderParams.Shot = GeneratedRenderData.Shot;
 			EncoderParams.RenderDataIdentifier = RenderIdentifier;
@@ -323,6 +357,9 @@ TMap<FMovieGraphRenderDataIdentifier, UMovieGraphCommandLineEncoderNode::FEncode
 			EncoderParams.FilesByExtensionType.Append(AudioPathsByExtension);
 
 			RenderDataToRemove.Add(RenderIdentifier);
+
+			// Data was found to include in the encode job; do not add additional data from other output types or branches
+			break;
 		}
 		
 		// If we're going to delete the source files, don't make them available to the scripting layer callback
@@ -360,7 +397,7 @@ FString UMovieGraphCommandLineEncoderNode::GetResolvedOutputFilename(const FMovi
 	ResolveParams.Shot = Shot.Get();
 	ResolveParams.FileNameFormatOverrides = FormatOverrides;
 	ResolveParams.FileNameOverride = FileNameFormat;
-	ResolveParams.EvaluatedConfig = CachedPipeline->GetTimeStepInstance()->GetCalculatedTimeData().EvaluatedConfig;
+	ResolveParams.EvaluatedConfig = GetEvaluatedConfig();
 	ResolveParams.RenderDataIdentifier = RenderIdentifier;
 	ResolveParams.Version = Shot.IsValid() ? Shot->ShotInfo.VersionNumber : UMovieGraphBlueprintLibrary::ResolveVersionNumber(ResolveParams);
 
@@ -411,7 +448,7 @@ void UMovieGraphCommandLineEncoderNode::GenerateTemporaryEncoderInputFiles(const
 		ResolveParams.Job = CachedPipeline->GetCurrentJob();
 		ResolveParams.Shot = InParams.Shot.Get();
 		ResolveParams.FileNameFormatOverrides = FormatOverrides;
-		ResolveParams.EvaluatedConfig = CachedPipeline->GetTimeStepInstance()->GetCalculatedTimeData().EvaluatedConfig;
+		ResolveParams.EvaluatedConfig = GetEvaluatedConfig();
 		ResolveParams.RenderDataIdentifier = InParams.RenderDataIdentifier;
 
 		FMovieGraphResolveArgs FinalFormatArgs;
@@ -483,6 +520,9 @@ FString UMovieGraphCommandLineEncoderNode::BuildEncoderCommand(const FEncoderPar
 
 void UMovieGraphCommandLineEncoderNode::LaunchEncoder(const FEncoderParams& InParams)
 {
+	// Clear out any stale jobs (shouldn't be needed, but just in case)
+	ActiveEncodeJobs.Reset();
+	
 	TArray<FString> VideoInputs;
 	TArray<FString> AudioInputs;
 	GenerateTemporaryEncoderInputFiles(InParams, VideoInputs, AudioInputs);
@@ -530,13 +570,18 @@ void UMovieGraphCommandLineEncoderNode::LaunchEncoder(const FEncoderParams& InPa
 	}
 }
 
+TObjectPtr<UMovieGraphEvaluatedConfig> UMovieGraphCommandLineEncoderNode::GetEvaluatedConfig() const
+{
+	// If a shot is being exported, the primary evaluated graph will be null. Use the pipeline's evaluated graph for the current shot otherwise.
+	return PrimaryJobEvaluatedGraph
+		? PrimaryJobEvaluatedGraph
+		: CachedPipeline->GetTimeStepInstance()->GetCalculatedTimeData().EvaluatedConfig;
+}
+
 template<typename T>
 T* UMovieGraphCommandLineEncoderNode::GetSettingOnBranch(const bool bIncludeCDOs, const bool bExactMatch) const
 {
-	const TObjectPtr<UMovieGraphEvaluatedConfig> EvaluatedConfig =
-		CachedPipeline->GetTimeStepInstance()->GetCalculatedTimeData().EvaluatedConfig;
-	
-	return EvaluatedConfig->GetSettingForBranch<T>(CachedBranchName, bIncludeCDOs, bExactMatch);
+	return GetEvaluatedConfig()->GetSettingForBranch<T>(GlobalsPinName, bIncludeCDOs, bExactMatch);
 }
 
 #undef LOCTEXT_NAMESPACE // "MovieGraph"

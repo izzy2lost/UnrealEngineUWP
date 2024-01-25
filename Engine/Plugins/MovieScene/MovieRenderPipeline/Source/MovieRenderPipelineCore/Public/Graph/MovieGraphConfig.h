@@ -484,6 +484,31 @@ public:
 		return ResultNodes;
 	}
 
+	/** Gets settings that implement a specific interface. InInterfaceClass should be the U-prefixed class; InterfaceType should be I-prefixed. */
+	template<typename InterfaceType>
+	TArray<InterfaceType*> GetSettingsImplementing(const UClass* InInterfaceClass, const FName InBranchName) const
+	{
+		const FMovieGraphEvaluatedBranchConfig* BranchConfig = BranchConfigMapping.Find(InBranchName);
+		ensureMsgf(BranchConfig, TEXT("Failed to find branch mapping for Branch: %s"), *InBranchName.ToString());
+
+		TArray<InterfaceType*> ResultNodes;
+		if (BranchConfig)
+		{
+			for (const TObjectPtr<UMovieGraphNode>& Node : BranchConfig->GetNodes())
+			{
+				if (Node->GetClass()->ImplementsInterface(InInterfaceClass))
+				{
+					if (InterfaceType* CastNode = Cast<InterfaceType>(Node.Get()))
+					{
+						ResultNodes.Add(CastNode);
+					}
+				}
+			}
+		}
+
+		return ResultNodes;
+	}
+
 	template<typename NodeType>
 	NodeType* GetSettingForBranch(const FName InBranchName, bool bIncludeCDOs = true, bool bExactMatch = false) const
 	{

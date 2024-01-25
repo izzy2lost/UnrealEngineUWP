@@ -528,12 +528,7 @@ void UMovieGraphPipeline::TickPostFinalizeExport(const bool bInForceFinish)
 	// This step assumes you have produced data and filled the data structures.
 	check(PipelineState == EMovieRenderPipelineState::Export);
 	
-
-	// Temporary change to prevent a crash when rendering only one shot via shot mask.
-	TransitionToState(EMovieRenderPipelineState::Finished);
-	return;
-
-	/*UE_LOG(LogMovieRenderPipeline, Verbose, TEXT("[%d] PostFinalize Export (Start)."), GFrameCounter);
+	UE_LOG(LogMovieRenderPipeline, Verbose, TEXT("[%d] PostFinalize Export (Start)."), GFrameCounter);
 
 	// Loop through any extensions (such as XML export) and let them export using all of the
 	// data that was generated during this run such as containers, output names and lengths.
@@ -545,11 +540,11 @@ void UMovieGraphPipeline::TickPostFinalizeExport(const bool bInForceFinish)
 		bAllContainsFinishedProcessing = true;
 
 		// Ask the nodes if they're all done processing.
-		constexpr bool bIncludeCDOs = false;
-		constexpr bool bExactMatch = false;
-		for (const TPair<FName, UMovieGraphPostRenderNode*>& Pair : GetSettingForActiveRenderLayers<UMovieGraphPostRenderNode>(bIncludeCDOs, bExactMatch))
+		const TArray<IMovieGraphPostRenderNode*> PostRenderNodes =
+			PostRenderEvaluatedGraph->GetSettingsImplementing<IMovieGraphPostRenderNode>(UMovieGraphPostRenderNode::StaticClass(), UMovieGraphNode::GlobalsPinName);
+		for (IMovieGraphPostRenderNode* PostRenderNode : PostRenderNodes)
 		{
-			bAllContainsFinishedProcessing &= Pair.Value->HasFinishedExporting();
+			bAllContainsFinishedProcessing &= PostRenderNode->HasFinishedExporting();
 		}
 	
 		// If we aren't forcing a finish, early out after one loop to keep the editor/ui responsive.
@@ -572,7 +567,7 @@ void UMovieGraphPipeline::TickPostFinalizeExport(const bool bInForceFinish)
 		return;
 	}
 
-	TransitionToState(EMovieRenderPipelineState::Finished);*/
+	TransitionToState(EMovieRenderPipelineState::Finished);
 }
 
 void UMovieGraphPipeline::BeginFinalize()
@@ -581,25 +576,27 @@ void UMovieGraphPipeline::BeginFinalize()
 	// them to put fences into queues for file writes, etc.
 	for (const TObjectPtr<UMovieGraphFileOutputNode>& Node : GetOutputNodesUsed())
 	{
-		Node->OnAllFramesSubmitted();
+		Node->OnAllFramesSubmitted(this, PostRenderEvaluatedGraph);
 	}
 }
 
 void UMovieGraphPipeline::BeginExport()
 {
-	// Temporary change to prevent a crash when rendering only one shot via shot mask.
-	return;
-
-	/*constexpr bool bIncludeCDOs = false;
-	constexpr bool bExactMatch = false;
-	TArray<TPair<FName, UMovieGraphPostRenderNode*>> PostRenderNodes = GetSettingForActiveRenderLayers<UMovieGraphPostRenderNode>(bIncludeCDOs, bExactMatch);
-	for (TPair<FName, UMovieGraphPostRenderNode*>& Pair : PostRenderNodes)
+	if (!PostRenderEvaluatedGraph)
 	{
-		UMovieGraphPostRenderNode* PostRenderNode = Pair.Value;
-		FName& BranchName = Pair.Key;
-		
-		PostRenderNode->BeginExport(this, BranchName);
-	}*/
+		// The generation of the evaluated graph would have emitted a warning if it failed; no need to generate another warning here 
+		return;
+	}
+
+	// Exports are run per primary job, so it only makes sense to look for nodes in the primary job's graph in the Globals branch. Shot graphs are not
+	// relevant at this point.
+	const TArray<IMovieGraphPostRenderNode*> PostRenderNodes =
+		PostRenderEvaluatedGraph->GetSettingsImplementing<IMovieGraphPostRenderNode>(UMovieGraphPostRenderNode::StaticClass(), UMovieGraphNode::GlobalsPinName);
+	
+	for (IMovieGraphPostRenderNode* PostRenderNode : PostRenderNodes)
+	{
+		PostRenderNode->BeginExport(this, PostRenderEvaluatedGraph);
+	}
 }
 
 void UMovieGraphPipeline::SetupShot(const TObjectPtr<UMoviePipelineExecutorShot>& InShot)
@@ -667,13 +664,56 @@ void UMovieGraphPipeline::TeardownShot(const TObjectPtr<UMoviePipelineExecutorSh
 	const FMovieGraphTimeStepData& TimeStepData = GetTimeStepInstance()->GetCalculatedTimeData();
 	const UMovieGraphEvaluatedConfig* EvaluatedConfig = TimeStepData.EvaluatedConfig;
 
+	ProcessOutstandingFinishedFrames();
+
+	// Run any post-render file generation that the nodes need to do
+	bool bIncludeCDOs = false;
+	bool bExactMatch = false;
+	const TArray<UMovieGraphFileOutputNode*> FileOutputNodes =
+		EvaluatedConfig->GetSettingsForBranch<UMovieGraphFileOutputNode>(UMovieGraphNode::GlobalsPinName, bIncludeCDOs, bExactMatch);
+	for (UMovieGraphFileOutputNode* FileOutputNode : FileOutputNodes)
+	{
+		FileOutputNode->OnAllShotFramesSubmitted(this, InShot);
+	}
+
+	// Ensure all of our Futures have been converted to the GeneratedOutputData
+	ProcessOutstandingFutures();
+
+	// Run any shot-based exports now that file output nodes have had a chance to run
+	const TArray<IMovieGraphPostRenderNode*> PostRenderNodes =
+		EvaluatedConfig->GetSettingsImplementing<IMovieGraphPostRenderNode>(UMovieGraphPostRenderNode::StaticClass(), UMovieGraphNode::GlobalsPinName);
+	for (IMovieGraphPostRenderNode* PostRenderNode : PostRenderNodes)
+	{
+		PostRenderNode->BeginShotExport(this);
+	}
+
+	// Wait for the export nodes to finish before going on to the next shot
+	bool bFinishedExporting = true;
+	do
+	{
+		bFinishedExporting = true;
+		
+		for (IMovieGraphPostRenderNode* PostRenderNode : PostRenderNodes)
+		{
+			bFinishedExporting &= PostRenderNode->HasFinishedExporting();
+		}
+
+		if (bFinishedExporting)
+		{
+			break;
+		}
+		
+		// Sleep for a while to give the export processes time to do some work
+		FPlatformProcess::Sleep(1.f);
+	} while (true);
+
 	// Revert the cvar values that were initially applied for the shot
 	CVarManager->RevertAllCVars();
 
 	// Revert cvars set by the global game overrides. Needs to be done after the CVarManager reverts (since the global
 	// game overrides are applied first in SetupShot).
-	constexpr bool bIncludeCDOs = true;
-	constexpr bool bExactMatch = true;
+	bIncludeCDOs = true;
+	bExactMatch = true;
 	if (UMovieGraphGlobalGameOverridesNode* GlobalGameOverridesNode = EvaluatedConfig->GetSettingForBranch<UMovieGraphGlobalGameOverridesNode>(UMovieGraphNode::GlobalsPinName, bIncludeCDOs, bExactMatch))
 	{
 		constexpr bool bOverrideValues = false;
@@ -788,46 +828,6 @@ void UMovieGraphPipeline::ExpandShot(const TObjectPtr<UMoviePipelineExecutorShot
 
 		InShot->ShotInfo.TotalOutputRangeRoot = UE::MovieScene::DilateRange(InShot->ShotInfo.TotalOutputRangeRoot, -LeftHandleTicks, RightHandleTicks);
 	}
-}
-
-template<typename T>
-TArray<TPair<FName, T*>> UMovieGraphPipeline::GetSettingForActiveRenderLayers(const bool bIncludeCDOs, const bool bExactMatch)
-{
-	TArray<TPair<FName, T*>> FoundSettings;
-	
-	UMoviePipelineRenderLayerSubsystem* LayerSubsystem = GetWorld()->GetSubsystem<UMoviePipelineRenderLayerSubsystem>();
-
-
-	// ToDo: This is only called by the Export step for the CommandLineEncoderNode right now, which only
-	// works per-render layer. However, by the time the export step actually starts, there isn't actually
-	// an active shot anymore, and it's not clear what graph we should be actually evaluating now. Perhaps 
-	// if we find a UMovieGraphPostRenderNode on a Render Layer, we should pause and run it at the end of 
-	// that shot? This would cause issues with post-renderer nodes that wanted to do something with the whole
-	// sequence (such as turn all shots into one movie file). Maybe in the post-export step we should only evaluate
-	// the Globals pin on the Primary Config, because we don't know which layers actually got rendered (due to shot
-	// overrides, etc.)
-	//
-	// For now, we're going to fall back on the incorrect legacy behavior (which was relying on stale data from the last
-	// shot), but this is going to have to be revisited.
-	UMovieGraphTimeStepBase* TimeStepInstance = GetTimeStepInstance();
-	if (!TimeStepInstance)
-	{
-		TimeStepInstance = GraphTimeStepInstances.Last();
-	}
-
-	const FMovieGraphTimeStepData& TimeStepData = TimeStepInstance->GetCalculatedTimeData();
-	const TObjectPtr<UMovieGraphEvaluatedConfig> EvaluatedConfig = TimeStepData.EvaluatedConfig;
-
-	for (const UMoviePipelineRenderLayer* RenderLayer : LayerSubsystem->GetRenderLayers())
-	{
-		FName LayerName = RenderLayer->GetRenderLayerName();
-		for (T* SettingNode : EvaluatedConfig->GetSettingsForBranch<T>(LayerName, bIncludeCDOs, bExactMatch))
-		{
-			FoundSettings.Add({LayerName, SettingNode});
-		}
-	}
-
-	return FoundSettings;
 }
 
 UMovieGraphTimeStepBase* UMovieGraphPipeline::GetTimeStepInstance() const
@@ -1025,7 +1025,7 @@ void UMovieGraphPipeline::TransitionToState(const EMovieRenderPipelineState InNe
 
 			// If we had naturally finished the last shot before doing this transition it will have
 			// already been torn down, so this only catches mid-shot transitions to ensure teardown.
-			if (CurrentShotIndex < ActiveShotList.Num())
+			if (bShutdownRequested && (CurrentShotIndex < ActiveShotList.Num()))
 			{
 				// Ensures all in-flight work for that shot is handled.
 				TeardownShot(ActiveShotList[CurrentShotIndex]);
@@ -1053,6 +1053,15 @@ void UMovieGraphPipeline::TransitionToState(const EMovieRenderPipelineState InNe
 			// Shut down our custom timestep which reqstores some world settings we modified.
 			GEngine->SetCustomTimeStep(PrevCustomEngineTimeStep);
 
+			// Generate a job-level (sequence) graph that post-render tasks can use. Shot graphs should not be used at this point.
+			constexpr bool bForShot = false;
+			FString FlattenError;
+			PostRenderEvaluatedGraph = GetCurrentJob()->GetGraphPreset()->CreateFlattenedGraph(GetCurrentTraversalContext(bForShot), FlattenError);
+			if (!PostRenderEvaluatedGraph)
+			{
+				UE_LOG(LogMovieRenderPipeline, Warning, TEXT("Generating a post-render evaluated graph failed for job '%s'. Post-render exports will not run. Evaluation error: %s"), *GetCurrentJob()->JobName, *FlattenError);
+			}
+
 			// This is called once notifying output containers that all frames that will be submitted have been submitted.
 			PipelineState = EMovieRenderPipelineState::Finalize;
 			BeginFinalize();
@@ -1065,8 +1074,6 @@ void UMovieGraphPipeline::TransitionToState(const EMovieRenderPipelineState InNe
 
 			// This is called once notifying our export step that they can begin the export.
 			PipelineState = EMovieRenderPipelineState::Export;
-
-
 
 			// Restore the sequence so that the export processes can operate on the original sequence. 
 			// This is also done in the finished state because it's not guaranteed that the Export state 
@@ -1106,6 +1113,9 @@ void UMovieGraphPipeline::TransitionToState(const EMovieRenderPipelineState InNe
 				PreviewWidget->RemoveFromParent();
 				PreviewWidget = nullptr;
 			}
+
+			// Job-level evaluated graph should not be referenced after export has finished
+			PostRenderEvaluatedGraph = nullptr;
 
 			//TArray<UMoviePipelineOutputBase*> ContainerSettings = GetPipelinePrimaryConfig()->GetOutputContainers();
 			//Algo::SortBy(ContainerSettings, [](const UMoviePipelineOutputBase* Setting) { return Setting->GetPriority(); });
@@ -1366,14 +1376,14 @@ UMovieGraphConfig* UMovieGraphPipeline::GetRootGraphForShot(UMoviePipelineExecut
 	return nullptr;
 }
 
-FMovieGraphTraversalContext UMovieGraphPipeline::GetCurrentTraversalContext() const
+FMovieGraphTraversalContext UMovieGraphPipeline::GetCurrentTraversalContext(const bool bForShot) const
 {
 	FMovieGraphTraversalContext CurrentContext;
-	CurrentContext.ShotIndex = GetCurrentShotIndex();
+	CurrentContext.ShotIndex = bForShot ? GetCurrentShotIndex() : -1;
 	CurrentContext.ShotCount = GetActiveShotList().Num();
 	CurrentContext.Job = GetCurrentJob();
-	CurrentContext.RootGraph = GetRootGraphForShot(GetActiveShotList()[GetCurrentShotIndex()]);
-	CurrentContext.Time = GetTimeStepInstance()->GetCalculatedTimeData();
+	CurrentContext.RootGraph = bForShot ? GetRootGraphForShot(GetActiveShotList()[GetCurrentShotIndex()]) : CurrentContext.Job->GetGraphPreset();
+	CurrentContext.Time = bForShot ? GetTimeStepInstance()->GetCalculatedTimeData() : FMovieGraphTimeStepData();
 
 	return CurrentContext;
 }
