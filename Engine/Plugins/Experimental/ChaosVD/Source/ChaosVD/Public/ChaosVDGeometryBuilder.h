@@ -505,6 +505,12 @@ ComponentType* FChaosVDGeometryBuilder::GetAvailableInstancedStaticMeshComponent
 			return nullptr;
 		}
 
+		// If this is a Instanced Static Mesh Component, make sure we set the reverse culling flag correctly
+		if (UChaosVDInstancedStaticMeshComponent* AsInstancedMeshComponent = Component)
+		{
+			AsInstancedMeshComponent->bReverseCulling = EnumHasAnyFlags(MeshComponentAttributeFlags, EChaosVDMeshAttributesFlags::MirroredGeometry);
+		}
+
 		bOutIsNewComponent = true;
 
 		InstancedMeshComponentMapToSearch.Add(InExtractedGeometryDataHandle->GetGeometryKey(), Component);
