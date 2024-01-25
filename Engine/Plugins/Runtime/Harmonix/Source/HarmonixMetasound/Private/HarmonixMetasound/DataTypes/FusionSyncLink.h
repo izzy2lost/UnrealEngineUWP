@@ -54,11 +54,23 @@ namespace HarmonixMetasound
 		{
 			if (!Task.IsCompleted())
 			{
-				UE_LOG(LogFusionAsync, Warning, TEXT("Fusion Async Render: Task created, but was never chedked for completion. This porbably means you are missing a Fusion Synchronizer Node!"));
+				UE_LOG(LogFusionAsync, Warning, TEXT("Fusion Async Render: Task created, but was never checked for completion. This probably means you are missing a Fusion Synchronizer Node!"));
 				Task.Wait();
 			}
 			Task = {};
 		}
+
+		/** This function is called by the FusionSamplerNode "Reset" 
+         * We need to block on reset and make sure the task completes and clear it out
+         */
+        void Reset()
+        {
+			if (!Task.IsCompleted())
+			{
+				Task.Wait();
+			}
+			Task = {};
+        }
 
 	private:
 		UE::Tasks::FTask Task;
