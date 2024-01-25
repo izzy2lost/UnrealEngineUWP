@@ -231,8 +231,9 @@ namespace UE::Interchange::Private
 			}
 			Info.LocalTransform = TimeZeroLocalTransform;
 		}
-		else if (!GIsAutomationTesting && !bHasBindPoseTransform && !bUseTimeZeroAsBindPose)
+		else if (!GIsAutomationTesting && !bHasBindPoseTransform && !bUseTimeZeroAsBindPose && JointNode->IsSpecializedTypeContains(FSceneNodeStaticData::GetJointSpecializeTypeString()))
 		{
+			//StaticMeshes converted to Skeletals are not expected to have BindPoses
 			OutBoneNotBindNames.Add(Info.Name);
 		}
 
