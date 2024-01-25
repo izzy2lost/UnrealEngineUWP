@@ -176,7 +176,8 @@ void FRayTracingGeometryManager::Tick(FRHICommandList& RHICmdList)
 		}
 
 		{
-			FScopeLock ScopeLock(&CachedRayTracingStateProxiesCS);
+			checkf(IsInRenderingThread(), TEXT("Can only access CachedRayTracingStateProxiesMap on render thread otherwise need a critical section"));
+
 			for (TPair<const UStaticMesh*, TSet<FPrimitiveSceneProxy*>>& ProxiesSet : CachedRayTracingStateProxiesMap)
 			{
 				for (FPrimitiveSceneProxy* Proxy : ProxiesSet.Value)
@@ -328,7 +329,7 @@ void FRayTracingGeometryManager::SetupBuildParams(const FBuildRequest& InBuildRe
 
 void FRayTracingGeometryManager::RegisterProxyWithCachedRayTracingState(FPrimitiveSceneProxy* Proxy, const UStaticMesh* StaticMesh)
 {
-	FScopeLock ScopeLock(&CachedRayTracingStateProxiesCS);
+	checkf(IsInRenderingThread(), TEXT("Can only access CachedRayTracingStateProxiesMap on render thread otherwise need a critical section"));
 
 	TSet<FPrimitiveSceneProxy*>& ProxiesSet = CachedRayTracingStateProxiesMap.FindOrAdd(StaticMesh);
 	check(!ProxiesSet.Contains(Proxy));
@@ -338,7 +339,7 @@ void FRayTracingGeometryManager::RegisterProxyWithCachedRayTracingState(FPrimiti
 
 void FRayTracingGeometryManager::UnregisterProxyWithCachedRayTracingState(FPrimitiveSceneProxy* Proxy, const UStaticMesh* StaticMesh)
 {
-	FScopeLock ScopeLock(&CachedRayTracingStateProxiesCS);
+	checkf(IsInRenderingThread(), TEXT("Can only access CachedRayTracingStateProxiesMap on render thread otherwise need a critical section"));
 
 	check(CachedRayTracingStateProxiesMap.Contains(StaticMesh));
 
@@ -354,9 +355,7 @@ void FRayTracingGeometryManager::UnregisterProxyWithCachedRayTracingState(FPrimi
 
 void FRayTracingGeometryManager::RequestUpdateCachedRenderState(const UStaticMesh* StaticMesh)
 {
-	check(IsInRenderingThread());
-
-	FScopeLock ScopeLock(&CachedRayTracingStateProxiesCS);
+	checkf(IsInRenderingThread(), TEXT("Can only access CachedRayTracingStateProxiesMap on render thread otherwise need a critical section"));
 
 	const TSet<FPrimitiveSceneProxy*>* ProxiesSet = CachedRayTracingStateProxiesMap.Find(StaticMesh);
 
