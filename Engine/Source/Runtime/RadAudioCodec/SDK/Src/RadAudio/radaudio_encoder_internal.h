@@ -124,7 +124,8 @@ typedef struct
 RADDEFFUNC size_t radaudio_encode_create_internal(radaudio_encoder *es,
                             unsigned char header[64], int num_channels,
                             int sample_rate, int quality,
-                            float pulse_quality_override);  // 0..100, replaces normal pulse quality values
+                            float pulse_quality_override, // 0..100, replaces normal pulse quality values
+                            U32 flags);
 
 typedef struct
 {
