@@ -77,6 +77,9 @@ public:
 
 	/** (Optional) The virtual property to use for all the cases. */
 	TObjectPtr<URCVirtualPropertySelfContainer> VirtualProperty;
+
+	/** Map with the Guid of the RCField and as its value the real PropContainer of the real property */
+	TMap<FGuid, TObjectPtr<URCVirtualPropertySelfContainer>> RealProperties;
 };
 
 /**

@@ -17,7 +17,12 @@ EPropertyBagPropertyType FEnumPropertyIdHandler::GetPropertyType(const FProperty
 	return EPropertyBagPropertyType::Enum;
 }
 
-FName FEnumPropertyIdHandler::GetPropertyTypeName(const FProperty* InProperty) const
+FName FEnumPropertyIdHandler::GetPropertySuperTypeName(const FProperty* InProperty) const
+{
+	return NAME_EnumProperty;
+}
+
+FName FEnumPropertyIdHandler::GetPropertySubTypeName(const FProperty* InProperty) const
 {
 	if (InProperty)
 	{
@@ -27,7 +32,7 @@ FName FEnumPropertyIdHandler::GetPropertyTypeName(const FProperty* InProperty) c
 			return EnumProperty->GetEnum()->GetFName();
 		}
 	}
-	return FName(TEXT(""));
+	return NAME_None;
 }
 
 UObject* FEnumPropertyIdHandler::GetPropertyTypeObject(const FProperty* InProperty) const
@@ -40,10 +45,5 @@ UObject* FEnumPropertyIdHandler::GetPropertyTypeObject(const FProperty* InProper
 			return EnumProperty->GetEnum();
 		}
 	}
-	return nullptr;
-}
-
-TObjectPtr<UObject> FEnumPropertyIdHandler::GetObjectPropertyDefaultValue(const FProperty* InProperty, const UClass* InClassToCreate) const
-{
 	return nullptr;
 }

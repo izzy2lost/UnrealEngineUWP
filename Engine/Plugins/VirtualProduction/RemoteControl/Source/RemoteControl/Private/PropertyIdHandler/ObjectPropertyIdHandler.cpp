@@ -22,40 +22,28 @@ EPropertyBagPropertyType FObjectPropertyIdHandler::GetPropertyType(const FProper
 	return EPropertyBagPropertyType::Object;
 }
 
-FName FObjectPropertyIdHandler::GetPropertyTypeName(const FProperty* InProperty) const
+FName FObjectPropertyIdHandler::GetPropertySuperTypeName(const FProperty* InProperty) const
+{
+	return NAME_ObjectProperty;
+}
+
+FName FObjectPropertyIdHandler::GetPropertySubTypeName(const FProperty* InProperty) const
 {
 	if (InProperty)
 	{
 		const FProperty* Property = GetPropertyInsideContainer(InProperty);
 		if (const FObjectProperty* ObjectProperty = CastField<FObjectProperty>(Property))
 		{
-			return ObjectProperty->PropertyClass->GetFName();
+			if (ObjectProperty->PropertyClass)
+			{
+				return ObjectProperty->PropertyClass->GetFName();
+			}
 		}
 	}
-	return FName(TEXT(""));
+	return NAME_None;
 }
 
 UObject* FObjectPropertyIdHandler::GetPropertyTypeObject(const FProperty* InProperty) const
 {
-	return nullptr;
-}
-
-TObjectPtr<UObject> FObjectPropertyIdHandler::GetObjectPropertyDefaultValue(const FProperty* InProperty, const UClass* InClassToCreate) const
-{
-	if (InClassToCreate)
-	{
-		if (InClassToCreate->IsChildOf(UMaterialInterface::StaticClass()))
-    	{
-    		return UMaterial::GetDefaultMaterial(MD_Surface);
-    	}
-
-		if (InClassToCreate->HasAnyClassFlags(CLASS_Abstract))
-		{
-			// for now skip any AbstractClass
-			return nullptr;
-		}
-
-		return NewObject<UObject>(GetTransientPackage(), InClassToCreate);
-	}
 	return nullptr;
 }

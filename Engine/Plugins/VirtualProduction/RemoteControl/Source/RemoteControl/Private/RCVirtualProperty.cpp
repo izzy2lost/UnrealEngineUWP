@@ -210,6 +210,17 @@ bool URCVirtualPropertyBase::IsColorType() const
 	return false;
 }
 
+bool URCVirtualPropertyBase::IsLinearColorType() const
+{
+	const FProperty* Property = GetProperty();
+	if (const FStructProperty* StructProperty = CastField<FStructProperty>(Property))
+	{
+		return StructProperty->Struct == TBaseStructure<FLinearColor>::Get();
+	}
+
+	return false;
+}
+
 bool URCVirtualPropertyBase::IsRotatorType() const
 {
 	const FProperty* Property = GetProperty();
@@ -549,6 +560,11 @@ bool URCVirtualPropertyBase::GetValueColor(FColor& OutColor) const
 	return FRCVirtualPropertyCastHelpers::GetStructValue<FColor>(this, TBaseStructure<FColor>::Get(), &OutColor);
 }
 
+bool URCVirtualPropertyBase::GetValueLinearColor(FLinearColor& OutLinearColor) const
+{
+	return FRCVirtualPropertyCastHelpers::GetStructValue<FLinearColor>(this, TBaseStructure<FLinearColor>::Get(), &OutLinearColor);
+}
+
 UObject* URCVirtualPropertyBase::GetValueObject() const
 {
 	return FRCVirtualPropertyCastHelpers::GetObjectValue(this);
@@ -765,6 +781,11 @@ bool URCVirtualPropertyBase::SetValueRotator(const FRotator& InRotator)
 bool URCVirtualPropertyBase::SetValueColor(const FColor& InColor)
 {
 	return FRCVirtualPropertyCastHelpers::SetStructValue<FColor>(this, TBaseStructure<FColor>::Get(), InColor);
+}
+
+bool URCVirtualPropertyBase::SetValueLinearColor(const FLinearColor& InLinearColor)
+{
+	return FRCVirtualPropertyCastHelpers::SetStructValue<FLinearColor>(this, TBaseStructure<FLinearColor>::Get(), InLinearColor);
 }
 
 FName URCVirtualPropertyBase::GetPropertyName() const

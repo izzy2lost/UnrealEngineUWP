@@ -400,8 +400,12 @@ TSharedRef<SWidget> FRCPropertyIdActionType::GetPropertyIdValueWidget() const
 	SortedTreeNodesKeys.Sort();
 
 	FName LastPropId = NAME_None;
+	constexpr float Offset = 5.f;
+
 	FMargin TitlePadding = FMargin(0.f);
 	FMargin ValuePadding = FMargin(0.f);
+	ValuePadding.Right = Offset;
+
 	int32 OriginalPropIdLength = 0;
 	int32 OriginalDotCount = 0;
 
@@ -418,8 +422,6 @@ TSharedRef<SWidget> FRCPropertyIdActionType::GetPropertyIdValueWidget() const
 
 		if (LastPropId != TreeNodeKey.PropertyId)
 		{
-			constexpr float Offset = 5.f;
-
 			if (LastPropId != NAME_None)
 			{
 				TitlePadding.Top = Offset;
@@ -446,17 +448,20 @@ TSharedRef<SWidget> FRCPropertyIdActionType::GetPropertyIdValueWidget() const
 
 		if (const TWeakPtr<IDetailTreeNode>* Node = ValueTreeNodeWeakPtr.Find(TreeNodeKey))
 		{
-			VerticalBox->AddSlot()
-				.Padding(ValuePadding)
-				.AutoHeight()
-				[
-					SNew(SHorizontalBox)
-					+ SHorizontalBox::Slot()
-					.AutoWidth()
+			if (Node->IsValid())
+			{
+				VerticalBox->AddSlot()
+					.Padding(ValuePadding)
+					.AutoHeight()
 					[
-						UE::RCUIHelpers::GetGenericFieldWidget(Node->Pin())
-					]
-				];
+						SNew(SHorizontalBox)
+						+ SHorizontalBox::Slot()
+						.FillWidth(0.7f)
+						[
+							UE::RCUIHelpers::GetGenericFieldWidget(Node->Pin())
+						]
+					];
+			}
 		}
 	}
 

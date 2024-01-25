@@ -103,12 +103,12 @@ TSharedPtr<SHeaderRow> FRCActionConditionalModel::GetHeaderRow()
 
 		+ SHeaderRow::Column(UE::RCActionPanelConditionalList::Columns::Description)
 		.DefaultLabel(LOCTEXT("RCActionDescColumnHeader", "PropertyID"))
-		.FillWidth(0.4f)
+		.FillWidth(0.2f)
 		.HeaderContentPadding(RCPanelStyle->HeaderRowPadding)
 
 		+ SHeaderRow::Column(UE::RCActionPanelConditionalList::Columns::Value)
 		.DefaultLabel(LOCTEXT("RCActionValueColumnHeader", "Value"))
-		.FillWidth(0.4f)
+		.FillWidth(0.6f)
 		.HeaderContentPadding(RCPanelStyle->HeaderRowPadding);
 }
 

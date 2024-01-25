@@ -22,14 +22,20 @@ public:
 	/** Get the PropertyBag type of the given property */
 	virtual EPropertyBagPropertyType GetPropertyType(const FProperty* InProperty) const = 0;
 
-	/** Get the Property type FName */
-	virtual FName GetPropertyTypeName(const FProperty* InProperty) const = 0;
+	/**
+	 * Get the Property super type FName\n
+	 * ex: Object/Struct/Enum or the primitive type if it is a primitive property (float/bool/etc...)
+	 */
+	virtual FName GetPropertySuperTypeName(const FProperty* InProperty) const = 0;
+
+	/**
+	 * Get the Property sub type FName\n
+	 * ex: StaticMesh/Material or the primitive type if it is a primitive property (float/bool/etc...)
+	 */
+	virtual FName GetPropertySubTypeName(const FProperty* InProperty) const = 0;
 
 	/** Get the Property type Object */
 	virtual UObject* GetPropertyTypeObject(const FProperty* InProperty) const = 0;
-
-	/** Get the Property default value (Used for UObject to create a new one for the ValueWidget) */
-	virtual TObjectPtr<UObject> GetObjectPropertyDefaultValue(const FProperty* InProperty, const UClass* InClassToCreate) const = 0;
 
 	/** Get the property inside the container if not inside any container return the property passed */
 	const FProperty* GetPropertyInsideContainer(const FProperty* InProperty) const

@@ -56,11 +56,6 @@ struct FRCPropertyIdWrapper
 	 */
 	const FName& GetSubType() const;
 
-	/** Get the object class to create of this wrapped entity.
-	 * @return The Object UClass to create for this property (used for ObjectProperty).
-	 */
-	const UClass* GetClassToCreate() const;
-
 	/** Returns whether the type and the underlying data is valid.
 	 * @return True if EntityId and either SuperType or SubType is valid, false otherwise.
 	 */
@@ -98,10 +93,6 @@ private:
 	UPROPERTY()
 	FName SubType;
 
-	/** Holds the type to be created. */
-	UPROPERTY()
-	UClass* ClassToCreate = nullptr;
-
 	friend class URemoteControlPropertyIdRegistry;
 };
 
@@ -129,6 +120,10 @@ public:
 	void Initialize();
 
 	URemoteControlPreset* GetSourcePreset() const;
+
+#if WITH_EDITOR
+	virtual void PostEditChangeProperty(FPropertyChangedEvent& InPropertyChangedEvent) override;
+#endif
 
 	/**
 	 * Update the value(s) of the property(ies) that are bound to a PropertyIdAction.
@@ -160,13 +155,6 @@ public:
 	 */
 	void RemoveIdentifiedField(const FGuid& InEntityId);
 
-	/**
-	 * Get the Object UClass to create for the property with the given Id.
-	 * @param InEntityId Id of the Property to get the class from.
-	 * @return The UClass to create for this property.
-	 */
-	const UClass* GetClassByEntityId(const FGuid& InEntityId) const;
-	
 	/**
 	 * Get the list of existing Property Ids.
 	 * @return The list of existing Property Ids that has a valid FieldId.
@@ -228,19 +216,6 @@ public:
 	void UpdateEntityIds(const TMap<FGuid, FGuid>& InEntityIdMap);
 
 private:
-	/** Call the recursive function TryCopyNonUClassOwnerProperty for the last try on copying the value to the property
-	 *	@param InArgs Argument used to expose a property.
-	 *	@param TargetRCProperty The RC property that should change.
-	 *	@param InProperty The real property to assign the new value.
-	 *	@param BoundObject The Object that has the property that need to change.
-	 *	@return True if it was able to copy the value into the property, false otherwise.
-	 */
-	bool CopyNonUClassOwnerProperty(const FRemoteControlPropertyIdArgs& InArgs, TSharedPtr<FRemoteControlProperty> TargetRCProperty, FProperty* InProperty, UObject* BoundObject);
-
-	/** Try to copy the Virtual Property value into the real property, last try for property inside container and non UClass Owner */
-	bool TryCopyNonUClassOwnerProperty(const TObjectPtr<URCVirtualPropertySelfContainer>& InVirtualPropertySelfContainer, const TSharedPtr<FRemoteControlProperty>& TargetRCProperty, FProperty* InProperty, UObject* BoundObject, FRCFieldPathInfo Segment, int32 IndexSegment, uint8* PropertyContainer,bool bCheckByteEnumComparison);
-
-private:
 	/** Holds the identified fields. */
 	UPROPERTY(Transient)
 	TSet<FRCPropertyIdWrapper> IdentifiedFields;
@@ -252,8 +227,4 @@ private:
 	/** Delegate triggered when PropertyID UI needs to refresh. */
 	FOnPropertyIdActionNeedsRefresh OnPropertyIdActionNeedsRefreshDelegate;
 #endif // WITH_EDITOR
-
-#if !WITH_EDITOR
-	uint8* StructMemoryContainer;
-#endif // !WITH_EDITOR
 };

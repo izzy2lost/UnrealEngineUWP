@@ -17,21 +17,30 @@ EPropertyBagPropertyType FStructPropertyIdHandler::GetPropertyType(const FProper
 	return EPropertyBagPropertyType::Struct;
 }
 
-FName FStructPropertyIdHandler::GetPropertyTypeName(const FProperty* InProperty) const
+FName FStructPropertyIdHandler::GetPropertySuperTypeName(const FProperty* InProperty) const
+{
+	return NAME_StructProperty;
+}
+
+FName FStructPropertyIdHandler::GetPropertySubTypeName(const FProperty* InProperty) const
 {
 	if (InProperty)
 	{
 		const FProperty* Property = GetPropertyInsideContainer(InProperty);
 		if (const FStructProperty* StructProperty = CastField<FStructProperty>(Property))
 		{
-			if (StructProperty->Struct->GetFName() == NAME_LinearColor)
+			if (StructProperty->Struct)
 			{
-				return NAME_Color;
+				const FName& StructName = StructProperty->Struct->GetFName();
+				if (StructName == NAME_Color)
+				{
+					return NAME_LinearColor;
+				}
+				return StructName;
 			}
-			return StructProperty->Struct->GetFName();
 		}
 	}
-	return FName(TEXT(""));
+	return NAME_None;
 }
 
 UObject* FStructPropertyIdHandler::GetPropertyTypeObject(const FProperty* InProperty) const
@@ -41,17 +50,12 @@ UObject* FStructPropertyIdHandler::GetPropertyTypeObject(const FProperty* InProp
 		const FProperty* Property = GetPropertyInsideContainer(InProperty);
 		if (const FStructProperty* StructProperty = CastField<FStructProperty>(Property))
 		{
-			if (StructProperty->Struct->GetFName() == NAME_LinearColor)
+			if (StructProperty->Struct->GetFName() == NAME_Color)
 			{
-				return TBaseStructure<FColor>::Get();
+				return TBaseStructure<FLinearColor>::Get();
 			}
 			return StructProperty->Struct;
 		}
 	}
-	return nullptr;
-}
-
-TObjectPtr<UObject> FStructPropertyIdHandler::GetObjectPropertyDefaultValue(const FProperty* InProperty, const UClass* InClassToCreate) const
-{
 	return nullptr;
 }

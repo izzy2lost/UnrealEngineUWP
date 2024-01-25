@@ -38,59 +38,24 @@ void URCPropertyIdAction::Execute() const
 			FRemoteControlPropertyIdArgs PropertyIdArgs;
 			PropertyIdArgs.VirtualProperty = PropertyContainer.Value;
 			PropertyIdArgs.PropertyId = PropertyContainer.Key.PropertyId;
-			PropertyIdArgs.SuperType = Property->GetClass()->GetFName();
+			PropertyIdArgs.RealProperties = RealPropertySelfContainer;
 
 			TSharedPtr<IPropertyIdHandler> PropertyIdHandler = IRemoteControlModule::Get().GetPropertyIdHandlerFor(Property);
 			if (!PropertyIdHandler.IsValid())
 			{
 				continue;
 			}
+
+			PropertyIdArgs.SuperType = PropertyIdHandler->GetPropertySuperTypeName(Property);
 			const EPropertyBagPropertyType PropertyBagType = PropertyIdHandler->GetPropertyType(Property);
 
-			if (PropertyBagType == EPropertyBagPropertyType::Enum)
+			if (PropertyBagType == EPropertyBagPropertyType::Enum ||
+				PropertyBagType == EPropertyBagPropertyType::Object ||
+				PropertyBagType == EPropertyBagPropertyType::Struct)
 			{
-				PropertyIdArgs.SuperType = NAME_EnumProperty;
-				PropertyIdArgs.SubType = PropertyIdHandler->GetPropertyTypeName(Property);
+				PropertyIdArgs.SubType = PropertyIdHandler->GetPropertySubTypeName(Property);
 			}
-			else if (PropertyBagType == EPropertyBagPropertyType::Object)
-			{
-				if (const TSharedPtr<FStructOnScope> StructOnScope = PropertyContainer.Value->CreateStructOnScope())
-				{
-					if (const FObjectProperty* ObjectProperty = CastField<FObjectProperty>(PropertyContainer.Value->GetProperty()))
-					{
-						if (const uint8* PropertyValuePtr = ObjectProperty->ContainerPtrToValuePtr<uint8>(StructOnScope->GetStructMemory()))
-						{
-							PropertyIdArgs.SourceObject = ObjectProperty->GetObjectPropertyValue(PropertyValuePtr);
-							if (PropertyIdArgs.SourceObject)
-							{
-								if (PropertyIdArgs.SourceObject->IsA(UMaterialInterface::StaticClass()))
-								{
-									PropertyIdArgs.SourceClass = UMaterialInterface::StaticClass();
-								}
-								else
-								{
-									PropertyIdArgs.SourceClass = PropertyIdArgs.SourceObject->GetClass();
-								}
-								PropertyIdArgs.SubType = PropertyIdArgs.SourceClass->GetFName();
-							}
-						}
-					}
-				}
-			}
-			else if (PropertyBagType == EPropertyBagPropertyType::Struct)
-			{
-				if (const FStructProperty* StructProperty = CastField<FStructProperty>(Property))
-				{
-					if (StructProperty->Struct->GetFName() == NAME_LinearColor)
-					{
-						PropertyIdArgs.SubType = NAME_Color;
-					}
-					else
-					{
-						PropertyIdArgs.SubType = StructProperty->Struct->GetFName();
-					}
-				}
-			}
+
 			PresetWeakPtr->PerformChainReaction(PropertyIdArgs);
 		}
 	}
@@ -142,6 +107,8 @@ void URCPropertyIdAction::UpdatePropertyId()
 	if (URemoteControlPreset* Preset = PresetWeakPtr.Get())
 	{
 		PropertySelfContainer.Empty();
+		// todo: This can be improved to not Empty it everytime
+		RealPropertySelfContainer.Empty();
 		const TObjectPtr<URemoteControlPropertyIdRegistry> PropertyIdRegistry = Preset->GetPropertyIdRegistry();
 
 		for (const FGuid& TargetProperty : PropertyIdRegistry->GetEntityIdsList())
@@ -159,11 +126,37 @@ void URCPropertyIdAction::UpdatePropertyId()
 						}
 
 						FString PrefixPropertyClassName = TargetRCProperty->PropertyId.ToString() + TEXT(".");
-						FName PropertyClassName = FName(PrefixPropertyClassName + PropertyIdHandler->GetPropertyTypeName(Property).ToString());
+						FName PropertyClassName = FName(PrefixPropertyClassName + PropertyIdHandler->GetPropertySubTypeName(Property).ToString());
 						const FName& NewPropertyIdName = *(TargetRCProperty->PropertyId.ToString() + TEXT(".") + PropertyClassName.ToString());
-						const FProperty* PropToDuplicate = PropertyIdHandler->GetPropertyInsideContainer(Property);
-						FPropertyIdContainerKey CurrentKey = { TargetRCProperty->PropertyId, PropertyClassName };
 
+						FPropertyIdContainerKey CurrentKey = FPropertyIdContainerKey(TargetRCProperty->PropertyId, PropertyClassName);
+
+						TArray<UObject*> BoundObjects = TargetRCProperty->GetBoundObjects();
+						if (BoundObjects.IsEmpty() || !BoundObjects[0])
+						{
+							continue;
+						}
+
+						FRCObjectReference ObjectRefReading;
+						const bool bResolveForReading = IRemoteControlModule::Get().ResolveObjectProperty(ERCAccess::READ_ACCESS, BoundObjects[0], TargetRCProperty->FieldPathInfo.ToString(), ObjectRefReading);
+						const FProperty* PropToDuplicate = PropertyIdHandler->GetPropertyInsideContainer(Property);
+
+						if (!bResolveForReading)
+						{
+							continue;
+						}
+
+						const FName& PropertyName = TargetRCProperty->GetProperty()->GetFName();
+						RealPropertySelfContainer.Add(TargetRCProperty->GetId(), NewObject<URCVirtualPropertySelfContainer>(this));
+
+						const uint8* RealPropAddress = (uint8*)ObjectRefReading.ContainerAdress;
+						if (PropToDuplicate != Property)
+						{
+							RealPropAddress = PropToDuplicate->ContainerPtrToValuePtr<uint8>(ObjectRefReading.ContainerAdress);
+						}
+
+						RealPropertySelfContainer[TargetRCProperty->GetId()]->DuplicatePropertyWithCopy(PropertyName, PropToDuplicate, RealPropAddress);
+						
 						if (CachedPropertySelfContainer.Contains(CurrentKey))
 						{
 							PropertySelfContainer.Add(CurrentKey, CachedPropertySelfContainer[CurrentKey]);
@@ -172,20 +165,28 @@ void URCPropertyIdAction::UpdatePropertyId()
 						{
 							CachedPropertySelfContainer.Add(CurrentKey, NewObject<URCVirtualPropertySelfContainer>(this));
 
-							// Special case for LinearColor, since we want to base the copy on Color struct here we add the property instead of duplicating it
-							bool bColorAdded = false;
+							bool bIsSpecialCase = false;
 
-							if (const FStructProperty* StructProp = CastField<FStructProperty>(PropToDuplicate))
+							// float property and double ones are treated as one the same goes for FLinearColor and FColor
+							if (PropToDuplicate->IsA<FFloatProperty>())
+							{
+								CachedPropertySelfContainer[CurrentKey]->AddProperty(NewPropertyIdName,
+								PropertyIdHandler->GetPropertyType(Property),
+								PropertyIdHandler->GetPropertyTypeObject(Property));
+
+								bIsSpecialCase = true;
+							}
+							else if (const FStructProperty* StructProp = CastField<FStructProperty>(PropToDuplicate))
 							{
 								if (StructProp->Struct)
 								{
-									if (StructProp->Struct->GetFName() == NAME_LinearColor ||
-										StructProp->Struct->GetFName() == NAME_Color)
+									const FName& StructName = StructProp->Struct->GetFName();
+									if (StructName == NAME_LinearColor ||
+										StructName == NAME_Color)
 									{
 										CachedPropertySelfContainer[CurrentKey]->AddProperty(NewPropertyIdName,
 										PropertyIdHandler->GetPropertyType(Property),
 										PropertyIdHandler->GetPropertyTypeObject(Property));
-
 #if WITH_EDITORONLY_DATA
 										FProperty* BagProperty = CachedPropertySelfContainer[CurrentKey]->GetProperty();
 										FStructProperty* StructProperty = CastField<FStructProperty>(BagProperty);
@@ -195,16 +196,23 @@ void URCPropertyIdAction::UpdatePropertyId()
 											StructProperty->AppendMetaData({{FName("OnlyUpdateOnInteractionEnd"), TEXT("true")}});
 										}
 #endif
-										bColorAdded = true;
+										bIsSpecialCase = true;
 									}
 								}
 							}
 
-							if (!bColorAdded)
+							if (!bIsSpecialCase)
 							{
 								CachedPropertySelfContainer[CurrentKey]->DuplicateProperty(NewPropertyIdName, PropToDuplicate);
 							}
 
+							// Do this the first time it is created so that it will have a better default value except for Object
+							// Some ObjectProperty won't work correctly with this copy for example the Material one, so we skip it
+							const bool bIsObject = PropToDuplicate->IsA<FObjectProperty>();
+							if (!bIsObject)
+							{
+								CachedPropertySelfContainer[CurrentKey]->UpdateValueWithProperty(PropToDuplicate, RealPropAddress);
+							}
 							CachedPropertySelfContainer[CurrentKey]->PresetWeakPtr = PresetWeakPtr;
 							PropertySelfContainer.Add(CurrentKey, CachedPropertySelfContainer[CurrentKey]);
 						}
