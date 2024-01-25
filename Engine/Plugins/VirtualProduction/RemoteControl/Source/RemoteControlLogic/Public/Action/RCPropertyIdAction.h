@@ -2,8 +2,8 @@
 
 #pragma once
 
-#include "CoreMinimal.h"
 #include "Action/RCAction.h"
+#include "RemoteControlFieldPath.h"
 #include "RCPropertyIdAction.generated.h"
 
 class URCVirtualPropertySelfContainer;
@@ -15,6 +15,13 @@ USTRUCT()
 struct FPropertyIdContainerKey
 {
 	GENERATED_BODY()
+
+	FPropertyIdContainerKey() {}
+
+	FPropertyIdContainerKey(FName InPropertyId, FName InContainerName)
+		: PropertyId(InPropertyId)
+		, ContainerName(InContainerName)
+	{}
 
 	/** PropertyId */
 	UPROPERTY()
@@ -82,4 +89,8 @@ public:
 	/** Cached Virtual Property Container */
 	UPROPERTY()
 	TMap<FPropertyIdContainerKey, TObjectPtr<URCVirtualPropertySelfContainer>> CachedPropertySelfContainer;
+
+	/** Contains the real property container */
+	UPROPERTY()
+	TMap<FGuid, TObjectPtr<URCVirtualPropertySelfContainer>> RealPropertySelfContainer;
 };

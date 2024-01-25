@@ -98,31 +98,34 @@ public:
 	/** Whether this Virtual Property is a numeric type, i.e. an Integral or Floating point type */
 	bool IsNumericType() const;
 
-	/** Whether this Virtual Property represents an FVector*/
+	/** Whether this Virtual Property represents an FVector */
 	bool IsVectorType() const;
 
-	/** Whether this Virtual Property represents an FVector2D*/
+	/** Whether this Virtual Property represents an FVector2D */
 	bool IsVector2DType() const;
 
-	/** Whether this Virtual Property represents an FColor*/
+	/** Whether this Virtual Property represents an FColor */
 	bool IsColorType() const;
 
-	/** Whether this Virtual Property represents an FRotator*/
+	/** Whether this Virtual Property represents an FColor */
+	bool IsLinearColorType() const;
+
+	/** Whether this Virtual Property represents an FRotator */
 	bool IsRotatorType() const;
 
 	/** Compare this virtual property value with given property value */
 	bool IsValueEqual(URCVirtualPropertyBase* InVirtualProperty) const;
 
-	/** Operator > comparison of self with a given virtual property*/
+	/** Operator > comparison of self with a given virtual property */
 	bool IsValueGreaterThan(URCVirtualPropertyBase* InVirtualProperty) const;
 
-	/** Operator >= comparison of self with a given virtual property*/
+	/** Operator >= comparison of self with a given virtual property */
 	bool IsValueGreaterThanOrEqualTo(URCVirtualPropertyBase* InVirtualProperty) const;
 
-	/** Operator < comparison of self with a given virtual property*/
+	/** Operator < comparison of self with a given virtual property */
 	bool IsValueLesserThan(URCVirtualPropertyBase* InVirtualProperty) const;
 
-	/** Operator <= comparison of self with a given virtual property*/
+	/** Operator <= comparison of self with a given virtual property */
 	bool IsValueLesserThanOrEqualTo(URCVirtualPropertyBase* InVirtualProperty) const;
 
 	/** Copy this virtual property's data onto a given FProperty
@@ -228,6 +231,10 @@ public:
 	UFUNCTION(BlueprintCallable, Category = "Remote Control Behaviour")
 	bool GetValueColor(FColor& OutColor) const;
 
+	/** Get LinearColor value from Virtual Property */
+	UFUNCTION(BlueprintCallable, Category = "Remote Control Behaviour")
+	bool GetValueLinearColor(FLinearColor& OutLinearColor) const;
+
 	/** Get Object value from Virtual Property */
 	UFUNCTION(BlueprintCallable, Category = "Remote Control Behaviour")
 	UObject* GetValueObject() const;
@@ -313,15 +320,19 @@ public:
 	/** Set Color value from Virtual Property */
 	UFUNCTION(BlueprintCallable, Category = "Remote Control Behaviour")
 	bool SetValueColor(const FColor& InColor);
-	
+
+	/** Set LinearColor value from Virtual Property */
+	UFUNCTION(BlueprintCallable, Category = "Remote Control Behaviour")
+	bool SetValueLinearColor(const FLinearColor& InLinearColor);
+
 	/** Get FProperty Name */
 	UFUNCTION(BlueprintPure, Category = "Remote Control Behaviour")
 	FName GetPropertyName() const;
 
-	/** Fetches a user-friendly representation of the Virtual Property's type name (i.e. Controller type), given a Property Bag type and value object (for structures)*/
+	/** Fetches a user-friendly representation of the Virtual Property's type name (i.e. Controller type), given a Property Bag type and value object (for structures) */
 	static FName GetVirtualPropertyTypeDisplayName(const EPropertyBagPropertyType InValueType, UObject* InValueTypeObject);
 
-	/** Updates the display index of the virtual property (transaction aware)*/
+	/** Updates the display index of the virtual property (transaction aware) */
 	void SetDisplayIndex(const int32 InDisplayIndex);
 
 public:

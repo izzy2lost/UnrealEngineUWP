@@ -47,9 +47,14 @@ EPropertyBagPropertyType FBasePropertyIdHandler::GetPropertyType(const FProperty
 		{
 			PropertyType = EPropertyBagPropertyType::Int64;
 		}
+		// We treat Float as Double
 		else if (PropertyName == NAME_FloatProperty)
 		{
-			PropertyType = EPropertyBagPropertyType::Float;
+			PropertyType = EPropertyBagPropertyType::Double;
+		}
+		else if (PropertyName == NAME_DoubleProperty)
+		{
+			PropertyType = EPropertyBagPropertyType::Double;
 		}
 		else if (PropertyName == NAME_NameProperty)
 		{
@@ -67,7 +72,12 @@ EPropertyBagPropertyType FBasePropertyIdHandler::GetPropertyType(const FProperty
 	return PropertyType;
 }
 
-FName FBasePropertyIdHandler::GetPropertyTypeName(const FProperty* InProperty) const
+FName FBasePropertyIdHandler::GetPropertySuperTypeName(const FProperty* InProperty) const
+{
+	return GetPropertySubTypeName(InProperty);
+}
+
+FName FBasePropertyIdHandler::GetPropertySubTypeName(const FProperty* InProperty) const
 {
 	if (InProperty)
 	{
@@ -79,9 +89,15 @@ FName FBasePropertyIdHandler::GetPropertyTypeName(const FProperty* InProperty) c
 				return ByteProperty->Enum->GetFName();
 			}
 		}
-		return Property->GetClass()->GetFName();
+		const FName& ClassName = Property->GetClass()->GetFName();
+		if (ClassName == NAME_FloatProperty)
+		{
+			return NAME_DoubleProperty;
+		}
+
+		return ClassName;
 	}
-	return FName(TEXT(""));
+	return NAME_None;
 }
 
 UObject* FBasePropertyIdHandler::GetPropertyTypeObject(const FProperty* InProperty) const
@@ -97,10 +113,5 @@ UObject* FBasePropertyIdHandler::GetPropertyTypeObject(const FProperty* InProper
 			}
 		}
 	}
-	return nullptr;
-}
-
-TObjectPtr<UObject> FBasePropertyIdHandler::GetObjectPropertyDefaultValue(const FProperty* InProperty, const UClass* InClassToCreate) const
-{
 	return nullptr;
 }
