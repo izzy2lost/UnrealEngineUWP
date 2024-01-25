@@ -171,9 +171,19 @@ namespace uba
 		return { InternalCreateFileMappingW(asHANDLE(file), flProtect, (DWORD)ToHigh(maxSize), ToLow(maxSize), NULL) };
 #else
 		FileMappingHandle h;
-		h.shmFd = asFileDescriptor(file);
-		lseek(h.shmFd, maxSize-1, SEEK_SET);
-		write(h.shmFd, "", 1);
+		int fd = asFileDescriptor(file);
+		if (lseek(fd, maxSize - 1, SEEK_SET) == -1)
+		{
+			UBA_ASSERTF(false, "lseek to %llu failed: %s\n", maxSize - 1, strerror(errno));
+			return h;
+		}
+		if (write(fd, "", 1) != 1)
+		{
+			UBA_ASSERTF(false, "write one byte failed: %s\n", strerror(errno));
+			return h;
+		}
+
+		h.shmFd = fd;
 		return h;
 #endif
 	}
