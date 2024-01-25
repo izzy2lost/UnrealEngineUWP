@@ -173,6 +173,20 @@ namespace UE::MovieGraph::Private
 
 		return {};
 	}
+
+	/* Utility function to warn the user in case they forgot to check "Disable Tone Curve", which in turn controls the render's scene capture source. */
+	void ValidateDisableTonecurve(const UE::MovieGraph::FMovieGraphSampleState& InPayload)
+	{
+		if (InPayload.SceneCaptureSource != ESceneCaptureSource::SCS_FinalColorHDR)
+		{
+			UE_CALL_ONCE([]
+				{
+					UE_LOG(LogMovieRenderPipeline, Warning, TEXT(
+						"The OCIO transform did not receive scene-referred linear colors, which most standard workflows expect."
+						"You may wish to disable the tonecurve on your renderer node(s)."));
+				});
+		}
+	}
 #endif // WITH_OCIO
 } //end namespace UE::MovieGraph::Private
 
@@ -371,6 +385,8 @@ void UMovieGraphImageSequenceOutputNode::OnReceiveImageDataImpl(UMovieGraphPipel
 #if WITH_OCIO
 		if (ParentNode->OCIOConfiguration.bIsEnabled && Payload->bAllowOCIO)
 		{
+			UE::MovieGraph::Private::ValidateDisableTonecurve(*Payload);
+
 			TMap<FString, FString> ResolvedOCIOContext;
 
 			const TObjectPtr<UOpenColorIOConfiguration>& ConfigurationAsset = ParentNode->OCIOConfiguration.ColorConfiguration.ConfigurationSource;
@@ -496,6 +512,8 @@ void UMovieGraphImageSequenceOutputNode_EXR::UpdateTaskPerLayer(
 #if WITH_OCIO
 	if (InParentNode->OCIOConfiguration.bIsEnabled && Payload->bAllowOCIO)
 	{
+		UE::MovieGraph::Private::ValidateDisableTonecurve(*Payload);
+
 		FPixelPreProcessor OCIOPixelPreProcessor = UE::MovieGraph::Private::CreateOpenColorIOPixelPreProcessor(
 			InParentNode->OCIOConfiguration.ColorConfiguration,
 			InResolvedOCIOContext

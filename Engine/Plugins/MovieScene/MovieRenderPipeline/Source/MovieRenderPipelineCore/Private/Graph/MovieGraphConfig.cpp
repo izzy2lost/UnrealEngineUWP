@@ -11,6 +11,7 @@
 #include "Graph/Nodes/MovieGraphOutputNode.h"
 #include "Graph/Nodes/MovieGraphGlobalOutputSettingNode.h"
 #include "Graph/Nodes/MovieGraphRemoveRenderSettingNode.h"
+#include "Graph/Nodes/MovieGraphRenderLayerNode.h"
 #include "Graph/Nodes/MovieGraphSubgraphNode.h"
 #include "Graph/Nodes/MovieGraphVariableNode.h"
 #include "Graph/Nodes/MovieGraphSelectNode.h"
@@ -1602,6 +1603,8 @@ UMovieGraphEvaluatedConfig* UMovieGraphConfig::CreateFlattenedGraph(const FMovie
 		}		
 	}
 
+	bool bHasRenderLayerNode = false;
+
 	for (const TPair<FName, FMovieGraphEvaluatedBranchConfig>& Pair : NewContext->BranchConfigMapping)
 	{
 		for (UMovieGraphNode* Node : Pair.Value.GetNodes())
@@ -1616,8 +1619,15 @@ UMovieGraphEvaluatedConfig* UMovieGraphConfig::CreateFlattenedGraph(const FMovie
 					CheckProperty->ExportText_InContainer(0, ExportText, Node, Node, Node, 0);
 				}
 			}
+			
+			bHasRenderLayerNode |= Node->IsA<UMovieGraphRenderLayerNode>();
 		}
+	}
 
+	if (!bHasRenderLayerNode)
+	{
+		// NOTE: While this doesn't cover all cases, we ensure the presence of at least one render layer node.
+		UE_CALL_ONCE([] { UE_LOG(LogMovieRenderPipeline, Error, TEXT("For render jobs to succeed, one or more render layer node(s) must be present.")); });
 	}
 
 	return NewContext;
