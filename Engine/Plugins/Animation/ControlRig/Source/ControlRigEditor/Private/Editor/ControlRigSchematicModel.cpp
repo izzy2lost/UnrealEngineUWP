@@ -913,21 +913,6 @@ FLinearColor FControlRigSchematicModel::GetColorForNode(const FSchematicGraphNod
 	return Super::GetColorForNode(InNode, InLayerIndex);
 }
 
-ESchematicGraphPlacementConstraint::Type FControlRigSchematicModel::GetPlacementForNode(const FSchematicGraphNode* InNode) const
-{
-	if(const FControlRigSchematicRigElementKeyNode* Node = Cast<FControlRigSchematicRigElementKeyNode>(InNode))
-	{
-		if(Node->GetKey().Type == ERigElementType::Connector)
-		{
-			if(!IsConnectorResolved(Node->GetKey()))
-			{
-				return ESchematicGraphPlacementConstraint::BottomRight;
-			}
-		}
-	}
-	return Super::GetPlacementForNode(InNode);
-}
-
 ESchematicGraphVisibility::Type FControlRigSchematicModel::GetVisibilityForNode(const FSchematicGraphNode* InNode) const
 {
 	if(ControlRigBlueprint.IsValid())
@@ -936,48 +921,26 @@ ESchematicGraphVisibility::Type FControlRigSchematicModel::GetVisibilityForNode(
 		{
 			if(Node->GetKey().Type == ERigElementType::Connector)
 			{
-				// hide secondary connectors if the primary connector isn't resolved yet
 				if (const UModularRig* ControlRig = Cast<UModularRig>(ControlRigBlueprint->GetDebuggedControlRig()))
 				{
 					if(const URigHierarchy* Hierarchy = ControlRig->GetHierarchy())
 					{
 						if(const FRigConnectorElement* Connector = Hierarchy->Find<FRigConnectorElement>(Node->GetKey()))
 						{
-							if(Connector->IsPrimary())
+							if(IsConnectorResolved(Connector->GetKey()))
 							{
-								// if the module is a root module
-								if(const FRigModuleInstance* ModuleInstance = ControlRig->FindModule(Connector))
+								if(Connector->IsPrimary())
 								{
-									if(ModuleInstance->IsRootModule())
+									if(const FRigModuleInstance* ModuleInstance = ControlRig->FindModule(Connector))
 									{
-										if(IsConnectorResolved(Connector->GetKey()))
+										if(ModuleInstance->IsRootModule())
 										{
 											return ESchematicGraphVisibility::Hidden;
 										}
 									}
 								}
 							}
-							else
-							{
-								if(Connector->Settings.bOptional)
-								{
-									if(!IsConnectorResolved(Connector->GetKey()))
-									{
-										return ESchematicGraphVisibility::Hidden;
-									}
-								}
-								
-								if(const FRigModuleInstance* ModuleInstance = ControlRig->FindModule(Connector))
-								{
-									if(const FRigConnectorElement* PrimaryConnector = ModuleInstance->FindPrimaryConnector())
-									{
-										if(!IsConnectorResolved(PrimaryConnector->GetKey()))
-										{
-											return ESchematicGraphVisibility::Hidden;
-										}
-									}
-								}
-							}
+							return ESchematicGraphVisibility::Hidden;
 						}
 					}
 				}

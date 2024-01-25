@@ -101,8 +101,6 @@ public:
 	virtual const FSlateBrush* GetBrushForNode(const FSchematicGraphNode* InNode, int32 InLayerIndex) const;
 	FText GetToolTipForNode(const FGuid& InNodeGuid) const;
 	virtual FText GetToolTipForNode(const FSchematicGraphNode* InNode) const;
-	ESchematicGraphPlacementConstraint::Type GetPlacementForNode(const FGuid& InNodeGuid) const;
-	virtual ESchematicGraphPlacementConstraint::Type GetPlacementForNode(const FSchematicGraphNode* InNode) const;
 	ESchematicGraphVisibility::Type GetVisibilityForNode(const FGuid& InNodeGuid) const;
 	virtual ESchematicGraphVisibility::Type GetVisibilityForNode(const FSchematicGraphNode* InNode) const;
 	TOptional<ESchematicGraphVisibility::Type> GetVisibilityForChildNode(const FGuid& InParentNodeGuid, const FGuid& InChildNodeGuid) const;
