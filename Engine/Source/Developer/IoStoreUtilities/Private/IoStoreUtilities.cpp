@@ -9663,62 +9663,6 @@ bool UploadIoStoreContainerFiles(const UE::IO::IAS::FIoStoreUploadParams& Upload
 
 	UE::IO::IAS::FIoStoreUploadResult UploadResult = Result.ConsumeValueOrDie();
 
-	FString ConfigFilePath;
-	if (FParse::Value(FCommandLine::Get(), TEXT("ConfigFilePath="), ConfigFilePath))
-	{
-		FStringBuilderBase Sb;
-		Sb << TEXT("[Endpoint]") << TEXT("\r\n");
-
-		if (!UploadParams.DistributionUrl.IsEmpty())
-		{
-			Sb << TEXT("DistributionUrl=\"") << UploadParams.DistributionUrl << TEXT("\"\r\n");
-
-			if (!UploadParams.FallbackUrl.IsEmpty())
-			{
-				Sb << TEXT("FallbackUrl=\"") << UploadParams.FallbackUrl << TEXT("\"\r\n");
-			}
-		}
-		else
-		{
-			Sb << TEXT("ServiceUrl=\"") << UploadResult.ServiceUrl << TEXT("\"\r\n");
-		}
-
-		Sb << TEXT("TocPath=\"") << UploadResult.TocPath << TEXT("\"\r\n");
-
-		// Temporary solution to get replays working with encrypted on demand content
-		{
-			if (!UploadParams.EncryptionKeyName.IsEmpty())
-			{
-				const TCHAR* EncryptionKeyName = *(UploadParams.EncryptionKeyName);
-
-				TOptional<FNamedAESKey> EncryptionKey;
-				for (const TPair<FGuid, FNamedAESKey>& KeyPair: KeyChain.GetEncryptionKeys())
-				{
-					if (KeyPair.Value.Name.Compare(EncryptionKeyName, ESearchCase::IgnoreCase) == 0)
-					{
-						EncryptionKey.Emplace(KeyPair.Value);
-					}
-				}
-
-				if (EncryptionKey)
-				{
-					FString KeyString = FBase64::Encode(EncryptionKey.GetValue().Key.Key, FAES::FAESKey::KeySize);
-					Sb << TEXT("ContentKey=\"") << EncryptionKey.GetValue().Guid.ToString() << TEXT(":") << KeyString << TEXT("\"\r\n");
-				}
-				else
-				{
-					UE_LOG(LogIoStore, Warning, TEXT("Failed to encryption key '%s' in key chain"), EncryptionKeyName);
-				}
-			}
-		}
-
-		UE_LOG(LogIoStore, Display, TEXT("Saving on demand config file '%s'"), *ConfigFilePath);
-		if (FFileHelper::SaveStringToFile(Sb.ToString(), *ConfigFilePath) == false)
-		{
-			UE_LOG(LogIoStore, Error, TEXT("Failed to save on demand config file '%s'"), *ConfigFilePath);
-		}
-	}
-
 	return Result.IsOk();
 }
 
