@@ -161,6 +161,7 @@ namespace mu
 			Value[0] =  node.m_defaultValue[0];
 			Value[1] = node.m_defaultValue[1];
 			Value[2] = node.m_defaultValue[2];
+			Value[3] = node.m_defaultValue[3];
 
 			param.m_defaultValue.Set<ParamColorType>(Value);
 			

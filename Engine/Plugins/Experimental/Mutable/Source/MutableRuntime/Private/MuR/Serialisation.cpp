@@ -31,7 +31,8 @@ namespace mu
 	MUTABLE_IMPLEMENT_POD_SERIALISABLE(FGuid);
 
 	MUTABLE_IMPLEMENT_POD_SERIALISABLE(vec2f);                                        
-	MUTABLE_IMPLEMENT_POD_SERIALISABLE(vec3f);                                        
+	MUTABLE_IMPLEMENT_POD_SERIALISABLE(vec3f);
+	MUTABLE_IMPLEMENT_POD_SERIALISABLE(vec4f);
 	MUTABLE_IMPLEMENT_POD_SERIALISABLE(mat3f);                                        
 	MUTABLE_IMPLEMENT_POD_SERIALISABLE(mat4f);                                        
 	MUTABLE_IMPLEMENT_POD_SERIALISABLE(vec2<int>);                                    

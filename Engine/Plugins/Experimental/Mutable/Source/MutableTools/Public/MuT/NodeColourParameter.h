@@ -54,7 +54,7 @@ namespace mu
 		void SetUid( const FString& );
 
 		//! Set the default value of the parameter.
-		void SetDefaultValue( float r, float g, float b );
+		void SetDefaultValue( float R, float G, float B, float A );
 
         //! Set the number of ranges (dimensions) for this parameter.
         //! By default a parameter has 0 ranges, meaning it only has one value.

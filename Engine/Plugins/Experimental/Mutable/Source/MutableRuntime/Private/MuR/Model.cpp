@@ -337,7 +337,7 @@ namespace mu
 	}
 
 
-	void Model::GetColourDefaultValue(int32 Index, float* R, float* G, float* B) const
+	void Model::GetColourDefaultValue(int32 Index, float* R, float* G, float* B, float* A) const
     {
     	check(m_pD->m_program.m_parameters.IsValidIndex(Index));
 		check(m_pD->m_program.m_parameters[Index].m_type == PARAMETER_TYPE::T_COLOUR);
@@ -350,9 +350,26 @@ namespace mu
         }
 
         ParamColorType& Color = m_pD->m_program.m_parameters[Index].m_defaultValue.Get<ParamColorType>();
-        if (R) *R = Color[0];
-    	if (G) *G = Color[1];
-    	if (B) *B = Color[2];
+		
+		if (R)
+		{
+			*R = Color[0];
+		}
+
+		if (G)
+		{
+			*G = Color[1];
+		}
+
+		if (B)
+		{
+			*B = Color[2];
+		}
+
+		if (A)
+		{
+			*A = Color[3];
+		}
     }
 
 
@@ -460,9 +477,9 @@ namespace mu
 
                         case PARAMETER_TYPE::T_COLOUR:
                         {
-                            float r,g,b;
-                            pOld->GetColourValue( p, &r, &g, &b );
-                            pRes->SetColourValue( thisP, r, g, b );
+                            float R, G, B, A;
+                            pOld->GetColourValue( p, &R, &G, &B, &A );
+                            pRes->SetColourValue( thisP, R, G, B, A );
                             break;
                         }
 
@@ -738,13 +755,13 @@ namespace mu
 							for (int32 RangePosition = 0; RangePosition < m_pD->DefaultRangeDimension; ++RangePosition)
 							{
 								RangeIndex->SetPosition(Dimensions, RangePosition);
-								res->SetColourValue(i, RandomGenerator(), RandomGenerator(), RandomGenerator(), RangeIndex);
+								res->SetColourValue(i, RandomGenerator(), RandomGenerator(), RandomGenerator(), RandomGenerator(), RangeIndex);
 							}
 						}
 					}
 					else
 					{
-						res->SetColourValue(i, RandomGenerator(), RandomGenerator(), RandomGenerator());
+						res->SetColourValue(i, RandomGenerator(), RandomGenerator(), RandomGenerator(), RandomGenerator());
 					}
                 }
                 break;
@@ -909,13 +926,14 @@ namespace mu
 					{
 						for (int32 RangePosition = 0; RangePosition < m_pD->DefaultRangeDimension; ++RangePosition)
 						{
-							res->SetColourValue(i, randomGenerator(), randomGenerator(), randomGenerator(),RangeIndex);
+							res->SetColourValue(i, randomGenerator(), randomGenerator(), randomGenerator(), randomGenerator(), 
+												RangeIndex);
 						}
 					}
 				}
 				else
 				{
-					res->SetColourValue(i, randomGenerator(), randomGenerator(), randomGenerator());
+					res->SetColourValue(i, randomGenerator(), randomGenerator(), randomGenerator(), randomGenerator());
 				}
                 break;
 

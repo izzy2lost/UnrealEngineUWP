@@ -283,14 +283,14 @@ namespace mu
         //! \param index Index of the parameter from 0 to GetCount()-1
         //! \param pR,pG,pB Pointers to values where every resulting colour channel will be stored
         //! \param pos Only for multidimensional parameters: relevant position to get in the ranges
-        void GetColourValue( int index, float* pR, float* pG, float* pB,
+        void GetColourValue( int index, float* pR, float* pG, float* pB, float* pA,
                              const Ptr<const RangeIndex>& pos=nullptr ) const;
 
 		//! If the parameter is of the colour type, set its value.
 		//! \param index Index of the parameter from 0 to GetCount()-1
         //! \param r,g,b new value of the parameter
         //! \param pos Only for multidimensional parameters: relevant position to set in the ranges
-        void SetColourValue( int index, float r, float g, float b,
+        void SetColourValue( int index, float R, float G, float B, float A,
                              const Ptr<const RangeIndex>& pos=nullptr );
 
 		//! Return the value of a projector parameter, as a 4x4 matrix. The matrix is supposed to be

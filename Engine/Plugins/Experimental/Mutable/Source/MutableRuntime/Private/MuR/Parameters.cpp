@@ -638,7 +638,7 @@ namespace mu
 
 
     //---------------------------------------------------------------------------------------------
-    void Parameters::GetColourValue( int index, float* pR, float* pG, float* pB,
+    void Parameters::GetColourValue( int index, float* pR, float* pG, float* pB, float* pA,
                                      const Ptr<const RangeIndex>& pos ) const
     {
         check( index>=0 && index<(int)m_pD->m_values.Num() );
@@ -658,9 +658,26 @@ namespace mu
         if (!pos)
         {
             // Return the single value
-            if (pR) *pR = m_pD->m_values[index].Get<ParamColorType>()[0];
-            if (pG) *pG = m_pD->m_values[index].Get<ParamColorType>()[1];
-            if (pB) *pB = m_pD->m_values[index].Get<ParamColorType>()[2];
+			if (pR)
+			{
+				*pR = m_pD->m_values[index].Get<ParamColorType>()[0];
+			}
+
+			if (pG)
+			{
+				*pG = m_pD->m_values[index].Get<ParamColorType>()[1];
+			}
+
+			if (pB)
+			{
+				*pB = m_pD->m_values[index].Get<ParamColorType>()[2];
+			}
+
+			if (pA)
+			{
+				*pA = m_pD->m_values[index].Get<ParamColorType>()[3];
+			}
+
             return;
         }
 
@@ -673,23 +690,57 @@ namespace mu
 			const PARAMETER_VALUE* it = m.Find(pos->m_pD->m_values);
             if (it)
             {
-                if (pR) *pR = it->Get<ParamColorType>()[0];
-                if (pG) *pG = it->Get<ParamColorType>()[1];
-                if (pB) *pB = it->Get<ParamColorType>()[2];
+				if (pR)
+				{
+					*pR = it->Get<ParamColorType>()[0];
+				}
+
+				if (pG)
+				{
+					*pG = it->Get<ParamColorType>()[1];
+				}
+
+				if (pB)
+				{
+					*pB = it->Get<ParamColorType>()[2];
+				}
+
+				if (pA)
+				{
+					*pA = it->Get<ParamColorType>()[3];
+				}
+
                 return;
             }
         }
 
         // Multivalue parameter, but no multivalue set. Return single value.
-        if (pR) *pR = m_pD->m_values[index].Get<ParamColorType>()[0];
-        if (pG) *pG = m_pD->m_values[index].Get<ParamColorType>()[1];
-        if (pB) *pB = m_pD->m_values[index].Get<ParamColorType>()[2];
+		if (pR)
+		{
+			*pR = m_pD->m_values[index].Get<ParamColorType>()[0];
+		}
+
+		if (pG)
+		{
+			*pG = m_pD->m_values[index].Get<ParamColorType>()[1];
+		}
+
+		if (pB)
+		{
+			*pB = m_pD->m_values[index].Get<ParamColorType>()[2];
+		}
+
+		if (pA)
+		{
+			*pA = m_pD->m_values[index].Get<ParamColorType>()[3];
+		}
+
         return;
     }
 
 
     //---------------------------------------------------------------------------------------------
-    void Parameters::SetColourValue( int index, float r, float g, float b,
+    void Parameters::SetColourValue( int index, float R, float G, float B, float A,
                                      const Ptr<const RangeIndex>& pos )
     {
         check( index>=0 && index<(int)m_pD->m_values.Num() );
@@ -715,9 +766,10 @@ namespace mu
             }
 
         	ParamColorType Value;
-            Value[0] = r;
-            Value[1] = g;
-            Value[2] = b;
+            Value[0] = R;
+            Value[1] = G;
+            Value[2] = B;
+			Value[3] = A;
         	
         	m_pD->m_values[index].Set<ParamColorType>(Value);
         }
@@ -736,9 +788,10 @@ namespace mu
 			PARAMETER_VALUE& it = m.FindOrAdd(pos->m_pD->m_values);
 
         	ParamColorType Value;
-            Value[0] = r;
-            Value[1] = g;
-            Value[2] = b;
+            Value[0] = R;
+            Value[1] = G;
+			Value[2] = B;
+			Value[3] = A;
 
         	it.Set<ParamColorType>(Value);
         }

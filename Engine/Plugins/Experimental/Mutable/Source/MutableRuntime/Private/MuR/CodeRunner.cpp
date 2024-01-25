@@ -5553,11 +5553,12 @@ namespace mu
         {
 			OP::ParameterArgs args = Program.GetOpArgs<OP::ParameterArgs>(item.At);
 			Ptr<RangeIndex> index = BuildCurrentOpRangeIndex( item, pParams, pModel, args.variable );
-            float r=0.0f;
-            float g=0.0f;
-            float b=0.0f;            
-            pParams->GetColourValue( args.variable, &r, &g, &b, index );
-            StoreColor( item, FVector4f(r,g,b,1.0f) );
+            float R = 0.f;
+            float G = 0.f;
+			float B = 0.f;
+			float A = 0.f;
+            pParams->GetColourValue( args.variable, &R, &G, &B, &A, index );
+            StoreColor( item, FVector4f(R, G, B, A) );
             break;
         }
 
