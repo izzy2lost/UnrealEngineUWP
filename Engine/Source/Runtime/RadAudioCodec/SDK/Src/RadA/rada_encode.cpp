@@ -781,7 +781,9 @@ uint8_t EncodeRadAFile(
     size_t encoder_total_size = 0;
     for (S32 i = 0; i < StreamCount; i++)
     {
-        size_t result = radaudio_encode_create(&streams[i].encoder, streams[i].encoder_header_buffer, streams[i].channels, WavRate, Quality);
+        size_t result = radaudio_encode_create(
+            &streams[i].encoder, streams[i].encoder_header_buffer, streams[i].channels, 
+            WavRate, Quality, SeamlessLooping ? RADAUDIO_ENC_FLAG_improve_seamless_loop : 0);
         if (result == 0)
         {
             return RADA_COMPRESS_ERROR_ENCODER;
@@ -836,7 +838,7 @@ uint8_t EncodeRadAFile(
             encode_info.force_next_blocktype = block_type_for_all_streams;
 
             // If desired for looping, set up the padding so that we get seamless across the whole file.
-            if (true)
+            if (SeamlessLooping)
             {
                 if (SamplesPerChannel < 2048)
                 {
@@ -847,7 +849,7 @@ uint8_t EncodeRadAFile(
                 else if (stream->current_offset_frame < 1024)
                 {
                     // We're at the beginning, so we want the padding to be the end of the stream.
-                    encode_info.padding = stream->samples + (SamplesPerChannel - 2048);
+                    encode_info.padding = stream->samples + SamplesPerChannel - 2048*WavChannels;
                     encode_info.padding_len = 2048;
                 }
                 else // just always provide the beginning, it won't use it if it doesn't need it.

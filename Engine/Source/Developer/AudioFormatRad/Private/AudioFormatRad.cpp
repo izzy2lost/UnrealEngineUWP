@@ -17,16 +17,16 @@ namespace AudioFormatRadPrivate
 {
 	static uint8 GetCompressionLevelFromQualityIndex(const int32 InQualityIndex) 
 	{
-		// The engine default is 80, which we want to be 6. So we split a linear mapping
+		// The engine default is 80, which we want to be 5. So we split a linear mapping
 		// if we are below or above that.
 		float MappedValue = 0;
 		if (InQualityIndex <= 80)
 		{
-			MappedValue = FMath::GetMappedRangeValueClamped(FVector2d(1, 80), FVector2d(1, 6), InQualityIndex);
+			MappedValue = FMath::GetMappedRangeValueClamped(FVector2d(1, 80), FVector2d(1, 5), InQualityIndex);
 		}
 		else
 		{
-			MappedValue = FMath::GetMappedRangeValueClamped(FVector2d(80, 100), FVector2d(6, 9), InQualityIndex);
+			MappedValue = FMath::GetMappedRangeValueClamped(FVector2d(80, 100), FVector2d(5, 9), InQualityIndex);
 		}
 
 		return (uint8)MappedValue;
@@ -41,7 +41,7 @@ class FAudioFormatRad : public IAudioFormat
 	enum
 	{
 		/** Version for Rad Audio format, this becomes part of the DDC key. */
-		UE_AUDIO_RAD_VER = 1,
+		UE_AUDIO_RAD_VER = 2,
 	};
 
 public:

@@ -81,7 +81,11 @@ RADDEFFUNC size_t radaudio_encode_create( radaudio_encoder *rae,
                                           U8  header[RADAUDIO_STREAM_HEADER_MAX],
                                           int num_channels,
                                           int sample_rate,
-                                          int quality);
+                                          int quality,
+                                          U32 flags);
+
+#define RADAUDIO_ENC_FLAG_improve_seamless_loop    1  // actually boosts precision of short block low-frequency coefficients
+
 
 // radaudio_encode_block()
 //
