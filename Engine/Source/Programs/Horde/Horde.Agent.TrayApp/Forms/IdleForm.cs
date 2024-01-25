@@ -20,12 +20,12 @@ namespace Horde.Agent.TrayApp.Forms
 			resultColumnHeader.Width = (int)(resultColumnHeader.Width * scale);
 		}
 
-		public void TickStats(bool enabled, int stateChangeTime, int stateChangeMaxTime, List<IdleStat> stats)
+		public void TickStats(bool enabled, int stateChangeTime, int stateChangeMaxTime, IEnumerable<IdleStat> stats)
 		{
 			BeginInvoke(() => TickStatsMainThread(enabled, stateChangeTime, stateChangeMaxTime, stats));
 		}
 
-		void TickStatsMainThread(bool enabled, int stateChangeTime, int stateChangeMaxTime, List<IdleStat> stats)
+		void TickStatsMainThread(bool enabled, int stateChangeTime, int stateChangeMaxTime, IEnumerable<IdleStat> stats)
 		{
 			if (IsDisposed)
 			{
