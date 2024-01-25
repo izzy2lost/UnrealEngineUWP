@@ -1,6 +1,6 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
-#include "SimpleCameraShakePattern.h"
+#include "Shakes/SimpleCameraShakePattern.h"
 
 #include UE_INLINE_GENERATED_CPP_BY_NAME(SimpleCameraShakePattern)
 

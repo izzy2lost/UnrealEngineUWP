@@ -2,7 +2,7 @@
 
 #pragma once
 
-#include "SimpleCameraShakePattern.h"
+#include "Shakes/SimpleCameraShakePattern.h"
 #include "CameraShakeTestObjects.generated.h"
 
 template<typename T>

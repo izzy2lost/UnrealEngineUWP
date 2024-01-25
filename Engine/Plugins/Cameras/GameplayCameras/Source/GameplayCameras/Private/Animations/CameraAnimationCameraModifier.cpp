@@ -1,6 +1,7 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 #include "CameraAnimationCameraModifier.h"
+
 #include "Camera/CameraAnimationHelper.h"
 #include "CameraAnimationSequence.h"
 #include "CameraAnimationSequencePlayer.h"

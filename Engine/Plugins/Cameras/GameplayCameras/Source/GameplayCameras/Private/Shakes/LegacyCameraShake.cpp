@@ -1,6 +1,6 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
-#include "LegacyCameraShake.h"
+#include "Shakes/LegacyCameraShake.h"
 #include "CameraAnimationSequence.h"
 #include "SequenceCameraShake.h"
 #include "Camera/PlayerCameraManager.h"
