@@ -447,7 +447,7 @@ public:
 	ENGINE_API void GatherDebugData_WithRoot(FNodeDebugData& DebugData, FAnimNode_Base* InRootNode, FName InLayerName);
 
 #if ENABLE_ANIM_DRAW_DEBUG
-	TArray<FQueuedDrawDebugItem> QueuedDrawDebugItems;
+	mutable TArray<FQueuedDrawDebugItem> QueuedDrawDebugItems;
 
 	ENGINE_API void AnimDrawDebugOnScreenMessage(const FString& DebugMessage, const FColor& Color, const FVector2D& TextScale = FVector2D::UnitVector, ESceneDepthPriorityGroup DepthPriority = SDPG_World);
 	ENGINE_API void AnimDrawDebugInWorldMessage(const FString& DebugMessage, const FVector& TextLocation, const FColor& Color, float TextScale);
@@ -965,6 +965,11 @@ protected:
 	{
 		Sync.ResetAll();
 	}
+
+#if ENABLE_ANIM_DRAW_DEBUG
+	/** Send any queued DrawDebug commands and reset the queue */
+	void FlushQueuedDebugDrawItems(AActor* InActor, UWorld* InWorld) const;
+#endif
 
 private:
 
