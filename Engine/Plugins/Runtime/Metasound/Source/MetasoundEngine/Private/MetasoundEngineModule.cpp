@@ -26,6 +26,16 @@
 
 DEFINE_LOG_CATEGORY(LogMetasoundEngine);
 
+namespace Metasound
+{
+	// Enable send/receive node registration for data types which existed before
+	// send/receive were deprecated in order to support old UMetaSound assets. 
+	template<>
+	struct TEnableTransmissionNodeRegistration<FWaveAsset>
+	{
+		static constexpr bool Value = true;
+	};
+}
 
 REGISTER_METASOUND_DATATYPE(Metasound::FAudioBusAsset, "AudioBusAsset", Metasound::ELiteralType::UObjectProxy, UAudioBus);
 REGISTER_METASOUND_DATATYPE(Metasound::FWaveAsset, "WaveAsset", Metasound::ELiteralType::UObjectProxy, USoundWave);

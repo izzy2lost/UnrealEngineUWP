@@ -742,9 +742,6 @@ namespace Metasound::EngineTest{
 		Frontend::ISearchEngine& NodeSearchEngine = Frontend::ISearchEngine::Get();
 		TArray<FMetasoundFrontendClass> AllClasses = NodeSearchEngine.FindAllClasses(true /* IncludeAllVersions */);
 
-		FMetasoundFrontendRegistryContainer* NodeRegistry = FMetasoundFrontendRegistryContainer::Get();
-		check(nullptr != NodeRegistry);
-
 		for (const FMetasoundFrontendClass& NodeClass : AllClasses)
 		{
 			// Exclude template classes because they cannot be created directly from the node registry
@@ -761,6 +758,39 @@ namespace Metasound::EngineTest{
 		}
 	}
 
+	void GetAllRegisteredNativeNodes(TArray<FString>& OutBeautifiedNames, TArray <FString>& OutTestCommands)
+	{
+		using namespace Metasound;
+
+		// Get all the classes that have been registered
+		Frontend::ISearchEngine& NodeSearchEngine = Frontend::ISearchEngine::Get();
+		TArray<FMetasoundFrontendClass> AllClasses = NodeSearchEngine.FindAllClasses(true /* IncludeAllVersions */);
+
+		FMetasoundFrontendRegistryContainer* NodeRegistry = FMetasoundFrontendRegistryContainer::Get();
+		check(nullptr != NodeRegistry);
+
+		for (const FMetasoundFrontendClass& NodeClass : AllClasses)
+		{
+			// Exclude template classes because they cannot be created directly from the node registry
+			if (NodeClass.Metadata.GetType() == EMetasoundFrontendClassType::Template)
+			{
+				continue;
+			}
+
+			Frontend::FNodeRegistryKey NodeRegistryKey(NodeClass.Metadata);
+
+			// Exclude non-native nodes (Nodes defined by assets instead of C++)
+			if (!NodeRegistry->IsNodeNative(NodeRegistryKey))
+			{
+				continue;
+			}
+
+			OutBeautifiedNames.Add(FString::Printf(TEXT("%s %s"), *NodeClass.Metadata.GetClassName().ToString(), *NodeClass.Metadata.GetVersion().ToString()));
+
+			// Test commands are node registry keys
+			OutTestCommands.Add(NodeRegistryKey.ToString());
+		}
+	}
 
 	void CreateVariables(const FOperatorSettings& InOperatorSettings, FInputVertexInterfaceData& OutVertexData)
 	{
