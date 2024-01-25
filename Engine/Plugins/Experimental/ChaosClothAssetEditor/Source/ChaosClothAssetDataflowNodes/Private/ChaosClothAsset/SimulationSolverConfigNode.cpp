@@ -24,3 +24,19 @@ void FChaosClothAssetSimulationSolverConfigNode::AddProperties(FPropertyHelper& 
 	PropertyHelper.SetProperty(this, &CGResidualTolerance);
 	PropertyHelper.SetPropertyBool(this, &bDoQuasistatics);
 }
+
+void FChaosClothAssetSimulationSolverConfigNode::Serialize(FArchive& Ar)
+{
+	Super::Serialize(Ar);
+	Ar.UsingCustomVersion(FFortniteValkyrieBranchObjectVersion::GUID);
+	if (Ar.IsLoading())
+	{
+		if (Ar.CustomVer(FFortniteValkyrieBranchObjectVersion::GUID) < FFortniteValkyrieBranchObjectVersion::ChaosClothAssetWeightedMassAndGravity)
+		{
+			if (!bEnableForceBasedSolver)
+			{
+				NumNewtonIterations = 0;
+			}
+		}
+	}
+}
