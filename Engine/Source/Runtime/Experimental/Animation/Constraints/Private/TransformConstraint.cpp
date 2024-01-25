@@ -672,13 +672,17 @@ void UTickableTransformConstraint::InitConstraint(UWorld *InWorld)
 	SetupDependencies(InWorld);
 	RegisterDelegates();
 	bValid = true;
-
 }
 
 void UTickableTransformConstraint::TeardownConstraint(UWorld* InWorld)
 {
 	FConstraintTickFunction& ConstraintTick = ConstraintTicks.FindOrAdd(InWorld->GetCurrentLevel());
-	ConstraintTick.UnRegisterTickFunction(); 
+	ConstraintTick.SetTickFunctionEnable(false);
+	ConstraintTick.UnRegisterTickFunction();
+	if (FTickFunction* ChildTickFunction = GetChildHandleTickFunction())
+	{
+		ChildTickFunction->RemovePrerequisite(this, ConstraintTick);
+	}
 	ConstraintTicks.Remove(InWorld->GetCurrentLevel());
 }
 
