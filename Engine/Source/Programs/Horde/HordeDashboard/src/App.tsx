@@ -129,7 +129,7 @@ const Main: React.FC = () => {
                { path: "lease/:leaseId", element: <DebugView /> },
                { path: "docs", element: <DocView /> },
                { path: "docs/*", element: <DocView /> },
-               { path: "telemetry", element: <TelemetryView /> },
+               { path: "analytics", element: <TelemetryView /> },
                { path: "test/stepissuereport", element: <StepIssueReportTest /> },               
                { path: "test/theme", element: <ThemeTester /> }
             ]

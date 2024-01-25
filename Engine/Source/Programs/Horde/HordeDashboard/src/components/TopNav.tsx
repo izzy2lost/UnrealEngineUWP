@@ -473,9 +473,9 @@ export const TopNav: React.FC<{ suppressServer?: boolean }> = observer(({ suppre
 
       if (dashboard.telemetryViews.length) {
          automatonItems.push({
-            key: "admin_telemetry",
-            text: "Telemetry",
-            link: `/telemetry`
+            key: "admin_analytics",
+            text: "Analytics",
+            link: `/analytics`
          });
       }
 
