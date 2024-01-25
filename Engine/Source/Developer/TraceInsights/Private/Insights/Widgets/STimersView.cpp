@@ -872,7 +872,7 @@ void STimersView::TreeView_BuildPlotTimerMenu(FMenuBuilder& MenuBuilder)
 	}
 
 	MenuBuilder.EndSection();
-	
+
 	MenuBuilder.BeginSection("Game Frame", LOCTEXT("Plot_Series_GameFrame_Section", "Game Frame"));
 
 	// Add/remove game frame stats series to/from graph track
@@ -1921,7 +1921,7 @@ FText STimersView::Mode_GetTooltipText(ETraceFrameType InFrameType) const
 
 	return FText();
 }
- 
+
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 // Sorting
 ////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -2417,7 +2417,7 @@ void STimersView::RebuildTree(bool bResync)
 				const TraceServices::FTimingProfilerTimer& Timer = *(TimerReader->GetTimer(TimerIndex));
 				ensure(Timer.Id == TimerIndex);
 				const ETimerNodeType Type = Timer.IsGpuTimer ? ETimerNodeType::GpuScope : ETimerNodeType::CpuScope;
-				FTimerNodePtr TimerNodePtr = MakeShared<FTimerNode>(Timer.Id, Timer.Name, Type);
+				FTimerNodePtr TimerNodePtr = MakeShared<FTimerNode>(Timer.Id, Timer.Name, Type, false);
 				TimerNodePtr->SetDefaultSortOrder(TimerIndex + 1);
 
 				if (GraphTrack.IsValid())
