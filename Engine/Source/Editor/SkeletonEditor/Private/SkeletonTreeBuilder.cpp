@@ -94,6 +94,11 @@ void FSkeletonTreeBuilder::Build(FSkeletonTreeBuilderOutput& Output)
 		AddBones(Output);
 	}
 
+	if (BuilderArgs.bShowVirtualBones)
+	{
+		AddVirtualBones(Output);
+	}
+
 	if (BuilderArgs.bShowSockets)
 	{
 		AddSockets(Output);
@@ -102,11 +107,6 @@ void FSkeletonTreeBuilder::Build(FSkeletonTreeBuilderOutput& Output)
 	if (BuilderArgs.bShowAttachedAssets)
 	{
 		AddAttachedAssets(Output);
-	}
-
-	if (BuilderArgs.bShowVirtualBones)
-	{
-		AddVirtualBones(Output);
 	}
 }
 
@@ -355,7 +355,7 @@ void FSkeletonTreeBuilder::AddSocketsFromData(const TArray< USkeletalMeshSocket*
 			}
 		}
 
-		Output.Add(CreateSocketTreeItem(Socket, ParentType, bIsCustomized), Socket->BoneName, FSkeletonTreeBoneItem::GetTypeId(), /*bAddToHead*/ true);
+		Output.Add(CreateSocketTreeItem(Socket, ParentType, bIsCustomized), Socket->BoneName, { FSkeletonTreeBoneItem::GetTypeId(), FSkeletonTreeVirtualBoneItem::GetTypeId() }, /*bAddToHead*/ true);
 	}
 }
 

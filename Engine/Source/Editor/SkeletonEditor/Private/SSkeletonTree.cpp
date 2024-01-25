@@ -757,12 +757,18 @@ TSharedPtr< SWidget > SSkeletonTree::CreateContextMenu()
 			MenuBuilder.BeginSection("SkeletonTreeBonesAction", LOCTEXT("BoneActions", "Selected Bone Actions"));
 		}
 		
-		if (BoneTreeSelection.HasSelectedOfType<FSkeletonTreeBoneItem>())
+		const bool bHasBoneSelected = BoneTreeSelection.HasSelectedOfType<FSkeletonTreeBoneItem>();
+		const bool bHasVirtualBoneSelected = BoneTreeSelection.HasSelectedOfType<FSkeletonTreeVirtualBoneItem>();
+		if (bHasBoneSelected || bHasVirtualBoneSelected)
 		{
 			MenuBuilder.AddMenuEntry(Actions.CopyBoneNames);
-			MenuBuilder.AddMenuEntry(Actions.ResetBoneTransforms);
 
-			if (BoneTreeSelection.IsSingleOfTypeSelected<FSkeletonTreeBoneItem>() && bAllowSkeletonOperations)
+			if (bHasBoneSelected)
+			{
+				MenuBuilder.AddMenuEntry(Actions.ResetBoneTransforms);
+			}
+
+			if (BoneTreeSelection.IsSingleOfTypesSelected<FSkeletonTreeBoneItem, FSkeletonTreeVirtualBoneItem>() && bAllowSkeletonOperations)
 			{
 				MenuBuilder.AddMenuEntry(Actions.AddSocket);
 				MenuBuilder.AddMenuEntry(Actions.PasteSockets);
@@ -1168,12 +1174,14 @@ void SSkeletonTree::OnCopyBoneNames()
 {
 	TArray<TSharedPtr<ISkeletonTreeItem>> SelectedItems = SkeletonTreeView->GetSelectedItems();
 	FSkeletonTreeSelection TreeSelection(SelectedItems);
-	TArray<TSharedPtr<FSkeletonTreeBoneItem>> SelectedBones = TreeSelection.GetSelectedItems<FSkeletonTreeBoneItem>();
+
+	TArray<TSharedPtr<ISkeletonTreeItem>> SelectedBones = TreeSelection.GetSelectedItemsOfTypes<FSkeletonTreeBoneItem, FSkeletonTreeVirtualBoneItem>();
+
 	if( SelectedBones.Num() > 0 )
 	{
 		bool bFirst = true;
 		FString BoneNames;
-		for (const TSharedPtr<FSkeletonTreeBoneItem>& Item : SelectedBones)
+		for (const TSharedPtr<ISkeletonTreeItem>& Item : SelectedBones)
 		{
 			FName BoneName = Item->GetRowItemName();
 			if (!bFirst)
@@ -1275,7 +1283,7 @@ void SSkeletonTree::OnPasteSockets(bool bPasteToSelectedBone)
 	FSkeletonTreeSelection TreeSelection(SelectedItems);
 
 	// Pasting sockets should only work if there is just one bone selected
-	if ( TreeSelection.IsSingleOfTypeSelected<FSkeletonTreeBoneItem>() )
+	if ( TreeSelection.IsSingleOfTypesSelected<FSkeletonTreeBoneItem, FSkeletonTreeVirtualBoneItem>())
 	{
 		FName DestBoneName = bPasteToSelectedBone ? TreeSelection.GetSingleSelectedItem()->GetRowItemName() : NAME_None;
 		USkeletalMesh* SkeletalMesh = GetPreviewScene().IsValid() ? ToRawPtr(GetPreviewScene()->GetPreviewMeshComponent()->GetSkeletalMeshAsset()) : nullptr;
@@ -1292,7 +1300,7 @@ bool SSkeletonTree::CanPasteSockets() const
 		TArray<TSharedPtr<ISkeletonTreeItem>> SelectedItems = SkeletonTreeView->GetSelectedItems();
 		FSkeletonTreeSelection TreeSelection(SelectedItems);
 
-		return TreeSelection.IsSingleOfTypeSelected<FSkeletonTreeBoneItem>();
+		return TreeSelection.IsSingleOfTypesSelected<FSkeletonTreeBoneItem, FSkeletonTreeVirtualBoneItem>();
 	}
 
 	return false;
@@ -1305,7 +1313,7 @@ void SSkeletonTree::OnAddSocket()
 	FSkeletonTreeSelection TreeSelection(SelectedItems);
 
 	// Can only add a socket to one bone
-	if (TreeSelection.IsSingleOfTypeSelected<FSkeletonTreeBoneItem>())
+	if (TreeSelection.IsSingleOfTypesSelected<FSkeletonTreeBoneItem, FSkeletonTreeVirtualBoneItem>())
 	{
 		FName BoneName = TreeSelection.GetSingleSelectedItem()->GetRowItemName();
 		USkeletalMeshSocket* NewSocket = GetEditableSkeletonInternal()->HandleAddSocket(BoneName);
