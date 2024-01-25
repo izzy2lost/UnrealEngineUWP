@@ -410,19 +410,19 @@ TSharedRef<SWidget> SInsightsStatusBarWidget::MakeTraceMenu()
 	MenuBuilder.BeginSection("Insights", LOCTEXT("TraceMenu_Section_Insights", "Insights"));
 	{
 		MenuBuilder.AddSubMenu(
-			LOCTEXT("ServerControlLabel", "UnrealTraceServer"),
-			LOCTEXT("ServerControlTooltip", "Control UnrealTraceServer instances"),
+			LOCTEXT("ServerControlLabel", "Unreal Trace Server"),
+			LOCTEXT("ServerControlTooltip", "Info and controls for the Unreal Trace Server instances"),
 			FNewMenuDelegate::CreateLambda([this](FMenuBuilder& MenuBuilder)
-			{
-				for (auto& ServerControl : ServerControls)
 				{
-					 ServerControl.MakeMenu(MenuBuilder);
-				}
-			}),
+					for (auto& ServerControl : ServerControls)
+					{
+						ServerControl.MakeMenu(MenuBuilder);
+					}
+				}),
 			false,
-			FSlateIcon(FAppStyle::Get().GetStyleSetName(), ("Icons.Server"))
+			FSlateIcon(FAppStyle::Get().GetStyleSetName(), "Icons.Server")
 		);
-		
+
 		MenuBuilder.AddMenuEntry(
 			LOCTEXT("OpenInsightsLabel", "Unreal Insights (Session Browser)"),
 			LOCTEXT("OpenInsightsTooltip", "Launch the Unreal Insights Session Browser."),
@@ -512,7 +512,7 @@ FText SInsightsStatusBarWidget::GetTitleToolTipText() const
 	FTextBuilder DescBuilder;
 
 	const FString Dest = FTraceAuxiliary::GetTraceDestinationString();
-	
+
 	if (*Dest != 0)
 	{
 		DescBuilder.AppendLineFormat(LOCTEXT("TracingToText", "Tracing to: {0}"), FText::FromString(Dest));
@@ -525,7 +525,7 @@ FText SInsightsStatusBarWidget::GetTitleToolTipText() const
 	{
 		DescBuilder.AppendLine(LOCTEXT("NotTracingText","Not currently tracing."));
 	}
-		
+
 	return DescBuilder.ToText();
 }
 
@@ -1046,7 +1046,7 @@ void SInsightsStatusBarWidget::OpenTrace(int32 Index)
 				const FLiveSessionsMap& Sessions = LiveSessionTracker->GetLiveSessions();
 				FString FileName = FPaths::GetBaseFilename(Traces[Index]->FilePath);
 				const uint32* TraceId = Sessions.Find(FileName);
-				
+
 				if (TraceId)
 				{
 					FUnrealInsightsLauncher::Get()->OpenRemoteTrace(TEXT("localhost"), uint16(LiveSessionTracker->GetStorePort()), *TraceId);
