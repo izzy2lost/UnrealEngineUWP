@@ -6,6 +6,10 @@
 #include "Components/StaticMeshComponent.h"
 #include "Engine/Texture2D.h"
 #include "Engine/TextureRenderTarget2D.h"
+#include "LandscapeComponent.h"
+#include "Components/SplineMeshComponent.h"
+#include "Converters/GLTFNormalArray.h"
+#include "Converters/GLTFUVArray.h"
 
 FGLTFConvertBuilder::FGLTFConvertBuilder(const FString& FileName, const UGLTFExportOptions* ExportOptions, const TSet<AActor*>& SelectedActors)
 	: FGLTFAnalyticsBuilder(FileName, ExportOptions)
@@ -34,6 +38,16 @@ FGLTFJsonAccessor* FGLTFConvertBuilder::AddUniquePositionAccessor(const FGLTFMes
 	return PositionBufferConverter->GetOrAdd(MeshSection, VertexBuffer);
 }
 
+FGLTFJsonAccessor* FGLTFConvertBuilder::AddUniquePositionAccessor(const FPositionVertexBuffer* VertexBuffer)
+{
+	if (VertexBuffer == nullptr)
+	{
+		return nullptr;
+	}
+
+	return PositionBufferConverterRaw->GetOrAdd(VertexBuffer);
+}
+
 FGLTFJsonAccessor* FGLTFConvertBuilder::AddUniqueColorAccessor(const FGLTFMeshSection* MeshSection, const FColorVertexBuffer* VertexBuffer)
 {
 	if (VertexBuffer == nullptr)
@@ -54,6 +68,16 @@ FGLTFJsonAccessor* FGLTFConvertBuilder::AddUniqueNormalAccessor(const FGLTFMeshS
 	return NormalBufferConverter->GetOrAdd(MeshSection, VertexBuffer);
 }
 
+FGLTFJsonAccessor* FGLTFConvertBuilder::AddUniqueNormalAccessor(const FGLTFNormalArray* Normals)
+{
+	if (Normals == nullptr)
+	{
+		return nullptr;
+	}
+
+	return NormalBufferConverterRaw->GetOrAdd(Normals);
+}
+
 FGLTFJsonAccessor* FGLTFConvertBuilder::AddUniqueTangentAccessor(const FGLTFMeshSection* MeshSection, const FStaticMeshVertexBuffer* VertexBuffer)
 {
 	if (VertexBuffer == nullptr)
@@ -72,6 +96,16 @@ FGLTFJsonAccessor* FGLTFConvertBuilder::AddUniqueUVAccessor(const FGLTFMeshSecti
 	}
 
 	return UVBufferConverter->GetOrAdd(MeshSection, VertexBuffer, UVIndex);
+}
+
+FGLTFJsonAccessor* FGLTFConvertBuilder::AddUniqueUVAccessor(const FGLTFUVArray* UVs)
+{
+	if (UVs == nullptr)
+	{
+		return nullptr;
+	}
+
+	return UVBufferConverterRaw->GetOrAdd(UVs);
 }
 
 FGLTFJsonAccessor* FGLTFConvertBuilder::AddUniqueJointAccessor(const FGLTFMeshSection* MeshSection, const FSkinWeightVertexBuffer* VertexBuffer, int32 InfluenceOffset)
@@ -102,6 +136,16 @@ FGLTFJsonAccessor* FGLTFConvertBuilder::AddUniqueIndexAccessor(const FGLTFMeshSe
 	}
 
 	return IndexBufferConverter->GetOrAdd(MeshSection);
+}
+
+FGLTFJsonAccessor* FGLTFConvertBuilder::AddUniqueIndexAccessor(const FGLTFIndexArray* IndexBuffer, const FString& MeshName)
+{
+	if (IndexBuffer == nullptr)
+	{
+		return nullptr;
+	}
+
+	return IndexBufferConverterRaw->GetOrAdd(IndexBuffer, MeshName);
 }
 
 FGLTFJsonMesh* FGLTFConvertBuilder::AddUniqueMesh(const UStaticMesh* StaticMesh, const FGLTFMaterialArray& Materials, int32 LODIndex)
@@ -177,6 +221,36 @@ FGLTFJsonMesh* FGLTFConvertBuilder::AddUniqueMesh(const USkeletalMeshComponent* 
 	RecordSkeletalMesh(SkeletalMesh);
 
 	return SkeletalMeshConverter->GetOrAdd(SkeletalMesh, SkeletalMeshComponent, Materials, LODIndex);
+}
+
+FGLTFJsonMesh* FGLTFConvertBuilder::AddUniqueMesh(const ULandscapeComponent* LandscapeComponent, const UMaterialInterface* LandscapeMaterial)
+{
+	if (LandscapeComponent == nullptr)
+	{
+		return nullptr;
+	}
+
+	RecordLandscapeComponent(LandscapeComponent);
+
+	return LandscapeConverter->GetOrAdd(LandscapeComponent, LandscapeMaterial);
+}
+
+FGLTFJsonMesh* FGLTFConvertBuilder::AddUniqueMesh(const USplineMeshComponent* SplineMeshComponent, const FGLTFMaterialArray& Materials, int32 LODIndex)
+{
+	if (SplineMeshComponent == nullptr)
+	{
+		return nullptr;
+	}
+
+	const UStaticMesh* StaticMesh = SplineMeshComponent->GetStaticMesh();
+	if (StaticMesh == nullptr)
+	{
+		return nullptr;
+	}
+
+	RecordSplineStaticMesh(StaticMesh);
+
+	return SplineMeshConverter->GetOrAdd(StaticMesh, SplineMeshComponent, Materials, LODIndex);
 }
 
 const FGLTFMeshData* FGLTFConvertBuilder::AddUniqueMeshData(const UStaticMesh* StaticMesh, const UStaticMeshComponent* StaticMeshComponent, int32 LODIndex)

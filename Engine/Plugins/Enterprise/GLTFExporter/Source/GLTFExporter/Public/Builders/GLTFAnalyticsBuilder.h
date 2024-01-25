@@ -16,6 +16,7 @@ class UMaterialInterface;
 class UTexture;
 class UCameraComponent;
 class ULightComponent;
+class ULandscapeComponent;
 
 class GLTFEXPORTER_API FGLTFAnalyticsBuilder : public FGLTFBufferBuilder
 {
@@ -30,6 +31,8 @@ protected:
 	void RecordActor(const AActor* Object);
 	void RecordStaticMesh(const UStaticMesh* Object);
 	void RecordSkeletalMesh(const USkeletalMesh* Object);
+	void RecordSplineStaticMesh(const UStaticMesh* Object);
+	void RecordLandscapeComponent(const ULandscapeComponent* Object);
 	void RecordLevelSequence(const ULevelSequence* Object);
 	void RecordAnimSequence(const UAnimSequence* Object);
 	void RecordMaterial(const UMaterialInterface* Object);
@@ -43,6 +46,8 @@ private:
 	TSet<const USceneComponent*>		ComponentsRecorded;
 	TSet<const UStaticMesh*>			StaticMeshesRecorded;
 	TSet<const USkeletalMesh*>			SkeletalMeshesRecorded;
+	TSet<const UStaticMesh*>			SplineStaticMeshesRecorded;
+	TSet<const ULandscapeComponent*>	LandscapeComponentsRecorded;
 	TSet<const ULevelSequence*>			LevelSequencesRecorded;
 	TSet<const UAnimSequence*>			AnimSequencesRecorded;
 	TSet<const UMaterialInterface*>		MaterialsRecorded;
