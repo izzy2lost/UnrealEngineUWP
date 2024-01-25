@@ -125,6 +125,11 @@ namespace Chaos::Softs
 			return SafeGet(Key, [this](int32 KeyIndex)->FVector2f { return GetWeightedFloatValue(KeyIndex); }, FVector2f(Default), OutKeyIndex);
 		}
 
+		FVector2f GetWeightedFloatValue(const FString& Key, const FVector2f& Default, int32* OutKeyIndex = nullptr) const
+		{
+			return SafeGet(Key, [this](int32 KeyIndex)->FVector2f { return GetWeightedFloatValue(KeyIndex); }, Default, OutKeyIndex);
+		}
+
 		template<typename T, TEMPLATE_REQUIRES(TIsWeightedType<T>::Value)>
 		T GetValue(const FString& Key, const T& Default = T(0), int32* OutKeyIndex = nullptr) const
 		{
@@ -529,43 +534,47 @@ PRAGMA_ENABLE_DEPRECATION_WARNINGS
 	inline static const FName PropertyName##Name = TEXT(#PropertyName); \
 	UE_DEPRECATED(5.3, "PropertyName##String is to be removed as to not be confused with GetPropertyName##String().") \
 	static FString PropertyName##String() { return PropertyName##Name.ToString(); } \
-	static bool Is##PropertyName##Enabled(const FCollectionPropertyConstFacade& PropertyCollection, bool bDefault) \
+	static bool Is##PropertyName##Enabled(const FCollectionPropertyConstFacade& InPropertyCollection, bool bDefault) \
 	{ \
-		return PropertyCollection.IsEnabled(PropertyName##Name.ToString(), bDefault); \
+		return InPropertyCollection.IsEnabled(PropertyName##Name.ToString(), bDefault); \
 	} \
-	static bool Is##PropertyName##Animatable(const FCollectionPropertyConstFacade& PropertyCollection, bool bDefault) \
+	static bool Is##PropertyName##Animatable(const FCollectionPropertyConstFacade& InPropertyCollection, bool bDefault) \
 	{ \
-		return PropertyCollection.IsAnimatable(PropertyName##Name.ToString(), bDefault); \
+		return InPropertyCollection.IsAnimatable(PropertyName##Name.ToString(), bDefault); \
 	} \
-	static Type GetLow##PropertyName(const FCollectionPropertyConstFacade& PropertyCollection, const Type& Default) \
+	static Type GetLow##PropertyName(const FCollectionPropertyConstFacade& InPropertyCollection, const Type& Default) \
 	{ \
-		return PropertyCollection.GetLowValue<Type>(PropertyName##Name.ToString(), Default); \
+		return InPropertyCollection.GetLowValue<Type>(PropertyName##Name.ToString(), Default); \
 	} \
-	static Type GetHigh##PropertyName(const FCollectionPropertyConstFacade& PropertyCollection, const Type& Default) \
+	static Type GetHigh##PropertyName(const FCollectionPropertyConstFacade& InPropertyCollection, const Type& Default) \
 	{ \
-		return PropertyCollection.GetHighValue<Type>(PropertyName##Name.ToString(), Default); \
+		return InPropertyCollection.GetHighValue<Type>(PropertyName##Name.ToString(), Default); \
 	} \
-	static TPair<Type, Type> GetWeighted##PropertyName(const FCollectionPropertyConstFacade& PropertyCollection, const Type& Default) \
+	static TPair<Type, Type> GetWeighted##PropertyName(const FCollectionPropertyConstFacade& InPropertyCollection, const Type& Default) \
 	{ \
-		return PropertyCollection.GetWeightedValue<Type>(PropertyName##Name.ToString(), Default); \
+		return InPropertyCollection.GetWeightedValue<Type>(PropertyName##Name.ToString(), Default); \
 	} \
-	static FVector2f GetWeightedFloat##PropertyName(const FCollectionPropertyConstFacade& PropertyCollection, const float& Default) \
+	static FVector2f GetWeightedFloat##PropertyName(const FCollectionPropertyConstFacade& InPropertyCollection, const float& Default) \
 	{ \
-		return PropertyCollection.GetWeightedFloatValue(PropertyName##Name.ToString(), Default); \
+		return InPropertyCollection.GetWeightedFloatValue(PropertyName##Name.ToString(), Default); \
 	} \
-	static Type Get##PropertyName(const FCollectionPropertyConstFacade& PropertyCollection, const Type& Default) \
+	static FVector2f GetWeightedFloat##PropertyName(const FCollectionPropertyConstFacade& InPropertyCollection, const FVector2f& Default) \
 	{ \
-		return PropertyCollection.GetValue<Type>(PropertyName##Name.ToString(), Default); \
+		return InPropertyCollection.GetWeightedFloatValue(PropertyName##Name.ToString(), Default); \
 	} \
-	static FString Get##PropertyName##String(const FCollectionPropertyConstFacade& PropertyCollection, const FString& Default) \
+	static Type Get##PropertyName(const FCollectionPropertyConstFacade& InPropertyCollection, const Type& Default) \
 	{ \
-		return PropertyCollection.GetStringValue(PropertyName##Name.ToString(), Default); \
+		return InPropertyCollection.GetValue<Type>(PropertyName##Name.ToString(), Default); \
+	} \
+	static FString Get##PropertyName##String(const FCollectionPropertyConstFacade& InPropertyCollection, const FString& Default) \
+	{ \
+		return InPropertyCollection.GetStringValue(PropertyName##Name.ToString(), Default); \
 	} \
 	UE_DEPRECATED(5.3, "GetFlags is being phased out to promote correct dirtying operations.") \
-	uint8 Get##PropertyName##Flags(const FCollectionPropertyConstFacade& PropertyCollection, uint8 Default) \
+	uint8 Get##PropertyName##Flags(const FCollectionPropertyConstFacade& InPropertyCollection, uint8 Default) \
 	{ \
 PRAGMA_DISABLE_DEPRECATION_WARNINGS \
-	return PropertyCollection.GetFlags(PropertyName##Name.ToString(), Default); \
+		return InPropertyCollection.GetFlags(PropertyName##Name.ToString(), Default); \
 PRAGMA_ENABLE_DEPRECATION_WARNINGS \
 	}
 

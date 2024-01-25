@@ -24,8 +24,8 @@ public:
 	EClothMassMode MassMode = EClothMassMode::Density;
 
 	/** The value used when the Mass Mode is set to Uniform Mass. */
-	UPROPERTY(EditAnywhere, Category = "Mass Properties", Meta = (UIMin = "0.000001", UIMax = "0.001", ClampMin = "0", EditCondition = "MassMode == EClothMassMode::UniformMass"))
-	float UniformMass = 0.00015f;
+	UPROPERTY(EditAnywhere, Category = "Mass Properties", DisplayName = "Uniform Mass", Meta = (UIMin = "0.000001", UIMax = "0.001", ClampMin = "0", EditCondition = "MassMode == EClothMassMode::UniformMass"))
+	FChaosClothAssetWeightedValueNonAnimatable UniformMassWeighted = {0.00015f, 0.00015f, TEXT("UniformMass")};
 
 	/** The value used when Mass Mode is set to TotalMass. */
 	UPROPERTY(EditAnywhere, Category = "Mass Properties", Meta = (UIMin = "0.001", UIMax = "10", ClampMin = "0", EditCondition = "MassMode == EClothMassMode::TotalMass"))
@@ -41,8 +41,8 @@ public:
 	 * Cotton: 0.2
 	 * Silk: 0.1
 	 */
-	UPROPERTY(EditAnywhere, Category = "Mass Properties", meta = (UIMin = "0.001", UIMax = "1", ClampMin = "0", EditCondition = "MassMode == EClothMassMode::Density"))
-	float Density = 0.35f;
+	UPROPERTY(EditAnywhere, Category = "Mass Properties", DisplayName = "Density", meta = (UIMin = "0.001", UIMax = "1", ClampMin = "0", EditCondition = "MassMode == EClothMassMode::Density"))
+	FChaosClothAssetWeightedValueNonAnimatable DensityWeighted = {0.35f, 0.35f, TEXT("Density")};
 
 	/** Calculated particle masses will be clamped to this minimum value (or 1e-8, whichever is larger). */
 	UPROPERTY(EditAnywhere, Category = "Mass Properties", meta = (ClampMin = "0"))
@@ -50,6 +50,18 @@ public:
 
 	FChaosClothAssetSimulationMassConfigNode(const Dataflow::FNodeParameters& InParam, FGuid InGuid = FGuid::NewGuid());
 
+	virtual void Serialize(FArchive& Ar) override;
+
 private:
+
+	// Deprecated properties
+#if WITH_EDITORONLY_DATA
+	UPROPERTY()
+	float UniformMass_DEPRECATED = 0.00015f;
+
+	UPROPERTY()
+	float Density_DEPRECATED = 0.35f;
+#endif
+
 	virtual void AddProperties(FPropertyHelper& PropertyHelper) const override;
 };

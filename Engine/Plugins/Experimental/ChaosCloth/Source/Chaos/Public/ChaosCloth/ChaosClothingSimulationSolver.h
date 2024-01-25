@@ -124,9 +124,17 @@ namespace Chaos
 
 		// Get the current solver time
 		FSolverReal GetTime() const { return Time; }
-		CHAOSCLOTH_API void SetParticleMassUniform(int32 ParticleRangeId, FRealSingle UniformMass, FRealSingle MinPerParticleMass, const FTriangleMesh& Mesh, const TFunctionRef<bool(int32)>& KinematicPredicate);
+		CHAOSCLOTH_API void SetParticleMassUniform(int32 ParticleRangeId, const FVector2f& UniformMass, const TConstArrayView<FRealSingle>& UniformMassMultipliers, FRealSingle MinPerParticleMass, const FTriangleMesh& Mesh, const TFunctionRef<bool(int32)>& KinematicPredicate);
 		CHAOSCLOTH_API void SetParticleMassFromTotalMass(int32 ParticleRangeId, FRealSingle TotalMass, FRealSingle MinPerParticleMass, const FTriangleMesh& Mesh, const TFunctionRef<bool(int32)>& KinematicPredicate);
-		CHAOSCLOTH_API void SetParticleMassFromDensity(int32 ParticleRangeId, FRealSingle Density, FRealSingle MinPerParticleMass, const FTriangleMesh& Mesh, const TFunctionRef<bool(int32)>& KinematicPredicate);
+		CHAOSCLOTH_API void SetParticleMassFromDensity(int32 ParticleRangeId, const FVector2f& Density, const TConstArrayView<FRealSingle>& DensityMultipliers, FRealSingle MinPerParticleMass, const FTriangleMesh& Mesh, const TFunctionRef<bool(int32)>& KinematicPredicate);
+		void SetParticleMassUniform(int32 ParticleRangeId, FRealSingle UniformMass, FRealSingle MinPerParticleMass, const FTriangleMesh& Mesh, const TFunctionRef<bool(int32)>& KinematicPredicate)
+		{
+			SetParticleMassUniform(ParticleRangeId, FVector2f(UniformMass), TConstArrayView<FRealSingle>(), MinPerParticleMass, Mesh, KinematicPredicate);
+		}
+		void SetParticleMassFromDensity(int32 ParticleRangeId, FRealSingle Density, FRealSingle MinPerParticleMass, const FTriangleMesh& Mesh, const TFunctionRef<bool(int32)>& KinematicPredicate)
+		{
+			SetParticleMassFromDensity(ParticleRangeId, FVector2f(Density), TConstArrayView<FRealSingle>(), MinPerParticleMass, Mesh, KinematicPredicate);
+		}
 
 		// Set the amount of velocity allowed to filter from the given change in reference space transform, including local simulation space.
 		// NOTE: Force-based solver does not apply FictitiousAngularScale here. It's applied directly via the PropertyCollection.
@@ -358,7 +366,7 @@ namespace Chaos
 		/** Begin Force-only methods */
 		void ParticleMassClampAndKinematicStateUpdate(Softs::FSolverParticlesRange& Particles, Softs::FSolverReal MinPerParticleMass, const TFunctionRef<bool(int32)>& KinematicPredicate);
 		Softs::FSolverReal SetParticleMassPerArea(Softs::FSolverParticlesRange& Particles, const FTriangleMesh& Mesh);
-		void ParticleMassUpdateDensity(Softs::FSolverParticlesRange& Particles, const FTriangleMesh& Mesh, Softs::FSolverReal Density);
+		void ParticleMassUpdateDensity(Softs::FSolverParticlesRange& Particles, const FTriangleMesh& Mesh, const Softs::FSolverVec2& Density, const TConstArrayView<FRealSingle>& DensityMultipliers);
 		/** End Force-only methods */
 
 		/** Begin PBD-only methods */
@@ -366,7 +374,7 @@ namespace Chaos
 		CHAOSCLOTH_API void ResetCollisionParticles(int32 InCollisionParticlesOffset = 0);
 		CHAOSCLOTH_API void ParticleMassClampAndKinematicStateUpdate(int32 Offset, int32 Size, Softs::FSolverReal MinPerParticleMass, const TFunctionRef<bool(int32)>& KinematicPredicate);
 		CHAOSCLOTH_API Softs::FSolverReal SetParticleMassPerArea(int32 Offset, int32 Size, const FTriangleMesh& Mesh);
-		CHAOSCLOTH_API void ParticleMassUpdateDensity(const FTriangleMesh& Mesh, Softs::FSolverReal Density);
+		CHAOSCLOTH_API void ParticleMassUpdateDensity(const FTriangleMesh& Mesh, int32 Offset, int32 Size, const Softs::FSolverVec2& Density, const TConstArrayView<FRealSingle>& DensityMultipliers);
 		/** End PBD - only methods */
 
 		CHAOSCLOTH_API void ApplyPreSimulationTransforms();

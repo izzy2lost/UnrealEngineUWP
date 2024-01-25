@@ -167,6 +167,7 @@ PRAGMA_ENABLE_DEPRECATION_WARNINGS
 		// Return the solver's inverse masses for this cloth current LOD, not thread safe, call must be done right after the solver update.
 		CHAOSCLOTH_API TConstArrayView<Softs::FSolverReal> GetParticleInvMasses(const FClothingSimulationSolver* Solver) const;
 		// Return the current gravity as applied by the solver using the various overrides, not thread safe, call must be done right after the solver update.
+		// Does not have GravityScale applied when using Force-based solver (Get the per-particle value directly from cloth constraints' external forces).
 		CHAOSCLOTH_API TVec3<FRealSingle> GetGravity(const FClothingSimulationSolver* Solver) const;
 		// Return the current bounding box based on a given solver, not thread safe, call must be done right after the solver update.
 		CHAOSCLOTH_API FAABB3 CalculateBoundingBox(const FClothingSimulationSolver* Solver) const;

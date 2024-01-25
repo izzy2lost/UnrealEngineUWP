@@ -9,6 +9,7 @@
 #include "ChaosCloth/ChaosWeightMapTarget.h"
 #include "ChaosCloth/ChaosClothPrivate.h"
 #include "Chaos/CollectionPropertyFacade.h"
+#include "Chaos/PBDFlatWeightMap.h"
 #include "Chaos/PBDSoftBodyCollisionConstraint.h"
 #include "Chaos/SoftsExternalForces.h"
 #include "Containers/ArrayView.h"
@@ -51,6 +52,7 @@ namespace ClothingSimulationClothConsoleVariables
 		TEXT("Scalar multiplier applied at the final stage of the cloth's gravity formulation."));
 }
 
+using namespace Softs;
 struct FClothingSimulationCloth::FLODData
 {
 	// Input mesh
@@ -99,6 +101,9 @@ struct FClothingSimulationCloth::FLODData
 	void ResetStartPose(FClothingSimulationSolver* Solver) const;
 
 	void UpdateNormals(FClothingSimulationSolver* Solver) const;
+
+	UE_CHAOS_DECLARE_INDEXLESS_PROPERTYCOLLECTION_NAME(MaxDistance, float);
+	UE_CHAOS_DECLARE_INDEXLESS_PROPERTYCOLLECTION_NAME(MassValue, float);
 };
 
 FClothingSimulationCloth::FLODData::FLODData(
@@ -200,35 +205,20 @@ PRAGMA_ENABLE_DEPRECATION_WARNINGS
 	const Softs::FCollectionPropertyFacade& ConfigProperties = Cloth->Config->GetProperties(InLODIndex);
 
 	// Retrieve MaxDistance information (weight map and Low/High values)
-	int32 MaxDistancePropertyKeyIndex;
-	FString MaxDistanceString = TEXT("MaxDistance");
-	MaxDistanceString = ConfigProperties.GetStringValue(MaxDistanceString, MaxDistanceString, &MaxDistancePropertyKeyIndex);
-
-	FRealSingle MaxDistanceBase;
-	FRealSingle MaxDistanceRange;
-	if (MaxDistancePropertyKeyIndex != INDEX_NONE)
-	{
-		MaxDistanceBase = (FRealSingle)ConfigProperties.GetLowValue<float>(MaxDistancePropertyKeyIndex);
-		MaxDistanceRange = (FRealSingle)ConfigProperties.GetHighValue<float>(MaxDistancePropertyKeyIndex) - MaxDistanceBase;
-	}
-	else
-	{
-		MaxDistanceBase = (FRealSingle)0.;
-		MaxDistanceRange = (FRealSingle)1.;
-	}
-
-	const TConstArrayView<FRealSingle> MaxDistances = WeightMaps.FindRef(MaxDistanceString);
+	const Softs::FPBDFlatWeightMapView MaxDistances(
+		GetWeightedFloatMaxDistance(ConfigProperties, FVector2f(0.f, 1.f)),
+		WeightMaps.FindRef(GetMaxDistanceString(ConfigProperties, MaxDistanceName.ToString())),
+		NumParticles);
 
 	// Set the particle masses
 	static const FRealSingle KinematicDistanceThreshold = 0.1f;  // TODO: This is not the same value as set in the painting UI but we might want to expose this value as parameter
 	auto KinematicPredicate =
-		[MaxDistances, MaxDistanceBase, MaxDistanceRange](int32 Index)
+		[&MaxDistances](int32 Index)
 		{
-			return (MaxDistances.IsValidIndex(Index) ? MaxDistanceBase + MaxDistanceRange * MaxDistances[Index] : MaxDistanceBase) < KinematicDistanceThreshold;
+			return MaxDistances.GetValue(Index) < KinematicDistanceThreshold;
 		};
 
 	const int32 MassMode = ConfigProperties.GetValue<int32>(TEXT("MassMode"), ClothingSimulationClothDefault::MassMode);
-	const FRealSingle MassValue = (FRealSingle)ConfigProperties.GetValue<float>(TEXT("MassValue"), ClothingSimulationClothDefault::MassValue);
 
 	constexpr FRealSingle MinPerParticleMassClampMin = UE_SMALL_NUMBER;
 	const FRealSingle MinPerParticleMass = FMath::Max((FRealSingle)ConfigProperties.GetValue<float>(TEXT("MinPerParticleMass"), ClothingSimulationClothDefault::MinPerParticleMass), MinPerParticleMassClampMin);
@@ -238,13 +228,24 @@ PRAGMA_ENABLE_DEPRECATION_WARNINGS
 	default:
 		check(false);
 	case EMassMode::UniformMass:
-		Solver->SetParticleMassUniform(ParticleRangeId, MassValue, MinPerParticleMass, TriangleMesh, KinematicPredicate);
+	{
+		const FVector2f MassValue = GetWeightedFloatMassValue(ConfigProperties, ClothingSimulationClothDefault::MassValue);
+		const TConstArrayView<float> MassValueMultipliers = WeightMaps.FindRef(GetMassValueString(ConfigProperties, MassValueName.ToString()));
+		Solver->SetParticleMassUniform(ParticleRangeId, MassValue, MassValueMultipliers, MinPerParticleMass, TriangleMesh, KinematicPredicate);
+	}
 		break;
 	case EMassMode::TotalMass:
+	{
+		const FRealSingle MassValue = GetMassValue(ConfigProperties, ClothingSimulationClothDefault::MassValue);
 		Solver->SetParticleMassFromTotalMass(ParticleRangeId, MassValue, MinPerParticleMass, TriangleMesh, KinematicPredicate);
+	}
 		break;
 	case EMassMode::Density:
-		Solver->SetParticleMassFromDensity(ParticleRangeId, MassValue, MinPerParticleMass, TriangleMesh, KinematicPredicate);
+	{
+		const FVector2f MassValue = GetWeightedFloatMassValue(ConfigProperties, ClothingSimulationClothDefault::MassValue);
+		const TConstArrayView<float> MassValueMultipliers = WeightMaps.FindRef(GetMassValueString(ConfigProperties, MassValueName.ToString()));
+		Solver->SetParticleMassFromDensity(ParticleRangeId, MassValue, MassValueMultipliers, MinPerParticleMass, TriangleMesh, KinematicPredicate);
+	}
 		break;
 	}
 

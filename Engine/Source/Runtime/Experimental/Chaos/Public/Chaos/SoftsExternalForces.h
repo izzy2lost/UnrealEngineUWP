@@ -2,6 +2,7 @@
 #pragma once
 
 #include "Chaos/PBDSoftsEvolutionFwd.h"
+#include "Chaos/PBDFlatWeightMap.h"
 #include "Chaos/PBDSoftsSolverParticles.h"
 #include "Chaos/SoftsEvolutionLinearSystem.h"
 #include "Chaos/SoftsSolverParticlesRange.h"
@@ -12,9 +13,16 @@ namespace Chaos::Softs
 class FExternalForcesBase
 {
 public:
-	FExternalForcesBase(const FSolverVec3& InGravity,
+	FExternalForcesBase(const FSolverParticlesRange& Particles,
+		const FSolverVec3& InGravity,
+		const FSolverVec2& InGravityScale,
+		const TConstArrayView<FRealSingle>& InGravityScaleMultipliers,
 		const TArray<FSolverVec3>& InNormals)
 		: Gravity(InGravity)
+		, bApplyGravityScale(true)
+		, GravityScale(InGravityScale,
+			InGravityScaleMultipliers,
+			Particles.GetRangeSize())
 		, FictitiousAngularDisplacement(0.f)
 		, ReferenceSpaceLocation(0.f)
 		, bUsePointBasedWindModel(false)
@@ -36,11 +44,19 @@ public:
 		const bool bHasFictitiousForces = !FictitiousAngularDisplacement.IsNearlyZero();
 		const FSolverVec3 W = FictitiousAngularDisplacement / Dt;
 
+		const bool bHasPerParticleGravity = HasPerParticleGravity();
+		const FSolverReal GravityScaleConstant = bApplyGravityScale ? (FSolverReal)GravityScale : (FSolverReal)1.f;
+		const FSolverVec2& GravityScaleOffsetRange = GravityScale.GetOffsetRange();
+		const FSolverReal* const GravityScaleMultipliers = GravityScale.GetMapValues().GetData();
+		check(!bHasPerParticleGravity || (GravityScale.GetMapValues().Num() == Particles.GetRangeSize()));
+
 		for (int32 Index = 0; Index < Particles.GetRangeSize(); ++Index)
 		{
 			if (InvM[Index] != (FSolverReal)0.)
 			{
-				Acceleration[Index] = Gravity;
+				const FSolverReal PerParticleGravityScale = bHasPerParticleGravity ? GravityScaleOffsetRange[0] + GravityScaleOffsetRange[1] * GravityScaleMultipliers[Index] :
+					GravityScaleConstant;
+				Acceleration[Index] = PerParticleGravityScale * Gravity;
 
 				if (bHasFictitiousForces)
 				{
@@ -74,11 +90,19 @@ public:
 		const bool bHasFictitiousForces = !FictitiousAngularDisplacement.IsNearlyZero();
 		const FSolverVec3 W = FictitiousAngularDisplacement / Dt;
 
+		const bool bHasPerParticleGravity = HasPerParticleGravity();
+		const FSolverReal GravityScaleConstant = bApplyGravityScale ? (FSolverReal)GravityScale : (FSolverReal)1.f;
+		const FSolverVec2& GravityScaleOffsetRange = GravityScale.GetOffsetRange();
+		const FSolverReal* const GravityScaleMultipliers = GravityScale.GetMapValues().GetData();
+		check(!bHasPerParticleGravity || (GravityScale.GetMapValues().Num() == Particles.GetRangeSize()));
+
 		for (int32 Index = 0; Index < Particles.GetRangeSize(); ++Index)
 		{
 			if (InvM[Index] != (FSolverReal)0.)
 			{
-				FSolverVec3 Force = Gravity * M[Index];
+				const FSolverReal PerParticleGravityScale = bHasPerParticleGravity ? GravityScaleOffsetRange[0] + GravityScaleOffsetRange[1] * GravityScaleMultipliers[Index] :
+					GravityScaleConstant;
+				FSolverVec3 Force = Gravity * M[Index] * PerParticleGravityScale;
 
 				if (bHasFictitiousForces)
 				{
@@ -104,9 +128,17 @@ public:
 
 	bool UsePointBasedWindModel() const { return bUsePointBasedWindModel; }
 	const FSolverVec3& GetGravity() const { return Gravity; }
+	bool HasPerParticleGravity() const { return bApplyGravityScale && GravityScale.HasWeightMap(); }
+	FSolverVec3 GetScaledGravity(int32 ParticleIndex) const
+	{
+		const FSolverReal ParticleGravityScale = bApplyGravityScale ? (GravityScale.HasWeightMap() ? GravityScale[ParticleIndex] : GravityScale.GetLow()) : (FSolverReal)1.f;
+		return Gravity * ParticleGravityScale;
+	}
 
 protected:
 	FSolverVec3 Gravity; 
+	bool bApplyGravityScale;
+	FPBDFlatWeightMap GravityScale;
 	FSolverVec3 FictitiousAngularDisplacement;
 	FSolverVec3 ReferenceSpaceLocation;
 	bool bUsePointBasedWindModel;
@@ -127,13 +159,17 @@ public:
 
 	// We don't have the solver values at the time this is constructed. Need to SetProperties at least once after setting 
 	// data from the solver.
-	FExternalForces(
+	FExternalForces(const FSolverParticlesRange& Particles,
 		const TArray<FSolverVec3>& InNormals,
+		const TMap<FString, TConstArrayView<FRealSingle>>& WeightMaps,
 		const FCollectionPropertyConstFacade& PropertyCollection)
-		: Base(
+		: Base(Particles,
 			FSolverVec3((FSolverReal)0.f, (FSolverReal)0.f, DefaultGravityZOverride),
+			FSolverVec2(GetWeightedFloatGravityScale(PropertyCollection, DefaultGravityScale)),
+			WeightMaps.FindRef(GetGravityScaleString(PropertyCollection, GravityScaleName.ToString())),
 			InNormals
 			)
+		, ParticleCount(Particles.GetRangeSize())
 		, WorldGravityMultiplier((FSolverReal)1.f)
 		, SolverGravity((FSolverReal)0.f, (FSolverReal)0.f, DefaultGravityZOverride)
 		, bPerSoftBodyGravityOverrideEnabled(true)
@@ -163,13 +199,27 @@ public:
 	}
 
 	/** This should be called after all other data is set as it will populate the final base class values.*/
-	void SetProperties(const FCollectionPropertyConstFacade& PropertyCollection)
+	void SetProperties(const FCollectionPropertyConstFacade& PropertyCollection,
+		const TMap<FString, TConstArrayView<FRealSingle>>& WeightMaps)
 	{
 		const bool bUseGravityOverride = UseGravityOverrideIndex != INDEX_NONE ? GetUseGravityOverride(PropertyCollection) : bDefaultUseGravityOverride;
 		const FSolverVec3 GravityOverride = GravityOverrideIndex != INDEX_NONE ? FSolverVec3(GetGravityOverride(PropertyCollection)) :
 			FSolverVec3(0.f, 0.f, DefaultGravityZOverride);
-		const FSolverReal GravityScale = GravityScaleIndex != INDEX_NONE ? GetGravityScale(PropertyCollection) : DefaultGravityScale;
-		CalculateGravity(bUseGravityOverride, GravityOverride, GravityScale);
+		CalculateGravity(bUseGravityOverride, GravityOverride);
+
+		if (IsGravityScaleMutable(PropertyCollection))
+		{
+			const FSolverVec2 WeightedValue(GetWeightedFloatGravityScale(PropertyCollection));
+			if (IsGravityScaleStringDirty(PropertyCollection))
+			{
+				const FString& WeightMapName = GetGravityScaleString(PropertyCollection);
+				GravityScale = FPBDFlatWeightMap(WeightedValue, WeightMaps.FindRef(WeightMapName), ParticleCount);
+			}
+			else
+			{
+				GravityScale.SetWeightedValue(WeightedValue);
+			}
+		}
 
 		const FSolverReal FictitiousAngularScale = FMath::Min((FSolverReal)2., FictitiousAngularScaleIndex != INDEX_NONE ? GetFictitiousAngularScale(PropertyCollection) : DefaultFictitiousAngularScale);
 
@@ -178,10 +228,12 @@ public:
 		bUsePointBasedWindModel = UsePointBasedWindModelIndex != INDEX_NONE ? GetUsePointBasedWindModel(PropertyCollection) : bDefaultUsePointBasedWindModel;
 	}
 private:
-	void CalculateGravity(bool bUseGravityOverride, const FSolverVec3& GravityOverride, FSolverReal GravityScale)
+	void CalculateGravity(bool bUseGravityOverride, const FSolverVec3& GravityOverride)
 	{
-		Gravity = (bPerSoftBodyGravityOverrideEnabled && bUseGravityOverride ? GravityOverride : SolverGravity * GravityScale) * WorldGravityMultiplier;
+		bApplyGravityScale = !(bPerSoftBodyGravityOverrideEnabled && bUseGravityOverride);
+		Gravity = (bApplyGravityScale ? SolverGravity : GravityOverride) * WorldGravityMultiplier;
 	}
+	const int32 ParticleCount;
 
 	/** Gravity */
 	// "World" level properties (this comes from a world-level CVar)

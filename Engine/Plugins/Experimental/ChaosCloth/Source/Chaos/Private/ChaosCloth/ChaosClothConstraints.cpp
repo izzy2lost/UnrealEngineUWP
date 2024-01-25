@@ -828,7 +828,7 @@ void FClothConstraints::AddRules(
 	if (Evolution)
 	{
 		// External Forces
-		CreateExternalForces(ConfigProperties);
+		CreateExternalForces(ConfigProperties, WeightMaps);
 
 		// Velocity Field
 		CreateVelocityAndPressureField(ConfigProperties, WeightMaps, TriangleMesh);
@@ -1373,14 +1373,17 @@ void FClothConstraints::CreateVelocityAndPressureField(
 }
 
 void FClothConstraints::CreateExternalForces(
-	const Softs::FCollectionPropertyConstFacade& ConfigProperties)
+	const Softs::FCollectionPropertyConstFacade& ConfigProperties,
+	const TMap<FString, TConstArrayView<FRealSingle>>& WeightMaps)
 {
 	if (Evolution)
 	{
 		// Always create external forces
 		check(Normals);
 		ExternalForces = MakeShared<Softs::FExternalForces>(
+			Evolution->GetSoftBodyParticles(ParticleRangeId),
 			*Normals,
+			WeightMaps,
 			ConfigProperties
 			);
 
@@ -2173,7 +2176,7 @@ void FClothConstraints::Update(
 	bool bUsePointBasedWindModel = false;
 	if (ExternalForces)
 	{
-		ExternalForces->SetProperties(ConfigProperties);
+		ExternalForces->SetProperties(ConfigProperties, WeightMaps);
 		bUsePointBasedWindModel = ExternalForces->UsePointBasedWindModel();
 	}
 	if (VelocityAndPressureField)

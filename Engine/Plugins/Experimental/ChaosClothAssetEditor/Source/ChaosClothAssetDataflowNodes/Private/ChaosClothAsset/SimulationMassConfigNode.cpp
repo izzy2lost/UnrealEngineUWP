@@ -2,6 +2,7 @@
 
 #include "ChaosClothAsset/SimulationMassConfigNode.h"
 #include "Chaos/CollectionPropertyFacade.h"
+#include "UObject/FortniteValkyrieBranchObjectVersion.h"
 
 #include UE_INLINE_GENERATED_CPP_BY_NAME(SimulationMassConfigNode)
 
@@ -9,20 +10,48 @@ FChaosClothAssetSimulationMassConfigNode::FChaosClothAssetSimulationMassConfigNo
 	: FChaosClothAssetSimulationBaseConfigNode(InParam, InGuid)
 {
 	RegisterCollectionConnections();
+	RegisterInputConnection(&UniformMassWeighted.WeightMap);
+	RegisterInputConnection(&DensityWeighted.WeightMap);
 }
 
 void FChaosClothAssetSimulationMassConfigNode::AddProperties(FPropertyHelper& PropertyHelper) const
 {
-	float MassValue;
+	PropertyHelper.SetPropertyEnum(this, &MassMode, {}, ECollectionPropertyFlags::Intrinsic);
 	switch (MassMode)
 	{
 	default:
-	case EClothMassMode::UniformMass: MassValue = UniformMass; break;
-	case EClothMassMode::TotalMass: MassValue = TotalMass; break;
-	case EClothMassMode::Density: MassValue = Density; break;
+	case EClothMassMode::UniformMass:
+	{
+		PropertyHelper.SetPropertyWeighted(FName(TEXT("MassValue")), UniformMassWeighted, {}, ECollectionPropertyFlags::Intrinsic);
+	}
+	break;
+	case EClothMassMode::TotalMass:
+	{
+		PropertyHelper.SetProperty(FName(TEXT("MassValue")), TotalMass, {}, ECollectionPropertyFlags::Intrinsic);
+	}
+	break;
+	case EClothMassMode::Density:
+	{
+		PropertyHelper.SetPropertyWeighted(FName(TEXT("MassValue")), DensityWeighted, {}, ECollectionPropertyFlags::Intrinsic);
+	}
+	break;
 	}
 
-	PropertyHelper.SetPropertyEnum(this, &MassMode, {}, ECollectionPropertyFlags::Intrinsic);
-	PropertyHelper.SetProperty(FName(TEXT("MassValue")), MassValue, {}, ECollectionPropertyFlags::Intrinsic);
 	PropertyHelper.SetProperty(this, &MinPerParticleMass, {}, ECollectionPropertyFlags::Intrinsic);
+}
+
+void FChaosClothAssetSimulationMassConfigNode::Serialize(FArchive& Ar)
+{
+	Super::Serialize(Ar);
+	Ar.UsingCustomVersion(FFortniteValkyrieBranchObjectVersion::GUID);
+	if (Ar.IsLoading())
+	{
+#if WITH_EDITORONLY_DATA
+		if (Ar.CustomVer(FFortniteValkyrieBranchObjectVersion::GUID) < FFortniteValkyrieBranchObjectVersion::ChaosClothAssetWeightedMassAndGravity)
+		{
+			UniformMassWeighted.Low = UniformMassWeighted.High = UniformMass_DEPRECATED;
+			DensityWeighted.Low = DensityWeighted.High = Density_DEPRECATED;
+		}
+#endif
+	}
 }

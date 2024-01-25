@@ -23,6 +23,7 @@
 #include "Chaos/PBDSphericalConstraint.h"
 #include "Chaos/PBDSpringConstraints.h"
 #include "Chaos/PBDTriangleMeshCollisions.h"
+#include "Chaos/SoftsExternalForces.h"
 #include "Chaos/XPBDBendingConstraints.h"
 #include "Chaos/XPBDSpringConstraints.h"
 #include "Chaos/XPBDAnisotropicBendingConstraints.h"
@@ -709,18 +710,46 @@ static FAutoConsoleVariableRef CVarClothVizWeightMapName(TEXT("p.ChaosClothVisua
 		}
 
 		// Draw gravity
+		constexpr FReal GravityVectorLengthMultiplier = 0.01; // Make the vector smaller
 		for (const FClothingSimulationCloth* const Cloth : Solver->GetCloths())
 		{
-			if (Cloth->GetParticleRangeId(Solver) == INDEX_NONE)
+			const int32 ParticleRangeId = Cloth->GetParticleRangeId(Solver);
+			if (ParticleRangeId == INDEX_NONE)
 			{
 				continue;
 			}
+			const FClothConstraints& ClothConstraints = Solver->GetClothConstraints(ParticleRangeId);
+			if (const Softs::FExternalForces* const ExternalForces = ClothConstraints.GetExternalForces().Get())
+			{
+				check(Solver->IsForceBasedSolver());
+				if (ExternalForces->HasPerParticleGravity())
+				{
+					const FVec3& LocalSpaceLocation = Solver->GetLocalSpaceLocation();
+					const TConstArrayView<Softs::FSolverVec3> Positions = Solver->GetParticleXsView(ParticleRangeId);
+					for (int32 ParticleIndex = 0; ParticleIndex < Positions.Num(); ++ParticleIndex)
+					{
+						const FVector Pos0 = LocalSpaceLocation + FVector(Positions[ParticleIndex]);
+						const FVector Pos1 = Pos0 + GravityVectorLengthMultiplier * FVector(ExternalForces->GetScaledGravity(ParticleIndex));
+						DrawLine(PDI, Pos0, Pos1, FLinearColor::Red);
+					}
+				}
+				else
+				{
+					const FAABB3 Bounds = Cloth->CalculateBoundingBox(Solver);
 
-			const FAABB3 Bounds = Cloth->CalculateBoundingBox(Solver);
+					const FVector Pos0 = Bounds.Center();
+					const FVector Pos1 = Pos0 + GravityVectorLengthMultiplier * FVector(ExternalForces->GetScaledGravity(0));
+					DrawLine(PDI, Pos0, Pos1, FLinearColor::Red);
+				}
+			}
+			else
+			{
+				const FAABB3 Bounds = Cloth->CalculateBoundingBox(Solver);
 
-			const FVector Pos0 = Bounds.Center();
-			const FVector Pos1 = Pos0 + FVector(Cloth->GetGravity(Solver));
-			DrawLine(PDI, Pos0, Pos1, FLinearColor::Red);
+				const FVector Pos0 = Bounds.Center();
+				const FVector Pos1 = Pos0 + GravityVectorLengthMultiplier * FVector(Cloth->GetGravity(Solver));
+				DrawLine(PDI, Pos0, Pos1, FLinearColor::Red);
+			}
 		}
 	}
 

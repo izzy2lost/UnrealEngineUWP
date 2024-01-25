@@ -33,6 +33,9 @@ struct FFortniteValkyrieBranchObjectVersion
 		// Distinct version required to properly handle legacy serialization of FActorInstanceHandle to avoid hitting replay deserialization perf 
 		ActorInstanceHandleSwitchedToInterfaces,
 
+		// Add weight maps to Chaos cloth asset mass and gravity scale
+		ChaosClothAssetWeightedMassAndGravity,
+
 		// -----<new versions can be added above this line>-------------------------------------------------
 		VersionPlusOne,
 		LatestVersion = VersionPlusOne - 1

@@ -8,6 +8,7 @@
 #include "ChaosCloth/ChaosClothPrivate.h"
 #include "Chaos/SoftsEvolution.h"
 #include "Chaos/PBDEvolution.h"
+#include "Chaos/PBDFlatWeightMap.h"
 #include "Chaos/WeightedLatticeImplicitObject.h"
 #include "Chaos/Levelset.h"
 #include "GeometryCollection/ManagedArrayCollection.h"
@@ -965,17 +966,19 @@ const TArray<Softs::FSolverVec3>& FClothingSimulationSolver::GetCollisionNormals
 	return Evolution ? CollisionNormals : PBDEvolution->GetCollisionNormals();
 }
 
-void FClothingSimulationSolver::SetParticleMassUniform(int32 ParticleRangeId, FRealSingle UniformMass, FRealSingle MinPerParticleMass, const FTriangleMesh& Mesh, const TFunctionRef<bool(int32)>& KinematicPredicate)
+void FClothingSimulationSolver::SetParticleMassUniform(int32 ParticleRangeId, const FVector2f& UniformMass, const TConstArrayView<FRealSingle>& UniformMassMultipliers, FRealSingle MinPerParticleMass, const FTriangleMesh& Mesh, const TFunctionRef<bool(int32)>& KinematicPredicate)
 {
 	if (Evolution)
 	{
 		Softs::FSolverParticlesRange& Particles = Evolution->GetSoftBodyParticles(ParticleRangeId);
 
+		const Softs::FPBDFlatWeightMapView UniformMasses(UniformMass, UniformMassMultipliers, Particles.GetRangeSize());
+
 		// Set mass from uniform mass
 		const TSet<int32> Vertices = Mesh.GetVertices();
 		for (int32 Index = 0; Index < Particles.GetRangeSize(); ++Index)
 		{
-			Particles.M(Index) = Vertices.Contains(Index) ? (Softs::FSolverReal)UniformMass : (Softs::FSolverReal)0.;
+			Particles.M(Index) = Vertices.Contains(Index) ? UniformMasses.GetValue(Index) : (Softs::FSolverReal)0.;
 		}
 		ParticleMassClampAndKinematicStateUpdate(Particles, (Softs::FSolverReal)MinPerParticleMass, KinematicPredicate);
 	}
@@ -983,13 +986,15 @@ void FClothingSimulationSolver::SetParticleMassUniform(int32 ParticleRangeId, FR
 	{
 		// Retrieve the particle block size
 		const int32 Size = PBDEvolution->GetParticleRangeSize(ParticleRangeId);
+		const Softs::FPBDFlatWeightMapView UniformMasses(UniformMass, UniformMassMultipliers, Size);
 
 		// Set mass from uniform mass
 		const TSet<int32> Vertices = Mesh.GetVertices();
 		Softs::FSolverParticles& Particles = PBDEvolution->Particles();
-		for (int32 Index = ParticleRangeId; Index < ParticleRangeId + Size; ++Index)
+		for (int32 Index = 0; Index < Size; ++Index)
 		{
-			Particles.M(Index) = Vertices.Contains(Index) ? (Softs::FSolverReal)UniformMass : (Softs::FSolverReal)0.;
+			const int32 IndexWithOffset = Index + ParticleRangeId;
+			Particles.M(IndexWithOffset) = Vertices.Contains(IndexWithOffset) ? UniformMasses.GetValue(Index) : (Softs::FSolverReal)0.;
 		}
 		ParticleMassClampAndKinematicStateUpdate(ParticleRangeId, Size, (Softs::FSolverReal)MinPerParticleMass, KinematicPredicate);
 	}
@@ -1008,7 +1013,7 @@ void FClothingSimulationSolver::SetParticleMassFromTotalMass(int32 ParticleRange
 		const Softs::FSolverReal Density = TotalArea > (Softs::FSolverReal)0. ? (Softs::FSolverReal)TotalMass / TotalArea : (Softs::FSolverReal)1.;
 
 		// Update mass from mesh and density
-		ParticleMassUpdateDensity(Particles, Mesh, Density);
+		ParticleMassUpdateDensity(Particles, Mesh, Softs::FSolverVec2(Density), TConstArrayView<FRealSingle>());
 
 		ParticleMassClampAndKinematicStateUpdate(Particles, (Softs::FSolverReal)MinPerParticleMass, KinematicPredicate);
 	}
@@ -1024,13 +1029,13 @@ void FClothingSimulationSolver::SetParticleMassFromTotalMass(int32 ParticleRange
 		const Softs::FSolverReal Density = TotalArea > (Softs::FSolverReal)0. ? (Softs::FSolverReal)TotalMass / TotalArea : (Softs::FSolverReal)1.;
 
 		// Update mass from mesh and density
-		ParticleMassUpdateDensity(Mesh, Density);
+		ParticleMassUpdateDensity(Mesh, ParticleRangeId, Size, Softs::FSolverVec2(Density), TConstArrayView<FRealSingle>());
 
 		ParticleMassClampAndKinematicStateUpdate(ParticleRangeId, Size, (Softs::FSolverReal)MinPerParticleMass, KinematicPredicate);
 	}
 }
 
-void FClothingSimulationSolver::SetParticleMassFromDensity(int32 ParticleRangeId, FRealSingle Density, FRealSingle MinPerParticleMass, const FTriangleMesh& Mesh, const TFunctionRef<bool(int32)>& KinematicPredicate)
+void FClothingSimulationSolver::SetParticleMassFromDensity(int32 ParticleRangeId, const FVector2f& Density, const TConstArrayView<float>& DensityMultipliers, FRealSingle MinPerParticleMass, const FTriangleMesh& Mesh, const TFunctionRef<bool(int32)>& KinematicPredicate)
 {
 	if (Evolution)
 	{
@@ -1040,10 +1045,10 @@ void FClothingSimulationSolver::SetParticleMassFromDensity(int32 ParticleRangeId
 		const Softs::FSolverReal TotalArea = SetParticleMassPerArea(Particles, Mesh);
 
 		// Set density from cm2 to m2
-		const Softs::FSolverReal DensityScaled = (Softs::FSolverReal)(Density / FMath::Square(ClothingSimulationSolverConstant::WorldScale));
+		const Softs::FSolverVec2 DensityScaled = Density / FMath::Square(ClothingSimulationSolverConstant::WorldScale);
 
 		// Update mass from mesh and density
-		ParticleMassUpdateDensity(Particles, Mesh, DensityScaled);
+		ParticleMassUpdateDensity(Particles, Mesh, DensityScaled, DensityMultipliers);
 
 		ParticleMassClampAndKinematicStateUpdate(Particles, (Softs::FSolverReal)MinPerParticleMass, KinematicPredicate);
 	}
@@ -1056,10 +1061,10 @@ void FClothingSimulationSolver::SetParticleMassFromDensity(int32 ParticleRangeId
 		const Softs::FSolverReal TotalArea = SetParticleMassPerArea(ParticleRangeId, Size, Mesh);
 
 		// Set density from cm2 to m2
-		const Softs::FSolverReal DensityScaled = (Softs::FSolverReal)(Density / FMath::Square(ClothingSimulationSolverConstant::WorldScale));
+		const Softs::FSolverVec2 DensityScaled = Density / FMath::Square(ClothingSimulationSolverConstant::WorldScale);
 
 		// Update mass from mesh and density
-		ParticleMassUpdateDensity(Mesh, DensityScaled);
+		ParticleMassUpdateDensity(Mesh, ParticleRangeId, Size, DensityScaled, DensityMultipliers);
 
 		ParticleMassClampAndKinematicStateUpdate(ParticleRangeId, Size, (Softs::FSolverReal)MinPerParticleMass, KinematicPredicate);
 	}
@@ -1141,13 +1146,14 @@ Softs::FSolverReal FClothingSimulationSolver::SetParticleMassPerArea(Softs::FSol
 
 }
 
-void FClothingSimulationSolver::ParticleMassUpdateDensity(Softs::FSolverParticlesRange& Particles, const FTriangleMesh& Mesh, Softs::FSolverReal Density)
+void FClothingSimulationSolver::ParticleMassUpdateDensity(Softs::FSolverParticlesRange& Particles, const FTriangleMesh& Mesh, const Softs::FSolverVec2& Density, const TConstArrayView<float>& DensityMultipliers)
 {
+	const Softs::FPBDFlatWeightMapView Densities(Density, DensityMultipliers, Particles.GetRangeSize());
 	const TSet<int32> Vertices = Mesh.GetVertices();
 	FReal TotalMass = 0.f;
 	for (const int32 Vertex : Vertices)
 	{
-		Particles.M(Vertex) *= Density;
+		Particles.M(Vertex) *= Densities.GetValue(Vertex);
 		TotalMass += Particles.M(Vertex);
 	}
 
@@ -1193,16 +1199,17 @@ Softs::FSolverReal FClothingSimulationSolver::SetParticleMassPerArea(int32 Offse
 	return TotalArea;
 }
 
-void FClothingSimulationSolver::ParticleMassUpdateDensity(const FTriangleMesh& Mesh, Softs::FSolverReal Density)
+void FClothingSimulationSolver::ParticleMassUpdateDensity(const FTriangleMesh& Mesh, int32 Offset, int32 Size, const Softs::FSolverVec2& Density, const TConstArrayView<float>& DensityMultipliers)
 {
 	check(PBDEvolution);
 
+	const Softs::FPBDFlatWeightMapView Densities(Density, DensityMultipliers, Size);
 	const TSet<int32> Vertices = Mesh.GetVertices();
 	Softs::FSolverParticles& Particles = PBDEvolution->Particles();
 	FReal TotalMass = 0.f;
 	for (const int32 Vertex : Vertices)
 	{
-		Particles.M(Vertex) *= Density;
+		Particles.M(Vertex) *= Densities.GetValue(Vertex - Offset);
 		TotalMass += Particles.M(Vertex);
 	}
 
