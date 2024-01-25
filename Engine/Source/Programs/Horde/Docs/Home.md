@@ -2,13 +2,13 @@
 
 ## Introduction
 
-**Horde** is a client/server application designed to support golden-path workflows that Epic use internally to develop
-Fortnite, Unreal Engine, and other titles.
+**Horde** is a client/server platform designed around workflows that Epic uses internally to develop Fortnite,
+Unreal Engine, and other titles.
 
 It is provided with full source code to all Unreal Engine licensees, and is meant for licensees to host and configure
 themselves. We provide pre-built Docker images for deployment on Linux, and an MSI installer for Windows.
 
-Horde provides the following services:
+Horde provides the following functionality, each of which may be enabled or disabled individually:
 
 * **[Build Automation (CI/CD)](Config/BuildAutomation.md)**: A build automation system designed for teams working with
   large Perforce repositories.
@@ -21,10 +21,8 @@ Horde provides the following services:
 * **Automation Hub**: A frontend for querying automation results across streams and projects, integrated with
   AutomationTool and Gauntlet.
 * **Artifact Service**: A storage backend for tools and final build artifacts.
-* **Telemetry and Analytics**: Receives telemetry from the Unreal Editor, and shows charts for key workflow metrics.
-
-These features are developed on two pillars; **compute** (ie. managing farms of machines, scheduling and assigning out
-work) and **storage** (ie. providing a repository for storing bulk data).
+* **[Editor Analytics](Config/Analytics.md)**: Receives telemetry from the Unreal Editor, and shows charts for
+  key workflow metrics.
 
 Read more about our [goals and philosophy](Goals.md), or check out the [FAQ](Faq.md).
 
