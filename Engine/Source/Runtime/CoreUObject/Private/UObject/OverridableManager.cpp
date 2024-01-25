@@ -63,9 +63,9 @@ FOverriddenPropertySet& FOverridableManager::SetOverriddenProperties(UObject& Ob
 
 EOverriddenState FOverridableManager::GetOverriddenState(UObject& Object)
 {
-	if(FOverriddenPropertySet* OverriddenProperties = GetOverriddenProperties(Object))
+	if(const FOverriddenPropertySet* OverriddenProperties = GetOverriddenProperties(Object))
 	{
-		const EOverriddenPropertyOperation Operation = OverriddenProperties->GetOverriddenPropertyOperation(nullptr, nullptr);
+		const EOverriddenPropertyOperation Operation = OverriddenProperties->GetOverriddenPropertyOperation((FArchiveSerializedPropertyChain*)nullptr, (FProperty*)nullptr);
 		if (Operation != EOverriddenPropertyOperation::None)
 		{
 			return Operation == EOverriddenPropertyOperation::Replace ? EOverriddenState::AllOverridden : EOverriddenState::HasOverrides;
@@ -118,11 +118,20 @@ void FOverridableManager::PropagateOverrideToInstancedSubObjects(UObject& Object
 
 void FOverridableManager::OverrideProperty(UObject& Object, const FPropertyChangedEvent& PropertyEvent, const FEditPropertyChain& PropertyChain)
 {
-	if (FOverriddenPropertySet* ThisObjectOverriddenProperties = OverriddenObjectAnnotations.Find(Object) )
+	if (FOverriddenPropertySet* ThisObjectOverriddenProperties = OverriddenObjectAnnotations.Find(Object))
 	{
 		ThisObjectOverriddenProperties->NotifyPropertyChange(EPropertyNotificationType::PreEdit, FPropertyChangedEvent(nullptr), PropertyChain.GetHead(), &Object);
 		ThisObjectOverriddenProperties->NotifyPropertyChange(EPropertyNotificationType::PostEdit, PropertyEvent, PropertyChain.GetHead(), &Object);
 	}
+}
+
+bool FOverridableManager::ClearOverriddenProperty(UObject& Object, const FPropertyChangedEvent& PropertyEvent, const FEditPropertyChain& PropertyChain)
+{
+	if (FOverriddenPropertySet* ThisObjectOverriddenProperties = OverriddenObjectAnnotations.Find(Object))
+	{
+		return ThisObjectOverriddenProperties->ClearOverriddenProperty(PropertyEvent, PropertyChain.GetHead());
+	}
+	return false;
 }
 
 void FOverridableManager::PreOverrideProperty(UObject& Object, const FEditPropertyChain& PropertyChain)
@@ -149,22 +158,13 @@ void FOverridableManager::NotifyPropertyChange(const EPropertyNotificationType N
 	}
 }
 
-EOverriddenPropertyOperation FOverridableManager::GetOverriddenPropertyOperation(UObject& Object, const FEditPropertyChain& PropertyChain)
+EOverriddenPropertyOperation FOverridableManager::GetOverriddenPropertyOperation(UObject& Object, const FPropertyChangedEvent& PropertyEvent, const FEditPropertyChain& PropertyChain, bool* bOutInheritedState)
 {
-	if (FOverriddenPropertySet* ThisObjectOverriddenProperties = OverriddenObjectAnnotations.Find(Object))
+	if (const FOverriddenPropertySet* ThisObjectOverriddenProperties = OverriddenObjectAnnotations.Find(Object))
 	{
-		return ThisObjectOverriddenProperties->GetOverriddenPropertyOperation(PropertyChain.GetHead());
+		return ThisObjectOverriddenProperties->GetOverriddenPropertyOperation(PropertyEvent, PropertyChain.GetHead(), bOutInheritedState);
 	}
 	return EOverriddenPropertyOperation::None;
-}
-
-bool FOverridableManager::SetOverriddenPropertyOperation(UObject& Object, const FEditPropertyChain& PropertyChain, EOverriddenPropertyOperation Operation)
-{
-	if (FOverriddenPropertySet* ThisObjectOverriddenProperties = OverriddenObjectAnnotations.Find(Object))
-	{
-		return ThisObjectOverriddenProperties->SetOverriddenPropertyOperation(Operation, PropertyChain.GetHead()) != nullptr;
-	}
-	return false;
 }
 
 void FOverridableManager::ClearOverrides(UObject& Object)
@@ -204,7 +204,7 @@ void FOverridableManager::SerializeOverriddenProperties(UObject& Object, FStruct
 	TOptional<FStructuredArchiveSlot> OverridenPropertiesSlot = ObjectRecord.TryEnterField(TEXT("OverridenProperties"), OverriddenProperties != nullptr);
 	if (OverridenPropertiesSlot.IsSet())
 	{
-		EOverriddenPropertyOperation Operation = OverriddenProperties ? OverriddenProperties->GetOverriddenPropertyOperation(nullptr, nullptr) : EOverriddenPropertyOperation::None;
+		EOverriddenPropertyOperation Operation = OverriddenProperties ? OverriddenProperties->GetOverriddenPropertyOperation((FArchiveSerializedPropertyChain*)nullptr, (FProperty*)nullptr) : EOverriddenPropertyOperation::None;
 		*OverridenPropertiesSlot << SA_ATTRIBUTE( TEXT("OverriddenOperation"), Operation);
 
 		if (ArchiveState.IsLoading())

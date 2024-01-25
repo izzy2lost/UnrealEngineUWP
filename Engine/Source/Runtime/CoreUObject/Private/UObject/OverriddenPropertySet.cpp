@@ -156,18 +156,22 @@ FOverriddenPropertyNode& FOverriddenPropertySet::FindOrAddNode(FOverriddenProper
 	return OverriddenPropertyNodes.Get(NewID);
 }
 
-EOverriddenPropertyOperation FOverriddenPropertySet::GetOverriddenPropertyOperation(const FOverriddenPropertyNode& ParentPropertyNode, const FEditPropertyChain::TDoubleLinkedListNode* PropertyNode) const
+FOverriddenPropertyNode* FOverriddenPropertySet::GetOverriddenPropertyNode(FOverriddenPropertyNode& ParentPropertyNode, const FEditPropertyChain::TDoubleLinkedListNode* PropertyNode, bool* bOutInheritedState)
 {
 	// No need to look further
 	// if it is the entire property is replaced or
 	// if it is the FOverriddenPropertySet struct which is always Overridden
 	if (ParentPropertyNode.Operation == EOverriddenPropertyOperation::Replace)
 	{
-		return EOverriddenPropertyOperation::Replace;
+		if (bOutInheritedState)
+		{
+			*bOutInheritedState = PropertyNode != nullptr;
+		}
+		return &ParentPropertyNode;
 	}
 
 	const FEditPropertyChain::TDoubleLinkedListNode* PropertyIterator = PropertyNode;
-	const FOverriddenPropertyNode* OverriddenPropertyNode = &ParentPropertyNode;
+	FOverriddenPropertyNode* OverriddenPropertyNode = &ParentPropertyNode;
 	while (PropertyIterator && OverriddenPropertyNode && OverriddenPropertyNode->Operation != EOverriddenPropertyOperation::Replace)
 	{
 		const FProperty* CurrentProperty = PropertyIterator->GetValue();
@@ -185,37 +189,16 @@ EOverriddenPropertyOperation FOverriddenPropertySet::GetOverriddenPropertyOperat
 		PropertyIterator = PropertyIterator->GetNextNode();
 	}
 
-	return OverriddenPropertyNode ? OverriddenPropertyNode->Operation : EOverriddenPropertyOperation::None;
+	if (bOutInheritedState)
+	{
+		*bOutInheritedState = PropertyIterator != nullptr;
+	}
+	return OverriddenPropertyNode;
 }
 
-FOverriddenPropertyNode* FOverriddenPropertySet::SetOverriddenPropertyOperation(EOverriddenPropertyOperation Operation, FOverriddenPropertyNode& ParentPropertyNode, const FEditPropertyChain::TDoubleLinkedListNode* PropertyNode)
+const FOverriddenPropertyNode* FOverriddenPropertySet::GetOverriddenPropertyNode(const FOverriddenPropertyNode& ParentPropertyNode, const FEditPropertyChain::TDoubleLinkedListNode* PropertyNode, bool* bOutInheritedState) const
 {
-	// No need to look further
-	// if it is the entire property is replaced or
-	// if it is the FOverriddenPropertySet struct which is always Overridden
-	if (ParentPropertyNode.Operation == EOverriddenPropertyOperation::Replace)
-	{
-		return nullptr;
-	}
-
-	const FEditPropertyChain::TDoubleLinkedListNode* PropertyIterator = PropertyNode;
-	FOverriddenPropertyNode* OverriddenPropertyNode = &ParentPropertyNode;
-	while (PropertyIterator && OverriddenPropertyNode->Operation != EOverriddenPropertyOperation::Replace)
-	{
-		const FProperty* CurrentProperty = PropertyIterator->GetValue();
-		const FName CurrentPropID = CurrentProperty->GetFName();
-		OverriddenPropertyNode = &FindOrAddNode(*OverriddenPropertyNode, CurrentPropID);
-		PropertyIterator = PropertyIterator->GetNextNode();
-	}
-
-	// Might have stop before as one of the parent property was completely replaced.
-	if (!PropertyIterator)
-	{
-		OverriddenPropertyNode->Operation = Operation;
-		return OverriddenPropertyNode;
-	}
-
-	return nullptr;
+	return const_cast<FOverriddenPropertySet*>(this)->GetOverriddenPropertyNode(const_cast<FOverriddenPropertyNode&>(ParentPropertyNode), PropertyNode, bOutInheritedState);
 }
 
 void FOverriddenPropertySet::NotifyPropertyChange(FOverriddenPropertyNode* ParentPropertyNode, const EPropertyNotificationType Notification, const FPropertyChangedEvent& PropertyEvent, const FEditPropertyChain::TDoubleLinkedListNode* PropertyNode, const void* Data)
@@ -757,18 +740,30 @@ void FOverriddenPropertySet::RemoveOverriddenSubProperties(FOverriddenPropertyNo
 	PropertyNode.SubPropertyNodeKeys.Empty();
 }
 
-EOverriddenPropertyOperation FOverriddenPropertySet::GetOverriddenPropertyOperation(const FEditPropertyChain::TDoubleLinkedListNode* PropertyNode) const
+EOverriddenPropertyOperation FOverriddenPropertySet::GetOverriddenPropertyOperation(const FPropertyChangedEvent& PropertyEvent, const FEditPropertyChain::TDoubleLinkedListNode* PropertyNode, bool* bOutInheritedState /*= nullptr*/) const
 {
 	if (const FOverriddenPropertyNode* RootNode = OverriddenPropertyNodes.FindByHash(GetTypeHash(RootNodeID), RootNodeID))
 	{
-		return GetOverriddenPropertyOperation(*RootNode, PropertyNode);
+		const FOverriddenPropertyNode* OverriddenPropertyNode = GetOverriddenPropertyNode(*RootNode, PropertyNode, bOutInheritedState);
+		return OverriddenPropertyNode ? OverriddenPropertyNode->Operation : EOverriddenPropertyOperation::None;
 	}
 	return EOverriddenPropertyOperation::None;
 }
 
-FOverriddenPropertyNode* FOverriddenPropertySet::SetOverriddenPropertyOperation(EOverriddenPropertyOperation Operation, const FEditPropertyChain::TDoubleLinkedListNode* PropertyNode)
+bool FOverriddenPropertySet::ClearOverriddenProperty(const FPropertyChangedEvent& PropertyEvent, const FEditPropertyChain::TDoubleLinkedListNode* PropertyNode)
 {
-	return SetOverriddenPropertyOperation(Operation, OverriddenPropertyNodes.FindOrAddByHash(GetTypeHash(RootNodeID), RootNodeID), PropertyNode);
+	if (FOverriddenPropertyNode* RootNode = OverriddenPropertyNodes.FindByHash(GetTypeHash(RootNodeID), RootNodeID))
+	{
+		bool bOutInheritedState = false;
+		FOverriddenPropertyNode* OverriddenPropertyNode = GetOverriddenPropertyNode(*RootNode, PropertyNode, &bOutInheritedState);
+		if (OverriddenPropertyNode && OverriddenPropertyNode->Operation != EOverriddenPropertyOperation::None && !bOutInheritedState)
+		{
+			RemoveOverriddenSubProperties(*OverriddenPropertyNode);
+			OverriddenPropertyNode->Operation = EOverriddenPropertyOperation::None;
+			return true;
+		}
+	}
+	return false;
 }
 
 void FOverriddenPropertySet::NotifyPropertyChange(const EPropertyNotificationType Notification, const FPropertyChangedEvent& PropertyEvent, const FEditPropertyChain::TDoubleLinkedListNode* PropertyNode, const void* Data)
