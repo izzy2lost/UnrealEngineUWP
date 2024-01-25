@@ -280,6 +280,9 @@ public:
 	void StopGenerationInProgress();
 	bool IsGenerationInProgress();
 
+	/** Returns current refresh task ID. */
+	bool IsRefreshInProgress() const { return CurrentRefreshTask != InvalidPCGTaskId; }
+
 	/** Dirty generated data depending on the flag. By default the call is forwarded to the local components.
 	    We don't forward if the local component has callbacks that would dirty them too.
 		For example: When a tracked actor move, we only want to dirty the impacted local components.*/
@@ -296,7 +299,19 @@ public:
 	const FPCGDataCollection* GetInspectionData(const FPCGStack& InStack) const;
 	void ClearInspectionData();
 
-	/** Did the given node produce one or more data items in the given stack in a previous execution. */
+	/** Whether a task for the given node and stack was executed during the last execution. */
+	bool WasNodeExecuted(const UPCGNode* InNode, const FPCGStack& Stack) const;
+
+	/** Called at execution time each time a node has been executed. */
+	void NotifyNodeExecuted(const UPCGNode* InNode, const FPCGStack* InStack);
+
+	/** Retrieve the inactive pin bitmask for the given node and stack in the last execution. */
+	uint64 GetNodeInactivePinMask(const UPCGNode* InNode, const FPCGStack& Stack) const;
+
+	/** Whether the given node was culled by a dynamic branch in the given stack. */
+	void NotifyNodeDynamicInactivePins(const UPCGNode* InNode, const FPCGStack* InStack, uint64 InactivePinBitmask) const;
+
+	/** Did the given node produce one or more data items in the given stack during the last execution. */
 	bool HasNodeProducedData(const UPCGNode* InNode, const FPCGStack& Stack) const;
 
 	bool IsObjectTracked(const UObject* InObject, bool& bOutIsCulled) const;
@@ -546,6 +561,14 @@ private:
 	/** Map from nodes to all stacks for which the node produced at least one data item. */
 	TMap<TObjectKey<const UPCGNode>, TSet<FPCGStack>> NodeToStacksThatProducedData;
 	mutable FRWLock NodeToStacksThatProducedDataLock;
+
+	/** Map from nodes to all stacks for which a task for the node was executed. */
+	TMap<TObjectKey<const UPCGNode>, TSet<FPCGStack>> NodeToStacksInWhichNodeExecuted;
+	mutable FRWLock NodeToStacksInWhichNodeExecutedLock;
+
+	/** Map from nodes to stacks to mask of output pins that were deactivated during execution. */
+	mutable TMap<TObjectKey<const UPCGNode>, TMap<const FPCGStack, uint64>> NodeToStackToInactivePinMask;
+	mutable FRWLock NodeToStackToInactivePinMaskLock;
 #endif
 
 	mutable FCriticalSection GeneratedResourcesLock;

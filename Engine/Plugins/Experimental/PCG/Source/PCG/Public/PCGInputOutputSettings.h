@@ -40,6 +40,8 @@ public:
 	virtual EPCGSettingsType GetType() const override { return EPCGSettingsType::InputOutput; }
 	virtual void PostEditChangeProperty(struct FPropertyChangedEvent& PropertyChangedEvent) override;
 	virtual void ApplyDeprecationBeforeUpdatePins(UPCGNode* InOutNode, TArray<TObjectPtr<UPCGPin>>& InputPins, TArray<TObjectPtr<UPCGPin>>& OutputPins) override;
+	// The output node does not emit a task (input node does however). This prevents it displaying as culled when debugging.
+	virtual bool EmitsTaskForExecution() const override { return bIsInput; }
 #endif
 
 	TArray<FPCGPinProperties> InputPinProperties() const override;

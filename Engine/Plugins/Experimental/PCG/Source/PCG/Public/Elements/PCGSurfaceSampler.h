@@ -14,6 +14,12 @@ class UPCGPointData;
 class UPCGSpatialData;
 class UPCGSurfaceSamplerSettings;
 
+namespace PCGSurfaceSamplerConstants
+{
+	const FName SurfaceLabel = TEXT("Surface");
+	const FName BoundingShapeLabel = TEXT("Bounding Shape");
+}
+
 namespace PCGSurfaceSampler
 {
 	// TODO: Factor out "computed values" that shouldn't be exposed to the external user into a more appropriate state
@@ -87,17 +93,14 @@ public:
 	virtual FText GetNodeTooltipText() const override;
 	virtual EPCGSettingsType GetType() const override { return EPCGSettingsType::Sampler; }
 	virtual bool IsPinUsedByNodeExecution(const UPCGPin* InPin) const override;
-#endif
-
-	virtual TArray<FPCGPinProperties> InputPinProperties() const override;
-	virtual TArray<FPCGPinProperties> OutputPinProperties() const override;
-
-#if WITH_EDITOR
 	virtual void ApplyDeprecationBeforeUpdatePins(UPCGNode* InOutNode, TArray<TObjectPtr<UPCGPin>>& InputPins, TArray<TObjectPtr<UPCGPin>>& OutputPins) override;
 	virtual void ApplyDeprecation(UPCGNode* InOutNode) override;
 #endif
+	virtual bool IsInputPinRequiredByExecution(const UPCGPin* InPin) const override { return InPin->Properties.Label == PCGSurfaceSamplerConstants::SurfaceLabel; }
 
 protected:
+	virtual TArray<FPCGPinProperties> InputPinProperties() const override;
+	virtual TArray<FPCGPinProperties> OutputPinProperties() const override;
 	virtual FPCGElementPtr CreateElement() const override;
 	// ~End UPCGSettings interface
 

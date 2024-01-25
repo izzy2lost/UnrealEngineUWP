@@ -18,12 +18,6 @@
 
 #define LOCTEXT_NAMESPACE "PCGVolumeSamplerElement"
 
-namespace PCGVolumeSamplerConstants
-{
-	const FName VolumeLabel = TEXT("Volume");
-	const FName BoundingShapeLabel = TEXT("Bounding Shape");
-}
-
 namespace PCGVolumeSampler
 {
 	UPCGPointData* SampleVolume(FPCGContext* Context, const FVolumeSamplerParams& SamplerSettings, const UPCGSpatialData* Volume, const UPCGSpatialData* BoundingShape)

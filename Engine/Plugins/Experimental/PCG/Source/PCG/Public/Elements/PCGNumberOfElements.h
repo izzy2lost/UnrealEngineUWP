@@ -20,8 +20,12 @@ class UPCGNumberOfElementsBaseSettings : public UPCGSettings
 {
 	GENERATED_BODY()
 
+	//~Begin UPCGSettings interface
+	virtual bool IsInputPinRequiredByExecution(const UPCGPin* InPin) const override { return !InPin->Properties.bAdvancedPin; }
+
 protected:
 	virtual TArray<FPCGPinProperties> OutputPinProperties() const override;
+	//~End UPCGSettings interface
 
 public:
 	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = Settings, meta = (PCG_Overridable))

@@ -166,6 +166,25 @@ void UPCGEditorGraph::UpdateStructuralVisualization(UPCGComponent* PCGComponentB
 	}
 }
 
+const UPCGEditorGraphNodeBase* UPCGEditorGraph::GetEditorNodeFromPCGNode(const UPCGNode* InPCGNode) const
+{
+	if (ensure(InPCGNode))
+	{
+		for (const UEdGraphNode* EdGraphNode : Nodes)
+		{
+			if (const UPCGEditorGraphNodeBase* PCGEdGraphNode = Cast<UPCGEditorGraphNodeBase>(EdGraphNode))
+			{
+				if (PCGEdGraphNode->GetPCGNode() == InPCGNode)
+				{
+					return PCGEdGraphNode;
+				}
+			}
+		}
+	}
+
+	return nullptr;
+}
+
 void UPCGEditorGraph::CreateLinks(UPCGEditorGraphNodeBase* GraphNode, bool bCreateInbound, bool bCreateOutbound, const TMap<UPCGNode*, UPCGEditorGraphNodeBase*>& InPCGNodeToPCGEditorNodeMap)
 {
 	check(GraphNode);

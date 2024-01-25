@@ -67,6 +67,28 @@ FPCGElementPtr UPCGBranchSettings::CreateElement() const
 
 bool UPCGBranchSettings::IsPinStaticallyActive(const FName& PinLabel) const
 {
+	if (!bEnabled)
+	{
+		// Disabled - everything passed through first pin.
+		return PinLabel == PCGBranchConstants::OutputLabelA;
+	}
+
+	// Dynamic branches are never known in advance - assume all branches are active prior to execution.
+	if (IsPropertyOverriddenByPin(GET_MEMBER_NAME_CHECKED(UPCGBranchSettings, bOutputToB)))
+	{
+		return true;
+	}
+
+	return PinLabel == (bOutputToB ? PCGBranchConstants::OutputLabelB : PCGBranchConstants::OutputLabelA);
+}
+
+bool UPCGBranchSettings::IsPinUsedByNodeExecution(const UPCGPin* InPin) const
+{
+	if (!InPin->IsOutputPin())
+	{
+		return Super::IsPinUsedByNodeExecution(InPin);
+	}
+
 	// Dynamic branches are never known in advance - assume all branches are active prior to execution.
 	if (IsPropertyOverriddenByPin(GET_MEMBER_NAME_CHECKED(UPCGBranchSettings, bOutputToB)))
 	{
@@ -76,7 +98,7 @@ bool UPCGBranchSettings::IsPinStaticallyActive(const FName& PinLabel) const
 	// Branch must be both enabled and set to B in order for output pin B to be active.
 	const FName ActiveOutputPinLabel = (bEnabled && bOutputToB) ? PCGBranchConstants::OutputLabelB : PCGBranchConstants::OutputLabelA;
 
-	return PinLabel == ActiveOutputPinLabel;
+	return InPin->Properties.Label == ActiveOutputPinLabel;
 }
 
 bool FPCGBranchElement::ExecuteInternal(FPCGContext* Context) const
@@ -90,6 +112,9 @@ bool FPCGBranchElement::ExecuteInternal(FPCGContext* Context) const
 
 	// Reuse the functionality of the Gather Node
 	Context->OutputData = PCGGather::GatherDataForPin(Context->InputData, PCGPinConstants::DefaultInputLabel, SelectedPinLabel);
+
+	// Output bitmask of deactivated pins.
+	Context->OutputData.InactiveOutputPinBitmask = Settings->bOutputToB ? 1 : 2;
 
 	return true;
 }

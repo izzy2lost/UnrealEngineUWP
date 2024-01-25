@@ -48,5 +48,7 @@ namespace PCGEditorStyleConstants
 	const FName Pin_Composite_OUT_C = TEXT("PCG.Graph.Composite.Out.Connected");
 	const FName Pin_Composite_OUT_DC = TEXT("PCG.Graph.Composite.Out.Disconnected");
 
+	const FName Pin_Required = TEXT("PCG.Graph.Pin.Required");
+
 	const FName Node_Overlay_Inactive = TEXT("PCG.Node.Overlay.Inactive");
 }

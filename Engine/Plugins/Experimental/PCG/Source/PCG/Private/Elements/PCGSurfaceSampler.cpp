@@ -22,12 +22,6 @@
 
 #define LOCTEXT_NAMESPACE "PCGSurfaceSamplerElement"
 
-namespace PCGSurfaceSamplerConstants
-{
-	const FName SurfaceLabel = TEXT("Surface");
-	const FName BoundingShapeLabel = TEXT("Bounding Shape");
-}
-
 namespace PCGSurfaceSampler
 {
 	bool FSurfaceSamplerParams::Initialize(const UPCGSurfaceSamplerSettings* Settings, const FPCGContext* Context, const FBox& InputBounds)

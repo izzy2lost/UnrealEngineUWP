@@ -27,6 +27,7 @@ public:
 	virtual EPCGSettingsType GetType() const override { return EPCGSettingsType::Spatial; }
 	virtual void ApplyStructuralDeprecation(UPCGNode* InOutNode) override;
 #endif
+	virtual bool IsInputPinRequiredByExecution(const UPCGPin* InPin) const override { return InPin->Properties.Label == PCGDifferenceConstants::SourceLabel; }
 	virtual FString GetAdditionalTitleInformation() const override;
 
 protected:

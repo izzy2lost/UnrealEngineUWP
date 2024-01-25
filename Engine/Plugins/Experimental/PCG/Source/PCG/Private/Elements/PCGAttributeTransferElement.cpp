@@ -7,6 +7,7 @@
 #include "PCGPin.h"
 #include "Data/PCGPointData.h"
 #include "Data/PCGSpatialData.h"
+#include "Elements/PCGGather.h"
 #include "Elements/Metadata/PCGMetadataElementCommon.h"
 #include "Metadata/Accessors/PCGAttributeAccessorHelpers.h"
 
@@ -126,6 +127,13 @@ bool FPCGAttributeTransferElement::ExecuteInternal(FPCGContext* Context) const
 	TRACE_CPUPROFILER_EVENT_SCOPE(FPCGAttributeTransferElement::Execute);
 
 	check(Context);
+
+	if (Context->Node && !Context->Node->IsInputPinConnected(PCGAttributeTransferConstants::SourceLabel))
+	{
+		// If Source pin is unconnected then we no-op and pass through all data from Target pin.
+		Context->OutputData = PCGGather::GatherDataForPin(Context->InputData, PCGAttributeTransferConstants::TargetLabel);
+		return true;
+	}
 
 	const UPCGAttributeTransferSettings* Settings = Context->GetInputSettings<UPCGAttributeTransferSettings>();
 	check(Settings);

@@ -66,6 +66,11 @@ namespace PCGGraphExecutor
 		1000.0f / 20.0f,
 		TEXT("Allocated time in ms per frame when running in editor (non pie)"));
 #endif
+
+	TAutoConsoleVariable<bool> CVarDynamicTaskCulling(
+		TEXT("pcg.Graph.DynamicTaskCulling"),
+		true,
+		TEXT("Controls whether tasks are culled at execution time, for example in response to an deactivated dynamic branch pin"));
 }
 
 FPCGGraphExecutor::FPCGGraphExecutor()
@@ -112,11 +117,7 @@ FPCGTaskId FPCGGraphExecutor::Schedule(
 {
 	check(SourceComponent);
 
-	if (IsGraphCacheDebuggingEnabled())
-	{
-		UE_LOG(LogPCG, Log, TEXT("[%s] --- SCHEDULE GRAPH ---"),
-			(SourceComponent && SourceComponent->GetOwner()) ? *SourceComponent->GetOwner()->GetName() : TEXT("MISSINGCOMPONENT"));
-	}
+	PCGGraphExecutionLogging::LogGraphSchedule(SourceComponent);
 	
 	FPCGTaskId ScheduledId = InvalidPCGTaskId;
 
@@ -559,6 +560,11 @@ void FPCGGraphExecutor::Execute()
 		}
 	}
 
+	if (!ScheduledTasks.IsEmpty())
+	{
+		PCGGraphExecutionLogging::LogGraphPostSchedule(Tasks, TaskSuccessors);
+	}
+
 	ScheduledTasks.Reset();
 
 	ScheduleLock.Unlock();
@@ -591,8 +597,8 @@ void FPCGGraphExecutor::Execute()
 	const float MaxPercentageOfThreadsToUse = FMath::Clamp(CVarMaxPercentageOfThreadsToUse.GetValueOnAnyThread(), 0.0f, 1.0f);
 	const int32 MaxNumThreads = FMath::Max(0, FMath::Min((int32)(FPlatformMisc::NumberOfCoresIncludingHyperthreads() * MaxPercentageOfThreadsToUse), CVarMaxNumTasks.GetValueOnAnyThread() - 1));
 	const bool bAllowMultiDispatch = PCGGraphExecutor::CVarGraphMultithreading.GetValueOnAnyThread();
-	const bool bGraphCacheDebuggingEnabled = IsGraphCacheDebuggingEnabled();
 	const bool bStripEmptyPointData = CVarStripEmptyPointData.GetValueOnAnyThread();
+	const bool bDynamicTaskCulling = PCGGraphExecutor::CVarDynamicTaskCulling.GetValueOnAnyThread();
 
 #if WITH_EDITOR
 	UpdateGenerationNotification();
@@ -705,6 +711,8 @@ void FPCGGraphExecutor::Execute()
 					continue;
 				}
 
+				PCGGraphExecutionLogging::LogTaskExecute(Task);
+
 				// If a task is cacheable and has been cached, then we don't need to create an active task for it unless
 				// there is an execution mode that would prevent us from doing so.
 				const UPCGSettingsInterface* TaskSettingsInterface = TaskInput.GetSettingsInterface(Task.Node ? Task.Node->GetSettingsInterface() : nullptr);
@@ -718,9 +726,9 @@ void FPCGGraphExecutor::Execute()
 					Task.Element->GetDependenciesCrc(TaskInput, TaskSettings, Task.SourceComponent.Get(), DependenciesCrc);
 				}
 
-				if (bGraphCacheDebuggingEnabled && !bCacheable && Task.SourceComponent.Get() && Task.Node)
+				if (!bCacheable)
 				{
-					UE_LOG(LogPCG, Warning, TEXT("[%s] %s\t\tCACHING DISABLED"), *Task.SourceComponent->GetOwner()->GetName(), *Task.Node->GetNodeTitle(EPCGNodeTitleType::ListView).ToString());
+					PCGGraphExecutionLogging::LogTaskExecuteCachingDisabled(Task);
 				}
 
 				FPCGDataCollection CachedOutput;
@@ -734,7 +742,7 @@ void FPCGGraphExecutor::Execute()
 				if (!bNeedsToCreateActiveTask)
 				{
 #if WITH_EDITOR
-					// doing this now since we're about to modify ReadyTasks potentially reallocating while Task is a reference. 
+					// Doing this now since we're about to modify ReadyTasks potentially reallocating while Task is a reference. 
 					if (UPCGComponent* SourceComponent = Task.SourceComponent.Get())
 					{
 						if (Task.StackIndex != INDEX_NONE)
@@ -744,6 +752,15 @@ void FPCGGraphExecutor::Execute()
 						}
 					}
 #endif
+
+					if (bDynamicTaskCulling && TaskSettings && TaskSettings->OutputPinsCanBeDeactivated() && CachedOutput.InactiveOutputPinBitmask != 0)
+					{
+						CullInactiveDownstreamNodes(Task.NodeId, CachedOutput.InactiveOutputPinBitmask);
+
+#if WITH_EDITOR
+						SendInactivePinNotification(Task.Node, Task.StackContext->GetStack(Task.StackIndex), CachedOutput.InactiveOutputPinBitmask);
+#endif
+					}
 
 					// Fast-forward cached result to stored results
 					FPCGTaskId SkippedTaskId = Task.NodeId;
@@ -852,9 +869,28 @@ void FPCGGraphExecutor::Execute()
 			}
 		}
 
-		auto PostTaskExecute = [this, &bAnyTaskEnded, bGraphCacheDebuggingEnabled, bStripEmptyPointData](int32 TaskIndex)
+		auto PostTaskExecute = [this, &bAnyTaskEnded, bStripEmptyPointData](int32 TaskIndex)
 		{
 			FPCGGraphActiveTask& ActiveTask = ActiveTasks[TaskIndex];
+			check(ActiveTask.Context);
+
+			const UPCGSettingsInterface* ActiveTaskSettingsInterface = ActiveTask.Context->GetInputSettingsInterface();
+			const uint64 InactivePinMask = ActiveTask.Context->OutputData.InactiveOutputPinBitmask;
+
+			if (InactivePinMask != 0 && ActiveTaskSettingsInterface)
+			{
+				const UPCGSettings* ActiveTaskSettings = ActiveTaskSettingsInterface ? ActiveTaskSettingsInterface->GetSettings() : nullptr;
+
+				// If output pins may have been deactivated then perform culling and update information for editor visualization.
+				if (ActiveTaskSettings && ActiveTaskSettings->OutputPinsCanBeDeactivated())
+				{
+					CullInactiveDownstreamNodes(ActiveTask.NodeId, InactivePinMask);
+
+#if WITH_EDITOR
+					SendInactivePinNotification(ActiveTask.Context->Node, ActiveTask.StackContext->GetStack(ActiveTask.StackIndex), InactivePinMask);
+#endif
+				}
+			}
 
 #if WITH_EDITOR
 			if (!ActiveTask.bWasCancelled && !ActiveTask.bIsBypassed)
@@ -862,13 +898,9 @@ void FPCGGraphExecutor::Execute()
 			if (!ActiveTask.bWasCancelled)
 #endif
 			{
-				if (bGraphCacheDebuggingEnabled && ActiveTask.Context->SourceComponent.Get() && ActiveTask.Context->Node)
-				{
-					UE_LOG(LogPCG, Log, TEXT("         [%s] %s\t\tOUTPUT CRC %u"), *ActiveTask.Context->SourceComponent->GetOwner()->GetName(), *ActiveTask.Context->Node->GetNodeTitle(EPCGNodeTitleType::ListView).ToString(), ActiveTask.Context->OutputData.Crc.GetValue());
-				}
+				PCGGraphExecutionLogging::LogTaskExecuteOutputCRC(ActiveTask);
 
 				// Store result in cache as needed - done here because it needs to be done on the main thread
-				const UPCGSettingsInterface* ActiveTaskSettingsInterface = ActiveTask.Context->GetInputSettingsInterface();
 
 				// Don't store if errors or warnings present
 #if WITH_EDITOR
@@ -879,7 +911,6 @@ void FPCGGraphExecutor::Execute()
 
 				if (ActiveTaskSettingsInterface && !bHasErrorOrWarning && ActiveTask.Element->IsCacheableInstance(ActiveTaskSettingsInterface))
 				{
-					const UPCGSettings* ActiveTaskSettings = ActiveTaskSettingsInterface ? ActiveTaskSettingsInterface->GetSettings() : nullptr;
 					GraphCache.StoreInCache(ActiveTask.Element.Get(), ActiveTask.Context->DependenciesCrc, ActiveTask.Context->OutputData);
 				}
 			}
@@ -1023,10 +1054,7 @@ void FPCGGraphExecutor::Execute()
 			UpdateGenerationNotification();
 #endif
 
-			if (bGraphCacheDebuggingEnabled)
-			{
-				UE_LOG(LogPCG, Log, TEXT("--- FINISH FPCGGRAPHEXECUTOR::EXECUTE ---"));
-			}
+			PCGGraphExecutionLogging::LogGraphExecuteFrameFinished();
 		}
 
 		// Purge things from cache if memory usage is too high
@@ -1067,7 +1095,7 @@ void FPCGGraphExecutor::ClearAllTasks()
 	SleepingTasks.Reset();
 }
 
-void FPCGGraphExecutor::QueueNextTasks(FPCGTaskId FinishedTask)
+void FPCGGraphExecutor::QueueNextTasks(FPCGTaskId FinishedTask, bool bIgnoreMissingTasks)
 {
 	TRACE_CPUPROFILER_EVENT_SCOPE(FPCGGraphExecutor::QueueNextTasks);
 
@@ -1079,7 +1107,7 @@ void FPCGGraphExecutor::QueueNextTasks(FPCGTaskId FinishedTask)
 			FPCGGraphTask* SuccessorTaskPtr = Tasks.Find(Successor);
 
 			// This should never be null, but later recovery should be able to cleanup this properly
-			if (ensure(SuccessorTaskPtr))
+			if (SuccessorTaskPtr)
 			{
 				FPCGGraphTask& SuccessorTask = *SuccessorTaskPtr;
 
@@ -1093,6 +1121,10 @@ void FPCGGraphExecutor::QueueNextTasks(FPCGTaskId FinishedTask)
 					ReadyTasks.Emplace(MoveTemp(SuccessorTask));
 					Tasks.Remove(Successor);
 				}
+			}
+			else
+			{
+				ensure(bIgnoreMissingTasks);
 			}
 		}
 
@@ -1313,6 +1345,151 @@ void FPCGGraphExecutor::ClearResults()
 	ScheduleLock.Unlock();
 }
 
+void FPCGGraphExecutor::GetPinIdsToDeactivate(FPCGTaskId TaskId, uint64 InactiveOutputPinBitmask, TArray<FPCGPinId>& InOutPinIds)
+{
+	InOutPinIds.Reserve(InOutPinIds.Num() + FMath::CountBits(InactiveOutputPinBitmask));
+
+	int OutputPinIndex = 0;
+
+	while (InactiveOutputPinBitmask != 0)
+	{
+		if (InactiveOutputPinBitmask & 1)
+		{
+			InOutPinIds.AddUnique(PCGPinIdHelpers::NodeIdAndPinIndexToPinId(TaskId, OutputPinIndex));
+		}
+
+		InactiveOutputPinBitmask >>= 1;
+		++OutputPinIndex;
+	}
+}
+
+void FPCGGraphExecutor::CullInactiveDownstreamNodes(FPCGTaskId InCompletedTaskId, uint64 InInactiveOutputPinBitmask)
+{
+	TRACE_CPUPROFILER_EVENT_SCOPE(FPCGGraphExecutor::CullInactiveDownstreamNodes);
+
+	TArray<FPCGPinId> PinIdsToDeactivate;
+	GetPinIdsToDeactivate(InCompletedTaskId, InInactiveOutputPinBitmask, PinIdsToDeactivate);
+	check(!PinIdsToDeactivate.IsEmpty());
+
+	PCGGraphExecutionLogging::LogTaskCullingBegin(InCompletedTaskId, InInactiveOutputPinBitmask, PinIdsToDeactivate);
+
+	TSet<FPCGTaskId> AllRemovedTasks;
+
+	// Hoisted out of loop for performance reasons.
+	TArray<FPCGTaskId, TInlineAllocator<64>> TasksToRemove;
+
+	while (!PinIdsToDeactivate.IsEmpty())
+	{
+		const FPCGPinId PinId = PinIdsToDeactivate.Pop(/*bAllowShrinking=*/false);
+		const FPCGTaskId PinTaskId = PCGPinIdHelpers::GetNodeIdFromPinId(PinId);
+
+		PCGGraphExecutionLogging::LogTaskCullingBeginLoop(PinTaskId, PCGPinIdHelpers::GetPinIndexFromPinId(PinId), PinIdsToDeactivate);
+		LogTaskState();
+
+		const TSet<FPCGTaskId>* Successors = TaskSuccessors.Find(PinTaskId);
+		if (!Successors)
+		{
+			continue;
+		}
+
+		TasksToRemove.SetNum(0, EAllowShrinking::No);
+
+		// Build set of tasks that are candidates for culling when PinId is deactivated.
+		for (const FPCGTaskId SuccessorTaskId : *Successors)
+		{
+			// Successors are updated at the end of this function, which means it may
+			// contain task IDs that have been removed.
+			if (FPCGGraphTask* FoundTask = Tasks.Find(SuccessorTaskId))
+			{
+				bool bDependencyExpressionBecameFalse;
+				FoundTask->PinDependency.DeactivatePin(PinId, bDependencyExpressionBecameFalse);
+
+				if (bDependencyExpressionBecameFalse)
+				{
+					TasksToRemove.AddUnique(SuccessorTaskId);
+				}
+
+				PCGGraphExecutionLogging::LogTaskCullingUpdatedPinDeps(SuccessorTaskId, FoundTask->PinDependency, bDependencyExpressionBecameFalse);
+			}
+		}
+
+		// Now remove the tasks.
+		for (const FPCGTaskId RemovedTaskId : TasksToRemove)
+		{
+			// Scope in which RemovedTask reference is valid.
+			{
+				FPCGGraphTask& RemovedTask = Tasks[RemovedTaskId];
+
+				const UPCGNode* Node = RemovedTask.Node;
+				const int PinCount = Node ? Node->GetOutputPins().Num() : 0;
+
+				if (PinCount > 0)
+				{
+					// Deactivate all output pins.
+					const uint64 InactiveOutputPinBitmask = (1 << PinCount) - 1;
+
+					// Deactivate its pins - add to set of pins to deactivate.
+					GetPinIdsToDeactivate(RemovedTaskId, InactiveOutputPinBitmask, PinIdsToDeactivate);
+
+#if WITH_EDITOR
+					SendInactivePinNotification(RemovedTask.Node, RemovedTask.StackContext->GetStack(RemovedTask.StackIndex), InactiveOutputPinBitmask);
+#endif
+				}
+
+				// Also register a special pin-less pin ID for this node, for task dependencies that do not have a specific pin.
+				PinIdsToDeactivate.AddUnique(PCGPinIdHelpers::NodeIdToPinId(RemovedTaskId));
+
+				// Remove task as successor of upstream node.
+				RemoveTaskFromInputSuccessors(RemovedTaskId, RemovedTask.Inputs);
+
+				// Remove the deleted tasks from the inputs of downstream tasks.
+				if (const TSet<FPCGTaskId>* SuccessorsOfRemovedTask = TaskSuccessors.Find(RemovedTaskId))
+				{
+					for (const FPCGTaskId SuccessorTaskId : *SuccessorsOfRemovedTask)
+					{
+						if (FPCGGraphTask* SuccessorTask = Tasks.Find(SuccessorTaskId))
+						{
+							for (int InputIndex = SuccessorTask->Inputs.Num() - 1; InputIndex >= 0; --InputIndex)
+							{
+								if (SuccessorTask->Inputs[InputIndex].TaskId == RemovedTaskId)
+								{
+									SuccessorTask->Inputs.RemoveAtSwap(InputIndex);
+								}
+							}
+						}
+					}
+				}
+			}
+
+			// Remove from tasks. After this step all traces of RemovedTaskId should be erased from tasks, task inputs. Task successors will be
+			// updated below when queuing next tasks.
+			Tasks.Remove(RemovedTaskId);
+		}
+
+		AllRemovedTasks.Append(TasksToRemove);
+	}
+
+	// Ensure any downstream tasks are enqueued.
+	for (const FPCGTaskId TaskId : AllRemovedTasks)
+	{
+		// Queue downstream tasks in a similar manner to when a task draws from the cache and is skipped.
+		// Some downstream tasks will have been culled which we don't care about (hence the ignore flag),
+		// but some may not be queued and may be ready for queuing.
+		QueueNextTasks(TaskId, /*bIgnoreMissingTasks=*/true);
+	}
+}
+
+#if WITH_EDITOR
+void FPCGGraphExecutor::SendInactivePinNotification(const UPCGNode* InNode, const FPCGStack* InStack, uint64 InactiveOutputPinBitmask)
+{
+	const UPCGComponent* Component = InStack ? InStack->GetRootComponent() : nullptr;
+	if (Component && InNode)
+	{
+		Component->NotifyNodeDynamicInactivePins(InNode, InStack, InactiveOutputPinBitmask);
+	}
+}
+#endif
+
 void FPCGGraphExecutor::AddReferencedObjects(FReferenceCollector& Collector)
 {
 	TRACE_CPUPROFILER_EVENT_SCOPE(FPCGGraphExecutor::AddReferencedObjects);
@@ -1348,6 +1525,17 @@ FPCGElementPtr FPCGGraphExecutor::GetFetchInputElement()
 	}
 
 	return FetchInputElement;
+}
+
+void FPCGGraphExecutor::LogTaskState() const
+{
+#if WITH_EDITOR
+	if (PCGGraphExecutionLogging::CullingLogEnabled())
+	{
+		UE_LOG(LogPCG, Log, TEXT("\tDORMANT (FPCGGraphExecutor::Tasks):"));
+		PCGGraphExecutionLogging::LogGraphTasks(Tasks, &TaskSuccessors);
+	}
+#endif
 }
 
 #if WITH_EDITOR

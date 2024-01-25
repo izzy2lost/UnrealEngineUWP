@@ -34,6 +34,8 @@ public:
 #endif // WITH_EDITOR
 	virtual FString GetAdditionalTitleInformation() const override;
 	virtual bool HasFlippedTitleLines() const override { return true; }
+	// TODO: This is a safe default and could likely be refined based on the actual indirection target (especially if static).
+	virtual bool CanCullTaskIfUnwired() const { return false; }
 
 protected:
 #if WITH_EDITOR

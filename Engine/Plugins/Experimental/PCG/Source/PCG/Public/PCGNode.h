@@ -132,6 +132,9 @@ public:
 	/** Pin to which data is passed through when this node is disabled. */
 	virtual const UPCGPin* GetPassThroughOutputPin() const;
 
+	/** A node will be executed (not culled) if at least one required-pin is connected to at least one active upstream pin. */
+	virtual bool IsInputPinRequiredByExecution(const UPCGPin* InPin) const;
+
 	/** True if the pin is being used by the node. UI will gray out unused pins. */
 	virtual bool IsPinUsedByNodeExecution(const UPCGPin* InPin) const;
 

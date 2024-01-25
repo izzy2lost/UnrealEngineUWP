@@ -1,11 +1,13 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 #include "Elements/PCGDistance.h"
-#include "Data/PCGSpatialData.h"
-#include "Helpers/PCGAsync.h"
-#include "Data/PCGPointData.h"
+
 #include "PCGContext.h"
 #include "PCGPin.h"
+#include "Data/PCGSpatialData.h"
+#include "Data/PCGPointData.h"
+#include "Elements/PCGGather.h"
+#include "Helpers/PCGAsync.h"
 
 #define LOCTEXT_NAMESPACE "PCGDistanceElement"
 
@@ -83,6 +85,14 @@ FPCGElementPtr UPCGDistanceSettings::CreateElement() const
 bool FPCGDistanceElement::ExecuteInternal(FPCGContext* Context) const
 {
 	TRACE_CPUPROFILER_EVENT_SCOPE(FPCGDistanceElement::Execute);
+	check(Context);
+
+	if (Context->Node && !Context->Node->IsInputPinConnected(PCGDistance::TargetLabel))
+	{
+		// If Target pin is unconnected then we no-op and pass through all data from Target pin.
+		Context->OutputData = PCGGather::GatherDataForPin(Context->InputData, PCGDistance::SourceLabel);
+		return true;
+	}
 
 	const UPCGDistanceSettings* Settings = Context->GetInputSettings<UPCGDistanceSettings>();
 	check(Settings);

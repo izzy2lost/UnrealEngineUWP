@@ -184,6 +184,9 @@ struct PCG_API FPCGDataCollection
 
 	/** A snapshot of the internal state of the data. If any dependency (setting, node input or external data) changes then this value should change. */
 	FPCGCrc Crc;
+
+	/** After the task is complete, bit j is set if output pin index j is deactivated. Stored here so that it can be retrieved from the cache. */
+	uint64 InactiveOutputPinBitmask = 0;
 };
 
 template<typename SettingsType>

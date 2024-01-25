@@ -28,10 +28,12 @@ public:
 	virtual FText GetDefaultNodeTitle() const override;
 	virtual FText GetNodeTooltipText() const override;
 	virtual EPCGSettingsType GetType() const override { return EPCGSettingsType::ControlFlow; }
-	virtual bool HasDynamicPins() const override { return true; }
 #endif // WITH_EDITOR
-
+	virtual bool HasDynamicPins() const override { return true; }
+	virtual bool OutputPinsCanBeDeactivated() const override { return true; }
 	virtual bool IsPinStaticallyActive(const FName& PinLabel) const override;
+	virtual bool IsPinUsedByNodeExecution(const UPCGPin* InPin) const override;
+	virtual bool IsInputPinRequiredByExecution(const UPCGPin* InPin) const override { return !InPin->Properties.bAdvancedPin; }
 	virtual FString GetAdditionalTitleInformation() const override;
 	virtual bool HasFlippedTitleLines() const override { return true; }
 
@@ -83,6 +85,9 @@ public:
 
 	/** Returns true if the enum value exists within the selected enum class. */
 	bool IsValuePresent(int64 Value) const;
+
+	/** Returns the index of the currently selected pin. */
+	int GetSelectedOutputPinIndex() const;
 
 	/** Helper function to use the appropriate selection value to determine the current selection. Returns true if it succeeds or false if the value is invalid. */
 	bool GetSelectedPinLabel(FName& OutSelectedPinLabel) const;

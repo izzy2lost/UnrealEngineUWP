@@ -48,6 +48,9 @@ protected:
 public:
 	//~Begin UPCGSettings interface
 	virtual bool HasFlippedTitleLines() const override { return true; }
+	// The graph may contain nodes that have side effects, don't assume we can cull even when unwired.
+	// TODO: For static SGs we could probably compute this value based on the subgraph nodes.
+	virtual bool CanCullTaskIfUnwired() const { return false; }
 
 protected:
 #if WITH_EDITOR

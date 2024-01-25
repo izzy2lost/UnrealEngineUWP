@@ -12,6 +12,12 @@
 class UPCGPointData;
 class UPCGSpatialData;
 
+namespace PCGVolumeSamplerConstants
+{
+	const FName VolumeLabel = TEXT("Volume");
+	const FName BoundingShapeLabel = TEXT("Bounding Shape");
+}
+
 namespace PCGVolumeSampler
 {
 	const FVector DefaultVoxelSize = FVector(100.0, 100.0, 100.0);
@@ -75,11 +81,9 @@ public:
 	virtual FText GetDefaultNodeTitle() const override { return NSLOCTEXT("PCGVolumeSamplerSettings", "NodeTitle", "Volume Sampler"); }
 	virtual FText GetNodeTooltipText() const override;
 	virtual EPCGSettingsType GetType() const override { return EPCGSettingsType::Sampler; }
-#endif
-	
-#if WITH_EDITOR
 	virtual void ApplyDeprecationBeforeUpdatePins(UPCGNode* InOutNode, TArray<TObjectPtr<UPCGPin>>& InputPins, TArray<TObjectPtr<UPCGPin>>& OutputPins) override;
 #endif
+	virtual bool IsInputPinRequiredByExecution(const UPCGPin* InPin) const override { return InPin->Properties.Label == PCGVolumeSamplerConstants::VolumeLabel; }
 
 protected:
 	virtual TArray<FPCGPinProperties> InputPinProperties() const override;

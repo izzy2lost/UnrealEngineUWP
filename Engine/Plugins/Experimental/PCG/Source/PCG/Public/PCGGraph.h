@@ -309,9 +309,6 @@ public:
 	void DisableInspection() { bIsInspecting = false; }
 	bool DebugFlagAppliesToIndividualComponents() const { return bDebugFlagAppliesToIndividualComponents; }
 	void RemoveExtraEditorNode(const UObject* InNode);
-
-	/** Is this node on an active branch (and will therefore execute). */
-	bool IsNodeOnActiveBranch(const UPCGNode* InNode) const;
 #endif
 
 #if WITH_EDITOR
@@ -418,12 +415,6 @@ private:
 	/** Remove invalid edges and edges to nodes that are not present in the node array. */
 	void FixInvalidEdges();
 
-	/** Evaluates whether node is on active branch and will therefore execute. Not thread safe, must be called within write lock. */
-	bool CalculateNodeOnActiveBranchRecursive_Unsafe(const UPCGNode* InNode) const;
-
-	/** Clear all active branch flags. */
-	void ResetNodeToOnActiveBranchMap();
-
 	int32 GraphChangeNotificationsDisableCounter = 0;
 	bool bDelayedChangeNotification = false;
 	EPCGChangeType DelayedChangeType = EPCGChangeType::None;
@@ -431,10 +422,6 @@ private:
 	bool bUserPausedNotificationsInGraphEditor = false;
 	int32 NumberOfUserParametersPreEdit = 0;
 	bool bIsInspecting = false;
-
-	/** Cache for "on active branch" flag for nodes. */
-	mutable TMap<const UPCGNode*, bool> NodeToOnActiveBranch;
-	mutable FRWLock NodeToOnActiveBranchLock;
 #endif // WITH_EDITOR
 };
 

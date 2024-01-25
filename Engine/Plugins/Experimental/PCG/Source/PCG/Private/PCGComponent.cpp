@@ -1880,12 +1880,61 @@ void UPCGComponent::DisableInspection()
 	}
 };
 
+void UPCGComponent::NotifyNodeExecuted(const UPCGNode* InNode, const FPCGStack* InStack)
+{
+	if (!ensure(InStack && InNode))
+	{
+		return;
+	}
+
+	FWriteScopeLock Lock(NodeToStacksInWhichNodeExecutedLock);
+	NodeToStacksInWhichNodeExecuted.FindOrAdd(InNode).Add(*InStack);
+}
+
+uint64 UPCGComponent::GetNodeInactivePinMask(const UPCGNode* InNode, const FPCGStack& Stack) const
+{
+	FReadScopeLock Lock(NodeToStackToInactivePinMaskLock);
+
+	if (const TMap<const FPCGStack, uint64>* StackToMask = NodeToStackToInactivePinMask.Find(InNode))
+	{
+		if (const uint64* Mask = StackToMask->Find(Stack))
+		{
+			return *Mask;
+		}
+	}
+
+	return 0;
+}
+
+void UPCGComponent::NotifyNodeDynamicInactivePins(const UPCGNode* InNode, const FPCGStack* InStack, uint64 InactivePinBitmask) const
+{
+	if (!ensure(InStack && InNode))
+	{
+		return;
+	}
+
+	FWriteScopeLock Lock(NodeToStackToInactivePinMaskLock);
+	TMap<const FPCGStack, uint64>& StackToInactivePinMask = NodeToStackToInactivePinMask.FindOrAdd(InNode);
+	StackToInactivePinMask.FindOrAdd(*InStack) = InactivePinBitmask;
+}
+
+bool UPCGComponent::WasNodeExecuted(const UPCGNode* InNode, const FPCGStack& Stack) const
+{
+	FReadScopeLock Lock(NodeToStacksInWhichNodeExecutedLock);
+	const TSet<FPCGStack>* FoundStacks = NodeToStacksInWhichNodeExecuted.Find(InNode);
+
+	return FoundStacks && FoundStacks->Contains(Stack);
+}
+
 void UPCGComponent::StoreInspectionData(const FPCGStack* InStack, const UPCGNode* InNode, const FPCGDataCollection& InInputData, const FPCGDataCollection& InOutputData)
 {
 	if (!InNode || !ensure(InStack))
 	{
 		return;
 	}
+
+	// Notify component that this task executed. Useful for editor visualization.
+	NotifyNodeExecuted(InNode, InStack);
 
 	if (!InOutputData.TaggedData.IsEmpty())
 	{
@@ -1957,6 +2006,16 @@ void UPCGComponent::ClearInspectionData()
 	{
 		FWriteScopeLock Lock(NodeToStacksThatProducedDataLock);
 		NodeToStacksThatProducedData.Reset();
+	}
+
+	{
+		FWriteScopeLock Lock(NodeToStacksInWhichNodeExecutedLock);
+		NodeToStacksInWhichNodeExecuted.Reset();
+	}
+
+	{
+		FWriteScopeLock Lock(NodeToStackToInactivePinMaskLock);
+		NodeToStackToInactivePinMask.Reset();
 	}
 }
 

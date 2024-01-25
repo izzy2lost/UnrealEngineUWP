@@ -1160,8 +1160,6 @@ void UPCGGraph::NotifyGraphChanged(EPCGChangeType ChangeType)
 	// Graph settings, nodes, graph structure can all change the higen grid sizes.
 	if (ChangeType != EPCGChangeType::Cosmetic)
 	{
-		ResetNodeToOnActiveBranchMap();
-
 		FWriteScopeLock GridSizeLock(NodeToGridSizeLock);
 		NodeToGridSize.Reset();
 	}
@@ -1199,9 +1197,6 @@ void UPCGGraph::OnNodeChanged(UPCGNode* InNode, EPCGChangeType ChangeType)
 			FWriteScopeLock Lock(NodeToGridSizeLock);
 			NodeToGridSize.Reset();
 		}
-
-		// Any node/edge change can affect which branches are statically active/inactive.
-		ResetNodeToOnActiveBranchMap();
 
 		// Broadcast so that grid size visualization can be updated editor-side.
 		OnGraphStructureChangedDelegate.Broadcast(this);
@@ -1416,24 +1411,6 @@ FInstancedPropertyBag* UPCGGraph::GetMutableUserParametersStruct()
 	return &UserParameters;
 }
 
-#if WITH_EDITOR
-bool UPCGGraph::IsNodeOnActiveBranch(const UPCGNode* InNode) const
-{
-	{
-		FReadScopeLock Lock(NodeToOnActiveBranchLock);
-		if (const bool* CachedValue = NodeToOnActiveBranch.Find(InNode))
-		{
-			return *CachedValue;
-		}
-	}
-
-	{
-		FWriteScopeLock Lock(NodeToOnActiveBranchLock);
-		return CalculateNodeOnActiveBranchRecursive_Unsafe(InNode);
-	}
-}
-#endif // WITH_EDITOR
-
 uint32 UPCGGraph::GetNodeGenerationGridSize(const UPCGNode* InNode, uint32 InDefaultGridSize) const
 {
 	{
@@ -1497,69 +1474,6 @@ uint32 UPCGGraph::CalculateNodeGridSizeRecursive_Unsafe(const UPCGNode* InNode, 
 
 	return GridSize;
 }
-
-#if WITH_EDITOR
-bool UPCGGraph::CalculateNodeOnActiveBranchRecursive_Unsafe(const UPCGNode* InNode) const
-{
-	if (const bool* CachedValue = NodeToOnActiveBranch.Find(InNode))
-	{
-		return *CachedValue;
-	}
-
-	bool bAnyInputActive = false;
-	bool bAnyEdgesPresent = false;
-
-	for (const UPCGPin* Pin : InNode->GetInputPins())
-	{
-		if (!Pin)
-		{
-			continue;
-		}
-
-		for (const UPCGEdge* Edge : Pin->Edges)
-		{
-			bAnyEdgesPresent = true;
-
-			bool bEdgeActive = true;
-
-			const UPCGPin* OtherPin = Edge ? Edge->InputPin : nullptr;
-			if (OtherPin && OtherPin->Node.Get())
-			{
-				if (const UPCGSettings* UpstreamSettings = OtherPin->Node->GetSettings())
-				{
-					bEdgeActive &= UpstreamSettings->IsPinStaticallyActive(OtherPin->Properties.Label);
-				}
-
-				bEdgeActive = bEdgeActive && CalculateNodeOnActiveBranchRecursive_Unsafe(OtherPin->Node);
-			}
-
-			if (bEdgeActive)
-			{
-				bAnyInputActive = true;
-				break;
-			}
-		}
-
-		if (bAnyInputActive)
-		{
-			break;
-		}
-	}
-
-	// Active if any input is active, or if there are no edges.
-	const bool bActive = bAnyInputActive || !bAnyEdgesPresent;
-
-	NodeToOnActiveBranch.Add(InNode, bActive);
-
-	return bActive;
-}
-
-void UPCGGraph::ResetNodeToOnActiveBranchMap()
-{
-	FWriteScopeLock Lock(NodeToOnActiveBranchLock);
-	NodeToOnActiveBranch.Reset();
-}
-#endif
 
 void UPCGGraph::AddUserParameters(const TArray<FPropertyBagPropertyDesc>& InDescs, const UPCGGraph* InOptionalOriginalGraph)
 {
