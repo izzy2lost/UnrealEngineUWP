@@ -96,15 +96,26 @@ const getTelemetryViewMetrics = async (viewId: string, categoryName: string, min
                         const groupValues = m.group.split(",");
                         m.groupValues = {};
                         let key: string[] = [];
+                        let skip = false;
                         groups.forEach((g, idx) => {
                             const value = groupValues[idx];
+                            if (!value) {
+                                skip = true;
+                                return;
+                            }
                             m.groupValues![g] = value;
                             key.push(value);
                         })
+
+                        if (skip) {
+                            return false;
+                        }
+
                         if (chartMetric?.alias) {
                             key.push(chartMetric?.alias)
                         }
                         m.key = key.join(":");
+                        m.keyElements = key;
 
                         if (chartMetric?.threshold) {
                             m.threshold = chartMetric.threshold;

@@ -13,7 +13,7 @@ type Scalar = d3.ScaleLinear<number, number, never>;
 
 export class TelemetryLineRenderer {
 
-   render(chart: GetTelemetryChartResponse, metrics: GetTelemetryMetricsResponse[], legend:string[], minTime: Date, maxTime: Date, container: HTMLDivElement, scale = 1.0) {
+   render(chart: GetTelemetryChartResponse, metrics: GetTelemetryMetricsResponse[], legend: string[], minTime: Date, maxTime: Date, container: HTMLDivElement, onZoom: (name: string, event: any) => void, scale = 1.0): any {
 
       let minValue = Number.MAX_SAFE_INTEGER
       let maxValue = Number.MIN_SAFE_INTEGER
@@ -126,7 +126,7 @@ export class TelemetryLineRenderer {
                      return "";
                   }
 
-                  if (chart.display === "Count") {
+                  if (chart.display === "Value") {
                      return d.toString();
                   }
 
@@ -143,10 +143,14 @@ export class TelemetryLineRenderer {
          .scaleExtent([1, 12])
          .extent([[margin.left, 0], [width - margin.right, height]])
          .translateExtent([[margin.left, -Infinity], [width - margin.right, Infinity]])
-         .on("zoom", zoomed);
+         .on("zoom", zoomed as any);
 
-      function zoomed(event: any) {
+      function zoomed(event: any, propogate = true) {
 
+         if (propogate) {
+            onZoom(chart.name, event);   
+         }
+         
          x.range([margin.left, width - margin.right].map(d => event.transform.applyX(d)));
 
          const npoints = allMetrics.map((d) => [x(d.time.getTime() / 1000), y(d.value), d.key]);
@@ -164,6 +168,8 @@ export class TelemetryLineRenderer {
       svg.call(zoom as any);
 
       svg.on("wheel", (event) => { event.preventDefault(); })
+
+      return zoomed;
    }
 
    svg?: SelectionType;

@@ -3167,13 +3167,16 @@ export type GetTelemetryMetricResponse = {
 	// added locally by dashboard
 	key: string;
 
+	// added locally by dashboard
+	keyElements: string[];
+
 	threshold?: number;
 
 	// calculated on dashboard, group name => value
 	groupValues?: Record<string, string>;
 }
 
-export type TelemetryDisplayType = "Time" | "Ratio" | "Count" | "Percentile" | "Average";
+export type TelemetryDisplayType = "Time" | "Ratio" | "Value";
 export type TelemetryGraphType = "Line" | "Indicator";
 
 /// Metric attached to a telemetry chart	
