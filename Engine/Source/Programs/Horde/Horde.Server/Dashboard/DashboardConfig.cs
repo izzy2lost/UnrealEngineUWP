@@ -55,7 +55,7 @@ namespace Horde.Server.Dashboard
 		/// <summary>
 		/// Configuration for telemetry views
 		/// </summary>
-		public List<TelemetryViewConfig> Telemetry { get; set; } = new List<TelemetryViewConfig>();
+		public List<TelemetryViewConfig> Analytics { get; set; } = new List<TelemetryViewConfig>();
 
 		/// <summary>
 		/// Includes for other configuration files
