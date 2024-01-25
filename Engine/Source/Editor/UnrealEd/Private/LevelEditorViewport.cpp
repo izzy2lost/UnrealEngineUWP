@@ -315,7 +315,9 @@ TArray<FTypedElementHandle> FLevelEditorViewportClient::TryPlacingAssetObject(UL
 
 		if (!bPlaced && ActorFactory != NULL )
 		{
-			PlacedItems = UE::AssetPlacementUtil::PlaceAssetInCurrentLevel(ObjToUse, PlacementOptions);
+			UE::AssetPlacementUtil::FExtraPlaceAssetOptions OverridenPlacementOptions = PlacementOptions;
+			OverridenPlacementOptions.FactoryToUse = TScriptInterface<IAssetFactoryInterface>(ActorFactory);
+			PlacedItems = UE::AssetPlacementUtil::PlaceAssetInCurrentLevel(ObjToUse, OverridenPlacementOptions);
 			ForEachActorInElementArray(PlacedItems, [&PlacedActors](AActor& Actor)
 			{
 				PlacedActors.Add(&Actor);
