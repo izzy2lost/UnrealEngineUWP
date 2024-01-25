@@ -3302,7 +3302,7 @@ int32 UCustomizableObjectSystem::GetTotalInstances() const
 
 int32 UCustomizableObjectSystem::GetTextureMemoryUsed() const
 {
-	return 0; // Currently disabled since the reported value was incorrect due to MIP streaming.
+	return GetPrivateChecked()->LogBenchmarkUtil.TextureGPUSize.GetValue();
 }
 
 int32 UCustomizableObjectSystem::GetAverageBuildTime() const
