@@ -6,7 +6,7 @@
 #include "AudioDecompress.h"
 
 /**
-*	Decoder thunk to the Rad Audio libraries. Also manages file parsing
+*	Decoder thunk to the RAD Audio libraries. Also manages file parsing
 *	for the cooked data.
 */
 class  FRadAudioInfo : public IStreamedCompressedInfo

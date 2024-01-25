@@ -40,7 +40,7 @@ class FAudioFormatRad : public IAudioFormat
 {
 	enum
 	{
-		/** Version for Rad Audio format, this becomes part of the DDC key. */
+		/** Version for RAD Audio format, this becomes part of the DDC key. */
 		UE_AUDIO_RAD_VER = 2,
 	};
 
@@ -95,7 +95,7 @@ public:
 
 		if (RadCompressError)
 		{
-			UE_LOG(LogAudioFormatRad, Warning, TEXT("Failed to encode Rad Audio: %hs"),  RadAErrorString(RadCompressError));
+			UE_LOG(LogAudioFormatRad, Warning, TEXT("Failed to encode RAD Audio: %hs"),  RadAErrorString(RadCompressError));
 			if (RadCompressError == RADA_COMPRESS_ERROR_RATE)
 			{
 				UE_LOG(LogAudioFormatRad, Warning, TEXT("Sample rate provided: %u"), InQualityInfo.SampleRate);
@@ -120,7 +120,7 @@ public:
 		check(InFormat == NAME_RADA);
 
 		//
-		// CookSurround passes us a bunch of mono buffers, but Rad audio wants a standard 
+		// CookSurround passes us a bunch of mono buffers, but RAD audio wants a standard 
 		// interleaved buffer
 		//
 		TArray<uint8> InterleavedSrcBuffers;

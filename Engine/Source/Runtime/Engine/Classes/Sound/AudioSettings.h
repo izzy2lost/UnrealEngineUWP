@@ -69,7 +69,7 @@ enum class EDefaultAudioCompressionType : uint8
 	PlatformSpecific,
 
 	// As BinkAudio, except better quality. Comparable CPU usage on newer platforms, higher CPU on older platforms.
-	RadAudio
+	RADAudio UMETA(DisplayName = "RAD Audio")
 };
 
 

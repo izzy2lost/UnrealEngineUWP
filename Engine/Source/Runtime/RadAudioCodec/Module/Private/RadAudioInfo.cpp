@@ -9,7 +9,7 @@
 #include "rada_decode.h"
 
 #if !defined(PLATFORM_LITTLE_ENDIAN) || !PLATFORM_LITTLE_ENDIAN
-#error "Rad Audio hasn't been updated for big endian."
+#error "RAD Audio hasn't been updated for big endian."
 #endif
 
 DEFINE_LOG_CATEGORY_STATIC(LogRadAudioDecoder, Log, All);
