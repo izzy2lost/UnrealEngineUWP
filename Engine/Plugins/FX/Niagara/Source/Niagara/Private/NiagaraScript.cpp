@@ -128,7 +128,7 @@ static FAutoConsoleVariableRef CVarNiagaraCompileHashAllDataInterfaces(
 	ECVF_Default
 );
 
-static int32 GNiagaraStripByteCodeOverride = -1; // disable EVVM for now
+static int32 GNiagaraStripByteCodeOverride = 0;
 static FAutoConsoleVariableRef CVarNiagaraStripByteCodeOverride(
 	TEXT("fx.Niagara.StripByteCodeOverride"),
 	GNiagaraStripByteCodeOverride,
