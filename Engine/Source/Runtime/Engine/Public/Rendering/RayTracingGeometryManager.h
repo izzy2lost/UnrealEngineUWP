@@ -58,11 +58,6 @@ private:
 	TArray<FBuildRequest> SortedRequests;
 	TArray<FRayTracingGeometryBuildParams> BuildParams;
 
-	// TODO: Investigate removing this critical section
-	// RequestUpdateCachedRenderState(...) is always called on Render Thread
-	// Could potentially handled Register/Unregister proxies in FScene::UpdateAllPrimitiveSceneInfos which runs on Render Thread
-	// similar to how entries are added/removed to FScene.PrimitiveSceneProxies
-	FCriticalSection CachedRayTracingStateProxiesCS;
 	TMap<const UStaticMesh*, TSet<FPrimitiveSceneProxy*>> CachedRayTracingStateProxiesMap;
 };
 
